@@ -5,13 +5,13 @@
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html
 
-USE_GREP(NEWTOY(grep, "EFHahinosvclqe*f*m#", TOYFLAG_BIN))
+USE_GREP(NEWTOY(grep, "EFHahinosvwclqe*f*m#", TOYFLAG_BIN))
 
 config GREP
   bool "grep"
   default n
   help
-    usage: grep [-clq] [-EFHhinosv] (-e RE | -f REfile | RE) [file...]
+    usage: grep [-clq] [-EFHhinosvw] (-e RE | -f REfile | RE) [file...]
 
     modes:
       default: print lines from each file what match regular expression RE.
@@ -29,6 +29,7 @@ config GREP
       -o:   print only matching part
       -s:   keep silent on error
       -v:   invert match
+      -w:   match full word only
 */
 
 #define FOR_grep
@@ -48,7 +49,7 @@ static void do_grep (int fd, char *name) {
 
   for (;;) {
     char *x, *y;
-    regmatch_t match;
+    regmatch_t matches[3];
     int atBOL = 1;
 
     x = get_rawline (fd, 0, '\n');
@@ -56,7 +57,7 @@ static void do_grep (int fd, char *name) {
     y = x;
     n++; /* start at 1 */
 
-    while (regexec (&re, y, 1, &match, atBOL ? 0 : REG_NOTBOL) == 0) {
+    while (regexec (&re, y, 3, matches, atBOL ? 0 : REG_NOTBOL) == 0) {
       if (atBOL) nMatch++;
       toys.exitval = 0;
       atBOL = 0;
@@ -74,8 +75,8 @@ static void do_grep (int fd, char *name) {
         if ( (toys.optflags & FLAG_n)) printf ("%d:", n);
         if (!(toys.optflags & FLAG_o)) fputs (x, stdout);
         else {
-          y += match.rm_so;
-          printf ("%.*s\n", match.rm_eo - match.rm_so, y++);
+          y += matches[2].rm_so;
+          printf ("%.*s\n", matches[2].rm_eo - matches[2].rm_so, y++);
         }
       }
       if (!(toys.optflags & FLAG_o)) break;
@@ -140,6 +141,8 @@ void buildRE (void) {
     TT.re_xs = toys.optflags & FLAG_F ? regfix (toys.optargs[0]) : toys.optargs[0];
     toys.optc--; toys.optargs++;
   }
+
+  TT.re_xs = xmsprintf (toys.optflags & FLAG_w ? "(^|[^_[:alnum:]])(%s)($|[^_[:alnum:]])" : "()(%s)()", TT.re_xs);
 
   if (regcomp (&re, TT.re_xs,
                (toys.optflags & (FLAG_E | FLAG_F) ? REG_EXTENDED : 0) |
