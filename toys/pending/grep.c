@@ -5,13 +5,13 @@
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html
 
-USE_GREP(NEWTOY(grep, "EFHahinosvwclqe*f*m#", TOYFLAG_BIN))
+USE_GREP(NEWTOY(grep, "EFHabhinosvwclqe*f*m#", TOYFLAG_BIN))
 
 config GREP
   bool "grep"
   default n
   help
-    usage: grep [-clq] [-EFHhinosvw] (-e RE | -f REfile | RE) [file...]
+    usage: grep [-clq] [-EFHbhinosvw] (-e RE | -f REfile | RE) [file...]
 
     modes:
       default: print lines from each file what match regular expression RE.
@@ -23,6 +23,7 @@ config GREP
       -E:   extended RE syntax
       -F:   fixed RE syntax, i.e. all characters literal
       -H:   print file name
+      -b:   print byte offset of match
       -h:   not print file name
       -i:   case insensitive
       -n:   print line numbers
@@ -73,6 +74,8 @@ static void do_grep (int fd, char *name) {
       default:
         if (!(toys.optflags & FLAG_h)) printf ("%s:", name);
         if ( (toys.optflags & FLAG_n)) printf ("%d:", n);
+        if ( (toys.optflags & FLAG_b)) printf ("%ld:", lseek (0, 0, SEEK_CUR) - strlen (y) +
+                                                       (toys.optflags & FLAG_o ? matches[2].rm_so : 0));
         if (!(toys.optflags & FLAG_o)) fputs (x, stdout);
         else {
           y += matches[2].rm_so;
