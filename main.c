@@ -6,8 +6,21 @@
  * Licensed under GPL version 2, see file LICENSE in this tarball for details.
  */
 
-#include <stdio.h>
-#include <strings.h>
+#include "toys.h"
+
+// The monster fun applet list.
+
+struct toy_list toy_list[] = {
+	{"toybox", toybox_main},
+	{"df", df_main},
+	{"toysh", toysh_main}
+};
+
+// global context for this applet.
+
+struct toy_context toys;
+
+
 
 /*
 name
@@ -27,26 +40,6 @@ int toysh_main(void)
 {
 	printf("toysh\n");
 }
-
-// The monster fun applet list.
-
-struct toy_list {
-	char *name;
-	int (*toy_main)(void);
-} toy_list[] = {
-	{"toybox", toybox_main},
-	{"toysh", toysh_main}
-};
-
-// Global context for this applet.
-
-struct toy_context {
-	struct toy_list *which;
-	int argc;
-	char **argv;
-	char buf[4096];
-//	toy_union toydata;
-} toys;
 
 struct toy_list *find_toy_by_name(char *name)
 {
