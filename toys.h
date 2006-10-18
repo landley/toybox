@@ -17,10 +17,10 @@
 #include "lib/lib.h"
 
 int cd_main(void);
+int df_main(void);
 int exit_main(void);
 int toybox_main(void);
 int toysh_main(void);
-int df_main(void);
 
 #define TOYFLAG_USR      (1<<0)
 #define TOYFLAG_BIN      (1<<1)
@@ -35,6 +35,8 @@ extern struct toy_list {
 	int flags;
 } toy_list[];
 struct toy_list *toy_find(char *name);
+void toy_init(struct toy_list *which, char *argv[]);
+void toy_exec(char *argv[]);
 
 // Global context for this applet.
 
@@ -60,5 +62,13 @@ union toy_union {
 	struct df_data df;
 } toy;
 
-// I need a real config system.
-#define CFG_TOYS_FREE 0
+// Pending the addition of menuconfig...
+
+#define CFG_TOYS_FREE     0
+
+#define CFG_TOYSH_TTY     0  // Terminal control
+#define CFG_TOYSH_JOBCTL  0  // &, fg, bg, jobs.  ctrl-z with tty.
+#define CFG_TOYSH_FLOWCTL 0  // if, while, for, functions { }
+#define CFG_TOYSH_ENVVARS 0  // Environment variables
+#define CFG_TOYSH_LOCVARS 0  // Local, synthetic, fancy prompts, set, $?
+#define CFG_TOYSH_PIPES   0  // Pipes and redirects: | > < >> << && || & () ;

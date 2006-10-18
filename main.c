@@ -17,6 +17,7 @@ struct toy_list toy_list[] = {
 	{"cd", cd_main, TOYFLAG_NOFORK},
 	{"df", df_main, TOYFLAG_USR|TOYFLAG_SBIN},
 	{"exit", exit_main, TOYFLAG_NOFORK},
+	{"sh", toysh_main, TOYFLAG_BIN},
 	{"toysh", toysh_main, TOYFLAG_BIN}
 };
 
@@ -51,6 +52,16 @@ struct toy_list *toy_find(char *name)
 	}
 }
 
+void toy_init(struct toy_list *which, char *argv[])
+{
+	// Free old toys contents here?
+
+	toys.which = which;
+	toys.argv = argv;
+	for (toys.argc = 0; argv[toys.argc]; toys.argc++);
+	toys.exitval = 1;
+}
+
 // Run a toy.
 void toy_exec(char *argv[])
 {
@@ -59,12 +70,7 @@ void toy_exec(char *argv[])
 	which = toy_find(argv[0]);
 	if (!which) return;
 
-	// Free old toys contents here?
-
-	toys.which = which;
-	toys.argv = argv;
-	for (toys.argc = 0; argv[toys.argc]; toys.argc++);
-	toys.exitval = 1;
+	toy_init(which, argv);
 	
 	exit(toys.which->toy_main());
 }

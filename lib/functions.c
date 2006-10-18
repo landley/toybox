@@ -1,8 +1,10 @@
-/* vi: set ts=4 :*/
+/* vi: set sw=4 ts=4 :*/
 /* functions.c - reusable stuff.
  *
- * Functions with the x prefix never return failure, they either succeed or
- * kill the program with an error message.
+ * Functions with the x prefix are wrappers for library functions.  They either
+ * succeed or kill the program with an error message, but never return failure.
+ * They usually have the same arguments and return value as the function they
+ * wrap.
  */
 
 #include "toys.h"
@@ -19,6 +21,7 @@ void error_exit(char *msg, ...)
 	exit(toys.exitval);
 }
 
+// Like strncpy but always null terminated.
 void strlcpy(char *dest, char *src, size_t size)
 {
 	strncpy(dest,src,size);
@@ -30,9 +33,27 @@ void *xmalloc(size_t size)
 {
 	void *ret = malloc(size);
 	if (!ret) error_exit("xmalloc");
+
+	return ret;
 }
 
-// Die unless we can copy this string.
+// Die unless we can allocate prezeroed memory.
+void *xzalloc(size_t size)
+{
+	void *ret = xmalloc(size);
+	bzero(ret,size);
+	return ret;
+}
+
+// Die unless we can change the size of an existing allocation, possibly
+// moving it.  (Notice different arguments from libc function.)
+void xrealloc(void **ptr, size_t size)
+{
+	*ptr = realloc(*ptr, size);
+	if (!*ptr) error_exit("xrealloc");
+}
+
+// Die unless we can allocate a copy of this string.
 void *xstrndup(char *s, size_t n)
 {
 	void *ret = xmalloc(++n);
@@ -41,9 +62,11 @@ void *xstrndup(char *s, size_t n)
 	return ret;
 }
 
-// Die unless we can exec argv[]
+// Die unless we can exec argv[] (or run builtin command).  Note that anything
+// with a path isn't a builtin, so /bin/sh won't match the builtin sh.
 void *xexec(char **argv)
 {
+	toy_exec(argv);
 	execvp(argv[0], argv);
 	error_exit("No %s", argv[0]);
 }
