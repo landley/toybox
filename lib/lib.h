@@ -7,9 +7,12 @@ void *xmalloc(size_t size);
 void *xzalloc(size_t size);
 void xrealloc(void **ptr, size_t size);
 void *xstrndup(char *s, size_t n);
+char *xmsprintf(char *format, ...);
 void *xexec(char **argv);
 int xopen(char *path, int flags, int mode);
 FILE *xfopen(char *path, char *mode);
+char *xgetcwd(void);
+char *find_in_path(char *path, char *filename);
 
 // llist.c
 void llist_free(void *list, void (*freeit)(void *data));

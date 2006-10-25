@@ -62,6 +62,29 @@ void *xstrndup(char *s, size_t n)
 	return ret;
 }
 
+// Die unless we can allocate enough space to sprintf() into.
+char *xmsprintf(char *format, ...)
+{
+	va_list va;
+	int len;
+	char *ret;
+	
+	// How long is it?
+
+	va_start(va, format);
+	len = vsnprintf(0, 0, format, va);
+	len++;
+	va_end(va);
+
+	// Allocate and do the sprintf()
+	ret = xmalloc(len);
+	va_start(va, format);
+	vsnprintf(ret, len, format, va);	
+	va_end(va);
+
+	return ret;
+}
+
 // Die unless we can exec argv[] (or run builtin command).  Note that anything
 // with a path isn't a builtin, so /bin/sh won't match the builtin sh.
 void *xexec(char **argv)
@@ -85,4 +108,39 @@ FILE *xfopen(char *path, char *mode)
 	FILE *f = fopen(path, mode);
 	if (!f) error_exit("No file %s\n", path);
 	return f;
+}
+
+// int xread(int fd, char *buf, int len)     // Die if can't fill buffer
+// int readall(int fd, char *buf, int len)   // Keep reading until full or EOF
+// int toy_read(int fd, char *buf, int len)  // retry if interrupted
+
+char *xgetcwd(void)
+{
+	char *buf = getcwd(NULL, 0);
+	if (!buf) error_exit("xgetcwd");
+}
+
+// Find this file in a colon-separated path.
+
+char *find_in_path(char *path, char *filename)
+{
+	char *next, *res = NULL, *cwd = xgetcwd();
+
+	while (next = index(path,':')) {
+		int len = next-path;
+
+		if (len==1) res = xmsprintf("%s/%s", cwd, filename);
+		else res = xmsprintf("%*s/%s",len-1,path,filename);
+		// Is there a file here we can execute?
+		if (!access(res, X_OK)) {
+			struct stat st;
+			// Confirm it's not a directory.
+			if (!stat(res, &st) && S_ISREG(st.st_mode)) break;
+		}
+		free(res);
+		res = NULL;
+	}
+	free(cwd);
+
+	return res;
 }
