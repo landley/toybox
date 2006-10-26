@@ -21,8 +21,6 @@ struct mtab_list *getmountlist(int die)
 		if (die) error_exit("cannot open %s", path_mounts);
 	} else {
 		while (getmntent_r(fp, &me, evilbuf, sizeof(evilbuf))) {
-			char *str;
-
 			mt = xmalloc(sizeof(struct mtab_list) + strlen(me.mnt_fsname) +
 				strlen(me.mnt_dir) + strlen(me.mnt_type) + 3);
 			mt->next = mtlist;
