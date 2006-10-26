@@ -30,8 +30,7 @@ struct mtab_list *getmountlist(int die)
 			mt->dir = mt->type + strlen(mt->type) + 1;
 			strcpy(mt->dir, me.mnt_dir);
 			mt->device = mt->dir + strlen(mt->dir) + 1;
-			mt->device = ++str;
-			strcpy(str, me.mnt_fsname);
+			strcpy(mt->device, me.mnt_fsname);
 			mtlist = mt;
 		}
 	}
