@@ -13,7 +13,7 @@
 static void show_mt(struct mtab_list *mt)
 {
 	int len;
-	long size, used, avail;
+	long size, used, avail, percent;
 	uint64_t block;
 
 	// Return if it wasn't found (should never happen, but with /etc/mtab...)
@@ -41,12 +41,18 @@ static void show_mt(struct mtab_list *mt)
 	avail = (long)((block
 				* (getuid() ? mt->statvfs.f_bavail : mt->statvfs.f_bfree))
 			/ toy.df.units);
+	percent = 100-(long)((100*(uint64_t)avail)/size);
 
 	// Figure out appropriate spacing
 	len = 25 - strlen(mt->device);
 	if (len < 1) len = 1;
-	printf("%s% *ld % 10ld % 9ld % 3ld%% %s\n",mt->device, len,
-		size, used, avail, 100-(long)((100*(uint64_t)avail)/size), mt->dir);
+	if (CFG_DF_PEDANTIC && (toys.optflags & 8)) {
+		printf("%s %ld %ld %ld %ld%% %s\n", mt->device, size, used, avail,
+				percent, mt->dir);
+	} else {
+		printf("%s% *ld % 10ld % 9ld % 3ld%% %s\n",mt->device, len,
+			size, used, avail, percent, mt->dir);
+	}
 }
 
 int df_main(void)
