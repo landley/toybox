@@ -150,9 +150,35 @@ FILE *xfopen(char *path, char *mode)
 	return f;
 }
 
-// int xread(int fd, char *buf, int len)     // Die if can't fill buffer
-// int readall(int fd, char *buf, int len)   // Keep reading until full or EOF
-// int toy_read(int fd, char *buf, int len)  // retry if interrupted
+// Read from file handle, retrying if interrupted.
+ssize_t reread(int fd, void *buf, size_t count)
+{
+	ssize_t len;
+	for (;;) {
+		len = read(fd, buf, count);
+		if (len >= 0  || errno != EINTR) return len;
+	}
+}
+
+// Keep reading until full or EOF
+ssize_t readall(int fd, void *buf, size_t count)
+{
+	size_t len = 0;
+	while (len<count) {
+		int i = reread(fd, buf, count);
+		if (!i) return len;
+		if (i<0) return i;
+		count += i;
+	}
+
+	return count;
+}
+
+// Die if we can't fill a buffer
+void xread(int fd, char *buf, size_t count)
+{
+	if (count != readall(fd, buf, count)) perror_exit("xread");
+}	
 
 char *xgetcwd(void)
 {
