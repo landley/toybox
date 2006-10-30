@@ -6,13 +6,21 @@
  * Licensed under GPL version 2, see file LICENSE in this tarball for details.
  */
 
+#include <ctype.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "lib/lib.h"
@@ -44,8 +52,8 @@ void toy_exec(char *argv[]);
 extern struct toy_context {
 	struct toy_list *which;  // Which entry in toy_list is this one?
 	int exitval;             // Value error_exit feeds to exit()
-	int argc;
-	char **argv;
+	int optflags;            // Command line option flags
+	char **argv;             // Command line arguments
 	char buf[4096];
 } toys;
 
@@ -53,7 +61,10 @@ struct exit_data {;};
 struct cd_data {;};
 struct toybox_data {;};
 struct toysh_data {;};
-struct df_data {;};
+struct df_data {
+	struct string_list *fstype;
+	long units;
+};
 
 union toy_union {
 	struct exit_data exit;
@@ -73,3 +84,5 @@ union toy_union {
 #define CFG_TOYSH_ENVVARS 0  // Environment variables
 #define CFG_TOYSH_LOCVARS 0  // Local, synthetic, fancy prompts, set, $?
 #define CFG_TOYSH_PIPES   0  // Pipes and redirects: | > < >> << && || & () ;
+
+#define CFG_DF_PEDANTIC   1  // Support -P and -k in df

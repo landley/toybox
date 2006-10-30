@@ -181,14 +181,14 @@ static void handle(char *command)
 
 int cd_main(void)
 {
-	char *dest = toys.argc>1 ? toys.argv[1] : getenv("HOME");
+	char *dest = toys.argv[1] ? toys.argv[1]: getenv("HOME");
 	if (chdir(dest)) error_exit("chdir %s",dest);
 	return 0;
 }
 
 int exit_main(void)
 {	
-	exit(toys.argc>1 ? atoi(toys.argv[1]) : 0);
+	exit(toys.argv[1] ? atoi(toys.argv[1]) : 0);
 }
 
 int toysh_main(void)

@@ -58,7 +58,6 @@ void toy_init(struct toy_list *which, char *argv[])
 
 	toys.which = which;
 	toys.argv = argv;
-	for (toys.argc = 0; argv[toys.argc]; toys.argc++);
 	toys.exitval = 1;
 }
 

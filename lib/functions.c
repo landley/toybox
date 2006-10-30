@@ -5,19 +5,59 @@
  * succeed or kill the program with an error message, but never return failure.
  * They usually have the same arguments and return value as the function they
  * wrap.
+ *
+ * Copyright 2006 Rob Landley <rob@landley.net>
  */
 
 #include "toys.h"
 
+void verror_msg(char *msg, int err, va_list va)
+{
+	fprintf(stderr, "%s: ", toys.which->name);
+	vfprintf(stderr, msg, va);
+	if (err) fprintf(stderr, ": %s", strerror(err));
+	putc('\n', stderr);
+}
+
+void error_msg(char *msg, ...)
+{
+	va_list va;
+
+	va_start(va, msg);
+	verror_msg(msg, 0, va);
+	va_end(va);
+}
+
+void perror_msg(char *msg, ...)
+{
+	va_list va;
+
+	va_start(va, msg);
+	verror_msg(msg, errno, va);
+	va_end(va);
+}
+
 // Die with an error message.
 void error_exit(char *msg, ...)
 {
-	va_list args;
+	va_list va;
 
-	va_start(args, msg);
-	fprintf(stderr, "%s: ", toys.which->name);
-	vfprintf(stderr, msg, args);
-	va_end(args);
+	va_start(va, msg);
+	verror_msg(msg, 0, va);
+	va_end(va);
+
+	exit(toys.exitval);
+}
+
+// Die with an error message and strerror(errno)
+void perror_exit(char *msg, ...)
+{
+	va_list va;
+
+	va_start(va, msg);
+	verror_msg(msg, errno, va);
+	va_end(va);
+
 	exit(toys.exitval);
 }
 
@@ -87,7 +127,7 @@ char *xmsprintf(char *format, ...)
 
 // Die unless we can exec argv[] (or run builtin command).  Note that anything
 // with a path isn't a builtin, so /bin/sh won't match the builtin sh.
-void *xexec(char **argv)
+void xexec(char **argv)
 {
 	toy_exec(argv);
 	execvp(argv[0], argv);
@@ -118,6 +158,8 @@ char *xgetcwd(void)
 {
 	char *buf = getcwd(NULL, 0);
 	if (!buf) error_exit("xgetcwd");
+
+	return buf;
 }
 
 // Find this file in a colon-separated path.
@@ -126,7 +168,7 @@ char *find_in_path(char *path, char *filename)
 {
 	char *next, *res = NULL, *cwd = xgetcwd();
 
-	while (next = index(path,':')) {
+	while ((next = index(path,':'))) {
 		int len = next-path;
 
 		if (len==1) res = xmsprintf("%s/%s", cwd, filename);
@@ -143,4 +185,60 @@ char *find_in_path(char *path, char *filename)
 	free(cwd);
 
 	return res;
+}
+
+// Convert unsigned int to ascii, writing into supplied buffer.  A truncated
+// result contains the first few digits of the result ala strncpy, and is
+// always null terminated (unless buflen is 0).
+void utoa_to_buf(unsigned n, char *buf, unsigned buflen)
+{
+	int i, out = 0;
+
+	if (buflen) {
+		for (i=1000000000; i; i/=10) {
+			int res = n/i;
+
+			if ((res || out || i == 1) && --buflen>0) {
+				out++;
+				n -= res*i;
+				*buf++ = '0' + res;
+			}
+		}
+		*buf = 0;
+	}
+}
+
+// Convert signed integer to ascii, using utoa_to_buf()
+void itoa_to_buf(int n, char *buf, unsigned buflen)
+{
+	if (buflen && n<0) {
+		n = -n;
+		*buf++ = '-';
+		buflen--;
+	}
+	utoa_to_buf((unsigned)n, buf, buflen);
+}
+
+// This static buffer is used by both utoa() and itoa(), calling either one a
+// second time will overwrite the previous results.
+//
+// The longest 32 bit integer is -2 billion plus a null terminator: 12 bytes.
+// Note that int is always 32 bits on any remotely unix-like system, see
+// http://www.unix.org/whitepapers/64bit.html for details.
+
+static char itoa_buf[12];
+
+// Convert unsigned integer to ascii, returning a static buffer.
+char *utoa(unsigned n)
+{
+	utoa_to_buf(n, itoa_buf, sizeof(itoa_buf));
+
+	return itoa_buf;
+}
+
+char *itoa(int n)
+{
+	itoa_to_buf(n, itoa_buf, sizeof(itoa_buf));
+
+	return itoa_buf;
 }
