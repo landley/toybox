@@ -1,0 +1,17 @@
+mainmenu "ToyBox Configuration"
+
+menu "Global settings"
+
+config CONFIG_TOYS_FREE
+	bool "Free memory unnecessarily"
+	default n
+	help
+	  When a program exits, the operating system will clean up after it
+	  (free memory, close files, etc).  To save size, toybox usually relies
+	  on this behavior.  If you're running toybox under a debugger or
+	  without a real OS (ala newlib+libgloss), enable this to make toybox
+	  clean up after itself.
+
+endmenu
+
+source lib/Config.in

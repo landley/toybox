@@ -1,0 +1,62 @@
+# ===========================================================================
+# Kernel configuration targets
+# These targets are used from top-level makefile
+
+KCONFIG_TOP = Config.in
+obj = ./kconfig
+PHONY += clean help oldconfig menuconfig config silentoldconfig \
+	randconfig allyesconfig allnoconfig allmodconfig defconfig
+
+menuconfig: $(obj)/mconf
+	$< $(KCONFIG_TOP)
+
+config: $(obj)/conf
+	$< $(KCONFIG_TOP)
+
+oldconfig: $(obj)/conf
+	$< -o $(KCONFIG_TOP)
+
+silentoldconfig: $(obj)/conf
+	$< -s $(KCONFIG_TOP)
+
+randconfig: $(obj)/conf
+	$< -r $(KCONFIG_TOP)
+
+allyesconfig: $(obj)/conf
+	$< -y $(KCONFIG_TOP)
+
+allnoconfig: $(obj)/conf
+	$< -n $(KCONFIG_TOP)
+
+defconfig: $(obj)/conf
+	$< -d $(KCONFIG_TOP)
+
+# Help text used by make help
+help:
+	@echo  '  config	  - Update current config utilising a line-oriented program'
+	@echo  '  menuconfig	  - Update current config utilising a menu based program'
+	@echo  '  oldconfig	  - Update current config utilising a provided .config as base'
+	@echo  '  silentoldconfig - Same as oldconfig, but quietly'
+	@echo  '  randconfig	  - New config with random answer to all options'
+	@echo  '  defconfig	  - New config with default answer to all options'
+	@echo  '  allyesconfig	  - New config where all options are accepted with yes'
+	@echo  '  allnoconfig	  - New config where all options are answered with no'
+
+# Cheesy build
+
+SHIPPED = kconfig/zconf.tab.c kconfig/lex.zconf.c kconfig/zconf.hash.c
+
+%.c: %.c_shipped
+	@ln -s $(notdir $<) $@
+
+gen_config.h: .config
+
+kconfig/mconf: $(SHIPPED)
+	$(CC) -o $@ kconfig/{mconf.c,zconf.tab.c,lxdialog/*.c} \
+		-lcurses "-DCURSES_LOC=<ncurses.h>"
+
+kconfig/conf: $(SHIPPED)
+	$(CC) -o $@ kconfig/{conf.c,zconf.tab.c}
+
+clean::
+	rm -f $(wildcard kconfig/*zconf*.c) kconfig/{conf,mconf}
