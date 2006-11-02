@@ -2,7 +2,7 @@ mainmenu "ToyBox Configuration"
 
 menu "Global settings"
 
-config CONFIG_TOYS_FREE
+config TOYS_FREE
 	bool "Free memory unnecessarily"
 	default n
 	help

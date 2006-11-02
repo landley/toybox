@@ -1,6 +1,6 @@
 menu "Toys"
 
-config CONFIG_DF
+config DF
 	bool "df (disk free)"
 	default n
 	help
@@ -13,10 +13,10 @@ config CONFIG_DF
 	  -t type
 		Display only filesystems of this type.
 
-config CONFIG_DF_PEDANTIC
+config DF_PEDANTIC
 	bool "options -P and -k"
 	default n
-	depends on CONFIG_DF
+	depends on DF
 	help
 	  usage: df [-Pk]
 
@@ -28,7 +28,7 @@ config CONFIG_DF_PEDANTIC
 
 	  -k	Sets units back to 1024 bytes (the default without -P)
 
-config CONFIG_TOYSH
+config TOYSH
 	bool "sh (toysh)"
 	default n
 	help
@@ -39,37 +39,37 @@ config CONFIG_TOYSH
 
 	  -c	command line to execute
 
-config CONFIG_TOYSH_TTY
+config TOYSH_TTY
 	bool "Interactive shell (terminal control)"
 	default n
-	depends on CONFIG_TOYSH
+	depends on TOYSH
 	help
 	  Add terminal control to toysh.  This is necessary for interactive use,
 	  so the shell isn't killed by CTRL-C.
 
-config CONFIG_TOYSH_PROFILE
+config TOYSH_PROFILE
 	bool "Profile support"
 	default n
-	depends on CONFIG_TOYSH_TTY
+	depends on TOYSH_TTY
 	help
 	  Read /etc/profile and ~/.profile when running interactively.
 
 	  Also enables the built-in command "source".
 
-config CONFIG_TOYSH_JOBCTL
+config TOYSH_JOBCTL
 	bool "Job Control (fg, bg, jobs)"
 	default n
-	depends on CONFIG_TOYSH_TTY
+	depends on TOYSH_TTY
 	help
 	  Add job cocntrol to toysh.  This lets toysh handle CTRL-Z, and enables
 	  the built-in commands "fg", "bg", and "jobs".
 
 	  With pipe support, enable use of "&" to run background processes.
 
-config CONFIG_TOYSH_FLOWCTL
+config TOYSH_FLOWCTL
 	bool "Flow control (if, while, for, functions)"
 	default n
-	depends on CONFIG_TOYSH
+	depends on TOYSH
 	help
 	  Add flow control to toysh.  This enables the if/then/else/fi,
 	  while/do/done, and for/do/done constructs.
@@ -78,70 +78,70 @@ config CONFIG_TOYSH_FLOWCTL
 	  using the "function name" or "name()" syntax, plus curly brackets
 	  "{ }" to group commands.
 
-config CONFIG_TOYSH_QUOTES
+config TOYSH_QUOTES
 	bool "Smarter argument parsing (quotes)"
 	default n
-	depends on CONFIG_TOYSH
+	depends on TOYSH
 	help
 	  Add support for parsing "" and '' style quotes to the toysh command
 	  parser, with lets arguments have spaces in them.
 
 
-config CONFIG_TOYSH_WILDCARDS
+config TOYSH_WILDCARDS
 	bool "Wildcards ( ?*{,} )"
 	default n
-	depends on CONFIG_TOYSH_QUOTES
+	depends on TOYSH_QUOTES
 	help
 	  Expand wildcards in argument names, ala "ls -l *.t?z" and
 	  "rm subdir/{one,two,three}.txt".
 
-config CONFIG_TOYSH_PROCARGS
+config TOYSH_PROCARGS
 	bool "Executable arguments ( `` and $() )"
 	default n
-	depends on CONFIG_TOYSH_QUOTES
+	depends on TOYSH_QUOTES
 	help
 	  Add support for executing arguments contianing $() and ``, using
 	  the output of the command as the new argument value(s).
 
 	  (Bash calls this "command substitution".)
 
-config CONFIG_TOYSH_ENVVARS
+config TOYSH_ENVVARS
 	bool "Environment variable support"
 	default n
-	depends on CONFIG_TOYSH_QUOTES
+	depends on TOYSH_QUOTES
 	help
 	  Substitute environment variable values for $VARNAME or ${VARNAME},
 	  and enable the built-in command "export".
 
-config CONFIG_TOYSH_LOCALS
+config TOYSH_LOCALS
 	bool "Local variables"
 	default n
-	depends on CONFIG_TOYSH_ENVVARS
+	depends on TOYSH_ENVVARS
 	help
 	  Support for local variables, fancy prompts ($PS1), the "set" command,
 	  and $?.
 
-config CONFIG_TOYSH_ARRAYS
+config TOYSH_ARRAYS
 	bool "Array variables"
 	default n
-	depends on CONFIG_TOYSH_LOCALS
+	depends on TOYSH_LOCALS
 	help
 	  Support for ${blah[blah]} style array variables.
 
-config CONFIG_TOYSH_PIPES
+config TOYSH_PIPES
 	bool "Pipes and redirects ( | > >> < << & && | || () ; )"
 	default n
-	depends on CONFIG_TOYSH
+	depends on TOYSH
 	help
 	  Support multiple commands on the same command line.  This includes
 	  | pipes, > >> < redirects, << here documents, || && conditional
 	  execution, () subshells, ; sequential execution, and (with job
 	  control) & background processes.
 
-config CONFIG_TOYSH_BUILTINS
+config TOYSH_BUILTINS
 	bool "Builtin commands"
 	default n
-	depends on CONFIG_TOYSH
+	depends on TOYSH
 	help
 	  Adds the commands exec, fg, bg, help, jobs, pwd, export, source, set,
 	  unset, read, alias.
