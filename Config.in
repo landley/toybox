@@ -14,4 +14,4 @@ config TOYS_FREE
 
 endmenu
 
-source lib/Config.in
+source toys/Config.in
