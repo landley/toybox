@@ -17,6 +17,7 @@ struct toy_list toy_list[] = {
 	{"cd", cd_main, TOYFLAG_NOFORK},
 	{"df", df_main, TOYFLAG_USR|TOYFLAG_SBIN},
 	{"exit", exit_main, TOYFLAG_NOFORK},
+	{"hello", hello_main, TOYFLAG_NOFORK|TOYFLAG_USR},
 	{"sh", toysh_main, TOYFLAG_BIN},
 	{"toysh", toysh_main, TOYFLAG_BIN}
 };

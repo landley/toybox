@@ -28,6 +28,7 @@
 int cd_main(void);
 int df_main(void);
 int exit_main(void);
+int hello_main(void);
 int toybox_main(void);
 int toysh_main(void);
 
@@ -76,13 +77,4 @@ union toy_union {
 
 // Pending the addition of menuconfig...
 
-#define CFG_TOYS_FREE     0
-
-#define CFG_TOYSH_TTY     0  // Terminal control
-#define CFG_TOYSH_JOBCTL  0  // &, fg, bg, jobs.  ctrl-z with tty.
-#define CFG_TOYSH_FLOWCTL 0  // if, while, for, functions { }
-#define CFG_TOYSH_ENVVARS 0  // Environment variables
-#define CFG_TOYSH_LOCVARS 0  // Local, synthetic, fancy prompts, set, $?
-#define CFG_TOYSH_PIPES   0  // Pipes and redirects: | > < >> << && || & () ;
-
-#define CFG_DF_PEDANTIC   1  // Support -P and -k in df
+#include "gen_config.h"
