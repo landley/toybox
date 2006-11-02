@@ -93,13 +93,19 @@ void xrealloc(void **ptr, size_t size)
 	if (!*ptr) error_exit("xrealloc");
 }
 
-// Die unless we can allocate a copy of this string.
+// Die unless we can allocate a copy of this many bytes of string.
 void *xstrndup(char *s, size_t n)
 {
 	void *ret = xmalloc(++n);
 	strlcpy(ret, s, n);
 	
 	return ret;
+}
+
+// Die unless we can allocate a copy of this string.
+void *xstrdup(char *s)
+{
+	return xstrndup(s,strlen(s));
 }
 
 // Die unless we can allocate enough space to sprintf() into.
@@ -188,29 +194,117 @@ char *xgetcwd(void)
 	return buf;
 }
 
-// Find this file in a colon-separated path.
-
-char *find_in_path(char *path, char *filename)
+// Cannonicalizes path by removing ".", "..", and "//" elements.  This is not
+// the same as realpath(), where "dir/.."
+char *xabspath(char *path)
 {
-	char *next, *res = NULL, *cwd = xgetcwd();
+	char *from, *to;
 
-	while ((next = index(path,':'))) {
-		int len = next-path;
+	// If this isn't an absolute path, make it one with cwd.
+	if (path[0]!='/') {
+		char *cwd=xgetcwd();
+		path = xmsprintf("%s/%s",cwd,path);
+		free(cwd);
+	} else path = xstrdup(path);
 
-		if (len==1) res = xmsprintf("%s/%s", cwd, filename);
-		else res = xmsprintf("%*s/%s",len-1,path,filename);
-		// Is there a file here we can execute?
-		if (!access(res, X_OK)) {
-			struct stat st;
-			// Confirm it's not a directory.
-			if (!stat(res, &st) && S_ISREG(st.st_mode)) break;
+	// Loop through path elements
+	from = to = path;
+	while (*from) {
+
+		// Continue any current path component.
+		if (*from!='/') {
+			*(to++) = *(from++);
+			continue;
 		}
+
+		// Skip duplicate slashes.
+		while (*from=='/') from++;
+		
+		// Start of a new filename.  Handle . and ..
+		while (*from=='.') {
+			// Skip .
+			if (from[1]=='/') from += 2;
+			else if (!from[1]) from++;
+			// Back up for ..
+			else if (from[1]=='.') {
+				if (from[2]=='/') from +=3;
+				else if(!from[2]) from+=2;
+				else break;
+				while (to>path && *(--to)!='/');
+			} else break;
+		}
+		// Add directory separator slash.
+		*(to++) = '/';
+	}
+	*to = 0;
+
+	return path;
+}
+
+// Check whether a file exists, or is executable, or...
+int is_file_type(char *path, int type)
+{
+	// Is there a file here we can execute?
+	if (!access(path, type)) {
+		struct stat st;
+		// Confirm it's not a directory.
+		if (!stat(path, &st) && S_ISREG(st.st_mode)) return 1;
+	}
+
+	return 0;
+}
+
+
+// Find an exectuable file either at a path with a slash in it (absolute or
+// relative to current directory), or in $PATH.  Returns absolute path to file,
+// or NULL if not found.
+
+
+char *which_in_path(char *filename)
+{
+	char *res;
+
+	if (index(filename, '/')) {
+		res = xabspath(filename);
+		if (is_file_type(filename, X_OK)) return res;
+		free(res);
+		return NULL;
+	}
+	return find_in_path(getenv("PATH"), filename, X_OK);
+}
+
+// Find file in a colon-separated path with access type "type" (generally
+// X_OK or R_OK).  Returns absolute path to file, or NULL if not found.
+
+char *find_in_path(char *path, char *filename, int type)
+{
+	char *res = NULL, *cwd = xgetcwd();
+
+	for (;;) {
+		char *next = path ? index(path, ':') : NULL;
+		int len = next ? next-path : strlen(path);
+
+		if (!len) res = xmsprintf("%s/%s", cwd, filename);
+		else {
+			res = xmalloc(len+strlen(filename)+2);
+			strncpy(res, path, len);
+			res[len] = '/';
+			strcpy(res+len+1, filename);
+		}
+
+		// Is there a file here we can execute?
+		if (is_file_type(res, type)) break;
+
 		free(res);
 		res = NULL;
+		if (!next) break;
+		path += len;
+		path++;
 	}
 	free(cwd);
 
 	return res;
+
 }
 
 // Convert unsigned int to ascii, writing into supplied buffer.  A truncated
