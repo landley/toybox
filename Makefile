@@ -11,6 +11,8 @@ all: toybox
 
 include kconfig/Makefile
 
+.config: Config.in toys/Config.in
+
 # The long and roundabout sed is to make old versions of sed happy.  New ones
 # have '\n' so can replace one line with two without all the branches and
 # mucking about with hold space.
@@ -26,9 +28,9 @@ gen_config.h: .config
 # Actual build
 
 toyfiles = main.c toys/*.c lib/*.c
-toybox: gen_config.h $(toyfiles)
+toybox: gen_config.h $(toyfiles) lib/lib.h toys.h
 	$(CC) -Wall -Os -s -funsigned-char $(CFLAGS) -I . \
-		$(toyfiles) -o toybox
+		$(toyfiles) -o toybox -ffunction-sections -fdata-sections -Wl,--gc-sections
 
 clean::
 	rm -f toybox gen_config.h
