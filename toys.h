@@ -31,6 +31,7 @@ int exit_main(void);
 int hello_main(void);
 int toybox_main(void);
 int toysh_main(void);
+int which_main(void);
 
 #define TOYFLAG_USR      (1<<0)
 #define TOYFLAG_BIN      (1<<1)

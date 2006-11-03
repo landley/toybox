@@ -241,69 +241,45 @@ char *xabspath(char *path)
 	return path;
 }
 
-// Check whether a file exists, or is executable, or...
-int is_file_type(char *path, int type)
+// Find all file in a colon-separated path with access type "type" (generally
+// X_OK or R_OK).  Returns a list of absolute paths to each file found, in
+// order.
+
+struct string_list *find_in_path(char *path, char *filename)
 {
-	// Is there a file here we can execute?
-	if (!access(path, type)) {
-		struct stat st;
-		// Confirm it's not a directory.
-		if (!stat(path, &st) && S_ISREG(st.st_mode)) return 1;
-	}
-
-	return 0;
-}
-
-
-// Find an exectuable file either at a path with a slash in it (absolute or
-// relative to current directory), or in $PATH.  Returns absolute path to file,
-// or NULL if not found.
-
-
-char *which_in_path(char *filename)
-{
-	char *res;
-
-	if (index(filename, '/')) {
-		res = xabspath(filename);
-		if (is_file_type(filename, X_OK)) return res;
-		free(res);
-		return NULL;
-	}
-	return find_in_path(getenv("PATH"), filename, X_OK);
-}
-
-// Find file in a colon-separated path with access type "type" (generally
-// X_OK or R_OK).  Returns absolute path to file, or NULL if not found.
-
-char *find_in_path(char *path, char *filename, int type)
-{
-	char *res = NULL, *cwd = xgetcwd();
+	struct string_list *rlist = NULL;
+	char *cwd = xgetcwd();
 
 	for (;;) {
 		char *next = path ? index(path, ':') : NULL;
 		int len = next ? next-path : strlen(path);
+		struct string_list *rnext;
+		struct stat st;
 
-		if (!len) res = xmsprintf("%s/%s", cwd, filename);
+		rnext = xmalloc(sizeof(void *) + strlen(filename)
+			+ (len ? len : strlen(cwd)) + 2);
+		if (!len) sprintf(rnext->str, "%s/%s", cwd, filename);
 		else {
-			res = xmalloc(len+strlen(filename)+2);
+			char *res = rnext->str;
 			strncpy(res, path, len);
-			res[len] = '/';
-			strcpy(res+len+1, filename);
+			res += len;
+			*(res++) = '/';
+			strcpy(res, filename);
 		}
 
-		// Is there a file here we can execute?
-		if (is_file_type(res, type)) break;
+		// Confirm it's not a directory.
+		if (!stat(rnext->str, &st) && S_ISREG(st.st_mode)) {
+			rnext->next = rlist;
+			rlist = rnext;
+		} else free(rnext);
 
-		free(res);
-		res = NULL;
 		if (!next) break;
 		path += len;
 		path++;
 	}
 	free(cwd);
 
-	return res;
+	return rlist;
 
 }
 

@@ -28,6 +28,12 @@ config DF_PEDANTIC
 
 	  -k	Sets units back to 1024 bytes (the default without -P)
 
+config HELLO
+	bool "hello"
+	default n
+	help
+	  A hello world program.  You don't need this.
+
 config TOYSH
 	bool "sh (toysh)"
 	default n
@@ -145,6 +151,16 @@ config TOYSH_BUILTINS
 	help
 	  Adds the commands exec, fg, bg, help, jobs, pwd, export, source, set,
 	  unset, read, alias.
+
+config WHICH
+	bool "Which"
+	default n
+	help
+	  usage: which [-a] filename ...
+
+	  Search $PATH for executable files matching filename(s).
+
+	  -a	Show all matches
 
 endmenu
 

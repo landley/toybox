@@ -4,6 +4,15 @@
  * Copyright 2006 Rob Landley <rob@landley.net>
  */
 
+// llist.c
+void llist_free(void *list, void (*freeit)(void *data));
+void *llist_pop(void *list);  // actually void **list, but the compiler's dumb
+
+struct string_list {
+	struct string_list *next;
+	char str[0];
+};
+
 // functions.c
 void verror_msg(char *msg, int err, va_list va);
 void error_msg(char *msg, ...);
@@ -25,21 +34,11 @@ ssize_t readall(int fd, void *buf, size_t count);
 void xread(int fd, char *buf, size_t count);
 char *xgetcwd(void);
 char *xabspath(char *path);
-int is_file_type(char *path, int type);
-char *which_in_path(char *filename);
-char *find_in_path(char *path, char *filename, int type);
+struct string_list *find_in_path(char *path, char *filename);
 void utoa_to_buf(unsigned n, char *buf, unsigned buflen);
 void itoa_to_buf(int n, char *buf, unsigned buflen);
 char *utoa(unsigned n);
 char *itoa(int n);
-
-// llist.c
-void llist_free(void *list, void (*freeit)(void *data));
-
-struct string_list {
-	struct string_list *next;
-	char *str;
-};
 
 // getmountlist.c
 struct mtab_list {

@@ -14,12 +14,13 @@ struct toy_list toy_list[] = {
 	// This one is out of order on purpose.
 	{"toybox", toybox_main, 0},
 	// The rest of these are alphabetical, for binary search.
-	{"cd", cd_main, TOYFLAG_NOFORK},
-	{"df", df_main, TOYFLAG_USR|TOYFLAG_SBIN},
-	{"exit", exit_main, TOYFLAG_NOFORK},
-	{"hello", hello_main, TOYFLAG_NOFORK|TOYFLAG_USR},
-	{"sh", toysh_main, TOYFLAG_BIN},
-	{"toysh", toysh_main, TOYFLAG_BIN}
+	USE_TOYSH({"cd", cd_main, TOYFLAG_NOFORK},)
+	USE_DF({"df", df_main, TOYFLAG_USR|TOYFLAG_SBIN},)
+	USE_TOYSH({"exit", exit_main, TOYFLAG_NOFORK},)
+	USE_HELLO({"hello", hello_main, TOYFLAG_NOFORK|TOYFLAG_USR},)
+	USE_TOYSH({"sh", toysh_main, TOYFLAG_BIN},)
+	USE_TOYSH({"toysh", toysh_main, TOYFLAG_BIN},)
+	USE_WHICH({"which", which_main, TOYFLAG_USR|TOYFLAG_BIN},)
 };
 
 #define TOY_LIST_LEN (sizeof(toy_list)/sizeof(struct toy_list))

@@ -12,10 +12,21 @@
 void llist_free(void *list, void (*freeit)(void *data))
 {
 	while (list) {
-		void **next = (void **)list;
-		void *list_next = *next;
-		if (freeit) freeit(list);
-		free(list);
-		list = list_next;
+		void *pop = llist_pop(&list);
+		if (freeit) freeit(pop);
 	}
+}
+
+// Return the first item from the list, advancing the list (which must be called
+// as &list)
+void *llist_pop(void *list)
+{
+	// I'd use a void ** for the argument, and even accept the typecast in all
+	// callers as documentation you need the &, except the stupid compiler
+	// would then scream about type-punned pointers.  Screw it.
+	void **llist = (void **)list;
+	void **next = (void **)*llist;
+	*llist = *next;
+
+	return (void *)next;
 }
