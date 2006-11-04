@@ -34,6 +34,14 @@ config HELLO
 	help
 	  A hello world program.  You don't need this.
 
+config PWD
+	bool "pwd"
+	default n
+	help
+	  usage: pwd
+
+	  The print working directory command prints the current directory.
+
 config TOYSH
 	bool "sh (toysh)"
 	default n

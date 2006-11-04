@@ -24,32 +24,16 @@
 #include <unistd.h>
 
 #include "lib/lib.h"
+#include "gen_config.h"
+#include "toys/toylist.h"
 
-int cd_main(void);
-int df_main(void);
-int exit_main(void);
-int hello_main(void);
-int toybox_main(void);
-int toysh_main(void);
-int which_main(void);
+// These live in main.c
 
-#define TOYFLAG_USR      (1<<0)
-#define TOYFLAG_BIN      (1<<1)
-#define TOYFLAG_SBIN     (1<<2)
-#define TOYMASK_LOCATION ((1<<4)-1)
-
-#define TOYFLAG_NOFORK   (1<<4)
-
-extern struct toy_list {
-	char *name;
-	int (*toy_main)(void);
-	int flags;
-} toy_list[];
 struct toy_list *toy_find(char *name);
 void toy_init(struct toy_list *which, char *argv[]);
 void toy_exec(char *argv[]);
 
-// Global context for this applet.
+// Global context for any applet.
 
 extern struct toy_context {
 	struct toy_list *which;  // Which entry in toy_list is this one?
@@ -58,24 +42,3 @@ extern struct toy_context {
 	char **argv;             // Command line arguments
 	char buf[4096];
 } toys;
-
-struct exit_data {;};
-struct cd_data {;};
-struct toybox_data {;};
-struct toysh_data {;};
-struct df_data {
-	struct string_list *fstype;
-	long units;
-};
-
-union toy_union {
-	struct exit_data exit;
-	struct cd_data cd;
-	struct toybox_data toybox;
-	struct toysh_data toysh;
-	struct df_data df;
-} toy;
-
-// Pending the addition of menuconfig...
-
-#include "gen_config.h"

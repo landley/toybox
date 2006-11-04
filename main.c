@@ -2,25 +2,15 @@
 /* Toybox infrastructure.
  *
  * Copyright 2006 Rob Landley <rob@landley.net>
- *
- * Licensed under GPL version 2, see file LICENSE in this tarball for details.
  */
 
 #include "toys.h"
 
-// The monster fun applet list.
+// Populate toy_list[].
 
 struct toy_list toy_list[] = {
-	// This one is out of order on purpose.
-	{"toybox", toybox_main, 0},
-	// The rest of these are alphabetical, for binary search.
-	USE_TOYSH({"cd", cd_main, TOYFLAG_NOFORK},)
-	USE_DF({"df", df_main, TOYFLAG_USR|TOYFLAG_SBIN},)
-	USE_TOYSH({"exit", exit_main, TOYFLAG_NOFORK},)
-	USE_HELLO({"hello", hello_main, TOYFLAG_NOFORK|TOYFLAG_USR},)
-	USE_TOYSH({"sh", toysh_main, TOYFLAG_BIN},)
-	USE_TOYSH({"toysh", toysh_main, TOYFLAG_BIN},)
-	USE_WHICH({"which", which_main, TOYFLAG_USR|TOYFLAG_BIN},)
+#define FROM_MAIN
+#include "toys/toylist.h"
 };
 
 #define TOY_LIST_LEN (sizeof(toy_list)/sizeof(struct toy_list))
