@@ -1,6 +1,64 @@
 <html><title>toybox</title>
 <body>
 
+<h2>What is ToyBox?</h2>
+
+<p>Toybox aims to implement all the Linux command line utilities in under one
+megabyte.  This project aims for small, simple, and efficient implementations,
+with configurable levels of functionality.  It should scale from tiny embedded
+systems up to full fledged desktop and development environments.</p>
+
+<p>The project is <a href=license.html>Licensed under GPL version 2</a>.</p>
+
+<p>Toybox can be built as a single "swiss army knife" executable (ala BusyBox
+or Red Hat's Nash), or each command can be built as a traditional independent
+executable.</p>
+
+<h2>Which commands are planned?</h2>
+
+<b><h3>Relevant Standards</h3></b>
+
+<p>Most commands are implemented according to
+<a href=http://www.opengroup.org/onlinepubs/009695399/idx/utilities.html>The
+Single Unix Specification version 3</a>.  This does not mean that Toybox is
+implementing every SUSv3 utility: some such as SCCS and ed are obsolete, while
+others such as c99 are outside the scope of the project.  Toybox also isn't
+implementing full internationalization support: it should be 8-bit clean and
+handle UTF-8, but otherwise we leave this to X11 and higher layers.</p>
+
+<p>The other major sources of commands are the Linux man pages, and testing
+the behavior of existing commands (although not generally looking at their
+source code).</p>
+
+<b><h3>Command Shell</h3></b>
+<p>The Toybox Shell aims to be a reasonable bash replacement.  It implements
+the "sh" and "toysh" commands, plus the built-in commands "cd" and "exit".
+The following additional commands may be built into the shell (but not as
+separate executables): cd, exit, if, while, for, function, fg, bg, jobs, source,
+<a href="http://www.opengroup.org/onlinepubs/009695399/utilities/alias.html">alias</a>,
+export, set, unset, read, trap, and exec.</p>
+
+<b><h3>General Purpose Commands:</h3></b>
+
+<p>[TODO]</p>
+
+<b><h3>Development tools:</h3></b>
+
+<p>Commands: ar, make [TODO]</p>
+
+<b><h2>What commands are implemented?</h2></b>
+
+<p>Toybox is a work in progress, and nowhere near a 1.0 release.  The first
+commit was September 27, 2006, and work is ongoing.</p>
+
+<p>Partial (in progress): sh/toysh (cd, exit), df, which.</p>
+
+<p>Complete: hello, pwd.</p>
+
+<p>Infrastructure:</p>
+
+<b><h2>Download</h2></b>
+
 <p>This project is maintained as a mercurial archive.  To get a copy of the
 current development version, "hg clone static-http://landley.net/code/toybox",
 or check <a href=download>the download directory</a> for release tarballs.
