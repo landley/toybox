@@ -1,20 +1,32 @@
 <html><title>toybox</title>
 <body>
 
-<h2>What is ToyBox?</h2>
+<p>Warning: lots of this page is about what I plan to do, not what I've
+already done.  See <a href="#status>status</a> or <a href="/notes.html>my
+development blog</a>.</p>
 
-<p>Toybox aims to implement all the Linux command line utilities in under one
-megabyte.  This project aims for small, simple, and efficient implementations,
-with configurable levels of functionality.  It should scale from tiny embedded
-systems up to full fledged desktop and development environments.</p>
+<h2><a name="what" />What is ToyBox?</h2>
 
-<p>The project is <a href=license.html>Licensed under GPL version 2</a>.</p>
+<p>The Toybox project is creating simple implementations of all the Linux
+command line utilities.  Other goals are small size (the produced binaries
+should total less than a megabyte, uncompressed), speed of execution, and
+correctness of implementation (which is related to standards compliance, but
+isn't quite the same thing).
+Click for <a href="design.html">more about the design goals</a></p>
+
+<p>Toybox has configurable levels of functionality, and should scale from tiny
+embedded systems up to full general purpose desktop and development
+environments.  The author plans to run it on his laptop, and the
+<a href=/code/firmware>Firmware Linux</a> project is trying to get a complete
+Linux system to rebuild itself from source code using toybox.</p>
+
+<p>Toybox is <a href=license.html>Licensed under GPL version 2</a>.</p>
 
 <p>Toybox can be built as a single "swiss army knife" executable (ala BusyBox
 or Red Hat's Nash), or each command can be built as a traditional independent
 executable.</p>
 
-<h2>Which commands are planned?</h2>
+<h2><a name="commands" />Which commands are planned?</h2>
 
 <b><h3>Relevant Standards</h3></b>
 
@@ -46,7 +58,7 @@ export, set, unset, read, trap, and exec.</p>
 
 <p>Commands: ar, make [TODO]</p>
 
-<b><h2>What commands are implemented?</h2></b>
+<b><h2><a name="status />What commands are implemented?</h2></b>
 
 <p>Toybox is a work in progress, and nowhere near a 1.0 release.  The first
 commit was September 27, 2006, and work is ongoing.</p>
@@ -57,7 +69,13 @@ commit was September 27, 2006, and work is ongoing.</p>
 
 <p>Infrastructure:</p>
 
-<b><h2>Download</h2></b>
+<ul>
+<li>main: toy_list[], toy_find(), toy_exec(), main/toybox_main().</li>
+<ul>lib: llist, getmountlist(), error_msg/error_exit, xmalloc(),
+strlcpy(), xexec(), xopen()/xread(), xgetcwd(), xabspath(), find_in_path(),
+itoa().</li>
+
+<b><h2><a name="download" />Download</h2></b>
 
 <p>This project is maintained as a mercurial archive.  To get a copy of the
 current development version, "hg clone static-http://landley.net/code/toybox",

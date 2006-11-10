@@ -1,0 +1,226 @@
+<b><h2>Design goals</h2></b>
+
+<p>Toybox should be simple, small, and fast.  Often, these things need to be
+balanced off against each other.  In general, simple is slightly more
+important than small, and small is slightly more important than fast, but
+it should be possible to get 80% of the way to each goal before they really
+start to fight.</p>
+
+<b><h3>Fast</h3></b>
+
+<p>It's easy to say lots about optimizing for speed (which is why this section
+is so long), but at the same time it's the one we care the least about.
+The essence of speed is being as efficient as possible, which means doing as
+little work as possible.  A design that's small and simple gets you 90% of the
+way there, and most of the rest is either fine-tuning or more trouble than
+it's worth (and often actually counterproductive).  Still, here's some
+advice:</p>
+
+<p>First, understand the darn problem you're trying to solve.  You'd think
+I wouldn't have to say this, but I do.  Trying to find a faster sorting
+algorithm is no substitute for figuring out a way to skip the sorting step
+entirely.  The fastest way to do anything is not to have to do it at all,
+and _all_ optimization boils down to avoiding unnecessary work.</p>
+
+<p>Speed is easy to measure; there are dozens of profiling tools for Linux
+(although personally I find the "time" command a good starting place).
+Don't waste too much time trying to optimize something you can't measure,
+and there's no much point speeding up things you don't spend much time doing
+anyway.</p>
+
+<p>Understand the difference between throughput and latency.  Faster
+processors improve throughput, but don't always do much for latency.
+After 30 years of Moore's Law, most of the remaining problems are latency,
+not throughput.  (There are of course a few exceptions, like data compression
+code, encryption, rsync...)  Worry about throughput inside long-running
+loops, and worry about latency everywhere else.  (And don't worry too much
+about avoiding system calls or function calls or anything else in the name
+of speed unless you are in the middle of a tight loop that's you've already
+proven isn't running fast enough.)</p>
+
+<p>"Locality of reference" is generally nice, in all sorts of contexts.
+It's obvious that waiting for disk access is 1000x slower than doing stuff in
+RAM (and making the disk seek is 10x slower than sequential reads/writes),
+but it's just as true that a loop which stays in L1 cache is many times faster
+than a loop that has to wait for a DRAM fetch on each iteration.  Don't worry
+about whether "&" is faster than "%" until your executable loop stays in L1
+cache and the data access is fetching cache lines intelligently.  (To
+understand DRAM, L1, and L2 cache, read Hannibal's marvelous ram guid at Ars
+Technica:
+<a href=http://arstechnica.com/paedia/r/ram_guide/ram_guide.part1-2.html>part one</a>,
+<a href=http://arstechnica.com/paedia/r/ram_guide/ram_guide.part2-1.html>part two</a>,
+<a href=http://arstechnica.com/paedia/r/ram_guide/ram_guide.part3-1.html>part three</a>,
+plus this
+<a href=http://arstechnica.com/articles/paedia/cpu/caching.ars/1>article on
+cacheing</a>, and this one on 
+<a href=http://arstechnica.com/articles/paedia/cpu/bandwidth-latency.ars>bandwidth
+and latency</a>.
+And there's <a href=http://arstechnica.com/paedia/>more where that came from</a>.)
+Running out of L1 cache can execute one instruction per clock cycle, going
+to L2 cache costs a dozen or so clock cycles, and waiting for a worst case dram
+fetch (round trip latency with a bank switch) can cost thousands of
+clock cycles.  (Historically, this disparity has gotten worse with time,
+just like the speed hit for swapping to disk.  These days, a _big_ L1 cache
+is 128k and a big L2 cache is a couple of megabytes.  A cheap low-power
+embedded processor may have 8k of L1 cache and no L2.)</p>
+
+<p>Learn how virtual memory and memory managment units work.  Don't touch
+memory you don't have to.  Even just reading memory evicts stuff from L1 and L2
+cache, which may have to be read back in later.  Writing memory can force the
+operating system to break copy-on-write, which allocates more memory.  (The
+memory returned by malloc() is only a virtual allocation, filled with lots of
+copy-on-write mappings of the zero page.  Actual physical pages get allocated
+when the copy-on-write gets broken by writing to the virtual page.  This
+is why checking the return value of malloc() isn't very useful anymore, it
+only detects running out of virtual memory, not physical memory.)</p>
+
+<p>Don't think that just because you don't have a swap file the system can't
+start swap thrashing: any file backed page (ala mmap) can be evicted, and
+there's a reason all running programs require an executable file (they're
+mmaped, and can be flushed back to disk when memory is short).  And long
+before that, disk cache gets reclaimed and has to be read back in.  When the
+operating system really can't free up any more pages it triggers the out of
+memory killer to free up pages by killing processes (the alternative is the
+entire OS freezing solid).  Modern operating systems seldom run out of
+memory gracefully.</p>
+
+<p>Also, it's better to be simple than clever.  Many people think that mmap()
+is faster than read() because it avoids a copy, but twiddling with the memory
+management is itself slow, and can cause unnecessary CPU cache flushes.  And
+if a read faults in dozens of pages sequentially, but your mmap iterates
+backwards through a file (causing lots of seeks, each of which your program
+blocks waiting for), the read can be many times faster.  On the other hand, the
+mmap can sometimes use less memory, since the memory provided by mmap
+comes from the page cache (allocated anyway), and it can be faster if you're
+doing a lot of different updates to the same area.  The moral?  Measure, then
+try to speed things up, and measure again to confirm it actually _did_ speed
+things up rather than made them worse.  (And understanding what's really going
+on underneath is a big help to making it happen faster.)</p>
+
+<p>In general, being simple is better than being clever.  Optimization
+strategies change with time.  For example, decades ago precalculating a table
+of results (for things like isdigit() or cosine(int degrees)) was clearly
+faster because processors were so slow.  Then processors got faster and grew
+math coprocessors, and calculating the value each time became faster than
+the table lookup (because the calculation fit in L1 cache but the lookup
+had to go out to DRAM).  Then cache sizes got bigger (the Pentium M has
+2 megabytes of L2 cache) and the table fit in cache, so the table became
+fast again...  Predicting how changes in hardware will affect your algorithm
+is difficult, and using ten year old optimization advice and produce
+laughably bad results.  But being simple and efficient is always going to
+give at least a reasonable result.</p>
+
+<p>The famous quote from Ken Thompson, "When in doubt, use brute force",
+applies to toybox.  Do the simple thing first, do as little of it as possible,
+and make sure it's right.  You can always speed it up later.</p>
+
+<b><h3>Small</h3></b>
+<p>Again, simple gives you most of this.  An algorithm that does less work
+is generally smaller.  Understand the problem, treat size as a cost, and
+get a good bang for the byte.</p>
+
+<p>Understand the difference between binary size, heap size, and stack size.
+Your binary is the executable file on disk, your heap is where malloc() memory
+lives, and your stack is where local variables (and function call return
+addresses) live.  Optimizing for binary size is generally good: executing
+fewer instructions makes your program run faster (and fits more of it in 
+cache).  On embedded systems, binary size is especially precious because
+flash is expensive (and its successor, MRAM, even more so).  Small stack size
+is important for nommu systems because they have to preallocate their stack
+and can't make it bigger via page fault.  And everybody likes a small heap.</p>
+
+<p>Measure the right things.  Especially with modern optimizers, expecting
+something to be smaller is no guarantee it will be after the compiler's done
+with it.  Binary size isn't the most accurate indicator of the impact of a
+given change, because lots of things get combined and rounded during
+compilation and linking.  Matt Mackall's bloat-o-meter is a python script
+which compares two versions of a program, and shows size changes in each
+symbol (using the "nm" command behind the scenes).  To use this, run
+"make baseline" to build a baseline version to compare against, and
+then "make bloatometer" to compare that baseline version against the current
+code.</p>
+
+<p>Avoid special cases.  Whenever you see similar chunks of code in more than
+one place, it might be possible to combine them and have the users call shared
+code.  (This is the most commonly cited trick, which doesn't make it easy.)</p>
+
+<p>Some specific advice: Using a char in place of an int when doing math
+produces significantly larger code on some platforms (notably arm),
+because each time the compiler has to emit code to convert it to int, do the
+math, and convert it back.  Bitfields have this problem on most platforms.
+Because of this, using char to index a for() loop is probably not a net win,
+although using char (or a bitfield) to store a value in a structure that's
+repeated hundreds of times can be a good tradeoff of binary size for heap
+space.</p>
+
+<b><h3>Simple</h3></b>
+
+<p>Complexity is a cost, just like code size or runtime speed.  Treat it as
+a cost, and spend your complexity budget wisely.</p>
+
+<p>Simplicity has lots of benefits.  Simple code is easy to maintain, easy to
+port to new processors, easy to audit for security holes, and easy to
+understand.  (Comments help, but they're no substitute for simple code.)</p>
+
+<p><a href=http://www.joelonsoftware.com/articles/fog0000000069.html>Joel
+Spolsky argues against throwing code out and starting over</a>, and he has
+good points: an existing debugged codebase contains a huge amount of baked
+in knowledge about strange real-world use cases that the designers didn't
+know about until users hit the bugs, and most of this knowledge is never
+explicitly stated anywhere except in the source code.</p>
+
+<p>That said, the Mythical Man-Month's "build one to throw away" advice points
+out that until you've solved the problem you don't properly understand it, and
+about the time you finish your first version is when you've finally figured
+out what you _should_ have done.  (The corrolary is that if you build one
+expecting to throw it away, you'll actually wind up throwing away two.  You
+don't understand the problem until you _have_ solved it.)</p>
+
+<p>Joel is talking about what closed source software can afford to do: Code
+that works and has been paid for is a corporate asset not lightly abandoned.
+Open source software can afford to re-implement code that works, over and
+over from scratch, for incremental gains.  Before toybox, the unix command line
+has already been reimplemented from scratch several in a row (the
+original Unix and BSD tools, the GNU tools, BusyBox...)
+but maybe toybox can do a better job. :)</p>
+
+<p>P.S.  How could I resist linking to an article about
+<a href=http://blog.outer-court.com/archive/2005-08-24-n14.html>why
+programmers should strive to be lazy and dumb</a>?</p>
+
+<b><h2>Portability issues</h2></b>
+
+<b><h3>Platforms</h3></b>
+<p>Toybox should run on every hardware platform Linux runs on.  Other
+posix/susv3 environments (perhaps MacOS X or newlib+libgloss) are vaguely
+interesting but only if they're easy to support, I'm not going to spend much
+effort on them.</p>
+
+<p>I don't do windows.</p>
+
+<b><h3>32/64 bit</h3></b>
+<p>Toybox should work on both 32 bit and 64 bit systems.  By the end of 2008
+64 bit hardware will be the new desktop standard, but 32 bit hardware will
+continue to be important in embedded devices for years to come.</p>
+
+<p>Toybox relies on the fact that on any Unix-like platform, pointer and long
+are always the same size (on both 32 and 64 bit).  Pointer and int are _not_
+the same size on 64 bit systems, but pointer and long are.</p>
+
+<p>This is guaranteed by the LP64 memory model, a Unix standard (which Linux
+and MacOS X implements).  See
+<a href=http://www.unix.org/whitepapers/64bit.html>the LP64 standard</a> and
+<a href=http://www.unix.org/version2/whatsnew/lp64_wp.html>the LP64
+rationale</a> for details.</p>
+
+<p>Note that Windows doesn't work like this, and I don't care.
+<a href=http://blogs.msdn.com/oldnewthing/archive/2005/01/31/363790.aspx>The
+insane legacy reasons why this is broken on Windows are explained here.</a></p>
+
+<b><h3>Signedness of char</h3></b>
+<p>On platforms like x86, variables of type char default to unsigned.  On
+platforms like arm, char defaults to signed.  This difference can lead to
+subtle portability bugs, and to avoid them we specify which one we want by
+feeding the compiler -funsigned-char.</p>
+
+<p>The reason to pick "unsigned" is that way we're 8-bit clean by default.</p>
