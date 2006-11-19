@@ -12,6 +12,12 @@ config TOYS_FREE
 	  without a real OS (ala newlib+libgloss), enable this to make toybox
 	  clean up after itself.
 
+config DEBUG
+	bool "Debugging tests"
+	default n
+	help
+	  Enable extra checks for debugging purposes.
+
 endmenu
 
 source toys/Config.in

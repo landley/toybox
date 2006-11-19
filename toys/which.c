@@ -7,7 +7,6 @@
 
 #include "toys.h"
 
-#define OPTIONS "a"
 #define OPT_a   1
 
 // Find an exectuable file either at a path with a slash in it (absolute or
@@ -55,16 +54,12 @@ static int which_in_path(char *filename)
 
 int which_main(void)
 {
-	char **argv;
 	int rc = 0;
 
-	// get_optflags(OPTIONS);
-	argv = toys.argv+1;
-
-	if (!*argv) rc++;
+	if (!*toys.optargs) rc++;
 	else {
 		int i;
-		for (i=0; argv[i]; i++)	rc |= which_in_path(argv[i]);
+		for (i=0; toys.optargs[i]; i++) rc |= which_in_path(toys.optargs[i]);
 	}
 	// if (CFG_TOYS_FREE) free(argv);
 

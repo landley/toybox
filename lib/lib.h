@@ -13,6 +13,14 @@ struct string_list {
 	char str[0];
 };
 
+struct arg_list {
+	struct arg_list *next;
+	char *arg;
+};
+
+// args.c
+void get_optflags(void);
+
 // functions.c
 void verror_msg(char *msg, int err, va_list va);
 void error_msg(char *msg, ...);

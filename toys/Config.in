@@ -161,7 +161,7 @@ config TOYSH_BUILTINS
 	  unset, read, alias.
 
 config WHICH
-	bool "Which"
+	bool "which"
 	default n
 	help
 	  usage: which [-a] filename ...

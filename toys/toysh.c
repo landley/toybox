@@ -125,12 +125,15 @@ static void run_pipeline(struct pipeline *line)
 	tl = toy_find(cmd->argv[0]);
 	// Is this command a builtin that should run in this process?
 	if (tl && (tl->flags & TOYFLAG_NOFORK)) {
-		struct toy_list *which = toys.which;
-		char **argv = toys.argv;
+		struct toy_context temp;
 
+		// This fakes lots of what toybox_main() does.
+		memcpy(&temp, &toys, sizeof(struct toy_context));
+		bzero(&toys, sizeof(struct toy_context));
 		toy_init(tl, cmd->argv);
 		cmd->pid = tl->toy_main();
-		toy_init(which, argv);
+		free(toys.optargs);
+		memcpy(&toys, &temp, sizeof(struct toy_context));
 	} else {
 		int status;
 
@@ -196,8 +199,10 @@ int toysh_main(void)
 	char *command=NULL;
 	FILE *f;
 
-	// TODO get_optflags(argv, "c:", &command);
-
+	// Set up signal handlers and grab control of this tty.
+	if (CFG_TOYSH_TTY) {
+		if (isatty(0)) toys.optflags |= 1;
+	}
 	f = toys.argv[1] ? xfopen(toys.argv[1], "r") : NULL;
 	if (command) handle(command);
 	else {

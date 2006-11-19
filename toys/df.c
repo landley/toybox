@@ -34,14 +34,13 @@ static void show_mt(struct mtab_list *mt)
 	// Figure out how much total/used/free space this filesystem has,
 	// forcing 64-bit math because filesystems are big now.
 	block = mt->statvfs.f_bsize ? : 1;
-
 	size = (long)((block * mt->statvfs.f_blocks) / toy.df.units);
 	used = (long)((block * (mt->statvfs.f_blocks-mt->statvfs.f_bfree))
 			/ toy.df.units);
 	avail = (long)((block
 				* (getuid() ? mt->statvfs.f_bavail : mt->statvfs.f_bfree))
 			/ toy.df.units);
-	percent = 100-(long)((100*(uint64_t)avail)/size);
+	percent = size ? 100-(long)((100*(uint64_t)avail)/size) : 0;
 
 	// Figure out appropriate spacing
 	len = 25 - strlen(mt->device);
@@ -58,10 +57,6 @@ static void show_mt(struct mtab_list *mt)
 int df_main(void)
 {
 	struct mtab_list *mt, *mt2, *mtlist;
-	char **argv;
-
-	// get_optflags("Pkt:a",&(toy.df.fstype));
-	argv = NULL;
 
 	// Handle -P and -k
 	toy.df.units = 1024;
@@ -75,14 +70,14 @@ int df_main(void)
 	mtlist = getmountlist(1);
 
 	// If we have a list of filesystems on the command line, loop through them.
-	if (argv) {
-		char *next;
+	if (*toys.optargs) {
+		char **next;
 
-		for(next = *argv; *next; next++) {
+		for(next = toys.optargs; *next; next++) {
 			struct stat st;
 
 			// Stat it (complain if we can't).
-			if(!stat(next, &st)) {
+			if(!stat(*next, &st)) {
 				perror_msg("`%s'", next);
 				toys.exitval = 1;
 				continue;
@@ -117,9 +112,7 @@ int df_main(void)
 		}
 	}
 
-	if (CFG_TOYS_FREE) {
-		llist_free(mtlist, NULL);
-		free(argv);
-	}
+	if (CFG_TOYS_FREE) llist_free(mtlist, NULL);
+
 	return 0;
 }

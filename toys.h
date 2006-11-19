@@ -38,7 +38,11 @@ void toy_exec(char *argv[]);
 extern struct toy_context {
 	struct toy_list *which;  // Which entry in toy_list is this one?
 	int exitval;             // Value error_exit feeds to exit()
-	int optflags;            // Command line option flags
 	char **argv;             // Command line arguments
-	char buf[4096];
+	unsigned optflags;       // Command line option flags from get_optflags()
+	char **optargs;          // Arguments left over from get_optflags()
 } toys;
+
+// One big temporary buffer, for use by applets (not library functions).
+
+char buf[4096];
