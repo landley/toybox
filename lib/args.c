@@ -130,74 +130,76 @@ void get_optflags(void)
 	long *nextarg = (long *)&toy;
 	char *options = toys.which->options;
 
-	// Parse leading special behavior indicators
-	for (;;) {
-		if (*options == '+') stopearly++;
-		else if (*options == '<') minargs=*(++options)-'0';
-		else if (*options == '>') maxargs=*(++options)-'0';
-		else if (*options == '#') gof.noerror++;
-		else if (*options == '&') nodash++;
-		else break;
-		options++;
-	}
-
-	// Parse rest of opts into array
-	while (*options) {
-
-		// Allocate a new option entry when necessary
-		if (!gof.this) {
-			gof.this = xzalloc(sizeof(struct opts));
-			gof.this->next = gof.opts;
-			gof.opts = gof.this;
+	if (options) {
+		// Parse leading special behavior indicators
+		for (;;) {
+			if (*options == '+') stopearly++;
+			else if (*options == '<') minargs=*(++options)-'0';
+			else if (*options == '>') maxargs=*(++options)-'0';
+			else if (*options == '#') gof.noerror++;
+			else if (*options == '&') nodash++;
+			else break;
+			options++;
 		}
-		// Each option must start with (or an option character.  (Bare
-		// longopts only come at the start of the string.)
-		if (*options == '(') {
-			char *end;
-			struct longopts *lo = xmalloc(sizeof(struct longopts));
 
-			// Find the end of the longopt
-			for (end = ++options; *end && *end != ')'; end++);
-			if (CFG_DEBUG && !*end) error_exit("Unterminated optstring");
+		// Parse rest of opts into array
+		while (*options) {
 
-			// Allocate and init a new struct longopts
-			lo = xmalloc(sizeof(struct longopts));
-			lo->next = longopts;
-			lo->opt = gof.this;
-			lo->str = options;
-			lo->len = end-options;
-			longopts = lo;
-			options = end;
+			// Allocate a new option entry when necessary
+			if (!gof.this) {
+				gof.this = xzalloc(sizeof(struct opts));
+				gof.this->next = gof.opts;
+				gof.opts = gof.this;
+			}
+			// Each option must start with (or an option character.  (Bare
+			// longopts only come at the start of the string.)
+			if (*options == '(') {
+				char *end;
+				struct longopts *lo = xmalloc(sizeof(struct longopts));
 
-			// For leading longopts (with no corresponding short opt), note
-			// that this option struct has been used.
-			gof.this->shift++;
+				// Find the end of the longopt
+				for (end = ++options; *end && *end != ')'; end++);
+				if (CFG_DEBUG && !*end) error_exit("Unterminated optstring");
 
-		// If this is the start of a new option that wasn't a longopt,
+				// Allocate and init a new struct longopts
+				lo = xmalloc(sizeof(struct longopts));
+				lo->next = longopts;
+				lo->opt = gof.this;
+				lo->str = options;
+				lo->len = end-options;
+				longopts = lo;
+				options = end;
 
-		} else if (index(":*?@", *options)) {
-			gof.this->type |= *options;
-			// Pointer and long guaranteed to be the same size by LP64.
-			*(++nextarg) = 0;
-			gof.this->arg = (void *)nextarg;
-		} else if (*options == '|') {
-		} else if (*options == '+') {
-		} else if (*options == '~') {
-		} else if (*options == '!') {
-		} else if (*options == '[') {
+				// For leading longopts (with no corresponding short opt), note
+				// that this option struct has been used.
+				gof.this->shift++;
 
-		// At this point, we've hit the end of the previous option.  The
-		// current character is the start of a new option.  If we've already
-		// assigned an option to this struct, loop to allocate a new one.
-		// (It'll get back here afterwards.)
-		} else if(gof.this->shift || gof.this->c) {
-			gof.this = NULL;
-			continue;
+			// If this is the start of a new option that wasn't a longopt,
 
-		// Claim this option, loop to see what's after it.
-		} else gof.this->c = *options;
+			} else if (index(":*?@", *options)) {
+				gof.this->type |= *options;
+				// Pointer and long guaranteed to be the same size by LP64.
+				*(++nextarg) = 0;
+				gof.this->arg = (void *)nextarg;
+			} else if (*options == '|') {
+			} else if (*options == '+') {
+			} else if (*options == '~') {
+			} else if (*options == '!') {
+			} else if (*options == '[') {
 
-		options++;
+			// At this point, we've hit the end of the previous option.  The
+			// current character is the start of a new option.  If we've already
+			// assigned an option to this struct, loop to allocate a new one.
+			// (It'll get back here afterwards.)
+			} else if(gof.this->shift || gof.this->c) {
+				gof.this = NULL;
+				continue;
+
+			// Claim this option, loop to see what's after it.
+			} else gof.this->c = *options;
+
+			options++;
+		}
 	}
 
 	// Initialize shift bits (have to calculate this ahead of time because
