@@ -120,7 +120,7 @@ static int gotflag(void)
 
 void get_optflags(void)
 {
-	int stopearly = 0, optarg = 0, nodash = 0, minargs = 0, maxargs = INT_MAX;
+	int stopearly = 0, optarg = 0, nodash = 0, minargs = 0, maxargs;
 	struct longopts {
 		struct longopts *next;
 		struct opts *opt;
@@ -130,6 +130,13 @@ void get_optflags(void)
 	long *nextarg = (long *)&toy;
 	char *options = toys.which->options;
 
+	// Allocate memory for optargs
+	maxargs = 0;
+	while (toys.argv[maxargs++]);
+	toys.optargs = xzalloc(sizeof(char *)*maxargs);
+	maxargs = INT_MAX;
+
+	// Parse option format
 	if (options) {
 		// Parse leading special behavior indicators
 		for (;;) {
@@ -208,7 +215,6 @@ void get_optflags(void)
 	gof.argc = 0;
 	for (gof.this = gof.opts; gof.this; gof.this = gof.this->next)
 		gof.this->shift = gof.argc++;
-	toys.optargs = xzalloc(sizeof(char *)*(++gof.argc));
 
 	// Iterate through command line arguments, skipping argv[0]
 	for (gof.argc=1; toys.argv[gof.argc]; gof.argc++) {
