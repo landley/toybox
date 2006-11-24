@@ -25,7 +25,6 @@
 //     [yz] needs at least one of y or z.
 //   at the beginning:
 //     + stop at first nonoption argument
-//     ? return array of remaining arguments in first vararg
 //     <0 at least # leftover arguments needed (default 0)
 //     >9 at most # leftover arguments needed (default MAX_INT)
 //     # don't show_usage() on unknown argument.
@@ -70,12 +69,9 @@ struct getoptflagstate
 
 static struct getoptflagstate gof;
 
-// Returns zero if it didn't consume the rest of the current -abcdef
-static int gotflag(void)
+static void gotflag(void)
 {
-	char *arg = NULL;
 	int type;
-	int ret = 0;
 
 	// Did we recognize this option?
 	if (!gof.this && !gof.noerror) error_exit("Unknown option %s\n", gof.arg);
@@ -89,30 +85,28 @@ static int gotflag(void)
 		if (!gof.nodash_now && !*gof.arg) {
 			gof.arg = toys.argv[++gof.argc];
 			if (!gof.arg) error_exit("Missing argument");
-		} else {
-			arg = gof.arg;
-			ret++;
 		}
 	} else gof.this = NULL;
 
 	// If the last option had an argument, grab it.
-	if (!gof.this)  return 0;
-	type = gof.this->type & 255;
-	if (!gof.arg && !(gof.arg = toys.argv[++gof.argc]))
-		error_exit("Missing argument");
-	if (type == ':') gof.this->arg = arg;
-	else if (type == '*') {
-		struct arg_list *temp, **list;
-		list = (struct arg_list **)gof.this->arg;
-		temp = xmalloc(sizeof(struct arg_list));
-		temp->arg = arg;
-		temp->next = *list;
-		*list = temp;
-	} else if (type == '?') {
-	} else if (type == '@') {
-	}
+	if (gof.this) {
+		type = gof.this->type & 255;
+		if (!gof.arg && !(gof.arg = toys.argv[++gof.argc]))
+			error_exit("Missing argument");
+		if (type == ':') gof.this->arg = gof.arg;
+		else if (type == '*') {
+			struct arg_list *temp, **list;
+			list = (struct arg_list **)gof.this->arg;
+			temp = xmalloc(sizeof(struct arg_list));
+			temp->arg = gof.arg;
+			temp->next = *list;
+			*list = temp;
+		} else if (type == '?') {
+		} else if (type == '@') {
+		}
 
-	return ret;
+		gof.arg = "";
+	}
 }
 
 // Fill out toys.optflags and toys.optargs.  This isn't reentrant because
@@ -218,7 +212,8 @@ void get_optflags(void)
 
 	// Iterate through command line arguments, skipping argv[0]
 	for (gof.argc=1; toys.argv[gof.argc]; gof.argc++) {
-		char *arg = toys.argv[gof.argc];
+		gof.arg = toys.argv[gof.argc];
+		gof.this = NULL;
 
 		// Parse this argument
 		if (stopearly>1) goto notflag;
@@ -226,39 +221,39 @@ void get_optflags(void)
 		gof.nodash_now = 0;
 
 		// Various things with dashes
-		if (*arg == '-') {
+		if (*gof.arg == '-') {
 
 			// Handle -
-			if (!arg[1]) goto notflag;
-			arg++;
-			if (*arg=='-') {
+			if (!gof.arg[1]) goto notflag;
+			gof.arg++;
+			if (*gof.arg=='-') {
 				struct longopts *lo;
 
-				arg++;
+				gof.arg++;
 				// Handle --
-				if (!*arg) {
+				if (!*gof.arg) {
 					stopearly += 2;
 					goto notflag;
 				}
 				// Handle --longopt
 
 				for (lo = longopts; lo; lo = lo->next) {
-					if (!strncmp(arg, lo->str, lo->len)) {
-						if (arg[lo->len]) {
-							if (arg[lo->len]=='='
+					if (!strncmp(gof.arg, lo->str, lo->len)) {
+						if (gof.arg[lo->len]) {
+							if (gof.arg[lo->len]=='='
 								&& (lo->opt->type & 255))
 							{
-								arg += lo->len;
+								gof.arg += lo->len;
 							} else continue;
-
-						// *options should be nul, this makes sure
-						// that the while (*arg) loop terminates;
-						} arg = options-1;
+						}
+						// It's a match.
+						gof.arg = "";
 						gof.this = lo->opt;
 						break;
 					}
 				}
-				// Long option parsed, jump to option handling.
+
+				// Long option parsed, handle option.
 				gotflag();
 				continue;
 			}
@@ -271,12 +266,14 @@ void get_optflags(void)
 
 		// At this point, we have the args part of -args.  Loop through
 		// each entry (could be -abc meaning -a -b -c)
-		while (*arg) {
+		while (*gof.arg) {
+
 			// Identify next option char.
-			for (gof.this = gof.opts; gof.this && *arg != gof.this->c;
-					gof.this = gof.this->next);
-			if (gotflag()) break;
-			arg++;
+			for (gof.this = gof.opts; gof.this; gof.this = gof.this->next)
+				if (*gof.arg == gof.this->c) break;
+
+			// Handle option char (advancing past what was used)
+			gotflag();
 		}
 		continue;
 
