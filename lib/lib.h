@@ -4,6 +4,9 @@
  * Copyright 2006 Rob Landley <rob@landley.net>
  */
 
+// libc generally has this, but the headers are screwed up
+ssize_t getline(char **lineptr, size_t *n, FILE *stream);
+
 // llist.c
 void llist_free(void *list, void (*freeit)(void *data));
 void *llist_pop(void *list);  // actually void **list, but the compiler's dumb

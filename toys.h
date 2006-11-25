@@ -45,4 +45,4 @@ extern struct toy_context {
 
 // One big temporary buffer, for use by applets (not library functions).
 
-char buf[4096];
+char toybuf[4096];
