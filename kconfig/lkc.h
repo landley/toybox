@@ -7,7 +7,11 @@
 #define LKC_H
 
 //#define PROJECT_NAME "Linux kernel"
-#define PROJECT_NAME "BusyBox"
+#define PROJECT_NAME "Toybox"
+
+// Make some warnings go away
+#define YYENABLE_NLS 0
+#define YYLTYPE_IS_TRIVIAL 0
 
 #include "expr.h"
 
