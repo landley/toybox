@@ -21,11 +21,12 @@ static void show_mt(struct mtab_list *mt)
 
 	// If we have -t, skip other filesystem types
 	if (toy.df.fstype) {
-		struct string_list *sl;
+		struct arg_list *al;
 
-		for (sl = toy.df.fstype; sl; sl = sl->next)
-			if (!strcmp(mt->type, sl->str)) break;
-		if (!sl) return;
+		for (al = toy.df.fstype; al; al = al->next) {
+			if (!strcmp(mt->type, al->arg)) break;
+		}
+		if (!al) return;
 	}
 
 	// If we don't have -a, skip synthetic filesystems

@@ -56,7 +56,7 @@ struct opts {
 	char c;
 	int type;
 	int shift;
-	void *arg;
+	long *arg;
 };
 
 struct getoptflagstate
@@ -79,21 +79,21 @@ static void gotflag(void)
 
 	// Does this option take an argument?
 	gof.arg++;
-	if (gof.this->type & 255) {
-		// Make "tar xCjfv blah1 blah2 thingy" work like
+	type = gof.this->type & 255;
+	if (type) {
+
+		// Handle "-xblah" and "-x blah", but also a third case: "abxc blah"
+		// to make "tar xCjfv blah1 blah2 thingy" work like
 		// "tar -x -C blah1 -j -f blah2 -v thingy"
 		if (!gof.nodash_now && !*gof.arg) {
 			gof.arg = toys.argv[++gof.argc];
 			if (!gof.arg) error_exit("Missing argument");
 		}
-	} else gof.this = NULL;
 
-	// If the last option had an argument, grab it.
-	if (gof.this) {
-		type = gof.this->type & 255;
+		// Grab argument.
 		if (!gof.arg && !(gof.arg = toys.argv[++gof.argc]))
 			error_exit("Missing argument");
-		if (type == ':') gof.this->arg = gof.arg;
+		if (type == ':') *(gof.this->arg) = (long)gof.arg;
 		else if (type == '*') {
 			struct arg_list *temp, **list;
 			list = (struct arg_list **)gof.this->arg;
@@ -107,6 +107,8 @@ static void gotflag(void)
 
 		gof.arg = "";
 	}
+
+	gof.this = NULL;
 }
 
 // Fill out toys.optflags and toys.optargs.  This isn't reentrant because
@@ -180,8 +182,8 @@ void get_optflags(void)
 			} else if (index(":*?@", *options)) {
 				gof.this->type |= *options;
 				// Pointer and long guaranteed to be the same size by LP64.
-				*(++nextarg) = 0;
 				gof.this->arg = (void *)nextarg;
+				*(nextarg++) = 0;
 			} else if (*options == '|') {
 			} else if (*options == '+') {
 			} else if (*options == '~') {
