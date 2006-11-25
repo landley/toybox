@@ -21,7 +21,7 @@
 #define OLDTOY(name, oldname, opts, flags)
 
 struct df_data {
-	struct string_list *fstype;
+	struct arg_list *fstype;
 	long units;
 };
 
