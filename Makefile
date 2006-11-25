@@ -1,7 +1,7 @@
 # Makefile for toybox.
 # Copyright 2006 Rob Landley <rob@landley.net>
 
-CFLAGS  = -Wall -Os -s
+CFLAGS  = -Wall -Wundef -Os -s
 CC      = $(CROSS_COMPILE)gcc $(CFLAGS)
 HOST_CC = gcc $(CFLAGS)
 
@@ -28,7 +28,7 @@ gen_config.h: .config
 # Actual build
 
 toyfiles = main.c toys/*.c lib/*.c
-toybox: gen_config.h $(toyfiles) lib/lib.h toys.h
+toybox: gen_config.h $(toyfiles) toys/toylist.h lib/lib.h toys.h
 	$(CC) -Wall -Os -s -funsigned-char $(CFLAGS) -I . \
 		$(toyfiles) -o toybox -ffunction-sections -fdata-sections -Wl,--gc-sections
 
