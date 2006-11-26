@@ -91,7 +91,7 @@ static unsigned int get_bits(bunzip_data *bd, char bits_wanted)
 
 		// If we need to read more data from file into byte buffer, do so
 		if (bd->inbufPos == bd->inbufCount) {
-			if (!(bd->inbufCount = read(bd->in_fd, bd->inbuf, IOBUF_SIZE)))
+			if (0 >= (bd->inbufCount = read(bd->in_fd, bd->inbuf, IOBUF_SIZE)))
 				longjmp(bd->jmpbuf, RETVAL_UNEXPECTED_INPUT_EOF);
 			bd->inbufPos = 0;
 		}
@@ -155,7 +155,6 @@ extern int read_bunzip_data(bunzip_data *bd)
 	// values were present.  We make a translation table to convert the symbols
 	// back to the corresponding bytes.
 	t = get_bits(bd, 16);
-	memset(symToByte,0,256);
 	symTotal = 0;
 	for (i=0; i<16; i++) {
 		if (t&(1<<(15-i))) {
@@ -182,7 +181,7 @@ extern int read_bunzip_data(bunzip_data *bd)
 
 		// Decode MTF to get the next selector
 		uc = mtfSymbol[j];
-		memmove(mtfSymbol+1, mtfSymbol, j);
+		for (k=j; k; k--) mtfSymbol[k] = mtfSymbol[k-1];
 		mtfSymbol[0] = selectors[i] = uc;
 	}
 	// Read the huffman coding tables for each group, which code for symTotal
