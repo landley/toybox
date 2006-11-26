@@ -52,11 +52,11 @@ SHIPPED = kconfig/zconf.tab.c kconfig/lex.zconf.c kconfig/zconf.hash.c
 gen_config.h: .config
 
 kconfig/mconf: $(SHIPPED)
-	$(CC) -o $@ kconfig/{mconf.c,zconf.tab.c,lxdialog/*.c} \
+	$(HOST_CC) -o $@ kconfig/{mconf.c,zconf.tab.c,lxdialog/*.c} \
 		-lcurses "-DCURSES_LOC=<ncurses.h>"
 
 kconfig/conf: $(SHIPPED)
-	$(CC) -o $@ kconfig/{conf.c,zconf.tab.c}
+	$(HOST_CC) -o $@ kconfig/{conf.c,zconf.tab.c}
 
 clean::
 	rm -f $(wildcard kconfig/*zconf*.c) kconfig/{conf,mconf}

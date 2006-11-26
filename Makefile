@@ -2,8 +2,8 @@
 # Copyright 2006 Rob Landley <rob@landley.net>
 
 CFLAGS  = -Wall -Wundef -Os -s
-CC      = $(CROSS_COMPILE)gcc $(CFLAGS)
-HOST_CC = gcc $(CFLAGS)
+CC      = $(CROSS_COMPILE)gcc $(CFLAGS) -funsigned-char
+HOST_CC = gcc $(CFLAGS) -funsigned-char
 
 all: toybox
 
@@ -29,8 +29,8 @@ gen_config.h: .config
 
 toyfiles = main.c toys/*.c lib/*.c
 toybox: gen_config.h $(toyfiles) toys/toylist.h lib/lib.h toys.h
-	$(CC) -Wall -Os -s -funsigned-char $(CFLAGS) -I . \
-		$(toyfiles) -o toybox -ffunction-sections -fdata-sections -Wl,--gc-sections
+	$(CC) $(CFLAGS) -I . $(toyfiles) -o toybox \
+		-ffunction-sections -fdata-sections -Wl,--gc-sections
 
 clean::
 	rm -f toybox gen_config.h
