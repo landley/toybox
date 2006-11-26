@@ -32,7 +32,7 @@ defconfig: $(obj)/conf
 	$< -d $(KCONFIG_TOP)
 
 # Help text used by make help
-help:
+help::
 	@echo  '  config	  - Update current config utilising a line-oriented program'
 	@echo  '  menuconfig	  - Update current config utilising a menu based program'
 	@echo  '  oldconfig	  - Update current config utilising a provided .config as base'
