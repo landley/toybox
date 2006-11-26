@@ -43,10 +43,10 @@ toybox_unstripped: gen_config.h $(toyfiles) toys/toylist.h lib/lib.h toys.h
 toybox: toybox_unstripped
 	$(STRIP) toybox_unstripped -o toybox
 clean::
-	rm -f toybox gen_config.h
+	rm -f toybox toybox_old toybox_unstripped gen_config.h
 
 distclean: clean
-	rm -f .config
+	rm -f .config*
 
 help::
 	@echo  '  baseline        - Create busybox_old for use by bloatcheck.'
