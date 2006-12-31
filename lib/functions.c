@@ -195,7 +195,8 @@ char *xgetcwd(void)
 }
 
 // Cannonicalizes path by removing ".", "..", and "//" elements.  This is not
-// the same as realpath(), where "dir/.."
+// the same as realpath(), where "dir/.." could wind up somewhere else by
+// following symlinks.
 char *xabspath(char *path)
 {
 	char *from, *to;
