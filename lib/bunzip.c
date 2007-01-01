@@ -3,10 +3,10 @@
 
    Copyright 2003, 2006 by Rob Landley (rob@landley.net).
 
-   Based on bzip2 decompression code by Julian R Seward (jseward@acm.org),
-   which also acknowledges contributions by Mike Burrows, David Wheeler, Peter
-   Fenwick, Alistair Moffat, Radford Neal, Ian H. Witten, Robert Sedgewick, and
-   Jon L. Bentley.  (Didn't actually use any of their code, though.)
+   Based on a close reading (but not the actual code) of bzip2 decompression
+   code by Julian R Seward (jseward@acm.org), which also acknowledges
+   contributions by Mike Burrows, David Wheeler, Peter Fenwick, Alistair
+   Moffat, Radford Neal, Ian H. Witten, Robert Sedgewick, and Jon L. Bentley.
 */
 
 #include "toys.h"
@@ -57,8 +57,8 @@ typedef struct {
 	jmp_buf jmpbuf;
 
 	// Input stream, input buffer, input bit buffer
-	int in_fd,inbufCount,inbufPos;
-	unsigned char *inbuf;
+	int in_fd, inbufCount, inbufPos;
+	char *inbuf;
 	unsigned int inbufBitCount, inbufBits;
 
 	// Output buffer
@@ -75,8 +75,8 @@ typedef struct {
 	int writePos, writeRun, writeCount, writeCurrent;
 
 	// These things are a bit too big to go on the stack
-	unsigned char selectors[32768];			// nSelectors=15 bits
-	struct group_data groups[MAX_GROUPS];	// huffman coding tables
+	char selectors[32768];                  // nSelectors=15 bits
+	struct group_data groups[MAX_GROUPS];   // huffman coding tables
 } bunzip_data;
 
 // Return the next nnn bits of input.  All reads from the compressed input
@@ -123,7 +123,7 @@ extern int read_bunzip_data(bunzip_data *bd)
 	int dbufCount, nextSym, dbufSize, origPtr, groupCount, *base, *limit,
 		selector, i, j, k, t, runPos, symCount, symTotal, nSelectors,
 		byteCount[256];
-	unsigned char uc, symToByte[256], mtfSymbol[256], *selectors;
+	char uc, mtfSymbol[256], symToByte[256], *selectors;
 	unsigned int *dbuf;
 
 	// Read in header signature (borrowing mtfSymbol for temp space).
