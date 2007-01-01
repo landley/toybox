@@ -1,7 +1,7 @@
 # Makefile for toybox.
 # Copyright 2006 Rob Landley <rob@landley.net>
 
-CFLAGS  = -Wall -Wundef -Os
+CFLAGS  = -Wall -Wundef -Wno-char-subscripts -Os
 CC      = $(CROSS_COMPILE)gcc $(CFLAGS) -funsigned-char
 STRIP   = $(CROSS_COMPILE)strip
 HOST_CC = gcc $(CFLAGS) -funsigned-char
@@ -38,7 +38,8 @@ bloatcheck: toybox_old toybox_unstripped
 toyfiles = main.c toys/*.c lib/*.c
 toybox_unstripped: gen_config.h $(toyfiles) toys/toylist.h lib/lib.h toys.h
 	$(CC) $(CFLAGS) -I . $(toyfiles) -o toybox_unstripped \
-		-ffunction-sections -fdata-sections -Wl,--gc-sections
+		-ffunction-sections -fdata-sections -Wl,--gc-sections \
+		2>&1 | sed -n -e '/may be used uninitialized/{s/.*/\n/;h;b};1{x;b};: print;x;/\n/b thing;p;: thing;${x;p}' >&2
 
 toybox: toybox_unstripped
 	$(STRIP) toybox_unstripped -o toybox
