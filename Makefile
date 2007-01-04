@@ -38,8 +38,8 @@ bloatcheck: toybox_old toybox_unstripped
 toyfiles = main.c toys/*.c lib/*.c
 toybox_unstripped: gen_config.h $(toyfiles) toys/toylist.h lib/lib.h toys.h
 	$(CC) $(CFLAGS) -I . $(toyfiles) -o toybox_unstripped \
-		-ffunction-sections -fdata-sections -Wl,--gc-sections \
-		2>&1 | sed -n -e '/may be used uninitialized/{s/.*/\n/;h;b};1{x;b};: print;x;/\n/b thing;p;: thing;${x;p}' >&2
+		-ffunction-sections -fdata-sections -Wl,--gc-sections #\
+		#2>&1 | sed -n -e '/may be used uninitialized/{s/.*/\n/;h;b};1{x;b};: print;=;p;x;/\n/b thing;p;: thing;${x;p}' >&2
 
 toybox: toybox_unstripped
 	$(STRIP) toybox_unstripped -o toybox
