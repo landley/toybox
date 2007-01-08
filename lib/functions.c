@@ -214,12 +214,12 @@ ssize_t writeall(int fd, void *buf, size_t count)
 }
 
 // Die if we can't fill a buffer
-void xread(int fd, char *buf, size_t count)
+void xread(int fd, void *buf, size_t count)
 {
 	if (count != readall(fd, buf, count)) perror_exit("xread");
 }	
 
-void xwrite(int fd, char *buf, size_t count)
+void xwrite(int fd, void *buf, size_t count)
 {
 	if (count != writeall(fd, buf, count)) perror_exit("xwrite");
 }
