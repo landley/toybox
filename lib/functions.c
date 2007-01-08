@@ -140,6 +140,11 @@ void xexec(char **argv)
 	error_exit("No %s", argv[0]);
 }
 
+void xaccess(char *path, int flags)
+{
+	if (access(path, flags)) error_exit("Can't access '%s'\n", path);
+}
+
 // Die unless we can open/create a file, returning file descriptor.
 int xcreate(char *path, int flags, int mode)
 {

@@ -38,6 +38,7 @@ void *xstrndup(char *s, size_t n);
 void *xstrdup(char *s);
 char *xmsprintf(char *format, ...);
 void xexec(char **argv);
+void xaccess(char *path, int flags);
 int xcreate(char *path, int flags, int mode);
 int xopen(char *path, int flags);
 FILE *xfopen(char *path, char *mode);
