@@ -23,7 +23,7 @@ int catv_main(void)
 		// Read from stdin if there's nothing else to do.
 
 		fd = 0;
-		if (*argv && 0>(fd = xopen(*argv, O_RDONLY, 0))) retval = EXIT_FAILURE;
+		if (*argv && 0>(fd = xopen(*argv, O_RDONLY))) retval = EXIT_FAILURE;
 		else for(;;) {
 			int i, res;
 

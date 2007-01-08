@@ -289,3 +289,35 @@ notflag:
 	if (optarg<minargs) error_exit("Need %d arguments", minargs);
 	if (optarg>maxargs) error_exit("Max %d arguments", maxargs);
 }
+
+// Loop through files listed on the command line
+
+static int dofileargs(char ***files, int fd, int iswrite)
+{
+	char *filename = *((*files)++);
+	static int flags[] = {O_RDONLY, O_CREAT|O_TRUNC, O_RDWR};
+
+	if (fd != -1) close(fd);
+
+	for (;;) {
+
+		// Are there no more files?
+		if (!*filename) 
+			return (fd == -1) ? iswrite : -1;
+
+		// A filename of "-" means stdin.
+		if (*filename == '-' && !filename[1]) return 0;
+
+		fd = xcreate(filename, flags[iswrite], 0777);
+	}
+}
+
+int readfileargs(char ***files, int fd)
+{
+	return dofileargs(files, fd, 0);
+}
+
+int writefileargs(char ***files, int fd)
+{
+	return dofileargs(files, fd, 1);
+}

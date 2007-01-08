@@ -141,11 +141,17 @@ void xexec(char **argv)
 }
 
 // Die unless we can open/create a file, returning file descriptor.
-int xopen(char *path, int flags, int mode)
+int xcreate(char *path, int flags, int mode)
 {
 	int fd = open(path, flags, mode);
 	if (fd == -1) error_exit("No file %s\n", path);
 	return fd;
+}
+
+// Die unless we can open a file, returning file descriptor.
+int xopen(char *path, int flags)
+{
+	return xcreate(path, flags, 0);
 }
 
 // Die unless we can open/create a file, returning FILE *.

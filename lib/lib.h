@@ -38,7 +38,8 @@ void *xstrndup(char *s, size_t n);
 void *xstrdup(char *s);
 char *xmsprintf(char *format, ...);
 void xexec(char **argv);
-int xopen(char *path, int flags, int mode);
+int xcreate(char *path, int flags, int mode);
+int xopen(char *path, int flags);
 FILE *xfopen(char *path, char *mode);
 ssize_t reread(int fd, void *buf, size_t count);
 ssize_t readall(int fd, void *buf, size_t count);
@@ -63,3 +64,4 @@ struct mtab_list {
 
 struct mtab_list *getmountlist(int die);
 
+char *bunzipStream(int src_fd, int dst_fd);
