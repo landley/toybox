@@ -165,10 +165,18 @@ FILE *xfopen(char *path, char *mode)
 // Read from file handle, retrying if interrupted.
 ssize_t reread(int fd, void *buf, size_t count)
 {
-	ssize_t len;
 	for (;;) {
-		len = read(fd, buf, count);
+		ssize_t len = read(fd, buf, count);
 		if (len >= 0  || errno != EINTR) return len;
+	}
+}
+
+// Write to file handle, retrying if interrupted.
+ssize_t rewrite(int fd, void *buf, size_t count)
+{
+	for (;;) {
+		ssize_t len = write(fd, buf, count);
+		if (len >= 0 || errno != EINTR) return len;
 	}
 }
 
@@ -186,11 +194,30 @@ ssize_t readall(int fd, void *buf, size_t count)
 	return count;
 }
 
+// Keep writing until done or EOF
+ssize_t writeall(int fd, void *buf, size_t count)
+{
+	size_t len = 0;
+	while (len<count) {
+		int i = rewrite(fd, buf, count);
+		if (!i) return len;
+		if (i<0) return i;
+		count += i;
+	}
+
+	return count;
+}
+
 // Die if we can't fill a buffer
 void xread(int fd, char *buf, size_t count)
 {
 	if (count != readall(fd, buf, count)) perror_exit("xread");
 }	
+
+void xwrite(int fd, char *buf, size_t count)
+{
+	if (count != writeall(fd, buf, count)) perror_exit("xwrite");
+}
 
 char *xgetcwd(void)
 {
