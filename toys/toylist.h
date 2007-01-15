@@ -22,11 +22,25 @@
 
 struct df_data {
 	struct arg_list *fstype;
+
 	long units;
 };
 
+struct mke2fs_data {
+	long blocksize;
+	long bytes_per_inode;
+	long inodes;
+	long reserved_percent;
+
+	int fsfd, noseek;
+};
+
+// "E:jJ:L:m:O:"
+#define MKE2FS_OPTSTRING "Fnqm:N:i:b:"
+
 union toy_union {
 	struct df_data df;
+	struct mke2fs_data mke2fs;
 } toy;
 
 #define TOYFLAG_USR      (1<<0)
@@ -47,7 +61,7 @@ extern struct toy_list {
 
 // List of all the applets toybox can provide.
 
-// This one is out of order on purpose.
+// This one is out of order on purpose: it's the first element in the array.
 
 NEWTOY(toybox, NULL, 0)
 
@@ -58,6 +72,7 @@ USE_TOYSH(NEWTOY(cd, NULL, TOYFLAG_NOFORK))
 USE_DF(NEWTOY(df, "Pkt*a", TOYFLAG_USR|TOYFLAG_SBIN))
 USE_TOYSH(NEWTOY(exit, NULL, TOYFLAG_NOFORK))
 USE_HELLO(NEWTOY(hello, NULL, TOYFLAG_NOFORK|TOYFLAG_USR))
+USE_MKE2FS(NEWTOY(mke2fs, MKE2FS_OPTSTRING, TOYFLAG_SBIN))
 USE_ONEIT(NEWTOY(oneit, "+p<1", TOYFLAG_SBIN))
 USE_PWD(NEWTOY(pwd, NULL, TOYFLAG_BIN))
 USE_TOYSH(OLDTOY(sh, toysh, "c:i", TOYFLAG_BIN))

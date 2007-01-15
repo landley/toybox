@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/types.h>
@@ -25,6 +26,7 @@
 #include <unistd.h>
 
 #include "lib/lib.h"
+#include "lib/portability.h"
 #include "gen_config.h"
 #include "toys/toylist.h"
 
@@ -46,4 +48,4 @@ extern struct toy_context {
 
 // One big temporary buffer, for use by applets (not library functions).
 
-char toybuf[4096];
+extern char toybuf[4096];

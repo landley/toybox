@@ -49,6 +49,7 @@ void error_exit(char *msg, ...)
 	exit(toys.exitval);
 }
 
+
 // Die with an error message and strerror(errno)
 void perror_exit(char *msg, ...)
 {
@@ -59,6 +60,12 @@ void perror_exit(char *msg, ...)
 	va_end(va);
 
 	exit(toys.exitval);
+}
+
+// Stub until the online help system goes in.
+void usage_exit(void)
+{
+	exit(1);
 }
 
 // Like strncpy but always null terminated.
@@ -213,11 +220,19 @@ ssize_t writeall(int fd, void *buf, size_t count)
 	return count;
 }
 
-// Die if we can't fill a buffer
-void xread(int fd, void *buf, size_t count)
+// Die if there's an error other than EOF.
+size_t xread(int fd, void *buf, size_t count)
 {
-	if (count != readall(fd, buf, count)) perror_exit("xread");
-}	
+	count = reread(fd, buf, count);
+	if (count < 0) perror_exit("xread");
+
+	return count;
+}
+
+void xreadall(int fd, void *buf, size_t count)
+{
+	if (count != readall(fd, buf, count)) perror_exit("xreadall");
+}
 
 void xwrite(int fd, void *buf, size_t count)
 {
@@ -376,4 +391,104 @@ char *itoa(int n)
 	itoa_to_buf(n, itoa_buf, sizeof(itoa_buf));
 
 	return itoa_buf;
+}
+
+/*
+ This might be of use or might not.  Unknown yet...
+
+
+// Return how long the file at fd is, if there's any way to determine it.
+off_t fdlength(int fd)
+{
+	off_t bottom = 0, top = 0, pos;
+	long size;
+
+	// If the ioctl works for this, return it.
+
+	if (ioctl(fd, BLKGETSIZE, &size) >= 0) return size*512;
+
+	// If not, do a binary search for the last location we can read.  (Some
+	// block devices don't do BLKGETSIZE right.)  This should probably have
+	// a CONFIG option...
+
+	do {
+		char temp;
+
+		pos = bottom + (top - bottom) / 2;
+
+		// If we can read from the current location, it's bigger.
+
+		if (lseek(fd, pos, 0)>=0 && safe_read(fd, &temp, 1)==1) {
+			if (bottom == top) bottom = top = (top+1) * 2;
+			else bottom = pos;
+
+			// If we can't, it's smaller.
+
+		} else {
+			if (bottom == top) {
+				if (!top) return 0;
+				bottom = top/2;
+			} else top = pos;
+		}
+	} while (bottom + 1 != top);
+
+	return pos + 1;
+}
+
+// Read contents of file as a single freshly allocated nul-terminated string.
+char *readfile(char *name)
+{
+	off_t len;
+	int fd;
+	char *buf;
+
+	fd = open(pidfile, O_RDONLY);
+	if (fd == -1) return 0;
+	len = fdlength(fd);
+	buf = xmalloc(len+1);
+	buf[xread(fd, buf, len)] = 0;
+
+	return buf;
+}
+
+char *xreadfile(char *name)
+{
+	char *buf = readfile(name);
+	if (!buf) error_exit("xreadfile %s", name);
+	return buf;
+}
+
+*/
+
+// Open a /var/run/NAME.pid file, dying if we can't write it or if it currently
+// exists and is this executable.
+void xpidfile(char *name)
+{
+	char pidfile[256], spid[32];
+	int i, fd;
+	pid_t pid;
+	
+	sprintf(pidfile, "/var/run/%s.pid", name);
+	// Try three times to open the sucker.
+	for (i=0; i<3; i++) {
+		fd = open(pidfile, O_CREAT|O_EXCL, 0644);
+		if (fd != -1) break;
+
+		// If it already existed, read it.  Loop for race condition.
+		fd = open(pidfile, O_RDONLY);
+		if (fd == -1) continue;
+
+		// Is the old program still there?
+		spid[xread(fd, spid, sizeof(spid)-1)] = 0;
+		close(fd);
+		pid = atoi(spid);
+		if (fd < 1 || kill(pid, 0) == ESRCH) unlink(pidfile);
+
+		// An else with more sanity checking might be nice here.
+	}
+	
+	if (i == 3) error_exit("xpidfile %s", name);
+
+	xwrite(fd, spid, sprintf(spid, "%ld\n", (long)getpid()));
+	close(fd);
 }
