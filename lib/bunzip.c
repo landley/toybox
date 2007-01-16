@@ -182,7 +182,7 @@ int read_bunzip_data(bunzip_data *bd)
 
 		// Decode MTF to get the next selector
 		uc = mtfSymbol[j];
-		for (k=j; k; k--) mtfSymbol[k] = mtfSymbol[k-1];
+		memmove(mtfSymbol+1, mtfSymbol, j);
 		mtfSymbol[0] = selectors[i] = uc;
 	}
 	// Read the huffman coding tables for each group, which code for symTotal
@@ -197,9 +197,8 @@ int read_bunzip_data(bunzip_data *bd)
 		for (i = 0; i < symCount; i++) {
 			for(;;) {
 				if (MAX_HUFCODE_BITS < (unsigned)t-1) return RETVAL_DATA_ERROR;
-				if(!get_bits(bd, 1)) break;
-				if(!get_bits(bd, 1)) t++;
-				else t--;
+				if(!get_bits(bd, 1)) break;    // Stop yet?
+				t += (1 - 2*get_bits(bd, 1));  // bit ? t-- : t++
 			}
 			length[i] = t;
 		}
