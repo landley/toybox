@@ -67,6 +67,7 @@ NEWTOY(toybox, NULL, 0)
 
 // The rest of these are alphabetical, for binary search.
 
+USE_BZCAT(NEWTOY(bzcat, "", TOYFLAG_USR|TOYFLAG_BIN))
 USE_CATV(NEWTOY(catv, "vte", TOYFLAG_NOFORK|TOYFLAG_USR|TOYFLAG_BIN))
 USE_TOYSH(NEWTOY(cd, NULL, TOYFLAG_NOFORK))
 USE_DF(NEWTOY(df, "Pkt*a", TOYFLAG_USR|TOYFLAG_SBIN))

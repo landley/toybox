@@ -3,10 +3,11 @@
 
    Copyright 2003, 2006 by Rob Landley (rob@landley.net).
 
-   Based on a close reading (but not the actual code) of bzip2 decompression
-   code by Julian R Seward (jseward@acm.org), which also acknowledges
-   contributions by Mike Burrows, David Wheeler, Peter Fenwick, Alistair
-   Moffat, Radford Neal, Ian H. Witten, Robert Sedgewick, and Jon L. Bentley.
+   Based on a close reading (but not the actual code) of the original bzip2
+   decompression code by Julian R Seward (jseward@acm.org), which also
+   acknowledges contributions by Mike Burrows, David Wheeler, Peter Fenwick,
+   Alistair Moffat, Radford Neal, Ian H. Witten, Robert Sedgewick, and
+   Jon L. Bentley.
 */
 
 #include "toys.h"
@@ -117,7 +118,7 @@ static unsigned int get_bits(bunzip_data *bd, char bits_wanted)
 }
 
 // Decompress a block of text to into intermediate buffer
-extern int read_bunzip_data(bunzip_data *bd)
+int read_bunzip_data(bunzip_data *bd)
 {
 	struct group_data *hufGroup;
 	int dbufCount, nextSym, dbufSize, origPtr, groupCount, *base, *limit,
@@ -195,7 +196,7 @@ extern int read_bunzip_data(bunzip_data *bd)
 		t = get_bits(bd, 5);
 		for (i = 0; i < symCount; i++) {
 			for(;;) {
-				if (t < 1 || t > MAX_HUFCODE_BITS) return RETVAL_DATA_ERROR;
+				if (MAX_HUFCODE_BITS < (unsigned)t-1) return RETVAL_DATA_ERROR;
 				if(!get_bits(bd, 1)) break;
 				if(!get_bits(bd, 1)) t++;
 				else t--;
@@ -397,7 +398,7 @@ extern int read_bunzip_data(bunzip_data *bd)
 }
 
 // Flush output buffer to disk
-extern void flush_bunzip_outbuf(bunzip_data *bd, int out_fd)
+void flush_bunzip_outbuf(bunzip_data *bd, int out_fd)
 {
 	if (bd->outbufPos) {
 		if (write(out_fd, bd->outbuf, bd->outbufPos) != bd->outbufPos)
@@ -409,7 +410,7 @@ extern void flush_bunzip_outbuf(bunzip_data *bd, int out_fd)
 // Undo burrows-wheeler transform on intermediate buffer to produce output.
 // If !len, write up to len bytes of data to buf.  Otherwise write to out_fd.
 // Returns len ? bytes written : RETVAL_OK.  Notice all errors negative #'s.
-extern int write_bunzip_data(bunzip_data *bd, int out_fd, char *outbuf, int len)
+int write_bunzip_data(bunzip_data *bd, int out_fd, char *outbuf, int len)
 {
 	unsigned int *dbuf = bd->dbuf;
 	int count, pos, current, run, copies, outbyte, previous, gotcount = 0;
@@ -503,7 +504,7 @@ dataus_interruptus:
 
 // Allocate the structure, read file header.  If !len, src_fd contains
 // filehandle to read from.  Else inbuf contains data.
-extern int start_bunzip(bunzip_data **bdp, int src_fd, char *inbuf, int len)
+int start_bunzip(bunzip_data **bdp, int src_fd, char *inbuf, int len)
 {
 	bunzip_data *bd;
 	unsigned int i, j, c;
@@ -553,7 +554,7 @@ extern int start_bunzip(bunzip_data **bdp, int src_fd, char *inbuf, int len)
 
 // Example usage: decompress src_fd to dst_fd.  (Stops at end of bzip data,
 // not end of file.)
-extern char *uncompressStream(int src_fd, int dst_fd)
+char *bunzipStream(int src_fd, int dst_fd)
 {
 	bunzip_data *bd;
 	int i;
