@@ -301,7 +301,7 @@ int read_bunzip_data(bunzip_data *bd)
 		nextSym = hufGroup->permute[j];
 
 		// If this is a repeated run, loop collecting data
-		if (nextSym == SYMBOL_RUNA || nextSym == SYMBOL_RUNB) {
+		if ((unsigned)nextSym <= SYMBOL_RUNB) {
 
 			// If this is the start of a new run, zero out counter
 			if(!runPos) {
