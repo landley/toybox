@@ -346,7 +346,9 @@ int read_bunzip_data(bunzip_data *bd)
 		if (dbufCount>=dbufSize) return RETVAL_DATA_ERROR;
 		i = nextSym - 1;
 		uc = mtfSymbol[i];
-		memmove(mtfSymbol+1, mtfSymbol, i);
+		// On my laptop, unrolling this memmove() into a loop costs 11 bytes
+		// but shaves 3.5% off the total running time.
+		while(i--) mtfSymbol[i+1] = mtfSymbol[i];
 		mtfSymbol[0] = uc;
 		uc = symToByte[uc];
 
