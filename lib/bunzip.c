@@ -197,7 +197,9 @@ int read_bunzip_data(bunzip_data *bd)
 		t = get_bits(bd, 5);
 		for (i = 0; i < symCount; i++) {
 			for(;;) {
-				if (MAX_HUFCODE_BITS < (unsigned)t-1) return RETVAL_DATA_ERROR;
+				// !t || t > MAX_HUFCODE_BITS in one test.
+				if (MAX_HUFCODE_BITS-1 < (unsigned)t-1)
+					return RETVAL_DATA_ERROR;
 				if(!get_bits(bd, 1)) break;    // Stop yet?
 				t += (1 - 2*get_bits(bd, 1));  // bit ? t-- : t++
 			}
