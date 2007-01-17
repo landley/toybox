@@ -316,8 +316,7 @@ int read_bunzip_data(bunzip_data *bd)
 			   the basic or 0/1 method (except all bits 0, which would use no
 			   symbols, but a run of length 0 doesn't mean anything in this
 			   context).  Thus space is saved. */
-			if (nextSym == SYMBOL_RUNA) t += runPos;
-			else t += 2*runPos;
+			t += (runPos << nextSym); // +runPos if RUNA; +2*runPos if RUNB
 			runPos <<= 1;
 			continue;
 		}
