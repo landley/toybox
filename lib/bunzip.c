@@ -117,7 +117,7 @@ static unsigned int get_bits(bunzip_data *bd, char bits_wanted)
 	return bits;
 }
 
-// Decompress a block of text to into intermediate buffer
+// Decompress a block of text to intermediate buffer
 int read_bunzip_data(bunzip_data *bd)
 {
 	struct group_data *hufGroup;
@@ -171,7 +171,8 @@ int read_bunzip_data(bunzip_data *bd)
 
 	// nSelectors: Every GROUP_SIZE many symbols we select a new huffman coding
 	// group.  Read in the group selector list, which is stored as MTF encoded
-	// bit runs.
+	// bit runs.  (MTF = Move To Front.  Every time a symbol occurs it's moved
+	// to the front of the table, so it has a shorter encoding next time.)
 	if (!(nSelectors = get_bits(bd, 15))) return RETVAL_DATA_ERROR;
 	for (i=0; i<groupCount; i++) mtfSymbol[i] = i;
 	for (i=0; i<nSelectors; i++) {
@@ -180,7 +181,7 @@ int read_bunzip_data(bunzip_data *bd)
 		for(j=0;get_bits(bd,1);j++)
 			if (j>=groupCount) return RETVAL_DATA_ERROR;
 
-		// Decode MTF to get the next selector
+		// Decode MTF to get the next selector, and move it to the front.
 		uc = mtfSymbol[j];
 		memmove(mtfSymbol+1, mtfSymbol, j);
 		mtfSymbol[0] = selectors[i] = uc;
@@ -221,7 +222,7 @@ int read_bunzip_data(bunzip_data *bd)
 		 *
 		 * To use these, keep reading bits until value <= limit[bitcount] or
 		 * you've read over 20 bits (error).  Then the decoded symbol
-		 * equals permute[hufcode_value-base[hufcode_bitcount]].
+		 * equals permute[hufcode_value - base[hufcode_bitcount]].
 		 */
 		hufGroup = bd->groups+j;
 		hufGroup->minLen = minLen;
@@ -230,25 +231,25 @@ int read_bunzip_data(bunzip_data *bd)
 		// Note that minLen can't be smaller than 1, so we adjust the base
 		// and limit array pointers so we're not always wasting the first
 		// entry.  We do this again when using them (during symbol decoding).
-		base=hufGroup->base-1;
-		limit=hufGroup->limit-1;
+		base = hufGroup->base-1;
+		limit = hufGroup->limit-1;
 
 		// Calculate permute[]
 		pp = 0;
-		for (i=minLen; i<=maxLen; i++) 
-			for (t=0;t<symCount;t++) 
-				if (length[t]==i) hufGroup->permute[pp++] = t;
+		for (i = minLen; i <= maxLen; i++) 
+			for (t = 0; t < symCount; t++) 
+				if (length[t] == i) hufGroup->permute[pp++] = t;
 
 		// Count cumulative symbols coded for at each bit length
-		for (i=minLen; i<=maxLen; i++) temp[i] = limit[i] = 0;
-		for (i=0; i<symCount; i++) temp[length[i]]++;
+		for (i = minLen; i <= maxLen; i++) temp[i] = limit[i] = 0;
+		for (i = 0; i < symCount; i++) temp[length[i]]++;
 
 		/* Calculate limit[] (the largest symbol-coding value at each bit
 		 * length, which is (previous limit<<1)+symbols at this level), and
 		 * base[] (number of symbols to ignore at each bit length, which is
 		 * limit-cumulative count of symbols coded for already). */
 		pp = t = 0;
-		for (i=minLen; i<maxLen; i++) {
+		for (i = minLen; i < maxLen; i++) {
 			pp += temp[i];
 			limit[i] = pp-1;
 			pp <<= 1;
@@ -266,7 +267,9 @@ int read_bunzip_data(bunzip_data *bd)
 	memset(byteCount, 0, 256*sizeof(int));
 	for(i=0; i<256; i++) mtfSymbol[i] = (unsigned char)i;
 
-	// Loop through compressed symbols
+	// Loop through compressed symbols.  This is the first "tight inner loop"
+	// that needs to be micro-optimized for speed.  (This one fills out dbuf[]
+	// linearly, staying in cache more, so isn't as limited by DRAM access.)
 	runPos = dbufCount = symCount = selector = 0;
 	for (;;) {
 
