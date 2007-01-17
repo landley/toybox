@@ -121,7 +121,8 @@ static unsigned int get_bits(bunzip_data *bd, char bits_wanted)
 int read_bunzip_data(bunzip_data *bd)
 {
 	struct group_data *hufGroup;
-	int dbufCount, nextSym, dbufSize, origPtr, groupCount, *base, *limit,
+	unsigned origPtr;
+	int dbufCount, nextSym, dbufSize, groupCount, *base, *limit,
 		selector, i, j, k, t, runPos, symCount, symTotal, nSelectors,
 		byteCount[256];
 	char uc, mtfSymbol[256], symToByte[256], *selectors;
@@ -148,7 +149,7 @@ int read_bunzip_data(bunzip_data *bd)
 
 	// We can add support for blockRandomised if anybody complains.
 	if (get_bits(bd,1)) return RETVAL_OBSOLETE_INPUT;
-	if ((origPtr=get_bits(bd,24)) > dbufSize) return RETVAL_DATA_ERROR;
+	if ((origPtr = get_bits(bd,24)) > dbufSize) return RETVAL_DATA_ERROR;
 
 	// mapping table: if some byte values are never used (encoding things
 	// like ascii text), the compression code removes the gaps to have fewer
@@ -346,8 +347,8 @@ int read_bunzip_data(bunzip_data *bd)
 		if (dbufCount>=dbufSize) return RETVAL_DATA_ERROR;
 		i = nextSym - 1;
 		uc = mtfSymbol[i];
-		// On my laptop, unrolling this memmove() into a loop costs 11 bytes
-		// but shaves 3.5% off the total running time.
+		// On my laptop, unrolling this memmove() into a loop shaves 3.5% off
+		// the total running time.
 		while(i--) mtfSymbol[i+1] = mtfSymbol[i];
 		mtfSymbol[0] = uc;
 		uc = symToByte[uc];
@@ -364,7 +365,7 @@ int read_bunzip_data(bunzip_data *bd)
 	 */
 
 	// Now we know what dbufCount is, do a better sanity check on origPtr.
-	if (origPtr<0 || origPtr>=dbufCount) return RETVAL_DATA_ERROR;
+	if (origPtr>=dbufCount) return RETVAL_DATA_ERROR;
 
 	// Turn byteCount into cumulative occurrence counts of 0 to n-1.
 	j = 0;
