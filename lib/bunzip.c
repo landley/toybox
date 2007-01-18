@@ -46,7 +46,7 @@ char *bunzip_errors[]={
 
 // This is what we know about each huffman coding group
 struct group_data {
-	int limit[MAX_HUFCODE_BITS], base[MAX_HUFCODE_BITS], permute[MAX_SYMBOLS];
+	int limit[MAX_HUFCODE_BITS+1], base[MAX_HUFCODE_BITS], permute[MAX_SYMBOLS];
 	char minLen, maxLen;
 };
 
@@ -259,6 +259,7 @@ int read_bunzip_data(bunzip_data *bd)
 			base[i+1] = pp-(t+=temp[i]);
 		}
 		limit[maxLen] = pp+temp[maxLen]-1;
+		limit[maxLen+1] = INT_MAX;
 		base[minLen] = 0;
 	}
 
@@ -288,17 +289,22 @@ int read_bunzip_data(bunzip_data *bd)
 		// Read next huffman-coded symbol
 		i = hufGroup->minLen;
 		j = get_bits(bd, i);
-		for (;;) {
-			if (i > hufGroup->maxLen) return RETVAL_DATA_ERROR;
-			if (j <= limit[i]) break;
+		while (j > limit[i]) {
+			// if (i > hufGroup->maxLen) return RETVAL_DATA_ERROR;
 			i++;
 
-			j = (j << 1) | get_bits(bd,1);
+			// Unroll get_bits() to avoid a function call when the data's in
+			// the buffer already.
+			k = bd->inbufBitCount
+			   	? (bd->inbufBits >> --(bd->inbufBitCount)) & 1
+				: get_bits(bd, 1);
+			j = (j << 1) | k;
 		}
 
 		// Huffman decode nextSym (with bounds checking)
 		j-=base[i];
-		if (j < 0 || j >= MAX_SYMBOLS) return RETVAL_DATA_ERROR;
+		if (i > hufGroup->maxLen || (unsigned)j >= MAX_SYMBOLS)
+			return RETVAL_DATA_ERROR;
 		nextSym = hufGroup->permute[j];
 
 		// If this is a repeated run, loop collecting data
