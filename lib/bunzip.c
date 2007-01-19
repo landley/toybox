@@ -188,8 +188,15 @@ int read_bunzip_data(bunzip_data *bd)
 				// !t || t > MAX_HUFCODE_BITS in one test.
 				if (MAX_HUFCODE_BITS-1 < (unsigned)t-1)
 					return RETVAL_DATA_ERROR;
-				if(!get_bits(bd, 1)) break;    // Stop yet?
-				t += (1 - 2*get_bits(bd, 1));  // bit ? t-- : t++
+				// Grab 2 bits instead of 1 (slightly smaller/faster).  Stop if
+				// first bit is 0, otherwise second bit says whether to
+				// increment or decrement.
+				k = get_bits(bd, 2);
+				if (k & 2) t += 1 - ((k&1)<<1);
+				else {
+					bd->inbufBitCount++;
+					break;
+				}
 			}
 			length[i] = t;
 		}
