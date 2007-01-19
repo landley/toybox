@@ -211,8 +211,10 @@ int read_bunzip_data(bunzip_data *bd)
 		/* Calculate permute[], base[], and limit[] tables from length[].
 		 *
 		 * permute[] is the lookup table for converting huffman coded symbols
-		 * into decoded symbols.  base[] is the amount to subtract from the
-		 * value of a huffman symbol of a given length when using permute[].
+		 * into decoded symbols.  It contains symbol values sorted by length.
+		 * 
+		 * base[] is the amount to subtract from the value of a huffman symbol
+		 * of a given length when using permute[].
 		 *
 		 * limit[] indicates the largest numerical value a symbol with a given
 		 * number of bits can have.  It lets us know when to stop reading.
@@ -231,20 +233,20 @@ int read_bunzip_data(bunzip_data *bd)
 		base = hufGroup->base-1;
 		limit = hufGroup->limit-1;
 
-		// Calculate permute[]
+		// Calculate permute[], and zero temp[] and limit[].
 		pp = 0;
 		for (i = minLen; i <= maxLen; i++) 
+			temp[i] = limit[i] = 0;
 			for (t = 0; t < symCount; t++) 
 				if (length[t] == i) hufGroup->permute[pp++] = t;
 
-		// Count cumulative symbols coded for at each bit length
-		for (i = minLen; i <= maxLen; i++) temp[i] = limit[i] = 0;
+		// Count symbols coded for at each bit length
 		for (i = 0; i < symCount; i++) temp[length[i]]++;
 
 		/* Calculate limit[] (the largest symbol-coding value at each bit
 		 * length, which is (previous limit<<1)+symbols at this level), and
 		 * base[] (number of symbols to ignore at each bit length, which is
-		 * limit-cumulative count of symbols coded for already). */
+		 * limit minus the cumulative count of symbols coded for already). */
 		pp = t = 0;
 		for (i = minLen; i < maxLen; i++) {
 			pp += temp[i];
