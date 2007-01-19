@@ -27,7 +27,7 @@ int catv_main(void)
 		else for(;;) {
 			int i, res;
 
-			res = reread(fd, toybuf, sizeof(toybuf));
+			res = read(fd, toybuf, sizeof(toybuf));
 			if (res < 0) retval = EXIT_FAILURE;
 			if (res < 1) break;
 			for (i=0; i<res; i++) {

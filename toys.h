@@ -6,6 +6,8 @@
  * Licensed under GPL version 2, see file LICENSE in this tarball for details.
  */
 
+#include "lib/portability.h"
+
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -26,7 +28,6 @@
 #include <unistd.h>
 
 #include "lib/lib.h"
-#include "lib/portability.h"
 #include "gen_config.h"
 #include "toys/toylist.h"
 

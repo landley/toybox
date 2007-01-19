@@ -174,30 +174,12 @@ FILE *xfopen(char *path, char *mode)
 	return f;
 }
 
-// Read from file handle, retrying if interrupted.
-ssize_t reread(int fd, void *buf, size_t count)
-{
-	for (;;) {
-		ssize_t len = read(fd, buf, count);
-		if (len >= 0  || errno != EINTR) return len;
-	}
-}
-
-// Write to file handle, retrying if interrupted.
-ssize_t rewrite(int fd, void *buf, size_t count)
-{
-	for (;;) {
-		ssize_t len = write(fd, buf, count);
-		if (len >= 0 || errno != EINTR) return len;
-	}
-}
-
 // Keep reading until full or EOF
-ssize_t readall(int fd, void *buf, size_t count)
+ssize_t readall(int fd, void *buf, size_t len)
 {
-	size_t len = 0;
-	while (len<count) {
-		int i = reread(fd, buf, count);
+	size_t count = 0;
+	while (count<len) {
+		int i = read(fd, buf+count, len-count);
 		if (!i) return len;
 		if (i<0) return i;
 		count += i;
@@ -207,13 +189,12 @@ ssize_t readall(int fd, void *buf, size_t count)
 }
 
 // Keep writing until done or EOF
-ssize_t writeall(int fd, void *buf, size_t count)
+ssize_t writeall(int fd, void *buf, size_t len)
 {
-	size_t len = 0;
-	while (len<count) {
-		int i = rewrite(fd, buf, count);
-		if (!i) return len;
-		if (i<0) return i;
+	size_t count = 0;
+	while (count<len) {
+		int i = write(fd, buf+count, len-count);
+		if (i<1) return i;
 		count += i;
 	}
 
@@ -221,22 +202,26 @@ ssize_t writeall(int fd, void *buf, size_t count)
 }
 
 // Die if there's an error other than EOF.
-size_t xread(int fd, void *buf, size_t count)
+size_t xread(int fd, void *buf, size_t len)
 {
-	count = reread(fd, buf, count);
-	if (count < 0) perror_exit("xread");
+	len = read(fd, buf, len);
+	if (len < 0) perror_exit("xread");
 
-	return count;
+	return len;
 }
 
-void xreadall(int fd, void *buf, size_t count)
+void xreadall(int fd, void *buf, size_t len)
 {
-	if (count != readall(fd, buf, count)) perror_exit("xreadall");
+	if (len != readall(fd, buf, len)) perror_exit("xreadall");
 }
 
-void xwrite(int fd, void *buf, size_t count)
+// There's no xwriteall(), just xwrite().  When we read, there may or may not
+// be more data waiting.  When we write, there is data and it had better go
+// somewhere.
+
+void xwrite(int fd, void *buf, size_t len)
 {
-	if (count != writeall(fd, buf, count)) perror_exit("xwrite");
+	if (len != writeall(fd, buf, len)) perror_exit("xwrite");
 }
 
 char *xgetcwd(void)

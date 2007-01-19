@@ -1,3 +1,9 @@
+
+// Humor glibc to get dprintf, then #define it to something more portable.
+#define _GNU_SOURCE
+#include <stdio.h>
+#define fdprintf(...) dprintf(__VA_ARGS__)
+
 #include <endian.h>
 
 #if __BYTE_ORDER == __BIG_ENDIAN
