@@ -21,6 +21,14 @@ config CATV
 	  -t	Show tabs as ^I
 	  -v	Don't use ^x or M-x escapes.
 
+config COUNT
+	bool "count"
+	default n
+	help
+	  usage: count
+
+	  Copy stdin to stdout, displaying simple progress indicator to stderr.
+
 config DF
 	bool "df (disk free)"
 	default n
