@@ -7,8 +7,7 @@
 
 int bzcat_main(void)
 {
-	char *error = bunzipStream(0, 1);
+	bunzipStream(0, 1);
 
-	if (error) error_exit(error);
 	return 0;
 }

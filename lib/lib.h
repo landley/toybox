@@ -68,4 +68,4 @@ struct mtab_list {
 
 struct mtab_list *getmountlist(int die);
 
-char *bunzipStream(int src_fd, int dst_fd);
+void bunzipStream(int src_fd, int dst_fd);

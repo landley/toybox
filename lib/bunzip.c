@@ -27,18 +27,12 @@
 #define RETVAL_OK						0
 #define RETVAL_LAST_BLOCK				(-1)
 #define RETVAL_NOT_BZIP_DATA			(-2)
-#define RETVAL_UNEXPECTED_INPUT_EOF		(-3)
-#define RETVAL_UNEXPECTED_OUTPUT_EOF	(-4)
-#define RETVAL_DATA_ERROR				(-5)
-#define RETVAL_OUT_OF_MEMORY			(-6)
-#define RETVAL_OBSOLETE_INPUT			(-7)
+#define RETVAL_DATA_ERROR				(-3)
+#define RETVAL_OBSOLETE_INPUT			(-4)
 
 char *bunzip_errors[]={
 	NULL,
-	"Bad file checksum",
 	"Not bzip data",
-	"Unexpected input EOF",
-	"Unexpected output EOF",
 	"Data error",
 	"Out of memory",
 	"Obsolete (pre 0.9.5) bzip format not supported."
@@ -53,9 +47,6 @@ struct group_data {
 // Structure holding all the housekeeping data, including IO buffers and
 // memory that persists between calls to bunzip
 typedef struct {
-
-	// For I/O error handling
-	jmp_buf jmpbuf;
 
 	// Input stream, input buffer, input bit buffer
 	int in_fd, inbufCount, inbufPos;
@@ -93,7 +84,7 @@ static unsigned int get_bits(bunzip_data *bd, char bits_wanted)
 		// If we need to read more data from file into byte buffer, do so
 		if (bd->inbufPos == bd->inbufCount) {
 			if (0 >= (bd->inbufCount = read(bd->in_fd, bd->inbuf, IOBUF_SIZE)))
-				longjmp(bd->jmpbuf, RETVAL_UNEXPECTED_INPUT_EOF);
+				error_exit("Unexpected input EOF");
 			bd->inbufPos = 0;
 		}
 
@@ -128,20 +119,16 @@ int read_bunzip_data(bunzip_data *bd)
 	char uc, mtfSymbol[256], symToByte[256], *selectors;
 	unsigned int *dbuf;
 
-	// Read in header signature (borrowing mtfSymbol for temp space).
-	for (i=0; i<6; i++) mtfSymbol[i] = get_bits(bd,8);
-	mtfSymbol[6] = 0;
-
-	// Read CRC (which is stored big endian).
+	// Read in header signature and CRC (which is stored big endian)
+	i = get_bits(bd, 24);
+	j = get_bits(bd, 24);
 	bd->headerCRC = get_bits(bd,32);
 
-	// Is this the last block (with CRC for file)?
-	if (!strcmp(mtfSymbol, "\x17\x72\x45\x38\x50\x90"))
-		return RETVAL_LAST_BLOCK;
+	// Is this the EOF block with CRC for whole file?
+	if (i==0x177245 && j==0x385090) return RETVAL_LAST_BLOCK;
 
-	// If it's not a valid data block, barf.
-	if (strcmp(mtfSymbol, "\x31\x41\x59\x26\x53\x59"))
-		return RETVAL_NOT_BZIP_DATA;
+	// Is this a valid data block?
+	if (i!=0x314159 || j!=0x265359) return RETVAL_NOT_BZIP_DATA;
 
 	dbuf = bd->dbuf;
 	dbufSize = bd->dbufSize;
@@ -414,7 +401,7 @@ void flush_bunzip_outbuf(bunzip_data *bd, int out_fd)
 {
 	if (bd->outbufPos) {
 		if (write(out_fd, bd->outbuf, bd->outbufPos) != bd->outbufPos)
-			longjmp(bd->jmpbuf,RETVAL_UNEXPECTED_OUTPUT_EOF);
+			error_exit("Unexpected output EOF");
 		bd->outbufPos = 0;
 	}
 }
@@ -526,8 +513,7 @@ int start_bunzip(bunzip_data **bdp, int src_fd, char *inbuf, int len)
 	if (!len) i += IOBUF_SIZE;
 
 	// Allocate bunzip_data.  Most fields initialize to zero.
-	if (!(bd = *bdp = malloc(i))) return RETVAL_OUT_OF_MEMORY;
-	memset(bd,0,sizeof(bunzip_data));
+	bd = *bdp = xzalloc(i);
 	if (len) {
 		bd->inbuf = inbuf;
 		bd->inbufCount = len;
@@ -545,10 +531,6 @@ int start_bunzip(bunzip_data **bdp, int src_fd, char *inbuf, int len)
 		bd->crc32Table[i] = c;
 	}
 
-	// Setup for I/O error handling via longjmp.
-	i = setjmp(bd->jmpbuf);
-	if (i) return i;
-
 	// Ensure that file starts with "BZh".
     for (i=0;i<3;i++)
 		if (get_bits(bd,8)!="BZh"[i]) return RETVAL_NOT_BZIP_DATA;
@@ -558,15 +540,14 @@ int start_bunzip(bunzip_data **bdp, int src_fd, char *inbuf, int len)
 	i = get_bits(bd, 8);
 	if (i<'1' || i>'9') return RETVAL_NOT_BZIP_DATA;
 	bd->dbufSize = 100000*(i-'0');
-	if (!(bd->dbuf = malloc(bd->dbufSize * sizeof(int))))
-		return RETVAL_OUT_OF_MEMORY;
+	bd->dbuf = xmalloc(bd->dbufSize * sizeof(int));
 
 	return RETVAL_OK;
 }
 
 // Example usage: decompress src_fd to dst_fd.  (Stops at end of bzip data,
 // not end of file.)
-char *bunzipStream(int src_fd, int dst_fd)
+void bunzipStream(int src_fd, int dst_fd)
 {
 	bunzip_data *bd;
 	int i;
@@ -578,5 +559,5 @@ char *bunzipStream(int src_fd, int dst_fd)
 	flush_bunzip_outbuf(bd,dst_fd);
 	free(bd->dbuf);
 	free(bd);
-	return bunzip_errors[-i];
+	if (i) error_exit(bunzip_errors[-i]);
 }
