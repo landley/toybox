@@ -102,13 +102,16 @@ int toybox_main(void)
 
 int main(int argc, char *argv[])
 {
-	char *name;
+	// Artificial scope to eat less stack for things we call
+	{
+		char *name;
 
-	// Figure out which applet to call.
-	name = rindex(argv[0], '/');
-	if (!name) name=argv[0];
-	else name++;
-	argv[0] = name;
+		// Figure out which applet to call.
+		name = rindex(argv[0], '/');
+		if (!name) name=argv[0];
+		else name++;
+		argv[0] = name;
+	}
 
 	toys.argv = argv-1;
 	return toybox_main();
