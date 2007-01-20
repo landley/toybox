@@ -264,8 +264,10 @@ int read_bunzip_data(bunzip_data *bd)
 	// and run length encoding, saving the result into dbuf[dbufCount++] = uc
 
 	// Initialize symbol occurrence counters and symbol mtf table
-	memset(byteCount, 0, 256*sizeof(int));
-	for(i=0; i<256; i++) mtfSymbol[i] = (unsigned char)i;
+	for(i=0; i<256; i++) {
+		byteCount[i] = 0;
+		mtfSymbol[i] = i;
+	}
 
 	// Loop through compressed symbols.  This is the first "tight inner loop"
 	// that needs to be micro-optimized for speed.  (This one fills out dbuf[]
@@ -360,10 +362,13 @@ int read_bunzip_data(bunzip_data *bd)
 		dbuf[dbufCount++] = (unsigned int)uc;
 	}
 
-	/* At this point, we've finished reading huffman-coded symbols and
-	   compressed runs from the input stream.  There are dbufCount many of
-	   them in dbuf[].  Now undo the Burrows-Wheeler transform on dbuf.
-	   See http://marknelson.us/1996/09/01/bwt/
+	/* At this point, we've finished reading all of this block's huffman-coded
+	 * symbols (and repeated runs) from the input stream, and have written
+	 * dbufCount many of them into dbuf[], the intermediate buffer.
+	 *
+	 * Now undo the Burrows-Wheeler transform on dbuf, described here:
+	 * http://dogma.net/markn/articles/bwt/bwt.htm
+	 * http://marknelson.us/1996/09/01/bwt/
 	 */
 
 	// Now we know what dbufCount is, do a better sanity check on origPtr.
