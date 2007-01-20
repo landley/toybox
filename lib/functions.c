@@ -138,6 +138,25 @@ char *xmsprintf(char *format, ...)
 	return ret;
 }
 
+void xprintf(char *format, ...)
+{
+	va_list va;
+	va_start(va, format);
+
+	vprintf(format, va);
+	if (ferror(stdout)) perror_exit("write");
+}
+
+void xputc(char c)
+{
+	if (EOF == fputc(c, stdout)) perror_exit("write");
+}
+
+void xflush(void)
+{
+	if (fflush(stdout)) perror_exit("write");;
+}
+
 // Die unless we can exec argv[] (or run builtin command).  Note that anything
 // with a path isn't a builtin, so /bin/sh won't match the builtin sh.
 void xexec(char **argv)
@@ -149,14 +168,14 @@ void xexec(char **argv)
 
 void xaccess(char *path, int flags)
 {
-	if (access(path, flags)) error_exit("Can't access '%s'\n", path);
+	if (access(path, flags)) perror_exit("Can't access '%s'\n", path);
 }
 
 // Die unless we can open/create a file, returning file descriptor.
 int xcreate(char *path, int flags, int mode)
 {
 	int fd = open(path, flags, mode);
-	if (fd == -1) error_exit("No file %s\n", path);
+	if (fd == -1) perror_exit("No file %s\n", path);
 	return fd;
 }
 
@@ -170,7 +189,7 @@ int xopen(char *path, int flags)
 FILE *xfopen(char *path, char *mode)
 {
 	FILE *f = fopen(path, mode);
-	if (!f) error_exit("No file %s\n", path);
+	if (!f) perror_exit("No file %s\n", path);
 	return f;
 }
 
@@ -227,7 +246,7 @@ void xwrite(int fd, void *buf, size_t len)
 char *xgetcwd(void)
 {
 	char *buf = getcwd(NULL, 0);
-	if (!buf) error_exit("xgetcwd");
+	if (!buf) perror_exit("xgetcwd");
 
 	return buf;
 }
@@ -439,7 +458,7 @@ char *readfile(char *name)
 char *xreadfile(char *name)
 {
 	char *buf = readfile(name);
-	if (!buf) error_exit("xreadfile %s", name);
+	if (!buf) perror_exit("xreadfile %s", name);
 	return buf;
 }
 

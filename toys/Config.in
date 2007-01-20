@@ -57,6 +57,26 @@ config DF_PEDANTIC
 
 	  -k	Sets units back to 1024 bytes (the default without -P)
 
+config ECHO
+	bool "echo"
+	default n
+	help
+	  usage: echo [-ne] [args...]
+
+	  Write each argument to stdout, with one space between each, followed
+	  by a newline.
+
+	  -n	No trailing newline.
+	  -e	Process the following escape sequences:
+		\\	backslash
+		\a	alert (beep/flash)
+		\b	backspace
+		\c	Stop output here (avoids trailing newline)
+		\f	form feed
+		\n	newline
+		\r	carriage return
+		\t	horizontal tab
+		\v	vertical tab
 config HELLO
 	bool "hello"
 	default n
