@@ -300,5 +300,13 @@ config WHICH
 
 	  -a	Show all matches
 
+config YES
+	bool "yes"
+	default n
+	help
+	  usage: yes [args...]
+
+	  Repeatedly output line until killed.  If no args, output 'y'.
+
 endmenu
 
