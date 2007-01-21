@@ -14,7 +14,9 @@ int echo_main(void)
 		arg = toys.optargs[i];
 		if (!arg) break;
 		if (i++) xputc(' ');
-		
+
+		// Handle -e
+	
 		if (toys.optflags&2) {
 			int c, j = 0;
 			for (;;) {
@@ -24,6 +26,7 @@ int echo_main(void)
 					char *found;
 					int d = arg[j++];
 
+					// handle \escapes
 
 					if (d) {
 						found = strchr(from, d);
@@ -34,14 +37,13 @@ int echo_main(void)
 							while (arg[j]>='0' && arg[j]<='7')
 								c = (c*8)+arg[j++]-'0';
 						}
-						// \0123
 					}
 				}
 				xputc(c);
 			}
-			// \\ thingy
 		} else xprintf("%s", arg);
 	}
+
 	// Output "\n" if no -n
 	if (!(toys.optflags&1)) xputc('\n');
 done:
