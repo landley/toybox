@@ -9,7 +9,7 @@ int pwd_main(void)
 {
 	char *pwd = xgetcwd();
 
-	puts(pwd);
+	xprintf("%s\n", pwd);
 	if (CFG_TOYS_FREE) free(pwd);
 
 	return 0;
