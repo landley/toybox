@@ -58,6 +58,7 @@ void utoa_to_buf(unsigned n, char *buf, unsigned buflen);
 void itoa_to_buf(int n, char *buf, unsigned buflen);
 char *utoa(unsigned n);
 char *itoa(int n);
+off_t fdlength(int fd);
 
 // getmountlist.c
 struct mtab_list {

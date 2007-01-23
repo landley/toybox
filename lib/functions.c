@@ -397,6 +397,14 @@ char *itoa(int n)
 	return itoa_buf;
 }
 
+off_t fdlength(int fd)
+{
+	int size;
+
+	if (ioctl(fd, BLKGETSIZE, &size) >= 0) return size*512L;
+	return -1;
+}
+
 /*
  This might be of use or might not.  Unknown yet...
 
@@ -405,11 +413,11 @@ char *itoa(int n)
 off_t fdlength(int fd)
 {
 	off_t bottom = 0, top = 0, pos;
-	long size;
+	int size;
 
 	// If the ioctl works for this, return it.
 
-	if (ioctl(fd, BLKGETSIZE, &size) >= 0) return size*512;
+	if (ioctl(fd, BLKGETSIZE, &size) >= 0) return size*512L;
 
 	// If not, do a binary search for the last location we can read.  (Some
 	// block devices don't do BLKGETSIZE right.)  This should probably have

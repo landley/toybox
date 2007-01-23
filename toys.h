@@ -21,6 +21,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/ioctl.h>
+#include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/types.h>
@@ -30,6 +31,7 @@
 #include "lib/lib.h"
 #include "gen_config.h"
 #include "toys/toylist.h"
+#include "toys/e2fs.h"
 
 // These live in main.c
 
