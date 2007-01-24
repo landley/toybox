@@ -32,6 +32,7 @@ struct mke2fs_data {
 	long inodes;
 	long reserved_percent;
 
+	unsigned blocks, groups;
 	int fsfd, noseek;
 };
 

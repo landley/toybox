@@ -7,6 +7,8 @@
 
 #include "toys.h"
 
+#define TT toy.mke2fs
+
 	// b - block size (1024, 2048, 4096)
 	// F - force (run on mounted device or non-block device)
 	// i - bytes per inode 
@@ -54,38 +56,75 @@ void create_uuid(char *uuid)
 
 int mke2fs_main(void)
 {
-	struct ext2_super_block *sb = xzalloc(sizeof(struct ext2_super_block));
-	int temp;
+	struct ext2_superblock *sb = xzalloc(sizeof(struct ext2_superblock));
+	uint32_t temp;
 	off_t length;
 
 	// Handle command line arguments.
 
 	if (toys.optargs[1]) {
-		sscanf(toys.optargs[1], "%u", &(sb->inodes_count));
+		sscanf(toys.optargs[1], "%u", &TT.blocks);
 		temp = O_RDWR|O_CREAT;
 	} else temp = O_RDWR;
 
-	// Check if filesystem is mounted
+	// TODO: Check if filesystem is mounted here
 
 	// For mke?fs, open file.  For gene?fs, create file.
-	length = fdlength(toy.mke2fs.fsfd = xcreate(*toys.optargs, temp, 0777));
+	length = fdlength(TT.fsfd = xcreate(*toys.optargs, temp, 0777));
 
-	if (toy.mke2fs.blocksize && toy.mke2fs.blocksize!=1024
-		&& toy.mke2fs.blocksize!=2048 && toy.mke2fs.blocksize!=4096)
-			error_exit("bad blocksize");
-
-	// Determine block size.  If unspecified, use simple heuristic.
-	if (toy.mke2fs.blocksize) 
-		sb->log_block_size = (length && length < 1<<24) ? 1024 : 4096;
-	else sb->log_block_size = toy.mke2fs.blocksize;
-
-	if (!sb->inodes_count) sb->inodes_count = length/toy.mke2fs.blocksize;
+	// TODO: collect gene2fs list, calculate requirements.
 
 	// Fill out superblock structure
 
+	// Determine appropriate block size, set log_block_size and log_frag_size.
+
+	if (!TT.blocksize) TT.blocksize = (length && length < 1<<29) ? 1024 : 4096;
+	if (TT.blocksize == 1024) temp = 0;
+	else if (TT.blocksize == 2048) temp = 1;
+	else if (TT.blocksize == 4096) temp = 2;
+	else error_exit("bad blocksize");
+	sb->log_block_size = sb->log_frag_size = SWAP_LE32(temp);
+
+	// Fill out blocks_count, inodes_count, r_blocks_count
+
+	if (!TT.blocks) TT.blocks = length/TT.blocksize;
+	sb->blocks_count = SWAP_LE32(TT.blocks);
+
+	if (!TT.inodes) {
+		if (!TT.bytes_per_inode) TT.bytes_per_inode = 8192;
+		TT.inodes = (TT.blocks * (uint64_t)TT.blocksize) / TT.bytes_per_inode;
+	}
+	sb->inodes_count = SWAP_LE32(TT.inodes);
+
+	if (!TT.reserved_percent) TT.reserved_percent = 5;
+	temp = (TT.blocks * (uint64_t)TT.reserved_percent) /100;
+	sb->r_blocks_count = SWAP_LE32(temp);
+
+	// Set blocks_per_group and frags_per_group, which is the size of an
+	// allocation bitmap that fits in one block (I.E. how many bits per block)?
+
+	temp = TT.blocksize*8;
+	sb->blocks_per_group = sb->frags_per_group = SWAP_LE32(temp);
+
+	// Set inodes_per_group
+
+	TT.groups = (TT.blocks)/temp;
+	if (TT.blocks & (temp-1)) TT.groups++;  // Round up without int overflow.
+	temp = TT.inodes/TT.groups;
+	if (TT.blocks & (TT.groups-1)) TT.blocks++;
+	sb->inodes_per_group = SWAP_LE32(temp);
+
+	sb->max_mnt_count=0xFFFF;
+	sb->wtime = sb->lastcheck = sb->mkfs_time = SWAP_LE32(time(NULL));
+	sb->magic = SWAP_LE32(0xEF53);
+	sb->state = sb->errors = SWAP_LE16(1);
+
 	sb->rev_level = SWAP_LE32(1);
+	sb->inode_size = sizeof(struct ext2_inode);
 	sb->feature_incompat = SWAP_LE32(EXT2_FEATURE_INCOMPAT_FILETYPE);
 	sb->feature_ro_compat = SWAP_LE32(EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER);
+
+	create_uuid(sb->uuid);
 
 	// If we're called as mke3fs or mkfs.ext3, do a journal.
 
@@ -94,11 +133,11 @@ int mke2fs_main(void)
 
 	// We skip the first 1k (to avoid the boot sector, if any).  Use this to
 	// figure out if this file is seekable.
-	if(-1 == lseek(toy.mke2fs.fsfd, 1024, SEEK_SET)) perror_exit("lseek");
-	//{ toy.mke2fs.noseek=1; xwrite(toy.mke2fs.fsfd, sb, 1024); }
+	if(-1 == lseek(TT.fsfd, 1024, SEEK_SET)) perror_exit("lseek");
+	//{ TT.noseek=1; xwrite(TT.fsfd, sb, 1024); }
 
 	// Write superblock to disk.	
-	xwrite(toy.mke2fs.fsfd, sb, 3072); // 4096-1024
+	xwrite(TT.fsfd, sb, sizeof(struct ext2_superblock)); // 4096-1024
 
 	return 0;
 }

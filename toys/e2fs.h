@@ -9,33 +9,7 @@
 
 #define EXT2_SUPER_MAGIC  0xEF53
 
-struct ext2_inode {
-	uint16_t mode;        // File mode
-	uint16_t uid;         // Low 16 bits of Owner Uid
-	uint32_t size;        // Size in bytes
-	uint32_t atime;       // Access time
-	uint32_t ctime;       // Creation time
-	uint32_t mtime;       // Modification time
-	uint32_t dtime;       // Deletion Time
-	uint16_t gid;         // Low 16 bits of Group Id
-	uint16_t links_count; // Links count
-	uint32_t blocks;      // Blocks count
-	uint32_t flags;       // File flags
-	uint32_t reserved1;
-	uint32_t block[15];   // Pointers to blocks
-	uint32_t generation;  // File version (for NFS)
-	uint32_t file_acl;    // File ACL
-	uint32_t dir_acl;     // Directory ACL
-	uint32_t faddr;       // Fragment address
-	uint8_t  frag;        // Fragment number
-	uint8_t  fsize;       // Fragment size
-	uint16_t pad1;
-	uint16_t uid_high;    // High bits of uid
-	uint16_t gid_high;    // High bits of gid
-	uint32_t reserved2;
-};
-
-struct ext2_super_block {
+struct ext2_superblock {
 	uint32_t inodes_count;      // Inodes count
 	uint32_t blocks_count;      // Blocks count
 	uint32_t r_blocks_count;    // Reserved blocks count
@@ -44,9 +18,9 @@ struct ext2_super_block {
 	uint32_t first_data_block;  // First Data Block
 	uint32_t log_block_size;    // Block size
 	uint32_t log_frag_size;     // Fragment size
-	uint32_t blocks_per_group;  // # Blocks per group
-	uint32_t frags_per_group;   // # Fragments per group
-	uint32_t inodes_per_group;  // # Inodes per group
+	uint32_t blocks_per_group;  // Blocks per group
+	uint32_t frags_per_group;   // Fragments per group
+	uint32_t inodes_per_group;  // Inodes per group
 	uint32_t mtime;             // Mount time
 	uint32_t wtime;             // Write time
 	uint16_t mnt_count;         // Mount count
@@ -90,6 +64,42 @@ struct ext2_super_block {
 	uint32_t reserved[172];      // Padding to the end of the block
 };
 
+struct ext2_dentry {
+	uint32_t inode;         // Inode number
+    uint16_t rec_len;       // Directory entry length
+    uint8_t  name_len;      // Name length
+    uint8_t  file_type;
+	char     name[255];     // File name
+};
+
+struct ext2_inode {
+	uint16_t mode;        // File mode
+	uint16_t uid;         // Low 16 bits of Owner Uid
+	uint32_t size;        // Size in bytes
+	uint32_t atime;       // Access time
+	uint32_t ctime;       // Creation time
+	uint32_t mtime;       // Modification time
+	uint32_t dtime;       // Deletion Time
+	uint16_t gid;         // Low 16 bits of Group Id
+	uint16_t links_count; // Links count
+	uint32_t blocks;      // Blocks count
+	uint32_t flags;       // File flags
+	uint32_t reserved1;
+	uint32_t block[15];   // Pointers to blocks
+	uint32_t generation;  // File version (for NFS)
+	uint32_t file_acl;    // File ACL
+	uint32_t dir_acl;     // Directory ACL
+	uint32_t faddr;       // Fragment address
+	uint8_t  frag;        // Fragment number
+	uint8_t  fsize;       // Fragment size
+	uint16_t pad1;
+	uint16_t uid_high;    // High bits of uid
+	uint16_t gid_high;    // High bits of gid
+	uint32_t reserved2;
+};
+
+
+
 #define EXT2_FEATURE_COMPAT_DIR_PREALLOC	0x0001
 #define EXT2_FEATURE_COMPAT_IMAGIC_INODES	0x0002
 #define EXT3_FEATURE_COMPAT_HAS_JOURNAL		0x0004
@@ -108,14 +118,6 @@ struct ext2_super_block {
 #define EXT2_FEATURE_INCOMPAT_META_BG		0x0010
 
 #define EXT2_NAME_LEN 255
-
-struct ext2_dentry {
-	uint32_t inode;         // Inode number
-    uint16_t rec_len;       // Directory entry length
-    uint8_t  name_len;      // Name length
-    uint8_t  file_type;
-	char     name[255];     // File name
-};
 
 // Ext2 directory file types.  Only the low 3 bits are used.  The
 // other bits are reserved for now.
