@@ -14,7 +14,7 @@
 //       Note that pointer and long are always the same size, even on 64 bit.
 //     : plus a string argument, keep most recent if more than one
 //     * plus a string argument, appended to a list
-//     ? plus a signed long argument (TODO: Bounds checking?)
+//     # plus a signed long argument (TODO: Bounds checking?)
 //     @ plus an occurrence counter (which is a long)
 //     | this is required.  If more than one marked, only one required.
 //     (longopt)
@@ -27,7 +27,7 @@
 //     + stop at first nonoption argument
 //     <0 at least # leftover arguments needed (default 0)
 //     >9 at most # leftover arguments needed (default MAX_INT)
-//     # don't show_usage() on unknown argument.
+//     ? don't show_usage() on unknown argument.
 //     & first argument has imaginary dash (ala tar/ps)
 //       If given twice, all arguments have imaginary dash
 
@@ -39,18 +39,25 @@
 
 /* This uses a getopt-like option string, but not getopt() itself.
  * 
- *   Each option in options corresponds to a bit position in the return
- * value (last argument is (1<<0), the next to last is (1<<1) and so on.
- * If the option isn't seen in argv its bit is 0.  Options which have an
- * argument use the next vararg.  (So varargs used by options go from left to
- * right, but bits set by arguments go from right to left.)
+ * Each option in options corresponds to a bit position in the return
+ * value (last argument is (1<<0), the next to last is (1<<1) and so on).
+ * If the option isn't seen in argv[] its bit is 0.
+ *
+ * Options which have an argument fill in the corresponding slot in the global
+ * toys.command struct, which it treats as an array of longs (note that
+ * sizeof(long)==sizeof(pointer) is guaranteed by LP64).
+ *
+ * You don't have to free the option strings, which point into the environment
+ * space.  List list objects should be freed by main() when command_main()
+ * returns.
  *
  * Example:
- *   get_optflags("ab:c:d", NULL, &bstring, &cstring);
+ *   get_optflags() when toys.which->options="ab:c:d"
  *   argv = ["command", "-b", "fruit", "-d"]
- *   flags = 5, bstring="fruit", cstring=NULL;
+ *   flags = 5, toy[0]=NULL, toy[1]="fruit";
  */
 
+// 
 struct opts {
 	struct opts *next;
 	char c;
@@ -101,8 +108,8 @@ static void gotflag(void)
 			temp->arg = gof.arg;
 			temp->next = *list;
 			*list = temp;
-		} else if (type == '?') {
-		} else if (type == '@') {
+		} else if (type == '#') *(gof.this->arg) = atol((char *)gof.arg);
+		else if (type == '@') {
 		}
 
 		gof.arg = "";
@@ -139,7 +146,7 @@ void get_optflags(void)
 			if (*options == '+') stopearly++;
 			else if (*options == '<') minargs=*(++options)-'0';
 			else if (*options == '>') maxargs=*(++options)-'0';
-			else if (*options == '#') gof.noerror++;
+			else if (*options == '?') gof.noerror++;
 			else if (*options == '&') nodash++;
 			else break;
 			options++;
@@ -179,11 +186,8 @@ void get_optflags(void)
 
 			// If this is the start of a new option that wasn't a longopt,
 
-			} else if (index(":*?@", *options)) {
+			} else if (index(":*#@", *options)) {
 				gof.this->type |= *options;
-				// Pointer and long guaranteed to be the same size by LP64.
-				gof.this->arg = (void *)nextarg;
-				*(nextarg++) = 0;
 			} else if (*options == '|') {
 			} else if (*options == '+') {
 			} else if (*options == '~') {
@@ -205,12 +209,17 @@ void get_optflags(void)
 		}
 	}
 
-	// Initialize shift bits (have to calculate this ahead of time because
-	// longopts jump into the middle of the list), and allocate space to
-	// store optargs.
+	// Initialize shift bits and pointers to store arguments.  (We have to
+	// calculate this ahead of time because longopts jump into the middle of
+	// the list.)
 	gof.argc = 0;
-	for (gof.this = gof.opts; gof.this; gof.this = gof.this->next)
+	for (gof.this = gof.opts; gof.this; gof.this = gof.this->next) {
 		gof.this->shift = gof.argc++;
+		if (gof.this->type & 255) {
+			gof.this->arg = (void *)nextarg;
+			*(nextarg++) = 0;
+		}
+	}
 
 	// Iterate through command line arguments, skipping argv[0]
 	for (gof.argc=1; toys.argv[gof.argc]; gof.argc++) {
