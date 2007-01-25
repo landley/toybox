@@ -397,18 +397,6 @@ char *itoa(int n)
 	return itoa_buf;
 }
 
-off_t fdlength(int fd)
-{
-	int size;
-
-	if (ioctl(fd, BLKGETSIZE, &size) >= 0) return size*512L;
-	return -1;
-}
-
-/*
- This might be of use or might not.  Unknown yet...
-
-
 // Return how long the file at fd is, if there's any way to determine it.
 off_t fdlength(int fd)
 {
@@ -430,7 +418,7 @@ off_t fdlength(int fd)
 
 		// If we can read from the current location, it's bigger.
 
-		if (lseek(fd, pos, 0)>=0 && safe_read(fd, &temp, 1)==1) {
+		if (lseek(fd, pos, 0)>=0 && read(fd, &temp, 1)==1) {
 			if (bottom == top) bottom = top = (top+1) * 2;
 			else bottom = pos;
 
@@ -446,6 +434,9 @@ off_t fdlength(int fd)
 
 	return pos + 1;
 }
+
+/*
+ This might be of use or might not.  Unknown yet...
 
 // Read contents of file as a single freshly allocated nul-terminated string.
 char *readfile(char *name)
