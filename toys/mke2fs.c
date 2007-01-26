@@ -85,16 +85,10 @@ int mke2fs_main(void)
 	else error_exit("bad blocksize");
 	sb->log_block_size = sb->log_frag_size = SWAP_LE32(temp);
 
-	// Fill out blocks_count, inodes_count, r_blocks_count
+	// Fill out blocks_count and r_blocks_count
 
 	if (!TT.blocks) TT.blocks = length/TT.blocksize;
 	sb->blocks_count = SWAP_LE32(TT.blocks);
-
-	if (!TT.inodes) {
-		if (!TT.bytes_per_inode) TT.bytes_per_inode = 8192;
-		TT.inodes = (TT.blocks * (uint64_t)TT.blocksize) / TT.bytes_per_inode;
-	}
-	sb->inodes_count = SWAP_LE32(TT.inodes);
 
 	if (!TT.reserved_percent) TT.reserved_percent = 5;
 	temp = (TT.blocks * (uint64_t)TT.reserved_percent) /100;
@@ -106,14 +100,34 @@ int mke2fs_main(void)
 	temp = TT.blocksize*8;
 	sb->blocks_per_group = sb->frags_per_group = SWAP_LE32(temp);
 
-	// Set inodes_per_group
+	// How many block groups do we need?  (Round up avoiding integer overflow.)
 
 	TT.groups = (TT.blocks)/temp;
-	if (TT.blocks & (temp-1)) TT.groups++;  // Round up without int overflow.
-	temp = TT.inodes/TT.groups;
-	if (TT.blocks & (TT.groups-1)) TT.blocks++;
-	sb->inodes_per_group = SWAP_LE32(temp);
+	if (TT.blocks & (temp-1)) TT.groups++;
 
+	// Figure out how many inodes we need.
+
+	if (!TT.inodes) {
+		if (!TT.bytes_per_inode) TT.bytes_per_inode = 8192;
+		TT.inodes = (TT.blocks * (uint64_t)TT.blocksize) / TT.bytes_per_inode;
+	}
+
+	// Figure out inodes per group, rounded up to block size.
+
+	// How many blocks of inodes total, rounded up
+	temp = TT.inodes / (TT.blocksize/sizeof(struct ext2_inode));
+	if (TT.inodes & (TT.blocksize-1)) temp++;
+	// How many blocks of inodes per group, again rounded up
+	TT.inodes = temp / TT.groups;
+	if (temp & (TT.groups-1)) TT.inodes++;
+	// How many inodes per group is that?
+	TT.inodes *=  (TT.blocksize/sizeof(struct ext2_inode));
+
+	// Set inodes_per_group and total inodes_count
+	sb->inodes_per_group = SWAP_LE32(TT.inodes);
+	sb->inodes_count = SWAP_LE32(TT.inodes *= TT.groups);
+
+	// Fill out the rest of the superblock.
 	sb->max_mnt_count=0xFFFF;
 	sb->wtime = sb->lastcheck = sb->mkfs_time = SWAP_LE32(time(NULL));
 	sb->magic = SWAP_LE32(0xEF53);
