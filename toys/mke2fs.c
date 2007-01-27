@@ -79,13 +79,11 @@ int mke2fs_main(void)
 	// Determine appropriate block size, set log_block_size and log_frag_size.
 
 	if (!TT.blocksize) TT.blocksize = (length && length < 1<<29) ? 1024 : 4096;
-	if (TT.blocksize == 1024) temp = 0;
-	else if (TT.blocksize == 2048) temp = 1;
-	else if (TT.blocksize == 4096) temp = 2;
-	else error_exit("bad blocksize");
+	for (temp = 0; temp < 7; temp++) if (TT.blocksize == 1024<<temp) break;
+	if (temp==7) error_exit("bad blocksize");
 	sb->log_block_size = sb->log_frag_size = SWAP_LE32(temp);
 
-	// Fill out blocks_count and r_blocks_count
+	// Fill out blocks_count, r_blocks_count, first_data_block
 
 	if (!TT.blocks) TT.blocks = length/TT.blocksize;
 	sb->blocks_count = SWAP_LE32(TT.blocks);
@@ -93,6 +91,8 @@ int mke2fs_main(void)
 	if (!TT.reserved_percent) TT.reserved_percent = 5;
 	temp = (TT.blocks * (uint64_t)TT.reserved_percent) /100;
 	sb->r_blocks_count = SWAP_LE32(temp);
+
+	sb->first_data_block = TT.blocksize == 1024 ? 1 : 0;
 
 	// Set blocks_per_group and frags_per_group, which is the size of an
 	// allocation bitmap that fits in one block (I.E. how many bits per block)?

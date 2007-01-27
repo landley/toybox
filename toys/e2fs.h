@@ -64,6 +64,17 @@ struct ext2_superblock {
 	uint32_t reserved[172];      // Padding to the end of the block
 };
 
+struct ext2_group
+{
+	uint32_t block_bitmap;       // Block number of block bitmap
+	uint32_t inode_bitmap;       // Block number of inode bitmap
+	uint32_t inode_table;        // Block number of inode table
+	uint16_t free_blocks_count;  // How many free blocks in this group?
+	uint16_t free_inodes_count;  // How many free inodes in this group?
+	uint16_t used_dirs_count;    // How many directories?
+	uint16_t reserved[7];        // pad to 256 bits.
+};
+
 struct ext2_dentry {
 	uint32_t inode;         // Inode number
     uint16_t rec_len;       // Directory entry length
