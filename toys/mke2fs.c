@@ -54,27 +54,11 @@ void create_uuid(char *uuid)
 	uuid[11] = uuid[11] | 128;
 }
 
-int mke2fs_main(void)
+// Fill out superblock and TT
+
+void init_superblock(struct ext2_superblock *sb, off_t length)
 {
-	struct ext2_superblock *sb = xzalloc(sizeof(struct ext2_superblock));
 	uint32_t temp;
-	off_t length;
-
-	// Handle command line arguments.
-
-	if (toys.optargs[1]) {
-		sscanf(toys.optargs[1], "%u", &TT.blocks);
-		temp = O_RDWR|O_CREAT;
-	} else temp = O_RDWR;
-
-	// TODO: Check if filesystem is mounted here
-
-	// For mke?fs, open file.  For gene?fs, create file.
-	length = fdlength(TT.fsfd = xcreate(*toys.optargs, temp, 0777));
-
-	// TODO: collect gene2fs list, calculate requirements.
-
-	// Fill out superblock structure
 
 	// Determine appropriate block size, set log_block_size and log_frag_size.
 
@@ -92,7 +76,7 @@ int mke2fs_main(void)
 	temp = (TT.blocks * (uint64_t)TT.reserved_percent) /100;
 	sb->r_blocks_count = SWAP_LE32(temp);
 
-	sb->first_data_block = TT.blocksize == 1024 ? 1 : 0;
+	sb->first_data_block = TT.blocksize == SWAP_LE32(1024 ? 1 : 0);
 
 	// Set blocks_per_group and frags_per_group, which is the size of an
 	// allocation bitmap that fits in one block (I.E. how many bits per block)?
@@ -134,7 +118,7 @@ int mke2fs_main(void)
 	sb->state = sb->errors = SWAP_LE16(1);
 
 	sb->rev_level = SWAP_LE32(1);
-	sb->inode_size = sizeof(struct ext2_inode);
+	sb->inode_size = SWAP_LE16(sizeof(struct ext2_inode));
 	sb->feature_incompat = SWAP_LE32(EXT2_FEATURE_INCOMPAT_FILETYPE);
 	sb->feature_ro_compat = SWAP_LE32(EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER);
 
@@ -143,14 +127,38 @@ int mke2fs_main(void)
 	// If we're called as mke3fs or mkfs.ext3, do a journal.
 
 	//if (strchr(toys.which->name,'3'))
-	//	sb->feature_compat |= EXT3_FEATURE_COMPAT_HAS_JOURNAL;
+	//	sb->feature_compat = SWAP_LE32(EXT3_FEATURE_COMPAT_HAS_JOURNAL);
+}
+
+int mke2fs_main(void)
+{
+	struct ext2_superblock *sb = xzalloc(sizeof(struct ext2_superblock));
+	int temp;
+
+	// Handle command line arguments.
+
+	if (toys.optargs[1]) {
+		sscanf(toys.optargs[1], "%u", &TT.blocks);
+		temp = O_RDWR|O_CREAT;
+	} else temp = O_RDWR;
+
+	// TODO: collect gene2fs list, calculate requirements.
+
+	// TODO: Check if filesystem is mounted here
+
+	// For mke?fs, open file.  For gene?fs, create file.
+	TT.fsfd = xcreate(*toys.optargs, temp, 0777);
 
 	// We skip the first 1k (to avoid the boot sector, if any).  Use this to
 	// figure out if this file is seekable.
-	if(-1 == lseek(TT.fsfd, 1024, SEEK_SET)) perror_exit("lseek");
-	//{ TT.noseek=1; xwrite(TT.fsfd, sb, 1024); }
+	if(-1 == lseek(TT.fsfd, 1024, SEEK_SET)) {
+		TT.noseek=1;
+		xwrite(TT.fsfd, sb, 1024);
+	}
+	
+	// Create and write first superblock.
 
-	// Write superblock to disk.	
+	init_superblock(sb, fdlength(TT.fsfd));
 	xwrite(TT.fsfd, sb, sizeof(struct ext2_superblock)); // 4096-1024
 
 	return 0;

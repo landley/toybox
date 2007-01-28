@@ -61,7 +61,7 @@ struct ext2_superblock {
  	uint32_t first_meta_bg;      // First metablock block group
 	uint32_t mkfs_time;          // Creation timestamp
 	uint32_t jnl_blocks[17];     // Backup of journal inode
-	uint32_t reserved[172];      // Padding to the end of the block
+	// uint32_t reserved[172];      // Padding to the end of the block
 };
 
 struct ext2_group
