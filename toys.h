@@ -31,8 +31,8 @@
 
 #include "lib/lib.h"
 #include "gen_config.h"
-#include "toys/toylist.h"
 #include "toys/e2fs.h"
+#include "toys/toylist.h"
 
 // These live in main.c
 

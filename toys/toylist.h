@@ -34,6 +34,7 @@ struct mke2fs_data {
 
 	unsigned blocks, groups;
 	int fsfd, noseek;
+	struct ext2_superblock sb;
 };
 
 // "E:jJ:L:m:O:"

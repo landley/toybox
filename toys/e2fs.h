@@ -72,7 +72,7 @@ struct ext2_group
 	uint16_t free_blocks_count;  // How many free blocks in this group?
 	uint16_t free_inodes_count;  // How many free inodes in this group?
 	uint16_t used_dirs_count;    // How many directories?
-	uint16_t reserved[7];        // pad to 256 bits.
+	uint16_t reserved[7];        // pad to 32 bytes
 };
 
 struct ext2_dentry {
