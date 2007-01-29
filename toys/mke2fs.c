@@ -116,41 +116,65 @@ static void init_superblock(struct ext2_superblock *sb)
 	sb->state = sb->errors = SWAP_LE16(1);
 
 	sb->rev_level = SWAP_LE32(1);
+	sb->first_ino = SWAP_LE32(11);  // First 10 reserved for special uses.
 	sb->inode_size = SWAP_LE16(sizeof(struct ext2_inode));
 	sb->feature_incompat = SWAP_LE32(EXT2_FEATURE_INCOMPAT_FILETYPE);
 	sb->feature_ro_compat = SWAP_LE32(EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER);
 
 	create_uuid(sb->uuid);
 
-	// If we're called as mke3fs or mkfs.ext3, do a journal.
+	// TODO If we're called as mke3fs or mkfs.ext3, do a journal.
 
 	//if (strchr(toys.which->name,'3'))
 	//	sb->feature_compat = SWAP_LE32(EXT3_FEATURE_COMPAT_HAS_JOURNAL);
+
+	// TODO fill out free_blocks, free_inodes, first_ino
 }
 
 // Number of blocks used in this group by superblock/group list backup.
 // Returns 0 if this group doesn't have a superblock backup.
 static int group_superblock_used(uint32_t group)
 {
-	int used ;
+	int used = 0, i;
 
-	if (0) return 0;	// todo, which groups have no superblock?
-	
-	// How blocks does the group table take up?
-	used = TT.groups * sizeof(struct ext2_group);
-	used += TT.blocksize - 1;
-	used /= TT.blocksize;
-	// Plus the superblock itself.
-	used++;
-	// And a corner case.
-	if (!group && TT.blocksize == 1024) used++;
+	// Superblock backups are on groups 0, 1, and powers of 3, 5, and 7.
+	if(!group || group==1) used++;
+	for (i=3; i<9; i+=2) {
+		int j = i;
+		while (j<group) j*=i;
+		if (j==group) used++;
+	}
+
+	if (used) {
+		// How blocks does the group table take up?
+		used = TT.groups * sizeof(struct ext2_group);
+		used += TT.blocksize - 1;
+		used /= TT.blocksize;
+		// Plus the superblock itself.
+		used++;
+		// And a corner case.
+		if (!group && TT.blocksize == 1024) used++;
+	}
 
 	return used;
 }
 
+static void bits_set(char *array, int start, int len)
+{
+	while(len) {
+		if ((start&7) || len<8) {
+			array[start/8]|=(1<<(start&7));
+			start++;
+		} else {
+			array[start/8]=255;
+			start+=8;
+		}
+	}
+}
+
 int mke2fs_main(void)
 {
-	int i, temp;
+	int i, temp, blockbits;
 	off_t length;
 
 	// Handle command line arguments.
@@ -160,7 +184,7 @@ int mke2fs_main(void)
 		temp = O_RDWR|O_CREAT;
 	} else temp = O_RDWR;
 
-	// TODO: collect gene2fs list, calculate requirements.
+	// TODO: collect gene2fs list/lost+found, calculate requirements.
 
 	// TODO: Check if filesystem is mounted here
 
@@ -170,9 +194,9 @@ int mke2fs_main(void)
 	// Determine appropriate block size and block count from file length.
 
 	length = fdlength(TT.fsfd);
-	if (length<1) error_exit("gene2fs is a todo item");
 	if (!TT.blocksize) TT.blocksize = (length && length < 1<<29) ? 1024 : 4096;
 	if (!TT.blocks) TT.blocks = length/TT.blocksize;
+	if (!TT.blocks) error_exit("gene2fs is a TODO item");
 
 	// Skip the first 1k to avoid the boot sector (if any).  Use this to
 	// figure out if this file is seekable.
@@ -184,14 +208,19 @@ int mke2fs_main(void)
 	// Initialize superblock structure
 
 	init_superblock(&TT.sb);
+	blockbits = 8*TT.blocksize;
 
 	// Loop through block groups.
 
 	for (i=0; i<TT.groups; i++) {
+		struct ext2_inode *in = (struct ext2_inode *)toybuf;
+		uint32_t start;
+		int j, slot;
+
 		// If a superblock goes here, write it out.
-		if (group_superblock_used(i)) {
+		start = group_superblock_used(i);
+		if (start) {
 			struct ext2_group *bg = (struct ext2_group *)toybuf;
-			int j;
 
 			TT.sb.block_group_nr = SWAP_LE16(i);
 
@@ -204,16 +233,15 @@ int mke2fs_main(void)
 
 			// Loop through groups to write group descriptor table.
 			for(j=0; j<TT.groups; j++) {
-				uint32_t start, used, k;
+				uint32_t used;
 
 				// Figure out what sector this group starts in.
-				start = j*TT.blocksize*8;
 				used = group_superblock_used(j);
 
 				// Find next array slot in this block (flush block if full).
-				k = j % (TT.blocksize/sizeof(struct ext2_group));
-				if (!k) {
-					if (j) write(TT.fsfd, bg, TT.blocksize);
+				slot = j % (TT.blocksize/sizeof(struct ext2_group));
+				if (!slot) {
+					if (j) xwrite(TT.fsfd, bg, TT.blocksize);
 					memset(bg, 0, TT.blocksize);
 				}
 
@@ -221,22 +249,60 @@ int mke2fs_main(void)
 				// is uint16_t.  Add in endianness conversion and this little
 				// dance is called for.
 				temp = SWAP_LE32(TT.sb.inodes_per_group);
-				bg[k].free_inodes_count = SWAP_LE16(temp);
+				bg[slot].free_inodes_count = SWAP_LE16(temp);
 				
-				// How many blocks used by inode table?
+				// How many blocks will the inode table use?
 				temp *= sizeof(struct ext2_inode);
 				temp /= TT.blocksize;
 
-				// Fill out rest of group structure
-				bg[k].block_bitmap = SWAP_LE32(start+(used++));
-				bg[k].inode_bitmap = SWAP_LE32(start+(used++));
-				bg[k].inode_table = SWAP_LE32(start+used);
-				temp = (TT.blocksize*8)-used-temp;
-				bg[k].free_blocks_count = SWAP_LE32(temp);
-				bg[k].used_dirs_count = 0;
+				// How many does that leave?  (TODO: fill it up)
+				temp = blockbits-used-temp;
+				bg[slot].free_blocks_count = SWAP_LE32(temp);
+
+				// Fill out rest of group structure (TODO: gene2fs allocation)
+				used += j*blockbits;
+				bg[slot].block_bitmap = SWAP_LE32(used++);
+				bg[slot].inode_bitmap = SWAP_LE32(used++);
+				bg[slot].inode_table = SWAP_LE32(used);
+				bg[slot].used_dirs_count = 0;  // (TODO)
 			}
-			write(TT.fsfd, bg, TT.blocksize);
-		}		
+			xwrite(TT.fsfd, bg, TT.blocksize);
+		}
+
+		// Now write out stuff that every block group has.
+
+		// Write block usage bitmap  (TODO: fill it)
+
+		// Blocks used by inode table
+		temp = (TT.inodes/TT.groups)*sizeof(struct ext2_inode);
+		temp += TT.blocksize-1;
+		temp /= TT.blocksize;
+
+		memset(toybuf, 0, TT.blocksize);
+		bits_set(toybuf, 0, start+temp);
+		if ((i+1)*TT.blocksize*8 > TT.blocks) {
+			temp = TT.blocks & (blockbits-1);
+			bits_set(toybuf, temp, blockbits-temp);
+		}
+		xwrite(TT.fsfd, toybuf, TT.blocksize);
+
+		temp = TT.inodes/TT.groups;
+
+		// Write inode bitmap  (TODO)
+		memset(toybuf, 0, TT.blocksize);
+		if (!i) bits_set(toybuf,0,10);
+		bits_set(toybuf, temp, blockbits-temp);
+		xwrite(TT.fsfd, toybuf, TT.blocksize);
+
+		// Write inode table for this group
+		for (j = 0; j<temp; j++) {
+			slot = j % (TT.blocksize/sizeof(struct ext2_inode));
+			if (!slot) {
+				if (j) xwrite(TT.fsfd, in, TT.blocksize);
+				memset(in, 0, TT.blocksize);
+			}
+		}
+		xwrite(TT.fsfd, in, TT.blocksize);
 	}
 
 	return 0;
