@@ -28,6 +28,7 @@
 	// E - extended options (stride=stripe-size blocks)
 	// O - none,dir_index,filetype,has_journal,journal_dev,sparse_super
 
+#define INODES_RESERVED 10
 
 // According to http://www.opengroup.org/onlinepubs/9629399/apdxa.htm
 // we should generate a uuid structure by reading a clock with 100 nanosecond
@@ -74,7 +75,7 @@ static void init_superblock(struct ext2_superblock *sb)
 	temp = (TT.blocks * (uint64_t)TT.reserved_percent) /100;
 	sb->r_blocks_count = SWAP_LE32(temp);
 
-	sb->first_data_block = TT.blocksize == SWAP_LE32(1024 ? 1 : 0);
+	sb->first_data_block = SWAP_LE32(TT.blocksize == 1024 ? 1 : 0);
 
 	// Set blocks_per_group and frags_per_group, which is the size of an
 	// allocation bitmap that fits in one block (I.E. how many bits per block)?
@@ -98,7 +99,7 @@ static void init_superblock(struct ext2_superblock *sb)
 
 	// How many blocks of inodes total, rounded up
 	temp = TT.inodes / (TT.blocksize/sizeof(struct ext2_inode));
-	if (TT.inodes & (TT.blocksize-1)) temp++;
+	if (temp * (TT.blocksize/sizeof(struct ext2_inode)) != TT.inodes) temp++;
 	// How many blocks of inodes per group, again rounded up
 	TT.inodes = temp / TT.groups;
 	if (temp & (TT.groups-1)) TT.inodes++;
@@ -116,7 +117,7 @@ static void init_superblock(struct ext2_superblock *sb)
 	sb->state = sb->errors = SWAP_LE16(1);
 
 	sb->rev_level = SWAP_LE32(1);
-	sb->first_ino = SWAP_LE32(11);  // First 10 reserved for special uses.
+	sb->first_ino = SWAP_LE32(INODES_RESERVED+1);
 	sb->inode_size = SWAP_LE16(sizeof(struct ext2_inode));
 	sb->feature_incompat = SWAP_LE32(EXT2_FEATURE_INCOMPAT_FILETYPE);
 	sb->feature_ro_compat = SWAP_LE32(EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER);
@@ -165,9 +166,11 @@ static void bits_set(char *array, int start, int len)
 		if ((start&7) || len<8) {
 			array[start/8]|=(1<<(start&7));
 			start++;
+			len--;
 		} else {
 			array[start/8]=255;
 			start+=8;
+			len-=8;
 		}
 	}
 }
@@ -214,8 +217,15 @@ int mke2fs_main(void)
 
 	for (i=0; i<TT.groups; i++) {
 		struct ext2_inode *in = (struct ext2_inode *)toybuf;
-		uint32_t start;
+		uint32_t start, itable, used, end;
 		int j, slot;
+
+		// Where does this group end?
+		end = blockbits;
+		if ((i+1)*blockbits > TT.blocks) end = TT.blocks & (blockbits-1);
+
+		// Blocks used by inode table
+		itable = ((TT.inodes/TT.groups)*sizeof(struct ext2_inode))/TT.blocksize;
 
 		// If a superblock goes here, write it out.
 		start = group_superblock_used(i);
@@ -233,7 +243,6 @@ int mke2fs_main(void)
 
 			// Loop through groups to write group descriptor table.
 			for(j=0; j<TT.groups; j++) {
-				uint32_t used;
 
 				// Figure out what sector this group starts in.
 				used = group_superblock_used(j);
@@ -249,6 +258,7 @@ int mke2fs_main(void)
 				// is uint16_t.  Add in endianness conversion and this little
 				// dance is called for.
 				temp = SWAP_LE32(TT.sb.inodes_per_group);
+				if (!i) temp -= INODES_RESERVED;
 				bg[slot].free_inodes_count = SWAP_LE16(temp);
 				
 				// How many blocks will the inode table use?
@@ -256,7 +266,7 @@ int mke2fs_main(void)
 				temp /= TT.blocksize;
 
 				// How many does that leave?  (TODO: fill it up)
-				temp = blockbits-used-temp;
+				temp = end-used-temp;
 				bg[slot].free_blocks_count = SWAP_LE32(temp);
 
 				// Fill out rest of group structure (TODO: gene2fs allocation)
@@ -273,24 +283,15 @@ int mke2fs_main(void)
 
 		// Write block usage bitmap  (TODO: fill it)
 
-		// Blocks used by inode table
-		temp = (TT.inodes/TT.groups)*sizeof(struct ext2_inode);
-		temp += TT.blocksize-1;
-		temp /= TT.blocksize;
-
 		memset(toybuf, 0, TT.blocksize);
-		bits_set(toybuf, 0, start+temp);
-		if ((i+1)*TT.blocksize*8 > TT.blocks) {
-			temp = TT.blocks & (blockbits-1);
-			bits_set(toybuf, temp, blockbits-temp);
-		}
+		bits_set(toybuf, 0, start+itable);
+		if (end!=blockbits) bits_set(toybuf, end, blockbits-end);
 		xwrite(TT.fsfd, toybuf, TT.blocksize);
 
-		temp = TT.inodes/TT.groups;
-
 		// Write inode bitmap  (TODO)
+		temp = TT.inodes/TT.groups;
 		memset(toybuf, 0, TT.blocksize);
-		if (!i) bits_set(toybuf,0,10);
+		if (!i) bits_set(toybuf, 0, INODES_RESERVED);
 		bits_set(toybuf, temp, blockbits-temp);
 		xwrite(TT.fsfd, toybuf, TT.blocksize);
 
@@ -303,6 +304,11 @@ int mke2fs_main(void)
 			}
 		}
 		xwrite(TT.fsfd, in, TT.blocksize);
+
+		// Write empty data blocks
+		memset(toybuf, 0, TT.blocksize);
+		for (j = start; j < end; j++)
+			xwrite(TT.fsfd, toybuf, TT.blocksize);
 	}
 
 	return 0;
