@@ -53,7 +53,7 @@ int catv_main(void)
 				putchar(c);
 			}
 		}
-		if (CFG_TOYS_FREE && fd) close(fd);
+		if (CFG_TOYBOX_FREE && fd) close(fd);
 	} while (*++argv);
 
 	return retval;

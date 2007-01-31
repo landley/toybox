@@ -12,6 +12,10 @@ all: toybox
 
 include kconfig/Makefile
 
+# defconfig is the "maximum sane config"; allyesconfig minus debugging and such.
+defconfig: allyesconfig
+	@sed -i -r -e "s/^(CONFIG_(TOYBOX_DEBUG|TOYBOX_FREE))=.*/# \1 is not set/" .config
+
 .config: Config.in toys/Config.in
 
 # The long and roundabout sed is to make old versions of sed happy.  New ones

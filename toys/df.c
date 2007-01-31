@@ -113,7 +113,7 @@ int df_main(void)
 		}
 	}
 
-	if (CFG_TOYS_FREE) llist_free(mtlist, NULL);
+	if (CFG_TOYBOX_FREE) llist_free(mtlist, NULL);
 
 	return 0;
 }

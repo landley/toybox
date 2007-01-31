@@ -61,7 +61,7 @@ int which_main(void)
 		int i;
 		for (i=0; toys.optargs[i]; i++) rc |= which_in_path(toys.optargs[i]);
 	}
-	// if (CFG_TOYS_FREE) free(argv);
+	// if (CFG_TOYBOX_FREE) free(argv);
 
 	return rc;
 }

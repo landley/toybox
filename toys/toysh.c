@@ -212,7 +212,7 @@ int toysh_main(void)
 			if (1 > getline(&command, &cmdlen, f ? : stdin)) break;
 			handle(command);
 		}
-		if (CFG_TOYS_FREE) free(command);
+		if (CFG_TOYBOX_FREE) free(command);
 	}
 		
 	return 1;

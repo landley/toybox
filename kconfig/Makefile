@@ -5,7 +5,7 @@
 KCONFIG_TOP = Config.in
 obj = ./kconfig
 PHONY += clean help oldconfig menuconfig config silentoldconfig \
-	randconfig allyesconfig allnoconfig allmodconfig defconfig
+	randconfig allyesconfig allnoconfig allmodconfig #defconfig
 
 menuconfig: $(obj)/mconf
 	$< $(KCONFIG_TOP)
@@ -28,8 +28,8 @@ allyesconfig: $(obj)/conf
 allnoconfig: $(obj)/conf
 	$< -n $(KCONFIG_TOP)
 
-defconfig: $(obj)/conf
-	$< -d $(KCONFIG_TOP)
+#defconfig: $(obj)/conf
+#	$< -d $(KCONFIG_TOP)
 
 # Help text used by make help
 help::

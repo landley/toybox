@@ -2,7 +2,7 @@ mainmenu "ToyBox Configuration"
 
 menu "Global settings"
 
-config TOYS_FREE
+config TOYBOX_FREE
 	bool "Free memory unnecessarily"
 	default n
 	help
@@ -12,7 +12,7 @@ config TOYS_FREE
 	  without a real OS (ala newlib+libgloss), enable this to make toybox
 	  clean up after itself.
 
-config DEBUG
+config TOYBOX_DEBUG
 	bool "Debugging tests"
 	default n
 	help

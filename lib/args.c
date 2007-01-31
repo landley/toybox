@@ -169,7 +169,8 @@ void get_optflags(void)
 
 				// Find the end of the longopt
 				for (end = ++options; *end && *end != ')'; end++);
-				if (CFG_DEBUG && !*end) error_exit("Unterminated optstring");
+				if (CFG_TOYBOX_DEBUG && !*end)
+					error_exit("Unterminated optstring");
 
 				// Allocate and init a new struct longopts
 				lo = xmalloc(sizeof(struct longopts));
