@@ -8,8 +8,12 @@
 
 // Populate toy_list[].
 
+#undef NEWTOY
+#undef OLDTOY
+#define NEWTOY(name, opts, flags) {#name, name##_main, opts, flags},
+#define OLDTOY(name, oldname, opts, flags) {#name, oldname##_main, opts, flags},
+
 struct toy_list toy_list[] = {
-#define FROM_MAIN
 #include "toys/toylist.h"
 };
 

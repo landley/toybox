@@ -5,18 +5,10 @@
  */
 
 
-// When #included from main.c, provide the guts for toy_list[]
+// Provide function declarations and structs.  Note that main.c #includes this
+// file twice (with different macros) to populate toy_list[].
 
-#ifdef FROM_MAIN
-#undef NEWTOY
-#undef OLDTOY
-#define NEWTOY(name, opts, flags) {#name, name##_main, opts, flags},
-#define OLDTOY(name, oldname, opts, flags) {#name, oldname##_main, opts, flags},
-
-// When #included from toys.h, provide function declarations and structs.
-// The #else is because main.c #includes this file twice.
-
-#else
+#ifndef NEWTOY
 #define NEWTOY(name, opts, flags) int name##_main(void);
 #define OLDTOY(name, oldname, opts, flags)
 
