@@ -43,8 +43,17 @@ toybox_unstripped: gen_config.h $(toyfiles) toys/toylist.h lib/lib.h toys.h
 
 toybox: toybox_unstripped
 	$(STRIP) toybox_unstripped -o toybox
+
+instlist: toybox
+	$(HOST_CC) -I . scripts/install.c -o instlist
+
+install_flat: instlist
+	@mkdir -p $(PREFIX)/
+	@cp toybox $(PREFIX)/
+	@for i in `./instlist`; do ln -s toybox "$(PREFIX)/$$i"; done
+
 clean::
-	rm -f toybox toybox_old toybox_unstripped gen_config.h
+	rm -f toybox toybox_old toybox_unstripped gen_config.h instlist
 
 distclean: clean
 	rm -f .config*
