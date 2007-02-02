@@ -22,6 +22,7 @@ struct toy_list toy_list[] = {
 // global context for this applet.
 
 struct toy_context toys;
+union toy_union toy;
 char toybuf[4096];
 
 struct toy_list *toy_find(char *name)

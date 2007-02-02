@@ -32,7 +32,7 @@ struct mke2fs_data {
 // "E:jJ:L:m:O:"
 #define MKE2FS_OPTSTRING "<1>2Fnqm#N#i#b#"
 
-union toy_union {
+extern union toy_union {
 	struct df_data df;
 	struct mke2fs_data mke2fs;
 } toy;
