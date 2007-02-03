@@ -6,9 +6,12 @@
  * Licensed under GPL version 2, see file LICENSE in this tarball for details.
  */
 
+#include "gen_config.h"
+
 #include "lib/portability.h"
 
 #include <ctype.h>
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -30,7 +33,6 @@
 #include <unistd.h>
 
 #include "lib/lib.h"
-#include "gen_config.h"
 #include "toys/e2fs.h"
 #include "toys/toylist.h"
 

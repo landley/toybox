@@ -111,9 +111,9 @@ static unsigned int get_bits(bunzip_data *bd, char bits_wanted)
 // Decompress a block of text to intermediate buffer
 int read_bunzip_data(bunzip_data *bd)
 {
-	struct group_data *hufGroup;
+	struct group_data *hufGroup GCC_BUG;
 	unsigned origPtr;
-	int dbufCount, nextSym, dbufSize, groupCount, *base, *limit,
+	int dbufCount, nextSym, dbufSize, groupCount, *base GCC_BUG, *limit GCC_BUG,
 		selector, i, j, k, t, runPos, symCount, symTotal, nSelectors,
 		byteCount[256];
 	char uc, mtfSymbol[256], symToByte[256], *selectors;

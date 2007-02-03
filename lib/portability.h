@@ -25,3 +25,15 @@
 #define SWAP_LE32(x) (x)
 #define SWAP_LE64(x) (x)
 #endif
+
+// Some versions of gcc produce spurious "may be uninitialized" warnings in
+// cases where it provably can't happen.  Unfortunately, although this warning
+// is calculated and produced separately from the "is definitely used
+// uninitialized" warnings, there's no way to turn off the broken spurious "may
+// be" warnings without also turning off the non-broken "is" warnings.
+
+#if CFG_TOYBOX_DEBUG
+#define GCC_BUG =0
+#else
+#define GCC_BUG
+#endif

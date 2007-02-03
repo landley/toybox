@@ -37,13 +37,16 @@ baseline: toybox_unstripped
 bloatcheck: toybox_old toybox_unstripped
 	@scripts/bloat-o-meter toybox_old toybox_unstripped
 
-# Actual build
+# Get list of toys/*.c files from .config
 
-toyfiles = main.c toys/*.c lib/*.c
-toybox_unstripped: gen_config.h $(toyfiles) toys/toylist.h lib/lib.h toys.h
+toysfiles = $(shell sed -nre 's/^CONFIG_(.*)=y/\1/;t skip;b;:skip;s/_.*//;p' .config | sort -u | tr A-Z a-z | grep -v '^toybox$$' | sed -r 's@(.*)@toys/\1.c@')
+
+# Compile toybox from source
+
+toyfiles = main.c lib/*.c $(toysfiles)
+toybox_unstripped: gen_config.h $(toyfiles) toys/toylist.h lib/*.h toys.h
 	$(CC) $(CFLAGS) -I . $(toyfiles) -o toybox_unstripped \
-		-ffunction-sections -fdata-sections -Wl,--gc-sections #\
-		#2>&1 | sed -n -e '/may be used uninitialized/{s/.*/\n/;h;b};1{x;b};: print;=;p;x;/\n/b thing;p;: thing;${x;p}' >&2
+		-ffunction-sections -fdata-sections -Wl,--gc-sections
 
 toybox: toybox_unstripped
 	$(STRIP) toybox_unstripped -o toybox
