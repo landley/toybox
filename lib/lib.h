@@ -21,6 +21,13 @@ struct arg_list {
 	char *arg;
 };
 
+struct dirtree {
+	struct dirtree *next;
+	struct dirtree *child;
+	struct stat st;
+	char name[];
+};
+
 // args.c
 void get_optflags(void);
 
@@ -52,6 +59,7 @@ size_t xread(int fd, void *buf, size_t len);
 void xreadall(int fd, void *buf, size_t len);
 void xwrite(int fd, void *buf, size_t len);
 char *xgetcwd(void);
+void xstat(char *path, struct stat *st);
 char *xabspath(char *path);
 struct string_list *find_in_path(char *path, char *filename);
 void utoa_to_buf(unsigned n, char *buf, unsigned buflen);
@@ -59,6 +67,8 @@ void itoa_to_buf(int n, char *buf, unsigned buflen);
 char *utoa(unsigned n);
 char *itoa(int n);
 off_t fdlength(int fd);
+struct dirtree *read_dirtree_node(char *path);
+struct dirtree *read_dirtree(char *path);
 
 // getmountlist.c
 struct mtab_list {

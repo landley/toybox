@@ -251,6 +251,11 @@ char *xgetcwd(void)
 	return buf;
 }
 
+void xstat(char *path, struct stat *st)
+{
+	if(stat(path, st)) perror_exit("Can't stat %s\n",path);
+}
+
 // Cannonicalizes path by removing ".", "..", and "//" elements.  This is not
 // the same as realpath(), where "dir/.." could wind up somewhere else by
 // following symlinks.
@@ -494,4 +499,65 @@ void xpidfile(char *name)
 
 	xwrite(fd, spid, sprintf(spid, "%ld\n", (long)getpid()));
 	close(fd);
+}
+
+// Create a dirtree node from a path.
+
+struct dirtree *read_dirtree_node(char *path)
+{
+	struct dirtree *dt;
+	char *name;
+
+	// Find last chunk of name.
+	
+	for (;;) {
+		name = strrchr(path, '/');
+
+		if (!name) name = path;
+		else {
+			if (*(name+1)) name++;
+			else {
+				*name=0;
+				continue;
+			}
+		}
+		break;
+	}
+
+   	dt = xzalloc(sizeof(struct dirtree)+strlen(name)+1);
+	xstat(path, &(dt->st));
+	strcpy(dt->name, name);
+
+	return dt;
+}
+
+// Given a directory (in a writeable PATH_MAX buffer), recursively read in a
+// directory tree.
+
+struct dirtree *read_dirtree(char *path)
+{
+	struct dirtree *dt = NULL, **ddt = &dt;
+	DIR *dir;
+	int len = strlen(path);
+
+	if (!(dir = opendir(path))) perror_msg("No %s", path);
+
+	for (;;) {
+		struct dirent *entry = readdir(dir);
+		if (!entry) break;
+
+		// Skip "." and ".."
+		if (entry->d_name[0]=='.') {
+			if (!entry->d_name[1]) continue;
+			if (entry->d_name[1]=='.' && !entry->d_name[2]) continue;
+		}
+
+		snprintf(path+len, sizeof(toybuf)-len, "/%s", entry->d_name);
+		*ddt = read_dirtree_node(path);
+		if (entry->d_type == DT_DIR) (*ddt)->child = read_dirtree(path);
+		ddt = &((*ddt)->next);
+		path[len]=0;
+	}
+
+	return dt;
 }
