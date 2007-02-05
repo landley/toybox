@@ -30,6 +30,26 @@
 
 #define INODES_RESERVED 10
 
+// Calculate data blocks plus index blocks needed to hold a file.
+uint32_t blocks_used(uint64_t size)
+{
+	uint32_t dblocks = (uint32_t)((size+(TT.blocksize-1))/TT.blocksize);
+	uint32_t idx=TT.blocksize/4, iblocks=0, diblocks=0, tiblocks=0;
+
+	// Account for direct, singly, doubly, and triply indiret index blocks
+
+	if (dblocks > 12) {
+		iblocks = ((dblocks-13)/idx)+1;
+		if (iblocks > 1) {
+			diblocks = ((iblocks-2)/idx)+1;
+			if (diblocks > 1)
+				tiblocks = ((diblocks-2)/idx)+1;
+		}
+	}
+	
+	return dblocks + iblocks + diblocks + tiblocks;
+}
+
 // According to http://www.opengroup.org/onlinepubs/9629399/apdxa.htm
 // we should generate a uuid structure by reading a clock with 100 nanosecond
 // precision, normalizing it to the start of the gregorian calendar in 1582,
@@ -187,7 +207,19 @@ int mke2fs_main(void)
 		temp = O_RDWR|O_CREAT;
 	} else temp = O_RDWR;
 
-	// TODO: collect gene2fs list/lost+found, calculate requirements.
+	// Collect gene2fs list or lost+found, calculate requirements.
+
+	if (TT.gendir) {
+		strncpy(toybuf, TT.gendir, sizeof(toybuf));
+		TT.dt = read_dirtree(toybuf, NULL);
+	} else {
+		TT.dt = xzalloc(sizeof(struct dirtree)+11);
+		strcpy(TT.dt->name, "lost+found");
+		TT.dt->st.st_mode = S_IFDIR|0755;
+		TT.dt->st.st_ctime = TT.dt->st.st_mtime = time(NULL);
+	}
+
+	// Calculate st_nlink for each node in tree.
 
 	// TODO: Check if filesystem is mounted here
 

@@ -534,7 +534,7 @@ struct dirtree *read_dirtree_node(char *path)
 // Given a directory (in a writeable PATH_MAX buffer), recursively read in a
 // directory tree.
 
-struct dirtree *read_dirtree(char *path)
+struct dirtree *read_dirtree(char *path, struct dirtree *parent)
 {
 	struct dirtree *dt = NULL, **ddt = &dt;
 	DIR *dir;
@@ -554,7 +554,8 @@ struct dirtree *read_dirtree(char *path)
 
 		snprintf(path+len, sizeof(toybuf)-len, "/%s", entry->d_name);
 		*ddt = read_dirtree_node(path);
-		if (entry->d_type == DT_DIR) (*ddt)->child = read_dirtree(path);
+		(*ddt)->parent = parent;
+		if (entry->d_type == DT_DIR) (*ddt)->child = read_dirtree(path, *ddt);
 		ddt = &((*ddt)->next);
 		path[len]=0;
 	}

@@ -80,7 +80,7 @@ struct ext2_dentry {
     uint16_t rec_len;       // Directory entry length
     uint8_t  name_len;      // Name length
     uint8_t  file_type;
-	char     name[255];     // File name
+	char     name[0];     // File name
 };
 
 struct ext2_inode {
@@ -108,8 +108,6 @@ struct ext2_inode {
 	uint16_t gid_high;    // High bits of gid
 	uint32_t reserved2;
 };
-
-
 
 #define EXT2_FEATURE_COMPAT_DIR_PREALLOC	0x0001
 #define EXT2_FEATURE_COMPAT_IMAGIC_INODES	0x0002

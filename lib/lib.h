@@ -22,8 +22,7 @@ struct arg_list {
 };
 
 struct dirtree {
-	struct dirtree *next;
-	struct dirtree *child;
+	struct dirtree *next, *child, *parent;
 	struct stat st;
 	char name[];
 };
@@ -68,7 +67,7 @@ char *utoa(unsigned n);
 char *itoa(int n);
 off_t fdlength(int fd);
 struct dirtree *read_dirtree_node(char *path);
-struct dirtree *read_dirtree(char *path);
+struct dirtree *read_dirtree(char *path, struct dirtree *parent);
 
 // getmountlist.c
 struct mtab_list {
