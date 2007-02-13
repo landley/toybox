@@ -31,12 +31,13 @@
 #define INODES_RESERVED 10
 
 // Calculate data blocks plus index blocks needed to hold a file.
-uint32_t blocks_used(uint64_t size)
+
+static uint32_t count_blocks_used(uint64_t size)
 {
 	uint32_t dblocks = (uint32_t)((size+(TT.blocksize-1))/TT.blocksize);
 	uint32_t idx=TT.blocksize/4, iblocks=0, diblocks=0, tiblocks=0;
 
-	// Account for direct, singly, doubly, and triply indiret index blocks
+	// Account for direct, singly, doubly, and triply indirect index blocks
 
 	if (dblocks > 12) {
 		iblocks = ((dblocks-13)/idx)+1;
@@ -46,8 +47,33 @@ uint32_t blocks_used(uint64_t size)
 				tiblocks = ((diblocks-2)/idx)+1;
 		}
 	}
-	
+
 	return dblocks + iblocks + diblocks + tiblocks;
+}
+
+// Calculate the number of blocks used by each inode.  Returns blocks used,
+// assigns bytes used to *size.  Writes total block count to TT.treeblocks
+// and inode count to TT.treeinodes.
+
+long check_treesize(struct dirtree *this, off_t *size)
+{
+	long blocks;
+
+	while (this) {
+		*size += sizeof(struct ext2_dentry) + strlen(this->name);
+
+		if (this->child)
+			this->st.st_blocks = check_treesize(this->child, &this->st.st_size);
+		else if (S_ISREG(this->st.st_mode)) {
+			 this->st.st_blocks = count_blocks_used(this->st.st_size);
+			 TT.treeblocks += this->st.st_blocks;
+		}
+		this = this->next;
+	}
+	TT.treeblocks += blocks = count_blocks_used(*size);
+	TT.treeinodes++;
+
+	return blocks;
 }
 
 // According to http://www.opengroup.org/onlinepubs/9629399/apdxa.htm
@@ -60,7 +86,7 @@ uint32_t blocks_used(uint64_t size)
 
 static void create_uuid(char *uuid)
 {
-	// Read 128 random bytes
+	// Read 128 random bits
 	int fd = xopen("/dev/urandom", O_RDONLY);
 	xreadall(fd, uuid, 16);
 	close(fd);
@@ -90,7 +116,6 @@ static void init_superblock(struct ext2_superblock *sb)
 	// Fill out blocks_count, r_blocks_count, first_data_block
 
 	sb->blocks_count = SWAP_LE32(TT.blocks);
-
 	if (!TT.reserved_percent) TT.reserved_percent = 5;
 	temp = (TT.blocks * (uint64_t)TT.reserved_percent) /100;
 	sb->r_blocks_count = SWAP_LE32(temp);
@@ -108,27 +133,27 @@ static void init_superblock(struct ext2_superblock *sb)
 	TT.groups = (TT.blocks)/temp;
 	if (TT.blocks & (temp-1)) TT.groups++;
 
-	// Figure out how many inodes we need.
+	// Figure out how many total inodes we need.
 
-	if (!TT.inodes) {
+	if (!TT.inodespg) {
 		if (!TT.bytes_per_inode) TT.bytes_per_inode = 8192;
-		TT.inodes = (TT.blocks * (uint64_t)TT.blocksize) / TT.bytes_per_inode;
+		TT.inodespg = (TT.blocks * (uint64_t)TT.blocksize) / TT.bytes_per_inode;
 	}
 
 	// Figure out inodes per group, rounded up to block size.
 
 	// How many blocks of inodes total, rounded up
-	temp = TT.inodes / (TT.blocksize/sizeof(struct ext2_inode));
-	if (temp * (TT.blocksize/sizeof(struct ext2_inode)) != TT.inodes) temp++;
+	temp = TT.inodespg / (TT.blocksize/sizeof(struct ext2_inode));
+	if (temp * (TT.blocksize/sizeof(struct ext2_inode)) != TT.inodespg) temp++;
 	// How many blocks of inodes per group, again rounded up
-	TT.inodes = temp / TT.groups;
-	if (temp & (TT.groups-1)) TT.inodes++;
+	TT.inodespg = temp / TT.groups;
+	if (temp & (TT.groups-1)) TT.inodespg++;
 	// How many inodes per group is that?
-	TT.inodes *=  (TT.blocksize/sizeof(struct ext2_inode));
+	TT.inodespg *=  (TT.blocksize/sizeof(struct ext2_inode));
 
 	// Set inodes_per_group and total inodes_count
-	sb->inodes_per_group = SWAP_LE32(TT.inodes);
-	sb->inodes_count = SWAP_LE32(TT.inodes *= TT.groups);
+	sb->inodes_per_group = SWAP_LE32(TT.inodespg);
+	sb->inodes_count = SWAP_LE32(TT.inodespg * TT.groups);
 
 	// Fill out the rest of the superblock.
 	sb->max_mnt_count=0xFFFF;
@@ -195,6 +220,43 @@ static void bits_set(char *array, int start, int len)
 	}
 }
 
+// Seek past len bytes (to maintain sparse file), or write zeroes if output
+// not seekable
+static void put_zeroes(int len)
+{
+	if(TT.noseek || -1 == lseek(TT.fsfd, len, SEEK_SET)) {
+
+		TT.noseek=1;
+		memset(toybuf, 0, sizeof(toybuf));
+		while (len) {
+			int out = len > sizeof(toybuf) ? sizeof(toybuf) : len;
+			xwrite(TT.fsfd, toybuf, out);
+			len -= out;
+		}
+	}
+}
+
+static void fill_inode(struct ext2_inode *in, struct dirtree *this)
+{
+	memset(in,0,sizeof(struct ext2_inode));
+
+	// This works on Linux.  S_ISREG/DIR/CHR/BLK/FIFO/LNK/SOCK(m)
+	in->mode = this->st.st_mode;
+
+	in->uid = this->st.st_uid & 0xFFFF;
+	in->uid_high = this->st.st_uid >> 16;
+	in->gid = this->st.st_gid & 0xFFFF;
+	in->gid_high = this->st.st_gid >> 16;
+	in->size = this->st.st_size & 0xFFFFFFFF;
+
+	in->atime = this->st.st_atime;
+	in->ctime = this->st.st_ctime;
+	in->mtime = this->st.st_mtime;
+
+	in->links_count = this->st.st_nlink;	// TODO
+	in->blocks = this->st.st_blocks;
+}
+
 int mke2fs_main(void)
 {
 	int i, temp, blockbits;
@@ -219,7 +281,7 @@ int mke2fs_main(void)
 		TT.dt->st.st_ctime = TT.dt->st.st_mtime = time(NULL);
 	}
 
-	// Calculate st_nlink for each node in tree.
+	// TODO: Calculate st_nlink for each node in tree.
 
 	// TODO: Check if filesystem is mounted here
 
@@ -233,17 +295,25 @@ int mke2fs_main(void)
 	if (!TT.blocks) TT.blocks = length/TT.blocksize;
 	if (!TT.blocks) error_exit("gene2fs is a TODO item");
 
-	// Skip the first 1k to avoid the boot sector (if any).  Use this to
-	// figure out if this file is seekable.
-	if(-1 == lseek(TT.fsfd, 1024, SEEK_SET)) {
-		TT.noseek=1;
-		xwrite(TT.fsfd, &TT.sb, 1024);
-	}
-	
-	// Initialize superblock structure
+	// Skip the first 1k to avoid the boot sector (if any), then
+	// initialize superblock structure
 
+	put_zeroes(1024);
 	init_superblock(&TT.sb);
 	blockbits = 8*TT.blocksize;
+
+	// Figure out how much space is used
+	length = 0;
+	length = check_treesize(TT.dt, &length);
+	for (temp=i=0; i<TT.groups; i++) {
+		temp += group_superblock_used(i) + 2;
+		temp += TT.inodespg/(TT.blocksize/sizeof(struct ext2_inode));
+	}
+	TT.sb.free_blocks_count = SWAP_LE32(TT.blocks - TT.treeblocks - temp);
+	TT.sb.free_inodes_count = SWAP_LE32(TT.inodespg*TT.groups - INODES_RESERVED
+					- TT.treeinodes);
+
+	// Figure out how many inodes are used
 
 	// Loop through block groups.
 
@@ -257,7 +327,7 @@ int mke2fs_main(void)
 		if ((i+1)*blockbits > TT.blocks) end = TT.blocks & (blockbits-1);
 
 		// Blocks used by inode table
-		itable = ((TT.inodes/TT.groups)*sizeof(struct ext2_inode))/TT.blocksize;
+		itable = (TT.inodespg*sizeof(struct ext2_inode))/TT.blocksize;
 
 		// If a superblock goes here, write it out.
 		start = group_superblock_used(i);
@@ -286,18 +356,13 @@ int mke2fs_main(void)
 					memset(bg, 0, TT.blocksize);
 				}
 
-				// sb.inodes_per_group is uint32_t, but group.free_inodes_count
-				// is uint16_t.  Add in endianness conversion and this little
-				// dance is called for.
-				temp = SWAP_LE32(TT.sb.inodes_per_group);
+				// How many free inodes in this group?  (TODO)
+				temp = TT.inodespg;
 				if (!i) temp -= INODES_RESERVED;
 				bg[slot].free_inodes_count = SWAP_LE16(temp);
-				
-				// How many blocks will the inode table use?
-				temp *= sizeof(struct ext2_inode);
-				temp /= TT.blocksize;
 
-				// How many does that leave?  (TODO: fill it up)
+				// How many free blocks in this group?  (TODO)
+				temp = TT.inodespg/(TT.blocksize/sizeof(struct ext2_inode)) + 2;
 				temp = end-used-temp;
 				bg[slot].free_blocks_count = SWAP_LE32(temp);
 
@@ -321,26 +386,28 @@ int mke2fs_main(void)
 		xwrite(TT.fsfd, toybuf, TT.blocksize);
 
 		// Write inode bitmap  (TODO)
-		temp = TT.inodes/TT.groups;
 		memset(toybuf, 0, TT.blocksize);
 		if (!i) bits_set(toybuf, 0, INODES_RESERVED);
-		bits_set(toybuf, temp, blockbits-temp);
+		bits_set(toybuf, TT.inodespg, blockbits-TT.inodespg);
 		xwrite(TT.fsfd, toybuf, TT.blocksize);
 
+		start += 3;
+
 		// Write inode table for this group
-		for (j = 0; j<temp; j++) {
+		for (j = 0; j<TT.inodespg; j++) {
 			slot = j % (TT.blocksize/sizeof(struct ext2_inode));
 			if (!slot) {
-				if (j) xwrite(TT.fsfd, in, TT.blocksize);
+				if (j) {
+					xwrite(TT.fsfd, in, TT.blocksize);
+					start++;
+				}
 				memset(in, 0, TT.blocksize);
 			}
 		}
 		xwrite(TT.fsfd, in, TT.blocksize);
 
 		// Write empty data blocks
-		memset(toybuf, 0, TT.blocksize);
-		for (j = start; j < end; j++)
-			xwrite(TT.fsfd, toybuf, TT.blocksize);
+		put_zeroes((end-start) * TT.blocksize);
 	}
 
 	return 0;

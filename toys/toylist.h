@@ -21,11 +21,11 @@ struct df_data {
 struct mke2fs_data {
 	long blocksize;
 	long bytes_per_inode;
-	long inodes;
+	long inodespg;
 	long reserved_percent;
 	char *gendir;
 
-	unsigned blocks, groups;
+	unsigned blocks, groups, treeblocks, treeinodes;
 	int fsfd, noseek;
 	struct ext2_superblock sb;
 	struct dirtree *dt;
