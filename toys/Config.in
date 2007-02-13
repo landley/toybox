@@ -172,6 +172,20 @@ config PWD
 
 	  The print working directory command prints the current directory.
 
+config TOUCH
+	bool "touch"
+	default n
+	help
+	  usage: touch [-acmrt] FILE...
+
+	  Change file timestamps/length.  Create empty or sparse files.
+
+	  -a
+	  -c
+	  -m
+	  -r
+	  -t
+
 config TOYSH
 	bool "sh (toysh)"
 	default n

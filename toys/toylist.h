@@ -31,6 +31,12 @@ struct mke2fs_data {
 	struct dirtree *dt;
 };
 
+struct touch_data {
+	char *ref_file;
+	char *time;
+	long length;
+};
+
 // "E:jJ:L:m:O:"
 #define MKE2FS_OPTSTRING "<1>2Fnqm#N#i#b#"
 
@@ -75,6 +81,7 @@ USE_MKE2FS(NEWTOY(mke2fs, MKE2FS_OPTSTRING, TOYFLAG_SBIN))
 USE_ONEIT(NEWTOY(oneit, "+p<1", TOYFLAG_SBIN))
 USE_PWD(NEWTOY(pwd, NULL, TOYFLAG_BIN))
 USE_TOYSH(OLDTOY(sh, toysh, "c:i", TOYFLAG_BIN))
+USE_TOUCH(NEWTOY(touch, "l#t:r:mca", TOYFLAG_BIN))
 USE_TOYSH(NEWTOY(toysh, "c:i", TOYFLAG_BIN))
 USE_WHICH(NEWTOY(which, "a", TOYFLAG_USR|TOYFLAG_BIN))
 USE_YES(NEWTOY(yes, "", TOYFLAG_USR|TOYFLAG_BIN))

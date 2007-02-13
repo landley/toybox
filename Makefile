@@ -39,7 +39,7 @@ bloatcheck: toybox_old toybox_unstripped
 
 # Get list of toys/*.c files from .config
 
-toysfiles = $(shell sed -nre 's/^CONFIG_(.*)=y/\1/;t skip;b;:skip;s/_.*//;p' .config | sort -u | tr A-Z a-z | grep -v '^toybox$$' | sed -r 's@(.*)@toys/\1.c@')
+toysfiles = $(shell sed -nre 's/^CONFIG_(.*)=y/\1/;t skip;b;:skip;s/_.*//;p' .config | sort -u | tr A-Z a-z | grep -v '^toybox$$' | sed 's@\(.*\)@toys/\1.c@')
 
 # Compile toybox from source
 
