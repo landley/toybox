@@ -76,6 +76,32 @@ long check_treesize(struct dirtree *this, off_t *size)
 	return blocks;
 }
 
+// Use the parent pointer to iterate through the tree non-recursively.
+static struct dirtree *treenext(struct dirtree *this)
+{
+	while (this && !this->next) this = this->parent;
+	if (this) this = this->next;
+
+	return this;
+}
+
+// To do this right I need to copy the tree and sort it, but here's a really
+// ugly n^2 way of dealing with the problem that doesn't scale well to large
+// numbers of files but can be done in very little code.
+
+static void check_treelinks(void)
+{
+	struct dirtree *this, *that;
+
+	for (this = TT.dt; this; this = treenext(this)) {
+		this->st.st_nlink = 0;
+		for (that = TT.dt; that; that = treenext(that))
+			if (this->st.st_ino == that->st.st_ino)
+				if (this->st.st_dev == that->st.st_dev)
+					this->st.st_nlink++;
+	}
+}
+
 // According to http://www.opengroup.org/onlinepubs/9629399/apdxa.htm
 // we should generate a uuid structure by reading a clock with 100 nanosecond
 // precision, normalizing it to the start of the gregorian calendar in 1582,
@@ -172,9 +198,7 @@ static void init_superblock(struct ext2_superblock *sb)
 	// TODO If we're called as mke3fs or mkfs.ext3, do a journal.
 
 	//if (strchr(toys.which->name,'3'))
-	//	sb->feature_compat = SWAP_LE32(EXT3_FEATURE_COMPAT_HAS_JOURNAL);
-
-	// TODO fill out free_blocks, free_inodes, first_ino
+	//	sb->feature_compat |= SWAP_LE32(EXT3_FEATURE_COMPAT_HAS_JOURNAL);
 }
 
 // Number of blocks used in this group by superblock/group list backup.
@@ -253,7 +277,7 @@ static void fill_inode(struct ext2_inode *in, struct dirtree *this)
 	in->ctime = this->st.st_ctime;
 	in->mtime = this->st.st_mtime;
 
-	in->links_count = this->st.st_nlink;	// TODO
+	in->links_count = this->st.st_nlink;
 	in->blocks = this->st.st_blocks;
 }
 
@@ -280,8 +304,6 @@ int mke2fs_main(void)
 		TT.dt->st.st_mode = S_IFDIR|0755;
 		TT.dt->st.st_ctime = TT.dt->st.st_mtime = time(NULL);
 	}
-
-	// TODO: Calculate st_nlink for each node in tree.
 
 	// TODO: Check if filesystem is mounted here
 
@@ -313,7 +335,9 @@ int mke2fs_main(void)
 	TT.sb.free_inodes_count = SWAP_LE32(TT.inodespg*TT.groups - INODES_RESERVED
 					- TT.treeinodes);
 
-	// Figure out how many inodes are used
+	// Calculate st_nlink for each node in tree.
+
+	check_treelinks();
 
 	// Loop through block groups.
 
