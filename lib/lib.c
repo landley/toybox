@@ -402,6 +402,18 @@ char *itoa(int n)
 	return itoa_buf;
 }
 
+// atol() with the kilo/mega/giga/tera/peta/exa extensions.
+// (zetta and yotta don't fit in 64 bits.)
+long atolx(char *c)
+{
+	char *suffixes="kmgtpe", *end;
+	long val = strtol(c, &c, 0);
+
+	end = strchr(suffixes, tolower(*c));
+	if (end) val *= 1024<<((end-suffixes)*10);
+	return val;
+}
+
 // Return how long the file at fd is, if there's any way to determine it.
 off_t fdlength(int fd)
 {

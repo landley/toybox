@@ -108,7 +108,7 @@ static void gotflag(void)
 			temp->arg = gof.arg;
 			temp->next = *list;
 			*list = temp;
-		} else if (type == '#') *(gof.this->arg) = atol((char *)gof.arg);
+		} else if (type == '#') *(gof.this->arg) = atolx((char *)gof.arg);
 		else if (type == '@') {
 		}
 

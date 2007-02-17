@@ -65,6 +65,7 @@ void utoa_to_buf(unsigned n, char *buf, unsigned buflen);
 void itoa_to_buf(int n, char *buf, unsigned buflen);
 char *utoa(unsigned n);
 char *itoa(int n);
+long atolx(char *c);
 off_t fdlength(int fd);
 struct dirtree *read_dirtree_node(char *path);
 struct dirtree *read_dirtree(char *path, struct dirtree *parent);
