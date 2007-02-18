@@ -55,7 +55,7 @@ static uint32_t count_blocks_used(uint64_t size)
 // assigns bytes used to *size.  Writes total block count to TT.treeblocks
 // and inode count to TT.treeinodes.
 
-long check_treesize(struct dirtree *this, off_t *size)
+static long check_treesize(struct dirtree *this, off_t *size)
 {
 	long blocks;
 
@@ -94,11 +94,15 @@ static void check_treelinks(void)
 	struct dirtree *this, *that;
 
 	for (this = TT.dt; this; this = treenext(this)) {
-		this->st.st_nlink = 0;
-		for (that = TT.dt; that; that = treenext(that))
-			if (this->st.st_ino == that->st.st_ino)
-				if (this->st.st_dev == that->st.st_dev)
-					this->st.st_nlink++;
+		// Since we can't hardlink to directories, we know their link count.
+		if (S_ISDIR(this->st.st_mode)) this->st.st_nlink = 2;
+		else {
+			this->st.st_nlink = 0;
+			for (that = TT.dt; that; that = treenext(that))
+				if (this->st.st_ino == that->st.st_ino)
+					if (this->st.st_dev == that->st.st_dev)
+						this->st.st_nlink++;
+		}
 	}
 }
 
@@ -127,6 +131,16 @@ static void create_uuid(char *uuid)
 	uuid[11] = uuid[11] | 128;
 }
 
+// Figure out inodes per group, rounded up to fill complete inode blocks.
+static uint32_t get_inodespg(uint32_t inodes)
+{
+	uint32_t temp;
+
+	temp = (inodes + TT.groups - 1) / TT.groups;
+	inodes = TT.blocksize/sizeof(struct ext2_inode);
+	return ((temp + inodes - 1)/inodes)*inodes;
+}
+
 // Fill out superblock and TT
 
 static void init_superblock(struct ext2_superblock *sb)
@@ -142,8 +156,7 @@ static void init_superblock(struct ext2_superblock *sb)
 	// Fill out blocks_count, r_blocks_count, first_data_block
 
 	sb->blocks_count = SWAP_LE32(TT.blocks);
-	if (!TT.reserved_percent) TT.reserved_percent = 5;
-	temp = (TT.blocks * (uint64_t)TT.reserved_percent) /100;
+	temp = (TT.blocks * (uint64_t)TT.reserved_percent) / 100;
 	sb->r_blocks_count = SWAP_LE32(temp);
 
 	sb->first_data_block = SWAP_LE32(TT.blocksize == 1024 ? 1 : 0);
@@ -151,31 +164,16 @@ static void init_superblock(struct ext2_superblock *sb)
 	// Set blocks_per_group and frags_per_group, which is the size of an
 	// allocation bitmap that fits in one block (I.E. how many bits per block)?
 
-	temp = TT.blocksize*8;
-	sb->blocks_per_group = sb->frags_per_group = SWAP_LE32(temp);
+	sb->blocks_per_group = sb->frags_per_group = SWAP_LE32(TT.blockbits);
 
 	// How many block groups do we need?  (Round up avoiding integer overflow.)
 
-	TT.groups = (TT.blocks)/temp;
-	if (TT.blocks & (temp-1)) TT.groups++;
-
-	// Figure out how many total inodes we need.
-
-	if (!TT.inodespg) {
-		if (!TT.bytes_per_inode) TT.bytes_per_inode = 8192;
-		TT.inodespg = (TT.blocks * (uint64_t)TT.blocksize) / TT.bytes_per_inode;
-	}
+	TT.groups = (TT.blocks)/TT.blockbits;
+	if (TT.blocks & (TT.blockbits-1)) TT.groups++;
 
 	// Figure out inodes per group, rounded up to block size.
 
-	// How many blocks of inodes total, rounded up
-	temp = TT.inodespg / (TT.blocksize/sizeof(struct ext2_inode));
-	if (temp * (TT.blocksize/sizeof(struct ext2_inode)) != TT.inodespg) temp++;
-	// How many blocks of inodes per group, again rounded up
-	TT.inodespg = temp / TT.groups;
-	if (temp & (TT.groups-1)) TT.inodespg++;
-	// How many inodes per group is that?
-	TT.inodespg *=  (TT.blocksize/sizeof(struct ext2_inode));
+	TT.inodespg = get_inodespg(TT.inodespg);
 
 	// Set inodes_per_group and total inodes_count
 	sb->inodes_per_group = SWAP_LE32(TT.inodespg);
@@ -201,32 +199,51 @@ static void init_superblock(struct ext2_superblock *sb)
 	//	sb->feature_compat |= SWAP_LE32(EXT3_FEATURE_COMPAT_HAS_JOURNAL);
 }
 
-// Number of blocks used in this group by superblock/group list backup.
-// Returns 0 if this group doesn't have a superblock backup.
-static int group_superblock_used(uint32_t group)
+// Does this group contain a superblock backup (and group descriptor table)?
+static int is_sb_group(uint32_t group)
 {
-	int used = 0, i;
+	int i;
 
 	// Superblock backups are on groups 0, 1, and powers of 3, 5, and 7.
-	if(!group || group==1) used++;
+	if(!group || group==1) return 1;
 	for (i=3; i<9; i+=2) {
 		int j = i;
 		while (j<group) j*=i;
-		if (j==group) used++;
+		if (j==group) return 1;
 	}
+	return 0;
+}
 
-	if (used) {
-		// How blocks does the group table take up?
-		used = TT.groups * sizeof(struct ext2_group);
-		used += TT.blocksize - 1;
-		used /= TT.blocksize;
-		// Plus the superblock itself.
-		used++;
-		// And a corner case.
-		if (!group && TT.blocksize == 1024) used++;
-	}
+	
+// Number of blocks used in this group by superblock/group list backup.
+static int group_superblock_used(uint32_t group)
+{
+	int used;
+
+	if (!is_sb_group(group)) return 0;
+
+	// How blocks does the group table take up?
+	used = TT.groups * sizeof(struct ext2_group);
+	used += TT.blocksize - 1;
+	used /= TT.blocksize;
+	// Plus the superblock itself.
+	used++;
+	// And a corner case.
+	if (!group && TT.blocksize == 1024) used++;
 
 	return used;
+}
+
+static uint32_t get_all_group_blocks(void)
+{
+	uint32_t i, blocks, inodeblks;
+
+	inodeblks = get_inodespg(TT.inodespg);
+	inodeblks /= TT.blocksize/sizeof(struct ext2_inode);
+	for (i = blocks = 0; i<TT.groups; i++)
+		blocks += group_superblock_used(i) + 2 + inodeblks;
+
+	return blocks;
 }
 
 static void bits_set(char *array, int start, int len)
@@ -283,7 +300,7 @@ static void fill_inode(struct ext2_inode *in, struct dirtree *this)
 
 int mke2fs_main(void)
 {
-	int i, temp, blockbits;
+	int i, temp;
 	off_t length;
 
 	// Handle command line arguments.
@@ -292,6 +309,27 @@ int mke2fs_main(void)
 		sscanf(toys.optargs[1], "%u", &TT.blocks);
 		temp = O_RDWR|O_CREAT;
 	} else temp = O_RDWR;
+	if (!TT.reserved_percent) TT.reserved_percent = 5;
+
+	// TODO: Check if filesystem is mounted here
+
+	// For mke?fs, open file.  For gene?fs, create file.
+	TT.fsfd = xcreate(*toys.optargs, temp, 0777);
+	
+	// Determine appropriate block size and block count from file length.
+	// (If no length, default to 4k.  They can override it on the cmdline.)
+
+	length = fdlength(TT.fsfd);
+	if (!TT.blocksize) TT.blocksize = (length && length < 1<<29) ? 1024 : 4096;
+	TT.blockbits = 8*TT.blocksize;
+	if (!TT.blocks) TT.blocks = length/TT.blocksize;
+
+	// Figure out how many total inodes we need.
+
+	if (!TT.inodespg) {
+		if (!TT.bytes_per_inode) TT.bytes_per_inode = 8192;
+		TT.inodespg = (TT.blocks * (uint64_t)TT.blocksize) / TT.bytes_per_inode;
+	}
 
 	// Collect gene2fs list or lost+found, calculate requirements.
 
@@ -305,50 +343,46 @@ int mke2fs_main(void)
 		TT.dt->st.st_ctime = TT.dt->st.st_mtime = time(NULL);
 	}
 
-	// TODO: Check if filesystem is mounted here
-
-	// For mke?fs, open file.  For gene?fs, create file.
-	TT.fsfd = xcreate(*toys.optargs, temp, 0777);
-
-	// Determine appropriate block size and block count from file length.
-
-	length = fdlength(TT.fsfd);
-	if (!TT.blocksize) TT.blocksize = (length && length < 1<<29) ? 1024 : 4096;
-	if (!TT.blocks) TT.blocks = length/TT.blocksize;
-	if (!TT.blocks) error_exit("gene2fs is a TODO item");
-
-	// Skip the first 1k to avoid the boot sector (if any), then
-	// initialize superblock structure
-
-	put_zeroes(1024);
-	init_superblock(&TT.sb);
-	blockbits = 8*TT.blocksize;
-
-	// Figure out how much space is used
+	// Figure out how much space is used by preset files
 	length = 0;
 	length = check_treesize(TT.dt, &length);
-	for (temp=i=0; i<TT.groups; i++) {
-		temp += group_superblock_used(i) + 2;
-		temp += TT.inodespg/(TT.blocksize/sizeof(struct ext2_inode));
+	check_treelinks(); // Calculate st_nlink for each node in tree.
+
+	if (TT.gendir && !TT.blocks) {
+		// Figure out how many blocks of overhead superblock backups and
+		// group descriptor tables impose.  Start with a minimal guess,
+		// find the overhead for that many groups, and loop until this
+		// is enough groups to store this many blocks.
+		TT.groups = (TT.treeblocks/TT.blockbits)+1;
+		for (;;) {
+			TT.blocks = TT.treeblocks + get_all_group_blocks();
+			if (TT.blocks <= TT.groups * TT.blockbits) break;
+			TT.groups++;
+		}
 	}
+
+	// TT.blocks is now big enough to initialize superblock structure
+
+	init_superblock(&TT.sb);
+	temp = get_all_group_blocks();
+   	if (TT.blocks < TT.treeblocks + temp) error_exit("Not enough space.\n");
+
 	TT.sb.free_blocks_count = SWAP_LE32(TT.blocks - TT.treeblocks - temp);
 	TT.sb.free_inodes_count = SWAP_LE32(TT.inodespg*TT.groups - INODES_RESERVED
 					- TT.treeinodes);
 
-	// Calculate st_nlink for each node in tree.
+	// Skip the first 1k to avoid the boot sector (if any)
+	put_zeroes(1024);
 
-	check_treelinks();
-
-	// Loop through block groups.
-
+	// Loop through block groups, write out each one.
 	for (i=0; i<TT.groups; i++) {
 		struct ext2_inode *in = (struct ext2_inode *)toybuf;
 		uint32_t start, itable, used, end;
 		int j, slot;
 
 		// Where does this group end?
-		end = blockbits;
-		if ((i+1)*blockbits > TT.blocks) end = TT.blocks & (blockbits-1);
+		end = TT.blockbits;
+		if ((i+1)*TT.blockbits > TT.blocks) end = TT.blocks & (TT.blockbits-1);
 
 		// Blocks used by inode table
 		itable = (TT.inodespg*sizeof(struct ext2_inode))/TT.blocksize;
@@ -391,7 +425,7 @@ int mke2fs_main(void)
 				bg[slot].free_blocks_count = SWAP_LE32(temp);
 
 				// Fill out rest of group structure (TODO: gene2fs allocation)
-				used += j*blockbits;
+				used += j*TT.blockbits;
 				bg[slot].block_bitmap = SWAP_LE32(used++);
 				bg[slot].inode_bitmap = SWAP_LE32(used++);
 				bg[slot].inode_table = SWAP_LE32(used);
@@ -406,13 +440,13 @@ int mke2fs_main(void)
 
 		memset(toybuf, 0, TT.blocksize);
 		bits_set(toybuf, 0, start+itable);
-		if (end!=blockbits) bits_set(toybuf, end, blockbits-end);
+		if (end!=TT.blockbits) bits_set(toybuf, end, TT.blockbits-end);
 		xwrite(TT.fsfd, toybuf, TT.blocksize);
 
 		// Write inode bitmap  (TODO)
 		memset(toybuf, 0, TT.blocksize);
 		if (!i) bits_set(toybuf, 0, INODES_RESERVED);
-		bits_set(toybuf, TT.inodespg, blockbits-TT.inodespg);
+		bits_set(toybuf, TT.inodespg, TT.blockbits-TT.inodespg);
 		xwrite(TT.fsfd, toybuf, TT.blocksize);
 
 		start += 3;

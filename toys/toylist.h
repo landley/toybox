@@ -25,7 +25,7 @@ struct mke2fs_data {
 	long reserved_percent;
 	char *gendir;
 
-	unsigned blocks, groups, treeblocks, treeinodes;
+	unsigned blocks, groups, blockbits, treeblocks, treeinodes;
 	int fsfd, noseek;
 	struct ext2_superblock sb;
 	struct dirtree *dt;
