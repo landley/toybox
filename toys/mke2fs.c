@@ -302,6 +302,7 @@ int mke2fs_main(void)
 {
 	int i, temp;
 	off_t length;
+	uint32_t usedblocks, usedinodes;
 
 	// Handle command line arguments.
 
@@ -366,15 +367,18 @@ int mke2fs_main(void)
 	init_superblock(&TT.sb);
 	temp = get_all_group_blocks();
    	if (TT.blocks < TT.treeblocks + temp) error_exit("Not enough space.\n");
-
 	TT.sb.free_blocks_count = SWAP_LE32(TT.blocks - TT.treeblocks - temp);
-	TT.sb.free_inodes_count = SWAP_LE32(TT.inodespg*TT.groups - INODES_RESERVED
-					- TT.treeinodes);
+
+	temp = TT.inodespg*TT.groups - INODES_RESERVED;
+	if (temp < TT.treeinodes) error_exit("Not enough inodes.\n");
+	TT.sb.free_inodes_count = SWAP_LE32(temp - TT.treeinodes);
 
 	// Skip the first 1k to avoid the boot sector (if any)
 	put_zeroes(1024);
 
 	// Loop through block groups, write out each one.
+	usedblocks = 0;
+	usedinodes = 0;
 	for (i=0; i<TT.groups; i++) {
 		struct ext2_inode *in = (struct ext2_inode *)toybuf;
 		uint32_t start, itable, used, end;
@@ -391,6 +395,7 @@ int mke2fs_main(void)
 		start = group_superblock_used(i);
 		if (start) {
 			struct ext2_group *bg = (struct ext2_group *)toybuf;
+			int treeblocks = TT.treeblocks, treeinodes = TT.treeinodes;
 
 			TT.sb.block_group_nr = SWAP_LE16(i);
 
@@ -414,17 +419,31 @@ int mke2fs_main(void)
 					memset(bg, 0, TT.blocksize);
 				}
 
-				// How many free inodes in this group?  (TODO)
+				// How many free inodes in this group?
 				temp = TT.inodespg;
 				if (!i) temp -= INODES_RESERVED;
+				if (temp > treeinodes) {
+					treeinodes -= temp;
+					temp = 0;
+				} else {
+					temp -= treeinodes;
+					treeinodes = 0;
+				}
 				bg[slot].free_inodes_count = SWAP_LE16(temp);
 
-				// How many free blocks in this group?  (TODO)
+				// How many free blocks in this group?
 				temp = TT.inodespg/(TT.blocksize/sizeof(struct ext2_inode)) + 2;
 				temp = end-used-temp;
+				if (temp > treeblocks) {
+					treeblocks -= temp;
+					temp = 0;
+				} else {
+					temp -= treeblocks;
+					treeblocks = 0;
+				}
 				bg[slot].free_blocks_count = SWAP_LE32(temp);
 
-				// Fill out rest of group structure (TODO: gene2fs allocation)
+				// Fill out rest of group structure
 				used += j*TT.blockbits;
 				bg[slot].block_bitmap = SWAP_LE32(used++);
 				bg[slot].inode_bitmap = SWAP_LE32(used++);
@@ -436,29 +455,36 @@ int mke2fs_main(void)
 
 		// Now write out stuff that every block group has.
 
-		// Write block usage bitmap  (TODO: fill it)
+		// Write block usage bitmap
 
+		start += 2 + itable;
 		memset(toybuf, 0, TT.blocksize);
-		bits_set(toybuf, 0, start+itable);
-		if (end!=TT.blockbits) bits_set(toybuf, end, TT.blockbits-end);
+		bits_set(toybuf, 0, start);
+		bits_set(toybuf, end, TT.blockbits-end);
+		temp = TT.treeblocks - usedblocks;
+		if (temp) {
+			if (end-start > temp) temp = end-start;
+			bits_set(toybuf, start, temp);
+		}
 		xwrite(TT.fsfd, toybuf, TT.blocksize);
 
-		// Write inode bitmap  (TODO)
+		// Write inode bitmap
 		memset(toybuf, 0, TT.blocksize);
-		if (!i) bits_set(toybuf, 0, INODES_RESERVED);
-		bits_set(toybuf, TT.inodespg, TT.blockbits-TT.inodespg);
+		j = 0;
+		if (!i) bits_set(toybuf, 0, j = INODES_RESERVED);
+		bits_set(toybuf, TT.inodespg, slot = TT.blockbits-TT.inodespg);
+		temp = TT.treeinodes - usedinodes;
+		if (temp) {
+			if (slot-j > temp) temp = slot-j;
+			bits_set(toybuf, j, temp);
+		}
 		xwrite(TT.fsfd, toybuf, TT.blocksize);
 
-		start += 3;
-
-		// Write inode table for this group
+		// Write inode table for this group (TODO)
 		for (j = 0; j<TT.inodespg; j++) {
 			slot = j % (TT.blocksize/sizeof(struct ext2_inode));
 			if (!slot) {
-				if (j) {
-					xwrite(TT.fsfd, in, TT.blocksize);
-					start++;
-				}
+				if (j) xwrite(TT.fsfd, in, TT.blocksize);
 				memset(in, 0, TT.blocksize);
 			}
 		}
