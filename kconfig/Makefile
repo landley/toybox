@@ -3,6 +3,7 @@
 # These targets are used from top-level makefile
 
 KCONFIG_TOP = Config.in
+KCONFIG_PROJECT = ToyBox
 obj = ./kconfig
 PHONY += clean help oldconfig menuconfig config silentoldconfig \
 	randconfig allyesconfig allnoconfig allmodconfig #defconfig
@@ -52,11 +53,13 @@ SHIPPED = kconfig/zconf.tab.c kconfig/lex.zconf.c kconfig/zconf.hash.c
 gen_config.h: .config
 
 kconfig/mconf: $(SHIPPED)
-	$(HOSTCC) -o $@ kconfig/{mconf.c,zconf.tab.c,lxdialog/*.c} \
-		-lcurses -DCURSES_LOC="<ncurses.h>" -DKBUILD_NO_NLS=1
+	$(HOSTCC) -o $@ kconfig/mconf.c kconfig/zconf.tab.c \
+		kconfig/lxdialog/*.c -lcurses -DCURSES_LOC="<ncurses.h>" \
+		-DKBUILD_NO_NLS=1 -DPROJECT_NAME=\"$(KCONFIG_PROJECT)\"
 
 kconfig/conf: $(SHIPPED)
-	$(HOSTCC) -o $@ kconfig/{conf.c,zconf.tab.c} -DKBUILD_NO_NLS=1
+	$(HOSTCC) -o $@ kconfig/{conf.c,zconf.tab.c} -DKBUILD_NO_NLS=1 \
+		-DPROJECT_NAME=\"$(KCONFIG_PROJECT)\"
 
 clean::
 	rm -f $(wildcard kconfig/*zconf*.c) kconfig/{conf,mconf}
