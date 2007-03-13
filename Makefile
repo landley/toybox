@@ -4,7 +4,7 @@
 CFLAGS  = -Wall -Wundef -Wno-char-subscripts -Os
 CC      = $(CROSS_COMPILE)gcc $(CFLAGS) -funsigned-char
 STRIP   = $(CROSS_COMPILE)strip
-HOST_CC = gcc $(CFLAGS) -funsigned-char
+HOSTCC  = gcc $(CFLAGS) -funsigned-char
 
 all: toybox
 
@@ -52,7 +52,7 @@ toybox: toybox_unstripped
 	$(STRIP) toybox_unstripped -o toybox
 
 instlist: toybox
-	$(HOST_CC) -I . scripts/install.c -o instlist
+	$(HOSTCC) -I . scripts/install.c -o instlist
 
 install_flat: instlist
 	@mkdir -p $(PREFIX)/
