@@ -27,6 +27,10 @@ static int conf_lineno, conf_warnings, conf_unsaved;
 const char conf_defname[] = "arch/$ARCH/defconfig";
 #endif
 
+#ifndef CONFIG_PREFIX
+#define CONFIG_PREFIX "CONFIG_"
+#endif
+
 static void conf_warning(const char *fmt, ...)
 {
 	va_list ap;
@@ -154,18 +158,20 @@ load:
 		sym = NULL;
 		switch (line[0]) {
 		case '#':
-			if (memcmp(line + 2, "CONFIG_", 7))
+			if (line[1]!=' ' || memcmp(line + 2, CONFIG_PREFIX,
+					       	strlen(CONFIG_PREFIX))) {
 				continue;
-			p = strchr(line + 9, ' ');
+			}
+			p = strchr(line + 2 + strlen(CONFIG_PREFIX), ' ');
 			if (!p)
 				continue;
 			*p++ = 0;
 			if (strncmp(p, "is not set", 10))
 				continue;
 			if (def == S_DEF_USER) {
-				sym = sym_find(line + 9);
+				sym = sym_find(line + 2 + strlen(CONFIG_PREFIX));
 				if (!sym) {
-					conf_warning("trying to assign nonexistent symbol %s", line + 9);
+					conf_warning("trying to assign nonexistent symbol %s", line + 2 + strlen(CONFIG_PREFIX));
 					break;
 				}
 			} else {
@@ -187,12 +193,12 @@ load:
 				;
 			}
 			break;
-		case 'C':
-			if (memcmp(line, "CONFIG_", 7)) {
+		case 'A' ... 'Z':
+			if (memcmp(line, CONFIG_PREFIX, strlen(CONFIG_PREFIX))) {
 				conf_warning("unexpected data");
 				continue;
 			}
-			p = strchr(line + 7, '=');
+			p = strchr(line + strlen(CONFIG_PREFIX), '=');
 			if (!p)
 				continue;
 			*p++ = 0;
@@ -203,13 +209,13 @@ load:
 					*p2 = 0;
 			}
 			if (def == S_DEF_USER) {
-				sym = sym_find(line + 7);
+				sym = sym_find(line + strlen(CONFIG_PREFIX));
 				if (!sym) {
 					conf_warning("trying to assign nonexistent symbol %s", line + 7);
 					break;
 				}
 			} else {
-				sym = sym_lookup(line + 7, 0);
+				sym = sym_lookup(line + strlen(CONFIG_PREFIX), 0);
 				if (sym->type == S_UNKNOWN)
 					sym->type = S_OTHER;
 			}
@@ -435,7 +441,7 @@ int conf_write(const char *name)
 	if (!out)
 		return 1;
 
-	sym = sym_lookup("KERNELVERSION", 0);
+	sym = sym_lookup("KCONFIG_VERSION", 0);
 	sym_calc_value(sym);
 	time(&now);
 	env = getenv("KCONFIG_NOTIMESTAMP");
@@ -492,19 +498,19 @@ int conf_write(const char *name)
 			case S_TRISTATE:
 				switch (sym_get_tristate_value(sym)) {
 				case no:
-					fprintf(out, "# CONFIG_%s is not set\n", sym->name);
+					fprintf(out, "# "CONFIG_PREFIX"%s is not set\n", sym->name);
 					break;
 				case mod:
-					fprintf(out, "CONFIG_%s=m\n", sym->name);
+					fprintf(out, CONFIG_PREFIX"%s=m\n", sym->name);
 					break;
 				case yes:
-					fprintf(out, "CONFIG_%s=y\n", sym->name);
+					fprintf(out, CONFIG_PREFIX"%s=y\n", sym->name);
 					break;
 				}
 				break;
 			case S_STRING:
 				str = sym_get_string_value(sym);
-				fprintf(out, "CONFIG_%s=\"", sym->name);
+				fprintf(out, CONFIG_PREFIX"%s=\"", sym->name);
 				while (1) {
 					l = strcspn(str, "\"\\");
 					if (l) {
@@ -520,12 +526,12 @@ int conf_write(const char *name)
 			case S_HEX:
 				str = sym_get_string_value(sym);
 				if (str[0] != '0' || (str[1] != 'x' && str[1] != 'X')) {
-					fprintf(out, "CONFIG_%s=%s\n", sym->name, *str ? str : "0");
+					fprintf(out, CONFIG_PREFIX"%s=%s\n", sym->name, *str ? str : "0");
 					break;
 				}
 			case S_INT:
 				str = sym_get_string_value(sym);
-				fprintf(out, "CONFIG_%s=%s\n", sym->name, *str ? str : "0");
+				fprintf(out, CONFIG_PREFIX"%s=%s\n", sym->name, *str ? str : "0");
 				break;
 			}
 		}
@@ -705,7 +711,7 @@ int conf_write_autoconf(void)
 		return 1;
 	}
 
-	sym = sym_lookup("KERNELVERSION", 0);
+	sym = sym_lookup("KCONFIG_VERSION", 0);
 	sym_calc_value(sym);
 	time(&now);
 	fprintf(out, "#\n"
@@ -719,8 +725,8 @@ int conf_write_autoconf(void)
 		       " * "PROJECT_NAME" version: %s\n"
 		       " * %s"
 		       " */\n"
-		       "#define AUTOCONF_INCLUDED\n",
-		       sym_get_string_value(sym), ctime(&now));
+		       // "#define AUTOCONF_INCLUDED\n"
+		       , sym_get_string_value(sym), ctime(&now));
 
 	for_all_symbols(i, sym) {
 		sym_calc_value(sym);
@@ -733,19 +739,19 @@ int conf_write_autoconf(void)
 			case no:
 				break;
 			case mod:
-				fprintf(out, "CONFIG_%s=m\n", sym->name);
+				fprintf(out, CONFIG_PREFIX"%s=m\n", sym->name);
 				fprintf(out_h, "#define CONFIG_%s_MODULE 1\n", sym->name);
 				break;
 			case yes:
-				fprintf(out, "CONFIG_%s=y\n", sym->name);
-				fprintf(out_h, "#define CONFIG_%s 1\n", sym->name);
+				fprintf(out, CONFIG_PREFIX"%s=y\n", sym->name);
+				fprintf(out_h, "#define "CONFIG_PREFIX"%s 1\n", sym->name);
 				break;
 			}
 			break;
 		case S_STRING:
 			str = sym_get_string_value(sym);
-			fprintf(out, "CONFIG_%s=\"", sym->name);
-			fprintf(out_h, "#define CONFIG_%s \"", sym->name);
+			fprintf(out, CONFIG_PREFIX"%s=\"", sym->name);
+			fprintf(out_h, "#define "CONFIG_PREFIX"%s \"", sym->name);
 			while (1) {
 				l = strcspn(str, "\"\\");
 				if (l) {
@@ -765,14 +771,14 @@ int conf_write_autoconf(void)
 		case S_HEX:
 			str = sym_get_string_value(sym);
 			if (str[0] != '0' || (str[1] != 'x' && str[1] != 'X')) {
-				fprintf(out, "CONFIG_%s=%s\n", sym->name, str);
-				fprintf(out_h, "#define CONFIG_%s 0x%s\n", sym->name, str);
+				fprintf(out, CONFIG_PREFIX"%s=%s\n", sym->name, str);
+				fprintf(out_h, "#define "CONFIG_PREFIX"%s 0x%s\n", sym->name, str);
 				break;
 			}
 		case S_INT:
 			str = sym_get_string_value(sym);
-			fprintf(out, "CONFIG_%s=%s\n", sym->name, str);
-			fprintf(out_h, "#define CONFIG_%s %s\n", sym->name, str);
+			fprintf(out, CONFIG_PREFIX"%s=%s\n", sym->name, str);
+			fprintf(out_h, "#define "CONFIG_PREFIX"%s %s\n", sym->name, str);
 			break;
 		default:
 			break;
