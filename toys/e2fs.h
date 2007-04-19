@@ -100,7 +100,7 @@ struct ext2_inode {
 	uint32_t generation;  // File version (for NFS)
 	uint32_t file_acl;    // File ACL
 	uint32_t dir_acl;     // Directory ACL (or top bits of file length)
-	uint32_t faddr;       // Fragment address
+	uint32_t faddr;       // Last block in file
 	uint8_t  frag;        // Fragment number
 	uint8_t  fsize;       // Fragment size
 	uint16_t pad1;
