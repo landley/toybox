@@ -19,16 +19,30 @@ struct df_data {
 };
 
 struct mke2fs_data {
+	// Command line arguments.
 	long blocksize;
 	long bytes_per_inode;
-	long inodespg;
-	long reserved_percent;
-	char *gendir;
+	long inodes;           // Total inodes in filesystem.
+	long reserved_percent; // Integer precent of space to reserve for root.
+	char *gendir;          // Where to read dirtree from.
 
-	unsigned blocks, groups, blockbits, treeblocks, treeinodes;
-	int fsfd, noseek;
+	// Internal data.
+	struct dirtree *dt;    // Tree of files to copy into the new filesystem.
+	unsigned treeblocks;   // Blocks used by dt
+	unsigned treeinodes;   // Inodes used by dt
+
+	unsigned blocks;       // Total blocks in the filesystem.
+	unsigned freeblocks;   // Free blocks in the filesystem.
+	unsigned inodespg;     // Inodes per group
+	unsigned groups;       // Total number of block groups.
+	unsigned blockbits;    // Bits per block.  (Also blocks per group.)
+
+	// For gene2fs
+	unsigned nextblock;    // Next data block to allocate
+	unsigned nextgroup;    // Next group we'll be allocating from
+	int fsfd;              // File descriptor of filesystem (to output to).
+
 	struct ext2_superblock sb;
-	struct dirtree *dt;
 };
 
 struct touch_data {
