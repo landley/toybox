@@ -14,8 +14,10 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <grp.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <pwd.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -24,6 +26,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>

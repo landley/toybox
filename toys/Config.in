@@ -83,6 +83,28 @@ config HELLO
 	help
 	  A hello world program.  You don't need this.
 
+config MDEV
+	bool "mdev"
+	default n
+	help
+	  usage: mdev [-s]
+
+	  Create devices in /dev using information from /sys.
+
+	  -s         Scan all entries in /sys to populate /dev.
+
+config MDEV_CONF
+	bool "Configuration file for mdev"
+	default n
+	help
+	  The mdev config file (/etc/mdev.conf) contains lines that look like:
+	    hd[a-z][0-9]* 0:3 660
+
+	  Each line must contain three whitespace separated fields.  The first
+	  field is a regular expression matching one or more device names, and
+	  the second and third fields are uid:gid and file permissions for
+	  matching devies.
+
 config MKE2FS
 	bool "mke2fs"
 	default n
@@ -171,6 +193,14 @@ config PWD
 	  usage: pwd
 
 	  The print working directory command prints the current directory.
+
+config SYNC
+	bool "sync"
+	default n
+	help
+	  usage: sync
+
+	  Write pending cached data to disk (synchronize), blocking until done.
 
 config TOUCH
 	bool "touch"
