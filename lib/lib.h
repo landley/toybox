@@ -40,7 +40,7 @@ void usage_exit(void);
 void strlcpy(char *dest, char *src, size_t size);
 void *xmalloc(size_t size);
 void *xzalloc(size_t size);
-void xrealloc(void **ptr, size_t size);
+void *xrealloc(void *ptr, size_t size);
 void *xstrndup(char *s, size_t n);
 void *xstrdup(char *s);
 char *xmsprintf(char *format, ...);
@@ -67,6 +67,7 @@ char *utoa(unsigned n);
 char *itoa(int n);
 long atolx(char *c);
 off_t fdlength(int fd);
+char *xreadlink(char *name);
 struct dirtree *read_dirtree_node(char *path);
 struct dirtree *read_dirtree(char *path, struct dirtree *parent);
 

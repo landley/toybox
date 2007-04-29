@@ -61,7 +61,7 @@ static char *parse_word(char *start, struct command **cmd)
 	// Allocate more space if there's no room for NULL terminator.
 
 	if (!((*cmd)->argc & 7))
-		xrealloc((void **)cmd,
+		*cmd=xrealloc(*cmd,
 				sizeof(struct command) + ((*cmd)->argc+8)*sizeof(char *));
 	(*cmd)->argv[(*cmd)->argc] = 0;
 	return end;

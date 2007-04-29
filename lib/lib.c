@@ -94,10 +94,12 @@ void *xzalloc(size_t size)
 
 // Die unless we can change the size of an existing allocation, possibly
 // moving it.  (Notice different arguments from libc function.)
-void xrealloc(void **ptr, size_t size)
+void *xrealloc(void *ptr, size_t size)
 {
-	*ptr = realloc(*ptr, size);
-	if (!*ptr) error_exit("xrealloc");
+	ptr = realloc(ptr, size);
+	if (!ptr) error_exit("xrealloc");
+
+	return ptr;
 }
 
 // Die unless we can allocate a copy of this many bytes of string.
@@ -450,6 +452,30 @@ off_t fdlength(int fd)
 	} while (bottom + 1 != top);
 
 	return pos + 1;
+}
+
+// This can return null (meaning file not found).  It just won't return null
+// for memory allocation reasons.
+char *xreadlink(char *name)
+{
+	int len, size = 0;
+	char *buf = 0;
+
+	// Grow by 64 byte chunks until it's big enough.
+	for(;;) {
+		size +=64;
+		buf = xrealloc(buf, size);
+		len = readlink(name, buf, size);
+
+		if (len<0) {
+			free(buf);
+			return 0;
+		}
+		if (len<size) {
+			buf[len]=0;
+			return buf;
+		}
+	}
 }
 
 /*
