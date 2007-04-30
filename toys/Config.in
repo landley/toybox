@@ -77,6 +77,13 @@ config ECHO
 		\r	carriage return
 		\t	horizontal tab
 		\v	vertical tab
+
+config FALSE
+	bool "false"
+	default n
+	help
+	  Return nonzero.
+
 config HELLO
 	bool "hello"
 	default n
@@ -349,6 +356,12 @@ config TOYSH_BUILTINS
 	help
 	  Adds the commands exec, fg, bg, help, jobs, pwd, export, source, set,
 	  unset, read, alias.
+
+config TRUE
+	bool "true"
+	default n
+	help
+	  Return zero.
 
 config WHICH
 	bool "which"
