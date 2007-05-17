@@ -45,6 +45,10 @@ struct mke2fs_data {
 	struct ext2_superblock sb;
 };
 
+struct sleep_data {
+	long seconds;
+};
+
 struct touch_data {
 	char *ref_file;
 	char *time;
@@ -97,6 +101,7 @@ USE_ONEIT(NEWTOY(oneit, "+<1p", TOYFLAG_SBIN))
 USE_PWD(NEWTOY(pwd, NULL, TOYFLAG_BIN))
 USE_READLINK(NEWTOY(readlink, "<1f", TOYFLAG_BIN))
 USE_TOYSH(OLDTOY(sh, toysh, "c:i", TOYFLAG_BIN))
+USE_SLEEP(NEWTOY(sleep, "<1", TOYFLAG_BIN))
 USE_SYNC(NEWTOY(sync, NULL, TOYFLAG_BIN))
 USE_TOUCH(NEWTOY(touch, "l#t:r:mca", TOYFLAG_BIN))
 USE_TOYSH(NEWTOY(toysh, "c:i", TOYFLAG_BIN))

@@ -50,7 +50,7 @@ void toy_exec(char *argv[]);
 extern struct toy_context {
 	struct toy_list *which;  // Which entry in toy_list is this one?
 	int exitval;             // Value error_exit feeds to exit()
-	char **argv;             // Command line arguments
+	char **argv;             // Original command line arguments
 	unsigned optflags;       // Command line option flags from get_optflags()
 	char **optargs;          // Arguments left over from get_optflags()
 } toys;

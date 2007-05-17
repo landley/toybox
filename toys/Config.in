@@ -217,6 +217,14 @@ config READLINK_FINAL
 
 	  -f         Show final location, including normal files and multiple symlinks.
 
+config SLEEP
+	bool "sleep"
+	default n
+	help
+	  usage: sleep SECONDS
+
+	  Wait a decimal integer number of seconds.
+
 config SYNC
 	bool "sync"
 	default n
