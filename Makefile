@@ -2,9 +2,10 @@
 # Copyright 2006 Rob Landley <rob@landley.net>
 
 CFLAGS  = -Wall -Wundef -Wno-char-subscripts -Os
-CC      = $(CROSS_COMPILE)gcc $(CFLAGS) -funsigned-char
+CCFLAGS = $(CFLAGS) -funsigned-char
+CC      = $(CROSS_COMPILE)gcc
 STRIP   = $(CROSS_COMPILE)strip
-HOSTCC  = gcc $(CFLAGS) -funsigned-char
+HOSTCC  = gcc
 
 all: toybox
 
@@ -45,14 +46,14 @@ toysfiles = $(shell sed -nre 's/^CONFIG_(.*)=y/\1/;t skip;b;:skip;s/_.*//;p' .co
 
 toyfiles = main.c lib/*.c $(toysfiles)
 toybox_unstripped: gen_config.h $(toyfiles) toys/toylist.h lib/*.h toys.h
-	$(CC) $(CFLAGS) -I . $(toyfiles) -o toybox_unstripped \
+	$(CC) $(CCFLAGS) -I . $(toyfiles) -o toybox_unstripped \
 		-ffunction-sections -fdata-sections -Wl,--gc-sections
 
 toybox: toybox_unstripped
 	$(STRIP) toybox_unstripped -o toybox
 
 instlist: toybox
-	$(HOSTCC) -I . scripts/install.c -o instlist
+	$(HOSTCC) $(CCFLAGS) -I . scripts/install.c -o instlist
 
 install_flat: instlist
 	@mkdir -p $(PREFIX)/
