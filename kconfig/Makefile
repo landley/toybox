@@ -58,8 +58,8 @@ kconfig/mconf: $(SHIPPED)
 		-DKBUILD_NO_NLS=1 -DPROJECT_NAME=\"$(KCONFIG_PROJECT)\"
 
 kconfig/conf: $(SHIPPED)
-	$(HOSTCC) -o $@ kconfig/{conf.c,zconf.tab.c} -DKBUILD_NO_NLS=1 \
+	$(HOSTCC) -o $@ kconfig/conf.c kconfig/zconf.tab.c -DKBUILD_NO_NLS=1 \
 		-DPROJECT_NAME=\"$(KCONFIG_PROJECT)\"
 
 clean::
-	rm -f $(wildcard kconfig/*zconf*.c) kconfig/{conf,mconf}
+	rm -f $(wildcard kconfig/*zconf*.c) kconfig/conf kconfig/mconf
