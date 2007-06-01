@@ -58,18 +58,19 @@ void toy_init(struct toy_list *which, char *argv[])
 	toys.argv = argv;
 	toys.exitval = 1;
 	if (which->options) get_optflags();
+	else toys.optargs = argv+1;
 }
 
 // Run a toy.
 void toy_exec(char *argv[])
 {
 	struct toy_list *which;
-	
+
 	which = toy_find(argv[0]);
 	if (!which) return;
 
 	toy_init(which, argv);
-	
+
 	exit(toys.which->toy_main());
 }
 
