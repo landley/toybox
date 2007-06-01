@@ -50,6 +50,18 @@ struct toy_list *toy_find(char *name)
 	}
 }
 
+// Figure out whether or not anything is using the option parsing logic,
+// because the compiler can't figure out whether or not to optimize it away
+// on its' own.
+
+#undef NEWTOY
+#undef OLDTOY
+#define NEWTOY(name, opts, flags) opts ||
+#define OLDTOY(name, oldname, opts, flags) opts ||
+static const NEED_OPTIONS =
+#include "toys/toylist.h"
+0;  // Ends the opts || opts || opts...
+
 void toy_init(struct toy_list *which, char *argv[])
 {
 	// Free old toys contents here?
@@ -57,7 +69,7 @@ void toy_init(struct toy_list *which, char *argv[])
 	toys.which = which;
 	toys.argv = argv;
 	toys.exitval = 1;
-	if (which->options) get_optflags();
+	if (NEED_OPTIONS && which->options) get_optflags();
 	else toys.optargs = argv+1;
 }
 
