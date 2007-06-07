@@ -58,7 +58,7 @@ struct toy_list *toy_find(char *name)
 #undef OLDTOY
 #define NEWTOY(name, opts, flags) opts ||
 #define OLDTOY(name, oldname, opts, flags) opts ||
-static const NEED_OPTIONS =
+static const int NEED_OPTIONS =
 #include "toys/toylist.h"
 0;  // Ends the opts || opts || opts...
 
