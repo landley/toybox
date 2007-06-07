@@ -11,6 +11,19 @@
 
 #include "toys.h"
 
+#ifndef __UCLIBC__
+
+// uClibc has this, and if we define our own it conflicts.
+
+// Like strncpy but always null terminated.
+void strlcpy(char *dest, char *src, size_t size)
+{
+	strncpy(dest,src,size);
+	dest[size-1] = 0;
+}
+#endif
+
+
 void verror_msg(char *msg, int err, va_list va)
 {
 	fprintf(stderr, "%s: ", toys.which->name);
@@ -66,13 +79,6 @@ void perror_exit(char *msg, ...)
 void usage_exit(void)
 {
 	exit(1);
-}
-
-// Like strncpy but always null terminated.
-void strlcpy(char *dest, char *src, size_t size)
-{
-	strncpy(dest,src,size);
-	dest[size-1] = 0;
 }
 
 // Die unless we can allocate memory.

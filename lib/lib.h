@@ -31,13 +31,16 @@ struct dirtree {
 void get_optflags(void);
 
 // functions.c
+#ifndef __UCLIBC__
+void strlcpy(char *dest, char *src, size_t size);
+#endif
+
 void verror_msg(char *msg, int err, va_list va);
 void error_msg(char *msg, ...);
 void perror_msg(char *msg, ...);
 void error_exit(char *msg, ...);
 void perror_exit(char *msg, ...);
 void usage_exit(void);
-void strlcpy(char *dest, char *src, size_t size);
 void *xmalloc(size_t size);
 void *xzalloc(size_t size);
 void *xrealloc(void *ptr, size_t size);
