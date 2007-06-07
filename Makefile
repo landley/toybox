@@ -1,11 +1,14 @@
 # Makefile for toybox.
 # Copyright 2006 Rob Landley <rob@landley.net>
 
-CFLAGS  = -Wall -Wundef -Wno-char-subscripts -Os
+CFLAGS  := $(CFLAGS) -Wall -Wundef -Wno-char-subscripts -Os
 CCFLAGS = $(CFLAGS) -funsigned-char
 CC      = $(CROSS_COMPILE)gcc
 STRIP   = $(CROSS_COMPILE)strip
 HOSTCC  = gcc
+
+# A synonym.
+CROSS_COMPILE = $(CROSS)
 
 all: toybox
 
