@@ -126,22 +126,22 @@ void *xstrdup(char *s)
 // Die unless we can allocate enough space to sprintf() into.
 char *xmsprintf(char *format, ...)
 {
-	va_list va;
+	va_list va, va2;
 	int len;
 	char *ret;
 	
-	// How long is it?
-
 	va_start(va, format);
+	va_copy(va2, va);
+
+	// How long is it?
 	len = vsnprintf(0, 0, format, va);
 	len++;
 	va_end(va);
 
 	// Allocate and do the sprintf()
 	ret = xmalloc(len);
-	va_start(va, format);
-	vsnprintf(ret, len, format, va);	
-	va_end(va);
+	vsnprintf(ret, len, format, va2);	
+	va_end(va2);
 
 	return ret;
 }
