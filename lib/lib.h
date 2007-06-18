@@ -48,6 +48,7 @@ void *xstrndup(char *s, size_t n);
 void *xstrdup(char *s);
 char *xmsprintf(char *format, ...);
 void xprintf(char *format, ...);
+void xputs(char *s);
 void xputc(char c);
 void xflush(void);
 void xexec(char **argv);

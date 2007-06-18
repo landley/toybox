@@ -155,6 +155,11 @@ void xprintf(char *format, ...)
 	if (ferror(stdout)) perror_exit("write");
 }
 
+void xputs(char *s)
+{
+	if (EOF == puts(s)) perror_exit("write");
+}
+
 void xputc(char c)
 {
 	if (EOF == fputc(c, stdout)) perror_exit("write");
