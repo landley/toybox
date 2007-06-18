@@ -10,7 +10,7 @@ config BZCAT
 
 config CATV
 	bool "catv"
-	default n
+	default y
 	help
 	  usage: catv [-evt] [filename...]
 
@@ -23,7 +23,7 @@ config CATV
 
 config COUNT
 	bool "count"
-	default n
+	default y
 	help
 	  usage: count
 
@@ -31,7 +31,7 @@ config COUNT
 
 config DF
 	bool "df (disk free)"
-	default n
+	default y
 	help
 	  usage: df [-t type] [FILESYSTEM ...]
 
@@ -44,7 +44,7 @@ config DF
 
 config DF_PEDANTIC
 	bool "options -P and -k"
-	default n
+	default y
 	depends on DF
 	help
 	  usage: df [-Pk]
@@ -59,7 +59,7 @@ config DF_PEDANTIC
 
 config ECHO
 	bool "echo"
-	default n
+	default y
 	help
 	  usage: echo [-ne] [args...]
 
@@ -80,13 +80,13 @@ config ECHO
 
 config FALSE
 	bool "false"
-	default n
+	default y
 	help
 	  Return nonzero.
 
 config HELLO
 	bool "hello"
-	default n
+	default y
 	help
 	  A hello world program.  You don't need this.
 
@@ -179,7 +179,7 @@ config MKE2FS_EXTENDED
 
 config ONEIT
 	bool "oneit"
-	default n
+	default y
 	help
 	  usage: oneit [-p] command [...]
 
@@ -195,7 +195,7 @@ config ONEIT
 
 config PWD
 	bool "pwd"
-	default n
+	default y
 	help
 	  usage: pwd
 
@@ -209,9 +209,10 @@ config READLINK
 
 	  Show what a symbolic link points to.
 
-config READLINK_FINAL
+config READLINK_F
 	bool "readlink -f"
 	default n
+	depends on READLINK_F
 	help
 	  usage: readlink [-f]
 
@@ -219,7 +220,7 @@ config READLINK_FINAL
 
 config SLEEP
 	bool "sleep"
-	default n
+	default y
 	help
 	  usage: sleep SECONDS
 
@@ -227,7 +228,7 @@ config SLEEP
 
 config SYNC
 	bool "sync"
-	default n
+	default y
 	help
 	  usage: sync
 
@@ -249,7 +250,7 @@ config TOUCH
 
 config TOYSH
 	bool "sh (toysh)"
-	default n
+	default y
 	help
 	  usage: sh [-c command] [script]
 
@@ -367,13 +368,13 @@ config TOYSH_BUILTINS
 
 config TRUE
 	bool "true"
-	default n
+	default y
 	help
 	  Return zero.
 
 config WHICH
 	bool "which"
-	default n
+	default y
 	help
 	  usage: which [-a] filename ...
 
@@ -383,7 +384,7 @@ config WHICH
 
 config YES
 	bool "yes"
-	default n
+	default y
 	help
 	  usage: yes [args...]
 
