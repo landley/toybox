@@ -296,8 +296,10 @@ notflag:
 	}
 
 	// Sanity check
-	if (optarg<minargs) error_exit("Need %d arguments", minargs);
-	if (optarg>maxargs) error_exit("Max %d arguments", maxargs);
+	if (optarg<minargs)
+		error_exit("Need %d argument%s", minargs, minargs ? "s" : "");
+	if (optarg>maxargs)
+		error_exit("Max %d argument%s", maxargs, maxargs ? "s" : "");
 }
 
 // Loop through files listed on the command line
