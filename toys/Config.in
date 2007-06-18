@@ -212,7 +212,7 @@ config READLINK
 config READLINK_F
 	bool "readlink -f"
 	default n
-	depends on READLINK_F
+	depends on READLINK
 	help
 	  usage: readlink [-f]
 
