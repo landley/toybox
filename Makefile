@@ -17,8 +17,8 @@ all: toybox
 include kconfig/Makefile
 
 # defconfig is the "maximum sane config"; allyesconfig minus debugging and such.
-defconfig: allyesconfig
-	@sed -i -r -e "s/^(CONFIG_TOYBOX_(DEBUG|FREE))=.*/# \1 is not set/" .config
+#defconfig: allyesconfig
+#	@sed -i -r -e "s/^(CONFIG_TOYBOX_(DEBUG|FREE))=.*/# \1 is not set/" .config
 
 .config: Config.in toys/Config.in
 
@@ -41,13 +41,10 @@ baseline: toybox_unstripped
 bloatcheck: toybox_old toybox_unstripped
 	@scripts/bloat-o-meter toybox_old toybox_unstripped
 
-# Get list of toys/*.c files from .config
+# Get list of .c files to compile, including toys/*.c files from .config
+toyfiles = main.c lib/*.c \
+	$(shell scripts/cfg2files.sh < .config | sed 's@\(.*\)@toys/\1.c@')
 
-toysfiles = $(shell sed -nre 's/^CONFIG_(.*)=y/\1/;t skip;b;:skip;s/_.*//;p' .config | sort -u | tr A-Z a-z | grep -v '^toybox$$' | sed 's@\(.*\)@toys/\1.c@')
-
-# Compile toybox from source
-
-toyfiles = main.c lib/*.c $(toysfiles)
 toybox_unstripped: gen_config.h $(toyfiles) toys/toylist.h lib/*.h toys.h
 	$(CC) $(CCFLAGS) -I . $(toyfiles) -o toybox_unstripped \
 		-ffunction-sections -fdata-sections -Wl,--gc-sections
@@ -68,6 +65,11 @@ clean::
 
 distclean: clean
 	rm -f .config*
+
+test: tests
+
+tests:
+	scripts/testall.sh
 
 help::
 	@echo  '  baseline        - Create busybox_old for use by bloatcheck.'
