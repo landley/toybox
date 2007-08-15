@@ -11,7 +11,7 @@
 
 #include "toys.h"
 
-#ifndef __UCLIBC__
+#if !defined(__UCLIBC__) && !defined(__KLIBC__)
 
 // uClibc has this, and if we define our own it conflicts.
 

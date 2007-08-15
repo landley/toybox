@@ -31,7 +31,7 @@ struct dirtree {
 void get_optflags(void);
 
 // functions.c
-#ifndef __UCLIBC__
+#if !defined(__UCLIBC__) && !defined(__KLIBC__)
 void strlcpy(char *dest, char *src, size_t size);
 #endif
 
