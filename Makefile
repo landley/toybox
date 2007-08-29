@@ -52,6 +52,11 @@ toybox_unstripped: gen_config.h $(toyfiles) toys/toylist.h lib/*.h toys.h
 toybox: toybox_unstripped
 	$(STRIP) toybox_unstripped -o toybox
 
+toys/help.c: toys/help.h
+
+toys/help.h: Config.in toys/Config.in scripts/config2help.py
+	scripts/config2help.py Config.in > toys/help.h
+
 instlist: toybox
 	$(HOSTCC) $(CCFLAGS) -I . scripts/install.c -o instlist
 

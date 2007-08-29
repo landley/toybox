@@ -1,5 +1,16 @@
 menu "Toys"
 
+# Fake config symbol to attach help entry to.
+
+config TOYBOX
+	bool
+	default n
+	help
+	  usage: toybox [command] [arguments...]
+
+	  With no arguments, shows available commands.  First argument is
+	  name of a command to run, followed by any arguments to that command.
+
 config BZCAT
 	bool "bzcat"
 	default n
@@ -89,6 +100,22 @@ config HELLO
 	default y
 	help
 	  A hello world program.  You don't need this.
+
+config HELP
+	bool "help"
+	default y
+	help
+	  usage: help [command]
+
+	  Show usage information for toybox commands.
+
+config HELP_LONG
+	bool "Verbose help text"
+	default y
+	depends on HELP
+	help
+	  Show more than one line of help information per command.
+
 
 config MDEV
 	bool "mdev"
@@ -216,7 +243,7 @@ config READLINK_F
 	help
 	  usage: readlink [-f]
 
-	  -f         Show final location, including normal files and multiple symlinks.
+	  -f	Show final location, including normal files and multiple symlinks.
 
 config SLEEP
 	bool "sleep"
@@ -365,6 +392,35 @@ config TOYSH_BUILTINS
 	help
 	  Adds the commands exec, fg, bg, help, jobs, pwd, export, source, set,
 	  unset, read, alias.
+
+config EXIT
+	bool
+	default n
+	depends on TOYSH
+	help
+	  usage: exit [status]
+
+	  Exit shell.  If no return value supplied on command line, use value
+	  of most recent command, or 0 if none.
+
+config CD
+	bool
+	default n
+	depends on TOYSH
+	help
+	  usage: cd [path]
+
+	  Change current directory.  With no arguments, go to $HOME.
+
+config CD_P
+	bool # "-P support for cd"
+	default n
+	depends on TOYSH
+	help
+	  usage: cd [-PL]
+
+	  -P	Physical path: resolve symlinks in path.
+	  -L	Cancel previous -P and restore default behavior.
 
 config TRUE
 	bool "true"
