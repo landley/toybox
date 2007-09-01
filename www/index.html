@@ -54,7 +54,9 @@ Single Unix Specification version 3</a>.  This does not mean that Toybox is
 implementing every SUSv3 utility: some such as SCCS and ed are obsolete, while
 others such as c99 are outside the scope of the project.  Toybox also isn't
 implementing full internationalization support: it should be 8-bit clean and
-handle UTF-8, but otherwise we leave this to X11 and higher layers.</p>
+handle UTF-8, but otherwise we leave this to X11 and higher layers.  And
+some things (like $CDPATH support in "cd") await a good explanation of why
+to bother with them.</p>
 
 <p>The other major sources of commands are the Linux man pages, and testing
 the behavior of existing commands (although not generally looking at their
