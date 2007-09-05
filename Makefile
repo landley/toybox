@@ -1,8 +1,9 @@
 # Makefile for toybox.
 # Copyright 2006 Rob Landley <rob@landley.net>
 
-CFLAGS  := $(CFLAGS) -Wall -Wundef -Wno-char-subscripts -Os
+CFLAGS  := $(CFLAGS) -Wall -Wundef -Wno-char-subscripts
 CCFLAGS = $(CFLAGS) -funsigned-char
+OPTIMIZE = -Os -ffunction-sections -fdata-sections -Wl,--gc-sections
 CC      = $(CROSS_COMPILE)gcc
 STRIP   = $(CROSS_COMPILE)strip
 HOSTCC  = gcc
@@ -46,8 +47,7 @@ toyfiles = main.c lib/*.c \
 	$(shell scripts/cfg2files.sh < .config | sed 's@\(.*\)@toys/\1.c@')
 
 toybox_unstripped: gen_config.h $(toyfiles) toys/toylist.h lib/*.h toys.h
-	$(CC) $(CCFLAGS) -I . $(toyfiles) -o toybox_unstripped \
-		-ffunction-sections -fdata-sections -Wl,--gc-sections
+	$(CC) $(CCFLAGS) -I . $(toyfiles) -o toybox_unstripped $(OPTIMIZE)
 
 toybox: toybox_unstripped
 	$(STRIP) toybox_unstripped -o toybox
