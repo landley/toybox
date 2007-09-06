@@ -130,6 +130,7 @@ config MDEV
 config MDEV_CONF
 	bool "Configuration file for mdev"
 	default n
+	depends on MDEV
 	help
 	  The mdev config file (/etc/mdev.conf) contains lines that look like:
 	    hd[a-z][0-9]* 0:3 660
