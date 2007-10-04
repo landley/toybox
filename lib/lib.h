@@ -21,16 +21,21 @@ struct arg_list {
 	char *arg;
 };
 
+// args.c
+void get_optflags(void);
+
+// dirtree.c
 struct dirtree {
 	struct dirtree *next, *child, *parent;
 	struct stat st;
 	char name[];
 };
 
-// args.c
-void get_optflags(void);
+struct dirtree *dirtree_add_node(char *path);
+struct dirtree *dirtree_read(char *path, struct dirtree *parent,
+                    int (*callback)(struct dirtree *node));
 
-// functions.c
+// lib.c
 #if !defined(__UCLIBC__) && !defined(__KLIBC__)
 void strlcpy(char *dest, char *src, size_t size);
 #endif
@@ -72,8 +77,6 @@ char *itoa(int n);
 long atolx(char *c);
 off_t fdlength(int fd);
 char *xreadlink(char *name);
-struct dirtree *read_dirtree_node(char *path);
-struct dirtree *read_dirtree(char *path, struct dirtree *parent);
 
 // getmountlist.c
 struct mtab_list {

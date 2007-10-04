@@ -7,6 +7,7 @@
 
 #include "toys.h"
 
+// Shortcut to our global data structure, since we use it so much.
 #define TT toy.mke2fs
 
 #define INODES_RESERVED 10
@@ -26,13 +27,16 @@ static uint32_t file_blocks_used(uint64_t size, uint32_t *blocklist)
 	uint32_t dblocks = (uint32_t)((size+(TT.blocksize-1))/TT.blocksize);
 	uint32_t idx=TT.blocksize/4, iblocks=0, diblocks=0, tiblocks=0;
 
-	// Fill out index blocks.
+	// Fill out index blocks in inode.
 
 	if (blocklist) {
 		int i;
 
+		// Direct index blocks
 		for (i=0; i<13 && i<dblocks; i++) blocklist[i] = i;
+		// Singly indirect index blocks
 		if (dblocks > 13+idx) blocklist[13] = 13+idx;
+		// Doubly indirect index blocks
 		idx = 13 + idx + (idx*idx);
 		if (dblocks > idx) blocklist[14] = idx;
 
@@ -131,7 +135,7 @@ static void check_treelinks(struct dirtree *tree)
 // On the other hand, we have 128 bits to come up with a unique identifier, of
 // which 6 have a defined value.  /dev/urandom it is.
 
-static void fake_uuid(char *uuid)
+static void create_uuid(char *uuid)
 {
 	// Read 128 random bits
 	int fd = xopen("/dev/urandom", O_RDONLY);
@@ -206,7 +210,7 @@ static void init_superblock(struct ext2_superblock *sb)
 	sb->feature_incompat = SWAP_LE32(EXT2_FEATURE_INCOMPAT_FILETYPE);
 	sb->feature_ro_compat = SWAP_LE32(EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER);
 
-	fake_uuid(sb->uuid);
+	create_uuid(sb->uuid);
 	
 	// TODO If we're called as mke3fs or mkfs.ext3, do a journal.
 
@@ -331,13 +335,17 @@ static void fill_inode(struct ext2_inode *in, struct dirtree *this)
 	// in->faddr
 }
 
+// Works like an archiver.
+// The first argument is the name of the file to create.  If it already
+// exists, that size will be used.
+
 int mke2fs_main(void)
 {
 	int i, temp;
 	off_t length;
 	uint32_t usedblocks, usedinodes, dtiblk, dtbblk;
 	struct dirtree *dti, *dtb;
-	
+
 	// Handle command line arguments.
 
 	if (toys.optargs[1]) {
@@ -363,7 +371,7 @@ int mke2fs_main(void)
 
 	if (TT.gendir) {
 		strncpy(toybuf, TT.gendir, sizeof(toybuf));
-		dti = read_dirtree(toybuf, NULL);
+		dti = dirtree_read(toybuf, NULL, NULL);
 	} else {
 		dti = xzalloc(sizeof(struct dirtree)+11);
 		strcpy(dti->name, "lost+found");
