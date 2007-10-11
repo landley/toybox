@@ -28,6 +28,6 @@ int help_main(void)
 		s = help_data;
 	}
 
-	printf("%s", s);
+	fprintf(toys.exithelp ? stderr : stdout, "%s", s);
 	return 0;
 }

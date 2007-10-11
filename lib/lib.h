@@ -45,7 +45,6 @@ void error_msg(char *msg, ...);
 void perror_msg(char *msg, ...);
 void error_exit(char *msg, ...);
 void perror_exit(char *msg, ...);
-void usage_exit(void);
 void *xmalloc(size_t size);
 void *xzalloc(size_t size);
 void *xrealloc(void *ptr, size_t size);

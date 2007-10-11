@@ -55,6 +55,12 @@ void error_exit(char *msg, ...)
 {
 	va_list va;
 
+	if (CFG_HELP && toys.exithelp) {
+		*toys.optargs=*toys.argv;
+		help_main();
+		fprintf(stderr,"\n");
+	}
+
 	va_start(va, msg);
 	verror_msg(msg, 0, va);
 	va_end(va);
@@ -73,12 +79,6 @@ void perror_exit(char *msg, ...)
 	va_end(va);
 
 	exit(toys.exitval);
-}
-
-// Stub until the online help system goes in.
-void usage_exit(void)
-{
-	exit(1);
 }
 
 // Die unless we can allocate memory.

@@ -133,6 +133,7 @@ void get_optflags(void)
 	long *nextarg = (long *)&toy;
 	char *options = toys.which->options;
 
+	if (CFG_HELP) toys.exithelp++;
 	// Allocate memory for optargs
 	maxargs = 0;
 	while (toys.argv[maxargs++]);
@@ -300,6 +301,7 @@ notflag:
 		error_exit("Need %d argument%s", minargs, minargs ? "s" : "");
 	if (optarg>maxargs)
 		error_exit("Max %d argument%s", maxargs, maxargs ? "s" : "");
+	if (CFG_HELP) toys.exithelp = 0;
 }
 
 // Loop through files listed on the command line

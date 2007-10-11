@@ -2,6 +2,22 @@ mainmenu "ToyBox Configuration"
 
 menu "Global settings"
 
+config HELP
+	bool "help"
+	default y
+	help
+	  usage: help [command]
+
+	  Show usage information for toybox commands.
+
+config HELP_LONG
+	bool "Verbose help text"
+	default y
+	depends on HELP
+	help
+	  Show more than one line of help information per command.
+
+
 config TOYBOX_FREE
 	bool "Free memory unnecessarily"
 	default n
