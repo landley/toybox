@@ -18,6 +18,9 @@ struct df_data {
 	long units;
 };
 
+// Still to go: "E:jJ:L:m:O:"
+#define MKE2FS_OPTSTRING "<1>2g:Fnqm#N#i#b#"
+
 struct mke2fs_data {
 	// Command line arguments.
 	long blocksize;
@@ -55,12 +58,16 @@ struct touch_data {
 	long length;
 };
 
-// "E:jJ:L:m:O:"
-#define MKE2FS_OPTSTRING "<1>2Fnqm#N#i#b#"
+struct toysh_data {
+	char *command;
+};
 
 extern union toy_union {
 	struct df_data df;
 	struct mke2fs_data mke2fs;
+	struct sleep_data sleep;
+	struct touch_data touch;
+	struct toysh_data toysh;
 } toy;
 
 #define TOYFLAG_USR      (1<<0)

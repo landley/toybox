@@ -14,6 +14,8 @@
 
 #include "toys.h"
 
+#define TT toy.toysh
+
 // A single executable, its arguments, and other information we know about it.
 #define TOYSH_FLAG_EXIT    1
 #define TOYSH_FLAG_SUSPEND 2
@@ -196,7 +198,6 @@ int exit_main(void)
 
 int toysh_main(void)
 {
-	char *command=NULL;
 	FILE *f;
 
 	// Set up signal handlers and grab control of this tty.
@@ -204,15 +205,16 @@ int toysh_main(void)
 		if (isatty(0)) toys.optflags |= 1;
 	}
 	f = *toys.optargs ? xfopen(*toys.optargs, "r") : NULL;
-	if (command) handle(command);
+	if (TT.command) handle(TT.command);
 	else {
-		unsigned cmdlen=0;
+		unsigned cmdlen = 0;
 		for (;;) {
+			char *command = 0;
 			if (!f) putchar('$');
 			if (1 > getline(&command, &cmdlen, f ? : stdin)) break;
 			handle(command);
+			free(command);
 		}
-		if (CFG_TOYBOX_FREE) free(command);
 	}
 		
 	return 1;
