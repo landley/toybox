@@ -55,7 +55,6 @@ struct sleep_data {
 struct touch_data {
 	char *ref_file;
 	char *time;
-	long length;
 };
 
 struct toysh_data {
@@ -111,7 +110,7 @@ USE_READLINK(NEWTOY(readlink, "<1f", TOYFLAG_BIN))
 USE_TOYSH(OLDTOY(sh, toysh, "c:i", TOYFLAG_BIN))
 USE_SLEEP(NEWTOY(sleep, "<1", TOYFLAG_BIN))
 USE_SYNC(NEWTOY(sync, NULL, TOYFLAG_BIN))
-USE_TOUCH(NEWTOY(touch, "l#t:r:mca", TOYFLAG_BIN))
+USE_TOUCH(NEWTOY(touch, "t:r:mca", TOYFLAG_BIN))
 USE_TOYSH(NEWTOY(toysh, "c:i", TOYFLAG_BIN))
 USE_TRUE(NEWTOY(true, NULL, TOYFLAG_BIN))
 USE_WHICH(NEWTOY(which, "a", TOYFLAG_USR|TOYFLAG_BIN))

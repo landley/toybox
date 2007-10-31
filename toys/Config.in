@@ -248,17 +248,17 @@ config SYNC
 
 config TOUCH
 	bool "touch"
-	default n
+	default y
 	help
 	  usage: touch [-acmrt] FILE...
 
-	  Change file timestamps/length.  Create empty or sparse files.
+	  Change file timestamps and ensure file existance.
 
-	  -a
-	  -c
-	  -m
-	  -r
-	  -t
+	  -a	Only change the access time.
+	  -c	Do not create the file if it doesn't exist.
+	  -m	Only change the modification time.
+	  -r	Reference file to take timestamps from.
+	  -t	Time to change {a,m}time to, in the format MMDDhhmm.
 
 config TOYSH
 	bool "sh (toysh)"
