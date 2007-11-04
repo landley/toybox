@@ -188,7 +188,7 @@ void xaccess(char *path, int flags)
 int xcreate(char *path, int flags, int mode)
 {
 	int fd = open(path, flags, mode);
-	if (fd == -1) perror_exit("No file %s\n", path);
+	if (fd == -1) perror_exit("%s", path);
 	return fd;
 }
 
