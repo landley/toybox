@@ -422,8 +422,10 @@ long atolx(char *c)
 	char *suffixes="kmgtpe", *end;
 	long val = strtol(c, &c, 0);
 
-	end = strchr(suffixes, tolower(*c));
-	if (end) val *= 1024<<((end-suffixes)*10);
+	if (*c) {
+		end = strchr(suffixes, tolower(*c));
+		if (end) val *= 1024L<<((end-suffixes)*10);
+	}
 	return val;
 }
 
