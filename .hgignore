@@ -1,0 +1,7 @@
+syntax: glob
+.config*
+gen_config.h
+kconfig/mconf
+toys/help.h
+toybox
+toybox_unstripped
