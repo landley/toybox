@@ -44,7 +44,7 @@ int catv_main(void)
 				}
 				if (c < 32) {
 					if (c == 10) {
-					   if (toys.optflags & 1) putchar('$');
+						if (toys.optflags & 1) putchar('$');
 					} else if (toys.optflags & (c==9 ? 2 : 4)) {
 						printf("^%c", c+'@');
 						continue;
