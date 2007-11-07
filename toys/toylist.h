@@ -61,9 +61,14 @@ struct toysh_data {
 	char *command;
 };
 
+struct mkfifo_data {
+	char *mode;
+};
+
 extern union toy_union {
 	struct df_data df;
 	struct mke2fs_data mke2fs;
+	struct mkfifo_data mkfifo;
 	struct sleep_data sleep;
 	struct touch_data touch;
 	struct toysh_data toysh;
@@ -104,6 +109,7 @@ USE_FALSE(NEWTOY(false, NULL, TOYFLAG_BIN))
 USE_HELLO(NEWTOY(hello, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 USE_HELP(NEWTOY(help, "<1", TOYFLAG_BIN))
 USE_MKE2FS(NEWTOY(mke2fs, MKE2FS_OPTSTRING, TOYFLAG_SBIN))
+USE_MKFIFO(NEWTOY(mkfifo, "<1m:", TOYFLAG_BIN))
 USE_ONEIT(NEWTOY(oneit, "+<1p", TOYFLAG_SBIN))
 USE_PWD(NEWTOY(pwd, NULL, TOYFLAG_BIN))
 USE_READLINK(NEWTOY(readlink, "<1f", TOYFLAG_BIN))

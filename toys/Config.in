@@ -189,6 +189,17 @@ config MKE2FS_EXTENDED
 	     journal_dev  Set by -J device=XXX
 	     sparse_super Don't allocate huge numbers of redundant superblocks
 
+config MKFIFO
+	bool "mkfifo"
+	default y
+	help
+	  usage: mkfifo [-m mode] name...
+
+	  Makes a named pipe at name.
+
+	  -m mode	The mode of the pipe(s) created by mkfifo. It defaults to 0644.
+				The format is in octal, optionally preceded by a leading zero.
+
 config ONEIT
 	bool "oneit"
 	default y
