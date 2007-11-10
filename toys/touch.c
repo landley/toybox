@@ -62,14 +62,11 @@ err:
 
 		if (stat(arg, &sb) == -1) {
 			if (create && errno == ENOENT) {
-				if (creat(arg, O_RDWR))
+				if (creat(arg, 0644))
 					goto error;
 				if (stat(arg, &sb))
 					goto error;
 			}
-		} else {
-error:
-			perror_exit(arg);
 		}
 
 		if ((set_a+set_m) == 1) {
