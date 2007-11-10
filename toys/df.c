@@ -79,7 +79,7 @@ int df_main(void)
 
 			// Stat it (complain if we can't).
 			if(stat(*next, &st)) {
-				perror_msg("`%s'", next);
+				perror_msg("`%s'", *next);
 				toys.exitval = 1;
 				continue;
 			}
