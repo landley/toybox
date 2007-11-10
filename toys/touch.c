@@ -29,15 +29,9 @@ int touch_main(void)
 
 	if (toys.optflags & REFERENCE) {
 		struct stat sb;
-		if (toys.optflags & TIME) {
-			fprintf(stderr,
-					"Cannot specify times from more than one source\n");
-			return 1;
-		}
-		if (stat(toy.touch.ref_file, &sb) == -1) {
-			perror(toy.touch.ref_file);
-			return 1;
-		}
+		if (toys.optflags & TIME)
+			error_exit("Cannot specify times from more than one source");
+		xstat(toy.touch.ref_file, &sb);
 		curr_m = sb.st_mtime;
 		curr_a = sb.st_atime;
 	} else if (toys.optflags & TIME) {
@@ -51,12 +45,10 @@ int touch_main(void)
 		if (!c || *c)
 			goto err;
 		curr_a = curr_m = mktime(&t);
-		if (curr_a == -1) {
+		if (curr_a == -1)
 err:
-			fprintf(stderr, "Error converting time %s to internal format",
-					toy.touch.time);
-			return 1;
-		}
+			error_exit("Error converting time %s to internal format",
+				toy.touch.time);
 	} else {
 		curr_m = curr_a = time(NULL);
 	}
@@ -77,8 +69,7 @@ err:
 			}
 		} else {
 error:
-			perror(arg);
-			return 1;
+			perror_exit(arg);
 		}
 
 		if ((set_a+set_m) == 1) {
@@ -89,10 +80,8 @@ error:
 				buf.actime = sb.st_atime;
 		}
 
-		if (utime(arg, &buf)) {
-			perror(arg);
-			return 1;
-		}
+		if (utime(arg, &buf))
+			perror_exit(arg);
 	}
 
 	return 0;
