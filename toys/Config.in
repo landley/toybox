@@ -304,7 +304,7 @@ config TOYSH_JOBCTL
 	default n
 	depends on TOYSH_TTY
 	help
-	  Add job cocntrol to toysh.  This lets toysh handle CTRL-Z, and enables
+	  Add job control to toysh.  This lets toysh handle CTRL-Z, and enables
 	  the built-in commands "fg", "bg", and "jobs".
 
 	  With pipe support, enable use of "&" to run background processes.
