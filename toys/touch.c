@@ -5,7 +5,9 @@
  * Copyright (C) 2007 Charlie Shepherd <masterdriverz@gentoo.org>
  */
 
-#define _XOPEN_SOURCE
+#define _XOPEN_SOURCE 600
+#include <unistd.h>
+#include <sys/types.h>
 #include <sys/stat.h>
 #include <utime.h>
 #include <time.h>
@@ -16,16 +18,23 @@
 #define ATIME		0x04
 #define REFERENCE	0x08
 #define TIME		0x10
+#define LENGTH		0x20
 
 int touch_main(void)
 {
 	char *arg;
 	int i, set_a, set_m, create;
 	time_t curr_a, curr_m;
+	off_t length;
 
 	set_a = !!(toys.optflags & ATIME);
 	set_m = !!(toys.optflags & MTIME);
 	create = !(toys.optflags & NO_CREATE);
+
+	if (toys.optflags & LENGTH)
+		length = toy.touch.length;
+	else
+		length = -1;
 
 	if (toys.optflags & REFERENCE) {
 		struct stat sb;
@@ -40,13 +49,13 @@ int touch_main(void)
 		char *c;
 		curr = time(NULL);
 		if (!localtime_r(&curr, &t))
-			goto err;
+			goto time_error;
 		c = strptime(toy.touch.time, "%m%d%H%M", &t);
 		if (!c || *c)
-			goto err;
+			goto time_error;
 		curr_a = curr_m = mktime(&t);
 		if (curr_a == -1)
-err:
+time_error:
 			error_exit("Error converting time %s to internal format",
 				toy.touch.time);
 	} else {
@@ -77,7 +86,11 @@ err:
 				buf.actime = sb.st_atime;
 		}
 
+		if (length != -1)
+			if (truncate(arg, length))
+				goto error;
 		if (utime(arg, &buf))
+error:
 			perror_exit(arg);
 	}
 

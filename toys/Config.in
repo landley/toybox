@@ -261,9 +261,9 @@ config TOUCH
 	bool "touch"
 	default y
 	help
-	  usage: touch [-acmrt] FILE...
+	  usage: touch [-acmrtl] FILE...
 
-	  Change file timestamps and ensure file existance.
+	  Change file timestamps, ensure file existance and change file length.
 
 	  -a	Only change the access time.
 	  -c	Do not create the file if it doesn't exist.
