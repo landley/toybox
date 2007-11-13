@@ -69,7 +69,7 @@ clean::
 	rm -f toybox toybox_unstripped gen_config.h instlist
 
 distclean: clean
-	rm -f toybox_old .config*
+	rm -f toybox_old .config* toys/help.h
 
 test: tests
 
