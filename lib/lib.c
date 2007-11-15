@@ -18,8 +18,12 @@
 // Like strncpy but always null terminated.
 void strlcpy(char *dest, char *src, size_t size)
 {
-	strncpy(dest,src,size);
-	dest[size-1] = 0;
+	int len = strlen(src);
+	if (size--) {
+		if (len > size) len=size;
+		memcpy(dest,src, len);
+		dest[len] = 0;
+	}
 }
 #endif
 
