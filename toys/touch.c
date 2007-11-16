@@ -25,16 +25,10 @@ int touch_main(void)
 	char *arg;
 	int i, set_a, set_m, create;
 	time_t curr_a, curr_m;
-	off_t length;
 
 	set_a = !!(toys.optflags & ATIME);
 	set_m = !!(toys.optflags & MTIME);
 	create = !(toys.optflags & NO_CREATE);
-
-	if (toys.optflags & LENGTH)
-		length = toy.touch.length;
-	else
-		length = -1;
 
 	if (toys.optflags & REFERENCE) {
 		struct stat sb;
@@ -86,8 +80,8 @@ time_error:
 				buf.actime = sb.st_atime;
 		}
 
-		if (length != -1)
-			if (truncate(arg, length))
+		if (toys.optflags & LENGTH)
+			if (truncate(arg, toy.touch.length))
 				goto error;
 		if (utime(arg, &buf))
 error:
