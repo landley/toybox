@@ -207,7 +207,7 @@ int toysh_main(void)
 	f = *toys.optargs ? xfopen(*toys.optargs, "r") : NULL;
 	if (TT.command) handle(TT.command);
 	else {
-		unsigned cmdlen = 0;
+		size_t cmdlen = 0;
 		for (;;) {
 			char *command = 0;
 			if (!f) putchar('$');
