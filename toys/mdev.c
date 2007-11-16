@@ -1,7 +1,7 @@
 /* vi:set ts=4:
- * 
+ *
  * mdev - Mini udev for busybox
- * 
+ *
  * Copyright 2005 Rob Landley <rob@landley.net>
  * Copyright 2005 Frank Sorenson <frank@tuxrocks.com>
  */
@@ -29,16 +29,16 @@ static void make_device(char *path)
 	close(fd);
 	if (len<1) return;
 	temp[len] = 0;
-	
+
 	// Determine device name, type, major and minor
-	
+
 	device_name = strrchr(path, '/') + 1;
 	type = path[5]=='c' ? S_IFCHR : S_IFBLK;
 	major = minor = 0;
 	sscanf(temp, "%u:%u", &major, &minor);
 
 	// If we have a config file, look up permissions for this device
-	
+
 	if (CFG_MDEV_CONF) {
 		char *conf, *pos, *end;
 
@@ -53,7 +53,7 @@ static void make_device(char *path)
 				for (pos = conf; pos-conf<len;) {
 					int field;
 					char *end2;
-					
+
 					line++;
 					// find end of this line
 					for(end = pos; end-conf<len && *end!='\n'; end++);
@@ -78,7 +78,7 @@ static void make_device(char *path)
 								xregcomp(&match, regex, REG_EXTENDED);
 								result=regexec(&match, device_name, 1, &off, 0);
 								regfree(&match);
-								
+
 								// If not this device, skip rest of line
 								if (result || off.rm_so
 									|| off.rm_eo!=strlen(device_name))
@@ -159,7 +159,7 @@ static void find_dev(char *path)
 
 	for (;;) {
 		struct dirent *entry = readdir(dir);
-		
+
 		if (!entry) break;
 
 		// Skip "." and ".." (also skips hidden files, which is ok)
@@ -171,12 +171,12 @@ static void find_dev(char *path)
 			find_dev(path);
 			path[len] = 0;
 		}
-		
+
 		// If there's a dev entry, mknod it
-		
+
 		if (strcmp(entry->d_name, "dev")) make_device(path);
 	}
-	
+
 	closedir(dir);
 }
 
@@ -188,9 +188,9 @@ int mdev_main(int argc, char *argv[])
 		strcpy(toybuf, "/sys/class");
 		find_dev(toybuf);
 		return 0;
-	} 
-	
+	}
+
 	// hotplug support goes here
-	
+
 	return 0;
 }

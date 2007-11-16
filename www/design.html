@@ -52,7 +52,7 @@ Technica:
 <a href=http://arstechnica.com/paedia/r/ram_guide/ram_guide.part3-1.html>part three</a>,
 plus this
 <a href=http://arstechnica.com/articles/paedia/cpu/caching.ars/1>article on
-cacheing</a>, and this one on 
+cacheing</a>, and this one on
 <a href=http://arstechnica.com/articles/paedia/cpu/bandwidth-latency.ars>bandwidth
 and latency</a>.
 And there's <a href=http://arstechnica.com/paedia/index.html>more where that came from</a>.)
@@ -72,7 +72,8 @@ memory returned by malloc() is only a virtual allocation, filled with lots of
 copy-on-write mappings of the zero page.  Actual physical pages get allocated
 when the copy-on-write gets broken by writing to the virtual page.  This
 is why checking the return value of malloc() isn't very useful anymore, it
-only detects running out of virtual memory, not physical memory.)</p>
+only detects running out of virtual memory, not physical memory.  Unless
+you're using a NOMMU system, where all bets are off.)</p>
 
 <p>Don't think that just because you don't have a swap file the system can't
 start swap thrashing: any file backed page (ala mmap) can be evicted, and
@@ -123,7 +124,7 @@ get a good bang for the byte.</p>
 Your binary is the executable file on disk, your heap is where malloc() memory
 lives, and your stack is where local variables (and function call return
 addresses) live.  Optimizing for binary size is generally good: executing
-fewer instructions makes your program run faster (and fits more of it in 
+fewer instructions makes your program run faster (and fits more of it in
 cache).  On embedded systems, binary size is especially precious because
 flash is expensive (and its successor, MRAM, even more so).  Small stack size
 is important for nommu systems because they have to preallocate their stack

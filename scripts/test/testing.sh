@@ -1,4 +1,4 @@
-# Simple test harness infrastructurei for BusyBox
+# Simple test harness infrastructure
 #
 # Copyright 2005 by Rob Landley
 

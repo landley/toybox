@@ -117,7 +117,7 @@ void *xstrndup(char *s, size_t n)
 {
 	void *ret = xmalloc(++n);
 	strlcpy(ret, s, n);
-	
+
 	return ret;
 }
 
@@ -133,7 +133,7 @@ char *xmsprintf(char *format, ...)
 	va_list va, va2;
 	int len;
 	char *ret;
-	
+
 	va_start(va, format);
 	va_copy(va2, va);
 
@@ -144,7 +144,7 @@ char *xmsprintf(char *format, ...)
 
 	// Allocate and do the sprintf()
 	ret = xmalloc(len);
-	vsnprintf(ret, len, format, va2);	
+	vsnprintf(ret, len, format, va2);
 	va_end(va2);
 
 	return ret;
@@ -299,7 +299,7 @@ char *xabspath(char *path)
 
 		// Skip duplicate slashes.
 		while (*from=='/') from++;
-		
+
 		// Start of a new filename.  Handle . and ..
 		while (*from=='.') {
 			// Skip .
@@ -505,7 +505,7 @@ char *readfile(char *name)
 	int fd;
 	char *buf;
 
-	fd = open(pidfile, O_RDONLY);
+	fd = open(name, O_RDONLY);
 	if (fd == -1) return 0;
 	len = fdlength(fd);
 	buf = xmalloc(len+1);
@@ -549,7 +549,7 @@ void xpidfile(char *name)
 
 		// An else with more sanity checking might be nice here.
 	}
-	
+
 	if (i == 3) error_exit("xpidfile %s", name);
 
 	xwrite(fd, spid, sprintf(spid, "%ld\n", (long)getpid()));

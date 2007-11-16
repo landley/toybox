@@ -4,7 +4,7 @@
  *
  * Implemented roughly according to SUSv3:
  * http://www.opengroup.org/onlinepubs/009695399/utilities/df.html
- * 
+ *
  * usage: df [-k] [-P|-t] [file...]
  */
 

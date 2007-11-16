@@ -1,5 +1,5 @@
 /* vi: set sw=4 ts=4:
- * 
+ *
  * toysh - toybox shell
  *
  * Copyright 2006 Rob Landley <rob@landley.net>
@@ -80,11 +80,11 @@ static char *parse_pipeline(char *cmdline, struct pipeline *line)
 	if (!cmdline) return 0;
 
 	if (CFG_TOYSH_JOBCTL) line->cmdline = cmdline;
-		
+
 	// Parse command into argv[]
 	for (;;) {
 		char *end;
-		
+
 		// Skip leading whitespace and detect end of line.
 		while (isspace(*start)) start++;
 		if (!*start || *start=='#') {
@@ -192,7 +192,7 @@ int cd_main(void)
 }
 
 int exit_main(void)
-{	
+{
 	exit(*toys.optargs ? atoi(*toys.optargs) : 0);
 }
 
@@ -216,6 +216,6 @@ int toysh_main(void)
 			free(command);
 		}
 	}
-		
+
 	return 1;
 }

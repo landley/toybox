@@ -30,7 +30,7 @@ int oneit_main(void)
     sync();
     reboot(toys.optflags ? RB_POWER_OFF : RB_AUTOBOOT);
   }
-    
+
   // Redirect stdio to /dev/tty0, with new session ID, so ctrl-c works.
   setsid();
   for (i=0; i<3; i++) {

@@ -40,7 +40,7 @@ struct toy_list *toy_find(char *name)
 	top = TOY_LIST_LEN-1;
 	for (;;) {
 		int result;
-		
+
 		middle = (top+bottom)/2;
 		if (middle<bottom || middle>top) return NULL;
 		result = strcmp(name,toy_list[middle].name);

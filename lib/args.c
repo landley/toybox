@@ -38,7 +38,7 @@
 //   -abc means -a -b -c
 
 /* This uses a getopt-like option string, but not getopt() itself.
- * 
+ *
  * Each option in options corresponds to a bit position in the return
  * value (last argument is (1<<0), the next to last is (1<<1) and so on).
  * If the option isn't seen in argv[] its bit is 0.
@@ -57,7 +57,7 @@
  *   flags = 5, toy[0]=NULL, toy[1]="fruit";
  */
 
-// 
+//
 struct opts {
 	struct opts *next;
 	char c;
@@ -316,7 +316,7 @@ static int dofileargs(char ***files, int fd, int iswrite)
 	for (;;) {
 
 		// Are there no more files?
-		if (!*filename) 
+		if (!*filename)
 			return (fd == -1) ? iswrite : -1;
 
 		// A filename of "-" means stdin.

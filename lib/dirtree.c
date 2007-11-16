@@ -14,7 +14,7 @@ struct dirtree *dirtree_add_node(char *path)
 	char *name;
 
 	// Find last chunk of name.
-	
+
 	for (;;) {
 		name = strrchr(path, '/');
 

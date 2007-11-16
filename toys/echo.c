@@ -9,14 +9,14 @@ int echo_main(void)
 {
 	int i = 0;
 	char *arg, *from = "\\abfnrtv", *to = "\\\a\b\f\n\r\t\v";
-	
+
 	for (;;) {
 		arg = toys.optargs[i];
 		if (!arg) break;
 		if (i++) xputc(' ');
 
 		// Handle -e
-	
+
 		if (toys.optflags&2) {
 			int c, j = 0;
 			for (;;) {
