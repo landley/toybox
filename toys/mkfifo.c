@@ -1,6 +1,8 @@
 /* vi: set sw=4 ts=4: */
 /*
  * mkfifo.c: Create a named pipe.
+ *
+ * See http://www.opengroup.org/onlinepubs/009695399/utilities/mkfifo.html
  */
 
 #include "toys.h"
@@ -12,25 +14,13 @@ int mkfifo_main(void)
 	mode_t mode;
 
 	if (toys.optflags) {
-		long temp;
 		char *end;
-		int len = strlen(toy.mkfifo.mode);
-		temp = strtol(toy.mkfifo.mode, &end, 8);
-		switch (temp) {
-			case LONG_MAX:
-			case LONG_MIN:
-			case 0:
-				if (!errno)
-					break;
-				error_exit("Invalid mode");
-		}
-		if (temp > 0777 || *end || len < 3 || len > 4)
+		mode = (mode_t)strtol(toy.mkfifo.mode, &end, 8);
+		if (end<=toy.mkfifo.mode || *end || mode<0 || mode>0777)
 			error_exit("Invalid mode");
-		mode = (mode_t)temp;
-	} else {
-		mode = 0644;
-	}
+	} else mode = 0644;
 
+	umask(0);
 	for (i = 0; (arg = toys.optargs[i]); i++)
 		if (mkfifo(arg, mode))
 			perror_exit(arg);
