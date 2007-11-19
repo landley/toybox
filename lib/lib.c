@@ -11,22 +11,12 @@
 
 #include "toys.h"
 
-#if !defined(__UCLIBC__) && !defined(__KLIBC__)
-
-// uClibc has this, and if we define our own it conflicts.
-
-// Like strncpy but always null terminated.
-void strlcpy(char *dest, char *src, size_t size)
+// Strcpy with size checking: exit if there's not enough space for the string.
+void xstrcpy(char *dest, char *src, size_t size)
 {
-	int len = strlen(src);
-	if (size--) {
-		if (len > size) len=size;
-		memcpy(dest,src, len);
-		dest[len] = 0;
-	}
+	if (strlen(src)+1 > size) error_exit("xstrcpy");
+	strcpy(dest, src);
 }
-#endif
-
 
 void verror_msg(char *msg, int err, va_list va)
 {
@@ -116,7 +106,7 @@ void *xrealloc(void *ptr, size_t size)
 void *xstrndup(char *s, size_t n)
 {
 	void *ret = xmalloc(++n);
-	strlcpy(ret, s, n);
+	xstrcpy(ret, s, n);
 
 	return ret;
 }

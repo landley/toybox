@@ -36,10 +36,7 @@ struct dirtree *dirtree_read(char *path, struct dirtree *parent,
                     int (*callback)(struct dirtree *node));
 
 // lib.c
-#if !defined(__UCLIBC__) && !defined(__KLIBC__)
-void strlcpy(char *dest, char *src, size_t size);
-#endif
-
+void xstrcpy(char *dest, char *src, size_t size);
 void verror_msg(char *msg, int err, va_list va);
 void error_msg(char *msg, ...);
 void perror_msg(char *msg, ...);
