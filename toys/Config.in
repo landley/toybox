@@ -68,6 +68,18 @@ config DF_PEDANTIC
 
 	  -k	Sets units back to 1024 bytes (the default without -P)
 
+config DMESG
+	bool "dmesg"
+	default y
+	help
+	  usage: dmesg [-n level] [-s bufsize] | -c
+
+	  Print or control the kernel ring buffer.
+
+	  -n	Set kernel logging level (1-9).
+	  -s	Size of buffer to read (in bytes), default 16384.
+	  -c	Clear the ring buffer after printing.
+
 config ECHO
 	bool "echo"
 	default y

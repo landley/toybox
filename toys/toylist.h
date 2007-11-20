@@ -21,6 +21,11 @@ struct df_data {
 // Still to go: "E:jJ:L:m:O:"
 #define MKE2FS_OPTSTRING "<1>2g:Fnqm#N#i#b#"
 
+struct dmesg_data {
+	long level;
+	long size;
+};
+
 struct mke2fs_data {
 	// Command line arguments.
 	long blocksize;
@@ -67,6 +72,7 @@ struct mkfifo_data {
 };
 
 extern union toy_union {
+	struct dmesg_data dmesg;
 	struct df_data df;
 	struct mke2fs_data mke2fs;
 	struct mkfifo_data mkfifo;
@@ -104,6 +110,7 @@ USE_CATV(NEWTOY(catv, "vte", TOYFLAG_USR|TOYFLAG_BIN))
 USE_COUNT(NEWTOY(count, "", TOYFLAG_USR|TOYFLAG_BIN))
 USE_TOYSH(NEWTOY(cd, NULL, TOYFLAG_NOFORK))
 USE_DF(NEWTOY(df, "Pkt*a", TOYFLAG_USR|TOYFLAG_SBIN))
+USE_DMESG(NEWTOY(dmesg, "s#n#c", TOYFLAG_BIN))
 USE_ECHO(NEWTOY(echo, "+en", TOYFLAG_BIN))
 USE_TOYSH(NEWTOY(exit, NULL, TOYFLAG_NOFORK))
 USE_FALSE(NEWTOY(false, NULL, TOYFLAG_BIN))
