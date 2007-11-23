@@ -452,6 +452,14 @@ config TRUE
 	help
 	  Return zero.
 
+config TTY
+	bool "tty"
+	default y
+	help
+	  Print the filename of the terminal connected to standard input.
+
+	  -s	Don't print anything, only return an exit status.
+
 config WHICH
 	bool "which"
 	default y
