@@ -2,6 +2,7 @@ syntax: glob
 .config*
 gen_config.h
 kconfig/mconf
+kconfig/conf
 toys/help.h
 toybox
 toybox_unstripped
