@@ -46,7 +46,7 @@ bloatcheck: toybox_old toybox_unstripped
 toyfiles = main.c lib/*.c \
 	$(shell scripts/cfg2files.sh < .config | sed 's@\(.*\)@toys/\1.c@')
 
-toybox_unstripped: gen_config.h $(toyfiles) toys/toylist.h toys/help.h lib/*.h toys.h
+toybox_unstripped: gen_config.h $(toyfiles) toys/toylist.h toys/help.h toys/*.h lib/*.h toys.h
 	$(CC) $(CCFLAGS) -I . $(toyfiles) -o toybox_unstripped $(OPTIMIZE)
 
 toybox: toybox_unstripped
