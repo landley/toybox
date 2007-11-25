@@ -1,33 +1,26 @@
 /*
-SHA-1 in C
-By Steve Reid <steve@edmweb.com>
-100% Public Domain
+ * Based on the public domain SHA-1 in C by Steve Reid <steve@edmweb.com>
+ * from http://www.mirrors.wiretapped.net/security/cryptography/hashes/sha1/
+ */
 
-Test Vectors (from FIPS PUB 180-1)
-"abc"
-  A9993E36 4706816A BA3E2571 7850C26C 9CD0D89D
-"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
-  84983E44 1C3BD26E BAAE4AA1 F95129E5 E54670F1
-A million repetitions of "a"
-  34AA973C D4C4DAA4 F61EEB2B DBAD2731 6534016F
-*/
-
-#define LITTLE_ENDIAN /* This should be #define'd if true. */
+/* #define LITTLE_ENDIAN * This should be #define'd if true. */
 /* #define SHA1HANDSOFF * Copies data before messing with it. */
+#define	LITTLE_ENDIAN
 
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 
-typedef struct {
-	unsigned int state[5];
-	unsigned int count[2];
+struct sha1 {
+	uint32_t state[5];
+	uint32_t count[2];
 	unsigned char buffer[64];
-} SHA1_CTX;
+};
 
-void SHA1Transform(unsigned int state[5], unsigned char buffer[64]);
-void SHA1Init(SHA1_CTX* context);
-void SHA1Update(SHA1_CTX* context, unsigned char* data, unsigned int len);
-void SHA1Final(unsigned char digest[20], SHA1_CTX* context);
+void sha1_init(struct sha1 *this);
+void sha1_transform(unsigned int state[5], unsigned char buffer[64]);
+void sha1_update(struct sha1 *this, unsigned char *data, unsigned int len);
+void sha1_final(struct sha1 *this, unsigned char digest[20]);
 
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
@@ -49,24 +42,29 @@ void SHA1Final(unsigned char digest[20], SHA1_CTX* context);
 #define R3(v,w,x,y,z,i) z+=(((w|x)&y)|(w&x))+blk(i)+0x8F1BBCDC+rol(v,5);w=rol(w,30);
 #define R4(v,w,x,y,z,i) z+=(w^x^y)+blk(i)+0xCA62C1D6+rol(v,5);w=rol(w,30);
 
+void printy(unsigned char *this)
+{
+	int i;
+
+	for (i = 0; i < 20; i++) printf("%02x", this[i]);
+	putchar('\n');
+}
 
 /* Hash a single 512-bit block. This is the core of the algorithm. */
 
-void SHA1Transform(unsigned int state[5], unsigned char buffer[64])
+void sha1_transform(unsigned int state[5], unsigned char buffer[64])
 {
-unsigned int a, b, c, d, e;
-typedef union {
-	unsigned char c[64];
-	unsigned int l[16];
-} CHAR64LONG16;
-CHAR64LONG16* block;
-#ifdef SHA1HANDSOFF
-static unsigned char workspace[64];
+	unsigned int a, b, c, d, e;
+
+	typedef union {
+		unsigned char c[64];
+		unsigned int l[16];
+	} CHAR64LONG16;
+	CHAR64LONG16* block;
+	unsigned char workspace[64];
 	block = (CHAR64LONG16*)workspace;
 	memcpy(block, buffer, 64);
-#else
-	block = (CHAR64LONG16*)buffer;
-#endif
+
 	/* Copy context->state[] to working vars */
 	a = state[0];
 	b = state[1];
@@ -100,6 +98,7 @@ static unsigned char workspace[64];
 	state[2] += c;
 	state[3] += d;
 	state[4] += e;
+
 	/* Wipe variables */
 	a = b = c = d = e = 0;
 }
@@ -107,69 +106,66 @@ static unsigned char workspace[64];
 
 /* SHA1Init - Initialize new context */
 
-void SHA1Init(SHA1_CTX* context)
+void sha1_init(struct sha1 *this)
 {
 	/* SHA1 initialization constants */
-	context->state[0] = 0x67452301;
-	context->state[1] = 0xEFCDAB89;
-	context->state[2] = 0x98BADCFE;
-	context->state[3] = 0x10325476;
-	context->state[4] = 0xC3D2E1F0;
-	context->count[0] = context->count[1] = 0;
+	this->state[0] = 0x67452301;
+	this->state[1] = 0xEFCDAB89;
+	this->state[2] = 0x98BADCFE;
+	this->state[3] = 0x10325476;
+	this->state[4] = 0xC3D2E1F0;
+	this->count[0] = this->count[1] = 0;
 }
 
+/* Run your data through this function. */
 
-/* Run your data through this. */
-
-void SHA1Update(SHA1_CTX* context, unsigned char* data, unsigned int len)
+void sha1_update(struct sha1 *this, unsigned char *data, unsigned int len)
 {
-unsigned int i, j;
+	unsigned int i, j;
 
-	j = (context->count[0] >> 3) & 63;
-	if ((context->count[0] += len << 3) < (len << 3)) context->count[1]++;
-	context->count[1] += (len >> 29);
+	j = (this->count[0] >> 3) & 63;
+	if ((this->count[0] += len << 3) < (len << 3)) this->count[1]++;
+	this->count[1] += (len >> 29);
 	if ((j + len) > 63) {
-		memcpy(&context->buffer[j], data, (i = 64-j));
-		SHA1Transform(context->state, context->buffer);
-		for ( ; i + 63 < len; i += 64) {
-			SHA1Transform(context->state, &data[i]);
-		}
+		memcpy(this->buffer + j, data, (i = 64-j));
+		sha1_transform(this->state, this->buffer);
+		for ( ; i + 63 < len; i += 64)
+			sha1_transform(this->state, data + i);
 		j = 0;
 	}
 	else i = 0;
-	memcpy(&context->buffer[j], &data[i], len - i);
+	memcpy(this->buffer + j, data + i, len - i);
 }
 
 
 /* Add padding and return the message digest. */
 
-void SHA1Final(unsigned char digest[20], SHA1_CTX* context)
+void sha1_final(struct sha1 *this, unsigned char digest[20])
 {
-unsigned int i, j;
-unsigned char finalcount[8];
+	unsigned int i, j;
+	unsigned char finalcount[8];
 
 	for (i = 0; i < 8; i++) {
-		finalcount[i] = (unsigned char)((context->count[(i >= 4 ? 0 : 1)]
+		finalcount[i] = (unsigned char)((this->count[(i >= 4 ? 0 : 1)]
 		 >> ((3-(i & 3)) * 8) ) & 255);  /* Endian independent */
 	}
-	SHA1Update(context, (unsigned char *)"\200", 1);
-	while ((context->count[0] & 504) != 448) {
-		SHA1Update(context, (unsigned char *)"\0", 1);
+	sha1_update(this, (unsigned char *)"\200", 1);
+	while ((this->count[0] & 504) != 448) {
+		sha1_update(this, (unsigned char *)"\0", 1);
 	}
-	SHA1Update(context, finalcount, 8);  /* Should cause a SHA1Transform() */
+	sha1_update(this, finalcount, 8);  /* Should cause a SHA1Transform() */
 	for (i = 0; i < 20; i++) {
 		digest[i] = (unsigned char)
-		 ((context->state[i>>2] >> ((3-(i & 3)) * 8) ) & 255);
+		 ((this->state[i>>2] >> ((3-(i & 3)) * 8) ) & 255);
 	}
 	/* Wipe variables */
 	i = j = 0;
-	memset(context->buffer, 0, 64);
-	memset(context->state, 0, 20);
-	memset(context->count, 0, 8);
-	memset(&finalcount, 0, 8);
-#ifdef SHA1HANDSOFF  /* make SHA1Transform overwrite it's own static vars */
-	SHA1Transform(context->state, context->buffer);
-#endif
+	memset(this->buffer, 0, 64);
+	memset(this->state, 0, 20);
+	memset(this->count, 0, 8);
+	memset(finalcount, 0, 8);
+	/* make SHA1Transform overwrite it's own static vars */
+	sha1_transform(this->state, this->buffer);
 }
 
 
@@ -178,10 +174,10 @@ unsigned char finalcount[8];
 
 int main(int argc, char** argv)
 {
-int i, j;
-SHA1_CTX context;
-unsigned char digest[20], buffer[16384];
-FILE* file;
+	int i, j;
+	struct sha1 this;
+	unsigned char digest[20], buffer[16384];
+	FILE* file;
 
 	if (argc > 2) {
 		puts("Public domain SHA-1 implementation - by Steve Reid <steve@edmweb.com>");
@@ -196,20 +192,14 @@ FILE* file;
 			fputs("Unable to open file.", stderr);
 			exit(-1);
 		}
-	} 
-	SHA1Init(&context);
+	}
+	sha1_init(&this);
 	while (!feof(file)) {  /* note: what if ferror(file) */
 		i = fread(buffer, 1, 16384, file);
-		SHA1Update(&context, buffer, i);
+		sha1_update(&this, buffer, i);
 	}
-	SHA1Final(digest, &context);
+	sha1_final(&this, digest);
 	fclose(file);
-	for (i = 0; i < 5; i++) {
-		for (j = 0; j < 4; j++) {
-			printf("%02X", digest[i*4+j]);
-		}
-		putchar(' ');
-	}
-	putchar('\n');
+	printy(digest);
 	exit(0);
 }
