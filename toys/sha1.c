@@ -13,12 +13,15 @@
 
 struct sha1 {
 	uint32_t state[5];
-	uint32_t count[2];
-	unsigned char buffer[64];
+	uint64_t count;
+	union {
+		unsigned char c[64];
+		uint32_t i[16];
+	} buffer;
 };
 
 void sha1_init(struct sha1 *this);
-void sha1_transform(unsigned int state[5], unsigned char buffer[64]);
+void sha1_transform(struct sha1 *this);
 void sha1_update(struct sha1 *this, unsigned char *data, unsigned int len);
 void sha1_final(struct sha1 *this, unsigned char digest[20]);
 
@@ -27,13 +30,13 @@ void sha1_final(struct sha1 *this, unsigned char digest[20]);
 /* blk0() and blk() perform the initial expand. */
 /* I got the idea of expanding during the round function from SSLeay */
 #ifdef LITTLE_ENDIAN
-#define blk0(i) (block->l[i] = (rol(block->l[i],24)&0xFF00FF00) \
-	|(rol(block->l[i],8)&0x00FF00FF))
+#define blk0(i) (block[i] = (rol(block[i],24)&0xFF00FF00) \
+	|(rol(block[i],8)&0x00FF00FF))
 #else
-#define blk0(i) block->l[i]
+#define blk0(i) block[i]
 #endif
-#define blk(i) (block->l[i&15] = rol(block->l[(i+13)&15]^block->l[(i+8)&15] \
-	^block->l[(i+2)&15]^block->l[i&15],1))
+#define blk(i) (block[i&15] = rol(block[(i+13)&15]^block[(i+8)&15] \
+	^block[(i+2)&15]^block[i&15],1))
 
 /* (R0+R1), R2, R3, R4 are the different operations used in SHA1 */
 #define R0(v,w,x,y,z,i) z+=((w&(x^y))^y)+blk0(i)+0x5A827999+rol(v,5);w=rol(w,30);
@@ -52,25 +55,17 @@ void printy(unsigned char *this)
 
 /* Hash a single 512-bit block. This is the core of the algorithm. */
 
-void sha1_transform(unsigned int state[5], unsigned char buffer[64])
+void sha1_transform(struct sha1 *this)
 {
 	unsigned int a, b, c, d, e;
-
-	typedef union {
-		unsigned char c[64];
-		unsigned int l[16];
-	} CHAR64LONG16;
-	CHAR64LONG16* block;
-	unsigned char workspace[64];
-	block = (CHAR64LONG16*)workspace;
-	memcpy(block, buffer, 64);
+	uint32_t *block = this->buffer.i;
 
 	/* Copy context->state[] to working vars */
-	a = state[0];
-	b = state[1];
-	c = state[2];
-	d = state[3];
-	e = state[4];
+	a = this->state[0];
+	b = this->state[1];
+	c = this->state[2];
+	d = this->state[3];
+	e = this->state[4];
 	/* 4 rounds of 20 operations each. Loop unrolled. */
 	R0(a,b,c,d,e, 0); R0(e,a,b,c,d, 1); R0(d,e,a,b,c, 2); R0(c,d,e,a,b, 3);
 	R0(b,c,d,e,a, 4); R0(a,b,c,d,e, 5); R0(e,a,b,c,d, 6); R0(d,e,a,b,c, 7);
@@ -93,12 +88,12 @@ void sha1_transform(unsigned int state[5], unsigned char buffer[64])
 	R4(d,e,a,b,c,72); R4(c,d,e,a,b,73); R4(b,c,d,e,a,74); R4(a,b,c,d,e,75);
 	R4(e,a,b,c,d,76); R4(d,e,a,b,c,77); R4(c,d,e,a,b,78); R4(b,c,d,e,a,79);
 	/* Add the working vars back into context.state[] */
-	state[0] += a;
-	state[1] += b;
-	state[2] += c;
-	state[3] += d;
-	state[4] += e;
-
+	this->state[0] += a;
+	this->state[1] += b;
+	this->state[2] += c;
+	this->state[3] += d;
+	this->state[4] += e;
+printy(this->state);
 	/* Wipe variables */
 	a = b = c = d = e = 0;
 }
@@ -114,7 +109,7 @@ void sha1_init(struct sha1 *this)
 	this->state[2] = 0x98BADCFE;
 	this->state[3] = 0x10325476;
 	this->state[4] = 0xC3D2E1F0;
-	this->count[0] = this->count[1] = 0;
+	this->count = 0;
 }
 
 /* Run your data through this function. */
@@ -123,49 +118,52 @@ void sha1_update(struct sha1 *this, unsigned char *data, unsigned int len)
 {
 	unsigned int i, j;
 
-	j = (this->count[0] >> 3) & 63;
-	if ((this->count[0] += len << 3) < (len << 3)) this->count[1]++;
-	this->count[1] += (len >> 29);
-	if ((j + len) > 63) {
-		memcpy(this->buffer + j, data, (i = 64-j));
-		sha1_transform(this->state, this->buffer);
-		for ( ; i + 63 < len; i += 64)
-			sha1_transform(this->state, data + i);
-		j = 0;
-	}
-	else i = 0;
-	memcpy(this->buffer + j, data + i, len - i);
-}
+	j = this->count & 63;
+	this->count += len;
 
+	// Enough data to process a frame?
+	if ((j + len) > 63) {
+		i = 64-j;
+		memcpy(this->buffer.c + j, data, i);
+		sha1_transform(this);
+		for ( ; i + 63 < len; i += 64) {
+			memcpy(this->buffer.c, data + i, 64);
+			sha1_transform(this);
+		}
+		j = 0;
+	} else i = 0;
+	// Grab remaining chunk
+	memcpy(this->buffer.c + j, data + i, len - i);
+}
 
 /* Add padding and return the message digest. */
 
 void sha1_final(struct sha1 *this, unsigned char digest[20])
 {
-	unsigned int i, j;
-	unsigned char finalcount[8];
+	uint64_t count = this->count << 3;
+	unsigned int i;
+	unsigned char buf;
 
-	for (i = 0; i < 8; i++) {
-		finalcount[i] = (unsigned char)((this->count[(i >= 4 ? 0 : 1)]
-		 >> ((3-(i & 3)) * 8) ) & 255);  /* Endian independent */
-	}
-	sha1_update(this, (unsigned char *)"\200", 1);
-	while ((this->count[0] & 504) != 448) {
-		sha1_update(this, (unsigned char *)"\0", 1);
-	}
-	sha1_update(this, finalcount, 8);  /* Should cause a SHA1Transform() */
+	// End the message by appending a "1" bit to the data, ending with the
+	// message size (in bits, big endian), and adding enough zero bits in
+	// between to pad to the end of the next 64-byte frame.  Since our input
+	// up to now has been in whole bytes, we can deal with bytes here too.
+
+	buf = 0x80;
+	do {
+		sha1_update(this, &buf, 1);
+		buf = 0;
+	} while ((this->count & 63) != 56);
+	for (i = 0; i < 8; i++)
+	  this->buffer.c[56+i] = count >> (8*(7-i));
+	sha1_transform(this);
+
 	for (i = 0; i < 20; i++) {
 		digest[i] = (unsigned char)
 		 ((this->state[i>>2] >> ((3-(i & 3)) * 8) ) & 255);
 	}
 	/* Wipe variables */
-	i = j = 0;
-	memset(this->buffer, 0, 64);
-	memset(this->state, 0, 20);
-	memset(this->count, 0, 8);
-	memset(finalcount, 0, 8);
-	/* make SHA1Transform overwrite it's own static vars */
-	sha1_transform(this->state, this->buffer);
+	i = 0;
 }
 
 
@@ -179,11 +177,6 @@ int main(int argc, char** argv)
 	unsigned char digest[20], buffer[16384];
 	FILE* file;
 
-	if (argc > 2) {
-		puts("Public domain SHA-1 implementation - by Steve Reid <steve@edmweb.com>");
-		puts("Produces the SHA-1 hash of a file, or stdin if no file is specified.");
-		exit(0);
-	}
 	if (argc < 2) {
 		file = stdin;
 	}
