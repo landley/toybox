@@ -1,14 +1,18 @@
+/* vi: set sw=4 ts=4: */
+/* basename.c - print non-directory portion of path
+ *
+ * See http://www.opengroup.org/onlinepubs/009695399/utilities/basename.html
+ */
+
 #include "toys.h"
 
 int basename_main(void)
 {
-	char *name = basename(toys.optargs[0]);
-	if (toys.optargs[1]) {
-		int slen = strlen(toys.optargs[1]);
-		int name_len = strlen(name);
-		if (slen < name_len)
-			if (!strcmp(name+name_len-slen, toys.optargs[1]))
-				*(name+name_len-slen) = '\0';
+	char *name = basename(*toys.optargs);
+	char *suffix = toys.optargs[1];
+	if (suffix) {
+		char *end = name+strlen(name)-strlen(suffix);
+		if (end>name && !strcmp(end,suffix)) *end=0;
 	}
 	puts(name);
 	return 0;

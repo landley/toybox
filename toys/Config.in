@@ -15,9 +15,9 @@ config BASENAME
 	bool "basename"
 	default y
 	help
-	  usage: basename path
+	  usage: basename path [suffix]
 
-	  Print the part of path after the last slash.
+	  Print the part of path after the last slash, optionally minus suffix.
 
 config BZCAT
 	bool "bzcat"
