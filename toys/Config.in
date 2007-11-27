@@ -11,6 +11,14 @@ config TOYBOX
 	  With no arguments, shows available commands.  First argument is
 	  name of a command to run, followed by any arguments to that command.
 
+config BASENAME
+	bool "basename"
+	default y
+	help
+	  usage: basename path
+
+	  Print the part of path after the last slash.
+
 config BZCAT
 	bool "bzcat"
 	default n
@@ -67,6 +75,14 @@ config DF_PEDANTIC
 		units to 512 bytes instead of the default 1024 bytes.
 
 	  -k	Sets units back to 1024 bytes (the default without -P)
+
+config DIRNAME
+	bool "dirname"
+	default y
+	help
+	  usage: dirname path
+
+	  Print the part of path up to the last slash.
 
 config DMESG
 	bool "dmesg"
