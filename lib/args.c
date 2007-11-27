@@ -81,7 +81,7 @@ static void gotflag(void)
 	int type;
 
 	// Did we recognize this option?
-	if (!gof.this && !gof.noerror) error_exit("Unknown option %s\n", gof.arg);
+	if (!gof.this && !gof.noerror) error_exit("Unknown option %s", gof.arg);
 	else toys.optflags |= 1 << gof.this->shift;
 
 	// Does this option take an argument?

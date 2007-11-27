@@ -20,7 +20,7 @@ int help_main(void)
 	int i = t-toy_list;
 	char *s = help_data;
 
-	if (!t) error_exit("Unknown command '%s'\n", *toys.optargs);
+	if (!t) error_exit("Unknown command '%s'", *toys.optargs);
 	for (;;) {
 		while (i--) s += strlen(s) + 1;
 		if (*s != 255) break;
