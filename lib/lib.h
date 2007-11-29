@@ -73,6 +73,7 @@ char *itoa(int n);
 long atolx(char *c);
 off_t fdlength(int fd);
 char *xreadlink(char *name);
+void loopfiles(char **argv, void (*function)(int fd, char *name));
 
 // getmountlist.c
 struct mtab_list {

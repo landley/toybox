@@ -10,51 +10,45 @@
 
 #include "toys.h"
 
+// Callback function for loopfiles()
+
+void do_catv(int fd, char *name)
+{
+	for(;;) {
+		int i, len;
+
+		len = read(fd, toybuf, sizeof(toybuf));
+		if (len < 0) toys.exitval = EXIT_FAILURE;
+		if (len < 1) break;
+		for (i=0; i<len; i++) {
+			char c=toybuf[i];
+
+			if (c > 126 && (toys.optflags & 4)) {
+				if (c == 127) {
+					printf("^?");
+					continue;
+				} else {
+					printf("M-");
+					c -= 128;
+				}
+			}
+			if (c < 32) {
+				if (c == 10) {
+					if (toys.optflags & 1) putchar('$');
+				} else if (toys.optflags & (c==9 ? 2 : 4)) {
+					printf("^%c", c+'@');
+					continue;
+				}
+			}
+			putchar(c);
+		}
+	}
+}
+
 int catv_main(void)
 {
-	int retval = 0, fd;
-	char **argv = toys.optargs;
-
 	toys.optflags^=4;
+	loopfiles(toys.optargs, do_catv);
 
-	// Loop through files.
-
-	do {
-		// Read from stdin if there's nothing else to do.
-
-		fd = 0;
-		if (*argv && 0>(fd = xopen(*argv, O_RDONLY))) retval = EXIT_FAILURE;
-		else for(;;) {
-			int i, res;
-
-			res = read(fd, toybuf, sizeof(toybuf));
-			if (res < 0) retval = EXIT_FAILURE;
-			if (res < 1) break;
-			for (i=0; i<res; i++) {
-				char c=toybuf[i];
-
-				if (c > 126 && (toys.optflags & 4)) {
-					if (c == 127) {
-						printf("^?");
-						continue;
-					} else {
-						printf("M-");
-						c -= 128;
-					}
-				}
-				if (c < 32) {
-					if (c == 10) {
-						if (toys.optflags & 1) putchar('$');
-					} else if (toys.optflags & (c==9 ? 2 : 4)) {
-						printf("^%c", c+'@');
-						continue;
-					}
-				}
-				putchar(c);
-			}
-		}
-		if (CFG_TOYBOX_FREE && fd) close(fd);
-	} while (*++argv);
-
-	return retval;
+	return toys.exitval;
 }

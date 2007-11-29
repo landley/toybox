@@ -545,3 +545,26 @@ void xpidfile(char *name)
 	xwrite(fd, spid, sprintf(spid, "%ld\n", (long)getpid()));
 	close(fd);
 }
+
+// Iterate through an array of files, opening each one (read only) and
+// calling a function on that filehandle and name.  The special filename
+// "-" means stdin.  An empty argument list calls function() on stdin.
+void loopfiles(char **argv, void (*function)(int fd, char *name))
+{
+	int fd;
+
+	// If no arguments, read from stdin.
+	if (!*argv) function(0, *argv);
+	else do {
+		// Filename "-" means read from stdin.
+		// Inability to open a file prints a warning, but doesn't exit.
+
+		if (!strcmp(*argv,"-")) fd=0;
+		else if (0>(fd = open(*argv, O_RDONLY))) {
+			perror_msg("%s",*argv);
+			toys.exitval = 1;
+		}
+		function(fd, *argv);
+		close(fd);
+	} while (*++argv);
+}
