@@ -269,6 +269,14 @@ config READLINK_F
 
 	  -f	Show final location, including normal files and multiple symlinks.
 
+config SHA1SUM
+	bool "sleep"
+	default y
+	help
+	  usage: sha1sum [file...]
+
+	  Calculate sha1 hash of files (or stdin).
+
 config SLEEP
 	bool "sleep"
 	default y

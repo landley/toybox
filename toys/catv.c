@@ -12,7 +12,7 @@
 
 // Callback function for loopfiles()
 
-void do_catv(int fd, char *name)
+static void do_catv(int fd, char *name)
 {
 	for(;;) {
 		int i, len;

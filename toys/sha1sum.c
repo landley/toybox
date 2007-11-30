@@ -1,15 +1,11 @@
 /*
+ * Copyright 2007 Rob Landley <rob@landley.net>
+ *
  * Based on the public domain SHA-1 in C by Steve Reid <steve@edmweb.com>
  * from http://www.mirrors.wiretapped.net/security/cryptography/hashes/sha1/
  */
 
-/* #define LITTLE_ENDIAN * This should be #define'd if true. */
-/* #define SHA1HANDSOFF * Copies data before messing with it. */
-#define	LITTLE_ENDIAN
-
-#include <stdio.h>
-#include <string.h>
-#include <inttypes.h>
+#include <toys.h>
 
 struct sha1 {
 	uint32_t state[5];
@@ -23,31 +19,23 @@ struct sha1 {
 
 void sha1_init(struct sha1 *this);
 void sha1_transform(struct sha1 *this);
-void sha1_update(struct sha1 *this, unsigned char *data, unsigned int len);
-void sha1_final(struct sha1 *this, unsigned char digest[20]);
+void sha1_update(struct sha1 *this, char *data, unsigned int len);
+void sha1_final(struct sha1 *this, char digest[20]);
 
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
 /* blk0() and blk() perform the initial expand. */
-/* I got the idea of expanding during the round function from SSLeay */
-#ifdef LITTLE_ENDIAN
+/* The idea of expanding during the round function comes from SSLeay */
+#if 1
 #define blk0(i) (block[i] = (rol(block[i],24)&0xFF00FF00) \
 	|(rol(block[i],8)&0x00FF00FF))
-#else
+#else	// big endian?
 #define blk0(i) block[i]
 #endif
 #define blk(i) (block[i&15] = rol(block[(i+13)&15]^block[(i+8)&15] \
 	^block[(i+2)&15]^block[i&15],1))
 
 static const uint32_t rconsts[]={0x5A827999,0x6ED9EBA1,0x8F1BBCDC,0xCA62C1D6};
-
-void printy(unsigned char *this)
-{
-	int i;
-
-	for (i = 0; i < 20; i++) printf("%02x", this[i]);
-	xputc('\n');
-}
 
 /* Hash a single 512-bit block. This is the core of the algorithm. */
 
@@ -106,7 +94,7 @@ void sha1_init(struct sha1 *this)
 
 /* Run your data through this function. */
 
-void sha1_update(struct sha1 *this, unsigned char *data, unsigned int len)
+void sha1_update(struct sha1 *this, char *data, unsigned int len)
 {
 	unsigned int i, j;
 
@@ -130,11 +118,11 @@ void sha1_update(struct sha1 *this, unsigned char *data, unsigned int len)
 
 /* Add padding and return the message digest. */
 
-void sha1_final(struct sha1 *this, unsigned char digest[20])
+void sha1_final(struct sha1 *this, char digest[20])
 {
 	uint64_t count = this->count << 3;
 	unsigned int i;
-	unsigned char buf;
+	char buf;
 
 	// End the message by appending a "1" bit to the data, ending with the
 	// message size (in bits, big endian), and adding enough zero bits in
@@ -150,41 +138,31 @@ void sha1_final(struct sha1 *this, unsigned char digest[20])
 	  this->buffer.c[56+i] = count >> (8*(7-i));
 	sha1_transform(this);
 
-	for (i = 0; i < 20; i++) {
-		digest[i] = (unsigned char)
-		 ((this->state[i>>2] >> ((3-(i & 3)) * 8) ) & 255);
-	}
+	for (i = 0; i < 20; i++)
+		digest[i] = this->state[i>>2] >> ((3-(i & 3)) * 8);
 	/* Wipe variables */
 	memset(this, 0, sizeof(struct sha1));
 }
 
+// Callback for loopfiles()
 
-/*************************************************************/
-
-
-int main(int argc, char** argv)
+static void do_sha1(int fd, char *name)
 {
-	int i, j;
 	struct sha1 this;
-	unsigned char digest[20], buffer[16384];
-	FILE* file;
+	int len;
 
-	if (argc < 2) {
-		file = stdin;
-	}
-	else {
-		if (!(file = fopen(argv[1], "rb"))) {
-			fputs("Unable to open file.", stderr);
-			exit(-1);
-		}
-	}
 	sha1_init(&this);
-	while (!feof(file)) {  /* note: what if ferror(file) */
-		i = fread(buffer, 1, 16384, file);
-		sha1_update(&this, buffer, i);
+	for (;;) {
+		len = read(fd, toybuf, sizeof(toybuf));
+		if (len<1) break;
+		sha1_update(&this, toybuf, len);
 	}
-	sha1_final(&this, digest);
-	fclose(file);
-	printy(digest);
-	exit(0);
+	sha1_final(&this, toybuf);
+	for (len = 0; len < 20; len++) printf("%02x", toybuf[len]);
+	printf("  %s\n", name);
+}
+
+void sha1sum_main(void)
+{
+	loopfiles(toys.optargs, do_sha1);
 }

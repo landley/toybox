@@ -554,7 +554,7 @@ void loopfiles(char **argv, void (*function)(int fd, char *name))
 	int fd;
 
 	// If no arguments, read from stdin.
-	if (!*argv) function(0, *argv);
+	if (!*argv) function(0, "-");
 	else do {
 		// Filename "-" means read from stdin.
 		// Inability to open a file prints a warning, but doesn't exit.
