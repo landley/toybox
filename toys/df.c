@@ -55,7 +55,7 @@ static void show_mt(struct mtab_list *mt)
 	}
 }
 
-int df_main(void)
+void df_main(void)
 {
 	struct mtab_list *mt, *mt2, *mtlist;
 
@@ -114,6 +114,4 @@ int df_main(void)
 	}
 
 	if (CFG_TOYBOX_FREE) llist_free(mtlist, NULL);
-
-	return 0;
 }

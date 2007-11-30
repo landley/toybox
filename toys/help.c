@@ -14,7 +14,7 @@ static char *help_data =
 #include "toys/toylist.h"
 ;
 
-int help_main(void)
+void help_main(void)
 {
 	struct toy_list *t = toy_find(*toys.optargs);
 	int i = t-toy_list;
@@ -29,5 +29,4 @@ int help_main(void)
 	}
 
 	fprintf(toys.exithelp ? stderr : stdout, "%s", s);
-	return 0;
 }

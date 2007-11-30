@@ -5,8 +5,7 @@
 
 #include "toys.h"
 
-int sync_main(void)
+void sync_main(void)
 {
 	sync();
-	return 0;
 }

@@ -9,7 +9,7 @@
 // file twice (with different macros) to populate toy_list[].
 
 #ifndef NEWTOY
-#define NEWTOY(name, opts, flags) int name##_main(void);
+#define NEWTOY(name, opts, flags) void name##_main(void);
 #define OLDTOY(name, oldname, opts, flags)
 
 struct df_data {
@@ -90,7 +90,7 @@ extern union toy_union {
 
 extern struct toy_list {
 	char *name;
-	int (*toy_main)(void);
+	void (*toy_main)(void);
 	char *options;
 	int flags;
 } toy_list[];

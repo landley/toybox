@@ -5,7 +5,7 @@
 
 #include "toys.h"
 
-int sleep_main(void)
+void sleep_main(void)
 {
-	return sleep(atol(*toys.optargs));
+	toys.exitval = sleep(atol(*toys.optargs));
 }

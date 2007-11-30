@@ -5,7 +5,7 @@
 
 #include "toys.h"
 
-int count_main(void)
+void count_main(void)
 {
 	uint64_t size = 0;
 	int len;
@@ -18,5 +18,4 @@ int count_main(void)
 		fdprintf(2, "%"PRIu64" bytes\r", size);
 	}
 	fdprintf(2,"\n");
-	return 0;
 }

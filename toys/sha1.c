@@ -46,7 +46,7 @@ void printy(unsigned char *this)
 	int i;
 
 	for (i = 0; i < 20; i++) printf("%02x", this[i]);
-	putchar('\n');
+	xputc('\n');
 }
 
 /* Hash a single 512-bit block. This is the core of the algorithm. */

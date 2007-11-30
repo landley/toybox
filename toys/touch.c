@@ -20,7 +20,7 @@
 #define TIME		0x10
 #define LENGTH		0x20
 
-int touch_main(void)
+void touch_main(void)
 {
 	char *arg;
 	int i, set_a, set_m, create;
@@ -87,6 +87,4 @@ time_error:
 error:
 			perror_exit(arg);
 	}
-
-	return 0;
 }

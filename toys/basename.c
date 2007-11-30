@@ -6,7 +6,7 @@
 
 #include "toys.h"
 
-int basename_main(void)
+void basename_main(void)
 {
 	char *name = basename(*toys.optargs);
 	char *suffix = toys.optargs[1];
@@ -15,5 +15,4 @@ int basename_main(void)
 		if (end>name && !strcmp(end,suffix)) *end=0;
 	}
 	puts(name);
-	return 0;
 }

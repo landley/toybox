@@ -5,7 +5,7 @@
 
 #include "toys.h"
 
-int yes_main(void)
+void yes_main(void)
 {
 	for (;;) {
 		int i;
@@ -16,6 +16,4 @@ int yes_main(void)
 		if (!i) xputc('y');
 		xputc('\n');
 	}
-
-	return 0;
 }

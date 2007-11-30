@@ -5,7 +5,7 @@
 
 #include "toys.h"
 
-int echo_main(void)
+void echo_main(void)
 {
 	int i = 0;
 	char *arg, *from = "\\abfnrtv", *to = "\\\a\b\f\n\r\t\v";
@@ -48,5 +48,4 @@ int echo_main(void)
 	if (!(toys.optflags&1)) xputc('\n');
 done:
 	xflush();
-	return 0;
 }

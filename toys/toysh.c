@@ -133,7 +133,8 @@ static void run_pipeline(struct pipeline *line)
 		memcpy(&temp, &toys, sizeof(struct toy_context));
 		bzero(&toys, sizeof(struct toy_context));
 		toy_init(tl, cmd->argv);
-		cmd->pid = tl->toy_main();
+		tl->toy_main();
+		cmd->pid = toys.exitval;
 		free(toys.optargs);
 		memcpy(&toys, &temp, sizeof(struct toy_context));
 	} else {
@@ -184,19 +185,18 @@ static void handle(char *command)
 	}
 }
 
-int cd_main(void)
+void cd_main(void)
 {
 	char *dest = *toys.optargs ? *toys.optargs : getenv("HOME");
 	if (chdir(dest)) error_exit("chdir %s",dest);
-	return 0;
 }
 
-int exit_main(void)
+void exit_main(void)
 {
 	exit(*toys.optargs ? atoi(*toys.optargs) : 0);
 }
 
-int toysh_main(void)
+void toysh_main(void)
 {
 	FILE *f;
 
@@ -210,12 +210,12 @@ int toysh_main(void)
 		size_t cmdlen = 0;
 		for (;;) {
 			char *command = 0;
-			if (!f) putchar('$');
+			if (!f) xputc('$');
 			if (1 > getline(&command, &cmdlen, f ? : stdin)) break;
 			handle(command);
 			free(command);
 		}
 	}
 
-	return 1;
+	toys.exitval = 1;
 }

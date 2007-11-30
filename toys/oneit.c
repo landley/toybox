@@ -16,7 +16,7 @@
 // PID 1 then reaps zombies until the child process it spawned exits, at which
 // point it calls sync() and reboot().  I could stick a kill -1 in there.
 
-int oneit_main(void)
+void oneit_main(void)
 {
   int i;
   pid_t pid;
@@ -38,7 +38,7 @@ int oneit_main(void)
     open("/dev/tty0",O_RDWR);
   }
 
-  // Can't xexec() here because we vforked so we don't want to error_exit().
+  // Can't xexec() here, because we vforked so we don't want to error_exit().
   toy_exec(toys.optargs);
   execvp(*toys.optargs, toys.optargs);
   _exit(127);

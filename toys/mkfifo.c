@@ -7,7 +7,7 @@
 
 #include "toys.h"
 
-int mkfifo_main(void)
+void mkfifo_main(void)
 {
 	char *arg;
 	int i;
@@ -24,6 +24,4 @@ int mkfifo_main(void)
 	for (i = 0; (arg = toys.optargs[i]); i++)
 		if (mkfifo(arg, mode))
 			perror_exit(arg);
-
-	return 0;
 }

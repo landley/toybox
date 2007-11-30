@@ -5,9 +5,7 @@
 
 #include "toys.h"
 
-int bzcat_main(void)
+void bzcat_main(void)
 {
 	bunzipStream(0, 1);
-
-	return 0;
 }

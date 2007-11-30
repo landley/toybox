@@ -339,7 +339,7 @@ static void fill_inode(struct ext2_inode *in, struct dirtree *this)
 // The first argument is the name of the file to create.  If it already
 // exists, that size will be used.
 
-int mke2fs_main(void)
+void mke2fs_main(void)
 {
 	int i, temp;
 	off_t length;
@@ -561,8 +561,6 @@ int mke2fs_main(void)
 		// Write data blocks (TODO)
 		put_zeroes((end-start) * TT.blocksize);
 	}
-
-	return 0;
 }
 
 // Scratch pad:

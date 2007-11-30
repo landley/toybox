@@ -10,7 +10,7 @@
 
 #define TT toy.dmesg
 
-int dmesg_main(void)
+void dmesg_main(void)
 {
 	// For -n just tell kernel to which messages to keep.
 	if (toys.optflags & 2) {
@@ -30,11 +30,9 @@ int dmesg_main(void)
 		// Display data, filtering out level markers.
 		for (i=0; i<size; ) {
 			if (last=='\n' && data[i]=='<') i += 3;
-			else putchar(last = data[i++]);
+			else xputc(last = data[i++]);
 		}
-		if (last!='\n') putchar('\n');
+		if (last!='\n') xputc('\n');
 		if (CFG_TOYBOX_FREE) free(data);
 	}
-
-	return 0;
 }

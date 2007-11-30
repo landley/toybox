@@ -5,7 +5,7 @@
 
 #include "toys.h"
 
-int false_main(void)
+void false_main(void)
 {
-	return 1;
+	toys.exitval = 1;
 }

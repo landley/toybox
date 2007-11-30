@@ -180,17 +180,15 @@ static void find_dev(char *path)
 	closedir(dir);
 }
 
-int mdev_main(int argc, char *argv[])
+void mdev_main(int argc, char *argv[])
 {
 	if (toys.optflags) {
 		strcpy(toybuf, "/sys/block");
 		find_dev(toybuf);
 		strcpy(toybuf, "/sys/class");
 		find_dev(toybuf);
-		return 0;
+		return;
 	}
 
 	// hotplug support goes here
-
-	return 0;
 }

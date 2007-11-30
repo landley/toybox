@@ -5,12 +5,10 @@
 
 #include "toys.h"
 
-int pwd_main(void)
+void pwd_main(void)
 {
 	char *pwd = xgetcwd();
 
 	xprintf("%s\n", pwd);
 	if (CFG_TOYBOX_FREE) free(pwd);
-
-	return 0;
 }

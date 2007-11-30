@@ -52,16 +52,12 @@ static int which_in_path(char *filename)
 	return 0;
 }
 
-int which_main(void)
+void which_main(void)
 {
-	int rc = 0;
-
-	if (!*toys.optargs) rc++;
+	if (!*toys.optargs) toys.exitval++;
 	else {
 		int i;
-		for (i=0; toys.optargs[i]; i++) rc |= which_in_path(toys.optargs[i]);
+		for (i=0; toys.optargs[i]; i++)
+			toys.exitval |= which_in_path(toys.optargs[i]);
 	}
-	// if (CFG_TOYBOX_FREE) free(argv);
-
-	return rc;
 }

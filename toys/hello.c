@@ -5,8 +5,7 @@
 
 #include "toys.h"
 
-int hello_main(void)
+void hello_main(void)
 {
 	printf("Hello world\n");
-	return 0;
 }

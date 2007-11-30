@@ -5,7 +5,7 @@
 
 #include "toys.h"
 
-int true_main(void)
+void true_main(void)
 {
-	return 0;
+	return;
 }

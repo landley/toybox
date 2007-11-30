@@ -80,13 +80,12 @@ void toy_exec(char *argv[])
 
 	which = toy_find(argv[0]);
 	if (!which) return;
-
 	toy_init(which, argv);
-
-	exit(toys.which->toy_main());
+	toys.which->toy_main();
+	exit(toys.exitval);
 }
 
-int toybox_main(void)
+void toybox_main(void)
 {
 	static char *toy_paths[]={"usr/","bin/","sbin/",0};
 	int i, len = 0;
@@ -115,7 +114,6 @@ int toybox_main(void)
 		}
 	}
 	putchar('\n');
-	return 0;
 }
 
 int main(int argc, char *argv[])
@@ -132,5 +130,6 @@ int main(int argc, char *argv[])
 	}
 
 	toys.argv = argv-1;
-	return toybox_main();
+	toybox_main();
+	return 0;
 }

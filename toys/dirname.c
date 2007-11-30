@@ -7,8 +7,7 @@
 #include "toys.h"
 #include <libgen.h>
 
-int dirname_main(void)
+void dirname_main(void)
 {
 	puts(dirname(*toys.optargs));
-	return 0;
 }

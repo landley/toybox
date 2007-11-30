@@ -34,21 +34,19 @@ void do_catv(int fd, char *name)
 			}
 			if (c < 32) {
 				if (c == 10) {
-					if (toys.optflags & 1) putchar('$');
+					if (toys.optflags & 1) xputc('$');
 				} else if (toys.optflags & (c==9 ? 2 : 4)) {
 					printf("^%c", c+'@');
 					continue;
 				}
 			}
-			putchar(c);
+			xputc(c);
 		}
 	}
 }
 
-int catv_main(void)
+void catv_main(void)
 {
 	toys.optflags^=4;
 	loopfiles(toys.optargs, do_catv);
-
-	return toys.exitval;
 }
