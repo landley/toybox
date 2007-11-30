@@ -13,48 +13,48 @@
 #include <time.h>
 #include "toys.h"
 
-#define MTIME		0x01
-#define NO_CREATE	0x02
-#define ATIME		0x04
-#define REFERENCE	0x08
-#define TIME		0x10
-#define LENGTH		0x20
+#define OPT_MTIME		0x01
+#define OPT_NOCREATE	0x02
+#define OPT_ATIME		0x04
+#define OPT_REFERENCE	0x08
+#define OPT_TIME		0x10
+#define OPT_LENGTH		0x20
 
 void touch_main(void)
 {
 	char *arg;
-	int i, set_a, set_m, create;
+	int i, set_a, set_m;
 	time_t curr_a, curr_m;
 
-	set_a = !!(toys.optflags & ATIME);
-	set_m = !!(toys.optflags & MTIME);
-	create = !(toys.optflags & NO_CREATE);
+	set_a = !!(toys.optflags & OPT_ATIME);
+	set_m = !!(toys.optflags & OPT_MTIME);
 
-	if (toys.optflags & REFERENCE) {
+	// Use timestamp on a file
+	if (toys.optflags & OPT_REFERENCE) {
 		struct stat sb;
-		if (toys.optflags & TIME)
-			error_exit("Cannot specify times from more than one source");
+
+		if (toys.optflags & OPT_TIME)
+			error_exit("Redundant time source");
 		xstat(toy.touch.ref_file, &sb);
 		curr_m = sb.st_mtime;
 		curr_a = sb.st_atime;
-	} else if (toys.optflags & TIME) {
+
+	// Use time specified on command line.
+	} else if (toys.optflags & OPT_TIME) {
 		struct tm t;
 		time_t curr;
 		char *c;
+
 		curr = time(NULL);
-		if (!localtime_r(&curr, &t))
-			goto time_error;
-		c = strptime(toy.touch.time, "%m%d%H%M", &t);
-		if (!c || *c)
-			goto time_error;
-		curr_a = curr_m = mktime(&t);
-		if (curr_a == -1)
-time_error:
-			error_exit("Error converting time %s to internal format",
-				toy.touch.time);
-	} else {
-		curr_m = curr_a = time(NULL);
-	}
+		if (localtime_r(&curr, &t)
+			|| !(c = strptime(toy.touch.time, "%m%d%H%M", &t))
+			|| *c || -1==(curr_a = curr_m = mktime(&t)))
+		{
+			error_exit("Unknown time %s", toy.touch.time);
+		}
+
+	// use current time
+	} else curr_m = curr_a = time(NULL);
 
 	for (i = 0; (arg = toys.optargs[i]); i++) {
 		struct utimbuf buf;
@@ -64,7 +64,7 @@ time_error:
 		buf.actime = curr_a;
 
 		if (stat(arg, &sb) == -1) {
-			if (create && errno == ENOENT) {
+			if (!(toys.optflags & OPT_NOCREATE) && errno == ENOENT) {
 				if (creat(arg, 0644))
 					goto error;
 				if (stat(arg, &sb))
@@ -74,13 +74,11 @@ time_error:
 
 		if ((set_a+set_m) == 1) {
 			/* We've been asked to only change one */
-			if (set_a)
-				buf.modtime = sb.st_mtime;
-			else if (set_m)
-				buf.actime = sb.st_atime;
+			if (set_a) buf.modtime = sb.st_mtime;
+			else if (set_m) buf.actime = sb.st_atime;
 		}
 
-		if (toys.optflags & LENGTH)
+		if (toys.optflags & OPT_LENGTH)
 			if (truncate(arg, toy.touch.length))
 				goto error;
 		if (utime(arg, &buf))
