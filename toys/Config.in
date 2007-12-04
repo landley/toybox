@@ -226,7 +226,27 @@ config MKFIFO
 	  Makes a named pipe at name.
 
 	  -m mode	The mode of the pipe(s) created by mkfifo. It defaults to 0644.
-				The format is in octal, optionally preceded by a leading zero.
+			The format is in octal, optionally preceded by a leading zero.
+
+config NETCAT
+	bool "netcat"
+	default y
+	help
+	  usage: netcat [-iwlp] {IPADDR PORTNUM|-f FILENAME} [-e COMMAND]
+
+	  -e exec the rest of the command line
+	  -i SECONDS delay after each line sent
+	  -w SECONDS timeout for connection
+	  -f filename use file (ala /dev/ttyS0) instead of network
+	  -l listen for incoming connection (twice for persistent connection)
+	  -p local port number
+	  -s local source address
+	  -q SECONDS quit this many seconds after EOF on stdin.
+
+	  Use -l twice with -e for a quick-and-dirty server.
+
+	  Use "stty 115200 -F /dev/ttyS0 && stty raw -echo -ctlecho" with
+	  netcat -f to connect to a serial port.
 
 config ONEIT
 	bool "oneit"

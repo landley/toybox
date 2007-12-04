@@ -53,6 +53,16 @@ struct mke2fs_data {
 	struct ext2_superblock sb;
 };
 
+struct netcat_data {
+	char *filename;        // -f read from filename instead of network
+	long quit_delay;       // -q Exit after EOF from stdin after # seconds.
+	char *source_address;  // -s Bind to a specific source address.
+	long port;             // -p Bind to a specific source port.
+	long listen;           // -l Listen for connection instead of dialing out.
+	long wait;             // -w Wait # seconds for a connection.
+	long delay;            // -i delay between lines sent
+};
+
 struct sleep_data {
 	long seconds;
 };
@@ -76,6 +86,7 @@ extern union toy_union {
 	struct df_data df;
 	struct mke2fs_data mke2fs;
 	struct mkfifo_data mkfifo;
+	struct netcat_data netcat;
 	struct sleep_data sleep;
 	struct touch_data touch;
 	struct toysh_data toysh;
@@ -120,6 +131,8 @@ USE_HELLO(NEWTOY(hello, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 USE_HELP(NEWTOY(help, "<1", TOYFLAG_BIN))
 USE_MKE2FS(NEWTOY(mke2fs, MKE2FS_OPTSTRING, TOYFLAG_SBIN))
 USE_MKFIFO(NEWTOY(mkfifo, "<1m:", TOYFLAG_BIN))
+USE_NETCAT(OLDTOY(nc, netcat, "i#w#l@p#s:q#f:e", TOYFLAG_BIN))
+USE_NETCAT(NEWTOY(netcat, "i#w#l@p#s:q#f:e", TOYFLAG_BIN))
 USE_ONEIT(NEWTOY(oneit, "+<1p", TOYFLAG_SBIN))
 USE_PWD(NEWTOY(pwd, NULL, TOYFLAG_BIN))
 USE_READLINK(NEWTOY(readlink, "<1f", TOYFLAG_BIN))
