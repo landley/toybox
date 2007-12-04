@@ -6,6 +6,8 @@
  *
  * The spec for this is at:
  * http://www.opengroup.org/onlinepubs/009695399/utilities/xcu_chap02.html
+ * and
+ * http://www.opengroup.org/onlinepubs/007904975/utilities/sh.html
  *
  * Although things like the bash man page are good to read too.
  */

@@ -1,8 +1,9 @@
 /* vi: set sw=4 ts=4: */
 /*
  * readlink.c - Return string representation of a symbolic link.
+ *
+ * Not in SUSv3.
  */
-// Note: Hardware in LINK_MAX as 127 since it was removed from glibc.
 
 #include "toys.h"
 

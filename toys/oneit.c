@@ -1,6 +1,8 @@
 /* oneit.c, tiny one-process init replacement.
  *
- * Copyright 2005 by Rob Landley <rob@landley.net>.
+ * Copyright 2005, 2007 by Rob Landley <rob@landley.net>.
+ *
+ * Not in SUSv3.
  */
 
 #include "toys.h"

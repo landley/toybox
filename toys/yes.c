@@ -1,6 +1,8 @@
 /* vi: set sw=4 ts=4: */
 /*
  * yes.c - Repeatedly output a string.
+ *
+ * Not in SUSv3.
  */
 
 #include "toys.h"

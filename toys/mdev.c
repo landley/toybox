@@ -2,8 +2,10 @@
  *
  * mdev - Mini udev for busybox
  *
- * Copyright 2005 Rob Landley <rob@landley.net>
+ * Copyright 2005, 2007 Rob Landley <rob@landley.net>
  * Copyright 2005 Frank Sorenson <frank@tuxrocks.com>
+ *
+ * Not in SUSv3.
  */
 
 #include "toys.h"

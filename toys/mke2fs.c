@@ -2,7 +2,9 @@
  *
  * mke2fs.c - Create an ext2 filesystem image.
  *
- * Copyright 2006 Rob Landley <rob@landley.net>
+ * Copyright 2006, 2007 Rob Landley <rob@landley.net>
+ *
+ * Not in SUSv3.
  */
 
 #include "toys.h"

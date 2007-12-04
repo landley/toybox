@@ -1,6 +1,8 @@
 /* vi: set sw=4 ts=4: */
 /*
  * help.c - Show help for toybox
+ *
+ * Not in SUSv3, but exists as a bash builtin.
  */
 
 #include "toys.h"

@@ -1,6 +1,8 @@
 /* vi: set sw=4 ts=4: */
 /*
  * hello.c - A hello world program.
+ *
+ * Not in SUSv3.
  */
 
 #include "toys.h"

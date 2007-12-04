@@ -1,6 +1,8 @@
 /* vi: set sw=4 ts=4: */
 /*
  * count.c - Progress indicator from stdin to stdout
+ *
+ * Not in SUSv3.
  */
 
 #include "toys.h"

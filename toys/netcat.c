@@ -2,6 +2,8 @@
 /* nc: mini-netcat - Forward stdin/stdout to a file or network connection.
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
+ *
+ * Not in SUSv3.
  */
 
 #include "toys.h"

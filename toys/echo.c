@@ -1,6 +1,8 @@
 /* vi: set sw=4 ts=4: */
 /*
  * echo.c - echo supporting -n and -e.
+ *
+ * See http://www.opengroup.org/onlinepubs/007904975/utilities/echo.html
  */
 
 #include "toys.h"

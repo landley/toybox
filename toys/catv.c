@@ -2,7 +2,7 @@
 /*
  * cat -v implementation for toybox
  *
- * Copyright (C) 2006 Rob Landley <rob@landley.net>
+ * Copyright (C) 2006, 2007 Rob Landley <rob@landley.net>
  */
 
 /* See "Cat -v considered harmful" at
