@@ -3,6 +3,8 @@
  *
  * Based on the public domain SHA-1 in C by Steve Reid <steve@edmweb.com>
  * from http://www.mirrors.wiretapped.net/security/cryptography/hashes/sha1/
+ *
+ * Not in SUSv3.
  */
 
 #include <toys.h>
@@ -17,15 +19,15 @@ struct sha1 {
 	} buffer;
 };
 
-void sha1_init(struct sha1 *this);
-void sha1_transform(struct sha1 *this);
-void sha1_update(struct sha1 *this, char *data, unsigned int len);
-void sha1_final(struct sha1 *this, char digest[20]);
+static void sha1_init(struct sha1 *this);
+static void sha1_transform(struct sha1 *this);
+static void sha1_update(struct sha1 *this, char *data, unsigned int len);
+static void sha1_final(struct sha1 *this, char digest[20]);
 
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
-/* blk0() and blk() perform the initial expand. */
-/* The idea of expanding during the round function comes from SSLeay */
+// blk0() and blk() perform the initial expand.
+// The idea of expanding during the round function comes from SSLeay
 #if 1
 #define blk0(i) (block[i] = (rol(block[i],24)&0xFF00FF00) \
 	|(rol(block[i],8)&0x00FF00FF))
@@ -37,20 +39,20 @@ void sha1_final(struct sha1 *this, char digest[20]);
 
 static const uint32_t rconsts[]={0x5A827999,0x6ED9EBA1,0x8F1BBCDC,0xCA62C1D6};
 
-/* Hash a single 512-bit block. This is the core of the algorithm. */
+// Hash a single 512-bit block. This is the core of the algorithm.
 
-void sha1_transform(struct sha1 *this)
+static void sha1_transform(struct sha1 *this)
 {
 	int i, j, k, count;
 	uint32_t *block = this->buffer.i;
 	uint32_t *rot[5], *temp;
 
-	/* Copy context->state[] to working vars */
+	// Copy context->state[] to working vars
 	for (i=0; i<5; i++) {
 		this->oldstate[i] = this->state[i];
 		rot[i] = this->state + i;
 	}
-	/* 4 rounds of 20 operations each. */
+	// 4 rounds of 20 operations each.
 	for (i=count=0; i<4; i++) {
 		for (j=0; j<20; j++) {
 			uint32_t work;
@@ -74,14 +76,14 @@ void sha1_transform(struct sha1 *this)
 			count++;
 		}
 	}
-	/* Add the previous values of state[] */
+	// Add the previous values of state[]
 	for (i=0; i<5; i++) this->state[i] += this->oldstate[i];
 }
 
 
-/* SHA1Init - Initialize new context */
+// Initialize a struct sha1.
 
-void sha1_init(struct sha1 *this)
+static void sha1_init(struct sha1 *this)
 {
 	/* SHA1 initialization constants */
 	this->state[0] = 0x67452301;
@@ -92,7 +94,7 @@ void sha1_init(struct sha1 *this)
 	this->count = 0;
 }
 
-/* Run your data through this function. */
+// Fill the 64-byte working buffer and call sha1_transform() when full.
 
 void sha1_update(struct sha1 *this, char *data, unsigned int len)
 {
@@ -116,7 +118,7 @@ void sha1_update(struct sha1 *this, char *data, unsigned int len)
 	memcpy(this->buffer.c + j, data + i, len - i);
 }
 
-/* Add padding and return the message digest. */
+// Add padding and return the message digest.
 
 void sha1_final(struct sha1 *this, char digest[20])
 {
@@ -126,8 +128,10 @@ void sha1_final(struct sha1 *this, char digest[20])
 
 	// End the message by appending a "1" bit to the data, ending with the
 	// message size (in bits, big endian), and adding enough zero bits in
-	// between to pad to the end of the next 64-byte frame.  Since our input
-	// up to now has been in whole bytes, we can deal with bytes here too.
+	// between to pad to the end of the next 64-byte frame.
+	//
+	// Since our input up to now has been in whole bytes, we can deal with
+	// bytes here too.
 
 	buf = 0x80;
 	do {
@@ -140,7 +144,7 @@ void sha1_final(struct sha1 *this, char digest[20])
 
 	for (i = 0; i < 20; i++)
 		digest[i] = this->state[i>>2] >> ((3-(i & 3)) * 8);
-	/* Wipe variables */
+	// Wipe variables.  Cryptogropher paranoia.
 	memset(this, 0, sizeof(struct sha1));
 }
 
