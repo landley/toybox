@@ -40,6 +40,14 @@ config CATV
 	  -t	Show tabs as ^I
 	  -v	Don't use ^x or M-x escapes.
 
+config CHROOT
+	bool "chroot"
+	default y
+	help
+	  usage: chroot NEWPATH [commandline...]
+
+	  Run command within a new root directory.  If no command, run /bin/sh.
+
 config COUNT
 	bool "count"
 	default y
