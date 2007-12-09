@@ -13,7 +13,7 @@ CROSS_COMPILE = $(CROSS)
 
 all: toybox
 
-.PHONY: clean
+.PHONY: clean distclean baseline bloatcheck install_flat test tests help
 
 include kconfig/Makefile
 
