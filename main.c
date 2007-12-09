@@ -68,7 +68,6 @@ void toy_init(struct toy_list *which, char *argv[])
 
 	toys.which = which;
 	toys.argv = argv;
-	toys.exitval = 1;
 	if (NEED_OPTIONS && which->options) get_optflags();
 	else toys.optargs = argv+1;
 }

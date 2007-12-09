@@ -59,7 +59,7 @@ void error_exit(char *msg, ...)
 	verror_msg(msg, 0, va);
 	va_end(va);
 
-	exit(toys.exitval);
+	exit(!toys.exitval ? 1 : toys.exitval);
 }
 
 
@@ -72,7 +72,7 @@ void perror_exit(char *msg, ...)
 	verror_msg(msg, errno, va);
 	va_end(va);
 
-	exit(toys.exitval);
+	exit(!toys.exitval ? 1 : toys.exitval);
 }
 
 // Die unless we can allocate memory.
@@ -350,7 +350,6 @@ struct string_list *find_in_path(char *path, char *filename)
 	free(cwd);
 
 	return rlist;
-
 }
 
 // Convert unsigned int to ascii, writing into supplied buffer.  A truncated
