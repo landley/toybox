@@ -18,6 +18,8 @@
 // PID 1 then reaps zombies until the child process it spawned exits, at which
 // point it calls sync() and reboot().  I could stick a kill -1 in there.
 
+#define TT toy.oneit
+
 void oneit_main(void)
 {
   int i;
@@ -37,7 +39,7 @@ void oneit_main(void)
   setsid();
   for (i=0; i<3; i++) {
     close(i);
-    open("/dev/tty0",O_RDWR);
+    xopen(TT.console ? TT.console : "/dev/tty0",O_RDWR);
   }
 
   // Can't xexec() here, because we vforked so we don't want to error_exit().

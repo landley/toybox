@@ -260,12 +260,13 @@ config ONEIT
 	bool "oneit"
 	default y
 	help
-	  usage: oneit [-p] command [...]
+	  usage: oneit [-p] [-c /dev/tty0] command [...]
 
 	  A simple init program that runs a single supplied command line with a
 	  controlling tty (so CTRL-C can kill it).
 
 	  -p	Power off instead of rebooting when command exits.
+	  -c	Which console device to use.
 
 	  The oneit command runs the supplied command line as a child process
 	  (because PID 1 has signals blocked), attached to /dev/tty0, in its
