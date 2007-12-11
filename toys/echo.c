@@ -2,7 +2,7 @@
 /*
  * echo.c - echo supporting -n and -e.
  *
- * See http://www.opengroup.org/onlinepubs/007904975/utilities/echo.html
+ * See http://www.opengroup.org/onlinepubs/009695399/utilities/echo.html
  */
 
 #include "toys.h"

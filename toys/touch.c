@@ -4,7 +4,7 @@
  *
  * Copyright (C) 2007 Charlie Shepherd <masterdriverz@gentoo.org>
  *
- * See http://www.opengroup.org/onlinepubs/007904975/utilities/touch.html
+ * See http://www.opengroup.org/onlinepubs/009695399/utilities/touch.html
  */
 
 #define _XOPEN_SOURCE 600

@@ -6,10 +6,13 @@
  *
  * The spec for this is at:
  * http://www.opengroup.org/onlinepubs/009695399/utilities/xcu_chap02.html
- * and
- * http://www.opengroup.org/onlinepubs/007904975/utilities/sh.html
+ * and http://www.opengroup.org/onlinepubs/009695399/utilities/sh.html
  *
- * Although things like the bash man page are good to read too.
+ * There are also specs for:
+ * http://www.opengroup.org/onlinepubs/009695399/utilities/cd.html
+ * http://www.opengroup.org/onlinepubs/009695399/utilities/exit.html
+ *
+ * Things like the bash man page are good to read too.
  */
 
 // Handle embedded NUL bytes in the command line.

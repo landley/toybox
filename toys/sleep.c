@@ -2,7 +2,7 @@
 /*
  * sleep.c - Wait for a number of seconds.
  *
- * See http://www.opengroup.org/onlinepubs/007904975/utilities/sleep.html
+ * See http://www.opengroup.org/onlinepubs/009695399/utilities/sleep.html
  */
 
 #include "toys.h"

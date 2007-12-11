@@ -2,7 +2,7 @@
 /*
  * false.c - Return nonzero.
  *
- * See http://www.opengroup.org/onlinepubs/007904975/utilities/false.html
+ * See http://www.opengroup.org/onlinepubs/009695399/utilities/false.html
  */
 
 #include "toys.h"

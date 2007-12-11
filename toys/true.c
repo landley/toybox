@@ -2,7 +2,7 @@
 /*
  * true.c - Return zero.
  *
- * See http://www.opengroup.org/onlinepubs/007904975/utilities/true.html
+ * See http://www.opengroup.org/onlinepubs/009695399/utilities/true.html
  */
 
 #include "toys.h"
