@@ -1,5 +1,9 @@
 <!--#include file="header.html" -->
 
+<p><b>December 12, 2007</b> - Updated the list of implemented applications,
+put up a <a href=todo.txt>todo list</a> and <a href=code.html>infrastructure
+documentation</a>.  Expect another release towards the end of the month.</p>
+
 <p><b>June 18, 2007</b> - Put out
 <a href=downloads/toybox-0.0.3.tar.bz2>toybox-0.0.3.tar.bz2</a> since it's
 been too long since I did something like that.  This one implements
@@ -14,7 +18,8 @@ checked in yet, but I'm working on that.</p>
 <p>I don't have nearly as much time to work on this as I'd like, but I'm making
 a little progress.</p>
 
-<p>Jan 31: Screwing up the web page a bit, adding an index bar along the side
+<p><b>January 31, 2007</b> -
+Screwing up the web page a bit, adding an index bar along the side
 which doesn't properly connect up to anything yet.  (Busy implementing
 mke2fs and gene2fs.)</p>
 
@@ -25,12 +30,12 @@ archive</a>.</p>
 
 <h2><a name="what" />What is ToyBox?</h2>
 
-<p>The Toybox project is creating simple implementations of all the Linux
-command line utilities.  Other goals are small size (the produced binaries
-should total less than a megabyte, uncompressed), speed of execution, and
-correctness of implementation (which is related to standards compliance, but
-isn't quite the same thing).
-Click for <a href="design.html">more about the design goals</a></p>
+<p>The goal of the Toybox project is to create simple implementations of all
+the important Linux command line utilities.  These implementations should
+be small (the entire project should total less than a megabyte, uncompressed),
+fast, simple, and correctly implemented (which is related to standards
+compliance, but isn't quite the same thing).  Click for
+<a href="design.html">more about the design goals</a></p>
 
 <p>Toybox has configurable levels of functionality, and should scale from tiny
 embedded systems up to full general purpose desktop and development
@@ -62,38 +67,32 @@ to bother with them.</p>
 the behavior of existing commands (although not generally looking at their
 source code).</p>
 
+<b><h2><a name="status" />What commands are implemented?</h2></b>
+
+<p>The following commands are currently implemented: basename, catv, chroot,
+count, df, dirname, dmesg, echo, false, hello, mkfifo, oneit, pwd, sha1sum,
+sleep, sync, true, tty, which, yes.</p>
+
+<p>The following commands are partly implemented, in a somewhat usable but not
+necessarily complete state: bzcat/bunzip2, help, mke2fs, netcat/nc, sh/toysh,
+mdev, touch, readlink.</p>
+
+<p>The following are partially implemented commands that don't actually do
+anything yet: mke2fs, md5sum.</p>
+
+<p>For more information, see <a href=todo.txt>the todo list</a>.</p>
+
 <b><h3>Command Shell</h3></b>
-<p>The Toybox Shell aims to be a reasonable bash replacement.  It implements
-the "sh" and "toysh" commands, plus the built-in commands "cd" and "exit".
-The following additional commands may be built into the shell (but not as
+<p>The Toybox Shell (toysh) aims to be a reasonable bash replacement.  It
+implements the "sh" and "toysh" commands, plus the built-in commands "cd" and
+"exit".  This is the largest single sub-project in toybox.</p>
+
+<p>The following additional commands may be built into the shell (but not as
 separate executables): cd, exit, if, while, for, function, fg, bg, jobs, source,
 <a href="http://www.opengroup.org/onlinepubs/009695399/utilities/alias.html">alias</a>,
-export, set, unset, read, trap, and exec.</p>
+export, set, unset, read, trap, and exec.  (Note: not done yet.)</p>
 
-<b><h3>General Purpose Commands:</h3></b>
-
-<p>[TODO]</p>
-
-<b><h3>Development tools:</h3></b>
-
-<p>Commands: ar, make [TODO]</p>
-
-<b><h2><a name="status />What commands are implemented?</h2></b>
-
-<p>Toybox is a work in progress, and nowhere near a 1.0 release.  The first
-commit was September 27, 2006, and work is ongoing.</p>
-
-<p>Partial (in progress): sh/toysh (cd, exit), df, which.</p>
-
-<p>Complete: hello, pwd.</p>
-
-<p>Infrastructure:</p>
-
-<ul>
-<li>main: toy_list[], toy_find(), toy_exec(), main/toybox_main().</li>
-<ul>lib: llist, getmountlist(), error_msg/error_exit, xmalloc(),
-strlcpy(), xexec(), xopen()/xread(), xgetcwd(), xabspath(), find_in_path(),
-itoa().</li>
+</ul>
 
 <b><h2><a name="downloads" />Download</h2></b>
 
