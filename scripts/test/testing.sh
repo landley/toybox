@@ -69,7 +69,6 @@ testing ()
 
   echo -ne "$3" > expected
   echo -ne "$4" > input
-  [ -z "$VERBOSE" ] || echo "echo '$5' | $2"
   echo -ne "$5" | eval "$2" > actual
   RETVAL=$?
 
@@ -78,7 +77,11 @@ testing ()
   then
     FAILCOUNT=$[$FAILCOUNT+1]
     echo "FAIL: $NAME"
-    [ -n "$VERBOSE" ] && diff -u expected actual
+    if [ -n "$VERBOSE" ]
+    then
+      echo "echo '$5' | $2"
+      diff -u expected actual
+    fi
   else
     echo "PASS: $NAME"
   fi
