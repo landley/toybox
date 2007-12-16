@@ -273,6 +273,19 @@ config ONEIT
 	  own session.  Then oneit reaps zombies until the child exits, at
 	  which point it reboots (or with -p, powers off) the system.
 
+config PATCH
+	bool "patch"
+	default n
+	help
+	  usage: patch [-i file] [-p depth] [-Ru]
+
+	  Apply a unified diff to one or more files.
+
+	  -i	Input file (defaults=stdin)
+	  -p	number of '/' to strip from start of file paths (default=all)
+	  -R	Reverse patch.
+	  -u	Ignored (only handles "unified" diffs)
+
 config PWD
 	bool "pwd"
 	default y

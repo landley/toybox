@@ -21,6 +21,12 @@ struct arg_list {
 	char *arg;
 };
 
+struct double_list {
+	struct double_list *next;
+	struct double_list *prev;
+	char *data;
+};
+
 // args.c
 void get_optflags(void);
 
@@ -56,6 +62,7 @@ void xexec(char **argv);
 void xaccess(char *path, int flags);
 int xcreate(char *path, int flags, int mode);
 int xopen(char *path, int flags);
+void xclose(int fd);
 FILE *xfopen(char *path, char *mode);
 ssize_t readall(int fd, void *buf, size_t len);
 ssize_t writeall(int fd, void *buf, size_t len);
@@ -74,6 +81,9 @@ long atolx(char *c);
 off_t fdlength(int fd);
 char *xreadlink(char *name);
 void loopfiles(char **argv, void (*function)(int fd, char *name));
+char *get_rawline(int fd, long *plen);
+char *get_line(int fd);
+void xsendfile(int in, int out);
 
 // getmountlist.c
 struct mtab_list {

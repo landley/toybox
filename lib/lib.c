@@ -192,6 +192,11 @@ int xopen(char *path, int flags)
 	return xcreate(path, flags, 0);
 }
 
+void xclose(int fd)
+{
+	if (close(fd)) perror_exit("xclose");
+}
+
 // Die unless we can open/create a file, returning FILE *.
 FILE *xfopen(char *path, char *mode)
 {
@@ -566,4 +571,47 @@ void loopfiles(char **argv, void (*function)(int fd, char *name))
 		function(fd, *argv);
 		close(fd);
 	} while (*++argv);
+}
+
+// Slow, but small.
+
+char *get_rawline(int fd, long *plen)
+{
+	char c, *buf = NULL;
+	long len = 0;
+
+	for (;;) {
+		if (1>read(fd, &c, 1)) break;
+		if (!(len & 63)) buf=xrealloc(buf, len+64);
+		if ((buf[len++]=c) == '\n') break;
+	}
+	if (buf) buf[len]=0;
+	if (plen) *plen = len;
+
+	return buf;
+}
+
+char *get_line(int fd)
+{
+	long len;
+	char *buf = get_rawline(fd, &len);
+
+	if (buf && buf[--len]=='\n') buf[len]=0;
+
+	return buf;
+}
+
+// Copy the rest of in to out and close both files.
+
+void xsendfile(int in, int out)
+{
+	long len;
+
+	if (in<0) return;
+	for (;;) {
+		len = xread(in, toybuf, sizeof(toybuf));
+		if (len<1) break;
+		xwrite(out, toybuf, len);
+	}
+	xclose(in);
 }

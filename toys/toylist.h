@@ -67,6 +67,16 @@ struct oneit_data {
 	char *console;
 };
 
+struct patch_data {
+	char *infile;
+	long prefix;
+
+	struct double_list *plines, *flines;
+	long oldline, oldlen, newline, newlen;
+	int context, state;
+	int filein, fileout, filepatch;
+};
+
 struct sleep_data {
 	long seconds;
 };
@@ -92,6 +102,7 @@ extern union toy_union {
 	struct mkfifo_data mkfifo;
 	struct netcat_data netcat;
 	struct oneit_data oneit;
+	struct patch_data patch;
 	struct sleep_data sleep;
 	struct touch_data touch;
 	struct toysh_data toysh;
@@ -140,6 +151,7 @@ USE_MKFIFO(NEWTOY(mkfifo, "<1m:", TOYFLAG_BIN))
 USE_NETCAT(OLDTOY(nc, netcat, "i#w#l@p#s:q#f:e", TOYFLAG_BIN))
 USE_NETCAT(NEWTOY(netcat, "i#w#l@p#s:q#f:e", TOYFLAG_BIN))
 USE_ONEIT(NEWTOY(oneit, "+<1c:p", TOYFLAG_SBIN))
+USE_PATCH(NEWTOY(patch, "up#i:R", TOYFLAG_USR|TOYFLAG_BIN))
 USE_PWD(NEWTOY(pwd, NULL, TOYFLAG_BIN))
 USE_READLINK(NEWTOY(readlink, "<1f", TOYFLAG_BIN))
 USE_TOYSH(OLDTOY(sh, toysh, "c:i", TOYFLAG_BIN))
