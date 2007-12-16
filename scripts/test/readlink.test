@@ -1,0 +1,31 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+testing "readlink missing" "readlink notfound || echo yes" "yes\n" "" ""
+
+touch file
+testing "readlink file" "readlink file || echo yes" "yes\n" "" ""
+testing "readlink -f dir" "readlink -f ." "$(pwd)\n" "" ""
+testing "readlink -f missing" "readlink -f notfound" "$(pwd)/notfound\n" "" ""
+
+ln -s notfound link
+testing "readlink link" "readlink link" "notfound\n" "" ""
+testing "readlink link->missing" "readlink -f link" "$(pwd)/notfound\n" "" ""
+ln -sf file link
+testing "readlink -f link->file" "readlink -f link" "$(pwd)/file\n" "" ""
+ln -sf . link
+testing "readlink -f link->dir" "readlink -f link" "$(pwd)\n" "" ""
+ln -snf link link
+testing "readlink link->link (recursive)" "readlink link" "link\n" "" ""
+testing "readlink -f link->link (recursive)" "readlink -f link || echo yes" \
+	"yes\n" "" ""
+rm file link
+
+ln -s link1 link2
+ln -s link2 link1
+testing "readlink follow recursive2" "readlink -f link1 || echo yes" \
+	"yes\n" "" ""
+rm link1 link2
