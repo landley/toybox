@@ -2,7 +2,7 @@
 
 # If you want to use toybox netcat to talk to a serial port, use this.
 
-if [ ! -f "$1" ]
+if [ ! -c "$1" ]
 then
   echo "Usage: minicom.sh /dev/ttyS0"
   exit 1
