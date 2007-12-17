@@ -6,11 +6,14 @@
 
 testing "readlink missing" "readlink notfound || echo yes" "yes\n" "" ""
 
+# simple tests on a file
+
 touch file
 testing "readlink file" "readlink file || echo yes" "yes\n" "" ""
 testing "readlink -f dir" "readlink -f ." "$(pwd)\n" "" ""
 testing "readlink -f missing" "readlink -f notfound" "$(pwd)/notfound\n" "" ""
 
+# Test a link that points to nonexistent file
 ln -s notfound link
 testing "readlink link" "readlink link" "notfound\n" "" ""
 testing "readlink link->missing" "readlink -f link" "$(pwd)/notfound\n" "" ""
@@ -24,8 +27,20 @@ testing "readlink -f link->link (recursive)" "readlink -f link || echo yes" \
 	"yes\n" "" ""
 rm file link
 
+# Make sure circular links don't run away.
+
 ln -s link1 link2
 ln -s link2 link1
 testing "readlink follow recursive2" "readlink -f link1 || echo yes" \
 	"yes\n" "" ""
 rm link1 link2
+
+# Fun with relative paths
+
+ln -s /usr/include/sys/../sys newsys
+ln -s newsys newsys2
+testing "readlink maintains relative paths" "readlink newsys" \
+	"/usr/include/sys/../sys\n" "" ""
+testing "readlink -f resolves relative path" "readlink -f newsys2/../stdio.h" \
+	"/usr/include/stdio.h\n" "" ""
+rm newsys newsys2
