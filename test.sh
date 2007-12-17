@@ -1,17 +1,16 @@
 #!/bin/bash
 
 [ -z "$TOPDIR" ] && TOPDIR="$(pwd)"
-[ -z "$TESTDIR" ] && TESTDIR="testdir"
 
-rm -rf "$TESTDIR"
-mkdir -p "$TESTDIR"
+rm -rf testdir
+mkdir -p testdir
 
 if [ -z "$OLD" ]
 then
-  make install_flat PREFIX="$TESTDIR"
+  make install_flat PREFIX=testdir
 fi
 
-cd "$TESTDIR"
+cd testdir
 PATH=.:$PATH
 
 . "$TOPDIR"/scripts/test/testing.sh
@@ -30,4 +29,5 @@ else
   done
 fi
 
-rm -rf "$TESTDIR"
+cd ..
+rm -rf testdir
