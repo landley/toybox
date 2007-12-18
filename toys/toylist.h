@@ -72,9 +72,9 @@ struct patch_data {
 	long prefix;
 
 	struct double_list *plines, *flines;
-	long oldline, oldlen, newline, newlen;
-	int context, state;
-	int filein, fileout, filepatch;
+	long oldline, oldlen, newline, newlen, linenum;
+	int context, state, filein, fileout, filepatch;
+	char *tempfile;
 };
 
 struct sleep_data {

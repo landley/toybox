@@ -606,12 +606,57 @@ char *get_line(int fd)
 void xsendfile(int in, int out)
 {
 	long len;
+	char buf[4096];
 
 	if (in<0) return;
 	for (;;) {
-		len = xread(in, toybuf, sizeof(toybuf));
+		len = xread(in, buf, 4096);
 		if (len<1) break;
-		xwrite(out, toybuf, len);
+		xwrite(out, buf, len);
 	}
-	xclose(in);
+}
+
+// Open a temporary file to copy an existing file into.
+int copy_tempfile(int fdin, char *name, char **tempname)
+{
+	struct stat statbuf;
+	int fd;
+
+	*tempname = xstrndup(name, strlen(name)+6);
+	strcat(*tempname,"XXXXXX");
+	if(-1 == (fd = mkstemp(*tempname))) error_exit("no temp file");
+
+	// Set permissions of output file
+
+	fstat(fdin, &statbuf);
+	fchmod(fd, statbuf.st_mode);
+
+	return fd;
+}
+
+// Abort the copy and delete the temporary file.
+void delete_tempfile(int fdin, int fdout, char **tempname)
+{
+	close(fdin);
+	close(fdout);
+	unlink(*tempname);
+	free(*tempname);
+	*tempname = NULL;
+}
+
+// Copy the rest of the data and replace the original with the copy.
+void replace_tempfile(int fdin, int fdout, char **tempname)
+{
+	char *temp = xstrdup(*tempname);
+
+	temp[strlen(temp)-6]=0;
+	if (fdin != -1) {
+		xsendfile(fdin, fdout);
+		xclose(fdin);
+	}
+	xclose(fdout);
+	rename(*tempname, temp);
+	free(*tempname);
+	free(temp);
+	*tempname = NULL;
 }
