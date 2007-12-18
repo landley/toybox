@@ -94,7 +94,7 @@ as specified by the options field off this command's toy_list entry.  See
 the get_optargs() description in lib/args.c for details.</p>
 </li>
 
-<li><b>toybuf</b> - a common scratch space buffer (4096 byte char array) so
+<li><b>char toybuf[4096]</b> - a common scratch space buffer so
 commands don't need to allocate their own.  Any command is free to use this,
 and it should never be directly referenced by functions in lib/ (although
 commands are free to pass toybuf in to a library function as an argument).</li>
@@ -104,8 +104,8 @@ commands are free to pass toybuf in to a library function as an argument).</li>
 <ul>
 <li><p>struct toy_list *<b>toy_find</b>(char *name) - Return the toy_list
 structure for this command name, or NULL if not found.</p></li>
-<li>void <b>toy_init</b>(struct toy_list *which, char *argv[]) - fill out
-the global toys structure, calling get_optargs() if necessary.</li>
+<li><p>void <b>toy_init</b>(struct toy_list *which, char *argv[]) - fill out
+the global toys structure, calling get_optargs() if necessary.</p></li>
 <li><p>void <b>toy_exec</b>(char *argv[]) - Run a built-in command with arguments.
 Calls toy_find() on the first argument (which must be just a command name
 without path).  Returns if it can't find this command, otherwise calls
@@ -156,19 +156,20 @@ still result in configuration dependent build breaks.  Use with caution.</p>
 </li>
 </ul>
 
-<p><h2>toys/ directory.</h2></p>
+<p><h2>Directory toys/</h2></p>
 
 <h3>toys/Config.in</h3>
 
 <p>Included from the top level Config.in, contains one or more
 configuration entries for each command.</p>
 
-<p>Each command has a configuration entry matching the command name (except
-that configuration symbols are uppercase and command names are lower case).
+<p>Each command has a configuration entry matching the command name (although
+configuration symbols are uppercase and command names are lower case).
 Options to commands start with the command name followed by an underscore and
 the option name.  Global options are attachd to the "toybox" command,
 and thus use the prefix "TOYBOX_".  This organization is used by
-scripts/cfg2files to select which </p>
+scripts/cfg2files to select which toys/*.c files to compile for a given
+.config.</p>
 
 <p>A commands with multiple names (or multiple similar commands implemented in
 the same .c file) should have config symbols prefixed with the name of their
@@ -177,7 +178,14 @@ have config symbols they're options (symbols with an underscore and suffix)
 to the NEWTOY() name.  (See toys/toylist.h)</p>
 
 <h3>toys/toylist.h</h3>
-<p>
+<p>The first half of this file prototypes all the structures to hold
+global variables for each command, and puts them in toy_union.</p>
+
+<p>The second half of this file lists all the commands (in alphabetical
+order), along with their command line arguments and install location.  This
+is used to initialize toy_list in main.c, and later in that file to initialize
+NEED_OPTIONS (to figure out whether the command like parsing logic is needed),
+and to put the help entries in the right order in toys/help.c.</p>
 
 <h3>toys/help.h</h3>
 
@@ -194,9 +202,9 @@ modify Config.in, then you'll need python installed to rebuild it.)</p>
 configuration, but only the currently enabled ones are entered into help_data[]
 in toys/help.c.</p>
 
-<h2>lib/ directory.</h2>
+<h2>Directory lib/</h2>
 
-<h2>scripts/ directory.</h2>
+<h2>Directory scripts/</h2>
 
 <h3>scripts/cfg2files.sh</h3>
 
@@ -205,7 +213,7 @@ is turned into a list of files in toys via a sed invocation in the top level
 Makefile.
 </p>
 
-<h2>kconfig/ directory.</h2>
+<h2>Directory kconfig/</h2>
 
 <p>Menuconfig infrastructure copied from the Linux kernel.  See the
 Linux kernel's Documentation/kbuild/kconfig-language.txt</p>
