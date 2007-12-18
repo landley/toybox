@@ -275,7 +275,7 @@ config ONEIT
 
 config PATCH
 	bool "patch"
-	default n
+	default y
 	help
 	  usage: patch [-i file] [-p depth] [-Ru]
 
