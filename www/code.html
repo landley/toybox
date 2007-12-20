@@ -179,10 +179,23 @@ to the NEWTOY() name.  (See toys/toylist.h)</p>
 
 <h3>toys/toylist.h</h3>
 <p>The first half of this file prototypes all the structures to hold
-global variables for each command, and puts them in toy_union.</p>
+global variables for each command, and puts them in toy_union.  These
+prototypes are only included if the macro NEWTOY isn't defined (in which
+case NEWTOY is defined to a default value that produces function
+prototypes).</p>
 
-<p>The second half of this file lists all the commands (in alphabetical
-order), along with their command line arguments and install location.  This
+<p>The second half of this file lists all the commands in alphabetical
+order, along with their command line arguments and install location.
+Each command has an appropriate configuration guard so only the commands that
+are enabled wind up in the list.</p>
+
+<p>The first time this header is #included, it defines structures and
+produces function prototypes for the commands in the toys directory.</p>
+
+
+<p>The first time it's included, it defines structures and produces function
+prototypes.
+  This
 is used to initialize toy_list in main.c, and later in that file to initialize
 NEED_OPTIONS (to figure out whether the command like parsing logic is needed),
 and to put the help entries in the right order in toys/help.c.</p>
