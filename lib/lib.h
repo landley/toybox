@@ -60,6 +60,7 @@ void xputc(char c);
 void xflush(void);
 void xexec(char **argv);
 void xaccess(char *path, int flags);
+void xunlink(char *path);
 int xcreate(char *path, int flags, int mode);
 int xopen(char *path, int flags);
 void xclose(int fd);

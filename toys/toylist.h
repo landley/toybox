@@ -74,7 +74,7 @@ struct patch_data {
 	struct double_list *plines, *flines;
 	long oldline, oldlen, newline, newlen, linenum;
 	int context, state, filein, fileout, filepatch;
-	char *tempfile;
+	char *tempname, *oldname;
 };
 
 struct sleep_data {

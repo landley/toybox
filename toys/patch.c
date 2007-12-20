@@ -135,7 +135,7 @@ fail_hunk:
 		buf->prev->next = NULL;
 		llist_free(buf, do_line);
 	}
-	delete_tempfile(TT.filein, TT.fileout, &TT.tempfile);
+	delete_tempfile(TT.filein, TT.fileout, &TT.tempname);
 	TT.filein = -1;
 }
 
@@ -174,19 +174,38 @@ void patch_main(void)
 		apply_hunk();
 			
 		// Open a new file?
-		if (!strncmp("+++ ", patchline, 4)) {
-			int i;
-			char *s, *start;
-
-			// Finish old file.
-			if (TT.tempfile)
-				replace_tempfile(TT.filein, TT.fileout, &TT.tempfile);
+		if (!strncmp("--- ", patchline, 4)) {
+			char *s;
+			free(TT.oldname);
 
 			// Trim date from end of filename (if any).  We don't care.
 			for (s = patchline+4; *s && *s!='\t'; s++)
 				if (*s=='\\' && s[1]) s++;
-			*s = i = 0;
-			for (s = start = patchline+4; *s;) {
+
+			TT.oldname = xstrdup(patchline+4);
+		} else if (!strncmp("+++ ", patchline, 4)) {
+			int i = 0, del = 0;
+			char *s, *start;
+
+			// Finish old file.
+			if (TT.tempname)
+				replace_tempfile(TT.filein, TT.fileout, &TT.tempname);
+
+			// Trim date from end of filename (if any).  We don't care.
+			for (s = patchline+4; *s && *s!='\t'; s++)
+				if (*s=='\\' && s[1]) s++;
+			*s = 0;
+
+
+			// If new file is null (before -p trim), we're deleting oldname
+			start = patchline+4;
+			if (!strcmp(start, "/dev/null")) {
+				start = TT.oldname;
+				del++;
+			} else start = patchline+4;
+				
+			// handle -p path truncation.
+			for (s = start; *s;) {
 				if ((toys.optflags & FLAG_PATHLEN) && TT.prefix == i) break;
 				if (*(s++)=='/') {
 					start = s;
@@ -194,11 +213,18 @@ void patch_main(void)
 				}
 			}
 
+			if (del) xunlink(TT.oldname);
 			// If we've got a file to open, do so.
-			if (!(toys.optflags & FLAG_PATHLEN) || i <= TT.prefix) {
-				printf("patching %s\n", start);
-				TT.filein = xopen(start, O_RDWR);
-				TT.fileout = copy_tempfile(TT.filein, start, &TT.tempfile);
+			else if (!(toys.optflags & FLAG_PATHLEN) || i <= TT.prefix) {
+				// If the old file was null, we're creating a new one.
+				if (!strcmp(TT.oldname, "/dev/null")) {
+					printf("creating %s\n", start);
+					TT.filein = xcreate(start, O_CREAT|O_RDWR, 0666);
+				} else {
+					printf("patching %s\n", start);
+					TT.filein = xopen(start, O_RDWR);
+				}
+				TT.fileout = copy_tempfile(TT.filein, start, &TT.tempname);
 				TT.state = 1;
 				TT.context = 0;
 				TT.linenum = 0;
@@ -210,6 +236,7 @@ void patch_main(void)
 			TT.state = 2;
 			sscanf(patchline+3, "%ld,%ld %ld,%ld", &TT.oldline,
 				&TT.oldlen, &TT.newline, &TT.newlen);
+			// Don't free it.
 			continue;
 		}
 
@@ -219,6 +246,9 @@ void patch_main(void)
 
 	// Flush pending hunk and flush data
 	apply_hunk();
-	if (TT.tempfile) replace_tempfile(TT.filein, TT.fileout, &TT.tempfile);
-	close(TT.filepatch);
+	if (TT.tempname) replace_tempfile(TT.filein, TT.fileout, &TT.tempname);
+	if (CFG_TOYBOX_FREE) {
+		close(TT.filepatch);
+		free(TT.oldname);
+	}
 }
