@@ -12,29 +12,29 @@
 
 #include "toys.h"
 
+#define THREADS 1
+
 // Constants for huffman coding
-#define MAX_GROUPS			6
-#define GROUP_SIZE   		50		/* 64 would have been more efficient */
-#define MAX_HUFCODE_BITS 	20		/* Longest huffman code allowed */
-#define MAX_SYMBOLS 		258		/* 256 literals + RUNA + RUNB */
-#define SYMBOL_RUNA			0
-#define SYMBOL_RUNB			1
+#define MAX_GROUPS               6
+#define GROUP_SIZE               50     /* 64 would have been more efficient */
+#define MAX_HUFCODE_BITS         20     /* Longest huffman code allowed */
+#define MAX_SYMBOLS              258    /* 256 literals + RUNA + RUNB */
+#define SYMBOL_RUNA              0
+#define SYMBOL_RUNB              1
 
 // Other housekeeping constants
-#define IOBUF_SIZE			4096
+#define IOBUF_SIZE               4096
 
 // Status return values
-#define RETVAL_OK						0
-#define RETVAL_LAST_BLOCK				(-1)
-#define RETVAL_NOT_BZIP_DATA			(-2)
-#define RETVAL_DATA_ERROR				(-3)
-#define RETVAL_OBSOLETE_INPUT			(-4)
+#define RETVAL_LAST_BLOCK        (-100)
+#define RETVAL_NOT_BZIP_DATA     (-1)
+#define RETVAL_DATA_ERROR        (-2)
+#define RETVAL_OBSOLETE_INPUT    (-3)
 
 char *bunzip_errors[]={
 	NULL,
 	"Not bzip data",
 	"Data error",
-	"Out of memory",
 	"Obsolete (pre 0.9.5) bzip format not supported."
 };
 
@@ -44,9 +44,20 @@ struct group_data {
 	char minLen, maxLen;
 };
 
+// Data for burrows wheeler transform
+
+struct bwdata {
+	unsigned int origPtr;
+	int byteCount[256];
+	// State saved when interrupting output
+	int writePos, writeRun, writeCount, writeCurrent;
+	unsigned int dataCRC, headerCRC;
+	unsigned int *dbuf;
+};
+
 // Structure holding all the housekeeping data, including IO buffers and
 // memory that persists between calls to bunzip
-typedef struct {
+struct bunzip_data {
 
 	// Input stream, input buffer, input bit buffer
 	int in_fd, inbufCount, inbufPos;
@@ -57,23 +68,25 @@ typedef struct {
 	char outbuf[IOBUF_SIZE];
 	int outbufPos;
 
-	// The CRC values stored in the block header and calculated from the data
-	unsigned int crc32Table[256], headerCRC, dataCRC, totalCRC;
+	unsigned int totalCRC;
 
-	// Intermediate buffer and its size (in bytes)
-	unsigned int *dbuf, dbufSize;
-
-	// State for interrupting output loop
-	int writePos, writeRun, writeCount, writeCurrent;
-
-	// These things are a bit too big to go on the stack
+	// First pass decompression data (Huffman and MTF decoding)
 	char selectors[32768];                  // nSelectors=15 bits
 	struct group_data groups[MAX_GROUPS];   // huffman coding tables
-} bunzip_data;
+	int symTotal, groupCount, nSelectors;
+	unsigned char symToByte[256], mtfSymbol[256];
+
+	// The CRC values stored in the block header and calculated from the data
+	unsigned int crc32Table[256];
+
+	// Second pass decompression data (burrows-wheeler transform)
+	unsigned int dbufSize;
+	struct bwdata bwdata[THREADS];
+};
 
 // Return the next nnn bits of input.  All reads from the compressed input
 // are done through this function.  All reads are big endian.
-static unsigned int get_bits(bunzip_data *bd, char bits_wanted)
+static unsigned int get_bits(struct bunzip_data *bd, char bits_wanted)
 {
 	unsigned int bits = 0;
 
@@ -108,104 +121,117 @@ static unsigned int get_bits(bunzip_data *bd, char bits_wanted)
 	return bits;
 }
 
-// Decompress a block of text to intermediate buffer
-int read_bunzip_data(bunzip_data *bd)
+/* Read block header at start of a new compressed data block.  Consists of:
+ *
+ * 48 bits : Block signature, either pi (data block) or e (EOF block).
+ * 32 bits : bw->headerCRC
+ * 1  bit  : obsolete feature flag.
+ * 24 bits : origPtr (Burrows-wheeler unwind index, only 20 bits ever used)
+ * 16 bits : Mapping table index.
+ *[16 bits]: symToByte[symTotal] (Mapping table.  For each bit set in mapping
+ *           table index above, read another 16 bits of mapping table data.
+ *           If correspondig bit is unset, all bits in that mapping table
+ *           section are 0.)
+ *  3 bits : groupCount (how many huffman tables used to encode, anywhere
+ *           from 2 to MAX_GROUPS)
+ * variable: hufGroup[groupCount] (MTF encoded huffman table data.)
+ */
+
+static int read_block_header(struct bunzip_data *bd, struct bwdata *bw)
 {
-	struct group_data *hufGroup GCC_BUG;
-	unsigned origPtr;
-	int dbufCount, nextSym, dbufSize, groupCount, *base GCC_BUG, *limit GCC_BUG,
-		selector, i, j, k, t, runPos, symCount, symTotal, nSelectors,
-		byteCount[256];
-	char uc, mtfSymbol[256], symToByte[256], *selectors;
-	unsigned int *dbuf;
+	struct group_data *hufGroup;
+	int hh, ii, jj, kk, symCount, *base, *limit;
+	unsigned char uc;
 
 	// Read in header signature and CRC (which is stored big endian)
-	i = get_bits(bd, 24);
-	j = get_bits(bd, 24);
-	bd->headerCRC = get_bits(bd,32);
+	ii = get_bits(bd, 24);
+	jj = get_bits(bd, 24);
+	bw->headerCRC = get_bits(bd,32);
 
-	// Is this the EOF block with CRC for whole file?
-	if (i==0x177245 && j==0x385090) return RETVAL_LAST_BLOCK;
+	// Is this the EOF block with CRC for whole file?  (Constant is "e")
+	if (ii==0x177245 && jj==0x385090) return RETVAL_LAST_BLOCK;
 
-	// Is this a valid data block?
-	if (i!=0x314159 || j!=0x265359) return RETVAL_NOT_BZIP_DATA;
-
-	dbuf = bd->dbuf;
-	dbufSize = bd->dbufSize;
-	selectors = bd->selectors;
+	// Is this a valid data block?  (Constant is "pi".)
+	if (ii!=0x314159 || jj!=0x265359) return RETVAL_NOT_BZIP_DATA;
 
 	// We can add support for blockRandomised if anybody complains.
 	if (get_bits(bd,1)) return RETVAL_OBSOLETE_INPUT;
-	if ((origPtr = get_bits(bd,24)) > dbufSize) return RETVAL_DATA_ERROR;
+	if ((bw->origPtr = get_bits(bd,24)) > bd->dbufSize)
+		return RETVAL_DATA_ERROR;
 
 	// mapping table: if some byte values are never used (encoding things
 	// like ascii text), the compression code removes the gaps to have fewer
 	// symbols to deal with, and writes a sparse bitfield indicating which
 	// values were present.  We make a translation table to convert the symbols
 	// back to the corresponding bytes.
-	t = get_bits(bd, 16);
-	symTotal = 0;
-	for (i=0; i<16; i++) {
-		if (t&(1<<(15-i))) {
-			k = get_bits(bd,16);
-			for (j=0;j<16;j++)
-				if (k&(1<<(15-j))) symToByte[symTotal++] = (16*i)+j;
+	hh = get_bits(bd, 16);
+	bd->symTotal = 0;
+	for (ii=0; ii<16; ii++) {
+		if (hh & (1 << (15 - ii))) {
+			kk = get_bits(bd, 16);
+			for (jj=0; jj<16; jj++)
+				if (kk & (1 << (15 - jj)))
+					bd->symToByte[bd->symTotal++] = (16 * ii) + jj;
 		}
 	}
 
 	// How many different huffman coding groups does this block use?
-	groupCount = get_bits(bd,3);
-	if (groupCount<2 || groupCount>MAX_GROUPS) return RETVAL_DATA_ERROR;
+	bd->groupCount = get_bits(bd,3);
+	if (bd->groupCount<2 || bd->groupCount>MAX_GROUPS) return RETVAL_DATA_ERROR;
 
-	// nSelectors: Every GROUP_SIZE many symbols we select a new huffman coding
-	// group.  Read in the group selector list, which is stored as MTF encoded
+	// nSelectors: Every GROUP_SIZE many symbols we switch huffman coding
+	// tables.  Each group has a selector, which is an index into the huffman
+	// coding table arrays.
+	//
+	// Read in the group selector array, which is stored as MTF encoded
 	// bit runs.  (MTF = Move To Front.  Every time a symbol occurs it's moved
 	// to the front of the table, so it has a shorter encoding next time.)
-	if (!(nSelectors = get_bits(bd, 15))) return RETVAL_DATA_ERROR;
-	for (i=0; i<groupCount; i++) mtfSymbol[i] = i;
-	for (i=0; i<nSelectors; i++) {
+	if (!(bd->nSelectors = get_bits(bd, 15))) return RETVAL_DATA_ERROR;
+	for (ii=0; ii<bd->groupCount; ii++) bd->mtfSymbol[ii] = ii;
+	for (ii=0; ii<bd->nSelectors; ii++) {
 
 		// Get next value
-		for(j=0;get_bits(bd,1);j++)
-			if (j>=groupCount) return RETVAL_DATA_ERROR;
+		for(jj=0;get_bits(bd,1);jj++)
+			if (jj>=bd->groupCount) return RETVAL_DATA_ERROR;
 
 		// Decode MTF to get the next selector, and move it to the front.
-		uc = mtfSymbol[j];
-		memmove(mtfSymbol+1, mtfSymbol, j);
-		mtfSymbol[0] = selectors[i] = uc;
+		uc = bd->mtfSymbol[jj];
+		memmove(bd->mtfSymbol+1, bd->mtfSymbol, jj);
+		bd->mtfSymbol[0] = bd->selectors[ii] = uc;
 	}
+
 	// Read the huffman coding tables for each group, which code for symTotal
 	// literal symbols, plus two run symbols (RUNA, RUNB)
-	symCount = symTotal+2;
-	for (j=0; j<groupCount; j++) {
+	symCount = bd->symTotal+2;
+	for (jj=0; jj<bd->groupCount; jj++) {
 		unsigned char length[MAX_SYMBOLS], temp[MAX_HUFCODE_BITS+1];
 		int	minLen,	maxLen, pp;
 
 		// Read lengths
-		t = get_bits(bd, 5);
-		for (i = 0; i < symCount; i++) {
+		hh = get_bits(bd, 5);
+		for (ii = 0; ii < symCount; ii++) {
 			for(;;) {
-				// !t || t > MAX_HUFCODE_BITS in one test.
-				if (MAX_HUFCODE_BITS-1 < (unsigned)t-1)
+				// !hh || hh > MAX_HUFCODE_BITS in one test.
+				if (MAX_HUFCODE_BITS-1 < (unsigned)hh-1)
 					return RETVAL_DATA_ERROR;
 				// Grab 2 bits instead of 1 (slightly smaller/faster).  Stop if
 				// first bit is 0, otherwise second bit says whether to
 				// increment or decrement.
-				k = get_bits(bd, 2);
-				if (k & 2) t += 1 - ((k&1)<<1);
+				kk = get_bits(bd, 2);
+				if (kk & 2) hh += 1 - ((kk&1)<<1);
 				else {
 					bd->inbufBitCount++;
 					break;
 				}
 			}
-			length[i] = t;
+			length[ii] = hh;
 		}
 
 		// Find largest and smallest lengths in this group
 		minLen = maxLen = length[0];
-		for (i = 1; i < symCount; i++) {
-			if(length[i] > maxLen) maxLen = length[i];
-			else if(length[i] < minLen) minLen = length[i];
+		for (ii = 1; ii < symCount; ii++) {
+			if(length[ii] > maxLen) maxLen = length[ii];
+			else if(length[ii] < minLen) minLen = length[ii];
 		}
 
 		/* Calculate permute[], base[], and limit[] tables from length[].
@@ -223,7 +249,7 @@ int read_bunzip_data(bunzip_data *bd)
 		 * you've read over 20 bits (error).  Then the decoded symbol
 		 * equals permute[hufcode_value - base[hufcode_bitcount]].
 		 */
-		hufGroup = bd->groups+j;
+		hufGroup = bd->groups+jj;
 		hufGroup->minLen = minLen;
 		hufGroup->maxLen = maxLen;
 
@@ -233,77 +259,104 @@ int read_bunzip_data(bunzip_data *bd)
 		base = hufGroup->base-1;
 		limit = hufGroup->limit-1;
 
-		// Calculate permute[], and zero temp[] and limit[].
+		// zero temp[] and limit[], and put calculate permute[]
 		pp = 0;
-		for (i = minLen; i <= maxLen; i++)
-			temp[i] = limit[i] = 0;
-			for (t = 0; t < symCount; t++)
-				if (length[t] == i) hufGroup->permute[pp++] = t;
+		for (ii = minLen; ii <= maxLen; ii++) {
+			temp[ii] = limit[ii] = 0;
+			for (hh = 0; hh < symCount; hh++)
+				if (length[hh] == ii)
+					hufGroup->permute[pp++] = hh;
+		}
 
 		// Count symbols coded for at each bit length
-		for (i = 0; i < symCount; i++) temp[length[i]]++;
+		for (ii = 0; ii < symCount; ii++) temp[length[ii]]++;
 
 		/* Calculate limit[] (the largest symbol-coding value at each bit
 		 * length, which is (previous limit<<1)+symbols at this level), and
 		 * base[] (number of symbols to ignore at each bit length, which is
 		 * limit minus the cumulative count of symbols coded for already). */
-		pp = t = 0;
-		for (i = minLen; i < maxLen; i++) {
-			pp += temp[i];
-			limit[i] = pp-1;
+		pp = hh = 0;
+		for (ii = minLen; ii < maxLen; ii++) {
+			pp += temp[ii];
+			limit[ii] = pp-1;
 			pp <<= 1;
-			base[i+1] = pp-(t+=temp[i]);
+			base[ii+1] = pp-(hh+=temp[ii]);
 		}
 		limit[maxLen] = pp+temp[maxLen]-1;
 		limit[maxLen+1] = INT_MAX;
 		base[minLen] = 0;
 	}
 
+	return 0;
+}
+
+/* First pass, read block's symbols into dbuf[dbufCount].
+ *
+ * This undoes three types of compression: huffman coding, run length encoding,
+ * and move to front encoding.  We have to undo all those to know when we've
+ * read enough input.
+ */
+
+static int read_huffman_data(struct bunzip_data *bd, struct bwdata *bw)
+{
+	struct group_data *hufGroup;
+	int hh, ii, jj, kk, runPos, dbufCount, symCount, selector, nextSym,
+		*byteCount, *base, *limit;
+	unsigned int *dbuf = bw->dbuf;
+	unsigned char uc;
+
 	// We've finished reading and digesting the block header.  Now read this
 	// block's huffman coded symbols from the file and undo the huffman coding
 	// and run length encoding, saving the result into dbuf[dbufCount++] = uc
 
 	// Initialize symbol occurrence counters and symbol mtf table
-	for(i=0; i<256; i++) {
-		byteCount[i] = 0;
-		mtfSymbol[i] = i;
+	byteCount = bw->byteCount;
+	for(ii=0; ii<256; ii++) {
+		byteCount[ii] = 0;
+		bd->mtfSymbol[ii] = ii;
 	}
 
 	// Loop through compressed symbols.  This is the first "tight inner loop"
 	// that needs to be micro-optimized for speed.  (This one fills out dbuf[]
 	// linearly, staying in cache more, so isn't as limited by DRAM access.)
 	runPos = dbufCount = symCount = selector = 0;
+	// Some unnecessary initializations to shut gcc up.
+	base = limit = 0;
+	hufGroup = 0;
+	hh = 0;
+
 	for (;;) {
 
-		// Determine which huffman coding group to use.
+		// Have we reached the end of this huffman group?
 		if (!(symCount--)) {
+			// Determine which huffman coding group to use.
 			symCount = GROUP_SIZE-1;
-			if (selector >= nSelectors) return RETVAL_DATA_ERROR;
-			hufGroup = bd->groups+selectors[selector++];
+			if (selector >= bd->nSelectors) return RETVAL_DATA_ERROR;
+			hufGroup = bd->groups + bd->selectors[selector++];
 			base = hufGroup->base-1;
 			limit = hufGroup->limit-1;
 		}
 
-		// Read next huffman-coded symbol
-		i = hufGroup->minLen;
-		j = get_bits(bd, i);
-		while (j > limit[i]) {
-			// if (i > hufGroup->maxLen) return RETVAL_DATA_ERROR;
-			i++;
+		// Read next huffman-coded symbol (into jj).
+		ii = hufGroup->minLen;
+		jj = get_bits(bd, ii);
+		while (jj > limit[ii]) {
+			// if (ii > hufGroup->maxLen) return RETVAL_DATA_ERROR;
+			ii++;
 
 			// Unroll get_bits() to avoid a function call when the data's in
 			// the buffer already.
-			k = bd->inbufBitCount
+			kk = bd->inbufBitCount
 			   	? (bd->inbufBits >> --(bd->inbufBitCount)) & 1
 				: get_bits(bd, 1);
-			j = (j << 1) | k;
+			jj = (jj << 1) | kk;
 		}
+		// Huffman decode jj into nextSym (with bounds checking)
+		jj-=base[ii];
 
-		// Huffman decode nextSym (with bounds checking)
-		j-=base[i];
-		if (i > hufGroup->maxLen || (unsigned)j >= MAX_SYMBOLS)
+		if (ii > hufGroup->maxLen || (unsigned)jj >= MAX_SYMBOLS)
 			return RETVAL_DATA_ERROR;
-		nextSym = hufGroup->permute[j];
+		nextSym = hufGroup->permute[jj];
 
 		// If this is a repeated run, loop collecting data
 		if ((unsigned)nextSym <= SYMBOL_RUNB) {
@@ -311,7 +364,7 @@ int read_bunzip_data(bunzip_data *bd)
 			// If this is the start of a new run, zero out counter
 			if(!runPos) {
 				runPos = 1;
-				t = 0;
+				hh = 0;
 			}
 
 			/* Neat trick that saves 1 symbol: instead of or-ing 0 or 1 at
@@ -321,7 +374,7 @@ int read_bunzip_data(bunzip_data *bd)
 			   the basic or 0/1 method (except all bits 0, which would use no
 			   symbols, but a run of length 0 doesn't mean anything in this
 			   context).  Thus space is saved. */
-			t += (runPos << nextSym); // +runPos if RUNA; +2*runPos if RUNB
+			hh += (runPos << nextSym); // +runPos if RUNA; +2*runPos if RUNB
 			runPos <<= 1;
 			continue;
 		}
@@ -332,15 +385,15 @@ int read_bunzip_data(bunzip_data *bd)
 		   literal used is the one at the head of the mtfSymbol array.) */
 		if (runPos) {
 			runPos = 0;
-			if (dbufCount+t >= dbufSize) return RETVAL_DATA_ERROR;
+			if (dbufCount+hh >= bd->dbufSize) return RETVAL_DATA_ERROR;
 
-			uc = symToByte[mtfSymbol[0]];
-			byteCount[uc] += t;
-			while (t--) dbuf[dbufCount++] = uc;
+			uc = bd->symToByte[bd->mtfSymbol[0]];
+			byteCount[uc] += hh;
+			while (hh--) dbuf[dbufCount++] = uc;
 		}
 
 		// Is this the terminating symbol?
-		if (nextSym>symTotal) break;
+		if (nextSym>bd->symTotal) break;
 
 		/* At this point, the symbol we just decoded indicates a new literal
 		   character.  Subtract one to get the position in the MTF array
@@ -348,70 +401,28 @@ int read_bunzip_data(bunzip_data *bd)
 		   result can't be -1 or 0, because 0 and 1 are RUNA and RUNB.
 		   Another instance of the first symbol in the mtf array, position 0,
 		   would have been handled as part of a run.) */
-		if (dbufCount>=dbufSize) return RETVAL_DATA_ERROR;
-		i = nextSym - 1;
-		uc = mtfSymbol[i];
+		if (dbufCount>=bd->dbufSize) return RETVAL_DATA_ERROR;
+		ii = nextSym - 1;
+		uc = bd->mtfSymbol[ii];
 		// On my laptop, unrolling this memmove() into a loop shaves 3.5% off
 		// the total running time.
-		while(i--) mtfSymbol[i+1] = mtfSymbol[i];
-		mtfSymbol[0] = uc;
-		uc = symToByte[uc];
+		while(ii--) bd->mtfSymbol[ii+1] = bd->mtfSymbol[ii];
+		bd->mtfSymbol[0] = uc;
+		uc = bd->symToByte[uc];
 
 		// We have our literal byte.  Save it into dbuf.
 		byteCount[uc]++;
 		dbuf[dbufCount++] = (unsigned int)uc;
 	}
 
-	/* At this point, we've finished reading all of this block's huffman-coded
-	 * symbols (and repeated runs) from the input stream, and have written
-	 * dbufCount many of them into dbuf[], the intermediate buffer.
-	 *
-	 * Now undo the Burrows-Wheeler transform on dbuf, described here:
-	 * http://dogma.net/markn/articles/bwt/bwt.htm
-	 * http://marknelson.us/1996/09/01/bwt/
-	 */
-
 	// Now we know what dbufCount is, do a better sanity check on origPtr.
-	if (origPtr>=dbufCount) return RETVAL_DATA_ERROR;
+	if (bw->origPtr >= (bw->writeCount = dbufCount)) return RETVAL_DATA_ERROR;
 
-	// Turn byteCount into cumulative occurrence counts of 0 to n-1.
-	j = 0;
-	for (i=0;i<256;i++) {
-		k = j+byteCount[i];
-		byteCount[i] = j;
-		j = k;
-	}
-
-	// Figure out what order dbuf would be in if we sorted it.
-	for (i=0; i<dbufCount; i++) {
-		uc = (unsigned char)(dbuf[i] & 0xff);
-		dbuf[byteCount[uc]] |= (i << 8);
-		byteCount[uc]++;
-	}
-
-	// blockRandomised support would go here.
-
-	// Using i as position, j as previous character, t as current character,
-	// and uc as run count.
-	bd->dataCRC = 0xffffffffL;
-
-	/* Decode first byte by hand to initialize "previous" byte.  Note that it
-	   doesn't get output, and if the first three characters are identical
-	   it doesn't qualify as a run (hence uc=255, which will either wrap
-	   to 1 or get reset). */
-	if (dbufCount) {
-		bd->writePos = dbuf[origPtr];
-	    bd->writeCurrent = (unsigned char)(bd->writePos&0xff);
-		bd->writePos >>= 8;
-		bd->writeRun = -1;
-	}
-	bd->writeCount = dbufCount;
-
-	return RETVAL_OK;
+	return 0;
 }
 
 // Flush output buffer to disk
-void flush_bunzip_outbuf(bunzip_data *bd, int out_fd)
+void flush_bunzip_outbuf(struct bunzip_data *bd, int out_fd)
 {
 	if (bd->outbufPos) {
 		if (write(out_fd, bd->outbuf, bd->outbufPos) != bd->outbufPos)
@@ -420,35 +431,95 @@ void flush_bunzip_outbuf(bunzip_data *bd, int out_fd)
 	}
 }
 
+void burrows_wheeler_prep(struct bunzip_data *bd, struct bwdata *bw)
+{
+	int ii, jj;
+	unsigned int *dbuf = bw->dbuf;
+	int *byteCount = bw->byteCount;
+
+	// Technically this part is preparation for the burrows-wheeler
+	// transform, but it's quick and convenient to do here.
+
+	// Turn byteCount into cumulative occurrence counts of 0 to n-1.
+	jj = 0;
+	for (ii=0; ii<256; ii++) {
+		int kk = jj + byteCount[ii];
+		byteCount[ii] = jj;
+		jj = kk;
+	}
+
+	// Use occurrence counts to quickly figure out what order dbuf would be in
+	// if we sorted it.
+	for (ii=0; ii < bw->writeCount; ii++) {
+		unsigned char uc = dbuf[ii];
+		dbuf[byteCount[uc]] |= (ii << 8);
+		byteCount[uc]++;
+	}
+
+	// blockRandomised support would go here.
+
+	// Using ii as position, jj as previous character, hh as current character,
+	// and uc as run count.
+	bw->dataCRC = 0xffffffffL;
+
+	/* Decode first byte by hand to initialize "previous" byte.  Note that it
+	   doesn't get output, and if the first three characters are identical
+	   it doesn't qualify as a run (hence uc=255, which will either wrap
+	   to 1 or get reset). */
+	if (bw->writeCount) {
+		bw->writePos = dbuf[bw->origPtr];
+	    bw->writeCurrent = (unsigned char)bw->writePos;
+		bw->writePos >>= 8;
+		bw->writeRun = -1;
+	}
+}
+
+// Decompress a block of text to intermediate buffer
+int read_bunzip_data(struct bunzip_data *bd)
+{
+	int rc = read_block_header(bd, bd->bwdata);
+	if (!rc) rc=read_huffman_data(bd, bd->bwdata);
+
+	// First thing that can be done by a background thread.
+	burrows_wheeler_prep(bd, bd->bwdata);
+
+	return rc;
+}
+
 // Undo burrows-wheeler transform on intermediate buffer to produce output.
 // If !len, write up to len bytes of data to buf.  Otherwise write to out_fd.
-// Returns len ? bytes written : RETVAL_OK.  Notice all errors negative #'s.
-int write_bunzip_data(bunzip_data *bd, int out_fd, char *outbuf, int len)
+// Returns len ? bytes written : 0.  Notice all errors are negative #'s.
+//
+// Burrows-wheeler transform is described at:
+// http://dogma.net/markn/articles/bwt/bwt.htm
+// http://marknelson.us/1996/09/01/bwt/
+
+int write_bunzip_data(struct bunzip_data *bd, struct bwdata *bw, int out_fd, char *outbuf, int len)
 {
-	unsigned int *dbuf = bd->dbuf;
+	unsigned int *dbuf = bw->dbuf;
 	int count, pos, current, run, copies, outbyte, previous, gotcount = 0;
 
 	for (;;) {
 
 		// If last read was short due to end of file, return last block now
-		if (bd->writeCount < 0) return bd->writeCount;
+		if (bw->writeCount < 0) return bw->writeCount;
 
 		// If we need to refill dbuf, do it.
-		if (!bd->writeCount) {
+		if (!bw->writeCount) {
 			int i = read_bunzip_data(bd);
 			if (i) {
 				if (i == RETVAL_LAST_BLOCK) {
-					bd->writeCount = i;
+					bw->writeCount = i;
 					return gotcount;
 				} else return i;
 			}
 		}
 
-		// Loop generating output
-		count = bd->writeCount;
-		pos = bd->writePos;
-		current = bd->writeCurrent;
-		run = bd->writeRun;
+		// loop generating output
+		count = bw->writeCount;
+		pos = bw->writePos;
+		current = bw->writeCurrent;
+		run = bw->writeRun;
 		while (count) {
 
 			// If somebody (like tar) wants a certain number of bytes of
@@ -477,25 +548,25 @@ int write_bunzip_data(bunzip_data *bd, int out_fd, char *outbuf, int len)
 			while (copies--) {
 				if (bd->outbufPos == IOBUF_SIZE) flush_bunzip_outbuf(bd,out_fd);
 				bd->outbuf[bd->outbufPos++] = outbyte;
-				bd->dataCRC = (bd->dataCRC << 8)
-								^ bd->crc32Table[(bd->dataCRC >> 24) ^ outbyte];
+				bw->dataCRC = (bw->dataCRC << 8)
+								^ bd->crc32Table[(bw->dataCRC >> 24) ^ outbyte];
 			}
 			if (current!=previous) run=0;
 		}
 
-		// Decompression of this block completed successfully
-		bd->dataCRC = ~(bd->dataCRC);
+		// decompression of this block completed successfully
+		bw->dataCRC = ~(bw->dataCRC);
 		bd->totalCRC = ((bd->totalCRC << 1) | (bd->totalCRC >> 31))
-			^ bd->dataCRC;
+			^ bw->dataCRC;
 
-		// If this block had a CRC error, force file level CRC error.
-		if (bd->dataCRC != bd->headerCRC) {
-			bd->totalCRC = bd->headerCRC+1;
+		// if this block had a crc error, force file level crc error.
+		if (bw->dataCRC != bw->headerCRC) {
+			bd->totalCRC = bw->headerCRC+1;
 
 			return RETVAL_LAST_BLOCK;
 		}
 dataus_interruptus:
-		bd->writeCount = count;
+		bw->writeCount = count;
 		if (len) {
 			gotcount += bd->outbufPos;
 			memcpy(outbuf, bd->outbuf, len);
@@ -505,9 +576,9 @@ dataus_interruptus:
 				bd->outbufPos -= len;
 				if (bd->outbufPos)
 					memmove(bd->outbuf, bd->outbuf+len, bd->outbufPos);
-				bd->writePos = pos;
-				bd->writeCurrent = current;
-				bd->writeRun = run;
+				bw->writePos = pos;
+				bw->writeCurrent = current;
+				bw->writeRun = run;
 
 				return gotcount;
 			}
@@ -517,13 +588,13 @@ dataus_interruptus:
 
 // Allocate the structure, read file header.  If !len, src_fd contains
 // filehandle to read from.  Else inbuf contains data.
-int start_bunzip(bunzip_data **bdp, int src_fd, char *inbuf, int len)
+int start_bunzip(struct bunzip_data **bdp, int src_fd, char *inbuf, int len)
 {
-	bunzip_data *bd;
+	struct bunzip_data *bd;
 	unsigned int i, j, c;
 
 	// Figure out how much data to allocate.
-	i = sizeof(bunzip_data);
+	i = sizeof(struct bunzip_data);
 	if (!len) i += IOBUF_SIZE;
 
 	// Allocate bunzip_data.  Most fields initialize to zero.
@@ -553,25 +624,27 @@ int start_bunzip(bunzip_data **bdp, int src_fd, char *inbuf, int len)
 	// uncompressed data.  Allocate intermediate buffer for block.
 	i = get_bits(bd, 8);
 	if (i<'1' || i>'9') return RETVAL_NOT_BZIP_DATA;
-	bd->dbufSize = 100000*(i-'0');
-	bd->dbuf = xmalloc(bd->dbufSize * sizeof(int));
+	bd->dbufSize = 100000*(i-'0')*THREADS;
+	for (i=0; i<THREADS; i++)
+		bd->bwdata[i].dbuf = xmalloc(bd->dbufSize * sizeof(int));
 
-	return RETVAL_OK;
+	return 0;
 }
 
 // Example usage: decompress src_fd to dst_fd.  (Stops at end of bzip data,
 // not end of file.)
 void bunzipStream(int src_fd, int dst_fd)
 {
-	bunzip_data *bd;
-	int i;
+	struct bunzip_data *bd;
+	int i, j;
 
 	if (!(i = start_bunzip(&bd,src_fd,0,0))) {
-		i = write_bunzip_data(bd,dst_fd,0,0);
-		if (i==RETVAL_LAST_BLOCK && bd->headerCRC==bd->totalCRC) i = RETVAL_OK;
+		i = write_bunzip_data(bd,bd->bwdata,dst_fd,0,0);
+		if (i==RETVAL_LAST_BLOCK && bd->bwdata[0].headerCRC==bd->totalCRC)
+			i = 0;
 	}
 	flush_bunzip_outbuf(bd,dst_fd);
-	free(bd->dbuf);
+	for (j=0; j<THREADS; j++) free(bd->bwdata[j].dbuf);
 	free(bd);
 	if (i) error_exit(bunzip_errors[-i]);
 }
