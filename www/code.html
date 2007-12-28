@@ -1,5 +1,20 @@
 <!--#include file="header.html" -->
 
+<p><h1>Code style</h1></p>
+
+<p>Toybox source is formatted to be read with 4-space tab stops.  Each file
+starts with a special comment telling vi to set the tab stop to 4.  Note that
+one of the bugs in Ubuntu 7.10 broke vi's ability to parse these comments; you
+must either rebuild vim from source, or go ":ts=4" yourself each time you load
+the file.</p>
+
+<p>Gotos are allowed for error handling, and for breaking out of
+nested loops.  In general, a goto should only jump forward (not back), and
+should either jump to the end of an outer loop, or to error handling code
+at the end of the function.  Goto labels are never indented: they override the
+block structure of the file.  Putting them at the left edge makes them easy
+to spot as overrides to the normal flow of control, which they are.</p>
+
 <p><h1>Infrastructure:</h1></p>
 
 <p>The toybox source code is in three directories.  The top level directory
