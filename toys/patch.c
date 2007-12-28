@@ -37,7 +37,8 @@ static void do_line(void *data)
 	struct double_list *dlist = (struct double_list *)data;
 
 	if (TT.state && *dlist->data != TT.state)
-		fdprintf(TT.fileout, "%s\n", dlist->data+(TT.state>1 ? 1 : 0));
+		fdprintf(TT.state == 2 ? 2: TT.fileout,
+			"%s\n", dlist->data+(TT.state>2 ? 1 : 0));
 	free(dlist->data);
 	free(dlist);
 }
@@ -79,19 +80,22 @@ static void apply_hunk(void)
 		} else i = 0;
 	}
 	if (i < TT.context) goto fail_hunk;
-	llist_free(temp->next, do_line);
-	temp->next = NULL;
+	if (temp) {
+		llist_free(temp->next, do_line);
+		temp->next = NULL;
+	}
 
-	// Search for a place to apply this hunk
+	// Search for a place to apply this hunk.  Match all context lines and
+	// lines to be removed.
 	plist = TT.plines;
 	buf = NULL;
 	i = 0;
-	for (;;) {
+	if (TT.context) for (;;) {
 		char *data = get_line(TT.filein);
 		TT.linenum++;
 
 		// If the file ended before we found a home for this hunk, fail.
-		if (!data) break;
+		if (!data) goto fail_hunk;
 
 		dlist_add(&buf, data);
 		if (!backwards && *plist->data == "+-"[reverse]) {
@@ -110,25 +114,28 @@ static void apply_hunk(void)
 			plist = TT.plines;
 		} else {
 			plist = plist->next;
-			if (!plist) {
-				// Got it.  Emit changed data.
-				TT.state = "-+"[reverse];
-				llist_free(TT.plines, do_line);
-				TT.plines = NULL;
-				buf->prev->next = NULL;
-				TT.state = 0;
-				llist_free(buf, do_line);
-				return;
-			}
+			if (!plist) break;
 		}
 	}
+
+	// Got it.  Emit changed data.
+	TT.state = "-+"[reverse];
+	llist_free(TT.plines, do_line);
+	TT.plines = NULL;
+	TT.state = 0;
+	if (buf) {
+		buf->prev->next = NULL;
+		llist_free(buf, do_line);
+	}
+	return;
+
 fail_hunk:
 	printf("Hunk FAILED.\n");
 
 	// If we got to this point, we've seeked to the end.  Discard changes to
 	// this file and advance to next file.
 
-	TT.state = 0;
+	TT.state = 2;
 	llist_free(TT.plines, do_line);
 	TT.plines = 0;
 	if (buf) {
@@ -137,6 +144,7 @@ fail_hunk:
 	}
 	delete_tempfile(TT.filein, TT.fileout, &TT.tempname);
 	TT.filein = -1;
+	TT.state = 0;
 }
 
 // state 0: Not in a hunk, look for +++.
@@ -181,6 +189,7 @@ void patch_main(void)
 			// Trim date from end of filename (if any).  We don't care.
 			for (s = patchline+4; *s && *s!='\t'; s++)
 				if (*s=='\\' && s[1]) s++;
+			*s = 0;
 
 			TT.oldname = xstrdup(patchline+4);
 		} else if (!strncmp("+++ ", patchline, 4)) {
@@ -219,6 +228,12 @@ void patch_main(void)
 				// If the old file was null, we're creating a new one.
 				if (!strcmp(TT.oldname, "/dev/null")) {
 					printf("creating %s\n", start);
+					s = strrchr(start, '/');
+					if (s) {
+						*s = 0;
+						xmkpath(start, -1);
+						*s = '/';
+					}
 					TT.filein = xcreate(start, O_CREAT|O_RDWR, 0666);
 				} else {
 					printf("patching %s\n", start);

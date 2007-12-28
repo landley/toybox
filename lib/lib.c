@@ -322,6 +322,33 @@ char *xabspath(char *path)
 	return path;
 }
 
+// Ensure entire path exists.
+// If mode != -1 set permissions on newly created dirs.
+// Requires that path string be writable (for temporary null terminators).
+void xmkpath(char *path, int mode)
+{
+	char *p, old;
+	mode_t mask;
+	int rc;
+	struct stat st;
+
+	for (p = path; ; p++) {
+		if (!*p || *p == '/') {
+			old = *p;
+			*p = rc = 0;
+			if (stat(path, &st) || !S_ISDIR(st.st_mode)) {
+				if (mode != -1) {
+					mask=umask(0);
+					rc = mkdir(path, mode);
+					umask(mask);
+				} else rc = mkdir(path, 0777);
+			}
+			*p = old;
+			if(rc) perror_exit("mkpath '%s'",path);
+		}
+		if (!*p) break;
+	}
+}
 // Find all file in a colon-separated path with access type "type" (generally
 // X_OK or R_OK).  Returns a list of absolute paths to each file found, in
 // order.
