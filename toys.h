@@ -31,8 +31,11 @@
 #include <sys/statvfs.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <time.h>
 #include <unistd.h>
+#include <utime.h>
+
+#define _XOPEN_SOURCE 600
+#include <time.h>
 
 #include "lib/lib.h"
 #include "toys/e2fs.h"

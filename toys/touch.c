@@ -7,20 +7,14 @@
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/touch.html
  */
 
-#define _XOPEN_SOURCE 600
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <utime.h>
-#include <time.h>
 #include "toys.h"
 
-#define OPT_MTIME		0x01
-#define OPT_NOCREATE	0x02
-#define OPT_ATIME		0x04
-#define OPT_REFERENCE	0x08
-#define OPT_TIME		0x10
-#define OPT_LENGTH		0x20
+#define OPT_MTIME       0x01
+#define OPT_NOCREATE    0x02
+#define OPT_ATIME       0x04
+#define OPT_REFERENCE   0x08
+#define OPT_TIME        0x10
+#define OPT_LENGTH      0x20
 
 void touch_main(void)
 {
@@ -65,10 +59,11 @@ void touch_main(void)
 		buf.modtime = curr_m;
 		buf.actime = curr_a;
 
-		if (stat(arg, &sb) == -1) {
-			if (!(toys.optflags & OPT_NOCREATE) && errno == ENOENT) {
-				if (creat(arg, 0644))
-					goto error;
+		if (stat(arg, &sb)) {
+			if (!(toys.optflags & OPT_NOCREATE)) {
+				int temp = umask(0);
+				xcreate(arg, O_CREAT, 0644);
+				if (CFG_TOYBOX_FREE) umask(temp);
 				if (stat(arg, &sb))
 					goto error;
 			}
