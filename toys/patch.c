@@ -40,7 +40,6 @@ static void do_line(void *data)
 		fdprintf(TT.state == 2 ? 2: TT.fileout,
 			"%s\n", dlist->data+(TT.state>2 ? 1 : 0));
 	free(dlist->data);
-	free(dlist);
 }
 
 
@@ -57,55 +56,77 @@ static void dlist_add(struct double_list **list, char *data)
 	} else *list = line->next = line->prev = line;
 }
 
+static void finish_oldfile(void)
+{
+	if (TT.tempname) replace_tempfile(TT.filein, TT.fileout, &TT.tempname);
+}
+
+static void fail_hunk(void)
+{
+	if (!TT.plines) return;
+	TT.plines->prev->next = 0;
+
+	printf("Hunk FAILED.\n");
+	toys.exitval = 1;
+
+	// If we got to this point, we've seeked to the end.  Discard changes to
+	// this file and advance to next file.
+
+	TT.state = 2;
+	llist_free(TT.plines, do_line);
+	TT.plines = NULL;
+	delete_tempfile(TT.filein, TT.fileout, &TT.tempname);
+	TT.filein = -1;
+}
+
 static void apply_hunk(void)
 {
-	struct double_list *plist, *temp, *buf;
-	int i = 0, backwards = 0, reverse = toys.optflags & FLAG_REVERSE;
+	struct double_list *plist, *buf = NULL;
+	int i = 0, backwards = 0, matcheof = 0,
+		reverse = toys.optflags & FLAG_REVERSE;
 
-	TT.state = 0;
-
-	if (!TT.plines) return;
-	temp = buf = NULL;
-
-	// Hunk is complete, break doubly linked list so we can use singly linked
-	// traversal function.
+	// Break doubly linked list so we can use singly linked traversal function.
 	TT.plines->prev->next = NULL;
 
-	// Trim extra context lines, if any.  If there aren't as many ending
-	// context lines as beginning lines, this isn't a valid hunk.
+	// Match EOF if there aren't as many ending context lines as beginning
 	for (plist = TT.plines; plist; plist = plist->next) {
-		if (plist->data[0]==' ') {
-			if (i<TT.context) temp = plist;
-			i++;
-		} else i = 0;
+		if (plist->data[0]==' ') i++;
+		else i = 0;
 	}
-	if (i < TT.context) goto fail_hunk;
-	if (temp) {
-		llist_free(temp->next, do_line);
-		temp->next = NULL;
-	}
+	if (i < TT.context) matcheof++;
 
 	// Search for a place to apply this hunk.  Match all context lines and
 	// lines to be removed.
 	plist = TT.plines;
 	buf = NULL;
 	i = 0;
+
+	// Start of for loop
 	if (TT.context) for (;;) {
 		char *data = get_line(TT.filein);
 		TT.linenum++;
 
-		// If the file ended before we found a home for this hunk, fail.
-		if (!data) goto fail_hunk;
-
-		dlist_add(&buf, data);
-		if (!backwards && *plist->data == "+-"[reverse]) {
-			backwards = 1;
-			if (!strcmp(data, plist->data+1))
-				fdprintf(1,"Possibly reversed hunk at %ld\n", TT.linenum);
+		// Skip lines we'd add.
+		while (plist && *plist->data == "+-"[reverse]) {
+			if (data && !backwards && !strcmp(data, plist->data+1)) {
+				backwards = 1;
+				fdprintf(2,"Possibly reversed hunk at %ld\n", TT.linenum);
+			}
+			plist = plist->next;
 		}
-		while (*plist->data == "+-"[reverse]) plist = plist->next;
-		if (strcmp(data, plist->data+1)) {     // Ignore whitespace?
-			// Hunk doesn't go here, flush accumulated buffer so far.
+
+		if (!data) {
+			// Matched EOF?
+			if (!plist && matcheof) break;
+			// File ended before we found a home for this hunk?
+			fail_hunk();
+			goto done;
+		}
+		dlist_add(&buf, data);
+
+		if (!plist || strcmp(data, plist->data+1)) {     // Ignore whitespace?
+			// Match failed, hunk doesn't go here.  Flush accumulated buffer
+			// so far.
 
 			buf->prev->next = NULL;
 			TT.state = 1;
@@ -113,8 +134,9 @@ static void apply_hunk(void)
 			buf = NULL;
 			plist = TT.plines;
 		} else {
+			// Match, advance plist.
 			plist = plist->next;
-			if (!plist) break;
+			if (!plist && !matcheof) break;
 		}
 	}
 
@@ -122,29 +144,12 @@ static void apply_hunk(void)
 	TT.state = "-+"[reverse];
 	llist_free(TT.plines, do_line);
 	TT.plines = NULL;
+done:
 	TT.state = 0;
 	if (buf) {
 		buf->prev->next = NULL;
 		llist_free(buf, do_line);
 	}
-	return;
-
-fail_hunk:
-	printf("Hunk FAILED.\n");
-
-	// If we got to this point, we've seeked to the end.  Discard changes to
-	// this file and advance to next file.
-
-	TT.state = 2;
-	llist_free(TT.plines, do_line);
-	TT.plines = 0;
-	if (buf) {
-		buf->prev->next = NULL;
-		llist_free(buf, do_line);
-	}
-	delete_tempfile(TT.filein, TT.fileout, &TT.tempname);
-	TT.filein = -1;
-	TT.state = 0;
 }
 
 // state 0: Not in a hunk, look for +++.
@@ -155,7 +160,6 @@ fail_hunk:
 void patch_main(void)
 {
 	if (TT.infile) TT.filepatch = xopen(TT.infile, O_RDONLY);
-	else TT.filepatch = 0;
 	TT.filein = TT.fileout = -1;
 
 	// Loop through the lines in the patch
@@ -167,20 +171,24 @@ void patch_main(void)
 
 		// Are we processing a hunk?
 		if (TT.state >= 2) {
-			// Context line?
 			if (*patchline==' ' || *patchline=='+' || *patchline=='-') {
 				dlist_add(&TT.plines, patchline);
 
+				if (*patchline != '+') TT.oldlen--;
+				if (*patchline != '-') TT.newlen--;
+
+				// Context line?
 				if (*patchline==' ' && TT.state==2) TT.context++;
 				else TT.state=3;
 
+				if (!TT.oldlen && !TT.newlen) apply_hunk();
 				continue;
 			}
+			fail_hunk();
+			TT.state = 0;
+			continue;
 		}
 
-		// If we have a hunk at this point, it's ready to apply.
-		apply_hunk();
-			
 		// Open a new file?
 		if (!strncmp("--- ", patchline, 4)) {
 			char *s;
@@ -196,9 +204,7 @@ void patch_main(void)
 			int i = 0, del = 0;
 			char *s, *start;
 
-			// Finish old file.
-			if (TT.tempname)
-				replace_tempfile(TT.filein, TT.fileout, &TT.tempname);
+			finish_oldfile();
 
 			// Trim date from end of filename (if any).  We don't care.
 			for (s = patchline+4; *s && *s!='\t'; s++)
@@ -206,7 +212,7 @@ void patch_main(void)
 			*s = 0;
 
 
-			// If new file is null (before -p trim), we're deleting oldname
+			// If new file is /dev/null (before -p), we're deleting oldname
 			start = patchline+4;
 			if (!strcmp(start, "/dev/null")) {
 				start = TT.oldname;
@@ -246,22 +252,22 @@ void patch_main(void)
 			}
 
 		// Start a new hunk?
-		} else if (TT.filein!=-1 && !strncmp("@@ ", patchline, 3)) {
+		// Test filein rather than state to report only the first failed hunk.
+		} else if (TT.filein!=-1 && !strncmp("@@ -", patchline, 4) &&
+			4 == sscanf(patchline+4, "%ld,%ld +%ld,%ld", &TT.oldline,
+				&TT.oldlen, &TT.newline, &TT.newlen))
+		{
 			TT.context = 0;
 			TT.state = 2;
-			sscanf(patchline+3, "%ld,%ld %ld,%ld", &TT.oldline,
-				&TT.oldlen, &TT.newline, &TT.newlen);
-			// Don't free it.
 			continue;
 		}
 
-		// This line is noise, discard it.
+		// If we didn't continue above, discard this line.
 		free(patchline);
 	}
 
-	// Flush pending hunk and flush data
-	apply_hunk();
-	if (TT.tempname) replace_tempfile(TT.filein, TT.fileout, &TT.tempname);
+	finish_oldfile();
+
 	if (CFG_TOYBOX_FREE) {
 		close(TT.filepatch);
 		free(TT.oldname);
