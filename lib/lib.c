@@ -600,6 +600,7 @@ void loopfiles(char **argv, void (*function)(int fd, char *name))
 		else if (0>(fd = open(*argv, O_RDONLY))) {
 			perror_msg("%s",*argv);
 			toys.exitval = 1;
+			continue;
 		}
 		function(fd, *argv);
 		close(fd);
