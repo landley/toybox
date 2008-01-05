@@ -312,7 +312,8 @@ config READLINK_F
 	help
 	  usage: readlink [-f]
 
-	  -f	Show final location, including normal files and multiple symlinks.
+	  -f	Show full cannonical path, with no symlinks in it.  Returns
+		nonzero if nothing could currently exist at this location.
 
 config SHA1SUM
 	bool "sha1sum"
@@ -342,15 +343,16 @@ config TOUCH
 	bool "touch"
 	default y
 	help
-	  usage: touch [-acmrtl] FILE...
+	  usage: touch [-acm] [-r FILE] [-t MMDDhhmm] [-l bytes] FILE...
 
 	  Change file timestamps, ensure file existance and change file length.
 
 	  -a	Only change the access time.
 	  -c	Do not create the file if it doesn't exist.
+	  -l	Length to truncate (or sparsely extend) file to.
 	  -m	Only change the modification time.
 	  -r	Reference file to take timestamps from.
-	  -t	Time to change {a,m}time to, in the format MMDDhhmm.
+	  -t	Time to change {a,m}time to.
 
 config TOYSH
 	bool "sh (toysh)"
