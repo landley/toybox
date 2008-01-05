@@ -9,7 +9,12 @@
 
 void readlink_main(void)
 {
-	char *s = xreadlink(*toys.optargs);
+	char *s;
+
+	// Calculating full cannonical path?
+
+	if (CFG_READLINK_F && toys.optflags) s = realpath(*toys.optargs, NULL);
+	else s = xreadlink(*toys.optargs);
 
 	if (s) {
 		xputs(s);
