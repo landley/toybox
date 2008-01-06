@@ -1,0 +1,56 @@
+<!--#include file="header.html" -->
+
+<h2>Currently implemented commands:</h2>
+<p>
+basename, catv, chroot, count, df, dirname, dmesg, echo, false, hello, help,
+mkfifo, nc, netcat, oneit, patch, pwd, sh, sha1sum, sleep, sync, touch, toysh,
+true, tty, which, yes
+</p>
+
+<h2>News</h2>
+
+<p><b>January 2, 2008</b> - And <a href=downloads/toybox-0.0.4.tar.bz2>toybox-0.0.4.tar.bz2</a> is out.
+The new applets this time around include basename, chroot, dirname, dmesg,
+help, mkfifo, netcat, patch, sha1sum, touch, and tty.</p>
+
+<p>Note that this "touch" includes -l to set the length, which can truncate
+a file or create a commpletely sparse file, good for filesystem images.</p>
+
+<p>Expect the next release in about 6 months.</p>
+
+<p><b>December 12, 2007</b> - Updated the list of implemented applications,
+put up a <a href=todo.txt>todo list</a> and <a href=code.html>infrastructure
+documentation</a>.  Expect another release towards the end of the month.</p>
+
+<p><b>June 18, 2007</b> - Put out
+<a href=downloads/toybox-0.0.3.tar.bz2>toybox-0.0.3.tar.bz2</a> since it's
+been too long since I did something like that.  This one implements
+catv, count, df, echo, false, oneit, pwd, sleep, sync, toysh, true, which,
+and yes (which is what "make defconfig" enables).  There are several other
+commands not enabled by defconfig, because they don't really work yet.</p>
+
+<p>Most of the general infrastructure's there now, although lots of tweaking
+and optimizing is still needed.  The test suite is skeletal and not entirely
+checked in yet, but I'm working on that.</p>
+
+<p>I don't have nearly as much time to work on this as I'd like, but I'm making
+a little progress.</p>
+
+<p><b>January 31, 2007</b> -
+Toybox <a href=downloads/toybox-0.0.2.tar.bz2>0.0.2 release</a>.
+Implements count, yes, pwd, echo, bzcat, catv, oneit, and an unfinished
+skeleton of mke2fs.  Adds argument parsing logic and bunzip code to library.
+Now configured with menuconfig.  Adds "make baseline" and "make bloatcheck"
+using Matt Mackall's bloat-o-meter, and scripts/showasm.</p>
+
+<p>Screwing up the web page a bit, adding an index bar along the side
+which doesn't properly connect up to anything yet.  (Busy implementing
+mke2fs and gene2fs.)</p>
+
+<p><b>October 30, 2006</b> -
+Toybox <a href=downloads/toybox-0.0.1.tar.bz2>0.0.1 release</a>.  Implements
+df, a skeletal toysh, and some library functions.  Proof of concept, really.</p>
+
+<p><b>September 7, 2006</b> -
+Project launched, first commit to mercurial archive.</p>
+<!--#include file="footer.html" -->

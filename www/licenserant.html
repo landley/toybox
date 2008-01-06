@@ -1,0 +1,54 @@
+<!--#include file="header.html" -->
+
+<p>The reason for the clarification of section 3 is that
+<a href="http://software.newsforge.com/article.pl?sid=06/06/23/1728205&tid=150">what the FSF did to Mepis</a> was inexcusable.  (Further discussed
+in <a href="http://www.busybox.net/lists/busybox/2006-June/022797.html">this
+thread</a>.)</p>
+
+<p>A small Linux distributor named Mepis (more or less a guy in his garage)
+partnered with a big linux distributor called Ubuntu (multi-million dollar
+company with offices in more than one country).  Mepis put out a press release
+quoting Ubuntu's founder about how cool the partnership was, and then Mepis
+pointed to Ubuntu's source repository for GPL packages it was using unmodified
+Ubuntu versions of.  And the FSF went after them.</p>
+
+<p>As far as we're concerned, Mepis didn't do anything wrong, and the FSF
+was a bully.  The FSF was wrong when it tried to make an example out of a
+company that was acting in good faith.</p>
+
+<p>To make sure the FSF doesn't pick on anyone else against our wishes, we're
+clarifying that if you didn't modify the source code, and the binaries you're
+distributing can be entirely regenerated from a public upstream source,
+pointing to that upstream source in good faith is good enough for us.  As
+long as the upstream source don't doesn't object to the extra bandwidth,
+and the correct source code stays available at that location you specify
+for the duration of your responsiblity to redistribute source, life is good.</p>
+
+<p>There are a few common sense caveats.  This doesn't mean it's fair for a
+Fortune 500 company to point millions of people at somebody's home DSL line
+(certainly not without asking first).  And if the source that's available there
+is not the complete corresponding source to the binaries you distributed, then
+obviously you haven't fulfilled your obligations by pointing to some _other_
+source.  (If you modified it, we want the patch, and claiming you didn't
+modify it when you actually did would be fraud.)  And if the code stops being
+available at that location, you're not off the hook and have to find a new
+location or put up your own mirror.</p>
+
+<p>So this is not a "get out of jail free" card: It's still your responsibility
+to make the complete corresponding source available.  We're just saying you can
+reasonably delegate to something like Sourceforge or ibilbio, and as long as
+everyone who wants the source can get it, we're happy.  If the site you point
+to objects or goes down, responsibility obviously reverts to you.  But there
+are plenty of high-bandwidth places that mirror open source for free these
+days: sourceforge, OSL, ISC, ibiblio, archive.org, and so on.</p>
+
+<p>Oh, one last note: if people come to you asking "where's the source"
+and your answer doesn't satisfy them, ask yourself "did I identify which
+specific version I used, and if I didn't modify it at all did I explicitly
+tell them this"?  If you don't identify the source you used in enough detail
+for open source developers to reproduce what you did, you haven't complied with
+your license obligations yet.  Identifying the specific source you used
+is a very important part of the "written offer" bit that often gets
+overlooked.</p>
+
+<!--#include file="footer.html" -->

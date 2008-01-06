@@ -3,10 +3,11 @@
 <h2>Toybox is licensed under the terms of GPLv2.</h2>
 
 <p>The complete text of the General Public License version 2 is included in the
-file LICENSE in each source tarball, and again at the end of this page.
-Version 2 is the only version of this license which toybox is distributed
-under.  (I.E. It doesn't have the strange "or later" dual license some projects
-have.)</p>
+file LICENSE in each source tarball.  Version 2 is the only version of this
+license which toybox is distributed under.  (I.E. It doesn't have the strange
+"or later" dual license some projects have.)</p>
+
+<p>The complete text of GPLv2 is at the end of this page.</p>
 
 <h2>Clarifications</h2>
 
@@ -22,7 +23,7 @@ interpreting the sucker where it says something stupid.</p>
 <p>Section 1: <b>You have permission to rephrase the license notice on
 individual source files.</b>  This doesn't mean you can change what license the
 code is under, or that you can remove other people's copyright notices.  You
-certainly can't change the test of the GPL itself.  What it means is that if
+certainly can't change the text of the GPL itself.  What it means is that if
 a file says "see file LICENSE in this tarball for details" and you use this
 code in a project that distributes source in zip files instead of
 tarballs, or your package's copy of the GPLv2 text isn't in a file called
@@ -31,15 +32,15 @@ kind of "correction" after the old notice.</p>
 
 <p>Some lawyers seem to think a strict reading of GPLv2 section 1 (and later
 sections including section 1 by reference) requires maintaining old notices in
-perpetuity.  Even if you had code that used to be dual licensed, but created
-a derived work that's just under one of the two licenses, and the old license
-notice is not just strange or misleading but actually incorrect for the new
-file.  (For example, splicing GPLv2 only code into a dual "GPLv2 or later"
-project produces a result that can be distributed under the terms of GPLv2,
-but not GPLv3.  The result cannot be distributed under the "or later" part,
-so a license notice saying it could is factually wrong.)</p>
+perpetuity.  Even if you had code that used to be dual licensed, but you created
+a derived work that's just under one of the two licenses, and thus keeping the
+old license notice is not just strange or misleading but actually incorrect for
+the new file.  (For example, splicing GPLv2 only code into a dual "GPLv2 or
+later" project produces a result that can be distributed under the terms of
+GPLv2, but not GPLv3.  The result of that cannot be distributed under the "or
+later" part, so a license notice implying it could is factually wrong.)</p>
 
-<p>I don't know if we're ever going to put any dual licensed code into the tree,
+<p>I don't know if we're ever going to add any dual licensed code into the tree,
 but I want to head that one off now.  The actual license text is the important
 thing, the per-file notice is a courtesy.</p>
 
@@ -57,9 +58,14 @@ binaries, life is good as far as we're concerned.  (No, you can't encrypt it,
 or require a login, or otherwise be slimy bastards acting in bad faith.  We'll
 come after you if you're not satisfying the terms of the license, this is just
 talking about how you can satisfy those terms without having to mail physical
-media.  Most people are already doing it this way.)</p>
+media circa 1991.  Most people are already doing it this way, we're just
+being explicit about it.)</p>
 
-<p>Also, <a href="http://software.newsforge.com/article.pl?sid=06/06/23/1728205&tid=150">what the FSF did to Mepis</a> was inexcusable.  (Further discussed
+<p>If you're wondering why this particular clarification exists,
+there's a <a href=licenserant.html>longer explanation</a>.</p>
+
+<p>The reason for this section is that
+<a href="http://software.newsforge.com/article.pl?sid=06/06/23/1728205&tid=150">what the FSF did to Mepis</a> was inexcusable.  (Further discussed
 in <a href="http://www.busybox.net/lists/busybox/2006-June/022797.html">this
 thread</a>.)  Mepis partnered with Ubuntu, put out a press release quoting
 Ubuntu's founder about how cool the partnership was, and then pointed to
@@ -85,18 +91,17 @@ hook and have to find a new location or put up your own mirror.  And obviously
 it has to be the _right_ source code (if you modified it, we want the patch,
 and claiming you didn't modify it when you actually did is fraud).</p>
 
-<p>This is not a "get out of jail free" card: It's still your responsibility to
-make the source available.  We're just saying you can reasonably delegate to
-something like Sourceforge or ibilbio and as long as everyone who wants the
-source can get it, we're happy.  If the site you point to objects or goes down,
-responsibility obviously reverts to you.</p>
+<p>So this is not a "get out of jail free" card: It's still your responsibility
+to make the complete corresponding source available.  We're just saying you can
+reasonably delegate to something like Sourceforge or ibilbio, and as long as
+everyone who wants the source can get it, we're happy.  If the site you point
+to objects or goes down, responsibility obviously reverts to you.  But if this
+project needs mirrors, we'll _ask_.  (Most likely we'll ask someone like
+sourceforge, OSL, ISC, ibiblio, archive.org...)</p>
 
-<p>But if this project needs mirrors, we'll _ask_.  (Most likely we'll ask
-someone like sourceforge, OSL, ISC, ibiblio, archive.org...)</p>
-
-<p>Section 9: <b>Does not apply to this project.</b>  We're specifying the
-version, it's version 2.  There is no "or later versions" clause to require
-interpreting.
+<p>Finally, <b>section 9 does not apply to this project.</b>  We're specifying
+a specific version, it's version 2.  There is no "or later versions" clause to
+require interpreting, so none of that triggers for us.</p>
 
 <hr>
 <pre>
