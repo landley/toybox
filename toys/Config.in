@@ -286,8 +286,11 @@ config PATCH
 	  -R	Reverse patch.
 	  -u	Ignored (only handles "unified" diffs)
 
-	  If a hunk fails to apply to a file, patch discards all changes to
-	  that file and prints the failed hunk to stderr.
+	  This version of patch only handles unified diffs, and only modifies
+	  a file when all all hunks to that file apply.  Patch prints failed
+	  hunks to stderr, and exits with nonzero status if any hunks fail.
+
+	  A file compared against /dev/null is created/deleted as appropriate.
 
 config PWD
 	bool "pwd"
