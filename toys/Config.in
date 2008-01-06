@@ -48,6 +48,18 @@ config CHROOT
 
 	  Run command within a new root directory.  If no command, run /bin/sh.
 
+config CHVT
+	bool "chvt"
+	default y
+	help
+	  usage: chvt N
+
+	  Change to virtual terminal number N.  (This only works in text mode.)
+
+	  Virtual terminals are the Linux VGA text mode displays, ordinarily
+	  switched between via alt-F1, alt-F2, etc.  Use ctrl-alt-F1 to switch
+	  from X to a virtual terminal, and alt-F6 (or F7, or F8) to get back.
+
 config COUNT
 	bool "count"
 	default y
