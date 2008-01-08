@@ -37,6 +37,13 @@ functionality: bzcat/bunzip2, help, mke2fs, sh/toysh, mdev.</p>
 <p>The following are partially implemented commands that don't actually do
 anything yet: mke2fs.</p>
 
+<p>Several toybox commands can do things other vesions can't.  For example:</p>
+
+<p>The toybox "df" isn't confused by initramfs the way other df implementations
+are.  If initramfs is visible, df shows it like any other mount point.</p>
+
+<p>The toybox "touch" command has a -l option to set the length of a file.
+This can truncate a file, or create completely sparse files.</p>
 
 <b><h3>Command Shell</h3></b>
 <p>The Toybox Shell (toysh) aims to be a reasonable bash replacement.  It
