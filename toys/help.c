@@ -6,7 +6,7 @@
  */
 
 #include "toys.h"
-#include "toys/help.h"
+#include "generated/help.h"
 
 #undef NEWTOY
 #undef OLDTOY

@@ -6,7 +6,7 @@
  * Licensed under GPL version 2, see file LICENSE in this tarball for details.
  */
 
-#include "gen_config.h"
+#include "generated/gen_config.h"
 
 #include "lib/portability.h"
 
