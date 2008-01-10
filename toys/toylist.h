@@ -53,6 +53,10 @@ struct mke2fs_data {
 	struct ext2_superblock sb;
 };
 
+struct mkfifo_data {
+	char *mode;
+};
+
 struct netcat_data {
 	char *filename;        // -f read from filename instead of network
 	long quit_delay;       // -q Exit after EOF from stdin after # seconds.
@@ -77,6 +81,10 @@ struct patch_data {
 	char *tempname, *oldname;
 };
 
+struct sed_data {
+	struct arg_list *commands;
+};
+
 struct sleep_data {
 	long seconds;
 };
@@ -91,10 +99,6 @@ struct toysh_data {
 	char *command;
 };
 
-struct mkfifo_data {
-	char *mode;
-};
-
 extern union toy_union {
 	struct dmesg_data dmesg;
 	struct df_data df;
@@ -103,6 +107,7 @@ extern union toy_union {
 	struct netcat_data netcat;
 	struct oneit_data oneit;
 	struct patch_data patch;
+	struct sed_data sed;
 	struct sleep_data sleep;
 	struct touch_data touch;
 	struct toysh_data toysh;
@@ -155,6 +160,7 @@ USE_ONEIT(NEWTOY(oneit, "+<1c:p", TOYFLAG_SBIN))
 USE_PATCH(NEWTOY(patch, "up#i:R", TOYFLAG_USR|TOYFLAG_BIN))
 USE_PWD(NEWTOY(pwd, NULL, TOYFLAG_BIN))
 USE_READLINK(NEWTOY(readlink, "<1f", TOYFLAG_BIN))
+USE_SED(NEWTOY(sed, "irne*", TOYFLAG_BIN))
 USE_TOYSH(OLDTOY(sh, toysh, "c:i", TOYFLAG_BIN))
 USE_SHA1SUM(NEWTOY(sha1sum, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 USE_SLEEP(NEWTOY(sleep, "<1", TOYFLAG_BIN))

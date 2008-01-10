@@ -330,6 +330,15 @@ config READLINK_F
 	  -f	Show full cannonical path, with no symlinks in it.  Returns
 		nonzero if nothing could currently exist at this location.
 
+config SED
+	bool "sed"
+	default n
+	help
+	  usage: sed [-irn] {command | [-e command]...} [FILE...]
+
+	  Stream EDitor, transforms text by appling commands to each line
+	  of input.
+
 config SHA1SUM
 	bool "sha1sum"
 	default y
