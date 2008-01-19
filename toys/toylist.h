@@ -11,9 +11,6 @@ struct df_data {
 	long units;
 };
 
-// Still to go: "E:jJ:L:m:O:"
-#define MKE2FS_OPTSTRING "<1>2g:Fnqm#N#i#b#"
-
 struct dmesg_data {
 	long level;
 	long size;

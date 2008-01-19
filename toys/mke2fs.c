@@ -6,7 +6,8 @@
  *
  * Not in SUSv3.
 
-USE_MKE2FS(NEWTOY(mke2fs, MKE2FS_OPTSTRING, TOYFLAG_SBIN))
+// Still to go: "E:jJ:L:m:O:"
+USE_MKE2FS(NEWTOY(mke2fs, "<1>2g:Fnqm#N#i#b#", TOYFLAG_SBIN))
 
 config MKE2FS
 	bool "mke2fs"
