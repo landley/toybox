@@ -1,8 +1,19 @@
-/* vi: set sw=4 ts=4: */
-/* basename.c - print non-directory portion of path
+/* vi: set sw=4 ts=4:
+ *
+ * basename.c - print non-directory portion of path
+ *
+ * Copyright 2007 Charlie Shepherd <masterdriverz@gentoo.org>
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/basename.html
- */
+
+config BASENAME
+	bool "basename"
+	default y
+	help
+	  usage: basename path [suffix]
+
+	  Print the part of path after the last slash, optionally minus suffix.
+*/
 
 #include "toys.h"
 

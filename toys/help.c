@@ -1,9 +1,27 @@
-/* vi: set sw=4 ts=4: */
-/*
+/* vi: set sw=4 ts=4:
+ *
  * help.c - Show help for toybox
  *
+ * Copyright 2007 Rob Landley <rob@landley.net>
+ *
  * Not in SUSv3, but exists as a bash builtin.
- */
+
+config HELP
+	bool "help"
+	default y
+	help
+	  usage: help [command]
+
+	  Show usage information for toybox commands.
+
+config HELP_LONG
+	bool "Verbose help text"
+	default y
+	depends on HELP
+	help
+	  Show more than one line of help information per command.
+*/
+ 
 
 #include "toys.h"
 #include "generated/help.h"

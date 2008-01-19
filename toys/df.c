@@ -1,12 +1,39 @@
-/* vi: set sw=4 ts=4: */
-/*
+/* vi: set sw=4 ts=4:
+ *
  * df.c - report free disk space.
  *
- * Implemented roughly according to SUSv3:
- * http://www.opengroup.org/onlinepubs/009695399/utilities/df.html
+ * Copyright 2006 Rob Landley <rob@landley.net>
  *
- * usage: df [-k] [-P|-t] [file...]
- */
+ * See http://www.opengroup.org/onlinepubs/009695399/utilities/df.html
+
+config DF
+	bool "df (disk free)"
+	default y
+	help
+	  usage: df [-t type] [FILESYSTEM ...]
+
+	  The "disk free" command, df shows total/used/available disk space for
+	  each filesystem listed on the command line, or all currently mounted
+	  filesystems.
+
+	  -t type
+		Display only filesystems of this type.
+
+config DF_PEDANTIC
+	bool "options -P and -k"
+	default y
+	depends on DF
+	help
+	  usage: df [-Pk]
+
+	  -P	The SUSv3 "Pedantic" option
+
+		Provides a slightly less useful output format dictated by
+		the Single Unix Specification version 3, and sets the
+		units to 512 bytes instead of the default 1024 bytes.
+
+	  -k	Sets units back to 1024 bytes (the default without -P)
+*/
 
 #include "toys.h"
 

@@ -259,7 +259,7 @@ static int read_block_header(struct bunzip_data *bd, struct bwdata *bw)
 		base = hufGroup->base-1;
 		limit = hufGroup->limit-1;
 
-		// zero temp[] and limit[], and put calculate permute[]
+		// zero temp[] and limit[], and calculate permute[]
 		pp = 0;
 		for (ii = minLen; ii <= maxLen; ii++) {
 			temp[ii] = limit[ii] = 0;

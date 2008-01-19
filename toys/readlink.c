@@ -1,9 +1,29 @@
-/* vi: set sw=4 ts=4: */
-/*
+/* vi: set sw=4 ts=4:
+ *
  * readlink.c - Return string representation of a symbolic link.
  *
+ * Copyright 2007 Rob Landley <rob@landley.net>
+ *
  * Not in SUSv3.
- */
+
+config READLINK
+	bool "readlink"
+	default n
+	help
+	  usage: readlink
+
+	  Show what a symbolic link points to.
+
+config READLINK_F
+	bool "readlink -f"
+	default n
+	depends on READLINK
+	help
+	  usage: readlink [-f]
+
+	  -f	Show full cannonical path, with no symlinks in it.  Returns
+		nonzero if nothing could currently exist at this location.
+*/
 
 #include "toys.h"
 

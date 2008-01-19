@@ -1,9 +1,28 @@
-/* oneit.c, tiny one-process init replacement.
+/* vi: set sw=4 ts=4:
+ *
+ * oneit.c, tiny one-process init replacement.
  *
  * Copyright 2005, 2007 by Rob Landley <rob@landley.net>.
  *
  * Not in SUSv3.
- */
+
+config ONEIT
+	bool "oneit"
+	default y
+	help
+	  usage: oneit [-p] [-c /dev/tty0] command [...]
+
+	  A simple init program that runs a single supplied command line with a
+	  controlling tty (so CTRL-C can kill it).
+
+	  -p	Power off instead of rebooting when command exits.
+	  -c	Which console device to use.
+
+	  The oneit command runs the supplied command line as a child process
+	  (because PID 1 has signals blocked), attached to /dev/tty0, in its
+	  own session.  Then oneit reaps zombies until the child exits, at
+	  which point it reboots (or with -p, powers off) the system.
+*/
 
 #include "toys.h"
 #include <sys/reboot.h>

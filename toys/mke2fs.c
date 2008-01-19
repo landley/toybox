@@ -5,7 +5,72 @@
  * Copyright 2006, 2007 Rob Landley <rob@landley.net>
  *
  * Not in SUSv3.
- */
+
+config MKE2FS
+	bool "mke2fs"
+	default n
+	help
+	  usage: mke2fs [-Fnq] [-b ###] [-N|i ###] [-m ###] device
+
+	  Create an ext2 filesystem on a block device or filesystem image.
+
+	  -F         Force to run on a mounted device
+	  -n         Don't write to device
+	  -q         Quiet (no output)
+	  -b size    Block size (1024, 2048, or 4096)
+	  -N inodes  Allocate this many inodes
+	  -i bytes   Allocate one inode for every XXX bytes of device
+	  -m percent Reserve this percent of filesystem space for root user
+
+config MKE2FS_JOURNAL
+	bool "Journaling support (ext3)"
+	default n
+	depends on MKE2FS
+	help
+	  usage: [-j] [-J size=###,device=XXX]
+
+	  -j         Create journal (ext3)
+	  -J         Journal options
+	             size: Number of blocks (1024-102400)
+	             device: Specify an external journal
+
+config MKE2FS_GEN
+	bool "Generate (gene2fs)"
+	default n
+	depends on MKE2FS
+	help
+	  usage: gene2fs [options] device filename
+
+	  The [options] are the same as mke2fs.
+
+config MKE2FS_LABEL
+	bool "Label support"
+	default n
+	depends on MKE2FS
+	help
+	  usage: mke2fs [-L label] [-M path] [-o string]
+
+	  -L         Volume label
+	  -M         Path to mount point
+	  -o         Created by
+
+config MKE2FS_EXTENDED
+	bool "Extended options"
+	default n
+	depends on MKE2FS
+	help
+	  usage: mke2fs [-E stride=###] [-O option[,option]]
+
+	  -E stride= Set RAID stripe size (in blocks)
+	  -O [opts]  Specify fewer ext2 option flags (for old kernels)
+	             All of these are on by default (as appropriate)
+	     none         Clear default options (all but journaling)
+	     dir_index    Use htree indexes for large directories
+	     filetype     Store file type info in directory entry
+	     has_journal  Set by -j
+	     journal_dev  Set by -J device=XXX
+	     sparse_super Don't allocate huge numbers of redundant superblocks
+*/
 
 #include "toys.h"
 
@@ -564,25 +629,3 @@ void mke2fs_main(void)
 		put_zeroes((end-start) * TT.blocksize);
 	}
 }
-
-// Scratch pad:
-	// b - block size (1024, 2048, 4096)
-	// F - force (run on mounted device or non-block device)
-	// i - bytes per inode 
-	// N - number of inodes
-	// m - reserved blocks percentage
-	// n - Don't write
-	// q - quiet
-
-	// L - volume label
-	// M - last mounted path
-	// o - creator os
-	
-	// j - create journal
-	// J - journal options (size=1024-102400 blocks,device=)
-	//        device=/dev/blah or LABEL=label UUID=uuid
-
-	// E - extended options (stride=stripe-size blocks)
-	// O - none,dir_index,filetype,has_journal,journal_dev,sparse_super
-
-

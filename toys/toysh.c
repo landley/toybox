@@ -13,9 +13,155 @@
  * http://www.opengroup.org/onlinepubs/009695399/utilities/exit.html
  *
  * Things like the bash man page are good to read too.
- */
+ *
+ * TODO: // Handle embedded NUL bytes in the command line.
 
-// Handle embedded NUL bytes in the command line.
+config TOYSH
+	bool "sh (toysh)"
+	default y
+	help
+	  usage: sh [-c command] [script]
+
+	  The toybox command shell.  Runs a shell script, or else reads input
+	  interactively and responds to it.
+
+	  -c	command line to execute
+
+config TOYSH_TTY
+	bool "Interactive shell (terminal control)"
+	default n
+	depends on TOYSH
+	help
+	  Add terminal control to toysh.  This is necessary for interactive use,
+	  so the shell isn't killed by CTRL-C.
+
+config TOYSH_PROFILE
+	bool "Profile support"
+	default n
+	depends on TOYSH_TTY
+	help
+	  Read /etc/profile and ~/.profile when running interactively.
+
+	  Also enables the built-in command "source".
+
+config TOYSH_JOBCTL
+	bool "Job Control (fg, bg, jobs)"
+	default n
+	depends on TOYSH_TTY
+	help
+	  Add job control to toysh.  This lets toysh handle CTRL-Z, and enables
+	  the built-in commands "fg", "bg", and "jobs".
+
+	  With pipe support, enable use of "&" to run background processes.
+
+config TOYSH_FLOWCTL
+	bool "Flow control (if, while, for, functions)"
+	default n
+	depends on TOYSH
+	help
+	  Add flow control to toysh.  This enables the if/then/else/fi,
+	  while/do/done, and for/do/done constructs.
+
+	  With pipe support, this enables the ability to define functions
+	  using the "function name" or "name()" syntax, plus curly brackets
+	  "{ }" to group commands.
+
+config TOYSH_QUOTES
+	bool "Smarter argument parsing (quotes)"
+	default n
+	depends on TOYSH
+	help
+	  Add support for parsing "" and '' style quotes to the toysh command
+	  parser, with lets arguments have spaces in them.
+
+config TOYSH_WILDCARDS
+	bool "Wildcards ( ?*{,} )"
+	default n
+	depends on TOYSH_QUOTES
+	help
+	  Expand wildcards in argument names, ala "ls -l *.t?z" and
+	  "rm subdir/{one,two,three}.txt".
+
+config TOYSH_PROCARGS
+	bool "Executable arguments ( `` and $() )"
+	default n
+	depends on TOYSH_QUOTES
+	help
+	  Add support for executing arguments contianing $() and ``, using
+	  the output of the command as the new argument value(s).
+
+	  (Bash calls this "command substitution".)
+
+config TOYSH_ENVVARS
+	bool "Environment variable support"
+	default n
+	depends on TOYSH_QUOTES
+	help
+	  Substitute environment variable values for $VARNAME or ${VARNAME},
+	  and enable the built-in command "export".
+
+config TOYSH_LOCALS
+	bool "Local variables"
+	default n
+	depends on TOYSH_ENVVARS
+	help
+	  Support for local variables, fancy prompts ($PS1), the "set" command,
+	  and $?.
+
+config TOYSH_ARRAYS
+	bool "Array variables"
+	default n
+	depends on TOYSH_LOCALS
+	help
+	  Support for ${blah[blah]} style array variables.
+
+config TOYSH_PIPES
+	bool "Pipes and redirects ( | > >> < << & && | || () ; )"
+	default n
+	depends on TOYSH
+	help
+	  Support multiple commands on the same command line.  This includes
+	  | pipes, > >> < redirects, << here documents, || && conditional
+	  execution, () subshells, ; sequential execution, and (with job
+	  control) & background processes.
+
+config TOYSH_BUILTINS
+	bool "Builtin commands"
+	default n
+	depends on TOYSH
+	help
+	  Adds the commands exec, fg, bg, help, jobs, pwd, export, source, set,
+	  unset, read, alias.
+
+config EXIT
+	bool
+	default n
+	depends on TOYSH
+	help
+	  usage: exit [status]
+
+	  Exit shell.  If no return value supplied on command line, use value
+	  of most recent command, or 0 if none.
+
+config CD
+	bool
+	default n
+	depends on TOYSH
+	help
+	  usage: cd [path]
+
+	  Change current directory.  With no arguments, go to $HOME.
+
+config CD_P
+	bool # "-P support for cd"
+	default n
+	depends on TOYSH
+	help
+	  usage: cd [-PL]
+
+	  -P    Physical path: resolve symlinks in path.
+	  -L    Cancel previous -P and restore default behavior.
+*/
 
 #include "toys.h"
 

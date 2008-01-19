@@ -1,17 +1,34 @@
-/* vi: set sw=4 ts=4: */
-/* nc: mini-netcat - Forward stdin/stdout to a file or network connection.
+/* vi: set sw=4 ts=4:
+ *
+ * nc: mini-netcat - Forward stdin/stdout to a file or network connection.
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
  *
  * Not in SUSv3.
- */
+
+config NETCAT
+	bool "netcat"
+	default n
+	help
+	  usage: netcat [-iwlp] {IPADDR PORTNUM|-f FILENAME} [-e COMMAND]
+
+	  -e	exec the rest of the command line
+	  -i	SECONDS delay after each line sent
+	  -w	SECONDS timeout for connection
+	  -f	filename use file (ala /dev/ttyS0) instead of network
+	  -l	listen for incoming connection (twice for persistent connection)
+	  -p	local port number
+	  -s	local source address
+	  -q	SECONDS quit this many seconds after EOF on stdin.
+
+	  Use -l twice with -e for a quick-and-dirty server.
+
+	  Use "stty 115200 -F /dev/ttyS0 && stty raw -echo -ctlecho" with
+	  netcat -f to connect to a serial port.
+*/
 
 #include "toys.h"
 #include "toynet.h"
-
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 
 #define TT toy.netcat
 

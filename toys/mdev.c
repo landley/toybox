@@ -6,7 +6,30 @@
  * Copyright 2005 Frank Sorenson <frank@tuxrocks.com>
  *
  * Not in SUSv3.
- */
+
+config MDEV
+	bool "mdev"
+	default n
+	help
+	  usage: mdev [-s]
+
+	  Create devices in /dev using information from /sys.
+
+	  -s	Scan all entries in /sys to populate /dev.
+
+config MDEV_CONF
+	bool "Configuration file for mdev"
+	default n
+	depends on MDEV
+	help
+	  The mdev config file (/etc/mdev.conf) contains lines that look like:
+		hd[a-z][0-9]* 0:3 660
+
+	  Each line must contain three whitespace separated fields.  The first
+	  field is a regular expression matching one or more device names, and
+	  the second and third fields are uid:gid and file permissions for
+	  matching devies.
+*/
 
 #include "toys.h"
 #include "lib/xregcomp.h"

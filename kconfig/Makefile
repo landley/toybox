@@ -8,28 +8,28 @@ obj = ./kconfig
 PHONY += clean help oldconfig menuconfig config silentoldconfig \
 	randconfig allyesconfig allnoconfig allmodconfig defconfig
 
-menuconfig: $(obj)/mconf
+menuconfig: $(obj)/mconf $(KCONFIG_TOP)
 	$< $(KCONFIG_TOP)
 
-config: $(obj)/conf
+config: $(obj)/conf $(KCONFIG_TOP)
 	$< $(KCONFIG_TOP)
 
-oldconfig: $(obj)/conf
+oldconfig: $(obj)/conf $(KCONFIG_TOP)
 	$< -o $(KCONFIG_TOP)
 
-silentoldconfig: $(obj)/conf
+silentoldconfig: $(obj)/conf $(KCONFIG_TOP)
 	$< -s $(KCONFIG_TOP)
 
-randconfig: $(obj)/conf
+randconfig: $(obj)/conf $(KCONFIG_TOP)
 	$< -r $(KCONFIG_TOP)
 
-allyesconfig: $(obj)/conf
+allyesconfig: $(obj)/conf $(KCONFIG_TOP)
 	$< -y $(KCONFIG_TOP)
 
-allnoconfig: $(obj)/conf
+allnoconfig: $(obj)/conf $(KCONFIG_TOP)
 	$< -n $(KCONFIG_TOP)
 
-defconfig: $(obj)/conf
+defconfig: $(obj)/conf $(KCONFIG_TOP)
 	$< -D /dev/null $(KCONFIG_TOP)
 
 # Help text used by make help

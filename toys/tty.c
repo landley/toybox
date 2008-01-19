@@ -1,8 +1,18 @@
-/* vi: set sw=4 ts=4: */
-/* tty.c - print terminal name of stdin
+/* vi: set sw=4 ts=4:
+ * tty.c - print terminal name of stdin
+ *
+ * Copyright 2007 Charlie Shepherd <masterdriverz@gentoo.org>
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/tty.html
- */
+
+config TTY
+	bool "tty"
+	default y
+	help
+	  Print the filename of the terminal connected to standard input.
+
+	  -s	Don't print anything, only return an exit status.
+*/
 
 #include "toys.h"
 

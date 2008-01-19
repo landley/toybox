@@ -1,13 +1,11 @@
-/* vi: set sw=4 ts=4: */
-/*
+/* vi: set sw=4 ts=4:
+ *
  * patch.c - Apply a "universal" diff.
  *
- * SUSv3 at http://www.opengroup.org/onlinepubs/009695399/utilities/patch.html
- * but who cares about "ed"?
+ * Copyright 2007 Rob Landley <rob@landley.net>
  *
- * -u ignored
- * -R reverse (remove applied hunks, apply removed hunks)
- * -p num remove this many slashes from start of path (default = all)
+ * see http://www.opengroup.org/onlinepubs/009695399/utilities/patch.html
+ * (But only does -u, because who still cares about "ed"?)
  *
  * TODO:
  * -b backup
@@ -15,7 +13,6 @@
  * -N ignore already applied
  * -d chdir first
  * -D define wrap #ifdef and #ifndef around changes
- * -i patchfile apply patch from filename rather than stdin
  * -o outfile output here instead of in place
  * -r rejectfile write rejected hunks to this file
  *
@@ -23,7 +20,26 @@
  * -f force (no questions asked)
  * -F fuzz (number, default 2)
  * [file] which file to patch
- */
+
+config PATCH
+	bool "patch"
+	default y
+	help
+	  usage: patch [-i file] [-p depth] [-Ru]
+
+	  Apply a unified diff to one or more files.
+
+	  -i	Input file (defaults=stdin)
+	  -p	number of '/' to strip from start of file paths (default=all)
+	  -R	Reverse patch.
+	  -u	Ignored (only handles "unified" diffs)
+
+	  This version of patch only handles unified diffs, and only modifies
+	  a file when all all hunks to that file apply.  Patch prints failed
+	  hunks to stderr, and exits with nonzero status if any hunks fail.
+
+	  A file compared against /dev/null is created/deleted as appropriate.
+*/
 
 #include "toys.h"
 

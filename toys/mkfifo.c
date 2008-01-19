@@ -1,9 +1,21 @@
-/* vi: set sw=4 ts=4: */
-/*
+/* vi: set sw=4 ts=4:
+ *
  * mkfifo.c: Create a named pipe.
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/mkfifo.html
- */
+
+config MKFIFO
+	bool "mkfifo"
+	default y
+	help
+	  usage: mkfifo [-m mode] name...
+
+	  Makes a named pipe at name.
+
+	  -m mode	The mode of the pipe(s) created by mkfifo. It defaults
+			to 0644.  This number is in octal, optionally preceded
+			by a leading zero.
+*/
 
 #include "toys.h"
 

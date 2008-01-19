@@ -1,9 +1,19 @@
-/* vi: set sw=4 ts=4: */
-/*
+/* vi: set sw=4 ts=4:
+ *
  * count.c - Progress indicator from stdin to stdout
  *
+ * Copyright 2002 Rob Landley <rob@landley.net>
+ *
  * Not in SUSv3.
- */
+
+config COUNT
+	bool "count"
+	default y
+	help
+	  usage: count
+
+	  Copy stdin to stdout, displaying simple progress indicator to stderr.
+*/
 
 #include "toys.h"
 

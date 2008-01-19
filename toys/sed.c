@@ -1,14 +1,23 @@
-/* vi: set sw=4 ts=4: */
-/*
+/* vi: set sw=4 ts=4:
+ *
  * sed.c - Stream editor.
  *
+ * Copyright 2008 Rob Landley <rob@landley.net>
+ *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/sed.c
- */
+
+config SED
+	bool "sed"
+	default n
+	help
+	  usage: sed [-irn] {command | [-e command]...} [FILE...]
+
+	  Stream EDitor, transforms text by appling commands to each line
+	  of input.
+*/
 
 #include "toys.h"
 #include "lib/xregcomp.h"
-
-#define TT toy.sed
 
 struct sed_command {
 	// Doubly linked list of commands.
@@ -34,6 +43,8 @@ struct sed_command {
 	// Which command letter is this?
 	char command;
 };
+
+#define TT toy.sed
 
 void sed_main(void)
 {

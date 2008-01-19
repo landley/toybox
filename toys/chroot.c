@@ -1,9 +1,19 @@
-/* vi: set sw=4 ts=4: */
-/*
+/* vi: set sw=4 ts=4:
+ *
  * chroot.c - Run command in new root directory.
  *
+ * Copyright 2007 Rob Landley <rob@landley.net>
+ *
  * Not in SUSv3.
- */
+
+config CHROOT
+	bool "chroot"
+	default y
+	help
+	  usage: chroot NEWPATH [commandline...]
+
+	  Run command within a new root directory.  If no command, run /bin/sh.
+*/
 
 #include "toys.h"
 

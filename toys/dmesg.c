@@ -1,11 +1,23 @@
-/* vi: set sw=4 ts=4: */
-/*
+/* vi: set sw=4 ts=4:
+ *
  * dmesg.c - display/control kernel ring buffer.
  *
  * Copyright 2006, 2007 Rob Landley <rob@landley.net>
  *
  * Not in SUSv3.
- */
+
+config DMESG
+	bool "dmesg"
+	default y
+	help
+	  usage: dmesg [-n level] [-s bufsize] | -c
+
+	  Print or control the kernel ring buffer.
+
+	  -n	Set kernel logging level (1-9).
+	  -s	Size of buffer to read (in bytes), default 16384.
+	  -c	Clear the ring buffer after printing.
+*/
 
 #include "toys.h"
 #include <sys/klog.h>

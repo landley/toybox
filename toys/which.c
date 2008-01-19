@@ -1,12 +1,21 @@
-/* vi: set sw=4 ts=4: */
-/*
+/* vi: set sw=4 ts=4:
+ *
  * which.c - Find executable files in $PATH.
  *
  * Copyright 2006 Rob landley <rob@landley.net>
  *
  * Not in SUSv3.
- */
 
+config WHICH
+	bool "which"
+	default y
+	help
+	  usage: which [-a] filename ...
+
+	  Search $PATH for executable files matching filename(s).
+
+	  -a	Show all matches
+*/
 #include "toys.h"
 
 #define OPT_a   1

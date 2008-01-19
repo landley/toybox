@@ -1,9 +1,19 @@
-/* vi: set sw=4 ts=4: */
-/*
+/* vi: set sw=4 ts=4:
+ *
  * yes.c - Repeatedly output a string.
  *
+ * Copyright 2007 Rob Landley <rob@landley.net>
+ *
  * Not in SUSv3.
- */
+
+config YES
+	bool "yes"
+	default y
+	help
+	  usage: yes [args...]
+
+	  Repeatedly output line until killed.  If no args, output 'y'.
+*/
 
 #include "toys.h"
 

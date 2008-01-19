@@ -1,9 +1,32 @@
-/* vi: set sw=4 ts=4: */
-/*
+/* vi: set sw=4 ts=4:
+ *
  * echo.c - echo supporting -n and -e.
  *
+ * Copyright 2007 Rob Landley <rob@landley.net>
+ *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/echo.html
- */
+
+config ECHO
+	bool "echo"
+	default y
+	help
+	  usage: echo [-ne] [args...]
+
+	  Write each argument to stdout, with one space between each, followed
+	  by a newline.
+
+	  -n	No trailing newline.
+          -e	Process the following escape sequences:
+		\\	backslash
+		\a	alert (beep/flash)
+		\b	backspace
+		\c	Stop output here (avoids trailing newline)
+		\f	form feed
+		\n	newline
+		\r	carriage return
+		\t	horizontal tab
+		\v	vertical tab
+*/
 
 #include "toys.h"
 

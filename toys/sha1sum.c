@@ -1,11 +1,22 @@
-/*
+/* vi: set sw=4 ts=4:
+ *
+ * sha1sum.c - Calculate sha1 cryptographic hash for input.
+ *
  * Copyright 2007 Rob Landley <rob@landley.net>
  *
  * Based on the public domain SHA-1 in C by Steve Reid <steve@edmweb.com>
  * from http://www.mirrors.wiretapped.net/security/cryptography/hashes/sha1/
  *
  * Not in SUSv3.
- */
+
+config SHA1SUM
+	bool "sha1sum"
+	default y
+	help
+	  usage: sha1sum [file...]
+
+	  Calculate sha1 hash of files (or stdin).
+*/
 
 #include <toys.h>
 

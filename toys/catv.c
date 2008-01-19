@@ -1,12 +1,25 @@
-/* vi: set sw=4 ts=4: */
-/*
+/* vi: set sw=4 ts=4:
+ *
  * cat -v implementation for toybox
  *
  * Copyright (C) 2006, 2007 Rob Landley <rob@landley.net>
- */
+ *
+ * Not in SUSv3, but see "Cat -v considered harmful" at
+ *   http://cm.bell-labs.com/cm/cs/doc/84/kp.ps.gz
 
-/* See "Cat -v considered harmful" at
- * http://cm.bell-labs.com/cm/cs/doc/84/kp.ps.gz */
+config CATV
+	bool "catv"
+	default y
+	help
+	  usage: catv [-evt] [filename...]
+
+	  Display nonprinting characters as escape sequences.  Use M-x for
+	  high ascii characters (>127), and ^x for other nonprinting chars.
+
+	  -e	Mark each newline with $
+	  -t	Show tabs as ^I
+	  -v	Don't use ^x or M-x escapes.
+*/
 
 #include "toys.h"
 

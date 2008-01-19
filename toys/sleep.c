@@ -1,9 +1,19 @@
-/* vi: set sw=4 ts=4: */
-/*
+/* vi: set sw=4 ts=4:
+ *
  * sleep.c - Wait for a number of seconds.
  *
+ * Copyright 2007 Rob Landley <rob@landley.net>
+ *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/sleep.html
- */
+
+config SLEEP
+	bool "sleep"
+	default y
+	help
+	  usage: sleep SECONDS
+
+	  Wait a decimal integer number of seconds.
+*/
 
 #include "toys.h"
 

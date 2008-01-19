@@ -1,11 +1,26 @@
-/* vi: set sw=4 ts=4: */
-/*
+/* vi: set sw=4 ts=4:
+ *
  * touch.c - Modify a file's timestamps.
  *
  * Copyright (C) 2007 Charlie Shepherd <masterdriverz@gentoo.org>
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/touch.html
- */
+
+config TOUCH
+	bool "touch"
+	default y
+	help
+	  usage: touch [-acm] [-r FILE] [-t MMDDhhmm] [-l bytes] FILE...
+
+	  Change file timestamps, ensure file existance and change file length.
+
+	  -a	Only change the access time.
+	  -c	Do not create the file if it doesn't exist.
+	  -l	Length to truncate (or sparsely extend) file to.
+	  -m	Only change the modification time.
+	  -r	Reference file to take timestamps from.
+	  -t	Time to change {a,m}time to.
+*/
 
 #include "toys.h"
 
