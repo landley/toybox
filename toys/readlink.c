@@ -6,6 +6,8 @@
  *
  * Not in SUSv3.
 
+USE_READLINK(NEWTOY(readlink, "<1f", TOYFLAG_BIN))
+
 config READLINK
 	bool "readlink"
 	default n

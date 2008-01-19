@@ -6,6 +6,8 @@
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/sleep.html
 
+USE_SLEEP(NEWTOY(sleep, "<1", TOYFLAG_BIN))
+
 config SLEEP
 	bool "sleep"
 	default y

@@ -8,6 +8,8 @@
  *
  * TODO: add -L -P
 
+USE_PWD(NEWTOY(pwd, NULL, TOYFLAG_BIN))
+
 config PWD
 	bool "pwd"
 	default y

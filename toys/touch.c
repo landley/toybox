@@ -6,6 +6,8 @@
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/touch.html
 
+USE_TOUCH(NEWTOY(touch, "l#t:r:mca", TOYFLAG_BIN))
+
 config TOUCH
 	bool "touch"
 	default y

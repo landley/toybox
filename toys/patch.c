@@ -21,6 +21,8 @@
  * -F fuzz (number, default 2)
  * [file] which file to patch
 
+USE_PATCH(NEWTOY(patch, "up#i:R", TOYFLAG_USR|TOYFLAG_BIN))
+
 config PATCH
 	bool "patch"
 	default y

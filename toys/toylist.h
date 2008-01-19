@@ -5,13 +5,6 @@
  */
 
 
-// Provide function declarations and structs.  Note that main.c #includes this
-// file twice (with different macros) to populate toy_list[].
-
-#ifndef NEWTOY
-#define NEWTOY(name, opts, flags) void name##_main(void);
-#define OLDTOY(name, oldname, opts, flags)
-
 struct df_data {
 	struct arg_list *fstype;
 
@@ -126,48 +119,3 @@ extern struct toy_list {
 	char *options;
 	int flags;
 } toy_list[];
-
-#endif
-
-// List of all the applets toybox can provide.
-
-// This one is out of order on purpose: it's the first element in the array.
-
-NEWTOY(toybox, NULL, 0)
-
-// The rest of these are alphabetical, for binary search.
-
-USE_BASENAME(NEWTOY(basename, "<1>2", TOYFLAG_BIN))
-USE_BZCAT(NEWTOY(bzcat, NULL, TOYFLAG_USR|TOYFLAG_BIN))
-USE_CATV(NEWTOY(catv, "vte", TOYFLAG_USR|TOYFLAG_BIN))
-USE_CHROOT(NEWTOY(chroot, "<1", TOYFLAG_USR|TOYFLAG_SBIN))
-USE_CHVT(NEWTOY(chvt, "<1", TOYFLAG_USR|TOYFLAG_SBIN))
-USE_COUNT(NEWTOY(count, NULL, TOYFLAG_USR|TOYFLAG_BIN))
-USE_TOYSH(NEWTOY(cd, NULL, TOYFLAG_NOFORK))
-USE_DF(NEWTOY(df, "Pkt*a", TOYFLAG_USR|TOYFLAG_SBIN))
-USE_DIRNAME(NEWTOY(dirname, "<1>1", TOYFLAG_BIN))
-USE_DMESG(NEWTOY(dmesg, "s#n#c", TOYFLAG_BIN))
-USE_ECHO(NEWTOY(echo, "+en", TOYFLAG_BIN))
-USE_TOYSH(NEWTOY(exit, NULL, TOYFLAG_NOFORK))
-USE_FALSE(NEWTOY(false, NULL, TOYFLAG_BIN))
-USE_HELLO(NEWTOY(hello, NULL, TOYFLAG_USR|TOYFLAG_BIN))
-USE_HELP(NEWTOY(help, "<1", TOYFLAG_BIN))
-USE_MKE2FS(NEWTOY(mke2fs, MKE2FS_OPTSTRING, TOYFLAG_SBIN))
-USE_MKFIFO(NEWTOY(mkfifo, "<1m:", TOYFLAG_BIN))
-USE_NETCAT(OLDTOY(nc, netcat, "i#w#l@p#s:q#f:e", TOYFLAG_BIN))
-USE_NETCAT(NEWTOY(netcat, "i#w#l@p#s:q#f:e", TOYFLAG_BIN))
-USE_ONEIT(NEWTOY(oneit, "+<1c:p", TOYFLAG_SBIN))
-USE_PATCH(NEWTOY(patch, "up#i:R", TOYFLAG_USR|TOYFLAG_BIN))
-USE_PWD(NEWTOY(pwd, NULL, TOYFLAG_BIN))
-USE_READLINK(NEWTOY(readlink, "<1f", TOYFLAG_BIN))
-USE_SED(NEWTOY(sed, "irne*", TOYFLAG_BIN))
-USE_TOYSH(OLDTOY(sh, toysh, "c:i", TOYFLAG_BIN))
-USE_SHA1SUM(NEWTOY(sha1sum, NULL, TOYFLAG_USR|TOYFLAG_BIN))
-USE_SLEEP(NEWTOY(sleep, "<1", TOYFLAG_BIN))
-USE_SYNC(NEWTOY(sync, NULL, TOYFLAG_BIN))
-USE_TOUCH(NEWTOY(touch, "l#t:r:mca", TOYFLAG_BIN))
-USE_TOYSH(NEWTOY(toysh, "c:i", TOYFLAG_BIN))
-USE_TRUE(NEWTOY(true, NULL, TOYFLAG_BIN))
-USE_TTY(NEWTOY(tty, "s", TOYFLAG_BIN))
-USE_WHICH(NEWTOY(which, "a", TOYFLAG_USR|TOYFLAG_BIN))
-USE_YES(NEWTOY(yes, NULL, TOYFLAG_USR|TOYFLAG_BIN))

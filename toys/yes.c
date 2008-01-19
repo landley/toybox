@@ -6,6 +6,8 @@
  *
  * Not in SUSv3.
 
+USE_YES(NEWTOY(yes, NULL, TOYFLAG_USR|TOYFLAG_BIN))
+
 config YES
 	bool "yes"
 	default y

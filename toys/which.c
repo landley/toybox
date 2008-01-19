@@ -6,6 +6,8 @@
  *
  * Not in SUSv3.
 
+USE_WHICH(NEWTOY(which, "a", TOYFLAG_USR|TOYFLAG_BIN))
+
 config WHICH
 	bool "which"
 	default y

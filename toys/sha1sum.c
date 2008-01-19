@@ -9,6 +9,8 @@
  *
  * Not in SUSv3.
 
+USE_SHA1SUM(NEWTOY(sha1sum, NULL, TOYFLAG_USR|TOYFLAG_BIN))
+
 config SHA1SUM
 	bool "sha1sum"
 	default y

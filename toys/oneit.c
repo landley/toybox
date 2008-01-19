@@ -6,6 +6,8 @@
  *
  * Not in SUSv3.
 
+USE_ONEIT(NEWTOY(oneit, "+<1c:p", TOYFLAG_SBIN))
+
 config ONEIT
 	bool "oneit"
 	default y

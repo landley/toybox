@@ -14,7 +14,7 @@
 #define OLDTOY(name, oldname, opts, flags) {#name, oldname##_main, opts, flags},
 
 struct toy_list toy_list[] = {
-#include "toys/toylist.h"
+#include "generated/newtoys.h"
 };
 
 #define TOY_LIST_LEN (sizeof(toy_list)/sizeof(struct toy_list))
@@ -59,7 +59,7 @@ struct toy_list *toy_find(char *name)
 #define NEWTOY(name, opts, flags) opts ||
 #define OLDTOY(name, oldname, opts, flags) opts ||
 static const int NEED_OPTIONS =
-#include "toys/toylist.h"
+#include "generated/newtoys.h"
 0;  // Ends the opts || opts || opts...
 
 void toy_init(struct toy_list *which, char *argv[])

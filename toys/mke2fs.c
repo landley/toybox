@@ -6,6 +6,8 @@
  *
  * Not in SUSv3.
 
+USE_MKE2FS(NEWTOY(mke2fs, MKE2FS_OPTSTRING, TOYFLAG_SBIN))
+
 config MKE2FS
 	bool "mke2fs"
 	default n

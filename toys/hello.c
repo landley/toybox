@@ -7,6 +7,8 @@
  * Not in SUSv3.
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/
 
+USE_HELLO(NEWTOY(hello, NULL, TOYFLAG_USR|TOYFLAG_BIN))
+
 config HELLO
 	bool "hello"
 	default y

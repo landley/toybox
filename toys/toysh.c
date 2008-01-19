@@ -16,6 +16,11 @@
  *
  * TODO: // Handle embedded NUL bytes in the command line.
 
+USE_TOYSH(NEWTOY(cd, NULL, TOYFLAG_NOFORK))
+USE_TOYSH(NEWTOY(exit, NULL, TOYFLAG_NOFORK))
+USE_TOYSH(OLDTOY(sh, toysh, "c:i", TOYFLAG_BIN))
+USE_TOYSH(NEWTOY(toysh, "c:i", TOYFLAG_BIN))
+
 config TOYSH
 	bool "sh (toysh)"
 	default y

@@ -6,6 +6,8 @@
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/df.html
 
+USE_DF(NEWTOY(df, "Pkt*a", TOYFLAG_USR|TOYFLAG_SBIN))
+
 config DF
 	bool "df (disk free)"
 	default y

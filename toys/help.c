@@ -6,6 +6,8 @@
  *
  * Not in SUSv3, but exists as a bash builtin.
 
+USE_HELP(NEWTOY(help, "<1", TOYFLAG_BIN))
+
 config HELP
 	bool "help"
 	default y
@@ -31,7 +33,7 @@ config HELP_LONG
 #define NEWTOY(name,opt,flags) help_##name "\0"
 #define OLDTOY(name,oldname,opts,flags) "\xff" #oldname "\0"
 static char *help_data =
-#include "toys/toylist.h"
+#include "generated/newtoys.h"
 ;
 
 void help_main(void)

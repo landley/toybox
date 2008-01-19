@@ -6,6 +6,8 @@
  *
  * Not in SUSv3.
 
+USE_CHVT(NEWTOY(chvt, "<1", TOYFLAG_USR|TOYFLAG_SBIN))
+
 config CHVT
 	bool "chvt"
 	default y

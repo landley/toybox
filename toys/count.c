@@ -6,6 +6,8 @@
  *
  * Not in SUSv3.
 
+USE_COUNT(NEWTOY(count, NULL, TOYFLAG_USR|TOYFLAG_BIN))
+
 config COUNT
 	bool "count"
 	default y

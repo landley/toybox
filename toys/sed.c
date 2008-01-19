@@ -6,6 +6,8 @@
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/sed.c
 
+USE_SED(NEWTOY(sed, "irne*", TOYFLAG_BIN))
+
 config SED
 	bool "sed"
 	default n

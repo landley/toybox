@@ -41,6 +41,12 @@
 #include "toys/e2fs.h"
 #include "toys/toylist.h"
 
+// Get list of function prototypes for all enabled command_main() functions.
+
+#define NEWTOY(name, opts, flags) void name##_main(void);
+#define OLDTOY(name, oldname, opts, flags)
+#include "generated/newtoys.h"
+
 // These live in main.c
 
 struct toy_list *toy_find(char *name);

@@ -6,6 +6,8 @@
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/true.html
 
+USE_TRUE(NEWTOY(true, NULL, TOYFLAG_BIN))
+
 config TRUE
 	bool "true"
 	default y

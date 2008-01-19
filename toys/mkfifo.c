@@ -4,6 +4,8 @@
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/mkfifo.html
 
+USE_MKFIFO(NEWTOY(mkfifo, "<1m:", TOYFLAG_BIN))
+
 config MKFIFO
 	bool "mkfifo"
 	default y

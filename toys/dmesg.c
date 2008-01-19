@@ -6,6 +6,8 @@
  *
  * Not in SUSv3.
 
+USE_DMESG(NEWTOY(dmesg, "s#n#c", TOYFLAG_BIN))
+
 config DMESG
 	bool "dmesg"
 	default y

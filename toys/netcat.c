@@ -6,6 +6,9 @@
  *
  * Not in SUSv3.
 
+USE_NETCAT(OLDTOY(nc, netcat, "i#w#l@p#s:q#f:e", TOYFLAG_BIN))
+USE_NETCAT(NEWTOY(netcat, "i#w#l@p#s:q#f:e", TOYFLAG_BIN))
+
 config NETCAT
 	bool "netcat"
 	default n

@@ -5,6 +5,8 @@
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/tty.html
 
+USE_TTY(NEWTOY(tty, "s", TOYFLAG_BIN))
+
 config TTY
 	bool "tty"
 	default y

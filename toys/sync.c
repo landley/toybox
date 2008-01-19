@@ -6,6 +6,8 @@
  *
  * Not in SUSv3.
 
+USE_SYNC(NEWTOY(sync, NULL, TOYFLAG_BIN))
+
 config SYNC
 	bool "sync"
 	default y

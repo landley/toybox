@@ -6,6 +6,8 @@
  *
  * Not in SUSv3.
 
+USE_BZCAT(NEWTOY(bzcat, NULL, TOYFLAG_USR|TOYFLAG_BIN))
+
 config BZCAT
 	bool "bzcat"
 	default n

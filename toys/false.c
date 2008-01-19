@@ -6,6 +6,7 @@
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/false.html
 
+USE_FALSE(NEWTOY(false, NULL, TOYFLAG_BIN))
 
 config FALSE
 	bool "false"

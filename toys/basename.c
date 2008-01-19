@@ -6,6 +6,8 @@
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/basename.html
 
+USE_BASENAME(NEWTOY(basename, "<1>2", TOYFLAG_BIN))
+
 config BASENAME
 	bool "basename"
 	default y

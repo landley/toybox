@@ -7,6 +7,21 @@ source ./configure
 echo "Extract configuration information from toys/*.c files."
 scripts/genconfig.sh
 
+# Create a list of all the applets toybox can provide.  Note that the first
+# entry is out of order on purpose (the toybox multiplexer applet must be the
+# first element of the array).  The rest must be sorted in alphabetical order
+# for fast binary search.
+
+function newtoys()
+{
+  for i in toys/*.c
+  do
+    sed -n -e '1,/^config [A-Z]/s/^USE_/&/p' $i || exit 1
+  done
+}
+echo "NEWTOY(toybox, NULL, 0)" > generated/newtoys.h
+newtoys | sort >> generated/newtoys.h
+
 # Only recreate generated/help.h if python is installed
 if [ ! -z "$(which python)" ] && [ ! -z "$(grep 'CONFIG_HELP=y' .config)" ]
 then

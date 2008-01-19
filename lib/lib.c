@@ -51,7 +51,7 @@ void error_exit(char *msg, ...)
 
 	if (CFG_HELP && toys.exithelp) {
 		*toys.optargs=*toys.argv;
-		help_main();
+		USE_HELP(help_main();)  // dear gcc: shut up.
 		fprintf(stderr,"\n");
 	}
 

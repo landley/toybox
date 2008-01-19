@@ -6,6 +6,8 @@
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/dirname.html
 
+USE_DIRNAME(NEWTOY(dirname, "<1>1", TOYFLAG_BIN))
+
 config DIRNAME
 	bool "dirname"
 	default y
