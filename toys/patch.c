@@ -70,20 +70,6 @@ static void do_line(void *data)
 	free(dlist->data);
 }
 
-
-static void dlist_add(struct double_list **list, char *data)
-{
-	struct double_list *line = xmalloc(sizeof(struct double_list));
-
-	line->data = data;
-	if (*list) {
-		line->next = *list;
-		line->prev = (*list)->prev;
-		(*list)->prev->next = line;
-		(*list)->prev = line;
-	} else *list = line->next = line->prev = line;
-}
-
 static void finish_oldfile(void)
 {
 	if (TT.tempname) replace_tempfile(TT.filein, TT.fileout, &TT.tempname);
