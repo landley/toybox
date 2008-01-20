@@ -34,7 +34,7 @@ install_flat: instlist
 
 clean::
 	rm -f toybox toybox_unstripped generated/config.h generated/Config.in \
-		generated/newtoys.h instlist
+		generated/newtoys.h generated/globals.h instlist
 
 distclean: clean
 	rm -f toybox_old .config* generated/help.h

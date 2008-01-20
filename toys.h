@@ -39,19 +39,35 @@
 
 #include "lib/lib.h"
 #include "toys/e2fs.h"
-#include "toys/toylist.h"
 
 // Get list of function prototypes for all enabled command_main() functions.
 
 #define NEWTOY(name, opts, flags) void name##_main(void);
 #define OLDTOY(name, oldname, opts, flags)
 #include "generated/newtoys.h"
+#include "generated/globals.h"
 
 // These live in main.c
 
 struct toy_list *toy_find(char *name);
 void toy_init(struct toy_list *which, char *argv[]);
 void toy_exec(char *argv[]);
+
+// List of available applets
+
+#define TOYFLAG_USR      (1<<0)
+#define TOYFLAG_BIN      (1<<1)
+#define TOYFLAG_SBIN     (1<<2)
+#define TOYMASK_LOCATION ((1<<4)-1)
+
+#define TOYFLAG_NOFORK   (1<<4)
+
+extern struct toy_list {
+        char *name;
+        void (*toy_main)(void);
+        char *options;
+        int flags;
+} toy_list[];
 
 // Global context for any applet.
 
@@ -67,3 +83,5 @@ extern struct toy_context {
 // One big temporary buffer, for use by applets (not library functions).
 
 extern char toybuf[4096];
+
+#define DEFINE_GLOBALS(...)

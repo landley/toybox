@@ -170,7 +170,11 @@ config CD_P
 
 #include "toys.h"
 
-#define TT toy.toysh
+DEFINE_GLOBALS(
+	char *command;
+)
+
+#define TT this.toysh
 
 // A single executable, its arguments, and other information we know about it.
 #define TOYSH_FLAG_EXIT    1

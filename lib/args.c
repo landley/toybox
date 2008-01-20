@@ -130,7 +130,7 @@ void get_optflags(void)
 		char *str;
 		int len;
 	} *longopts = NULL;
-	long *nextarg = (long *)&toy;
+	long *nextarg = (long *)&this;
 	char *options = toys.which->options;
 
 	if (CFG_HELP) toys.exithelp++;

@@ -77,8 +77,35 @@ config MKE2FS_EXTENDED
 
 #include "toys.h"
 
+DEFINE_GLOBALS(
+	// Command line arguments.
+	long blocksize;
+	long bytes_per_inode;
+	long inodes;           // Total inodes in filesystem.
+	long reserved_percent; // Integer precent of space to reserve for root.
+	char *gendir;          // Where to read dirtree from.
+
+	// Internal data.
+	struct dirtree *dt;    // Tree of files to copy into the new filesystem.
+	unsigned treeblocks;   // Blocks used by dt
+	unsigned treeinodes;   // Inodes used by dt
+
+	unsigned blocks;       // Total blocks in the filesystem.
+	unsigned freeblocks;   // Free blocks in the filesystem.
+	unsigned inodespg;     // Inodes per group
+	unsigned groups;       // Total number of block groups.
+	unsigned blockbits;    // Bits per block.  (Also blocks per group.)
+
+	// For gene2fs
+	unsigned nextblock;    // Next data block to allocate
+	unsigned nextgroup;    // Next group we'll be allocating from
+	int fsfd;              // File descriptor of filesystem (to output to).
+
+	struct ext2_superblock sb;
+)
+
 // Shortcut to our global data structure, since we use it so much.
-#define TT toy.mke2fs
+#define TT this.mke2fs
 
 #define INODES_RESERVED 10
 
@@ -140,20 +167,20 @@ static struct dirtree *treenext(struct dirtree *this)
 // Returns blocks used by this directory, assigns bytes used to *size.
 // Writes total block count to TT.treeblocks and inode count to TT.treeinodes.
 
-static long check_treesize(struct dirtree *this, off_t *size)
+static long check_treesize(struct dirtree *that, off_t *size)
 {
 	long blocks;
 
-	while (this) {
-		*size += sizeof(struct ext2_dentry) + strlen(this->name);
+	while (that) {
+		*size += sizeof(struct ext2_dentry) + strlen(that->name);
 
-		if (this->child)
-			this->st.st_blocks = check_treesize(this->child, &this->st.st_size);
-		else if (S_ISREG(this->st.st_mode)) {
-			 this->st.st_blocks = file_blocks_used(this->st.st_size, 0);
-			 TT.treeblocks += this->st.st_blocks;
+		if (that->child)
+			that->st.st_blocks = check_treesize(that->child, &that->st.st_size);
+		else if (S_ISREG(that->st.st_mode)) {
+			 that->st.st_blocks = file_blocks_used(that->st.st_size, 0);
+			 TT.treeblocks += that->st.st_blocks;
 		}
-		this = this->next;
+		that = that->next;
 	}
 	TT.treeblocks += blocks = file_blocks_used(*size, 0);
 	TT.treeinodes++;
@@ -170,30 +197,31 @@ static long check_treesize(struct dirtree *this, off_t *size)
 
 static void check_treelinks(struct dirtree *tree)
 {
-	struct dirtree *this=tree, *that;
+	struct dirtree *current=tree, *that;
 	long inode = INODES_RESERVED;
 
-	while (this) {
+	while (current) {
 		++inode;
 		// Since we can't hardlink to directories, we know their link count.
-		if (S_ISDIR(this->st.st_mode)) this->st.st_nlink = 2;
+		if (S_ISDIR(current->st.st_mode)) current->st.st_nlink = 2;
 		else {
-			dev_t new = this->st.st_dev;
+			dev_t new = current->st.st_dev;
 
 			if (!new) continue;
 
-			this->st.st_nlink = 0;
+			// Look for other copies of current node
+			current->st.st_nlink = 0;
 			for (that = tree; that; that = treenext(that)) {
-				if (this->st.st_ino == that->st.st_ino &&
-					this->st.st_dev == that->st.st_dev)
+				if (current->st.st_ino == that->st.st_ino &&
+					current->st.st_dev == that->st.st_dev)
 				{
-					this->st.st_nlink++;
-					this->st.st_ino = inode;
+					current->st.st_nlink++;
+					current->st.st_ino = inode;
 				}
 			}
 		}
-		this->st.st_ino = inode;
-		this = treenext(this);
+		current->st.st_ino = inode;
+		current = treenext(current);
 	}
 }
 
@@ -363,15 +391,15 @@ static void put_zeroes(int len)
 }
 
 // Fill out an inode structure from struct stat info in dirtree.
-static void fill_inode(struct ext2_inode *in, struct dirtree *this)
+static void fill_inode(struct ext2_inode *in, struct dirtree *that)
 {
 	uint32_t fbu[15];
 	int temp;
 
-	file_blocks_used(this->st.st_size, fbu);
+	file_blocks_used(that->st.st_size, fbu);
 
-	// If this inode needs data blocks allocated to it.
-	if (this->st.st_size) {
+	// If that inode needs data blocks allocated to it.
+	if (that->st.st_size) {
 		int i, group = TT.nextblock/TT.blockbits;
 
 		// TODO: teach this about indirect blocks.
@@ -382,26 +410,26 @@ static void fill_inode(struct ext2_inode *in, struct dirtree *this)
 		}
 	}
 	// TODO :  S_ISREG/DIR/CHR/BLK/FIFO/LNK/SOCK(m)
-	in->mode = SWAP_LE32(this->st.st_mode);
+	in->mode = SWAP_LE32(that->st.st_mode);
 
-	in->uid = SWAP_LE16(this->st.st_uid & 0xFFFF);
-	in->uid_high = SWAP_LE16(this->st.st_uid >> 16);
-	in->gid = SWAP_LE16(this->st.st_gid & 0xFFFF);
-	in->gid_high = SWAP_LE16(this->st.st_gid >> 16);
-	in->size = SWAP_LE32(this->st.st_size & 0xFFFFFFFF);
+	in->uid = SWAP_LE16(that->st.st_uid & 0xFFFF);
+	in->uid_high = SWAP_LE16(that->st.st_uid >> 16);
+	in->gid = SWAP_LE16(that->st.st_gid & 0xFFFF);
+	in->gid_high = SWAP_LE16(that->st.st_gid >> 16);
+	in->size = SWAP_LE32(that->st.st_size & 0xFFFFFFFF);
 
 	// Contortions to make the compiler not generate a warning for x>>32
 	// when x is 32 bits.  The optimizer should clean this up.
-	if (sizeof(this->st.st_size) > 4) temp = 32;
+	if (sizeof(that->st.st_size) > 4) temp = 32;
 	else temp = 0;
-	if (temp) in->dir_acl = SWAP_LE32(this->st.st_size >> temp);
+	if (temp) in->dir_acl = SWAP_LE32(that->st.st_size >> temp);
 	
-	in->atime = SWAP_LE32(this->st.st_atime);
-	in->ctime = SWAP_LE32(this->st.st_ctime);
-	in->mtime = SWAP_LE32(this->st.st_mtime);
+	in->atime = SWAP_LE32(that->st.st_atime);
+	in->ctime = SWAP_LE32(that->st.st_ctime);
+	in->mtime = SWAP_LE32(that->st.st_mtime);
 
-	in->links_count = SWAP_LE16(this->st.st_nlink);
-	in->blocks = SWAP_LE32(this->st.st_blocks);
+	in->links_count = SWAP_LE16(that->st.st_nlink);
+	in->blocks = SWAP_LE32(that->st.st_blocks);
 	// in->faddr
 }
 

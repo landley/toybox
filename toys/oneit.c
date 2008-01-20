@@ -29,6 +29,12 @@ config ONEIT
 #include "toys.h"
 #include <sys/reboot.h>
 
+DEFINE_GLOBALS(
+	char *console;
+)
+
+#define TT this.oneit
+
 // The minimum amount of work necessary to get ctrl-c and such to work is:
 //
 // - Fork a child (PID 1 is special: can't exit, has various signals blocked).
@@ -39,7 +45,6 @@ config ONEIT
 // PID 1 then reaps zombies until the child process it spawned exits, at which
 // point it calls sync() and reboot().  I could stick a kill -1 in there.
 
-#define TT toy.oneit
 
 void oneit_main(void)
 {

@@ -21,6 +21,12 @@ config SED
 #include "toys.h"
 #include "lib/xregcomp.h"
 
+DEFINE_GLOBALS(
+	struct arg_list *commands;
+)
+
+#define TT this.sed
+
 struct sed_command {
 	// Doubly linked list of commands.
 	struct sed_command *next, *prev;
@@ -45,8 +51,6 @@ struct sed_command {
 	// Which command letter is this?
 	char command;
 };
-
-#define TT toy.sed
 
 void sed_main(void)
 {

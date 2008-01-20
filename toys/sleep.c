@@ -19,6 +19,10 @@ config SLEEP
 
 #include "toys.h"
 
+DEFINE_GLOBALS(
+	long seconds;
+)
+
 void sleep_main(void)
 {
 	toys.exitval = sleep(atol(*toys.optargs));

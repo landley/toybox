@@ -33,7 +33,17 @@ config NETCAT
 #include "toys.h"
 #include "toynet.h"
 
-#define TT toy.netcat
+DEFINE_GLOBALS(
+	char *filename;        // -f read from filename instead of network
+	long quit_delay;       // -q Exit after EOF from stdin after # seconds.
+	char *source_address;  // -s Bind to a specific source address.
+	long port;             // -p Bind to a specific source port.
+	long listen;           // -l Listen for connection instead of dialing out.
+	long wait;             // -w Wait # seconds for a connection.
+	long delay;            // -i delay between lines sent
+)
+
+#define TT this.netcat
 
 static void timeout(int signum)
 {

@@ -14,7 +14,7 @@
 // Populate toy_list[].
 
 struct toy_list toy_list[] = {
-#include "toys/toylist.h"
+#include "generated/newtoys.h"
 };
 
 #define TOY_LIST_LEN (sizeof(toy_list)/sizeof(struct toy_list))

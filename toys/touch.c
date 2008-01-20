@@ -26,6 +26,14 @@ config TOUCH
 
 #include "toys.h"
 
+DEFINE_GLOBALS(
+	char *ref_file;
+	char *time;
+	long length;
+)
+
+#define TT this.touch
+
 #define OPT_MTIME       0x01
 #define OPT_NOCREATE    0x02
 #define OPT_ATIME       0x04
@@ -48,7 +56,7 @@ void touch_main(void)
 
 		if (toys.optflags & OPT_TIME)
 			error_exit("Redundant time source");
-		xstat(toy.touch.ref_file, &sb);
+		xstat(TT.ref_file, &sb);
 		curr_m = sb.st_mtime;
 		curr_a = sb.st_atime;
 
@@ -60,10 +68,10 @@ void touch_main(void)
 
 		curr = time(NULL);
 		if (localtime_r(&curr, &t)
-			|| !(c = strptime(toy.touch.time, "%m%d%H%M", &t))
+			|| !(c = strptime(TT.time, "%m%d%H%M", &t))
 			|| *c || -1==(curr_a = curr_m = mktime(&t)))
 		{
-			error_exit("Unknown time %s", toy.touch.time);
+			error_exit("Unknown time %s", TT.time);
 		}
 
 	// use current time
@@ -93,7 +101,7 @@ void touch_main(void)
 		}
 
 		if (toys.optflags & OPT_LENGTH)
-			if (truncate(arg, toy.touch.length))
+			if (truncate(arg, TT.length))
 				goto error;
 		if (utime(arg, &buf))
 error:

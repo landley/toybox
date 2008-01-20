@@ -45,7 +45,17 @@ config PATCH
 
 #include "toys.h"
 
-#define TT toy.patch
+DEFINE_GLOBALS(
+	char *infile;
+	long prefix;
+
+	struct double_list *plines, *flines;
+	long oldline, oldlen, newline, newlen, linenum;
+	int context, state, filein, fileout, filepatch;
+	char *tempname, *oldname;
+)
+
+#define TT this.patch
 
 #define FLAG_REVERSE 1
 #define FLAG_PATHLEN 4

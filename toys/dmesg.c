@@ -24,7 +24,12 @@ config DMESG
 #include "toys.h"
 #include <sys/klog.h>
 
-#define TT toy.dmesg
+DEFINE_GLOBALS(
+	long level;
+	long size;
+)
+
+#define TT this.dmesg
 
 void dmesg_main(void)
 {

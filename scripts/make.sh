@@ -4,8 +4,10 @@
 
 source ./configure
 
-echo "Extract configuration information from toys/*.c files."
+echo "Extract configuration information from toys/*.c files..."
 scripts/genconfig.sh
+
+echo "Generate headers from toys/*.h..."
 
 # Create a list of all the applets toybox can provide.  Note that the first
 # entry is out of order on purpose (the toybox multiplexer applet must be the
@@ -21,6 +23,30 @@ function newtoys()
 }
 echo "NEWTOY(toybox, NULL, 0)" > generated/newtoys.h
 newtoys | sort >> generated/newtoys.h
+
+# Extract global structure definitions from toys/*.c
+
+function getglobals()
+{
+  for i in toys/*.c
+  do
+    NAME="$(echo $i | sed 's@toys/\(.*\)\.c@\1@')"
+
+    echo -e "// $i\n"
+    sed -n -e '/^DEFINE_GLOBALS(/,/^)/b got;b;:got' \
+        -e 's/^DEFINE_GLOBALS(/struct '"$NAME"'_data {/' \
+        -e 's/^)/};/' -e 'p' $i
+  done
+}
+
+GLOBSTRUCT="$(getglobals)"
+(
+  echo "$GLOBSTRUCT"
+  echo
+  echo "extern union global_union {"
+  echo "$GLOBSTRUCT" | sed -n 's/struct \(.*\)_data {/	struct \1_data \1;/p'
+  echo "} this;"
+) > generated/globals.h
 
 # Only recreate generated/help.h if python is installed
 if [ ! -z "$(which python)" ] && [ ! -z "$(grep 'CONFIG_HELP=y' .config)" ]

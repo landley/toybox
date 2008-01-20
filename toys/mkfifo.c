@@ -21,6 +21,12 @@ config MKFIFO
 
 #include "toys.h"
 
+DEFINE_GLOBALS(
+	char *mode;
+)
+
+#define TT this.mkfifo
+
 void mkfifo_main(void)
 {
 	char *arg;
@@ -29,8 +35,8 @@ void mkfifo_main(void)
 
 	if (toys.optflags) {
 		char *end;
-		mode = (mode_t)strtol(toy.mkfifo.mode, &end, 8);
-		if (end<=toy.mkfifo.mode || *end || mode<0 || mode>0777)
+		mode = (mode_t)strtol(TT.mode, &end, 8);
+		if (end<=TT.mode || *end || mode<0 || mode>0777)
 			error_exit("Invalid mode");
 	} else mode = 0644;
 

@@ -39,6 +39,14 @@ config DF_PEDANTIC
 
 #include "toys.h"
 
+DEFINE_GLOBALS(
+	struct arg_list *fstype;
+
+	long units;
+)
+
+#define TT this.df
+
 static void show_mt(struct mtab_list *mt)
 {
 	int len;
@@ -49,10 +57,10 @@ static void show_mt(struct mtab_list *mt)
 	if (!mt) return;
 
 	// If we have -t, skip other filesystem types
-	if (toy.df.fstype) {
+	if (TT.fstype) {
 		struct arg_list *al;
 
-		for (al = toy.df.fstype; al; al = al->next) {
+		for (al = TT.fstype; al; al = al->next) {
 			if (!strcmp(mt->type, al->arg)) break;
 		}
 		if (!al) return;
@@ -64,12 +72,12 @@ static void show_mt(struct mtab_list *mt)
 	// Figure out how much total/used/free space this filesystem has,
 	// forcing 64-bit math because filesystems are big now.
 	block = mt->statvfs.f_bsize ? : 1;
-	size = (long)((block * mt->statvfs.f_blocks) / toy.df.units);
+	size = (long)((block * mt->statvfs.f_blocks) / TT.units);
 	used = (long)((block * (mt->statvfs.f_blocks-mt->statvfs.f_bfree))
-			/ toy.df.units);
+			/ TT.units);
 	avail = (long)((block
 				* (getuid() ? mt->statvfs.f_bavail : mt->statvfs.f_bfree))
-			/ toy.df.units);
+			/ TT.units);
 	percent = size ? 100-(long)((100*(uint64_t)avail)/size) : 0;
 
 	// Figure out appropriate spacing
@@ -89,12 +97,12 @@ void df_main(void)
 	struct mtab_list *mt, *mt2, *mtlist;
 
 	// Handle -P and -k
-	toy.df.units = 1024;
+	TT.units = 1024;
 	if (CFG_DF_PEDANTIC && (toys.optflags & 8)) {
 		// Units are 512 bytes if you select "pedantic" without "kilobytes".
-		if ((toys.optflags&3) == 1) toy.df.units = 512;
+		if ((toys.optflags&3) == 1) TT.units = 512;
 		printf("Filesystem %ld-blocks Used Available Capacity Mounted on\n",
-			toy.df.units);
+			TT.units);
 	} else puts("Filesystem\t1K-blocks\tUsed Available Use% Mounted on");
 
 	mtlist = getmountlist(1);
