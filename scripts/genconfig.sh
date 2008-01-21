@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# This has to be a separate file from scripts/make.sh so it can be called
+# before menuconfig.  (It's called again from scripts/make.sh just to be sure.)
+
 mkdir -p generated
 
 function genconfig()

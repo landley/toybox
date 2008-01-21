@@ -17,25 +17,105 @@ to spot as overrides to the normal flow of control, which they are.</p>
 
 <p><h1>Infrastructure:</h1></p>
 
-<p>The toybox source code is in three directories.  The top level directory
-contains the file main.c and the header file toys.h.  The "lib" directory
-contains generic functions shared by multiple commands.  The "toys" directory
-contains the implementations of individual commands.</p>
+<p>The toybox source code is in following directories:</p>
+<ul>
+<li>The <a href="#top">top level directory</a> contains the file main.c (were
+execution starts), the header file toys.h (included by every command), and
+other global infrastructure.</li>
+<li>The <a href="#lib">lib directory</a> contains common functions shared by
+multiple commands.</li>
+<li>The <a href="#toys">toys directory</a> contains the C files implementating
+each command.</li>
+<li>The <a href="#scripts">scripts directory</a> contains the build and
+test infrastructure.</li>
+<li>The <a href="#kconfig">kconfig directory</a> contains the configuration
+infrastructure implementing menuconfig (copied from the Linux kernel).</li>
+<li>The <a href="#generated">generated directory</a> contains intermediate
+files generated from other parts of the source code.</li>
+</ul>
 
-<p><h2>Top level directory.</h2></p>
+<p><h1>Adding a new command</h1></p>
+<p>To add a new command to toybox, add a C file implementing that command to
+the toys directory.  No other files need to be modified; the build extracts
+other information it needs (such as command line arguments) from specially
+formatted comments and macros in the C file.  (See the description of the
+<a href="#generated">generated directory</a> for details.)</p>
 
-<p>lib: llist, getmountlist(), error_msg/error_exit, xmalloc(),
-strlcpy(), xexec(), xopen()/xread(), xgetcwd(), xabspath(), find_in_path(),
-itoa().</p>
+<p>An easy way to start a new command is copy the file "hello.c" to
+the name of the new command, and modify this copy to implement the new command.
+This file is a small, simple command meant to be used as a "skeleton" for
+new commands (more or less by turning every instance of "hello" into the
+name of your command, updating the command line arguments, globals, and
+help data,  and then filling out its "main" function with code that does
+something interesting).</p>
+
+<p>Here's a checklist of steps to turn hello.c into another command:</p>
+
+<ul>
+<li><p>First "cd toys" and "cp hello.c yourcommand.c".  Note that the name
+of this file is significant, it's the name of the new command you're adding
+to toybox.  Open your new file in your favorite editor.</p></li>
+
+<li><p>Change the one line comment at the top of the file (currently
+"hello.c - A hello world program") to describe your new file.</p></li>
+
+<li><p>Change the copyright notice to your name, email, and the current
+year.</p></li>
+
+<li><p>Give a URL to the relevant standards document, or say "Not in SUSv3" if
+there is no relevant standard.  (Currently both lines are there, delete
+whichever is appropriate.)  The existing link goes to the directory of SUSv3
+command line utility standards on the Open Group's website, where there's often
+a relevant commandname.html file.  Feel free to link to other documentation or
+standards as appropriate.</p></li>
+
+<li><p>Update the USE_YOURCOMMAND(NEWTOY(yourcommand,NULL,0)) line.  This
+specifies the name used to run your command, the command line arguments (NULL
+if none), and where your command should be installed on a running system.  See
+[TODO] for details.</p></li>
+
+<li><p>Change the kconfig data (from "config YOURCOMMAND" to the end of the
+comment block) to supply your command's configuration and help
+information.  The uppper case config symbols are used by menuconfig, and are
+also what the CFG_ and USE_() macros are generated from (see [TODO]).  The
+help information here is used by menuconfig, and also by the "help" command to
+describe your new command.  (See [TODO] for details.)  By convention,
+unfinished commands default to "n" and finished commands default to "y".<p></li>
+
+<li><p>Update the DEFINE_GLOBALS() macro to contain your command's global
+variables, and also change the name "hello" in the #define TT line afterwards
+to the name of your command.  If your command has no global variables, delete
+this macro (and the #define TT line afterwards).  Note that if you specified
+two-character command line arguments in NEWTOY(), the first few global
+variables will be initialized by the automatic argument parsing logic, and
+the type and order of these variables must correspond to the arguments
+specified in NEWTOY().  See [TODO] for details.</p></li>
+
+<li><p>Change the "#define TT this.hello" line to use your command name in
+place of the "hello".  This is a shortcut to access your global variables
+as if they were members of the global struct "TT".  (Access these members with
+a period ".", not a right arrow "->".)</p></li>
+
+<li><p>Rename hello_main() to yourcommand_main().  This is the main() function
+where execution off your command starts.  See [TODO] to figure out what
+happened to your command line arguments and how to access them.</p></li>
+</ul>
+
+<p><a name="top" /><h2>Top level directory.</h2></p>
+
+<p>This directory contains global infrastructure.
 
 <h3>main.c</h3>
 <p>Contains the main() function where execution starts, plus
 common infrastructure to initialize global variables and select which command
-to run.</p>
+to run.  The "toybox" multiplexer command is also defined here.  (This is the
+only command defined outside of the toys directory.)</p>
 
 <p>Execution starts in main() which removes the path from the first command
 name and calls toybox_main(), which calls toy_exec(), which calls toy_find(),
-toy_init() and the appropriate command's function from toy_list.</p>
+toy_init() and the appropriate command's function from toy_list.  If
+the command is "toybox", execution returns to toybox_main(), otherwise
+the call goes to the appropriate command_main() from the toys directory.</p>
 
 <p>The following global variables are defined here:</p>
 <ul>
@@ -231,6 +311,12 @@ configuration, but only the currently enabled ones are entered into help_data[]
 in toys/help.c.</p>
 
 <h2>Directory lib/</h2>
+
+<p>lib: llist, getmountlist(), error_msg/error_exit, xmalloc(),
+strlcpy(), xexec(), xopen()/xread(), xgetcwd(), xabspath(), find_in_path(),
+itoa().</p>
+
+
 
 <h2>Directory scripts/</h2>
 
