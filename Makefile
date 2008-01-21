@@ -3,11 +3,10 @@
 
 all: toybox
 
-toybox toybox_unstripped:
+toybox toybox_unstripped: *.[ch] lib/*.[ch] toys/*.[ch]
 	scripts/make.sh
 
-.PHONY: clean distclean baseline bloatcheck install_flat test tests help \
-	toybox toybox_unstripped
+.PHONY: clean distclean baseline bloatcheck install_flat test tests help
 
 include kconfig/Makefile
 
