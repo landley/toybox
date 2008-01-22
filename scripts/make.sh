@@ -22,7 +22,7 @@ function newtoys()
   done
 }
 echo "NEWTOY(toybox, NULL, 0)" > generated/newtoys.h
-newtoys | sort >> generated/newtoys.h
+newtoys | sort -t '(' -k3,3  >> generated/newtoys.h
 
 # Extract global structure definitions from toys/*.c
 
