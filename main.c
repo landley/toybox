@@ -92,6 +92,7 @@ void toybox_main(void)
 	if (toys.argv[1]) {
 		if (toys.argv[1][0]!='-') {
 			toy_exec(toys.argv+1);
+			toys.which = toy_list;
 			error_exit("Unknown command %s",toys.argv[1]);
 		}
 	}
