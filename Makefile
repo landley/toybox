@@ -3,7 +3,7 @@
 
 all: toybox
 
-toybox toybox_unstripped: *.[ch] lib/*.[ch] toys/*.[ch]
+toybox toybox_unstripped: *.[ch] lib/*.[ch] toys/*.[ch] scripts/*
 	scripts/make.sh
 
 .PHONY: clean distclean baseline bloatcheck install_flat test tests help
