@@ -1,5 +1,5 @@
 /* vi: set sw=4 ts=4 :*/
-/* functions.c - reusable stuff.
+/* lib.c - reusable stuff.
  *
  * Functions with the x prefix are wrappers for library functions.  They either
  * succeed or kill the program with an error message, but never return failure.
