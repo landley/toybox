@@ -2,7 +2,7 @@
  *
  * dirname.c - print directory portion of path, or "." if none.
  *
- * Copyright 2007 Charlie Shephard <masterdriverz@gentoo.org>
+ * Copyright 2007 Charlie Shepherd <masterdriverz@gentoo.org>
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/dirname.html
 
