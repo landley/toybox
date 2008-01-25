@@ -178,7 +178,7 @@ void xexec(char **argv)
 
 void xaccess(char *path, int flags)
 {
-	if (access(path, flags)) perror_exit("Can't access '%s'\n", path);
+	if (access(path, flags)) perror_exit("Can't access '%s'", path);
 }
 
 // Die unless we can delete a file.  (File must exist to be deleted.)
@@ -210,7 +210,7 @@ void xclose(int fd)
 FILE *xfopen(char *path, char *mode)
 {
 	FILE *f = fopen(path, mode);
-	if (!f) perror_exit("No file %s\n", path);
+	if (!f) perror_exit("No file %s", path);
 	return f;
 }
 
@@ -274,7 +274,7 @@ char *xgetcwd(void)
 
 void xstat(char *path, struct stat *st)
 {
-	if(stat(path, st)) perror_exit("Can't stat %s\n",path);
+	if(stat(path, st)) perror_exit("Can't stat %s",path);
 }
 
 // Cannonicalizes path by removing ".", "..", and "//" elements.  This is not
