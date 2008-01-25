@@ -1,8 +1,7 @@
 syntax: glob
 .config*
-gen_config.h
+generated/
 kconfig/mconf
 kconfig/conf
-toys/help.h
 toybox
 toybox_unstripped
