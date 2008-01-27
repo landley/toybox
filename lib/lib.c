@@ -20,9 +20,12 @@ void xstrcpy(char *dest, char *src, size_t size)
 
 void verror_msg(char *msg, int err, va_list va)
 {
+	char *s = ": %s";
+
 	fprintf(stderr, "%s: ", toys.which->name);
-	vfprintf(stderr, msg, va);
-	if (err) fprintf(stderr, ": %s", strerror(err));
+	if (msg) vfprintf(stderr, msg, va);
+	else s+=2;
+	if (err) fprintf(stderr, s, strerror(err));
 	putc('\n', stderr);
 }
 
