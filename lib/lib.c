@@ -91,7 +91,7 @@ void *xmalloc(size_t size)
 void *xzalloc(size_t size)
 {
 	void *ret = xmalloc(size);
-	bzero(ret,size);
+	bzero(ret, size);
 	return ret;
 }
 
@@ -117,7 +117,7 @@ void *xstrndup(char *s, size_t n)
 // Die unless we can allocate a copy of this string.
 void *xstrdup(char *s)
 {
-	return xstrndup(s,strlen(s));
+	return xstrndup(s, strlen(s));
 }
 
 // Die unless we can allocate enough space to sprintf() into.
@@ -274,7 +274,7 @@ char *xgetcwd(void)
 
 void xstat(char *path, struct stat *st)
 {
-	if(stat(path, st)) perror_exit("Can't stat %s",path);
+	if(stat(path, st)) perror_exit("Can't stat %s", path);
 }
 
 // Cannonicalizes path by removing ".", "..", and "//" elements.  This is not
@@ -287,7 +287,7 @@ char *xabspath(char *path)
 	// If this isn't an absolute path, make it one with cwd.
 	if (path[0]!='/') {
 		char *cwd=xgetcwd();
-		path = xmsprintf("%s/%s",cwd,path);
+		path = xmsprintf("%s/%s", cwd, path);
 		free(cwd);
 	} else path = xstrdup(path);
 
@@ -347,7 +347,7 @@ void xmkpath(char *path, int mode)
 				} else rc = mkdir(path, 0777);
 			}
 			*p = old;
-			if(rc) perror_exit("mkpath '%s'",path);
+			if(rc) perror_exit("mkpath '%s'", path);
 		}
 		if (!*p) break;
 	}
@@ -601,7 +601,7 @@ void loopfiles(char **argv, void (*function)(int fd, char *name))
 
 		if (!strcmp(*argv,"-")) fd=0;
 		else if (0>(fd = open(*argv, O_RDONLY))) {
-			perror_msg("%s",*argv);
+			perror_msg("%s", *argv);
 			toys.exitval = 1;
 			continue;
 		}
