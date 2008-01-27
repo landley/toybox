@@ -53,9 +53,9 @@ void chvt_main(void)
 	vtnum=atoi(*toys.optargs);
 
 	fd=get_console_fd();
-	if (fd < 0) return;
-	
-	if (ioctl(fd,VT_ACTIVATE,vtnum)) return;
-
-	if (ioctl(fd,VT_WAITACTIVE,vtnum)) return;
+	if (fd < 0 || ioctl(fd,VT_ACTIVATE,vtnum)
+		|| ioctl(fd,VT_WAITACTIVE,vtnum))
+	{
+		perror_exit(NULL);
+	}
 }
