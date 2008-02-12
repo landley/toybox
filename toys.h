@@ -77,6 +77,7 @@ extern struct toy_context {
 	char **argv;             // Original command line arguments
 	unsigned optflags;       // Command line option flags from get_optflags()
 	char **optargs;          // Arguments left over from get_optflags()
+	int optc;                // Count of optargs
 	int exithelp;            // Should error_exit print a usage message first?  (Option parsing.)
 } toys;
 

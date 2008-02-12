@@ -66,15 +66,13 @@ struct opts {
 	long *arg;
 };
 
-struct getoptflagstate
+static struct getoptflagstate
 {
 	int argc;
 	char *arg;
 	struct opts *opts, *this;
 	int noerror, nodash_now;
-};
-
-static struct getoptflagstate gof;
+} gof;
 
 static void gotflag(void)
 {
@@ -123,7 +121,7 @@ static void gotflag(void)
 
 void get_optflags(void)
 {
-	int stopearly = 0, optarg = 0, nodash = 0, minargs = 0, maxargs;
+	int stopearly = 0, nodash = 0, minargs = 0, maxargs;
 	struct longopts {
 		struct longopts *next;
 		struct opts *opt;
@@ -293,13 +291,13 @@ void get_optflags(void)
 		// Not a flag, save value in toys.optargs[]
 notflag:
 		if (stopearly) stopearly++;
-		toys.optargs[optarg++] = toys.argv[gof.argc];
+		toys.optargs[toys.optc++] = toys.argv[gof.argc];
 	}
 
 	// Sanity check
-	if (optarg<minargs)
+	if (toys.optc<minargs)
 		error_exit("Need %d argument%s", minargs, minargs ? "s" : "");
-	if (optarg>maxargs)
+	if (toys.optc>maxargs)
 		error_exit("Max %d argument%s", maxargs, maxargs ? "s" : "");
 	if (CFG_HELP) toys.exithelp = 0;
 }
