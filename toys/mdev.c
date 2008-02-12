@@ -7,6 +7,8 @@
  *
  * Not in SUSv3.
 
+USE_MDEV(NEWTOY(mdev, "s", TOYFLAG_USR|TOYFLAG_BIN))
+
 config MDEV
 	bool "mdev"
 	default n
@@ -205,7 +207,7 @@ static void find_dev(char *path)
 	closedir(dir);
 }
 
-void mdev_main(int argc, char *argv[])
+void mdev_main(void)
 {
 	if (toys.optflags) {
 		strcpy(toybuf, "/sys/block");
