@@ -15,6 +15,12 @@ at the end of the function.  Goto labels are never indented: they override the
 block structure of the file.  Putting them at the left edge makes them easy
 to spot as overrides to the normal flow of control, which they are.</p>
 
+<p>The primary goal of toybox is _simple_ code.  Small is second,
+speed and lots of features come in somewhere after that.  Note that
+environmental dependencies are a type of complexity, so needing other packages
+to build or run is a downside.  For example, don't use curses when you can
+output ansi escape sequences instead.</p>
+
 <p><h1>Infrastructure:</h1></p>
 
 <p>The toybox source code is in following directories:</p>
@@ -37,17 +43,19 @@ files generated from other parts of the source code.</li>
 <p><h1>Adding a new command</h1></p>
 <p>To add a new command to toybox, add a C file implementing that command to
 the toys directory.  No other files need to be modified; the build extracts
-other information it needs (such as command line arguments) from specially
+all the information it needs (such as command line arguments) from specially
 formatted comments and macros in the C file.  (See the description of the
 <a href="#generated">generated directory</a> for details.)</p>
 
 <p>An easy way to start a new command is copy the file "hello.c" to
 the name of the new command, and modify this copy to implement the new command.
-This file is a small, simple command meant to be used as a "skeleton" for
+This file is an example command meant to be used as a "skeleton" for
 new commands (more or less by turning every instance of "hello" into the
 name of your command, updating the command line arguments, globals, and
 help data,  and then filling out its "main" function with code that does
-something interesting).</p>
+something interesting).  It provides examples of all the build infrastructure
+(including optional elements like command line argument parsing and global
+variables that a "hello world" program doesn't strictly need).</p>
 
 <p>Here's a checklist of steps to turn hello.c into another command:</p>
 
@@ -69,10 +77,11 @@ command line utility standards on the Open Group's website, where there's often
 a relevant commandname.html file.  Feel free to link to other documentation or
 standards as appropriate.</p></li>
 
-<li><p>Update the USE_YOURCOMMAND(NEWTOY(yourcommand,NULL,0)) line.  This
-specifies the name used to run your command, the command line arguments (NULL
-if none), and where your command should be installed on a running system.  See
-[TODO] for details.</p></li>
+<li><p>Update the USE_YOURCOMMAND(NEWTOY(yourcommand,"blah",0)) line.  The
+arguments to newtoy are: 1) the name used to run your command, 2)
+the command line arguments (NULL if none), and additional information such
+as where your command should be installed on a running system.  See [TODO] for
+details.</p></li>
 
 <li><p>Change the kconfig data (from "config YOURCOMMAND" to the end of the
 comment block) to supply your command's configuration and help
@@ -91,13 +100,14 @@ variables will be initialized by the automatic argument parsing logic, and
 the type and order of these variables must correspond to the arguments
 specified in NEWTOY().  See [TODO] for details.</p></li>
 
-<li><p>Change the "#define TT this.hello" line to use your command name in
-place of the "hello".  This is a shortcut to access your global variables
-as if they were members of the global struct "TT".  (Access these members with
-a period ".", not a right arrow "->".)</p></li>
+<li><p>If you didn't delete the DEFINE_GLOBALS macro, change the "#define TT
+this.hello" line to use your command name in place of the "hello".  This is a
+shortcut to access your global variables as if they were members of the global
+struct "TT".  (Access these members with a period ".", not a right arrow
+"->".)</p></li>
 
 <li><p>Rename hello_main() to yourcommand_main().  This is the main() function
-where execution off your command starts.  See [TODO] to figure out what
+where execution of your command starts.  See [TODO] to figure out what
 happened to your command line arguments and how to access them.</p></li>
 </ul>
 
@@ -108,16 +118,17 @@ happened to your command line arguments and how to access them.</p></li>
 <h3>main.c</h3>
 <p>Contains the main() function where execution starts, plus
 common infrastructure to initialize global variables and select which command
-to run.  The "toybox" multiplexer command is also defined here.  (This is the
+to run.  The "toybox" multiplexer command also lives here.  (This is the
 only command defined outside of the toys directory.)</p>
 
-<p>Execution starts in main() which removes the path from the first command
-name and calls toybox_main(), which calls toy_exec(), which calls toy_find(),
-toy_init() and the appropriate command's function from toy_list.  If
-the command is "toybox", execution returns to toybox_main(), otherwise
-the call goes to the appropriate command_main() from the toys directory.</p>
+<p>Execution starts in main() which trims any path off of the first command
+name and calls toybox_main(), which calls toy_exec(), which calls toy_find()
+and toy_init() before calling the appropriate command's function from toy_list.
+If the command is "toybox", execution recurses into toybox_main(), otherwise
+the call goes to the appropriate commandname_main() from a C file in the toys
+directory.</p>
 
-<p>The following global variables are defined here:</p>
+<p>The following global variables are defined in main.c:</p>
 <ul>
 <li><p>struct toy_list <b>toy_list[]</b> - array describing all the
 commands currently configured into toybox.  The first entry (toy_list[0]) is
@@ -128,7 +139,7 @@ The remaining entries are the commands in alphabetical order (for efficient
 binary search).</p>
 
 <p>This is a read-only array initialized at compile time by
-defining macros and #including toys/toylist.h.</p>
+defining macros and #including generated/newtoys.h.</p>
 
 <p>Members of struct toy_list include:</p>
 <ul>
@@ -139,10 +150,20 @@ command.</p></li>
 get_optflags() in lib/args.c to intialize toys.optflags, toys.optargs, and
 entries in the toy union).  If this is NULL, no option parsing is done before
 calling toy_main().</p></li>
-<li><p>int <b>flags</b> - Behavior flags such as where to install this command
-(in usr/bin/sbin) and whether this is a shell builtin (NOFORK) or a standalone
-command.</p></li>
-</ul><br>
+<li><p>int <b>flags</b> - Behavior flags for this command.  The following flags are currently understood:</p>
+
+<ul>
+<li><b>TOYFLAG_USR</b> - Install this command under /usr</li>
+<li><b>TOYFLAG_BIN</b> - Install this command under /bin</li>
+<li><b>TOYFLAG_SBIN</b> - Install this command under /sbin</li>
+<li><b>TOYFLAG_NOFORK</b> - This command can be used as a shell builtin.</li>
+<li><b>TOYFLAG_UMASK</b> - Call umask(0) before running this command.</li>
+</ul>
+<br>
+
+<p>These flags are combined with | (or).  For example, to install a command
+in /usr/bin, or together TOYFLAG_USR|TOYFLAG_BIN.</p>
+</ul>
 </li>
 
 <li><p>struct toy_context <b>toys</b> - global structure containing information
@@ -164,21 +185,52 @@ and the fields in the toy union initialized by get_optflags().</p>
 </li>
 <li><p>unsigned <b>optflags</b> - Command line option flags, set by
 get_optflags().  Indicates which of the command line options listed in
-toys->which.options were seen this time.  See get_optflags() for
-details.</p></li>
+toys->which.options occurred this time.</p>
+
+<p>The rightmost command line argument listed in toys->which.options sets bit
+1, the next one sets bit 2, and so on.  This means the bits are set in the same
+order the binary digits would be listed if typed out as a string.  For example,
+the option string "abcd" would parse the command line "-c" to set optflags to 2,
+"-a" would set optflags to 8, and "-bd" would set optflags to 6 (4|2).</p>
+
+<p>Only letters are relevant to optflags.  In the string "a*b:c#d", d=1, c=2,
+b=4, a=8.  The punctuation after a letter initializes global variables
+(see [TODO] DECLARE_GLOBALS() for details).</p>
+
+<p>For more information on option parsing, see [TODO] get_optflags().</p>
+
+</li>
 <li><p>char **<b>optargs</b> - Null terminated array of arguments left over
 after get_optflags() removed all the ones it understood.  Note: optarg[0] is
 the first argument, not the command name.  Use toys.which->name for the command
 name.</p></li>
+<li><p>int <b>optc</b> - Optarg count, equivalent to argc but for
+optargs[].<p></li>
 <li><p>int <b>exithelp</b> - Whether error_exit() should print a usage message
 via help_main() before exiting.  (True during option parsing, defaults to
 false afterwards.)</p></li>
 </ul><br>
 
-<li><p>union toy_union <b>toy</b> - Union of structures containing each
+<li><p>union toy_union <b>this</b> - Union of structures containing each
 command's global variables.</p>
 
-<p>A command that needs global variables should declare a structure to
+<p>Global variables are useful: they reduce the overhead of passing extra
+command line arguments between functions, they conveniently start prezeroed to
+save initialization costs, and the command line argument parsing infrastructure
+can also initialize global variables with its results.</p>
+
+<p>But since each toybox process can only run one command at a time, allocating
+space for global variables belonging to other commands you aren't currently
+running would be wasteful.</p>
+
+<p>Toybox handles this by encapsulating each command's global variables in
+a structure, and declaring a union of those structures.  The DECLARE_GLOBALS()
+macro contains the global variables that should go in a command's global
+structure.  Each variable can then be accessed as "this.commandname.varname".
+Generally, the macro TT is #defined to this.commandname so the variable
+can then be accessed as "TT.variable".</p>
+
+A command that needs global variables should declare a structure to
 contain them all, and add that structure to this union.  A command should never
 declare global variables outside of this, because such global variables would
 allocate memory when running other commands that don't use those global
@@ -195,48 +247,68 @@ and it should never be directly referenced by functions in lib/ (although
 commands are free to pass toybuf in to a library function as an argument).</li>
 </ul>
 
-<p>The following functions are defined here:</p>
+<p>The following functions are defined in main.c:</p>
 <ul>
 <li><p>struct toy_list *<b>toy_find</b>(char *name) - Return the toy_list
 structure for this command name, or NULL if not found.</p></li>
 <li><p>void <b>toy_init</b>(struct toy_list *which, char *argv[]) - fill out
 the global toys structure, calling get_optargs() if necessary.</p></li>
-<li><p>void <b>toy_exec</b>(char *argv[]) - Run a built-in command with arguments.
-Calls toy_find() on the first argument (which must be just a command name
+<li><p>void <b>toy_exec</b>(char *argv[]) - Run a built-in command with
+arguments.</p>
+<p>Calls toy_find() on argv[0] (which must be just a command name
 without path).  Returns if it can't find this command, otherwise calls
-toy_init(), toys->which.toy_main(), and exit() instead of returning.</p></li>
+toy_init(), toys->which.toy_main(), and exit() instead of returning.</p>
 
-<li><p>void <b>toybox_main</b>(void) - the main function for multiplexer
-command.  Given a command name as its first argument, calls toy_exec() on its
-arguments.  With no arguments, it lists available commands.  If the first
-argument starts with "-" it lists each command with its default install
-path prepended.</p></li>
+<p>Use the library function xexec() to fall back to external executables
+in $PATH if toy_exec() can't find a built-in command.  Note that toy_exec()
+does not strip paths before searching for a command, so "./command" will
+never match an internal command.</li>
+
+<li><p>void <b>toybox_main</b>(void) - the main function for the multiplexer
+command (I.E. "toybox").  Given a command name as its first argument, calls
+toy_exec() on its arguments.  With no arguments, it lists available commands.
+If the first argument starts with "-" it lists each command with its default
+install path prepended.</p></li>
 
 </ul>
 
 <h3>Config.in</h3>
 
 <p>Top level configuration file in a stylized variant of
-<a href=http://kernel.org/doc/Documentation/kbuild/kconfig-language.txt>kconfig</a> format.  Includes toys/Config.in.</p>
+<a href=http://kernel.org/doc/Documentation/kbuild/kconfig-language.txt>kconfig</a> format.  Includes generated/Config.in.</p>
 
 <p>These files are directly used by "make menuconfig" to select which commands
 to build into toybox (thus generating a .config file), and by
-scripts/config2help.py to generate toys/help.h.</p>
+scripts/config2help.py to create generated/help.h.</p>
 
 <h3>Temporary files:</h3>
 
+<p>There is one temporary file in the top level source directory:</p>
 <ul>
 <li><p><b>.config</b> - Configuration file generated by kconfig, indicating
 which commands (and options to commands) are currently enabled.  Used
-to generate gen_config.h and the toys/*.c dependency list.</p></li>
+to make generated/config.h and determine which toys/*.c files to build.</p>
 
-<li><p><b>gen_config.h</b> - list of CFG_SYMBOL and USE_SYMBOL() macros,
+<p>You can create a human readable "miniconfig" version of this file using
+<a href=http://landley.net/code/firmware/new_platform.html#miniconfig>these
+instructions</a>.</p>
+</li>
+</ul>
+
+<p>The "generated/" directory contains files generated from other source code
+in toybox.  All of these files can be recreated by the build system, although
+some (such as generated/help.h) are shipped in release versions to reduce
+environmental dependencies (I.E. so you don't need python on your build
+system).</p>
+
+<ul>
+<li><p><b>generated/config.h</b> - list of CFG_SYMBOL and USE_SYMBOL() macros,
 generated from .config by a sed invocation in the top level Makefile.</p>
 
 <p>CFG_SYMBOL is a comple time constant set to 1 for enabled symbols and 0 for
-disabled symbols.  This can be used via normal if() statements to remove
-code at compile time via the optimizer's dead code elimination, which removes
-from the binary any code that cannot be reached.  This saves space without
+disabled symbols.  This allows the use of normal if() statements to remove
+code at compile time via the optimizer's dead code elimination (which removes
+from the binary any code that cannot be reached).  This saves space without
 cluttering the code with #ifdefs or leading to configuration dependent build
 breaks.  (See the 1992 Usenix paper
 <a href=http://www.chris-lott.org/resources/cstyle/ifdefs.pdf>#ifdef
@@ -245,7 +317,7 @@ Considered Harmful</a> for more information.)</p>
 <p>USE_SYMBOL(code) evaluates to the code in parentheses when the symbol
 is enabled, and nothing when the symbol is disabled.  This can be used
 for things like varargs or variable declarations which can't always be
-eliminated by a compile time removalbe test on CFG_SYMBOL.  Note that
+eliminated by a simple test on CFG_SYMBOL.  Note that
 (unlike CFG_SYMBOL) this is really just a variant of #ifdef, and can
 still result in configuration dependent build breaks.  Use with caution.</p>
 </li>
