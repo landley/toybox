@@ -6,7 +6,7 @@
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/touch.html
 
-USE_TOUCH(NEWTOY(touch, "l#t:r:mca", TOYFLAG_BIN))
+USE_TOUCH(NEWTOY(touch, "l#t:r:mca", TOYFLAG_BIN|TOYFLAG_UMASK))
 
 config TOUCH
 	bool "touch"
@@ -86,9 +86,7 @@ void touch_main(void)
 
 		if (stat(arg, &sb)) {
 			if (!(toys.optflags & OPT_NOCREATE)) {
-				int temp = umask(0);
 				xcreate(arg, O_CREAT, 0644);
-				if (CFG_TOYBOX_FREE) umask(temp);
 				if (stat(arg, &sb))
 					goto error;
 			}

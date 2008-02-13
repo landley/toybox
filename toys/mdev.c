@@ -7,7 +7,7 @@
  *
  * Not in SUSv3.
 
-USE_MDEV(NEWTOY(mdev, "s", TOYFLAG_USR|TOYFLAG_BIN))
+USE_MDEV(NEWTOY(mdev, "s", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_UMASK))
 
 config MDEV
 	bool "mdev"
@@ -166,7 +166,6 @@ found_device:
 	}
 
 	sprintf(temp, "/dev/%s", device_name);
-	umask(0);
 	if (mknod(temp, mode | type, makedev(major, minor)) && errno != EEXIST)
 		perror_exit("mknod %s failed", temp);
 

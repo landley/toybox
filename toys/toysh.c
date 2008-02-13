@@ -296,6 +296,7 @@ static void run_pipeline(struct pipeline *line)
 		tl->toy_main();
 		cmd->pid = toys.exitval;
 		free(toys.optargs);
+		if (toys.old_umask) umask(toys.old_umask);
 		memcpy(&toys, &temp, sizeof(struct toy_context));
 	} else {
 		int status;

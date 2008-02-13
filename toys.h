@@ -61,6 +61,7 @@ void toy_exec(char *argv[]);
 #define TOYMASK_LOCATION ((1<<4)-1)
 
 #define TOYFLAG_NOFORK   (1<<4)
+#define TOYFLAG_UMASK    (1<<5)
 
 extern struct toy_list {
         char *name;
@@ -79,6 +80,7 @@ extern struct toy_context {
 	char **optargs;          // Arguments left over from get_optflags()
 	int optc;                // Count of optargs
 	int exithelp;            // Should error_exit print a usage message first?  (Option parsing.)
+	int old_umask;
 } toys;
 
 // One big temporary buffer, for use by applets (not library functions).

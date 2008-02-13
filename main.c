@@ -70,6 +70,7 @@ void toy_init(struct toy_list *which, char *argv[])
 	toys.argv = argv;
 	if (NEED_OPTIONS && which->options) get_optflags();
 	else toys.optargs = argv+1;
+	if (which->flags & TOYFLAG_UMASK) toys.old_umask = umask(0);
 }
 
 // Run a toy.

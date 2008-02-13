@@ -4,7 +4,7 @@
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/mkfifo.html
 
-USE_MKFIFO(NEWTOY(mkfifo, "<1m:", TOYFLAG_BIN))
+USE_MKFIFO(NEWTOY(mkfifo, "<1m:", TOYFLAG_BIN|TOYFLAG_UMASK))
 
 config MKFIFO
 	bool "mkfifo"
@@ -40,7 +40,6 @@ void mkfifo_main(void)
 			error_exit("Invalid mode");
 	} else mode = 0644;
 
-	umask(0);
 	for (i = 0; (arg = toys.optargs[i]); i++)
 		if (mkfifo(arg, mode))
 			perror_exit(arg);
