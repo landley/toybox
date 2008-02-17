@@ -1,0 +1,76 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+# Create test file
+dd if=/dev/urandom of=random bs=64 count=1 > /dev/null
+
+#testing "name" "command" "result" "infile" "stdin"
+
+testing "cp not enough arguments [fail]" "cp one 2>/dev/null || echo yes" \
+	"yes\n" "" ""
+testing "cp -missing source [fail]" "cp missing two 2>/dev/null || echo yes" \
+	"yes\n" "" ""
+testing "cp file->file" "cp random two && cmp random two && echo yes" \
+	"yes\n" "" ""
+rm two
+
+mkdir two
+testing "cp file->dir" "cp random two && cmp random two/random && echo yes" \
+	"yes\n" "" ""
+rm two/random
+testing "cp file->dir/file" \
+	"cp random two/random && cmp random two/random && echo yes" \
+	"yes\n" "" ""
+testing "cp -r dir->missing" \
+	"cp -r two three && cmp random three/random && echo yes" \
+	"yes\n" "" "" 
+touch walrus
+testing "cp -r dir->file [fail]" \
+	"cp -r two walrus 2>/dev/null || echo yes" "yes\n" "" ""
+touch two/three
+testing "cp -r dir hits file." \
+	"cp -r three two 2>/dev/null || echo yes" "yes\n" "" ""
+rm -rf two three walrus
+
+touch two
+chmod 000 two
+testing "cp file->inaccessable [fail]" \
+	"cp random two 2>/dev/null || echo yes" "yes\n" "" ""
+rm -f two
+
+touch two
+chmod 000 two
+testing "cp -f file->inaccessable" \
+	"cp -f random two && cmp random two && echo yes" "yes\n" "" ""
+mkdir sub
+chmod 000 sub
+testing "cp file->inaccessable_dir [fail]" \
+	"cp random sub 2>/dev/null || echo yes" "yes\n" "" ""
+rm two
+rmdir sub
+
+mkdir dir
+touch file
+testing "cp -rf dir file [fail]" "cp -rf dir file 2>/dev/null || echo yes" \
+	"yes\n" "" ""
+rm -rf dir file
+
+touch one two
+testing "cp file1 file2 missing [fail]" \
+	"cp one two missing 2>/dev/null || echo yes" "yes\n" "" ""
+mkdir dir
+testing "cp dir file missing [fail]" \
+	"cp dir two missing 2>/dev/null || echo yes" "yes\n" "" ""
+testing "cp -rf dir file missing [fail]" \
+	"cp dir two missing 2>/dev/null || echo yes" "yes\n" "" ""
+testing "cp file1 file2 file [fail]" \
+	"cp random one two 2>/dev/null || echo yes" "yes\n" "" ""
+testing "cp file1 file2 dir" \
+	"cp random one dir && cmp random dir/random && cmp one dir/one && echo yes" \
+	"yes\n" "" ""
+rm one two random
+rm -rf dir
+
+# cp file1 file2 dir
+# cp file1 missing file2 -> dir
