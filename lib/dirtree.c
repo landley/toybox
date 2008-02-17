@@ -6,6 +6,8 @@
 
 #include "toys.h"
 
+// NOTE: This uses toybuf.  Possibly it shouldn't do that.
+
 // Create a dirtree node from a path.
 
 struct dirtree *dirtree_add_node(char *path)
@@ -30,7 +32,11 @@ struct dirtree *dirtree_add_node(char *path)
 	}
 
    	dt = xzalloc(sizeof(struct dirtree)+strlen(name)+1);
-	xstat(path, &(dt->st));
+	if (lstat(path, &(dt->st))) {
+		error_msg("Skipped '%s'",name);
+		free(dt);
+		return 0;
+	}
 	strcpy(dt->name, name);
 
 	return dt;
@@ -64,6 +70,7 @@ struct dirtree *dirtree_read(char *path, struct dirtree *parent,
 
 		snprintf(path+len, sizeof(toybuf)-len, "/%s", entry->d_name);
 		*ddt = dirtree_add_node(path);
+		if (!*ddt) continue;
 		(*ddt)->parent = parent;
 		if (callback) callback(*ddt);
 		if (entry->d_type == DT_DIR)
