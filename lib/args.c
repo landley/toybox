@@ -16,13 +16,14 @@
 //     * plus a string argument, appended to a list
 //     # plus a signed long argument (TODO: Bounds checking?)
 //     @ plus an occurrence counter (which is a long)
-//     | this is required.  If more than one marked, only one required.
 //     (longopt)
-//     +X enabling this enables X (switch on)
-//     ~X enabling this disables X (switch off)
-//       x~x means toggle x, I.E. specifying it again switches it off.
-//     !X die with error if X already set (x!x die if x supplied twice)
-//     [yz] needs at least one of y or z.
+//     | this is required.  If more than one marked, only one required.
+//
+//     These modify other option letters (previously seen in string):
+//       +X enabling this enables X (switch on)
+//       ~X enabling this disables X (switch off)
+//       !X die with error if X already set (x!x die if x supplied twice)
+//       [yz] needs at least one of y or z.
 //   at the beginning:
 //     + stop at first nonoption argument
 //     <0 at least # leftover arguments needed (default 0)
@@ -37,88 +38,108 @@
 //     - is a synonym for stdin in file arguments
 //   -abc means -a -b -c
 
-/* This uses a getopt-like option string, but not getopt() itself.
+/* This uses a getopt-like option string, but not getopt() itself.  We call
+ * it the get_opt string.
  *
- * Each option in options corresponds to a bit position in the return
- * value (last argument is (1<<0), the next to last is (1<<1) and so on).
- * If the option isn't seen in argv[] its bit is 0.
+ * Each option in the get_opt string corresponds to a bit position in the
+ * return value.  The rightmost argument is (1<<0), the next to last is (1<<1)
+ * and so on.  If the option isn't seen in argv[], its bit remains 0.
  *
  * Options which have an argument fill in the corresponding slot in the global
- * toys.command struct, which it treats as an array of longs (note that
- * sizeof(long)==sizeof(pointer) is guaranteed by LP64).
+ * union "this" (see generated/globals.h), which it treats as an array of longs
+ * (note that sizeof(long)==sizeof(pointer) is guaranteed by LP64).
  *
  * You don't have to free the option strings, which point into the environment
- * space.  List list objects should be freed by main() when command_main()
- * returns.
+ * space.  List objects should be freed by main() when command_main() returns.
  *
  * Example:
- *   get_optflags() when toys.which->options="ab:c:d"
- *   argv = ["command", "-b", "fruit", "-d"]
- *   flags = 5, toy[0]=NULL, toy[1]="fruit";
+ *   Calling get_optflags() when toys.which->options="ab:c:d" and
+ *   argv = ["command", "-b", "fruit", "-d", "walrus"] results in:
+ *
+ *     Changes to struct toys:
+ *       toys.optflags = 5  (-b=4 | -d=1)
+ *       toys.optargs[0]="walrus" (leftover argument)
+ *       toys.optargs[1]=NULL (end of list)
+ *       toys.optc=1 (there was 1 leftover argument)
+ *
+ *     Changes to union this:
+ *       this[0]=NULL (because -c didn't get an argument this time)
+ *       this[1]="fruit" (argument to -b)
  */
 
-//
+// Linked list of all known options (get_opt string is parsed into this).
 struct opts {
 	struct opts *next;
-	char c;
-	int type;
-	int shift;
-	long *arg;
+	uint32_t edx[3];   // Flag mask to enable/disable/exclude.
+	long *arg;         // Pointer into union this to store arguments at.
+	int c;             // Short argument character
+	char type;         // Type of arguments to store
 };
 
-static struct getoptflagstate
+// State during argument parsing.
+struct getoptflagstate
 {
 	int argc;
 	char *arg;
 	struct opts *opts, *this;
 	int noerror, nodash_now;
-} gof;
+	uint32_t excludes;
+};
 
-static void gotflag(void)
+// Parse one command line option.
+
+static void gotflag(struct getoptflagstate *gof)
 {
 	int type;
+	struct opts *opt = gof->this;
 
 	// Did we recognize this option?
-	if (!gof.this && !gof.noerror) error_exit("Unknown option %s", gof.arg);
-	else toys.optflags |= 1 << gof.this->shift;
+	if (!opt) {
+		if (gof->noerror) return;
+		error_exit("Unknown option %s", gof->arg);
+	}
+	toys.optflags |= opt->edx[0];
+	toys.optflags &= ~opt->edx[1];
+	gof->excludes = opt->edx[2];
 
 	// Does this option take an argument?
-	gof.arg++;
-	type = gof.this->type & 255;
+	gof->arg++;
+	type = opt->type;
 	if (type) {
 
 		// Handle "-xblah" and "-x blah", but also a third case: "abxc blah"
 		// to make "tar xCjfv blah1 blah2 thingy" work like
 		// "tar -x -C blah1 -j -f blah2 -v thingy"
-		if (!gof.nodash_now && !*gof.arg) {
-			gof.arg = toys.argv[++gof.argc];
-			if (!gof.arg) error_exit("Missing argument");
+		if (!gof->nodash_now && !gof->arg[0]) {
+			gof->arg = toys.argv[++gof->argc];
+			// TODO: The following line doesn't display --longopt correctly
+			if (!gof->arg) error_exit("Missing argument to -%c",opt->c);
 		}
 
 		// Grab argument.
-		if (!gof.arg && !(gof.arg = toys.argv[++gof.argc]))
+		if (!gof->arg && !(gof->arg = toys.argv[++(gof->argc)]))
 			error_exit("Missing argument");
-		if (type == ':') *(gof.this->arg) = (long)gof.arg;
+		if (type == ':') *(opt->arg) = (long)gof->arg;
 		else if (type == '*') {
 			struct arg_list *temp, **list;
-			list = (struct arg_list **)gof.this->arg;
+			list = (struct arg_list **)opt->arg;
 			temp = xmalloc(sizeof(struct arg_list));
-			temp->arg = gof.arg;
+			temp->arg = gof->arg;
 			temp->next = *list;
 			*list = temp;
-		} else if (type == '#') *(gof.this->arg) = atolx((char *)gof.arg);
+		} else if (type == '#') *(opt->arg) = atolx((char *)gof->arg);
 		else if (type == '@') {
 		}
 
-		gof.arg = "";
+		gof->arg = "";
 	}
 
-	gof.this = NULL;
+	gof->this = NULL;
 }
 
-// Fill out toys.optflags and toys.optargs.  This isn't reentrant because
-// we don't bzero(&gof, sizeof(gof));
+// Fill out toys.optflags and toys.optargs.
 
+static char *plustildenot = "+~!";
 void get_optflags(void)
 {
 	int stopearly = 0, nodash = 0, minargs = 0, maxargs;
@@ -128,6 +149,7 @@ void get_optflags(void)
 		char *str;
 		int len;
 	} *longopts = NULL;
+	struct getoptflagstate gof;
 	long *nextarg = (long *)&this;
 	char *options = toys.which->options;
 
@@ -137,9 +159,11 @@ void get_optflags(void)
 	while (toys.argv[maxargs++]);
 	toys.optargs = xzalloc(sizeof(char *)*maxargs);
 	maxargs = INT_MAX;
+	bzero(&gof, sizeof(struct getoptflagstate));
 
 	// Parse option format
 	if (options) {
+
 		// Parse leading special behavior indicators
 		for (;;) {
 			if (*options == '+') stopearly++;
@@ -153,14 +177,16 @@ void get_optflags(void)
 
 		// Parse rest of opts into array
 		while (*options) {
+			char *temp = "+~!";
 
 			// Allocate a new option entry when necessary
 			if (!gof.this) {
 				gof.this = xzalloc(sizeof(struct opts));
 				gof.this->next = gof.opts;
 				gof.opts = gof.this;
+				++*(gof.this->edx);
 			}
-			// Each option must start with (or an option character.  (Bare
+			// Each option must start with "(" or an option character.  (Bare
 			// longopts only come at the start of the string.)
 			if (*options == '(') {
 				char *end;
@@ -169,7 +195,7 @@ void get_optflags(void)
 				// Find the end of the longopt
 				for (end = ++options; *end && *end != ')'; end++);
 				if (CFG_TOYBOX_DEBUG && !*end)
-					error_exit("Unterminated optstring");
+					error_exit("Bug1 in get_opt");
 
 				// Allocate and init a new struct longopts
 				lo = xmalloc(sizeof(struct longopts));
@@ -180,25 +206,35 @@ void get_optflags(void)
 				longopts = lo;
 				options = end;
 
-				// For leading longopts (with no corresponding short opt), note
-				// that this option struct has been used.
-				gof.this->shift++;
+				// Mark this as struct opt as used, even when no short opt.
+				if (!gof.this->c) gof.this->c = -1;
 
 			// If this is the start of a new option that wasn't a longopt,
 
-			} else if (index(":*#@", *options)) {
-				gof.this->type |= *options;
-			} else if (*options == '|') {
-			} else if (*options == '+') {
-			} else if (*options == '~') {
-			} else if (*options == '!') {
+			} else if (strchr(":*#@", *options)) {
+				gof.this->type = *options;
+			} else if (0 != (temp = strchr(plustildenot, *options))) {
+				int i=0, idx = temp - plustildenot;
+				struct opts *opt;
+
+				if (CFG_TOYBOX_DEBUG && !*++options)
+					error_exit("Bug2 in get_opt");
+				// Find this option flag (in previously parsed struct opt)
+				for (opt = gof.this; ; opt = opt->next) {
+					if (CFG_TOYBOX_DEBUG && !opt) error_exit("Bug3 in get_opt");
+					if (opt->c == *options) break;
+					i++;
+				}
+				gof.this->edx[idx] |= 1<<i;
+
 			} else if (*options == '[') {
+			} else if (*options == '|') {
 
 			// At this point, we've hit the end of the previous option.  The
 			// current character is the start of a new option.  If we've already
 			// assigned an option to this struct, loop to allocate a new one.
-			// (It'll get back here afterwards.)
-			} else if(gof.this->shift || gof.this->c) {
+			// (It'll get back here afterwards and fall through to next else.)
+			} else if(gof.this->c) {
 				gof.this = NULL;
 				continue;
 
@@ -209,13 +245,16 @@ void get_optflags(void)
 		}
 	}
 
-	// Initialize shift bits and pointers to store arguments.  (We have to
-	// calculate this ahead of time because longopts jump into the middle of
-	// the list.)
+	// Initialize enable/disable/exclude masks and pointers to store arguments.
+	// (We have to calculate all this ahead of time because longopts jump into
+	// the middle of the list.)
 	gof.argc = 0;
 	for (gof.this = gof.opts; gof.this; gof.this = gof.this->next) {
-		gof.this->shift = gof.argc++;
-		if (gof.this->type & 255) {
+		int i;
+
+		for (i=0;i<3;i++) gof.this->edx[i] <<= gof.argc;
+		gof.argc++;
+		if (gof.this->type) {
 			gof.this->arg = (void *)nextarg;
 			*(nextarg++) = 0;
 		}
@@ -251,11 +290,9 @@ void get_optflags(void)
 				for (lo = longopts; lo; lo = lo->next) {
 					if (!strncmp(gof.arg, lo->str, lo->len)) {
 						if (gof.arg[lo->len]) {
-							if (gof.arg[lo->len]=='='
-								&& (lo->opt->type & 255))
-							{
+							if (gof.arg[lo->len]=='=' && lo->opt->type)
 								gof.arg += lo->len;
-							} else continue;
+							else continue;
 						}
 						// It's a match.
 						gof.arg = "";
@@ -265,7 +302,7 @@ void get_optflags(void)
 				}
 
 				// Long option parsed, handle option.
-				gotflag();
+				gotflag(&gof);
 				continue;
 			}
 
@@ -284,7 +321,7 @@ void get_optflags(void)
 				if (*gof.arg == gof.this->c) break;
 
 			// Handle option char (advancing past what was used)
-			gotflag();
+			gotflag(&gof);
 		}
 		continue;
 
@@ -300,36 +337,4 @@ notflag:
 	if (toys.optc>maxargs)
 		error_exit("Max %d argument%s", maxargs, maxargs ? "s" : "");
 	if (CFG_HELP) toys.exithelp = 0;
-}
-
-// Loop through files listed on the command line
-
-static int dofileargs(char ***files, int fd, int iswrite)
-{
-	char *filename = *((*files)++);
-	static int flags[] = {O_RDONLY, O_CREAT|O_TRUNC, O_RDWR};
-
-	if (fd != -1) close(fd);
-
-	for (;;) {
-
-		// Are there no more files?
-		if (!*filename)
-			return (fd == -1) ? iswrite : -1;
-
-		// A filename of "-" means stdin.
-		if (*filename == '-' && !filename[1]) return 0;
-
-		fd = xcreate(filename, flags[iswrite], 0777);
-	}
-}
-
-int readfileargs(char ***files, int fd)
-{
-	return dofileargs(files, fd, 0);
-}
-
-int writefileargs(char ***files, int fd)
-{
-	return dofileargs(files, fd, 1);
 }
