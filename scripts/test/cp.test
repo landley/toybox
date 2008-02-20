@@ -72,5 +72,7 @@ testing "cp file1 file2 dir" \
 rm one two random
 rm -rf dir
 
+# cp -r ../source destdir
+
 # cp file1 file2 dir
 # cp file1 missing file2 -> dir

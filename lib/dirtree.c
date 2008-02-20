@@ -50,7 +50,7 @@ struct dirtree *dirtree_add_node(char *path)
 // structures after use, and return NULL.
 
 struct dirtree *dirtree_read(char *path, struct dirtree *parent,
-					int (*callback)(struct dirtree *node))
+					int (*callback)(struct dirtree *node, int after))
 {
 	struct dirtree *dt = NULL, **ddt = &dt;
 	DIR *dir;
@@ -72,9 +72,10 @@ struct dirtree *dirtree_read(char *path, struct dirtree *parent,
 		*ddt = dirtree_add_node(path);
 		if (!*ddt) continue;
 		(*ddt)->parent = parent;
-		if (callback) callback(*ddt);
+		if (callback) callback(*ddt, 0);
 		if (entry->d_type == DT_DIR)
 			(*ddt)->child = dirtree_read(path, *ddt, callback);
+		if (callback) callback(*ddt, 1);
 		if (callback) free(*ddt);
 		else ddt = &((*ddt)->next);
 		path[len]=0;
