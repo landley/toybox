@@ -41,7 +41,7 @@ struct dirtree {
 
 struct dirtree *dirtree_add_node(char *path);
 struct dirtree *dirtree_read(char *path, struct dirtree *parent,
-                    int (*callback)(struct dirtree *node, int after));
+                    int (*callback)(char *path, struct dirtree *node));
 
 // lib.c
 void xstrcpy(char *dest, char *src, size_t size);

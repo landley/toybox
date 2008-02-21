@@ -7,7 +7,7 @@
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/cp.html
  *
  * "R+ra+d+p+r"
-USE_HELLO(NEWTOY(hello, "<2rR+rdpa+d+p+rHLPif", TOYFLAG_BIN|TOYFLAG_UMASK))
+USE_CP(NEWTOY(cp, "<2rR+rdpa+d+p+rHLPif", TOYFLAG_BIN))
 
 config CP
 	bool "cp"
@@ -40,60 +40,95 @@ config CP
 DEFINE_GLOBALS(
 	char *destname;
 	int destisdir;
+	int destisnew;
 )
 
 #define TT this.cp
 
 // Copy an individual file or directory to target.
 
-void cp_file(char *src, struct stat *srcst, int topdir, int again)
+void cp_file(char *src, struct stat *srcst, int topdir)
 {
 	char *s = NULL;
-	int mode = (toys.optflags & FLAG_p) ? 0700 : 0777;
-
-	// The second time we're called, chmod data.  We can't do this on
-	// the first pass because we may copy files into a read-only directory.
-	if (again) {
-		if (toys.optflags & FLAG_p) {
-			struct utimbuf ut;
-
-			// Inability to set these isn't fatal, some require root access.
-			// Can't do fchmod() etc here because -p works on mkdir, too.
-			chown(s, srcst->st_uid, srcst->st_gid);
-			chmod(s, srcst->st_mode);
-			ut.actime = srcst->st_atime;
-			ut.modtime = srcst->st_mtime;
-			utime(s, &ut);
-		}
-		return;
-	}
+	int fdout;
 
 	// Trim path from name if necessary.
+
+
 	if (topdir) s = strrchr(src, '/');
 	if (!s) s=src;
 
 	// Determine location to create new file/directory at.
-	if (TT.destisdir) s = xmsprintf(toybuf, "%s/%s", TT.destname, s);
+
+	if (TT.destisdir || !topdir) s = xmsprintf("%s/%s", TT.destname, s);
 	else s = xstrdup(TT.destname);
 
 	// Copy directory or file to destination.
+
 	if (S_ISDIR(srcst->st_mode)) {
-		if (mkdir(s, mode)) perror_exit("mkdir '%s'", s);
+		struct stat st2;
+
+		// Always make directory writeable to us, so we can create files in it.
+		//
+		// Yes, there's a race window between mkdir() and open() so it's
+		// possible that -p can be made to chown a directory other than the one
+		// we created.  The closest we can do to closing this is make sure
+		// that what we open _is_ a directory rather than something else.
+
+		if (mkdir(s, srcst->st_mode | 0200) || 0>(fdout=open(s, 0))
+			|| fstat(fdout, &st2) || !S_ISDIR(st2.st_mode))
+		{
+			perror_exit("mkdir '%s'", s);
+		}
 	} else {
-		int fdin, fdout;
+		int fdin, i;
+
 		fdin = xopen(src, O_RDONLY);
-		fdout = xcreate(s, O_CREAT|O_TRUNC, mode);
+		for (i=2 ; i; i--) {
+			fdout = open(s, O_RDWR|O_CREAT|O_TRUNC, srcst->st_mode);
+			if (fdout>=0 || !(toys.optflags & FLAG_f)) break;
+			unlink(s);
+		}
+		if (fdout<0) perror_exit("%s", s);
 		xsendfile(fdin, fdout);
 		close(fdin);
-		xclose(fdout);
 	}
+
+	// Inability to set these isn't fatal, some require root access.
+	// Can't do fchmod() etc here because -p works on mkdir, too.
+
+	if (toys.optflags & FLAG_p) {
+		int mask = umask(0);
+		struct utimbuf ut;
+
+		fchown(fdout,srcst->st_uid, srcst->st_gid);
+		ut.actime = srcst->st_atime;
+		ut.modtime = srcst->st_mtime;
+		utime(s, &ut);
+		umask(mask);
+	}
+	xclose(fdout);
+	free(s);
 }
 
 // Callback from dirtree_read() for each file/directory under a source dir.
 
-int cp_node(struct dirtree *node, int after)
+int cp_node(char *path, struct dirtree *node)
 {
-	cp_file(node->name, &(node->st), 0, after);
+	char *s = path+strlen(path);
+	struct dirtree *n = node;
+
+	// Find appropriate chunk of path for destination.
+
+	for (;;) {
+		if (*(--s) == '/') {
+			if (!n->parent) break;
+			n = n->parent;
+		}
+	}
+	s++;
+		
+	cp_file(s, &(node->st), 0);
 	return 0;
 }
 
@@ -107,38 +142,45 @@ void cp_main(void)
 	TT.destname = toys.optargs[--toys.optc];
 
 	// If destination doesn't exist, are we ok with that?
+
 	if (stat(TT.destname, &st)) {
 		if (toys.optc>1) goto error_notdir;
+		TT.destisnew++;
 
 	// If destination exists...
+
 	} else {
 		if (S_ISDIR(st.st_mode)) TT.destisdir++;
 		else if (toys.optc > 1) goto error_notdir;
 	}
 
 	// Handle sources
+
 	for (i=0; i<toys.optc; i++) {
 		char *src = toys.optargs[i];
 
-		// Skip nonexistent sources...
-		if (!((toys.optflags & FLAG_d) ? lstat(src, &st) : stat(src, &st))) {
+		// Skip nonexistent sources, or src==dest.
+
+		if (!strcmp(src, TT.destname)) continue;
+		if ((toys.optflags & FLAG_d) ? lstat(src, &st) : stat(src, &st))
+		{
 			perror_msg("'%s'", src);
 			toys.exitval = 1;
 			continue;
 		}
 
 		// Copy directory or file.
+
 		if (S_ISDIR(st.st_mode)) {
 			if (toys.optflags & FLAG_r) {
-				cp_file(src, &st, 1, 0);
-				dirtree_read(src, NULL, cp_node);
-				cp_file(src, &st, 1, 1);
+				cp_file(src, &st, 1);
+				strncpy(toybuf, src, sizeof(toybuf)-1);
+				toybuf[sizeof(toybuf)-1]=0;
+				dirtree_read(toybuf, NULL, cp_node);
 			} else error_msg("Skipped dir '%s'", src);
-		} else {
-			cp_file(src, &st, 1, 0);
-			cp_file(src, &st, 1, 1);
-		}
+		} else cp_file(src, &st, 1);
 	}
+
 	return;
 
 error_notdir:
