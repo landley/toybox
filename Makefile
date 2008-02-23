@@ -32,8 +32,8 @@ install_flat: instlist
 	@for i in `./instlist`; do ln -s toybox "$(PREFIX)/$$i"; done
 
 clean::
-	rm -f toybox toybox_unstripped generated/config.h generated/Config.in \
-		generated/newtoys.h generated/globals.h instlist
+	rm -rf toybox toybox_unstripped generated/config.h generated/Config.in \
+		generated/newtoys.h generated/globals.h instlist testdir
 
 distclean: clean
 	rm -f toybox_old .config* generated/help.h

@@ -28,6 +28,3 @@ else
     . $i
   done
 fi
-
-cd ..
-rm -rf testdir
