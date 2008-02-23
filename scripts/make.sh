@@ -70,15 +70,6 @@ sed -n -e 's/^# CONFIG_\(.*\) is not set.*/\1/' \
   -e 'g' -e 's/.*/#define USE_&(...) __VA_ARGS__/p' .config > \
   generated/config.h || exit 1
 
-#for i in $(echo toys/*.c | sort)
-#do
-  # Grab the function command names
-  # NAME=$(echo $i | sed -e 's@toys/@@' -e 's@\.c@@')
-  #sed -n '/struct '$NAME'_command {/,/};/p' $i \
-  #	>> generated/globals_big.h
-  #  echo "struct ${NAME}_command;" >> generated/globals.h
-#done
-
 # Extract a list of toys/*.c files to compile from the data in ".config" with
 # sed, sort, and tr:
 
