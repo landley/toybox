@@ -7,13 +7,13 @@
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/cp.html
  *
  * "R+ra+d+p+r"
-USE_CP(NEWTOY(cp, "<2rR+rdpa+d+p+rHLPif", TOYFLAG_BIN))
+USE_CP(NEWTOY(cp, "<2slrR+rdpa+d+p+rHLPif", TOYFLAG_BIN))
 
 config CP
 	bool "cp"
 	default n
 	help
-	  usage: cp -f SOURCE... DEST
+	  usage: cp -fpr SOURCE... DEST
 
 	  Copy files from SOURCE to DEST.  If more than one SOURCE, DEST must
 	  be a directory.
@@ -27,15 +27,17 @@ config CP
 #include "toys.h"
 
 #define FLAG_f 1
-#define FLAG_i 2
-#define FLAG_P 4
-#define FLAG_L 8
-#define FLAG_H 16
+#define FLAG_i 2	// todo
+#define FLAG_P 4	// todo
+#define FLAG_L 8	// todo
+#define FLAG_H 16	// todo
 #define FLAG_a 32
 #define FLAG_p 64
-#define FLAG_d 128
+#define FLAG_d 128	// todo
 #define FLAG_R 256
 #define FLAG_r 512
+#define FLAG_s 1024	// todo
+#define FLAG_l 2048	// todo
 
 DEFINE_GLOBALS(
 	char *destname;
@@ -47,20 +49,20 @@ DEFINE_GLOBALS(
 
 // Copy an individual file or directory to target.
 
-void cp_file(char *src, struct stat *srcst, int topdir)
+void cp_file(char *src, struct stat *srcst, int depth)
 {
 	char *s = NULL;
-	int fdout;
+	int fdout = -1;
 
 	// Trim path from name if necessary.
 
-
-	if (topdir) s = strrchr(src, '/');
-	if (!s) s=src;
+	if (!depth) s = strrchr(src, '/');
+	if (s) s++;
+	else s=src;
 
 	// Determine location to create new file/directory at.
 
-	if (TT.destisdir || !topdir) s = xmsprintf("%s/%s", TT.destname, s);
+	if (TT.destisdir || depth) s = xmsprintf("%s/%s", TT.destname, s);
 	else s = xstrdup(TT.destname);
 
 	// Copy directory or file to destination.
@@ -80,6 +82,16 @@ void cp_file(char *src, struct stat *srcst, int topdir)
 		{
 			perror_exit("mkdir '%s'", s);
 		}
+	} else if ((depth || (toys.optflags & FLAG_d)) && S_ISLNK(srcst->st_mode)) {
+		struct stat st2;
+		char *link = xreadlink(src);
+
+		// Note: -p currently has no effect on symlinks.  How do you get a
+		// filehandle to them?  O_NOFOLLOW causes the open to fail.
+		if (!link || symlink(link, s)) perror_msg("link '%s'",s);
+		free(link);
+	} else if (toys.optflags & FLAG_l) {
+		if (link(src, s)) perror_msg("link '%s'");
 	} else {
 		int fdin, i;
 
@@ -117,18 +129,20 @@ int cp_node(char *path, struct dirtree *node)
 {
 	char *s = path+strlen(path);
 	struct dirtree *n = node;
+	int depth = 0;
 
 	// Find appropriate chunk of path for destination.
 
 	for (;;) {
 		if (*(--s) == '/') {
+			depth++;
 			if (!n->parent) break;
 			n = n->parent;
 		}
 	}
 	s++;
 		
-	cp_file(s, &(node->st), 0);
+	cp_file(s, &(node->st), depth);
 	return 0;
 }
 
@@ -173,12 +187,12 @@ void cp_main(void)
 
 		if (S_ISDIR(st.st_mode)) {
 			if (toys.optflags & FLAG_r) {
-				cp_file(src, &st, 1);
+				cp_file(src, &st, 0);
 				strncpy(toybuf, src, sizeof(toybuf)-1);
 				toybuf[sizeof(toybuf)-1]=0;
 				dirtree_read(toybuf, NULL, cp_node);
 			} else error_msg("Skipped dir '%s'", src);
-		} else cp_file(src, &st, 1);
+		} else cp_file(src, &st, 0);
 	}
 
 	return;
