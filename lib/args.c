@@ -177,7 +177,7 @@ void get_optflags(void)
 
 		// Parse rest of opts into array
 		while (*options) {
-			char *temp = "+~!";
+			char *temp;
 
 			// Allocate a new option entry when necessary
 			if (!gof.this) {
@@ -217,7 +217,7 @@ void get_optflags(void)
 				int i=0, idx = temp - plustildenot;
 				struct opts *opt;
 
-				if (CFG_TOYBOX_DEBUG && !*++options)
+				if (!*++options && CFG_TOYBOX_DEBUG)
 					error_exit("Bug2 in get_opt");
 				// Find this option flag (in previously parsed struct opt)
 				for (opt = gof.this; ; opt = opt->next) {
