@@ -57,10 +57,12 @@ struct dirtree *dirtree_read(char *path, struct dirtree *parent,
 	int len = strlen(path);
 
 	if (!(dir = opendir(path))) perror_msg("No %s", path);
-
-	for (;;) {
+	else for (;;) {
 		struct dirent *entry = readdir(dir);
-		if (!entry) break;
+		if (!entry) {
+			closedir(dir);
+			break;
+		}
 
 		// Skip "." and ".."
 		if (entry->d_name[0]=='.') {
