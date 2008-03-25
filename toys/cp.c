@@ -123,7 +123,9 @@ int cp_node(char *path, struct dirtree *node)
 
 	// Find appropriate chunk of path for destination.
 
-	for (n = node;;n = n->parent) {
+	n = node;
+	if (!TT.destisdir) n = n->parent;
+	for (;;n = n->parent) {
 		while (s!=path) {
 			if (*(--s)=='/') break;
 		}
@@ -180,13 +182,14 @@ void cp_main(void)
 			continue;
 		}
 
-		dst = strrchr(src, '/');
-		if (dst) dst++;
-		else dst=src;
-
 		// Copy directory or file.
 
-		if (TT.destisdir) dst = xmsprintf("%s/%s", TT.destname, dst);
+		if (TT.destisdir) {
+			dst = strrchr(src, '/');
+			if (dst) dst++;
+			else dst=src;
+			dst = xmsprintf("%s/%s", TT.destname, dst);
+		} else dst = TT.destname;
 		if (S_ISDIR(st.st_mode)) {
 			if (toys.optflags & FLAG_r) {
 				cp_file(src, dst, &st);

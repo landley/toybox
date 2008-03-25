@@ -72,7 +72,24 @@ testing "cp file1 file2 dir" \
 rm one two random
 rm -rf dir
 
-# cp -r ../source destdir
+mkdir -p one/two/three/four
+touch one/two/three/five
+touch one/{six,seven,eight}
+testing "cp -r /abspath dest" \
+	"cp -r \"$(readlink -f one)\" dir && diff -r one dir && echo yes" \
+	"yes\n" "" ""
+mkdir dir2
+testing "cp -r dir1/* dir2" \
+	"cp -r one/* dir2 && diff -r one dir2 && echo yes" "yes\n" "" ""
+rm -rf one dir2
 
+# cp -r ../source destdir
+# cp -r one/two/three missing
+# cp -r one/two/three two
+# mkdir one; touch one/two; ln -s two one/three
 # cp file1 file2 dir
 # cp file1 missing file2 -> dir
+
+# Make sure it's truncating existing file
+# copy with -d at top level, with -d in directory, without -d at top level,
+#      without -d in directory
