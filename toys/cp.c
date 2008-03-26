@@ -69,8 +69,9 @@ void cp_file(char *src, char *dst, struct stat *srcst)
 		// we created.  The closest we can do to closing this is make sure
 		// that what we open _is_ a directory rather than something else.
 
-		if (mkdir(dst, srcst->st_mode | 0200) || 0>(fdout=open(dst, 0))
-			|| fstat(fdout, &st2) || !S_ISDIR(st2.st_mode))
+		if ((mkdir(dst, srcst->st_mode | 0200) && errno != EEXIST)
+			|| 0>(fdout=open(dst, 0)) || fstat(fdout, &st2)
+			|| !S_ISDIR(st2.st_mode))
 		{
 			perror_exit("mkdir '%s'", dst);
 		}

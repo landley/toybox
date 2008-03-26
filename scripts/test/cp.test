@@ -78,10 +78,12 @@ touch one/{six,seven,eight}
 testing "cp -r /abspath dest" \
 	"cp -r \"$(readlink -f one)\" dir && diff -r one dir && echo yes" \
 	"yes\n" "" ""
+testing "cp -r dir again" "cp -r one/. dir && diff -r one dir && echo yes" \
+	"yes\n" "" ""
 mkdir dir2
 testing "cp -r dir1/* dir2" \
 	"cp -r one/* dir2 && diff -r one dir2 && echo yes" "yes\n" "" ""
-rm -rf one dir2
+rm -rf one dir dir2
 
 # cp -r ../source destdir
 # cp -r one/two/three missing
