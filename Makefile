@@ -6,7 +6,7 @@ all: toybox
 toybox toybox_unstripped: .config *.[ch] lib/*.[ch] toys/*.[ch] scripts/*
 	scripts/make.sh
 
-.PHONY: clean distclean baseline bloatcheck install_flat test tests help
+.PHONY: clean distclean baseline bloatcheck install install_flat test tests help
 
 include kconfig/Makefile
 
@@ -27,9 +27,10 @@ instlist: toybox
 	$(HOSTCC) $(CCFLAGS) -I . scripts/install.c -o instlist
 
 install_flat: instlist
-	@mkdir -p $(PREFIX)/
-	@cp toybox $(PREFIX)/
-	@for i in `./instlist`; do ln -s toybox "$(PREFIX)/$$i"; done
+	scripts/install.sh --symlink --force
+
+install:
+	scripts/install.sh --long --symlink --force
 
 clean::
 	rm -rf toybox toybox_unstripped generated/config.h generated/Config.in \
