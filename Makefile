@@ -49,7 +49,7 @@ distclean: clean
 test: tests
 
 tests:
-	scripts/testall.sh
+	scripts/test.sh
 
 help::
 	@echo  '  toybox          - Build toybox.'
@@ -59,3 +59,6 @@ help::
 	@echo  '  clean           - Delete temporary files.'
 	@echo  '  distclean       - Delete everything that isn't shipped.'
 	@echo  '  install_flat    - Install toybox into $PREFIX directory.'
+	@echo  '  install         - Install toybox into subdirectories of $PREFIX.'
+	@echo  '  uninstall_flat  - Remove toybox from $PREFIX directory."
+	@echo  '  uninstall       - Remove toybox from subdirectories of $PREFIX."
