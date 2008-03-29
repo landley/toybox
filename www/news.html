@@ -2,12 +2,28 @@
 
 <h2>Currently implemented commands:</h2>
 <p>
-basename, catv, chroot, count, df, dirname, dmesg, echo, false, hello, help,
-mkfifo, nc, netcat, oneit, patch, pwd, sh, sha1sum, sleep, sync, touch, toysh,
-true, tty, which, yes
+basename, catv, chroot, chvt, count, cp, df, dirname, dmesg, echo, false, hello,
+help, mkfifo, nc, netcat, oneit, patch, pwd, sh, sha1sum, sleep, sync, touch,
+toysh, true, tty, which, yes
 </p>
 
 <h2>News</h2>
+
+<p><b>March 29, 2008</b> 
+<p>Time to release <a href=downloads/toybox-0.0.5.tar.bz2>toybox 0.0.5</a>, with
+new commands cp and chvt and several bugfixes.</p>
+
+<p>More makefile targets: "make test" runs the test suite (which needs more test
+scripts), and make install/install_flat/uninstall/uninstall_flat calls
+make/install.sh (with options --long --symlink --force --uninstall depending
+on the context).</p>
+
+<p>Most of the work has been behind the scenes, namely a significant rewrite of
+the build logic so adding each new command consists of adding a single C file to
+the "toys" directory, eliminating the need to touch any other files.
+There are specially formatted comments at the top of the C file to generate
+the other files, see toys/hello.c for an example.  (See generated/README.txt
+and <a href=code.html>code.html</a> for details.)</p>
 
 <p><b>January 2, 2008</b> - And <a href=downloads/toybox-0.0.4.tar.bz2>toybox-0.0.4.tar.bz2</a> is out.
 The new applets this time around include basename, chroot, dirname, dmesg,
