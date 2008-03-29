@@ -7,7 +7,7 @@ toybox toybox_unstripped: .config *.[ch] lib/*.[ch] toys/*.[ch] scripts/*
 	scripts/make.sh
 
 .PHONY: clean distclean baseline bloatcheck install install_flat \
-	uinstall uninstall_flat test tests help
+	uinstall uninstall_flat test tests help scripts/test
 
 include kconfig/Makefile
 
