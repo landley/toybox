@@ -40,7 +40,8 @@ config PATCH
 	  a file when all all hunks to that file apply.  Patch prints failed
 	  hunks to stderr, and exits with nonzero status if any hunks fail.
 
-	  A file compared against /dev/null is created/deleted as appropriate.
+	  A file compared against /dev/null (or with a date in 1969) is
+	  created/deleted as appropriate.
 */
 
 #include "toys.h"
@@ -211,9 +212,12 @@ void patch_main(void)
 			// Trim date from end of filename (if any).  We don't care.
 			for (s = patchline+4; *s && *s!='\t'; s++)
 				if (*s=='\\' && s[1]) s++;
-			*s = 0;
-
-			TT.oldname = xstrdup(patchline+4);
+			if (!strncmp(s, "\t1969-12-31", 10))
+				TT.oldname = xstrdup("/dev/null");
+			else {
+				*s = 0;
+				TT.oldname = xstrdup(patchline+4);
+			}
 		} else if (!strncmp("+++ ", patchline, 4)) {
 			int i = 0, del = 0;
 			char *s, *start;
@@ -221,13 +225,12 @@ void patch_main(void)
 			finish_oldfile();
 
 			// Trim date from end of filename (if any).  We don't care.
-			for (s = patchline+4; *s && *s!='\t'; s++)
+			for (s = start = patchline+4; *s && *s!='\t'; s++)
 				if (*s=='\\' && s[1]) s++;
+			if (!strncmp(s, "\t1969-12-31", 10)) start = "/dev/null";
 			*s = 0;
 
-
 			// If new file is /dev/null (before -p), we're deleting oldname
-			start = patchline+4;
 			if (!strcmp(start, "/dev/null")) {
 				start = TT.oldname;
 				del++;
@@ -254,7 +257,7 @@ void patch_main(void)
 						xmkpath(start, -1);
 						*s = '/';
 					}
-					TT.filein = xcreate(start, O_CREAT|O_RDWR, 0666);
+					TT.filein = xcreate(start, O_CREAT|O_EXCL|O_RDWR, 0666);
 				} else {
 					printf("patching %s\n", start);
 					TT.filein = xopen(start, O_RDWR);
