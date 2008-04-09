@@ -28,7 +28,7 @@ static void do_cat(int fd, char *name)
 		len = xread(fd, toybuf, size);
 		if (len<0) toys.exitval = EXIT_FAILURE;
 		if (len<1) break;
-		xwrite(1, toybuf, size);
+		xwrite(1, toybuf, len);
 	}
 }
 
