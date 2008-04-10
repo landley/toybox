@@ -7,7 +7,7 @@
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/cp.html
  *
  * "R+ra+d+p+r"
-USE_CP(NEWTOY(cp, "<2slrR+rdpa+d+p+rHLPif", TOYFLAG_BIN))
+USE_CP(NEWTOY(cp, "<2vslrR+rdpa+d+p+rHLPif", TOYFLAG_BIN))
 
 config CP
 	bool "cp"
@@ -25,6 +25,7 @@ config CP
 		-d	don't dereference symlinks
 		-a	same as -dpr
 		-l	hard link instead of copying
+		-v	verbose
 */
 
 #include "toys.h"
@@ -41,6 +42,7 @@ config CP
 #define FLAG_r 512
 #define FLAG_l 1024	// todo
 #define FLAG_s 2048	// todo
+#define FLAG_v 4098
 
 DEFINE_GLOBALS(
 	char *destname;
@@ -56,6 +58,9 @@ DEFINE_GLOBALS(
 void cp_file(char *src, char *dst, struct stat *srcst)
 {
 	int fdout = -1;
+
+	if (toys.optflags & FLAG_v)
+		printf("'%s' -> '%s'\n", src, dst);
 
 	// Copy directory or file to destination.
 
