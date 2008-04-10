@@ -87,6 +87,7 @@ void cp_file(char *src, char *dst, struct stat *srcst)
 		// filehandle to them?  O_NOFOLLOW causes the open to fail.
 		if (!link || symlink(link, dst)) perror_msg("link '%s'", dst);
 		free(link);
+		return;
 	} else if (toys.optflags & FLAG_l) {
 		if (link(src, dst)) perror_msg("link '%s'");
 		return;
