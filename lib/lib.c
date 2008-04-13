@@ -108,8 +108,9 @@ void *xrealloc(void *ptr, size_t size)
 // Die unless we can allocate a copy of this many bytes of string.
 void *xstrndup(char *s, size_t n)
 {
-	void *ret = xmalloc(++n);
-	xstrcpy(ret, s, n);
+	char *ret = xmalloc(++n);
+	strncpy(ret, s, n);
+	ret[--n]=0;
 
 	return ret;
 }
@@ -612,7 +613,7 @@ void loopfiles(char **argv, void (*function)(int fd, char *name))
 
 // Slow, but small.
 
-char *get_rawline(int fd, long *plen)
+char *get_rawline(int fd, long *plen, char end)
 {
 	char c, *buf = NULL;
 	long len = 0;
@@ -620,7 +621,7 @@ char *get_rawline(int fd, long *plen)
 	for (;;) {
 		if (1>read(fd, &c, 1)) break;
 		if (!(len & 63)) buf=xrealloc(buf, len+64);
-		if ((buf[len++]=c) == '\n') break;
+		if ((buf[len++]=c) == end) break;
 	}
 	if (buf) buf[len]=0;
 	if (plen) *plen = len;
@@ -631,7 +632,7 @@ char *get_rawline(int fd, long *plen)
 char *get_line(int fd)
 {
 	long len;
-	char *buf = get_rawline(fd, &len);
+	char *buf = get_rawline(fd, &len, '\n');
 
 	if (buf && buf[--len]=='\n') buf[len]=0;
 
