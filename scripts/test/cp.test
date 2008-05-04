@@ -3,7 +3,7 @@
 [ -f testing.sh ] && . testing.sh
 
 # Create test file
-dd if=/dev/urandom of=random bs=64 count=1 > /dev/null
+dd if=/dev/urandom of=random bs=64 count=1 2> /dev/null
 
 #testing "name" "command" "result" "infile" "stdin"
 
