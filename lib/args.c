@@ -152,6 +152,7 @@ void get_optflags(void)
 	struct getoptflagstate gof;
 	long *nextarg = (long *)&this;
 	char *options = toys.which->options;
+	char *letters[]={"s",""};
 
 	if (CFG_HELP) toys.exithelp++;
 	// Allocate memory for optargs
@@ -332,9 +333,11 @@ notflag:
 	}
 
 	// Sanity check
-	if (toys.optc<minargs)
-		error_exit("Need %d argument%s", minargs, minargs ? "s" : "");
+	if (toys.optc<minargs) {
+		error_exit("Need%s %d argument%s", letters[!!(minargs-1)], minargs,
+		letters[!(minargs-1)]);
+	}
 	if (toys.optc>maxargs)
-		error_exit("Max %d argument%s", maxargs, maxargs ? "s" : "");
+		error_exit("Max %d argument%s", maxargs, letters[!(maxargs-1)]);
 	if (CFG_HELP) toys.exithelp = 0;
 }
