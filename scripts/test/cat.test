@@ -1,0 +1,21 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+testing "cat" "cat && echo yes" "oneyes\n" "" "one"
+testing "cat file1" \
+	"cat /bin/cat > file1 && diff -u /bin/cat file1 && echo yes" \
+	"yes\n" "" ""
+#testing "cat file1 file2" "cat /bin/cat file1 > file2 && diff -u -
+
+testing "cat - file1" \
+	"cat - file1 | diff -a -U 0 - file1 | tail -n 1" \
+	"-hello\n" "" "hello\n"
+
+rm file1
+#testing "cat file1 file2" "cat $0"
+#testing "cat - file"
+#testing "cat > /dev/full"
+#testing "cat file1 notfound file2"
