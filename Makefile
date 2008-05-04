@@ -3,7 +3,7 @@
 
 all: toybox
 
-toybox toybox_unstripped: .config *.[ch] lib/*.[ch] toys/*.[ch] scripts/*
+toybox toybox_unstripped: .config *.[ch] lib/*.[ch] toys/*.[ch] scripts/*.sh
 	scripts/make.sh
 
 .PHONY: clean distclean baseline bloatcheck install install_flat \
