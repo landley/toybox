@@ -7,7 +7,7 @@ mkdir -p testdir
 
 if [ -z "$OLD" ]
 then
-  make install_flat PREFIX=testdir
+  make install_flat PREFIX=testdir || exit 1
 fi
 
 cd testdir
@@ -25,6 +25,12 @@ then
 else
   for i in "$TOPDIR"/scripts/test/*.test
   do
-    . $i
+    CMDNAME="$(echo "$i" | sed 's@.*/\(.*\)\.test@\1@')"
+    if [ -h $CMDNAME ]
+    then
+      . $i
+    else
+      echo "$CMDNAME disabled"
+    fi
   done
 fi
