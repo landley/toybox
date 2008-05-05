@@ -5,7 +5,7 @@
 #testing "name" "command" "result" "infile" "stdin"
 
 mkdir one
-testing "rmdir" "rmdir one && [ ! -d walrus ] && echo yes" "yes\n" "" ""
+testing "rmdir" "rmdir one && [ ! -d one ] && echo yes" "yes\n" "" ""
 
 touch walrus
 testing "rmdir file" \
@@ -20,6 +20,7 @@ mkdir one two three
 testing "rmdir one missing two file three" \
 	"rmdir one missing two walrus three 2> /dev/null || [ ! -d three ] && echo yes" \
 	"yes\n" "" ""
+rm walrus
 
 mkdir one
 chmod 000 one
@@ -39,7 +40,12 @@ testing "rmdir -p part of path" \
 	"yes\n" "" ""
 rm -rf temp
 
+
 mkdir -p one/two/three
 testing "rmdir -p one/two/three" \
 	"rmdir -p one/two/three && [ ! -e one ] && echo yes" "yes\n" "" ""
-rm walrus
+
+#mkdir -p one/two/three
+#chmod 000 one/two/three one/two one
+#testing "rmdir -p one/two/three" \
+#	"rmdir -p one/two/three && [ ! -e one ] && echo yes" "yes\n" "" ""

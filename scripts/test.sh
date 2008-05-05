@@ -5,7 +5,7 @@
 rm -rf testdir
 mkdir -p testdir
 
-if [ -z "$OLD" ]
+if [ -z "$TEST_HOST" ]
 then
   make install_flat PREFIX=testdir || exit 1
 fi
@@ -26,7 +26,7 @@ else
   for i in "$TOPDIR"/scripts/test/*.test
   do
     CMDNAME="$(echo "$i" | sed 's@.*/\(.*\)\.test@\1@')"
-    if [ -h $CMDNAME ]
+    if [ -h $CMDNAME ] || [ ! -z "$TEST_HOST" ]
     then
       . $i
     else
