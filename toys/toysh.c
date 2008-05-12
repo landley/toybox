@@ -349,7 +349,7 @@ static void handle(char *command)
 void cd_main(void)
 {
 	char *dest = *toys.optargs ? *toys.optargs : getenv("HOME");
-	if (chdir(dest)) error_exit("chdir %s",dest);
+	xchdir(dest);
 }
 
 void exit_main(void)

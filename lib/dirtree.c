@@ -58,6 +58,7 @@ struct dirtree *dirtree_read(char *path, struct dirtree *parent,
 
 	if (!(dir = opendir(path))) perror_msg("No %s", path);
 	else for (;;) {
+		int norecurse = 0;
 		struct dirent *entry = readdir(dir);
 		if (!entry) {
 			closedir(dir);
@@ -74,8 +75,9 @@ struct dirtree *dirtree_read(char *path, struct dirtree *parent,
 		*ddt = dirtree_add_node(path);
 		if (!*ddt) continue;
 		(*ddt)->parent = parent;
-		if (callback) callback(path, *ddt);
-		if (entry->d_type == DT_DIR)
+		(*ddt)->depth = parent ? parent->depth + 1 : 1;
+		if (callback) norecurse = callback(path, *ddt);
+		if (!norecurse && entry->d_type == DT_DIR)
 			(*ddt)->child = dirtree_read(path, *ddt, callback);
 		if (callback) free(*ddt);
 		else ddt = &((*ddt)->next);

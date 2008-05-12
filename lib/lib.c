@@ -326,6 +326,11 @@ char *xabspath(char *path)
 	return path;
 }
 
+void xchdir(char *path)
+{
+	if (chdir(path)) error_exit("chdir '%s'");
+}
+
 // Ensure entire path exists.
 // If mode != -1 set permissions on newly created dirs.
 // Requires that path string be writable (for temporary null terminators).

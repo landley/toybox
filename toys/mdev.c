@@ -2,7 +2,7 @@
  *
  * mdev - Mini udev for busybox
  *
- * Copyright 2005, 2007 Rob Landley <rob@landley.net>
+ * Copyright 2005, 2008 Rob Landley <rob@landley.net>
  * Copyright 2005 Frank Sorenson <frank@tuxrocks.com>
  *
  * Not in SUSv3.
@@ -11,7 +11,7 @@ USE_MDEV(NEWTOY(mdev, "s", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_UMASK))
 
 config MDEV
 	bool "mdev"
-	default n
+	default y
 	help
 	  usage: mdev [-s]
 
@@ -21,7 +21,7 @@ config MDEV
 
 config MDEV_CONF
 	bool "Configuration file for mdev"
-	default n
+	default y
 	depends on MDEV
 	help
 	  The mdev config file (/etc/mdev.conf) contains lines that look like:
@@ -47,8 +47,7 @@ static void make_device(char *path)
 
 	// Try to read major/minor string
 
-	temp = path+strlen(path);
-	strcpy(temp, "/dev");
+	temp = strrchr(path, '/');
 	fd = open(path, O_RDONLY);
 	*temp=0;
 	temp++;
@@ -172,49 +171,43 @@ found_device:
 	if (CFG_MDEV_CONF) chown(temp, uid, gid);
 }
 
-// Recursive search of /sys/block or /sys/class.  path must be a writeable
-// buffer of size PATH_MAX containing the directory string to start at.
-
-static void find_dev(char *path)
+static int callback(char *path, struct dirtree *node)
 {
-	DIR *dir;
-	int len=strlen(path);
+	// Entries in /sys/class/block aren't char devices, so skip 'em.  (We'll
+	// get block devices out of /sys/block.)
+	if(!strcmp(node->name, "block")) return 1;
 
-	if (!(dir = opendir(path)))
-		perror_exit("No %s",path);
-
-	for (;;) {
-		struct dirent *entry = readdir(dir);
-
-		if (!entry) break;
-
-		// Skip "." and ".." (also skips hidden files, which is ok)
-
-		if (entry->d_name[0]=='.') continue;
-
-		if (entry->d_type == DT_DIR) {
-			snprintf(path+len, sizeof(toybuf)-len, "/%s", entry->d_name);
-			find_dev(path);
-			path[len] = 0;
-		}
-
-		// If there's a dev entry, mknod it
-
-		if (strcmp(entry->d_name, "dev")) make_device(path);
+	// Does this directory have a "dev" entry in it?
+	if (S_ISDIR(node->st.st_mode) || S_ISLNK(node->st.st_mode)) {
+		char *dest = path+strlen(path);
+		strcpy(dest, "/dev");
+		if (!access(path, R_OK)) make_device(path);
+		*dest = 0;
 	}
 
-	closedir(dir);
+	// Circa 2.6.25 the entries more than 2 deep are all either redundant
+	// (mouse#, event#) or unnamed (every usb_* entry is called "device").
+	return node->depth>1;
 }
 
 void mdev_main(void)
 {
+	// Handle -s
+
 	if (toys.optflags) {
-		strcpy(toybuf, "/sys/block");
-		find_dev(toybuf);
+		xchdir("/sys/class");
 		strcpy(toybuf, "/sys/class");
-		find_dev(toybuf);
-		return;
+		dirtree_read(toybuf, NULL, callback);
+		strcpy(toybuf+5, "block");
+		dirtree_read(toybuf, NULL, callback);
 	}
+//	if (toys.optflags) {
+//		strcpy(toybuf, "/sys/block");
+//		find_dev(toybuf);
+//		strcpy(toybuf, "/sys/class");
+//		find_dev(toybuf);
+//		return;
+//	}
 
 	// hotplug support goes here
 }

@@ -36,6 +36,7 @@ void get_optflags(void);
 struct dirtree {
 	struct dirtree *next, *child, *parent;
 	struct stat st;
+	int depth;
 	char name[];
 };
 
@@ -75,6 +76,7 @@ void xwrite(int fd, void *buf, size_t len);
 char *xgetcwd(void);
 void xstat(char *path, struct stat *st);
 char *xabspath(char *path);
+void xchdir(char *path);
 void xmkpath(char *path, int mode);
 struct string_list *find_in_path(char *path, char *filename);
 void utoa_to_buf(unsigned n, char *buf, unsigned buflen);
