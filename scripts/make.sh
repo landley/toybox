@@ -22,7 +22,8 @@ function newtoys()
   done
 }
 echo "NEWTOY(toybox, NULL, 0)" > generated/newtoys.h
-newtoys | sort -t '(' -k3,3  >> generated/newtoys.h
+newtoys | sed 's/\(.*TOY(\)\([^,]*\),\(.*\)/\2 \1\2,\3/' | sort -k 1,1 \
+	| sed 's/[^ ]* //'  >> generated/newtoys.h
 
 # Extract global structure definitions from toys/*.c
 
