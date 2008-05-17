@@ -1,0 +1,25 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+# This one's tricky both because echo is a shell builtin (so $PATH is
+# irrelevant) and because the "result" field is parsed with echo -e.
+# To make it work, "$CMD" is an explicit path to the command being tested,
+# so "result" keeps using the shell builtin but we test the one in toybox.
+
+CMD="$(which echo)"
+
+#testing "name" "command" "result" "infile" "stdin"
+
+testing "echo" "$CMD && echo yes" "\nyes\n" "" ""
+testing "echo 1 2 3" "$CMD one  two	three" "one two three\n" "" ""
+testing "echo with spaces" "$CMD 'one  two	three'" \
+	"one  two	three\n" "" ""
+testing "echo -n" "$CMD -n" "" "" ""
+testing "echo -n one" "$CMD -n one" "one" "" ""
+testing "echo one -n" "$CMD one -n" "one -n\n" "" ""
+testing "echo -en" "$CMD -en 'one\ntwo'" "one\ntwo" "" ""
+testing "echo --hello" "$CMD --hello" "--hello\n" "" ""
+testing "echo -e all" "$CMD -e '\a\b\c\f\n\r\t\v\\\0123'" \
+	"\a\b\c\f\n\r\t\v\\\0123\n" "" ""
+testing "echo -nex hello" "$CMD -nex hello" "-nex hello\n" "" ""

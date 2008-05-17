@@ -6,7 +6,7 @@
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/echo.html
 
-USE_ECHO(NEWTOY(echo, "+en", TOYFLAG_BIN))
+USE_ECHO(NEWTOY(echo, "+?en", TOYFLAG_BIN))
 
 config ECHO
 	bool "echo"
@@ -18,16 +18,16 @@ config ECHO
 	  by a newline.
 
 	  -n	No trailing newline.
-          -e	Process the following escape sequences:
-		\\	backslash
-		\a	alert (beep/flash)
-		\b	backspace
-		\c	Stop output here (avoids trailing newline)
-		\f	form feed
-		\n	newline
-		\r	carriage return
-		\t	horizontal tab
-		\v	vertical tab
+	  -e	Process the following escape sequences:
+	  	\\	backslash
+	  	\a	alert (beep/flash)
+	  	\b	backspace
+	  	\c	Stop output here (avoids trailing newline)
+	  	\f	form feed
+	  	\n	newline
+	  	\r	carriage return
+	  	\t	horizontal tab
+	  	\v	vertical tab
 */
 
 #include "toys.h"
