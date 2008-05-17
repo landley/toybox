@@ -6,7 +6,7 @@
  *
  * Not in SUSv3.
 
-USE_WHICH(NEWTOY(which, "a", TOYFLAG_USR|TOYFLAG_BIN))
+USE_WHICH(NEWTOY(which, "<1a", TOYFLAG_USR|TOYFLAG_BIN))
 
 config WHICH
 	bool "which"
@@ -19,8 +19,6 @@ config WHICH
 	  -a	Show all matches
 */
 #include "toys.h"
-
-#define OPT_a   1
 
 // Find an exectuable file either at a path with a slash in it (absolute or
 // relative to current directory), or in $PATH.  Returns absolute path to file,
@@ -54,7 +52,7 @@ static int which_in_path(char *filename)
 		if (!access(list->str, X_OK)) {
 			puts(list->str);
 			// If we should stop at one match, do so
-			if (toys.optflags & OPT_a) {
+			if (!toys.optflags) {
 				llist_free(list, NULL);
 				break;
 			}
@@ -67,10 +65,7 @@ static int which_in_path(char *filename)
 
 void which_main(void)
 {
-	if (!*toys.optargs) toys.exitval++;
-	else {
-		int i;
-		for (i=0; toys.optargs[i]; i++)
-			toys.exitval |= which_in_path(toys.optargs[i]);
-	}
+	int i;
+	for (i=0; toys.optargs[i]; i++)
+		toys.exitval |= which_in_path(toys.optargs[i]);
 }

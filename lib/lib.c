@@ -364,7 +364,7 @@ void xmkpath(char *path, int mode)
 
 struct string_list *find_in_path(char *path, char *filename)
 {
-	struct string_list *rlist = NULL;
+	struct string_list *rlist = NULL, **prlist=&rlist;
 	char *cwd = xgetcwd();
 
 	for (;;) {
@@ -386,8 +386,9 @@ struct string_list *find_in_path(char *path, char *filename)
 
 		// Confirm it's not a directory.
 		if (!stat(rnext->str, &st) && S_ISREG(st.st_mode)) {
-			rnext->next = rlist;
-			rlist = rnext;
+			*prlist = rnext;
+			rnext->next = NULL;
+			prlist = &(rnext->next);
 		} else free(rnext);
 
 		if (!next) break;
