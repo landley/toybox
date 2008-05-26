@@ -2,15 +2,27 @@
 
 <h2>Currently implemented commands:</h2>
 <p>
-basename, catv, chroot, chvt, count, cp, df, dirname, dmesg, echo, false, hello,
-help, mkfifo, nc, netcat, oneit, patch, pwd, sh, sha1sum, sleep, sync, touch,
-toysh, true, tty, which, yes
+basename, cat, catv, chroot, chvt, count, cp, df, dirname, dmesg, echo, false,
+hello, help, mkfifo, nc, netcat, oneit, patch, pwd, rmdir, sh, sha1sum, sleep,
+sync, touch, toysh, true, tty, which, yes
 </p>
+
+<p>[Commands in square brackets are in source control, but not in the most recent
+release tarball.]</p>
 
 <h2>News</h2>
 
-<p><b>March 29, 2008</b> 
-<p>Time to release <a href=downloads/toybox-0.0.5.tar.bz2>toybox 0.0.5</a>, with
+<p><b>May 26, 2008</b> - <a href=downloads/toybox-0.0.6.tar.bz2>toybox 0.0.6</a>
+adds cat, rmdir, and seq.  Bugfixes to cp and a new -v option.  Updates mdev to
+work with the 2.6.25 kernel.  Updates patch to knows that a file dated
+1969-12-31 means it doesn't exist, and to fail if a file it needs to create
+already exists.  Command line option parsing can now handle things like "echo
+-nex" vs "echo -ne".  Several updates to the test suite (run scripts/test.sh),
+and some build fixes.</p>
+
+<p>
+<p><b>March 29, 2008</b> -
+Time to release <a href=downloads/toybox-0.0.5.tar.bz2>toybox 0.0.5</a>, with
 new commands cp and chvt and several bugfixes.</p>
 
 <p>More makefile targets: "make test" runs the test suite (which needs more test
