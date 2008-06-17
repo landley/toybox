@@ -121,15 +121,14 @@ static int gotflag(struct getoptflagstate *gof)
 			error_exit("Missing argument");
 		if (type == ':') *(opt->arg) = (long)gof->arg;
 		else if (type == '*') {
-			struct arg_list *temp, **list;
+			struct arg_list **list;
+
 			list = (struct arg_list **)opt->arg;
-			temp = xmalloc(sizeof(struct arg_list));
-			temp->arg = gof->arg;
-			temp->next = *list;
-			*list = temp;
+			while (*list) list=&((*list)->next);
+			*list = xzalloc(sizeof(struct arg_list));
+			(*list)->arg = gof->arg;
 		} else if (type == '#') *(opt->arg) = atolx((char *)gof->arg);
-		else if (type == '@') {
-		}
+		else if (type == '@') ++*(opt->arg);
 
 		gof->arg = "";
 	}
