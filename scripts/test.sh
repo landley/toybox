@@ -14,7 +14,7 @@ cd testdir
 PATH=.:$PATH
 
 . "$TOPDIR"/scripts/test/testing.sh
-[ -f "$TOPDIR/gen_config.h" ] && export OPTIONFLAGS=:$(echo $(sed -nr 's/^#define CFG_(.*) 1/\1/p' "$TOPDIR/gen_config.h") | sed 's/ /:/g')
+[ -f "$TOPDIR/generated/config.h" ] && export OPTIONFLAGS=:$(echo $(sed -nr 's/^#define CFG_(.*) 1/\1/p' "$TOPDIR/generated/config.h") | sed 's/ /:/g')
 
 if [ $# -ne 0 ]
 then
