@@ -63,7 +63,7 @@ testing ()
 
   if [ -n "$SKIP" ]
   then
-    echo "SKIPPED: $NAME"
+    [ ! -z "$VERBOSE" ] && echo "SKIPPED: $NAME"
     return 0
   fi
 
