@@ -253,7 +253,7 @@ static int compare_keys(const void *xarg, const void *yarg)
         for (key=(struct sort_key *)TT.key_list; !retval && key;
              key = key->next_key)
         {
-            flags = (key->flags) ? key->flags : toys.optflags;
+            flags = key->flags ? key->flags : toys.optflags;
 
             // Chop out and modify key chunks, handling -dfib
 
@@ -272,8 +272,10 @@ static int compare_keys(const void *xarg, const void *yarg)
     } else retval = compare_values(flags, *xx, *yy);
 
     // Perform fallback sort if necessary
-
-    if (!retval && !(toys.optflags&FLAG_s)) retval = strcmp(*xx, *yy);
+    if (!retval && !(CFG_SORT_BIG && (toys.optflags&FLAG_s))) {
+        retval = strcmp(*xx, *yy);
+        flags = toys.optflags;
+    }
 
     return retval * ((flags&FLAG_r) ? -1 : 1);
 }
