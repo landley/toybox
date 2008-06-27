@@ -6,7 +6,7 @@
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/echo.html
 
-USE_ECHO(NEWTOY(echo, "+?en", TOYFLAG_BIN))
+USE_ECHO(NEWTOY(echo, "^?en", TOYFLAG_BIN))
 
 config ECHO
 	bool "echo"

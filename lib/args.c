@@ -25,7 +25,7 @@
 //       !X die with error if X already set (x!x die if x supplied twice)
 //       [yz] needs at least one of y or z.
 //   at the beginning:
-//     + stop at first nonoption argument
+//     ^ stop at first nonoption argument
 //     <0 at least # leftover arguments needed (default 0)
 //     >9 at most # leftover arguments needed (default MAX_INT)
 //     ? don't show_usage() on unknown argument.
@@ -167,7 +167,7 @@ void get_optflags(void)
 
 		// Parse leading special behavior indicators
 		for (;;) {
-			if (*options == '+') stopearly++;
+			if (*options == '^') stopearly++;
 			else if (*options == '<') minargs=*(++options)-'0';
 			else if (*options == '>') maxargs=*(++options)-'0';
 			else if (*options == '?') gof.noerror++;
@@ -176,6 +176,7 @@ void get_optflags(void)
 			options++;
 		}
 
+		if (!*options) stopearly++;
 		// Parse rest of opts into array
 		while (*options) {
 			char *temp;

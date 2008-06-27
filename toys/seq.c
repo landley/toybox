@@ -6,7 +6,7 @@
  *
  * Not in SUSv3.  (Don't ask me why not.)
 
-USE_SEQ(NEWTOY(seq, "<1>3?+", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SEQ(NEWTOY(seq, "<1>3?", TOYFLAG_USR|TOYFLAG_BIN))
 
 config SEQ
 	bool "seq"
