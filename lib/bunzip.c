@@ -204,8 +204,9 @@ static int read_block_header(struct bunzip_data *bd, struct bwdata *bw)
 	// literal symbols, plus two run symbols (RUNA, RUNB)
 	symCount = bd->symTotal+2;
 	for (jj=0; jj<bd->groupCount; jj++) {
-		unsigned char length[MAX_SYMBOLS], temp[MAX_HUFCODE_BITS+1];
-		int	minLen,	maxLen, pp;
+		unsigned char length[MAX_SYMBOLS];
+		unsigned temp[MAX_HUFCODE_BITS+1];
+		int minLen, maxLen, pp;
 
 		// Read lengths
 		hh = get_bits(bd, 5);
