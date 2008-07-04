@@ -10,7 +10,7 @@ USE_BZCAT(NEWTOY(bzcat, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 
 config BZCAT
 	bool "bzcat"
-	default n
+	default y
 	help
 	  usage: bzcat [filename...]
 
@@ -19,7 +19,12 @@ config BZCAT
 
 #include "toys.h"
 
+static void do_bzcat(int fd, char *name)
+{
+    bunzipStream(fd, 1);
+}
+
 void bzcat_main(void)
 {
-	bunzipStream(0, 1);
+    loopfiles(toys.optargs, do_bzcat);
 }
