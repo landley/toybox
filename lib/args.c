@@ -18,6 +18,7 @@
 //     @ plus an occurrence counter (which is a long)
 //     (longopt)
 //     | this is required.  If more than one marked, only one required.
+//     ^ Stop parsing after encountering this argument
 //
 //     These modify other option letters (previously seen in string):
 //       +X enabling this enables X (switch on)
@@ -70,9 +71,10 @@
 // Linked list of all known options (get_opt string is parsed into this).
 struct opts {
 	struct opts *next;
+	long *arg;         // Pointer into union "this" to store arguments at.
 	uint32_t edx[3];   // Flag mask to enable/disable/exclude.
-	long *arg;         // Pointer into union this to store arguments at.
 	int c;             // Short argument character
+	int flags;         // |=1, ^=2
 	char type;         // Type of arguments to store
 };
 
@@ -82,7 +84,7 @@ struct getoptflagstate
 	int argc;
 	char *arg;
 	struct opts *opts, *this;
-	int noerror, nodash_now;
+	int noerror, nodash_now, stopearly;
 	uint32_t excludes;
 };
 
@@ -101,6 +103,7 @@ static int gotflag(struct getoptflagstate *gof)
 	toys.optflags |= opt->edx[0];
 	toys.optflags &= ~opt->edx[1];
 	gof->excludes = opt->edx[2];
+	if (opt->flags&2) gof->stopearly=2;
 
 	// Does this option take an argument?
 	gof->arg++;
@@ -142,7 +145,7 @@ static int gotflag(struct getoptflagstate *gof)
 static char *plustildenot = "+~!";
 void get_optflags(void)
 {
-	int stopearly = 0, nodash = 0, minargs = 0, maxargs;
+	int nodash = 0, minargs = 0, maxargs;
 	struct longopts {
 		struct longopts *next;
 		struct opts *opt;
@@ -167,7 +170,7 @@ void get_optflags(void)
 
 		// Parse leading special behavior indicators
 		for (;;) {
-			if (*options == '^') stopearly++;
+			if (*options == '^') gof.stopearly++;
 			else if (*options == '<') minargs=*(++options)-'0';
 			else if (*options == '>') maxargs=*(++options)-'0';
 			else if (*options == '?') gof.noerror++;
@@ -176,7 +179,7 @@ void get_optflags(void)
 			options++;
 		}
 
-		if (!*options) stopearly++;
+		if (!*options) gof.stopearly++;
 		// Parse rest of opts into array
 		while (*options) {
 			char *temp;
@@ -230,13 +233,14 @@ void get_optflags(void)
 				gof.this->edx[idx] |= 1<<i;
 
 			} else if (*options == '[') {
-			} else if (*options == '|') {
+			} else if (*options == '|') gof.this->flags |= 1;
+			else if (*options == '^') gof.this->flags |= 2;
 
 			// At this point, we've hit the end of the previous option.  The
 			// current character is the start of a new option.  If we've already
 			// assigned an option to this struct, loop to allocate a new one.
 			// (It'll get back here afterwards and fall through to next else.)
-			} else if(gof.this->c) {
+			else if(gof.this->c) {
 				gof.this = NULL;
 				continue;
 
@@ -268,7 +272,7 @@ void get_optflags(void)
 		gof.this = NULL;
 
 		// Parse this argument
-		if (stopearly>1) goto notflag;
+		if (gof.stopearly>1) goto notflag;
 
 		gof.nodash_now = 0;
 
@@ -284,7 +288,7 @@ void get_optflags(void)
 				gof.arg++;
 				// Handle --
 				if (!*gof.arg) {
-					stopearly += 2;
+					gof.stopearly += 2;
 					goto notflag;
 				}
 				// Handle --longopt
@@ -340,7 +344,7 @@ void get_optflags(void)
 
 		// Not a flag, save value in toys.optargs[]
 notflag:
-		if (stopearly) stopearly++;
+		if (gof.stopearly) gof.stopearly++;
 		toys.optargs[toys.optc++] = toys.argv[gof.argc];
 	}
 
