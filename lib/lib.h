@@ -86,6 +86,7 @@ char *itoa(int n);
 long atolx(char *c);
 off_t fdlength(int fd);
 char *xreadlink(char *name);
+void loopfiles_rw(char **argv, int flags, void (*function)(int fd, char *name));
 void loopfiles(char **argv, void (*function)(int fd, char *name));
 char *get_rawline(int fd, long *plen, char end);
 char *get_line(int fd);

@@ -593,28 +593,38 @@ void xpidfile(char *name)
 	close(fd);
 }
 
-// Iterate through an array of files, opening each one (read only) and
-// calling a function on that filehandle and name.  The special filename
-// "-" means stdin.  An empty argument list calls function() on stdin.
-void loopfiles(char **argv, void (*function)(int fd, char *name))
+// Iterate through an array of files, opening each one and calling a function
+// on that filehandle and name.  The special filename "-" means stdin if
+// flags is O_RDONLY, stdout otherwise.  An empty argument list calls
+// function() on just stdin/stdout.
+//
+// Note: read only filehandles are automatically closed when function()
+// returns, but writeable filehandles must be close by function()
+void loopfiles_rw(char **argv, int flags, void (*function)(int fd, char *name))
 {
 	int fd;
 
 	// If no arguments, read from stdin.
-	if (!*argv) function(0, "-");
+	if (!*argv) function(flags ? 1 : 0, "-");
 	else do {
 		// Filename "-" means read from stdin.
 		// Inability to open a file prints a warning, but doesn't exit.
 
 		if (!strcmp(*argv,"-")) fd=0;
-		else if (0>(fd = open(*argv, O_RDONLY))) {
+		else if (0>(fd = open(*argv, flags, 0666))) {
 			perror_msg("%s", *argv);
 			toys.exitval = 1;
 			continue;
 		}
 		function(fd, *argv);
-		close(fd);
+		if (!flags) close(fd);
 	} while (*++argv);
+}
+
+// Call loopfiles_rw with O_RDONLY (common case).
+void loopfiles(char **argv, void (*function)(int fd, char *name))
+{
+	loopfiles_rw(argv, O_RDONLY, function);
 }
 
 // Slow, but small.
