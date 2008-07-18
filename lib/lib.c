@@ -219,9 +219,10 @@ FILE *xfopen(char *path, char *mode)
 ssize_t readall(int fd, void *buf, size_t len)
 {
 	size_t count = 0;
+
 	while (count<len) {
 		int i = read(fd, buf+count, len-count);
-		if (!i) return len;
+		if (!i) break;
 		if (i<0) return i;
 		count += i;
 	}
