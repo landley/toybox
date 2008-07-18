@@ -73,6 +73,8 @@ ssize_t writeall(int fd, void *buf, size_t len);
 size_t xread(int fd, void *buf, size_t len);
 void xreadall(int fd, void *buf, size_t len);
 void xwrite(int fd, void *buf, size_t len);
+char *readfile(char *name);
+char *xreadfile(char *name);
 char *xgetcwd(void);
 void xstat(char *path, struct stat *st);
 char *xabspath(char *path);
