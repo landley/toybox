@@ -474,7 +474,7 @@ long atolx(char *c)
 // Return how long the file at fd is, if there's any way to determine it.
 off_t fdlength(int fd)
 {
-	off_t bottom = 0, top = 0, pos;
+	off_t bottom = 0, top = 0, pos, old;
 	int size;
 
 	// If the ioctl works for this, return it.
@@ -485,6 +485,7 @@ off_t fdlength(int fd)
 	// block devices don't do BLKGETSIZE right.)  This should probably have
 	// a CONFIG option...
 
+	old = lseek(fd, 0, SEEK_CUR);
 	do {
 		char temp;
 
@@ -505,6 +506,8 @@ off_t fdlength(int fd)
 			} else top = pos;
 		}
 	} while (bottom + 1 != top);
+
+	lseek(fd, old, SEEK_SET);
 
 	return pos + 1;
 }
