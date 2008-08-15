@@ -1,6 +1,6 @@
 /* vi: set sw=4 ts=4:
  *
- * hello.c - A hello world program.
+ * cat.c - copy inputs to stdout.
  *
  * Copyright 2006 Rob Landley <rob@landley.net>
  *
@@ -14,6 +14,7 @@ config CAT
 	help
 	  usage: cat [-u] [file...]
 	  Copy (concatenate) files to stdout.  If no files listed, copy from stdin.
+	  Filename "-" is a synonym for stdin.
 
 	  -u	Copy one byte at a time (slow).
 */
@@ -25,8 +26,11 @@ static void do_cat(int fd, char *name)
 	int len, size=toys.optflags ? 1 : sizeof(toybuf);
 
 	for (;;) {
-		len = xread(fd, toybuf, size);
-		if (len<0) toys.exitval = EXIT_FAILURE;
+		len = read(fd, toybuf, size);
+		if (len<0) {
+			perror_msg("%s",name);
+			toys.exitval = EXIT_FAILURE;
+		}
 		if (len<1) break;
 		xwrite(1, toybuf, len);
 	}
