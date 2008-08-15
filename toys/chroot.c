@@ -6,7 +6,7 @@
  *
  * Not in SUSv3.
 
-USE_CHROOT(NEWTOY(chroot, "<1", TOYFLAG_USR|TOYFLAG_SBIN))
+USE_CHROOT(NEWTOY(chroot, "^<1", TOYFLAG_USR|TOYFLAG_SBIN))
 
 config CHROOT
 	bool "chroot"
