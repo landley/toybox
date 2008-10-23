@@ -52,7 +52,7 @@ DEFINE_GLOBALS(
 
 	struct double_list *plines, *flines;
 	long oldline, oldlen, newline, newlen, linenum;
-	int context, state, filein, fileout, filepatch;
+	int context, state, filein, fileout, filepatch, hunknum;
 	char *tempname, *oldname;
 )
 
@@ -66,9 +66,11 @@ static void do_line(void *data)
 	struct double_list *dlist = (struct double_list *)data;
 
 	if (TT.state && *dlist->data != TT.state)
-		fdprintf(TT.state == 2 ? 2: TT.fileout,
+		fdprintf(TT.state == 2 ? 2 : TT.fileout,
 			"%s\n", dlist->data+(TT.state>2 ? 1 : 0));
+
 	free(dlist->data);
+	free(data);
 }
 
 static void finish_oldfile(void)
@@ -81,7 +83,7 @@ static void fail_hunk(void)
 	if (!TT.plines) return;
 	TT.plines->prev->next = 0;
 
-	printf("Hunk FAILED.\n");
+	fdprintf(2, "Hunk %d FAILED.\n", TT.hunknum);
 	toys.exitval = 1;
 
 	// If we got to this point, we've seeked to the end.  Discard changes to
@@ -96,7 +98,7 @@ static void fail_hunk(void)
 
 static void apply_hunk(void)
 {
-	struct double_list *plist, *buf = NULL;
+	struct double_list *plist, *buf = NULL, *check;
 	int i = 0, backwards = 0, matcheof = 0,
 		reverse = toys.optflags & FLAG_REVERSE;
 
@@ -119,42 +121,62 @@ static void apply_hunk(void)
 	// Start of for loop
 	if (TT.context) for (;;) {
 		char *data = get_line(TT.filein);
+
 		TT.linenum++;
 
-		// Skip lines we'd add.
+		// Skip lines of the hunk we'd be adding.
 		while (plist && *plist->data == "+-"[reverse]) {
-			if (data && !backwards && !strcmp(data, plist->data+1)) {
-				backwards = 1;
-				fdprintf(2,"Possibly reversed hunk at %ld\n", TT.linenum);
-			}
+			if (data && !strcmp(data, plist->data+1)) {
+				if (++backwards == TT.context)
+					fdprintf(2,"Possibly reversed hunk %d at %ld\n",
+						TT.hunknum, TT.linenum);
+			} else backwards=0;
 			plist = plist->next;
 		}
 
+		// Is this EOF?
 		if (!data) {
-			// Matched EOF?
+			// Does this hunk need to match EOF?
 			if (!plist && matcheof) break;
-			// File ended before we found a home for this hunk?
+
+			// File ended before we found a place for this hunk.
 			fail_hunk();
 			goto done;
 		}
-		dlist_add(&buf, data);
+		check = dlist_add(&buf, data);
 
-		if (!plist || strcmp(data, plist->data+1)) {     // Ignore whitespace?
-			// Match failed, hunk doesn't go here.  Flush accumulated buffer
-			// so far.
+		// todo: teach the strcmp() to ignore whitespace.
 
-			buf->prev->next = NULL;
-			TT.state = 1;
-			llist_free(buf, do_line);
-			buf = NULL;
-			plist = TT.plines;
-		} else {
-			// Match, advance plist.
-			plist = plist->next;
-			if (!plist && !matcheof) break;
+		for (;;) {
+			// If we hit the end of a hunk that needed EOF and this isn't EOF,
+			// or next line doesn't match, flush first line of buffered data and
+			// recheck match until we find a new match or run out of buffer.
+	
+			if (!plist || strcmp(check->data, plist->data+1)) {
+				// First line isn't a match, write it out.
+				TT.state = 1;
+				check = llist_pop(&buf);
+				check->prev->next = buf;
+				buf->prev = check->prev;
+				do_line(check);
+				plist = TT.plines;
+
+				// Out of buffered lines?
+				if (check==buf) {
+					buf = 0;
+					break;
+				}
+				check = buf;
+			} else {
+				// This line matches.  Advance plist, detect successful match.
+				plist = plist->next;
+				if (!plist && !matcheof) goto out;
+				check = check->next;
+				if (check == buf) break;
+			}
 		}
 	}
-
+out:
 	// Got it.  Emit changed data.
 	TT.state = "-+"[reverse];
 	llist_free(TT.plines, do_line);
@@ -266,6 +288,7 @@ void patch_main(void)
 				TT.state = 1;
 				TT.context = 0;
 				TT.linenum = 0;
+				TT.hunknum = 0;
 			}
 
 		// Start a new hunk?
@@ -275,6 +298,7 @@ void patch_main(void)
 				&TT.oldlen, &TT.newline, &TT.newlen))
 		{
 			TT.context = 0;
+			TT.hunknum++;
 			TT.state = 2;
 			continue;
 		}

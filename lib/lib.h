@@ -27,7 +27,7 @@ struct double_list {
 
 void llist_free(void *list, void (*freeit)(void *data));
 void *llist_pop(void *list);  // actually void **list, but the compiler's dumb
-void dlist_add(struct double_list **list, char *data);
+struct double_list *dlist_add(struct double_list **list, char *data);
 
 // args.c
 void get_optflags(void);

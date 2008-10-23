@@ -14,6 +14,10 @@ void llist_free(void *list, void (*freeit)(void *data))
 	while (list) {
 		void *pop = llist_pop(&list);
 		if (freeit) freeit(pop);
+		else free(pop);
+
+		// End doubly linked list too.
+		if (list==pop) break;
 	}
 }
 
@@ -32,7 +36,7 @@ void *llist_pop(void *list)
 }
 
 // Add an entry to the end off a doubly linked list
-void dlist_add(struct double_list **list, char *data)
+struct double_list *dlist_add(struct double_list **list, char *data)
 {
 	struct double_list *line = xmalloc(sizeof(struct double_list));
 
@@ -43,4 +47,6 @@ void dlist_add(struct double_list **list, char *data)
 		(*list)->prev->next = line;
 		(*list)->prev = line;
 	} else *list = line->next = line->prev = line;
+
+	return line;
 }
