@@ -52,7 +52,7 @@ struct dirtree *dirtree_add_node(char *path)
 struct dirtree *dirtree_read(char *path, struct dirtree *parent,
 					int (*callback)(char *path, struct dirtree *node))
 {
-	struct dirtree *dt = NULL, **ddt = &dt;
+	struct dirtree *dtroot = NULL, *this, **ddt = &dtroot;
 	DIR *dir;
 	int len = strlen(path);
 
@@ -72,19 +72,19 @@ struct dirtree *dirtree_read(char *path, struct dirtree *parent,
 		}
 
 		snprintf(path+len, sizeof(toybuf)-len, "/%s", entry->d_name);
-		*ddt = dirtree_add_node(path);
-		if (!*ddt) continue;
-		(*ddt)->parent = parent;
-		(*ddt)->depth = parent ? parent->depth + 1 : 1;
-		if (callback) norecurse = callback(path, *ddt);
-		if (!norecurse && entry->d_type == DT_DIR)
-			(*ddt)->child = dirtree_read(path, *ddt, callback);
-		if (callback) free(*ddt);
-		else ddt = &((*ddt)->next);
+		*ddt = this = dirtree_add_node(path);
+		if (!this) continue;
+		this->parent = parent;
+		this->depth = parent ? parent->depth + 1 : 1;
+		if (callback) norecurse = callback(path, this);
+		if (!norecurse && S_ISDIR(this->st.st_mode))
+			this->child = dirtree_read(path, this, callback);
+		if (callback) free(this);
+		else ddt = &(this->next);
 		path[len]=0;
 	}
 
-	return dt;
+	return dtroot;
 }
 
 
