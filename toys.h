@@ -17,6 +17,7 @@
 #include <grp.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <pty.h>
 #include <pwd.h>
 #include <setjmp.h>
 #include <stdarg.h>

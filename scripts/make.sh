@@ -85,6 +85,6 @@ TOYFILES=$(cat .config | sed -nre 's/^CONFIG_(.*)=y/\1/;t skip;b;:skip;s/_.*//;p
 
 echo "Compile toybox..."
 
-$DEBUG $CC $CFLAGS -I . -o toybox_unstripped $OPTIMIZE \
-  main.c lib/*.c $TOYFILES || exit 1
+$DEBUG $CC $CFLAGS -I . -o toybox_unstripped $OPTIMIZE main.c lib/*.c \
+  $TOYFILES -Wl,--as-needed,-lutil,--no-as-needed || exit 1
 $DEBUG $STRIP toybox_unstripped -o toybox || exit 1
