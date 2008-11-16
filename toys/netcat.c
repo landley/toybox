@@ -149,8 +149,12 @@ void netcat_main(void)
 			}
 			// Do we need to return immediately because -l has arguments?
 
-			if ((toys.optflags&FLAG_l) && toys.optc)
+			if ((toys.optflags&FLAG_l) && toys.optc) {
 				if (fork()) goto cleanup;
+				close(0);
+				close(1);
+				close(2);
+			}
 
 			for (;;) {
 				pid_t child = 0;
