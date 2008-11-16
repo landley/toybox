@@ -147,26 +147,19 @@ void netcat_main(void)
 				printf("%d\n", SWAP_BE16(address.sin_port));
 				fflush(stdout);
 			}
-			// Do we need to defer calling accept() to the new thread
-			// because -l has arguments and we want it to return immediately?
-			temp = 0;
-			if ((toys.optflags&FLAG_l) && toys.optc) temp++;
+			// Do we need to return immediately because -l has arguments?
+
+			if ((toys.optflags&FLAG_l) && toys.optc)
+				if (fork()) goto cleanup;
 
 			for (;;) {
 				pid_t child = 0;
 
 				// For -l, call accept from the _new_ thread.
 
-				if (temp != 1) {
-					pollfds[0].fd = accept(sockfd, (struct sockaddr *)&address,
-						&len);
-					if (pollfds[0].fd<0) perror_exit("accept");
-
-					if (temp==2) {
-						close(sockfd);
-						break;
-					}
-				} else temp++;
+				pollfds[0].fd = accept(sockfd, (struct sockaddr *)&address,
+					&len);
+				if (pollfds[0].fd<0) perror_exit("accept");
 
 				// Do we need a tty?
 
@@ -176,7 +169,7 @@ void netcat_main(void)
 				// Do we need to fork and/or redirect for exec?
 
 				else {
-					if (temp || (toys.optflags&FLAG_L)) child = fork();
+					if (toys.optflags&FLAG_L) child = fork();
 					if (!child && toys.optc) {
 						int fd = pollfds[0].fd;
 
@@ -189,11 +182,7 @@ void netcat_main(void)
 				}
 
 				if (child<0) error_msg("Fork failed\n");
-				if (child<1) {
-					if (!temp) break;
-					continue;
-				} 
-				if (temp) exit(0);
+				if (child<1) break;
 				close(pollfds[0].fd);
 			}
 		}
