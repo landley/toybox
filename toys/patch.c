@@ -40,7 +40,7 @@ config PATCH
 	  a file when all all hunks to that file apply.  Patch prints failed
 	  hunks to stderr, and exits with nonzero status if any hunks fail.
 
-	  A file compared against /dev/null (or with a date in 1969) is
+	  A file compared against /dev/null (or with a date <= the epoch) is
 	  created/deleted as appropriate.
 */
 
@@ -229,12 +229,15 @@ void patch_main(void)
 		// Open a new file?
 		if (!strncmp("--- ", patchline, 4)) {
 			char *s;
+			int i;
+
 			free(TT.oldname);
 
 			// Trim date from end of filename (if any).  We don't care.
 			for (s = patchline+4; *s && *s!='\t'; s++)
 				if (*s=='\\' && s[1]) s++;
-			if (!strncmp(s, "\t1969-12-31", 10))
+			i = atoi(s);
+			if (i && i<=1970)
 				TT.oldname = xstrdup("/dev/null");
 			else {
 				*s = 0;
