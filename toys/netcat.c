@@ -93,6 +93,7 @@ void netcat_main(void)
 	int sockfd=-1, pollcount=2;
 	struct pollfd pollfds[2];
 
+	memset(pollfds, 0, 2*sizeof(struct pollfd));
 	pollfds[0].events = pollfds[1].events = POLLIN;
 	set_alarm(TT.wait);
 
@@ -107,8 +108,6 @@ void netcat_main(void)
 	else {
 		int temp;
 		struct sockaddr_in address;
-
-		pollfds[1].fd = 0;
 
 		// Setup socket
 		sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -212,8 +211,7 @@ void netcat_main(void)
 				int len = read(pollfds[i].fd, toybuf, sizeof(toybuf));
 				if (len<1) goto dohupnow;
 				xwrite(i ? pollfds[0].fd : 1, toybuf, len);
-			}
-			if (pollfds[i].revents & POLLHUP) {
+			} else if (pollfds[i].revents & POLLHUP) {
 dohupnow:
 				// Close half-connection.  This is needed for things like
 				// "echo GET / | netcat landley.net 80"
