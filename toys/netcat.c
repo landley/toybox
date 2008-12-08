@@ -99,8 +99,9 @@ void netcat_main(void)
 
 	// The argument parsing logic can't make "<2" conditional on other
 	// arguments like -f and -l, so we do it by hand here.
-	if ((toys.optflags&FLAG_f) && toys.optc!=1) toys.exithelp++;
-	if (!(toys.optflags&(FLAG_l|FLAG_L)) && toys.optc!=2) toys.exithelp++;
+	if (toys.optflags&FLAG_f) {
+		if (toys.optc) toys.exithelp++;
+	} else if (!(toys.optflags&(FLAG_l|FLAG_L)) && toys.optc!=2) toys.exithelp++;
 
 	if (toys.exithelp) error_exit("Argument count wrong");
 
