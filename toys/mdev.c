@@ -168,7 +168,9 @@ found_device:
 	if (mknod(temp, mode | type, makedev(major, minor)) && errno != EEXIST)
 		perror_exit("mknod %s failed", temp);
 
-	if (CFG_MDEV_CONF) chown(temp, uid, gid);
+	// Dear gcc: shut up about ignoring the return value here.  If it doesn't
+	// work, what exactly are we supposed to do about it?
+	if (CFG_MDEV_CONF) mode=chown(temp, uid, gid);
 }
 
 static int callback(char *path, struct dirtree *node)
