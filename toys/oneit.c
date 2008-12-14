@@ -58,7 +58,12 @@ void oneit_main(void)
     // pid 1 just reaps zombies until it gets its child, then halts the system.
     while (pid!=wait(&i));
     sync();
-    reboot(toys.optflags ? RB_POWER_OFF : RB_AUTOBOOT);
+
+	// PID 1 can't call reboot() because it kills the task that calls it,
+	// which causes the kernel to panic before the actual reboot happens.
+	if (!vfork()) reboot((toys.optflags&1) ? RB_POWER_OFF : RB_AUTOBOOT);
+	sleep(5);
+	_exit(1);
   }
 
   // Redirect stdio to /dev/tty0, with new session ID, so ctrl-c works.
