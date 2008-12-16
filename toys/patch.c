@@ -270,9 +270,11 @@ void patch_main(void)
 				}
 			}
 
-			if (del) xunlink(TT.oldname);
+			if (del) {
+				printf("removing %s\n", start);
+				xunlink(start);
 			// If we've got a file to open, do so.
-			else if (!(toys.optflags & FLAG_PATHLEN) || i <= TT.prefix) {
+			} else if (!(toys.optflags & FLAG_PATHLEN) || i <= TT.prefix) {
 				// If the old file was null, we're creating a new one.
 				if (!strcmp(TT.oldname, "/dev/null")) {
 					printf("creating %s\n", start);
