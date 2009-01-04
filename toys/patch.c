@@ -196,6 +196,7 @@ done:
 
 void patch_main(void)
 {
+	int reverse = toys.optflags & FLAG_REVERSE;
 	if (TT.infile) TT.filepatch = xopen(TT.infile, O_RDONLY);
 	TT.filein = TT.fileout = -1;
 
@@ -255,12 +256,17 @@ void patch_main(void)
 			if (!strncmp(s, "\t1969-12-31", 10)) start = "/dev/null";
 			*s = 0;
 
+			if (reverse) {
+				s = start;
+				start = TT.oldname;
+			}
+
 			// If new file is /dev/null (before -p), we're deleting oldname
 			if (!strcmp(start, "/dev/null")) {
-				start = TT.oldname;
+				start = reverse ? s : TT.oldname;
 				del++;
 			} else start = patchline+4;
-				
+
 			// handle -p path truncation.
 			for (s = start; *s;) {
 				if ((toys.optflags & FLAG_PATHLEN) && TT.prefix == i) break;
