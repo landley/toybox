@@ -592,7 +592,7 @@ dataus_interruptus:
 int start_bunzip(struct bunzip_data **bdp, int src_fd, char *inbuf, int len)
 {
 	struct bunzip_data *bd;
-	unsigned int i, j, c;
+	unsigned int i;
 
 	// Figure out how much data to allocate.
 	i = sizeof(struct bunzip_data);
@@ -609,13 +609,7 @@ int start_bunzip(struct bunzip_data **bdp, int src_fd, char *inbuf, int len)
 		bd->in_fd = src_fd;
 	}
 
-	// Init the CRC32 table (big endian)
-	for (i=0; i<256; i++) {
-		c = i<<24;
-		for (j=8; j; j--)
-			c=c&0x80000000 ? (c<<1)^0x04c11db7 : (c<<1);
-		bd->crc32Table[i] = c;
-	}
+	crc_init(bd->crc32Table);
 
 	// Ensure that file starts with "BZh".
     for (i=0;i<3;i++)

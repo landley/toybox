@@ -96,6 +96,7 @@ void xsendfile(int in, int out);
 int copy_tempfile(int fdin, char *name, char **tempname);
 void delete_tempfile(int fdin, int fdout, char **tempname);
 void replace_tempfile(int fdin, int fdout, char **tempname);
+void crc_init(unsigned int *crc_table);
 
 // getmountlist.c
 struct mtab_list {
