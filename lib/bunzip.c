@@ -609,7 +609,7 @@ int start_bunzip(struct bunzip_data **bdp, int src_fd, char *inbuf, int len)
 		bd->in_fd = src_fd;
 	}
 
-	crc_init(bd->crc32Table);
+	crc_init(bd->crc32Table, 0);
 
 	// Ensure that file starts with "BZh".
     for (i=0;i<3;i++)

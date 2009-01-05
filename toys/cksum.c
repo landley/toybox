@@ -6,18 +6,21 @@
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/cksum.html
 
-USE_CKSUM(NEWTOY(cksum, "F", TOYFLAG_BIN))
+USE_CKSUM(NEWTOY(cksum, "IPLN", TOYFLAG_BIN))
 
 config CKSUM
 	bool "cksum"
 	default y
 	help
-	  usage: cksum [-F] [file...]
+	  usage: cksum [-FL] [file...]
 
 	  For each file, output crc32 checksum value, length and name of file.
 	  If no files listed, copy from stdin.  Filename "-" is a synonym for stdin.
 
-	  -F	Start with 0xffffffff instead of 0.
+	  -L	Little endian (defaults to big endian)
+	  -P	Skip pre-inversion
+	  -I	Skip post-inversion
+	  -N	No length
 */
 
 #include "toys.h"
@@ -28,16 +31,24 @@ DEFINE_GLOBALS(
 
 #define TT this.cksum
 
-static unsigned cksum(unsigned crc, unsigned char c)
+static unsigned cksum_be(unsigned crc, unsigned char c)
 {
 	return (crc<<8)^TT.crc_table[(crc>>24)^c];
 }
 
+static unsigned cksum_le(unsigned crc, unsigned char c)
+{
+	return TT.crc_table[(crc^c)&0xff] ^ (crc>>8);
+}
+
 static void do_cksum(int fd, char *name)
 {
-	unsigned crc = toys.optflags ? 0xffffffff : 0;
+	unsigned crc = (toys.optflags&4) ? 0 : 0xffffffff;
 	uint64_t llen = 0, llen2;
+	unsigned (*cksum)(unsigned crc, unsigned char c);
 
+
+	cksum = (toys.optflags&2) ? cksum_le : cksum_be;
 	// CRC the data
 
 	for (;;) {
@@ -57,18 +68,20 @@ static void do_cksum(int fd, char *name)
 	// CRC the length
 
 	llen2 = llen;
-	while (llen) {
-		crc = cksum(crc, llen);
-		llen >>= 8;
+	if (!(toys.optflags&1)) {
+		while (llen) {
+			crc = cksum(crc, llen);
+			llen >>= 8;
+		}
 	}
 
-	printf("%u %"PRIu64, ~crc, llen2);
+	printf("%u %"PRIu64, (toys.optflags&8) ? crc : ~crc, llen2);
 	if (strcmp("-", name)) printf(" %s", name);
 	xputc('\n');
 }
 
 void cksum_main(void)
 {
-	crc_init(TT.crc_table);
+	crc_init(TT.crc_table, toys.optflags&2);
 	loopfiles(toys.optargs, do_cksum);
 }
