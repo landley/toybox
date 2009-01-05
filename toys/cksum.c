@@ -18,7 +18,7 @@ config CKSUM
 	  If no files listed, copy from stdin.  Filename "-" is a synonym for stdin.
 
 	  -L	Little endian (defaults to big endian)
-	  -P	Skip pre-inversion
+	  -P	Pre-inversion
 	  -I	Skip post-inversion
 	  -N	No length
 */
@@ -43,7 +43,7 @@ static unsigned cksum_le(unsigned crc, unsigned char c)
 
 static void do_cksum(int fd, char *name)
 {
-	unsigned crc = (toys.optflags&4) ? 0 : 0xffffffff;
+	unsigned crc = (toys.optflags&4) ? 0xffffffff : 0;
 	uint64_t llen = 0, llen2;
 	unsigned (*cksum)(unsigned crc, unsigned char c);
 
