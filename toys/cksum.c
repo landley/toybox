@@ -6,15 +6,18 @@
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/cksum.html
 
-USE_CKSUM(NEWTOY(cksum, NULL, TOYFLAG_BIN))
+USE_CKSUM(NEWTOY(cksum, "F", TOYFLAG_BIN))
 
 config CKSUM
 	bool "cksum"
 	default y
 	help
-	  usage: cksum [file...]
+	  usage: cksum [-F] [file...]
+
 	  For each file, output crc32 checksum value, length and name of file.
 	  If no files listed, copy from stdin.  Filename "-" is a synonym for stdin.
+
+	  -F	Start with 0xffffffff instead of 0.
 */
 
 #include "toys.h"
@@ -32,7 +35,7 @@ static unsigned cksum(unsigned crc, unsigned char c)
 
 static void do_cksum(int fd, char *name)
 {
-	unsigned crc = 0;
+	unsigned crc = toys.optflags ? 0xffffffff : 0;
 	uint64_t llen = 0, llen2;
 
 	// CRC the data
