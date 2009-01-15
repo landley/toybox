@@ -11,7 +11,7 @@ USE_HELLO(NEWTOY(hello, "e@d*c#b:a", TOYFLAG_USR|TOYFLAG_BIN))
 
 config HELLO
 	bool "hello"
-	default y
+	default n
 	help
 	  A hello world program.  You don't need this.
 
