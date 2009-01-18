@@ -73,6 +73,7 @@ ssize_t writeall(int fd, void *buf, size_t len);
 size_t xread(int fd, void *buf, size_t len);
 void xreadall(int fd, void *buf, size_t len);
 void xwrite(int fd, void *buf, size_t len);
+off_t xlseek(int fd, off_t offset, int whence);
 char *readfile(char *name);
 char *xreadfile(char *name);
 char *xgetcwd(void);

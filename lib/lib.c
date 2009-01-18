@@ -266,6 +266,16 @@ void xwrite(int fd, void *buf, size_t len)
 	if (len != writeall(fd, buf, len)) perror_exit("xwrite");
 }
 
+// Die if lseek fails, probably due to being called on a pipe.
+
+off_t xlseek(int fd, off_t offset, int whence)
+{
+	offset = lseek(fd, offset, whence);
+	if (offset<0) perror_exit("lseek");
+
+	return offset;
+}
+
 char *xgetcwd(void)
 {
 	char *buf = getcwd(NULL, 0);
