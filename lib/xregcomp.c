@@ -10,9 +10,9 @@
 #include "toys.h"
 #include "xregcomp.h"
 
-void xregcomp(regex_t *preg, char *rexec, int cflags)
+void xregcomp(regex_t *preg, char *regex, int cflags)
 {
-	int rc = regcomp(preg, rexec, cflags);
+	int rc = regcomp(preg, regex, cflags);
 
 	if (rc) {
 		char msg[256];
