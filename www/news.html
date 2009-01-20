@@ -12,6 +12,22 @@ release tarball.]</p>
 
 <h2>News</h2>
 
+<p><b>January 20, 2009</b> - <a href=downloads/toybox-0.0.8</a>toybox 0.0.8</a>
+adds the uname, cksum, and mkswapfs commands.</p>
+
+<p>This uname implementation is cross compile friendly: when built as a 32 bit
+binary on an x86_64 host, it reports "i686" to confuse autoconf less.</p>
+
+<p>This cksum has several extra command line options which can be used to
+produce different cksum variants based on the same crc32 algorithm.  For
+example, the broadcom "trx" image packaging uses a little endian crc,
+pre-inverted instead of post-inverted, and does not include the length.
+(Without these arguments, it produces the normal SUSv4 cksum output.)</p>
+
+<p>It also upgrades netcat with a server mode (-l option) and fixes several
+netcat bugs.  It also fixed multiple bugs in "patch", works around a
+reiserfs bug in cp, and oneit can reboot on exit more reliably.</p>
+
 <p><b>November 12, 2008</b> -
 <a href=downloads/toybox-0.0.7.tar.bz2>toybox 0.0.7</a>
 adds sort and tee commands, upgrades the internal option parsing logic and the
