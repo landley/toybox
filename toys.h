@@ -54,15 +54,20 @@ struct toy_list *toy_find(char *name);
 void toy_init(struct toy_list *which, char *argv[]);
 void toy_exec(char *argv[]);
 
-// List of available applets
+// Flags describing applet behavior.
 
 #define TOYFLAG_USR      (1<<0)
 #define TOYFLAG_BIN      (1<<1)
 #define TOYFLAG_SBIN     (1<<2)
 #define TOYMASK_LOCATION ((1<<4)-1)
 
+// This is a shell built-in function, running in the same process context.
 #define TOYFLAG_NOFORK   (1<<4)
+
+// Start applet with a umask of 0 (saves old umask in this.old_umask)
 #define TOYFLAG_UMASK    (1<<5)
+
+// Array of available applets
 
 extern struct toy_list {
         char *name;
@@ -71,7 +76,7 @@ extern struct toy_list {
         int flags;
 } toy_list[];
 
-// Global context for any applet.
+// Global context shared by all applets.
 
 extern struct toy_context {
 	struct toy_list *which;  // Which entry in toy_list is this one?
@@ -80,8 +85,8 @@ extern struct toy_context {
 	unsigned optflags;       // Command line option flags from get_optflags()
 	char **optargs;          // Arguments left over from get_optflags()
 	int optc;                // Count of optargs
-	int exithelp;            // Should error_exit print a usage message first?  (Option parsing.)
-	int old_umask;
+	int exithelp;            // Should error_exit print a usage message first?
+	int old_umask;           // Old umask preserved by TOYFLAG_UMASK
 } toys;
 
 // One big temporary buffer, for use by applets (not library functions).
