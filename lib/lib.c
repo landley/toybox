@@ -339,7 +339,7 @@ char *xabspath(char *path)
 
 void xchdir(char *path)
 {
-	if (chdir(path)) error_exit("chdir '%s'");
+	if (chdir(path)) error_exit("chdir '%s'", path);
 }
 
 // Ensure entire path exists.
