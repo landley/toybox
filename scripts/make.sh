@@ -62,14 +62,24 @@ echo "Make generated/config.h from .config."
 # New ones have '\n' so can replace one line with two without all the branches
 # and tedious mucking about with hold space.
 
-sed -n -e 's/^# CONFIG_\(.*\) is not set.*/\1/' \
-  -e 't notset' -e 'b tryisset' -e ':notset' \
-  -e 'h' -e 's/.*/#define CFG_& 0/p' \
-  -e 'g' -e 's/.*/#define USE_&(...)/p' -e 'd' -e ':tryisset' \
-  -e 's/^CONFIG_\(.*\)=y.*/\1/' -e 't isset' -e 'd' -e ':isset' \
-  -e 'h' -e 's/.*/#define CFG_& 1/p' \
-  -e 'g' -e 's/.*/#define USE_&(...) __VA_ARGS__/p' .config > \
-  generated/config.h || exit 1
+sed -n \
+  -e 's/^# CONFIG_\(.*\) is not set.*/\1/' \
+  -e 't notset' \
+  -e 's/^CONFIG_\(.*\)=y.*/\1/' \
+  -e 't isset' \
+  -e 'd' \
+  -e ':notset' \
+  -e 'h' \
+  -e 's/.*/#define CFG_& 0/p' \
+  -e 'g' \
+  -e 's/.*/#define USE_&(...)/p' \
+  -e 'd' \
+  -e ':isset' \
+  -e 'h' \
+  -e 's/.*/#define CFG_& 1/p' \
+  -e 'g' \
+  -e 's/.*/#define USE_&(...) __VA_ARGS__/p' \
+  .config > generated/config.h || exit 1
 
 # Extract a list of toys/*.c files to compile from the data in ".config" with
 # sed, sort, and tr:
