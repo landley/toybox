@@ -67,6 +67,7 @@ sed -n \
   -e 't notset' \
   -e 's/^CONFIG_\(.*\)=y.*/\1/' \
   -e 't isset' \
+  -e 's/^CONFIG_\([^=]*\)=\(.*\)/#define CFG_\1 \2/p' \
   -e 'd' \
   -e ':notset' \
   -e 'h' \
