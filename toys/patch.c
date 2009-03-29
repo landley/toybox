@@ -53,7 +53,7 @@ DEFINE_GLOBALS(
 	struct double_list *plines, *flines;
 	long oldline, oldlen, newline, newlen, linenum;
 	int context, state, filein, fileout, filepatch, hunknum;
-	char *tempname, *oldname;
+	char *tempname;
 )
 
 #define TT this.patch
@@ -61,13 +61,20 @@ DEFINE_GLOBALS(
 #define FLAG_REVERSE 1
 #define FLAG_PATHLEN 4
 
+// Dispose of a line of input, either by writing it out or discarding it.
+
+// state < 2: just free
+// state = 2: write whole line to stderr
+// state = 3: write whole line to fileout
+// state > 3: write line+1 to fileout when *line != state
+
 static void do_line(void *data)
 {
 	struct double_list *dlist = (struct double_list *)data;
 
-	if (TT.state && *dlist->data != TT.state)
+	if (TT.state>1 && *dlist->data != TT.state)
 		fdprintf(TT.state == 2 ? 2 : TT.fileout,
-			"%s\n", dlist->data+(TT.state>2 ? 1 : 0));
+			"%s\n", dlist->data+(TT.state>3 ? 1 : 0));
 
 	free(dlist->data);
 	free(data);
@@ -76,6 +83,7 @@ static void do_line(void *data)
 static void finish_oldfile(void)
 {
 	if (TT.tempname) replace_tempfile(TT.filein, TT.fileout, &TT.tempname);
+	TT.fileout = TT.filein = -1;
 }
 
 static void fail_hunk(void)
@@ -93,10 +101,10 @@ static void fail_hunk(void)
 	llist_free(TT.plines, do_line);
 	TT.plines = NULL;
 	delete_tempfile(TT.filein, TT.fileout, &TT.tempname);
-	TT.filein = -1;
+	TT.state = 0;
 }
 
-static void apply_hunk(void)
+static int apply_hunk(void)
 {
 	struct double_list *plist, *buf = NULL, *check;
 	int i = 0, backwards = 0, matcheof = 0,
@@ -154,7 +162,7 @@ static void apply_hunk(void)
 	
 			if (!plist || strcmp(check->data, plist->data+1)) {
 				// First line isn't a match, write it out.
-				TT.state = 1;
+				TT.state = 3;
 				check = llist_pop(&buf);
 				check->prev->next = buf;
 				buf->prev = check->prev;
@@ -181,12 +189,14 @@ out:
 	TT.state = "-+"[reverse];
 	llist_free(TT.plines, do_line);
 	TT.plines = NULL;
+	TT.state = 1;
 done:
-	TT.state = 0;
 	if (buf) {
 		buf->prev->next = NULL;
 		llist_free(buf, do_line);
 	}
+
+	return TT.state;
 }
 
 // state 0: Not in a hunk, look for +++.
@@ -196,7 +206,9 @@ done:
 
 void patch_main(void)
 {
-	int reverse = toys.optflags & FLAG_REVERSE;
+	int reverse = toys.optflags & FLAG_REVERSE, state = 0;
+	char *oldname = NULL, *newname = NULL;
+
 	if (TT.infile) TT.filepatch = xopen(TT.infile, O_RDONLY);
 	TT.filein = TT.fileout = -1;
 
@@ -207,8 +219,8 @@ void patch_main(void)
 		patchline = get_line(TT.filepatch);
 		if (!patchline) break;
 
-		// Are we processing a hunk?
-		if (TT.state >= 2) {
+		// Are we assembling a hunk?
+		if (state >= 2) {
 			if (*patchline==' ' || *patchline=='+' || *patchline=='-') {
 				dlist_add(&TT.plines, patchline);
 
@@ -216,101 +228,115 @@ void patch_main(void)
 				if (*patchline != '-') TT.newlen--;
 
 				// Context line?
-				if (*patchline==' ' && TT.state==2) TT.context++;
-				else TT.state=3;
+				if (*patchline==' ' && state==2) TT.context++;
+				else state=3;
 
-				if (!TT.oldlen && !TT.newlen) apply_hunk();
+				// If we've consumed all expected hunk lines, apply the hunk.
+
+				if (!TT.oldlen && !TT.newlen) state = apply_hunk();
 				continue;
 			}
 			fail_hunk();
-			TT.state = 0;
+			state = 0;
 			continue;
 		}
 
 		// Open a new file?
-		if (!strncmp("--- ", patchline, 4)) {
-			char *s;
+		if (!strncmp("--- ", patchline, 4) || !strncmp("+++ ", patchline, 4)) {
+			char *s, **name = &oldname;
 			int i;
 
-			free(TT.oldname);
+			if (*patchline == '+') {
+				name = &newname;
+				state = 1;
+			}
+
+			free(*name);
+			finish_oldfile();
 
 			// Trim date from end of filename (if any).  We don't care.
 			for (s = patchline+4; *s && *s!='\t'; s++)
 				if (*s=='\\' && s[1]) s++;
 			i = atoi(s);
 			if (i && i<=1970)
-				TT.oldname = xstrdup("/dev/null");
+				*name = xstrdup("/dev/null");
 			else {
 				*s = 0;
-				TT.oldname = xstrdup(patchline+4);
-			}
-		} else if (!strncmp("+++ ", patchline, 4)) {
-			int i = 0, del = 0;
-			char *s, *start;
-
-			finish_oldfile();
-
-			// Trim date from end of filename (if any).  We don't care.
-			for (s = start = patchline+4; *s && *s!='\t'; s++)
-				if (*s=='\\' && s[1]) s++;
-			if (!strncmp(s, "\t1969-12-31", 10)) start = "/dev/null";
-			*s = 0;
-
-			if (reverse) {
-				s = start;
-				start = TT.oldname;
+				*name = xstrdup(patchline+4);
 			}
 
-			// If new file is /dev/null (before -p), we're deleting oldname
-			if (!strcmp(start, "/dev/null")) {
-				start = reverse ? s : TT.oldname;
-				del++;
-			} else start = patchline+4;
-
-			// handle -p path truncation.
-			for (s = start; *s;) {
-				if ((toys.optflags & FLAG_PATHLEN) && TT.prefix == i) break;
-				if (*(s++)=='/') {
-					start = s;
-					i++;
-				}
-			}
-
-			if (del) {
-				printf("removing %s\n", start);
-				xunlink(start);
-			// If we've got a file to open, do so.
-			} else if (!(toys.optflags & FLAG_PATHLEN) || i <= TT.prefix) {
-				// If the old file was null, we're creating a new one.
-				if (!strcmp(TT.oldname, "/dev/null")) {
-					printf("creating %s\n", start);
-					s = strrchr(start, '/');
-					if (s) {
-						*s = 0;
-						xmkpath(start, -1);
-						*s = '/';
-					}
-					TT.filein = xcreate(start, O_CREAT|O_EXCL|O_RDWR, 0666);
-				} else {
-					printf("patching %s\n", start);
-					TT.filein = xopen(start, O_RDWR);
-				}
-				TT.fileout = copy_tempfile(TT.filein, start, &TT.tempname);
-				TT.state = 1;
-				TT.context = 0;
-				TT.linenum = 0;
-				TT.hunknum = 0;
-			}
+			// We defer actually opening the file because svn produces broken
+			// patches that don't signal they want to create a new file the
+			// way the patch man page says, so you have to read the first hunk
+			// and _guess_.
 
 		// Start a new hunk?
-		// Test filein rather than state to report only the first failed hunk.
-		} else if (TT.filein!=-1 && !strncmp("@@ -", patchline, 4) &&
-			4 == sscanf(patchline+4, "%ld,%ld +%ld,%ld", &TT.oldline,
-				&TT.oldlen, &TT.newline, &TT.newlen))
-		{
+		} else if (state == 1 && !strncmp("@@ -", patchline, 4)) {
+			int i;
+
+			i = sscanf(patchline+4, "%ld,%ld +%ld,%ld", &TT.oldline,
+						&TT.oldlen, &TT.newline, &TT.newlen);
+			if (i != 4)
+				error_exit("Corrupt hunk %d at %ld\n", TT.hunknum, TT.linenum);
+
 			TT.context = 0;
+			state = 2;
+
+			// If this is the first hunk, open the file.
+			if (TT.filein == -1) {
+				int oldsum, newsum, del = 0;
+				char *s, *name;
+
+ 				oldsum = TT.oldline + TT.oldlen;
+				newsum = TT.newline + TT.newlen;
+
+				name = reverse ? oldname : newname;
+
+				// We're deleting oldname if new file is /dev/null (before -p)
+				// or if new hunk is empty (zero context) after patching
+				if (!strcmp(name, "/dev/null") || !(reverse ? oldsum : newsum))
+				{
+					name = reverse ? newname : oldname;
+					del++;
+				}
+
+				// handle -p path truncation.
+				for (i=0, s = name; *s;) {
+					if ((toys.optflags & FLAG_PATHLEN) && TT.prefix == i) break;
+					if (*(s++)=='/') {
+						name = s;
+						i++;
+					}
+				}
+
+				if (del) {
+					printf("removing %s\n", name);
+					xunlink(name);
+					state = 0;
+				// If we've got a file to open, do so.
+				} else if (!(toys.optflags & FLAG_PATHLEN) || i <= TT.prefix) {
+					// If the old file was null, we're creating a new one.
+					if (!strcmp(oldname, "/dev/null") || !oldsum) {
+						printf("creating %s\n", name);
+						s = strrchr(name, '/');
+						if (s) {
+							*s = 0;
+							xmkpath(name, -1);
+							*s = '/';
+						}
+						TT.filein = xcreate(name, O_CREAT|O_EXCL|O_RDWR, 0666);
+					} else {
+						printf("patching %s\n", name);
+						TT.filein = xopen(name, O_RDWR);
+					}
+					TT.fileout = copy_tempfile(TT.filein, name, &TT.tempname);
+					TT.linenum = 0;
+					TT.hunknum = 0;
+				}
+			}
+
 			TT.hunknum++;
-			TT.state = 2;
+
 			continue;
 		}
 
@@ -322,6 +348,7 @@ void patch_main(void)
 
 	if (CFG_TOYBOX_FREE) {
 		close(TT.filepatch);
-		free(TT.oldname);
+		free(oldname);
+		free(newname);
 	}
 }
