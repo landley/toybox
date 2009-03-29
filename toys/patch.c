@@ -219,6 +219,13 @@ void patch_main(void)
 		patchline = get_line(TT.filepatch);
 		if (!patchline) break;
 
+		// Other versions of patch accept damaged patches,
+		// so we need to also.
+		if (!*patchline) {
+			free(patchline);
+			patchline = xstrdup(" ");
+		}
+
 		// Are we assembling a hunk?
 		if (state >= 2) {
 			if (*patchline==' ' || *patchline=='+' || *patchline=='-') {
