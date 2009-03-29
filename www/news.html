@@ -2,15 +2,19 @@
 
 <h2>Currently implemented commands:</h2>
 <p>
-basename, cat, catv, chroot, chvt, count, cp, df, dirname, dmesg, echo, false,
-hello, help, mkfifo, nc, netcat, oneit, patch, pwd, rmdir, sh, sha1sum, sleep,
-sync, touch, toysh, true, tty, which, yes
+basename, bzcat, cat, catv, chroot, chvt, cksum, count, cp, df, dirname, dmesg,
+echo, false, hello, help, mkfifo, mkswap, nc, netcat, oneit, patch, pwd, rmdir,
+seq, sha1sum, sleep, sort, sync, tee, touch, toysh, true, tty, uname, which, yes
 </p>
 
-<p>[Commands in square brackets are in source control, but not in the most recent
-release tarball.]</p>
-
 <h2>News</h2>
+
+<p><b>January 29, 2009</b> - Released
+<a href=downloads/toybox-0.0.9</a>toybox 0.0.9</a> which is a minor packaging
+fix for 0.0.8.  (The previous release tarball contained a prebuilt x86-64
+kconfig/conf file, because the release script ran defconfig to
+pregenerate help.h, and didn't run make clean afterwards.)  The actual source
+code is identical to the previous release.</p>
 
 <p><b>January 20, 2009</b> - <a href=downloads/toybox-0.0.8</a>toybox 0.0.8</a>
 adds the uname, cksum, and mkswapfs commands.</p>
