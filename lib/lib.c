@@ -650,7 +650,7 @@ char *get_rawline(int fd, long *plen, char end)
 
 	for (;;) {
 		if (1>read(fd, &c, 1)) break;
-		if (!(len & 63)) buf=xrealloc(buf, len+64);
+		if (!(len & 63)) buf=xrealloc(buf, len+65);
 		if ((buf[len++]=c) == end) break;
 	}
 	if (buf) buf[len]=0;
