@@ -8,6 +8,7 @@
 [ -z "$CFLAGS" ] && CFLAGS="-Wall -Wundef -Wno-char-subscripts"
 CFLAGS="$CFLAGS -funsigned-char"
 [ -z "$OPTIMIZE" ] && OPTIMIZE="-Os -ffunction-sections -fdata-sections -Wl,--gc-sections"
-[ -z "$CC" ] && CC="${CROSS_COMPILE}gcc"
+[ -z "$CC" ] && CC="cc"
+CC="${CROSS_COMPILE}${CC}"
 [ -z "$STRIP" ] && STRIP="${CROSS_COMPILE}strip"
 [ -z "$HOSTCC" ] && HOSTCC=gcc
