@@ -35,6 +35,7 @@
 #include <unistd.h>
 #include <utime.h>
 
+#undef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 600
 #include <time.h>
 
