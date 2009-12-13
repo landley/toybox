@@ -8,7 +8,10 @@ then
   exit 1
 fi
 
-stty 115200 -F "$1"
+SPEED="$2"
+[ -z "$SPEED" ] && SPEED=115200
+
+stty $SPEED -F "$1"
 stty raw -echo -ctlecho -F "$1"
 stty raw -echo  # Need to do it on stdin, too.
 ./toybox netcat -f "$1"
