@@ -99,3 +99,6 @@ echo "Compile toybox..."
 $DEBUG $CC $CFLAGS -I . -o toybox_unstripped $OPTIMIZE main.c lib/*.c \
   $TOYFILES -Wl,--as-needed,-lutil,--no-as-needed || exit 1
 $DEBUG $STRIP toybox_unstripped -o toybox || exit 1
+# gcc 4.4's strip command is buggy, and doesn't set the executable bit on
+# its output the way SUSv4 suggests it do so.
+$DEBUG chmod +x toybox || exit 1
