@@ -106,7 +106,7 @@ void *xrealloc(void *ptr, size_t size)
 }
 
 // Die unless we can allocate a copy of this many bytes of string.
-void *xstrndup(char *s, size_t n)
+char *xstrndup(char *s, size_t n)
 {
 	char *ret = xmalloc(++n);
 	strncpy(ret, s, n);
@@ -116,7 +116,7 @@ void *xstrndup(char *s, size_t n)
 }
 
 // Die unless we can allocate a copy of this string.
-void *xstrdup(char *s)
+char *xstrdup(char *s)
 {
 	return xstrndup(s, strlen(s));
 }
