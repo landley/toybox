@@ -21,7 +21,7 @@ config SORT
       -n    numeric order (instead of alphabetical)
 
 config SORT_BIG
-    bool "  all SuSv3 options (Support -ktcsbdfiozgM)"
+    bool "all SuSv3 options (Support -ktcsbdfiozgM)"
     default y
     depends on SORT
     help
