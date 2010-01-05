@@ -64,6 +64,21 @@ static const int NEED_OPTIONS =
 
 void toy_init(struct toy_list *which, char *argv[])
 {
+	// Drop permissions for non-suid commands.
+
+	if (CFG_TOYBOX_SUID) {
+		uid_t uid = getuid(), euid = geteuid();
+
+		if (!(which->flags & TOYFLAG_STAYROOT)) {
+			if (uid != euid) xsetuid(euid=uid);
+		} else if (CFG_TOYBOX_DEBUG && uid)
+			error_exit("Not installed suid root");
+
+		if ((which->flags & TOYFLAG_NEEDROOT) && euid)
+			error_exit("Not root");
+
+	}
+
 	// Free old toys contents here?
 
 	toys.which = which;

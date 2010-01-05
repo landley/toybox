@@ -11,6 +11,14 @@ config TOYBOX
 	  With no arguments, shows available commands.  First argument is
 	  name of a command to run, followed by any arguments to that command.
 
+config TOYBOX_SUID
+	bool "SUID support"
+	default y
+	help
+	  Support for suid commands, which run as root.  This means toybox must
+	  be installed suid root, and drops permissions before running commands
+	  which do not require root access.
+
 config TOYBOX_FREE
 	bool "Free memory unnecessarily"
 	default n

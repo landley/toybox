@@ -369,6 +369,16 @@ void xmkpath(char *path, int mode)
 		if (!*p) break;
 	}
 }
+
+// setuid() can fail (for example, too many processes belonging to that user),
+// which opens a security hole if the process continues as the original user.
+
+void xsetuid(uid_t uid)
+{
+	if (setuid(uid)) perror_exit("xsetuid");
+}
+
+
 // Find all file in a colon-separated path with access type "type" (generally
 // X_OK or R_OK).  Returns a list of absolute paths to each file found, in
 // order.

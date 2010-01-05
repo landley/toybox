@@ -81,6 +81,7 @@ void xstat(char *path, struct stat *st);
 char *xabspath(char *path);
 void xchdir(char *path);
 void xmkpath(char *path, int mode);
+void xsetuid(uid_t uid);
 struct string_list *find_in_path(char *path, char *filename);
 void utoa_to_buf(unsigned n, char *buf, unsigned buflen);
 void itoa_to_buf(int n, char *buf, unsigned buflen);

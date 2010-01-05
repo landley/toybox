@@ -68,6 +68,11 @@ void toy_exec(char *argv[]);
 // Start applet with a umask of 0 (saves old umask in this.old_umask)
 #define TOYFLAG_UMASK    (1<<5)
 
+// This applet runs as root.
+#define TOYFLAG_STAYROOT (1<<6)
+#define TOYFLAG_NEEDROOT (1<<7)
+#define TOYFLAG_ROOTONLY (TOYFLAG_STAYROOT|TOYFLAG_NEEDROOT)
+
 // Array of available applets
 
 extern struct toy_list {
