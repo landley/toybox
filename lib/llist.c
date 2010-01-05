@@ -35,7 +35,7 @@ void *llist_pop(void *list)
 	return (void *)next;
 }
 
-// Add an entry to the end off a doubly linked list
+// Add an entry to the end of a doubly linked list
 struct double_list *dlist_add(struct double_list **list, char *data)
 {
 	struct double_list *line = xmalloc(sizeof(struct double_list));
