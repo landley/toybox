@@ -1,3 +1,12 @@
+// The tendency of gcc to produce stupid warnings continues with
+// warn_unsed_result, which warns about things like ignoring the return code
+// of nice(2) (which is completely useless since -1 is a legitimate return
+// value on success and even the man page tells you to use errno instead).
+
+// This makes it stop.
+
+#undef _FORTIFY_SOURCE
+
 // Humor glibc to get dprintf, then #define it to something more portable.
 #define _GNU_SOURCE
 #include <stdio.h>
