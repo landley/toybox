@@ -272,7 +272,7 @@ void patch_main(void)
 			for (s = patchline+4; *s && *s!='\t'; s++)
 				if (*s=='\\' && s[1]) s++;
 			i = atoi(s);
-			if (i && i<=1970)
+			if (i>1900 && i<=1970)
 				*name = xstrdup("/dev/null");
 			else {
 				*s = 0;
