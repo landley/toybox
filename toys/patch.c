@@ -21,7 +21,7 @@
  * -F fuzz (number, default 2)
  * [file] which file to patch
 
-USE_PATCH(NEWTOY(patch, "up#i:R", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PATCH(NEWTOY(patch, USE_TOYBOX_DEBUG("x")"up#i:R", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PATCH
 	bool "patch"
@@ -68,6 +68,8 @@ DEFINE_GLOBALS(
 // state = 3: write whole line to fileout
 // state > 3: write line+1 to fileout when *line != state
 
+#define PATCH_DEBUG (CFG_TOYBOX_DEBUG && (toys.optflags & 16))
+
 static void do_line(void *data)
 {
 	struct double_list *dlist = (struct double_list *)data;
@@ -75,6 +77,8 @@ static void do_line(void *data)
 	if (TT.state>1 && *dlist->data != TT.state)
 		fdprintf(TT.state == 2 ? 2 : TT.fileout,
 			"%s\n", dlist->data+(TT.state>3 ? 1 : 0));
+
+	if (PATCH_DEBUG) fdprintf(2, "DO %d: %s\n", TT.state, dlist->data);
 
 	free(dlist->data);
 	free(data);
@@ -104,7 +108,14 @@ static void fail_hunk(void)
 	TT.state = 0;
 }
 
-static int apply_hunk(void)
+// Given a hunk of a unified diff, make the appropriate change to the file.
+// This does not use the location information, but instead treats a hunk
+// as a sort of regex.  Copies data from input to output until it finds
+// the change to be made, then outputs the changed data and returns.
+// (Finding EOF first is an error.)  This is a single pass operation, so
+// multiple hunks must occur in order in the file.
+
+static int apply_one_hunk(void)
 {
 	struct double_list *plist, *buf = NULL, *check;
 	int matcheof = 0, reverse = toys.optflags & FLAG_REVERSE, backwarn = 0;
@@ -116,8 +127,11 @@ static int apply_hunk(void)
 	for (plist = TT.current_hunk; plist; plist = plist->next) {
 		if (plist->data[0]==' ') matcheof++;
 		else matcheof = 0;
+		if (PATCH_DEBUG) fdprintf(2, "HUNK:%s\n", plist->data);
 	}
 	matcheof = matcheof < TT.context;
+
+	if (PATCH_DEBUG) fdprintf(2,"MATCHEOF=%c\n", matcheof ? 'Y' : 'N');
 
 	// Loop through input data searching for this hunk.  Match all context
 	// lines and all lines to be removed until we've found the end of a
@@ -144,13 +158,15 @@ static int apply_hunk(void)
 
 		// Is this EOF?
 		if (!data) {
+			if (PATCH_DEBUG) fdprintf(2, "INEOF\n");
+
 			// Does this hunk need to match EOF?
 			if (!plist && matcheof) break;
 
 			// File ended before we found a place for this hunk.
 			fail_hunk();
 			goto done;
-		}
+		} else if (PATCH_DEBUG) fdprintf(2, "IN: %s\n", data);
 		check = dlist_add(&buf, data);
 
 		// Compare this line with next expected line of hunk.
@@ -168,6 +184,9 @@ static int apply_hunk(void)
 				// Match failed.  Write out first line of buffered data and
 				// recheck remaining buffered data for a new match.
 	
+				if (PATCH_DEBUG)
+					fdprintf(2, "NOT: %s\n", plist->data);
+
 				TT.state = 3;
 				check = llist_pop(&buf);
 				check->prev->next = buf;
@@ -183,6 +202,8 @@ static int apply_hunk(void)
 				}
 				check = buf;
 			} else {
+				if (PATCH_DEBUG)
+					fdprintf(2, "MAYBE: %s\n", plist->data);
 				// This line matches.  Advance plist, detect successful match.
 				plist = plist->next;
 				if (!plist && !matcheof) goto out;
@@ -205,6 +226,9 @@ done:
 
 	return TT.state;
 }
+
+// Read a patch file and find hunks, opening/creating/deleting files.
+// Call apply_one_hunk() on each hunk.
 
 // state 0: Not in a hunk, look for +++.
 // state 1: Found +++ file indicator, look for @@
@@ -247,7 +271,7 @@ void patch_main(void)
 
 				// If we've consumed all expected hunk lines, apply the hunk.
 
-				if (!TT.oldlen && !TT.newlen) state = apply_hunk();
+				if (!TT.oldlen && !TT.newlen) state = apply_one_hunk();
 				continue;
 			}
 			fail_hunk();
