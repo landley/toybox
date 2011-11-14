@@ -570,7 +570,7 @@ char *readfile(char *name)
 	if (fd == -1) return 0;
 	len = fdlength(fd);
 	buf = xmalloc(len+1);
-	buf[xreadall(fd, buf, len)] = 0;
+	buf[readall(fd, buf, len)] = 0;
 
 	return buf;
 }
