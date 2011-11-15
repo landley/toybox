@@ -5,7 +5,7 @@
  * Copyright 2006 Rob Landley <rob@landley.net>
  *
  * Not in SUSv3.
- * See http://www.opengroup.org/onlinepubs/009695399/utilities/
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/
 
 USE_HELLO(NEWTOY(hello, "e@d*c#b:a", TOYFLAG_USR|TOYFLAG_BIN))
 
