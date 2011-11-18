@@ -1,8 +1,8 @@
 /* vi: set sw=4 ts=4:
  *
- * wc.c - Word countA hello world program.
+ * wc.c - Word count
  *
- * Copyright 2011Rob Landley <rob@landley.net>
+ * Copyright 2011 Rob Landley <rob@landley.net>
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/wc.html
 
