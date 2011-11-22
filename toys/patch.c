@@ -148,11 +148,7 @@ static int apply_one_hunk(void)
 		// of the hunk we'd be adding.)
 		while (plist && *plist->data == "+-"[reverse]) {
 			if (data && !strcmp(data, plist->data+1)) {
-				if (!backwarn) {
-					fdprintf(2,"Possibly reversed hunk %d at %ld\n",
-						TT.hunknum, TT.linenum);
-					backwarn++;
-				}
+				if (!backwarn) backwarn = TT.linenum;
 			}
 			plist = plist->next;
 		}
@@ -163,6 +159,10 @@ static int apply_one_hunk(void)
 
 			// Does this hunk need to match EOF?
 			if (!plist && matcheof) break;
+
+			if (backwarn)
+				fdprintf(2,"Possibly reversed hunk %d at %ld\n",
+						TT.hunknum, TT.linenum);
 
 			// File ended before we found a place for this hunk.
 			fail_hunk();
