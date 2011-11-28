@@ -108,32 +108,28 @@ static int gotflag(struct getoptflagstate *gof)
 	// Does this option take an argument?
 	gof->arg++;
 	type = opt->type;
-	if (type) {
+	if (type == '@') ++*(opt->arg);
+	else if (type) {
+		char *arg = gof->arg;
 
 		// Handle "-xblah" and "-x blah", but also a third case: "abxc blah"
 		// to make "tar xCjfv blah1 blah2 thingy" work like
 		// "tar -x -C blah1 -j -f blah2 -v thingy"
-		if (!gof->nodash_now && !gof->arg[0]) {
-			gof->arg = toys.argv[++gof->argc];
-			// TODO: The following line doesn't display --longopt correctly
-			if (!gof->arg) error_exit("Missing argument to -%c",opt->c);
-		}
+		if (gof->nodash_now || !gof->arg[0]) arg = toys.argv[++gof->argc];
+		// TODO: The following line doesn't display --longopt correctly
+		if (!arg) error_exit("Missing argument to -%c", opt->c);
 
-		// Grab argument.
-		if (!gof->arg && !(gof->arg = toys.argv[++(gof->argc)]))
-			error_exit("Missing argument");
-		if (type == ':') *(opt->arg) = (long)gof->arg;
+		if (type == ':') *(opt->arg) = (long)arg;
 		else if (type == '*') {
 			struct arg_list **list;
 
 			list = (struct arg_list **)opt->arg;
 			while (*list) list=&((*list)->next);
 			*list = xzalloc(sizeof(struct arg_list));
-			(*list)->arg = gof->arg;
-		} else if (type == '#') *(opt->arg) = atolx((char *)gof->arg);
-		else if (type == '@') ++*(opt->arg);
+			(*list)->arg = arg;
+		} else if (type == '#') *(opt->arg) = atolx((char *)arg);
 
-		gof->arg = "";
+		if (!gof->nodash_now) gof->arg = "";
 	}
 
 	gof->this = NULL;
@@ -217,6 +213,8 @@ void get_optflags(void)
 			// If this is the start of a new option that wasn't a longopt,
 
 			} else if (strchr(":*#@", *options)) {
+				if (CFG_TOYBOX_DEBUG && gof.this->type)
+					error_exit("Bug4 in get_opt");
 				gof.this->type = *options;
 			} else if (0 != (temp = strchr(plustildenot, *options))) {
 				int i=0, idx = temp - plustildenot;
