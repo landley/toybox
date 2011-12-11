@@ -4,7 +4,7 @@
  *
  * Copyright 2009 Rob Landley <rob@landley.net>
  *
- * Not in SUSv3.
+ * Not in SUSv4.
 
 USE_MKSWAP(NEWTOY(mkswap, "<1>2", TOYFLAG_SBIN))
 

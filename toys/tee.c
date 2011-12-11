@@ -52,7 +52,8 @@ void tee_main(void)
 
     // Open output files
     loopfiles_rw(toys.optargs,
-        O_RDWR|O_CREAT|((toys.optflags&1)?O_APPEND:O_TRUNC), do_tee_open);
+		O_RDWR|O_CREAT|((toys.optflags&1)?O_APPEND:O_TRUNC), 0666, 0,
+		do_tee_open);
 
     for (;;) {
         struct fd_list *fdl;
