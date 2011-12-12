@@ -488,6 +488,7 @@ long atolx(char *c)
 		end = strchr(suffixes, tolower(*c));
 		if (end) val *= 1024L<<((end-suffixes)*10);
 	}
+
 	return val;
 }
 
@@ -624,7 +625,8 @@ void xpidfile(char *name)
 //
 // Note: read only filehandles are automatically closed when function()
 // returns, but writeable filehandles must be close by function()
-void loopfiles_rw(char **argv, int flags, void (*function)(int fd, char *name))
+void loopfiles_rw(char **argv, int flags, int permissions, int failok,
+	void (*function)(int fd, char *name))
 {
 	int fd;
 
@@ -635,7 +637,7 @@ void loopfiles_rw(char **argv, int flags, void (*function)(int fd, char *name))
 		// Inability to open a file prints a warning, but doesn't exit.
 
 		if (!strcmp(*argv,"-")) fd=0;
-		else if (0>(fd = open(*argv, flags, 0666))) {
+		else if (0>(fd = open(*argv, flags, permissions)) && !failok) {
 			perror_msg("%s", *argv);
 			toys.exitval = 1;
 			continue;
@@ -645,10 +647,10 @@ void loopfiles_rw(char **argv, int flags, void (*function)(int fd, char *name))
 	} while (*++argv);
 }
 
-// Call loopfiles_rw with O_RDONLY (common case).
+// Call loopfiles_rw with O_RDONLY and !failok (common case).
 void loopfiles(char **argv, void (*function)(int fd, char *name))
 {
-	loopfiles_rw(argv, O_RDONLY, function);
+	loopfiles_rw(argv, O_RDONLY, 0, 0, function);
 }
 
 // Slow, but small.
