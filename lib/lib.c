@@ -246,10 +246,10 @@ ssize_t writeall(int fd, void *buf, size_t len)
 // Die if there's an error other than EOF.
 size_t xread(int fd, void *buf, size_t len)
 {
-	len = read(fd, buf, len);
-	if (len < 0) perror_exit("xread");
+	ssize_t ret = read(fd, buf, len);
+	if (ret < 0) perror_exit("xread");
 
-	return len;
+	return ret;
 }
 
 void xreadall(int fd, void *buf, size_t len)
