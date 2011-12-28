@@ -23,7 +23,7 @@ USE_TOYSH(NEWTOY(toysh, "c:i", TOYFLAG_BIN))
 
 config TOYSH
 	bool "sh (toysh)"
-	default y
+	default n
 	help
 	  usage: sh [-c command] [script]
 
