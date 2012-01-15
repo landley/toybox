@@ -29,7 +29,7 @@ struct toy_list *toy_find(char *name)
 {
 	int top, bottom, middle;
 
-	// If the name starts with "toybox", accept that as a match.  Otherwise
+	// If the name starts with "toybox" accept that as a match.  Otherwise
 	// skip the first entry, which is out of order.
 
 	if (!strncmp(name,"toybox",6)) return toy_list;
@@ -52,7 +52,8 @@ struct toy_list *toy_find(char *name)
 
 // Figure out whether or not anything is using the option parsing logic,
 // because the compiler can't figure out whether or not to optimize it away
-// on its' own.
+// on its' own.  NEED_OPTIONS becomes a constant allowing if() to optimize
+// stuff out via dead code elimination.
 
 #undef NEWTOY
 #undef OLDTOY
@@ -61,6 +62,8 @@ struct toy_list *toy_find(char *name)
 static const int NEED_OPTIONS =
 #include "generated/newtoys.h"
 0;  // Ends the opts || opts || opts...
+
+// Setup toybox global state for this command.
 
 void toy_init(struct toy_list *which, char *argv[])
 {
@@ -90,7 +93,8 @@ void toy_init(struct toy_list *which, char *argv[])
 	if (which->flags & TOYFLAG_UMASK) toys.old_umask = umask(0);
 }
 
-// Run a toy.
+// Like exec() but runs an internal toybox command instead of another file.
+// Only returns if it can't find the command, otherwise exit() when done.
 void toy_exec(char *argv[])
 {
 	struct toy_list *which;
@@ -101,6 +105,9 @@ void toy_exec(char *argv[])
 	toys.which->toy_main();
 	exit(toys.exitval);
 }
+
+// Multiplexer command, first argument is command to run, rest are args to that.
+// If first argument starts with - output list of command install paths.
 
 void toybox_main(void)
 {
@@ -140,13 +147,15 @@ int main(int argc, char *argv[])
 	{
 		char *name;
 
-		// Figure out which applet to call.
+		// Trim path off of command name
 		name = rindex(argv[0], '/');
 		if (!name) name=argv[0];
 		else name++;
 		argv[0] = name;
 	}
 
+	// Call the multiplexer, adjusting this argv[] to be its' argv[1].
+	// (It will adjust it back before calling toy_exec().)
 	toys.argv = argv-1;
 	toybox_main();
 	return 0;
