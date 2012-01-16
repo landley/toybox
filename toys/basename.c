@@ -26,7 +26,7 @@ void basename_main(void)
     if (!arg) return; 
 
     arglen = strlen(arg);
-    
+ 
     // handle the case where we only have single slash
     if (arglen == 1 && arg[0] == '/') {
         puts("/");
@@ -39,7 +39,10 @@ void basename_main(void)
     }
 
     // get everything past the last /
-    base = strrchr(arg, '/') + 1;
+    base = strrchr(arg, '/');
+
+    if (!base) base = arg;
+    else base++;
    
     // handle the case where we have all slashes
     if (base[0] == 0) base = "/";  
