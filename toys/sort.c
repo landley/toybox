@@ -6,7 +6,7 @@
  *
  * See http://www.opengroup.org/onlinepubs/007904975/utilities/sort.html
 
-USE_SORT(NEWTOY(sort, USE_SORT_BIG("S:T:m" "o:k*t:bgMcszdfi") "run", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SORT(NEWTOY(sort, USE_SORT_BIG("S:T:m" "o:k*t:xbgMcszdfi") "run", TOYFLAG_USR|TOYFLAG_BIN))
 
 config SORT
     bool "sort"
@@ -34,6 +34,7 @@ config SORT_BIG
       -g    general numeric sort (double precision with nan and inf)
       -i    ignore nonprinting characters
       -M    month sort (jan, feb, etc).
+      -x    Hexadecimal numerical sort
       -s    skip fallback sort (only sort with keys)
       -z    zero (null) terminated input
       -k    sort by "key" (see below)
@@ -84,10 +85,11 @@ DEFINE_GLOBALS(
 #define FLAG_M    512  // Sort type: date
 #define FLAG_g   1024  // Sort type: strtod()
 #define FLAG_b   2048  // Ignore leading blanks
+#define FLAG_x   4096  // Hex sort
 
 // Left off dealing with FLAG_b/FLAG_bb logic...
 
-#define FLAG_bb 32768  // Ignore trailing blanks
+#define FLAG_bb (1<<31)  // Ignore trailing blanks
 
 struct sort_key
 {
@@ -188,7 +190,7 @@ static struct sort_key *add_key(void)
 // Perform actual comparison
 static int compare_values(int flags, char *x, char *y)
 {
-    int ff = flags & (FLAG_n|FLAG_g|FLAG_M);
+    int ff = flags & (FLAG_n|FLAG_g|FLAG_M||FLAG_x);
 
     // Ascii sort
     if (!ff) return strcmp(x, y);
@@ -230,6 +232,8 @@ static int compare_values(int flags, char *x, char *y)
         else return dx==thyme.tm_mon ? 0 : dx-thyme.tm_mon;
 
     // This has to be ff == FLAG_n
+    } else if (CFG_SORT_BIG && ff == FLAG_x) {
+        return strtol(x, NULL, 16)-strtol(y, NULL, 16);
     } else {
         // Full floating point version of -n
         if (CFG_SORT_BIG) {
