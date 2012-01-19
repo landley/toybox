@@ -1,6 +1,11 @@
 /* vi: set sw=4 ts=4:
  *
- * basename.c  
+ * basename.c - Return non-directory portion of a pathname
+ *
+ * Copyright 2012 Tryn Mirell <tryn@mirell.org>
+ *
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/basename.html
+
 
 USE_BASENAME(NEWTOY(basename, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -9,6 +14,7 @@ config BASENAME
 	default n
 	help
         usage: basename string [suffix]
+
         Return non-directory portion of a pathname
 */
 
