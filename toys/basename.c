@@ -7,7 +7,7 @@
  * See http://opengroup.org/onlinepubs/9699919799/utilities/basename.html
 
 
-USE_BASENAME(NEWTOY(basename, NULL, TOYFLAG_USR|TOYFLAG_BIN))
+USE_BASENAME(NEWTOY(basename, "<1>2", TOYFLAG_USR|TOYFLAG_BIN))
 
 config BASENAME
 	bool "basename"
@@ -22,40 +22,23 @@ config BASENAME
 
 void basename_main(void)
 {
-    char *arg, *suffix, *base;
-    int arglen;
+    char *arg = toys.optargs[0], *suffix = toys.optargs[1], *base;
 
-    arg = toys.optargs[0];
-    suffix = toys.optargs[1];
-
-    // return null string if nothing provided
-    if (!arg) return; 
-
-    arglen = strlen(arg);
- 
-    // handle the case where we only have single slash
-    if (arglen == 1 && arg[0] == '/') {
-        puts("/");
-        return;
+    while ((base = strrchr(arg, '/'))) {
+        if (base == arg) break;
+        if (!base[1]) *base = 0;
+        else {
+            base++;
+            break;
+        }
     }
-
-    // remove trailing slash
-    if (arg[arglen - 1] == '/') {
-        arg[arglen - 1] = 0;
-    }
-
-    // get everything past the last /
-    base = strrchr(arg, '/');
 
     if (!base) base = arg;
-    else base++;
-   
-    // handle the case where we have all slashes
-    if (base[0] == 0) base = "/";  
     
     // chop off the suffix if provided
     if (suffix) {
-        strstr(base, suffix)[0] = 0;
+        char *s = strstr(base, suffix);
+        if (s && s != base) *s = 0;
     }
 
     puts(base);

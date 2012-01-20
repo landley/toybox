@@ -1,13 +1,14 @@
 /* vi: set sw=4 ts=4:
  * env.c
 
-USE_ENV(NEWTOY(env, "^?i", TOYFLAG_USR|TOYFLAG_BIN))
+USE_ENV(NEWTOY(env, "^i", TOYFLAG_USR|TOYFLAG_BIN))
 
 config ENV
 	bool "env"
 	default n
 	help
-        
+        usage: env [-i] [FOO=BAR...] [command [option...]]
+
         Set the environment for command invocation
 */
 
@@ -19,20 +20,19 @@ void env_main(void)
 {
     char **ev;
     char **command = NULL;
-
+    char *del = "=";
+    
     if (toys.optflags & 1) clearenv();
     
     for (ev = toys.optargs; *ev != NULL; ev++) {
-        char *env = NULL, *val = NULL;
-        char *del = "=";
+        char *env, *val = NULL;
         
         env = strtok(*ev, del);
         
-        if (env != NULL) val = strtok(NULL, del);
+        if (env) val = strtok(NULL, del);
         
-        if (val != NULL) {
-            setenv(env, val, 1);
-        } else {
+        if (val) setenv(env, val, 1);
+        else {
             command = ev;
             break;
         }
@@ -40,13 +40,8 @@ void env_main(void)
     
     if (!command) {
         char **ep;
-        if (environ) {
-            for (ep = environ; *ep != NULL; ep++)
-                xputs(*ep);
-            return;
-        }
-    } else {
-        execvp(*command, command);
-    }
-
+        for (ep = environ; *ep; ep++)
+            xputs(*ep);
+        return;
+    } else execvp(*command, command);
 }
