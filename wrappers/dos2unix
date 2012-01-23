@@ -1,0 +1,5 @@
+#!/bin/sh
+#HELP usage: dos2unix [FILE...]\n\nRemove DOS newlines
+
+[ $# -ne 0 ] && DASH_I=-i
+sed $DASH_I -e 's/\r$//' "$@"

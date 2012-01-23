@@ -1,0 +1,7 @@
+#!/bin/sh
+# HELP usage: tac [FILE...]\n\nPrint input lines in reverse order
+
+for i in "$@"
+do
+  sed -e '1!G;h;$!d' "$i"
+done
