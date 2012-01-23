@@ -11,8 +11,9 @@ compliance, but isn't quite the same thing).  Click for
 
 <p>Toybox has configurable levels of functionality, and should scale from tiny
 embedded systems up to full general purpose desktop and development
-environments.  The author plans to run it on his laptop, and the
-<a href=/code/firmware>Firmware Linux</a> project is trying to get a complete
+environments.  The author plans to install it on his Android phone in
+place of Toolbox, and the
+<a href=/aboriginal>Aboriginal Linux</a> project is trying to get a complete
 Linux system to rebuild itself from source code using toybox.</p>
 
 <p>Toybox is <a href=license.html>released under a simple 2-clause BSD-style
@@ -26,25 +27,16 @@ executable.</p>
 
 <p>The current list of commands implemented by toybox is at the top of the
 <a href=news.html>news page</a>.  That list is updated when new commands
-go in.</p>
+go in.  The list of commands yet to implement for the 1.0 release is in the
+<a href=todo.txt>todo list</a>.</p>
 
 <p>In general, configuring toybox for "defconfig" enables all the commands
 compete enough to be useful.  Configuring "allyesconfig" enables partially
 implemented commands as well.</p>
 
-<p>The following commands are incomplete, but demonstrate some basic
-functionality: bzcat/bunzip2, help, mke2fs, sh/toysh, mdev.</p>
-
-<p>The following are partially implemented commands that don't actually do
-anything yet: mke2fs.</p>
-
-<p>Several toybox commands can do things other vesions can't.  For example:</p>
-
-<p>The toybox "df" isn't confused by initramfs the way other df implementations
+<p>Several toybox commands can do things other vesions can't.  For example
+the toybox "df" isn't confused by initramfs the way other df implementations
 are.  If initramfs is visible, df shows it like any other mount point.</p>
-
-<p>The toybox "touch" command has a -l option to set the length of a file.
-This can truncate a file, or create completely sparse files.</p>
 
 <b><h3>Command Shell</h3></b>
 <p>The Toybox Shell (toysh) aims to be a reasonable bash replacement.  It
@@ -53,7 +45,7 @@ implements the "sh" and "toysh" commands, plus the built-in commands "cd" and
 
 <p>The following additional commands may be built into the shell (but not as
 separate executables): cd, exit, if, while, for, function, fg, bg, jobs, source,
-<a href="http://www.opengroup.org/onlinepubs/009695399/utilities/alias.html">alias</a>,
+<a href="http://opengroup.org/onlinepubs/9699919799/utilities/alias.html">alias</a>,
 export, set, unset, read, trap, and exec.  (Note: not done yet.)</p>
 
 </ul>
@@ -62,17 +54,18 @@ export, set, unset, read, trap, and exec.  (Note: not done yet.)</p>
 
 <p>The toybox <a href=todo.txt>todo list</a> mentions many potential commands
 which may be added to this project.  (Whether that file is readable by anybody
-but the project's maintainer is open to debate.)</p>
+but the project's maintainer is open to debate.)  The roadmap wiki in the
+nav bar has a more human readable version.</p>
 
 <p>The criteria for a toybox 1.0 release is that a system built from just the
-Linux kernel, toybox, uClibc, and a compiler (such as tinycc) can rebuild
-itself from source code.</p>
+Linux kernel, toybox, C library (such as uClibc), and a compiler (such as
+tinycc) can rebuild itself from source code.</p>
 
 <b><h3>Relevant Standards</h3></b>
 
 <p>Most commands are implemented according to
-<a href=http://www.opengroup.org/onlinepubs/009695399/idx/utilities.html>The
-Single Unix Specification version 3</a> where applicable.  This does not mean
+<a href=http://opengroup.org/onlinepubs/9699919799/idx/utilities.html>The
+Single Unix Specification version 4</a> where applicable.  This does not mean
 that Toybox is implementing every SUSv3 utility: some such as SCCS and ed are
 obsolete, while others such as c99 are outside the scope of the project.
 Toybox also isn't implementing full internationalization support: it should be
@@ -84,8 +77,9 @@ obeyed.)</p>
 
 <p>The other major sources of commands are the Linux man pages, and testing
 the behavior of existing commands (although not generally looking at their
-source code).  SUSv3 does not include many basic commands such as "mount",
-"init", and "mke2fs", which are kind of nice to have.</p>
+source code), including the commands in Android's toolbox.  SUSv4 does not
+include many basic commands such as "mount", "init", and "mke2fs", which are
+kind of nice to have.</p>
 
 <b><h2><a name="downloads" />Download</h2></b>
 
@@ -98,7 +92,7 @@ an archive of the appropriate version.  Click
 versions ("tip" is the current development version).</p>
 
 <p>The maintainer's <a href=/notes.html>development log</a> and the project's
-<a href=http://www2.them.com:8080/cgi-bin/mailman/listinfo/toybox>mailing
+<a href=http://lists.landley.net/listinfo.cgi/toybox-landley.net>mailing
 list</a> are also good ways to track what's going on with the project.</p>
 
 <b><h2><a name="toycans" />What's the toybox logo image?</h2></b>
