@@ -238,14 +238,15 @@ done:
 
 void patch_main(void)
 {
-	int reverse = toys.optflags & FLAG_REVERSE, state = 0;
+	int reverse = toys.optflags&FLAG_REVERSE, state = 0, patchlinenum = 0,
+		strip = 0;
 	char *oldname = NULL, *newname = NULL;
 
 	if (TT.infile) TT.filepatch = xopen(TT.infile, O_RDONLY);
 	TT.filein = TT.fileout = -1;
 
 	// Loop through the lines in the patch
-	for(;;) {
+	for (;;) {
 		char *patchline;
 
 		patchline = get_line(TT.filepatch);
@@ -253,6 +254,14 @@ void patch_main(void)
 
 		// Other versions of patch accept damaged patches,
 		// so we need to also.
+		if (strip || !patchlinenum++) {
+			int len = strlen(patchline);
+			if (patchline[len-1] == '\r') {
+				if (!strip) fdprintf(2, "Removing DOS newlines\n");
+				strip = 1;
+				patchline[len-1]=0;
+			}
+		}
 		if (!*patchline) {
 			free(patchline);
 			patchline = xstrdup(" ");
