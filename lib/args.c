@@ -15,7 +15,12 @@
 //     : plus a string argument, keep most recent if more than one
 //     * plus a string argument, appended to a list
 //     # plus a signed long argument
-//       {LOW,HIGH} - allowed range TODO
+//       <LOW     - die if less than LOW
+//       >HIGH    - die if greater than HIGH
+//       =DEFAULT - value if not specified
+//     . plus a double precision floating point argument (with CFG_TOYBOX_FLOAT)
+//       Chop this out with USE_TOYBOX_FLOAT() around option string
+//       Same <LOW>HIGH=DEFAULT as #
 //     @ plus an occurrence counter (which is a long)
 //     (longopt)
 //     | this is required.  If more than one marked, only one required.
@@ -28,8 +33,8 @@
 //       [yz] needs at least one of y or z. TODO
 //   at the beginning:
 //     ^ stop at first nonoption argument
-//     <0 at least # leftover arguments needed (default 0)
-//     >9 at most # leftover arguments needed (default MAX_INT)
+//     <0 die if less than leftover arguments (default 0)
+//     >9 die if > # leftover arguments (default MAX_INT)
 //     ? Allow unknown arguments (pass them through to command).
 //     & first argument has imaginary dash (ala tar/ps)
 //       If given twice, all arguments have imaginary dash
@@ -77,6 +82,10 @@ struct opts {
 	int c;             // Short argument character
 	int flags;         // |=1, ^=2
 	char type;         // Type of arguments to store
+	union {
+		long l;
+		FLOAT f;
+	} val[3];          // low, high, default - range of allowed values
 };
 
 struct longopts {
@@ -98,7 +107,6 @@ struct getoptflagstate
 };
 
 // Parse one command line option.
-
 static int gotflag(struct getoptflagstate *gof)
 {
 	int type;
@@ -138,8 +146,23 @@ static int gotflag(struct getoptflagstate *gof)
 			while (*list) list=&((*list)->next);
 			*list = xzalloc(sizeof(struct arg_list));
 			(*list)->arg = arg;
-		} else if (type == '#') *(opt->arg) = atolx((char *)arg);
-		else if (type == '@') ++*(opt->arg);
+		} else if (type == '#') {
+			long l = atolx(arg);
+			if (l < opt->val[0].l)
+				error_exit("-%c < %ld", opt->c, opt->val[0].l);
+			if (l > opt->val[1].l)
+				error_exit("-%c > %ld", opt->c, opt->val[1].l);
+
+			*(opt->arg) = l;
+		} else if (CFG_TOYBOX_FLOAT && type == '.') {
+			FLOAT *f = (FLOAT *)(opt->arg);
+
+			*f = strtod(arg, &arg);
+			if (opt->val[0].l != LONG_MIN && *f < opt->val[0].f)
+				error_exit("-%c < %lf", opt->c, (double)opt->val[0].f);
+			if (opt->val[1].l != LONG_MAX && *f > opt->val[1].f)
+				error_exit("-%c > %lf", opt->c, (double)opt->val[1].f);
+		} else if (type == '@') ++*(opt->arg);
 
 		if (!gof->nodash_now) gof->arg = "";
 	}
@@ -152,11 +175,12 @@ static int gotflag(struct getoptflagstate *gof)
 
 void parse_optflaglist(struct getoptflagstate *gof)
 {
-	char *options = toys.which->options, *plustildenot = "+~!";
+	char *options = toys.which->options, *plustildenot = "+~!", *limits = "<>=";
 	long *nextarg = (long *)&this;
 	struct opts *new = 0;
+	int i;
 
-	// Parse option format
+	// Parse option format string
 	bzero(gof, sizeof(struct getoptflagstate));
 	gof->maxargs = INT_MAX;
 	if (!options) return;
@@ -172,8 +196,8 @@ void parse_optflaglist(struct getoptflagstate *gof)
 		options++;
 	}
 
-	// Parse the rest of the option characters into a linked list
-    // of options with attributes.
+	// Parse the rest of the option string into a linked list
+	// of options with attributes.
 
 	if (!*options) gof->stopearly++;
 	while (*options) {
@@ -184,6 +208,8 @@ void parse_optflaglist(struct getoptflagstate *gof)
 			new = xzalloc(sizeof(struct opts));
 			new->next = gof->opts;
 			gof->opts = new;
+			new->val[0].l = LONG_MIN;
+			new->val[1].l = LONG_MAX;
 			++*(new->edx);
 		}
 		// Each option must start with "(" or an option character.  (Bare
@@ -195,7 +221,7 @@ void parse_optflaglist(struct getoptflagstate *gof)
 			// Find the end of the longopt
 			for (end = ++options; *end && *end != ')'; end++);
 			if (CFG_TOYBOX_DEBUG && !*end)
-				error_exit("Bug1 in get_opt");
+				error_exit("(longopt) didn't end");
 
 			// Allocate and init a new struct longopts
 			lo = xmalloc(sizeof(struct longopts));
@@ -211,26 +237,39 @@ void parse_optflaglist(struct getoptflagstate *gof)
 
 		// If this is the start of a new option that wasn't a longopt,
 
-		} else if (strchr(":*#@", *options)) {
+		} else if (strchr(":*#@.", *options)) {
 			if (CFG_TOYBOX_DEBUG && new->type)
-				error_exit("Bug4 in get_opt");
+				error_exit("multiple types %c:%c%c", new->c, new->type, *options);
 			new->type = *options;
 		} else if (0 != (temp = strchr(plustildenot, *options))) {
-			int i=0, idx = temp - plustildenot;
+			int idx = temp - plustildenot;
 			struct opts *opt;
 
 			if (!*++options && CFG_TOYBOX_DEBUG)
-				error_exit("Bug2 in get_opt");
+				error_exit("+~! no target");
 			// Find this option flag (in previously parsed struct opt)
-			for (opt = new; ; opt = opt->next) {
-				if (CFG_TOYBOX_DEBUG && !opt) error_exit("Bug3 in get_opt");
+			for (i=0, opt = new; ; opt = opt->next) {
+				if (CFG_TOYBOX_DEBUG && !opt)
+					error_exit("+~! unknown target");
 				if (opt->c == *options) break;
 				i++;
 			}
 			new->edx[idx] |= 1<<i;
-		} else if (*options == '[') {
+		} else if (*options == '[') { // TODO
 		} else if (*options == '|') new->flags |= 1;
 		else if (*options == '^') new->flags |= 2;
+		// bounds checking
+		else if (0 != (temp = strchr(limits, *options))) {
+			i = temp - limits;
+			if (new->type == '#') {
+				long l = strtol(++options, &temp, 10);
+				if (temp != options) new->val[i].l = l;
+			} else if (CFG_TOYBOX_FLOAT && new->type == '.') {
+				FLOAT f = strtod(++options, &temp);
+				if (temp != options) new->val[i].f = f;
+			} else if (CFG_TOYBOX_DEBUG) error_exit("<>= only after .#");
+			options = --temp;
+		}
 
 		// At this point, we've hit the end of the previous option.  The
 		// current character is the start of a new option.  If we've already
@@ -248,16 +287,15 @@ void parse_optflaglist(struct getoptflagstate *gof)
 
 	// Initialize enable/disable/exclude masks and pointers to store arguments.
 	// (We have to calculate all this ahead of time because longopts jump into
-	// the middle of the list.)
+	// the middle of the list.  We have to do this after creating the list
+	// because we reverse direction: last entry created gets first global slot.)
 	int pos = 0;
 	for (new = gof->opts; new; new = new->next) {
-		int i;
-
 		for (i=0;i<3;i++) new->edx[i] <<= pos;
 		pos++;
 		if (new->type) {
 			new->arg = (void *)nextarg;
-			*(nextarg++) = 0;
+			*(nextarg++) = new->val[2].l;
 		}
 	}
 }
@@ -267,6 +305,9 @@ void get_optflags(void)
 	struct getoptflagstate gof;
 	long saveflags;
 	char *letters[]={"s",""};
+
+	// Option parsing is a two stage process: parse the option string into
+	// a struct opts list, then use that list to process argv[];
 
 	if (CFG_HELP) toys.exithelp++;
 	// Allocate memory for optargs

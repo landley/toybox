@@ -356,7 +356,7 @@ code at compile time via the optimizer's dead code elimination (which removes
 from the binary any code that cannot be reached).  This saves space without
 cluttering the code with #ifdefs or leading to configuration dependent build
 breaks.  (See the 1992 Usenix paper
-<a href=http://www.chris-lott.org/resources/cstyle/ifdefs.pdf>#ifdef
+<a href=http://doc.cat-v.org/henry_spencer/ifdef_considered_harmful.pdf>#ifdef
 Considered Harmful</a> for more information.)</p>
 
 <p>USE_SYMBOL(code) evaluates to the code in parentheses when the symbol
@@ -547,8 +547,20 @@ argument letter, indicating the option takes an additional argument:</p>
 <ul>
 <li><b>:</b> - plus a string argument, keep most recent if more than one.</li>
 <li><b>*</b> - plus a string argument, appended to a linked list.</li>
-<li><b>#</b> - plus a singed long argument.  A {LOW,HIGH} range can also be appended to restrict allowed values of argument.</li>
 <li><b>@</b> - plus an occurrence counter (stored in a long)</li>
+<li><b>#</b> - plus a signed long argument.
+<li><b>.</b> - plus a floating point argument (if CFG_TOYBOX_FLOAT).</li>
+<ul>The following can be appended to a float or double:
+<li><b>&lt;123</b> - error if argument is less than this</li>
+<li><b>&gt;123</b> - error if argument is greater than this</li>
+<li><b>=123</b> - default value if argument not supplied</li>
+</ul>
+<ul><li>Option parsing only understands <>= after . when CFG_TOYBOX_FLOAT
+is enabled. (Otherwise the code to determine where floating point constants
+end drops out.  When disabled, it can reserve a global data slot for the
+argument so offsets won't change, but will never fill it out.). You can handle
+this by using the USE_BLAH() macros with C string concatenation, ala:
+"abc." USE_TOYBOX_FLOAT("<1.23>4.56=7.89") "def"</li></ul>
 </ul>
 
 <p>Arguments may occur with or without a space (I.E. "-a 42" or "-a42").
@@ -613,6 +625,22 @@ optflag, but letters are never control characters.)</p>
 <li><b>!X</b> this option cannot be used in combination with X (die with error).</li>
 <li><b>[yz]</b> this option requires at least one of y or z to also be enabled.</li>
 </ul>
+
+<p>The following may be appended to a float or double:</p>
+
+<ul>
+<li><b>&lt;123</b> - error if argument is less than this</li>
+<li><b>&gt;123</b> - error if argument is greater than this</li>
+<li><b>=123</b> - default value if argument not supplied</li>
+</ul>
+
+<p>Option parsing only understands <>= after . when CFG_TOYBOX_FLOAT
+is enabled. (Otherwise the code to determine where floating point constants
+end drops out.  When disabled, it can reserve a global data slot for the
+argument so offsets won't change, but will never fill it out.). You can handle
+this by using the USE_BLAH() macros with C string concatenation, ala:</p>
+
+<blockquote>"abc." USE_TOYBOX_FLOAT("<1.23>4.56=7.89") "def"</blockquote>
 
 <p><b>--longopts</b></p>
 
