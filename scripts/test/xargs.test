@@ -1,0 +1,35 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+testing "xargs" "xargs && echo yes" "hello\nyes\n" "" "hello"
+testing "xargs spaces" "xargs" \
+	"one two three four\n" "" "one two\tthree  \nfour\n\n"
+
+testing "xargs -n 0" "xargs -n 0 2>/dev/null || echo ok" "ok\n" \
+	"" "one \ntwo\n three"
+testing "xargs -n 2" "xargs -n 2" "one two\nthree\n" "" "one \ntwo\n three"
+testing "xargs -n exact match" "xargs -n 3" "one two three\n" "" "one two three"
+testing "xargs2" "xargs -n2" "one two\nthree four\nfive\n" "" \
+	"one two three four five"
+testing "xargs -s too long" "xargs -s 9 echo 2>/dev/null || echo ok" \
+	"one\ntwo\nok\n" "" "one two three"
+testing "xargs -s 13" "xargs -s 13 echo" "one two\nthree\n" "" "one \ntwo\n three"
+testing "xargs -s 12" "xargs -s 12 echo" "one\ntwo\nthree\n" "" "one \ntwo\n three"
+
+touch one two three
+testing "xargs command -opt" "xargs -n2 ls -1" "one\ntwo\nthree\n" "" \
+	"one two three"
+rm one two three
+
+exit
+
+testing "xargs -n exact match" 
+testing "xargs -s exact match"
+testing "xargs -s 0"
+testing "xargs -s impossible"
+
+# xargs command_not_found - returns 127
+# xargs false - returns 1

@@ -6,7 +6,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/xargs.html
 
-USE_XARGS(NEWTOY(xargs, "n#s#0", TOYFLAG_USR|TOYFLAG_BIN))
+USE_XARGS(NEWTOY(xargs, "^I:E:L#ptxrn#<1s#0", TOYFLAG_USR|TOYFLAG_BIN))
 
 config XARGS
 	bool "xargs"
@@ -16,9 +16,17 @@ config XARGS
 
 	  Run command line one or more times, appending arguments from stdin.
 
+	  If command exits with 255, don't launch another even if arguments remain.
+
 	  -s	Size in bytes per command line
 	  -n	Max number of arguments per command
 	  -0	Each argument is NULL terminated, no whitespace or quote processing
+	  #-p	Prompt for y/n from tty before running each command
+	  #-t	Trace, print command line to stderr
+	  #-x	Exit if can't fit everything in one command
+	  #-r	Don't run command with empty input
+	  #-L	Max number of lines of input per command
+	  #-E	stop at line matching string
 */
 
 #include "toys.h"
@@ -64,7 +72,7 @@ static char *handle_entries(char *data, char **entry)
 			}
 
 			if (TT.entries >= TT.max_entries && TT.max_entries)
-				return *s ? (char *)1: s;
+				return *s ? s : (char *)1;
 
 			if (!*s) break;
 			save = s;
@@ -106,10 +114,11 @@ void xargs_main(void)
 		bytes += strlen(toys.optargs[entries]);
 
 	// Loop through exec chunks.
-	while (!done) {
+	while (data || !done) {
+		char **out;
+
 		TT.entries = 0;
 		TT.bytes = bytes;
-		char **out;
 
 		// Loop reading input
 		for (;;) {
