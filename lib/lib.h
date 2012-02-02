@@ -4,6 +4,14 @@
  * Copyright 2006 Rob Landley <rob@landley.net>
  */
 
+// Unfortunately, sizeof() doesn't work in a preprocessor test.  TODO.
+
+//#if sizeof(double) <= sizeof(long)
+//typedef double FLOAT;
+//#else
+typedef float FLOAT;
+//#endif
+
 // libc generally has this, but the headers are screwed up
 ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 

@@ -19,6 +19,13 @@ config TOYBOX_SUID
 	  be installed suid root, and drops permissions before running commands
 	  which do not require root access.
 
+config TOYBOX_FLOAT
+	bool "Floating point support"
+	default y
+	help
+	  Include floating point support infrastructure and commands that
+	  require it.
+
 config TOYBOX_FREE
 	bool "Free memory unnecessarily"
 	default n
