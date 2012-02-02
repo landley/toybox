@@ -1,10 +1,9 @@
 #!/bin/bash
 
-# SUSv3 compliant sort tests.
-# Copyright 2005 by Rob Landley <rob@landley.net>
-# Licensed under GPL v2, see file LICENSE for details.
+# SUSv4 compliant sort tests.
+# Copyright 2005, 2012 by Rob Landley <rob@landley.net>
 
-. testing.sh
+[ -f testing.sh ] && . testing.sh
 
 # The basic tests.  These should work even with the small config.
 

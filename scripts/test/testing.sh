@@ -34,6 +34,8 @@ export SKIP=
 
 # Helper functions
 
+# Check config to see if option is enabled, set SKIP if not.
+
 optional()
 {
   option=`echo "$OPTIONFLAGS" | egrep "(^|:)$1(:|\$)"`
