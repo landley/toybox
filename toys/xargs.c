@@ -26,7 +26,7 @@ config XARGS
 	  #-x	Exit if can't fit everything in one command
 	  #-r	Don't run command with empty input
 	  #-L	Max number of lines of input per command
-	  #-E	stop at line matching string
+	  -E	stop at line matching string
 */
 
 #include "toys.h"
@@ -35,7 +35,7 @@ DEFINE_GLOBALS(
 	long max_bytes;
 	long max_entries;
 	long L;
-	char *E;
+	char *eofstr;
 	char *I;
 
 	long entries, bytes;
@@ -44,18 +44,13 @@ DEFINE_GLOBALS(
 
 #define TT this.xargs
 
-// According to man execv(5), the actual ARGS_MAX for linux is 128k (131072)
-// meaning the theoretical maximum arguments (each one char) is 65536... but
-// we can just use toybuf (1024 pointer on 32 bit, 512 on 64 bit).
-
-#define ACTUAL_ARGS_MAX 131072
-
 // If out==NULL count TT.bytes and TT.entries, stopping at max.
 // Otherwise, fill out out[] 
 
 // Returning NULL means need more data.
-// Returning 1 means hit data limits, but consumed all data
 // Returning char * means hit data limits, start of data left over
+// Returning 1 means hit data limits, but consumed all data
+// Returning 2 means hit -E eofstr
 
 static char *handle_entries(char *data, char **entry)
 {
@@ -81,6 +76,11 @@ static char *handle_entries(char *data, char **entry)
 				if (++TT.bytes >= TT.max_bytes && TT.max_bytes) return save;
 				if (!*s || isspace(*s)) break;
 				s++;
+			}
+			if (TT.eofstr) {
+				int len = s-save;
+				if (len == strlen(TT.eofstr) && !strncmp(save, TT.eofstr, len))
+					return (char *)2;
 			}
 			if (entry) entry[TT.entries] = save;
 			++TT.entries;
@@ -139,7 +139,8 @@ void xargs_main(void)
 			// Count data used
 			data = handle_entries(data, NULL);
 			if (!data) continue;
-			if (data == (char *)1) data = 0;
+			if (data == (char *)2) done++;
+			if ((long)data <= 2) data = 0;
 			else data = xstrdup(data);
 
 			break;
