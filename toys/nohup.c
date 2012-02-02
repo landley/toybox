@@ -24,7 +24,7 @@ config NOHUP
 void nohup_main(void)
 {
 	signal(SIGHUP, SIG_IGN);
-	if (ttyname(1)) {
+	if (isatty(1)) {
 		close(1);
 		if (-1 == open("nohup.out", O_CREAT|O_APPEND|O_WRONLY,
 				S_IRUSR|S_IWUSR ))
@@ -34,7 +34,7 @@ void nohup_main(void)
 			xcreate(temp, O_CREAT|O_APPEND|O_WRONLY, S_IRUSR|S_IWUSR);
 		}
 	}
-	if (ttyname(0)) {
+	if (isatty(0)) {
 		close(0);
 		open("/dev/null", O_RDONLY);
 	}
