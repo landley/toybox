@@ -108,6 +108,9 @@ int copy_tempfile(int fdin, char *name, char **tempname);
 void delete_tempfile(int fdin, int fdout, char **tempname);
 void replace_tempfile(int fdin, int fdout, char **tempname);
 void crc_init(unsigned int *crc_table, int little_endian);
+void terminal_size(unsigned *x, unsigned *y);
+int yesno(int def);
+
 
 // getmountlist.c
 struct mtab_list {

@@ -174,7 +174,8 @@ void xexec(char **argv)
 {
 	toy_exec(argv);
 	execvp(argv[0], argv);
-	error_exit("No %s", argv[0]);
+
+	perror_exit("exec %s", argv[0]);
 }
 
 void xaccess(char *path, int flags)
@@ -755,4 +756,52 @@ void crc_init(unsigned int *crc_table, int little_endian)
 			else c=c&0x80000000 ? (c<<1)^0x04c11db7 : (c<<1);
 		crc_table[i] = c;
 	}
+}
+
+// Quick and dirty query size of terminal, doesn't do ANSI probe fallback.
+// set *x=0 and *y=0 before calling to detect failure to set either, or
+// x=80 y=25 to provide defaults
+
+void terminal_size(unsigned *x, unsigned *y)
+{
+	struct winsize ws;
+	int i;
+
+	//memset(&ws, 0, sizeof(ws));
+	for (i=0; i<3; i++) {
+		if (ioctl(i, TIOCGWINSZ, &ws)) continue;
+		if (x) *x = ws.ws_col;
+		if (y) *y = ws.ws_row;
+	}
+	if (x) {
+		char *s = getenv("COLUMNS");
+
+		i = s ? atoi(s) : 0;
+		if (i>0) *x = i;
+	}
+	if (y) {
+		char *s = getenv("ROWS");
+
+		i = s ? atoi(s) : 0;
+		if (i>0) *y = i;
+	}
+}
+
+// This should use a raw tty, fixit later.
+int yesno(int def)
+{
+	char buf[16];
+	int i;
+
+	for (i=0; i<3 && !isatty(i); i++);
+	if (i == 3) return 1;
+
+	sprintf(buf, "(%c/%c):", def ? 'Y' : 'y', def ? 'n' : 'N');
+	write(i, buf, 6);
+	while (read(i, buf, 1)) {
+		if (isspace(*buf)) break;
+		if (tolower(*buf) == 'y') return 1;
+		if (tolower(*buf) == 'n') return 0;
+	}
+	return def;
 }
