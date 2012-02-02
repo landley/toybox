@@ -11,7 +11,7 @@ USE_BASENAME(NEWTOY(basename, "<1>2", TOYFLAG_USR|TOYFLAG_BIN))
 
 config BASENAME
 	bool "basename"
-	default n
+	default y
 	help
         usage: basename string [suffix]
 

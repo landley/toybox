@@ -5,7 +5,7 @@ USE_ENV(NEWTOY(env, "^i", TOYFLAG_USR|TOYFLAG_BIN))
 
 config ENV
 	bool "env"
-	default n
+	default y
 	help
         usage: env [-i] [FOO=BAR...] [command [option...]]
 
