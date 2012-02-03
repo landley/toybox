@@ -223,8 +223,7 @@ void parse_optflaglist(struct getoptflagstate *gof)
 			if (CFG_TOYBOX_DEBUG && !*end)
 				error_exit("(longopt) didn't end");
 
-			// Allocate and init a new struct longopts
-			lo = xmalloc(sizeof(struct longopts));
+			// init a new struct longopts
 			lo->next = gof->longopts;
 			lo->opt = new;
 			lo->str = options;
