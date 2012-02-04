@@ -15,13 +15,7 @@ config HELP
 	  usage: help [command]
 
 	  Show usage information for toybox commands.
-
-config HELP_LONG
-	bool "Verbose help text"
-	default y
-	depends on HELP
-	help
-	  Show more than one line of help information per command.
+	  Run "toybox" with no arguments for a list of available commands.
 */
  
 
