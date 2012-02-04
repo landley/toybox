@@ -62,3 +62,6 @@ help::
 	@echo  '  install         - Install toybox into subdirectories of $$PREFIX.'
 	@echo  '  uninstall_flat  - Remove toybox from $$PREFIX directory.'
 	@echo  '  uninstall       - Remove toybox from subdirectories of $$PREFIX.'
+	@echo  ''
+	@echo  'example: CFLAGS="--static" CROSS_COMPILE=armv5l- make defconfig toybox install'
+	@echo  ''

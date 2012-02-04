@@ -1,0 +1,30 @@
+Toybox: all-in-one Linux command line.
+
+--- Building Toybox
+
+Type "make help" for build instructions.
+
+Mostly you want:
+
+  CFLAGS="--static" CROSS_COMPILE=armv5l- make defconfig toybox install
+
+Or "make menuconfig", which produces the same sort of .config file as the
+Linux kernel.
+
+--- Using toybox
+
+The build produces a "swiss-army-knife" style multifunction binary, which acts
+differently depending on the name it was called as (cp, mv, cat...), and
+installs symlinks under each command name to populate $PATH.
+
+The "toybox" command itself uses its first argument as the command name to run
+(ala "toybox ls -l").  With no arguments, it lists available commands.  (This
+allows you to use the commands even without the symlinks.)
+
+The "help" command provides information about each command (ala "help cat").
+
+The toybox web page is at "http://landley.net/toybox".
+
+Have fun,
+
+Rob
