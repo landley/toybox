@@ -12,7 +12,7 @@ toybox toybox_unstripped: .config *.[ch] lib/*.[ch] toys/*.[ch] scripts/*.sh
 include kconfig/Makefile
 
 $(KCONFIG_TOP): generated/Config.in
-generated/Config.in: toys/*.c
+generated/Config.in: toys/*.c scripts/genconfig.sh
 	scripts/genconfig.sh
 
 HOSTCC:=cc

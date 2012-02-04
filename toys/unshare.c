@@ -11,6 +11,7 @@ USE_UNSHARE(NEWTOY(unshare, "<1^nium", TOYFLAG_USR|TOYFLAG_BIN))
 config UNSHARE
 	bool "unshare"
 	default y
+	depends on TOYBOX_CONTAINER
 	help
 	  usage: unshare [-muin] COMMAND...
 
