@@ -2,8 +2,6 @@
 /* Toybox infrastructure.
  *
  * Copyright 2006 Rob Landley <rob@landley.net>
- *
- * Licensed under GPL version 2, see file LICENSE in this tarball for details.
  */
 
 #include "generated/config.h"
