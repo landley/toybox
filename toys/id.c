@@ -12,7 +12,7 @@ USE_ID(NEWTOY(id, "gru", TOYFLAG_BIN))
 
 config ID
 	bool "id"
-	default y
+	default n
 	help
 	  usage: id [-gru]
 
