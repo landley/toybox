@@ -109,10 +109,10 @@ void cp_file(char *src, char *dst, struct stat *srcst)
 	// Can't do fchmod() etc here because -p works on mkdir, too.
 
 	if (toys.optflags & FLAG_p) {
-		int mask = umask(0), ignored;
+		int mask = umask(0);
 		struct utimbuf ut;
 
-		ignored = fchown(fdout,srcst->st_uid, srcst->st_gid);
+		(void) fchown(fdout,srcst->st_uid, srcst->st_gid);
 		ut.actime = srcst->st_atime;
 		ut.modtime = srcst->st_mtime;
 		utime(dst, &ut);
