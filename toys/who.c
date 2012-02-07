@@ -12,7 +12,7 @@ USE_WHO(NEWTOY(who, NULL, TOYFLAG_BIN))
 
 config WHO
 	bool "who"
-	default y
+	default n
 	help
 	  usage: who
 
