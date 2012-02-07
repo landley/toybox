@@ -528,9 +528,9 @@ top to bottom in DECLARE_GLOBALS().</p>
 <p>Each option in the optflags string corresponds to a bit position in
 toys.optflags, with the same value as a corresponding binary digit.  The
 rightmost argument is (1<<0), the next to last is (1<<1) and so on.  If
-the option isn't encountered while parsing argv[], its bit remains 0.
-(Since toys.optflags is a long, it's only guaranteed to store 32 bits.)
-For example,
+the option isn't encountered while parsing argv[], its bit remains 0.</p>
+
+<p>For example,
 the optflags string "abcd" would parse the command line argument "-c" to set
 optflags to 2, "-a" would set optflags to 8, "-bd" would set optflags to
 6 (I.E. 4|2), and "-a -c" would set optflags to 10 (2|8).</p>
@@ -538,6 +538,12 @@ optflags to 2, "-a" would set optflags to 8, "-bd" would set optflags to
 <p>Only letters are relevant to optflags, punctuation is skipped: in the
 string "a*b:c#d", d=1, c=2, b=4, a=8.  The punctuation after a letter
 usually indicate that the option takes an argument.</p>
+
+<p>Since toys.optflags is an unsigned int, it only stores 32 bits.  (Which is
+the amount a long would have on 32-bit platforms anyway; 64 bit code on
+32 bit platforms is too expensive to require in common code used by almost
+all commands.)  Bit positions beyond the 1<<31 aren't recorded, but
+parsing higher options can still set global variables.</p>
 
 <p><b>Automatically setting global variables from arguments (union this)</b></p>
 
@@ -576,9 +582,8 @@ this[0]=42; and "-b 42" would set this[1]="42"; each slot is left NULL if
 the corresponding argument is not encountered.</p>
 
 <p>This behavior is useful because the LP64 standard ensures long and pointer
-are the same size, and C99 guarantees structure members will occur in memory
-in the
-same order they're declared, and that padding won't be inserted between
+are the same size. C99 guarantees structure members will occur in memory
+in the same order they're declared, and that padding won't be inserted between
 consecutive variables of register size.  Thus the first few entries can
 be longs or pointers corresponding to the saved arguments.</p>
 
