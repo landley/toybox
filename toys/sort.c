@@ -259,7 +259,7 @@ static int compare_values(int flags, char *x, char *y)
 static int compare_keys(const void *xarg, const void *yarg)
 {
     int flags = toys.optflags, retval = 0;
-    char *x, *y, **xx = (char **)xarg, **yy = (char **)yarg;
+    char *x, *y, *xx = *(char **)xarg, *yy = *(char **)yarg;
     struct sort_key *key;
 
     if (CFG_SORT_BIG) {
@@ -270,23 +270,23 @@ static int compare_keys(const void *xarg, const void *yarg)
 
             // Chop out and modify key chunks, handling -dfib
 
-            x = get_key_data(*xx, key, flags);
-            y = get_key_data(*yy, key, flags);
+            x = get_key_data(xx, key, flags);
+            y = get_key_data(yy, key, flags);
 
             retval = compare_values(flags, x, y);
 
             // Free the copies get_key_data() made.
 
-            if (x != *xx) free(x);
-            if (y != *yy) free(y);
+            if (x != xx) free(x);
+            if (y != yy) free(y);
 
             if (retval) break;
         }
-    } else retval = compare_values(flags, *xx, *yy);
+    } else retval = compare_values(flags, xx, yy);
 
     // Perform fallback sort if necessary
     if (!retval && !(CFG_SORT_BIG && (toys.optflags&FLAG_s))) {
-        retval = strcmp(*xx, *yy);
+        retval = strcmp(xx, yy);
         flags = toys.optflags;
     }
 
@@ -308,11 +308,9 @@ static void sort_read(int fd, char *name)
         if (CFG_SORT_BIG && (toys.optflags&FLAG_c)) {
             int j = (toys.optflags&FLAG_u) ? -1 : 0;
 
-            if (TT.linecount && compare_keys((char *)TT.lines,line)>j)
+            if (TT.lines && compare_keys((char **)&TT.lines, &line)>j)
                 error_exit("%s: Check line %d\n", name, TT.linecount);
-
-            if (TT.lines) free(TT.lines);
-            else TT.linecount = 0;
+            free(TT.lines);
             TT.lines = (char **)line;
         } else {
             if (!(TT.linecount&63))
@@ -391,7 +389,7 @@ void sort_main(void)
 
     // The compare (-c) logic was handled in sort_read(),
     // so if we got here, we're done.
-    if (CFG_SORT_BIG && (toys.optflags&FLAG_c)) return;
+    if (CFG_SORT_BIG && (toys.optflags&FLAG_c)) goto exit_now;
 
     // Perform the actual sort
     qsort(TT.lines, TT.linecount, sizeof(char *), compare_keys);
@@ -416,6 +414,7 @@ void sort_main(void)
         xwrite(fd, "\n", 1);
     }
 
+exit_now:
     if (CFG_TOYBOX_FREE) {
       if (fd != 1) close(fd);
       free(TT.lines);
