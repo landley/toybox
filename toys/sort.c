@@ -6,7 +6,7 @@
  *
  * See http://www.opengroup.org/onlinepubs/007904975/utilities/sort.html
 
-USE_SORT(NEWTOY(sort, USE_SORT_BIG("S:T:m" "o:k*t:xbgMcszdfi") "run", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SORT(NEWTOY(sort, USE_SORT_FLOAT("g")USE_SORT_BIG("S:T:m" "o:k*t:xbMcszdfi") "run", TOYFLAG_USR|TOYFLAG_BIN))
 
 config SORT
     bool "sort"
@@ -21,17 +21,16 @@ config SORT
       -n    numeric order (instead of alphabetical)
 
 config SORT_BIG
-    bool "all SuSv3 options (Support -ktcsbdfiozgM)"
+    bool "SuSv3 options (Support -ktcsbdfiozM)"
     default y
     depends on SORT
     help
-      usage: sort [-bcdfgiMsz] [-k#[,#[x]] [-t X]] [-o FILE]
+      usage: sort [-bcdfiMsz] [-k#[,#[x]] [-t X]] [-o FILE]
 
       -b    ignore leading blanks (or trailing blanks in second part of key)
       -c    check whether input is sorted
       -d    dictionary order (use alphanumeric and whitespace chars only)
       -f    force uppercase (case insensitive sort)
-      -g    general numeric sort (double precision with nan and inf)
       -i    ignore nonprinting characters
       -M    month sort (jan, feb, etc).
       -x    Hexadecimal numerical sort
@@ -41,14 +40,24 @@ config SORT_BIG
       -t    use a key separator other than whitespace
       -o    output to FILE instead of stdout
 
-      This version of sort requires floating point.
-
       Sorting by key looks at a subset of the words on each line.  -k2
       uses the second word to the end of the line, -k2,2 looks at only
       the second word, -k2,4 looks from the start of the second to the end
       of the fourth word.  Specifying multiple keys uses the later keys as
       tie breakers, in order.  A type specifier appended to a sort key
           (such as -2,2n) applies only to sorting that key.
+
+config SORT_FLOAT
+    bool "Floating point (-g)"
+    default y
+    depends on SORT_BIG
+    help
+      usage: sort [-g]
+
+      This version of sort requires floating point.
+
+      -g    general numeric sort (double precision with nan and inf)
+
 */
 
 #include "toys.h"
@@ -72,20 +81,20 @@ DEFINE_GLOBALS(
 // b at top level implies bb.
 // The remaining options can be applied to search keys.
 
-#define FLAG_n      1  // Sort type: numeric
-#define FLAG_u      2  // Unique
-#define FLAG_r      4  // Reverse output order
+#define FLAG_n  (1<<0)  // Sort type: numeric
+#define FLAG_u  (1<<1)  // Unique
+#define FLAG_r  (1<<2)  // Reverse output order
 
-#define FLAG_i      8  // Ignore !isprint()
-#define FLAG_f     16  // Force uppercase
-#define FLAG_d     32  // Ignore !(isalnum()|isspace())
-#define FLAG_z     64  // Input is null terminated, not \n
-#define FLAG_s    128  // Stable sort, no ascii fallback at end
-#define FLAG_c    256  // Check only.  No output, exit(!ordered)
-#define FLAG_M    512  // Sort type: date
-#define FLAG_g   1024  // Sort type: strtod()
-#define FLAG_b   2048  // Ignore leading blanks
-#define FLAG_x   4096  // Hex sort
+#define FLAG_i  (1<<3)  // Ignore !isprint()
+#define FLAG_f  (1<<4)  // Force uppercase
+#define FLAG_d  (1<<5)  // Ignore !(isalnum()|isspace())
+#define FLAG_z  (1<<6)  // Input is null terminated, not \n
+#define FLAG_s  (1<<7)  // Stable sort, no ascii fallback at end
+#define FLAG_c  (1<<8)  // Check only.  No output, exit(!ordered)
+#define FLAG_M  (1<<9)  // Sort type: date
+#define FLAG_b  (1<<10) // Ignore leading blanks
+#define FLAG_x  (1<<11) // Hex sort
+#define FLAG_g  (1<<18) // Sort type: strtod()
 
 // Left off dealing with FLAG_b/FLAG_bb logic...
 
@@ -190,17 +199,17 @@ static struct sort_key *add_key(void)
 // Perform actual comparison
 static int compare_values(int flags, char *x, char *y)
 {
-    int ff = flags & (FLAG_n|FLAG_g|FLAG_M||FLAG_x);
+    int ff = flags & (FLAG_n|FLAG_g|FLAG_M|FLAG_x);
 
     // Ascii sort
     if (!ff) return strcmp(x, y);
 
-    if (CFG_SORT_BIG && ff == FLAG_g) {
+    if (CFG_SORT_FLOAT && ff == FLAG_g) {
         char *xx,*yy;
         double dx = strtod(x,&xx), dy = strtod(y,&yy);
         int xinf, yinf;
 
-        // not numbers < NaN < -infinity < numbers < +infinity)
+        // not numbers < NaN < -infinity < numbers < +infinity
 
         if (x==xx) return y==yy ? 0 : -1;
         if (y==yy) return 1;
@@ -231,12 +240,12 @@ static int compare_values(int flags, char *x, char *y)
         else if (!yy) return 1;
         else return dx==thyme.tm_mon ? 0 : dx-thyme.tm_mon;
 
-    // This has to be ff == FLAG_n
     } else if (CFG_SORT_BIG && ff == FLAG_x) {
         return strtol(x, NULL, 16)-strtol(y, NULL, 16);
+    // This has to be ff == FLAG_n
     } else {
         // Full floating point version of -n
-        if (CFG_SORT_BIG) {
+        if (CFG_SORT_FLOAT) {
             double dx = atof(x), dy = atof(y);
 
             return dx>dy ? 1 : (dx<dy ? -1 : 0);
