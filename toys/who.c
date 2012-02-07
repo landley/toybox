@@ -21,6 +21,7 @@ config WHO
 */
 
 #include "toys.h"
+#include <time.h>
 #include <utmpx.h>
 
 void who_main(void)
@@ -30,8 +31,17 @@ void who_main(void)
     setutxent();
 
     while ((entry = getutxent())) {
-        if (entry->ut_type == USER_PROCESS)
-            printf("%s %s (%s)\n", entry->ut_user, entry->ut_line, entry->ut_host);
+        if (entry->ut_type == USER_PROCESS) {
+            time_t time;
+            int time_size;
+            char * times;
+
+            time = entry->ut_tv.tv_sec;
+            times = ctime(&time);
+            time_size = strlen(times) - 2;
+            printf("%s\t%s\t%*.*s\t(%s)\n", entry->ut_user, entry->ut_line, time_size, time_size, ctime(&time), entry->ut_host);
+
+        }
     }
 
     endutxent();
