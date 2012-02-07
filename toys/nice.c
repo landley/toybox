@@ -24,8 +24,6 @@ config NICE
 
 #include "toys.h"
 
-// Hello doesn't use these globals, they're here for example/skeleton purposes.
-
 DEFINE_GLOBALS(
 	long priority;
 )
