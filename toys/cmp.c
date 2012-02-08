@@ -30,14 +30,13 @@ int get_fd(char *file)
 	int fd;
 
 	if (!strcmp(file,"-")) fd=0;
-	else if (0>(fd = open(file, O_RDONLY, 0))) {
-		perror_exit("%s", file);
-	}
+	else fd = xopen(file, O_RDONLY);
 	return fd;
 }
 
 void do_cmp(int fd1, int fd2, char *file1, char *file2, char *buf1, char *buf2,
-	size_t size) {
+	size_t size)
+{
 	int i, len1, len2, min_len;
 	size_t byte_no = 1, line_no = 1;
 
@@ -49,15 +48,13 @@ void do_cmp(int fd1, int fd2, char *file1, char *file2, char *buf1, char *buf2,
 		for (i=0; i<min_len; i++) {
 			if (buf1[i] != buf2[i]) {
 				toys.exitval = 1;
-				if (toys.optflags & FLAG_l) {
-					printf("%d %o %o\n", byte_no, buf1[i],
-						buf2[i]);
-				}
+				if (toys.optflags & FLAG_l)
+					printf("%ld %o %o\n", (long)byte_no, buf1[i], buf2[i]);
 				else {
 					if (!(toys.optflags & FLAG_s)) {
-						printf("%s %s differ: char %d, line %d\n",
-							file1, file2, byte_no,
-							line_no);
+						printf("%s %s differ: char %ld, line %ld\n",
+							file1, file2, (long)byte_no,
+							(long)line_no);
 					}
 					return;
 				}
@@ -90,8 +87,10 @@ void cmp_main(void)
 
 	do_cmp(fd1, fd2, file1, file2, toybuf, toybuf2, size);
 
-	close(fd1);
-	close(fd2);
-	free(toybuf2);
+	if (CFG_TOYBOX_FREE) {
+		close(fd1);
+		close(fd2);
+		free(toybuf2);
+	}
 }
 
