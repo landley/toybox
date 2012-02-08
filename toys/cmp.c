@@ -25,72 +25,67 @@ config CMP
 #define FLAG_s	1
 #define FLAG_l	2
 
-int get_fd(char *file)
-{
+DEFINE_GLOBALS(
 	int fd;
+	char *name;
+)
 
-	if (!strcmp(file,"-")) fd=0;
-	else fd = xopen(file, O_RDONLY);
-	return fd;
-}
+#define TT this.cmp
 
-void do_cmp(int fd1, int fd2, char *file1, char *file2, char *buf1, char *buf2,
-	size_t size)
+// This handles opening the file and 
+
+void do_cmp(int fd, char *name)
 {
-	int i, len1, len2, min_len;
-	size_t byte_no = 1, line_no = 1;
+	int i, len1, len2, min_len, size = sizeof(toybuf)/2;
+	long byte_no = 1, line_no = 1;
+	char *buf2 = toybuf+size;
+
+	// First time through, cache the data and return.
+	if (!TT.fd) {
+		TT.name = name;
+		// On return the old filehandle is closed, and this assures that even
+		// if we were called with stdin closed, the new filehandle != 0.
+		TT.fd = dup(fd);
+		return;
+	}
 
 	for (;;) {
-		len1 = read(fd1, buf1, size);
-		len2 = read(fd2, buf2, size);
+		len1 = readall(TT.fd, toybuf, size);
+		len2 = readall(fd, buf2, size);
 
 		min_len = len1 < len2 ? len1 : len2;
 		for (i=0; i<min_len; i++) {
-			if (buf1[i] != buf2[i]) {
+			if (toybuf[i] != buf2[i]) {
 				toys.exitval = 1;
 				if (toys.optflags & FLAG_l)
-					printf("%ld %o %o\n", (long)byte_no, buf1[i], buf2[i]);
+					printf("%ld %o %o\n", byte_no, toybuf[i], buf2[i]);
 				else {
 					if (!(toys.optflags & FLAG_s)) {
 						printf("%s %s differ: char %ld, line %ld\n",
-							file1, file2, (long)byte_no,
-							(long)line_no);
+							TT.name, name, byte_no, line_no);
 					}
 					return;
 				}
 
 			}
 			byte_no++;
-			if (buf1[i] == '\n') line_no++;
+			if (toybuf[i] == '\n') line_no++;
 		}
 		if (len1 != len2) {
 			if (!(toys.optflags & FLAG_s)) {
 				fdprintf(2, "cmp: EOF on %s\n",
-					len1 < len2 ? file1 : file2);
+					len1 < len2 ? TT.name : name);
 			}
 			toys.exitval = 1;
 			break;
 		}
 		if (len1 < 1) break;
 	}
+	if (CFG_TOYBOX_FREE) close(TT.fd);
 }
 
 void cmp_main(void)
 {
-	char *file1 = toys.optargs[0];
-	char *file2 = toys.optargs[1];
-	int fd1, fd2, size=sizeof(toybuf);
-	char *toybuf2 = xmalloc(size);
-
-	fd1 = get_fd(file1);
-	fd2 = get_fd(file2);
-
-	do_cmp(fd1, fd2, file1, file2, toybuf, toybuf2, size);
-
-	if (CFG_TOYBOX_FREE) {
-		close(fd1);
-		close(fd2);
-		free(toybuf2);
-	}
+	loopfiles(toys.optargs, do_cmp);
 }
 
