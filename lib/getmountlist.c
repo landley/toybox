@@ -33,10 +33,8 @@ struct mtab_list *getmountlist(int die)
 			stat(me.mnt_dir, &(mt->stat));
 			statvfs(me.mnt_dir, &(mt->statvfs));
 			// Remember information from /proc/mounts
-			strcpy(mt->type, me.mnt_type);
-			mt->dir = mt->type + strlen(mt->type) + 1;
-			strcpy(mt->dir, me.mnt_dir);
-			mt->device = mt->dir + strlen(mt->dir) + 1;
+			mt->dir = stpcpy(mt->type, me.mnt_type) + 1;
+			mt->device = stpcpy(mt->dir, me.mnt_dir) + 1;
 			strcpy(mt->device, me.mnt_fsname);
 			mtlist = mt;
 		}
