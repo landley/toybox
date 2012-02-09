@@ -1,0 +1,34 @@
+#/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+testing "cmp not enough arguments [fail]" "cmp input 2>/dev/null || echo yes" "yes\n" "foo" ""
+testing "cmp missing file1 [fail]" "cmp file1 input 2>/dev/null || echo yes" "yes\n" "foo" ""
+
+#mkdir dir
+#testing "cmp directory [fail]" "cmp dir dir 2>/dev/null || echo yes" \
+	#"yes\n" "" ""
+#rmdir dir
+
+echo "ab
+c" > input2
+
+testing "cmp identical files, stdout" "cmp input input2" "" "ab\nc\n" ""
+testing "cmp identical files, return code" "cmp input input2 && echo yes" "yes\n" "ab\nc\n" ""
+
+testing "cmp EOF, stderr" "cmp input input2 2>&1" "cmp: EOF on input2\n" "ab\nc\nx" ""
+testing "cmp EOF, return code" "cmp input input2 2>/dev/null || echo yes" "yes\n" "ab\nc\nx" ""
+testing "cmp diff, stdout" "cmp input input2" "input input2 differ: char 4, line 2\n" "ab\nx\nx" ""
+testing "cmp diff, return code" "cmp input input2 > /dev/null || echo yes" "yes\n" "ab\nx\nx" ""
+
+testing "cmp -s EOF, return code" "cmp -s input input2 || echo yes"  "yes\n" "ab\nc\nx" ""
+testing "cmp -s diff, return code" "cmp -s input input2 || echo yes" "yes\n" "ab\nx\nx" ""
+
+testing "cmp -l EOF, stderr" "cmp -l input input2 2>&1" "cmp: EOF on input2\n" "ab\nc\nx" ""
+testing "cmp -l diff and EOF, stdout and stderr" "cmp -l input input2 2>&1" "cmp: EOF on input2\n4 170 143\n" "ab\nx\nx" ""
+
+rm input2
+
+testing "cmp stdin and file" "cmp input -" "input - differ: char 4, line 2\n" "ab\nc\n" "ab\nx\n"
+#testing "cmp stdin and stdin" "cmp input -" "" "" "ab\nc\n"
+
