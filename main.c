@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
 		char *name;
 
 		// Trim path off of command name
-		name = rindex(argv[0], '/');
+		name = strrchr(argv[0], '/');
 		if (!name) name=argv[0];
 		else name++;
 		argv[0] = name;
