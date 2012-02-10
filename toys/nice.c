@@ -16,8 +16,8 @@ config NICE
 
 	  Run a command line at an increased or decreased scheduling priority.
 
-	  Higher numbers make a program yield more CPU time, from 20 (lowest
-	  priority) to -19 (highest).  By default processes inherit their parent's
+	  Higher numbers make a program yield more CPU time, from -20 (highest
+	  priority) to 19 (lowest).  By default processes inherit their parent's
 	  niceness (usually 0).  By default this command adds 10 to the parent's
 	  priority.  Only root can set a negative niceness level.
 */
