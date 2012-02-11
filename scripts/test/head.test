@@ -1,0 +1,17 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+testing "head, stdin" "head -n 1 && echo yes" "one\nyes\n" "" "one\ntwo"
+testing "head, stdin via -" "head -n 1 - && echo yes" "one\nyes\n" "" "one\ntwo"
+testing "head, file" "head input -n 1 && echo yes" "one\nyes\n" "one\ntwo" ""
+testing "head, default lines" "head" "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n" "" "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12"
+
+echo "foo
+bar
+baz" > file1
+testing "head, multiple files" "head -n 2 input file1" "==> input <==\none\ntwo\n\n==> file1 <==\nfoo\nbar\n" "one\ntwo\nthree\n" ""
+rm file1
+

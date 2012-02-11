@@ -35,8 +35,9 @@ static void do_head(int fd, char *name)
 
 	if (toys.optc > 1) {
 		// Print an extra newline for all but the first file
-		if (TT.file_no++) printf("\n");
+		if (TT.file_no++) xprintf("\n");
 		xprintf("==> %s <==\n", name);
+		xflush();
 	}
 
 	while (lines) {
