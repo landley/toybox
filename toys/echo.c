@@ -17,19 +17,19 @@ config ECHO
 	  Write each argument to stdout, with one space between each, followed
 	  by a newline.
 
-	  -n    No trailing newline.
-	  -e    Process the following escape sequences:
-	   \\     backslash
+	  -n	No trailing newline.
+	  -e	Process the following escape sequences:
+	   \\	 backslash
 	   \0NNN octal values (1 to 3 digits)
-	   \a    alert (beep/flash)
-	   \b    backspace
-	   \c    stop output here (avoids trailing newline)
-	   \f    form feed
-	   \n    newline
-	   \r    carriage return
-	   \t    horizontal tab
-	   \v    vertical tab
-	   \xHH  hexadecimal values (1 to 2 digits)
+	   \a	 alert (beep/flash)
+	   \b	 backspace
+	   \c	 stop output here (avoids trailing newline)
+	   \f	 form feed
+	   \n	 newline
+	   \r	 carriage return
+	   \t	 horizontal tab
+	   \v	 vertical tab
+	   \xHH	 hexadecimal values (1 to 2 digits)
 */
 
 #include "toys.h"
@@ -66,17 +66,20 @@ void echo_main(void)
 							c = 0;
 							while (arg[j]>='0' && arg[j]<='7' && n++<3)
 								c = (c*8)+arg[j++]-'0';
-						}
-						else if (d == 'x') {
+						} else if (d == 'x') {
 							int n = 0;
 							c = 0;							
-							while (n++<2)
+							while (n++<2) {
 								if (arg[j]>='0' && arg[j]<='9')
 									c = (c*16)+arg[j++]-'0';
-								else if (tolower(arg[j])>='a' && tolower(arg[j])<='f')
-									c = (c*16)+tolower(arg[j++])-'a'+10;
-								else
-									break;							
+								else {
+									int temp = tolower(arg[j]);
+									if (temp>='a' && temp<='f') {
+										c = (c*16)+temp-'a'+10;
+										j++;
+									} else break;
+								}
+							}
 						}
 					}
 				}
