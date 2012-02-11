@@ -12,7 +12,7 @@ config CKSUM
 	bool "cksum"
 	default y
 	help
-	  usage: cksum [-FL] [file...]
+	  usage: cksum [-IPLN] [file...]
 
 	  For each file, output crc32 checksum value, length and name of file.
 	  If no files listed, copy from stdin.  Filename "-" is a synonym for stdin.
@@ -20,7 +20,7 @@ config CKSUM
 	  -L	Little endian (defaults to big endian)
 	  -P	Pre-inversion
 	  -I	Skip post-inversion
-	  -N	No length
+	  -N	Do not include length in CRC calculation
 */
 
 #include "toys.h"
