@@ -23,3 +23,13 @@ testing "echo --hello" "$CMD --hello" "--hello\n" "" ""
 testing "echo -e all" "$CMD -e '\a\b\c\f\n\r\t\v\\\0123'" \
 	"\a\b\c\f\n\r\t\v\\\0123\n" "" ""
 testing "echo -nex hello" "$CMD -nex hello" "-nex hello\n" "" ""
+
+# Octal formatting tests
+testing "echo -e octal values" \
+	"$CMD -ne '\01234 \0060 \060 \0130\0131\0132 \077\012'" \
+	"S4 0 0 XYZ ?\n" "" ""
+
+# Hexadecimal value tests
+testing "echo -e hexadecimal values" \
+	"$CMD -ne '\x534 \x30 \x58\x59\x5a \x3F\x0A'"\
+	"S4 0 XYZ ?\n" "" ""
