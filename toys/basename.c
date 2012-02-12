@@ -15,7 +15,7 @@ config BASENAME
 	help
         usage: basename string [suffix]
 
-        Return non-directory portion of a pathname
+        Return non-directory portion of a pathname removing suffix
 */
 
 #include "toys.h"
@@ -37,9 +37,11 @@ void basename_main(void)
     
     // chop off the suffix if provided
     if (suffix) {
-        char *s = strstr(base, suffix);
-        if (s && s != base) *s = 0;
+        int suflen = strlen(suffix);
+        int reslen = strlen(base);
+        if (suflen < reslen && !strcmp( base+reslen-suflen, suffix))
+            base[reslen-suflen] = 0;
     }
-
+ 
     puts(base);
 }
