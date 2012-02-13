@@ -1,0 +1,3 @@
+#!/bin/sh
+
+echo -ne '\e[2J\e[H'
