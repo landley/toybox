@@ -6,18 +6,19 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/ln.html
 
-USE_LN(NEWTOY(ln, "fs", TOYFLAG_BIN))
+USE_LN(NEWTOY(ln, "<1fs", TOYFLAG_BIN))
 
 config LN
 	bool "ln"
-	default n
+	default y
 	help
-	  usage: ln [-s] [-f] file1 file2
+	  usage: ln [-sf] [FROM...] TO
 
-          Create a link from file2 to file1
+          Create a link between FROM and TO.
+          With only one argument, create link in current directory.
 
           -s    Create a symbolic link
-          -f    Force the creation of the link, even if file2 already exists
+          -f    Force the creation of the link, even if TO already exists
 */
 
 #include "toys.h"
@@ -27,22 +28,40 @@ config LN
 
 void ln_main(void)
 {
-    char *file1 = toys.optargs[0], *file2 = toys.optargs[1];
+    char *dest = toys.optargs[--toys.optc], *new;
+    struct stat buf;
+    int i;
 
-    /* FIXME: How do we print out the usage info? */
-    if (!file1 || !file2)
-        perror_exit("Usage: ln [-s] [-f] file1 file2");
-    /* Silently unlink the existing target. If it doesn't exist,
-     * then we just move on */
-    if (toys.optflags & FLAG_f)
-        unlink(file2);
-    if (toys.optflags & FLAG_s) {
-        if (symlink(file1, file2))
-            perror_exit("cannot create symbolic link from %s to %s",
-                    file1, file2);
-    } else {
-        if (link(file1, file2))
-            perror_exit("cannot create hard link from %s to %s",
-                    file1, file2);
+    // With one argument, create link in current directory.
+    if (!toys.optc) {
+        toys.optc++;
+        dest=".";
+    }
+
+    // Is destination a directory?
+    if (stat(dest, &buf) || !S_ISDIR(buf.st_mode)) {
+        if (toys.optc>1) error_exit("'%s' not a directory");
+        buf.st_mode = 0;
+    }
+
+    for (i=0; i<toys.optc; i++) {
+        int rc;
+        char *try = toys.optargs[i];
+
+        if (S_ISDIR(buf.st_mode)) {
+            new = strrchr(try, '/');
+            if (!new) new = try;
+            new = xmsprintf("%s/%s", dest, new);
+        } else new = dest;
+        /* Silently unlink the existing target. If it doesn't exist,
+         * then we just move on */
+        if (toys.optflags & FLAG_f) unlink(new);
+
+
+        rc = (toys.optflags & FLAG_s) ? symlink(try, new) : link(try, new);
+        if (rc)
+            perror_exit("cannot create %s link from '%s' to '%s'",
+                (toys.optflags & FLAG_s) ? "symbolic" : "hard", try, new);
+        if (new != dest) free(new);
     }
 }
