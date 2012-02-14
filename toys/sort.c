@@ -308,7 +308,7 @@ static void sort_read(int fd, char *name)
         if (CFG_SORT_BIG && (toys.optflags&FLAG_c)) {
             int j = (toys.optflags&FLAG_u) ? -1 : 0;
 
-            if (TT.lines && compare_keys((char **)&TT.lines, &line)>j)
+            if (TT.lines && compare_keys((void *)&TT.lines, &line)>j)
                 error_exit("%s: Check line %d\n", name, TT.linecount);
             free(TT.lines);
             TT.lines = (char **)line;
