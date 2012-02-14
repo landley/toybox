@@ -37,10 +37,8 @@ void basename_main(void)
     
     // chop off the suffix if provided
     if (suffix) {
-        int suflen = strlen(suffix);
-        int reslen = strlen(base);
-        if (suflen < reslen && !strcmp( base+reslen-suflen, suffix))
-            base[reslen-suflen] = 0;
+        arg = base + strlen(base) - strlen(suffix);
+        if (arg > base && !strcmp(arg, suffix)) *arg = 0;
     }
  
     puts(base);
