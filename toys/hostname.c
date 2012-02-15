@@ -6,7 +6,7 @@
  *
  * Not in SUSv4.
 
-USE_HOSTNAME(NEWTOY(hostname, "", TOYFLAG_BIN))
+USE_HOSTNAME(NEWTOY(hostname, NULL, TOYFLAG_BIN))
 
 config HOSTNAME
 	bool "hostname"
@@ -23,13 +23,11 @@ void hostname_main(void)
 {
 	const char *hostname = toys.optargs[0];
         if (hostname) {
-            int len = strlen(hostname);
-            if (sethostname(hostname, len))
+            if (sethostname(hostname, strlen(hostname)))
                 perror_exit("cannot set hostname to '%s'", hostname);
         } else {
-            char buffer[256];
-            if (gethostname(buffer, sizeof(buffer)))
+            if (gethostname(toybuf, sizeof(toybuf)))
                 perror_exit("cannot get hostname");
-            xprintf("%s\n", buffer);
+            xputs(toybuf);
         }
 }
