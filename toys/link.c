@@ -22,6 +22,6 @@ config LINK
 void link_main(void)
 {
 	if (link(toys.optargs[0], toys.optargs[1]))
-		perror_exit("couldn't link '%s' to '%s'", toys.optargs[0],
-			toys.optargs[1]);
+		perror_exit("couldn't link '%s' to '%s'", toys.optargs[1],
+			toys.optargs[0]);
 }
