@@ -4,7 +4,7 @@
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
  *
- * Not in SUSv3.
+ * Not in SUSv4.
 
 USE_FREE(NEWTOY(free, "gmkb", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -21,7 +21,6 @@ config FREE
 
 #include "toys.h"
 #include <sys/sysinfo.h>
-
 
 static unsigned long long convert(unsigned long d, unsigned int iscale,
 				unsigned int oscale)
@@ -42,19 +41,19 @@ void free_main(void)
 	if (toys.optflags & 4) oscale = 20;
 	if (toys.optflags & 8) oscale = 30;
 
-	printf("              total        used        free      shared     buffers\n");
-	printf("Mem:   %12llu%12llu%12llu%12llu%12llu\n",
+	xprintf("\t\ttotal        used        free      shared     buffers\n");
+	xprintf("Mem:%17llu%12llu%12llu%12llu%12llu\n",
 		convert(info.totalram, iscale, oscale),
 		convert(info.totalram-info.freeram, iscale, oscale),
 		convert(info.freeram, iscale, oscale),
 		convert(info.sharedram, iscale, oscale),
 		convert(info.bufferram, iscale, oscale));
 
-	printf("-/+ buffers/cache: %12llu%12llu\n",
+	xprintf("-/+ buffers/cache:%15llu%12llu\n",
 		convert(info.totalram - info.freeram - info.bufferram, iscale, oscale),
 		convert(info.freeram + info.bufferram, iscale, oscale));
 
-	printf("Swap:  %12llu%12llu%12llu\n",
+	xprintf("Swap:%16llu%12llu%12llu\n",
 		convert(info.totalswap, iscale, oscale),
 		convert(info.totalswap - info.freeswap, iscale, oscale),
 		convert(info.freeswap, iscale, oscale));
