@@ -4,7 +4,7 @@
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
  *
- * Not in SUSv3.
+ * Not in SUSv4.
 
 USE_UPTIME(NEWTOY(uptime, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -19,8 +19,6 @@ config UPTIME
 */
 
 #include "toys.h"
-#include <sys/sysinfo.h>
-#include <time.h>
 
 void uptime_main(void)
 {
@@ -35,16 +33,16 @@ void uptime_main(void)
 	now = localtime(&tmptime);
 
 	// Time
-	printf(" %02d:%02d:%02d up ", now->tm_hour, now->tm_min, now->tm_sec);
+	xprintf(" %02d:%02d:%02d up ", now->tm_hour, now->tm_min, now->tm_sec);
 	// Uptime
 	info.uptime /= 60;
 	minutes = info.uptime%60;
 	info.uptime /= 60;
 	hours = info.uptime%24;
 	days = info.uptime/24;
-	if (days) printf("%d day%s, ", days, (days!=1)?"s":"");
+	if (days) xprintf("%d day%s, ", days, (days!=1)?"s":"");
 	if (hours)
-		printf("%2d:%02d, ", hours, minutes);
+		xprintf("%2d:%02d, ", hours, minutes);
 	else
 		printf("%d min, ", minutes);
 

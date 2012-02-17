@@ -20,7 +20,6 @@ config FREE
 */
 
 #include "toys.h"
-#include <sys/sysinfo.h>
 
 static unsigned long long convert(unsigned long d, unsigned int iscale,
 				unsigned int oscale)
