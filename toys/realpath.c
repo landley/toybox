@@ -12,20 +12,20 @@ config REALPATH
 	bool "realpath"
 	default y
 	help
+	  usage: realpath FILE...
+
 	  Display the canonical absolute pathname
 */
 
 #include "toys.h"
 
-static void do_realpath(int fd, char *name)
-{
-    if (!realpath(name, toybuf))
-        perror_exit("realpath: cannot access %s'", name);
-
-    xprintf("%s\n", toybuf);
-}
-
 void realpath_main(void)
 {
-    loopfiles(toys.optargs, do_realpath);
+    char **s = toys.optargs;
+    for (s = toys.optargs; *s; s++) {
+        if (!realpath(*s, toybuf)) {
+            perror_msg("cannot access '%s'", *s);
+            toys.exitval = 1;
+        } else xputs(toybuf);
+    }
 }
