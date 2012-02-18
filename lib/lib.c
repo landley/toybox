@@ -809,3 +809,58 @@ int yesno(int def)
 	}
 	return def;
 }
+
+// Execute a callback for each PID that matches a process name from a list.
+int for_each_pid_with_name_in(char **names,
+        void (*callback) (const char *pid)) {
+#define PATH_LEN 64
+
+    DIR *dp;
+    struct dirent *entry;
+    FILE *fp;
+    int n, pathpos;
+    char cmd[PATH_MAX];
+    char path[PATH_LEN];
+    char **curname;
+
+    dp = opendir("/proc");
+    if (!dp) {
+        perror("opendir");
+        return 1;
+    }
+
+    while ((entry = readdir(dp))) {
+        if (!isdigit(entry->d_name[0])) continue;
+        strcpy(path, "/proc/");
+        pathpos = 6;
+
+        if (pathpos + strlen(entry->d_name) + 1 > PATH_LEN) continue;
+
+        strcpy(&path[pathpos], entry->d_name);
+        pathpos += strlen(entry->d_name);
+
+        if (pathpos + strlen("/cmdline") + 1 > PATH_LEN) continue;
+        strcpy(&path[pathpos], "/cmdline");
+
+        fp = fopen(path, "r");
+        if (!fp) {
+            perror("fopen");
+            continue;
+        }
+
+        n = fread(cmd, 1, PATH_MAX, fp); 
+        fclose(fp);
+        if (n == 0) continue;
+
+        for (curname = names; *curname; curname++) {
+            if (strcmp(basename(cmd), *curname) == 0) {
+                callback(entry->d_name);
+            }
+        }
+    }
+
+    closedir(dp);
+
+    return 0;
+#undef PATH_LEN
+}

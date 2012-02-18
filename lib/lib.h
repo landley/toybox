@@ -110,6 +110,8 @@ void replace_tempfile(int fdin, int fdout, char **tempname);
 void crc_init(unsigned int *crc_table, int little_endian);
 void terminal_size(unsigned *x, unsigned *y);
 int yesno(int def);
+int for_each_pid_with_name_in(char **names,
+		void (*callback) (const char *pid));
 
 
 // getmountlist.c
