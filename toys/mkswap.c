@@ -6,7 +6,7 @@
  *
  * Not in SUSv4.
 
-USE_MKSWAP(NEWTOY(mkswap, "<1>2", TOYFLAG_SBIN))
+USE_MKSWAP(NEWTOY(mkswap, "<1>1", TOYFLAG_SBIN))
 
 config MKSWAP
 	bool "mkswap"
@@ -14,7 +14,7 @@ config MKSWAP
 	help
 	  usage: mkswap DEVICE
 
-	  Format a Linux v1 swap device.
+	  Sets up a Linux swap area on a device or file.
 */
 
 #include "toys.h"
