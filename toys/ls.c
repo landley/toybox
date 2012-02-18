@@ -6,7 +6,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/ls.html
 
-USE_LS(NEWTOY(ls, "lF1a", TOYFLAG_BIN))
+USE_LS(NEWTOY(ls, "RlF1a", TOYFLAG_BIN))
 
 config LS
 	bool "ls"
@@ -27,6 +27,7 @@ config LS
 #define FLAG_1 2
 #define FLAG_F 4
 #define FLAG_l 8
+#define FLAG_R 16
 
 static int dir_filter(const struct dirent *d)
 {
@@ -44,14 +45,30 @@ static void do_ls(int fd, char *name)
     int i;
     int maxwidth = -1;
     int ncolumns = 1;
+    struct dirent file_dirent;
+    struct dirent *file_direntp;
 
     if (!name || strcmp(name, "-") == 0)
         name = ".";
 
+    if (toys.optflags & FLAG_R)
+        xprintf("\n%s:\n", name);
+
     /* Get all the files in this directory */
     nentries = scandir(name, &entries, dir_filter, alphasort);
-    if (nentries < 0)
-        perror_exit("ls: cannot access %s'", name);
+    if (nentries < 0) {
+        /* We've just selected a single file, so create a single-length list */
+        /* FIXME: This means that ls *.x results in a whole bunch of single
+         * listings, not one combined listing.
+         */
+        if (errno == ENOTDIR) {
+            nentries = 1;
+            strcpy(file_dirent.d_name, name);
+            file_direntp = &file_dirent;
+            entries = &file_direntp;
+        } else 
+            perror_exit("ls: cannot access %s'", name);
+    }
 
 
     /* Determine the widest entry so we can flow them properly */
@@ -83,14 +100,16 @@ static void do_ls(int fd, char *name)
         struct stat st;
         int stat_valid = 0;
 
+        sprintf(toybuf, "%s/%s", name, ent->d_name);
+
         /* Provide the ls -l long output */
         if (toys.optflags & FLAG_l) {
             char type;
             char timestamp[64];
             struct tm mtime;
 
-            if (lstat(ent->d_name, &st))
-                perror_exit("Can't stat %s", ent->d_name);
+            if (lstat(toybuf, &st))
+                perror_exit("Can't stat %s", toybuf);
             stat_valid = 1;
             if (S_ISDIR(st.st_mode))
                 type = 'd';
@@ -134,8 +153,8 @@ static void do_ls(int fd, char *name)
         /* Append the file-type indicator character */
         if (toys.optflags & FLAG_F) {
             if (!stat_valid) {
-                if (lstat(ent->d_name, &st))
-                    perror_exit("Can't stat %s", ent->d_name);
+                if (lstat(toybuf, &st))
+                    perror_exit("Can't stat %s", toybuf);
                 stat_valid = 1;
             }
             if (S_ISDIR(st.st_mode)) {
@@ -162,6 +181,20 @@ static void do_ls(int fd, char *name)
     /* Make sure we put at a trailing new line in */
     if (!(toys.optflags & FLAG_1) && (i % ncolumns))
         xprintf("\n");
+
+    if (toys.optflags & FLAG_R) {
+        for (i = 0; i < nentries; i++) {
+            struct dirent *ent = entries[i];
+            struct stat st;
+            char dirname[PATH_MAX];
+
+            sprintf(dirname, "%s/%s", name, ent->d_name);
+            if (lstat(dirname, &st))
+                perror_exit("Can't stat %s", dirname);
+            if (S_ISDIR(st.st_mode))
+                do_ls(0, dirname);
+        }
+    }
 }
 
 void ls_main(void)
