@@ -1,13 +1,12 @@
 /* vi: set sw=4 ts=4:
  *
- * killall.c - Send a signal (default: TERM) to all processes with the given names.
+ * killall.c - Send signal (default: TERM) to all processes with given names.
  *
  * Copyright 2012 Andreas Heck <aheck@gmx.de>
  *
  * Not in SUSv4.
- * See http://opengroup.org/onlinepubs/9699919799/utilities/
 
-USE_KILLALL(NEWTOY(killall, "?lq", TOYFLAG_USR|TOYFLAG_BIN))
+USE_KILLALL(NEWTOY(killall, "<1?lq", TOYFLAG_USR|TOYFLAG_BIN))
 
 config KILLALL
 	bool "killall"
@@ -27,8 +26,8 @@ config KILLALL
 #define FLAG_l	2
 
 DEFINE_GLOBALS(
-		int matched;
-		int signum;
+	int matched;
+	int signum;
 )
 #define TT this.killall
 
@@ -149,7 +148,8 @@ static struct signame signames[] = {
 	{0, NULL}
 };
 
-static int sig_to_num(const char *pidstr) {
+static int sig_to_num(const char *pidstr)
+{
 	int i, num;
 
 	if (isdigit(pidstr[0])) {
@@ -167,7 +167,8 @@ static int sig_to_num(const char *pidstr) {
 	return -1;
 }
 
-static void print_signals() {
+static void print_signals()
+{
 	int i;
 
 	for (i = 0; signames[i].num; i++) {
@@ -175,28 +176,25 @@ static void print_signals() {
 	}
 }
 
-static void kill_process(const char *pidstr) {
+static void kill_process(pid_t pid)
+{
 	int ret;
-	pid_t pid = atoi(pidstr);
 
 	TT.matched = 1;
 	ret = kill(pid, TT.signum);
 
-	if (ret == -1) {
-		if (toys.optflags & FLAG_q) perror("kill");
-	}
+	if (ret == -1 && !(toys.optflags & FLAG_q)) perror("kill");
 }
 
 void killall_main(void)
 {
 	char **names;
 
-	TT.matched = 0;
 	TT.signum = SIGTERM;
 
 	if (toys.optflags & FLAG_l) {
 		print_signals();
-		exit(0);
+		return;
 	}
 
 	if (!*toys.optargs) {
@@ -206,13 +204,13 @@ void killall_main(void)
 
 	names = toys.optargs;
 
-	if ((*toys.optargs)[0] == '-') {
-		TT.signum = sig_to_num(&(*toys.optargs)[1]);
+	if (**names == '-') {
+		TT.signum = sig_to_num((*names)+1);
 		if (TT.signum <= 0) {
-			if (toys.optflags & FLAG_q) fprintf(stderr, "Invalid signal\n");
+			if (toys.optflags & FLAG_q) error_exit("Invalid signal");
 			exit(1);
 		}
-		names = ++toys.optargs;
+		names++;
 	}
 
 	if (!*names) {

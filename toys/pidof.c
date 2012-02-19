@@ -5,9 +5,8 @@
  * Copyright 2012 Andreas Heck <aheck@gmx.de>
  *
  * Not in SUSv4.
- * See http://opengroup.org/onlinepubs/9699919799/utilities/
 
-USE_PIDOF(NEWTOY(pidof, "", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PIDOF(NEWTOY(pidof, "<1", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PIDOF
 	bool "pidof"
@@ -20,31 +19,14 @@ config PIDOF
 
 #include "toys.h"
 
-DEFINE_GLOBALS(
-		int matched;
-)
-#define TT this.pidof
-
-
-static void print_pid (const char *pid) {
-    if (TT.matched) putchar(' ');
-    fputs(pid, stdout);
-    TT.matched = 1;
+static void print_pid(pid_t pid) {
+    xprintf("%s%ld", toys.exitval ? "" : " ", (long)pid);
+    toys.exitval = 0;
 }
 
 void pidof_main(void)
 {
-    int err;
-
-	TT.matched = 0;
-
-    if (!toys.optargs) exit(1);
-
-    err = for_each_pid_with_name_in(toys.optargs, print_pid);
-    if (err) exit(1);
-
-    if (!TT.matched)
-        exit(1);
-    else
-        putchar('\n');
+    toys.exitval = 1;
+    for_each_pid_with_name_in(toys.optargs, print_pid);
+    if (!toys.exitval) xputc('\n');
 }
