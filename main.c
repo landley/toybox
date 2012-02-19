@@ -84,7 +84,7 @@ void toy_init(struct toy_list *which, char *argv[])
 	// Free old toys contents (to be reentrant)
 
 	if (toys.optargs != toys.argv+1) free(toys.optargs);
-	bzero(&toys, sizeof(struct toy_context));
+	memset(&toys, 0, sizeof(struct toy_context));
 
 	toys.which = which;
 	toys.argv = argv;

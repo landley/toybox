@@ -291,7 +291,7 @@ static void run_pipeline(struct pipeline *line)
 
 		// This fakes lots of what toybox_main() does.
 		memcpy(&temp, &toys, sizeof(struct toy_context));
-		bzero(&toys, sizeof(struct toy_context));
+		memset(&toys, 0, sizeof(struct toy_context));
 		toy_init(tl, cmd->argv);
 		tl->toy_main();
 		cmd->pid = toys.exitval;

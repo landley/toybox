@@ -181,7 +181,7 @@ void parse_optflaglist(struct getoptflagstate *gof)
 	int i;
 
 	// Parse option format string
-	bzero(gof, sizeof(struct getoptflagstate));
+	memset(gof, 0, sizeof(struct getoptflagstate));
 	gof->maxargs = INT_MAX;
 	if (!options) return;
 

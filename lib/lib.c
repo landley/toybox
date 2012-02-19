@@ -91,7 +91,7 @@ void *xmalloc(size_t size)
 void *xzalloc(size_t size)
 {
 	void *ret = xmalloc(size);
-	bzero(ret, size);
+	memset(ret, 0, size);
 	return ret;
 }
 
