@@ -26,161 +26,53 @@ config KILLALL
 #define FLAG_l	2
 
 DEFINE_GLOBALS(
-	int matched;
 	int signum;
 )
 #define TT this.killall
 
 struct signame {
 	int num;
-	const char *name;
+	char *name;
 };
+
+// Signals required by POSIX 2008:
+// http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/signal.h.html
+
+#define SIGNIFY(x) {SIG##x, #x}
 
 static struct signame signames[] = {
-#ifdef SIGHUP
-	{SIGHUP, "HUP"},
-#endif
-#ifdef SIGINT
-	{SIGINT, "INT"},
-#endif
-#ifdef SIGQUIT
-	{SIGQUIT, "QUIT"},
-#endif
-#ifdef SIGILL
-	{SIGILL, "ILL"},
-#endif
-#ifdef SIGTRAP
-	{SIGTRAP, "TRAP"},
-#endif
-#ifdef SIGTABRT
-	{SIGABRT, "ABRT"},
-#endif
-#ifdef SIGTABRT
-	{SIGIOT, "IOT"},
-#endif
-#ifdef SIGBUS
-	{SIGBUS, "BUS"},
-#endif
-#ifdef SIGFPE
-	{SIGFPE, "FPE"},
-#endif
-#ifdef SIGKILL
-	{SIGKILL, "KILL"},
-#endif
-#ifdef SIGUSR1
-	{SIGUSR1, "USR1"},
-#endif
-#ifdef SIGSEGV
-	{SIGSEGV, "SEGV"},
-#endif
-#ifdef SIGUSR2
-	{SIGUSR2, "USR2"},
-#endif
-#ifdef SIGPIPE
-	{SIGPIPE, "PIPE"},
-#endif
-#ifdef SIGALRM
-	{SIGALRM, "ALRM"},
-#endif
-#ifdef SIGTERM
-	{SIGTERM, "TERM"},
-#endif
-#ifdef SIGSTKFLT
-	{SIGSTKFLT, "STKFLT"},
-#endif
-#ifdef SIGCHLD
-	{SIGCHLD, "CHLD"},
-#endif
-#ifdef SIGCONT
-	{SIGCONT, "CONT"},
-#endif
-#ifdef SIGSTOP
-	{SIGSTOP, "STOP"},
-#endif
-#ifdef SIGSTOP
-	{SIGSTOP, "STOP"},
-#endif
-#ifdef SIGTSTP
-	{SIGTSTP, "TSTP"},
-#endif
-#ifdef SIGTTIN
-	{SIGTTIN, "TTIN"},
-#endif
-#ifdef SIGTTOU
-	{SIGTTOU, "TTOU"},
-#endif
-#ifdef SIGURG
-	{SIGURG, "URG"},
-#endif
-#ifdef SIGXCPU
-	{SIGXCPU, "XCPU"},
-#endif
-#ifdef SIGXFSZ
-	{SIGXFSZ, "XFSZ"},
-#endif
-#ifdef SIGVTALRM
-	{SIGVTALRM, "VTALRM"},
-#endif
-#ifdef SIGVTALRM
-	{SIGVTALRM, "VTALRM"},
-#endif
-#ifdef SIGPROF
-	{SIGPROF, "PROF"},
-#endif
-#ifdef SIGWINCH
-	{SIGWINCH, "WINCH"},
-#endif
-#ifdef SIGIO
-	{SIGIO, "IO"},
-#endif
-#ifdef SIGPOLL
-	{SIGPOLL, "POLL"},
-#endif
-#ifdef SIGPWR
-	{SIGPWR, "PWR"},
-#endif
-#ifdef SIGSYS
-	{SIGSYS, "SYS"},
-#endif
-#ifdef SIGUNUSED
-	{SIGUNUSED, "UNUSED"},
-#endif
-	{0, NULL}
+	SIGNIFY(ABRT), SIGNIFY(ALRM), SIGNIFY(BUS), SIGNIFY(CHLD), SIGNIFY(CONT),
+	SIGNIFY(FPE), SIGNIFY(HUP), SIGNIFY(ILL), SIGNIFY(INT), SIGNIFY(KILL),
+	SIGNIFY(PIPE), SIGNIFY(QUIT), SIGNIFY(SEGV), SIGNIFY(STOP), SIGNIFY(TERM),
+	SIGNIFY(TSTP), SIGNIFY(TTIN), SIGNIFY(TTOU), SIGNIFY(USR1), SIGNIFY(USR2),
+	SIGNIFY(SYS), SIGNIFY(TRAP), SIGNIFY(URG), SIGNIFY(VTALRM), SIGNIFY(XCPU),
+	SIGNIFY(XFSZ)
 };
 
-static int sig_to_num(const char *pidstr)
-{
-	int i, num;
+// SIGNIFY(STKFLT), SIGNIFY(WINCH), SIGNIFY(IO), SIGNIFY(PWR)
 
-	if (isdigit(pidstr[0])) {
-		num = atoi(pidstr);
-
-		return num;
-	}
-
-	for (i = 0; signames[i].num; i++) {
-		if (strcmp(pidstr, signames[i].name) == 0) {
-			return signames[i].num;
-		}
-	}
-
-	return -1;
-}
-
-static void print_signals()
+// Convert name to signal number.  If name == NULL print names.
+static int sig_to_num(char *pidstr)
 {
 	int i;
 
-	for (i = 0; signames[i].num; i++) {
-		puts(signames[i].name);
+	if (pidstr) {
+		if (isdigit(*pidstr)) return atol(pidstr);
+		if (!strncasecmp(pidstr, "sig", 3)) pidstr+=3;
 	}
+	for (i = 0; i < sizeof(signames)/sizeof(struct signame); i++)
+		if (!pidstr) xputs(signames[i].name);
+		else if (!strcasecmp(pidstr, signames[i].name))
+			return signames[i].num;
+
+	return -1;
 }
 
 static void kill_process(pid_t pid)
 {
 	int ret;
 
-	TT.matched = 1;
+	toys.exitval = 0;
 	ret = kill(pid, TT.signum);
 
 	if (ret == -1 && !(toys.optflags & FLAG_q)) perror("kill");
@@ -190,12 +82,13 @@ void killall_main(void)
 {
 	char **names;
 
-	TT.signum = SIGTERM;
-
 	if (toys.optflags & FLAG_l) {
-		print_signals();
+		sig_to_num(NULL);
 		return;
 	}
+
+	TT.signum = SIGTERM;
+	toys.exitval++;
 
 	if (!*toys.optargs) {
 		toys.exithelp = 1;
@@ -205,23 +98,20 @@ void killall_main(void)
 	names = toys.optargs;
 
 	if (**names == '-') {
-		TT.signum = sig_to_num((*names)+1);
-		if (TT.signum <= 0) {
-			if (toys.optflags & FLAG_q) error_exit("Invalid signal");
-			exit(1);
+		if (0 > (TT.signum = sig_to_num((*names)+1))) {
+			if (toys.optflags & FLAG_q) exit(1);
+			error_exit("Invalid signal");
 		}
 		names++;
-	}
 
-	if (!*names) {
-		toys.exithelp = 1;
-		error_exit("Process name missing!");
+		if (!*names) {
+			toys.exithelp++;
+			error_exit("Process name missing!");
+		}
 	}
 
 	for_each_pid_with_name_in(names, kill_process);
 
-	if (!TT.matched) {
-		if (!(toys.optflags & FLAG_q)) fprintf(stderr, "No such process\n");
-		exit(1);
-	}
+	if (toys.exitval && !(toys.optflags & FLAG_q))
+		error_exit("No such process");
 }
