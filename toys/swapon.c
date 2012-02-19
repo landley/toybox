@@ -12,9 +12,9 @@ config SWAPON
 	bool "swapon"
 	default y
 	help
-	  usage: swapon swapregion
+	  usage: swapon [-p priority] filename
 
-	  Enable swapping on a given swapregion.
+	  Enable swapping on a given device/file.
 */
 
 #include "toys.h"
@@ -30,9 +30,8 @@ void swapon_main(void)
 	int flags = 0;
 
 	if (toys.optflags & 1)
-		flags = SWAP_FLAG_PREFER |
-			((TT.priority & SWAP_FLAG_PRIO_MASK) << SWAP_FLAG_PRIO_SHIFT);
+		flags = SWAP_FLAG_PREFER | (TT.priority << SWAP_FLAG_PRIO_SHIFT);
 
-	if (swapon(toys.optargs[0], flags))
-		perror_exit("failed to enable swaparea");
+	if (swapon(*toys.optargs, flags))
+		perror_exit("Couldn't swapon '%s'", *toys.optargs);
 }
