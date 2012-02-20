@@ -15,7 +15,7 @@ $(KCONFIG_TOP): generated/Config.in
 generated/Config.in: toys/*.c scripts/genconfig.sh
 	scripts/genconfig.sh
 
-HOSTCC:=cc
+HOSTCC?=cc
 
 # Development targets
 baseline: toybox_unstripped
