@@ -23,23 +23,18 @@ config LSMOD
 void lsmod_main(void)
 {
 	FILE * file = xfopen("/proc/modules", "r");
-	char *name, *size, *refcnt, *users;
 
-	xprintf("%-24s Size  Used by\n", "Module");
+	xprintf("%-23s Size  Used by\n", "Module");
 
 	while (fgets(toybuf, sizeof(toybuf), file)) {
-		int len;
+		char *name = strtok(toybuf, " "), *size = strtok(NULL, " "),
+			*refcnt = strtok(NULL, " "), *users = strtok(NULL, " ");
 
-		name = strtok(toybuf, " ");
-		size = strtok(NULL, " ");
-		refcnt = strtok(NULL, " ");
-		users = strtok(NULL, " ");
-
-		if(name && size && refcnt && users) {
-			len = strlen(users)-1;
+		if(users) {
+			int len = strlen(users)-1;
 			if (users[len] == ',' || users[len] == '-')
 				users[len] = 0;
-			xprintf("%-20s %8s  %s %s\n", name, size, refcnt, users);
+			xprintf("%-19s %8s  %s %s\n", name, size, refcnt, users);
 		} else perror_exit("unrecognized input");
 	}
 	fclose(file);
