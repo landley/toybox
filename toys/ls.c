@@ -6,7 +6,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/ls.html
 
-USE_LS(NEWTOY(ls, "RlF1a", TOYFLAG_BIN))
+USE_LS(NEWTOY(ls, "nRlF1a", TOYFLAG_BIN))
 
 config LS
 	bool "ls"
@@ -21,6 +21,14 @@ config LS
           -l    show full details for each file
 */
 
+/* So that we can do 64-bit stat etc... */
+#define _FILE_OFFSET_BITS 64
+
+#include <unistd.h>
+#include <sys/types.h>
+#include <grp.h>
+#include <pwd.h>
+
 #include "toys.h"
 
 #define FLAG_a 1
@@ -28,6 +36,7 @@ config LS
 #define FLAG_F 4
 #define FLAG_l 8
 #define FLAG_R 16
+#define FLAG_n 32
 
 static int dir_filter(const struct dirent *d)
 {
@@ -134,13 +143,25 @@ static void do_ls(int fd, char *name)
                 (st.st_mode & S_IXOTH) ? 'x' : '-');
 
             xprintf("%2d ", st.st_nlink);
-            /* FIXME: We're never looking up uid/gid numbers */
-            xprintf("%4d ", st.st_uid);
-            xprintf("%4d ", st.st_gid);
+            if (toys.optflags & FLAG_n) {
+                xprintf("%4d ", st.st_uid);
+                xprintf("%4d ", st.st_gid);
+            } else {
+                struct passwd *pwd = getpwuid(st.st_uid);
+                struct group *grp = getgrgid(st.st_gid);
+                if (!pwd)
+                    xprintf("%4d ", st.st_uid);
+                else
+                    xprintf("%-10s ", pwd->pw_name);
+                if (!grp)
+                    xprintf("%4d ", st.st_gid);
+                else
+                    xprintf("%-10s ", grp->gr_name);
+            }
             if (S_ISCHR(st.st_mode) || S_ISBLK(st.st_mode))
                 xprintf("%3d, %3d ", major(st.st_rdev), minor(st.st_rdev));
             else
-                xprintf("%8ld ", st.st_size);
+                xprintf("%12lld ", st.st_size);
 
             localtime_r(&st.st_mtime, &mtime);
 
@@ -199,6 +220,11 @@ static void do_ls(int fd, char *name)
 
 void ls_main(void)
 {
+    /* If the output is not a TTY, then just do one-file per line
+     * This makes ls easier to use with other command line tools (grep/awk etc...)
+     */
+    if (!isatty(fileno(stdout)))
+        toys.optflags |= FLAG_1;
     /* Long output must be one-file per line */
     if (toys.optflags & FLAG_l)
         toys.optflags |= FLAG_1;
