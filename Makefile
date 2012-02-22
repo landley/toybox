@@ -22,7 +22,7 @@ baseline: toybox_unstripped
 	@cp toybox_unstripped toybox_old
 
 bloatcheck: toybox_old toybox_unstripped
-	@scripts/bloat-o-meter toybox_old toybox_unstripped
+	@scripts/bloatcheck toybox_old toybox_unstripped
 
 instlist: toybox
 	$(HOSTCC) $(CCFLAGS) -I . scripts/install.c -o instlist
