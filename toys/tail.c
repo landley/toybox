@@ -6,7 +6,7 @@
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/tail.html
 
-USE_HEAD(NEWTOY(tail, "c:fn:", TOYFLAG_BIN))
+USE_TAIL(NEWTOY(tail, "c:fn:", TOYFLAG_BIN))
 
 config TAIL
 	bool "tail"
