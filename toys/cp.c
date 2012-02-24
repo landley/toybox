@@ -31,7 +31,7 @@ config CP
 #include "toys.h"
 
 #define FLAG_f 1
-#define FLAG_i 2	// todo
+#define FLAG_i 2
 #define FLAG_P 4	// todo
 #define FLAG_L 8	// todo
 #define FLAG_H 16	// todo
@@ -58,6 +58,18 @@ DEFINE_GLOBALS(
 void cp_file(char *src, char *dst, struct stat *srcst)
 {
 	int fdout = -1;
+	char overwrite;
+
+	if ((toys.optflags & FLAG_i) && access(dst, R_OK) == 0) {
+		// -i flag is specified and dst file exists.
+		// If user does not confirm, don't copy the file
+		// Ideally I'd use perror here, but it always appends a newline
+		// to the string, resulting in the input prompt being displayed
+		// on the next line.
+		fprintf(stderr, "cp: overwrite '%s'? ", dst);
+		(void)scanf("%c", &overwrite);
+		if (!(overwrite == 'y' || overwrite == 'Y')) return;
+	}
 
 	if (toys.optflags & FLAG_v)
 		printf("'%s' -> '%s'\n", src, dst);
