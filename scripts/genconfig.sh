@@ -8,7 +8,7 @@ OUTFILE=generated/Config.in
 
 source configure
 
-genconfig()
+probeconfig()
 {
   # Probe for container support on target
 
@@ -19,7 +19,9 @@ genconfig()
 EOF
   [ $? -eq 0 ] && DEFAULT=y || DEFAULT=n
   echo -e "\tdefault $DEFAULT\n" || return 1
-
+}
+genconfig()
+{
   # extract config stanzas from each command source file, in alphabetical order
 
   for i in $(ls -1 toys/*.c)
@@ -31,4 +33,5 @@ EOF
   done
 }
 
-genconfig > generated/Config.in || rm "$OUTFILE"
+probeconfig > generated/Config.probed || rm generated/Config.probed
+genconfig > generated/Config.in || rm generated/Config.in

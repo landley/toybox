@@ -44,6 +44,8 @@ config TOYBOX_DEBUG
 
 endmenu
 
+source generated/Config.probed
+
 menu "Toys"
 source generated/Config.in
 endmenu
