@@ -6,7 +6,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/kill.html
 
-USE_KILL(NEWTOY(kill, "?s:l", TOYFLAG_BIN))
+USE_KILL(NEWTOY(kill, "?s: l", TOYFLAG_BIN))
 
 config KILL
 	bool "kill"
@@ -45,10 +45,8 @@ void kill_main(void)
 	}
 
 	// signal must come before pids, so "kill -9 -1" isn't confusing.
-printf("*args=%s\n", *args);
 
 	if (!TT.signame && *args && **args=='-') TT.signame=*(args++)+1;
-printf("TT.signame=%s\n", TT.signame);
 	if (TT.signame) {
 		char *arg;
 		int i = strtol(TT.signame, &arg, 10);

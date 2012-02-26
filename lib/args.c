@@ -23,8 +23,10 @@
 //       Same <LOW>HIGH=DEFAULT as #
 //     @ plus an occurrence counter (which is a long)
 //     (longopt)
-//     | this is required.  If more than one marked, only one required.
+//     | this is required.  If more than one marked, only one required. TODO
 //     ^ Stop parsing after encountering this argument
+//    " " (space char) the "plus an  argument" must be separate
+//        I.E. "-j 3" not "-j3". So "kill -stop" != "kill -s top"
 //
 //     These modify other option letters (previously seen in string):
 //       +X enabling this enables X (switch on)
@@ -175,7 +177,8 @@ static int gotflag(struct getoptflagstate *gof)
 
 void parse_optflaglist(struct getoptflagstate *gof)
 {
-	char *options = toys.which->options, *plustildenot = "+~!", *limits = "<>=";
+	char *options = toys.which->options, *plustildenot = "+~!",
+		 *limits = "<>=", *flagbits="|^ ";
 	long *nextarg = (long *)&this;
 	struct opts *new = 0;
 	int i;
@@ -255,8 +258,8 @@ void parse_optflaglist(struct getoptflagstate *gof)
 			}
 			new->edx[idx] |= 1<<i;
 		} else if (*options == '[') { // TODO
-		} else if (*options == '|') new->flags |= 1;
-		else if (*options == '^') new->flags |= 2;
+		} else if (0 != (temp = strchr(flagbits, *options)))
+			new->flags |= 1<<(temp-flagbits);
 		// bounds checking
 		else if (0 != (temp = strchr(limits, *options))) {
 			i = temp - limits;
@@ -382,7 +385,8 @@ void get_optflags(void)
 
 			// Identify next option char.
 			for (gof.this = gof.opts; gof.this; gof.this = gof.this->next)
-				if (*gof.arg == gof.this->c) break;
+				if (*gof.arg == gof.this->c)
+					if (!((gof.this->flags&4) && gof.arg[1])) break;
 
 			// Handle option char (advancing past what was used)
 			if (gotflag(&gof) ) {
