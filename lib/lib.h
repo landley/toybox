@@ -126,3 +126,8 @@ struct mtab_list {
 struct mtab_list *getmountlist(int die);
 
 void bunzipStream(int src_fd, int dst_fd);
+
+// signal
+
+int sig_to_num(char *pidstr);
+char *num_to_sig(int sig);

@@ -842,3 +842,54 @@ void for_each_pid_with_name_in(char **names, void (*callback)(pid_t pid))
 
     closedir(dp);
 }
+
+struct signame {
+	int num;
+	char *name;
+};
+
+// Signals required by POSIX 2008:
+// http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/signal.h.html
+
+#define SIGNIFY(x) {SIG##x, #x}
+
+static struct signame signames[] = {
+	SIGNIFY(ABRT), SIGNIFY(ALRM), SIGNIFY(BUS), SIGNIFY(CHLD), SIGNIFY(CONT),
+	SIGNIFY(FPE), SIGNIFY(HUP), SIGNIFY(ILL), SIGNIFY(INT), SIGNIFY(KILL),
+	SIGNIFY(PIPE), SIGNIFY(QUIT), SIGNIFY(SEGV), SIGNIFY(STOP), SIGNIFY(TERM),
+	SIGNIFY(TSTP), SIGNIFY(TTIN), SIGNIFY(TTOU), SIGNIFY(USR1), SIGNIFY(USR2),
+	SIGNIFY(SYS), SIGNIFY(TRAP), SIGNIFY(URG), SIGNIFY(VTALRM), SIGNIFY(XCPU),
+	SIGNIFY(XFSZ)
+};
+
+// not in posix: SIGNIFY(STKFLT), SIGNIFY(WINCH), SIGNIFY(IO), SIGNIFY(PWR)
+// obsolete: SIGNIFY(PROF) SIGNIFY(POLL)
+
+// Convert name to signal number.  If name == NULL print names.
+int sig_to_num(char *pidstr)
+{
+	int i;
+
+	if (pidstr) {
+		char *s;
+		i = strtol(pidstr, &s, 10);
+		if (!*s) return i;
+
+		if (!strncasecmp(pidstr, "sig", 3)) pidstr+=3;
+	}
+	for (i = 0; i < sizeof(signames)/sizeof(struct signame); i++)
+		if (!pidstr) xputs(signames[i].name);
+		else if (!strcasecmp(pidstr, signames[i].name))
+			return signames[i].num;
+
+	return -1;
+}
+
+char *num_to_sig(int sig)
+{
+	int i;
+
+	for (i=0; i<sizeof(signames)/sizeof(struct signame); i++)
+		if (signames[i].num == sig) return signames[i].name;
+	return NULL;
+}

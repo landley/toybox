@@ -30,44 +30,6 @@ DEFINE_GLOBALS(
 )
 #define TT this.killall
 
-struct signame {
-	int num;
-	char *name;
-};
-
-// Signals required by POSIX 2008:
-// http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/signal.h.html
-
-#define SIGNIFY(x) {SIG##x, #x}
-
-static struct signame signames[] = {
-	SIGNIFY(ABRT), SIGNIFY(ALRM), SIGNIFY(BUS), SIGNIFY(CHLD), SIGNIFY(CONT),
-	SIGNIFY(FPE), SIGNIFY(HUP), SIGNIFY(ILL), SIGNIFY(INT), SIGNIFY(KILL),
-	SIGNIFY(PIPE), SIGNIFY(QUIT), SIGNIFY(SEGV), SIGNIFY(STOP), SIGNIFY(TERM),
-	SIGNIFY(TSTP), SIGNIFY(TTIN), SIGNIFY(TTOU), SIGNIFY(USR1), SIGNIFY(USR2),
-	SIGNIFY(SYS), SIGNIFY(TRAP), SIGNIFY(URG), SIGNIFY(VTALRM), SIGNIFY(XCPU),
-	SIGNIFY(XFSZ)
-};
-
-// SIGNIFY(STKFLT), SIGNIFY(WINCH), SIGNIFY(IO), SIGNIFY(PWR)
-
-// Convert name to signal number.  If name == NULL print names.
-static int sig_to_num(char *pidstr)
-{
-	int i;
-
-	if (pidstr) {
-		if (isdigit(*pidstr)) return atol(pidstr);
-		if (!strncasecmp(pidstr, "sig", 3)) pidstr+=3;
-	}
-	for (i = 0; i < sizeof(signames)/sizeof(struct signame); i++)
-		if (!pidstr) xputs(signames[i].name);
-		else if (!strcasecmp(pidstr, signames[i].name))
-			return signames[i].num;
-
-	return -1;
-}
-
 static void kill_process(pid_t pid)
 {
 	int ret;
