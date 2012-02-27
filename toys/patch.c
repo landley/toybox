@@ -354,12 +354,12 @@ void patch_main(void)
 				}
 
 				// handle -p path truncation.
-				for (i=0, s = name; *s;) {
+				for (i = 0, s = name; *s;) {
 					if ((toys.optflags & FLAG_PATHLEN) && TT.prefix == i) break;
-					if (*(s++)=='/') {
-						name = s;
-						i++;
-					}
+					if (*s++ != '/') continue;
+					while (*s == '/') s++;
+					name = s;
+					i++;
 				}
 
 				if (del) {
