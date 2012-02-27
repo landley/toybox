@@ -10,7 +10,7 @@ USE_LS(NEWTOY(ls, "nRlF1a", TOYFLAG_BIN))
 
 config LS
 	bool "ls"
-	default y
+	default n
 	help
 	  usage: ls [-l] [-F] [-a] [-1] [directory...]
 	  list files
