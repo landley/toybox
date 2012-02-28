@@ -792,20 +792,19 @@ void terminal_size(unsigned *x, unsigned *y)
 }
 
 // This should use a raw tty, fixit later.
-int yesno(int def)
+int yesno(char *prompt, int def)
 {
-	char buf[16];
+	char buf;
 	int i;
 
 	for (i=0; i<3 && !isatty(i); i++);
 	if (i == 3) return 1;
 
-	sprintf(buf, "(%c/%c):", def ? 'Y' : 'y', def ? 'n' : 'N');
-	write(i, buf, 6);
-	while (read(i, buf, 1)) {
-		if (isspace(*buf)) break;
-		if (tolower(*buf) == 'y') return 1;
-		if (tolower(*buf) == 'n') return 0;
+	fdprintf(i, "%s (%c/%c):", prompt, def ? 'Y' : 'y', def ? 'n' : 'N');
+	while (read(i, &buf, 1)) {
+		if (isspace(buf)) break;
+		if (tolower(buf) == 'y') return 1;
+		if (tolower(buf) == 'n') return 0;
 	}
 	return def;
 }
