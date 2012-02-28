@@ -41,7 +41,8 @@ uninstall:
 
 clean::
 	rm -rf toybox toybox_unstripped generated/config.h generated/Config.in \
-		generated/newtoys.h generated/globals.h instlist testdir
+		generated/newtoys.h generated/globals.h instlist testdir \
+		generated/Config.probed
 
 distclean: clean
 	rm -f toybox_old .config* generated/help.h
