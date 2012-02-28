@@ -18,6 +18,7 @@
 //       <LOW     - die if less than LOW
 //       >HIGH    - die if greater than HIGH
 //       =DEFAULT - value if not specified
+//     - plus a signed long argument defaulting to negative
 //     . plus a double precision floating point argument (with CFG_TOYBOX_FLOAT)
 //       Chop this out with USE_TOYBOX_FLOAT() around option string
 //       Same <LOW>HIGH=DEFAULT as #
@@ -148,8 +149,9 @@ static int gotflag(struct getoptflagstate *gof)
 			while (*list) list=&((*list)->next);
 			*list = xzalloc(sizeof(struct arg_list));
 			(*list)->arg = arg;
-		} else if (type == '#') {
+		} else if (type == '#' || type == '-') {
 			long l = atolx(arg);
+			if (type == '-' && !ispunct(*arg)) l*=-1;
 			if (l < opt->val[0].l)
 				error_exit("-%c < %ld", opt->c, opt->val[0].l);
 			if (l > opt->val[1].l)

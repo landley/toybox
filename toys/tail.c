@@ -6,38 +6,28 @@
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/tail.html
 
-USE_TAIL(NEWTOY(tail, "c:fn:", TOYFLAG_BIN))
+USE_TAIL(NEWTOY(tail, "c-|fn-|", TOYFLAG_BIN))
 
 config TAIL
 	bool "tail"
 	default n
 	help
-	  usage: tail [-n number] [-c number] [-f] [file...]
+	  usage: tail [-n|c number] [-f] [file...]
 
 	  Copy last lines from files to stdout. If no files listed, copy from
 	  stdin. Filename "-" is a synonym for stdin.
 
-	  -n	Line offset to start copying from. The number may be signed.
-	        When negative, the line offset is counted from the end of the 
-	        file. When positive, the offset is counted from the beginning.
-	        When the sign is omitted, the offset is counted from the end of
-		the file. Defaults to -10.
-
-	  -c    Byte offset to start copying from. As above, may be a positive
-	        or negative signed number.
-
-	  -f   	Continue reading input after reaching the last line of input.
-	        This option is ignored if the input file is not a regular file
-	        or the given file is a FIFO.
+	  -n	output the last X lines (default 10), +X counts from start.
+	  -c    output the last X bytes, +X counts from start
+	  -f   	follow file, waiting for more data to be appended
 */
 
 #include "toys.h"
 
 DEFINE_GLOBALS(
-	char *lines_str;
-	char *bytes_str;
 	long lines;
 	long bytes;
+
 	int file_no;
 )
 
@@ -128,8 +118,7 @@ static void print_last_lines(int fd, long lines)
 
 	for (;;) {
 		// read from input and append to buffer list
-		cur = xmalloc(sizeof(struct line_list));
-		memset(cur, 0, sizeof(struct line_list));
+		cur = xzalloc(sizeof(struct line_list));
 
 		cur->data = xmalloc(size);
 		cur->len = readall(fd, cur->data, size);
@@ -170,32 +159,19 @@ static void do_tail(int fd, char *name)
 
 	if (toys.optc > 1) {
 		// print an extra newline for all but the first file
-		if (TT.file_no++) xprintf("\n");
+		if (TT.file_no++) xputc('\n');
 		xprintf("==> %s <==\n", name);
-		xflush();
 	}
 
 	if (lines > 0 || bytes > 0) print_after_offset(fd, bytes, lines);
 	else if (bytes < 0) print_last_bytes(fd, bytes * -1);
-	else if (lines < 0) print_last_lines(fd, lines * -1);
-}
-
-long atolx_default_negative(char *str)
-{
-	long val = atolx(str);
-	return str[0] != '+' && str[0] != '-' ? val * -1 : val;
+	else print_last_lines(fd, lines * -1);
 }
 
 void tail_main(void)
 {
-	// if option -c or -n has no sign then we make it negative
-	if (toys.optflags & FLAG_c)
-		TT.bytes = atolx_default_negative(TT.bytes_str);
-
-	if (toys.optflags & FLAG_n)
-		TT.lines = atolx_default_negative(TT.lines_str);
-	else
-		TT.lines = -10;
+	// if nothing specified, default -n to -10
+	if (!(toys.optflags&(FLAG_n|FLAG_c))) TT.lines = -10;
 
 	loopfiles(toys.optargs, do_tail);
 }
