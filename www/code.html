@@ -1,5 +1,40 @@
 <!--#include file="header.html" -->
 
+<h1>Simplicity first: spending your complexity budget wisely.</h1>
+
+<p>The primary goal of toybox is _simple_ code. Keeping the code small is
+second, with speed and lots of features coming in somewhere after that.</p>
+
+<p>These goals are usually complementary: simplifying code generally reduces
+its size (both in terms of binary size and runtime memory usage), and avoiding
+unnecessary work makes code run faster. Smaller code also tends to run faster
+on modern hardware due to CPU cacheing: fitting your code into L1 cache is
+great, and staying in L2 cache is still pretty good.</p>
+
+<p>A simple implementation usually takes up fewer lines of source code,
+meaning more code can fit on the screen at once, meaning the programmer can
+see more of it on the screen and thus keep more if in their head at once.
+This helps code auditing and thus reduces bugs.</p>
+
+<p>Ken Thompson's maximum "when in doubt, use brute force" is an admonishment
+to start with the simplest possible approach and only optimize as needed.
+Although implementing a given set of features is the eventual purpose of
+toybox, we choose to weight simplicity more heavily than anything else.
+Complexity is what we spend to get features (and occasionally smaller size
+or faster running time than the simplest possible implementation). Sometimes
+a feature, speedup, or code shrink isn't worth the complexity cost. We want to
+get "the best bang for the byte" we can, but sometimes being more explicit
+is preferable to being clever enough to outsmart yourself. (Even the best
+programmers are only human.)</p>
+
+<p>Environmental dependencies are a type of complexity, so needing other
+packages to build or run is a big downside.  For example, we don't use curses
+when we can simply output ansi escape sequences and trust all terminal
+programs written in the past 30 years to be able to support them. (A common
+use case is to download a statically linked toybox binary to an arbitrary
+Linux system, and use it in an otherwise unknown environment. It _must_ be
+completely self-contained to support this.)</p>
+
 <p><h1>Code style</h1></p>
 
 <p>Toybox source is formatted to be read with 4-space tab stops.  Each file
@@ -15,11 +50,37 @@ at the end of the function.  Goto labels are never indented: they override the
 block structure of the file.  Putting them at the left edge makes them easy
 to spot as overrides to the normal flow of control, which they are.</p>
 
-<p>The primary goal of toybox is _simple_ code.  Small is second,
-speed and lots of features come in somewhere after that.  Note that
-environmental dependencies are a type of complexity, so needing other packages
-to build or run is a big downside.  For example, don't use curses when you can
-output ansi escape sequences instead.</p>
+<p><h1>Building Toybox:</h1></p>
+
+<p>Toybox is configured using the Kconfig language pioneered by the Linux
+kernel, and adopted by many other projects (uClibc, OpenEmbedded, etc).
+This generates a ".config" file containing the selected options, which
+controls which features to enable when building toybox.</p>
+
+<p>Each configuration option has a default value. The defaults indicate the
+"maximum sane configuration", I.E. if the feature defaults to "n" then it
+either isn't complete or is a special-purpose option (such as debugging
+code) that isn't intended for general purpose use.</p>
+
+<p>The standard build invocation is:</p>
+
+<ul>
+<li>make defconfig #(or menuconfig)</li>
+<li>make</li>
+<li>make install</li>
+</ul>
+
+<p>Type "make help" to see all available build options.</p>
+
+<p>The file "configure" contains a number of environment variable definitions
+which influence the build, such as specifying which compiler to use or where
+to install the resulting binaries. This file is included by the build, but
+accepts existing definitions of the environment variables, so it may be sourced
+or modified by the developer before building and the definitions exported
+to the environment will take precedence.</p>
+
+<p>(To clarify: "configure" describes the build and installation environment,
+".config" lists the features selected by defconfig/menuconfig.)</p>
 
 <p><h1>Infrastructure:</h1></p>
 
@@ -46,7 +107,7 @@ files generated from other parts of the source code.</li>
 the toys directory.  No other files need to be modified; the build extracts
 all the information it needs (such as command line arguments) from specially
 formatted comments and macros in the C file.  (See the description of the
-<a href="#generated">generated directory</a> for details.)</p>
+<a href="#generated">"generated" directory</a> for details.)</p>
 
 <p>An easy way to start a new command is copy the file "hello.c" to
 the name of the new command, and modify this copy to implement the new command.
@@ -341,6 +402,7 @@ instructions</a>.</p>
 </li>
 </ul>
 
+<a name="generated" />
 <p>The "generated/" directory contains files generated from other source code
 in toybox.  All of these files can be recreated by the build system, although
 some (such as generated/help.h) are shipped in release versions to reduce
