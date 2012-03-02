@@ -6,7 +6,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/ln.html
 
-USE_LN(NEWTOY(ln, "<1fs", TOYFLAG_BIN))
+USE_LN(NEWTOY(ln, "<1nfs", TOYFLAG_BIN))
 
 config LN
 	bool "ln"
@@ -14,17 +14,19 @@ config LN
 	help
 	  usage: ln [-sf] [FROM...] TO
 
-          Create a link between FROM and TO.
-          With only one argument, create link in current directory.
+	  Create a link between FROM and TO.
+	  With only one argument, create link in current directory.
 
-          -s    Create a symbolic link
-          -f    Force the creation of the link, even if TO already exists
+	  -s	Create a symbolic link
+	  -f	Force the creation of the link, even if TO already exists
+          -n	Symlink at destination treated as file
 */
 
 #include "toys.h"
 
 #define FLAG_s	1
-#define FLAG_f  2
+#define FLAG_f	2
+#define FLAG_n	4
 
 void ln_main(void)
 {
@@ -39,7 +41,9 @@ void ln_main(void)
     }
 
     // Is destination a directory?
-    if (stat(dest, &buf) || !S_ISDIR(buf.st_mode)) {
+    if (((toys.optflags&FLAG_n) ? lstat : stat)(dest, &buf)
+        || !S_ISDIR(buf.st_mode))
+    {
         if (toys.optc>1) error_exit("'%s' not a directory");
         buf.st_mode = 0;
     }
@@ -56,7 +60,6 @@ void ln_main(void)
         /* Silently unlink the existing target. If it doesn't exist,
          * then we just move on */
         if (toys.optflags & FLAG_f) unlink(new);
-
 
         rc = (toys.optflags & FLAG_s) ? symlink(try, new) : link(try, new);
         if (rc)
