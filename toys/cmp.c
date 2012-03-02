@@ -63,17 +63,17 @@ void do_cmp(int fd, char *name)
 					if (!(toys.optflags & FLAG_s)) {
 						printf("%s %s differ: char %ld, line %ld\n",
 							TT.name, name, byte_no, line_no);
+						toys.exitval++;
 					}
-					return;
+					goto out;
 				}
-
 			}
 			byte_no++;
 			if (toybuf[i] == '\n') line_no++;
 		}
 		if (len1 != len2) {
 			if (!(toys.optflags & FLAG_s)) {
-				fdprintf(2, "cmp: EOF on %s\n",
+				printf("cmp: EOF on %s\n",
 					len1 < len2 ? TT.name : name);
 			}
 			toys.exitval = 1;
@@ -81,6 +81,7 @@ void do_cmp(int fd, char *name)
 		}
 		if (len1 < 1) break;
 	}
+out:
 	if (CFG_TOYBOX_FREE) close(TT.fd);
 }
 
