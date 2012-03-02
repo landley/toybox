@@ -33,3 +33,5 @@ testing "echo -e octal values" \
 testing "echo -e hexadecimal values" \
 	"$CMD -ne '\x534 \x30 \x58\x59\x5a \x3F\x0A'"\
 	"S4 0 XYZ ?\n" "" ""
+
+testing "echo -e \p" "$CMD -e '\\p'" "\\p\n" "" ""

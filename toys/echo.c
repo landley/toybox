@@ -36,56 +36,54 @@ config ECHO
 
 void echo_main(void)
 {
-	int i = 0;
-	char *arg, *from = "\\abfnrtv", *to = "\\\a\b\f\n\r\t\v";
+	int i = 0, out;
+	char *arg, *from = "\\abfnrtv", *to = "\\\a\b\f\n\r\t\v", *c;
 
 	for (;;) {
 		arg = toys.optargs[i];
 		if (!arg) break;
 		if (i++) xputc(' ');
 
+		// Should we output arg verbatim?
+
+		if (!(toys.optflags&2)) {
+			xprintf("%s", arg);
+			continue;
+		}
+
 		// Handle -e
 
-		if (toys.optflags&2) {
-			int c, j = 0;
-			for (;;) {
-				c = arg[j++];
-				if (!c) break;
-				if (c == '\\') {
-					char *found;
-					int d = arg[j++];
+		for (c=arg;;) {
+			if (!(out = *(c++))) break;
 
-					// handle \escapes
-
-					if (d) {
-						found = strchr(from, d);
-						if (found) c = to[found-from];
-						else if (d == 'c') goto done;
-						else if (d == '0') {
-							int n = 0;
-							c = 0;
-							while (arg[j]>='0' && arg[j]<='7' && n++<3)
-								c = (c*8)+arg[j++]-'0';
-						} else if (d == 'x') {
-							int n = 0;
-							c = 0;							
-							while (n++<2) {
-								if (arg[j]>='0' && arg[j]<='9')
-									c = (c*16)+arg[j++]-'0';
-								else {
-									int temp = tolower(arg[j]);
-									if (temp>='a' && temp<='f') {
-										c = (c*16)+temp-'a'+10;
-										j++;
-									} else break;
-								}
-							}
+			// handle \escapes
+			if (out == '\\' && *c) {
+				int n = 0, slash = *(c++);
+				char *found = strchr(from, slash);
+				if (found) out = to[found-from];
+				else if (slash == 'c') goto done;
+				else if (slash == '0') {
+					out = 0;
+					while (*c>='0' && *c<='7' && n++<3)
+						out = (out*8)+*(c++)-'0';
+				} else if (slash == 'x') {
+					out = 0;							
+					while (n++<2) {
+						if (*c>='0' && *c<='9')
+							out = (out*16)+*(c++)-'0';
+						else {
+							int temp = tolower(*c);
+							if (temp>='a' && temp<='f') {
+								out = (out*16)+temp-'a'+10;
+								c++;
+							} else break;
 						}
 					}
-				}
-				xputc(c);
+				// Slash in front of unknown character, print literal.
+				} else c--;
 			}
-		} else xprintf("%s", arg);
+			xputc(out);
+		}
 	}
 
 	// Output "\n" if no -n
