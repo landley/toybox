@@ -1,4 +1,8 @@
 /* vi: set sw=4 ts=4:
+ *
+ * env.c - Set the environment for command invocation.
+ *
+ * Copyright 2012 Tryn Mirell <tryn@mirell.org>
  * env.c
 
 USE_ENV(NEWTOY(env, "^i", TOYFLAG_USR|TOYFLAG_BIN))
@@ -7,9 +11,11 @@ config ENV
 	bool "env"
 	default y
 	help
-        usage: env [-i] [FOO=BAR...] [command [option...]]
+          usage: env [-i] [NAME=VALUE...] [command [option...]]
 
-        Set the environment for command invocation
+          Set the environment for command invocation.
+
+	  -i	Clear existing environment.
 */
 
 #include "toys.h"
@@ -40,8 +46,7 @@ void env_main(void)
     
     if (!command) {
         char **ep;
-        for (ep = environ; *ep; ep++)
-            xputs(*ep);
+        for (ep = environ; *ep; ep++) xputs(*ep);
         return;
-    } else execvp(*command, command);
+    } else xexec(command);
 }
