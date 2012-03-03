@@ -10,6 +10,7 @@ USE_SEQ(NEWTOY(seq, "<1>3?", TOYFLAG_USR|TOYFLAG_BIN))
 
 config SEQ
 	bool "seq"
+	depends on TOYBOX_FLOAT
 	default y
 	help
 	  usage: seq [first] [increment] last
