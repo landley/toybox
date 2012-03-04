@@ -13,30 +13,42 @@ config SLEEP
 	bool "sleep"
 	default y
 	help
-	  usage: sleep [.]SECONDS[SUFFIX]
+	  usage: sleep SECONDS
 
-	  Wait a decimal integer number of seconds. If seconds is preceded by .
-	  then sleep waits .X seconds. [SUFFIX] can be set to "m" for minutes,
-	  "h" for hours or "d" for days. The default suffix is "s" - seconds.
+	  Wait before exiting.
+
+config SLEEP_FLOAT
+	bool
+	default y
+	depends on SLEEP && TOYBOX_FLOAT
+	help
+	  The delay can be a decimal fraction. An optional suffix can be "m"
+	  (minutes), "h" (hours), "d" (days), or "s" (seconds, the default).
 */
 
 #include "toys.h"
 
 void sleep_main(void)
 {
-	char *arg = *toys.optargs;
-	unsigned long period;
-	if (arg[0] == '.') {
-		period = (unsigned long)(strtod(arg, NULL) * 1000000);
-		toys.exitval = usleep(period);
-	} else {
-		char suffix = arg[strlen(arg) - 1];
-		period = strtoul(arg, NULL, 10);
-		switch (suffix) {
-			case 'm': period *= 60; break;
-			case 'h': period *= 3600; break;
-			case 'd': period *= 86400; break;
+
+	if (!CFG_TOYBOX_FLOAT) toys.exitval = sleep(atol(*toys.optargs));
+	else {
+		char *arg;
+		double d = strtod(*toys.optargs, &arg);
+		unsigned long l;
+
+		// Parse suffix
+		if (*arg) {
+			int imhd[]={60,3600,86400};
+			char *mhd = "mhd", *c = strchr(mhd, *arg);
+			if (!arg) error_exit("Unknown suffix '%c'", *arg);
+			d *= imhd[c-mhd];
 		}
-		toys.exitval = sleep(period);
+
+		// wait through the delay
+		l = (unsigned long)d;
+		d -= l;
+		if (l) toys.exitval = sleep(l);
+		if (!toys.exitval) toys.exitval = usleep((unsigned long)(d * 1000000));
 	}
 }
