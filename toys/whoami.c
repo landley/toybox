@@ -28,5 +28,5 @@ void whoami_main(void)
 		return;
 	}
 
-	xprintf("%s\n", pw->pw_name);
+	xputs(pw->pw_name);
 }
