@@ -1,6 +1,6 @@
 /* vi: set sw=4 ts=4:
  *
- * whoami.c - Print effective user id
+ * whoami.c - Print effective user name
  *
  * Copyright 2012 Georgi Chorbadzhiyski <georgi@unixsol.org>
  *
