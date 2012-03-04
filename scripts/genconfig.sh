@@ -14,7 +14,7 @@ probeconfig()
 
   echo -e "# container support\nconfig TOYBOX_CONTAINER\n\tbool" || return 1
   ${CROSS_COMPILE}${CC} -c -xc -o /dev/null - 2>/dev/null << EOF
-    #include <sched.h>
+    #include <linux/sched.h>
     int x=CLONE_NEWNS|CLONE_NEWUTS|CLONE_NEWIPC|CLONE_NEWNET;
 EOF
   [ $? -eq 0 ] && DEFAULT=y || DEFAULT=n
