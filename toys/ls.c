@@ -6,18 +6,19 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/ls.html
 
-USE_LS(NEWTOY(ls, "nRlF1a", TOYFLAG_BIN))
+USE_LS(NEWTOY(ls, "AnRlF1a", TOYFLAG_BIN))
 
 config LS
 	bool "ls"
 	default n
 	help
-	  usage: ls [-l] [-F] [-a] [-1] [directory...]
+	  usage: ls [-lFaA1] [directory...]
 	  list files
 
-          -F    append a character as a file type indicator
-          -a    list all files
           -1    list one file per line
+          -a    list all files
+	  -A	list all files except . and ..
+          -F    append a character as a file type indicator
           -l    show full details for each file
 */
 
@@ -37,13 +38,20 @@ config LS
 #define FLAG_l 8
 #define FLAG_R 16
 #define FLAG_n 32
+#define FLAG_A 64
 
 static int dir_filter(const struct dirent *d)
 {
-    /* Skip over the . & .. entries unless -a is given */
-    if (!(toys.optflags & FLAG_a))
-        if (d->d_name[0] == '.')
+    /* Skip over all '.*' entries, unless -a is given */
+    if (!(toys.optflags & FLAG_a)) {
+        /* -A means show everything except the . & .. entries */
+        if (toys.optflags & FLAG_A) {
+            if (strcmp(d->d_name, ".") == 0 ||
+                strcmp(d->d_name, "..") == 0)
+                return 0;
+        } else if (d->d_name[0] == '.')
             return 0;
+    }
     return 1;
 }
 
