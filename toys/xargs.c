@@ -66,7 +66,7 @@ static char *handle_entries(char *data, char **entry)
 				s++;
 			}
 
-			if (TT.entries >= TT.max_entries && TT.max_entries)
+			if (TT.max_entries && TT.entries >= TT.max_entries)
 				return *s ? s : (char *)1;
 
 			if (!*s) break;
@@ -85,11 +85,15 @@ static char *handle_entries(char *data, char **entry)
 			if (entry) entry[TT.entries] = save;
 			++TT.entries;
 		}
+
+	// -0 support
 	} else {
-		if (entry) entry[TT.entries] = data;
-		TT.bytes += strlen(data);
-		if (TT.bytes >= TT.max_bytes || ++TT.entries >= TT.max_entries)
+		TT.bytes += strlen(data)+1;
+		if (TT.max_bytes && TT.bytes >= TT.max_bytes) return data;
+		if (TT.max_entries && TT.entries >= TT.max_entries)
 			return (char *)1;
+		if (entry) entry[TT.entries] = data;
+		TT.entries++;
 	}
 
 	return NULL;
@@ -106,8 +110,8 @@ void xargs_main(void)
 	// If no optargs, call echo.
 	if (!toys.optc) {
 		free(toys.optargs);
-		*(toys.optargs=xzalloc(2*sizeof(char *)))="echo";
-		toys.optc=1;
+		*(toys.optargs = xzalloc(2*sizeof(char *)))="echo";
+		toys.optc = 1;
 	}
 
 	for (entries = 0, bytes = -1; entries < toys.optc; entries++, bytes++)
