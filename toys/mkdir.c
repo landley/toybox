@@ -22,46 +22,40 @@ config MKDIR
 
 #include "toys.h"
 
+DEFINE_GLOBALS(
+	long mode;
+)
 
-static int create_dir(const char *dir, mode_t mode) {
-	int ret = 0;
+#define TT this.mkdir
+
+static int do_mkdir(char *dir)
+{
 	unsigned int i;
 
-	// Shortcut
-	if (strchr(dir, '/') == NULL || !toys.optflags)
-		return mkdir(dir, mode);
+	if (toys.optflags && *dir) {
+		// Skip first char (it can be /)
+		for (i = 1; dir[i]; i++) {
+			int ret;
 
-	char *d = strdup(dir);
-	if (!d)
-		return -1;
-	unsigned int dlen = strlen(dir);
-
-	// Skip first char (it can be /)
-	for (i = 1; i < dlen; i++) {
-		if (d[i] != '/')
-			continue;
-		d[i] = '\0';
-		ret = mkdir(d, mode);
-		d[i] = '/';
-		if (ret < 0 && errno != EEXIST)
-			goto OUT;
+			if (dir[i] != '/') continue;
+			dir[i] = 0;
+			ret = mkdir(dir, TT.mode);
+			if (ret < 0 && errno != EEXIST) return ret;
+			dir[i] = '/';
+		}
 	}
-	ret = mkdir(d, mode);
-OUT:
-	free(d);
-	return ret;
+	return mkdir(dir, TT.mode);
 }
 
 void mkdir_main(void)
 {
 	char **s;
-	mode_t umask_val = umask(0);
-	mode_t dir_mode = (0777 & ~umask_val) | (S_IWUSR | S_IXUSR);
-	umask(umask_val);
+
+	TT.mode = 0777;
 
 	for (s=toys.optargs; *s; s++) {
-		if (create_dir(*s, dir_mode) != 0) {
-			fprintf(stderr, "mkdir: cannot create directory '%s': %s\n", *s, strerror(errno));
+		if (do_mkdir(*s)) {
+			perror_msg("cannot create directory '%s'", *s);
 			toys.exitval = 1;
 		}
 	}
