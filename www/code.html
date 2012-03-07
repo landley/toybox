@@ -1,41 +1,17 @@
 <!--#include file="header.html" -->
 
-<h1>Simplicity first: spending your complexity budget wisely.</h1>
+<p><h1>Code style</h1></p>
 
 <p>The primary goal of toybox is _simple_ code. Keeping the code small is
-second, with speed and lots of features coming in somewhere after that.</p>
-
-<p>These goals are usually complementary: simplifying code generally reduces
-its size (both in terms of binary size and runtime memory usage), and avoiding
-unnecessary work makes code run faster. Smaller code also tends to run faster
-on modern hardware due to CPU cacheing: fitting your code into L1 cache is
-great, and staying in L2 cache is still pretty good.</p>
+second, with speed and lots of features coming in somewhere after that.
+(For more on that, see the <a href=design.html>design</a> page.)</p>
 
 <p>A simple implementation usually takes up fewer lines of source code,
 meaning more code can fit on the screen at once, meaning the programmer can
 see more of it on the screen and thus keep more if in their head at once.
-This helps code auditing and thus reduces bugs.</p>
-
-<p>Ken Thompson's maximum "when in doubt, use brute force" is an admonishment
-to start with the simplest possible approach and only optimize as needed.
-Although implementing a given set of features is the eventual purpose of
-toybox, we choose to weight simplicity more heavily than anything else.
-Complexity is what we spend to get features (and occasionally smaller size
-or faster running time than the simplest possible implementation). Sometimes
-a feature, speedup, or code shrink isn't worth the complexity cost. We want to
-get "the best bang for the byte" we can, but sometimes being more explicit
-is preferable to being clever enough to outsmart yourself. (Even the best
-programmers are only human.)</p>
-
-<p>Environmental dependencies are a type of complexity, so needing other
-packages to build or run is a big downside.  For example, we don't use curses
-when we can simply output ansi escape sequences and trust all terminal
-programs written in the past 30 years to be able to support them. (A common
-use case is to download a statically linked toybox binary to an arbitrary
-Linux system, and use it in an otherwise unknown environment. It _must_ be
-completely self-contained to support this.)</p>
-
-<p><h1>Code style</h1></p>
+This helps code auditing and thus reduces bugs. That said, sometimes being
+more explicit is preferable to being clever enough to outsmart yourself:
+don't be so terse your code is unreadable.</p>
 
 <p>Toybox source is formatted to be read with 4-space tab stops.  Each file
 starts with a special comment telling vi to set the tab stop to 4.  Note that

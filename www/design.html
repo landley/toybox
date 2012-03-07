@@ -2,16 +2,40 @@
 
 <b><h2>Design goals</h2></b>
 
-<p>Toybox should be simple, small, and fast.  Often, these things need to be
-balanced off against each other.  In general, simple is slightly more
-important than small, and small is slightly more important than fast, but
-it should be possible to get 80% of the way to each goal before they really
-start to fight.</p>
+<p>Toybox should be simple, small, fast, and full featured.  Often, these
+things need to be balanced off against each other.  In general, keeping the
+code simple the most important (and hardest) goal, and small is slightly more
+important than fast. Features are the reason we write code in the first
+place but this has all been implemented before so if we can't do a better
+job why bother?  It should be possible to get 80% of the way to each goal
+before they really start to fight.</p>
+
+<p>Here they are in reverse order of importance:</p>
+
+<b><h3>Features</h3></b>
+
+<p>The <a href=roadmap.html>roadmap</a> has the list of features we're
+trying to implement, and the reasons for them. After the 1.0 release
+some of that material may get moved here.</p>
+
+<p>Some things are simply outside the scope of the project: even though
+posix defines commands for compiling and linking, we're not going to include
+a compiler or linker (and support for a potentially infinite number of hardware
+targets). And until somebody comes up with a ~30k ssh implementation, we're
+going to point you at dropbear or polarssl.</p>
+
+<p>Environmental dependencies are a type of complexity, so needing other
+packages to build or run is a big downside.  For example, we don't use curses
+when we can simply output ansi escape sequences and trust all terminal
+programs written in the past 30 years to be able to support them. (A common
+use case is to download a statically linked toybox binary to an arbitrary
+Linux system, and use it in an otherwise unknown environment; being
+self-contained helps support this.)</p>
 
 <b><h3>Fast</h3></b>
 
 <p>It's easy to say lots about optimizing for speed (which is why this section
-is so long), but at the same time it's the one we care the least about.
+is so long), but at the same time it's the optimization we care the least about.
 The essence of speed is being as efficient as possible, which means doing as
 little work as possible.  A design that's small and simple gets you 90% of the
 way there, and most of the rest is either fine-tuning or more trouble than
@@ -145,7 +169,9 @@ code.</p>
 
 <p>Avoid special cases.  Whenever you see similar chunks of code in more than
 one place, it might be possible to combine them and have the users call shared
-code.  (This is the most commonly cited trick, which doesn't make it easy.)</p>
+code. (This is the most commonly cited trick, which doesn't make it easy. If
+seeing two lines of code do the same thing makes you slightly uncomfortable,
+you've got the right mindset.)</p>
 
 <p>Some specific advice: Using a char in place of an int when doing math
 produces significantly larger code on some platforms (notably arm),
@@ -166,6 +192,13 @@ worth it.)</p>
 <p>Simplicity has lots of benefits.  Simple code is easy to maintain, easy to
 port to new processors, easy to audit for security holes, and easy to
 understand.  (Comments help, but they're no substitute for simple code.)</p>
+
+<p>Prioritizing simplicity tends to serve our other goals: simplifying code
+generally reduces its size (both in terms of binary size and runtime memory
+usage), and avoiding unnecessary work makes code run faster. Smaller code
+also tends to run faster on modern hardware due to CPU cacheing: fitting your
+code into L1 cache is great, and staying in L2 cache is still pretty good.</p>
+
 
 <p><a href=http://www.joelonsoftware.com/articles/fog0000000069.html>Joel
 Spolsky argues against throwing code out and starting over</a>, and he has
@@ -196,10 +229,10 @@ programmers should strive to be lazy and dumb</a>?</p>
 <b><h2>Portability issues</h2></b>
 
 <b><h3>Platforms</h3></b>
-<p>Toybox should run on every hardware platform Linux runs on.  Other
-posix/susv3 environments (perhaps MacOS X or newlib+libgloss) are vaguely
-interesting but only if they're easy to support; I'm not going to spend much
-effort on them.</p>
+<p>Toybox should run on Android (alas, with bionic), and every other hardware
+platform Linux runs on.  Other posix/susv4 environments (perhaps MacOS X or
+newlib+libgloss) are vaguely interesting but only if they're easy to support;
+I'm not going to spend much effort on them.</p>
 
 <p>I don't do windows.</p>
 

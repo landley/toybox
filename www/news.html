@@ -1,17 +1,48 @@
 <!--#include file="header.html" -->
 
-<h2>Currently implemented commands:</h2>
-<p>
-basename, bzcat, cal, cat, catv, chroot, chvt, cksum, count, cp, df, dirname,
-dmesg, echo, env, false, head, help, link, mkswap, nc, netcat, nice, nohup,
-oneit, patch, pwd, rmdir, seq, setsid, sha1sum, sleep, sort, sync, tee, true,
-truncate, tty, uname, unlink, unshare, wc, which, xargs, yes
-</p>
-
-<h2>Shell wrappers:</h2>
-<p>dos2unix, tac, unix2dos</p>
+<h2>See <a href=roadmap.html>roadmap</a> for current and planned
+command list.</h2>
 
 <h2>News</h2>
+<hr><b>March 3, 2012</b>
+
+<blockquote><p>"They went unnoticed at Goonhilly, passed over Cape Canaveral
+without a blip, and Woomera and Jodrell Bank looked straight through them.
+Which was a pity, because it was exactly the sort of thing they'd been looking
+for all these years."</p></p>- The Hitchhiker's Guide to the Galaxy.</p>
+</p></blockquote>
+
+<p>Here's <a href=downloads/toybox-0.2.1.tar.bz2>toybox 0.2.1</a> based
+on <a href=http://landley.net/hg/toybox/shortlog/512>commit 512</a>.  This
+time around, there are statically linked <a href=downloads/binaries>prebuilt
+binaries</a> for various embedded targets.</p>
+
+<p>It's been a busy few weeks, almost entirely due to new contributors. (I
+have not quite been keeping up.)</p>
+
+<p>Elie De Brauwer contributed free, uptime, swapon, swapoff, lsmod, mknod,
+insmod, rmmod, and fixed a bug in basename.  Andre Renaud contributed ls, ln,
+realpath, and hostname. Andres Heck contributed pidof and killall.  Daniel
+Walter wrote kill and extended id. Timothy Elliott contributed tail and tests
+for cmp. Frank Bergmann sent a warning fix. Bryce Fricke added -i to cp.
+Nathan McSween pointed out an optimization. Georgi Chorbadzhiyski fixed
+cross compiling to work more reliably.</p>
+
+<p>(My own contribution this time around was just tightening up other people's
+code, a build fix to unshare, some random bugfixes, and so on. My only new
+code this time around was writing a bash replacement for the existing python
+bloat-o-meter.)</p>
+
+<p>Last time (the 0.2.0 release) included the first pass at an id command from
+Tim Bird, env and basename from Tryn Mirell, cmp and head from Timothy Elliott,
+more bugfixes from Nathan McSween and Elie De Brauwer, and Luis Felipe Strano
+Moraes did a first pass at the who command plus other bugfixes and
+optimizations.</p>
+
+<p>(For that release I did xargs, cal, truncate, unlink, nohup, tty, wc, link,
+dirname, unshare, and various infrastructure tweaks, but it took me 3 months
+and those guys did their stuff in a week or so.)</p>
+
 
 <hr><b>February 12, 2012</b>
 <blockquote><p>
