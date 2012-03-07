@@ -180,7 +180,7 @@ void cp_main(void)
 		char *src = toys.optargs[i];
 		char *dst;
 
-		// Skip src==dest (should check inodes to catch "cp blah ./blah").
+		// Skip src==dest (TODO check inodes to catch "cp blah ./blah").
 
 		if (!strcmp(src, TT.destname)) continue;
 

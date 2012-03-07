@@ -16,6 +16,7 @@ config FREE
 
 	  Display the total, free and used amount of physical memory and
 	  swap space.
+
 	  -bkmg    Output in bytes (default), KB, MB or GB
 */
 

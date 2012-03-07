@@ -13,7 +13,7 @@ config WHOAMI
 	help
 	  usage: whoami
 
-	  Print effective user id.
+	  Print effective user name.
 */
 
 #include "toys.h"

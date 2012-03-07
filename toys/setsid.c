@@ -4,8 +4,7 @@
  *
  * Copyright 2006 Rob Landley <rob@landley.net>
  *
- * Not in SUSv3.
- * See http://www.opengroup.org/onlinepubs/009695399/utilities/
+ * Not in SUSv4.
 
 USE_SETSID(NEWTOY(setsid, "^<1t", TOYFLAG_USR|TOYFLAG_BIN))
 

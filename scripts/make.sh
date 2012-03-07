@@ -7,7 +7,7 @@ source ./configure
 echo "Extract configuration information from toys/*.c files..."
 scripts/genconfig.sh
 
-echo "Generate headers from toys/*.h..."
+echo "Generate headers from toys/*.c..."
 
 # Create a list of all the applets toybox can provide.  Note that the first
 # entry is out of order on purpose (the toybox multiplexer applet must be the
