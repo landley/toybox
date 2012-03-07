@@ -15,19 +15,27 @@ config MKFIFO
 	default y
 	help
 	  usage: mkfifo [fifo_name...]
-	  Create FIFOs (named pipes).
 
+	  Create FIFOs (named pipes).
 */
 
 #include "toys.h"
 
+DEFINE_GLOBALS(
+	long mode;
+)
+
+#define TT this.mkfifo
+
 void mkfifo_main(void)
 {
 	char **s;
-	mode_t mode = 0666;
+
+	TT.mode = 0666;
+
 	for (s = toys.optargs; *s; s++) {
-		if (mknod(*s, S_IFIFO | mode, 0) < 0) {
-			fprintf(stderr, "mkfifo: cannot create fifo `%s': %s\n", *s, strerror(errno));
+		if (mknod(*s, S_IFIFO | TT.mode, 0) < 0) {
+			perror_msg("cannot create fifo '%s'", *s);
 			toys.exitval = 1;
 		}
 	}
