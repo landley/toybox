@@ -122,7 +122,7 @@ void netcat_main(void)
 			address.sin_port = SWAP_BE16(TT.port);
 			if (TT.source_address) 
 				lookup_name(TT.source_address, (uint32_t *)&address.sin_addr);
-			if (bind(sockfd, &address, sizeof(address)))
+			if (bind(sockfd, (struct sockaddr *)&address, sizeof(address)))
 				perror_exit("bind");
 		}
 
@@ -143,7 +143,7 @@ void netcat_main(void)
 
 			if (listen(sockfd, 5)) error_exit("listen");
 			if (!TT.port) {
-				getsockname(sockfd, &address, &len);
+				getsockname(sockfd, (struct sockaddr *)&address, &len);
 				printf("%d\n", SWAP_BE16(address.sin_port));
 				fflush(stdout);
 			}
