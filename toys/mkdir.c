@@ -30,21 +30,35 @@ DEFINE_GLOBALS(
 
 static int do_mkdir(char *dir)
 {
-	unsigned int i;
+	struct stat buf;
+	char *s;
 
-	if (toys.optflags && *dir) {
-		// Skip first char (it can be /)
-		for (i = 1; dir[i]; i++) {
-			int ret;
+	// mkdir -p one/two/three is not an error if the path already exists,
+	// but is if "three" is a file.  The others we dereference and catch
+	// not-a-directory along the way, but the last one we must explicitly
+	// test for. Might as well do it up front.
 
-			if (dir[i] != '/') continue;
-			dir[i] = 0;
-			ret = mkdir(dir, TT.mode);
-			if (ret < 0 && errno != EEXIST) return ret;
-			dir[i] = '/';
-		}
+	if (!stat(dir, &buf) && !S_ISDIR(buf.st_mode)) {
+		errno = EEXIST;
+		return 1;
 	}
-	return mkdir(dir, TT.mode);
+
+	for (s=dir; ; s++) {
+		char save=0;
+
+		// Skip leading / of absolute paths.
+		if (s!=dir && *s == '/' && toys.optflags) {
+			save = *s;
+			*s = 0;
+		} else if (*s) continue;
+
+		if (mkdir(dir, TT.mode)<0 && (!toys.optflags || errno != EEXIST))
+			return 1;
+
+		if (!(*s = save)) break;
+	}
+
+	return 0;
 }
 
 void mkdir_main(void)
