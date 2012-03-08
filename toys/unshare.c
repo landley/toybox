@@ -27,8 +27,6 @@ config UNSHARE
 
 #include "toys.h"
 
-#include <sched.h>
-
 void unshare_main(void)
 {
 	unsigned flags[]={CLONE_NEWNS, CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWNET,0};

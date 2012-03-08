@@ -25,7 +25,6 @@ config UNAME
 */
 
 #include "toys.h"
-#include <sys/utsname.h>
 
 // If a 32 bit x86 build environment working in a chroot under an x86-64
 // kernel returns x86_64 for -m it confuses ./configure.  Special case it.

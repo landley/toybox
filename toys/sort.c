@@ -61,7 +61,6 @@ config SORT_FLOAT
 */
 
 #include "toys.h"
-#include <math.h>
 
 DEFINE_GLOBALS(
     char *key_separator;

@@ -25,9 +25,6 @@ config ID
 	  -u    Show only the effective user ID
 */
 
-#include <sys/types.h>
-#include <pwd.h>
-#include <grp.h>
 #include "toys.h"
 
 #define FLAG_n (1<<4)
@@ -36,8 +33,8 @@ config ID
 #define FLAG_r (1<<1)
 #define FLAG_u 1
 
-void
-pretty_print(struct passwd *pw, struct group *grp, struct group **grps, int n)
+void pretty_print(struct passwd *pw, struct group *grp, struct group **grps,
+		int n)
 {
 	int i;
 	printf("uid= %d(%s) gid= %d(%s)", pw->pw_uid, pw->pw_name,

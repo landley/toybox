@@ -22,14 +22,6 @@ config LS
           -l    show full details for each file
 */
 
-/* So that we can do 64-bit stat etc... */
-#define _FILE_OFFSET_BITS 64
-
-#include <unistd.h>
-#include <sys/types.h>
-#include <grp.h>
-#include <pwd.h>
-
 #include "toys.h"
 
 #define FLAG_a 1

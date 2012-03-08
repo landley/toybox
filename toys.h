@@ -15,8 +15,11 @@
 #include <grp.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <libgen.h>
+#include <math.h>
 #include <pty.h>
 #include <pwd.h>
+#include <sched.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -31,9 +34,11 @@
 #include <sys/sysinfo.h>
 #include <sys/swap.h>
 #include <sys/types.h>
+#include <sys/utsname.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <utime.h>
+#include <utmpx.h>
 
 #undef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 600

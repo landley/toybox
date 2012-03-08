@@ -7,8 +7,13 @@
 
 #undef _FORTIFY_SOURCE
 
-// Humor glibc to get dprintf, then #define it to something more portable.
-#define _GNU_SOURCE
+#define _FILE_OFFSET_BITS 64
+
+#define _POSIX_C_SOURCE 200809L
+#define _XOPEN_SOURCE 600
+#define _BSD_SOURCE
+#define _SVID_SOURCE
+
 #include <stdio.h>
 #define fdprintf(...) dprintf(__VA_ARGS__)
 

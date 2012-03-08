@@ -21,8 +21,6 @@ config WHO
 */
 
 #include "toys.h"
-#include <time.h>
-#include <utmpx.h>
 
 void who_main(void)
 {
