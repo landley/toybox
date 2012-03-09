@@ -466,11 +466,32 @@ modify Config.in, then you'll need python installed to rebuild it.)</p>
 configuration, but only the currently enabled ones are entered into help_data[]
 in toys/help.c.</p>
 
+<a name="lib">
 <h2>Directory lib/</h2>
+
+<p>TODO: document lots more here.</p>
 
 <p>lib: llist, getmountlist(), error_msg/error_exit, xmalloc(),
 strlcpy(), xexec(), xopen()/xread(), xgetcwd(), xabspath(), find_in_path(),
 itoa().</p>
+
+<h3>lib/portability.h</h3>
+
+<p>This file is automatically included from the top of toys.h, and smooths
+over differences between platforms (hardware targets, compilers, C libraries,
+operating systems, etc).</p>
+
+<p>This file provides SWAP macros (SWAP_BE16(x) and SWAP_LE32(x) and so on).</p>
+
+<p>A macro like SWAP_LE32(x) means "The value in x is stored as a little
+endian 32 bit value, so perform the translation to/from whatever the native
+32-bit format is".  You do the swap once on the way in, and once on the way
+out. If your target is already little endian, the macro is a NOP.</p>
+
+<p>The SWAP macros come in BE and LE each with 16, 32, and 64 bit versions.
+In each case, the name of the macro refers to the _external_ representation,
+and converts to/from whatever your native representation happens to be (which
+can vary depending on what you're currently compiling for).</p>
 
 <a name="lib_args"><h3>lib/args.c</h3>
 
