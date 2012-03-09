@@ -30,7 +30,7 @@ static int which_in_path(char *filename)
 
 	// If they gave us a path, don't worry about $PATH or -a
 
-	if (index(filename, '/')) {
+	if (strchr(filename, '/')) {
 		// Confirm it has the executable bit set, and it's not a directory.
 		if (!access(filename, X_OK)) {
 			struct stat st;

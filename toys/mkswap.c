@@ -21,7 +21,7 @@ config MKSWAP
 
 void mkswap_main(void)
 {
-	int fd = xopen(*toys.optargs, O_RDWR), pagesize = getpagesize();
+	int fd = xopen(*toys.optargs, O_RDWR), pagesize = sysconf(_SC_PAGE_SIZE);
 	off_t len = fdlength(fd);
 	unsigned int pages = (len/pagesize)-1, *swap = (unsigned int *)toybuf;
 

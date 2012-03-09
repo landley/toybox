@@ -390,7 +390,7 @@ struct string_list *find_in_path(char *path, char *filename)
 	char *cwd = xgetcwd();
 
 	for (;;) {
-		char *next = path ? index(path, ':') : NULL;
+		char *next = path ? strchr(path, ':') : NULL;
 		int len = next ? next-path : strlen(path);
 		struct string_list *rnext;
 		struct stat st;

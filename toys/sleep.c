@@ -49,6 +49,7 @@ void sleep_main(void)
 		l = (unsigned long)d;
 		d -= l;
 		if (l) toys.exitval = sleep(l);
-		if (!toys.exitval) toys.exitval = usleep((unsigned long)(d * 1000000));
+		if (!toys.exitval)
+			toys.exitval = nanosleep((unsigned long)(d * 1000000000));
 	}
 }
