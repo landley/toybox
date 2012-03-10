@@ -49,7 +49,13 @@ void sleep_main(void)
 		l = (unsigned long)d;
 		d -= l;
 		if (l) toys.exitval = sleep(l);
-		if (!toys.exitval)
-			toys.exitval = nanosleep((unsigned long)(d * 1000000000));
+		if (!toys.exitval) {
+			unsigned long usec = d * 1000000;
+			struct timespec tv = {
+				.tv_sec = usec / 1000000,
+				.tv_nsec = (usec % 1000000) * 1000
+			};
+			toys.exitval = nanosleep(&tv, NULL);
+		}
 	}
 }
