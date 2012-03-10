@@ -359,7 +359,7 @@ void sort_main(void)
                     // Which flag is this?
 
                     optlist = toys.which->options;
-                    temp2 = index(optlist, *temp);
+                    temp2 = strchr(optlist, *temp);
                     flag = (1<<(optlist-temp2+strlen(optlist)-1));
 
                     // Was it a flag that can apply to a key?
