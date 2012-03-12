@@ -29,6 +29,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/mount.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/sysinfo.h>
