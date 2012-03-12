@@ -6,11 +6,11 @@
  *
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/tail.html
 
-USE_TAIL(NEWTOY(tail, "c-|fn-|", TOYFLAG_BIN))
+USE_TAIL(NEWTOY(tail, "fc-n-", TOYFLAG_BIN))
 
 config TAIL
 	bool "tail"
-	default n
+	default y
 	help
 	  usage: tail [-n|c number] [-f] [file...]
 
@@ -20,6 +20,13 @@ config TAIL
 	  -n	output the last X lines (default 10), +X counts from start.
 	  -c    output the last X bytes, +X counts from start
 	  -f   	follow file, waiting for more data to be appended
+
+config TAIL_SEEK
+	bool "tail seek support"
+	default y
+	depends on TAIL
+	help
+		This version uses lseek, which is faster on large files.
 */
 
 #include "toys.h"
@@ -34,138 +41,184 @@ DEFINE_GLOBALS(
 #define TT this.tail
 
 #define FLAG_n 1
-#define FLAG_f 2
-#define FLAG_c 4
-	
+#define FLAG_c 2
+#define FLAG_f 4
+
 struct line_list {
-	struct line_list *next;
+	struct line_list *next, *prev;
 	char *data;
-	ssize_t len;
-	long lines;
+	int len;
 };
 
-static void print_after_offset(int fd, long bytes, long lines)
+static struct line_list *get_chunk(int fd, int len)
 {
-	ssize_t read_len;
-	long size=sizeof(toybuf);
-	char c;
-	
-	while (bytes > 0 || lines > 0) {
-		if (1>read(fd, &c, 1)) break;
-		bytes--;
-		if (c == '\n') lines--;
+	struct line_list *line = xmalloc(sizeof(struct line_list)+len);
+
+	line->data = ((char *)line) + sizeof(struct line_list);
+	line->len = readall(fd, line->data, len);
+
+	if (line->len < 1) {
+		free(line);
+		return 0;
 	}
 
-	for (;;) {
-		read_len = xread(fd, toybuf, size);
-		if (read_len<1) break;
-		xwrite(1, toybuf, read_len);
-	}
+	return line;
 }
 
-static void print_last_bytes(int fd, long bytes)
+static void dump_chunk(void *ptr)
 {
-	char *buf1, *buf2, *temp;
-	ssize_t read_len;
-
-	buf1 = xmalloc(bytes);
-	buf2 = xmalloc(bytes);
-
-	for(;;) {
-		// swap buf1 and buf2
-		temp = buf1;
-		buf1 = buf2;
-		buf2 = temp;
-
-		read_len = readall(fd, buf2, bytes);
-		if (read_len<bytes) break;
-	}
-
-	// output part of buf1 and all of buf2
-	xwrite(1, buf1 + read_len, bytes - read_len);
-	xwrite(1, buf2, read_len);
-
-	if (CFG_TOYBOX_FREE) {
-		free(buf1);
-		free(buf2);
-	}
-}
-
-static void free_line(void *data)
-{
-	struct line_list *list = (struct line_list *)data;
-	free(list->data);
+	struct line_list *list = ptr;
+	xwrite(1, list->data, list->len);
 	free(list);
 }
 
-static void llist_add(struct line_list **head, struct line_list *new)
+// Reading through very large files is slow.  Using lseek can speed things
+// up a lot, but isn't applicable to all input (cat | tail).
+// Note: bytes and lines are negative here.
+static int try_lseek(int fd, long bytes, long lines)
 {
-	struct line_list *cur = *head;
+	struct line_list *list = 0, *temp;
+	int flag = 0, chunk = sizeof(toybuf);
+	ssize_t pos = lseek(fd, 0, SEEK_END);
 
-	new->next = NULL;
-	if (cur) {
-		while (cur->next)
-			cur = cur->next;
-		cur->next = new;
-	} else *head = new;
-}
+	// If lseek() doesn't work on this stream, return now.
+	if (pos<0) return 0;
 
-static void print_last_lines(int fd, long lines)
-{
-	ssize_t i, total=0;
-	long size=sizeof(toybuf);
-	struct line_list *buf=NULL, *cur;
-
-	for (;;) {
-		// read from input and append to buffer list
-		cur = xzalloc(sizeof(struct line_list));
-
-		cur->data = xmalloc(size);
-		cur->len = readall(fd, cur->data, size);
-		llist_add(&buf, cur);
-
-		// count newlines in latest input
-		for (i=0; i<cur->len; i++)
-			if (cur->data[i] == '\n') cur->lines++;
-		total += cur->lines;
-
-		// release first buffers if it leaves us enough newlines
-		while (total - buf->lines > lines) {
-			total -= buf->lines;
-			free_line(llist_pop(&buf));
-		}
-		if (cur->len < size) break;
+	// Seek to the right spot, output data from there.
+	if (bytes) {
+		if (lseek(fd, bytes, SEEK_END)<0) lseek(fd, 0, SEEK_SET);
+		xsendfile(fd, 1);
+		return 1;
 	}
-	
-	// if last buffer doesn't end in a newline, pretend like it did
-	if (cur->data[cur->len - 1]!='\n') total++;
-	
-	// print out part of the first buffer
-	i = 0;
-	while (total>lines)
-		if (buf->data[i++]=='\n') total--;
-	xwrite(1, buf->data + i, buf->len - i);
-	
-	// print remaining buffers in their entirety
-	for (cur=buf->next; cur; cur=cur->next)
-		xwrite(1, cur->data, cur->len);
 
-	if (CFG_TOYBOX_FREE) llist_free(buf, free_line);
+	// Read from end to find enough lines, then output them.
+
+	bytes = pos;
+	while (lines && pos) {
+		int offset;
+
+		// Read in next chunk from end of file
+		if (chunk>pos) chunk = pos;
+		pos -= chunk;
+		if (pos != lseek(fd, pos, SEEK_SET)) {
+			perror_msg("seek failed");
+			break;
+		}
+		if (!(temp = get_chunk(fd, chunk))) break;
+		if (list) list->next = temp;
+		list = temp;
+
+		// Count newlines in this chunk.
+		offset = list->len;
+		while (offset--) {
+			// If the last line ends with a newline, that one doesn't count.
+			if (!flag) {
+				flag++;
+
+				continue;
+			}
+
+			// Start outputting data right after newline
+			if (list->data[offset] == '\n' && !++lines) {
+				offset++;
+				list->data += offset;
+				list->len -= offset;
+
+				break;
+			}
+		}
+	}
+
+	// Output stored data
+	llist_free(list, dump_chunk);
+
+	// In case of -f
+	lseek(fd, bytes, SEEK_SET);
+	return 1;
 }
 
+// Called for each file listed on command line, and/or stdin
 static void do_tail(int fd, char *name)
 {
-	long lines=TT.lines, bytes=TT.bytes;
+	long bytes = TT.bytes, lines = TT.lines;
 
 	if (toys.optc > 1) {
-		// print an extra newline for all but the first file
 		if (TT.file_no++) xputc('\n');
 		xprintf("==> %s <==\n", name);
 	}
 
-	if (lines > 0 || bytes > 0) print_after_offset(fd, bytes, lines);
-	else if (bytes < 0) print_last_bytes(fd, bytes * -1);
-	else print_last_lines(fd, lines * -1);
+	// Are we measuring from the end of the file?
+
+	if (bytes<0 || lines<0) {
+		struct line_list *list = 0, *new;
+
+		// The slow codepath is always needed, and can handle all input,
+		// so make lseek support optional.
+		if (CFG_TAIL_SEEK && try_lseek(fd, bytes, lines));
+
+		// Read data until we run out, keep a trailing buffer
+		else for (;;) {
+			int len, count;
+			char *try;
+
+			if (!(new = get_chunk(fd, sizeof(toybuf)))) break;
+			// append in order
+			dlist_add_nomalloc((struct double_list **)&list,
+							   (struct double_list *)new);
+
+			// Measure new chunk, discarding extra data from buffer
+			len = new->len;
+			try = new->data;
+			for (count=0; count<len; count++) {
+				if ((toys.optflags & FLAG_c) && bytes) {
+					bytes++;
+					continue;
+				}
+
+				if (lines) {
+					if(try[count] != '\n') continue;
+					if (lines<0) {
+						if (!++lines) ++lines;
+						continue;
+					}
+				}
+
+				// Time to discard data; given that bytes and lines were
+				// nonzero coming in, we can't discard too much if we're
+				// measuring right.
+				do {
+					char c = *(list->data++);
+					if (!(--list->len)) {
+						struct line_list *next = list->next;
+						list->prev->next = next;
+						list->next->prev = list->prev;
+						free(list);
+						list = next;
+					}
+					if (c == '\n') break;
+				} while (lines);
+			}
+		}
+
+		// Output/free the buffer.
+		llist_free(list, dump_chunk);
+
+	// Measuring from the beginning of the file.
+	} else for (;;) {
+		int len, offset = 0;
+
+		// Error while reading does not exit.  Error writing does.
+		len = read(fd, toybuf, sizeof(toybuf));
+		if (len<1) break;
+		while (bytes > 1 || lines > 1) {
+			bytes--;
+			if (toybuf[offset++] == '\n') lines--;
+			if (offset >= len) break;
+		}
+		if (offset<len) xwrite(1, toybuf+offset, len-offset);
+	}
+
+	// -f support: cache name/descriptor
 }
 
 void tail_main(void)
@@ -174,4 +227,6 @@ void tail_main(void)
 	if (!(toys.optflags&(FLAG_n|FLAG_c))) TT.lines = -10;
 
 	loopfiles(toys.optargs, do_tail);
+
+	// do -f stuff
 }

@@ -35,18 +35,24 @@ void *llist_pop(void *list)
 	return (void *)next;
 }
 
+void dlist_add_nomalloc(struct double_list **list, struct double_list *new)
+{
+	if (*list) {
+		new->next = *list;
+		new->prev = (*list)->prev;
+		(*list)->prev->next = new;
+		(*list)->prev = new;
+	} else *list = new->next = new->prev = new;
+}
+
+
 // Add an entry to the end of a doubly linked list
 struct double_list *dlist_add(struct double_list **list, char *data)
 {
-	struct double_list *line = xmalloc(sizeof(struct double_list));
+	struct double_list *new = xmalloc(sizeof(struct double_list));
 
-	line->data = data;
-	if (*list) {
-		line->next = *list;
-		line->prev = (*list)->prev;
-		(*list)->prev->next = line;
-		(*list)->prev = line;
-	} else *list = line->next = line->prev = line;
+	new->data = data;
+	dlist_add_nomalloc(list, new);
 
-	return line;
+	return new;
 }

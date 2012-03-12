@@ -36,7 +36,7 @@
 //       [yz] needs at least one of y or z. TODO
 //   at the beginning:
 //     ^ stop at first nonoption argument
-//     <0 die if less than leftover arguments (default 0)
+//     <0 die if less than # leftover arguments (default 0)
 //     >9 die if > # leftover arguments (default MAX_INT)
 //     ? Allow unknown arguments (pass them through to command).
 //     & first argument has imaginary dash (ala tar/ps)
@@ -241,7 +241,7 @@ void parse_optflaglist(struct getoptflagstate *gof)
 
 		// If this is the start of a new option that wasn't a longopt,
 
-		} else if (strchr(":*#@.", *options)) {
+		} else if (strchr(":*#@.-", *options)) {
 			if (CFG_TOYBOX_DEBUG && new->type)
 				error_exit("multiple types %c:%c%c", new->c, new->type, *options);
 			new->type = *options;
