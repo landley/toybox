@@ -33,90 +33,87 @@ config ID
 #define FLAG_r (1<<1)
 #define FLAG_u 1
 
-void pretty_print(struct passwd *pw, struct group *grp, struct group **grps,
-		int n)
+static void s_or_u(char *s, unsigned u, int done)
 {
-	int i = 0;
-
-	printf("uid=%u(%s) gid=%u(%s)", pw->pw_uid, pw->pw_name,
-									grp->gr_gid, grp->gr_name);
-	if (n) printf(" groups=");
-	while (i < n) {
-		printf("%d(%s)", grps[i]->gr_gid, grps[i]->gr_name);
-		if (++i<n) xputc(',');
+	if (toys.optflags & FLAG_n) printf("%s", s);
+	else printf("%u", u);
+	if (done) {
+		xputc('\n');
+		exit(0);
 	}
-	xputc('\n');
+}
+
+static void showid(char *header, unsigned u, char *s)
+{
+	printf("%s%u(%s)", header, u, s);
+}
+
+struct passwd *xgetpwuid(uid_t uid)
+{
+	struct passwd *pwd = getpwuid(uid);
+	if (!pwd) error_exit(NULL);
+	return pwd;
+}
+
+struct group *xgetgrgid(gid_t gid)
+{
+	struct group *group = getgrgid(gid);
+	if (!group) error_exit(NULL);
+	return group;
 }
 
 void id_main(void)
 {
 	int flags = toys.optflags, i, ngroups;
 	struct passwd *pw;
-	struct group *grp, **grps;
-	uid_t uid;
-	gid_t gid, *groups;
+	struct group *grp;
+	uid_t uid = getuid(), euid = geteuid();
+	gid_t gid = getgid(), egid = getegid(), *groups;
 
 	/* check if a username is given */
 	if (*toys.optargs) {
 		if (!(pw = getpwnam(*toys.optargs)))
 			error_exit("no such user '%s'", *toys.optargs);
-		uid = pw->pw_uid;
-		gid = pw->pw_gid;
-	} else {
-		/* show effective, unless user specifies real */
-		if (flags & FLAG_r) {
-			uid = getuid();
-			gid = getgid();
-		} else {
-			uid = geteuid();
-			gid = getegid();
+		uid = euid = pw->pw_uid;
+		gid = egid = pw->pw_gid;
+	}
+
+	i = toys.optflags & FLAG_r;
+	pw = xgetpwuid(i ? uid : euid);
+	if (flags & FLAG_u) s_or_u(pw->pw_name, pw->pw_uid, 1);
+
+	grp = xgetgrgid(i ? gid : egid);
+	if (flags & FLAG_g) s_or_u(grp->gr_name, grp->gr_gid, 1);
+
+	if (!(flags & FLAG_G)) {
+		showid("uid=", pw->pw_uid, pw->pw_name);
+		showid(" gid=", grp->gr_gid, grp->gr_name);
+
+		if (!i) {
+			if (uid != euid) {
+				pw = xgetpwuid(euid);
+				showid(" euid=", pw->pw_uid, pw->pw_name);
+			}
+			if (gid != egid) {
+				grp = xgetgrgid(egid);
+				showid(" egid=", grp->gr_gid, grp->gr_name);
+			}
 		}
+
+		showid(" groups=", grp->gr_gid, grp->gr_name);
 	}
 
-	if (!(pw = getpwuid(uid)) || !(grp = getgrgid(gid)))
-		perror_exit(0);
-	
-	if (flags & FLAG_u) {
-		if (flags & FLAG_n) xputs(pw->pw_name);
-		else printf("%d\n", pw->pw_uid);
-		return;
-	}
-	if (flags & FLAG_g) {
-		if (flags & FLAG_n) xputs(grp->gr_name);
-		else printf("%d\n", grp->gr_gid);
-		return;
-	}
-	
-	ngroups = sysconf(_SC_NGROUPS_MAX);
-	if (ngroups<1) ngroups = 32;
-	groups = xmalloc(ngroups * sizeof(gid_t));
-	if (getgrouplist(pw->pw_name, pw->pw_gid, groups, &ngroups) < 0)
+
+	groups = (gid_t *)toybuf;
+	if (0 >= (ngroups = getgroups(sizeof(toybuf)/sizeof(gid_t), groups)))
 		perror_exit(0);
 
-	grps = xmalloc(ngroups * sizeof(struct group *));
 	for (i = 0; i < ngroups; i++) {
-		struct group *tmp;
-		grps[i] = xmalloc(sizeof(struct group));
-		size_t f = sysconf(_SC_GETGR_R_SIZE_MAX);
-		char *buf = xmalloc(f);
-		if (getgrgid_r(groups[i], grps[i], buf, f, &tmp) < 0 || !tmp) {
-			perror_msg(0);
-			continue;
-		}
+		xputc(' ');
+		if (!(grp = getgrgid(groups[i]))) perror_msg(0);
+		else if (flags & FLAG_G)
+			s_or_u(grp->gr_name, grp->gr_gid, 0);
+		else if (grp->gr_gid != egid) showid("", grp->gr_gid, grp->gr_name);
 	}
-	
-	if (flags & FLAG_G) {
-		for (i = 0; i < ngroups; i++) {
-			if (i) xputc(' ');
-			if (flags & FLAG_n) printf("%s", grps[i]->gr_name);
-			else printf("%d", grps[i]->gr_gid);
-		}
-		printf("\n");
-		return;
-	}
-
-	pretty_print(pw, grp, grps, ngroups);
-	for (i=0; i < ngroups; i++)
-		free(grps[i]);
-
+	xputc('\n');
 }
