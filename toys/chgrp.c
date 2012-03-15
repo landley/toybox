@@ -15,7 +15,7 @@ USE_CHGRP(NEWTOY(chgrp, "<2Rfv", TOYFLAG_BIN))
 
 config CHGRP
 	bool "chgrp"
-	default y
+	default n
 	help
 	  usage: chgrp [-R] [-f] [-v] group file...
 	  Change group ownership of one or more files.

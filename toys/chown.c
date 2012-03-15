@@ -15,7 +15,7 @@ USE_CHOWN(NEWTOY(chown, "<2Rfv", TOYFLAG_BIN))
 
 config CHOWN
 	bool "chown"
-	default y
+	default n
 	help
 	  usage: chown [-R] [-f] [-v] group file...
 	  Change ownership of one or more files.

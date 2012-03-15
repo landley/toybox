@@ -11,7 +11,7 @@ USE_CHMOD(NEWTOY(chmod, "<2Rfv", TOYFLAG_BIN))
 
 config CHMOD
 	bool "chmod"
-	default y
+	default n
 	help
 	  usage: chmod [-R] [-f] [-v] mode file...
 	  Change mode bits of one or more files.
