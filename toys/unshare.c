@@ -27,6 +27,7 @@ config UNSHARE
 
 #include "toys.h"
 #include <linux/sched.h>
+extern int unshare (int __flags);
 
 void unshare_main(void)
 {
