@@ -1,5 +1,5 @@
 // The tendency of gcc to produce stupid warnings continues with
-// warn_unsed_result, which warns about things like ignoring the return code
+// warn_unused_result, which warns about things like ignoring the return code
 // of nice(2) (which is completely useless since -1 is a legitimate return
 // value on success and even the man page tells you to use errno instead).
 
@@ -33,6 +33,7 @@
 #define IS_BIG_ENDIAN 0
 #endif
 
+int clearenv(void);
 #else
 
 #ifdef __BIG_ENDIAN__
@@ -71,4 +72,9 @@
 #define GCC_BUG =0
 #else
 #define GCC_BUG
+#endif
+
+#if defined(__APPLE__) || defined(__ANDROID__)
+ssize_t getdelim(char **lineptr, size_t *n, int delim, FILE *stream);
+ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 #endif
