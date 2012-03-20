@@ -13,13 +13,17 @@ probeconfig()
   # Probe for container support on target
 
   echo -e "# container support\nconfig TOYBOX_CONTAINER\n\tbool" || return 1
-  ${CROSS_COMPILE}${CC} -c -xc -o /dev/null - 2>/dev/null << EOF
+  ${CROSS_COMPILE}${CC} -xc -o /dev/null - 2>/dev/null << EOF
     #include <linux/sched.h>
     int x=CLONE_NEWNS|CLONE_NEWUTS|CLONE_NEWIPC|CLONE_NEWNET;
+
+    int main(int argc, char *argv[]) { return unshare(x); }
 EOF
   [ $? -eq 0 ] && DEFAULT=y || DEFAULT=n
+  rm a.out 2>/dev/null
   echo -e "\tdefault $DEFAULT\n" || return 1
 }
+
 genconfig()
 {
   # extract config stanzas from each command source file, in alphabetical order
