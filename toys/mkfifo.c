@@ -8,7 +8,7 @@
  *
  * TODO: Add -m
 
-USE_MKFIFO(NEWTOY(mkfifo, "<1", TOYFLAG_BIN))
+USE_MKFIFO(NEWTOY(mkfifo, "<1m:", TOYFLAG_BIN))
 
 config MKFIFO
 	bool "mkfifo"
@@ -22,16 +22,21 @@ config MKFIFO
 #include "toys.h"
 
 DEFINE_GLOBALS(
-	long mode;
+	char *m_string;
+	mode_t mode;
 )
 
 #define TT this.mkfifo
+#define FLAG_m (1)
 
 void mkfifo_main(void)
 {
 	char **s;
 
 	TT.mode = 0666;
+	if (toys.optflags & FLAG_m) {
+		TT.mode = string_to_mode(TT.m_string, 0);
+	}
 
 	for (s = toys.optargs; *s; s++) {
 		if (mknod(*s, S_IFIFO | TT.mode, 0) < 0) {

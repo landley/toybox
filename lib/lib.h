@@ -132,3 +132,5 @@ void bunzipStream(int src_fd, int dst_fd);
 
 int sig_to_num(char *pidstr);
 char *num_to_sig(int sig);
+
+mode_t string_to_mode(char *mode_str, mode_t base);

@@ -895,3 +895,147 @@ char *num_to_sig(int sig)
 		if (signames[i].num == sig) return signames[i].name;
 	return NULL;
 }
+
+
+/* mode parsing */
+
+#define	USR_FLAGS	(S_IRWXU)
+#define	GRP_FLAGS	(S_IRWXG)
+#define	OTH_FLAGS	(S_IRWXO)
+#define SGT_FLAGS	(S_ISUID | S_ISGID | S_ISVTX)
+
+#define MODE_WHAT(v, w, x, y, z) { \
+	if (x & v) \
+		y |= S_I##w##z;\
+	}
+#define MODE_READ(x, y, z) MODE_WHAT(0x04, R, x, y, z)
+#define MODE_WRITE(x, y, z) MODE_WHAT(0x02, W, x, y, z)
+#define MODE_EXEC(x, y, z) MODE_WHAT(0x01, X, x, y, z)
+#define MODE_SUID(x, y) MODE_WHAT(0x08, S, x, y, UID)
+#define MODE_SGID(x, y) MODE_WHAT(0x08, S, x, y, GID)
+#define MODE_SVTX(x, y) MODE_WHAT(0x10, S, x, y, VTX)
+
+mode_t
+apply_mode(int who, int how, int what, mode_t base)
+{
+	mode_t new_mode = 0;
+	mode_t tmp_mode = 0;
+	mode_t tmp_mask = USR_FLAGS | GRP_FLAGS | OTH_FLAGS | SGT_FLAGS;
+	if (who & 0x01) {
+		/* u */
+		MODE_READ(what, tmp_mode, USR);
+		MODE_WRITE(what, tmp_mode, USR);
+		MODE_EXEC(what, tmp_mode, USR);
+		MODE_SUID(what, tmp_mode)
+		tmp_mask &= (GRP_FLAGS | OTH_FLAGS | SGT_FLAGS);
+	}
+	if (who & 0x02) {
+		/* g */
+		MODE_READ(what, tmp_mode, GRP);
+		MODE_WRITE(what, tmp_mode, GRP);
+		MODE_EXEC(what, tmp_mode, GRP);
+		MODE_SGID(what, tmp_mode)
+		tmp_mask &= (USR_FLAGS | OTH_FLAGS | SGT_FLAGS);
+	}
+	if (who & 0x04) {
+		/* o */
+		MODE_READ(what, tmp_mode, OTH);
+		MODE_WRITE(what, tmp_mode, OTH);
+		MODE_EXEC(what, tmp_mode, OTH);
+		tmp_mask &= (USR_FLAGS | GRP_FLAGS | SGT_FLAGS);
+	}
+	/* check sticky */
+	MODE_SVTX(what, tmp_mode);
+	switch (how){
+	case 1:
+		/* set */
+		new_mode = tmp_mode | (base & tmp_mask);
+		break;
+	case 2:
+		/* add */
+		new_mode = base | tmp_mode;
+		break;
+	case 3:
+		/* remove */
+		new_mode = base & ~(tmp_mode);
+		break;
+	}
+	return new_mode;
+}
+
+
+mode_t
+string_to_mode(char *mode_str, mode_t base)
+{
+	mode_t new_mode;
+	int what = 0;
+	int who = 0;
+	int how = 0;
+	char *p;
+	long tmp;
+	if (!mode_str)
+		return base;
+	if (isdigit(mode_str[0])) {
+		tmp = strtol(mode_str, &p, 8);
+		if (*p || tmp < 0 ||
+			(tmp & ~(OTH_FLAGS | SGT_FLAGS | GRP_FLAGS | USR_FLAGS)))
+			return base;
+		new_mode = (mode_t) tmp;
+		return new_mode;
+	}
+	new_mode = base;
+	while (*mode_str) {
+		/* TODO: add support for permission copying */
+		switch(*mode_str) {
+		case ',':
+			/* next command */
+			new_mode = apply_mode(who, how, what, new_mode);
+			who = 0;
+			how = 0;
+			what = 0;
+			break;
+		case 'a':
+			who = 0x01 | 0x02 | 0x04;
+			break;
+		case 'u':
+			who |= 0x01;
+			break;
+		case 'g':
+			who |= 0x02;
+			break;
+		case 'o':
+			who |= 0x04;
+			break;
+		case 'r':
+			what |= 0x04;
+			break;
+		case 'w':
+			what |= 0x02;
+			break;
+		case 'x':
+			what |= 0x01;
+			break;
+		case 't':
+			what |= 0x10;
+			break;
+		case 's':
+			what |= 0x08;
+			break;
+		case '=':
+			how = 1;
+			break;
+		case '+':
+			how = 2;
+			break;
+		case '-':
+			how = 3;
+			break;
+		default:
+			/* error case */
+			return base;
+		}
+		mode_str++;
+	}
+	new_mode = apply_mode(who, how, what, new_mode);
+	return new_mode;
+}
