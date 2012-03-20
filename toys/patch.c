@@ -75,11 +75,15 @@ static void do_line(void *data)
 {
 	struct double_list *dlist = (struct double_list *)data;
 
-	if (TT.state>1 && *dlist->data != TT.state)
-		fdprintf(TT.state == 2 ? 2 : TT.fileout,
-			"%s\n", dlist->data+(TT.state>3 ? 1 : 0));
+	if (TT.state>1 && *dlist->data != TT.state) {
+		char *s = dlist->data+(TT.state>3 ? 1 : 0);
+		int i = TT.state == 2 ? 2 : TT.fileout;
 
-	if (PATCH_DEBUG) fdprintf(2, "DO %d: %s\n", TT.state, dlist->data);
+		xwrite(i, s, strlen(s));
+		xwrite(i, "\n", 1);
+	}
+
+	if (PATCH_DEBUG) fprintf(stderr, "DO %d: %s\n", TT.state, dlist->data);
 
 	free(dlist->data);
 	free(data);
@@ -96,7 +100,8 @@ static void fail_hunk(void)
 	if (!TT.current_hunk) return;
 	TT.current_hunk->prev->next = 0;
 
-	fdprintf(2, "Hunk %d FAILED %ld/%ld.\n", TT.hunknum, TT.oldline, TT.newline);
+	fprintf(stderr, "Hunk %d FAILED %ld/%ld.\n",
+			TT.hunknum, TT.oldline, TT.newline);
 	toys.exitval = 1;
 
 	// If we got to this point, we've seeked to the end.  Discard changes to
@@ -128,11 +133,11 @@ static int apply_one_hunk(void)
 	for (plist = TT.current_hunk; plist; plist = plist->next) {
 		if (plist->data[0]==' ') matcheof++;
 		else matcheof = 0;
-		if (PATCH_DEBUG) fdprintf(2, "HUNK:%s\n", plist->data);
+		if (PATCH_DEBUG) fprintf(stderr, "HUNK:%s\n", plist->data);
 	}
 	matcheof = matcheof < TT.context;
 
-	if (PATCH_DEBUG) fdprintf(2,"MATCHEOF=%c\n", matcheof ? 'Y' : 'N');
+	if (PATCH_DEBUG) fprintf(stderr,"MATCHEOF=%c\n", matcheof ? 'Y' : 'N');
 
 	// Loop through input data searching for this hunk.  Match all context
 	// lines and all lines to be removed until we've found the end of a
@@ -155,19 +160,19 @@ static int apply_one_hunk(void)
 
 		// Is this EOF?
 		if (!data) {
-			if (PATCH_DEBUG) fdprintf(2, "INEOF\n");
+			if (PATCH_DEBUG) fprintf(stderr, "INEOF\n");
 
 			// Does this hunk need to match EOF?
 			if (!plist && matcheof) break;
 
 			if (backwarn)
-				fdprintf(2,"Possibly reversed hunk %d at %ld\n",
+				fprintf(stderr, "Possibly reversed hunk %d at %ld\n",
 						TT.hunknum, TT.linenum);
 
 			// File ended before we found a place for this hunk.
 			fail_hunk();
 			goto done;
-		} else if (PATCH_DEBUG) fdprintf(2, "IN: %s\n", data);
+		} else if (PATCH_DEBUG) fprintf(stderr, "IN: %s\n", data);
 		check = dlist_add(&buf, data);
 
 		// Compare this line with next expected line of hunk.
@@ -186,7 +191,7 @@ static int apply_one_hunk(void)
 				// recheck remaining buffered data for a new match.
 	
 				if (PATCH_DEBUG)
-					fdprintf(2, "NOT: %s\n", plist->data);
+					fprintf(stderr, "NOT: %s\n", plist->data);
 
 				TT.state = 3;
 				check = llist_pop(&buf);
@@ -204,7 +209,7 @@ static int apply_one_hunk(void)
 				check = buf;
 			} else {
 				if (PATCH_DEBUG)
-					fdprintf(2, "MAYBE: %s\n", plist->data);
+					fprintf(stderr, "MAYBE: %s\n", plist->data);
 				// This line matches.  Advance plist, detect successful match.
 				plist = plist->next;
 				if (!plist && !matcheof) goto out;
@@ -257,7 +262,7 @@ void patch_main(void)
 		if (strip || !patchlinenum++) {
 			int len = strlen(patchline);
 			if (patchline[len-1] == '\r') {
-				if (!strip) fdprintf(2, "Removing DOS newlines\n");
+				if (!strip) fprintf(stderr, "Removing DOS newlines\n");
 				strip = 1;
 				patchline[len-1]=0;
 			}

@@ -794,18 +794,21 @@ void terminal_size(unsigned *x, unsigned *y)
 // This should use a raw tty, fixit later.
 int yesno(char *prompt, int def)
 {
+	FILE *fp = fopen("/dev/tty", "rw");
 	char buf;
-	int i;
 
-	for (i=0; i<3 && !isatty(i); i++);
-	if (i == 3) return 1;
+	if (!fp) return 1;
 
-	fdprintf(i, "%s (%c/%c):", prompt, def ? 'Y' : 'y', def ? 'n' : 'N');
-	while (read(i, &buf, 1)) {
-		if (isspace(buf)) break;
-		if (tolower(buf) == 'y') return 1;
-		if (tolower(buf) == 'n') return 0;
+	fprintf(fp, "%s (%c/%c):", prompt, def ? 'Y' : 'y', def ? 'n' : 'N');
+	while (fread(&buf, 1, 1, fp)) {
+		if (tolower(buf) == 'y') def = 1;
+		if (tolower(buf) == 'n') def = 0;
+		else if (!isspace(buf)) continue;
+
+		break;
 	}
+	fclose(fp);
+
 	return def;
 }
 

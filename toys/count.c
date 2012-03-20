@@ -23,13 +23,14 @@ void count_main(void)
 {
 	uint64_t size = 0;
 	int len;
+	char buf[32];
 
 	for (;;) {
 		len = xread(0, toybuf, sizeof(toybuf));
 		if (!len) break;
 		size += len;
 		xwrite(1, toybuf, len);
-		fdprintf(2, "%"PRIu64" bytes\r", size);
+		xwrite(2, buf, sprintf(buf, "%"PRIu64" bytes\r", size));
 	}
-	fdprintf(2,"\n");
+	xwrite(2, "\n", 1);
 }
