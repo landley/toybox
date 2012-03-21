@@ -39,10 +39,10 @@ void sleep_main(void)
 
 		// Parse suffix
 		if (*arg) {
-			int imhd[]={60,3600,86400};
-			char *mhd = "mhd", *c = strchr(mhd, *arg);
-			if (!arg) error_exit("Unknown suffix '%c'", *arg);
-			d *= imhd[c-mhd];
+			int ismhd[]={1,60,3600,86400};
+			char *smhd = "smhd", *c = strchr(smhd, *arg);
+			if (!c) error_exit("Unknown suffix '%c'", *arg);
+			d *= ismhd[c-smhd];
 		}
 
 		tv.tv_nsec=1000000000*(d-(tv.tv_sec = (unsigned long)d));
