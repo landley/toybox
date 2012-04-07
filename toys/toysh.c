@@ -372,7 +372,7 @@ void toysh_main(void)
 		for (;;) {
 			char *command = 0;
 			if (!f) xputc('$');
-			if (1 > getline(&command, &cmdlen, f ? : stdin)) break;
+			if (1 > getline(&command, &cmdlen, f ? f : stdin)) break;
 			handle(command);
 			free(command);
 		}

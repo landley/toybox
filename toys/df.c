@@ -71,7 +71,7 @@ static void show_mt(struct mtab_list *mt)
 
 	// Figure out how much total/used/free space this filesystem has,
 	// forcing 64-bit math because filesystems are big now.
-	block = mt->statvfs.f_bsize ? : 1;
+	block = mt->statvfs.f_bsize ? mt->statvfs.f_bsize : 1;
 	size = (long)((block * mt->statvfs.f_blocks) / TT.units);
 	used = (long)((block * (mt->statvfs.f_blocks-mt->statvfs.f_bfree))
 			/ TT.units);
