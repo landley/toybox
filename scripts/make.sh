@@ -25,7 +25,7 @@ echo "NEWTOY(toybox, NULL, 0)" > generated/newtoys.h
 newtoys | sed 's/\(.*TOY(\)\([^,]*\),\(.*\)/\2 \1\2,\3/' | sort -k 1,1 \
 	| sed 's/[^ ]* //'  >> generated/newtoys.h
 
-# Extract global structure definitions from toys/*.c
+# Extract global structure definitions and flag definitions from toys/*.c
 
 function getglobals()
 {
@@ -37,6 +37,24 @@ function getglobals()
     sed -n -e '/^DEFINE_GLOBALS(/,/^)/b got;b;:got' \
         -e 's/^DEFINE_GLOBALS(/struct '"$NAME"'_data {/' \
         -e 's/^)/};/' -e 'p' $i
+
+    # And get flag definitions
+    FLAGS="$(sed -n \
+                 -e "s/.*TOY($NAME"',[ \t]*"\([^"]*\)"[ \t]*,.*)/\1/' \
+                 -e 't keep;d;:keep' \
+                 -e 's/[><=][0-9][0-9]*//g' \
+                 -e 's/+.//g' \
+                 -e 's/([^)]*)//g' \
+                 -e 's/[-?^:&#|@*]//g' \
+                 -e 'p' \
+                 generated/newtoys.h)"
+    X=0
+    while [ $X -lt ${#FLAGS} ]
+    do
+      echo -ne "#define OPTFLAG_${NAME}_${FLAGS:$X:1}\t"
+      X=$(($X+1))
+      echo "(1<<$((${#FLAGS}-$X)))"
+    done
   done
 }
 
