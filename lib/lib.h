@@ -17,6 +17,9 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 
 // llist.c
 
+// All these list types can be handled by the same code because first element
+// is always next pointer, so next = (mytype *)&struct.
+
 struct string_list {
 	struct string_list *next;
 	char str[0];
@@ -28,8 +31,7 @@ struct arg_list {
 };
 
 struct double_list {
-	struct double_list *next;
-	struct double_list *prev;
+	struct double_list *next, *prev;
 	char *data;
 };
 
@@ -42,16 +44,40 @@ struct double_list *dlist_add(struct double_list **list, char *data);
 void get_optflags(void);
 
 // dirtree.c
+
+// Values returnable from callback function (bitfield, or them together)
+// Default with no callback is 0
+
+// Do not add this node to the tree
+#define DIRTREE_NOSAVE       1
+// Do not recurse into children
+#define DIRTREE_NORECURSE    2
+// Call again after handling all children (Directories only. Sets linklen = -1)
+#define DIRTREE_COMEAGAIN    4
+// Follow symlinks to directories
+#define DIRTREE_SYMFOLLOW    8
+// Abort recursive dirtree.  (Forces NOSAVE and NORECURSE on this entry.)
+#define DIRTREE_ABORT      (256|DIRTREE_NOSAVE|DIRTREE_NORECURSE)
+
+#define DIRTREE_ABORTVAL ((struct dirtree *)1)
+
 struct dirtree {
-	struct dirtree *next, *child, *parent;
+	struct dirtree *next, *parent, *child;
+	long extra; // place for user to store their stuff (can be pointer)
+	long data;  // dirfd for directory, linklen for symlink
 	struct stat st;
-	int depth;
+	char *symlink;
 	char name[];
 };
 
-struct dirtree *dirtree_add_node(char *path);
-struct dirtree *dirtree_read(char *path, struct dirtree *parent,
-                    int (*callback)(char *path, struct dirtree *node));
+struct dirtree *dirtree_add_node(int dirfd, char *name);
+char *dirtree_path(struct dirtree *node, int *plen);
+int dirtree_isdotdot(struct dirtree *catch);
+struct dirtree *handle_callback(struct dirtree *new,
+	int (*callback)(struct dirtree *node));
+void dirtree_recurse(struct dirtree *node,
+	int (*callback)(struct dirtree *node));
+struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node));
 
 // lib.c
 void xstrcpy(char *dest, char *src, size_t size);
@@ -76,6 +102,7 @@ void xunlink(char *path);
 int xcreate(char *path, int flags, int mode);
 int xopen(char *path, int flags);
 void xclose(int fd);
+int xdup(int fd);
 FILE *xfopen(char *path, char *mode);
 ssize_t readall(int fd, void *buf, size_t len);
 ssize_t writeall(int fd, void *buf, size_t len);
@@ -97,6 +124,7 @@ void itoa_to_buf(int n, char *buf, unsigned buflen);
 char *utoa(unsigned n);
 char *itoa(int n);
 long atolx(char *c);
+int numlen(long l);
 off_t fdlength(int fd);
 char *xreadlink(char *name);
 void loopfiles_rw(char **argv, int flags, int permissions, int failok,

@@ -10,7 +10,7 @@
 USE_MKE2FS(NEWTOY(mke2fs, "<1>2g:Fnqm#N#i#b#", TOYFLAG_SBIN))
 
 config MKE2FS
-	bool "mke2fs"
+	bool "mke2fs (unfinished and broken by dirtree changes)"
 	default n
 	help
 	  usage: mke2fs [-Fnq] [-b ###] [-N|i ###] [-m ###] device

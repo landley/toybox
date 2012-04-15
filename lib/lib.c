@@ -208,6 +208,13 @@ void xclose(int fd)
 	if (close(fd)) perror_exit("xclose");
 }
 
+int xdup(int fd)
+{
+	fd = dup(fd);
+	if (fd == -1) perror_exit("xdup");
+	return fd;
+}
+
 // Die unless we can open/create a file, returning FILE *.
 FILE *xfopen(char *path, char *mode)
 {
@@ -495,6 +502,16 @@ long atolx(char *numstr)
 	}
 
 	return val;
+}
+
+int numlen(long l)
+{
+    int len = 0;
+    while (l) {
+       l /= 10;
+       len++;
+    }
+    return len;
 }
 
 // Return how long the file at fd is, if there's any way to determine it.

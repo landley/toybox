@@ -6,85 +6,150 @@
 
 #include "toys.h"
 
-// NOTE: This uses toybuf.  Possibly it shouldn't do that.
+// Create a dirtree node from a path, with stat and symlink info.
 
-// Create a dirtree node from a path.
-
-struct dirtree *dirtree_add_node(char *path)
+struct dirtree *dirtree_add_node(int dirfd, char *name)
 {
-	struct dirtree *dt;
-	char *name;
+	struct dirtree *dt = NULL;
+	struct stat st;
+	char buf[4096];
+	int len = 0, linklen = 0;
 
-	// Find last chunk of name.
-
-	for (;;) {
-		name = strrchr(path, '/');
-
-		if (!name) name = path;
-		else {
-			if (*(name+1)) name++;
-			else {
-				*name=0;
-				continue;
-			}
+	if (name) {
+		if (fstatat(dirfd, name, &st, AT_SYMLINK_NOFOLLOW)) goto error;
+		if (S_ISLNK(st.st_mode)) {
+			if (0>(linklen = readlinkat(dirfd, name, buf, 4095))) goto error;
+			buf[linklen++]=0;
 		}
-		break;
+		len = strlen(name);
 	}
+   	dt = xzalloc((len = sizeof(struct dirtree)+len+1)+linklen);
+	if (name) {
+		memcpy(&(dt->st), &st, sizeof(struct stat));
+		strcpy(dt->name, name);
 
-   	dt = xzalloc(sizeof(struct dirtree)+strlen(name)+1);
-	if (lstat(path, &(dt->st))) {
-		error_msg("Skipped '%s'",name);
-		free(dt);
-		return 0;
+		if (linklen) {
+			dt->symlink = memcpy(len+(char *)dt, buf, linklen);
+			dt->data = --linklen;
+		}
 	}
-	strcpy(dt->name, name);
 
 	return dt;
+
+error:
+	perror_msg("%s",name);
+	free(dt);
+	return 0;
 }
 
-// Given a directory (in a writeable PATH_MAX buffer), recursively read in a
-// directory tree.
-//
-// If callback==NULL, allocate tree of struct dirtree and
-// return root of tree.  Otherwise call callback(node) on each hit, free
-// structures after use, and return NULL.
+// Return path to this node.
 
-struct dirtree *dirtree_read(char *path, struct dirtree *parent,
-					int (*callback)(char *path, struct dirtree *node))
+char *dirtree_path(struct dirtree *node, int *plen)
 {
-	struct dirtree *dtroot = NULL, *this, **ddt = &dtroot;
-	DIR *dir;
-	int len = strlen(path);
+	char *path;
+	int len;
 
-	if (!(dir = opendir(path))) perror_msg("No %s", path);
-	else for (;;) {
-		int norecurse = 0;
-		struct dirent *entry = readdir(dir);
-		if (!entry) {
-			closedir(dir);
-			break;
+	if (!node || !node->name) return xmalloc(*plen);
+
+	len = (plen ? *plen : 0) + strlen(node->name)+1;
+	path = dirtree_path(node->parent, &len);
+	len = plen ? *plen : 0;
+	if (len) path[len++]='/';
+	strcpy(path+len, node->name);
+
+	return path;
+}
+
+// Default callback, filters out "." and "..".
+
+int dirtree_isdotdot(struct dirtree *catch)
+{
+	// Should we skip "." and ".."?
+	if (catch->name[0]=='.' && (!catch->name[1] ||
+			(catch->name[1]=='.' && !catch->name[2])))
+				return DIRTREE_NOSAVE|DIRTREE_NORECURSE;
+
+	return 0;
+}
+
+// Handle callback for a node in the tree. Returns saved node(s) or NULL.
+//
+// By default, allocates a tree of struct dirtree, not following symlinks
+// If callback==NULL, or callback always returns 0, allocate tree of struct
+// dirtree and return root of tree.  Otherwise call callback(node) on each hit, free
+// structures after use, and return NULL.
+//
+
+struct dirtree *handle_callback(struct dirtree *new,
+					int (*callback)(struct dirtree *node))
+{
+	int flags;
+
+	if (!callback) callback = dirtree_isdotdot;
+
+	flags = callback(new);
+	if (S_ISDIR(new->st.st_mode)) {
+		if (!(flags & DIRTREE_NORECURSE)) {
+			new->data = openat(new->data, new->name, 0);
+			dirtree_recurse(new, callback);
 		}
-
-		// Skip "." and ".."
-		if (entry->d_name[0]=='.') {
-			if (!entry->d_name[1]) continue;
-			if (entry->d_name[1]=='.' && !entry->d_name[2]) continue;
-		}
-
-		snprintf(path+len, sizeof(toybuf)-len, "/%s", entry->d_name);
-		*ddt = this = dirtree_add_node(path);
-		if (!this) continue;
-		this->parent = parent;
-		this->depth = parent ? parent->depth + 1 : 1;
-		if (callback) norecurse = callback(path, this);
-		if (!norecurse && S_ISDIR(this->st.st_mode))
-			this->child = dirtree_read(path, this, callback);
-		if (callback) free(this);
-		else ddt = &(this->next);
-		path[len]=0;
+		new->data = -1;
+		if (flags & DIRTREE_COMEAGAIN) flags = callback(new);
+	}
+	// If this had children, it was callback's job to free them already.
+	if (flags & DIRTREE_NOSAVE) {
+		free(new);
+		new = NULL;
 	}
 
-	return dtroot;
+	return (flags & DIRTREE_ABORT)==DIRTREE_ABORT ? DIRTREE_ABORTVAL : new;
 }
 
+// Recursively read/process children of directory node (with dirfd in data),
+// filtering through callback().
 
+void dirtree_recurse(struct dirtree *node,
+					int (*callback)(struct dirtree *node))
+{
+	struct dirtree *new, **ddt = &(node->child);
+	struct dirent *entry;
+	DIR *dir;
+	int dirfd;
+
+	if (!(dir = fdopendir(node->data))) {
+		char *path = dirtree_path(node, 0);
+		perror_msg("No %s", path);
+		free(path);
+		close(node->data);
+	}
+	// Dunno if I really need to do this, but the fdopendir man page insists
+	dirfd = xdup(node->data);
+
+	// The extra parentheses are to shut the stupid compiler up.
+	while ((entry = readdir(dir))) {
+		if (!(new = dirtree_add_node(dirfd, entry->d_name))) continue;
+		new->parent = node;
+		new = handle_callback(new, callback);
+		if (new == DIRTREE_ABORTVAL) break;
+		if (new) {
+			*ddt = new;
+			ddt = &((*ddt)->next);
+		}
+	}
+
+	closedir(dir);
+	close(dirfd);
+}
+
+// Create dirtree from path, using callback to filter nodes.
+// If callback == NULL allocate a tree of struct dirtree nodes and return
+// pointer to root node.
+
+struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node))
+{
+	int fd = open(".", 0);
+	struct dirtree *root = dirtree_add_node(fd, path);
+	root->data = fd;
+
+	return handle_callback(root, callback);
+}
