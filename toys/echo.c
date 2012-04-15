@@ -32,7 +32,11 @@ config ECHO
 	   \xHH	 hexadecimal values (1 to 2 digits)
 */
 
+#define THIS echo
 #include "toys.h"
+
+#define FLAG_e (1<<1)
+#define FLAG_n (1<<0)
 
 void echo_main(void)
 {
@@ -46,7 +50,7 @@ void echo_main(void)
 
 		// Should we output arg verbatim?
 
-		if (!(toys.optflags&2)) {
+		if (!(toys.optflags&FLAG_e)) {
 			xprintf("%s", arg);
 			continue;
 		}
@@ -87,7 +91,7 @@ void echo_main(void)
 	}
 
 	// Output "\n" if no -n
-	if (!(toys.optflags&1)) xputc('\n');
+	if (!(toys.optflags&FLAG_n)) xputc('\n');
 done:
 	xflush();
 }
