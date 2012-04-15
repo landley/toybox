@@ -45,61 +45,38 @@ DEFINE_GLOBALS(
 
 static char *skip(char *str)
 {
-	int field = 0;
-	long nchars = TT.nchars;
-	long nfields = TT.nfields;
+	long nchars = TT.nchars, nfields;
+
 	// Skip fields first
-	while (nfields && *str) {
-		if (isspace((unsigned char)*str)) {
-			if (field) {
-				field = 0;
-				nfields--;
-			}
-		} else if (!field) {
-			field = 1;
-		}
-		str++;
+	for (nfields = TT.nfields; nfields; str++) {
+		while (*str && isspace(*str)) str++;
+		while (*str && !isspace(*str)) str++;
+		nfields--;
 	}
 	// Skip chars
-	while (nchars-- && *str)
-		str++;
+	while (*str && nchars--) str++;
+
 	return str;
 }
 
 static void print_line(FILE *f, char *line)
 {
-	if (TT.repeats == 0 && (toys.optflags & FLAG_d))
-		return;
-	if (TT.repeats > 0 && (toys.optflags & FLAG_u))
-		return;
-	if ((toys.optflags & FLAG_c)) {
-		fprintf(f, "%7lu %s", TT.repeats + 1, line);
-	} else {
-		fprintf(f, "%s", line);
-	}
-	if (toys.optflags & FLAG_z)
-		fprintf(f, "%c", '\0');
+	if (toys.optflags & (TT.repeats ? FLAG_u : FLAG_d)) return;
+	if (toys.optflags & FLAG_c) fprintf(f, "%7lu ", TT.repeats + 1);
+	fputs(line, f);
+	if (toys.optflags & FLAG_z) fputc(0, f);
 }
 
 void uniq_main(void)
 {
-	FILE *infile = stdin;
-	FILE *outfile = stdout;
-	char *thisline = NULL;
-	char *prevline = NULL;
-	size_t thissize, prevsize = 0;
-	char *tmpline;
-	char eol = '\n';
-	size_t tmpsize;
+	FILE *infile = stdin, *outfile = stdout;
+	char *thisline = NULL, *prevline = NULL, *tmpline, eol = '\n';
+	size_t thissize, prevsize = 0, tmpsize;
 
-	if (toys.optc >= 1)
-		infile = xfopen(toys.optargs[0], "r");
+	if (toys.optc >= 1) infile = xfopen(toys.optargs[0], "r");
+	if (toys.optc >= 2) outfile = xfopen(toys.optargs[1], "w");
 
-	if (toys.optc >= 2)
-		outfile = xfopen(toys.optargs[1], "w");
-
-	if (toys.optflags & FLAG_z)
-		eol = '\0';
+	if (toys.optflags & FLAG_z) eol = 0;
 
 	// If first line can't be read
 	if (getdelim(&prevline, &prevsize, eol, infile) < 0)
