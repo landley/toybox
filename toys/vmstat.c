@@ -35,14 +35,16 @@ void read_proc_stat(unsigned int * proc_running, unsigned int * proc_blocked,
 
 	off = strstr(toybuf, "cpu ");
 	// Ignoring steal and guest fields for now.
-	if (off) sscanf(off, "cpu  %Lu %Lu %Lu %Lu %Lu %Lu %Lu", &c_user, &c_nice, &c_sys, cpu_idle, cpu_wait, &c_irq, &c_sirq);
+	if (off) sscanf(off, "cpu  %"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64 \
+		" %"PRIu64" %"PRIu64" %"PRIu64, &c_user, &c_nice, &c_sys, cpu_idle,
+		cpu_wait, &c_irq, &c_sirq);
 	*cpu_user = c_user + c_nice;
 	*cpu_sys = c_sys + c_irq + c_sirq;
 	off = strstr(toybuf, "intr");
-	if (off) sscanf(off, "intr %Lu", sys_irq);
+	if (off) sscanf(off, "intr %"PRIu64, sys_irq);
 
 	off = strstr(toybuf, "ctxt");
-	if (off) sscanf(off, "ctxt %Lu", sys_ctxt);
+	if (off) sscanf(off, "ctxt %"PRIu64, sys_ctxt);
 
 	off = strstr(toybuf, "procs_running");
 	if (off) sscanf(off, "procs_running %u", proc_running);
