@@ -61,7 +61,7 @@ struct toy_list *toy_find(char *name);
 void toy_init(struct toy_list *which, char *argv[]);
 void toy_exec(char *argv[]);
 
-// Flags describing applet behavior.
+// Flags describing command behavior.
 
 #define TOYFLAG_USR      (1<<0)
 #define TOYFLAG_BIN      (1<<1)
@@ -71,10 +71,10 @@ void toy_exec(char *argv[]);
 // This is a shell built-in function, running in the same process context.
 #define TOYFLAG_NOFORK   (1<<4)
 
-// Start applet with a umask of 0 (saves old umask in this.old_umask)
+// Start command with a umask of 0 (saves old umask in this.old_umask)
 #define TOYFLAG_UMASK    (1<<5)
 
-// This applet runs as root.
+// This command runs as root.
 #define TOYFLAG_STAYROOT (1<<6)
 #define TOYFLAG_NEEDROOT (1<<7)
 #define TOYFLAG_ROOTONLY (TOYFLAG_STAYROOT|TOYFLAG_NEEDROOT)
@@ -82,13 +82,13 @@ void toy_exec(char *argv[]);
 // Array of available applets
 
 extern struct toy_list {
-        char *name;
-        void (*toy_main)(void);
-        char *options;
-        int flags;
+	char *name;
+	void (*toy_main)(void);
+	char *options;
+	int flags;
 } toy_list[];
 
-// Global context shared by all applets.
+// Global context shared by all commands.
 
 extern struct toy_context {
 	struct toy_list *which;  // Which entry in toy_list is this one?
@@ -101,7 +101,7 @@ extern struct toy_context {
 	int old_umask;           // Old umask preserved by TOYFLAG_UMASK
 } toys;
 
-// One big temporary buffer, for use by applets (not library functions).
+// One big temporary buffer, for use by commands (not library functions).
 
 extern char toybuf[4096];
 
