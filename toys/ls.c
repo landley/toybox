@@ -130,17 +130,20 @@ static int compare(void *a, void *b)
     return strcmp(dta->name, dtb->name);
 }
 
+// callback from dirtree_recurse() determining how to handle this entry.
+
 static int filter(struct dirtree *new)
 {
-    int ret = DIRTREE_NORECURSE;
+    int flags = toys.optflags;
 
-// TODO -1f should print here to handle enormous dirs without runing out of mem.
+    // TODO should -1f print here to handle enormous dirs without runing
+    // out of mem?
 
-    if (!(toys.optflags & (FLAG_a|FLAG_A)) && new->name[0]=='.')
-        ret |= DIRTREE_NOSAVE;
-    else if (!(toys.optflags & FLAG_a)) ret |= dirtree_isdotdot(new);
+    if (flags & FLAG_a) return DIRTREE_NORECURSE;
+    if (!(flags & FLAG_A) && new->name[0]=='.')
+        return DIRTREE_NOSAVE|DIRTREE_NORECURSE;
 
-    return ret;
+    return dirtree_isdotdot(new)|DIRTREE_NORECURSE;
 }
 
 // Display a list of dirtree entries, according to current format
@@ -155,14 +158,13 @@ static void listfiles(struct dirtree *indir)
 
     // Figure out if we should show directories and current directory name
     if (indir == TT.files) showdirs = (flags & (FLAG_d|FLAG_R));
-    else if (indir->parent == TT.files && toys.optc <= 1 && !(flags&FLAG_R));
-    else {
+    if (indir != TT.files || (indir->parent && (flags & FLAG_R))) {
         char *path = dirtree_path(indir, 0);
+
         if (TT.again++) xputc('\n');
         xprintf("%s:\n", path);
         free(path);
     }
-
 
     // Copy linked list to array and sort it. Directories go in array because
     // we visit them in sorted order.
@@ -178,7 +180,8 @@ static void listfiles(struct dirtree *indir)
         continue;
     }
 
-    if (flags & FLAG_l) xprintf("total %lu\n", dtlen);
+    // This is wrong, should be blocks used not file count.
+    if (indir->parent && (flags & FLAG_l)) xprintf("total %lu\n", dtlen);
 
     if (!(flags & FLAG_f)) qsort(sort, dtlen, sizeof(void *), (void *)compare);
 
@@ -187,7 +190,6 @@ static void listfiles(struct dirtree *indir)
     memset(totals, 0, 6*sizeof(unsigned));
     if ((flags & (FLAG_1|FLAG_l)) != FLAG_1) {
         for (ul = 0; ul<dtlen; ul++) {
-            if (!showdirs && S_ISDIR(sort[ul]->st.st_mode)) continue;
             entrylen(sort[ul], len);
             if (flags & FLAG_l) {
                 for (width=0; width<6; width++)
@@ -271,20 +273,22 @@ static void listfiles(struct dirtree *indir)
         if (!S_ISDIR(sort[ul]->st.st_mode) || dirtree_isdotdot(sort[ul]))
             continue;
         if (indir == TT.files || (flags & FLAG_R)) {
-            sort[ul]->data = openat(indir->data, sort[ul]->name, 0);
+            int fd = openat(indir->data, sort[ul]->name, 0);
+
+            sort[ul]->data = dup(fd);
             dirtree_recurse(sort[ul], filter);
+            sort[ul]->data = fd;
             listfiles(sort[ul]);
         }
     }
     free(sort);
-    close(indir->data);
-
-
+    if (indir->data != AT_FDCWD) close(indir->data);
 }
 
 void ls_main(void)
 {
     char **s, *noargs[] = {".", 0};
+    struct dirtree *dt;
 
     // Do we have an implied -1
     if (!isatty(1) || (toys.optflags&FLAG_l)) toys.optflags |= FLAG_1;
@@ -296,9 +300,8 @@ void ls_main(void)
     // Iterate through command line arguments, collecting directories and files.
     // Non-absolute paths are relative to current directory.
     TT.files = dirtree_add_node(0, 0);
-    TT.files->data =open(".", 0);
-    for (s = toys.optargs ? toys.optargs : noargs; *s; s++) {
-        struct dirtree *dt = dirtree_add_node(TT.files->data, *s);
+    for (s = *toys.optargs ? toys.optargs : noargs; *s; s++) {
+        dt = dirtree_add_node(AT_FDCWD, *s);
 
         if (!dt) {
             toys.exitval = 1;
@@ -310,9 +313,27 @@ void ls_main(void)
                            (struct double_list *)dt);
     }
 
+    if (!TT.files->child) return;
+
     // Turn double_list into dirtree
     dlist_to_dirtree(TT.files);
 
+    // Special case a single directory argument: silently descend into it.
+    dt = TT.files->child;
+
+    if (S_ISDIR(dt->st.st_mode) && !dt->next && !(toys.optflags&FLAG_d)) {
+        int fd = open(dt->name, 0);
+        TT.files = dt;
+        dt->data = dup(fd);
+        dirtree_recurse(dt, filter);
+        dt->data = fd;
+    } else TT.files->data = AT_FDCWD;
+
     // Display the files we collected
     listfiles(TT.files);
+
+    if (CFG_TOYBOX_FREE) {
+        free(TT.files->parent);
+        free(TT.files);
+    }
 }

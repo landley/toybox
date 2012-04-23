@@ -7,6 +7,8 @@
 #include "toys.h"
 
 // Create a dirtree node from a path, with stat and symlink info.
+// (This doesn't open directory filehandles yet so as not to exhaust the
+// filehandle space on large trees. handle_callback() does that instead.)
 
 struct dirtree *dirtree_add_node(int dirfd, char *name)
 {
@@ -42,20 +44,24 @@ error:
 	return 0;
 }
 
-// Return path to this node.
+// Return path to this node, assembled recursively.
 
 char *dirtree_path(struct dirtree *node, int *plen)
 {
 	char *path;
 	int len;
 
-	if (!node || !node->name) return xmalloc(*plen);
+	if (!node || !node->name) {
+		path = xmalloc(*plen);
+		*plen = 0;
+		return path;
+	}
 
-	len = (plen ? *plen : 0) + strlen(node->name)+1;
+	len = (plen ? *plen : 0)+strlen(node->name)+1;
 	path = dirtree_path(node->parent, &len);
-	len = plen ? *plen : 0;
-	if (len) path[len++]='/';
-	strcpy(path+len, node->name);
+    if (len) path[len++]='/';
+	len = (stpcpy(path+len, node->name) - path);
+    if (plen) *plen = len;
 
 	return path;
 }
@@ -90,7 +96,8 @@ struct dirtree *handle_callback(struct dirtree *new,
 	flags = callback(new);
 	if (S_ISDIR(new->st.st_mode)) {
 		if (!(flags & DIRTREE_NORECURSE)) {
-			new->data = openat(new->data, new->name, 0);
+			new->data = openat (new->parent ? new->parent->data : AT_FDCWD,
+				new->name, 0);
 			dirtree_recurse(new, callback);
 		}
 		new->data = -1;
@@ -114,20 +121,22 @@ void dirtree_recurse(struct dirtree *node,
 	struct dirtree *new, **ddt = &(node->child);
 	struct dirent *entry;
 	DIR *dir;
-	int dirfd;
 
 	if (!(dir = fdopendir(node->data))) {
 		char *path = dirtree_path(node, 0);
 		perror_msg("No %s", path);
 		free(path);
 		close(node->data);
+
+        return;
 	}
-	// Dunno if I really need to do this, but the fdopendir man page insists
-	dirfd = xdup(node->data);
+
+	// according to the fddir() man page, the filehandle in the DIR * can still
+	// be externally used by things that don't lseek() it.
 
 	// The extra parentheses are to shut the stupid compiler up.
 	while ((entry = readdir(dir))) {
-		if (!(new = dirtree_add_node(dirfd, entry->d_name))) continue;
+		if (!(new = dirtree_add_node(node->data, entry->d_name))) continue;
 		new->parent = node;
 		new = handle_callback(new, callback);
 		if (new == DIRTREE_ABORTVAL) break;
@@ -138,7 +147,6 @@ void dirtree_recurse(struct dirtree *node,
 	}
 
 	closedir(dir);
-	close(dirfd);
 }
 
 // Create dirtree from path, using callback to filter nodes.
@@ -147,9 +155,7 @@ void dirtree_recurse(struct dirtree *node,
 
 struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node))
 {
-	int fd = open(".", 0);
-	struct dirtree *root = dirtree_add_node(fd, path);
-	root->data = fd;
+	struct dirtree *root = dirtree_add_node(AT_FDCWD, path);
 
 	return handle_callback(root, callback);
 }
