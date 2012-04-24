@@ -8,6 +8,7 @@
 
 #include "lib/portability.h"
 
+#include <crypt.h>
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
@@ -21,6 +22,7 @@
 #include <pwd.h>
 #include <sched.h>
 #include <setjmp.h>
+#include <shadow.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -37,6 +39,7 @@
 #include <sys/types.h>
 #include <sys/utsname.h>
 #include <sys/wait.h>
+#include <syslog.h>
 #include <unistd.h>
 #include <utime.h>
 #include <utmpx.h>
