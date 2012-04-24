@@ -157,7 +157,8 @@ static void listfiles(struct dirtree *indir)
     int showdirs = 1;
 
     // Figure out if we should show directories and current directory name
-    if (indir == TT.files) showdirs = (flags & (FLAG_d|FLAG_R));
+    if (indir == TT.files)
+        showdirs = (flags & (FLAG_d|FLAG_R)) || indir->parent;
     if (indir != TT.files || (indir->parent && (flags & FLAG_R))) {
         char *path = dirtree_path(indir, 0);
 
@@ -272,7 +273,7 @@ static void listfiles(struct dirtree *indir)
 // TODO follow symlinks when?
         if (!S_ISDIR(sort[ul]->st.st_mode) || dirtree_isdotdot(sort[ul]))
             continue;
-        if (indir == TT.files || (flags & FLAG_R)) {
+        if (!indir->parent || (flags & FLAG_R)) {
             int fd = openat(indir->data, sort[ul]->name, 0);
 
             sort[ul]->data = dup(fd);
