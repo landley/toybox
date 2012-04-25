@@ -136,8 +136,8 @@ static int filter(struct dirtree *new)
 {
     int flags = toys.optflags;
 
-    // TODO should -1f print here to handle enormous dirs without runing
-    // out of mem?
+// TODO should -1f print here to handle enormous dirs without runing
+// out of mem?
 
     if (flags & FLAG_a) return DIRTREE_NORECURSE;
     if (!(flags & FLAG_A) && new->name[0]=='.')
@@ -154,12 +154,20 @@ static void listfiles(struct dirtree *indir)
     struct dirtree *dt, **sort = 0;
     unsigned long dtlen = 0, ul = 0;
     unsigned width, flags = toys.optflags, totals[6], len[6];
-    int showdirs = 1;
 
-    // Figure out if we should show directories and current directory name
-    if (indir == TT.files)
-        showdirs = (flags & (FLAG_d|FLAG_R)) || indir->parent;
-    if (indir != TT.files || (indir->parent && (flags & FLAG_R))) {
+    // There are two "top of tree" variants:
+    //   ls arg1 arg2 arg3
+    //     detect: !indir->parent
+    //     behavior: don't display dirs, never show dirname/total, option -H
+    //   ls onedir (or just "ls" which implies "." as first arg).
+    //     detect: indir == TT.files
+    //     behavior: only show dirname/total with -R
+
+    // Show current directory name if showing one directory with -d or
+    // not top of tree and -R
+    if (!(indir == TT.files || (flags & FLAG_d))
+        || (indir->parent && (flags & FLAG_R)))
+    {
         char *path = dirtree_path(indir, 0);
 
         if (TT.again++) xputc('\n');
@@ -181,24 +189,22 @@ static void listfiles(struct dirtree *indir)
         continue;
     }
 
-    // This is wrong, should be blocks used not file count.
-    if (indir->parent && (flags & FLAG_l)) xprintf("total %lu\n", dtlen);
-
     if (!(flags & FLAG_f)) qsort(sort, dtlen, sizeof(void *), (void *)compare);
 
-    // Find largest entry in each field for everything but -1
+    // Find largest entry in each field
 
     memset(totals, 0, 6*sizeof(unsigned));
-    if ((flags & (FLAG_1|FLAG_l)) != FLAG_1) {
-        for (ul = 0; ul<dtlen; ul++) {
-            entrylen(sort[ul], len);
-            if (flags & FLAG_l) {
-                for (width=0; width<6; width++)
-                    if (len[width] > totals[width]) totals[width] = len[width];
-//TODO            } else if (flags & FLAG_C) {
-            } else if (*len > *totals) *totals = *len;
-        }
+    for (ul = 0; ul<dtlen; ul++) {
+        entrylen(sort[ul], len);
+        if (flags & FLAG_l) {
+            for (width=0; width<6; width++)
+                if (len[width] > totals[width]) totals[width] = len[width];
+//TODO      } else if (flags & FLAG_C) {
+        } else if (*len > *totals) *totals = *len;
     }
+
+    // This is wrong, should be blocks used not file count.
+    if (indir->parent && (flags & FLAG_l)) xprintf("total %lu\n", dtlen);
 
     // Loop through again to produce output.
     width = 0;
@@ -208,9 +214,11 @@ static void listfiles(struct dirtree *indir)
         mode_t mode = st->st_mode;
         char et = endtype(st);
 
-        if (S_ISDIR(mode) && !showdirs) continue;
-        entrylen(sort[ul], len);
+        // Skip directories at the top of the tree when -d isn't set
+        if (S_ISDIR(mode) && !indir->parent && !(flags & FLAG_d)) continue;
 
+        // Do we need to wrap at right edge of screen?
+        entrylen(sort[ul], len);
         if (ul) {
             if (toys.optflags & FLAG_m) xputc(',');
             if ((flags & FLAG_1) || width+1+*len > TT.width) {
@@ -269,10 +277,14 @@ static void listfiles(struct dirtree *indir)
 
     if (width) xputc('\n');
 
+    // Free directory entries, recursing first if necessary.
+
     for (ul = 0; ul<dtlen; free(sort[ul++])) {
 // TODO follow symlinks when?
-        if (!S_ISDIR(sort[ul]->st.st_mode) || dirtree_isdotdot(sort[ul]))
-            continue;
+        if ((flags & FLAG_d) || !S_ISDIR(sort[ul]->st.st_mode)
+            || dirtree_isdotdot(sort[ul])) continue;
+
+        // Recurse into dirs if at top of the tree or given -R
         if (!indir->parent || (flags & FLAG_R)) {
             int fd = openat(indir->data, sort[ul]->name, 0);
 
@@ -297,6 +309,10 @@ void ls_main(void)
         TT.width = 80;
         terminal_size(&TT.width, NULL);
     }
+    // The optflags parsing infrastructure should really do this for us,
+    // but currently it has "switch off when this is set", so "-dR" and "-Rd"
+    // behave differently
+    if (toys.optflags & FLAG_d) toys.optflags &= ~FLAG_R;
 
     // Iterate through command line arguments, collecting directories and files.
     // Non-absolute paths are relative to current directory.
