@@ -58,7 +58,7 @@ DEFINE_GLOBALS(
   struct dirtree *files;
 
   unsigned width;
-  int again;
+  int nl_title;
 )
 
 #define TT this.ls
@@ -149,30 +149,26 @@ static int filter(struct dirtree *new)
 // Display a list of dirtree entries, according to current format
 // Output types -1, -l, -C, or stream
 
-static void listfiles(struct dirtree *indir)
+static void listfiles(int dirfd, struct dirtree *indir)
 {
     struct dirtree *dt, **sort = 0;
     unsigned long dtlen = 0, ul = 0;
     unsigned width, flags = toys.optflags, totals[6], len[6];
 
-    // There are two "top of tree" variants:
-    //   ls arg1 arg2 arg3
-    //     detect: !indir->parent
-    //     behavior: don't display dirs, never show dirname/total, option -H
-    //   ls onedir (or just "ls" which implies "." as first arg).
-    //     detect: indir == TT.files
-    //     behavior: only show dirname/total with -R
-
-    // Show current directory name if showing one directory with -d or
-    // not top of tree and -R
-    if (!(indir == TT.files || (flags & FLAG_d))
-        || (indir->parent && (flags & FLAG_R)))
-    {
-        char *path = dirtree_path(indir, 0);
-
-        if (TT.again++) xputc('\n');
-        xprintf("%s:\n", path);
-        free(path);
+    
+    // Silently descend into single directory listed by itself on command line.
+    // In this case only show dirname/total header when given -R.
+    if (!indir->parent) {
+        if (!(dt = indir->child)) return;
+        if (S_ISDIR(dt->st.st_mode) && !dt->next && !(toys.optflags&FLAG_d)) {
+            dt->extra = 1;
+            listfiles(open(dt->name, 0), dt);
+            return;
+        }
+    } else {
+        // Read directory contents. We dup() the fd because this will close it.
+        indir->data = dup(dirfd);
+        dirtree_recurse(indir, filter);
     }
 
     // Copy linked list to array and sort it. Directories go in array because
@@ -203,6 +199,16 @@ static void listfiles(struct dirtree *indir)
         } else if (*len > *totals) *totals = *len;
     }
 
+    // Label directory if not top of tree, or if -R
+    if (indir->parent && (!indir->extra || (flags&FLAG_R)))
+    {
+        char *path = dirtree_path(indir, 0);
+
+        if (TT.nl_title++) xputc('\n');
+        xprintf("%s:\n", path);
+        free(path);
+    }
+
     // This is wrong, should be blocks used not file count.
     if (indir->parent && (flags & FLAG_l)) xprintf("total %lu\n", dtlen);
 
@@ -216,6 +222,7 @@ static void listfiles(struct dirtree *indir)
 
         // Skip directories at the top of the tree when -d isn't set
         if (S_ISDIR(mode) && !indir->parent && !(flags & FLAG_d)) continue;
+        TT.nl_title=1;
 
         // Do we need to wrap at right edge of screen?
         entrylen(sort[ul], len);
@@ -285,17 +292,11 @@ static void listfiles(struct dirtree *indir)
             || dirtree_isdotdot(sort[ul])) continue;
 
         // Recurse into dirs if at top of the tree or given -R
-        if (!indir->parent || (flags & FLAG_R)) {
-            int fd = openat(indir->data, sort[ul]->name, 0);
-
-            sort[ul]->data = dup(fd);
-            dirtree_recurse(sort[ul], filter);
-            sort[ul]->data = fd;
-            listfiles(sort[ul]);
-        }
+        if (!indir->parent || (flags & FLAG_R))
+            listfiles(openat(dirfd, sort[ul]->name, 0), sort[ul]);
     }
     free(sort);
-    if (indir->data != AT_FDCWD) close(indir->data);
+    if (dirfd != AT_FDCWD) close(indir->data);
 }
 
 void ls_main(void)
@@ -330,27 +331,11 @@ void ls_main(void)
                            (struct double_list *)dt);
     }
 
-    if (!TT.files->child) return;
-
     // Turn double_list into dirtree
     dlist_to_dirtree(TT.files);
 
-    // Special case a single directory argument: silently descend into it.
-    dt = TT.files->child;
-
-    if (S_ISDIR(dt->st.st_mode) && !dt->next && !(toys.optflags&FLAG_d)) {
-        int fd = open(dt->name, 0);
-        TT.files = dt;
-        dt->data = dup(fd);
-        dirtree_recurse(dt, filter);
-        dt->data = fd;
-    } else TT.files->data = AT_FDCWD;
-
     // Display the files we collected
-    listfiles(TT.files);
+    listfiles(AT_FDCWD, TT.files);
 
-    if (CFG_TOYBOX_FREE) {
-        free(TT.files->parent);
-        free(TT.files);
-    }
+    if (CFG_TOYBOX_FREE) free(TT.files);
 }
