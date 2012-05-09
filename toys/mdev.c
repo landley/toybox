@@ -50,7 +50,7 @@ static void make_device(char *path)
 	temp = strrchr(path, '/');
 	fd = open(path, O_RDONLY);
 	*temp=0;
-	temp++;
+	temp = toybuf;
 	len = read(fd, temp, 64);
 	close(fd);
 	if (len<1) return;
@@ -95,7 +95,7 @@ static void make_device(char *path)
 							// Regex to match this device
 							case 3:
 							{
-								char *regex = strndupa(pos, end2-pos);
+								char *regex = strndup(pos, end2-pos);
 								regex_t match;
 								regmatch_t off;
 								int result;
@@ -104,6 +104,7 @@ static void make_device(char *path)
 								xregcomp(&match, regex, REG_EXTENDED);
 								result=regexec(&match, device_name, 1, &off, 0);
 								regfree(&match);
+								free(regex);
 
 								// If not this device, skip rest of line
 								if (result || off.rm_so
@@ -125,7 +126,9 @@ static void make_device(char *path)
 								uid = strtoul(pos,&s2,10);
 								if (s!=s2) {
 									struct passwd *pass;
-									pass = getpwnam(strndupa(pos, s-pos));
+									char *str = strndup(pos, s-pos);
+									pass = getpwnam(str);
+									free(str);
 									if (!pass) goto end_line;
 									uid = pass->pw_uid;
 								}
@@ -134,7 +137,9 @@ static void make_device(char *path)
 								gid = strtoul(s,&s2,10);
 								if (end2!=s2) {
 									struct group *grp;
-									grp = getgrnam(strndupa(s, end2-s));
+									char *str = strndup(s, end2-s);
+									grp = getgrnam(str);
+									free(str);
 									if (!grp) goto end_line;
 									gid = grp->gr_gid;
 								}
@@ -168,28 +173,30 @@ found_device:
 	if (mknod(temp, mode | type, makedev(major, minor)) && errno != EEXIST)
 		perror_exit("mknod %s failed", temp);
 
-	// Dear gcc: shut up about ignoring the return value here.  If it doesn't
-	// work, what exactly are we supposed to do about it?
 	if (CFG_MDEV_CONF) mode=chown(temp, uid, gid);
 }
 
-static int callback(char *path, struct dirtree *node)
+static int callback(struct dirtree *node)
 {
 	// Entries in /sys/class/block aren't char devices, so skip 'em.  (We'll
 	// get block devices out of /sys/block.)
-	if(!strcmp(node->name, "block")) return 1;
+	if(!strcmp(node->name, "block")) return DIRTREE_NOSAVE|DIRTREE_NORECURSE;
 
 	// Does this directory have a "dev" entry in it?
+	// This is path based because the hotplug callbacks are
 	if (S_ISDIR(node->st.st_mode) || S_ISLNK(node->st.st_mode)) {
-		char *dest = path+strlen(path);
-		strcpy(dest, "/dev");
-		if (!access(path, R_OK)) make_device(path);
-		*dest = 0;
+		int len=4;
+		char *dev = dirtree_path(node, &len);
+		strcpy(dev+len, "/dev");
+		if (!access(dev, R_OK)) make_device(dev);
+		free(dev);
 	}
 
 	// Circa 2.6.25 the entries more than 2 deep are all either redundant
 	// (mouse#, event#) or unnamed (every usb_* entry is called "device").
-	return node->depth>1;
+    if (node->parent && node->parent->parent)
+		return DIRTREE_NOSAVE|DIRTREE_NORECURSE;
+	return DIRTREE_NOSAVE;
 }
 
 void mdev_main(void)
@@ -197,19 +204,9 @@ void mdev_main(void)
 	// Handle -s
 
 	if (toys.optflags) {
-		xchdir("/sys/class");
-		strcpy(toybuf, "/sys/class");
-		dirtree_read(toybuf, NULL, callback);
-		strcpy(toybuf+5, "block");
-		dirtree_read(toybuf, NULL, callback);
+		dirtree_read("/sys/class", callback);
+		dirtree_read("/sys/block", callback);
 	}
-//	if (toys.optflags) {
-//		strcpy(toybuf, "/sys/block");
-//		find_dev(toybuf);
-//		strcpy(toybuf, "/sys/class");
-//		find_dev(toybuf);
-//		return;
-//	}
 
 	// hotplug support goes here
 }
