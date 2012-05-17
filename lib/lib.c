@@ -916,113 +916,74 @@ char *num_to_sig(int sig)
 }
 
 
-/* mode parsing */
-
-mode_t apply_mode(int who, int how, int what, mode_t base)
+mode_t string_to_mode(char *modestr, mode_t mode)
 {
-	mode_t new_mode = 0, tmp_mode = 0, tmp_mask = 0;
+	char *whos = "ugoa", *hows = "=+-", *whats = "xwrstX", *whys = "ogu";
+	char *s, *str = modestr;
 
-	if (!who) tmp_mask = 07777;
-	if (who & 0x01) { // u
-		if (what & 0x01) tmp_mode |= S_IXUSR;
-		if (what & 0x02) tmp_mode |= S_IWUSR;
-		if (what & 0x04) tmp_mode |= S_IRUSR;
-		if (what & 0x08) tmp_mode |= S_ISUID;
-		tmp_mask |= S_IRWXU;
+	// Handle octal mode
+	if (isdigit(*str)) {
+		mode = strtol(str, &s, 8);
+		if (*s || (mode & ~(07777))) goto barf;
+
+		return mode;
 	}
-	if (who & 0x02) { // g
-		if (what & 0x01) tmp_mode |= S_IXGRP;
-		if (what & 0x02) tmp_mode |= S_IWUSR;
-		if (what & 0x04) tmp_mode |= S_IRUSR;
-		if (what & 0x08) tmp_mode |= S_ISGID;
-		tmp_mask |= S_IRWXG;
-	}
-	if (who & 0x04) { // o
-		if (what & 0x01) tmp_mode |= S_IXOTH;
-		if (what & 0x02) tmp_mode |= S_IWOTH;
-		if (what & 0x04) tmp_mode |= S_IROTH;
-		tmp_mask |= S_IRWXO;
-	}
-	/* check sticky */
-	if (what & 0x10) tmp_mode |= S_ISVTX;
 
-	if (how == 1) new_mode = tmp_mode | (base & tmp_mask);
-	else if (how == 2) new_mode = base | tmp_mode;
-	else if (how == 3) new_mode = base & ~(tmp_mode);
+	// Gaze into the bin of permission...
+	for (;;) {
+		int i, j, dowho, dohow, dowhat;
 
-	return new_mode;
-}
+		dowho = dohow = dowhat = 0;
 
-
-mode_t string_to_mode(char *mode_str, mode_t base)
-{
-	mode_t new_mode;
-	int what = 0;
-	int who = 0;
-	int how = 0;
-	char *p;
-	long tmp;
-	if (!mode_str)
-		return base;
-	if (isdigit(mode_str[0])) {
-		tmp = strtol(mode_str, &p, 8);
-		if (*p || tmp < 0 || (tmp & ~(07777))) return base;
-		new_mode = (mode_t) tmp;
-		return new_mode;
-	}
-	new_mode = base;
-	while (*mode_str) {
-		/* TODO: add support for permission copying */
-		switch(*mode_str) {
-		case ',':
-			/* next command */
-			new_mode = apply_mode(who, how, what, new_mode);
-			who = 0;
-			how = 0;
-			what = 0;
-			break;
-		case 'a':
-			who = 0x01 | 0x02 | 0x04;
-			break;
-		case 'u':
-			who |= 0x01;
-			break;
-		case 'g':
-			who |= 0x02;
-			break;
-		case 'o':
-			who |= 0x04;
-			break;
-		case 'r':
-			what |= 0x04;
-			break;
-		case 'w':
-			what |= 0x02;
-			break;
-		case 'x':
-			what |= 0x01;
-			break;
-		case 't':
-			what |= 0x10;
-			break;
-		case 's':
-			what |= 0x08;
-			break;
-		case '=':
-			how = 1;
-			break;
-		case '+':
-			how = 2;
-			break;
-		case '-':
-			how = 3;
-			break;
-		default:
-			/* error case */
-			return base;
+		// Find the who, how, and what stanzas, in that order
+		while ((s = strchr(whos, *str))) {
+			dowho |= 1<<(whos-s);
+			str++;
 		}
-		mode_str++;
+		if (!dowho) dowho = 8;
+		if (!(s = strchr(hows, *str))) goto barf;
+		dohow = *(str++);
+		if (!dohow) goto barf;
+		while ((s = strchr(whats, *str))) {
+			dowhat |= 1<<(whats-s);
+			str++;
+		}
+
+		// Convert X to x for directory or if already executable somewhere
+		if ((dowhat&32) &&  (S_ISDIR(mode) || (mode&0111))) dowhat |= 1;
+
+		// Copy mode from another category?
+		if (!dowhat && (s = strchr(whys, *str))) {
+			dowhat = (mode>>(3*(s-str)))&7;
+			str++;
+		}
+
+		// Are we ready to do a thing yet?
+		if (*str && *(str++) != ',') goto barf;
+
+		// Ok, apply the bits to the mode.
+		for (i=0; i<4; i++) {
+			for (j=0; j<3; j++) {
+				mode_t bit = 0;
+
+				// Figure out new value at this location
+				if (i == 3) {
+				} else if (dowhat&(1<<j)) bit++;
+
+				// When selection active, modify bit
+				if (dowho&(8|(1<<i))) {
+					int where = 1<<((3*i)+j);
+
+					if (dohow == '=' || (bit && dohow == '-'))
+						mode &= ~where;
+					if (bit && dohow != '-') mode |= where;
+				}
+			}
+		}
+
+		if (!*str) break;
 	}
-	new_mode = apply_mode(who, how, what, new_mode);
-	return new_mode;
+	return mode;
+barf:
+	error_exit("bad mode '%s'", modestr);
 }
