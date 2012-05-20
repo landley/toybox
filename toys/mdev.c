@@ -36,6 +36,8 @@ config MDEV_CONF
 #include "toys.h"
 #include "lib/xregcomp.h"
 
+// todo, open() block devices to trigger partition scanning.
+
 // mknod in /dev based on a path like "/sys/block/hda/hda1"
 static void make_device(char *path)
 {
@@ -180,7 +182,7 @@ static int callback(struct dirtree *node)
 {
 	// Entries in /sys/class/block aren't char devices, so skip 'em.  (We'll
 	// get block devices out of /sys/block.)
-	if(!strcmp(node->name, "block")) return DIRTREE_NOSAVE|DIRTREE_NORECURSE;
+	if(!strcmp(node->name, "block")) return 0;
 
 	// Does this directory have a "dev" entry in it?
 	// This is path based because the hotplug callbacks are
@@ -194,9 +196,8 @@ static int callback(struct dirtree *node)
 
 	// Circa 2.6.25 the entries more than 2 deep are all either redundant
 	// (mouse#, event#) or unnamed (every usb_* entry is called "device").
-    if (node->parent && node->parent->parent)
-		return DIRTREE_NOSAVE|DIRTREE_NORECURSE;
-	return DIRTREE_NOSAVE;
+
+	return (node->parent && node->parent->parent) ? 0 : DIRTREE_RECURSE;
 }
 
 void mdev_main(void)

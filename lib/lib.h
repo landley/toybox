@@ -48,16 +48,17 @@ void get_optflags(void);
 // Values returnable from callback function (bitfield, or them together)
 // Default with no callback is 0
 
-// Do not add this node to the tree
-#define DIRTREE_NOSAVE       1
-// Do not recurse into children
-#define DIRTREE_NORECURSE    2
-// Call again after handling all children (Directories only. Sets linklen = -1)
+// Add this node to the tree
+#define DIRTREE_SAVE         1
+// Recurse into children
+#define DIRTREE_RECURSE      2
+// Call again after handling all children of this directory
+// (Ignored for non-directories, sets linklen = -1 before second call.)
 #define DIRTREE_COMEAGAIN    4
 // Follow symlinks to directories
 #define DIRTREE_SYMFOLLOW    8
-// Abort recursive dirtree.  (Forces NOSAVE and NORECURSE on this entry.)
-#define DIRTREE_ABORT      (256|DIRTREE_NOSAVE|DIRTREE_NORECURSE)
+// Don't look at any more files in this directory.
+#define DIRTREE_ABORT      256
 
 #define DIRTREE_ABORTVAL ((struct dirtree *)1)
 
@@ -72,7 +73,7 @@ struct dirtree {
 
 struct dirtree *dirtree_add_node(int dirfd, char *name);
 char *dirtree_path(struct dirtree *node, int *plen);
-int dirtree_isdotdot(struct dirtree *catch);
+int dirtree_notdotdot(struct dirtree *catch);
 struct dirtree *handle_callback(struct dirtree *new,
 	int (*callback)(struct dirtree *node));
 void dirtree_recurse(struct dirtree *node,

@@ -139,11 +139,10 @@ static int filter(struct dirtree *new)
 // TODO should -1f print here to handle enormous dirs without runing
 // out of mem?
 
-    if (flags & FLAG_a) return DIRTREE_NORECURSE;
-    if (!(flags & FLAG_A) && new->name[0]=='.')
-        return DIRTREE_NOSAVE|DIRTREE_NORECURSE;
+    if (flags & FLAG_a) return 0;
+    if (!(flags & FLAG_A) && new->name[0]=='.') return 0;
 
-    return dirtree_isdotdot(new)|DIRTREE_NORECURSE;
+    return dirtree_notdotdot(new);
 }
 
 // Display a list of dirtree entries, according to current format
@@ -289,7 +288,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
     for (ul = 0; ul<dtlen; free(sort[ul++])) {
 // TODO follow symlinks when?
         if ((flags & FLAG_d) || !S_ISDIR(sort[ul]->st.st_mode)
-            || dirtree_isdotdot(sort[ul])) continue;
+            || !dirtree_notdotdot(sort[ul])) continue;
 
         // Recurse into dirs if at top of the tree or given -R
         if (!indir->parent || (flags & FLAG_R))

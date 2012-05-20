@@ -68,14 +68,14 @@ char *dirtree_path(struct dirtree *node, int *plen)
 
 // Default callback, filters out "." and "..".
 
-int dirtree_isdotdot(struct dirtree *catch)
+int dirtree_notdotdot(struct dirtree *catch)
 {
 	// Should we skip "." and ".."?
 	if (catch->name[0]=='.' && (!catch->name[1] ||
 			(catch->name[1]=='.' && !catch->name[2])))
-				return DIRTREE_NOSAVE|DIRTREE_NORECURSE;
+				return 0;
 
-	return 0;
+	return DIRTREE_SAVE|DIRTREE_RECURSE;
 }
 
 // Handle callback for a node in the tree. Returns saved node(s) or NULL.
@@ -91,11 +91,11 @@ struct dirtree *handle_callback(struct dirtree *new,
 {
 	int flags;
 
-	if (!callback) callback = dirtree_isdotdot;
+	if (!callback) callback = dirtree_notdotdot;
 
 	flags = callback(new);
 	if (S_ISDIR(new->st.st_mode)) {
-		if (!(flags & DIRTREE_NORECURSE)) {
+		if (flags & DIRTREE_RECURSE) {
 			new->data = openat (new->parent ? new->parent->data : AT_FDCWD,
 				new->name, 0);
 			dirtree_recurse(new, callback);
@@ -104,7 +104,7 @@ struct dirtree *handle_callback(struct dirtree *new,
 		if (flags & DIRTREE_COMEAGAIN) flags = callback(new);
 	}
 	// If this had children, it was callback's job to free them already.
-	if (flags & DIRTREE_NOSAVE) {
+	if (!(flags & DIRTREE_SAVE)) {
 		free(new);
 		new = NULL;
 	}
