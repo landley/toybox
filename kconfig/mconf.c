@@ -774,13 +774,13 @@ static void conf_string(struct menu *menu)
 
 		switch (sym_get_type(menu->sym)) {
 		case S_INT:
-			heading = _(inputbox_instructions_int);
+			heading = (char *)_(inputbox_instructions_int);
 			break;
 		case S_HEX:
-			heading = _(inputbox_instructions_hex);
+			heading = (char *)_(inputbox_instructions_hex);
 			break;
 		case S_STRING:
-			heading = _(inputbox_instructions_string);
+			heading = (char *)_(inputbox_instructions_string);
 			break;
 		default:
 			heading = "Internal mconf error!";
