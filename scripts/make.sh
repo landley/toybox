@@ -112,6 +112,10 @@ sed -n \
 
 TOYFILES=$(cat .config | sed -nre 's/^CONFIG_(.*)=y/\1/;t skip;b;:skip;s/_.*//;p' | sort -u | tr A-Z a-z | grep -v '^toybox$' | sed 's@\(.*\)@toys/\1.c@' )
 
+echo "Library probe..."
+
+OPTLIBS="$(for i in util crypt m; do echo "int main(int argc, char *argv[]) {return 0;}" | ${CROSS_COMPILE}${CC} -xc - -o /dev/null -Wl,--as-needed -l$i > /dev/null 2>/dev/null && echo -l$i; done)"
+
 echo "Compile toybox..."
 
 do_loudly()
@@ -121,7 +125,7 @@ do_loudly()
 }
 
 do_loudly ${CROSS_COMPILE}${CC} $CFLAGS -I . -o toybox_unstripped $OPTIMIZE \
-  main.c lib/*.c $TOYFILES -Wl,--as-needed,-lutil,--no-as-needed -Wl,--as-needed,-lcrypt,--no-as-needed || exit 1
+  main.c lib/*.c $TOYFILES -Wl,--as-needed $OPTLIBS  || exit 1
 do_loudly ${CROSS_COMPILE}${STRIP} toybox_unstripped -o toybox || exit 1
 # gcc 4.4's strip command is buggy, and doesn't set the executable bit on
 # its output the way SUSv4 suggests it do so.
