@@ -15,7 +15,7 @@ USE_CHGRP(NEWTOY(chgrp, "<2Rfv", TOYFLAG_BIN))
 
 config CHGRP
 	bool "chgrp"
-	default n
+	default y
 	help
 	  usage: chgrp [-R] [-f] [-v] group file...
 	  Change group ownership of one or more files.
@@ -38,31 +38,32 @@ DEFINE_GLOBALS(
 
 #define TT this.chgrp
 
-static int do_chgrp(const char *path) {
-	int ret = chown(path, -1, TT.group);
-	if (toys.optflags & FLAG_v)
-		xprintf("chgrp(%s, %s)\n", TT.group_name, path);
-	if (ret == -1 && !(toys.optflags & FLAG_f))
-		perror_msg("changing group of '%s' to '%s'", path, TT.group_name);
-	toys.exitval |= ret;
-	return ret;
-}
-
-// Copied from toys/cp.c:cp_node()
-int chgrp_node(char *path, struct dirtree *node)
+static int do_chgrp(struct dirtree *node)
 {
-	char *s = path + strlen(path);
-	struct dirtree *n = node;
+	int fd, ret = 1, flags = toys.optflags;
 
-	for ( ; ; n = n->parent) {
-		while (s!=path) {
-			if (*(--s) == '/') break;
-		}
-		if (!n) break;
+	if (!dirtree_notdotdot(node)) return 0;
+
+	// Handle recursion, and make it depth first
+	if (S_ISDIR(node->st.st_mode)) {
+		if (!node->extra) node->extra = dup(node->data);
+		if ((flags & FLAG_R) && node->data != -1) return DIRTREE_COMEAGAIN;
+		fd = node->extra;
+	} else fd = openat(node->parent ? node->parent->data : AT_FDCWD,
+		node->name, 0);
+
+	if (fd != -1) ret = fchown(fd, -1, TT.group);
+
+	if (ret || (flags & FLAG_v)) {
+		char *path = dirtree_path(node, 0);
+		if (flags & FLAG_v)
+			xprintf("chgrp(%s, %s)\n", TT.group_name, path);
+		if (ret == -1 && !(toys.optflags & FLAG_f))
+			perror_msg("changing group of '%s' to '%s'", path, TT.group_name);
+		free(path);
 	}
-	if (s != path) s++;
-
-	do_chgrp(s);
+	close(fd);
+	toys.exitval |= ret;
 
 	return 0;
 }
@@ -74,33 +75,8 @@ void chgrp_main(void)
 
 	TT.group_name = *toys.optargs;
 	group = getgrnam(TT.group_name);
-	if (!group) {
-		error_msg("invalid group '%s'", TT.group_name);
-		toys.exitval = 1;
-		return;
-	}
+	if (!group) error_exit("no group '%s'", TT.group_name);
 	TT.group = group->gr_gid;
 
-	if (toys.optflags & FLAG_R) {
-		// Recurse into subdirectories
-		for (s=toys.optargs + 1; *s; s++) {
-			struct stat sb;
-			if (stat(*s, &sb) == -1) {
-				if (!(toys.optflags & FLAG_f))
-					perror_msg("stat '%s'", *s);
-				continue;
-			}
-			do_chgrp(*s);
-			if (S_ISDIR(sb.st_mode)) {
-				strncpy(toybuf, *s, sizeof(toybuf) - 1);
-				toybuf[sizeof(toybuf) - 1] = 0;
-				dirtree_read(toybuf, NULL, chgrp_node);
-			}
-		}
-	} else {
-		// Do not recurse
-		for (s=toys.optargs + 1; *s; s++) {
-			do_chgrp(*s);
-		}
-	}
+	for (s=toys.optargs+1; *s; s++) dirtree_read(*s, do_chgrp);
 }
