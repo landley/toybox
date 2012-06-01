@@ -35,7 +35,7 @@ void readlink_main(void)
 
 	// Calculating full cannonical path?
 
-	if (CFG_READLINK_F && toys.optflags) s = realpath(*toys.optargs, NULL);
+	if (CFG_READLINK_F && toys.optflags) s = xrealpath(*toys.optargs);
 	else s = xreadlink(*toys.optargs);
 
 	if (s) {
