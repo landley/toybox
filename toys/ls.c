@@ -7,6 +7,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/ls.html
 
+// "[-Cl]"
 USE_LS(NEWTOY(ls, "ACFHLRSacdfiklmnpqrstux1", TOYFLAG_BIN))
 
 config LS
@@ -16,17 +17,30 @@ config LS
 	  usage: ls [-ACFHLRSacdfiklmnpqrstux1] [directory...]
 	  list files
 
-          -1    list one file per line
-          -a    list all files
+	  what to show:
+	  -a    list all files
+	  -d	directory, not contents
+	  -i	inode number
+	  -p	put a '/' after directory names
 	  -A	list all files except . and ..
-          -F    append a character as a file type indicator
-          -l    show full details for each file
+	  -R	recursively list files in subdirectories
+	  -F    append file type indicator (/=dir, *=exe, @=symlink, |=FIFO)
+
+	  output formats:
+	  -1    list one file per line
+	  -C	columns (sorted vertically)
+	  -x	columns (sorted horizontally)
+	  -l	long (show full details for each file)
+	  -m	comma separated
+
+	  sorting:
+	  -f	unsorted
 */
 
 #include "toys.h"
 
 #define FLAG_1 (1<<0)
-//#define FLAG_x (1<<1)
+#define FLAG_x (1<<1)
 //#define FLAG_u (1<<2)
 //#define FLAG_t (1<<3)
 //#define FLAG_s (1<<4)
@@ -47,18 +61,18 @@ config LS
 //#define FLAG_L (1<<19)
 //#define FLAG_H (1<<20)
 #define FLAG_F (1<<21)
-//#define FLAG_C (1<<21)
-#define FLAG_A (1<<22)
+#define FLAG_C (1<<22)
+#define FLAG_A (1<<23)
 
 // test sst output (suid/sticky in ls flaglist)
 
 // ls -lR starts .: then ./subdir:
 
 DEFINE_GLOBALS(
-  struct dirtree *files;
+    struct dirtree *files;
 
-  unsigned width;
-  int nl_title;
+    unsigned screen_width;
+    int nl_title;
 )
 
 #define TT this.ls
@@ -91,14 +105,14 @@ static char endtype(struct stat *st)
 
 static char *getusername(uid_t uid)
 {
-  struct passwd *pw = getpwuid(uid);
-  return pw ? pw->pw_name : utoa(uid);
+    struct passwd *pw = getpwuid(uid);
+    return pw ? pw->pw_name : utoa(uid);
 }
 
 static char *getgroupname(gid_t gid)
 {
-  struct group *gr = getgrgid(gid);
-  return gr ? gr->gr_name : utoa(gid);
+    struct group *gr = getgrgid(gid);
+    return gr ? gr->gr_name : utoa(gid);
 }
 
 // Figure out size of printable entry fields for display indent/wrap
@@ -145,6 +159,48 @@ static int filter(struct dirtree *new)
     return dirtree_notdotdot(new);
 }
 
+// For column view, calculate horizontal position (for padding) and return
+// index of next entry to display.
+
+static unsigned long next_column(unsigned long ul, unsigned long dtlen,
+		unsigned columns, unsigned *xpos)
+{
+    unsigned long transition;
+    unsigned height, widecols;
+
+    // Horizontal sort is easy
+    if (!(toys.optflags & FLAG_C)) {
+        *xpos = ul % columns;
+        return ul;
+    }
+
+    // vertical sort
+
+    // For -x, calculate height of display, rounded up
+    height = (dtlen+columns-1)/columns;
+
+    // Sanity check: does wrapping render this column count impossible
+    // due to the right edge wrapping eating a whole row?
+    if (height*columns - dtlen >= height) {
+        *xpos = columns;
+        return 0;
+    }
+
+    // Uneven rounding goes along right edge
+    widecols = dtlen % height;
+    if (!widecols) widecols = height;
+    transition = widecols * columns;
+    if (ul < transition) {
+        *xpos =  ul % columns;
+        return (*xpos*height) + (ul/columns);
+    }
+
+    ul -= transition;
+    *xpos = ul % (columns-1);
+
+    return (*xpos*height) + widecols + (ul/(columns-1));
+}
+
 // Display a list of dirtree entries, according to current format
 // Output types -1, -l, -C, or stream
 
@@ -152,14 +208,16 @@ static void listfiles(int dirfd, struct dirtree *indir)
 {
     struct dirtree *dt, **sort = 0;
     unsigned long dtlen = 0, ul = 0;
-    unsigned width, flags = toys.optflags, totals[6], len[6];
-
+    unsigned width, flags = toys.optflags, totals[6], len[6],
+        *colsizes = (unsigned *)(toybuf+260), columns = (sizeof(toybuf)-260)/4;
     
+    memset(totals, 0, 6*sizeof(unsigned));
+
     // Silently descend into single directory listed by itself on command line.
     // In this case only show dirname/total header when given -R.
     if (!indir->parent) {
         if (!(dt = indir->child)) return;
-        if (S_ISDIR(dt->st.st_mode) && !dt->next && !(toys.optflags&FLAG_d)) {
+        if (S_ISDIR(dt->st.st_mode) && !dt->next && !(flags & FLAG_d)) {
             dt->extra = 1;
             listfiles(open(dt->name, 0), dt);
             return;
@@ -186,20 +244,40 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
     if (!(flags & FLAG_f)) qsort(sort, dtlen, sizeof(void *), (void *)compare);
 
-    // Find largest entry in each field
+    // Find largest entry in each field for display alignment
+    if (flags & (FLAG_C|FLAG_x)) {
 
-    memset(totals, 0, 6*sizeof(unsigned));
-    for (ul = 0; ul<dtlen; ul++) {
+        // columns can't be more than toybuf can hold, or more than files,
+        // or > 1/2 screen width (one char filename, one space).
+        if (columns > TT.screen_width/2) columns = TT.screen_width/2;
+        if (columns > dtlen) columns = dtlen;
+
+        // Try to fit as many columns as we can, dropping down by one each time
+        for (;columns > 1; columns--) {
+            unsigned c, totlen = columns;
+
+            memset(colsizes, 0, columns*sizeof(unsigned));
+            for (ul=0; ul<dtlen; ul++) {
+                entrylen(sort[next_column(ul, dtlen, columns, &c)], len);
+                if (c == columns) break;
+                // Does this put us over budget?
+                if (*len > colsizes[c]) {
+                    totlen += *len-colsizes[c];
+                    colsizes[c] = *len;
+                    if (totlen > TT.screen_width) break;
+                }
+            }
+            // If it fit, stop here
+            if (ul == dtlen) break;
+        }
+    } else if (flags & FLAG_l) for (ul = 0; ul<dtlen; ul++) {
         entrylen(sort[ul], len);
-        if (flags & FLAG_l) {
-            for (width=0; width<6; width++)
-                if (len[width] > totals[width]) totals[width] = len[width];
-//TODO      } else if (flags & FLAG_C) {
-        } else if (*len > *totals) *totals = *len;
+        for (width=0; width<6; width++)
+            if (len[width] > totals[width]) totals[width] = len[width];
     }
 
     // Label directory if not top of tree, or if -R
-    if (indir->parent && (!indir->extra || (flags&FLAG_R)))
+    if (indir->parent && (!indir->extra || (flags & FLAG_R)))
     {
         char *path = dirtree_path(indir, 0);
 
@@ -212,10 +290,12 @@ static void listfiles(int dirfd, struct dirtree *indir)
     if (indir->parent && (flags & FLAG_l)) xprintf("total %lu\n", dtlen);
 
     // Loop through again to produce output.
-    width = 0;
     memset(toybuf, ' ', 256);
+    width = 0;
     for (ul = 0; ul<dtlen; ul++) {
-        struct stat *st = &(sort[ul]->st);
+        unsigned curcol;
+        unsigned long next = next_column(ul, dtlen, columns, &curcol);
+        struct stat *st = &(sort[next]->st);
         mode_t mode = st->st_mode;
         char et = endtype(st);
 
@@ -223,11 +303,13 @@ static void listfiles(int dirfd, struct dirtree *indir)
         if (S_ISDIR(mode) && !indir->parent && !(flags & FLAG_d)) continue;
         TT.nl_title=1;
 
-        // Do we need to wrap at right edge of screen?
-        entrylen(sort[ul], len);
+        // Handle padding and wrapping for display purposes
+        entrylen(sort[next], len);
         if (ul) {
-            if (toys.optflags & FLAG_m) xputc(',');
-            if ((flags & FLAG_1) || width+1+*len > TT.width) {
+            if (flags & FLAG_m) xputc(',');
+            if (flags & (FLAG_C|FLAG_x)) {
+                if (!curcol) xputc('\n');
+            } else if ((flags & FLAG_1) || width+1+*len > TT.screen_width) {
                 xputc('\n');
                 width = 0;
             } else {
@@ -274,11 +356,17 @@ static void listfiles(int dirfd, struct dirtree *indir)
                     totals[5]+1, st->st_size, thyme);
         }
 
-        xprintf("%s", sort[ul]->name);
+        xprintf("%s", sort[next]->name);
         if ((flags & FLAG_l) && S_ISLNK(mode))
-            xprintf(" -> %s", sort[ul]->symlink);
+            xprintf(" -> %s", sort[next]->symlink);
 
         if (et) xputc(et);
+
+        // Pad columns
+        if (flags & (FLAG_C|FLAG_x)) {
+            curcol = colsizes[curcol] - *len;
+            if (curcol >= 0) xprintf("%s", toybuf+255-curcol);
+        }
     }
 
     if (width) xputc('\n');
@@ -306,8 +394,8 @@ void ls_main(void)
     // Do we have an implied -1
     if (!isatty(1) || (toys.optflags&FLAG_l)) toys.optflags |= FLAG_1;
     else {
-        TT.width = 80;
-        terminal_size(&TT.width, NULL);
+        TT.screen_width = 80;
+        terminal_size(&TT.screen_width, NULL);
     }
     // The optflags parsing infrastructure should really do this for us,
     // but currently it has "switch off when this is set", so "-dR" and "-Rd"
