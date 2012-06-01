@@ -17,6 +17,7 @@ config MKTEMP
 	  Safely create a temporary file or directory and print its name.
 	  TEMPLATE should end in 6 consecutive X's, the default
 	  template is tmp.XXXXXX and the default directory is /tmp/.
+	  
 	  -d, --directory        Create a directory, instead of a file
 	  -p DIR, --tmpdir=DIR   Use DIR as a base path
 
@@ -31,26 +32,23 @@ DEFINE_GLOBALS(
 
 void mktemp_main(void)
 {
-	int  p_flag = (toys.optflags & 1);
-	int  d_flag = (toys.optflags & 2) >> 1;
-	char * result;
+	int  d_flag = toys.optflags & 2;
+	char *tmp, *path;
 
-	int size = snprintf(toybuf, sizeof(toybuf)-1, "%s/%s",
-			(p_flag && TT.tmpdir)?TT.tmpdir:"/tmp/",
-			(toys.optargs[0])?toys.optargs[0]:"tmp.XXXXXX");
-	toybuf[size] = 0;
+	tmp = *toys.optargs;
+	if (!tmp) tmp = "tmp.XXXXXX";
+	if (!TT.tmpdir) TT.tmpdir = "/tmp/";
 
-	if (d_flag) {
-		if (mkdtemp(toybuf) == NULL)
-			perror_exit("Failed to create temporary directory");
-	} else {
-		if (mkstemp(toybuf) == -1)
-			perror_exit("Failed to create temporary file");
+	tmp = xmsprintf("%s/%s", TT.tmpdir, tmp);
+
+	if (d_flag ? mkdtemp(tmp) == NULL : mkstemp(tmp) == -1)
+		perror_exit("Failed to create temporary %s",
+			d_flag ? "directory" : "file");
+
+	xputs(path = xrealpath(tmp));
+
+	if (CFG_TOYBOX_FREE) {
+		free(path);
+		free(tmp);
 	}
-
-	result = realpath(toybuf, NULL);
-	xputs(result);
-
-	if (CFG_TOYBOX_FREE)
-		free(result);
 }
