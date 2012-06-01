@@ -7,7 +7,7 @@
  * See http://www.opengroup.org/onlinepubs/009695399/utilities/cp.html
  *
  * "R+ra+d+p+r"
-USE_CP(NEWTOY(cp, "<2vslrR+rdpa+d+p+rHLPif", TOYFLAG_BIN))
+USE_CP(NEWTOY(cp, "<2vslrRdpaHLPif", TOYFLAG_BIN))
 
 config CP
 	bool "cp (broken by dirtree changes)"
@@ -113,7 +113,7 @@ void cp_file(char *src, char *dst, struct stat *srcst)
 	// Inability to set these isn't fatal, some require root access.
 	// Can't do fchmod() etc here because -p works on mkdir, too.
 
-	if (toys.optflags & FLAG_p) {
+	if (toys.optflags & (FLAG_p|FLAG_a)) {
 		int mask = umask(0);
 		struct utimbuf ut;
 
@@ -188,7 +188,7 @@ void cp_main(void)
 
 		// Skip nonexistent sources.
 
-		TT.keep_symlinks = toys.optflags & FLAG_d;
+		TT.keep_symlinks = toys.optflags & (FLAG_d|FLAG_a);
 		if (TT.keep_symlinks ? lstat(src, &st) : stat(src, &st))
 		{
 			perror_msg("'%s'", src);
@@ -205,7 +205,7 @@ void cp_main(void)
 			dst = xmsprintf("%s/%s", TT.destname, dst);
 		} else dst = TT.destname;
 		if (S_ISDIR(st.st_mode)) {
-			if (toys.optflags & FLAG_r) {
+			if (toys.optflags & (FLAG_r|FLAG_R|FLAG_a)) {
 				cp_file(src, dst, &st);
 
 				TT.keep_symlinks++;
