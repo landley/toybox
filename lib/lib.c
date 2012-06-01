@@ -345,6 +345,14 @@ char *xabspath(char *path)
 	return path;
 }
 
+// Resolve all symlinks, returning malloc() memory.
+char *xrealpath(char *path)
+{
+	char *new = realpath(path, NULL);
+	if (!new) perror_exit("realpath '%s'", path);
+	return new;
+}
+
 void xchdir(char *path)
 {
 	if (chdir(path)) error_exit("chdir '%s'", path);
