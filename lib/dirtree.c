@@ -78,6 +78,23 @@ int dirtree_notdotdot(struct dirtree *catch)
 	return DIRTREE_SAVE|DIRTREE_RECURSE;
 }
 
+// depth first recursion
+int dirtree_comeagain(struct dirtree *try, int recurse)
+{
+	int ret = dirtree_notdotdot(try);
+	if (ret) {
+		if (S_ISDIR(try->st.st_mode)) {
+			if (!try->extra) {
+				try->extra = xdup(try->data);
+				if (recurse) return DIRTREE_COMEAGAIN;
+			}
+		} else try->extra = openat(try->parent ? try->parent->data : AT_FDCWD,
+			try->name, 0);
+	}
+
+	return ret;
+}
+
 // Handle callback for a node in the tree. Returns saved node(s) or NULL.
 //
 // By default, allocates a tree of struct dirtree, not following symlinks

@@ -40,19 +40,12 @@ DEFINE_GLOBALS(
 
 static int do_chgrp(struct dirtree *node)
 {
-	int fd, ret = 1, flags = toys.optflags;
+	int ret, flags = toys.optflags;
 
-	if (!dirtree_notdotdot(node)) return 0;
+	ret = dirtree_comeagain(node, flags & FLAG_R);
+	if (!ret || ret == DIRTREE_COMEAGAIN) return ret;
 
-	// Handle recursion, and make it depth first
-	if (S_ISDIR(node->st.st_mode)) {
-		if (!node->extra) node->extra = dup(node->data);
-		if ((flags & FLAG_R) && node->data != -1) return DIRTREE_COMEAGAIN;
-		fd = node->extra;
-	} else fd = openat(node->parent ? node->parent->data : AT_FDCWD,
-		node->name, 0);
-
-	if (fd != -1) ret = fchown(fd, -1, TT.group);
+	if (node->extra != -1) ret = fchown(node->extra, -1, TT.group);
 
 	if (ret || (flags & FLAG_v)) {
 		char *path = dirtree_path(node, 0);
@@ -62,7 +55,7 @@ static int do_chgrp(struct dirtree *node)
 			perror_msg("changing group of '%s' to '%s'", path, TT.group_name);
 		free(path);
 	}
-	close(fd);
+	close(node->extra);
 	toys.exitval |= ret;
 
 	return 0;
