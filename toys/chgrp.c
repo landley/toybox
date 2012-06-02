@@ -42,8 +42,8 @@ static int do_chgrp(struct dirtree *node)
 {
 	int ret, flags = toys.optflags;
 
-	ret = dirtree_comeagain(node, flags & FLAG_R);
-	if (!ret || ret == DIRTREE_COMEAGAIN) return ret;
+	ret = dirtree_opennode(node);
+	if (!ret || ((flags & FLAG_R) && ret == DIRTREE_COMEAGAIN)) return ret;
 
 	if (node->extra != -1) ret = fchown(node->extra, -1, TT.group);
 

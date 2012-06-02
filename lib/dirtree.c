@@ -78,21 +78,20 @@ int dirtree_notdotdot(struct dirtree *catch)
 	return DIRTREE_SAVE|DIRTREE_RECURSE;
 }
 
-// depth first recursion
-int dirtree_comeagain(struct dirtree *try, int recurse)
+// get open filehandle for node in extra, giving caller the option of
+// using DIRTREE_COMEAGAIN or not.
+int dirtree_opennode(struct dirtree *try)
 {
-	int ret = dirtree_notdotdot(try);
-	if (ret) {
-		if (S_ISDIR(try->st.st_mode)) {
-			if (!try->extra) {
-				try->extra = xdup(try->data);
-				if (recurse) return DIRTREE_COMEAGAIN;
-			}
-		} else try->extra = openat(try->parent ? try->parent->data : AT_FDCWD,
-			try->name, 0);
-	}
+	if (!dirtree_notdotdot(try)) return 0;
+	if (S_ISDIR(try->st.st_mode)) {
+		if (!try->extra) {
+			try->extra = xdup(try->data);
+			return DIRTREE_COMEAGAIN;
+		}
+	} else try->extra = openat(try->parent ? try->parent->data : AT_FDCWD,
+		try->name, 0);
 
-	return ret;
+	return DIRTREE_SAVE|DIRTREE_RECURSE;
 }
 
 // Handle callback for a node in the tree. Returns saved node(s) or NULL.
