@@ -2,91 +2,65 @@
  *
  * chmod.c - Change file mode bits
  *
- * Copyright 2012 Georgi Chorbadzhiyski <georgi@unixsol.org>
+ * Copyright 2012 Rob Landley <rob@landley.net>
  *
  * See http://pubs.opengroup.org/onlinepubs/009695399/utilities/chmod.html
  *
 
-USE_CHMOD(NEWTOY(chmod, "<2Rfv", TOYFLAG_BIN))
+USE_CHMOD(NEWTOY(chmod, "<2?R", TOYFLAG_BIN))
 
 config CHMOD
-	bool "chmod"
-	default n
-	help
-	  usage: chmod [-R] [-f] [-v] mode file...
-	  Change mode bits of one or more files.
+    bool "chmod"
+    default y
+    help
+        usage: chmod [-R] MODE FILE...
 
-	  -R	recurse into subdirectories.
-	  -f	suppress most error messages.
-	  -v	verbose output.
+        Change mode of listed file[s] (recursively with -R).
+
+        MODE can be (comma-separated) stanzas: [ugoa][+-=][rwxstXugo]
+
+        Stanzas are applied in order: For each category (u = user,
+        g = group, o = other, a = all three, if none specified default is a),
+        set (+), clear (-), or copy (=), r = read, w = write, x = execute.
+        s = u+s = suid, g+s = sgid, o+s = sticky. (+t is an alias for o+s).
+        suid/sgid: execute as the user/group who owns the file.
+        sticky: can't delete files you don't own out of this directory
+        X = x for directories or if any category already has x set.
+
+        Or MODE can be an octal value up to 7777	ug uuugggooo	top +
+        bit 1 = o+x, bit 1<<8 = u+w, 1<<11 = g+1	sstrwxrwxrwx	bottom
+
+        Examples:
+        chmod u+w file - allow owner of "file" to write to it.
+        chmod 744 file - user can read/write/execute, everyone else read only
 */
 
 #include "toys.h"
 
-#define FLAG_R 4
-#define FLAG_f 2
-#define FLAG_v 1
-
 DEFINE_GLOBALS(
-	long mode;
+    char *mode;
 )
 
 #define TT this.chmod
 
-static int do_chmod(const char *path) {
-	int ret = chmod(path, TT.mode);
-	if (toys.optflags & FLAG_v)
-		xprintf("chmod(%04o, %s)\n", TT.mode, path);
-	if (ret == -1 && !(toys.optflags & FLAG_f))
-		perror_msg("changing perms of '%s' to %04o", path, TT.mode);
-	toys.exitval |= ret;
-	return ret;
-}
+#define FLAG_R 1
 
-// Copied from toys/cp.c:cp_node()
-int chmod_node(char *path, struct dirtree *node)
+int do_chmod(struct dirtree *try)
 {
-	char *s = path + strlen(path);
-	struct dirtree *n = node;
+    mode_t mode;
 
-	for ( ; ; n = n->parent) {
-		while (s!=path) {
-			if (*(--s) == '/') break;
-		}
-		if (!n) break;
-	}
-	if (s != path) s++;
+    if (!dirtree_notdotdot(try)) return 0;
 
-	do_chmod(s);
+    mode = string_to_mode(TT.mode, try->st.st_mode);
+    wfchmodat(try->parent ? try->parent->data : AT_FDCWD, try->name, mode);
 
-	return 0;
+    return (toys.optflags & FLAG_R) ? DIRTREE_RECURSE : 0;
 }
 
 void chmod_main(void)
 {
-	char **s;
-	TT.mode = strtoul(*toys.optargs, NULL, 8);
+    TT.mode = *toys.optargs;
+    char **file;
 
-	if (toys.optflags & FLAG_R) {
-		// Recurse into subdirectories
-		for (s=toys.optargs + 1; *s; s++) {
-			struct stat sb;
-			if (stat(*s, &sb) == -1) {
-				if (!(toys.optflags & FLAG_f))
-					perror_msg("%s", *s);
-				continue;
-			}
-			do_chmod(*s);
-			if (S_ISDIR(sb.st_mode)) {
-				strncpy(toybuf, *s, sizeof(toybuf) - 1);
-				toybuf[sizeof(toybuf) - 1] = 0;
-				dirtree_read(toybuf, NULL, chmod_node);
-			}
-		}
-	} else {
-		// Do not recurse
-		for (s=toys.optargs + 1; *s; s++) {
-			do_chmod(*s);
-		}
-	}
+    for (file = toys.optargs+1; *file; file++) dirtree_read(*file, do_chmod);
 }

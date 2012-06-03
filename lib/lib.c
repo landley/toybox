@@ -726,6 +726,17 @@ void xsendfile(int in, int out)
 	}
 }
 
+int wfchmodat(int fd, char *name, mode_t mode)
+{
+	int rc = fchmodat(fd, name, mode, 0);
+
+	if (rc) {
+		perror_msg("chmod '%s' to %04o", name, mode);
+		toys.exitval=1;
+	}
+	return rc;
+}
+
 // Open a temporary file to copy an existing file into.
 int copy_tempfile(int fdin, char *name, char **tempname)
 {
@@ -926,7 +937,7 @@ char *num_to_sig(int sig)
 
 mode_t string_to_mode(char *modestr, mode_t mode)
 {
-	char *whos = "ugoa", *hows = "=+-", *whats = "xwrstX", *whys = "ogu";
+	char *whos = "ogua", *hows = "=+-", *whats = "xwrstX", *whys = "ogu";
 	char *s, *str = modestr;
 
 	// Handle octal mode
@@ -944,16 +955,17 @@ mode_t string_to_mode(char *modestr, mode_t mode)
 		dowho = dohow = dowhat = 0;
 
 		// Find the who, how, and what stanzas, in that order
-		while ((s = strchr(whos, *str))) {
-			dowho |= 1<<(whos-s);
+		while (*str && (s = strchr(whos, *str))) {
+			dowho |= 1<<(s-whos);
 			str++;
 		}
 		if (!dowho) dowho = 8;
-		if (!(s = strchr(hows, *str))) goto barf;
+		if (!*str || !(s = strchr(hows, *str))) goto barf;
 		dohow = *(str++);
+
 		if (!dohow) goto barf;
-		while ((s = strchr(whats, *str))) {
-			dowhat |= 1<<(whats-s);
+		while (*str && (s = strchr(whats, *str))) {
+			dowhat |= 1<<(s-whats);
 			str++;
 		}
 
@@ -961,8 +973,8 @@ mode_t string_to_mode(char *modestr, mode_t mode)
 		if ((dowhat&32) &&  (S_ISDIR(mode) || (mode&0111))) dowhat |= 1;
 
 		// Copy mode from another category?
-		if (!dowhat && (s = strchr(whys, *str))) {
-			dowhat = (mode>>(3*(s-str)))&7;
+		if (!dowhat && *str && (s = strchr(whys, *str))) {
+			dowhat = (mode>>(3*(s-whys)))&7;
 			str++;
 		}
 
