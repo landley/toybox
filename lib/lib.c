@@ -210,8 +210,10 @@ void xclose(int fd)
 
 int xdup(int fd)
 {
-	fd = dup(fd);
-	if (fd == -1) perror_exit("xdup");
+	if (fd != -1) {
+		fd = dup(fd);
+		if (fd == -1) perror_exit("xdup");
+	}
 	return fd;
 }
 
