@@ -8,7 +8,7 @@
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/ls.html
 
 // "[-Cl]"
-USE_LS(NEWTOY(ls, "ACFHLRSacdfiklmnpqrstux1", TOYFLAG_BIN))
+USE_LS(NEWTOY(ls, "oACFHLRSacdfiklmnpqrstux1", TOYFLAG_BIN))
 
 config LS
 	bool "ls"
@@ -18,10 +18,14 @@ config LS
 	  list files
 
 	  what to show:
-	  -a    list all files
+	  -a    all files including .hidden
 	  -d	directory, not contents
 	  -i	inode number
+	  -k	block sizes in kilobytes
 	  -p	put a '/' after directory names
+	  -q	unprintable chars as '?'
+	  -s	size (in blocks)
+	  -u	use access time for timestamps
 	  -A	list all files except . and ..
 	  -R	recursively list files in subdirectories
 	  -F    append file type indicator (/=dir, *=exe, @=symlink, |=FIFO)
@@ -32,25 +36,29 @@ config LS
 	  -x	columns (sorted horizontally)
 	  -l	long (show full details for each file)
 	  -m	comma separated
+	  -n	like -l but numeric uid/gid
+	  -o	like -l but no group
 
 	  sorting:
 	  -f	unsorted
+	  -r	reverse
+	  -t	by timestamp
 */
 
 #include "toys.h"
 
 #define FLAG_1 (1<<0)
 #define FLAG_x (1<<1)
-//#define FLAG_u (1<<2)
-//#define FLAG_t (1<<3)
-//#define FLAG_s (1<<4)
-//#define FLAG_r (1<<5)
-//#define FLAG_q (1<<6)
+#define FLAG_u (1<<2)
+#define FLAG_t (1<<3)
+#define FLAG_s (1<<4)
+#define FLAG_r (1<<5)
+#define FLAG_q (1<<6)
 #define FLAG_p (1<<7)
-//#define FLAG_n (1<<8)
+#define FLAG_n (1<<8)
 #define FLAG_m (1<<9)
 #define FLAG_l (1<<10)
-//#define FLAG_k (1<<11)
+#define FLAG_k (1<<11)
 #define FLAG_i (1<<12)
 #define FLAG_f (1<<13)
 #define FLAG_d (1<<14)
@@ -63,6 +71,7 @@ config LS
 #define FLAG_F (1<<21)
 #define FLAG_C (1<<22)
 #define FLAG_A (1<<23)
+#define FLAG_o (1<<24)
 
 // test sst output (suid/sticky in ls flaglist)
 
@@ -95,7 +104,7 @@ static char endtype(struct stat *st)
     mode_t mode = st->st_mode;
     if ((toys.optflags&(FLAG_F|FLAG_p)) && S_ISDIR(mode)) return '/';
     if (toys.optflags & FLAG_F) {
-        if (S_ISLNK(mode) && !(toys.optflags & FLAG_F)) return '@';
+        if (S_ISLNK(mode)) return '@';
         if (S_ISREG(mode) && (mode&0111)) return '*';
         if (S_ISFIFO(mode)) return '|';
         if (S_ISSOCK(mode)) return '=';
@@ -127,21 +136,28 @@ static void entrylen(struct dirtree *dt, unsigned *len)
     if (flags & FLAG_m) ++*len;
 
     if (flags & FLAG_i) *len += (len[1] = numlen(st->st_ino));
-    if (flags & FLAG_l) {
+    if (flags & (FLAG_l|FLAG_o|FLAG_n)) {
+        unsigned fn = flags & FLAG_n;
         len[2] = numlen(st->st_nlink);
-        len[3] = strlen(getusername(st->st_uid));
-        len[4] = strlen(getgroupname(st->st_gid));
+        len[3] = strlen(fn ? utoa(st->st_uid) : getusername(st->st_uid));
+        len[4] = strlen(fn ? utoa(st->st_gid) : getgroupname(st->st_gid));
         len[5] = numlen(st->st_size);
     }
+    if (flags & FLAG_s) *len += (len[6] = numlen(st->st_blocks));
 }
 
 static int compare(void *a, void *b)
 {
     struct dirtree *dta = *(struct dirtree **)a;
     struct dirtree *dtb = *(struct dirtree **)b;
+    int ret = 0, reverse = (toys.optflags & FLAG_r) ? -1 : 1;
 
-// TODO handle flags
-    return strcmp(dta->name, dtb->name);
+    if (toys.optflags & FLAG_t) {
+        if (dta->st.st_mtime > dtb->st.st_mtime) ret = -1;
+        else if (dta->st.st_mtime < dtb->st.st_mtime) ret = 1;
+    }
+    if (!ret) ret = strcmp(dta->name, dtb->name);
+    return ret * reverse;
 }
 
 // callback from dirtree_recurse() determining how to handle this entry.
@@ -150,12 +166,19 @@ static int filter(struct dirtree *new)
 {
     int flags = toys.optflags;
 
-// TODO should -1f print here to handle enormous dirs without runing
-// out of mem?
+    // Special case to handle enormous dirs without running out of memory.
+    if (flags == (FLAG_1|FLAG_f)) {
+        xprintf("%s\n", new->name);
+        return 0;
+    }
 
-    if (flags & FLAG_a) return 0;
-    if (!(flags & FLAG_A) && new->name[0]=='.') return 0;
+    if (!(flags&FLAG_f)) { 
+        if (flags & FLAG_a) return 0;
+        if (!(flags & FLAG_A) && new->name[0]=='.') return 0;
+    }
 
+    if (flags & FLAG_u) new->st.st_mtime = new->st.st_atime;
+    if (flags & FLAG_k) new->st.st_blocks = (new->st.st_blocks + 1) / 2;
     return dirtree_notdotdot(new);
 }
 
@@ -163,7 +186,7 @@ static int filter(struct dirtree *new)
 // index of next entry to display.
 
 static unsigned long next_column(unsigned long ul, unsigned long dtlen,
-		unsigned columns, unsigned *xpos)
+    unsigned columns, unsigned *xpos)
 {
     unsigned long transition;
     unsigned height, widecols;
@@ -208,10 +231,10 @@ static void listfiles(int dirfd, struct dirtree *indir)
 {
     struct dirtree *dt, **sort = 0;
     unsigned long dtlen = 0, ul = 0;
-    unsigned width, flags = toys.optflags, totals[6], len[6],
+    unsigned width, flags = toys.optflags, totals[7], len[7],
         *colsizes = (unsigned *)(toybuf+260), columns = (sizeof(toybuf)-260)/4;
     
-    memset(totals, 0, 6*sizeof(unsigned));
+    memset(totals, 0, sizeof(totals));
 
     // Silently descend into single directory listed by itself on command line.
     // In this case only show dirname/total header when given -R.
@@ -270,7 +293,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
             // If it fit, stop here
             if (ul == dtlen) break;
         }
-    } else if (flags & FLAG_l) for (ul = 0; ul<dtlen; ul++) {
+    } else if (flags & (FLAG_l|FLAG_o|FLAG_n)) for (ul = 0; ul<dtlen; ul++) {
         entrylen(sort[ul], len);
         for (width=0; width<6; width++)
             if (len[width] > totals[width]) totals[width] = len[width];
@@ -287,7 +310,8 @@ static void listfiles(int dirfd, struct dirtree *indir)
     }
 
     // This is wrong, should be blocks used not file count.
-    if (indir->parent && (flags & FLAG_l)) xprintf("total %lu\n", dtlen);
+    if (indir->parent && (flags & (FLAG_l|FLAG_o|FLAG_n)))
+        xprintf("total %lu\n", dtlen);
 
     // Loop through again to produce output.
     memset(toybuf, ' ', 256);
@@ -321,10 +345,12 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
         if (flags & FLAG_i)
             xprintf("% *lu ", len[1], (unsigned long)st->st_ino);
+        if (flags & FLAG_s)
+            xprintf("% *lu ", len[6], (unsigned long)st->st_blocks);
 
-        if (flags & FLAG_l) {
+        if (flags & (FLAG_l|FLAG_o|FLAG_n)) {
             struct tm *tm;
-            char perm[11], thyme[64], c, d;
+            char perm[11], thyme[64], c, d, *usr, buf[12], *grp, *grpad;
             int i, bit;
 
             perm[10]=0;
@@ -350,14 +376,26 @@ static void listfiles(int dirfd, struct dirtree *indir)
             tm = localtime(&(st->st_mtime));
             strftime(thyme, sizeof(thyme), "%F %H:%M", tm);
 
+            if (flags&FLAG_n) {
+                usr = buf;
+                utoa_to_buf(st->st_uid, buf, 12);
+            } else usr = getusername(st->st_uid);
+            if (flags&FLAG_o) grp = grpad = toybuf+256;
+            else {
+                grp = (flags&FLAG_n) ? utoa(st->st_gid)
+                      : getgroupname(st->st_gid);
+                grpad = toybuf+256-(totals[4]-len[4]);
+            }
             xprintf("%s% *d %s%s%s%s% *d %s ", perm, totals[2]+1, st->st_nlink,
-                    getusername(st->st_uid), toybuf+255-(totals[3]-len[3]),
-                    getgroupname(st->st_gid), toybuf+256-(totals[4]-len[4]),
-                    totals[5]+1, st->st_size, thyme);
+                    usr, toybuf+255-(totals[3]-len[3]),
+                    grp, grpad, totals[5]+1, st->st_size, thyme);
         }
 
-        xprintf("%s", sort[next]->name);
-        if ((flags & FLAG_l) && S_ISLNK(mode))
+        if (flags & FLAG_q) {
+            char *p;
+            for (p=sort[next]->name; *p; p++) xputc(isprint(*p) ? *p : '?');
+        } else xprintf("%s", sort[next]->name);
+        if ((flags & (FLAG_l|FLAG_o|FLAG_n)) && S_ISLNK(mode))
             xprintf(" -> %s", sort[next]->symlink);
 
         if (et) xputc(et);
@@ -392,7 +430,8 @@ void ls_main(void)
     struct dirtree *dt;
 
     // Do we have an implied -1
-    if (!isatty(1) || (toys.optflags&FLAG_l)) toys.optflags |= FLAG_1;
+    if (!isatty(1) || (toys.optflags&(FLAG_l|FLAG_o|FLAG_n)))
+        toys.optflags |= FLAG_1;
     else {
         TT.screen_width = 80;
         terminal_size(&TT.screen_width, NULL);
