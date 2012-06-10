@@ -10,7 +10,7 @@
 // (This doesn't open directory filehandles yet so as not to exhaust the
 // filehandle space on large trees. handle_callback() does that instead.)
 
-struct dirtree *dirtree_add_node(int dirfd, char *name)
+struct dirtree *dirtree_add_node(int dirfd, char *name, int symfollow)
 {
 	struct dirtree *dt = NULL;
 	struct stat st;
@@ -18,7 +18,8 @@ struct dirtree *dirtree_add_node(int dirfd, char *name)
 	int len = 0, linklen = 0;
 
 	if (name) {
-		if (fstatat(dirfd, name, &st, AT_SYMLINK_NOFOLLOW)) goto error;
+		if (fstatat(dirfd, name, &st, symfollow ? 0 : AT_SYMLINK_NOFOLLOW))
+			goto error;
 		if (S_ISLNK(st.st_mode)) {
 			if (0>(linklen = readlinkat(dirfd, name, buf, 4095))) goto error;
 			buf[linklen++]=0;
@@ -120,7 +121,7 @@ struct dirtree *handle_callback(struct dirtree *new,
 
 	if (dir) {
 		if (flags & (DIRTREE_RECURSE|DIRTREE_COMEAGAIN)) {
-			dirtree_recurse(new, callback);
+			dirtree_recurse(new, callback, flags & DIRTREE_SYMFOLLOW);
 			if (flags & DIRTREE_COMEAGAIN) flags = callback(new);
 		} else close(new->data);
 	}
@@ -138,7 +139,7 @@ struct dirtree *handle_callback(struct dirtree *new,
 // filtering through callback().
 
 void dirtree_recurse(struct dirtree *node,
-					int (*callback)(struct dirtree *node))
+					int (*callback)(struct dirtree *node), int symfollow)
 {
 	struct dirtree *new, **ddt = &(node->child);
 	struct dirent *entry;
@@ -158,7 +159,8 @@ void dirtree_recurse(struct dirtree *node,
 
 	// The extra parentheses are to shut the stupid compiler up.
 	while ((entry = readdir(dir))) {
-		if (!(new = dirtree_add_node(node->data, entry->d_name))) continue;
+		if (!(new = dirtree_add_node(node->data, entry->d_name, symfollow)))
+			continue;
 		new->parent = node;
 		new = handle_callback(new, callback);
 		if (new == DIRTREE_ABORTVAL) break;
@@ -179,7 +181,7 @@ void dirtree_recurse(struct dirtree *node,
 
 struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node))
 {
-	struct dirtree *root = dirtree_add_node(AT_FDCWD, path);
+	struct dirtree *root = dirtree_add_node(AT_FDCWD, path, 0);
 
 	return root ? handle_callback(root, callback) : DIRTREE_ABORTVAL;
 }

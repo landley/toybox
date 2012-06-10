@@ -71,14 +71,14 @@ struct dirtree {
 	char name[];
 };
 
-struct dirtree *dirtree_add_node(int dirfd, char *name);
+struct dirtree *dirtree_add_node(int dirfd, char *name, int symfollow);
 char *dirtree_path(struct dirtree *node, int *plen);
 int dirtree_notdotdot(struct dirtree *catch);
 int dirtree_opennode(struct dirtree *try);
 struct dirtree *handle_callback(struct dirtree *new,
 	int (*callback)(struct dirtree *node));
 void dirtree_recurse(struct dirtree *node,
-	int (*callback)(struct dirtree *node));
+	int (*callback)(struct dirtree *node), int symfollow);
 struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node));
 
 // lib.c
