@@ -21,7 +21,7 @@ function newtoys()
     sed -n -e '1,/^config [A-Z]/s/^USE_/&/p' $i || exit 1
   done
 }
-echo "NEWTOY(toybox, NULL, 0)" > generated/newtoys.h
+echo "NEWTOY(toybox, NULL, TOYFLAG_STAYROOT)" > generated/newtoys.h
 newtoys | sed 's/\(.*TOY(\)\([^,]*\),\(.*\)/\2 \1\2,\3/' | sort -k 1,1 \
 	| sed 's/[^ ]* //'  >> generated/newtoys.h
 
