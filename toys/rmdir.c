@@ -1,10 +1,10 @@
 /* vi: set sw=4 ts=4:
  *
- * hello.c - A hello world program.
+ * rmdir.c - remove directory/path
  *
- * Copyright 2006 Rob Landley <rob@landley.net>
+ * Copyright 2008 Rob Landley <rob@landley.net>
  *
- * See http://www.opengroup.org/onlinepubs/009695399/utilities/cat.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/rmdir.html
 
 USE_RMDIR(NEWTOY(rmdir, "<1p", TOYFLAG_BIN))
 
