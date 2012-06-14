@@ -407,8 +407,10 @@ static void listfiles(int dirfd, struct dirtree *indir)
                 } else usr = getusername(st->st_uid);
             }
 
-            xprintf("%s% *d %s%s%s%s% *d %s ", perm, totals[2]+1, st->st_nlink,
-                    usr, upad, grp, grpad, totals[5]+1, st->st_size, thyme);
+            // Coerce the st types into something we know we can print.
+            xprintf("%s% *ld %s%s%s%s% *"PRId64" %s ", perm, totals[2]+1,
+                (long)st->st_nlink, usr, upad, grp, grpad, totals[5]+1,
+                (int64_t)st->st_size, thyme);
         }
 
         if (flags & FLAG_q) {
