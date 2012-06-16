@@ -79,6 +79,11 @@ int dirtree_notdotdot(struct dirtree *catch)
 	return DIRTREE_SAVE|DIRTREE_RECURSE;
 }
 
+int dirtree_parentfd(struct dirtree *node)
+{
+	return node->parent ? node->parent->data : AT_FDCWD;
+}
+
 // get open filehandle for node in extra, giving caller the option of
 // using DIRTREE_COMEAGAIN or not.
 int dirtree_opennode(struct dirtree *try)
@@ -89,8 +94,7 @@ int dirtree_opennode(struct dirtree *try)
 			try->extra = xdup(try->data);
 			return DIRTREE_COMEAGAIN;
 		}
-	} else try->extra = openat(try->parent ? try->parent->data : AT_FDCWD,
-		try->name, 0);
+	} else try->extra = openat(dirtree_parentfd(try), try->name, 0);
 
 	return DIRTREE_SAVE|DIRTREE_RECURSE;
 }
@@ -113,9 +117,7 @@ struct dirtree *handle_callback(struct dirtree *new,
 	// Directory always has filehandle for examining contents. Whether or
 	// not we'll recurse into it gets decided later.
 
-	if (dir)
-		new->data = openat(new->parent ? new->parent->data : AT_FDCWD,
-			new->name, 0);
+	if (dir) new->data = openat(dirtree_parentfd(new), new->name, 0);
 
 	flags = callback(new);
 

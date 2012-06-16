@@ -74,6 +74,7 @@ struct dirtree {
 struct dirtree *dirtree_add_node(int dirfd, char *name, int symfollow);
 char *dirtree_path(struct dirtree *node, int *plen);
 int dirtree_notdotdot(struct dirtree *catch);
+int dirtree_parentfd(struct dirtree *node);
 int dirtree_opennode(struct dirtree *try);
 struct dirtree *handle_callback(struct dirtree *new,
 	int (*callback)(struct dirtree *node));

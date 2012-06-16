@@ -58,7 +58,7 @@ int do_chmod(struct dirtree *try)
         printf("chmod '%s' to %04o\n", s, mode);
         free(s);
     }
-    wfchmodat(try->parent ? try->parent->data : AT_FDCWD, try->name, mode);
+    wfchmodat(dirtree_parentfd(try), try->name, mode);
 
     return (toys.optflags & FLAG_R) ? DIRTREE_RECURSE : 0;
 }
