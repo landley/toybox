@@ -8,7 +8,6 @@
 
 #include "lib/portability.h"
 
-#include <crypt.h>
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
@@ -37,17 +36,15 @@
 #include <sys/statvfs.h>
 #include <sys/sysinfo.h>
 #include <sys/swap.h>
+#include <sys/times.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
 #include <sys/wait.h>
 #include <syslog.h>
+#include <time.h>
 #include <unistd.h>
 #include <utime.h>
 #include <utmpx.h>
-
-#undef _XOPEN_SOURCE
-#define _XOPEN_SOURCE 600
-#include <time.h>
 
 #include "lib/lib.h"
 #include "toys/e2fs.h"

@@ -9,21 +9,18 @@
 
 #define _FILE_OFFSET_BITS 64
 
+// This isn't in the spec, but it's how we determine what we're using.
+
 #include <features.h>
-
-//#define _POSIX_C_SOURCE 200809L
-//#define _XOPEN_SOURCE 600
-//#define _BSD_SOURCE
-//#define _SVID_SOURCE
-
-//#include <stdio.h>
-//#define fdprintf(...) dprintf(__VA_ARGS__)
 
 #ifdef __GLIBC__
 // An SUSv4 function that glibc refuses to #define without crazy #defines,
 // see http://pubs.opengroup.org/onlinepubs/9699919799/functions/strptime.html
 #include <time.h>
 char *strptime(const char *buf, const char *format, struct tm *tm);
+// Another one. "Function prototypes shall be provided." but aren't.
+// http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/unistd.h.html
+char *crypt(const char *key, const char *salt);
 #endif
 
 #ifdef __GNUC__
