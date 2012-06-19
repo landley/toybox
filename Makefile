@@ -25,7 +25,7 @@ bloatcheck: toybox_old toybox_unstripped
 	@scripts/bloatcheck toybox_old toybox_unstripped
 
 instlist: toybox
-	$(HOSTCC) $(CCFLAGS) -I . scripts/install.c -o instlist
+	$(HOSTCC) -I . scripts/install.c -o instlist
 
 install_flat: instlist
 	scripts/install.sh --symlink --force
