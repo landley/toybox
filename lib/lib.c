@@ -857,29 +857,27 @@ void for_each_pid_with_name_in(char **names, void (*callback)(pid_t pid))
 {
     DIR *dp;
     struct dirent *entry;
-    char cmd[PATH_MAX], path[64];
+    char cmd[sizeof(toybuf)], path[64];
     char **curname;
 
     if (!(dp = opendir("/proc"))) perror_exit("opendir");
 
     while ((entry = readdir(dp))) {
-        int fd;
+        int fd, n;
 
         if (!isdigit(*entry->d_name)) continue;
 
         if (sizeof(path) <= snprintf(path, sizeof(path), "/proc/%s/cmdline", 
             entry->d_name)) continue;
 
-        if (-1 != (fd=xopen(path, O_RDONLY))) {
-            int n = read(fd, cmd, sizeof(cmd));
+        if (-1 == (fd=open(path, O_RDONLY))) continue;
+        n = read(fd, cmd, sizeof(cmd));
+        close(fd);
+        if (n<1) continue;
 
-            close(fd);
-            if (n<1) continue;
-
-            for (curname = names; *curname; curname++)
-                if (!strcmp(basename(cmd), *curname))
-                    callback(atol(entry->d_name));
-        }
+        for (curname = names; *curname; curname++)
+            if (!strcmp(basename(cmd), *curname))
+                callback(atol(entry->d_name));
     }
 
     closedir(dp);
