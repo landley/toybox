@@ -11,7 +11,7 @@ then
 fi
 
 cd testdir
-PATH=.:$PATH
+PATH="$(pwd):$PATH"
 
 . "$TOPDIR"/scripts/test/testing.sh
 [ -f "$TOPDIR/generated/config.h" ] && export OPTIONFLAGS=:$(echo $(sed -nr 's/^#define CFG_(.*) 1/\1/p' "$TOPDIR/generated/config.h") | sed 's/ /:/g')
@@ -20,6 +20,7 @@ if [ $# -ne 0 ]
 then
   for i in "$@"
   do
+    ln -sf toybox $i
     . "$TOPDIR"/scripts/test/$i.test
   done
 else
