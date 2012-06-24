@@ -84,21 +84,6 @@ int dirtree_parentfd(struct dirtree *node)
 	return node->parent ? node->parent->data : AT_FDCWD;
 }
 
-// get open filehandle for node in extra, giving caller the option of
-// using DIRTREE_COMEAGAIN or not.
-int dirtree_opennode(struct dirtree *try)
-{
-	if (!dirtree_notdotdot(try)) return 0;
-	if (S_ISDIR(try->st.st_mode)) {
-		if (!try->extra) {
-			try->extra = xdup(try->data);
-			return DIRTREE_COMEAGAIN;
-		}
-	} else try->extra = openat(dirtree_parentfd(try), try->name, 0);
-
-	return DIRTREE_SAVE|DIRTREE_RECURSE;
-}
-
 // Handle callback for a node in the tree. Returns saved node(s) or NULL.
 //
 // By default, allocates a tree of struct dirtree, not following symlinks
@@ -114,18 +99,14 @@ struct dirtree *handle_callback(struct dirtree *new,
 
 	if (!callback) callback = dirtree_notdotdot;
 
-	// Directory always has filehandle for examining contents. Whether or
-	// not we'll recurse into it gets decided later.
-
-	if (dir) new->data = openat(dirtree_parentfd(new), new->name, 0);
-
 	flags = callback(new);
 
 	if (dir) {
 		if (flags & (DIRTREE_RECURSE|DIRTREE_COMEAGAIN)) {
+			new->data = openat(dirtree_parentfd(new), new->name, 0);
 			dirtree_recurse(new, callback, flags & DIRTREE_SYMFOLLOW);
 			if (flags & DIRTREE_COMEAGAIN) flags = callback(new);
-		} else close(new->data);
+		}
 	}
 
 	// If this had children, it was callback's job to free them already.
@@ -180,6 +161,7 @@ void dirtree_recurse(struct dirtree *node,
 // Create dirtree from path, using callback to filter nodes.
 // If callback == NULL allocate a tree of struct dirtree nodes and return
 // pointer to root node.
+// symfollow is just for the top of tree, callback return code controls children
 
 struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node))
 {

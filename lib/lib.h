@@ -65,7 +65,7 @@ void get_optflags(void);
 struct dirtree {
 	struct dirtree *next, *parent, *child;
 	long extra; // place for user to store their stuff (can be pointer)
-	long data;  // dirfd for directory, linklen for symlink
+	long data;  // dirfd for directory, linklen for symlink, -1 = comeagain
 	struct stat st;
 	char *symlink;
 	char name[];
@@ -75,7 +75,6 @@ struct dirtree *dirtree_add_node(int dirfd, char *name, int symfollow);
 char *dirtree_path(struct dirtree *node, int *plen);
 int dirtree_notdotdot(struct dirtree *catch);
 int dirtree_parentfd(struct dirtree *node);
-int dirtree_opennode(struct dirtree *try);
 struct dirtree *handle_callback(struct dirtree *new,
 	int (*callback)(struct dirtree *node));
 void dirtree_recurse(struct dirtree *node,

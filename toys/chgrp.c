@@ -1,61 +1,80 @@
 /* vi: set sw=4 ts=4:
  *
- * chgrp.c - Change group ownership
+ * chown.c - Change ownership
  *
  * Copyright 2012 Georgi Chorbadzhiyski <georgi@unixsol.org>
  *
+ * See http://pubs.opengroup.org/onlinepubs/009695399/utilities/chown.html
  * See http://pubs.opengroup.org/onlinepubs/009695399/utilities/chgrp.html
  *
- * TODO: Add support for -h
- * TODO: Add support for -H
- * TODO: Add support for -L
- * TODO: Add support for -P
+ * TODO: group only one of [HLP]
 
-USE_CHGRP(NEWTOY(chgrp, "<2Rfv", TOYFLAG_BIN))
+USE_CHGRP(NEWTOY(chgrp, "<2hPLHRfv", TOYFLAG_BIN))
+USE_CHGRP(OLDTOY(chown, chgrp, "<2hPLHRfv", TOYFLAG_BIN))
 
 config CHGRP
-	bool "chgrp"
+	bool "chgrp/chown"
 	default y
 	help
-	  usage: chgrp [-R] [-f] [-v] group file...
-	  Change group ownership of one or more files.
+	  usage: chown [-RHLP] [-fvh] [owner][:group] file...
+	  usage: chgrp [-RHLP] [-fvh] group file...
 
-	  -R	recurse into subdirectories.
+	  Change ownership of one or more files.
+
 	  -f	suppress most error messages.
+	  -h	change symlinks instead of what they point to
+	  -R	recurse into subdirectories (implies -h).
+  	  -H	with -R change target of symlink, follow command line symlinks
+	  -L	with -R change target of symlink, follow all symlinks
+	  -P	with -R change symlink, do not follow symlinks (default)
 	  -v	verbose output.
 */
 
 #include "toys.h"
 
-#define FLAG_R 4
-#define FLAG_f 2
 #define FLAG_v 1
+#define FLAG_f 2
+#define FLAG_R 4
+#define FLAG_H 8
+#define FLAG_L 16
+#define FLAG_P 32
+#define FLAG_h 64
 
 DEFINE_GLOBALS(
+	uid_t owner;
 	gid_t group;
-	char *group_name;
+	char *owner_name, *group_name;
+	int symfollow;
 )
 
 #define TT this.chgrp
 
 static int do_chgrp(struct dirtree *node)
 {
-	int ret, flags = toys.optflags;
+	int fd, ret, flags = toys.optflags;
 
-	ret = dirtree_opennode(node);
-	if (!ret || ((flags & FLAG_R) && ret == DIRTREE_COMEAGAIN)) return ret;
+	// Depth first search
+	if (!dirtree_notdotdot(node)) return 0;
+	if ((flags & FLAG_R) && node->data != -1 && S_ISDIR(node->st.st_mode))
+		return DIRTREE_COMEAGAIN|((flags&FLAG_L) ? DIRTREE_SYMFOLLOW : 0);
 
-	if (node->extra != -1) ret = fchown(node->extra, -1, TT.group);
+	fd = dirtree_parentfd(node);
+	ret = fchownat(fd, node->name, TT.owner, TT.group,
+		(flags&(FLAG_L|FLAG_H)) || !(flags&(FLAG_h|FLAG_R))
+			? 0 : AT_SYMLINK_NOFOLLOW);
 
 	if (ret || (flags & FLAG_v)) {
 		char *path = dirtree_path(node, 0);
 		if (flags & FLAG_v)
-			xprintf("chgrp(%s, %s)\n", TT.group_name, path);
+			xprintf("%s %s%s%s %s\n", toys.which->name,
+				TT.owner_name ? TT.owner_name : "",
+				toys.which->name[2]=='o' && TT.group_name ? ":" : "",
+				TT.group_name ? TT.group_name : "", path);
 		if (ret == -1 && !(toys.optflags & FLAG_f))
-			perror_msg("changing group of '%s' to '%s'", path, TT.group_name);
+			perror_msg("changing owner:group of '%s' to '%s:%s'", path,
+				TT.owner_name, TT.group_name);
 		free(path);
 	}
-	close(node->extra);
 	toys.exitval |= ret;
 
 	return 0;
@@ -63,13 +82,43 @@ static int do_chgrp(struct dirtree *node)
 
 void chgrp_main(void)
 {
-	char **s;
-	struct group *group;
+	int ischown = toys.which->name[2] == 'o';
+	char **s, *own;
 
-	TT.group_name = *toys.optargs;
-	group = getgrnam(TT.group_name);
-	if (!group) error_exit("no group '%s'", TT.group_name);
-	TT.group = group->gr_gid;
+	// Distinguish chown from chgrp
+	if (ischown) {
+		char *grp;
+		struct passwd *p;
 
-	for (s=toys.optargs+1; *s; s++) dirtree_read(*s, do_chgrp);
+		own = xstrdup(*toys.optargs);
+		if ((grp = strchr(own, ':')) || (grp = strchr(own, '.'))) {
+			*(grp++) = 0;
+			TT.group_name = grp;
+		}
+		if (*own) {
+			TT.owner_name = own;
+			p = getpwnam(own);
+			// TODO: trailing garbage?
+			if (!p && isdigit(*own)) p=getpwuid(atoi(own));
+			if (!p) error_exit("no user '%s'", own);
+			TT.owner = p->pw_uid;
+		}
+	} else TT.group_name = *toys.optargs;
+
+	if (TT.group_name) {
+		struct group *g;
+		g = getgrnam(TT.group_name);
+		if (!g) g=getgrgid(atoi(TT.group_name));
+		if (!g) error_exit("no group '%s'", TT.group_name);
+		TT.group = g->gr_gid;
+	}
+
+	for (s=toys.optargs+1; *s; s++) {
+		struct dirtree *new = dirtree_add_node(AT_FDCWD, *s,
+			toys.optflags&(FLAG_H|FLAG_L));
+		if (new) handle_callback(new, do_chgrp);
+		else toys.exitval = 1;
+	}
+
+	if (CFG_TOYBOX_FREE) free(own);
 }
