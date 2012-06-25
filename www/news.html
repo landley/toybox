@@ -1,9 +1,87 @@
 <!--#include file="header.html" -->
 
-<h2>See <a href=roadmap.html>roadmap</a> for current and planned
-command list.</h2>
-
 <h2>News</h2>
+<hr><b>June 25, 2012</b>
+<blockquote><p>"For a moment, nothing happened. Then, after a second or so, nothing continued to happen." - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+
+<p><a href=downloads/toybox-0.3.1.tar.bz2>Toybox 0.3.1</a> is based on commit
+<a href=http://landley.net/hg/toybox/shortlog/607>commit 607</a>. It's
+mostly a bugfix release for ls -l (which was unhappy on targets other than
+x86-64), plus a new "date" from Andre Renaud and rewritten chgrp/chown which
+now support the full set of posix flags, plus a little work on the test
+suite and some more header tweaks towards eventual compatability with the
+musl libc.</p>
+
+<p>The todo list runneth over, but "release early, release often", so here
+it is. The roadmap and documentation are a bit behind, and I've got ~40
+pending submissions to review. I need to catch up...</p>
+</span>
+
+<hr><b>June 12, 2012</b>
+<blockquote><p>"For instance, on the planet Earth, man had always assumed that
+he was more intelligent than dolphins because he had achieved so much - the
+wheel, New York, wars and so on - whilst all the dolphins had ever done was
+muck about in the water having a good time. But conversely, the dolphins had
+always believed that they were far more intelligent than man - for precisely
+the same reasons." - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+
+<p>It's well past time for <a href=downloads/toybox-0.3.0.tar.bz2>toybox 0.3.0</a>,
+so here it is, based
+on <a href=http://landley.net/hg/toybox/shortlog/595>commit 595</a>, and the
+statically linked <a href=downloads/binaries>prebuilt binaries</a> should
+actually be statically linked this time (thanks Ashwini Sharma for spotting
+that).</p>
+
+<p>It's hard to figure out where to cut a release, because development
+doesn't stop. "Long before now" is the obviuos answer, of course.
+The project's maintainer also moved house during this development cycle, which
+threw things off for a bit (so many boxes). Releases should hopefully be a bit
+more frequent from here on.</p>
+
+<p>The big things Rob worked on this time were the new dirtree (directory
+tree traversal) infrastructure, and a complete rewrite of ls using that
+which should now implement all 26 posix options.</p>
+
+<p>Georgi Chorbadzhiyski added printenv, whoami, mkdir, mkfifo, chmod, chown,
+chgrp, and uniq. He also added fraction and extension support to sleep (so if
+you need a quarter-second sleep, it can do that now), and fixed a build bug
+on slackware.</p>
+
+<p>Daniel Walter contributed a string to mode_t parser (in use by chmod and
+mkdir -m).  Ilya Kuzmich contributed comm. Elie De Brauwer added mountpoint,
+vmstat, logname, login, and mktemp. Kevin Chase did some portability cleanups.
+Pere Orga fixed some documentation.</p>
+
+<p>The "tac" and "clear" commands are now normal commands instead of shell
+wrappers, and the header #includes have been cleaned up a bit to remove
+deprecated functions and attempt to increase compatability with the bionic and
+musl C libraries, "tail" should now use lseek() for large files, and "id" got
+some cleanups and bugfixes.</p>
+
+<p>The new TOYBOX_FLOAT configuration option selects whether or not
+to include floating point support (for embedded targets where that's
+problematic).</p>
+
+<p>Several random bugfixes: unshare() might actually build portably now,
+yes 'n' | cp -i should no longer bypass stdin and prompt via the tty, the
+SUID support no longer drops permissions going through the toybox
+multiplexer command, and a bugfix to xargs -0 means it should no longer
+segfault. (I have a pending bug report about xargs not doing the full
+posix whitespace handling that -0 obsoleted, but I'll deal with that next
+release.)</p>
+
+<p>The build infrastructure is now automatically generating FLAG_ macros
+for the options, but currently with the wrong names. Some more macro glue
+is necessary, which I haven't quite figured out how to do yet.</p>
+
+<p>A defconfig toybox at the start of the $PATH has successfully built
+Linux From Scratch (in my Aboriginal Linux project). The commands that
+'default n' in the config are often still broken, cleanup is ongoing.
+(The new dirtree stuff broke several of them that haven't been converted
+yet, but if I wait until everything works we won't have a release before
+1.0, so here's a checkpoint.)</p>
+
+
 <hr><b>March 3, 2012</b>
 
 <blockquote><p>"They went unnoticed at Goonhilly, passed over Cape Canaveral
