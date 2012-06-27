@@ -12,7 +12,7 @@ config OD
 	bool "od"
 	default y
 	help
-          usage: od
+          usage: od [-bdosxv] [-j #] [-N #] [-A arg] [-t arg]
 */
 
 #include "toys.h"
@@ -39,11 +39,8 @@ DEFINE_GLOBALS(
 
 #define TT this.od
 
-static const char *ascii[] = {
-	"nul", "soh", "stx", "etx", "eot", "enq", "ack", "bel", "bs", "ht",
-	"nl", "vt", "ff", "cr", "so", "si", "dle", "dc1", "dc2", "dc3", "dc4",
-	"nak", "syn", "etb", "can", "em", "sub", "esc", "fs", "gs", "rs",
-	"us", "sp"};
+static const char *ascii = "nulsohstxetceotenqackbel bs ht nl vt ff cr so si"
+	"deldc1dc2dc3dc4naksynetbcan emsubesc fs gs rs us sp";
 
 static void display_line_1(char base, off_t offset, uint8_t *line, int len)
 {
@@ -51,12 +48,9 @@ static void display_line_1(char base, off_t offset, uint8_t *line, int len)
 		switch (base) {
 			case 'a': {
 				int ch = *line & 0x7f;
-				if (ch < sizeof(ascii)/sizeof(ascii[0]))
-					printf(" %3s", ascii[ch]);
-				else if (ch == 127)
-					printf(" del");
-				else
-					printf("   %c", ch);
+				if (ch <= 32) printf(" %.3s", ascii+(3*ch));
+				else if (ch == 127) printf(" del");
+				else printf("%4c", ch);
 				break;
 			}
 			case 'o': printf(" %3.3o", *line); break;
