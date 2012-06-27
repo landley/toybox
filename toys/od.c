@@ -154,23 +154,20 @@ static void do_od(int fd, char *name)
 		offset = TT.jump_bytes;
 	}
 
-	do {
+	for (;;) {
 		int len;
 		int max_len = OD_BLOCK_SIZE;
-		if ((toys.optflags & FLAG_N) &&
-				offset + OD_BLOCK_SIZE > TT.max_count)
+		if ((toys.optflags & FLAG_N) && offset + OD_BLOCK_SIZE > TT.max_count)
 			max_len = TT.max_count - offset;
 		len = xread(fd, block[index], max_len);
-		if (!len)
-			break;
+		if (!len) break;
 
 		memset(&block[index][len], 0, OD_BLOCK_SIZE - len);
 
-		if (!(toys.optflags & FLAG_v) &&
-				offset > 0 &&
-				memcmp(block[0], block[1], OD_BLOCK_SIZE) == 0) {
-			if (!last_match)
-				puts("*");
+		if (!(toys.optflags & FLAG_v) && offset > 0 &&
+				memcmp(block[0], block[1], OD_BLOCK_SIZE) == 0)
+		{
+			if (!last_match) puts("*");
 			last_match = 1;
 		} else {
 			display_line(offset, block[index], len);
@@ -179,9 +176,8 @@ static void do_od(int fd, char *name)
 		offset += len;
 		index = !index;
 
-		if (len != OD_BLOCK_SIZE)
-			break;
-	} while (1);
+		if (len != OD_BLOCK_SIZE) break;
+	}
 
 	if (!(toys.optflags & FLAG_N) && offset != TT.max_count)
 		display_line(offset, NULL, 0);
@@ -211,10 +207,8 @@ static void valid_bases(void)
 				error_exit("invalid width for ascii base");
 			break;
 		case 'd': case 'x': case 'o': case'u':
-			if (width != 1 && width != 2 &&
-					width != 4 && width != 8)
-				error_exit("this system doesn't provide a %d-byte type",
-						width);
+			if (width != 1 && width != 2 && width != 4 && width != 8)
+				error_exit("this system doesn't provide a %d-byte type", width);
 			break;
 		case 'f':
 			if (width != 4 && width != 8)
@@ -231,20 +225,13 @@ static void valid_bases(void)
 
 void od_main(void)
 {
-	if (!TT.address_base)
-		TT.address_base = "o";
-	if (toys.optflags & FLAG_b)
-		append_base("o1");
-	if (toys.optflags & FLAG_d)
-		append_base("u2");
-	if (toys.optflags & FLAG_o)
-		append_base("o2");
-	if (toys.optflags & FLAG_s)
-		append_base("d2");
-	if (toys.optflags & FLAG_x)
-		append_base("x2");
-	if (!TT.output_base)
-		append_base("o2");
+	if (!TT.address_base) TT.address_base = "o";
+	if (toys.optflags & FLAG_b) append_base("o1");
+	if (toys.optflags & FLAG_d) append_base("u2");
+	if (toys.optflags & FLAG_o) append_base("o2");
+	if (toys.optflags & FLAG_s) append_base("d2");
+	if (toys.optflags & FLAG_x) append_base("x2");
+	if (!TT.output_base) append_base("o2");
 	valid_bases();
 	loopfiles(toys.optargs, do_od);
 }
