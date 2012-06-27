@@ -6,11 +6,12 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/009695399/utilities/comm.html
 
-USE_COMM(NEWTOY(comm, "123", TOYFLAG_USR|TOYFLAG_BIN))
+// <# and ># take single digit, so 321 define flags
+USE_COMM(NEWTOY(comm, "<2>2321", TOYFLAG_USR|TOYFLAG_BIN))
 
 config COMM
 	bool "comm"
-	default n
+	default y
 	help
 	  usage: comm [-123] FILE1 FILE2
 
@@ -25,20 +26,20 @@ config COMM
 
 #include "toys.h"
 
-#define FLAG_SUPPRESS_3 1
-#define FLAG_SUPPRESS_2 2
-#define FLAG_SUPPRESS_1 4
+#define FLAG_1 1
+#define FLAG_2 2
+#define FLAG_3 4
 
 static void writeline(const char *line, int col)
 {
-	if (col == 0 && toys.optflags & FLAG_SUPPRESS_1) return;
+	if (col == 0 && toys.optflags & FLAG_1) return;
 	else if (col == 1) {
-		if (toys.optflags & FLAG_SUPPRESS_2) return;
-		if (!(toys.optflags & FLAG_SUPPRESS_1)) putchar('\t');
+		if (toys.optflags & FLAG_2) return;
+		if (!(toys.optflags & FLAG_1)) putchar('\t');
 	} else if (col == 2) {
-		if (toys.optflags & FLAG_SUPPRESS_3) return;
-		if (!(toys.optflags & FLAG_SUPPRESS_1)) putchar('\t');
-		if (!(toys.optflags & FLAG_SUPPRESS_2)) putchar('\t');
+		if (toys.optflags & FLAG_3) return;
+		if (!(toys.optflags & FLAG_1)) putchar('\t');
+		if (!(toys.optflags & FLAG_2)) putchar('\t');
 	}
 	puts(line);
 }
@@ -49,11 +50,7 @@ void comm_main(void)
 	char *line[2];
 	int i;
 
-	if (toys.optc != 2)
-		perror_exit("exactly 2 operands required");
-
-	if (toys.optflags == (FLAG_SUPPRESS_1 | FLAG_SUPPRESS_2 | FLAG_SUPPRESS_3))
-		return;
+	if (toys.optflags == 7) return;
 
 	for (i = 0; i < 2; i++) {
 		file[i] = strcmp("-", toys.optargs[i]) ? xopen(toys.optargs[i], O_RDONLY) : 0;
@@ -84,8 +81,5 @@ void comm_main(void)
 		line[i] = get_line(file[i]);
 	}
 
-	if (CFG_TOYBOX_FREE) {
-		for (i = 0; i < 2; i--)
-			xclose(file[i]);
-	}
+	if (CFG_TOYBOX_FREE) for (i = 0; i < 2; i--) xclose(file[i]);
 }
