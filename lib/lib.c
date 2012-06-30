@@ -499,13 +499,15 @@ char *itoa(int n)
 // (zetta and yotta don't fit in 64 bits.)
 long atolx(char *numstr)
 {
-	char *c, *suffixes="kmgtpe", *end;
+	char *c, *suffixes="bkmgtpe", *end;
 	long val = strtol(numstr, &c, 0);
 
 	if (*c) {
 		end = strchr(suffixes, tolower(*c));
-		if (end) val *= 1024L<<((end-suffixes)*10);
-		else {
+		if (end) {
+			int shift = end-suffixes;
+			if (shift--) val *= 1024L<<(shift*10);
+		} else {
 			while (isspace(*c)) c++;
 			if (*c) error_exit("not integer: %s", numstr);
 		}
