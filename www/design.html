@@ -263,4 +263,24 @@ feeding the compiler -funsigned-char.</p>
 
 <p>The reason to pick "unsigned" is that way we're 8-bit clean by default.</p>
 
+<p><h3>Error messages and internationalization:</h3></p>
+<p>Error messages are extremely terse not just to save bytes, but because we
+don't use any sort of _("string") translation infrastructure.</p>
+
+<p>Thus "bad -A '%c'" is
+preferable to "Unrecognized address base '%c'", because a non-english speaker
+can see that -A was the problem, and with a ~20 word english vocabulary is
+more likely to know (or guess) "bad" than the longer message.</p>
+
+<p>The help text might someday have translated versions, and strerror()
+messages produced by perror_exit() and friends can be expected to be
+localized by libc. Our error functions also prepend the command name,
+which non-english speakers can presumably recognize already.</p>
+
+<p>An enventual goal is UTF-8 support, although it isn't a priority for the
+first pass of each command. (All commands should at least be 8-bit clean.)</p>
+
+<p>Locale support isn't currently a goal; that's a presentation layer issue,
+X11 or Dalvik's problem.</p>
+
 <!--#include file="footer.html" -->
