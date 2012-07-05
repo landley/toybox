@@ -176,7 +176,7 @@ static void do_tail(int fd, char *name)
 				}
 
 				if (lines) {
-					if(try[count] != '\n') continue;
+					if(try[count] != '\n' && count != len-1) continue;
 					if (lines<0) {
 						if (!++lines) ++lines;
 						continue;

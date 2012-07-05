@@ -22,6 +22,9 @@ testing "tail -c+ in bounds" "tail -c +27 file1" \
 testing "tail -c+ out of bonds" "tail -c +999 file1" "" "" ""
 rm file1
 
+testing "tail stdin no trailing newline" "tail -n 1 - " "c" "" "a\nb\nc"
+testing "tail file no trailing newline" "tail -n 1 input" "c" "a\nb\nc" ""
+
 optional TAIL_SEEK
 testing "tail noseek -n in bounds" "tail -n 3" "nine\nten\neleven\n" \
 	"" "$BIGTEST"
