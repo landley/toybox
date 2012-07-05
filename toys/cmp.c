@@ -73,7 +73,7 @@ void do_cmp(int fd, char *name)
 		}
 		if (len1 != len2) {
 			if (!(toys.optflags & FLAG_s)) {
-				printf("cmp: EOF on %s\n",
+				fprintf(stderr, "cmp: EOF on %s\n",
 					len1 < len2 ? TT.name : name);
 			}
 			toys.exitval = 1;
