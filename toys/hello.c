@@ -4,8 +4,9 @@
  *
  * Copyright 2012 Rob Landley <rob@landley.net>
  *
- * Not in SUSv4.
+ * Not in SUSv4/LSB.
  * See http://opengroup.org/onlinepubs/9699919799/utilities/
+ * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html
 
 USE_HELLO(NEWTOY(hello, "e@d*c#b:a", TOYFLAG_USR|TOYFLAG_BIN))
 
