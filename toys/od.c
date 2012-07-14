@@ -96,6 +96,7 @@ static void od_outline(void)
 		t = types+i;
 		while (j<len) {
 			unsigned k;
+			int throw = 0;
 
 			// Handle ascii
 			if (t->type < 2) {
@@ -108,19 +109,35 @@ static void od_outline(void)
 					else if (c==127) strcpy(buf, "del");
 					else sprintf(buf, "%c", c);
 				} else {
-					char *bfnrt = "\b\f\n\r\t", *s = strchr(bfnrt, c);
-					if (s) sprintf(buf, "\\%c", "bfnrt0"[s-bfnrt]);
+					char *bfnrtav = "\b\f\n\r\t\a\v", *s = strchr(bfnrtav, c);
+					if (s) sprintf(buf, "\\%c", "bfnrtav0"[s-bfnrtav]);
+					else if (c < 32 || c >= 127) sprintf(buf, "%03o", c);
 					else {
 						// TODO: this should be UTF8 aware.
 						sprintf(buf, "%c", c);
 					}
 				}
 			} else if (CFG_TOYBOX_FLOAT && t->type == 6) {
-				// TODO: floating point stuff
+				long double ld;
+				union {float f; double d; long double ld;} fdl;
+
+				memcpy(&fdl, TT.buf+j, t->size);
+				j += t->size;
+				if (sizeof(float) == t->size) {
+					ld = fdl.f;
+					pad += (throw = 8)+7;
+				} else if (sizeof(double) == t->size) {
+					ld = fdl.d;
+					pad += (throw = 17)+8;
+				} else if (sizeof(long double) == t->size) {
+					ld = fdl.ld;
+					pad += (throw = 21)+9;
+				} else error_exit("bad -tf '%d'", t->size);
+
+				sprintf(buf, "%.*Le", throw, ld);
 			// Integer types
 			} else {
 				unsigned long long ll = 0, or;
-				int throw = 0;
 				char *c[] = {"%*lld", "%*llu", "%0*llo", "%0*llx"},
 					*class = c[t->type-2];
 
