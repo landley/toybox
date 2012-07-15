@@ -150,5 +150,5 @@ void df_main(void)
 		}
 	}
 
-	if (CFG_TOYBOX_FREE) llist_free(mtlist, NULL);
+	if (CFG_TOYBOX_FREE) llist_traverse(mtlist, free);
 }

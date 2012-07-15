@@ -53,7 +53,7 @@ static int which_in_path(char *filename)
 			puts(list->str);
 			// If we should stop at one match, do so
 			if (!toys.optflags) {
-				llist_free(list, NULL);
+				llist_traverse(list, free);
 				break;
 			}
 		}

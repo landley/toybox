@@ -413,4 +413,9 @@ notflag:
 	if (toys.optc>gof.maxargs)
 		error_exit("Max %d argument%s", gof.maxargs, letters[!(gof.maxargs-1)]);
 	if (CFG_HELP) toys.exithelp = 0;
+
+	if (CFG_TOYBOX_FREE) {
+		llist_traverse(gof.opts, free);
+		llist_traverse(gof.longopts, free);
+	}
 }

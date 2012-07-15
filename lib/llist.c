@@ -6,15 +6,12 @@
 
 #include "toys.h"
 
-// Free all the elements of a linked list
-// if freeit!=NULL call freeit() on each element before freeing it.
-
-void llist_free(void *list, void (*freeit)(void *data))
+// Call a function (such as free()) on each element of a linked list.
+void llist_traverse(void *list, void (*using)(void *data))
 {
 	while (list) {
 		void *pop = llist_pop(&list);
-		if (freeit) freeit(pop);
-		else free(pop);
+		using(pop);
 
 		// End doubly linked list too.
 		if (list==pop) break;

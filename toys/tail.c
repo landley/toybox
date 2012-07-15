@@ -130,7 +130,7 @@ static int try_lseek(int fd, long bytes, long lines)
 	}
 
 	// Output stored data
-	llist_free(list, dump_chunk);
+	llist_traverse(list, dump_chunk);
 
 	// In case of -f
 	lseek(fd, bytes, SEEK_SET);
@@ -201,7 +201,7 @@ static void do_tail(int fd, char *name)
 		}
 
 		// Output/free the buffer.
-		llist_free(list, dump_chunk);
+		llist_traverse(list, dump_chunk);
 
 	// Measuring from the beginning of the file.
 	} else for (;;) {

@@ -342,7 +342,7 @@ static void handle(char *command)
 		// Run those commands
 
 		run_pipeline(&line);
-		llist_free(line.cmd, free_cmd);
+		llist_traverse(line.cmd, free_cmd);
 	}
 }
 
