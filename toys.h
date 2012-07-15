@@ -21,6 +21,7 @@
 #include <pwd.h>
 #include <sched.h>
 #include <setjmp.h>
+#include <sched.h>
 #include <shadow.h>
 #include <stdarg.h>
 #include <stdint.h>
