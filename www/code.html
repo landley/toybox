@@ -66,7 +66,13 @@ to the environment will take precedence.</p>
 execution starts), the header file toys.h (included by every command), and
 other global infrastructure.</li>
 <li>The <a href="#lib">lib directory</a> contains common functions shared by
-multiple commands.</li>
+multiple commands:</li>
+<ul>
+<li><a href="#lib_lib">lib/lib.c</a></li>
+<li><a href="#lib_llist">lib/llist.c</a></li>
+<li><a href="#lib_args">lib/args.c</a></li>
+<li><a href="#lib_dirtree">lib/dirtree.c</a></li>
+</ul>
 <li>The <a href="#toys">toys directory</a> contains the C files implementating
 each command.</li>
 <li>The <a href="#scripts">scripts directory</a> contains the build and
@@ -471,7 +477,7 @@ in toys/help.c.</p>
 
 <p>TODO: document lots more here.</p>
 
-<p>lib: llist, getmountlist(), error_msg/error_exit, xmalloc(),
+<p>lib: getmountlist(), error_msg/error_exit, xmalloc(),
 strlcpy(), xexec(), xopen()/xread(), xgetcwd(), xabspath(), find_in_path(),
 itoa().</p>
 
@@ -492,6 +498,93 @@ out. If your target is already little endian, the macro is a NOP.</p>
 In each case, the name of the macro refers to the _external_ representation,
 and converts to/from whatever your native representation happens to be (which
 can vary depending on what you're currently compiling for).</p>
+
+<a name="lib_llist"><h3>lib/llist.c</h3>
+
+<p>Some generic single and doubly linked list functions, which take
+advantage of a couple properties of C:</p>
+
+<ul>
+<li><p>Structure elements are laid out in memory in the order listed, and
+the first element has no padding. This means you can always treat (typecast)
+a pointer to a structure as a pointer to the first element of the structure,
+even if you don't know anything about the data following it.</p></li>
+
+<li><p>An array of length zero at the end of a structure adds no space
+to the sizeof() the structure, but if you calculate how much extra space
+you want when you malloc() the structure it will be available at the end.
+Since C has no bounds checking, this means each struct can have one variable
+length array.</p></li>
+</ul>
+
+<p>Toybox's list structures always have their <b>next</b> pointer as
+the first entry of each struct, and singly linked lists end with a NULL pointer.
+This allows generic code to traverse such lists without knowing anything
+else about the specific structs composing them: if your pointer isn't NULL
+typecast it to void ** and dereference once to get the next entry.</p>
+
+<p><b>lib/lib.h</b> defines three structure types:</p>
+<ul>
+<li><p><b>struct string_list</b> - stores a single string (<b>char str[0]</b>),
+memory for which is allocated as part of the node. (I.E. llist_traverse(list,
+free); can clean up after this type of list.)</p></li>
+
+<li><p><b>struct arg_list</b> - stores a pointer to a single string
+(<b>char *arg</b>) which is stored in a separate chunk of memory.</p></li>
+
+<li><p><b>struct double_list</b> - has a second pointer (<b>struct double_list
+*prev</b> along with a <b>char *data</b> for payload.</p></li>
+</ul>
+
+<b>List Functions</b>
+
+<ul>
+<li><p>void *<b>llist_pop</b>(void **list) - advances through a list ala
+<b>node = llist_pop(&list);</b>  This doesn't modify the list contents,
+but does advance the pointer you feed it (which is why you pass the _address_
+of that pointer, not the pointer itself).</p></li>
+
+<li><p>void <b>llist_traverse</b>(void *list, void (*using)(void *data)) -
+iterate through a list calling a function on each node.</p></li>
+
+<li><p>struct double_list *<b>dlist_add</b>(struct double_list **llist, char *data)
+- append an entry to a circular linked list.
+This function allocates a new struct double_list wrapper and returns the
+pointer to the new entry (which you can usually ignore since it's llist->prev,
+but if llist was NULL you need it). The argument is the ->data field for the
+new node.</p></li>
+<ul><li><p>void <b>dlist_add_nomalloc</b>(struct double_list **llist,
+struct double_list *new) - append existing struct double_list to
+list, does not allocate anything.</p></li></ul>
+</ul>
+
+<b>Trivia questions:</b>
+
+<ul>
+<li><p><b>Why do arg_list and double_list contain a char * payload instead of
+a void *?</b> - Because you always have to typecast a void * to use it, and
+typecasting a char * does no harm. Thus having it default to the most common
+pointer type saves a few typecasts (strings are the most common payload),
+and doesn't hurt anything otherwise.</p>
+</li>
+
+<li><p><b>Why do the names ->str, ->arg, and ->data differ?</b> - To force
+you to keep track of which one you're using, calling free(node->str) would
+be bad, and _failing_ to free(node->arg) leaks memory.</p></li>
+
+<li><p><b>Why does llist_pop() take a void * instead of void **?</b> -
+because the stupid compiler complains about "type punned pointers" when
+you typecast and dereference ont he same line,
+due to insane FSF developers hardwiring limitations of their optimizer
+into gcc's warning system. Since C automatically typecasts any other
+pointer _down_ to a void *, the current code works fine. It's sad that it
+won't warn you if you forget the &, but the code crashes pretty quickly in
+that case.</p></li>
+
+<li><p><b>How do I assemble a singly-linked-list in order?</b> - use
+a double_list, dlist_add() your entries, and then break the circle with
+<b>list->prev->next = NULL;</b> when done.</li>
+</ul>
 
 <a name="lib_args"><h3>lib/args.c</h3>
 
@@ -723,6 +816,129 @@ and would assign this[1] = 42;</p>
 <p>A short option may have multiple longopt synonyms, "a(one)(two)", but
 each "bare longopt" (ala "(one)(two)abc" before any option characters)
 always sets its own bit (although you can group them with +X).</p>
+
+<a name="lib_dirtree"><h3>lib/dirtree.c</h3>
+
+<p>The directory tree traversal code should be sufficiently generic
+that commands never need to use readdir(), scandir(), or the fts.h family
+of functions.</p>
+
+<p>These functions do not call chdir() or rely on PATH_MAX. Instead they
+use openat() and friends, using one filehandle per directory level to
+recurseinto subdirectories. (I.E. they can descend 1000 directories deep
+if setrlimit(RLIMIT_NOFILE) allows enough open filehandles, and the default
+in /proc/self/limits is generally 1024.)</p>
+
+<p>The basic dirtree functions are:</p>
+
+<ul>
+<li><p><b>dirtree_read(char *path, int (*callback)(struct dirtree node))</b> -
+recursively read directories, either applying callback() or returning
+a tree of struct dirtree if callback is NULL.</p></li>
+
+<li><p><b>dirtree_path(struct dirtree *node, int *plen)</b> - malloc() a
+string containing the path from the root of this tree to this node. If
+plen isn't NULL then *plen is how many extra bytes to malloc at the end
+of string.</p></li>
+
+<li><p><b>dirtree_parentfd(struct dirtree *node)</b> - return fd of
+containing directory, for use with openat() and such.</p></li>
+</ul>
+
+<p>The <b>dirtree_read()</b> function takes two arguments, a starting path for
+the root of the tree, and a callback function. The callback takes a
+<b>struct dirtree *</b> (from lib/lib.h) as its argument. If the callback is
+NULL, the traversal uses a default callback (dirtree_notdotdot()) which
+recursively assembles a tree of struct dirtree nodes for all files under
+this directory and subdirectories (filtering out "." and ".." entries),
+after which dirtree_read() returns the pointer to the root node of this
+snapshot tree.</p>
+
+<p>Otherwise the callback() is called on each entry in the directory,
+with struct dirtree * as its argument. This includes the initial
+node created by dirtree_read() at the top of the tree.</p>
+
+<p><b>struct dirtree</b></p>
+
+<p>Each struct dirtree node contains <b>char name[]</b> and <b>struct stat
+st</b> entries describing a file, plus a <b>char *symlink</b>
+which is NULL for non-symlinks.</p>
+
+<p>During a callback function, the <b>int data</b> field of directory nodes
+contains a dirfd (for use with the openat() family of functions). This is
+generally used by calling dirtree_parentfd() on the callback's node argument.
+For symlinks, data contains the length of the symlink string. On the second
+callback from DIRTREE_COMEAGAIN (depth-first traversal) data = -1 for
+all nodes (that's how you can tell it's the second callback).</p>
+
+<p>Users of this code may put anything they like into the <b>long extra</b>
+field. For example, "cp" and "mv" use this to store a dirfd for the destination
+directory (and use DIRTREE_COMEAGAIN to get the second callback so they can
+close(node->extra) to avoid running out of filehandles).
+This field is not directly used by the dirtree code, and
+thanks to LP64 it's large enough to store a typecast pointer to an
+arbitrary struct.</p>
+
+<p>The return value of the callback combines flags (with boolean or) to tell
+the traversal infrastructure how to behave:</p>
+
+<ul>
+<li><p><b>DIRTREE_SAVE</b> - Save this node, assembling a tree. (Without
+this the struct dirtree is freed after the callback returns. Filtering out
+siblings is fine, but discarding a parent while keeping its child leaks
+memory.)</p></li>
+<li><p><b>DIRTREE_ABORT</b> - Do not examine any more entries in this
+directory. (Does not propagate up tree: to abort entire traversal,
+return DIRTREE_ABORT from parent callbacks too.)</p></li>
+<li><p><b>DIRTREE_RECURSE</b> - Examine directory contents. Ignored for
+non-directory entries. The remaining flags only take effect when
+recursing into the children of a directory.</p></li>
+<li><p><b>DIRTREE_COMEAGAIN</b> - Call the callback a second time after
+examining all directory contents, allowing depth-first traversal.
+On the second call, dirtree->data = -1.</p></li>
+<li><p><b>DIRTREE_SYMFOLLOW</b> - follow symlinks when populating children's
+<b>struct stat st</b> (by feeding a nonzero value to the symfollow argument of
+dirtree_add_node()), which means DIRTREE_RECURSE treats symlinks to
+directories as directories. (Avoiding infinite recursion is the callback's
+problem: the non-NULL dirtree->symlink can still distinguish between
+them.)</p></li>
+</ul>
+
+<p>Each struct dirtree contains three pointers (next, parent, and child)
+to other struct dirtree.</p>
+
+<p>The <b>parent</b> pointer indicates the directory
+containing this entry; even when not assembling a persistent tree of
+nodes the parent entries remain live up to the root of the tree while
+child nodes are active. At the top of the tree the parent pointer is
+NULL, meaning the node's name[] is either an absolute path or relative
+to cwd. The function dirtree_parentfd() gets the directory file descriptor
+for use with openat() and friends, returning AT_FDCWD at the top of tree.</p>
+
+<p>The <b>child</b> pointer points to the first node of the list of contents of
+this directory. If the directory contains no files, or the entry isn't
+a directory, child is NULL.</p>
+
+<p>The <b>next</b> pointer indicates sibling nodes in the same directory as this
+node, and since it's the first entry in the struct the llist.c traversal
+mechanisms work to iterate over sibling nodes. Each dirtree node is a
+single malloc() (even char *symlink points to memory at the end of the node),
+so llist_free() works but its callback must descend into child nodes (freeing
+a tree, not just a linked list), plus whatever the user stored in extra.</p>
+
+<p>The <b>dirtree_read</b>() function is a simple wrapper, calling <b>dirtree_add_node</b>()
+to create a root node relative to the current directory, then calling
+<b>handle_callback</b>() on that node (which recurses as instructed by the callback
+return flags). Some commands (such as chgrp) bypass this wrapper, for example
+to control whether or not to follow symlinks to the root node; symlinks
+listed on the command line are often treated differently than symlinks
+encountered during recursive directory traversal).
+
+<p>The ls command not only bypasses the wrapper, but never returns
+<b>DIRTREE_RECURSE</b> from the callback, instead calling <b>dirtree_recurse</b>() manually
+from elsewhere in the program. This gives ls -lR manual control
+of traversal order, which is neither depth first nor breadth first but
+instead a sort of FIFO order requried by the ls standard.</p>
 
 <h2>Directory scripts/</h2>
 
