@@ -65,9 +65,9 @@ void get_optflags(void);
 struct dirtree {
 	struct dirtree *next, *parent, *child;
 	long extra; // place for user to store their stuff (can be pointer)
-	long data;  // dirfd for directory, linklen for symlink, -1 = comeagain
 	struct stat st;
 	char *symlink;
+	int data;  // dirfd for directory, linklen for symlink, -1 = comeagain
 	char name[];
 };
 
@@ -112,6 +112,7 @@ size_t xread(int fd, void *buf, size_t len);
 void xreadall(int fd, void *buf, size_t len);
 void xwrite(int fd, void *buf, size_t len);
 off_t xlseek(int fd, off_t offset, int whence);
+off_t lskip(int fd, off_t offset);
 char *readfile(char *name);
 char *xreadfile(char *name);
 char *xgetcwd(void);
@@ -128,6 +129,7 @@ char *utoa(unsigned n);
 char *itoa(int n);
 long atolx(char *c);
 int numlen(long l);
+int stridx(char *haystack, char needle);
 off_t fdlength(int fd);
 char *xreadlink(char *name);
 void loopfiles_rw(char **argv, int flags, int permissions, int failok,

@@ -286,6 +286,27 @@ off_t xlseek(int fd, off_t offset, int whence)
 	return offset;
 }
 
+off_t lskip(int fd, off_t offset)
+{
+	off_t and = lseek(fd, offset, SEEK_CUR);
+
+	if (and != -1 && offset >= lseek(fd, offset, SEEK_END)
+		&& offset+and == lseek(fd, offset+and, SEEK_SET)) return 0;
+	else {
+		char buf[4096];
+		while (offset>0) {
+			int try = offset>sizeof(buf) ? sizeof(buf) : offset, or;
+
+			or = readall(fd, buf, try);
+			if (or < 0) perror_msg("lskip to %lld", (long long)offset);
+			else offset -= try;
+			if (or < try) break;
+		}
+
+		return offset;
+	}
+}
+
 char *xgetcwd(void)
 {
 	char *buf = getcwd(NULL, 0);
@@ -503,8 +524,7 @@ long atolx(char *numstr)
 	long val = strtol(numstr, &c, 0);
 
 	if (*c) {
-		end = strchr(suffixes, tolower(*c));
-		if (end) {
+		if (c != numstr && (end = strchr(suffixes, tolower(*c)))) {
 			int shift = end-suffixes;
 			if (shift--) val *= 1024L<<(shift*10);
 		} else {
@@ -524,6 +544,17 @@ int numlen(long l)
        len++;
     }
     return len;
+}
+
+int stridx(char *haystack, char needle)
+{
+	char *off;
+
+	if (!needle) return -1;
+	off = strchr(haystack, needle);
+	if (!off) return -1;
+
+	return off-haystack;
 }
 
 // Return how long the file at fd is, if there's any way to determine it.
