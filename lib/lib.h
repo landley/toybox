@@ -168,3 +168,8 @@ int sig_to_num(char *pidstr);
 char *num_to_sig(int sig);
 
 mode_t string_to_mode(char *mode_str, mode_t base);
+
+// password helper functions
+int read_passwd(char * buff, int buflen, char* mesg);
+int update_passwd(char *filename, char* username, char* encrypted);
+
