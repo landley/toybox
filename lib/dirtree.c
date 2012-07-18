@@ -60,7 +60,7 @@ char *dirtree_path(struct dirtree *node, int *plen)
 
 	len = (plen ? *plen : 0)+strlen(node->name)+1;
 	path = dirtree_path(node->parent, &len);
-	if (len) path[len++]='/';
+	if (len && path[len-1] != '/') path[len++]='/';
 	len = (stpcpy(path+len, node->name) - path);
 	if (plen) *plen = len;
 
