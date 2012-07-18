@@ -17,7 +17,7 @@ config TASKSET
 	  When mask is present the CPU affinity mask of a given PID will
 	  be set to this mask. When a mask is not given, the mask will
 	  be printed. A mask is a hexadecimal string where the bit position
-	..matches the cpu number.
+	  matches the cpu number.
 	  -a	Set/get the affinity of all tasks of a PID.
 */
 
@@ -31,18 +31,14 @@ static int str_to_cpu_set(char * mask, cpu_set_t *set)
 	int cpu = 0;
 
 	CPU_ZERO(set);
-	if (size > 1 && mask[0] == '0' && mask[1] == 'x')
-		mask += 2;
+	if (size > 1 && mask[0] == '0' && mask[1] == 'x') mask += 2;
 
 	while(ptr >= mask)
 	{
 		char val = 0;
-		if ( *ptr >= '0' && *ptr <= '9')
-			val = *ptr - '0';
-		else if (*ptr >= 'a' && *ptr <= 'f')
-			val = 10 + (*ptr - 'a');
-		else
-			return -1;
+		if ( *ptr >= '0' && *ptr <= '9') val = *ptr - '0';
+		else if (*ptr >= 'a' && *ptr <= 'f') val = 10 + (*ptr - 'a');
+		else return -1;
 
 		if (val & 1) CPU_SET(cpu,  set);
 		if (val & 2) CPU_SET(cpu + 1, set);
@@ -68,10 +64,8 @@ static char * cpu_set_to_str(cpu_set_t *set)
 		if (CPU_ISSET(cpu + 3, set)) val |= 8;
 		if (ptr != toybuf || val != 0)
 		{
-			if (val < 10)
-				*ptr = '0' + val;
-			else
-				*ptr = 'a' + (val - 10);
+			if (val < 10) *ptr = '0' + val;
+			else *ptr = 'a' + (val - 10);
 			ptr++;
 		}
 	}
@@ -82,6 +76,8 @@ static char * cpu_set_to_str(cpu_set_t *set)
 static void do_taskset(pid_t pid)
 {
 	cpu_set_t mask;
+
+	if (!pid) return;
 	if (sched_getaffinity(pid, sizeof(mask), &mask))
 		perror_exit("failed to get %d's affinity", pid);
 
@@ -90,7 +86,7 @@ static void do_taskset(pid_t pid)
 	if (toys.optc == 2)
 	{
 		if (str_to_cpu_set(toys.optargs[0], &mask))
-			perror_exit("failed to parse CPU mask: %s", toys.optargs[0]);
+			perror_exit("bad mask: %s", toys.optargs[0]);
 
 		if (sched_setaffinity(pid, sizeof(mask), &mask))
 			perror_exit("failed to set %d's affinity", pid);
@@ -104,15 +100,10 @@ static void do_taskset(pid_t pid)
 
 static int task_cb(struct dirtree *new)
 {
-	if (S_ISDIR(new->st.st_mode))
-	{
-		if (strstr(new->name,"/task/\0") != NULL)
-			return DIRTREE_RECURSE;
+	if (!new->parent) return DIRTREE_RECURSE;
+	if (S_ISDIR(new->st.st_mode) && *new->name != '.')
+		do_taskset(atoi(new->name));
 
-		pid_t tid = atoi(new->name);
-		if (tid)
-			do_taskset(tid);
-	}
 	return 0;
 }
 
@@ -120,15 +111,9 @@ void taskset_main(void)
 {
 	char * pidstr = (toys.optc==1)?toys.optargs[0]:toys.optargs[1];
 
-	if ( toys.optflags & 0x1 )
+	if (toys.optflags & 0x1)
 	{
 		sprintf(toybuf, "/proc/%s/task/", pidstr);
 		dirtree_read(toybuf, task_cb);
-	}
-	else
-	{
-		pid_t tid = atoi(pidstr);
-		if (tid)
-			do_taskset(tid);
-	}
+	} else do_taskset(atoi(pidstr));
 }
