@@ -86,8 +86,7 @@ static int check_module(struct dirtree *new)
         char **s;
         for (s = toys.optargs; *s; s++) {
             int len = strlen(*s);
-            if (strncmp(*s, new->name, len) == 0 &&
-                    strcmp(&new->name[len], ".ko") == 0)
+            if (!strncmp(*s, new->name, len) && !strcmp(new->name+len, ".ko"))
                 modinfo_file(new);
         }
     }
@@ -98,8 +97,7 @@ static int check_module(struct dirtree *new)
 void modinfo_main(void)
 {
     struct utsname uts;
-    if (uname(&uts) < 0)
-        perror_exit("unable to determine uname");
+    if (uname(&uts) < 0) perror_exit("bad uname");
     sprintf(toybuf, "/lib/modules/%s", uts.release);
     dirtree_read(toybuf, check_module);
 }

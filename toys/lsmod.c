@@ -22,7 +22,8 @@ config LSMOD
 
 void lsmod_main(void)
 {
-	FILE * file = xfopen("/proc/modules", "r");
+	char *modfile = "/proc/modules";
+	FILE * file = xfopen(modfile, "r");
 
 	xprintf("%-23s Size  Used by\n", "Module");
 
@@ -35,7 +36,7 @@ void lsmod_main(void)
 			if (users[len] == ',' || users[len] == '-')
 				users[len] = 0;
 			xprintf("%-19s %8s  %s %s\n", name, size, refcnt, users);
-		} else perror_exit("unrecognized input");
+		} else perror_exit("bad %s", modfile);
 	}
 	fclose(file);
 }
