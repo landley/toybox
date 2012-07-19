@@ -15,7 +15,6 @@ config W
 	  usage: w 
 
 	  Show who is logged on and since how long they logged in.
-
 */
 
 #include "toys.h"
@@ -23,25 +22,15 @@ config W
 void w_main(void)
 {
     struct utmpx *x;
-    time_t time_val;
+
     xprintf("USER     TTY             LOGIN@              FROM");
     setutxent();
-    x=getutxent();
-    while(x!=NULL) {
-        if(x->ut_type==7) {
-	    xprintf("\n");
-            xprintf("%-9.8s",x->ut_user);
-            xprintf("%-9.8s",x->ut_line);
+    while ((x=getutxent()) != NULL)
+        if (x->ut_type==7) {
+            time_t tt = x->ut_tv.tv_sec;
 
-	    xprintf(" ");
-	    time_val = (x->ut_tv.tv_sec);
-	    xprintf("%-4.24s",ctime(&time_val));
-	    
-            xprintf(" (");
-            xprintf("%-1.12s",x->ut_host);
-            xprintf(")");
+            xprintf("\n%-9.8s%-9.8s %-4.24s (%-1.12s)", x->ut_user, x->ut_line,
+                ctime(&tt), x->ut_host);
         }
-    x=getutxent();
-    }
-    xprintf("\n");
+    xputc('\n');
 }
