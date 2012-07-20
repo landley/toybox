@@ -67,49 +67,11 @@ void sanitize_env()
 	} while (*p);
 }
 
-int read_password(char * buff, int buflen)
-{
-	int i = 0;
-	struct termios termio, oldtermio;
-	tcgetattr(0, &oldtermio);
-	tcflush(0, TCIFLUSH);
-	termio = oldtermio;
-
-	termio.c_iflag &= ~(IUCLC|IXON|IXOFF|IXANY);
-	termio.c_lflag &= ~(ECHO|ECHOE|ECHOK|ECHONL|TOSTOP);
-	tcsetattr(0, TCSANOW, &termio);
-
-	fputs("Password: ", stdout);
-	fflush(stdout);
-
-	while (1) {
-		int ret = read(0, &buff[i], 1);
-		if ( ret < 0 )
-		{
-			buff[0] = 0;
-			tcsetattr(0, TCSANOW, &oldtermio);
-			return 1;
-		}
-		else if ( ret == 0 || buff[i] == '\n' ||
-				  buff[i] == '\r' || buflen == i+1)
-		{
-			buff[i] = '\0';
-			break;
-		}
-		i++;
-	}
-
-	tcsetattr(0, TCSANOW, &oldtermio);
-	puts("\n");
-	fflush(stdout);
-	return 0;
-}
-
 int verify_password(char * pwd)
 {
 	char * pass;
 
-	if (read_password(toybuf, sizeof(toybuf)))
+	if (read_passwd(toybuf, sizeof(toybuf), "Password: "))
 		return 1;
 	if (!pwd)
 		return 1;
