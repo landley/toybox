@@ -6,23 +6,27 @@
  *
  * Not in SUSv4.
 
-USE_TASKSET(NEWTOY(taskset, "<1>2a", TOYFLAG_BIN|TOYFLAG_NEEDROOT))
+USE_TASKSET(NEWTOY(taskset, "<1pa", TOYFLAG_BIN|TOYFLAG_NEEDROOT))
 
 config TASKSET
 	bool "taskset"
 	default y
 	help
-	  usage: taskset [-a] [mask] PID
+	  usage: taskset [-ap] [mask] [PID|cmd [args...]]
 
 	  When mask is present the CPU affinity mask of a given PID will
 	  be set to this mask. When a mask is not given, the mask will
 	  be printed. A mask is a hexadecimal string where the bit position
 	  matches the cpu number.
 	  -a	Set/get the affinity of all tasks of a PID.
+	  -p	Set/get the affinity of given PID instead of a new command.
 */
 
 #define _GNU_SOURCE
 #include "toys.h"
+
+#define A_FLAG 0x1
+#define P_FLAG 0x2
 
 static int str_to_cpu_set(char * mask, cpu_set_t *set)
 {
@@ -73,7 +77,7 @@ static char * cpu_set_to_str(cpu_set_t *set)
 	return toybuf;
 }
 
-static void do_taskset(pid_t pid)
+static void do_taskset(pid_t pid, int quiet)
 {
 	cpu_set_t mask;
 
@@ -81,9 +85,9 @@ static void do_taskset(pid_t pid)
 	if (sched_getaffinity(pid, sizeof(mask), &mask))
 		perror_exit("failed to get %d's affinity", pid);
 
-	printf("pid %d's current affinity mask: %s\n", pid, cpu_set_to_str(&mask));
+	if (!quiet) printf("pid %d's current affinity mask: %s\n", pid, cpu_set_to_str(&mask));
 
-	if (toys.optc == 2)
+	if (toys.optc >= 2)
 	{
 		if (str_to_cpu_set(toys.optargs[0], &mask))
 			perror_exit("bad mask: %s", toys.optargs[0]);
@@ -94,7 +98,7 @@ static void do_taskset(pid_t pid)
 		if (sched_getaffinity(pid, sizeof(mask), &mask))
 			perror_exit("failed to get %d's affinity", pid);
 
-		printf("pid %d's new affinity mask: %s\n", pid, cpu_set_to_str(&mask));
+		if (!quiet) printf("pid %d's new affinity mask: %s\n", pid, cpu_set_to_str(&mask));
 	}
 }
 
@@ -102,7 +106,7 @@ static int task_cb(struct dirtree *new)
 {
 	if (!new->parent) return DIRTREE_RECURSE;
 	if (S_ISDIR(new->st.st_mode) && *new->name != '.')
-		do_taskset(atoi(new->name));
+			do_taskset(atoi(new->name), 0);
 
 	return 0;
 }
@@ -111,9 +115,20 @@ void taskset_main(void)
 {
 	char * pidstr = (toys.optc==1)?toys.optargs[0]:toys.optargs[1];
 
-	if (toys.optflags & 0x1)
+	if (!(toys.optflags & P_FLAG))
+	{
+		if (toys.optc >= 2)
+		{
+			do_taskset(getpid(),1);
+			xexec(&toys.optargs[1]);
+		}
+		else error_exit("Needs at least a mask and a command");
+	}
+
+	if (toys.optflags & A_FLAG)
 	{
 		sprintf(toybuf, "/proc/%s/task/", pidstr);
 		dirtree_read(toybuf, task_cb);
-	} else do_taskset(atoi(pidstr));
+	} else 
+		do_taskset(atoi(pidstr), 0);
 }
