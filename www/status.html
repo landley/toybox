@@ -1,0 +1,40 @@
+<!--#include file="header.html" -->
+<title>Toybox Status</title>
+
+<h1>How are we doing on implementing stuff so far?</h1>
+
+<p>Legend: {android} [posix] (development) &lt;lsb&gt; <strike>implemented</strike></p>
+
+<!--#include file="status.gen" -->
+
+<h1>The current status of toybox (as of 0.2.1 release):</h1>
+
+<h3><u>These commands are reasonably finished</u>:</h3>
+<blockquote><b>
+<span id=ready>
+basename cal cat catv chgrp chmod chown chroot chvt cksum clear cmp comm count
+df dirname dmesg echo env false killall link logname ls lsmod mkdir mkfifo mkswap mktemp
+mountpoint nice nohup od oneit pwd realpath seq setsid sha1sum sleep
+sort swapoff swapon sync tac tee true truncate tty uniq unlink vmstat
+wc which whoami yes
+</span>
+</b></blockquote>
+
+<h3><u>These commands are implemented but have pending todo items remaining:</u></h3>
+<blockquote><b>
+<span id=pending>
+bzcat bunzip2 cp date free head help hostname id insmod kill ln login mdev
+mknod modinfo mv nc netcat patch pidof printenv readlink rmdir rmmod tail uname unshare
+uptime who xargs
+</span>
+</b></blockquote>
+
+<h3><u>Work on these is underway, but not usable yet:</u></h3>
+<blockquote><b>
+bzip2 mke2fs more mount umount losetup sed tar sh grep/egrep/fgrep
+switch_root
+</blockquote></b>
+
+<p>See <a href="todo.txt">the todo list</a> for details.</p>
+
+<!-- #include "footer.html" -->
