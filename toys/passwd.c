@@ -144,12 +144,12 @@ static char *new_password(char *oldp, char *user)
 {
     char *newp = NULL;
 
-    if(read_passwd(toybuf, sizeof(toybuf), "New password:"))
+    if(read_password(toybuf, sizeof(toybuf), "New password:"))
         return NULL; //may be due to Ctrl-C
 
     newp = xstrdup(toybuf);
     strength_check(newp, oldp, user);
-    if(read_passwd(toybuf, sizeof(toybuf), "Retype password:")) {
+    if(read_password(toybuf, sizeof(toybuf), "Retype password:")) {
         free(newp);
         return NULL; //may be due to Ctrl-C
     }
@@ -210,7 +210,7 @@ void passwd_main(void)
         if(myuid != 0) {
             /*Validate user */
 
-            if(read_passwd(toybuf, sizeof(toybuf), "Origial password:")) {
+            if(read_password(toybuf, sizeof(toybuf), "Origial password:")) {
                 if(!toys.optargs[0]) free(name);
                 return;
             }
@@ -259,9 +259,9 @@ void passwd_main(void)
 
     /*Update the passwd */
     if(pw->pw_passwd[0] == 'x')
-        ret = update_passwd("/etc/shadow", name, encrypted);
+        ret = update_password("/etc/shadow", name, encrypted);
     else
-        ret = update_passwd("/etc/passwd", name, encrypted);
+        ret = update_password("/etc/passwd", name, encrypted);
 
     if((toys.optflags & (FLAG_l | FLAG_u | FLAG_d))) 
         free(encrypted);

@@ -71,7 +71,7 @@ int verify_password(char * pwd)
 {
 	char * pass;
 
-	if (read_passwd(toybuf, sizeof(toybuf), "Password: "))
+	if (read_password(toybuf, sizeof(toybuf), "Password: "))
 		return 1;
 	if (!pwd)
 		return 1;

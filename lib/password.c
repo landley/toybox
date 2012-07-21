@@ -8,7 +8,7 @@
 #include <time.h>
 
 
-int read_passwd(char * buff, int buflen, char* mesg)
+int read_password(char * buff, int buflen, char* mesg)
 {           
     int i = 0;
     struct termios termio, oldtermio;
@@ -52,7 +52,7 @@ static char *get_nextcolon(const char *line, char delim)
     return current_ptr;
 }
 
-int update_passwd(char *filename, char* username, char* encrypted)
+int update_password(char *filename, char* username, char* encrypted)
 {
     char *filenamesfx = NULL, *namesfx = NULL;
     char *shadow = NULL, *sfx = NULL;
