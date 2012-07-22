@@ -1,0 +1,233 @@
+<!--#include file="header.html" -->
+<title>Toybox Roadmap</title>
+
+<h2>Goals and use cases</h2>
+
+<p>We have several potential use cases for a new set of command line
+utilities, and are using those to determine which commands to implement
+for Toybox's 1.0 release.</p>
+
+<p>Our current candidate list combines the commands toybox already implements,
+the development environment command list, the toolbox standard commands,
+various vendor configurations of busybox, a selected subset of the SUSv4
+standard, a couple of the less-insane bits of LSB, a few outright requests,
+plus additional to-be-determined shell functionality.</p>
+
+<p>See the <a href=status.html>status page</a> for the combined list
+and progress towards implementing it.</p>
+
+<hr />
+<a name="standards">
+<h2>Use case: standards compliance.</h2>
+
+<h3>POSIX-2008/SUSv4</h3>
+<p>The best standards are the kind that describe reality, rather than
+attempting to impose a new one.  (I.E. a good standard should document, not
+legislate.)</p>
+
+<p>The kind of standards which describe existing reality tend to be approved by
+more than one standards body, such ANSI and ISO both approving C.  That's why
+the IEEE POSIX committee's 2008 standard, the Single Unix Specification version
+4, and the Open Group Base Specification edition 7 are all the same standard
+from three sources.</p>
+
+<p>The <a href="http://opengroup.org/onlinepubs/9699919799/idx/utilities.html">"utilities"
+section</a>
+of these standards is devoted to the unix command line, and are the best such
+standard for our purposes.  (My earlier work on BusyBox was implemented with
+regard to SUSv3, an earlier version of this standard.)</p>
+
+<h3>Problems with the standard</h3>
+
+<p>Unfortunately, these standards describe a subset of reality, lacking any
+mention of commands such as init, login, or mount required to actually boot a
+system. It provides ipcrm and ipcs, but not ipcmk, so you can use System V IPC
+resources but not create them.</p>
+
+<p>These standards also contain a large number of commands that are
+inappropriate for toybox to implement in its 1.0 release.  (Perhaps some of
+these could be reintroduced in later releases, but not now.)</p>
+
+<p>Starting with the full "utilities" list, we first remove generally obsolete
+commands (compess ed ex pr uncompress uccp uustat uux), commands for the
+pre-CVS "SCCS" source control system (admin delta get prs rmdel sact sccs unget
+val what), fortran support (asa fort77), and batch processing support (batch
+qalter qdel qhold qmove qmsg qrerun qrls qselect qsig qstat qsub).</p>
+
+<p>Some commands are for a compiler toolchain (ar c99 cflow ctags cxref gencat
+iconv lex m4 make nm strings strip tsort yacc), which is outside of toybox's
+mandate and should be supplied externally.  (Again, some of these may be
+revisited later, but not for toybox 1.0.)</p>
+
+<p>Some commands are part of a command shell, and cannot be implemented as
+separate executables (alias bg cd command fc fg getopts hash jobs kill read
+type ulimit umask unalias wait).  These may be revisited as part of a built-in
+toybox shell, but are not exported into $PATH via symlinks.  (If you fork a
+child process and have it "cd" then exit, you've accomplished nothing.)</p>
+
+<p>A few other commands are judgement calls, providing command-line
+internationalization support (iconv locale localedef), System V inter-process
+communication (ipcrm ipcs), and cross-tty communication from the minicomputer
+days (talk mesg write).  The "pax" utility was supplanted by tar, "mailx" is
+a command line email client, and "lp" submits files for printing to... what
+exactly?  (cups?)  The standard defines crontab but not crond.</p>
+
+<p>Removing all of that leaves the following commands, which toybox should
+implement:</p>
+
+<blockquote><b>
+<span id=posix>
+at awk basename bc cal cat chgrp chmod chown cksum cmp comm cp
+csplit cut date dd df diff dirname du echo env expand expr false file find
+fold fuser getconf grep head id join kill link ln logger logname ls man
+mkdir mkfifo more mv newgrp nice nl nohup od paste patch pathchk printf ps
+pwd renice rm rmdir sed sh sleep sort split stty tabs tail tee test time
+touch tput tr true tty uname unexpand uniq unlink uudecode uuencode vi wc
+who xargs zcat
+</span>
+</b></blockquote>
+
+<h3>Linux Standard Base</h3>
+
+<p>One attempt to supplement POSIX towards an actual usable system was the
+Linux Standard Base. Unfortunately, the quality of this "standard" is
+fairly low.</p>
+
+<p>POSIX allowed its standards process to be compromised
+by leaving things out, thus allowing IBM mainframes and Windows NT to drive
+a truck through the holes and declare themselves compilant. But it means what
+they DID standardize tends to be respected.</p>
+
+<p>The Linux Standard Base's failure mode is different, they respond to
+pressure by including special-case crap, such as allowing Red Hat to shoehorn
+RPM on the standard even though all sorts of distros (from Debian to Slackware)
+don't use it and probably never will. This means anything in the LSB is
+at best a suggestion: arbitrary portions of this standard are widely
+ignored.</p>
+
+<p>The LSB does specify a <a href=http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html>list of command line
+utilities</a>:</p>
+
+<blockquote><b>
+ar at awk batch bc chfn chsh col cpio crontab df dmesg du echo egrep 
+fgrep file fuser gettext grep groupadd groupdel groupmod groups 
+gunzip gzip hostname install install_initd ipcrm ipcs killall lpr ls 
+lsb_release m4 md5sum mknod mktemp more mount msgfmt newgrp od passwd 
+patch pidof remove_initd renice sed sendmail seq sh shutdown su sync 
+tar umount useradd userdel usermod xargs zcat
+</b></blockquote>
+
+<p>Where posix specifies one of those commands, LSB's deltas tend to be
+accomodations for broken tool versions which aren't up to date with the
+standard yet. (See <a href=http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/more.html>more</a> and <a href=http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/xargs.html>xargs</a>
+for examples.)</p>
+
+<p>Since we've already committed to using our own judgement to skip bits of
+POSIX, and LSB's "judgement" in this regard is purely bug workarounds to declare
+various legacy tool implementations "compliant", this means we're mostly
+interested in the set of tools that aren't specified in posix at all.</p>
+
+<p>Of these, gettext and msgfmt are internationalization, install_initd and
+remove_initd aren't present on ubuntu 10.04, lpr is out of scope, and
+lsb_release is a distro issue (it's a nice command, but the output of
+lsb_release -a is the name and version number of the linux distro you're
+running, which toybox doesn't know).</p>
+
+<p>This leaves:</p>
+
+<blockquote><b>
+<span id=lsb>
+chfn chsh dmesg egrep fgrep groupadd groupdel groupmod groups
+gunzip gzip hostname install killall md5sum
+mknod mktemp mount passwd pidof sendmail seq shutdown
+su sync tar umount useradd userdel usermod zcat
+</span>
+</b></blockquote>
+
+<hr />
+<a name="dev_env">
+<h2>Use case: provide a self-hosting development environment</h2>
+
+<p>The following commands are enough to build the Aboriginal Linux development
+environment, boot it to a shell prompt, and build Linux From Scratch 6.8 under
+it. (Aboriginal Linux currently uses BusyBox for this, thus provides a
+drop-in test environment for toybox. We install both implementations side
+by side, redirecting the symlinks a command at a time until the older
+package is no longer used, and can be removed.)</p>
+
+<p>This use case includes running init scripts and other shell scripts, running
+configure, make, and install in each package, and providing basic command line
+facilities such as a text editor. (It does not include a compiler toolchain or
+C library, those are outside the scope of this project.)</p>
+
+<blockquote><b>
+<span id=development>
+bzcat cat cp dirname echo env patch rmdir sha1sum sleep sort sync
+true uname wc which yes zcat
+awk basename bzip2 chmod chown cmp cut date dd diff
+egrep expr find grep gzip head hostname id install ln ls
+mkdir mktemp mv od readlink rm sed sh tail tar touch tr uniq
+wget whoami xargs chgrp comm gunzip less logname man split
+tee test time bunzip2 chgrp chroot comm cpio dmesg
+dnsdomainname ftpd ftpget ftpput gunzip ifconfig init less
+logname losetup man mdev mount mountpoint nc pgrep pkill 
+pwd route split stat switch_root tac umount vi
+</span>
+</b></blockquote>
+
+<p>Note: Aboriginal Linux installs bash 2.05b as #!/bin/sh and its scripts
+require bash extensions not present in shells such as busybox ash.
+This means that toysh needs to supply several bash extensions _and_ work
+when called under the name "bash".</p>
+
+<hr />
+<a name=toolbox>
+<h2>Use case: Replacing Android Toolbox</h2>
+
+<h3>Full toolbox command set</h3>
+
+<p>Here is the full list of toolbox commands:
+</p>
+<blockquote><b>
+alarm cat chmod chown cmp cp date dd df dmesg getevent getprop hd id ifconfig
+iftop insmod ioctl kill ln log ls lsmod mkdir mount mv netstat newfs_msdos notify
+pidof printenv ps renice rm rmdir rmmod route schedtop sendevent setconsole
+setprop sleep smd start stop sync toolbox top umount vmstat watchprops wipe
+</b></blockquote>
+
+<p>The following Toolbox commands are reasonably standardized:</p>
+
+<blockquote><b>
+<span id=toolbox_std>
+cat chmod chown cmp cp date dd df dmesg id ifconfig iftop insmod ioctl ionice
+kill ln ls lsmod lsof mkdir mount mv netstat newfs_msdos notify
+ps printenv reboot renice rm rmdir rmmod route
+sleep start stop sync top umount uptime vmstat
+</span>
+</b></blockquote>
+
+<h3>Android-specific commands</h3>
+<p>Toolbox also provides the following nonstandard commands, which are unique
+to Android (or at least do not appear in Ubuntu or SUSv4):</p>
+
+<blockquote><b>
+<span id=toolbox>
+alarm hd getevent getprop ioctl log nandread notify
+r schedtop sendevent setconsole setprop smd watchprops wipe
+</span>
+</b></blockquote>
+
+<hr />
+<h2>Requests:</h2>
+
+<p>The following additional commands have been requested by various users:</p>
+<blockquote><b>
+<span id=request>
+freeramdisk getty halt hexdump hwclock klogd modprobe ping ping6 pivot_root
+poweroff sfdisk sudo syslogd taskset telnet telnetd tracepath traceroute unzip
+usleep vconfig zip free login modinfo unshare netcat help
+</span>
+</b></blockquote>
+
+<!-- #include "footer.html" -->
+
