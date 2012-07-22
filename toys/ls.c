@@ -374,7 +374,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
                 c = i%3;
                 if (!c && (mode & (1<<((d=i/3)+9)))) {
                     c = "tss"[d];
-                    if (!bit) c &= 0x20;
+                    if (!bit) c &= ~0x20;
                 } else c = bit ? "xwr"[c] : '-';
                 perm[9-i] = c;
             }

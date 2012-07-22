@@ -983,16 +983,20 @@ mode_t string_to_mode(char *modestr, mode_t mode)
 
 	// Gaze into the bin of permission...
 	for (;;) {
-		int i, j, dowho, dohow, dowhat;
+		int i, j, dowho, dohow, dowhat, amask;
 
-		dowho = dohow = dowhat = 0;
+		dowho = dohow = dowhat = amask = 0;
 
 		// Find the who, how, and what stanzas, in that order
 		while (*str && (s = strchr(whos, *str))) {
 			dowho |= 1<<(s-whos);
 			str++;
 		}
-		if (!dowho) dowho = 8;
+		// If who isn't specified, like "a" but honoring umask.
+		if (!dowho) {
+			dowho = 8;
+			umask(amask=umask(0));
+		}
 		if (!*str || !(s = strchr(hows, *str))) goto barf;
 		dohow = *(str++);
 
@@ -1018,19 +1022,26 @@ mode_t string_to_mode(char *modestr, mode_t mode)
 		for (i=0; i<4; i++) {
 			for (j=0; j<3; j++) {
 				mode_t bit = 0;
+				int where = 1<<((3*i)+j);
+
+				if (amask & where) continue;
 
 				// Figure out new value at this location
 				if (i == 3) {
-				} else if (dowhat&(1<<j)) bit++;
+					// suid/sticky bit.
+					if (j) {
+						if ((dowhat & 8) && (dowho&(8|(1<<i)))) bit++;
+					} else if (dowhat & 16) bit++;
+				} else {
+					if (!(dowho&(8|(1<<i)))) continue;
+					if (dowhat&(1<<j)) bit++;
+				}
 
 				// When selection active, modify bit
-				if (dowho&(8|(1<<i))) {
-					int where = 1<<((3*i)+j);
 
-					if (dohow == '=' || (bit && dohow == '-'))
-						mode &= ~where;
-					if (bit && dohow != '-') mode |= where;
-				}
+				if (dohow == '=' || (bit && dohow == '-'))
+					mode &= ~where;
+				if (bit && dohow != '-') mode |= where;
 			}
 		}
 
