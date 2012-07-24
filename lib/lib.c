@@ -160,7 +160,7 @@ void xputs(char *s)
 
 void xputc(char c)
 {
-	if (EOF == fputc(c, stdout)) perror_exit("write");
+	if (EOF == fputc(c, stdout) || fflush(stdout)) perror_exit("write");
 }
 
 void xflush(void)

@@ -133,12 +133,12 @@ void toybox_main(void)
 			}
 			len += printf("%s ",toy_list[i].name);
 			if (len>65) {
-				putchar('\n');
+				xputc('\n');
 				len=0;
 			}
 		}
 	}
-	putchar('\n');
+	xputc('\n');
 }
 
 int main(int argc, char *argv[])
