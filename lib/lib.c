@@ -708,7 +708,7 @@ void loopfiles_rw(char **argv, int flags, int permissions, int failok,
 			continue;
 		}
 		function(fd, *argv);
-		if (!flags) close(fd);
+		if (flags == O_RDONLY) close(fd);
 	} while (*++argv);
 }
 
@@ -772,6 +772,13 @@ int wfchmodat(int fd, char *name, mode_t mode)
 	return rc;
 }
 
+static char *tempfile2zap;
+static void tempfile_handler(int i)
+{
+	if (1 < (long)tempfile2zap) unlink(tempfile2zap);
+	_exit(1);
+}
+
 // Open a temporary file to copy an existing file into.
 int copy_tempfile(int fdin, char *name, char **tempname)
 {
@@ -781,6 +788,8 @@ int copy_tempfile(int fdin, char *name, char **tempname)
 	*tempname = xstrndup(name, strlen(name)+6);
 	strcat(*tempname,"XXXXXX");
 	if(-1 == (fd = mkstemp(*tempname))) error_exit("no temp file");
+	if (!tempfile2zap) sigatexit(tempfile_handler);
+	tempfile2zap = *tempname;
 
 	// Set permissions of output file
 
@@ -796,6 +805,7 @@ void delete_tempfile(int fdin, int fdout, char **tempname)
 	close(fdin);
 	close(fdout);
 	unlink(*tempname);
+	tempfile2zap = (char *)1;
 	free(*tempname);
 	*tempname = NULL;
 }
@@ -812,6 +822,7 @@ void replace_tempfile(int fdin, int fdout, char **tempname)
 	}
 	xclose(fdout);
 	rename(*tempname, temp);
+	tempfile2zap = (char *)1;
 	free(*tempname);
 	free(temp);
 	*tempname = NULL;
@@ -927,17 +938,28 @@ struct signame {
 #define SIGNIFY(x) {SIG##x, #x}
 
 static struct signame signames[] = {
-	SIGNIFY(ABRT), SIGNIFY(ALRM), SIGNIFY(BUS), SIGNIFY(CHLD), SIGNIFY(CONT),
+	SIGNIFY(ABRT), SIGNIFY(ALRM), SIGNIFY(BUS),
 	SIGNIFY(FPE), SIGNIFY(HUP), SIGNIFY(ILL), SIGNIFY(INT), SIGNIFY(KILL),
-	SIGNIFY(PIPE), SIGNIFY(QUIT), SIGNIFY(SEGV), SIGNIFY(STOP), SIGNIFY(TERM),
-	SIGNIFY(TSTP), SIGNIFY(TTIN), SIGNIFY(TTOU), SIGNIFY(USR1), SIGNIFY(USR2),
-	SIGNIFY(SYS), SIGNIFY(TRAP), SIGNIFY(URG), SIGNIFY(VTALRM), SIGNIFY(XCPU),
-	SIGNIFY(XFSZ)
+	SIGNIFY(PIPE), SIGNIFY(QUIT), SIGNIFY(SEGV), SIGNIFY(TERM),
+	SIGNIFY(USR1), SIGNIFY(USR2), SIGNIFY(SYS), SIGNIFY(TRAP),
+	SIGNIFY(VTALRM), SIGNIFY(XCPU), SIGNIFY(XFSZ),
+
+	// Start of non-terminal signals
+
+	SIGNIFY(CHLD), SIGNIFY(CONT), SIGNIFY(STOP), SIGNIFY(TSTP),
+	SIGNIFY(TTIN), SIGNIFY(TTOU), SIGNIFY(URG)
 };
 
 // not in posix: SIGNIFY(STKFLT), SIGNIFY(WINCH), SIGNIFY(IO), SIGNIFY(PWR)
 // obsolete: SIGNIFY(PROF) SIGNIFY(POLL)
 
+// Install the same handler on every signal that defaults to killing the process
+void sigatexit(void *handler)
+{
+	int i;
+	for (i=0; signames[i].num != SIGCHLD; i++)
+		signal(signames[i].num, handler);
+}
 // Convert name to signal number.  If name == NULL print names.
 int sig_to_num(char *pidstr)
 {
@@ -967,7 +989,7 @@ char *num_to_sig(int sig)
 	return NULL;
 }
 
-
+// premute mode bits based on posix mode strings.
 mode_t string_to_mode(char *modestr, mode_t mode)
 {
 	char *whos = "ogua", *hows = "=+-", *whats = "xwrstX", *whys = "ogu";
