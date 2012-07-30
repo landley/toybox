@@ -1,5 +1,0 @@
-#!/bin/sh
-#HELP usage: unix2dos [FILE...]\n\nAdd DOS newlines
-
-[ $# -ne 0 ] && DASH_I=-i
-sed $DASH_I -e 's/$/\r/' "$@"
