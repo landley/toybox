@@ -4,7 +4,7 @@
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
  *
- * Not in SUSv4.
+ * No standard.
 
 USE_TASKSET(NEWTOY(taskset, "<1pa", TOYFLAG_BIN|TOYFLAG_NEEDROOT))
 
@@ -37,9 +37,9 @@ static int str_to_cpu_set(char * mask, cpu_set_t *set)
 	CPU_ZERO(set);
 	if (size > 1 && mask[0] == '0' && mask[1] == 'x') mask += 2;
 
-	while(ptr >= mask)
-	{
+	while(ptr >= mask) {
 		char val = 0;
+
 		if ( *ptr >= '0' && *ptr <= '9') val = *ptr - '0';
 		else if (*ptr >= 'a' && *ptr <= 'f') val = 10 + (*ptr - 'a');
 		else return -1;
@@ -58,16 +58,16 @@ static int str_to_cpu_set(char * mask, cpu_set_t *set)
 static char * cpu_set_to_str(cpu_set_t *set)
 {
 	int cpu;
-	char * ptr = toybuf;
-	for (cpu=(8*sizeof(cpu_set_t) - 4); cpu >= 0; cpu -= 4)
-	{
+	char *ptr = toybuf;
+
+	for (cpu = (8*sizeof(cpu_set_t) - 4); cpu >= 0; cpu -= 4) {
 		char val = 0;
+
 		if (CPU_ISSET(cpu, set))	 val |= 1;
 		if (CPU_ISSET(cpu + 1, set)) val |= 2;
 		if (CPU_ISSET(cpu + 2, set)) val |= 4;
 		if (CPU_ISSET(cpu + 3, set)) val |= 8;
-		if (ptr != toybuf || val != 0)
-		{
+		if (ptr != toybuf || val != 0) {
 			if (val < 10) *ptr = '0' + val;
 			else *ptr = 'a' + (val - 10);
 			ptr++;
@@ -113,22 +113,17 @@ static int task_cb(struct dirtree *new)
 
 void taskset_main(void)
 {
-	char * pidstr = (toys.optc==1)?toys.optargs[0]:toys.optargs[1];
+	char *pidstr = (toys.optc==1) ? toys.optargs[0] : toys.optargs[1];
 
-	if (!(toys.optflags & P_FLAG))
-	{
-		if (toys.optc >= 2)
-		{
+	if (!(toys.optflags & P_FLAG)) {
+		if (toys.optc >= 2) {
 			do_taskset(getpid(),1);
 			xexec(&toys.optargs[1]);
-		}
-		else error_exit("Needs at least a mask and a command");
+		} else error_exit("Needs at least a mask and a command");
 	}
 
-	if (toys.optflags & A_FLAG)
-	{
+	if (toys.optflags & A_FLAG) {
 		sprintf(toybuf, "/proc/%s/task/", pidstr);
 		dirtree_read(toybuf, task_cb);
-	} else 
-		do_taskset(atoi(pidstr), 0);
+	} else do_taskset(atoi(pidstr), 0);
 }
