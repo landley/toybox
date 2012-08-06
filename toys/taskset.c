@@ -6,124 +6,105 @@
  *
  * No standard.
 
-USE_TASKSET(NEWTOY(taskset, "<1pa", TOYFLAG_BIN|TOYFLAG_NEEDROOT))
+USE_TASKSET(NEWTOY(taskset, "<1^pa", TOYFLAG_BIN|TOYFLAG_STAYROOT))
 
 config TASKSET
 	bool "taskset"
 	default y
 	help
-	  usage: taskset [-ap] [mask] [PID|cmd [args...]]
+	  usage: taskset [-ap] [mask] [PID | cmd [args...]]
 
-	  When mask is present the CPU affinity mask of a given PID will
-	  be set to this mask. When a mask is not given, the mask will
-	  be printed. A mask is a hexadecimal string where the bit position
-	  matches the cpu number.
-	  -a	Set/get the affinity of all tasks of a PID.
+	  Launch a new task which may only run on certain processors, or change
+	  the processor affinity of an exisitng PID.
+
+	  Mask is a hex string where each bit represents a processor the process
+	  is allowed to run on. PID without a mask displays existing affinity.
+
 	  -p	Set/get the affinity of given PID instead of a new command.
+	  -a	Set/get the affinity of all threads of the PID.
 */
 
-#define _GNU_SOURCE
 #include "toys.h"
 
-#define A_FLAG 0x1
-#define P_FLAG 0x2
+#define FLAG_a 0x1
+#define FLAG_p 0x2
 
-static int str_to_cpu_set(char * mask, cpu_set_t *set)
-{
-	int size = strlen(mask);
-	char *ptr = mask + size - 1;
-	int cpu = 0;
+// Prototype for syscall wrappers sched.h refuses to give us
+int sched_setaffinity(pid_t pid, size_t size, void *cpuset);
+int sched_getaffinity(pid_t pid, size_t size, void *cpuset);
 
-	CPU_ZERO(set);
-	if (size > 1 && mask[0] == '0' && mask[1] == 'x') mask += 2;
-
-	while(ptr >= mask) {
-		char val = 0;
-
-		if ( *ptr >= '0' && *ptr <= '9') val = *ptr - '0';
-		else if (*ptr >= 'a' && *ptr <= 'f') val = 10 + (*ptr - 'a');
-		else return -1;
-
-		if (val & 1) CPU_SET(cpu,  set);
-		if (val & 2) CPU_SET(cpu + 1, set);
-		if (val & 4) CPU_SET(cpu + 2, set);
-		if (val & 8) CPU_SET(cpu + 3, set);
-
-		ptr--;
-		cpu += 4;
-	}
-	return 0;
-}
-
-static char * cpu_set_to_str(cpu_set_t *set)
-{
-	int cpu;
-	char *ptr = toybuf;
-
-	for (cpu = (8*sizeof(cpu_set_t) - 4); cpu >= 0; cpu -= 4) {
-		char val = 0;
-
-		if (CPU_ISSET(cpu, set))	 val |= 1;
-		if (CPU_ISSET(cpu + 1, set)) val |= 2;
-		if (CPU_ISSET(cpu + 2, set)) val |= 4;
-		if (CPU_ISSET(cpu + 3, set)) val |= 8;
-		if (ptr != toybuf || val != 0) {
-			if (val < 10) *ptr = '0' + val;
-			else *ptr = 'a' + (val - 10);
-			ptr++;
-		}
-	}
-	*ptr = 0;
-	return toybuf;
-}
+// mask is an array of long, which makes the layout a bit weird on big
+// endian systems but as long as it's consistent...
 
 static void do_taskset(pid_t pid, int quiet)
 {
-	cpu_set_t mask;
+	unsigned long *mask = (unsigned long *)toybuf;
+	char *s = *toys.optargs, *failed = "failed to %s %d's affinity";
+	int i, j, k;
 
-	if (!pid) return;
-	if (sched_getaffinity(pid, sizeof(mask), &mask))
-		perror_exit("failed to get %d's affinity", pid);
+	for (i=0; ; i++) {
+		if (!quiet) {
+			int j = sizeof(toybuf), flag = 0;
 
-	if (!quiet) printf("pid %d's current affinity mask: %s\n", pid, cpu_set_to_str(&mask));
+			if (sched_getaffinity(pid, sizeof(toybuf), (void *)mask))
+				perror_exit(failed, "get", pid);
 
-	if (toys.optc >= 2)
-	{
-		if (str_to_cpu_set(toys.optargs[0], &mask))
-			perror_exit("bad mask: %s", toys.optargs[0]);
+			printf("pid %d's %s affinity mask: ", pid, i ? "new" : "current");
 
-		if (sched_setaffinity(pid, sizeof(mask), &mask))
-			perror_exit("failed to set %d's affinity", pid);
+			while (j--) {
+				int x = 255 & (mask[j/sizeof(long)] >> (8*(j&(sizeof(long)-1))));
 
-		if (sched_getaffinity(pid, sizeof(mask), &mask))
-			perror_exit("failed to get %d's affinity", pid);
+				if (flag) printf("%02x", x);
+				else if (x) {
+					flag++;
+					printf("%x", x);
+				}
+			}
+			putchar('\n');
+		}
 
-		if (!quiet) printf("pid %d's new affinity mask: %s\n", pid, cpu_set_to_str(&mask));
+		if (i || toys.optc < 2) return;
+
+		memset(toybuf, 0, sizeof(toybuf));
+		k = strlen(s = *toys.optargs);
+		s += k;
+		for (j = 0; j<k; j++) {
+			unsigned long digit = *(--s) - '0';
+
+			if (digit > 9) digit = 10 + tolower(*s)-'a';
+			if (digit > 15) error_exit("bad mask '%s'", *toys.optargs);
+			mask[j/(2*sizeof(long))] |= digit << 4*(j&((2*sizeof(long))-1));
+		}
+
+		if (sched_setaffinity(pid, sizeof(toybuf), (void *)mask))
+			perror_exit(failed, "set", pid);
 	}
 }
 
-static int task_cb(struct dirtree *new)
+static int task_callback(struct dirtree *new)
 {
 	if (!new->parent) return DIRTREE_RECURSE;
-	if (S_ISDIR(new->st.st_mode) && *new->name != '.')
-			do_taskset(atoi(new->name), 0);
+	if (isdigit(*new->name)) do_taskset(atoi(new->name), 0);
 
 	return 0;
 }
 
 void taskset_main(void)
 {
-	char *pidstr = (toys.optc==1) ? toys.optargs[0] : toys.optargs[1];
+	if (!(toys.optflags & FLAG_p)) {
+		if (toys.optc < 2) error_exit("Needs 2 args");
+		do_taskset(getpid(), 1);
+		xexec(toys.optargs+1);
+	} else {
+		char *c;
+		pid_t pid = strtol(toys.optargs[toys.optc-1], &c, 10);
 
-	if (!(toys.optflags & P_FLAG)) {
-		if (toys.optc >= 2) {
-			do_taskset(getpid(),1);
-			xexec(&toys.optargs[1]);
-		} else error_exit("Needs at least a mask and a command");
+		if (*c) error_exit("Not int %s", toys.optargs[1]);
+
+		if (toys.optflags & FLAG_a) {
+			char buf[33];
+			sprintf(buf, "/proc/%ld/task/", (long)pid);
+			dirtree_read(buf, task_callback);
+		} else do_taskset(pid, 0);
 	}
-
-	if (toys.optflags & A_FLAG) {
-		sprintf(toybuf, "/proc/%s/task/", pidstr);
-		dirtree_read(toybuf, task_cb);
-	} else do_taskset(atoi(pidstr), 0);
 }
