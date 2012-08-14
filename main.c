@@ -17,8 +17,6 @@ struct toy_list toy_list[] = {
 #include "generated/newtoys.h"
 };
 
-#define TOY_LIST_LEN (sizeof(toy_list)/sizeof(struct toy_list))
-
 // global context for this applet.
 
 struct toy_context toys;
@@ -37,7 +35,7 @@ struct toy_list *toy_find(char *name)
 
 	// Binary search to find this applet.
 
-	top = TOY_LIST_LEN-1;
+	top = ARRAY_LEN(toy_list)-1;
 	for (;;) {
 		int result;
 
@@ -90,7 +88,8 @@ void toy_init(struct toy_list *which, char *argv[])
 	toys.argv = argv;
 	if (NEED_OPTIONS && which->options) get_optflags();
 	else toys.optargs = argv+1;
-	if (which->flags & TOYFLAG_UMASK) toys.old_umask = umask(0);
+	toys.old_umask = umask(0);
+	if (!(which->flags & TOYFLAG_UMASK)) umask(toys.old_umask);
 }
 
 // Like exec() but runs an internal toybox command instead of another file.
@@ -123,7 +122,7 @@ void toybox_main(void)
 	}
 
 	// Output list of applets.
-	for (i=1; i<TOY_LIST_LEN; i++) {
+	for (i=1; i<ARRAY_LEN(toy_list); i++) {
 		int fl = toy_list[i].flags;
 		if (fl & TOYMASK_LOCATION) {
 			if (toys.argv[1]) {
