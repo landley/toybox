@@ -34,9 +34,8 @@ void nice_main(void)
 {
 	if (!toys.optflags) TT.priority = 10;
 
-	nice(TT.priority);
-	if (getpriority(PRIO_PROCESS, getpid()) != TT.priority)
-		perror_exit("Can't set priority");
+	errno = 0;
+	if (nice(TT.priority)==-1 && errno) perror_exit("Can't set priority");
 
 	xexec(toys.optargs);
 }
