@@ -88,6 +88,9 @@ DEFINE_GLOBALS(
 
     unsigned screen_width;
     int nl_title;
+
+    // group and user can make overlapping use of the utoa() buf, so move it
+    char uid_buf[12];
 )
 
 #define TT this.ls
@@ -121,7 +124,8 @@ static char endtype(struct stat *st)
 static char *getusername(uid_t uid)
 {
     struct passwd *pw = getpwuid(uid);
-    return pw ? pw->pw_name : utoa(uid);
+    utoa_to_buf(uid, TT.uid_buf, 12);
+    return pw ? pw->pw_name : TT.uid_buf;
 }
 
 static char *getgroupname(gid_t gid)
@@ -365,7 +369,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
         if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) {
             struct tm *tm;
-            char perm[11], thyme[64], c, d, *usr, *upad, buf[12], *grp, *grpad;
+            char perm[11], thyme[64], c, d, *usr, *upad, *grp, *grpad;
             int i, bit;
 
             perm[10]=0;
@@ -402,8 +406,8 @@ static void listfiles(int dirfd, struct dirtree *indir)
             else {
                 upad = toybuf+255-(totals[3]-len[3]);
                 if (flags&FLAG_n) {
-                    usr = buf;
-                    utoa_to_buf(st->st_uid, buf, 12);
+                    usr = TT.uid_buf;
+                    utoa_to_buf(st->st_uid, TT.uid_buf, 12);
                 } else usr = getusername(st->st_uid);
             }
 
