@@ -1,68 +1,76 @@
 /* vi: set sw=4 ts=4:
  *
- * toysh - toybox shell
+ * sh.c - toybox shell
  *
  * Copyright 2006 Rob Landley <rob@landley.net>
  *
- * The spec for this is at:
- * http://www.opengroup.org/onlinepubs/009695399/utilities/xcu_chap02.html
- * and http://www.opengroup.org/onlinepubs/009695399/utilities/sh.html
+ * The POSIX-2008/SUSv4 spec for this is at:
+ * http://www.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html
+ * and http://www.opengroup.org/onlinepubs/9699919799/utilities/sh.html
  *
- * There are also specs for:
- * http://www.opengroup.org/onlinepubs/009695399/utilities/cd.html
- * http://www.opengroup.org/onlinepubs/009695399/utilities/exit.html
+ * The first link describes the following shell builtins:
+ *
+ *   break colon continue dot eval exec exit export readonly return set shift
+ *   times trap unset
+ *
+ * The second link (the utilities directory) also contains specs for the
+ * following shell builtins:
+ *
+ *   alias bg cd command fc fg getopts hash jobs kill read type ulimit
+ *   umask unalias wait
  *
  * Things like the bash man page are good to read too.
  *
  * TODO: // Handle embedded NUL bytes in the command line.
 
-USE_TOYSH(NEWTOY(cd, NULL, TOYFLAG_NOFORK))
-USE_TOYSH(NEWTOY(exit, NULL, TOYFLAG_NOFORK))
-USE_TOYSH(OLDTOY(sh, toysh, "c:i", TOYFLAG_BIN))
-USE_TOYSH(NEWTOY(toysh, "c:i", TOYFLAG_BIN))
+USE_SH(NEWTOY(cd, NULL, TOYFLAG_NOFORK))
+USE_SH(NEWTOY(exit, NULL, TOYFLAG_NOFORK))
 
-config TOYSH
+USE_SH(NEWTOY(sh, "c:i", TOYFLAG_BIN))
+USE_SH(OLDTOY(toysh, sh, "c:i", TOYFLAG_BIN))
+
+config SH
 	bool "sh (toysh)"
 	default n
 	help
 	  usage: sh [-c command] [script]
 
-	  The toybox command shell.  Runs a shell script, or else reads input
-	  interactively and responds to it.
+	  Command shell.  Runs a shell script, or reads input interactively
+	  and responds to it.
 
 	  -c	command line to execute
 
-config TOYSH_TTY
+config SH_TTY
 	bool "Interactive shell (terminal control)"
 	default n
-	depends on TOYSH
+	depends on SH
 	help
 	  Add terminal control to toysh.  This is necessary for interactive use,
 	  so the shell isn't killed by CTRL-C.
 
-config TOYSH_PROFILE
+config SH_PROFILE
 	bool "Profile support"
 	default n
-	depends on TOYSH_TTY
+	depends on SH_TTY
 	help
 	  Read /etc/profile and ~/.profile when running interactively.
 
 	  Also enables the built-in command "source".
 
-config TOYSH_JOBCTL
+config SH_JOBCTL
 	bool "Job Control (fg, bg, jobs)"
 	default n
-	depends on TOYSH_TTY
+	depends on SH_TTY
 	help
 	  Add job control to toysh.  This lets toysh handle CTRL-Z, and enables
 	  the built-in commands "fg", "bg", and "jobs".
 
 	  With pipe support, enable use of "&" to run background processes.
 
-config TOYSH_FLOWCTL
+config SH_FLOWCTL
 	bool "Flow control (if, while, for, functions)"
 	default n
-	depends on TOYSH
+	depends on SH
 	help
 	  Add flow control to toysh.  This enables the if/then/else/fi,
 	  while/do/done, and for/do/done constructs.
@@ -71,69 +79,69 @@ config TOYSH_FLOWCTL
 	  using the "function name" or "name()" syntax, plus curly brackets
 	  "{ }" to group commands.
 
-config TOYSH_QUOTES
+config SH_QUOTES
 	bool "Smarter argument parsing (quotes)"
 	default n
-	depends on TOYSH
+	depends on SH
 	help
 	  Add support for parsing "" and '' style quotes to the toysh command
 	  parser, with lets arguments have spaces in them.
 
-config TOYSH_WILDCARDS
+config SH_WILDCARDS
 	bool "Wildcards ( ?*{,} )"
 	default n
-	depends on TOYSH_QUOTES
+	depends on SH_QUOTES
 	help
 	  Expand wildcards in argument names, ala "ls -l *.t?z" and
 	  "rm subdir/{one,two,three}.txt".
 
-config TOYSH_PROCARGS
+config SH_PROCARGS
 	bool "Executable arguments ( `` and $() )"
 	default n
-	depends on TOYSH_QUOTES
+	depends on SH_QUOTES
 	help
 	  Add support for executing arguments contianing $() and ``, using
 	  the output of the command as the new argument value(s).
 
 	  (Bash calls this "command substitution".)
 
-config TOYSH_ENVVARS
+config SH_ENVVARS
 	bool "Environment variable support"
 	default n
-	depends on TOYSH_QUOTES
+	depends on SH_QUOTES
 	help
 	  Substitute environment variable values for $VARNAME or ${VARNAME},
 	  and enable the built-in command "export".
 
-config TOYSH_LOCALS
+config SH_LOCALS
 	bool "Local variables"
 	default n
-	depends on TOYSH_ENVVARS
+	depends on SH_ENVVARS
 	help
 	  Support for local variables, fancy prompts ($PS1), the "set" command,
 	  and $?.
 
-config TOYSH_ARRAYS
+config SH_ARRAYS
 	bool "Array variables"
 	default n
-	depends on TOYSH_LOCALS
+	depends on SH_LOCALS
 	help
 	  Support for ${blah[blah]} style array variables.
 
-config TOYSH_PIPES
+config SH_PIPES
 	bool "Pipes and redirects ( | > >> < << & && | || () ; )"
 	default n
-	depends on TOYSH
+	depends on SH
 	help
 	  Support multiple commands on the same command line.  This includes
 	  | pipes, > >> < redirects, << here documents, || && conditional
 	  execution, () subshells, ; sequential execution, and (with job
 	  control) & background processes.
 
-config TOYSH_BUILTINS
+config SH_BUILTINS
 	bool "Builtin commands"
 	default n
-	depends on TOYSH
+	depends on SH
 	help
 	  Adds the commands exec, fg, bg, help, jobs, pwd, export, source, set,
 	  unset, read, alias.
@@ -141,7 +149,7 @@ config TOYSH_BUILTINS
 config EXIT
 	bool
 	default n
-	depends on TOYSH
+	depends on SH
 	help
 	  usage: exit [status]
 
@@ -151,7 +159,7 @@ config EXIT
 config CD
 	bool
 	default n
-	depends on TOYSH
+	depends on SH
 	help
 	  usage: cd [path]
 
@@ -160,7 +168,7 @@ config CD
 config CD_P
 	bool # "-P support for cd"
 	default n
-	depends on TOYSH
+	depends on SH
 	help
 	  usage: cd [-PL]
 
@@ -174,7 +182,7 @@ DEFINE_GLOBALS(
 	char *command;
 )
 
-#define TT this.toysh
+#define TT this.sh
 
 // A single executable, its arguments, and other information we know about it.
 #define TOYSH_FLAG_EXIT    1
@@ -357,7 +365,7 @@ void exit_main(void)
 	exit(*toys.optargs ? atoi(*toys.optargs) : 0);
 }
 
-void toysh_main(void)
+void sh_main(void)
 {
 	FILE *f;
 
