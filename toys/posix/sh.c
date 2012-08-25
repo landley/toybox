@@ -5,8 +5,8 @@
  * Copyright 2006 Rob Landley <rob@landley.net>
  *
  * The POSIX-2008/SUSv4 spec for this is at:
- * http://www.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html
- * and http://www.opengroup.org/onlinepubs/9699919799/utilities/sh.html
+ * http://opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html
+ * and http://opengroup.org/onlinepubs/9699919799/utilities/sh.html
  *
  * The first link describes the following shell builtins:
  *

@@ -3,8 +3,6 @@
  * mkswap.c - Format swap device.
  *
  * Copyright 2009 Rob Landley <rob@landley.net>
- *
- * Not in SUSv4.
 
 USE_MKSWAP(NEWTOY(mkswap, "<1>1", TOYFLAG_SBIN))
 

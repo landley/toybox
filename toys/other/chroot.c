@@ -3,8 +3,6 @@
  * chroot.c - Run command in new root directory.
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
- *
- * Not in SUSv3.
 
 USE_CHROOT(NEWTOY(chroot, "^<1", TOYFLAG_USR|TOYFLAG_SBIN))
 

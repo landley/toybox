@@ -3,8 +3,6 @@
  * bzcat.c - decompress stdin to stdout using bunzip2.
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
- *
- * Not in SUSv3.
 
 USE_BZCAT(NEWTOY(bzcat, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 

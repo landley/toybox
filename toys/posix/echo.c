@@ -4,7 +4,7 @@
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
  *
- * See http://www.opengroup.org/onlinepubs/009695399/utilities/echo.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/echo.html
 
 USE_ECHO(NEWTOY(echo, "^?en", TOYFLAG_BIN))
 

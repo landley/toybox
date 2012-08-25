@@ -3,8 +3,6 @@
  * lsmod.c - Show the status of modules in the kernel
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
- *
- * Not in SUSv4.
 
 USE_LSMOD(NEWTOY(lsmod, NULL, TOYFLAG_BIN))
 

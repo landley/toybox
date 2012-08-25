@@ -3,8 +3,6 @@
  * rmmod.c - Remove a module from the Linux kernel.
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
- *
- * Not in SUSv4.
 
 USE_RMMOD(NEWTOY(rmmod, "<1wf", TOYFLAG_BIN|TOYFLAG_NEEDROOT))
 

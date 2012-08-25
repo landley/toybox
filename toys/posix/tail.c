@@ -4,7 +4,7 @@
  *
  * Copyright 2012 Timothy Elliott <tle@holymonkey.com>
  *
- * See http://www.opengroup.org/onlinepubs/009695399/utilities/tail.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/tail.html
 
 USE_TAIL(NEWTOY(tail, "fc-n-", TOYFLAG_BIN))
 

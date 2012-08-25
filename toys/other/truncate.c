@@ -3,8 +3,6 @@
  * truncate.c - set file length, extending sparsely if necessary
  *
  * Copyright 2011 Rob Landley <rob@landley.net>
- *
- * Not in SUSv4
 
 USE_TRUNCATE(NEWTOY(truncate, "<1s#|c", TOYFLAG_BIN))
 

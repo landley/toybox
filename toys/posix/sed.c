@@ -4,7 +4,7 @@
  *
  * Copyright 2008 Rob Landley <rob@landley.net>
  *
- * See http://www.opengroup.org/onlinepubs/009695399/utilities/sed.c
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/sed.c
 
 USE_SED(NEWTOY(sed, "irne*", TOYFLAG_BIN))
 

@@ -4,7 +4,7 @@
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
  *
- * Not in SUSv3.
+ * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/mknod.html
 
 USE_MKNOD(NEWTOY(mknod, "<2>4", TOYFLAG_BIN))
 

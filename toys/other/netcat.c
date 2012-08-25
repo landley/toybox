@@ -1,10 +1,8 @@
 /* vi: set sw=4 ts=4:
  *
- * nc: mini-netcat - Forward stdin/stdout to a file or network connection.
+ * netcat.c - Forward stdin/stdout to a file or network connection.
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
- *
- * Not in SUSv3.
 
 USE_NETCAT(OLDTOY(nc, netcat, USE_NETCAT_LISTEN("tl^L^")"w#p#s:q#f:", TOYFLAG_BIN))
 USE_NETCAT(NEWTOY(netcat, USE_NETCAT_LISTEN("tl^L^")"w#p#s:q#f:", TOYFLAG_BIN))
@@ -26,7 +24,7 @@ config NETCAT
 
 
 config NETCAT_LISTEN
-	bool "netcat sever options (-let)"
+	bool "netcat server options (-let)"
 	default y
 	depends on NETCAT
 	help

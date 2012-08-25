@@ -6,7 +6,7 @@
  *
  * by Tim Bird <tim.bird@am.sony.com>
  *
- * See http://www.opengroup.org/onlinepubs/009695399/utilities/id.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/id.html
 
 USE_ID(NEWTOY(id, "nGgru", TOYFLAG_BIN))
 

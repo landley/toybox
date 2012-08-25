@@ -4,7 +4,7 @@
  *
  * Copyright 2012 Andre Renaud <andre@bluewatersys.com>
  *
- * Not in SUSv4.
+ * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/hostname.html
 
 USE_HOSTNAME(NEWTOY(hostname, NULL, TOYFLAG_BIN))
 

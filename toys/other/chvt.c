@@ -3,8 +3,6 @@
  * chvt.c - switch virtual terminals
  *
  * Copyright (C) 2008 David Anders <danders@amltd.com>
- *
- * Not in SUSv3.
 
 USE_CHVT(NEWTOY(chvt, "<1", TOYFLAG_USR|TOYFLAG_SBIN))
 

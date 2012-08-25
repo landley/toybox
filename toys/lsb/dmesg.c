@@ -4,7 +4,7 @@
  *
  * Copyright 2006, 2007 Rob Landley <rob@landley.net>
  *
- * Not in SUSv3.
+ * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/dmesg.html
 
 USE_DMESG(NEWTOY(dmesg, "s#n#c", TOYFLAG_BIN))
 

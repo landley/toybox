@@ -3,8 +3,6 @@
  * mountpoint.c - Check if a directory is a mountpoint.
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
- *
- * Not in SUSv4.
 
 USE_MOUNTPOINT(NEWTOY(mountpoint, "<1qdx", TOYFLAG_BIN))
 

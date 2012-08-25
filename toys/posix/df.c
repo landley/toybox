@@ -4,7 +4,7 @@
  *
  * Copyright 2006 Rob Landley <rob@landley.net>
  *
- * See http://www.opengroup.org/onlinepubs/009695399/utilities/df.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/df.html
 
 USE_DF(NEWTOY(df, "Pkt*a", TOYFLAG_USR|TOYFLAG_SBIN))
 

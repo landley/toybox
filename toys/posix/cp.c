@@ -4,7 +4,7 @@
  *
  * Copyright 2008 Rob Landley <rob@landley.net>
  *
- * See http://www.opengroup.org/onlinepubs/009695399/utilities/cp.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/cp.html
  *
  * "R+ra+d+p+r"
 USE_CP(NEWTOY(cp, "<2vslrRdpaHLPif", TOYFLAG_BIN))

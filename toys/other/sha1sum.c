@@ -6,8 +6,6 @@
  *
  * Based on the public domain SHA-1 in C by Steve Reid <steve@edmweb.com>
  * from http://www.mirrors.wiretapped.net/security/cryptography/hashes/sha1/
- *
- * Not in SUSv3.
 
 USE_SHA1SUM(NEWTOY(sha1sum, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 

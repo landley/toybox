@@ -3,7 +3,6 @@
  * whoami.c - Print effective user name
  *
  * Copyright 2012 Georgi Chorbadzhiyski <georgi@unixsol.org>
- *
 
 USE_WHOAMI(NEWTOY(whoami, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 

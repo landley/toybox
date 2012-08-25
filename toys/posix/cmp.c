@@ -4,7 +4,7 @@
  *
  * Copyright 2012 Timothy Elliott <tle@holymonkey.com>
  *
- * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/cmp.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/cmp.html
 
 USE_CMP(NEWTOY(cmp, "<2>2ls", TOYFLAG_USR|TOYFLAG_BIN))
 

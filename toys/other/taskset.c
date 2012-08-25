@@ -3,8 +3,6 @@
  * taskset.c - Retrieve or set the CPU affinity of a process.
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
- *
- * No standard.
 
 USE_TASKSET(NEWTOY(taskset, "<1^pa", TOYFLAG_BIN|TOYFLAG_STAYROOT))
 

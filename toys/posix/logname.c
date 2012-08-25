@@ -4,7 +4,7 @@
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
  *
- * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/logname.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/logname.html
 
 USE_LOGNAME(NEWTOY(logname, ">0", TOYFLAG_BIN))
 

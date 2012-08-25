@@ -3,8 +3,6 @@
  * tac.c - output lines in reverse order
  *
  * Copyright 2012 Rob Landley <rob@landley.net>
- *
- * Not in SUSv4.
 
 USE_TAC(NEWTOY(tac, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 

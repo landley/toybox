@@ -4,7 +4,7 @@
  *
  * Copyright 2006 Rob Landley <rob@landley.net>
  *
- * Not in SUSv3.  (Don't ask me why not.)
+ * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/seq.html
 
 USE_SEQ(NEWTOY(seq, "<1>3?", TOYFLAG_USR|TOYFLAG_BIN))
 

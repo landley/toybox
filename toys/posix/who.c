@@ -6,7 +6,7 @@
  *
  * by Luis Felipe Strano Moraes <lfelipe@profusion.mobi>
  *
- * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/who.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/who.html
 
 USE_WHO(NEWTOY(who, NULL, TOYFLAG_BIN))
 

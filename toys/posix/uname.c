@@ -4,7 +4,7 @@
  *
  * Copyright 2008 Rob Landley <rob@landley.net>
  *
- * See http://www.opengroup.org/onlinepubs/009695399/utilities/uname.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/uname.html
 
 USE_UNAME(NEWTOY(uname, "amvrns", TOYFLAG_BIN))
 

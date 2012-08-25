@@ -3,8 +3,6 @@
  * vmstat.c - Report virtual memory statistics.
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
- *
- * Not in SUSv4.
 
 USE_VMSTAT(NEWTOY(vmstat, ">2n", TOYFLAG_BIN))
 

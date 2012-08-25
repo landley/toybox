@@ -3,8 +3,6 @@
  * readlink.c - Return string representation of a symbolic link.
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
- *
- * Not in SUSv3.
 
 USE_READLINK(NEWTOY(readlink, "<1f", TOYFLAG_BIN))
 

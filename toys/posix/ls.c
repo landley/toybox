@@ -5,7 +5,7 @@
  * Copyright 2012 Andre Renaud <andre@bluewatersys.com>
  * Copyright 2012 Rob Landley <rob@landley.net>
  *
- * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/ls.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/ls.html
 
 // "[-Cl]"
 USE_LS(NEWTOY(ls, "goACFHLRSacdfiklmnpqrstux1", TOYFLAG_BIN))

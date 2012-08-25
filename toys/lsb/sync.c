@@ -4,7 +4,7 @@
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
  *
- * Not in SUSv3.
+ * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/sync.html
 
 USE_SYNC(NEWTOY(sync, NULL, TOYFLAG_BIN))
 

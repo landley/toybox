@@ -4,7 +4,7 @@
  *
  * Copyright 2012 Georgi Chorbadzhiyski <georgi@unixsol.org>
  *
- * See http://pubs.opengroup.org/onlinepubs/009695399/utilities/mkdir.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/mkdir.html
  *
  * TODO: Add -m
 

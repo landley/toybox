@@ -5,7 +5,7 @@
  * Copyright 2012 Ashwini Kumar <ak.ashwini@gmail.com>
  * Modified 2012 Jason Kyungwan Han <asura321@gmail.com>
  *
- * Not in SUSv4.
+ * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/passwd.html
 
 USE_PASSWD(NEWTOY(passwd, ">1a:dlu", TOYFLAG_STAYROOT|TOYFLAG_USR|TOYFLAG_BIN))
 

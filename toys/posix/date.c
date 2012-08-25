@@ -4,7 +4,7 @@
  *
  * Copyright 2012 Andre Renaud <andre@bluewatersys.com>
  *
- * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/date.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/date.html
 
 USE_DATE(NEWTOY(date, "r:u", TOYFLAG_BIN))
 

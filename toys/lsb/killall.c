@@ -4,7 +4,7 @@
  *
  * Copyright 2012 Andreas Heck <aheck@gmx.de>
  *
- * Not in SUSv4.
+ * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/killall.html
 
 USE_KILLALL(NEWTOY(killall, "<1?lq", TOYFLAG_USR|TOYFLAG_BIN))
 

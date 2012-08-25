@@ -4,7 +4,7 @@
  *
  * Copyright (C) 2006, 2007 Rob Landley <rob@landley.net>
  *
- * Not in SUSv3, but see "Cat -v considered harmful" at
+ * See "Cat -v considered harmful" at
  *   http://cm.bell-labs.com/cm/cs/doc/84/kp.ps.gz
 
 USE_CATV(NEWTOY(catv, "vte", TOYFLAG_USR|TOYFLAG_BIN))

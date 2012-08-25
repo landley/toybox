@@ -3,8 +3,6 @@
  * unshare.c - run command in new context
  *
  * Copyright 2011 Rob Landley <rob@landley.net>
- *
- * Not in SUSv4.
 
 USE_UNSHARE(NEWTOY(unshare, "<1^nium", TOYFLAG_USR|TOYFLAG_BIN))
 

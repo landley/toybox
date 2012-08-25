@@ -3,8 +3,6 @@
  * insmod.c - Load a module into the Linux kernel.
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
- *
- * Not in SUSv4.
 
 USE_INSMOD(NEWTOY(insmod, "<1", TOYFLAG_BIN|TOYFLAG_NEEDROOT))
 

@@ -3,8 +3,6 @@
  * dos2unix.c - convert newline format
  *
  * Copyright 2012 Rob Landley <rob@landley.net>
- *
- * No standard
 
 USE_DOS2UNIX(NEWTOY(dos2unix, NULL, TOYFLAG_BIN))
 USE_DOS2UNIX(OLDTOY(unix2dos, dos2unix, NULL, TOYFLAG_BIN))

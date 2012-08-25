@@ -1,11 +1,9 @@
 /* vi:set ts=4:
  *
- * mdev - Mini udev for busybox
+ * mdev.c - Populate /dev directory and handle hotplug events
  *
  * Copyright 2005, 2008 Rob Landley <rob@landley.net>
  * Copyright 2005 Frank Sorenson <frank@tuxrocks.com>
- *
- * Not in SUSv3.
 
 USE_MDEV(NEWTOY(mdev, "s", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_UMASK))
 

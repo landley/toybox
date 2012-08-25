@@ -3,8 +3,6 @@
  * mke2fs.c - Create an ext2 filesystem image.
  *
  * Copyright 2006, 2007 Rob Landley <rob@landley.net>
- *
- * Not in SUSv3.
 
 // Still to go: "E:jJ:L:m:O:"
 USE_MKE2FS(NEWTOY(mke2fs, "<1>2g:Fnqm#N#i#b#", TOYFLAG_SBIN))

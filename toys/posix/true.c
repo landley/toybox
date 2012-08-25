@@ -4,7 +4,7 @@
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
  *
- * See http://www.opengroup.org/onlinepubs/009695399/utilities/true.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/true.html
 
 USE_TRUE(NEWTOY(true, NULL, TOYFLAG_BIN))
 

@@ -1,10 +1,10 @@
 /* vi: set sw=4 ts=4:
  *
- * help.c - Show help for toybox
+ * help.c - Show help for toybox commands
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
  *
- * Not in SUSv3, but exists as a bash builtin.
+ * Often a shell builtin.
 
 USE_HELP(NEWTOY(help, "<1", TOYFLAG_BIN))
 

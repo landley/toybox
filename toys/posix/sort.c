@@ -4,7 +4,7 @@
  *
  * Copyright 2004, 2008 Rob Landley <rob@landley.net>
  *
- * See http://www.opengroup.org/onlinepubs/007904975/utilities/sort.html
+ * See http://opengroup.org/onlinepubs/007904975/utilities/sort.html
 
 USE_SORT(NEWTOY(sort, USE_SORT_FLOAT("g")USE_SORT_BIG("S:T:m" "o:k*t:xbMcszdfi") "run", TOYFLAG_USR|TOYFLAG_BIN))
 

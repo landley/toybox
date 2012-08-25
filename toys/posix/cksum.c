@@ -4,7 +4,7 @@
  *
  * Copyright 2008 Rob Landley <rob@landley.net>
  *
- * See http://www.opengroup.org/onlinepubs/009695399/utilities/cksum.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/cksum.html
 
 USE_CKSUM(NEWTOY(cksum, "IPLN", TOYFLAG_BIN))
 

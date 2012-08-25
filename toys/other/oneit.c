@@ -1,10 +1,8 @@
 /* vi: set sw=4 ts=4:
  *
- * oneit.c, tiny one-process init replacement.
+ * oneit.c - tiny init replacement to launch a single child process.
  *
  * Copyright 2005, 2007 by Rob Landley <rob@landley.net>.
- *
- * Not in SUSv3.
 
 USE_ONEIT(NEWTOY(oneit, "^<1c:p", TOYFLAG_SBIN))
 

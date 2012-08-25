@@ -4,7 +4,7 @@
  *
  * Copyright 2012 Andreas Heck <aheck@gmx.de>
  *
- * Not in SUSv4.
+ * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/pidof.html
 
 USE_PIDOF(NEWTOY(pidof, "<1", TOYFLAG_USR|TOYFLAG_BIN))
 

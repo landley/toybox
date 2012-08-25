@@ -4,7 +4,7 @@
  *
  * Copyright 2012 Georgi Chorbadzhiyski <georgi@unixsol.org>
  *
- * See http://www.opengroup.org/onlinepubs/009695399/utilities/uniq.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/uniq.html
 
 USE_UNIQ(NEWTOY(uniq, "f#s#w#zicdu", TOYFLAG_BIN))
 

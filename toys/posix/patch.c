@@ -4,7 +4,7 @@
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
  *
- * see http://www.opengroup.org/onlinepubs/009695399/utilities/patch.html
+ * see http://opengroup.org/onlinepubs/9699919799/utilities/patch.html
  * (But only does -u, because who still cares about "ed"?)
  *
  * TODO:

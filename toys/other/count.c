@@ -3,8 +3,6 @@
  * count.c - Progress indicator from stdin to stdout
  *
  * Copyright 2002 Rob Landley <rob@landley.net>
- *
- * Not in SUSv3.
 
 USE_COUNT(NEWTOY(count, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 

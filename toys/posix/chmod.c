@@ -4,8 +4,7 @@
  *
  * Copyright 2012 Rob Landley <rob@landley.net>
  *
- * See http://pubs.opengroup.org/onlinepubs/009695399/utilities/chmod.html
- *
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/chmod.html
 
 USE_CHMOD(NEWTOY(chmod, "<2?vR", TOYFLAG_BIN))
 

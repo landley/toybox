@@ -4,7 +4,7 @@
  *
  * Copyright 2012 Andre Renaud <andre@bluewatersys.com>
  *
- * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/ln.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/ln.html
 
 USE_LN(NEWTOY(ln, "<1nfs", TOYFLAG_BIN))
 

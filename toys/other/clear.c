@@ -3,8 +3,6 @@
  * clear.c - clear the screen
  *
  * Copyright 2012 Rob Landley <rob@landley.net>
- *
- * Not in SUSv4.
 
 USE_CLEAR(NEWTOY(clear, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 

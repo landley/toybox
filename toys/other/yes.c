@@ -3,8 +3,6 @@
  * yes.c - Repeatedly output a string.
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
- *
- * Not in SUSv3.
 
 USE_YES(NEWTOY(yes, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 

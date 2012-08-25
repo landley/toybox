@@ -3,8 +3,6 @@
  * w.c - shows logged in users
  *
  * Copyright 2012 Gaurang Shastri <gmshastri@gmail.com>
- *
- * Not in SUSv4.
 
 USE_W(NEWTOY(w, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 

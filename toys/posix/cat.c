@@ -4,7 +4,7 @@
  *
  * Copyright 2006 Rob Landley <rob@landley.net>
  *
- * See http://www.opengroup.org/onlinepubs/009695399/utilities/cat.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/cat.html
 
 USE_CAT(NEWTOY(cat, "u", TOYFLAG_BIN))
 

@@ -3,8 +3,6 @@
  * realpath.c - Return the canonical version of a pathname
  *
  * Copyright 2012 Andre Renaud <andre@bluewatersys.com>
- *
- * Not in SUSv4.
 
 USE_REALPATH(NEWTOY(realpath, "<1", TOYFLAG_USR|TOYFLAG_BIN))
 

@@ -1,10 +1,9 @@
 /* vi: set sw=4 ts=4:
  *
- * hello.c - A hello world program.
+ * hello.c - A hello world program. (Template for new commands.)
  *
  * Copyright 2012 Rob Landley <rob@landley.net>
  *
- * Not in SUSv4/LSB.
  * See http://opengroup.org/onlinepubs/9699919799/utilities/
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html
 

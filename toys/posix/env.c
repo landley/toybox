@@ -3,7 +3,8 @@
  * env.c - Set the environment for command invocation.
  *
  * Copyright 2012 Tryn Mirell <tryn@mirell.org>
- * env.c
+ *
+ * http://opengroup.org/onlinepubs/9699919799/utilities/env.html
 
 USE_ENV(NEWTOY(env, "^i", TOYFLAG_USR|TOYFLAG_BIN))
 

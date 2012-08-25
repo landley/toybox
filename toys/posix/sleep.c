@@ -5,7 +5,7 @@
  * Copyright 2007 Rob Landley <rob@landley.net>
  * Copyright 2012 Georgi Chorbadzhiyski <georgi@unixsol.org>
  *
- * See http://www.opengroup.org/onlinepubs/009695399/utilities/sleep.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/sleep.html
 
 USE_SLEEP(NEWTOY(sleep, "<1", TOYFLAG_BIN))
 

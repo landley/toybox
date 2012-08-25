@@ -4,8 +4,8 @@
  *
  * Copyright 2012 Georgi Chorbadzhiyski <georgi@unixsol.org>
  *
- * See http://pubs.opengroup.org/onlinepubs/009695399/utilities/chown.html
- * See http://pubs.opengroup.org/onlinepubs/009695399/utilities/chgrp.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/chown.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/chgrp.html
  *
  * TODO: group only one of [HLP]
 

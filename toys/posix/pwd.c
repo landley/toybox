@@ -4,7 +4,7 @@
  *
  * Copyright 2006 Rob Landley <rob@landley.net>
  *
- * See http://www.opengroup.org/onlinepubs/009695399/utilities/echo.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/echo.html
  *
  * TODO: add -L -P
 
