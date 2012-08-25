@@ -1,6 +1,31 @@
 <!--#include file="header.html" -->
 
 <h2>News</h2>
+<hr><b>July 23, 2012</b>
+<blockquote><p>"Ford", Arthur said. "There's an infinite number of monkeys
+out here who want to talk to us about this script for Hamlet they've worked
+out." - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+
+<p><a href=downloads/toybox-0.4.0.tar.bz2>Toybox 0.4.0</a> is based on commit
+<a href=http://landley.net/hg/toybox/shortlog/640>commit 640</a>.
+
+<p>The new <a href=status.html>status page</a> is calculated from
+the roadmap info, and should be easier to keep up to date in future.</p>
+
+<p>Andre Renaud contributed od and modinfo. Elie De Brauwer contributed
+taskset, bugfixes to cmp and tail, and tests for sort and tail. Kyungwan Han
+contributed passwd. Gaurang Shastri contributed w. Ashwini Sharma spotted a
+case where dirtree was adding extra slashes to a path.</p>
+
+<p>I rewrote od, cleaned up comm, documented the
+<a href=code.html#lib_llist>llist</a> and
+<a href=code.html#lib_dirtree>dirtree</a> infrastructure, added an -r option
+to date (and fixed a bug where -u wouldn't override /etc/localtime),
+fixed bugs in chmod +stw, fixed ls to show suid bits properly when the
+corresponding executable bit wasn't set, and worked around a longstanding
+glibc bug where static linking prevents stdout from automatically flushing
+pending output on exit.</p>
+
 <hr><b>June 25, 2012</b>
 <blockquote><p>"For a moment, nothing happened. Then, after a second or so, nothing continued to happen." - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
 
