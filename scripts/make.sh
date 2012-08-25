@@ -113,14 +113,19 @@ sed -n \
 
 # Extract a list of toys/*/*.c files to compile from the data in ".config":
 
-# 1) Grab the XXX part of all CONFIG_XXX entries, removing everything after the
-# second underline
-# 2) Sort the list, keeping only one of each entry.
-# 3) Convert to lower case.
-# 4) Remove toybox itself from the list (as that indicates global symbols).
-# 5) Add "toys/*/" prefix and ".c" suffix.
+# 1) Get a list of C files in toys/* and glue them together into a regex we can
+# feed to grep that will match any one of them (whole word, not substring).
+TOYFILES="^$(ls toys/*/*.c | sed -n 's@^.*/\(.*\)\.c$@\1@;s/-/_/g;H;${g;s/\n//;s/\n/$|^/gp}')\$"
 
-TOYFILES=$(sed -nre 's/^CONFIG_(.*)=y/\1/;t skip;b;:skip;s/_.*//;p' < .config | sort -u | tr A-Z a-z | grep -v '^toybox$' | sed 's@\(.*\)@toys/\*/\1.c@')
+# 2) Grab the XXX part of all CONFIG_XXX entries, removing everything after the
+# second underline
+# 3) Sort the list, keeping only one of each entry.
+# 4) Convert to lower case.
+# 5) Remove any config symbol not recognized as a filename from step 1.
+# 6) Add "toys/*/" prefix and ".c" suffix.
+
+TOYFILES=$(sed -nre 's/^CONFIG_(.*)=y/\1/;t skip;b;:skip;s/_.*//;p' < .config \
+  | sort -u | tr A-Z a-z | grep -E "$TOYFILES" | sed 's@\(.*\)@toys/\*/\1.c@')
 
 echo "Library probe..."
 
