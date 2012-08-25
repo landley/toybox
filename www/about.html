@@ -1,42 +1,42 @@
 <!--#include file="header.html" -->
 
+<h1>Answers to <a href="#what">What</a>, <a href="#why">Why</a>,
+<a href="#who">Who</a>, <a href="#how">How</a>, <a href="#when">when</a></h1>
+
 <h2><a name="what" />What is ToyBox?</h2>
 
-<p>The goal of the Toybox project is to create simple implementations of all
-the important Linux command line utilities.  These implementations should
-be small (the entire project should total less than a megabyte, uncompressed),
-fast, simple, and correctly implemented (which is related to standards
-compliance, but isn't quite the same thing).  Click for
-<a href="design.html">more about the design goals</a></p>
+<p>The goal of the Toybox project is to create simple, small, fast, and
+correct implementations of all the standard Linux command line utilities.
+There's a <a href="design.html">page on design goals</a>.</p>
 
-<p>Toybox has configurable levels of functionality, and should scale from tiny
-embedded systems up to full general purpose desktop and development
-environments.  The author plans to install it on his Android phone in
-place of Toolbox, and the
-<a href=/aboriginal>Aboriginal Linux</a> project is trying to get a complete
-Linux system to rebuild itself from source code using toybox.</p>
+<p>Toybox offers configurable levels of functionality, and should scale from
+tiny embedded systems up to general purpose development environments.
+The author plans to install it on his Android phone in place of Toolbox,
+and the <a href=/aboriginal>Aboriginal Linux</a> project is working to get a
+complete Linux system to rebuild itself from source code using toybox.</p>
 
 <p>Toybox is <a href=license.html>released under a simple 2-clause BSD-style
-license</a>.</p>
+license</a>. (Earlier versions were released under GPLv2, but
+<a href=oldlicense.html>that changed</a>.)</p>
 
 <p>Toybox can be built as a single "swiss army knife" executable (ala BusyBox
 or Red Hat's Nash), or each command can be built as a traditional independent
 executable.</p>
 
-<b><h2><a name="status" />What commands are implemented?</h2></b>
+<b><h2><a name="status" />What commands are implemented in Toybox?</h2></b>
 
-<p>The current list of commands implemented by toybox is at the top of the
-<a href=news.html>news page</a>.  That list is updated when new commands
-go in.  The list of commands yet to implement for the 1.0 release is in the
-<a href=todo.txt>todo list</a>.</p>
+<p>The current list of commands implemented by toybox is on the
+<a href=status.html>status page</a>, which is updated each release.
+There is also <a href=roadmap.html>roadmap</a> of planned commands for the
+1.0 release.</p>
 
 <p>In general, configuring toybox for "defconfig" enables all the commands
 compete enough to be useful.  Configuring "allyesconfig" enables partially
-implemented commands as well.</p>
+implemented commands as well, along with debugging features.</p>
 
 <p>Several toybox commands can do things other vesions can't.  For example
 the toybox "df" isn't confused by initramfs the way other df implementations
-are.  If initramfs is visible, df shows it like any other mount point.</p>
+are. (If initramfs is visible, df shows it like any other mount point.)</p>
 
 <b><h3>Command Shell</h3></b>
 <p>The Toybox Shell (toysh) aims to be a reasonable bash replacement.  It
@@ -94,6 +94,122 @@ versions ("tip" is the current development version).</p>
 <p>The maintainer's <a href=/notes.html>development log</a> and the project's
 <a href=http://lists.landley.net/listinfo.cgi/toybox-landley.net>mailing
 list</a> are also good ways to track what's going on with the project.</p>
+
+<!--
+<b><h2><a name="why">Why do toybox?</h2></b>
+
+<p>Because smart phones are replacing the PC, and Android must become
+self-hosting to beat the iPhone in establishing the new standard.</p>
+
+<p>This is the third such major transition in computer history:
+(mainframe-&gt;minicomputer-&gt;microcomputer-&gt;smartphone).
+The mainframe was replaced by the minicomputer, which was replaced by
+the microcomputer (renamed the "personal" computer to make clear you could
+access porn through it), which is being replaced by the smartphone. Nobody
+needed to wait for printouts from a big computer in another building when they
+could use a little one down the hall.  Then nobody needed the big computer
+down the hall when they had a little one on their desk.  Now nobody needs the
+big computer on their desk when they have a little one in their pocket.</p>
+
+<p>The new platform displaces the old when it becomes natively self hosting.
+Often they leverage existing technology: just as early microcmputers used
+teletypes and televisions for output, phones can use
+<a href=http://us.toshiba.com/accessory/PA3575U-1PRP>USB docking stations</a>
+to access a bigger screen, mouse, keyboard, speakers, etc. Plugging a phone into
+USB even charges the battery. But to use the phone as a development
+workstation, it needs more software, such as a Posix command line, a native
+compiler, and drivers for the USB peripherals.</p>
+
+<p>The new platform also eventually weans itself off of its dominant language.
+Dalvik is to Android what ROM Basic was to the PC: something it must
+eventually outgrow. Thus toybox is native C code, not Java.</p>
+
+<b><h3>So why aren't self-hosting smartphones attracting more attention?</h3></b>
+
+<p>Because most people are focusing on the legacy platforms, not on the new
+stuff. Existing multi-billion dollar industries are getting evicted from their
+decades-old established niche, and are trying to spin the transition as an
+opportunity instead of a forced march onto reservations. When elephants run
+from mice, it's easier to notice the elephants.</p>
+
+<p>History's our guide here: the previous technology always gets kicked up into
+the "server space", moving from "the thing you stood in front of waiting for
+your printout" to "that thing you sometimes accessed remotely via the new
+computer". This time around they're calling it "the cloud" and pretending it's
+a big deal; it's really just a beowulf cluster with a layer of
+virtualization/containerization software implementing hotplug hardware and
+live migration to provide cheap
+commodity processing power that dominant players (like amazon) literally
+give away for free. These old machines become secondary, only
+accessed through the new machines users now directly interact with.</p>
+
+<p>Since there's only one server space, the mainframe ate the minicomputer in
+the 1980's (when DEC went under), and this time around "the cloud" seems to be
+eating the mainframe (IBM ain't happy). The inevitable consolidation leads
+to drama, but doesn't mean much in the long run.</p>
+
+<p><a href=http://landley.net/notes-2012.html#12-07-2012>For more
+on this topic...</a></p>
+
+<b><h3><a name="why_android">Why is Android important?</h2></b>
+
+<p>Major hardware transitions introduce
+<a href=http://landley.net/notes-2011.html#26-06-2011>new software
+standards</a> which are extremely sticky once
+established, due to network effects.</p>
+
+<p>Last time around, the PC was stuck with
+a proprietary operating system (DOS/Windows) which is still dominant on that
+hardware platform's descendants 30 years later. This time around, the choice
+is between Android (a Linux derivative) and iPhone (a closed BSD fork ala
+SunOS, put out by a company already engaged in multiple aggressive IP lawsuits).
+The main difference between Apple and Microsoft is that Apple is competent.</p>
+
+<p>And yes, it has to be Android, it won't be vanilla Linux any time soon,
+for three reasons. 1) <a href=http://landley.net/notes-2010.html#13-08-2010>Open
+Source can't do user interfaces</a> for about the same reason wikipedia can't
+write a novel, 2) it's too late to the
+party (a 5 year headstart is forever in computers), 3) preinstalls matter
+(GPLv3 spooked all the hardware vendors, Android has a "no GPL in
+userspace" policy which is rigidly enforced).</p>
+
+<p>And "any time soon" is important: attempting to displace an existing
+entrenched de-facto standard is what linux has spent the last 20
+years trying (and failing) to do on the desktop. Spending another 20
+years fighting for less than 1% of the phone market would just be sad.</p>
+
+<b><h3><a name="how_google">How is Google less evil than Apple?</h3></b>
+
+<p>Because Android isn't Google's core business, attaching advertising to large
+scale data searches is. Android and Chrome and such are Google's way of
+"commoditizing their co-factors" to drive down the price of ingredients
+to their core business.</p>
+
+<p>Thus Google is pursuing a commodity market and encouring as many vendors as
+possible to participate, not to control the new space but to hold it open,
+so that its search products are widely available without requiring the
+permission of some other monopoly gatekeeper. Apple is attemping to corner the
+smartphone market and extract monopoly rents, excluding all
+vendors except itself.</p>
+
+<p>So if Google wins we get a commodity market in smartphone/tablet software,
+and may be able to open it further in future. If Apple wins we get a proprietary
+smartphone/tablet OS with a single monopoly vendor, which is likely to close it
+further.</p>
+
+<b><h3>Why not just use BusyBox?</h3></b>
+
+<p>Android can't. Busybox predates android
+by many years; if they were ever going to ship it they'd have done so by
+now. Android has had a "No GPL in Userspace" policy ever since GPLv3
+came out (before the first Android phone shipped), and they mean it.</p>
+
+<p>Toybox also has a better design and simpler code. I did both
+and this is the one I enjoy banging on; I tried to contribute a few things
+to busybox and it was like crawling through a thornbush of #ifdefs. Busybox
+development is just no fun anymore.</p>
+
+-->
 
 <b><h2><a name="toycans" />What's the toybox logo image?</h2></b>
 
