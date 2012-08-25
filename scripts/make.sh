@@ -4,19 +4,27 @@
 
 source ./configure
 
+if [ -z ".config" ]
+then
+  echo "No .config (see "make help" for configuration options)."
+  exit 1
+fi
+
 echo "Extract configuration information from toys/*.c files..."
 scripts/genconfig.sh
 
-echo "Generate headers from toys/*.c..."
+echo "Generate headers from toys/*/*.c..."
 
 # Create a list of all the applets toybox can provide.  Note that the first
 # entry is out of order on purpose (the toybox multiplexer applet must be the
 # first element of the array).  The rest must be sorted in alphabetical order
 # for fast binary search.
 
+echo "generated/newtoys.h"
+
 function newtoys()
 {
-  for i in toys/*.c
+  for i in toys/*/*.c
   do
     sed -n -e '1,/^config [A-Z]/s/^USE_/&/p' $i || exit 1
   done
@@ -25,13 +33,13 @@ echo "NEWTOY(toybox, NULL, TOYFLAG_STAYROOT)" > generated/newtoys.h
 newtoys | sed 's/\(.*TOY(\)\([^,]*\),\(.*\)/\2 \1\2,\3/' | sort -k 1,1 \
 	| sed 's/[^ ]* //'  >> generated/newtoys.h
 
-# Extract global structure definitions and flag definitions from toys/*.c
+# Extract global structure definitions and flag definitions from toys/*/*.c
 
 function getglobals()
 {
-  for i in toys/*.c
+  for i in toys/*/*.c
   do
-    NAME="$(echo $i | sed 's@toys/\(.*\)\.c@\1@')"
+    NAME="$(echo $i | sed 's@.*/\(.*\)\.c@\1@')"
 
     echo -e "// $i\n"
     sed -n -e '/^DEFINE_GLOBALS(/,/^)/b got;b;:got' \
@@ -58,6 +66,8 @@ function getglobals()
   done
 }
 
+echo "generated/globals.h"
+
 GLOBSTRUCT="$(getglobals)"
 (
   echo "$GLOBSTRUCT"
@@ -67,6 +77,7 @@ GLOBSTRUCT="$(getglobals)"
   echo "} this;"
 ) > generated/globals.h
 
+echo "generated/help.h"
 # Only recreate generated/help.h if python is installed
 if [ ! -z "$(which python)" ] && [ ! -z "$(grep 'CONFIG_HELP=y' .config)" ]
 then
@@ -100,19 +111,23 @@ sed -n \
   -e 's/.*/#define USE_&(...) __VA_ARGS__/p' \
   .config > generated/config.h || exit 1
 
-# Extract a list of toys/*.c files to compile from the data in ".config" with
-# sed, sort, and tr:
+# Extract a list of toys/*/*.c files to compile from the data in ".config":
 
 # 1) Grab the XXX part of all CONFIG_XXX entries, removing everything after the
 # second underline
 # 2) Sort the list, keeping only one of each entry.
 # 3) Convert to lower case.
 # 4) Remove toybox itself from the list (as that indicates global symbols).
-# 5) Add "toys/" prefix and ".c" suffix.
+# 5) Add "toys/*/" prefix and ".c" suffix.
 
-TOYFILES=$(cat .config | sed -nre 's/^CONFIG_(.*)=y/\1/;t skip;b;:skip;s/_.*//;p' | sort -u | tr A-Z a-z | grep -v '^toybox$' | sed 's@\(.*\)@toys/\1.c@' )
+TOYFILES=$(sed -nre 's/^CONFIG_(.*)=y/\1/;t skip;b;:skip;s/_.*//;p' < .config | sort -u | tr A-Z a-z | grep -v '^toybox$' | sed 's@\(.*\)@toys/\*/\1.c@')
 
 echo "Library probe..."
+
+# We trust --as-needed to remove each library if we don't use any symbols
+# out of it, this loop is because the compiler has no way to ignore a library
+# that doesn't exist, so we have to detect and skip nonexistent libraries
+# for it.
 
 OPTLIBS="$(for i in util crypt m; do echo "int main(int argc, char *argv[]) {return 0;}" | ${CROSS_COMPILE}${CC} -xc - -o /dev/null -Wl,--as-needed -l$i > /dev/null 2>/dev/null && echo -l$i; done)"
 

@@ -1,6 +1,6 @@
 mainmenu "ToyBox Configuration"
 
-menu "Global settings"
+menu "Toybox global settings"
 
 config TOYBOX
 	bool
@@ -46,6 +46,6 @@ endmenu
 
 source generated/Config.probed
 
-menu "Toys"
+comment ""
+
 source generated/Config.in
-endmenu

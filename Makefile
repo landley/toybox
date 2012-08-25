@@ -3,7 +3,7 @@
 
 all: toybox
 
-toybox toybox_unstripped: .config *.[ch] lib/*.[ch] toys/*.[ch] scripts/*.sh
+toybox toybox_unstripped: .config *.[ch] lib/*.[ch] toys/*.h toys/*/*.c scripts/*.sh
 	scripts/make.sh
 
 .PHONY: clean distclean baseline bloatcheck install install_flat \
@@ -12,7 +12,7 @@ toybox toybox_unstripped: .config *.[ch] lib/*.[ch] toys/*.[ch] scripts/*.sh
 include kconfig/Makefile
 
 $(KCONFIG_TOP): generated/Config.in
-generated/Config.in: toys/*.c scripts/genconfig.sh
+generated/Config.in: toys/*/*.c scripts/genconfig.sh
 	scripts/genconfig.sh
 
 HOSTCC?=cc

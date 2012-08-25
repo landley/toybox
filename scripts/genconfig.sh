@@ -26,14 +26,25 @@ EOF
 
 genconfig()
 {
-  # extract config stanzas from each command source file, in alphabetical order
-
-  for i in $(ls -1 toys/*.c)
+  # I could query the directory here, but I want to control the order
+  # and capitalization in the menu
+  for j in Posix LSB Other
   do
-    # Grab the config block for Config.in
-    echo "# $i"
-    sed -n '/^\*\//q;/^config [A-Z]/,$p' $i || return 1
+    echo "menu \"$j commands\""
     echo
+
+    DIR=$(echo $j | tr A-Z a-z)
+
+    # extract config stanzas from each source file, in alphabetical order
+    for i in $(ls -1 toys/$DIR/*.c)
+    do
+      # Grab the config block for Config.in
+      echo "# $i"
+      sed -n '/^\*\//q;/^config [A-Z]/,$p' $i || return 1
+      echo
+    done
+
+    echo endmenu
   done
 }
 
