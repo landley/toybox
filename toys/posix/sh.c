@@ -185,14 +185,14 @@ DEFINE_GLOBALS(
 #define TT this.sh
 
 // A single executable, its arguments, and other information we know about it.
-#define TOYSH_FLAG_EXIT    1
-#define TOYSH_FLAG_SUSPEND 2
-#define TOYSH_FLAG_PIPE    4
-#define TOYSH_FLAG_AND     8
-#define TOYSH_FLAG_OR      16
-#define TOYSH_FLAG_AMP     32
-#define TOYSH_FLAG_SEMI    64
-#define TOYSH_FLAG_PAREN   128
+#define SH_FLAG_EXIT    1
+#define SH_FLAG_SUSPEND 2
+#define SH_FLAG_PIPE    4
+#define SH_FLAG_AND     8
+#define SH_FLAG_OR      16
+#define SH_FLAG_AMP     32
+#define SH_FLAG_SEMI    64
+#define SH_FLAG_PAREN   128
 
 // What we know about a single process.
 struct command {
@@ -221,7 +221,7 @@ static char *parse_word(char *start, struct command **cmd)
 	char *end;
 
 	// Detect end of line (and truncate line at comment)
-	if (CFG_TOYSH_PIPES && strchr("><&|(;", *start)) return 0;
+	if (CFG_SH_PIPES && strchr("><&|(;", *start)) return 0;
 
 	// Grab next word.  (Add dequote and envvar logic here)
 	end = start;
@@ -247,7 +247,7 @@ static char *parse_pipeline(char *cmdline, struct pipeline *line)
 
 	if (!cmdline) return 0;
 
-	if (CFG_TOYSH_JOBCTL) line->cmdline = cmdline;
+	if (CFG_SH_JOBCTL) line->cmdline = cmdline;
 
 	// Parse command into argv[]
 	for (;;) {
@@ -256,7 +256,7 @@ static char *parse_pipeline(char *cmdline, struct pipeline *line)
 		// Skip leading whitespace and detect end of line.
 		while (isspace(*start)) start++;
 		if (!*start || *start=='#') {
-			if (CFG_TOYSH_JOBCTL) line->cmdlinelen = start-cmdline;
+			if (CFG_SH_JOBCTL) line->cmdlinelen = start-cmdline;
 			return 0;
 		}
 
@@ -268,7 +268,7 @@ static char *parse_pipeline(char *cmdline, struct pipeline *line)
 
 		// If we hit the end of this command, how did it end?
 		if (!end) {
-			if (CFG_TOYSH_PIPES && *start) {
+			if (CFG_SH_PIPES && *start) {
 				if (*start==';') {
 					start++;
 					break;
@@ -280,7 +280,7 @@ static char *parse_pipeline(char *cmdline, struct pipeline *line)
 		start = end;
 	}
 
-	if (CFG_TOYSH_JOBCTL) line->cmdlinelen = start-cmdline;
+	if (CFG_SH_JOBCTL) line->cmdlinelen = start-cmdline;
 
 	return start;
 }
@@ -313,7 +313,7 @@ static void run_pipeline(struct pipeline *line)
 		if (!cmd->pid) xexec(cmd->argv);
 		else waitpid(cmd->pid, &status, 0);
 
-		if (CFG_TOYSH_FLOWCTL || CFG_TOYSH_PIPES) {
+		if (CFG_SH_FLOWCTL || CFG_SH_PIPES) {
 			if (WIFEXITED(status)) cmd->pid = WEXITSTATUS(status);
 			if (WIFSIGNALED(status)) cmd->pid = WTERMSIG(status);
 		}
@@ -370,7 +370,7 @@ void sh_main(void)
 	FILE *f;
 
 	// Set up signal handlers and grab control of this tty.
-	if (CFG_TOYSH_TTY) {
+	if (CFG_SH_TTY) {
 		if (isatty(0)) toys.optflags |= 1;
 	}
 	f = *toys.optargs ? xfopen(*toys.optargs, "r") : NULL;
