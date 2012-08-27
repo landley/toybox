@@ -174,3 +174,5 @@ mode_t string_to_mode(char *mode_str, mode_t base);
 int read_password(char * buff, int buflen, char* mesg);
 int update_password(char *filename, char* username, char* encrypted);
 
+// du helper functions
+char* make_human_readable(unsigned long long size, unsigned long unit);

@@ -1073,3 +1073,30 @@ mode_t string_to_mode(char *modestr, mode_t mode)
 barf:
 	error_exit("bad mode '%s'", modestr);
 }
+
+
+char* make_human_readable(unsigned long long size, unsigned long unit)
+{
+    unsigned int frac = 0;
+    if(unit) {
+        size = (size/(unit)) + (size%(unit)?1:0);
+        return xmsprintf("%llu", size);
+    }
+    else {
+        static char units[] = {'\0', 'K', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'};
+        int index = 0;
+        while(size >= 1024) {
+            frac = size%1024;
+            size /= 1024;
+            index++;
+        }
+        frac = (frac/102) + ((frac%102)?1:0);
+        if(frac >= 10) {
+            size += 1;
+            frac = 0;
+        }
+        if(frac) return xmsprintf("%llu.%u%c", size, frac, units[index]);
+        else return xmsprintf("%llu%c", size, units[index]);
+    }
+    return NULL; //not reached
+}
