@@ -26,6 +26,26 @@ config WC
 
 #include "toys.h"
 
+DEFINE_GLOBALS(
+	unsigned long totals[3];
+)
+
+#define TT this.wc
+
+static void show_lengths(unsigned long *lengths, char *name)
+{
+	int i, nospace = 1;
+	for (i=0; i<3; i++) {
+		if (!toys.optflags || (toys.optflags&(1<<i))) {
+			xprintf(" %ld"+nospace, lengths[i]);
+			nospace = 0;
+		}
+		TT.totals[i] += lengths[i];
+	}
+	if (*toys.optargs) xprintf(" %s", name);
+	xputc('\n');
+}
+
 static void do_wc(int fd, char *name)
 {
 	int i, len;
@@ -48,13 +68,12 @@ static void do_wc(int fd, char *name)
 			lengths[2]++;
 		}
 	}
-	for (i=0; i<3; i++)
-		if (!toys.optflags || (toys.optflags&(1<<i)))
-			printf("%ld ", lengths[i]);
-	printf("%s\n", (!toys.optflags && strcmp(name,"-")) ? name : "");
+
+	show_lengths(lengths, name);
 }
 
 void wc_main(void)
 {
 	loopfiles(toys.optargs, do_wc);
+	if (toys.optc>1) show_lengths(TT.totals, "total");
 }
