@@ -186,15 +186,14 @@ static int filter(struct dirtree *new)
         return 0;
     }
 
-    if (!(flags&FLAG_f)) { 
-        if (flags & FLAG_a) return 0;
-        if (!(flags & FLAG_A) && new->name[0]=='.') return 0;
-    }
-
     if (flags & FLAG_u) new->st.st_mtime = new->st.st_atime;
     if (flags & FLAG_c) new->st.st_mtime = new->st.st_ctime;
     if (flags & FLAG_k) new->st.st_blocks = (new->st.st_blocks + 1) / 2;
-    return dirtree_notdotdot(new);
+
+    if (flags & (FLAG_a|FLAG_f)) return DIRTREE_SAVE;
+    if (!(flags & FLAG_A) && new->name[0]=='.') return 0;
+
+    return dirtree_notdotdot(new) & DIRTREE_SAVE;
 }
 
 // For column view, calculate horizontal position (for padding) and return
