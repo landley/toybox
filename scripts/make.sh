@@ -124,7 +124,7 @@ TOYFILES="^$(ls toys/*/*.c | sed -n 's@^.*/\(.*\)\.c$@\1@;s/-/_/g;H;${g;s/\n//;s
 # 5) Remove any config symbol not recognized as a filename from step 1.
 # 6) Add "toys/*/" prefix and ".c" suffix.
 
-TOYFILES=$(sed -nre 's/^CONFIG_(.*)=y/\1/;t skip;b;:skip;s/_.*//;p' < .config \
+TOYFILES=$(sed -nre 's/^CONFIG_(.*)=y/\1/p' < .config \
   | sort -u | tr A-Z a-z | grep -E "$TOYFILES" | sed 's@\(.*\)@toys/\*/\1.c@')
 
 echo "Library probe..."
