@@ -10,7 +10,7 @@ USE_HOSTNAME(NEWTOY(hostname, NULL, TOYFLAG_BIN))
 
 config HOSTNAME
 	bool "hostname"
-	default n
+	default y
 	help
 	  usage: hostname [newname]
 
@@ -24,10 +24,10 @@ void hostname_main(void)
 	const char *hostname = toys.optargs[0];
         if (hostname) {
             if (sethostname(hostname, strlen(hostname)))
-                perror_exit("cannot set hostname to '%s'", hostname);
+                perror_exit("set failed '%s'", hostname);
         } else {
             if (gethostname(toybuf, sizeof(toybuf)))
-                perror_exit("cannot get hostname");
+                perror_exit("get failed");
             xputs(toybuf);
         }
 }
