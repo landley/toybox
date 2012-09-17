@@ -20,7 +20,7 @@ config SHA1SUM
 
 #include <toys.h>
 
-struct sha1 {
+DEFINE_GLOBALS(
 	uint32_t state[5];
 	uint32_t oldstate[5];
 	uint64_t count;
@@ -28,12 +28,9 @@ struct sha1 {
 		unsigned char c[64];
 		uint32_t i[16];
 	} buffer;
-};
+)
 
-static void sha1_init(struct sha1 *this);
-static void sha1_transform(struct sha1 *this);
-static void sha1_update(struct sha1 *this, char *data, unsigned int len);
-static void sha1_final(struct sha1 *this, char digest[20]);
+#define TT this.sha1sum
 
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
@@ -52,16 +49,16 @@ static const uint32_t rconsts[]={0x5A827999,0x6ED9EBA1,0x8F1BBCDC,0xCA62C1D6};
 
 // Hash a single 512-bit block. This is the core of the algorithm.
 
-static void sha1_transform(struct sha1 *this)
+static void sha1_transform(void)
 {
 	int i, j, k, count;
-	uint32_t *block = this->buffer.i;
+	uint32_t *block = TT.buffer.i;
 	uint32_t *rot[5], *temp;
 
 	// Copy context->state[] to working vars
 	for (i=0; i<5; i++) {
-		this->oldstate[i] = this->state[i];
-		rot[i] = this->state + i;
+		TT.oldstate[i] = TT.state[i];
+		rot[i] = TT.state + i;
 	}
 	// 4 rounds of 20 operations each.
 	for (i=count=0; i<4; i++) {
@@ -88,54 +85,56 @@ static void sha1_transform(struct sha1 *this)
 		}
 	}
 	// Add the previous values of state[]
-	for (i=0; i<5; i++) this->state[i] += this->oldstate[i];
-}
-
-
-// Initialize a struct sha1.
-
-static void sha1_init(struct sha1 *this)
-{
-	/* SHA1 initialization constants */
-	this->state[0] = 0x67452301;
-	this->state[1] = 0xEFCDAB89;
-	this->state[2] = 0x98BADCFE;
-	this->state[3] = 0x10325476;
-	this->state[4] = 0xC3D2E1F0;
-	this->count = 0;
+	for (i=0; i<5; i++) TT.state[i] += TT.oldstate[i];
 }
 
 // Fill the 64-byte working buffer and call sha1_transform() when full.
 
-void sha1_update(struct sha1 *this, char *data, unsigned int len)
+static void sha1_update(char *data, unsigned int len)
 {
 	unsigned int i, j;
 
-	j = this->count & 63;
-	this->count += len;
+	j = TT.count & 63;
+	TT.count += len;
 
 	// Enough data to process a frame?
 	if ((j + len) > 63) {
 		i = 64-j;
-		memcpy(this->buffer.c + j, data, i);
-		sha1_transform(this);
+		memcpy(TT.buffer.c + j, data, i);
+		sha1_transform();
 		for ( ; i + 63 < len; i += 64) {
-			memcpy(this->buffer.c, data + i, 64);
-			sha1_transform(this);
+			memcpy(TT.buffer.c, data + i, 64);
+			sha1_transform();
 		}
 		j = 0;
 	} else i = 0;
 	// Grab remaining chunk
-	memcpy(this->buffer.c + j, data + i, len - i);
+	memcpy(TT.buffer.c + j, data + i, len - i);
 }
 
-// Add padding and return the message digest.
+// Callback for loopfiles()
 
-void sha1_final(struct sha1 *this, char digest[20])
+static void do_sha1(int fd, char *name)
 {
-	uint64_t count = this->count << 3;
-	unsigned int i;
+	uint64_t count;
+	int i;
 	char buf;
+
+	/* SHA1 initialization constants */
+	TT.state[0] = 0x67452301;
+	TT.state[1] = 0xEFCDAB89;
+	TT.state[2] = 0x98BADCFE;
+	TT.state[3] = 0x10325476;
+	TT.state[4] = 0xC3D2E1F0;
+	TT.count = 0;
+
+	for (;;) {
+		i = read(fd, toybuf, sizeof(toybuf));
+		if (i<1) break;
+		sha1_update(toybuf, i);
+	}
+
+	count = TT.count << 3;
 
 	// End the message by appending a "1" bit to the data, ending with the
 	// message size (in bits, big endian), and adding enough zero bits in
@@ -146,34 +145,19 @@ void sha1_final(struct sha1 *this, char digest[20])
 
 	buf = 0x80;
 	do {
-		sha1_update(this, &buf, 1);
+		sha1_update(&buf, 1);
 		buf = 0;
-	} while ((this->count & 63) != 56);
+	} while ((TT.count & 63) != 56);
 	for (i = 0; i < 8; i++)
-	  this->buffer.c[56+i] = count >> (8*(7-i));
-	sha1_transform(this);
+	  TT.buffer.c[56+i] = count >> (8*(7-i));
+	sha1_transform();
 
 	for (i = 0; i < 20; i++)
-		digest[i] = this->state[i>>2] >> ((3-(i & 3)) * 8);
+		toybuf[i] = TT.state[i>>2] >> ((3-(i & 3)) * 8);
 	// Wipe variables.  Cryptogropher paranoia.
-	memset(this, 0, sizeof(struct sha1));
-}
+	memset(&TT, 0, sizeof(TT));
 
-// Callback for loopfiles()
-
-static void do_sha1(int fd, char *name)
-{
-	struct sha1 this;
-	int len;
-
-	sha1_init(&this);
-	for (;;) {
-		len = read(fd, toybuf, sizeof(toybuf));
-		if (len<1) break;
-		sha1_update(&this, toybuf, len);
-	}
-	sha1_final(&this, toybuf);
-	for (len = 0; len < 20; len++) printf("%02x", toybuf[len]);
+	for (i = 0; i < 20; i++) printf("%02x", toybuf[i]);
 	printf("  %s\n", name);
 }
 
