@@ -25,6 +25,10 @@ config CATV
 
 #include "toys.h"
 
+#define FLAG_v 4
+#define FLAG_t 2
+#define FLAG_e 1
+
 // Callback function for loopfiles()
 
 static void do_catv(int fd, char *name)
@@ -38,19 +42,20 @@ static void do_catv(int fd, char *name)
 		for (i=0; i<len; i++) {
 			char c=toybuf[i];
 
-			if (c > 126 && (toys.optflags & 4)) {
+			if (c > 126 && (toys.optflags & FLAG_v)) {
+				if (c > 127) {
+					printf("M-");
+					c -= 128;
+				}
 				if (c == 127) {
 					printf("^?");
 					continue;
-				} else {
-					printf("M-");
-					c -= 128;
 				}
 			}
 			if (c < 32) {
 				if (c == 10) {
-					if (toys.optflags & 1) xputc('$');
-				} else if (toys.optflags & (c==9 ? 2 : 4)) {
+					if (toys.optflags & FLAG_e) xputc('$');
+				} else if (toys.optflags & (c==9 ? FLAG_t : FLAG_v)) {
 					printf("^%c", c+'@');
 					continue;
 				}
@@ -62,6 +67,6 @@ static void do_catv(int fd, char *name)
 
 void catv_main(void)
 {
-	toys.optflags^=4;
+	toys.optflags ^= FLAG_v;
 	loopfiles(toys.optargs, do_catv);
 }
