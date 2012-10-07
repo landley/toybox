@@ -21,7 +21,7 @@
  * -F fuzz (number, default 2)
  * [file] which file to patch
 
-USE_PATCH(NEWTOY(patch, USE_TOYBOX_DEBUG("x")"up#i:R", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PATCH(NEWTOY(patch, USE_TOYBOX_DEBUG("x")"ulp#i:R", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PATCH
 	bool "patch"
@@ -32,7 +32,8 @@ config PATCH
 	  Apply a unified diff to one or more files.
 
 	  -i	Input file (defaults=stdin)
-	  -p	number of '/' to strip from start of file paths (default=all)
+	  -l	Loose match (ignore whitespace)
+	  -p	Number of '/' to strip from start of file paths (default=all)
 	  -R	Reverse patch.
 	  -u	Ignored (only handles "unified" diffs)
 
@@ -59,8 +60,11 @@ DEFINE_GLOBALS(
 
 #define TT this.patch
 
-#define FLAG_REVERSE 1
-#define FLAG_PATHLEN 4
+#define FLAG_R (1<<0)
+#define FLAG_i (1<<1)
+#define FLAG_l (1<<2)
+#define FLAG_p (1<<3)
+#define FLAG_u (1<<4)
 
 // Dispose of a line of input, either by writing it out or discarding it.
 
@@ -69,7 +73,7 @@ DEFINE_GLOBALS(
 // state = 3: write whole line to fileout
 // state > 3: write line+1 to fileout when *line != state
 
-#define PATCH_DEBUG (CFG_TOYBOX_DEBUG && (toys.optflags & 16))
+#define PATCH_DEBUG (CFG_TOYBOX_DEBUG && (toys.optflags & 32))
 
 static void do_line(void *data)
 {
@@ -114,6 +118,19 @@ static void fail_hunk(void)
 	TT.state = 0;
 }
 
+// Compare ignoring whitespace. Just returns 
+static int loosecmp(char *aa, char *bb)
+{
+	int a = 0, b = 0;
+
+	for (;;) {
+		while (isspace(aa[a])) a++;
+		while (isspace(bb[b])) b++;
+		if (aa[a] != bb[b]) return 1;
+		if (!aa[a]) return 0;
+    }
+}
+
 // Given a hunk of a unified diff, make the appropriate change to the file.
 // This does not use the location information, but instead treats a hunk
 // as a sort of regex.  Copies data from input to output until it finds
@@ -124,7 +141,10 @@ static void fail_hunk(void)
 static int apply_one_hunk(void)
 {
 	struct double_list *plist, *buf = NULL, *check;
-	int matcheof = 0, reverse = toys.optflags & FLAG_REVERSE, backwarn = 0;
+	int matcheof = 0, reverse = toys.optflags & FLAG_R, backwarn = 0;
+	int (*lcmp)(char *aa, char *bb);
+
+	lcmp = (toys.optflags & FLAG_l) ? (void *)loosecmp : (void *)strcmp;
 
 	// Break doubly linked list so we can use singly linked traversal function.
 	TT.current_hunk->prev->next = NULL;
@@ -152,7 +172,7 @@ static int apply_one_hunk(void)
 		// Figure out which line of hunk to compare with next.  (Skip lines
 		// of the hunk we'd be adding.)
 		while (plist && *plist->data == "+-"[reverse]) {
-			if (data && !strcmp(data, plist->data+1)) {
+			if (data && !lcmp(data, plist->data+1)) {
 				if (!backwarn) backwarn = TT.linenum;
 			}
 			plist = plist->next;
@@ -176,7 +196,6 @@ static int apply_one_hunk(void)
 		check = dlist_add(&buf, data);
 
 		// Compare this line with next expected line of hunk.
-		// todo: teach the strcmp() to ignore whitespace.
 
 		// A match can fail because the next line doesn't match, or because
 		// we hit the end of a hunk that needed EOF, and this isn't EOF.
@@ -186,7 +205,7 @@ static int apply_one_hunk(void)
 		// out of buffer.
 
 		for (;;) {
-			if (!plist || strcmp(check->data, plist->data+1)) {
+			if (!plist || lcmp(check->data, plist->data+1)) {
 				// Match failed.  Write out first line of buffered data and
 				// recheck remaining buffered data for a new match.
 	
@@ -243,7 +262,7 @@ done:
 
 void patch_main(void)
 {
-	int reverse = toys.optflags&FLAG_REVERSE, state = 0, patchlinenum = 0,
+	int reverse = toys.optflags&FLAG_R, state = 0, patchlinenum = 0,
 		strip = 0;
 	char *oldname = NULL, *newname = NULL;
 
@@ -360,7 +379,7 @@ void patch_main(void)
 
 				// handle -p path truncation.
 				for (i = 0, s = name; *s;) {
-					if ((toys.optflags & FLAG_PATHLEN) && TT.prefix == i) break;
+					if ((toys.optflags & FLAG_p) && TT.prefix == i) break;
 					if (*s++ != '/') continue;
 					while (*s == '/') s++;
 					name = s;
@@ -372,7 +391,7 @@ void patch_main(void)
 					xunlink(name);
 					state = 0;
 				// If we've got a file to open, do so.
-				} else if (!(toys.optflags & FLAG_PATHLEN) || i <= TT.prefix) {
+				} else if (!(toys.optflags & FLAG_p) || i <= TT.prefix) {
 					// If the old file was null, we're creating a new one.
 					if (!strcmp(oldname, "/dev/null") || !oldsum) {
 						printf("creating %s\n", name);
