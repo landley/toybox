@@ -22,8 +22,6 @@ config LOGNAME
 
 void logname_main(void)
 {
-	if (getlogin_r(toybuf, sizeof(toybuf))){
-		error_exit("no login name");
-	}
+	if (getlogin_r(toybuf, sizeof(toybuf))) error_exit("no login name");
 	xputs(toybuf);
 }
