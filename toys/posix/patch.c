@@ -128,7 +128,8 @@ static int loosecmp(char *aa, char *bb)
 		while (isspace(bb[b])) b++;
 		if (aa[a] != bb[b]) return 1;
 		if (!aa[a]) return 0;
-    }
+		a++, b++;
+	}
 }
 
 // Given a hunk of a unified diff, make the appropriate change to the file.
