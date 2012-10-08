@@ -37,15 +37,14 @@ config DF_PEDANTIC
 	  -k	Sets units back to 1024 bytes (the default without -P)
 */
 
+#define FOR_df
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	struct arg_list *fstype;
 
 	long units;
 )
-
-#define TT this.df
 
 static void show_mt(struct mtab_list *mt)
 {
@@ -67,7 +66,7 @@ static void show_mt(struct mtab_list *mt)
 	}
 
 	// If we don't have -a, skip synthetic filesystems
-	if (!(toys.optflags & 1) && !mt->statvfs.f_blocks) return;
+	if (!(toys.optflags & FLAG_a) && !mt->statvfs.f_blocks) return;
 
 	// Figure out how much total/used/free space this filesystem has,
 	// forcing 64-bit math because filesystems are big now.
@@ -83,7 +82,7 @@ static void show_mt(struct mtab_list *mt)
 	// Figure out appropriate spacing
 	len = 25 - strlen(mt->device);
 	if (len < 1) len = 1;
-	if (CFG_DF_PEDANTIC && (toys.optflags & 8)) {
+	if (CFG_DF_PEDANTIC && (toys.optflags & FLAG_P)) {
 		printf("%s %ld %ld %ld %ld%% %s\n", mt->device, size, used, avail,
 				percent, mt->dir);
 	} else {
@@ -98,9 +97,9 @@ void df_main(void)
 
 	// Handle -P and -k
 	TT.units = 1024;
-	if (CFG_DF_PEDANTIC && (toys.optflags & 8)) {
+	if (CFG_DF_PEDANTIC && (toys.optflags & FLAG_P)) {
 		// Units are 512 bytes if you select "pedantic" without "kilobytes".
-		if ((toys.optflags&3) == 1) TT.units = 512;
+		if ((toys.optflags&(FLAG_P|FLAG_k)) == FLAG_P) TT.units = 512;
 		printf("Filesystem %ld-blocks Used Available Capacity Mounted on\n",
 			TT.units);
 	} else puts("Filesystem\t1K-blocks\tUsed Available Use% Mounted on");

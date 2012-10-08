@@ -17,6 +17,7 @@ config HOSTNAME
 	  Get/Set the current hostname
 */
 
+#define FOR_hostname
 #include "toys.h"
 
 void hostname_main(void)

@@ -22,17 +22,12 @@ config MKTEMP
 	  -q                     Quiet
 */
 
+#define FOR_mktemp
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	char * tmpdir;
 )
-
-#define FLAG_p 1
-#define FLAG_d 2
-#define FLAG_q 4
-
-#define TT this.mktemp
 
 void mktemp_main(void)
 {

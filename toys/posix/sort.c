@@ -60,9 +60,10 @@ config SORT_FLOAT
 
 */
 
+#define FOR_sort
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
     char *key_separator;
     struct arg_list *raw_keys;
     char *outfile;
@@ -73,29 +74,10 @@ DEFINE_GLOBALS(
     char **lines;
 )
 
-#define TT this.sort
-
 // The sort types are n, g, and M.
 // u, c, s, and z apply to top level only, not to keys.
 // b at top level implies bb.
 // The remaining options can be applied to search keys.
-
-#define FLAG_n  (1<<0)  // Sort type: numeric
-#define FLAG_u  (1<<1)  // Unique
-#define FLAG_r  (1<<2)  // Reverse output order
-
-#define FLAG_i  (1<<3)  // Ignore !isprint()
-#define FLAG_f  (1<<4)  // Force uppercase
-#define FLAG_d  (1<<5)  // Ignore !(isalnum()|isspace())
-#define FLAG_z  (1<<6)  // Input is null terminated, not \n
-#define FLAG_s  (1<<7)  // Stable sort, no ascii fallback at end
-#define FLAG_c  (1<<8)  // Check only.  No output, exit(!ordered)
-#define FLAG_M  (1<<9)  // Sort type: date
-#define FLAG_b  (1<<10) // Ignore leading blanks
-#define FLAG_x  (1<<11) // Hex sort
-#define FLAG_g  (1<<18) // Sort type: strtod()
-
-// Left off dealing with FLAG_b/FLAG_bb logic...
 
 #define FLAG_bb (1<<31)  // Ignore trailing blanks
 

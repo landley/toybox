@@ -24,13 +24,12 @@ config WC
 	  argument (or from stdin if none).
 */
 
+#define FOR_wc
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	unsigned long totals[3];
 )
-
-#define TT this.wc
 
 static void show_lengths(unsigned long *lengths, char *name)
 {

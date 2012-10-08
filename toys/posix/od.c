@@ -19,20 +19,10 @@ config OD
 	  -t	output type(s) a (ascii) c (char) d (decimal) foux
 */
 
+#define FOR_od
 #include "toys.h"
 
-#define FLAG_t	(1 << 0)
-#define FLAG_A	(1 << 1)
-#define FLAG_b	(1 << 2)
-#define FLAG_c	(1 << 3)
-#define FLAG_d	(1 << 4)
-#define FLAG_o	(1 << 5)
-#define FLAG_s	(1 << 6)
-#define FLAG_x	(1 << 7)
-#define FLAG_N	(1 << 8)
-#define FLAG_v  (1 << 9)
-
-DEFINE_GLOBALS(
+GLOBALS(
 	struct arg_list *output_base;
 	char *address_base;
 	long max_count;
@@ -43,8 +33,6 @@ DEFINE_GLOBALS(
 	uint64_t bufs[4]; // force 64-bit alignment
 	off_t pos;
 )
-
-#define TT this.od
 
 static char *ascii = "nulsohstxetxeotenqackbel bs ht nl vt ff cr so si"
 	"dledc1dc2dc3dc4naksynetbcan emsubesc fs gs rs us sp";

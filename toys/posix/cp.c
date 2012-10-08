@@ -6,52 +6,52 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/cp.html
  *
- * "R+ra+d+p+r"
-USE_CP(NEWTOY(cp, "<2vslrRdpaHLPif", TOYFLAG_BIN))
+ * TODO: "R+ra+d+p+r" sHLPR
+
+USE_CP(NEWTOY(cp, "<2"USE_CP_MORE("rdavsl")"RHLPfip", TOYFLAG_BIN))
 
 config CP
 	bool "cp (broken by dirtree changes)"
 	default n
 	help
-	  usage: cp -fiprdal SOURCE... DEST
+		usage: cp [-fipRHLP] SOURCE... DEST
 
-	  Copy files from SOURCE to DEST.  If more than one SOURCE, DEST must
-	  be a directory.
+		Copy files from SOURCE to DEST.  If more than one SOURCE, DEST must
+		be a directory.
 
 		-f	force copy by deleting destination file
 		-i	interactive, prompt before overwriting existing DEST
 		-p	preserve timestamps, ownership, and permissions
-		-r	recurse into subdirectories (DEST must be a directory)
+		-R	recurse into subdirectories (DEST must be a directory)
+		-H	Follow symlinks listed on command line
+		-L	Follow all symlinks
+		-P	Do not follow symlinks [default]
+
+config CP_MORE
+	bool "cp -rdavsl options"
+	default y
+	depends on CP
+	help
+		usage: cp [-rdavsl]
+
+		-r	synonym for -R
 		-d	don't dereference symlinks
 		-a	same as -dpr
-		-l	hard link instead of copying
+		-l	hard link instead of copy
+		-s	symlink instead of copy
 		-v	verbose
 */
 
+#define FOR_cp
 #include "toys.h"
 
-#define FLAG_f 1
-#define FLAG_i 2
-#define FLAG_P 4	// todo
-#define FLAG_L 8	// todo
-#define FLAG_H 16	// todo
-#define FLAG_a 32
-#define FLAG_p 64
-#define FLAG_d 128	// todo
-#define FLAG_R 256
-#define FLAG_r 512
-#define FLAG_l 1024	// todo
-#define FLAG_s 2048	// todo
-#define FLAG_v 4098
+// TODO: PLHlsd
 
-DEFINE_GLOBALS(
+GLOBALS(
 	char *destname;
 	int destisdir;
-	int destisnew;
 	int keep_symlinks;
 )
-
-#define TT this.cp
 
 // Copy an individual file or directory to target.
 
@@ -156,42 +156,36 @@ int cp_node(struct dirtree *node)
 
 void cp_main(void)
 {
-	struct stat st;
+	char *dpath = NULL;
+	struct stat st, std;
 	int i;
 
-	// Grab target argument.  (Guaranteed to be there due to "<2" above.)
+	// Identify destination
 
-	TT.destname = toys.optargs[--toys.optc];
+	if (!stat(TT.destname, &std) && S_ISDIR(std.st_mode)) TT.destisdir++;
+	else if (toys.optc>1) error_exit("'%s' not directory", TT.destname);
 
-	// If destination doesn't exist, are we ok with that?
+   // TODO: This is too early: we haven't created it yet if we need to
+	if (toys.optflags & (FLAG_R|FLAG_r|FLAG_a))
+		dpath = realpath(TT.destname = toys.optargs[--toys.optc], NULL);
 
-	if (stat(TT.destname, &st)) {
-		if (toys.optc>1) goto error_notdir;
-		TT.destisnew++;
-
-	// If destination exists...
-
-	} else {
-		if (S_ISDIR(st.st_mode)) TT.destisdir++;
-		else if (toys.optc > 1) goto error_notdir;
-	}
-
-	// Handle sources
+	// Loop through sources
 
 	for (i=0; i<toys.optc; i++) {
-		char *src = toys.optargs[i];
-		char *dst;
+		char *dst, *src = toys.optargs[i];
 
 		// Skip src==dest (TODO check inodes to catch "cp blah ./blah").
 
-		if (!strcmp(src, TT.destname)) continue;
+		if (!strncmp(src, TT.destname)) continue;
 
 		// Skip nonexistent sources.
 
 		TT.keep_symlinks = toys.optflags & (FLAG_d|FLAG_a);
-		if (TT.keep_symlinks ? lstat(src, &st) : stat(src, &st))
+		if (TT.keep_symlinks ? lstat(src, &st) : stat(src, &st)
+			|| (st.st_dev = dst.st_dev && st.st_ino == dst.dst_ino))
 		{
-			perror_msg("'%s'", src);
+objection:
+			perror_msg("bad '%s'", src);
 			toys.exitval = 1;
 			continue;
 		}
@@ -199,26 +193,35 @@ void cp_main(void)
 		// Copy directory or file.
 
 		if (TT.destisdir) {
+			char *s;
+
+			// Catch "cp -R .. ." and friends that would go on forever
+			if (dpath && (s = realpath(src, NULL)) {
+				int i = strlen(s);
+				i = (!strncmp(s, dst, i) && (!s[i] || s[i]=='/'));
+				free(s);
+
+				if (i) goto objection;
+			}
+
+			// Create destination filename within directory
 			dst = strrchr(src, '/');
 			if (dst) dst++;
 			else dst=src;
 			dst = xmsprintf("%s/%s", TT.destname, dst);
 		} else dst = TT.destname;
+
 		if (S_ISDIR(st.st_mode)) {
 			if (toys.optflags & (FLAG_r|FLAG_R|FLAG_a)) {
 				cp_file(src, dst, &st);
 
 				TT.keep_symlinks++;
-				strncpy(toybuf, src, sizeof(toybuf)-1);
-				toybuf[sizeof(toybuf)-1]=0;
-				dirtree_read(toybuf, cp_node);
+				dirtree_read(src, cp_node);
 			} else error_msg("Skipped dir '%s'", src);
 		} else cp_file(src, dst, &st);
 		if (TT.destisdir) free(dst);
 	}
 
+	if (CFG_TOYBOX_FREE) free(dpath);
 	return;
-
-error_notdir:
-	error_exit("'%s' isn't a directory", TT.destname);
 }

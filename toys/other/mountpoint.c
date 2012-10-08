@@ -17,19 +17,20 @@ config MOUNTPOINT
 	  -x Print major/minor device number of the block device
 */
 
+#define FOR_mountpoint
 #include "toys.h"
 
 void mountpoint_main(void)
 {
 	struct stat st1, st2;
 	int res = 0;
-	int quiet = toys.optflags & 0x4;
+	int quiet = toys.optflags & FLAG_q;
 	toys.exitval = 1; // be pessimistic
 	strncpy(toybuf, toys.optargs[0], sizeof(toybuf));
-	if (((toys.optflags & 0x1) && lstat(toybuf, &st1)) || stat(toybuf, &st1))
+	if (((toys.optflags & FLAG_x) && lstat(toybuf, &st1)) || stat(toybuf, &st1))
 		perror_exit("%s", toybuf);
 
-	if (toys.optflags & 0x1){
+	if (toys.optflags & FLAG_x){
 		if (S_ISBLK(st1.st_mode)) {
 			if (!quiet) printf("%u:%u\n", major(st1.st_rdev), minor(st1.st_rdev));
 			toys.exitval = 0;
@@ -48,7 +49,7 @@ void mountpoint_main(void)
 	res = (st1.st_dev != st2.st_dev) ||
 		(st1.st_dev == st2.st_dev && st1.st_ino == st2.st_ino);
 	if (!quiet) printf("%s is %sa mountpoint\n", toys.optargs[0], res ? "" : "not ");
-	if (toys.optflags & 0x2)
+	if (toys.optflags & FLAG_d)
 		printf("%u:%u\n", major(st1.st_dev), minor(st1.st_dev));
 	toys.exitval = res ? 0 : 1;
 }

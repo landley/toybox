@@ -26,22 +26,15 @@ config UNIQ
 	  -s	ignore first X chars
 */
 
+#define FOR_uniq
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	long maxchars;
 	long nchars;
 	long nfields;
 	long repeats;
 )
-
-#define TT this.uniq
-
-#define FLAG_z 16
-#define FLAG_i 8
-#define FLAG_c 4
-#define FLAG_d 2
-#define FLAG_u 1
 
 static char *skip(char *str)
 {

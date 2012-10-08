@@ -3,6 +3,9 @@
  * netcat.c - Forward stdin/stdout to a file or network connection.
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
+ *
+ * TODO: udp, ipv6, genericize for telnet/microcom/tail-f
+
 
 USE_NETCAT(OLDTOY(nc, netcat, USE_NETCAT_LISTEN("tl^L^")"w#p#s:q#f:", TOYFLAG_BIN))
 USE_NETCAT(NEWTOY(netcat, USE_NETCAT_LISTEN("tl^L^")"w#p#s:q#f:", TOYFLAG_BIN))
@@ -40,23 +43,17 @@ config NETCAT_LISTEN
 		netcat -s 127.0.0.1 -p 1234 -tL /bin/bash -l
 */
 
+#define FOR_netcat
 #include "toys.h"
 #include "toynet.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	char *filename;        // -f read from filename instead of network
 	long quit_delay;       // -q Exit after EOF from stdin after # seconds.
 	char *source_address;  // -s Bind to a specific source address.
 	long port;             // -p Bind to a specific source port.
 	long wait;             // -w Wait # seconds for a connection.
 )
-
-#define TT this.netcat
-
-#define FLAG_f   1
-#define FLAG_L  32
-#define FLAG_l  64
-#define FLAG_t 128
 
 static void timeout(int signum)
 {

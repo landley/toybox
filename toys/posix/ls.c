@@ -50,40 +50,14 @@ config LS
 	  -S	size
 */
 
+#define FOR_ls
 #include "toys.h"
-
-#define FLAG_1 (1<<0)
-#define FLAG_x (1<<1)
-#define FLAG_u (1<<2)
-#define FLAG_t (1<<3)
-#define FLAG_s (1<<4)
-#define FLAG_r (1<<5)
-#define FLAG_q (1<<6)
-#define FLAG_p (1<<7)
-#define FLAG_n (1<<8)
-#define FLAG_m (1<<9)
-#define FLAG_l (1<<10)
-#define FLAG_k (1<<11)
-#define FLAG_i (1<<12)
-#define FLAG_f (1<<13)
-#define FLAG_d (1<<14)
-#define FLAG_c (1<<15)
-#define FLAG_a (1<<16)
-#define FLAG_S (1<<17)
-#define FLAG_R (1<<18)
-#define FLAG_L (1<<19)
-#define FLAG_H (1<<20)
-#define FLAG_F (1<<21)
-#define FLAG_C (1<<22)
-#define FLAG_A (1<<23)
-#define FLAG_o (1<<24)
-#define FLAG_g (1<<25)
 
 // test sst output (suid/sticky in ls flaglist)
 
 // ls -lR starts .: then ./subdir:
 
-DEFINE_GLOBALS(
+GLOBALS(
     struct dirtree *files;
 
     unsigned screen_width;
@@ -92,8 +66,6 @@ DEFINE_GLOBALS(
     // group and user can make overlapping use of the utoa() buf, so move it
     char uid_buf[12];
 )
-
-#define TT this.ls
 
 void dlist_to_dirtree(struct dirtree *parent)
 {

@@ -18,9 +18,10 @@ config SHA1SUM
 	  Calculate sha1 hash of files (or stdin).
 */
 
+#define FOR_sha1sum
 #include <toys.h>
 
-DEFINE_GLOBALS(
+GLOBALS(
 	uint32_t state[5];
 	uint32_t oldstate[5];
 	uint64_t count;
@@ -29,8 +30,6 @@ DEFINE_GLOBALS(
 		uint32_t i[16];
 	} buffer;
 )
-
-#define TT this.sha1sum
 
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 

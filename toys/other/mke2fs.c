@@ -73,9 +73,10 @@ config MKE2FS_EXTENDED
 	     sparse_super Don't allocate huge numbers of redundant superblocks
 */
 
+#define FOR_mke2fs
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	// Command line arguments.
 	long blocksize;
 	long bytes_per_inode;
@@ -101,9 +102,6 @@ DEFINE_GLOBALS(
 
 	struct ext2_superblock sb;
 )
-
-// Shortcut to our global data structure, since we use it so much.
-#define TT this.mke2fs
 
 #define INODES_RESERVED 10
 

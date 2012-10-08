@@ -18,6 +18,7 @@ config FREE
 	  -bkmg    Output in bytes (default), KB, MB or GB
 */
 
+#define FOR_free
 #include "toys.h"
 
 static unsigned long long convert(unsigned long d, unsigned int iscale,
@@ -34,10 +35,10 @@ void free_main(void)
 
 	sysinfo(&info);
 	if (info.mem_unit) iscale = info.mem_unit;
-	if (toys.optflags & 1) oscale = 0;
-	if (toys.optflags & 2) oscale = 10;
-	if (toys.optflags & 4) oscale = 20;
-	if (toys.optflags & 8) oscale = 30;
+	if (toys.optflags & FLAG_b) oscale = 0;
+	if (toys.optflags & FLAG_k) oscale = 10;
+	if (toys.optflags & FLAG_m) oscale = 20;
+	if (toys.optflags & FLAG_g) oscale = 30;
 
 	xprintf("\t\ttotal        used        free      shared     buffers\n");
 	xprintf("Mem:%17llu%12llu%12llu%12llu%12llu\n",

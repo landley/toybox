@@ -21,6 +21,7 @@ config LOGIN
 	  -f    Do not perform authentication
 */
 
+#define FOR_login
 #include "toys.h"
 
 #define LOGIN_TIMEOUT 60
@@ -28,10 +29,9 @@ config LOGIN
 #define USER_NAME_MAX_SIZE 32
 #define HOSTNAME_SIZE 32
 
-DEFINE_GLOBALS(
+GLOBALS(
 	char *hostname;
 )
-#define TT this.login
 
 static void login_timeout_handler(int sig __attribute__((unused)))
 {
@@ -162,9 +162,8 @@ void setup_environment(const struct passwd *pwd, int clear_env)
 
 void login_main(void)
 {
-	int f_flag = (toys.optflags & 4) >> 2;
-	int p_flag = (toys.optflags & 2) >> 1;
-	int h_flag = toys.optflags & 1;
+	int f_flag = toys.optflags & FLAG_f;
+	int h_flag = toys.optflags & FLAG_h;
 	char username[USER_NAME_MAX_SIZE+1], *pass = NULL, **ss;
 	struct passwd * pwd = NULL;
 	struct spwd * spwd = NULL;
@@ -215,7 +214,7 @@ query_pass:
 
 		f_flag = 0;
 		syslog(LOG_WARNING, "invalid password for '%s' on %s %s %s", username,
-			ttyname(0), (h_flag)?"from":"", (h_flag)?TT.hostname:"");
+			ttyname(0), h_flag?"from":"", h_flag?TT.hostname:"");
 
 		sleep(LOGIN_FAIL_TIMEOUT);
 		puts("Login incorrect");
@@ -234,12 +233,12 @@ query_pass:
 
 	if (change_identity(pwd)) error_exit("Failed to change identity");
 
-	setup_environment(pwd, !p_flag);
+	setup_environment(pwd, !(toys.optflags & FLAG_p));
 
 	handle_motd();
 
 	syslog(LOG_INFO, "%s logged in on %s %s %s", pwd->pw_name,
-		ttyname(0), (h_flag)?"from":"", (h_flag)?TT.hostname:"");
+		ttyname(0), h_flag?"from":"", h_flag?TT.hostname:"");
 
 	spawn_shell(pwd->pw_shell);
 }

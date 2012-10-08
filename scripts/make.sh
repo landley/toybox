@@ -10,81 +10,6 @@ then
   exit 1
 fi
 
-echo "Extract configuration information from toys/*.c files..."
-scripts/genconfig.sh
-
-echo "Generate headers from toys/*/*.c..."
-
-# Create a list of all the applets toybox can provide.  Note that the first
-# entry is out of order on purpose (the toybox multiplexer applet must be the
-# first element of the array).  The rest must be sorted in alphabetical order
-# for fast binary search.
-
-echo "generated/newtoys.h"
-
-function newtoys()
-{
-  for i in toys/*/*.c
-  do
-    sed -n -e '1,/^config [A-Z]/s/^USE_/&/p' $i || exit 1
-  done
-}
-echo "NEWTOY(toybox, NULL, TOYFLAG_STAYROOT)" > generated/newtoys.h
-newtoys | sed 's/\(.*TOY(\)\([^,]*\),\(.*\)/\2 \1\2,\3/' | sort -k 1,1 \
-	| sed 's/[^ ]* //'  >> generated/newtoys.h
-
-# Extract global structure definitions and flag definitions from toys/*/*.c
-
-function getglobals()
-{
-  for i in toys/*/*.c
-  do
-    NAME="$(echo $i | sed 's@.*/\(.*\)\.c@\1@')"
-
-    echo -e "// $i\n"
-    sed -n -e '/^DEFINE_GLOBALS(/,/^)/b got;b;:got' \
-        -e 's/^DEFINE_GLOBALS(/struct '"$NAME"'_data {/' \
-        -e 's/^)/};/' -e 'p' $i
-
-    # And get flag definitions
-    FLAGS="$(sed -n \
-                 -e "s/.*TOY($NAME"',[ \t]*"\([^"]*\)"[ \t]*,.*)/\1/' \
-                 -e 't keep;d;:keep' \
-                 -e 's/[><=][0-9][0-9]*//g' \
-                 -e 's/+.//g' \
-                 -e 's/([^)]*)//g' \
-                 -e 's/[-?^:&#|@*]//g' \
-                 -e 'p' \
-                 generated/newtoys.h)"
-    X=0
-    while [ $X -lt ${#FLAGS} ]
-    do
-      echo -ne "#define OPTFLAG_${NAME}_${FLAGS:$X:1}\t"
-      X=$(($X+1))
-      echo "(1<<$((${#FLAGS}-$X)))"
-    done
-  done
-}
-
-echo "generated/globals.h"
-
-GLOBSTRUCT="$(getglobals)"
-(
-  echo "$GLOBSTRUCT"
-  echo
-  echo "extern union global_union {"
-  echo "$GLOBSTRUCT" | sed -n 's/struct \(.*\)_data {/	struct \1_data \1;/p'
-  echo "} this;"
-) > generated/globals.h
-
-echo "generated/help.h"
-# Only recreate generated/help.h if python is installed
-if [ ! -z "$(which python)" ] && [ ! -z "$(grep 'CONFIG_HELP=y' .config)" ]
-then
-  echo "Extract help text from Config.in."
-  scripts/config2help.py Config.in > generated/help.h || exit 1
-fi
-
 echo "Make generated/config.h from .config."
 
 # This long and roundabout sed invocation is to make old versions of sed happy.
@@ -110,6 +35,76 @@ sed -n \
   -e 'g' \
   -e 's/.*/#define USE_&(...) __VA_ARGS__/p' \
   .config > generated/config.h || exit 1
+
+
+echo "Extract configuration information from toys/*.c files..."
+scripts/genconfig.sh
+
+echo "Generate headers from toys/*/*.c..."
+
+# Create a list of all the applets toybox can provide.  Note that the first
+# entry is out of order on purpose (the toybox multiplexer applet must be the
+# first element of the array).  The rest must be sorted in alphabetical order
+# for fast binary search.
+
+echo "generated/newtoys.h"
+
+echo "NEWTOY(toybox, NULL, TOYFLAG_STAYROOT)" > generated/newtoys.h
+sed -n -e 's/^USE_[A-Z0-9_]*(/&/p' toys/*/*.c \
+	| sed 's/\(.*TOY(\)\([^,]*\),\(.*\)/\2 \1\2,\3/' | sort -k 1,1 \
+	| sed 's/[^ ]* //'  >> generated/newtoys.h
+
+# Extract global structure definitions and flag definitions from toys/*/*.c
+
+function getglobals()
+{
+  NEWTOYS="$(cat generated/config.h generated/newtoys.h | gcc -E - | sed 's/" *"//g')"
+  for i in toys/*/*.c
+  do
+    NAME="$(echo $i | sed 's@.*/\(.*\)\.c@\1@')"
+
+    echo -e "// $i\n"
+    sed -n -e '/^GLOBALS(/,/^)/b got;b;:got' \
+        -e 's/^GLOBALS(/struct '"$NAME"'_data {/' \
+        -e 's/^)/};/' -e 'p' $i
+
+    # And get flag definitions
+    FLAGS="$(echo "$NEWTOYS" | sed -n \
+                 -e "s/.*TOY($NAME"',[ \t]*"\([^"]*\)"[ \t]*,.*)/\1/' \
+                 -e 't keep;d;:keep' -e 's/^[<>=][0-9]//' -e 's/[?&^]//' \
+                 -e 't keep' -e 's/[><=][0-9][0-9]*//g' -e 's/+.//g' \
+                 -e 's/([^)]*)//g' -e 's/[-?^:&#|@*]//g' -e 'p')"
+    echo "#ifdef FOR_${NAME}"
+    X=0
+    while [ $X -lt ${#FLAGS} ]
+    do
+      echo -ne "#define FLAG_${FLAGS:$X:1}\t"
+      X=$(($X+1))
+      echo "(1<<$((${#FLAGS}-$X)))"
+    done
+    echo "#define TT this.${NAME}"
+    echo "#endif"
+  done
+}
+
+echo "generated/globals.h"
+
+GLOBSTRUCT="$(getglobals)"
+(
+  echo "$GLOBSTRUCT"
+  echo
+  echo "extern union global_union {"
+  echo "$GLOBSTRUCT" | sed -n 's/struct \(.*\)_data {/	struct \1_data \1;/p'
+  echo "} this;"
+) > generated/globals.h
+
+echo "generated/help.h"
+# Only recreate generated/help.h if python is installed
+if [ ! -z "$(which python)" ] && [ ! -z "$(grep 'CONFIG_HELP=y' .config)" ]
+then
+  echo "Extract help text from Config.in."
+  scripts/config2help.py Config.in > generated/help.h || exit 1
+fi
 
 # Extract a list of toys/*/*.c files to compile from the data in ".config":
 

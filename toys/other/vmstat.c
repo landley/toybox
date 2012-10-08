@@ -122,7 +122,7 @@ void vmstat_main(void)
 	unsigned long io_pages_in[2], io_pages_out[2], swap_bytes_in[2], swap_bytes_out[2];
 	uint64_t sys_irq[2], sys_ctxt[2], cpu_user[2], cpu_sys[2], cpu_idle[2], cpu_wait[2];
 	int first_run = 1;
-	int no_header = toys.optflags & 0x1;
+	int no_header = toys.optflags;
 	unsigned num_rows = 22;
 
 	if (toys.optc >= 1)

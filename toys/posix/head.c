@@ -20,14 +20,13 @@ config HEAD
 	  -n	Number of lines to copy.
 */
 
+#define FOR_head
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	long lines;
 	int file_no;
 )
-
-#define TT this.head
 
 static void do_head(int fd, char *name)
 {

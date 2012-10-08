@@ -21,11 +21,12 @@ config HELLO
 	  occasionally nice to test kernel booting via "init=/bin/hello".
 */
 
+#define FOR_hello
 #include "toys.h"
 
 // Hello doesn't use these globals, they're here for example/skeleton purposes.
 
-DEFINE_GLOBALS(
+GLOBALS(
 	char *b_string;
 	long c_number;
 	struct arg_list *d_list;
@@ -33,14 +34,6 @@ DEFINE_GLOBALS(
 
 	int more_globals;
 )
-
-#define TT this.hello
-
-#define FLAG_a	1
-#define FLAG_b	2
-#define FLAG_c	4
-#define FLAG_d	8
-#define FLAG_e	16
 
 void hello_main(void)
 {

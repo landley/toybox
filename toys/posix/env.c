@@ -29,7 +29,7 @@ void env_main(void)
     char **command = NULL;
     char *del = "=";
     
-    if (toys.optflags & 1) clearenv();
+    if (toys.optflags) clearenv();
     
     for (ev = toys.optargs; *ev != NULL; ev++) {
         char *env, *val = NULL;

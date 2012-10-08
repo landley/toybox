@@ -32,11 +32,8 @@ config ECHO
 	   \xHH	 hexadecimal values (1 to 2 digits)
 */
 
-#define THIS echo
+#define FOR_echo
 #include "toys.h"
-
-#define FLAG_e (1<<1)
-#define FLAG_n (1<<0)
 
 void echo_main(void)
 {

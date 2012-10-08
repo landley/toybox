@@ -23,13 +23,12 @@ config CKSUM
 	  -N	Do not include length in CRC calculation
 */
 
+#define FOR_cksum
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	unsigned crc_table[256];
 )
-
-#define TT this.cksum
 
 static unsigned cksum_be(unsigned crc, unsigned char c)
 {

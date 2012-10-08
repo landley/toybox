@@ -20,17 +20,13 @@ config CMP
 	  -s silent
 */
 
+#define FOR_cmp
 #include "toys.h"
 
-#define FLAG_s	1
-#define FLAG_l	2
-
-DEFINE_GLOBALS(
+GLOBALS(
 	int fd;
 	char *name;
 )
-
-#define TT this.cmp
 
 // This handles opening the file and 
 

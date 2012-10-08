@@ -17,16 +17,12 @@ config DATE
 	  Set/get the current date/time
 */
 
+#define FOR_date
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
     char *file;
 )
-
-#define TT this.date
-
-#define FLAG_u 1
-#define FLAG_r 2
 
 void date_main(void)
 {

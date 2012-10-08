@@ -20,6 +20,7 @@ config MKNOD
 	  p	named pipe (ignores MAJOR/MINOR)
 */
 
+#define FOR_mknod
 #include "toys.h"
 
 void mknod_main(void)

@@ -25,13 +25,8 @@ config ID
 	  -u    Show only the effective user ID
 */
 
+#define FOR_id
 #include "toys.h"
-
-#define FLAG_n (1<<4)
-#define FLAG_G (1<<3)
-#define FLAG_g (1<<2)
-#define FLAG_r (1<<1)
-#define FLAG_u 1
 
 static void s_or_u(char *s, unsigned u, int done)
 {

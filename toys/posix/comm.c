@@ -24,11 +24,8 @@ config COMM
 	  -3 suppress the output column of lines duplicated in FILE1 and FILE2
 */
 
+#define FOR_comm
 #include "toys.h"
-
-#define FLAG_1 1
-#define FLAG_2 2
-#define FLAG_3 4
 
 static void writeline(const char *line, int col)
 {

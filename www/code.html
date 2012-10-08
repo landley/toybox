@@ -74,7 +74,8 @@ multiple commands:</li>
 <li><a href="#lib_dirtree">lib/dirtree.c</a></li>
 </ul>
 <li>The <a href="#toys">toys directory</a> contains the C files implementating
-each command.</li>
+each command. Currently it contains three subdirectories:
+posix, lsb, and other.</li>
 <li>The <a href="#scripts">scripts directory</a> contains the build and
 test infrastructure.</li>
 <li>The <a href="#kconfig">kconfig directory</a> contains the configuration
@@ -85,13 +86,18 @@ files generated from other parts of the source code.</li>
 
 <a name="adding" />
 <p><h1>Adding a new command</h1></p>
-<p>To add a new command to toybox, add a C file implementing that command to
+<p>To add a new command to toybox, add a C file implementing that command under
 the toys directory.  No other files need to be modified; the build extracts
 all the information it needs (such as command line arguments) from specially
 formatted comments and macros in the C file.  (See the description of the
 <a href="#generated">"generated" directory</a> for details.)</p>
 
-<p>An easy way to start a new command is copy the file "hello.c" to
+<p>Currently there are three subdirectories under "toys", one for commands
+defined by the POSIX standard, one for commands defined by the Linux Standard
+Base, and one for all other commands. (This is just for developer convenience
+sorting them, the directories are otherwise functionally identical.)</p>
+
+<p>An easy way to start a new command is copy the file "toys/other/hello.c" to
 the name of the new command, and modify this copy to implement the new command.
 This file is an example command meant to be used as a "skeleton" for
 new commands (more or less by turning every instance of "hello" into the
@@ -104,7 +110,7 @@ variables that a "hello world" program doesn't strictly need).</p>
 <p>Here's a checklist of steps to turn hello.c into another command:</p>
 
 <ul>
-<li><p>First "cd toys" and "cp hello.c yourcommand.c".  Note that the name
+<li><p>First "cd toys/other" and "cp hello.c yourcommand.c".  Note that the name
 of this file is significant, it's the name of the new command you're adding
 to toybox.  Open your new file in your favorite editor.</p></li>
 
@@ -114,12 +120,9 @@ to toybox.  Open your new file in your favorite editor.</p></li>
 <li><p>Change the copyright notice to your name, email, and the current
 year.</p></li>
 
-<li><p>Give a URL to the relevant standards document, or say "Not in SUSv4" if
-there is no relevant standard.  (Currently both lines are there, delete
-whichever is inappropriate.)  The existing link goes to the directory of SUSv4
-command line utility standards on the Open Group's website, where there's often
-a relevant commandname.html file.  Feel free to link to other documentation or
-standards as appropriate.</p></li>
+<li><p>Give a URL to the relevant standards document, where applicable.
+(Sample links to SUSv4 and LSB are provided, feel free to link to other
+documentation or standards as appropriate.)</p></li>
 
 <li><p>Update the USE_YOURCOMMAND(NEWTOY(yourcommand,"blah",0)) line.
 The NEWTOY macro fills out this command's <a href="#toy_list">toy_list</a>
@@ -153,24 +156,29 @@ collates these usage lines for commands with multiple configuration
 options when producing generated/help.h.</p>
 </li>
 
-<li><p>Update the DEFINE_GLOBALS() macro to contain your command's global
-variables, and also change the name "hello" in the #define TT line afterwards
-to the name of your command.  If your command has no global variables, delete
-this macro (and the #define TT line afterwards).  Note that if you specified
-two-character command line arguments in NEWTOY(), the first few global
-variables will be initialized by the automatic argument parsing logic, and
-the type and order of these variables must correspond to the arguments
-specified in NEWTOY().  See [TODO] for details.</p></li>
+<li><p>Change the "#define FOR_hello" line to "#define FOR_yourcommand" right
+before the "#include <toys.h>". (This selects the appropriate FLAG_ macros and
+does a "#define TT this.yourcommand" so you can access the global variables
+out of the space-saving union of structures. If you aren't using any command
+flag bits and aren't defining a GLOBAL block, you can delete this line.)</p></li>
 
-<li><p>If you didn't delete the DEFINE_GLOBALS macro, change the "#define TT
-this.hello" line to use your command name in place of the "hello".  This is a
-shortcut to access your global variables as if they were members of the global
-struct "TT".  (Access these members with a period ".", not a right arrow
-"->".)</p></li>
+<li><p>Update the GLOBALS() macro to contain your command's global
+variables. If your command has no global variables, delete this macro.</p>
+
+<p>Variables in the GLOBALS() block are are stored in a space saving
+<a href="#toy_union">union of structures</a> format, which may be accessed
+using the TT macro as if TT were a global structure (so TT.membername).
+If you specified two-character command line arguments in
+NEWTOY(), the first few global variables will be initialized by the automatic
+argument parsing logic, and the type and order of these variables must
+correspond to the arguments specified in NEWTOY().
+(See <a href="#lib_args">lib/args.c</a> for details.)</p></li>
 
 <li><p>Rename hello_main() to yourcommand_main().  This is the main() function
-where execution of your command starts.  See [TODO] to figure out what
-happened to your command line arguments and how to access them.</p></li>
+where execution of your command starts. Your command line options are
+already sorted into this.optflags, this.optargs, this.optc, and the GLOBALS()
+as appropriate by the time this function is called. (See
+<a href="#lib_args">get_optflags()</a> for details.</p></li>
 </ul>
 
 <p><a name="top" /><h2>Top level directory.</h2></p>
@@ -178,7 +186,9 @@ happened to your command line arguments and how to access them.</p></li>
 <p>This directory contains global infrastructure.</p>
 
 <h3>toys.h</h3>
-<p>Each command #includes "toys.h" as part of its standard prolog.</p>
+<p>Each command #includes "toys.h" as part of its standard prolog. It
+may "#define FOR_commandname" before doing so to get some extra entries
+specific to this command.</p>
 
 <p>This file sucks in most of the commonly used standard #includes, so
 individual files can just #include "toys.h" and not have to worry about
@@ -233,7 +243,7 @@ defining macros and #including generated/newtoys.h.</p>
 command.</p></li>
 <li><p>char *<b>options</b> - command line option string (used by
 get_optflags() in lib/args.c to intialize toys.optflags, toys.optargs, and
-entries in the toy's DEFINE_GLOBALS struct).  When this is NULL, no option
+entries in the toy's GLOBALS struct).  When this is NULL, no option
 parsing is done before calling toy_main().</p></li>
 <li><p>int <b>flags</b> - Behavior flags for this command.  The following flags are currently understood:</p>
 
@@ -269,7 +279,7 @@ unmodified string array passed in to main().  Note that modifying this changes
 "ps" output, and is not recommended.  This array is null terminated; a NULL
 entry indicates the end of the array.</p>
 <p>Most commands don't use this field, instead the use optargs, optflags,
-and the fields in the DEFINE_GLOBALS struct initialized by get_optflags().</p>
+and the fields in the GLOBALS struct initialized by get_optflags().</p>
 </li>
 <li><p>unsigned <b>optflags</b> - Command line option flags, set by
 <a href="#lib_args">get_optflags()</a>.  Indicates which of the command line options listed in
@@ -282,8 +292,15 @@ the option string "abcd" would parse the command line "-c" to set optflags to 2,
 "-a" would set optflags to 8, and "-bd" would set optflags to 6 (4|2).</p>
 
 <p>Only letters are relevant to optflags.  In the string "a*b:c#d", d=1, c=2,
-b=4, a=8.  The punctuation after a letter initializes global variables
-(see [TODO] DECLARE_GLOBALS() for details).</p>
+b=4, a=8.  Punctuation after a letter initializes global variables at the
+start of the GLOBALS() block (see <a href="#toy_union">union toy_union this</a>
+for details).</p>
+
+<p>The build infrastructure creates FLAG_ macros for each option letter,
+corresponding to the bit position, so you can check (toys.optflags & FLAG_x)
+to see if a flag was specified. (The correct set of FLAG_ macros is selected
+by defining FOR_mycommand before #including toys.h. The macros live in
+toys/globals.h which is generated by scripts/make.sh.)</p>
 
 <p>For more information on option parsing, see <a href="#lib_args">get_optflags()</a>.</p>
 
@@ -299,6 +316,7 @@ via help_main() before exiting.  (True during option parsing, defaults to
 false afterwards.)</p></li>
 </ul>
 
+<a name="toy_union" />
 <li><p><b>union toy_union this</b> - Union of structures containing each
 command's global variables.</p>
 
@@ -313,11 +331,12 @@ running would be wasteful.</p>
 
 <p>Toybox handles this by encapsulating each command's global variables in
 a structure, and declaring a union of those structures with a single global
-instance (called "this").  The DEFINE_GLOBALS() macro contains the global
+instance (called "this").  The GLOBALS() macro contains the global
 variables that should go in the current command's global structure.  Each
 variable can then be accessed as "this.commandname.varname".
-Generally, the macro TT is #defined to this.commandname so the variable
-can then be accessed as "TT.variable".  See toys/hello.c for an example.</p>
+If you #defined FOR_commandname before including toys.h, the macro TT is
+#defined to this.commandname so the variable can then be accessed as
+"TT.variable".  See toys/hello.c for an example.</p>
 
 <p>A command that needs global variables should declare a structure to
 contain them all, and add that structure to this union.  A command should never
@@ -664,17 +683,16 @@ available to command_main():
 <p>If the command's globals are:</p>
 
 <blockquote><pre>
-DECLARE_GLOBALS(
+GLOBALS(
 	char *c;
 	char *b;
 	long a;
 )
-#define TT this.command
 </pre></blockquote>
 <p>That would mean TT.c == NULL, TT.b == "fruit", and TT.a == 42.  (Remember,
 each entry that receives an argument must be a long or pointer, to line up
 with the array position.  Right to left in the optflags string corresponds to
-top to bottom in DECLARE_GLOBALS().</p>
+top to bottom in GLOBALS().</p>
 
 <p><b>long toys.optflags</b></p>
 
@@ -939,6 +957,28 @@ encountered during recursive directory traversal).
 from elsewhere in the program. This gives ls -lR manual control
 of traversal order, which is neither depth first nor breadth first but
 instead a sort of FIFO order requried by the ls standard.</p>
+
+<a name="#toys">
+<h2>Directory toys/</h2>
+
+<p>This directory contains command implementations. Each command is a single
+self-contained file. Adding a new command involves adding a single
+file, and removing a command involves removing that file. Commands use
+shared infrastructure from the lib/ and generated/ directories.</p>
+
+<p>Currently there are three subdirectories under "toys/" containing commands
+described in POSIX-2008, the Linux Standard Base 4.1, or "other". The only
+difference this makes is which menu the command shows up in during "make
+menuconfig", the directories are otherwise identical. Note that they commands
+exist within a single namespace at runtime, so you can't have the same
+command in multiple subdirectories.</p>
+
+<p>(There are actually four sub-menus in "make menuconfig", the fourth
+contains global configuration options for toybox, and lives in Config.in at
+the top level.)</p>
+
+<p>See <a href="#adding">adding a new command</a> for details on the
+layout of a command file.</p>
 
 <h2>Directory scripts/</h2>
 

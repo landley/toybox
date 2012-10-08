@@ -29,9 +29,10 @@ config XARGS
 	  -E	stop at line matching string
 */
 
+#define FOR_xargs
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	long max_bytes;
 	long max_entries;
 	long L;
@@ -41,8 +42,6 @@ DEFINE_GLOBALS(
 	long entries, bytes;
 	char delim;
 )
-
-#define TT this.xargs
 
 // If out==NULL count TT.bytes and TT.entries, stopping at max.
 // Otherwise, fill out out[] 
@@ -105,7 +104,7 @@ void xargs_main(void)
 	int entries, bytes, done = 0, status;
 	char *data = NULL;
 
-	if (!(toys.optflags&1)) TT.delim = '\n';
+	if (!(toys.optflags & FLAG_0)) TT.delim = '\n';
 
 	// If no optargs, call echo.
 	if (!toys.optc) {

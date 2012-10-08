@@ -28,9 +28,10 @@ config DU
 	  -m    Sizes in megabytes
 */
 
+#define FOR_du
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
     long maxdepth;
     long depth;
 	long *dirsum;
@@ -38,20 +39,6 @@ DEFINE_GLOBALS(
     dev_t st_dev;
     struct arg_list *inodes;
 )
-
-#define TT this.du
-
-#define FLAG_x	1
-#define FLAG_s	2
-#define FLAG_L	4
-#define FLAG_k	8
-#define FLAG_H	16
-#define FLAG_a	32
-#define FLAG_c	64
-#define FLAG_l	128
-#define FLAG_m	256
-#define FLAG_h	512
-#define FLAG_d	1024
 
 typedef struct node_size {
     struct dirtree *node;

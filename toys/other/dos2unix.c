@@ -17,13 +17,12 @@ config DOS2UNIX
 	  If no files listed copy from stdin, "-" is a synonym for stdin.
 */
 
+#define FOR_dos2unix
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	char *tempfile;
 )
-
-#define TT this.dos2unix
 
 static void do_dos2unix(int fd, char *name)
 {

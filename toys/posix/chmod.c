@@ -34,16 +34,12 @@ config CHMOD
         chmod 744 file - user can read/write/execute, everyone else read only
 */
 
+#define FOR_chmod
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
     char *mode;
 )
-
-#define TT this.chmod
-
-#define FLAG_R 1
-#define FLAG_v 2
 
 int do_chmod(struct dirtree *try)
 {

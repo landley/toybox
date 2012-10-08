@@ -17,13 +17,12 @@ config TRUNCATE
 	  -s	New size
 */
 
+#define FOR_truncate
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	long size;
 )
-
-#define TT this.truncate
 
 static void do_truncate(int fd, char *name)
 {

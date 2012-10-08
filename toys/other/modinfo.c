@@ -14,14 +14,12 @@ config MODINFO
 	  usage: modinfo [-0] [-F field] [modulename...]
 */
 
+#define FOR_modinfo
 #include "toys.h"
 
-#define FLAG_0  (1 << 0)
-
-DEFINE_GLOBALS(
+GLOBALS(
     char *field;
 )
-#define TT this.modinfo
 
 static const char *modinfo_tags[] = {
     "alias", "license", "description", "author", "vermagic",

@@ -24,14 +24,13 @@ config ONEIT
 	  which point it reboots (or with -p, powers off) the system.
 */
 
+#define FOR_oneit
 #include "toys.h"
 #include <sys/reboot.h>
 
-DEFINE_GLOBALS(
+GLOBALS(
 	char *console;
 )
-
-#define TT this.oneit
 
 // The minimum amount of work necessary to get ctrl-c and such to work is:
 //
@@ -59,7 +58,8 @@ void oneit_main(void)
 
 	// PID 1 can't call reboot() because it kills the task that calls it,
 	// which causes the kernel to panic before the actual reboot happens.
-	if (!vfork()) reboot((toys.optflags&1) ? RB_POWER_OFF : RB_AUTOBOOT);
+	if (!vfork())
+            reboot((toys.optflags & FLAG_p) ? RB_POWER_OFF : RB_AUTOBOOT);
 	sleep(5);
 	_exit(1);
   }

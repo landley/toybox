@@ -15,19 +15,18 @@ config SWAPON
 	  Enable swapping on a given device/file.
 */
 
+#define FOR_swapon
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	long priority;
 )
-
-#define TT this.swapon
 
 void swapon_main(void)
 {
 	int flags = 0;
 
-	if (toys.optflags & 1)
+	if (toys.optflags)
 		flags = SWAP_FLAG_PREFER | (TT.priority << SWAP_FLAG_PRIO_SHIFT);
 
 	if (swapon(*toys.optargs, flags))

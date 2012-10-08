@@ -24,20 +24,13 @@ config PASSWD
 
 */
 
+#define FOR_passwd
 #include "toys.h"
 #include <time.h>
 
-
-DEFINE_GLOBALS(
+GLOBALS(
 	char *algo;
 )
-
-#define TT this.passwd
-
-#define FLAG_u	(1 << 0)
-#define FLAG_l	(1 << 1)
-#define FLAG_d	(1 << 2)
-#define FLAG_a	(1 << 3)
 
 #define MAX_SALT_LEN  20 //3 for id, 16 for key, 1 for '\0'
 #define URANDOM_PATH    "/dev/urandom"

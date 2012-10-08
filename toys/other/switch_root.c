@@ -17,19 +17,15 @@ config SWITCH_ROOT
 	  -h	Hang instead of exiting on failure (avoids kernel panic)
 */
 
+#define FOR_switch_root
 #include "toys.h"
 #include <sys/vfs.h>
 
-DEFINE_GLOBALS(
+GLOBALS(
    char *console;
 
    dev_t rootdev;
 )
-
-#define TT this.switch_root
-
-#define FLAG_h  (1<<0)
-#define FLAG_c	(1<<1)
 
 static int del_node(struct dirtree *node)
 {

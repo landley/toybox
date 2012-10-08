@@ -20,15 +20,12 @@ config KILLALL
 		-q	don't print any warnings or error messages
 */
 
+#define FOR_killall
 #include "toys.h"
 
-#define FLAG_q	1
-#define FLAG_l	2
-
-DEFINE_GLOBALS(
+GLOBALS(
 	int signum;
 )
-#define TT this.killall
 
 static void kill_process(pid_t pid)
 {

@@ -18,13 +18,12 @@ config KILL
 
 */
 
+#define FOR_kill
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	char *signame;
 )
-
-#define TT this.kill
 
 void kill_main(void)
 {
@@ -33,7 +32,7 @@ void kill_main(void)
 	pid_t pid;
 
 	// list signal(s)
-	if (toys.optflags & 1) {
+	if (toys.optflags & FLAG_l) {
 		if (*args) {
 			int signum = sig_to_num(*args);
 			char *s = NULL;

@@ -107,6 +107,6 @@ extern struct toy_context {
 
 extern char toybuf[4096];
 
-#define DEFINE_GLOBALS(...)
+#define GLOBALS(...)
 
 #define ARRAY_LEN(array) (sizeof(array)/sizeof(*array))

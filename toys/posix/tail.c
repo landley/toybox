@@ -29,20 +29,15 @@ config TAIL_SEEK
 		This version uses lseek, which is faster on large files.
 */
 
+#define FOR_tail
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	long lines;
 	long bytes;
 
 	int file_no;
 )
-
-#define TT this.tail
-
-#define FLAG_n 1
-#define FLAG_c 2
-#define FLAG_f 4
 
 struct line_list {
 	struct line_list *next, *prev;

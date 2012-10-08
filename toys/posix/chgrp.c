@@ -30,24 +30,15 @@ config CHGRP
 	  -v	verbose output.
 */
 
+#define FOR_chgrp
 #include "toys.h"
 
-#define FLAG_v 1
-#define FLAG_f 2
-#define FLAG_R 4
-#define FLAG_H 8
-#define FLAG_L 16
-#define FLAG_P 32
-#define FLAG_h 64
-
-DEFINE_GLOBALS(
+GLOBALS(
 	uid_t owner;
 	gid_t group;
 	char *owner_name, *group_name;
 	int symfollow;
 )
-
-#define TT this.chgrp
 
 static int do_chgrp(struct dirtree *node)
 {

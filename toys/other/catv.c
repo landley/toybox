@@ -23,11 +23,8 @@ config CATV
 	  -v	Don't use ^x or M-x escapes.
 */
 
+#define FOR_catv
 #include "toys.h"
-
-#define FLAG_v 4
-#define FLAG_t 2
-#define FLAG_e 1
 
 // Callback function for loopfiles()
 

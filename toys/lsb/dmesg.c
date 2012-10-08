@@ -21,15 +21,14 @@ config DMESG
 	  -c	Clear the ring buffer after printing.
 */
 
+#define FOR_dmesg
 #include "toys.h"
 #include <sys/klog.h>
 
-DEFINE_GLOBALS(
+GLOBALS(
 	long level;
 	long size;
 )
-
-#define TT this.dmesg
 
 void dmesg_main(void)
 {

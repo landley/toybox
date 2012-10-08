@@ -18,14 +18,13 @@ config SED
 	  of input.
 */
 
+#define FOR_sed
 #include "toys.h"
 #include "lib/xregcomp.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	struct arg_list *commands;
 )
-
-#define TT this.sed
 
 struct sed_command {
 	// Doubly linked list of commands.

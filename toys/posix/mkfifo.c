@@ -19,15 +19,13 @@ config MKFIFO
 	  Create FIFOs (named pipes).
 */
 
+#define FOR_mkfifo
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	char *m_string;
 	mode_t mode;
 )
-
-#define TT this.mkfifo
-#define FLAG_m (1)
 
 void mkfifo_main(void)
 {

@@ -22,11 +22,8 @@ config LN
           -n	Symlink at destination treated as file
 */
 
+#define FOR_ln
 #include "toys.h"
-
-#define FLAG_s	1
-#define FLAG_f	2
-#define FLAG_n	4
 
 void ln_main(void)
 {

@@ -20,13 +20,12 @@ config MKDIR
 	  -p	make parent directories as needed.
 */
 
+#define FOR_mkdir
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	long mode;
 )
-
-#define TT this.mkdir
 
 static int do_mkdir(char *dir)
 {

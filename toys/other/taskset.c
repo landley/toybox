@@ -22,10 +22,8 @@ config TASKSET
 	  -a	Set/get the affinity of all threads of the PID.
 */
 
+#define FOR_taskset
 #include "toys.h"
-
-#define FLAG_a 0x1
-#define FLAG_p 0x2
 
 // Prototype for syscall wrappers sched.h refuses to give us
 int sched_setaffinity(pid_t pid, size_t size, void *cpuset);

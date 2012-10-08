@@ -22,13 +22,12 @@ config NICE
 	  priority.  Only root can set a negative niceness level.
 */
 
+#define FOR_nice
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	long priority;
 )
-
-#define TT this.nice
 
 void nice_main(void)
 {

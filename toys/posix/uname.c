@@ -24,6 +24,7 @@ config UNAME
 	  -a	All of the above
 */
 
+#define FOR_uname
 #include "toys.h"
 
 // If a 32 bit x86 build environment working in a chroot under an x86-64
@@ -39,15 +40,13 @@ config UNAME
 #define GROSS "i386"
 #endif
 
-#define FLAG_a (1<<5)
-
 void uname_main(void)
 {
 	int i, flags = toys.optflags, needspace=0;
 
 	uname((void *)toybuf);
 
-	if (!flags) flags=1;
+	if (!flags) flags = FLAG_s;
 	for (i=0; i<5; i++) {
 		char *c = toybuf+(65*i);
 

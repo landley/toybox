@@ -176,13 +176,12 @@ config CD_P
 	  -L    Cancel previous -P and restore default behavior.
 */
 
+#define FOR_sh
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	char *command;
 )
-
-#define TT this.sh
 
 // A single executable, its arguments, and other information we know about it.
 #define SH_FLAG_EXIT    1

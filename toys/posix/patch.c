@@ -45,9 +45,10 @@ config PATCH
 	  created/deleted as appropriate.
 */
 
+#define FOR_patch
 #include "toys.h"
 
-DEFINE_GLOBALS(
+GLOBALS(
 	char *infile;
 	long prefix;
 
@@ -57,14 +58,6 @@ DEFINE_GLOBALS(
 	int context, state, filein, fileout, filepatch, hunknum;
 	char *tempname;
 )
-
-#define TT this.patch
-
-#define FLAG_R (1<<0)
-#define FLAG_i (1<<1)
-#define FLAG_l (1<<2)
-#define FLAG_p (1<<3)
-#define FLAG_u (1<<4)
 
 // Dispose of a line of input, either by writing it out or discarding it.
 

@@ -18,6 +18,7 @@ config RMMOD
 
 */
 
+#define FOR_rmmod
 #include "toys.h"
 
 #include <sys/syscall.h>
@@ -41,8 +42,8 @@ void rmmod_main(void)
 	if (len > 3 && !strcmp(&mod_name[len-3], ".ko" ))
 		mod_name[len-3] = 0;
 
-	if (toys.optflags & 1) flags |= O_TRUNC;
-	if (toys.optflags & 2) flags &= ~O_NONBLOCK;
+	if (toys.optflags & FLAG_f) flags |= O_TRUNC;
+	if (toys.optflags & FLAG_w) flags &= ~O_NONBLOCK;
 
 	if (delete_module(mod_name, flags))
 		perror_exit("failed to unload %s", mod_name);
