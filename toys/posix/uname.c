@@ -56,8 +56,10 @@ void uname_main(void)
 			// This problem originates in autoconf, so of course the solution
 			// is horribly ugly.
 #ifdef GROSS
-			if (i==4 && !strcmp(c,"x86_64")) printf(GROSS);
-	        else
+			if (i==4 && !strcmp(c,"x86_64")) {
+				printf(GROSS);
+				continue;
+			}
 #endif
 
 			if (needspace++) {
