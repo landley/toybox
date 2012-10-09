@@ -31,28 +31,17 @@ GLOBALS(
 	} buffer;
 )
 
-#define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
-// blk0() and blk() perform the initial expand.
-// The idea of expanding during the round function comes from SSLeay
-#if 1
-#define blk0(i) (block[i] = (rol(block[i],24)&0xFF00FF00) \
-	|(rol(block[i],8)&0x00FF00FF))
-#else	// big endian?
-#define blk0(i) block[i]
-#endif
-#define blk(i) (block[i&15] = rol(block[(i+13)&15]^block[(i+8)&15] \
-	^block[(i+2)&15]^block[i&15],1))
-
-static const uint32_t rconsts[]={0x5A827999,0x6ED9EBA1,0x8F1BBCDC,0xCA62C1D6};
+static const unsigned rconsts[]={0x5A827999,0x6ED9EBA1,0x8F1BBCDC,0xCA62C1D6};
 
 // Hash a single 512-bit block. This is the core of the algorithm.
 
+#define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 static void sha1_transform(void)
 {
 	int i, j, k, count;
-	uint32_t *block = TT.buffer.i;
-	uint32_t *rot[5], *temp;
+	unsigned *block = TT.buffer.i;
+	unsigned *rot[5], *temp;
 
 	// Copy context->state[] to working vars
 	for (i=0; i<5; i++) {
@@ -62,7 +51,7 @@ static void sha1_transform(void)
 	// 4 rounds of 20 operations each.
 	for (i=count=0; i<4; i++) {
 		for (j=0; j<20; j++) {
-			uint32_t work;
+			unsigned work;
 
 			work = *rot[2] ^ *rot[3];
 			if (!i) work = (work & *rot[1]) ^ *rot[3];
@@ -71,8 +60,9 @@ static void sha1_transform(void)
 					work = ((*rot[1]|*rot[2])&*rot[3])|(*rot[1]&*rot[2]);
 				else work ^= *rot[1];
 			}
-			if (!i && j<16) work += blk0(count);
-			else work += blk(count);
+
+			if (!i && j<16) work += block[count] = (rol(block[count],24)&0xFF00FF00) | (rol(block[count],8)&0x00FF00FF);
+			else work += block[count&15] = rol(block[(count+13)&15]^block[(count+8)&15]^block[(count+2)&15]^block[count&15],1);
 			*rot[4] += work + rol(*rot[0],5) + rconsts[i];
 			*rot[1] = rol(*rot[1],30);
 
