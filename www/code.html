@@ -982,6 +982,14 @@ layout of a command file.</p>
 
 <h2>Directory scripts/</h2>
 
+<p>Build infrastructure. The makefile calls scripts/make.sh for "make"
+and scripts/install.sh for "make install".</p>
+
+<p>There's also a test suite, "make test" calls make/test.sh, which runs all
+the tests in make/test/*. You can run individual tests via
+"scripts/test.sh command", or "TEST_HOST=1 scripts/test.sh command" to run
+that test against the host implementation instead of the toybox one.</p>
+
 <h3>scripts/cfg2files.sh</h3>
 
 <p>Run .config through this filter to get a list of enabled commands, which
