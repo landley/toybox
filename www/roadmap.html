@@ -184,37 +184,123 @@ when called under the name "bash".</p>
 <a name=toolbox>
 <h2>Use case: Replacing Android Toolbox</h2>
 
-<h3>Full toolbox command set</h3>
+<p>Android has a policy against GPL in userspace, so even though BusyBox
+predates Android by many years, they couldn't use it. Instead they grabbed
+an old version of ash and implemented their own command line utility set
+called "toolbox".</p>
 
-<p>Here is the full list of toolbox commands:
-</p>
+<p>Toolbox doesn't have its own repository, instead it's part of Android's
+<a href=https://android.googlesource.com/platform/system/core>system/core
+git repository</a> (this analysis looked at commit 51ccef27cab58).</p>
+
+<h3>Toolbox commands:</h3>
+
+<p>According to core/toolbox/Android.mk the toolbox directory builds the
+following commands:</p>
+
 <blockquote><b>
-alarm cat chmod chown cmp cp date dd df dmesg getevent getprop hd id ifconfig
-iftop insmod ioctl kill ln log ls lsmod mkdir mount mv netstat newfs_msdos notify
-pidof printenv ps renice rm rmdir rmmod route schedtop sendevent setconsole
-setprop sleep smd start stop sync toolbox top umount vmstat watchprops wipe
+ls mount cat ps kill ln insmod rmmod lsmod ifconfig setconsole
+rm mkdir rmdir reboot getevent sendevent date wipe sync umount
+start stop notify cmp dmesg route hd dd df getprop setprop watchprops
+log sleep renice printenv smd chmod chown newfs_msdos netstat ioctl 
+mv schedtop top iftop id uptime vmstat nandread ionice touch lsof md5 r
 </b></blockquote>
 
-<p>The following Toolbox commands are reasonably standardized:</p>
-
+<p>If selinux is enabled, you also get:</p>
 <blockquote><b>
-<span id=toolbox_std>
-cat chmod chown cmp cp date dd df dmesg id ifconfig iftop insmod ioctl ionice
-kill ln ls lsmod lsof mkdir mount mv netstat newfs_msdos notify
-ps printenv reboot renice rm rmdir rmmod route
-sleep start stop sync top umount uptime vmstat
-</span>
+getenforce setenforce chcon restorecon runcon getsebool setsebool load_policy
 </b></blockquote>
 
-<h3>Android-specific commands</h3>
-<p>Toolbox also provides the following nonstandard commands, which are unique
-to Android (or at least do not appear in Ubuntu or SUSv4):</p>
+<p>The Android.mk file also refers to dynarray.c and toolbox.c as library
+code. This leaves the following apparently unused C files in toolbox/*.c, each
+of which has a command_main() function and seems to implement a standalone
+command:</p>
 
+<blockquote><b>
+alarm exists lsusb readtty rotatefb setkey syren
+</b></blockquote>
+
+<h3>Command shell (ash)</h3>
+
+<p>The core/sh subdirectory contains a fork of ash 1.17, and sucks in
+liblinenoise to provide command line history/editing.</p>
+
+<h3>Other Android core commands</h3>
+
+<p>Other than the toolbox and sh directories, the currently interesting
+subdirectories in the core repository are fs_mgr, gpttool, init,
+logcat, logwrapper, mkbootimg, netcfg, run-as, and sdcard.</p>
+
+<ul>
+<li><b>fs_mgr</b> - subset of mount</li>
+<li><b>gpttool</b> - subset of fdisk</li>
+<li><b>init</b> - Android's PID 1</li>
+<li><b>logcat</b> - read android log format</li>
+<li><b>logwrapper</b> - redirect stdio to android log</li>
+<li><b>mkbootimg</b> - create signed boot image</li>
+<li><b>netcfg</b> - network configuration (sucks in libnetutils)</li>
+<li><b>run-as</b> - subset of sudo</li>
+<li><b>sdcard</b> - FUSE wrapper to squash UID/GID/permissions to what FAT supports.</li>
+</ul>
+
+<p>Almost all of these reinvent an existing wheel with less functionality and a
+different user interface. We may want to provide that interface, but
+implementing the full commands (mount, fdisk, init, ifconfig with dhcp,
+and sudo) come first.</p>
+
+<p>Although logcat/logwrapper also reinvent a wheel, Android did so in the
+kernel and these provide an interface to that.</p>
+
+<p>Also, gpttool and mkbootimg are install tools, and sdcard looks like a
+testing tool. These aren't a priority if android wants to use its own
+bespoke code to install itself.</p>
+
+<h3>Analysis</h3>
+
+<p>For reference, combining everything listed above, we get:</p>
+
+<blockquote><b>
+alarm ash cat chcon chmod chown cmp date dd df dmesg exists fs_mgr getenforce
+getevent getprop getsebool gpttool hd id ifconfig iftop init insmod ioctl
+ionice kill ln load_policy log logcat logwrapper ls lsmod lsof lsusb md5
+mkbootimg mkdir mount mv nandread netcfg netstat newfs_msdos notify printenv
+ps r readtty reboot renice restorecon rm rmdir rmmod rotatefb route run-as
+runcon schedtop sdcard sendevent setconsole setenforce setkey setprop setsebool
+sleep smd start stop sync syren top touch umount uptime vmstat watchprops wipe
+</b></blockquote>
+
+<p>We may eventually implement all of that, but for toybox 1.0 we need to
+focus a bit. For our first pass, let's ignore selinux, strip out the "unlisted"
+commands except lsusb, and grab just logcat and logwrapper from the "core"
+commands (since the rest have some full/standard version providing that
+functionality, which we can implement a shim interface for later).</p>
+
+<p>This means toybox should implement:</p>
 <blockquote><b>
 <span id=toolbox>
-alarm hd getevent getprop ioctl log nandread notify
-r schedtop sendevent setconsole setprop smd watchprops wipe
+cat chmod chown cmp date dd df dmesg getevent getprop hd id ifconfig iftop
+insmod ioctl ionice kill ln log logcat logwrapper ls lsmod lsof lsusb md5 mkdir
+mount mv nandread
+netstat newfs_msdos notify printenv ps r reboot renice rm rmdir rmmod route
+schedtop sendevent setconsole setprop sleep smd start stop sync top touch
+umount uptime vmstat watchprops wipe
 </span>
+<b></blockquote>
+
+<p>The following Toolbox commands are already covered in previous
+sections of this analysis:</p>
+
+<blockquote><b>
+cat chmod chown cmp date dd df dmesg id ifconfig insmod kill ln ls lsmod
+mkdir mount mv ps renice rm rmdir rmmod route sleep sync top touch umount
+</b></blockquote>
+
+<p>Which leaves the following commands as new from Toolbox:</p>
+
+<blockquote><b>
+getevent getprop hd iftop ioctl ionice log lsof nandread netstat
+newfs_msdos notify printenv r reboot schedtop sendevent setconsole
+setprop smd start stop top uptime vmstat watchprops wipe
 </b></blockquote>
 
 <hr />

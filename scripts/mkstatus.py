@@ -9,8 +9,7 @@ for i in blob.stdout.read().split("\n"):
   i=i.split()
   stuff[i[0]]=i[1:]
 
-stuff['toolbox'].extend(stuff['toolbox_std'])
-del stuff['toolbox_std']
+stuff['toolbox']
 
 reverse={}
 for i in stuff:
