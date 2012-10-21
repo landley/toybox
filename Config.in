@@ -1,5 +1,11 @@
 mainmenu "ToyBox Configuration"
 
+
+source generated/Config.probed
+source generated/Config.in
+
+comment ""
+
 menu "Toybox global settings"
 
 config TOYBOX
@@ -43,9 +49,3 @@ config TOYBOX_DEBUG
 	  Enable extra checks for debugging purposes.
 
 endmenu
-
-source generated/Config.probed
-
-comment ""
-
-source generated/Config.in
