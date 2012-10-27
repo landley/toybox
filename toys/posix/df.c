@@ -51,6 +51,7 @@ static void show_mt(struct mtab_list *mt)
 	int len;
 	long size, used, avail, percent;
 	uint64_t block;
+	char *device;
 
 	// Return if it wasn't found (should never happen, but with /etc/mtab...)
 	if (!mt) return;
@@ -79,16 +80,21 @@ static void show_mt(struct mtab_list *mt)
 			/ TT.units);
 	percent = size ? 100-(long)((100*(uint64_t)avail)/size) : 0;
 
+	device = *mt->device == '/' ? realpath(mt->device, NULL) : NULL;
+	if (!device) device = mt->device;
+
 	// Figure out appropriate spacing
-	len = 25 - strlen(mt->device);
+	len = 25 - strlen(device);
 	if (len < 1) len = 1;
 	if (CFG_DF_PEDANTIC && (toys.optflags & FLAG_P)) {
-		printf("%s %ld %ld %ld %ld%% %s\n", mt->device, size, used, avail,
+		xprintf("%s %ld %ld %ld %ld%% %s\n", device, size, used, avail,
 				percent, mt->dir);
 	} else {
-		printf("%s% *ld % 10ld % 9ld % 3ld%% %s\n",mt->device, len,
+		xprintf("%s% *ld % 10ld % 9ld % 3ld%% %s\n", device, len,
 			size, used, avail, percent, mt->dir);
 	}
+
+	if (device != mt->device) free(device);
 }
 
 void df_main(void)
@@ -123,8 +129,12 @@ void df_main(void)
 			// Find and display this filesystem.  Use _last_ hit in case of
 			// -- bind mounts.
 			mt2 = NULL;
-			for (mt = mtlist; mt; mt = mt->next)
-				if (st.st_dev == mt->stat.st_dev) mt2 = mt;
+			for (mt = mtlist; mt; mt = mt->next) {
+				if (st.st_dev == mt->stat.st_dev) {
+					mt2 = mt;
+					break;
+				}
+			}
 			show_mt(mt2);
 		}
 	} else {
