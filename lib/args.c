@@ -179,11 +179,9 @@ static int gotflag(struct getoptflagstate *gof)
 
 void parse_optflaglist(struct getoptflagstate *gof)
 {
-	char *options = toys.which->options, *plustildenot = "+~!",
-		 *limits = "<>=", *flagbits="|^ ";
+	char *options = toys.which->options;
 	long *nextarg = (long *)&this;
 	struct opts *new = 0;
-	int i;
 
 	// Parse option format string
 	memset(gof, 0, sizeof(struct getoptflagstate));
@@ -207,6 +205,7 @@ void parse_optflaglist(struct getoptflagstate *gof)
 	if (!*options) gof->stopearly++;
 	while (*options) {
 		char *temp;
+		int idx;
 
 		// Allocate a new list entry when necessary
 		if (!new) {
@@ -245,9 +244,9 @@ void parse_optflaglist(struct getoptflagstate *gof)
 			if (CFG_TOYBOX_DEBUG && new->type)
 				error_exit("multiple types %c:%c%c", new->c, new->type, *options);
 			new->type = *options;
-		} else if (0 != (temp = strchr(plustildenot, *options))) {
-			int idx = temp - plustildenot;
+		} else if (-1 != (idx = stridx("+~!", *options))) {
 			struct opts *opt;
+			int i;
 
 			if (!*++options && CFG_TOYBOX_DEBUG)
 				error_exit("+~! no target");
@@ -260,17 +259,16 @@ void parse_optflaglist(struct getoptflagstate *gof)
 			}
 			new->edx[idx] |= 1<<i;
 		} else if (*options == '[') { // TODO
-		} else if (0 != (temp = strchr(flagbits, *options)))
-			new->flags |= 1<<(temp-flagbits);
+		} else if (-1 != (idx = stridx("|^ ", *options)))
+			new->flags |= 1<<idx;
 		// bounds checking
-		else if (0 != (temp = strchr(limits, *options))) {
-			i = temp - limits;
+		else if (-1 != (idx = stridx("<>=", *options))) {
 			if (new->type == '#') {
 				long l = strtol(++options, &temp, 10);
-				if (temp != options) new->val[i].l = l;
+				if (temp != options) new->val[idx].l = l;
 			} else if (CFG_TOYBOX_FLOAT && new->type == '.') {
 				FLOAT f = strtod(++options, &temp);
-				if (temp != options) new->val[i].f = f;
+				if (temp != options) new->val[idx].f = f;
 			} else if (CFG_TOYBOX_DEBUG) error_exit("<>= only after .#");
 			options = --temp;
 		}
@@ -295,6 +293,8 @@ void parse_optflaglist(struct getoptflagstate *gof)
 	// because we reverse direction: last entry created gets first global slot.)
 	int pos = 0;
 	for (new = gof->opts; new; new = new->next) {
+		int i;
+
 		for (i=0;i<3;i++) new->edx[i] <<= pos;
 		pos++;
 		if (new->type) {
