@@ -15,7 +15,7 @@ USE_MD5SUM_SHA1SUM(OLDTOY(sha1sum, md5sum, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 
 config MD5SUM
   bool "md5sum"
-  default n
+  default y
   help
     usage: md5sum [FILE]...
 
@@ -25,6 +25,7 @@ config MD5SUM
 
 config MD5SUM_SHA1SUM
   bool "sha1sum"
+  default y
   depends on MD5SUM
   help
     usage: sha1sum [FILE]...
