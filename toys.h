@@ -16,6 +16,7 @@
 #include <inttypes.h>
 #include <limits.h>
 #include <libgen.h>
+#include <locale.h>
 #include <math.h>
 #include <pty.h>
 #include <pwd.h>
@@ -46,6 +47,8 @@
 #include <unistd.h>
 #include <utime.h>
 #include <utmpx.h>
+#include <wchar.h>
+#include <wctype.h>
 
 #include "lib/lib.h"
 #include "toys/e2fs.h"

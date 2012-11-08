@@ -18,5 +18,29 @@ testing "wc -c" "wc -c file1" "26 file1\n" "" ""
 testing "wc -l" "wc -l file1" "4 file1\n" "" ""
 testing "wc -w" "wc -w file1" "5 file1\n" "" ""
 testing "wc format" "wc file1" "4 5 26 file1\n" "" ""
-testing "wc multiple files" "wc input - file1" "1 2 3 input\n0 2 3 -\n4 5 26 file1\n5 9 32 total\n" "a\nb" "a b"
+testing "wc multiple files" "wc input - file1" \
+        "1 2 3 input\n0 2 3 -\n4 5 26 file1\n5 9 32 total\n" "a\nb" "a b"
+
+#Tests for wc -m
+if printf "%s" "$LANG" | grep -q UTF-8
+then
+
+printf " " > file1
+for i in $(seq 1 8192)
+do
+  printf "ü" >> file1
+done
+testing "wc -m" "wc -m file1" "8193 file1\n" "" ""
+printf " " > file1
+for i in $(seq 1 8192)
+do
+  printf "ü" >> file1
+done
+testing "wc -m (invalid chars)" "wc -m file1" "8193 file1\n" "" ""
+testing "wc -mlw" "wc -mlw input" "1 2 11 input\n" "hello, 世界!\n" ""
+
+else
+printf "skipping tests for wc -m"
+fi
+
 rm file1
