@@ -49,8 +49,7 @@ GLOBALS(
 static void show_mt(struct mtab_list *mt)
 {
 	int len;
-	long size, used, avail, percent;
-	uint64_t block;
+	uint64_t size, used, avail, percent, block;
 	char *device;
 
 	// Return if it wasn't found (should never happen, but with /etc/mtab...)
@@ -72,13 +71,15 @@ static void show_mt(struct mtab_list *mt)
 	// Figure out how much total/used/free space this filesystem has,
 	// forcing 64-bit math because filesystems are big now.
 	block = mt->statvfs.f_bsize ? mt->statvfs.f_bsize : 1;
-	size = (long)((block * mt->statvfs.f_blocks) / TT.units);
-	used = (long)((block * (mt->statvfs.f_blocks-mt->statvfs.f_bfree))
-			/ TT.units);
-	avail = (long)((block
-				* (getuid() ? mt->statvfs.f_bavail : mt->statvfs.f_bfree))
-			/ TT.units);
-	percent = size ? 100-(long)((100*(uint64_t)avail)/size) : 0;
+	size = (block * mt->statvfs.f_blocks) / TT.units;
+	used = (block * (mt->statvfs.f_blocks-mt->statvfs.f_bfree)) / TT.units;
+	avail = (block * (getuid() ? mt->statvfs.f_bavail : mt->statvfs.f_bfree))
+			/ TT.units;
+	if (!(used+avail)) percent = 0;
+	else {
+		percent = (used*100)/(used+avail);
+		if (used*100 != percent*(used+avail)) percent++;
+	}
 
 	device = *mt->device == '/' ? realpath(mt->device, NULL) : NULL;
 	if (!device) device = mt->device;
