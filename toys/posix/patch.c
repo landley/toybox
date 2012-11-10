@@ -387,7 +387,7 @@ void patch_main(void)
 				// If we've got a file to open, do so.
 				} else if (!(toys.optflags & FLAG_p) || i <= TT.prefix) {
 					// If the old file was null, we're creating a new one.
-					if (!strcmp(oldname, "/dev/null") || !oldsum) {
+					if (!strcmp(oldname, "/dev/null") && !oldsum) {
 						printf("creating %s\n", name);
 						s = strrchr(name, '/');
 						if (s) {
