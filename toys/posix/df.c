@@ -49,7 +49,7 @@ GLOBALS(
 static void show_mt(struct mtab_list *mt)
 {
 	int len;
-	uint64_t size, used, avail, percent, block;
+	long long size, used, avail, percent, block;
 	char *device;
 
 	// Return if it wasn't found (should never happen, but with /etc/mtab...)
@@ -88,10 +88,10 @@ static void show_mt(struct mtab_list *mt)
 	len = 25 - strlen(device);
 	if (len < 1) len = 1;
 	if (CFG_DF_PEDANTIC && (toys.optflags & FLAG_P)) {
-		xprintf("%s %ld %ld %ld %ld%% %s\n", device, size, used, avail,
+		xprintf("%s %lld %lld %lld %lld%% %s\n", device, size, used, avail,
 				percent, mt->dir);
 	} else {
-		xprintf("%s% *ld % 10ld % 9ld % 3ld%% %s\n", device, len,
+		xprintf("%s% *lld % 10lld % 9lld % 3lld%% %s\n", device, len,
 			size, used, avail, percent, mt->dir);
 	}
 
