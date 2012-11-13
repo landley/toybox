@@ -1,13 +1,77 @@
 <!--#include file="header.html" -->
 
 <h2>News</h2>
+<hr><b>November 13, 2012</b>
+<blockquote><p>"Rule Six: The winning team shall be the first team that wins."
+- The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+
+<p><a href=downloads/toybox-0.4.1.tar.bz2>Toybox 0.4.1</a> is based on
+<a href=http://landley.net/hg/toybox/shortlog/691>commit 691</a>.</p>
+
+<p>Elie De Brauwer contributed usleep, Ashwini Kumar contributed du, and
+Kyungwan Han contributed vconfig. Other new commands include switch_root and
+md5sum, and the remaining shell wrappers are now proper commands (dos2unix,
+unix2dos).</p>
+
+<p>The patch command now supports -l, and gethostname is now enabled by
+default. The df command follows symlinks to get the actual device name.
+Felix Janda added -m support to wc (for utf8).</p>
+
+<p>On the infrastructure side, the commands have now been grouped into
+"posix", "lsb", and "other" subdirectories (for things required by Posix-2008,
+the Linux Standard Base 4.1, and commands in neither). This affects menuconfig
+and the actual source layout (toys/cp.c is now toys/posix/cp.c, and so on).
+An android directory is planned (see the updated
+<a href=roadmap.html#android>android roadmap analysis</a>).</p>
+
+<p>The FLAG_ macros for command option parsing and TT alias for the command's
+global block are now automatically generated, commands should
+#define FOR_commandname before #including <toys.h> to get the macros for that
+command.</p>
+
+<p>An upgrade to the build infrastructure now allows commands with _ and -
+in them, such as switch_root.</p>
+
+<p>Bugfixes: Avery Pennarun spotted a case where ls showed uid twice instead of
+uid and gid, and that nice was using the wrong range of numbers.
+The ls command also recursed inappropriately last time (not quite
+properly converted for the dirtree changes last release), and now it's
+fixed. Roy Tam pointed out a glitch in sh, and fixed df's percentage
+calculation to match the POSIX spec. The kernel build didn't like our mktemp
+and it does now. The wc command wasn't quite posix compliant (trailing spaces
+break stuff). The ls command recursed inappropriately last time (not quite
+properly converted for the dirtree changes last release), and now it's
+fixed. The catv command wasn't displaying byte 255 correctly. Some lib
+fixes (thinko in xpidfile). Fixed uname -m when running a 32 bit x86 binary
+on an x86-64 host (it lies and says the system is i686, i586, or i486 depending
+on what the toolchain that built the binary supported. This makes builds in
+a 32 bit chroot on a 64 bit kernel break less.) The df command was checking
+partitions in the wrong order (displaying undermounts instead of overmounts:
+this used to work but some library code changed out from under it and it
+wasn't updated to match until now). Felix Janda filled out the test suite
+some more. The patch file creation logic got tweaked several times to
+successfully apply more patches. Support for older (pre 2.10) glibc
+versions was added to portability.h.</p>
+
+<p>Miscelaneous cleanups all around (mknod, sha1sum, logname), including a
+rewrite of taskset to be less dependent on libc getting the headers right. All
+the command headers should now point to the current relevant standards
+document, where applicable.</p>
+
+<p>This news page had old news entries from before the relaunch moved into
+a separate <a href=oldnews.html>oldnews</a> page.</p>
+
+<p>I forgot to create <a href=bin>static binaries</a> last time, but they're
+back now.</p>
+</span>
+
 <hr><b>July 23, 2012</b>
 <blockquote><p>"Ford", Arthur said. "There's an infinite number of monkeys
 out here who want to talk to us about this script for Hamlet they've worked
 out." - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
 
-<p><a href=downloads/toybox-0.4.0.tar.bz2>Toybox 0.4.0</a> is based on commit
-<a href=http://landley.net/hg/toybox/shortlog/640>commit 640</a>.
+<p><a href=downloads/toybox-0.4.0.tar.bz2>Toybox 0.4.0</a> is based on
+<a href=http://landley.net/hg/toybox/shortlog/640>commit 640</a>.</p>
 
 <p>The new <a href=status.html>status page</a> is calculated from
 the roadmap info, and should be easier to keep up to date in future.</p>

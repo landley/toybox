@@ -20,7 +20,7 @@ and progress towards implementing it.</p>
 <a name="standards">
 <h2>Use case: standards compliance.</h2>
 
-<h3>POSIX-2008/SUSv4</h3>
+<h3><a name=susv4 /><a href="#susv4">POSIX-2008/SUSv4</a></h3>
 <p>The best standards are the kind that describe reality, rather than
 attempting to impose a new one.  (I.E. a good standard should document, not
 legislate.)</p>
@@ -87,7 +87,7 @@ who xargs zcat
 </span>
 </b></blockquote>
 
-<h3>Linux Standard Base</h3>
+<h3><a name=sigh /><a href="#sigh">Linux Standard Base</a></h3>
 
 <p>One attempt to supplement POSIX towards an actual usable system was the
 Linux Standard Base. Unfortunately, the quality of this "standard" is
@@ -146,7 +146,7 @@ su sync tar umount useradd userdel usermod zcat
 
 <hr />
 <a name="dev_env">
-<h2>Use case: provide a self-hosting development environment</h2>
+<h2><a href="#dev_env">Use case: provide a self-hosting development environment</a></h2>
 
 <p>The following commands are enough to build the Aboriginal Linux development
 environment, boot it to a shell prompt, and build Linux From Scratch 6.8 under
@@ -181,8 +181,7 @@ This means that toysh needs to supply several bash extensions _and_ work
 when called under the name "bash".</p>
 
 <hr />
-<a name=toolbox>
-<h2>Use case: Replacing Android Toolbox</h2>
+<h2><a name=android /><a href="#android">Use case: Replacing Android Toolbox</a></h2>
 
 <p>Android has a policy against GPL in userspace, so even though BusyBox
 predates Android by many years, they couldn't use it. Instead they grabbed
