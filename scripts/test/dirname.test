@@ -6,5 +6,5 @@
 
 testing "dirname /-only" "dirname ///////" "/\n" "" ""
 testing "dirname trailing /" "dirname a//////" ".\n" "" ""
-testing "dirname combined" "dirname /////a///b///c///d/////" "/////a///b///c\n" "" "" 
+testing "dirname combined" "dirname /////a///b///c///d/////" "/////a///b///c\n" "" ""
 testing "dirname /a/" "dirname /////a///" "/\n" "" ""

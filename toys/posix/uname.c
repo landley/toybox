@@ -1,6 +1,4 @@
-/* vi: set sw=4 ts=4:
- *
- * uname.c - return system name
+/* uname.c - return system name
  *
  * Copyright 2008 Rob Landley <rob@landley.net>
  *
@@ -9,19 +7,19 @@
 USE_UNAME(NEWTOY(uname, "amvrns", TOYFLAG_BIN))
 
 config UNAME
-	bool "uname"
-	default y
-	help
-	  usage: uname [-asnrvmpio]
+  bool "uname"
+  default y
+  help
+    usage: uname [-asnrvmpio]
 
-	  Print system information.
+    Print system information.
 
-	  -s	System name
-	  -n	Network (domain) name
-	  -r	Release number
-	  -v	Version (build date)
-	  -m	Machine (hardware) name
-	  -a	All of the above
+    -s	System name
+    -n	Network (domain) name
+    -r	Release number
+    -v	Version (build date)
+    -m	Machine (hardware) name
+    -a	All of the above
 */
 
 #define FOR_uname
@@ -42,34 +40,34 @@ config UNAME
 
 void uname_main(void)
 {
-	int i, flags = toys.optflags, needspace=0;
+  int i, flags = toys.optflags, needspace=0;
 
-	uname((void *)toybuf);
+  uname((void *)toybuf);
 
-	if (!flags) flags = FLAG_s;
-	for (i=0; i<5; i++) {
-		char *c = toybuf+(65*i);
+  if (!flags) flags = FLAG_s;
+  for (i=0; i<5; i++) {
+    char *c = toybuf+(65*i);
 
-		if (flags & ((1<<i)|FLAG_a)) {
-			int len = strlen(c);
+    if (flags & ((1<<i)|FLAG_a)) {
+      int len = strlen(c);
 
-			// This problem originates in autoconf, so of course the solution
-			// is horribly ugly.
+      // This problem originates in autoconf, so of course the solution
+      // is horribly ugly.
 #ifdef GROSS
-			if (i==4 && !strcmp(c,"x86_64")) {
-				printf(GROSS);
-				continue;
-			}
+      if (i==4 && !strcmp(c,"x86_64")) {
+        printf(GROSS);
+        continue;
+      }
 #endif
 
-			if (needspace++) {
-				// We can't decrement on the first entry, because
-				// needspace would be 0
-				*(--c)=' ';
-				len++;
-			}
-			xwrite(1, c, len);
-		}
-	}
-	putchar('\n');
+      if (needspace++) {
+        // We can't decrement on the first entry, because
+        // needspace would be 0
+        *(--c)=' ';
+        len++;
+      }
+      xwrite(1, c, len);
+    }
+  }
+  putchar('\n');
 }

@@ -1,5 +1,4 @@
-/* vi: set ts=4:
- *  Call regcomp() and handle errors.
+/* Call regcomp() and handle errors.
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
  *
@@ -12,12 +11,12 @@
 
 void xregcomp(regex_t *preg, char *regex, int cflags)
 {
-	int rc = regcomp(preg, regex, cflags);
+  int rc = regcomp(preg, regex, cflags);
 
-	if (rc) {
-		char msg[256];
-		regerror(rc, preg, msg, 255);
-		msg[255]=0;
-		error_exit("xregcomp: %s", msg);
-	}
+  if (rc) {
+    char msg[256];
+    regerror(rc, preg, msg, 255);
+    msg[255]=0;
+    error_exit("xregcomp: %s", msg);
+  }
 }

@@ -1,6 +1,4 @@
-/* vi: set sw=4 ts=4:
- *
- * head.c - copy first lines from input to stdout.
+/* head.c - copy first lines from input to stdout.
  *
  * Copyright 2006 Timothy Elliott <tle@holymonkey.com>
  *
@@ -9,52 +7,51 @@
 USE_HEAD(NEWTOY(head, "n#<0=10", TOYFLAG_BIN))
 
 config HEAD
-	bool "head"
-	default y
-	help
-	  usage: head [-n number] [file...]
+  bool "head"
+  default y
+  help
+    usage: head [-n number] [file...]
 
-	  Copy first lines from files to stdout. If no files listed, copy from
-	  stdin. Filename "-" is a synonym for stdin.
+    Copy first lines from files to stdout. If no files listed, copy from
+    stdin. Filename "-" is a synonym for stdin.
 
-	  -n	Number of lines to copy.
+    -n	Number of lines to copy.
 */
 
 #define FOR_head
 #include "toys.h"
 
 GLOBALS(
-	long lines;
-	int file_no;
+  long lines;
+  int file_no;
 )
 
 static void do_head(int fd, char *name)
 {
-	int i, len, lines=TT.lines, size=sizeof(toybuf);
+  int i, len, lines=TT.lines, size=sizeof(toybuf);
 
-	if (toys.optc > 1) {
-		// Print an extra newline for all but the first file
-		if (TT.file_no++) xprintf("\n");
-		xprintf("==> %s <==\n", name);
-		xflush();
-	}
+  if (toys.optc > 1) {
+    // Print an extra newline for all but the first file
+    if (TT.file_no++) xprintf("\n");
+    xprintf("==> %s <==\n", name);
+    xflush();
+  }
 
-	while (lines) {
-		len = read(fd, toybuf, size);
-		if (len<0) {
-			perror_msg("%s",name);
-			toys.exitval = EXIT_FAILURE;
-		}
-		if (len<1) break;
-		
-		for(i=0; i<len;)
-			if (toybuf[i++] == '\n' && !--lines) break;
+  while (lines) {
+    len = read(fd, toybuf, size);
+    if (len<0) {
+      perror_msg("%s",name);
+      toys.exitval = EXIT_FAILURE;
+    }
+    if (len<1) break;
 
-		xwrite(1, toybuf, i);
-	}
+    for(i=0; i<len;) if (toybuf[i++] == '\n' && !--lines) break;
+
+    xwrite(1, toybuf, i);
+  }
 }
 
 void head_main(void)
 {
-	loopfiles(toys.optargs, do_head);
+  loopfiles(toys.optargs, do_head);
 }

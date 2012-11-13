@@ -1,20 +1,18 @@
-/* vi: set sw=4 ts=4:
- *
- * printenv.c - Print environment variables.
+/* printenv.c - Print environment variables.
  *
  * Copyright 2012 Georgi Chorbadzhiyski <georgi@unixsol.org>
 
 USE_PRINTENV(NEWTOY(printenv, "0(null)", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PRINTENV
-	bool "printenv"
-	default y
-	help
-	  usage: printenv [-0] [env_var...]
+  bool "printenv"
+  default y
+  help
+    usage: printenv [-0] [env_var...]
 
-	  Print environment variables.
+    Print environment variables.
 
-	  -0	Use \0 as delimiter instead of \n
+    -0	Use \0 as delimiter instead of \n
 */
 
 #include "toys.h"
@@ -23,24 +21,23 @@ extern char **environ;
 
 void printenv_main(void)
 {
-	char **env, **var = toys.optargs;
-	char delim = '\n';
+  char **env, **var = toys.optargs;
+  char delim = '\n';
 
-	if (toys.optflags) delim = 0;
+  if (toys.optflags) delim = 0;
 
-	do {
-		int catch = 0, len = *var ? strlen(*var) : 0;
+  do {
+    int catch = 0, len = *var ? strlen(*var) : 0;
 
-		for (env = environ; *env; env++) {
-			char *out = *env;
-			if (*var) {
-				if (!strncmp(out, *var, len) && out[len] == '=')
-					out += len +1;
-				else continue;
-			}
-			xprintf("%s%c", out, delim);
-			catch++;
-		}
-		if (*var && !catch) toys.exitval = 1;
-	} while (*var && *(++var));
+    for (env = environ; *env; env++) {
+      char *out = *env;
+      if (*var) {
+        if (!strncmp(out, *var, len) && out[len] == '=') out += len +1;
+        else continue;
+      }
+      xprintf("%s%c", out, delim);
+      catch++;
+    }
+    if (*var && !catch) toys.exitval = 1;
+  } while (*var && *(++var));
 }

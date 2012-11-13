@@ -1,4 +1,3 @@
-/* vi: set sw=4 ts=4 :*/
 /* lib.c - reusable stuff.
  *
  * Functions with the x prefix are wrappers for library functions.  They either
@@ -14,257 +13,257 @@
 // Strcpy with size checking: exit if there's not enough space for the string.
 void xstrcpy(char *dest, char *src, size_t size)
 {
-	if (strlen(src)+1 > size) error_exit("xstrcpy");
-	strcpy(dest, src);
+  if (strlen(src)+1 > size) error_exit("xstrcpy");
+  strcpy(dest, src);
 }
 
 void verror_msg(char *msg, int err, va_list va)
 {
-	char *s = ": %s";
+  char *s = ": %s";
 
-	fprintf(stderr, "%s: ", toys.which->name);
-	if (msg) vfprintf(stderr, msg, va);
-	else s+=2;
-	if (err) fprintf(stderr, s, strerror(err));
-	putc('\n', stderr);
+  fprintf(stderr, "%s: ", toys.which->name);
+  if (msg) vfprintf(stderr, msg, va);
+  else s+=2;
+  if (err) fprintf(stderr, s, strerror(err));
+  putc('\n', stderr);
 }
 
 void error_msg(char *msg, ...)
 {
-	va_list va;
+  va_list va;
 
-	va_start(va, msg);
-	verror_msg(msg, 0, va);
-	va_end(va);
+  va_start(va, msg);
+  verror_msg(msg, 0, va);
+  va_end(va);
 }
 
 void perror_msg(char *msg, ...)
 {
-	va_list va;
+  va_list va;
 
-	va_start(va, msg);
-	verror_msg(msg, errno, va);
-	va_end(va);
+  va_start(va, msg);
+  verror_msg(msg, errno, va);
+  va_end(va);
 }
 
 // Die with an error message.
 void error_exit(char *msg, ...)
 {
-	va_list va;
+  va_list va;
 
-	if (CFG_HELP && toys.exithelp) {
-		*toys.optargs=*toys.argv;
-		USE_HELP(help_main();)  // dear gcc: shut up.
-		fprintf(stderr,"\n");
-	}
+  if (CFG_HELP && toys.exithelp) {
+    *toys.optargs=*toys.argv;
+    USE_HELP(help_main();)  // dear gcc: shut up.
+    fprintf(stderr,"\n");
+  }
 
-	va_start(va, msg);
-	verror_msg(msg, 0, va);
-	va_end(va);
+  va_start(va, msg);
+  verror_msg(msg, 0, va);
+  va_end(va);
 
-	exit(!toys.exitval ? 1 : toys.exitval);
+  exit(!toys.exitval ? 1 : toys.exitval);
 }
 
 
 // Die with an error message and strerror(errno)
 void perror_exit(char *msg, ...)
 {
-	va_list va;
+  va_list va;
 
-	va_start(va, msg);
-	verror_msg(msg, errno, va);
-	va_end(va);
+  va_start(va, msg);
+  verror_msg(msg, errno, va);
+  va_end(va);
 
-	exit(!toys.exitval ? 1 : toys.exitval);
+  exit(!toys.exitval ? 1 : toys.exitval);
 }
 
 // Die unless we can allocate memory.
 void *xmalloc(size_t size)
 {
-	void *ret = malloc(size);
-	if (!ret) error_exit("xmalloc");
+  void *ret = malloc(size);
+  if (!ret) error_exit("xmalloc");
 
-	return ret;
+  return ret;
 }
 
 // Die unless we can allocate prezeroed memory.
 void *xzalloc(size_t size)
 {
-	void *ret = xmalloc(size);
-	memset(ret, 0, size);
-	return ret;
+  void *ret = xmalloc(size);
+  memset(ret, 0, size);
+  return ret;
 }
 
 // Die unless we can change the size of an existing allocation, possibly
 // moving it.  (Notice different arguments from libc function.)
 void *xrealloc(void *ptr, size_t size)
 {
-	ptr = realloc(ptr, size);
-	if (!ptr) error_exit("xrealloc");
+  ptr = realloc(ptr, size);
+  if (!ptr) error_exit("xrealloc");
 
-	return ptr;
+  return ptr;
 }
 
 // Die unless we can allocate a copy of this many bytes of string.
 char *xstrndup(char *s, size_t n)
 {
-	char *ret = xmalloc(++n);
-	strncpy(ret, s, n);
-	ret[--n]=0;
+  char *ret = xmalloc(++n);
+  strncpy(ret, s, n);
+  ret[--n]=0;
 
-	return ret;
+  return ret;
 }
 
 // Die unless we can allocate a copy of this string.
 char *xstrdup(char *s)
 {
-	return xstrndup(s, strlen(s));
+  return xstrndup(s, strlen(s));
 }
 
 // Die unless we can allocate enough space to sprintf() into.
 char *xmsprintf(char *format, ...)
 {
-	va_list va, va2;
-	int len;
-	char *ret;
+  va_list va, va2;
+  int len;
+  char *ret;
 
-	va_start(va, format);
-	va_copy(va2, va);
+  va_start(va, format);
+  va_copy(va2, va);
 
-	// How long is it?
-	len = vsnprintf(0, 0, format, va);
-	len++;
-	va_end(va);
+  // How long is it?
+  len = vsnprintf(0, 0, format, va);
+  len++;
+  va_end(va);
 
-	// Allocate and do the sprintf()
-	ret = xmalloc(len);
-	vsnprintf(ret, len, format, va2);
-	va_end(va2);
+  // Allocate and do the sprintf()
+  ret = xmalloc(len);
+  vsnprintf(ret, len, format, va2);
+  va_end(va2);
 
-	return ret;
+  return ret;
 }
 
 void xprintf(char *format, ...)
 {
-	va_list va;
-	va_start(va, format);
+  va_list va;
+  va_start(va, format);
 
-	vprintf(format, va);
-	if (ferror(stdout)) perror_exit("write");
+  vprintf(format, va);
+  if (ferror(stdout)) perror_exit("write");
 }
 
 void xputs(char *s)
 {
-	if (EOF == puts(s)) perror_exit("write");
+  if (EOF == puts(s)) perror_exit("write");
 }
 
 void xputc(char c)
 {
-	if (EOF == fputc(c, stdout) || fflush(stdout)) perror_exit("write");
+  if (EOF == fputc(c, stdout) || fflush(stdout)) perror_exit("write");
 }
 
 void xflush(void)
 {
-	if (fflush(stdout)) perror_exit("write");;
+  if (fflush(stdout)) perror_exit("write");;
 }
 
 // Die unless we can exec argv[] (or run builtin command).  Note that anything
 // with a path isn't a builtin, so /bin/sh won't match the builtin sh.
 void xexec(char **argv)
 {
-	toy_exec(argv);
-	execvp(argv[0], argv);
+  toy_exec(argv);
+  execvp(argv[0], argv);
 
-	perror_exit("exec %s", argv[0]);
+  perror_exit("exec %s", argv[0]);
 }
 
 void xaccess(char *path, int flags)
 {
-	if (access(path, flags)) perror_exit("Can't access '%s'", path);
+  if (access(path, flags)) perror_exit("Can't access '%s'", path);
 }
 
 // Die unless we can delete a file.  (File must exist to be deleted.)
 void xunlink(char *path)
 {
-	if (unlink(path)) perror_exit("unlink '%s'", path);
+  if (unlink(path)) perror_exit("unlink '%s'", path);
 }
 
 // Die unless we can open/create a file, returning file descriptor.
 int xcreate(char *path, int flags, int mode)
 {
-	int fd = open(path, flags, mode);
-	if (fd == -1) perror_exit("%s", path);
-	return fd;
+  int fd = open(path, flags, mode);
+  if (fd == -1) perror_exit("%s", path);
+  return fd;
 }
 
 // Die unless we can open a file, returning file descriptor.
 int xopen(char *path, int flags)
 {
-	return xcreate(path, flags, 0);
+  return xcreate(path, flags, 0);
 }
 
 void xclose(int fd)
 {
-	if (close(fd)) perror_exit("xclose");
+  if (close(fd)) perror_exit("xclose");
 }
 
 int xdup(int fd)
 {
-	if (fd != -1) {
-		fd = dup(fd);
-		if (fd == -1) perror_exit("xdup");
-	}
-	return fd;
+  if (fd != -1) {
+    fd = dup(fd);
+    if (fd == -1) perror_exit("xdup");
+  }
+  return fd;
 }
 
 // Die unless we can open/create a file, returning FILE *.
 FILE *xfopen(char *path, char *mode)
 {
-	FILE *f = fopen(path, mode);
-	if (!f) perror_exit("No file %s", path);
-	return f;
+  FILE *f = fopen(path, mode);
+  if (!f) perror_exit("No file %s", path);
+  return f;
 }
 
 // Keep reading until full or EOF
 ssize_t readall(int fd, void *buf, size_t len)
 {
-	size_t count = 0;
+  size_t count = 0;
 
-	while (count<len) {
-		int i = read(fd, buf+count, len-count);
-		if (!i) break;
-		if (i<0) return i;
-		count += i;
-	}
+  while (count<len) {
+    int i = read(fd, buf+count, len-count);
+    if (!i) break;
+    if (i<0) return i;
+    count += i;
+  }
 
-	return count;
+  return count;
 }
 
 // Keep writing until done or EOF
 ssize_t writeall(int fd, void *buf, size_t len)
 {
-	size_t count = 0;
-	while (count<len) {
-		int i = write(fd, buf+count, len-count);
-		if (i<1) return i;
-		count += i;
-	}
+  size_t count = 0;
+  while (count<len) {
+    int i = write(fd, buf+count, len-count);
+    if (i<1) return i;
+    count += i;
+  }
 
-	return count;
+  return count;
 }
 
 // Die if there's an error other than EOF.
 size_t xread(int fd, void *buf, size_t len)
 {
-	ssize_t ret = read(fd, buf, len);
-	if (ret < 0) perror_exit("xread");
+  ssize_t ret = read(fd, buf, len);
+  if (ret < 0) perror_exit("xread");
 
-	return ret;
+  return ret;
 }
 
 void xreadall(int fd, void *buf, size_t len)
 {
-	if (len != readall(fd, buf, len)) perror_exit("xreadall");
+  if (len != readall(fd, buf, len)) perror_exit("xreadall");
 }
 
 // There's no xwriteall(), just xwrite().  When we read, there may or may not
@@ -273,51 +272,51 @@ void xreadall(int fd, void *buf, size_t len)
 
 void xwrite(int fd, void *buf, size_t len)
 {
-	if (len != writeall(fd, buf, len)) perror_exit("xwrite");
+  if (len != writeall(fd, buf, len)) perror_exit("xwrite");
 }
 
 // Die if lseek fails, probably due to being called on a pipe.
 
 off_t xlseek(int fd, off_t offset, int whence)
 {
-	offset = lseek(fd, offset, whence);
-	if (offset<0) perror_exit("lseek");
+  offset = lseek(fd, offset, whence);
+  if (offset<0) perror_exit("lseek");
 
-	return offset;
+  return offset;
 }
 
 off_t lskip(int fd, off_t offset)
 {
-	off_t and = lseek(fd, offset, SEEK_CUR);
+  off_t and = lseek(fd, offset, SEEK_CUR);
 
-	if (and != -1 && offset >= lseek(fd, offset, SEEK_END)
-		&& offset+and == lseek(fd, offset+and, SEEK_SET)) return 0;
-	else {
-		char buf[4096];
-		while (offset>0) {
-			int try = offset>sizeof(buf) ? sizeof(buf) : offset, or;
+  if (and != -1 && offset >= lseek(fd, offset, SEEK_END)
+    && offset+and == lseek(fd, offset+and, SEEK_SET)) return 0;
+  else {
+    char buf[4096];
+    while (offset>0) {
+      int try = offset>sizeof(buf) ? sizeof(buf) : offset, or;
 
-			or = readall(fd, buf, try);
-			if (or < 0) perror_msg("lskip to %lld", (long long)offset);
-			else offset -= try;
-			if (or < try) break;
-		}
+      or = readall(fd, buf, try);
+      if (or < 0) perror_msg("lskip to %lld", (long long)offset);
+      else offset -= try;
+      if (or < try) break;
+    }
 
-		return offset;
-	}
+    return offset;
+  }
 }
 
 char *xgetcwd(void)
 {
-	char *buf = getcwd(NULL, 0);
-	if (!buf) perror_exit("xgetcwd");
+  char *buf = getcwd(NULL, 0);
+  if (!buf) perror_exit("xgetcwd");
 
-	return buf;
+  return buf;
 }
 
 void xstat(char *path, struct stat *st)
 {
-	if(stat(path, st)) perror_exit("Can't stat %s", path);
+  if(stat(path, st)) perror_exit("Can't stat %s", path);
 }
 
 // Cannonicalizes path by removing ".", "..", and "//" elements.  This is not
@@ -325,60 +324,60 @@ void xstat(char *path, struct stat *st)
 // following symlinks.
 char *xabspath(char *path)
 {
-	char *from, *to;
+  char *from, *to;
 
-	// If this isn't an absolute path, make it one with cwd.
-	if (path[0]!='/') {
-		char *cwd=xgetcwd();
-		path = xmsprintf("%s/%s", cwd, path);
-		free(cwd);
-	} else path = xstrdup(path);
+  // If this isn't an absolute path, make it one with cwd.
+  if (path[0]!='/') {
+    char *cwd=xgetcwd();
+    path = xmsprintf("%s/%s", cwd, path);
+    free(cwd);
+  } else path = xstrdup(path);
 
-	// Loop through path elements
-	from = to = path;
-	while (*from) {
+  // Loop through path elements
+  from = to = path;
+  while (*from) {
 
-		// Continue any current path component.
-		if (*from!='/') {
-			*(to++) = *(from++);
-			continue;
-		}
+    // Continue any current path component.
+    if (*from!='/') {
+      *(to++) = *(from++);
+      continue;
+    }
 
-		// Skip duplicate slashes.
-		while (*from=='/') from++;
+    // Skip duplicate slashes.
+    while (*from=='/') from++;
 
-		// Start of a new filename.  Handle . and ..
-		while (*from=='.') {
-			// Skip .
-			if (from[1]=='/') from += 2;
-			else if (!from[1]) from++;
-			// Back up for ..
-			else if (from[1]=='.') {
-				if (from[2]=='/') from +=3;
-				else if(!from[2]) from+=2;
-				else break;
-				while (to>path && *(--to)!='/');
-			} else break;
-		}
-		// Add directory separator slash.
-		*(to++) = '/';
-	}
-	*to = 0;
+    // Start of a new filename.  Handle . and ..
+    while (*from=='.') {
+      // Skip .
+      if (from[1]=='/') from += 2;
+      else if (!from[1]) from++;
+      // Back up for ..
+      else if (from[1]=='.') {
+        if (from[2]=='/') from +=3;
+        else if(!from[2]) from+=2;
+        else break;
+        while (to>path && *(--to)!='/');
+      } else break;
+    }
+    // Add directory separator slash.
+    *(to++) = '/';
+  }
+  *to = 0;
 
-	return path;
+  return path;
 }
 
 // Resolve all symlinks, returning malloc() memory.
 char *xrealpath(char *path)
 {
-	char *new = realpath(path, NULL);
-	if (!new) perror_exit("realpath '%s'", path);
-	return new;
+  char *new = realpath(path, NULL);
+  if (!new) perror_exit("realpath '%s'", path);
+  return new;
 }
 
 void xchdir(char *path)
 {
-	if (chdir(path)) error_exit("chdir '%s'", path);
+  if (chdir(path)) error_exit("chdir '%s'", path);
 }
 
 // Ensure entire path exists.
@@ -386,27 +385,27 @@ void xchdir(char *path)
 // Requires that path string be writable (for temporary null terminators).
 void xmkpath(char *path, int mode)
 {
-	char *p, old;
-	mode_t mask;
-	int rc;
-	struct stat st;
+  char *p, old;
+  mode_t mask;
+  int rc;
+  struct stat st;
 
-	for (p = path; ; p++) {
-		if (!*p || *p == '/') {
-			old = *p;
-			*p = rc = 0;
-			if (stat(path, &st) || !S_ISDIR(st.st_mode)) {
-				if (mode != -1) {
-					mask=umask(0);
-					rc = mkdir(path, mode);
-					umask(mask);
-				} else rc = mkdir(path, 0777);
-			}
-			*p = old;
-			if(rc) perror_exit("mkpath '%s'", path);
-		}
-		if (!*p) break;
-	}
+  for (p = path; ; p++) {
+    if (!*p || *p == '/') {
+      old = *p;
+      *p = rc = 0;
+      if (stat(path, &st) || !S_ISDIR(st.st_mode)) {
+        if (mode != -1) {
+          mask=umask(0);
+          rc = mkdir(path, mode);
+          umask(mask);
+        } else rc = mkdir(path, 0777);
+      }
+      *p = old;
+      if(rc) perror_exit("mkpath '%s'", path);
+    }
+    if (!*p) break;
+  }
 }
 
 // setuid() can fail (for example, too many processes belonging to that user),
@@ -414,7 +413,7 @@ void xmkpath(char *path, int mode)
 
 void xsetuid(uid_t uid)
 {
-	if (setuid(uid)) perror_exit("xsetuid");
+  if (setuid(uid)) perror_exit("xsetuid");
 }
 
 
@@ -424,40 +423,40 @@ void xsetuid(uid_t uid)
 
 struct string_list *find_in_path(char *path, char *filename)
 {
-	struct string_list *rlist = NULL, **prlist=&rlist;
-	char *cwd = xgetcwd();
+  struct string_list *rlist = NULL, **prlist=&rlist;
+  char *cwd = xgetcwd();
 
-	for (;;) {
-		char *next = path ? strchr(path, ':') : NULL;
-		int len = next ? next-path : strlen(path);
-		struct string_list *rnext;
-		struct stat st;
+  for (;;) {
+    char *next = path ? strchr(path, ':') : NULL;
+    int len = next ? next-path : strlen(path);
+    struct string_list *rnext;
+    struct stat st;
 
-		rnext = xmalloc(sizeof(void *) + strlen(filename)
-			+ (len ? len : strlen(cwd)) + 2);
-		if (!len) sprintf(rnext->str, "%s/%s", cwd, filename);
-		else {
-			char *res = rnext->str;
-			strncpy(res, path, len);
-			res += len;
-			*(res++) = '/';
-			strcpy(res, filename);
-		}
+    rnext = xmalloc(sizeof(void *) + strlen(filename)
+      + (len ? len : strlen(cwd)) + 2);
+    if (!len) sprintf(rnext->str, "%s/%s", cwd, filename);
+    else {
+      char *res = rnext->str;
+      strncpy(res, path, len);
+      res += len;
+      *(res++) = '/';
+      strcpy(res, filename);
+    }
 
-		// Confirm it's not a directory.
-		if (!stat(rnext->str, &st) && S_ISREG(st.st_mode)) {
-			*prlist = rnext;
-			rnext->next = NULL;
-			prlist = &(rnext->next);
-		} else free(rnext);
+    // Confirm it's not a directory.
+    if (!stat(rnext->str, &st) && S_ISREG(st.st_mode)) {
+      *prlist = rnext;
+      rnext->next = NULL;
+      prlist = &(rnext->next);
+    } else free(rnext);
 
-		if (!next) break;
-		path += len;
-		path++;
-	}
-	free(cwd);
+    if (!next) break;
+    path += len;
+    path++;
+  }
+  free(cwd);
 
-	return rlist;
+  return rlist;
 }
 
 // Convert unsigned int to ascii, writing into supplied buffer.  A truncated
@@ -465,31 +464,31 @@ struct string_list *find_in_path(char *path, char *filename)
 // always null terminated (unless buflen is 0).
 void utoa_to_buf(unsigned n, char *buf, unsigned buflen)
 {
-	int i, out = 0;
+  int i, out = 0;
 
-	if (buflen) {
-		for (i=1000000000; i; i/=10) {
-			int res = n/i;
+  if (buflen) {
+    for (i=1000000000; i; i/=10) {
+      int res = n/i;
 
-			if ((res || out || i == 1) && --buflen>0) {
-				out++;
-				n -= res*i;
-				*buf++ = '0' + res;
-			}
-		}
-		*buf = 0;
-	}
+      if ((res || out || i == 1) && --buflen>0) {
+        out++;
+        n -= res*i;
+        *buf++ = '0' + res;
+      }
+    }
+    *buf = 0;
+  }
 }
 
 // Convert signed integer to ascii, using utoa_to_buf()
 void itoa_to_buf(int n, char *buf, unsigned buflen)
 {
-	if (buflen && n<0) {
-		n = -n;
-		*buf++ = '-';
-		buflen--;
-	}
-	utoa_to_buf((unsigned)n, buf, buflen);
+  if (buflen && n<0) {
+    n = -n;
+    *buf++ = '-';
+    buflen--;
+  }
+  utoa_to_buf((unsigned)n, buf, buflen);
 }
 
 // This static buffer is used by both utoa() and itoa(), calling either one a
@@ -504,122 +503,122 @@ static char itoa_buf[12];
 // Convert unsigned integer to ascii, returning a static buffer.
 char *utoa(unsigned n)
 {
-	utoa_to_buf(n, itoa_buf, sizeof(itoa_buf));
+  utoa_to_buf(n, itoa_buf, sizeof(itoa_buf));
 
-	return itoa_buf;
+  return itoa_buf;
 }
 
 char *itoa(int n)
 {
-	itoa_to_buf(n, itoa_buf, sizeof(itoa_buf));
+  itoa_to_buf(n, itoa_buf, sizeof(itoa_buf));
 
-	return itoa_buf;
+  return itoa_buf;
 }
 
 // atol() with the kilo/mega/giga/tera/peta/exa extensions.
 // (zetta and yotta don't fit in 64 bits.)
 long atolx(char *numstr)
 {
-	char *c, *suffixes="bkmgtpe", *end;
-	long val = strtol(numstr, &c, 0);
+  char *c, *suffixes="bkmgtpe", *end;
+  long val = strtol(numstr, &c, 0);
 
-	if (*c) {
-		if (c != numstr && (end = strchr(suffixes, tolower(*c)))) {
-			int shift = end-suffixes;
-			if (shift--) val *= 1024L<<(shift*10);
-		} else {
-			while (isspace(*c)) c++;
-			if (*c) error_exit("not integer: %s", numstr);
-		}
-	}
+  if (*c) {
+    if (c != numstr && (end = strchr(suffixes, tolower(*c)))) {
+      int shift = end-suffixes;
+      if (shift--) val *= 1024L<<(shift*10);
+    } else {
+      while (isspace(*c)) c++;
+      if (*c) error_exit("not integer: %s", numstr);
+    }
+  }
 
-	return val;
+  return val;
 }
 
 int numlen(long l)
 {
-    int len = 0;
-    while (l) {
-       l /= 10;
-       len++;
-    }
-    return len;
+  int len = 0;
+  while (l) {
+     l /= 10;
+     len++;
+  }
+  return len;
 }
 
 int stridx(char *haystack, char needle)
 {
-	char *off;
+  char *off;
 
-	if (!needle) return -1;
-	off = strchr(haystack, needle);
-	if (!off) return -1;
+  if (!needle) return -1;
+  off = strchr(haystack, needle);
+  if (!off) return -1;
 
-	return off-haystack;
+  return off-haystack;
 }
 
 // Return how long the file at fd is, if there's any way to determine it.
 off_t fdlength(int fd)
 {
-	off_t bottom = 0, top = 0, pos, old;
-	int size;
+  off_t bottom = 0, top = 0, pos, old;
+  int size;
 
-	// If the ioctl works for this, return it.
+  // If the ioctl works for this, return it.
 
-	if (ioctl(fd, BLKGETSIZE, &size) >= 0) return size*512L;
+  if (ioctl(fd, BLKGETSIZE, &size) >= 0) return size*512L;
 
-	// If not, do a binary search for the last location we can read.  (Some
-	// block devices don't do BLKGETSIZE right.)  This should probably have
-	// a CONFIG option...
+  // If not, do a binary search for the last location we can read.  (Some
+  // block devices don't do BLKGETSIZE right.)  This should probably have
+  // a CONFIG option...
 
-	old = lseek(fd, 0, SEEK_CUR);
-	do {
-		char temp;
+  old = lseek(fd, 0, SEEK_CUR);
+  do {
+    char temp;
 
-		pos = bottom + (top - bottom) / 2;
+    pos = bottom + (top - bottom) / 2;
 
-		// If we can read from the current location, it's bigger.
+    // If we can read from the current location, it's bigger.
 
-		if (lseek(fd, pos, 0)>=0 && read(fd, &temp, 1)==1) {
-			if (bottom == top) bottom = top = (top+1) * 2;
-			else bottom = pos;
+    if (lseek(fd, pos, 0)>=0 && read(fd, &temp, 1)==1) {
+      if (bottom == top) bottom = top = (top+1) * 2;
+      else bottom = pos;
 
-			// If we can't, it's smaller.
+      // If we can't, it's smaller.
 
-		} else {
-			if (bottom == top) {
-				if (!top) return 0;
-				bottom = top/2;
-			} else top = pos;
-		}
-	} while (bottom + 1 != top);
+    } else {
+      if (bottom == top) {
+        if (!top) return 0;
+        bottom = top/2;
+      } else top = pos;
+    }
+  } while (bottom + 1 != top);
 
-	lseek(fd, old, SEEK_SET);
+  lseek(fd, old, SEEK_SET);
 
-	return pos + 1;
+  return pos + 1;
 }
 
 // This can return null (meaning file not found).  It just won't return null
 // for memory allocation reasons.
 char *xreadlink(char *name)
 {
-	int len, size = 0;
-	char *buf = 0;
+  int len, size = 0;
+  char *buf = 0;
 
-	// Grow by 64 byte chunks until it's big enough.
-	for(;;) {
-		size +=64;
-		buf = xrealloc(buf, size);
-		len = readlink(name, buf, size);
+  // Grow by 64 byte chunks until it's big enough.
+  for(;;) {
+    size +=64;
+    buf = xrealloc(buf, size);
+    len = readlink(name, buf, size);
 
-		if (len<0) {
-			free(buf);
-			return 0;
-		}
-		if (len<size) {
-			buf[len]=0;
-			return buf;
-		}
-	}
+    if (len<0) {
+      free(buf);
+      return 0;
+    }
+    if (len<size) {
+      buf[len]=0;
+      return buf;
+    }
+  }
 }
 
 /*
@@ -628,24 +627,24 @@ char *xreadlink(char *name)
 // Read contents of file as a single freshly allocated nul-terminated string.
 char *readfile(char *name)
 {
-	off_t len;
-	int fd;
-	char *buf;
+  off_t len;
+  int fd;
+  char *buf;
 
-	fd = open(name, O_RDONLY);
-	if (fd == -1) return 0;
-	len = fdlength(fd);
-	buf = xmalloc(len+1);
-	buf[readall(fd, buf, len)] = 0;
+  fd = open(name, O_RDONLY);
+  if (fd == -1) return 0;
+  len = fdlength(fd);
+  buf = xmalloc(len+1);
+  buf[readall(fd, buf, len)] = 0;
 
-	return buf;
+  return buf;
 }
 
 char *xreadfile(char *name)
 {
-	char *buf = readfile(name);
-	if (!buf) perror_exit("xreadfile %s", name);
-	return buf;
+  char *buf = readfile(name);
+  if (!buf) perror_exit("xreadfile %s", name);
+  return buf;
 }
 
 */
@@ -654,33 +653,33 @@ char *xreadfile(char *name)
 // exists and is this executable.
 void xpidfile(char *name)
 {
-	char pidfile[256], spid[32];
-	int i, fd;
-	pid_t pid;
-	
-	sprintf(pidfile, "/var/run/%s.pid", name);
-	// Try three times to open the sucker.
-	for (i=0; i<3; i++) {
-		fd = open(pidfile, O_CREAT|O_EXCL, 0644);
-		if (fd != -1) break;
+  char pidfile[256], spid[32];
+  int i, fd;
+  pid_t pid;
 
-		// If it already existed, read it.  Loop for race condition.
-		fd = open(pidfile, O_RDONLY);
-		if (fd == -1) continue;
+  sprintf(pidfile, "/var/run/%s.pid", name);
+  // Try three times to open the sucker.
+  for (i=0; i<3; i++) {
+    fd = open(pidfile, O_CREAT|O_EXCL, 0644);
+    if (fd != -1) break;
 
-		// Is the old program still there?
-		spid[xread(fd, spid, sizeof(spid)-1)] = 0;
-		close(fd);
-		pid = atoi(spid);
-		if (pid < 1 || kill(pid, 0) == ESRCH) unlink(pidfile);
+    // If it already existed, read it.  Loop for race condition.
+    fd = open(pidfile, O_RDONLY);
+    if (fd == -1) continue;
 
-		// An else with more sanity checking might be nice here.
-	}
+    // Is the old program still there?
+    spid[xread(fd, spid, sizeof(spid)-1)] = 0;
+    close(fd);
+    pid = atoi(spid);
+    if (pid < 1 || kill(pid, 0) == ESRCH) unlink(pidfile);
 
-	if (i == 3) error_exit("xpidfile %s", name);
+    // An else with more sanity checking might be nice here.
+  }
 
-	xwrite(fd, spid, sprintf(spid, "%ld\n", (long)getpid()));
-	close(fd);
+  if (i == 3) error_exit("xpidfile %s", name);
+
+  xwrite(fd, spid, sprintf(spid, "%ld\n", (long)getpid()));
+  close(fd);
 }
 
 // Iterate through an array of files, opening each one and calling a function
@@ -691,157 +690,157 @@ void xpidfile(char *name)
 // Note: read only filehandles are automatically closed when function()
 // returns, but writeable filehandles must be close by function()
 void loopfiles_rw(char **argv, int flags, int permissions, int failok,
-	void (*function)(int fd, char *name))
+  void (*function)(int fd, char *name))
 {
-	int fd;
+  int fd;
 
-	// If no arguments, read from stdin.
-	if (!*argv) function(flags ? 1 : 0, "-");
-	else do {
-		// Filename "-" means read from stdin.
-		// Inability to open a file prints a warning, but doesn't exit.
+  // If no arguments, read from stdin.
+  if (!*argv) function(flags ? 1 : 0, "-");
+  else do {
+    // Filename "-" means read from stdin.
+    // Inability to open a file prints a warning, but doesn't exit.
 
-		if (!strcmp(*argv,"-")) fd=0;
-		else if (0>(fd = open(*argv, flags, permissions)) && !failok) {
-			perror_msg("%s", *argv);
-			toys.exitval = 1;
-			continue;
-		}
-		function(fd, *argv);
-		if (flags == O_RDONLY) close(fd);
-	} while (*++argv);
+    if (!strcmp(*argv,"-")) fd=0;
+    else if (0>(fd = open(*argv, flags, permissions)) && !failok) {
+      perror_msg("%s", *argv);
+      toys.exitval = 1;
+      continue;
+    }
+    function(fd, *argv);
+    if (flags == O_RDONLY) close(fd);
+  } while (*++argv);
 }
 
 // Call loopfiles_rw with O_RDONLY and !failok (common case).
 void loopfiles(char **argv, void (*function)(int fd, char *name))
 {
-	loopfiles_rw(argv, O_RDONLY, 0, 0, function);
+  loopfiles_rw(argv, O_RDONLY, 0, 0, function);
 }
 
 // Slow, but small.
 
 char *get_rawline(int fd, long *plen, char end)
 {
-	char c, *buf = NULL;
-	long len = 0;
+  char c, *buf = NULL;
+  long len = 0;
 
-	for (;;) {
-		if (1>read(fd, &c, 1)) break;
-		if (!(len & 63)) buf=xrealloc(buf, len+65);
-		if ((buf[len++]=c) == end) break;
-	}
-	if (buf) buf[len]=0;
-	if (plen) *plen = len;
+  for (;;) {
+    if (1>read(fd, &c, 1)) break;
+    if (!(len & 63)) buf=xrealloc(buf, len+65);
+    if ((buf[len++]=c) == end) break;
+  }
+  if (buf) buf[len]=0;
+  if (plen) *plen = len;
 
-	return buf;
+  return buf;
 }
 
 char *get_line(int fd)
 {
-	long len;
-	char *buf = get_rawline(fd, &len, '\n');
+  long len;
+  char *buf = get_rawline(fd, &len, '\n');
 
-	if (buf && buf[--len]=='\n') buf[len]=0;
+  if (buf && buf[--len]=='\n') buf[len]=0;
 
-	return buf;
+  return buf;
 }
 
 // Copy the rest of in to out and close both files.
 
 void xsendfile(int in, int out)
 {
-	long len;
-	char buf[4096];
+  long len;
+  char buf[4096];
 
-	if (in<0) return;
-	for (;;) {
-		len = xread(in, buf, 4096);
-		if (len<1) break;
-		xwrite(out, buf, len);
-	}
+  if (in<0) return;
+  for (;;) {
+    len = xread(in, buf, 4096);
+    if (len<1) break;
+    xwrite(out, buf, len);
+  }
 }
 
 int wfchmodat(int fd, char *name, mode_t mode)
 {
-	int rc = fchmodat(fd, name, mode, 0);
+  int rc = fchmodat(fd, name, mode, 0);
 
-	if (rc) {
-		perror_msg("chmod '%s' to %04o", name, mode);
-		toys.exitval=1;
-	}
-	return rc;
+  if (rc) {
+    perror_msg("chmod '%s' to %04o", name, mode);
+    toys.exitval=1;
+  }
+  return rc;
 }
 
 static char *tempfile2zap;
 static void tempfile_handler(int i)
 {
-	if (1 < (long)tempfile2zap) unlink(tempfile2zap);
-	_exit(1);
+  if (1 < (long)tempfile2zap) unlink(tempfile2zap);
+  _exit(1);
 }
 
 // Open a temporary file to copy an existing file into.
 int copy_tempfile(int fdin, char *name, char **tempname)
 {
-	struct stat statbuf;
-	int fd;
+  struct stat statbuf;
+  int fd;
 
-	*tempname = xstrndup(name, strlen(name)+6);
-	strcat(*tempname,"XXXXXX");
-	if(-1 == (fd = mkstemp(*tempname))) error_exit("no temp file");
-	if (!tempfile2zap) sigatexit(tempfile_handler);
-	tempfile2zap = *tempname;
+  *tempname = xstrndup(name, strlen(name)+6);
+  strcat(*tempname,"XXXXXX");
+  if(-1 == (fd = mkstemp(*tempname))) error_exit("no temp file");
+  if (!tempfile2zap) sigatexit(tempfile_handler);
+  tempfile2zap = *tempname;
 
-	// Set permissions of output file
+  // Set permissions of output file
 
-	fstat(fdin, &statbuf);
-	fchmod(fd, statbuf.st_mode);
+  fstat(fdin, &statbuf);
+  fchmod(fd, statbuf.st_mode);
 
-	return fd;
+  return fd;
 }
 
 // Abort the copy and delete the temporary file.
 void delete_tempfile(int fdin, int fdout, char **tempname)
 {
-	close(fdin);
-	close(fdout);
-	unlink(*tempname);
-	tempfile2zap = (char *)1;
-	free(*tempname);
-	*tempname = NULL;
+  close(fdin);
+  close(fdout);
+  unlink(*tempname);
+  tempfile2zap = (char *)1;
+  free(*tempname);
+  *tempname = NULL;
 }
 
 // Copy the rest of the data and replace the original with the copy.
 void replace_tempfile(int fdin, int fdout, char **tempname)
 {
-	char *temp = xstrdup(*tempname);
+  char *temp = xstrdup(*tempname);
 
-	temp[strlen(temp)-6]=0;
-	if (fdin != -1) {
-		xsendfile(fdin, fdout);
-		xclose(fdin);
-	}
-	xclose(fdout);
-	rename(*tempname, temp);
-	tempfile2zap = (char *)1;
-	free(*tempname);
-	free(temp);
-	*tempname = NULL;
+  temp[strlen(temp)-6]=0;
+  if (fdin != -1) {
+    xsendfile(fdin, fdout);
+    xclose(fdin);
+  }
+  xclose(fdout);
+  rename(*tempname, temp);
+  tempfile2zap = (char *)1;
+  free(*tempname);
+  free(temp);
+  *tempname = NULL;
 }
 
 // Create a 256 entry CRC32 lookup table.
 
 void crc_init(unsigned int *crc_table, int little_endian)
 {
-	unsigned int i;
+  unsigned int i;
 
-	// Init the CRC32 table (big endian)
-	for (i=0; i<256; i++) {
-		unsigned int j, c = little_endian ? i : i<<24;
-		for (j=8; j; j--)
-			if (little_endian) c = (c&1) ? (c>>1)^0xEDB88320 : c>>1;
-			else c=c&0x80000000 ? (c<<1)^0x04c11db7 : (c<<1);
-		crc_table[i] = c;
-	}
+  // Init the CRC32 table (big endian)
+  for (i=0; i<256; i++) {
+    unsigned int j, c = little_endian ? i : i<<24;
+    for (j=8; j; j--)
+      if (little_endian) c = (c&1) ? (c>>1)^0xEDB88320 : c>>1;
+      else c=c&0x80000000 ? (c<<1)^0x04c11db7 : (c<<1);
+    crc_table[i] = c;
+  }
 }
 
 // Quick and dirty query size of terminal, doesn't do ANSI probe fallback.
@@ -850,86 +849,85 @@ void crc_init(unsigned int *crc_table, int little_endian)
 
 void terminal_size(unsigned *x, unsigned *y)
 {
-	struct winsize ws;
-	int i;
+  struct winsize ws;
+  int i;
 
-	//memset(&ws, 0, sizeof(ws));
-	for (i=0; i<3; i++) {
-		if (ioctl(i, TIOCGWINSZ, &ws)) continue;
-		if (x) *x = ws.ws_col;
-		if (y) *y = ws.ws_row;
-	}
-	if (x) {
-		char *s = getenv("COLUMNS");
+  //memset(&ws, 0, sizeof(ws));
+  for (i=0; i<3; i++) {
+    if (ioctl(i, TIOCGWINSZ, &ws)) continue;
+    if (x) *x = ws.ws_col;
+    if (y) *y = ws.ws_row;
+  }
+  if (x) {
+    char *s = getenv("COLUMNS");
 
-		i = s ? atoi(s) : 0;
-		if (i>0) *x = i;
-	}
-	if (y) {
-		char *s = getenv("ROWS");
+    i = s ? atoi(s) : 0;
+    if (i>0) *x = i;
+  }
+  if (y) {
+    char *s = getenv("ROWS");
 
-		i = s ? atoi(s) : 0;
-		if (i>0) *y = i;
-	}
+    i = s ? atoi(s) : 0;
+    if (i>0) *y = i;
+  }
 }
 
 // This should use a raw tty, fixit later.
 int yesno(char *prompt, int def)
 {
-	FILE *fps[] = {stdin, stdout, stderr};
-	int i;
-	char buf;
+  FILE *fps[] = {stdin, stdout, stderr};
+  int i;
+  char buf;
 
-	for (i=0; i<3; i++) if (isatty(i)) break;
-	if (i == 3) return 1;
+  for (i=0; i<3; i++) if (isatty(i)) break;
+  if (i == 3) return 1;
 
-	fprintf(fps[i], "%s (%c/%c):", prompt, def ? 'Y' : 'y', def ? 'n' : 'N');
-	fflush(fps[i]);
-	while (fread(&buf, 1, 1, fps[i])) {
-		if (tolower(buf) == 'y') def = 1;
-		if (tolower(buf) == 'n') def = 0;
-		else if (!isspace(buf)) continue;
+  fprintf(fps[i], "%s (%c/%c):", prompt, def ? 'Y' : 'y', def ? 'n' : 'N');
+  fflush(fps[i]);
+  while (fread(&buf, 1, 1, fps[i])) {
+    if (tolower(buf) == 'y') def = 1;
+    if (tolower(buf) == 'n') def = 0;
+    else if (!isspace(buf)) continue;
 
-		break;
-	}
+    break;
+  }
 
-	return def;
+  return def;
 }
 
 // Execute a callback for each PID that matches a process name from a list.
 void for_each_pid_with_name_in(char **names, void (*callback)(pid_t pid))
 {
-    DIR *dp;
-    struct dirent *entry;
-    char cmd[sizeof(toybuf)], path[64];
-    char **curname;
+  DIR *dp;
+  struct dirent *entry;
+  char cmd[sizeof(toybuf)], path[64];
+  char **curname;
 
-    if (!(dp = opendir("/proc"))) perror_exit("opendir");
+  if (!(dp = opendir("/proc"))) perror_exit("opendir");
 
-    while ((entry = readdir(dp))) {
-        int fd, n;
+  while ((entry = readdir(dp))) {
+    int fd, n;
 
-        if (!isdigit(*entry->d_name)) continue;
+    if (!isdigit(*entry->d_name)) continue;
 
-        if (sizeof(path) <= snprintf(path, sizeof(path), "/proc/%s/cmdline", 
-            entry->d_name)) continue;
+    if (sizeof(path) <= snprintf(path, sizeof(path), "/proc/%s/cmdline",
+      entry->d_name)) continue;
 
-        if (-1 == (fd=open(path, O_RDONLY))) continue;
-        n = read(fd, cmd, sizeof(cmd));
-        close(fd);
-        if (n<1) continue;
+    if (-1 == (fd=open(path, O_RDONLY))) continue;
+    n = read(fd, cmd, sizeof(cmd));
+    close(fd);
+    if (n<1) continue;
 
-        for (curname = names; *curname; curname++)
-            if (!strcmp(basename(cmd), *curname))
-                callback(atol(entry->d_name));
-    }
+    for (curname = names; *curname; curname++)
+      if (!strcmp(basename(cmd), *curname)) callback(atol(entry->d_name));
+  }
 
-    closedir(dp);
+  closedir(dp);
 }
 
 struct signame {
-	int num;
-	char *name;
+  int num;
+  char *name;
 };
 
 // Signals required by POSIX 2008:
@@ -938,16 +936,16 @@ struct signame {
 #define SIGNIFY(x) {SIG##x, #x}
 
 static struct signame signames[] = {
-	SIGNIFY(ABRT), SIGNIFY(ALRM), SIGNIFY(BUS),
-	SIGNIFY(FPE), SIGNIFY(HUP), SIGNIFY(ILL), SIGNIFY(INT), SIGNIFY(KILL),
-	SIGNIFY(PIPE), SIGNIFY(QUIT), SIGNIFY(SEGV), SIGNIFY(TERM),
-	SIGNIFY(USR1), SIGNIFY(USR2), SIGNIFY(SYS), SIGNIFY(TRAP),
-	SIGNIFY(VTALRM), SIGNIFY(XCPU), SIGNIFY(XFSZ),
+  SIGNIFY(ABRT), SIGNIFY(ALRM), SIGNIFY(BUS),
+  SIGNIFY(FPE), SIGNIFY(HUP), SIGNIFY(ILL), SIGNIFY(INT), SIGNIFY(KILL),
+  SIGNIFY(PIPE), SIGNIFY(QUIT), SIGNIFY(SEGV), SIGNIFY(TERM),
+  SIGNIFY(USR1), SIGNIFY(USR2), SIGNIFY(SYS), SIGNIFY(TRAP),
+  SIGNIFY(VTALRM), SIGNIFY(XCPU), SIGNIFY(XFSZ),
 
-	// Start of non-terminal signals
+  // Start of non-terminal signals
 
-	SIGNIFY(CHLD), SIGNIFY(CONT), SIGNIFY(STOP), SIGNIFY(TSTP),
-	SIGNIFY(TTIN), SIGNIFY(TTOU), SIGNIFY(URG)
+  SIGNIFY(CHLD), SIGNIFY(CONT), SIGNIFY(STOP), SIGNIFY(TSTP),
+  SIGNIFY(TTIN), SIGNIFY(TTOU), SIGNIFY(URG)
 };
 
 // not in posix: SIGNIFY(STKFLT), SIGNIFY(WINCH), SIGNIFY(IO), SIGNIFY(PWR)
@@ -956,147 +954,144 @@ static struct signame signames[] = {
 // Install the same handler on every signal that defaults to killing the process
 void sigatexit(void *handler)
 {
-	int i;
-	for (i=0; signames[i].num != SIGCHLD; i++)
-		signal(signames[i].num, handler);
+  int i;
+  for (i=0; signames[i].num != SIGCHLD; i++) signal(signames[i].num, handler);
 }
 // Convert name to signal number.  If name == NULL print names.
 int sig_to_num(char *pidstr)
 {
-	int i;
+  int i;
 
-	if (pidstr) {
-		char *s;
-		i = strtol(pidstr, &s, 10);
-		if (!*s) return i;
+  if (pidstr) {
+    char *s;
+    i = strtol(pidstr, &s, 10);
+    if (!*s) return i;
 
-		if (!strncasecmp(pidstr, "sig", 3)) pidstr+=3;
-	}
-	for (i = 0; i < sizeof(signames)/sizeof(struct signame); i++)
-		if (!pidstr) xputs(signames[i].name);
-		else if (!strcasecmp(pidstr, signames[i].name))
-			return signames[i].num;
+    if (!strncasecmp(pidstr, "sig", 3)) pidstr+=3;
+  }
+  for (i = 0; i < sizeof(signames)/sizeof(struct signame); i++)
+    if (!pidstr) xputs(signames[i].name);
+    else if (!strcasecmp(pidstr, signames[i].name)) return signames[i].num;
 
-	return -1;
+  return -1;
 }
 
 char *num_to_sig(int sig)
 {
-	int i;
+  int i;
 
-	for (i=0; i<sizeof(signames)/sizeof(struct signame); i++)
-		if (signames[i].num == sig) return signames[i].name;
-	return NULL;
+  for (i=0; i<sizeof(signames)/sizeof(struct signame); i++)
+    if (signames[i].num == sig) return signames[i].name;
+  return NULL;
 }
 
 // premute mode bits based on posix mode strings.
 mode_t string_to_mode(char *modestr, mode_t mode)
 {
-	char *whos = "ogua", *hows = "=+-", *whats = "xwrstX", *whys = "ogu";
-	char *s, *str = modestr;
+  char *whos = "ogua", *hows = "=+-", *whats = "xwrstX", *whys = "ogu";
+  char *s, *str = modestr;
 
-	// Handle octal mode
-	if (isdigit(*str)) {
-		mode = strtol(str, &s, 8);
-		if (*s || (mode & ~(07777))) goto barf;
+  // Handle octal mode
+  if (isdigit(*str)) {
+    mode = strtol(str, &s, 8);
+    if (*s || (mode & ~(07777))) goto barf;
 
-		return mode;
-	}
+    return mode;
+  }
 
-	// Gaze into the bin of permission...
-	for (;;) {
-		int i, j, dowho, dohow, dowhat, amask;
+  // Gaze into the bin of permission...
+  for (;;) {
+    int i, j, dowho, dohow, dowhat, amask;
 
-		dowho = dohow = dowhat = amask = 0;
+    dowho = dohow = dowhat = amask = 0;
 
-		// Find the who, how, and what stanzas, in that order
-		while (*str && (s = strchr(whos, *str))) {
-			dowho |= 1<<(s-whos);
-			str++;
-		}
-		// If who isn't specified, like "a" but honoring umask.
-		if (!dowho) {
-			dowho = 8;
-			umask(amask=umask(0));
-		}
-		if (!*str || !(s = strchr(hows, *str))) goto barf;
-		dohow = *(str++);
+    // Find the who, how, and what stanzas, in that order
+    while (*str && (s = strchr(whos, *str))) {
+      dowho |= 1<<(s-whos);
+      str++;
+    }
+    // If who isn't specified, like "a" but honoring umask.
+    if (!dowho) {
+      dowho = 8;
+      umask(amask=umask(0));
+    }
+    if (!*str || !(s = strchr(hows, *str))) goto barf;
+    dohow = *(str++);
 
-		if (!dohow) goto barf;
-		while (*str && (s = strchr(whats, *str))) {
-			dowhat |= 1<<(s-whats);
-			str++;
-		}
+    if (!dohow) goto barf;
+    while (*str && (s = strchr(whats, *str))) {
+      dowhat |= 1<<(s-whats);
+      str++;
+    }
 
-		// Convert X to x for directory or if already executable somewhere
-		if ((dowhat&32) &&  (S_ISDIR(mode) || (mode&0111))) dowhat |= 1;
+    // Convert X to x for directory or if already executable somewhere
+    if ((dowhat&32) &&  (S_ISDIR(mode) || (mode&0111))) dowhat |= 1;
 
-		// Copy mode from another category?
-		if (!dowhat && *str && (s = strchr(whys, *str))) {
-			dowhat = (mode>>(3*(s-whys)))&7;
-			str++;
-		}
+    // Copy mode from another category?
+    if (!dowhat && *str && (s = strchr(whys, *str))) {
+      dowhat = (mode>>(3*(s-whys)))&7;
+      str++;
+    }
 
-		// Are we ready to do a thing yet?
-		if (*str && *(str++) != ',') goto barf;
+    // Are we ready to do a thing yet?
+    if (*str && *(str++) != ',') goto barf;
 
-		// Ok, apply the bits to the mode.
-		for (i=0; i<4; i++) {
-			for (j=0; j<3; j++) {
-				mode_t bit = 0;
-				int where = 1<<((3*i)+j);
+    // Ok, apply the bits to the mode.
+    for (i=0; i<4; i++) {
+      for (j=0; j<3; j++) {
+        mode_t bit = 0;
+        int where = 1<<((3*i)+j);
 
-				if (amask & where) continue;
+        if (amask & where) continue;
 
-				// Figure out new value at this location
-				if (i == 3) {
-					// suid/sticky bit.
-					if (j) {
-						if ((dowhat & 8) && (dowho&(8|(1<<i)))) bit++;
-					} else if (dowhat & 16) bit++;
-				} else {
-					if (!(dowho&(8|(1<<i)))) continue;
-					if (dowhat&(1<<j)) bit++;
-				}
+        // Figure out new value at this location
+        if (i == 3) {
+          // suid/sticky bit.
+          if (j) {
+            if ((dowhat & 8) && (dowho&(8|(1<<i)))) bit++;
+          } else if (dowhat & 16) bit++;
+        } else {
+          if (!(dowho&(8|(1<<i)))) continue;
+          if (dowhat&(1<<j)) bit++;
+        }
 
-				// When selection active, modify bit
+        // When selection active, modify bit
 
-				if (dohow == '=' || (bit && dohow == '-'))
-					mode &= ~where;
-				if (bit && dohow != '-') mode |= where;
-			}
-		}
+        if (dohow == '=' || (bit && dohow == '-')) mode &= ~where;
+        if (bit && dohow != '-') mode |= where;
+      }
+    }
 
-		if (!*str) break;
-	}
-	return mode;
+    if (!*str) break;
+  }
+  return mode;
 barf:
-	error_exit("bad mode '%s'", modestr);
+  error_exit("bad mode '%s'", modestr);
 }
 
 
 char* make_human_readable(unsigned long long size, unsigned long unit)
 {
-    unsigned int frac = 0;
-    if(unit) {
-        size = (size/(unit)) + (size%(unit)?1:0);
-        return xmsprintf("%llu", size);
+  unsigned int frac = 0;
+  if(unit) {
+    size = (size/(unit)) + (size%(unit)?1:0);
+    return xmsprintf("%llu", size);
+  }
+  else {
+    static char units[] = {'\0', 'K', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'};
+    int index = 0;
+    while(size >= 1024) {
+      frac = size%1024;
+      size /= 1024;
+      index++;
     }
-    else {
-        static char units[] = {'\0', 'K', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'};
-        int index = 0;
-        while(size >= 1024) {
-            frac = size%1024;
-            size /= 1024;
-            index++;
-        }
-        frac = (frac/102) + ((frac%102)?1:0);
-        if(frac >= 10) {
-            size += 1;
-            frac = 0;
-        }
-        if(frac) return xmsprintf("%llu.%u%c", size, frac, units[index]);
-        else return xmsprintf("%llu%c", size, units[index]);
+    frac = (frac/102) + ((frac%102)?1:0);
+    if(frac >= 10) {
+      size += 1;
+      frac = 0;
     }
-    return NULL; //not reached
+    if(frac) return xmsprintf("%llu.%u%c", size, frac, units[index]);
+    else return xmsprintf("%llu%c", size, units[index]);
+  }
+  return NULL; //not reached
 }

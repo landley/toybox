@@ -1,6 +1,4 @@
-/* vi: set sw=4 ts=4:
- *
- * md5sum.c - Calculate RFC 1321 md5 hash and sha1 hash.
+/* md5sum.c - Calculate RFC 1321 md5 hash and sha1 hash.
  *
  * Copyright 2012 Rob Landley <rob@landley.net>
  *
@@ -219,8 +217,7 @@ static void do_hash(int fd, char *name)
     buf = 0;
   } while ((TT.count & 63) != 56);
   if (sha1) count=bswap_64(count);
-  for (i = 0; i < 8; i++)
-    TT.buffer.c[56+i] = count >> (8*i);
+  for (i = 0; i < 8; i++) TT.buffer.c[56+i] = count >> (8*i);
   transform();
 
   if (sha1)

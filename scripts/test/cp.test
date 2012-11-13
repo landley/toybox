@@ -24,7 +24,7 @@ testing "cp file->dir/file" \
 	"yes\n" "" ""
 testing "cp -r dir->missing" \
 	"cp -r two three && cmp random three/random && echo yes" \
-	"yes\n" "" "" 
+	"yes\n" "" ""
 touch walrus
 testing "cp -r dir->file [fail]" \
 	"cp -r two walrus 2>/dev/null || echo yes" "yes\n" "" ""

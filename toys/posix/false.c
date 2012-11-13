@@ -1,6 +1,4 @@
-/* vi: set sw=4 ts=4:
- *
- * false.c - Return nonzero.
+/* false.c - Return nonzero.
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
  *
@@ -9,15 +7,15 @@
 USE_FALSE(NEWTOY(false, NULL, TOYFLAG_BIN))
 
 config FALSE
-	bool "false"
-	default y
-	help
-	  Return nonzero.
+  bool "false"
+  default y
+  help
+    Return nonzero.
 */
 
 #include "toys.h"
 
 void false_main(void)
 {
-	toys.exitval = 1;
+  toys.exitval = 1;
 }

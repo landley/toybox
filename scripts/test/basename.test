@@ -7,7 +7,7 @@
 # Removal of extra /'s
 testing "basename /-only" "basename ///////" "/\n" "" ""
 testing "basename trailing /" "basename a//////" "a\n" "" ""
-testing "basename combined" "basename /////a///b///c///d/////" "d\n" "" "" 
+testing "basename combined" "basename /////a///b///c///d/////" "d\n" "" ""
 
 # Standard suffix behavior.
 testing "basename suffix" "basename a/b/c/d.suffix .suffix" "d\n" "" ""

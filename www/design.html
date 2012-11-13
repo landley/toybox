@@ -71,7 +71,7 @@ but it's just as true that a loop which stays in L1 cache is many times faster
 than a loop that has to wait for a DRAM fetch on each iteration.  Don't worry
 about whether "&" is faster than "%" until your executable loop stays in L1
 cache and the data access is fetching cache lines intelligently.  (To
-understand DRAM, L1, and L2 cache, read Hannibal's marvelous ram guid at Ars
+understand DRAM, L1, and L2 cache, read Hannibal's marvelous ram guide at Ars
 Technica:
 <a href=http://arstechnica.com/paedia/r/ram_guide/ram_guide.part1-2.html>part one</a>,
 <a href=http://arstechnica.com/paedia/r/ram_guide/ram_guide.part2-1.html>part two</a>,
@@ -277,7 +277,7 @@ messages produced by perror_exit() and friends can be expected to be
 localized by libc. Our error functions also prepend the command name,
 which non-english speakers can presumably recognize already.</p>
 
-<p>An enventual goal is UTF-8 support, although it isn't a priority for the
+<p>An enventual goal is <a href=http://yarchive.net/comp/linux/utf8.html>UTF-8</a> support, although it isn't a priority for the
 first pass of each command. (All commands should at least be 8-bit clean.)</p>
 
 <p>Locale support isn't currently a goal; that's a presentation layer issue,

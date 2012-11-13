@@ -1,6 +1,4 @@
-/* vi: set sw=4 ts=4:
- *
- * xargs.c - Run command with arguments taken from stdin.
+/* xargs.c - Run command with arguments taken from stdin.
  *
  * Copyright 2011 Rob Landley <rob@landley.net>
  *
@@ -9,42 +7,42 @@
 USE_XARGS(NEWTOY(xargs, "^I:E:L#ptxrn#<1s#0", TOYFLAG_USR|TOYFLAG_BIN))
 
 config XARGS
-	bool "xargs"
-	default y
-	help
-	  usage: xargs [-ptxr0] [-s NUM] [-n NUM] [-L NUM] [-E STR] COMMAND...
+  bool "xargs"
+  default y
+  help
+    usage: xargs [-ptxr0] [-s NUM] [-n NUM] [-L NUM] [-E STR] COMMAND...
 
-	  Run command line one or more times, appending arguments from stdin.
+    Run command line one or more times, appending arguments from stdin.
 
-	  If command exits with 255, don't launch another even if arguments remain.
+    If command exits with 255, don't launch another even if arguments remain.
 
-	  -s	Size in bytes per command line
-	  -n	Max number of arguments per command
-	  -0	Each argument is NULL terminated, no whitespace or quote processing
-	  #-p	Prompt for y/n from tty before running each command
-	  #-t	Trace, print command line to stderr
-	  #-x	Exit if can't fit everything in one command
-	  #-r	Don't run command with empty input
-	  #-L	Max number of lines of input per command
-	  -E	stop at line matching string
+    -s	Size in bytes per command line
+    -n	Max number of arguments per command
+    -0	Each argument is NULL terminated, no whitespace or quote processing
+    #-p	Prompt for y/n from tty before running each command
+    #-t	Trace, print command line to stderr
+    #-x	Exit if can't fit everything in one command
+    #-r	Don't run command with empty input
+    #-L	Max number of lines of input per command
+    -E	stop at line matching string
 */
 
 #define FOR_xargs
 #include "toys.h"
 
 GLOBALS(
-	long max_bytes;
-	long max_entries;
-	long L;
-	char *eofstr;
-	char *I;
+  long max_bytes;
+  long max_entries;
+  long L;
+  char *eofstr;
+  char *I;
 
-	long entries, bytes;
-	char delim;
+  long entries, bytes;
+  char delim;
 )
 
 // If out==NULL count TT.bytes and TT.entries, stopping at max.
-// Otherwise, fill out out[] 
+// Otherwise, fill out out[]
 
 // Returning NULL means need more data.
 // Returning char * means hit data limits, start of data left over
@@ -53,135 +51,135 @@ GLOBALS(
 
 static char *handle_entries(char *data, char **entry)
 {
-	if (TT.delim) { 
-		char *s = data;
+  if (TT.delim) {
+    char *s = data;
 
-		// Chop up whitespace delimited string into args
-		while (*s) {
-			char *save;
+    // Chop up whitespace delimited string into args
+    while (*s) {
+      char *save;
 
-			while (isspace(*s)) {
-				if (entry) *s = 0;
-				s++;
-			}
+      while (isspace(*s)) {
+        if (entry) *s = 0;
+        s++;
+      }
 
-			if (TT.max_entries && TT.entries >= TT.max_entries)
-				return *s ? s : (char *)1;
+      if (TT.max_entries && TT.entries >= TT.max_entries)
+        return *s ? s : (char *)1;
 
-			if (!*s) break;
-			save = s;
+      if (!*s) break;
+      save = s;
 
-			for (;;) {
-				if (++TT.bytes >= TT.max_bytes && TT.max_bytes) return save;
-				if (!*s || isspace(*s)) break;
-				s++;
-			}
-			if (TT.eofstr) {
-				int len = s-save;
-				if (len == strlen(TT.eofstr) && !strncmp(save, TT.eofstr, len))
-					return (char *)2;
-			}
-			if (entry) entry[TT.entries] = save;
-			++TT.entries;
-		}
+      for (;;) {
+        if (++TT.bytes >= TT.max_bytes && TT.max_bytes) return save;
+        if (!*s || isspace(*s)) break;
+        s++;
+      }
+      if (TT.eofstr) {
+        int len = s-save;
+        if (len == strlen(TT.eofstr) && !strncmp(save, TT.eofstr, len))
+          return (char *)2;
+      }
+      if (entry) entry[TT.entries] = save;
+      ++TT.entries;
+    }
 
-	// -0 support
-	} else {
-		TT.bytes += strlen(data)+1;
-		if (TT.max_bytes && TT.bytes >= TT.max_bytes) return data;
-		if (TT.max_entries && TT.entries >= TT.max_entries)
-			return (char *)1;
-		if (entry) entry[TT.entries] = data;
-		TT.entries++;
-	}
+  // -0 support
+  } else {
+    TT.bytes += strlen(data)+1;
+    if (TT.max_bytes && TT.bytes >= TT.max_bytes) return data;
+    if (TT.max_entries && TT.entries >= TT.max_entries)
+      return (char *)1;
+    if (entry) entry[TT.entries] = data;
+    TT.entries++;
+  }
 
-	return NULL;
+  return NULL;
 }
 
 void xargs_main(void)
 {
-	struct double_list *dlist = NULL;
-	int entries, bytes, done = 0, status;
-	char *data = NULL;
+  struct double_list *dlist = NULL;
+  int entries, bytes, done = 0, status;
+  char *data = NULL;
 
-	if (!(toys.optflags & FLAG_0)) TT.delim = '\n';
+  if (!(toys.optflags & FLAG_0)) TT.delim = '\n';
 
-	// If no optargs, call echo.
-	if (!toys.optc) {
-		free(toys.optargs);
-		*(toys.optargs = xzalloc(2*sizeof(char *)))="echo";
-		toys.optc = 1;
-	}
+  // If no optargs, call echo.
+  if (!toys.optc) {
+    free(toys.optargs);
+    *(toys.optargs = xzalloc(2*sizeof(char *)))="echo";
+    toys.optc = 1;
+  }
 
-	for (entries = 0, bytes = -1; entries < toys.optc; entries++, bytes++)
-		bytes += strlen(toys.optargs[entries]);
+  for (entries = 0, bytes = -1; entries < toys.optc; entries++, bytes++)
+    bytes += strlen(toys.optargs[entries]);
 
-	// Loop through exec chunks.
-	while (data || !done) {
-		char **out;
+  // Loop through exec chunks.
+  while (data || !done) {
+    char **out;
 
-		TT.entries = 0;
-		TT.bytes = bytes;
+    TT.entries = 0;
+    TT.bytes = bytes;
 
-		// Loop reading input
-		for (;;) {
+    // Loop reading input
+    for (;;) {
 
-			// Read line
-			if (!data) {
-				ssize_t l = 0;
-				l = getdelim(&data, (size_t *)&l, TT.delim, stdin);
+      // Read line
+      if (!data) {
+        ssize_t l = 0;
+        l = getdelim(&data, (size_t *)&l, TT.delim, stdin);
 
-				if (l<0) {
-					data = 0;
-					done++;
-					break;
-				}
-			}
-			dlist_add(&dlist, data);
+        if (l<0) {
+          data = 0;
+          done++;
+          break;
+        }
+      }
+      dlist_add(&dlist, data);
 
-			// Count data used
-			data = handle_entries(data, NULL);
-			if (!data) continue;
-			if (data == (char *)2) done++;
-			if ((long)data <= 2) data = 0;
-			else data = xstrdup(data);
+      // Count data used
+      data = handle_entries(data, NULL);
+      if (!data) continue;
+      if (data == (char *)2) done++;
+      if ((long)data <= 2) data = 0;
+      else data = xstrdup(data);
 
-			break;
-		}
+      break;
+    }
 
-		// Accumulate cally thing
+    // Accumulate cally thing
 
-		if (data && !TT.entries) error_exit("argument too long");
-		out = xzalloc((entries+TT.entries+1)*sizeof(char *));
+    if (data && !TT.entries) error_exit("argument too long");
+    out = xzalloc((entries+TT.entries+1)*sizeof(char *));
 
-		if (dlist) {
-			struct double_list *dtemp;
+    if (dlist) {
+      struct double_list *dtemp;
 
-			// Fill out command line to exec
-			memcpy(out, toys.optargs, entries*sizeof(char *));
-			TT.entries = 0;
-			TT.bytes = bytes;
-			dlist->prev->next = 0;
-			for (dtemp = dlist; dtemp; dtemp = dtemp->next)
-				handle_entries(dtemp->data, out+entries);
-		}
-		pid_t pid=fork();
-		if (!pid) {
-			xclose(0);
-			open("/dev/null", O_RDONLY);
-			xexec(out);
-		}
-		waitpid(pid, &status, 0);
-		status = WEXITSTATUS(status);
+      // Fill out command line to exec
+      memcpy(out, toys.optargs, entries*sizeof(char *));
+      TT.entries = 0;
+      TT.bytes = bytes;
+      dlist->prev->next = 0;
+      for (dtemp = dlist; dtemp; dtemp = dtemp->next)
+        handle_entries(dtemp->data, out+entries);
+    }
+    pid_t pid=fork();
+    if (!pid) {
+      xclose(0);
+      open("/dev/null", O_RDONLY);
+      xexec(out);
+    }
+    waitpid(pid, &status, 0);
+    status = WEXITSTATUS(status);
 
-		// Abritrary number of execs, can't just leak memory each time...
-		while (dlist) {
-			struct double_list *dtemp = dlist->next;
+    // Abritrary number of execs, can't just leak memory each time...
+    while (dlist) {
+      struct double_list *dtemp = dlist->next;
 
-			free(dlist->data);
-			free(dlist);
-			dlist = dtemp;
-		}
-		free(out);
-	}
+      free(dlist->data);
+      free(dlist);
+      dlist = dtemp;
+    }
+    free(out);
+  }
 }

@@ -6,7 +6,7 @@
 
 testing "cat" "cat && echo yes" "oneyes\n" "" "one"
 testing "cat file1" \
-	"cat /bin/cat > file1 && diff -u /bin/cat file1 && echo yes" \
+	"cat /proc/self/exe > file1 && diff -u /proc/self/exe file1 && echo yes" \
 	"yes\n" "" ""
 #testing "cat file1 file2" "cat /bin/cat file1 > file2 && diff -u -
 

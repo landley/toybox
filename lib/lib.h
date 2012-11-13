@@ -1,4 +1,3 @@
-/* vi: set ts=4 :*/
 /* lib.h - header file for lib directory
  *
  * Copyright 2006 Rob Landley <rob@landley.net>
@@ -21,18 +20,18 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 // is always next pointer, so next = (mytype *)&struct.
 
 struct string_list {
-	struct string_list *next;
-	char str[0];
+  struct string_list *next;
+  char str[0];
 };
 
 struct arg_list {
-	struct arg_list *next;
-	char *arg;
+  struct arg_list *next;
+  char *arg;
 };
 
 struct double_list {
-	struct double_list *next, *prev;
-	char *data;
+  struct double_list *next, *prev;
+  char *data;
 };
 
 void llist_traverse(void *list, void (*using)(void *data));
@@ -63,12 +62,12 @@ void get_optflags(void);
 #define DIRTREE_ABORTVAL ((struct dirtree *)1)
 
 struct dirtree {
-	struct dirtree *next, *parent, *child;
-	long extra; // place for user to store their stuff (can be pointer)
-	struct stat st;
-	char *symlink;
-	int data;  // dirfd for directory, linklen for symlink, -1 = comeagain
-	char name[];
+  struct dirtree *next, *parent, *child;
+  long extra; // place for user to store their stuff (can be pointer)
+  struct stat st;
+  char *symlink;
+  int data;  // dirfd for directory, linklen for symlink, -1 = comeagain
+  char name[];
 };
 
 struct dirtree *dirtree_add_node(int dirfd, char *name, int symfollow);
@@ -76,9 +75,9 @@ char *dirtree_path(struct dirtree *node, int *plen);
 int dirtree_notdotdot(struct dirtree *catch);
 int dirtree_parentfd(struct dirtree *node);
 struct dirtree *handle_callback(struct dirtree *new,
-	int (*callback)(struct dirtree *node));
+  int (*callback)(struct dirtree *node));
 void dirtree_recurse(struct dirtree *node,
-	int (*callback)(struct dirtree *node), int symfollow);
+  int (*callback)(struct dirtree *node), int symfollow);
 struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node));
 
 // lib.c
@@ -133,7 +132,7 @@ int stridx(char *haystack, char needle);
 off_t fdlength(int fd);
 char *xreadlink(char *name);
 void loopfiles_rw(char **argv, int flags, int permissions, int failok,
-	void (*function)(int fd, char *name));
+  void (*function)(int fd, char *name));
 void loopfiles(char **argv, void (*function)(int fd, char *name));
 char *get_rawline(int fd, long *plen, char end);
 char *get_line(int fd);
@@ -150,12 +149,12 @@ void for_each_pid_with_name_in(char **names, void (*callback)(pid_t pid));
 
 // getmountlist.c
 struct mtab_list {
-	struct mtab_list *next;
-	struct stat stat;
-	struct statvfs statvfs;
-	char *dir;
-	char *device;
-	char type[0];
+  struct mtab_list *next;
+  struct stat stat;
+  struct statvfs statvfs;
+  char *dir;
+  char *device;
+  char type[0];
 };
 
 struct mtab_list *getmountlist(int die);

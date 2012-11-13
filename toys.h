@@ -1,4 +1,3 @@
-/* vi: set ts=4 :*/
 /* Toybox infrastructure.
  *
  * Copyright 2006 Rob Landley <rob@landley.net>
@@ -87,23 +86,23 @@ void toy_exec(char *argv[]);
 // Array of available applets
 
 extern struct toy_list {
-	char *name;
-	void (*toy_main)(void);
-	char *options;
-	int flags;
+  char *name;
+  void (*toy_main)(void);
+  char *options;
+  int flags;
 } toy_list[];
 
 // Global context shared by all commands.
 
 extern struct toy_context {
-	struct toy_list *which;  // Which entry in toy_list is this one?
-	int exitval;             // Value error_exit feeds to exit()
-	char **argv;             // Original command line arguments
-	unsigned optflags;       // Command line option flags from get_optflags()
-	char **optargs;          // Arguments left over from get_optflags()
-	int optc;                // Count of optargs
-	int exithelp;            // Should error_exit print a usage message first?
-	int old_umask;           // Old umask preserved by TOYFLAG_UMASK
+  struct toy_list *which;  // Which entry in toy_list is this one?
+  int exitval;             // Value error_exit feeds to exit()
+  char **argv;             // Original command line arguments
+  unsigned optflags;       // Command line option flags from get_optflags()
+  char **optargs;          // Arguments left over from get_optflags()
+  int optc;                // Count of optargs
+  int exithelp;            // Should error_exit print a usage message first?
+  int old_umask;           // Old umask preserved by TOYFLAG_UMASK
 } toys;
 
 // One big temporary buffer, for use by commands (not library functions).

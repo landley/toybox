@@ -1,6 +1,4 @@
-/* vi: set sw=4 ts=4:
- *
- * sh.c - toybox shell
+/* sh.c - toybox shell
  *
  * Copyright 2006 Rob Landley <rob@landley.net>
  *
@@ -30,157 +28,157 @@ USE_SH(NEWTOY(sh, "c:i", TOYFLAG_BIN))
 USE_SH(OLDTOY(toysh, sh, "c:i", TOYFLAG_BIN))
 
 config SH
-	bool "sh (toysh)"
-	default n
-	help
-	  usage: sh [-c command] [script]
+  bool "sh (toysh)"
+  default n
+  help
+    usage: sh [-c command] [script]
 
-	  Command shell.  Runs a shell script, or reads input interactively
-	  and responds to it.
+    Command shell.  Runs a shell script, or reads input interactively
+    and responds to it.
 
-	  -c	command line to execute
+    -c	command line to execute
 
 config SH_TTY
-	bool "Interactive shell (terminal control)"
-	default n
-	depends on SH
-	help
-	  Add terminal control to toysh.  This is necessary for interactive use,
-	  so the shell isn't killed by CTRL-C.
+  bool "Interactive shell (terminal control)"
+  default n
+  depends on SH
+  help
+    Add terminal control to toysh.  This is necessary for interactive use,
+    so the shell isn't killed by CTRL-C.
 
 config SH_PROFILE
-	bool "Profile support"
-	default n
-	depends on SH_TTY
-	help
-	  Read /etc/profile and ~/.profile when running interactively.
+  bool "Profile support"
+  default n
+  depends on SH_TTY
+  help
+    Read /etc/profile and ~/.profile when running interactively.
 
-	  Also enables the built-in command "source".
+    Also enables the built-in command "source".
 
 config SH_JOBCTL
-	bool "Job Control (fg, bg, jobs)"
-	default n
-	depends on SH_TTY
-	help
-	  Add job control to toysh.  This lets toysh handle CTRL-Z, and enables
-	  the built-in commands "fg", "bg", and "jobs".
+  bool "Job Control (fg, bg, jobs)"
+  default n
+  depends on SH_TTY
+  help
+    Add job control to toysh.  This lets toysh handle CTRL-Z, and enables
+    the built-in commands "fg", "bg", and "jobs".
 
-	  With pipe support, enable use of "&" to run background processes.
+    With pipe support, enable use of "&" to run background processes.
 
 config SH_FLOWCTL
-	bool "Flow control (if, while, for, functions)"
-	default n
-	depends on SH
-	help
-	  Add flow control to toysh.  This enables the if/then/else/fi,
-	  while/do/done, and for/do/done constructs.
+  bool "Flow control (if, while, for, functions)"
+  default n
+  depends on SH
+  help
+    Add flow control to toysh.  This enables the if/then/else/fi,
+    while/do/done, and for/do/done constructs.
 
-	  With pipe support, this enables the ability to define functions
-	  using the "function name" or "name()" syntax, plus curly brackets
-	  "{ }" to group commands.
+    With pipe support, this enables the ability to define functions
+    using the "function name" or "name()" syntax, plus curly brackets
+    "{ }" to group commands.
 
 config SH_QUOTES
-	bool "Smarter argument parsing (quotes)"
-	default n
-	depends on SH
-	help
-	  Add support for parsing "" and '' style quotes to the toysh command
-	  parser, with lets arguments have spaces in them.
+  bool "Smarter argument parsing (quotes)"
+  default n
+  depends on SH
+  help
+    Add support for parsing "" and '' style quotes to the toysh command
+    parser, with lets arguments have spaces in them.
 
 config SH_WILDCARDS
-	bool "Wildcards ( ?*{,} )"
-	default n
-	depends on SH_QUOTES
-	help
-	  Expand wildcards in argument names, ala "ls -l *.t?z" and
-	  "rm subdir/{one,two,three}.txt".
+  bool "Wildcards ( ?*{,} )"
+  default n
+  depends on SH_QUOTES
+  help
+    Expand wildcards in argument names, ala "ls -l *.t?z" and
+    "rm subdir/{one,two,three}.txt".
 
 config SH_PROCARGS
-	bool "Executable arguments ( `` and $() )"
-	default n
-	depends on SH_QUOTES
-	help
-	  Add support for executing arguments contianing $() and ``, using
-	  the output of the command as the new argument value(s).
+  bool "Executable arguments ( `` and $() )"
+  default n
+  depends on SH_QUOTES
+  help
+    Add support for executing arguments contianing $() and ``, using
+    the output of the command as the new argument value(s).
 
-	  (Bash calls this "command substitution".)
+    (Bash calls this "command substitution".)
 
 config SH_ENVVARS
-	bool "Environment variable support"
-	default n
-	depends on SH_QUOTES
-	help
-	  Substitute environment variable values for $VARNAME or ${VARNAME},
-	  and enable the built-in command "export".
+  bool "Environment variable support"
+  default n
+  depends on SH_QUOTES
+  help
+    Substitute environment variable values for $VARNAME or ${VARNAME},
+    and enable the built-in command "export".
 
 config SH_LOCALS
-	bool "Local variables"
-	default n
-	depends on SH_ENVVARS
-	help
-	  Support for local variables, fancy prompts ($PS1), the "set" command,
-	  and $?.
+  bool "Local variables"
+  default n
+  depends on SH_ENVVARS
+  help
+    Support for local variables, fancy prompts ($PS1), the "set" command,
+    and $?.
 
 config SH_ARRAYS
-	bool "Array variables"
-	default n
-	depends on SH_LOCALS
-	help
-	  Support for ${blah[blah]} style array variables.
+  bool "Array variables"
+  default n
+  depends on SH_LOCALS
+  help
+    Support for ${blah[blah]} style array variables.
 
 config SH_PIPES
-	bool "Pipes and redirects ( | > >> < << & && | || () ; )"
-	default n
-	depends on SH
-	help
-	  Support multiple commands on the same command line.  This includes
-	  | pipes, > >> < redirects, << here documents, || && conditional
-	  execution, () subshells, ; sequential execution, and (with job
-	  control) & background processes.
+  bool "Pipes and redirects ( | > >> < << & && | || () ; )"
+  default n
+  depends on SH
+  help
+    Support multiple commands on the same command line.  This includes
+    | pipes, > >> < redirects, << here documents, || && conditional
+    execution, () subshells, ; sequential execution, and (with job
+    control) & background processes.
 
 config SH_BUILTINS
-	bool "Builtin commands"
-	default n
-	depends on SH
-	help
-	  Adds the commands exec, fg, bg, help, jobs, pwd, export, source, set,
-	  unset, read, alias.
+  bool "Builtin commands"
+  default n
+  depends on SH
+  help
+    Adds the commands exec, fg, bg, help, jobs, pwd, export, source, set,
+    unset, read, alias.
 
 config EXIT
-	bool
-	default n
-	depends on SH
-	help
-	  usage: exit [status]
+  bool
+  default n
+  depends on SH
+  help
+    usage: exit [status]
 
-	  Exit shell.  If no return value supplied on command line, use value
-	  of most recent command, or 0 if none.
+    Exit shell.  If no return value supplied on command line, use value
+    of most recent command, or 0 if none.
 
 config CD
-	bool
-	default n
-	depends on SH
-	help
-	  usage: cd [path]
+  bool
+  default n
+  depends on SH
+  help
+    usage: cd [path]
 
-	  Change current directory.  With no arguments, go to $HOME.
+    Change current directory.  With no arguments, go to $HOME.
 
 config CD_P
-	bool # "-P support for cd"
-	default n
-	depends on SH
-	help
-	  usage: cd [-PL]
+  bool # "-P support for cd"
+  default n
+  depends on SH
+  help
+    usage: cd [-PL]
 
-	  -P    Physical path: resolve symlinks in path.
-	  -L    Cancel previous -P and restore default behavior.
+    -P    Physical path: resolve symlinks in path.
+    -L    Cancel previous -P and restore default behavior.
 */
 
 #define FOR_sh
 #include "toys.h"
 
 GLOBALS(
-	char *command;
+  char *command;
 )
 
 // A single executable, its arguments, and other information we know about it.
@@ -195,20 +193,20 @@ GLOBALS(
 
 // What we know about a single process.
 struct command {
-	struct command *next;
-	int flags;              // exit, suspend, && ||
-	int pid;                // pid (or exit code)
-	int argc;
-	char *argv[0];
+  struct command *next;
+  int flags;              // exit, suspend, && ||
+  int pid;                // pid (or exit code)
+  int argc;
+  char *argv[0];
 };
 
 // A collection of processes piped into/waiting on each other.
 struct pipeline {
-	struct pipeline *next;
-	int job_id;
-	struct command *cmd;
-	char *cmdline;         // Unparsed line for display purposes
-	int cmdlinelen;        // How long is cmdline?
+  struct pipeline *next;
+  int job_id;
+  struct command *cmd;
+  char *cmdline;         // Unparsed line for display purposes
+  int cmdlinelen;        // How long is cmdline?
 };
 
 // Parse one word from the command line, appending one or more argv[] entries
@@ -217,23 +215,23 @@ struct pipeline {
 // hit an ending token.
 static char *parse_word(char *start, struct command **cmd)
 {
-	char *end;
+  char *end;
 
-	// Detect end of line (and truncate line at comment)
-	if (CFG_SH_PIPES && strchr("><&|(;", *start)) return 0;
+  // Detect end of line (and truncate line at comment)
+  if (CFG_SH_PIPES && strchr("><&|(;", *start)) return 0;
 
-	// Grab next word.  (Add dequote and envvar logic here)
-	end = start;
-	while (*end && !isspace(*end)) end++;
-	(*cmd)->argv[(*cmd)->argc++] = xstrndup(start, end-start);
+  // Grab next word.  (Add dequote and envvar logic here)
+  end = start;
+  while (*end && !isspace(*end)) end++;
+  (*cmd)->argv[(*cmd)->argc++] = xstrndup(start, end-start);
 
-	// Allocate more space if there's no room for NULL terminator.
+  // Allocate more space if there's no room for NULL terminator.
 
-	if (!((*cmd)->argc & 7))
-		*cmd=xrealloc(*cmd,
-				sizeof(struct command) + ((*cmd)->argc+8)*sizeof(char *));
-	(*cmd)->argv[(*cmd)->argc] = 0;
-	return end;
+  if (!((*cmd)->argc & 7))
+    *cmd=xrealloc(*cmd,
+        sizeof(struct command) + ((*cmd)->argc+8)*sizeof(char *));
+  (*cmd)->argv[(*cmd)->argc] = 0;
+  return end;
 }
 
 // Parse a line of text into a pipeline.
@@ -241,149 +239,149 @@ static char *parse_word(char *start, struct command **cmd)
 
 static char *parse_pipeline(char *cmdline, struct pipeline *line)
 {
-	struct command **cmd = &(line->cmd);
-	char *start = line->cmdline = cmdline;
+  struct command **cmd = &(line->cmd);
+  char *start = line->cmdline = cmdline;
 
-	if (!cmdline) return 0;
+  if (!cmdline) return 0;
 
-	if (CFG_SH_JOBCTL) line->cmdline = cmdline;
+  if (CFG_SH_JOBCTL) line->cmdline = cmdline;
 
-	// Parse command into argv[]
-	for (;;) {
-		char *end;
+  // Parse command into argv[]
+  for (;;) {
+    char *end;
 
-		// Skip leading whitespace and detect end of line.
-		while (isspace(*start)) start++;
-		if (!*start || *start=='#') {
-			if (CFG_SH_JOBCTL) line->cmdlinelen = start-cmdline;
-			return 0;
-		}
+    // Skip leading whitespace and detect end of line.
+    while (isspace(*start)) start++;
+    if (!*start || *start=='#') {
+      if (CFG_SH_JOBCTL) line->cmdlinelen = start-cmdline;
+      return 0;
+    }
 
-		// Allocate next command structure if necessary
-		if (!*cmd) *cmd = xzalloc(sizeof(struct command)+8*sizeof(char *));
+    // Allocate next command structure if necessary
+    if (!*cmd) *cmd = xzalloc(sizeof(struct command)+8*sizeof(char *));
 
-		// Parse next argument and add the results to argv[]
-		end = parse_word(start, cmd);
+    // Parse next argument and add the results to argv[]
+    end = parse_word(start, cmd);
 
-		// If we hit the end of this command, how did it end?
-		if (!end) {
-			if (CFG_SH_PIPES && *start) {
-				if (*start==';') {
-					start++;
-					break;
-				}
-				// handle | & < > >> << || &&
-			}
-			break;
-		}
-		start = end;
-	}
+    // If we hit the end of this command, how did it end?
+    if (!end) {
+      if (CFG_SH_PIPES && *start) {
+        if (*start==';') {
+          start++;
+          break;
+        }
+        // handle | & < > >> << || &&
+      }
+      break;
+    }
+    start = end;
+  }
 
-	if (CFG_SH_JOBCTL) line->cmdlinelen = start-cmdline;
+  if (CFG_SH_JOBCTL) line->cmdlinelen = start-cmdline;
 
-	return start;
+  return start;
 }
 
 // Execute the commands in a pipeline
 static void run_pipeline(struct pipeline *line)
 {
-	struct toy_list *tl;
-	struct command *cmd = line->cmd;
-	if (!cmd || !cmd->argc) return;
+  struct toy_list *tl;
+  struct command *cmd = line->cmd;
+  if (!cmd || !cmd->argc) return;
 
-	tl = toy_find(cmd->argv[0]);
-	// Is this command a builtin that should run in this process?
-	if (tl && (tl->flags & TOYFLAG_NOFORK)) {
-		struct toy_context temp;
+  tl = toy_find(cmd->argv[0]);
+  // Is this command a builtin that should run in this process?
+  if (tl && (tl->flags & TOYFLAG_NOFORK)) {
+    struct toy_context temp;
 
-		// This fakes lots of what toybox_main() does.
-		memcpy(&temp, &toys, sizeof(struct toy_context));
-		memset(&toys, 0, sizeof(struct toy_context));
-		toy_init(tl, cmd->argv);
-		tl->toy_main();
-		cmd->pid = toys.exitval;
-		free(toys.optargs);
-		if (toys.old_umask) umask(toys.old_umask);
-		memcpy(&toys, &temp, sizeof(struct toy_context));
-	} else {
-		int status;
+    // This fakes lots of what toybox_main() does.
+    memcpy(&temp, &toys, sizeof(struct toy_context));
+    memset(&toys, 0, sizeof(struct toy_context));
+    toy_init(tl, cmd->argv);
+    tl->toy_main();
+    cmd->pid = toys.exitval;
+    free(toys.optargs);
+    if (toys.old_umask) umask(toys.old_umask);
+    memcpy(&toys, &temp, sizeof(struct toy_context));
+  } else {
+    int status;
 
-		cmd->pid = vfork();
-		if (!cmd->pid) xexec(cmd->argv);
-		else waitpid(cmd->pid, &status, 0);
+    cmd->pid = vfork();
+    if (!cmd->pid) xexec(cmd->argv);
+    else waitpid(cmd->pid, &status, 0);
 
-		if (CFG_SH_FLOWCTL || CFG_SH_PIPES) {
-			if (WIFEXITED(status)) cmd->pid = WEXITSTATUS(status);
-			if (WIFSIGNALED(status)) cmd->pid = WTERMSIG(status);
-		}
-	}
+    if (CFG_SH_FLOWCTL || CFG_SH_PIPES) {
+      if (WIFEXITED(status)) cmd->pid = WEXITSTATUS(status);
+      if (WIFSIGNALED(status)) cmd->pid = WTERMSIG(status);
+    }
+  }
 
-	return;
+  return;
 }
 
 // Free the contents of a command structure
 static void free_cmd(void *data)
 {
-	struct command *cmd=(struct command *)data;
+  struct command *cmd=(struct command *)data;
 
-	while(cmd->argc) free(cmd->argv[--cmd->argc]);
+  while(cmd->argc) free(cmd->argv[--cmd->argc]);
 }
 
 
 // Parse a command line and do what it says to do.
 static void handle(char *command)
 {
-	struct pipeline line;
-	char *start = command;
+  struct pipeline line;
+  char *start = command;
 
-	// Loop through commands in this line
+  // Loop through commands in this line
 
-	for (;;) {
+  for (;;) {
 
-		// Parse a group of connected commands
+    // Parse a group of connected commands
 
-		memset(&line,0,sizeof(struct pipeline));
-		start = parse_pipeline(start, &line);
-		if (!line.cmd) break;
+    memset(&line,0,sizeof(struct pipeline));
+    start = parse_pipeline(start, &line);
+    if (!line.cmd) break;
 
-		// Run those commands
+    // Run those commands
 
-		run_pipeline(&line);
-		llist_traverse(line.cmd, free_cmd);
-	}
+    run_pipeline(&line);
+    llist_traverse(line.cmd, free_cmd);
+  }
 }
 
 void cd_main(void)
 {
-	char *dest = *toys.optargs ? *toys.optargs : getenv("HOME");
-	xchdir(dest);
+  char *dest = *toys.optargs ? *toys.optargs : getenv("HOME");
+  xchdir(dest);
 }
 
 void exit_main(void)
 {
-	exit(*toys.optargs ? atoi(*toys.optargs) : 0);
+  exit(*toys.optargs ? atoi(*toys.optargs) : 0);
 }
 
 void sh_main(void)
 {
-	FILE *f;
+  FILE *f;
 
-	// Set up signal handlers and grab control of this tty.
-	if (CFG_SH_TTY) {
-		if (isatty(0)) toys.optflags |= 1;
-	}
-	f = *toys.optargs ? xfopen(*toys.optargs, "r") : NULL;
-	if (TT.command) handle(TT.command);
-	else {
-		size_t cmdlen = 0;
-		for (;;) {
-			char *command = 0;
-			if (!f) xputc('$');
-			if (1 > getline(&command, &cmdlen, f ? f : stdin)) break;
-			handle(command);
-			free(command);
-		}
-	}
+  // Set up signal handlers and grab control of this tty.
+  if (CFG_SH_TTY) {
+    if (isatty(0)) toys.optflags |= 1;
+  }
+  f = *toys.optargs ? xfopen(*toys.optargs, "r") : NULL;
+  if (TT.command) handle(TT.command);
+  else {
+    size_t cmdlen = 0;
+    for (;;) {
+      char *command = 0;
+      if (!f) xputc('$');
+      if (1 > getline(&command, &cmdlen, f ? f : stdin)) break;
+      handle(command);
+      free(command);
+    }
+  }
 
-	toys.exitval = 1;
+  toys.exitval = 1;
 }

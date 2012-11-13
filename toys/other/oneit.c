@@ -1,27 +1,25 @@
-/* vi: set sw=4 ts=4:
- *
- * oneit.c - tiny init replacement to launch a single child process.
+/* oneit.c - tiny init replacement to launch a single child process.
  *
  * Copyright 2005, 2007 by Rob Landley <rob@landley.net>.
 
 USE_ONEIT(NEWTOY(oneit, "^<1c:p", TOYFLAG_SBIN))
 
 config ONEIT
-	bool "oneit"
-	default y
-	help
-	  usage: oneit [-p] [-c /dev/tty0] command [...]
+  bool "oneit"
+  default y
+  help
+    usage: oneit [-p] [-c /dev/tty0] command [...]
 
-	  A simple init program that runs a single supplied command line with a
-	  controlling tty (so CTRL-C can kill it).
+    A simple init program that runs a single supplied command line with a
+    controlling tty (so CTRL-C can kill it).
 
-	  -p	Power off instead of rebooting when command exits.
-	  -c	Which console device to use.
+    -p	Power off instead of rebooting when command exits.
+    -c	Which console device to use.
 
-	  The oneit command runs the supplied command line as a child process
-	  (because PID 1 has signals blocked), attached to /dev/tty0, in its
-	  own session.  Then oneit reaps zombies until the child exits, at
-	  which point it reboots (or with -p, powers off) the system.
+    The oneit command runs the supplied command line as a child process
+    (because PID 1 has signals blocked), attached to /dev/tty0, in its
+    own session. Then oneit reaps zombies until the child exits, at
+    which point it reboots (or with -p, powers off) the system.
 */
 
 #define FOR_oneit
@@ -29,7 +27,7 @@ config ONEIT
 #include <sys/reboot.h>
 
 GLOBALS(
-	char *console;
+  char *console;
 )
 
 // The minimum amount of work necessary to get ctrl-c and such to work is:
@@ -53,22 +51,21 @@ void oneit_main(void)
   if (pid) {
 
     // pid 1 just reaps zombies until it gets its child, then halts the system.
-    while (pid!=wait(&i));
+    while (pid != wait(&i));
     sync();
 
-	// PID 1 can't call reboot() because it kills the task that calls it,
-	// which causes the kernel to panic before the actual reboot happens.
-	if (!vfork())
-            reboot((toys.optflags & FLAG_p) ? RB_POWER_OFF : RB_AUTOBOOT);
-	sleep(5);
-	_exit(1);
+    // PID 1 can't call reboot() because it kills the task that calls it,
+    // which causes the kernel to panic before the actual reboot happens.
+    if (!vfork()) reboot((toys.optflags & FLAG_p) ? RB_POWER_OFF : RB_AUTOBOOT);
+    sleep(5);
+    _exit(1);
   }
 
   // Redirect stdio to /dev/tty0, with new session ID, so ctrl-c works.
   setsid();
   for (i=0; i<3; i++) {
     close(i);
-    xopen(TT.console ? TT.console : "/dev/tty0",O_RDWR);
+    xopen(TT.console ? TT.console : "/dev/tty0", O_RDWR);
   }
 
   // Can't xexec() here, because we vforked so we don't want to error_exit().

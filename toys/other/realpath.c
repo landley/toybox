@@ -1,29 +1,28 @@
-/* vi: set sw=4 ts=4:
- *
- * realpath.c - Return the canonical version of a pathname
+/* realpath.c - Return the canonical version of a pathname
  *
  * Copyright 2012 Andre Renaud <andre@bluewatersys.com>
 
 USE_REALPATH(NEWTOY(realpath, "<1", TOYFLAG_USR|TOYFLAG_BIN))
 
 config REALPATH
-	bool "realpath"
-	default y
-	help
-	  usage: realpath FILE...
+  bool "realpath"
+  default y
+  help
+    usage: realpath FILE...
 
-	  Display the canonical absolute pathname
+    Display the canonical absolute pathname
 */
 
 #include "toys.h"
 
 void realpath_main(void)
 {
-    char **s = toys.optargs;
-    for (s = toys.optargs; *s; s++) {
-        if (!realpath(*s, toybuf)) {
-            perror_msg("cannot access '%s'", *s);
-            toys.exitval = 1;
-        } else xputs(toybuf);
-    }
+  char **s = toys.optargs;
+
+  for (s = toys.optargs; *s; s++) {
+    if (!realpath(*s, toybuf)) {
+      perror_msg("cannot access '%s'", *s);
+      toys.exitval = 1;
+    } else xputs(toybuf);
+  }
 }

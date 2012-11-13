@@ -13,11 +13,8 @@ This helps code auditing and thus reduces bugs. That said, sometimes being
 more explicit is preferable to being clever enough to outsmart yourself:
 don't be so terse your code is unreadable.</p>
 
-<p>Toybox source is formatted to be read with 4-space tab stops.  Each file
-starts with a special comment telling vi to set the tab stop to 4.  Note that
-one of the bugs in Ubuntu 7.10 broke vi's ability to parse these comments; you
-must either rebuild vim from source, or go ":ts=4" yourself each time you load
-the file.</p>
+<p>Toybox source uses two spaces per indentation level, and wraps at 80
+columns.</p>
 
 <p>Gotos are allowed for error handling, and for breaking out of
 nested loops.  In general, a goto should only jump forward (not back), and
@@ -31,7 +28,7 @@ to spot as overrides to the normal flow of control, which they are.</p>
 <p>Toybox is configured using the Kconfig language pioneered by the Linux
 kernel, and adopted by many other projects (uClibc, OpenEmbedded, etc).
 This generates a ".config" file containing the selected options, which
-controls which features to enable when building toybox.</p>
+controls which features are included when compiling toybox.</p>
 
 <p>Each configuration option has a default value. The defaults indicate the
 "maximum sane configuration", I.E. if the feature defaults to "n" then it

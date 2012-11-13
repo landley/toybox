@@ -29,7 +29,7 @@ if test "$0" != "bash"; then
 		configs=$(echo "$filetxt" | egrep -ne "^config *" | cut -d\:  -f1)
 		endmenus=$(echo "$filetxt" | egrep -ne "^endmenu *" | cut -d\:  -f1)
 		let last=$(echo "$filetxt" | wc -l)+2
-		
+
 		declare -i i c s e
 		for i in $configs; do
 #			echo -n "c:$i" >&2
@@ -40,7 +40,7 @@ if test "$0" != "bash"; then
 			test $e -ge $s
 #			echo " s:$s e:$e" >&2
 			print_h "$filetxt" $i $s $e
-		done 
+		done
 		for fle in $(cat "$file" | egrep -e "^[ \t]*source " | sed -e "s,^[ \t]*source *\(.*\),\\1,"); do
 			$0 $fle
 		done

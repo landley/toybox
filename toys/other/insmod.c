@@ -1,18 +1,16 @@
-/* vi: set sw=4 ts=4:
- *
- * insmod.c - Load a module into the Linux kernel.
+/* insmod.c - Load a module into the Linux kernel.
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
 
 USE_INSMOD(NEWTOY(insmod, "<1", TOYFLAG_BIN|TOYFLAG_NEEDROOT))
 
 config INSMOD
-	bool "insmod"
-	default y
-	help
-	  usage: insmod MODULE [MODULE_OPTIONS]
+  bool "insmod"
+  default y
+  help
+    usage: insmod MODULE [MODULE_OPTIONS]
 
-	  Load the module named MODULE passing options if given.
+    Load the module named MODULE passing options if given.
 */
 
 #include "toys.h"
@@ -22,24 +20,23 @@ config INSMOD
 
 void insmod_main(void)
 {
-	char * buf = NULL;
-	int len, res, i;
-	int fd = xopen(toys.optargs[0], O_RDONLY);
+  char * buf = NULL;
+  int len, res, i;
+  int fd = xopen(toys.optargs[0], O_RDONLY);
 
-	len = fdlength(fd);
-	buf = xmalloc(len);
-	xreadall(fd, buf, len);
+  len = fdlength(fd);
+  buf = xmalloc(len);
+  xreadall(fd, buf, len);
 
-	i = 1;
-	while(toys.optargs[i] &&
-		strlen(toybuf) + strlen(toys.optargs[i]) + 2 < sizeof(toybuf)) {
-		strcat(toybuf, toys.optargs[i++]);
-		strcat(toybuf, " ");
-	}
+  i = 1;
+  while(toys.optargs[i] &&
+    strlen(toybuf) + strlen(toys.optargs[i]) + 2 < sizeof(toybuf)) {
+    strcat(toybuf, toys.optargs[i++]);
+    strcat(toybuf, " ");
+  }
 
-	res = init_module(buf, len, toybuf);
-	if (CFG_TOYBOX_FREE && buf != toybuf) free(buf);
+  res = init_module(buf, len, toybuf);
+  if (CFG_TOYBOX_FREE && buf != toybuf) free(buf);
 
-	if (res)
-		perror_exit("failed to load %s", toys.optargs[0]);
+  if (res) perror_exit("failed to load %s", toys.optargs[0]);
 }
