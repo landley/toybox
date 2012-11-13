@@ -1,3 +1,8 @@
+// Workarounds for horrible build environment idiosyncrasies.
+// Instead of polluting the code with strange #ifdefs to work around bugs
+// in specific compiler, library, or OS versions, localize all that here
+// and in portability.c
+
 // The tendency of gcc to produce stupid warnings continues with
 // warn_unused_result, which warns about things like ignoring the return code
 // of nice(2) (which is completely useless since -1 is a legitimate return
@@ -7,6 +12,7 @@
 
 #undef _FORTIFY_SOURCE
 
+// Always use long file support.
 #define _FILE_OFFSET_BITS 64
 
 // This isn't in the spec, but it's how we determine what we're using.
@@ -21,6 +27,30 @@ char *strptime(const char *buf, const char *format, struct tm *tm);
 // Another one. "Function prototypes shall be provided." but aren't.
 // http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/unistd.h.html
 char *crypt(const char *key, const char *salt);
+
+// When building under obsolete glibc, hold its hand a bit.
+
+#if __GLIBC_MINOR__ < 10 && !defined(__UCLIBC__)
+#define AT_FDCWD -100
+#define AT_SYMLINK_NOFOLLOW 0x100
+#define AT_REMOVEDIR 0x200
+int fstatat(int dirfd, const char *pathname, void *buf, int flags);
+int readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz);
+char *stpcpy(char *dest, const char *src);
+#include <sys/stat.h>
+int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags);
+int openat(int dirfd, const char *pathname, int flags, ...);
+#include <dirent.h>
+DIR *fdopendir(int fd);
+#include <unistd.h>
+int fchownat(int dirfd, const char *pathname,
+                    uid_t owner, gid_t group, int flags);
+int isblank(int c);
+int unlinkat(int dirfd, const char *pathname, int flags);
+#include <stdio.h>
+ssize_t getdelim(char **lineptr, size_t *n, int delim, FILE *stream);
+#endif
+
 #endif
 
 #ifdef __GNUC__
