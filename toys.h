@@ -24,6 +24,7 @@
 #include <sched.h>
 #include <shadow.h>
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -103,6 +104,7 @@ extern struct toy_context {
   int optc;                // Count of optargs
   int exithelp;            // Should error_exit print a usage message first?
   int old_umask;           // Old umask preserved by TOYFLAG_UMASK
+  jmp_buf *rebound;        // longjmp here instead of exit when do_rebound set
 } toys;
 
 // One big temporary buffer, for use by commands (not library functions).

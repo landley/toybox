@@ -76,10 +76,10 @@ void toy_init(struct toy_list *which, char *argv[])
     if ((which->flags & TOYFLAG_NEEDROOT) && euid) error_exit("Not root");
   }
 
-  // Free old toys contents (to be reentrant)
+  // Free old toys contents (to be reentrant), but leave rebound if any
 
   if (toys.optargs != toys.argv+1) free(toys.optargs);
-  memset(&toys, 0, sizeof(struct toy_context));
+  memset(&toys, 0, offsetof(struct toy_context, rebound));
 
   toys.which = which;
   toys.argv = argv;

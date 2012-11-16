@@ -48,7 +48,7 @@ void killall_main(void)
   toys.exitval++;
 
   if (!*toys.optargs) {
-    toys.exithelp = 1;
+    toys.exithelp++;
     error_exit("Process name missing!");
   }
 

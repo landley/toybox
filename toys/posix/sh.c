@@ -293,12 +293,17 @@ static void run_pipeline(struct pipeline *line)
   // Is this command a builtin that should run in this process?
   if (tl && (tl->flags & TOYFLAG_NOFORK)) {
     struct toy_context temp;
+    jmp_buf rebound;
 
     // This fakes lots of what toybox_main() does.
     memcpy(&temp, &toys, sizeof(struct toy_context));
     memset(&toys, 0, sizeof(struct toy_context));
-    toy_init(tl, cmd->argv);
-    tl->toy_main();
+
+    if (!setjmp(rebound)) {
+      toys.rebound = rebound;
+      toy_init(tl, cmd->argv);
+      tl->toy_main();
+    }
     cmd->pid = toys.exitval;
     free(toys.optargs);
     if (toys.old_umask) umask(toys.old_umask);
