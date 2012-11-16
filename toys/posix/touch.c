@@ -46,12 +46,8 @@ int check_date_format(char *date_input)
 time_t get_time_sec(char *date_input)
 {
   int count_date_digit = 0;
-  char temp_date[12];
-  char mm[2];
-  char dd[2];
-  char hh[2];
-  char ss[2];
-  char year[4];
+  char mm[3];
+  char year[5];
   time_t time_of_modify;
   struct tm t_yyyymmddhhss;
 
