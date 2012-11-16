@@ -84,7 +84,10 @@ void toy_init(struct toy_list *which, char *argv[])
   toys.which = which;
   toys.argv = argv;
   if (NEED_OPTIONS && which->options) get_optflags();
-  else toys.optargs = argv+1;
+  else {
+    toys.optargs = argv+1;
+    for (toys.optc=0; toys.optargs[toys.optc]; toys.optc++);
+  }
   toys.old_umask = umask(0);
   if (!(which->flags & TOYFLAG_UMASK)) umask(toys.old_umask);
 }
