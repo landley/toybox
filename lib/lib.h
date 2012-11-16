@@ -175,3 +175,6 @@ int update_password(char *filename, char* username, char* encrypted);
 
 // du helper functions
 char* make_human_readable(unsigned long long size, unsigned long unit);
+
+// cut helper functions
+unsigned long get_int_value(const char *numstr, unsigned lowrange, unsigned highrange);

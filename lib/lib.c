@@ -1099,3 +1099,22 @@ char* make_human_readable(unsigned long long size, unsigned long unit)
   }
   return NULL; //not reached
 }
+
+/*
+ * used to get the interger value.
+ */
+unsigned long get_int_value(const char *numstr, unsigned lowrange, unsigned highrange)
+{
+  unsigned long rvalue = 0;
+  char *ptr;
+  if(*numstr == '-' || *numstr == '+' || isspace(*numstr)) perror_exit("invalid number '%s'", numstr);
+  errno = 0;
+  rvalue = strtoul(numstr, &ptr, 10);
+  if(errno || numstr == ptr) perror_exit("invalid number '%s'", numstr);
+   if(*ptr) perror_exit("invalid number '%s'", numstr);
+   if(rvalue >= lowrange && rvalue <= highrange) return rvalue;
+   else {
+         perror_exit("invalid number '%s'", numstr);
+         return rvalue; //Not reachable; to avoid waring message.
+   }
+}
