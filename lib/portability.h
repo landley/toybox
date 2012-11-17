@@ -27,6 +27,8 @@ char *strptime(const char *buf, const char *format, struct tm *tm);
 // Another one. "Function prototypes shall be provided." but aren't.
 // http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/unistd.h.html
 char *crypt(const char *key, const char *salt);
+// And again, from all the way back in posix-2001
+struct tm *getdate(const char *string);
 
 // When building under obsolete glibc, hold its hand a bit.
 
