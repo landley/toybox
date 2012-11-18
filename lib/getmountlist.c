@@ -38,5 +38,6 @@ struct mtab_list *getmountlist(int die)
       mtlist = mt;
     }
   }
+  endmntent(fp);
   return mtlist;
 }
