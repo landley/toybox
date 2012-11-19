@@ -5,8 +5,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/ls.html
 
-// "[-Cl]"
-USE_LS(NEWTOY(ls, "goACFHLRSacdfiklmnpqrstux1", TOYFLAG_BIN))
+USE_LS(NEWTOY(ls, "goACFHLRSacdfiklmnpqrstux1[-1Cglmnox][-cu][-ftS][-HL]", TOYFLAG_BIN))
 
 config LS
   bool "ls"

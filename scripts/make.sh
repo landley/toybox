@@ -73,7 +73,8 @@ function getglobals()
                  -e "s/.*TOY($NAME"',[ \t]*"\([^"]*\)"[ \t]*,.*)/\1/' \
                  -e 't keep;d;:keep' -e 's/^[<>=][0-9]//' -e 's/[?&^]//' \
                  -e 't keep' -e 's/[><=][0-9][0-9]*//g' -e 's/+.//g' \
-                 -e 's/([^)]*)//g' -e 's/[-?^:&#|@*]//g' -e 'p')"
+                 -e 's/([^)]*)//g' -e 's/\[[^]]*\]//g' -e 's/[-?^:&#|@*]//g' \
+                 -e 'p')"
     echo "#ifdef FOR_${NAME}"
     X=0
     while [ $X -lt ${#FLAGS} ]

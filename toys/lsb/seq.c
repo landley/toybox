@@ -28,12 +28,9 @@ void seq_main(void)
   // Note that any non-numeric arguments are treated as zero.
   first = increment = 1;
   switch (toys.optc) {
-    case 3:
-      increment = atof(toys.optargs[1]);
-    case 2:
-      first = atof(*toys.optargs);
-    default:
-      last = atof(toys.optargs[toys.optc-1]);
+    case 3: increment = atof(toys.optargs[1]);
+    case 2: first = atof(*toys.optargs);
+    default: last = atof(toys.optargs[toys.optc-1]);
   }
 
   // Yes, we're looping on a double.  Yes rounding errors can accumulate if
