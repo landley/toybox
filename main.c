@@ -71,7 +71,7 @@ void toy_init(struct toy_list *which, char *argv[])
 
     if (!(which->flags & TOYFLAG_STAYROOT)) {
       if (uid != euid) xsetuid(euid=uid);
-    } else if (CFG_TOYBOX_DEBUG && uid) error_exit("Not installed suid root");
+    } else if (CFG_TOYBOX_DEBUG && uid) error_msg("Not installed suid root");
 
     if ((which->flags & TOYFLAG_NEEDROOT) && euid) error_exit("Not root");
   }
@@ -113,10 +113,10 @@ void toybox_main(void)
   static char *toy_paths[]={"usr/","bin/","sbin/",0};
   int i, len = 0;
 
+  toys.which = toy_list;
   if (toys.argv[1]) {
     if (toys.argv[1][0]!='-') {
       toy_exec(toys.argv+1);
-      toys.which = toy_list;
       error_exit("Unknown command %s",toys.argv[1]);
     }
   }
