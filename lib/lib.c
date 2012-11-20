@@ -323,52 +323,37 @@ void xstat(char *path, struct stat *st)
   if(stat(path, st)) perror_exit("Can't stat %s", path);
 }
 
-// Cannonicalizes path by removing ".", "..", and "//" elements.  This is not
-// the same as realpath(), where "dir/.." could wind up somewhere else by
-// following symlinks.
-char *xabspath(char *path)
+// Cannonicalize path, even to file with one or more missing components at end
+char *xabspath(char *path, unsigned missing) 
 {
-  char *from, *to;
+  char *apath, *temp, *slash;
+  int i=0;
 
   // If this isn't an absolute path, make it one with cwd.
   if (path[0]!='/') {
-    char *cwd=xgetcwd();
-    path = xmsprintf("%s/%s", cwd, path);
-    free(cwd);
-  } else path = xstrdup(path);
+    char *temp=xgetcwd();
+    apath = xmsprintf("%s/%s", temp, path);
+    free(temp);
+  } else apath = path;
+  slash = apath+strlen(apath);
 
-  // Loop through path elements
-  from = to = path;
-  while (*from) {
-
-    // Continue any current path component.
-    if (*from!='/') {
-      *(to++) = *(from++);
-      continue;
-    }
-
-    // Skip duplicate slashes.
-    while (*from=='/') from++;
-
-    // Start of a new filename.  Handle . and ..
-    while (*from=='.') {
-      // Skip .
-      if (from[1]=='/') from += 2;
-      else if (!from[1]) from++;
-      // Back up for ..
-      else if (from[1]=='.') {
-        if (from[2]=='/') from +=3;
-        else if(!from[2]) from+=2;
-        else break;
-        while (to>path && *(--to)!='/');
-      } else break;
-    }
-    // Add directory separator slash.
-    *(to++) = '/';
+  for (;;) {
+    temp = realpath(apath, NULL);
+    if (i) *slash = '/';
+    if (temp || ++i > missing) break;
+    while (slash>apath) if (*--slash == '/') break;
+    *slash=0;
+    free(temp);
   }
-  *to = 0;
 
-  return path;
+  if (i && temp) {
+    slash = xmsprintf("%s%s", temp, slash);
+    free(temp);
+    temp = slash;
+  }
+
+  if (path != apath) free(apath); 
+  return temp;
 }
 
 // Resolve all symlinks, returning malloc() memory.

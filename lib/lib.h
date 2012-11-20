@@ -116,7 +116,7 @@ char *readfile(char *name);
 char *xreadfile(char *name);
 char *xgetcwd(void);
 void xstat(char *path, struct stat *st);
-char *xabspath(char *path);
+char *xabspath(char *path, unsigned missing);
 char *xrealpath(char *path);
 void xchdir(char *path);
 void xmkpath(char *path, int mode);

@@ -2,27 +2,26 @@
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
 
-USE_READLINK(NEWTOY(readlink, "<1f", TOYFLAG_BIN))
+USE_READLINK(NEWTOY(readlink, "<1>1femnq[-fem]", TOYFLAG_BIN))
 
 config READLINK
   bool "readlink"
   default n
   help
-    usage: readlink
+    usage: readlink FILE
 
-    Show what a symbolic link points to.
+    With no options, show what symlink points to, return error if not symlink.
 
-config READLINK_F
-  bool "readlink -f"
-  default n
-  depends on READLINK
-  help
-    usage: readlink [-f]
+    Options for producing cannonical paths (all symlinks/./.. resolved):
 
-    -f	Show full cannonical path, with no symlinks in it.  Returns
-    	nonzero if nothing could currently exist at this location.
+    -e	cannonical path to existing file (fail if does not exist)
+    -f	cannonical path to creatable file (fail if directory does not exist)
+    -m	cannonical path
+    -n	no trailing newline
+    -q	quiet (no output, just error code)
 */
 
+#define FOR_readlink
 #include "toys.h"
 
 void readlink_main(void)
@@ -31,11 +30,18 @@ void readlink_main(void)
 
   // Calculating full cannonical path?
 
-  if (CFG_READLINK_F && toys.optflags) s = xrealpath(*toys.optargs);
-  else s = xreadlink(*toys.optargs);
+  if (toys.optflags & (FLAG_f|FLAG_e|FLAG_m)) {
+    unsigned u = 0;
+
+    if (toys.optflags & FLAG_f) u++;
+    if (toys.optflags & FLAG_m) u=999999999;
+
+    s = xabspath(*toys.optargs, u);
+  } else s = xreadlink(*toys.optargs);
 
   if (s) {
-    xputs(s);
+    if (!(toys.optflags & FLAG_q))
+      xprintf((toys.optflags & FLAG_n) ? "%s" : "%s\n", s);
     if (CFG_TOYBOX_FREE) free(s);
   } else toys.exitval = 1;
 }
