@@ -48,7 +48,6 @@ static void show_lengths(unsigned long *lengths, char *name)
 static void do_wc(int fd, char *name)
 {
   int i, len, clen=1, space;
-  wchar_t wchar;
   unsigned long word=0, lengths[]={0,0,0};
 
   for (;;) {
@@ -59,6 +58,8 @@ static void do_wc(int fd, char *name)
     }
     if (len<1) break;
     for (i=0; i<len; i+=clen) {
+#ifdef CFG_TOYBOX_I18N
+      wchar_t wchar;
       if(toys.optflags&8) {
         clen = mbrtowc(&wchar, toybuf+i, len-i, 0);
         if(clen==(size_t)(-1)) {
@@ -70,7 +71,9 @@ static void do_wc(int fd, char *name)
         if(clen==(size_t)(-2)) break;
         if(clen==0) clen=1;
         space = iswspace(wchar);
-      } else space = isspace(toybuf[i]);
+      } else
+#endif
+             space = isspace(toybuf[i]);
 
       if (toybuf[i]==10) lengths[0]++;
       if (space) word=0;
@@ -87,7 +90,6 @@ static void do_wc(int fd, char *name)
 
 void wc_main(void)
 {
-  setlocale(LC_ALL, "");
   toys.optflags |= (toys.optflags&8)>>1;
   loopfiles(toys.optargs, do_wc);
   if (toys.optc>1) show_lengths(TT.totals, "total");

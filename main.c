@@ -101,6 +101,9 @@ void toy_exec(char *argv[])
   which = toy_find(argv[0]);
   if (!which) return;
   toy_init(which, argv);
+#ifdef CFG_TOYBOX_I18N
+  setlocale(LC_ALL, "");
+#endif
   toys.which->toy_main();
   exit(toys.exitval);
 }

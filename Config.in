@@ -32,6 +32,12 @@ config TOYBOX_FLOAT
 	  Include floating point support infrastructure and commands that
 	  require it.
 
+config TOYBOX_I18N
+	bool "Internalization support"
+	default y
+	help
+	  Add support for locales in commands.
+
 config TOYBOX_FREE
 	bool "Free memory unnecessarily"
 	default n

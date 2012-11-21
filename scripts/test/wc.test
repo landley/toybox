@@ -21,6 +21,8 @@ testing "wc format" "wc file1" "4 5 26 file1\n" "" ""
 testing "wc multiple files" "wc input - file1" \
         "1 2 3 input\n0 2 3 -\n4 5 26 file1\n5 9 32 total\n" "a\nb" "a b"
 
+optional TOYBOX_I18N
+
 #Tests for wc -m
 if printf "%s" "$LANG" | grep -q UTF-8
 then
