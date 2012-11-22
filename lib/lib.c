@@ -1182,6 +1182,17 @@ char* make_human_readable(unsigned long long size, unsigned long unit)
   return NULL; //not reached
 }
 
+// strtoul with exit on error
+unsigned long xstrtoul(const char *nptr, char **endptr, int base)
+{
+    unsigned long l;
+    errno = 0;
+    l = strtoul(nptr, endptr, base);
+    if (errno)
+        perror_exit("xstrtoul");
+    return l;
+}
+
 /*
  * used to get the interger value.
  */

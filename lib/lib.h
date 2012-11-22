@@ -29,6 +29,11 @@ struct arg_list {
   char *arg;
 };
 
+struct offset_list {
+  struct offset_list *next;
+  off_t off;
+};
+
 struct double_list {
   struct double_list *next, *prev;
   char *data;
@@ -145,7 +150,7 @@ void crc_init(unsigned int *crc_table, int little_endian);
 void terminal_size(unsigned *x, unsigned *y);
 int yesno(char *prompt, int def);
 void for_each_pid_with_name_in(char **names, void (*callback)(pid_t pid));
-
+unsigned long xstrtoul(const char *nptr, char **endptr, int base);
 
 // getmountlist.c
 struct mtab_list {
@@ -175,6 +180,10 @@ int update_password(char *filename, char* username, char* encrypted);
 
 // du helper functions
 char* make_human_readable(unsigned long long size, unsigned long unit);
+
+// useful tools
+#define min(a,b) (a)<(b) ? (a) : (b)
+#define max(a,b) (a)>(b) ? (a) : (b)
 
 // cut helper functions
 unsigned long get_int_value(const char *numstr, unsigned lowrange, unsigned highrange);
