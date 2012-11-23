@@ -11,6 +11,7 @@ testing "expand default" "expand input" "        foo     bar\n" "\tfoo\tbar\n" "
 testing "expand default stdin" "expand"  "        foo     bar\n" "" "\tfoo\tbar\n"
 testing "expand single" "expand -t 2 input" "  foo bar\n" "\tfoo\tbar\n" ""
 testing "expand tablist" "expand -t 5,10,12 input" "     foo  bar foo\n" "\tfoo\tbar\tfoo\n" ""
+testing "expand backspace" "expand input" "foobarf bar\n" "foobarfoo\b\b\tbar\n" ""
 
 # advanced tests
 

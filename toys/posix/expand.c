@@ -1,7 +1,5 @@
 /* expand.c - expands tabs to space
  *
- * FIXME: handle backspace.
- *
  * Copyright 2012 Jonathan Clairembault <jonathan at clairembault dot fr>
  *
  * See http://http://pubs.opengroup.org/onlinepubs/9699919799/nframe.html
@@ -116,7 +114,10 @@ static void expand_file(int fd, char *name)
         wrlinei += count;
       } else { /* copy input to output */
         wrbuf[wrbufi++] = rdbuf[rdbufi];
-        wrlinei += 1;
+        if (rdbuf[rdbufi] == '\b') /* go back one column on backspace */
+          wrlinei -= !!wrlinei; /* do not go below zero */
+        else
+          wrlinei += 1;
         /* flush expand buffer and reset tablist at newline */
         if (rdbuf[rdbufi] == '\n') {
           writeall(STDOUT_FILENO, wrbuf, wrbufi);
