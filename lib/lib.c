@@ -323,37 +323,134 @@ void xstat(char *path, struct stat *st)
   if(stat(path, st)) perror_exit("Can't stat %s", path);
 }
 
-// Cannonicalize path, even to file with one or more missing components at end
-char *xabspath(char *path, unsigned missing) 
+// Split a path into linked list of components, tracking head and tail of list.
+// Filters out // entries with no contents.
+struct string_list **splitpath(char *path, struct string_list **list)
 {
-  char *apath, *temp, *slash;
-  int i=0;
+  char *new = path;
 
-  // If this isn't an absolute path, make it one with cwd.
-  if (path[0]!='/') {
-    char *temp=xgetcwd();
-    apath = xmsprintf("%s/%s", temp, path);
-    free(temp);
-  } else apath = path;
-  slash = apath+strlen(apath);
+  *list = 0;
+  do {
+    int len;
 
-  for (;;) {
-    temp = realpath(apath, NULL);
-    if (i) *slash = '/';
-    if (temp || ++i > missing) break;
-    while (slash>apath) if (*--slash == '/') break;
-    *slash=0;
+    if (*path && *path != '/') continue;
+    len = path-new;
+    if (len > 0) {
+      *list = xmalloc(sizeof(struct string_list) + len + 1);
+      (*list)->next = 0;
+      strncpy((*list)->str, new, len);
+      (*list)->str[len] = 0;
+      list = &(*list)->next;
+    }
+    new = path+1;
+  } while (*path++);
+
+  return list;
+}
+
+// Cannonicalize path, even to file with one or more missing components at end.
+// if exact, require last path component to exist
+char *xabspath(char *path, int exact) 
+{
+  struct string_list *todo, *done = 0;
+  int try = 9999, dirfd = open("/", 0);;
+  char buf[4096], *ret;
+
+  // If this isn't an absolute path, start with cwd.
+  if (*path != '/') {
+    char *temp = xgetcwd();
+
+    splitpath(path, splitpath(temp, &todo));
     free(temp);
+  } else splitpath(path, &todo);
+
+  // Iterate through path components
+  while (todo) {
+    struct string_list *new = llist_pop(&todo), **tail;
+    ssize_t len;
+
+    if (!try--) {
+      errno = ELOOP;
+      goto error;
+    }
+
+    // Removable path componenents.
+    if (!strcmp(new->str, ".") || !strcmp(new->str, "..")) {
+      if (new->str[1] && done) free(llist_pop(&done));
+      free(new);
+      continue;
+    }
+
+    // Is this a symlink?
+    len=readlinkat(dirfd, new->str, buf, 4096);
+    if (len>4095) goto error;
+    if (len<1) {
+      int fd;
+
+      // Not a symlink: add to linked list, move dirfd, fail if error
+      if ((exact || todo) && errno != EINVAL) goto error;
+      new->next = done;
+      done = new;
+      fd = openat(dirfd, new->str, O_DIRECTORY);
+      if (fd == -1 && (exact || todo)) goto error;
+      close(dirfd);
+      dirfd = fd;
+      continue;
+    }
+
+    // If this symlink is to an absolute path, discard existing resolved path
+    buf[len] = 0;
+    if (*buf == '/') {
+      llist_traverse(done, free);
+      done=0;
+      close(dirfd);
+      dirfd = open("/", 0);
+    }
+    free(new);
+
+    // prepend components of new path. Note symlink to "/" will leave new NULL
+    tail = splitpath(buf, &new);
+
+    // symlink to "/" will return null and leave tail alone
+    if (new) {
+      *tail = todo;
+      todo = new;
+    }
+  }
+  close(dirfd);
+
+  // At this point done has the path, in reverse order. Reverse list while
+  // calculating buffer length.
+
+  try = 2;
+  while (done) {
+    struct string_list *temp = llist_pop(&done);;
+
+    if (todo) try++;
+    try += strlen(temp->str);
+    temp->next = todo;
+    todo = temp;
   }
 
-  if (i && temp) {
-    slash = xmsprintf("%s%s", temp, slash);
-    free(temp);
-    temp = slash;
+  // Assemble return buffer
+
+  ret = xmalloc(try);
+  *ret = '/';
+  ret [try = 1] = 0;
+  while (todo) {
+    if (try>1) ret[try++] = '/';
+    try = stpcpy(ret+try, todo->str) - ret;
+    free(llist_pop(&todo));
   }
 
-  if (path != apath) free(apath); 
-  return temp;
+  return ret;
+
+error:
+  close(dirfd);
+  llist_traverse(todo, free);
+  llist_traverse(done, free);
+
+  return NULL;
 }
 
 // Resolve all symlinks, returning malloc() memory.

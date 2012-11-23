@@ -8,12 +8,14 @@
 // Call a function (such as free()) on each element of a linked list.
 void llist_traverse(void *list, void (*using)(void *data))
 {
+  void *old = list;
+
   while (list) {
     void *pop = llist_pop(&list);
     using(pop);
 
     // End doubly linked list too.
-    if (list==pop) break;
+    if (old == list) break;
   }
 }
 

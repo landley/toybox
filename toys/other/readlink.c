@@ -2,7 +2,7 @@
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
 
-USE_READLINK(NEWTOY(readlink, "<1>1femnq[-fem]", TOYFLAG_BIN))
+USE_READLINK(NEWTOY(readlink, "<1>1fenq[-fe]", TOYFLAG_BIN))
 
 config READLINK
   bool "readlink"
@@ -14,9 +14,8 @@ config READLINK
 
     Options for producing cannonical paths (all symlinks/./.. resolved):
 
-    -e	cannonical path to existing file (fail if does not exist)
-    -f	cannonical path to creatable file (fail if directory does not exist)
-    -m	cannonical path
+    -e	cannonical path to existing entry (fail if nothing there)
+    -f	full path (fail if location does not exist)
     -n	no trailing newline
     -q	quiet (no output, just error code)
 */
@@ -30,14 +29,9 @@ void readlink_main(void)
 
   // Calculating full cannonical path?
 
-  if (toys.optflags & (FLAG_f|FLAG_e|FLAG_m)) {
-    unsigned u = 0;
-
-    if (toys.optflags & FLAG_f) u++;
-    if (toys.optflags & FLAG_m) u=999999999;
-
-    s = xabspath(*toys.optargs, u);
-  } else s = xreadlink(*toys.optargs);
+  if (toys.optflags & (FLAG_f|FLAG_e))
+    s = xabspath(*toys.optargs, toys.optflags & FLAG_e);
+  else s = xreadlink(*toys.optargs);
 
   if (s) {
     if (!(toys.optflags & FLAG_q))
