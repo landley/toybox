@@ -128,7 +128,7 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt)
   gof->excludes |= opt->dex[2];
   if (opt->flags&2) gof->stopearly=2;
 
-  if (toys.optflags && gof->excludes) {
+  if (toys.optflags & gof->excludes) {
     struct opts *bad;
     unsigned i = 1;
 
