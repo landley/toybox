@@ -4,68 +4,121 @@
  * Copyright 2012 Choubey Ji <warior.linux@gmail.com>
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/touch.html 
+ * acmrtd
 
-USE_TOUCH(NEWTOY(touch, "mr:t:", TOYFLAG_BIN))
+USE_TOUCH(NEWTOY(touch, "acd:mr:t:[!dtr]", TOYFLAG_BIN))
 
 config TOUCH
-  bool "th"
+  bool "touch"
   default y
   help
     Usage: Usage: touch [OPTION]... FILE...
+
     Update the access and modification times of each FILE to the current time.
-    -m                     change only the modification time
-    -r, --reference=FILE   use this file's times instead of current time
-    -t STAMP               use [[CC]YY]MMDDhhmm[.ss] instead of current time
+
+    -a	change access time
+    -m	change modification time
+    -c	don't create file
+    -d DATE	use YYYY-MM-DDThh:mm:SS[.frac][tz] as time
+    -t TIME	use [[CC]YY]MMDDhhmm[.ss][frac] as time
+    -r FILE	use reference file's time
 */
 
 #define FOR_touch
 #include "toys.h"
 
 GLOBALS(
-  char *date;
+  char *time;
   char *file;
+  char *date;
 )
+
+int fetch(char *file, struct timeval *tv, unsigned flags)
+{
+  struct stat st;
+
+  if (stat(TT.file, &st)) return 1;
+
+  if (flags & FLAG_a) {
+    tv[0].tv_sec = st.st_atime;
+    tv[0].tv_usec = st.st_atim.tv_nsec/1000;
+  }
+  if (flags & FLAG_m) {
+    tv[1].tv_sec = st.st_mtime;
+    tv[1].tv_usec = st.st_mtim.tv_nsec/1000;
+  }
+
+  return 0;
+}
 
 void touch_main(void)
 {
-  int fd;
-  time_t now;
-  struct utimbuf modinfo;
-  struct stat st;
+  struct timeval tv[2];
+  struct tm tm;
+  char **ss;
+  int flag;
 
-  if (TT.date) {
-    struct tm *tm = getdate(TT.date);
+  gettimeofday(tv, NULL);
+  localtime_r(&(tv->tv_sec), &tm);
 
-    if (!tm) perror_exit("bad date '%s'", TT.date);
-    now = mktime(tm);
-  } else time(&now);
-  modinfo.modtime = now;
-  modinfo.actime = now;
+  if (toys.optflags & (FLAG_t|FLAG_d)) {
+    char *date, *s;
+    int i, len;
 
-  if (TT.file) {
-    xstat(TT.file, &st);
-    modinfo.modtime = st.st_mtime;
-    modinfo.actime = st.st_atime;
-  }
-
-  if (toys.optflags & FLAG_m) {
-    if(stat(toys.optargs[toys.optc - 1], &st) < 0) {
-      toys.exitval = EXIT_FAILURE;
-      return;
-    }
-    modinfo.actime = st.st_atime;
-    if(!(toys.optflags & (FLAG_r|FLAG_t))) {
-      time(&now);
-      modinfo.modtime = now;
-    }
-  }
-  if (utime(toys.optargs[toys.optc - 1], &modinfo) == -1) {
-    if ((fd = open(toys.optargs[toys.optc - 1],O_CREAT |O_RDWR, 0644)) != -1) {
-      close(fd);
-      utime(toys.optargs[toys.optc - 1], &modinfo);
+    if (toys.optflags & FLAG_d) {
+      date = TT.date;
+      i = strlen(date)-1;
+      if (*date && toupper(date[i])=='Z') {
+        putenv("TZ=UTC");
+        strncpy(toybuf, date, sizeof(toybuf)-1);
+        date = toybuf;
+        date[i]=0;
+        gmtime_r(&(tv->tv_sec), &tm);
+      }
+      s = strptime(date, "%Y-%m-%dT%T", &tm);
+      if (s && *s=='.') {
+        sscanf(s, ".%d%n", &i, &len);
+        s += len;
+        tv->tv_usec = i;
+      }
     } else {
-      perror_msg("can't create '%s'", toys.optargs[toys.optc-1]);
-      toys.exitval = EXIT_FAILURE;
+      strcpy(toybuf, "%Y%m%d%H%M");
+      date = TT.time;
+      for (i=0;i<3;i++) {
+        s = strptime(date, toybuf+(i&2), &tm);
+        if (s) break;
+        toybuf[1]='y';
+      }
+      if (s && *s=='.') {
+        int count = sscanf(s, ".%2d%u%n", &(tm.tm_sec), &i, &len);
+        if (count==2) tv->tv_usec = i;
+        s += len;
+      }
+    }
+
+    errno = 0;
+    tv->tv_sec = mktime(&tm);
+    if (!s || *s || errno == EOVERFLOW) {
+      // Warn Indiana Jones the monkey died.
+      perror_exit("bad '%s'", date);
+    }
+  }
+  tv[1]=tv[0];
+
+  if (TT.file && fetch(TT.file, tv, FLAG_a|FLAG_m))
+    perror_exit("-r '%s'", TT.file);
+
+  flag = (~toys.optflags) & (FLAG_m|FLAG_a);
+  if (flag == (FLAG_m|FLAG_a)) flag = 0;
+  for (ss=toys.optargs; *ss;) {
+    int fd;
+
+    if ((!flag || !fetch(*ss, tv, flag)) && !utimes(*ss, tv)) ss++;
+    else if (toys.optflags & FLAG_c) ss++;
+    else if (-1 != (fd = open(*ss, O_CREAT, 0666))) close(fd);
+    else {
+      perror_msg("'%s'", *ss++);
+      toys.exitval = 1;
     }
   }
 }
