@@ -101,9 +101,6 @@ void toy_exec(char *argv[])
   which = toy_find(argv[0]);
   if (!which) return;
   toy_init(which, argv);
-#ifdef CFG_TOYBOX_I18N
-  setlocale(LC_ALL, "");
-#endif
   toys.which->toy_main();
   exit(toys.exitval);
 }
@@ -145,6 +142,8 @@ void toybox_main(void)
 
 int main(int argc, char *argv[])
 {
+  if (CFG_TOYBOX_I18N) setlocale(LC_ALL, "");
+
   // Artificial scope to eat less stack for things we call
   {
     char *name;

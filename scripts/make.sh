@@ -54,11 +54,27 @@ sed -n -e 's/^USE_[A-Z0-9_]*(/&/p' toys/*/*.c \
 	| sed 's/\(.*TOY(\)\([^,]*\),\(.*\)/\2 \1\2,\3/' | sort -k 1,1 \
 	| sed 's/[^ ]* //'  >> generated/newtoys.h
 
+# Extract list of command letters from processed header file
+
+function getflags()
+{
+  sed -n -e "s/.*TOY($1"',[ \t]*"\([^"]*\)"[ \t]*,.*)/\1/' \
+         -e 't keep;d;:keep' -e 's/^[<>=][0-9]//' -e 's/[?&^]//' \
+         -e 't keep' -e 's/[><=][0-9][0-9]*//g' -e 's/+.//g' \
+         -e 's/([^)]*)//g' -e 's/\[[^]]*\]//g' -e 's/[-?^:&#|@*]//g' -e 'p'
+}
+
 # Extract global structure definitions and flag definitions from toys/*/*.c
 
 function getglobals()
 {
+  # Run newtoys.h through the compiler's preprocessor to resolve USE macros
+  # against current config.
   NEWTOYS="$(cat generated/config.h generated/newtoys.h | gcc -E - | sed 's/" *"//g')"
+
+  # Grab allyesconfig for comparison
+  ALLTOYS="$((sed '/USE_.*([^)]*)$/s/$/ __VA_ARGS__/' generated/config.h && cat generated/newtoys.h) | gcc -E - | sed 's/" *"//g')"
+
   for i in toys/*/*.c
   do
     NAME="$(echo $i | sed 's@.*/\(.*\)\.c@\1@')"
@@ -68,13 +84,9 @@ function getglobals()
         -e 's/^GLOBALS(/struct '"$NAME"'_data {/' \
         -e 's/^)/};/' -e 'p' $i
 
-    # And get flag definitions
-    FLAGS="$(echo "$NEWTOYS" | sed -n \
-                 -e "s/.*TOY($NAME"',[ \t]*"\([^"]*\)"[ \t]*,.*)/\1/' \
-                 -e 't keep;d;:keep' -e 's/^[<>=][0-9]//' -e 's/[?&^]//' \
-                 -e 't keep' -e 's/[><=][0-9][0-9]*//g' -e 's/+.//g' \
-                 -e 's/([^)]*)//g' -e 's/\[[^]]*\]//g' -e 's/[-?^:&#|@*]//g' \
-                 -e 'p')"
+    FLAGS="$(echo "$NEWTOYS" | getflags "$NAME")"
+    ZFLAGS="$(echo "$ALLTOYS" | getflags "$NAME" | sed 's/[-'"$FLAGS"']//g')"
+
     echo "#ifdef FOR_${NAME}"
     X=0
     while [ $X -lt ${#FLAGS} ]
@@ -82,6 +94,12 @@ function getglobals()
       echo -ne "#define FLAG_${FLAGS:$X:1}\t"
       X=$(($X+1))
       echo "(1<<$((${#FLAGS}-$X)))"
+    done
+    X=0
+    while [ $X -lt ${#ZFLAGS} ]
+    do
+      echo "#define FLAG_${ZFLAGS:$X:1} 0"
+      X=$(($X+1))
     done
     echo "#define TT this.${NAME}"
     echo "#endif"

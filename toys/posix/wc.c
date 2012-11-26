@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/wc.html
 
-USE_WC(NEWTOY(wc, "mcwl", TOYFLAG_USR|TOYFLAG_BIN))
+USE_WC(NEWTOY(wc, USE_TOYBOX_I18N("m")"cwl", TOYFLAG_USR|TOYFLAG_BIN))
 
 config WC
   bool "wc"
@@ -58,9 +58,8 @@ static void do_wc(int fd, char *name)
     }
     if (len<1) break;
     for (i=0; i<len; i+=clen) {
-#ifdef CFG_TOYBOX_I18N
       wchar_t wchar;
-      if(toys.optflags&8) {
+      if (CFG_TOYBOX_I18N && (toys.optflags&FLAG_m)) {
         clen = mbrtowc(&wchar, toybuf+i, len-i, 0);
         if(clen==(size_t)(-1)) {
           if(i!=len-1) {
@@ -71,9 +70,7 @@ static void do_wc(int fd, char *name)
         if(clen==(size_t)(-2)) break;
         if(clen==0) clen=1;
         space = iswspace(wchar);
-      } else
-#endif
-             space = isspace(toybuf[i]);
+      } else space = isspace(toybuf[i]);
 
       if (toybuf[i]==10) lengths[0]++;
       if (space) word=0;

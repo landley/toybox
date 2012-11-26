@@ -47,11 +47,11 @@
 #include <utime.h>
 #include <utmpx.h>
 
-#ifdef CFG_TOYBOX_I18N
+// Internationalization support
+
 #include <locale.h>
 #include <wchar.h>
 #include <wctype.h>
-#endif
 
 #include "lib/lib.h"
 #include "toys/e2fs.h"
