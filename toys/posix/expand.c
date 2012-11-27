@@ -2,36 +2,23 @@
  *
  * Copyright 2012 Jonathan Clairembault <jonathan at clairembault dot fr>
  *
- * See http://http://pubs.opengroup.org/onlinepubs/9699919799/nframe.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/expand.html
 
 USE_EXPAND(NEWTOY(expand, "t:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config EXPAND
   bool "expand"
-  default n
+  default y
   help
     usage: expand [-t tablist] [file...]
 
-    Command expand. Expands tabs to space according to tabstops.
+    Expand tabs to spaces according to tabstops.
 
-    -t  tablist
-    Specify the tab stops.  The argument tablist consists of either a single 
-    strictly positive decimal integer or a list of tabstops. If a single number 
-    is given, tabs are set that number of column positions apart instead of the 
-    default 8.
+    -t	tablist
 
-    If a list of tabstops is given, the list is made of two or more strictly 
-    positive decimal integers, separated by <blank> or <comma> characters, in 
-    strictly ascending order. The <tab> characters are set at those specific 
-    column positions.
-
-    In the event of expand having to process a <tab> at a position beyond the 
-    last of those specified in a multiple tab-stop list, the <tab> is replaced 
-    by a single <space> in the output.
-
-    Any <backspace> characters shall be copied to the output and cause the 
-    column position count for tab stop calculations to be decremented; the 
-    column position count shall not be decremented below zero.
+      Specify tab stops, either a single number instead of the default 8,
+      or a list of increasing numbers (comma or space separated, after which
+      each additional tab becomes one space).
 */
 
 #define FOR_expand
@@ -135,8 +122,7 @@ static void expand_file(int fd, char *name)
 void expand_main(void)
 {
   build_tablist((toys.optflags & FLAG_t) ? TT.t_flags : "8");
-  /* expand every file */
+
   loopfiles(toys.optargs, expand_file);
-  /* free tablist */
-  llist_traverse(TT.tablist.next, free);
+  if (CFG_TOYBOX_FREE) llist_traverse(TT.tablist.next, free);
 }
