@@ -156,8 +156,7 @@ static void do_tail(int fd, char *name)
 
       if (!(new = get_chunk(fd, sizeof(toybuf)))) break;
       // append in order
-      dlist_add_nomalloc((struct double_list **)&list,
-                 (struct double_list *)new);
+      dlist_add_nomalloc((void *)&list, (struct double_list *)new);
 
       // Measure new chunk, discarding extra data from buffer
       len = new->len;

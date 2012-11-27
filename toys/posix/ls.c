@@ -445,7 +445,7 @@ void ls_main(void)
     }
 
     // Typecast means double_list->prev temporarirly goes in dirtree->parent
-    dlist_add_nomalloc((struct double_list **)&TT.files->child,
+    dlist_add_nomalloc((void *)&TT.files->child,
                (struct double_list *)dt);
   }
 
