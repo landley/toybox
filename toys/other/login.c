@@ -68,8 +68,9 @@ void read_user(char * buff, int size)
   fflush(stdout);
 
   do {
-    buff[0] = getchar();
-    if (buff[0] == EOF) exit(EXIT_FAILURE);
+    int c = getchar();
+    if (c == EOF) exit(EXIT_FAILURE);
+    buff[0] = c;
   } while (isblank(buff[0]));
 
   if (buff[0] != '\n') if(!fgets(&buff[1], HOSTNAME_SIZE-1, stdin)) _exit(1);
