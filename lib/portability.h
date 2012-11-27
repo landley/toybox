@@ -19,20 +19,28 @@
 
 #include <features.h>
 
-#ifdef __GLIBC__
+#ifndef O_DIRECTORY
+#define O_DIRECTORY 0200000
+#endif
+
+#if defined(__GLIBC__)
+// "Function prototypes shall be provided." but aren't.
+// http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/unistd.h.html
+char *crypt(const char *key, const char *salt);
+
 // An SUSv4 function that glibc refuses to #define without crazy #defines,
 // see http://pubs.opengroup.org/onlinepubs/9699919799/functions/strptime.html
 #include <time.h>
 char *strptime(const char *buf, const char *format, struct tm *tm);
-// Another one. "Function prototypes shall be provided." but aren't.
-// http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/unistd.h.html
-char *crypt(const char *key, const char *salt);
-// And again, from all the way back in posix-2001
-struct tm *getdate(const char *string);
+
+// uClibc pretends to be glibc and copied a lot of its bugs, but has a few more
+#if defined(__UCLIBC__)
+#include <unistd.h>
+#include <stdio.h>
+ssize_t getdelim(char **lineptr, size_t *n, int delim, FILE *stream);
 
 // When building under obsolete glibc, hold its hand a bit.
-
-#if __GLIBC_MINOR__ < 10 && !defined(__UCLIBC__)
+#elif __GLIBC_MINOR__ < 10
 #define AT_FDCWD -100
 #define AT_SYMLINK_NOFOLLOW 0x100
 #define AT_REMOVEDIR 0x200
