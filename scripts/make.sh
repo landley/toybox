@@ -70,10 +70,10 @@ function getglobals()
 {
   # Run newtoys.h through the compiler's preprocessor to resolve USE macros
   # against current config.
-  NEWTOYS="$(cat generated/config.h generated/newtoys.h | gcc -E - | sed 's/" *"//g')"
+  NEWTOYS="$(cat generated/config.h generated/newtoys.h | $CC -E - | sed 's/" *"//g')"
 
   # Grab allyesconfig for comparison
-  ALLTOYS="$((sed '/USE_.*([^)]*)$/s/$/ __VA_ARGS__/' generated/config.h && cat generated/newtoys.h) | gcc -E - | sed 's/" *"//g')"
+  ALLTOYS="$((sed '/USE_.*([^)]*)$/s/$/ __VA_ARGS__/' generated/config.h && cat generated/newtoys.h) | $CC -E - | sed 's/" *"//g')"
 
   for i in toys/*/*.c
   do
