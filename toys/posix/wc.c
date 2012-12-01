@@ -63,10 +63,8 @@ static void do_wc(int fd, char *name)
       if (CFG_TOYBOX_I18N && (toys.optflags&FLAG_m)) {
         clen = mbrtowc(&wchar, toybuf+i, len-i, 0);
         if (clen == -1) {
-          if (i != len-1) {
-            clen = 1;
-            continue;
-          } else break;
+          clen = 1;
+          continue;
         }
         if (clen == -2) break;
         if (clen == 0) clen=1;
