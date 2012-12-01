@@ -44,30 +44,30 @@ static void expand_file(int fd, char *name)
     }
     if (!len) break;
     for (i=0; i<len; i++) {
-      int len = 1;
+      int width = 1;
       char c = toybuf[i];
 
       if (c != '\t') {
         if (EOF == putc(c, stdout)) perror_exit(0);
 
-        if (c == '\b' && x) len = -1;
+        if (c == '\b' && x) width = -1;
         if (c == '\n') {
           x = stop = 0;
           continue;
         }
       } else {
         if (TT.tabcount < 2) {
-          len = TT.tabcount ? *TT.tab : 8;
-          len -= x%len;
+          width = TT.tabcount ? *TT.tab : 8;
+          width -= x%width;
         } else while (stop < TT.tabcount) {
           if (TT.tab[stop] > x) {
-            len = TT.tab[stop] - x;
+            width = TT.tab[stop] - x;
             break;
           } else stop++;
         }
-        xprintf("%*c", len, ' ');
+        xprintf("%*c", width, ' ');
       }
-      x += len;
+      x += width;
     }
   }
 }
