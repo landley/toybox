@@ -44,7 +44,8 @@ ssize_t getdelim(char **lineptr, size_t *n, int delim, FILE *stream);
 #define AT_FDCWD -100
 #define AT_SYMLINK_NOFOLLOW 0x100
 #define AT_REMOVEDIR 0x200
-int fstatat(int dirfd, const char *pathname, void *buf, int flags);
+#define fstatat fstatat64
+int fstatat64(int dirfd, const char *pathname, void *buf, int flags);
 int readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz);
 char *stpcpy(char *dest, const char *src);
 #include <sys/stat.h>
