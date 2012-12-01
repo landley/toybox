@@ -45,9 +45,13 @@ static void expand_file(int fd, char *name)
     if (!len) break;
     for (i=0; i<len; i++) {
       int len = 1;
-      if (toybuf[i] != '\t') {
-        if (EOF == putc(toybuf[i], stdout)) perror_exit(0);
-        if (toybuf[i] == '\n') {
+      char c = toybuf[i];
+
+      if (c != '\t') {
+        if (EOF == putc(c, stdout)) perror_exit(0);
+
+        if (c == '\b' && x) len = -1;
+        if (c == '\n') {
           x = stop = 0;
           continue;
         }
