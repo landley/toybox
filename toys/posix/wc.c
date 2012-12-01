@@ -51,30 +51,25 @@ static void do_wc(int fd, char *name)
   unsigned long word=0, lengths[]={0,0,0};
 
   for (;;) {
-    i = 0;
-again:
-    len = i+read(fd, toybuf+i, sizeof(toybuf)-i);
-    if (len < i) {
+    len = read(fd, toybuf, sizeof(toybuf));
+    if (len<0) {
       perror_msg("%s",name);
       toys.exitval = 1;
     }
-    if (!len) break;
+    if (len<1) break;
     for (i=0; i<len; i+=clen) {
-      if (CFG_TOYBOX_I18N && (toys.optflags&FLAG_m)) {
-        wchar_t wchar = 0;
+      wchar_t wchar;
 
+      if (CFG_TOYBOX_I18N && (toys.optflags&FLAG_m)) {
         clen = mbrtowc(&wchar, toybuf+i, len-i, 0);
-        if (clen < 1) {
-          // If the problem might be buffer wrap, move and read more data
-          if (i) {
-            memmove(toybuf, toybuf+i, sizeof(toybuf)-i);
-            i = len - i;
-            goto again;
-          } else {
-            clen=1;
+        if (clen == -1) {
+          if (i != len-1) {
+            clen = 1;
             continue;
-          }
+          } else break;
         }
+        if (clen == -2) break;
+        if (clen == 0) clen=1;
         space = iswspace(wchar);
       } else space = isspace(toybuf[i]);
 
