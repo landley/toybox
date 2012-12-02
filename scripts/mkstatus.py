@@ -23,13 +23,13 @@ pending=[]
 done=[]
 
 outfile=open("www/status.gen", "w")
-outfile.write("<h2>All commands</h2><blockquote><p>\n")
+outfile.write("<a name=all><h2><a href=#all>All commands</a></h2><blockquote><p>\n")
 
 blah=list(reverse)
 blah.sort()
 for i in blah:
   out=i
-  if "posix" in reverse[i]: out='[<a href="http://opengroup.org/onlinepubs/9699919799/utilities/%s.html">%s</a>]' % (i,out)
+  if "posix" in reverse[i]: out='[<a href="http://pubs.opengroup.org/onlinepubs/9699919799/utilities/%s.html">%s</a>]' % (i,out)
   elif "lsb" in reverse[i]: out='&lt;<a href="http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/%s.html">%s</a>&gt;' % (i,out)
   elif "development" in reverse[i]: out='(<a href="http://linux.die.net/man/1/%s">%s</a>)' % (i,out)
   elif "request" in reverse[i]: out='<a href="http://linux.die.net/man/1/%s">%s</a>' % (i,out)
@@ -46,5 +46,5 @@ for i in blah:
 
 outfile.write("</p></blockquote>\n")
 
-outfile.write("<h2>TODO</h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(pending))
-outfile.write("<h2>Done</h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(done))
+outfile.write("<a name=todo><h2><a href=#todo>TODO</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(pending))
+outfile.write("<a name=done><h2><a href=#done>Done</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(done))
