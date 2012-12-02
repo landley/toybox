@@ -29,11 +29,6 @@ struct arg_list {
   char *arg;
 };
 
-struct offset_list {
-  struct offset_list *next;
-  off_t off;
-};
-
 struct double_list {
   struct double_list *next, *prev;
   char *data;
