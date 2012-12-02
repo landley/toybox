@@ -45,7 +45,22 @@ static void expand_file(int fd, char *name)
     if (!len) break;
     for (i=0; i<len; i++) {
       int width = 1;
-      char c = toybuf[i];
+      char c;
+
+      if (CFG_TOYBOX_I18N) {
+        wchar_t blah;
+
+        width = mbrtowc(&blah, toybuf+i, len-i, 0);
+        if (width > 1) {
+          if (width != fwrite(toybuf+i, width, 1, stdout))
+            perror_exit("stdout");
+          i += width-1;
+          x++;
+          continue;
+        } else if (width == -2) break;
+        else if (width == -1) continue;
+      }
+      c = toybuf[i];
 
       if (c != '\t') {
         if (EOF == putc(c, stdout)) perror_exit(0);
