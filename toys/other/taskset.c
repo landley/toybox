@@ -23,9 +23,11 @@ config TASKSET
 #define FOR_taskset
 #include "toys.h"
 
-// Prototype for syscall wrappers sched.h refuses to give us
-int sched_setaffinity(pid_t pid, size_t size, void *cpuset);
-int sched_getaffinity(pid_t pid, size_t size, void *cpuset);
+#include <sys/syscall.h>
+#define sched_setaffinity(pid, size, cpuset) \
+  syscall(__NR_sched_setaffinity, (pid_t)pid, (size_t)size, (void *)cpuset)
+#define sched_getaffinity(pid, size, cpuset) \
+  syscall(__NR_sched_getaffinity, (pid_t)pid, (size_t)size, (void *)cpuset)
 
 // mask is an array of long, which makes the layout a bit weird on big
 // endian systems but as long as it's consistent...
@@ -40,7 +42,7 @@ static void do_taskset(pid_t pid, int quiet)
     if (!quiet) {
       int j = sizeof(toybuf), flag = 0;
 
-      if (sched_getaffinity(pid, sizeof(toybuf), (void *)mask))
+      if (-1 == sched_getaffinity(pid, sizeof(toybuf), (void *)mask))
         perror_exit(failed, "get", pid);
 
       printf("pid %d's %s affinity mask: ", pid, i ? "new" : "current");
@@ -70,7 +72,7 @@ static void do_taskset(pid_t pid, int quiet)
       mask[j/(2*sizeof(long))] |= digit << 4*(j&((2*sizeof(long))-1));
     }
 
-    if (sched_setaffinity(pid, sizeof(toybuf), (void *)mask))
+    if (-1 == sched_setaffinity(pid, sizeof(toybuf), (void *)mask))
       perror_exit(failed, "set", pid);
   }
 }
