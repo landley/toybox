@@ -9,7 +9,7 @@ for Toybox's 1.0 release.</p>
 
 <p>Our current candidate list combines the commands toybox already implements,
 the development environment command list, the toolbox standard commands,
-various vendor configurations of busybox, a selected subset of the SUSv4
+various vendor configurations of busybox, a selected subset of the POSIX/SUSv4
 standard, a couple of the less-insane bits of LSB, a few outright requests,
 plus additional to-be-determined shell functionality.</p>
 
@@ -31,7 +31,7 @@ the IEEE POSIX committee's 2008 standard, the Single Unix Specification version
 4, and the Open Group Base Specification edition 7 are all the same standard
 from three sources.</p>
 
-<p>The <a href="http://opengroup.org/onlinepubs/9699919799/idx/utilities.html">"utilities"
+<p>The <a href="http://pubs.opengroup.org/onlinepubs/9699919799/idx/utilities.html">"utilities"
 section</a>
 of these standards is devoted to the unix command line, and are the best such
 standard for our purposes.  (My earlier work on BusyBox was implemented with
@@ -100,8 +100,8 @@ they DID standardize tends to be respected.</p>
 
 <p>The Linux Standard Base's failure mode is different, they respond to
 pressure by including special-case crap, such as allowing Red Hat to shoehorn
-RPM on the standard even though all sorts of distros (from Debian to Slackware)
-don't use it and probably never will. This means anything in the LSB is
+RPM on the standard even though all sorts of distros (Debian, Slackware, Arch,
+Gentoo) don't use it and probably never will. This means anything in the LSB is
 at best a suggestion: arbitrary portions of this standard are widely
 ignored.</p>
 
