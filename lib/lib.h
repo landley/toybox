@@ -70,7 +70,7 @@ struct dirtree {
   char name[];
 };
 
-struct dirtree *dirtree_add_node(int dirfd, char *name, int symfollow);
+struct dirtree *dirtree_add_node(struct dirtree *p, char *name, int symfollow);
 char *dirtree_path(struct dirtree *node, int *plen);
 int dirtree_notdotdot(struct dirtree *catch);
 int dirtree_parentfd(struct dirtree *node);

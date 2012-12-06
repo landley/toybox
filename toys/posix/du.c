@@ -203,7 +203,7 @@ void du_main(void)
   while(*toys.optargs) {
     TT.depth = 0;
     char *path = make_pathproper(*toys.optargs);
-    struct dirtree *root = dirtree_add_node(AT_FDCWD, path, symfollow); //create a node
+    struct dirtree *root = dirtree_add_node(0, path, symfollow);
     if(root) {
       TT.st_dev = root->st.st_dev;
       handle_callback(root, do_du); //this will recurse thru the DIR children.

@@ -436,7 +436,7 @@ void ls_main(void)
   // Non-absolute paths are relative to current directory.
   TT.files = dirtree_add_node(0, 0, 0);
   for (s = *toys.optargs ? toys.optargs : noargs; *s; s++) {
-    dt = dirtree_add_node(AT_FDCWD, *s,
+    dt = dirtree_add_node(0, *s,
       (toys.optflags & (FLAG_L|FLAG_H|FLAG_l))^FLAG_l);
 
     if (!dt) {

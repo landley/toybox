@@ -5,11 +5,27 @@
 
 #include "toys.h"
 
+static int notdotdot(char *name)
+{
+  if (name[0]=='.' && (!name[1] || (name[1]=='.' && !name[2]))) return 0;
+
+  return 1;
+}
+
+// Default callback, filters out "." and "..".
+
+int dirtree_notdotdot(struct dirtree *catch)
+{
+  // Should we skip "." and ".."?
+  return notdotdot(catch->name) ? DIRTREE_SAVE|DIRTREE_RECURSE : 0;
+}
+
 // Create a dirtree node from a path, with stat and symlink info.
 // (This doesn't open directory filehandles yet so as not to exhaust the
 // filehandle space on large trees. handle_callback() does that instead.)
 
-struct dirtree *dirtree_add_node(int dirfd, char *name, int symfollow)
+struct dirtree *dirtree_add_node(struct dirtree *parent, char *name,
+  int symfollow)
 {
   struct dirtree *dt = NULL;
   struct stat st;
@@ -17,15 +33,18 @@ struct dirtree *dirtree_add_node(int dirfd, char *name, int symfollow)
   int len = 0, linklen = 0;
 
   if (name) {
-    if (fstatat(dirfd, name, &st, symfollow ? 0 : AT_SYMLINK_NOFOLLOW))
-      goto error;
+    // open code this because haven't got node to call dirtree_parentfd() on yet
+    int fd = parent ? parent->data : AT_FDCWD;
+
+    if (fstatat(fd, name, &st, symfollow ? 0 : AT_SYMLINK_NOFOLLOW)) goto error;
     if (S_ISLNK(st.st_mode)) {
-      if (0>(linklen = readlinkat(dirfd, name, buf, 4095))) goto error;
+      if (0>(linklen = readlinkat(fd, name, buf, 4095))) goto error;
       buf[linklen++]=0;
     }
     len = strlen(name);
   }
   dt = xzalloc((len = sizeof(struct dirtree)+len+1)+linklen);
+  dt->parent = parent;
   if (name) {
     memcpy(&(dt->st), &st, sizeof(struct stat));
     strcpy(dt->name, name);
@@ -39,7 +58,10 @@ struct dirtree *dirtree_add_node(int dirfd, char *name, int symfollow)
   return dt;
 
 error:
-  perror_msg("%s",name);
+  if (notdotdot(name)) {
+    char *path = parent ? dirtree_path(parent, 0) : "";
+    perror_msg("%s%s%s",path, parent ? "/" : "", name);
+  }
   free(dt);
   return 0;
 }
@@ -64,17 +86,6 @@ char *dirtree_path(struct dirtree *node, int *plen)
   if (plen) *plen = len;
 
   return path;
-}
-
-// Default callback, filters out "." and "..".
-
-int dirtree_notdotdot(struct dirtree *catch)
-{
-  // Should we skip "." and ".."?
-  if (catch->name[0]=='.' && (!catch->name[1] ||
-      (catch->name[1]=='.' && !catch->name[2]))) return 0;
-
-  return DIRTREE_SAVE|DIRTREE_RECURSE;
 }
 
 int dirtree_parentfd(struct dirtree *node)
@@ -140,9 +151,8 @@ void dirtree_recurse(struct dirtree *node,
 
   // The extra parentheses are to shut the stupid compiler up.
   while ((entry = readdir(dir))) {
-    if (!(new = dirtree_add_node(node->data, entry->d_name, symfollow)))
+    if (!(new = dirtree_add_node(node, entry->d_name, symfollow)))
       continue;
-    new->parent = node;
     new = handle_callback(new, callback);
     if (new == DIRTREE_ABORTVAL) break;
     if (new) {
@@ -163,7 +173,7 @@ void dirtree_recurse(struct dirtree *node,
 
 struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node))
 {
-  struct dirtree *root = dirtree_add_node(AT_FDCWD, path, 0);
+  struct dirtree *root = dirtree_add_node(0, path, 0);
 
   return root ? handle_callback(root, callback) : DIRTREE_ABORTVAL;
 }

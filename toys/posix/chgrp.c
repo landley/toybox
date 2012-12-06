@@ -71,7 +71,7 @@ static int do_chgrp(struct dirtree *node)
 
 void chgrp_main(void)
 {
-  int ischown = toys.which->name[2] == 'o';
+  int ischown = toys.which->name[2] == 'o', hl = toys.optflags&(FLAG_H|FLAG_L);
   char **s, *own;
 
   // Distinguish chown from chgrp
@@ -103,8 +103,7 @@ void chgrp_main(void)
   }
 
   for (s=toys.optargs+1; *s; s++) {
-    struct dirtree *new = dirtree_add_node(AT_FDCWD, *s,
-      toys.optflags&(FLAG_H|FLAG_L));
+    struct dirtree *new = dirtree_add_node(0, *s, hl);
     if (new) handle_callback(new, do_chgrp);
     else toys.exitval = 1;
   }
