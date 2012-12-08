@@ -62,6 +62,7 @@ error:
     char *path = parent ? dirtree_path(parent, 0) : "";
     perror_msg("%s%s%s",path, parent ? "/" : "", name);
   }
+  if (parent) parent->symlink = (char *)1;
   free(dt);
   return 0;
 }

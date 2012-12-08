@@ -25,32 +25,48 @@ config RM
 static int do_rm(struct dirtree *try)
 {
   int fd = dirtree_parentfd(try), flags = toys.optflags;
-  int or = 0, using = 0;
+  int dir = S_ISDIR(try->st.st_mode), or = 0, using = 0;
 
   // Skip . and .. (yes, even explicitly on the command line: posix says to)
   if (!dirtree_notdotdot(try)) return 0;
 
-  if (S_ISDIR(try->st.st_mode)) {
-    if (flags & (FLAG_r|FLAG_R)) {
-      if (try->data != -1) return DIRTREE_COMEAGAIN;
-      using = AT_REMOVEDIR;
+  // Intentionally fail non-recursive attempts to remove even an empty dir
+  // (via wrong flags to unlinkat) because POSIX says to.
+  if (dir && !(flags & (FLAG_r|FLAG_R))) goto skip;
+
+  // This is either the posix section 2(b) prompt or the section 3 prompt.
+  if (!(flags & FLAG_f) && faccessat(fd, try->name, W_OK, AT_SYMLINK_NOFOLLOW))
+    or++;
+  if (!(dir && try->data == -1) && ((or && isatty(0)) || (flags & FLAG_i))) {
+    char *s = dirtree_path(try, 0);
+    fprintf(stderr, "rm %s%s", or ? "ro " : "", dir ? "dir " : "");
+    or = yesno(s, 0);
+    free(s);
+    if (!or) goto nodelete;
+  }
+
+  // handle directory recursion
+  if (dir) {
+
+    if (try->data != -1) return DIRTREE_COMEAGAIN;
+    using = AT_REMOVEDIR;
+    if (try->symlink) goto nodelete;
+    if (flags & FLAG_i) {
+      char *s = dirtree_path(try, 0);
+      // This is the section 2(d) prompt. (Yes, posix says to prompt twice.)
+      fprintf(stderr, "rmdir ");
+      or = yesno(s, 0);
+      free(s);
+      if (!or) goto nodelete;
     }
   }
 
-  // Prompt if necessary
-  if (!(flags & FLAG_f) && faccessat(fd, try->name, W_OK, AT_SYMLINK_NOFOLLOW))
-    or++;
-
-  if ((or && isatty(0)) || (flags & FLAG_i)) {
-    fprintf(stderr, "rm %s", or ? "ro " : "");
-    if (!yesno(try->name, 2)) return 0;
-  }
-
-  // Intentionally fail non-recursive attempts to remove even an empty dir
-  // because POSIX says to.
+skip:
   if (unlinkat(fd, try->name, using)) {
     perror_msg("%s", try->name);
     toys.exitval = 1;
+nodelete:
+    if (try->parent) try->parent->symlink = (char *)1;
   }
 
   return 0;
