@@ -958,24 +958,17 @@ void terminal_size(unsigned *x, unsigned *y)
   }
 }
 
-// This should use a raw tty, fixit later.
 int yesno(char *prompt, int def)
 {
-  FILE *fps[] = {stdin, stdout, stderr};
-  int i;
   char buf;
 
-  for (i=0; i<3; i++) if (isatty(i)) break;
-  if (i == 3) return 1;
+  fprintf(stderr, "%s (%c/%c):", prompt, def ? 'Y' : 'y', def ? 'n' : 'N');
+  fflush(stderr);
+  while (fread(&buf, 1, 1, stdin)) {
+    int new;
 
-  fprintf(fps[i], "%s (%c/%c):", prompt, def ? 'Y' : 'y', def ? 'n' : 'N');
-  fflush(fps[i]);
-  while (fread(&buf, 1, 1, fps[i])) {
-    if (tolower(buf) == 'y') def = 1;
-    if (tolower(buf) == 'n') def = 0;
-    else if (!isspace(buf)) continue;
-
-    break;
+    if (isspace(buf)) break;
+    if (-1 != (new = stridx("ny", tolower(buf)))) def = new;
   }
 
   return def;
