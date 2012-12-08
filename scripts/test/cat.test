@@ -4,18 +4,28 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
+echo "one" > file1
+echo "two" > file2
 testing "cat" "cat && echo yes" "oneyes\n" "" "one"
+testing "cat -" "cat - && echo yes" "oneyes\n" "" "one"
+testing "cat file1 file2" "cat file1 file2" "one\ntwo\n"  "" ""
+testing "cat - file"      "cat - file1"     "zero\none\n" "" "zero\n"
+testing "cat file -"      "cat file1 -"     "one\nzero\n" "" "zero\n"
+
+testing "cat file1 notfound file2" \
+        "cat file1 notfound file2 2>stderr && echo ok ; cat stderr; rm stderr" \
+        "one\ntwo\ncat: notfound: No such file or directory\n" "" ""
+
 testing "cat file1" \
-	"cat /proc/self/exe > file1 && diff -u /proc/self/exe file1 && echo yes" \
-	"yes\n" "" ""
-#testing "cat file1 file2" "cat /bin/cat file1 > file2 && diff -u -
+        "cat /proc/self/exe > file1 && cmp /proc/self/exe file1 && echo yes" \
+        "yes\n" "" ""
 
 testing "cat - file1" \
-	"cat - file1 | diff -a -U 0 - file1 | tail -n 1" \
-	"-hello\n" "" "hello\n"
+        "cat - file1 | diff -a -U 0 - file1 | tail -n 1" \
+        "-hello\n" "" "hello\n"
 
-rm file1
-#testing "cat file1 file2" "cat $0"
-#testing "cat - file"
-#testing "cat > /dev/full"
-#testing "cat file1 notfound file2"
+testing "cat > /dev/full" \
+        "cat - > /dev/full 2>stderr && echo ok; cat stderr; rm stderr" \
+        "cat: xwrite: No space left on device\n" "" "zero\n"
+
+rm file1 file2
