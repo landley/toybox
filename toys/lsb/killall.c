@@ -25,7 +25,7 @@ GLOBALS(
   int signum;
 )
 
-static void kill_process(pid_t pid)
+static int kill_process(pid_t pid)
 {
   int ret;
 
@@ -33,6 +33,7 @@ static void kill_process(pid_t pid)
   ret = kill(pid, TT.signum);
 
   if (ret == -1 && !(toys.optflags & FLAG_q)) perror("kill");
+  return 1;
 }
 
 void killall_main(void)

@@ -975,7 +975,7 @@ int yesno(char *prompt, int def)
 }
 
 // Execute a callback for each PID that matches a process name from a list.
-void for_each_pid_with_name_in(char **names, void (*callback)(pid_t pid))
+void for_each_pid_with_name_in(char **names, int (*callback)(pid_t pid))
 {
   DIR *dp;
   struct dirent *entry;
@@ -998,9 +998,10 @@ void for_each_pid_with_name_in(char **names, void (*callback)(pid_t pid))
     if (n<1) continue;
 
     for (curname = names; *curname; curname++)
-      if (!strcmp(basename(cmd), *curname)) callback(atol(entry->d_name));
+      if (!strcmp(basename(cmd), *curname)) 
+          if (!callback(atol(entry->d_name))) goto done;
   }
-
+done:
   closedir(dp);
 }
 
