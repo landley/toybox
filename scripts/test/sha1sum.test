@@ -1,0 +1,57 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+# These tests are based on RFC3174 which were based on FIPS PUB 180-1
+
+testing "sha1sum TEST1" \
+        "sha1sum" \
+        "a9993e364706816aba3e25717850c26c9cd0d89d  -\n" \
+        "" "abc"
+
+testing "sha1sum TEST2" \
+        "sha1sum" \
+        "84983e441c3bd26ebaae4aa1f95129e5e54670f1  -\n" \
+        "" "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
+
+testing "sha1sum TEST3" \
+        'dd if=/dev/zero bs=1000 count=1000 2>/dev/null | tr \\0 a | sha1sum' \
+        "34aa973cd4c4daa4f61eeb2bdbad27316534016f  -\n" \
+        "" ""
+
+testing "sha1sum TEST4" \
+        'for i in `seq 1 10`; do echo -n 0123456701234567012345670123456701234567012345670123456701234567 ; done | sha1sum' \
+        "dea356a2cddd90c7a7ecedc5ebb563934f460452  -\n" \
+        "" ""
+
+echo -n "abc" > file1
+echo -n "def" > file2
+testing "sha1sum" \
+        "sha1sum" \
+        "a9993e364706816aba3e25717850c26c9cd0d89d  -\n" \
+        "" "abc"
+
+testing "sha1sum -" \
+        "sha1sum -" \
+        "a9993e364706816aba3e25717850c26c9cd0d89d  -\n" \
+        "" "abc"
+
+testing "sha1sum file" \
+        "sha1sum file1" \
+        "a9993e364706816aba3e25717850c26c9cd0d89d  file1\n" \
+        "" ""
+
+testing "sha1sum file1 file2" \
+        "sha1sum file1 file2" \
+        "a9993e364706816aba3e25717850c26c9cd0d89d  file1\n589c22335a381f122d129225f5c0ba3056ed5811  file2\n" \
+        "" ""
+
+testing "sha1sum file1 file2 -" \
+        "sha1sum file1 file2 -" \
+        "a9993e364706816aba3e25717850c26c9cd0d89d  file1\n589c22335a381f122d129225f5c0ba3056ed5811  file2\na9993e364706816aba3e25717850c26c9cd0d89d  -\n" \
+        "" "abc"
+
+rm -f file1 file2
+
