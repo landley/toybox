@@ -4,7 +4,6 @@
 # before menuconfig.  (It's called again from scripts/make.sh just to be sure.)
 
 mkdir -p generated
-OUTFILE=generated/Config.in
 
 source configure
 
@@ -28,15 +27,15 @@ genconfig()
 {
   # I could query the directory here, but I want to control the order
   # and capitalization in the menu
-  for j in Posix LSB Other
+  for j in toys/*/README
   do
-    echo "menu \"$j commands\""
+    echo "menu \"$(head -n 1 $j)\""
     echo
 
-    DIR=$(echo $j | tr A-Z a-z)
+    DIR="$(dirname "$j")"
 
     # extract config stanzas from each source file, in alphabetical order
-    for i in $(ls -1 toys/$DIR/*.c)
+    for i in $(ls -1 $DIR/*.c)
     do
       # Grab the config block for Config.in
       echo "# $i"
