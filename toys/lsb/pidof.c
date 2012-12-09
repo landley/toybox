@@ -5,7 +5,7 @@
  *
  * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/pidof.html
 
-USE_PIDOF(NEWTOY(pidof, "so:<1", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PIDOF(NEWTOY(pidof, "<1so:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PIDOF
   bool "pidof"
@@ -27,28 +27,23 @@ GLOBALS(
 
 static int print_pid(pid_t pid)
 {
+  char * res;
+  int len;
 
+  sprintf(toybuf, "%d", pid);
+  len = strlen(toybuf);
+
+  // Check omit string
   if (toys.optflags & FLAG_o)
   {
-      char * res;
-      int len;
-      snprintf(toybuf, sizeof(toybuf), "%d", pid);
-      len = strlen(toybuf);
-      res = strstr(TT.omit, toybuf);
-      if (res &&
-          (res == TT.omit || res[-1] == ',') &&
-          (res[len] == ',' || res[len] == 0))
-          // Found in omit string
-          return 1;
+    res = strstr(TT.omit, toybuf);
+    if (res && (res == TT.omit || res[-1] == ',') &&
+      (res[len] == ',' || res[len] == 0)) return 1;
   }
-
-  xprintf("%s%ld", toys.exitval ? "" : " ", (long)pid);
+  xprintf("%*s", len+(!toys.exitval), toybuf);
   toys.exitval = 0;
 
-  if (toys.optflags & FLAG_s)
-      return 0;
-
-  return 1;
+  return !(toys.optflags & FLAG_s);
 }
 
 void pidof_main(void)
