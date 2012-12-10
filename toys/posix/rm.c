@@ -35,8 +35,8 @@ static int do_rm(struct dirtree *try)
   if (dir && !(flags & (FLAG_r|FLAG_R))) goto skip;
 
   // This is either the posix section 2(b) prompt or the section 3 prompt.
-  if (!(flags & FLAG_f) && faccessat(fd, try->name, W_OK, AT_SYMLINK_NOFOLLOW))
-    or++;
+  if (!(flags & FLAG_f)
+    && (!S_ISLNK(try->st.st_mode) && faccessat(fd, try->name, W_OK, 0))) or++;
   if (!(dir && try->data == -1) && ((or && isatty(0)) || (flags & FLAG_i))) {
     char *s = dirtree_path(try, 0);
     fprintf(stderr, "rm %s%s", or ? "ro " : "", dir ? "dir " : "");
