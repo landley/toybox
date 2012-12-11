@@ -29,10 +29,12 @@ genconfig()
   # and capitalization in the menu
   for j in toys/*/README
   do
+    DIR="$(dirname "$j")"
+
+    [ $(ls "$DIR" | wc -l) -lt 2 ] && continue
+
     echo "menu \"$(head -n 1 $j)\""
     echo
-
-    DIR="$(dirname "$j")"
 
     # extract config stanzas from each source file, in alphabetical order
     for i in $(ls -1 $DIR/*.c)
