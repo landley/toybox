@@ -4,7 +4,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/rm.html
 
-USE_RM(NEWTOY(rm, "<1fiRr[-fi]", TOYFLAG_BIN))
+USE_RM(NEWTOY(rm, "fiRr[-fi]", TOYFLAG_BIN))
 
 config RM
   bool "rm"
@@ -75,6 +75,9 @@ nodelete:
 void rm_main(void)
 {
   char **s;
+
+  // Can't use <1 in optstring because zero arguments with -f isn't an error
+  if (!toys.optc && !(toys.optflags & FLAG_f)) error_exit("Needs 1 argument");
 
   for (s = toys.optargs; *s; s++) {
     if (!strcmp(*s, "/")) {
