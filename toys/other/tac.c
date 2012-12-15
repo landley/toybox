@@ -23,12 +23,9 @@ void do_tac(int fd, char *name)
   // Read in lines
   for (;;) {
     struct arg_list *temp;
-    int len;
 
     if (!(c = get_line(fd))) break;
 
-    len = strlen(c);
-    if (len && c[len-1]=='\n') c[len-1] = 0;
     temp = xmalloc(sizeof(struct arg_list));
     temp->next = list;
     temp->arg = c;
