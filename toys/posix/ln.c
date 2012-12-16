@@ -10,7 +10,7 @@ config LN
   bool "ln"
   default y
   help
-    usage: ln [-sf] [FROM...] TO
+    usage: ln [-sfn] [FROM...] TO
 
     Create a link between FROM and TO.
     With only one argument, create link in current directory.
