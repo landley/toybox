@@ -1,4 +1,3 @@
-
 /* killall.c - Send signal (default: TERM) to all processes with given names.
  *
  * Copyright 2012 Andreas Heck <aheck@gmx.de>
@@ -26,11 +25,14 @@ config KILLALL
 
 GLOBALS(
   int signum;
+  pid_t cur_pid;
 )
 
 static int kill_process(pid_t pid, char *name)
 {
   int ret;
+
+  if (pid == TT.cur_pid) return 1;
 
   if(toys.optflags & FLAG_i) {
     snprintf(toybuf, sizeof(toybuf), "Signal %s(%d) ?", name, pid);
@@ -78,6 +80,8 @@ void killall_main(void)
       error_exit("Process name missing!");
     }
   }
+
+  TT.cur_pid = getpid();
 
   for_each_pid_with_name_in(names, kill_process);
 
