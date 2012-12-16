@@ -158,7 +158,7 @@ void xprintf(char *format, ...)
 
 void xputs(char *s)
 {
-  if (EOF == puts(s)) perror_exit("write");
+  if (EOF == puts(s) || fflush(stdout)) perror_exit("write");
 }
 
 void xputc(char c)
@@ -975,7 +975,7 @@ int yesno(char *prompt, int def)
 }
 
 // Execute a callback for each PID that matches a process name from a list.
-void for_each_pid_with_name_in(char **names, int (*callback)(pid_t pid))
+void for_each_pid_with_name_in(char **names, int (*callback)(pid_t pid, char *name))
 {
   DIR *dp;
   struct dirent *entry;
@@ -999,7 +999,7 @@ void for_each_pid_with_name_in(char **names, int (*callback)(pid_t pid))
 
     for (curname = names; *curname; curname++)
       if (!strcmp(basename(cmd), *curname)) 
-          if (!callback(atol(entry->d_name))) goto done;
+          if (!callback(atol(entry->d_name), *curname)) goto done;
   }
 done:
   closedir(dp);

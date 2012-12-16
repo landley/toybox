@@ -25,7 +25,7 @@ GLOBALS(
   char *omit;
 )
 
-static int print_pid(pid_t pid)
+static int print_pid(pid_t pid, char * name)
 {
   char * res;
   int len;
