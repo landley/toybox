@@ -1,6 +1,57 @@
 <!--#include file="header.html" -->
 
 <h2>News</h2>
+<hr><b>December 15, 2012</b>
+<blockquote><p>"The major difference between a thing that might go wrong and a
+thing that cannot possibly go wrong is that when a thing that cannot possibly
+go wrong goes wrong it usually turns out to be impossible to get at or repair."
+</p><p>- The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+
+<p><a href=downloads/toybox-0.4.2.tar.bz2>Toybox 0.4.2</a> is based on
+<a href=http://landley.net/hg/toybox/shortlog/749>commit 749</a> and is
+just a resync. Linux 3.7 came out, meaning it's time to do an Aboriginal
+Linux release, and that should use a stable version of toybox. So here's
+a new stable version.</p>
+
+<p>The new commands are cut (from Jason Kyungwan Han), touch
+(from Choubey Ji), expand (from Jonathan Clairembault, and he fixed a
+bug in login), and rm (from Rob Landley). Felix Janda added UTF-8
+support infrastructure (for non-ascii character sets) with a config option.
+Elie De Brauwer added tests for cat and sha1sum, and -so options to pidof.
+The "ls" command defaults to -C (column view) now, and "readlink" now supports
+-fenq.</p>
+
+<p>Portability work: toybox should now build against the musl C library,
+and against older glibc versions (circa 2008, much before that and kernel
+features we depend on start to drop out).</p>
+
+<p>The whole codebase got reindented from "one tab" to "two spaces" per
+level. The option parsing logic now understands [groups] of commands (when more
+than one in a group is selected it can switch the others off, or error out,
+or other things). The error_exit() infrastructure can now longjmp back to an
+earlier point instead of exiting. Each toys/* directory now has a README,
+the first line of which is the fancy name menuconfig uses for the directory
+(so no more hardwired directory list in scripts/genconfig.sh).</p>
+
+<p>Fixed a filehandle leak in getmountlist().
+Pass parent pointer to dirtree_add_node() so it can give error messages with
+full path. The yesno() function now always reads from stdin and writes to
+stderr (we can retry tty checking complexity once we've got commands needing
+it).</p>
+
+<p>The open group broke their website so the
+<a href=http://opengroup.org/onlinepubs/9699919799>old links</a> to POSIX 2008
+now <a href=http://pubs.opengroup.org/onlinepubs/9699919799>need to start with
+pubs</a>. Some of the links in the tree have been updated, others haven't while
+I wait to see if their webmaster notices and fixes it.</p>
+
+<p>(I note that the current rm implementation is not technically posix compliant
+because the standard requires infinite recursion depth and the current
+implementation uses one filehandle per level. I can add a config option
+to do it Posix's way, which is more brittle and needs extra security checks,
+but am waiting for somebody to complain first. The default "ulimit -n" is 1024
+filehandles, so drilling down over 1000 nested subdirectories).</p>
+
 <hr><b>November 13, 2012</b>
 <blockquote><p>"Rule Six: The winning team shall be the first team that wins."
 - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
