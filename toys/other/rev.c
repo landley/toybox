@@ -10,7 +10,7 @@ config REV
   help
     usage: rev [FILE...]
 
-    Output lines reversed, when no files are given stdin is used.
+    Output each line reversed, when no files are given stdin is used.
 */
 
 #include "toys.h"
@@ -20,15 +20,13 @@ void do_rev(int fd, char *name)
   char *c;
 
   for (;;) {
-    int len;
-    int i;
+    int len, i;
+
     if (!(c = get_line(fd))) break;
     len = strlen(c) - 1;
-    i = 0;
-    while ( i <= len/2)
-    {
-      char tmp;
-      tmp = c[i];
+    for (i = 0; i <= len/2; i++) {
+      char tmp = c[i];
+
       c[i] = c[len-i];
       c[len-i] = tmp;
       i++;
