@@ -29,7 +29,6 @@ void do_rev(int fd, char *name)
 
       c[i] = c[len-i];
       c[len-i] = tmp;
-      i++;
     }
     xputs(c);
     free(c);
