@@ -23,8 +23,9 @@ void do_tac(int fd, char *name)
   // Read in lines
   for (;;) {
     struct arg_list *temp;
+    long len;
 
-    if (!(c = get_line(fd))) break;
+    if (!(c = get_rawline(fd, &len, '\n'))) break;
 
     temp = xmalloc(sizeof(struct arg_list));
     temp->next = list;
@@ -35,7 +36,7 @@ void do_tac(int fd, char *name)
   // Play them back.
   while (list) {
     struct arg_list *temp = list->next;
-    xputs(list->arg);
+    xprintf("%s", list->arg);
     free(list->arg);
     free(list);
     list = temp;

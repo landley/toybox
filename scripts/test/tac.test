@@ -17,8 +17,7 @@ testing "tac file1 notfound file2" \
         "tac file1 notfound file2 2>stderr && echo ok ; tac stderr; rm stderr" \
         "one-B\none-A\ntwo-B\ntwo-A\ntac: notfound: No such file or directory\n" "" ""
 
-# echo -ne "abc\ndef" | tac actually gives "defabc\n"
-testing "tac no trailing newline" "tac -" "def\nabc\n" "" "abc\ndef"
+testing "tac no trailing newline" "tac -" "defabc\n" "" "abc\ndef"
 
 # xputs used by tac does not propagate this error condition properly. 
 #testing "tac > /dev/full" \
