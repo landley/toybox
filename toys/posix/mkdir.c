@@ -3,7 +3,6 @@
  * Copyright 2012 Georgi Chorbadzhiyski <georgi@unixsol.org>
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/mkdir.html
- *
 
 USE_MKDIR(NEWTOY(mkdir, "<1pm:", TOYFLAG_BIN))
 
@@ -23,6 +22,7 @@ config MKDIR
 
 GLOBALS(
   char *arg_mode;
+
   mode_t mode;
 )
 
@@ -52,8 +52,7 @@ static int do_mkdir(char *dir)
     } else if (*s) continue;
 
     // Use the mode from the -m option only for the last directory.
-    if ((toys.optflags&FLAG_m) && save != '/')
-      mode = TT.mode;
+    if ((toys.optflags&FLAG_m) && save != '/') mode = TT.mode;
 
     if (mkdir(dir, mode)<0 && ((toys.optflags&~FLAG_p) || errno != EEXIST))
       return 1;
@@ -68,13 +67,11 @@ void mkdir_main(void)
 {
   char **s;
 
-  TT.mode = 0777;
-  if(toys.optflags&FLAG_m)
-    TT.mode = string_to_mode(TT.arg_mode, TT.mode);
+  if(toys.optflags&FLAG_m) TT.mode = string_to_mode(TT.arg_mode, 0777);
 
   for (s=toys.optargs; *s; s++) {
     if (do_mkdir(*s)) {
-      perror_msg("cannot create directory '%s'", *s);
+      perror_msg("'%s'", *s);
       toys.exitval = 1;
     }
   }
