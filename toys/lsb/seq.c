@@ -16,6 +16,7 @@ config SEQ
     Count from first to last, by increment. Omitted arguments default
     to 1. Two arguments are used as first and last. Arguments can be
     negative or floating point.
+
     -f	Use fmt_str as a floating point format string
     -s	Use sep_str as separator, default is a newline character
 */
@@ -24,16 +25,17 @@ config SEQ
 #include "toys.h"
 
 GLOBALS(
-  char * sep;
-  char * fmt;
+  char *sep;
+  char *fmt;
 )
 
 void seq_main(void)
 {
   double first, increment, last, dd;
-  char * sep_str = "\n";
-  char * fmt_str = "%g";
+  char *sep_str = "\n";
+  char *fmt_str = "%g";
   int output = 0;
+
   // Parse command line arguments, with appropriate defaults.
   // Note that any non-numeric arguments are treated as zero.
   first = increment = 1;
