@@ -2,22 +2,32 @@
 
 import subprocess,sys
 
-stuff={}
-blob=subprocess.Popen(["sed","-n", 's/<span id=\\([a-z_]*\\)>/\\1 /;t good;d;:good;h;:loop;n;s@</span>@@;t out;H;b loop;:out;g;s/\\n/ /g;p', "www/roadmap.html", "www/status.html"], stdout=subprocess.PIPE, shell=False)
-for i in blob.stdout.read().split("\n"):
-  if not i: continue
-  i=i.split()
-  stuff[i[0]]=i[1:]
+def readit(args):
+  ret={}
+  arr=[]
+  blob=subprocess.Popen(args, stdout=subprocess.PIPE, shell=False)
+  for i in blob.stdout.read().split("\n"):
+    if not i: continue
+    i=i.split()
+    ret[i[0]]=i[1:]
+    arr.extend(i)
+  return ret,arr
 
-stuff['toolbox']
+stuff,blah=readit(["sed","-n", 's/<span id=\\([a-z_]*\\)>/\\1 /;t good;d;:good;h;:loop;n;s@</span>@@;t out;H;b loop;:out;g;s/\\n/ /g;p', "www/roadmap.html", "www/status.html"])
+
+blah,toystuff=readit(["./toybox"])
 
 reverse={}
 for i in stuff:
   for j in stuff[i]:
-    try:
-      reverse[j].append(i)
-    except:
-      reverse[j]=[i]
+    try: reverse[j].append(i)
+    except: reverse[j]=[i]
+
+for i in toystuff:
+  try:
+    if ("ready" in reverse[i]) or ("pending" in reverse[i]): continue
+  except: pass
+  print i
 
 pending=[]
 done=[]
