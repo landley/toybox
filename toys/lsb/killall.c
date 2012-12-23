@@ -10,14 +10,14 @@ config KILLALL
   bool "killall"
   default y
   help
-    usage: killall [-l] [-qv] [-SIG] PROCESS_NAME...
+    usage: killall [-l] [-iqv] [-SIG] PROCESS_NAME...
 
     Send a signal (default: TERM) to all processes with the given names.
 
-    -l	print list of all available signals
     -i	ask for confirmation before killing
-    -v	report if the signal was successfully sent
+    -l	print list of all available signals
     -q	don't print any warnings or error messages
+    -v	report if the signal was successfully sent
 */
 
 #define FOR_killall
@@ -34,8 +34,8 @@ static int kill_process(pid_t pid, char *name)
 
   if (pid == TT.cur_pid) return 1;
 
-  if(toys.optflags & FLAG_i) {
-    snprintf(toybuf, sizeof(toybuf), "Signal %s(%d) ?", name, pid);
+  if (toys.optflags & FLAG_i) {
+    sprintf(toybuf, "Signal %s(%d) ?", name, pid);
     if (yesno(toybuf, 0) == 0) return 1;
   }
 
@@ -51,22 +51,15 @@ static int kill_process(pid_t pid, char *name)
 
 void killall_main(void)
 {
-  char **names;
+  char **names = toys.optargs;
+
+  TT.signum = SIGTERM;
+  toys.exitval++;
 
   if (toys.optflags & FLAG_l) {
     sig_to_num(NULL);
     return;
   }
-
-  TT.signum = SIGTERM;
-  toys.exitval++;
-
-  if (!*toys.optargs) {
-    toys.exithelp++;
-    error_exit("Process name missing!");
-  }
-
-  names = toys.optargs;
 
   if (**names == '-') {
     if (0 > (TT.signum = sig_to_num((*names)+1))) {
@@ -74,11 +67,11 @@ void killall_main(void)
       error_exit("Invalid signal");
     }
     names++;
+  }
 
-    if (!*names) {
-      toys.exithelp++;
-      error_exit("Process name missing!");
-    }
+  if (!*names) {
+    toys.exithelp++;
+    error_exit("Process name missing!");
   }
 
   TT.cur_pid = getpid();
