@@ -102,6 +102,7 @@ void toy_exec(char *argv[])
   if (!which) return;
   toy_init(which, argv);
   toys.which->toy_main();
+  if (fflush(NULL) || ferror(stdout)) perror_exit("write");
   exit(toys.exitval);
 }
 
