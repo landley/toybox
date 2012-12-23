@@ -1,0 +1,44 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+testing "mkdir" "mkdir one && [ -d one ] && echo yes" "yes\n" "" ""
+rmdir one
+
+touch existing
+testing "mkdir existing" \
+	"mkdir existing 2> /dev/null || [ -f existing ] && echo yes" "yes\n" "" ""
+rm existing
+
+testing "mkdir one two" \
+	"mkdir one two && [ -d one ] && [ -d two ] && echo yes" "yes\n" "" ""
+rmdir one two
+
+testing "mkdir missing/one" \
+	"mkdir missing/one 2> /dev/null || [ ! -d missing ] && echo yes" "yes\n" "" ""
+
+testing "mkdir -p" \
+	"mkdir -p one/two/three && [ -d one/two/three ] && echo yes" "yes\n" "" ""
+rm -rf one
+
+mkdir existing
+testing "mkdir -p existing" "mkdir -p existing && echo yes" "yes\n" "" ""
+rmdir existing
+
+umask 123
+testing "mkdir (default permissions)" \
+	"mkdir one && stat -c %a one" "654\n" "" ""
+rmdir one
+
+umask 000
+
+testing "mkdir -m 124" \
+	"mkdir -m 124 one && stat -c %a one" "124\n" "" ""
+rmdir one
+
+testing "mkdir -p -m 653" \
+	"mkdir -p -m 653 one/two && stat -c %a one && stat -c %a one/two" \
+	"777\n653\n" "" ""
+rm -rf one
