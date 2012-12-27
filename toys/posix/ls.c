@@ -425,6 +425,7 @@ void ls_main(void)
   else {
     TT.screen_width = 80;
     terminal_size(&TT.screen_width, NULL);
+    if (TT.screen_width<2) TT.screen_width = 2;
     if (!(toys.optflags&(FLAG_1|FLAG_x|FLAG_m))) toys.optflags |= FLAG_C;
   }
   // The optflags parsing infrastructure should really do this for us,
