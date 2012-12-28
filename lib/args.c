@@ -132,7 +132,8 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt)
     struct opts *bad;
     unsigned i = 1;
 
-    for (bad=gof->opts; gof->excludes && i; bad = bad->next) i<<=1;
+    for (bad=gof->opts; opt == bad || !(gof->excludes & i); bad = bad->next)
+      i<<=1;
     error_exit("No '%c' with '%c'", opt->c, bad->c);
   }
 
@@ -292,7 +293,7 @@ void parse_optflaglist(struct getoptflagstate *gof)
   while (*options) {
     unsigned bits = 0;
 
-    if (CFG_TOYBOX_DEBUG && *options) error_exit("trailing %s", options);
+    if (CFG_TOYBOX_DEBUG && *options != '[') error_exit("trailing %s", options);
 
     idx = stridx("-|!+", *++options);
     if (CFG_TOYBOX_DEBUG && idx == -1) error_exit("[ needs +-!");
