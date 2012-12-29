@@ -132,8 +132,10 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt)
     struct opts *bad;
     unsigned i = 1;
 
-    for (bad=gof->opts; opt == bad || !(gof->excludes & i); bad = bad->next)
-      i<<=1;
+    for (bad=gof->opts, i=1; ;bad = bad->next, i<<=1) {
+      if (opt == bad || !(i & toys.optflags)) continue;
+      if (toys.optflags & bad->dex[2]) break;
+    }
     error_exit("No '%c' with '%c'", opt->c, bad->c);
   }
 
