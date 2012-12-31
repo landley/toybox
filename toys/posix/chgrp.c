@@ -104,7 +104,7 @@ void chgrp_main(void)
 
   for (s=toys.optargs+1; *s; s++) {
     struct dirtree *new = dirtree_add_node(0, *s, hl);
-    if (new) handle_callback(new, do_chgrp);
+    if (new) dirtree_handle_callback(new, do_chgrp);
     else toys.exitval = 1;
   }
 

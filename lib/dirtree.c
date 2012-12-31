@@ -22,7 +22,7 @@ int dirtree_notdotdot(struct dirtree *catch)
 
 // Create a dirtree node from a path, with stat and symlink info.
 // (This doesn't open directory filehandles yet so as not to exhaust the
-// filehandle space on large trees. handle_callback() does that instead.)
+// filehandle space on large trees, dirtree_handle_callback() does that.)
 
 struct dirtree *dirtree_add_node(struct dirtree *parent, char *name,
   int symfollow)
@@ -102,7 +102,7 @@ int dirtree_parentfd(struct dirtree *node)
 // hit, free structures after use, and return NULL.
 //
 
-struct dirtree *handle_callback(struct dirtree *new,
+struct dirtree *dirtree_handle_callback(struct dirtree *new,
           int (*callback)(struct dirtree *node))
 {
   int flags, dir = S_ISDIR(new->st.st_mode);
@@ -154,7 +154,7 @@ void dirtree_recurse(struct dirtree *node,
   while ((entry = readdir(dir))) {
     if (!(new = dirtree_add_node(node, entry->d_name, symfollow)))
       continue;
-    new = handle_callback(new, callback);
+    new = dirtree_handle_callback(new, callback);
     if (new == DIRTREE_ABORTVAL) break;
     if (new) {
       *ddt = new;
@@ -176,5 +176,5 @@ struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node))
 {
   struct dirtree *root = dirtree_add_node(0, path, 0);
 
-  return root ? handle_callback(root, callback) : DIRTREE_ABORTVAL;
+  return root ? dirtree_handle_callback(root, callback) : DIRTREE_ABORTVAL;
 }

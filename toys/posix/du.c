@@ -206,7 +206,7 @@ void du_main(void)
     struct dirtree *root = dirtree_add_node(0, path, symfollow);
     if(root) {
       TT.st_dev = root->st.st_dev;
-      handle_callback(root, do_du); //this will recurse thru the DIR children.
+      dirtree_handle_callback(root, do_du); // recurse thru the DIR children.
     }
     toys.optargs++;
   }
