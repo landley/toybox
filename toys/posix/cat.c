@@ -25,10 +25,7 @@ static void do_cat(int fd, char *name)
 
   for (;;) {
     len = read(fd, toybuf, size);
-    if (len<0) {
-      perror_msg("%s",name);
-      toys.exitval = EXIT_FAILURE;
-    }
+    if (len<0) perror_msg("%s",name);
     if (len<1) break;
     xwrite(1, toybuf, len);
   }

@@ -20,9 +20,7 @@ void realpath_main(void)
   char **s = toys.optargs;
 
   for (s = toys.optargs; *s; s++) {
-    if (!realpath(*s, toybuf)) {
-      perror_msg("cannot access '%s'", *s);
-      toys.exitval = 1;
-    } else xputs(toybuf);
+    if (!realpath(*s, toybuf)) perror_msg("%s", *s);
+    else xputs(toybuf);
   }
 }

@@ -26,6 +26,7 @@ void verror_msg(char *msg, int err, va_list va)
   else s+=2;
   if (err) fprintf(stderr, s, strerror(err));
   putc('\n', stderr);
+  if (!toys.exitval) toys.exitval++;
 }
 
 void error_msg(char *msg, ...)
@@ -61,7 +62,6 @@ void error_exit(char *msg, ...)
   verror_msg(msg, 0, va);
   va_end(va);
 
-  if (!toys.exitval) toys.exitval++;
   if (toys.rebound) longjmp(*toys.rebound, 1);
   else exit(toys.exitval);
 }
@@ -76,7 +76,6 @@ void perror_exit(char *msg, ...)
   verror_msg(msg, errno, va);
   va_end(va);
 
-  if (!toys.exitval) toys.exitval++;
   if (toys.rebound) longjmp(*toys.rebound, 1);
   else exit(toys.exitval);
 }

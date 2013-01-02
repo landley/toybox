@@ -30,10 +30,6 @@ void mkfifo_main(void)
   TT.mode = 0666;
   if (toys.optflags & FLAG_m) TT.mode = string_to_mode(TT.m_string, 0);
 
-  for (s = toys.optargs; *s; s++) {
-    if (mknod(*s, S_IFIFO | TT.mode, 0) < 0) {
-      perror_msg("cannot create fifo '%s'", *s);
-      toys.exitval = 1;
-    }
-  }
+  for (s = toys.optargs; *s; s++)
+    if (mknod(*s, S_IFIFO | TT.mode, 0) < 0) perror_msg("%s", *s);
 }

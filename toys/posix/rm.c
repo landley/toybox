@@ -64,7 +64,6 @@ static int do_rm(struct dirtree *try)
 skip:
   if (unlinkat(fd, try->name, using)) {
     perror_msg("%s", try->name);
-    toys.exitval = 1;
 nodelete:
     if (try->parent) try->parent->symlink = (char *)1;
   }
@@ -82,7 +81,6 @@ void rm_main(void)
   for (s = toys.optargs; *s; s++) {
     if (!strcmp(*s, "/")) {
       error_msg("rm /. if you mean it");
-      toys.exitval = 1;
       continue;
     }
 

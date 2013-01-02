@@ -61,7 +61,7 @@ todo: basic /dev file association
 static void loopback_setup(char *device, char *file)
 {
   struct loop_info64 *loop = (void *)(toybuf+32);
-  int rc = 0, lfd = -1, ffd;
+  int lfd = -1, ffd;
   unsigned flags = toys.optflags;
 
   // Open file (ffd) and loop device (lfd)
@@ -89,7 +89,6 @@ static void loopback_setup(char *device, char *file)
     if (errno == ENXIO && (flags & (FLAG_a|FLAG_j))) return;
     if (errno != ENXIO || !file) {
       perror_msg("%s", device ? device : "-f");
-      rc = 1;
       goto done;
     }
   }
@@ -102,7 +101,6 @@ static void loopback_setup(char *device, char *file)
   if (flags & (FLAG_c|FLAG_d)) {
     if (ioctl(lfd, (flags & FLAG_c) ? LOOP_SET_CAPACITY : LOOP_CLR_FD, 0)) {
       perror_msg("%s", device);
-      rc = 1;
       goto done;
     }
   // Associate file with this device?
@@ -129,7 +127,6 @@ static void loopback_setup(char *device, char *file)
 done:
   if (file) close(ffd);
   if (lfd != -1) close(lfd);
-  toys.exitval |= rc;
 }
 
 // Perform an action on all currently existing loop devices

@@ -52,10 +52,7 @@ static void do_wc(int fd, char *name)
 
   for (;;) {
     len = read(fd, toybuf, sizeof(toybuf));
-    if (len<0) {
-      perror_msg("%s",name);
-      toys.exitval = 1;
-    }
+    if (len<0) perror_msg("%s", name);
     if (len<1) break;
     for (i=0; i<len; i+=clen) {
       wchar_t wchar;

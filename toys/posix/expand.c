@@ -39,7 +39,6 @@ static void expand_file(int fd, char *name)
     len = read(fd, toybuf, sizeof(toybuf));
     if (len<0) {
       perror_msg("%s", name);
-      toys.exitval = 1;
       return;
     }
     if (!len) break;

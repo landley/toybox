@@ -26,10 +26,7 @@ GLOBALS(
 static void do_truncate(int fd, char *name)
 {
   if (fd<0) return;
-  if (ftruncate(fd, TT.size)) {
-    perror_msg("failed to set '%s' to '%ld'", name, TT.size);
-    toys.exitval = EXIT_FAILURE;
-  }
+  if (ftruncate(fd, TT.size)) perror_msg("'%s' to '%ld'", name, TT.size);
 }
 
 void truncate_main(void)

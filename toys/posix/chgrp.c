@@ -60,8 +60,7 @@ static int do_chgrp(struct dirtree *node)
         toys.which->name[2]=='o' && TT.group_name ? ":" : "",
         TT.group_name ? TT.group_name : "", path);
     if (ret == -1 && !(toys.optflags & FLAG_f))
-      perror_msg("changing owner:group of '%s' to '%s:%s'", path,
-        TT.owner_name, TT.group_name);
+      perror_msg("'%s' to '%s:%s'", path, TT.owner_name, TT.group_name);
     free(path);
   }
   toys.exitval |= ret;

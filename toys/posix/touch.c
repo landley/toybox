@@ -116,9 +116,6 @@ void touch_main(void)
     if ((!flag || !fetch(*ss, tv, flag)) && !utimes(*ss, tv)) ss++;
     else if (toys.optflags & FLAG_c) ss++;
     else if (-1 != (fd = open(*ss, O_CREAT, 0666))) close(fd);
-    else {
-      perror_msg("'%s'", *ss++);
-      toys.exitval = 1;
-    }
+    else perror_msg("'%s'", *ss++);
   }
 }

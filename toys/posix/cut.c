@@ -127,7 +127,6 @@ static void get_data(void)
         int fd = open(*argv, O_RDONLY, 0);
         if(fd < 0) {//if file not present then continue with other files.
           perror_msg(*argv);
-          toys.exitval = EXIT_FAILURE;
           continue;
         }
         do_cut(fd);

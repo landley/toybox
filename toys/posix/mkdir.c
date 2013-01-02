@@ -69,10 +69,5 @@ void mkdir_main(void)
 
   if(toys.optflags&FLAG_m) TT.mode = string_to_mode(TT.arg_mode, 0777);
 
-  for (s=toys.optargs; *s; s++) {
-    if (do_mkdir(*s)) {
-      perror_msg("'%s'", *s);
-      toys.exitval = 1;
-    }
-  }
+  for (s=toys.optargs; *s; s++) if (do_mkdir(*s)) perror_msg("'%s'", *s);
 }

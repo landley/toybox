@@ -62,9 +62,6 @@ void kill_main(void)
     char *arg = *(args++);
 
     pid = strtol(arg, &tmp, 10);
-    if (*tmp || kill(pid, signum) < 0) {
-      error_msg("unknown pid '%s'", arg);
-      toys.exitval = EXIT_FAILURE;
-    }
+    if (*tmp || kill(pid, signum) < 0) error_msg("unknown pid '%s'", arg);
   }
 }
