@@ -20,23 +20,12 @@ config BASENAME
 
 void basename_main(void)
 {
-  char *arg = toys.optargs[0], *suffix = toys.optargs[1], *base;
-
-  while ((base = strrchr(arg, '/'))) {
-    if (base == arg) break;
-    if (!base[1]) *base = 0;
-    else {
-      base++;
-      break;
-    }
-  }
-
-  if (!base) base = arg;
+  char *base = basename(*toys.optargs), *suffix = toys.optargs[1];
 
   // chop off the suffix if provided
   if (suffix) {
-    arg = base + strlen(base) - strlen(suffix);
-    if (arg > base && !strcmp(arg, suffix)) *arg = 0;
+    char *s = base + strlen(base) - strlen(suffix);
+    if (s > base && !strcmp(s, suffix)) *s = 0;
   }
 
   puts(base);
