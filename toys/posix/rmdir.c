@@ -20,16 +20,21 @@ config RMDIR
 
 static void do_rmdir(char *name)
 {
-  for (;;) {
-    char *temp;
+  char *temp;
 
+  for (;;) {
     if (rmdir(name)) {
       perror_msg("%s",name);
       return;
     }
+
+    // Each -p cycle back up one slash, ignoring trailing and repeated /.
+
     if (!toys.optflags) return;
-    if (!(temp=strrchr(name,'/'))) return;
-    *temp=0;
+    do {
+      if (!(temp = strrchr(name, '/'))) return;
+      *temp = 0;
+    } while (!temp[1]);
   }
 }
 

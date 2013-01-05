@@ -45,6 +45,10 @@ mkdir -p one/two/three
 testing "rmdir -p one/two/three" \
 	"rmdir -p one/two/three && [ ! -e one ] && echo yes" "yes\n" "" ""
 
+mkdir -p one/two/three
+testing "rmdir -p one/two/three/" \
+	"rmdir -p one/two/three/ && [ ! -e one ] && echo yes" "yes\n" "" ""
+
 #mkdir -p one/two/three
 #chmod 000 one/two/three one/two one
 #testing "rmdir -p one/two/three" \

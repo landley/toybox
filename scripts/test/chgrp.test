@@ -2,8 +2,6 @@
 
 [ -f testing.sh ] && . testing.sh
 
-VERBOSE=1
-
 if [ "$(id -u)" -ne 0 ]
 then
   echo "SKIPPED: chgrp (not root)"

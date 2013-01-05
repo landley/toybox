@@ -146,16 +146,8 @@ int main(int argc, char *argv[])
 {
   if (CFG_TOYBOX_I18N) setlocale(LC_ALL, "");
 
-  // Artificial scope to eat less stack for things we call
-  {
-    char *name;
-
-    // Trim path off of command name
-    name = strrchr(argv[0], '/');
-    if (!name) name=argv[0];
-    else name++;
-    argv[0] = name;
-  }
+  // Trim path off of command name
+  *argv = basename(*argv);
 
   // Call the multiplexer, adjusting this argv[] to be its' argv[1].
   // (It will adjust it back before calling toy_exec().)

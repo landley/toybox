@@ -29,9 +29,7 @@ void rmmod_main(void)
   int len;
 
   // Basename
-  mod_name = strrchr(toys.optargs[0],'/');
-  if (mod_name) mod_name++;
-  else mod_name = toys.optargs[0];
+  mod_name = basename(*toys.optargs);
 
   // Remove .ko if present
   len = strlen(mod_name);
