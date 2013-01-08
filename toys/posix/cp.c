@@ -2,13 +2,13 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/cp.html
  *
- * TODO: "R+ra+d+p+r" sHLPR
+ * TODO: sHLP
 
 USE_CP(NEWTOY(cp, "<2"USE_CP_MORE("rdavsl")"RHLPfip", TOYFLAG_BIN))
 
 config CP
-  bool "cp (broken by dirtree changes)"
-  default n
+  bool "cp"
+  default y
   help
     usage: cp [-fipRHLP] SOURCE... DEST
 
@@ -45,175 +45,138 @@ config CP_MORE
 
 GLOBALS(
   char *destname;
-  int destisdir;
-  int keep_symlinks;
+  struct stat top;
 )
 
-// Copy an individual file or directory to target.
+// Callback from dirtree_read() for each file/directory under a source dir.
 
-void cp_file(char *src, char *dst, struct stat *srcst)
+int cp_node(struct dirtree *try)
 {
-  int fdout = -1;
+  int fdout, cfd = try->parent ? try->parent->extra : AT_FDCWD,
+      tfd = dirtree_parentfd(try);
+  char *catch = try->parent ? try->name : TT.destname, *err = "%s";
+  struct stat cst;
 
-  // -i flag is specified and dst file exists.
-  if ((toys.optflags&FLAG_i) && !access(dst, R_OK)
-    && !yesno("cp: overwrite", 1))
-      return;
+  if (!dirtree_notdotdot(try)) return 0;
 
-  if (toys.optflags & FLAG_v) printf("'%s' -> '%s'\n", src, dst);
+  // If returning from COMEAGAIN, jump straight to -p logic at end.
+  if (S_ISDIR(try->st.st_mode) && try->data == -1) {
+    fdout = try->extra;
+    err = 0;
+    goto dashp;
+  }
+
+  // Detect recursive copies via repeated top node (cp -R .. .) or
+  // identical source/target (fun with hardlinks).
+  if ((TT.top.st_dev == try->st.st_dev && TT.top.st_ino == try->st.st_ino
+       && (catch = TT.destname))
+      || (!fstatat(cfd, catch, &cst, 0) && cst.st_dev == try->st.st_dev
+       && cst.st_ino == try->st.st_ino))
+  {
+    char *s = dirtree_path(try, 0);
+    error_msg("'%s' is '%s'", catch, s);
+    free(s);
+
+    return 0;
+  }
+
+  // Handle -i and -v
+
+  if ((toys.optflags & FLAG_i) && !faccessat(cfd, catch, R_OK, 0)
+    && !yesno("cp: overwrite", 1)) return 0;
+
+  if (toys.optflags & FLAG_v) {
+    char *s = dirtree_path(try, 0);
+    printf("cp '%s'\n", s);
+    free(s);
+  }
 
   // Copy directory or file to destination.
 
-  if (S_ISDIR(srcst->st_mode)) {
+  if (S_ISDIR(try->st.st_mode)) {
     struct stat st2;
+
+    if (!(toys.optflags & (FLAG_a|FLAG_r|FLAG_R))) {
+      err = "Skipped dir '%s'";
+      catch = try->name;
 
     // Always make directory writeable to us, so we can create files in it.
     //
     // Yes, there's a race window between mkdir() and open() so it's
     // possible that -p can be made to chown a directory other than the one
-    // we created.  The closest we can do to closing this is make sure
+    // we created. The closest we can do to closing this is make sure
     // that what we open _is_ a directory rather than something else.
 
-    if ((mkdir(dst, srcst->st_mode | 0200) && errno != EEXIST)
-      || 0>(fdout=open(dst, 0)) || fstat(fdout, &st2) || !S_ISDIR(st2.st_mode))
-    {
-      perror_exit("mkdir '%s'", dst);
-    }
-  } else if (TT.keep_symlinks && S_ISLNK(srcst->st_mode)) {
-    char *link = xreadlink(src);
-
-    // Note: -p currently has no effect on symlinks.  How do you get a
-    // filehandle to them?  O_NOFOLLOW causes the open to fail.
-    if (!link || symlink(link, dst)) perror_msg("link '%s'", dst);
-    free(link);
-    return;
+    } else if ((mkdirat(cfd, catch, try->st.st_mode | 0200) && errno != EEXIST)
+      || 0>(try->extra = openat(cfd, catch, 0)) || fstat(try->extra, &st2)
+      || !S_ISDIR(st2.st_mode));
+    else return DIRTREE_COMEAGAIN;
+  } else if (S_ISLNK(try->st.st_mode)
+    && (try->parent || (toys.optflags & (FLAG_a|FLAG_d))))
+  {
+    int i = readlinkat(tfd, try->name, toybuf, sizeof(toybuf));
+    if (i > 0 && i < sizeof(toybuf) && !symlinkat(toybuf, cfd, catch)) err = 0;
   } else if (toys.optflags & FLAG_l) {
-    if (link(src, dst)) perror_msg("link '%s'");
-    return;
+    if (!linkat(tfd, try->name, cfd, catch, 0)) err = 0;
   } else {
     int fdin, i;
 
-    fdin = xopen(src, O_RDONLY);
-    for (i=2 ; i; i--) {
-      fdout = open(dst, O_RDWR|O_CREAT|O_TRUNC, srcst->st_mode);
-      if (fdout>=0 || !(toys.optflags & FLAG_f)) break;
-      unlink(dst);
+    fdin = openat(tfd, try->name, O_RDONLY);
+    if (fdin < 0) catch = try->name;
+    else {
+      for (i=2 ; i; i--) {
+        fdout = openat(cfd, catch, O_RDWR|O_CREAT|O_TRUNC, try->st.st_mode);
+        if (fdout>=0 || !(toys.optflags & FLAG_f)) break;
+        unlinkat(cfd, catch, 0);
+      }
+      if (fdout >= 0) {
+        xsendfile(fdin, fdout);
+        err = 0;
+      }
+      close(fdin);
     }
-    if (fdout<0) perror_exit("%s", dst);
-    xsendfile(fdin, fdout);
-    close(fdin);
+
+dashp:
+    if (toys.optflags & (FLAG_a|FLAG_p)) {
+      struct timespec times[2];
+
+      // Inability to set these isn't fatal, some require root access.
+
+      fchown(fdout, try->st.st_uid, try->st.st_gid);
+      times[0] = try->st.st_atim;
+      times[1] = try->st.st_mtim;
+      futimens(fdout, times);
+      fchmod(fdout, try->st.st_mode);
+    }
+
+    xclose(fdout);
   }
 
-  // Inability to set these isn't fatal, some require root access.
-  // Can't do fchmod() etc here because -p works on mkdir, too.
-
-  if (toys.optflags & (FLAG_p|FLAG_a)) {
-    int mask = umask(0);
-    struct utimbuf ut;
-
-    (void) fchown(fdout,srcst->st_uid, srcst->st_gid);
-    ut.actime = srcst->st_atime;
-    ut.modtime = srcst->st_mtime;
-    utime(dst, &ut);
-    umask(mask);
-  }
-  xclose(fdout);
-}
-
-// Callback from dirtree_read() for each file/directory under a source dir.
-
-int cp_node(struct dirtree *node)
-{
-  char *path = dirtree_path(node, 0); // TODO: use openat() instead
-  char *s = path+strlen(path);
-  struct dirtree *n;
-
-  // Find appropriate chunk of path for destination.
-
-  n = node;
-  if (!TT.destisdir) n = n->parent;
-  for (;;n = n->parent) {
-    while (s!=path) if (*(--s)=='/') break;
-    if (!n) break;
-  }
-  if (s != path) s++;
-
-  s = xmsprintf("%s/%s", TT.destname, s);
-  cp_file(path, s, &(node->st));
-  free(s);
-  free(path); // redo this whole darn function.
-
+  if (err) perror_msg(err, catch);
   return 0;
 }
 
 void cp_main(void)
 {
-  char *dpath = NULL;
-  struct stat st, std;
-  int i;
+  char *destname = toys.optargs[--toys.optc];
+  int i, destdir = !stat(destname, &TT.top) && S_ISDIR(TT.top.st_mode);
 
-  // Identify destination
-
-  if (!stat(TT.destname, &std) && S_ISDIR(std.st_mode)) TT.destisdir++;
-  else if (toys.optc>1) error_exit("'%s' not directory", TT.destname);
-
-   // TODO: This is too early: we haven't created it yet if we need to
-  if (toys.optflags & (FLAG_R|FLAG_r|FLAG_a))
-    dpath = realpath(TT.destname = toys.optargs[--toys.optc], NULL);
+  if (toys.optc>1 && !destdir) error_exit("'%s' not directory", destname);
 
   // Loop through sources
 
   for (i=0; i<toys.optc; i++) {
-    char *dst, *src = toys.optargs[i];
+    struct dirtree *new;
+    char *src = toys.optargs[i];
 
-    // Skip src==dest (TODO check inodes to catch "cp blah ./blah").
-
-    if (!strncmp(src, TT.destname)) continue;
-
-    // Skip nonexistent sources.
-
-    TT.keep_symlinks = toys.optflags & (FLAG_d|FLAG_a);
-    if (TT.keep_symlinks ? lstat(src, &st) : stat(src, &st)
-      || (st.st_dev = dst.st_dev && st.st_ino == dst.dst_ino))
-    {
-objection:
+    // Skip nonexistent sources
+    if (!(new = dirtree_add_node(0, src, !(toys.optflags & (FLAG_d|FLAG_a)))))
       perror_msg("bad '%s'", src);
-      toys.exitval = 1;
-      continue;
+    else {
+      if (destdir) TT.destname = xmsprintf("%s/%s", destname, basename(src));
+      else TT.destname = destname;
+      dirtree_handle_callback(new, cp_node);
+      if (destdir) free(TT.destname);
     }
-
-    // Copy directory or file.
-
-    if (TT.destisdir) {
-      char *s;
-
-      // Catch "cp -R .. ." and friends that would go on forever
-      if (dpath && (s = realpath(src, NULL)) {
-        int i = strlen(s);
-        i = (!strncmp(s, dst, i) && (!s[i] || s[i]=='/'));
-        free(s);
-
-        if (i) goto objection;
-      }
-
-      // Create destination filename within directory
-      dst = strrchr(src, '/');
-      if (dst) dst++;
-      else dst=src;
-      dst = xmsprintf("%s/%s", TT.destname, dst);
-    } else dst = TT.destname;
-
-    if (S_ISDIR(st.st_mode)) {
-      if (toys.optflags & (FLAG_r|FLAG_R|FLAG_a)) {
-        cp_file(src, dst, &st);
-
-        TT.keep_symlinks++;
-        dirtree_read(src, cp_node);
-      } else error_msg("Skipped dir '%s'", src);
-    } else cp_file(src, dst, &st);
-    if (TT.destisdir) free(dst);
   }
-
-  if (CFG_TOYBOX_FREE) free(dpath);
-  return;
 }
