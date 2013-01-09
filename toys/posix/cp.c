@@ -54,6 +54,7 @@ int cp_node(struct dirtree *try)
 {
   int fdout, cfd = try->parent ? try->parent->extra : AT_FDCWD,
       tfd = dirtree_parentfd(try);
+  unsigned flags = toys.optflags;
   char *catch = try->parent ? try->name : TT.destname, *err = "%s";
   struct stat cst;
 
@@ -65,6 +66,9 @@ int cp_node(struct dirtree *try)
     err = 0;
     goto dashp;
   }
+
+  // -d is only the same as -r for symlinks, not for directories
+  if (S_ISLNK(try->st.st_mode) & (flags & FLAG_d)) flags |= FLAG_r;
 
   // Detect recursive copies via repeated top node (cp -R .. .) or
   // identical source/target (fun with hardlinks).
@@ -82,10 +86,10 @@ int cp_node(struct dirtree *try)
 
   // Handle -i and -v
 
-  if ((toys.optflags & FLAG_i) && !faccessat(cfd, catch, R_OK, 0)
+  if ((flags & FLAG_i) && !faccessat(cfd, catch, R_OK, 0)
     && !yesno("cp: overwrite", 1)) return 0;
 
-  if (toys.optflags & FLAG_v) {
+  if (flags & FLAG_v) {
     char *s = dirtree_path(try, 0);
     printf("cp '%s'\n", s);
     free(s);
@@ -96,7 +100,7 @@ int cp_node(struct dirtree *try)
   if (S_ISDIR(try->st.st_mode)) {
     struct stat st2;
 
-    if (!(toys.optflags & (FLAG_a|FLAG_r|FLAG_R))) {
+    if (!(flags & (FLAG_a|FLAG_r|FLAG_R))) {
       err = "Skipped dir '%s'";
       catch = try->name;
 
@@ -111,13 +115,16 @@ int cp_node(struct dirtree *try)
       || 0>(try->extra = openat(cfd, catch, 0)) || fstat(try->extra, &st2)
       || !S_ISDIR(st2.st_mode));
     else return DIRTREE_COMEAGAIN;
-  } else if (S_ISLNK(try->st.st_mode)
-    && (try->parent || (toys.optflags & (FLAG_a|FLAG_d))))
-  {
-    int i = readlinkat(tfd, try->name, toybuf, sizeof(toybuf));
-    if (i > 0 && i < sizeof(toybuf) && !symlinkat(toybuf, cfd, catch)) err = 0;
-  } else if (toys.optflags & FLAG_l) {
+  } else if (flags & FLAG_l) {
     if (!linkat(tfd, try->name, cfd, catch, 0)) err = 0;
+  } else if ((try->parent || (flags & (FLAG_a|FLAG_r)))
+             && !S_ISREG(try->st.st_mode))
+  {
+    if (S_ISLNK(try->st.st_mode)) {
+      int i = readlinkat(tfd, try->name, toybuf, sizeof(toybuf));
+      if (i > 0 && i < sizeof(toybuf) && !symlinkat(toybuf, cfd, catch))
+        err = 0;
+    } else if (!mknodat(cfd, catch, try->st.st_mode, try->st.st_dev)) err = 0;
   } else {
     int fdin, i;
 
@@ -126,7 +133,7 @@ int cp_node(struct dirtree *try)
     else {
       for (i=2 ; i; i--) {
         fdout = openat(cfd, catch, O_RDWR|O_CREAT|O_TRUNC, try->st.st_mode);
-        if (fdout>=0 || !(toys.optflags & FLAG_f)) break;
+        if (fdout>=0 || !(flags & FLAG_f)) break;
         unlinkat(cfd, catch, 0);
       }
       if (fdout >= 0) {
@@ -137,7 +144,7 @@ int cp_node(struct dirtree *try)
     }
 
 dashp:
-    if (toys.optflags & (FLAG_a|FLAG_p)) {
+    if (!(flags & FLAG_l) && (flags & (FLAG_a|FLAG_p))) {
       struct timespec times[2];
 
       // Inability to set these isn't fatal, some require root access.
