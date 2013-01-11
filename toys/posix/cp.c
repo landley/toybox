@@ -4,7 +4,7 @@
  *
  * TODO: sHLP
 
-USE_CP(NEWTOY(cp, "<2"USE_CP_MORE("rdavsl")"RHLPfip", TOYFLAG_BIN))
+USE_CP(NEWTOY(cp, "<2"USE_CP_MORE("rdavsln")"RHLPfip[-ni]", TOYFLAG_BIN))
 
 config CP
   bool "cp"
@@ -30,10 +30,11 @@ config CP_MORE
   help
     usage: cp [-rdavsl]
 
-    -r	synonym for -R
-    -d	don't dereference symlinks
     -a	same as -dpr
+    -d	don't dereference symlinks
     -l	hard link instead of copy
+    -n	no clobber (don't overwrite DEST)
+    -r	synonym for -R
     -s	symlink instead of copy
     -v	verbose
 */
@@ -84,10 +85,10 @@ int cp_node(struct dirtree *try)
     return 0;
   }
 
-  // Handle -i and -v
+  // Handle -inv
 
-  if ((flags & FLAG_i) && !faccessat(cfd, catch, R_OK, 0)
-    && !yesno("cp: overwrite", 1)) return 0;
+  if ((flags & (FLAG_i|FLAG_n)) && !faccessat(cfd, catch, R_OK, 0))
+    if ((flags & FLAG_n) || !yesno("cp: overwrite", 1)) return 0;
 
   if (flags & FLAG_v) {
     char *s = dirtree_path(try, 0);
