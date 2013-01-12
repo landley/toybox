@@ -53,7 +53,7 @@ GLOBALS(
 
 int cp_node(struct dirtree *try)
 {
-  int fdout, cfd = try->parent ? try->parent->extra : AT_FDCWD,
+  int fdout = -1, cfd = try->parent ? try->parent->extra : AT_FDCWD,
       tfd = dirtree_parentfd(try);
   unsigned flags = toys.optflags;
   char *catch = try->parent ? try->name : TT.destname, *err = "%s";
@@ -65,87 +65,102 @@ int cp_node(struct dirtree *try)
   if (S_ISDIR(try->st.st_mode) && try->data == -1) {
     fdout = try->extra;
     err = 0;
-    goto dashp;
-  }
-
-  // -d is only the same as -r for symlinks, not for directories
-  if (S_ISLNK(try->st.st_mode) & (flags & FLAG_d)) flags |= FLAG_r;
-
-  // Detect recursive copies via repeated top node (cp -R .. .) or
-  // identical source/target (fun with hardlinks).
-  if ((TT.top.st_dev == try->st.st_dev && TT.top.st_ino == try->st.st_ino
-       && (catch = TT.destname))
-      || (!fstatat(cfd, catch, &cst, 0) && cst.st_dev == try->st.st_dev
-       && cst.st_ino == try->st.st_ino))
-  {
-    char *s = dirtree_path(try, 0);
-    error_msg("'%s' is '%s'", catch, s);
-    free(s);
-
-    return 0;
-  }
-
-  // Handle -inv
-
-  if ((flags & (FLAG_i|FLAG_n)) && !faccessat(cfd, catch, R_OK, 0))
-    if ((flags & FLAG_n) || !yesno("cp: overwrite", 1)) return 0;
-
-  if (flags & FLAG_v) {
-    char *s = dirtree_path(try, 0);
-    printf("cp '%s'\n", s);
-    free(s);
-  }
-
-  // Copy directory or file to destination.
-
-  if (S_ISDIR(try->st.st_mode)) {
-    struct stat st2;
-
-    if (!(flags & (FLAG_a|FLAG_r|FLAG_R))) {
-      err = "Skipped dir '%s'";
-      catch = try->name;
-
-    // Always make directory writeable to us, so we can create files in it.
-    //
-    // Yes, there's a race window between mkdir() and open() so it's
-    // possible that -p can be made to chown a directory other than the one
-    // we created. The closest we can do to closing this is make sure
-    // that what we open _is_ a directory rather than something else.
-
-    } else if ((mkdirat(cfd, catch, try->st.st_mode | 0200) && errno != EEXIST)
-      || 0>(try->extra = openat(cfd, catch, 0)) || fstat(try->extra, &st2)
-      || !S_ISDIR(st2.st_mode));
-    else return DIRTREE_COMEAGAIN;
-  } else if (flags & FLAG_l) {
-    if (!linkat(tfd, try->name, cfd, catch, 0)) err = 0;
-  } else if ((try->parent || (flags & (FLAG_a|FLAG_r)))
-             && !S_ISREG(try->st.st_mode))
-  {
-    if (S_ISLNK(try->st.st_mode)) {
-      int i = readlinkat(tfd, try->name, toybuf, sizeof(toybuf));
-      if (i > 0 && i < sizeof(toybuf) && !symlinkat(toybuf, cfd, catch))
-        err = 0;
-    } else if (!mknodat(cfd, catch, try->st.st_mode, try->st.st_dev)) err = 0;
   } else {
-    int fdin, i;
 
-    fdin = openat(tfd, try->name, O_RDONLY);
-    if (fdin < 0) catch = try->name;
-    else {
-      for (i=2 ; i; i--) {
-        fdout = openat(cfd, catch, O_RDWR|O_CREAT|O_TRUNC, try->st.st_mode);
-        if (fdout>=0 || !(flags & FLAG_f)) break;
-        unlinkat(cfd, catch, 0);
-      }
-      if (fdout >= 0) {
-        xsendfile(fdin, fdout);
-        err = 0;
-      }
-      close(fdin);
+    // -d is only the same as -r for symlinks, not for directories
+    if (S_ISLNK(try->st.st_mode) & (flags & FLAG_d)) flags |= FLAG_r;
+
+    // Detect recursive copies via repeated top node (cp -R .. .) or
+    // identical source/target (fun with hardlinks).
+    if ((TT.top.st_dev == try->st.st_dev && TT.top.st_ino == try->st.st_ino
+         && (catch = TT.destname))
+        || (!fstatat(cfd, catch, &cst, 0) && cst.st_dev == try->st.st_dev
+         && cst.st_ino == try->st.st_ino))
+    {
+      error_msg("'%s' is '%s'", catch, err = dirtree_path(try, 0));
+      free(err);
+
+      return 0;
     }
 
-dashp:
-    if (!(flags & FLAG_l) && (flags & (FLAG_a|FLAG_p))) {
+    // Handle -inv
+
+    if ((flags & (FLAG_i|FLAG_n)) && !faccessat(cfd, catch, R_OK, 0))
+      if ((flags & FLAG_n) || !yesno("cp: overwrite", 1)) return 0;
+
+    if (flags & FLAG_v) {
+      char *s = dirtree_path(try, 0);
+      printf("cp '%s'\n", s);
+      free(s);
+    }
+
+    // Loop for -f retry after unlink
+    do {
+
+      // Copy directory
+
+      if (S_ISDIR(try->st.st_mode)) {
+        struct stat st2;
+
+        if (!(flags & (FLAG_a|FLAG_r|FLAG_R))) {
+          err = "Skipped dir '%s'";
+          catch = try->name;
+          break;
+        }
+
+        // Always make directory writeable to us, so we can create files in it.
+        //
+        // Yes, there's a race window between mkdir() and open() so it's
+        // possible that -p can be made to chown a directory other than the one
+        // we created. The closest we can do to closing this is make sure
+        // that what we open _is_ a directory rather than something else.
+
+        if (!mkdirat(cfd, catch, try->st.st_mode | 0200) || errno == EEXIST)
+          if (-1 != (try->extra = openat(cfd, catch, 0)))
+            if (!fstat(try->extra, &st2))
+              if (S_ISDIR(st2.st_mode)) return DIRTREE_COMEAGAIN;
+
+      // Hardlink
+
+      } else if (flags & FLAG_l) {
+        if (!linkat(tfd, try->name, cfd, catch, 0)) err = 0;
+
+      // Do something _other_ than copy contents of a file?
+      } else if (!S_ISREG(try->st.st_mode)
+                 && (try->parent || (flags & (FLAG_a|FLAG_r))))
+      {
+        // symlink
+        if (S_ISLNK(try->st.st_mode)) {
+          int i = readlinkat(tfd, try->name, toybuf, sizeof(toybuf));
+          if (i < 1 || i >= sizeof(toybuf)) break;
+          else if (!symlinkat(toybuf, cfd, catch)) err = 0;
+        // block, char, fifo, socket
+        } else if (!mknodat(cfd, catch, try->st.st_mode, try->st.st_dev))
+            if (!(flags & (FLAG_a|FLAG_p))
+                || -1 != (fdout = openat(cfd, catch, O_RDONLY))) err = 0;
+
+      // Copy contents of file.
+      } else {
+        int fdin;
+
+        fdin = openat(tfd, try->name, O_RDONLY);
+        if (fdin < 0) {
+          catch = try->name;
+          break;
+        } else {
+          fdout = openat(cfd, catch, O_RDWR|O_CREAT|O_TRUNC, try->st.st_mode);
+          if (fdout >= 0) {
+            xsendfile(fdin, fdout);
+            err = 0;
+          }
+          close(fdin);
+        }
+      }
+    } while (err && (flags & FLAG_f) && !unlinkat(cfd, catch, 0));
+  }
+
+  if (fdout != -1) {
+    if (flags & (FLAG_a|FLAG_p)) {
       struct timespec times[2];
 
       // Inability to set these isn't fatal, some require root access.
