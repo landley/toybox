@@ -4,11 +4,11 @@
 
 # A synonym.
 [ -z "$CROSS_COMPILE" ] && CROSS_COMPILE="$CROSS"
-[ -z "$CFLAGS" ] && CFLAGS="-g -Wall -Wundef -Wno-char-subscripts"
+[ -z "$CFLAGS" ] && CFLAGS="-Wall -Wundef -Wno-char-subscripts"
 # Required for our expected ABI. we're 8-bit clean thus "char" must be unsigned.
 CFLAGS="$CFLAGS -funsigned-char"
 
-[ -z "$OPTIMIZE" ] && OPTIMIZE="-O0 -ffunction-sections -fdata-sections -Wl,--gc-sections"
+[ -z "$OPTIMIZE" ] && OPTIMIZE="-Os -ffunction-sections -fdata-sections -Wl,--gc-sections"
 [ -z "$CC" ] && CC=cc
 [ -z "$STRIP" ] && STRIP=strip
 
