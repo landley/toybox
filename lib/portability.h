@@ -38,6 +38,9 @@ char *strptime(const char *buf, const char *format, struct tm *tm);
 #include <unistd.h>
 #include <stdio.h>
 ssize_t getdelim(char **lineptr, size_t *n, int delim, FILE *stream);
+#ifndef O_NOFOLLOW
+#define O_NOFOLLOW      00400000        /* don't follow links */
+#endif
 
 // When building under obsolete glibc, hold its hand a bit.
 #elif __GLIBC_MINOR__ < 10
