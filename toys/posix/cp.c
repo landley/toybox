@@ -97,6 +97,8 @@ int cp_node(struct dirtree *try)
     // Loop for -f retry after unlink
     do {
 
+      // directory, hardlink, symlink, mknod (char, block, fifo, socket), file
+
       // Copy directory
 
       if (S_ISDIR(try->st.st_mode)) {
@@ -116,7 +118,7 @@ int cp_node(struct dirtree *try)
         // that what we open _is_ a directory rather than something else.
 
         if (!mkdirat(cfd, catch, try->st.st_mode | 0200) || errno == EEXIST)
-          if (-1 != (try->extra = openat(cfd, catch, 0)))
+          if (-1 != (try->extra = openat(cfd, catch, O_NOFOLLOW)))
             if (!fstat(try->extra, &st2))
               if (S_ISDIR(st2.st_mode)) return DIRTREE_COMEAGAIN;
 
@@ -135,9 +137,10 @@ int cp_node(struct dirtree *try)
           if (i < 1 || i >= sizeof(toybuf)) break;
           else if (!symlinkat(toybuf, cfd, catch)) err = 0;
         // block, char, fifo, socket
-        } else if (!mknodat(cfd, catch, try->st.st_mode, try->st.st_dev))
-            if (!(flags & (FLAG_a|FLAG_p))
-                || -1 != (fdout = openat(cfd, catch, O_RDONLY))) err = 0;
+        } else if (!mknodat(cfd, catch, try->st.st_mode, try->st.st_rdev)) {
+            err = 0;
+            if (flags & (FLAG_a|FLAG_p)) fdout = AT_FDCWD;
+        }
 
       // Copy contents of file.
       } else {
@@ -165,14 +168,24 @@ int cp_node(struct dirtree *try)
 
       // Inability to set these isn't fatal, some require root access.
 
-      fchown(fdout, try->st.st_uid, try->st.st_gid);
       times[0] = try->st.st_atim;
       times[1] = try->st.st_mtim;
-      futimens(fdout, times);
-      fchmod(fdout, try->st.st_mode);
+
+      // If we can't get a filehandle to the actual object, use racy functions
+      if (fdout == AT_FDCWD) {
+        if (fchownat(cfd, catch, try->st.st_uid, try->st.st_gid,
+                     AT_SYMLINK_NOFOLLOW)
+            || utimensat(cfd, catch, times, AT_SYMLINK_NOFOLLOW)
+            || fchmodat(cfd, catch, try->st.st_mode&07777, 0))
+              err = "%s";
+      } else {
+        if (fchown(fdout, try->st.st_uid, try->st.st_gid)
+            || futimens(fdout, times) || fchmod(fdout, try->st.st_mode&07777))
+              err = "%s";
+      }
     }
 
-    xclose(fdout);
+    if (fdout != AT_FDCWD) xclose(fdout);
   }
 
   if (err) perror_msg(err, catch);
