@@ -375,23 +375,32 @@ char *xabspath(char *path, int exact)
 
     // Removable path componenents.
     if (!strcmp(new->str, ".") || !strcmp(new->str, "..")) {
-      if (new->str[1] && done) free(llist_pop(&done));
+      int x = new->str[1];
+
       free(new);
-      continue;
-    }
+      if (x) {
+        if (done) free(llist_pop(&done));
+        len = 0;
+      } else continue;
 
     // Is this a symlink?
-    len=readlinkat(dirfd, new->str, buf, 4096);
+    } else len=readlinkat(dirfd, new->str, buf, 4096);
+
     if (len>4095) goto error;
     if (len<1) {
       int fd;
+      char *s = "..";
 
-      // Not a symlink: add to linked list, move dirfd, fail if error
-      if ((exact || todo) && errno != EINVAL) goto error;
-      new->next = done;
-      done = new;
-      fd = openat(dirfd, new->str, O_DIRECTORY);
-      if (fd == -1 && (exact || todo)) goto error;
+      // For .. just move dirfd
+      if (len) {
+        // Not a symlink: add to linked list, move dirfd, fail if error
+        if ((exact || todo) && errno != EINVAL) goto error;
+        new->next = done;
+        done = new;
+        s = new->str;
+      }
+      fd = openat(dirfd, s, 0);
+      if (fd == -1 && (exact || todo || errno != ENOENT)) goto error;
       close(dirfd);
       dirfd = fd;
       continue;
