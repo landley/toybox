@@ -6,7 +6,7 @@ USE_READLINK(NEWTOY(readlink, "<1>1fenq[-fe]", TOYFLAG_BIN))
 
 config READLINK
   bool "readlink"
-  default n
+  default y
   help
     usage: readlink FILE
 
@@ -14,8 +14,8 @@ config READLINK
 
     Options for producing cannonical paths (all symlinks/./.. resolved):
 
-    -e	cannonical path to existing entry (fail if nothing there)
-    -f	full path (fail if location does not exist)
+    -e	cannonical path to existing entry (fail if missing)
+    -f	full path (fail if directory missing)
     -n	no trailing newline
     -q	quiet (no output, just error code)
 */

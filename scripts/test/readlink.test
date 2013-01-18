@@ -4,28 +4,59 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
+APWD="$(pwd -P)"
+
 testing "readlink missing" "readlink notfound || echo yes" "yes\n" "" ""
 
 # simple tests on a file
 
 touch file
 testing "readlink file" "readlink file || echo yes" "yes\n" "" ""
-testing "readlink -f dir" "readlink -f ." "$(pwd)\n" "" ""
-testing "readlink -f missing" "readlink -f notfound" "$(pwd)/notfound\n" "" ""
+testing "readlink -f dir" "readlink -f ." "$APWD\n" "" ""
+testing "readlink -f missing" "readlink -f notfound" "$APWD/notfound\n" "" ""
 
-# Test a link that points to nonexistent file
-ln -s notfound link
+ln -sf notfound link
 testing "readlink link" "readlink link" "notfound\n" "" ""
-testing "readlink link->missing" "readlink -f link" "$(pwd)/notfound\n" "" ""
+testing "readlink link->missing" "readlink -f link" "$APWD/notfound\n" "" ""
+ln -sf ../../ link
+testing "readlink stays relative" "readlink link" "../../\n" "" ""
+rm link
 ln -sf file link
-testing "readlink -f link->file" "readlink -f link" "$(pwd)/file\n" "" ""
+testing "readlink -f link->file" "readlink -f link" "$APWD/file\n" "" ""
 ln -sf . link
-testing "readlink -f link->dir" "readlink -f link" "$(pwd)\n" "" ""
+testing "readlink -f link->dir" "readlink -f link" "$APWD\n" "" ""
 ln -snf link link
 testing "readlink link->link (recursive)" "readlink link" "link\n" "" ""
-testing "readlink -f link->link (recursive)" "readlink -f link || echo yes" \
-	"yes\n" "" ""
-rm file link
+testing "readlink -f link->link (recursive)" \
+  "readlink -f link 2>/dev/null || echo yes" "yes\n" "" ""
+
+testing "readlink -q notlink" "readlink -q file || echo yes" "yes\n" "" ""
+testing "readlink -q link" "readlink -q link && echo yes" "yes\n" "" ""
+testing "readlink -q notfound" "readlink -q notfound || echo yes" "yes\n" "" ""
+testing "readlink -e found" "readlink -e file" "$APWD/file\n" "" ""
+testing "readlink -e notfound" \
+  "readlink -e notfound 2>/dev/null || echo yes" "yes\n" "" ""
+testing "readlink -nf ." "readlink -nf ." "$APWD" "" ""
+
+mkdir sub &&
+ln -s . here &&
+ln -s ./sub dir &&
+touch sub/bang || exit 1
+testing "readlink -f multi" "readlink -f dir/../here/dir/bang" \
+  "$APWD/sub/bang\n" "" ""
+testing "readlink -f link/missing" "readlink -f dir/boing" \
+  "$APWD/sub/boing\n" "" ""
+testing "readlink -f /dev/null/file" \
+  "readlink -f /dev/null/file 2>/dev/null || echo yes" "yes\n" "" ""
+ln -sf / link || exit 1
+testing "readlink -f link->/" "readlink -e link/dev" "/dev\n" "" ""
+testing "readlink -f /dev/null/.." \
+  "readlink -f link/null/.. 2>/dev/null || echo yes" "yes\n" "" ""
+rm -f link && ln -sf link link || exit 1
+testing "readlink recurse" "readlink link" "link\n" "" ""
+
+rm file link sub/bang dir here
+rmdir sub
 
 # Make sure circular links don't run away.
 
@@ -34,13 +65,3 @@ ln -s link2 link1
 testing "readlink follow recursive2" "readlink -f link1 || echo yes" \
 	"yes\n" "" ""
 rm link1 link2
-
-# Fun with relative paths
-
-ln -s /usr/include/sys/../sys newsys
-ln -s newsys newsys2
-testing "readlink maintains relative paths" "readlink newsys" \
-	"/usr/include/sys/../sys\n" "" ""
-testing "readlink -f resolves relative path" "readlink -f newsys2/../stdio.h" \
-	"/usr/include/stdio.h\n" "" ""
-rm newsys newsys2
