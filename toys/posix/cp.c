@@ -131,15 +131,16 @@ int cp_node(struct dirtree *try)
       } else if (!S_ISREG(try->st.st_mode)
                  && (try->parent || (flags & (FLAG_a|FLAG_r))))
       {
-        // symlink
-        if (S_ISLNK(try->st.st_mode)) {
-          int i = readlinkat(tfd, try->name, toybuf, sizeof(toybuf));
-          if (i < 1 || i >= sizeof(toybuf)) break;
-          else if (!symlinkat(toybuf, cfd, catch)) err = 0;
-        // block, char, fifo, socket
-        } else if (!mknodat(cfd, catch, try->st.st_mode, try->st.st_rdev)) {
-            err = 0;
-            if (flags & (FLAG_a|FLAG_p)) fdout = AT_FDCWD;
+        int i;
+
+        // make symlink, or make block/char/fifo/socket
+        if (S_ISLNK(try->st.st_mode)
+            ? (0 < (i = readlinkat(tfd, try->name, toybuf, sizeof(toybuf))) &&
+               sizeof(toybuf) > i && !symlinkat(toybuf, cfd, catch))
+            : !mknodat(cfd, catch, try->st.st_mode, try->st.st_rdev))
+        {
+          err = 0;
+          fdout = AT_FDCWD;
         }
 
       // Copy contents of file.
@@ -173,15 +174,14 @@ int cp_node(struct dirtree *try)
 
       // If we can't get a filehandle to the actual object, use racy functions
       if (fdout == AT_FDCWD) {
-        if (fchownat(cfd, catch, try->st.st_uid, try->st.st_gid,
-                     AT_SYMLINK_NOFOLLOW)
-            || utimensat(cfd, catch, times, AT_SYMLINK_NOFOLLOW)
-            || fchmodat(cfd, catch, try->st.st_mode&07777, 0))
-              err = "%s";
+        fchownat(cfd, catch, try->st.st_uid, try->st.st_gid,
+                 AT_SYMLINK_NOFOLLOW);
+        utimensat(cfd, catch, times, AT_SYMLINK_NOFOLLOW);
+        // permission bits already correct for mknod, don't apply to symlink
       } else {
-        if (fchown(fdout, try->st.st_uid, try->st.st_gid)
-            || futimens(fdout, times) || fchmod(fdout, try->st.st_mode&07777))
-              err = "%s";
+        fchown(fdout, try->st.st_uid, try->st.st_gid);
+        futimens(fdout, times);
+        fchmod(fdout, try->st.st_mode);
       }
     }
 
@@ -198,6 +198,8 @@ void cp_main(void)
   int i, destdir = !stat(destname, &TT.top) && S_ISDIR(TT.top.st_mode);
 
   if (toys.optc>1 && !destdir) error_exit("'%s' not directory", destname);
+
+  if (toys.optflags & (FLAG_a|FLAG_p)) umask(0);
 
   // Loop through sources
 
