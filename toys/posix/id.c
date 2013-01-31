@@ -6,7 +6,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/id.html
 
-USE_ID(NEWTOY(id, "nGgru", TOYFLAG_BIN))
+USE_ID(NEWTOY(id, ">1nGgru[!Ggu]", TOYFLAG_BIN))
 
 config ID
   bool "id"
@@ -97,14 +97,16 @@ void id_main(void)
   }
 
   groups = (gid_t *)toybuf;
-  if (0 >= (ngroups = getgroups(sizeof(toybuf)/sizeof(gid_t), groups)))
-    perror_exit(0);
+  i = sizeof(toybuf)/sizeof(gid_t);
+  ngroups = *toys.optargs ? getgrouplist(*toys.optargs, gid, groups, &i) : getgroups(i, groups);
+  if (0 >= ngroups) perror_exit(0);
 
-  for (i = 0; i < ngroups; i++) {
-    xputc(' ');
+  for (i = 0;;) {
     if (!(grp = getgrgid(groups[i]))) perror_msg(0);
     else if (flags & FLAG_G) s_or_u(grp->gr_name, grp->gr_gid, 0);
     else if (grp->gr_gid != egid) showid("", grp->gr_gid, grp->gr_name);
+    if (++i >= ngroups) break;
+    xputc(' ');
   }
   xputc('\n');
 }
