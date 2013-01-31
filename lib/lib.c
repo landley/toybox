@@ -975,6 +975,7 @@ int yesno(char *prompt, int def)
   while (fread(&buf, 1, 1, stdin)) {
     int new;
 
+    // The letter changes the value, the newline (or space) returns it.
     if (isspace(buf)) break;
     if (-1 != (new = stridx("ny", tolower(buf)))) def = new;
   }

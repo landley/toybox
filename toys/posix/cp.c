@@ -85,8 +85,19 @@ int cp_node(struct dirtree *try)
 
     // Handle -inv
 
-    if ((flags & (FLAG_i|FLAG_n)) && !faccessat(cfd, catch, R_OK, 0))
-      if ((flags & FLAG_n) || !yesno("cp: overwrite", 1)) return 0;
+    if (!faccessat(cfd, catch, F_OK, 0) && !S_ISDIR(cst.st_mode)) {
+      char *s;
+
+      if (S_ISDIR(try->st.st_dev)) {
+        error_msg("dir at '%s'", s = dirtree_path(try, 0));
+        free(s);
+      } else if (flags & FLAG_n) return 0;
+      else if (flags & FLAG_i) {
+        fprintf(stderr, "cp: overwrite '%s'", s = dirtree_path(try, 0));
+        free(s);
+        if (!yesno("", 1)) return 0;
+      }
+    }
 
     if (flags & FLAG_v) {
       char *s = dirtree_path(try, 0);
@@ -160,7 +171,7 @@ int cp_node(struct dirtree *try)
           close(fdin);
         }
       }
-    } while (err && (flags & FLAG_f) && !unlinkat(cfd, catch, 0));
+    } while (err && (flags & (FLAG_f|FLAG_n)) && !unlinkat(cfd, catch, 0));
   }
 
   if (fdout != -1) {
