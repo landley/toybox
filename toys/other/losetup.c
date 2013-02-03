@@ -75,7 +75,7 @@ static void loopback_setup(char *device, char *file)
 
     // mount -o loop depends on found device being at the start of toybuf.
     if (cfd != -1) {
-      if (0 <= (i = ioctl(cfd, LOOP_CTL_GET_FREE)))
+      if (0 <= (i = ioctl(cfd, 0x4C82))) // LOOP_CTL_GET_FREE
         sprintf(device = toybuf, "/dev/loop%d", i);
       close(cfd);
     }
@@ -99,7 +99,8 @@ static void loopback_setup(char *device, char *file)
 
   // Check size of file or delete existing association
   if (flags & (FLAG_c|FLAG_d)) {
-    if (ioctl(lfd, (flags & FLAG_c) ? LOOP_SET_CAPACITY : LOOP_CLR_FD, 0)) {
+    // The constant is LOOP_SET_CAPACITY
+    if (ioctl(lfd, (flags & FLAG_c) ? 0x4C07 : LOOP_CLR_FD, 0)) {
       perror_msg("%s", device);
       goto done;
     }
