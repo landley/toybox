@@ -19,8 +19,26 @@
 
 #include <features.h>
 
+// Various constants old build environments might not have even if kernel does
+
 #ifndef O_DIRECTORY
 #define O_DIRECTORY 0200000
+#endif
+
+#ifndef O_NOFOLLOW
+#define O_NOFOLLOW  0400000
+#endif
+
+#ifndef AT_FDCWD
+#define AT_FDCWD -100
+#endif
+
+#ifndef AT_SYMLINK_NOFOLLOW
+#define AT_SYMLINK_NOFOLLOW 0x100
+#endif
+
+#ifndef AT_REMOVEDIR
+#define AT_REMOVEDIR 0x200
 #endif
 
 #if defined(__GLIBC__)
@@ -38,15 +56,9 @@ char *strptime(const char *buf, const char *format, struct tm *tm);
 #include <unistd.h>
 #include <stdio.h>
 ssize_t getdelim(char **lineptr, size_t *n, int delim, FILE *stream);
-#ifndef O_NOFOLLOW
-#define O_NOFOLLOW      00400000        /* don't follow links */
-#endif
 
 // When building under obsolete glibc, hold its hand a bit.
-#elif __GLIBC_MINOR__ < 10
-#define AT_FDCWD -100
-#define AT_SYMLINK_NOFOLLOW 0x100
-#define AT_REMOVEDIR 0x200
+#elif __GLIBC__ == 2 && __GLIBC_MINOR__ < 10
 #define fstatat fstatat64
 int fstatat64(int dirfd, const char *pathname, void *buf, int flags);
 int readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz);
@@ -63,9 +75,22 @@ int isblank(int c);
 int unlinkat(int dirfd, const char *pathname, int flags);
 #include <stdio.h>
 ssize_t getdelim(char **lineptr, size_t *n, int delim, FILE *stream);
+
+// Straight from posix-2008, things old glibc didn't define
+
+int faccessat(int fd, const char *path, int amode, int flag);
+int linkat(int fd1, const char *path1, int fd2, const char *path2, int flag);
+int mkdirat(int fd, const char *path, mode_t mode);
+int symlinkat(const char *path1, int fd, const char *path2);
+int mknodat(int fd, const char *path, mode_t mode, dev_t dev);
+#include <sys/time.h>
+int futimens(int fd, const struct timespec times[2]);
+int utimensat(int fd, const char *path, const struct timespec times[2], int flag);
 #endif
 
 #endif
+
+// Test for gcc
 
 #ifdef __GNUC__
 #define noreturn	__attribute__((noreturn))
@@ -110,18 +135,6 @@ int clearenv(void);
 #define SWAP_LE16(x) (x)
 #define SWAP_LE32(x) (x)
 #define SWAP_LE64(x) (x)
-#endif
-
-// Some versions of gcc produce spurious "may be uninitialized" warnings in
-// cases where it provably can't happen.  Unfortunately, although this warning
-// is calculated and produced separately from the "is definitely used
-// uninitialized" warnings, there's no way to turn off the broken spurious "may
-// be" warnings without also turning off the non-broken "is" warnings.
-
-#if CFG_TOYBOX_DEBUG
-#define GCC_BUG =0
-#else
-#define GCC_BUG
 #endif
 
 #if defined(__APPLE__) || defined(__ANDROID__)
