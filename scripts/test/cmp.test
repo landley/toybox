@@ -18,6 +18,7 @@ testing "cmp identical files, return code" "cmp input input2 && echo yes" "yes\n
 
 testing "cmp EOF, stderr" "cmp input input2 2>&1" "cmp: EOF on input2\n" "ab\nc\nx" ""
 testing "cmp EOF, return code" "cmp input input2 2>/dev/null || echo yes" "yes\n" "ab\nc\nx" ""
+# The gnu/dammit version fails this because posix says "char" and they don't.
 testing "cmp diff, stdout" "cmp input input2" "input input2 differ: char 4, line 2\n" "ab\nx\nx" ""
 testing "cmp diff, return code" "cmp input input2 > /dev/null || echo yes" "yes\n" "ab\nx\nx" ""
 
@@ -25,7 +26,7 @@ testing "cmp -s EOF, return code" "cmp -s input input2 || echo yes"  "yes\n" "ab
 testing "cmp -s diff, return code" "cmp -s input input2 || echo yes" "yes\n" "ab\nx\nx" ""
 
 testing "cmp -l EOF, stderr" "cmp -l input input2 2>&1" "cmp: EOF on input2\n" "ab\nc\nx" ""
-testing "cmp -l diff and EOF, stdout and stderr" "cmp -l input input2 2>&1" "cmp: EOF on input2\n4 170 143\n" "ab\nx\nx" ""
+testing "cmp -l diff and EOF, stdout and stderr" "cmp -l input input2 2>&1 | sort" "4 170 143\ncmp: EOF on input2\n" "ab\nx\nx" ""
 
 rm input2
 
