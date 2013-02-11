@@ -91,6 +91,7 @@ int cp_node(struct dirtree *try)
       if (S_ISDIR(try->st.st_dev)) {
         error_msg("dir at '%s'", s = dirtree_path(try, 0));
         free(s);
+        return 0;
       } else if (flags & FLAG_n) return 0;
       else if (flags & FLAG_i) {
         fprintf(stderr, "cp: overwrite '%s'", s = dirtree_path(try, 0));
@@ -137,6 +138,33 @@ int cp_node(struct dirtree *try)
 
       } else if (flags & FLAG_l) {
         if (!linkat(tfd, try->name, cfd, catch, 0)) err = 0;
+
+      // Copy tree as symlinks. For non-absolute paths this involves
+      // appending the right number of .. entries as you go down the tree.
+
+      } else if (flags & FLAG_s) {
+        char *s;
+        struct dirtree *or;
+        int dotdots = 0;
+
+        s = dirtree_path(try, 0);
+        for (or = try; or->parent; or = or->parent) dotdots++;
+
+        if (*or->name == '/') dotdots = 0;
+        if (dotdots) {
+          char *s2 = xmsprintf("% *c%s", 3*dotdots, ' ', s);
+          free(s);
+          s = s2;
+          while(dotdots--) {
+            memcpy(s2, "../", 3);
+            s2 += 3;
+          }
+        }
+        if (!symlinkat(s, cfd, catch)) {
+          err = 0;
+          fdout = AT_FDCWD;
+        }
+        free(s);
 
       // Do something _other_ than copy contents of a file?
       } else if (!S_ISREG(try->st.st_mode)
