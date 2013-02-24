@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+# Create status.html
+
 import subprocess,sys
 
 def readit(args):
@@ -32,6 +34,8 @@ for i in toystuff:
 pending=[]
 done=[]
 
+print "all commands=%s" % len(reverse)
+
 outfile=open("www/status.gen", "w")
 outfile.write("<a name=all><h2><a href=#all>All commands</a></h2><blockquote><p>\n")
 
@@ -42,11 +46,14 @@ for i in blah:
   if "posix" in reverse[i]: out='[<a href="http://pubs.opengroup.org/onlinepubs/9699919799/utilities/%s.html">%s</a>]' % (i,out)
   elif "lsb" in reverse[i]: out='&lt;<a href="http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/%s.html">%s</a>&gt;' % (i,out)
   elif "development" in reverse[i]: out='(<a href="http://linux.die.net/man/1/%s">%s</a>)' % (i,out)
-  elif "request" in reverse[i]: out='<a href="http://linux.die.net/man/1/%s">%s</a>' % (i,out)
   elif "toolbox" in reverse[i]: out='{%s}' % out
+  elif "klibc_cmd" in reverse[i]: out='=%s=' % out
+  elif "sash_cmd" in reverse[i]: out='#%s#' % out
+  elif "sbase_cmd" in reverse[i]: out='@%s@' % out
+  elif "beastiebox_cmd" in reverse[i]: out='*%s*' % out
+  elif "request" in reverse[i]: out='+<a href="http://linux.die.net/man/1/%s">%s</a>+' % (i,out)
   elif "ready" in reverse[i]: pass
   else: sys.stderr.write("unknown %s %s\n" % (i, reverse[i]))
-
   if "ready" in reverse[i] or "pending" in reverse[i]:
     done.append(out)
     out='<strike>%s</strike>' % out
@@ -54,6 +61,7 @@ for i in blah:
 
   outfile.write(out+"\n")
 
+print "done=%s" % len(done)
 outfile.write("</p></blockquote>\n")
 
 outfile.write("<a name=todo><h2><a href=#todo>TODO</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(pending))

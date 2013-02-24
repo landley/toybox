@@ -7,14 +7,35 @@
 utilities, and are using those to determine which commands to implement
 for Toybox's 1.0 release.</p>
 
-<p>Our current candidate list combines the commands toybox already implements,
-the development environment command list, the toolbox standard commands,
-various vendor configurations of busybox, a selected subset of the POSIX/SUSv4
-standard, a couple of the less-insane bits of LSB, a few outright requests,
-plus additional to-be-determined shell functionality.</p>
+<p>The most interesting standards are POSIX-2008 (also known as the Single
+Unix Specification version 4) and the Linux Standard Base (version 4.1).
+The main test harness including toybox in Aboriginal Linux and if that can
+build itself using the result to build Linux From Scratch (version 6.8).
+We also aim to replace Android's Toolbox.</p>
+
+<p>At a secondary level we'd like to meet other use cases. We've analyzed
+the commands provided by similar projects (klibc, sash, sbase, s6, embutils,
+nash, and beastiebox), along with various vendor configurations of busybox,
+and some end user requests.</p>
+
+<p>Finally, we'd like to provide a good replacement for the Bash shell,
+which was the first program Linux ever ran and remains the standard shell
+of Linux no matter what Ubuntu says. This doesn't mean including the full
+set of Bash 4.x functionality, but does involve {various,features} beyond
+posix.</p>
 
 <p>See the <a href=status.html>status page</a> for the combined list
 and progress towards implementing it.</p>
+
+<ul>
+<li><a href=#susv4>POSIX-2008/SUSv4</a></li>
+<li><a href=#sigh>Linux "Standard" Base</a></li>
+<li><a href=#dev_env>Development Environment</a></li>
+<li><a href=#android>Android Toolbox</a></li>
+<li>Miscelaneous: <a href=#klibc>klibc</a>, <a href=#sash>sash</a>,
+<a href=#sbase>sbase</a>, <a href=#s6>s6</a>, <a href=#nash>nash</a>,
+<a href=#beastiebox>beastiebox</a></li>
+</ul>
 
 <hr />
 <a name="standards">
@@ -203,6 +224,7 @@ rm mkdir rmdir reboot getevent sendevent date wipe sync umount
 start stop notify cmp dmesg route hd dd df getprop setprop watchprops
 log sleep renice printenv smd chmod chown newfs_msdos netstat ioctl 
 mv schedtop top iftop id uptime vmstat nandread ionice touch lsof md5 r
+cp du grep watchdogd
 </b></blockquote>
 
 <p>If selinux is enabled, you also get:</p>
@@ -259,13 +281,15 @@ bespoke code to install itself.</p>
 <p>For reference, combining everything listed above, we get:</p>
 
 <blockquote><b>
-alarm ash cat chcon chmod chown cmp date dd df dmesg exists fs_mgr getenforce
-getevent getprop getsebool gpttool hd id ifconfig iftop init insmod ioctl
+alarm ash cat chcon chmod chown cmp cp date dd df dmesg du exists fs_mgr
+getenforce
+getevent getprop getsebool gpttool grep hd id ifconfig iftop init insmod ioctl
 ionice kill ln load_policy log logcat logwrapper ls lsmod lsof lsusb md5
 mkbootimg mkdir mount mv nandread netcfg netstat newfs_msdos notify printenv
 ps r readtty reboot renice restorecon rm rmdir rmmod rotatefb route run-as
 runcon schedtop sdcard sendevent setconsole setenforce setkey setprop setsebool
-sleep smd start stop sync syren top touch umount uptime vmstat watchprops wipe
+sleep smd start stop sync syren top touch umount uptime vmstat watchdogd
+watchprops wipe
 </b></blockquote>
 
 <p>We may eventually implement all of that, but for toybox 1.0 we need to
@@ -277,12 +301,12 @@ functionality, which we can implement a shim interface for later).</p>
 <p>This means toybox should implement:</p>
 <blockquote><b>
 <span id=toolbox>
-cat chmod chown cmp date dd df dmesg getevent getprop hd id ifconfig iftop
-insmod ioctl ionice kill ln log logcat logwrapper ls lsmod lsof lsusb md5 mkdir
-mount mv nandread
+cat chmod chown cmp cp date dd df dmesg du getevent getprop grep hd id ifconfig
+iftop insmod ioctl ionice kill ln log logcat logwrapper ls lsmod lsof lsusb md5
+mkdir mount mv nandread
 netstat newfs_msdos notify printenv ps r reboot renice rm rmdir rmmod route
 schedtop sendevent setconsole setprop sleep smd start stop sync top touch
-umount uptime vmstat watchprops wipe
+umount uptime vmstat watchprops watchdogd wipe
 </span>
 </b></blockquote>
 
@@ -290,8 +314,8 @@ umount uptime vmstat watchprops wipe
 sections of this analysis:</p>
 
 <blockquote><b>
-cat chmod chown cmp date dd df dmesg id ifconfig insmod kill ln ls lsmod
-mkdir mount mv ps renice rm rmdir rmmod route sleep sync top touch umount
+cat chmod chown cmp cp date dd df dmesg du grep id ifconfig insmod kill ln ls
+lsmod mkdir mount mv ps renice rm rmdir rmmod route sleep sync top touch umount
 </b></blockquote>
 
 <p>Which leaves the following commands as new from Toolbox:</p>
@@ -299,8 +323,310 @@ mkdir mount mv ps renice rm rmdir rmmod route sleep sync top touch umount
 <blockquote><b>
 getevent getprop hd iftop ioctl ionice log lsof nandread netstat
 newfs_msdos notify printenv r reboot schedtop sendevent setconsole
-setprop smd start stop top uptime vmstat watchprops wipe
+setprop smd start stop top uptime vmstat watchprops watchdogd wipe
 </b></blockquote>
+
+<hr /><a name=klibc />
+<h2>kblic:</h2>
+
+<p>Long ago some kernel developers came up with a project called
+<a href=http://en.wikipedia.org/wiki/Klibc>klibc</a>.
+After a decade of development it still has no web page or HOWTO,
+and nobody's quite sure if the license is BSD or GPL. It inexplicably
+<a href=http://www.infoworld.com/d/data-center/perl-isnt-going-anywhere-better-or-worse-211580>requires perl to build</a>, and seems like an ideal candidate for
+replacement.</p>
+
+<p>In addition to a C library even less capable than bionic (obsoleted by
+musl), klibc builds a random assortment of executables to run init scripts
+with. There's no multiplexer command, these are individual executables:</p>
+
+<blockquote><p>
+cat chroot cpio dd dmesg false fixdep fstype gunzip gzip halt ipconfig kill
+kinit ln losetup ls minips mkdir mkfifo mknodes
+mksyntax mount mv nfsmount nuke pivot_root poweroff readlink reboot resume
+run-init sh sha1hash sleep sync true umount uname zcat
+</p></blockquote>
+
+<p>To get that list, build klibc according to the instructions (I
+<a href=http://landley.net/notes-2013.html#23-01-2013>looked at</a> version
+2.0.2 and did cd klibc-*; ln -s /output/of/kernel/make/headers_install
+linux; make) then <b>echo $(for i in $(find . -type f); do file $i | grep -q
+executable && basename $i; done | grep -v '[.]g$' | sort -u)</b> to find
+executables, then eliminated the *.so files and *.shared duplicates.</p>
+
+<p>Some of those binaries are build-time tools that don't get installed,
+which removes mknodes, mksyntax, sha1hash, and fixdep from the list.
+(And sha1hash is just an unpolished sha1sum anyway.)</p>
+
+<p>The run-init command is more commonly called switch_root, nuke is just
+"rm -rf -- $@", and minips is more commonly called "ps". I'm not doing aliases
+for the oddball names.</p>
+
+<p>Yet more stale forks of dash and gzip sucked in here (see "dubious
+license terms" above), adding nothing to the other projects we've looked at.
+But we still need sh, gunzip, gzip, and zcat to replace this package.</p>
+
+<p>By the time I did the analysis toybox already had cat, chroot, dmesg, false,
+kill, ln, losetup, ls, mkdir, mkfifo, readlink, rm, switch_root, sleep, sync,
+true, and uname.</p>
+
+<p>The low hanging fruit is cpio, dd, ps, mv, and pivot_root.</p>
+
+<p>The "kinit" command is another gratuitous rename, it's init running as PID 1.
+The halt, poweroff, and reboot commands work with it.</p>
+
+<p>I've got mount and umount queued up already, fstype and nfsmount go with
+those. (And probably smbmount and p9mount, but this hasn't got one. Those
+are all about querying for login credentials, probably workable into the
+base mount command.)</p>
+
+<p>The ipconfig command here has a built in dhcp client, so it's ifconfig
+and dhcpcd and maybe some other stuff.</p>
+
+<p>The resume command is... weird. It finds a swap partition and reads data
+from it into a /proc file, something the kernel is capable of doing itself.
+(Even though the klibc author
+<a href=http://www.zytor.com/pipermail/klibc/2006-June/001748.html>attempted
+to remove</a> that capability from the kernel, current kernel/power/hibernate.c
+still parses "resume=" on the command line). And yet various distros seem to
+make use of klibc for this>
+Given the history of swsusp/hibernate (and 
+<a href=http://lwn.net/Articles/333007>TuxOnIce</a>
+and <a href=http://lwn.net/Articles/242107>kexec jump</a>) I've lost track
+of the current state of the art here. Ah, Documentation/power/userland-swsusp.txt
+has the API docs, and <a href=http://suspend.sf.net>here's a better
+tool</a>...</p>
+
+<p>So the list of things actually in klibc are:</p>
+
+<blockquote><b>
+<span id=klibc_cmd />
+cat chroot dmesg false kill ln losetup ls mkdir mkfifo readlink rm switch_root
+sleep sync true uname
+
+cpio dd ps mv pivot_root
+mount nfsmount fstype umount
+sh gunzip gzip zcat
+kinit halt poweroff reboot
+ipconfig
+resume
+</span>
+</b></blockquote>
+
+<hr />
+<a name=sash />
+<h2>Stand-Alone Shell</h2>
+
+<p>Wikipedia has <a href=http://en.wikipedia.org/wiki/Stand-alone_shell>a good
+summary of sash</a>, with links. The original Stand-Alone Shell project reached
+a stopping point, and then <a href=http://www.baiti.net/sash>"sash plus
+patches"</a> extended it a bit further. The result is a megabyte executable
+that provides 40 commands.</p>
+
+<p>Sash is a shell with built-in commands. It doesn't have a multiplexer
+command, meaning "sash ls -l" doesn't work (you have to go "sash -c 'ls -l'").
+</p>
+
+<p>The list of commands can be obtained via building it and doing
+"echo help | ./sash | awk '{print $1}' | sed 's/^-//' | xargs echo", which
+gives us:</p>
+
+<blockquote><b>
+alias aliasall ar cd chattr chgrp chmod chown cmp cp chroot dd echo ed exec
+exit file find grep gunzip gzip help kill losetup losetup ln ls lsattr mkdir
+mknod more mount mv pivot_root printenv prompt pwd quit rm rmdir setenv source
+sum sync tar touch umask umount unalias where
+</b></blockquote>
+
+<p>Plus sh because it's a shell. A dozen or so commands can only sanely be
+implemented as shell builtins (alias aliasall cd exec exit prompt quit setenv
+source umask unalias), where is an alias for which, and at triage time toybox
+already has chgrp, chmod, chown, cmp, cp, chroot, echo, help, kill, losetup,
+ln, ls, mkdir, mknod, printenv, pwd, rm, rmdir, sync, and touch.</p>
+
+<p>This leaves:</p>
+
+<blockquote><b>
+<span id=sash_cmd>
+ar chattr dd ed file find grep gunzip gzip lsattr more mount mv pivot_root
+sh sum tar umount
+</span>
+</b></blockquote>
+
+<p>(For once, this project doesn't include a fork of gzip, instead
+it sucks in -lz from the host.)</p>
+
+<hr />
+<a name=sbase />
+<h2>sbase:</h2>
+
+<p>It's <a href=http://git.suckless.org/sbase>on suckless</a>. So far it's
+implemented:</p>
+
+<blockquote><p>
+<span id=sbase_cmd />
+basename cat chmod chown cksum cmp cp date dirname echo false fold grep head
+kill ln ls mc mkdir mkfifo mv nl nohup pwd rm seq sleep sort tail tee test
+touch true tty uname uniq wc yes
+</span>
+</p></blockquote>
+
+<p>And has a TODO list:</p>
+
+<blockquote><p>
+<span id=sbase_cmd />
+cal chgrp chvt comm cut df diff du env expand expr id md5sum nice paste
+printenv printf readlink rmdir seq sha1sum split sync test tr unexpand unlink
+who
+</span>
+</p></blockquote>
+
+<p>At triage time, of the first list I still need to do: fold grep mc mv nl. Of
+the second list: diff expr paste printf split test tr unexpand who.</p>
+
+<hr />
+<a name=s6 />
+<h2>s6</h2>
+
+<p>The website <a href=http://skarnet.org/software/>skarnet</a> has a bunch
+of small utilities as part of something called "s6". This includes the
+<a href=http://skarnet.org/software/s6-portable-utils>s6-portabile-utils</a>
+and the <a href=http://skarnet.org/software/s6-linux-utils>s6-linux-utils</a>.
+</p>
+
+<p>Both packages rely on multiple bespoke external libraries without which
+they can't compile. The source is completely uncommented and doesn't wrap at
+80 characters. Doing a find for *.c files brings up the following commands:</p>
+
+<blockquote><b>
+<span id=s6>
+basename cat chmod chown chroot clock cut devd dirname echo env expr false
+format-filter freeramdisk grep halt head hiercopy hostname linkname ln
+logwatch ls maximumtime memoryhog mkdir mkfifo mount nice nuke pause
+pivotchroot poweroff printenv quote quote-filter reboot rename rmrf sleep
+sort swapoff swapon sync tail test touch true umount uniquename unquote
+unquote-filter update-symlinks
+</span>
+</b></blockquote>
+
+<p>Triage: memoryhog isn't even listed on the website nor does it have
+a documentation file, clock seems like a subset
+of date, devd is some sort of netlink wrapper that spawns its command line
+every time it gets a message (maybe this is meant to implement part of
+udev/mdev?), format-filter is sort of awk's '{print $2}' function split out
+into its own command, hiercopy a subset of "cp -r", maximumtime is something
+I implemented as a shell script (more/timeout.sh in Aboriginal Linux),
+nuke isn't the same as klibc (this one's "kill SIG -1" only with hardwared
+SIG options), pause is a program that literally waits to be killed (I
+generally sleep 999999999 which is a little over 30 years),
+pivotchroot is a subset of switch_root, rmrf is rm -rf...</p>
+
+<p>I see "nuke" resurface, and if "rmrf" wasn't also here I might think
+klibc had a point.</b>
+
+<blockquote>
+basename cat chmod chown chroot cut dirname echo env expr false
+freeramdisk grep halt head hostname linkname ln
+logwatch ls mkdir mkfifo mount nice
+pivotchroot poweroff printenv quote quote-filter reboot rename sleep
+sort swapoff swapon sync tail test touch true umount uniquename unquote
+unquote-filter update-symlinks
+</blockquote>
+
+
+<hr />
+<a name=nash />
+<h2>nash:</h2>
+
+<p>Red Hat's nash was part of its "mkinitrd" package, replacement for a shell
+and utilities on the boot floppy back in the 1990's (the same general idea
+as BusyBox, developed independently). Red Hat discontinued nash development
+in 2010, replacing it with dracut (which collects together existing packages,
+including busybox).</p>
+
+<p>I couldn't figure out how to beat source code out of
+<a href=http://pkgs.fedoraproject.org/git/mkinitrd>Fedora's current git</a>
+repository. The last release version that used it was Fedora Core 12
+which has <a href=http://archive.fedoraproject.org/pub/archive/fedora/linux/releases/12/Fedora/source/SRPMS/mkinitrd-6.0.93-1.fc12.src.rpm>a source rpm</a>
+that can be unwound with "rpm2cpio mkinitrd.src.rpm | cpio -i -d -H newc
+--no-absolute-filenames" and in there is a mkinitrd-6.0.93.tar.bz2 which
+has the source.</p>
+
+<p>In addition to being a bit like a command shell, the nash man page lists the
+following commands:</p>
+
+<blockquote><p>
+access echo find losetup mkdevices mkdir mknod mkdmnod mkrootdev mount
+pivot_root readlink raidautorun setquiet showlabels sleep switchroot umount
+</p></blockquote>
+
+<p>Oddly, the only occurrence of the string pivot_root in the nash source code
+is in the man page, the command isn't there. (It seems to have been removed
+when the underscoreless switchroot went in.)</p>
+
+<p>A more complete list seems to be the handlers[] array in nash.c:</p>
+
+<blockquote><p>
+access buildEnv cat cond cp daemonize dm echo exec exit find kernelopt
+loadDrivers loadpolicy mkchardevs mkblktab mkblkdevs mkdir mkdmnod mknod
+mkrootdev mount netname network null plymouth hotplug killplug losetup
+ln ls raidautorun readlink resume resolveDevice rmparts setDeviceEnv
+setquiet setuproot showelfinterp showlabels sleep stabilized status switchroot
+umount waitdev
+</p></blockquote>
+
+<p>This list is nuts: "plymouth" is an alias for "null" which is basically
+"true" (which thie above list doesn't have). Things like buildEnv and
+loadDrivers are bespoke Red Hat behavior that might as well be hardwired in
+to nash's main() without being called.</p>
+
+<p>Instead of eliminating items
+from the list with an explanation for each, I'm just going to cherry pick
+a few: the device mapper (dm, raidautorun) is probably interesting,
+hotplug (may be obsolete due to kernel changes that now load firmware
+directly), and another "resume" ala klibc.</p>
+
+<p>But mostly: I don't care about this one. And neither does Red Hat anymore.</p>
+
+<hr />
+<a name=beastiebox />
+<h2>Beastiebox</h2>
+
+<p>Back in 2008, the BSD guys vented some busybox-envy
+<a href=http://beastiebox.sourceforge.net>on sourceforge</a>. Then stopped.
+Their repository is still in CVS, hasn't been touched in years, it's a giant
+hairball of existing code sucked together. (The web page says the author
+is aware of crunchgen, but decided to do this by hand anyway. This is not
+a collection of new code, it's a katamari of existing code rolled up in a
+ball.)</p>
+
+<p>Combining the set of commands listed on the web page with the set of
+man pages in the source gives us:</P>
+
+<blockquote><p>
+[ cat chmod cp csh date df disklabel dmesg echo ex fdisk fsck fsck_ffs getty
+halt hostname ifconfig init kill less lesskey ln login ls lv mksh more mount
+mount_ffs mv pfctl ping poweroff ps reboot rm route sed sh stty sysctl tar test
+traceroute umount vi wiconfig
+</p></blockquote>
+
+<p>Apparently lv is the missing link ed and vi, copyright 1982-1997 (do not
+want), ex is another obsolete vi mode, lesskey is "used to
+specify a set of key bindings to be used with less", and csh is a shell they
+sucked in, [ is an alias for test. Several more bsd-isms that don't have Linux
+equivalents (even in the ubuntu "install this package" search) are
+disklabel, fsck_ffs, mount_ffs, and pfctl. And wiconfig is a wavelan interface
+network card driver utility. Subtracting all that and the commands toybox
+already implements at triage time, we get:</p>
+
+<blockquote><p>
+<span id=beastiebox_cmd>
+fdisk fsck getty halt ifconfig init kill less mksh more mount mv ping poweroff
+ps reboot route sed sh stty sysctl tar test traceroute umount vi
+</span>
+</p></blockquote>
+
+<p>Not a hugely interesting list, but eh.</p>
 
 <hr />
 <h2>Requests:</h2>

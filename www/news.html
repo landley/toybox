@@ -1,6 +1,47 @@
 <!--#include file="header.html" -->
 
 <h2>News</h2>
+<hr><b>January 18, 2013</b>
+<blockquote><p>This must be Thursday. I never could get the hang of Thursdays. - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+
+<p><a href=downloads/toybox-0.4.3.tar.bz2>Toybox 0.4.3</a> is based on
+<a href=http://landley.net/hg/toybox/shortlog/793>commit 793</a>. There
+are now exactly 100 commands in defconfig (of a little over 220 on the
+<a href=roadmap.html>todo list</a>).</p>
+
+<p>Elie De Brauwer added the rev command, cleaned up tac, implemented the -s
+and -f flags for seq, added -v and -i to killall (and fixed killall not to
+kill itself before finishing its pid list), and added to the test suite.
+Felix Janda added -m to mkdir, pwd -L and -P, and more test suite entries.</p>
+
+<p>Rob Landley added the losetup command, and fixed the existing ls, cp, and
+readlink commands. The segfault in ls
+happened when it couldn't determine the screen size (last release changed the
+default to -C and a screen size of 0 made column view unhappy), and cp got an
+extensive rewrite bringing it up to date with the dirtree changes and fixing
+a number of things it never did right in the first place. The xabspath()
+code in the library now handles a symlink after ".." properly (and the test
+suite checks for it).</p>
+
+<p>Infrastructure-wise the code is better about automatically setting the
+error return code properly. Now error_msg() sets the exit code to 1 if it's
+still defaulting to 0, and the global exit path does a fflush(NULL) with error
+bit check rather than trying to be quite so granular about flushing. (That
+means if we use printf() instead of xprintf() it still exits with the right
+error code, it just doesn't end the program early on an output error.)
+Minor bugfix so TOYBOX_DEBUG
+doesn't always warn about the lack of suid bit when toybox is built with
+at least one STAYROOT command. Bugfix for the option [grouping] logic
+(and then further fixes to the error reporting pointed out by Ashwini Sharma).
+dirtree_handle_callback() now has a prefix like the rest of the dirtree
+functions. A lot of stuff doing manual path handling was switched to using
+libc basename() (including, embarassingly, the basename command), which means
+it now correctly detects "/trailing/slash/" which the previous code didn't.</p>
+
+<p>Also, last release included some accidentally checked in debug code that
+disabled compiler optimization, so the binary size bloated a bit. It's back
+to -Os by default now.</p>
+
 <hr><b>December 15, 2012</b>
 <blockquote><p>"The major difference between a thing that might go wrong and a
 thing that cannot possibly go wrong is that when a thing that cannot possibly
