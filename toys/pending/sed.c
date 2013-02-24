@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/sed.c
 
-USE_SED(NEWTOY(sed, "irne*", TOYFLAG_BIN))
+USE_SED(NEWTOY(sed, "irne*f*", TOYFLAG_BIN))
 
 config SED
   bool "sed"
@@ -26,10 +26,10 @@ config SED
 #include "lib/xregcomp.h"
 
 GLOBALS(
+  struct arg_list *files;
   struct arg_list *scripts;
-  struct double_list *commands;
 
-  void *parsed;
+  void *commands;
 )
 
 // Digested version of what sed commands can actually tell use to do.
@@ -42,7 +42,7 @@ struct sed_command {
   // data string for (saicytb)
   char c, *data;
   // Regexes for s/match/data/ and /begin/,/end/command
-  regex_t *match, *begin, *end;
+  regex_t *rmatch, *rbegin, *rend;
   // For numeric ranges ala 10,20command
   long lstart, lstop;
   // Which match to replace, 0 for all. s and w commands can write to a file
@@ -50,21 +50,25 @@ struct sed_command {
 };
 
 //  Space. Space. Gotta get past space. Spaaaaaaaace! (But not newline.)
-void spaceorb(char **s)
+static void spaceorb(char **s)
 {
-  while (**s == ' ' || **s == '\t') *s++;
+  while (**s == ' ' || **s == '\t') ++*s;
 }
 
-void parse_scripts(void)
-{
-  struct sed_command *commands = 0;
-  struct arg_list *script;
-  int which = 0;
-  long l;
+// Parse sed commands
 
-  for (script = TT.scripts; *script; script = script->next) {
-    char *str = script->arg, *s;
+static void parse_scripts(void)
+{
+  struct arg_list *script;
+  int which = 0, i;
+
+  // Loop through list of scripts collated from command line and/or files
+
+  for (script = TT.scripts; script; script = script->next) {
+    char *str = script->arg;
     struct sed_command *cmd;
+
+    // we can get multiple commands from a string (semicolons and such)
 
     which++;
     for (i=1;;) {
@@ -74,33 +78,41 @@ void parse_scripts(void)
 
       // Identify prefix
       for (;;) {
-        long l;
-
         spaceorb(&str);
-        if (*str == '$') {
-          l = -1;
-          str++;
-        } else if (isdigit(*str)) l = strtol(str, &str, 10);
-        else if (!cmd->lstart) break;
-        else goto parse_fail;
-
-        spaceorb(&str);
-        if (!cmd->lstart) {
-          if (!l) goto parse_fail;
-          cmd->lstart = l;
-          if (*str != ',') break;
+        if (*str == '^') {
+          if (cmd->lstart) goto parse_fail;
+          cmd->lstart = -1;
           str++;
           continue;
-        }
-        cmd->lstop = l;
-        break;
-      } else if (*str == '/') {
-        printf("regex\n");
+        } else if (*str == '$') {
+          cmd->lstop = LONG_MAX;
+          str++;
+          break;
+        } else if (isdigit(*str)) {
+          long ll = strtol(str, &str, 10);
+
+          if (ll<0) goto parse_fail;
+          if (cmd->lstart) {
+            cmd->lstop = ll;
+            break;
+          } else cmd->lstart = ll;
+        } else if (*str == '/' || *str == '\\') {
+          // set begin/end
+          printf("regex\n");
+          exit(1);
+        } else if (!cmd->lstart && !cmd->rbegin) break;
+        else goto parse_fail;  // , with no range after it
+
+        spaceorb(&str);
+        if (*str != ',') break;
+        str++;
       }
-      l = stridx("{bcdDgGhHlnNpPstwxyrqia= \t#:}", *str);
-      if (l == -1) goto parse_fail;
+      i = stridx("{bcdDgGhHlnNpPstwxyrqia= \t#:}", *str);
+      if (i == -1) goto parse_fail;
 
-
+      dlist_add_nomalloc((struct double_list **)&TT.commands,
+                         (struct double_list *)cmd);
+      exit(1);
     }
   }
 
@@ -117,15 +129,10 @@ void sed_main(void)
   // If no -e, use first argument
   if (!TT.scripts) {
     if (!*files) error_exit("Need script");
-    (TT.scripts=xzalloc(sizeof(struct arg_list)))->arg=*(files++);
+    (TT.scripts = xzalloc(sizeof(struct arg_list)))->arg = *(files++);
   }
 
+  parse_scripts();
 
-  {
-    struct arg_list *test;
-
-    for (test = TT.commands; test; test = test->next)
-      dprintf(2,"command=%s\n",test->arg);
-    while (*files) dprintf(2,"file=%s\n", *(files++));
-  }
+  while (*files) dprintf(2,"file=%s\n", *(files++));
 }
