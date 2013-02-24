@@ -1,4 +1,5 @@
 // Workarounds for horrible build environment idiosyncrasies.
+
 // Instead of polluting the code with strange #ifdefs to work around bugs
 // in specific compiler, library, or OS versions, localize all that here
 // and in portability.c
@@ -12,10 +13,18 @@
 
 #undef _FORTIFY_SOURCE
 
+// Test for gcc (using compiler builtin #define)
+
+#ifdef __GNUC__
+#define noreturn	__attribute__((noreturn))
+#else
+#define noreturn
+#endif
+
 // Always use long file support.
 #define _FILE_OFFSET_BITS 64
 
-// This isn't in the spec, but it's how we determine what we're using.
+// This isn't in the spec, but it's how we determine what libc we're using.
 
 #include <features.h>
 
@@ -41,12 +50,21 @@
 #define AT_REMOVEDIR 0x200
 #endif
 
+// We don't define GNU_dammit because we're not part of the gnu project, and
+// don't want to get any FSF on us. Unfortunately glibc (gnu libc)
+// won't give us Linux syscall wrappers without claiming to be part of the
+// gnu project (because Stallman's "GNU owns Linux" revisionist history
+// crusade includes the kernel, even though Linux was inspired by Minix).
+
+// We use most non-posix Linux syscalls directly through the syscall() wrapper,
+// but even many posix-2008 functions aren't provided by glibc unless you
+// claim it's in the name of Gnu.
+
 #if defined(__GLIBC__)
 // "Function prototypes shall be provided." but aren't.
 // http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/unistd.h.html
 char *crypt(const char *key, const char *salt);
 
-// An SUSv4 function that glibc refuses to #define without crazy #defines,
 // see http://pubs.opengroup.org/onlinepubs/9699919799/functions/strptime.html
 #include <time.h>
 char *strptime(const char *buf, const char *format, struct tm *tm);
@@ -57,7 +75,7 @@ char *strptime(const char *buf, const char *format, struct tm *tm);
 #include <stdio.h>
 ssize_t getdelim(char **lineptr, size_t *n, int delim, FILE *stream);
 
-// When building under obsolete glibc, hold its hand a bit.
+// When building under obsolete glibc (Ubuntu 8.04-ish), hold its hand a bit.
 #elif __GLIBC__ == 2 && __GLIBC_MINOR__ < 10
 #define fstatat fstatat64
 int fstatat64(int dirfd, const char *pathname, void *buf, int flags);
@@ -76,7 +94,7 @@ int unlinkat(int dirfd, const char *pathname, int flags);
 #include <stdio.h>
 ssize_t getdelim(char **lineptr, size_t *n, int delim, FILE *stream);
 
-// Straight from posix-2008, things old glibc didn't define
+// Straight from posix-2008, things old glibc had but didn't prototype
 
 int faccessat(int fd, const char *path, int amode, int flag);
 int linkat(int fd1, const char *path1, int fd2, const char *path2, int flag);
@@ -90,13 +108,7 @@ int utimensat(int fd, const char *path, const struct timespec times[2], int flag
 
 #endif
 
-// Test for gcc
-
-#ifdef __GNUC__
-#define noreturn	__attribute__((noreturn))
-#else
-#define noreturn
-#endif
+// Work out how to do endianness
 
 #ifndef __APPLE__
 #include <byteswap.h>
