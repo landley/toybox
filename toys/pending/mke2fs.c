@@ -6,7 +6,7 @@
 USE_MKE2FS(NEWTOY(mke2fs, "<1>2g:Fnqm#N#i#b#", TOYFLAG_SBIN))
 
 config MKE2FS
-  bool "mke2fs (unfinished and broken by dirtree changes)"
+  bool "mke2fs"
   default n
   help
     usage: mke2fs [-Fnq] [-b ###] [-N|i ###] [-m ###] device
@@ -463,7 +463,7 @@ void mke2fs_main(void)
 
   if (TT.gendir) {
     strncpy(toybuf, TT.gendir, sizeof(toybuf));
-    dti = dirtree_read(toybuf, NULL, NULL);
+    dti = dirtree_read(toybuf, dirtree_notdotdot);
   } else {
     dti = xzalloc(sizeof(struct dirtree)+11);
     strcpy(dti->name, "lost+found");
