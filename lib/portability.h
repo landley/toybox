@@ -30,14 +30,6 @@
 
 // Various constants old build environments might not have even if kernel does
 
-#ifndef O_DIRECTORY
-#define O_DIRECTORY 0200000
-#endif
-
-#ifndef O_NOFOLLOW
-#define O_NOFOLLOW  0400000
-#endif
-
 #ifndef AT_FDCWD
 #define AT_FDCWD -100
 #endif
