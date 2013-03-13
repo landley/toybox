@@ -6,7 +6,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/find.html
 
-USE_LINK(NEWTOY(find, "?", TOYFLAG_USR|TOYFLAG_BIN))
+USE_FIND(NEWTOY(find, "?", TOYFLAG_USR|TOYFLAG_BIN))
 
 config FIND
 	bool "find"
@@ -667,39 +667,6 @@ void build_filter_list(void)
 	}
 }
 
-int test_callback(struct dirtree *node)
-{
-	char *path;
-	int plen;
-
-	//printf("%s: ", node->name);	
-
-	/* skip non-root '.' and all '..' */
-	if (node->name[0] == '.' && 
-		((!node->name[1] && node->parent) ||
-		(node->name[1]=='.' && !node->name[2]))) {
-			//printf("skipping\n");
-			return 0;
-	}
-
-	//printf("\n");
-	path = dirtree_path(node, &plen);
-	printf("%s\n", path);
-	free(path);
-	return DIRTREE_RECURSE;
-}
-
-void dt_test(void)
-{
-	struct dirtree *root;
-
-	printf("testing dirtree routines...\n");
-
-	root = dirtree_read(".", test_callback);
-	printf("root=%p\n", root);
-	exit(0);
-}
-
 void find_main(void)
 {
 	int i;
@@ -714,11 +681,6 @@ void find_main(void)
 				toys.optargs[i] = toys.optargs[i+1];
 			}
 		}
-	}
-
-	/* change if to enalbe dt_test routine */
-	if (debug && 0) {
-		dt_test();
 	}
 
 	/* parse filters, if present */
