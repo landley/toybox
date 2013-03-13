@@ -30,13 +30,6 @@ config FIND
 #include <strings.h>
 #include <time.h>
 
-/* to remove debugging statements, uncomment the #define and
- * comment out the next line */
-//#define debug 0
-int debug = 0;
-
-#define DPRINTF(fmt, args...)	if (debug) printf("DEBUG: " fmt, ##args)
-
 #define SECONDS_PER_DAY (24*60*60)
 
 #define SUCCESS	1
@@ -155,19 +148,6 @@ void dump_node(struct filter_node *node)
 	}
 }
 
-void dump_filters(struct filter_node *node)
-{
-	if (!node) {
-		printf("no filters\n");
-		return;
-	}
-	do {
-		dump_node(node);
-		node = node->next;
-	} while(node);
-	printf("\n");
-}
-
 /* executes the command for a filter node
  * return the program return value (0=success)
  */
@@ -176,7 +156,6 @@ int do_exec(struct filter_node *filter, struct dirtree *node)
 	char *path;
 	int plen;
 	char **arg_array;
-	int i;
 	pid_t pid;
 	int ccode;
 	int status;
@@ -188,11 +167,6 @@ int do_exec(struct filter_node *filter, struct dirtree *node)
 	} else {
 		path = NULL;
 	}
-	DPRINTF("Try to execute: '");
-	for(i=0; arg_array[i]; i++) {
-		DPRINTF("%s ", arg_array[i]);
-	}
-	DPRINTF("' here!\n");
 	
 	pid = fork();
 	if (pid==0) {
@@ -209,7 +183,7 @@ int do_exec(struct filter_node *filter, struct dirtree *node)
 		ccode = WEXITSTATUS(status);
 	}
 	free(path);
-	DPRINTF("do_exec() returning %d\n", ccode);
+
 	return ccode;
 }
 
@@ -229,13 +203,6 @@ int evaluate(struct filter_node *filter, struct dirtree *node,
 	if (!filter) {
 		*fnext = NULL;
 		return SUCCESS;
-	}
-
-	if (debug) {
-		/* show filter node */
-		DPRINTF("eval:");
-		dump_node(filter);
-		DPRINTF("\n");
 	}
 
 	if (filter->op==OP_NOT) {
@@ -358,16 +325,13 @@ int check_node_callback(struct dirtree *node)
 
 	/* only recurse on "." at the root */
 	/* so, don't recurse on 1) non-root "." and 2) any ".." */
-	//printf("node->name = %s\n", node->name);
-	DPRINTF("node->name=%s\n", node->name);
+
 	if (node->name[0] == '.' && 
 		((!node->name[1] && node->parent) ||
 		(node->name[1]=='.' && !node->name[2])))
 		return 0;
 
-	DPRINTF("passed . and .. check, evaluating filters...\n");
 	result = evaluate(filter_root, node, &junk);
-	DPRINTF("filter evaluation result=%d\n", result);
 	if (result & SUCCESS & !have_action) {
 		/* default action is just print the path */
 		path = dirtree_path(node, &plen);
@@ -377,60 +341,6 @@ int check_node_callback(struct dirtree *node)
 	return DIRTREE_RECURSE;
 }
 
-
-void build_test_filter(void)
-{
-	struct filter_node *node;
-	int test=3;
-	
-	if (test==1) { /* test -name */
-		printf("using test filter: '-name 'tail.c''\n");
-		node = (struct filter_node *)
-				xmalloc(sizeof(struct filter_node));
-		node->next = NULL;
-		node->op = CHECK_NAME;
-		node->data.name_regex = "tail.c";
-		filter_root = node;
-	}
-	if (test==2) { /* test 'not' */
-		printf("using test filter: '! -name 'tail.c''\n");
-		node = (struct filter_node *)
-				xmalloc(sizeof(struct filter_node));
-		node->next = NULL;
-		node->op = CHECK_NAME;
-		node->data.name_regex = "tail.c";
-		filter_root = node;
-		node = (struct filter_node *)
-				xmalloc(sizeof(struct filter_node));
-		/* put a not on the stack before the check_name */
-		node->op = OP_NOT;
-		/* push this node */
-		node->next = filter_root;
-		filter_root = node;
-	}
-	if (test==3) { /* test 'or' */
-		printf("using test filter: '-name 'tail.c' -o -name 'other.c''\n");
-		node = (struct filter_node *)
-				xmalloc(sizeof(struct filter_node));
-		node->next = NULL;
-		node->op = CHECK_NAME;
-		node->data.name_regex = "other.c";
-		filter_root = node;
-		node = (struct filter_node *)
-				xmalloc(sizeof(struct filter_node));
-		node->next = filter_root;
-		node->op = CHECK_NAME;
-		node->data.name_regex = "tail.c";
-		filter_root = node;
-		node = (struct filter_node *)
-				xmalloc(sizeof(struct filter_node));
-		/* put an OR on the stack before the check_names */
-		node->op = OP_OR;
-		/* push this node */
-		node->next = filter_root;
-		filter_root = node;
-	}
-}
 
 void build_filter_list(void)
 {
@@ -444,13 +354,6 @@ void build_filter_list(void)
 
 	/* part optargs here and build a filter list in prefix format */
 	
-	/* DEBUG - print optargs */
-	if (debug) {
-		for(i=0; toys.optargs[i]; i++) {
-			printf("optargs[%d]=%s\n", i, toys.optargs[i]);
-		}
-	}
-
 	node_list = NULL;
 	toybuf[0] = 0;
 	have_action = 0;
@@ -473,10 +376,6 @@ void build_filter_list(void)
 		}
 		if (strcmp(arg, ")") == 0) { 
 			node->op = RPAREN;
-		}
-		if (strcmp(arg, "--debug") == 0) {
-			debug = 1;
-			continue;
 		}
 
 		if (strcmp(arg, "-name") == 0) {
@@ -601,10 +500,6 @@ void build_filter_list(void)
 		}
 			
 	}
-	if (debug) {
-		printf("here is the infix node list (reversed):\n");
-		dump_filters(node_list);
-	}
 
 	/* now convert from infix to prefix */
 	filter_root = NULL;
@@ -669,31 +564,9 @@ void build_filter_list(void)
 
 void find_main(void)
 {
-	int i;
-
-	/* do a special check for --debug */
-	for(i=0; toys.optargs[i]; i++) {
-		if (strcmp(toys.optargs[i], "--debug")==0) {
-			debug = 1;
-			printf("[debug mode on]\n");
-			/* shift args down, deleting '--debug' */
-			for (;toys.optargs[i]; i++) {
-				toys.optargs[i] = toys.optargs[i+1];
-			}
-		}
-	}
-
 	/* parse filters, if present */
 	/* also, fill toybuf with the directory to start in, if present */
 	build_filter_list();
-	if (debug) {
-		printf("using prefix filter list:\n");
-		dump_filters(filter_root);
-	}
-
-	/* DEBUG - override parsed filter list with test filter */
-	//build_test_filter();	
-	//dump_filters(filter_root);
 
 	/* FIXTHIS - parse actions, if present */
 
