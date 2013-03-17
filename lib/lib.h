@@ -17,7 +17,8 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 // llist.c
 
 // All these list types can be handled by the same code because first element
-// is always next pointer, so next = (mytype *)&struct.
+// is always next pointer, so next = (mytype *)&struct. (The payloads are
+// named differently to catch using the wrong type early.)
 
 struct string_list {
   struct string_list *next;
@@ -175,10 +176,6 @@ int update_password(char *filename, char* username, char* encrypted);
 
 // du helper functions
 char* make_human_readable(unsigned long long size, unsigned long unit);
-
-// useful tools
-#define min(a,b) (a)<(b) ? (a) : (b)
-#define max(a,b) (a)>(b) ? (a) : (b)
 
 // cut helper functions
 unsigned long get_int_value(const char *numstr, unsigned lowrange, unsigned highrange);
