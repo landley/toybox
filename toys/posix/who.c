@@ -5,18 +5,22 @@
  * by Luis Felipe Strano Moraes <lfelipe@profusion.mobi>
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/who.html
+ *
+ * Posix says to support many options (-abdHlmpqrstTu) but this
+ * isn't aimed at minicomputers with modem pools.
 
-USE_WHO(NEWTOY(who, NULL, TOYFLAG_BIN))
+USE_WHO(NEWTOY(who, "a", TOYFLAG_BIN))
 
 config WHO
   bool "who"
-  default n
+  default y
   help
     usage: who
 
     Print logged user information on system
 */
 
+#define FOR_who
 #include "toys.h"
 
 void who_main(void)
@@ -26,10 +30,10 @@ void who_main(void)
   setutxent();
 
   while ((entry = getutxent())) {
-    if (entry->ut_type == USER_PROCESS) {
+    if ((toys.optflags & FLAG_a) || entry->ut_type == USER_PROCESS) {
       time_t time;
       int time_size;
-      char * times;
+      char *times;
 
       time = entry->ut_tv.tv_sec;
       times = ctime(&time);
