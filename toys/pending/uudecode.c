@@ -171,4 +171,5 @@ void uudecode_main(void)
   ofd = xcreate(out_filename,O_WRONLY|O_CREAT|O_TRUNC,mode);
   free(line);
   decoder(ifd,ofd);
+  if (TOYBOX_CLEANUP) close(ofd);
 }

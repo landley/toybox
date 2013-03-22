@@ -57,7 +57,7 @@ static void uuencode_b64(int fd, const char *name)
   xprintf("begin-base64 744 %s\n",name);
   do {
     len = xread(fd,inbuf,48);
-    uuencode_b64_line(outbuf,inbuf,len);
+    if (len > 0) uuencode_b64_line(outbuf,inbuf,len);
   } while (len > 0);
   xprintf("====\n");
 }
