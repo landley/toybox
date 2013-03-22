@@ -394,7 +394,7 @@ void patch_main(void)
             TT.filein = xcreate(name, O_CREAT|O_EXCL|O_RDWR, 0666);
           } else {
             printf("patching %s\n", name);
-            TT.filein = xopen(name, O_RDWR);
+            TT.filein = xopen(name, O_RDONLY);
           }
           TT.fileout = copy_tempfile(TT.filein, name, &TT.tempname);
           TT.linenum = 0;
