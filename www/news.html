@@ -1,6 +1,36 @@
 <!--#include file="header.html" -->
 
 <h2>News</h2>
+<hr><b>March 21, 2013</b>
+<p>Video of my ELC talk
+"<a href=http://youtu.be/SGmtP5Lg_t0><strike>What</strike> Why is Toybox?</a>"
+is up on youtube. Related materials include the
+<a href=http://landley.net/talks/celf-2013.txt>talk outline</a> and an
+<a href=/aboriginal/about.html#selfhost>android self-hosting writeup</a>.</p>
+
+<hr><b>March 14, 2013</b>
+<blockquote><p>"Ford, you're turning into a penguin. Stop it." -
+The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+
+<p><a href=downloads/toybox-0.4.4.tar.bz2>Toybox 0.4.4</a> is based on
+<a href=http://landley.net/hg/toybox/shortlog/813>commit 813</a>, adding
+the "time" and "readahead" commands, plus some bugfixes.</p>
+
+<p>The "cp" command now implements the -s symlink option, plus bugfixes
+getting various corner cases right as used in actual package builds.
+"id -Gn root" should now print root's groups
+instead of the current user's. Several build fixes so toybox builds under
+Ubuntu 8.04 again (which is about as old a build environment as you
+can expect to find posix-2008 features in).</p>
+
+<p>Unfinished commands have generally been moved to "toys/pending".
+Everything else should "default y" to participate in make defconfig.
+Several of those pending commands got some basic cleanup so allyesconfig
+should at least compile (although defconfig is still what's useful).</p>
+
+<p>Significant roadmap updates, checking several other multicall binaries
+(klibc, sash, sbase, s6...) to see what commands they include.</p>
+
 <hr><b>January 18, 2013</b>
 <blockquote><p>This must be Thursday. I never could get the hang of Thursdays. - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
 
