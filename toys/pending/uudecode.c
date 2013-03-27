@@ -4,16 +4,17 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/uudecode.html
 
-USE_UUENCODE(NEWTOY(uudecode, ">2o:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_UUDECODE(NEWTOY(uudecode, ">2o:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config UUDECODE
   bool "uudecode"
   default n
   help
-    usage: uudecode [-o outfile] [file]
+    usage: uudecode [-o OUTFILE] [INFILE]
 
-    Uudecode or base64-decode stdin or [file], sending output to outfile or
-    filename specified by input.
+    Decode file from stdin (or INFILE).
+
+    -o	write to OUTFILE instead of filename in header
 */
 
 #define FOR_uudecode
@@ -30,11 +31,6 @@ GLOBALS(
  * We can make a table of 16*5 entries to cover 0x2B - 0x7A
  */
 
-static inline int startswith(const char *a, const char *b)
-{
-	return (0==strncmp(a,b,strlen(b)));
-}
-
 static inline signed char uudecode_b64_1byte(char in)
 {
   char ret;
@@ -50,11 +46,13 @@ static inline signed char uudecode_b64_1byte(char in)
     -1, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
     41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51
   };
+
   in &= 0x7f;
   if (in < '+') return -1;
   if (in > 'z') return -1;
   in -= '+';
   ret = table[in];
+
   return ret;
 };
 
@@ -62,9 +60,10 @@ static inline signed char uudecode_b64_1byte(char in)
 /* Returns length put in out */
 static int uudecode_b64_4bytes(char *out, const char *in)
 {
-  unsigned int i,x=0;
-  signed char b0,b1,b2,b3;
+  unsigned int i, x=0;
+  signed char b0, b1, b2, b3;
   int len = 3;
+
   b0 = uudecode_b64_1byte(in[0]);
   b1 = uudecode_b64_1byte(in[1]);
   b2 = uudecode_b64_1byte(in[2]);
@@ -73,9 +72,8 @@ static int uudecode_b64_4bytes(char *out, const char *in)
   if (b3 < 0) len--;
   if (b2 < 0) len--;
   x = ((b0 & 0x3f)<<18) | ((b1 & 0x3f)<<12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f);
-  for (i = 0; i < len; i++) {
-    *out++ = (x>>(8*(2-i))) & 0x0ff;
-  }
+  for (i = 0; i < len; i++) *out++ = (x>>(8*(2-i))) & 0x0ff;
+
   return len;
 }
 
@@ -83,6 +81,7 @@ static void uudecode_b64_line(int ofd, const char *in, int ilen)
 {
   int olen;
   char out[4];
+
   while (ilen >= 4) {
     olen = uudecode_b64_4bytes(out,in);
     xwrite(ofd,out,olen);
@@ -95,9 +94,10 @@ static void uudecode_b64(int ifd, int ofd)
 {
   int len;
   char *line;
+
   while ((line = get_line(ifd)) != NULL) {
-    if (startswith(line,"====")) return;
-    if ((len = strlen(line)) < 4) continue; // skip empty lines
+    if ((len = strlen(line)) < 4) continue;
+    if (!strncmp(line, "====", 4)) return;
     uudecode_b64_line(ofd,line,len);
     free(line);
   }
@@ -107,19 +107,17 @@ static void uudecode_b64(int ifd, int ofd)
 static void uudecode_uu_4bytes(char *out, const char *in, int len)
 {
   unsigned int i,x=0;
-  for (i = 0; i < 4; i++) {
-    x |= ((in[i] - 32) & 0x03f) << (6*(3-i));
-  }
+
+  for (i = 0; i < 4; i++) x |= ((in[i] - 32) & 0x03f) << (6*(3-i));
   if (len > 3) len = 3;
-  for (i = 0; i < len; i++) {
-    *out++ = x >> (8*(2-i));
-  }
+  for (i = 0; i < len; i++) *out++ = x >> (8*(2-i));
 }
 
 static void uudecode_uu_line(int ofd, const char *in)
 {
   int olen = in[0] - 32;
   char buf[4];
+
   in++;
   while (olen > 0) {
     uudecode_uu_4bytes(buf,in,olen);
@@ -132,9 +130,10 @@ static void uudecode_uu_line(int ofd, const char *in)
 static void uudecode_uu(int ifd, int ofd)
 {
   char *line = NULL;
+
   while ((line = get_line(ifd)) != NULL) {
     if (line[0] == '`') break;
-    if (startswith(line,"end")) break;
+    if (!strncmp(line, "end", 3)) break;
     if (strlen(line) < 1) break;
     uudecode_uu_line(ofd,line);
     free(line);
@@ -143,33 +142,28 @@ static void uudecode_uu(int ifd, int ofd)
 
 void uudecode_main(void)
 {
-  char *out_filename = NULL;
-  int ifd = 0; /* STDIN */
-  int ofd = 1; /* STDOUT */
-  char *line;
-  char *p,*p2;
+  int ifd = 0, ofd = 1;
+  char *out_filename = NULL, *line, *p,*p2;
   void (*decoder)(int ifd, int ofd) = NULL;
   long mode = 0744;
-  if (toys.optc == 1) {
-    ifd = xopen(toys.optargs[0],O_RDONLY); // dies if error
-  }
+
+  if (toys.optc == 1) ifd = xopen(toys.optargs[0],O_RDONLY);
+
   do {
     if ((line = get_line(ifd)) == NULL) perror_exit("empty file");
   } while (strlen(line) == 0); /* skip over empty lines */ 
-  if (startswith(line,"begin ")) decoder = uudecode_uu;
-  else if (startswith(line,"begin-base64 ")) decoder = uudecode_b64;
+  if (!strncmp(line, "begin ", 6)) decoder = uudecode_uu;
+  else if (!strncmp(line, "begin-base64 ", 13)) decoder = uudecode_b64;
   else perror_exit("not a valid uu- or base64-encoded file");
   for (p = line; !isspace(*p); p++) /* skip first part */;
   for (; isspace(*p); p++) /* skip spaces */;
   mode = strtoul(p,&p2,8);
   p = p2 + 1; /* skip space */
-  if (toys.optflags & FLAG_o) {
-    out_filename = TT.o;
-  } else {
-    out_filename = p;
-  }
+  if (toys.optflags & FLAG_o) out_filename = TT.o;
+  else out_filename = p;
+
   ofd = xcreate(out_filename,O_WRONLY|O_CREAT|O_TRUNC,mode);
   free(line);
   decoder(ifd,ofd);
-  if (TOYBOX_CLEANUP) close(ofd);
+  if (CFG_TOYBOX_FREE) close(ofd);
 }
