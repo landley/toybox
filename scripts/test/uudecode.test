@@ -4,24 +4,24 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-testing "uudecode uu empty file" "../../toybox uudecode -o /dev/stdout"  "" "" \
-	"begin 744 test\n\`\nend\n"
-testing "uudecode uu 1-char" "../../toybox uudecode -o /dev/stdout" "a" "" \
+testing "uudecode uu empty file" "uudecode -o /dev/stdout && echo yes" \
+	"yes\n" "" "begin 744 test\n\`\nend\n"
+testing "uudecode uu 1-char" "uudecode -o /dev/stdout" "a" "" \
 	"begin 744 test\n!80  \n\`\nend\n"
-testing "uudecode uu 2-char" "../../toybox uudecode -o /dev/stdout" "ab" "" \
+testing "uudecode uu 2-char" "uudecode -o /dev/stdout" "ab" "" \
 	"begin 744 test\n\"86( \n\`\nend\n"
-testing "uudecode uu 3-char" "../../toybox uudecode -o /dev/stdout" "abc" "" \
+testing "uudecode uu 3-char" "uudecode -o /dev/stdout" "abc" "" \
 	"begin 744 test\n#86)C\n\`\nend\n" 
 
-testing "uudecode b64 empty file" "../../toybox uudecode -o /dev/stdout" "" "" \
+testing "uudecode b64 empty file" "uudecode -o /dev/stdout" "" "" \
 	"begin-base64 744 test\n====\n" 
-testing "uudecode b64 1-char" "../../toybox uudecode -o /dev/stdout" "a" "" \
+testing "uudecode b64 1-char" "uudecode -o /dev/stdout" "a" "" \
 	"begin-base64 744 test\nYQ==\n====\n"
-testing "uudecode b64 2-char" "../../toybox uudecode -o /dev/stdout" "ab" "" \
+testing "uudecode b64 2-char" "uudecode -o /dev/stdout" "ab" "" \
 	"begin-base64 744 test\nYWI=\n====\n"
-testing "uudecode b64 3-char" "../../toybox uudecode -o /dev/stdout" "abc" "" \
+testing "uudecode b64 3-char" "uudecode -o /dev/stdout" "abc" "" \
 	"begin-base64 744 test\nYWJj\n====\n"
 
-testing "uudecode filename" "../../toybox uudecode && echo -ne 'abc' | cmp uudecode-fn-test /dev/stdin && echo -ne yes && rm uudecode-fn-test" \
+testing "uudecode filename" "uudecode && echo -ne 'abc' | cmp uudecode-fn-test /dev/stdin && echo -ne yes && rm uudecode-fn-test" \
 	"yes" "" "begin-base64 744 uudecode-fn-test\nYWJj\n====\n"
 
