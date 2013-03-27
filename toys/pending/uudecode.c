@@ -4,7 +4,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/uudecode.html
 
-USE_UUDECODE(NEWTOY(uudecode, ">2o:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_UUDECODE(NEWTOY(uudecode, ">1o:", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_UMASK))
 
 config UUDECODE
   bool "uudecode"
@@ -142,28 +142,34 @@ static void uudecode_uu(int ifd, int ofd)
 
 void uudecode_main(void)
 {
-  int ifd = 0, ofd = 1;
-  char *out_filename = NULL, *line, *p,*p2;
+  int ifd = 0, ofd, idx = 0;
+  char *line;
   void (*decoder)(int ifd, int ofd) = NULL;
-  long mode = 0744;
 
-  if (toys.optc == 1) ifd = xopen(toys.optargs[0],O_RDONLY);
+  if (toys.optc) ifd = xopen(*toys.optargs, O_RDONLY);
 
-  do {
-    if ((line = get_line(ifd)) == NULL) perror_exit("empty file");
-  } while (strlen(line) == 0); /* skip over empty lines */ 
-  if (!strncmp(line, "begin ", 6)) decoder = uudecode_uu;
-  else if (!strncmp(line, "begin-base64 ", 13)) decoder = uudecode_b64;
-  else perror_exit("not a valid uu- or base64-encoded file");
-  for (p = line; !isspace(*p); p++) /* skip first part */;
-  for (; isspace(*p); p++) /* skip spaces */;
-  mode = strtoul(p,&p2,8);
-  p = p2 + 1; /* skip space */
-  if (toys.optflags & FLAG_o) out_filename = TT.o;
-  else out_filename = p;
+  for (;;) {
+    char mode[16];
 
-  ofd = xcreate(out_filename,O_WRONLY|O_CREAT|O_TRUNC,mode);
-  free(line);
-  decoder(ifd,ofd);
-  if (CFG_TOYBOX_FREE) close(ofd);
+    if (!(line = get_line(ifd))) error_exit("no header");
+    sscanf(line, "begin%*[ ]%15s%*[ ]%n", mode, &idx);
+    if (idx) decoder = uudecode_uu;
+    else {
+      sscanf(line, "begin-base64%*[ ]%15s%*[ ]%n", mode, &idx);
+      if (idx) decoder = uudecode_b64;
+    }
+
+    if (!idx) continue;
+
+    ofd = xcreate(TT.o ? TT.o : line+idx, O_WRONLY|O_CREAT|O_TRUNC,
+      string_to_mode(mode, 0777^toys.old_umask));
+    free(line);
+    decoder(ifd,ofd);
+    break;
+  }
+
+  if (CFG_TOYBOX_FREE) {
+    if (ifd) close(ifd);
+    close(ofd);
+  }
 }
