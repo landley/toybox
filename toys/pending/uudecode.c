@@ -24,18 +24,6 @@ GLOBALS(
   char *o;
 )
 
-static inline signed char uudecode_b64_1byte(char in)
-{
-  if (in >= 'A' && in <= 'Z') return in-'A';
-  if (in >= 'a' && in <= 'z') return in-'a'+26;
-  if (in >= '0' && in <= '9') return in-'0'+52;
-  if (in == '+') return 62;
-  if (in == '/') return 63;
-
-  return -1;
-};
-
-
 static int uudecode_b64_4bytes(char *out, char *in)
 {
   int i, len = 3;
@@ -44,15 +32,27 @@ static int uudecode_b64_4bytes(char *out, char *in)
   for (i=0; i<4; i++) {
     int c = in[i];
 
-    if (c == '=') len--;
-    else if (len != 3) len = 0;
-    if (!len) error_exit("bad input");
+    if (c == '=') {
+      len--;
+      c = 'A';
+    } else if (len != 3) len = 0;
+    if (!len) goto bad;
 
-    x |= uudecode_b64_1byte(c) << (6*(3-i));
+    if (c >= 'A' && c <= 'Z') c -= 'A';
+    else if (c >= 'a' && c <= 'z') c += 26 - 'a';
+    else if (c >= '0' && c <= '9') c += 52 - '0';
+    else if (c == '+') c = 62;
+    else if (c == '/') c =63;
+    else goto bad;
+
+    x |= c << (6*(3-i));
     if (i && i <= len) *(out++) = (x>>(8*(3-i))) & 0xff;
   }
 
   return len;
+
+bad:
+  error_exit("bad input");
 }
 
 static void uudecode_b64_line(int ofd, char *in, int ilen)
@@ -68,20 +68,6 @@ static void uudecode_b64_line(int ofd, char *in, int ilen)
   };
 }
 
-static void uudecode_b64(int ifd, int ofd)
-{
-  int len;
-  char *line;
-
-  while ((line = get_line(ifd)) != NULL) {
-    if ((len = strlen(line)) < 4) continue;
-    if (!strncmp(line, "====", 4)) return;
-    uudecode_b64_line(ofd,line,len);
-    free(line);
-  }
-}
-
-
 static void uudecode_uu_4bytes(char *out, char *in, int len)
 {
   unsigned int i,x=0;
@@ -93,7 +79,7 @@ static void uudecode_uu_4bytes(char *out, char *in, int len)
 
 static void uudecode_uu_line(int ofd, char *in)
 {
-  int olen = in[0] - 32;
+  int olen = (in[0] - 32) & 0x3f;
   char buf[4];
 
   in++;
@@ -105,52 +91,40 @@ static void uudecode_uu_line(int ofd, char *in)
   }
 }
 
-static void uudecode_uu(int ifd, int ofd)
-{
-  char *line = NULL;
-
-  for (;;) {
-    if (!(line = get_line(ifd))) break;
-    if (*line) {
-      if (!strncmp(line, "end", 3)) {
-        free(line);
-        break;
-      }
-      uudecode_uu_line(ofd,line);
-    }
-    free(line);
-  }
-}
-
 void uudecode_main(void)
 {
-  int ifd = 0, ofd, idx = 0;
-  char *line;
-  void (*decoder)(int ifd, int ofd) = NULL;
+  int ifd = 0, ofd, idx = 0, m;
+  char *line = 0,
+       *class[] = {"begin%*[ ]%15s%*[ ]%n", "begin-base64%*[ ]%15s%*[ ]%n"};
+
 
   if (toys.optc) ifd = xopen(*toys.optargs, O_RDONLY);
 
   for (;;) {
     char mode[16];
 
-    if (!(line = get_line(ifd))) error_exit("no header");
-    sscanf(line, "begin%*[ ]%15s%*[ ]%n", mode, &idx);
-    if (idx) decoder = uudecode_uu;
-    else {
-      sscanf(line, "begin-base64%*[ ]%15s%*[ ]%n", mode, &idx);
-      if (idx) decoder = uudecode_b64;
+    free(line);
+    if (!(line = get_line(ifd))) error_exit("bad EOF");
+    for (m=0; m < 2; m++)  {
+      sscanf(line, class[m], mode, &idx);
+      if (idx) break;
     }
 
-    if (!idx) {
-      free(line);
-      continue;
-    }
+    if (!idx) continue;
 
     ofd = xcreate(TT.o ? TT.o : line+idx, O_WRONLY|O_CREAT|O_TRUNC,
       string_to_mode(mode, 0777^toys.old_umask));
     free(line);
-    decoder(ifd,ofd);
     break;
+  }
+
+  while ((line = get_line(ifd)) != NULL) {
+    if (strcmp(line, m ? "====" : "end")) {
+      if (m) uudecode_b64_line(ofd, line, strlen(line));
+      else uudecode_uu_line(ofd, line);
+    } else m = 2;
+    free(line);
+    if (m == 2) break;
   }
 
   if (CFG_TOYBOX_FREE) {
