@@ -1,7 +1,7 @@
 /* ifconfig.c - Configure network interface.
  *
- * Copyright 2012 Ranjan Kumar <ranjankumar.bth@gmail.com>, Kyungwan Han <asura321@gamil.com>
- * Reviewed by Kyungsu Kim, Kyungwan Han <asura321@gamil.com>
+ * Copyright 2012 Ranjan Kumar <ranjankumar.bth@gmail.com> Kyungwan Han <asura321@gamil.com>
+ * Reviewed by Kyungsu Kim <kaspyx@gmail.com>, Kyungwan Han <asura321@gamil.com>
  *
  * Not in SUSv4.
  *
@@ -103,6 +103,7 @@ typedef struct _iface_list {
   PROC_NET_DEV_INFO dev_info;
   int   txqueuelen;
   struct ifmap ifrmap;
+  int non_virtual_iface;
   struct  _iface_list *next; //, *prev;
 }IFACE_LIST;
 
@@ -833,7 +834,7 @@ static void set_flags(int sockfd, struct ifreq *ifre, int set_flag, int reset_fl
 
 static void set_data(int sockfd, struct ifreq *ifre, char *kval, int request, const char *req_name)
 {
-  unsigned long val = xstrtoul(kval, NULL, 0);
+  unsigned long val = strtoul(kval, NULL, 0);
   char *ptr;
   ptr = ((char *) ifre) + offsetof(struct ifreq, ifr_data);
   (*(__caddr_t *)ptr) = (__caddr_t)val;
@@ -1200,6 +1201,7 @@ static void get_ifconfig_info(void)
     l_ptr = xzalloc(sizeof(IFACE_LIST));
     get_proc_info(buff, l_ptr, version_num);
     add_iface_to_list(l_ptr);
+    l_ptr->non_virtual_iface = 1;
     errno = 0;
     if(get_device_info(l_ptr) < 0) {
       const char *errstr = strerror(errno);
@@ -1360,7 +1362,7 @@ static void print_ip6_addr(IFACE_LIST *l_ptr)
   while(fgets(buf, BUFSIZ, fp)) {
     int nitems = 0;
     char ipv6_addr[40] = {0,};
-    nitems = sscanf(buf, "%32s %*08x %02x %02x %*02x %16s\n",
+    nitems = sscanf(buf, "%32s %*08x %02x %02x %*02x %15s\n",
         ipv6_addr+7, &plen, &scope, iface_name);
     if(nitems != 4) {
       if((nitems < 0) && feof(fp))
@@ -1426,28 +1428,31 @@ static void display_ifconfig(IFACE_LIST *l_ptr)
   if(!l_ptr->ifrmetric)
     l_ptr->ifrmetric = 1;
   xprintf(" MTU:%d  Metric:%d", l_ptr->ifrmtu, l_ptr->ifrmetric);
-  xprintf("\n%10s", " ");
-  xprintf("RX packets:%llu errors:%lu dropped:%lu overruns:%lu frame:%lu\n",
-      l_ptr->dev_info.receive_packets, l_ptr->dev_info.receive_errors,
-      l_ptr->dev_info.receive_drop, l_ptr->dev_info.receive_fifo,
-      l_ptr->dev_info.receive_frame);
-  //Dummy types for non ARP hardware.
-  if((hw_type == ARPHRD_CSLIP) || (hw_type == ARPHRD_CSLIP6))
-    xprintf("%10scompressed:%lu\n", " ", l_ptr->dev_info.receive_compressed);
-  xprintf("%10sTX packets:%llu errors:%lu dropped:%lu overruns:%lu carrier:%lu\n", " ",
-      l_ptr->dev_info.transmit_packets, l_ptr->dev_info.transmit_errors,
-      l_ptr->dev_info.transmit_drop, l_ptr->dev_info.transmit_fifo,
-      l_ptr->dev_info.transmit_carrier);
-  xprintf("%10scollisions:%lu ", " ", l_ptr->dev_info.transmit_colls);
-  //Dummy types for non ARP hardware.
-  if((hw_type == ARPHRD_CSLIP) || (hw_type == ARPHRD_CSLIP6))
-    xprintf("compressed:%lu ", l_ptr->dev_info.transmit_compressed);
-  if(l_ptr->txqueuelen != NO_RANGE)
-    xprintf("txqueuelen:%d ", l_ptr->txqueuelen);
+  xprintf("\n");
+  if(l_ptr->non_virtual_iface) {
+    xprintf("%10s", " ");
+    xprintf("RX packets:%llu errors:%lu dropped:%lu overruns:%lu frame:%lu\n",
+        l_ptr->dev_info.receive_packets, l_ptr->dev_info.receive_errors,
+        l_ptr->dev_info.receive_drop, l_ptr->dev_info.receive_fifo,
+        l_ptr->dev_info.receive_frame);
+    //Dummy types for non ARP hardware.
+    if((hw_type == ARPHRD_CSLIP) || (hw_type == ARPHRD_CSLIP6))
+      xprintf("%10scompressed:%lu\n", " ", l_ptr->dev_info.receive_compressed);
+    xprintf("%10sTX packets:%llu errors:%lu dropped:%lu overruns:%lu carrier:%lu\n", " ",
+        l_ptr->dev_info.transmit_packets, l_ptr->dev_info.transmit_errors,
+        l_ptr->dev_info.transmit_drop, l_ptr->dev_info.transmit_fifo,
+        l_ptr->dev_info.transmit_carrier);
+    xprintf("%10scollisions:%lu ", " ", l_ptr->dev_info.transmit_colls);
+    //Dummy types for non ARP hardware.
+    if((hw_type == ARPHRD_CSLIP) || (hw_type == ARPHRD_CSLIP6))
+      xprintf("compressed:%lu ", l_ptr->dev_info.transmit_compressed);
+    if(l_ptr->txqueuelen != NO_RANGE)
+      xprintf("txqueuelen:%d ", l_ptr->txqueuelen);
 
-  xprintf("\n%10s", " ");
-  xprintf("RX bytes:%llu ", l_ptr->dev_info.receive_bytes);
-  xprintf("TX bytes:%llu\n", l_ptr->dev_info.transmit_bytes);
+    xprintf("\n%10s", " ");
+    xprintf("RX bytes:%llu ", l_ptr->dev_info.receive_bytes);
+    xprintf("TX bytes:%llu\n", l_ptr->dev_info.transmit_bytes);
+  }
   if(l_ptr->ifrmap.irq || l_ptr->ifrmap.mem_start || l_ptr->ifrmap.dma || l_ptr->ifrmap.base_addr) {
     xprintf("%10s", " ");
     if(l_ptr->ifrmap.irq)
@@ -1464,9 +1469,71 @@ static void display_ifconfig(IFACE_LIST *l_ptr)
   return;
 }
 
+static int readconf(void)
+{
+#define NUM_OF_REQUESTS 30
+	int num_of_req = NUM_OF_REQUESTS;
+	struct ifconf ifcon;
+	struct ifreq *ifre;
+	int num, status = -1, sokfd;
+
+	ifcon.ifc_buf = NULL;
+	sokfd = socket(AF_INET, SOCK_DGRAM, 0);
+	if(sokfd < 0) {
+		perror_msg("error: no inet socket available");
+		return -1;
+	}
+	while(TRUE) {
+		ifcon.ifc_len = sizeof(struct ifreq) * num_of_req; //Size of buffer.
+		ifcon.ifc_buf = xrealloc(ifcon.ifc_buf, ifcon.ifc_len);
+
+		if((status = ioctl(sokfd, SIOCGIFCONF, &ifcon)) == -1) {
+			perror_msg("ioctl %#x failed", SIOCGIFCONF);
+			goto LOOP_BREAK;
+		}
+		//in case of overflow, increase number of requests and retry.
+		if (ifcon.ifc_len == (int)(sizeof(struct ifreq) * num_of_req)) {
+			num_of_req += 10;
+			continue;
+		}
+		break;
+	}//End of while loop
+
+	ifre = ifcon.ifc_req;
+	for(num = 0; num < ifcon.ifc_len && ifre; num += sizeof(struct ifreq), ifre++) {
+		//Escape duplicate values from the list.
+		IFACE_LIST *list_ptr;
+		int match_found = 0;
+		for(list_ptr = iface_list_head; list_ptr != NULL; list_ptr = list_ptr->next) {
+			//if interface already in the list then donot add it in the list.
+			if(!strcmp(ifre->ifr_name, list_ptr->dev_info.ifrname)) {
+				match_found = 1;
+				break;
+			}
+		}
+		if(!match_found) {
+			IFACE_LIST *l_ptr = xzalloc(sizeof(IFACE_LIST));
+			safe_strncpy(l_ptr->dev_info.ifrname, ifre->ifr_name, IFNAMSIZ);
+			add_iface_to_list(l_ptr);
+			errno = 0;
+			if(get_device_info(l_ptr) < 0) {
+			  clear_list();
+			  perror_exit("%s: error getting interface info: %s", l_ptr->dev_info.ifrname, strerror(errno));
+			}
+		}
+	}//End of for loop.
+
+LOOP_BREAK:
+	close(sokfd);
+	free(ifcon.ifc_buf);
+#undef NUM_OF_REQUESTS
+	return status;
+}
+
 static int show_iface(char *iface_name)
 {
   get_ifconfig_info();
+
   if(iface_name) {
     IFACE_LIST *l_ptr;
     int is_dev_found = 0;
@@ -1477,13 +1544,26 @@ static int show_iface(char *iface_name)
         break;
       }
     }
+    //if the given interface is not in the list.
     if(!is_dev_found) {
-      error_msg("%s: error getting interface info.", iface_name);
-      return 1;
+      IFACE_LIST *l_ptr = xzalloc(sizeof(IFACE_LIST));
+      safe_strncpy(l_ptr->dev_info.ifrname, iface_name, IFNAMSIZ);
+      errno = 0;
+      if(get_device_info(l_ptr) < 0) {
+        const char *errmsg;
+        if(errno == ENODEV) errmsg = "Device not found";
+        else errmsg = strerror(errno);
+        error_msg("%s: error getting interface info: %s", iface_name, errmsg);
+        free(l_ptr);
+        return 1;
+      }
+      else display_ifconfig(l_ptr);
+      free(l_ptr);
     }
   }
   else {
     IFACE_LIST *l_ptr;
+    if(readconf() < 0) return 1;
     for(l_ptr = iface_list_head; l_ptr; l_ptr = l_ptr->next) {
       if((l_ptr->ifrflags & IFF_UP) || (toys.optflags & FLAG_a))
         display_ifconfig(l_ptr);
