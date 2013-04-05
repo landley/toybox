@@ -1,11 +1,13 @@
 /* ifconfig.c - Configure network interface.
  *
- * Copyright 2012 Ranjan Kumar <ranjankumar.bth@gmail.com> Kyungwan Han <asura321@gamil.com>
- * Reviewed by Kyungsu Kim <kaspyx@gmail.com>, Kyungwan Han <asura321@gamil.com>
+ * Copyright 2012 Ranjan Kumar <ranjankumar.bth@gmail.com>
+ * Copyright 2012 Kyungwan Han <asura321@gamil.com>
+ * Reviewed by Kyungsu Kim <kaspyx@gmail.com>
  *
  * Not in SUSv4.
- *
+
 USE_IFCONFIG(NEWTOY(ifconfig, "?a", TOYFLAG_BIN))
+
 config IFCONFIG
   bool "ifconfig"
   default y
@@ -29,8 +31,8 @@ config IFCONFIG
 #define FOR_ifconfig
 #include "toys.h"
 #include "toynet.h"
+
 #include <net/route.h>
-#include <stddef.h>
 #include <sys/un.h>
 #include <net/if.h>
 #include <net/if_arp.h>
@@ -44,19 +46,15 @@ typedef struct sockaddr_with_len {
     struct sockaddr_in6 sock_in6;
   }sock_u;
   socklen_t socklen;
-}sockaddr_with_len;
+} sockaddr_with_len;
 
-//Function Declaration.
-int get_hostname(const char *, struct sockaddr_in *);
-int get_addrinfo(const char *, struct sockaddr_in6 *);
-void get_flag_value(char **, int);
-void display_routes(int, int);
+// Function Declaration.
 void setport(struct sockaddr *, unsigned);
 unsigned get_strtou(const char *, char **, int);
 char *address_to_name(const struct sockaddr *);
 sockaddr_with_len *get_sockaddr(const char *, int, sa_family_t);
 
-//Structure Declaration
+// Structure Declaration
 typedef struct _proc_net_dev_info {
   char        ifrname[IFNAMSIZ]; //interface name.
   unsigned long long   receive_bytes; //total bytes received
@@ -76,9 +74,9 @@ typedef struct _proc_net_dev_info {
   unsigned long     transmit_colls;
   unsigned long     transmit_carrier;
   unsigned long     transmit_compressed; //num_tr_compressed;
-}PROC_NET_DEV_INFO;
+} PROC_NET_DEV_INFO;
 
-//man netdevice
+// man netdevice
 typedef struct _iface_list {
   int    hw_type;
   short   ifrflags; //used for addr, broadcast, and mask.
@@ -95,7 +93,7 @@ typedef struct _iface_list {
   struct ifmap ifrmap;
   int non_virtual_iface;
   struct  _iface_list *next; //, *prev;
-}IFACE_LIST;
+} IFACE_LIST;
 
 
 #define HW_NAME_LEN 20
@@ -105,7 +103,7 @@ typedef struct _hw_info {
   char hw_name[HW_NAME_LEN];
   char hw_title[HW_TITLE_LEN];
   int     hw_addrlen;
-}HW_INFO;
+} HW_INFO;
 
 static const char *const field_format[] = {
   "%n%llu%u%u%u%u%n%n%n%llu%u%u%u%u%u",
@@ -113,8 +111,6 @@ static const char *const field_format[] = {
   "%llu%llu%u%u%u%u%u%u%llu%llu%u%u%u%u%u%u"
 };
 
-#define PROC_NET_DEV "/proc/net/dev"
-#define PROC_NET_IFINET6 "/proc/net/if_inet6"
 #define NO_RANGE -1
 #define IO_MAP_INDEX 0x100
 
@@ -212,140 +208,6 @@ char *safe_strncpy(char *dst, const char *src, size_t size)
   if(!size) return dst;
   dst[--size] = '\0';
   return strncpy(dst, src, size);
-}
-
-/*
- * used to get the host name from the given ip.
- */
-int get_hostname(const char *ipstr, struct sockaddr_in *sockin)
-{
-  struct hostent *host;
-  sockin->sin_family = AF_INET;
-  sockin->sin_port = 0;
-
-  if(strcmp(ipstr, "default") == 0) {
-    sockin->sin_addr.s_addr = INADDR_ANY;
-    return 1;
-  }
-
-  if(inet_aton(ipstr, &sockin->sin_addr)) return 0;
-
-  host = gethostbyname(ipstr);
-  if(host == NULL) return -1;
-  memcpy(&sockin->sin_addr, host->h_addr_list[0], sizeof(struct in_addr));
-  return 0;
-}
-
-/*
- * used to extract the address info from the given ip.
- */
-int get_addrinfo(const char *ip, struct sockaddr_in6 *sock_in6)
-{
-  struct addrinfo hints, *result;
-  int status = 0;
-
-  memset(&hints, 0, sizeof(struct addrinfo));
-  hints.ai_family = AF_INET6;
-  if((status = getaddrinfo(ip, NULL, &hints, &result)) != 0) {
-    perror_msg("getaddrinfo: %s", gai_strerror(status));
-    return -1;
-  }
-  if(result) {
-    memcpy(sock_in6, result->ai_addr, sizeof(*sock_in6));
-    freeaddrinfo(result);
-  }
-  return 0;
-}
-
-/*
- * used to get the flag values for route command.
- */
-void get_flag_value(char **flagstr, int flags)
-{
-  int i = 0;
-  char *str = *flagstr;
-  static const char flagchars[] = "GHRDMDAC";
-  static const unsigned flagarray[] = {
-    RTF_GATEWAY,
-    RTF_HOST,
-    RTF_REINSTATE,
-    RTF_DYNAMIC,
-    RTF_MODIFIED,
-    RTF_DEFAULT,
-    RTF_ADDRCONF,
-    RTF_CACHE
-  };
-  *str++ = 'U';
-  while( (*str = flagchars[i]) != 0) {
-    if(flags & flagarray[i++]) ++str;
-  }
-}
-
-/*
- * extract inet4 route info from /proc/net/route file and display it.
- */
-void display_routes(int is_more_info, int notresolve)
-{
-#define IPV4_MASK (RTF_GATEWAY|RTF_HOST|RTF_REINSTATE|RTF_DYNAMIC|RTF_MODIFIED)
-  unsigned long dest, gate, mask;
-  int flags, ref, use, metric, mss, win, irtt;
-  char iface[64]={0,};
-  char buf[BUFSIZ] = {0,};
-  char *flag_val = xzalloc(10); //there are 9 flags "UGHRDMDAC" for route.
-
-  FILE *fp = xfopen("/proc/net/route", "r");
-
-  xprintf("Kernel IP routing table\n"
-                   "Destination     Gateway         Genmask         Flags %s Iface\n",
-  	                        is_more_info ? "  MSS Window  irtt" : "Metric Ref    Use");
-  fgets(buf, BUFSIZ, fp); //skip 1st line.
-  while(fgets(buf, BUFSIZ, fp)) {
-     int nitems = 0;
-     char *destip = NULL, *gateip = NULL, *maskip = NULL;
-     memset(flag_val, 0, 10);
-
-     nitems = sscanf(buf, "%63s%lx%lx%X%d%d%d%lx%d%d%d\n",
-                 iface, &dest, &gate, &flags, &ref, &use, &metric, &mask, &mss, &win, &irtt);
-     if(nitems != 11) {//EOF with no (nonspace) chars read...
-       if((nitems < 0) && feof(fp)) break;
-      perror_exit("fscanf");
-    }
-    //skip down interfaces...
-    if(!(flags & RTF_UP)) continue;
-
-    //For Destination
-    if(dest){
-      if(inet_ntop(AF_INET, &dest, buf, BUFSIZ) > 0) destip = xstrdup(buf);
-    }
-    else {
-      if(!notresolve) destip = xstrdup("default");
-      else destip = xstrdup("0.0.0.0");
-    }
-    //For Gateway
-    if(gate){
-      if(inet_ntop(AF_INET, &gate, buf, BUFSIZ) > 0) gateip = xstrdup(buf);
-    }
-    else {
-      if(!notresolve) gateip = xstrdup("*");
-      else gateip = xstrdup("0.0.0.0");
-    }
-    //For Mask
-    if(inet_ntop(AF_INET, &mask, buf, BUFSIZ) > 0) maskip = xstrdup(buf);
-
-    //Get flag Values
-    get_flag_value(&flag_val, (flags & IPV4_MASK));
-    if(flags & RTF_REJECT) flag_val[0] = '!';
-    xprintf("%-15.15s %-15.15s %-16s%-6s", destip, gateip, maskip, flag_val);
-    if(destip) free(destip);
-    if(gateip) free(gateip);
-    if(maskip) free(maskip);
-    if(is_more_info) xprintf("%5d %-5d %6d %s\n", mss, win, irtt, iface);
-    else xprintf("%-6d %-2d %7d %s\n", metric, ref, use, iface);
-  }//end of while...
-  fclose(fp);
-  if(flag_val) free(flag_val);
-#undef IPV4_MASK
-  return;
 }
 
 /*
@@ -1119,7 +981,7 @@ static void get_ifconfig_info(void)
   char buff[BUFSIZ] = {0,};
   int version_num = 0;
 
-  FILE *fp = fopen(PROC_NET_DEV, "r");
+  FILE *fp = fopen("/proc/net/dev", "r");
   if(fp == NULL)
 	  return;
 
@@ -1195,44 +1057,40 @@ static void get_hw_info(int hw_type, HW_INFO *hw_info)
 
 static void print_hw_addr(int hw_type, HW_INFO hw_info, IFACE_LIST *l_ptr)
 {
-  unsigned char *address = (unsigned char *) l_ptr->ifrhwaddr.sa_data;
-  if(!address || (hw_info.hw_addrlen == 0))
-    return;
+  unsigned char *address = (unsigned char *)l_ptr->ifrhwaddr.sa_data;
+
+  if(!address || !hw_info.hw_addrlen) return;
   xprintf("HWaddr ");
-  if(hw_type == ARPHRD_ETHER)
-    xprintf("%02X:%02X:%02X:%02X:%02X:%02X", address[0], address[1], address[2],
-                         address[3], address[4], address[5]);
+  if(hw_type == ARPHRD_ETHER) {
+    int i;
+
+    for (i=0; i<6; i++) xprintf(":%02X"+!i, address[i]);
+  }
+
   return;
 }
 
 static const char *get_ip_addr(struct sockaddr *skaddr)
 {
-  static char *ip_str = NULL;
-  struct sockaddr_in *sin;
+  struct sockaddr_in *sin = (struct sockaddr_in *)skaddr;
 
-  if(skaddr->sa_family == 0xFFFF || skaddr->sa_family == 0)
-    return "[NOT SET]";
-  sin = (struct sockaddr_in *)skaddr;
+  if(skaddr->sa_family == 0xFFFF || !skaddr->sa_family) return "[NOT SET]";
   if(sin->sin_family != AF_INET) {
     errno = EAFNOSUPPORT;
     return NULL;
   }
-  if( (ip_str = inet_ntoa(sin->sin_addr)) != NULL)
-    return ip_str;
 
-  return NULL;
+  return inet_ntoa(sin->sin_addr);
 }
 
 static void print_ip_addr(IFACE_LIST *l_ptr)
 {
   const char *af_name;
   int af = l_ptr->ifraddr.sa_family;
-  if(af == AF_INET)
-    af_name = "inet";
-  else if(af == AF_INET6)
-    af_name = "inet6";
-  else if(af == AF_UNSPEC)
-    af_name = "unspec";
+
+  if (af == AF_INET) af_name = "inet";
+  else if (af == AF_INET6) af_name = "inet6";
+  else if (af == AF_UNSPEC) af_name = "unspec";
 
   xprintf("%10s%s addr:%s ", " ", af_name, get_ip_addr(&l_ptr->ifraddr));
   if(l_ptr->ifrflags & IFF_POINTOPOINT)
@@ -1245,17 +1103,16 @@ static void print_ip_addr(IFACE_LIST *l_ptr)
 
 static void print_iface_flags(IFACE_LIST *l_ptr)
 {
-  if(l_ptr->ifrflags != 0) {
+  if (l_ptr->ifrflags != 0) {
     unsigned short mask = 1;
     char **str = iface_flags_str;
+
     for(; *str != NULL; str++) {
       if(l_ptr->ifrflags & mask)
         xprintf("%s ", *str);
       mask = mask << 1;
     }
-  }
-  else
-    xprintf("[NO FLAGS] ");
+  } else xprintf("[NO FLAGS] ");
   return;
 }
 
@@ -1291,7 +1148,7 @@ static void print_ip6_addr(IFACE_LIST *l_ptr)
   char buf[BUFSIZ] = {0,};
   int plen, scope;
 
-  FILE *fp = fopen(PROC_NET_IFINET6, "r");
+  FILE *fp = fopen("/proc/net/if_inet6", "r");
   if(fp == NULL)
 	  return;
 
