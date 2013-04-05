@@ -37,14 +37,6 @@ config IFCONFIG
 #include <net/ethernet.h>
 #include <alloca.h>
 
-#define TRUE ((int) 1)
-#define HTTP_DEFAULT_PORT 80
-#define FTP_DEFAULT_PORT 21
-
-#ifndef MAX_PORT_VALUE
-#define MAX_PORT_VALUE 65535
-#endif
-
 typedef struct sockaddr_with_len {
   union {
     struct sockaddr sock;
@@ -59,9 +51,7 @@ int get_hostname(const char *, struct sockaddr_in *);
 int get_addrinfo(const char *, struct sockaddr_in6 *);
 void get_flag_value(char **, int);
 void display_routes(int, int);
-unsigned getport(const char *, const char *, unsigned);
 void setport(struct sockaddr *, unsigned);
-int connect_to_stream(const sockaddr_with_len *);
 unsigned get_strtou(const char *, char **, int);
 char *address_to_name(const struct sockaddr *);
 sockaddr_with_len *get_sockaddr(const char *, int, sa_family_t);
@@ -406,7 +396,7 @@ static void get_host_and_port(char **host, int *port)
     }
     ch_ptr++; //skip ':' to get the port number.
     *port = get_strtou(ch_ptr, NULL, 10);
-    if(errno || (unsigned)*port > MAX_PORT_VALUE)
+    if(errno || (unsigned)*port > 65535)
       error_exit("bad port spec '%s'", org_host);
    }
   return;
@@ -519,60 +509,6 @@ void setport(struct sockaddr *sock, unsigned port_num)
     sock_in6->sin6_port = port_num;
   }
   return;
-}
-
-/*
- * used to get the port number for ftp and http.
- */
-unsigned getport(const char *port, const char *protocol, unsigned defport)
-{
-#define RANGE_STR "Port Number should be in [1-65535] range"
-  long v;
-  char *endptr = NULL;
-
-  unsigned portnum = defport;
-  if(port) {
-    errno = 0;
-    v = strtol(port, &endptr, 10);
-    if((v > 0) && (!*endptr)) {//for numeric like 123
-      portnum = v;
-      if(portnum > MAX_PORT_VALUE) error_exit("Invalid Port Number '%s' "RANGE_STR, port);
-    }
-    else if((v == 0) && (endptr != NULL)) {
-      switch(defport) {
-        case FTP_DEFAULT_PORT:
-          if(strcmp(endptr, "ftp") == 0) portnum = defport; //for "ftp" string.
-          else goto ERROR_EXIT;
-          break;
-        case HTTP_DEFAULT_PORT:
-          if(strcmp(endptr, "http") == 0) portnum = defport;//for "HTTP" string.
-          else goto ERROR_EXIT;
-          break;
-        default:
-ERROR_EXIT:
-          error_exit("Invalid Port");
-          break;
-      }
-    }
-    else perror_exit("Invalid Port Number: '%s' "RANGE_STR, port);
-  }
-#undef RANGE_STR
-  return (uint16_t)portnum;
-}
-
-/*
- * used to connect with the socket.
- */
-int connect_to_stream(const sockaddr_with_len *swl)
-{
-  int sockfd;
-  if((sockfd = socket(swl->sock_u.sock.sa_family, SOCK_STREAM, 0)) < 0)
-    perror_exit("cannot open control socket");
-  if(connect(sockfd, &swl->sock_u.sock, swl->socklen) < 0) {
-    close(sockfd);
-    perror_exit("can't connect to remote host");
-  }
-  return sockfd;
 }
 
 /*
@@ -1483,7 +1419,7 @@ static int readconf(void)
 		perror_msg("error: no inet socket available");
 		return -1;
 	}
-	while(TRUE) {
+	for (;;) {
 		ifcon.ifc_len = sizeof(struct ifreq) * num_of_req; //Size of buffer.
 		ifcon.ifc_buf = xrealloc(ifcon.ifc_buf, ifcon.ifc_len);
 
