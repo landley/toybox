@@ -372,7 +372,7 @@ void get_optflags(void)
         // Handle --
         if (!*gof.arg) {
           gof.stopearly += 2;
-          goto notflag;
+          continue;
         }
         // Handle --longopt
 
