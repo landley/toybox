@@ -27,12 +27,8 @@ config FIND
  */ 
 
 #include "toys.h"
-#include <strings.h>
-#include <time.h>
 
 #define SECONDS_PER_DAY (24*60*60)
-
-#define SUCCESS	1
 
 int have_action;
 
@@ -52,8 +48,6 @@ struct filter_node {
 		} e;
 	} data;
 };
-
-char exec_buf[1024];
 
 static struct filter_node *filter_root;
 
@@ -78,80 +72,10 @@ static struct filter_node *filter_root;
 #define TEST_EQ		1
 #define TEST_GT		2
 
-void dump_node(struct filter_node *node)
-{
-	char c, **arg_array;
-	int i;
-
-	switch(node->op) {
-		case CHECK_NAME:
-			printf("-name '%s' ", node->data.name_regex);
-			break;
-		case CHECK_MTIME:
-			printf("-mtime %d '%s' ", node->data.t.time_op,
-				ctime(&node->data.t.time));
-			break;
-		case CHECK_TYPE:
-			switch(node->data.type) {
-				case S_IFREG: c='f';
-					break;
-				case S_IFDIR: c='d';
-					break;
-				case S_IFCHR: c='c';
-					break;
-				case S_IFBLK: c='b';
-					break;
-				case S_IFLNK: c='l';
-					break;
-				case S_IFSOCK: c='s';
-					break;
-				case S_IFIFO: c='p';
-					break;
-				default: c='u';
-					break;
-			}
-			
-			printf("-type %c ", c);
-			break;
-		case OP_NOT:
-			printf("! ");
-			break;
-		case OP_OR:
-			printf("-o ");
-			break;
-		case OP_AND:
-			printf("-a ");
-			break;
-		case LPAREN:
-			printf("( ");
-			break;
-		case RPAREN:
-			printf(") ");
-			break;
-		case ACTION_PRINT:
-			printf("-print ");
-			break;
-		case ACTION_PRINT0:
-			printf("-print0 ");
-			break;
-		case ACTION_EXEC:
-			printf("-exec ");
-			arg_array=node->data.e.exec_args;
-			for(i=0; arg_array[i]; i++) {
-				printf("%s ", arg_array[i]);
-			}
-			printf("; ");
-			break;
-		default:
-			printf("unknown node type (%d) ", node->op);
-			break;
-	}
-}
-
 /* executes the command for a filter node
  * return the program return value (0=success)
  */
-int do_exec(struct filter_node *filter, struct dirtree *node)
+static int do_exec(struct filter_node *filter, struct dirtree *node)
 {
 	char *path;
 	int plen;
@@ -169,13 +93,9 @@ int do_exec(struct filter_node *filter, struct dirtree *node)
 	}
 	
 	pid = fork();
-	if (pid==0) {
+	if (!pid) {
 		/* child */
-		ccode = execvp(arg_array[0], arg_array);
-		if (ccode<0) {
-			printf("Error: problem executing sub-program %s\n", arg_array[0]);
-			exit(ccode);
-		}
+		xexec(arg_array);
 	} else {
 		/* parent */
 		/* wait for child */
@@ -188,11 +108,11 @@ int do_exec(struct filter_node *filter, struct dirtree *node)
 }
 
 /* prefix evaluator */
-/* returns 0 for failure or SUCCESS for success */
-int evaluate(struct filter_node *filter, struct dirtree *node,
+/* returns 0 for failure or 1 for success */
+static int evaluate(struct filter_node *filter, struct dirtree *node,
 	struct filter_node **fnext)
 {
-	int result, result2;
+	int result;
 	char *path;
 	int plen = 0;
 	struct stat st_buf;
@@ -202,48 +122,23 @@ int evaluate(struct filter_node *filter, struct dirtree *node,
 	/* if no filters, success */
 	if (!filter) {
 		*fnext = NULL;
-		return SUCCESS;
+		return 1;
 	}
 
 	if (filter->op==OP_NOT) {
-		result = evaluate(filter->next, node, fnext);
-		if (result==0) {
-			return SUCCESS;
-		} else {
-			return 0;
-		}
+		return !evaluate(filter->next, node, fnext);
 	}
 	if (filter->op==OP_OR) {
-		result = evaluate(filter->next, node, fnext);
-		result2 = evaluate(*fnext, node, fnext);
-		if (result) {
-			return result;
-		} else {
-			if (result2) {
-				return result2;
-			} else {
-				return 0;
-			}
-		}
+		return evaluate(filter->next, node, fnext) || evaluate(*fnext, node, fnext);
 	}
 	if (filter->op==OP_AND) {
-		result = evaluate(filter->next, node, fnext);
-		if (result) {
-			result2 = evaluate(*fnext, node, fnext);
-			if (result && result2) {
-				return SUCCESS;
-			}
-		}
-		return 0;
+		return evaluate(filter->next, node, fnext) && evaluate(*fnext, node, fnext);
 	}
 	/* we're down to single operations, mark our position */
 	*fnext = filter->next;
 	if (filter->op==CHECK_NAME) {
-		//if (regex_cmp(fn->name_regex, node->name)==0)
-		if (strcmp(filter->data.name_regex, node->name)==0)
-			return SUCCESS;
-		else
-			return 0;
+		// TODO: Do a regex comparison
+		return !strcmp(filter->data.name_regex, node->name);
 	}
 	if (filter->op==CHECK_MTIME) {
 		/* do mtime check */
@@ -254,7 +149,7 @@ int evaluate(struct filter_node *filter, struct dirtree *node,
 			return 0;
 		}
 		node_time = st_buf.st_mtime/SECONDS_PER_DAY;
-		result = SUCCESS;
+		result = 1;
 		switch (filter->data.t.time_op) {
 			/* do time compare here */
 			case TEST_LT:
@@ -285,11 +180,7 @@ int evaluate(struct filter_node *filter, struct dirtree *node,
 		if (result<0) {
 			return 0;
 		}
-		if ((st_buf.st_mode & S_IFMT) == filter->data.type) {
-			return SUCCESS;
-		} else {
-			return 0;
-		}
+		return (st_buf.st_mode & S_IFMT) == filter->data.type;
 	}
 	
 	
@@ -302,21 +193,17 @@ int evaluate(struct filter_node *filter, struct dirtree *node,
 		path = dirtree_path(node, &plen);
 		printf("%s%c", path, terminator);
 		free(path);
-		return SUCCESS;
+		return 1;
 	}
 
 	if (filter->op==ACTION_EXEC) {
-		if (do_exec(filter, node)==0) {
-			return SUCCESS;
-		} else {
-			return 0;
-		}
+		return !do_exec(filter, node);
 	}
-	printf("ERROR: ran out of operations in filter list!!\n");
-	return SUCCESS;
+	error_msg("Ran out of operations in filter list!");
+	return 1;
 }
 
-int check_node_callback(struct dirtree *node)
+static int check_node_callback(struct dirtree *node)
 {
 	char *path;
 	int plen = 0;
@@ -332,7 +219,7 @@ int check_node_callback(struct dirtree *node)
 		return 0;
 
 	result = evaluate(filter_root, node, &junk);
-	if (result & SUCCESS & !have_action) {
+	if (result & !have_action) {
 		/* default action is just print the path */
 		path = dirtree_path(node, &plen);
 		printf("%s\n", path);
@@ -342,7 +229,7 @@ int check_node_callback(struct dirtree *node)
 }
 
 
-void build_filter_list(void)
+static void build_filter_list(void)
 {
 	struct filter_node *node_list;
 	struct filter_node *op_stack;
@@ -362,40 +249,33 @@ void build_filter_list(void)
 			xmalloc(sizeof(struct filter_node));
 		node->op = OP_UNKNOWN;
 		arg = toys.optargs[i];
-		if (strcmp(arg, "-o") == 0) { 
+		if (!strcmp(arg, "-o")) { 
 			node->op = OP_OR;
 		}
-		if (strcmp(arg, "-a") == 0) { 
+		if (!strcmp(arg, "-a")) { 
 			node->op = OP_AND;
 		}
-		if (strcmp(arg, "!")==0) { 
+		if (!strcmp(arg, "!")) { 
 			node->op = OP_NOT;
 		}
-		if (strcmp(arg, "(") == 0) { 
+		if (!strcmp(arg, "(")) { 
 			node->op = LPAREN;
 		}
-		if (strcmp(arg, ")") == 0) { 
+		if (!strcmp(arg, ")")) { 
 			node->op = RPAREN;
 		}
 
-		if (strcmp(arg, "-name") == 0) {
+		if (!strcmp(arg, "-name")) {
 			node->op = CHECK_NAME;
-			arg = toys.optargs[i+1];
-			if (!arg) {
-				printf("Error: missing argument to -name\n");
-				exit(1);
-			}
+			arg = toys.optargs[++i];
+			if (!arg) error_exit("Missing argument to -name\n");
 			node->data.name_regex = arg;
-			i++;
 		}
 
-		if (strcmp(arg, "-mtime") == 0) {
+		if (!strcmp(arg, "-mtime")) {
 			node->op = CHECK_MTIME;
-			arg = toys.optargs[i+1];
-			if (!arg) {
-				printf("Error: missing argument to -mtime\n");
-				exit(1);
-			}
+			arg = toys.optargs[++i];
+			if (!arg) error_exit("Missing argument to -mtime\n");
 			switch(arg[0]) {
 				case '+':
 					node->data.t.time_op=TEST_GT;
@@ -411,16 +291,12 @@ void build_filter_list(void)
 			}
 			/* convert to days (very crudely) */
 			node->data.t.time = atoi(arg)/SECONDS_PER_DAY;
-			i++;
 		}
 
-		if (strcmp(arg, "-type") == 0) {
+		if (!strcmp(arg, "-type")) {
 			node->op = CHECK_TYPE;
-			arg = toys.optargs[i+1];
-			if (!arg) {
-				printf("Error: missing argument to -type\n");
-				exit(1);
-			}
+			arg = toys.optargs[++i];
+			if (!arg) error_exit("Missing argument to -type\n");
 			switch(arg[0]) {
 				case 'f':
 					node->data.type = S_IFREG;
@@ -445,51 +321,39 @@ void build_filter_list(void)
 					node->data.type = S_IFIFO;
 					break;
 				default:
-					printf("Error: unknown file type '%s'\n", arg);
-					exit(1);
+					error_exit("Unknown file type '%s'\n", arg);
 			}
-			i++;
 		}
-		if (strcmp(arg, "-print") == 0) {
+		if (!strcmp(arg, "-print")) {
 			node->op = ACTION_PRINT;
 			have_action = 1;
 		}
-		if (strcmp(arg, "-print0") == 0) {
+		if (!strcmp(arg, "-print0")) {
 			node->op = ACTION_PRINT0;
 			have_action = 1;
 		}
-		if (strcmp(arg, "-exec") == 0) {
+		if (!strcmp(arg, "-exec")) {
 			node->op = ACTION_EXEC;
 			have_action = 1;
-			exec_buf[0] =  0;
-			j = 0;
-			arg_array = xmalloc(sizeof(char *)*(j+1));
-			i++;
-			arg = toys.optargs[i];
-			while (arg && (strcmp(arg, ";") != 0)) {
+			arg_array = xmalloc(sizeof(char *));
+			arg = toys.optargs[++i];
+			for (j = 0; arg && strcmp(arg, ";"); j++) {
 				/* new method */
 				arg_array = xrealloc(arg_array, sizeof(char *) * (j+2));
 				arg_array[j] = arg;
-				if (strcmp(arg, "{}") == 0) {
+				if (!strcmp(arg, "{}")) {
 					node->data.e.arg_path_index = j;
 				}
-				j++;
 
-				i++;
-				arg = toys.optargs[i];
+				arg = toys.optargs[++i];
 			}
-			if (!arg) {
-				printf("Error: missing ';' in exec command\n");
-				exit(1);
-			}
+			if (!arg) error_exit("Missing ';' in exec command\n");
 			arg_array[j] = 0;
 			node->data.e.exec_args = arg_array;
 		}
 		if (node->op == OP_UNKNOWN) {
-			if( arg[0]=='-') {
-				printf("Error: unknown option '%s'\n", arg);
-				exit(1);
-			} else {
+			if (arg[0] == '-') error_exit("Unknown option '%s'\n", arg);
+			else {
 				/* use toybuf as start directory */
 				strcpy(toybuf, arg);
 			}
@@ -530,10 +394,7 @@ void build_filter_list(void)
 					op_node = op_stack;
 				}
 				/* rparen should be on op_stack */
-				if (!op_stack) {
-					printf("Error: missing right paren\n");
-					exit(1);
-				}
+				if (!op_stack) error_exit("Missing right paren\n");
 				/* remove rparen from op_stack */
 				op_stack = op_stack->next;
 				free(op_node);
@@ -551,8 +412,7 @@ void build_filter_list(void)
 	op_node = op_stack;
 	while (op_node) {
 		/*if (op_node->op == RPAREN || op_node->op == LPAREN)  {
-			printf("Error: extra paren found\n");
-			exit(1);
+			error_exit("Error: extra paren found\n");
 		}
 		*/
 		op_stack = op_node->next;
@@ -570,7 +430,7 @@ void find_main(void)
 
 	/* FIXTHIS - parse actions, if present */
 
-	if (toybuf[0]==0) {
+	if (!toybuf[0]) {
 		strcpy(toybuf, ".");
 	}
 	dirtree_read(toybuf, check_node_callback);
