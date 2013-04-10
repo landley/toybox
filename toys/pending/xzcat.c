@@ -20,14 +20,6 @@ config XZCAT
 #define FOR_xzcat
 #include "toys.h"
 
-/*
- * This is really limited: Not all filters from .xz format are supported and 
- * decoding of concatenated .xz streams is not supported. Thus, you may want 
- * to look at xzdec from XZ Utils if a few KiB bigger tool is not a problem.
- */
-#define FOR_xzcat
-#define XZ_DEC_ANY_CHECK
-
 #include <stdbool.h>
 
 // BEGIN xz.h
@@ -41,20 +33,9 @@ config XZCAT
  * You can do whatever you want with this file.
  */
 
-#ifndef XZ_H
-#define XZ_H
-
 #include <stddef.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/* In Linux, this is used to make extern functions static when needed. */
-#ifndef XZ_EXTERN
-#	define XZ_EXTERN extern
-#endif
 
 /**
  * enum xz_mode - Operation mode
@@ -223,7 +204,7 @@ struct xz_dec;
  * ready to be used with xz_dec_run(). If memory allocation fails,
  * xz_dec_init() returns NULL.
  */
-XZ_EXTERN struct xz_dec *xz_dec_init(enum xz_mode mode, uint32_t dict_max);
+struct xz_dec *xz_dec_init(enum xz_mode mode, uint32_t dict_max);
 
 /**
  * xz_dec_run() - Run the XZ decoder
@@ -243,7 +224,7 @@ XZ_EXTERN struct xz_dec *xz_dec_init(enum xz_mode mode, uint32_t dict_max);
  * get that amount valid data from the beginning of the stream. You must use
  * the multi-call decoder if you don't want to uncompress the whole stream.
  */
-XZ_EXTERN enum xz_ret xz_dec_run(struct xz_dec *s, struct xz_buf *b);
+enum xz_ret xz_dec_run(struct xz_dec *s, struct xz_buf *b);
 
 /**
  * xz_dec_reset() - Reset an already allocated decoder state
@@ -256,78 +237,41 @@ XZ_EXTERN enum xz_ret xz_dec_run(struct xz_dec *s, struct xz_buf *b);
  * xz_dec_run(). Thus, explicit call to xz_dec_reset() is useful only in
  * multi-call mode.
  */
-XZ_EXTERN void xz_dec_reset(struct xz_dec *s);
+void xz_dec_reset(struct xz_dec *s);
 
 /**
  * xz_dec_end() - Free the memory allocated for the decoder state
  * @s:          Decoder state allocated using xz_dec_init(). If s is NULL,
  *              this function does nothing.
  */
-XZ_EXTERN void xz_dec_end(struct xz_dec *s);
+void xz_dec_end(struct xz_dec *s);
 
-/*
- * Standalone build (userspace build or in-kernel build for boot time use)
- * needs a CRC32 implementation. For normal in-kernel use, kernel's own
- * CRC32 module is used instead, and users of this module don't need to
- * care about the functions below.
- */
-#ifndef XZ_INTERNAL_CRC32
-#	ifdef __KERNEL__
-#		define XZ_INTERNAL_CRC32 0
-#	else
-#		define XZ_INTERNAL_CRC32 1
-#	endif
-#endif
 
-/*
- * If CRC64 support has been enabled with XZ_USE_CRC64, a CRC64
- * implementation is needed too.
- */
-#ifndef XZ_USE_CRC64
-#	undef XZ_INTERNAL_CRC64
-#	define XZ_INTERNAL_CRC64 0
-#endif
-#ifndef XZ_INTERNAL_CRC64
-#	ifdef __KERNEL__
-#		error Using CRC64 in the kernel has not been implemented.
-#	else
-#		define XZ_INTERNAL_CRC64 1
-#	endif
-#endif
-
-#if XZ_INTERNAL_CRC32
 /*
  * This must be called before any other xz_* function to initialize
  * the CRC32 lookup table.
  */
-XZ_EXTERN void xz_crc32_init(void);
+void xz_crc32_init(void);
 
 /*
  * Update CRC32 value using the polynomial from IEEE-802.3. To start a new
  * calculation, the third argument must be zero. To continue the calculation,
  * the previously returned value is passed as the third argument.
  */
-XZ_EXTERN uint32_t xz_crc32(const uint8_t *buf, size_t size, uint32_t crc);
-#endif
+uint32_t xz_crc32(const uint8_t *buf, size_t size, uint32_t crc);
 
 /*
  * This must be called before any other xz_* function (except xz_crc32_init())
  * to initialize the CRC64 lookup table.
  */
-XZ_EXTERN void xz_crc64_init(void);
+void xz_crc64_init(void);
 
 /*
  * Update CRC64 value using the polynomial from ECMA-182. To start a new
  * calculation, the third argument must be zero. To continue the calculation,
  * the previously returned value is passed as the third argument.
  */
-XZ_EXTERN uint64_t xz_crc64(const uint8_t *buf, size_t size, uint64_t crc);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
+uint64_t xz_crc64(const uint8_t *buf, size_t size, uint64_t crc);
 
 // END xz.h
 
@@ -381,10 +325,8 @@ void xzcat_main(void)
 		if (ret == XZ_OK)
 			continue;
 
-#ifdef XZ_DEC_ANY_CHECK
 		if (ret == XZ_UNSUPPORTED_CHECK)
 			continue;
-#endif
 
 		if (fwrite(out, 1, b.out_pos, stdout) != b.out_pos
 				|| fclose(stdout)) {
@@ -612,7 +554,7 @@ static inline void put_unaligned_be32(uint32_t val, uint8_t *buf)
  * Allocate memory for LZMA2 decoder. xz_dec_lzma2_reset() must be used
  * before calling xz_dec_lzma2_run().
  */
-XZ_EXTERN struct xz_dec_lzma2 *xz_dec_lzma2_create(enum xz_mode mode,
+struct xz_dec_lzma2 *xz_dec_lzma2_create(enum xz_mode mode,
 						   uint32_t dict_max);
 
 /*
@@ -621,22 +563,22 @@ XZ_EXTERN struct xz_dec_lzma2 *xz_dec_lzma2_create(enum xz_mode mode,
  * big enough, and XZ_OPTIONS_ERROR if props indicates something that this
  * decoder doesn't support.
  */
-XZ_EXTERN enum xz_ret xz_dec_lzma2_reset(struct xz_dec_lzma2 *s,
+enum xz_ret xz_dec_lzma2_reset(struct xz_dec_lzma2 *s,
 					 uint8_t props);
 
 /* Decode raw LZMA2 stream from b->in to b->out. */
-XZ_EXTERN enum xz_ret xz_dec_lzma2_run(struct xz_dec_lzma2 *s,
+enum xz_ret xz_dec_lzma2_run(struct xz_dec_lzma2 *s,
 				       struct xz_buf *b);
 
 /* Free the memory allocated for the LZMA2 decoder. */
-XZ_EXTERN void xz_dec_lzma2_end(struct xz_dec_lzma2 *s);
+void xz_dec_lzma2_end(struct xz_dec_lzma2 *s);
 
 #ifdef XZ_DEC_BCJ
 /*
  * Allocate memory for BCJ decoders. xz_dec_bcj_reset() must be used before
  * calling xz_dec_bcj_run().
  */
-XZ_EXTERN struct xz_dec_bcj *xz_dec_bcj_create(bool single_call);
+struct xz_dec_bcj *xz_dec_bcj_create(bool single_call);
 
 /*
  * Decode the Filter ID of a BCJ filter. This implementation doesn't
@@ -644,14 +586,14 @@ XZ_EXTERN struct xz_dec_bcj *xz_dec_bcj_create(bool single_call);
  * is needed. Returns XZ_OK if the given Filter ID is supported.
  * Otherwise XZ_OPTIONS_ERROR is returned.
  */
-XZ_EXTERN enum xz_ret xz_dec_bcj_reset(struct xz_dec_bcj *s, uint8_t id);
+enum xz_ret xz_dec_bcj_reset(struct xz_dec_bcj *s, uint8_t id);
 
 /*
  * Decode raw BCJ + LZMA2 stream. This must be used only if there actually is
  * a BCJ filter in the chain. If the chain has only LZMA2, xz_dec_lzma2_run()
  * must be called directly.
  */
-XZ_EXTERN enum xz_ret xz_dec_bcj_run(struct xz_dec_bcj *s,
+enum xz_ret xz_dec_bcj_run(struct xz_dec_bcj *s,
 				     struct xz_dec_lzma2 *lzma2,
 				     struct xz_buf *b);
 
@@ -673,7 +615,7 @@ XZ_EXTERN enum xz_ret xz_dec_bcj_run(struct xz_dec_bcj *s,
 
 STATIC_RW_DATA uint32_t xz_crc32_table[256];
 
-XZ_EXTERN void xz_crc32_init(void)
+void xz_crc32_init(void)
 {
 	const uint32_t poly = 0xEDB88320;
 
@@ -692,7 +634,7 @@ XZ_EXTERN void xz_crc32_init(void)
 	return;
 }
 
-XZ_EXTERN uint32_t xz_crc32(const uint8_t *buf, size_t size, uint32_t crc)
+uint32_t xz_crc32(const uint8_t *buf, size_t size, uint32_t crc)
 {
 	crc = ~crc;
 
@@ -708,7 +650,7 @@ XZ_EXTERN uint32_t xz_crc32(const uint8_t *buf, size_t size, uint32_t crc)
 
 STATIC_RW_DATA uint64_t xz_crc64_table[256];
 
-XZ_EXTERN void xz_crc64_init(void)
+void xz_crc64_init(void)
 {
 	const uint64_t poly = 0xC96C5795D7870F42ULL;
 
@@ -727,7 +669,7 @@ XZ_EXTERN void xz_crc64_init(void)
 	return;
 }
 
-XZ_EXTERN uint64_t xz_crc64(const uint8_t *buf, size_t size, uint64_t crc)
+uint64_t xz_crc64(const uint8_t *buf, size_t size, uint64_t crc)
 {
 	crc = ~crc;
 
@@ -1152,7 +1094,7 @@ static void bcj_flush(struct xz_dec_bcj *s, struct xz_buf *b)
  * data in chunks of 1-16 bytes. To hide this issue, this function does
  * some buffering.
  */
-XZ_EXTERN enum xz_ret xz_dec_bcj_run(struct xz_dec_bcj *s,
+enum xz_ret xz_dec_bcj_run(struct xz_dec_bcj *s,
 				     struct xz_dec_lzma2 *lzma2,
 				     struct xz_buf *b)
 {
@@ -1262,7 +1204,7 @@ XZ_EXTERN enum xz_ret xz_dec_bcj_run(struct xz_dec_bcj *s,
 	return s->ret;
 }
 
-XZ_EXTERN struct xz_dec_bcj *xz_dec_bcj_create(bool single_call)
+struct xz_dec_bcj *xz_dec_bcj_create(bool single_call)
 {
 	struct xz_dec_bcj *s = malloc(sizeof(*s));
 	if (s != NULL)
@@ -1271,7 +1213,7 @@ XZ_EXTERN struct xz_dec_bcj *xz_dec_bcj_create(bool single_call)
 	return s;
 }
 
-XZ_EXTERN enum xz_ret xz_dec_bcj_reset(struct xz_dec_bcj *s, uint8_t id)
+enum xz_ret xz_dec_bcj_reset(struct xz_dec_bcj *s, uint8_t id)
 {
 	switch (id) {
 #ifdef XZ_DEC_X86
@@ -2446,7 +2388,7 @@ static bool lzma2_lzma(struct xz_dec_lzma2 *s, struct xz_buf *b)
  * Take care of the LZMA2 control layer, and forward the job of actual LZMA
  * decoding or copying of uncompressed chunks to other functions.
  */
-XZ_EXTERN enum xz_ret xz_dec_lzma2_run(struct xz_dec_lzma2 *s,
+enum xz_ret xz_dec_lzma2_run(struct xz_dec_lzma2 *s,
 				       struct xz_buf *b)
 {
 	uint32_t tmp;
@@ -2619,7 +2561,7 @@ XZ_EXTERN enum xz_ret xz_dec_lzma2_run(struct xz_dec_lzma2 *s,
 	return XZ_OK;
 }
 
-XZ_EXTERN struct xz_dec_lzma2 *xz_dec_lzma2_create(enum xz_mode mode,
+struct xz_dec_lzma2 *xz_dec_lzma2_create(enum xz_mode mode,
 						   uint32_t dict_max)
 {
 	struct xz_dec_lzma2 *s = malloc(sizeof(*s));
@@ -2643,7 +2585,7 @@ XZ_EXTERN struct xz_dec_lzma2 *xz_dec_lzma2_create(enum xz_mode mode,
 	return s;
 }
 
-XZ_EXTERN enum xz_ret xz_dec_lzma2_reset(struct xz_dec_lzma2 *s, uint8_t props)
+enum xz_ret xz_dec_lzma2_reset(struct xz_dec_lzma2 *s, uint8_t props)
 {
 	/* This limits dictionary size to 3 GiB to keep parsing simpler. */
 	if (props > 39)
@@ -2680,7 +2622,7 @@ XZ_EXTERN enum xz_ret xz_dec_lzma2_reset(struct xz_dec_lzma2 *s, uint8_t props)
 	return XZ_OK;
 }
 
-XZ_EXTERN void xz_dec_lzma2_end(struct xz_dec_lzma2 *s)
+void xz_dec_lzma2_end(struct xz_dec_lzma2 *s)
 {
 	if (DEC_IS_MULTI(s->dict.mode))
 		free(s->dict.buf);
@@ -2709,13 +2651,6 @@ XZ_EXTERN void xz_dec_lzma2_end(struct xz_dec_lzma2 *s)
 
 #ifndef XZ_STREAM_H
 #define XZ_STREAM_H
-
-#if defined(__KERNEL__) && !XZ_INTERNAL_CRC32
-#	include <linux/crc32.h>
-#	undef crc32
-#	define xz_crc32(buf, size, crc) \
-		(~crc32_le(~(uint32_t)(crc), buf, size))
-#endif
 
 /*
  * See the .xz file format specification at
@@ -2762,11 +2697,7 @@ enum xz_check {
 #endif
 // END xz_stream.h
 
-#ifdef XZ_USE_CRC64
-#	define IS_CRC64(check_type) ((check_type) == XZ_CHECK_CRC64)
-#else
-#	define IS_CRC64(check_type) false
-#endif
+#define IS_CRC64(check_type) ((check_type) == XZ_CHECK_CRC64)
 
 /* Hash used to validate the Index field */
 struct xz_dec_hash {
@@ -2800,13 +2731,8 @@ struct xz_dec {
 	size_t in_start;
 	size_t out_start;
 
-#ifdef XZ_USE_CRC64
 	/* CRC32 or CRC64 value in Block or CRC32 value in Index */
 	uint64_t crc;
-#else
-	/* CRC32 value in Block or Index */
-	uint32_t crc;
-#endif
 
 	/* Type of the integrity check calculated from uncompressed data */
 	enum xz_check check_type;
@@ -2899,7 +2825,6 @@ struct xz_dec {
 #endif
 };
 
-#ifdef XZ_DEC_ANY_CHECK
 /* Sizes of the Check field with different Check IDs */
 static const uint8_t check_sizes[16] = {
 	0,
@@ -2909,7 +2834,6 @@ static const uint8_t check_sizes[16] = {
 	32, 32, 32,
 	64, 64, 64
 };
-#endif
 
 /*
  * Fill s->temp by copying data starting from b->in[b->in_pos]. Caller
@@ -3007,11 +2931,9 @@ static enum xz_ret dec_block(struct xz_dec *s, struct xz_buf *b)
 	if (s->check_type == XZ_CHECK_CRC32)
 		s->crc = xz_crc32(b->out + s->out_start,
 				b->out_pos - s->out_start, s->crc);
-#ifdef XZ_USE_CRC64
 	else if (s->check_type == XZ_CHECK_CRC64)
 		s->crc = xz_crc64(b->out + s->out_start,
 				b->out_pos - s->out_start, s->crc);
-#endif
 
 	if (ret == XZ_STREAM_END) {
 		if (s->block_header.compressed != VLI_UNKNOWN
@@ -3027,14 +2949,7 @@ static enum xz_ret dec_block(struct xz_dec *s, struct xz_buf *b)
 		s->block.hash.unpadded += s->block_header.size
 				+ s->block.compressed;
 
-#ifdef XZ_DEC_ANY_CHECK
 		s->block.hash.unpadded += check_sizes[s->check_type];
-#else
-		if (s->check_type == XZ_CHECK_CRC32)
-			s->block.hash.unpadded += 4;
-		else if (IS_CRC64(s->check_type))
-			s->block.hash.unpadded += 8;
-#endif
 
 		s->block.hash.uncompressed += s->block.uncompressed;
 		s->block.hash.crc32 = xz_crc32(
@@ -3134,7 +3049,6 @@ static enum xz_ret crc_validate(struct xz_dec *s, struct xz_buf *b,
 	return XZ_STREAM_END;
 }
 
-#ifdef XZ_DEC_ANY_CHECK
 /*
  * Skip over the Check field when the Check ID is not supported.
  * Returns true once the whole Check field has been skipped over.
@@ -3153,7 +3067,6 @@ static bool check_skip(struct xz_dec *s, struct xz_buf *b)
 
 	return true;
 }
-#endif
 
 /* Decode the Stream Header field (the first 12 bytes of the .xz Stream). */
 static enum xz_ret dec_stream_header(struct xz_dec *s)
@@ -3177,16 +3090,11 @@ static enum xz_ret dec_stream_header(struct xz_dec *s)
 	 */
 	s->check_type = s->temp.buf[HEADER_MAGIC_SIZE + 1];
 
-#ifdef XZ_DEC_ANY_CHECK
 	if (s->check_type > XZ_CHECK_MAX)
 		return XZ_OPTIONS_ERROR;
 
 	if (s->check_type > XZ_CHECK_CRC32 && !IS_CRC64(s->check_type))
 		return XZ_UNSUPPORTED_CHECK;
-#else
-	if (s->check_type > XZ_CHECK_CRC32 && !IS_CRC64(s->check_type))
-		return XZ_OPTIONS_ERROR;
-#endif
 
 	return XZ_OK;
 }
@@ -3427,11 +3335,9 @@ static enum xz_ret dec_main(struct xz_dec *s, struct xz_buf *b)
 				if (ret != XZ_STREAM_END)
 					return ret;
 			}
-#ifdef XZ_DEC_ANY_CHECK
 			else if (!check_skip(s, b)) {
 				return XZ_OK;
 			}
-#endif
 
 			s->sequence = SEQ_BLOCK_START;
 			break;
@@ -3509,7 +3415,7 @@ static enum xz_ret dec_main(struct xz_dec *s, struct xz_buf *b)
  * actually succeeds (that's the price to pay of using the output buffer as
  * the workspace).
  */
-XZ_EXTERN enum xz_ret xz_dec_run(struct xz_dec *s, struct xz_buf *b)
+enum xz_ret xz_dec_run(struct xz_dec *s, struct xz_buf *b)
 {
 	size_t in_start;
 	size_t out_start;
@@ -3545,7 +3451,7 @@ XZ_EXTERN enum xz_ret xz_dec_run(struct xz_dec *s, struct xz_buf *b)
 	return ret;
 }
 
-XZ_EXTERN struct xz_dec *xz_dec_init(enum xz_mode mode, uint32_t dict_max)
+struct xz_dec *xz_dec_init(enum xz_mode mode, uint32_t dict_max)
 {
 	struct xz_dec *s = malloc(sizeof(*s));
 	if (s == NULL)
@@ -3575,7 +3481,7 @@ error_bcj:
 	return NULL;
 }
 
-XZ_EXTERN void xz_dec_reset(struct xz_dec *s)
+void xz_dec_reset(struct xz_dec *s)
 {
 	s->sequence = SEQ_STREAM_HEADER;
 	s->allow_buf_error = false;
@@ -3587,7 +3493,7 @@ XZ_EXTERN void xz_dec_reset(struct xz_dec *s)
 	s->temp.size = STREAM_HEADER_SIZE;
 }
 
-XZ_EXTERN void xz_dec_end(struct xz_dec *s)
+void xz_dec_end(struct xz_dec *s)
 {
 	if (s != NULL) {
 		xz_dec_lzma2_end(s->lzma2);
