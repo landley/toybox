@@ -23,18 +23,11 @@ config XZCAT
 #include <stdbool.h>
 
 // BEGIN xz.h
-/*
- * XZ decompressor
- *
- * Authors: Lasse Collin <lasse.collin@tukaani.org>
- *          Igor Pavlov <http://7-zip.org/>
- *
- * This file has been put into the public domain.
- * You can do whatever you want with this file.
- */
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 
 /**
@@ -246,13 +239,6 @@ void xz_dec_reset(struct xz_dec *s);
  */
 void xz_dec_end(struct xz_dec *s);
 
-
-/*
- * This must be called before any other xz_* function to initialize
- * the CRC32 lookup table.
- */
-void xz_crc32_init(void);
-
 /*
  * Update CRC32 value using the polynomial from IEEE-802.3. To start a new
  * calculation, the third argument must be zero. To continue the calculation,
@@ -261,19 +247,49 @@ void xz_crc32_init(void);
 uint32_t xz_crc32(const uint8_t *buf, size_t size, uint32_t crc);
 
 /*
- * This must be called before any other xz_* function (except xz_crc32_init())
+ * This must be called before any other xz_* function (but after crc_init())
  * to initialize the CRC64 lookup table.
  */
-void xz_crc64_init(void);
+static uint64_t xz_crc64_table[256];
+
+void xz_crc64_init(void)
+{
+	const uint64_t poly = 0xC96C5795D7870F42ULL;
+
+	uint32_t i;
+	uint32_t j;
+	uint64_t r;
+
+	for (i = 0; i < 256; ++i) {
+		r = i;
+		for (j = 0; j < 8; ++j)
+			r = (r >> 1) ^ (poly & ~((r & 1) - 1));
+
+		xz_crc64_table[i] = r;
+	}
+
+	return;
+}
 
 /*
  * Update CRC64 value using the polynomial from ECMA-182. To start a new
  * calculation, the third argument must be zero. To continue the calculation,
  * the previously returned value is passed as the third argument.
  */
-uint64_t xz_crc64(const uint8_t *buf, size_t size, uint64_t crc);
+uint64_t xz_crc64(const uint8_t *buf, size_t size, uint64_t crc)
+{
+	crc = ~crc;
+
+	while (size != 0) {
+		crc = xz_crc64_table[*buf++ ^ (crc & 0xFF)] ^ (crc >> 8);
+		--size;
+	}
+
+	return ~crc;
+}
 
 // END xz.h
+static uint32_t xz_crc32_table[256];
 
 static uint8_t in[BUFSIZ];
 static uint8_t out[BUFSIZ];
@@ -285,7 +301,7 @@ void xzcat_main(void)
 	enum xz_ret ret;
 	const char *msg;
 
-	xz_crc32_init();
+	crc_init(xz_crc32_table, 1);
 	xz_crc64_init();
 
 	/*
@@ -370,41 +386,9 @@ error:
 	xz_dec_end(s);
 	error_exit("%s", msg);
 }
-/*
- * CRC32 using the polynomial from IEEE-802.3
- * CRC64 using the polynomial from ECMA-182
- *
- * Authors: Lasse Collin <lasse.collin@tukaani.org>
- *          Igor Pavlov <http://7-zip.org/>
- *
- * This file has been put into the public domain.
- * You can do whatever you want with this file.
- */
-
-/*
- * This is not the fastest implementation, but it is pretty compact.
- * The fastest versions of xz_crc32() on modern CPUs without hardware
- * accelerated CRC instruction are 3-5 times as fast as this version,
- * but they are bigger and use more memory for the lookup table.
- */
 
 // BEGIN xz_private.h
-/*
- * Private includes and definitions
- *
- * Author: Lasse Collin <lasse.collin@tukaani.org>
- *
- * This file has been put into the public domain.
- * You can do whatever you want with this file.
- * 
- * Modified for toybox by Isaac Dunham.
- */
 
-#ifndef XZ_PRIVATE_H
-#define XZ_PRIVATE_H
-
-/* Enable CRC64 support. */
-#define XZ_USE_CRC64
 
 /* Uncomment as needed to enable BCJ filter decoders. 
  * These cost about 2.5 k when all are enabled; SPARC and IA64 make 0.7 k
@@ -417,9 +401,6 @@ error:
 #define XZ_DEC_ARMTHUMB
 #define XZ_DEC_SPARC
 
-#include <stdbool.h>
-#include <stdlib.h>
-#include <string.h>
 
 #define memeq(a, b, size) (memcmp(a, b, size) == 0)
 #define memzero(buf, size) memset(buf, 0, size)
@@ -601,38 +582,7 @@ enum xz_ret xz_dec_bcj_run(struct xz_dec_bcj *s,
 #define xz_dec_bcj_end(s) free(s)
 #endif
 
-#endif
-
 // END "xz_private.h"
-
-/*
- * STATIC_RW_DATA is used in the pre-boot environment on some architectures.
- * See <linux/decompress/mm.h> for details.
- */
-#ifndef STATIC_RW_DATA
-#	define STATIC_RW_DATA static
-#endif
-
-STATIC_RW_DATA uint32_t xz_crc32_table[256];
-
-void xz_crc32_init(void)
-{
-	const uint32_t poly = 0xEDB88320;
-
-	uint32_t i;
-	uint32_t j;
-	uint32_t r;
-
-	for (i = 0; i < 256; ++i) {
-		r = i;
-		for (j = 0; j < 8; ++j)
-			r = (r >> 1) ^ (poly & ~((r & 1) - 1));
-
-		xz_crc32_table[i] = r;
-	}
-
-	return;
-}
 
 uint32_t xz_crc32(const uint8_t *buf, size_t size, uint32_t crc)
 {
@@ -648,50 +598,9 @@ uint32_t xz_crc32(const uint8_t *buf, size_t size, uint32_t crc)
 
 
 
-STATIC_RW_DATA uint64_t xz_crc64_table[256];
-
-void xz_crc64_init(void)
-{
-	const uint64_t poly = 0xC96C5795D7870F42ULL;
-
-	uint32_t i;
-	uint32_t j;
-	uint64_t r;
-
-	for (i = 0; i < 256; ++i) {
-		r = i;
-		for (j = 0; j < 8; ++j)
-			r = (r >> 1) ^ (poly & ~((r & 1) - 1));
-
-		xz_crc64_table[i] = r;
-	}
-
-	return;
-}
-
-uint64_t xz_crc64(const uint8_t *buf, size_t size, uint64_t crc)
-{
-	crc = ~crc;
-
-	while (size != 0) {
-		crc = xz_crc64_table[*buf++ ^ (crc & 0xFF)] ^ (crc >> 8);
-		--size;
-	}
-
-	return ~crc;
-}
 /*
  * Branch/Call/Jump (BCJ) filter decoders
- *
- * Authors: Lasse Collin <lasse.collin@tukaani.org>
- *          Igor Pavlov <http://7-zip.org/>
- *
- * This file has been put into the public domain.
- * You can do whatever you want with this file.
- */
-
-/*
- * The rest of the file is inside this ifdef. It makes things a little more
+ * The rest of the code is inside this ifdef. It makes things a little more
  * convenient when building without support for any BCJ filters.
  */
 #ifdef XZ_DEC_BCJ
@@ -1254,12 +1163,6 @@ enum xz_ret xz_dec_bcj_reset(struct xz_dec_bcj *s, uint8_t id)
 #endif
 /*
  * LZMA2 decoder
- *
- * Authors: Lasse Collin <lasse.collin@tukaani.org>
- *          Igor Pavlov <http://7-zip.org/>
- *
- * This file has been put into the public domain.
- * You can do whatever you want with this file.
  */
 
 
@@ -1267,15 +1170,8 @@ enum xz_ret xz_dec_bcj_reset(struct xz_dec_bcj *s, uint8_t id)
 /*
  * LZMA2 definitions
  *
- * Authors: Lasse Collin <lasse.collin@tukaani.org>
- *          Igor Pavlov <http://7-zip.org/>
- *
- * This file has been put into the public domain.
- * You can do whatever you want with this file.
  */
 
-#ifndef XZ_LZMA2_H
-#define XZ_LZMA2_H
 
 /* Range coder constants */
 #define RC_SHIFT_BITS 8
@@ -1467,7 +1363,6 @@ static inline uint32_t lzma_get_dist_state(uint32_t len)
  */
 #define REPS 4
 
-#endif
 
 // END xz_lzma2.h
 
@@ -2631,26 +2526,13 @@ void xz_dec_lzma2_end(struct xz_dec_lzma2 *s)
 }
 /*
  * .xz Stream decoder
- *
- * Author: Lasse Collin <lasse.collin@tukaani.org>
- *
- * This file has been put into the public domain.
- * You can do whatever you want with this file.
  */
 
 
 // BEGIN xz_stream.h
 /*
  * Definitions for handling the .xz file format
- *
- * Author: Lasse Collin <lasse.collin@tukaani.org>
- *
- * This file has been put into the public domain.
- * You can do whatever you want with this file.
  */
-
-#ifndef XZ_STREAM_H
-#define XZ_STREAM_H
 
 /*
  * See the .xz file format specification at
@@ -2693,8 +2575,6 @@ enum xz_check {
 
 /* Maximum possible Check ID */
 #define XZ_CHECK_MAX 15
-
-#endif
 // END xz_stream.h
 
 #define IS_CRC64(check_type) ((check_type) == XZ_CHECK_CRC64)
