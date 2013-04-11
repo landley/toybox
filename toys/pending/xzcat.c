@@ -20,15 +20,7 @@ config XZCAT
 #define FOR_xzcat
 #include "toys.h"
 
-#include <stdbool.h>
-
 // BEGIN xz.h
-
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-
 
 /**
  * enum xz_mode - Operation mode
@@ -321,7 +313,7 @@ void xzcat_main(void)
 	b.out_pos = 0;
 	b.out_size = BUFSIZ;
 
-	while (true) {
+	for (;;) {
 		if (b.in_pos == b.in_size) {
 			b.in_size = fread(in, 1, sizeof(in), stdin);
 			b.in_pos = 0;
@@ -495,27 +487,27 @@ static inline void put_unaligned_be32(uint32_t val, uint8_t *buf)
 #ifdef XZ_DEC_SINGLE
 #	define DEC_IS_SINGLE(mode) ((mode) == XZ_SINGLE)
 #else
-#	define DEC_IS_SINGLE(mode) (false)
+#	define DEC_IS_SINGLE(mode) (0)
 #endif
 
 #ifdef XZ_DEC_PREALLOC
 #	define DEC_IS_PREALLOC(mode) ((mode) == XZ_PREALLOC)
 #else
-#	define DEC_IS_PREALLOC(mode) (false)
+#	define DEC_IS_PREALLOC(mode) (0)
 #endif
 
 #ifdef XZ_DEC_DYNALLOC
 #	define DEC_IS_DYNALLOC(mode) ((mode) == XZ_DYNALLOC)
 #else
-#	define DEC_IS_DYNALLOC(mode) (false)
+#	define DEC_IS_DYNALLOC(mode) (0)
 #endif
 
 #if !defined(XZ_DEC_SINGLE)
-#	define DEC_IS_MULTI(mode) (true)
+#	define DEC_IS_MULTI(mode) (1)
 #elif defined(XZ_DEC_PREALLOC) || defined(XZ_DEC_DYNALLOC)
 #	define DEC_IS_MULTI(mode) ((mode) != XZ_SINGLE)
 #else
-#	define DEC_IS_MULTI(mode) (false)
+#	define DEC_IS_MULTI(mode) (0)
 #endif
 
 /*
@@ -559,7 +551,7 @@ void xz_dec_lzma2_end(struct xz_dec_lzma2 *s);
  * Allocate memory for BCJ decoders. xz_dec_bcj_reset() must be used before
  * calling xz_dec_bcj_run().
  */
-struct xz_dec_bcj *xz_dec_bcj_create(bool single_call);
+struct xz_dec_bcj *xz_dec_bcj_create(int single_call);
 
 /*
  * Decode the Filter ID of a BCJ filter. This implementation doesn't
@@ -624,7 +616,7 @@ struct xz_dec_bcj {
 	enum xz_ret ret;
 
 	/* True if we are operating in single-call mode. */
-	bool single_call;
+	int single_call;
 
 	/*
 	 * Absolute position relative to the beginning of the uncompressed
@@ -676,8 +668,8 @@ static inline int bcj_x86_test_msbyte(uint8_t b)
 
 static size_t bcj_x86(struct xz_dec_bcj *s, uint8_t *buf, size_t size)
 {
-	static const bool mask_to_allowed_status[8]
-		= { true, true, true, false, true, false, false, false };
+	static const int mask_to_allowed_status[8]
+		= { 1,1,1,0,1,0,0,0 };
 
 	static const uint8_t mask_to_bit_num[8] = { 0, 1, 2, 2, 3, 3, 3, 3 };
 
@@ -717,7 +709,7 @@ static size_t bcj_x86(struct xz_dec_bcj *s, uint8_t *buf, size_t size)
 
 		if (bcj_x86_test_msbyte(buf[i + 4])) {
 			src = get_unaligned_le32(buf + i + 1);
-			while (true) {
+			for (;;) {
 				dest = src - (s->pos + (uint32_t)i + 5);
 				if (prev_mask == 0)
 					break;
@@ -1113,7 +1105,7 @@ enum xz_ret xz_dec_bcj_run(struct xz_dec_bcj *s,
 	return s->ret;
 }
 
-struct xz_dec_bcj *xz_dec_bcj_create(bool single_call)
+struct xz_dec_bcj *xz_dec_bcj_create(int single_call)
 {
 	struct xz_dec_bcj *s = malloc(sizeof(*s));
 	if (s != NULL)
@@ -1252,7 +1244,7 @@ static inline void lzma_state_short_rep(enum lzma_state *state)
 }
 
 /* Test if the previous symbol was a literal. */
-static inline bool lzma_state_is_literal(enum lzma_state state)
+static inline int lzma_state_is_literal(enum lzma_state state)
 {
 	return state < LIT_STATES;
 }
@@ -1596,13 +1588,13 @@ struct lzma2_dec {
 	 * True if dictionary reset is needed. This is false before
 	 * the first chunk (LZMA or uncompressed).
 	 */
-	bool need_dict_reset;
+	int need_dict_reset;
 
 	/*
 	 * True if new LZMA properties are needed. This is false
 	 * before the first LZMA chunk.
 	 */
-	bool need_props;
+	int need_props;
 };
 
 struct xz_dec_lzma2 {
@@ -1661,7 +1653,7 @@ static void dict_limit(struct dictionary *dict, size_t out_max)
 }
 
 /* Return true if at least one byte can be written into the dictionary. */
-static inline bool dict_has_space(const struct dictionary *dict)
+static inline int dict_has_space(const struct dictionary *dict)
 {
 	return dict->pos < dict->limit;
 }
@@ -1698,13 +1690,12 @@ static inline void dict_put(struct dictionary *dict, uint8_t byte)
  * invalid, false is returned. On success, true is returned and *len is
  * updated to indicate how many bytes were left to be repeated.
  */
-static bool dict_repeat(struct dictionary *dict, uint32_t *len, uint32_t dist)
+static int dict_repeat(struct dictionary *dict, uint32_t *len, uint32_t dist)
 {
 	size_t back;
 	uint32_t left;
 
-	if (dist >= dict->full || dist >= dict->size)
-		return false;
+	if (dist >= dict->full || dist >= dict->size) return 0;
 
 	left = min_t(size_t, dict->limit - dict->pos, *len);
 	*len -= left;
@@ -1722,7 +1713,7 @@ static bool dict_repeat(struct dictionary *dict, uint32_t *len, uint32_t dist)
 	if (dict->full < dict->pos)
 		dict->full = dict->pos;
 
-	return true;
+	return 1;
 }
 
 /* Copy uncompressed data as is from input to dictionary and output buffers. */
@@ -1801,21 +1792,20 @@ static void rc_reset(struct rc_dec *rc)
  * Read the first five initial bytes into rc->code if they haven't been
  * read already. (Yes, the first byte gets completely ignored.)
  */
-static bool rc_read_init(struct rc_dec *rc, struct xz_buf *b)
+static int rc_read_init(struct rc_dec *rc, struct xz_buf *b)
 {
 	while (rc->init_bytes_left > 0) {
-		if (b->in_pos == b->in_size)
-			return false;
+		if (b->in_pos == b->in_size) return 0;
 
 		rc->code = (rc->code << 8) + b->in[b->in_pos++];
 		--rc->init_bytes_left;
 	}
 
-	return true;
+	return 1;
 }
 
 /* Return true if there may not be enough input for the next decoding loop. */
-static inline bool rc_limit_exceeded(const struct rc_dec *rc)
+static inline int rc_limit_exceeded(const struct rc_dec *rc)
 {
 	return rc->in_pos > rc->in_limit;
 }
@@ -1824,7 +1814,7 @@ static inline bool rc_limit_exceeded(const struct rc_dec *rc)
  * Return true if it is possible (from point of view of range decoder) that
  * we have reached the end of the LZMA chunk.
  */
-static inline bool rc_is_finished(const struct rc_dec *rc)
+static inline int rc_is_finished(const struct rc_dec *rc)
 {
 	return rc->code == 0;
 }
@@ -2074,7 +2064,7 @@ static void lzma_rep_match(struct xz_dec_lzma2 *s, uint32_t pos_state)
 }
 
 /* LZMA decoder core */
-static bool lzma_main(struct xz_dec_lzma2 *s)
+static int lzma_main(struct xz_dec_lzma2 *s)
 {
 	uint32_t pos_state;
 
@@ -2102,7 +2092,7 @@ static bool lzma_main(struct xz_dec_lzma2 *s)
 				lzma_match(s, pos_state);
 
 			if (!dict_repeat(&s->dict, &s->lzma.len, s->lzma.rep0))
-				return false;
+				return 0;
 		}
 	}
 
@@ -2112,7 +2102,7 @@ static bool lzma_main(struct xz_dec_lzma2 *s)
 	 */
 	rc_normalize(&s->rc);
 
-	return true;
+	return 1;
 }
 
 /*
@@ -2151,10 +2141,10 @@ static void lzma_reset(struct xz_dec_lzma2 *s)
  * from the decoded lp and pb values. On success, the LZMA decoder state is
  * reset and true is returned.
  */
-static bool lzma_props(struct xz_dec_lzma2 *s, uint8_t props)
+static int lzma_props(struct xz_dec_lzma2 *s, uint8_t props)
 {
 	if (props > (4 * 5 + 4) * 9 + 8)
-		return false;
+		return 0;
 
 	s->lzma.pos_mask = 0;
 	while (props >= 9 * 5) {
@@ -2173,13 +2163,13 @@ static bool lzma_props(struct xz_dec_lzma2 *s, uint8_t props)
 	s->lzma.lc = props;
 
 	if (s->lzma.lc + s->lzma.literal_pos_mask > 4)
-		return false;
+		return 0;
 
 	s->lzma.literal_pos_mask = (1 << s->lzma.literal_pos_mask) - 1;
 
 	lzma_reset(s);
 
-	return true;
+	return 1;
 }
 
 /*********
@@ -2198,7 +2188,7 @@ static bool lzma_props(struct xz_dec_lzma2 *s, uint8_t props)
  * function. We decode a few bytes from the temporary buffer so that we can
  * continue decoding from the caller-supplied input buffer again.
  */
-static bool lzma2_lzma(struct xz_dec_lzma2 *s, struct xz_buf *b)
+static int lzma2_lzma(struct xz_dec_lzma2 *s, struct xz_buf *b)
 {
 	size_t in_avail;
 	uint32_t tmp;
@@ -2221,7 +2211,7 @@ static bool lzma2_lzma(struct xz_dec_lzma2 *s, struct xz_buf *b)
 		} else if (s->temp.size + tmp < LZMA_IN_REQUIRED) {
 			s->temp.size += tmp;
 			b->in_pos += tmp;
-			return true;
+			return 1;
 		} else {
 			s->rc.in_limit = s->temp.size + tmp - LZMA_IN_REQUIRED;
 		}
@@ -2230,7 +2220,7 @@ static bool lzma2_lzma(struct xz_dec_lzma2 *s, struct xz_buf *b)
 		s->rc.in_pos = 0;
 
 		if (!lzma_main(s) || s->rc.in_pos > s->temp.size + tmp)
-			return false;
+			return 0;
 
 		s->lzma2.compressed -= s->rc.in_pos;
 
@@ -2238,7 +2228,7 @@ static bool lzma2_lzma(struct xz_dec_lzma2 *s, struct xz_buf *b)
 			s->temp.size -= s->rc.in_pos;
 			memmove(s->temp.buf, s->temp.buf + s->rc.in_pos,
 					s->temp.size);
-			return true;
+			return 1;
 		}
 
 		b->in_pos += s->rc.in_pos - s->temp.size;
@@ -2256,11 +2246,10 @@ static bool lzma2_lzma(struct xz_dec_lzma2 *s, struct xz_buf *b)
 			s->rc.in_limit = b->in_size - LZMA_IN_REQUIRED;
 
 		if (!lzma_main(s))
-			return false;
+			return 0;
 
 		in_avail = s->rc.in_pos - b->in_pos;
-		if (in_avail > s->lzma2.compressed)
-			return false;
+		if (in_avail > s->lzma2.compressed) return 0;
 
 		s->lzma2.compressed -= in_avail;
 		b->in_pos = s->rc.in_pos;
@@ -2276,7 +2265,7 @@ static bool lzma2_lzma(struct xz_dec_lzma2 *s, struct xz_buf *b)
 		b->in_pos += in_avail;
 	}
 
-	return true;
+	return 1;
 }
 
 /*
@@ -2328,8 +2317,8 @@ enum xz_ret xz_dec_lzma2_run(struct xz_dec_lzma2 *s,
 				return XZ_STREAM_END;
 
 			if (tmp >= 0xE0 || tmp == 0x01) {
-				s->lzma2.need_props = true;
-				s->lzma2.need_dict_reset = false;
+				s->lzma2.need_props = 1;
+				s->lzma2.need_dict_reset = 0;
 				dict_reset(&s->dict, b);
 			} else if (s->lzma2.need_dict_reset) {
 				return XZ_DATA_ERROR;
@@ -2345,7 +2334,7 @@ enum xz_ret xz_dec_lzma2_run(struct xz_dec_lzma2 *s,
 					 * state reset is done at
 					 * SEQ_PROPERTIES.
 					 */
-					s->lzma2.need_props = false;
+					s->lzma2.need_props = 0;
 					s->lzma2.next_sequence
 							= SEQ_PROPERTIES;
 
@@ -2510,7 +2499,7 @@ enum xz_ret xz_dec_lzma2_reset(struct xz_dec_lzma2 *s, uint8_t props)
 	s->lzma.len = 0;
 
 	s->lzma2.sequence = SEQ_CONTROL;
-	s->lzma2.need_dict_reset = true;
+	s->lzma2.need_dict_reset = 1;
 
 	s->temp.size = 0;
 
@@ -2624,7 +2613,7 @@ struct xz_dec {
 	 * True if the next call to xz_dec_run() is allowed to return
 	 * XZ_BUF_ERROR.
 	 */
-	bool allow_buf_error;
+	int allow_buf_error;
 
 	/* Information stored in Block Header */
 	struct {
@@ -2701,7 +2690,7 @@ struct xz_dec {
 
 #ifdef XZ_DEC_BCJ
 	struct xz_dec_bcj *bcj;
-	bool bcj_active;
+	int bcj_active;
 #endif
 };
 
@@ -2721,7 +2710,7 @@ static const uint8_t check_sizes[16] = {
  * to copy into s->temp.buf. Return true once s->temp.pos has reached
  * s->temp.size.
  */
-static bool fill_temp(struct xz_dec *s, struct xz_buf *b)
+static int fill_temp(struct xz_dec *s, struct xz_buf *b)
 {
 	size_t copy_size = min_t(size_t,
 			b->in_size - b->in_pos, s->temp.size - s->temp.pos);
@@ -2732,10 +2721,10 @@ static bool fill_temp(struct xz_dec *s, struct xz_buf *b)
 
 	if (s->temp.pos == s->temp.size) {
 		s->temp.pos = 0;
-		return true;
+		return 1;
 	}
 
-	return false;
+	return 0;
 }
 
 /* Decode a variable-length integer (little-endian base-128 encoding) */
@@ -2933,11 +2922,10 @@ static enum xz_ret crc_validate(struct xz_dec *s, struct xz_buf *b,
  * Skip over the Check field when the Check ID is not supported.
  * Returns true once the whole Check field has been skipped over.
  */
-static bool check_skip(struct xz_dec *s, struct xz_buf *b)
+static int check_skip(struct xz_dec *s, struct xz_buf *b)
 {
 	while (s->pos < check_sizes[s->check_type]) {
-		if (b->in_pos == b->in_size)
-			return false;
+		if (b->in_pos == b->in_size) return 0;
 
 		++b->in_pos;
 		++s->pos;
@@ -2945,7 +2933,7 @@ static bool check_skip(struct xz_dec *s, struct xz_buf *b)
 
 	s->pos = 0;
 
-	return true;
+	return 1;
 }
 
 /* Decode the Stream Header field (the first 12 bytes of the .xz Stream). */
@@ -3117,7 +3105,7 @@ static enum xz_ret dec_main(struct xz_dec *s, struct xz_buf *b)
 	 */
 	s->in_start = b->in_pos;
 
-	while (true) {
+	for (;;) {
 		switch (s->sequence) {
 		case SEQ_STREAM_HEADER:
 			/*
@@ -3323,9 +3311,9 @@ enum xz_ret xz_dec_run(struct xz_dec *s, struct xz_buf *b)
 		if (s->allow_buf_error)
 			ret = XZ_BUF_ERROR;
 
-		s->allow_buf_error = true;
+		s->allow_buf_error = 1;
 	} else {
-		s->allow_buf_error = false;
+		s->allow_buf_error = 0;
 	}
 
 	return ret;
@@ -3364,7 +3352,7 @@ error_bcj:
 void xz_dec_reset(struct xz_dec *s)
 {
 	s->sequence = SEQ_STREAM_HEADER;
-	s->allow_buf_error = false;
+	s->allow_buf_error = 0;
 	s->pos = 0;
 	s->crc = 0;
 	memzero(&s->block, sizeof(s->block));
