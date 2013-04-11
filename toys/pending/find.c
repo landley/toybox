@@ -26,7 +26,12 @@ config FIND
  * -exec action
  */ 
 
+#define FOR_find
 #include "toys.h"
+
+GLOBALS(
+  char *dir;
+)
 
 #define SECONDS_PER_DAY (24*60*60)
 
@@ -77,34 +82,23 @@ static struct filter_node *filter_root;
  */
 static int do_exec(struct filter_node *filter, struct dirtree *node)
 {
-  char *path;
+  char *path = NULL;
   int plen;
   char **arg_array;
   pid_t pid;
-  int ccode;
   int status;
 
   arg_array = filter->data.e.exec_args;
   if (filter->data.e.arg_path_index) {
     path = dirtree_path(node, &plen);
     arg_array[filter->data.e.arg_path_index] = path;
-  } else {
-    path = NULL;
   }
 
-  pid = fork();
-  if (!pid) {
-    /* child */
-    xexec(arg_array);
-  } else {
-    /* parent */
-    /* wait for child */
-    waitpid(pid, &status, 0);
-    ccode = WEXITSTATUS(status);
-  }
+  if (!(pid = fork())) xexec(arg_array);
   free(path);
+  waitpid(pid, &status, 0);
 
-  return ccode;
+  return WEXITSTATUS(status);
 }
 
 /* prefix evaluator */
@@ -125,45 +119,41 @@ static int evaluate(struct filter_node *filter, struct dirtree *node,
     return 1;
   }
 
-  if (filter->op==OP_NOT) {
-    return !evaluate(filter->next, node, fnext);
-  }
-  if (filter->op==OP_OR) {
+  if (filter->op==OP_NOT) return !evaluate(filter->next, node, fnext);
+
+  if (filter->op==OP_OR)
     return evaluate(filter->next, node, fnext) || evaluate(*fnext, node, fnext);
-  }
-  if (filter->op==OP_AND) {
+
+  if (filter->op==OP_AND)
     return evaluate(filter->next, node, fnext) && evaluate(*fnext, node, fnext);
-  }
-  /* we're down to single operations, mark our position */
+
+  // we're down to single operations, mark our position
   *fnext = filter->next;
-  if (filter->op==CHECK_NAME) {
-    // TODO: Do a regex comparison
+
+  // TODO: Do a regex comparison
+  if (filter->op==CHECK_NAME)
     return !strcmp(filter->data.name_regex, node->name);
-  }
+
   if (filter->op==CHECK_MTIME) {
-    /* do mtime check */
+    // do mtime check
     path = dirtree_path(node, &plen);
     result = stat(path,  &st_buf);
     free(path);
-    if (result<0) {
-      return 0;
-    }
+    if (result<0) return 0;
+
     node_time = st_buf.st_mtime/SECONDS_PER_DAY;
     result = 1;
     switch (filter->data.t.time_op) {
       /* do time compare here */
       case TEST_LT:
         /* FIXTHIS - should result be < or <= ?*/
-        if (node_time > filter->data.t.time)
-          result = 0;
+        if (node_time > filter->data.t.time) result = 0;
         break;
       case TEST_GT:
-        if (node_time < filter->data.t.time)
-          result = 0;
+        if (node_time < filter->data.t.time) result = 0;
         break;
       case TEST_EQ:
-        if (node_time != filter->data.t.time)
-          result = 0;
+        if (node_time != filter->data.t.time) result = 0;
         break;
       default:
         /* how'd I get here? */
@@ -177,28 +167,22 @@ static int evaluate(struct filter_node *filter, struct dirtree *node,
     path = dirtree_path(node, &plen);
     result = lstat(path,  &st_buf);
     free(path);
-    if (result<0) {
-      return 0;
-    }
+    if (result<0) return 0;
     return (st_buf.st_mode & S_IFMT) == filter->data.type;
   }
 
 
   if (filter->op==ACTION_PRINT || filter->op==ACTION_PRINT0) {
-    if (filter->op==ACTION_PRINT) {
-      terminator = '\n';
-    } else {
-      terminator = 0;
-    }
+    terminator = (filter->op==ACTION_PRINT)*'\n';
+
     path = dirtree_path(node, &plen);
     printf("%s%c", path, terminator);
     free(path);
     return 1;
   }
 
-  if (filter->op==ACTION_EXEC) {
-    return !do_exec(filter, node);
-  }
+  if (filter->op==ACTION_EXEC) return !do_exec(filter, node);
+
   error_msg("Ran out of operations in filter list!");
   return 1;
 }
@@ -231,51 +215,37 @@ static int check_node_callback(struct dirtree *node)
 
 static void build_filter_list(void)
 {
-  struct filter_node *node_list;
-  struct filter_node *op_stack;
-  struct filter_node *node, *op_node;
-  struct filter_node *next;
-
+  struct filter_node *node_list, *op_stack, *node, *op_node, *next;
   char *arg, **arg_array;
   int i, j;
 
   /* part optargs here and build a filter list in prefix format */
 
+  TT.dir = ".";
   node_list = NULL;
-  toybuf[0] = 0;
   have_action = 0;
   for(i=0; toys.optargs[i]; i++) {
     node = (struct filter_node *)
       xmalloc(sizeof(struct filter_node));
     node->op = OP_UNKNOWN;
     arg = toys.optargs[i];
-    if (!strcmp(arg, "-o")) { 
-      node->op = OP_OR;
-    }
-    if (!strcmp(arg, "-a")) { 
-      node->op = OP_AND;
-    }
-    if (!strcmp(arg, "!")) { 
-      node->op = OP_NOT;
-    }
-    if (!strcmp(arg, "(")) { 
-      node->op = LPAREN;
-    }
-    if (!strcmp(arg, ")")) { 
-      node->op = RPAREN;
-    }
+    if (!strcmp(arg, "-o")) node->op = OP_OR;
+    if (!strcmp(arg, "-a")) node->op = OP_AND;
+    if (!strcmp(arg, "!")) node->op = OP_NOT;
+    if (!strcmp(arg, "(")) node->op = LPAREN;
+    if (!strcmp(arg, ")")) node->op = RPAREN;
 
     if (!strcmp(arg, "-name")) {
       node->op = CHECK_NAME;
       arg = toys.optargs[++i];
-      if (!arg) error_exit("Missing argument to -name\n");
+      if (!arg) error_exit("Missing argument to -name");
       node->data.name_regex = arg;
     }
 
     if (!strcmp(arg, "-mtime")) {
       node->op = CHECK_MTIME;
       arg = toys.optargs[++i];
-      if (!arg) error_exit("Missing argument to -mtime\n");
+      if (!arg) error_exit("Missing argument to -mtime");
       switch(arg[0]) {
         case '+':
           node->data.t.time_op=TEST_GT;
@@ -294,35 +264,15 @@ static void build_filter_list(void)
     }
 
     if (!strcmp(arg, "-type")) {
+      mode_t types[]={S_IFREG,S_IFDIR,S_IFCHR,S_IFBLK,S_IFLNK,S_IFSOCK,S_IFIFO};
+      int j;
+
       node->op = CHECK_TYPE;
       arg = toys.optargs[++i];
-      if (!arg) error_exit("Missing argument to -type\n");
-      switch(arg[0]) {
-        case 'f':
-          node->data.type = S_IFREG;
-          break;
-        case 'd':
-          node->data.type = S_IFDIR;
-          break;
-        case 'c':
-          node->data.type = S_IFCHR;
-          break;
-        case 'b':
-          node->data.type = S_IFBLK;
-          break;
-        case 'l':
-          node->data.type = S_IFLNK;
-          break;
-        case 's':
-          node->data.type = S_IFSOCK;
-          break;
-        case 'p':
-          /* named pipe */
-          node->data.type = S_IFIFO;
-          break;
-        default:
-          error_exit("Unknown file type '%s'\n", arg);
-      }
+      if (!arg) error_exit("Missing argument to -type");
+      if (-1 == (j = stridx("fdcblsp", *arg)))
+        error_exit("bad type '%s'", arg);
+      else node->data.type = types[j];
     }
     if (!strcmp(arg, "-print")) {
       node->op = ACTION_PRINT;
@@ -341,22 +291,17 @@ static void build_filter_list(void)
         /* new method */
         arg_array = xrealloc(arg_array, sizeof(char *) * (j+2));
         arg_array[j] = arg;
-        if (!strcmp(arg, "{}")) {
-          node->data.e.arg_path_index = j;
-        }
+        if (!strcmp(arg, "{}")) node->data.e.arg_path_index = j;
 
         arg = toys.optargs[++i];
       }
-      if (!arg) error_exit("Missing ';' in exec command\n");
+      if (!arg) error_exit("need ';' in exec");
       arg_array[j] = 0;
       node->data.e.exec_args = arg_array;
     }
     if (node->op == OP_UNKNOWN) {
-      if (arg[0] == '-') error_exit("Unknown option '%s'\n", arg);
-      else {
-        /* use toybuf as start directory */
-        strcpy(toybuf, arg);
-      }
+      if (arg[0] == '-') error_exit("bad option '%s'", arg);
+      else TT.dir = arg;
     }  else {
       /* push node */
       node->next = node_list;;
@@ -394,7 +339,7 @@ static void build_filter_list(void)
           op_node = op_stack;
         }
         /* rparen should be on op_stack */
-        if (!op_stack) error_exit("Missing right paren\n");
+        if (!op_stack) error_exit("need ')'");
         /* remove rparen from op_stack */
         op_stack = op_stack->next;
         free(op_node);
@@ -425,13 +370,9 @@ static void build_filter_list(void)
 void find_main(void)
 {
   /* parse filters, if present */
-  /* also, fill toybuf with the directory to start in, if present */
   build_filter_list();
 
   /* FIXTHIS - parse actions, if present */
 
-  if (!toybuf[0]) {
-    strcpy(toybuf, ".");
-  }
-  dirtree_read(toybuf, check_node_callback);
+  dirtree_read(TT.dir, check_node_callback);
 }
