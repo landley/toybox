@@ -58,7 +58,7 @@ void uuencode_main(void)
 
         if (j < bytes) x |= (*(in++) & 0x0ff) << (8*(2-j));
         out = (x>>((3-j)*6)) & 0x3f;
-        xputc(m ? j > bytes ? '=' : toybuf[out] : out + 0x20);
+        xputc(m ? (j > bytes ? '=' : toybuf[out]) : (out ? out + 0x20 : 0x60));
       } 
     }
     xputc('\n');
