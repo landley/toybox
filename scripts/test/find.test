@@ -1,0 +1,42 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+mkdir dir
+cd dir
+touch file
+mkfifo fifo
+ln -s fifo link
+cd ..
+
+#testing "name" "command" "result" "infile" "stdin"
+
+# Testing operators
+
+testing "find -type l -a -type d -o -type p" \
+	"find dir -type l -a -type d -o -type p" "dir/fifo\n" "" ""
+testing "find -type l -type d -o -type p" "find dir -type l -type d -o -type p" \
+	"dir/fifo\n" "" ""
+testing "find -type l -o -type d -a -type p" \
+	"find dir -type l -o -type d -a -type p" "dir/link\n" "" ""
+testing "find -type l -o -type d -type p" "find dir -type l -o -type d -type p" \
+	"dir/link\n" "" ""
+testing "find -type l ( -type d -o -type l )" \
+	"find dir -type l \( -type d -o -type l \)" "dir/link\n" "" ""
+testing "find extra parantheses" \
+	"find dir \( \( -type l \) \( -type d -o \( \( -type l \) \) \) \)" \
+	"dir/link\n" "" ""
+testing "find ( -type p -o -type d ) -type p" \
+	"find dir \( -type p -o -type d \) -type p" "dir/fifo\n" "" ""
+testing "find -type l -o -type d -type p -o -type f" \
+	"find dir -type l -o -type d -type p -o -type f | sort" \
+	"dir/file\ndir/link\n" "" ""
+
+# Testing short-circuit evaluations
+
+testing "find -type f -a -print" \
+	"find dir -type f -a -print" "dir/file\n" "" ""
+testing "find -print -o -print" \
+	"find dir -type f -a \( -print -o -print \)" "dir/file\n" "" ""
+
+rm -rf dir
