@@ -603,7 +603,7 @@ static void set_data(int sockfd, struct ifreq *ifre, char *kval, int request, ch
   unsigned long val = strtoul(kval, NULL, 0);
   char *ptr;
   ptr = ((char *) ifre) + offsetof(struct ifreq, ifr_data);
-  (*(__caddr_t *)ptr) = (__caddr_t)val;
+  (*(char * *)ptr) = (char *)val;
 
   if(ioctl(sockfd, request, ifre) < 0) {
     perror_exit((char *)req_name);
