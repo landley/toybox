@@ -52,11 +52,7 @@ void error_exit(char *msg, ...)
 {
   va_list va;
 
-  if (CFG_HELP && toys.exithelp) {
-    *toys.optargs=*toys.argv;
-    USE_HELP(help_main();)  // dear gcc: shut up.
-    fprintf(stderr,"\n");
-  }
+  if (CFG_TOYBOX_HELP && toys.exithelp) show_help();
 
   va_start(va, msg);
   verror_msg(msg, 0, va);

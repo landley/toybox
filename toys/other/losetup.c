@@ -180,7 +180,7 @@ void losetup_main(void)
     char *file = (toys.optflags & (FLAG_d|FLAG_c)) ? NULL : toys.optargs[1];
 
     if (!toys.optc || (file && toys.optc>1)) {
-      if (CFG_HELP) toys.exithelp++;
+      toys.exithelp++;
       perror_exit("needs 1 arg");
     }
     for (s = toys.optargs; *s; s++) loopback_setup(*s, file);

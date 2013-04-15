@@ -35,6 +35,12 @@ config TOYBOX_FLOAT
 	  Include floating point support infrastructure and commands that
 	  require it.
 
+config TOYBOX_HELP
+	bool "Help messages:
+	default y
+	help
+	  Include help text for each command.
+
 config TOYBOX_I18N
 	bool "Internationalization support"
 	default y

@@ -341,7 +341,7 @@ void get_optflags(void)
   // Option parsing is a two stage process: parse the option string into
   // a struct opts list, then use that list to process argv[];
 
-  if (CFG_HELP) toys.exithelp++;
+  toys.exithelp++;
   // Allocate memory for optargs
   saveflags = 0;
   while (toys.argv[saveflags++]);
@@ -437,7 +437,7 @@ notflag:
       gof.minargs, letters[!(gof.minargs-1)]);
   if (toys.optc>gof.maxargs)
     error_exit("Max %d argument%s", gof.maxargs, letters[!(gof.maxargs-1)]);
-  if (CFG_HELP) toys.exithelp = 0;
+  toys.exithelp = 0;
 
   if (CFG_TOYBOX_FREE) {
     llist_traverse(gof.opts, free);

@@ -9,6 +9,7 @@ USE_HELP(NEWTOY(help, "<1", TOYFLAG_BIN))
 config HELP
   bool "help"
   default y
+  depends on TOYBOX_HELP
   help
     usage: help [command]
 
@@ -18,29 +19,12 @@ config HELP
 
 
 #include "toys.h"
-#include "generated/help.h"
-
-#undef NEWTOY
-#undef OLDTOY
-#define NEWTOY(name,opt,flags) help_##name "\0"
-#define OLDTOY(name,oldname,opts,flags) "\xff" #oldname "\0"
-static char *help_data =
-#include "generated/newtoys.h"
-;
 
 void help_main(void)
 {
   struct toy_list *t = toy_find(*toys.optargs);
-  int i = t-toy_list;
-  char *s = help_data;
 
   if (!t) error_exit("Unknown command '%s'", *toys.optargs);
-  for (;;) {
-    while (i--) s += strlen(s) + 1;
-    if (*s != 255) break;
-    i = toy_find(++s)-toy_list;
-    s = help_data;
-  }
-
-  fprintf(toys.exithelp ? stderr : stdout, "%s", s);
+  toys.which = t;
+  show_help();
 }
