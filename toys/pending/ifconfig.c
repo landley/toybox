@@ -32,12 +32,9 @@ config IFCONFIG
 #include "toys.h"
 #include "toynet.h"
 
-#include <net/route.h>
-#include <sys/un.h>
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <net/ethernet.h>
-#include <alloca.h>
 
 typedef struct sockaddr_with_len {
   union {
@@ -48,7 +45,6 @@ typedef struct sockaddr_with_len {
   socklen_t socklen;
 } sockaddr_with_len;
 
-void setport(struct sockaddr *, unsigned);
 unsigned get_strtou(char *, char **, int);
 char *address_to_name(struct sockaddr *);
 sockaddr_with_len *get_sockaddr(char *, int, sa_family_t);
@@ -346,17 +342,6 @@ char *address_to_name(struct sockaddr *sock)
   }
   else
     return NULL;
-}
-
-/*
- * used to set the port number for ipv4 / ipv6 addresses.
- */
-void setport(struct sockaddr *sock, unsigned port_num)
-{
-  if(sock->sa_family == AF_INET)
-    ((struct sockaddr_in *)sock)->sin_port = port_num;
-  else if(sock->sa_family == AF_INET6)
-    ((struct sockaddr_in6 *)sock)->sin6_port = port_num;
 }
 
 /*
@@ -814,8 +799,7 @@ static void add_iface_to_list(IFACE_LIST *newnode)
   if((head_ref == NULL) || strcmp(newnode->dev_info.ifrname, head_ref->dev_info.ifrname) < 0) {
     newnode->next = head_ref;
     head_ref = newnode;
-  }
-  else {
+  } else {
     IFACE_LIST *current = head_ref;
     while(current->next != NULL && (strcmp(current->next->dev_info.ifrname, newnode->dev_info.ifrname)) < 0)
       current = current->next;
@@ -831,9 +815,7 @@ static int get_device_info(IFACE_LIST *l_ptr)
   char *ifrname = l_ptr->dev_info.ifrname;
   int sokfd;
 
-  sokfd = socket(AF_INET, SOCK_DGRAM, 0);
-  if(sokfd < 0)
-    return sokfd;
+  if ((sokfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) return sokfd;
   strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
   if(ioctl(sokfd, SIOCGIFFLAGS, &ifre) < 0) {
     close(sokfd);
@@ -891,39 +873,27 @@ static int get_device_info(IFACE_LIST *l_ptr)
 static void get_ifconfig_info(void)
 {
   IFACE_LIST *l_ptr;
-  char buff[BUFSIZ] = {0,};
   int version_num = 0;
 
   FILE *fp = fopen("/proc/net/dev", "r");
-  if(fp == NULL)
-	  return;
+  if (!fp) return;
 
-  fgets(buff, sizeof(buff), fp); //skip 1st header line.
-  fgets(buff, sizeof(buff), fp); //skip 2nd header line.
+  fgets(toybuf, sizeof(toybuf), fp); //skip 1st header line.
+  fgets(toybuf, sizeof(toybuf), fp); //skip 2nd header line.
 
-  if(strstr(buff, "compressed"))
-    version_num = 2;
-  else if(strstr(buff, "bytes"))
-    version_num = 1;
-  else
-    version_num = 0;
+  if(strstr(toybuf, "compressed")) version_num = 2;
+  else if(strstr(toybuf, "bytes")) version_num = 1;
+  else version_num = 0;
 
-  while(fgets(buff, BUFSIZ, fp)) {
+  while(fgets(toybuf, sizeof(toybuf), fp)) {
     l_ptr = xzalloc(sizeof(IFACE_LIST));
-    get_proc_info(buff, l_ptr, version_num);
+    get_proc_info(toybuf, l_ptr, version_num);
     add_iface_to_list(l_ptr);
     l_ptr->non_virtual_iface = 1;
     errno = 0;
-    if(get_device_info(l_ptr) < 0) {
-      char *errstr = strerror(errno);
-      fclose(fp);
-      fp = NULL;
-      clear_list();
-      perror_exit("%s: error getting interface info: %s", l_ptr->dev_info.ifrname, errstr);
-    }
-  }//end of while.
+    if(get_device_info(l_ptr) < 0) perror_exit("%s", l_ptr->dev_info.ifrname);
+  }
   fclose(fp);
-  fp = NULL;
 }
 
 static void get_hw_info(int hw_type, HW_INFO *hw_info)
@@ -1216,12 +1186,10 @@ static int readconf(void)
 			safe_strncpy(l_ptr->dev_info.ifrname, ifre->ifr_name, IFNAMSIZ);
 			add_iface_to_list(l_ptr);
 			errno = 0;
-			if(get_device_info(l_ptr) < 0) {
-			  clear_list();
-			  perror_exit("%s: error getting interface info: %s", l_ptr->dev_info.ifrname, strerror(errno));
-			}
+			if(get_device_info(l_ptr) < 0)
+			  perror_exit("%s", l_ptr->dev_info.ifrname);
 		}
-	}//End of for loop.
+	}
 
 LOOP_BREAK:
 	close(sokfd);
