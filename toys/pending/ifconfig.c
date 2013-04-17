@@ -381,8 +381,7 @@ void ifconfig_main(void)
 {
   char **argv = toys.optargs;
 
-  if(*argv && (strcmp(*argv, "--help") == 0))
-    show_help();
+  if(*argv && (strcmp(*argv, "--help") == 0)) show_help();
   
   //"ifconfig" / "ifconfig eth0"
   if(!argv[0] || !argv[1]) { //one or no argument
@@ -439,54 +438,54 @@ void ifconfig_main(void)
         set_flags(sockfd, &ifre, 0, IFF_POINTOPOINT);
       /*value setup */
       else if (!strcmp(*argv, "pointopoint")) {
-        show_help();
+        if (!*++argv) show_help();
         set_address(sockfd, *argv, &ifre, SIOCSIFDSTADDR, "SIOCSIFDSTADDR");
         set_flags(sockfd, &ifre, IFF_POINTOPOINT, 0);
       } else if (!strcmp(*argv, "netmask")) {
-        show_help();
+        if (!*++argv) show_help();
         set_address(sockfd, *argv, &ifre, SIOCSIFNETMASK, "SIOCSIFNETMASK");
       } else if (!strcmp(*argv, "-broadcast")) {
         set_flags(sockfd, &ifre, 0, IFF_BROADCAST);
       } else if (!strcmp(*argv, "broadcast")) {
-        show_help();
+        if (!*++argv) show_help();
         set_address(sockfd, *argv, &ifre, SIOCSIFBRDADDR, "SIOCSIFBRDADDR");
         set_flags(sockfd, &ifre, IFF_BROADCAST, 0);
       } else if (!strcmp(*argv, "dstaddr")) {
-        show_help();
+        if (!*++argv) show_help();
         set_address(sockfd, *argv, &ifre, SIOCSIFDSTADDR, "SIOCSIFDSTADDR");
       } else if (!strcmp(*argv, "hw")) {
-        show_help();
+        if (!*++argv) show_help();
         set_hw_address(sockfd, &argv, &ifre, SIOCSIFHWADDR, "SIOCSIFHWADDR");
       } else if (!strcmp(*argv, "mtu")) {
-        show_help();
+        if (!*++argv) show_help();
         set_mtu(sockfd, &ifre, *argv);
       } else if (!strcmp(*argv, "metric")) {
-        show_help();
+        if (!*++argv) show_help();
         set_metric(sockfd, &ifre, *argv);
       } else if (!strcmp(*argv, "txqueuelen")) {
-        show_help();
+        if (!*++argv) show_help();
         set_qlen(sockfd, &ifre, *argv);
       } else if (!strcmp(*argv, "keepalive")) {
-        show_help();
+        if (!*++argv) show_help();
         set_data(sockfd, &ifre, *argv, SIOCSKEEPALIVE, "SIOCSKEEPALIVE");
       }//end of keepalive
       else if (!strcmp(*argv, "outfill")) {
-        show_help();
+        if (!*++argv) show_help();
         set_data(sockfd, &ifre, *argv, SIOCSOUTFILL, "SIOCSOUTFILL");
       } else if (!strcmp(*argv, "add")) {
-        show_help();
+        if (!*++argv) show_help();
         set_ipv6_addr(sockfd, &ifre, *argv, SIOCSIFADDR, "SIOCSIFADDR");
       } else if (!strcmp(*argv, "del")) {
-        show_help();
+        if (!*++argv) show_help();
         set_ipv6_addr(sockfd, &ifre, *argv, SIOCDIFADDR, "SIOCDIFADDR");
       } else if (!strcmp(*argv, "mem_start")) {
-        show_help();
+        if (!*++argv) show_help();
         set_memstart(sockfd, &ifre, *argv, SIOCSIFMAP, "SIOCSIFMAP");
       } else if (!strcmp(*argv, "io_addr")) {
-        show_help();
+        if (!*++argv) show_help();
         set_ioaddr(sockfd, &ifre, *argv, SIOCSIFMAP, "SIOCSIFMAP");
       } else if (!strcmp(*argv, "irq")) {
-        show_help();
+        if (!*++argv) show_help();
         set_irq(sockfd, &ifre, *argv, SIOCSIFMAP, "SIOCSIFMAP");
       } else {
         if(isdigit(**argv) || !strcmp(*argv, "default")) {
@@ -501,14 +500,13 @@ void ifconfig_main(void)
             iface_name++;
           }
           //if the interface name is not an alias; set the flag and continue.
-          if(!is_colon)
-            set_flags(sockfd, &ifre, IFF_UP | IFF_RUNNING, 0);
+          if(!is_colon) set_flags(sockfd, &ifre, IFF_UP | IFF_RUNNING, 0);
         } else if (!strcmp(*argv, "inet") || !strcmp(*argv, "inet6"))
           continue;
         else {
           errno = EINVAL;
-	  toys.exithelp++;
-	  error_exit("bad argument");
+          toys.exithelp++;
+          error_exit("bad argument");
         }
       }
 
@@ -1031,7 +1029,7 @@ static void print_ip6_addr(IFACE_LIST *l_ptr)
 
   FILE *fp = fopen("/proc/net/if_inet6", "r");
   if(fp == NULL)
-	  return;
+    return;
 
   while(fgets(buf, BUFSIZ, fp)) {
     int nitems = 0;
@@ -1142,60 +1140,60 @@ static void display_ifconfig(IFACE_LIST *l_ptr)
 
 static int readconf(void)
 {
-	int num_of_req = 30;
-	struct ifconf ifcon;
-	struct ifreq *ifre;
-	int num, status = -1, sokfd;
+  int num_of_req = 30;
+  struct ifconf ifcon;
+  struct ifreq *ifre;
+  int num, status = -1, sokfd;
 
-	ifcon.ifc_buf = NULL;
-	sokfd = socket(AF_INET, SOCK_DGRAM, 0);
-	if(sokfd < 0) {
-		perror_msg("error: no inet socket available");
-		return -1;
-	}
-	for (;;) {
-		ifcon.ifc_len = sizeof(struct ifreq) * num_of_req; //Size of buffer.
-		ifcon.ifc_buf = xrealloc(ifcon.ifc_buf, ifcon.ifc_len);
+  ifcon.ifc_buf = NULL;
+  sokfd = socket(AF_INET, SOCK_DGRAM, 0);
+  if(sokfd < 0) {
+    perror_msg("error: no inet socket available");
+    return -1;
+  }
+  for (;;) {
+    ifcon.ifc_len = sizeof(struct ifreq) * num_of_req; //Size of buffer.
+    ifcon.ifc_buf = xrealloc(ifcon.ifc_buf, ifcon.ifc_len);
 
-		if((status = ioctl(sokfd, SIOCGIFCONF, &ifcon)) == -1) {
-			perror_msg("ioctl %#x failed", SIOCGIFCONF);
-			goto LOOP_BREAK;
-		}
-		//in case of overflow, increase number of requests and retry.
-		if (ifcon.ifc_len == (int)(sizeof(struct ifreq) * num_of_req)) {
-			num_of_req += 10;
-			continue;
-		}
-		break;
-	}//End of while loop
+    if((status = ioctl(sokfd, SIOCGIFCONF, &ifcon)) == -1) {
+      perror_msg("ioctl %#x failed", SIOCGIFCONF);
+      goto LOOP_BREAK;
+    }
+    //in case of overflow, increase number of requests and retry.
+    if (ifcon.ifc_len == (int)(sizeof(struct ifreq) * num_of_req)) {
+      num_of_req += 10;
+      continue;
+    }
+    break;
+  }//End of while loop
 
-	ifre = ifcon.ifc_req;
-	for(num = 0; num < ifcon.ifc_len && ifre; num += sizeof(struct ifreq), ifre++) {
-		//Escape duplicate values from the list.
-		IFACE_LIST *list_ptr;
-		int match_found = 0;
-		for(list_ptr = iface_list_head; list_ptr != NULL; list_ptr = list_ptr->next) {
-			//if interface already in the list then donot add it in the list.
-			if(!strcmp(ifre->ifr_name, list_ptr->dev_info.ifrname)) {
-				match_found = 1;
-				break;
-			}
-		}
-		if(!match_found) {
-			IFACE_LIST *l_ptr = xzalloc(sizeof(IFACE_LIST));
-			safe_strncpy(l_ptr->dev_info.ifrname, ifre->ifr_name, IFNAMSIZ);
-			add_iface_to_list(l_ptr);
-			errno = 0;
-			if(get_device_info(l_ptr) < 0)
-			  perror_exit("%s", l_ptr->dev_info.ifrname);
-		}
-	}
+  ifre = ifcon.ifc_req;
+  for(num = 0; num < ifcon.ifc_len && ifre; num += sizeof(struct ifreq), ifre++) {
+    //Escape duplicate values from the list.
+    IFACE_LIST *list_ptr;
+    int match_found = 0;
+    for(list_ptr = iface_list_head; list_ptr != NULL; list_ptr = list_ptr->next) {
+      //if interface already in the list then donot add it in the list.
+      if(!strcmp(ifre->ifr_name, list_ptr->dev_info.ifrname)) {
+        match_found = 1;
+        break;
+      }
+    }
+    if(!match_found) {
+      IFACE_LIST *l_ptr = xzalloc(sizeof(IFACE_LIST));
+      safe_strncpy(l_ptr->dev_info.ifrname, ifre->ifr_name, IFNAMSIZ);
+      add_iface_to_list(l_ptr);
+      errno = 0;
+      if(get_device_info(l_ptr) < 0)
+        perror_exit("%s", l_ptr->dev_info.ifrname);
+    }
+  }
 
 LOOP_BREAK:
-	close(sokfd);
-	free(ifcon.ifc_buf);
+  close(sokfd);
+  free(ifcon.ifc_buf);
 
-	return status;
+  return status;
 }
 
 static int show_iface(char *iface_name)
