@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/chmod.html
 
-USE_CHMOD(NEWTOY(chmod, "<2?vR", TOYFLAG_BIN))
+USE_CHMOD(NEWTOY(chmod, "<2?vRf[-vf]", TOYFLAG_BIN))
 
 config CHMOD
   bool "chmod"
