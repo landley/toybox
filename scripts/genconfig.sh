@@ -12,7 +12,7 @@ probeconfig()
   # Probe for container support on target
 
   echo -e "# container support\nconfig TOYBOX_CONTAINER\n\tbool" || return 1
-  ${CROSS_COMPILE}${CC} -xc -o /dev/null - 2>/dev/null << EOF
+  ${CROSS_COMPILE}${CC} $CFLAGS -xc -o /dev/null - 2>/dev/null << EOF
     #include <linux/sched.h>
     int x=CLONE_NEWNS|CLONE_NEWUTS|CLONE_NEWIPC|CLONE_NEWNET;
 
@@ -51,7 +51,7 @@ genconfig()
 
 headerprobes()
 {
-  ${CROSS_COMPILE}${CC} -xc -o /dev/null - 2>/dev/null << EOF
+  ${CROSS_COMPILE}${CC} $CFLAGS -xc -o /dev/null - 2>/dev/null << EOF
     #include <fcntl.h>
     #ifndef O_NOFOLLOW
     #error posix 2008 was a while ago now
@@ -60,7 +60,7 @@ EOF
   if [ $? -ne 0 ]
   then
     rm -f a.out
-    ${CROSS_COMPILE}${CC} -xc - 2>/dev/null << EOF
+    ${CROSS_COMPILE}${CC} $CFLAGS -xc - 2>/dev/null << EOF
       #include <stdio.h>
       #include <sys/types.h>
       #include <asm/fcntl.h>
