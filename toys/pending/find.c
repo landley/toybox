@@ -58,12 +58,14 @@ static struct filter_node *filter_root;
 
 /* filter operation types */
 #define OP_UNKNOWN	0
-#define OP_NOT		1	
-#define OP_OR		2	
-#define OP_AND		3	
+#define OP_OR		2
+#define OP_AND		3
+#define OP_NOT		4
 
-#define LPAREN		4 
+#define LPAREN		1 
 #define RPAREN		5 
+
+#define MAX_OP		5
 
 #define CHECK_NAME	7
 #define CHECK_MTIME	8
@@ -111,30 +113,43 @@ static int evaluate(struct filter_node *filter, struct dirtree *node,
   int plen = 0;
   struct stat st_buf;
   time_t node_time;
-  char terminator;
+  int op;
+  static int skip = 0;
 
   /* if no filters, success */
   if (!filter) {
     *fnext = NULL;
     return 1;
   }
+  op = filter->op;
 
-  if (filter->op==OP_NOT) return !evaluate(filter->next, node, fnext);
+  if (op==OP_NOT) return !evaluate(filter->next, node, fnext);
 
-  if (filter->op==OP_OR)
-    return evaluate(filter->next, node, fnext) || evaluate(*fnext, node, fnext);
-
-  if (filter->op==OP_AND)
-    return evaluate(filter->next, node, fnext) && evaluate(*fnext, node, fnext);
+  if (op==OP_OR || op==OP_AND) {
+    result = evaluate(filter->next, node, fnext);
+    if(!skip) {
+      if (op==OP_OR) {
+        skip = result;
+        result = evaluate(*fnext, node, fnext) || result;
+      } else {
+        skip = !result;
+        result = evaluate(*fnext, node, fnext) && result;
+      }
+      skip = 0;
+    }
+    else result = evaluate(*fnext, node, fnext);
+    return result;
+  }
 
   // we're down to single operations, mark our position
   *fnext = filter->next;
+  if(skip) return 0;
 
   // TODO: Do a regex comparison
-  if (filter->op==CHECK_NAME)
+  if (op==CHECK_NAME)
     return !strcmp(filter->data.name_regex, node->name);
 
-  if (filter->op==CHECK_MTIME) {
+  if (op==CHECK_MTIME) {
     // do mtime check
     path = dirtree_path(node, &plen);
     result = stat(path,  &st_buf);
@@ -163,7 +178,7 @@ static int evaluate(struct filter_node *filter, struct dirtree *node,
     return result;
 
   }
-  if (filter->op==CHECK_TYPE) {
+  if (op==CHECK_TYPE) {
     path = dirtree_path(node, &plen);
     result = lstat(path,  &st_buf);
     free(path);
@@ -172,8 +187,8 @@ static int evaluate(struct filter_node *filter, struct dirtree *node,
   }
 
 
-  if (filter->op==ACTION_PRINT || filter->op==ACTION_PRINT0) {
-    terminator = (filter->op==ACTION_PRINT)*'\n';
+  if (op==ACTION_PRINT || op==ACTION_PRINT0) {
+    char terminator = (op==ACTION_PRINT)*'\n';
 
     path = dirtree_path(node, &plen);
     printf("%s%c", path, terminator);
@@ -181,7 +196,7 @@ static int evaluate(struct filter_node *filter, struct dirtree *node,
     return 1;
   }
 
-  if (filter->op==ACTION_EXEC) return !do_exec(filter, node);
+  if (op==ACTION_EXEC) return !do_exec(filter, node);
 
   error_msg("Ran out of operations in filter list!");
   return 1;
@@ -218,6 +233,7 @@ static void build_filter_list(void)
   struct filter_node *node_list, *op_stack, *node, *op_node, *next;
   char *arg, **arg_array;
   int i, j;
+  int prevop = 0;
 
   /* part optargs here and build a filter list in prefix format */
 
@@ -303,6 +319,19 @@ static void build_filter_list(void)
       if (arg[0] == '-') error_exit("bad option '%s'", arg);
       else TT.dir = arg;
     }  else {
+      // add OP_AND where necessary
+      if (node_list) {
+        int o1 = node_list->op, o2 = node->op;
+        if ((o1>MAX_OP && o2>MAX_OP) ||
+           (o1==RPAREN && o2>=OP_NOT && o2!=RPAREN) ||
+           (o1>=OP_NOT && o1!=LPAREN && o2==LPAREN)) {
+          struct filter_node *n = (struct filter_node *)
+                                  xmalloc(sizeof(struct filter_node));
+          n->op = OP_AND;
+          n->next = node_list;
+          node_list = n;
+        }
+      }
       /* push node */
       node->next = node_list;;
       node_list = node;
@@ -315,21 +344,17 @@ static void build_filter_list(void)
   op_stack = NULL;
   node = node_list;
   while( node ) {
+    int op = node->op;
     next = node->next;
-    switch( node->op ) {
-      case OP_AND:
-      case OP_OR:
-      case OP_NOT:
-      case RPAREN:
-        /* push to opstack */
-        node->next = op_stack;
-        op_stack = node;
-        break;
-      case LPAREN:
-        free(node);
-        /* pop opstack to output (up to rparen) */
+    if (op==LPAREN || op==RPAREN) {
+      free(node);
+      node = 0;
+    }
+    if (op<=MAX_OP) {
+      if (prevop > op) {
+        /* pop opstack to output */
         op_node = op_stack;
-        while (op_node && op_node->op != RPAREN) {
+        while (op_node) {
           /* remove from op_stack */
           op_stack = op_node->next;
           /* push to output */
@@ -338,17 +363,18 @@ static void build_filter_list(void)
           /* get next node */
           op_node = op_stack;
         }
-        /* rparen should be on op_stack */
-        if (!op_stack) error_exit("need ')'");
-        /* remove rparen from op_stack */
-        op_stack = op_stack->next;
-        free(op_node);
-        break;
-      default:
+      }
+      if (node) {
+        /* push to opstack */
+        node->next = op_stack;
+        op_stack = node;
+      }
+      prevop = op*(op!=RPAREN);
+    }
+    else {
         /* push to output */
         node->next = filter_root;
         filter_root = node;
-        break;
     }
     node = next;
   }
@@ -356,10 +382,6 @@ static void build_filter_list(void)
   /* pop opstack to output till empty */
   op_node = op_stack;
   while (op_node) {
-    /*if (op_node->op == RPAREN || op_node->op == LPAREN)  {
-      error_exit("Error: extra paren found\n");
-    }
-    */
     op_stack = op_node->next;
     op_node->next = filter_root;
     filter_root = op_node;
