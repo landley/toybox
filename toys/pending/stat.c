@@ -2,7 +2,7 @@
  * anand.sinha85@gmail.com
  * Copyright 2012 <warior.linux@gmail.com>
 
-USE_STAT(NEWTOY(stat, "LZfc", TOYFLAG_BIN)) 
+USE_STAT(NEWTOY(stat, "LZc:f", TOYFLAG_BIN)) 
 
 config STAT
   bool stat
@@ -48,48 +48,28 @@ config STAT
 #define FOR_stat
 #include "toys.h"
 
-#define SIZE_DATE_TIME_STAT 36
-#define access_string(x, s, i)  if((x&7) & 1)           \
-                                s[9 - i * 3] = 'x';       \
-                           else                             \
-                               s[9 - i * 3] = '-';             \
-                           if(((x&7) >> 1) & 1)                 \
-                               s[9 - (i * 3 + 1)] = 'w';            \
-                           else                     \
-                               s[9 - (i * 3 + 1)] = '-';            \
-                           if(((x&7) >> 2) & 1)     \
-                               s[9 - (i * 3 + 2)] = 'r';            \
-                           else                     \
-                               s[9 - (i * 3 + 2)] = '-';
-
-static char *check_type_file(mode_t, size_t);
-static char *get_access_str(unsigned long, mode_t);
-static char *date_stat_format(time_t );
-inline void print_stat_format(char *, int);
-
 GLOBALS(
+	char *fmt;
 	char *access_str;
 	char *file_type;
 	struct passwd *user_name;
 	struct group *group_name;
-	struct tm *time_toy;
 	struct stat *toystat;
 	struct statfs *toystatfs;
-	int toy_obj_file_arg;
 )
 
 
 static void do_stat(const char * file_name)
 {
   TT.toystat = xmalloc(sizeof(struct stat));
-  if (stat(file_name, TT.toystat) < 0) perror_msg("stat: '%s'", file_name);
+  if (stat(file_name, TT.toystat) < 0) perror_exit("stat: '%s'", file_name);
 }
 
 static void do_statfs(const char * file_name)
 {
   TT.toystatfs = xmalloc(sizeof(struct statfs));
   if (statfs(file_name, TT.toystatfs) < 0)
-    perror_msg("statfs: '%s'", file_name);
+    perror_exit("statfs: '%s'", file_name);
 }
 
 static char * check_type_file(mode_t mode, size_t size)
@@ -106,15 +86,20 @@ static char * check_type_file(mode_t mode, size_t size)
   if (S_ISSOCK(mode)) return "socket";
 }
 
-static char * get_access_str(unsigned long pernission, mode_t mode)
+static char * get_access_str(unsigned long permission, mode_t mode)
 {
-  static char access_string[10];
-  int i;
+  static char access_string[11];
+  char *s = access_string;
+  char *rwx[] = {"---", "--x", "-w-", "-wx",
+                 "r--", "r-x", "rw-", "rwx"};
 
-  if (S_ISDIR(mode)) access_string[0] = 'd';
-  else access_string[0] = '-';
-  for (i = 0; i < 3; i++)
-    access_string(pernission >> (i * 3) & 7, access_string, i);
+  if (S_ISDIR(mode)) *s = 'd';
+  else *s = '-';
+
+  for (s += 7; s > access_string; s-=3) {
+    memcpy(s, rwx[permission & 7], 3);
+    permission >>= 3;
+  }
 
   access_string[10] = '\0';
   return access_string;
@@ -122,166 +107,152 @@ static char * get_access_str(unsigned long pernission, mode_t mode)
 
 static char * date_stat_format(time_t time)
 {
-  static char buf[SIZE_DATE_TIME_STAT];
+  static char buf[36];
 
   strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S.000000000", localtime(&time));
   return buf;
 }
 
-inline void print_stat_format(char *format, int flag)
+static void print_stat_format(char *format, int flag)
 {
-  format++;
-  switch (*format) {
-    case 'a':
-      if (flag) xprintf("%lu\n", TT.toystatfs->f_bavail);
-      else xprintf("%04lo\n",TT.toystat->st_mode & (S_ISUID|S_ISGID|S_ISVTX|S_IRWXU|S_IRWXG|S_IRWXO));
-      break;
-    case 'A':
-      xprintf("%s\n",TT.access_str);
-      break;
-    case 'b':
-      if (flag) xprintf("%lu\n", TT.toystatfs->f_blocks);
-      else xprintf("%llu\n", TT.toystat->st_blocks);
-      break;
-    case 'B':
-      xprintf("%lu\n", TT.toystat->st_blksize);
-      break;
-    case 'c':
-      if (flag) xprintf("%lu\n", TT.toystatfs->f_files);
-      break;
-    case 'C':
-      xprintf("Currently feature is not supported\n");
-      break;
-    case 'd':
-      if (flag) xprintf("%lu\n", TT.toystatfs->f_ffree);
-      else xprintf("%ldd\n", TT.toystat->st_dev);
-      break;
-    case 'D':
-      xprintf("%llxh\n", TT.toystat->st_dev);
-      break;
-    case 'f':
-      if (flag) xprintf("%lu\n", TT.toystatfs->f_bfree);
-      else xprintf("%lx\n", TT.toystat->st_mode);
-      break;
-    case 'F':
-      xprintf("%s\n", TT.file_type);
-      break;
-    case 'g':
-      xprintf("%lu\n", TT.toystat->st_uid);
-      break;
-    case 'G':
-      xprintf("%8s\n", TT.user_name->pw_name);
-      break;
-    case 'h':
-      xprintf("%lu\n", TT.toystat->st_nlink);
-      break;
-    case 'i':
-      if (flag)
-        xprintf("%d%d\n", TT.toystatfs->f_fsid.__val[0], TT.toystatfs->f_fsid.__val[1]);
-      else xprintf("%llu\n", TT.toystat->st_ino);
-      break;
-    case 'l':
-      if (flag) xprintf("need to implement\n");
-      break;
-    case 'n':
-      xprintf("%s\n", toys.optargs[TT.toy_obj_file_arg]);
-      break;
-    case 'N':
-      xprintf("`%s\n'", toys.optargs[TT.toy_obj_file_arg]);
-      break;
-    case 'o':
-      xprintf("%lu\n", TT.toystat->st_blksize);
-      break;
-    case 's':
-      if (flag) xprintf("%d\n", TT.toystatfs->f_frsize);
-      else xprintf("%llu\n", TT.toystat->st_size);
-      break;
-    case 'S':
-      if (flag) xprintf("%d\n", TT.toystatfs->f_bsize);
-      break;
-    case 't':
-      if (flag) xprintf("%lx\n", TT.toystatfs->f_type);
-      break;
-    case 'T':
-      if (flag) xprintf("Needs to be implemented\n");
-      break;
-    case 'u':
-      xprintf("%lu\n", TT.toystat->st_uid);
-      break;
-    case 'U':
-      xprintf("%8s\n", TT.user_name->pw_name);
-      break;
-    case 'x':
-      xprintf("%s\n", date_stat_format(TT.toystat->st_atime));
-      break;
-    case 'X':
-      xprintf("%llu\n", TT.toystat->st_atime);
-      break;
-    case 'y':
-      xprintf("%s\n", date_stat_format(TT.toystat->st_mtime));
-      break;
-    case 'Y':
-      xprintf("%llu\n", TT.toystat->st_mtime);
-      break;
-    case 'z':
-      xprintf("%s\n", date_stat_format(TT.toystat->st_ctime));
-      break;
-    case 'Z':
-      xprintf("%llu\n", TT.toystat->st_ctime);
-    default:
-      xprintf("%c\n", *format);
-      break;
+  for (; *format; format++) {
+    if (*format != '%') {
+      xprintf("%c", *format);
+      continue;
+    }
+    format++;
+    switch (*format) {
+      case 'a':
+        if (flag) xprintf("%lu", TT.toystatfs->f_bavail);
+        else xprintf("%04lo",TT.toystat->st_mode & ~S_IFMT);
+        break;
+      case 'A':
+        xprintf("%s",TT.access_str);
+        break;
+      case 'b':
+        if (flag) xprintf("%lu", TT.toystatfs->f_blocks);
+        else xprintf("%llu", TT.toystat->st_blocks);
+        break;
+      case 'B':
+        xprintf("%lu", TT.toystat->st_blksize);
+        break;
+      case 'c':
+        if (flag) xprintf("%lu", TT.toystatfs->f_files);
+        break;
+      case 'C':
+        xprintf("Currently feature is not supported");
+        break;
+      case 'd':
+        if (flag) xprintf("%lu", TT.toystatfs->f_ffree);
+        else xprintf("%ldd", TT.toystat->st_dev);
+        break;
+      case 'D':
+        xprintf("%llxh", TT.toystat->st_dev);
+        break;
+      case 'f':
+        if (flag) xprintf("%lu", TT.toystatfs->f_bfree);
+        else xprintf("%lx", TT.toystat->st_mode);
+        break;
+      case 'F':
+        xprintf("%s", TT.file_type);
+        break;
+      case 'g':
+        xprintf("%lu", TT.toystat->st_uid);
+        break;
+      case 'G':
+        xprintf("%8s", TT.user_name->pw_name);
+        break;
+      case 'h':
+        xprintf("%lu", TT.toystat->st_nlink);
+        break;
+      case 'i':
+        if (flag)
+          xprintf("%d%d", TT.toystatfs->f_fsid.__val[0], TT.toystatfs->f_fsid.__val[1]);
+        else xprintf("%llu", TT.toystat->st_ino);
+        break;
+      case 'l':
+        if (flag) xprintf("%ld", TT.toystatfs->f_namelen);
+        break;
+      case 'n':
+        xprintf("%s", *toys.optargs);
+        break;
+      case 'N':
+        xprintf("`%s'", *toys.optargs);
+        break;
+      case 'o':
+        xprintf("%lu", TT.toystat->st_blksize);
+        break;
+      case 's':
+        if (flag) xprintf("%d", TT.toystatfs->f_frsize);
+        else xprintf("%llu", TT.toystat->st_size);
+        break;
+      case 'S':
+        if (flag) xprintf("%d", TT.toystatfs->f_bsize);
+        break;
+      case 't':
+        if (flag) xprintf("%lx", TT.toystatfs->f_type);
+        break;
+      case 'T':
+        if (flag) xprintf("Needs to be implemented");
+        break;
+      case 'u':
+        xprintf("%lu", TT.toystat->st_uid);
+        break;
+      case 'U':
+        xprintf("%8s", TT.user_name->pw_name);
+        break;
+      case 'x':
+        xprintf("%s", date_stat_format(TT.toystat->st_atime));
+        break;
+      case 'X':
+        xprintf("%llu", TT.toystat->st_atime);
+        break;
+      case 'y':
+        xprintf("%s", date_stat_format(TT.toystat->st_mtime));
+        break;
+      case 'Y':
+        xprintf("%llu", TT.toystat->st_mtime);
+        break;
+      case 'z':
+        xprintf("%s", date_stat_format(TT.toystat->st_ctime));
+        break;
+      case 'Z':
+        xprintf("%llu", TT.toystat->st_ctime);
+      default:
+        xprintf("%c", *format);
+        break;
+    }
   }
-  exit(0);
+  xprintf("\n");
 }
 
 void stat_main(void)
 {
-  int stat_flag_Z = 0, stat_flag_f = 0, stat_flag_c = 0, stat_format = 0;
+  int flag_f = toys.optflags & FLAG_f, flag_c = toys.optflags & FLAG_c;
+  char *fmts[] = {
+                  "  File: %N\n"
+                  "  Size: %s\t Blocks: %S\t IO Blocks: %B\t%F\n"
+                  "Device: %D\t Inode: %i\t Links: %h\n"
+                  "Access: (%a/%A)\tUid: (%u/%U)\tGid: (%g/%G)\n"
+                  "Access: %x\nModify: %y\nChange: %z",
 
-  if (toys.optargs) {
-    if (toys.optflags & 1) {
-      stat_flag_c = 1;
-      TT.toy_obj_file_arg = 1;
-      stat_format = 1;
-    }
-    if (toys.optflags & (1 << 1)) {
-      stat_flag_f = 1;
-      do_statfs(toys.optargs[TT.toy_obj_file_arg]);
-    } else do_stat(toys.optargs[TT.toy_obj_file_arg]);
-    if (toys.optflags & (1 << 2)) {
-      stat_flag_Z = 1;
-      xprintf("SELinux feature has not been implemented so far..\n");
-    }
-  }
-// function to check the type/mode of file
-  if (!stat_flag_f) {
+                  "  File: \"%n\"\n"
+                  "    ID: %i Namelen: %l    Type: %t\n"
+                  "Block Size: %s    Fundamental block size: %S\n"
+                  "Blocks: Total: %b\tFree: %f\tAvailable: %a\n"
+                  "Inodes: Total: %c\tFree: %d",
+           TT.fmt};
+
+  if (toys.optflags & FLAG_Z) error_exit("SELinux feature has not been implemented so far..");
+  if (!flag_f) {
+    do_stat(*toys.optargs);
+    // function to check the type/mode of file
     TT.file_type = check_type_file(TT.toystat->st_mode, TT.toystat->st_size);
-// check user and group name
+    // check user and group name
     TT.user_name = getpwuid(TT.toystat->st_uid);
     TT.group_name = getgrgid(TT.toystat->st_gid);
-// function to get access in human readable format
-    TT.access_str = get_access_str((TT.toystat->st_mode & (S_ISUID|S_ISGID|S_ISVTX|S_IRWXU|S_IRWXG|S_IRWXO)), TT.toystat->st_mode);
-    TT.time_toy = gmtime(&(TT.toystat->st_atime));
-  }
-  if (!(stat_flag_f |stat_flag_Z)) {
-    if (stat_format) print_stat_format(toys.optargs[0], stat_flag_f);
-    xprintf(" File: `%s'\n", toys.optargs[TT.toy_obj_file_arg]);
-    xprintf(" Size: %llu\t Blocks: %llu\t IO Blocks: %lu\t", TT.toystat->st_size, TT.toystat->st_blocks, TT.toystat->st_blksize);
-    xprintf("%s\n", TT.file_type);
-    xprintf("Device: %llxh\t Inode: %llu\t Links: %lu\n", TT.toystat->st_dev, TT.toystat->st_ino, TT.toystat->st_nlink);
-    xprintf("Access: (%04lo/%s)\tUid: (%lu/%8s)\tGid: (%lu/%8s)\n", (TT.toystat->st_mode & (S_ISUID|S_ISGID|S_ISVTX|S_IRWXU|S_IRWXG|S_IRWXO)), TT.access_str, TT.toystat->st_uid, TT.user_name->pw_name, TT.toystat->st_gid, TT.group_name->gr_name);
-    xprintf("Access: %s\nModify: %s\nChange: %s\n", date_stat_format(TT.toystat->st_atime), date_stat_format(TT.toystat->st_mtime), date_stat_format(TT.toystat->st_ctime));
-  } else if (stat_flag_f) {
-    // implementation of statfs -f, file system
-    if (stat_format) print_stat_format(toys.optargs[0], stat_flag_f);
-    xprintf(" File: \"%s\"\n", toys.optargs[TT.toy_obj_file_arg]);
-    xprintf("   ID: %d%d Namelen: %ld    Type: %lx\n", TT.toystatfs->f_fsid.__val[0], TT.toystatfs->f_fsid.__val[1], TT.toystatfs->f_namelen, TT.toystatfs->f_type);
-    xprintf("Block Size: %d    Fundamental block size: %d\n", TT.toystatfs->f_bsize, TT.toystatfs->f_frsize);
-    xprintf("Blocks: Total: %lu\t", TT.toystatfs->f_blocks);
-    xprintf("Free: %lu\t", TT.toystatfs->f_bfree);
-    xprintf("Available: %lu\n", TT.toystatfs->f_bavail);
-    xprintf("Inodes: Total: %lu\t", TT.toystatfs->f_files);
-    xprintf("\tFree: %d\n", TT.toystatfs->f_ffree);
-  }
+    // function to get access in human readable format
+    TT.access_str = get_access_str(TT.toystat->st_mode & ~S_IFMT, TT.toystat->st_mode);
+  } else do_statfs(*toys.optargs);
+  print_stat_format(fmts[!flag_c*flag_f+flag_c], flag_f);
 }
