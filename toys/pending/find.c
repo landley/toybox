@@ -29,14 +29,6 @@ config FIND
 #define FOR_find
 #include "toys.h"
 
-GLOBALS(
-  char *dir;
-)
-
-#define SECONDS_PER_DAY (24*60*60)
-
-int have_action;
-
 struct filter_node {
   struct filter_node *next;
   int op;
@@ -54,7 +46,13 @@ struct filter_node {
   } data;
 };
 
-static struct filter_node *filter_root;
+GLOBALS(
+  char *dir;
+  int have_action;
+  struct filter_node *filter_root;
+)
+
+#define SECONDS_PER_DAY (24*60*60)
 
 /* filter operation types */
 #define OP_UNKNOWN	0
@@ -74,6 +72,8 @@ static struct filter_node *filter_root;
 #define ACTION_PRINT	20
 #define ACTION_PRINT0	21
 #define ACTION_EXEC	22
+
+#define IS_ACTION(x)    (x >= 20)
 
 #define TEST_LT		0
 #define TEST_EQ		1
@@ -204,8 +204,6 @@ static int evaluate(struct filter_node *filter, struct dirtree *node,
 
 static int check_node_callback(struct dirtree *node)
 {
-  char *path;
-  int plen = 0;
   int result;
   struct filter_node *junk;
 
@@ -217,9 +215,11 @@ static int check_node_callback(struct dirtree *node)
     (node->name[1]=='.' && !node->name[2])))
     return 0;
 
-  result = evaluate(filter_root, node, &junk);
-  if (result & !have_action) {
+  result = evaluate(TT.filter_root, node, &junk);
+  if (result & !TT.have_action) {
     /* default action is just print the path */
+    char *path;
+    int plen = 0;
     path = dirtree_path(node, &plen);
     printf("%s\n", path);
     free(path);
@@ -231,93 +231,92 @@ static int check_node_callback(struct dirtree *node)
 static void build_filter_list(void)
 {
   struct filter_node *node_list, *op_stack, *node, *op_node, *next;
-  char *arg, **arg_array;
-  int i, j;
+  char **arg;
+  int j;
   int prevop = 0;
 
   /* part optargs here and build a filter list in prefix format */
 
   TT.dir = ".";
   node_list = NULL;
-  have_action = 0;
-  for(i=0; toys.optargs[i]; i++) {
-    node = (struct filter_node *)
-      xmalloc(sizeof(struct filter_node));
+  TT.have_action = 0;
+  for (arg = toys.optargs; *arg; arg++) {
+    struct {
+      char *arg;
+      int op;
+      int extrarg;
+    } arg_map[] = {{"-o", OP_OR, 0},
+                   {"-a", OP_AND, 0},
+                   {"!", OP_NOT, 0},
+                   {"(", LPAREN, 0},
+                   {")", RPAREN, 0},
+                   {"-name", CHECK_NAME, 1},
+                   {"-mtime", CHECK_MTIME, 1},
+                   {"-type", CHECK_TYPE, 1},
+                   {"-print", ACTION_PRINT, 0},
+                   {"-print0", ACTION_PRINT0, 0},
+                   {"-exec", ACTION_EXEC, 1}
+    };
+    mode_t types[]={S_IFREG,S_IFDIR,S_IFCHR,S_IFBLK,S_IFLNK,S_IFSOCK,S_IFIFO};
+    char **arg_array;
+    node = (struct filter_node *) xmalloc(sizeof(struct filter_node));
     node->op = OP_UNKNOWN;
-    arg = toys.optargs[i];
-    if (!strcmp(arg, "-o")) node->op = OP_OR;
-    if (!strcmp(arg, "-a")) node->op = OP_AND;
-    if (!strcmp(arg, "!")) node->op = OP_NOT;
-    if (!strcmp(arg, "(")) node->op = LPAREN;
-    if (!strcmp(arg, ")")) node->op = RPAREN;
-
-    if (!strcmp(arg, "-name")) {
-      node->op = CHECK_NAME;
-      arg = toys.optargs[++i];
-      if (!arg) error_exit("Missing argument to -name");
-      node->data.name_regex = arg;
-    }
-
-    if (!strcmp(arg, "-mtime")) {
-      node->op = CHECK_MTIME;
-      arg = toys.optargs[++i];
-      if (!arg) error_exit("Missing argument to -mtime");
-      switch(arg[0]) {
-        case '+':
-          node->data.t.time_op=TEST_GT;
-          arg++;
-          break;
-        case '-':
-          node->data.t.time_op=TEST_LT;
-          arg++;
-          break;
-        default:
-          node->data.t.time_op=TEST_EQ;
-          break;
+    for (j=0; j < sizeof(arg_map)/sizeof(*arg_map); j++) {
+      if (!strcmp(*arg, arg_map[j].arg)) {
+        node->op = arg_map[j].op;
+        if (arg_map[j].extrarg && !*(++arg))
+	   error_exit("Missing argument to %s", arg_map[j].arg);
+	break;
       }
-      /* convert to days (very crudely) */
-      node->data.t.time = atoi(arg)/SECONDS_PER_DAY;
     }
 
-    if (!strcmp(arg, "-type")) {
-      mode_t types[]={S_IFREG,S_IFDIR,S_IFCHR,S_IFBLK,S_IFLNK,S_IFSOCK,S_IFIFO};
-      int j;
+    switch(node->op) {
+      case CHECK_NAME:
+        node->data.name_regex = *arg;
+        break;
+      case CHECK_MTIME:
+        switch(**arg) {
+          case '+':
+            node->data.t.time_op=TEST_GT;
+            arg++;
+            break;
+          case '-':
+            node->data.t.time_op=TEST_LT;
+            arg++;
+            break;
+          default:
+            node->data.t.time_op=TEST_EQ;
+            break;
+        }
+        /* convert to days (very crudely) */
+        node->data.t.time = atoi(*arg)/SECONDS_PER_DAY;
+        break;
+      case CHECK_TYPE:
+        if (-1 == (j = stridx("fdcblsp", **arg)))
+          error_exit("bad type '%s'", *arg);
+        else node->data.type = types[j];
+        break;
+      case ACTION_EXEC:
+        arg_array = xmalloc(sizeof(char *));
+        for (j = 0; *arg && strcmp(*arg, ";"); j++) {
+          /* new method */
+          arg_array = xrealloc(arg_array, sizeof(char *) * (j+2));
+          arg_array[j] = *arg;
+          if (!strcmp(*arg, "{}")) node->data.e.arg_path_index = j;
 
-      node->op = CHECK_TYPE;
-      arg = toys.optargs[++i];
-      if (!arg) error_exit("Missing argument to -type");
-      if (-1 == (j = stridx("fdcblsp", *arg)))
-        error_exit("bad type '%s'", arg);
-      else node->data.type = types[j];
+          arg++;
+        }
+        if (!*arg) error_exit("need ';' in exec");
+        arg_array[j] = 0;
+        node->data.e.exec_args = arg_array;
+        break;
     }
-    if (!strcmp(arg, "-print")) {
-      node->op = ACTION_PRINT;
-      have_action = 1;
-    }
-    if (!strcmp(arg, "-print0")) {
-      node->op = ACTION_PRINT0;
-      have_action = 1;
-    }
-    if (!strcmp(arg, "-exec")) {
-      node->op = ACTION_EXEC;
-      have_action = 1;
-      arg_array = xmalloc(sizeof(char *));
-      arg = toys.optargs[++i];
-      for (j = 0; arg && strcmp(arg, ";"); j++) {
-        /* new method */
-        arg_array = xrealloc(arg_array, sizeof(char *) * (j+2));
-        arg_array[j] = arg;
-        if (!strcmp(arg, "{}")) node->data.e.arg_path_index = j;
 
-        arg = toys.optargs[++i];
-      }
-      if (!arg) error_exit("need ';' in exec");
-      arg_array[j] = 0;
-      node->data.e.exec_args = arg_array;
-    }
+    TT.have_action |= IS_ACTION(node->op);
+
     if (node->op == OP_UNKNOWN) {
-      if (arg[0] == '-') error_exit("bad option '%s'", arg);
-      else TT.dir = arg;
+      if (**arg == '-') error_exit("bad option '%s'", *arg);
+      else TT.dir = *arg;
     }  else {
       // add OP_AND where necessary
       if (node_list) {
@@ -340,7 +339,7 @@ static void build_filter_list(void)
   }
 
   /* now convert from infix to prefix */
-  filter_root = NULL;
+  TT.filter_root = NULL;
   op_stack = NULL;
   node = node_list;
   while( node ) {
@@ -358,8 +357,8 @@ static void build_filter_list(void)
           /* remove from op_stack */
           op_stack = op_node->next;
           /* push to output */
-          op_node->next = filter_root;
-          filter_root = op_node;
+          op_node->next = TT.filter_root;
+          TT.filter_root = op_node;
           /* get next node */
           op_node = op_stack;
         }
@@ -373,8 +372,8 @@ static void build_filter_list(void)
     }
     else {
         /* push to output */
-        node->next = filter_root;
-        filter_root = node;
+        node->next = TT.filter_root;
+        TT.filter_root = node;
     }
     node = next;
   }
@@ -383,8 +382,8 @@ static void build_filter_list(void)
   op_node = op_stack;
   while (op_node) {
     op_stack = op_node->next;
-    op_node->next = filter_root;
-    filter_root = op_node;
+    op_node->next = TT.filter_root;
+    TT.filter_root = op_node;
     op_node = op_stack;
   }
 }
