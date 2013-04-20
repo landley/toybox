@@ -36,6 +36,10 @@ config IFCONFIG
 #include <net/if_arp.h>
 #include <net/ethernet.h>
 
+GLOBALS(
+  void *iface_list;
+)
+
 typedef struct sockaddr_with_len {
   union {
     struct sockaddr sock;
@@ -49,7 +53,14 @@ unsigned get_strtou(char *, char **, int);
 char *address_to_name(struct sockaddr *);
 sockaddr_with_len *get_sockaddr(char *, int, sa_family_t);
 
-typedef struct _proc_net_dev_info {
+// man netdevice
+struct iface_list {
+  struct iface_list *next;
+  int hw_type, ifrmtu, ifrmetric, txqueuelen, non_virtual_iface;
+  short ifrflags, ifaddr;
+  struct sockaddr ifraddr, ifrdstaddr, ifrbroadaddr, ifrnetmask, ifrhwaddr;
+  struct ifmap ifrmap;
+
   char        ifrname[IFNAMSIZ]; //interface name.
   unsigned long long   receive_bytes; //total bytes received
   unsigned long long   receive_packets; //total packets received
@@ -68,27 +79,7 @@ typedef struct _proc_net_dev_info {
   unsigned long     transmit_colls;
   unsigned long     transmit_carrier;
   unsigned long     transmit_compressed; //num_tr_compressed;
-} PROC_NET_DEV_INFO;
-
-// man netdevice
-typedef struct _iface_list {
-  struct _iface_list *next;
-  int    hw_type;
-  short   ifrflags; //used for addr, broadcast, and mask.
-  short   ifaddr; //if set print ifraddr, irrdstaddr, ifrbroadaddr and ifrnetmask.
-  struct sockaddr ifraddr;
-  struct sockaddr ifrdstaddr;
-  struct sockaddr ifrbroadaddr;
-  struct sockaddr ifrnetmask;
-  struct sockaddr ifrhwaddr;
-  int    ifrmtu;
-  int   ifrmetric;
-  PROC_NET_DEV_INFO dev_info;
-  int   txqueuelen;
-  struct ifmap ifrmap;
-  int non_virtual_iface;
-} IFACE_LIST;
-
+};
 
 #define HW_NAME_LEN 20
 #define HW_TITLE_LEN 30
@@ -99,25 +90,12 @@ typedef struct _hw_info {
   int     hw_addrlen;
 } HW_INFO;
 
-static char *field_format[] = {
-  "%n%llu%u%u%u%u%n%n%n%llu%u%u%u%u%u",
-  "%llu%llu%u%u%u%u%n%n%llu%llu%u%u%u%u%u",
-  "%llu%llu%u%u%u%u%u%u%llu%llu%u%u%u%u%u%u"
-};
-
 #define NO_RANGE -1
 #define IO_MAP_INDEX 0x100
 
 static int show_iface(char *iface_name);
-static void print_ip6_addr(IFACE_LIST *l_ptr);
-static void clear_list(void);
+static void print_ip6_addr(struct iface_list *il);
 
-//from /net/if.h
-static char *iface_flags_str[] = {
-  "UP", "BROADCAST", "DEBUG", "LOOPBACK", "POINTOPOINT", "NOTRAILERS",
-  "RUNNING", "NOARP", "PROMISC", "ALLMULTI", "MASTER", "SLAVE", "MULTICAST",
-  "PORTSEL", "AUTOMEDIA", "DYNAMIC", NULL
-};
 //from /usr/include/linux/netdevice.h
 #ifdef IFF_PORTSEL
 //Media selection options.
@@ -178,12 +156,6 @@ static void set_irq(int sockfd, struct ifreq *ifre, char *irq_val, int request, 
 void xioctl(int fd, int request, void *data)
 {
   if (ioctl(fd, request, data) < 0) perror_exit("ioctl %d", request);
-}
-
-char *omit_whitespace(char *s)
-{
-  while(*s == ' ' || (unsigned char)(*s - 9) <= (13 - 9)) s++;
-  return (char *) s;
 }
 
 char *safe_strncpy(char *dst, char *src, size_t size)
@@ -357,9 +329,6 @@ unsigned get_strtou(char *str, char **endp, int base)
   return uli;
 }
 
-
-IFACE_LIST *iface_list_head;
-
 void ifconfig_main(void)
 {
   char **argv = toys.optargs;
@@ -370,7 +339,7 @@ void ifconfig_main(void)
   if(!argv[0] || !argv[1]) { //one or no argument
     toys.exitval = show_iface(*argv);
     //free allocated memory.
-    clear_list();
+    llist_traverse(TT.iface_list, free);
     return;
   }
 
@@ -636,14 +605,8 @@ static void set_hw_address(int sockfd, char ***argv, struct ifreq *ifre, int req
 
   memset(&sock, 0, sizeof(struct sockaddr));
   hw_addr = **argv;
-  if(hw_class == 1) {
-    if(hex_to_binary(hw_addr, &sock, ETH_ALEN))
-      error_exit("invalid hw-addr %s", hw_addr);
-  }
-  else {
-    if(hex_to_binary(hw_addr, &sock, INFINIBAND_ALEN))
-      error_exit("invalid hw-addr %s", hw_addr);
-  }
+  if(hex_to_binary(hw_addr, &sock, hw_class == 1 ? ETH_ALEN : INFINIBAND_ALEN))
+    error_exit("bad hw-addr %s", hw_addr);
   ptr = (char *)&sock;
   memcpy( ((char *) ifre) + offsetof(struct ifreq, ifr_hwaddr), ptr, sizeof(struct sockaddr));
   xioctl(sockfd, request, ifre);
@@ -681,70 +644,50 @@ static void set_irq(int sockfd, struct ifreq *ifre, char *irq_val, int request, 
 }
 
 /* Display ifconfig info. */
-static void get_proc_info(char *buff, IFACE_LIST *l_ptr, int version)
+static void get_proc_info(char *buff, struct iface_list *il)
 {
   char *name;
-  memset(&l_ptr->dev_info, 0, sizeof(PROC_NET_DEV_INFO));
 
-  buff = omit_whitespace(buff);
+  while (isspace(*buff)) buff++;
   name = strsep(&buff, ":");
   if(!buff)
     error_exit("error in getting the device name:");
 
   if(strlen(name) < (IFNAMSIZ)) {
-    strncpy(l_ptr->dev_info.ifrname, name, IFNAMSIZ-1);
-    l_ptr->dev_info.ifrname[IFNAMSIZ-1] = '\0';
-  }
-  else {
-    l_ptr->dev_info.ifrname[0] = '\0';
-  }
+    strncpy(il->ifrname, name, IFNAMSIZ-1);
+    il->ifrname[IFNAMSIZ-1] = 0;
+  } else il->ifrname[0] = 0;
 
-  sscanf(buff, field_format[version],
-      &l_ptr->dev_info.receive_bytes,
-      &l_ptr->dev_info.receive_packets,
-      &l_ptr->dev_info.receive_errors,
-      &l_ptr->dev_info.receive_drop,
-      &l_ptr->dev_info.receive_fifo,
-      &l_ptr->dev_info.receive_frame,
-      &l_ptr->dev_info.receive_compressed,
-      &l_ptr->dev_info.receive_multicast,
-      &l_ptr->dev_info.transmit_bytes,
-      &l_ptr->dev_info.transmit_packets,
-      &l_ptr->dev_info.transmit_errors,
-      &l_ptr->dev_info.transmit_drop,
-      &l_ptr->dev_info.transmit_fifo,
-      &l_ptr->dev_info.transmit_colls,
-      &l_ptr->dev_info.transmit_carrier,
-      &l_ptr->dev_info.transmit_compressed
-    );
-
-  if(version == 0)
-    l_ptr->dev_info.receive_bytes = l_ptr->dev_info.transmit_bytes = 0;
-  if(version == 1)
-    l_ptr->dev_info.receive_multicast = l_ptr->dev_info.receive_compressed = l_ptr->dev_info.transmit_compressed = 0;
+  sscanf(buff, "%llu%llu%lu%lu%lu%lu%lu%lu%llu%llu%lu%lu%lu%lu%lu%lu",
+    &il->receive_bytes, &il->receive_packets, &il->receive_errors,
+    &il->receive_drop, &il->receive_fifo, &il->receive_frame,
+    &il->receive_compressed, &il->receive_multicast, &il->transmit_bytes,
+    &il->transmit_packets, &il->transmit_errors, &il->transmit_drop,
+    &il->transmit_fifo, &il->transmit_colls, &il->transmit_carrier,
+    &il->transmit_compressed);
 }
 
-static void add_iface_to_list(IFACE_LIST *newnode)
+static void add_iface_to_list(struct iface_list *newnode)
 {
-  IFACE_LIST *head_ref = iface_list_head;
+  struct iface_list *head_ref = TT.iface_list;
 
-  if((head_ref == NULL) || strcmp(newnode->dev_info.ifrname, head_ref->dev_info.ifrname) < 0) {
+  if(!head_ref || strcmp(newnode->ifrname, head_ref->ifrname) < 0) {
     newnode->next = head_ref;
     head_ref = newnode;
   } else {
-    IFACE_LIST *current = head_ref;
-    while(current->next != NULL && (strcmp(current->next->dev_info.ifrname, newnode->dev_info.ifrname)) < 0)
+    struct iface_list *current = head_ref;
+    while(current->next && strcmp(current->next->ifrname, newnode->ifrname) < 0)
       current = current->next;
     newnode->next = current->next;
     current->next = newnode;
   }
-  iface_list_head = head_ref;
+  TT.iface_list = (void *)head_ref;
 }
 
-static int get_device_info(IFACE_LIST *l_ptr)
+static int get_device_info(struct iface_list *il)
 {
   struct ifreq ifre;
-  char *ifrname = l_ptr->dev_info.ifrname;
+  char *ifrname = il->ifrname;
   int sokfd;
 
   if ((sokfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) return sokfd;
@@ -753,50 +696,48 @@ static int get_device_info(IFACE_LIST *l_ptr)
     close(sokfd);
     return NO_RANGE;
   }
-  l_ptr->ifrflags = ifre.ifr_flags;
+  il->ifrflags = ifre.ifr_flags;
 
   strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
   if(ioctl(sokfd, SIOCGIFHWADDR, &ifre) >= 0)
-    memcpy(l_ptr->ifrhwaddr.sa_data, ifre.ifr_hwaddr.sa_data, sizeof(l_ptr->ifrhwaddr.sa_data));
+    memcpy(il->ifrhwaddr.sa_data, ifre.ifr_hwaddr.sa_data, sizeof(il->ifrhwaddr.sa_data));
 
-  l_ptr->hw_type = ifre.ifr_hwaddr.sa_family;
+  il->hw_type = ifre.ifr_hwaddr.sa_family;
 
   strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
   if(ioctl(sokfd, SIOCGIFMETRIC, &ifre) >= 0)
-    l_ptr->ifrmetric = ifre.ifr_metric;
+    il->ifrmetric = ifre.ifr_metric;
 
   strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
   if(ioctl(sokfd, SIOCGIFMTU, &ifre) >= 0)
-    l_ptr->ifrmtu = ifre.ifr_mtu;
+    il->ifrmtu = ifre.ifr_mtu;
 
-#ifdef SIOCGIFMAP
   strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
   if(ioctl(sokfd, SIOCGIFMAP, &ifre) == 0)
-    l_ptr->ifrmap = ifre.ifr_map;
-#endif
+    il->ifrmap = ifre.ifr_map;
 
   strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
-  l_ptr->txqueuelen = NO_RANGE;
+  il->txqueuelen = NO_RANGE;
   if(ioctl(sokfd, SIOCGIFTXQLEN, &ifre) >= 0)
-    l_ptr->txqueuelen = ifre.ifr_qlen;
+    il->txqueuelen = ifre.ifr_qlen;
 
   strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
   ifre.ifr_addr.sa_family = AF_INET;
 
-  if(ioctl(sokfd, SIOCGIFADDR, &ifre) == 0) {
-    l_ptr->ifaddr = 1;
-    l_ptr->ifraddr = ifre.ifr_addr;
+  if(!ioctl(sokfd, SIOCGIFADDR, &ifre)) {
+    il->ifaddr = 1;
+    il->ifraddr = ifre.ifr_addr;
     strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
     if(ioctl(sokfd, SIOCGIFDSTADDR, &ifre) >= 0)
-      l_ptr->ifrdstaddr = ifre.ifr_dstaddr;
+      il->ifrdstaddr = ifre.ifr_dstaddr;
 
     strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
     if(ioctl(sokfd, SIOCGIFBRDADDR, &ifre) >= 0)
-      l_ptr->ifrbroadaddr = ifre.ifr_broadaddr;
+      il->ifrbroadaddr = ifre.ifr_broadaddr;
 
     strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
     if(ioctl(sokfd, SIOCGIFNETMASK, &ifre) >= 0)
-      l_ptr->ifrnetmask = ifre.ifr_netmask;
+      il->ifrnetmask = ifre.ifr_netmask;
   }
   close(sokfd);
   return 0;
@@ -804,26 +745,22 @@ static int get_device_info(IFACE_LIST *l_ptr)
 
 static void get_ifconfig_info(void)
 {
-  IFACE_LIST *l_ptr;
-  int version_num = 0;
+  int i;
+  FILE *fp;
 
-  FILE *fp = fopen("/proc/net/dev", "r");
-  if (!fp) return;
+  if (!(fp = fopen("/proc/net/dev", "r"))) return;
 
-  fgets(toybuf, sizeof(toybuf), fp); //skip 1st header line.
-  fgets(toybuf, sizeof(toybuf), fp); //skip 2nd header line.
+  for (i=0; fgets(toybuf, sizeof(toybuf), fp); i++) {
+    struct iface_list *il;
 
-  if(strstr(toybuf, "compressed")) version_num = 2;
-  else if(strstr(toybuf, "bytes")) version_num = 1;
-  else version_num = 0;
+    if (i<2) continue;
 
-  while(fgets(toybuf, sizeof(toybuf), fp)) {
-    l_ptr = xzalloc(sizeof(IFACE_LIST));
-    get_proc_info(toybuf, l_ptr, version_num);
-    add_iface_to_list(l_ptr);
-    l_ptr->non_virtual_iface = 1;
+    il = xzalloc(sizeof(struct iface_list));
+    get_proc_info(toybuf, il);
+    add_iface_to_list(il);
+    il->non_virtual_iface = 1;
     errno = 0;
-    if(get_device_info(l_ptr) < 0) perror_exit("%s", l_ptr->dev_info.ifrname);
+    if(get_device_info(il) < 0) perror_exit("%s", il->ifrname);
   }
   fclose(fp);
 }
@@ -868,9 +805,9 @@ static void get_hw_info(int hw_type, HW_INFO *hw_info)
   }
 }
 
-static void print_hw_addr(int hw_type, HW_INFO hw_info, IFACE_LIST *l_ptr)
+static void print_hw_addr(int hw_type, HW_INFO hw_info, struct iface_list *il)
 {
-  unsigned char *address = (unsigned char *)l_ptr->ifrhwaddr.sa_data;
+  char *address = il->ifrhwaddr.sa_data;
 
   if(!address || !hw_info.hw_addrlen) return;
   xprintf("HWaddr ");
@@ -894,105 +831,63 @@ static char *get_ip_addr(struct sockaddr *skaddr)
   return inet_ntoa(sin->sin_addr);
 }
 
-static void print_ip_addr(IFACE_LIST *l_ptr)
+static void print_ip_addr(struct iface_list *il)
 {
   char *af_name;
-  int af = l_ptr->ifraddr.sa_family;
+  int af = il->ifraddr.sa_family;
 
   if (af == AF_INET) af_name = "inet";
   else if (af == AF_INET6) af_name = "inet6";
   else if (af == AF_UNSPEC) af_name = "unspec";
 
-  xprintf("%10s%s addr:%s ", " ", af_name, get_ip_addr(&l_ptr->ifraddr));
-  if(l_ptr->ifrflags & IFF_POINTOPOINT)
-    xprintf(" P-t-P:%s ", get_ip_addr(&l_ptr->ifrdstaddr));
-  if(l_ptr->ifrflags & IFF_BROADCAST)
-    xprintf(" Bcast:%s ", get_ip_addr(&l_ptr->ifrbroadaddr));
-  xprintf(" Mask:%s\n", get_ip_addr(&l_ptr->ifrnetmask));
+  xprintf("%10s%s addr:%s ", " ", af_name, get_ip_addr(&il->ifraddr));
+  if(il->ifrflags & IFF_POINTOPOINT)
+    xprintf(" P-t-P:%s ", get_ip_addr(&il->ifrdstaddr));
+  if(il->ifrflags & IFF_BROADCAST)
+    xprintf(" Bcast:%s ", get_ip_addr(&il->ifrbroadaddr));
+  xprintf(" Mask:%s\n", get_ip_addr(&il->ifrnetmask));
 }
 
-static void print_iface_flags(IFACE_LIST *l_ptr)
-{
-  if (l_ptr->ifrflags != 0) {
-    unsigned short mask = 1;
-    char **str = iface_flags_str;
-
-    for(; *str != NULL; str++) {
-      if(l_ptr->ifrflags & mask) xprintf("%s ", *str);
-      mask = mask << 1;
-    }
-  } else xprintf("[NO FLAGS] ");
-}
-
-static void print_media(IFACE_LIST *l_ptr)
-{
-#ifdef IFF_PORTSEL
-  if(l_ptr->ifrflags & IFF_PORTSEL) {
-    xprintf("Media:");
-    if(l_ptr->ifrmap.port == IF_PORT_UNKNOWN)
-      xprintf("%s", "unknown");
-    else if(l_ptr->ifrmap.port == IF_PORT_10BASE2)
-      xprintf("%s", "10base2");
-    else if(l_ptr->ifrmap.port == IF_PORT_10BASET)
-      xprintf("%s", "10baseT");
-    else if(l_ptr->ifrmap.port == IF_PORT_AUI)
-      xprintf("%s", "AUI");
-    else if(l_ptr->ifrmap.port == IF_PORT_100BASET)
-      xprintf("%s", "100baseT");
-    else if(l_ptr->ifrmap.port == IF_PORT_100BASETX)
-      xprintf("%s", "100baseTX");
-    else if(l_ptr->ifrmap.port == IF_PORT_100BASEFX)
-      xprintf("%s", "100baseFX");
-    if(l_ptr->ifrflags & IFF_AUTOMEDIA)
-      xprintf("(auto)");
-  }
-#endif
-}
-
-static void print_ip6_addr(IFACE_LIST *l_ptr)
+static void print_ip6_addr(struct iface_list *il)
 {
   char iface_name[IFNAMSIZ] = {0,};
-  char buf[BUFSIZ] = {0,};
   int plen, scope;
+  FILE *fp;
 
-  FILE *fp = fopen("/proc/net/if_inet6", "r");
-  if(!fp) return;
+  if(!(fp = fopen("/proc/net/if_net6", "r"))) return;
 
-  while(fgets(buf, BUFSIZ, fp)) {
+  while(fgets(toybuf, sizeof(toybuf), fp)) {
     int nitems = 0;
     char ipv6_addr[40] = {0,};
-    nitems = sscanf(buf, "%32s %*08x %02x %02x %*02x %15s\n",
+    nitems = sscanf(toybuf, "%32s %*08x %02x %02x %*02x %15s\n",
         ipv6_addr+7, &plen, &scope, iface_name);
     if(nitems != 4) {
-      if((nitems < 0) && feof(fp))
-        break;
+      if((nitems < 0) && feof(fp)) break;
       perror_exit("sscanf");
     }
-    if(strcmp(l_ptr->dev_info.ifrname,iface_name) == 0) {
+    if(strcmp(il->ifrname, iface_name) == 0) {
       int i = 0;
       struct sockaddr_in6 sock_in6;
       int len = sizeof(ipv6_addr) / (sizeof ipv6_addr[0]);
       char *ptr = ipv6_addr+7;
+
       while((i < len-2) && (*ptr)) {
         ipv6_addr[i++] = *ptr++;
         //put ':' after 4th bit
-        if(!((i+1) % 5))
-          ipv6_addr[i++] = ':';
+        if(!((i+1) % 5)) ipv6_addr[i++] = ':';
       }
       ipv6_addr[i+1] = '\0';
       if(inet_pton(AF_INET6, ipv6_addr, (struct sockaddr *) &sock_in6.sin6_addr) > 0) {
         sock_in6.sin6_family = AF_INET6;
-        memset(buf, 0, (sizeof(buf) /sizeof(buf[0])));
-        if(inet_ntop(AF_INET6, &sock_in6.sin6_addr, buf, BUFSIZ) > 0) {
-          xprintf("%10sinet6 addr: %s/%d", " ", buf, plen);
-          xprintf(" Scope:");
+        if(inet_ntop(AF_INET6, &sock_in6.sin6_addr, toybuf, BUFSIZ)) {
+          xprintf("%10sinet6 addr: %s/%d Scope:", " ", toybuf, plen);
           if(scope == IPV6_ADDR_ANY) xprintf(" Global");
           else if(scope == IPV6_ADDR_LOOPBACK) xprintf(" Host");
           else if(scope == IPV6_ADDR_LINKLOCAL) xprintf(" Link");
           else if(scope == IPV6_ADDR_SITELOCAL) xprintf(" Site");
           else if(scope == IPV6_ADDR_COMPATv4) xprintf(" Compat");
           else xprintf("Unknown");
-          xprintf("\n");
+          xputc('\n');
         }
       }
     }
@@ -1000,63 +895,67 @@ static void print_ip6_addr(IFACE_LIST *l_ptr)
   fclose(fp);
 }
 
-static void display_ifconfig(IFACE_LIST *l_ptr)
+static void display_ifconfig(struct iface_list *il)
 {
   HW_INFO hw_info;
-  int hw_type = l_ptr->hw_type;
 
-  get_hw_info(hw_type, &hw_info);
-  xprintf("%-9s Link encap:%s  ", l_ptr->dev_info.ifrname, hw_info.hw_title);
-  print_hw_addr(hw_type, hw_info, l_ptr);
-
-  print_media(l_ptr);
-
+  get_hw_info(il->hw_type, &hw_info);
+  xprintf("%-9s Link encap:%s  ", il->ifrname, hw_info.hw_title);
+  print_hw_addr(il->hw_type, hw_info, il);
   xputc('\n');
-  if(l_ptr->ifaddr)
-    print_ip_addr(l_ptr); //print addr, p-p addr, broadcast addr and mask addr.
+
+  //print addr, p-p addr, broadcast addr and mask addr.
+  if(il->ifaddr) print_ip_addr(il);
 
   //for ipv6 to do.
-  print_ip6_addr(l_ptr);
+  print_ip6_addr(il);
   xprintf("%10s", " ");
   //print flags
-  print_iface_flags(l_ptr);
-  if(!l_ptr->ifrmetric) l_ptr->ifrmetric = 1;
-  xprintf(" MTU:%d  Metric:%d", l_ptr->ifrmtu, l_ptr->ifrmetric);
-  xprintf("\n");
-  if(l_ptr->non_virtual_iface) {
-    xprintf("%10s", " ");
-    xprintf("RX packets:%llu errors:%lu dropped:%lu overruns:%lu frame:%lu\n",
-        l_ptr->dev_info.receive_packets, l_ptr->dev_info.receive_errors,
-        l_ptr->dev_info.receive_drop, l_ptr->dev_info.receive_fifo,
-        l_ptr->dev_info.receive_frame);
-    //Dummy types for non ARP hardware.
-    if((hw_type == ARPHRD_CSLIP) || (hw_type == ARPHRD_CSLIP6))
-      xprintf("%10scompressed:%lu\n", " ", l_ptr->dev_info.receive_compressed);
-    xprintf("%10sTX packets:%llu errors:%lu dropped:%lu overruns:%lu carrier:%lu\n", " ",
-        l_ptr->dev_info.transmit_packets, l_ptr->dev_info.transmit_errors,
-        l_ptr->dev_info.transmit_drop, l_ptr->dev_info.transmit_fifo,
-        l_ptr->dev_info.transmit_carrier);
-    xprintf("%10scollisions:%lu ", " ", l_ptr->dev_info.transmit_colls);
-    //Dummy types for non ARP hardware.
-    if((hw_type == ARPHRD_CSLIP) || (hw_type == ARPHRD_CSLIP6))
-      xprintf("compressed:%lu ", l_ptr->dev_info.transmit_compressed);
-    if(l_ptr->txqueuelen != NO_RANGE)
-      xprintf("txqueuelen:%d ", l_ptr->txqueuelen);
 
-    xprintf("\n%10s", " ");
-    xprintf("RX bytes:%llu ", l_ptr->dev_info.receive_bytes);
-    xprintf("TX bytes:%llu\n", l_ptr->dev_info.transmit_bytes);
+  if (il->ifrflags) {
+    unsigned short mask = 1;
+    char **s, *str[] = {
+      "UP", "BROADCAST", "DEBUG", "LOOPBACK", "POINTOPOINT", "NOTRAILERS",
+      "RUNNING", "NOARP", "PROMISC", "ALLMULTI", "MASTER", "SLAVE", "MULTICAST",
+      "PORTSEL", "AUTOMEDIA", "DYNAMIC", NULL
+    };
+
+    for(s = str; *s; s++) {
+      if(il->ifrflags & mask) xprintf("%s ", *s);
+      mask = mask << 1;
+    }
+  } else xprintf("[NO FLAGS] ");
+
+  if(!il->ifrmetric) il->ifrmetric = 1;
+  xprintf(" MTU:%d  Metric:%d\n", il->ifrmtu, il->ifrmetric);
+
+  if(il->non_virtual_iface) {
+    xprintf("%10cRX packets:%llu errors:%lu dropped:%lu overruns:%lu frame:%lu\n",
+        ' ', il->receive_packets, il->receive_errors, il->receive_drop,
+        il->receive_fifo, il->receive_frame);
+    //Dummy types for non ARP hardware.
+    if((il->hw_type == ARPHRD_CSLIP) || (il->hw_type == ARPHRD_CSLIP6))
+      xprintf("%10ccompressed:%lu\n", ' ', il->receive_compressed);
+    xprintf("%10cTX packets:%llu errors:%lu dropped:%lu overruns:%lu carrier:%lu\n", ' ',
+        il->transmit_packets, il->transmit_errors, il->transmit_drop,
+        il->transmit_fifo, il->transmit_carrier);
+    xprintf("%10ccollisions:%lu ", ' ', il->transmit_colls);
+    //Dummy types for non ARP hardware.
+    if((il->hw_type == ARPHRD_CSLIP) || (il->hw_type == ARPHRD_CSLIP6))
+      xprintf("compressed:%lu ", il->transmit_compressed);
+    if(il->txqueuelen != NO_RANGE) xprintf("txqueuelen:%d ", il->txqueuelen);
+
+    xprintf("\n%10cRX bytes:%llu TX bytes:%llu\n", ' ', il->receive_bytes,
+      il->transmit_bytes);
   }
-  if(l_ptr->ifrmap.irq || l_ptr->ifrmap.mem_start || l_ptr->ifrmap.dma || l_ptr->ifrmap.base_addr) {
-    xprintf("%10s", " ");
-    if(l_ptr->ifrmap.irq)
-      xprintf("Interrupt:%d ", l_ptr->ifrmap.irq);
-    if(l_ptr->ifrmap.base_addr >= IO_MAP_INDEX)
-      xprintf("Base address:0x%lx ", l_ptr->ifrmap.base_addr);
-    if(l_ptr->ifrmap.mem_start)
-      xprintf("Memory:%lx-%lx ", l_ptr->ifrmap.mem_start, l_ptr->ifrmap.mem_end);
-    if(l_ptr->ifrmap.dma)
-      xprintf("DMA chan:%x ", l_ptr->ifrmap.dma);
+  if(il->ifrmap.irq || il->ifrmap.mem_start || il->ifrmap.dma || il->ifrmap.base_addr) {
+    xprintf("%10c", ' ');
+    if(il->ifrmap.irq) xprintf("Interrupt:%d ", il->ifrmap.irq);
+    if(il->ifrmap.base_addr >= IO_MAP_INDEX)
+      xprintf("Base address:0x%lx ", il->ifrmap.base_addr);
+    if(il->ifrmap.mem_start)
+      xprintf("Memory:%lx-%lx ", il->ifrmap.mem_start, il->ifrmap.mem_end);
+    if(il->ifrmap.dma) xprintf("DMA chan:%x ", il->ifrmap.dma);
     xputc('\n');
   }
   xputc('\n');
@@ -1094,22 +993,16 @@ static int readconf(void)
   ifre = ifcon.ifc_req;
   for(num = 0; num < ifcon.ifc_len && ifre; num += sizeof(struct ifreq), ifre++) {
     //Escape duplicate values from the list.
-    IFACE_LIST *list_ptr;
-    int match_found = 0;
-    for(list_ptr = iface_list_head; list_ptr != NULL; list_ptr = list_ptr->next) {
-      //if interface already in the list then donot add it in the list.
-      if(!strcmp(ifre->ifr_name, list_ptr->dev_info.ifrname)) {
-        match_found = 1;
-        break;
-      }
-    }
-    if(!match_found) {
-      IFACE_LIST *l_ptr = xzalloc(sizeof(IFACE_LIST));
-      safe_strncpy(l_ptr->dev_info.ifrname, ifre->ifr_name, IFNAMSIZ);
-      add_iface_to_list(l_ptr);
+    struct iface_list *il;
+
+    for(il = TT.iface_list; il; il = il->next)
+      if(!strcmp(ifre->ifr_name, il->ifrname)) break;
+    if(!il) {
+      il = xzalloc(sizeof(struct iface_list));
+      safe_strncpy(il->ifrname, ifre->ifr_name, IFNAMSIZ);
+      add_iface_to_list(il);
       errno = 0;
-      if(get_device_info(l_ptr) < 0)
-        perror_exit("%s", l_ptr->dev_info.ifrname);
+      if(get_device_info(il) < 0) perror_exit("%s", il->ifrname);
     }
   }
 
@@ -1122,51 +1015,34 @@ LOOP_BREAK:
 
 static int show_iface(char *iface_name)
 {
+  struct iface_list *il;
+
   get_ifconfig_info();
 
   if(iface_name) {
-    IFACE_LIST *l_ptr;
-    int is_dev_found = 0;
-    for(l_ptr = iface_list_head; l_ptr; l_ptr = l_ptr->next) {
-      if(strcmp(l_ptr->dev_info.ifrname, iface_name) == 0) {
-        is_dev_found = 1;
-        display_ifconfig(l_ptr);
+    for(il = TT.iface_list; il; il = il->next) {
+      if(!strcmp(il->ifrname, iface_name)) {
+        display_ifconfig(il);
         break;
       }
     }
     //if the given interface is not in the list.
-    if(!is_dev_found) {
-      IFACE_LIST *l_ptr = xzalloc(sizeof(IFACE_LIST));
-      safe_strncpy(l_ptr->dev_info.ifrname, iface_name, IFNAMSIZ);
+    if(!il) {
+      il = xzalloc(sizeof(struct iface_list));
+      safe_strncpy(il->ifrname, iface_name, IFNAMSIZ);
       errno = 0;
-      if(get_device_info(l_ptr) < 0) {
-        char *errmsg;
-        if(errno == ENODEV) errmsg = "Device not found";
-        else errmsg = strerror(errno);
-        error_msg("%s: error getting interface info: %s", iface_name, errmsg);
-        free(l_ptr);
+      if(get_device_info(il) < 0) {
+        perror_msg("%s", iface_name);
+        free(il);
         return 1;
-      }
-      else display_ifconfig(l_ptr);
-      free(l_ptr);
+      } else display_ifconfig(il);
+      free(il);
     }
   } else {
-    IFACE_LIST *l_ptr;
     if(readconf() < 0) return 1;
-    for(l_ptr = iface_list_head; l_ptr; l_ptr = l_ptr->next) {
-      if((l_ptr->ifrflags & IFF_UP) || (toys.optflags & FLAG_a))
-        display_ifconfig(l_ptr);
-    }
+    for(il = TT.iface_list; il; il = il->next)
+      if((il->ifrflags & IFF_UP) || (toys.optflags & FLAG_a))
+        display_ifconfig(il);
   }
   return 0;
-}
-
-static void clear_list(void)
-{
-  IFACE_LIST *temp_ptr;
-  while(iface_list_head != NULL) {
-    temp_ptr = iface_list_head->next;
-    free(iface_list_head);
-    iface_list_head = temp_ptr;
-  }
 }
