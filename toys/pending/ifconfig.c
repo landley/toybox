@@ -49,10 +49,6 @@ typedef struct sockaddr_with_len {
   socklen_t socklen;
 } sockaddr_with_len;
 
-unsigned get_strtou(char *, char **, int);
-char *address_to_name(struct sockaddr *);
-sockaddr_with_len *get_sockaddr(char *, int, sa_family_t);
-
 // man netdevice
 struct iface_list {
   struct iface_list *next;
@@ -142,17 +138,6 @@ struct ifreq_inet6 {
 # define INFINIBAND_ALEN 20
 #endif
 
-static void set_flags(int sockfd, struct ifreq *ifre, int arg_flag, int flag); //verify
-static void set_mtu(int sockfd, struct ifreq *ifre, char *mtu); //verify
-static void set_metric(int sockfd, struct ifreq *ifre, char *metric); //verify
-static void set_qlen(int sockfd, struct ifreq *ifre, char *qlen); //verify
-static void set_address(int sockfd, char *host_name, struct ifreq *ifre, int request, char *req_name);
-static void set_hw_address(int sockfd, char ***argv, struct ifreq *ifre, int request, char *req_name);
-static void set_ipv6_addr(int sockfd, struct ifreq *ifre, char *ipv6_addr, int request, char *req_name);
-static void set_memstart(int sockfd, struct ifreq *ifre, char *start_addr, int request, char *req_name);
-static void set_ioaddr(int sockfd, struct ifreq *ifre, char *baddr, int request, char *req_name);
-static void set_irq(int sockfd, struct ifreq *ifre, char *irq_val, int request, char *req_name);
-
 void xioctl(int fd, int request, void *data)
 {
   if (ioctl(fd, request, data) < 0) perror_exit("ioctl %d", request);
@@ -183,6 +168,38 @@ static int is_host_unix(char *host, sockaddr_with_len **swl)
   }
   return 0;
 }
+
+/*
+ * used to converts string into int and validate the input str for invalid int value or out-of-range.
+ */
+unsigned get_strtou(char *str, char **endp, int base)
+{
+  unsigned long uli;
+  char *endptr;
+
+  if(!isalnum(str[0])) {
+    errno = ERANGE;
+    return UINT_MAX;
+  }
+  errno = 0;
+  uli = strtoul(str, &endptr, base);
+  if(uli > UINT_MAX) {
+    errno = ERANGE;
+    return UINT_MAX;
+  }
+
+  if(endp) *endp = endptr;
+  if(endptr[0]) {
+    if(isalnum(endptr[0]) || errno) { //"123abc" or out-of-range
+      errno = ERANGE;
+      return UINT_MAX;
+    }
+    errno = EINVAL;
+  }
+  return uli;
+}
+
+
 
 /*
  * validate the input param (host) for valid ipv6 ip and extract port number (if there).
@@ -298,174 +315,6 @@ char *address_to_name(struct sockaddr *sock)
     return xmsprintf("local:%.*s", (int) sizeof(sockun->sun_path), sockun->sun_path);
   } else return NULL;
 }
-
-/*
- * used to converts string into int and validate the input str for invalid int value or out-of-range.
- */
-unsigned get_strtou(char *str, char **endp, int base)
-{
-  unsigned long uli;
-  char *endptr;
-
-  if(!isalnum(str[0])) {
-    errno = ERANGE;
-    return UINT_MAX;
-  }
-  errno = 0;
-  uli = strtoul(str, &endptr, base);
-  if(uli > UINT_MAX) {
-    errno = ERANGE;
-    return UINT_MAX;
-  }
-
-  if(endp) *endp = endptr;
-  if(endptr[0]) {
-    if(isalnum(endptr[0]) || errno) { //"123abc" or out-of-range
-      errno = ERANGE;
-      return UINT_MAX;
-    }
-    errno = EINVAL;
-  }
-  return uli;
-}
-
-void ifconfig_main(void)
-{
-  char **argv = toys.optargs;
-
-  if(*argv && (strcmp(*argv, "--help") == 0)) show_help();
-  
-  //"ifconfig" / "ifconfig eth0"
-  if(!argv[0] || !argv[1]) { //one or no argument
-    toys.exitval = show_iface(*argv);
-    //free allocated memory.
-    llist_traverse(TT.iface_list, free);
-    return;
-  }
-
-  //set ifconfig params.
-  {
-    struct ifreq ifre;
-    int sockfd = 0;
-    //get interface name
-    memset(&ifre, 0, sizeof(struct ifreq));
-    strncpy(ifre.ifr_name, *argv, IFNAMSIZ);
-    ifre.ifr_name[IFNAMSIZ-1] = 0;
-    if((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) perror_exit("socket");
-
-    while(*++argv != NULL) {
-      /* flags settings */
-      if (!strcmp(*argv, "up"))
-        set_flags(sockfd, &ifre, IFF_UP | IFF_RUNNING, 0);
-      else if (!strcmp(*argv, "down"))
-        set_flags(sockfd, &ifre, 0, IFF_UP);
-
-      else if (!strcmp(*argv, "arp"))
-        set_flags(sockfd, &ifre, 0, IFF_NOARP);
-      else if (!strcmp(*argv, "-arp"))
-        set_flags(sockfd, &ifre, IFF_NOARP, 0);
-      else if (!strcmp(*argv, "trailers"))
-        set_flags(sockfd, &ifre, 0, IFF_NOTRAILERS);
-      else if (!strcmp(*argv, "-trailers"))
-        set_flags(sockfd, &ifre, IFF_NOTRAILERS, 0);
-
-      else if (!strcmp(*argv, "promisc"))
-        set_flags(sockfd, &ifre, IFF_PROMISC, 0);
-      else if (!strcmp(*argv, "-promisc"))
-        set_flags(sockfd, &ifre, 0, IFF_PROMISC);
-      else if (!strcmp(*argv, "allmulti"))
-        set_flags(sockfd, &ifre, IFF_ALLMULTI, 0);
-      else if (!strcmp(*argv, "-allmulti"))
-        set_flags(sockfd, &ifre, 0, IFF_ALLMULTI);
-      else if (!strcmp(*argv, "multicast"))
-        set_flags(sockfd, &ifre, IFF_MULTICAST, 0);
-      else if (!strcmp(*argv, "-multicast"))
-        set_flags(sockfd, &ifre, 0, IFF_MULTICAST);
-      else if (!strcmp(*argv, "dynamic"))
-        set_flags(sockfd, &ifre, IFF_DYNAMIC, 0);
-      else if (!strcmp(*argv, "-dynamic"))
-        set_flags(sockfd, &ifre, 0, IFF_DYNAMIC);
-      else if (!strcmp(*argv, "-pointopoint"))
-        set_flags(sockfd, &ifre, 0, IFF_POINTOPOINT);
-      /*value setup */
-      else if (!strcmp(*argv, "pointopoint")) {
-        if (!*++argv) show_help();
-        set_address(sockfd, *argv, &ifre, SIOCSIFDSTADDR, "SIOCSIFDSTADDR");
-        set_flags(sockfd, &ifre, IFF_POINTOPOINT, 0);
-      } else if (!strcmp(*argv, "netmask")) {
-        if (!*++argv) show_help();
-        set_address(sockfd, *argv, &ifre, SIOCSIFNETMASK, "SIOCSIFNETMASK");
-      } else if (!strcmp(*argv, "-broadcast")) {
-        set_flags(sockfd, &ifre, 0, IFF_BROADCAST);
-      } else if (!strcmp(*argv, "broadcast")) {
-        if (!*++argv) show_help();
-        set_address(sockfd, *argv, &ifre, SIOCSIFBRDADDR, "SIOCSIFBRDADDR");
-        set_flags(sockfd, &ifre, IFF_BROADCAST, 0);
-      } else if (!strcmp(*argv, "dstaddr")) {
-        if (!*++argv) show_help();
-        set_address(sockfd, *argv, &ifre, SIOCSIFDSTADDR, "SIOCSIFDSTADDR");
-      } else if (!strcmp(*argv, "hw")) {
-        if (!*++argv) show_help();
-        set_hw_address(sockfd, &argv, &ifre, SIOCSIFHWADDR, "SIOCSIFHWADDR");
-      } else if (!strcmp(*argv, "mtu")) {
-        if (!*++argv) show_help();
-        set_mtu(sockfd, &ifre, *argv);
-      } else if (!strcmp(*argv, "metric")) {
-        if (!*++argv) show_help();
-        set_metric(sockfd, &ifre, *argv);
-      } else if (!strcmp(*argv, "txqueuelen")) {
-        if (!*++argv) show_help();
-        set_qlen(sockfd, &ifre, *argv);
-      } else if (!strcmp(*argv, "keepalive")) {
-        if (!*++argv) show_help();
-        ifre.ifr_data = (void *)strtoul(*argv, 0, 0);
-        xioctl(sockfd, SIOCSKEEPALIVE, &ifre);
-      } else if (!strcmp(*argv, "outfill")) {
-        if (!*++argv) show_help();
-        ifre.ifr_data = (void *)strtoul(*argv, 0, 0);
-        xioctl(sockfd, SIOCSOUTFILL, &ifre);
-      } else if (!strcmp(*argv, "add")) {
-        if (!*++argv) show_help();
-        set_ipv6_addr(sockfd, &ifre, *argv, SIOCSIFADDR, "SIOCSIFADDR");
-      } else if (!strcmp(*argv, "del")) {
-        if (!*++argv) show_help();
-        set_ipv6_addr(sockfd, &ifre, *argv, SIOCDIFADDR, "SIOCDIFADDR");
-      } else if (!strcmp(*argv, "mem_start")) {
-        if (!*++argv) show_help();
-        set_memstart(sockfd, &ifre, *argv, SIOCSIFMAP, "SIOCSIFMAP");
-      } else if (!strcmp(*argv, "io_addr")) {
-        if (!*++argv) show_help();
-        set_ioaddr(sockfd, &ifre, *argv, SIOCSIFMAP, "SIOCSIFMAP");
-      } else if (!strcmp(*argv, "irq")) {
-        if (!*++argv) show_help();
-        set_irq(sockfd, &ifre, *argv, SIOCSIFMAP, "SIOCSIFMAP");
-      } else {
-        if (isdigit(**argv) || !strcmp(*argv, "default")) {
-          char *iface_name = ifre.ifr_name;
-          short int is_colon = 0;
-          set_address(sockfd, *argv, &ifre, SIOCSIFADDR, "SIOCSIFADDR");
-          while (*iface_name) {
-            if (*iface_name == ':') {
-              is_colon = 1;
-              break;
-            }
-            iface_name++;
-          }
-          //if the interface name is not an alias; set the flag and continue.
-          if(!is_colon) set_flags(sockfd, &ifre, IFF_UP | IFF_RUNNING, 0);
-        } else if (!strcmp(*argv, "inet") || !strcmp(*argv, "inet6")) continue;
-        else {
-          errno = EINVAL;
-          toys.exithelp++;
-          error_exit("bad argument");
-        }
-      }
-
-    }
-    if(sockfd > 0) close(sockfd);
-  }
-}
-
 
 static void set_flags(int sockfd, struct ifreq *ifre, int set_flag, int reset_flag)
 {
@@ -1045,4 +894,141 @@ static int show_iface(char *iface_name)
         display_ifconfig(il);
   }
   return 0;
+}
+
+void ifconfig_main(void)
+{
+  char **argv = toys.optargs;
+
+  if(*argv && (strcmp(*argv, "--help") == 0)) show_help();
+  
+  //"ifconfig" / "ifconfig eth0"
+  if(!argv[0] || !argv[1]) { //one or no argument
+    toys.exitval = show_iface(*argv);
+    //free allocated memory.
+    llist_traverse(TT.iface_list, free);
+    return;
+  }
+
+  //set ifconfig params.
+  {
+    struct ifreq ifre;
+    int sockfd = 0;
+    //get interface name
+    memset(&ifre, 0, sizeof(struct ifreq));
+    strncpy(ifre.ifr_name, *argv, IFNAMSIZ);
+    ifre.ifr_name[IFNAMSIZ-1] = 0;
+    if((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) perror_exit("socket");
+
+    while(*++argv != NULL) {
+      /* flags settings */
+      if (!strcmp(*argv, "up"))
+        set_flags(sockfd, &ifre, IFF_UP | IFF_RUNNING, 0);
+      else if (!strcmp(*argv, "down"))
+        set_flags(sockfd, &ifre, 0, IFF_UP);
+
+      else if (!strcmp(*argv, "arp"))
+        set_flags(sockfd, &ifre, 0, IFF_NOARP);
+      else if (!strcmp(*argv, "-arp"))
+        set_flags(sockfd, &ifre, IFF_NOARP, 0);
+      else if (!strcmp(*argv, "trailers"))
+        set_flags(sockfd, &ifre, 0, IFF_NOTRAILERS);
+      else if (!strcmp(*argv, "-trailers"))
+        set_flags(sockfd, &ifre, IFF_NOTRAILERS, 0);
+
+      else if (!strcmp(*argv, "promisc"))
+        set_flags(sockfd, &ifre, IFF_PROMISC, 0);
+      else if (!strcmp(*argv, "-promisc"))
+        set_flags(sockfd, &ifre, 0, IFF_PROMISC);
+      else if (!strcmp(*argv, "allmulti"))
+        set_flags(sockfd, &ifre, IFF_ALLMULTI, 0);
+      else if (!strcmp(*argv, "-allmulti"))
+        set_flags(sockfd, &ifre, 0, IFF_ALLMULTI);
+      else if (!strcmp(*argv, "multicast"))
+        set_flags(sockfd, &ifre, IFF_MULTICAST, 0);
+      else if (!strcmp(*argv, "-multicast"))
+        set_flags(sockfd, &ifre, 0, IFF_MULTICAST);
+      else if (!strcmp(*argv, "dynamic"))
+        set_flags(sockfd, &ifre, IFF_DYNAMIC, 0);
+      else if (!strcmp(*argv, "-dynamic"))
+        set_flags(sockfd, &ifre, 0, IFF_DYNAMIC);
+      else if (!strcmp(*argv, "-pointopoint"))
+        set_flags(sockfd, &ifre, 0, IFF_POINTOPOINT);
+      /*value setup */
+      else if (!strcmp(*argv, "pointopoint")) {
+        if (!*++argv) show_help();
+        set_address(sockfd, *argv, &ifre, SIOCSIFDSTADDR, "SIOCSIFDSTADDR");
+        set_flags(sockfd, &ifre, IFF_POINTOPOINT, 0);
+      } else if (!strcmp(*argv, "netmask")) {
+        if (!*++argv) show_help();
+        set_address(sockfd, *argv, &ifre, SIOCSIFNETMASK, "SIOCSIFNETMASK");
+      } else if (!strcmp(*argv, "-broadcast")) {
+        set_flags(sockfd, &ifre, 0, IFF_BROADCAST);
+      } else if (!strcmp(*argv, "broadcast")) {
+        if (!*++argv) show_help();
+        set_address(sockfd, *argv, &ifre, SIOCSIFBRDADDR, "SIOCSIFBRDADDR");
+        set_flags(sockfd, &ifre, IFF_BROADCAST, 0);
+      } else if (!strcmp(*argv, "dstaddr")) {
+        if (!*++argv) show_help();
+        set_address(sockfd, *argv, &ifre, SIOCSIFDSTADDR, "SIOCSIFDSTADDR");
+      } else if (!strcmp(*argv, "hw")) {
+        if (!*++argv) show_help();
+        set_hw_address(sockfd, &argv, &ifre, SIOCSIFHWADDR, "SIOCSIFHWADDR");
+      } else if (!strcmp(*argv, "mtu")) {
+        if (!*++argv) show_help();
+        set_mtu(sockfd, &ifre, *argv);
+      } else if (!strcmp(*argv, "metric")) {
+        if (!*++argv) show_help();
+        set_metric(sockfd, &ifre, *argv);
+      } else if (!strcmp(*argv, "txqueuelen")) {
+        if (!*++argv) show_help();
+        set_qlen(sockfd, &ifre, *argv);
+      } else if (!strcmp(*argv, "keepalive")) {
+        if (!*++argv) show_help();
+        ifre.ifr_data = (void *)strtoul(*argv, 0, 0);
+        xioctl(sockfd, SIOCSKEEPALIVE, &ifre);
+      } else if (!strcmp(*argv, "outfill")) {
+        if (!*++argv) show_help();
+        ifre.ifr_data = (void *)strtoul(*argv, 0, 0);
+        xioctl(sockfd, SIOCSOUTFILL, &ifre);
+      } else if (!strcmp(*argv, "add")) {
+        if (!*++argv) show_help();
+        set_ipv6_addr(sockfd, &ifre, *argv, SIOCSIFADDR, "SIOCSIFADDR");
+      } else if (!strcmp(*argv, "del")) {
+        if (!*++argv) show_help();
+        set_ipv6_addr(sockfd, &ifre, *argv, SIOCDIFADDR, "SIOCDIFADDR");
+      } else if (!strcmp(*argv, "mem_start")) {
+        if (!*++argv) show_help();
+        set_memstart(sockfd, &ifre, *argv, SIOCSIFMAP, "SIOCSIFMAP");
+      } else if (!strcmp(*argv, "io_addr")) {
+        if (!*++argv) show_help();
+        set_ioaddr(sockfd, &ifre, *argv, SIOCSIFMAP, "SIOCSIFMAP");
+      } else if (!strcmp(*argv, "irq")) {
+        if (!*++argv) show_help();
+        set_irq(sockfd, &ifre, *argv, SIOCSIFMAP, "SIOCSIFMAP");
+      } else {
+        if (isdigit(**argv) || !strcmp(*argv, "default")) {
+          char *iface_name = ifre.ifr_name;
+          short int is_colon = 0;
+          set_address(sockfd, *argv, &ifre, SIOCSIFADDR, "SIOCSIFADDR");
+          while (*iface_name) {
+            if (*iface_name == ':') {
+              is_colon = 1;
+              break;
+            }
+            iface_name++;
+          }
+          //if the interface name is not an alias; set the flag and continue.
+          if(!is_colon) set_flags(sockfd, &ifre, IFF_UP | IFF_RUNNING, 0);
+        } else if (!strcmp(*argv, "inet") || !strcmp(*argv, "inet6")) continue;
+        else {
+          errno = EINVAL;
+          toys.exithelp++;
+          error_exit("bad argument");
+        }
+      }
+
+    }
+    if(sockfd > 0) close(sockfd);
+  }
 }
