@@ -37,7 +37,7 @@ config IFCONFIG
 #include <net/ethernet.h>
 
 GLOBALS(
-  void *iface_list;
+  void *if_list;
 )
 
 typedef struct sockaddr_with_len {
@@ -50,31 +50,15 @@ typedef struct sockaddr_with_len {
 } sockaddr_with_len;
 
 // man netdevice
-struct iface_list {
-  struct iface_list *next;
-  int hw_type, ifrmtu, ifrmetric, txqueuelen, non_virtual_iface;
-  short ifrflags, ifaddr;
-  struct sockaddr ifraddr, ifrdstaddr, ifrbroadaddr, ifrnetmask, ifrhwaddr;
-  struct ifmap ifrmap;
+struct if_list {
+  struct if_list *next;
+  int hw_type, mtu, metric, txqueuelen, non_virtual_iface;
+  short flags, hasaddr;
+  struct sockaddr addr, dstaddr, broadaddr, netmask, hwaddr;
+  struct ifmap map;
 
-  char        ifrname[IFNAMSIZ]; //interface name.
-  unsigned long long   receive_bytes; //total bytes received
-  unsigned long long   receive_packets; //total packets received
-  unsigned long     receive_errors; //bad packets received
-  unsigned long     receive_drop; //no space in linux buffers
-  unsigned long     receive_fifo; //receiver fifo overrun
-  unsigned long     receive_frame; //received frame alignment error
-  unsigned long     receive_compressed;
-  unsigned long     receive_multicast; //multicast packets received
-
-  unsigned long long   transmit_bytes; //total bytes transmitted
-  unsigned long long   transmit_packets; //total packets transmitted
-  unsigned long     transmit_errors; //packet transmit problems
-  unsigned long     transmit_drop; //no space available in linux
-  unsigned long     transmit_fifo;
-  unsigned long     transmit_colls;
-  unsigned long     transmit_carrier;
-  unsigned long     transmit_compressed; //num_tr_compressed;
+  char name[IFNAMSIZ];
+  unsigned long long val[16];
 };
 
 #define HW_NAME_LEN 20
@@ -83,30 +67,11 @@ struct iface_list {
 typedef struct _hw_info {
   char hw_name[HW_NAME_LEN];
   char hw_title[HW_TITLE_LEN];
-  int     hw_addrlen;
+  int hw_addrlen;
 } HW_INFO;
 
 #define NO_RANGE -1
 #define IO_MAP_INDEX 0x100
-
-static int show_iface(char *iface_name);
-static void print_ip6_addr(struct iface_list *il);
-
-//from /usr/include/linux/netdevice.h
-#ifdef IFF_PORTSEL
-//Media selection options.
-# ifndef IF_PORT_UNKNOWN
-enum {
-    IF_PORT_UNKNOWN = 0,
-    IF_PORT_10BASE2,
-    IF_PORT_10BASET,
-    IF_PORT_AUI,
-    IF_PORT_100BASET,
-    IF_PORT_100BASETX,
-    IF_PORT_100BASEFX
-};
-# endif
-#endif
 
 //from kernel header ipv6.h
 #define IPV6_ADDR_ANY 0x0000U
@@ -143,13 +108,6 @@ void xioctl(int fd, int request, void *data)
   if (ioctl(fd, request, data) < 0) perror_exit("ioctl %d", request);
 }
 
-char *safe_strncpy(char *dst, char *src, size_t size)
-{
-  if(!size) return dst;
-  dst[--size] = '\0';
-  return strncpy(dst, src, size);
-}
-
 /*
  * verify the host is local unix path.
  * if so, set the swl input param accordingly.
@@ -163,7 +121,7 @@ static int is_host_unix(char *host, sockaddr_with_len **swl)
     (*swl)->socklen = sizeof(struct sockaddr_un);
     (*swl)->sock_u.sock.sa_family = AF_UNIX;
     sockun = (struct sockaddr_un *)&(*swl)->sock_u.sock;
-    safe_strncpy(sockun->sun_path, host + 6, sizeof(sockun->sun_path));
+    xstrncpy(sockun->sun_path, host + 6, sizeof(sockun->sun_path));
     return 1;
   }
   return 0;
@@ -220,7 +178,7 @@ static void get_host_and_port(char **host, int *port)
   }
   if (ch_ptr) { //pointer to ":" or "]:"
     int size = ch_ptr - (*host) + 1;
-    safe_strncpy(*host, *host, size);
+    xstrncpy(*host, *host, size);
     if (*ch_ptr != ':') {
       ch_ptr++; //skip ']'
       //[nn] without port
@@ -492,126 +450,80 @@ static void set_irq(int sockfd, struct ifreq *ifre, char *irq_val, int request, 
   xioctl(sockfd, request, ifre);
 }
 
-/* Display ifconfig info. */
-static void get_proc_info(char *buff, struct iface_list *il)
+static void add_iface_to_list(struct if_list *newnode)
 {
-  char *name;
+  struct if_list *head_ref = TT.if_list;
 
-  while (isspace(*buff)) buff++;
-  name = strsep(&buff, ":");
-  if(!buff)
-    error_exit("error in getting the device name:");
-
-  if(strlen(name) < (IFNAMSIZ)) {
-    strncpy(il->ifrname, name, IFNAMSIZ-1);
-    il->ifrname[IFNAMSIZ-1] = 0;
-  } else il->ifrname[0] = 0;
-
-  sscanf(buff, "%llu%llu%lu%lu%lu%lu%lu%lu%llu%llu%lu%lu%lu%lu%lu%lu",
-    &il->receive_bytes, &il->receive_packets, &il->receive_errors,
-    &il->receive_drop, &il->receive_fifo, &il->receive_frame,
-    &il->receive_compressed, &il->receive_multicast, &il->transmit_bytes,
-    &il->transmit_packets, &il->transmit_errors, &il->transmit_drop,
-    &il->transmit_fifo, &il->transmit_colls, &il->transmit_carrier,
-    &il->transmit_compressed);
-}
-
-static void add_iface_to_list(struct iface_list *newnode)
-{
-  struct iface_list *head_ref = TT.iface_list;
-
-  if(!head_ref || strcmp(newnode->ifrname, head_ref->ifrname) < 0) {
+  if(!head_ref || strcmp(newnode->name, head_ref->name) < 0) {
     newnode->next = head_ref;
     head_ref = newnode;
   } else {
-    struct iface_list *current = head_ref;
-    while(current->next && strcmp(current->next->ifrname, newnode->ifrname) < 0)
+    struct if_list *current = head_ref;
+    while(current->next && strcmp(current->next->name, newnode->name) < 0)
       current = current->next;
     newnode->next = current->next;
     current->next = newnode;
   }
-  TT.iface_list = (void *)head_ref;
+  TT.if_list = (void *)head_ref;
 }
 
-static int get_device_info(struct iface_list *il)
+static int get_device_info(struct if_list *il)
 {
   struct ifreq ifre;
-  char *ifrname = il->ifrname;
+  char *name = il->name;
   int sokfd;
 
   if ((sokfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) return sokfd;
-  strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
+  strncpy(ifre.ifr_name, name, IFNAMSIZ);
   if(ioctl(sokfd, SIOCGIFFLAGS, &ifre) < 0) {
     close(sokfd);
     return NO_RANGE;
   }
-  il->ifrflags = ifre.ifr_flags;
 
-  strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
+  il->flags = ifre.ifr_flags;
+  strncpy(ifre.ifr_name, name, IFNAMSIZ);
   if(ioctl(sokfd, SIOCGIFHWADDR, &ifre) >= 0)
-    memcpy(il->ifrhwaddr.sa_data, ifre.ifr_hwaddr.sa_data, sizeof(il->ifrhwaddr.sa_data));
+    memcpy(il->hwaddr.sa_data, ifre.ifr_hwaddr.sa_data, sizeof(il->hwaddr.sa_data));
 
   il->hw_type = ifre.ifr_hwaddr.sa_family;
 
-  strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
+  strncpy(ifre.ifr_name, name, IFNAMSIZ);
   if(ioctl(sokfd, SIOCGIFMETRIC, &ifre) >= 0)
-    il->ifrmetric = ifre.ifr_metric;
+    il->metric = ifre.ifr_metric;
 
-  strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
+  strncpy(ifre.ifr_name, name, IFNAMSIZ);
   if(ioctl(sokfd, SIOCGIFMTU, &ifre) >= 0)
-    il->ifrmtu = ifre.ifr_mtu;
+    il->mtu = ifre.ifr_mtu;
 
-  strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
+  strncpy(ifre.ifr_name, name, IFNAMSIZ);
   if(ioctl(sokfd, SIOCGIFMAP, &ifre) == 0)
-    il->ifrmap = ifre.ifr_map;
+    il->map = ifre.ifr_map;
 
-  strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
+  strncpy(ifre.ifr_name, name, IFNAMSIZ);
   il->txqueuelen = NO_RANGE;
   if(ioctl(sokfd, SIOCGIFTXQLEN, &ifre) >= 0)
     il->txqueuelen = ifre.ifr_qlen;
 
-  strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
+  strncpy(ifre.ifr_name, name, IFNAMSIZ);
   ifre.ifr_addr.sa_family = AF_INET;
 
   if(!ioctl(sokfd, SIOCGIFADDR, &ifre)) {
-    il->ifaddr = 1;
-    il->ifraddr = ifre.ifr_addr;
-    strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
+    il->hasaddr = 1;
+    il->addr = ifre.ifr_addr;
+    strncpy(ifre.ifr_name, name, IFNAMSIZ);
     if(ioctl(sokfd, SIOCGIFDSTADDR, &ifre) >= 0)
-      il->ifrdstaddr = ifre.ifr_dstaddr;
+      il->dstaddr = ifre.ifr_dstaddr;
 
-    strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
+    strncpy(ifre.ifr_name, name, IFNAMSIZ);
     if(ioctl(sokfd, SIOCGIFBRDADDR, &ifre) >= 0)
-      il->ifrbroadaddr = ifre.ifr_broadaddr;
+      il->broadaddr = ifre.ifr_broadaddr;
 
-    strncpy(ifre.ifr_name, ifrname, IFNAMSIZ);
+    strncpy(ifre.ifr_name, name, IFNAMSIZ);
     if(ioctl(sokfd, SIOCGIFNETMASK, &ifre) >= 0)
-      il->ifrnetmask = ifre.ifr_netmask;
+      il->netmask = ifre.ifr_netmask;
   }
   close(sokfd);
   return 0;
-}
-
-static void get_ifconfig_info(void)
-{
-  int i;
-  FILE *fp;
-
-  if (!(fp = fopen("/proc/net/dev", "r"))) return;
-
-  for (i=0; fgets(toybuf, sizeof(toybuf), fp); i++) {
-    struct iface_list *il;
-
-    if (i<2) continue;
-
-    il = xzalloc(sizeof(struct iface_list));
-    get_proc_info(toybuf, il);
-    add_iface_to_list(il);
-    il->non_virtual_iface = 1;
-    errno = 0;
-    if(get_device_info(il) < 0) perror_exit("%s", il->ifrname);
-  }
-  fclose(fp);
 }
 
 static void get_hw_info(int hw_type, HW_INFO *hw_info)
@@ -654,9 +566,9 @@ static void get_hw_info(int hw_type, HW_INFO *hw_info)
   }
 }
 
-static void print_hw_addr(int hw_type, HW_INFO hw_info, struct iface_list *il)
+static void print_hw_addr(int hw_type, HW_INFO hw_info, struct if_list *il)
 {
-  char *address = il->ifrhwaddr.sa_data;
+  char *address = il->hwaddr.sa_data;
 
   if(!address || !hw_info.hw_addrlen) return;
   xprintf("HWaddr ");
@@ -680,24 +592,24 @@ static char *get_ip_addr(struct sockaddr *skaddr)
   return inet_ntoa(sin->sin_addr);
 }
 
-static void print_ip_addr(struct iface_list *il)
+static void print_ip_addr(struct if_list *il)
 {
   char *af_name;
-  int af = il->ifraddr.sa_family;
+  int af = il->addr.sa_family;
 
   if (af == AF_INET) af_name = "inet";
   else if (af == AF_INET6) af_name = "inet6";
   else if (af == AF_UNSPEC) af_name = "unspec";
 
-  xprintf("%10s%s addr:%s ", " ", af_name, get_ip_addr(&il->ifraddr));
-  if(il->ifrflags & IFF_POINTOPOINT)
-    xprintf(" P-t-P:%s ", get_ip_addr(&il->ifrdstaddr));
-  if(il->ifrflags & IFF_BROADCAST)
-    xprintf(" Bcast:%s ", get_ip_addr(&il->ifrbroadaddr));
-  xprintf(" Mask:%s\n", get_ip_addr(&il->ifrnetmask));
+  xprintf("%10s%s addr:%s ", " ", af_name, get_ip_addr(&il->addr));
+  if(il->flags & IFF_POINTOPOINT)
+    xprintf(" P-t-P:%s ", get_ip_addr(&il->dstaddr));
+  if(il->flags & IFF_BROADCAST)
+    xprintf(" Bcast:%s ", get_ip_addr(&il->broadaddr));
+  xprintf(" Mask:%s\n", get_ip_addr(&il->netmask));
 }
 
-static void print_ip6_addr(struct iface_list *il)
+static void print_ip6_addr(struct if_list *il)
 {
   char iface_name[IFNAMSIZ] = {0,};
   int plen, scope;
@@ -714,7 +626,7 @@ static void print_ip6_addr(struct iface_list *il)
       if((nitems < 0) && feof(fp)) break;
       perror_exit("sscanf");
     }
-    if(strcmp(il->ifrname, iface_name) == 0) {
+    if(strcmp(il->name, iface_name) == 0) {
       int i = 0;
       struct sockaddr_in6 sock_in6;
       int len = sizeof(ipv6_addr) / (sizeof ipv6_addr[0]);
@@ -744,24 +656,24 @@ static void print_ip6_addr(struct iface_list *il)
   fclose(fp);
 }
 
-static void display_ifconfig(struct iface_list *il)
+static void display_ifconfig(struct if_list *il)
 {
   HW_INFO hw_info;
 
   get_hw_info(il->hw_type, &hw_info);
-  xprintf("%-9s Link encap:%s  ", il->ifrname, hw_info.hw_title);
+  xprintf("%-9s Link encap:%s  ", il->name, hw_info.hw_title);
   print_hw_addr(il->hw_type, hw_info, il);
   xputc('\n');
 
   //print addr, p-p addr, broadcast addr and mask addr.
-  if(il->ifaddr) print_ip_addr(il);
+  if(il->hasaddr) print_ip_addr(il);
 
   //for ipv6 to do.
   print_ip6_addr(il);
   xprintf("%10s", " ");
   //print flags
 
-  if (il->ifrflags) {
+  if (il->flags) {
     unsigned short mask = 1;
     char **s, *str[] = {
       "UP", "BROADCAST", "DEBUG", "LOOPBACK", "POINTOPOINT", "NOTRAILERS",
@@ -770,67 +682,60 @@ static void display_ifconfig(struct iface_list *il)
     };
 
     for(s = str; *s; s++) {
-      if(il->ifrflags & mask) xprintf("%s ", *s);
+      if(il->flags & mask) xprintf("%s ", *s);
       mask = mask << 1;
     }
   } else xprintf("[NO FLAGS] ");
 
-  if(!il->ifrmetric) il->ifrmetric = 1;
-  xprintf(" MTU:%d  Metric:%d\n", il->ifrmtu, il->ifrmetric);
+  if(!il->metric) il->metric = 1;
+  xprintf(" MTU:%d  Metric:%d", il->mtu, il->metric);
 
   if(il->non_virtual_iface) {
-    xprintf("%10cRX packets:%llu errors:%lu dropped:%lu overruns:%lu frame:%lu\n",
-        ' ', il->receive_packets, il->receive_errors, il->receive_drop,
-        il->receive_fifo, il->receive_frame);
-    //Dummy types for non ARP hardware.
-    if((il->hw_type == ARPHRD_CSLIP) || (il->hw_type == ARPHRD_CSLIP6))
-      xprintf("%10ccompressed:%lu\n", ' ', il->receive_compressed);
-    xprintf("%10cTX packets:%llu errors:%lu dropped:%lu overruns:%lu carrier:%lu\n", ' ',
-        il->transmit_packets, il->transmit_errors, il->transmit_drop,
-        il->transmit_fifo, il->transmit_carrier);
-    xprintf("%10ccollisions:%lu ", ' ', il->transmit_colls);
-    //Dummy types for non ARP hardware.
-    if((il->hw_type == ARPHRD_CSLIP) || (il->hw_type == ARPHRD_CSLIP6))
-      xprintf("compressed:%lu ", il->transmit_compressed);
-    if(il->txqueuelen != NO_RANGE) xprintf("txqueuelen:%d ", il->txqueuelen);
+    char *label[] = {"RX bytes", "RX packets", "errors", "dropped", "overruns",
+      "frame", 0, 0, "TX bytes", "TX packets", "errors", "dropped", "overruns",
+      "collisions", "carrier", 0, "txqueuelen"};
+    signed char order[] = {-1, 1, 2, 3, 4, 5, -1, 9, 10, 11, 12, 14, -1,
+      13, 16, -1, 0, 8};
+    int i;
 
-    xprintf("\n%10cRX bytes:%llu TX bytes:%llu\n", ' ', il->receive_bytes,
-      il->transmit_bytes);
+    for (i = 0; i < sizeof(order); i++) {
+      int j = order[i];
+
+      if (j < 0) xprintf("\n%10c", ' ');
+      else xprintf("%s:%llu ", label[j],
+        j==16 ? (unsigned long long)il->txqueuelen : il->val[j]);
+    }
   }
-  if(il->ifrmap.irq || il->ifrmap.mem_start || il->ifrmap.dma || il->ifrmap.base_addr) {
+  xputc('\n');
+
+  if(il->map.irq || il->map.mem_start || il->map.dma || il->map.base_addr) {
     xprintf("%10c", ' ');
-    if(il->ifrmap.irq) xprintf("Interrupt:%d ", il->ifrmap.irq);
-    if(il->ifrmap.base_addr >= IO_MAP_INDEX)
-      xprintf("Base address:0x%lx ", il->ifrmap.base_addr);
-    if(il->ifrmap.mem_start)
-      xprintf("Memory:%lx-%lx ", il->ifrmap.mem_start, il->ifrmap.mem_end);
-    if(il->ifrmap.dma) xprintf("DMA chan:%x ", il->ifrmap.dma);
+    if(il->map.irq) xprintf("Interrupt:%d ", il->map.irq);
+    if(il->map.base_addr >= IO_MAP_INDEX)
+      xprintf("Base address:0x%lx ", il->map.base_addr);
+    if(il->map.mem_start)
+      xprintf("Memory:%lx-%lx ", il->map.mem_start, il->map.mem_end);
+    if(il->map.dma) xprintf("DMA chan:%x ", il->map.dma);
     xputc('\n');
   }
   xputc('\n');
 }
 
-static int readconf(void)
+static void readconf(void)
 {
   int num_of_req = 30;
   struct ifconf ifcon;
   struct ifreq *ifre;
-  int num, status = -1, sokfd;
+  int num, sokfd;
 
   ifcon.ifc_buf = NULL;
   sokfd = socket(AF_INET, SOCK_DGRAM, 0);
-  if(sokfd < 0) {
-    perror_msg("error: no inet socket available");
-    return -1;
-  }
+  if(sokfd < 0) perror_exit("socket");
   for (;;) {
     ifcon.ifc_len = sizeof(struct ifreq) * num_of_req; //Size of buffer.
     ifcon.ifc_buf = xrealloc(ifcon.ifc_buf, ifcon.ifc_len);
 
-    if((status = ioctl(sokfd, SIOCGIFCONF, &ifcon)) == -1) {
-      perror_msg("ioctl %#x failed", SIOCGIFCONF);
-      goto LOOP_BREAK;
-    }
+    xioctl(sokfd, SIOCGIFCONF, &ifcon);
     //in case of overflow, increase number of requests and retry.
     if (ifcon.ifc_len == (int)(sizeof(struct ifreq) * num_of_req)) {
       num_of_req += 10;
@@ -842,58 +747,75 @@ static int readconf(void)
   ifre = ifcon.ifc_req;
   for(num = 0; num < ifcon.ifc_len && ifre; num += sizeof(struct ifreq), ifre++) {
     //Escape duplicate values from the list.
-    struct iface_list *il;
+    struct if_list *il;
 
-    for(il = TT.iface_list; il; il = il->next)
-      if(!strcmp(ifre->ifr_name, il->ifrname)) break;
+    for(il = TT.if_list; il; il = il->next)
+      if(!strcmp(ifre->ifr_name, il->name)) break;
     if(!il) {
-      il = xzalloc(sizeof(struct iface_list));
-      safe_strncpy(il->ifrname, ifre->ifr_name, IFNAMSIZ);
+      il = xzalloc(sizeof(struct if_list));
+      xstrncpy(il->name, ifre->ifr_name, IFNAMSIZ);
       add_iface_to_list(il);
       errno = 0;
-      if(get_device_info(il) < 0) perror_exit("%s", il->ifrname);
+      if(get_device_info(il) < 0) perror_exit("%s", il->name);
     }
   }
 
-LOOP_BREAK:
   close(sokfd);
   free(ifcon.ifc_buf);
-
-  return status;
 }
 
-static int show_iface(char *iface_name)
+static void show_iface(char *iface_name)
 {
-  struct iface_list *il;
+  struct if_list *il;
+  int i, j;
+  FILE *fp;
 
-  get_ifconfig_info();
+  fp = xfopen("/proc/net/dev", "r");
+
+  for (i=0; fgets(toybuf, sizeof(toybuf), fp); i++) {
+    char *name, *buf;
+
+    if (i<2) continue;
+
+    il = xzalloc(sizeof(struct if_list));
+    for (buf = toybuf; isspace(*buf); buf++);
+    name = strsep(&buf, ":");
+    if(!buf) error_exit("bad name %s", name);
+    xstrncpy(il->name, name, IFNAMSIZ);
+
+    errno = 0;
+    for (j=0; j<16 && !errno; j++) il->val[j] = strtoll(buf, &buf, 0);
+    if (errno) perror_exit("bad %s at %s", name, buf);
+
+    add_iface_to_list(il);
+    il->non_virtual_iface = 1;
+    errno = 0;
+    if(get_device_info(il) < 0) perror_exit("%s", il->name);
+  }
+  fclose(fp);
 
   if(iface_name) {
-    for(il = TT.iface_list; il; il = il->next) {
-      if(!strcmp(il->ifrname, iface_name)) {
+    for(il = TT.if_list; il; il = il->next) {
+      if(!strcmp(il->name, iface_name)) {
         display_ifconfig(il);
         break;
       }
     }
     //if the given interface is not in the list.
     if(!il) {
-      il = xzalloc(sizeof(struct iface_list));
-      safe_strncpy(il->ifrname, iface_name, IFNAMSIZ);
+      il = xzalloc(sizeof(struct if_list));
+      xstrncpy(il->name, iface_name, IFNAMSIZ);
       errno = 0;
-      if(get_device_info(il) < 0) {
-        perror_msg("%s", iface_name);
-        free(il);
-        return 1;
-      } else display_ifconfig(il);
+      if(get_device_info(il) < 0) perror_exit("%s", iface_name);
+      else display_ifconfig(il);
       free(il);
     }
   } else {
-    if(readconf() < 0) return 1;
-    for(il = TT.iface_list; il; il = il->next)
-      if((il->ifrflags & IFF_UP) || (toys.optflags & FLAG_a))
+    readconf();
+    for(il = TT.if_list; il; il = il->next)
+      if((il->flags & IFF_UP) || (toys.optflags & FLAG_a))
         display_ifconfig(il);
   }
-  return 0;
 }
 
 void ifconfig_main(void)
@@ -904,9 +826,9 @@ void ifconfig_main(void)
   
   //"ifconfig" / "ifconfig eth0"
   if(!argv[0] || !argv[1]) { //one or no argument
-    toys.exitval = show_iface(*argv);
+    show_iface(*argv);
     //free allocated memory.
-    llist_traverse(TT.iface_list, free);
+    llist_traverse(TT.if_list, free);
     return;
   }
 

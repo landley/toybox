@@ -11,7 +11,7 @@
 #include "toys.h"
 
 // Strcpy with size checking: exit if there's not enough space for the string.
-void xstrcpy(char *dest, char *src, size_t size)
+void xstrncpy(char *dest, char *src, size_t size)
 {
   if (strlen(src)+1 > size) error_exit("xstrcpy");
   strcpy(dest, src);

@@ -86,7 +86,7 @@ struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node));
 void show_help(void);
 
 // lib.c
-void xstrcpy(char *dest, char *src, size_t size);
+void xstrncpy(char *dest, char *src, size_t size);
 void verror_msg(char *msg, int err, va_list va);
 void error_msg(char *msg, ...);
 void perror_msg(char *msg, ...);
