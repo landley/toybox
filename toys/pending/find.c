@@ -48,7 +48,6 @@ struct filter_node {
 
 GLOBALS(
   char *dir;
-  int have_action;
   struct filter_node *filter_root;
 )
 
@@ -80,18 +79,18 @@ GLOBALS(
 #define TEST_GT		2
 
 /* executes the command for a filter node
- * return the program return value (0=success)
+   returns 0 for failure or 1 for success
  */
 static int do_exec(struct filter_node *filter, struct dirtree *node)
 {
   char *path = NULL;
-  int plen;
   char **arg_array;
   pid_t pid;
   int status;
 
   arg_array = filter->data.e.exec_args;
   if (filter->data.e.arg_path_index) {
+    int plen;
     path = dirtree_path(node, &plen);
     arg_array[filter->data.e.arg_path_index] = path;
   }
@@ -100,7 +99,7 @@ static int do_exec(struct filter_node *filter, struct dirtree *node)
   free(path);
   waitpid(pid, &status, 0);
 
-  return WEXITSTATUS(status);
+  return !WEXITSTATUS(status);
 }
 
 /* prefix evaluator */
@@ -109,10 +108,6 @@ static int evaluate(struct filter_node *filter, struct dirtree *node,
   struct filter_node **fnext)
 {
   int result;
-  char *path;
-  int plen = 0;
-  struct stat st_buf;
-  time_t node_time;
   int op;
   static int skip = 0;
 
@@ -150,13 +145,7 @@ static int evaluate(struct filter_node *filter, struct dirtree *node,
     return !strcmp(filter->data.name_regex, node->name);
 
   if (op==CHECK_MTIME) {
-    // do mtime check
-    path = dirtree_path(node, &plen);
-    result = stat(path,  &st_buf);
-    free(path);
-    if (result<0) return 0;
-
-    node_time = st_buf.st_mtime/SECONDS_PER_DAY;
+    time_t node_time = node->st.st_mtime/SECONDS_PER_DAY;
     result = 1;
     switch (filter->data.t.time_op) {
       /* do time compare here */
@@ -178,16 +167,12 @@ static int evaluate(struct filter_node *filter, struct dirtree *node,
     return result;
 
   }
-  if (op==CHECK_TYPE) {
-    path = dirtree_path(node, &plen);
-    result = lstat(path,  &st_buf);
-    free(path);
-    if (result<0) return 0;
-    return (st_buf.st_mode & S_IFMT) == filter->data.type;
-  }
+  if (op==CHECK_TYPE) return (node->st.st_mode & S_IFMT) == filter->data.type;
 
 
   if (op==ACTION_PRINT || op==ACTION_PRINT0) {
+    char *path;
+    int plen = 0;
     char terminator = (op==ACTION_PRINT)*'\n';
 
     path = dirtree_path(node, &plen);
@@ -204,7 +189,6 @@ static int evaluate(struct filter_node *filter, struct dirtree *node,
 
 static int check_node_callback(struct dirtree *node)
 {
-  int result;
   struct filter_node *junk;
 
   /* only recurse on "." at the root */
@@ -215,15 +199,7 @@ static int check_node_callback(struct dirtree *node)
     (node->name[1]=='.' && !node->name[2])))
     return 0;
 
-  result = evaluate(TT.filter_root, node, &junk);
-  if (result & !TT.have_action) {
-    /* default action is just print the path */
-    char *path;
-    int plen = 0;
-    path = dirtree_path(node, &plen);
-    printf("%s\n", path);
-    free(path);
-  }
+  evaluate(TT.filter_root, node, &junk);
   return DIRTREE_RECURSE;
 }
 
@@ -234,12 +210,12 @@ static void build_filter_list(void)
   char **arg;
   int j;
   int prevop = 0;
+  int have_action = 0;
 
   /* part optargs here and build a filter list in prefix format */
 
   TT.dir = ".";
   node_list = NULL;
-  TT.have_action = 0;
   for (arg = toys.optargs; *arg; arg++) {
     struct {
       char *arg;
@@ -312,7 +288,7 @@ static void build_filter_list(void)
         break;
     }
 
-    TT.have_action |= IS_ACTION(node->op);
+    have_action |= IS_ACTION(node->op);
 
     if (node->op == OP_UNKNOWN) {
       if (**arg == '-') error_exit("bad option '%s'", *arg);
@@ -339,7 +315,8 @@ static void build_filter_list(void)
   }
 
   /* now convert from infix to prefix */
-  TT.filter_root = NULL;
+  if(have_action) TT.filter_root = NULL;
+  else TT.filter_root = &(struct filter_node){0, ACTION_PRINT};
   op_stack = NULL;
   node = node_list;
   while( node ) {
@@ -385,6 +362,12 @@ static void build_filter_list(void)
     op_node->next = TT.filter_root;
     TT.filter_root = op_node;
     op_node = op_stack;
+  }
+  if(!have_action) {
+    node = TT.filter_root;
+    TT.filter_root = (struct filter_node*) xmalloc(sizeof(struct filter_node));
+    TT.filter_root->next = node;
+    TT.filter_root->op = OP_AND;
   }
 }
 
