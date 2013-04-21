@@ -16,7 +16,7 @@ struct toy_list toy_list[] = {
 #include "generated/newtoys.h"
 };
 
-// global context for this applet.
+// global context for this command.
 
 struct toy_context toys;
 union global_union this;
@@ -32,7 +32,7 @@ struct toy_list *toy_find(char *name)
   if (!strncmp(name,"toybox",6)) return toy_list;
   bottom = 1;
 
-  // Binary search to find this applet.
+  // Binary search to find this command.
 
   top = ARRAY_LEN(toy_list)-1;
   for (;;) {
@@ -123,7 +123,7 @@ void toybox_main(void)
     }
   }
 
-  // Output list of applets.
+  // Output list of command.
   for (i=1; i<ARRAY_LEN(toy_list); i++) {
     int fl = toy_list[i].flags;
     if (fl & TOYMASK_LOCATION) {
