@@ -178,6 +178,7 @@ int sig_to_num(char *pidstr);
 char *num_to_sig(int sig);
 
 mode_t string_to_mode(char *mode_str, mode_t base);
+void format_mode(char (*buf)[11], mode_t mode);
 
 // password helper functions
 int read_password(char * buff, int buflen, char* mesg);

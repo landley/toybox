@@ -335,28 +335,9 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
     if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) {
       struct tm *tm;
-      char perm[11], thyme[64], c, d, *usr, *upad, *grp, *grpad;
-      int i, bit;
+      char perm[11], thyme[64], *usr, *upad, *grp, *grpad;
 
-      perm[10]=0;
-      for (i=0; i<9; i++) {
-        bit = mode & (1<<i);
-        c = i%3;
-        if (!c && (mode & (1<<((d=i/3)+9)))) {
-          c = "tss"[d];
-          if (!bit) c &= ~0x20;
-        } else c = bit ? "xwr"[c] : '-';
-        perm[9-i] = c;
-      }
-
-      if (S_ISDIR(mode)) c = 'd';
-      else if (S_ISBLK(mode)) c = 'b';
-      else if (S_ISCHR(mode)) c = 'c';
-      else if (S_ISLNK(mode)) c = 'l';
-      else if (S_ISFIFO(mode)) c = 'p';
-      else if (S_ISSOCK(mode)) c = 's';
-      else c = '-';
-      *perm = c;
+      format_mode(&perm, mode);
 
       tm = localtime(&(st->st_mtime));
       strftime(thyme, sizeof(thyme), "%F %H:%M", tm);

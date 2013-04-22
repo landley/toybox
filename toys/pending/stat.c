@@ -50,7 +50,7 @@ config STAT
 
 GLOBALS(
 	char *fmt;
-	char *access_str;
+	char access_str[11];
 	char *file_type;
 	struct passwd *user_name;
 	struct group *group_name;
@@ -84,25 +84,6 @@ static char * check_type_file(mode_t mode, size_t size)
   if (S_ISFIFO(mode)) return "FIFO (named pipe)";
   if (S_ISLNK(mode)) return "symbolic link";
   if (S_ISSOCK(mode)) return "socket";
-}
-
-static char * get_access_str(unsigned long permission, mode_t mode)
-{
-  static char access_string[11];
-  char *s = access_string;
-  char *rwx[] = {"---", "--x", "-w-", "-wx",
-                 "r--", "r-x", "rw-", "rwx"};
-
-  if (S_ISDIR(mode)) *s = 'd';
-  else *s = '-';
-
-  for (s += 7; s > access_string; s-=3) {
-    memcpy(s, rwx[permission & 7], 3);
-    permission >>= 3;
-  }
-
-  access_string[10] = '\0';
-  return access_string;
 }
 
 static char * date_stat_format(time_t time)
@@ -252,7 +233,7 @@ void stat_main(void)
     TT.user_name = getpwuid(TT.toystat->st_uid);
     TT.group_name = getgrgid(TT.toystat->st_gid);
     // function to get access in human readable format
-    TT.access_str = get_access_str(TT.toystat->st_mode & ~S_IFMT, TT.toystat->st_mode);
+    format_mode(&TT.access_str, TT.toystat->st_mode);
   } else do_statfs(*toys.optargs);
   print_stat_format(fmts[!flag_c*flag_f+flag_c], flag_f);
 }
