@@ -2,30 +2,30 @@
  * anand.sinha85@gmail.com
  * Copyright 2012 <warior.linux@gmail.com>
 
-USE_STAT(NEWTOY(stat, "LZc:f", TOYFLAG_BIN)) 
+USE_STAT(NEWTOY(stat, "c:f", TOYFLAG_BIN)) 
 
 config STAT
   bool stat
   default n
   help
-    Usage: stat [OPTION] FILE...
+    usage: stat [-f] [-c FORMAT] FILE...
+
     display file or file system status
-    -Z, --context
-             print the security context information if available
-    -f, --file-system
-      display file system status instead of file status
-    -c  --format=FORMAT
-      use the specified FORMAT instead of the default; output a newline after each use of FORMAT
-    --help display this help and exit
-    The valid format sequences for files (without --file-system):
+
+    -f display file system status instead of file status
+    -c use the specified FORMAT instead of the default;
+       output a newline after each use of FORMAT
+
+    The valid format sequences for files:
     %a     Access rights in octal
     %A     Access rights in human readable form
-    %b     Number of blocks allocated (see
-    %B     The size in bytes of each block reported by
+    %b     Number of blocks allocated
+    %B     The size in bytes of each block
     %d     Device number in decimal
     %D     Device number in hex
     %f     Raw mode in hex
     %F     File type
+    %g     Group ID of owner
     %G     Group name of owner
     %h     Number of hard links
     %i     Inode number
@@ -33,8 +33,6 @@ config STAT
     %N     Quoted file name with dereference if symbolic link
     %o     I/O block size
     %s     Total size, in bytes
-    %t     Major device type in hex
-    %T     Minor device type in hex
     %u     User ID of owner
     %U     User name of owner
     %x     Time of last access
@@ -43,6 +41,18 @@ config STAT
     %Y     Time of last modification as seconds since Epoch
     %z     Time of last change
     %Z     Time of last change as seconds since Epoch
+
+    The valid format sequences for file systems:
+    %a     Available blocks for unpriviledges user
+    %b     Total number of blocks
+    %c     Total number of inodes
+    %d     Number of free inodes
+    %f     Number of free blocks
+    %i     File system ID
+    %l     Maximum length of file names
+    %s     Fragment size
+    %S     Optimal transfer block size
+    %t     File system type
 */
 
 #define FOR_stat
@@ -54,23 +64,10 @@ GLOBALS(
 	char *file_type;
 	struct passwd *user_name;
 	struct group *group_name;
-	struct stat *toystat;
-	struct statfs *toystatfs;
+	struct stat *stat;
+	struct statfs *statfs;
 )
 
-
-static void do_stat(const char * file_name)
-{
-  TT.toystat = xmalloc(sizeof(struct stat));
-  if (stat(file_name, TT.toystat) < 0) perror_exit("stat: '%s'", file_name);
-}
-
-static void do_statfs(const char * file_name)
-{
-  TT.toystatfs = xmalloc(sizeof(struct statfs));
-  if (statfs(file_name, TT.toystatfs) < 0)
-    perror_exit("statfs: '%s'", file_name);
-}
 
 static char * check_type_file(mode_t mode, size_t size)
 {
@@ -104,55 +101,52 @@ static void print_stat_format(char *format, int flag)
     format++;
     switch (*format) {
       case 'a':
-        if (flag) xprintf("%lu", TT.toystatfs->f_bavail);
-        else xprintf("%04lo",TT.toystat->st_mode & ~S_IFMT);
+        if (flag) xprintf("%lu", TT.statfs->f_bavail);
+        else xprintf("%04lo",TT.stat->st_mode & ~S_IFMT);
         break;
       case 'A':
         xprintf("%s",TT.access_str);
         break;
       case 'b':
-        if (flag) xprintf("%lu", TT.toystatfs->f_blocks);
-        else xprintf("%llu", TT.toystat->st_blocks);
+        if (flag) xprintf("%lu", TT.statfs->f_blocks);
+        else xprintf("%llu", TT.stat->st_blocks);
         break;
       case 'B':
-        xprintf("%lu", TT.toystat->st_blksize);
+        xprintf("%lu", TT.stat->st_blksize);
         break;
       case 'c':
-        if (flag) xprintf("%lu", TT.toystatfs->f_files);
-        break;
-      case 'C':
-        xprintf("Currently feature is not supported");
+        if (flag) xprintf("%lu", TT.statfs->f_files);
         break;
       case 'd':
-        if (flag) xprintf("%lu", TT.toystatfs->f_ffree);
-        else xprintf("%ldd", TT.toystat->st_dev);
+        if (flag) xprintf("%lu", TT.statfs->f_ffree);
+        else xprintf("%ldd", TT.stat->st_dev);
         break;
       case 'D':
-        xprintf("%llxh", TT.toystat->st_dev);
+        xprintf("%llxh", TT.stat->st_dev);
         break;
       case 'f':
-        if (flag) xprintf("%lu", TT.toystatfs->f_bfree);
-        else xprintf("%lx", TT.toystat->st_mode);
+        if (flag) xprintf("%lu", TT.statfs->f_bfree);
+        else xprintf("%lx", TT.stat->st_mode);
         break;
       case 'F':
         xprintf("%s", TT.file_type);
         break;
       case 'g':
-        xprintf("%lu", TT.toystat->st_uid);
+        xprintf("%lu", TT.stat->st_gid);
         break;
       case 'G':
         xprintf("%8s", TT.user_name->pw_name);
         break;
       case 'h':
-        xprintf("%lu", TT.toystat->st_nlink);
+        xprintf("%lu", TT.stat->st_nlink);
         break;
       case 'i':
         if (flag)
-          xprintf("%d%d", TT.toystatfs->f_fsid.__val[0], TT.toystatfs->f_fsid.__val[1]);
-        else xprintf("%llu", TT.toystat->st_ino);
+          xprintf("%d%d", TT.statfs->f_fsid.__val[0], TT.statfs->f_fsid.__val[1]);
+        else xprintf("%llu", TT.stat->st_ino);
         break;
       case 'l':
-        if (flag) xprintf("%ld", TT.toystatfs->f_namelen);
+        if (flag) xprintf("%ld", TT.statfs->f_namelen);
         break;
       case 'n':
         xprintf("%s", *toys.optargs);
@@ -161,44 +155,41 @@ static void print_stat_format(char *format, int flag)
         xprintf("`%s'", *toys.optargs);
         break;
       case 'o':
-        xprintf("%lu", TT.toystat->st_blksize);
+        xprintf("%lu", TT.stat->st_blksize);
         break;
       case 's':
-        if (flag) xprintf("%d", TT.toystatfs->f_frsize);
-        else xprintf("%llu", TT.toystat->st_size);
+        if (flag) xprintf("%d", TT.statfs->f_frsize);
+        else xprintf("%llu", TT.stat->st_size);
         break;
       case 'S':
-        if (flag) xprintf("%d", TT.toystatfs->f_bsize);
+        if (flag) xprintf("%d", TT.statfs->f_bsize);
         break;
       case 't':
-        if (flag) xprintf("%lx", TT.toystatfs->f_type);
-        break;
-      case 'T':
-        if (flag) xprintf("Needs to be implemented");
+        if (flag) xprintf("%lx", TT.statfs->f_type);
         break;
       case 'u':
-        xprintf("%lu", TT.toystat->st_uid);
+        xprintf("%lu", TT.stat->st_uid);
         break;
       case 'U':
         xprintf("%8s", TT.user_name->pw_name);
         break;
       case 'x':
-        xprintf("%s", date_stat_format(TT.toystat->st_atime));
+        xprintf("%s", date_stat_format(TT.stat->st_atime));
         break;
       case 'X':
-        xprintf("%llu", TT.toystat->st_atime);
+        xprintf("%llu", TT.stat->st_atime);
         break;
       case 'y':
-        xprintf("%s", date_stat_format(TT.toystat->st_mtime));
+        xprintf("%s", date_stat_format(TT.stat->st_mtime));
         break;
       case 'Y':
-        xprintf("%llu", TT.toystat->st_mtime);
+        xprintf("%llu", TT.stat->st_mtime);
         break;
       case 'z':
-        xprintf("%s", date_stat_format(TT.toystat->st_ctime));
+        xprintf("%s", date_stat_format(TT.stat->st_ctime));
         break;
       case 'Z':
-        xprintf("%llu", TT.toystat->st_ctime);
+        xprintf("%llu", TT.stat->st_ctime);
       default:
         xprintf("%c", *format);
         break;
@@ -224,16 +215,21 @@ void stat_main(void)
                   "Inodes: Total: %c\tFree: %d",
            TT.fmt};
 
-  if (toys.optflags & FLAG_Z) error_exit("SELinux feature has not been implemented so far..");
   if (!flag_f) {
-    do_stat(*toys.optargs);
+    TT.stat = xmalloc(sizeof(struct stat));
+    if (stat(*toys.optargs, TT.stat) < 0)
+       perror_exit("stat: '%s'", *toys.optargs);
     // function to check the type/mode of file
-    TT.file_type = check_type_file(TT.toystat->st_mode, TT.toystat->st_size);
+    TT.file_type = check_type_file(TT.stat->st_mode, TT.stat->st_size);
     // check user and group name
-    TT.user_name = getpwuid(TT.toystat->st_uid);
-    TT.group_name = getgrgid(TT.toystat->st_gid);
+    TT.user_name = getpwuid(TT.stat->st_uid);
+    TT.group_name = getgrgid(TT.stat->st_gid);
     // function to get access in human readable format
-    format_mode(&TT.access_str, TT.toystat->st_mode);
-  } else do_statfs(*toys.optargs);
+    format_mode(&TT.access_str, TT.stat->st_mode);
+  } else {
+    TT.statfs = xmalloc(sizeof(struct statfs));
+    if (statfs(*toys.optargs, TT.statfs) < 0)
+      perror_exit("statfs: '%s'", *toys.optargs);
+  }
   print_stat_format(fmts[!flag_c*flag_f+flag_c], flag_f);
 }
