@@ -108,6 +108,14 @@ void xioctl(int fd, int request, void *data)
   if (ioctl(fd, request, data) < 0) perror_exit("ioctl %d", request);
 }
 
+int xsocket(int domain, int type, int protocol)
+{
+  int fd = socket(domain, type, protocol);
+
+  if (fd < 0) perror_exit("socket %x %x", type, protocol);
+  return fd;
+}
+
 /*
  * verify the host is local unix path.
  * if so, set the swl input param accordingly.
@@ -318,17 +326,13 @@ static void set_ipv6_addr(int sockfd, struct ifreq *ifre, char *ipv6_addr, int r
         (char *) &(swl->sock_u.sock_in6.sin6_addr),
         sizeof(struct in6_addr));
     //Create a channel to the NET kernel.
-    if( (sockfd6 = socket(AF_INET6, SOCK_DGRAM, 0)) < 0)
-      perror_exit("AF_INET6 SOCK_DGRAM", 0);
+    sockfd6 = xsocket(AF_INET6, SOCK_DGRAM, 0);
     xioctl(sockfd6, SIOGIFINDEX, ifre);
     ifre6.ifrinet6_ifindex = ifre->ifr_ifindex;
     ifre6.ifrinet6_prefixlen = plen;
 
     xioctl(sockfd6, request, &ifre6);
-    if(swl != NULL) {
-      free(swl);
-      swl = NULL;
-    }
+    free(swl);
 }
 
 static void set_address(int sockfd, char *host_name, struct ifreq *ifre, int request, char *req_name)
@@ -467,63 +471,50 @@ static void add_iface_to_list(struct if_list *newnode)
   TT.if_list = (void *)head_ref;
 }
 
-static int get_device_info(struct if_list *il)
+static void get_device_info(struct if_list *il)
 {
   struct ifreq ifre;
   char *name = il->name;
   int sokfd;
 
-  if ((sokfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) return sokfd;
-  strncpy(ifre.ifr_name, name, IFNAMSIZ);
-  if(ioctl(sokfd, SIOCGIFFLAGS, &ifre) < 0) {
-    close(sokfd);
-    return NO_RANGE;
-  }
-
+  sokfd = xsocket(AF_INET, SOCK_DGRAM, 0);
+  xstrncpy(ifre.ifr_name, name, IFNAMSIZ);
+  if(ioctl(sokfd, SIOCGIFFLAGS, &ifre)<0) perror_exit("%s", il->name);
   il->flags = ifre.ifr_flags;
-  strncpy(ifre.ifr_name, name, IFNAMSIZ);
+
   if(ioctl(sokfd, SIOCGIFHWADDR, &ifre) >= 0)
     memcpy(il->hwaddr.sa_data, ifre.ifr_hwaddr.sa_data, sizeof(il->hwaddr.sa_data));
 
   il->hw_type = ifre.ifr_hwaddr.sa_family;
 
-  strncpy(ifre.ifr_name, name, IFNAMSIZ);
   if(ioctl(sokfd, SIOCGIFMETRIC, &ifre) >= 0)
     il->metric = ifre.ifr_metric;
 
-  strncpy(ifre.ifr_name, name, IFNAMSIZ);
   if(ioctl(sokfd, SIOCGIFMTU, &ifre) >= 0)
     il->mtu = ifre.ifr_mtu;
 
-  strncpy(ifre.ifr_name, name, IFNAMSIZ);
   if(ioctl(sokfd, SIOCGIFMAP, &ifre) == 0)
     il->map = ifre.ifr_map;
 
-  strncpy(ifre.ifr_name, name, IFNAMSIZ);
   il->txqueuelen = NO_RANGE;
   if(ioctl(sokfd, SIOCGIFTXQLEN, &ifre) >= 0)
     il->txqueuelen = ifre.ifr_qlen;
 
-  strncpy(ifre.ifr_name, name, IFNAMSIZ);
   ifre.ifr_addr.sa_family = AF_INET;
 
   if(!ioctl(sokfd, SIOCGIFADDR, &ifre)) {
     il->hasaddr = 1;
     il->addr = ifre.ifr_addr;
-    strncpy(ifre.ifr_name, name, IFNAMSIZ);
     if(ioctl(sokfd, SIOCGIFDSTADDR, &ifre) >= 0)
       il->dstaddr = ifre.ifr_dstaddr;
 
-    strncpy(ifre.ifr_name, name, IFNAMSIZ);
     if(ioctl(sokfd, SIOCGIFBRDADDR, &ifre) >= 0)
       il->broadaddr = ifre.ifr_broadaddr;
 
-    strncpy(ifre.ifr_name, name, IFNAMSIZ);
     if(ioctl(sokfd, SIOCGIFNETMASK, &ifre) >= 0)
       il->netmask = ifre.ifr_netmask;
   }
   close(sokfd);
-  return 0;
 }
 
 static void get_hw_info(int hw_type, HW_INFO *hw_info)
@@ -756,7 +747,7 @@ static void readconf(void)
       xstrncpy(il->name, ifre->ifr_name, IFNAMSIZ);
       add_iface_to_list(il);
       errno = 0;
-      if(get_device_info(il) < 0) perror_exit("%s", il->name);
+      get_device_info(il);
     }
   }
 
@@ -790,7 +781,7 @@ static void show_iface(char *iface_name)
     add_iface_to_list(il);
     il->non_virtual_iface = 1;
     errno = 0;
-    if(get_device_info(il) < 0) perror_exit("%s", il->name);
+    get_device_info(il);
   }
   fclose(fp);
 
@@ -806,8 +797,8 @@ static void show_iface(char *iface_name)
       il = xzalloc(sizeof(struct if_list));
       xstrncpy(il->name, iface_name, IFNAMSIZ);
       errno = 0;
-      if(get_device_info(il) < 0) perror_exit("%s", iface_name);
-      else display_ifconfig(il);
+      get_device_info(il);
+      display_ifconfig(il);
       free(il);
     }
   } else {
@@ -816,6 +807,8 @@ static void show_iface(char *iface_name)
       if((il->flags & IFF_UP) || (toys.optflags & FLAG_a))
         display_ifconfig(il);
   }
+
+  if (CFG_TOYBOX_FREE) llist_traverse(TT.if_list, free);
 }
 
 void ifconfig_main(void)
@@ -824,11 +817,8 @@ void ifconfig_main(void)
 
   if(*argv && (strcmp(*argv, "--help") == 0)) show_help();
   
-  //"ifconfig" / "ifconfig eth0"
-  if(!argv[0] || !argv[1]) { //one or no argument
+  if(toys.optc < 2) {
     show_iface(*argv);
-    //free allocated memory.
-    llist_traverse(TT.if_list, free);
     return;
   }
 
