@@ -64,13 +64,6 @@ struct if_list {
 #define HW_NAME_LEN 20
 #define HW_TITLE_LEN 30
 
-typedef struct _hw_info {
-  char hw_name[HW_NAME_LEN];
-  char hw_title[HW_TITLE_LEN];
-  int hw_addrlen;
-} HW_INFO;
-
-#define NO_RANGE -1
 #define IO_MAP_INDEX 0x100
 
 //from kernel header ipv6.h
@@ -496,7 +489,7 @@ static void get_device_info(struct if_list *il)
   if(ioctl(sokfd, SIOCGIFMAP, &ifre) == 0)
     il->map = ifre.ifr_map;
 
-  il->txqueuelen = NO_RANGE;
+  il->txqueuelen = -1;
   if(ioctl(sokfd, SIOCGIFTXQLEN, &ifre) >= 0)
     il->txqueuelen = ifre.ifr_qlen;
 
@@ -517,87 +510,14 @@ static void get_device_info(struct if_list *il)
   close(sokfd);
 }
 
-static void get_hw_info(int hw_type, HW_INFO *hw_info)
+static void show_ip_addr(char *name, struct sockaddr *skaddr)
 {
-  memset(hw_info, 0, sizeof(HW_INFO));
+  char *s = "[NOT SET]";
 
-  switch(hw_type) {
-    case ARPHRD_LOOPBACK: //Loopback device.
-      strncpy(hw_info->hw_name, "loop", HW_NAME_LEN);
-      strncpy(hw_info->hw_title, "Local Loopback", HW_TITLE_LEN);
-      hw_info->hw_addrlen = 0;
-      break;
-    case ARPHRD_ETHER: //Ethernet
-      strncpy(hw_info->hw_name, "ether", HW_NAME_LEN);
-      strncpy(hw_info->hw_title, "Ethernet", HW_TITLE_LEN);
-      hw_info->hw_addrlen = ETH_ALEN;
-      break;
-    case ARPHRD_PPP: //ARPHRD_PPP
-      strncpy(hw_info->hw_name, "ppp", HW_NAME_LEN);
-      strncpy(hw_info->hw_title, "Point-to-Point Protocol", HW_TITLE_LEN);
-      hw_info->hw_addrlen = 0;
-      break;
-    case ARPHRD_INFINIBAND: //InfiniBand
-      strncpy(hw_info->hw_name, "infiniband", HW_NAME_LEN);
-      strncpy(hw_info->hw_title, "InfiniBand", HW_TITLE_LEN);
-      hw_info->hw_addrlen = 20;
-      break;
-    case ARPHRD_SIT: //sit0 device - IPv6-in-IPv4
-      strncpy(hw_info->hw_name, "sit", HW_NAME_LEN);
-      strncpy(hw_info->hw_title, "IPv6-in-IPv4", HW_TITLE_LEN);
-      hw_info->hw_addrlen = 0;
-      break;
-    case -1:
-      strncpy(hw_info->hw_name, "unspec", HW_NAME_LEN);
-      strncpy(hw_info->hw_title, "UNSPEC", HW_TITLE_LEN);
-      hw_info->hw_addrlen = 0;
-      break;
-    default:
-      break;
-  }
-}
+  if(skaddr->sa_family != 0xFFFF && skaddr->sa_family)
+    s = inet_ntoa(((struct sockaddr_in *)skaddr)->sin_addr);
 
-static void print_hw_addr(int hw_type, HW_INFO hw_info, struct if_list *il)
-{
-  char *address = il->hwaddr.sa_data;
-
-  if(!address || !hw_info.hw_addrlen) return;
-  xprintf("HWaddr ");
-  if(hw_type == ARPHRD_ETHER) {
-    int i;
-
-    for (i=0; i<6; i++) xprintf(":%02X"+!i, address[i]);
-  }
-}
-
-static char *get_ip_addr(struct sockaddr *skaddr)
-{
-  struct sockaddr_in *sin = (struct sockaddr_in *)skaddr;
-
-  if(skaddr->sa_family == 0xFFFF || !skaddr->sa_family) return "[NOT SET]";
-  if(sin->sin_family != AF_INET) {
-    errno = EAFNOSUPPORT;
-    return NULL;
-  }
-
-  return inet_ntoa(sin->sin_addr);
-}
-
-static void print_ip_addr(struct if_list *il)
-{
-  char *af_name;
-  int af = il->addr.sa_family;
-
-  if (af == AF_INET) af_name = "inet";
-  else if (af == AF_INET6) af_name = "inet6";
-  else if (af == AF_UNSPEC) af_name = "unspec";
-
-  xprintf("%10s%s addr:%s ", " ", af_name, get_ip_addr(&il->addr));
-  if(il->flags & IFF_POINTOPOINT)
-    xprintf(" P-t-P:%s ", get_ip_addr(&il->dstaddr));
-  if(il->flags & IFF_BROADCAST)
-    xprintf(" Bcast:%s ", get_ip_addr(&il->broadaddr));
-  xprintf(" Mask:%s\n", get_ip_addr(&il->netmask));
+  xprintf(" %s:%s ", name, s);
 }
 
 static void print_ip6_addr(struct if_list *il)
@@ -649,20 +569,43 @@ static void print_ip6_addr(struct if_list *il)
 
 static void display_ifconfig(struct if_list *il)
 {
-  HW_INFO hw_info;
+  struct {
+    int type;
+    char *title;
+  } types[] = {
+    {ARPHRD_LOOPBACK, "Local Loopback"}, {ARPHRD_ETHER, "Ethernet"},
+    {ARPHRD_PPP, "Point-to-Point Protocol"}, {ARPHRD_INFINIBAND, "InfiniBand"},
+    {ARPHRD_SIT, "IPv6-in-IPv4"}, {-1, "UNSPEC"}
+  };
+  int i;
 
-  get_hw_info(il->hw_type, &hw_info);
-  xprintf("%-9s Link encap:%s  ", il->name, hw_info.hw_title);
-  print_hw_addr(il->hw_type, hw_info, il);
+  for (i=0; i < (sizeof(types)/sizeof(*types))-1; i++)
+    if (il->hw_type == types[i].type) break;
+
+  xprintf("%-9s Link encap:%s  ", il->name, types[i].title);
+  if(il->hwaddr.sa_data && il->hw_type == ARPHRD_ETHER) {
+    xprintf("HWaddr ");
+    for (i=0; i<6; i++) xprintf(":%02X"+!i, il->hwaddr.sa_data[i]);
+  }
   xputc('\n');
 
-  //print addr, p-p addr, broadcast addr and mask addr.
-  if(il->hasaddr) print_ip_addr(il);
+  if(il->hasaddr) {
+    int af = il->addr.sa_family;
+    char *name = "unspec";
 
-  //for ipv6 to do.
+    if (af == AF_INET) name = "inet";
+    else if (af == AF_INET6) name = "inet6";
+    xprintf("%10c%s", ' ', name);
+
+    show_ip_addr("addr", &il->addr);
+    if(il->flags & IFF_POINTOPOINT) show_ip_addr("P-t-P", &il->dstaddr);
+    if(il->flags & IFF_BROADCAST) show_ip_addr("Bcast", &il->broadaddr);
+    show_ip_addr("Mask", &il->netmask);
+    xputc('\n');
+  }
+
   print_ip6_addr(il);
-  xprintf("%10s", " ");
-  //print flags
+  xprintf("%10c", ' ');
 
   if (il->flags) {
     unsigned short mask = 1;
