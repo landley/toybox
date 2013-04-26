@@ -35,7 +35,7 @@ struct filter_node {
   union {
     char *name_regex;
     struct {
-      char time_op;
+      int sign;
       time_t time;
     } t;
     mode_t type;
@@ -49,9 +49,8 @@ struct filter_node {
 GLOBALS(
   char *dir;
   struct filter_node *filter_root;
+  time_t itime;
 )
-
-#define SECONDS_PER_DAY (24*60*60)
 
 /* filter operation types */
 #define OP_UNKNOWN	0
@@ -73,10 +72,6 @@ GLOBALS(
 #define ACTION_EXEC	22
 
 #define IS_ACTION(x)    (x >= 20)
-
-#define TEST_LT		0
-#define TEST_EQ		1
-#define TEST_GT		2
 
 /* executes the command for a filter node
    returns 0 for failure or 1 for success
@@ -145,27 +140,9 @@ static int evaluate(struct filter_node *filter, struct dirtree *node,
     return !strcmp(filter->data.name_regex, node->name);
 
   if (op==CHECK_MTIME) {
-    time_t node_time = node->st.st_mtime/SECONDS_PER_DAY;
-    result = 1;
-    switch (filter->data.t.time_op) {
-      /* do time compare here */
-      case TEST_LT:
-        /* FIXTHIS - should result be < or <= ?*/
-        if (node_time > filter->data.t.time) result = 0;
-        break;
-      case TEST_GT:
-        if (node_time < filter->data.t.time) result = 0;
-        break;
-      case TEST_EQ:
-        if (node_time != filter->data.t.time) result = 0;
-        break;
-      default:
-        /* how'd I get here? */
-        result = 0;
-        break;
-    }
-    return result;
-
+    long delta = (long)(((double)TT.itime - node->st.st_mtime) / 86400)
+                 -filter->data.t.time;
+    return filter->data.t.sign == (delta > 0) - (delta < 0);
   }
   if (op==CHECK_TYPE) return (node->st.st_mode & S_IFMT) == filter->data.type;
 
@@ -253,19 +230,18 @@ static void build_filter_list(void)
       case CHECK_MTIME:
         switch(**arg) {
           case '+':
-            node->data.t.time_op=TEST_GT;
-            arg++;
+            node->data.t.sign=+1;
+            (*arg)++;
             break;
           case '-':
-            node->data.t.time_op=TEST_LT;
-            arg++;
+            node->data.t.sign=-1;
+            (*arg)++;
             break;
           default:
-            node->data.t.time_op=TEST_EQ;
+            node->data.t.sign=0;
             break;
         }
-        /* convert to days (very crudely) */
-        node->data.t.time = atoi(*arg)/SECONDS_PER_DAY;
+        node->data.t.time = atoi(*arg);
         break;
       case CHECK_TYPE:
         if (-1 == (j = stridx("fdcblsp", **arg)))
@@ -373,6 +349,7 @@ static void build_filter_list(void)
 
 void find_main(void)
 {
+  TT.itime = time(NULL);
   /* parse filters, if present */
   build_filter_list();
 
