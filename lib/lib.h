@@ -119,6 +119,8 @@ off_t xlseek(int fd, off_t offset, int whence);
 off_t lskip(int fd, off_t offset);
 char *readfile(char *name);
 char *xreadfile(char *name);
+void msleep(long miliseconds);
+int xioctl(int fd, int request, void *data);
 char *xgetcwd(void);
 void xstat(char *path, struct stat *st);
 char *xabspath(char *path, int exact);
@@ -151,6 +153,9 @@ void terminal_size(unsigned *x, unsigned *y);
 int yesno(char *prompt, int def);
 void for_each_pid_with_name_in(char **names, int (*callback)(pid_t pid, char *name));
 unsigned long xstrtoul(const char *nptr, char **endptr, int base);
+
+// net.c
+int xsocket(int domain, int type, int protocol);
 
 // getmountlist.c
 struct mtab_list {

@@ -32,7 +32,6 @@ config IFCONFIG
 #include "toys.h"
 #include "toynet.h"
 
-#include <net/if.h>
 #include <net/if_arp.h>
 #include <net/ethernet.h>
 
@@ -60,9 +59,6 @@ struct if_list {
   char name[IFNAMSIZ];
   unsigned long long val[16];
 };
-
-#define HW_NAME_LEN 20
-#define HW_TITLE_LEN 30
 
 #define IO_MAP_INDEX 0x100
 
@@ -95,19 +91,6 @@ struct ifreq_inet6 {
 #ifndef INFINIBAND_ALEN
 # define INFINIBAND_ALEN 20
 #endif
-
-void xioctl(int fd, int request, void *data)
-{
-  if (ioctl(fd, request, data) < 0) perror_exit("ioctl %d", request);
-}
-
-int xsocket(int domain, int type, int protocol)
-{
-  int fd = socket(domain, type, protocol);
-
-  if (fd < 0) perror_exit("socket %x %x", type, protocol);
-  return fd;
-}
 
 /*
  * verify the host is local unix path.

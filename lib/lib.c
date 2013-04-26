@@ -739,6 +739,28 @@ char *xreadfile(char *name)
 
 */
 
+
+// Sleep for this many thousandths of a second
+void msleep(long miliseconds)
+{
+  struct timespec ts;
+
+  ts.tv_sec = miliseconds/1000;
+  ts.tv_nsec = (miliseconds%1000)*1000000;
+  nanosleep(&ts, &ts);
+}
+
+int xioctl(int fd, int request, void *data)
+{
+  int rc;
+
+  errno = 0;
+  rc = ioctl(fd, request, data);
+  if (rc == -1 && errno) perror_exit("ioctl %d", request);
+
+  return rc;
+}
+
 // Open a /var/run/NAME.pid file, dying if we can't write it or if it currently
 // exists and is this executable.
 void xpidfile(char *name)
