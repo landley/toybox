@@ -95,7 +95,7 @@ static unsigned int get_bits(struct bunzip_data *bd, char bits_wanted)
     // If we need to read more data from file into byte buffer, do so
     if (bd->inbufPos == bd->inbufCount) {
       if (0 >= (bd->inbufCount = read(bd->in_fd, bd->inbuf, IOBUF_SIZE)))
-        error_exit("Unexpected input EOF");
+        error_exit("input EOF");
       bd->inbufPos = 0;
     }
 
@@ -419,7 +419,7 @@ void flush_bunzip_outbuf(struct bunzip_data *bd, int out_fd)
 {
   if (bd->outbufPos) {
     if (write(out_fd, bd->outbuf, bd->outbufPos) != bd->outbufPos)
-      error_exit("Unexpected output EOF");
+      error_exit("output EOF");
     bd->outbufPos = 0;
   }
 }
@@ -619,6 +619,7 @@ int start_bunzip(struct bunzip_data **bdp, int src_fd, char *inbuf, int len)
 void bunzipStream(int src_fd, int dst_fd)
 {
   struct bunzip_data *bd;
+  char *bunzip_errors[]={NULL, "not bzip", "bad data", "old format"};
   int i, j;
 
   if (!(i = start_bunzip(&bd,src_fd,0,0))) {
