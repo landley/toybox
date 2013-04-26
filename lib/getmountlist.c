@@ -7,8 +7,6 @@
 
 #include <mntent.h>
 
-char *path_mounts = "/proc/mounts";
-
 // Get a list of mount points from /etc/mtab or /proc/mounts, including
 // statvfs() information.  This returns a reversed list, which is good for
 // finding overmounts and such.
@@ -18,7 +16,7 @@ struct mtab_list *getmountlist(int die)
   FILE *fp;
   struct mtab_list *mtlist, *mt;
   struct mntent me;
-  char evilbuf[2*PATH_MAX];
+  char evilbuf[2*PATH_MAX], *path_mounts = "/proc/mounts";
 
   mtlist = 0;
   if (!(fp = setmntent(path_mounts, "r"))) {
