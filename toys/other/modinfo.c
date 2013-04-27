@@ -19,8 +19,8 @@ GLOBALS(
 )
 
 static char *modinfo_tags[] = {
-  "alias", "license", "description", "author", "vermagic",
-  "srcversion", "intree", "parm", "depends",
+  "alias", "license", "description", "author", "firmware",
+  "vermagic", "srcversion", "intree", "parm", "depends",
 };
 
 static void output_field(char *field, char *value)
