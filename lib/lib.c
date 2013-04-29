@@ -393,6 +393,7 @@ char *xabspath(char *path, int exact)
         if ((exact || todo) && errno != EINVAL) goto error;
         new->next = done;
         done = new;
+        if (errno == EINVAL && !todo) break;
         s = new->str;
       }
       fd = openat(dirfd, s, 0);
