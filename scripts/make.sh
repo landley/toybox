@@ -2,6 +2,7 @@
 
 # Grab default values for $CFLAGS and such.
 
+export LANG=c
 source ./configure
 
 if [ -z ".config" ]
