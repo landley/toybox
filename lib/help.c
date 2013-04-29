@@ -3,7 +3,7 @@
 #include "toys.h"
 
 #if !CFG_TOYBOX_HELP
-void show_help(char *command) {;}
+void show_help(void) {;}
 #else
 #include "generated/help.h"
 
