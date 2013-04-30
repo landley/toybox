@@ -245,7 +245,10 @@ void parse_optflaglist(struct getoptflagstate *gof)
       options = end;
 
       // Mark this struct opt as used, even when no short opt.
-      if (!new->c) new->c = -1;
+      if (!new->c) {
+        new->c = -1;
+        new = 0;
+      }
 
     // If this is the start of a new option that wasn't a longopt,
 
