@@ -120,7 +120,7 @@ GLOBSTRUCT="$(getglobals)"
 
 echo "generated/help.h"
 # Only recreate generated/help.h if python is installed
-if [ ! -z "$(which python)" ] && [ ! -z "$(grep 'CONFIG_HELP=y' .config)" ]
+if [ ! -z "$(which python)" ] && [ ! -z "$(grep 'CONFIG_TOYBOX_HELP=y' .config)" ]
 then
   echo "Extract help text from Config.in."
   scripts/config2help.py Config.in > generated/help.h || exit 1
