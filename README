@@ -1,30 +1,91 @@
 Toybox: all-in-one Linux command line.
 
---- Building Toybox
+--- Getting started
+
+You can download static binaries for various targets from:
+
+  http://landley.net/toybox/bin
+
+The special name "." indicates the current directory (just like ".." means
+the parent directory), and you can run a program that isn't in the $PATH by
+specifying a path to it, so this should work:
+
+  wget http://landley.net/bin/toybox-x86_64
+  chmod +x toybox-x86_64
+  ./toybox-x86_64 echo hello world
+
+--- Building toybox
 
 Type "make help" for build instructions.
 
-Mostly you want:
+Usually you want something like:
 
-  CFLAGS="--static" CROSS_COMPILE=armv5l- make defconfig toybox install
+  make defconfig
+  CFLAGS="--static" CROSS_COMPILE=armv5l- make toybox
+  PREFIX=/path/to/root/filesystem make install
 
-Or "make menuconfig", which produces the same sort of .config file as the
-Linux kernel.
+The CROSS_COMPILE argument is optional, and without it builds a version of
+toybox to run on the current machine. Cross compiling requires an appropriately
+prefixed cross compiler toolchain, several example toolchains are available at:
+
+  http;//landley.net/aboriginal/bin
+
+For the "CROSS_COMPILE=armv5l-" example above, download
+cross-compiler-armv5l.tar.bz2, extract it, and add its "bin" subdirectory to
+your $PATH. (And yes, the trailing - is significant, because the prefix
+includes a dash.)
+
+For more about cross compiling, see:
+
+  http://landley.net/writing/docs/cross-compiling.html
+  http://landley.net/aboriginal/architectures.html
 
 --- Using toybox
 
-The build produces a "swiss-army-knife" style multifunction binary, which acts
-differently depending on the name it was called as (cp, mv, cat...), and
-installs symlinks under each command name to populate $PATH.
+The toybox build produces a multicall binary, a "swiss-army-knife" program
+that acts differently depending on the name it was called by (cp, mv, cat...).
+Installing toybox adds symlinks for each command name to the $PATH.
 
-The "toybox" command itself uses its first argument as the command name to run
-(ala "toybox ls -l").  With no arguments, it lists available commands.  (This
-allows you to use the commands even without the symlinks.)
+The special "toybox" command treats its first argument as the command to run.
+With no arguments, it lists available commands. This allows you to use toybox
+without installing it. This is the only command that can have an arbitrary
+suffix (hence "toybox-armv5l").
 
 The "help" command provides information about each command (ala "help cat").
 
-The toybox web page is at "http://landley.net/toybox".
+--- Configuring toybox
 
-Have fun,
+It works like the Linux kernel: allnoconfig, defconfig, and menuconfig edit
+a ".config" file that selects which features to include in the resulting
+binary.
 
-Rob
+The maximum sane configuration is "make defconfig": allyesconfig isn't
+recommended for toybox because it enables unfinished commands and debug code.
+
+--- Creating a Toybox-based Linux system
+
+Toybox is not a complete operating system, it's a program that runs under
+an operating system. Booting a simple system to a shell prompt requires
+three packages: an operating system kernel (Linux) to drive the hardware,
+a program for the system to run (toybox), and a C library to tie them
+together (toybox has been tested with musl, uClibc, and glibc, on Android
+systems musl is recommended).</p>
+
+<p>The C library is part of a "toolchain", which is an integrated suite
+of compiler, assembler, and linker, plus the standard headers and libraries
+necessary to build C programs.</p>
+
+
+ Static linking (with the --static option)
+copies the shared library contents into the program, resulting in
+larger but more portable programs. Dynamically linked programs (the default)
+Otherwise, the
+"dynamically" linked programs require the
+library to be present on the target system ("man ldd" and "man ld.so" for
+details) statically linked programs do not.</p>
+
+Toybox is not a kernel, it needs Linux to drive the hardware.
+
+An example toybox-based system is Aboriginal Linux:
+
+  http://landley.net/aboriginal
