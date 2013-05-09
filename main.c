@@ -99,8 +99,7 @@ void toy_exec(char *argv[])
 {
   struct toy_list *which;
 
-  which = toy_find(argv[0]);
-  if (!which) return;
+  if (!(which = toy_find(argv[0]))) return;
   toy_init(which, argv);
   toys.which->toy_main();
   if (fflush(NULL) || ferror(stdout)) perror_exit("write");
@@ -117,12 +116,21 @@ void toybox_main(void)
 
   toys.which = toy_list;
   if (toys.argv[1]) {
-    if (toys.argv[1][0]!='-') {
+    if (CFG_TOYBOX_HELP && !strcmp(toys.argv[1], "--help")) {
+      if (toys.argv[2]) toys.which = toy_find(toys.argv[2]);
+      if (toys.which) {
+        show_help();
+        return;
+      }
+    } else {
       toy_exec(toys.argv+1);
-      error_exit("Unknown command %s",toys.argv[1]);
+      if (toys.argv[1][0] == '-') goto list;
     }
+    
+    error_exit("Unknown command %s",toys.argv[1]);
   }
 
+list:
   // Output list of command.
   for (i=1; i<ARRAY_LEN(toy_list); i++) {
     int fl = toy_list[i].flags;
