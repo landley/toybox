@@ -167,7 +167,7 @@ struct mtab_list {
   char type[0];
 };
 
-struct mtab_list *getmountlist(int die);
+struct mtab_list *xgetmountlist(void);
 
 void bunzipStream(int src_fd, int dst_fd);
 

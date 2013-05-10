@@ -7,35 +7,32 @@
 
 #include <mntent.h>
 
-// Get a list of mount points from /etc/mtab or /proc/mounts, including
-// statvfs() information.  This returns a reversed list, which is good for
-// finding overmounts and such.
+// Get list of mounted filesystems, including stat and statvfs info.
+// Returns a reversed list, which is good for finding overmounts and such.
 
-struct mtab_list *getmountlist(int die)
+struct mtab_list *xgetmountlist(void)
 {
-  FILE *fp;
   struct mtab_list *mtlist, *mt;
-  struct mntent me;
-  char evilbuf[2*PATH_MAX], *path_mounts = "/proc/mounts";
+  struct mntent *me;
+  FILE *fp;
 
-  mtlist = 0;
-  if (!(fp = setmntent(path_mounts, "r"))) {
-    if (die) error_exit("cannot open %s", path_mounts);
-  } else {
-    while (getmntent_r(fp, &me, evilbuf, sizeof(evilbuf))) {
-      mt = xzalloc(sizeof(struct mtab_list) + strlen(me.mnt_fsname) +
-        strlen(me.mnt_dir) + strlen(me.mnt_type) + 3);
-      mt->next = mtlist;
-      // Get information about this filesystem.  Yes, we need both.
-      stat(me.mnt_dir, &(mt->stat));
-      statvfs(me.mnt_dir, &(mt->statvfs));
-      // Remember information from /proc/mounts
-      mt->dir = stpcpy(mt->type, me.mnt_type) + 1;
-      mt->device = stpcpy(mt->dir, me.mnt_dir) + 1;
-      strcpy(mt->device, me.mnt_fsname);
-      mtlist = mt;
-    }
+  if (!(fp = setmntent("/proc/mounts", "r"))) perror_exit("bad /proc/mounts");
+
+  for (mtlist = 0; me = getmntent(fp); mtlist = mt) {
+    mt = xzalloc(sizeof(struct mtab_list) + strlen(me->mnt_fsname) +
+      strlen(me->mnt_dir) + strlen(me->mnt_type) + 3);
+    mt->next = mtlist;
+
+    // Collect details about mounted filesystem (don't bother for /etc/fstab).
+    stat(me->mnt_dir, &(mt->stat));
+    statvfs(me->mnt_dir, &(mt->statvfs));
+
+    // Remember information from /proc/mounts
+    mt->dir = stpcpy(mt->type, me->mnt_type) + 1;
+    mt->device = stpcpy(mt->dir, me->mnt_dir) + 1;
+    strcpy(mt->device, me->mnt_fsname);
   }
   endmntent(fp);
+
   return mtlist;
 }
