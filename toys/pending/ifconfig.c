@@ -740,6 +740,8 @@ static void show_iface(char *iface_name)
 void ifconfig_main(void)
 {
   char **argv = toys.optargs;
+  struct ifreq ifre;
+  int i, sockfd = 0;
 
   if(*argv && (strcmp(*argv, "--help") == 0)) show_help();
   
@@ -748,49 +750,43 @@ void ifconfig_main(void)
     return;
   }
 
-  //set ifconfig params.
-  {
-    struct ifreq ifre;
-    int sockfd = 0;
-    //get interface name
-    memset(&ifre, 0, sizeof(struct ifreq));
-    strncpy(ifre.ifr_name, *argv, IFNAMSIZ);
-    ifre.ifr_name[IFNAMSIZ-1] = 0;
-    if((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) perror_exit("socket");
+  //get interface name
+  memset(&ifre, 0, sizeof(struct ifreq));
+  xstrncpy(ifre.ifr_name, *argv, IFNAMSIZ);
+  sockfd = xsocket(AF_INET, SOCK_DGRAM, 0);
 
-    while(*++argv != NULL) {
-      /* flags settings */
-      if (!strcmp(*argv, "up"))
-        set_flags(sockfd, &ifre, IFF_UP | IFF_RUNNING, 0);
-      else if (!strcmp(*argv, "down"))
-        set_flags(sockfd, &ifre, 0, IFF_UP);
+  while(*++argv) {
+    struct {
+      char *name;
+      int flags[2]; // set, clear
+    } try[] = {
+      {"up", {IFF_UP|IFF_RUNNING, 0}},
+      {"down", {0, IFF_UP}},
+      {"arp", {0, IFF_NOARP}},
+      {"trailers", {0, IFF_NOTRAILERS}},
+      {"promisc", {IFF_PROMISC, 0}},
+      {"allmulti", {IFF_ALLMULTI, 0}},
+      {"multicast", {IFF_MULTICAST, 0}},
+      {"dynamic", {IFF_DYNAMIC, 0}}
+    };
+    char *s = *argv;
+    int rev = (*s == '-');
 
-      else if (!strcmp(*argv, "arp"))
-        set_flags(sockfd, &ifre, 0, IFF_NOARP);
-      else if (!strcmp(*argv, "-arp"))
-        set_flags(sockfd, &ifre, IFF_NOARP, 0);
-      else if (!strcmp(*argv, "trailers"))
-        set_flags(sockfd, &ifre, 0, IFF_NOTRAILERS);
-      else if (!strcmp(*argv, "-trailers"))
-        set_flags(sockfd, &ifre, IFF_NOTRAILERS, 0);
+    s += rev;
 
-      else if (!strcmp(*argv, "promisc"))
-        set_flags(sockfd, &ifre, IFF_PROMISC, 0);
-      else if (!strcmp(*argv, "-promisc"))
-        set_flags(sockfd, &ifre, 0, IFF_PROMISC);
-      else if (!strcmp(*argv, "allmulti"))
-        set_flags(sockfd, &ifre, IFF_ALLMULTI, 0);
-      else if (!strcmp(*argv, "-allmulti"))
-        set_flags(sockfd, &ifre, 0, IFF_ALLMULTI);
-      else if (!strcmp(*argv, "multicast"))
-        set_flags(sockfd, &ifre, IFF_MULTICAST, 0);
-      else if (!strcmp(*argv, "-multicast"))
-        set_flags(sockfd, &ifre, 0, IFF_MULTICAST);
-      else if (!strcmp(*argv, "dynamic"))
-        set_flags(sockfd, &ifre, IFF_DYNAMIC, 0);
-      else if (!strcmp(*argv, "-dynamic"))
-        set_flags(sockfd, &ifre, 0, IFF_DYNAMIC);
-      else if (!strcmp(*argv, "-pointopoint"))
+    for (i = 0; i < sizeof(try)/sizeof(*try); i++) {
+      if (strcmp(try[i].name, s)) continue;
+
+      xioctl(sockfd, SIOCGIFFLAGS, &ifre);
+      ifre.ifr_flags &= ~try[i].flags[rev^1];
+      ifre.ifr_flags |= try[i].flags[rev];
+
+      xioctl(sockfd, SIOCSIFFLAGS, &ifre);
+      break;
+    }
+    if (i != sizeof(try)/sizeof(*try)) continue;
+
+      if (!strcmp(*argv, "-pointopoint"))
         set_flags(sockfd, &ifre, 0, IFF_POINTOPOINT);
       /*value setup */
       else if (!strcmp(*argv, "pointopoint")) {
@@ -868,5 +864,4 @@ void ifconfig_main(void)
 
     }
     if(sockfd > 0) close(sockfd);
-  }
 }
