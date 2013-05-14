@@ -7,6 +7,7 @@
  * See http://opengroup.org/onlinepubs/9699919799/utilities/id.html
 
 USE_ID(NEWTOY(id, ">1nGgru[!Ggu]", TOYFLAG_BIN))
+USE_ID_GROUPS(OLDTOY(groups, id, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 
 config ID
   bool "id"
@@ -21,6 +22,16 @@ config ID
     -g	Show only the effective group ID
     -r	Show real ID instead of effective ID
     -u	Show only the effective user ID
+
+config ID_GROUPS
+  bool "groups"
+  default y
+  depends on ID
+  help
+    usage: groups [user]
+
+    Print the groups a user is in.
+
 */
 
 #define FOR_id
@@ -57,11 +68,16 @@ struct group *xgetgrgid(gid_t gid)
 
 void id_main(void)
 {
-  int flags = toys.optflags, i, ngroups;
+  int flags, i, ngroups, cmd_groups = toys.which->name[0] == 'g';
   struct passwd *pw;
   struct group *grp;
   uid_t uid = getuid(), euid = geteuid();
   gid_t gid = getgid(), egid = getegid(), *groups;
+
+  if (cmd_groups)
+      toys.optflags |= FLAG_G | FLAG_n;
+
+  flags = toys.optflags;
 
   // check if a username is given
   if (*toys.optargs) {
@@ -69,9 +85,11 @@ void id_main(void)
       error_exit("no such user '%s'", *toys.optargs);
     uid = euid = pw->pw_uid;
     gid = egid = pw->pw_gid;
+    if (cmd_groups)
+      printf("%s : ", pw->pw_name);
   }
 
-  i = toys.optflags & FLAG_r;
+  i = flags & FLAG_r;
   pw = xgetpwuid(i ? uid : euid);
   if (flags & FLAG_u) s_or_u(pw->pw_name, pw->pw_uid, 1);
 
