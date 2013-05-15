@@ -18,7 +18,11 @@ struct mtab_list *xgetmountlist(void)
 
   if (!(fp = setmntent("/proc/mounts", "r"))) perror_exit("bad /proc/mounts");
 
-  for (mtlist = 0; me = getmntent(fp); mtlist = mt) {
+  // The "test" part of the loop is done before the first time through and
+  // again after each "increment", so putting the actual load there avoids
+  // duplicating it. If the load was NULL, the loop stops.
+
+  for (mtlist = 0; (me = getmntent(fp)); mtlist = mt) {
     mt = xzalloc(sizeof(struct mtab_list) + strlen(me->mnt_fsname) +
       strlen(me->mnt_dir) + strlen(me->mnt_type) + 3);
     mt->next = mtlist;
