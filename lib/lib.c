@@ -757,7 +757,7 @@ int xioctl(int fd, int request, void *data)
 
   errno = 0;
   rc = ioctl(fd, request, data);
-  if (rc == -1 && errno) perror_exit("ioctl %d", request);
+  if (rc == -1 && errno) perror_exit("ioctl %x", request);
 
   return rc;
 }
