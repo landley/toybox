@@ -66,7 +66,7 @@ struct group *xgetgrgid(gid_t gid)
   return group;
 }
 
-void id_main(void)
+void do_id(char *username)
 {
   int flags, i, ngroups, cmd_groups = toys.which->name[0] == 'g';
   struct passwd *pw;
@@ -80,9 +80,9 @@ void id_main(void)
   flags = toys.optflags;
 
   // check if a username is given
-  if (*toys.optargs) {
-    if (!(pw = getpwnam(*toys.optargs)))
-      error_exit("no such user '%s'", *toys.optargs);
+  if (username) {
+    if (!(pw = getpwnam(username)))
+      error_exit("no such user '%s'", username);
     uid = euid = pw->pw_uid;
     gid = egid = pw->pw_gid;
     if (cmd_groups)
@@ -116,7 +116,8 @@ void id_main(void)
 
   groups = (gid_t *)toybuf;
   i = sizeof(toybuf)/sizeof(gid_t);
-  ngroups = *toys.optargs ? getgrouplist(*toys.optargs, gid, groups, &i) : getgroups(i, groups);
+  ngroups = username ? getgrouplist(username, gid, groups, &i)
+    : getgroups(i, groups);
   if (0 >= ngroups) perror_exit(0);
 
   for (i = 0;;) {
@@ -127,4 +128,10 @@ void id_main(void)
     xputc(' ');
   }
   xputc('\n');
+}
+
+void id_main(void)
+{
+  if (toys.optc) while(*toys.optargs) do_id(*toys.optargs++);
+  else do_id(NULL);
 }
