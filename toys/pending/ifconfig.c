@@ -62,13 +62,6 @@ struct if_list {
 
 #define IO_MAP_INDEX 0x100
 
-//from kernel header ipv6.h
-#define IPV6_ADDR_ANY 0x0000U
-#define IPV6_ADDR_LOOPBACK  0x0010U
-#define IPV6_ADDR_LINKLOCAL  0x0020U
-#define IPV6_ADDR_SITELOCAL  0x0040U
-#define IPV6_ADDR_COMPATv4  0x0080U
-
 //for the param settings.
 
 //for ipv6 add/del
@@ -91,88 +84,6 @@ struct ifreq_inet6 {
 #ifndef INFINIBAND_ALEN
 # define INFINIBAND_ALEN 20
 #endif
-
-/*
- * verify the host is local unix path.
- * if so, set the swl input param accordingly.
- */
-static int is_host_unix(char *host, sockaddr_with_len **swl)
-{
-  if (strncmp(host, "local:", 6) == 0) {
-    struct sockaddr_un *sockun;
-
-    *swl = xzalloc(sizeof(struct sockaddr_with_len));
-    (*swl)->socklen = sizeof(struct sockaddr_un);
-    (*swl)->sock_u.sock.sa_family = AF_UNIX;
-    sockun = (struct sockaddr_un *)&(*swl)->sock_u.sock;
-    xstrncpy(sockun->sun_path, host + 6, sizeof(sockun->sun_path));
-    return 1;
-  }
-  return 0;
-}
-
-/*
- * used to converts string into int and validate the input str for invalid int value or out-of-range.
- */
-unsigned get_strtou(char *str, char **endp, int base)
-{
-  unsigned long uli;
-  char *endptr;
-
-  if(!isalnum(str[0])) {
-    errno = ERANGE;
-    return UINT_MAX;
-  }
-  errno = 0;
-  uli = strtoul(str, &endptr, base);
-  if(uli > UINT_MAX) {
-    errno = ERANGE;
-    return UINT_MAX;
-  }
-
-  if(endp) *endp = endptr;
-  if(endptr[0]) {
-    if(isalnum(endptr[0]) || errno) { //"123abc" or out-of-range
-      errno = ERANGE;
-      return UINT_MAX;
-    }
-    errno = EINVAL;
-  }
-  return uli;
-}
-
-
-
-/*
- * validate the input param (host) for valid ipv6 ip and extract port number (if there).
- */
-static void get_host_and_port(char **host, int *port)
-{
-  char *ch_ptr;
-  char *org_host = *host;
-  if (*host[0] == '[') {
-    (*host)++;
-    ch_ptr = strchr(*host, ']');
-    if (!ch_ptr || (ch_ptr[1] != ':' && ch_ptr[1] != '\0'))
-      error_exit("bad address '%s'", org_host);
-  } else {
-    ch_ptr = strrchr(*host, ':');
-    //There is more than one ':' like "::1"
-    if(ch_ptr && strchr(*host, ':') != ch_ptr) ch_ptr = NULL;
-  }
-  if (ch_ptr) { //pointer to ":" or "]:"
-    int size = ch_ptr - (*host) + 1;
-    xstrncpy(*host, *host, size);
-    if (*ch_ptr != ':') {
-      ch_ptr++; //skip ']'
-      //[nn] without port
-      if (!*ch_ptr) return;
-    }
-    ch_ptr++; //skip ':' to get the port number.
-    *port = get_strtou(ch_ptr, NULL, 10);
-    if (errno || (unsigned)*port > 65535) error_exit("bad port '%s'", org_host);
-  }
-}
 
 /*
  * used to extract the address info from the given host ip
@@ -209,11 +120,41 @@ sockaddr_with_len *get_sockaddr(char *host, int port, sa_family_t af)
 {
   sockaddr_with_len *swl = NULL;
   in_port_t port_num = htons(port);
+  char *s;
 
-  if(is_host_unix(host, &swl) && swl) return swl;
+  if (!strncmp(host, "local:", 6)) {
+    struct sockaddr_un *sockun;
 
-  //[IPV6_ip]:port_num
-  if(host[0] == '[' || strrchr(host, ':')) get_host_and_port((char **)&host, &port);
+    swl = xzalloc(sizeof(struct sockaddr_with_len));
+    swl->socklen = sizeof(struct sockaddr_un);
+    swl->sock_u.sock.sa_family = AF_UNIX;
+    sockun = (struct sockaddr_un *)&swl->sock_u.sock;
+    xstrncpy(sockun->sun_path, host + 6, sizeof(sockun->sun_path));
+
+    return swl;
+  }
+
+  // [ipv6]:port or exactly one :
+
+  if (*host == '[') {
+    host++;
+    s = strchr(host, ']');
+    if (s && !s[1]) s = 0;
+    else {
+      if (!s || s[1] != ':') error_exit("bad address '%s'", host-1);
+      s++;
+    }
+  } else {
+    s = strrchr(host, ':');
+    if (s && strchr(host, ':') != s) s = 0;
+  }
+
+  if (s++) {
+    char *ss;
+    unsigned long p = strtoul(s, &ss, 0);
+    if (*ss || p > 65535) error_exit("bad port '%s'", s);
+    port = p;
+  }
 
   if (get_socket_stream(host, af, &swl)) return NULL;
 
@@ -258,17 +199,13 @@ char *address_to_name(struct sockaddr *sock)
   } else return NULL;
 }
 
-static void set_flags(int sockfd, struct ifreq *ifre, int set_flag, int reset_flag)
+static void set_flags(int sockfd, struct ifreq *ifre, int set_flag,
+	int reset_flag)
 {
   xioctl(sockfd, SIOCGIFFLAGS, ifre);
-  ifre->ifr_flags = (ifre->ifr_flags & (~reset_flag)) | set_flag;
+  ifre->ifr_flags &= ~reset_flag;
+  ifre->ifr_flags |= set_flag;
   xioctl(sockfd, SIOCSIFFLAGS, ifre);
-}
-
-static void set_mtu(int sockfd, struct ifreq *ifre, char *mtu)
-{
-  ifre->ifr_mtu = strtoul(mtu, NULL, 0);
-  xioctl(sockfd, SIOCSIFMTU, ifre);
 }
 
 static void set_metric(int sockfd, struct ifreq *ifre, char *metric)
@@ -311,7 +248,7 @@ static void set_ipv6_addr(int sockfd, struct ifreq *ifre, char *ipv6_addr, int r
     free(swl);
 }
 
-static void set_address(int sockfd, char *host_name, struct ifreq *ifre, int request, char *req_name)
+static void set_address(int sockfd, char *host_name, struct ifreq *ifre, int request)
 {
   struct sockaddr_in sock_in;
   sockaddr_with_len *swl = NULL;
@@ -535,14 +472,13 @@ static void print_ip6_addr(struct if_list *il)
       if(inet_pton(AF_INET6, ipv6_addr, (struct sockaddr *) &sock_in6.sin6_addr) > 0) {
         sock_in6.sin6_family = AF_INET6;
         if(inet_ntop(AF_INET6, &sock_in6.sin6_addr, toybuf, BUFSIZ)) {
-          xprintf("%10sinet6 addr: %s/%d Scope:", " ", toybuf, plen);
-          if(scope == IPV6_ADDR_ANY) xprintf(" Global");
-          else if(scope == IPV6_ADDR_LOOPBACK) xprintf(" Host");
-          else if(scope == IPV6_ADDR_LINKLOCAL) xprintf(" Link");
-          else if(scope == IPV6_ADDR_SITELOCAL) xprintf(" Site");
-          else if(scope == IPV6_ADDR_COMPATv4) xprintf(" Compat");
-          else xprintf("Unknown");
-          xputc('\n');
+          char *names[] = {"Global","Host","Link","Site","Compat"},
+               *name = "Unknown";
+          int j;
+
+          for (j=0; j < sizeof(names)/sizeof(*names); j++)
+            if (scope == (!!j)<<(j+3)) name = names[j];
+          xprintf("%10cinet6 addr: %s/%d Scope: %s\n", ' ', toybuf, plen, name);
         }
       }
     }
@@ -756,18 +692,22 @@ void ifconfig_main(void)
   sockfd = xsocket(AF_INET, SOCK_DGRAM, 0);
 
   while(*++argv) {
-    struct {
+    struct argh {
       char *name;
-      int flags[2]; // set, clear
+      int flags[2], addr; // set, clear
     } try[] = {
-      {"up", {IFF_UP|IFF_RUNNING, 0}},
-      {"down", {0, IFF_UP}},
-      {"arp", {0, IFF_NOARP}},
-      {"trailers", {0, IFF_NOTRAILERS}},
-      {"promisc", {IFF_PROMISC, 0}},
-      {"allmulti", {IFF_ALLMULTI, 0}},
-      {"multicast", {IFF_MULTICAST, 0}},
-      {"dynamic", {IFF_DYNAMIC, 0}}
+      {"up", {IFF_UP|IFF_RUNNING, 0}, 0},
+      {"down", {0, IFF_UP}, 0},
+      {"arp", {0, IFF_NOARP}, 0},
+      {"trailers", {0, IFF_NOTRAILERS}, 0},
+      {"promisc", {IFF_PROMISC, 0}, 0},
+      {"allmulti", {IFF_ALLMULTI, 0}, 0},
+      {"multicast", {IFF_MULTICAST, 0}, 0},
+      {"dynamic", {IFF_DYNAMIC, 0}, 0},
+      {"pointopoint", {IFF_POINTOPOINT, 0}, SIOCSIFDSTADDR}, // 8918
+      {"broadcast", {IFF_BROADCAST, 0}, SIOCSIFBRDADDR}, //891a
+      {"netmask", {0, 0}, SIOCSIFNETMASK},
+      {"dstaddr", {0, 0}, SIOCSIFDSTADDR}
     };
     char *s = *argv;
     int rev = (*s == '-');
@@ -775,48 +715,33 @@ void ifconfig_main(void)
     s += rev;
 
     for (i = 0; i < sizeof(try)/sizeof(*try); i++) {
-      if (strcmp(try[i].name, s)) continue;
+      struct argh *t = try+i;
 
-      xioctl(sockfd, SIOCGIFFLAGS, &ifre);
-      ifre.ifr_flags &= ~try[i].flags[rev^1];
-      ifre.ifr_flags |= try[i].flags[rev];
+      if (strcmp(t->name, s)) continue;
 
-      xioctl(sockfd, SIOCSIFFLAGS, &ifre);
+      if (!rev && t->addr) {
+        if (!*++argv) show_help();
+        set_address(sockfd, *argv, &ifre, t->addr);
+      }
+      if (t->flags[0] || t->flags[1]) {
+        xioctl(sockfd, SIOCGIFFLAGS, &ifre);
+        ifre.ifr_flags &= ~t->flags[rev^1];
+        ifre.ifr_flags |= t->flags[rev];
+        xioctl(sockfd, SIOCSIFFLAGS, &ifre);
+      }
+
       break;
     }
     if (i != sizeof(try)/sizeof(*try)) continue;
 
-      if (!strcmp(*argv, "-pointopoint"))
-        set_flags(sockfd, &ifre, 0, IFF_POINTOPOINT);
-      /*value setup */
-      else if (!strcmp(*argv, "pointopoint")) {
-        if (!*++argv) show_help();
-        set_address(sockfd, *argv, &ifre, SIOCSIFDSTADDR, "SIOCSIFDSTADDR");
-        set_flags(sockfd, &ifre, IFF_POINTOPOINT, 0);
-      } else if (!strcmp(*argv, "netmask")) {
-        if (!*++argv) show_help();
-        set_address(sockfd, *argv, &ifre, SIOCSIFNETMASK, "SIOCSIFNETMASK");
-      } else if (!strcmp(*argv, "-broadcast")) {
-        set_flags(sockfd, &ifre, 0, IFF_BROADCAST);
-      } else if (!strcmp(*argv, "broadcast")) {
-        if (!*++argv) show_help();
-        set_address(sockfd, *argv, &ifre, SIOCSIFBRDADDR, "SIOCSIFBRDADDR");
-        set_flags(sockfd, &ifre, IFF_BROADCAST, 0);
-      } else if (!strcmp(*argv, "dstaddr")) {
-        if (!*++argv) show_help();
-        set_address(sockfd, *argv, &ifre, SIOCSIFDSTADDR, "SIOCSIFDSTADDR");
-      } else if (!strcmp(*argv, "hw")) {
+      if (!strcmp(*argv, "hw")) {
         if (!*++argv) show_help();
         set_hw_address(sockfd, &argv, &ifre, SIOCSIFHWADDR, "SIOCSIFHWADDR");
+
       } else if (!strcmp(*argv, "mtu")) {
         if (!*++argv) show_help();
-        set_mtu(sockfd, &ifre, *argv);
-      } else if (!strcmp(*argv, "metric")) {
-        if (!*++argv) show_help();
-        set_metric(sockfd, &ifre, *argv);
-      } else if (!strcmp(*argv, "txqueuelen")) {
-        if (!*++argv) show_help();
-        set_qlen(sockfd, &ifre, *argv);
+        ifre.ifr_mtu = strtoul(*argv, NULL, 0);
+        xioctl(sockfd, SIOCSIFMTU, &ifre);
       } else if (!strcmp(*argv, "keepalive")) {
         if (!*++argv) show_help();
         ifre.ifr_data = (void *)strtoul(*argv, 0, 0);
@@ -825,6 +750,15 @@ void ifconfig_main(void)
         if (!*++argv) show_help();
         ifre.ifr_data = (void *)strtoul(*argv, 0, 0);
         xioctl(sockfd, SIOCSOUTFILL, &ifre);
+
+
+
+      } else if (!strcmp(*argv, "metric")) {
+        if (!*++argv) show_help();
+        set_metric(sockfd, &ifre, *argv);
+      } else if (!strcmp(*argv, "txqueuelen")) {
+        if (!*++argv) show_help();
+        set_qlen(sockfd, &ifre, *argv);
       } else if (!strcmp(*argv, "add")) {
         if (!*++argv) show_help();
         set_ipv6_addr(sockfd, &ifre, *argv, SIOCSIFADDR, "SIOCSIFADDR");
@@ -840,20 +774,14 @@ void ifconfig_main(void)
       } else if (!strcmp(*argv, "irq")) {
         if (!*++argv) show_help();
         set_irq(sockfd, &ifre, *argv, SIOCSIFMAP, "SIOCSIFMAP");
+
+
       } else {
         if (isdigit(**argv) || !strcmp(*argv, "default")) {
-          char *iface_name = ifre.ifr_name;
-          short int is_colon = 0;
-          set_address(sockfd, *argv, &ifre, SIOCSIFADDR, "SIOCSIFADDR");
-          while (*iface_name) {
-            if (*iface_name == ':') {
-              is_colon = 1;
-              break;
-            }
-            iface_name++;
-          }
+          set_address(sockfd, *argv, &ifre, SIOCSIFADDR);
           //if the interface name is not an alias; set the flag and continue.
-          if(!is_colon) set_flags(sockfd, &ifre, IFF_UP | IFF_RUNNING, 0);
+          if(!strchr(ifre.ifr_name, ':'))
+            set_flags(sockfd, &ifre, IFF_UP | IFF_RUNNING, 0);
         } else if (!strcmp(*argv, "inet") || !strcmp(*argv, "inet6")) continue;
         else {
           errno = EINVAL;
