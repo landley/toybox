@@ -208,19 +208,7 @@ static void set_flags(int sockfd, struct ifreq *ifre, int set_flag,
   xioctl(sockfd, SIOCSIFFLAGS, ifre);
 }
 
-static void set_metric(int sockfd, struct ifreq *ifre, char *metric)
-{
-  ifre->ifr_metric = strtoul(metric, NULL, 0);
-  xioctl(sockfd, SIOCSIFMETRIC, ifre);
-}
-
-static void set_qlen(int sockfd, struct ifreq *ifre, char *qlen)
-{
-  ifre->ifr_qlen = strtoul(qlen, NULL, 0);
-  xioctl(sockfd, SIOCSIFTXQLEN, ifre);
-}
-
-static void set_ipv6_addr(int sockfd, struct ifreq *ifre, char *ipv6_addr, int request, char *req_name)
+static void set_ipv6_addr(int sockfd, struct ifreq *ifre, char *ipv6_addr, int request)
 {
   char *prefix;
   int plen = 0;
@@ -305,7 +293,7 @@ static int hex_to_binary(char *hw_addr, struct sockaddr *sock, int count)
   return 0;
 }
 
-static void set_hw_address(int sockfd, char ***argv, struct ifreq *ifre, int request, char *req_name)
+static void set_hw_address(int sockfd, char ***argv, struct ifreq *ifre, int request)
 {
   int hw_class = 0;
   char *hw_addr;
@@ -333,37 +321,6 @@ static void set_hw_address(int sockfd, char ***argv, struct ifreq *ifre, int req
     error_exit("bad hw-addr %s", hw_addr);
   ptr = (char *)&sock;
   memcpy( ((char *) ifre) + offsetof(struct ifreq, ifr_hwaddr), ptr, sizeof(struct sockaddr));
-  xioctl(sockfd, request, ifre);
-}
-
-static void set_memstart(int sockfd, struct ifreq *ifre, char *start_addr, int request, char *req_name)
-{
-  unsigned long mem_start = strtoul(start_addr, NULL, 0);
-
-  xioctl(sockfd, SIOCGIFMAP, ifre);
-  ifre->ifr_map.mem_start = mem_start;
-  xioctl(sockfd, request, ifre);
-}
-
-static void set_ioaddr(int sockfd, struct ifreq *ifre, char *baddr, int request, char *req_name)
-{
-  unsigned short int base_addr = strtoul(baddr, NULL, 0);
-  xioctl(sockfd, SIOCGIFMAP, ifre);
-  ifre->ifr_map.base_addr = base_addr;
-  xioctl(sockfd, request, ifre);
-}
-
-static void set_irq(int sockfd, struct ifreq *ifre, char *irq_val, int request, char *req_name)
-{
-  unsigned short int irq = strtoul(irq_val, NULL, 0);
-  char *ptr;
-  struct ifmap *map;
-
-  xioctl(sockfd, SIOCGIFMAP, ifre);
-
-  ptr = ((char *) ifre) + offsetof(struct ifreq, ifr_map);
-  map = (struct ifmap *)ptr;
-  map->irq = irq;
   xioctl(sockfd, request, ifre);
 }
 
@@ -694,20 +651,20 @@ void ifconfig_main(void)
   while(*++argv) {
     struct argh {
       char *name;
-      int flags[2], addr; // set, clear
+      int on, off; // set, clear
     } try[] = {
-      {"up", {IFF_UP|IFF_RUNNING, 0}, 0},
-      {"down", {0, IFF_UP}, 0},
-      {"arp", {0, IFF_NOARP}, 0},
-      {"trailers", {0, IFF_NOTRAILERS}, 0},
-      {"promisc", {IFF_PROMISC, 0}, 0},
-      {"allmulti", {IFF_ALLMULTI, 0}, 0},
-      {"multicast", {IFF_MULTICAST, 0}, 0},
-      {"dynamic", {IFF_DYNAMIC, 0}, 0},
-      {"pointopoint", {IFF_POINTOPOINT, 0}, SIOCSIFDSTADDR}, // 8918
-      {"broadcast", {IFF_BROADCAST, 0}, SIOCSIFBRDADDR}, //891a
-      {"netmask", {0, 0}, SIOCSIFNETMASK},
-      {"dstaddr", {0, 0}, SIOCSIFDSTADDR}
+      {"up", IFF_UP|IFF_RUNNING, 0},
+      {"down", 0, IFF_UP},
+      {"arp", 0, IFF_NOARP},
+      {"trailers", 0, IFF_NOTRAILERS},
+      {"promisc", IFF_PROMISC, 0},
+      {"allmulti", IFF_ALLMULTI, 0},
+      {"multicast", IFF_MULTICAST, 0},
+      {"dynamic", IFF_DYNAMIC, 0},
+      {"pointopoint", IFF_POINTOPOINT, SIOCSIFDSTADDR},
+      {"broadcast", IFF_BROADCAST, SIOCSIFBRDADDR},
+      {"netmask", 0, SIOCSIFNETMASK},
+      {"dstaddr", 0, SIOCSIFDSTADDR}
     };
     char *s = *argv;
     int rev = (*s == '-');
@@ -716,17 +673,22 @@ void ifconfig_main(void)
 
     for (i = 0; i < sizeof(try)/sizeof(*try); i++) {
       struct argh *t = try+i;
+      int on = t->on, off = t->off;
 
       if (strcmp(t->name, s)) continue;
 
-      if (!rev && t->addr) {
-        if (!*++argv) show_help();
-        set_address(sockfd, *argv, &ifre, t->addr);
+      // Is this an SIOCSI entry?
+      if ((t->off | 0xff) == 0x89ff) {
+        if (!rev) {
+          if (!*++argv) show_help();
+          set_address(sockfd, *argv, &ifre, off);
+        }
+        off = 0;
       }
-      if (t->flags[0] || t->flags[1]) {
+      if (on || off) {
         xioctl(sockfd, SIOCGIFFLAGS, &ifre);
-        ifre.ifr_flags &= ~t->flags[rev^1];
-        ifre.ifr_flags |= t->flags[rev];
+        ifre.ifr_flags &= ~(rev ? on : off);
+        ifre.ifr_flags |= (rev ? off : on);
         xioctl(sockfd, SIOCSIFFLAGS, &ifre);
       }
 
@@ -736,7 +698,7 @@ void ifconfig_main(void)
 
       if (!strcmp(*argv, "hw")) {
         if (!*++argv) show_help();
-        set_hw_address(sockfd, &argv, &ifre, SIOCSIFHWADDR, "SIOCSIFHWADDR");
+        set_hw_address(sockfd, &argv, &ifre, SIOCSIFHWADDR);
 
       } else if (!strcmp(*argv, "mtu")) {
         if (!*++argv) show_help();
@@ -750,32 +712,36 @@ void ifconfig_main(void)
         if (!*++argv) show_help();
         ifre.ifr_data = (void *)strtoul(*argv, 0, 0);
         xioctl(sockfd, SIOCSOUTFILL, &ifre);
-
-
-
       } else if (!strcmp(*argv, "metric")) {
         if (!*++argv) show_help();
-        set_metric(sockfd, &ifre, *argv);
+        ifre.ifr_metric = strtoul(*argv, NULL, 0);
+        xioctl(sockfd, SIOCSIFMETRIC, &ifre);
       } else if (!strcmp(*argv, "txqueuelen")) {
         if (!*++argv) show_help();
-        set_qlen(sockfd, &ifre, *argv);
+        ifre.ifr_qlen = strtoul(*argv, NULL, 0);
+        xioctl(sockfd, SIOCSIFTXQLEN, &ifre);
+
       } else if (!strcmp(*argv, "add")) {
         if (!*++argv) show_help();
-        set_ipv6_addr(sockfd, &ifre, *argv, SIOCSIFADDR, "SIOCSIFADDR");
+        set_ipv6_addr(sockfd, &ifre, *argv, SIOCSIFADDR);
       } else if (!strcmp(*argv, "del")) {
         if (!*++argv) show_help();
-        set_ipv6_addr(sockfd, &ifre, *argv, SIOCDIFADDR, "SIOCDIFADDR");
+        set_ipv6_addr(sockfd, &ifre, *argv, SIOCDIFADDR);
       } else if (!strcmp(*argv, "mem_start")) {
         if (!*++argv) show_help();
-        set_memstart(sockfd, &ifre, *argv, SIOCSIFMAP, "SIOCSIFMAP");
+        xioctl(sockfd, SIOCGIFMAP, &ifre);
+        ifre.ifr_map.mem_start = strtoul(*argv, NULL, 0);
+        xioctl(sockfd, SIOCSIFMAP, &ifre);
       } else if (!strcmp(*argv, "io_addr")) {
         if (!*++argv) show_help();
-        set_ioaddr(sockfd, &ifre, *argv, SIOCSIFMAP, "SIOCSIFMAP");
+        xioctl(sockfd, SIOCGIFMAP, &ifre);
+        ifre.ifr_map.base_addr = strtoul(*argv, NULL, 0);
+        xioctl(sockfd, SIOCSIFMAP, &ifre);
       } else if (!strcmp(*argv, "irq")) {
         if (!*++argv) show_help();
-        set_irq(sockfd, &ifre, *argv, SIOCSIFMAP, "SIOCSIFMAP");
-
-
+        xioctl(sockfd, SIOCGIFMAP, &ifre);
+        ifre.ifr_map.irq = strtoul(*argv, NULL, 0);
+        xioctl(sockfd, SIOCSIFMAP, &ifre);
       } else {
         if (isdigit(**argv) || !strcmp(*argv, "default")) {
           set_address(sockfd, *argv, &ifre, SIOCSIFADDR);
@@ -786,7 +752,7 @@ void ifconfig_main(void)
         else {
           errno = EINVAL;
           toys.exithelp++;
-          error_exit("bad argument");
+          error_exit("bad argument '%s'", *argv);
         }
       }
 
