@@ -81,10 +81,6 @@ struct ifreq_inet6 {
 # define SIOCGOUTFILL  (SIOCDEVPRIVATE+3)        /* Get outfill timeout */
 #endif
 
-#ifndef INFINIBAND_ALEN
-# define INFINIBAND_ALEN 20
-#endif
-
 /*
  * used to extract the address info from the given host ip
  * and update the swl param accordingly.
@@ -260,70 +256,6 @@ static void set_address(int sockfd, char *host_name, struct ifreq *ifre, int req
   }
 }
 
-static int hex_to_binary(char *hw_addr, struct sockaddr *sock, int count)
-{
-  int i = 0, j = 0;
-  unsigned char nib_val, ch;
-
-  char *ptr = (char *) sock->sa_data;
-  if (count == ETH_ALEN) sock->sa_family = ARPHRD_ETHER;
-  else if (count == INFINIBAND_ALEN) sock->sa_family = ARPHRD_INFINIBAND;
-  else return -1;
-  //e.g. hw_addr "62:2D:A6:9E:2D:BE"
-  for (; *hw_addr && (i < count); i++) {
-    if (*hw_addr == ':') hw_addr++;
-    j = nib_val = 0;
-    for (;j < 2; j++) {
-      ch = *hw_addr;
-      //0-9 = 10 chars.
-      if (((unsigned char)(ch - '0')) < 10) ch = (ch - '0');
-      //a-f = 6 chars.
-      else if (((unsigned char)((ch) - 'a')) < 6) ch = (ch - ('a'-10));
-      //A-F = 6 chars.
-      else if (((unsigned char)((ch) - 'A')) < 6) ch = (ch - ('A'-10));
-      else if (j && (ch == ':' || ch == 0)) break;
-      else return -1;
-      hw_addr++;
-      nib_val <<= 4;
-      nib_val += ch;
-    }
-    *ptr++ = nib_val;
-  }
-  if (*hw_addr) return -1;
-  return 0;
-}
-
-static void set_hw_address(int sockfd, char ***argv, struct ifreq *ifre, int request)
-{
-  int hw_class = 0;
-  char *hw_addr;
-  struct sockaddr sock;
-  char *ptr;
-  char *hw_class_strings[] = {
-      "ether",
-      "infiniband",
-      NULL
-  };
-
-  if(strcmp(hw_class_strings[0], **argv) == 0)
-    hw_class = 1;
-  else if(strcmp(hw_class_strings[1], **argv) == 0)
-    hw_class = 2;
-  if(!hw_class || !(*argv += 1)) {
-    errno = EINVAL;
-    toys.exithelp++;
-    error_exit("bad hardware class");
-  }
-
-  memset(&sock, 0, sizeof(struct sockaddr));
-  hw_addr = **argv;
-  if(hex_to_binary(hw_addr, &sock, hw_class == 1 ? ETH_ALEN : INFINIBAND_ALEN))
-    error_exit("bad hw-addr %s", hw_addr);
-  ptr = (char *)&sock;
-  memcpy( ((char *) ifre) + offsetof(struct ifreq, ifr_hwaddr), ptr, sizeof(struct sockaddr));
-  xioctl(sockfd, request, ifre);
-}
-
 static void add_iface_to_list(struct if_list *newnode)
 {
   struct if_list *head_ref = TT.if_list;
@@ -385,16 +317,6 @@ static void get_device_info(struct if_list *il)
       il->netmask = ifre.ifr_netmask;
   }
   close(sokfd);
-}
-
-static void show_ip_addr(char *name, struct sockaddr *skaddr)
-{
-  char *s = "[NOT SET]";
-
-  if(skaddr->sa_family != 0xFFFF && skaddr->sa_family)
-    s = inet_ntoa(((struct sockaddr_in *)skaddr)->sin_addr);
-
-  xprintf(" %s:%s ", name, s);
 }
 
 static void print_ip6_addr(struct if_list *il)
@@ -467,16 +389,28 @@ static void display_ifconfig(struct if_list *il)
 
   if(il->hasaddr) {
     int af = il->addr.sa_family;
-    char *name = "unspec";
+    struct {
+      char *name;
+      int flag, offset;
+    } addr[] = {
+      {"addr", 0, offsetof(struct if_list, addr)},
+      {"P-t-P", IFF_POINTOPOINT, offsetof(struct if_list, dstaddr)},
+      {"Bcast", IFF_BROADCAST, offsetof(struct if_list, broadaddr)},
+      {"Mask", 0, offsetof(struct if_list, netmask)}
+    };
 
-    if (af == AF_INET) name = "inet";
-    else if (af == AF_INET6) name = "inet6";
-    xprintf("%10c%s", ' ', name);
+    xprintf("%10c%s", ' ',
+      (af == AF_INET) ? "inet" : (af == AF_INET6) ? "inet6" : "unspec");
 
-    show_ip_addr("addr", &il->addr);
-    if(il->flags & IFF_POINTOPOINT) show_ip_addr("P-t-P", &il->dstaddr);
-    if(il->flags & IFF_BROADCAST) show_ip_addr("Bcast", &il->broadaddr);
-    show_ip_addr("Mask", &il->netmask);
+    for (i=0; i < sizeof(addr)/sizeof(*addr); i++) {
+      struct sockaddr_in *s = (struct sockaddr_in *)(addr[i].offset+(char *)il);
+
+      if (!addr[i].flag || (il->flags & addr[i].flag))
+        xprintf(" %s:%s ", addr[i].name,
+          (s->sin_family == 0xFFFF || !s->sin_family) ? "[NOT SET]" :
+            inet_ntoa(s->sin_addr));
+    }
+
     xputc('\n');
   }
 
@@ -697,9 +631,38 @@ void ifconfig_main(void)
     if (i != sizeof(try)/sizeof(*try)) continue;
 
       if (!strcmp(*argv, "hw")) {
-        if (!*++argv) show_help();
-        set_hw_address(sockfd, &argv, &ifre, SIOCSIFHWADDR);
+        char *hw_addr, *ptr, *p;
+        struct sockaddr *sock = &ifre.ifr_hwaddr;
+        int count = 6;
 
+        if (!*++argv) show_help();
+
+        memset(sock, 0, sizeof(struct sockaddr));
+        if (!strcmp("ether", *argv)) sock->sa_family = ARPHRD_ETHER;
+        else if (!strcmp("infiniband", *argv)) {
+          sock->sa_family = ARPHRD_INFINIBAND;
+          count = 20;
+        } else {
+          toys.exithelp++;
+          error_exit("bad hw '%s'", *argv);
+        }
+        hw_addr = *++argv;
+
+        ptr = p = (char *) sock->sa_data;
+
+        while (*hw_addr && (p-ptr) < count) {
+          int val, len = 0;
+
+          if (*hw_addr == ':') hw_addr++;
+          sscanf(hw_addr, "%2x%n", &val, &len);
+          if (len != 2) break;
+          hw_addr += len;
+          *p++ = val;
+        }
+
+        if ((p-ptr) != count || *hw_addr)
+          error_exit("bad hw-addr '%s'", hw_addr ? hw_addr : "");
+        xioctl(sockfd, SIOCSIFHWADDR, &ifre);
       } else if (!strcmp(*argv, "mtu")) {
         if (!*++argv) show_help();
         ifre.ifr_mtu = strtoul(*argv, NULL, 0);
