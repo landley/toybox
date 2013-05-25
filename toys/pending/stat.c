@@ -69,20 +69,6 @@ GLOBALS(
 )
 
 
-static char * check_type_file(mode_t mode, size_t size)
-{
-  if (S_ISREG(mode)) {
-    if (size) return "regular file";
-    return "regular empty file";
-  }
-  if (S_ISDIR(mode)) return "directory"; 
-  if (S_ISCHR(mode)) return "character device";
-  if (S_ISBLK(mode)) return "block device";
-  if (S_ISFIFO(mode)) return "FIFO (named pipe)";
-  if (S_ISLNK(mode)) return "symbolic link";
-  if (S_ISSOCK(mode)) return "socket";
-}
-
 static char * date_stat_format(time_t time)
 {
   static char buf[36];
@@ -142,7 +128,7 @@ static void print_stat_format(char *format, int flag)
         break;
       case 'i':
         if (flag)
-          xprintf("%d%d", TT.statfs->f_fsid.__val[0], TT.statfs->f_fsid.__val[1]);
+          xprintf("%x%x", TT.statfs->f_fsid.__val[0], TT.statfs->f_fsid.__val[1]);
         else xprintf("%llu", TT.stat->st_ino);
         break;
       case 'l':
@@ -198,38 +184,72 @@ static void print_stat_format(char *format, int flag)
   xprintf("\n");
 }
 
+int do_stat(char *path)
+{
+  size_t i;
+  struct {
+    mode_t mode;
+    char *str;
+  } types[] = {
+    {S_IFDIR, "directory"},
+    {S_IFCHR, "character device"},
+    {S_IFBLK, "block device"},
+    {S_IFREG, "regular file"},
+    {S_IFIFO, "FIFO (named pipe)"},
+    {S_IFLNK, "symbolic link"},
+    {S_IFSOCK, "socket"}
+  };
+
+  if (stat(path, TT.stat) < 0) return 1;
+
+  for (i = 0; i < sizeof(types)/sizeof(*types); i++)
+    if((TT.stat->st_mode&S_IFMT) == types[i].mode) TT.file_type = types[i].str;
+  if(!TT.stat->st_size && (TT.stat->st_mode & S_IFMT) == S_IFREG)
+    TT.file_type = "regular empty file";
+
+  // check user and group name
+  TT.user_name = getpwuid(TT.stat->st_uid);
+  TT.group_name = getgrgid(TT.stat->st_gid);
+  // function to get access in human readable format
+  format_mode(&TT.access_str, TT.stat->st_mode);
+  return 0;
+}
+
+int do_statfs(char *path)
+{
+  return statfs(path, TT.statfs) < 0;
+}
+
 void stat_main(void)
 {
-  int flag_f = toys.optflags & FLAG_f, flag_c = toys.optflags & FLAG_c;
-  char *fmts[] = {
-                  "  File: %N\n"
-                  "  Size: %s\t Blocks: %S\t IO Blocks: %B\t%F\n"
-                  "Device: %D\t Inode: %i\t Links: %h\n"
-                  "Access: (%a/%A)\tUid: (%u/%U)\tGid: (%g/%G)\n"
-                  "Access: %x\nModify: %y\nChange: %z",
-
-                  "  File: \"%n\"\n"
-                  "    ID: %i Namelen: %l    Type: %t\n"
-                  "Block Size: %s    Fundamental block size: %S\n"
-                  "Blocks: Total: %b\tFree: %f\tAvailable: %a\n"
-                  "Inodes: Total: %c\tFree: %d",
-           TT.fmt};
+  int flag_f = toys.optflags & FLAG_f;
+  char *fmt;
+  int (*do_it)(char*);
 
   if (!flag_f) {
     TT.stat = xmalloc(sizeof(struct stat));
-    if (stat(*toys.optargs, TT.stat) < 0)
-       perror_exit("stat: '%s'", *toys.optargs);
-    // function to check the type/mode of file
-    TT.file_type = check_type_file(TT.stat->st_mode, TT.stat->st_size);
-    // check user and group name
-    TT.user_name = getpwuid(TT.stat->st_uid);
-    TT.group_name = getgrgid(TT.stat->st_gid);
-    // function to get access in human readable format
-    format_mode(&TT.access_str, TT.stat->st_mode);
+    fmt = "  File: %N\n"
+          "  Size: %s\t Blocks: %b\t IO Blocks: %B\t%F\n"
+          "Device: %D\t Inode: %i\t Links: %h\n"
+          "Access: (%a/%A)\tUid: (%u/%U)\tGid: (%g/%G)\n"
+          "Access: %x\nModify: %y\nChange: %z";
+    do_it = do_stat;
   } else {
     TT.statfs = xmalloc(sizeof(struct statfs));
-    if (statfs(*toys.optargs, TT.statfs) < 0)
-      perror_exit("statfs: '%s'", *toys.optargs);
+    fmt = "  File: \"%n\"\n"
+          "    ID: %i Namelen: %l    Type: %t\n"
+          "Block Size: %s    Fundamental block size: %S\n"
+          "Blocks: Total: %b\tFree: %f\tAvailable: %a\n"
+          "Inodes: Total: %c\tFree: %d";
+    do_it = do_statfs;
   }
-  print_stat_format(fmts[!flag_c*flag_f+flag_c], flag_f);
+  if (toys.optflags & FLAG_c) fmt = TT.fmt;
+
+  for (; *toys.optargs; toys.optargs++) {
+    if (do_it(*toys.optargs)) {
+      perror_msg("'%s'", *toys.optargs);
+      continue;
+    }
+    print_stat_format(fmt, flag_f);
+  }
 }
