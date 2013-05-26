@@ -50,6 +50,7 @@ config STAT
     %f     Number of free blocks
     %i     File system ID
     %l     Maximum length of file names
+    %n     File name
     %s     Fragment size
     %S     Optimal transfer block size
     %t     File system type
@@ -60,12 +61,11 @@ config STAT
 
 GLOBALS(
 	char *fmt;
-	char access_str[11];
+	void *stat;
 	char *file_type;
 	struct passwd *user_name;
 	struct group *group_name;
-	struct stat *stat;
-	struct statfs *statfs;
+	char access_str[11];
 )
 
 
@@ -77,115 +77,126 @@ static char * date_stat_format(time_t time)
   return buf;
 }
 
-static void print_stat_format(char *format, int flag)
-{
-  for (; *format; format++) {
-    if (*format != '%') {
-      xprintf("%c", *format);
-      continue;
-    }
-    format++;
-    switch (*format) {
-      case 'a':
-        if (flag) xprintf("%lu", TT.statfs->f_bavail);
-        else xprintf("%04lo",TT.stat->st_mode & ~S_IFMT);
-        break;
-      case 'A':
-        xprintf("%s",TT.access_str);
-        break;
-      case 'b':
-        if (flag) xprintf("%lu", TT.statfs->f_blocks);
-        else xprintf("%llu", TT.stat->st_blocks);
-        break;
-      case 'B':
-        xprintf("%lu", TT.stat->st_blksize);
-        break;
-      case 'c':
-        if (flag) xprintf("%lu", TT.statfs->f_files);
-        break;
-      case 'd':
-        if (flag) xprintf("%lu", TT.statfs->f_ffree);
-        else xprintf("%ldd", TT.stat->st_dev);
-        break;
-      case 'D':
-        xprintf("%llxh", TT.stat->st_dev);
-        break;
-      case 'f':
-        if (flag) xprintf("%lu", TT.statfs->f_bfree);
-        else xprintf("%lx", TT.stat->st_mode);
-        break;
-      case 'F':
-        xprintf("%s", TT.file_type);
-        break;
-      case 'g':
-        xprintf("%lu", TT.stat->st_gid);
-        break;
-      case 'G':
-        xprintf("%8s", TT.user_name->pw_name);
-        break;
-      case 'h':
-        xprintf("%lu", TT.stat->st_nlink);
-        break;
-      case 'i':
-        if (flag)
-          xprintf("%x%x", TT.statfs->f_fsid.__val[0], TT.statfs->f_fsid.__val[1]);
-        else xprintf("%llu", TT.stat->st_ino);
-        break;
-      case 'l':
-        if (flag) xprintf("%ld", TT.statfs->f_namelen);
-        break;
-      case 'n':
-        xprintf("%s", *toys.optargs);
-        break;
-      case 'N':
-        xprintf("`%s'", *toys.optargs);
-        break;
-      case 'o':
-        xprintf("%lu", TT.stat->st_blksize);
-        break;
-      case 's':
-        if (flag) xprintf("%d", TT.statfs->f_frsize);
-        else xprintf("%llu", TT.stat->st_size);
-        break;
-      case 'S':
-        if (flag) xprintf("%d", TT.statfs->f_bsize);
-        break;
-      case 't':
-        if (flag) xprintf("%lx", TT.statfs->f_type);
-        break;
-      case 'u':
-        xprintf("%lu", TT.stat->st_uid);
-        break;
-      case 'U':
-        xprintf("%8s", TT.user_name->pw_name);
-        break;
-      case 'x':
-        xprintf("%s", date_stat_format(TT.stat->st_atime));
-        break;
-      case 'X':
-        xprintf("%llu", TT.stat->st_atime);
-        break;
-      case 'y':
-        xprintf("%s", date_stat_format(TT.stat->st_mtime));
-        break;
-      case 'Y':
-        xprintf("%llu", TT.stat->st_mtime);
-        break;
-      case 'z':
-        xprintf("%s", date_stat_format(TT.stat->st_ctime));
-        break;
-      case 'Z':
-        xprintf("%llu", TT.stat->st_ctime);
-      default:
-        xprintf("%c", *format);
-        break;
-    }
+static int print_stat(char type) {
+  struct stat *stat = (struct stat*)TT.stat;
+  switch (type) {
+    case 'a':
+      xprintf("%04lo", stat->st_mode & ~S_IFMT);
+      break;
+    case 'A':
+      xprintf("%s", TT.access_str);
+      break;
+    case 'b':
+      xprintf("%llu", stat->st_blocks);
+      break;
+    case 'B':
+      xprintf("%lu", stat->st_blksize);
+      break;
+    case 'd':
+      xprintf("%ldd", stat->st_dev);
+      break;
+    case 'D':
+      xprintf("%llxh", stat->st_dev);
+      break;
+    case 'f':
+      xprintf("%lx", stat->st_mode);
+      break;
+    case 'F':
+      xprintf("%s", TT.file_type);
+      break;
+    case 'g':
+      xprintf("%lu", stat->st_gid);
+      break;
+    case 'G':
+      xprintf("%8s", TT.user_name->pw_name);
+      break;
+    case 'h':
+      xprintf("%lu", stat->st_nlink);
+      break;
+    case 'i':
+      xprintf("%llu", stat->st_ino);
+      break;
+    case 'N':
+      xprintf("`%s'", *toys.optargs);
+      break;
+    case 'o':
+      xprintf("%lu", stat->st_blksize);
+      break;
+    case 's':
+      xprintf("%llu", stat->st_size);
+      break;
+    case 'u':
+      xprintf("%lu", stat->st_uid);
+      break;
+    case 'U':
+      xprintf("%8s", TT.user_name->pw_name);
+      break;
+    case 'x':
+      xprintf("%s", date_stat_format(stat->st_atime));
+      break;
+    case 'X':
+      xprintf("%llu", stat->st_atime);
+      break;
+    case 'y':
+      xprintf("%s", date_stat_format(stat->st_mtime));
+      break;
+    case 'Y':
+      xprintf("%llu", stat->st_mtime);
+      break;
+    case 'z':
+      xprintf("%s", date_stat_format(stat->st_ctime));
+      break;
+    case 'Z':
+      xprintf("%llu", stat->st_ctime);
+      break;
+    default:
+      return 1;
   }
-  xprintf("\n");
+  return 0;
 }
 
-int do_stat(char *path)
+static int print_statfs(char type) {
+  struct statfs *statfs = (struct statfs*)TT.stat;
+  switch (type) {
+    case 'a':
+      xprintf("%lu", statfs->f_bavail);
+      break;
+    case 'b':
+      xprintf("%lu", statfs->f_blocks);
+      break;
+    case 'c':
+      xprintf("%lu", statfs->f_files);
+      break;
+    case 'd':
+      xprintf("%lu", statfs->f_ffree);
+      break;
+    case 'f':
+      xprintf("%lu", statfs->f_bfree);
+      break;
+    case 'i':
+      xprintf("%x%x", statfs->f_fsid.__val[0], statfs->f_fsid.__val[1]);
+      break;
+    case 'l':
+      xprintf("%ld", statfs->f_namelen);
+      break;
+    case 's':
+      xprintf("%d", statfs->f_frsize);
+      break;
+    case 'S':
+      xprintf("%d", statfs->f_bsize);
+      break;
+    case 't':
+      xprintf("%lx", statfs->f_type);
+      break;
+    default:
+      return 1;
+  }
+  return 0;
+}
+
+static int do_stat(char *path)
 {
+  struct stat *statf = (struct stat*)TT.stat;
   size_t i;
   struct {
     mode_t mode;
@@ -200,56 +211,69 @@ int do_stat(char *path)
     {S_IFSOCK, "socket"}
   };
 
-  if (stat(path, TT.stat) < 0) return 1;
+  if (stat(path, statf) < 0) return 1;
 
   for (i = 0; i < sizeof(types)/sizeof(*types); i++)
-    if((TT.stat->st_mode&S_IFMT) == types[i].mode) TT.file_type = types[i].str;
-  if(!TT.stat->st_size && (TT.stat->st_mode & S_IFMT) == S_IFREG)
+    if ((statf->st_mode & S_IFMT) == types[i].mode) TT.file_type = types[i].str;
+  if (!statf->st_size && (statf->st_mode & S_IFMT) == S_IFREG)
     TT.file_type = "regular empty file";
 
   // check user and group name
-  TT.user_name = getpwuid(TT.stat->st_uid);
-  TT.group_name = getgrgid(TT.stat->st_gid);
+  TT.user_name = getpwuid(statf->st_uid);
+  TT.group_name = getgrgid(statf->st_gid);
   // function to get access in human readable format
-  format_mode(&TT.access_str, TT.stat->st_mode);
+  format_mode(&TT.access_str, statf->st_mode);
   return 0;
 }
 
-int do_statfs(char *path)
+static int do_statfs(char *path)
 {
-  return statfs(path, TT.statfs) < 0;
+  return statfs(path, TT.stat) < 0;
 }
 
 void stat_main(void)
 {
-  int flag_f = toys.optflags & FLAG_f;
-  char *fmt;
-  int (*do_it)(char*);
+  struct {
+    char *fmt;
+    int (*do_it)(char*);
+    int (*print_it)(char);
+    size_t size;
+  } d, ds[2] = {
+    {"  File: %N\n"
+     "  Size: %s\t Blocks: %b\t IO Blocks: %B\t%F\n"
+     "Device: %D\t Inode: %i\t Links: %h\n"
+     "Access: (%a/%A)\tUid: (%u/%U)\tGid: (%g/%G)\n"
+     "Access: %x\nModify: %y\nChange: %z",
+     do_stat, print_stat, sizeof(struct stat)},
+    {"  File: \"%n\"\n"
+     "    ID: %i Namelen: %l    Type: %t\n"
+     "Block Size: %s    Fundamental block size: %S\n"
+     "Blocks: Total: %b\tFree: %f\tAvailable: %a\n"
+     "Inodes: Total: %c\tFree: %d",
+     do_statfs, print_statfs, sizeof(struct statfs)}
+  };
 
-  if (!flag_f) {
-    TT.stat = xmalloc(sizeof(struct stat));
-    fmt = "  File: %N\n"
-          "  Size: %s\t Blocks: %b\t IO Blocks: %B\t%F\n"
-          "Device: %D\t Inode: %i\t Links: %h\n"
-          "Access: (%a/%A)\tUid: (%u/%U)\tGid: (%g/%G)\n"
-          "Access: %x\nModify: %y\nChange: %z";
-    do_it = do_stat;
-  } else {
-    TT.statfs = xmalloc(sizeof(struct statfs));
-    fmt = "  File: \"%n\"\n"
-          "    ID: %i Namelen: %l    Type: %t\n"
-          "Block Size: %s    Fundamental block size: %S\n"
-          "Blocks: Total: %b\tFree: %f\tAvailable: %a\n"
-          "Inodes: Total: %c\tFree: %d";
-    do_it = do_statfs;
-  }
-  if (toys.optflags & FLAG_c) fmt = TT.fmt;
+  d = ds[toys.optflags & FLAG_f];
+  TT.stat = xmalloc(d.size);
+  if (toys.optflags & FLAG_c) d.fmt = TT.fmt;
 
   for (; *toys.optargs; toys.optargs++) {
-    if (do_it(*toys.optargs)) {
+    char *format = d.fmt;
+    if (d.do_it(*toys.optargs)) {
       perror_msg("'%s'", *toys.optargs);
       continue;
     }
-    print_stat_format(fmt, flag_f);
+    for (; *format; format++) {
+      if (*format != '%') {
+        xputc(*format);
+        continue;
+      }
+      format++;
+      if (*format == 'n') xprintf("%s", *toys.optargs);
+      else if (d.print_it(*format)) xputc(*format);
+    }
+    xputc('\n');
   }
+
+  if(CFG_TOYBOX_FREE) free(TT.stat);
 }
