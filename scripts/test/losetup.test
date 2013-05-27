@@ -1,0 +1,46 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+if [ "$(id -u)" -ne 0 ]
+then
+  echo "SKIPPED: losetup (not root)"
+  continue 2>/dev/null
+  exit
+fi
+
+#testing "name" "command" "result" "infile" "stdin"
+
+truncate -s 1M blah.img &&
+FILE="$(readlink -f blah.img)"
+DEV="$(printf '%04d' $(stat -t blah.img | awk '{print $7}'))"
+NODE="$(awk '{print $7}')"
+
+losetup -f 
+losetup -f -s
+losetup -f file
+testing "cat" "cat && echo yes" "oneyes\n" "" "one"
+testing "cat -" "cat - && echo yes" "oneyes\n" "" "one"
+testing "cat file1 file2" "cat file1 file2" "one\ntwo\n"  "" ""
+testing "cat - file"      "cat - file1"     "zero\none\n" "" "zero\n"
+testing "cat file -"      "cat file1 -"     "one\nzero\n" "" "zero\n"
+
+testing "cat file1 notfound file2" \
+        "cat file1 notfound file2 2>stderr && echo ok ; cat stderr; rm stderr" \
+        "one\ntwo\ncat: notfound: No such file or directory\n" "" ""
+
+testing "cat file1" \
+        "cat /proc/self/exe > file1 && cmp /proc/self/exe file1 && echo yes" \
+        "yes\n" "" ""
+
+testing "cat - file1" \
+        "cat - file1 | diff -a -U 0 - file1 | tail -n 1" \
+        "-hello\n" "" "hello\n"
+
+testing "cat > /dev/full" \
+        "cat - > /dev/full 2>stderr && echo ok; cat stderr; rm stderr" \
+        "cat: xwrite: No space left on device\n" "" "zero\n"
+
+losetup -d
+
+rm blah.img
