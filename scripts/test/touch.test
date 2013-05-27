@@ -1,0 +1,24 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+testing "touch" "touch walrus && [ -e walrus ] && echo yes" "yes\n" "" ""
+testing "touch 1 2 3" "touch one two three && rm one two three && echo yes" "yes\n" \
+  "" ""
+testing "touch -c" "touch -c walrus && [ -e walrus ] && echo yes" "yes\n" "" ""
+testing "touch -c missing" "touch -c warrus && [ ! -e warrus ] && echo yes" \
+  "yes\n" "" ""
+
+# This isn't testing fraction of a second because I dunno how to read it back
+
+testing "touch -d" \
+  "touch -d 2009-02-13T23:31:30.12Z walrus && date -r walrus +%s.%N" "1234567890\n" \
+  "" ""
+#testing "touch -t" "touch -t 200902132331.42
+#testing "touch -r"
+#testing "touch -a"
+#testing "touch -m"
+#testing "touch -am"
+rm walrus
