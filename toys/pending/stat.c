@@ -10,75 +10,55 @@ config STAT
   help
     usage: stat [-f] [-c FORMAT] FILE...
 
-    display file or file system status
+    Display status of files or filesystems.
 
-    -f display file system status instead of file status
-    -c use the specified FORMAT instead of the default;
-       output a newline after each use of FORMAT
+    -f display filesystem status instead of file status
+    -c Output specified FORMAT string instead of default
 
-    The valid format sequences for files:
-    %a     Access rights in octal
-    %A     Access rights in human readable form
-    %b     Number of blocks allocated
-    %B     The size in bytes of each block
-    %d     Device number in decimal
-    %D     Device number in hex
-    %f     Raw mode in hex
-    %F     File type
-    %g     Group ID of owner
-    %G     Group name of owner
-    %h     Number of hard links
-    %i     Inode number
-    %n     File name
-    %N     Quoted file name with dereference if symbolic link
-    %o     I/O block size
-    %s     Total size, in bytes
-    %u     User ID of owner
-    %U     User name of owner
-    %x     Time of last access
-    %X     Time of last access as seconds since Epoch
-    %y     Time of last modification
-    %Y     Time of last modification as seconds since Epoch
-    %z     Time of last change
-    %Z     Time of last change as seconds since Epoch
+    The valid format escape sequences for files:
+    %a  Access bits (octal) |%A  Access bits (flags)|%b  Blocks allocated
+    %B  Bytes per block     |%d  Device ID (dec)    |%D  Device ID (hex)
+    %f  All mode bits (hex) |%F  File type          |%g  Group ID
+    %G  Group name          |%h  Hard links         |%i  Inode
+    %n  Filename            |%N  Long filename      |%o  I/O block size
+    %s  Size (bytes)        |%u  User ID            |%U  User name
+    %x  Access time         |%X  Access unix time   |%y  File write time
+    %Y  File write unix time|%z  Dir change time    |%Z  Dir change unix time
 
-    The valid format sequences for file systems:
-    %a     Available blocks for unpriviledges user
-    %b     Total number of blocks
-    %c     Total number of inodes
-    %d     Number of free inodes
-    %f     Number of free blocks
-    %i     File system ID
-    %l     Maximum length of file names
-    %n     File name
-    %s     Fragment size
-    %S     Optimal transfer block size
-    %t     File system type
+    The valid format escape sequences for filesystems:
+    %a  Available blocks    |%b  Total blocks       |%c  Total inodes
+    %d  Free inodes         |%f  Free blocks        |%i  File system ID
+    %l  Max filename length |%n  File name          |%s  Fragment size
+    %S  Best transfer size  |%t  File system type
 */
 
 #define FOR_stat
 #include "toys.h"
 
 GLOBALS(
-	char *fmt;
-	void *stat;
-	char *file_type;
-	struct passwd *user_name;
-	struct group *group_name;
-	char access_str[11];
+  char *fmt;
+
+  void *stat;
+  struct passwd *user_name;
+  struct group *group_name;
+  char *ftname, access_str[11];
 )
 
 
-static char * date_stat_format(time_t time)
+static void date_stat_format(time_t time, int nano)
 {
   static char buf[36];
+  int len;
 
-  strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S.000000000", localtime(&time));
-  return buf;
+  len = strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S.", localtime(&time));
+  sprintf(buf+len, "%09d", nano);
+  xprintf("%s", buf);
 }
 
-static int print_stat(char type) {
+static int print_stat(char type)
+{
   struct stat *stat = (struct stat*)TT.stat;
+
   switch (type) {
     case 'a':
       xprintf("%04lo", stat->st_mode & ~S_IFMT);
@@ -102,7 +82,7 @@ static int print_stat(char type) {
       xprintf("%lx", stat->st_mode);
       break;
     case 'F':
-      xprintf("%s", TT.file_type);
+      xprintf("%s", TT.ftname);
       break;
     case 'g':
       xprintf("%lu", stat->st_gid);
@@ -132,19 +112,19 @@ static int print_stat(char type) {
       xprintf("%8s", TT.user_name->pw_name);
       break;
     case 'x':
-      xprintf("%s", date_stat_format(stat->st_atime));
+      date_stat_format(stat->st_atime, stat->st_atim.tv_nsec);
       break;
     case 'X':
       xprintf("%llu", stat->st_atime);
       break;
     case 'y':
-      xprintf("%s", date_stat_format(stat->st_mtime));
+      date_stat_format(stat->st_mtime, stat->st_mtim.tv_nsec);
       break;
     case 'Y':
       xprintf("%llu", stat->st_mtime);
       break;
     case 'z':
-      xprintf("%s", date_stat_format(stat->st_ctime));
+      date_stat_format(stat->st_ctime, stat->st_ctim.tv_nsec);
       break;
     case 'Z':
       xprintf("%llu", stat->st_ctime);
@@ -157,6 +137,7 @@ static int print_stat(char type) {
 
 static int print_statfs(char type) {
   struct statfs *statfs = (struct statfs*)TT.stat;
+
   switch (type) {
     case 'a':
       xprintf("%lu", statfs->f_bavail);
@@ -197,32 +178,25 @@ static int print_statfs(char type) {
 static int do_stat(char *path)
 {
   struct stat *statf = (struct stat*)TT.stat;
-  size_t i;
-  struct {
-    mode_t mode;
-    char *str;
-  } types[] = {
-    {S_IFDIR, "directory"},
-    {S_IFCHR, "character device"},
-    {S_IFBLK, "block device"},
-    {S_IFREG, "regular file"},
-    {S_IFIFO, "FIFO (named pipe)"},
-    {S_IFLNK, "symbolic link"},
-    {S_IFSOCK, "socket"}
-  };
+  char *types = "character device\0directory\0block device\0" \
+               "regular file\0symbolic link\0socket\0FIFO (named pipe)";
+  int i, filetype;
 
   if (stat(path, statf) < 0) return 1;
 
-  for (i = 0; i < sizeof(types)/sizeof(*types); i++)
-    if ((statf->st_mode & S_IFMT) == types[i].mode) TT.file_type = types[i].str;
-  if (!statf->st_size && (statf->st_mode & S_IFMT) == S_IFREG)
-    TT.file_type = "regular empty file";
+  filetype = statf->st_mode & S_IFMT;
+  TT.ftname = types;
+  for (i = 1; filetype != (i*8192) && i < 7; i++)
+    TT.ftname += strlen(TT.ftname)+1;
+  if (!statf->st_size && filetype == S_IFREG)
+    TT.ftname = "regular empty file";
 
   // check user and group name
   TT.user_name = getpwuid(statf->st_uid);
   TT.group_name = getgrgid(statf->st_gid);
   // function to get access in human readable format
   format_mode(&TT.access_str, statf->st_mode);
+
   return 0;
 }
 
