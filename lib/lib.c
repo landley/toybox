@@ -712,9 +712,6 @@ char *xreadlink(char *name)
   }
 }
 
-/*
- This might be of use or might not.  Unknown yet...
-
 // Read contents of file as a single freshly allocated nul-terminated string.
 char *readfile(char *name)
 {
@@ -738,9 +735,6 @@ char *xreadfile(char *name)
   return buf;
 }
 
-*/
-
-
 // Sleep for this many thousandths of a second
 void msleep(long miliseconds)
 {
@@ -760,6 +754,40 @@ int xioctl(int fd, int request, void *data)
   if (rc == -1 && errno) perror_exit("ioctl %x", request);
 
   return rc;
+}
+
+int64_t peek(void *ptr, int size)
+{
+  if (size & 8) {
+    int64_t *p = (int64_t *)ptr;
+    return *p;
+  } else if (size & 4) {
+    int *p = (int *)ptr;
+    return *p;
+  } else if (size & 2) {
+    short *p = (short *)ptr;
+    return *p;
+  } else {
+    char *p = (char *)ptr;
+    return *p;
+  }
+}
+
+void poke(void *ptr, uint64_t val, int size)
+{
+  if (size & 8) {
+    uint64_t *p = (uint64_t *)ptr;
+    *p = val;
+  } else if (size & 4) {
+    int *p = (int *)ptr;
+    *p = val;
+  } else if (size & 2) {
+    short *p = (short *)ptr;
+    *p = val;
+  } else {
+    char *p = (char *)ptr;
+    *p = val;
+  }
 }
 
 // Open a /var/run/NAME.pid file, dying if we can't write it or if it currently
