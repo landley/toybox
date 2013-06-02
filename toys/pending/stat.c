@@ -38,26 +38,30 @@ config STAT
 GLOBALS(
   char *fmt;
 
-  void *stat;
+  union {
+    struct stat st;
+    struct statfs sf;
+  } stat;
   struct passwd *user_name;
   struct group *group_name;
   char *ftname, access_str[11];
 )
 
 
-static void date_stat_format(time_t time, int nano)
-{
-  static char buf[36];
-  int len;
+// Note: the atime, mtime, and ctime fields in struct stat are the start
+// of embedded struct timespec, but posix won't let them use that
+// struct definition for legacy/namespace reasons.
 
-  len = strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S.", localtime(&time));
-  sprintf(buf+len, "%09d", nano);
-  xprintf("%s", buf);
+static void date_stat_format(struct timespec *ts)
+{
+  strftime(toybuf, sizeof(toybuf), "%Y-%m-%d %H:%M:%S",
+    localtime(&(ts->tv_sec)));
+  xprintf("%s.%09d", toybuf, ts->tv_nsec);
 }
 
 static int print_stat(char type)
 {
-  struct stat *stat = (struct stat*)TT.stat;
+  struct stat *stat = (struct stat *)&TT.stat;
 
   switch (type) {
     case 'a':
@@ -66,9 +70,11 @@ static int print_stat(char type)
     case 'A':
       xprintf("%s", TT.access_str);
       break;
+
     case 'b':
       xprintf("%llu", stat->st_blocks);
       break;
+
     case 'B':
       xprintf("%lu", stat->st_blksize);
       break;
@@ -111,24 +117,26 @@ static int print_stat(char type)
     case 'U':
       xprintf("%8s", TT.user_name->pw_name);
       break;
+
     case 'x':
-      date_stat_format(stat->st_atime, stat->st_atim.tv_nsec);
+      date_stat_format((void *)&stat->st_atime);
       break;
     case 'X':
-      xprintf("%llu", stat->st_atime);
+      xprintf("%llu", (long long)stat->st_atime);
       break;
     case 'y':
-      date_stat_format(stat->st_mtime, stat->st_mtim.tv_nsec);
+      date_stat_format((void *)&stat->st_mtime);
       break;
     case 'Y':
-      xprintf("%llu", stat->st_mtime);
+      xprintf("%llu", (long long)stat->st_mtime);
       break;
     case 'z':
-      date_stat_format(stat->st_ctime, stat->st_ctim.tv_nsec);
+      date_stat_format((void *)&stat->st_ctime);
       break;
     case 'Z':
-      xprintf("%llu", stat->st_ctime);
+      xprintf("%llu", (long long)stat->st_ctime);
       break;
+
     default:
       return 1;
   }
@@ -136,7 +144,7 @@ static int print_stat(char type)
 }
 
 static int print_statfs(char type) {
-  struct statfs *statfs = (struct statfs*)TT.stat;
+  struct statfs *statfs = (struct statfs *)&TT.stat;
 
   switch (type) {
     case 'a':
@@ -177,7 +185,7 @@ static int print_statfs(char type) {
 
 static int do_stat(char *path)
 {
-  struct stat *statf = (struct stat*)TT.stat;
+  struct stat *statf = (struct stat*)&TT.stat;
   char *types = "character device\0directory\0block device\0" \
                "regular file\0symbolic link\0socket\0FIFO (named pipe)";
   int i, filetype;
@@ -202,7 +210,7 @@ static int do_stat(char *path)
 
 static int do_statfs(char *path)
 {
-  return statfs(path, TT.stat) < 0;
+  return statfs(path, (void *)&TT.stat) < 0;
 }
 
 void stat_main(void)
@@ -211,24 +219,22 @@ void stat_main(void)
     char *fmt;
     int (*do_it)(char*);
     int (*print_it)(char);
-    size_t size;
   } d, ds[2] = {
     {"  File: %N\n"
      "  Size: %s\t Blocks: %b\t IO Blocks: %B\t%F\n"
      "Device: %D\t Inode: %i\t Links: %h\n"
      "Access: (%a/%A)\tUid: (%u/%U)\tGid: (%g/%G)\n"
      "Access: %x\nModify: %y\nChange: %z",
-     do_stat, print_stat, sizeof(struct stat)},
+     do_stat, print_stat},
     {"  File: \"%n\"\n"
      "    ID: %i Namelen: %l    Type: %t\n"
      "Block Size: %s    Fundamental block size: %S\n"
      "Blocks: Total: %b\tFree: %f\tAvailable: %a\n"
      "Inodes: Total: %c\tFree: %d",
-     do_statfs, print_statfs, sizeof(struct statfs)}
+     do_statfs, print_statfs}
   };
 
   d = ds[toys.optflags & FLAG_f];
-  TT.stat = xmalloc(d.size);
   if (toys.optflags & FLAG_c) d.fmt = TT.fmt;
 
   for (; *toys.optargs; toys.optargs++) {
@@ -248,6 +254,4 @@ void stat_main(void)
     }
     xputc('\n');
   }
-
-  if(CFG_TOYBOX_FREE) free(TT.stat);
 }
