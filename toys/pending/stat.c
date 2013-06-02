@@ -1,6 +1,6 @@
 /* stat.c : display file or file system status
- * anand.sinha85@gmail.com
  * Copyright 2012 <warior.linux@gmail.com>
+ * Copyright 2013 <anand.sinha85@gmail.com>
 
 USE_STAT(NEWTOY(stat, "c:f", TOYFLAG_BIN)) 
 
@@ -44,7 +44,6 @@ GLOBALS(
   } stat;
   struct passwd *user_name;
   struct group *group_name;
-  char *ftname;
 )
 
 
@@ -74,8 +73,15 @@ static void print_stat(char type)
   else if (type == 'd') xprintf("%ldd", stat->st_dev);
   else if (type == 'D') xprintf("%llxh", stat->st_dev);
   else if (type == 'f') xprintf("%lx", stat->st_mode);
-  else if (type == 'F') xprintf("%s", TT.ftname);
-  else if (type == 'g') xprintf("%lu", stat->st_gid);
+  else if (type == 'F') {
+    char *t = "character device\0directory\0block device\0" \
+              "regular file\0symbolic link\0socket\0FIFO (named pipe)";
+    int i, filetype = stat->st_mode & S_IFMT;
+
+    for (i = 1; filetype != (i*8192) && i < 7; i++) t += strlen(t)+1;
+    if (!stat->st_size && filetype == S_IFREG) t = "regular empty file";
+    xprintf("%s", t);
+  } else if (type == 'g') xprintf("%lu", stat->st_gid);
   else if (type == 'G') xprintf("%8s", TT.user_name->pw_name);
   else if (type == 'h') xprintf("%lu", stat->st_nlink);
   else if (type == 'i') xprintf("%llu", stat->st_ino);
@@ -108,7 +114,7 @@ static void print_statfs(char type) {
   else if (type == 'l') xprintf("%ld", statfs->f_namelen);
   else if (type == 't') xprintf("%lx", statfs->f_type);
   else if (type == 'i')
-    xprintf("%x%x", statfs->f_fsid.__val[0], statfs->f_fsid.__val[1]);
+    xprintf("%08x%08x", statfs->f_fsid.__val[0], statfs->f_fsid.__val[1]);
   else if (type == 's') xprintf("%d", statfs->f_frsize);
   else if (type == 'S') xprintf("%d", statfs->f_bsize);
   else xprintf("?");
@@ -135,16 +141,6 @@ void stat_main(void)
     if (flagf && !statfs(*toys.optargs, (void *)&TT.stat));
     else if (!flagf && !lstat(*toys.optargs, (void *)&TT.stat)) {
       struct stat *stat = (struct stat*)&TT.stat;
-      char *types = "character device\0directory\0block device\0" \
-                   "regular file\0symbolic link\0socket\0FIFO (named pipe)";
-      int i, filetype;
-
-      filetype = stat->st_mode & S_IFMT;
-      TT.ftname = types;
-      for (i = 1; filetype != (i*8192) && i < 7; i++)
-        TT.ftname += strlen(TT.ftname)+1;
-      if (!stat->st_size && filetype == S_IFREG)
-        TT.ftname = "regular empty file";
 
       // check user and group name
       TT.user_name = getpwuid(stat->st_uid);
