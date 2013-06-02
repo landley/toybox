@@ -121,6 +121,8 @@ char *readfile(char *name);
 char *xreadfile(char *name);
 void msleep(long miliseconds);
 int xioctl(int fd, int request, void *data);
+int64_t peek(void *ptr, int size);
+void poke(void *ptr, uint64_t val, int size);
 char *xgetcwd(void);
 void xstat(char *path, struct stat *st);
 char *xabspath(char *path, int exact);
