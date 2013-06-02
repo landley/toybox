@@ -337,7 +337,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
       struct tm *tm;
       char perm[11], thyme[64], *usr, *upad, *grp, *grpad;
 
-      format_mode(&perm, mode);
+      mode_to_string(mode, perm);
 
       tm = localtime(&(st->st_mtime));
       strftime(thyme, sizeof(thyme), "%F %H:%M", tm);

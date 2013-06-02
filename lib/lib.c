@@ -1205,13 +1205,13 @@ barf:
   error_exit("bad mode '%s'", modestr);
 }
 
-// Format a mode for ls and stat
-void format_mode(char (*buf)[11], mode_t mode)
+// Format access mode into a drwxrwxrwx string
+void mode_to_string(mode_t mode, char *buf)
 {
   char c, d;
   int i, bit;
 
-  (*buf)[10]=0;
+  buf[10]=0;
   for (i=0; i<9; i++) {
     bit = mode & (1<<i);
     c = i%3;
@@ -1219,7 +1219,7 @@ void format_mode(char (*buf)[11], mode_t mode)
       c = "tss"[d];
       if (!bit) c &= ~0x20;
     } else c = bit ? "xwr"[c] : '-';
-    (*buf)[9-i] = c;
+    buf[9-i] = c;
   }
 
   if (S_ISDIR(mode)) c = 'd';
@@ -1229,7 +1229,7 @@ void format_mode(char (*buf)[11], mode_t mode)
   else if (S_ISFIFO(mode)) c = 'p';
   else if (S_ISSOCK(mode)) c = 's';
   else c = '-';
-  **buf = c;
+  *buf = c;
 }
 
 char* make_human_readable(unsigned long long size, unsigned long unit)
