@@ -1,0 +1,10 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+testing "expr integer" "expr 5" "5\n" "" ""
+testing "expr integer negative" "expr -5" "-5\n" "" ""
+testing "expr string" "expr astring" "astring\n" "" ""
+testing "expr 1 + 3" "expr 1 + 3" "4\n" "" ""
+testing "expr 5 + 6 * 3" "expr 5 + 6 \* 3" "23\n" "" ""
+testing "expr ( 5 + 6 ) * 3" "expr \( 5 + 6 \) \* 3" "33\n" "" ""
