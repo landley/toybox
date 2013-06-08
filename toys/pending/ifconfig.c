@@ -10,7 +10,7 @@ USE_IFCONFIG(NEWTOY(ifconfig, "?a", TOYFLAG_BIN))
 
 config IFCONFIG
   bool "ifconfig"
-  default n
+  default y
   help
     usage: ifconfig [-a] interface [address]
 
@@ -37,6 +37,8 @@ config IFCONFIG
 
 GLOBALS(
   void *if_list;
+
+  int sockfd;
 )
 
 typedef struct sockaddr_with_len {
@@ -71,44 +73,6 @@ struct ifreq_inet6 {
   int ifrinet6_ifindex;
 };
 
-#ifndef SIOCSKEEPALIVE
-# define SIOCSKEEPALIVE  (SIOCDEVPRIVATE)        /* Set keepalive timeout in sec */
-# define SIOCGKEEPALIVE  (SIOCDEVPRIVATE+1)        /* Get keepalive timeout */
-#endif
-
-#ifndef SIOCSOUTFILL
-# define SIOCSOUTFILL  (SIOCDEVPRIVATE+2)        /* Set outfill timeout */
-# define SIOCGOUTFILL  (SIOCDEVPRIVATE+3)        /* Get outfill timeout */
-#endif
-
-/*
- * used to extract the address info from the given host ip
- * and update the swl param accordingly.
- */
-static int get_socket_stream(char *host, sa_family_t af, sockaddr_with_len **swl)
-{
-  struct addrinfo hints, *result, *rp;
-  int status;
-
-  memset(&hints, 0 , sizeof(struct addrinfo));
-  hints.ai_family = af;
-  hints.ai_socktype = SOCK_STREAM;
-
-  status = getaddrinfo(host, NULL, &hints, &result);
-  if (status) error_exit("bad address '%s' : %s", host, gai_strerror(status));
-
-  for (rp = result; rp; rp = rp->ai_next) {
-    if (rp->ai_family == AF_INET || rp->ai_family == AF_INET6) {
-      *swl = xmalloc(sizeof(struct sockaddr_with_len));
-      (*swl)->socklen = rp->ai_addrlen;
-      memcpy(&((*swl)->sock_u.sock), rp->ai_addr, rp->ai_addrlen);
-      break;
-    }
-  }
-  freeaddrinfo(result);
-  return rp ? 0 : -1;
-}
-
 /*
  * use to get the socket address with the given host ip.
  */
@@ -116,6 +80,8 @@ sockaddr_with_len *get_sockaddr(char *host, int port, sa_family_t af)
 {
   sockaddr_with_len *swl = NULL;
   in_port_t port_num = htons(port);
+  struct addrinfo hints, *result, *rp;
+  int status;
   char *s;
 
   if (!strncmp(host, "local:", 6)) {
@@ -142,7 +108,7 @@ sockaddr_with_len *get_sockaddr(char *host, int port, sa_family_t af)
     }
   } else {
     s = strrchr(host, ':');
-    if (s && strchr(host, ':') != s) s = 0;
+    if (strchr(host, ':') != s) s = 0;
   }
 
   if (s++) {
@@ -152,7 +118,24 @@ sockaddr_with_len *get_sockaddr(char *host, int port, sa_family_t af)
     port = p;
   }
 
-  if (get_socket_stream(host, af, &swl)) return NULL;
+  memset(&hints, 0 , sizeof(struct addrinfo));
+  hints.ai_family = af;
+  hints.ai_socktype = SOCK_STREAM;
+
+  status = getaddrinfo(host, NULL, &hints, &result);
+  if (status) error_exit("bad address '%s' : %s", host, gai_strerror(status));
+
+  for (rp = result; rp; rp = rp->ai_next) {
+    if (rp->ai_family == AF_INET || rp->ai_family == AF_INET6) {
+      swl = xmalloc(sizeof(struct sockaddr_with_len));
+      swl->socklen = rp->ai_addrlen;
+      memcpy(&swl->sock_u.sock, rp->ai_addr, rp->ai_addrlen);
+      break;
+    }
+  }
+  freeaddrinfo(result);
+  if (!rp) error_exit("bad host name");
+
 
   if(swl->sock_u.sock.sa_family == AF_INET)
     swl->sock_u.sock_in.sin_port = port_num;
@@ -195,56 +178,22 @@ char *address_to_name(struct sockaddr *sock)
   } else return NULL;
 }
 
-static void set_ipv6_addr(int sockfd, struct ifreq *ifre, char *ipv6_addr, int request)
+static void set_address(char *host_name, struct ifreq *ifre, int request)
 {
-  char *prefix;
-  int plen = 0;
+  struct sockaddr_in *sock_in = (struct sockaddr_in *)&ifre->ifr_addr;
   sockaddr_with_len *swl = NULL;
 
-  prefix = strchr(ipv6_addr, '/');
-  if(prefix) {
-    plen = get_int_value(prefix + 1, 0, 128);
-    *prefix = '\0';
-  }
-  swl = get_sockaddr(ipv6_addr, 0, AF_INET6);
-  if(!swl) error_exit("error in resolving host name");
-    int sockfd6;
-    struct ifreq_inet6 ifre6;
-    memcpy((char *) &ifre6.ifrinte6_addr,
-        (char *) &(swl->sock_u.sock_in6.sin6_addr),
-        sizeof(struct in6_addr));
-    //Create a channel to the NET kernel.
-    sockfd6 = xsocket(AF_INET6, SOCK_DGRAM, 0);
-    xioctl(sockfd6, SIOGIFINDEX, ifre);
-    ifre6.ifrinet6_ifindex = ifre->ifr_ifindex;
-    ifre6.ifrinet6_prefixlen = plen;
-
-    xioctl(sockfd6, request, &ifre6);
-    free(swl);
-}
-
-static void set_address(int sockfd, char *host_name, struct ifreq *ifre, int request)
-{
-  struct sockaddr_in sock_in;
-  sockaddr_with_len *swl = NULL;
-  sock_in.sin_family = AF_INET;
-  sock_in.sin_port = 0;
+  memset(sock_in, 0, sizeof(struct sockaddr_in));
+  sock_in->sin_family = AF_INET;
 
   //Default 0.0.0.0
-  if(strcmp(host_name, "default") == 0) sock_in.sin_addr.s_addr = INADDR_ANY;
+  if(strcmp(host_name, "default") == 0) sock_in->sin_addr.s_addr = INADDR_ANY;
   else {
     swl = get_sockaddr(host_name, 0, AF_INET);
-    if(!swl) error_exit("error in resolving host name");
-
-    sock_in.sin_addr = swl->sock_u.sock_in.sin_addr;
-  }
-  memcpy((char *)&ifre->ifr_addr, (char *) &sock_in, sizeof(struct sockaddr));
-  xioctl(sockfd, request, ifre);
-
-  if(swl != NULL) {
+    sock_in->sin_addr = swl->sock_u.sock_in.sin_addr;
     free(swl);
-    swl = NULL;
   }
+  xioctl(TT.sockfd, request, ifre);
 }
 
 static void add_iface_to_list(struct if_list *newnode)
@@ -268,78 +217,34 @@ static void get_device_info(struct if_list *il)
 {
   struct ifreq ifre;
   char *name = il->name;
-  int sokfd;
 
   il->txqueuelen = -1;
 
-  sokfd = xsocket(AF_INET, SOCK_DGRAM, 0);
   xstrncpy(ifre.ifr_name, name, IFNAMSIZ);
-  if (ioctl(sokfd, SIOCGIFFLAGS, &ifre)<0) perror_exit("%s", il->name);
+  if (ioctl(TT.sockfd, SIOCGIFFLAGS, &ifre)<0) perror_exit("%s", il->name);
   il->flags = ifre.ifr_flags;
 
-  if (ioctl(sokfd, SIOCGIFHWADDR, &ifre) >= 0)
+  if (ioctl(TT.sockfd, SIOCGIFHWADDR, &ifre) >= 0)
     memcpy(il->hwaddr.sa_data, ifre.ifr_hwaddr.sa_data, sizeof(il->hwaddr.sa_data));
   il->hw_type = ifre.ifr_hwaddr.sa_family;
 
-  if (ioctl(sokfd, SIOCGIFMETRIC, &ifre) >= 0) il->metric = ifre.ifr_metric;
-  if (ioctl(sokfd, SIOCGIFMTU, &ifre) >= 0) il->mtu = ifre.ifr_mtu;
-  if (ioctl(sokfd, SIOCGIFMAP, &ifre) == 0) il->map = ifre.ifr_map;
-  if (ioctl(sokfd, SIOCGIFTXQLEN, &ifre) >= 0) il->txqueuelen = ifre.ifr_qlen;
+  if (ioctl(TT.sockfd, SIOCGIFMETRIC, &ifre) >= 0)
+    il->metric = ifre.ifr_metric;
+  if (ioctl(TT.sockfd, SIOCGIFMTU, &ifre) >= 0) il->mtu = ifre.ifr_mtu;
+  if (ioctl(TT.sockfd, SIOCGIFMAP, &ifre) == 0) il->map = ifre.ifr_map;
+  if (ioctl(TT.sockfd, SIOCGIFTXQLEN, &ifre) >= 0)
+    il->txqueuelen = ifre.ifr_qlen;
 
   // If an address is assigned record that.
 
   ifre.ifr_addr.sa_family = AF_INET;
-  if (!ioctl(sokfd, SIOCGIFADDR, &ifre)) il->addr = ifre.ifr_addr;
-  if (ioctl(sokfd, SIOCGIFDSTADDR, &ifre) >= 0) il->dstaddr = ifre.ifr_dstaddr;
-  if (ioctl(sokfd, SIOCGIFBRDADDR, &ifre) >= 0) il->broadaddr = ifre.ifr_broadaddr;
-  if (ioctl(sokfd, SIOCGIFNETMASK, &ifre) >= 0) il->netmask = ifre.ifr_netmask;
-  close(sokfd);
-}
-
-static void print_ip6_addr(struct if_list *il)
-{
-  char iface_name[IFNAMSIZ] = {0,};
-  int plen, scope;
-  FILE *fp;
-
-  if(!(fp = fopen("/proc/net/if_net6", "r"))) return;
-
-  while(fgets(toybuf, sizeof(toybuf), fp)) {
-    int nitems = 0;
-    char ipv6_addr[40] = {0,};
-    nitems = sscanf(toybuf, "%32s %*08x %02x %02x %*02x %15s\n",
-        ipv6_addr+7, &plen, &scope, iface_name);
-    if(nitems != 4) {
-      if((nitems < 0) && feof(fp)) break;
-      perror_exit("sscanf");
-    }
-    if(strcmp(il->name, iface_name) == 0) {
-      int i = 0;
-      struct sockaddr_in6 sock_in6;
-      int len = sizeof(ipv6_addr) / (sizeof ipv6_addr[0]);
-      char *ptr = ipv6_addr+7;
-
-      while((i < len-2) && (*ptr)) {
-        ipv6_addr[i++] = *ptr++;
-        //put ':' after 4th bit
-        if(!((i+1) % 5)) ipv6_addr[i++] = ':';
-      }
-      ipv6_addr[i+1] = '\0';
-      if(inet_pton(AF_INET6, ipv6_addr, (struct sockaddr *) &sock_in6.sin6_addr) > 0) {
-        sock_in6.sin6_family = AF_INET6;
-        if(inet_ntop(AF_INET6, &sock_in6.sin6_addr, toybuf, BUFSIZ)) {
-          char *names[] = {"Global","Host","Link","Site","Compat"},
-               *name = "Unknown";
-          int j;
-
-          for (j=0; j < sizeof(names)/sizeof(*names); j++)
-            if (scope == (!!j)<<(j+3)) name = names[j];
-          xprintf("%10cinet6 addr: %s/%d Scope: %s\n", ' ', toybuf, plen, name);
-        }
-      }
-    }
-  }
-  fclose(fp);
+  if (!ioctl(TT.sockfd, SIOCGIFADDR, &ifre)) il->addr = ifre.ifr_addr;
+  if (ioctl(TT.sockfd, SIOCGIFDSTADDR, &ifre) >= 0)
+    il->dstaddr = ifre.ifr_dstaddr;
+  if (ioctl(TT.sockfd, SIOCGIFBRDADDR, &ifre) >= 0)
+    il->broadaddr = ifre.ifr_broadaddr;
+  if (ioctl(TT.sockfd, SIOCGIFNETMASK, &ifre) >= 0)
+    il->netmask = ifre.ifr_netmask;
 }
 
 static void display_ifconfig(struct if_list *il)
@@ -354,6 +259,7 @@ static void display_ifconfig(struct if_list *il)
   };
   int i;
   char *p;
+  FILE *fp;
 
   for (i=0; i < (sizeof(types)/sizeof(*types))-1; i++)
     if (il->hw_type == types[i].type) break;
@@ -394,7 +300,49 @@ static void display_ifconfig(struct if_list *il)
     xputc('\n');
   }
 
-  print_ip6_addr(il);
+  fp = fopen("/proc/net/if_net6", "r");
+  if (fp) {
+    char iface_name[IFNAMSIZ] = {0,};
+    int plen, scope;
+
+    while(fgets(toybuf, sizeof(toybuf), fp)) {
+      int nitems = 0;
+      char ipv6_addr[40] = {0,};
+      nitems = sscanf(toybuf, "%32s %*08x %02x %02x %*02x %15s\n",
+          ipv6_addr+7, &plen, &scope, iface_name);
+      if(nitems != 4) {
+        if((nitems < 0) && feof(fp)) break;
+        perror_exit("sscanf");
+      }
+      if(strcmp(il->name, iface_name) == 0) {
+        int i = 0;
+        struct sockaddr_in6 sock_in6;
+        int len = sizeof(ipv6_addr) / (sizeof ipv6_addr[0]);
+        char *ptr = ipv6_addr+7;
+
+        while((i < len-2) && (*ptr)) {
+          ipv6_addr[i++] = *ptr++;
+          //put ':' after 4th bit
+          if(!((i+1) % 5)) ipv6_addr[i++] = ':';
+        }
+        ipv6_addr[i+1] = '\0';
+        if(inet_pton(AF_INET6, ipv6_addr, (struct sockaddr *) &sock_in6.sin6_addr) > 0) {
+          sock_in6.sin6_family = AF_INET6;
+          if(inet_ntop(AF_INET6, &sock_in6.sin6_addr, toybuf, BUFSIZ)) {
+            char *names[] = {"Global","Host","Link","Site","Compat"},
+                 *name = "Unknown";
+            int j;
+
+            for (j=0; j < sizeof(names)/sizeof(*names); j++)
+              if (scope == (!!j)<<(j+3)) name = names[j];
+            xprintf("%10cinet6 addr: %s/%d Scope: %s\n", ' ', toybuf, plen, name);
+          }
+        }
+      }
+    }
+    fclose(fp);
+  }
+
   xprintf("%10c", ' ');
 
   if (il->flags) {
@@ -449,16 +397,14 @@ static void readconf(void)
 {
   struct ifconf ifcon;
   struct ifreq *ifre;
-  int num, sokfd;
-
-  sokfd = xsocket(AF_INET, SOCK_DGRAM, 0);
+  int num;
 
   // Loop until buffer's big enough
   ifcon.ifc_buf = NULL;
   for (num = 30;;num += 10) {
     ifcon.ifc_len = sizeof(struct ifreq)*num;
     ifcon.ifc_buf = xrealloc(ifcon.ifc_buf, ifcon.ifc_len);
-    xioctl(sokfd, SIOCGIFCONF, &ifcon);
+    xioctl(TT.sockfd, SIOCGIFCONF, &ifcon);
     if (ifcon.ifc_len != sizeof(struct ifreq)*num) break;
   }
 
@@ -478,7 +424,6 @@ static void readconf(void)
     }
   }
 
-  close(sokfd);
   free(ifcon.ifc_buf);
 }
 
@@ -507,7 +452,6 @@ static void show_iface(char *iface_name)
 
     add_iface_to_list(il);
     il->non_virtual_iface = 1;
-    errno = 0;
     get_device_info(il);
   }
   fclose(fp);
@@ -523,7 +467,6 @@ static void show_iface(char *iface_name)
     if(!il) {
       il = xzalloc(sizeof(struct if_list));
       xstrncpy(il->name, iface_name, IFNAMSIZ);
-      errno = 0;
       get_device_info(il);
       display_ifconfig(il);
       free(il);
@@ -545,10 +488,11 @@ void ifconfig_main(void)
 {
   char **argv = toys.optargs;
   struct ifreq ifre;
-  int i, sockfd = 0;
+  int i;
 
   if(*argv && (strcmp(*argv, "--help") == 0)) show_help();
   
+  TT.sockfd = xsocket(AF_INET, SOCK_DGRAM, 0);
   if(toys.optc < 2) {
     show_iface(*argv);
     return;
@@ -557,7 +501,6 @@ void ifconfig_main(void)
   // Open interface
   memset(&ifre, 0, sizeof(struct ifreq));
   xstrncpy(ifre.ifr_name, *argv, IFNAMSIZ);
-  sockfd = xsocket(AF_INET, SOCK_DGRAM, 0);
 
   // Perform operations on interface
   while(*++argv) {
@@ -578,8 +521,8 @@ void ifconfig_main(void)
       {"netmask", 0, SIOCSIFNETMASK},
       {"dstaddr", 0, SIOCSIFDSTADDR},
       {"mtu", IFREQ_OFFSZ(ifr_mtu), SIOCSIFMTU},
-      {"keepalive", IFREQ_OFFSZ(ifr_data), SIOCSKEEPALIVE},
-      {"outfill", IFREQ_OFFSZ(ifr_data), SIOCSOUTFILL},
+      {"keepalive", IFREQ_OFFSZ(ifr_data), SIOCDEVPRIVATE}, // SIOCSKEEPALIVE
+      {"outfill", IFREQ_OFFSZ(ifr_data), SIOCDEVPRIVATE+2}, // SIOCSOUTFILL
       {"metric", IFREQ_OFFSZ(ifr_metric), SIOCSIFMETRIC},
       {"txqueuelen", IFREQ_OFFSZ(ifr_qlen), SIOCSIFTXQLEN},
       {"mem_start", IFREQ_OFFSZ(ifr_map.mem_start), SIOCSIFMAP},
@@ -608,22 +551,22 @@ void ifconfig_main(void)
           if (on < 0) {
             long l = strtoul(*argv, 0, 0);
 
-            if (off == SIOCSIFMAP) xioctl(sockfd, SIOCGIFMAP, &ifre);
+            if (off == SIOCSIFMAP) xioctl(TT.sockfd, SIOCGIFMAP, &ifre);
             on = -on;
             poke((on>>16) + (char *)&ifre, l, on&15);
-            xioctl(sockfd, off, &ifre);
+            xioctl(TT.sockfd, off, &ifre);
             break;
-          } else set_address(sockfd, *argv, &ifre, off);
+          } else set_address(*argv, &ifre, off);
         }
         off = 0;
       }
 
       // Set flags
       if (on || off) {
-        xioctl(sockfd, SIOCGIFFLAGS, &ifre);
+        xioctl(TT.sockfd, SIOCGIFFLAGS, &ifre);
         ifre.ifr_flags &= ~(rev ? on : off);
         ifre.ifr_flags |= (rev ? off : on);
-        xioctl(sockfd, SIOCSIFFLAGS, &ifre);
+        xioctl(TT.sockfd, SIOCSIFFLAGS, &ifre);
       }
 
       break;
@@ -662,20 +605,41 @@ void ifconfig_main(void)
 
         if ((p-ptr) != count || *hw_addr)
           error_exit("bad hw-addr '%s'", hw_addr ? hw_addr : "");
-        xioctl(sockfd, SIOCSIFHWADDR, &ifre);
+        xioctl(TT.sockfd, SIOCSIFHWADDR, &ifre);
+
+      // Add/remove ipv6 address to interface
 
       } else if (!strcmp(*argv, "add") || !strcmp(*argv, "del")) {
+        sockaddr_with_len *swl = NULL;
+        struct ifreq_inet6 ifre6;
+        char *prefix;
+        int plen = 0, sockfd6 = xsocket(AF_INET6, SOCK_DGRAM, 0);
+
         if (!argv[1]) show_help();
-        set_ipv6_addr(sockfd, &ifre, argv[1],
-          **argv=='a' ? SIOCSIFADDR : SIOCDIFADDR);
+
+        prefix = strchr(argv[1], '/');
+        if (prefix) {
+          plen = get_int_value(prefix + 1, 0, 128);
+          *prefix = 0;
+        }
+        swl = get_sockaddr(argv[1], 0, AF_INET6);
+        ifre6.ifrinte6_addr = swl->sock_u.sock_in6.sin6_addr;
+        xioctl(sockfd6, SIOCGIFINDEX, &ifre);
+        ifre6.ifrinet6_ifindex = ifre.ifr_ifindex;
+        ifre6.ifrinet6_prefixlen = plen;
+        xioctl(sockfd6, **argv=='a' ? SIOCSIFADDR : SIOCDIFADDR, &ifre6);
+
+        free(swl);
+        close(sockfd6);
+
         argv++;
       } else if (isdigit(**argv) || !strcmp(*argv, "default")) {
-          set_address(sockfd, *argv, &ifre, SIOCSIFADDR);
+          set_address(*argv, &ifre, SIOCSIFADDR);
           //if the interface name is not an alias; set the flag and continue.
           if(!strchr(ifre.ifr_name, ':')) {
-            xioctl(sockfd, SIOCGIFFLAGS, &ifre);
+            xioctl(TT.sockfd, SIOCGIFFLAGS, &ifre);
             ifre.ifr_flags |= IFF_UP|IFF_RUNNING;
-            xioctl(sockfd, SIOCSIFFLAGS, &ifre);
+            xioctl(TT.sockfd, SIOCSIFFLAGS, &ifre);
           }
 
     } else {
@@ -684,5 +648,5 @@ void ifconfig_main(void)
       error_exit("bad argument '%s'", *argv);
     }
   }
-  if (CFG_TOYBOX_FREE && sockfd > 0) close(sockfd);
+  close(TT.sockfd);
 }
