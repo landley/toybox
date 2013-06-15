@@ -36,7 +36,7 @@ GLOBALS(
 // If s is not NULL, the value is a string (s).
 struct value {
   char *s;
-  long i;
+  long long i;
 };
 
 static void parse_expr(struct value *ret, struct value *v);
@@ -57,7 +57,7 @@ static void get_value(struct value *v)
 
   arg = toys.optargs[TT.argidx++];
 
-  v->i = strtol(arg, &endp, 10);
+  v->i = strtoll(arg, &endp, 10);
   v->s = *endp ? arg : NULL;
 }
 
@@ -79,10 +79,10 @@ static int is_zero(const struct value *v)
   return ((v->s && *v->s == '\0') || v->i == 0);
 }
 
-static char *num_to_str(long num)
+static char *num_to_str(long long num)
 {
   static char num_buf[21];
-  snprintf(num_buf, sizeof(num_buf), "%ld", num);
+  snprintf(num_buf, sizeof(num_buf), "%lld", num);
   return num_buf;
 }
 
@@ -266,7 +266,7 @@ void expr_main(void)
   if (!tok.s || *tok.s) error_exit("syntax error"); // final token should be end of expression
 
   if (ret.s) printf("%s\n", ret.s);
-  else printf("%ld\n", ret.i);
+  else printf("%lld\n", ret.i);
 
   exit(is_zero(&ret));
 }
