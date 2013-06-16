@@ -1,0 +1,30 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+[ -e /proc/modules ] || { echo "Skipping test because modules are not supported"; exit 1; }
+
+# modinfo does not need to output fields in a specified order.
+# Instead, there are labelled fields.  We can use sort to make up for this.
+# Other issues to beware of are the volatile nature of srcversion and vermagic,
+# which change from kernel to kernel and can be disabled. 
+# We grep to remove these.
+
+#We expect they have ne2k-pci as a module.
+
+testing "modinfo gets right number of fields" "modinfo ne2k-pci |cut -d: -f1 |grep -v ver|sort" "alias\nalias\nalias\nalias\nalias\nalias\nalias\nalias\nalias\nalias\nalias\nauthor\ndepends\ndescription\nfilename\nlicense\nparm\nparm\nparm\n" "" ""
+testing "modinfo treats - and _ as equivalent" "modinfo ne2k_pci |cut -d: -f1 |grep -v ver|sort" "alias\nalias\nalias\nalias\nalias\nalias\nalias\nalias\nalias\nalias\nalias\nauthor\ndepends\ndescription\nfilename\nlicense\nparm\nparm\nparm\n" "" ""
+
+# Output of -F filename should be an absolute path to the module.
+# Otherwise, initrd generating scripts will break.
+
+testing "modinfo -F filename gets absolute path" "[ -e `modinfo -F filename ne2k-pci` ] && echo ne2k-pci " "ne2k-pci\n" "" ""
+
+testing "modinfo supports multiple modules" "modinfo -F filename ne2k-pci 8390 | wc -l" "2\n" "" ""
+
+testing "modinfo does not output filename for bad module" "modinfo -F filename zxcvbnm__9753" "" "" ""
+
+
+

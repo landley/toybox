@@ -16,6 +16,8 @@ config MODINFO
 
 GLOBALS(
   char *field;
+
+  long mod;
 )
 
 static char *modinfo_tags[] = {
@@ -69,10 +71,9 @@ static void modinfo_file(struct dirtree *dir)
 static int check_module(struct dirtree *new)
 {
   if (S_ISREG(new->st.st_mode)) {
-    char **ss;
+    char *s;
 
-    for (ss = toys.optargs; *ss; ss++) {
-      char *s = *ss;
+    for (s = toys.optargs[TT.mod]; *s; s++) {
       int len = 0;
 
       // The kernel treats - and _ the same, so we should too.
@@ -97,5 +98,7 @@ void modinfo_main(void)
   if (uname(&uts) < 0) perror_exit("bad uname");
   sprintf(toybuf, "/lib/modules/%s", uts.release);
 
-  dirtree_read(toybuf, check_module);
+  for(TT.mod = 0; TT.mod<toys.optc; TT.mod++) {
+    dirtree_read(toybuf, check_module);
+  }
 }
