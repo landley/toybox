@@ -1,0 +1,31 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+testing "split" "seq 1 12345 | split && ls xa[a-z] | wc -l" "13\n" "" ""
+rm xa[a-z]
+
+testing "split -" "seq 1 12345 | split - && ls xa[a-z] | wc -l" "13\n" "" ""
+rm xa[a-z]
+
+seq 1 12345 > file
+testing "split file" "split file && ls xa[a-z] | wc -l" "13\n" "" ""
+rm xa[a-z]
+
+testing "split -l" "split file -l 10k && wc -l xab" "2105 xab\n" "" ""
+rm xa[ab]
+
+testing "split suffix exhaustion" \
+  "split file -l 10 -a 1 walrus 2>/dev/null || ls walrus* | wc -l" "26\n" "" ""
+rm walrus*
+
+testing "split bytes" \
+  "toybox seq 1 20000 | split -b 100 -a 3 - whang && ls whang* | wc -l && wc -c whangbpw" "1089\n94 whangbpw\n" "" ""
+
+testing "split reassembly" \
+  'diff -u <(ls whang* | sort | xargs cat) <(seq 1 20000) && echo yes' \
+  "yes\n" "" ""
+
+rm file whang*
