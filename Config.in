@@ -36,7 +36,7 @@ config TOYBOX_FLOAT
 	  require it.
 
 config TOYBOX_HELP
-	bool "Help messages:
+	bool "Help messages"
 	default y
 	help
 	  Include help text for each command.
