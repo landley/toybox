@@ -17,6 +17,12 @@ void xstrncpy(char *dest, char *src, size_t size)
   strcpy(dest, src);
 }
 
+void xexit(void)
+{
+  if (toys.rebound) longjmp(*toys.rebound, 1);
+  else exit(toys.exitval);
+}
+
 void verror_msg(char *msg, int err, va_list va)
 {
   char *s = ": %s";
@@ -58,8 +64,7 @@ void error_exit(char *msg, ...)
   verror_msg(msg, 0, va);
   va_end(va);
 
-  if (toys.rebound) longjmp(*toys.rebound, 1);
-  else exit(toys.exitval);
+  xexit();
 }
 
 
@@ -72,8 +77,7 @@ void perror_exit(char *msg, ...)
   verror_msg(msg, errno, va);
   va_end(va);
 
-  if (toys.rebound) longjmp(*toys.rebound, 1);
-  else exit(toys.exitval);
+  xexit();
 }
 
 // Die unless we can allocate memory.

@@ -87,6 +87,7 @@ void show_help(void);
 
 // lib.c
 void xstrncpy(char *dest, char *src, size_t size);
+void xexit(void) noreturn;
 void verror_msg(char *msg, int err, va_list va);
 void error_msg(char *msg, ...);
 void perror_msg(char *msg, ...);
