@@ -1,31 +1,22 @@
 <!--#include file="header.html" -->
 
-<h1>Answers to <a href="#what">What</a>, <a href="#why">Why</a>,
-<a href="#who">Who</a>, <a href="#how">How</a>, <a href="#when">when</a></h1>
-
 <h2><a name="what" />What is ToyBox?</h2>
 
-<p>Toybox provides simple, small, fast, and correct implementations of all the
-standard Linux command line utilities.</p>
+<p>Toybox combines the most common Linux command line utilities together into
+a single <a href=license.html>BSD-licensed</a> executable. It's simple, small, fast, and reasonably
+standards-compliant (<a href=http://opengroup.org/onlinepubs/9699919799>POSIX-2008</a> and <a href=http://refspecs.linuxfoundation.org/LSB_4.1.0>LSB 4.1</a>).</p>
 
-<p>Toybox should scale from tiny embedded systems up to general purpose
-development environments. We test using it on Android phones in place of
-Toolbox, and the <a href=/aboriginal>Aboriginal Linux</a> project is working
-to get a complete Linux system to rebuild itself from source code using
-toybox.</p>
-
-<p>Toybox is released under what's been nicknamed a <a href=license.html>"zero
-clause BSD" license</a>, essentially public domain with a liability
-disclaimer.</p>
-
-<p>Toybox can be built as a single multicall ("swiss army knife") executable,
-or each command can be built as a traditional independent executable.</p>
+<p>Toybox's 1.0 release goal is to turn generic Android into a
+development environment capable of compiling <a href=http://www.linuxfromscratch.org>Linux From Scratch</a>.
+A tiny system <a href=/aboriginal>built from</a> just toybox, linux, <a href=http://musl-libc.org>a C library</a>, and a C compiler (such as LLVM or
+gcc 4.2.1+binutils 2.17) should be
+able to rebuild itself from source code without needing any other packages.</p>
 
 <b><h2><a name="status" />What commands are implemented in Toybox?</h2></b>
 
 <p>The current list of commands implemented by toybox is on the
 <a href=status.html>status page</a>, which is updated each release.
-There is also <a href=roadmap.html>roadmap</a> of planned commands for the
+There is also <a href=roadmap.html>roadmap</a> listing all planned commands for the
 1.0 release.</p>
 
 <p>In general, configuring toybox for "defconfig" enables all the commands
