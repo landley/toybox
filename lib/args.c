@@ -142,7 +142,9 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt)
   // Does this option take an argument?
   gof->arg++;
   type = opt->type;
-  if (type) {
+
+  if (type == '@') ++*(opt->arg);
+  else if (type) {
     char *arg = gof->arg;
 
     // Handle "-xblah" and "-x blah", but also a third case: "abxc blah"
@@ -176,7 +178,7 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt)
         error_exit("-%c < %lf", opt->c, (double)opt->val[0].f);
       if (opt->val[1].l != LONG_MAX && *f > opt->val[1].f)
         error_exit("-%c > %lf", opt->c, (double)opt->val[1].f);
-    } else if (type == '@') ++*(opt->arg);
+    }
 
     if (!gof->nodash_now) gof->arg = "";
   }
