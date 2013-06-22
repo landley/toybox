@@ -43,9 +43,9 @@ scripts/genconfig.sh
 
 echo "Generate headers from toys/*/*.c..."
 
-# Create a list of all the applets toybox can provide.  Note that the first
-# entry is out of order on purpose (the toybox multiplexer applet must be the
-# first element of the array).  The rest must be sorted in alphabetical order
+# Create a list of all the commands toybox can provide. Note that the first
+# entry is out of order on purpose (the toybox multiplexer command must be the
+# first element of the array). The rest must be sorted in alphabetical order
 # for fast binary search.
 
 echo "generated/newtoys.h"
@@ -59,10 +59,12 @@ sed -n -e 's/^USE_[A-Z0-9_]*(/&/p' toys/*/*.c \
 
 function getflags()
 {
-  sed -n -e "s/.*TOY($1"',[ \t]*"\([^"]*\)"[ \t]*,.*)/\1/' \
+  FLX="$1"
+  shift
+  sed -n -e "s/.*TOY($FLX"',[ \t]*"\([^"]*\)"[ \t]*,.*)/\1/' \
          -e 't keep;d;:keep' -e 's/^[<>=][0-9]//' -e 's/[?&^]//' \
          -e 't keep' -e 's/[><=][0-9][0-9]*//g' -e 's/+.//g' \
-         -e 's/([^)]*)//g' -e 's/\[[^]]*\]//g' -e 's/[-?^:&#|@*]//g' -e 'p'
+         -e 's/\[[^]]*\]//g' -e 's/[-?^:&#|@*]//g' "$@" -e 'p'
 }
 
 # Extract global structure definitions and flag definitions from toys/*/*.c
@@ -85,10 +87,21 @@ function getglobals()
         -e 's/^GLOBALS(/struct '"$NAME"'_data {/' \
         -e 's/^)/};/' -e 'p' $i
 
-    FLAGS="$(echo "$NEWTOYS" | getflags "$NAME")"
-    ZFLAGS="$(echo "$ALLTOYS" | getflags "$NAME" | sed 's/[-'"$FLAGS"']//g')"
+    LONGFLAGS="$(echo "$NEWTOYS" | getflags "$NAME" -e 's/\(\(([^)]*)\)*\).*/\1/' -e 's/(//g' -e 's/)/ /g')"
+    FLAGS="$(echo "$NEWTOYS" | getflags "$NAME" -e 's/([^)]*)//g')"
+    ZFLAGS="$(echo "$ALLTOYS" | getflags "$NAME" -e 's/([^)]*)//g' -e 's/[-'"$FLAGS"']//g')"
+    LONGFLAGLEN="$(echo "$LONGFLAGS" | wc -w)"
 
     echo "#ifdef FOR_${NAME}"
+    X=0
+    # Provide values for --longopts with no corresponding short flags
+    for i in $LONGFLAGS
+    do
+      X=$(($X+1))
+      echo -e "#define FLAG_$i\t(1<<$(($LONGFLAGLEN+${#FLAGS}-$X)))"
+    done
+
+    # Provide values for active flags
     X=0
     while [ $X -lt ${#FLAGS} ]
     do
@@ -96,6 +109,8 @@ function getglobals()
       X=$(($X+1))
       echo "(1<<$((${#FLAGS}-$X)))"
     done
+
+    # Provide zeroes for inactive flags
     X=0
     while [ $X -lt ${#ZFLAGS} ]
     do
