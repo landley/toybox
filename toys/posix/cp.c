@@ -4,7 +4,11 @@
  *
  * TODO: sHLP
 
-USE_CP(NEWTOY(cp, "<2"USE_CP_MORE("rdavsln")"RHLPfip[-ni]", TOYFLAG_BIN))
+// This is subtle: MV options must be in same order (right to left) as CP
+// for FLAG_X macros to work out right.
+
+USE_CP(NEWTOY(cp, "<2RHLPp"USE_CP_MORE("rdaslvn")"fi"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
+USE_CP_MV(OLDTOY(mv, cp, "<2"USE_CP_MORE("vn")"fi"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
 
 config CP
   bool "cp"
@@ -37,6 +41,25 @@ config CP_MORE
     -r	synonym for -R
     -s	symlink instead of copy
     -v	verbose
+
+config CP_MV
+  bool "mv"
+  default y
+  depends on CP
+  help
+    usage: mv [-fi] SOURCE... DEST"
+
+    -f	force copy by deleting destination file
+    -i	interactive, prompt before overwriting existing DEST
+
+config CP_MV_MORE
+  default y
+  depends on CP_MV && CP_MORE
+  help
+    usage: mv [-vn]
+
+    -v	verbose
+    -n	no clobber (don't overwrite DEST)
 */
 
 #define FOR_cp
@@ -225,6 +248,10 @@ int cp_node(struct dirtree *try)
     }
 
     if (fdout != AT_FDCWD) xclose(fdout);
+
+    if (toys.which->name[0] == 'm')
+      if (unlinkat(tfd, try->name, S_ISDIR(try->st.st_mode) ? AT_REMOVEDIR : 0))
+        err = "%s";
   }
 
   if (err) perror_msg(err, catch);
@@ -237,7 +264,7 @@ void cp_main(void)
   int i, destdir = !stat(destname, &TT.top) && S_ISDIR(TT.top.st_mode);
 
   if (toys.optc>1 && !destdir) error_exit("'%s' not directory", destname);
-
+  if (toys.which->name[0] == 'm') toys.optflags |= FLAG_d|FLAG_p|FLAG_R;
   if (toys.optflags & (FLAG_a|FLAG_p)) umask(0);
 
   // Loop through sources
@@ -245,15 +272,21 @@ void cp_main(void)
   for (i=0; i<toys.optc; i++) {
     struct dirtree *new;
     char *src = toys.optargs[i];
+    int rc = 1;
+
+    if (destdir) TT.destname = xmsprintf("%s/%s", destname, basename(src));
+    else TT.destname = destname;
+
+    errno = EXDEV;
+    if (toys.which->name[0] == 'm') rc = rename(src, TT.destname);
 
     // Skip nonexistent sources
-    if (!(new = dirtree_add_node(0, src, !(toys.optflags & (FLAG_d|FLAG_a)))))
-      perror_msg("bad '%s'", src);
-    else {
-      if (destdir) TT.destname = xmsprintf("%s/%s", destname, basename(src));
-      else TT.destname = destname;
-      dirtree_handle_callback(new, cp_node);
-      if (destdir) free(TT.destname);
+    if (rc) {
+      if (errno != EXDEV ||
+        !(new = dirtree_add_node(0, src, !(toys.optflags & (FLAG_d|FLAG_a)))))
+          perror_msg("bad '%s'", src);
+      else dirtree_handle_callback(new, cp_node);
     }
+    if (destdir) free(TT.destname);
   }
 }
