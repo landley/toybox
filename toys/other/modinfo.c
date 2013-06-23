@@ -20,39 +20,33 @@ GLOBALS(
   long mod;
 )
 
-static char *modinfo_tags[] = {
-  "alias", "license", "description", "author", "firmware",
-  "vermagic", "srcversion", "intree", "parm", "depends",
-};
-
 static void output_field(char *field, char *value)
 {
-  int len;
-
-  if (TT.field && strcmp(TT.field, field)) return;
-
-  len = strlen(field);
-
-  if (TT.field) xprintf("%s", value);
-  else xprintf("%s:%*s%s", field, 15 - len, "", value);
+  if (!TT.field) xprintf("%s:%*c", field, 15 - strlen(field), ' ');
+  else if (!strcmp(TT.field, field)) return;
+  xprintf("%s", value);
   xputc((toys.optflags & FLAG_0) ? 0 : '\n');
 }
 
-static int modinfo_file(struct dirtree *dir)
+static void modinfo_file(char *full_name)
 {
   int fd, len, i;
-  char *buf, *pos, *full_name;
+  char *buf = 0, *pos, *modinfo_tags[] = {
+    "alias", "license", "description", "author", "firmware",
+    "vermagic", "srcversion", "intree", "parm", "depends",
+  };
 
-  full_name = dirtree_path(dir, NULL);
-  output_field("filename", full_name);
-  fd = xopen(full_name, O_RDONLY);
-  free(full_name);
+  if (-1 != (fd = open(full_name, O_RDONLY))) {
+    len = fdlength(fd);
+    if (!(buf = mmap(0, len, PROT_READ, MAP_SHARED, fd, 0))) close(fd);
+  }
 
-  len = fdlength(fd);
-  if (!(buf = mmap(0, len, PROT_READ, MAP_SHARED, fd, 0))) {
-    perror_msg("mmap %s", full_name);
-    return 1;
+  if (!buf) {
+    perror_msg("%s", full_name);
+    return;
   } 
+
+  output_field("filename", full_name);
 
   for (pos = buf; pos < buf+len; pos++) {
     if (*pos) continue;
@@ -68,7 +62,6 @@ static int modinfo_file(struct dirtree *dir)
 
   munmap(buf, len);
   close(fd);
-  return 0;
 }
 
 static int check_module(struct dirtree *new)
@@ -87,7 +80,10 @@ static int check_module(struct dirtree *new)
       }
       if (s[len] || strcmp(new->name+len, ".ko")) break;
 
-      modinfo_file(new);
+      modinfo_file(s = dirtree_path(new, NULL));
+      free(s);
+
+      return DIRTREE_ABORT;
     }
   }
 
@@ -96,15 +92,15 @@ static int check_module(struct dirtree *new)
 
 void modinfo_main(void)
 {
-  struct utsname uts;
-
-  if (uname(&uts) < 0) perror_exit("bad uname");
-  sprintf(toybuf, "/lib/modules/%s", uts.release);
-
   for(TT.mod = 0; TT.mod<toys.optc; TT.mod++) {
-    if (strstr(toys.optargs[TT.mod], ".ko")) { 
-      dirtree_read(toys.optargs[TT.mod], modinfo_file);
-    } else {
+    char *s = strstr(toys.optargs[TT.mod], ".ko");
+
+    if (s && !s[3]) modinfo_file(toys.optargs[TT.mod]);
+    else {
+      struct utsname uts;
+
+      if (uname(&uts) < 0) perror_exit("bad uname");
+      sprintf(toybuf, "/lib/modules/%s", uts.release);
       dirtree_read(toybuf, check_module);
     }
   }
