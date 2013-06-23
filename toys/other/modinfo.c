@@ -38,7 +38,7 @@ static void output_field(char *field, char *value)
   xputc((toys.optflags & FLAG_0) ? 0 : '\n');
 }
 
-static void modinfo_file(struct dirtree *dir)
+static int modinfo_file(struct dirtree *dir)
 {
   int fd, len, i;
   char *buf, *pos, *full_name;
@@ -49,8 +49,10 @@ static void modinfo_file(struct dirtree *dir)
   free(full_name);
 
   len = fdlength(fd);
-  if (!(buf = mmap(0, len, PROT_READ, MAP_SHARED, fd, 0)))
-    perror_exit("mmap %s", full_name);
+  if (!(buf = mmap(0, len, PROT_READ, MAP_SHARED, fd, 0))) {
+    perror_msg("mmap %s", full_name);
+    return 1;
+  } 
 
   for (pos = buf; pos < buf+len; pos++) {
     if (*pos) continue;
@@ -66,6 +68,7 @@ static void modinfo_file(struct dirtree *dir)
 
   munmap(buf, len);
   close(fd);
+  return 0;
 }
 
 static int check_module(struct dirtree *new)
@@ -99,6 +102,10 @@ void modinfo_main(void)
   sprintf(toybuf, "/lib/modules/%s", uts.release);
 
   for(TT.mod = 0; TT.mod<toys.optc; TT.mod++) {
-    dirtree_read(toybuf, check_module);
+    if (strstr(toys.optargs[TT.mod], ".ko")) { 
+      dirtree_read(toys.optargs[TT.mod], modinfo_file);
+    } else {
+      dirtree_read(toybuf, check_module);
+    }
   }
 }
