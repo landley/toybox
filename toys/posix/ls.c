@@ -375,7 +375,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
     // Pad columns
     if (flags & (FLAG_C|FLAG_x)) {
       curcol = colsizes[curcol] - *len;
-      if (curcol >= 0) xprintf("%s", toybuf+255-curcol);
+      if (curcol < 255) xprintf("%s", toybuf+255-curcol);
     }
   }
 
