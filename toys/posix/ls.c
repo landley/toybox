@@ -15,36 +15,22 @@ config LS
     list files
 
     what to show:
-    -a	all files including .hidden
-    -c	use ctime for timestamps
-    -d	directory, not contents
-    -i	inode number
-    -k	block sizes in kilobytes
-    -p	put a '/' after directory names
-    -q	unprintable chars as '?'
-    -s	size (in blocks)
-    -u	use access time for timestamps
-    -A	list all files except . and ..
-    -H	follow command line symlinks
-    -L	follow symlinks
-    -R	recursively list files in subdirectories
-    -F	append file type indicator (/=dir, *=exe, @=symlink, |=FIFO)
+    -a	all files including .hidden		-c  use ctime for timestamps
+    -d	directory, not contents			-i  inode number
+    -k	block sizes in kilobytes		-p  put a '/' after dir names
+    -q	unprintable chars as '?'		-s  size (in blocks)
+    -u	use access time for timestamps		-A  list all files but . and ..
+    -H	follow command line symlinks		-L  follow symlinks
+    -R	recursively list files in subdirs	-F  append /dir *exe @sym |FIFO
 
     output formats:
-    -1	list one file per line
-    -C	columns (sorted vertically)
-    -g	like -l but no owner
-    -l	long (show full details for each file)
-    -m	comma separated
-    -n	like -l but numeric uid/gid
-    -o	like -l but no group
-    -x	columns (sorted horizontally)
+    -1	list one file per line			-C  columns (sorted vertically)
+    -g	like -l but no owner			-l  long (show full details)
+    -m	comma separated				-n  like -l but numeric uid/gid
+    -o	like -l but no group			-x  columns (horizontal sort)
 
     sorting (default is alphabetical):
-    -f	unsorted
-    -r	reverse
-    -t	timestamp
-    -S	size
+    -f	unsorted	-r  reverse	-t  timestamp	-S  size
 */
 
 #define FOR_ls
