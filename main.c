@@ -84,6 +84,12 @@ void toy_init(struct toy_list *which, char *argv[])
 
   toys.which = which;
   toys.argv = argv;
+
+  if (CFG_TOYBOX_HELP_DASHDASH && argv[1] && !strcmp(argv[1], "--help")) {
+    show_help();
+    xexit();
+  }
+
   if (NEED_OPTIONS && which->options) get_optflags();
   else {
     toys.optargs = argv+1;
@@ -103,7 +109,7 @@ void toy_exec(char *argv[])
   toy_init(which, argv);
   toys.which->toy_main();
   if (fflush(NULL) || ferror(stdout)) perror_exit("write");
-  exit(toys.exitval);
+  xexit();
 }
 
 // Multiplexer command, first argument is command to run, rest are args to that.
@@ -116,7 +122,7 @@ void toybox_main(void)
 
   toys.which = toy_list;
   if (toys.argv[1]) {
-    if (CFG_TOYBOX_HELP && !strcmp(toys.argv[1], "--help")) {
+    if (CFG_TOYBOX_HELP_DASHDASH && !strcmp(toys.argv[1], "--help")) {
       if (toys.argv[2]) toys.which = toy_find(toys.argv[2]);
       if (toys.which) {
         show_help();
