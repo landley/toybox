@@ -5,7 +5,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/ls.html
 
-USE_LS(NEWTOY(ls, "goACFHLRSacdfiklmnpqrstux1[-1Cglmnox][-cu][-ftS][-HL]", TOYFLAG_BIN))
+USE_LS(NEWTOY(ls, USE_LS_COLOR("(color)")"goACFHLRSacdfiklmnpqrstux1[-1Cglmnox][-cu][-ftS][-HL]", TOYFLAG_BIN))
 
 config LS
   bool "ls"
@@ -31,6 +31,15 @@ config LS
 
     sorting (default is alphabetical):
     -f	unsorted	-r  reverse	-t  timestamp	-S  size
+
+config LS_COLOR
+  bool "ls --color"
+  default y
+  help
+    usage: ls --color
+
+    --color  device=yellow  symlink=turquoise/red  dir=blue  socket=purple
+             files: exe=green  suid=red  suidfile=redback  stickydir=greenback
 */
 
 #define FOR_ls
@@ -193,6 +202,20 @@ static unsigned long next_column(unsigned long ul, unsigned long dtlen,
   return (*xpos*height) + widecols + (ul/(columns-1));
 }
 
+int color_from_mode(mode_t mode)
+{
+  int color = 0;
+
+  if (S_ISDIR(mode)) color = 256+34;
+  else if (S_ISLNK(mode)) color = 256+36;
+  else if (S_ISBLK(mode) || S_ISCHR(mode)) color = 256+33;
+  else if (S_ISREG(mode) && (mode&0111)) color = 256+32;
+  else if (S_ISFIFO(mode)) color = 33;
+  else if (S_ISSOCK(mode)) color = 256+35;
+
+  return color;
+}
+
 // Display a list of dirtree entries, according to current format
 // Output types -1, -l, -C, or stream
 
@@ -290,7 +313,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
   memset(toybuf, ' ', 256);
   width = 0;
   for (ul = 0; ul<dtlen; ul++) {
-    unsigned curcol;
+    unsigned curcol, color = 0;
     unsigned long next = next_column(ul, dtlen, columns, &curcol);
     struct stat *st = &(sort[next]->st);
     mode_t mode = st->st_mode;
@@ -349,12 +372,31 @@ static void listfiles(int dirfd, struct dirtree *indir)
         (int64_t)st->st_size, thyme);
     }
 
+    if ((flags & FLAG_color) && TT.screen_width) {
+      color = color_from_mode(st->st_mode);
+      if (color) printf("\033[%d;%dm", color>>8, color&255);
+    }
+
     if (flags & FLAG_q) {
       char *p;
       for (p=sort[next]->name; *p; p++) xputc(isprint(*p) ? *p : '?');
     } else xprintf("%s", sort[next]->name);
-    if ((flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) && S_ISLNK(mode))
-      xprintf(" -> %s", sort[next]->symlink);
+    if (color) xprintf("\033[0m");
+
+    if ((flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) && S_ISLNK(mode)) {
+      printf(" -> ");
+      if ((flags & FLAG_color) && TT.screen_width) {
+        struct stat st2;
+
+        if (fstatat(dirfd, sort[next]->symlink, &st2, 0)) color = 256+31;
+        else color = color_from_mode(st2.st_mode);
+
+        if (color) printf("\033[%d;%dm", color>>8, color&255);
+      }
+
+      printf("%s", sort[next]->symlink);
+      if (color) printf("\033[0m");
+    }
 
     if (et) xputc(et);
 
@@ -378,7 +420,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
       listfiles(openat(dirfd, sort[ul]->name, 0), sort[ul]);
   }
   free(sort);
-  if (dirfd != AT_FDCWD) close(indir->data);
+  if (dirfd != AT_FDCWD) close(dirfd);
 }
 
 void ls_main(void)
@@ -386,15 +428,14 @@ void ls_main(void)
   char **s, *noargs[] = {".", 0};
   struct dirtree *dt;
 
+  TT.screen_width = 80;
+  terminal_size(&TT.screen_width, NULL);
+  if (TT.screen_width<2) TT.screen_width = 2;
+
   // Do we have an implied -1
   if (!isatty(1) || (toys.optflags&(FLAG_l|FLAG_o|FLAG_n|FLAG_g)))
     toys.optflags |= FLAG_1;
-  else {
-    TT.screen_width = 80;
-    terminal_size(&TT.screen_width, NULL);
-    if (TT.screen_width<2) TT.screen_width = 2;
-    if (!(toys.optflags&(FLAG_1|FLAG_x|FLAG_m))) toys.optflags |= FLAG_C;
-  }
+  else if (!(toys.optflags&(FLAG_1|FLAG_x|FLAG_m))) toys.optflags |= FLAG_C;
   // The optflags parsing infrastructure should really do this for us,
   // but currently it has "switch off when this is set", so "-dR" and "-Rd"
   // behave differently
