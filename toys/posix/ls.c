@@ -115,7 +115,11 @@ static void entrylen(struct dirtree *dt, unsigned *len)
     len[2] = numlen(st->st_nlink);
     len[3] = strlen(fn ? utoa(st->st_uid) : getusername(st->st_uid));
     len[4] = strlen(fn ? utoa(st->st_gid) : getgroupname(st->st_gid));
-    len[5] = numlen(st->st_size);
+    if (S_ISBLK(st->st_mode) || S_ISCHR(st->st_mode)) {
+      // cheating slightly here: assuming minor is always 3 digits to avoid
+      // tracking another column
+      len[5] = numlen(major(st->st_rdev))+5;
+    } else len[5] = numlen(st->st_size);
   }
   if (flags & FLAG_s) *len += (len[6] = numlen(st->st_blocks));
 }
@@ -367,9 +371,13 @@ static void listfiles(int dirfd, struct dirtree *indir)
       }
 
       // Coerce the st types into something we know we can print.
-      xprintf("%s% *ld %s%s%s%s% *"PRId64" %s ", perm, totals[2]+1,
-        (long)st->st_nlink, usr, upad, grp, grpad, totals[5]+1,
-        (int64_t)st->st_size, thyme);
+      printf("%s% *ld %s%s%s%s", perm, totals[2]+1, (long)st->st_nlink,
+             usr, upad, grp, grpad);
+
+      if (S_ISCHR(st->st_mode) || S_ISBLK(st->st_mode))
+        printf("% *d,% 4d", totals[5]-4, major(st->st_rdev),minor(st->st_rdev));
+      else printf("% *"PRId64, totals[5]+1, (int64_t)st->st_size);
+      xprintf(" %s ", thyme);
     }
 
     if ((flags & FLAG_color) && TT.screen_width) {
