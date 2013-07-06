@@ -25,6 +25,14 @@ config XARGS
     #-r	Don't run command with empty input
     #-L	Max number of lines of input per command
     -E	stop at line matching string
+
+config XARGS_PEDANTIC
+  bool "TODO xargs pedantic posix compatability"
+  default n
+  depends on XARGS
+  help
+    This version supports insane posix whitespace handling rendered obsolete
+    by -0 mode.
 */
 
 #define FOR_xargs

@@ -249,47 +249,8 @@ uint32_t xz_crc32(const uint8_t *buf, size_t size, uint32_t crc)
   return ~crc;
 }
 
-/*
- * This must be called before any other xz_* function (but after crc_init())
- * to initialize the CRC64 lookup table.
- */
 static uint64_t xz_crc64_table[256];
 
-void xz_crc64_init(void)
-{
-  const uint64_t poly = 0xC96C5795D7870F42ULL;
-
-  uint32_t i;
-  uint32_t j;
-  uint64_t r;
-
-  for (i = 0; i < 256; ++i) {
-    r = i;
-    for (j = 0; j < 8; ++j)
-      r = (r >> 1) ^ (poly & ~((r & 1) - 1));
-
-    xz_crc64_table[i] = r;
-  }
-
-  return;
-}
-
-/*
- * Update CRC64 value using the polynomial from ECMA-182. To start a new
- * calculation, the third argument must be zero. To continue the calculation,
- * the previously returned value is passed as the third argument.
- */
-uint64_t xz_crc64(const uint8_t *buf, size_t size, uint64_t crc)
-{
-  crc = ~crc;
-
-  while (size != 0) {
-    crc = xz_crc64_table[*buf++ ^ (crc & 0xFF)] ^ (crc >> 8);
-    --size;
-  }
-
-  return ~crc;
-}
 
 // END xz.h
 
@@ -304,7 +265,19 @@ void xzcat_main(void)
   const char *msg;
 
   crc_init(xz_crc32_table, 1);
-  xz_crc64_init();
+  const uint64_t poly = 0xC96C5795D7870F42ULL;
+  uint32_t i;
+  uint32_t j;
+  uint64_t r;
+
+  /* initialize CRC64 table*/
+  for (i = 0; i < 256; ++i) {
+    r = i;
+    for (j = 0; j < 8; ++j)
+      r = (r >> 1) ^ (poly & ~((r & 1) - 1));
+
+    xz_crc64_table[i] = r;
+  }
 
   /*
    * Support up to 64 MiB dictionary. The actually needed memory
@@ -2767,8 +2740,14 @@ static enum xz_ret dec_block(struct xz_dec *s, struct xz_buf *b)
     s->crc = xz_crc32(b->out + s->out_start,
         b->out_pos - s->out_start, s->crc);
   else if (s->check_type == XZ_CHECK_CRC64)
-    s->crc = xz_crc64(b->out + s->out_start,
-        b->out_pos - s->out_start, s->crc);
+    s->crc = ~(s->crc);
+    size_t size = b->out_pos - s->out_start;
+    uint8_t *buf = b->out + s->out_start;
+    while (size) {
+      s->crc = xz_crc64_table[*buf++ ^ (s->crc & 0xFF)] ^ (s->crc >> 8);
+      --size;
+    }
+    s->crc=~(s->crc);
 
   if (ret == XZ_STREAM_END) {
     if (s->block_header.compressed != VLI_UNKNOWN

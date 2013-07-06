@@ -11,13 +11,13 @@ config NETCAT
   bool "netcat"
   default y
   help
-    usage: netcat [-wpq #] [-s addr] {IPADDR PORTNUM|-f FILENAME|-let} [-e COMMAND]
+    usage: netcat [-wpq #] [-s addr] [-u] {IPADDR PORTNUM|-f FILENAME}
 
-    -w	SECONDS timeout for connection
-    -p	local port number
-    -s	local ipv4 address
-    -q	SECONDS quit this many seconds after EOF on stdin.
     -f	use FILENAME (ala /dev/ttyS0) instead of network
+    -p	local port number
+    -q	SECONDS quit this many seconds after EOF on stdin.
+    -s	local ipv4 address
+    -w	SECONDS timeout for connection
 
     Use "stty 115200 -F /dev/ttyS0 && stty raw -echo -ctlecho" with
     netcat -f to connect to a serial port.
@@ -27,13 +27,14 @@ config NETCAT_LISTEN
   default y
   depends on NETCAT
   help
+    usage: netcat [-t] [-lL COMMAND...]
+
     -t	allocate tty (must come before -l or -L)
     -l	listen for one incoming connection.
     -L	listen for multiple incoming connections (server mode).
 
-    Any additional command line arguments after -l or -L are executed
-    to handle each incoming connection. If none, the connection is
-    forwarded to stdin/stdout.
+    The command line after -l or -L is executed to handle each incoming
+    connection. If none, the connection is forwarded to stdin/stdout.
 
     For a quick-and-dirty server, try something like:
     netcat -s 127.0.0.1 -p 1234 -tL /bin/bash -l
@@ -68,7 +69,7 @@ static void lookup_name(char *name, uint32_t *result)
 {
   struct hostent *hostbyname;
 
-  hostbyname = gethostbyname(name);
+  hostbyname = gethostbyname(name); // getaddrinfo
   if (!hostbyname) error_exit("no host '%s'", name);
   *result = *(uint32_t *)*hostbyname->h_addr_list;
 }
@@ -102,8 +103,7 @@ void netcat_main(void)
     struct sockaddr_in address;
 
     // Setup socket
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (-1 == sockfd) perror_exit("socket");
+    sockfd = xsocket(AF_INET, SOCK_STREAM, 0);
     fcntl(sockfd, F_SETFD, FD_CLOEXEC);
     temp = 1;
     setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &temp, sizeof(temp));
@@ -140,7 +140,7 @@ void netcat_main(void)
       }
       // Do we need to return immediately because -l has arguments?
 
-      if ((toys.optflags&FLAG_l) && toys.optc) {
+      if ((toys.optflags & FLAG_l) && toys.optc) {
         if (fork()) goto cleanup;
         close(0);
         close(1);
@@ -170,7 +170,7 @@ void netcat_main(void)
             if (!temp) close(sockfd);
             dup2(fd, 0);
             dup2(fd, 1);
-            dup2(fd, 2);
+            if (toys.optflags&FLAG_L) dup2(fd, 2);
             if (fd>2) close(fd);
           }
         }
@@ -186,10 +186,8 @@ void netcat_main(void)
   // (Does not play well with -L, but what _should_ that do?)
   set_alarm(0);
 
-  if (CFG_NETCAT_LISTEN && (toys.optflags&(FLAG_L|FLAG_l) && toys.optc)) {
-    execvp(*toys.optargs, toys.optargs);
-    error_exit("Exec failed");
-  }
+  if (CFG_NETCAT_LISTEN && (toys.optflags&(FLAG_L|FLAG_l) && toys.optc))
+    xexec(toys.optargs);
 
   // Poll loop copying stdin->socket and socket->stdout.
   for (;;) {

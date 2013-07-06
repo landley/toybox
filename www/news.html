@@ -6,6 +6,85 @@ reasonably standards-compliant, and powerful enough to turn Android into
 a development environment.</b> See the links on the left for details.</p>
 
 <h2>News</h2>
+<hr><b>July 2, 2013</b>
+<blockquote><p>"Time is an illusion. Lunchtime doubly so." "Very deep. You
+should send that in to the Reader's Digest. They've got a page for people
+like you." -
+The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+
+<p><a href=downloads/toybox-0.4.5.tar.bz2>Toybox 0.4.5</a> is based on
+<a href=http://landley.net/hg/toybox/shortlog/941>commit 941</a>. It adds
+uuencode and uudecode from Erich Plondke, and enables Luis Morales' "who" by
+default. Felix Janda and I cleaned up last year's "stat" submission and
+enabled it. Ivo van Poorten added "groups".
+Andre Renaud added "lsusb". I implemented "split", "pivot_root", and "mv".
+</p>
+
+<p>The "help" command is implemented differently now (lib/help.c) and
+each command can now understand --help (including both "toybox --help"
+and "toybox --help command" in the multiplexer).</p>
+
+<p>The "pending" directory has several commands (find, xzcat, nbd-client,
+logger, expr) which work but are not enabled by default pending further cleanup.
+Ifconfig is enabled, but still in pending because it's only 2/3 cleaned up.
+(It's an awkward halfway state but I'm not holding up the release for it.)</p>
+
+<p>I'm <a href=cleanup.html>documenting the cleanups</a> to teach
+more people to do it, but the writeups aren't caught up yet. The
+<a href=roadmap.html>roadmap</a> also got updated a bit with further analysis
+of other projects, and the README and about pages got updated.</p>
+
+<p>Fixed _another_ "ls -C" segfault when terminal size can't be detected,
+condensed the ls help text to fit on one page, implented --color, and taught
+-l to print the major, minor numbers when showing block/char devices.
+Argument parsing now handles "--" properly (to end option checking),
+and the infrastructure can now handle bare --longopts that have no
+corresponding short option (both were implemented before but didn't work).
+Fixed an old bug in "patch", chmod grew -f, who grew -a. Isaac Dunham
+fixed "-" vs "_" handling in modinfo, added a "firmware" output
+field, added -b and -k support, and taught it that the ".ko" extension means
+to look for the file at the specified path instead of under /lib. Felix Janda
+moved file permission display code to lib so ls and
+stat could share it. Ashwini Sharma spotted a bug in xabspath when the
+last path component exists but we haven't got permissions to open it
+(ala readlink -f /dev/sda as a normal user).
+</p>
+
+<p>In the build infrastructure, scripts/findglobals.sh finds leaked global
+variables. (Leaked means they aren't part of the global union: Other than glibc
+debris, toybox should define "this", "toy_list", "toybuf", and "toys", and
+that's it; the rest add memory footprint to every command for the benefit of
+just one command; use GLOBALS() to stick 'em in the union.) Static linking
+against libraries other than the host's libc now applies to feature probes
+for unshare and such. Neuter stupid internationalization support that makes
+various host "sort" commands put things in an order other than alphabetical
+(breaking the multiplexer's binary search on command names).
+
+<p>You should now be able to build from a source control snapshot on a build
+system that hasn't got python: if you disable CONFIG_TOYBOX_HELP. (The
+release tarballs ship generated/help.h, but it's not in source control.
+Eventually I should rewrite that python script in C.)</p>
+</p>
+
+<p><b>LICENSE TWEAK</b>: After <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-March/000794.html>discussion</a> on the mailing list the "2 clause
+BSD" <a href=license.html>license</a> got slightly simplified so the first
+paragraph now says:</p>
+
+<blockquote><p>Permission to use, copy, modify, and/or distribute this
+software for any purpose with or without fee is hereby granted.</p></blockquote>
+
+<p>It used to continue "provided that the above copyright notice and this
+permission notice appear in all copies", but A) what's the point? B) does "all
+copies" mean binaries, or just source code, or what? C) lots of projects
+that consider BSD and GPL compatible have <a href=https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/crypto/aes_generic.c>files with
+both license notices</a> on them (sometimes at <a href=http://git.busybox.net/busybox/tree/shell/ash.c>opposite ends of the file</a> to make the conflict
+less obvious) because "all copies must include this function" would violate
+the GPL but "all copies must include this magic text blob" somehow don't?</p>
+
+<p>I don't want to have to care about this anymore. The tweaked version is more
+or less public domain with a liability disclaimer, but we're still calling it
+BSD (sometimes "0 clause BSD") to avoid explaining.</p>
+
 <hr><b>March 21, 2013</b>
 <p>Video of my ELC talk
 "<a href=http://youtu.be/SGmtP5Lg_t0>Why is Toybox?</a>"

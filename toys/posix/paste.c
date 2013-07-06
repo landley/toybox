@@ -28,28 +28,26 @@ GLOBALS(
 
 void paste_main(void)
 {
-  char *p, *buf = toybuf;
-  char **args = toys.optargs;
+  char *p, *buf = toybuf, **args = toys.optargs;
   size_t ndelim = 0;
   int i, j, c;
 
   // Process delimiter list
   // TODO: Handle multibyte characters
   if (!(toys.optflags & FLAG_d)) TT.delim = "\t";
-  p = TT.delim;
-  for (; *p; p++, buf++, ndelim++) {
+  for (p = TT.delim; *p; p++, buf++, ndelim++) {
     if (*p == '\\') {
       p++;
       if (-1 == (i = stridx("nt\\0", *p)))
         error_exit("bad delimiter: \\%c", *p);
       *buf = "\n\t\\\0"[i];
-    }
-    else *buf = *p;
+    } else *buf = *p;
   }
   *buf = 0;
 
   if (toys.optflags & FLAG_s) { // Sequential
     FILE *f;
+
     for (; *args; args++) {
       if ((*args)[0] == '-' && !(*args)[1]) f = stdin;
       else if (!(f = fopen(*args, "r"))) perror_exit("%s", *args);
@@ -66,20 +64,21 @@ void paste_main(void)
       if (f != stdin) fclose(f);
       putchar('\n');
     }
-  }
-  else { // Parallel
+  } else { // Parallel
     // Need to be careful not to print an extra line at the end
     FILE **files;
     int anyopen = 1;
+
     files = (FILE**)(buf + 1);
     for (; *args; args++, files++) {
       if ((*args)[0] == '-' && !(*args)[1]) *files = stdin;
       else if (!(*files = fopen(*args, "r"))) perror_exit("%s", *args);
     }
-    for (; anyopen;) {
+    while (anyopen) {
       anyopen = 0;
       for (i = 0; i < toys.optc; i++) {
         FILE **f = (FILE**)(buf + 1) + i;
+
         if (*f) for (;;) {
           c = getc(*f);
           if (c != EOF) {

@@ -138,7 +138,7 @@ void dirtree_recurse(struct dirtree *node,
   struct dirent *entry;
   DIR *dir;
 
-  if (!(dir = fdopendir(node->data))) {
+  if (node->data == -1 || !(dir = fdopendir(node->data))) {
     char *path = dirtree_path(node, 0);
     perror_msg("No %s", path);
     free(path);

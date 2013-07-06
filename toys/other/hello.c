@@ -5,7 +5,9 @@
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html
 
-USE_HELLO(NEWTOY(hello, "e@d*c#b:a", TOYFLAG_USR|TOYFLAG_BIN))
+// Accept many different kinds of command line argument:
+
+USE_HELLO(NEWTOY(hello, "(walrus)(blubber):e@d*c#b:a", TOYFLAG_USR|TOYFLAG_BIN))
 
 config HELLO
   bool "hello"
@@ -29,14 +31,18 @@ GLOBALS(
   long c_number;
   struct arg_list *d_list;
   long e_count;
+  char *blubber_string;
 
   int more_globals;
 )
+
+// Parse many different kinds of command line argument:
 
 void hello_main(void)
 {
   printf("Hello world\n");
 
+  if (toys.optflags) printf("flags=%x\n", toys.optflags);
   if (toys.optflags & FLAG_a) printf("Saw a\n");
   if (toys.optflags & FLAG_b) printf("b=%s\n", TT.b_string);
   if (toys.optflags & FLAG_c) printf("c=%ld\n", TT.c_number);
@@ -44,7 +50,8 @@ void hello_main(void)
     printf("d=%s\n", TT.d_list->arg);
     TT.d_list = TT.d_list->next;
   }
-  if (TT.e_count) printf("e was seen %ld times", TT.e_count);
-
+  if (TT.e_count) printf("e was seen %ld times\n", TT.e_count);
   while (*toys.optargs) printf("optarg=%s\n", *(toys.optargs++));
+  if (toys.optflags & FLAG_walrus) printf("Saw --walrus\n");
+  if (TT.blubber_string) printf("--blubber=%s\n", TT.blubber_string);
 }
