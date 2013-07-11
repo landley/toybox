@@ -37,7 +37,8 @@ static void modinfo_file(char *full_name)
   int fd, len, i;
   char *buf = 0, *pos, *modinfo_tags[] = {
     "alias", "license", "description", "author", "firmware",
-    "vermagic", "srcversion", "intree", "parm", "depends",
+    "vermagic", "srcversion", "intree", "depends", "parm",
+    "parmtype",
   };
 
   if (-1 != (fd = open(full_name, O_RDONLY))) {
