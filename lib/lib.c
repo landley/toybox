@@ -1291,3 +1291,25 @@ unsigned long get_int_value(const char *numstr, unsigned lowrange, unsigned high
          return rvalue; //Not reachable; to avoid waring message.
    }
 }
+
+/*
+ * strcat to mallocated buffer
+ * reallocate if need be
+ */
+char *astrcat (char *x, char *y) {
+  char *z;
+  z = x;
+  x = realloc (x, (x ? strlen (x) : 0) + strlen (y) + 1);
+  if (!x) return 0;
+  (z ? strcat : strcpy) (x, y);
+  return x;
+}
+
+/*
+ * astrcat, but die on failure
+ */
+char *xastrcat (char *x, char *y) {
+  x = astrcat (x, y);
+  if (!x) error_exit ("xastrcat");
+  return x;
+}

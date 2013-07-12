@@ -192,3 +192,7 @@ char* make_human_readable(unsigned long long size, unsigned long unit);
 
 // cut helper functions
 unsigned long get_int_value(const char *numstr, unsigned lowrange, unsigned highrange);
+
+// grep helper functions
+char  *astrcat (char *, char *);
+char *xastrcat (char *, char *);
