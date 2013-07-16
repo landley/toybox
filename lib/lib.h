@@ -85,14 +85,9 @@ struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node));
 
 void show_help(void);
 
-// lib.c
+// xfuncs.c
 void xstrncpy(char *dest, char *src, size_t size);
 void xexit(void) noreturn;
-void verror_msg(char *msg, int err, va_list va);
-void error_msg(char *msg, ...);
-void perror_msg(char *msg, ...);
-void error_exit(char *msg, ...) noreturn;
-void perror_exit(char *msg, ...) noreturn;
 void *xmalloc(size_t size);
 void *xzalloc(size_t size);
 void *xrealloc(void *ptr, size_t size);
@@ -111,19 +106,12 @@ int xopen(char *path, int flags);
 void xclose(int fd);
 int xdup(int fd);
 FILE *xfopen(char *path, char *mode);
-ssize_t readall(int fd, void *buf, size_t len);
-ssize_t writeall(int fd, void *buf, size_t len);
 size_t xread(int fd, void *buf, size_t len);
 void xreadall(int fd, void *buf, size_t len);
 void xwrite(int fd, void *buf, size_t len);
 off_t xlseek(int fd, off_t offset, int whence);
-off_t lskip(int fd, off_t offset);
-char *readfile(char *name);
 char *xreadfile(char *name);
-void msleep(long miliseconds);
 int xioctl(int fd, int request, void *data);
-int64_t peek(void *ptr, int size);
-void poke(void *ptr, uint64_t val, int size);
 char *xgetcwd(void);
 void xstat(char *path, struct stat *st);
 char *xabspath(char *path, int exact);
@@ -131,6 +119,22 @@ char *xrealpath(char *path);
 void xchdir(char *path);
 void xmkpath(char *path, int mode);
 void xsetuid(uid_t uid);
+char *xreadlink(char *name);
+
+// lib.c
+void verror_msg(char *msg, int err, va_list va);
+void error_msg(char *msg, ...);
+void perror_msg(char *msg, ...);
+void error_exit(char *msg, ...) noreturn;
+void perror_exit(char *msg, ...) noreturn;
+ssize_t readall(int fd, void *buf, size_t len);
+ssize_t writeall(int fd, void *buf, size_t len);
+off_t lskip(int fd, off_t offset);
+struct string_list **splitpath(char *path, struct string_list **list);
+char *readfile(char *name);
+void msleep(long miliseconds);
+int64_t peek(void *ptr, int size);
+void poke(void *ptr, uint64_t val, int size);
 struct string_list *find_in_path(char *path, char *filename);
 void utoa_to_buf(unsigned n, char *buf, unsigned buflen);
 void itoa_to_buf(int n, char *buf, unsigned buflen);
@@ -140,7 +144,6 @@ long atolx(char *c);
 int numlen(long l);
 int stridx(char *haystack, char needle);
 off_t fdlength(int fd);
-char *xreadlink(char *name);
 void loopfiles_rw(char **argv, int flags, int permissions, int failok,
   void (*function)(int fd, char *name));
 void loopfiles(char **argv, void (*function)(int fd, char *name));
