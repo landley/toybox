@@ -12,9 +12,9 @@ config XZCAT
   bool "xzcat"
   default n
   help
-    usage: xzcat < file.xz
+    usage: xzcat [filename...]
     
-    Read xz-compressed file from stdin and write decompressed file to stdout.
+    Decompress listed files to stdout. Use stdin if no files listed.
 
 */
 #define FOR_xzcat
@@ -224,7 +224,7 @@ static uint64_t xz_crc64_table[256];
 static uint8_t in[BUFSIZ];
 static uint8_t out[BUFSIZ];
 
-void xzcat_main(void)
+void do_xzcat(int fd, char *name)
 {
   struct xz_buf b;
   struct xz_dec *s;
@@ -265,7 +265,7 @@ void xzcat_main(void)
 
   for (;;) {
     if (b.in_pos == b.in_size) {
-      b.in_size = fread(in, 1, sizeof(in), stdin);
+      b.in_size = read(fd, in, sizeof(in));
       b.in_pos = 0;
     }
 
@@ -286,8 +286,7 @@ void xzcat_main(void)
     if (ret == XZ_UNSUPPORTED_CHECK)
       continue;
 
-    if (fwrite(out, 1, b.out_pos, stdout) != b.out_pos
-        || fclose(stdout)) {
+    if (fwrite(out, 1, b.out_pos, stdout) != b.out_pos) {
       msg = "Write error\n";
       goto error;
     }
@@ -327,6 +326,11 @@ void xzcat_main(void)
 error:
   xz_dec_end(s);
   error_exit("%s", msg);
+}
+
+void xzcat_main(void)
+{
+  loopfiles(toys.optargs, do_xzcat);
 }
 
 // BEGIN xz_private.h
