@@ -25,30 +25,16 @@ config XZCAT
 /**
  * enum xz_mode - Operation mode
  *
- * @XZ_SINGLE:              Single-call mode. This uses less RAM than
- *                          than multi-call modes, because the LZMA2
- *                          dictionary doesn't need to be allocated as
- *                          part of the decoder state. All required data
- *                          structures are allocated at initialization,
- *                          so xz_dec_run() cannot return XZ_MEM_ERROR.
- * @XZ_PREALLOC:            Multi-call mode with preallocated LZMA2
- *                          dictionary buffer. All data structures are
- *                          allocated at initialization, so xz_dec_run()
- *                          cannot return XZ_MEM_ERROR.
  * @XZ_DYNALLOC:            Multi-call mode. The LZMA2 dictionary is
  *                          allocated once the required size has been
  *                          parsed from the stream headers. If the
  *                          allocation fails, xz_dec_run() will return
  *                          XZ_MEM_ERROR.
  *
- * It is possible to enable support only for a subset of the above
- * modes at compile time by defining XZ_DEC_SINGLE, XZ_DEC_PREALLOC,
- * or XZ_DEC_DYNALLOC. xzcat uses only XZ_DEC_DYNALLOC, 
- * so that is the default.
+ * xzcat uses only XZ_DEC_DYNALLOC, though xz-embedded supports 
+ * XZ_DEC_SINGLE and XZ_DEC_PREALLOC
  */
 enum xz_mode {
-  XZ_SINGLE,
-  XZ_PREALLOC,
   XZ_DYNALLOC
 };
 
@@ -157,25 +143,6 @@ struct xz_dec;
  *              512 KiB, and 1 MiB are probably the only reasonable values,
  *              except for kernel and initramfs images where a bigger
  *              dictionary can be fine and useful.
- *
- * Single-call mode (XZ_SINGLE): xz_dec_run() decodes the whole stream at
- * once. The caller must provide enough output space or the decoding will
- * fail. The output space is used as the dictionary buffer, which is why
- * there is no need to allocate the dictionary as part of the decoder's
- * internal state.
- *
- * Because the output buffer is used as the workspace, streams encoded using
- * a big dictionary are not a problem in single-call mode. It is enough that
- * the output buffer is big enough to hold the actual uncompressed data; it
- * can be smaller than the dictionary size stored in the stream headers.
- *
- * Multi-call mode with preallocated dictionary (XZ_PREALLOC): dict_max bytes
- * of memory is preallocated for the LZMA2 dictionary. This way there is no
- * risk that xz_dec_run() could run out of memory, since xz_dec_run() will
- * never allocate any memory. Instead, if the preallocated dictionary is too
- * small for decoding the given input stream, xz_dec_run() will return
- * XZ_MEMLIMIT_ERROR. Thus, it is important to know what kind of data will be
- * decoded to avoid allocating excessive amount of memory for the dictionary.
  *
  * Multi-call mode with dynamically allocated dictionary (XZ_DYNALLOC):
  * dict_max specifies the maximum allowed dictionary size that xz_dec_run()
@@ -435,43 +402,7 @@ static inline void put_unaligned_be32(uint32_t val, uint8_t *buf)
 #	define get_le32 get_unaligned_le32
 #endif
 
-
 #define XZ_DEC_DYNALLOC
-/* DYNALLOC is what we use, but we may want these later.
-#define XZ_DEC_SINGLE
-#define XZ_DEC_PREALLOC
-*/
-
-/*
- * The DEC_IS_foo(mode) macros are used in "if" statements. If only some
- * of the supported modes are enabled, these macros will evaluate to true or
- * false at compile time and thus allow the compiler to omit unneeded code.
- */
-#ifdef XZ_DEC_SINGLE
-#	define DEC_IS_SINGLE(mode) ((mode) == XZ_SINGLE)
-#else
-#	define DEC_IS_SINGLE(mode) (0)
-#endif
-
-#ifdef XZ_DEC_PREALLOC
-#	define DEC_IS_PREALLOC(mode) ((mode) == XZ_PREALLOC)
-#else
-#	define DEC_IS_PREALLOC(mode) (0)
-#endif
-
-#ifdef XZ_DEC_DYNALLOC
-#	define DEC_IS_DYNALLOC(mode) ((mode) == XZ_DYNALLOC)
-#else
-#	define DEC_IS_DYNALLOC(mode) (0)
-#endif
-
-#if !defined(XZ_DEC_SINGLE)
-#	define DEC_IS_MULTI(mode) (1)
-#elif defined(XZ_DEC_PREALLOC) || defined(XZ_DEC_DYNALLOC)
-#	define DEC_IS_MULTI(mode) ((mode) != XZ_SINGLE)
-#else
-#	define DEC_IS_MULTI(mode) (0)
-#endif
 
 /*
  * If any of the BCJ filter decoders are wanted, define XZ_DEC_BCJ.
@@ -506,31 +437,6 @@ enum xz_ret xz_dec_lzma2_reset(struct xz_dec_lzma2 *s,
 enum xz_ret xz_dec_lzma2_run(struct xz_dec_lzma2 *s,
                struct xz_buf *b);
 
-#ifdef XZ_DEC_BCJ
-/*
- * Allocate memory for BCJ decoders. xz_dec_bcj_reset() must be used before
- * calling xz_dec_bcj_run().
- */
-struct xz_dec_bcj *xz_dec_bcj_create(int single_call);
-
-/*
- * Decode the Filter ID of a BCJ filter. This implementation doesn't
- * support custom start offsets, so no decoding of Filter Properties
- * is needed. Returns XZ_OK if the given Filter ID is supported.
- * Otherwise XZ_OPTIONS_ERROR is returned.
- */
-enum xz_ret xz_dec_bcj_reset(struct xz_dec_bcj *s, uint8_t id);
-
-/*
- * Decode raw BCJ + LZMA2 stream. This must be used only if there actually is
- * a BCJ filter in the chain. If the chain has only LZMA2, xz_dec_lzma2_run()
- * must be called directly.
- */
-enum xz_ret xz_dec_bcj_run(struct xz_dec_bcj *s,
-             struct xz_dec_lzma2 *lzma2,
-             struct xz_buf *b);
-#endif
-
 // END "xz_private.h"
 
 
@@ -560,9 +466,6 @@ struct xz_dec_bcj {
    * filter anymore once it has returned XZ_STREAM_END.
    */
   enum xz_ret ret;
-
-  /* True if we are operating in single-call mode. */
-  int single_call;
 
   /*
    * Absolute position relative to the beginning of the uncompressed
@@ -601,6 +504,23 @@ struct xz_dec_bcj {
     uint8_t buf[16];
   } temp;
 };
+
+/*
+ * Decode the Filter ID of a BCJ filter. This implementation doesn't
+ * support custom start offsets, so no decoding of Filter Properties
+ * is needed. Returns XZ_OK if the given Filter ID is supported.
+ * Otherwise XZ_OPTIONS_ERROR is returned.
+ */
+enum xz_ret xz_dec_bcj_reset(struct xz_dec_bcj *s, uint8_t id);
+
+/*
+ * Decode raw BCJ + LZMA2 stream. This must be used only if there actually is
+ * a BCJ filter in the chain. If the chain has only LZMA2, xz_dec_lzma2_run()
+ * must be called directly.
+ */
+enum xz_ret xz_dec_bcj_run(struct xz_dec_bcj *s,
+             struct xz_dec_lzma2 *lzma2,
+             struct xz_buf *b);
 
 #ifdef XZ_DEC_X86
 /*
@@ -980,7 +900,7 @@ enum xz_ret xz_dec_bcj_run(struct xz_dec_bcj *s,
 
     s->ret = xz_dec_lzma2_run(lzma2, b);
     if (s->ret != XZ_STREAM_END
-        && (s->ret != XZ_OK || s->single_call))
+        && (s->ret != XZ_OK ))
       return s->ret;
 
     bcj_apply(s, b->out, &out_start, b->out_pos);
@@ -1049,15 +969,6 @@ enum xz_ret xz_dec_bcj_run(struct xz_dec_bcj *s,
   }
 
   return s->ret;
-}
-
-struct xz_dec_bcj *xz_dec_bcj_create(int single_call)
-{
-  struct xz_dec_bcj *s = malloc(sizeof(*s));
-  if (s != NULL)
-    s->single_call = single_call;
-
-  return s;
 }
 
 enum xz_ret xz_dec_bcj_reset(struct xz_dec_bcj *s, uint8_t id)
@@ -1578,11 +1489,6 @@ struct xz_dec_lzma2 {
  */
 static void dict_reset(struct dictionary *dict, struct xz_buf *b)
 {
-  if (DEC_IS_SINGLE(dict->mode)) {
-    dict->buf = b->out + b->out_pos;
-    dict->end = b->out_size - b->out_pos;
-  }
-
   dict->start = 0;
   dict->pos = 0;
   dict->limit = 0;
@@ -1685,13 +1591,11 @@ static void dict_uncompressed(struct dictionary *dict, struct xz_buf *b,
     if (dict->full < dict->pos)
       dict->full = dict->pos;
 
-    if (DEC_IS_MULTI(dict->mode)) {
-      if (dict->pos == dict->end)
-        dict->pos = 0;
+    if (dict->pos == dict->end)
+      dict->pos = 0;
 
-      memcpy(b->out + b->out_pos, b->in + b->in_pos,
-          copy_size);
-    }
+    memcpy(b->out + b->out_pos, b->in + b->in_pos,
+        copy_size);
 
     dict->start = dict->pos;
 
@@ -1709,13 +1613,11 @@ static uint32_t dict_flush(struct dictionary *dict, struct xz_buf *b)
 {
   size_t copy_size = dict->pos - dict->start;
 
-  if (DEC_IS_MULTI(dict->mode)) {
-    if (dict->pos == dict->end)
-      dict->pos = 0;
+  if (dict->pos == dict->end)
+    dict->pos = 0;
 
-    memcpy(b->out + b->out_pos, dict->buf + dict->start,
-        copy_size);
-  }
+  memcpy(b->out + b->out_pos, dict->buf + dict->start,
+      copy_size);
 
   dict->start = dict->pos;
   b->out_pos += copy_size;
@@ -2401,16 +2303,8 @@ struct xz_dec_lzma2 *xz_dec_lzma2_create(enum xz_mode mode,
   s->dict.mode = mode;
   s->dict.size_max = dict_max;
 
-  if (DEC_IS_PREALLOC(mode)) {
-    s->dict.buf = malloc(dict_max);
-    if (s->dict.buf == NULL) {
-      free(s);
-      return NULL;
-    }
-  } else if (DEC_IS_DYNALLOC(mode)) {
-    s->dict.buf = NULL;
-    s->dict.allocated = 0;
-  }
+  s->dict.buf = NULL;
+  s->dict.allocated = 0;
 
   return s;
 }
@@ -2424,21 +2318,17 @@ enum xz_ret xz_dec_lzma2_reset(struct xz_dec_lzma2 *s, uint8_t props)
   s->dict.size = 2 + (props & 1);
   s->dict.size <<= (props >> 1) + 11;
 
-  if (DEC_IS_MULTI(s->dict.mode)) {
-    if (s->dict.size > s->dict.size_max)
-      return XZ_MEMLIMIT_ERROR;
+  if (s->dict.size > s->dict.size_max)
+    return XZ_MEMLIMIT_ERROR;
 
-    s->dict.end = s->dict.size;
+  s->dict.end = s->dict.size;
 
-    if (DEC_IS_DYNALLOC(s->dict.mode)) {
-      if (s->dict.allocated < s->dict.size) {
-        free(s->dict.buf);
-        s->dict.buf = malloc(s->dict.size);
-        if (s->dict.buf == NULL) {
-          s->dict.allocated = 0;
-          return XZ_MEM_ERROR;
-        }
-      }
+  if (s->dict.allocated < s->dict.size) {
+    free(s->dict.buf);
+    s->dict.buf = malloc(s->dict.size);
+    if (s->dict.buf == NULL) {
+      s->dict.allocated = 0;
+      return XZ_MEM_ERROR;
     }
   }
 
@@ -3234,25 +3124,11 @@ enum xz_ret xz_dec_run(struct xz_dec *s, struct xz_buf *b)
   size_t out_start;
   enum xz_ret ret;
 
-  if (DEC_IS_SINGLE(s->mode))
-    xz_dec_reset(s);
-
   in_start = b->in_pos;
   out_start = b->out_pos;
   ret = dec_main(s, b);
 
-  if (DEC_IS_SINGLE(s->mode)) {
-    if (ret == XZ_OK)
-      ret = b->in_pos == b->in_size
-          ? XZ_DATA_ERROR : XZ_BUF_ERROR;
-
-    if (ret != XZ_STREAM_END) {
-      b->in_pos = in_start;
-      b->out_pos = out_start;
-    }
-
-  } else if (ret == XZ_OK && in_start == b->in_pos
-      && out_start == b->out_pos) {
+  if (ret == XZ_OK && in_start == b->in_pos && out_start == b->out_pos) {
     if (s->allow_buf_error)
       ret = XZ_BUF_ERROR;
 
@@ -3267,14 +3143,14 @@ enum xz_ret xz_dec_run(struct xz_dec *s, struct xz_buf *b)
 struct xz_dec *xz_dec_init(enum xz_mode mode, uint32_t dict_max)
 {
   struct xz_dec *s = malloc(sizeof(*s));
-  if (s == NULL)
+  if (!s)
     return NULL;
 
   s->mode = mode;
 
 #ifdef XZ_DEC_BCJ
-  s->bcj = xz_dec_bcj_create(DEC_IS_SINGLE(mode));
-  if (s->bcj == NULL)
+  s->bcj = malloc(sizeof(*s->bcj));
+  if (!s->bcj)
     goto error_bcj;
 #endif
 
@@ -3309,8 +3185,7 @@ void xz_dec_reset(struct xz_dec *s)
 void xz_dec_end(struct xz_dec *s)
 {
   if (s != NULL) {
-    if (DEC_IS_MULTI((s->lzma2)->dict.mode))
-      free((s->lzma2)->dict.buf);
+    free((s->lzma2)->dict.buf);
     free(s->lzma2);
 
 #ifdef XZ_DEC_BCJ
