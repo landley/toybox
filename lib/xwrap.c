@@ -112,6 +112,17 @@ void xflush(void)
   if (fflush(stdout)) perror_exit("write");;
 }
 
+// Call xexec with a chunk of optargs, starting at skip. (You can't just
+// call xexec() directly because toy_init() frees optargs.)
+void xexec_optargs(int skip)
+{
+  char **s = toys.optargs;
+
+  toys.optargs = 0;
+  xexec(s+skip);
+}
+
+
 // Die unless we can exec argv[] (or run builtin command).  Note that anything
 // with a path isn't a builtin, so /bin/sh won't match the builtin sh.
 void xexec(char **argv)
@@ -467,4 +478,30 @@ void xsendfile(int in, int out)
     if (len<1) break;
     xwrite(out, buf, len);
   }
+}
+
+// parse fractional seconds with optional s/m/h/d suffix
+long xparsetime(char *arg, long units, long *fraction)
+{
+  double d;
+  long l;
+
+  if (CFG_TOYBOX_FLOAT) d = strtod(arg, &arg);
+  else l = strtoul(arg, &arg, 10);
+  
+  // Parse suffix
+  if (*arg) {
+    int ismhd[]={1,60,3600,86400}, i = stridx("smhd", *arg);
+
+    if (i == -1) error_exit("Unknown suffix '%c'", *arg);
+    if (CFG_TOYBOX_FLOAT) d *= ismhd[i];
+    else l *= ismhd[i];
+  }
+
+  if (CFG_TOYBOX_FLOAT) {
+    l = (long)d;
+    if (fraction) *fraction = units*(d-l);
+  } else if (fraction) *fraction = 0;
+
+  return l;
 }

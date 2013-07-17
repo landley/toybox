@@ -85,7 +85,7 @@ struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node));
 
 void show_help(void);
 
-// xfuncs.c
+// xwrap.c
 void xstrncpy(char *dest, char *src, size_t size);
 void xexit(void) noreturn;
 void *xmalloc(size_t size);
@@ -98,6 +98,7 @@ void xprintf(char *format, ...);
 void xputs(char *s);
 void xputc(char c);
 void xflush(void);
+void xexec_optargs(int skip);
 void xexec(char **argv);
 void xaccess(char *path, int flags);
 void xunlink(char *path);
@@ -120,6 +121,7 @@ void xchdir(char *path);
 void xmkpath(char *path, int mode);
 void xsetuid(uid_t uid);
 char *xreadlink(char *name);
+long xparsetime(char *arg, long units, long *fraction);
 
 // lib.c
 void verror_msg(char *msg, int err, va_list va);

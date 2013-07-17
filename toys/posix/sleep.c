@@ -11,39 +11,26 @@ config SLEEP
   bool "sleep"
   default y
   help
-    usage: sleep SECONDS
+    usage: sleep LENGTH
 
-    Wait before exiting.
+    Wait before exiting. An optional suffix can be "m" (minutes), "h" (hours),
+    "d" (days), or "s" (seconds, the default).
+
 
 config SLEEP_FLOAT
   bool
   default y
   depends on SLEEP && TOYBOX_FLOAT
   help
-    The delay can be a decimal fraction. An optional suffix can be "m"
-    (minutes), "h" (hours), "d" (days), or "s" (seconds, the default).
+    Length can be a decimal fraction.
 */
 
 #include "toys.h"
 
 void sleep_main(void)
 {
+  struct timespec tv;
 
-  if (!CFG_TOYBOX_FLOAT) toys.exitval = sleep(atol(*toys.optargs));
-  else {
-    char *arg;
-    double d = strtod(*toys.optargs, &arg);
-    struct timespec tv;
-
-    // Parse suffix
-    if (*arg) {
-      int ismhd[]={1,60,3600,86400};
-      char *smhd = "smhd", *c = strchr(smhd, *arg);
-      if (!c) error_exit("Unknown suffix '%c'", *arg);
-      d *= ismhd[c-smhd];
-    }
-
-    tv.tv_nsec=1000000000*(d-(tv.tv_sec = (unsigned long)d));
-    toys.exitval = !!nanosleep(&tv, NULL);
-  }
+  tv.tv_sec = xparsetime(*toys.optargs, 1000000000, &tv.tv_nsec);
+  toys.exitval = !!nanosleep(&tv, NULL);
 }
