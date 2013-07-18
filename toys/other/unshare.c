@@ -35,5 +35,5 @@ void unshare_main(void)
 
   if(unshare(f)) perror_exit("failed");
 
-  xexec(toys.optargs);
+  xexec_optargs(0);
 }

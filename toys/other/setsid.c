@@ -24,5 +24,5 @@ void setsid_main(void)
     setpgid(0,0);
     tcsetpgrp(0, getpid());
   }
-  xexec(toys.optargs);
+  xexec_optargs(0);
 }

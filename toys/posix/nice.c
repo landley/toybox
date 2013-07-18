@@ -34,5 +34,5 @@ void nice_main(void)
   errno = 0;
   if (nice(TT.priority)==-1 && errno) perror_exit("Can't set priority");
 
-  xexec(toys.optargs);
+  xexec_optargs(0);
 }

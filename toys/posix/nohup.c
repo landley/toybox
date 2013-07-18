@@ -36,5 +36,5 @@ void nohup_main(void)
     close(0);
     open("/dev/null", O_RDONLY);
   }
-  xexec(toys.optargs);
+  xexec_optargs(0);
 }

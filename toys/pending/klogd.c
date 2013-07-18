@@ -23,7 +23,7 @@ config KLOGD_SOURCE_RING_BUFFER
 
 #define FOR_klogd
 #include "toys.h"
-#include <signal.h>
+
 GLOBALS(
   long level;
   int fd;

@@ -27,7 +27,7 @@ void time_main(void)
   struct timeval tv, tv2;
 
   gettimeofday(&tv, NULL);
-  if (!(pid = fork())) xexec(toys.optargs);
+  if (!(pid = fork())) xexec_optargs(0);
   else {
     int stat;
     struct rusage ru;
