@@ -36,8 +36,6 @@ config IFCONFIG
 #include <net/ethernet.h>
 
 GLOBALS(
-  void *if_list;
-
   int sockfd;
 )
 
@@ -46,8 +44,7 @@ typedef struct sockaddr_with_len {
     struct sockaddr sock;
     struct sockaddr_in sock_in;
     struct sockaddr_in6 sock_in6;
-  }sock_u;
-  socklen_t socklen;
+  } sock_u;
 } sockaddr_with_len;
 
 // man netdevice
@@ -88,7 +85,6 @@ sockaddr_with_len *get_sockaddr(char *host, int port, sa_family_t af)
     struct sockaddr_un *sockun;
 
     swl = xzalloc(sizeof(struct sockaddr_with_len));
-    swl->socklen = sizeof(struct sockaddr_un);
     swl->sock_u.sock.sa_family = AF_UNIX;
     sockun = (struct sockaddr_un *)&swl->sock_u.sock;
     xstrncpy(sockun->sun_path, host + 6, sizeof(sockun->sun_path));
@@ -128,7 +124,6 @@ sockaddr_with_len *get_sockaddr(char *host, int port, sa_family_t af)
   for (rp = result; rp; rp = rp->ai_next) {
     if (rp->ai_family == AF_INET || rp->ai_family == AF_INET6) {
       swl = xmalloc(sizeof(struct sockaddr_with_len));
-      swl->socklen = rp->ai_addrlen;
       memcpy(&swl->sock_u.sock, rp->ai_addr, rp->ai_addrlen);
       break;
     }
@@ -136,46 +131,12 @@ sockaddr_with_len *get_sockaddr(char *host, int port, sa_family_t af)
   freeaddrinfo(result);
   if (!rp) error_exit("bad host name");
 
-
   if(swl->sock_u.sock.sa_family == AF_INET)
     swl->sock_u.sock_in.sin_port = port_num;
   else if(swl->sock_u.sock.sa_family == AF_INET6)
     swl->sock_u.sock_in6.sin6_port = port_num;
 
   return swl;
-}
-
-/*
- * get the numeric hostname and service name, for a given socket address.
- */
-char *address_to_name(struct sockaddr *sock)
-{
-  //man page of getnameinfo.
-  char hbuf[NI_MAXHOST] = {0,}, sbuf[NI_MAXSERV] = {0,};
-  int status = 0;
-
-  if(sock->sa_family == AF_INET) {
-    socklen_t len = sizeof(struct sockaddr_in);
-    if((status = getnameinfo(sock, len, hbuf, sizeof(hbuf), sbuf, sizeof(sbuf), NI_NUMERICHOST | NI_NUMERICSERV)) == 0)
-      return xmsprintf("%s:%s", hbuf, sbuf);
-    else {
-      fprintf(stderr, "getnameinfo: %s\n", gai_strerror(status));
-      return NULL;
-    }
-  } else if(sock->sa_family == AF_INET6) {
-    socklen_t len = sizeof(struct sockaddr_in6);
-    if((status = getnameinfo(sock, len, hbuf, sizeof(hbuf), sbuf, sizeof(sbuf), NI_NUMERICHOST | NI_NUMERICSERV)) == 0) {
-      //verification for resolved hostname.
-      if(strchr(hbuf, ':')) return xmsprintf("[%s]:%s", hbuf, sbuf);
-      else return xmsprintf("%s:%s", hbuf, sbuf);
-    } else {
-      fprintf(stderr, "getnameinfo: %s\n", gai_strerror(status));
-      return NULL;
-    }
-  } else if(sock->sa_family == AF_UNIX) {
-    struct sockaddr_un *sockun = (void*)sock;
-    return xmsprintf("local:%.*s", (int) sizeof(sockun->sun_path), sockun->sun_path);
-  } else return NULL;
 }
 
 static void set_address(char *host_name, struct ifreq *ifre, int request)
@@ -196,27 +157,9 @@ static void set_address(char *host_name, struct ifreq *ifre, int request)
   xioctl(TT.sockfd, request, ifre);
 }
 
-static void add_iface_to_list(struct if_list *newnode)
-{
-  struct if_list *head_ref = TT.if_list;
-
-  if(!head_ref || strcmp(newnode->name, head_ref->name) < 0) {
-    newnode->next = head_ref;
-    head_ref = newnode;
-  } else {
-    struct if_list *current = head_ref;
-    while(current->next && strcmp(current->next->name, newnode->name) < 0)
-      current = current->next;
-    newnode->next = current->next;
-    current->next = newnode;
-  }
-  TT.if_list = (void *)head_ref;
-}
-
-static void get_device_info(struct if_list *il)
+static void get_device_info(char *name, struct if_list *il)
 {
   struct ifreq ifre;
-  char *name = il->name;
 
   il->txqueuelen = -1;
 
@@ -247,7 +190,7 @@ static void get_device_info(struct if_list *il)
     il->netmask = ifre.ifr_netmask;
 }
 
-static void display_ifconfig(struct if_list *il)
+static void display_ifconfig(char *name, struct if_list *il)
 {
   struct {
     int type;
@@ -264,7 +207,7 @@ static void display_ifconfig(struct if_list *il)
   for (i=0; i < (sizeof(types)/sizeof(*types))-1; i++)
     if (il->hw_type == types[i].type) break;
 
-  xprintf("%-9s Link encap:%s  ", il->name, types[i].title);
+  xprintf("%-9s Link encap:%s  ", name, types[i].title);
   if(il->hwaddr.sa_data && il->hw_type == ARPHRD_ETHER) {
     xprintf("HWaddr ");
     for (i=0; i<6; i++) xprintf(":%02X"+!i, il->hwaddr.sa_data[i]);
@@ -303,18 +246,18 @@ static void display_ifconfig(struct if_list *il)
   fp = fopen("/proc/net/if_net6", "r");
   if (fp) {
     char iface_name[IFNAMSIZ] = {0,};
-    int plen, scope;
+    int plen, iscope;
 
     while(fgets(toybuf, sizeof(toybuf), fp)) {
       int nitems = 0;
       char ipv6_addr[40] = {0,};
       nitems = sscanf(toybuf, "%32s %*08x %02x %02x %*02x %15s\n",
-          ipv6_addr+7, &plen, &scope, iface_name);
+          ipv6_addr+7, &plen, &iscope, iface_name);
       if(nitems != 4) {
         if((nitems < 0) && feof(fp)) break;
         perror_exit("sscanf");
       }
-      if(strcmp(il->name, iface_name) == 0) {
+      if(strcmp(name, iface_name) == 0) {
         int i = 0;
         struct sockaddr_in6 sock_in6;
         int len = sizeof(ipv6_addr) / (sizeof ipv6_addr[0]);
@@ -329,13 +272,13 @@ static void display_ifconfig(struct if_list *il)
         if(inet_pton(AF_INET6, ipv6_addr, (struct sockaddr *) &sock_in6.sin6_addr) > 0) {
           sock_in6.sin6_family = AF_INET6;
           if(inet_ntop(AF_INET6, &sock_in6.sin6_addr, toybuf, BUFSIZ)) {
-            char *names[] = {"Global","Host","Link","Site","Compat"},
-                 *name = "Unknown";
+            char *scopes[] = {"Global","Host","Link","Site","Compat"},
+                 *scope = "Unknown";
             int j;
 
-            for (j=0; j < sizeof(names)/sizeof(*names); j++)
-              if (scope == (!!j)<<(j+3)) name = names[j];
-            xprintf("%10cinet6 addr: %s/%d Scope: %s\n", ' ', toybuf, plen, name);
+            for (j=0; j < sizeof(scopes)/sizeof(*scopes); j++)
+              if (iscope == (!!j)<<(j+3)) scope = scopes[j];
+            xprintf("%10cinet6 addr: %s/%d Scope: %s\n", ' ', toybuf, plen, scope);
           }
         }
       }
@@ -393,92 +336,86 @@ static void display_ifconfig(struct if_list *il)
   xputc('\n');
 }
 
-static void readconf(void)
-{
-  struct ifconf ifcon;
-  struct ifreq *ifre;
-  int num;
-
-  // Loop until buffer's big enough
-  ifcon.ifc_buf = NULL;
-  for (num = 30;;num += 10) {
-    ifcon.ifc_len = sizeof(struct ifreq)*num;
-    ifcon.ifc_buf = xrealloc(ifcon.ifc_buf, ifcon.ifc_len);
-    xioctl(TT.sockfd, SIOCGIFCONF, &ifcon);
-    if (ifcon.ifc_len != sizeof(struct ifreq)*num) break;
-  }
-
-  ifre = ifcon.ifc_req;
-  for(num = 0; num < ifcon.ifc_len && ifre; num += sizeof(struct ifreq), ifre++)
-  {
-    struct if_list *il;
-
-    // Skip duplicates
-    for(il = TT.if_list; il; il = il->next)
-      if(!strcmp(ifre->ifr_name, il->name)) break;
-    if(!il) {
-      il = xzalloc(sizeof(struct if_list));
-      xstrncpy(il->name, ifre->ifr_name, IFNAMSIZ);
-      add_iface_to_list(il);
-      get_device_info(il);
-    }
-  }
-
-  free(ifcon.ifc_buf);
-}
-
 static void show_iface(char *iface_name)
 {
-  struct if_list *il;
+  char *name;
+  struct if_list il;
+  struct string_list *ifaces = 0, *sl;
   int i, j;
   FILE *fp;
 
   fp = xfopen("/proc/net/dev", "r");
 
   for (i=0; fgets(toybuf, sizeof(toybuf), fp); i++) {
-    char *name, *buf;
+    char *buf = toybuf;
 
     if (i<2) continue;
 
-    il = xzalloc(sizeof(struct if_list));
-    for (buf = toybuf; isspace(*buf); buf++);
+    while (isspace(*buf)) buf++;
     name = strsep(&buf, ":");
     if(!buf) error_exit("bad name %s", name);
-    xstrncpy(il->name, name, IFNAMSIZ);
 
     errno = 0;
-    for (j=0; j<16 && !errno; j++) il->val[j] = strtoll(buf, &buf, 0);
+    for (j=0; j<16 && !errno; j++) il.val[j] = strtoll(buf, &buf, 0);
     if (errno) perror_exit("bad %s at %s", name, buf);
 
-    add_iface_to_list(il);
-    il->non_virtual_iface = 1;
-    get_device_info(il);
+    il.non_virtual_iface = 1;
+
+    if (iface_name) {
+      if (!strcmp(iface_name, name)) {
+        get_device_info(name, &il);
+        display_ifconfig(name, &il);
+
+        return;
+      }
+    } else {
+      sl = xmalloc(sizeof(*sl)+strlen(name)+1);
+      strcpy(sl->str, name);
+      sl->next = ifaces;
+      ifaces = sl;
+
+      get_device_info(name, &il);
+      if ((il.flags & IFF_UP) || (toys.optflags & FLAG_a))
+        display_ifconfig(name, &il);
+    }
   }
   fclose(fp);
 
   if (iface_name) {
-    for(il = TT.if_list; il; il = il->next) {
-      if(!strcmp(il->name, iface_name)) {
-        display_ifconfig(il);
-        break;
+    get_device_info(iface_name, &il);
+    display_ifconfig(iface_name, &il);
+  } else {
+    struct ifconf ifcon;
+    struct ifreq *ifre;
+    int num;
+
+    // Loop until buffer's big enough
+    ifcon.ifc_buf = NULL;
+    for (num = 30;;num += 10) {
+      ifcon.ifc_len = sizeof(struct ifreq)*num;
+      ifcon.ifc_buf = xrealloc(ifcon.ifc_buf, ifcon.ifc_len);
+      xioctl(TT.sockfd, SIOCGIFCONF, &ifcon);
+      if (ifcon.ifc_len != sizeof(struct ifreq)*num) break;
+    }
+
+    ifre = ifcon.ifc_req;
+    for(num = 0; num < ifcon.ifc_len && ifre; num += sizeof(struct ifreq), ifre++)
+    {
+      // Skip duplicates
+      for(sl = ifaces; sl; sl = sl->next)
+        if(!strcmp(sl->str, ifre->ifr_name)) break;
+
+      if(!sl) {
+        get_device_info(ifre->ifr_name, &il);
+        if ((il.flags & IFF_UP) || (toys.optflags & FLAG_a))
+          display_ifconfig(ifre->ifr_name, &il);
       }
     }
-    //if the given interface is not in the list.
-    if(!il) {
-      il = xzalloc(sizeof(struct if_list));
-      xstrncpy(il->name, iface_name, IFNAMSIZ);
-      get_device_info(il);
-      display_ifconfig(il);
-      free(il);
-    }
-  } else {
-    readconf();
-    for(il = TT.if_list; il; il = il->next)
-      if((il->flags & IFF_UP) || (toys.optflags & FLAG_a))
-        display_ifconfig(il);
+
+    free(ifcon.ifc_buf);
   }
 
-  if (CFG_TOYBOX_FREE) llist_traverse(TT.if_list, free);
+  llist_traverse(ifaces, free);
 }
 
 // Encode offset and size of field into an int, and make result negative
