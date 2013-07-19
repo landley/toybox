@@ -60,6 +60,26 @@ static const int NEED_OPTIONS =
 #include "generated/newtoys.h"
 0;  // Ends the opts || opts || opts...
 
+// Subset of init needed by singlemain
+static void toy_singleinit(struct toy_list *which, char *argv[])
+{
+  toys.which = which;
+  toys.argv = argv;
+
+  if (CFG_TOYBOX_HELP_DASHDASH && argv[1] && !strcmp(argv[1], "--help")) {
+    show_help();
+    xexit();
+  }
+
+  if (NEED_OPTIONS && which->options) get_optflags();
+  else {
+    toys.optargs = argv+1;
+    for (toys.optc=0; toys.optargs[toys.optc]; toys.optc++);
+  }
+  toys.old_umask = umask(0);
+  if (!(which->flags & TOYFLAG_UMASK)) umask(toys.old_umask);
+}
+
 // Setup toybox global state for this command.
 
 void toy_init(struct toy_list *which, char *argv[])
@@ -82,21 +102,8 @@ void toy_init(struct toy_list *which, char *argv[])
   if (toys.optargs != toys.argv+1) free(toys.optargs);
   memset(&toys, 0, offsetof(struct toy_context, rebound));
 
-  toys.which = which;
-  toys.argv = argv;
-
-  if (CFG_TOYBOX_HELP_DASHDASH && argv[1] && !strcmp(argv[1], "--help")) {
-    show_help();
-    xexit();
-  }
-
-  if (NEED_OPTIONS && which->options) get_optflags();
-  else {
-    toys.optargs = argv+1;
-    for (toys.optc=0; toys.optargs[toys.optc]; toys.optc++);
-  }
-  toys.old_umask = umask(0);
-  if (!(which->flags & TOYFLAG_UMASK)) umask(toys.old_umask);
+  // Subset of init needed by singlemain.
+  toy_singleinit(which, argv);
 }
 
 // Like exec() but runs an internal toybox command instead of another file.
@@ -160,12 +167,20 @@ int main(int argc, char *argv[])
 {
   if (CFG_TOYBOX_I18N) setlocale(LC_ALL, "");
 
-  // Trim path off of command name
-  *argv = basename(*argv);
+  if (!CFG_TOYBOX_SINGLE) {
+    // Trim path off of command name
+    *argv = basename(*argv);
 
-  // Call the multiplexer, adjusting this argv[] to be its' argv[1].
-  // (It will adjust it back before calling toy_exec().)
-  toys.argv = argv-1;
-  toybox_main();
-  return 0;
+    // Call the multiplexer, adjusting this argv[] to be its' argv[1].
+    // (It will adjust it back before calling toy_exec().)
+    toys.argv = argv-1;
+    toybox_main();
+  } else {
+    // a single toybox command built standalone with no multiplexer
+    toy_singleinit(toy_list, argv);
+    toy_list->toy_main();
+    if (fflush(NULL) || ferror(stdout)) perror_exit("write");
+  }
+
+  return toys.exitval;
 }

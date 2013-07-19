@@ -17,6 +17,12 @@ config TOYBOX
 	  With no arguments, shows available commands. First argument is
 	  name of a command to run, followed by any arguments to that command.
 
+config TOYBOX_SINGLE
+	bool
+	default n
+	help
+	  Build a single toybox command standalone with no multiplexer.
+
 config TOYBOX_SUID
 	bool "SUID support"
 	default y
