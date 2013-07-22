@@ -47,20 +47,6 @@ typedef struct sockaddr_with_len {
   } sock_u;
 } sockaddr_with_len;
 
-// man netdevice
-struct if_list {
-  struct if_list *next;
-  int hw_type, mtu, metric, txqueuelen, non_virtual_iface;
-  short flags;
-  struct sockaddr addr, dstaddr, broadaddr, netmask, hwaddr;
-  struct ifmap map;
-
-  char name[IFNAMSIZ];
-  unsigned long long val[16];
-};
-
-#define IO_MAP_INDEX 0x100
-
 //for the param settings.
 
 //for ipv6 add/del
@@ -157,41 +143,9 @@ static void set_address(char *host_name, struct ifreq *ifre, int request)
   xioctl(TT.sockfd, request, ifre);
 }
 
-static void get_device_info(char *name, struct if_list *il)
+static void display_ifconfig(char *name, int always, unsigned long long val[])
 {
   struct ifreq ifre;
-
-  il->txqueuelen = -1;
-
-  xstrncpy(ifre.ifr_name, name, IFNAMSIZ);
-  if (ioctl(TT.sockfd, SIOCGIFFLAGS, &ifre)<0) perror_exit("%s", il->name);
-  il->flags = ifre.ifr_flags;
-
-  if (ioctl(TT.sockfd, SIOCGIFHWADDR, &ifre) >= 0)
-    memcpy(il->hwaddr.sa_data, ifre.ifr_hwaddr.sa_data, sizeof(il->hwaddr.sa_data));
-  il->hw_type = ifre.ifr_hwaddr.sa_family;
-
-  if (ioctl(TT.sockfd, SIOCGIFMETRIC, &ifre) >= 0)
-    il->metric = ifre.ifr_metric;
-  if (ioctl(TT.sockfd, SIOCGIFMTU, &ifre) >= 0) il->mtu = ifre.ifr_mtu;
-  if (ioctl(TT.sockfd, SIOCGIFMAP, &ifre) == 0) il->map = ifre.ifr_map;
-  if (ioctl(TT.sockfd, SIOCGIFTXQLEN, &ifre) >= 0)
-    il->txqueuelen = ifre.ifr_qlen;
-
-  // If an address is assigned record that.
-
-  ifre.ifr_addr.sa_family = AF_INET;
-  if (!ioctl(TT.sockfd, SIOCGIFADDR, &ifre)) il->addr = ifre.ifr_addr;
-  if (ioctl(TT.sockfd, SIOCGIFDSTADDR, &ifre) >= 0)
-    il->dstaddr = ifre.ifr_dstaddr;
-  if (ioctl(TT.sockfd, SIOCGIFBRDADDR, &ifre) >= 0)
-    il->broadaddr = ifre.ifr_broadaddr;
-  if (ioctl(TT.sockfd, SIOCGIFNETMASK, &ifre) >= 0)
-    il->netmask = ifre.ifr_netmask;
-}
-
-static void display_ifconfig(char *name, struct if_list *il)
-{
   struct {
     int type;
     char *title;
@@ -203,41 +157,57 @@ static void display_ifconfig(char *name, struct if_list *il)
   int i;
   char *p;
   FILE *fp;
+  short flags;
+
+  xstrncpy(ifre.ifr_name, name, IFNAMSIZ);
+  if (ioctl(TT.sockfd, SIOCGIFFLAGS, &ifre)<0) perror_exit("%s", name);
+  flags = ifre.ifr_flags;
+  if (!always && !(flags & IFF_UP)) return;
+
+  // query hardware type and hardware address
+  i = ioctl(TT.sockfd, SIOCGIFHWADDR, &ifre);
 
   for (i=0; i < (sizeof(types)/sizeof(*types))-1; i++)
-    if (il->hw_type == types[i].type) break;
+    if (ifre.ifr_hwaddr.sa_family == types[i].type) break;
 
   xprintf("%-9s Link encap:%s  ", name, types[i].title);
-  if(il->hwaddr.sa_data && il->hw_type == ARPHRD_ETHER) {
+  if(i >= 0 && ifre.ifr_hwaddr.sa_family == ARPHRD_ETHER) {
     xprintf("HWaddr ");
-    for (i=0; i<6; i++) xprintf(":%02X"+!i, il->hwaddr.sa_data[i]);
+    for (i=0; i<6; i++) xprintf(":%02X"+!i, ifre.ifr_hwaddr.sa_data[i]);
   }
   xputc('\n');
 
-  p = (char *)&il->addr;
-  for (i = 0; i<sizeof(il->addr); i++) if (p[i]) break;
-  if (i != sizeof(il->addr)) {
-    int af = il->addr.sa_family;
+  // If an address is assigned record that.
+
+  ifre.ifr_addr.sa_family = AF_INET;
+  memset(&ifre.ifr_addr, 0, sizeof(ifre.ifr_addr));
+  ioctl(TT.sockfd, SIOCGIFADDR, &ifre);
+  p = (char *)&ifre.ifr_addr;
+  for (i = 0; i<sizeof(ifre.ifr_addr); i++) if (p[i]) break;
+
+  if (i != sizeof(ifre.ifr_addr)) {
+    struct sockaddr_in *si = (struct sockaddr_in *)&ifre.ifr_addr;
     struct {
       char *name;
-      int flag, offset;
+      int flag, ioctl;
     } addr[] = {
-      {"addr", 0, offsetof(struct if_list, addr)},
-      {"P-t-P", IFF_POINTOPOINT, offsetof(struct if_list, dstaddr)},
-      {"Bcast", IFF_BROADCAST, offsetof(struct if_list, broadaddr)},
-      {"Mask", 0, offsetof(struct if_list, netmask)}
+      {"addr", 0, 0},
+      {"P-t-P", IFF_POINTOPOINT, SIOCGIFDSTADDR},
+      {"Bcast", IFF_BROADCAST, SIOCGIFBRDADDR},
+      {"Mask", 0, SIOCGIFNETMASK}
     };
 
-    xprintf("%10c%s", ' ',
-      (af == AF_INET) ? "inet" : (af == AF_INET6) ? "inet6" : "unspec");
+    xprintf("%10c%s", ' ', (si->sin_family == AF_INET) ? "inet" :
+        (si->sin_family == AF_INET6) ? "inet6" : "unspec");
 
     for (i=0; i < sizeof(addr)/sizeof(*addr); i++) {
-      struct sockaddr_in *s = (struct sockaddr_in *)(addr[i].offset+(char *)il);
-
-      if (!addr[i].flag || (il->flags & addr[i].flag))
+      if (!addr[i].flag || (flags & addr[i].flag)) {
+        if (addr[i].ioctl && ioctl(TT.sockfd, addr[i].ioctl, &ifre))
+          si->sin_family = 0;
         xprintf(" %s:%s ", addr[i].name,
-          (s->sin_family == 0xFFFF || !s->sin_family) ? "[NOT SET]" :
-            inet_ntoa(s->sin_addr));
+          (si->sin_family == 0xFFFF || !si->sin_family)
+            ? "[NOT SET]" : inet_ntoa(si->sin_addr));
+      }
     }
 
     xputc('\n');
@@ -288,7 +258,7 @@ static void display_ifconfig(char *name, struct if_list *il)
 
   xprintf("%10c", ' ');
 
-  if (il->flags) {
+  if (flags) {
     unsigned short mask = 1;
     char **s, *str[] = {
       "UP", "BROADCAST", "DEBUG", "LOOPBACK", "POINTOPOINT", "NOTRAILERS",
@@ -297,15 +267,20 @@ static void display_ifconfig(char *name, struct if_list *il)
     };
 
     for(s = str; *s; s++) {
-      if(il->flags & mask) xprintf("%s ", *s);
+      if(flags & mask) xprintf("%s ", *s);
       mask = mask << 1;
     }
   } else xprintf("[NO FLAGS] ");
 
-  if(!il->metric) il->metric = 1;
-  xprintf(" MTU:%d  Metric:%d", il->mtu, il->metric);
+  if (ioctl(TT.sockfd, SIOCGIFMTU, &ifre) < 0) ifre.ifr_mtu = 0;
+  xprintf(" MTU:%d", ifre.ifr_mtu);
+  if (ioctl(TT.sockfd, SIOCGIFMETRIC, &ifre) < 0) ifre.ifr_metric = 0;
+  if (!ifre.ifr_metric) ifre.ifr_metric = 1;
+  xprintf("  Metric:%d", ifre.ifr_metric);
 
-  if(il->non_virtual_iface) {
+  // non-virtual interface
+
+  if(val) {
     char *label[] = {"RX bytes", "RX packets", "errors", "dropped", "overruns",
       "frame", 0, 0, "TX bytes", "TX packets", "errors", "dropped", "overruns",
       "collisions", "carrier", 0, "txqueuelen"};
@@ -313,24 +288,29 @@ static void display_ifconfig(char *name, struct if_list *il)
       13, 16, -1, 0, 8};
     int i;
 
+    // Query txqueuelen
+    if (ioctl(TT.sockfd, SIOCGIFTXQLEN, &ifre) >= 0) val[16] = ifre.ifr_qlen;
+    else val[16] = -1;
+
     for (i = 0; i < sizeof(order); i++) {
       int j = order[i];
 
       if (j < 0) xprintf("\n%10c", ' ');
-      else xprintf("%s:%llu ", label[j],
-        j==16 ? (unsigned long long)il->txqueuelen : il->val[j]);
+      else xprintf("%s:%llu ", label[j], val[j]);
     }
   }
   xputc('\n');
 
-  if(il->map.irq || il->map.mem_start || il->map.dma || il->map.base_addr) {
+  if(!ioctl(TT.sockfd, SIOCGIFMAP, &ifre) && (ifre.ifr_map.irq ||
+      ifre.ifr_map.mem_start || ifre.ifr_map.dma || ifre.ifr_map.base_addr))
+  {
     xprintf("%10c", ' ');
-    if(il->map.irq) xprintf("Interrupt:%d ", il->map.irq);
-    if(il->map.base_addr >= IO_MAP_INDEX)
-      xprintf("Base address:0x%lx ", il->map.base_addr);
-    if(il->map.mem_start)
-      xprintf("Memory:%lx-%lx ", il->map.mem_start, il->map.mem_end);
-    if(il->map.dma) xprintf("DMA chan:%x ", il->map.dma);
+    if(ifre.ifr_map.irq) xprintf("Interrupt:%d ", ifre.ifr_map.irq);
+    if(ifre.ifr_map.base_addr >= 0x100) // IO_MAP_INDEX
+      xprintf("Base address:0x%lx ", ifre.ifr_map.base_addr);
+    if(ifre.ifr_map.mem_start)
+      xprintf("Memory:%lx-%lx ", ifre.ifr_map.mem_start, ifre.ifr_map.mem_end);
+    if(ifre.ifr_map.dma) xprintf("DMA chan:%x ", ifre.ifr_map.dma);
     xputc('\n');
   }
   xputc('\n');
@@ -339,7 +319,6 @@ static void display_ifconfig(char *name, struct if_list *il)
 static void show_iface(char *iface_name)
 {
   char *name;
-  struct if_list il;
   struct string_list *ifaces = 0, *sl;
   int i, j;
   FILE *fp;
@@ -348,6 +327,7 @@ static void show_iface(char *iface_name)
 
   for (i=0; fgets(toybuf, sizeof(toybuf), fp); i++) {
     char *buf = toybuf;
+    unsigned long long val[17];
 
     if (i<2) continue;
 
@@ -356,15 +336,12 @@ static void show_iface(char *iface_name)
     if(!buf) error_exit("bad name %s", name);
 
     errno = 0;
-    for (j=0; j<16 && !errno; j++) il.val[j] = strtoll(buf, &buf, 0);
+    for (j=0; j<16 && !errno; j++) val[j] = strtoll(buf, &buf, 0);
     if (errno) perror_exit("bad %s at %s", name, buf);
-
-    il.non_virtual_iface = 1;
 
     if (iface_name) {
       if (!strcmp(iface_name, name)) {
-        get_device_info(name, &il);
-        display_ifconfig(name, &il);
+        display_ifconfig(name, 1, val);
 
         return;
       }
@@ -374,17 +351,13 @@ static void show_iface(char *iface_name)
       sl->next = ifaces;
       ifaces = sl;
 
-      get_device_info(name, &il);
-      if ((il.flags & IFF_UP) || (toys.optflags & FLAG_a))
-        display_ifconfig(name, &il);
+      display_ifconfig(name, toys.optflags & FLAG_a, val);
     }
   }
   fclose(fp);
 
-  if (iface_name) {
-    get_device_info(iface_name, &il);
-    display_ifconfig(iface_name, &il);
-  } else {
+  if (iface_name) display_ifconfig(iface_name, 1, 0);
+  else {
     struct ifconf ifcon;
     struct ifreq *ifre;
     int num;
@@ -405,11 +378,7 @@ static void show_iface(char *iface_name)
       for(sl = ifaces; sl; sl = sl->next)
         if(!strcmp(sl->str, ifre->ifr_name)) break;
 
-      if(!sl) {
-        get_device_info(ifre->ifr_name, &il);
-        if ((il.flags & IFF_UP) || (toys.optflags & FLAG_a))
-          display_ifconfig(ifre->ifr_name, &il);
-      }
+      if(!sl) display_ifconfig(ifre->ifr_name, toys.optflags & FLAG_a, 0);
     }
 
     free(ifcon.ifc_buf);
