@@ -18,23 +18,18 @@ config LOGGER
 #define FOR_logger
 #include "toys.h"
 #include <syslog.h>
-#include <strings.h>
-#include <string.h>
 
 GLOBALS(
   char *priority_arg;
   char *ident;
-
-  int facility;
-  int priority;
 )
 
 struct mapping {
-  const char *key;
+  char *key;
   int value;
 };
 
-static const struct mapping facilities[] = {
+static struct mapping facilities[] = {
   {"user", LOG_USER}, {"main", LOG_MAIL}, {"news", LOG_NEWS},
   {"uucp", LOG_UUCP}, {"daemon", LOG_DAEMON}, {"auth", LOG_AUTH},
   {"cron", LOG_CRON}, {"lpr", LOG_LPR}, {"local0", LOG_LOCAL0},
@@ -44,64 +39,51 @@ static const struct mapping facilities[] = {
   {NULL, 0}
 };
 
-static const struct mapping priorities[] = {
+static struct mapping priorities[] = {
   {"emerg", LOG_EMERG}, {"alert", LOG_ALERT}, {"crit", LOG_CRIT},
   {"err", LOG_ERR}, {"warning", LOG_WARNING}, {"notice", LOG_NOTICE},
   {"info", LOG_INFO}, {"debug", LOG_DEBUG},
   {NULL, 0}
 };
 
-static int lookup(const struct mapping *where, const char *key)
+static int lookup(struct mapping *where, char *key)
 {
-  int i;
-  for (i = 0; where[i].key; i++)
-    if (!strcasecmp(key, where[i].key))
-      return where[i].value;
+  for (; where->key; where++)
+    if (!strcasecmp(key, where->key)) return where->value;
 
   return -1;
 }
 
-static void parse_priority()
-{
-  char *sep = strchr(TT.priority_arg, '.');
-
-  if (sep)
-  {
-    *sep = '\0';
-    if ((TT.facility = lookup(facilities, TT.priority_arg)) == -1)
-      error_exit("bad facility: %s", TT.priority_arg);
-    TT.priority_arg = sep+1;
-  }
-
-  if ((TT.priority = lookup(priorities, TT.priority_arg)) == -1)
-    error_exit("bad priority: %s", TT.priority_arg);
-}
-
 void logger_main(void)
 {
-  if (toys.optflags & FLAG_p)
-    parse_priority();
-  else
-  {
-    TT.facility = LOG_USER;
-    TT.priority = LOG_NOTICE;
+  int facility = LOG_USER, priority = LOG_NOTICE;
+  char *message = NULL;
+
+  if (toys.optflags & FLAG_p) {
+    char *sep = strchr(TT.priority_arg, '.');
+
+    if (sep) {
+      *sep = '\0';
+      if ((facility = lookup(facilities, TT.priority_arg)) == -1)
+        error_exit("bad facility: %s", TT.priority_arg);
+      TT.priority_arg = sep+1;
+    }
+
+    if ((priority = lookup(priorities, TT.priority_arg)) == -1)
+      error_exit("bad priority: %s", TT.priority_arg);
   }
 
-  if (!(toys.optflags & FLAG_t))
-  {
+  if (!(toys.optflags & FLAG_t)) {
     struct passwd *pw = getpwuid(geteuid());
-    if (!pw)
-      perror_exit("getpwuid");
+
+    if (!pw) perror_exit("getpwuid");
     TT.ident = xstrdup(pw->pw_name);
   }
 
-  char *message = NULL;
   if (toys.optc) {
-    int length = 0;
-    int pos = 0;
+    int length = 0, pos = 0;
 
-    for (;*toys.optargs; (void) *(toys.optargs)++) // shut up gcc
-    {
+    for (;*toys.optargs; toys.optargs++) {
       length += strlen(*(toys.optargs)) + 1; // plus one for the args spacing
       message = xrealloc(message, length + 1); // another one for the null byte
 
@@ -113,7 +95,7 @@ void logger_main(void)
     message = toybuf;
   }
 
-  openlog(TT.ident, (toys.optflags & FLAG_s ? LOG_PERROR : 0) , TT.facility);
-  syslog(TT.priority, "%s", message);
+  openlog(TT.ident, (toys.optflags & FLAG_s ? LOG_PERROR : 0) , facility);
+  syslog(priority, "%s", message);
   closelog();
 }
