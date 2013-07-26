@@ -134,11 +134,12 @@ GLOBSTRUCT="$(getglobals)"
 ) > generated/globals.h
 
 echo "generated/help.h"
-# Only recreate generated/help.h if python is installed
-if [ ! -z "$(which python)" ] && [ ! -z "$(grep 'CONFIG_TOYBOX_HELP=y' .config)" ]
+# Only recreate generated/help.h if python2 is installed. Does not work with 3.
+PYTHON="$(which python2)"
+if [ ! -z "$PYTHON" ] && [ ! -z "$(grep 'CONFIG_TOYBOX_HELP=y' .config)" ]
 then
   echo "Extract help text from Config.in."
-  scripts/config2help.py Config.in > generated/help.h || exit 1
+  "$PYTHON" scripts/config2help.py Config.in > generated/help.h || exit 1
 fi
 
 # Extract a list of toys/*/*.c files to compile from the data in ".config":
