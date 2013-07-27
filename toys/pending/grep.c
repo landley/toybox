@@ -107,8 +107,8 @@ char *regfix (char *re_xs) {
 
 void addRE (char *x) {
   if (toys.optflags & FLAG_F) x = regfix (x);
-  if (TT.re_xs) TT.re_xs = astrcat (TT.re_xs, "|");
-  TT.re_xs = astrcat (TT.re_xs, x);
+  if (TT.re_xs) TT.re_xs = xastrcat (TT.re_xs, "|");
+  TT.re_xs = xastrcat (TT.re_xs, x);
   if (toys.optflags & FLAG_F) free (x);
 }
 
