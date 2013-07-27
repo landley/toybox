@@ -36,7 +36,7 @@ int do_lspci(struct dirtree *new)
       int fd, size;
 
       if ((fd = openat(dirfd, *fields, O_RDONLY)) < 0) continue;
-      size = 6 + 2*((toys.optflags & FLAG_e) && (p != toybuf));
+      size = ((toys.optflags & FLAG_e) && (p == toybuf)) ? 8 : 6;
       p[read(fd, p, size)] = '\0';
       close(fd);
     }
