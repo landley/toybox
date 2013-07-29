@@ -1,6 +1,6 @@
 /* klogd.c - Klogd, The kernel log Dameon.
  *
- * Copyright 2012 Sandeep Sharma <sandeep.jack2756@gmail.com>
+ * Copyright 2013 Sandeep Sharma <sandeep.jack2756@gmail.com>
  *
  * No standard
 
@@ -8,7 +8,7 @@ USE_KLOGD(NEWTOY(klogd, "c#<1>8n", TOYFLAG_SBIN))
 
 config KLOGD
     bool "klogd"
-    default y
+    default n
     help
     usage: klogd [-n] [-c N]
 
@@ -23,7 +23,7 @@ config KLOGD_SOURCE_RING_BUFFER
 
 #define FOR_klogd
 #include "toys.h"
-
+#include <signal.h>
 GLOBALS(
   long level;
   int fd;
@@ -31,59 +31,39 @@ GLOBALS(
 
 #if CFG_KLOGD_SOURCE_RING_BUFFER    
 #include <sys/klog.h>
-/*
- * Open klogd with ring buffer as log source
- */
 static void open_klogd(void)  
 {
   syslog(LOG_NOTICE, "KLOGD: started with Kernel ring buffer as log source\n");
   klogctl(1, NULL, 0);
 }
-/*
- * Read kernel ring buffer
- */
+
 static int read_klogd(char *bufptr, int len)
 {
   return klogctl(2, bufptr, len);
 }
-/*
- * Set log level to LEVEL
- */
+
 static void set_log_level(int level)
 {   
   klogctl(8, NULL, level);
 }
-/*
- * Close klog
- */
+
 static void close_klogd(void)
 {
   klogctl(7, NULL, 0); 
   klogctl(0, NULL, 0);
 }
 #else
-#include<paths.h>
-#ifndef _PATH_KLOG
-#error "_PATH_KLOG is not known"
-#endif
-/*
- * Open klog with /proc/kmsg as log source
- */
 static void open_klogd(void)
 {
-  TT.fd = xopen(_PATH_KLOG, O_RDONLY);
+  TT.fd = xopen("/proc/kmsg", O_RDONLY); //_PATH_KLOG in paths.h
   syslog(LOG_NOTICE, "KLOGD: started with /proc/kmsg as log source\n");
 }
-/*
- * Read log to local buffer
- */
+
 static int read_klogd(char *bufptr, int len)
 {
   return xread(TT.fd, bufptr, len);
 }
-/*
- * Set log level to LEVEL by writing to PATH_PRINTK
- */
+
 static void set_log_level(int level)
 {
     FILE *fptr = xfopen("/proc/sys/kernel/printk", "w");
@@ -91,18 +71,14 @@ static void set_log_level(int level)
     fclose(fptr);
     fptr = NULL;
 }
-/* 
- * set log level while exiting
- */
+
 static void close_klogd(void)
 {
   set_log_level(7);
   xclose(TT.fd);
 }
 #endif
-/*
- * Handle signals
- */
+
 static void handle_signal(int sig)
 {
   close_klogd();
@@ -110,16 +86,13 @@ static void handle_signal(int sig)
   exit(1);
 }
 
-static int go_daemon(void)
-{                
-  int fd;        
-
-  fd = open("/dev/null", O_RDWR);
+static int daemonize(void)
+{        
+  pid_t pid;        
+  int fd = open("/dev/null", O_RDWR);
   if (fd < 0) fd = open("/", O_RDONLY, 0666);
-  pid_t pid = fork();
-
-  if (pid < 0) { 
-    error_msg("DAEMON: fail to fork");
+  if((pid = fork()) < 0) { 
+    perror_msg("DAEMON: fail to fork");
     return -1;   
   }              
   if (pid) exit(EXIT_SUCCESS);
@@ -138,38 +111,36 @@ static int go_daemon(void)
  */
 void klogd_main(void)
 {
-  char msg_buffer[16348]; //LOG_LINE_LENGTH - Ring buffer size
-  int prio, size;
-  int used = 0;
-  char *start, *line_start;
+  int prio, size, used = 0;
+  char *start, *line_start, msg_buffer[16348]; //LOG_LINE_LENGTH - Ring buffer size
 
   sigatexit(handle_signal);
-  if(toys.optflags & FLAG_c) set_log_level(TT.level);    //set log level
-  if(!(toys.optflags & FLAG_n)) go_daemon();        //Make it daemon
+  if (toys.optflags & FLAG_c) set_log_level(TT.level);    //set log level
+  if (!(toys.optflags & FLAG_n)) daemonize();        //Make it daemon
   open_klogd();    
   openlog("Kernel", 0, LOG_KERN);    //open connection to system logger..
 
   while(1) {
     start = msg_buffer + used; //start updated for re-read.
-    size = read_klogd(start, sizeof(msg_buffer)-1-used);
+    size = read_klogd(start, sizeof(msg_buffer) - used - 1);
     if (size < 0) perror_exit("error reading file:");
     start[size] = '\0';  //Ensure last line to be NUL terminated.
-    if(used) start = msg_buffer;
-    while(1) {
-      if((line_start = strsep(&start, "\n")) != NULL && start != NULL) used = 0;
+    if (used) start = msg_buffer;
+    while(start) {
+      if ((line_start = strsep(&start, "\n")) != NULL && start != NULL) used = 0;
       else {                            //Incomplete line, copy it to start of buff.
         used = strlen(line_start);
         strcpy(msg_buffer, line_start);
-        if(used < (sizeof(msg_buffer) - 1)) break;
+        if (used < (sizeof(msg_buffer) - 1)) break;
         used = 0; //we have buffer full, log it as it is.
       }
       prio = LOG_INFO;  //we dont know priority, mark it INFO
-      if(*line_start == '<') {  //we have new line to syslog
+      if (*line_start == '<') {  //we have new line to syslog
         line_start++;
-        if(line_start) prio = (int)strtoul(line_start, &line_start, 10);
-        if(*line_start == '>') line_start++;
+        if (line_start) prio = (int)strtoul(line_start, &line_start, 10);
+        if (*line_start == '>') line_start++;
       }
-      if(*line_start) syslog(prio, "%s", line_start);
+      if (*line_start) syslog(prio, "%s", line_start);
     }
   }
-}  
+}
