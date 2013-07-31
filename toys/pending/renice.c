@@ -5,7 +5,7 @@
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html
 
-USE_RENICE(NEWTOY(renice, "gpun#", TOYFLAG_BIN))
+USE_RENICE(NEWTOY(renice, "<1gpun#|", TOYFLAG_BIN))
 
 config RENICE
   bool "renice"
@@ -21,28 +21,29 @@ GLOBALS(
   long nArgu;
 )
 
-void renice_main (void) {
-  int ii;
-  int which = toys.optflags & FLAG_g ? PRIO_PGRP :
-              toys.optflags & FLAG_u ? PRIO_USER :
-              PRIO_PROCESS;
+void renice_main(void) {
+  int which = (toys.optflags & FLAG_g) ? PRIO_PGRP :
+              ((toys.optflags & FLAG_u) ? PRIO_USER : PRIO_PROCESS);
+  char **arg;
 
-  if (!(toys.optflags & FLAG_n)) error_exit ("no increment given");
+  for (arg = toys.optargs; *arg; arg++) {
+    char *s = *arg;
+    int id = -1;
 
-  for (ii = 0; ii < toys.optc; ii++) {
-    id_t id;
+    if (toys.optflags & FLAG_u) {
+      struct passwd *p = getpwnam(s);
+      if (p) id = p->pw_uid;
+    } else {
+      id = strtol(s, &s, 10);
+      if (*s) id = -1;
+    }
 
-    if (isdigit (toys.optargs[ii][0])) id = strtoul (toys.optargs[ii], 0, 10);
-    else if (toys.optflags & FLAG_u) id = getpwnam (toys.optargs[ii]) -> pw_uid;
-    else {
-      error_msg ("not a number: %s", toys.optargs[ii]);
-      toys.exitval = 1;
+    if (id < 0) {
+      error_msg("bad '%s'", *arg);
       continue;
     }
 
-    if (setpriority (which, id, getpriority (which, id) + TT.nArgu) < 0) {
-      error_msg ("failed to setpriority of %d", id);
-      toys.exitval = 1;
-    }
+    if (setpriority(which, id, getpriority(which, id)+TT.nArgu) < 0)
+      perror_msg("setpriority %d", id);
   }
 }

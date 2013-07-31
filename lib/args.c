@@ -108,7 +108,7 @@ struct getoptflagstate
   struct opts *opts;
   struct longopts *longopts;
   int noerror, nodash_now, stopearly;
-  unsigned excludes;
+  unsigned excludes, requires;
 };
 
 // Use getoptflagstate to parse parse one command line option from argv
@@ -289,7 +289,10 @@ void parse_optflaglist(struct getoptflagstate *gof)
   // (This goes right to left so we need the whole list before we can start.)
   idx = 0;
   for (new = gof->opts; new; new = new->next) {
-    new->dex[1] = 1<<idx++;
+    unsigned u = 1<<idx++;
+
+    new->dex[1] = u;
+    if (new->flags & 1) gof->requires |= u;
     if (new->type) {
       new->arg = (void *)nextarg;
       *(nextarg++) = new->val[2].l;
@@ -442,6 +445,16 @@ notflag:
       gof.minargs, letters[!(gof.minargs-1)]);
   if (toys.optc>gof.maxargs)
     error_exit("Max %d argument%s", gof.maxargs, letters[!(gof.maxargs-1)]);
+  if (gof.requires && !(gof.requires & toys.optflags)) {
+    struct opts *req;
+    char needs[32], *s = needs;
+
+    for (req = gof.opts; req; req = req->next)
+      if (req->flags & 1) *(s++) = req->c;
+    *s = 0;
+
+    error_exit("Needs %s-%s", s[1] ? "one of " : "", needs);
+  }
   toys.exithelp = 0;
 
   if (CFG_TOYBOX_FREE) {
