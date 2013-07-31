@@ -2,14 +2,13 @@
  *
  * Copyright 2013 CE Strake <strake888 at gmail.com>
  *
- * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/
- * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/renice.html
 
 USE_RENICE(NEWTOY(renice, "<1gpun#|", TOYFLAG_BIN))
 
 config RENICE
   bool "renice"
-  default n
+  default y
   help
     usage: renice [-gpu] -n increment ID ...
 */
