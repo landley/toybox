@@ -1,0 +1,98 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+# Copyright 2013 by Kyungsu Kim <kaspyx@gmail.com>
+# Copyright 2013 by Kyungwan Han <asura321@gmail.com>
+
+# This one's tricky both because echo is a shell builtin (so $PATH is
+# irrelevant) and because the "result" field is parsed with echo -e.
+# To make it work, "$CMD" is an explicit path to the command being tested,
+# so "result" keeps using the shell builtin but we test the one in toybox.
+
+CMD="$(which grep)"
+
+#testing "name" "command" "result" "infile" "stdin"
+
+# test case 1
+echo -e "123\ncount 123\n123\nfasdfasdf" > foo
+testing "grep -c" "$CMD -c 123 foo" "3\n" "" ""
+rm foo
+
+# test case 2
+echo -e "this is test" > foo
+echo -e "this is test2" > foo2
+echo -e "this is foo3" > foo3
+
+testing "grep -l" "$CMD -l test foo foo2 foo3" "foo\nfoo2\n" "" ""
+
+rm foo foo2 foo3
+
+# test case 3
+
+echo "this is test" > foo
+$CMD -q test foo > res
+
+testing "grep -q" "cat res && echo yes" "yes\n" "" ""
+
+# test case 4
+
+echo -e "1234123asdfas123123\nabc\n1\nabcde" > foo
+testing "grep -E" "$CMD -E [0-9] foo" "1234123asdfas123123\n1\n" "" ""
+
+# test case 5
+
+echo -e "1234123asdfas123123\nabc\n1\nabcde" > foo
+testing "grep -e" "$CMD -e [0-9] foo" "1234123asdfas123123\n1\n" "" ""
+
+# test case 6
+
+echo -e "this is test\nthis is test2\ntest case" > foo
+testing "grep -F" "$CMD -F is foo" "this is test\nthis is test2\n" "" ""
+
+# test case 7
+
+echo -e "this is test\nthis is test2\ntest case" > foo
+echo -e "hello this is test" > foo2
+echo -e "hi hello" > foo3
+
+testing "grep -H" "$CMD -H is foo foo2 foo3" "foo:this is test\nfoo:this is test2\nfoo2:hello this is test\n" "" ""
+
+
+# test case 8
+
+echo -e "this is test\nthis is test2\ntest case" > foo
+testing "grep -b" "$CMD -b is foo" "0:this is test\n13:this is test2\n" "" ""
+
+
+# test case 9
+
+echo -e "thisIs test\nthis is test2\ntest case" > foo
+testing "grep -i" "$CMD -i is foo" "thisIs test\nthis is test2\n" "" ""
+
+# test case 10
+
+echo -e "this is test\nthis is test2\ntest case" > foo
+
+testing "grep -n" "$CMD -n is foo" "1:this is test\n2:this is test2\n" "" ""
+
+# test case 11
+
+echo -e "this is test\nthis is test2\ntest case" > foo
+testing "grep -o" "$CMD -o is foo" "is\nis\nis\nis\n" "" ""
+
+# test case 12
+
+$CMD -s hello asdf >res1
+testing "grep -s" "cat res1 && echo yes" "yes\n" "" ""
+
+
+# test case 13
+
+echo -e "1234123asdfas123123\n1ABabc\nabc\n1ABa\nabcde" > foo
+testing "grep -v" "$CMD -v abc foo" "1234123asdfas123123\n1ABa\n" "" ""
+
+# test case 14
+
+echo -e "1234123asdfas123123\n1ABabc\nabc\n1ABa\nabcde" > foo
+testing "grep -w" "$CMD -w abc foo" "abc\n" "" ""
