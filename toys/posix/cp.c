@@ -53,6 +53,7 @@ config CP_MV
     -i	interactive, prompt before overwriting existing DEST
 
 config CP_MV_MORE
+  bool
   default y
   depends on CP_MV && CP_MORE
   help
