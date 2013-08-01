@@ -35,6 +35,7 @@ config LS
 config LS_COLOR
   bool "ls --color"
   default y
+  depends on LS
   help
     usage: ls --color
 
