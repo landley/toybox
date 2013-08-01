@@ -46,7 +46,7 @@ GLOBALS(
 )
 
 static void do_grep (int fd, char *name) {
-  int n = 0, nMatch = 0;
+  int n = 0, nMatch = 0, which = toys.optflags & FLAG_w ? 2 : 0;
 
   for (;;) {
     char *x, *y;
@@ -75,11 +75,11 @@ static void do_grep (int fd, char *name) {
         if (!(toys.optflags & FLAG_h)) printf ("%s:", name);
         if ( (toys.optflags & FLAG_n)) printf ("%d:", n);
         if ( (toys.optflags & FLAG_b)) printf ("%ld:", lseek (0, 0, SEEK_CUR) - strlen (y) +
-                                                       (toys.optflags & FLAG_o ? matches[2].rm_so : 0));
+                                                       (toys.optflags & FLAG_o ? matches[which].rm_so : 0));
         if (!(toys.optflags & FLAG_o)) fputs (x, stdout);
         else {
-          y += matches[2].rm_so;
-          printf ("%.*s\n", matches[2].rm_eo - matches[2].rm_so, y++);
+          y += matches[which].rm_so;
+          printf ("%.*s\n", matches[which].rm_eo - matches[which].rm_so, y++);
         }
       }
       if (!(toys.optflags & FLAG_o)) break;
@@ -145,7 +145,7 @@ void buildRE (void) {
     toys.optc--; toys.optargs++;
   }
 
-  TT.re_xs = xmsprintf (toys.optflags & FLAG_w ? "(^|[^_[:alnum:]])(%s)($|[^_[:alnum:]])" : "()(%s)()", TT.re_xs);
+  TT.re_xs = xmsprintf (toys.optflags & FLAG_w ? "(^|[^_[:alnum:]])(%s)($|[^_[:alnum:]])" : "%s", TT.re_xs);
 
   if (regcomp (&re, TT.re_xs,
                (toys.optflags & (FLAG_E | FLAG_F) ? REG_EXTENDED : 0) |
@@ -156,6 +156,8 @@ void buildRE (void) {
 }
 
 void grep_main (void) {
+  if (toys.optflags & FLAG_w && !(toys.optflags & FLAG_E || toys.optflags & FLAG_F)) error_exit ("must not use -w sans -E");
+
   buildRE ();
 
   if (toys.optflags & FLAG_c) TT.mode = 'c';
