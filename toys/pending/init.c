@@ -1,0 +1,470 @@
+/* init.c - init program.
+ *
+ * Copyright 2012 Harvind Singh <harvindsingh1981@gmail.com>
+ * Copyright 2013 Kyungwan Han  <asura321@gmail.com>
+ *
+ * No Standard
+
+USE_INIT(NEWTOY(init, "", TOYFLAG_SBIN))
+
+config INIT
+  bool "init"
+  default n
+  help
+    usage: init
+
+    init the system.
+*/
+
+#include "toys.h"
+#include<linux/vt.h>
+#include<sys/reboot.h>
+
+struct action_list_seed {
+  struct action_list_seed *next;
+  pid_t pid;
+  uint8_t action;
+  char *terminal_name;
+  char *command;
+};
+struct action_list_seed *action_list_pointer = NULL;
+int caught_signal;
+
+//INITTAB action defination
+#define SYSINIT     0x01
+#define WAIT        0x02
+#define ONCE        0x04
+#define RESPAWN     0x08
+#define ASKFIRST    0x10
+#define CTRLALTDEL  0x20
+#define SHUTDOWN    0x40
+#define RESTART     0x80
+
+static void initialize_console(void)
+{
+  int fd;
+  char *p = (p = getenv("CONSOLE")) ? p : getenv("console");
+  if (!p) {
+    fd = open("/dev/null", O_RDWR);
+    if (fd >= 0) {
+      while(fd < 2) fd = dup(fd);
+      while(fd > 2) close(fd--);
+    }
+  } else {
+    fd = open(p, O_RDWR | O_NONBLOCK | O_NOCTTY);
+    if (fd < 0) xprintf("Unable to open console %s\n",p);
+    else {
+      dup2(fd,0);
+      dup2(fd,1);
+      dup2(fd,2);
+    }
+  }
+  p = getenv("TERM");
+#ifdef VT_OPENQRY
+  int terminal_no;
+  if (ioctl(0, VT_OPENQRY, &terminal_no)) {
+    if (!p || !strcmp(p,"linux")) putenv((char*)"TERM=vt102");
+  } else
+#endif  
+    if (!p) putenv((char*)"TERM=linux");
+}
+
+static void set_sane_term(void)
+{
+  struct termios terminal;
+  tcgetattr(0, &terminal);
+  terminal.c_cc[VINTR] = 3;//ctrl-c
+  terminal.c_cc[VQUIT] = 28;/*ctrl-\*/
+  terminal.c_cc[VERASE] = 127;//ctrl-?
+  terminal.c_cc[VKILL] = 21;//ctrl-u
+  terminal.c_cc[VEOF] = 4;//ctrl-d
+  terminal.c_cc[VSTART] = 17;//ctrl-q
+  terminal.c_cc[VSTOP] = 19;//ctrl-s
+  terminal.c_cc[VSUSP] = 26;//ctrl-z
+
+  terminal.c_line = 0;
+  terminal.c_cflag = terminal.c_cflag&(CRTSCTS|PARODD|PARENB|CSTOPB|CSIZE|CBAUDEX|CBAUD);
+  terminal.c_cflag = terminal.c_cflag|(CLOCAL|HUPCL|CREAD);
+  terminal.c_iflag = IXON|IXOFF|ICRNL;//enable start/stop input and output control + map CR to NL on input
+  terminal.c_oflag = ONLCR|OPOST;//Map NL to CR-NL on output
+  terminal.c_lflag = IEXTEN|ECHOKE|ECHOCTL|ECHOK|ECHOE|ECHO|ICANON|ISIG;
+  tcsetattr(0, TCSANOW, &terminal);
+}
+
+static void set_enviornment(void)
+{
+  putenv((char*)"HOME=/");
+  putenv((char*)"PATH=/sbin:/usr/sbin:/bin:/usr/bin");
+  putenv((char*)"SHELL=/bin/sh");
+  putenv((char*)"USER=root");
+}
+
+static void add_new_action(uint8_t action,char *command,char *term)
+{
+  struct action_list_seed *x,**y;
+  y = &action_list_pointer;
+  x = *y;
+  while(x) {
+    if (!(strcmp(x->command,command)) && !(strcmp(x->terminal_name,term))) {
+      *y = x->next;//remove from the list
+      while(*y) y = &(*y)->next;//traverse through list till end
+      x->next = NULL;
+      break;
+    }
+    y = &(x)->next;
+    x = *y;
+  }
+  //create a new node
+  if (!x) {
+    x = xzalloc(sizeof(*x));
+    x->command = xstrdup(command);
+    x->terminal_name = xstrdup(term);
+  }
+  x->action = action;
+  *y = x;
+}
+
+static void inittab_parsing(void)
+{
+  int i, fd, line_number = 0, token_count = 0;
+  char *p, *q, *extracted_token, *tty_name = NULL, *command = NULL, *tmp;
+  uint8_t action = 0;
+  char *act_name = "sysinit\0wait\0once\0respawn\0askfirst\0ctrlaltdel\0"
+                    "shutdown\0restart\0";
+
+  fd = open("/etc/inittab", O_RDONLY);
+  if (fd < 0) {
+    error_msg("Unable to open /etc/inittab. Using Default inittab");
+    add_new_action(SYSINIT, "/etc/init.d/rcS", "");
+    add_new_action(RESPAWN, "/sbin/getty -n -l /bin/sh -L 115200 tty1 vt100", "");
+  } else {
+    while((q = p = get_line(fd))) { //read single line from /etc/inittab
+      char *x;
+      if((x = strchr(p, '#'))) *x = '\0';
+      line_number++;
+      token_count = 0;
+      action = 0;
+      while((extracted_token = strsep(&p,":"))) {
+        token_count++;
+        switch (token_count) {
+          case 1:
+            if (*extracted_token) {
+              if(!strncmp(extracted_token, "/dev/", 5))
+                tty_name = xmsprintf("%s",extracted_token);
+              else  tty_name = xmsprintf("/dev/%s",extracted_token);
+            } else tty_name = xstrdup("");
+            break;
+          case 2:
+            break;
+          case 3:
+            for(tmp = act_name, i = 0; *tmp; i++, tmp += strlen(tmp) +1) {
+              if ( !strcmp(tmp, extracted_token)) {
+                action = 1 << i;
+                break;
+              }
+            }
+            if (!*tmp) error_msg("Invalid action at line number %d ---- ignoring",line_number);
+            break;
+          case 4:
+            command = xstrdup(extracted_token);
+            break;
+          default:
+            error_msg("Bad inittab entry at line %d", line_number);
+            break;
+        }
+      }  //while token
+      if (q) free(q);
+      if (token_count != 4) continue; 
+      if (action) add_new_action(action, command, tty_name);  
+      free(tty_name);
+      free(command);
+    }//while line
+    close(fd);
+  }
+}
+
+static void run_command(char *command)
+{
+  char *final_command[128];
+  int hyphen = (command[0]=='-');
+
+  command = command + hyphen;
+  if (!strpbrk(command, "?<>'\";[]{}\\|=()*&^$!`~")) {
+    char *next_command;
+    char *extracted_command;
+    int x = 0;
+    next_command = strncpy(toybuf, command - hyphen, sizeof(toybuf));
+    next_command[sizeof(toybuf) - 1] = toybuf[sizeof(toybuf) - 1 ] = '\0';
+    command = next_command + hyphen;
+    while((extracted_command = strsep(&next_command," \t"))) {
+      if (*extracted_command) {
+        final_command[x] = extracted_command;
+        x++;
+      }
+    }
+    final_command[x] = NULL;
+  } else {
+    snprintf(toybuf, sizeof(toybuf), "exec %s", command);
+    command = "-/bin/sh"+1;
+    final_command[0] = (char*)("-/bin/sh"+!hyphen);
+    final_command[1] = (char*)"-c";
+    final_command[2] = toybuf;
+    final_command[3] = NULL;
+  }
+  if (hyphen) ioctl(0, TIOCSCTTY, 0);
+  execvp(command, final_command);
+  error_msg("unable to run %s",command);
+}
+
+//runs all same type of actions
+static pid_t final_run(struct action_list_seed *x)
+{
+  pid_t pid;
+  int fd;
+  sigset_t signal_set;
+
+  sigfillset(&signal_set);
+  sigprocmask(SIG_BLOCK, &signal_set, NULL);
+  if (x->action & ASKFIRST) pid = fork();
+  else pid = vfork();
+  if (pid > 0) {
+    //parent process or error
+    //unblock the signals
+    sigfillset(&signal_set);
+    sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+    return pid;      
+  } else if (pid < 0) perror_exit("fork fail");
+  //new born child process
+  sigset_t signal_set_c;
+  sigfillset(&signal_set_c);
+  sigprocmask(SIG_UNBLOCK, &signal_set_c, NULL);
+  setsid();//new session
+  if (x->terminal_name[0]) {
+    close(0);
+    fd = open(x->terminal_name,(O_RDWR|O_NONBLOCK),0600);
+    if (fd != 0) {
+      error_msg("Unable to open %s,%s\n",x->terminal_name,strerror(errno));
+      _exit(EXIT_FAILURE);
+    } else {
+      dup2(0,1);
+      dup2(0,2);
+    }
+  }
+  set_sane_term();
+  run_command(x->command);
+  _exit(-1);
+}
+
+static struct action_list_seed* mark_as_terminated_process(pid_t pid)
+{
+  struct action_list_seed *x;
+  if (pid > 0) {
+    for (x = action_list_pointer; x; x = x->next) {
+      if (x->pid == pid) {
+        x->pid = 0;
+        return x;
+      }
+    }
+  }
+  return NULL;
+}
+
+static void waitforpid(pid_t pid)
+{
+  if (pid <= 0) return;
+  for(;;) {
+    pid_t y = wait(NULL);
+    mark_as_terminated_process(y);
+    if (kill(y,0)) break;
+  }
+}
+static void run_action_from_list(int action)
+{
+  pid_t pid;
+  struct action_list_seed *x = action_list_pointer;
+  for (; x; x = x->next) {
+    if (!(x->action & action)) continue;
+    if (x->action & (SHUTDOWN|ONCE|SYSINIT|CTRLALTDEL|WAIT)) {
+      pid = final_run(x);
+      if (x->action & (SHUTDOWN|SYSINIT|CTRLALTDEL|WAIT)) waitforpid(pid);
+    }
+    if (x->action & (ASKFIRST|RESPAWN))
+      if (!(x->pid)) x->pid = final_run(x);
+  }
+}
+
+static void set_defualt(void)
+{
+  sigset_t signal_set_c;
+
+  signal(SIGUSR1,SIG_DFL);
+  signal(SIGUSR2,SIG_DFL);
+  signal(SIGTERM,SIG_DFL);
+  signal(SIGQUIT,SIG_DFL);
+  signal(SIGINT,SIG_DFL);
+  signal(SIGHUP,SIG_DFL);
+  signal(SIGTSTP,SIG_DFL);
+  signal(SIGSTOP,SIG_DFL);
+  sigfillset(&signal_set_c);
+  sigprocmask(SIG_UNBLOCK,&signal_set_c, NULL);
+  run_action_from_list(SHUTDOWN);
+  error_msg("The system is going down NOW!");
+  kill(-1, SIGTERM);
+  error_msg("Sent SIGTERM to all processes");
+  sync();
+  sleep(1);
+  kill(-1,SIGKILL);
+  sync();
+}
+
+static void halt_poweroff_reboot_handler(int sig_no)
+{
+  unsigned int reboot_magic_no = 0;
+  pid_t pid;
+  set_defualt();
+  switch (sig_no) {
+    case SIGUSR1:
+      error_msg("Requesting system halt");
+      reboot_magic_no=RB_HALT_SYSTEM;
+      break;
+    case SIGUSR2:
+      error_msg("Requesting system poweroff");
+      reboot_magic_no=RB_POWER_OFF;
+      break;
+    case SIGTERM:  
+      error_msg("Requesting system reboot");
+      reboot_magic_no=RB_AUTOBOOT;
+      break;
+    default:
+      break;
+  }
+  sleep(1);
+  pid = vfork();
+  if (pid == 0) {
+    reboot(reboot_magic_no);
+    _exit(EXIT_SUCCESS);
+  }
+  while(1) sleep(1);
+}
+static void restart_init_handler(int sig_no)
+{
+  struct action_list_seed *x;
+  pid_t pid;
+  int fd;
+  for (x = action_list_pointer; x; x = x->next) {
+    if (!(x->action & RESTART)) continue;
+
+    set_defualt();
+    if (x->terminal_name[0]) {
+      close(0);
+      fd = open(x->terminal_name,(O_RDWR|O_NONBLOCK),0600);
+      if (fd != 0) {
+        error_msg("Unable to open %s,%s\n",x->terminal_name,strerror(errno));
+        sleep(1);
+        pid = vfork();
+        if (pid == 0) {
+          reboot(RB_HALT_SYSTEM);
+          _exit(EXIT_SUCCESS);
+        }
+        while(1) sleep(1);
+      } else {
+        dup2(0,1);
+        dup2(0,2);
+        set_sane_term();
+        run_command(x->command);
+      }
+    }
+  }
+}
+
+static void catch_signal(int sig_no)
+{
+  caught_signal = sig_no;
+  error_msg("signal seen");
+}
+
+static void pause_handler(int sig_no)
+{
+  int signal_backup,errno_backup;
+  pid_t pid;
+  errno_backup = errno;
+  signal_backup = caught_signal;
+  signal(SIGCONT, catch_signal);
+  while(1) {
+    if (caught_signal == SIGCONT) break;
+    do
+      pid = waitpid(-1,NULL,WNOHANG);
+    while((pid==-1) && (errno=EINTR));
+    mark_as_terminated_process(pid);
+    sleep(1);
+  }
+  signal(SIGCONT,SIG_DFL);
+  errno = errno_backup;
+  caught_signal = signal_backup;
+}
+
+static void assign_signal_handler(void)
+{
+  struct sigaction sig_act;
+  signal(SIGUSR1, halt_poweroff_reboot_handler);//halt
+  signal(SIGUSR2, halt_poweroff_reboot_handler);//poweroff
+  signal(SIGTERM, halt_poweroff_reboot_handler);//reboot
+  signal(SIGQUIT, restart_init_handler);//restart init
+  memset(&sig_act, 0, sizeof(sig_act));
+  sigfillset(&sig_act.sa_mask);
+  sigdelset(&sig_act.sa_mask, SIGCONT);
+  sig_act.sa_handler = pause_handler;
+  sigaction(SIGTSTP, &sig_act, NULL);
+  
+  memset(&sig_act, 0, sizeof(sig_act));
+  sig_act.sa_handler = catch_signal;
+  sigaction(SIGINT, &sig_act, NULL);
+  sigaction(SIGHUP, &sig_act, NULL);  
+}
+
+static int check_if_pending_signals(void)
+{
+  int signal_caught = 0;
+  while(1) {
+    int sig = caught_signal;
+    if (!sig) return signal_caught;
+    caught_signal = 0;
+    signal_caught = 1;
+    if (sig == SIGINT) run_action_from_list(CTRLALTDEL);
+  }
+}
+void init_main(void)
+{
+  if (getpid() != 1) error_exit("Already running"); 
+  xprintf("Started init\n"); 
+  initialize_console();
+  set_sane_term();
+
+  if (chdir("/")) perror_exit("Can't cd to /");
+  setsid();
+
+  set_enviornment();
+  inittab_parsing();  
+  assign_signal_handler();
+  run_action_from_list(SYSINIT);
+  check_if_pending_signals();
+  run_action_from_list(WAIT);
+  check_if_pending_signals();
+  run_action_from_list(ONCE);
+  while(1) {
+    int suspected_WNOHANG;
+    suspected_WNOHANG = check_if_pending_signals();
+    run_action_from_list(RESPAWN | ASKFIRST);
+    suspected_WNOHANG = suspected_WNOHANG|check_if_pending_signals();
+    sleep(1);//let cpu breath
+    suspected_WNOHANG = suspected_WNOHANG|check_if_pending_signals();
+    if (suspected_WNOHANG) suspected_WNOHANG=WNOHANG;
+    while(1) {
+      pid_t pid;
+      pid = waitpid(-1, NULL, suspected_WNOHANG);
+      if (pid <= 0) break;
+      mark_as_terminated_process(pid);
+      suspected_WNOHANG = WNOHANG;
+    }
+  }
+}
