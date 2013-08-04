@@ -2,16 +2,17 @@
  *
  * Copyright 2013 CE Strake <strake888 at gmail.com>
  *
- * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/
- * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/grep.html
 
 USE_GREP(NEWTOY(grep, "EFHabhinosvwclqe*f*m#", TOYFLAG_BIN))
+USE_GREP(OLDTOY(egrep, grep, "EFHabhinosvwclqe*f*m#", TOYFLAG_BIN))
+USE_GREP(OLDTOY(fgrep, grep, "EFHabhinosvwclqe*f*m#", TOYFLAG_BIN))
 
 config GREP
   bool "grep"
   default n
   help
-    usage: grep [-EFivw] [-cloqs] [-Hbhn] [-e REGEX]... [-f FILENAME] [FILE]...
+    usage: grep [-EFivwcloqsHbhn] [-m MAX] [-e REGEX]... [-f REGFILE] [FILE]...
 
     Show lines matching regular expressions. If no -e, first argument is
     regular expression to match. With no files (or "-" filename) read stdin.
@@ -23,7 +24,7 @@ config GREP
     match type:
     -E  extended regex syntax    -F  fixed (match literal string)
     -i  case insensitive         -v  invert match
-    -w  whole words (implies -E)
+    -w  whole words (implies -E) -m  stop after this many lines matched
 
     display modes: (default: matched line)
     -c  count of matching lines  -l  show matching filenames
@@ -42,60 +43,89 @@ config GREP
 static regex_t re; /* fails in GLOBALS */
 
 GLOBALS(
-  long mArgu;
+  long m;
+
   struct arg_list *fArgu, *eArgu;
-  char mode, *re_xs;
+  char *re_xs;
 )
 
 static void do_grep(int fd, char *name)
 {
-  int n = 0, nMatch = 0, which = toys.optflags & FLAG_w ? 2 : 0;
+  FILE *file = xfdopen(fd, "r");
+  long offset = 0;
+  int lcount = 0, mcount = 0, which = toys.optflags & FLAG_w ? 2 : 0;
 
   for (;;) {
-    char *x, *y;
+    char *line = 0, *start;
     regmatch_t matches[3];
-    int atBOL = 1;
+    size_t len;
 
-    x = get_rawline(fd, 0, '\n');
-    if (!x) break;
-    y = x;
-    n++; /* start at 1 */
+    lcount++;
+    if (-1 == getline(&line, &len, file)) break;
+    len = strlen(line);
+    if (len && line[len-1] == '\n') line[len-1] = 0;
+    start = line;
 
-    while (regexec (&re, y, 3, matches, atBOL ? 0 : REG_NOTBOL) == 0)
+    for (;;)
     {
-      if (atBOL) nMatch++;
-      toys.exitval = 0;
-      atBOL = 0;
-      switch (TT.mode) {
-      case 'q':
+      int rc = regexec(&re, start, 3, matches, start == line ? 0 : REG_NOTBOL);
+      int skip = matches[which].rm_eo;
+
+      if (toys.optflags & FLAG_v) {
+        if (toys.optflags & FLAG_o) {
+          if (rc) skip = matches[which].rm_eo = strlen(start);
+          else if (!matches[which].rm_so) {
+            start += skip;
+            continue;
+          } else matches[which].rm_eo = matches[which].rm_so;
+        } else {
+          if (!rc) break;
+          matches[which].rm_eo = strlen(start);
+        }
+        matches[which].rm_so = 0;
+      } else if (rc) break; 
+
+      mcount++;
+      if (toys.optflags & FLAG_q) {
+        toys.exitval = 0;
         xexit();
-      case 'l':
-        if (!(toys.optflags & FLAG_h)) printf("%s\n", name);
-        free(x);
+      }
+      if (toys.optflags & FLAG_l) {
+        printf("%s\n", name);
+        free(line);
+        fclose(file);
         return;
-      case 'c':
-        break;
-      default:
+      }
+      if (!(toys.optflags & FLAG_c)) {
         if (!(toys.optflags & FLAG_h)) printf("%s:", name);
-        if ((toys.optflags & FLAG_n)) printf("%d:", n);
-        if ((toys.optflags & FLAG_b))
-          printf("%ld:", lseek (0, 0, SEEK_CUR) - strlen (y) +
-                 (toys.optflags & FLAG_o ? matches[which].rm_so : 0));
-        if (!(toys.optflags & FLAG_o)) fputs(x, stdout);
+        if (toys.optflags & FLAG_n) printf("%d:", lcount);
+        if (toys.optflags & FLAG_b)
+          printf("%ld:", offset + (start-line) +
+              ((toys.optflags & FLAG_o) ? matches[which].rm_so : 0));
+        if (!(toys.optflags & FLAG_o)) xputs(line);
         else {
-          y += matches[which].rm_so;
-          printf("%.*s\n", matches[which].rm_eo - matches[which].rm_so, y++);
+          xprintf("%.*s\n", matches[which].rm_eo - matches[which].rm_so,
+                  start + matches[which].rm_so);
         }
       }
-      if (!(toys.optflags & FLAG_o)) break;
+
+      start += skip;
+      if (!(toys.optflags & FLAG_o) || !*start) break;
     }
+    offset += len;
 
-    free(x);
+    free(line);
 
-    if ((toys.optflags & FLAG_m) && nMatch >= TT.mArgu) break;
+    if ((toys.optflags & FLAG_m) && mcount >= TT.m) break;
   }
 
-  if (TT.mode == 'c') printf("%s:%d\n", name, nMatch);
+  if (toys.optflags & FLAG_c) {
+    if (!(toys.optflags & FLAG_h)) printf("%s:", name);
+    xprintf("%d\n", mcount);
+  }
+
+  // loopfiles will also close the fd, but this frees an (opaque) struct.
+  fclose(file);
 }
 
 char *regfix(char *re_xs)
@@ -169,19 +199,20 @@ void buildRE(void)
 
 void grep_main(void)
 {
-  if ((toys.optflags & FLAG_w)
-    && !(toys.optflags & FLAG_E || toys.optflags & FLAG_F))
-      error_exit ("must not use -w sans -E");
+  // Handle egrep and fgrep
+  if (*toys.which->name == 'e' || (toys.optflags & FLAG_w))
+    toys.optflags |= FLAG_E;
+  if (*toys.which->name == 'f') toys.optflags |= FLAG_F;
 
   buildRE();
-
-  if (toys.optflags & FLAG_c) TT.mode = 'c';
-  if (toys.optflags & FLAG_l) TT.mode = 'l';
-  if (toys.optflags & FLAG_q) TT.mode = 'q';
 
   if (!(toys.optflags & FLAG_H) && (toys.optc < 2)) toys.optflags |= FLAG_h;
 
   toys.exitval = 1;
-  loopfiles_rw(toys.optargs, O_RDONLY, 0, toys.optflags & FLAG_s, do_grep);
+  if (toys.optflags & FLAG_s) {
+    close(2);
+    xopen("/dev/null", O_RDWR);
+  }
+  loopfiles_rw(toys.optargs, O_RDONLY, 0, 1, do_grep);
   xexit();
 }
