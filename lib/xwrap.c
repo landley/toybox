@@ -172,6 +172,15 @@ int xdup(int fd)
   return fd;
 }
 
+FILE *xfdopen(int fd, char *mode)
+{
+  FILE *f = fdopen(fd, mode);
+
+  if (!f) perror_exit("xfdopen");
+
+  return f;
+}
+
 // Die unless we can open/create a file, returning FILE *.
 FILE *xfopen(char *path, char *mode)
 {

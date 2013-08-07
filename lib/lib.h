@@ -106,6 +106,7 @@ int xcreate(char *path, int flags, int mode);
 int xopen(char *path, int flags);
 void xclose(int fd);
 int xdup(int fd);
+FILE *xfdopen(int fd, char *mode);
 FILE *xfopen(char *path, char *mode);
 size_t xread(int fd, void *buf, size_t len);
 void xreadall(int fd, void *buf, size_t len);
