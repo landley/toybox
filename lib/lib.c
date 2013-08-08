@@ -277,42 +277,42 @@ int stridx(char *haystack, char needle)
 // Return how long the file at fd is, if there's any way to determine it.
 off_t fdlength(int fd)
 {
-  off_t bottom = 0, top = 0, pos, old;
-  int size;
+  struct stat st;
+  off_t base = 0, range = 1, expand = 1, old;
+
+  if (!fstat(fd, &st) && S_ISREG(st.st_mode)) return st.st_size;
 
   // If the ioctl works for this, return it.
-
-  if (ioctl(fd, BLKGETSIZE, &size) >= 0) return size*512L;
+  // TODO: is blocksize still always 512, or do we stat for it?
+  // unsigned int size;
+  // if (ioctl(fd, BLKGETSIZE, &size) >= 0) return size*512L;
 
   // If not, do a binary search for the last location we can read.  (Some
   // block devices don't do BLKGETSIZE right.)  This should probably have
   // a CONFIG option...
 
+  // If not, do a binary search for the last location we can read.
+
   old = lseek(fd, 0, SEEK_CUR);
   do {
     char temp;
-
-    pos = bottom + (top - bottom) / 2;
-
-    // If we can read from the current location, it's bigger.
+    off_t pos = base + range / 2;
 
     if (lseek(fd, pos, 0)>=0 && read(fd, &temp, 1)==1) {
-      if (bottom == top) bottom = top = (top+1) * 2;
-      else bottom = pos;
+      off_t delta = (pos + 1) - base;
 
-      // If we can't, it's smaller.
-
+      base += delta;
+      if (expand) range = (expand <<= 1) - base;
+      else range -= delta;
     } else {
-      if (bottom == top) {
-        if (!top) return 0;
-        bottom = top/2;
-      } else top = pos;
+      expand = 0;
+      range = pos - base;
     }
-  } while (bottom + 1 != top);
+  } while (range > 0);
 
   lseek(fd, old, SEEK_SET);
 
-  return pos + 1;
+  return base;
 }
 
 // Read contents of file as a single freshly allocated nul-terminated string.
