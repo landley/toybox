@@ -67,19 +67,7 @@ void klogd_main(void)
 
   sigatexit(handle_signal);
   if (toys.optflags & FLAG_c) set_log_level(TT.level);    //set log level
-  if (!(toys.optflags & FLAG_n)) {                       //Make it daemon
-    pid_t pid;        
-    int fd = open("/dev/null", O_RDWR);
-    if (fd < 0) fd = open("/", O_RDONLY, 0666);
-    if((pid = fork()) < 0) perror_exit("DAEMON: fail to fork");
-    if (pid) exit(EXIT_SUCCESS);
-
-    setsid();      
-    dup2(fd, 0);   
-    dup2(fd, 1);   
-    dup2(fd, 2);   
-    if (fd > 2) close(fd);   
-  }
+  if (!(toys.optflags & FLAG_n)) daemonize();             //Make it daemon
 
   if (CFG_KLOGD_SOURCE_RING_BUFFER) {
     syslog(LOG_NOTICE, "KLOGD: started with Kernel ring buffer as log source\n");

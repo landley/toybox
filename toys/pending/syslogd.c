@@ -632,25 +632,6 @@ static void setup_signal()
   signal(SIGQUIT, signal_handler);
 }
 
-static void syslog_daemon(void)
-{
-  int fd = open("/dev/null", O_RDWR);
-  if (fd < 0) fd = xcreate("/", O_RDONLY, 0666);
-
-  pid_t pid = fork();
-  if (pid < 0) perror_exit("DAEMON: failed to fork");
-  if (pid) exit(EXIT_SUCCESS);
-
-  setsid();
-  dup2(fd, 0);
-  dup2(fd, 1);
-  dup2(fd, 2);
-  if (fd > 2) close(fd);
-
-  //don't daemonize again if SIGHUP received.
-  toys.optflags |= FLAG_n;
-}
-
 void syslogd_main(void)
 {
   unsocks_t *tsd;
@@ -688,7 +669,10 @@ init_jumpin:
   setup_signal();
   if (parse_config_file() == -1) goto clean_and_exit;
   open_logfiles();
-  if (!flag_chk(FLAG_n)) syslog_daemon();
+  if (!flag_chk(FLAG_n)) {
+    //don't daemonize again if SIGHUP received.
+    toys.optflags |= FLAG_n;
+  }
   {
     int pid_fd = open("/var/run/syslogd.pid", O_CREAT | O_WRONLY | O_TRUNC, 0666);
     if (pid_fd > 0) {

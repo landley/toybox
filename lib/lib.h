@@ -202,3 +202,5 @@ unsigned long get_int_value(const char *numstr, unsigned lowrange, unsigned high
 // grep helper functions
 char  *astrcat (char *, char *);
 char *xastrcat (char *, char *);
+
+void daemonize(void);
