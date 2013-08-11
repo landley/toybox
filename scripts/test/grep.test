@@ -73,3 +73,17 @@ testing "grep -nom" "grep -nom 2 one" "1:one\n1:one\n1:one\n2:one\n2:one\n" \
 testing "grep -vo" "grep -vo one input" "twothree\n" "onetwoonethreeone\n" ""
 testing "grep no newline" "grep -h one input -" \
   "hello one\nthere one\n" "hello one" "there one"
+
+testing "grep -e multi" "grep -e one -ethree input" \
+  "three\none\n" "three\ntwo\none\n" ""
+# Suppress filenames for recursive test because dunno order they'd occur in
+mkdir sub
+echo -e "one\ntwo\nthree" > sub/one
+echo -e "three\ntwo\none" > sub/two
+testing "grep -r" "grep -hr one sub" "one\none\n" "" ""
+rm -rf sub
+
+testing "grep -Fx ''" "grep -Fx '' input" "" "one one one\n" ""
+testing "grep -F ''" "grep -F '' input" "one one one\n" "one one one\n" ""
+testing "grep -w ''" "grep -w '' input" "" "one one one\n" ""
+testing "grep -o ''" "grep -o '' input" "" "one one one\n" ""
