@@ -55,6 +55,8 @@ static void do_grep(int fd, char *name)
   long offset = 0;
   int lcount = 0, mcount = 0, which = toys.optflags & FLAG_w ? 2 : 0;
 
+  if (!fd) name = "(standard input)";
+
   if (!file) {
     perror_msg("%s", name);
     return;
@@ -164,40 +166,49 @@ static void do_grep(int fd, char *name)
 
 static void parse_regex(void)
 {
-  struct arg_list *al;
+  struct arg_list *al, *new, *list = NULL;
   long len = 0;
   char *s, *ss;
 
   // Add all -f lines to -e list. (Yes, this is leaking allocation context for
   // exit to free. Not supporting nofork for this command any time soon.)
-  for (al = TT.f; al; al = al->next) {
-    s = ss = xreadfile(al->arg);
+  al = TT.f ? TT.f : TT.e;
+  while (al) {
+    if (TT.f) s = ss = xreadfile(al->arg);
+    else s = ss = al->arg;
 
     while (ss && *s) {
       ss = strchr(s, '\n');
-      if (ss) *ss = 0;
-      al = xmalloc(sizeof(struct arg_list));
-      al->next = TT.e;
-      al->arg = s;
-      TT.e = al;
+      if (ss) *(ss++) = 0;
+      new = xmalloc(sizeof(struct arg_list));
+      new->next = list;
+      new->arg = s;
+      list = new;
       s = ss;
     }
+    al = al->next;
+    if (!al && TT.f) {
+      TT.f = 0;
+      al = TT.e;
+    }
   }
+  TT.e = list;
 
   if (!(toys.optflags & FLAG_F)) {
     int w = toys.optflags & FLAG_w;
 
-    // Convert strings to one big regex string.
-    for (al = TT.e; al; al = al->next) len += strlen(al->arg)+1;
+    // Convert strings to one big regex
     if (w) len = 36;
+    for (al = TT.e; al; al = al->next) len += strlen(al->arg)+1;
 
     TT.regstr = s = xmalloc(len);
     if (w) s = stpcpy(s, "(^|[^_[:alnum:]])(");
     for (al = TT.e; al; al = al->next) {
       s = stpcpy(s, al->arg);
+      if (!(toys.optflags & FLAG_E)) *(s++) = '\\';
       *(s++) = '|';
     }
-    *(--s) = 0;
+    *(s-=(1+!(toys.optflags & FLAG_E))) = 0;
     if (w) strcpy(s, ")($|[^_[:alnum:]])");
 
     w = regcomp((regex_t *)toybuf, TT.regstr,
