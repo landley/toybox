@@ -62,7 +62,7 @@ struct part_entry {
 
 struct part_types {
   int id;
-  char type[PATH_MAX];
+  char type[24];
 } sys_types[] = {
   {0x00, "Empty"}, {0x01, "FAT12"}, {0x04, "FAT16 <32M"}, {0x05, "Extended"},
   {0x06, "FAT16"}, {0x07, "HPFS/NTFS"}, {0x0a, "OS/2 Boot Manager"},
@@ -145,20 +145,18 @@ static void list_types(void)
   xputc('\n');
 }
 
-static int valid(long size)
-{
-  if (size == 512 || size == 1024 || size == 2048 || size == 4096) return 1;
-  else {
-      toys.exithelp = 1;
-      error_exit("");
-  }
-}
-
 static void read_sec_sz()
 {
   int arg;       
   if (ioctl(dev_fd, BLKSSZGET, &arg) == 0) g_sect_size = arg;
-  if ((toys.optflags & FLAG_b) && valid(TT.sect_sz)) g_sect_size = TT.sect_sz;
+  if (toys.optflags & FLAG_b) {
+    if (TT.sect_sz !=  512 && TT.sect_sz != 1024 && TT.sect_sz != 2048 &&
+        TT.sect_sz != 4096) {
+      toys.exithelp++;
+      error_exit("bad sector size");
+    }
+    g_sect_size = TT.sect_sz;
+  }
 }
 
 static sector_t read_size()
@@ -528,13 +526,13 @@ static int read_input(char *mesg, char *outp)
 {
   char *p;
   int size = 0;
-redo:
-  xprintf("%s", mesg);
-  p = fgets(toybuf, 80, stdin);
+  do {
+    xprintf("%s", mesg);
+    p = fgets(toybuf, 80, stdin);
   
-  if (!p || !(size = strlen(p))) exit(0);
-  if (p[size-1] == '\n') p[--size] = '\0';
-  if (!size) goto redo;
+    if (!p || !(size = strlen(p))) exit(0);
+    if (p[size-1] == '\n') p[--size] = '\0';
+  } while (!size);
 
   while (*p != '\0' && *p <= ' ') p++;
   if (outp) memcpy(outp, p, strlen(p) + 1); //1 for nul
@@ -687,15 +685,14 @@ static int get_non_free_partition(int max)
 
   for (i = 0; i < max; i++) {
     if (!is_partition_clear(partitions[i].part)) {
-      if (num >= 0) goto get_from_user;
+      if (num >= 0)
+        return ask_partition(num_parts)-1;
       num = i;
     }
   }
   (num >= 0) ? xprintf("Selected partition %d\n",num+1):
     xprintf("No partition is defined yet!\n");
   return num;
-get_from_user:
-  return ask_partition(num_parts)-1;
 }
 
 /* a try at autodetecting an empty partition table entry,
@@ -707,15 +704,14 @@ static int get_free_partition(int max)
 
   for (i = 0; i < max; i++) {
     if (is_partition_clear(partitions[i].part)) {
-      if (num >= 0) goto get_from_user;
+      if (num >= 0)
+        return ask_partition(4)-1;
       num = i;
     }
   }
   (num >= 0) ? xprintf("Selected partition %d\n",num+1):
     xprintf("All primary partitions have been defined already!\n");
   return num;
-get_from_user:
-  return ask_partition(4)-1;
 }
 
 //taking user input for partition start/end sectors/cyinders
@@ -831,12 +827,12 @@ static sector_t ask_start_sector(int idx, sector_t* begin, sector_t* end, int ex
     if (asked) valid = validate(start_index, begin, end, start, asked);
     if (valid) break;
 
-find_start_again:
-    for (i = start_index; i < num_parts; i++) 
-      if (start >= begin[i] && start <= end[i])
-        start = end[i] + 1 + ((idx >= 4)? offset : 0);
+    do {
+      for (i = start_index; i < num_parts; i++) 
+        if (start >= begin[i] && start <= end[i])
+          start = end[i] + 1 + ((idx >= 4)? offset : 0);
+    } while (!validate(start_index, begin, end, start, 0));
 
-    if (!validate(start_index, begin, end, start, 0)) goto find_start_again;
     start_cyl = start/(g_sectors * g_heads) + 1;
     limit_cyl = limit/(g_sectors * g_heads) + 1;
 
@@ -1282,37 +1278,37 @@ static void fix_order(void)
 
 static void print_menu(void)
 {
-  xprintf("a\ttoggle a bootable flag\n");
-  xprintf("b\tedit bsd disklabel\n");
-  xprintf("c\ttoggle the dos compatibility flag\n");
-  xprintf("d\tdelete a partition\n");
-  xprintf("l\tlist known partition types\n");
-  xprintf("n\tadd a new partition\n");
-  xprintf("o\tcreate a new empty DOS partition table\n");
-  xprintf("p\tprint the partition table\n");
-  xprintf("q\tquit without saving changes\n");
-  xprintf("s\tcreate a new empty Sun disklabel\n");  /* sun */
-  xprintf("t\tchange a partition's system id\n");
-  xprintf("u\tchange display/entry units\n");
-  xprintf("v\tverify the partition table\n");
-  xprintf("w\twrite table to disk and exit\n");
-  xprintf("x\textra functionality (experts only)\n");
+  xprintf("a\ttoggle a bootable flag\n"
+  "b\tedit bsd disklabel\n"
+  "c\ttoggle the dos compatibility flag\n"
+  "d\tdelete a partition\n"
+  "l\tlist known partition types\n"
+  "n\tadd a new partition\n"
+  "o\tcreate a new empty DOS partition table\n"
+  "p\tprint the partition table\n"
+  "q\tquit without saving changes\n"
+  "s\tcreate a new empty Sun disklabel\n"
+  "t\tchange a partition's system id\n"
+  "u\tchange display/entry units\n"
+  "v\tverify the partition table\n"
+  "w\twrite table to disk and exit\n"
+  "x\textra functionality (experts only)\n");
 }
 
 static void print_xmenu(void)
 {
-  xprintf("b\tmove beginning of data in a partition\n");
-  xprintf("c\tchange number of cylinders\n");
-  xprintf("d\tprint the raw data in the partition table\n");
-  xprintf("e\tlist extended partitions\n");
-  xprintf("f\tfix partition order\n");    
-  xprintf("h\tchange number of heads\n");
-  xprintf("p\tprint the partition table\n");
-  xprintf("q\tquit without saving changes\n");
-  xprintf("r\treturn to main menu\n");
-  xprintf("s\tchange number of sectors/track\n");
-  xprintf("v\tverify the partition table\n");
-  xprintf("w\twrite table to disk and exit\n");
+  xprintf("b\tmove beginning of data in a partition\n"
+  "c\tchange number of cylinders\n"
+  "d\tprint the raw data in the partition table\n"
+  "e\tlist extended partitions\n"
+  "f\tfix partition order\n"  
+  "h\tchange number of heads\n"
+  "p\tprint the partition table\n"
+  "q\tquit without saving changes\n"
+  "r\treturn to main menu\n"
+  "s\tchange number of sectors/track\n"
+  "v\tverify the partition table\n"
+  "w\twrite table to disk and exit\n");
 }
 
 static void expert_menu(void)
