@@ -5,11 +5,6 @@
 # Copyright 2013 by Kyungsu Kim <kaspyx@gmail.com>
 # Copyright 2013 by Kyungwan Han <asura321@gmail.com>
 
-# This one's tricky both because echo is a shell builtin (so $PATH is
-# irrelevant) and because the "result" field is parsed with echo -e.
-# To make it work, "$CMD" is an explicit path to the command being tested,
-# so "result" keeps using the shell builtin but we test the one in toybox.
-
 #testing "name" "command" "result" "infile" "stdin"
 
 testing "grep -c" "grep -c 123 input" "3\n" "123\ncount 123\n123\nfasdfasdf" ""
@@ -21,10 +16,12 @@ testing "grep -l" "grep -l test foo foo2 foo3" "foo\nfoo2\n" "" ""
 rm foo foo2 foo3
 
 testing "grep -q" "grep -q test input && echo yes" "yes\n" "this is a test\n" ""
-testing "grep -E" "grep -E [0-9] input" "1234123asdfas123123\n1\n" \
+testing "grep -E" "grep -E '[0-9]' input" "1234123asdfas123123\n1\n" \
   "1234123asdfas123123\nabc\n1\nabcde" ""
-testing "grep -e" "grep -e [0-9] input" "1234123asdfas123123\n1\n" \
+testing "grep -e" "grep -e '[0-9]' input" "1234123asdfas123123\n1\n" \
   "1234123asdfas123123\nabc\n1\nabcde" ""
+testing "grep -e -e" "grep -e one -e two -e three input" \
+  "two\ntwo\nthree\none\n" "two\ntwo\nthree\nand\none\n" ""
 testing "grep -F" "grep -F is input" "this is test\nthis is test2\n" \
   "this is test\nthis is test2\ntest case" ""
 
@@ -67,7 +64,8 @@ testing "grep -qs" "grep -qs abc none input && echo yes" "yes\n" "abc\n" ""
 testing "grep -hl" "grep -hl abc input" "input\n" "abc\n" ""
 testing "grep -b stdin" "grep -b one" "0:one\n4:one\n8:one\n" "" "one\none\none\n"
 testing "grep -o overlap" "grep -bo aaa" "1:aaa\n" "" "baaaa\n"
-testing "grep -co" "grep -co one input" "3\n" "one one one\n" ""
+# nonobvious: -co counts lines, not matches
+testing "grep -co" "grep -co one input" "1\n" "one one one\n" ""
 testing "grep -nom" "grep -nom 2 one" "1:one\n1:one\n1:one\n2:one\n2:one\n" \
   "" "one one one\none one\none"
 testing "grep -vo" "grep -vo one input" "twothree\n" "onetwoonethreeone\n" ""
