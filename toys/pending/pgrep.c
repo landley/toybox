@@ -1,6 +1,7 @@
 /* pgrep.c - pgrep and pkill implementation
  *
  * Copyright 2012 Madhur Verma <mad.flexi@gmail.com>
+ * Copyright 2013 Kyungwan Han <asura321@gmail.com>
  *
 
 USE_PGREP(NEWTOY(pgrep, "?P# s# xvonlf[!sP]", TOYFLAG_USR|TOYFLAG_BIN))

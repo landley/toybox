@@ -1,6 +1,7 @@
 /* klogd.c - Klogd, The kernel log Dameon.
  *
  * Copyright 2013 Sandeep Sharma <sandeep.jack2756@gmail.com>
+ * Copyright 2013 Kyungwan Han <asura321@gmail.com>
  *
  * No standard
 

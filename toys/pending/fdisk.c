@@ -1,6 +1,7 @@
 /* fdisk.c -  fdisk program to modify partitions on disk.
  *
  * Copyright 2012 Ashwini Kumar <ak.ashwini@gmail.com>
+ * Copyright 2013 Kyungwan Han <asura321@gmail.com>
  *
  * No Standard.
 

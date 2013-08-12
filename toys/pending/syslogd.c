@@ -1,6 +1,7 @@
 /* syslogd.c - a system logging utility.
  *
  * Copyright 2013 Madhur Verma <mad.flexi@gmail.com>
+ * Copyright 2013 Kyungwan Han <asura321@gmail.com>
  *
  * No Standard
 
