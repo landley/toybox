@@ -67,6 +67,7 @@ static void do_grep(int fd, char *name)
     regmatch_t matches[3];
     size_t unused;
     long len;
+    int mmatch = 0;
 
     lcount++;
     if (0 > (len = getline(&line, &unused, file))) break;
@@ -121,7 +122,7 @@ static void do_grep(int fd, char *name)
         matches[which].rm_so = 0;
       } else if (rc) break;
 
-      mcount++;
+      mmatch++;
       if (toys.optflags & FLAG_q) {
         toys.exitval = 0;
         xexit();
@@ -152,6 +153,7 @@ static void do_grep(int fd, char *name)
 
     free(line);
 
+    if (mmatch) mcount++;
     if ((toys.optflags & FLAG_m) && mcount >= TT.m) break;
   }
 
