@@ -4,9 +4,9 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/grep.html
 
-USE_GREP(NEWTOY(grep, "EFHabhinosvwclqe*f*m#", TOYFLAG_BIN))
-USE_GREP(OLDTOY(egrep, grep, "EFHabhinosvwclqe*f*m#", TOYFLAG_BIN))
-USE_GREP(OLDTOY(fgrep, grep, "EFHabhinosvwclqe*f*m#", TOYFLAG_BIN))
+USE_GREP(NEWTOY(grep, "EFHabhinosvwclqe*f*m#x[!wx][!EFw]", TOYFLAG_BIN))
+USE_GREP(OLDTOY(egrep, grep, OPTSTR_grep, TOYFLAG_BIN))
+USE_GREP(OLDTOY(fgrep, grep, OPTSTR_grep, TOYFLAG_BIN))
 
 config GREP
   bool "grep"
@@ -24,7 +24,8 @@ config GREP
     match type:
     -E  extended regex syntax    -F  fixed (match literal string)
     -i  case insensitive         -v  invert match
-    -w  whole words (implies -E) -m  stop after this many lines matched
+    -w  whole word (implies -E)  -m  stop after this many lines matched
+    -x  whole line
 
     display modes: (default: matched line)
     -c  count of matching lines  -l  show matching filenames
@@ -40,36 +41,69 @@ config GREP
 #include "toys.h"
 #include <regex.h>
 
-static regex_t re; /* fails in GLOBALS */
-
 GLOBALS(
   long m;
+  struct arg_list *f;
+  struct arg_list *e;
 
-  struct arg_list *fArgu, *eArgu;
-  char *re_xs;
+  char *regstr;
 )
 
 static void do_grep(int fd, char *name)
 {
-  FILE *file = xfdopen(fd, "r");
+  FILE *file = fdopen(fd, "r");
   long offset = 0;
   int lcount = 0, mcount = 0, which = toys.optflags & FLAG_w ? 2 : 0;
+
+  if (!file) {
+    perror_msg("%s", name);
+    return;
+  }
 
   for (;;) {
     char *line = 0, *start;
     regmatch_t matches[3];
-    size_t len;
+    size_t unused;
+    long len;
 
     lcount++;
-    if (-1 == getline(&line, &len, file)) break;
-    len = strlen(line);
-    if (len && line[len-1] == '\n') line[len-1] = 0;
+    if (0 > (len = getline(&line, &unused, file))) break;
+    if (line[len-1] == '\n') line[len-1] = 0;
+
     start = line;
 
     for (;;)
     {
-      int rc = regexec(&re, start, 3, matches, start == line ? 0 : REG_NOTBOL);
-      int skip = matches[which].rm_eo;
+      int rc = 0, skip = 0;
+
+      if (toys.optflags & FLAG_F) {
+        struct arg_list *seek;
+        char *s = 0;
+
+        for (seek = TT.e; seek; seek = seek->next) {
+
+          if (toys.optflags & FLAG_i) {
+            long ll = strlen(seek->arg);;
+
+            // Alas, posix hasn't got strcasestr()
+            for (s = line; *s; s++) if (!strncasecmp(s, seek->arg, ll)) break;
+            if (!*s) s = 0;
+          } else s = strstr(line, seek->arg);
+          if (s) break;
+        }
+
+        if (s) {
+          matches[which].rm_so = (s-line);
+          skip = matches[which].rm_eo = (s-line)+strlen(seek->arg);
+        } else rc = 1;
+      } else {
+        rc = regexec((regex_t *)toybuf, start, 3, matches,
+                     start==line ? 0 : REG_NOTBOL);
+        skip = matches[which].rm_eo;
+      }
+
+      if (toys.optflags & FLAG_x)
+        if (matches[which].rm_so || line[matches[which].rm_eo]) rc = 1;
 
       if (toys.optflags & FLAG_v) {
         if (toys.optflags & FLAG_o) {
@@ -83,7 +117,7 @@ static void do_grep(int fd, char *name)
           matches[which].rm_eo = strlen(start);
         }
         matches[which].rm_so = 0;
-      } else if (rc) break; 
+      } else if (rc) break;
 
       mcount++;
       if (toys.optflags & FLAG_q) {
@@ -128,72 +162,53 @@ static void do_grep(int fd, char *name)
   fclose(file);
 }
 
-char *regfix(char *re_xs)
+static void parse_regex(void)
 {
-  char *re_ys;
-  int ii, jj = 0;
+  struct arg_list *al;
+  long len = 0;
+  char *s, *ss;
 
-  re_ys = xmalloc(2*strlen (re_xs) + 1);
-  for (ii = 0; re_xs[ii]; ii++) {
-    if (strchr("^.[]$()|*+?{}\\", re_xs[ii])) re_ys[jj++] = '\\';
-    re_ys[jj++] = re_xs[ii];
-  }
-  re_ys[jj] = 0;
+  // Add all -f lines to -e list. (Yes, this is leaking allocation context for
+  // exit to free. Not supporting nofork for this command any time soon.)
+  for (al = TT.f; al; al = al->next) {
+    s = ss = xreadfile(al->arg);
 
-  return re_ys;
-}
-
-void addRE(char *x)
-{
-  if (toys.optflags & FLAG_F) x = regfix(x);
-  if (TT.re_xs) TT.re_xs = xastrcat(TT.re_xs, "|");
-  TT.re_xs = xastrcat(TT.re_xs, x);
-  if (toys.optflags & FLAG_F) free(x);
-}
-
-void buildRE(void)
-{
-  for (; TT.eArgu; TT.eArgu = TT.eArgu -> next) addRE(TT.eArgu -> arg);
-  for (; TT.fArgu; TT.fArgu = TT.fArgu -> next) {
-    FILE *f;
-    char *x, *y;
-    size_t l;
-
-    f = xfopen(TT.fArgu -> arg, "r");
-    x = 0;
-    for (;;) {
-      if (getline (&x, &l, f) < 0) {
-        if (feof(f)) break;
-        toys.exitval = 2;
-        perror_exit("failed to read");
-      }
-      y = x + strlen(x) - 1;
-      if (y[0] == '\n') y[0] = 0;
-
-      addRE(x);
+    while (ss && *s) {
+      ss = strchr(s, '\n');
+      if (ss) *ss = 0;
+      al = xmalloc(sizeof(struct arg_list));
+      al->next = TT.e;
+      al->arg = s;
+      TT.e = al;
+      s = ss;
     }
-    free(x);
-    fclose(f);
   }
 
-  if (!TT.re_xs) {
-    if (toys.optc < 1) {
-      toys.exitval = 2;
-      error_exit("no RE");
+  if (!(toys.optflags & FLAG_F)) {
+    int w = toys.optflags & FLAG_w;
+
+    // Convert strings to one big regex string.
+    for (al = TT.e; al; al = al->next) len += strlen(al->arg)+1;
+    if (w) len = 36;
+
+    TT.regstr = s = xmalloc(len);
+    if (w) s = stpcpy(s, "(^|[^_[:alnum:]])(");
+    for (al = TT.e; al; al = al->next) {
+      s = stpcpy(s, al->arg);
+      *(s++) = '|';
     }
-    TT.re_xs = (toys.optflags & FLAG_F) ? regfix(toys.optargs[0])
-        : toys.optargs[0];
-    toys.optc--; toys.optargs++;
-  }
+    *(--s) = 0;
+    if (w) strcpy(s, ")($|[^_[:alnum:]])");
 
-  TT.re_xs = xmsprintf((toys.optflags & FLAG_w)
-      ? "(^|[^_[:alnum:]])(%s)($|[^_[:alnum:]])" : "%s", TT.re_xs);
+    w = regcomp((regex_t *)toybuf, TT.regstr,
+                ((toys.optflags & FLAG_E) ? REG_EXTENDED : 0) |
+                ((toys.optflags & FLAG_i) ? REG_ICASE    : 0));
 
-  if (regcomp(&re, TT.re_xs,
-               ((toys.optflags & (FLAG_E | FLAG_F)) ? REG_EXTENDED : 0) |
-               ((toys.optflags &  FLAG_i)           ? REG_ICASE    : 0)) != 0) {
-    toys.exitval = 2;
-    error_exit("bad RE");
+    if (w) {
+      regerror(w, (regex_t *)toybuf, toybuf+sizeof(regex_t),
+               sizeof(toybuf)-sizeof(regex_t));
+      error_exit("bad REGEX: %s", toybuf);
+    }
   }
 }
 
@@ -204,7 +219,14 @@ void grep_main(void)
     toys.optflags |= FLAG_E;
   if (*toys.which->name == 'f') toys.optflags |= FLAG_F;
 
-  buildRE();
+  if (!TT.e && !TT.f) {
+    if (!*toys.optargs) error_exit("no REGEX");
+    TT.e = xzalloc(sizeof(struct arg_list));
+    TT.e->arg = *(toys.optargs++);
+    toys.optc--;
+  }
+
+  parse_regex();
 
   if (!(toys.optflags & FLAG_H) && (toys.optc < 2)) toys.optflags |= FLAG_h;
 
