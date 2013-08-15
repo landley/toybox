@@ -63,6 +63,7 @@
 #define NEWTOY(name, opts, flags) void name##_main(void);
 #define OLDTOY(name, oldname, opts, flags)
 #include "generated/newtoys.h"
+#include "generated/oldtoys.h"
 #include "generated/globals.h"
 
 // These live in main.c
