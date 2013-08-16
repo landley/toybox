@@ -7,12 +7,12 @@
 USE_DF(NEWTOY(df, "Pkt*a", TOYFLAG_USR|TOYFLAG_SBIN))
 
 config DF
-  bool "df (disk free)"
+  bool "df"
   default y
   help
     usage: df [-t type] [FILESYSTEM ...]
 
-    The "disk free" command, df shows total/used/available disk space for
+    The "disk free" command shows total/used/available disk space for
     each filesystem listed on the command line, or all currently mounted
     filesystems.
 
