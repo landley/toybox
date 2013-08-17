@@ -1,0 +1,52 @@
+#!/bin/bash
+
+#################################################################################################################
+# cut.test                                                                                                      #
+# This script is part of toybox test suite, for cut command                                                     #
+#                                                                                                               #
+# Copyright 2013  Robin Mittal <robinmittal.it@gmail.com> and Divya Kothari <divya.s.kothari@gmail.com>		#
+# Copyright 2013  Kyungwan.Han <asura321@gmail.com>								#
+# How to run - ./script/test.sh cut                                                                             #
+#################################################################################################################
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+#set -x
+
+# Creating test file for testing cut
+echo "one:two:three:four:five:six:seven
+alpha:beta:gamma:delta:epsilon:zeta:eta:teta:iota:kappa:lambda:mu
+the quick brown fox jumps over the lazy dog" >abc.txt
+
+testing "cut with -c (a-b)" "cut -c 4-10 abc.txt" ":two:th\nha:beta\n quick \n" "" ""
+testing "cut with -f (a-)" "cut -d ':' -f 5- abc.txt" "five:six:seven\nepsilon:zeta:eta:teta:iota:kappa:lambda:mu\nthe quick brown fox jumps over the lazy dog\n" "" ""
+
+testing "cut with -f (a)" "cut -d ' ' -f 3 abc.txt" "one:two:three:four:five:six:seven\nalpha:beta:gamma:delta:epsilon:zeta:eta:teta:iota:kappa:lambda:mu\nbrown\n" "" ""
+
+testing "cut with echo, -c (a-b)" "echo 'ref_categorie=test' | cut -c 1-15 " "ref_categorie=t\n" "" ""
+testing "cut with echo, -c (a)" "echo 'ref_categorie=test' | cut -c 14" "=\n" "" ""
+
+# Modifying abc.txt data as per new testcase
+echo "abcdefghijklmnopqrstuvwxyz" >abc.txt
+
+testing "cut with -c (a,b,c)" "cut -c 4,5,20 abc.txt" "det\n" "" ""
+
+testing "cut with -b (a,b,c)" "cut -b 4,5,20 abc.txt" "det\n" "" ""
+
+# Modifying abc.txt data as per testcase
+echo "406378:Sales:Itorre:Jan
+031762:Marketing:Nasium:Jim
+636496:Research:Ancholie:Mel
+396082:Sales:Jucacion:Ed" >abc.txt
+
+testing "cut with -d -f(:) -s" "cut -d: -f3 -s abc.txt" "Itorre\nNasium\nAncholie\nJucacion\n" "" ""
+
+testing "cut with -d -f( ) -s" "cut -d' ' -f3 -s abc.txt && echo yes" "yes\n" "" ""
+
+testing "cut with -d -f(a) -s" "cut -da -f3 -s abc.txt" "n\nsium:Jim\n\ncion:Ed\n" "" ""
+
+testing "cut with -d -f(a) -s -n" "cut -da -f3 -s -n abc.txt" "n\nsium:Jim\n\ncion:Ed\n" "" ""
+
+# Removing abc.txt file for cleanup purpose
+rm abc.txt
