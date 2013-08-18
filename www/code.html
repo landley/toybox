@@ -1,6 +1,6 @@
 <!--#include file="header.html" -->
 
-<p><h1>Code style</h1></p>
+<p><h1><a name="style" /><a href="#style">Code style</a></h1></p>
 
 <p>The primary goal of toybox is _simple_ code. Keeping the code small is
 second, with speed and lots of features coming in somewhere after that.
@@ -23,7 +23,7 @@ at the end of the function.  Goto labels are never indented: they override the
 block structure of the file.  Putting them at the left edge makes them easy
 to spot as overrides to the normal flow of control, which they are.</p>
 
-<p><h1>Building Toybox:</h1></p>
+<p><h1><a name="building" /><a href="#building">Building Toybox</a></h1></p>
 
 <p>Toybox is configured using the Kconfig language pioneered by the Linux
 kernel, and adopted by many other projects (uClibc, OpenEmbedded, etc).
@@ -55,7 +55,53 @@ to the environment will take precedence.</p>
 <p>(To clarify: "configure" describes the build and installation environment,
 ".config" lists the features selected by defconfig/menuconfig.)</p>
 
-<p><h1>Infrastructure:</h1></p>
+<p><h1><a name="running"><a href="#running">Running a command</a></h1></p>
+
+<h2>main</h2>
+
+<p>The toybox main() function is at the end of main.c at the top level. It has
+two possible codepaths, only one of which is configured into any given build
+of toybox.</p>
+
+<p>If CONFIG_SINGLE is selected, toybox is configured to contain only a single
+command, so most of the normal setup can be skipped. In this case the
+multiplexer isn't used, instead main() calls toy_singleinit() (also in main.c)
+to set up global state and parse command line arguments, calls the command's
+main function out of toy_list (in the CONFIG_SINGLE case the array has a single entry, no need to search), and if the function returns instead of exiting
+it flushes stdout (detecting error) and returns toys.exitval.</p>
+
+<p>When CONFIG_SINGLE is not selected, main() uses basename() to find the
+name it was run as, shifts its argument list one to the right so it lines up
+with where the multiplexer function expects it, and calls toybox_main(). This
+leverages the multiplexer command's infrastructure to find and run the
+appropriate command. (A command name starting with "toybox" will
+recursively call toybox_main(); you can go "./toybox toybox toybox toybox ls"
+if you want to...)</p>
+
+<h2>toybox_main</h2>
+
+<p>The toybox_main() function is also in main,c. It handles a possible
+--help option ("toybox --help ls"), prints the list of available commands if no
+arguments were provided to the multiplexer (or with full path names if any
+other option is provided before a command name, ala "toybox --list").
+Otherwise it calls toy_exec() on its argument list.</p>
+
+<p>Note that the multiplexer is the first entry in toy_list (the rest of the
+list is sorted alphabetically to allow binary search), so toybox_main can
+cheat and just grab the first entry to quickly set up its context without
+searching. Since all command names go through the multiplexer at least once
+in the non-TOYBOX_SINGLE case, this avoids a redundant search of
+the list.</p>
+
+<p>The toy_exec() function is also in main.c. It performs toy_find() to
+perform a binary search on the toy_list array to look up the command's
+entry by name and saves it in the global variable which, calls toy_init()
+to parse command line arguments and set up global state (using which->options),
+and calls the appropriate command's main() function (which->toy_main). On
+return it flushes all pending ansi FILE * I/O, detects if stdout had an
+error, and then calls xexit() (which uses toys.exitval).</p>
+
+<p><h1><a name="infrastructure" /><a href="#infrastructure">Infrastructure</a></h1></p>
 
 <p>The toybox source code is in following directories:</p>
 <ul>
