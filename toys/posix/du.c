@@ -63,7 +63,7 @@ static void print(long long size, struct dirtree *node)
     if (sz < 10) {
       sprintf(buf, "%llu", size>>(10*(index-1)));
       printf("%c.%c", buf[0], buf[1]);
-    } else printf("%llu", sz);
+    } else printf("%d", sz);
     if (index) printf("%c", " KMGTPE"[index]);
   } else {
     int bits = 10;
