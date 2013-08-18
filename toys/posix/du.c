@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/du.html
 
-USE_DU(NEWTOY(du, "d#<0hmlcaHkLsx", TOYFLAG_USR|TOYFLAG_BIN))
+USE_DU(NEWTOY(du, "d#<0hmlcaHkKLsx[-HL][-kKmh]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config DU
   bool "du"
@@ -12,18 +12,23 @@ config DU
   help
     usage: du [-d N] [-askxHLlmc] [file...]
 
-    Estimate file space usage (default in unit of 512 blocks).
-    -a    Show all file sizes
-    -H    Follow symlinks on cmdline
-    -L    Follow all symlinks
-    -k    Show size in units of 1024.
-    -s    Show only the total Size for each file specified
-    -x    Estimate size only on the same device
-    -c    Print total size of all arguments
-    -d N  Limit output to directories (and files with -a) of depth < N
-    -l    Count sizes many times if hard linked
-    -h    Sizes in human readable format (e.g., 1K 243M 2G )
-    -m    Sizes in megabytes
+    Show disk usage, space consumed by files and directories.
+
+    Size in:
+    -k    1024 byte blocks (default)
+    -K    512 byte blocks (posix)
+    -m    megabytes
+    -h    human readable format (e.g., 1K 243M 2G )
+
+    What to show:
+    -a    all files, not just directories
+    -H    follow symlinks on cmdline
+    -L    follow all symlinks
+    -s    only total size of each argument
+    -x    don't leave this filesystem
+    -c    cumulative total
+    -d N  only depth < N
+    -l    disable hardlink filter
 */
 
 #define FOR_du
@@ -31,185 +36,131 @@ config DU
 
 GLOBALS(
   long maxdepth;
-  long depth;
-  long *dirsum;
-  long total;
+
+  long depth, total;
   dev_t st_dev;
-  struct arg_list *inodes;
+  void *inodes;
 )
 
 typedef struct node_size {
   struct dirtree *node;
   long size;
-}node_size;
+} node_size;
 
-typedef struct inode_ent {
-  ino_t ino;
-  dev_t dev;
-}inode_ent_t;
-
-/*
- * Adding '/' to the name if name is '.' or '..'
- */
-
-char *make_pathproper(char *str)
+// Print the size and name, given size in bytes
+static void print(long long size, struct dirtree *node)
 {
-  char *path = str;
-  switch(strlen(str)) {
-    case 1:
-      if(str[0] == '.') path = xstrdup("./");
-      break;
-    case 2:
-      if(str[0] == '.' && str[1] == '.') path = xstrdup("../");
-      break;
-    default:
-      break;
+  char *name = "total";
+
+  if (TT.maxdepth && TT.depth > TT.maxdepth) return;
+
+  if (toys.optflags & FLAG_h) {
+    char buf[32];
+    int index, sz;
+
+    for (index = 0; 1024 < size>>(10*index); index++);
+    sz = size>>(10*index);
+    if (sz < 10) {
+      sprintf(buf, "%llu", size>>(10*(index-1)));
+      printf("%c.%c", buf[0], buf[1]);
+    } else printf("%llu", sz);
+    if (index) printf("%c", " KMGTPE"[index]);
+  } else {
+    int bits = 10;
+
+    if (toys.optflags & FLAG_K) bits = 9;
+    else if (toys.optflags & FLAG_m) bits = 20;
+
+    printf("%llu", (size>>bits)+!!(size&((1<<bits)-1)));
   }
-  return path;
+  if (node) name = dirtree_path(node, NULL);
+  xprintf("\t%s\n", name);
+  if (node) free(name);
 }
 
-/*
- * Print the size of the given entry in specified format, default in blocks of 512 bytes
- */
-void print(long size, char* name)
+// Return whether or not we've seen this inode+dev, adding it to the list if
+// we haven't.
+static int seen_inode(void **list, struct stat *st)
 {
-  unsigned long long tempsize = (unsigned long long)size * 512;
-  unsigned long unit = 512;
-  char *sizestr = NULL;
-  if(TT.depth > TT.maxdepth) return;
-  if(toys.optflags & FLAG_h) unit = 0;
-  if(toys.optflags & FLAG_k) unit = 1024;
-  if(toys.optflags & FLAG_m) unit = 1024*1024;
-  sizestr =  make_human_readable(tempsize, unit); //make human readable string, depending upon unit size.
-  xprintf("%s\t%s\n",sizestr, name);
-  free(sizestr);
-}
+  if (!st) llist_traverse(st, free);
 
-/*
- * free the inodes which are stored for hard link reference
- */
-void free_inodes(void *data)
-{
-  void *arg = ((struct arg_list*)data)->arg;
-  if(arg) free(arg);
-  free(data);
-}
+  // Skipping dir nodes isn't _quite_ right. They're not hardlinked, but could
+  // be bind mounted. Still, it's more efficient and the archivers can't use
+  // hardlinked directory info anyway. (Note that we don't catch bind mounted
+  // _files_ because it doesn't change st_nlink.)
+  else if (!S_ISDIR(st->st_mode) && st->st_nlink > 1) {
+    struct inode_list {
+      struct inode_list *next;
+      ino_t ino;
+      dev_t dev;
+    } *new;
 
-/*
- * allocate and add a node to the list
- */
-static void llist_add_inode(struct arg_list **old, void *data)
-{
-  struct arg_list *new = xmalloc(sizeof(struct arg_list));
+    for (new = *list; new; new = new->next)
+      if(new->ino == st->st_ino && new->dev == st->st_dev)
+        return 1;
 
-  new->arg = (char*)data;
-  new->next = *old;
-  *old = new;
-}
-
-/*
- * check if the given stat entry is already there in list or not
- */
-int is_inode_present(struct stat *st)
-{
-  struct arg_list *temparg = NULL;
-  inode_ent_t *ent = NULL;
-  if(!TT.inodes) return 0;
-  for(temparg = TT.inodes; temparg; temparg = (struct arg_list *)temparg->next) {
-    ent = (inode_ent_t*)temparg->arg;
-    if(ent && ent->ino == st->st_ino && ent->dev == st->st_dev) return 1;
+    new = xzalloc(sizeof(*new));
+    new->ino = st->st_ino;
+    new->dev = st->st_dev;
+    new->next = *list;
+    *list = new;
   }
+
   return 0;
 }
 
-/*
- * Compute the size of the node
- */
-int do_du(struct dirtree *node)
+// dirtree callback, comput/display size of node
+static int do_du(struct dirtree *node)
 {
-  inode_ent_t *ino_details = NULL;
-  node_size *nd = NULL;
-  if(!dirtree_notdotdot(node)) return 0;
-  if((toys.optflags & FLAG_x) && (TT.st_dev != node->st.st_dev)) //if file not on same device, don't count size
-    return DIRTREE_RECURSE;
+  if (node->parent && !dirtree_notdotdot(node)) return 0;
 
-  if(!(toys.optflags & FLAG_l) && node->st.st_nlink > 1 && !node->extra) { //keeping reference for hard links
-    if(is_inode_present(&node->st)) return DIRTREE_RECURSE;
-    ino_details = xzalloc(sizeof(inode_ent_t));
-    ino_details->ino = node->st.st_ino;
-    ino_details->dev = node->st.st_dev;
-    llist_add_inode(&TT.inodes, (void*)ino_details);
-  }
-
-  if(S_ISDIR(node->st.st_mode)) {
-    if(!(node->extra && (long)((node_size*)(node->extra))->node == (long)node)) {
-      nd = xzalloc(sizeof(node_size));
-      nd->node = node;
-      nd->size = 0;
-      TT.dirsum = (long*)&(nd->size);
-      node->extra = (long)nd;
-      *TT.dirsum = 0;
-      TT.depth++;
-      return (DIRTREE_RECURSE|DIRTREE_COMEAGAIN | ((toys.optflags & FLAG_L) ? DIRTREE_SYMFOLLOW : 0)); //DIRTREE_COMEAGAIN to comeback and print the entry.
-    }
-    else if(node->extra) { //extra is set for a returning DIR entry.
-      long offset = 0;
-      nd = (node_size*)node->extra;
-      offset = nd->size;
-      nd->size += node->st.st_blocks;
-      TT.depth--;
-      if(!(toys.optflags & FLAG_s))
-        print(*TT.dirsum, dirtree_path(node, NULL));
-      if((node->parent) && (node->parent->extra)) {
-        /* when returning from internal directory, get the saved size of the parent and continue from there */
-        nd = (node_size*)node->parent->extra;
-        TT.dirsum = (long*)&(nd->size);
-        *TT.dirsum += offset;
-        *TT.dirsum += node->st.st_blocks;
-        return DIRTREE_RECURSE;
-      }
-      else if(!node->parent) {
-        /*if node has no parent, it means it is the top in the tree, stop recursing here */
-        TT.total += *TT.dirsum;
-        if((toys.optflags & FLAG_s))
-          print(*TT.dirsum, dirtree_path(node, NULL));
-        return 0;
-      }
-    }
-  }
-  else if(!(node->parent)) {
-    /* this is the file specified on cmdline */
-    TT.total += node->st.st_blocks;
-    print(node->st.st_blocks, dirtree_path(node, NULL));
+  // detect swiching filesystems
+  if ((toys.optflags & FLAG_x) && (TT.st_dev != node->st.st_dev))
     return 0;
+
+  // Don't count hard links twice
+  if (!(toys.optflags & FLAG_l) && node->data != -1)
+    if (seen_inode(&TT.inodes, &node->st)) return 0;
+
+  // Collect child info before printing directory size
+  if (S_ISDIR(node->st.st_mode)) {
+    if (node->data != -1) {
+      TT.depth++;
+      return DIRTREE_COMEAGAIN | (DIRTREE_SYMFOLLOW*!!(toys.optflags & FLAG_L));
+    } else TT.depth--;
   }
-  if(TT.dirsum) *TT.dirsum += node->st.st_blocks;
-  if(toys.optflags & FLAG_a && !(toys.optflags & FLAG_s))
-    print(node->st.st_blocks, dirtree_path(node, NULL));
-  return DIRTREE_RECURSE;
+
+  node->extra += node->st.st_blocks;
+  if (node->parent) node->parent->extra += node->extra;
+  else TT.total += node->extra;
+
+  if ((toys.optflags & FLAG_a) || !node->parent
+      || (S_ISDIR(node->st.st_mode) && !(toys.optflags & FLAG_s)))
+  {
+    print(node->extra*512, node);
+  }
+
+  return 0;
 }
 
-/*
- * DU utility main function
- */
 void du_main(void)
 {
-  int symfollow = toys.optflags & (FLAG_H | FLAG_L);
-  TT.total = 0;
-  TT.inodes = NULL;
+  char *noargs[] = {".", 0};
+  struct dirtree *root;
 
-  if(!(toys.optflags & FLAG_d)) TT.maxdepth = INT_MAX;
-  if(toys.optc == 0) toys.optargs[0] = "./";
-  while(*toys.optargs) {
-    TT.depth = 0;
-    char *path = make_pathproper(*toys.optargs);
-    struct dirtree *root = dirtree_add_node(0, path, symfollow);
-    if(root) {
+  if (!toys.optc) toys.optargs = noargs;
+
+  // Loop over command line arguments, recursing through children
+  while (*toys.optargs) {
+    root = dirtree_add_node(0, *toys.optargs, toys.optflags & (FLAG_H|FLAG_L));
+
+    if (root) {
       TT.st_dev = root->st.st_dev;
-      dirtree_handle_callback(root, do_du); // recurse thru the DIR children.
+      dirtree_handle_callback(root, do_du);
     }
     toys.optargs++;
   }
-  if(TT.inodes) llist_traverse(TT.inodes, free_inodes); //free the stored nodes
-  if(toys.optflags & FLAG_c) print(TT.total, "total");
+  if (toys.optflags & FLAG_c) print(TT.total*512, 0);
+
+  if (CFG_TOYBOX_FREE) seen_inode(TT.inodes, 0);
 }
