@@ -12,7 +12,7 @@ config TOUCH
   bool "touch"
   default y
   help
-    Usage: Usage: touch [OPTION]... FILE...
+    usage: touch [OPTION]... FILE...
 
     Update the access and modification times of each FILE to the current time.
 

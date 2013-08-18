@@ -10,12 +10,14 @@ config TTY
   bool "tty"
   default y
   help
+    usage: tty [-s]
+
     Show filename of terminal connected to stdin.
 
     Prints "not a tty" and exits with nonzero status if no terminal
     is connected to stdin.
 
-    -s	silent mode
+    -s	silent, exit code only
 */
 
 #include "toys.h"
