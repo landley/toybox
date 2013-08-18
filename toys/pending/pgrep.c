@@ -5,7 +5,7 @@
  *
 
 USE_PGREP(NEWTOY(pgrep, "?P# s# xvonlf[!sP]", TOYFLAG_USR|TOYFLAG_BIN))
-USE_PGREP(OLDTOY(pkill, pgrep, "?P# s# xvonlf[!sP]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PGREP(OLDTOY(pkill, pgrep, OPTSTR_pgrep, TOYFLAG_USR|TOYFLAG_BIN))
 
 config PGREP
   bool "pgrep"

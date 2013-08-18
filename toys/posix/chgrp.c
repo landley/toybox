@@ -8,7 +8,7 @@
  * TODO: group only one of [HLP]
 
 USE_CHGRP(NEWTOY(chgrp, "<2hPLHRfv", TOYFLAG_BIN))
-USE_CHGRP(OLDTOY(chown, chgrp, "<2hPLHRfv", TOYFLAG_BIN))
+USE_CHGRP(OLDTOY(chown, chgrp, OPTSTR_chgrp, TOYFLAG_BIN))
 
 config CHGRP
   bool "chgrp/chown"
