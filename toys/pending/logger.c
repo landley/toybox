@@ -8,51 +8,23 @@ USE_LOGGER(NEWTOY(logger, "st:p:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config LOGGER
   bool "logger"
+  depends on SYSLOGD
   default n
   help
-    usage: hello [-s] [-t tag] [-p [facility.]priority] [message]
+    usage: logger [-s] [-t tag] [-p [facility.]priority] [message]
 
     Log message (or stdin) to syslog.
 */
 
 #define FOR_logger
 #include "toys.h"
-#include <syslog.h>
 
 GLOBALS(
   char *priority_arg;
   char *ident;
 )
 
-struct mapping {
-  char *key;
-  int value;
-};
-
-static struct mapping facilities[] = {
-  {"user", LOG_USER}, {"main", LOG_MAIL}, {"news", LOG_NEWS},
-  {"uucp", LOG_UUCP}, {"daemon", LOG_DAEMON}, {"auth", LOG_AUTH},
-  {"cron", LOG_CRON}, {"lpr", LOG_LPR}, {"local0", LOG_LOCAL0},
-  {"local1", LOG_LOCAL1}, {"local2", LOG_LOCAL2}, {"local3", LOG_LOCAL3},
-  {"local4", LOG_LOCAL4}, {"local5", LOG_LOCAL5}, {"local6", LOG_LOCAL6},
-  {"local7", LOG_LOCAL7},
-  {NULL, 0}
-};
-
-static struct mapping priorities[] = {
-  {"emerg", LOG_EMERG}, {"alert", LOG_ALERT}, {"crit", LOG_CRIT},
-  {"err", LOG_ERR}, {"warning", LOG_WARNING}, {"notice", LOG_NOTICE},
-  {"info", LOG_INFO}, {"debug", LOG_DEBUG},
-  {NULL, 0}
-};
-
-static int lookup(struct mapping *where, char *key)
-{
-  for (; where->key; where++)
-    if (!strcasecmp(key, where->key)) return where->value;
-
-  return -1;
-}
+extern int logger_lookup(int where, char *key);
 
 void logger_main(void)
 {
@@ -64,12 +36,12 @@ void logger_main(void)
 
     if (sep) {
       *sep = '\0';
-      if ((facility = lookup(facilities, TT.priority_arg)) == -1)
+      if ((facility = logger_lookup(0, TT.priority_arg)) == -1)
         error_exit("bad facility: %s", TT.priority_arg);
       TT.priority_arg = sep+1;
     }
 
-    if ((priority = lookup(priorities, TT.priority_arg)) == -1)
+    if ((priority = logger_lookup(1, TT.priority_arg)) == -1)
       error_exit("bad priority: %s", TT.priority_arg);
   }
 
