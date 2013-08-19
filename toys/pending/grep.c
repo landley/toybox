@@ -4,7 +4,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/grep.html
 
-USE_GREP(NEWTOY(grep, "EFHabhinosvwclqe*f*m#x[!wx][!EFw]", TOYFLAG_BIN))
+USE_GREP(NEWTOY(grep, "EFHabhinorsvwclqe*f*m#x[!wx][!EFw]", TOYFLAG_BIN))
 USE_GREP(OLDTOY(egrep, grep, OPTSTR_grep, TOYFLAG_BIN))
 USE_GREP(OLDTOY(fgrep, grep, OPTSTR_grep, TOYFLAG_BIN))
 
@@ -23,9 +23,9 @@ config GREP
 
     match type:
     -E  extended regex syntax    -F  fixed (match literal string)
-    -i  case insensitive         -v  invert match
-    -w  whole word (implies -E)  -m  stop after this many lines matched
-    -x  whole line
+    -i  case insensitive         -m  stop after this many lines matched
+    -r  recursive (on dir)       -v  invert match
+    -w  whole word (implies -E)  -x  whole line
 
     display modes: (default: matched line)
     -c  count of matching lines  -l  show matching filenames
@@ -46,7 +46,7 @@ GLOBALS(
   struct arg_list *f;
   struct arg_list *e;
 
-  char *regstr;
+  struct arg_list *regex;
 )
 
 static void do_grep(int fd, char *name)
@@ -80,11 +80,15 @@ static void do_grep(int fd, char *name)
       int rc = 0, skip = 0;
 
       if (toys.optflags & FLAG_F) {
-        struct arg_list *seek;
+        struct arg_list *seek, fseek;
         char *s = 0;
 
         for (seek = TT.e; seek; seek = seek->next) {
-
+          if (!*seek->arg) {
+            seek = &fseek;
+            fseek.arg = s = line;
+            break;
+          }
           if (toys.optflags & FLAG_i) {
             long ll = strlen(seek->arg);;
 
@@ -133,8 +137,12 @@ static void do_grep(int fd, char *name)
         fclose(file);
         return;
       }
+      if (toys.optflags & FLAG_o)
+        if (matches[which].rm_eo == matches[which].rm_so)
+          break;
+
       if (!(toys.optflags & FLAG_c)) {
-        if (!(toys.optflags & FLAG_h)) printf("%s:", name);
+        if (toys.optflags & FLAG_H) printf("%s:", name);
         if (toys.optflags & FLAG_n) printf("%d:", lcount);
         if (toys.optflags & FLAG_b)
           printf("%ld:", offset + (start-line) +
@@ -158,7 +166,7 @@ static void do_grep(int fd, char *name)
   }
 
   if (toys.optflags & FLAG_c) {
-    if (!(toys.optflags & FLAG_h)) printf("%s:", name);
+    if (toys.optflags & FLAG_H) printf("%s:", name);
     xprintf("%d\n", mcount);
   }
 
@@ -179,7 +187,7 @@ static void parse_regex(void)
     if (TT.f) s = ss = xreadfile(al->arg);
     else s = ss = al->arg;
 
-    while (ss && *s) {
+    do {
       ss = strchr(s, '\n');
       if (ss) *(ss++) = 0;
       new = xmalloc(sizeof(struct arg_list));
@@ -187,7 +195,7 @@ static void parse_regex(void)
       new->arg = s;
       list = new;
       s = ss;
-    }
+    } while (ss && *s);
     al = al->next;
     if (!al && TT.f) {
       TT.f = 0;
@@ -198,12 +206,13 @@ static void parse_regex(void)
 
   if (!(toys.optflags & FLAG_F)) {
     int w = toys.optflags & FLAG_w;
+    char *regstr;
 
     // Convert strings to one big regex
     if (w) len = 36;
     for (al = TT.e; al; al = al->next) len += strlen(al->arg)+1;
 
-    TT.regstr = s = xmalloc(len);
+    regstr = s = xmalloc(len);
     if (w) s = stpcpy(s, "(^|[^_[:alnum:]])(");
     for (al = TT.e; al; al = al->next) {
       s = stpcpy(s, al->arg);
@@ -213,7 +222,7 @@ static void parse_regex(void)
     *(s-=(1+!(toys.optflags & FLAG_E))) = 0;
     if (w) strcpy(s, ")($|[^_[:alnum:]])");
 
-    w = regcomp((regex_t *)toybuf, TT.regstr,
+    w = regcomp((regex_t *)toybuf, regstr,
                 ((toys.optflags & FLAG_E) ? REG_EXTENDED : 0) |
                 ((toys.optflags & FLAG_i) ? REG_ICASE    : 0));
 
@@ -225,8 +234,27 @@ static void parse_regex(void)
   }
 }
 
+static int do_grep_r(struct dirtree *new)
+{
+  char *name;
+
+  if (new->parent && !dirtree_notdotdot(new)) return 0;
+  if (S_ISDIR(new->st.st_mode)) return DIRTREE_RECURSE;
+
+  // "grep -r onefile" doesn't show filenames, but "grep -r onedir" should.
+  if (new->parent && !(toys.optflags & FLAG_h)) toys.optflags |= FLAG_H;
+
+  name = dirtree_path(new, 0);
+  do_grep(openat(dirtree_parentfd(new), new->name, 0), name);
+  free(name);
+
+  return 0;
+}
+
 void grep_main(void)
 {
+  char **ss;
+
   // Handle egrep and fgrep
   if (*toys.which->name == 'e' || (toys.optflags & FLAG_w))
     toys.optflags |= FLAG_E;
@@ -241,13 +269,18 @@ void grep_main(void)
 
   parse_regex();
 
-  if (!(toys.optflags & FLAG_H) && (toys.optc < 2)) toys.optflags |= FLAG_h;
+  if (!(toys.optflags & FLAG_h) && toys.optc>1) toys.optflags |= FLAG_H;
 
   toys.exitval = 1;
   if (toys.optflags & FLAG_s) {
     close(2);
     xopen("/dev/null", O_RDWR);
   }
-  loopfiles_rw(toys.optargs, O_RDONLY, 0, 1, do_grep);
-  xexit();
+
+  if (toys.optflags & FLAG_r) {
+    for (ss=toys.optargs; *ss; ss++) {
+      if (!strcmp(*ss, "-")) do_grep(0, *ss);
+      else dirtree_read(*ss, do_grep_r);
+    }
+  } else loopfiles_rw(toys.optargs, O_RDONLY, 0, 1, do_grep);
 }

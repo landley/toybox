@@ -68,7 +68,7 @@ testing "grep -o overlap" "grep -bo aaa" "1:aaa\n" "" "baaaa\n"
 testing "grep -co" "grep -co one input" "1\n" "one one one\n" ""
 testing "grep -nom" "grep -nom 2 one" "1:one\n1:one\n1:one\n2:one\n2:one\n" \
   "" "one one one\none one\none"
-testing "grep -vo" "grep -vo one input" "twothree\n" "onetwoonethreeone\n" ""
+testing "grep -vo" "grep -vo one input" "two\nthree\n" "onetwoonethreeone\n" ""
 testing "grep no newline" "grep -h one input -" \
   "hello one\nthere one\n" "hello one" "there one"
 
@@ -78,10 +78,21 @@ testing "grep -e multi" "grep -e one -ethree input" \
 mkdir sub
 echo -e "one\ntwo\nthree" > sub/one
 echo -e "three\ntwo\none" > sub/two
-testing "grep -r" "grep -hr one sub" "one\none\n" "" ""
+testing "grep -hr" "grep -hr one sub" "one\none\n" "" ""
+testing "grep -r file" "grep -r three sub/two" "three\n" "" ""
+testing "grep -r dir" "grep -r one sub | sort" "sub/one:one\nsub/two:one\n" \
+  "" ""
 rm -rf sub
 
-testing "grep -Fx ''" "grep -Fx '' input" "" "one one one\n" ""
+# Not sure if -Fx '' should do? Posix is unclear, '' match every line but does
+# it match every _byte_ in that line?
+testing "grep -Fx ''" "grep -Fx '' input" "one one one\n" "one one one\n" ""
 testing "grep -F ''" "grep -F '' input" "one one one\n" "one one one\n" ""
+testing "grep -F -e blah -e ''" "grep -F -e blah -e '' input" "one one one\n" \
+  "one one one\n" ""
+testing "grep -e blah -e ''" "grep -e blah -e '' input" "one one one\n" \
+  "one one one\n" ""
 testing "grep -w ''" "grep -w '' input" "" "one one one\n" ""
 testing "grep -o ''" "grep -o '' input" "" "one one one\n" ""
+testing "grep backref" 'grep -e "a\(b\)" -e "b\(c\)\1"' "bcc\nab\n" \
+  "" "bcc\nbcb\nab\n"
