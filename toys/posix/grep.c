@@ -10,7 +10,7 @@ USE_GREP(OLDTOY(fgrep, grep, OPTSTR_grep, TOYFLAG_BIN))
 
 config GREP
   bool "grep"
-  default n
+  default y
   help
     usage: grep [-EFivwcloqsHbhn] [-m MAX] [-e REGEX]... [-f REGFILE] [FILE]...
 
