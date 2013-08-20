@@ -11,7 +11,7 @@ config SYSLOGD
   bool "syslogd"
   default n
   help
-  Usage: syslogd  [-a socket] [-p socket] [-O logfile] [-f config file] [-m interval]
+  Usage: syslogd  [-a socket] [-O logfile] [-f config file] [-m interval]
                   [-p socket] [-s SIZE] [-b N] [-R HOST] [-l N] [-nSLKD]
 
   System logging utility
@@ -52,25 +52,22 @@ GLOBALS(
   struct arg_list *lfiles;  // list of write logfiles
   fd_set rfds;        // fds for reading
   int sd;            // socket for logging remote messeges.
+  int sigfd[2];
 )
 
 #define flag_get(f,v,d)  ((toys.optflags & f) ? v : d)
 #define flag_chk(f)    ((toys.optflags & f) ? 1 : 0)
 
 
-// Signal handling 
-struct fd_pair { int rd; int wr; };
-static struct fd_pair sigfd;
-
 // UNIX Sockets for listening
-typedef struct unsocks_s {
+struct unsocks {
   char *path;
   struct sockaddr_un sdu;
   int sd;
-} unsocks_t;
+};
 
 // Log file entry to log into.
-typedef struct logfile_s {
+struct logfile {
   char *filename;
   char *config;
   uint8_t isNetwork;
@@ -78,26 +75,26 @@ typedef struct logfile_s {
   uint8_t level[LOG_NFACILITIES];
   int logfd;
   struct sockaddr_in saddr;
-} logfile_t;
+};
 
 // Adds opened socks to rfds for select()
 static int addrfds(void)
 {
-  unsocks_t *sock;
+  struct unsocks *sock;
   int ret = 0;
   struct arg_list *node = TT.lsocks;
   FD_ZERO(&TT.rfds);
 
   while (node) {
-    sock = (unsocks_t*) node->arg;
+    sock = (struct unsocks*) node->arg;
     if (sock->sd > 2) {
       FD_SET(sock->sd, &TT.rfds);
       ret = sock->sd;
     }
     node = node->next;
   }
-  FD_SET(sigfd.rd, &TT.rfds);
-  return (sigfd.rd > ret)?sigfd.rd:ret;
+  FD_SET(TT.sigfd[0], &TT.rfds);
+  return (TT.sigfd[0] > ret) ? TT.sigfd[0] : ret;
 }
 
 /*
@@ -108,11 +105,11 @@ static int addrfds(void)
 static int open_unix_socks(void)
 {
   struct arg_list *node;
-  unsocks_t *sock;
+  struct unsocks *sock;
   int ret = 0;
 
   for(node = TT.lsocks; node; node = node->next) {
-    sock = (unsocks_t*) node->arg;
+    sock = (struct unsocks*) node->arg;
     sock->sdu.sun_family = AF_UNIX;
     strcpy(sock->sdu.sun_path, sock->path);
     sock->sd = socket(AF_UNIX, SOCK_DGRAM, 0);
@@ -158,7 +155,7 @@ static int open_udp_socks(char *host, int port, struct sockaddr_in *sadd)
 static struct arg_list *get_file_node(char *filename, struct arg_list *list)
 {
   while (list) {
-    if (!strcmp(((logfile_t*) list->arg)->filename, filename)) return list;
+    if (!strcmp(((struct logfile*) list->arg)->filename, filename)) return list;
     list = list->next;
   }
   return list;
@@ -168,7 +165,7 @@ static struct arg_list *get_file_node(char *filename, struct arg_list *list)
  * recurses the logfile list and resolves config
  * for evry file and updates facilty and log level bits.
  */
-static int resolve_config(logfile_t *file)
+static int resolve_config(struct logfile *file)
 {
   char *tk, *fac, *lvl, *tmp, *nfac;
   int count = 0;
@@ -254,7 +251,7 @@ static int resolve_config(logfile_t *file)
 // Parse config file and update the log file list.
 static int parse_config_file(void)
 {
-  logfile_t *file;
+  struct logfile *file;
   FILE *fp = NULL;
   char *confline = NULL, *tk = NULL, *tokens[2] = {NULL, NULL};
   int len, linelen, tcount, lineno = 0;
@@ -266,7 +263,7 @@ static int parse_config_file(void)
    */
   if (flag_chk(FLAG_K)) {
     node = xzalloc(sizeof(struct arg_list));
-    file = xzalloc(sizeof(logfile_t));
+    file = xzalloc(sizeof(struct logfile));
     file->filename = "/dev/kmsg";
     file->config = "*.*";
     memset(file->level, 0xFF, sizeof(file->level));
@@ -283,7 +280,7 @@ static int parse_config_file(void)
    */
    if (flag_chk(FLAG_R)) {
      node = xzalloc(sizeof(struct arg_list));
-     file = xzalloc(sizeof(logfile_t));
+     file = xzalloc(sizeof(struct logfile));
      file->filename = xmsprintf("@%s",TT.remote_log);
      file->isNetwork = 1;
      file->config = "*.*";
@@ -331,7 +328,7 @@ static int parse_config_file(void)
     node = get_file_node(tokens[1], TT.lfiles);
     if (!node) {
       node = xzalloc(sizeof(struct arg_list));
-      file = xzalloc(sizeof(logfile_t));
+      file = xzalloc(sizeof(struct logfile));
       file->config = xstrdup(tokens[0]);
       if (resolve_config(file)==-1) {
         error_msg("error in '%s' at line %d", TT.config_file, lineno);
@@ -343,7 +340,7 @@ static int parse_config_file(void)
       node->next = TT.lfiles;
       TT.lfiles = node;
     } else {
-      file = (logfile_t*) node->arg;
+      file = (struct logfile*) node->arg;
       int rel = strlen(file->config) + strlen(tokens[0]) + 2;
       file->config = xrealloc(file->config, rel);
       sprintf(file->config, "%s;%s", file->config, tokens[0]);
@@ -360,7 +357,7 @@ loop_again:
    */
   if (!fp){
     node = xzalloc(sizeof(struct arg_list));
-    file = xzalloc(sizeof(logfile_t));
+    file = xzalloc(sizeof(struct logfile));
     file->filename = flag_get(FLAG_O, TT.logfile, "/var/log/messages"); //DEFLOGFILE
     file->isNetwork = 0;
     file->config = "*.*";
@@ -395,13 +392,13 @@ static int getport(char *str, char *filename)
 // open every log file in list.
 static void open_logfiles(void)
 {
-  logfile_t *tfd;
+  struct logfile *tfd;
   char *p, *tmpfile;
   int port = -1;
   struct arg_list *node = TT.lfiles;
 
   while (node) {
-    tfd = (logfile_t*) node->arg;
+    tfd = (struct logfile*) node->arg;
     if (tfd->isNetwork) {
       tmpfile = xstrdup(tfd->filename +1);
       if ((p = strchr(tmpfile, ':'))) {
@@ -420,7 +417,7 @@ static void open_logfiles(void)
 }
 
 //write to file with rotation
-static int write_rotate( logfile_t *tf, int len)
+static int write_rotate(struct logfile *tf, int len)
 {
   int size, isreg;
   struct stat statf;
@@ -531,7 +528,7 @@ do_log:
   if (lvl >= TT.log_prio) return;
 
   while (lnode) {
-    logfile_t *tf = (logfile_t*) lnode->arg;
+    struct logfile *tf = (struct logfile*) lnode->arg;
     if (tf->logfd > 0) {
       if ((tf->facility[lvl] & (1 << fac)) && (tf->level[fac] & (1<<lvl))) {
         int wlen;
@@ -554,8 +551,8 @@ static void cleanup(void)
   struct arg_list *fnode;
   while (TT.lsocks) {
     fnode = TT.lsocks;
-    if (((unsocks_t*) fnode->arg)->sd >= 0)
-      close(((unsocks_t*) fnode->arg)->sd);
+    if (((struct unsocks*) fnode->arg)->sd >= 0)
+      close(((struct unsocks*) fnode->arg)->sd);
     free(fnode->arg);
     TT.lsocks = fnode->next;
     free(fnode);
@@ -564,8 +561,8 @@ static void cleanup(void)
 
   while (TT.lfiles) {
     fnode = TT.lfiles;
-    if (((logfile_t*) fnode->arg)->logfd >= 0)
-      close(((logfile_t*) fnode->arg)->logfd);
+    if (((struct logfile*) fnode->arg)->logfd >= 0)
+      close(((struct logfile*) fnode->arg)->logfd);
     free(fnode->arg);
     TT.lfiles = fnode->next;
     free(fnode);
@@ -575,26 +572,12 @@ static void cleanup(void)
 static void signal_handler(int sig)
 {
   unsigned char ch = sig;
-  if (write(sigfd.wr, &ch, 1) != 1) error_msg("can't send signal");
-}
-
-static void setup_signal()
-{
-  if (pipe((int *)&sigfd) < 0) error_exit("pipe failed\n");
-
-  fcntl(sigfd.wr , F_SETFD, FD_CLOEXEC);
-  fcntl(sigfd.rd , F_SETFD, FD_CLOEXEC);
-  int flags = fcntl(sigfd.wr, F_GETFL);
-  fcntl(sigfd.wr, F_SETFL, flags | O_NONBLOCK);
-  signal(SIGHUP, signal_handler);
-  signal(SIGTERM, signal_handler);
-  signal(SIGINT, signal_handler);
-  signal(SIGQUIT, signal_handler);
+  if (write(TT.sigfd[1], &ch, 1) != 1) error_msg("can't send signal");
 }
 
 void syslogd_main(void)
 {
-  unsocks_t *tsd;
+  struct unsocks *tsd;
   int maxfd, retval, last_len=0;
   struct timeval tv;
   struct arg_list *node;
@@ -606,7 +589,7 @@ void syslogd_main(void)
   TT.config_file = flag_get(FLAG_f, TT.config_file, "/etc/syslog.conf"); //DEFCONFFILE
 init_jumpin:
   TT.lsocks = xzalloc(sizeof(struct arg_list));
-  tsd = xzalloc(sizeof(unsocks_t));
+  tsd = xzalloc(sizeof(struct unsocks));
 
   tsd->path = flag_get(FLAG_p, TT.unix_socket , "/dev/log"); // DEFLOGSOCK
   TT.lsocks->arg = (char*) tsd;
@@ -615,7 +598,7 @@ init_jumpin:
     for (temp = strtok(TT.socket, ":"); temp; temp = strtok(NULL, ":")) {
       struct arg_list *ltemp = xzalloc(sizeof(struct arg_list));
       if (strlen(temp) > 107) temp[108] = '\0';
-      tsd = xzalloc(sizeof(unsocks_t));
+      tsd = xzalloc(sizeof(struct unsocks));
       tsd->path = temp;
       ltemp->arg = (char*) tsd;
       ltemp->next = TT.lsocks;
@@ -626,7 +609,19 @@ init_jumpin:
     error_msg("Can't open single socket for listenning.");
     goto clean_and_exit;
   }
-  setup_signal();
+
+  // Setup signals
+  if (pipe(TT.sigfd) < 0) error_exit("pipe failed\n");
+
+  fcntl(TT.sigfd[1] , F_SETFD, FD_CLOEXEC);
+  fcntl(TT.sigfd[0] , F_SETFD, FD_CLOEXEC);
+  int flags = fcntl(TT.sigfd[1], F_GETFL);
+  fcntl(TT.sigfd[1], F_SETFL, flags | O_NONBLOCK);
+  signal(SIGHUP, signal_handler);
+  signal(SIGTERM, signal_handler);
+  signal(SIGINT, signal_handler);
+  signal(SIGQUIT, signal_handler);
+
   if (parse_config_file() == -1) goto clean_and_exit;
   open_logfiles();
   if (!flag_chk(FLAG_n)) {
@@ -659,10 +654,10 @@ init_jumpin:
       logmsg("<46>-- MARK --", 14);
       continue;
     }
-    if (FD_ISSET(sigfd.rd, &TT.rfds)) { /* May be a signal */
+    if (FD_ISSET(TT.sigfd[0], &TT.rfds)) { /* May be a signal */
       unsigned char sig;
 
-      if (read(sigfd.rd, &sig, 1) != 1) {
+      if (read(TT.sigfd[0], &sig, 1) != 1) {
         error_msg("signal read failed.\n");
         continue;
       }
@@ -690,7 +685,7 @@ init_jumpin:
     if (retval > 0) { /* Some activity on listen sockets. */
       node = TT.lsocks;
       while (node) {
-        int sd = ((unsocks_t*) node->arg)->sd;
+        int sd = ((struct unsocks*) node->arg)->sd;
         if (FD_ISSET(sd, &TT.rfds)) {
           int len = read(sd, buffer, 1023); //buffer is of 1K, hence readingonly 1023 bytes, 1 for NUL
           if (len > 0) {
