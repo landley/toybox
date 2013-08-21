@@ -67,6 +67,8 @@ static void toy_singleinit(struct toy_list *which, char *argv[])
   toys.argv = argv;
 
   if (CFG_TOYBOX_HELP_DASHDASH && argv[1] && !strcmp(argv[1], "--help")) {
+    if (toys.which == toy_list && toys.argv[2])
+      if (!(toys.which = toy_find(toys.argv[2]))) return;
     show_help();
     xexit();
   }
@@ -114,7 +116,7 @@ void toy_exec(char *argv[])
 
   if (!(which = toy_find(argv[0]))) return;
   toy_init(which, argv);
-  toys.which->toy_main();
+  if (toys.which) toys.which->toy_main();
   if (fflush(NULL) || ferror(stdout)) perror_exit("write");
   xexit();
 }
@@ -129,16 +131,8 @@ void toybox_main(void)
 
   toys.which = toy_list;
   if (toys.argv[1]) {
-    if (CFG_TOYBOX_HELP_DASHDASH && !strcmp(toys.argv[1], "--help")) {
-      if (toys.argv[2]) toys.which = toy_find(toys.argv[2]);
-      if (toys.which) {
-        show_help();
-        return;
-      }
-    } else {
-      toy_exec(toys.argv+1);
-      if (toys.argv[1][0] == '-') goto list;
-    }
+    toy_exec(toys.argv+1);
+    if (toys.argv[1][0] == '-') goto list;
     
     error_exit("Unknown command %s",toys.argv[1]);
   }
