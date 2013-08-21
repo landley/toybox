@@ -84,7 +84,11 @@ static void do_grep(int fd, char *name)
         char *s = 0;
 
         for (seek = TT.e; seek; seek = seek->next) {
-          if (!*seek->arg) {
+          if (toys.optflags & FLAG_x) {
+            int i = (toys.optflags & FLAG_i);
+
+            if ((i ? strcasecmp : strcmp)(seek->arg, line)) s = line;
+          } else if (!*seek->arg) {
             seek = &fseek;
             fseek.arg = s = line;
             break;
@@ -127,10 +131,8 @@ static void do_grep(int fd, char *name)
       } else if (rc) break;
 
       mmatch++;
-      if (toys.optflags & FLAG_q) {
-        toys.exitval = 0;
-        xexit();
-      }
+      toys.exitval = 0;
+      if (toys.optflags & FLAG_q) xexit();
       if (toys.optflags & FLAG_l) {
         printf("%s\n", name);
         free(line);
