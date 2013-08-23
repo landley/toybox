@@ -74,6 +74,26 @@ struct logfile {
   struct sockaddr_in saddr;
 };
 
+// Lookup numerical code from name
+// Also used in logger
+int logger_lookup(int where, char *key)
+{
+  CODE *w = ((CODE *[]){facilitynames, prioritynames})[where];
+
+  for (; w->c_name; w++)
+    if (!strcasecmp(key, w->c_name)) return w->c_val;
+
+  return -1;
+}
+
+//search the given name and return its value
+static char *dec(int val, CODE *clist)
+{
+  for (; clist->c_name; clist++) 
+    if (val == clist->c_val) return clist->c_name;
+  return itoa(val);
+}
+
 // Adds opened socks to rfds for select()
 static int addrfds(void)
 {
@@ -142,81 +162,52 @@ static struct arg_list *get_file_node(char *filename, struct arg_list *list)
  */
 static int resolve_config(struct logfile *file)
 {
-  char *tk, *fac, *lvl, *tmp, *nfac;
-  int count = 0;
-  unsigned facval = 0;
-  uint8_t set, levval, neg;
-  CODE *val = NULL;
+  char *tk, *tmp = xstrdup(file->config);
 
-  tmp = xstrdup(file->config);
   for (tk = strtok(tmp, "; \0"); tk; tk = strtok(NULL, "; \0")) {
-    fac = tk;
+    char *fac = tk, *lvl;
+    int i = 0;
+    unsigned facval = 0;
+    uint8_t set, levval, bits = 0;
+
     tk = strchr(fac, '.');
     if (!tk) return -1;
     *tk = '\0';
     lvl = tk + 1;
 
-    while(1) {
-      count = 0;
+    for (;;) {
+      char *nfac = strchr(fac, ',');
+
+      if (nfac) *nfac = '\0';
       if (*fac == '*') {
         facval = 0xFFFFFFFF;
-        fac++;
+        if (fac[1]) return -1;
+      } else {
+        if ((i = logger_lookup(0, fac)) == -1) return -1;
+        facval |= (1 << LOG_FAC(i));
       }
-      nfac = strchr(fac, ',');
-      if (nfac) *nfac = '\0';
-      while (*fac && ((CODE*) &facilitynames[count])->c_name) {
-        val = (CODE*) &facilitynames[count];
-        if (!strcmp(fac, val->c_name)) {
-          facval |= (1<<LOG_FAC(val->c_val));
-          break;
-        }
-        count++;
-      }
-      if (((CODE*) &facilitynames[count])->c_val == -1)
-        return -1;
-
-      if (nfac) fac = nfac+1;
+      if (nfac) fac = nfac + 1;
       else break;
     }
 
-    count = 0;
-    set = 0;
     levval = 0;
-    neg = 0;
-    if (*lvl == '!') {
-      neg = 1;
-      lvl++;
-    }
-    if (*lvl == '=') {
-      set = 1;
-      lvl++;
-    }
-    if (*lvl == '*') {
-      levval = 0xFF;
-      lvl++;
-    }
-    while (*lvl && ((CODE*) &prioritynames[count])->c_name) {
-      val = (CODE*) &prioritynames[count];
-      if (!strcmp(lvl, val->c_name)) {
-        levval |= set ? LOG_MASK(val->c_val):LOG_UPTO(val->c_val);
-        if (neg) levval = ~levval;
-        break;
+    for (tk = "!=*"; tk; tk++, bits <<= 1) {
+      if (*lvl == *tk) {
+        bits++;
+        lvl++;
       }
-      count++;
     }
-    if (((CODE*) &prioritynames[count])->c_val == -1) return -1;
+    if (bits & 1) levval = 0xff;
+    if (lvl) {
+      if ((i = logger_lookup(1, lvl)) == -1) return -1;
+      levval |= (bits & 2) ? LOG_MASK(i) : LOG_UPTO(i);
+      if (bits & 4) levval = ~levval;
+    }
 
-    count = 0;
-    set = levval;
-    while(set) {
-      if (set & 0x1) file->facility[count] |= facval;
-      set >>= 1;
-      count++;
-    }
-    for (count = 0; count < LOG_NFACILITIES; count++) {
-      if (facval & 0x1) file->level[count] |= levval;
-      facval >>= 1;
-    }
+    for (i = 0, set = levval; set; set >>= 1, i++)
+      if (set & 0x1) file->facility[i] |= facval;
+    for (i = 0; i < LOG_NFACILITIES; facval >>= 1, i++)
+      if (facval & 0x1) file->level[i] |= levval;
   }
   free(tmp);
 
@@ -227,9 +218,10 @@ static int resolve_config(struct logfile *file)
 static int parse_config_file(void)
 {
   struct logfile *file;
-  FILE *fp = NULL;
+  FILE *fp;
   char *confline = NULL, *tk = NULL, *tokens[2] = {NULL, NULL};
-  int len, linelen, tcount, lineno = 0;
+  int len, tcount, lineno = 0;
+  size_t linelen;
   struct arg_list *node;
   /*
    * if -K then open only /dev/kmsg
@@ -253,18 +245,18 @@ static int parse_config_file(void)
    * files are neglected thus no need to
    * open config either so just return.
    */
-   if (toys.optflags & FLAG_R) {
-     node = xzalloc(sizeof(struct arg_list));
-     file = xzalloc(sizeof(struct logfile));
-     file->filename = xmsprintf("@%s",TT.remote_log);
-     file->isNetwork = 1;
-     file->config = "*.*";
-     memset(file->level, 0xFF, sizeof(file->level));
-     memset(file->facility, 0xFFFFFFFF, sizeof(file->facility));
-     node->arg = (char*) file;
-     TT.lfiles = node;
-     if (!(toys.optflags & FLAG_L))return 0;
-   }
+  if (toys.optflags & FLAG_R) {
+    node = xzalloc(sizeof(struct arg_list));
+    file = xzalloc(sizeof(struct logfile));
+    file->filename = xmsprintf("@%s",TT.remote_log);
+    file->isNetwork = 1;
+    file->config = "*.*";
+    memset(file->level, 0xFF, sizeof(file->level));
+    memset(file->facility, 0xFFFFFFFF, sizeof(file->facility));
+    node->arg = (char*) file;
+    TT.lfiles = node;
+    if (!(toys.optflags & FLAG_L)) return 0;
+  }
   /*
    * Read config file and add logfiles to the list
    * with their configuration.
@@ -274,7 +266,7 @@ static int parse_config_file(void)
     perror_exit("can't open '%s'", TT.config_file);
 
   for (len = 0, linelen = 0; fp;) {
-    len = getline(&confline, (size_t*) &linelen, fp);
+    len = getline(&confline, &linelen, fp);
     if (len <= 0) break;
     lineno++;
     for (; *confline == ' '; confline++, len--) ;
@@ -334,18 +326,13 @@ static int parse_config_file(void)
     file = xzalloc(sizeof(struct logfile));
     file->filename = (toys.optflags & FLAG_O) ?
                      TT.logfile : "/var/log/messages"; //DEFLOGFILE
-    file->isNetwork = 0;
     file->config = "*.*";
     memset(file->level, 0xFF, sizeof(file->level));
     memset(file->facility, 0xFFFFFFFF, sizeof(file->facility));
     node->arg = (char*) file;
     node->next = TT.lfiles;
     TT.lfiles = node;
-  }
-  if (fp) {
-    fclose(fp);
-    fp = NULL;
-  }
+  } else fclose(fp);
   return 0;
 }
 
@@ -424,39 +411,6 @@ static int write_rotate(struct logfile *tf, int len)
   return write(tf->logfd, toybuf, len);
 }
 
-// Lookup numerical code from name
-// Only used in logger
-int logger_lookup(int where, char *key)
-{
-  CODE *w = ((CODE *[]){facilitynames, prioritynames})[where];
-
-  for (; w->c_name; w++)
-    if (!strcasecmp(key, w->c_name)) return w->c_val;
-
-  return -1;
-}
-
-//search the given name and return its value
-static char *dec(int val, CODE *clist)
-{
-  const CODE *c;
-
-  for (c = clist; c->c_name; c++) 
-    if (val == c->c_val) return c->c_name;
-  return itoa(val);
-}
-
-// Compute priority from "facility.level" pair
-static void priority_to_string(int pri, char **facstr, char **lvlstr)
-{
-  int fac,lev;
-
-  fac = LOG_FAC(pri);
-  lev = LOG_PRI(pri);
-  *facstr = dec(fac<<3, facilitynames);
-  *lvlstr = dec(lev, prioritynames);
-}
-
 //Parse messege and write to file.
 static void logmsg(char *msg, int len)
 {
@@ -491,7 +445,8 @@ static void logmsg(char *msg, int len)
 
   if (toys.optflags & FLAG_K) len = sprintf(toybuf, "<%d> %s\n", pri, msg);
   else {
-    priority_to_string(pri, &facstr, &lvlstr);
+    facstr = dec(LOG_FAC(pri), facilitynames);
+    lvlstr = dec(LOG_PRI(pri), prioritynames);
 
     p = "local";
     if (!uname(&uts)) p = uts.nodename;
