@@ -37,6 +37,26 @@ config SYSLOGD
 #include "toys.h"
 #include "toynet.h"
 
+// UNIX Sockets for listening
+struct unsocks {
+  struct unsocks *next;
+  char *path;
+  struct sockaddr_un sdu;
+  int sd;
+};
+
+// Log file entry to log into.
+struct logfile {
+  struct logfile *next;
+  char *filename;
+  char *config;
+  int isNetwork;
+  uint32_t facility[8];
+  uint8_t level[LOG_NFACILITIES];
+  int logfd;
+  struct sockaddr_in saddr;
+};
+
 GLOBALS(
   char *socket;
   char *config_file;
@@ -48,31 +68,12 @@ GLOBALS(
   char *remote_log;
   long log_prio;
 
-  struct arg_list *lsocks;  // list of listen sockets
-  struct arg_list *lfiles;  // list of write logfiles
+  struct unsocks *lsocks;  // list of listen sockets
+  struct logfile *lfiles;  // list of write logfiles
   fd_set rfds;        // fds for reading
   int sd;            // socket for logging remote messeges.
   int sigfd[2];
 )
-
-
-// UNIX Sockets for listening
-struct unsocks {
-  char *path;
-  struct sockaddr_un sdu;
-  int sd;
-};
-
-// Log file entry to log into.
-struct logfile {
-  char *filename;
-  char *config;
-  int isNetwork;
-  uint32_t facility[8];
-  uint8_t level[LOG_NFACILITIES];
-  int logfd;
-  struct sockaddr_in saddr;
-};
 
 // Lookup numerical code from name
 // Also used in logger
@@ -97,18 +98,15 @@ static char *dec(int val, CODE *clist)
 // Adds opened socks to rfds for select()
 static int addrfds(void)
 {
-  struct unsocks *sock;
+  struct unsocks *sock = TT.lsocks;
   int ret = 0;
-  struct arg_list *node = TT.lsocks;
   FD_ZERO(&TT.rfds);
 
-  while (node) {
-    sock = (struct unsocks*) node->arg;
+  for (; sock; sock = sock->next) {
     if (sock->sd > 2) {
       FD_SET(sock->sd, &TT.rfds);
       ret = sock->sd;
     }
-    node = node->next;
   }
   FD_SET(TT.sigfd[0], &TT.rfds);
   return (TT.sigfd[0] > ret) ? TT.sigfd[0] : ret;
@@ -121,12 +119,10 @@ static int addrfds(void)
  */
 static int open_unix_socks(void)
 {
-  struct arg_list *node;
   struct unsocks *sock;
   int ret = 0;
 
-  for(node = TT.lsocks; node; node = node->next) {
-    sock = (struct unsocks*) node->arg;
+  for(sock = TT.lsocks; sock; sock = sock->next) {
     sock->sdu.sun_family = AF_UNIX;
     strcpy(sock->sdu.sun_path, sock->path);
     sock->sd = socket(AF_UNIX, SOCK_DGRAM, 0);
@@ -144,16 +140,6 @@ static int open_unix_socks(void)
     ret++;
   }
   return ret;
-}
-
-// Returns node having filename
-static struct arg_list *get_file_node(char *filename, struct arg_list *list)
-{
-  while (list) {
-    if (!strcmp(((struct logfile*) list->arg)->filename, filename)) return list;
-    list = list->next;
-  }
-  return list;
 }
 
 /*
@@ -222,21 +208,18 @@ static int parse_config_file(void)
   char *confline = NULL, *tk = NULL, *tokens[2] = {NULL, NULL};
   int len, tcount, lineno = 0;
   size_t linelen;
-  struct arg_list *node;
   /*
    * if -K then open only /dev/kmsg
    * all other log files are neglected
    * thus no need to open config either.
    */
   if (toys.optflags & FLAG_K) {
-    node = xzalloc(sizeof(struct arg_list));
     file = xzalloc(sizeof(struct logfile));
     file->filename = "/dev/kmsg";
     file->config = "*.*";
     memset(file->level, 0xFF, sizeof(file->level));
     memset(file->facility, 0xFFFFFFFF, sizeof(file->facility));
-    node->arg = (char*) file;
-    TT.lfiles = node;
+    TT.lfiles = file;
     return 0;
   }
   /*
@@ -246,15 +229,13 @@ static int parse_config_file(void)
    * open config either so just return.
    */
   if (toys.optflags & FLAG_R) {
-    node = xzalloc(sizeof(struct arg_list));
     file = xzalloc(sizeof(struct logfile));
     file->filename = xmsprintf("@%s",TT.remote_log);
     file->isNetwork = 1;
     file->config = "*.*";
     memset(file->level, 0xFF, sizeof(file->level));
     memset(file->facility, 0xFFFFFFFF, sizeof(file->facility));
-    node->arg = (char*) file;
-    TT.lfiles = node;
+    TT.lfiles = file;
     if (!(toys.optflags & FLAG_L)) return 0;
   }
   /*
@@ -291,9 +272,9 @@ static int parse_config_file(void)
       return -1;
     }
     if (*tokens[1] != '*') {
-      node = get_file_node(tokens[1], TT.lfiles);
-      if (!node) {
-        node = xzalloc(sizeof(struct arg_list));
+      file = TT.lfiles;
+      while (file && !strcmp(file->filename, tokens[1])) file = file->next;
+      if (!file) {
         file = xzalloc(sizeof(struct logfile));
         file->config = xstrdup(tokens[0]);
         if (resolve_config(file)==-1) {
@@ -302,11 +283,9 @@ static int parse_config_file(void)
         }
         file->filename = xstrdup(tokens[1]);
         if (*file->filename == '@') file->isNetwork = 1;
-        node->arg = (char*) file;
-        node->next = TT.lfiles;
-        TT.lfiles = node;
+        file->next = TT.lfiles;
+        TT.lfiles = file;
       } else {
-        file = (struct logfile*) node->arg;
         int rel = strlen(file->config) + strlen(tokens[0]) + 2;
         file->config = xrealloc(file->config, rel);
         sprintf(file->config, "%s;%s", file->config, tokens[0]);
@@ -322,16 +301,14 @@ static int parse_config_file(void)
    * adding default logfile to the head of list.
    */
   if (!fp){
-    node = xzalloc(sizeof(struct arg_list));
     file = xzalloc(sizeof(struct logfile));
     file->filename = (toys.optflags & FLAG_O) ?
                      TT.logfile : "/var/log/messages"; //DEFLOGFILE
     file->config = "*.*";
     memset(file->level, 0xFF, sizeof(file->level));
     memset(file->facility, 0xFFFFFFFF, sizeof(file->facility));
-    node->arg = (char*) file;
-    node->next = TT.lfiles;
-    TT.lfiles = node;
+    file->next = TT.lfiles;
+    TT.lfiles = file;
   } else fclose(fp);
   return 0;
 }
@@ -339,10 +316,9 @@ static int parse_config_file(void)
 // open every log file in list.
 static void open_logfiles(void)
 {
-  struct arg_list *node;
+  struct logfile *tfd;
 
-  for (node = TT.lfiles; node; node = node->next) {
-    struct logfile *tfd = (struct logfile*) node->arg;
+  for (tfd = TT.lfiles; tfd; tfd = tfd->next) {
     char *p, *tmpfile;
     long port = 514;
 
@@ -418,7 +394,7 @@ static void logmsg(char *msg, int len)
   char *p, *ts, *lvlstr, *facstr;
   struct utsname uts;
   int pri = 0;
-  struct arg_list *lnode = TT.lfiles;
+  struct logfile *tf = TT.lfiles;
 
   char *omsg = msg;
   int olen = len, fac, lvl;
@@ -455,8 +431,7 @@ static void logmsg(char *msg, int len)
   }
   if (lvl >= TT.log_prio) return;
 
-  while (lnode) {
-    struct logfile *tf = (struct logfile*) lnode->arg;
+  for (; tf; tf = tf->next) {
     if (tf->logfd > 0) {
       if ((tf->facility[lvl] & (1 << fac)) && (tf->level[fac] & (1<<lvl))) {
         int wlen;
@@ -466,7 +441,6 @@ static void logmsg(char *msg, int len)
         if (wlen < 0) perror_msg("write failed file : %s ", tf->filename + tf->isNetwork);
       }
     }
-    lnode = lnode->next;
   }
 }
 
@@ -476,22 +450,19 @@ static void logmsg(char *msg, int len)
  */
 static void cleanup(void)
 {
-  struct arg_list *fnode;
   while (TT.lsocks) {
-    fnode = TT.lsocks;
-    if (((struct unsocks*) fnode->arg)->sd >= 0)
-      close(((struct unsocks*) fnode->arg)->sd);
-    free(fnode->arg);
+    struct unsocks *fnode = TT.lsocks;
+
+    if (fnode->sd >= 0) close(fnode->sd);
     TT.lsocks = fnode->next;
     free(fnode);
   }
   unlink("/dev/log");
 
   while (TT.lfiles) {
-    fnode = TT.lfiles;
-    if (((struct logfile*) fnode->arg)->logfd >= 0)
-      close(((struct logfile*) fnode->arg)->logfd);
-    free(fnode->arg);
+    struct logfile *fnode = TT.lfiles;
+
+    if (fnode->logfd >= 0) close(fnode->logfd);
     TT.lfiles = fnode->next;
     free(fnode);
   }
@@ -508,7 +479,6 @@ void syslogd_main(void)
   struct unsocks *tsd;
   int maxfd, retval, last_len=0;
   struct timeval tv;
-  struct arg_list *node;
   char *temp, *buffer = (toybuf +2048), *last_buf = (toybuf + 3072); //these two buffs are of 1K each
 
   if ((toys.optflags & FLAG_p) && (strlen(TT.unix_socket) > 108))
@@ -517,21 +487,18 @@ void syslogd_main(void)
   TT.config_file = (toys.optflags & FLAG_f) ?
                    TT.config_file : "/etc/syslog.conf"; //DEFCONFFILE
 init_jumpin:
-  TT.lsocks = xzalloc(sizeof(struct arg_list));
   tsd = xzalloc(sizeof(struct unsocks));
 
   tsd->path = (toys.optflags & FLAG_p) ? TT.unix_socket : "/dev/log"; // DEFLOGSOCK
-  TT.lsocks->arg = (char*) tsd;
+  TT.lsocks = tsd;
 
   if (toys.optflags & FLAG_a) {
     for (temp = strtok(TT.socket, ":"); temp; temp = strtok(NULL, ":")) {
-      struct arg_list *ltemp = xzalloc(sizeof(struct arg_list));
       if (strlen(temp) > 107) temp[108] = '\0';
       tsd = xzalloc(sizeof(struct unsocks));
       tsd->path = temp;
-      ltemp->arg = (char*) tsd;
-      ltemp->next = TT.lsocks;
-      TT.lsocks = ltemp;
+      tsd->next = TT.lsocks;
+      TT.lsocks = tsd;
     }
   }
   if (!open_unix_socks()) {
@@ -612,9 +579,8 @@ init_jumpin:
       }
     }
     if (retval > 0) { /* Some activity on listen sockets. */
-      node = TT.lsocks;
-      while (node) {
-        int sd = ((struct unsocks*) node->arg)->sd;
+      for (tsd = TT.lsocks; tsd; tsd = tsd->next) {
+        int sd = tsd->sd;
         if (FD_ISSET(sd, &TT.rfds)) {
           int len = read(sd, buffer, 1023); //buffer is of 1K, hence readingonly 1023 bytes, 1 for NUL
           if (len > 0) {
@@ -628,7 +594,6 @@ init_jumpin:
           }
           break;
         }
-        node = node->next;
       }
     }
   }
