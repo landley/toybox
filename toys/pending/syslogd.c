@@ -49,7 +49,6 @@ struct unsocks {
 struct logfile {
   struct logfile *next;
   char *filename;
-  char *config;
   int isNetwork;
   uint32_t facility[8];
   uint8_t level[LOG_NFACILITIES];
@@ -146,11 +145,11 @@ static int open_unix_socks(void)
  * recurses the logfile list and resolves config
  * for evry file and updates facilty and log level bits.
  */
-static int resolve_config(struct logfile *file)
+static int resolve_config(struct logfile *file, char *config)
 {
-  char *tk, *tmp = xstrdup(file->config);
+  char *tk;
 
-  for (tk = strtok(tmp, "; \0"); tk; tk = strtok(NULL, "; \0")) {
+  for (tk = strtok(config, "; \0"); tk; tk = strtok(NULL, "; \0")) {
     char *fac = tk, *lvl;
     int i = 0;
     unsigned facval = 0;
@@ -177,7 +176,7 @@ static int resolve_config(struct logfile *file)
     }
 
     levval = 0;
-    for (tk = "!=*"; tk; tk++, bits <<= 1) {
+    for (tk = "!=*"; *tk; tk++, bits <<= 1) {
       if (*lvl == *tk) {
         bits++;
         lvl++;
@@ -195,7 +194,6 @@ static int resolve_config(struct logfile *file)
     for (i = 0; i < LOG_NFACILITIES; facval >>= 1, i++)
       if (facval & 0x1) file->level[i] |= levval;
   }
-  free(tmp);
 
   return 0;
 }
@@ -205,8 +203,8 @@ static int parse_config_file(void)
 {
   struct logfile *file;
   FILE *fp;
-  char *confline = NULL, *tk = NULL, *tokens[2] = {NULL, NULL};
-  int len, tcount, lineno = 0;
+  char *confline, *tk[2];
+  int len, lineno = 0;
   size_t linelen;
   /*
    * if -K then open only /dev/kmsg
@@ -216,7 +214,6 @@ static int parse_config_file(void)
   if (toys.optflags & FLAG_K) {
     file = xzalloc(sizeof(struct logfile));
     file->filename = "/dev/kmsg";
-    file->config = "*.*";
     memset(file->level, 0xFF, sizeof(file->level));
     memset(file->facility, 0xFFFFFFFF, sizeof(file->facility));
     TT.lfiles = file;
@@ -232,7 +229,6 @@ static int parse_config_file(void)
     file = xzalloc(sizeof(struct logfile));
     file->filename = xmsprintf("@%s",TT.remote_log);
     file->isNetwork = 1;
-    file->config = "*.*";
     memset(file->level, 0xFF, sizeof(file->level));
     memset(file->facility, 0xFFFFFFFF, sizeof(file->facility));
     TT.lfiles = file;
@@ -246,55 +242,38 @@ static int parse_config_file(void)
   if (!fp && (toys.optflags & FLAG_f))
     perror_exit("can't open '%s'", TT.config_file);
 
-  for (len = 0, linelen = 0; fp;) {
+  for (linelen = 0; fp;) {
+    confline = NULL;
     len = getline(&confline, &linelen, fp);
     if (len <= 0) break;
     lineno++;
     for (; *confline == ' '; confline++, len--) ;
     if ((confline[0] == '#') || (confline[0] == '\n')) continue;
-    for (tcount = 0, tk = strtok(confline, " \t"); tk && (tcount < 2); tk =
-        strtok(NULL, " \t"), tcount++) {
-      if (tcount == 2) {
-        error_msg("error in '%s' at line %d", TT.config_file, lineno);
-        return -1;
-      }
-      tokens[tcount] = xstrdup(tk);
-    }
-    if (tcount <= 1 || tcount > 2) {
-      if (tokens[0]) free(tokens[0]);
-      error_msg("bad line %d: 1 tokens found, 2 needed", lineno);
+    tk[0] = confline;
+    for (; len && !(*tk[0]==' ' || *tk[0]=='\t'); tk[0]++, len--);
+    for (tk[1] = tk[0]; len && (*tk[1]==' ' || *tk[1]=='\t'); tk[1]++, len--);
+    if (!len || (len == 1 && *tk[1] == '\n')) {
+      error_msg("error in '%s' at line %d", TT.config_file, lineno);
       return -1;
     }
-    tk = (tokens[1] + (strlen(tokens[1]) - 1));
-    if (*tk == '\n') *tk = '\0';
-    if (*tokens[1] == '\0') {
-      error_msg("bad line %d: 1 tokens found, 2 needed", lineno);
-      return -1;
-    }
-    if (*tokens[1] != '*') {
+    else if (*(tk[1] + len - 1) == '\n') *(tk[1] + len - 1) = '\0';
+    *tk[0] = '\0';
+    if (*tk[1] != '*') {
       file = TT.lfiles;
-      while (file && !strcmp(file->filename, tokens[1])) file = file->next;
+      while (file && strcmp(file->filename, tk[1])) file = file->next;
       if (!file) {
         file = xzalloc(sizeof(struct logfile));
-        file->config = xstrdup(tokens[0]);
-        if (resolve_config(file)==-1) {
-          error_msg("error in '%s' at line %d", TT.config_file, lineno);
-          return -1;
-        }
-        file->filename = xstrdup(tokens[1]);
+        file->filename = xstrdup(tk[1]);
         if (*file->filename == '@') file->isNetwork = 1;
         file->next = TT.lfiles;
         TT.lfiles = file;
-      } else {
-        int rel = strlen(file->config) + strlen(tokens[0]) + 2;
-        file->config = xrealloc(file->config, rel);
-        sprintf(file->config, "%s;%s", file->config, tokens[0]);
+      }
+      if (resolve_config(file, confline) == -1) {
+        error_msg("error in '%s' at line %d", TT.config_file, lineno);
+        return -1;
       }
     }
-    if (tokens[0]) free(tokens[0]);
-    if (tokens[1]) free(tokens[1]);
     free(confline);
-    confline = NULL;
   }
   /*
    * Can't open config file or support is not enabled
@@ -304,7 +283,6 @@ static int parse_config_file(void)
     file = xzalloc(sizeof(struct logfile));
     file->filename = (toys.optflags & FLAG_O) ?
                      TT.logfile : "/var/log/messages"; //DEFLOGFILE
-    file->config = "*.*";
     memset(file->level, 0xFF, sizeof(file->level));
     memset(file->facility, 0xFFFFFFFF, sizeof(file->facility));
     file->next = TT.lfiles;
@@ -421,7 +399,7 @@ static void logmsg(char *msg, int len)
 
   if (toys.optflags & FLAG_K) len = sprintf(toybuf, "<%d> %s\n", pri, msg);
   else {
-    facstr = dec(LOG_FAC(pri), facilitynames);
+    facstr = dec(pri & LOG_FACMASK, facilitynames);
     lvlstr = dec(LOG_PRI(pri), prioritynames);
 
     p = "local";
