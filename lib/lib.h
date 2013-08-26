@@ -123,6 +123,7 @@ void xmkpath(char *path, int mode);
 void xsetuid(uid_t uid);
 char *xreadlink(char *name);
 long xparsetime(char *arg, long units, long *fraction);
+void xpidfile(char *name);
 
 // lib.c
 void verror_msg(char *msg, int err, va_list va);

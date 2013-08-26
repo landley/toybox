@@ -452,7 +452,7 @@ void xpidfile(char *name)
   sprintf(pidfile, "/var/run/%s.pid", name);
   // Try three times to open the sucker.
   for (i=0; i<3; i++) {
-    fd = open(pidfile, O_CREAT|O_EXCL, 0644);
+    fd = open(pidfile, O_CREAT|O_EXCL|O_WRONLY, 0644);
     if (fd != -1) break;
 
     // If it already existed, read it.  Loop for race condition.

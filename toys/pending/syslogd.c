@@ -49,7 +49,6 @@ struct unsocks {
 struct logfile {
   struct logfile *next;
   char *filename;
-  int isNetwork;
   uint32_t facility[8];
   uint8_t level[LOG_NFACILITIES];
   int logfd;
@@ -69,8 +68,6 @@ GLOBALS(
 
   struct unsocks *lsocks;  // list of listen sockets
   struct logfile *lfiles;  // list of write logfiles
-  fd_set rfds;        // fds for reading
-  int sd;            // socket for logging remote messeges.
   int sigfd[2];
 )
 
@@ -92,53 +89,6 @@ static char *dec(int val, CODE *clist)
   for (; clist->c_name; clist++) 
     if (val == clist->c_val) return clist->c_name;
   return itoa(val);
-}
-
-// Adds opened socks to rfds for select()
-static int addrfds(void)
-{
-  struct unsocks *sock = TT.lsocks;
-  int ret = 0;
-  FD_ZERO(&TT.rfds);
-
-  for (; sock; sock = sock->next) {
-    if (sock->sd > 2) {
-      FD_SET(sock->sd, &TT.rfds);
-      ret = sock->sd;
-    }
-  }
-  FD_SET(TT.sigfd[0], &TT.rfds);
-  return (TT.sigfd[0] > ret) ? TT.sigfd[0] : ret;
-}
-
-/*
- * initializes unsock_t structure
- * and opens socket for reading
- * and adds to global lsock list.
- */
-static int open_unix_socks(void)
-{
-  struct unsocks *sock;
-  int ret = 0;
-
-  for(sock = TT.lsocks; sock; sock = sock->next) {
-    sock->sdu.sun_family = AF_UNIX;
-    strcpy(sock->sdu.sun_path, sock->path);
-    sock->sd = socket(AF_UNIX, SOCK_DGRAM, 0);
-    if (sock->sd < 0) {
-      perror_msg("OPEN SOCKS : failed");
-      continue;
-    }
-    unlink(sock->sdu.sun_path);
-    if (bind(sock->sd, (struct sockaddr *) &sock->sdu, sizeof(sock->sdu))) {
-      perror_msg("BIND SOCKS : failed sock : %s", sock->sdu.sun_path);
-      close(sock->sd);
-      continue;
-    }
-    chmod(sock->path, 0777);
-    ret++;
-  }
-  return ret;
 }
 
 /*
@@ -182,17 +132,17 @@ static int resolve_config(struct logfile *file, char *config)
         lvl++;
       }
     }
-    if (bits & 1) levval = 0xff;
-    if (lvl) {
+    if (bits & 2) levval = 0xff;
+    if (*lvl) {
       if ((i = logger_lookup(1, lvl)) == -1) return -1;
-      levval |= (bits & 2) ? LOG_MASK(i) : LOG_UPTO(i);
-      if (bits & 4) levval = ~levval;
+      levval |= (bits & 4) ? LOG_MASK(i) : LOG_UPTO(i);
+      if (bits & 8) levval = ~levval;
     }
 
     for (i = 0, set = levval; set; set >>= 1, i++)
-      if (set & 0x1) file->facility[i] |= facval;
+      if (set & 0x1) file->facility[i] |= ~facval;
     for (i = 0; i < LOG_NFACILITIES; facval >>= 1, i++)
-      if (facval & 0x1) file->level[i] |= levval;
+      if (facval & 0x1) file->level[i] |= ~levval;
   }
 
   return 0;
@@ -213,9 +163,7 @@ static int parse_config_file(void)
    */
   if (toys.optflags & FLAG_K) {
     file = xzalloc(sizeof(struct logfile));
-    file->filename = "/dev/kmsg";
-    memset(file->level, 0xFF, sizeof(file->level));
-    memset(file->facility, 0xFFFFFFFF, sizeof(file->facility));
+    file->filename = xstrdup("/dev/kmsg");
     TT.lfiles = file;
     return 0;
   }
@@ -228,9 +176,6 @@ static int parse_config_file(void)
   if (toys.optflags & FLAG_R) {
     file = xzalloc(sizeof(struct logfile));
     file->filename = xmsprintf("@%s",TT.remote_log);
-    file->isNetwork = 1;
-    memset(file->level, 0xFF, sizeof(file->level));
-    memset(file->facility, 0xFFFFFFFF, sizeof(file->facility));
     TT.lfiles = file;
     if (!(toys.optflags & FLAG_L)) return 0;
   }
@@ -238,8 +183,7 @@ static int parse_config_file(void)
    * Read config file and add logfiles to the list
    * with their configuration.
    */
-  fp = fopen(TT.config_file, "r");
-  if (!fp && (toys.optflags & FLAG_f))
+  if (!(fp = fopen(TT.config_file, "r")) && (toys.optflags & FLAG_f))
     perror_exit("can't open '%s'", TT.config_file);
 
   for (linelen = 0; fp;) {
@@ -264,7 +208,6 @@ static int parse_config_file(void)
       if (!file) {
         file = xzalloc(sizeof(struct logfile));
         file->filename = xstrdup(tk[1]);
-        if (*file->filename == '@') file->isNetwork = 1;
         file->next = TT.lfiles;
         TT.lfiles = file;
       }
@@ -281,10 +224,8 @@ static int parse_config_file(void)
    */
   if (!fp){
     file = xzalloc(sizeof(struct logfile));
-    file->filename = (toys.optflags & FLAG_O) ?
-                     TT.logfile : "/var/log/messages"; //DEFLOGFILE
-    memset(file->level, 0xFF, sizeof(file->level));
-    memset(file->facility, 0xFFFFFFFF, sizeof(file->facility));
+    file->filename = xstrdup((toys.optflags & FLAG_O) ?
+                     TT.logfile : "/var/log/messages"); //DEFLOGFILE
     file->next = TT.lfiles;
     TT.lfiles = file;
   } else fclose(fp);
@@ -300,7 +241,7 @@ static void open_logfiles(void)
     char *p, *tmpfile;
     long port = 514;
 
-    if (tfd->isNetwork) {
+    if (*tfd->filename == '@') { // network
       struct addrinfo *info, rp;
 
       tmpfile = xstrdup(tfd->filename + 1);
@@ -411,12 +352,12 @@ static void logmsg(char *msg, int len)
 
   for (; tf; tf = tf->next) {
     if (tf->logfd > 0) {
-      if ((tf->facility[lvl] & (1 << fac)) && (tf->level[fac] & (1<<lvl))) {
-        int wlen;
-        if (tf->isNetwork)
+      if (!((tf->facility[lvl] & (1 << fac)) || (tf->level[fac] & (1<<lvl)))) {
+        int wlen, isNetwork = *tf->filename == '@';
+        if (isNetwork)
           wlen = sendto(tf->logfd, omsg, olen, 0, (struct sockaddr*)&tf->saddr, sizeof(tf->saddr));
         else wlen = write_rotate(tf, len);
-        if (wlen < 0) perror_msg("write failed file : %s ", tf->filename + tf->isNetwork);
+        if (wlen < 0) perror_msg("write failed file : %s ", tf->filename + isNetwork);
       }
     }
   }
@@ -431,15 +372,18 @@ static void cleanup(void)
   while (TT.lsocks) {
     struct unsocks *fnode = TT.lsocks;
 
-    if (fnode->sd >= 0) close(fnode->sd);
+    if (fnode->sd >= 0) {
+      close(fnode->sd);
+      unlink(fnode->path);
+    }
     TT.lsocks = fnode->next;
     free(fnode);
   }
-  unlink("/dev/log");
 
   while (TT.lfiles) {
     struct logfile *fnode = TT.lfiles;
 
+    free(fnode->filename);
     if (fnode->logfd >= 0) close(fnode->logfd);
     TT.lfiles = fnode->next;
     free(fnode);
@@ -455,8 +399,9 @@ static void signal_handler(int sig)
 void syslogd_main(void)
 {
   struct unsocks *tsd;
-  int maxfd, retval, last_len=0;
+  int nfds, retval, last_len=0;
   struct timeval tv;
+  fd_set rfds;        // fds for reading
   char *temp, *buffer = (toybuf +2048), *last_buf = (toybuf + 3072); //these two buffs are of 1K each
 
   if ((toys.optflags & FLAG_p) && (strlen(TT.unix_socket) > 108))
@@ -479,7 +424,30 @@ init_jumpin:
       TT.lsocks = tsd;
     }
   }
-  if (!open_unix_socks()) {
+  /*
+   * initializes unsock_t structure
+   * and opens socket for reading
+   * and adds to global lsock list.
+  */
+  nfds = 0;
+  for (tsd = TT.lsocks; tsd; tsd = tsd->next) {
+    tsd->sdu.sun_family = AF_UNIX;
+    strcpy(tsd->sdu.sun_path, tsd->path);
+    tsd->sd = socket(AF_UNIX, SOCK_DGRAM, 0);
+    if (tsd->sd < 0) {
+      perror_msg("OPEN SOCKS : failed");
+      continue;
+    }
+    unlink(tsd->sdu.sun_path);
+    if (bind(tsd->sd, (struct sockaddr *) &tsd->sdu, sizeof(tsd->sdu))) {
+      perror_msg("BIND SOCKS : failed sock : %s", tsd->sdu.sun_path);
+      close(tsd->sd);
+      continue;
+    }
+    chmod(tsd->path, 0777);
+    nfds++;
+  }
+  if (!nfds) {
     error_msg("Can't open single socket for listenning.");
     goto clean_and_exit;
   }
@@ -499,36 +467,27 @@ init_jumpin:
   if (parse_config_file() == -1) goto clean_and_exit;
   open_logfiles();
   if (!(toys.optflags & FLAG_n)) {
+    daemonize();
     //don't daemonize again if SIGHUP received.
     toys.optflags |= FLAG_n;
   }
-  {
-    int pid_fd = open("/var/run/syslogd.pid", O_CREAT | O_WRONLY | O_TRUNC, 0666);
-    if (pid_fd > 0) {
-      unsigned pid = getpid();
-      int len = sprintf(toybuf, "%u\n", pid);
-      write(pid_fd, toybuf, len);
-      close(pid_fd);
-    }
-  }
+  xpidfile("syslogd");
 
   logmsg("<46>Toybox: syslogd started", 27); //27 : the length of message
   for (;;) {
-    maxfd = addrfds();
+    // Add opened socks to rfds for select()
+    FD_ZERO(&rfds);
+    for (tsd = TT.lsocks; tsd; tsd = tsd->next) FD_SET(tsd->sd, &rfds);
+    FD_SET(TT.sigfd[0], &rfds);
     tv.tv_usec = 0;
     tv.tv_sec = TT.interval*60;
 
-    retval = select(maxfd + 1, &TT.rfds, NULL, NULL, (TT.interval)?&tv:NULL);
-    if (retval < 0) { /* Some error. */
-      if (errno == EINTR) continue;
-      perror_msg("Error in select ");
-      continue;
+    retval = select(TT.sigfd[0] + 1, &rfds, NULL, NULL, (TT.interval)?&tv:NULL);
+    if (retval < 0) {
+      if (errno != EINTR) perror_msg("Error in select ");
     }
-    if (!retval) { /* Timed out */
-      logmsg("<46>-- MARK --", 14);
-      continue;
-    }
-    if (FD_ISSET(TT.sigfd[0], &TT.rfds)) { /* May be a signal */
+    else if (!retval) logmsg("<46>-- MARK --", 14);
+    else if (FD_ISSET(TT.sigfd[0], &rfds)) { /* May be a signal */
       unsigned char sig;
 
       if (read(TT.sigfd[0], &sig, 1) != 1) {
@@ -555,11 +514,10 @@ init_jumpin:
           goto init_jumpin;
         default: break;
       }
-    }
-    if (retval > 0) { /* Some activity on listen sockets. */
+    } else { /* Some activity on listen sockets. */
       for (tsd = TT.lsocks; tsd; tsd = tsd->next) {
         int sd = tsd->sd;
-        if (FD_ISSET(sd, &TT.rfds)) {
+        if (FD_ISSET(sd, &rfds)) {
           int len = read(sd, buffer, 1023); //buffer is of 1K, hence readingonly 1023 bytes, 1 for NUL
           if (len > 0) {
             buffer[len] = '\0';
