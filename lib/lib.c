@@ -325,6 +325,8 @@ char *readfile(char *name)
   fd = open(name, O_RDONLY);
   if (fd == -1) return 0;
   len = fdlength(fd);
+  // proc files don't report a length, so try 1 page minimum.
+  if (len<4096) len = 4095;
   buf = xmalloc(len+1);
   buf[readall(fd, buf, len)] = 0;
 
