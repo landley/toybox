@@ -2,7 +2,7 @@
  *
  * Copyright 2011 Rob Landley <rob@landley.net>
 
-USE_UNSHARE(NEWTOY(unshare, "<1^nium", TOYFLAG_USR|TOYFLAG_BIN))
+USE_UNSHARE(NEWTOY(unshare, "<1^niumpU", TOYFLAG_USR|TOYFLAG_BIN))
 
 config UNSHARE
   bool "unshare"
@@ -15,10 +15,12 @@ config UNSHARE
     attribute is not shared with the parent process.  This is part of
     Linux Containers.  Each process can have its own:
 
-    -m	Mount/unmount tree
-    -u	Host and domain names
     -i	SysV IPC (message queues, semaphores, shared memory)
+    -m	Mount/unmount tree
     -n	Network address, sockets, routing, iptables
+    -p	Process IDs and init
+    -u	Host and domain names
+    -U  UIDs, GIDs, capabilities
 */
 
 #include "toys.h"
@@ -27,7 +29,8 @@ extern int unshare (int __flags);
 
 void unshare_main(void)
 {
-  unsigned flags[]={CLONE_NEWNS, CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWNET, 0};
+  unsigned flags[]={CLONE_NEWNS, CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWNET,
+                    CLONE_NEWPID, CLONE_NEWUSER, 0};
   unsigned f=0;
   int i;
 
