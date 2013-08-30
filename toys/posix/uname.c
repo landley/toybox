@@ -10,14 +10,14 @@ config UNAME
   bool "uname"
   default y
   help
-    usage: uname [-asnrvmpio]
+    usage: uname [-asnrvm]
 
     Print system information.
 
     -s	System name
     -n	Network (domain) name
-    -r	Release number
-    -v	Version (build date)
+    -r	Kernel Release number
+    -v	Kernel Version 
     -m	Machine (hardware) name
     -a	All of the above
 */
