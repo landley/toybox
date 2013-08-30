@@ -5,13 +5,15 @@
 export LANG=c
 source ./configure
 
-if [ -z ".config" ]
+[ -z "$KCONFIG_CONFIG" ] && KCONFIG_CONFIG=".config"
+
+if [ -z "$KCONFIG_CONFIG" ]
 then
-  echo "No .config (see "make help" for configuration options)."
+  echo "No $KCONFIG_CONFIG (see "make help" for configuration options)."
   exit 1
 fi
 
-echo "Make generated/config.h from .config."
+echo "Make generated/config.h from $KCONFIG_CONFIG."
 
 # This long and roundabout sed invocation is to make old versions of sed happy.
 # New ones have '\n' so can replace one line with two without all the branches
@@ -35,7 +37,7 @@ sed -n \
   -e 's/.*/#define CFG_& 1/p' \
   -e 'g' \
   -e 's/.*/#define USE_&(...) __VA_ARGS__/p' \
-  .config > generated/config.h || exit 1
+  $KCONFIG_CONFIG > generated/config.h || exit 1
 
 
 echo "Extract configuration information from toys/*.c files..."
@@ -50,7 +52,7 @@ echo "Generate headers from toys/*/*.c..."
 
 echo "generated/newtoys.h"
 
-echo "NEWTOY(toybox, NULL, TOYFLAG_STAYROOT)" > generated/newtoys.h
+echo "USE_TOYBOX(NEWTOY(toybox, NULL, TOYFLAG_STAYROOT))" > generated/newtoys.h
 sed -n -e 's/^USE_[A-Z0-9_]*(/&/p' toys/*/*.c \
 	| sed 's/\(.*TOY(\)\([^,]*\),\(.*\)/\2 \1\2,\3/' | sort -k 1,1 \
 	| sed 's/[^ ]* //'  >> generated/newtoys.h
@@ -138,13 +140,14 @@ GLOBSTRUCT="$(getglobals)"
 echo "generated/help.h"
 # Only recreate generated/help.h if python2 is installed. Does not work with 3.
 PYTHON="$(which python2)"
-if [ ! -z "$PYTHON" ] && [ ! -z "$(grep 'CONFIG_TOYBOX_HELP=y' .config)" ]
+if [ ! -z "$PYTHON" ] &&
+   [ ! -z "$(grep 'CONFIG_TOYBOX_HELP=y' $KCONFIG_CONFIG)" ]
 then
   echo "Extract help text from Config.in."
   "$PYTHON" scripts/config2help.py Config.in > generated/help.h || exit 1
 fi
 
-# Extract a list of toys/*/*.c files to compile from the data in ".config":
+# Extract a list of toys/*/*.c files to compile from the data in $KCONFIG_CONFIG
 
 # 1) Get a list of C files in toys/* and glue them together into a regex we can
 # feed to grep that will match any one of them (whole word, not substring).
@@ -157,7 +160,7 @@ TOYFILES="^$(ls toys/*/*.c | sed -n 's@^.*/\(.*\)\.c$@\1@;s/-/_/g;H;${g;s/\n//;s
 # 5) Remove any config symbol not recognized as a filename from step 1.
 # 6) Add "toys/*/" prefix and ".c" suffix.
 
-TOYFILES=$(sed -nre 's/^CONFIG_(.*)=y/\1/p' < .config \
+TOYFILES=$(sed -nre 's/^CONFIG_(.*)=y/\1/p' < "$KCONFIG_CONFIG" \
   | sort -u | tr A-Z a-z | grep -E "$TOYFILES" | sed 's@\(.*\)@toys/\*/\1.c@')
 
 echo "Library probe..."

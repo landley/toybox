@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
 {
   if (CFG_TOYBOX_I18N) setlocale(LC_ALL, "");
 
-  if (!CFG_TOYBOX_SINGLE) {
+  if (CFG_TOYBOX) {
     // Trim path off of command name
     *argv = basename(*argv);
 

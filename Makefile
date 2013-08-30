@@ -3,7 +3,8 @@
 
 all: toybox
 
-toybox toybox_unstripped: .config *.[ch] lib/*.[ch] toys/*.h toys/*/*.c scripts/*.sh
+KCONFIG_CONFIG ?= .config
+toybox toybox_unstripped: $(KCONFIG_CONFIG) *.[ch] lib/*.[ch] toys/*.h toys/*/*.c scripts/*.sh
 	scripts/make.sh
 
 .PHONY: clean distclean baseline bloatcheck install install_flat \
@@ -43,7 +44,7 @@ clean::
 	rm -rf toybox toybox_unstripped generated/config.h generated/Config.in \
 		generated/newtoys.h generated/globals.h instlist testdir \
 		generated/Config.probed generated/oldtoys.h \
-		generated/portability.h
+		generated/portability.h .singleconfig
 
 distclean: clean
 	rm -f toybox_old .config* generated/help.h
