@@ -139,12 +139,17 @@ GLOBSTRUCT="$(getglobals)"
 
 echo "generated/help.h"
 # Only recreate generated/help.h if python2 is installed. Does not work with 3.
-PYTHON="$(which python2)"
-if [ ! -z "$PYTHON" ] &&
-   [ ! -z "$(grep 'CONFIG_TOYBOX_HELP=y' $KCONFIG_CONFIG)" ]
+PYTHON="$(which python2 || which python2.6 || which python2.7)"
+if [ ! -z "$(grep 'CONFIG_TOYBOX_HELP=y' $KCONFIG_CONFIG)" ];
 then
-  echo "Extract help text from Config.in."
-  "$PYTHON" scripts/config2help.py Config.in > generated/help.h || exit 1
+  if [ -z "$PYTHON" ];
+  then
+    echo "Python 2.x required when CONFIG_TOYBOX_HELP is enabled"
+    exit 1
+  else
+    echo "Extract help text from Config.in."
+    "$PYTHON" scripts/config2help.py Config.in > generated/help.h || exit 1
+  fi
 fi
 
 # Extract a list of toys/*/*.c files to compile from the data in $KCONFIG_CONFIG
