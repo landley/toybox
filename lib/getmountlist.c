@@ -10,13 +10,14 @@
 // Get list of mounted filesystems, including stat and statvfs info.
 // Returns a reversed list, which is good for finding overmounts and such.
 
-struct mtab_list *xgetmountlist(void)
+struct mtab_list *xgetmountlist(char *path)
 {
   struct mtab_list *mtlist, *mt;
   struct mntent *me;
   FILE *fp;
 
-  if (!(fp = setmntent("/proc/mounts", "r"))) perror_exit("bad /proc/mounts");
+  if (!path) path = "/proc/mounts";
+  if (!(fp = setmntent(path, "r"))) perror_exit("bad %s", path);
 
   // The "test" part of the loop is done before the first time through and
   // again after each "increment", so putting the actual load there avoids

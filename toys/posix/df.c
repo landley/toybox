@@ -108,7 +108,7 @@ void df_main(void)
       TT.units);
   } else puts("Filesystem\t1K-blocks\tUsed Available Use% Mounted on");
 
-  mtlist = xgetmountlist();
+  mtlist = xgetmountlist(0);
 
   // If we have a list of filesystems on the command line, loop through them.
   if (*toys.optargs) {

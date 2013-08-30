@@ -162,7 +162,6 @@ void crc_init(unsigned int *crc_table, int little_endian);
 void terminal_size(unsigned *x, unsigned *y);
 int yesno(char *prompt, int def);
 void for_each_pid_with_name_in(char **names, int (*callback)(pid_t pid, char *name));
-unsigned long xstrtoul(const char *nptr, char **endptr, int base);
 
 // net.c
 int xsocket(int domain, int type, int protocol);
@@ -177,7 +176,7 @@ struct mtab_list {
   char type[0];
 };
 
-struct mtab_list *xgetmountlist(void);
+struct mtab_list *xgetmountlist(char *path);
 
 void bunzipStream(int src_fd, int dst_fd);
 
