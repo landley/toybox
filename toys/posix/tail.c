@@ -38,19 +38,20 @@ GLOBALS(
 )
 
 struct line_list {
-  struct line_list *next, *prev;
+  struct line_list *next;
   char *data;
-  int len;
+  size_t len;
 };
 
-static struct line_list *get_chunk(int fd, int len)
+static struct line_list *get_chunk(int fd, size_t len)
 {
   struct line_list *line = xmalloc(sizeof(struct line_list)+len);
 
-  line->data = ((char *)line) + sizeof(struct line_list);
+  line->data = (char*)line + sizeof(struct line_list);
   line->len = readall(fd, line->data, len);
+  line->next = 0;
 
-  if (line->len < 1) {
+  if (line->len + 1 < 2) {
     free(line);
     return 0;
   }
@@ -61,7 +62,9 @@ static struct line_list *get_chunk(int fd, int len)
 static void dump_chunk(void *ptr)
 {
   struct line_list *list = ptr;
-  xwrite(1, list->data, list->len);
+  size_t len = list->len - (list->data - (char*)list - sizeof(struct line_list));
+
+  xwrite(1, list->data, len);
   free(list);
 }
 
@@ -71,11 +74,11 @@ static void dump_chunk(void *ptr)
 static int try_lseek(int fd, long bytes, long lines)
 {
   struct line_list *list = 0, *temp;
-  int flag = 0, chunk = sizeof(toybuf);
-  ssize_t pos = lseek(fd, 0, SEEK_END);
+  int flag = 0;
+  size_t chunk = sizeof(toybuf), pos = lseek(fd, 0, SEEK_END);
 
   // If lseek() doesn't work on this stream, return now.
-  if (pos<0) return 0;
+  if (pos == -1) return 0;
 
   // Seek to the right spot, output data from there.
   if (bytes) {
@@ -88,40 +91,36 @@ static int try_lseek(int fd, long bytes, long lines)
 
   bytes = pos;
   while (lines && pos) {
-    int offset;
+    size_t offset;
 
     // Read in next chunk from end of file
-    if (chunk>pos) chunk = pos;
+    if (chunk > pos) chunk = pos;
     pos -= chunk;
     if (pos != lseek(fd, pos, SEEK_SET)) {
       perror_msg("seek failed");
       break;
     }
     if (!(temp = get_chunk(fd, chunk))) break;
-    if (list) list->next = temp;
+    if (list) temp->next = list;
     list = temp;
 
     // Count newlines in this chunk.
     offset = list->len;
     while (offset--) {
       // If the last line ends with a newline, that one doesn't count.
-      if (!flag) {
-        flag++;
-
-        continue;
-      }
+      if (!flag) flag++;
 
       // Start outputting data right after newline
-      if (list->data[offset] == '\n' && !++lines) {
+      else if (list->data[offset] == '\n' && !++lines) {
         offset++;
         list->data += offset;
-        list->len -= offset;
 
-        break;
+        goto done;
       }
     }
   }
 
+done:
   // Output stored data
   llist_traverse(list, dump_chunk);
 
@@ -143,58 +142,54 @@ static void do_tail(int fd, char *name)
   // Are we measuring from the end of the file?
 
   if (bytes<0 || lines<0) {
-    struct line_list *list = 0, *new;
+    struct line_list *head = 0, *tail, *new;
+    // circular buffer of lines
+    struct {
+      char *start;
+      struct line_list *inchunk;
+    } *l = xzalloc(2*-lines*sizeof(void*));
+    int i = 0, flag = 0;
+    size_t count, len = bytes;
 
     // The slow codepath is always needed, and can handle all input,
     // so make lseek support optional.
-    if (CFG_TAIL_SEEK && try_lseek(fd, bytes, lines));
+    if (CFG_TAIL_SEEK && try_lseek(fd, bytes, lines)) return;
 
     // Read data until we run out, keep a trailing buffer
-    else for (;;) {
-      int len, count;
+    for (;;) {
       char *try;
 
       if (!(new = get_chunk(fd, sizeof(toybuf)))) break;
       // append in order
-      dlist_add_nomalloc((void *)&list, (struct double_list *)new);
+      if (head) tail->next = new;
+      else head = new;
+      tail = new;
 
-      // Measure new chunk, discarding extra data from buffer
-      len = new->len;
       try = new->data;
-      for (count=0; count<len; count++) {
-        if ((toys.optflags & FLAG_c) && bytes) {
-          bytes++;
-          continue;
+      if (lines) for (count = 0; count < new->len; count++, try++) {
+        if (flag) { // last char was a newline
+            while (l[i].inchunk && (l[i].inchunk!=head)) free(llist_pop(&head));
+            l[i].inchunk = tail;
+            l[i].start = try;
+            i = (i + 1) % -lines;
+            flag = 0;
         }
-
-        if (lines) {
-          if(try[count] != '\n' && count != len-1) continue;
-          if (lines<0) {
-            if (!++lines) ++lines;
-            continue;
-          }
+        if (*try == '\n') flag = 1;
+      } else { // bytes
+        if (len + new->len < len) flag = 1; // overflow -> have now read enough
+        for (len += new->len; flag && (len - head->len < len);) {
+          len -= head->len;
+          free(llist_pop(&head));
         }
-
-        // Time to discard data; given that bytes and lines were
-        // nonzero coming in, we can't discard too much if we're
-        // measuring right.
-        do {
-          char c = *(list->data++);
-          if (!(--list->len)) {
-            struct line_list *next = list->next;
-            list->prev->next = next;
-            list->next->prev = list->prev;
-            free(list);
-            list = next;
-          }
-          if (c == '\n') break;
-        } while (lines);
       }
     }
+    if (lines) head->data = l[i].start;
+    else head->data += len;
 
     // Output/free the buffer.
-    llist_traverse(list, dump_chunk);
+    llist_traverse(head, dump_chunk);
 
+    free(l);
   // Measuring from the beginning of the file.
   } else for (;;) {
     int len, offset = 0;
