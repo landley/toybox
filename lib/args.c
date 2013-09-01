@@ -23,7 +23,8 @@
 //       Same <LOW>HIGH=DEFAULT as #
 //     @ plus an occurrence counter (which is a long)
 //     (longopt)
-//     | this is required.  If more than one marked, only one required. TODO
+//     | this is required.  If more than one marked, only one required.
+//     ; long option's argument is optional, can only be supplied with --opt=
 //     ^ Stop parsing after encountering this argument
 //    " " (space char) the "plus an  argument" must be separate
 //        I.E. "-j 3" not "-j3". So "kill -stop" != "kill -s top"
@@ -140,7 +141,10 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt)
   }
 
   // Does this option take an argument?
-  gof->arg++;
+  if (!gof->arg) {
+    if (opt->flags & 8) return 0;
+    gof->arg = "";
+  } else gof->arg++;
   type = opt->type;
 
   if (type == '@') ++*(opt->arg);
@@ -151,9 +155,17 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt)
     // to make "tar xCjfv blah1 blah2 thingy" work like
     // "tar -x -C blah1 -j -f blah2 -v thingy"
 
-    if (gof->nodash_now || !arg[0]) arg = toys.argv[++gof->argc];
-    // TODO: The following line doesn't display --longopt correctly
-    if (!arg) error_exit("Missing argument to -%c", opt->c);
+    if (gof->nodash_now || (!arg[0] && !(opt->flags & 8)))
+      arg = toys.argv[++gof->argc];
+    if (!arg) {
+      char *s = "Missing argument to ";
+      struct longopts *lo;
+
+      if (opt->c != -1) error_exit("%s-%c", s, opt->c);
+
+      for (lo = gof->longopts; lo->opt != opt; lo = lo->next);
+      error_exit("%s--%.*s", s, lo->len, lo->str);
+    }
 
     if (type == ':') *(opt->arg) = (long)arg;
     else if (type == '*') {
@@ -230,27 +242,27 @@ void parse_optflaglist(struct getoptflagstate *gof)
     }
     // Each option must start with "(" or an option character.  (Bare
     // longopts only come at the start of the string.)
-    if (*options == '(') {
+    if (*options == '(' && new->c != -1) {
       char *end;
-      struct longopts *lo = xmalloc(sizeof(struct longopts));
+      struct longopts *lo;
 
       // Find the end of the longopt
       for (end = ++options; *end && *end != ')'; end++);
       if (CFG_TOYBOX_DEBUG && !*end) error_exit("(longopt) didn't end");
 
       // init a new struct longopts
+      lo = xmalloc(sizeof(struct longopts));
       lo->next = gof->longopts;
       lo->opt = new;
       lo->str = options;
       lo->len = end-options;
       gof->longopts = lo;
-      options = end;
+      options = ++end;
 
       // Mark this struct opt as used, even when no short opt.
-      if (!new->c) {
-        new->c = -1;
-        new = 0;
-      }
+      if (!new->c) new->c = -1;
+
+      continue;
 
     // If this is the start of a new option that wasn't a longopt,
 
@@ -258,7 +270,7 @@ void parse_optflaglist(struct getoptflagstate *gof)
       if (CFG_TOYBOX_DEBUG && new->type)
         error_exit("multiple types %c:%c%c", new->c, new->type, *options);
       new->type = *options;
-    } else if (-1 != (idx = stridx("|^ ", *options))) new->flags |= 1<<idx;
+    } else if (-1 != (idx = stridx("|^ ;", *options))) new->flags |= 1<<idx;
     // bounds checking
     else if (-1 != (idx = stridx("<>=", *options))) {
       if (new->type == '#') {
@@ -269,14 +281,13 @@ void parse_optflaglist(struct getoptflagstate *gof)
         if (temp != options) new->val[idx].f = f;
       } else if (CFG_TOYBOX_DEBUG) error_exit("<>= only after .#");
       options = --temp;
-    }
 
     // At this point, we've hit the end of the previous option.  The
     // current character is the start of a new option.  If we've already
     // assigned an option to this struct, loop to allocate a new one.
     // (It'll get back here afterwards and fall through to next else.)
-    else if (new->c) {
-      new = NULL;
+    } else if (new->c) {
+      new = 0;
       continue;
 
     // Claim this option, loop to see what's after it.
@@ -382,16 +393,15 @@ void get_optflags(void)
           gof.stopearly += 2;
           continue;
         }
-        // Handle --longopt
 
+        // do we match a known --longopt?
         for (lo = gof.longopts; lo; lo = lo->next) {
           if (!strncmp(gof.arg, lo->str, lo->len)) {
-            if (gof.arg[lo->len]) {
-              if (gof.arg[lo->len]=='=' && lo->opt->type) gof.arg += lo->len;
-              else continue;
-            }
+            if (!gof.arg[lo->len]) gof.arg = 0;
+            else if (gof.arg[lo->len] == '=' && lo->opt->type)
+              gof.arg += lo->len;
+            else continue;
             // It's a match.
-            gof.arg = "";
             catch = lo->opt;
             break;
           }
@@ -399,7 +409,7 @@ void get_optflags(void)
 
         // Should we handle this --longopt as a non-option argument?
         if (!lo && gof.noerror) {
-          gof.arg-=2;
+          gof.arg -= 2;
           goto notflag;
         }
 

@@ -7,7 +7,7 @@
 
 // Accept many different kinds of command line argument:
 
-USE_HELLO(NEWTOY(hello, "(walrus)(blubber):e@d*c#b:a", TOYFLAG_USR|TOYFLAG_BIN))
+USE_HELLO(NEWTOY(hello, "(walrus)(blubber):;(also):e@d*c#b:a", TOYFLAG_USR|TOYFLAG_BIN))
 
 config HELLO
   bool "hello"
@@ -31,6 +31,7 @@ GLOBALS(
   long c_number;
   struct arg_list *d_list;
   long e_count;
+  char *also_string;
   char *blubber_string;
 
   int more_globals;
