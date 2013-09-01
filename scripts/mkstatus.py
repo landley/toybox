@@ -15,9 +15,13 @@ def readit(args):
     arr.extend(i)
   return ret,arr
 
-stuff,blah=readit(["sed","-n", 's/<span id=\\([a-z_]*\\)>/\\1 /;t good;d;:good;h;:loop;n;s@</span>@@;t out;H;b loop;:out;g;s/\\n/ /g;p', "www/roadmap.html", "www/status.html"])
+# Run sed on roadmap and status pages to get command lists, and run toybox too
+# This gives us a dictionary of types, each with a list of commands
 
+stuff,blah=readit(["sed","-n", 's/<span id=\\([a-z_]*\\)>/\\1 /;t good;d;:good;h;:loop;n;s@</span>@@;t out;H;b loop;:out;g;s/\\n/ /g;p', "www/roadmap.html", "www/status.html"])
 blah,toystuff=readit(["./toybox"])
+
+# Create reverse mappings: command is in which
 
 reverse={}
 for i in stuff:
@@ -39,21 +43,36 @@ print "all commands=%s" % len(reverse)
 outfile=open("www/status.gen", "w")
 outfile.write("<a name=all><h2><a href=#all>All commands</a></h2><blockquote><p>\n")
 
+conv = [("posix", '<a href="http://pubs.opengroup.org/onlinepubs/9699919799/utilities/%s.html">%%s</a>', "[%s]"),
+        ("lsb", '<a href="http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/%s.html">%%s</a>', '&lt;%s&gt;'),
+        ("development", '<a href="http://linux.die.net/man/1/%s">%%s</a>', '(%s)'),
+        ("toolbox", "", '{%s}'), ("klibc_cmd", "", '=%s='),
+        ("sash_cmd", "", '#%s#'), ("sbase_cmd", "", '@%s@'),
+        ("beastiebox_cmd", "", '*%s*'),
+        ("request", '<a href="http://linux.die.net/man/1/%s">%%s</a>', '+%s+')]
+
+
+def categorize(reverse, i, skippy=""):
+  linky = "%s"
+  out = i
+
+  if skippy: types = filter(lambda a: a != skippy, reverse[i])
+  else: types = reverse[i]
+
+  for j in conv:
+    if j[0] in types:
+      if j[1]: linky = j[1] % i
+      out = j[2] % out
+      if not skippy: break
+  if (not skippy) and out == i:
+    sys.stderr.write("unknown %s %s\n" % (i,reverse[i]))
+
+  return linky % out
+
 blah=list(reverse)
 blah.sort()
 for i in blah:
-  out=i
-  if "posix" in reverse[i]: out='[<a href="http://pubs.opengroup.org/onlinepubs/9699919799/utilities/%s.html">%s</a>]' % (i,out)
-  elif "lsb" in reverse[i]: out='&lt;<a href="http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/%s.html">%s</a>&gt;' % (i,out)
-  elif "development" in reverse[i]: out='(<a href="http://linux.die.net/man/1/%s">%s</a>)' % (i,out)
-  elif "toolbox" in reverse[i]: out='{%s}' % out
-  elif "klibc_cmd" in reverse[i]: out='=%s=' % out
-  elif "sash_cmd" in reverse[i]: out='#%s#' % out
-  elif "sbase_cmd" in reverse[i]: out='@%s@' % out
-  elif "beastiebox_cmd" in reverse[i]: out='*%s*' % out
-  elif "request" in reverse[i]: out='+<a href="http://linux.die.net/man/1/%s">%s</a>+' % (i,out)
-  elif "ready" in reverse[i]: pass
-  else: sys.stderr.write("unknown %s %s\n" % (i, reverse[i]))
+  out=categorize(reverse, i)
   if "ready" in reverse[i] or "pending" in reverse[i]:
     done.append(out)
     out='<strike>%s</strike>' % out
@@ -66,3 +85,22 @@ outfile.write("</p></blockquote>\n")
 
 outfile.write("<a name=todo><h2><a href=#todo>TODO</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(pending))
 outfile.write("<a name=done><h2><a href=#done>Done</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(done))
+
+outfile.write("<hr><h2>Categories of remaining todo items</h2>")
+
+for i in stuff:
+  todo = []
+
+  for j in stuff[i]:
+    if "ready" in reverse[j]: continue
+    else: todo.append(categorize(reverse,j,i))
+
+  if todo:
+    k = i
+    for j in conv:
+      if j[0] == i:
+        k = j[2] % i
+
+    outfile.write("<a name=%s><h2><a href=#%s>%s<a></h2><blockquote><p>" % (i,i,k))
+    outfile.write(" ".join(todo))
+    outfile.write("</p></blockquote>\n")
