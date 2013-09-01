@@ -68,7 +68,7 @@ function getflags()
   sed -n -e "s/.*TOY($FLX"',[ \t]*"\([^"]*\)"[ \t]*,.*)/\1/' \
          -e 't keep;d;:keep' -e 's/^[<>=][0-9]//' -e 's/[?&^]//' \
          -e 't keep' -e 's/[><=][0-9][0-9]*//g' -e 's/+.//g' \
-         -e 's/\[[^]]*\]//g' -e 's/[-?^:&#|@* ]//g' "$@" -e 'p'
+         -e 's/\[[^]]*\]//g' -e 's/[-?^:&#|@* ;]//g' "$@" -e 'p'
 }
 
 # Extract global structure definitions and flag definitions from toys/*/*.c

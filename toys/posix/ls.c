@@ -5,7 +5,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/ls.html
 
-USE_LS(NEWTOY(ls, USE_LS_COLOR("(color)")"goACFHLRSacdfiklmnpqrstux1[-1Cglmnox][-cu][-ftS][-HL]", TOYFLAG_BIN))
+USE_LS(NEWTOY(ls, USE_LS_COLOR("(color):;")"goACFHLRSacdfiklmnpqrstux1[-1Cglmnox][-cu][-ftS][-HL]", TOYFLAG_BIN))
 
 config LS
   bool "ls"
@@ -37,10 +37,11 @@ config LS_COLOR
   default y
   depends on LS
   help
-    usage: ls --color
+    usage: ls --color[=auto]
 
     --color  device=yellow  symlink=turquoise/red  dir=blue  socket=purple
              files: exe=green  suid=red  suidfile=redback  stickydir=greenback
+             =auto means detect if output is a tty.
 */
 
 #define FOR_ls
@@ -51,6 +52,8 @@ config LS_COLOR
 // ls -lR starts .: then ./subdir:
 
 GLOBALS(
+  char *color;
+
   struct dirtree *files;
 
   unsigned screen_width;
@@ -381,7 +384,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
       xprintf(" %s ", thyme);
     }
 
-    if ((flags & FLAG_color) && TT.screen_width) {
+    if (flags & FLAG_color) {
       color = color_from_mode(st->st_mode);
       if (color) printf("\033[%d;%dm", color>>8, color&255);
     }
@@ -394,7 +397,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
     if ((flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) && S_ISLNK(mode)) {
       printf(" -> ");
-      if ((flags & FLAG_color) && TT.screen_width) {
+      if (flags & FLAG_color) {
         struct stat st2;
 
         if (fstatat(dirfd, sort[next]->symlink, &st2, 0)) color = 256+31;
@@ -442,7 +445,10 @@ void ls_main(void)
   if (TT.screen_width<2) TT.screen_width = 2;
 
   // Do we have an implied -1
-  if (!isatty(1) || (toys.optflags&(FLAG_l|FLAG_o|FLAG_n|FLAG_g)))
+  if (!isatty(1)) {
+    toys.optflags |= FLAG_1;
+    if (TT.color) toys.optflags ^= FLAG_color;
+  } else if (toys.optflags&(FLAG_l|FLAG_o|FLAG_n|FLAG_g))
     toys.optflags |= FLAG_1;
   else if (!(toys.optflags&(FLAG_1|FLAG_x|FLAG_m))) toys.optflags |= FLAG_C;
   // The optflags parsing infrastructure should really do this for us,
