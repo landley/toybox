@@ -8,33 +8,30 @@ config PWDX
   bool "pwdx"
   default y
   help
-    usage: pwdx pids ...
+    usage: pwdx PID...
+
+    Print working directory of processes listed on command line.
 */
 
 #include "toys.h"
 
-int pid_dir(char *pid)
-{
-  char *path;
-  int num_bytes;
-
-  path = xmsprintf("/proc/%s/cwd",pid);
-  num_bytes = readlink(path,toybuf,sizeof(toybuf));
-  if(num_bytes==-1){
-    xprintf("%s: %s\n",pid,strerror(errno));
-    return 1;
-  }else{
-    toybuf[num_bytes]='\0';
-    xprintf("%s: %s\n",pid,toybuf);
-    return 0;
-  }
-}
-
 void pwdx_main(void)
 {
-  int i;
+  for (; *toys.optargs; toys.optargs++) {
+    char *path;
+    int num_bytes;
 
-  for (i=0; toys.optargs[i]; i++)
-    toys.exitval |= pid_dir(toys.optargs[i]);
+    path = xmsprintf("/proc/%s/cwd", *toys.optargs);
+    num_bytes = readlink(path, toybuf, sizeof(toybuf)-1);
+    free(path);
+
+    if (num_bytes==-1) {
+      path = strerror(errno);
+      toys.exitval = 1;
+    } else {
+      path = toybuf;
+      toybuf[num_bytes] = 0;
+    }
+    xprintf("%s: %s\n", *toys.optargs, path);
+  }
 }
-
