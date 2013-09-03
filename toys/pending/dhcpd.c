@@ -310,7 +310,9 @@ static void write_pid(char *path)
 {
   int pidfile = open(path, O_CREAT | O_WRONLY | O_TRUNC, 0666);
   if (pidfile > 0) {
-    char *pidbuf = utoa(getpid());
+    char pidbuf[12];
+
+    sprintf(pidbuf, "%u", (unsigned)getpid());
     write(pidfile, pidbuf, strlen(pidbuf));
     close(pidfile);
   }
