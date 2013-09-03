@@ -173,7 +173,7 @@ static const char *get_pid_name(unsigned long inode)
  */
 static void display_data(unsigned rport, char *label, unsigned rxq, unsigned txq, char *lip, char *rip, unsigned state, unsigned long inode)
 {
-  char *ss_state = "UNKNOWN";
+  char *ss_state = "UNKNOWN", buf[12];
   char *state_label[] = {"", "ESTABLISHED", "SYN_SENT", "SYN_RECV", "FIN_WAIT1", "FIN_WAIT2",
   		                 "TIME_WAIT", "CLOSE", "CLOSE_WAIT", "LAST_ACK", "LISTEN", "CLOSING", "UNKNOWN"};
   if (!strcmp(label, "tcp")) {
@@ -185,7 +185,7 @@ static void display_data(unsigned rport, char *label, unsigned rxq, unsigned txq
     if (state == 1) ss_state = state_label[state];
     else if (state == 7) ss_state = "";
   }
-  else if (!strcmp(label, "raw")) ss_state = itoa(state);
+  else if (!strcmp(label, "raw")) sprintf(ss_state = buf, "%u", state);
 
   if ( (toys.optflags & FLAG_W) && (toys.optflags & FLAG_p))
     xprintf("%3s   %6d %6d %-51s %-51s %-12s%s\n", label, rxq, txq, lip, rip, ss_state, get_pid_name(inode));
@@ -215,7 +215,7 @@ static char *get_servname(int port, char *label)
   if (!lport) return xmsprintf("%s", "*");
   struct servent *ser = getservbyport(lport, label);
   if (ser) return xmsprintf("%s", ser->s_name);
-  return xmsprintf("%s", itoa(ntohs(lport)));
+  return xmsprintf("%u", (unsigned)ntohs(lport));
 }
 /*
  * used to convert address into text format.

@@ -177,62 +177,6 @@ struct string_list *find_in_path(char *path, char *filename)
   return rlist;
 }
 
-// Convert unsigned int to ascii, writing into supplied buffer.  A truncated
-// result contains the first few digits of the result ala strncpy, and is
-// always null terminated (unless buflen is 0).
-void utoa_to_buf(unsigned n, char *buf, unsigned buflen)
-{
-  int i, out = 0;
-
-  if (buflen) {
-    for (i=1000000000; i; i/=10) {
-      int res = n/i;
-
-      if ((res || out || i == 1) && --buflen>0) {
-        out++;
-        n -= res*i;
-        *buf++ = '0' + res;
-      }
-    }
-    *buf = 0;
-  }
-}
-
-// Convert signed integer to ascii, using utoa_to_buf()
-void itoa_to_buf(int n, char *buf, unsigned buflen)
-{
-  if (buflen && n<0) {
-    n = -n;
-    *buf++ = '-';
-    buflen--;
-  }
-  utoa_to_buf((unsigned)n, buf, buflen);
-}
-
-// This static buffer is used by both utoa() and itoa(), calling either one a
-// second time will overwrite the previous results.
-//
-// The longest 32 bit integer is -2 billion plus a null terminator: 12 bytes.
-// Note that int is always 32 bits on any remotely unix-like system, see
-// http://www.unix.org/whitepapers/64bit.html for details.
-
-static char itoa_buf[12];
-
-// Convert unsigned integer to ascii, returning a static buffer.
-char *utoa(unsigned n)
-{
-  utoa_to_buf(n, itoa_buf, sizeof(itoa_buf));
-
-  return itoa_buf;
-}
-
-char *itoa(int n)
-{
-  itoa_to_buf(n, itoa_buf, sizeof(itoa_buf));
-
-  return itoa_buf;
-}
-
 // atol() with the kilo/mega/giga/tera/peta/exa extensions.
 // (zetta and yotta don't fit in 64 bits.)
 long atolx(char *numstr)

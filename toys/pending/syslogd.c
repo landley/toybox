@@ -84,11 +84,13 @@ int logger_lookup(int where, char *key)
 }
 
 //search the given name and return its value
-static char *dec(int val, CODE *clist)
+static char *dec(int val, CODE *clist, char *buf)
 {
   for (; clist->c_name; clist++) 
     if (val == clist->c_val) return clist->c_name;
-  return itoa(val);
+  sprintf(buf, "%u", val);
+
+  return buf;
 }
 
 /*
@@ -340,8 +342,10 @@ static void logmsg(char *msg, int len)
 
   if (toys.optflags & FLAG_K) len = sprintf(toybuf, "<%d> %s\n", pri, msg);
   else {
-    facstr = dec(pri & LOG_FACMASK, facilitynames);
-    lvlstr = dec(LOG_PRI(pri), prioritynames);
+    char facbuf[12], pribuf[12];
+
+    facstr = dec(pri & LOG_FACMASK, facilitynames, facbuf);
+    lvlstr = dec(LOG_PRI(pri), prioritynames, pribuf);
 
     p = "local";
     if (!uname(&uts)) p = uts.nodename;
