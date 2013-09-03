@@ -43,12 +43,12 @@ static int print_pid(pid_t pid, char * name)
   xprintf("%*s", len+(!toys.exitval), toybuf);
   toys.exitval = 0;
 
-  return !(toys.optflags & FLAG_s);
+  return toys.optflags & FLAG_s;
 }
 
 void pidof_main(void)
 {
   toys.exitval = 1;
-  for_each_pid_with_name_in(toys.optargs, print_pid);
+  name_to_pid(toys.optargs, print_pid);
   if (!toys.exitval) xputc('\n');
 }

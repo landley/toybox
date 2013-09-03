@@ -32,21 +32,20 @@ static int kill_process(pid_t pid, char *name)
 {
   int ret;
 
-  if (pid == TT.cur_pid) return 1;
+  if (pid == TT.cur_pid) return 0;
 
   if (toys.optflags & FLAG_i) {
     sprintf(toybuf, "Signal %s(%d) ?", name, pid);
-    if (yesno(toybuf, 0) == 0) return 1;
+    if (yesno(toybuf, 0) == 0) return 0;
   }
 
-  toys.exitval = 0;
-
   ret = kill(pid, TT.signum);
-  if (toys.optflags & FLAG_v)
+  if (ret == -1 && !(toys.optflags & FLAG_q))
+    error_msg("bad %u", (unsigned)pid);
+  else if (toys.optflags & FLAG_v)
     printf("Killed %s(%d) with signal %d\n", name, pid, TT.signum);
 
-  if (ret == -1 && !(toys.optflags & FLAG_q)) perror("kill");
-  return 1;
+  return 0;
 }
 
 void killall_main(void)
@@ -76,7 +75,7 @@ void killall_main(void)
 
   TT.cur_pid = getpid();
 
-  for_each_pid_with_name_in(names, kill_process);
+  names_to_pid(names, kill_process);
 
   if (toys.exitval && !(toys.optflags & FLAG_q)) error_exit("No such process");
 }
