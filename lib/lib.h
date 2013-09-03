@@ -135,7 +135,7 @@ ssize_t readall(int fd, void *buf, size_t len);
 ssize_t writeall(int fd, void *buf, size_t len);
 off_t lskip(int fd, off_t offset);
 struct string_list **splitpath(char *path, struct string_list **list);
-char *readfile(char *name);
+char *readfile(char *name, char *buf, off_t len);
 void msleep(long miliseconds);
 int64_t peek(void *ptr, int size);
 void poke(void *ptr, uint64_t val, int size);

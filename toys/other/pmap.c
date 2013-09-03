@@ -35,7 +35,7 @@ void pmap_main(void)
     int count, xx = 0;
 
     snprintf(toybuf, sizeof(toybuf), "/proc/%u/cmdline", pid);
-    line = readfile(toybuf);
+    line = readfile(toybuf, 0, 0);
     if (!line) error_msg("No %lu", (long)pid);
     xprintf("%u: %s\n", (int)pid, line);
     free(line);

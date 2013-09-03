@@ -113,9 +113,9 @@ extern struct toy_context {
   jmp_buf *rebound;        // longjmp here instead of exit when do_rebound set
 } toys;
 
-// One big temporary buffer, for use by commands (not library functions).
+// Two big temporary buffers: one for use by commands, one for library functions
 
-extern char toybuf[4096];
+extern char toybuf[4096], libbuf[4096];
 
 extern char **environ;
 

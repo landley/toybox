@@ -96,11 +96,10 @@ off_t lskip(int fd, off_t offset)
   if (and != -1 && offset >= lseek(fd, offset, SEEK_END)
     && offset+and == lseek(fd, offset+and, SEEK_SET)) return 0;
   else {
-    char buf[4096];
     while (offset>0) {
-      int try = offset>sizeof(buf) ? sizeof(buf) : offset, or;
+      int try = offset>sizeof(libbuf) ? sizeof(libbuf) : offset, or;
 
-      or = readall(fd, buf, try);
+      or = readall(fd, libbuf, try);
       if (or < 0) perror_msg("lskip to %lld", (long long)offset);
       else offset -= try;
       if (or < try) break;
@@ -259,20 +258,28 @@ off_t fdlength(int fd)
   return base;
 }
 
-// Read contents of file as a single freshly allocated nul-terminated string.
-char *readfile(char *name)
+// Read contents of file as a single nul-terminated string.
+// malloc new one if buf=len=0
+char *readfile(char *name, char *buf, off_t len)
 {
-  off_t len;
   int fd;
-  char *buf;
 
   fd = open(name, O_RDONLY);
   if (fd == -1) return 0;
-  len = fdlength(fd);
-  // proc files don't report a length, so try 1 page minimum.
-  if (len<4096) len = 4095;
-  buf = xmalloc(len+1);
-  buf[readall(fd, buf, len)] = 0;
+
+  if (len<1) {
+    len = fdlength(fd);
+    // proc files don't report a length, so try 1 page minimum.
+    if (len<4096) len = 4096;
+  }
+  if (!buf) buf = xmalloc(len+1);
+
+  len = readall(fd, buf, len-1);
+  close(fd);
+  if (len<0) {
+    free(buf);
+    buf = 0;
+  } else buf[len] = 0;
 
   return buf;
 }

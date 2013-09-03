@@ -425,7 +425,7 @@ char *xreadlink(char *name)
 
 char *xreadfile(char *name)
 {
-  char *buf = readfile(name);
+  char *buf = readfile(name, 0, 0);
   if (!buf) perror_exit("xreadfile %s", name);
   return buf;
 }
