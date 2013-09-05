@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/mkdir.html
 
-USE_MKDIR(NEWTOY(mkdir, "<1pm:", TOYFLAG_BIN))
+USE_MKDIR(NEWTOY(mkdir, "<1pm:", TOYFLAG_BIN|TOYFLAG_UMASK))
 
 config MKDIR
   bool "mkdir"
@@ -30,7 +30,6 @@ static int do_mkdir(char *dir)
 {
   struct stat buf;
   char *s;
-  mode_t mode = 0777;
 
   // mkdir -p one/two/three is not an error if the path already exists,
   // but is if "three" is a file.  The others we dereference and catch
@@ -44,6 +43,7 @@ static int do_mkdir(char *dir)
 
   for (s=dir; ; s++) {
     char save=0;
+    mode_t mode = 0777&~toys.old_umask;
 
     // Skip leading / of absolute paths.
     if (s!=dir && *s == '/' && (toys.optflags&FLAG_p)) {
@@ -52,9 +52,10 @@ static int do_mkdir(char *dir)
     } else if (*s) continue;
 
     // Use the mode from the -m option only for the last directory.
-    if ((toys.optflags&FLAG_m) && save != '/') mode = TT.mode;
+    if (save == '/') mode |= 0300;
+    else if (toys.optflags&FLAG_m) mode = TT.mode;
 
-    if (mkdir(dir, mode)<0 && ((toys.optflags&~FLAG_p) || errno != EEXIST))
+    if (mkdir(dir, mode)<0 && (!(toys.optflags&FLAG_p) || errno != EEXIST))
       return 1;
 
     if (!(*s = save)) break;
