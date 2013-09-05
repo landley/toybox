@@ -45,7 +45,7 @@ void env_main(void)
 
   if (!command) {
     char **ep;
-    for (ep = environ; *ep; ep++) xputs(*ep);
-    return;
-  } else xexec(command);
+    if (environ) for (ep = environ; *ep; ep++) xputs(*ep);
+  } else xexec_optargs(command - toys.optargs);
+
 }
