@@ -144,8 +144,8 @@ if [ ! -z "$(grep 'CONFIG_TOYBOX_HELP=y' $KCONFIG_CONFIG)" ];
 then
   if [ -z "$PYTHON" ];
   then
-    echo "Python 2.x required when CONFIG_TOYBOX_HELP is enabled"
-    exit 1
+    echo "Python 2.x required to rebuild generated/help.h"
+    # exit 1
   else
     echo "Extract help text from Config.in."
     "$PYTHON" scripts/config2help.py Config.in > generated/help.h || exit 1
