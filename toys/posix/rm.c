@@ -47,10 +47,9 @@ static int do_rm(struct dirtree *try)
 
   // handle directory recursion
   if (dir) {
-
     if (try->data != -1) return DIRTREE_COMEAGAIN;
     using = AT_REMOVEDIR;
-    if (try->symlink) goto nodelete;
+    if (try->symlink) goto skip;
     if (flags & FLAG_i) {
       char *s = dirtree_path(try, 0);
       // This is the section 2(d) prompt. (Yes, posix says to prompt twice.)
@@ -63,9 +62,9 @@ static int do_rm(struct dirtree *try)
 
 skip:
   if (unlinkat(fd, try->name, using)) {
-    perror_msg("%s", try->name);
+    if (!dir || try->symlink != 2) perror_msg("%s", try->name);
 nodelete:
-    if (try->parent) try->parent->symlink = (char *)1;
+    if (try->parent) try->parent->symlink = (char *)2;
   }
 
   return 0;
