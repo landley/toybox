@@ -62,7 +62,7 @@ static void print_stat(char type)
 {
   struct stat *stat = (struct stat *)&TT.stat;
 
-  if (type == 'a') xprintf("%04lo", stat->st_mode & ~S_IFMT);
+  if (type == 'a') xprintf("%lo", stat->st_mode & ~S_IFMT);
   else if (type == 'A') {
     char str[11];
 
