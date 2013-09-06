@@ -39,7 +39,7 @@ done:
 /*
  * used to get the interger value.
  */
-unsigned long get_int_value(const char *numstr, unsigned lowrange, unsigned highrange)
+unsigned long get_int_value(const char *numstr, unsigned long lowrange, unsigned long highrange)
 {
   unsigned long rvalue = 0;
   char *ptr;
