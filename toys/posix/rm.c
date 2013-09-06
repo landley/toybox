@@ -62,7 +62,7 @@ static int do_rm(struct dirtree *try)
 
 skip:
   if (unlinkat(fd, try->name, using)) {
-    if (!dir || try->symlink != 2) perror_msg("%s", try->name);
+    if (!dir || try->symlink != (char *)2) perror_msg("%s", try->name);
 nodelete:
     if (try->parent) try->parent->symlink = (char *)2;
   }
