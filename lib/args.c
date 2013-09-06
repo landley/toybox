@@ -124,7 +124,14 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt)
   }
 
   // Set flags
-  toys.optflags &= ~opt->dex[0];
+  if (toys.optflags & opt->dex[0]) {
+    struct opts *clr;
+    unsigned i = 1;
+
+    for (clr=gof->opts, i=1; ; clr = clr->next, i<<=1)
+      if (clr->arg && (i & toys.optflags)) clr->arg = 0;
+    toys.optflags &= ~opt->dex[0];
+  }
   toys.optflags |= opt->dex[1];
   gof->excludes |= opt->dex[2];
   if (opt->flags&2) gof->stopearly=2;
