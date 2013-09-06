@@ -463,7 +463,7 @@ void xpidfile(char *name)
     spid[xread(fd, spid, sizeof(spid)-1)] = 0;
     close(fd);
     pid = atoi(spid);
-    if (pid < 1 || kill(pid, 0) == ESRCH) unlink(pidfile);
+    if (pid < 1 || (kill(pid, 0) && errno == ESRCH)) unlink(pidfile);
 
     // An else with more sanity checking might be nice here.
   }
