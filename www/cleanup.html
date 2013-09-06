@@ -1,0 +1,192 @@
+<!--#include file="header.html" -->
+
+<h1>Cleaning up the toybox code.</h1>
+
+<p><a href=http://landley.net/notes.html#31-03-2013>Toybox
+hasn't always taken proper advantage of external contributions</a>.
+Lots of people want to help, but their contributions languish out of tree
+or in the "pending" directory, awaiting cleanup.</p>
+
+<p>Toybox's design goals require simpler, tighter, and more explicit code
+than most other implementations, among other reasons to allow better security
+auditing. Writing "another" implementation of standard command line tools
+isn't very interesting, they should be _better_ implementations.
+Unfortunately, this means existing, working commands often take more effort to
+clean up to Toybox's standards than writing a new one from scratch, not
+because they don't work, but because we require an unusual level of polish.</p>
+
+<p>In hopes of teaching more people how to do this
+cleanup work, I've started breaking cleanup changes into smaller chunks and
+posting explanations of each change to the mailing list.
+Below are indexes of each cleanup series. Line/byte totals of completed
+series are given for scale, but the point of this work is simplicity, not
+size.</p>
+
+<p>(Note: mercurial's web viewer doesn't follow renames, so the commit list
+links may not show the final version of each file moved from the "pending"
+directory to its final location. The summaries link the initial and cleaned
+versions of each file when giving line counts.)</p>
+
+<hr>
+
+<p>General advice and/or policy:</p>
+
+<p><a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000850.html>Error messages and internationalization.</a></p>
+
+<p><a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000891.html>Why not "const"?</a></p>
+
+<p>(I leave the <a href=http://lkml.indiana.edu/hypermail/linux/kernel/1308.3/03890.html>Why not "bool"?</a> explanation to Linus Torvalds.)</p>
+
+<p><a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000893.html>Rationale for removing debug code</a>, the interesting bit says:</p>
+<blockquote><p>Rule of thumb: other people's debugging printfs are seldom as
+useful as your own debugging printfs. Because you know what your output
+_means_, and if you can't annotate the code to dump what you need you haven't
+read enough of it yet.
+</p></blockquote>
+
+<hr>
+
+<h1><a href=/hg/toybox/log/900/toys/pending/uuencode.c>uuencode</a> and
+<a href=http:/hg/toybox/log/900/toys/pending/uudecode.c>uudecode</a>
+</h1>
+
+<p>This is an example of cleaning up something
+that started in a condition most projects would be quite happy with.
+The initial submission of uuencode and uudecode was a good high
+quality contribution, written by a seasoned developer who did an excellent
+job. It was still possible to shrink uuencode almost by half:</p>
+
+<ul>
+<li>old total: <a href=/hg/toybox/file/828/toys/pending/uuencode.c>116 lines (2743
+bytes) in 7 functions</a></li>
+<li>new total: <a href=/hg/toybox/file/841/toys/posix/uuencode.c>67 lines (1440
+bytes) in 1 function</a></li>
+</ul>
+
+<ul>
+<li>commit: <a href=/hg/toybox/rev/830>830</a>,
+description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000904.html>part 1</a> and
+<a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000903.html>part 2</a></li>
+<li>commit: <a href=/hg/toybox/rev/831>831</a>,
+description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000919.html>inline, default Y, move to toys/posix</a></li>
+<li>commit: <a href=/hg/toybox/rev/837>837</a>,
+description: test suite.</li>
+</ul>
+
+<p>Status: COMPLETE</p>
+
+<p>I tried to do the uudecode cleanup in smaller stages:</p>
+
+<ul>
+<li>old: <a href=/hg/toybox/file/828/toys/pending/uudecode.c>175
+lines (4534 bytes) in 9 functions</a></li>
+<li>new: <a href=/hg/toybox/file/840/toys/posix/uudecode.c>107 lines
+(2300 bytes) in 1 function</a></li>
+</ul>
+
+<ul>
+<li>commit: <a href=/hg/toybox/rev/833>833</a>,
+description: preparatory adjustments to test suite.</li>
+<li>commit: <a href=/hg/toybox/rev/835>835</a>,
+description: todo</a></li>
+<li>commit: <a href=/hg/toybox/rev/838>838</a>,
+description: todo</a></li>
+<li>commit: <a href=/hg/toybox/rev/839>839</a>,
+description: todo</a></li>
+<li>commit: <a href=/hg/toybox/rev/839>839</a>,
+description: todo (finish, move pending->posix, default y)</a></li>
+</ul>
+
+<p>Status: COMPLETE</p>
+
+<h1><a href=/hg/toybox/log/tip/toys/pending/ifconfig.c>ifconfig</a></h1>
+
+<p>The largest (ongoing) documented cleanup to date, still in progress:</p>
+
+<ul>
+<li>commit: <a href=/hg/toybox/rev/843>843</a>,
+description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000882.html>Explaining the ifconfig cleanup: part I.</a></li>
+<li>commit: <a href=/hg/toybox/rev/844>844</a>,
+description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000881.html>Explaining more ifconfig cleanup.</a></li>
+<li>commit: <a href=/hg/toybox/rev/852>852</a>,
+description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000921.html>cleanup</a></li>
+<li>commit: <a href=/hg/toybox/rev/856>856</a>,
+description: A one line portability fix from Isaac Dunham</li>
+<li>commit: <a href=/hg/toybox/rev/861>861</a>
+and <a href=/hg/toybox/rev/863>863</a>,
+description:
+<a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000910.html>Help
+infrastructure cleanup from Isaac Dunham</a>
+which I mis-applied and then <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000920.html>fixed plus some whitespace changes</a></li>
+
+<li>commit: <a href=/hg/toybox/rev/862>862</a>,
+<a href=/hg/toybox/rev/864>864</a>,
+<a href=/hg/toybox/rev/866>866</a>: todo</li>
+
+<li>commit: <a href=/hg/toybox/rev/869>869</a> and <a href=/hg/toybox/rev/870>870</a>,
+description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000928.html>here</a></li>
+<li>commit: <a href=/hg/toybox/rev/878>878</a> and <a href=/hg/toybox/rev/879>879</a>:
+description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000946.html>here</a></li>
+<li>commit: <a href=/hg/toybox/rev/883>883</a>,
+description: todo</li>
+<li>commit: <a href=/hg/toybox/rev/898>898</a>,
+description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/000974.html>here</a></li>
+<li>commit: <a href=/hg/toybox/rev/905>905</a>,
+description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/000992.html>here</a></li>
+<li>commit: <a href=/hg/toybox/rev/906>906</a>,
+description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/000994.html>here</a></li>
+<li>commit: <a href=/hg/toybox/rev/907>907</a>,
+<a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/000995.html>here</a></li>
+</ul>
+
+<p>Status: in progress.</p>
+
+<h1><a href=/hg/toybox/log/tip/toys/pending/find.c>find</a></h1>
+
+<pre>
+814 Initial version by Gurang Shastri.
+815
+816
+847 Felix Janda
+848 Whitespace (reindent from tabs -> 2 spaces)
+849 More cleanup
+867 Felix Janda Improve operator processing.
+874 Felix Janda
+875 Felix Janda
+887 Felix Janda fix -mtime
+</pre>
+
+<ul>
+<li>commit: <a href=/hg/toybox/rev/849>849</a>,
+description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000895.html>here</a></li>
+</ul>
+
+<p>Status: in progress.</p>
+
+<h1><a href=/hg/toybox/log/917/toys/pending/stat.c>stat</a></h1>
+
+<pre>
+747 initial submission
+810 whitespace
+811
+871 whitespace (reindent from 4 spaces to 2)
+872 Felix Janda cleanup
+885 Felix Janda
+  move permission formatting (777 -> -rwxrwxrwx) from ls to lib so stat can reuse it.
+886 Felix Janda remove unimplemented options and clean up help text
+910 Felix Janda Add support for stating multiple files.
+911 Felix Janda Separate stat and statfs.
+912 <a href=/hg/toybox/rev/912>commit</a> <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/001019.html>description</a>
+<a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/001024.html>design pondering</a>
+
+ 914 916
+</pre>
+<ul>
+<li>commit: <a href=/hg/toybox/rev/917>917</a></li>
+<li>commit: <a href=/hg/toybox/rev/918>918</a>,
+description: move to posix, default y.</li>
+</ul>
+
+<p>Status: COMPLETE.</p>
+
+<!--#include file="footer.html" -->
