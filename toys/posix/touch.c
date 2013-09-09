@@ -72,6 +72,7 @@ void touch_main(void)
         putenv("TZ=UTC");
         strncpy(toybuf, date, sizeof(toybuf)-1);
         date = toybuf;
+        if (i > sizeof(toybuf)-1) i = sizeof(toybuf)-1;
         date[i]=0;
         gmtime_r(&(tv->tv_sec), &tm);
       }
