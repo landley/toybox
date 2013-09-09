@@ -1,10 +1,8 @@
-/* vi: set sw=4 ts=4:
+/* touch.c : change timestamp of a file
  *
- * touch.c : change timestamp of a file
  * Copyright 2012 Choubey Ji <warior.linux@gmail.com>
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/touch.html 
- * acmrtd
 
 USE_TOUCH(NEWTOY(touch, "acd:mr:t:[!dtr]", TOYFLAG_BIN))
 
@@ -12,16 +10,16 @@ config TOUCH
   bool "touch"
   default y
   help
-    usage: touch [OPTION]... FILE...
+    usage: touch [-amc] [-d DATE] [-t TIME] [-r FILE] FILE...
 
     Update the access and modification times of each FILE to the current time.
 
     -a	change access time
     -m	change modification time
     -c	don't create file
-    -d DATE	use YYYY-MM-DDThh:mm:SS[.frac][tz] as time
-    -t TIME	use [[CC]YY]MMDDhhmm[.ss][frac] as time
-    -r FILE	use reference file's time
+    -d	set time to DATE (in YYYY-MM-DDThh:mm:SS[.frac][tz] format)
+    -t	set time to TIME (in [[CC]YY]MMDDhhmm[.ss][frac] format)
+    -r	set time same as reference FILE
 */
 
 #define FOR_touch
@@ -33,6 +31,7 @@ GLOBALS(
   char *date;
 )
 
+// Fetch access and/or modification time of a file
 int fetch(char *file, struct timeval *tv, unsigned flags)
 {
   struct stat st;
@@ -55,33 +54,39 @@ void touch_main(void)
 {
   struct timeval tv[2];
   struct tm tm;
-  char **ss;
-  int flag;
+  char **ss, *date, *s;
+  int flag, fd, i, len;
+
+  // Set time from clock?
 
   gettimeofday(tv, NULL);
   localtime_r(&(tv->tv_sec), &tm);
 
-  if (toys.optflags & (FLAG_t|FLAG_d)) {
-    char *date, *s;
-    int i, len;
+  // Set time from -d?
 
+  if (toys.optflags & (FLAG_t|FLAG_d)) {
     if (toys.optflags & FLAG_d) {
       date = TT.date;
-      i = strlen(date)-1;
-      if (*date && toupper(date[i])=='Z') {
-        putenv("TZ=UTC");
-        strncpy(toybuf, date, sizeof(toybuf)-1);
-        date = toybuf;
-        if (i > sizeof(toybuf)-1) i = sizeof(toybuf)-1;
-        date[i]=0;
-        gmtime_r(&(tv->tv_sec), &tm);
-      }
-      s = strptime(date, "%Y-%m-%dT%T", &tm);
-      if (s && *s=='.') {
-        sscanf(s, ".%d%n", &i, &len);
-        s += len;
-        tv->tv_usec = i;
-      }
+      i = strlen(date);
+      if (i && i < sizeof(toybuf)) {
+        // Trailing Z means UTC timezone, don't expect libc to know this.
+        if (toupper(date[i])=='Z') {
+          putenv("TZ=UTC");
+          strcpy(toybuf, date);
+          toybuf[i] = 0;
+          date = toybuf;
+          gmtime_r(&(tv->tv_sec), &tm);
+        }
+        s = strptime(date, "%Y-%m-%dT%T", &tm);
+        if (s && *s=='.') {
+          sscanf(s, ".%d%n", &i, &len);
+          s += len;
+          tv->tv_usec = i;
+        }
+      } else s = 0;
+
+    // Set time from -t?
+
     } else {
       strcpy(toybuf, "%Y%m%d%H%M");
       date = TT.time;
@@ -92,6 +97,7 @@ void touch_main(void)
       }
       if (s && *s=='.') {
         int count = sscanf(s, ".%2d%u%n", &(tm.tm_sec), &i, &len);
+
         if (count==2) tv->tv_usec = i;
         s += len;
       }
@@ -106,15 +112,19 @@ void touch_main(void)
   }
   tv[1]=tv[0];
 
+  // Set time from -r?
+
   if (TT.file && fetch(TT.file, tv, FLAG_a|FLAG_m))
     perror_exit("-r '%s'", TT.file);
 
-  flag = (~toys.optflags) & (FLAG_m|FLAG_a);
-  if (flag == (FLAG_m|FLAG_a)) flag = 0;
-  for (ss=toys.optargs; *ss;) {
-    int fd;
+  // Ok, we've got a time. Flip -am flags so now it's the ones we _keep_.
 
-    if ((!flag || !fetch(*ss, tv, flag)) && !utimes(*ss, tv)) ss++;
+  flag = (~toys.optflags) & (FLAG_m|FLAG_a);
+
+  // Loop through files on command line
+  for (ss=toys.optargs; *ss;) {
+    if ((flag == (FLAG_m|FLAG_a) || !fetch(*ss, tv, flag)) && !utimes(*ss, tv))
+      ss++;
     else if (toys.optflags & FLAG_c) ss++;
     else if (-1 != (fd = open(*ss, O_CREAT, 0666))) close(fd);
     else perror_msg("'%s'", *ss++);
