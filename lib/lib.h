@@ -36,7 +36,8 @@ struct double_list {
 };
 
 void llist_traverse(void *list, void (*using)(void *data));
-void *llist_pop(void *list);  // actually void **list, but the compiler's dumb
+void *llist_pop(void *list);  // actually void **list
+void *dlist_pop(void *list);  // actually struct double_list **list
 void dlist_add_nomalloc(struct double_list **list, struct double_list *new);
 struct double_list *dlist_add(struct double_list **list, char *data);
 

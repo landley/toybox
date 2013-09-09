@@ -4,20 +4,20 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/tail.html
 
-USE_TAIL(NEWTOY(tail, "fc-n-", TOYFLAG_BIN))
+USE_TAIL(NEWTOY(tail, "fc-n-[-cn]", TOYFLAG_BIN))
 
 config TAIL
   bool "tail"
   default y
   help
-    usage: tail [-n|c number] [-f] [file...]
+    usage: tail [-n|c NUMBER] [-f] [FILE...]
 
     Copy last lines from files to stdout. If no files listed, copy from
     stdin. Filename "-" is a synonym for stdin.
 
-    -n	output the last X lines (default 10), +X counts from start.
-    -c	output the last X bytes, +X counts from start
-    -f	follow file, waiting for more data to be appended
+    -n	output the last NUMBER lines (default 10), +X counts from start.
+    -c	output the last NUMBER bytes, +NUMBER counts from start
+    -f	follow FILE(s), waiting for more data to be appended
 
 config TAIL_SEEK
   bool "tail seek support"
@@ -38,20 +38,20 @@ GLOBALS(
 )
 
 struct line_list {
-  struct line_list *next;
+  struct line_list *next, *prev;
   char *data;
-  size_t len;
+  int len;
 };
 
-static struct line_list *get_chunk(int fd, size_t len)
+static struct line_list *get_chunk(int fd, int len)
 {
   struct line_list *line = xmalloc(sizeof(struct line_list)+len);
 
-  line->data = (char*)line + sizeof(struct line_list);
+  memset(line, 0, sizeof(struct line_list));
+  line->data = ((char *)line) + sizeof(struct line_list);
   line->len = readall(fd, line->data, len);
-  line->next = 0;
 
-  if (line->len + 1 < 2) {
+  if (line->len < 1) {
     free(line);
     return 0;
   }
@@ -62,9 +62,8 @@ static struct line_list *get_chunk(int fd, size_t len)
 static void dump_chunk(void *ptr)
 {
   struct line_list *list = ptr;
-  size_t len = list->len - (list->data - (char*)list - sizeof(struct line_list));
 
-  xwrite(1, list->data, len);
+  xwrite(1, list->data, list->len);
   free(list);
 }
 
@@ -74,11 +73,11 @@ static void dump_chunk(void *ptr)
 static int try_lseek(int fd, long bytes, long lines)
 {
   struct line_list *list = 0, *temp;
-  int flag = 0;
-  size_t chunk = sizeof(toybuf), pos = lseek(fd, 0, SEEK_END);
+  int flag = 0, chunk = sizeof(toybuf);
+  ssize_t pos = lseek(fd, 0, SEEK_END);
 
   // If lseek() doesn't work on this stream, return now.
-  if (pos == -1) return 0;
+  if (pos<0) return 0;
 
   // Seek to the right spot, output data from there.
   if (bytes) {
@@ -91,17 +90,17 @@ static int try_lseek(int fd, long bytes, long lines)
 
   bytes = pos;
   while (lines && pos) {
-    size_t offset;
+    int offset;
 
     // Read in next chunk from end of file
-    if (chunk > pos) chunk = pos;
+    if (chunk>pos) chunk = pos;
     pos -= chunk;
     if (pos != lseek(fd, pos, SEEK_SET)) {
       perror_msg("seek failed");
       break;
     }
     if (!(temp = get_chunk(fd, chunk))) break;
-    if (list) temp->next = list;
+    temp->next = list;
     list = temp;
 
     // Count newlines in this chunk.
@@ -114,13 +113,13 @@ static int try_lseek(int fd, long bytes, long lines)
       else if (list->data[offset] == '\n' && !++lines) {
         offset++;
         list->data += offset;
+        list->len -= offset;
 
-        goto done;
+        break;
       }
     }
   }
 
-done:
   // Output stored data
   llist_traverse(list, dump_chunk);
 
@@ -133,6 +132,7 @@ done:
 static void do_tail(int fd, char *name)
 {
   long bytes = TT.bytes, lines = TT.lines;
+  int linepop = 1;
 
   if (toys.optc > 1) {
     if (TT.file_no++) xputc('\n');
@@ -142,14 +142,7 @@ static void do_tail(int fd, char *name)
   // Are we measuring from the end of the file?
 
   if (bytes<0 || lines<0) {
-    struct line_list *head = 0, *tail, *new;
-    // circular buffer of lines
-    struct {
-      char *start;
-      struct line_list *inchunk;
-    } *l = xzalloc(2*-lines*sizeof(void*));
-    int i = 0, flag = 0;
-    size_t count, len = bytes;
+    struct line_list *list = 0, *new;
 
     // The slow codepath is always needed, and can handle all input,
     // so make lseek support optional.
@@ -157,39 +150,44 @@ static void do_tail(int fd, char *name)
 
     // Read data until we run out, keep a trailing buffer
     for (;;) {
-      char *try;
-
+      // Read next page of data, appending to linked list in order
       if (!(new = get_chunk(fd, sizeof(toybuf)))) break;
-      // append in order
-      if (head) tail->next = new;
-      else head = new;
-      tail = new;
+      dlist_add_nomalloc((void *)&list, (void *)new);
 
-      try = new->data;
-      if (lines) for (count = 0; count < new->len; count++, try++) {
-        if (flag) { // last char was a newline
-            while (l[i].inchunk && (l[i].inchunk!=head)) free(llist_pop(&head));
-            l[i].inchunk = tail;
-            l[i].start = try;
-            i = (i + 1) % -lines;
-            flag = 0;
+      // If tracing bytes, add until we have enough, discarding overflow.
+      if (TT.bytes) {
+        bytes += new->len;
+        if (bytes > 0) {
+          while (list->len <= bytes) {
+            bytes -= list->len;
+            free(dlist_pop(&list));
+          }
+          list->data += bytes;
+          list->len -= bytes;
         }
-        if (*try == '\n') flag = 1;
-      } else { // bytes
-        if (len + new->len < len) flag = 1; // overflow -> have now read enough
-        for (len += new->len; flag && (len - head->len < len);) {
-          len -= head->len;
-          free(llist_pop(&head));
+      } else {
+        int len = new->len, count;
+        char *try = new->data;
+
+        // First character _after_ a newline starts a new line, which
+        // works even if file doesn't end with a newline
+        for (count=0; count<len; count++) {
+          if (linepop) lines++;
+          linepop = try[count] == '\n';
+
+          if (lines > 0) {
+            do {
+              if (!--(list->len)) free(dlist_pop(&list));
+            } while (*(list->data++) != '\n');
+            lines--;
+          }
         }
       }
     }
-    if (lines) head->data = l[i].start;
-    else head->data += len;
 
     // Output/free the buffer.
-    llist_traverse(head, dump_chunk);
+    llist_traverse(list, dump_chunk);
 
-    free(l);
   // Measuring from the beginning of the file.
   } else for (;;) {
     int len, offset = 0;

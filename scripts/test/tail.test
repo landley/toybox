@@ -39,3 +39,23 @@ testing "tail noseek -c out of bounds" "tail -c 999" "$BIGTEST" "" "$BIGTEST"
 testing "tail noseek -c+ in bounds" "tail -c +27" \
 	"x\nseven\neight\nnine\nten\neleven\n" "" "$BIGTEST"
 testing "tail noseek -c+ out of bonds" "tail -c +999" "" "" "$BIGTEST"
+
+makebigfile()
+{
+
+  for j in $(seq 1 100)
+  do
+    printf "%s " $j
+    for i in $(seq 1 100)
+    do
+      printf %s 123456789abcefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+    done
+    echo
+  done
+}
+makebigfile > bigfile
+
+testing "tail -c 12345 -n 3 bigfile" "tail -c 12345 -n 3 bigfile | md5sum" \
+  "347bbdcbad8a313f4dc7bd558c5bfcb8  -\n" "" ""
+testing "tail -n 3 -c 12345 bigfile" "tail -n 3 -c 12345 bigfile | md5sum" \
+  "1698825a750288284ec3ba7d8a59f302  -\n" "" ""
