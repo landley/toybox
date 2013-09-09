@@ -61,3 +61,7 @@ testing "test -gt" "arith_test -gt" "g\n" "" ""
 testing "test -ge" "arith_test -ge" "e\ng\n" "" ""
 testing "test -lt" "arith_test -lt" "l\n" "" ""
 testing "test -le" "arith_test -le" "l\ne\n" "" ""
+
+# test ! = -o a
+# test ! \( = -o a \)
+# test \( ! = \) -o a

@@ -204,18 +204,12 @@ static int apply_one_hunk(void)
         if (PATCH_DEBUG) fprintf(stderr, "NOT: %s\n", plist->data);
 
         TT.state = 3;
-        check = llist_pop(&buf);
-        check->prev->next = buf;
-        buf->prev = check->prev;
-        do_line(check);
+        do_line(check = dlist_pop(&buf));
         plist = TT.current_hunk;
 
         // If we've reached the end of the buffer without confirming a
         // match, read more lines.
-        if (check==buf) {
-          buf = 0;
-          break;
-        }
+        if (!buf) break;
         check = buf;
       } else {
         if (PATCH_DEBUG) fprintf(stderr, "MAYBE: %s\n", plist->data);

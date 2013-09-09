@@ -37,8 +37,11 @@ void *dlist_pop(void *list)
 {
   struct double_list **pdlist = (struct double_list **)list, *dlist = *pdlist;
 
-  dlist->next->prev = dlist->prev;
-  dlist->prev->next = *pdlist = dlist->next;
+  if (dlist->next == dlist) *pdlist = 0;
+  else {
+    dlist->next->prev = dlist->prev;
+    dlist->prev->next = *pdlist = dlist->next;
+  }
 
   return dlist;
 }
