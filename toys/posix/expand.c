@@ -10,16 +10,16 @@ config EXPAND
   bool "expand"
   default y
   help
-    usage: expand [-t tablist] [file...]
+    usage: expand [-t TABLIST] [FILE...]
 
     Expand tabs to spaces according to tabstops.
 
-    -t	tablist
+    -t	TABLIST
 
-      Specify tab stops, either a single number instead of the default 8,
-      or a comma separated list of increasing numbers representing tabstop
-      positions (absolute, not increments) with each additional tab beyound
-      that becoming one space.
+    Specify tab stops, either a single number instead of the default 8,
+    or a comma separated list of increasing numbers representing tabstop
+    positions (absolute, not increments) with each additional tab beyound
+    that becoming one space.
 */
 
 #define FOR_expand
@@ -31,12 +31,12 @@ GLOBALS(
   unsigned tabcount, *tab;
 )
 
-static void expand_file(int fd, char *name)
+static void do_expand(int fd, char *name)
 {
   int i, len, x=0, stop = 0;
 
   for (;;) {
-    len = read(fd, toybuf, sizeof(toybuf));
+    len = readall(fd, toybuf, sizeof(toybuf));
     if (len<0) {
       perror_msg("%s", name);
       return;
@@ -123,6 +123,6 @@ void expand_main(void)
     parse_tablist(TT.tab);
   }
 
-  loopfiles(toys.optargs, expand_file);
+  loopfiles(toys.optargs, do_expand);
   if (CFG_TOYBOX_FREE) free(TT.tab);
 }
