@@ -38,38 +38,15 @@ unsigned long get_int_value(const char *numstr, unsigned long lowrange, unsigned
 {
   unsigned long rvalue = 0;
   char *ptr;
-  if(*numstr == '-' || *numstr == '+' || isspace(*numstr)) perror_exit("invalid number '%s'", numstr);
+
+  if (!isdigit(*numstr)) perror_exit("bad number '%s'", numstr);
   errno = 0;
   rvalue = strtoul(numstr, &ptr, 10);
-  if(errno || numstr == ptr) perror_exit("invalid number '%s'", numstr);
-   if(*ptr) perror_exit("invalid number '%s'", numstr);
-   if(rvalue >= lowrange && rvalue <= highrange) return rvalue;
-   else {
-         perror_exit("invalid number '%s'", numstr);
-         return rvalue; //Not reachable; to avoid waring message.
-   }
-}
 
-/*
- * strcat to mallocated buffer
- * reallocate if need be
- */
-char *astrcat (char *x, char *y) {
-  char *z;
-  z = x;
-  x = realloc (x, (x ? strlen (x) : 0) + strlen (y) + 1);
-  if (!x) return 0;
-  (z ? strcat : strcpy) (x, y);
-  return x;
-}
+  if (errno || numstr == ptr || *ptr || rvalue < lowrange || rvalue > highrange)
+    perror_exit("bad number '%s'", numstr);
 
-/*
- * astrcat, but die on failure
- */
-char *xastrcat (char *x, char *y) {
-  x = astrcat (x, y);
-  if (!x) error_exit ("xastrcat");
-  return x;
+  return rvalue;
 }
 
 void daemonize(void)
