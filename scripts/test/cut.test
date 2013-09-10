@@ -1,13 +1,8 @@
 #!/bin/bash
 
-#################################################################################################################
-# cut.test                                                                                                      #
-# This script is part of toybox test suite, for cut command                                                     #
-#                                                                                                               #
-# Copyright 2013  Robin Mittal <robinmittal.it@gmail.com> and Divya Kothari <divya.s.kothari@gmail.com>		#
-# Copyright 2013  Kyungwan.Han <asura321@gmail.com>								#
-# How to run - ./script/test.sh cut                                                                             #
-#################################################################################################################
+# Copyright 2013 Robin Mittal <robinmittal.it@gmail.com>
+# Copyright 2013 Divya Kothari <divya.s.kothari@gmail.com>
+# Copyright 2013  Kyungwan.Han <asura321@gmail.com>
 
 [ -f testing.sh ] && . testing.sh
 
