@@ -6,7 +6,7 @@
 #include "toys.h"
 
 // Execute a callback for each PID that matches a process name from a list.
-void name_to_pid(char **names, int (*callback)(pid_t pid, char *name))
+void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
 {
   DIR *dp;
   struct dirent *entry;
@@ -14,7 +14,6 @@ void name_to_pid(char **names, int (*callback)(pid_t pid, char *name))
   if (!(dp = opendir("/proc"))) perror_exit("opendir");
 
   while ((entry = readdir(dp))) {
-    int fd, n;
     unsigned u;
     char *cmd, **curname;
 
@@ -23,9 +22,9 @@ void name_to_pid(char **names, int (*callback)(pid_t pid, char *name))
     if (!(cmd = readfile(libbuf, libbuf, sizeof(libbuf)))) continue;
 
     for (curname = names; *curname; curname++)
-      if (*curname == '/' ? !strcmp(cmd, *curname)
-          : !strcmp(basename(cmd), basename(*curname))
-        if (!callback(u, *curname)) break;
+      if (**curname == '/' ? !strcmp(cmd, *curname)
+          : !strcmp(basename(cmd), basename(*curname)))
+        if (callback(u, *curname)) break;
     if (*curname) break;
   }
   closedir(dp);

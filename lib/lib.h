@@ -158,7 +158,7 @@ void replace_tempfile(int fdin, int fdout, char **tempname);
 void crc_init(unsigned int *crc_table, int little_endian);
 void terminal_size(unsigned *x, unsigned *y);
 int yesno(char *prompt, int def);
-void for_each_pid_with_name_in(char **names, int (*callback)(pid_t pid, char *name));
+void names_to_pid(char **names, int (*callback)(pid_t pid, char *name));
 
 // net.c
 int xsocket(int domain, int type, int protocol);

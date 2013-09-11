@@ -49,6 +49,6 @@ static int print_pid(pid_t pid, char * name)
 void pidof_main(void)
 {
   toys.exitval = 1;
-  name_to_pid(toys.optargs, print_pid);
+  names_to_pid(toys.optargs, print_pid);
   if (!toys.exitval) xputc('\n');
 }
