@@ -89,24 +89,31 @@ ssize_t writeall(int fd, void *buf, size_t len)
   return count;
 }
 
+// skip this many bytes of input. Return 0 for success, >0 means this much
+// left after input skipped.
 off_t lskip(int fd, off_t offset)
 {
-  off_t and = lseek(fd, offset, SEEK_CUR);
+  off_t cur = lseek(fd, 0, SEEK_CUR);
 
-  if (and != -1 && offset >= lseek(fd, offset, SEEK_END)
-    && offset+and == lseek(fd, offset+and, SEEK_SET)) return 0;
-  else {
-    while (offset>0) {
-      int try = offset>sizeof(libbuf) ? sizeof(libbuf) : offset, or;
+  if (cur != -1) {
+    off_t end = lseek(fd, 0, SEEK_END) - cur;
 
-      or = readall(fd, libbuf, try);
-      if (or < 0) perror_msg("lskip to %lld", (long long)offset);
-      else offset -= try;
-      if (or < try) break;
-    }
-
-    return offset;
+    if (end > 0 && end < offset) return offset - end;
+    end = offset+cur;
+    if (end == lseek(fd, end, SEEK_SET)) return 0;
+    perror_exit("lseek");
   }
+
+  while (offset>0) {
+    int try = offset>sizeof(libbuf) ? sizeof(libbuf) : offset, or;
+
+    or = readall(fd, libbuf, try);
+    if (or < 0) perror_exit("lskip to %lld", (long long)offset);
+    else offset -= try;
+    if (or < try) break;
+  }
+
+  return offset;
 }
 
 // Split a path into linked list of components, tracking head and tail of list.

@@ -11,10 +11,15 @@ config OD
   bool "od"
   default y
   help
-    usage: od [-bdosxv] [-j #] [-N #] [-A doxn] [-t arg]
+    usage: od [-bcdosxv] [-j #] [-N #] [-A doxn] [-t acdfoux[#]]
 
     -A	Address base (decimal, octal, hexdecimal, none)
-    -t	output type(s) a (ascii) c (char) d (decimal) foux
+    -j	Skip this many bytes of input
+    -N	Stop dumping after this many bytes
+    -t	output type a(scii) c(har) d(ecimal) f(loat) o(ctal) u(nsigned) (he)x
+    	plus optional size in bytes
+    	aliases: -b=-t o1, -c=-t c, -d=-t u2, -o=-t o2, -s=-t d2, -x=-t x2
+    -v	Don't collapse repeated lines together
 */
 
 #define FOR_od
@@ -164,10 +169,11 @@ static void od_outline(void)
 static void do_od(int fd, char *name)
 {
   // Skip input, possibly more than one entire file.
-  if (TT.jump_bytes < TT.pos) {
-    off_t off = lskip(fd, TT.jump_bytes);
-    if (off > 0) TT.pos += off;
-    if (TT.jump_bytes < TT.pos) return;
+  if (TT.jump_bytes > TT.pos) {
+    off_t pos = TT.jump_bytes-TT.pos, off = lskip(fd, pos);
+
+    if (off >= 0) TT.pos += pos-off;
+    if (TT.jump_bytes > TT.pos) return;
   }
 
   for(;;) {
@@ -209,7 +215,7 @@ static void append_base(char *base)
       size = strtol(s, &s, 10);
       if (type < 2 && size != 1) break;
       if (CFG_TOYBOX_FLOAT && type == 6 && size == sizeof(long double));
-      else if (size < 0 || size > 8) break;
+      else if (size < 1 || size > 8) break;
     } else if (CFG_TOYBOX_FLOAT && type == 6) {
       int sizes[] = {sizeof(float), sizeof(double), sizeof(long double)};
       if (-1 == (size = stridx("FDL", *s))) size = sizeof(double);
@@ -247,6 +253,7 @@ void od_main(void)
 
   for (arg = TT.output_base; arg; arg = arg->next) append_base(arg->arg);
   if (toys.optflags & FLAG_b) append_base("o1");
+  if (toys.optflags & FLAG_c) append_base("c");
   if (toys.optflags & FLAG_d) append_base("u2");
   if (toys.optflags & FLAG_o) append_base("o2");
   if (toys.optflags & FLAG_s) append_base("d2");
