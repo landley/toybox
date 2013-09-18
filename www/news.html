@@ -1,18 +1,146 @@
 <!--#include file="header.html" -->
 
-<p>Toybox combines the most common Linux command line utilities together
+<p>Toybox combines common Linux command line utilities together
 into a single BSD-licensed executable that's simple, small, fast,
 reasonably standards-compliant, and powerful enough to turn Android into
 a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
+<hr><b>September 17, 2013</b>
+<blockquote><p>"Think of a number," said the computer, "any number."
+Arthur told the computer the telephone number of King's Cross railway
+station passenger inquiries, on the grounds that it must have some function,
+and this might turn out to be it. - The Hitchhiker's Guide to the Galaxy</p>
+</blockquote>
+
+<p><a href=downloads/toybox-0.4.6.tar.bz2>Toybox 0.4.6</a> is based on
+<a href=http://landley.net/hg/toybox/shortlog/1068>commit 1068</a>.</p>
+
+<p>This release adds
+several new commands: Felix Janda wrote paste and fallocate, Kyungwan Han
+submitted eject, Strake contributed grep, Ashwini Sharma added pmap (and
+a testsuite entry for grep), Lukasz Skalski sent pwdx, Isaac Dunham posted
+acpi, and I did timeout and umount.</p>
+
+<p>The ls command now has a --color=auto option (suggested by Rich Felker).
+The multiplexer now has a --help option so you can say "./toybox --help blah"
+instead of using the built-in "help" command. (Which is a shell built-in.
+Try it on your command line, it's like man for shell builtins. But a certain
+other project has conditioned people to expect --help, so...) I forget who
+heehooman at gmail is but they pointed out unshare needed PID and UID
+namespace support.</p>
+
+<h3>Pending</h3>
+
+<p>A lot of new commands in toys/pending, to the point the next release should
+probably just focus on cleanup and review of this backlog. We've got klogd,
+dhcp, dhcpd, watch, route, and ps from
+Ashwini Sharma (and an fdisk wrapper but no fdisk.fstype engines yet),
+syslogd, pgrep, and pkill from Madhur Verma, netstat by Ranjan Kumar,
+test by Felix Janda, lspci by Isaac Dunham, nl, su, and renice by strake (I.E.
+M. Farkas-Dyck), and sysvinit by Kyungwan Han.</p>
+
+<p>Some cleanup work on existing pending commands that aren't
+ready to promote yet: I did a few more rounds on ifconfig
+and Isaac Dunham's did several cleanups to xzcat, Felix Janda cleaned up
+logger and syslogd...</p>
+
+<p>Also some cleanup work on commands that predate the pending directory,
+but weren't quite polished when they went in, most prominently du,
+expand, and touch.</p> 
+
+<h3>Infrastructure</h3>
+
+<p>The new scripts/single.sh builds a standalone command without the
+multiplexer, although not all commands can be built that way yet (NEWTOY yes,
+OLDTOY no) and the space savings aren't anything to write home about. (If a
+command needs the option parsing logic at all, it needs all of it.) If
+you're curious, you can do:</p>
+
+<blockquote><pre>
+make defconfig
+make
+mkdir singles
+for i in $(./toybox)
+do
+  echo $i
+  PREFIX=singles/ scripts/single.sh $i || break
+done
+</pre>
+<p>(And then wait a long time and watch almost half the builds fail.)</p>
+</blockquote>
+
+<p>There is now libbuf analogous to toybuf, another global 4k buffer this
+time for use by lib/ code instead of command code.</p>
+
+<p>The lib directory got split up a bit, lib/pending.c contains functions
+not yet used by anything outside of toys/pending/*, and lib/xwrap.c contains
+functions that wrap other functions and handle failures (via error_exit).
+This leaves lib/lib.c containing actual new functions.</p>
+
+<p>General improvements and bug fixes to argument parsing. The [-abc] exclude
+logic should now clear arguments slots when disabling options. Bare --longopts
+should work now and be able to report errors using their name, the new ;
+option allows optional arguments to longopts only suppliable with = (I.E.
+--color and --color=auto but not --color auto).</p>
+
+<p>I'm gradually weaning the code off of itoa()/utoa() because sprintf
+does this already. In this case "simple" probably means "let libc do it
+for us".</p>
+
+<p>Rewrote for_each_pid_with_name_in() and renamed it to just names_to_pid().
+It shouldn't get confused trying to compare absolute and relative paths quite
+so much anymore.</p>
+
+<p>lib/llist.c grew a new dlist_pop() function for removing a doubly
+linked list entry while maintaining a circular list; tail and patch are
+using it now.</p>
+
+<p>The musl guys suggested a new optimization flag
+(-fno-asynchronous-unwind-tables)
+that shaves about 10% off the binary size by removing a C++ism that crept
+into gcc's idea of C. While I don't normally try to micromanage the compiler,
+"-fstop-being-stupid" is a thing you have to hit gcc with from time to time.</p>
+
+<h3>Bugfixes</h3>
+
+<p>Felix Janda and I did a largeish rewrite of tail to
+finally make it work right (we think). Still need to implement tail -f
+someday (the tricky bit is making -f follow multiple files at once).
+Felix also reported a bug in xpidfile.</p>
+
+<p>Juhani Haverinen pointed out that
+python 3 doesn't work with config2help.py, so the detection logic looks
+for python2 (until I get around to rewriting that in C). Elie De Brauwer
+then fixed our first attempt at this, and also fixed uname's help string.</p>
+
+<p>Ashwini Sharma
+pointed out the build was making a FLAG_ macro for " " which broke some
+configurations. (That's a control character, not a command line option.)</p>
+
+<p>Jacek Bukarewicz pointed out a bug in chdir permission handling, and
+a way to make env segfault. Both should be fixed now.</p> 
+
+<p>The new function xexec_optargs()
+replaces calls to xexec(toys.optargs) to avoid freeing and reusing optargs
+during option parsing screwing stuff up (such as netcat's exec mode).</p>
+
+<p>The stat command's %a output was padded with leading zeroes, which
+didn't match anybody else's behavior and thus made the test suite hiccup
+between TEST_HOST and testing toybox. (If you go "TEST_HOST=1 scripts/test.sh
+command" it sanity checks the tests against the host implementation.)</p>
+
+<p>Last release, "mkdir sub/sub && chmod 007 sub/sub && rm -rf sub" didn't
+delete sub and didn't exit with an error either. Neither was correct, rm
+should now be fixed.</p>
+
+<p>
 <hr><b>July 26, 2013</b>
 <p>Georgi Chorbadzhiyski maintains a <a href=https://github.com/gfto/toybox>git
 mirror</a> of the repository on github, automatically updated from the
 mercurial every 6 hours. The mirror is read only, but you can generate patches
 against it and post them to the list.</p>
 
-<h2>News</h2>
 <hr><b>July 2, 2013</b>
 <blockquote><p>"Time is an illusion. Lunchtime doubly so." "Very deep. You
 should send that in to the Reader's Digest. They've got a page for people
