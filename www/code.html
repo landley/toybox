@@ -709,7 +709,7 @@ available to command_main():
 <li>toys.optflags = 13; // -a = 8 | -b = 4 | -d = 1</li>
 <li>toys.optargs[0] = "walrus"; // leftover argument</li>
 <li>toys.optargs[1] = NULL; // end of list</li>
-<li>toys.optc=1; // there was 1 leftover argument</li>
+<li>toys.optc = 1; // there was 1 leftover argument</li>
 <li>toys.argv[] = {"-b", "fruit", "-d", "walrus", "-a", "42"}; // The original command line arguments
 </ul>
 <p></li>
@@ -736,6 +736,12 @@ GLOBALS(
 each entry that receives an argument must be a long or pointer, to line up
 with the array position.  Right to left in the optflags string corresponds to
 top to bottom in GLOBALS().</p>
+
+<p>Put globals not filled out by the option parsing logic at the end of the
+GLOBALS block. Common practice is to list the options one per line (to
+make the ordering explicit, first to last in globals corresponds to right
+to left in the option string), then leave a blank line before any non-option
+globals.</p>
 
 <p><b>long toys.optflags</b></p>
 
@@ -769,37 +775,40 @@ argument letter, indicating the option takes an additional argument:</p>
 <li><b>*</b> - plus a string argument, appended to a linked list.</li>
 <li><b>@</b> - plus an occurrence counter (stored in a long)</li>
 <li><b>#</b> - plus a signed long argument.
+<li><b>-</b> - plus a signed long argument defaulting to negative (start argument with + to force a positive value).</li>
 <li><b>.</b> - plus a floating point argument (if CFG_TOYBOX_FLOAT).</li>
 <ul>The following can be appended to a float or double:
 <li><b>&lt;123</b> - error if argument is less than this</li>
 <li><b>&gt;123</b> - error if argument is greater than this</li>
 <li><b>=123</b> - default value if argument not supplied</li>
 </ul>
-<ul><li>Option parsing only understands <>= after . when CFG_TOYBOX_FLOAT
-is enabled. (Otherwise the code to determine where floating point constants
-end drops out.  When disabled, it can reserve a global data slot for the
-argument so offsets won't change, but will never fill it out.). You can handle
-this by using the USE_BLAH() macros with C string concatenation, ala:
-"abc." USE_TOYBOX_FLOAT("<1.23>4.56=7.89") "def"</li></ul>
 </ul>
 
-<p>Arguments may occur with or without a space (I.E. "-a 42" or "-a42").
-The command line argument "-abc" may be interepreted many different ways:
-the optflags string "cba" sets toys.optflags = 7, "c:ba" sets toys.optflags=4
-and saves "ba" as the argument to -c, and "cb:a" sets optflags to 6 and saves
-"c" as the argument to -b.</p>
+<p>A note about "." and CFG_TOYBOX_FLOAT: option parsing only understands <>=
+after . when CFG_TOYBOX_FLOAT
+is enabled. (Otherwise the code to determine where floating point constants
+end drops out; it requires floating point).  When disabled, it can reserve a
+global data slot for the argument (so offsets won't change in your
+GLOBALS[] block), but will never fill it out. You can handle
+this by using the USE_BLAH() macros with C string concatenation, ala:
+"abc." USE_TOYBOX_FLOAT("<1.23>4.56=7.89") "def"</p>
+
+<p><b>GLOBALS</b></p>
 
 <p>Options which have an argument fill in the corresponding slot in the global
 union "this" (see generated/globals.h), treating it as an array of longs
-with the rightmost saved in this[0].  Again using "a*b:c#d", "-c 42" would set
-this[0]=42; and "-b 42" would set this[1]="42"; each slot is left NULL if
-the corresponding argument is not encountered.</p>
+with the rightmost saved in this[0].  As described above, using "a*b:c#d",
+"-c 42" would set this[0] = 42; and "-b 42" would set this[1] = "42"; each
+slot is left NULL if the corresponding argument is not encountered.</p>
 
 <p>This behavior is useful because the LP64 standard ensures long and pointer
 are the same size. C99 guarantees structure members will occur in memory
 in the same order they're declared, and that padding won't be inserted between
 consecutive variables of register size.  Thus the first few entries can
 be longs or pointers corresponding to the saved arguments.</p>
+
+<p>See toys/other/hello.c for a longer example of parsing options into the
+GLOBALS block.</p>
 
 <p><b>char *toys.optargs[]</b></p>
 
@@ -839,10 +848,6 @@ optflag, but letters are never control characters.)</p>
 <ul>
 <li><b>^</b> - stop parsing options after encountering this option, everything else goes into optargs.</li>
 <li><b>|</b> - this option is required.  If more than one marked, only one is required.</li>
-<li><b>+X</b> enabling this option also enables option X (switch bit on).</li>
-<li><b>~X</b> enabling this option disables option X (switch bit off).</li>
-<li><b>!X</b> this option cannot be used in combination with X (die with error).</li>
-<li><b>[yz]</b> this option requires at least one of y or z to also be enabled.</li>
 </ul>
 
 <p>The following may be appended to a float or double:</p>
@@ -877,6 +882,49 @@ and would assign this[1] = 42;</p>
 <p>A short option may have multiple longopt synonyms, "a(one)(two)", but
 each "bare longopt" (ala "(one)(two)abc" before any option characters)
 always sets its own bit (although you can group them with +X).</p>
+
+<p><b>[groups]</b></p>
+
+<p>At the end of the option string, square bracket groups can define
+relationships between existing options. (This only applies to short
+options, bare --longopts can't participate.)</p>
+
+<p>The first character of the group defines the type, the remaining
+characters are options it applies to:</p>
+
+<ul>
+<li><b>-</b> - Exclusive, switch off all others in this group.</li>
+<li><b>+</b> - Inclusive, switch on all others in this group.</li>
+<li><b>!</b> - Error, fail if more than one defined.</li>
+</ul>
+
+<p>So "abc[-abc]" means -ab = -b, -ba = -a, -abc = -c. "abc[+abc]"
+means -ab=-abc, -c=-abc, and "abc[!abc] means -ab calls error_exit("no -b
+with -a"). Note that [-] groups clear the GLOBALS option slot of
+options they're switching back off, but [+] won't set options it didn't see
+(just the optflags).</p>
+
+<p><b>whitespace</b></p>
+
+<p>Arguments may occur with or without a space (I.E. "-a 42" or "-a42").
+The command line argument "-abc" may be interepreted many different ways:
+the optflags string "cba" sets toys.optflags = 7, "c:ba" sets toys.optflags=4
+and saves "ba" as the argument to -c, and "cb:a" sets optflags to 6 and saves
+"c" as the argument to -b.</p>
+
+<p>Note that &amp; changes whitespace handling, so that the command line
+"tar cvfCj outfile.tar.bz2 topdir filename" is parsed the same as
+"tar filename -c -v -j -f outfile.tar.bz2 -C topdir". Note that "tar -cvfCj
+one two three" would equal "tar -c -v -f Cj one two three". (This matches
+historical usage.)</p>
+
+<p>Appending a space to the option in the option string ("a: b") makes it
+require a space, I.E. "-ab" is interpreted as "-a" "-b". That way "kill -stop"
+differs from "kill -s top".</p>
+
+<p>Appending ; to a longopt in the option string makes its argument optional,
+and only settable with =, so in ls "(color):;" can accept "ls --color" and
+"ls --color=auto" without complaining that the first has no argument.</p>
 
 <a name="lib_dirtree"><h3>lib/dirtree.c</h3>
 
