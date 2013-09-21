@@ -79,9 +79,8 @@
 //
 //   At the end: [groups] of previously seen options
 //     - Only one in group (switch off)    [-abc] means -ab=-b, -ba=-a, -abc=-c
-//     | Synonyms (switch on all)          [|abc] means -ab=-abc, -c=-abc
+//     + Synonyms (switch on all)          [+abc] means -ab=-abc, -c=-abc
 //     ! More than one in group is error   [!abc] means -ab calls error_exit()
-//     + First in group switches rest on   [+abc] means -a=-abc, -b=-b, -c=-c
 //       primarily useful if you can switch things back off again.
 //     
 
@@ -339,14 +338,14 @@ void parse_optflaglist(struct getoptflagstate *gof)
 
     if (CFG_TOYBOX_DEBUG && *options != '[') error_exit("trailing %s", options);
 
-    idx = stridx("-|!+", *++options);
+    idx = stridx("-+!", *++options);
     if (CFG_TOYBOX_DEBUG && idx == -1) error_exit("[ needs +-!");
-    if (CFG_TOYBOX_DEBUG && (*options == ']' || !options))
+    if (CFG_TOYBOX_DEBUG && (options[1] == ']' || !options[1]))
       error_exit("empty []");
 
     // Don't advance past ] but do process it once in loop.
-    while (*(options++) != ']') {
-      struct opts *opt, *opt2 = 0;
+    while (*options++ != ']') {
+      struct opts *opt;
       int i;
 
       if (CFG_TOYBOX_DEBUG && !*options) error_exit("[ without ]");
@@ -354,17 +353,12 @@ void parse_optflaglist(struct getoptflagstate *gof)
       for (i=0, opt = gof->opts; ; i++, opt = opt->next) {
         if (*options == ']') {
           if (!opt) break;
-          if (idx == 3) {
-            opt2->dex[1] |= bits;
-            break;
-          }
           if (bits&(1<<i)) opt->dex[idx] |= bits&~(1<<i);
         } else {
           if (CFG_TOYBOX_DEBUG && !opt)
             error_exit("[] unknown target %c", *options);
           if (opt->c == *options) {
             bits |= 1<<i;
-            if (!opt2) opt2=opt;
             break;
           }
         }
