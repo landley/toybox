@@ -56,7 +56,7 @@ echo "USE_TOYBOX(NEWTOY(toybox, NULL, TOYFLAG_STAYROOT))" > generated/newtoys.h
 sed -n -e 's/^USE_[A-Z0-9_]*(/&/p' toys/*/*.c \
 	| sed 's/\(.*TOY(\)\([^,]*\),\(.*\)/\2 \1\2,\3/' | sort -k 1,1 \
 	| sed 's/[^ ]* //'  >> generated/newtoys.h
-sed -n 's/.*(NEWTOY(\([^,]*\), *\("[^,]*"\) *,.*/#define OPTSTR_\1\t\2/p' \
+sed -n -e 's/.*(NEWTOY(\([^,]*\), *\(\("[^"]*"[^,]*\)*\),.*/#define OPTSTR_\1\t\2/p' \
   generated/newtoys.h > generated/oldtoys.h
 
 # Extract list of command letters from processed header file
