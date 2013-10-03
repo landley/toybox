@@ -59,70 +59,57 @@ sed -n -e 's/^USE_[A-Z0-9_]*(/&/p' toys/*/*.c \
 sed -n -e 's/.*(NEWTOY(\([^,]*\), *\(\("[^"]*"[^,]*\)*\),.*/#define OPTSTR_\1\t\2/p' \
   generated/newtoys.h > generated/oldtoys.h
 
-# Extract list of command letters from processed header file
+if [ ! -e generated/mkflags ]
+then
+  $HOSTCC scripts/mkflags.c -o generated/mkflags || exit 1
+fi
 
-function getflags()
-{
-  FLX="$1"
-  shift
-  sed -n -e "s/.*TOY($FLX"',[ \t]*"\([^"]*\)"[ \t]*,.*)/\1/' \
-         -e 't keep;d;:keep' -e 's/^[<>=][0-9]//' -e 's/[?&^]//' \
-         -e 't keep' -e 's/[><=][0-9][0-9]*//g' -e 's/+.//g' \
-         -e 's/\[[^]]*\]//g' -e 's/[-?^:&#|@* ;]//g' "$@" -e 'p'
-}
+echo generated/flags.h
+
+# Parse files through C preprocessor twice, once to get flags for current
+# .config and once to get flags for allyesconfig
+for I in A B
+do
+  (
+  # define macros and select header files with option string data
+
+  echo "#define NEWTOY(aa,bb,cc) aa $I bb"
+  echo '#define OLDTOY(...)'
+  if [ "$I" == A ]
+  then
+    cat generated/config.h
+  else
+    sed '/USE_.*([^)]*)$/s/$/ __VA_ARGS__/' generated/config.h
+  fi
+  cat generated/newtoys.h
+
+  # Run result through preprocessor, glue together " " gaps leftover from USE
+  # macros, delete comment lines, print any line with a quoted optstring,
+  # turn any non-quoted opstring (NULL or 0) into " " (because fscanf can't
+  # handle "" with nothing in it).
+
+  ) | $CC -E - | \
+    sed -n -e 's/" *"//g;/^#/d;s/"/"/p' -e 's/ *$//;s/ [^" ]*$/ " "/p'
+
+# Sort resulting line pairs and glue them together into triplets of
+#   command "flags" "allflags"
+# to feed into mkflags C program that outputs actual flag macros
+
+done | sort | sed -n 's/ A / /;t skip;d;:skip;h;n;s/[^ ]* B //;H;g;s/\n/ /;p' |\
+generated/mkflags > generated/flags.h || exit 1
 
 # Extract global structure definitions and flag definitions from toys/*/*.c
 
 function getglobals()
 {
-  # Run newtoys.h through the compiler's preprocessor to resolve USE macros
-  # against current config.
-  NEWTOYS="$(cat generated/config.h generated/newtoys.h | $CC -E - | sed 's/" *"//g')"
-
-  # Grab allyesconfig for comparison
-  ALLTOYS="$((sed '/USE_.*([^)]*)$/s/$/ __VA_ARGS__/' generated/config.h && cat generated/newtoys.h) | $CC -E - | sed 's/" *"//g')"
-
   for i in toys/*/*.c
   do
     NAME="$(echo $i | sed 's@.*/\(.*\)\.c@\1@')"
+    DATA="$(sed -n -e '/^GLOBALS(/,/^)/b got;b;:got' \
+            -e 's/^GLOBALS(/struct '"$NAME"'_data {/' \
+            -e 's/^)/};/' -e 'p' $i)"
 
-    echo -e "// $i\n"
-    sed -n -e '/^GLOBALS(/,/^)/b got;b;:got' \
-        -e 's/^GLOBALS(/struct '"$NAME"'_data {/' \
-        -e 's/^)/};/' -e 'p' $i
-
-    LONGFLAGS="$(echo "$NEWTOYS" | getflags "$NAME" -e 's/\(\(([^)]*)\)*\).*/\1/' -e 's/(//g' -e 's/)/ /g')"
-    FLAGS="$(echo "$NEWTOYS" | getflags "$NAME" -e 's/([^)]*)//g')"
-    ZFLAGS="$(echo "$ALLTOYS" | getflags "$NAME" -e 's/([^)]*)//g' -e 's/[-'"$FLAGS"']//g')"
-    LONGFLAGLEN="$(echo "$LONGFLAGS" | wc -w)"
-
-    echo "#ifdef FOR_${NAME}"
-    X=0
-    # Provide values for --longopts with no corresponding short flags
-    for i in $LONGFLAGS
-    do
-      X=$(($X+1))
-      echo -e "#define FLAG_$i\t(1<<$(($LONGFLAGLEN+${#FLAGS}-$X)))"
-    done
-
-    # Provide values for active flags
-    X=0
-    while [ $X -lt ${#FLAGS} ]
-    do
-      echo -ne "#define FLAG_${FLAGS:$X:1}\t"
-      X=$(($X+1))
-      echo "(1<<$((${#FLAGS}-$X)))"
-    done
-
-    # Provide zeroes for inactive flags
-    X=0
-    while [ $X -lt ${#ZFLAGS} ]
-    do
-      echo "#define FLAG_${ZFLAGS:$X:1} 0"
-      X=$(($X+1))
-    done
-    echo "#define TT this.${NAME}"
-    echo "#endif"
+    [ ! -z "$DATA" ] && echo -e "// $i\n\n$DATA\n"
   done
 }
 

@@ -64,6 +64,7 @@
 #define OLDTOY(name, oldname, opts, flags)
 #include "generated/newtoys.h"
 #include "generated/oldtoys.h"
+#include "generated/flags.h"
 #include "generated/globals.h"
 
 // These live in main.c

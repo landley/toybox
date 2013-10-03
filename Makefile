@@ -25,16 +25,16 @@ baseline: toybox_unstripped
 bloatcheck: toybox_old toybox_unstripped
 	@scripts/bloatcheck toybox_old toybox_unstripped
 
-instlist: toybox
-	$(HOSTCC) -I . scripts/install.c -o instlist
+generated/instlist: toybox
+	$(HOSTCC) -I . scripts/install.c -o generated/instlist
 
-install_flat: instlist
+install_flat: generated/instlist
 	scripts/install.sh --symlink --force
 
 install:
 	scripts/install.sh --long --symlink --force
 
-uninstall_flat: instlist
+uninstall_flat: generated/instlist
 	scripts/install.sh --uninstall
 
 uninstall:
@@ -42,9 +42,10 @@ uninstall:
 
 clean::
 	rm -rf toybox toybox_unstripped generated/config.h generated/Config.in \
-		generated/newtoys.h generated/globals.h instlist testdir \
-		generated/Config.probed generated/oldtoys.h \
-		generated/portability.h .singleconfig
+		generated/newtoys.h generated/globals.h testdir \
+		generated/Config.probed generated/oldtoys.h generated/flags.h \
+		generated/portability.h .singleconfig generated/instlist \
+		generated/mkflags
 
 distclean: clean
 	rm -f toybox_old .config* generated/help.h

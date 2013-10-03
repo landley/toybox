@@ -35,8 +35,8 @@ done
 
 echo "Compile instlist..."
 
-$DEBUG $HOSTCC -I . scripts/install.c -o instlist || exit 1
-COMMANDS="$(./instlist $LONG_PATH)"
+$DEBUG $HOSTCC -I . scripts/install.c -o generated/instlist || exit 1
+COMMANDS="$(generated/instlist $LONG_PATH)"
 
 echo "Install commands..."
 
