@@ -30,13 +30,6 @@
 #define RETVAL_DATA_ERROR        (-2)
 #define RETVAL_OBSOLETE_INPUT    (-3)
 
-char *bunzip_errors[]={
-  NULL,
-  "Not bzip data",
-  "Data error",
-  "Obsolete (pre 0.9.5) bzip format not supported."
-};
-
 // This is what we know about each huffman coding group
 struct group_data {
   int limit[MAX_HUFCODE_BITS+1], base[MAX_HUFCODE_BITS], permute[MAX_SYMBOLS];
@@ -516,7 +509,7 @@ int write_bunzip_data(struct bunzip_data *bd, struct bwdata *bw, int out_fd, cha
 
       // If somebody (like tar) wants a certain number of bytes of
       // data from memory instead of written to a file, humor them.
-      if (len && bd->outbufPos>=len) goto dataus_interruptus;
+      if (len && bd->outbufPos >= len) goto dataus_interruptus;
       count--;
 
       // Follow sequence vector to undo Burrows-Wheeler transform.
@@ -538,12 +531,12 @@ int write_bunzip_data(struct bunzip_data *bd, struct bwdata *bw, int out_fd, cha
 
       // Output bytes to buffer, flushing to file if necessary
       while (copies--) {
-        if (bd->outbufPos == IOBUF_SIZE) flush_bunzip_outbuf(bd,out_fd);
+        if (bd->outbufPos == IOBUF_SIZE) flush_bunzip_outbuf(bd, out_fd);
         bd->outbuf[bd->outbufPos++] = outbyte;
         bw->dataCRC = (bw->dataCRC << 8)
                 ^ bd->crc32Table[(bw->dataCRC >> 24) ^ outbyte];
       }
-      if (current!=previous) run=0;
+      if (current != previous) run=0;
     }
 
     // decompression of this block completed successfully
@@ -563,7 +556,7 @@ dataus_interruptus:
       memcpy(outbuf, bd->outbuf, len);
 
       // If we got enough data, checkpoint loop state and return
-      if ((len-=bd->outbufPos)<1) {
+      if ((len -= bd->outbufPos)<1) {
         bd->outbufPos -= len;
         if (bd->outbufPos) memmove(bd->outbuf, bd->outbuf+len, bd->outbufPos);
         bw->writePos = pos;
@@ -622,11 +615,12 @@ void bunzipStream(int src_fd, int dst_fd)
   char *bunzip_errors[]={NULL, "not bzip", "bad data", "old format"};
   int i, j;
 
-  if (!(i = start_bunzip(&bd,src_fd,0,0))) {
-    i = write_bunzip_data(bd,bd->bwdata,dst_fd,0,0);
+  if (!(i = start_bunzip(&bd,src_fd, 0, 0))) {
+    i = write_bunzip_data(bd,bd->bwdata, dst_fd, 0, 0);
     if (i==RETVAL_LAST_BLOCK && bd->bwdata[0].headerCRC==bd->totalCRC) i = 0;
   }
-  flush_bunzip_outbuf(bd,dst_fd);
+  flush_bunzip_outbuf(bd, dst_fd);
+
   for (j=0; j<THREADS; j++) free(bd->bwdata[j].dbuf);
   free(bd);
   if (i) error_exit(bunzip_errors[-i]);
