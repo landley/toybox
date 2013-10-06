@@ -378,7 +378,7 @@ static int read_huffman_data(struct bunzip_data *bd, struct bwdata *bw)
        literal used is the one at the head of the mtfSymbol array.) */
     if (runPos) {
       runPos = 0;
-      if (dbufCount+hh >= bd->dbufSize) return RETVAL_DATA_ERROR;
+      if (dbufCount+hh > bd->dbufSize) return RETVAL_DATA_ERROR;
 
       uc = bd->symToByte[bd->mtfSymbol[0]];
       byteCount[uc] += hh;
