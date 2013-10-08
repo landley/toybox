@@ -18,199 +18,112 @@ config BLKID
 #define FOR_blkid
 #include "toys.h"
 
-#define BIT(x) (1<<(x))
-#define _MATCH(buf,type,offset,match) (((unsigned type *)&buf[offset])[0]==(match))
-#define MATCH2(b,a) (_MATCH(b,a##_TYPE,a##_OFFSET,a##_MAGIC2)||MATCH(b,a))
-#define MATCH3(b,a) (_MATCH(b,a##_TYPE,a##_OFFSET,a##_MAGIC3)||MATCH2(b,a))
-#define MATCH(b,a) _MATCH(b,a##_TYPE,a##_OFFSET,a##_MAGIC)
-/* may need to check endianess for C2I */
-#define C2I(a,b,c,d) (a|(b<<8)|(c<<16)|(d<<24))
-
-struct fs_info {
-  unsigned uuid_off;
-  unsigned lab_off;
-  short uuid_t;
-  short lab_len;
+struct fstype {
+  char *name;
+  uint64_t magic;
+  int magic_len, magic_offset, uuid_off, label_len, label_off;
 };
 
-#define SET_FS(t) (struct fs_info)t##_INFO
+static const struct fstype fstypes[] = {
+  // ext3 = buf[1116]&4 ext4 = buf[1120]&64
+  {"ext2", 0xEF53, 2, 1080, 1128, 16, 1144},
+  // label actually 8/16 0x4d80 but horrible: 16 bit wide characters via
+  // codepage, something called a uuid that's only 8 bytes long...
+  {"ntfs", 0x5346544e, 4, 3, 0x48+(8<<24), 0, 0},
 
-#define ADFS_MAGIC			0xadf5
-#define ADFS_TYPE			short
-#define ADFS_OFFSET			0xc00
-#define ADFS_INFO			{0,0,0,0}	/*todo*/
-
-#define BFS_MAGIC			0x1badface
-#define BFS_TYPE			long
-#define BFS_OFFSET			0
-#define BFS_INFO			{0,0,0,0}
-
-/*won't fit in 1 toybuf*/
-#define BTRFS_MAGIC			C2I('_','B','H','R')	//'RHB_'
-//#define BTRFS_MAGIC2		'M_Sf'	/*not currently used*/
-//#define BTRFS_OFFSET2		65604	/*not currently used*/
-#define BTRFS_TYPE			long	/*change to long long if full magic used?*/
-#define BTRFS_OFFSET		65600
-#define BTRFS_INFO			{65803,65819,16,256}
-
-#define CRAMFS_MAGIC		0x28cd3d45
-#define CRAMFS_MAGIC2		0x453dcd28
-#define CRAMFS_TYPE			long
-#define CRAMFS_OFFSET		0
-#define CRAMFS_INFO			{0,48,0,16}
-
-#define EXT_MAGIC			0xEF53
-#define EXT_MAGIC2			0xEF51
-#define EXT_MAGIC3			0x53EF
-#define EXT_TYPE			short
-#define EXT_OFFSET			1080
-#define EXT3_BYTE			1116
-#define EXT4_BYTE			1120
-#define EXT_INFO			{1128,1144,16,16}
-
-#define F2FS_MAGIC			0xF2F52010
-#define F2FS_TYPE			long
-#define F2FS_OFFSET			1024
-#define F2FS_INFO			{1132,1110,16,16}
-
-/*won't fit in 1 toybuf*/
-#define JFS_MAGIC			C2I('J','S','F','1')	//'1SFJ'
-#define JFS_TYPE			long
-#define JFS_OFFSET			32768
-#define JFS_INFO			{32920,32904,16,16}
-
-#define NILFS_MAGIC			0x3434
-#define NILFS_TYPE			short
-#define NILFS_OFFSET		1030
-#define NILFS_INFO			{1176,1192,16,80}
-
-#define NTFS_MAGIC			C2I('N','T','F','S')	//'SFTN'
-#define NTFS_TYPE			long
-#define NTFS_OFFSET			3
-#define NTFS_INFO			{0x48,0X4D80,8,-8}
-
-/*won't fit in 1 toybuf*/
-#define REISER_MAGIC		C2I('R','e','I','s')	//'sIeR'
-#define REISER_TYPE			long
-#define REISER_OFFSET		8244
-#define REISER_INFO			{8276,8292,16,16}
-
-#define REISERB_MAGIC		REISER_MAGIC	//'sIeR'
-#define REISERB_TYPE		REISER_TYPE
-#define REISERB_OFFSET		65588
-#define REISERB_INFO		{65620,65636,16,16}
-
-#define ROMFS_MAGIC			C2I('r','o','m','-') //'-mor'
-#define ROMFS_OFFSET		0
-#define ROMFS_TYPE			long
-#define ROMFS_INFO			{0,0,0,0}
-
-#define SQUASHFS_OFFSET		0
-#define SQUASHFS_TYPE		long
-#define SQUASHFS_MAGIC		0x73717368
-#define SQUASHFS_INFO		{0,0,0,0}
-
-#define XIAFS_OFFSET		572
-#define XIAFS_TYPE			long
-#define XIAFS_MAGIC			0x012FD16D
-#define XIAFS_INFO			{0,0,0,0}
-
-#define XFS_OFFSET			0
-#define XFS_TYPE			long
-#define XFS_MAGIC			C2I('X','F','S','B')
-#define XFS_INFO			{32,108,16,12}
-
-/* hack for NTFS utf16 */
-char *toutf8(unsigned short *ws)
-{
-  static char buf[16];
-  int i=0;
-
-  while((buf[i++]=*ws++));
-  return buf;
-}
+  {"adfs", 0xadf5, 2, 0xc00, 0,0,0},
+  {"bfs", 0x1badface, 4, 0, 0,0,0},
+  {"btrfs", 0x4D5F53665248425FULL, 8, 65600, 65803, 256, 65819},
+  {"cramfs", 0x28cd3d45, 4, 0, 0, 16, 48},
+  {"f2fs", 0xF2F52010, 4, 1024, 1132, 16, 1110},
+  {"jfs", 0x3153464a, 4, 32768, 32920, 16, 32904},
+  {"nilfs", 0x3434, 2, 1030, 1176, 80, 1192},
+  {"murderfs", 0x724573496552, 6, 8244, 8276, 16, 8292},
+  {"murderfs", 0x724573496552, 6, 65588, 65620, 16, 65536},
+  {"romfs", 0x2d6d6f72, 4, 0, 0,0,0},
+  {"squashfs", 0x73717368, 4, 0, 0,0,0},
+  {"xiafs", 0x012fd16d, 4, 572, 0,0,0},
+  {"xfs", 0x42534658, 4, 0, 32, 12, 108},
+  {"vfat", 0x3233544146, 5, 82, 67+(4<<24), 11, 71},  // fat32
+  {"vfat", 0x31544146, 4, 54, 39+(4<<24), 11, 43}     // fat1
+};
 
 /* TODO if no args use proc/partitions */
 void do_blkid(int fd, char *name)
 {
-  struct fs_info fs;
-  char *fstype;
-  unsigned char buf[66560];  /*toybuf is only 4096, could rework logic*/
-  int sb_read;
+  int off, i, j;
+  char *type;
 
-  sb_read = read(fd, &buf, sizeof(buf));
-  if (sb_read < 1) return;
+  off = i = 0;
 
-  if MATCH(buf,ADFS) {
-    fstype="adfs";
-    if (CFG_BLKID) fs=SET_FS(ADFS);
-  } else if MATCH(buf,BFS) {
-    fstype="bfs";
-    if (CFG_BLKID) fs=SET_FS(BFS);
-  } else if MATCH(buf,CRAMFS) {
-    fstype="cramfs";
-    if (CFG_BLKID) fs=SET_FS(CRAMFS);
-  } else if MATCH3(buf,EXT) {
-    fstype=(buf[EXT3_BYTE]&BIT(2))?((buf[EXT4_BYTE]&BIT(6))?"ext4":"ext3"):"ext2";
-    if (CFG_BLKID) fs=SET_FS(EXT);
-  } else if MATCH(buf,F2FS) {
-    fstype="f2fs";
-    if (CFG_BLKID) fs=SET_FS(F2FS);
-  } else if MATCH(buf,NILFS) {
-    fstype="nilfs";
-    if (CFG_BLKID) fs=SET_FS(NILFS);
-  } else if MATCH(buf,NTFS) {
-    fstype="ntfs";
-    if (CFG_BLKID) fs=SET_FS(NTFS);
-  } else if MATCH(buf,XIAFS) {
-    fstype="xiafs";
-    if (CFG_BLKID) fs=SET_FS(XIAFS);
-/*below here would require more than 1 toybuf*/
-  } else if MATCH(buf,REISER) {
-    fstype="reiserfs";
-    if (CFG_BLKID) fs=SET_FS(REISER);
-  } else if MATCH(buf,JFS) {
-    fstype="jfs";
-    if (CFG_BLKID) fs=SET_FS(JFS);
-  } else if MATCH(buf,BTRFS) {
-    fstype="btrfs";
-    if (CFG_BLKID) fs=SET_FS(BTRFS);
-  } else if MATCH(buf,REISERB) {
-    fstype="reiserfs";
-    if (CFG_BLKID) fs=SET_FS(REISERB);
-  } else return;
+  for (;;) {
+    int pass = 0, len;
 
-  if (CFG_BLKID && !strncmp("blkid",toys.which->name,5) ) {
-    printf("%s:",name);
-    if (fs.lab_len > 0)
-      printf(" LABEL=\"%.*s\"", fs.lab_len, (char *)&buf[fs.lab_off]);
-    else if (fs.lab_len < 0)
-      printf(" LABEL=\"%.*s\"", -fs.lab_len,
-        toutf8((unsigned short *)&buf[fs.lab_off]));
-    if (fs.uuid_off > 0) {
-      if (fs.uuid_t == 16)
-        printf(" UUID=\"%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-"
-        "%02x%02x%02x%02x%02x%02x\"",
-        buf[fs.uuid_off], buf[fs.uuid_off+1],
-        buf[fs.uuid_off+2], buf[fs.uuid_off+3],
-        buf[fs.uuid_off+4], buf[fs.uuid_off+5],
-        buf[fs.uuid_off+6], buf[fs.uuid_off+7],
-        buf[fs.uuid_off+8], buf[fs.uuid_off+9],
-        buf[fs.uuid_off+10], buf[fs.uuid_off+11],
-        buf[fs.uuid_off+12], buf[fs.uuid_off+13],
-        buf[fs.uuid_off+14], buf[fs.uuid_off+15]);
-      if (fs.uuid_t == 8)
-        printf(" UUID=\"%02X%02X%02X%02X%02X%02X%02X%02X\"",
-        buf[fs.uuid_off+7], buf[fs.uuid_off+6],
-        buf[fs.uuid_off+5], buf[fs.uuid_off+4],
-        buf[fs.uuid_off+3], buf[fs.uuid_off+2],
-        buf[fs.uuid_off+1], buf[fs.uuid_off]);
+    // Read next block of data
+    len = readall(fd, toybuf, sizeof(toybuf));
+    if (len != sizeof(toybuf)) return;
+
+    // Iterate through types in range
+    for (i=0; i < sizeof(fstypes)/sizeof(struct fstype); i++) {
+      uint64_t test;
+
+      // Skip tests not in this 4k block
+      if (fstypes[i].magic_offset > off+sizeof(toybuf)) {
+        pass++;
+        continue;
+      }
+      if (fstypes[i].magic_offset < off) continue;
+
+      // Populate 64 bit little endian magic value
+      test = 0;
+      for (j = 0; j < fstypes[i].magic_len; j++)
+        test += ((uint64_t)toybuf[j+fstypes[i].magic_offset-off])<<(8*j);
+      if (test == fstypes[i].magic) break;
     }
-    printf(" TYPE=\"%s\"",fstype);
 
-  /* avoid printf overhead in fstype */
-  } else write(1,fstype,strlen(fstype));
-  putchar('\n');
+    if (i == sizeof(fstypes)/sizeof(struct fstype)) {
+      off += len;
+      if (pass) continue;
+      return;
+    }
+    break;
+  }
+
+  // distinguish ext2/3/4
+  type = fstypes[i].name;
+  if (!i) {
+    if (toybuf[1116]&4) type = "ext3";
+    if (toybuf[1120]&64) type = "ext4";
+  }
+
+  // Could special case NTFS here...
+
+  // Output for fstype
+  if (*toys.which->name == 'f') {
+    puts(type);
+    return;
+  }
+
+  // output for blkid
+  printf("%s:",name);
+
+  if (fstypes[i].label_len)
+    printf(" LABEL=\"%.*s\"", fstypes[i].label_len,
+           toybuf+fstypes[i].label_off-off);
+
+  if (fstypes[i].uuid_off) {
+    int bits = 0x550, size = fstypes[i].uuid_off >> 24,
+        uoff = (fstypes[i].uuid_off & ((1<<24)-1))-off;
+
+    if (size) bits = 4*(size == 4);
+    else size = 16;
+
+    printf(" UUID=\"");
+    for (j = 0; j < size; j++) printf("-%02x"+!(bits & (1<<j)), toybuf[uoff+j]);
+    printf("\"");
+  }
+
+  printf(" TYPE=\"%s\"\n", fstypes[i].name);
 }
 
 void blkid_main(void)
