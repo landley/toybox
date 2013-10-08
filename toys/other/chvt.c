@@ -19,29 +19,16 @@ config CHVT
 
 #include "toys.h"
 
-/* Note: get_console_fb() will need to be moved into a seperate lib section */
-int get_console_fd()
-{
-  int fd;
-  char *consoles[]={"/dev/console", "/dev/vc/0", "/dev/tty", NULL}, **cc;
-
-  cc = consoles;
-  while (*cc) {
-    fd = open(*cc++, O_RDWR);
-    if (fd >= 0) return fd;
-  }
-
-  return -1;
-}
-
 void chvt_main(void)
 {
   int vtnum, fd;
+  char *consoles[]={"/dev/console", "/dev/vc/0", "/dev/tty", NULL}, **cc;
 
   vtnum=atoi(*toys.optargs);
+  for (cc = consoles; *cc; cc++)
+    if (-1 != (fd = open(*cc, O_RDWR))) break;
 
-  fd=get_console_fd();
   // These numbers are VT_ACTIVATE and VT_WAITACTIVE from linux/vt.h
-  if (fd < 0 || ioctl(fd, 0x5606, vtnum) || ioctl(fd, 0x5607, vtnum))
-    perror_exit(NULL);
+  if (!*cc || fd < 0 || ioctl(fd, 0x5606, vtnum) || ioctl(fd, 0x5607, vtnum))
+    perror_exit(0);
 }
