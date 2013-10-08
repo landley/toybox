@@ -9,7 +9,7 @@ USE_BLKID(OLDTOY(fstype, blkid, "<1", TOYFLAG_BIN))
 
 config BLKID
   bool "blkid"
-  default n
+  default y
   help
     usage: blkid [block device...]
     Prints type, label and UUID of filesystem.
