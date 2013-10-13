@@ -3,7 +3,7 @@
  * Copyright 2013 Sandeep Sharma <sandeep.jack2756@gmail.com>
  * Copyright 2013 Kyungwan Han <asura321@gmail.com>
  *
-USE_WATCH(NEWTOY(watch, "^<1n#<0=2t", TOYFLAG_USR|TOYFLAG_BIN))
+USE_WATCH(NEWTOY(watch, "^<1n#<0=2te", TOYFLAG_USR|TOYFLAG_BIN))
 
 config WATCH
   bool "watch"
@@ -15,41 +15,56 @@ config WATCH
 
     -n  Loop period in seconds (default 2)
     -t  Don't print header
+    -e  Freeze updates on command error, and exit after enter.
 */
 #define FOR_watch
 #include "toys.h"
 
 GLOBALS(
-  int interval; 
+  int interval;
 )
 
 void watch_main(void)
 {
   int i = 0, hlen;
   time_t t;
-  unsigned width = 80, len = sizeof("1234-67-90 23:56:89");//time format
+  unsigned width = 80, len = sizeof("Www Mmm dd hh:mm:ss yyyy") - 1 ;
   char *header, *cmd = *toys.optargs;
+  int retval;
 
-  while(toys.optargs[++i]) cmd = xmsprintf("%s %s", cmd, toys.optargs[i]);
+  while(toys.optargs[++i])
+  {
+    char * oldcmd = cmd;
+    cmd = xmsprintf("%s %s", oldcmd, toys.optargs[i]);
+    if (CFG_TOYBOX_FREE) free(oldcmd);
+  }
   header = xmsprintf("Every %us: %s", TT.interval, cmd);
+  hlen = strlen(header);
 
   while(1) {
     xprintf("\033[H\033[J");
     if(!(toys.optflags & FLAG_t)) {
-      xprintf("%s", header);
-      hlen = strlen(header);
       terminal_size(&width, NULL);
       if (!width) width = 80; //on serial it may return 0.
-      if (width > (hlen + len)) {                         
-        time(&t);                                         
-        strftime(toybuf, len, "%Y-%m-%d %H:%M:%S", localtime(&t));
-        xprintf("%*s", width - hlen, toybuf);             
-      }
-      xprintf("\n\n"); // 1'\n' for space between header and result
+      time(&t);
+      if (width > (hlen + len)) xprintf("%s", header);
+      if(width >= len)
+        xprintf("%*s\n",width + ((width > (hlen + len))?-hlen:0) + 1, ctime(&t));
+      else
+        xprintf("\n\n");
     }
     fflush(NULL); //making sure the screen is clear
-    system(cmd);
+    retval = system(cmd);
+    if ((toys.optflags & FLAG_e) && retval){
+      xprintf("command exit with non-zero status, press enter to exit\n");
+      getchar();
+      break;
+    }
     sleep(TT.interval);
   }
-  if (CFG_TOYBOX_FREE) free(header);
+
+  if (CFG_TOYBOX_FREE){
+    free(header);
+    if (cmd != *toys.optargs) free(cmd);
+  }
 }
