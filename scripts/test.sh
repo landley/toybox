@@ -7,7 +7,12 @@ mkdir -p testdir
 
 if [ -z "$TEST_HOST" ]
 then
-  make install_flat PREFIX=testdir || exit 1
+  if [ $# -ne 0 ]
+  then
+    PREFIX=testdir/ scripts/single.sh "$@" || exit 1
+  else
+    make install_flat PREFIX=testdir || exit 1
+  fi
 fi
 
 cd testdir
