@@ -23,20 +23,9 @@ config REBOOT
 
 void reboot_main(void)
 {
-  char c = toys.which->name[0];
+  int types[] = {RB_AUTOBOOT, RB_HALT_SYSTEM, RB_POWER_OFF};
 
-  if (!(toys.optflags & FLAG_n))
-    sync();
+  if (!(toys.optflags & FLAG_n)) sync();
 
-  switch(c) {
-  case 'p':
-    toys.exitval = reboot(RB_POWER_OFF);
-      break;
-  case 'h':
-    toys.exitval = reboot(RB_HALT_SYSTEM);
-    break;
-  case 'r':
-  default:
-    toys.exitval = reboot(RB_AUTOBOOT);
-  }
+  toys.exitval = reboot(types[stridx("hp", *toys.which->name)+1]);
 }
