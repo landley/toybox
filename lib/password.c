@@ -7,57 +7,46 @@
 #include "xregcomp.h"
 #include <time.h>
 
-static unsigned int random_number_generator(int fd)
-{      
-  unsigned int randnum;
-
-  xreadall(fd, &randnum, sizeof(randnum));
-  return randnum;
-}      
-       
-static char inttoc(int i)
-{      
-  // salt value uses 64 chracters in "./0-9a-zA-Z"
-  const char character_set[]="./0123456789abcdefghijklmnopqrstuvwxyz"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-  i &= 0x3f; // masking for using 10 bits only
-  return character_set[i];
-}      
-       
 int get_salt(char *salt, char *algo)
 {      
-  int i, randfd, salt_length = 0, offset;
+  int i, len = 0, offset = 0;
+  char buf[12];
 
-  if (!strcmp(algo,"des")){
-    // 2 bytes salt value is used in des
-    salt_length = 2;
-    offset = 0;
-  } else {
+  if (!strcmp(algo,"des")) len = 2;
+  else {
     *salt++ = '$';
-    if (!strcmp(algo,"md5")){
+    if (!strcmp(algo,"md5")) {
       *salt++ = '1';
-      // 8 bytes salt value is used in md5
-      salt_length = 8;
-    } else if (!strcmp(algo,"sha256")){
+      len = 8;
+    } else if (!strcmp(algo,"sha256")) {
       *salt++ = '5';
-      // 16 bytes salt value is used in sha256
-      salt_length = 16;
-    } else if (!strcmp(algo,"sha512")){
+      len = 16;
+    } else if (!strcmp(algo,"sha512")) {
       *salt++ = '6';
-      // 16 bytes salt value is used in sha512
-      salt_length = 16;
+      len = 16;
     } else return -1;
 
     *salt++ = '$';
     offset = 3;
   }    
 
-  randfd = xopen("/dev/urandom", O_RDONLY);
-  for (i=0; i<salt_length; i++)
-    salt[i] = inttoc(random_number_generator(randfd));
-  salt[salt_length+1] = '\0';
-  xclose(randfd);
+  // Read appropriate number of random bytes for salt
+  i = xopen("/dev/urandom", O_RDONLY);
+  xreadall(i, buf, ((len*6)+7)/8);
+  close(i);
+
+  // Grab 6 bit chunks and convert to characters in ./0-9a-zA-Z
+  for (i=0; i<len; i++) {
+    int bitpos = i*6, bits = bitpos/8;
+
+    bits = ((buf[i]+(buf[i+1]<<8)) >> (bitpos&7)) & 0x3f;
+    bits += 46;
+    if (bits > 57) bits += 8;
+    if (bits > 90) bits += 7;
+
+    salt[i] = bits;
+  }
+  salt[i] = 0;
 
   return offset;
 }
