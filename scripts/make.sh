@@ -88,7 +88,7 @@ do
   # turn any non-quoted opstring (NULL or 0) into " " (because fscanf can't
   # handle "" with nothing in it).
 
-  ) | $CC -E - | \
+  ) | ${CROSS_COMPILE}${CC} -E - | \
     sed -n -e 's/" *"//g;/^#/d;s/"/"/p' -e 's/ *$//;s/ [^" ]*$/ " "/p'
 
 # Sort resulting line pairs and glue them together into triplets of
