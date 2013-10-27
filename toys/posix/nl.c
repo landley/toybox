@@ -11,7 +11,7 @@ USE_NL(NEWTOY(nl, "v#<1=1l#b:n:s:w#<0=6E", TOYFLAG_BIN))
 
 config NL
   bool "nl"
-  default n
+  default y
   help
     usage: nl [-E] [-l #] [-b MODE] [-n STYLE] [-s SEPARATOR] [-w WIDTH] [FILE...]
 
