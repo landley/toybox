@@ -2,100 +2,93 @@
  *
  * Copyright 2013 CE Strake <strake888@gmail.com>
  *
- * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/
- * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/nl.html
+ *
+ * This implements a subset: only one logical page (-ip), no sections (-dfh).
+ * todo: -lv
 
-USE_NL(NEWTOY(nl, "Eb:n:s:w#", TOYFLAG_BIN))
+USE_NL(NEWTOY(nl, "v#<1=1l#b:n:s:w#<0=6E", TOYFLAG_BIN))
 
 config NL
   bool "nl"
   default n
   help
-    usage: nl [-E] [-b mode] [-n (r|l)(n|z)] [-s separator] [-w width]
+    usage: nl [-E] [-l #] [-b MODE] [-n STYLE] [-s SEPARATOR] [-w WIDTH] [FILE...]
 
-    modes: give numbers to
-      a:   all lines
-      t:   non-empty lines
-      n:   no lines
-      pRE: lines what match regex RE
+    Number lines of input.
 
-    flags:
-      E:   extended RE syntax
+    -E	Use extended regex syntax (when doing -b pREGEX)
+    -b	which lines to number: a (all) t (non-empty, default) pREGEX (pattern)
+    -l	Only count last of this many consecutive blank lines
+    -n	number STYLE: ln (left justified) rn (right justified) rz (zero pad)
+    -s	Separator to use between number and line (instead of TAB)
+    -w	Width of line numbers (default 6)
 */
 
 #define FOR_nl
 #include "toys.h"
-#include <regex.h>
+#include "lib/xregcomp.h"
 
 GLOBALS(
-  long wArgu;
-  char *sArgu, *nArgu, *bArgu, *re_xs;
-  char fmt[5];
+  long w;
+  char *s;
+  char *n;
+  char *b;
+  long l;
+  long v;
+
+  // Count of consecutive blank lines for -l has to persist between files
+  long lcount;
 )
 
-char s = '\t';
-long width = 6;
-regex_t re; /* fails in GLOBALS */
+void do_nl(int fd, char *name)
+{
+  FILE *f = xfdopen(fd, "r");
+  int w = TT.w, slen = strlen(TT.s);
 
-void do_nl (int fd, char *name) {
-  char *x;
-  FILE *f;
-  long n = 0;
-
-  f = fdopen (fd, "r");
-  if (!f) perror_exit ("failed to open %s", name);
-
-  x = 0;
   for (;;) {
-    size_t l;
-    if (getline (&x, &l, f) < 0) {
-      if (feof (f)) break;
-      perror_exit ("failed to read");
+    char *line = 0;
+    size_t temp;
+    int match = *TT.b != 'n';
+
+    if (getline(&line, &temp, f) < 1) {
+      if (ferror(f)) perror_msg("%s", name);
+      break;
     }
-    if (TT.re_xs && regexec (&re, x, 0, 0, 0) == 0) printf (TT.fmt, width, ++n);
-    printf ("%c%s", s, x);
+
+    if (*TT.b == 'p') match = !regexec((void *)(toybuf+16), line, 0, 0, 0);
+    if (TT.l || *TT.b == 't')
+      if (*line == '\n') match = TT.l && ++TT.lcount >= TT.l;
+    if (match) {
+      TT.lcount = 0;
+      printf(toybuf, w, TT.v++, TT.s);
+    } else printf("%*c", (int)w+slen, ' ');
+    xprintf("%s", line);
+
+    free(line);
   }
 
-  free (x);
-  fclose (f);
+  fclose(f);
 }
 
-void nl_main (void) {
-  if (toys.optflags & FLAG_w) width = TT.wArgu;
+void nl_main(void)
+{
+  char *clip = "";
 
-  if (TT.sArgu) s = TT.sArgu[0];
+  if (!TT.s) TT.s = "\t";
 
-  if (!TT.nArgu) TT.nArgu = "rn";
+  if (!TT.n || !strcmp(TT.n, "rn")); // default
+  else if (!strcmp(TT.n, "ln")) clip = "-";
+  else if (!strcmp(TT.n, "rz")) clip = "0";
+  else error_exit("bad -n '%s'", TT.n);
 
-  if (TT.bArgu) switch (TT.bArgu[0]) {
-  case 'a':
-    TT.re_xs = "";
-    break;
-  case 't':
-    TT.re_xs = ".\n";
-    break;
-  case 'n':
-    TT.re_xs = 0;
-    break;
-  case 'p':
-    TT.re_xs = TT.bArgu + 1;
-    break;
-  default:
-    error_exit ("bad mode: %c", TT.bArgu[0]);
-  }
-  else TT.re_xs = ".\n";
+  sprintf(toybuf, "%%%s%s", clip, "*ld%s");
 
-  if (TT.re_xs &&
-      regcomp (&re, TT.re_xs,
-               REG_NOSUB |
-               (toys.optflags & FLAG_E ? REG_EXTENDED : 0)) != 0) {
-    error_exit ("bad RE");
-  }
-
-  strcpy (TT.fmt, "%");
-  if (TT.nArgu[0] == 'l') strcat (TT.fmt, "-");
-  if (TT.nArgu[1] == 'z') strcat (TT.fmt, "0");
-  strcat (TT.fmt, "*d");
+  if (!TT.b) TT.b = "t";
+  if (*TT.b == 'p' && TT.b[1])
+    xregcomp((void *)(toybuf+16), TT.b+1,
+      REG_NOSUB | (toys.optflags&FLAG_E)*REG_EXTENDED);
+  else if (!strchr("atn", *TT.b)) error_exit("bad -b '%s'", TT.b);
 
   loopfiles (toys.optargs, do_nl);
 }
