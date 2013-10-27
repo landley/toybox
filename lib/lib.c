@@ -485,29 +485,28 @@ void crc_init(unsigned int *crc_table, int little_endian)
 // set *x=0 and *y=0 before calling to detect failure to set either, or
 // x=80 y=25 to provide defaults
 
-void terminal_size(unsigned *x, unsigned *y)
+void terminal_size(unsigned *xx, unsigned *yy)
 {
   struct winsize ws;
-  int i;
+  unsigned i, x = xx ? *xx : 0, y = yy ? *yy : 0;
+  char *s;
 
-  //memset(&ws, 0, sizeof(ws));
   for (i=0; i<3; i++) {
-    if (ioctl(i, TIOCGWINSZ, &ws)) continue;
-    if (x) *x = ws.ws_col;
-    if (y) *y = ws.ws_row;
-  }
-  if (x) {
-    char *s = getenv("COLUMNS");
+    memset(&ws, 0, sizeof(ws));
+    if (!ioctl(i, TIOCGWINSZ, &ws)) {
+      if (ws.ws_col) x = ws.ws_col;
+      if (ws.ws_row) y = ws.ws_row;
 
-    i = s ? atoi(s) : 0;
-    if (i>0) *x = i;
+      break;
+    }
   }
-  if (y) {
-    char *s = getenv("ROWS");
+  s = getenv("COLUMNS");
+  if (s) sscanf(s, "%u", &x);
+  s = getenv("ROWS");
+  if (s) sscanf(s, "%u", &y);
 
-    i = s ? atoi(s) : 0;
-    if (i>0) *y = i;
-  }
+  if (xx) *xx = x;
+  if (yy) *yy = y;
 }
 
 int yesno(char *prompt, int def)
