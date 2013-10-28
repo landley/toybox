@@ -27,9 +27,10 @@ char * fmt;
 /* Iterate through a list of files, read from stdin.
  * No users need rw.
  */
-void loopfiles_stdin(void (*function)(int fd, char *name))
+void loopfiles_stdin(void (*function)(int fd, char *name, struct stat st))
 {
   int fd;
+  struct stat st;
   char *name = toybuf;
 
   while (name != NULL){
@@ -39,9 +40,10 @@ void loopfiles_stdin(void (*function)(int fd, char *name))
     if (name != NULL) {
       if (toybuf[strlen(name) - 1] == '\n' ) { 
         toybuf[strlen(name) - 1 ] = '\0';
+        if (lstat(name, &st) == -1) continue;
 	fd = open(name, O_RDONLY);
-	if (fd > 0) {
-          function(fd, name);
+	if (fd > 0 || !S_ISREG(st.st_mode)) {
+          function(fd, name, st);
 	  close(fd);
 	}
 	errno = 0;
@@ -103,13 +105,6 @@ void write_cpio_member(int fd, char *name, struct stat buf)
     }
   }
   if (buf.st_size % 4) write(1, &n, 4 - (buf.st_size % 4));
-}
-
-void write_cpio_call(int fd, char *name)
-{
-  struct stat buf;
-  if (lstat(name, &buf) == -1) return;
-  write_cpio_member(fd, name, buf);
 }
 
 //convert hex to uint; mostly to allow using bits of non-terminated strings
@@ -224,7 +219,7 @@ void cpio_main(void)
 {
   switch (toys.optflags & (FLAG_i | FLAG_o | FLAG_t)) {
     case FLAG_o:
-      loopfiles_stdin(write_cpio_call);
+      loopfiles_stdin(write_cpio_member);
       write(1, "07070100000000000000000000000000000000000000010000000000000000"
       "000000000000000000000000000000000000000B00000000TRAILER!!!\0\0\0", 124);
       break;
