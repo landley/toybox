@@ -201,7 +201,13 @@ static int apply_one_hunk(void)
         // Match failed.  Write out first line of buffered data and
         // recheck remaining buffered data for a new match.
 
-        if (PATCH_DEBUG) fprintf(stderr, "NOT: %s\n", plist->data);
+        if (PATCH_DEBUG) {
+          int bug = 0;
+
+          while (plist->data[bug] == check->data[bug]) bug++;
+          fprintf(stderr, "NOT(%d:%d!=%d): %s\n", bug, plist->data[bug],
+            check->data[bug], plist->data);
+        }
 
         TT.state = 3;
         do_line(check = dlist_pop(&buf));
