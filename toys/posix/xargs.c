@@ -106,9 +106,9 @@ static char *handle_entries(char *data, char **entry)
 
 void xargs_main(void)
 {
-  struct double_list *dlist = NULL;
+  struct double_list *dlist = NULL, *dtemp;
   int entries, bytes, done = 0, status;
-  char *data = NULL;
+  char *data = NULL, **out;
 
   if (!(toys.optflags & FLAG_0)) TT.delim = '\n';
 
@@ -124,8 +124,6 @@ void xargs_main(void)
 
   // Loop through exec chunks.
   while (data || !done) {
-    char **out;
-
     TT.entries = 0;
     TT.bytes = bytes;
 
@@ -160,17 +158,14 @@ void xargs_main(void)
     if (data && !TT.entries) error_exit("argument too long");
     out = xzalloc((entries+TT.entries+1)*sizeof(char *));
 
-    if (dlist) {
-      struct double_list *dtemp;
+    // Fill out command line to exec
+    memcpy(out, toys.optargs, entries*sizeof(char *));
+    TT.entries = 0;
+    TT.bytes = bytes;
+    if (dlist) dlist->prev->next = 0;
+    for (dtemp = dlist; dtemp; dtemp = dtemp->next)
+      handle_entries(dtemp->data, out+entries);
 
-      // Fill out command line to exec
-      memcpy(out, toys.optargs, entries*sizeof(char *));
-      TT.entries = 0;
-      TT.bytes = bytes;
-      dlist->prev->next = 0;
-      for (dtemp = dlist; dtemp; dtemp = dtemp->next)
-        handle_entries(dtemp->data, out+entries);
-    }
     pid_t pid=fork();
     if (!pid) {
       xclose(0);
