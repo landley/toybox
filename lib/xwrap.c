@@ -12,7 +12,7 @@
 // Strcpy with size checking: exit if there's not enough space for the string.
 void xstrncpy(char *dest, char *src, size_t size)
 {
-  if (strlen(src)+1 > size) error_exit("xstrcpy");
+  if (strlen(src)+1 > size) error_exit("'%s' > %ld bytes", src, (long)size);
   strcpy(dest, src);
 }
 
