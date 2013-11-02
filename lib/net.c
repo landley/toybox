@@ -1,5 +1,4 @@
 #include "toys.h"
-#include "toynet.h"
 
 int xsocket(int domain, int type, int protocol)
 {

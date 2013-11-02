@@ -21,7 +21,6 @@ config ROUTE
 
 #define FOR_route
 #include "toys.h"
-#include "toynet.h"
 #include <net/route.h>
 #include <sys/param.h>
 

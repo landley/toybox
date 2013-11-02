@@ -55,6 +55,17 @@
 #include <wchar.h>
 #include <wctype.h>
 
+// Networking stuff
+
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <net/if.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+
 #include "lib/lib.h"
 #include "toys/e2fs.h"
 

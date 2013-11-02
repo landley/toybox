@@ -25,7 +25,6 @@ config DEBUG_DHCP
 #define FOR_dhcpd
 
 #include "toys.h"
-#include "toynet.h"
 #include <linux/sockios.h> 
 #include <linux/if_ether.h>
 

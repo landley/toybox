@@ -36,7 +36,6 @@ config TRACEROUTE
 */
 #define FOR_traceroute
 #include "toys.h"
-#include "toynet.h"
 #include <netinet/udp.h>
 #include <netinet/ip_icmp.h>
 

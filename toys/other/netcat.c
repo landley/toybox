@@ -42,7 +42,6 @@ config NETCAT_LISTEN
 
 #define FOR_netcat
 #include "toys.h"
-#include "toynet.h"
 
 GLOBALS(
   char *filename;        // -f read from filename instead of network

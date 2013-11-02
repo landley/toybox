@@ -30,7 +30,6 @@ config IFCONFIG
 
 #define FOR_ifconfig
 #include "toys.h"
-#include "toynet.h"
 
 #include <net/if_arp.h>
 #include <net/ethernet.h>

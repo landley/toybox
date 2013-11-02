@@ -47,7 +47,6 @@ config DHCP
 
 #define FOR_dhcp
 #include "toys.h"
-#include "toynet.h"
 
 // TODO: headers not in posix:
 #include <netinet/ip.h>

@@ -29,7 +29,6 @@ config NETSTAT
 
 #define FOR_netstat
 #include "toys.h"
-#include "toynet.h"
 #include <net/route.h>
 
 typedef union _iaddr {

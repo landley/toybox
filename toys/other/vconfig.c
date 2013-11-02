@@ -24,7 +24,6 @@ config VCONFIG
 */
 
 #include "toys.h"
-#include "toynet.h"
 #include <linux/if_vlan.h>
 #include <linux/sockios.h>
 

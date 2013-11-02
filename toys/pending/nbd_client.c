@@ -32,7 +32,6 @@ config NBD_CLIENT
 
 #define FOR_nbd_client
 #include "toys.h"
-#include "toynet.h"
 
 #define NBD_SET_SOCK          _IO(0xab, 0)
 #define NBD_SET_BLKSIZE       _IO(0xab, 1)
