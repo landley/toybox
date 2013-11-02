@@ -1,8 +1,9 @@
 /* vconfig.c - Creates virtual ethernet devices.
  *
- * Copyright 2012 Sandeep Sharma <sandeep.jack2756@gmail.com>, Kyungwan Han <asura321@gmail.com>
+ * Copyright 2012 Sandeep Sharma <sandeep.jack2756@gmail.com>
+ * Copyright 2012 Kyungwan Han <asura321@gmail.com>
  *
- * Not in SUSv4.
+ * No standard
 
 USE_VCONFIG(NEWTOY(vconfig, "<2>4", TOYFLAG_NEEDROOT|TOYFLAG_SBIN))
 
@@ -26,24 +27,17 @@ config VCONFIG
 #include "toynet.h"
 #include <linux/if_vlan.h>
 #include <linux/sockios.h>
-/*
- * convert str to long within given range
- */
-static int strtol_range(char *str, int min, int max)
-{
-  char *endptr = NULL;
-  errno = 0;
-  long ret_value = strtol(str, &endptr, 10);
 
-  if(errno) perror_exit("Invalid num %s", str);
-  else if(endptr && (*endptr != '\0' || endptr == str))
-    perror_exit("Not a valid num %s", str);
-  if(ret_value >= min && ret_value <= max) return ret_value;
-  else perror_exit("Number %s is not in valid [%d-%d] Range\n", str, min, max);
+static int strtorange(char *str, int min, int max)
+{
+  char *end = 0;
+  long val = strtol(str, &end, 10);
+
+  if (end && *end && end != str && val >= min && val <= max) return val;
+
+  perror_exit("%s not %d-%d\n", str, min, max);
 }
-/*
- * vconfig main function.
- */
+
 void vconfig_main(void)
 {
 #define MAX_VLAN_ID 4094
@@ -60,17 +54,13 @@ void vconfig_main(void)
   if(strcmp(cmd, "set_name_type") == 0) {
     if(strcmp(toys.optargs[1], "VLAN_PLUS_VID") == 0) {
       name_type = VLAN_NAME_TYPE_PLUS_VID;
-    }
-    else if(strcmp(toys.optargs[1], "VLAN_PLUS_VID_NO_PAD") == 0) {
+    } else if(strcmp(toys.optargs[1], "VLAN_PLUS_VID_NO_PAD") == 0) {
       name_type = VLAN_NAME_TYPE_PLUS_VID_NO_PAD;
-    }
-    else if(strcmp(toys.optargs[1], "DEV_PLUS_VID") == 0) {
+    } else if(strcmp(toys.optargs[1], "DEV_PLUS_VID") == 0) {
       name_type = VLAN_NAME_TYPE_RAW_PLUS_VID;
-    }
-    else if(strcmp(toys.optargs[1], "DEV_PLUS_VID_NO_PAD") == 0) {
+    } else if(strcmp(toys.optargs[1], "DEV_PLUS_VID_NO_PAD") == 0) {
       name_type = VLAN_NAME_TYPE_RAW_PLUS_VID_NO_PAD;
-    }
-    else perror_exit("ERROR: Invalid name type");
+    } else perror_exit("ERROR: Invalid name type");
 
     request.u.name_type = name_type;
     request.cmd = SET_VLAN_NAME_TYPE_CMD;
@@ -79,8 +69,7 @@ void vconfig_main(void)
       exit(EXIT_SUCCESS);
     }
     else perror_exit("Failed to set set_name_type:");
-  }
-  else {
+  } else {
     interface_name = toys.optargs[1]; // Store interface name.
     if(strlen(interface_name) > 15) perror_exit("ERROR:if_name length can not be greater than 15");
     strcpy(request.device1, interface_name); //we had exited if interface_name length greater than 15, so here it never overflows.
@@ -88,36 +77,31 @@ void vconfig_main(void)
 
   if(strcmp(cmd, "add") == 0) {
     request.cmd = ADD_VLAN_CMD;
-    if(toys.optargs[2]) vlan_id = strtol_range(toys.optargs[2], 0, MAX_VLAN_ID);
+    if(toys.optargs[2]) vlan_id = strtorange(toys.optargs[2], 0, MAX_VLAN_ID);
     else vlan_id = 0;
     request.u.VID = vlan_id;
-  }
-  else if(strcmp(cmd, "rem") == 0) {
+  } else if(strcmp(cmd, "rem") == 0) {
     request.cmd = DEL_VLAN_CMD;
-  }
-  else if(strcmp(cmd, "set_flag") == 0) {
+  } else if(strcmp(cmd, "set_flag") == 0) {
     request.cmd = SET_VLAN_FLAG_CMD;
-    if(toys.optargs[2]) request.u.flag = strtol_range(toys.optargs[2], 0, 1);
+    if(toys.optargs[2]) request.u.flag = strtorange(toys.optargs[2], 0, 1);
     else request.u.flag = 0;
-    if(toys.optargs[3]) request.vlan_qos = strtol_range(toys.optargs[3], 0, 7);
+    if(toys.optargs[3]) request.vlan_qos = strtorange(toys.optargs[3], 0, 7);
     else request.vlan_qos = 0;
-  }
-  else if(strcmp(cmd, "set_egress_map") == 0) {
+  } else if(strcmp(cmd, "set_egress_map") == 0) {
     request.cmd = SET_VLAN_EGRESS_PRIORITY_CMD;
-    if(toys.optargs[2]) request.u.skb_priority = strtol_range(toys.optargs[2], 0, INT_MAX);
+    if(toys.optargs[2]) request.u.skb_priority = strtorange(toys.optargs[2], 0, INT_MAX);
     else request.u.skb_priority = 0;
-    if(toys.optargs[3]) request.vlan_qos = strtol_range(toys.optargs[3], 0, 7);
+    if(toys.optargs[3]) request.vlan_qos = strtorange(toys.optargs[3], 0, 7);
     else request.vlan_qos = 0;
-  }
-  else if(strcmp(cmd, "set_ingress_map") == 0) {
+  } else if(strcmp(cmd, "set_ingress_map") == 0) {
     request.cmd = SET_VLAN_INGRESS_PRIORITY_CMD;
-    if(toys.optargs[2]) request.u.skb_priority = strtol_range(toys.optargs[2], 0, INT_MAX);
+    if(toys.optargs[2]) request.u.skb_priority = strtorange(toys.optargs[2], 0, INT_MAX);
     else request.u.skb_priority = 0;
     //To set flag we must have to set vlan_qos
-    if(toys.optargs[3]) request.vlan_qos = strtol_range(toys.optargs[3], 0, 7);
+    if(toys.optargs[3]) request.vlan_qos = strtorange(toys.optargs[3], 0, 7);
     else request.vlan_qos = 0;
-  }
-  else {
+  } else {
     xclose(fd);
     perror_exit("Unknown command %s", cmd);
   }
@@ -125,6 +109,5 @@ void vconfig_main(void)
     if(strcmp(cmd, "add") == 0 && vlan_id == 1)
       xprintf("WARNING: VLAN 1 does not work with many switches,consider another number if you have problems.\n");
     xprintf("Successful %s on device %s\n", cmd, interface_name);
-  }
-  else perror_exit("Failed to %s, on vlan subsystem %s.", cmd, interface_name);
+  } else perror_exit("Failed to %s, on vlan subsystem %s.", cmd, interface_name);
 }
