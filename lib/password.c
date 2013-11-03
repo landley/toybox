@@ -41,8 +41,8 @@ int get_salt(char *salt, char *algo)
 
     bits = ((buf[i]+(buf[i+1]<<8)) >> (bitpos&7)) & 0x3f;
     bits += 46;
-    if (bits > 57) bits += 8;
-    if (bits > 90) bits += 7;
+    if (bits > 57) bits += 7;
+    if (bits > 90) bits += 6;
 
     salt[i] = bits;
   }
