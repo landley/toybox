@@ -156,7 +156,7 @@ int copy_tempfile(int fdin, char *name, char **tempname);
 void delete_tempfile(int fdin, int fdout, char **tempname);
 void replace_tempfile(int fdin, int fdout, char **tempname);
 void crc_init(unsigned int *crc_table, int little_endian);
-void terminal_size(unsigned *x, unsigned *y);
+int terminal_size(unsigned *x, unsigned *y);
 int yesno(char *prompt, int def);
 void names_to_pid(char **names, int (*callback)(pid_t pid, char *name));
 
