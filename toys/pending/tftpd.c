@@ -9,7 +9,7 @@ USE_TFTPD(NEWTOY(tftpd, "rcu:", TOYFLAG_BIN))
 
 config TFTPD
   bool "tftpd"
-  default y
+  default n
   help
     usage: tftpd [-cr] [-u USER] [DIR]
 
