@@ -212,7 +212,8 @@ static void parse_regex(void)
 
     // Convert strings to one big regex
     if (w) len = 36;
-    for (al = TT.e; al; al = al->next) len += strlen(al->arg)+1;
+    for (al = TT.e; al; al = al->next)
+      len += strlen(al->arg)+1+!(toys.optflags & FLAG_E);
 
     regstr = s = xmalloc(len);
     if (w) s = stpcpy(s, "(^|[^_[:alnum:]])(");
