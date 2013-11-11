@@ -30,3 +30,4 @@ char  *astrcat (char *, char *);
 char *xastrcat (char *, char *);
 
 void daemonize(void);
+char *human_readable(unsigned long long size);

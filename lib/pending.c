@@ -63,3 +63,19 @@ void daemonize(void)
   dup2(fd, 2);
   if (fd > 2) close(fd);
 }
+
+char *human_readable(unsigned long long size)
+{
+  static char buf[32];
+  char *tmp = (buf+4); //unsigned long long  can come in 20byte string.
+  int index, sz;
+
+  for (index = 0; 1024 < size>>(10*index); index++);
+  sz = size>>(10*index);
+  if (sz < 10 && index) {
+    sprintf(tmp, "%llu", size>>(10*(index-1)));
+    sprintf(buf, "%c.%c", tmp[0], tmp[1]);
+  } else sprintf(buf, "%u", sz);
+  sprintf(buf, "%s%c", buf, " KMGTPE"[index]);
+  return buf;
+}
