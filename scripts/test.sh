@@ -25,7 +25,6 @@ if [ $# -ne 0 ]
 then
   for i in "$@"
   do
-    ln -sf toybox $i
     . "$TOPDIR"/scripts/test/$i.test
   done
 else
