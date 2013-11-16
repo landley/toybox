@@ -2,25 +2,33 @@
  *
  * Written 2013 AD by Isaac Dunham; this code is placed under the 
  * same license as toybox or as CC0, at your option.
-USE_CPIO(NEWTOY(cpio, "H:iot", TOYFLAG_BIN))
+ *
+ * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cpio.html
+ *
+ * http://pubs.opengroup.org/onlinepubs/7908799/xcu/cpio.html
+
+USE_CPIO(NEWTOY(cpio, "H:iotuF:", TOYFLAG_BIN))
 
 config CPIO
   bool "cpio"
   default n
   help
-    usage: cpio { -i | -o | -t } [-H fmt] 
+    usage: cpio { -iu | -o | -t } [-H FMT] [-F ARCHIVE]
 
     copy files into and out of an archive
     -i  extract from archive into file system (stdin is an archive)
     -o  create archive (stdin is a list of files, stdout is an archive)
     -t  list files (stdin is an archive, stdout is a list of files)
-    -H fmt   Write archive in specified format:
+    -u  always overwrite files (current default)
+    -H FMT   write archive in specified format:
     newc  SVR4 new character format (default)
+    -F ARCHIVE  read from or write to ARCHIVE
 */
 #define FOR_cpio
 #include "toys.h"
 
 GLOBALS(
+char * archive;
 char * fmt;
 )
 
@@ -217,6 +225,16 @@ void read_cpio_archive(int fd, int how)
 
 void cpio_main(void)
 {
+  if (TT.archive) {
+    if (toys.optflags & (FLAG_i|FLAG_t)) {
+      xclose(0);
+      xopen(TT.archive, O_RDONLY);
+    } else if (toys.optflags & FLAG_o) {
+      xclose(1);
+      xcreate(TT.archive, O_CREAT|O_WRONLY|O_TRUNC, 0755);
+    }
+  }
+
   switch (toys.optflags & (FLAG_i | FLAG_o | FLAG_t)) {
     case FLAG_o:
       loopfiles_stdin(write_cpio_member);
