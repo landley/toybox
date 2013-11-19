@@ -6,6 +6,43 @@ reasonably standards-compliant, and powerful enough to turn Android into
 a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
+<hr><b>November 18, 2013</b>
+<blockquote><p>"Space," it says, "is big. Really big. You just won't believe how vastly, hugely, mindbogglingly big it is. I mean, you may think it's a long way down the street to the chemist's, but that's just peanuts to space." -
+The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+
+<p><a href=downloads/toybox/0.4.7.tar.bz2>Toybox 0.4.7</a> is based on
+<a href=http://landley.net/hg/toybox/shortlog/1122>commit 1122</a>.</p>
+
+<p>New commands: Brad Conroy submitted blkid. Elie De Brauwer submitted
+reboot, halt, and poweroff. Strake's nl got cleaned up and promoted from
+pending to posix. In addition, the existing chvt and vconfig got some
+cleanup.</p>
+
+<p>That said, I haven't nearly kept up with the flood of new commands going
+into pending: Ashwini Sharma's team submitted
+dd, dumpleases, traceroute, top, useradd, groupadd, mkpasswd, tftpd, and
+an fsck wrapper (with no filesystem drivers yet). Isaac Dunham sent in cpio.</p>
+
+<p>Bugfixes: Jeroen van Rijn added a user count to uptime. Elie De Brauwer
+added -e to watch, removed a memory leak, and fixed a terminal size problem.
+William Haddon made xargs call its command line once even with blank input
+(the standard is vague, but builds expect it), and fixed an off by one bug
+where grep didn't malloc enough space with -E (leading to a segfault).
+I fixed a glitch in bunzip2 (same one as went into busybox since they're using
+the code I wrote), in od to fix -t co, -J, and -c options. Add uname -o as a
+synonym for -s. Build fix to never use $CC without prefixing it with
+$CROSS_COMPILE (since $HOSTCC could be different). Anca Emanuel spotted
+a typo in the web page.</p>
+
+<p>The compile-time command line option parsing got rewritten (ported from
+bash to C), which should speed up builds a bit and allow code controlled by
+--longopts to drop out properly when disabled in the configuration. Terminal
+querying got refactored. Patch's -x option is now more informative (a
+debug thing if you're trying to figure out why a patch didn't apply).
+The "toynet.h" file got folded into toys.h since musl supports it and
+micromanging uClibc options isn't very interesting anymore. The test suite
+now uses scripts/single.sh when testing a single command.</p>
+
 <hr><b>September 17, 2013</b>
 <blockquote><p>"Think of a number," said the computer, "any number."
 Arthur told the computer the telephone number of King's Cross railway
