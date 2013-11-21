@@ -5,7 +5,7 @@
  *
  * No Standard.
 
-USE_TFTPD(NEWTOY(tftpd, "rcu:", TOYFLAG_BIN))
+USE_TFTPD(NEWTOY(tftpd, "rcu:l", TOYFLAG_BIN))
 
 config TFTPD
   bool "tftpd"
@@ -18,6 +18,7 @@ config TFTPD
     -r	Prohibit upload
     -c	Allow file creation via upload
     -u	Access files as USER
+    -l	Log to syslog (inetd mode requires this)
 */
 #define FOR_tftpd
 #include "toys.h"
@@ -68,21 +69,7 @@ GLOBALS(
  *         ----------------------------------------
  */
 
-static char g_buff[TFTPD_BLKSIZE];
-static char g_errpkt[TFTPD_BLKSIZE];
-
-static void bind_and_connect(struct sockaddr *srcaddr,
-    struct sockaddr *dstaddr, socklen_t socklen)
-{
-  int set = 1;
-
-  TT.sfd = xsocket(dstaddr->sa_family, SOCK_DGRAM, 0);
-  if (setsockopt(TT.sfd, SOL_SOCKET, SO_REUSEADDR, (const void *)&set,
-        sizeof(set)) < 0) perror_exit("setsockopt failed");
-  if (bind(TT.sfd, srcaddr, socklen)) perror_exit("bind");
-  if (connect(TT.sfd, dstaddr, socklen) < 0)
-    perror_exit("can't connect to remote host");
-}
+static char *g_errpkt = toybuf + TFTPD_BLKSIZE;
 
 // Create and send error packet.
 static void send_errpkt(struct sockaddr *dstaddr,
@@ -203,19 +190,14 @@ POLL_IN:
     pktopcode = ntohs(((uint16_t*)rpkt)[0]);
     rblockno = ntohs(((uint16_t*)rpkt)[1]);
     if (pktopcode == TFTPD_OP_ERR) {
-      switch(rblockno) {
-        case TFTPD_ER_NOSUCHFILE: error_msg("File not found"); break;
-        case TFTPD_ER_ACCESS: error_msg("Access violation"); break;
-        case TFTPD_ER_FULL: error_msg("Disk full or allocation exceeded");
-             break;
-        case TFTPD_ER_ILLEGALOP: error_msg("Illegal TFTP operation"); break;
-        case TFTPD_ER_UNKID: error_msg("Unknown transfer ID"); break;
-        case TFTPD_ER_EXISTS: error_msg("File already exists"); break;
-        case TFTPD_ER_UNKUSER: error_msg("No such user"); break;
-        case TFTPD_ER_NEGOTIATE:
-             error_msg("Terminate transfer due to option negotiation"); break;
-        default: error_msg("DATA Check failure."); break;
-      }
+      char *message = "DATA Check failure.";
+      char *arr[] = {"File not found", "Access violation",
+        "Disk full or allocation exceeded", "Illegal TFTP operation",
+        "Unknown transfer ID", "File already exists",
+        "No such user", "Terminate transfer due to option negotiation"};
+
+      if (rblockno && (rblockno < 9)) message = arr[rblockno - 1];
+      error_msg(message);
       break; // Break the for loop.
     }
 
@@ -255,10 +237,10 @@ CLEAN_APP:
 
 void tftpd_main(void)
 {
-  int recvmsg_len, rbuflen, opcode, blksize = TFTPD_BLKSIZE, tsize = 0;
+  int recvmsg_len, rbuflen, opcode, blksize = TFTPD_BLKSIZE, tsize = 0, set =1;
   struct sockaddr_storage srcaddr, dstaddr;
-  static socklen_t socklen = sizeof(struct sockaddr_storage);
-  char *buf = g_buff;
+  socklen_t socklen = sizeof(struct sockaddr_storage);
+  char *buf = toybuf;
 
   TT.pw = NULL;
   memset(&srcaddr, 0, sizeof(srcaddr));
@@ -278,12 +260,18 @@ void tftpd_main(void)
     if (chdir("/")) perror_exit("can't change directory to '/'");
   }
 
-  recvmsg_len = recvfrom(STDIN_FILENO, g_buff, TFTPD_BLKSIZE, 0,
+  recvmsg_len = recvfrom(STDIN_FILENO, toybuf, TFTPD_BLKSIZE, 0,
       (struct sockaddr*)&dstaddr, &socklen);
-  bind_and_connect((struct sockaddr*)&srcaddr, (struct sockaddr*)&dstaddr, socklen);
+
+  TT.sfd = xsocket(((struct sockaddr*)&dstaddr)->sa_family, SOCK_DGRAM, 0);
+  if (setsockopt(TT.sfd, SOL_SOCKET, SO_REUSEADDR, (const void *)&set,
+        sizeof(set)) < 0) perror_exit("setsockopt failed");
+  if (bind(TT.sfd, (struct sockaddr*)&srcaddr, socklen)) perror_exit("bind");
+  if (connect(TT.sfd, (struct sockaddr*)&dstaddr, socklen) < 0)
+    perror_exit("can't connect to remote host");
   // Error condition.
   if (recvmsg_len < 4 || recvmsg_len > TFTPD_BLKSIZE
-		  || g_buff[recvmsg_len-1] != '\0') {
+		  || toybuf[recvmsg_len-1] != '\0') {
     send_errpkt((struct sockaddr*)&dstaddr, socklen, "packet format error");
     return;
   }
@@ -305,14 +293,14 @@ void tftpd_main(void)
 
   buf += strlen(buf) + 1; //1 '\0'.
   // As per RFC 1350, mode is case in-sensitive.
-  if ((buf >= (g_buff + recvmsg_len)) || (strcasecmp(buf, "octet"))) {
+  if ((buf >= (toybuf + recvmsg_len)) || (strcasecmp(buf, "octet"))) {
     send_errpkt((struct sockaddr*)&dstaddr, socklen, "packet format error");
     return;
   }
 
   //RFC2348. e.g. of size type: "ttype1\0ttype1_val\0...ttypeN\0ttypeN_val\0"
   buf += strlen(buf) + 1;
-  rbuflen = g_buff + recvmsg_len - buf;
+  rbuflen = toybuf + recvmsg_len - buf;
   if (rbuflen) {
     int jump = 0, bflag = 0;
 
@@ -331,6 +319,6 @@ void tftpd_main(void)
 
   //do send / receive file.
   do_action((struct sockaddr*)&srcaddr, (struct sockaddr*)&dstaddr,
-      socklen, g_buff + 2, opcode, tsize, blksize);
+      socklen, toybuf + 2, opcode, tsize, blksize);
   if (CFG_TOYBOX_FREE) close(STDIN_FILENO);
 }
