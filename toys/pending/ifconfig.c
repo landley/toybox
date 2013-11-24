@@ -46,8 +46,6 @@ typedef struct sockaddr_with_len {
   } sock_u;
 } sockaddr_with_len;
 
-//for the param settings.
-
 //for ipv6 add/del
 struct ifreq_inet6 {
   struct in6_addr ifrinte6_addr;
@@ -154,7 +152,7 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
     {ARPHRD_SIT, "IPv6-in-IPv4"}, {-1, "UNSPEC"}
   };
   int i;
-  char *p;
+  char *pp;
   FILE *fp;
   short flags;
 
@@ -181,8 +179,8 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
   ifre.ifr_addr.sa_family = AF_INET;
   memset(&ifre.ifr_addr, 0, sizeof(ifre.ifr_addr));
   ioctl(TT.sockfd, SIOCGIFADDR, &ifre);
-  p = (char *)&ifre.ifr_addr;
-  for (i = 0; i<sizeof(ifre.ifr_addr); i++) if (p[i]) break;
+  pp = (char *)&ifre.ifr_addr;
+  for (i = 0; i<sizeof(ifre.ifr_addr); i++) if (pp[i]) break;
 
   if (i != sizeof(ifre.ifr_addr)) {
     struct sockaddr_in *si = (struct sockaddr_in *)&ifre.ifr_addr;
@@ -212,42 +210,39 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
     xputc('\n');
   }
 
-  fp = fopen("/proc/net/if_net6", "r");
+  fp = fopen(pp = "/proc/net/if_inet6", "r");
   if (fp) {
-    char iface_name[IFNAMSIZ] = {0,};
+    char iface_name[IFNAMSIZ];
     int plen, iscope;
 
-    while(fgets(toybuf, sizeof(toybuf), fp)) {
-      int nitems = 0;
-      char ipv6_addr[40] = {0,};
-      nitems = sscanf(toybuf, "%32s %*08x %02x %02x %*02x %15s\n",
-          ipv6_addr+7, &plen, &iscope, iface_name);
-      if(nitems != 4) {
-        if((nitems < 0) && feof(fp)) break;
-        perror_exit("sscanf");
-      }
-      if(strcmp(name, iface_name) == 0) {
-        int i = 0;
-        struct sockaddr_in6 sock_in6;
-        int len = sizeof(ipv6_addr) / (sizeof ipv6_addr[0]);
-        char *ptr = ipv6_addr+7;
+    while (fgets(toybuf, sizeof(toybuf), fp)) {
+      int nitems;
+      char ipv6_addr[40];
 
-        while((i < len-2) && (*ptr)) {
-          ipv6_addr[i++] = *ptr++;
-          //put ':' after 4th bit
-          if(!((i+1) % 5)) ipv6_addr[i++] = ':';
-        }
-        ipv6_addr[i+1] = '\0';
-        if(inet_pton(AF_INET6, ipv6_addr, (struct sockaddr *) &sock_in6.sin6_addr) > 0) {
-          sock_in6.sin6_family = AF_INET6;
-          if(inet_ntop(AF_INET6, &sock_in6.sin6_addr, toybuf, BUFSIZ)) {
+      nitems = sscanf(toybuf, "%32s %*08x %02x %02x %*02x %15s\n",
+                      ipv6_addr, &plen, &iscope, iface_name);
+      if (nitems<0 && feof(fp)) break;
+      if (nitems != 4) perror_exit("bad %s", pp);
+
+      if (!strcmp(name, iface_name)) {
+        struct sockaddr_in6 s6;
+        char *ptr = ipv6_addr+sizeof(ipv6_addr)-1;
+
+        // convert giant hex string into colon-spearated ipv6 address by
+        // inserting ':' every 4 characters. 
+        for (i = 32; i; i--)
+          if ((*(ptr--) = ipv6_addr[i])) if (!(i&3)) *(ptr--) = ':';
+
+        // Convert to binary and back to get abbreviated :: version
+        if (inet_pton(AF_INET6, ipv6_addr, (void *)&s6.sin6_addr) > 0) {
+          if (inet_ntop(AF_INET6, &s6.sin6_addr, toybuf, sizeof(toybuf))) {
             char *scopes[] = {"Global","Host","Link","Site","Compat"},
                  *scope = "Unknown";
-            int j;
 
-            for (j=0; j < sizeof(scopes)/sizeof(*scopes); j++)
-              if (iscope == (!!j)<<(j+3)) scope = scopes[j];
-            xprintf("%10cinet6 addr: %s/%d Scope: %s\n", ' ', toybuf, plen, scope);
+            for (i=0; i < sizeof(scopes)/sizeof(*scopes); i++)
+              if (iscope == (!!i)<<(i+3)) scope = scopes[i];
+            xprintf("%10cinet6 addr: %s/%d Scope: %s\n",
+                    ' ', toybuf, plen, scope);
           }
         }
       }
@@ -265,8 +260,8 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
       "PORTSEL", "AUTOMEDIA", "DYNAMIC", NULL
     };
 
-    for(s = str; *s; s++) {
-      if(flags & mask) xprintf("%s ", *s);
+    for (s = str; *s; s++) {
+      if (flags & mask) xprintf("%s ", *s);
       mask = mask << 1;
     }
   } else xprintf("[NO FLAGS] ");
@@ -340,7 +335,7 @@ static void show_iface(char *iface_name)
 
     if (iface_name) {
       if (!strcmp(iface_name, name)) {
-        display_ifconfig(name, 1, val);
+        display_ifconfig(iface_name, 1, val);
 
         return;
       }
