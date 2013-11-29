@@ -52,20 +52,6 @@ static void showid(char *header, unsigned u, char *s)
   printf("%s%u(%s)", header, u, s);
 }
 
-struct passwd *xgetpwuid(uid_t uid)
-{
-  struct passwd *pwd = getpwuid(uid);
-  if (!pwd) error_exit(NULL);
-  return pwd;
-}
-
-struct group *xgetgrgid(gid_t gid)
-{
-  struct group *group = getgrgid(gid);
-  if (!group) error_exit(NULL);
-  return group;
-}
-
 void do_id(char *username)
 {
   int flags, i, ngroups, cmd_groups = toys.which->name[0] == 'g';

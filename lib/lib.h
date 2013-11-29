@@ -111,6 +111,8 @@ char *xrealpath(char *path);
 void xchdir(char *path);
 void xmkpath(char *path, int mode);
 void xsetuid(uid_t uid);
+struct passwd *xgetpwuid(uid_t uid);
+struct group *xgetgrgid(gid_t gid);
 char *xreadlink(char *name);
 long xparsetime(char *arg, long units, long *fraction);
 void xpidfile(char *name);

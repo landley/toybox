@@ -399,6 +399,20 @@ void xsetuid(uid_t uid)
   if (setuid(uid)) perror_exit("xsetuid");
 }
 
+struct passwd *xgetpwuid(uid_t uid)
+{
+  struct passwd *pwd = getpwuid(uid);
+  if (!pwd) error_exit(NULL);
+  return pwd;
+}
+
+struct group *xgetgrgid(gid_t gid)
+{
+  struct group *group = getgrgid(gid);
+  if (!group) error_exit(NULL);
+  return group;
+}
+
 // This can return null (meaning file not found).  It just won't return null
 // for memory allocation reasons.
 char *xreadlink(char *name)
