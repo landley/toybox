@@ -103,17 +103,15 @@ void passwd_main(void)
   int ret = -1;
 
   myuid = getuid();
-  if ((myuid) && (toys.optflags & (FLAG_l | FLAG_u | FLAG_d)))
-    error_exit("You need to be root to do these actions\n");
+  if (myuid && (toys.optflags & (FLAG_l | FLAG_u | FLAG_d)))
+    error_exit("Not root");
 
-  pw = getpwuid(myuid);
-  if (!pw) error_exit("Unknown uid '%u'",myuid);
+  pw = xgetpwuid(myuid);
 
-  if (toys.optargs[0]) name = toys.optargs[0];
+  if (*toys.optargs) name = toys.optargs[0];
   else name = xstrdup(pw->pw_name);
 
-  pw = getpwnam(name);
-  if (!pw) error_exit("Unknown user '%s'",name);
+  pw = xgetpwnam(name);
 
   if (myuid && (myuid != pw->pw_uid))
     error_exit("You need to be root to change '%s' password\n", name);

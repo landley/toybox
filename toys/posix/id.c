@@ -67,12 +67,10 @@ void do_id(char *username)
 
   // check if a username is given
   if (username) {
-    if (!(pw = getpwnam(username)))
-      error_exit("no such user '%s'", username);
+    pw = xgetpwnam(username);
     uid = euid = pw->pw_uid;
     gid = egid = pw->pw_gid;
-    if (cmd_groups)
-      printf("%s : ", pw->pw_name);
+    if (cmd_groups) printf("%s : ", pw->pw_name);
   }
 
   i = flags & FLAG_r;

@@ -79,8 +79,7 @@ void groupadd_main(void)
 
   if (toys.optc == 2) {  //add user to group
     //toys.optargs[0]- user, toys.optargs[1] - group
-    if (!getpwnam(toys.optargs[0])) 
-      error_exit("user '%s' does not exist", toys.optargs[0]);
+    xgetpwnam(*toys.optargs);
     if (!(grp = getgrnam(toys.optargs[1]))) 
       error_exit("group '%s' does not exist", toys.optargs[1]);
     if (!grp->gr_mem) entry = xmsprintf("%s", *toys.optargs);

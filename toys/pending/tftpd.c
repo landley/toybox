@@ -249,11 +249,7 @@ void tftpd_main(void)
     error_exit(NULL);
   }
 
-  if (toys.optflags & FLAG_u) {
-    struct passwd *pw = getpwnam(TT.user);
-    if (!pw) error_exit("unknown user %s", TT.user);
-    TT.pw = pw;
-  }
+  if (TT.user) TT.pw = xgetpwnam(TT.user);
   if (*toys.optargs) {
     if (chroot(*toys.optargs))
       perror_exit("can't change root directory to '%s'", *toys.optargs);
