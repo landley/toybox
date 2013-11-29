@@ -23,11 +23,5 @@ int read_password(char * buff, int buflen, char* mesg);
 int update_password(char *filename, char* username, char* encrypted);
 
 // cut helper functions
-unsigned long get_int_value(const char *numstr, unsigned long lowrange, unsigned long highrange);
-
-// grep helper functions
-char  *astrcat (char *, char *);
-char *xastrcat (char *, char *);
-
 void daemonize(void);
 char *human_readable(unsigned long long size);

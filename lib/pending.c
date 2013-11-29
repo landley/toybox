@@ -30,24 +30,6 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
   closedir(dp);
 }
 
-/*
- * used to get the interger value.
- */
-unsigned long get_int_value(const char *numstr, unsigned long lowrange, unsigned long highrange)
-{
-  unsigned long rvalue = 0;
-  char *ptr;
-
-  if (!isdigit(*numstr)) perror_exit("bad number '%s'", numstr);
-  errno = 0;
-  rvalue = strtoul(numstr, &ptr, 10);
-
-  if (errno || numstr == ptr || *ptr || rvalue < lowrange || rvalue > highrange)
-    perror_exit("bad number '%s'", numstr);
-
-  return rvalue;
-}
-
 void daemonize(void)
 {
   int fd = open("/dev/null", O_RDWR);

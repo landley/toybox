@@ -134,6 +134,7 @@ int64_t peek(void *ptr, int size);
 void poke(void *ptr, uint64_t val, int size);
 struct string_list *find_in_path(char *path, char *filename);
 long atolx(char *c);
+long atolx_range(char *numstr, long low, long high);
 int numlen(long l);
 int stridx(char *haystack, char needle);
 off_t fdlength(int fd);

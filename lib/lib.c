@@ -203,6 +203,16 @@ long atolx(char *numstr)
   return val;
 }
 
+long atolx_range(char *numstr, long low, long high)
+{
+  long val = atolx(numstr);
+
+  if (val < low) error_exit("%ld < %ld", val, low);
+  if (val > high) error_exit("%ld > %ld", val, high);
+
+  return val;
+}
+
 int numlen(long l)
 {
   int len = 0;
