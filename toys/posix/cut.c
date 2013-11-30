@@ -82,14 +82,14 @@ static void parse_list(char *list)
 
     //Get start position.
     if (*(dtoken = strsep(&ctoken, "-"))) {
-      start = get_int_value(dtoken, 0, INT_MAX);
+      start = atolx_range(dtoken, 0, INT_MAX);
       start = (start?(start-1):start);
     }
 
     //Get end position.
     if (!ctoken) end = -1; //case e.g. 1,2,3
     else if (*ctoken) {//case e.g. N-M
-      end = get_int_value(ctoken, 0, INT_MAX);
+      end = atolx_range(ctoken, 0, INT_MAX);
       if (!end) end = INT_MAX;
       end--;
       if(end == start) end = -1;
