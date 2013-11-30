@@ -12,20 +12,38 @@ config IFCONFIG
   bool "ifconfig"
   default y
   help
-    usage: ifconfig [-a] interface [address]
+    usage: ifconfig [-a] [INTERFACE [ACTION...]]
 
-    Configure network interface.
+    Display or configure network interface.
 
-    [add ADDRESS[/PREFIXLEN]]
-    [del ADDRESS[/PREFIXLEN]]
-    [[-]broadcast [ADDRESS]] [[-]pointopoint [ADDRESS]]
-    [netmask ADDRESS] [dstaddr ADDRESS]
-    [outfill NN] [keepalive NN]
-    [hw ether|infiniband ADDRESS] [metric NN] [mtu NN]
-    [[-]trailers] [[-]arp] [[-]allmulti]
-    [multicast] [[-]promisc] [txqueuelen NN] [[-]dynamic]
-    [mem_start NN] [io_addr NN] [irq NN]
-    [up|down] ...    
+    With no arguments, display active interfaces. First argument is interface
+    to operate on, one argument by itself displays that interface.
+
+    -a	Show all interfaces, not just active ones
+
+    Additional arguments are actions to perform on the interface:
+
+    ADDRESS[/NETMASK] - set IPv4 address (1.2.3.4/5)
+    default - unset ipv4 address
+    add|del ADDRESS[/PREFIXLEN] - add/remove IPv6 address (1111::8888/128)
+    up - enable interface
+    down - disable interface
+
+    netmask|broadcast|pointopoint ADDRESS - set more IPv4 characteristics
+    hw ether|infiniband ADDRESS - set LAN hardware address (AA:BB:CC...)
+    txqueuelen LEN - number of buffered packets before output blocks
+    mtu LEN - size of outgoing packets (Maximum Transmission Unit)
+
+    Flags you can set on an interface (or -remove by prefixing with -):
+    arp - don't use Address Resolution Protocol to map LAN routes
+    promisc - don't discard packets that aren't to this LAN hardware address
+    multicast - force interface into multicast mode if the driver doesn't
+    allmulti - promisc for multicast packets
+
+    Obsolete fields included for historical purposes:
+    irq|io_addr|mem_start ADDR - micromanage obsolete hardware
+    outfill|keepalive INTEGER - SLIP analog dialup line quality monitoring
+    metric INTEGER - added to Linux 0.9.10 with comment "never used", still true
 */
 
 #define FOR_ifconfig
@@ -62,13 +80,13 @@ void get_addrinfo(char *host, sa_family_t af, void *addr)
       if (rp->ai_family == af) break;
   if (!rp) error_exit("bad address '%s' : %s", host, gai_strerror(status));
 
-  // You'd think ipv4 and ipv6 would ahve some basic compatability, but no.
-  len = 4;
-  from = ((char *)rp->ai_addr->sa_data) + 2;
+  // ai_addr isn't struct in_addr or in6_addr, it's struct sockaddr. Of course.
+  // You'd think ipv4 and ipv6 would have some basic compatibility, but no.
+  from = ((char *)rp->ai_addr) + 4;
   if (af == AF_INET6) {
     len = 16;
-    from += 4;
-  }
+    from += 4;  // skip "flowinfo" field ipv6 puts before address
+  } else len = 4;
   memcpy(addr, from, len);
   freeaddrinfo(result);
 }
@@ -344,11 +362,9 @@ void ifconfig_main(void)
       {"up", IFF_UP|IFF_RUNNING, 0},
       {"down", 0, IFF_UP},
       {"arp", 0, IFF_NOARP},
-      {"trailers", 0, IFF_NOTRAILERS},
       {"promisc", IFF_PROMISC, 0},
       {"allmulti", IFF_ALLMULTI, 0},
       {"multicast", IFF_MULTICAST, 0},
-      {"dynamic", IFF_DYNAMIC, 0},
       {"pointopoint", IFF_POINTOPOINT, SIOCSIFDSTADDR},
       {"broadcast", IFF_BROADCAST, SIOCSIFBRDADDR},
       {"netmask", 0, SIOCSIFNETMASK},
