@@ -24,12 +24,13 @@ config CPIO
     newc  SVR4 new character format (default)
     -F ARCHIVE  read from or write to ARCHIVE
 */
+
 #define FOR_cpio
 #include "toys.h"
 
 GLOBALS(
-char * archive;
-char * fmt;
+  char *archive;
+  char *fmt;
 )
 
 /* Iterate through a list of files, read from stdin.
@@ -41,11 +42,11 @@ void loopfiles_stdin(void (*function)(int fd, char *name, struct stat st))
   struct stat st;
   char *name = toybuf;
 
-  while (name != NULL){
+  while (name) {
     memset(toybuf, 0, sizeof(toybuf));
     name = fgets(toybuf, sizeof(toybuf) - 1, stdin);
     
-    if (name != NULL) {
+    if (name) {
       if (toybuf[strlen(name) - 1] == '\n' ) { 
         toybuf[strlen(name) - 1 ] = '\0';
         if (lstat(name, &st) == -1) continue;
@@ -98,7 +99,7 @@ void write_cpio_member(int fd, char *name, struct stat buf)
            major(buf.st_rdev), minor(buf.st_rdev), nlen);
   write(1, hdr, sizeof(struct newc_header));
   write(1, name, nlen);
-  if ((nlen + 2) % 4) write(1, &n, 4 - ((nlen + 2) % 4)); 
+  if ((nlen + 2) & 3) write(1, &n, 4 - ((nlen + 2) & 3)); 
   if (S_ISLNK(buf.st_mode)) {
     ssize_t llen = readlink(name, toybuf, sizeof(toybuf) - 1);
     if (llen > 0) {
@@ -109,10 +110,10 @@ void write_cpio_member(int fd, char *name, struct stat buf)
     for (; (lseek(fd, 0, SEEK_CUR) < (uint32_t)(buf.st_size));) {
       out = read(fd, toybuf, sizeof(toybuf));
       if (out > 0) write(1, toybuf, out);
-    if (errno || out < sizeof(toybuf)) break;
+      if (errno || out < sizeof(toybuf)) break;
     }
   }
-  if (buf.st_size % 4) write(1, &n, 4 - (buf.st_size % 4));
+  if (buf.st_size & 3) write(1, &n, 4 - (buf.st_size & 3));
 }
 
 //convert hex to uint; mostly to allow using bits of non-terminated strings
@@ -150,10 +151,7 @@ unsigned int htou(char * hex)
   return ret;
 }
 
-/* Read one cpio record.
- * Returns 0 for last record,
- * 1 for "continue".
- */
+// Read one cpio record. Returns 0 for last record, 1 for "continue".
 int read_cpio_member(int fd, int how)
 {
   uint32_t nsize, fsize;
@@ -165,18 +163,17 @@ int read_cpio_member(int fd, int how)
 
   xreadall(fd, &hdr, sizeof(struct newc_header));
   nsize = htou(hdr.c_namesize);
-  name = xmalloc(nsize);
-  xreadall(fd, name, nsize);
+  xreadall(fd, name = xmalloc(nsize), nsize);
   if (!strcmp("TRAILER!!!", name)) return 0;
   fsize = htou(hdr.c_filesize);
   mode += htou(hdr.c_mode);
   pad = 4 - ((nsize + 2) % 4); // 2 == sizeof(struct newc_header) % 4
   if (pad < 4) xreadall(fd, toybuf, pad);
   pad = 4 - (fsize % 4);
+
   if (how & 1) {
-    if (S_ISDIR(mode)) {
-      ofd = mkdir(name, mode);
-    } else if (S_ISLNK(mode)) {
+    if (S_ISDIR(mode)) ofd = mkdir(name, mode);
+    else if (S_ISLNK(mode)) {
       memset(toybuf, 0, sizeof(toybuf));
       if (fsize < sizeof(toybuf)) {
         pad = readall(fd, toybuf, fsize); 
@@ -194,9 +191,7 @@ int read_cpio_member(int fd, int how)
     } else if (S_ISBLK(mode)||S_ISCHR(mode)||S_ISFIFO(mode)||S_ISSOCK(mode)) {
       dev = makedev(htou(hdr.c_rdevmajor),htou(hdr.c_rdevminor));
       ofd = mknod(name, mode, dev);
-    } else {
-      ofd = creat(name, mode);
-    }
+    } else ofd = creat(name, mode);
     if (ofd == -1) {
       error_msg("could not create %s", name);
       toys.exitval |= 1;
@@ -218,9 +213,7 @@ int read_cpio_member(int fd, int how)
 
 void read_cpio_archive(int fd, int how)
 {
-  for(;;) {
-    if (!read_cpio_member(fd, how)) return;
-  }
+  for(;;) if (!read_cpio_member(fd, how)) return;
 }
 
 void cpio_main(void)
@@ -235,19 +228,11 @@ void cpio_main(void)
     }
   }
 
-  switch (toys.optflags & (FLAG_i | FLAG_o | FLAG_t)) {
-    case FLAG_o:
+  if (toys.optflags & FLAG_t) read_cpio_archive(0, 2);
+  else if (toys.optflags & FLAG_i) read_cpio_archive(0, 1);
+  else if (toys.optflags & FLAG_o) {
       loopfiles_stdin(write_cpio_member);
       write(1, "07070100000000000000000000000000000000000000010000000000000000"
       "000000000000000000000000000000000000000B00000000TRAILER!!!\0\0\0", 124);
-      break;
-    case FLAG_i:
-      read_cpio_archive(0, 1);
-    case FLAG_t:
-    case (FLAG_t | FLAG_i):
-      read_cpio_archive(0, 2);
-      break;
-  default: 
-  error_exit("must use one of -iot");
-  }
+  } else error_exit("must use one of -iot");
 }
