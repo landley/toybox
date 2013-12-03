@@ -45,12 +45,88 @@ struct odtype {
   int size;
 };
 
+static int od_out_t(struct odtype *t, char *buf, int *offset)
+{
+  unsigned k;
+  int throw = 0, pad = 0;
+
+  // Handle ascii
+  if (t->type < 2) {
+    char c = TT.buf[(*offset)++];
+    pad += 4;
+
+    if (!t->type) {
+      c &= 127;
+      if (c<=32) sprintf(buf, "%.3s", ascii+(3*c));
+      else if (c==127) strcpy(buf, "del");
+      else sprintf(buf, "%c", c);
+    } else {
+      char *bfnrtav = "\b\f\n\r\t\a\v", *s = strchr(bfnrtav, c);
+      if (s) sprintf(buf, "\\%c", "bfnrtav0"[s-bfnrtav]);
+      else if (c < 32 || c >= 127) sprintf(buf, "%03o", c);
+      else {
+        // TODO: this should be UTF8 aware.
+        sprintf(buf, "%c", c);
+      }
+    }
+  } else if (CFG_TOYBOX_FLOAT && t->type == 6) {
+    long double ld;
+    union {float f; double d; long double ld;} fdl;
+
+    memcpy(&fdl, TT.buf+*offset, t->size);
+    *offset += t->size;
+    if (sizeof(float) == t->size) {
+      ld = fdl.f;
+      pad += (throw = 8)+7;
+    } else if (sizeof(double) == t->size) {
+      ld = fdl.d;
+      pad += (throw = 17)+8;
+    } else if (sizeof(long double) == t->size) {
+      ld = fdl.ld;
+      pad += (throw = 21)+9;
+    } else error_exit("bad -tf '%d'", t->size);
+
+    sprintf(buf, "%.*Le", throw, ld);
+  // Integer types
+  } else {
+    unsigned long long ll = 0, or;
+    char *c[] = {"%*lld", "%*llu", "%0*llo", "%0*llx"},
+      *class = c[t->type-2];
+
+    // Work out width of field
+    if (t->size == 8) {
+      or = -1LL;
+      if (t->type == 2) or >>= 1;
+    } else or = (1LL<<(8*t->size))-1;
+    throw = sprintf(buf, class, 0, or);
+
+    // Accumulate integer based on size argument
+    for (k=0; k < t->size; k++) {
+      or = TT.buf[(*offset)++];
+      ll |= or << (8*(IS_BIG_ENDIAN ? t->size-k-1 : k));
+    }
+
+    // Handle negative values
+    if (t->type == 2) {
+      or = sizeof(or) - t->size;
+      throw++;
+      if (or && (ll & (1l<<((8*t->size)-1))))
+        ll |= ((or<<(8*or))-1) << (8*t->size);
+    }
+
+    sprintf(buf, class, throw, ll);
+    pad += throw+1;
+  }
+
+  return pad;
+}
+
 static void od_outline(void)
 {
   unsigned flags = toys.optflags;
-  char *abases[] = {"", "%07d", "%07o", "%06x"};
-  struct odtype *types = (struct odtype *)toybuf, *t;
-  int i, len;
+  char buf[128], *abases[] = {"", "%07d", "%07o", "%06x"};
+  struct odtype *types = (struct odtype *)toybuf;
+  int i, j, len, pad;
 
   if (TT.leftover<16) memset(TT.buf+TT.leftover, 0, 16-TT.leftover);
 
@@ -78,86 +154,27 @@ static void od_outline(void)
   TT.leftover = 0;
   if (TT.star) return;
 
+  // Find largest "pad" of the output types.
+  for (i = pad = 0; i<TT.types; i++) {
+    int bytes = 0;
+
+    // If more than one byte of input consumed, average rounding up.
+    j = od_out_t(types+i, buf, &bytes);
+    j = (j+bytes-1)/bytes;
+   
+    if (j > pad) pad = j;
+  }
+
   // For each output type, print one line
 
   for (i=0; i<TT.types; i++) {
-    int j = 0, pad = i ? 8 : 0;
-    char buf[128];
+    for (j = 0; j<len;) {
+      int bytes = j;
 
-    t = types+i;
-    while (j<len) {
-      unsigned k;
-      int throw = 0;
-
-      // Handle ascii
-      if (t->type < 2) {
-        char c = TT.buf[j++];
-        pad += 4;
-
-        if (!t->type) {
-          c &= 127;
-          if (c<=32) sprintf(buf, "%.3s", ascii+(3*c));
-          else if (c==127) strcpy(buf, "del");
-          else sprintf(buf, "%c", c);
-        } else {
-          char *bfnrtav = "\b\f\n\r\t\a\v", *s = strchr(bfnrtav, c);
-          if (s) sprintf(buf, "\\%c", "bfnrtav0"[s-bfnrtav]);
-          else if (c < 32 || c >= 127) sprintf(buf, "%03o", c);
-          else {
-            // TODO: this should be UTF8 aware.
-            sprintf(buf, "%c", c);
-          }
-        }
-      } else if (CFG_TOYBOX_FLOAT && t->type == 6) {
-        long double ld;
-        union {float f; double d; long double ld;} fdl;
-
-        memcpy(&fdl, TT.buf+j, t->size);
-        j += t->size;
-        if (sizeof(float) == t->size) {
-          ld = fdl.f;
-          pad += (throw = 8)+7;
-        } else if (sizeof(double) == t->size) {
-          ld = fdl.d;
-          pad += (throw = 17)+8;
-        } else if (sizeof(long double) == t->size) {
-          ld = fdl.ld;
-          pad += (throw = 21)+9;
-        } else error_exit("bad -tf '%d'", t->size);
-
-        sprintf(buf, "%.*Le", throw, ld);
-      // Integer types
-      } else {
-        unsigned long long ll = 0, or;
-        char *c[] = {"%*lld", "%*llu", "%0*llo", "%0*llx"},
-          *class = c[t->type-2];
-
-        // Work out width of field
-        if (t->size == 8) {
-          or = -1LL;
-          if (t->type == 2) or >>= 1;
-        } else or = (1LL<<(8*t->size))-1;
-        throw = sprintf(buf, class, 0, or);
-
-        // Accumulate integer based on size argument
-        for (k=0; k < t->size; k++) {
-          or = TT.buf[j++];
-          ll |= or << (8*(IS_BIG_ENDIAN ? t->size-k-1 : k));
-        }
-
-        // Handle negative values
-        if (t->type == 2) {
-          or = sizeof(or) - t->size;
-          throw++;
-          if (or && (ll & (1l<<((8*t->size)-1))))
-            ll |= ((or<<(8*or))-1) << (8*t->size);
-        }
-
-        sprintf(buf, class, throw, ll);
-        pad += throw+1;
-      }
-      xprintf("%*s", pad, buf);
-      pad = 0;
+      // pad for as many bytes as were consumed, and indent non-numbered lines
+      od_out_t(types+i, buf, &bytes);
+      xprintf("%*s", pad*(bytes-j) + 7*(!!i)*!j, buf);
+      j = bytes;
     }
     xputc('\n');
   }
@@ -166,6 +183,7 @@ static void od_outline(void)
   TT.buf = (char *)((TT.buf == (char *)TT.bufs) ? TT.bufs+2 : TT.bufs);
 }
 
+// Loop through input files
 static void do_od(int fd, char *name)
 {
   // Skip input, possibly more than one entire file.
@@ -198,6 +216,7 @@ static void do_od(int fd, char *name)
   }
 }
 
+// Handle one -t argument (including implicit ones)
 static void append_base(char *base)
 {
   char *s = base;
