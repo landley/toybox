@@ -11,7 +11,7 @@ USE_TCPSVD(OLDTOY(udpsvd, tcpsvd, OPTSTR_tcpsvd, TOYFLAG_USR|TOYFLAG_BIN))
 
 config TCPSVD
   bool "tcpsvd"
-  default y
+  default n
   help
     usage: tcpsvd [-hEv] [-c N] [-C N[:MSG]] [-b N] [-u User] [-l Name] IP Port Prog
     udpsvd [-hEv] [-c N] [-u User] [-l Name] IP Port Prog
