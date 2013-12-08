@@ -31,7 +31,8 @@ GLOBALS(
   long max_count;
   long jump_bytes;
 
-  unsigned types, leftover, star, address_idx;
+  int address_idx;
+  unsigned types, leftover, star;
   char *buf;
   uint64_t bufs[4]; // force 64-bit alignment
   off_t pos;
