@@ -67,7 +67,7 @@ ssize_t readall(int fd, void *buf, size_t len)
   size_t count = 0;
 
   while (count<len) {
-    int i = read(fd, buf+count, len-count);
+    int i = read(fd, (char *)buf+count, len-count);
     if (!i) break;
     if (i<0) return i;
     count += i;
