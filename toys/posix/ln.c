@@ -4,13 +4,13 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/ln.html
 
-USE_LN(NEWTOY(ln, "<1nfs", TOYFLAG_BIN))
+USE_LN(NEWTOY(ln, "<1vnfs", TOYFLAG_BIN))
 
 config LN
   bool "ln"
   default y
   help
-    usage: ln [-sfn] [FROM...] TO
+    usage: ln [-sfnv] [FROM...] TO
 
     Create a link between FROM and TO.
     With only one argument, create link in current directory.
@@ -18,6 +18,7 @@ config LN
     -s	Create a symbolic link
     -f	Force the creation of the link, even if TO already exists
     -n	Symlink at destination treated as file
+    -v	Verbose
 */
 
 #define FOR_ln
@@ -49,14 +50,15 @@ void ln_main(void)
 
     if (S_ISDIR(buf.st_mode)) new = xmsprintf("%s/%s", dest, basename(try));
     else new = dest;
-    /* Silently unlink the existing target. If it doesn't exist,
-     * then we just move on */
+    // Silently unlink the existing target (if any)
     if (toys.optflags & FLAG_f) unlink(new);
 
     rc = (toys.optflags & FLAG_s) ? symlink(try, new) : link(try, new);
     if (rc)
       perror_exit("cannot create %s link from '%s' to '%s'",
         (toys.optflags & FLAG_s) ? "symbolic" : "hard", try, new);
+    else if (toys.optflags & FLAG_v)
+      fprintf(stderr, "'%s' -> '%s'\n", new, try);
     if (new != dest) free(new);
   }
 }
