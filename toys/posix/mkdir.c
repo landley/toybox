@@ -4,17 +4,18 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/mkdir.html
 
-USE_MKDIR(NEWTOY(mkdir, "<1pm:", TOYFLAG_BIN|TOYFLAG_UMASK))
+USE_MKDIR(NEWTOY(mkdir, "<1vpm:", TOYFLAG_BIN|TOYFLAG_UMASK))
 
 config MKDIR
   bool "mkdir"
   default y
   help
-    usage: mkdir [-p] [-m mode] [dirname...]
+    usage: mkdir [-vp] [-m mode] [dirname...]
     Create one or more directories.
 
+    -m	set permissions of directory to mode.
     -p	make parent directories as needed.
-    -m  set permissions of directory to mode.
+    -v	verbose
 */
 
 #define FOR_mkdir
@@ -55,9 +56,11 @@ static int do_mkdir(char *dir)
     if (save == '/') mode |= 0300;
     else if (toys.optflags&FLAG_m) mode = TT.mode;
 
-    if (mkdir(dir, mode)<0 && (!(toys.optflags&FLAG_p) || errno != EEXIST))
-      return 1;
-
+    if (mkdir(dir, mode)) {
+      if (!(toys.optflags&FLAG_p) || errno != EEXIST) return 1;
+    } else if (toys.optflags&FLAG_v)
+      fprintf(stderr, "%s: created directory '%s'\n", toys.which->name, dir);
+    
     if (!(*s = save)) break;
   }
 

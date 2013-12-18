@@ -58,3 +58,9 @@ testing "mkdir -p -m 777 (377 umask)" \
 	"700\n777\n" "" ""
 umask 002
 rm -rf one
+
+testing "mkdir -vp" "mkdir -vp walrus 2>&1" \
+	"mkdir: created directory 'walrus'\n" "" ""
+
+testing "mkdir -vp exists" "mkdir -vp walrus 2>&1" \
+	"" "" ""
