@@ -42,10 +42,6 @@
 #define AT_REMOVEDIR 0x200
 #endif
 
-#ifndef MNT_DETACH
-#define MNT_DETACH 2
-#endif
-
 // We don't define GNU_dammit because we're not part of the gnu project, and
 // don't want to get any FSF on us. Unfortunately glibc (gnu libc)
 // won't give us Linux syscall wrappers without claiming to be part of the
@@ -100,6 +96,10 @@ int mknodat(int fd, const char *path, mode_t mode, dev_t dev);
 #include <sys/time.h>
 int futimens(int fd, const struct timespec times[2]);
 int utimensat(int fd, const char *path, const struct timespec times[2], int flag);
+
+#ifndef MNT_DETACH
+#define MNT_DETACH 2
+#endif
 #endif
 
 #endif
