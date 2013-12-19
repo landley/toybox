@@ -126,7 +126,7 @@ GLOBSTRUCT="$(getglobals)"
 
 echo "generated/help.h"
 # Only recreate generated/help.h if python2 is installed. Does not work with 3.
-[ -z "$(python --version | grep 'Python 2')" ] &&
+[ -z "$(python --version 2>&1 | grep 'Python 2')" ] &&
   PYTHON="$(which python2 || which python2.6 || which python2.7)" ||
   PYTHON=python
 if [ ! -z "$(grep 'CONFIG_TOYBOX_HELP=y' $KCONFIG_CONFIG)" ];
