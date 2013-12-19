@@ -20,7 +20,6 @@ config DUMPLEASES
 
 #define FOR_dumpleases
 #include "toys.h"
-#include "toynet.h"
 
 GLOBALS(
     char *file;
