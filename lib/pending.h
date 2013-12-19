@@ -8,11 +8,6 @@
 typedef float FLOAT;
 //#endif
 
-// libc generally has this, but the headers are screwed up
-ssize_t getline(char **lineptr, size_t *n, FILE *stream);
-
-void names_to_pid(char **names, int (*callback)(pid_t pid, char *name));
-
 // password.c
 #define MAX_SALT_LEN  20 //3 for id, 16 for key, 1 for '\0'
 #define SYS_FIRST_ID  100

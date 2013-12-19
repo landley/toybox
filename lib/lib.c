@@ -710,3 +710,28 @@ void mode_to_string(mode_t mode, char *buf)
   else c = '-';
   *buf = c;
 }
+
+// Execute a callback for each PID that matches a process name from a list.
+void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
+{
+  DIR *dp;
+  struct dirent *entry;
+
+  if (!(dp = opendir("/proc"))) perror_exit("opendir");
+
+  while ((entry = readdir(dp))) {
+    unsigned u;
+    char *cmd, **curname;
+
+    if (!(u = atoi(entry->d_name))) continue;
+    sprintf(libbuf, "/proc/%u/cmdline", u);
+    if (!(cmd = readfile(libbuf, libbuf, sizeof(libbuf)))) continue;
+
+    for (curname = names; *curname; curname++)
+      if (**curname == '/' ? !strcmp(cmd, *curname)
+          : !strcmp(basename(cmd), basename(*curname)))
+        if (callback(u, *curname)) break;
+    if (*curname) break;
+  }
+  closedir(dp);
+}
