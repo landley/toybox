@@ -42,6 +42,10 @@
 #define AT_REMOVEDIR 0x200
 #endif
 
+#ifndef MNT_DETACH
+#define MNT_DETACH 2
+#endif
+
 // We don't define GNU_dammit because we're not part of the gnu project, and
 // don't want to get any FSF on us. Unfortunately glibc (gnu libc)
 // won't give us Linux syscall wrappers without claiming to be part of the
@@ -141,9 +145,10 @@ int clearenv(void);
 #define SWAP_LE64(x) (x)
 #endif
 
-#if defined(__APPLE__) || defined(__ANDROID__)
+#if defined(__APPLE__) || defined(__ANDROID__) || (__GLIBC__ == 2 && __GLIBC_MINOR__ < 10)
 ssize_t getdelim(char **lineptr, size_t *n, int delim, FILE *stream);
 ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 #endif
 
+// compile time probes for stuff libc didn't provide
 #include "generated/portability.h"
