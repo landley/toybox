@@ -26,23 +26,32 @@ config KILLALL
 GLOBALS(
   int signum;
   pid_t cur_pid;
+  char **names;
+  short *err;
 )
 
 static int kill_process(pid_t pid, char *name)
 {
-  int ret;
+  int offset = 0;
 
   if (pid == TT.cur_pid) return 0;
 
   if (toys.optflags & FLAG_i) {
-    sprintf(toybuf, "Signal %s(%d) ?", name, pid);
-    if (yesno(toybuf, 0) == 0) return 0;
+    sprintf(toybuf, "Signal %4000s(%d) ?", name, (int)pid);
+    if (!yesno(toybuf, 0)) return 0;
   }
 
-  ret = kill(pid, TT.signum);
-  if (ret == -1 && !(toys.optflags & FLAG_q))
-    error_msg("bad %u", (unsigned)pid);
-  else if (toys.optflags & FLAG_v)
+  errno = 0;
+  kill(pid, TT.signum);
+  for (;;) {
+    if (TT.names[offset] == name) {
+      TT.err[offset] = errno;
+      break;
+    } else offset++;
+  }
+  if (errno) {
+    if (!(toys.optflags & FLAG_q)) perror_msg("pid %d", (int)pid);
+  } else if (toys.optflags & FLAG_v)
     printf("Killed %s(%d) with signal %d\n", name, pid, TT.signum);
 
   return 0;
@@ -50,32 +59,41 @@ static int kill_process(pid_t pid, char *name)
 
 void killall_main(void)
 {
-  char **names = toys.optargs;
+  int i;
 
+  TT.names = toys.optargs;
   TT.signum = SIGTERM;
-  toys.exitval++;
 
   if (toys.optflags & FLAG_l) {
     sig_to_num(NULL);
     return;
   }
 
-  if (**names == '-') {
-    if (0 > (TT.signum = sig_to_num((*names)+1))) {
+  if (**TT.names == '-') {
+    if (0 > (TT.signum = sig_to_num((*TT.names)+1))) {
       if (toys.optflags & FLAG_q) exit(1);
       error_exit("Invalid signal");
     }
-    names++;
+    TT.names++;
+    toys.optc--;
   }
 
-  if (!*names) {
+  if (!toys.optc) {
     toys.exithelp++;
-    error_exit("Process name missing!");
+    error_exit("no name");
   }
 
   TT.cur_pid = getpid();
 
-  names_to_pid(names, kill_process);
-
-  if (toys.exitval && !(toys.optflags & FLAG_q)) error_exit("No such process");
+  TT.err = xmalloc(2*toys.optc);
+  for (i=0; i<toys.optc; i++) TT.err[i] = ESRCH;
+  names_to_pid(TT.names, kill_process);
+  for (i=0; i<toys.optc; i++) {
+    if (TT.err[i]) {
+      toys.exitval = 1;
+      errno = TT.err[i];
+      perror_msg("%s", TT.names[i]);
+    }
+  }
+  if (CFG_TOYBOX_FREE) free(TT.err);
 }
