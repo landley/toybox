@@ -41,6 +41,8 @@ GLOBALS(
 
 void hello_main(void)
 {
+  char **optargs;
+
   printf("Hello world\n");
 
   if (toys.optflags) printf("flags=%x\n", toys.optflags);
@@ -52,7 +54,8 @@ void hello_main(void)
     TT.d_list = TT.d_list->next;
   }
   if (TT.e_count) printf("e was seen %ld times\n", TT.e_count);
-  while (*toys.optargs) printf("optarg=%s\n", *(toys.optargs++));
+  for (optargs = toys.optargs; *optargs; optargs++)
+    printf("optarg=%s\n", *optargs);
   if (toys.optflags & FLAG_walrus) printf("Saw --walrus\n");
   if (TT.blubber_string) printf("--blubber=%s\n", TT.blubber_string);
 }

@@ -24,8 +24,10 @@ config PMAP
 
 void pmap_main(void)
 {
-  while (*toys.optargs) {
-    pid_t pid = atolx(*toys.optargs++);
+  char **optargs;
+
+  for (optargs = toys.optargs; *optargs; optargs++) {
+    pid_t pid = atolx(*optargs);
     FILE *fp;
     char *line, *oldline = 0, *name = 0,
          *k = (toys.optflags & FLAG_x) ? "" : "K";

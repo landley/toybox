@@ -91,7 +91,7 @@ static void do_umount(char *dir, int flags)
     return;
   }
   if (toys.optflags & FLAG_r) {
-    if (!mount("", *toys.optargs, "", MS_REMOUNT|MS_RDONLY, "")) {
+    if (!mount("", dir, "", MS_REMOUNT|MS_RDONLY, "")) {
       if (toys.optflags & FLAG_v) printf("%s remounted ro", dir);
       return;
     }
@@ -102,6 +102,7 @@ static void do_umount(char *dir, int flags)
 void umount_main(void)
 {
   int flags=0;
+  char **optargs;
 
   if (!toys.optc && !(toys.optflags & FLAG_a))
     error_exit("Need 1 arg or -a");
@@ -109,7 +110,7 @@ void umount_main(void)
   if (toys.optflags & FLAG_f) flags |= MNT_FORCE;
   if (toys.optflags & FLAG_l) flags |= MNT_DETACH;
 
-  for (; *toys.optargs; toys.optargs++) do_umount(*toys.optargs, flags);
+  for (optargs = toys.optargs; *optargs; optargs++) do_umount(*optargs, flags);
 
   if (toys.optflags & FLAG_a) {
     struct mtab_list *mlsave, *ml;

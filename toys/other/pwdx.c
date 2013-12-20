@@ -17,11 +17,13 @@ config PWDX
 
 void pwdx_main(void)
 {
-  for (; *toys.optargs; toys.optargs++) {
+  char **optargs;
+
+  for (optargs = toys.optargs; *optargs; optargs++) {
     char *path;
     int num_bytes;
 
-    path = xmsprintf("/proc/%s/cwd", *toys.optargs);
+    path = xmsprintf("/proc/%s/cwd", *optargs);
     num_bytes = readlink(path, toybuf, sizeof(toybuf)-1);
     free(path);
 
@@ -32,6 +34,6 @@ void pwdx_main(void)
       path = toybuf;
       toybuf[num_bytes] = 0;
     }
-    xprintf("%s: %s\n", *toys.optargs, path);
+    xprintf("%s: %s\n", *optargs, path);
   }
 }
