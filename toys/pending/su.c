@@ -3,8 +3,9 @@
  * Copyright 2013 CE Strake <strake888@gmail.com>
  *
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/su.html
+ * TODO: log su attempts
 
-USE_SU(NEWTOY(su, "lmpc:s:", TOYFLAG_BIN))
+USE_SU(NEWTOY(su, "lmpc:s:", TOYFLAG_BIN|TOYFLAG_ROOTONLY))
 
 config SU
   bool "su"
@@ -12,15 +13,12 @@ config SU
   help
     usage: su [-lmp] [-c CMD] [-s SHELL] [USER [ARGS...]]
 
-    Switch to given user, or root if not given, and call a shell with the given arguments.
+    Switch to user (or root) and run shell (with optional command line).
 
-    options:
-      -s  shell to call
-      -c  command to pass to shell with -c
-
-    flags:
-      -l      login shell
-      -(m|p)  preserve environment
+    -s	shell to use
+    -c	command to pass to shell with -c
+    -l	login shell
+    -(m|p)	preserve environment
 */
 
 #define FOR_su
@@ -31,67 +29,69 @@ GLOBALS(
   char *c;
 )
 
-static void deny () {
-  printf ("Denied\n");
-  xexit ();
+static char *snapshot_env(char *name)
+{
+  char *s = getenv(name);
+
+  if (s) return xmsprintf("%s=%s", name, s);
+
+  return 0;
 }
 
-void su_main () {
-  char *name, *passhash, **argu, **argv;
+void su_main()
+{
+  char *name, *passhash = 0, **argu, **argv;
   struct passwd *up;
   struct spwd *shp;
-  long ii;
 
-  if (toys.optc && strcmp ("-", toys.optargs[0]) == 0) {
+  if (*toys.optargs && !strcmp("-", *toys.optargs)) {
     toys.optflags |= FLAG_l;
-    toys.optc--; toys.optargs++;
+    toys.optargs++;
   }
 
-  if (toys.optc) {
-    name = toys.optargs[0];
-    toys.optc--; toys.optargs++;
-  }
+  if (*toys.optargs) name = *(toys.optargs++);
   else name = "root";
-  shp = getspnam (name);
-  if (!shp) perror_exit ("can't find password");
 
-  switch (shp -> sp_pwdp[0]) {
-  case '!': deny ();
-  case '$': break;
-  default : error_exit ("bad password format");
-  }
+  if (!(shp = getspnam(name))) perror_exit("no '%s'", name);
+  if (*shp->sp_pwdp != '$') goto deny;
+  if (read_password(toybuf, sizeof(toybuf), "Password: ")) goto deny;
+  passhash = crypt(toybuf, shp->sp_pwdp);
+  memset(toybuf, 0, sizeof(toybuf));
+  if (!passhash || strcmp(passhash, shp->sp_pwdp)) goto deny;
 
-  if (read_password (toybuf, sizeof (toybuf), "Password: ") != 0) perror_exit ("can't read password");
+  up = xgetpwnam(name);
+  xsetuid(up->pw_uid);
 
-  passhash = crypt (toybuf, shp -> sp_pwdp);
-  for (ii = 0; toybuf[ii]; ii++) toybuf[ii] = 0;
-  if (!passhash) perror_exit ("can't crypt");
+  argv = argu = xmalloc(sizeof(char *)*(toys.optc + 4));
+  *(argv++) = TT.s ? TT.s : up->pw_shell;
 
-  if (strcmp (passhash, shp -> sp_pwdp) != 0) deny ();
+  if (toys.optflags & FLAG_l) {
+    int i;
+    char *stuff[] = {snapshot_env("TERM"), snapshot_env("DISPLAY"),
+      snapshot_env("COLORTERM"), snapshot_env("XAUTHORITY")};
 
-  up = getpwnam (name);
-  if (!up) perror_exit ("can't getpwnam");
+    clearenv();
+    for (i=0; i < sizeof(stuff)/sizeof(char *); i++) putenv(stuff[i]);
+    *(argv++) = "-l";
+    xchdir(up->pw_dir);
+  } else unsetenv("IFS");
+  setenv("PATH", "/sbin:/bin:/usr/sbin:/usr/bin", 1);
+  if (!(toys.optflags & (FLAG_m|FLAG_p))) {
+    setenv("HOME", up->pw_dir, 1);
+    setenv("SHELL", up->pw_shell, 1);
+    setenv("USER", up->pw_name, 1);
+    setenv("LOGNAME", up->pw_name, 1);
+  } else unsetenv("IFS");
 
-  xsetuid (up -> pw_uid);
-  xchdir  (up -> pw_dir);
-
-  argu = xmalloc (sizeof (char *)*(toys.optc + 4));
-  argv = argu;
-  argv[0] = toys.optflags & FLAG_s ? TT.s : up -> pw_shell;
-  if (toys.optflags & FLAG_l) (argv++)[1] = "-l";
   if (toys.optflags & FLAG_c) {
-    argv[1] = "-c";
-    argv[2] = TT.c;
-    argv += 2;
+    *(argv++) = "-c";
+    *(argv++) = TT.c;
   }
-  memcpy (argv + 1, toys.optargs, sizeof (char *)*toys.optc);
-  execve (argu[0], argu,
-          toys.optflags & FLAG_l ? (char *[]){
-            xmsprintf ( "HOME=%s", up -> pw_dir),
-            xmsprintf ("SHELL=%s", up -> pw_shell),
-            xmsprintf ( "USER=%s", up -> pw_name),
-            xmsprintf ( "TERM=%s", getenv ("TERM")),
-            0
-          } : environ);
-  perror_exit ("can't exec %s", argu[0]);
+  while ((*(argv++) = *(toys.optargs++)));
+  xexec(argu);
+  perror_exit("can't exec %s", *argu);
+
+deny:
+  puts("No.");
+  toys.exitval = 1;
 }
