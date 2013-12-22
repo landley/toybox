@@ -9,7 +9,7 @@ USE_SU(NEWTOY(su, "lmpc:s:", TOYFLAG_BIN|TOYFLAG_ROOTONLY))
 
 config SU
   bool "su"
-  default n
+  default y
   help
     usage: su [-lmp] [-c CMD] [-s SHELL] [USER [ARGS...]]
 
