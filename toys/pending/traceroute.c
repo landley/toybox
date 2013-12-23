@@ -3,7 +3,7 @@
  * Copyright 2012 Madhur Verma <mad.flexi@gmail.com>
  * Copyright 2013 Kyungwan Han <asura321@gmail.com>
  * Copyright 2013 Bilal Qureshi <bilal.jmi@gmail.com>
- * Copyright 2013 Ashwini Kumar <ak.ashwini@gmail.com>
+ * Copyright 2013 Ashwini Kumar <ak.ashwini1981@gmail.com>
  *
  * No Standard
 
