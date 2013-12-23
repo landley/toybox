@@ -118,6 +118,7 @@ static char *get_nextcolon(char *line, int cnt)
  * 2. complete entry for user details, when creating new user
  * 3. group members comma',' separated list, when adding user to group
  * 4. complete entry for group details, when creating new group
+ * 5. entry = NULL, delete the named entry user/group
  */
 int update_password(char *filename, char* username, char* entry)
 {
@@ -167,7 +168,7 @@ int update_password(char *filename, char* username, char* entry)
   {
     if (strncmp(line, namesfx, strlen(namesfx)))
       fprintf(newfp, "%s\n", line);
-    else {
+    else if (entry) {
       char *current_ptr = NULL;
 
       found = 1;
@@ -180,7 +181,9 @@ int update_password(char *filename, char* username, char* entry)
           fprintf(newfp, "%s\n",current_ptr);
         } else fprintf(newfp, "%s\n",current_ptr);
       } else if (!strcmp(toys.which->name, "groupadd") || 
-          !strcmp(toys.which->name, "addgroup")){
+          !strcmp(toys.which->name, "addgroup") ||
+          !strcmp(toys.which->name, "delgroup") ||
+          !strcmp(toys.which->name, "groupdel")){
         current_ptr = get_nextcolon(line, 3); //past gid/admin list
         *current_ptr = '\0';
         fprintf(newfp, "%s", line);
@@ -190,7 +193,7 @@ int update_password(char *filename, char* username, char* entry)
     free(line);
   }
   free(namesfx);
-  if (!found) fprintf(newfp, "%s\n", entry);
+  if (!found && entry) fprintf(newfp, "%s\n", entry);
   fcntl(fileno(exfp), F_SETLK, &lock);
   fclose(exfp);
 
