@@ -478,7 +478,7 @@ void ifconfig_main(void)
       // Is this an SIOCSI entry?
       if ((off|0xff) == 0x89ff) {
         if (!rev) {
-          if (!*++argv) show_help();
+          if (!*++argv) error_exit("%s needs argument", t->name);
 
           // Assign value to ifre field and call ioctl? (via IFREQ_OFFSZ.)
           if (on < 0) {
