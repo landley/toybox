@@ -363,6 +363,12 @@ void xchdir(char *path)
   if (chdir(path)) error_exit("chdir '%s'", path);
 }
 
+void xchroot(char *path)
+{
+  if (chroot(path)) error_exit("chroot '%s'", path);
+  xchdir("/");
+}
+
 // Ensure entire path exists.
 // If mode != -1 set permissions on newly created dirs.
 // Requires that path string be writable (for temporary null terminators).
@@ -391,14 +397,6 @@ void xmkpath(char *path, int mode)
   }
 }
 
-// setuid() can fail (for example, too many processes belonging to that user),
-// which opens a security hole if the process continues as the original user.
-
-void xsetuid(uid_t uid)
-{
-  if (setuid(uid)) perror_exit("xsetuid");
-}
-
 struct passwd *xgetpwuid(uid_t uid)
 {
   struct passwd *pwd = getpwuid(uid);
@@ -418,6 +416,15 @@ struct passwd *xgetpwnam(char *name)
   struct passwd *up = getpwnam(name);
   if (!up) error_exit("bad user '%s'", name);
   return up;
+}
+
+// setuid() can fail (for example, too many processes belonging to that user),
+// which opens a security hole if the process continues as the original user.
+
+void xsetuser(struct passwd *pwd)
+{
+  if (initgroups(pwd->pw_name, pwd->pw_gid) || setgid(pwd->pw_uid)
+      || setuid(pwd->pw_uid)) perror_exit("xsetuser '%s'", pwd->pw_name);
 }
 
 // This can return null (meaning file not found).  It just won't return null

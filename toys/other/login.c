@@ -14,6 +14,7 @@ config LOGIN
     usage: login [-p] [-h host] [[-f] username]
 
     Establish a new session with the system.
+
     -p	Preserve environment
     -h	The name of the remote host for this login
     -f	Do not perform authentication
@@ -107,15 +108,6 @@ void handle_motd(void)
 
   close(fd);
   fflush(stdout);
-}
-
-int change_identity(const struct passwd *pwd)
-{
-  if (initgroups(pwd->pw_name,pwd->pw_gid)) return 1;
-  if (setgid(pwd->pw_uid)) return 1;
-  if (setuid(pwd->pw_uid)) return 1;
-
-  return 0;
 }
 
 void spawn_shell(const char *shell)
@@ -214,7 +206,7 @@ query_pass:
 
   if (pwd->pw_uid) handle_nologin();
 
-  if (change_identity(pwd)) error_exit("Failed to change identity");
+  xsetuser(pwd);
 
   setup_environment(pwd, !(toys.optflags & FLAG_p));
 

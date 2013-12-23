@@ -60,7 +60,7 @@ void su_main()
   if (!passhash || strcmp(passhash, shp->sp_pwdp)) goto deny;
 
   up = xgetpwnam(name);
-  xsetuid(up->pw_uid);
+  xsetuser(up);
 
   argv = argu = xmalloc(sizeof(char *)*(toys.optc + 4));
   *(argv++) = TT.s ? TT.s : up->pw_shell;

@@ -20,11 +20,13 @@ config TFTPD
     -u	Access files as USER
     -l	Log to syslog (inetd mode requires this)
 */
+
 #define FOR_tftpd
 #include "toys.h"
 
 GLOBALS(
   char *user;
+
   long sfd;
   struct passwd *pw;
 )
@@ -97,10 +99,7 @@ static void do_action(struct sockaddr *srcaddr, struct sockaddr *dstaddr,
 
   pollfds[0].fd = TT.sfd;
   // initialize groups, setgid and setuid
-  if (TT.pw) {
-    if (change_identity(TT.pw)) perror_exit("Failed to change identity");
-    endgrent();
-  }
+  if (TT.pw) xsetuser(TT.pw);
 
   if (opcode == TFTPD_OP_RRQ) fd = open(file, O_RDONLY, 0666);
   else fd = open(file, ((toys.optflags & FLAG_c) ?
@@ -163,11 +162,11 @@ RETRY_SEND:
     // if "block size < 512", send ACK and exit.
     if ((pktopcode == TFTPD_OP_ACK) && done) break;
 
-POLL_IN:
+POLL_INPUT:
     pollfds[0].events = POLLIN;
     pollfds[0].fd = TT.sfd;
     poll_ret = poll(pollfds, 1, timeout);
-    if (poll_ret < 0 && (errno == EINTR || errno == ENOMEM)) goto POLL_IN;
+    if (poll_ret < 0 && (errno == EINTR || errno == ENOMEM)) goto POLL_INPUT;
     if (!poll_ret) {
       if (!--retry_count) {
         error_msg("timeout");
@@ -181,7 +180,7 @@ POLL_IN:
         send_errpkt(dstaddr, socklen, "read-error");
         break;
       }
-      if (len < 4) goto POLL_IN;
+      if (len < 4) goto POLL_INPUT;
     } else {
       perror_msg("poll");
       break;
@@ -224,7 +223,7 @@ POLL_IN:
       }
       continue;
     }
-    goto POLL_IN;
+    goto POLL_INPUT;
   } // end of loop
 
 CLEAN_APP:
@@ -242,19 +241,14 @@ void tftpd_main(void)
   socklen_t socklen = sizeof(struct sockaddr_storage);
   char *buf = toybuf;
 
-  TT.pw = NULL;
   memset(&srcaddr, 0, sizeof(srcaddr));
-  if (getsockname(STDIN_FILENO, (struct sockaddr*)&srcaddr, &socklen)) {
+  if (getsockname(0, (struct sockaddr *)&srcaddr, &socklen)) {
     toys.exithelp = 1;
     error_exit(NULL);
   }
 
   if (TT.user) TT.pw = xgetpwnam(TT.user);
-  if (*toys.optargs) {
-    if (chroot(*toys.optargs))
-      perror_exit("can't change root directory to '%s'", *toys.optargs);
-    if (chdir("/")) perror_exit("can't change directory to '/'");
-  }
+  if (*toys.optargs) xchroot(*toys.optargs);
 
   recvmsg_len = recvfrom(STDIN_FILENO, toybuf, TFTPD_BLKSIZE, 0,
       (struct sockaddr*)&dstaddr, &socklen);
