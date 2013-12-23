@@ -13,30 +13,30 @@ rm temp.img
 testing "blkid cramfs" 'bzcat "$BDIR"/cramfs.bz2 | blkid -' \
   '-: LABEL="mycramfs" TYPE="cramfs"\n' "" ""
 testing "blkid ext2" 'bzcat "$BDIR"/ext2.bz2 | blkid -' \
-  '-: LABEL="myext2" UUID="e59093ba-4135-4fdb-bcc4-f20beae4dfaf" TYPE="ext2"' \
+  '-: LABEL="myext2" UUID="e59093ba-4135-4fdb-bcc4-f20beae4dfaf" TYPE="ext2"\n' \
   "" "" 
 testing "blkid ext3" 'bzcat "$BDIR"/ext3.bz2 | blkid -' \
-  '-: LABEL="myext3" UUID="79d1c877-1a0f-4e7d-b21d-fc32ae3ef101" TYPE="ext2"' \
+  '-: LABEL="myext3" UUID="79d1c877-1a0f-4e7d-b21d-fc32ae3ef101" TYPE="ext2"\n' \
   "" "" 
 testing "blkid ext4" 'bzcat "$BDIR"/ext4.bz2 | blkid -' \
-  '-: LABEL="myext4" UUID="dc4b7c00-c0c0-4600-af7e-0335f09770fa" TYPE="ext2"' \
+  '-: LABEL="myext4" UUID="dc4b7c00-c0c0-4600-af7e-0335f09770fa" TYPE="ext2"\n' \
   "" ""
 testing "blkid f2fs" 'bzcat "$BDIR"/f2fs.bz2 | blkid -' \
-  '-: LABEL="" UUID="b53d3619-c204-4c0b-8504-36363578491c" TYPE="f2fs"' \
+  '-: LABEL="" UUID="b53d3619-c204-4c0b-8504-36363578491c" TYPE="f2fs"\n' \
   "" ""
 testing "blkid msdos" 'bzcat "$BDIR"/msdos.bz2 | blkid -' \
-  '-: LABEL="mymsdos    " UUID="5108-1e6e" TYPE="vfat"' "" ""
+  '-: LABEL="mymsdos    " UUID="5108-1e6e" TYPE="vfat"\n' "" ""
 testing "blkid ntfs" 'bzcat "$BDIR"/ntfs.bz2 | blkid -' \
-  '-: UUID="8585600838bfe16e" TYPE="ntfs"' "" ""
+  '-: UUID="8585600838bfe16e" TYPE="ntfs"\n' "" ""
 testing "blkid reiserfs" 'bzcat "$BDIR"/reiser3.bz2 | blkid -' \
-  '-: LABEL="" UUID="a5b99bec-45cc-41d7-986e-32f4b6fc28f2" TYPE="murderfs"' \
+  '-: LABEL="" UUID="a5b99bec-45cc-41d7-986e-32f4b6fc28f2" TYPE="reiserfs"\n' \
   "" ""
 testing "blkid squashfs" 'bzcat "$BDIR"/squashfs.bz2 | blkid -' \
-  '-: TYPE="squashfs"' ""
+  '-: TYPE="squashfs"\n' "" ""
 testing "blkid vfat" 'bzcat "$BDIR"/vfat.bz2 | blkid -' \
-  '-: LABEL="myvfat     " UUID="1db9-5673" TYPE="vfat"'
+  '-: LABEL="myvfat     " UUID="1db9-5673" TYPE="vfat"\n' "" ""
 testing "blkid xfs" 'bzcat "$BDIR"/xfs.bz2 | blkid -' \
-  '-: LABEL="XFS_test" UUID="d63a1dc3-27d5-4dd4-8b38-f4f97f495c6f" TYPE="xfs"' \
+  '-: LABEL="XFS_test" UUID="d63a1dc3-27d5-4dd4-8b38-f4f97f495c6f" TYPE="xfs"\n' \
   "" ""
 
 #testing "blkid minix" 'bzcat "$BDIR"/minix.bz2 | blkid -'
