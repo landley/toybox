@@ -4,19 +4,20 @@
  *
  * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/killall.html
 
-USE_KILLALL(NEWTOY(killall, "<1?lqvi", TOYFLAG_USR|TOYFLAG_BIN))
+USE_KILLALL(NEWTOY(killall, "?s:lqvi", TOYFLAG_USR|TOYFLAG_BIN))
 
 config KILLALL
   bool "killall"
   default y
   help
-    usage: killall [-l] [-iqv] [-SIG] PROCESS_NAME...
+    usage: killall [-l] [-iqv] [-SIGNAL|-s SIGNAL] PROCESS_NAME...
 
     Send a signal (default: TERM) to all processes with the given names.
 
     -i	ask for confirmation before killing
     -l	print list of all available signals
     -q	don't print any warnings or error messages
+    -s	send SIGNAL instead of SIGTERM
     -v	report if the signal was successfully sent
 */
 
@@ -24,6 +25,8 @@ config KILLALL
 #include "toys.h"
 
 GLOBALS(
+  char *sig;
+
   int signum;
   pid_t cur_pid;
   char **names;
@@ -69,16 +72,18 @@ void killall_main(void)
     return;
   }
 
-  if (**TT.names == '-') {
-    if (0 > (TT.signum = sig_to_num((*TT.names)+1))) {
+  if (TT.sig || **TT.names == '-') {
+    if (0 > (TT.signum = sig_to_num(TT.sig ? TT.sig : (*TT.names)+1))) {
       if (toys.optflags & FLAG_q) exit(1);
       error_exit("Invalid signal");
     }
-    TT.names++;
-    toys.optc--;
+    if (!TT.sig) {
+      TT.names++;
+      toys.optc--;
+    }
   }
 
-  if (!toys.optc) {
+  if (!(toys.optflags & FLAG_l) && !toys.optc) {
     toys.exithelp++;
     error_exit("no name");
   }
