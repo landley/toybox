@@ -11,7 +11,7 @@ USE_TRACEROUTE(NEWTOY(traceroute, "<1>2i:f#<1>255=1z#<0>86400=0g*w#<0>86400=5t#<
 USE_TRACEROUTE(OLDTOY(traceroute6,traceroute, OPTSTR_traceroute, TOYFLAG_STAYROOT|TOYFLAG_USR|TOYFLAG_BIN))
 config TRACEROUTE
   bool "traceroute"
-  default y
+  default n
   help
     usage: traceroute [-46FUIldnvr] [-f 1ST_TTL] [-m MAXTTL] [-p PORT] [-q PROBES]
     [-s SRC_IP] [-t TOS] [-w WAIT_SEC] [-g GATEWAY] [-i IFACE] [-z PAUSE_MSEC] HOST [BYTES]
