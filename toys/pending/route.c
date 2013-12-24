@@ -179,7 +179,7 @@ static void is_prefix(char **tip, char **netmask, struct rtentry *rt)
   char *prefix = strchr(*tip, '/');
   if (prefix) {
     unsigned long plen;
-    plen = get_int_value(prefix + 1, 0, 32);
+    plen = atolx_range(prefix + 1, 0, 32);
     //used to verify the netmask and route conflict.
     (((struct sockaddr_in *)&((rt)->rt_genmask))->sin_addr.s_addr)
       = htonl( ~(INVALID_ADDR >> plen));
@@ -199,7 +199,7 @@ static void get_next_params(char **argv, struct rtentry *rt, char **netmask)
     if (!strcmp(*argv, "metric")) {
       argv++;
       TEST_ARGV(argv);
-      rt->rt_metric = get_int_value(*argv, 0, ULONG_MAX) + 1;
+      rt->rt_metric = atolx_range(*argv, 0, ULONG_MAX) + 1;
       argv++;
     } else if (!strcmp(*argv, "netmask")) {
       //when adding a network route, the netmask to be used.
@@ -229,14 +229,14 @@ static void get_next_params(char **argv, struct rtentry *rt, char **netmask)
       //set the TCP Maximum Segment Size for connections over this route.
       argv++;
       TEST_ARGV(argv);
-      rt->rt_mss = get_int_value(*argv, 64, 32768); //MSS low and max
+      rt->rt_mss = atolx_range(*argv, 64, 32768); //MSS low and max
       rt->rt_flags |= RTF_MSS;
       argv++;
     } else if (!strcmp(*argv, "window")) {
       //set the TCP window size for connections over this route to W bytes.
       argv++;
       TEST_ARGV(argv);
-      rt->rt_window = get_int_value(*argv, 128, INT_MAX); //win low
+      rt->rt_window = atolx_range(*argv, 128, INT_MAX); //win low
       rt->rt_flags |= RTF_WINDOW;
       argv++;
     } else if (!strcmp(*argv, "irtt")) {
@@ -334,7 +334,7 @@ static void is_prefix_inet6(char **tip, struct in6_rtmsg *rt)
 
   if (prefix) {
     *prefix = '\0';
-    plen = get_int_value(prefix + 1, 0, 128); //DEFAULT_PREFIXLEN);
+    plen = atolx_range(prefix + 1, 0, 128); //DEFAULT_PREFIXLEN);
   } else plen = DEFAULT_PREFIXLEN;
 
   rt->rtmsg_flags = (plen == DEFAULT_PREFIXLEN) ? (RTF_UP | RTF_HOST) : RTF_UP;
@@ -352,7 +352,7 @@ static void get_next_params_inet6(char **argv, struct sockaddr_in6 *sock_in6, st
       //set the metric field in the routing table.
       argv++;
       TEST_ARGV(argv);
-      rt->rtmsg_metric = get_int_value(*argv, 0, ULONG_MAX);
+      rt->rtmsg_metric = atolx_range(*argv, 0, ULONG_MAX);
       argv++;
     } else if (!strcmp(*argv, "gw")) {
       //route packets via a gateway.
