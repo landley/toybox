@@ -224,6 +224,33 @@ as appropriate by the time this function is called. (See
 <a href="#lib_args">get_optflags()</a> for details.</p></li>
 </ul>
 
+<a name="headers" /><h2>Headers.</h2>
+
+<p>Commands generally don't have their own headers. If it's common code
+it can live in lib/, if it isn't put it in the command's .c file. (The line
+between implementing multiple commands in a C file via OLDTOY() to share
+infrastructure and moving that shared infrastructure to lib/ is a judgement
+call. Try to figure out which is simplest.)</p>
+
+<p>The top level toys.h should #include all the standard (posix) headers
+that any command uses. (Partly this is friendly to ccache and partly this
+makes the command implementations shorter.) Individual commands should only
+need to include nonstandard headers that might prevent that command from
+building in some context we'd care about (and thus requiring that command to
+be disabled to avoid a build break).</p>
+
+<p>Target-specific stuff (differences between compiler versions, libc versions,
+or operating systems) should be confined to lib/portability.h and
+lib/portability.c. (There's even some minimal compile-time environment probing
+that writes data to generated/portability.h, see scripts/genconfig.sh.)</p>
+
+<p>Only include linux/*.h headers from individual commands (not from other
+headers), and only if you really need to. Data that varies per architecture
+is a good reason to include a header. If you just need a couple constants
+that haven't changed since the 1990's, it's ok to #define them yourself or
+just use the constant inline with a comment explaining what it is. (A
+#define that's only used once isn't really helping.)</p>
+
 <p><a name="top" /><h2>Top level directory.</h2></p>
 
 <p>This directory contains global infrastructure.</p>
