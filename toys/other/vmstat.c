@@ -8,177 +8,146 @@ config VMSTAT
   bool "vmstat"
   default y
   help
-    usage: vmstat [-n] [delay [count]]
+    usage: vmstat [-n] [DELAY [COUNT]]
+
+    Print virtual memory statistics, repeating each DELAY seconds, COUNT times.
+    (With no DELAY, prints one line. With no COUNT, repeats until killed.)
+
+    Show processes running and blocked, kilobytes swapped, free, buffered, and
+    cached, kilobytes swapped in and out per second, file disk blocks input and
+    output per second, interrupts and context switches per second, percent
+    of CPU time spent running user code, system code, idle, and awaiting I/O.
+    First line is since system started, later lines are since last line.
+
     -n	Display the header only once
-    delay	The delay between updates in seconds, when not specified
-    	the average since boot is displayed.
-    count	Number of updates to display, the default is inifinite.
 */
 
+#define FOR_vmstat
 #include "toys.h"
 
-void read_proc_stat(unsigned int *proc_running, unsigned int *proc_blocked,
-  uint64_t *sys_irq, uint64_t *sys_ctxt, uint64_t *cpu_user, uint64_t *cpu_sys,
-  uint64_t *cpu_idle, uint64_t *cpu_wait)
+struct vmstat_proc {
+  // From /proc/stat (jiffies)
+  uint64_t user, nice, sys, idle, wait, irq, sirq, intr, ctxt, running, blocked;
+  // From /proc/meminfo (units are kb)
+  uint64_t memfree, buffers, cached, swapfree, swaptotal;
+  // From /proc/vmstat (units are pages)
+  uint64_t io_in, io_out, swap_in, swap_out;
+};
+
+// All the elements of vmstat_proc are the same size, so we can populate it as
+// a big array, then read the elements back out by name
+void get_vmstat_proc(struct vmstat_proc *vmstat_proc)
 {
-  char * off;
-  uint64_t c_user, c_nice, c_sys, c_irq, c_sirq;
-  int fd = xopen("/proc/stat", O_RDONLY);
-  size_t s = xread(fd, toybuf, sizeof(toybuf)-1);
+  char *vmstuff[] = { "/proc/stat", "cpu ", 0, 0, 0, 0, 0, 0,
+    "intr ", "ctxt ", "procs_running ", "procs_blocked ", "/proc/meminfo",
+    "MemFree: ", "Buffers: ", "Cached: ", "SwapFree: ", "SwapTotal: ",
+    "/proc/vmstat", "pgpgin ", "pgpgout ", "pswpin ", "pswpout " };
+  uint64_t *new = (uint64_t *)vmstat_proc;
+  char *p = p, *name = name;
+  int i, j;
 
-  toybuf[s] = 0;
-  if (s == sizeof(toybuf)-1) error_exit("/proc/stat is too large");
+  // We use vmstuff to fill out vmstat_proc as an array of uint64_t:
+  //   Strings starting with / are the file to find next entries in
+  //   Any other string is a key to search for, with decimal value right after
+  //   0 means parse another value on same line as last key
 
-  off = strstr(toybuf, "cpu ");
-  // Ignoring steal and guest fields for now.
-  if (off) sscanf(off, "cpu  %"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64 \
-    " %"PRIu64" %"PRIu64" %"PRIu64, &c_user, &c_nice, &c_sys, cpu_idle,
-    cpu_wait, &c_irq, &c_sirq);
-  *cpu_user = c_user + c_nice;
-  *cpu_sys = c_sys + c_irq + c_sirq;
-  off = strstr(toybuf, "intr");
-  if (off) sscanf(off, "intr %"PRIu64, sys_irq);
+  for (i = 0; i<sizeof(vmstuff)/sizeof(char *); i++) {
+    if (!vmstuff[i]) p++;
+    else if (*vmstuff[i] == '/') {
+      xreadfile(name = vmstuff[i], toybuf, sizeof(toybuf));
 
-  off = strstr(toybuf, "ctxt");
-  if (off) sscanf(off, "ctxt %"PRIu64, sys_ctxt);
+      continue;
+    } else {
+      if (!(p = strstr(toybuf, vmstuff[i]))) goto error;
+      p += strlen(vmstuff[i]);
+    }
+    if (1 != sscanf(p, "%"PRIu64"%n", new++, &j)) goto error;
+    p += j;
+  }
 
-  off = strstr(toybuf, "procs_running");
-  if (off) sscanf(off, "procs_running %u", proc_running);
-  (*proc_running)--; // look, i'm invisible.
+  return;
 
-  off = strstr(toybuf, "procs_blocked");
-  if (off) sscanf(off, "procs_blocked %u", proc_blocked);
-
-  close(fd);
-}
-
-void read_proc_meminfo(unsigned long *mem_swapped, unsigned long *mem_free,
-  unsigned long *mem_buff, unsigned long *mem_cache)
-{
-  char * off;
-  unsigned long swap_total, swap_free;
-  int fd = xopen("/proc/meminfo", O_RDONLY);
-  size_t s = xread(fd, toybuf, sizeof(toybuf)-1);
-
-  toybuf[s] = 0;
-  if (s == sizeof(toybuf)-1) error_exit("/proc/meminfo is too large");
-
-  off = strstr(toybuf, "MemFree");
-  if (off) sscanf(off, "MemFree: %lu kB", mem_free);
-
-  off = strstr(toybuf, "Buffers");
-  if (off) sscanf(off, "Buffers: %lu kB", mem_buff);
-
-  off = strstr(toybuf, "Cached");
-  if (off) sscanf(off, "Cached: %lu kB", mem_cache);
-
-  off = strstr(toybuf, "SwapFree");
-  if (off) sscanf(off, "SwapFree: %lu kB", &swap_free);
-
-  off = strstr(toybuf, "SwapTotal");
-  if (off) sscanf(off, "SwapTotal: %lu kB", &swap_total);
-  *mem_swapped = swap_total - swap_free;
-
-  close(fd);
-}
-
-void read_proc_vmstat(unsigned long *io_pages_in, unsigned long *io_pages_out,
-  unsigned long *swap_bytes_in, unsigned long *swap_bytes_out)
-{
-  char *off;
-  unsigned long s_pages_in, s_pages_out;
-  unsigned long pagesize_kb = sysconf(_SC_PAGESIZE) / 1024L;
-  int fd = xopen("/proc/vmstat", O_RDONLY);
-  size_t s = xread(fd, toybuf, sizeof(toybuf)-1);
-
-  toybuf[s] = 0;
-  if (s == sizeof(toybuf)-1) error_exit("/proc/vmstat is too large");
-
-  off = strstr(toybuf, "pgpgin");
-  if (off) sscanf(off, "pgpgin %lu", io_pages_in);
-
-  off = strstr(toybuf, "pgpgout");
-  if (off) sscanf(off, "pgpgout %lu", io_pages_out);
-
-  off = strstr(toybuf, "pswpin");
-  if (off) sscanf(off, "pswpin %lu", &s_pages_in);
-  *swap_bytes_in = s_pages_in * pagesize_kb;
-
-  off = strstr(toybuf, "pswpout");
-  if (off) sscanf(off, "pswpout %lu", &s_pages_out);
-  *swap_bytes_out = s_pages_out * pagesize_kb;
-
-  close(fd);
+error:
+  error_exit("No %sin %s\n", vmstuff[i], name);
 }
 
 void vmstat_main(void)
 {
-  const char fmt[] = "%2u %2u %6lu %6lu %6lu %6lu %4u %4u %5u %5u %4u %4u %2u %2u %2u %2u\n";
-  unsigned int loop_num = 0, loop_max_num = 0, loop_delay = 0;
-  unsigned int running = 0, blocked = 0;
-  unsigned long mem_swap = 0, mem_free = 0, mem_buff = 0, mem_cache = 0;
-  unsigned long io_pages_in[2], io_pages_out[2], swap_bytes_in[2], swap_bytes_out[2];
-  uint64_t sys_irq[2], sys_ctxt[2], cpu_user[2], cpu_sys[2], cpu_idle[2], cpu_wait[2];
-  int first_run = 1;
-  int no_header = toys.optflags;
-  unsigned num_rows = 22;
+  struct vmstat_proc top[2];
+  int i, loop_delay = 0, loop_max = 0;
+  unsigned loop, rows = (toys.optflags & FLAG_n) ? 0 : 25,
+           page_kb = sysconf(_SC_PAGESIZE)/1024;
+  char *headers="r\0b\0swpd\0free\0buff\0cache\0si\0so\0bi\0bo\0in\0cs\0us\0"
+                "sy\0id\0wa", lengths[] = {2,2,6,6,6,6,4,4,5,5,4,4,2,2,2,2};
 
-  if (toys.optc >= 1) loop_delay = atoi(toys.optargs[0]);
-  if (toys.optc >= 2) loop_max_num = atoi(toys.optargs[1]);
+  memset(top, 0, sizeof(top));
+  if (toys.optc) loop_delay = atolx_range(toys.optargs[0], 0, INT_MAX);
+  if (toys.optc > 1) loop_max = atolx_range(toys.optargs[1], 1, INT_MAX) - 1;
 
-  if (loop_max_num < 0 || loop_delay < 0) error_exit("Invalid arguments");
+  for (loop = 0; loop <= loop_max; loop++) {
+    unsigned idx = loop&1, offset = 0, expected = 0;
+    uint64_t units, total_hz, *ptr = (uint64_t *)(top+idx),
+             *oldptr = (uint64_t *)(top+!idx);
 
-  while(1) {
-    uint64_t total_jif;
-    int idx = loop_num%2;
+    // Print headers
+    if (rows>3 && !(loop % (rows-3))) {
+      if (isatty(1)) terminal_size(0, &rows);
+      else rows = 0;
 
-    if(first_run || (!(loop_num % num_rows) && !no_header)) {
-      unsigned rows = 0, cols = 0;
-      terminal_size(&cols, &rows);
-      num_rows = (rows > 3)? rows - 3 : 22;
       printf("procs -----------memory---------- ---swap-- -----io---- -system-- ----cpu----\n");
-      printf(" r  b   swpd   free   buff  cache   si   so	bi	bo   in   cs us sy id wa\n");
+
+      for (i=0; i<sizeof(lengths); i++) {
+        printf(" %*s"+!i, lengths[i], headers);
+        headers += strlen(headers)+1;
+      }
+      xputc('\n');
     }
 
-    read_proc_stat(&running, &blocked, &sys_irq[idx], &sys_ctxt[idx], &cpu_user[idx],
-      &cpu_sys[idx], &cpu_idle[idx], &cpu_wait[idx]);
-    read_proc_meminfo(&mem_swap, &mem_free, &mem_buff, &mem_cache);
-    read_proc_vmstat(&io_pages_in[idx], &io_pages_out[idx], &swap_bytes_in[idx], &swap_bytes_out[idx]);
+    // Read data and combine some fields we display as aggregates
+    get_vmstat_proc(top+idx);
+    top[idx].running--; // Don't include ourselves
+    top[idx].user += top[idx].nice;
+    top[idx].sys += top[idx].irq + top[idx].sirq;
+    top[idx].swaptotal -= top[idx].swapfree;
 
-    if (first_run) {
-      struct sysinfo inf;
-      sysinfo(&inf);
-      first_run = 0;
-      total_jif = cpu_user[idx] + cpu_idle[idx] + cpu_wait[idx];
-      printf(fmt, running, blocked, mem_swap, mem_free, mem_buff, mem_cache,
-           (unsigned) (swap_bytes_in[idx]/inf.uptime),
-           (unsigned) (swap_bytes_out[idx]/inf.uptime),
-           (unsigned) (io_pages_in[idx]/inf.uptime),
-           (unsigned) (io_pages_out[idx]/inf.uptime),
-           (unsigned) (sys_irq[idx]/inf.uptime),
-           (unsigned) (sys_ctxt[idx]/inf.uptime),
-           (unsigned) (100*cpu_user[idx]/total_jif),
-           (unsigned) (100*cpu_sys[idx]/total_jif),
-           (unsigned) (100*cpu_idle[idx]/total_jif),
-           (unsigned) (100*cpu_wait[idx]/total_jif));
-    }else{
-      total_jif = cpu_user[idx] - cpu_user[!idx] + cpu_idle[idx] - cpu_idle[!idx] + cpu_wait[idx] - cpu_wait[!idx];
-      printf(fmt, running, blocked, mem_swap, mem_free, mem_buff, mem_cache,
-           (unsigned) ((swap_bytes_in[idx] - swap_bytes_in[!idx])/loop_delay),
-           (unsigned) ((swap_bytes_out[idx] - swap_bytes_out[!idx])/loop_delay),
-           (unsigned) ((io_pages_in[idx] - io_pages_in[!idx])/loop_delay),
-           (unsigned) ((io_pages_out[idx] - io_pages_out[!idx])/loop_delay),
-           (unsigned) ((sys_irq[idx] - sys_irq[!idx])/loop_delay),
-           (unsigned) ((sys_ctxt[idx] - sys_ctxt[!idx])/loop_delay),
-           (unsigned) (100*(cpu_user[idx] - cpu_user[!idx])/total_jif),
-           (unsigned) (100*(cpu_sys[idx]  - cpu_sys[!idx]) /total_jif),
-           (unsigned) (100*(cpu_idle[idx] - cpu_idle[!idx])/total_jif),
-           (unsigned) (100*(cpu_wait[idx] - cpu_wait[!idx])/total_jif));
+    // Collect unit adjustments (outside the inner loop to save time)
+
+    if (!loop) {
+      char *s = toybuf;
+
+      xreadfile("/proc/uptime", toybuf, sizeof(toybuf)-1);
+      while (*(s++) > ' ');
+      sscanf(s, "%"PRIu64, &units);
+    } else units = loop_delay;
+
+    // add up user, sys, idle, and wait time used since last time
+    // (Already appended nice to user)
+    total_hz = 0;
+    for (i=0; i<4; i++) total_hz += ptr[i+!!i] - oldptr[i+!!i];
+
+    // Output values in order[]: running, blocked, swaptotal, memfree, buffers,
+    // cache, swap_in, swap_out, io_in, io_out, sirq, ctxt, user, sys, idle,wait
+
+    for (i=0; i<sizeof(lengths); i++) {
+      char order[] = {9, 10, 15, 11, 12, 13, 18, 19, 16, 17, 6, 8, 0, 2, 3, 4};
+      uint64_t out = ptr[order[i]];
+      int len;
+
+      // Adjust rate and units
+      if (i>5) out -= oldptr[order[i]];
+      if (order[i]<7) out = ((out*100) + (total_hz/2)) / total_hz;
+      else if (order[i]>15) out = ((out * page_kb)+(units-1))/units;
+      else if (order[i]<9) out = (out+(units-1)) / units;
+
+      // If a field was too big to fit in its slot, try to compensate later
+      expected += lengths[i] + !!i;
+      len = expected - offset - !!i;
+      if (len < 0) len = 0;
+      offset += printf(" %*"PRIu64+!i, len, out);
     }
+    xputc('\n');
 
-    loop_num++;
-    if (loop_delay == 0 || (loop_max_num != 0 && loop_num >= loop_max_num))
-      break;
-    sleep(loop_delay);
+    if (loop_delay) sleep(loop_delay);
+    else break;
   }
 }
