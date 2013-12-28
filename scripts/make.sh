@@ -50,7 +50,7 @@ echo "Generate headers from toys/*/*.c..."
 # first element of the array). The rest must be sorted in alphabetical order
 # for fast binary search.
 
-echo "generated/newtoys.h"
+echo -n "generated/newtoys.h "
 
 echo "USE_TOYBOX(NEWTOY(toybox, NULL, TOYFLAG_STAYROOT))" > generated/newtoys.h
 sed -n -e 's/^USE_[A-Z0-9_]*(/&/p' toys/*/*.c \
@@ -64,7 +64,7 @@ then
   $HOSTCC scripts/mkflags.c -o generated/mkflags || exit 1
 fi
 
-echo generated/flags.h
+echo -n "generated/flags.h "
 
 # Parse files through C preprocessor twice, once to get flags for current
 # .config and once to get flags for allyesconfig
@@ -113,7 +113,7 @@ function getglobals()
   done
 }
 
-echo "generated/globals.h"
+echo -n "generated/globals.h "
 
 GLOBSTRUCT="$(getglobals)"
 (
