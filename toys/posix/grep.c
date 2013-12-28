@@ -186,7 +186,7 @@ static void parse_regex(void)
   // exit to free. Not supporting nofork for this command any time soon.)
   al = TT.f ? TT.f : TT.e;
   while (al) {
-    if (TT.f) s = ss = xreadfile(al->arg);
+    if (TT.f) s = ss = xreadfile(al->arg, 0, 0);
     else s = ss = al->arg;
 
     do {

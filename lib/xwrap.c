@@ -451,10 +451,10 @@ char *xreadlink(char *name)
   }
 }
 
-char *xreadfile(char *name)
+char *xreadfile(char *name, char *buf, off_t len)
 {
-  char *buf = readfile(name, 0, 0);
-  if (!buf) perror_exit("xreadfile %s", name);
+  if (!(buf = readfile(name, buf, len))) perror_exit("Bad '%s'", name);
+
   return buf;
 }
 
