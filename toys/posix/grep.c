@@ -4,7 +4,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/grep.html
 
-USE_GREP(NEWTOY(grep, "EFHabhinorsvwclqe*f*m#x[!wx][!EFw]", TOYFLAG_BIN))
+USE_GREP(NEWTOY(grep, "ZzEFHabhinorsvwclqe*f*m#x[!wx][!EFw]", TOYFLAG_BIN))
 USE_GREP(OLDTOY(egrep, grep, OPTSTR_grep, TOYFLAG_BIN))
 USE_GREP(OLDTOY(fgrep, grep, OPTSTR_grep, TOYFLAG_BIN))
 
@@ -26,13 +26,14 @@ config GREP
     -i  case insensitive         -m  stop after this many lines matched
     -r  recursive (on dir)       -v  invert match
     -w  whole word (implies -E)  -x  whole line
+    -z  input NUL terminated
 
     display modes: (default: matched line)
     -c  count of matching lines  -l  show matching filenames
     -o  only matching part       -q  quiet (errors only)
-    -s  silent (no error msg)    
+    -s  silent (no error msg)    -Z  output NUL terminated
 
-    prefix modes (default: filename if checking more than 1 file)
+    output prefix (default: filename if checking more than 1 file)
     -H  force filename           -b  byte offset of match
     -h  hide filename            -n  line number of match
 */
@@ -54,6 +55,8 @@ static void do_grep(int fd, char *name)
   FILE *file = fdopen(fd, "r");
   long offset = 0;
   int lcount = 0, mcount = 0, which = toys.optflags & FLAG_w ? 2 : 0;
+  char indelim = '\n' * !(toys.optflags&FLAG_z),
+       outdelim = '\n' * !(toys.optflags&FLAG_Z);
 
   if (!fd) name = "(standard input)";
 
@@ -70,8 +73,8 @@ static void do_grep(int fd, char *name)
     int mmatch = 0;
 
     lcount++;
-    if (0 > (len = getline(&line, &unused, file))) break;
-    if (line[len-1] == '\n') line[len-1] = 0;
+    if (0 > (len = getdelim(&line, &unused, indelim, file))) break;
+    if (line[len-1] == indelim) line[len-1] = 0;
 
     start = line;
 
@@ -134,7 +137,7 @@ static void do_grep(int fd, char *name)
       toys.exitval = 0;
       if (toys.optflags & FLAG_q) xexit();
       if (toys.optflags & FLAG_l) {
-        printf("%s\n", name);
+        printf("%s%c", name, outdelim);
         free(line);
         fclose(file);
         return;
@@ -149,10 +152,10 @@ static void do_grep(int fd, char *name)
         if (toys.optflags & FLAG_b)
           printf("%ld:", offset + (start-line) +
               ((toys.optflags & FLAG_o) ? matches[which].rm_so : 0));
-        if (!(toys.optflags & FLAG_o)) xputs(line);
+        if (!(toys.optflags & FLAG_o)) xprintf("%s%c", line, outdelim);
         else {
-          xprintf("%.*s\n", matches[which].rm_eo - matches[which].rm_so,
-                  start + matches[which].rm_so);
+          xprintf("%.*s%c", matches[which].rm_eo - matches[which].rm_so,
+                  start + matches[which].rm_so, outdelim);
         }
       }
 
@@ -169,7 +172,7 @@ static void do_grep(int fd, char *name)
 
   if (toys.optflags & FLAG_c) {
     if (toys.optflags & FLAG_H) printf("%s:", name);
-    xprintf("%d\n", mcount);
+    xprintf("%d%c", mcount, outdelim);
   }
 
   // loopfiles will also close the fd, but this frees an (opaque) struct.
