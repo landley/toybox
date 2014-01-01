@@ -1,9 +1,26 @@
 <!--#include file="header.html" -->
 
+<h1>Index</h1>
+
+<ul>
+<li><a href=#intro>Introduction</a></li>
+<li><a href=#advice>Advice</a></li>
+<li>Commands:</li>
+<ul>
+<li><a href=#uuencode>uuencode</a></li>
+<li><a href=#uudecode>uudecode</a></li>
+<li><a href=#ifconfig>ifconfig</a></li>
+<li><a href=#find>find</a></li>
+</ul>
+</ul>
+
+<hr>
+
+<a name=intro />
 <h1>Cleaning up the toybox code.</h1>
 
-<p><a href=http://landley.net/notes.html#31-03-2013>Toybox
-hasn't always taken proper advantage of external contributions</a>.
+<p>Toybox <a href=http://landley.net/notes.html#31-03-2013>hasn't always</a>
+taken proper advantage of external contributions</a>.
 Lots of people want to help, but their contributions languish out of tree
 or in the "pending" directory, awaiting cleanup.</p>
 
@@ -13,42 +30,46 @@ auditing. Writing "another" implementation of standard command line tools
 isn't very interesting, they should be _better_ implementations.
 Unfortunately, this means existing, working commands often take more effort to
 clean up to Toybox's standards than writing a new one from scratch, not
-because they don't work, but because we require an unusual level of polish.</p>
+because they don't work, but because we aim for an unusual level of polish.</p>
 
 <p>In hopes of teaching more people how to do this
 cleanup work, I've started breaking cleanup changes into smaller chunks and
 posting explanations of each change to the mailing list.
-Below are indexes of each cleanup series. Line/byte totals of completed
-series are given for scale, but the point of this work is simplicity, not
-size.</p>
+Below are indexes of such cleanup series. Each commit and post are meant to
+be read together: each description explains what the corresponding patch
+was trying to accomplish.</p>
 
-<p>(Note: mercurial's web viewer doesn't follow renames, so the commit list
-links may not show the final version of each file moved from the "pending"
+<p>Line/byte totals of completed series are given for scale, but the point
+of this work is simplicity and compactness, not size per se.</p>
+
+<p>(Note: mercurial's web viewer doesn't follow renames, so although each
+command name links to a commit list with the bulk of the changes, it may
+not include the final version of each file moved from the "pending"
 directory to its final location. The summaries link the initial and cleaned
 versions of each file when giving line counts.)</p>
 
 <hr>
 
-<p>General advice and/or policy:</p>
+<a name=advice />
+<h1>General advice and/or policy.</h1>
 
-<p><a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000850.html>Error messages and internationalization.</a></p>
+<p>The <a href=design.html>design of toybox</a> page and the coding
+style section at the start of the <a href=code.html>source code walkthrough</a>
+don't cover everything. Here are some
+links to mailing list messages that cover various programming topics
+not directly related to a specific cleanup series:</p>
 
-<p><a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000891.html>Why not "const"?</a></p>
-
-<p>(I leave the <a href=http://lkml.indiana.edu/hypermail/linux/kernel/1308.3/03890.html>Why not "bool"?</a> explanation to Linus Torvalds.)</p>
-
-<p><a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000893.html>Rationale for removing debug code</a>, the interesting bit says:</p>
-<blockquote><p>Rule of thumb: other people's debugging printfs are seldom as
-useful as your own debugging printfs. Because you know what your output
-_means_, and if you can't annotate the code to dump what you need you haven't
-read enough of it yet.
-</p></blockquote>
+<ul>
+<li><a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000850.html>Error messages and internationalization.</a></li>
+<li><a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000891.html>Why not "const"?</a></li>
+<li><a href=http://lkml.indiana.edu/hypermail/linux/kernel/1308.3/03890.html>Why not "bool"?</a> (explanation from Linus Torvalds)</li>
+<li><a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000893.html>Why not to check in debug code.</a></li>
+<li><a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-June/001044.html>Relationship between /proc and /sys</a> (/proc isn't obsolete and /sys is an ABI)</li>
+</ul>
 
 <hr>
 
-<h1><a href=/hg/toybox/log/900/toys/pending/uuencode.c>uuencode</a> and
-<a href=http:/hg/toybox/log/900/toys/pending/uudecode.c>uudecode</a>
-</h1>
+<a name="uuencode"><h1><a href=/hg/toybox/log/900/toys/pending/uuencode.c>uuencode</a></h1>
 
 <p>This is an example of cleaning up something
 that started in a condition most projects would be quite happy with.
@@ -75,7 +96,9 @@ description: test suite.</li>
 
 <p>Status: COMPLETE</p>
 
-<p>I tried to do the uudecode cleanup in smaller stages:</p>
+<a name="uudecode"><h1><a href=/hg/toybox/log/900/toys/pending/uudecode.c>uudecode</a></h1>
+
+<p>I tried to do the uudecode cleanup in smaller stages than uuencode:</p>
 
 <ul>
 <li>old: <a href=/hg/toybox/file/828/toys/pending/uudecode.c>175
@@ -99,47 +122,96 @@ description: todo (finish, move pending->posix, default y)</a></li>
 
 <p>Status: COMPLETE</p>
 
+<a name=ifconfig>
 <h1><a href=/hg/toybox/log/tip/toys/pending/ifconfig.c>ifconfig</a></h1>
 
-<p>The largest (ongoing) documented cleanup to date, still in progress:</p>
+<p>When ifconfig was submitted, it touched a half-dozen files. I glued it
+together into a single self-contained file, which needed a lot of
+cleanup. The final version is about 1/3 the size of the original.</p>
 
 <ul>
-<li>commit: <a href=/hg/toybox/rev/843>843</a>,
-description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000882.html>Explaining the ifconfig cleanup: part I.</a></li>
+<li>old total: <a href=/hg/toybox/file/841/toys/pending/ifconfig.c>1504 lines (44268 bytes) in 38 functions</a></li>
+<li>new total: <a href=/hg/toybox/file/1113/toys/other/ifconfig.c>521 lines (15963 bytes) in 4 function</a></li>
+</ul>
+
+<p>This was the first command I started cleaning up with the intent of
+describing the process, and especially the first few entries in this
+series describe many of the low hanging fruit techniques used to clean
+up a codebase.</p>
+
+<ul>
+<li>commit: <a href=/hg/toybox/rev/843>843</a>, description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000882.html>Infrastructure in search of a user, code proximity,
+unnecessary #defines, shorter code is easier to read.</a></li>
 <li>commit: <a href=/hg/toybox/rev/844>844</a>,
-description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000881.html>Explaining more ifconfig cleanup.</a></li>
+description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000881.html>Headers, replacing repeated code with loops,
+logical operators guaranteed to return 0 or 1, math on string constants,
+removing unnecessary variables and tests.</a></li>
 <li>commit: <a href=/hg/toybox/rev/852>852</a>,
-description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000921.html>cleanup</a></li>
+description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000921.html>hg commit numbers, documenting the obvious, ordering
+to avoid prototypes, returning void, collate local declarations,
+use error_exit(), unnecessary parentheses, inline to remove variables/functions
+used only once, using *var instead of var[0], unnecessary typecasts,
+xprintf("\n") vs xputc('\n')</a></li>
 <li>commit: <a href=/hg/toybox/rev/856>856</a>,
-description: A one line portability fix from Isaac Dunham</li>
+description: one line portability fix from Isaac Dunham</li>
 <li>commit: <a href=/hg/toybox/rev/861>861</a>
 and <a href=/hg/toybox/rev/863>863</a>,
 description:
 <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000910.html>Help
 infrastructure cleanup from Isaac Dunham</a>
-which I mis-applied and then <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000920.html>fixed plus some whitespace changes</a></li>
+(which I mis-applied and then <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000920.html>fixed plus some whitespace changes</a>)</li>
 
 <li>commit: <a href=/hg/toybox/rev/862>862</a>,
 <a href=/hg/toybox/rev/864>864</a>,
 <a href=/hg/toybox/rev/866>866</a>: todo</li>
 
 <li>commit: <a href=/hg/toybox/rev/869>869</a> and <a href=/hg/toybox/rev/870>870</a>,
-description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000928.html>here</a></li>
+description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000928.html>869:
+reorder to eliminate prototypes, put command_main() at end of file,
+870: long repeated variable prefixes, replacing struct+sscanf()+printf with a
+loop and a table (from iface_list, get_proc_info(), display_ifconfig()),
+use lib/xwrap.c functions to return void, why xstrcpy() fails closed,
+(functional comment: why multicast failed, CSLIP obsolecense), not being
+_too_ clever.</a></li>
 <li>commit: <a href=/hg/toybox/rev/878>878</a> and <a href=/hg/toybox/rev/879>879</a>:
-description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000946.html>here</a></li>
+description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000946.html>878: add xsocket(), free(NULL) is a safe NOP (posix!).
+879: inline three functions and simplify, some simplifications only show up
+after repeated inlining</a></li>
 <li>commit: <a href=/hg/toybox/rev/883>883</a>,
-description: todo</li>
+description: move some common code to lib/ and posix headers to toys.h.</li>
 <li>commit: <a href=/hg/toybox/rev/898>898</a>,
-description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/000974.html>here</a></li>
+description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/000974.html>Replace ifconfig_main() if/else staircase with a loop over
+an array, genericize - prefix logic, inline a use of set_flags().</a></li>
 <li>commit: <a href=/hg/toybox/rev/905>905</a>,
-description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/000992.html>here</a></li>
+description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/000992.html>remove unnecessary wrapper function, inlining more functions,
+relying on the values of constants that don't change across architectures
+(binary backwards compatability), more ifconfig_main table work,
+man ioctl_list.</a></li>
 <li>commit: <a href=/hg/toybox/rev/906>906</a>,
-description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/000994.html>here</a></li>
+description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/000994.html>More ifconfig_main() table work, remove vestigial arguments
+to functions, "a frenzy of inlining", slightly better error reporting,
+don't reinvent libc functions.</a></li>
 <li>commit: <a href=/hg/toybox/rev/907>907</a>,
-<a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/000995.html>here</a></li>
+<a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/000995.html>inlining show_ip_addr() with a loop and a table, inlining hex_to_binary()
+and set_hw_address(), stop validating data we supplied, remove a table
+that's overkill (two entries, we don't even loop over it), when you don't need a
+NULL terminator for array, remove unnecessary memcpy(offsetof()) with
+assignment, trusting -funsigned-char.</a></li>
+<li>commit: <a href=/hg/toybox/rev/919>919</a>,
+<a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-June/001027.html>todo whitespace damage, introduce IFREQ_OFFSZ() and poke() to
+ifconfig_main() table logic to fold more if/else parts into the table</a></li>
+<li>Status update: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-June/001033.html>Entering the home stretch on ifconfig</a> (and a <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-June/001043.html>note about infiniband</a>)</li>
+<li>commit: <a href=/hg/toybox/rev/921>921</a>, description: todo</li>
+<li>commit: <a href=/hg/toybox/rev/957>957</a>, description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-July/001121.html>here</a></li>
+<li>commit: <a href=/hg/toybox/rev/958>958</a>, description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-July/001131.html>here</a></li>
+<li>commit: <a href=/hg/toybox/rev/1104>1104</a>, description: todo</li>
+<li>commit: <a href=/hg/toybox/rev/1127>1127</a>, description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-November/001464.html>here</a></li>
+<li>commit: <a href=/hg/toybox/rev/1128>1128</a>, description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-November/001463.html>here</a></li>
+<li>commit: <a href=/hg/toybox/rev/1132>1132</a>, description: promotion from pending to other</li>
+<li>commit: <a href=/hg/toybox/rev/1132>1133</a>, description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-November/001462.html>cleanup help text, remove obsolete/NOP commands</a></li>
 </ul>
 
-<p>Status: in progress.</p>
+<p>Status: COMPLETE.</p>
 
 <h1><a href=/hg/toybox/log/tip/toys/pending/find.c>find</a></h1>
 
