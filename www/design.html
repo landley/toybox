@@ -32,7 +32,7 @@ use case is to download a statically linked toybox binary to an arbitrary
 Linux system, and use it in an otherwise unknown environment; being
 self-contained helps support this.)</p>
 
-<b><h3>Fast</h3></b>
+<b><h3>Speed</h3></b>
 
 <p>It's easy to say lots about optimizing for speed (which is why this section
 is so long), but at the same time it's the optimization we care the least about.
@@ -141,7 +141,7 @@ give at least a reasonable result.</p>
 applies to toybox.  Do the simple thing first, do as little of it as possible,
 and make sure it's right.  You can always speed it up later.</p>
 
-<b><h3>Small</h3></b>
+<b><h3>Size</h3></b>
 <p>Again, simple gives you most of this.  An algorithm that does less work
 is generally smaller.  Understand the problem, treat size as a cost, and
 get a good bang for the byte.</p>
@@ -191,14 +191,28 @@ worth it.)</p>
 
 <p>Simplicity has lots of benefits.  Simple code is easy to maintain, easy to
 port to new processors, easy to audit for security holes, and easy to
-understand.  (Comments help, but they're no substitute for simple code.)</p>
+understand.</p>
+
+<p>Simplicity itself can have subtle non-obvious aspects requiring a tradeoff
+between one kind of simplicity and another: simple for the computer to
+execute and simple for a human reader to understand aren't always the
+same thing. A compact and clever algorithm that does very little work may
+not be as easy to explain or understand as a larger more explicit version
+requiring more code, memory, and CPU time. When balancing these, err on the
+side of doing less work, but add comments describing how you
+could be more explicit.</p>
+
+<p>In general, comments are not a substitute for good code (or well chosen
+variable or function names). Commenting "x += y;" with "/* add y to x */"
+can actually detract from the program's readability. If you need to describe
+what the code is doing (rather than _why_ it's doing it), that means the
+code itself isn't very clear.</p>
 
 <p>Prioritizing simplicity tends to serve our other goals: simplifying code
 generally reduces its size (both in terms of binary size and runtime memory
 usage), and avoiding unnecessary work makes code run faster. Smaller code
 also tends to run faster on modern hardware due to CPU cacheing: fitting your
 code into L1 cache is great, and staying in L2 cache is still pretty good.</p>
-
 
 <p><a href=http://www.joelonsoftware.com/articles/fog0000000069.html>Joel
 Spolsky argues against throwing code out and starting over</a>, and he has
@@ -229,10 +243,11 @@ programmers should strive to be lazy and dumb</a>?</p>
 <b><h2>Portability issues</h2></b>
 
 <b><h3>Platforms</h3></b>
-<p>Toybox should run on Android (alas, with bionic), and every other hardware
-platform Linux runs on.  Other posix/susv4 environments (perhaps MacOS X or
-newlib+libgloss) are vaguely interesting but only if they're easy to support;
-I'm not going to spend much effort on them.</p>
+<p>Toybox should run on Android (all commands with musl-libc, as large a subset
+as practical with bionic), and every other hardware platform Linux runs on.
+Other posix/susv4 environments (perhaps MacOS X or newlib+libgloss) are vaguely
+interesting but only if they're easy to support; I'm not going to spend much
+effort on them.</p>
 
 <p>I don't do windows.</p>
 
