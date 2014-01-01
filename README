@@ -71,18 +71,15 @@ a program for the system to run (toybox), and a C library to tie them
 together (toybox has been tested with musl, uClibc, and glibc, on Android
 systems musl is recommended).</p>
 
-<p>The C library is part of a "toolchain", which is an integrated suite
+The C library is part of a "toolchain", which is an integrated suite
 of compiler, assembler, and linker, plus the standard headers and libraries
-necessary to build C programs.</p>
+necessary to build C programs.
 
-
- Static linking (with the --static option)
-copies the shared library contents into the program, resulting in
-larger but more portable programs. Dynamically linked programs (the default)
-Otherwise, the
-"dynamically" linked programs require the
-library to be present on the target system ("man ldd" and "man ld.so" for
-details) statically linked programs do not.</p>
+Static linking (with the --static option) copies the shared library contents
+into the program, resulting in larger but more portable programs, which
+can run even if they'rr the only file in the filesystem. Otherwise,
+the "dynamically" linked programs require the library files to be present on
+the target system ("man ldd" and "man ld.so" for details).
 
 Toybox is not a kernel, it needs Linux to drive the hardware.
 
