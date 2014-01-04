@@ -42,13 +42,14 @@ uninstall:
 
 clean::
 	rm -rf toybox toybox_unstripped generated/config.h generated/Config.in \
-		generated/newtoys.h generated/globals.h testdir \
+		generated/newtoys.h generated/globals.htestdir \
 		generated/Config.probed generated/oldtoys.h generated/flags.h \
 		generated/portability.h .singleconfig .singleconfig.old \
-		generated/instlist generated/mkflags
+		generated/instlist generated/mkflags generated/config2help \
+		generated/help.h
 
 distclean: clean
-	rm -f toybox_old .config* generated/help.h
+	rm -f toybox_old .config*
 
 test: tests
 
