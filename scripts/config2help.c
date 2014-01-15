@@ -72,8 +72,7 @@ void parse(char *filename)
 int main(int argc, char *argv[])
 {
   FILE *fp;
-  struct symbol *try;
-  char *s, *file;
+  char *file;
 
   if (argc != 3) {
     fprintf(stderr, "usage: config2help Config.in .config\n");
@@ -91,7 +90,9 @@ int main(int argc, char *argv[])
 
     if (getline(&line, &len, fp) < 1) break;
     if (!strncmp("CONFIG_", line, 7)) {
-      s = line+7;
+      struct symbol *try;
+      char *s = line+7;
+
       for (try=sym; try; try=try->next) {
         len = strlen(try->name);
         if (!strncmp(try->name, s, len) && s[len]=='=' && s[len+1]=='y') {
@@ -102,14 +103,67 @@ int main(int argc, char *argv[])
     }
   }
 
+  // Collate help according to usage, depends, and .config
+
+  // Loop through each entry, finding duplicate enabled "usage:" names
+
+  for (;;) {
+    struct symbol *throw = 0, *catch;
+    char *this, *that, *name;
+    int len;
+
+    // find a usage: name and collate all enabled entries with that name
+    for (catch = sym; catch; catch = catch->next) {
+      if (catch->enabled != 1) continue;
+      if (catch->help && (this = keyword("usage:", catch->help->data))) {
+        struct double_list *bang;
+
+        if (!throw) {
+          throw = catch;
+          catch->enabled++;
+          name = this;
+          while (!isspace(*this) && *this) this++;
+          len = (that = this)-name;
+          while (isspace(*that)) that++;
+
+          continue;
+        }
+
+        if (strncmp(name, this, len) || !isspace(this[len])) continue;
+        catch->enabled++;
+
+        // Suck help text out of throw into catch.
+        throw->enabled = 0;
+
+        // splice together circularly linked lists
+        bang = throw->help->prev;
+        throw->help->prev->next = catch->help;
+        throw->help->prev = catch->help->prev;
+        catch->help->prev->next = throw->help;
+        catch->help->prev = bang;
+        throw->help = 0;
+        throw = catch;
+      }
+    }
+
+    // Did we find one?
+
+    if (!throw) break;
+
+      // Collate first [-abc] option block?
+
+//      if (*s == '[' && s[1] == '-' && s[2] != '-') {
+//      }
+  }
+
   // Print out help #defines
   while (sym) {
     struct double_list *dd;
 
     if (sym->help) {
       int i, padlen = 0;
+      char *s = xstrdup(sym->name);
 
-      s = xstrdup(sym->name);
       for (i = 0; s[i]; i++) s[i] = tolower(s[i]);
       printf("#define help_%s \"", s);
       free(s);
@@ -131,6 +185,8 @@ int main(int argc, char *argv[])
           if (s[i] == '"' || s[i] == '\\') putchar('\\');
           putchar(s[i]);
         }
+        putchar('\\');
+        putchar('n');
         dd = dd->next;
         if (dd == sym->help) break;
       }
