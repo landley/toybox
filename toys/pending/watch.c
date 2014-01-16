@@ -35,10 +35,10 @@ void watch_main(void)
   while(toys.optargs[++i])
   {
     char * oldcmd = cmd;
-    cmd = xmsprintf("%s %s", oldcmd, toys.optargs[i]);
+    cmd = xmprintf("%s %s", oldcmd, toys.optargs[i]);
     if (CFG_TOYBOX_FREE) free(oldcmd);
   }
-  header = xmsprintf("Every %us: %s", TT.interval, cmd);
+  header = xmprintf("Every %us: %s", TT.interval, cmd);
   hlen = strlen(header);
 
   while(1) {

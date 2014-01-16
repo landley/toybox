@@ -1005,7 +1005,7 @@ static void add_new_partition(void)
     return;
   }
 
-  msg = xmsprintf("  %s\n  p  primary partition(1-4)\n",
+  msg = xmprintf("  %s\n  p  primary partition(1-4)\n",
           extended_offset? "l  logical (5 or over)" : "e  extended");
 
   choice = 0x20 | read_input(msg, NULL);

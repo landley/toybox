@@ -33,7 +33,7 @@ static char *snapshot_env(char *name)
 {
   char *s = getenv(name);
 
-  if (s) return xmsprintf("%s=%s", name, s);
+  if (s) return xmprintf("%s=%s", name, s);
 
   return 0;
 }

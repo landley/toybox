@@ -104,8 +104,8 @@ static void print_header(void)
           temp++;
           while (def_header[i].name) {
             if (!(strcmp(def_header[i].name, ptr))) { // search from default header
-              if (str) ptr = xmsprintf("%s,%s", temp, str); //handle condition like ppid = M,OM
-              else ptr = xmsprintf("%s", temp);
+              if (str) ptr = xmprintf("%s,%s", temp, str); //handle condition like ppid = M,OM
+              else ptr = xmprintf("%s", temp);
               list_add(&o_list, &def_header[i], ptr);
               break;
             }
@@ -163,7 +163,7 @@ void get_etime(unsigned long s_time)
   min = info.uptime - min;
   sec = min % 60;
   min = min / 60;
-  temp = xmsprintf("%3lu:%02u", min,sec);
+  temp = xmprintf("%3lu:%02u", min,sec);
   xprintf("%*.*s",7,7,temp);
   free(temp);
 }
@@ -177,7 +177,7 @@ void get_time(unsigned long s_time, unsigned long u_time)
   min = (s_time + u_time)/sysconf(_SC_CLK_TCK);
   sec = min % 60;
   min = min / 60;
-  temp = xmsprintf("%3lu:%02u", min,sec);
+  temp = xmprintf("%3lu:%02u", min,sec);
   xprintf("%*.*s",6,6,temp);
   free(temp);
 }
@@ -237,7 +237,7 @@ static void do_ps_line(int pid, int tid)
   name = ptr;
   ptr = strrchr(stat_buff, ')');
   *ptr = '\0'; //unecessary if?
-  name = xmsprintf("[%s]", name);
+  name = xmprintf("[%s]", name);
   ptr += 2; // goto STATE
   n = sscanf(ptr, "%c %u %u %*u %d %*s %*s %*s %*s %*s %*s "
       "%lu %lu %*s %*s %*s %d %*s %*s %lu %lu %ld",            
@@ -272,15 +272,15 @@ static void do_ps_line(int pid, int tid)
     switch (p->position) {
       case 0:
         pw = getpwuid(stats.st_uid);
-        if (!pw) user = xmsprintf("%d",(int)stats.st_uid);
-        else user = xmsprintf("%s", pw->pw_name);
+        if (!pw) user = xmprintf("%d",(int)stats.st_uid);
+        else user = xmprintf("%s", pw->pw_name);
         printf("%-*.*s", width, width, user);
         free(user);
         break;
       case 1:
         gr = getgrgid(stats.st_gid);
-        if (!gr) group = xmsprintf("%d",(int)stats.st_gid);
-        else group = xmsprintf("%s", gr->gr_name);
+        if (!gr) group = xmprintf("%d",(int)stats.st_gid);
+        else group = xmprintf("%s", gr->gr_name);
         printf("%-*.*s", width, width, group);
         free(group);
         break;
@@ -322,16 +322,16 @@ static void do_ps_line(int pid, int tid)
       case 9:
         get_uid_gid(stat_buff, "Gid:", &rgid);
         gr = getgrgid(rgid);
-        if (!gr) rgroup = xmsprintf("%d",(int)stats.st_gid);
-        else rgroup = xmsprintf("%s", gr->gr_name);
+        if (!gr) rgroup = xmprintf("%d",(int)stats.st_gid);
+        else rgroup = xmprintf("%s", gr->gr_name);
         printf("%-*.*s", width,width, rgroup);
         free(rgroup);
         break;
       case 10:
         get_uid_gid(stat_buff, "Uid:", &ruid);
         pw = getpwuid(ruid);
-        if (!pw) ruser = xmsprintf("%d",(int)stats.st_uid);
-        else ruser = xmsprintf("%s", pw->pw_name);
+        if (!pw) ruser = xmprintf("%d",(int)stats.st_uid);
+        else ruser = xmprintf("%s", pw->pw_name);
         printf("%-*.*s", width, width, ruser);
         free(ruser);
         break;
@@ -340,7 +340,7 @@ static void do_ps_line(int pid, int tid)
         break;
       case 12:
         if (tty_major) {
-          char *temp = xmsprintf("%d,%d", tty_major,tty_minor);
+          char *temp = xmprintf("%d,%d", tty_major,tty_minor);
           printf("%-*s", width, temp);
           free(temp);
         } else printf("%-*s", width, "?");
@@ -370,7 +370,7 @@ void do_ps_threads(int pid)
   DIR *d; 
   int tid;
   struct dirent *de;
-  char *tmp = xmsprintf("/proc/%d/task",pid);
+  char *tmp = xmprintf("/proc/%d/task",pid);
 
   if (!(d = opendir(tmp))) {
     free(tmp);

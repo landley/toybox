@@ -38,7 +38,7 @@ void mktemp_main(void)
     if (!TT.tmpdir) TT.tmpdir = "/tmp";
     tmp = "tmp.xxxxxx";
   }
-  if (TT.tmpdir) tmp = xmsprintf("%s/%s", TT.tmpdir ? TT.tmpdir : "/tmp",
+  if (TT.tmpdir) tmp = xmprintf("%s/%s", TT.tmpdir ? TT.tmpdir : "/tmp",
     *toys.optargs ? *toys.optargs : "tmp.XXXXXX");
 
   if (d_flag ? mkdtemp(tmp) == NULL : mkstemp(tmp) == -1)

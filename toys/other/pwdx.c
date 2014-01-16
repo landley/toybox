@@ -23,7 +23,7 @@ void pwdx_main(void)
     char *path;
     int num_bytes;
 
-    path = xmsprintf("/proc/%s/cwd", *optargs);
+    path = xmprintf("/proc/%s/cwd", *optargs);
     num_bytes = readlink(path, toybuf, sizeof(toybuf)-1);
     free(path);
 

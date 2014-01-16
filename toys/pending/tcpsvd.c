@@ -79,8 +79,8 @@ static char *sock_to_address(struct sockaddr *sock, int flags)
 
   if (!(status = getnameinfo(sock, len, hbuf, sizeof(hbuf), sbuf, 
           sizeof(sbuf), flags))) {
-    if (flags & NI_NUMERICSERV) return xmsprintf("%s:%s",hbuf, sbuf);
-    return xmsprintf("%s",hbuf);
+    if (flags & NI_NUMERICSERV) return xmprintf("%s:%s",hbuf, sbuf);
+    return xmprintf("%s",hbuf);
   }
   error_exit("getnameinfo: %s", gai_strerror(status));
 }

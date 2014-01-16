@@ -160,7 +160,7 @@ void passwd_main(void)
   } else if (toys.optflags & FLAG_l) {
     if (pass[0] == '!') error_exit("password is already locked for %s",name);
     printf("Locking password for %s\n",name);
-    encrypted = xmsprintf("!%s",pass);
+    encrypted = xmprintf("!%s",pass);
   } else if (toys.optflags & FLAG_u) {
     if (pass[0] != '!') error_exit("password is already unlocked for %s",name);
 

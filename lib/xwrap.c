@@ -66,7 +66,7 @@ char *xstrdup(char *s)
 }
 
 // Die unless we can allocate enough space to sprintf() into.
-char *xmsprintf(char *format, ...)
+char *xmprintf(char *format, ...)
 {
   va_list va, va2;
   int len;

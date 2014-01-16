@@ -59,10 +59,10 @@ static void new_group()
     }
   }
 
-  entry = xmsprintf("%s:%s:%d:", *toys.optargs, "x", TT.gid);
+  entry = xmprintf("%s:%s:%d:", *toys.optargs, "x", TT.gid);
   update_password(GROUP_PATH, *toys.optargs, entry);
   free(entry);
-  entry = xmsprintf("%s:%s::", *toys.optargs, "!");
+  entry = xmprintf("%s:%s::", *toys.optargs, "!");
   update_password(SECURE_GROUP_PATH, *toys.optargs, entry);
   free(entry);
 }
@@ -82,7 +82,7 @@ void groupadd_main(void)
     xgetpwnam(*toys.optargs);
     if (!(grp = getgrnam(toys.optargs[1]))) 
       error_exit("group '%s' does not exist", toys.optargs[1]);
-    if (!grp->gr_mem) entry = xmsprintf("%s", *toys.optargs);
+    if (!grp->gr_mem) entry = xmprintf("%s", *toys.optargs);
     else {
       int i;
 

@@ -176,7 +176,7 @@ static int parse_config_file(void)
    */
   if (toys.optflags & FLAG_R) {
     file = xzalloc(sizeof(struct logfile));
-    file->filename = xmsprintf("@%s",TT.remote_log);
+    file->filename = xmprintf("@%s",TT.remote_log);
     TT.lfiles = file;
     if (!(toys.optflags & FLAG_L)) return 0;
   }

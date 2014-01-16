@@ -155,8 +155,8 @@ static void inittab_parsing(void)
           case 1:
             if (*extracted_token) {
               if (!strncmp(extracted_token, "/dev/", 5))
-                tty_name = xmsprintf("%s",extracted_token);
-              else tty_name = xmsprintf("/dev/%s",extracted_token);
+                tty_name = xmprintf("%s",extracted_token);
+              else tty_name = xmprintf("/dev/%s",extracted_token);
             } else tty_name = xstrdup("");
             break;
           case 2:

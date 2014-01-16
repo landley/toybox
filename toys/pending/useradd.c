@@ -90,7 +90,7 @@ static void create_copy_skel(char *skel, char *hdir)
 
     args[0] = "chown";
     args[1] = "-R";
-    args[2] = xmsprintf("%u:%u", TT.uid, TT.gid);
+    args[2] = xmprintf("%u:%u", TT.uid, TT.gid);
     args[3] = hdir;
     //Change ownership to that of UID and GID of new user
     toys.exitval = exec_wait(args);
@@ -118,7 +118,7 @@ static void new_user()
   if (toys.optflags & FLAG_g) pwd.pw_gecos = TT.gecos;
   else pwd.pw_gecos = "Linux User,";
   if (toys.optflags & FLAG_h) pwd.pw_dir = TT.dir;
-  else pwd.pw_dir = xmsprintf("/home/%s", *toys.optargs);
+  else pwd.pw_dir = xmprintf("/home/%s", *toys.optargs);
   if (toys.optflags & FLAG_s) pwd.pw_shell = TT.shell;
   else pwd.pw_shell = get_shell();
 
@@ -168,7 +168,7 @@ static void new_user()
     //add group, invoke addgroup command
     args[0] = "groupadd";
     args[1] = toys.optargs[0];
-    args[2] = xmsprintf("-g%ld", pwd.pw_gid);
+    args[2] = xmprintf("-g%ld", pwd.pw_gid);
     args[3] = NULL;
     if (exec_wait(args)) error_msg("addgroup fail");
   }
@@ -180,15 +180,15 @@ static void new_user()
    */
 
   // 1. add an entry to /etc/passwd and /etc/shadow file
-  entry = xmsprintf("%s:%s:%ld:%ld:%s:%s:%s", pwd.pw_name, pwd.pw_passwd,
+  entry = xmprintf("%s:%s:%ld:%ld:%s:%s:%s", pwd.pw_name, pwd.pw_passwd,
       pwd.pw_uid, pwd.pw_gid, pwd.pw_gecos, pwd.pw_dir, pwd.pw_shell);
   if (update_password("/etc/passwd", pwd.pw_name, entry)) error_exit("updating passwd file failed");
   free(entry);
 
   if (toys.optflags & FLAG_S) 
-  entry = xmsprintf("%s:!!:%u::::::", pwd.pw_name, 
+  entry = xmprintf("%s:!!:%u::::::", pwd.pw_name, 
       (unsigned)(time(NULL))/(24*60*60)); //passwd is not set initially
-  else entry = xmsprintf("%s:!!:%u:%ld:%ld:%ld:::", pwd.pw_name, 
+  else entry = xmprintf("%s:!!:%u:%ld:%ld:%ld:::", pwd.pw_name, 
             (unsigned)(time(NULL))/(24*60*60), 0, 99999, 7); //passwd is not set initially
   update_password("/etc/shadow", pwd.pw_name, entry);
   free(entry);

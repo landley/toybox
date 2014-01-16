@@ -115,7 +115,7 @@ static char *append_pathandfile(char *path, char *fname)
   if (!path) path = "";
   c = find_last_char(path, '/');
   while (*fname == '/') fname++;
-  return xmsprintf("%s%s%s", path, (c)? "" : "/", fname);
+  return xmprintf("%s%s%s", path, (c)? "" : "/", fname);
 }
 /*
  * Concat sub-path and the file name.
@@ -211,10 +211,10 @@ static void show_data(unsigned rport, char *label, unsigned rxq, unsigned txq, c
 static char *get_servname(int port, char *label)
 {
   int lport = htons(port);
-  if (!lport) return xmsprintf("%s", "*");
+  if (!lport) return xmprintf("%s", "*");
   struct servent *ser = getservbyport(lport, label);
-  if (ser) return xmsprintf("%s", ser->s_name);
-  return xmsprintf("%u", (unsigned)ntohs(lport));
+  if (ser) return xmprintf("%s", ser->s_name);
+  return xmprintf("%u", (unsigned)ntohs(lport));
 }
 /*
  * used to convert address into text format.

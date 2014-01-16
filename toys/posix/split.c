@@ -100,7 +100,7 @@ void split_main(void)
   if (!TT.bytes && !TT.lines) TT.lines = 1000;
 
   // Allocate template for output filenames
-  TT.outfile = xmsprintf("%s% *c", (toys.optc == 2) ? toys.optargs[1] : "x",
+  TT.outfile = xmprintf("%s% *c", (toys.optc == 2) ? toys.optargs[1] : "x",
     (int)TT.suflen, ' ');
 
   // We only ever use one input, but this handles '-' or no input for us.

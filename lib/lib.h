@@ -83,7 +83,7 @@ void *xzalloc(size_t size);
 void *xrealloc(void *ptr, size_t size);
 char *xstrndup(char *s, size_t n);
 char *xstrdup(char *s);
-char *xmsprintf(char *format, ...);
+char *xmprintf(char *format, ...);
 void xprintf(char *format, ...);
 void xputs(char *s);
 void xputc(char c);

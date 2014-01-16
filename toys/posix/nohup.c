@@ -28,7 +28,7 @@ void nohup_main(void)
         S_IRUSR|S_IWUSR ))
     {
       char *temp = getenv("HOME");
-      temp = xmsprintf("%s/%s", temp ? temp : "", "nohup.out");
+      temp = xmprintf("%s/%s", temp ? temp : "", "nohup.out");
       xcreate(temp, O_CREAT|O_APPEND|O_WRONLY, S_IRUSR|S_IWUSR);
     }
   }

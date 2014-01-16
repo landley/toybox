@@ -129,7 +129,7 @@ int update_password(char *filename, char* username, char* entry)
   struct flock lock;
 
   shadow = strstr(filename, "shadow");
-  filenamesfx = xmsprintf("%s+", filename);
+  filenamesfx = xmprintf("%s+", filename);
   sfx = strchr(filenamesfx, '+');
 
   exfp = fopen(filename, "r+");
@@ -163,7 +163,7 @@ int update_password(char *filename, char* username, char* entry)
   }
 
   ret = 0;
-  namesfx = xmsprintf("%s:",username);
+  namesfx = xmprintf("%s:",username);
   while ((line = get_line(fileno(exfp))) != NULL)
   {
     if (strncmp(line, namesfx, strlen(namesfx)))

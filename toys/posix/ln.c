@@ -48,7 +48,7 @@ void ln_main(void)
     int rc;
     char *try = toys.optargs[i];
 
-    if (S_ISDIR(buf.st_mode)) new = xmsprintf("%s/%s", dest, basename(try));
+    if (S_ISDIR(buf.st_mode)) new = xmprintf("%s/%s", dest, basename(try));
     else new = dest;
     // Silently unlink the existing target (if any)
     if (toys.optflags & FLAG_f) unlink(new);

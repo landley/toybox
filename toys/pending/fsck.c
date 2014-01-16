@@ -198,9 +198,9 @@ static void do_fsck(struct f_sys_info *finfo)
   else type = "auto";
 
   args = xzalloc((toys.optc + 2 + 1 + 1) * sizeof(char*)); //+1, for NULL, +1 if -C
-  args[0] = xmsprintf("fsck.%s", type);
+  args[0] = xmprintf("fsck.%s", type);
   
-  if(toys.optflags & FLAG_C) args[i++] = xmsprintf("%s %d","-C", TT.fd_num);
+  if(toys.optflags & FLAG_C) args[i++] = xmprintf("%s %d","-C", TT.fd_num);
   while(toys.optargs[j]) {
     if(*toys.optargs[j]) args[i++] = xstrdup(toys.optargs[j]);
     j++;
