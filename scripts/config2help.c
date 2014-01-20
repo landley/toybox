@@ -10,29 +10,54 @@ void toy_exec(char *argv[]) {;}
 
 struct symbol {
   struct symbol *next;
-  int enabled;
+  int enabled, help_indent;
   char *name, *depends;
   struct double_list *help;
 } *sym;
+
+char *trim(char *s)
+{
+  while (isspace(*s)) s++;
+
+  return s;
+}
 
 char *keyword(char *name, char *line)
 {
   int len = strlen(name);
 
-  while (isspace(*line)) line++;
+  line = trim(line);
   if (strncmp(name, line, len)) return 0;
   line += len;
   if (*line && !isspace(*line)) return 0;
-  while (isspace(*line)) line++;
+  line = trim(line);
 
   return line;
+}
+
+char *dlist_zap(struct double_list **help)
+{
+  struct double_list *dd = dlist_pop(help);
+  char *s = dd->data;
+
+  free(dd);
+  return s;
+}
+
+void zap_blank_lines(struct double_list **help)
+{
+  for(;;) {
+    char *s = trim((*help)->data);;
+
+    if (*s) break;
+    free(dlist_zap(help));
+  }
 }
 
 void parse(char *filename)
 {
   FILE *fp = xfopen(filename, "r");
   struct symbol *new = 0;
-  int help = 0;
 
   for (;;) {
     char *s, *line = NULL;
@@ -48,7 +73,6 @@ void parse(char *filename)
 
     // source or config keyword at left edge?
     if (*line && !isspace(*line)) {
-      help = 0;
       if ((s = keyword("config", line))) {
         new = xzalloc(sizeof(struct symbol));
         new->next = sym;
@@ -60,13 +84,37 @@ void parse(char *filename)
     }
     if (!new) continue;
 
-    if (help) dlist_add(&(new->help), line);
+    if (sym && sym->help_indent) {
+      dlist_add(&(new->help), line);
+      if (sym->help_indent < 0) {
+        sym->help_indent = 0;
+        while (isspace(line[sym->help_indent])) sym->help_indent++;
+      }
+    }
     else if ((s = keyword("depends", line)) && (s = keyword("on", s)))
       new->depends = s;
-    else if (keyword("help", line)) help++;
+    else if (keyword("help", line)) sym->help_indent = -1;
   }
 
   fclose(fp);
+}
+
+int charsort(void *a, void *b)
+{
+  char *aa = a, *bb = b;
+
+  if (*aa < *bb) return -1;
+  if (*aa > *bb) return 1;
+  return 0;
+}
+
+int dashsort(void *a, void *b)
+{
+  char *aa = *(char **)a, *bb = *(char **)b;
+
+  if (aa[1] < bb[1]) return -1;
+  if (aa[1] > bb[1]) return 1;
+  return 0;
 }
 
 int main(int argc, char *argv[])
@@ -109,30 +157,65 @@ int main(int argc, char *argv[])
 
   for (;;) {
     struct symbol *throw = 0, *catch;
-    char *this, *that, *name;
+    char *this, *that, *cusage, *tusage, *name;
     int len;
 
     // find a usage: name and collate all enabled entries with that name
     for (catch = sym; catch; catch = catch->next) {
       if (catch->enabled != 1) continue;
-      if (catch->help && (this = keyword("usage:", catch->help->data))) {
+      if (catch->help && (that = keyword("usage:", catch->help->data))) {
         struct double_list *bang;
+        char *try;
 
+        // Suck help text out of throw into catch, copying from this to that
+
+        if (!throw) name = that;
+        else if (strncmp(name, that, len) || !isspace(that[len])) continue;
+        catch->enabled++;
+        while (!isspace(*that) && *that) that++;
+        if (!throw) len = that-name;
+        that = trim(that);
         if (!throw) {
           throw = catch;
-          catch->enabled++;
-          name = this;
-          while (!isspace(*this) && *this) this++;
-          len = (that = this)-name;
-          while (isspace(*that)) that++;
+          this = that;
 
           continue;
         }
 
-        if (strncmp(name, this, len) || !isspace(this[len])) continue;
-        catch->enabled++;
+        // Grab usage: lines to collate
+        cusage = dlist_zap(&catch->help);
+        zap_blank_lines(&catch->help);
+        tusage = dlist_zap(&throw->help);
+        zap_blank_lines(&throw->help);
 
-        // Suck help text out of throw into catch.
+        // Collate first [-abc] option block
+
+        try = 0;
+        if (*this == '[' && this[1] == '-' && this[2] != '-' &&
+            *that == '[' && that[1] == '-' && that[2] != '-')
+        {
+          char *from = this+2, *to = that+2;
+          int ff = strcspn(from, " ]"), tt = strcspn(to, " ]");
+
+          if (from[ff] == ']' && to[tt] == ']') {
+            try = xmprintf("[-%.*s%.*s] ", ff, from, tt, to);
+            qsort(try+2, ff+tt, 1, (void *)charsort);
+            this = trim(this+ff+3);
+            that = trim(that+tt+3);
+          }
+        }
+
+        // Add new collated line (and whitespace).
+        dlist_add(&catch->help, xmprintf("%*cusage: %.*s %s%s%s%s",
+                  catch->help_indent, ' ', len, name, try ? try : "",
+                  this, *this ? " " : "", that));
+        dlist_add(&catch->help, strdup(""));
+        catch->help = catch->help->prev->prev;
+
+        free(cusage);
+        free(tusage);
+        free(try);
+
         throw->enabled = 0;
 
         // splice together circularly linked lists
@@ -141,19 +224,16 @@ int main(int argc, char *argv[])
         throw->help->prev = catch->help->prev;
         catch->help->prev->next = throw->help;
         catch->help->prev = bang;
+
         throw->help = 0;
         throw = catch;
+        this = throw->help->data + throw->help_indent + 8 + len;
       }
     }
 
     // Did we find one?
 
     if (!throw) break;
-
-      // Collate first [-abc] option block?
-
-//      if (*s == '[' && s[1] == '-' && s[2] != '-') {
-//      }
   }
 
   // Print out help #defines
@@ -161,19 +241,16 @@ int main(int argc, char *argv[])
     struct double_list *dd;
 
     if (sym->help) {
-      int i, padlen = 0;
+      int i;
       char *s = xstrdup(sym->name);
 
       for (i = 0; s[i]; i++) s[i] = tolower(s[i]);
       printf("#define help_%s \"", s);
       free(s);
 
-      // Measure leading whitespace of first line
       dd = sym->help;
-      while (isspace(dd->data[padlen])) padlen++;
-
       for (;;) {
-        i = padlen;
+        i = sym->help_indent;
 
         // Trim leading whitespace
         s = dd->data;
