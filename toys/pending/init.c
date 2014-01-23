@@ -52,7 +52,7 @@ static void initialize_console(void)
     }
   } else {
     fd = open(p, O_RDWR | O_NONBLOCK | O_NOCTTY);
-    if (fd < 0) xprintf("Unable to open console %s\n",p);
+    if (fd < 0) printf("Unable to open console %s\n",p);
     else {
       dup2(fd,0);
       dup2(fd,1);
@@ -64,10 +64,10 @@ static void initialize_console(void)
 #ifdef VT_OPENQRY
   int terminal_no;
   if (ioctl(0, VT_OPENQRY, &terminal_no)) {
-    if (!p || !strcmp(p,"linux")) putenv((char*)"TERM=vt102");
+    if (!p || !strcmp(p,"linux")) putenv("TERM=vt102");
   } else
 #endif  
-  if (!p) putenv((char*)"TERM=linux");
+  if (!p) putenv("TERM=linux");
 }
 
 static void set_sane_term(void)
@@ -91,14 +91,6 @@ static void set_sane_term(void)
   terminal.c_oflag = ONLCR|OPOST;//Map NL to CR-NL on output
   terminal.c_lflag = IEXTEN|ECHOKE|ECHOCTL|ECHOK|ECHOE|ECHO|ICANON|ISIG;
   tcsetattr(0, TCSANOW, &terminal);
-}
-
-static void set_enviornment(void)
-{
-  putenv((char*)"HOME=/");
-  putenv((char*)"PATH=/sbin:/usr/sbin:/bin:/usr/bin");
-  putenv((char*)"SHELL=/bin/sh");
-  putenv((char*)"USER=root");
 }
 
 static void add_new_action(uint8_t action,char *command,char *term)
@@ -214,8 +206,8 @@ static void run_command(char *command)
   } else {
     snprintf(toybuf, sizeof(toybuf), "exec %s", command);
     command = "-/bin/sh"+1;
-    final_command[0] = (char*)("-/bin/sh"+!hyphen);
-    final_command[1] = (char*)"-c";
+    final_command[0] = ("-/bin/sh"+!hyphen);
+    final_command[1] = "-c";
     final_command[2] = toybuf;
     final_command[3] = NULL;
   }
@@ -243,7 +235,11 @@ static pid_t final_run(struct action_list_seed *x)
     sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
 
     return pid;      
-  } else if (pid < 0) perror_exit("fork fail");
+  } else if (pid < 0) {
+    perror_msg("fork fail");
+    sleep(1);
+    return 0;
+  }
 
   //new born child process
   sigset_t signal_set_c;
@@ -302,14 +298,15 @@ static void run_action_from_list(int action)
     if (!(x->action & action)) continue;
     if (x->action & (SHUTDOWN|ONCE|SYSINIT|CTRLALTDEL|WAIT)) {
       pid = final_run(x);
+      if (!pid) return;
       if (x->action & (SHUTDOWN|SYSINIT|CTRLALTDEL|WAIT)) waitforpid(pid);
     }
     if (x->action & (ASKFIRST|RESPAWN))
       if (!(x->pid)) x->pid = final_run(x);
   }
-}
+ }
 
-static void set_defualt(void)
+static void set_default(void)
 {
   sigset_t signal_set_c;
 
@@ -339,7 +336,7 @@ static void halt_poweroff_reboot_handler(int sig_no)
   unsigned int reboot_magic_no = 0;
   pid_t pid;
 
-  set_defualt();
+  set_default();
 
   switch (sig_no) {
     case SIGUSR1:
@@ -377,7 +374,7 @@ static void restart_init_handler(int sig_no)
   for (x = action_list_pointer; x; x = x->next) {
     if (!(x->action & RESTART)) continue;
 
-    set_defualt();
+    set_default();
 
     if (x->terminal_name[0]) {
       close(0);
@@ -431,26 +428,6 @@ static void pause_handler(int sig_no)
   caught_signal = signal_backup;
 }
 
-static void assign_signal_handler(void)
-{
-  struct sigaction sig_act;
-
-  signal(SIGUSR1, halt_poweroff_reboot_handler); //halt
-  signal(SIGUSR2, halt_poweroff_reboot_handler); //poweroff
-  signal(SIGTERM, halt_poweroff_reboot_handler); //reboot
-  signal(SIGQUIT, restart_init_handler);         //restart init
-  memset(&sig_act, 0, sizeof(sig_act));
-  sigfillset(&sig_act.sa_mask);
-  sigdelset(&sig_act.sa_mask, SIGCONT);
-  sig_act.sa_handler = pause_handler;
-  sigaction(SIGTSTP, &sig_act, NULL);
-  
-  memset(&sig_act, 0, sizeof(sig_act));
-  sig_act.sa_handler = catch_signal;
-  sigaction(SIGINT, &sig_act, NULL);
-  sigaction(SIGHUP, &sig_act, NULL);  
-}
-
 static int check_if_pending_signals(void)
 {
   int signal_caught = 0;
@@ -466,17 +443,34 @@ static int check_if_pending_signals(void)
 
 void init_main(void)
 {
+  struct sigaction sig_act;
+
   if (getpid() != 1) error_exit("Already running"); 
-  xprintf("Started init\n"); 
+  printf("Started init\n"); 
   initialize_console();
   set_sane_term();
 
   if (chdir("/")) perror_exit("Can't cd to /");
   setsid();
 
-  set_enviornment();
+  putenv("HOME=/");
+  putenv("PATH=/sbin:/usr/sbin:/bin:/usr/bin");
+  putenv("SHELL=/bin/sh");
+  putenv("USER=root");
   inittab_parsing();  
-  assign_signal_handler();
+  signal(SIGUSR1, halt_poweroff_reboot_handler);//halt
+  signal(SIGUSR2, halt_poweroff_reboot_handler);//poweroff
+  signal(SIGTERM, halt_poweroff_reboot_handler);//reboot
+  signal(SIGQUIT, restart_init_handler);//restart init
+  memset(&sig_act, 0, sizeof(sig_act));
+  sigfillset(&sig_act.sa_mask);
+  sigdelset(&sig_act.sa_mask, SIGCONT);
+  sig_act.sa_handler = pause_handler;
+  sigaction(SIGTSTP, &sig_act, NULL);
+  memset(&sig_act, 0, sizeof(sig_act));
+  sig_act.sa_handler = catch_signal;
+  sigaction(SIGINT, &sig_act, NULL);
+  sigaction(SIGHUP, &sig_act, NULL);  
   run_action_from_list(SYSINIT);
   check_if_pending_signals();
   run_action_from_list(WAIT);
