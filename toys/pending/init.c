@@ -17,7 +17,6 @@ config INIT
 */
 
 #include "toys.h"
-#include <linux/vt.h>
 #include <sys/reboot.h>
 
 struct action_list_seed {
@@ -60,14 +59,7 @@ static void initialize_console(void)
     }
   }
 
-  p = getenv("TERM");
-#ifdef VT_OPENQRY
-  int terminal_no;
-  if (ioctl(0, VT_OPENQRY, &terminal_no)) {
-    if (!p || !strcmp(p,"linux")) putenv("TERM=vt102");
-  } else
-#endif  
-  if (!p) putenv("TERM=linux");
+  if (!getenv("TERM")) putenv("TERM=linux");
 }
 
 static void set_sane_term(void)
