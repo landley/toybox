@@ -21,7 +21,7 @@ config CHVT
 
 void chvt_main(void)
 {
-  int vtnum, fd;
+  int vtnum, fd = fd;
   char *consoles[]={"/dev/console", "/dev/vc/0", "/dev/tty", NULL}, **cc;
 
   vtnum=atoi(*toys.optargs);
