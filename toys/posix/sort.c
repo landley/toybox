@@ -52,10 +52,9 @@ config SORT_FLOAT
   help
     usage: sort [-g]
 
-    This version of sort requires floating point.
-
     -g	general numeric sort (double precision with nan and inf)
 
+    This version of sort requires floating point.
 */
 
 #define FOR_sort
