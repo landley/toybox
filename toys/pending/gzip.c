@@ -5,28 +5,34 @@
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/gzip.html
  * And RFCs 1950, 1951, and 1952
 
-USE_GZIP(NEWTOY(gzip, "qvcdrgzp", TOYFLAG_USR|TOYFLAG_BIN))
+USE_GZIP(NEWTOY(gzip, "qvcdrgzp[-qv][-cd][!rgpz]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config GZIP
   bool "gzip"
   default n
   help
-    usage: gzip [-qvcdrgzp] FILE
+    usage: gzip [-cdgpqrvz] [FILE]
 
     Transitional gzip, needs work. Combines gzip, zlib, and pkzip.
 
-    -q quiet (default)\n
-    -v verbose\n
-    -c compress (default)\n
-    -d decompress\n
-    -r raw (default)\n
-    -g gzip\n
-    -z zlib\n
-    -p pkzip\n
+    -c compress (default)
+    -d decompress
+    -g gzip
+    -p pkzip
+    -q quiet (default)
+    -r raw (default)
+    -v verbose
+    -z zlib
 */
 
 #define FOR_gzip
 #include "toys.h"
+
+GLOBALS(
+  // base offset and extra bits tables (length and distance)
+  char lenbits[29], distbits[30];
+  unsigned short lenbase[29], distbase[30];
+)
 
 typedef unsigned char uchar;
 typedef unsigned short ushort;
@@ -40,6 +46,53 @@ enum {
   FlateOut = -3
 };
 
+enum {
+  CodeBits        = 16,  /* max number of bits in a code + 1 */
+  LitlenTableBits = 9,   /* litlen code bits used in lookup table */
+  DistTableBits   = 6,   /* dist code bits used in lookup table */
+  ClenTableBits   = 6,   /* clen code bits used in lookup table */
+  TableBits       = LitlenTableBits, /* log2(lookup table size) */
+  Nlit            = 256, /* number of lit codes */
+  Nlen            = 29,  /* number of len codes */ // sizeof(lenbits)
+  Nlitlen         = Nlit+Nlen+3, /* litlen codes + block end + 2 unused */
+  Ndist           = 30,  /* number of distance codes */ // sizeof(distbits)
+  Nclen           = 19,  /* number of code length codes */
+
+  EOB         = 256,     /* end of block symbol */
+  MinMatch    = 3,       /* min match length */
+  MaxMatch    = 258,     /* max match length */
+  WinSize     = 1 << 15, /* sliding window size */
+
+  MaxChainLen = 256,     /* max length of hash chain */
+  HashBits    = 13,
+  HashSize    = 1 << HashBits, /* hash table size */
+  BigDist     = 1 << 12, /* max match distance for short match length */
+  MaxDist     = WinSize,
+  BlockSize   = 1 << 15, /* TODO */
+  SrcSize     = 2*WinSize + MaxMatch,
+  DstSize     = BlockSize + MaxMatch + 6, /* worst case compressed block size */
+  LzSize      = 1 << 13, /* lz buffer size */
+  LzGuard     = LzSize - 2,
+  LzLitFlag   = 1 << 15  /* marks literal run length in lz buffer */
+};
+
+/* states */
+enum {
+  BlockHead,
+  UncompressedBlock,
+  CopyUncompressed,
+  FixedHuff,
+  DynamicHuff,
+  DynamicHuffClen,
+  DynamicHuffLitlenDist,
+  DynamicHuffContinue,
+  DecodeBlock,
+  DecodeBlockLenBits,
+  DecodeBlockDist,
+  DecodeBlockDistBits,
+  DecodeBlockCopy
+};
+
 typedef struct {
   int nin;
   int nout;
@@ -48,6 +101,47 @@ typedef struct {
   char *err;
   void *state;
 } FlateStream;
+
+typedef struct {
+  short len;  /* code length */
+  ushort sym; /* symbol */
+} Entry;
+
+/* huffman code tree */
+typedef struct {
+  Entry table[1 << TableBits]; /* prefix lookup table */
+  uint nbits;             /* prefix length (table size is 1 << nbits) */
+  uint sum;               /* full codes in table: sum(count[0..nbits]) */
+  ushort count[CodeBits]; /* number of codes with given length */
+  ushort symbol[Nlitlen]; /* symbols ordered by code length (lexic.) */
+} Huff;
+
+typedef struct {
+  uchar *src;  /* input buffer pointer */
+  uchar *srcend;
+
+  uint bits;
+  uint nbits;
+
+  uchar win[WinSize]; /* output window */
+  uint pos;    /* window pos */
+  uint posout; /* used for flushing win */
+
+  int state;   /* decode state */
+  int final;   /* last block flag */
+  char *err;   /* TODO: error message */
+
+  /* for decoding dynamic code trees in inflate() */
+  int nlit;
+  int ndist;
+  int nclen;   /* also used in decode_block() */
+  int lenpos;  /* also used in decode_block() */
+  uchar lens[Nlitlen + Ndist];
+
+  int fixed;   /* fixed code tree flag */
+  Huff lhuff;  /* dynamic lit/len huffman code tree */
+  Huff dhuff;  /* dynamic distance huffman code tree */
+} DecodeState;
 
 int deflate(FlateStream *s);
 int inflate(FlateStream *s);
@@ -147,111 +241,9 @@ uint adler32(uchar *p, int n, uint adler)
   return (s2 << 16) + s1;
 }
 
-enum {
-  CodeBits        = 16,  /* max number of bits in a code + 1 */
-  LitlenTableBits = 9,   /* litlen code bits used in lookup table */
-  DistTableBits   = 6,   /* dist code bits used in lookup table */
-  ClenTableBits   = 6,   /* clen code bits used in lookup table */
-  TableBits       = LitlenTableBits, /* log2(lookup table size) */
-  Nlit            = 256, /* number of lit codes */
-  Nlen            = 29,  /* number of len codes */
-  Nlitlen         = Nlit+Nlen+3, /* litlen codes + block end + 2 unused */
-  Ndist           = 30,  /* number of distance codes */
-  Nclen           = 19,  /* number of code length codes */
-
-  EOB         = 256,     /* end of block symbol */
-  MinMatch    = 3,       /* min match length */
-  MaxMatch    = 258,     /* max match length */
-  WinSize     = 1 << 15, /* sliding window size */
-
-  MaxChainLen = 256,     /* max length of hash chain */
-  HashBits    = 13,
-  HashSize    = 1 << HashBits, /* hash table size */
-  BigDist     = 1 << 12, /* max match distance for short match length */
-  MaxDist     = WinSize,
-  BlockSize   = 1 << 15, /* TODO */
-  SrcSize     = 2*WinSize + MaxMatch,
-  DstSize     = BlockSize + MaxMatch + 6, /* worst case compressed block size */
-  LzSize      = 1 << 13, /* lz buffer size */
-  LzGuard     = LzSize - 2,
-  LzLitFlag   = 1 << 15  /* marks literal run length in lz buffer */
-};
-
-/* states */
-enum {
-  BlockHead,
-  UncompressedBlock,
-  CopyUncompressed,
-  FixedHuff,
-  DynamicHuff,
-  DynamicHuffClen,
-  DynamicHuffLitlenDist,
-  DynamicHuffContinue,
-  DecodeBlock,
-  DecodeBlockLenBits,
-  DecodeBlockDist,
-  DecodeBlockDistBits,
-  DecodeBlockCopy
-};
-
-typedef struct {
-  short len;  /* code length */
-  ushort sym; /* symbol */
-} Entry;
-
-/* huffman code tree */
-typedef struct {
-  Entry table[1 << TableBits]; /* prefix lookup table */
-  uint nbits;             /* prefix length (table size is 1 << nbits) */
-  uint sum;               /* full codes in table: sum(count[0..nbits]) */
-  ushort count[CodeBits]; /* number of codes with given length */
-  ushort symbol[Nlitlen]; /* symbols ordered by code length (lexic.) */
-} Huff;
-
-typedef struct {
-  uchar *src;  /* input buffer pointer */
-  uchar *srcend;
-
-  uint bits;
-  uint nbits;
-
-  uchar win[WinSize]; /* output window */
-  uint pos;    /* window pos */
-  uint posout; /* used for flushing win */
-
-  int state;   /* decode state */
-  int final;   /* last block flag */
-  char *err;   /* TODO: error message */
-
-  /* for decoding dynamic code trees in inflate() */
-  int nlit;
-  int ndist;
-  int nclen;   /* also used in decode_block() */
-  int lenpos;  /* also used in decode_block() */
-  uchar lens[Nlitlen + Ndist];
-
-  int fixed;   /* fixed code tree flag */
-  Huff lhuff;  /* dynamic lit/len huffman code tree */
-  Huff dhuff;  /* dynamic distance huffman code tree */
-} DecodeState;
-
 /* TODO: globals.. initialization is not thread safe */
 static Huff lhuff; /* fixed lit/len huffman code tree */
 static Huff dhuff; /* fixed distance huffman code tree */
-
-/* base offset and extra bits tables */
-static uchar lenbits[Nlen] = {
-  0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0
-};
-static ushort lenbase[Nlen] = {
-  3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258
-};
-static uchar distbits[Ndist] = {
-  0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13
-};
-static ushort distbase[Ndist] = {
-  1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577
-};
 
 /* ordering of code lengths */
 static uchar clenorder[Nclen] = {
@@ -513,14 +505,14 @@ static int decode_block(DecodeState *s, Huff *lhuff, Huff *dhuff)
         return FlateErr;
       }
   case DecodeBlockLenBits:
-      if (!fillbits_fast(&s->src, s->srcend, &s->bits, &s->nbits, lenbits[sym]))
+      if (!fillbits_fast(&s->src, s->srcend, &s->bits, &s->nbits, TT.lenbits[sym]))
       {
         s->nclen = sym; /* using nclen to store sym */
         s->pos = pos;
         s->state = DecodeBlockLenBits;
         return FlateIn;
       }
-      len = lenbase[sym] + getbits_fast(&s->bits, &s->nbits, lenbits[sym]);
+      len = TT.lenbase[sym] + getbits_fast(&s->bits, &s->nbits, TT.lenbits[sym]);
   case DecodeBlockDist:
       sym = decode_symbol(s, dhuff);
       if (sym == (uint)FlateIn) {
@@ -531,17 +523,17 @@ static int decode_block(DecodeState *s, Huff *lhuff, Huff *dhuff)
       }
       if (sym >= Ndist) return FlateErr;
   case DecodeBlockDistBits:
-      if (!fillbits_fast(&s->src, s->srcend, &s->bits, &s->nbits, distbits[sym])) {
+      if (!fillbits_fast(&s->src, s->srcend, &s->bits, &s->nbits, TT.distbits[sym])) {
         s->nclen = sym; /* using nclen to store sym */
         s->pos = pos;
         s->lenpos = len;
         s->state = DecodeBlockDistBits;
         return FlateIn;
       }
-      dist = distbase[sym] + getbits_fast(&s->bits, &s->nbits, distbits[sym]);
+      dist = TT.distbase[sym] + getbits_fast(&s->bits, &s->nbits, TT.distbits[sym]);
       /* copy match, loop unroll in common case */
       if (pos + len < WinSize) {
-        /* lenbase[sym] >= 3 */
+        /* TT.lenbase[sym] >= 3 */
         do {
           win[pos] = win[(pos - dist) % WinSize];
           pos++;
@@ -1025,12 +1017,12 @@ static void putblock(State *s, ushort *lcode, uchar *llen, ushort *dcode,
     if (lz->bits & LzLitFlag) {
       for (n = lz->n; n > 0; n--, p++) putbits(s, lcode[*p], llen[*p]);
     } else {
-      p += lenbase[lz->n] + lz->bits;
+      p += TT.lenbase[lz->n] + lz->bits;
       putbits(s, lcode[Nlit + lz->n + 1], llen[Nlit + lz->n + 1]);
-      putbits(s, lz->bits, lenbits[lz->n]);
+      putbits(s, lz->bits, TT.lenbits[lz->n]);
       lz++;
       putbits(s, dcode[lz->n], dlen[lz->n]);
-      putbits(s, lz->bits, distbits[lz->n]);
+      putbits(s, lz->bits, TT.distbits[lz->n]);
     }
   }
   putbits(s, lcode[EOB], llen[EOB]);
@@ -1085,16 +1077,16 @@ static void deflate_block(State *s)
         dynsize += llen[*p];
       }
     } else {
-      p += lenbase[lz->n] + lz->bits;
+      p += TT.lenbase[lz->n] + lz->bits;
       fixsize += fixllen[Nlit + lz->n + 1];
       dynsize += llen[Nlit + lz->n + 1];
-      fixsize += lenbits[lz->n];
-      dynsize += lenbits[lz->n];
+      fixsize += TT.lenbits[lz->n];
+      dynsize += TT.lenbits[lz->n];
       lz++;
       fixsize += fixdlen[lz->n];
       dynsize += dlen[lz->n];
-      fixsize += distbits[lz->n];
-      dynsize += distbits[lz->n];
+      fixsize += TT.distbits[lz->n];
+      dynsize += TT.distbits[lz->n];
     }
   }
   fixsize += fixllen[EOB];
@@ -1171,14 +1163,14 @@ static void recordmatch(State *s, Match m)
 
 /*fprintf(stderr, "m %d %d\n", m.len, m.dist);*/
   flushlit(s);
-  n = bisect(lenbase, Nlen, m.len);
+  n = bisect(TT.lenbase, Nlen, m.len);
   s->lz->n = n;
-  s->lz->bits = m.len - lenbase[n];
+  s->lz->bits = m.len - TT.lenbase[n];
   s->lz++;
   s->lfreq[Nlit + n + 1]++;
-  n = bisect(distbase, Ndist, m.dist);
+  n = bisect(TT.distbase, Ndist, m.dist);
   s->lz->n = n;
-  s->lz->bits = m.dist - distbase[n];
+  s->lz->bits = m.dist - TT.distbase[n];
   s->lz++;
   s->dfreq[n]++;
 }
@@ -1811,66 +1803,40 @@ int decompress_stream(FILE *in, FILE *out)
     }
 }
 
-static int old_main(int argc, char *argv[])
+void gzip_main(void)
 {
-  char comp = 'c';
-  char fmt = 'r';
-  char verbose = 'q';
   int (*call)(FILE *, FILE*);
-  int n, i;
+  int n = 1, i;
 
-  for (i = 1; i < argc; i++) {
-    if (argv[i][0] == '-' && argv[i][1] && argv[i][2] == 0)
-      switch (argv[i][1]) {
-      case 'q':
-      case 'v':
-        verbose = argv[i][1];
-        continue;
-      case 'c':
-      case 'd':
-        comp = argv[i][1];
-        continue;
-      case 'r':
-      case 'g':
-      case 'z':
-      case 'p':
-        fmt = argv[i][1];
-        continue;
-      }
-    fprintf(stderr, "usage: %s [-q|-v] [-c|-d] [-r|-g|-z|-p]\n\n"
-      "deflate stream compression\n"
-      " -q quiet (default)\n"
-      " -v verbose\n"
-      " -c compress (default)\n"
-      " -d decompress\n"
-      " -r raw (default)\n"
-      " -g gzip\n"
-      " -z zlib\n"
-      " -p pkzip\n", argv[0]);
-    return -1;
+  // Calculate lenbits, lenbase, distbits, distbase
+  *TT.lenbase = 3;
+  for (i = 0; i<sizeof(TT.lenbits)-1; i++) {
+    if (i>4) {
+      if (!(i&3)) {
+        TT.lenbits[i]++;
+        n <<= 1;
+      } 
+      if (i == 27) n--;
+      else TT.lenbits[i+1] = TT.lenbits[i];
+    }
+    TT.lenbase[i+1] = n + TT.lenbase[i];
   }
-  call = comp == 'c' ? compress_stream : decompress_stream;
-  switch (fmt) {
-  case 'r':
+  n = 0;
+  for (i = 0; i<sizeof(TT.distbits); i++) {
+    TT.distbase[i] = 1<<n;
+    if (i) TT.distbase[i] += TT.distbase[i-1];
+    if (i>3 && !(i&1)) n++;
+    TT.distbits[i] = n;
+  }
+
+  call = (toys.optflags & FLAG_c) ? compress_stream : decompress_stream;
+
+  if (toys.optflags & FLAG_r) {
     header = dummyheader;
     footer = dummyfooter;
     checksum = dummysum;
-    n = call(stdin, stdout);
-    break;
-  case 'g':
-    if (comp == 'c') {
-      header = deflate_gzip_header;
-      footer = deflate_gzip_footer;
-    } else {
-      header = inflate_gzip_header;
-      footer = inflate_gzip_footer;
-    }
-    checksum = crc32;
-    crc32init();
-    n = call(stdin, stdout);
-    break;
-  case 'z':
-    if (comp == 'c') {
+  } else if (toys.optflags & FLAG_z) {
+    if (toys.optflags & FLAG_c) {
       header = deflate_zlib_header;
       footer = deflate_zlib_footer;
     } else {
@@ -1878,39 +1844,35 @@ static int old_main(int argc, char *argv[])
       footer = inflate_zlib_footer;
     }
     checksum = adler32;
-    n = call(stdin, stdout);
-    break;
-  case 'p':
-    if (comp == 'c') {
-      header = deflate_pkzip_header;
-      footer = deflate_pkzip_footer;
-    } else {
-      header = inflate_pkzip_header;
-      footer = inflate_pkzip_footer;
-    }
+  } else {
     checksum = crc32;
     crc32init();
-    n = call(stdin, stdout);
-    break;
-  default:
-    err = "uninplemented.";
-    n = FlateErr;
-    break;
+
+    if (toys.optflags & FLAG_p) {
+      if (toys.optflags & FLAG_c) {
+        header = deflate_pkzip_header;
+        footer = deflate_pkzip_footer;
+      } else {
+        header = inflate_pkzip_header;
+        footer = inflate_pkzip_footer;
+      }
+    } else {
+      if (toys.optflags & FLAG_c) {
+        header = deflate_gzip_header;
+        footer = deflate_gzip_footer;
+      } else {
+        header = inflate_gzip_header;
+        footer = inflate_gzip_footer;
+      }
+    }
   }
-  if (verbose == 'v')
+
+  toys.exitval = call(stdin, stdout);
+
+  if (toys.optflags & FLAG_v)
     fprintf(stderr, "in:%d out:%d checksum: 0x%08x (header:%d data:%d footer:%d extra input:%s)\n",
-      nin, nout, sum, headerlen, (comp == 'c' ? nout : nin) - headerlen - footerlen - extralen,
+      nin, nout, sum, headerlen, ((toys.optflags & FLAG_c) ? nout : nin) - headerlen - footerlen - extralen,
       footerlen, extralen ? "yes" : "no");
-  if (n != FlateOk)
-    fprintf(stderr, "error: %s\n", err);
-  return n;
-}
 
-// Total hack
-void gzip_main(void)
-{
-  int i;
-
-  for (i=0; toys.argv[i]; i++);
-  old_main(i, toys.argv);
+  if (toys.exitval) fprintf(stderr, "error: %s\n", err);
 }
