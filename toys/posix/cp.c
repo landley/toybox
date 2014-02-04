@@ -28,11 +28,11 @@ config CP
     -P	Do not follow symlinks [default]
 
 config CP_MORE
-  bool "cp -rdavsl options"
+  bool "cp -adlnrsv options"
   default y
   depends on CP
   help
-    usage: cp [-rdavsl]
+    usage: cp [-adlnrsv]
 
     -a	same as -dpr
     -d	don't dereference symlinks

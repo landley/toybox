@@ -26,7 +26,7 @@ config MKE2FS_JOURNAL
   default n
   depends on MKE2FS
   help
-    usage: [-j] [-J size=###,device=XXX]
+    usage: mke2fs [-j] [-J size=###,device=XXX]
 
     -j         Create journal (ext3)
     -J         Journal options

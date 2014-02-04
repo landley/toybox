@@ -26,12 +26,10 @@ config DF_PEDANTIC
     usage: df [-Pk]
 
     -P	The SUSv3 "Pedantic" option
-
-    Provides a slightly less useful output format dictated by
-    the Single Unix Specification version 3, and sets the
-    units to 512 bytes instead of the default 1024 bytes.
-
     -k	Sets units back to 1024 bytes (the default without -P)
+
+    Pedantic provides a slightly less useful output format dictated by Posix,
+    and sets the units to 512 bytes instead of the default 1024 bytes.
 */
 
 #define FOR_df
