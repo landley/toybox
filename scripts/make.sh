@@ -131,7 +131,7 @@ GLOBSTRUCT="$(getglobals)"
 echo "generated/help.h"
 do_loudly $HOSTCC scripts/config2help.c -I . lib/xwrap.c lib/llist.c lib/lib.c \
   -o generated/config2help && \
-generated/config2help Config.in .config > generated/help.h || exit 1
+generated/config2help Config.in $KCONFIG_CONFIG > generated/help.h || exit 1
 
 # Extract a list of toys/*/*.c files to compile from the data in $KCONFIG_CONFIG
 
