@@ -64,15 +64,19 @@ struct ifreq_inet6 {
 };
 
 // Convert hostname to binary address for AF_INET or AF_INET6
-void get_addrinfo(char *host, sa_family_t af, void *addr)
+// return /prefix (or range max if none)
+int get_addrinfo(char *host, sa_family_t af, void *addr)
 {
   struct addrinfo hints, *result, *rp = 0;
   int status, len;
-  char *from;
+  char *from, *slash;
 
   memset(&hints, 0 , sizeof(struct addrinfo));
   hints.ai_family = af;
   hints.ai_socktype = SOCK_STREAM;
+
+  slash = strchr(host, '/');
+  if (slash) *slash = 0;
 
   status = getaddrinfo(host, NULL, &hints, &result);
   if (!status)
@@ -89,6 +93,11 @@ void get_addrinfo(char *host, sa_family_t af, void *addr)
   } else len = 4;
   memcpy(addr, from, len);
   freeaddrinfo(result);
+
+  len = -1;
+  if (slash) len = atolx_range(slash+1, 0, (af == AF_INET) ? 128 : 32);
+
+  return len;
 }
 
 static void display_ifconfig(char *name, int always, unsigned long long val[])
@@ -443,21 +452,15 @@ void ifconfig_main(void)
         unsigned prefix;
         int index;
       } ifre6;
-      int plen = 128, fd6 = xsocket(AF_INET6, SOCK_DGRAM, 0);
-      char *prefix;
+      int plen, fd6 = xsocket(AF_INET6, SOCK_DGRAM, 0);
 
       if (!argv[1]) {
         toys.exithelp++;
         error_exit(*argv);
       }
 
-      prefix = strchr(argv[1], '/');
-      if (prefix) {
-        plen = atolx_range(prefix+1, 0, 128);
-        *prefix = 0;
-      }
-
-      get_addrinfo(argv[1], AF_INET6, &ifre6.addr);
+      plen = get_addrinfo(argv[1], AF_INET6, &ifre6.addr);
+      if (plen < 0) plen = 128;
       xioctl(fd6, SIOCGIFINDEX, &ifre);
       ifre6.index = ifre.ifr_ifindex;
       ifre6.prefix = plen;
@@ -491,12 +494,21 @@ void ifconfig_main(void)
             break;
           } else if (t->name || !strchr(ifre.ifr_name, ':')) {
             struct sockaddr_in *si = (struct sockaddr_in *)&ifre.ifr_addr;
+            int mask = -1;
 
             si->sin_family = AF_INET;
 
             if (!strcmp(*argv, "default")) si->sin_addr.s_addr = INADDR_ANY;
-            else get_addrinfo(*argv, AF_INET, &si->sin_addr);
+            else mask = get_addrinfo(*argv, AF_INET, &si->sin_addr);
             xioctl(TT.sockfd, off, &ifre);
+
+            // Handle /netmask
+            if (mask >= 0) {
+              // sin_addr probably isn't unaligned, but just in case...
+              mask = htonl((~0)<<(32-mask));
+              memcpy(&si->sin_addr, &mask, 4);
+              xioctl(TT.sockfd, SIOCSIFNETMASK, &ifre);
+            }
           }
         }
         off = 0;
