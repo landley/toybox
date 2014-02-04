@@ -72,11 +72,10 @@ not directly related to a specific cleanup series:</p>
 
 <a name="uuencode"><h1><a href=/hg/toybox/log/900/toys/pending/uuencode.c>uuencode</a></h1>
 
-<p>This is an example of cleaning up something
-that started in a condition most projects would be quite happy with.
-The initial submission of uuencode and uudecode was a good high
-quality contribution, written by a seasoned developer who did an excellent
-job. It was still possible to shrink uuencode almost by half:</p>
+<p>This is an example of cleaning up something most projects would be quite
+happy with. The initial submission of uuencode and uudecode was high
+quality code, written by a seasoned developer who did an excellent
+job, but it was still possible to shrink the result almost by half:</p>
 
 <ul>
 <li>old total: <a href=/hg/toybox/file/828/toys/pending/uuencode.c>116 lines (2743
@@ -86,20 +85,22 @@ bytes) in 1 function</a></li>
 </ul>
 
 <ul>
-<li>commit: <a href=/hg/toybox/rev/830>830</a>,
-description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000904.html>part 1</a> and
+<li>commit: <a href=/hg/toybox/rev/830>830</a>: first pass, description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000904.html>part 1</a>,
 <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000903.html>part 2</a></li>
 <li>commit: <a href=/hg/toybox/rev/831>831</a>,
-description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000919.html>inline, default Y, move to toys/posix</a></li>
+second pass, description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000919.html>part 3</a></li>
 <li>commit: <a href=/hg/toybox/rev/837>837</a>,
-description: test suite.</li>
+description: fix test suite.</li>
+<li>commit: <a href=/hg/toybox/rev/853>853</a>, description: bugfix.</li>
 </ul>
 
 <p>Status: COMPLETE</p>
 
 <a name="uudecode"><h1><a href=/hg/toybox/log/900/toys/pending/uudecode.c>uudecode</a></h1>
 
-<p>I tried to do the uudecode cleanup in smaller stages than uuencode:</p>
+<p>The uudecode cleanup was my second "explain as I go along" cleanup,
+and I tried to do it in smaller stages so it was easier to see what
+changed from the diff:</p>
 
 <ul>
 <li>old: <a href=/hg/toybox/file/828/toys/pending/uudecode.c>175
@@ -117,7 +118,7 @@ description: todo</a></li>
 description: todo</a></li>
 <li>commit: <a href=/hg/toybox/rev/839>839</a>,
 description: todo</a></li>
-<li>commit: <a href=/hg/toybox/rev/839>839</a>,
+<li>commit: <a href=/hg/toybox/rev/840>840</a>,
 description: todo (finish, move pending->posix, default y)</a></li>
 </ul>
 
@@ -126,13 +127,15 @@ description: todo (finish, move pending->posix, default y)</a></li>
 <a name=ifconfig>
 <h1><a href=/hg/toybox/log/tip/toys/pending/ifconfig.c>ifconfig</a></h1>
 
+<p>This series describes a thorough cleanup that took a while to do.</p>
+
 <p>When ifconfig was submitted, it touched a half-dozen files. I glued it
 together into a single self-contained file, which needed a lot of
 cleanup. The final version is about 1/3 the size of the original.</p>
 
 <ul>
 <li>old total: <a href=/hg/toybox/file/841/toys/pending/ifconfig.c>1504 lines (44268 bytes) in 38 functions</a></li>
-<li>new total: <a href=/hg/toybox/file/1113/toys/other/ifconfig.c>521 lines (15963 bytes) in 4 function</a></li>
+<li>new total: <a href=/hg/toybox/file/1113/toys/other/ifconfig.c>521 lines (15963 bytes) in 4 functions</a></li>
 </ul>
 
 <p>This was the first command I started cleaning up with the intent of
@@ -162,9 +165,12 @@ description:
 infrastructure cleanup from Isaac Dunham</a>
 (which I mis-applied and then <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000920.html>fixed plus some whitespace changes</a>)</li>
 
-<li>commit: <a href=/hg/toybox/rev/862>862</a>,
-<a href=/hg/toybox/rev/864>864</a>,
-<a href=/hg/toybox/rev/866>866</a>: todo</li>
+<li>commit: <a href=/hg/toybox/rev/862>862</a>, description:
+<a href=http://lists.landley.net/pipermail/toybox-landley.net/2014-January/001525.html>remove unused headers and function, replace local buffer with toybuf, perror_exit(), avoid unnecessary assignment.</a></li>
+<li>commit: <a href=/hg/toybox/rev/864>864</a>, description:
+<a href=>blah</a></li>
+<li>commit: <a href=/hg/toybox/rev/866>866</a>, description:
+<a href=>blah</a></li>
 
 <li>commit: <a href=/hg/toybox/rev/869>869</a> and <a href=/hg/toybox/rev/870>870</a>,
 description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000928.html>869:
@@ -181,8 +187,8 @@ after repeated inlining</a></li>
 <li>commit: <a href=/hg/toybox/rev/883>883</a>,
 description: move some common code to lib/ and posix headers to toys.h.</li>
 <li>commit: <a href=/hg/toybox/rev/898>898</a>,
-description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/000974.html>Replace ifconfig_main() if/else staircase with a loop over
-an array, genericize - prefix logic, inline a use of set_flags().</a></li>
+description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/000974.html>Argument parsing. (Replace ifconfig_main() if/else staircase with a loop over
+an array, genericize minus prefix logic, inline a use of set_flags().)</a></li>
 <li>commit: <a href=/hg/toybox/rev/905>905</a>,
 description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/000992.html>remove unnecessary wrapper function, inlining more functions,
 relying on the values of constants that don't change across architectures
@@ -238,26 +244,27 @@ description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-
 
 <h1><a href=/hg/toybox/log/917/toys/pending/stat.c>stat</a></h1>
 
-<pre>
-747 initial submission
-810 whitespace
-811
-871 whitespace (reindent from 4 spaces to 2)
-872 Felix Janda cleanup
-885 Felix Janda
-  move permission formatting (777 -> -rwxrwxrwx) from ls to lib so stat can reuse it.
-886 Felix Janda remove unimplemented options and clean up help text
-910 Felix Janda Add support for stating multiple files.
-911 Felix Janda Separate stat and statfs.
-912 <a href=/hg/toybox/rev/912>commit</a> <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/001019.html>description</a>
-<a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/001024.html>design pondering</a>
+<p>A lot of the stat cleanup was done by Felix Janda.</p>
 
- 914 916
-</pre>
 <ul>
-<li>commit: <a href=/hg/toybox/rev/917>917</a></li>
+<li>commit <a href=/hg/toybox/rev/747>747</a>: initial submission</a></li>
+<li>commit <a href=/hg/toybox/rev/810>810</a>: whitespace</li>
+<li>commit <a href=/hg/toybox/rev/811>811</a>: description in commit message.</li>
+<li>commit <a href=/hg/toybox/rev/871>871</a>: whitespace (reindent from 4 spaces to 2)</li>
+<li>commit <a href=/hg/toybox/rev/872>872</a>: Felix Janda - <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000923.html>cleanup</a> (with discussion thread)</li>
+<li>commit <a href=/hg/toybox/rev/875>885</a>: Felix Janda - <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000936.html>move permission formatting (777 -> -rwxrwxrwx) from ls to lib so stat can reuse it.</a></li>
+<li>commit <a href=/hg/toybox/rev/885>886</a>: Felix Janda - remove unimplemented options and clean up help text</li>
+<li>commit <a href=/hg/toybox/rev/910>910</a>: Felix Janda - <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/001013.html>Add support for stating multiple files</a>.</li>
+<li>commit <a href=/hg/toybox/rev/911>911</a>: Felix Janda - Separate stat and statfs, give stat_main() a ds[2] array to distinguish FLAG_f vs not cases, and some whitespace changes.</li>
+<li>commit <a href=/hg/toybox/rev/912>912</a>: description in commit message (also <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/001019.html>here</a>)</li>
+<li><a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-May/001024.html>design pondering</a> (leading to peek() function in lib/)</li>
+
+<li>commit <a href=/hg/toybox/rev/914>914</a>: description in commit message.</li>
+<li>commit <a href=/hg/toybox/rev/916>916</a>: description in commit message.</li>
+<li>commit: <a href=/hg/toybox/rev/917>917</a>: description in commit message.</li>
 <li>commit: <a href=/hg/toybox/rev/918>918</a>,
-description: move to posix, default y.</li>
+description: done: move pending to posix, default y, no other changes</a>.</li>
+<li><a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-June/001026.html>summary</a></li>
 </ul>
 
 <p>Status: COMPLETE.</p>
