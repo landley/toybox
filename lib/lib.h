@@ -168,8 +168,6 @@ struct mtab_list {
 
 struct mtab_list *xgetmountlist(char *path);
 
-void bunzipStream(int src_fd, int dst_fd);
-
 // signal
 
 void sigatexit(void *handler);
