@@ -111,7 +111,8 @@ int main(int argc, char *argv[])
           flist->lopt = flist->lopt->next;
         } else printf("#define FLAG_%s 0\n", aflist->lopt->command);
         aflist->lopt = aflist->lopt->next;
-      } else {
+        if (!aflist->command) aflist = aflist->next;
+      } else if (aflist->command) {
         if (flist && (!aflist->command || *aflist->command == *flist->command))
         {
           if (aflist->command)
