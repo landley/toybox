@@ -40,15 +40,22 @@ GLOBALS(
   // base offset and extra bits tables (length and distance)
   char lenbits[29], distbits[30];
   unsigned short lenbase[29], distbase[30];
+
+  unsigned (*crc)(char *data, int len);
+
+  char *outbuf;
+  unsigned outlen;
+  int outfd;
 )
 
 // little endian bit buffer
 struct bitbuf {
-  int fd, pos, len, max;
+  int fd, bitpos, len, max;
   char buf[];
 };
 
-struct bitbuf *get_bitbuf(int fd, int size)
+// malloc a struct bitbuf
+struct bitbuf *bitbuf_init(int fd, int size)
 {
   struct bitbuf *bb = xmalloc(sizeof(struct bitbuf)+size);
 
@@ -59,41 +66,196 @@ struct bitbuf *get_bitbuf(int fd, int size)
   return bb;
 }
 
-int get_bits(struct bitbuf *bb, int bits)
+// Advance bitpos without the overhead of recording bits
+void bitbuf_skip(struct bitbuf *bb, int bits)
+{
+  int pos = bb->bitpos + bits, len = bb->len << 3;
+
+  while (pos >= len) {
+    pos -= len;
+    len = (bb->len = read(bb->fd, bb->buf, bb->max)) << 3;
+    if (bb->len < 1) perror_exit("inflate EOF");
+  }
+  bb->bitpos = pos;
+}
+
+// Optimized single bit inlined version
+static inline int bitbuf_bit(struct bitbuf *bb)
+{
+  int bufpos = bb->bitpos>>3;
+
+  if (bufpos == bb->len) {
+    bitbuf_skip(bb, 0);
+    bufpos = 0;
+  }
+
+  return (bb->buf[bufpos]>>(bb->bitpos++&7))&1;
+}
+
+// Fetch the next X bits from the bitbuf, little endian
+int bitbuf_get(struct bitbuf *bb, int bits)
 {
   int result = 0, offset = 0;
 
   while (bits) {
-    int click = bb->pos >> 3, blow, blen;
+    int click = bb->bitpos >> 3, blow, blen;
 
     // Load more data if buffer empty
-    if (click == bb->len) {
-      bb->len = read(bb->fd, bb->buf, bb->max);
-      if (bb->len < 1) perror_exit("inflate EOF");
-      bb->pos = click = 0;
-    }
+    if (click == bb->len) bitbuf_skip(bb, 0);
 
     // grab bits from next byte
-    blow = bb->pos & 7;
+    blow = bb->bitpos & 7;
     blen = 8-blow;
     if (blen > bits) blen = bits;
     result |= ((bb->buf[click] >> blow) & ((1<<blen)-1)) << offset;
     offset += blen;
     bits -= blen;
-    bb->pos += blen;
+    bb->bitpos += blen;
   }
 
   return result;
 }
 
-static int deflate(struct bitbuf *buf)
+static void outbuf_crc(char *buf, int len)
 {
-  return 0;
+  if (TT.crc) TT.crc(buf, len);
+  xwrite(TT.outfd, buf, len);
+}
+
+// Huffman coding uses bits to traverse a binary tree to a leaf node,
+// By placing frequently occurring symbols at shorter paths, frequently
+// used symbols may be represented in fewer bits than uncommon symbols.
+
+struct huff {
+  unsigned short length[16];
+  unsigned short symbol[288];
+};
+
+// Create simple huffman tree from array of bit lengths.
+
+// The symbols in deflate's huffman trees are sorted (first by bit length
+// of the code to reach them, then by symbol number). This means that given
+// the bit length of each symbol, we can construct a unique tree.
+static void len2huff(struct huff *huff, char bitlen[], int len)
+{
+  int offset[16];
+  int i, sum;
+
+  // Count number of codes at each bit length
+  memset(huff, 0, sizeof(struct huff));
+  for (i = 0; i<len; i++) huff->length[bitlen[i]]++;
+
+  // Sort symbols by bit length. (They'll remain sorted by symbol within that.)
+  *huff->length = *offset = 0;
+  for (i = sum = 0; i<16; i++) offset[i] = offset[i-1] + huff->length[i];
+  for (i = 0; i<len; i++) if (bitlen[i]) huff->symbol[offset[bitlen[i]]++] = i;
+}
+
+// Fetch and decode next huffman coded symbol from bitbuf.
+// This takes advantage of the the sorting to navigate the tree as an array:
+// each time we fetch a bit we have all the codes at that bit level in
+// order with no gaps..
+static unsigned huff_and_puff(struct bitbuf *bb, struct huff *huff)
+{
+  unsigned short *length = huff->length;
+  int start = 0, offset = 0;
+
+  // Traverse through the bit lengths until our code is in this range
+  for (;;) {
+    offset = (offset << 1) | bitbuf_bit(bb);
+    start += *++length;
+    if ((offset -= *length) < 0) break;
+// Note to self: what prevents overflow?
+// If we ensure ranges add up to sizeof(symbol), does that ensure all codes
+// terminate within table? Patholotical is 11111111...
+//    if (length - huff_length > 16) error_exit("bad");
+  }
+
+  return huff->symbol[start + offset];
+}
+
+// Decompress deflated data from bitbuf to filehandle.
+static void inflate(struct bitbuf *bb)
+{
+  // repeat until spanked
+  for (;;) {
+    int final, type;
+
+    final = bitbuf_get(bb, 1);
+    type = bitbuf_get(bb, 2);
+fprintf(stderr, "final=%d type=%d\n", final, type);
+
+    if (type == 3) error_exit("bad type");
+
+    // no compression?
+    if (!type) {
+      int len, nlen;
+
+      // Align to byte, read length
+      bitbuf_skip(bb, bb->bitpos & 7);
+      len = bitbuf_get(bb, 16);
+      nlen = bitbuf_get(bb, 16);
+      if (len != (0xffff & ~nlen)) error_exit("bad len");
+
+      // Dump output data
+      while (len) {
+        int pos = bb->bitpos >> 3, bblen = bb->len - pos;
+
+        if (bblen > len) bblen = len;
+        if (bblen) outbuf_crc(bb->buf+pos, bblen);
+        len -= bblen;
+        bitbuf_skip(bb, bblen << 3);
+      }
+
+    // Compressed block
+    } else {
+//      struct huff huff;
+
+      // Dynamic huffman codes?
+      if (type == 2) {
+        struct huff hlo;
+        int i, literal, distance, hufflen;
+        char *hufflen_order = "\x10\x11\x12\0\x08\x07\x09\x06\x0a\x05\x0b"
+                              "\x04\x0c\x03\x0d\x02\x0e\x01\x0f", *bits;
+
+        // The huffman trees are stored as a series of bit lengths
+        literal = bitbuf_get(bb, 5)+257; // max 288
+        distance = bitbuf_get(bb, 5)+1;  // max 32
+        hufflen = bitbuf_get(bb, 4)+4;   // max 19
+
+        // The literal and distance codes are themselves compressed, in
+        // a complicated way: an array of bit lengths (hufflen many
+        // entries, each 3 bits) is used to fill out an array of 19 entries
+        // in a magic order, leaving the rest 0. Then make a tree out of it:
+        memset(bits = toybuf+1, 0, 19);
+        for (i=0; i<hufflen; i++) bits[hufflen_order[i]] = bitbuf_get(bb, 3);
+        len2huff(&hlo, bits, 19);
+
+        // Use that tree to read in the literal and distance bit lengths
+        for (i = 0; i < literal + distance; i++) {
+          int sym = huff_and_puff(bb, &hlo);
+
+          // 0-15 are literals, 16 = repeat previous code 3-6 times,
+          // 17 = 3-10 zeroes, 18 = 11-138 zeroes
+          if (sym < 16) bits[i] = sym;
+          else memset(bits+i, bits[i-1] * !(sym&3),
+                      bitbuf_get(bb, (sym-14)+((sym&2)<<2)));
+        }
+      // Static huffman codes
+      } else {
+      }
+    }
+
+    if (final) return;
+  }
 }
 
 static void init_deflate(void)
 {
   int i, n = 1;
+
+  // Ye olde deflate window
+  TT.outbuf = xmalloc(32768);
 
   // Calculate lenbits, lenbase, distbits, distbase
   *TT.lenbase = 3;
@@ -123,23 +285,26 @@ static int is_gzip(struct bitbuf *bb)
   int flags;
 
   // Confirm signature
-  if (get_bits(bb, 24) != 0x088b1f || (flags = get_bits(bb, 8)) > 31) return 0;
-  get_bits(bb, 6*8);
+  if (bitbuf_get(bb, 24) != 0x088b1f || (flags = bitbuf_get(bb, 8)) > 31)
+    return 0;
+  bitbuf_skip(bb, 6*8);
 
   // Skip extra, name, comment, header CRC fields
-  if (flags & 4) get_bits(bb, 16);
-  if (flags & 8) while (get_bits(bb, 8));
-  if (flags & 16) while (get_bits(bb, 8));
-  if (flags & 2) get_bits(bb, 16);
+  if (flags & 4) bitbuf_skip(bb, 16);
+  if (flags & 8) while (bitbuf_get(bb, 8));
+  if (flags & 16) while (bitbuf_get(bb, 8));
+  if (flags & 2) bitbuf_skip(bb, 16);
 
   return 1;
 }
 
 static void do_gzip(int fd, char *name)
 {
-  struct bitbuf *bb = get_bitbuf(fd, sizeof(toybuf));
+  struct bitbuf *bb = bitbuf_init(fd, sizeof(toybuf));
 
-  printf("is_gzip=%d\n", is_gzip(bb));
+  if (!is_gzip(bb)) error_exit("not gzip");
+  TT.outfd = 1;
+  inflate(bb);
 
   // tail: crc32, len32
 
@@ -150,8 +315,6 @@ static void do_gzip(int fd, char *name)
 
 void compress_main(void)
 {
-  // 31, 139, 8
-  // &2 = skip 2 bytes
   init_deflate();
 
   loopfiles(toys.optargs, do_gzip);
