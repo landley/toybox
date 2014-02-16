@@ -72,7 +72,6 @@ struct flag *digest(char *string)
 int main(int argc, char *argv[])
 {
   char command[256], flags[1023], allflags[1024];
-  unsigned bit;
 
   for (;;) {
     struct flag *flist, *aflist, *offlist;

@@ -56,13 +56,6 @@ GLOBALS(
   int sockfd;
 )
 
-//for ipv6 add/del
-struct ifreq_inet6 {
-  struct in6_addr ifrinte6_addr;
-  uint32_t ifrinet6_prefixlen;
-  int ifrinet6_ifindex;
-};
-
 // Convert hostname to binary address for AF_INET or AF_INET6
 // return /prefix (or range max if none)
 int get_addrinfo(char *host, sa_family_t af, void *addr)

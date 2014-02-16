@@ -34,7 +34,7 @@ void pmap_main(void)
     size_t len;
     long long start, end, pss, tpss = 0, dirty, tdirty = 0, swap, tswap = 0,
               total = 0;
-    int count, xx = 0;
+    int xx = 0;
 
     snprintf(toybuf, sizeof(toybuf), "/proc/%u/cmdline", pid);
     line = readfile(toybuf, 0, 0);
@@ -57,7 +57,7 @@ void pmap_main(void)
 
     // Loop through mappings
     for (;;) {
-      int off;
+      int off, count;
 
       line = 0;
       if (0 >= getline(&line, &len, fp)) break;

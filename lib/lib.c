@@ -81,7 +81,7 @@ ssize_t writeall(int fd, void *buf, size_t len)
 {
   size_t count = 0;
   while (count<len) {
-    int i = write(fd, buf+count, len-count);
+    int i = write(fd, count+(char *)buf, len-count);
     if (i<1) return i;
     count += i;
   }

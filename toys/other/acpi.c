@@ -40,7 +40,7 @@ int read_int_at(int dirfd, char *name)
 
 int acpi_callback(struct dirtree *tree)
 {
-  int dfd;
+  int dfd, fd, len, on;
 
   errno = 0;
 
@@ -50,8 +50,6 @@ int acpi_callback(struct dirtree *tree)
     return DIRTREE_RECURSE | DIRTREE_SYMFOLLOW;
 
   if (0 <= (dfd = open(dirtree_path(tree, NULL), O_RDONLY))) {
-    int fd, len;
-
     if ((fd = openat(dfd, "type", O_RDONLY)) < 0) goto done;
     len = readall(fd, toybuf, sizeof(toybuf));
     close(fd);
@@ -71,14 +69,13 @@ int acpi_callback(struct dirtree *tree)
         if (cap >= 0) printf("Battery %d: %d%%\n", TT.bat++, cap);
       }
     } else if (toys.optflags & FLAG_a) {
-      int on;
-
       if ((on = read_int_at(dfd, "online")) >= 0)
         printf("Adapter %d: %s-line\n", TT.ac++, (on ? "on" : "off"));
     }
 done:
     close(dfd);
   }
+
   return 0;
 }
 

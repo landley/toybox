@@ -192,7 +192,6 @@ int dashlinesort(char **a, char **b)
 int main(int argc, char *argv[])
 {
   FILE *fp;
-  char *file;
 
   if (argc != 3) {
     fprintf(stderr, "usage: config2help Config.in .config\n");
@@ -392,4 +391,6 @@ int main(int argc, char *argv[])
     }
     sym = sym->next;
   }
+
+  return 0;
 }
