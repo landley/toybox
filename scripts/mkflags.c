@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
     offlist = aflist = digest(allflags);
 
 
-    printf("#ifdef CLEANUP_%s\n#undef CLEANUP_%s\n#undef FOR_%s\n#undef TT\n",
+    printf("#ifdef CLEANUP_%s\n#undef CLEANUP_%s\n#undef FOR_%s\n",
            command, command, command);
 
     while (offlist) {
@@ -99,7 +99,8 @@ int main(int argc, char *argv[])
     }
     printf("#endif\n\n");
 
-    printf("#ifdef FOR_%s\n#define TT this.%s\n", command, command);
+    printf("#ifdef FOR_%s\n#ifndef TT\n#define TT this.%s\n#endif\n",
+           command, command);
 
     while (aflist) {
       if (aflist->lopt) {
