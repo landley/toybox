@@ -49,8 +49,8 @@ GLOBALS(
   unsigned short lenbase[29], distbase[30];
   void *fixdisthuff, *fixlithuff;
 
-  unsigned (*crcfunc)(char *data, int len);
-  unsigned crc;
+  void (*crcfunc)(char *data, int len);
+  unsigned crc, len;
 
   char *outbuf;
   unsigned outlen;
@@ -102,7 +102,7 @@ static inline int bitbuf_bit(struct bitbuf *bb)
 }
 
 // Fetch the next X bits from the bitbuf, little endian
-int bitbuf_get(struct bitbuf *bb, int bits)
+unsigned bitbuf_get(struct bitbuf *bb, int bits)
 {
   int result = 0, offset = 0;
 
@@ -131,7 +131,7 @@ static void outbuf_crc(char sym)
 
   if (!(TT.outlen & 32767)) {
     xwrite(TT.outfd, TT.outbuf, 32768);
-    TT.crcfunc(0, 32768);
+    if (TT.crcfunc) TT.crcfunc(0, 32768);
   }
 }
 
@@ -262,8 +262,8 @@ static void inflate(struct bitbuf *bb)
         }
         if (i > litlen+distlen) error_exit("bad tree");
 
-        len2huff(lithuff = ((struct huff *)toybuf)+2, bits, litlen);
-        len2huff(disthuff = ((struct huff *)toybuf)+3, bits+litlen, distlen);
+        len2huff(lithuff = h2, bits, litlen);
+        len2huff(disthuff = ((struct huff *)toybuf)+2, bits+litlen, distlen);
 
       // Static huffman codes
       } else {
@@ -298,7 +298,11 @@ static void inflate(struct bitbuf *bb)
     // Was that the last block?
     if (final) break;
   }
-  if (TT.outlen & 32767) xwrite(TT.outfd, TT.outbuf, TT.outlen & 32767);
+
+  if (TT.outlen & 32767) {
+    xwrite(TT.outfd, TT.outbuf, TT.outlen & 32767);
+    if (TT.crcfunc) TT.crcfunc(0, TT.outlen & 32767);
+  }
 }
 
 static void init_deflate(void)
@@ -331,9 +335,9 @@ static void init_deflate(void)
 
   // Init fixed huffman tables
   for (i=0; i<288; i++) toybuf[i] = 8 + (i>143) - ((i>255)<<1) + (i>279);
-  len2huff(TT.fixlithuff = ((struct huff *)toybuf)+4, toybuf, 288);
+  len2huff(TT.fixlithuff = ((struct huff *)toybuf)+3, toybuf, 288);
   memset(toybuf, 5, 30);
-  len2huff(TT.fixdisthuff = ((struct huff *)toybuf)+5, toybuf, 30);
+  len2huff(TT.fixdisthuff = ((struct huff *)toybuf)+4, toybuf, 30);
 }
 
 // Return true/false whether we consumed a gzip header.
@@ -355,16 +359,35 @@ static int is_gzip(struct bitbuf *bb)
   return 1;
 }
 
+void gzip_crc(char *data, int len)
+{
+  int i;
+  unsigned crc, *crc_table = (unsigned *)(toybuf+sizeof(toybuf)-1024);
+
+  crc = TT.crc;
+  for (i=0; i<len; i++) crc = crc_table[(crc^TT.outbuf[i])&0xff] ^ (crc>>8);
+  TT.crc = crc;
+  TT.len += len;
+}
+
 static void do_zcat(int fd, char *name)
 {
   struct bitbuf *bb = bitbuf_init(fd, sizeof(toybuf));
 
   if (!is_gzip(bb)) error_exit("not gzip");
   TT.outfd = 1;
+
+  // Use last 1k of toybuf for little endian crc table
+  crc_init((unsigned *)(toybuf+sizeof(toybuf)-1024), 1);
+  TT.crcfunc = gzip_crc;
+
   inflate(bb);
 
   // tail: crc32, len32
 
+  bitbuf_skip(bb, (8-bb->bitpos)&7);
+  if (~TT.crc != bitbuf_get(bb, 32) || TT.len != bitbuf_get(bb, 32))
+    error_exit("bad crc");
   free(bb);
 }
 
