@@ -93,6 +93,7 @@ for i in stuff:
 
   for j in stuff[i]:
     if "ready" in reverse[j]: continue
+    elif "pending" in reverse[j]: todo.append('<strike>%s</strike>' % j)
     else: todo.append(categorize(reverse,j,i))
 
   if todo:
