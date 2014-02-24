@@ -70,6 +70,11 @@ do_loudly $HOSTCC scripts/mkflags.c -o generated/mkflags || exit 1
 
 echo -n "generated/flags.h "
 
+# Process config.h and newtoys.h to generate FLAG_x macros. Note we must
+# always #define the relevant macro, even when it's disabled, because we
+# allow multiple NEWTOY() in the same C file. (When disabled the FLAG is 0,
+# so flags&0 becomes a constant 0 allowing dead code elimination.)
+
 # Parse files through C preprocessor twice, once to get flags for current
 # .config and once to get flags for allyesconfig
 for I in A B
@@ -98,8 +103,10 @@ do
 # Sort resulting line pairs and glue them together into triplets of
 #   command "flags" "allflags"
 # to feed into mkflags C program that outputs actual flag macros
+# If no pair (because command's disabled in config), use " " for flags
+# so allflags can define the appropriate zero macros.
 
-done | sort | sed -n 's/ A / /;t skip;d;:skip;h;n;s/[^ ]* B //;H;g;s/\n/ /;p' |\
+done | sort | sed -n 's/ A / /;t pair;h;s/\([^ ]*\).*/\1 " "/;x;b single;:pair;h;n;:single;s/[^ ]* B //;H;g;s/\n/ /;p' |\
 generated/mkflags > generated/flags.h || exit 1
 
 # Extract global structure definitions and flag definitions from toys/*/*.c
