@@ -72,6 +72,11 @@ struct flag *digest(char *string)
 int main(int argc, char *argv[])
 {
   char command[256], flags[1023], allflags[1024];
+  char *out, *outbuf = malloc(1024*1024);
+
+  // Yes, the output buffer is 1 megabyte with no bounds checking.
+  // See "intentionally crappy", above.
+  if (!(out = outbuf)) return 1;
 
   for (;;) {
     struct flag *flist, *aflist, *offlist;
@@ -81,9 +86,9 @@ int main(int argc, char *argv[])
                     command, flags, allflags)) break;
 
     printf("// %s %s %s\n", command, flags, allflags);
+
     flist = digest(flags);
     offlist = aflist = digest(allflags);
-
 
     printf("#ifdef CLEANUP_%s\n#undef CLEANUP_%s\n#undef FOR_%s\n",
            command, command, command);
@@ -99,32 +104,43 @@ int main(int argc, char *argv[])
     }
     printf("#endif\n\n");
 
-    printf("#ifdef FOR_%s\n#ifndef TT\n#define TT this.%s\n#endif\n",
-           command, command);
+    sprintf(out, "#ifdef FOR_%s\n#ifndef TT\n#define TT this.%s\n#endif\n",
+            command, command);
+    out += strlen(out);
 
     while (aflist) {
       if (aflist->lopt) {
         if (flist && flist->lopt &&
             !strcmp(flist->lopt->command, aflist->lopt->command))
         {
-          printf("#define FLAG_%s (1<<%d)\n", flist->lopt->command, bit);
+          sprintf(out, "#define FLAG_%s (1<<%d)\n", flist->lopt->command, bit);
           flist->lopt = flist->lopt->next;
-        } else printf("#define FLAG_%s 0\n", aflist->lopt->command);
+        } else sprintf(out, "#define FLAG_%s 0\n", aflist->lopt->command);
         aflist->lopt = aflist->lopt->next;
         if (!aflist->command) aflist = aflist->next;
       } else if (aflist->command) {
         if (flist && (!aflist->command || *aflist->command == *flist->command))
         {
           if (aflist->command)
-            printf("#define FLAG_%c (1<<%d)\n", *aflist->command, bit);
+            sprintf(out, "#define FLAG_%c (1<<%d)\n", *aflist->command, bit);
           bit++;
           flist = flist->next;
-        } else printf("#define FLAG_%c 0\n", *aflist->command);
+        } else sprintf(out, "#define FLAG_%c 0\n", *aflist->command);
         aflist = aflist->next;
       }
+      out += strlen(out);
     }
-    printf("#endif\n\n");
+    sprintf(out, "#endif\n\n");
+    out += strlen(out);
   }
 
-  return fflush(0) && ferror(stdout);
+  if (fflush(0) && ferror(stdout)) return 1;
+
+  out = outbuf;
+  while (*out) {
+    int i = write(1, outbuf, strlen(outbuf));
+
+    if (i<0) return 1;
+    out += i;
+  }
 }
