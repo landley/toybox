@@ -95,10 +95,10 @@ do
   # Run result through preprocessor, glue together " " gaps leftover from USE
   # macros, delete comment lines, print any line with a quoted optstring,
   # turn any non-quoted opstring (NULL or 0) into " " (because fscanf can't
-  # handle "" with nothing in it).
+  # handle "" with nothing in it, and mkflags uses that).
 
   ) | ${CROSS_COMPILE}${CC} -E - | \
-    sed -n -e 's/" *"//g;/^#/d;s/"/"/p' -e 's/ *$//;s/ [^" ]*$/ " "/p'
+    sed -n -e 's/" *"//g;/^#/d;t clear;:clear;s/"/"/p;t;s/\( [AB] \).*/\1 " "/p'
 
 # Sort resulting line pairs and glue them together into triplets of
 #   command "flags" "allflags"
