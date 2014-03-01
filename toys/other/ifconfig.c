@@ -395,7 +395,7 @@ void ifconfig_main(void)
 
       ptr = p = (char *)sock->sa_data;
       memset(sock, 0, sizeof(struct sockaddr));
-      if (!argv[1]) {
+      if (argv[1]) {
         if (!strcmp("ether", *++argv)) sock->sa_family = ARPHRD_ETHER;
         else if (!strcmp("infiniband", *argv)) {
           sock->sa_family = ARPHRD_INFINIBAND;
