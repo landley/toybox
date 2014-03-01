@@ -109,7 +109,7 @@ off_t lskip(int fd, off_t offset)
 
     or = readall(fd, libbuf, try);
     if (or < 0) perror_exit("lskip to %lld", (long long)offset);
-    else offset -= try;
+    else offset -= or;
     if (or < try) break;
   }
 
