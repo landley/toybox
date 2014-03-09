@@ -8,7 +8,7 @@ USE_FREERAMDISK(NEWTOY(freeramdisk, "<1>1", TOYFLAG_SBIN|TOYFLAG_NEEDROOT))
 
 config FREERAMDISK
   bool "freeramdisk"
-  default n
+  default y
   help
     usage: freeramdisk [RAM device]
 
