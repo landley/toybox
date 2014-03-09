@@ -10,7 +10,7 @@ config FREERAMDISK
   bool "freeramdisk"
   default n
   help
-    usage: freeramdisk <RAM device>
+    usage: freeramdisk [RAM device]
 
     Free all memory allocated to specified ramdisk
 */
@@ -19,9 +19,9 @@ config FREERAMDISK
 
 void freeramdisk_main(void)
 {
-	int fd;
+  int fd;
 
-	fd = xopen(toys.optargs[0], O_RDWR);
-	xioctl(fd, BLKFLSBUF, toys.optargs[0]);
-	xclose(fd);
+  fd = xopen(toys.optargs[0], O_RDWR);
+  xioctl(fd, BLKFLSBUF, toys.optargs[0]);
+  if (CFG_TOYBOX_FREE) xclose(fd);
 }
