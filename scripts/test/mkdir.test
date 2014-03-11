@@ -64,3 +64,10 @@ testing "mkdir -vp" "mkdir -vp walrus 2>&1" \
 
 testing "mkdir -vp exists" "mkdir -vp walrus 2>&1" \
 	"" "" ""
+rm -rf walrus
+
+touch two
+testing "mkdir continue after fail" \
+	"mkdir -m 777 one two three 2>/dev/null || stat -c %a three" \
+	"777\n" "" ""
+rm -rf one two three
