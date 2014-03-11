@@ -314,16 +314,16 @@ void msleep(long miliseconds)
 int64_t peek(void *ptr, int size)
 {
   if (size & 8) {
-    int64_t *p = (int64_t *)ptr;
+    volatile int64_t *p = (int64_t *)ptr;
     return *p;
   } else if (size & 4) {
-    int *p = (int *)ptr;
+    volatile int *p = (int *)ptr;
     return *p;
   } else if (size & 2) {
-    short *p = (short *)ptr;
+    volatile short *p = (short *)ptr;
     return *p;
   } else {
-    char *p = (char *)ptr;
+    volatile char *p = (char *)ptr;
     return *p;
   }
 }
@@ -331,16 +331,16 @@ int64_t peek(void *ptr, int size)
 void poke(void *ptr, uint64_t val, int size)
 {
   if (size & 8) {
-    uint64_t *p = (uint64_t *)ptr;
+    volatile uint64_t *p = (uint64_t *)ptr;
     *p = val;
   } else if (size & 4) {
-    int *p = (int *)ptr;
+    volatile int *p = (int *)ptr;
     *p = val;
   } else if (size & 2) {
-    short *p = (short *)ptr;
+    volatile short *p = (short *)ptr;
     *p = val;
   } else {
-    char *p = (char *)ptr;
+    volatile char *p = (char *)ptr;
     *p = val;
   }
 }
