@@ -6,20 +6,23 @@
  * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cpio.html
  *
  * http://pubs.opengroup.org/onlinepubs/7908799/xcu/cpio.html
+ * (Yes, that's SUSv2, the newer standards removed it around the time RPM
+ * and initramfs started heavily using this archive format. Go figure.)
 
-USE_CPIO(NEWTOY(cpio, "H:iotuF:", TOYFLAG_BIN))
+USE_CPIO(NEWTOY(cpio, "H:diotuF:", TOYFLAG_BIN))
 
 config CPIO
   bool "cpio"
   default n
   help
-    usage: cpio { -iu | -o | -t } [-H FMT] [-F ARCHIVE]
+    usage: cpio { -i[du] | -o | -t } [-H FMT] [-F ARCHIVE]
 
     copy files into and out of an archive
+    -d  create leading directories when extracting an archive
     -i  extract from archive into file system (stdin is an archive)
     -o  create archive (stdin is a list of files, stdout is an archive)
     -t  list files (stdin is an archive, stdout is a list of files)
-    -u  always overwrite files (current default)
+    -u  always overwrite files (default)
     -H FMT   write archive in specified format:
     newc  SVR4 new character format (default)
     -F ARCHIVE  read from or write to ARCHIVE
@@ -49,7 +52,8 @@ void loopfiles_stdin(void (*function)(int fd, char *name, struct stat st))
     if (name) {
       if (toybuf[strlen(name) - 1] == '\n' ) { 
         toybuf[strlen(name) - 1 ] = '\0';
-        if (lstat(name, &st) == -1) continue;
+        if (lstat(name, &st) == -1) verror_msg(name, errno, NULL);
+	if (errno) continue;
 	fd = open(name, O_RDONLY);
 	if (fd > 0 || !S_ISREG(st.st_mode)) {
           function(fd, name, st);
@@ -158,7 +162,7 @@ int read_cpio_member(int fd, int how)
   mode_t mode = 0;
   int pad, ofd = 0; 
   struct newc_header hdr;
-  char *name;
+  char *name, *lastdir;
   dev_t dev = 0;
 
   xreadall(fd, &hdr, sizeof(struct newc_header));
@@ -170,6 +174,9 @@ int read_cpio_member(int fd, int how)
   pad = 4 - ((nsize + 2) % 4); // 2 == sizeof(struct newc_header) % 4
   if (pad < 4) xreadall(fd, toybuf, pad);
   pad = 4 - (fsize % 4);
+
+  if ((toys.optflags&FLAG_d) && (lastdir = strrchr(name, '/')))
+    if (mkpathat(AT_FDCWD, name, 0, 2)) perror_msg("mkpath '%s'", name);
 
   if (how & 1) {
     if (S_ISDIR(mode)) ofd = mkdir(name, mode);
