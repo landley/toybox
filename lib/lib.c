@@ -116,6 +116,55 @@ off_t lskip(int fd, off_t offset)
   return offset;
 }
 
+// flags: 1=make last dir (with mode lastmode, otherwise skips last component)
+//        2=make path (already exists is ok)
+//        4=verbose
+// returns 0 = path ok, 1 = error
+int mkpathat(int atfd, char *dir, mode_t lastmode, int flags)
+{
+  struct stat buf;
+  char *s;
+
+  // mkdir -p one/two/three is not an error if the path already exists,
+  // but is if "three" is a file. The others we dereference and catch
+  // not-a-directory along the way, but the last one we must explicitly
+  // test for. Might as well do it up front.
+
+  if (!fstatat(atfd, dir, &buf, 0) && !S_ISDIR(buf.st_mode)) {
+    errno = EEXIST;
+    return 1;
+  }
+
+  // Skip leading / of absolute paths
+  while (*dir == '/') dir++;
+
+  for (s=dir; ;s++) {
+    char save = 0;
+    mode_t mode = (0777&~toys.old_umask)|0300;
+
+    // Skip leading / of absolute paths.
+    if (*s == '/' && (flags&2)) {
+      save = *s;
+      *s = 0;
+    } else if (*s) continue;
+
+    // Use the mode from the -m option only for the last directory.
+    if (!save) {
+      if (flags&1) mode = lastmode;
+      else break;
+    }
+
+    if (mkdirat(atfd, dir, mode)) {
+      if (!(flags&2) || errno != EEXIST) return 1;
+    } else if (flags&4)
+      fprintf(stderr, "%s: created directory '%s'\n", toys.which->name, dir);
+    
+    if (!(*s = save)) break;
+  }
+
+  return 0;
+}
+
 // Split a path into linked list of components, tracking head and tail of list.
 // Filters out // entries with no contents.
 struct string_list **splitpath(char *path, struct string_list **list)
