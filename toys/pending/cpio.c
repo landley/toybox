@@ -9,23 +9,28 @@
  * (Yes, that's SUSv2, the newer standards removed it around the time RPM
  * and initramfs started heavily using this archive format. Go figure.)
 
-USE_CPIO(NEWTOY(cpio, "H:diotuF:", TOYFLAG_BIN))
+USE_CPIO(NEWTOY(cpio, "H:di|o|t|uF:[!iot][!dot][!uot]", TOYFLAG_BIN))
 
 config CPIO
   bool "cpio"
   default n
   help
-    usage: cpio { -i[du] | -o | -t } [-H FMT] [-F ARCHIVE]
+    usage: cpio {-o|-t|-i[du]} [-H FMT] [-F ARCHIVE]
 
-    copy files into and out of an archive
-    -d  create leading directories when extracting an archive
-    -i  extract from archive into file system (stdin is an archive)
-    -o  create archive (stdin is a list of files, stdout is an archive)
-    -t  list files (stdin is an archive, stdout is a list of files)
-    -u  always overwrite files (default)
-    -H FMT   write archive in specified format:
-    newc  SVR4 new character format (default)
-    -F ARCHIVE  read from or write to ARCHIVE
+    copy files into and out of a "newc" format cpio archive
+
+    Actions:
+    -o	create archive (stdin is a list of files, stdout is an archive)
+    -t	list files (stdin is an archive, stdout is a list of files)
+    -i	extract from archive into file system (stdin is an archive)
+
+    Extract options:
+    -d	create leading directories when extracting an archive
+    -u	always overwrite files (default)
+
+    Other options:
+    -H FMT	archive format (ignored, only newc supported)
+    -F ARCHIVE	read from or write to ARCHIVE file
 */
 
 #define FOR_cpio
@@ -35,35 +40,6 @@ GLOBALS(
   char *archive;
   char *fmt;
 )
-
-/* Iterate through a list of files, read from stdin.
- * No users need rw.
- */
-void loopfiles_stdin(void (*function)(int fd, char *name, struct stat st))
-{
-  int fd;
-  struct stat st;
-  char *name = toybuf;
-
-  while (name) {
-    memset(toybuf, 0, sizeof(toybuf));
-    name = fgets(toybuf, sizeof(toybuf) - 1, stdin);
-    
-    if (name) {
-      if (toybuf[strlen(name) - 1] == '\n' ) { 
-        toybuf[strlen(name) - 1 ] = '\0';
-        if (lstat(name, &st) == -1) verror_msg(name, errno, NULL);
-	if (errno) continue;
-	fd = open(name, O_RDONLY);
-	if (fd > 0 || !S_ISREG(st.st_mode)) {
-          function(fd, name, st);
-	  close(fd);
-	}
-	errno = 0;
-      }
-    }
-  }
-}
 
 struct newc_header {
   char    c_magic[6];
@@ -118,6 +94,35 @@ void write_cpio_member(int fd, char *name, struct stat buf)
     }
   }
   if (buf.st_size & 3) write(1, &n, 4 - (buf.st_size & 3));
+}
+
+/* Iterate through a list of files, read from stdin.
+ * No users need rw.
+ */
+void loopfiles_stdin(void)
+{
+  int fd;
+  struct stat st;
+  char *name = toybuf;
+
+  while (name) {
+    memset(toybuf, 0, sizeof(toybuf));
+    name = fgets(toybuf, sizeof(toybuf) - 1, stdin);
+    
+    if (name) {
+      if (toybuf[strlen(name) - 1] == '\n' ) { 
+        toybuf[strlen(name) - 1 ] = '\0';
+        if (lstat(name, &st) == -1) verror_msg(name, errno, NULL);
+	if (errno) continue;
+	fd = open(name, O_RDONLY);
+	if (fd > 0 || !S_ISREG(st.st_mode)) {
+          write_cpio_member(fd, name, st);
+	  close(fd);
+	}
+	errno = 0;
+      }
+    }
+  }
 }
 
 //convert hex to uint; mostly to allow using bits of non-terminated strings
@@ -238,7 +243,7 @@ void cpio_main(void)
   if (toys.optflags & FLAG_t) read_cpio_archive(0, 2);
   else if (toys.optflags & FLAG_i) read_cpio_archive(0, 1);
   else if (toys.optflags & FLAG_o) {
-      loopfiles_stdin(write_cpio_member);
+      loopfiles_stdin();
       write(1, "07070100000000000000000000000000000000000000010000000000000000"
       "000000000000000000000000000000000000000B00000000TRAILER!!!\0\0\0", 124);
   } else error_exit("must use one of -iot");
