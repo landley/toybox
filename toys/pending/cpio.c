@@ -41,6 +41,7 @@ GLOBALS(
   char *fmt;
 )
 
+// 110 bytes
 struct newc_header {
   char    c_magic[6];
   char    c_ino[8];
@@ -96,33 +97,27 @@ void write_cpio_member(int fd, char *name, struct stat buf)
   if (buf.st_size & 3) write(1, &n, 4 - (buf.st_size & 3));
 }
 
-/* Iterate through a list of files, read from stdin.
- * No users need rw.
- */
+// Iterate through a list of files read from stdin. No users need rw.
 void loopfiles_stdin(void)
 {
-  int fd;
-  struct stat st;
-  char *name = toybuf;
+  char *name = 0;
+  size_t size = 0;
 
-  while (name) {
-    memset(toybuf, 0, sizeof(toybuf));
-    name = fgets(toybuf, sizeof(toybuf) - 1, stdin);
-    
-    if (name) {
-      if (toybuf[strlen(name) - 1] == '\n' ) { 
-        toybuf[strlen(name) - 1 ] = '\0';
-        if (lstat(name, &st) == -1) verror_msg(name, errno, NULL);
-	if (errno) continue;
-	fd = open(name, O_RDONLY);
-	if (fd > 0 || !S_ISREG(st.st_mode)) {
-          write_cpio_member(fd, name, st);
-	  close(fd);
-	}
-	errno = 0;
-      }
+  for (;;) {
+    struct stat st;
+    int len, fd;
+
+    len = getline(&name, &size, stdin);
+    if (!name) break;
+    if (name[len-1] == '\n') name[--len] = 0;
+    if (lstat(name, &st) || (fd = open(name, O_RDONLY))<0)
+      perror_msg("%s", name);
+    else {
+      write_cpio_member(fd, name, st);
+      close(fd);
     }
   }
+  free(name);
 }
 
 //convert hex to uint; mostly to allow using bits of non-terminated strings
@@ -236,7 +231,7 @@ void cpio_main(void)
       xopen(TT.archive, O_RDONLY);
     } else if (toys.optflags & FLAG_o) {
       xclose(1);
-      xcreate(TT.archive, O_CREAT|O_WRONLY|O_TRUNC, 0755);
+      xcreate(TT.archive, O_CREAT|O_WRONLY|O_TRUNC, 0644);
     }
   }
 
