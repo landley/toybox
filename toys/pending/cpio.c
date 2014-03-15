@@ -39,6 +39,8 @@ config CPIO
 GLOBALS(
   char *archive;
   char *fmt;
+
+  int outfd;
 )
 
 // 110 bytes
@@ -61,40 +63,42 @@ struct newc_header {
 
 void write_cpio_member(int fd, char *name, struct stat buf)
 {
-  char ahdr[sizeof(struct newc_header) + 1];
-  struct newc_header *hdr = (struct newc_header *)ahdr;
-  size_t out = 0;
-  unsigned int n = 0x00000000, nlen = strlen(name) + 1;
+  unsigned nlen = strlen(name)+1, error = 0, zero = 0;
+  ssize_t llen;
 
-  memset(hdr, '0', sizeof(struct newc_header));
-  if (S_ISDIR(buf.st_mode) || S_ISBLK(buf.st_mode) || S_ISCHR(buf.st_mode)
-     || S_ISFIFO(buf.st_mode) || S_ISSOCK(buf.st_mode)) 
-    buf.st_size = 0;
-  snprintf((char *)(hdr), sizeof(struct newc_header)+1, 
-          "070701%08X%08X" "%08X%08X"
-	  "%08X%08X%08X"
-	   "%08X%08X" "%08X%08X%08X00000000",
-	   (unsigned int)(buf.st_ino), buf.st_mode, buf.st_uid, buf.st_gid, 
-	   buf.st_nlink, (uint32_t)(buf.st_mtime), (uint32_t)(buf.st_size), 
-	   major(buf.st_dev), minor(buf.st_dev),
-           major(buf.st_rdev), minor(buf.st_rdev), nlen);
-  write(1, hdr, sizeof(struct newc_header));
-  write(1, name, nlen);
-  if ((nlen + 2) & 3) write(1, &n, 4 - ((nlen + 2) & 3)); 
-  if (S_ISLNK(buf.st_mode)) {
-    ssize_t llen = readlink(name, toybuf, sizeof(toybuf) - 1);
-    if (llen > 0) {
-      toybuf[llen] = '\0';
-      write(1, toybuf, buf.st_size);
-    }
-  } else if (buf.st_size) {
-    for (; (lseek(fd, 0, SEEK_CUR) < (uint32_t)(buf.st_size));) {
-      out = read(fd, toybuf, sizeof(toybuf));
-      if (out > 0) write(1, toybuf, out);
-      if (errno || out < sizeof(toybuf)) break;
-    }
+  if (!S_ISREG(buf.st_mode) && !S_ISLNK(buf.st_mode)) buf.st_size = 0;
+  else if (buf.st_size >> 32) {
+    perror_msg("skipping >2G file '%s'", name);
+    return;
   }
-  if (buf.st_size & 3) write(1, &n, 4 - (buf.st_size & 3));
+
+  llen = sprintf(toybuf,
+    "070701%08X%08X%08X%08X%08X%08X%08X%08X%08X%08X%08X%08X%08X",
+    (int)(buf.st_ino), buf.st_mode, buf.st_uid, buf.st_gid, (int)buf.st_nlink,
+    (int)(buf.st_mtime), (int)(buf.st_size), major(buf.st_dev),
+    minor(buf.st_dev), major(buf.st_rdev), minor(buf.st_rdev), nlen, 0);
+  xwrite(TT.outfd, toybuf, llen);
+  xwrite(TT.outfd, name, nlen);
+
+  // NUL Pad header up to 4 multiple bytes.
+  llen = (llen + nlen) & 3;
+  if (llen) xwrite(TT.outfd, &zero, 4-llen); 
+
+  // Write out body for symlink or regular file
+  llen = buf.st_size;
+  if (S_ISLNK(buf.st_mode)) {
+    if (readlink(name, toybuf, sizeof(toybuf)-1) == llen)
+      xwrite(TT.outfd, toybuf, llen);
+    else perror_msg("readlink '%s'", name);
+  } else while (llen) {
+    nlen = llen > sizeof(toybuf) ? sizeof(toybuf) : llen;
+    // If read fails, write anyway (we already wrote size in the header).
+    if (nlen != readall(fd, toybuf, nlen))
+      if (!error++) perror_msg("bad read from file '%s'", name);
+    xwrite(TT.outfd, toybuf, nlen);
+  }
+  llen = buf.st_size & 3;
+  if (nlen) write(TT.outfd, &zero, 4-llen);
 }
 
 // Iterate through a list of files read from stdin. No users need rw.
@@ -225,6 +229,8 @@ void read_cpio_archive(int fd, int how)
 
 void cpio_main(void)
 {
+  TT.outfd = 1;
+
   if (TT.archive) {
     if (toys.optflags & (FLAG_i|FLAG_t)) {
       xclose(0);
