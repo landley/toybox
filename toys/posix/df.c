@@ -122,7 +122,7 @@ void df_main(void)
       }
 
       // Find and display this filesystem.  Use _last_ hit in case of
-      // -- bind mounts.
+      // overmounts (which is first hit in the reversed list).
       mt2 = NULL;
       for (mt = mtlist; mt; mt = mt->next) {
         if (st.st_dev == mt->stat.st_dev) {
