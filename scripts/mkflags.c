@@ -44,7 +44,7 @@ struct flag *digest(char *string)
         blank->lopt = new;
         list = blank;
       }
-      while (*++string != ')');  // An empty longopt () would break this.
+      while (*++string != ')') if (*string == '-') *string = '_';  // An empty longopt () would break this.
       *(string++) = 0;
       continue;
     }
