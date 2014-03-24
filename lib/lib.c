@@ -135,15 +135,12 @@ int mkpathat(int atfd, char *dir, mode_t lastmode, int flags)
     return 1;
   }
 
-  // Skip leading / of absolute paths
-  while (*dir == '/') dir++;
-
-  for (s=dir; ;s++) {
+  for (s = dir; ;s++) {
     char save = 0;
     mode_t mode = (0777&~toys.old_umask)|0300;
 
-    // Skip leading / of absolute paths.
-    if (*s == '/' && (flags&2)) {
+    // find next '/', but don't try to mkdir "" at start of absolute path
+    if (*s == '/' && (flags&2) && s != dir) {
       save = *s;
       *s = 0;
     } else if (*s) continue;
