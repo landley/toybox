@@ -17,7 +17,7 @@ USE_CPIO(NEWTOY(cpio, "duH:i|t|F:o|v(verbose)[!io][!ot]", TOYFLAG_BIN))
 
 config CPIO
   bool "cpio"
-  default n
+  default y
   help
     usage: cpio -{o|t|i} [-v] [--verbose] [-F FILE] [ignored: -du -H newc]
 
