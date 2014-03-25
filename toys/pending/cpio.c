@@ -157,13 +157,15 @@ void cpio_main(void)
     for (;;) {
       struct stat st;
       unsigned nlen = strlen(name)+1, error = 0, zero = 0;
-      int len, fd;
+      int len, fd = -1;
       ssize_t llen;
 
       len = getline(&name, &size, stdin);
       if (len<1) break;
       if (name[len-1] == '\n') name[--len] = 0;
-      if (lstat(name, &st) || (fd = open(name, O_RDONLY))<0) {
+      if (lstat(name, &st)
+          || (S_ISREG(st.st_mode) && (fd = open(name, O_RDONLY))<0))
+      {
         perror_msg("%s", name);
         continue;
       }
@@ -191,13 +193,14 @@ void cpio_main(void)
           else perror_msg("readlink '%s'", name);
         } else while (llen) {
           nlen = llen > sizeof(toybuf) ? sizeof(toybuf) : llen;
+          llen -= nlen;
           // If read fails, write anyway (already wrote size in header)
           if (nlen != readall(fd, toybuf, nlen))
             if (!error++) perror_msg("bad read from file '%s'", name);
           xwrite(afd, toybuf, nlen);
         }
         llen = st.st_size & 3;
-        if (nlen) write(afd, &zero, 4-llen);
+        if (llen) write(afd, &zero, 4-llen);
       }
       close(fd);
     }
