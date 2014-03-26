@@ -13,7 +13,7 @@
  * In order: magic ino mode uid gid nlink mtime filesize devmajor devminor
  * rdevmajor rdevminor namesize check
 
-USE_CPIO(NEWTOY(cpio, "duH:i|t|F:o|v(verbose)[!io][!ot]", TOYFLAG_BIN))
+USE_CPIO(NEWTOY(cpio, "duH:i|t|F:v(verbose)o|[!io][!ot]", TOYFLAG_BIN))
 
 config CPIO
   bool "cpio"
@@ -156,13 +156,14 @@ void cpio_main(void)
 
     for (;;) {
       struct stat st;
-      unsigned nlen = strlen(name)+1, error = 0, zero = 0;
+      unsigned nlen, error = 0, zero = 0;
       int len, fd = -1;
       ssize_t llen;
 
       len = getline(&name, &size, stdin);
       if (len<1) break;
       if (name[len-1] == '\n') name[--len] = 0;
+      nlen = len+1;
       if (lstat(name, &st)
           || (S_ISREG(st.st_mode) && (fd = open(name, O_RDONLY))<0))
       {
@@ -206,8 +207,8 @@ void cpio_main(void)
     }
     free(name);
 
+    memset(toybuf, 0, sizeof(toybuf));
     xwrite(afd, toybuf,
-      sprintf(toybuf, "070701%040X%056X%08XTRAILER!!!%c%c%c",
-              1, 0x0b, 0, 0, 0, 0));
+      sprintf(toybuf, "070701%040X%056X%08XTRAILER!!!", 1, 0x0b, 0)+4);
   }
 }
