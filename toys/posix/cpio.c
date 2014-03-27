@@ -141,7 +141,7 @@ void cpio_main(void)
         }
         size -= sizeof(toybuf);
       }
-      close(fd);
+      if (!test) close(fd);
     } else if (!test)
       err = mknod(name, mode, makedev(x8u(toybuf+62), x8u(toybuf+70)));
 
