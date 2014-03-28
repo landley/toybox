@@ -115,14 +115,15 @@ extern struct toy_list {
 
 extern struct toy_context {
   struct toy_list *which;  // Which entry in toy_list is this one?
-  int exitval;             // Value error_exit feeds to exit()
   char **argv;             // Original command line arguments
-  unsigned optflags;       // Command line option flags from get_optflags()
   char **optargs;          // Arguments left over from get_optflags()
+  jmp_buf *rebound;        // longjmp here instead of exit when do_rebound set
+  unsigned optflags;       // Command line option flags from get_optflags()
+  int exitval;             // Value error_exit feeds to exit()
   int optc;                // Count of optargs
   int exithelp;            // Should error_exit print a usage message first?
   int old_umask;           // Old umask preserved by TOYFLAG_UMASK
-  jmp_buf *rebound;        // longjmp here instead of exit when do_rebound set
+  int toycount;            // Total number of commands in this build
 } toys;
 
 // Two big temporary buffers: one for use by commands, one for library functions
