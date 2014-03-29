@@ -12,14 +12,18 @@ config FIND
   bool "find"
   default n
   help
-    usage: find [<dir>] [<options]
+    usage: find [DIR] [<options>]
 
     -name <pattern>    match pattern
-    -type [fcdl]       match file type
+    -type [bcdflps]    match file type
     !, -a, -o          not, and , or
     (, )               group expressions  
     -mtime [-+]n       match file modification time (to within 24 hours)
     \t\t               +=greater (older) than, -=less (younger) than
+
+    File types:
+    b  block device  d  directory     l  symlink  s  socket
+    c  char device   f  regular file  p  FIFO
 */
 
 /* To Do:
