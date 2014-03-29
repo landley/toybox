@@ -117,6 +117,7 @@ void xsetuser(struct passwd *pwd);
 char *xreadlink(char *name);
 long xparsetime(char *arg, long units, long *fraction);
 void xpidfile(char *name);
+void xregcomp(regex_t *preg, char *rexec, int cflags);
 
 // lib.c
 void verror_msg(char *msg, int err, va_list va);
@@ -178,4 +179,5 @@ mode_t string_to_mode(char *mode_str, mode_t base);
 void mode_to_string(mode_t mode, char *buf);
 void names_to_pid(char **names, int (*callback)(pid_t pid, char *name));
 
+// Functions in need of further review/cleanup
 #include "lib/pending.h"

@@ -514,3 +514,14 @@ long xparsetime(char *arg, long units, long *fraction)
 
   return l;
 }
+
+// Compile a regular expression into a regex_t
+void xregcomp(regex_t *preg, char *regex, int cflags)
+{
+  int rc = regcomp(preg, regex, cflags);
+
+  if (rc) {
+    regerror(rc, preg, libbuf, sizeof(libbuf));
+    error_exit("xregcomp: %s", libbuf);
+  }
+}

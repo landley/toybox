@@ -23,7 +23,6 @@ config SED
 
 #define FOR_sed
 #include "toys.h"
-#include "lib/xregcomp.h"
 
 GLOBALS(
   struct arg_list *files;

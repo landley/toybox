@@ -3,10 +3,12 @@
  * Copyright 2006 Rob Landley <rob@landley.net>
  */
 
-#include "generated/config.h"
+// Stuff that needs to go before the standard headers
 
+#include "generated/config.h"
 #include "lib/portability.h"
 
+// General posix-2008 headers
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
@@ -16,12 +18,10 @@
 #include <limits.h>
 #include <libgen.h>
 #include <math.h>
-#include <pty.h>
 #include <pwd.h>
+#include <regex.h>
 #include <sched.h>
 #include <setjmp.h>
-#include <sched.h>
-#include <shadow.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -29,15 +29,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <sys/ioctl.h>
 #include <sys/mman.h>
-#include <sys/mount.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
-#include <sys/statfs.h>
 #include <sys/statvfs.h>
-#include <sys/sysinfo.h>
-#include <sys/swap.h>
 #include <sys/time.h>
 #include <sys/times.h>
 #include <sys/types.h>
@@ -49,13 +44,7 @@
 #include <utime.h>
 #include <utmpx.h>
 
-// Internationalization support
-
-#include <locale.h>
-#include <wchar.h>
-#include <wctype.h>
-
-// Networking stuff
+// Posix networking
 
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -65,6 +54,18 @@
 #include <poll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+
+// Internationalization support (also in POSIX and LSB)
+
+#include <locale.h>
+#include <wchar.h>
+#include <wctype.h>
+
+// LSB 4.1 headers
+#include <pty.h>
+#include <sys/ioctl.h>
+#include <sys/statfs.h>
+#include <sys/sysinfo.h>
 
 #include "lib/lib.h"
 #include "toys/e2fs.h"

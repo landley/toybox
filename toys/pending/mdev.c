@@ -30,7 +30,6 @@ config MDEV_CONF
 */
 
 #include "toys.h"
-#include "lib/xregcomp.h"
 
 // todo, open() block devices to trigger partition scanning.
 

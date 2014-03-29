@@ -27,7 +27,6 @@ config NL
 
 #define FOR_nl
 #include "toys.h"
-#include "lib/xregcomp.h"
 
 GLOBALS(
   long w;

@@ -4,7 +4,6 @@
  */
 
 #include "toys.h"
-#include "xregcomp.h"
 #include <time.h>
 
 int get_salt(char *salt, char *algo)

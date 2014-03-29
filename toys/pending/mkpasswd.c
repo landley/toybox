@@ -22,7 +22,6 @@ config MKPASSWD
 
 #define FOR_mkpasswd
 #include "toys.h"
-#include "lib/xregcomp.h"
 
 GLOBALS(
   long pfd;

@@ -13,6 +13,9 @@
 
 #undef _FORTIFY_SOURCE
 
+// For musl
+#define _ALL_SOURCE
+
 // Test for gcc (using compiler builtin #define)
 
 #ifdef __GNUC__
@@ -149,6 +152,11 @@ int clearenv(void);
 ssize_t getdelim(char **lineptr, size_t *n, int delim, FILE *stream);
 ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 #endif
+
+// Linux headers not listed by POSIX or LSB
+#include <shadow.h>
+#include <sys/mount.h>
+#include <sys/swap.h>
 
 // compile time probes for stuff libc didn't provide
 #include "generated/portability.h"
