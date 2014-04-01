@@ -132,6 +132,7 @@ void toybox_main(void)
 
   toys.which = toy_list;
   if (toys.argv[1]) {
+    toys.optc = 0;
     toy_exec(toys.argv+1);
     if (toys.argv[1][0] == '-') goto list;
     
