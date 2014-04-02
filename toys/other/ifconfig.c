@@ -88,7 +88,7 @@ int get_addrinfo(char *host, sa_family_t af, void *addr)
   freeaddrinfo(result);
 
   len = -1;
-  if (slash) len = atolx_range(slash+1, 0, (af == AF_INET) ? 128 : 32);
+  if (slash) len = atolx_range(slash+1, 0, (af == AF_INET) ? 32 : 128);
 
   return len;
 }
