@@ -387,7 +387,7 @@ int main(int argc, char *argv[])
         dd = dd->next;
         if (dd == sym->help) break;
       }
-      printf("\"\n");
+      printf("\"\n\n");
     }
     sym = sym->next;
   }
