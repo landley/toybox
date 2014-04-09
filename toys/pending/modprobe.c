@@ -27,7 +27,6 @@ config MODPROBE
 #define FOR_modprobe
 #include "toys.h"
 #include <sys/syscall.h>
-#include <fnmatch.h>
 
 GLOBALS(
   struct arg_list *probes;
@@ -150,9 +149,9 @@ static struct arg_list *llist_rev(struct arg_list *list)
 
 /*
  * Returns struct module_s from the data base if found, NULL otherwise.
- * if ps - create module entry, add it to data base and return the same mod.
+ * if add - create module entry, add it to data base and return the same mod.
  */
-static struct module_s *get_mod(char *mod, uint8_t ps)
+static struct module_s *get_mod(char *mod, uint8_t add)
 {
   char name[MODNAME_LEN];
   struct module_s *modentry;
@@ -166,7 +165,7 @@ static struct module_s *get_mod(char *mod, uint8_t ps)
     modentry = (struct module_s *) temp->arg;
     if (!strcmp(modentry->name, name)) return modentry;
   }
-  if (!ps) return NULL;
+  if (!add) return NULL;
   modentry = xzalloc(sizeof(*modentry));
   modentry->name = xstrdup(name);
   llist_add(&TT.dbase[hash], modentry);
@@ -302,13 +301,9 @@ static int depmode_read_entry(char *cmdname)
 
       tmp = strchr(name, '.');
       if (tmp) *tmp = '\0';
-      if (!cmdname) {
+      if (!cmdname || !fnmatch(cmdname, name, 0)) {
         if (tmp) *tmp = '.';
-        xprintf("%s\n", line);
-        ret = 0;
-      } else if (!fnmatch(cmdname, name, 0)) {
-        if (tmp) *tmp = '.';
-        xprintf("%s\n", line);
+        dbg("%s\n", line);
         ret = 0;
       }
     }
@@ -505,7 +500,7 @@ void modprobe_main(void)
   if ((toys.optc < 1) && (((flags & FLAG_r) && (flags & FLAG_l))
         ||(!((flags & FLAG_r)||(flags & FLAG_l))))) {
 	  toys.exithelp++;
-	  error_exit(" Syntex Error.");
+	  error_exit("bad syntax");
   }
   // Check for -r flag without arg if yes then do auto remove.
   if ((flags & FLAG_r) && (!toys.optc)) {
@@ -523,7 +518,7 @@ void modprobe_main(void)
     if (depmode_read_entry(toys.optargs[0])) error_exit("no module found.");
     return;
   }
-  // Read /proc/modules to get loadded modules.
+  // Read /proc/modules to get loaded modules.
   fs = xfopen("/proc/modules", "r");
   
   while (read_line(fs, &procline) > 0) {
@@ -542,7 +537,7 @@ void modprobe_main(void)
     TT.cmdopts = add_cmdopt(argv);
   }
   if (!TT.probes) {
-    fprintf(stderr, "All modules loaded successfully. \n");
+    dbg("All modules loaded\n");
     return;
   }
   dirtree_read("/etc/modprobe.conf", config_action);
@@ -561,7 +556,7 @@ void modprobe_main(void)
       continue;
     }
     do { // Probe all real names for the alias.
-      char *real = llist_pop(&module->rnames);
+      char *real = ((struct arg_list*)llist_pop(&module->rnames))->arg;
       struct module_s *m2 = get_mod(real, 0);
       
       dbg("probing alias %s by realname %s\n", module->name, real);
