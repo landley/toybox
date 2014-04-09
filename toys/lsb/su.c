@@ -71,7 +71,7 @@ void su_main()
       snapshot_env("COLORTERM"), snapshot_env("XAUTHORITY")};
 
     clearenv();
-    for (i=0; i < sizeof(stuff)/sizeof(char *); i++) putenv(stuff[i]);
+    for (i=0; i < ARRAY_LEN(stuff); i++) if (stuff[i]) putenv(stuff[i]);
     *(argv++) = "-l";
     xchdir(up->pw_dir);
   } else unsetenv("IFS");
