@@ -117,7 +117,13 @@ int main(int argc, char *argv[])
           flist->lopt = flist->lopt->next;
         } else sprintf(out, "#define FLAG_%s 0\n", aflist->lopt->command);
         aflist->lopt = aflist->lopt->next;
-        if (!aflist->command) aflist = aflist->next;
+        if (!aflist->command) {
+          aflist = aflist->next;
+          if (flist) {
+            flist = flist->next;
+            bit++;
+          }
+        }
       } else if (aflist->command) {
         if (flist && (!aflist->command || *aflist->command == *flist->command))
         {
