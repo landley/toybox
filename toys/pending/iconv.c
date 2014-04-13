@@ -2,13 +2,13 @@
  *
  * Copyright 2014 Felix Janda <felix.janda@posteo.de>
  *
- * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/iconv.html
 
 USE_ICONV(NEWTOY(iconv, "t:f:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config ICONV
   bool "iconv"
-  default n
+  default y
   help
     usage: iconv [-f FROM] [-t TO] [FILE...]
 
@@ -16,7 +16,6 @@ config ICONV
 
     -f  convert from (default utf8)
     -t  convert to   (default utf8)
-
 */
 
 #define FOR_iconv
@@ -26,42 +25,46 @@ config ICONV
 GLOBALS(
   char *from;
   char *to;
-)
 
-iconv_t ic; // Can't be put into GLOBALS because iconv_t is defined in iconv.h
+  void *ic;
+)
 
 static void do_iconv(int fd, char *name)
 {
-  size_t inleft = 0, outleft = 2048;
-  char *in = toybuf, *out = toybuf + 2048;
+  char *outstart = toybuf+2048;
+  size_t inleft = 0;
+  int len = 1;
 
-  while (1) {
-    if (!inleft || (errno == EINVAL)) {
-      memmove(in, toybuf, inleft);
-      if (!(inleft += read(fd, toybuf + inleft, 2048 - inleft))) {
-        xwrite(1, toybuf + 2048, 2048 - outleft);
-        break;
+  do {
+    size_t outleft = 2048;
+    char *in = toybuf, *out = outstart;
+
+    len = read(fd, toybuf+inleft, 2048-inleft);
+
+    if (len < 0) perror_msg("read '%s'");
+    inleft += len;
+
+    do {
+      if (iconv(TT.ic, &in, &inleft, &out, &outleft) == -1
+          && (errno == EILSEQ || (in == toybuf && errno == EINVAL)))
+      {
+        if (outleft) {
+          // Skip first byte of illegal sequence to avoid endless loops
+          *(out++) = *(in++);
+          inleft--;
+        }
       }
-      in = toybuf;
-    } else if (errno == E2BIG) {
-      xwrite(1, toybuf + 2048, 2048 - outleft);
-      out = toybuf + 2048;
-      outleft = 2048;
-    } else if (errno == EILSEQ) {
-      in++;
-      inleft--;
-    }
-    if (iconv(ic, &in, &inleft, &out, &outleft) != (size_t)-1) errno = 0;
-  }
+      xwrite(1, outstart, out-outstart);
+      // Top off input buffer
+      memmove(in, toybuf, inleft);
+    } while (len < 1 && inleft);
+  } while (len > 0);
 }
 
 void iconv_main(void)
 {
-  char *from = "utf8", *to = "utf8";
-
-  if (toys.optflags & FLAG_f) from = TT.from;
-  if (toys.optflags & FLAG_t) to = TT.to;
-  if ((ic = iconv_open(to, from)) == (iconv_t)-1) error_exit("iconv_open");
+  TT.ic = iconv_open(TT.to ? TT.to : "utf8", TT.from ? TT.from : "utf8");
+  if (TT.ic == (iconv_t)-1) error_exit("bad encoding");
   loopfiles(toys.optargs, do_iconv);
-  if (CFG_TOYBOX_FREE) iconv_close(ic);
+  if (CFG_TOYBOX_FREE) iconv_close(TT.ic);
 }
