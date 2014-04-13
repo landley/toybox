@@ -415,7 +415,7 @@ void ifconfig_main(void)
 
         if (*hw_addr == ':') hw_addr++;
         sscanf(hw_addr, "%2x%n", &val, &len);
-        if (len != 2) break;
+        if (!len || len > 2) break; // 1 nibble can be set e.g. C2:79:38:95:D:A 
         hw_addr += len;
         *p++ = val;
       }
