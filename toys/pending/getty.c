@@ -98,8 +98,8 @@ static void get_speed(char *sp)
   TT.sc = 0;
   while ((ptr = strsep(&sp, ","))) {
     TT.speeds[TT.sc] = encode(ptr);
-    if (TT.speeds[TT.sc] < 0) perror_exit("Bad Speed");
-    if (++TT.sc > 10) perror_exit("Too many alternate speeds, Max is 10");
+    if (TT.speeds[TT.sc] < 0) perror_exit("bad speed");
+    if (++TT.sc > 10) perror_exit("too many speeds, max is 10");
   }
 }
 
@@ -108,9 +108,9 @@ static void parse_arguments(void)
 {
   if (isdigit(**toys.optargs)) {
     get_speed(*toys.optargs);
-    if (*++toys.optargs) TT.tty_name = xmsprintf("%s", *toys.optargs);
+    if (*++toys.optargs) TT.tty_name = xmprintf("%s", *toys.optargs);
   } else {
-    TT.tty_name = xmsprintf("%s", *toys.optargs);
+    TT.tty_name = xmprintf("%s", *toys.optargs);
     if (*++toys.optargs) get_speed(*toys.optargs);
   } 
   if (*++toys.optargs) setenv("TERM", *toys.optargs, 1);
@@ -120,29 +120,26 @@ static void parse_arguments(void)
 static void open_tty(void)
 {
   if (strcmp(TT.tty_name, "-")) {
-    if (*(TT.tty_name) != '/') TT.tty_name = xmsprintf("/dev/%s", TT.tty_name);
+    if (*(TT.tty_name) != '/') TT.tty_name = xmprintf("/dev/%s", TT.tty_name);
     // Sends SIGHUP to all foreground process if Session leader don't die,Ignore
     sighandler_t sig = signal(SIGHUP, SIG_IGN); 
     ioctl(0, TIOCNOTTY, 0); // Giveup if there is any controlling terminal
     signal(SIGHUP, sig);
-    if (setsid() < 0) { // Seems we are session leader
-      pid_t sid = getpid();
-
-      if(sid != getsid(0)) perror_exit("setsid");
-    }
+    if ((setsid() < 0) && (getpid() != getsid(0))) 
+      perror_exit("setsid");
     xclose(0);
     xopen(TT.tty_name, O_RDWR|O_NDELAY);
     fcntl(0, F_SETFL, fcntl(0, F_GETFL) & ~O_NONBLOCK); // Block read
     dup2(0, 1);
     dup2(0, 2);
     if (ioctl(0, TIOCSCTTY, 1) < 0) perror_msg("ioctl(TIOCSCTTY)");
-    if (!isatty(0)) perror_exit("/dev/%s:Not a character device", TT.tty_name);
+    if (!isatty(0)) perror_exit("/dev/%s: not a tty", TT.tty_name);
     chown(TT.tty_name, 0, 0); // change ownership, Hope login will change this
     chmod(TT.tty_name, 0620);
   } else { // We already have opened TTY
-    if (setsid() < 0) perror_msg("setsid:failed");
+    if (setsid() < 0) perror_msg("setsid failed");
     if ((fcntl(0, F_GETFL) & (O_RDWR|O_RDONLY|O_WRONLY)) != O_RDWR)
-      perror_exit("opened tty don't have read/write permission");
+      perror_exit("no read/write permission");
   }
 }
 
@@ -161,7 +158,6 @@ static void termios_init(void)
   TT.termios.c_cc[VMIN] = 1;
   TT.termios.c_oflag = OPOST|ONLCR;
   TT.termios.c_cflag |= CS8|CREAD|HUPCL|CBAUDEX;
-  TT.termios.c_iflag = 0;
   // login will disable echo for passwd.
   TT.termios.c_lflag |= ISIG|ICANON|ECHO|ECHOE|ECHOK|ECHOKE;
   TT.termios.c_cc[VINTR] = CTL('C');
@@ -170,7 +166,7 @@ static void termios_init(void)
   TT.termios.c_cc[VEOL] = '\n';
   TT.termios.c_cc[VKILL] = CTL('U');
   TT.termios.c_cc[VERASE] = CERASE;
-  TT.termios.c_iflag |= ICRNL|IXON|IXOFF;
+  TT.termios.c_iflag = ICRNL|IXON|IXOFF;
   // set non-zero baud rate. Zero baud rate left it unchanged.
   if (TT.speeds[0] != B0) cfsetspeed(&TT.termios, TT.speeds[0]); 
   if (tcsetattr(STDIN_FILENO, TCSANOW, &TT.termios) < 0) 
@@ -213,7 +209,7 @@ void print_prompt(void)
   uname(&uts);
   hostname = xstrdup(uts.nodename);
   fputs(hostname, stdout);
-  fputs(" Login: ", stdout);
+  fputs(" login: ", stdout);
   fflush(NULL);
   free(hostname);
   hostname = NULL;
@@ -269,6 +265,7 @@ static void utmp_entry(void)
   struct utmp entry;
   struct utmp *utp_ptr;
   pid_t pid = getpid();
+  char *utmperr = "can't make utmp entry, host length greater than UT_HOSTSIZE(256)";
 
   utmpname(_PATH_UTMP);
   setutent(); // Starts from start
@@ -282,7 +279,7 @@ static void utmp_entry(void)
     time((time_t *)&entry.ut_time);
     xstrncpy(entry.ut_user, "LOGIN", UT_NAMESIZE);
     if (strlen(TT.host_str) > UT_HOSTSIZE) 
-      perror_msg("Can't make utmp entry, Host length is greater than UT_HOSTSIZE(256)");
+      perror_msg(utmperr);
     else xstrncpy(entry.ut_host, TT.host_str, UT_HOSTSIZE);
     setutent();
     pututline(&entry);
@@ -291,7 +288,7 @@ static void utmp_entry(void)
   xstrncpy(entry.ut_line, ttyname(STDIN_FILENO) + strlen("/dev/"), UT_LINESIZE);
   xstrncpy(entry.ut_user, "LOGIN", UT_NAMESIZE);
   if (strlen(TT.host_str) > UT_HOSTSIZE) 
-    perror_msg("Can't make utmp entry,Host length is greater than UT_HOSTSIZE(256)");
+    perror_msg(utmperr);
   else xstrncpy(entry.ut_host, TT.host_str, UT_HOSTSIZE);
   time((time_t *)&entry.ut_time);
   setutent();
@@ -301,7 +298,7 @@ static void utmp_entry(void)
 void getty_main(void)
 {
   pid_t pid = getpid();
-  char *ptr[2] = {"/bin/login", NULL};
+  char *ptr[3] = {"/bin/login", NULL, NULL}; //2 NULLs so we can add username
 
   if (!(toys.optflags & FLAG_f)) TT.issue_str = "/etc/issue";
   if (toys.optflags & FLAG_l) ptr[0] = TT.login_str;
@@ -333,8 +330,7 @@ void getty_main(void)
       if (tcsetattr(STDIN_FILENO, TCSANOW, &TT.termios) < 0) 
         perror_exit("tcsetattr"); 
     }
+    ptr[1]=TT.buff; //put the username in the login command line
   }
-  if (toys.optflags & FLAG_n) execlp(*ptr, *ptr ,NULL); 
-  else execlp(*ptr, *ptr, TT.buff, NULL); 
-  perror_exit("error:%d",errno); // exec will return only if error
+  xexec(ptr);
 }
