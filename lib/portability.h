@@ -158,5 +158,8 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 #include <sys/mount.h>
 #include <sys/swap.h>
 
-// compile time probes for stuff libc didn't provide
-#include "generated/portability.h"
+// Some systems don't define O_NOFOLLOW, and it varies by architecture, so...
+#include <fcntl.h>
+#ifndef O_NOFOLLOW
+#define O_NOFOLLOW 0
+#endif

@@ -44,9 +44,8 @@ clean::
 	rm -rf toybox toybox_unstripped generated/config.h generated/Config.in \
 		generated/newtoys.h generated/globals.h testdir \
 		generated/Config.probed generated/oldtoys.h generated/flags.h \
-		generated/portability.h .singleconfig .singleconfig.old \
-		generated/instlist generated/mkflags generated/config2help \
-		generated/help.h
+		.singleconfig .singleconfig.old generated/help.h \
+		generated/instlist generated/mkflags generated/config2help
 
 distclean: clean
 	rm -f toybox_old .config*

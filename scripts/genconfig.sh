@@ -49,33 +49,5 @@ genconfig()
   done
 }
 
-headerprobes()
-{
-  ${CROSS_COMPILE}${CC} $CFLAGS -xc -o /dev/null - 2>/dev/null << EOF
-    #include <fcntl.h>
-    #ifndef O_NOFOLLOW
-    #error posix 2008 was a while ago now
-    #endif
-EOF
-  if [ $? -ne 0 ]
-  then
-    rm -f a.out
-    ${CROSS_COMPILE}${CC} $CFLAGS -xc - 2>/dev/null << EOF
-      #include <stdio.h>
-      #include <sys/types.h>
-      #include <asm/fcntl.h>
-
-      int main(int argc, char *argv[])
-      {
-        printf("0x%x\n", O_NOFOLLOW);
-      }
-EOF
-    X=$(./a.out) 2>/dev/null
-    rm -f a.out
-    echo "#define O_NOFOLLOW ${X:-0}"
-  fi
-}
-
 probeconfig > generated/Config.probed || rm generated/Config.probed
 genconfig > generated/Config.in || rm generated/Config.in
-headerprobes > generated/portability.h || rm generated/portability.h
