@@ -13,10 +13,7 @@ config INIT
   help
     usage: init
 
-    System V style init.
-
-    First program to run (as PID 1) when the system comes up, reading
-    /etc/inittab to determine actions.
+    init the system.
 */
 
 #include "toys.h"
@@ -44,9 +41,8 @@ int caught_signal;
 static void initialize_console(void)
 {
   int fd;
-  char *p = getenv("CONSOLE");
+  char *p = (p = getenv("CONSOLE")) ? p : getenv("console");
 
-  if (!p) p = getenv("console");
   if (!p) {
     fd = open("/dev/null", O_RDWR);
     if (fd >= 0) {
@@ -66,11 +62,11 @@ static void initialize_console(void)
   if (!getenv("TERM")) putenv("TERM=linux");
 }
 
-static void reset_term(int fd)
+static void set_sane_term(void)
 {
   struct termios terminal;
  
-  tcgetattr(fd, &terminal);
+  tcgetattr(0, &terminal);
   terminal.c_cc[VINTR] = 3;    //ctrl-c
   terminal.c_cc[VQUIT] = 28;   /*ctrl-\*/
   terminal.c_cc[VERASE] = 127; //ctrl-?
@@ -81,16 +77,12 @@ static void reset_term(int fd)
   terminal.c_cc[VSUSP] = 26;   //ctrl-z
 
   terminal.c_line = 0;
-  terminal.c_cflag &= CRTSCTS|PARODD|PARENB|CSTOPB|CSIZE|CBAUDEX|CBAUD;
-  terminal.c_cflag |= CLOCAL|HUPCL|CREAD;
-
-  //enable start/stop input and output control + map CR to NL on input
-  terminal.c_iflag = IXON|IXOFF|ICRNL;
-
-  //Map NL to CR-NL on output
-  terminal.c_oflag = ONLCR|OPOST;
+  terminal.c_cflag = terminal.c_cflag&(CRTSCTS|PARODD|PARENB|CSTOPB|CSIZE|CBAUDEX|CBAUD);
+  terminal.c_cflag = terminal.c_cflag|(CLOCAL|HUPCL|CREAD);
+  terminal.c_iflag = IXON|IXOFF|ICRNL;//enable start/stop input and output control + map CR to NL on input
+  terminal.c_oflag = ONLCR|OPOST;//Map NL to CR-NL on output
   terminal.c_lflag = IEXTEN|ECHOKE|ECHOCTL|ECHOK|ECHOE|ECHO|ICANON|ISIG;
-  tcsetattr(fd, TCSANOW, &terminal);
+  tcsetattr(0, TCSANOW, &terminal);
 }
 
 static void add_new_action(uint8_t action,char *command,char *term)
@@ -258,7 +250,7 @@ static pid_t final_run(struct action_list_seed *x)
       dup2(0, 2);
     }
   }
-  reset_term(0);
+  set_sane_term();
   run_command(x->command);
   _exit(-1);
 }
@@ -289,7 +281,6 @@ static void waitforpid(pid_t pid)
     if (kill(y, 0)) break;
   }
 }
-
 static void run_action_from_list(int action)
 {
   pid_t pid;
@@ -311,7 +302,14 @@ static void set_default(void)
 {
   sigset_t signal_set_c;
 
-  sigatexit(SIG_DFL);
+  signal(SIGUSR1,SIG_DFL);
+  signal(SIGUSR2,SIG_DFL);
+  signal(SIGTERM,SIG_DFL);
+  signal(SIGQUIT,SIG_DFL);
+  signal(SIGINT,SIG_DFL);
+  signal(SIGHUP,SIG_DFL);
+  signal(SIGTSTP,SIG_DFL);
+  signal(SIGSTOP,SIG_DFL);
   sigfillset(&signal_set_c);
   sigprocmask(SIG_UNBLOCK,&signal_set_c, NULL);
 
@@ -359,7 +357,6 @@ static void halt_poweroff_reboot_handler(int sig_no)
 
   while(1) sleep(1);
 }
-
 static void restart_init_handler(int sig_no)
 {
   struct action_list_seed *x;
@@ -389,7 +386,7 @@ static void restart_init_handler(int sig_no)
       } else {
         dup2(0, 1);
         dup2(0, 2);
-        reset_term(0);
+        set_sane_term();
         run_command(x->command);
       }
     }
@@ -443,7 +440,7 @@ void init_main(void)
   if (getpid() != 1) error_exit("Already running"); 
   printf("Started init\n"); 
   initialize_console();
-  reset_term(0);
+  set_sane_term();
 
   if (chdir("/")) perror_exit("Can't cd to /");
   setsid();
@@ -452,7 +449,6 @@ void init_main(void)
   putenv("PATH=/sbin:/usr/sbin:/bin:/usr/bin");
   putenv("SHELL=/bin/sh");
   putenv("USER=root");
-
   inittab_parsing();  
   signal(SIGUSR1, halt_poweroff_reboot_handler);//halt
   signal(SIGUSR2, halt_poweroff_reboot_handler);//poweroff

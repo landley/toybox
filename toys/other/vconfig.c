@@ -47,18 +47,6 @@ void vconfig_main(void)
   memset(&request, 0, sizeof(struct vlan_ioctl_args));
   cmd = toys.optargs[0];
 
-//add ADD_VLAN_CMD 4094 0     // ADD_VLAN_CMD
-//rem DEL_VLAN_CMD 0 0        // DEL_VLAN_CMD
-//set_ingress_map  INT_MAX 0  // SET_VLAN_INGRESS_PRIORITY_CMD
-//set_egress_map              // SET_VLAN_EGRESS_PRIORITY_CMD
-//GET_VLAN_INGRESS_PRIORITY_CMD,
-//GET_VLAN_EGRESS_PRIORITY_CMD,
-//set_name_type               // SET_VLAN_NAME_TYPE_CMD
-//set_flag                    // SET_VLAN_FLAG_CMD,
-//GET_VLAN_REALDEV_NAME_CMD,
-//GET_VLAN_VID_CMD
-
-
   if (!strcmp(cmd, "set_name_type")) {
     char *types[] = {"VLAN_PLUS_VID", "DEV_PLUS_VID", "VLAN_PLUS_VID_NO_PAD",
                      "DEV_PLUS_VID_NO_PAD"};
@@ -77,7 +65,7 @@ void vconfig_main(void)
   }
 
   // Store interface name
-  xstrncpy(request.device1, toys.optargs[1], 23);
+  xstrncpy(request.device1, toys.optargs[1], 16);
 
   if (!strcmp(cmd, "add")) {
     request.cmd = ADD_VLAN_CMD;

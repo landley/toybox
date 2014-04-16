@@ -4,7 +4,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/grep.html
 
-USE_GREP(NEWTOY(grep, "A#B#C#ZzEFHabhinorsvwclqe*f*m#x[!wx][!EFw]", TOYFLAG_BIN))
+USE_GREP(NEWTOY(grep, "ZzEFHabhinorsvwclqe*f*m#x[!wx][!EFw]", TOYFLAG_BIN))
 USE_GREP(OLDTOY(egrep, grep, OPTSTR_grep, TOYFLAG_BIN))
 USE_GREP(OLDTOY(fgrep, grep, OPTSTR_grep, TOYFLAG_BIN))
 
@@ -46,67 +46,40 @@ GLOBALS(
   long m;
   struct arg_list *f;
   struct arg_list *e;
-  long C;
-  long B;
-  long A;
 
   struct arg_list *regex;
-  struct double_list *blist;
 )
-
-struct dlist_off {
-  char *next, *prev;
-  long offset;
-  char *data;
-};
 
 static void do_grep(int fd, char *name)
 {
   FILE *file = fdopen(fd, "r");
   long offset = 0;
-  int lcount = 0, mcount = 0, which = toys.optflags & FLAG_w ? 2 : 0,
-      blines = 0, alines = 0, dash = 0;
+  int lcount = 0, mcount = 0, which = toys.optflags & FLAG_w ? 2 : 0;
   char indelim = '\n' * !(toys.optflags&FLAG_z),
        outdelim = '\n' * !(toys.optflags&FLAG_Z);
 
   if (!fd) name = "(standard input)";
 
-fprintf(stderr, "boo\n");
   if (!file) {
     perror_msg("%s", name);
     return;
   }
 
-  // Loop through lines of input
   for (;;) {
-    char *oline = 0, *line = 0, *start;
+    char *line = 0, *start;
     regmatch_t matches[3];
     size_t unused;
     long len;
     int mmatch = 0;
 
-    // Read next line of input
     lcount++;
     if (0 > (len = getdelim(&line, &unused, indelim, file))) break;
     if (line[len-1] == indelim) line[len-1] = 0;
-fprintf(stderr, "line=%s\n", line);
-    // Unconditionally add line to blist so output can always just dump blist.
-    dlist_add(&TT.blist, line);
-fprintf(stderr, "added=%s\n", TT.blist->data);
-fprintf(stderr, "prev=%s\n", TT.blist->prev->data);
-    if (blines <= TT.B) blines++;
-    else {
-      struct double_list *temp = dlist_pop(&TT.blist);
-fprintf(stderr, "bird=%s\n", temp->data);
-      free(temp->data);
-      free(temp);
-    }
 
     start = line;
 
-    // Loop to match multiple times within the same line (if necessary)
-    for (;;) {
-fprintf(stderr, "match?\n");
+    for (;;)
+    {
       int rc = 0, skip = 0;
 
       if (toys.optflags & FLAG_F) {
@@ -159,51 +132,30 @@ fprintf(stderr, "match?\n");
         }
         matches[which].rm_so = 0;
       } else if (rc) break;
-fprintf(stderr, "got match %s\n", line);
-      // We got a match, figure out how to display it
+
       mmatch++;
       toys.exitval = 0;
       if (toys.optflags & FLAG_q) xexit();
       if (toys.optflags & FLAG_l) {
         printf("%s%c", name, outdelim);
-        goto finish;
+        free(line);
+        fclose(file);
+        return;
       }
-
-      line = 0;
-fprintf(stderr, "here=%s\n", TT.blist->prev->data);
-      // Yes, -o sometimes counts things as a match (-c) but doesn't display it
       if (toys.optflags & FLAG_o)
         if (matches[which].rm_eo == matches[which].rm_so)
           break;
 
-// List of lines that DIDN'T match, print backlog?
-// Except this includes the one we just matched...?
-      while (TT.blist) {
-        struct double_list *dlist = dlist_pop(&TT.blist);
-        char *ll = dlist->data;
-fprintf(stderr, "popped %s\n", ll);
-        if (dash) printf("--%c", outdelim);
-        dash = 0;
-
-        if (!(toys.optflags & FLAG_c)) {
-          if (toys.optflags & FLAG_H) printf("%s:", name);
-          if (toys.optflags & FLAG_n) printf("%d:", lcount);
-          if (toys.optflags & FLAG_b)
-            printf("%ld:", offset + (start - dlist->data) +
-                ((toys.optflags & FLAG_o) ? matches[which].rm_so : 0));
-          if (!(toys.optflags & FLAG_o)) xprintf("%s%c", dlist->data, outdelim);
-          else if (!TT.blist) {
-
-// TODO: FLAG_o prints multiple times, can't free it yet?
-            xprintf("%.*s%c", matches[which].rm_eo - matches[which].rm_so,
-                    start + matches[which].rm_so, outdelim);
-            line = dlist->data;
-          }
-        }
-        if (oline && !TT.blist) TT.blist = dlist;
+      if (!(toys.optflags & FLAG_c)) {
+        if (toys.optflags & FLAG_H) printf("%s:", name);
+        if (toys.optflags & FLAG_n) printf("%d:", lcount);
+        if (toys.optflags & FLAG_b)
+          printf("%ld:", offset + (start-line) +
+              ((toys.optflags & FLAG_o) ? matches[which].rm_so : 0));
+        if (!(toys.optflags & FLAG_o)) xprintf("%s%c", line, outdelim);
         else {
-          free(dlist->data);
-          free(dlist);
+          xprintf("%.*s%c", matches[which].rm_eo - matches[which].rm_so,
+                  start + matches[which].rm_so, outdelim);
         }
       }
 
@@ -211,7 +163,7 @@ fprintf(stderr, "popped %s\n", ll);
       if (!(toys.optflags & FLAG_o) || !*start) break;
     }
     offset += len;
-fprintf(stderr, "Spacious skies\n");
+
     free(line);
 
     if (mmatch) mcount++;
@@ -221,14 +173,6 @@ fprintf(stderr, "Spacious skies\n");
   if (toys.optflags & FLAG_c) {
     if (toys.optflags & FLAG_H) printf("%s:", name);
     xprintf("%d%c", mcount, outdelim);
-  }
-
-finish:
-  while (CFG_TOYBOX_FREE && TT.blist) {
-    struct double_list *dlist = dlist_pop(&TT.blist);
-
-    free(dlist->data);
-    free(dlist);
   }
 
   // loopfiles will also close the fd, but this frees an (opaque) struct.
@@ -328,10 +272,6 @@ void grep_main(void)
     TT.e->arg = *(toys.optargs++);
     toys.optc--;
   }
-
-  if (!TT.A) TT.A = TT.C;
-  if (!TT.B) TT.B = TT.C;
-  if (toys.optflags & (FLAG_l|FLAG_o)) TT.B = 0; // avoid memory leak
 
   parse_regex();
 
