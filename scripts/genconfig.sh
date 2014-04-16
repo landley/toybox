@@ -7,20 +7,33 @@ mkdir -p generated
 
 source configure
 
+# Probe for a single config symbol with a "compiles or not" test.
+# Symbol name is first argument, flags second, feed C file to stdin
+probesymbol()
+{
+  ${CROSS_COMPILE}${CC} $CFLAGS -xc -o /dev/null $2 - 2>/dev/null
+  [ $? -eq 0 ] && DEFAULT=y || DEFAULT=n
+  rm a.out 2>/dev/null
+  echo -e "config $1\n\tbool" || exit 1
+  echo -e "\tdefault $DEFAULT\n" || exit 1
+}
+
 probeconfig()
 {
   # Probe for container support on target
-
-  echo -e "# container support\nconfig TOYBOX_CONTAINER\n\tbool" || return 1
-  ${CROSS_COMPILE}${CC} $CFLAGS -xc -o /dev/null - 2>/dev/null << EOF
+  probesymbol TOYBOX_CONTAINER << EOF
     #include <linux/sched.h>
     int x=CLONE_NEWNS|CLONE_NEWUTS|CLONE_NEWIPC|CLONE_NEWNET;
 
     int main(int argc, char *argv[]) { return unshare(x); }
 EOF
-  [ $? -eq 0 ] && DEFAULT=y || DEFAULT=n
-  rm a.out 2>/dev/null
-  echo -e "\tdefault $DEFAULT\n" || return 1
+
+  probesymbol TOYBOX_FIFREEZE -c << EOF
+    #include <linux/fs.h>
+    #ifndef FIFREEZE
+    #error nope
+    #endif
+EOF
 }
 
 genconfig()

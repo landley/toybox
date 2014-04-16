@@ -7,6 +7,7 @@ USE_FSFREEZE(NEWTOY(fsfreeze, "<1>1f|u|[!fu]", TOYFLAG_USR|TOYFLAG_SBIN))
 config FSFREEZE
   bool "fsfreeze"
   default y
+  depends on TOYBOX_FIFREEZE
   help
     usage: fsfreeze {-f | -u} MOUNTPOINT
 
