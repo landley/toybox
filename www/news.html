@@ -7,6 +7,93 @@ reasonably standards-compliant, and powerful enough to turn Android into
 a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
+
+<hr><b>April 20, 2014</b>
+<blockquote><p>And to this end they built themselves a stupendous supercomputer
+which was so amazingly intelligent that even before the data banks
+had been connected up it had started from "I think therefore I am" and got as
+far as the existence of rice pudding and income tax before anyone managed to
+turn it off. - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+
+<p><a href=downloads/toybox-0.4.8.tar.bz2>Toybox 0.4.8</a> is based on
+<a href=http://landley.net/hg/toybox/shortlog/1262>commit 1262</a>. And
+about time too.</p>
+
+<p>The big news is that the build no longer needs python to generate help.h,
+that's now done in C. The help text generation is also collating help text
+from multiple options, merging command line option blocks and usage: lines.
+There's even a new <a href=help.html>help web page</a>.</p>
+
+<p><b>New commands:</b> Ifconfig, cpio, and su were cleaned up the rest of the
+way and promoted out of pending. That saga is mostly explained on the
+<a href=cleanup.html>cleanup page</a>. Vivek Bhagat's freeramdisk,
+Isaac Dunham's fsfreeze, and Felix Janda's iconv are also new.</p>
+
+<p><b>In pending:</b>
+Ashwini Sharma's team submitted tcpsvd, udpsvd, telnet, telnetd, last, more,
+groupdel/delgroup, arping, brctl, ftpget, ftpput, printf, reset, and added
+ipv6 support to traceroute. Kyungwan Han's team submitted modprobe and getty.
+Vivek Bhagat submitted openvt and deacllocvt. Samuel Holland submitted fold.
+I wrote a new inflate (zip/zlib/gzip decompression) implementation in
+compress.c, and still  need to do a corresponding deflate (compression-side)
+and plug them into gzip and zip and so on. (Right now it does zcat.)</p>
+
+<p>Several commands (vmstat, login, du, vconfig, mountpoint, free, chroot,
+cut, touch, modinfo, expand) predate the "pending" directory, and are thus
+in other directories but still need cleanup. Of these, vmstat got some
+work this time (which would be much easier other vmstat implementations
+documented what their output actually meant).</p>
+
+<p><b>Upgrades:</b> Ifconfig grew /prefix netmask support (ala 1.2.3.4/24). Grep now has -zZ to
+handle null terminated data, cksum grew -H for hex output. Upgraded od so the
+fields align better when producing multiple output types. Help has -a and -h
+options (all commands, html output).
+Bugfix to blkid building for a 32 bit target. The date command can actually
+set dates now. The O_NOFOLLOW compile time probe didn't work with cross
+compiling, so it's back to an #ifdef test in portability.h. Nathan McSween
+sent in a bugfix to od and a portability fix in the common library code.
+Ashwini Sharma spotted a bug in pidof -o, and added verbose (-v) options
+to mkdir and ln, and suggested killall should have an -s option and
+allow -l to take zero arguments. Ashwini Sharma and Felix Janda upgraded
+tftpd.  Fixed dumpleases still using toynet.h after
+that was removed. Corrected killall return code and error reporting.
+Isacc Dunham fixed bugs all over the tree, did cleanup on a bunch of
+pending commands (getty, ftpget, init, openvt, modprobe...), and clarified
+find's help text. Tom Sparrow ran three different static analyzers on
+the code, which resulted in a few cleanups. The peek()/poke() functions
+now use "volatile" to prevent broken compiler "optimizations" to do with
+aliasing.</p>
+
+<p><b>Build stuff:</b> Each FOR_xxxx macro now has a complementary CLEANUP_xxxx macro, so you
+can put multiple commands with different command line options in the same
+.c file, so they can share infrastructure outside of lib. (This let the
+bunzip logic move out of lib into bzcat.c.) See XXX for example.
+i
+<p>The headers #included in toys.h are now grouped by standard, and headers
+not listed in Posix or LSB were moved to portability.h. The old xregcomp.h
+was folded into lib.h because it's posix (and supporting oddball uClibc
+configurations isn't as important as it once was).</p>
+
+<p>Regression tested against Ubuntu 8.04 to fix up bit-rot in defconfig
+build on older systems. (We depend on Posix-2008, but not necessarily
+the absolute latest build environment.)</p>
+
+<p><b>In lib</b>: lib/xwrap.c added xgetpwnam(), xchroot(), and lib/lib.c now has names_to_pid().
+xsetuid() was replaced with xsetuser() which takes a struct passwd
+and sets both gid and uid, mkpathat() got factored out into a library command,
+get_int_value() became atolx_range(), and
+xmsprintf() is now just xmprintf(). The bunzip2 logic moved from lib into
+bzcat.c.</p>
+
+<p><b>Documentation</b>: new <a href=help.html>help page</a> with the
+help text for all the defconfig commands, using the new help -ah output.
+The <a href=code.html>source code walkthrough</a> now says more about
+#including header files, and how the generated/* directory works. The
+<a href=design.html>design page</a> has some new paragraphs about trading
+of different kinds of simplicity, and why comments aren't a substitute for
+good code. The README no longer trails off into obvious unfinished confusion
+at the end. Each page on the website should now have its own title.</p>
+
 <hr><b>November 18, 2013</b>
 <blockquote><p>"Space," it says, "is big. Really big. You just won't believe how vastly, hugely, mindbogglingly big it is. I mean, you may think it's a long way down the street to the chemist's, but that's just peanuts to space." -
 The Hitchhiker's Guide to the Galaxy.</p></blockquote>
