@@ -10,7 +10,7 @@ config DHCPD
   bool "dhcpd"
   default n
   help
-   Usage: dhcpd [-fS] [-P N] [CONFFILE]
+   usage: dhcpd [-fS] [-P N] [CONFFILE]
 
     -f    Run in foreground
     -S    Log to syslog too

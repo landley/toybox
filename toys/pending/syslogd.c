@@ -11,7 +11,7 @@ config SYSLOGD
   bool "syslogd"
   default n
   help
-  Usage: syslogd  [-a socket] [-O logfile] [-f config file] [-m interval]
+  usage: syslogd  [-a socket] [-O logfile] [-f config file] [-m interval]
                   [-p socket] [-s SIZE] [-b N] [-R HOST] [-l N] [-nSLKD]
 
   System logging utility

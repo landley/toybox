@@ -11,7 +11,7 @@ config GETTY
   bool "getty"
   default n
   help
-    Usage: getty [OPTIONS] BAUD_RATE[,BAUD_RATE]... TTY [TERMTYPE]
+    usage: getty [OPTIONS] BAUD_RATE[,BAUD_RATE]... TTY [TERMTYPE]
 
     -h    Enable hardware RTS/CTS flow control
     -L    Set CLOCAL (ignore Carrier Detect state)

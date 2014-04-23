@@ -11,7 +11,7 @@ config ARPING
   bool "arping"
   default n
   help
-    Usage: arping [-fqbDUA] [-c CNT] [-w TIMEOUT] [-I IFACE] [-s SRC_IP] DST_IP
+    usage: arping [-fqbDUA] [-c CNT] [-w TIMEOUT] [-I IFACE] [-s SRC_IP] DST_IP
 
     Send ARP requests/replies
 

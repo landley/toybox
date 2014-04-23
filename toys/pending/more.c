@@ -10,7 +10,7 @@ config MORE
   bool "more"
   default n
   help
-    Usage: more [FILE]...
+    usage: more [FILE]...
 
     View FILE (or stdin) one screenful at a time.
 */

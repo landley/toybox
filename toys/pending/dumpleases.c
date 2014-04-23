@@ -10,7 +10,7 @@ config DUMPLEASES
   bool "dumpleases"
   default n
   help
-  Usage: dumpleases [-r|-a] [-f LEASEFILE]
+    usage: dumpleases [-r|-a] [-f LEASEFILE]
 
     Display DHCP leases granted by udhcpd
     -f FILE,  Lease file

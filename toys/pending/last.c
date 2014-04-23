@@ -11,7 +11,7 @@ config LAST
   bool "last"
   default n
   help
-    Usage: last [-W] [-f FILE]
+    usage: last [-W] [-f FILE]
 
     Show listing of last logged in users.
 

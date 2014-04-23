@@ -9,7 +9,7 @@ config WATCH
   bool "watch"
   default n
   help
-    Usage: watch [-n SEC] [-t] PROG ARGS
+    usage: watch [-n SEC] [-t] PROG ARGS
 
     Run PROG periodically
 

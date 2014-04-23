@@ -13,7 +13,7 @@ config TOP
   default n
   help
     
-    Usage: top [-mb] [ -d seconds ] [ -n iterations ]
+    usage: top [-mb] [ -d seconds ] [ -n iterations ]
 
     Provide a view of process activity in real time.
     Keys

@@ -11,7 +11,7 @@ config BRCTL
   bool "brctl"
   default n
   help
-    Usage: brctl COMMAND [BRIDGE [INTERFACE]]
+    usage: brctl COMMAND [BRIDGE [INTERFACE]]
 
     Manage ethernet bridges
 

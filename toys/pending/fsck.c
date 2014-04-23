@@ -9,7 +9,7 @@ config FSCK
   bool "fsck"
   default n
   help
-    Usage: fsck [-ANPRTV] [-C FD] [-t FSTYPE] [FS_OPTS] [BLOCKDEV]... 
+    usage: fsck [-ANPRTV] [-C FD] [-t FSTYPE] [FS_OPTS] [BLOCKDEV]... 
     
     Check and repair filesystems
 
