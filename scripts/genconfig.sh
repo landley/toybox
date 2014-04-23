@@ -34,6 +34,11 @@ EOF
     #error nope
     #endif
 EOF
+
+  # Hard to come by in uClibc.
+  probesymbol TOYBOX_ICONV -c << EOF
+    #include "iconv.h"
+EOF
 }
 
 genconfig()
