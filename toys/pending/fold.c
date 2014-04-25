@@ -12,13 +12,13 @@ config FOLD
   help
     usage: fold [-bsu] [-w WIDTH] [FILE...]
 
-    Folds (wraps) or unfolds FILE or stdin by adding or removing newlines.
+    Folds (wraps) or unfolds ascii text by adding or removing newlines.
     Default line width is 80 columns for folding and infinite for unfolding.
 
-    -b  Fold based on bytes instead of columns
-    -s  Fold/unfold at whitespace boundaries if possible
-    -u  Unfold text (and refold if -w is given)
-    -w  Set lines to WIDTH columns or bytes
+    -b	Fold based on bytes instead of columns
+    -s	Fold/unfold at whitespace boundaries if possible
+    -u	Unfold text (and refold if -w is given)
+    -w	Set lines to WIDTH columns or bytes
 */
 
 #define FOR_fold
@@ -28,27 +28,23 @@ GLOBALS(
   int width;
 )
 
+// wcwidth mbrtowc
 void do_fold(int fd, char *name)
 {
-  char *buf;
-  int bufsz, pos, len = 0, maxlen, split;
+  int bufsz, len = 0, maxlen;
 
-  if (toys.optflags & FLAG_w)
-    maxlen = TT.width;
-  else if (toys.optflags & FLAG_u)
-    maxlen = 0;
-  else
-    maxlen = 80;
+  if (toys.optflags & FLAG_w) maxlen = TT.width;
+  else if (toys.optflags & FLAG_u) maxlen = 0;
+  else maxlen = 80;
 
   while ((bufsz = read(fd, toybuf, sizeof(toybuf))) > 0) {
-    buf = toybuf;
-    pos = 0;
-    split = -1;
+    char *buf = toybuf;
+    int pos = 0, split = -1;
 
     while (pos < bufsz) {
       switch (buf[pos]) {
         case '\n':
-          //print everything but the \n, then move on to the next buffer
+          // print everything but the \n, then move on to the next buffer
           if ((toys.optflags & FLAG_u) && buf[pos-1] != '\n'
                                        && buf[pos+1] != '\n') {
               xwrite(1, buf, pos);
@@ -56,31 +52,30 @@ void do_fold(int fd, char *name)
               buf += pos + 1;
               pos = 0;
               split = -1;
-          }
-          //reset len, FLAG_b or not; just print multiple lines at once
-          else len = 0;
+          // reset len, FLAG_b or not; just print multiple lines at once
+          } else len = 0;
           break;
         case '\b':
-          //len cannot be negative; not allowed to wrap after backspace
+          // len cannot be negative; not allowed to wrap after backspace
           if (toys.optflags & FLAG_b) len++;
           else if (len > 0) len--;
           break;
         case '\r':
-          //not allowed to wrap after carriage return
+          // not allowed to wrap after carriage return
           if (toys.optflags & FLAG_b) len++;
           else len = 0;
           break;
         case '\t':
-          //round to 8, but we add one after falling through
-          //(because of whitespace, but it also takes care of FLAG_b)
-          if (!(toys.optflags & FLAG_b)) len = (len & -8) + 7;
+          // round to 8, but we add one after falling through
+          // (because of whitespace, but it also takes care of FLAG_b)
+          if (!(toys.optflags & FLAG_b)) len = (len & ~7) + 7;
         case ' ':
           split = pos;
         default:
           len++;
       }
 
-      //we don't want to double up \n; not allowed to wrap before \b
+      // we don't want to double up \n; not allowed to wrap before \b
       if (maxlen > 0 && len >= maxlen && buf[pos+1] != '\n' && buf[pos+1] != '\b') {
         if (!(toys.optflags & FLAG_s) || split < 0) split = pos;
         xwrite(1, buf, split + 1);
@@ -89,9 +84,7 @@ void do_fold(int fd, char *name)
         buf += split + 1;
         len = pos = 0;
         split = -1;
-      } else {
-        pos++;
-      }
+      } else pos++;
     }
     xwrite(1, buf, bufsz);
   }
