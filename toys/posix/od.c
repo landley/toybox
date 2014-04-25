@@ -278,7 +278,7 @@ void od_main(void)
   if (toys.optflags & FLAG_o) append_base("o2");
   if (toys.optflags & FLAG_s) append_base("d2");
   if (toys.optflags & FLAG_x) append_base("x2");
-  if (!TT.output_base) append_base("o2");
+  if (!TT.types) append_base("o2");
 
   loopfiles(toys.optargs, do_od);
 
