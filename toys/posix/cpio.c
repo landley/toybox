@@ -39,14 +39,14 @@ GLOBALS(
 )
 
 // Read strings, tail padded to 4 byte alignment. Argument "align" is amount
-// by which start of string isn't aligned (usually 0).
+// by which start of string isn't aligned (usually 0, but header is 110 bytes
+// which is 2 bytes off because the first field wasn't expanded from 6 to 8).
 static char *strpad(int fd, unsigned len, unsigned align)
 {
   char *str;
 
   align = (align + len) & 3;
   if (align) len += (4-align);
-
   xreadall(fd, str = xmalloc(len+1), len);
   str[len]=0; // redundant, in case archive is bad
 
@@ -88,7 +88,7 @@ void cpio_main(void)
 
   if (toys.optflags & (FLAG_i|FLAG_t)) for (;;) {
     char *name, *tofree, *data;
-    unsigned size, mode;
+    unsigned size, mode, uid, gid, timestamp;
     int test = toys.optflags & FLAG_t, err = 0;
 
     // Read header and name.
@@ -98,11 +98,13 @@ void cpio_main(void)
 
     // If you want to extract absolute paths, "cd /" and run cpio.
     while (*name == '/') name++;
-
-    // Align to 4 bytes. Note header is 110 bytes which is 2 bytes over.
+    // TODO: remove .. entries
 
     size = x8u(toybuf+54);
     mode = x8u(toybuf+14);
+    uid = x8u(toybuf+30);
+    gid = x8u(toybuf+38);
+    timestamp = x8u(toybuf+46); // unsigned 32 bit, so year 2100 problem
 
     if (toys.optflags & (FLAG_t|FLAG_v)) puts(name);
 
@@ -119,12 +121,13 @@ void cpio_main(void)
     } else if (S_ISLNK(mode)) {
       data = strpad(afd, size, 0);
       if (!test) err = symlink(data, name);
+      // Can't get a filehandle to a symlink, so do special chown
+      if (!err && !getpid()) err = lchown(name, uid, gid);
     } else if (S_ISREG(mode)) {
-      int fd;
+      int fd = test ? 0 : open(name, O_CREAT|O_WRONLY|O_TRUNC|O_NOFOLLOW, mode);
 
       // If write fails, we still need to read/discard data to continue with
       // archive. Since doing so overwrites errno, report error now
-      fd = test ? 0 : open(name, O_CREAT|O_WRONLY|O_TRUNC|O_NOFOLLOW, mode);
       if (fd < 0) {
         perror_msg("create %s", name);
         test++;
@@ -141,11 +144,46 @@ void cpio_main(void)
         }
         size -= sizeof(toybuf);
       }
-      if (!test) close(fd);
+
+      if (!test) {
+        // set owner, restore dropped suid bit
+        if (!getpid()) {
+          err = fchown(fd, uid, gid);
+          if (!err) err = fchmod(fd, mode);
+        }
+        close(fd);
+      }
     } else if (!test)
       err = mknod(name, mode, makedev(x8u(toybuf+62), x8u(toybuf+70)));
 
-    if (err<0) perror_msg("create '%s'", name);
+    // Set ownership and timestamp.
+    if (!test && !err) {
+      // Creading dir/dev doesn't give us a filehandle, we have to refer to it
+      // by name to chown/utime, but how do we know it's the same item?
+      // Check that we at least have the right type of entity open, and do
+      // NOT restore dropped suid bit in this case.
+      if (!S_ISREG(mode) && !S_ISLNK(mode) && !getpid()) {
+        int fd = open(name, O_WRONLY|O_NOFOLLOW);
+        struct stat st;
+
+        if (fd != -1 && !fstat(fd, &st) && (st.st_mode&S_IFMT) == mode)
+          err = fchown(fd, uid, gid);
+        else err = 1;
+
+        close(fd);
+      }
+
+      // set timestamp
+      if (!err) {
+        struct timespec times[2];
+
+        memset(times, 0, sizeof(struct timespec)*2);
+        times[0].tv_sec = times[1].tv_sec = timestamp;
+        err = utimensat(AT_FDCWD, name, times, AT_SYMLINK_NOFOLLOW);
+      }
+    }
+
+    if (err) perror_msg("'%s'", name);
     free(tofree);
 
   // Output cpio archive
