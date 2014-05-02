@@ -323,9 +323,10 @@ off_t fdlength(int fd)
 
 // Read contents of file as a single nul-terminated string.
 // malloc new one if buf=len=0
-char *readfile(char *name, char *buf, off_t len)
+char *readfile(char *name, char *ibuf, off_t len)
 {
   int fd;
+  char *buf;
 
   fd = open(name, O_RDONLY);
   if (fd == -1) return 0;
@@ -335,12 +336,13 @@ char *readfile(char *name, char *buf, off_t len)
     // proc files don't report a length, so try 1 page minimum.
     if (len<4096) len = 4096;
   }
-  if (!buf) buf = xmalloc(len+1);
+  if (!ibuf) buf = xmalloc(len+1);
+  else buf = ibuf;
 
   len = readall(fd, buf, len-1);
   close(fd);
   if (len<0) {
-    free(buf);
+    if (ibuf != buf) free(buf);
     buf = 0;
   } else buf[len] = 0;
 
