@@ -1,13 +1,5 @@
 // pending.h - header for pending.c
 
-// Unfortunately, sizeof() doesn't work in a preprocessor test.  TODO.
-
-//#if sizeof(double) <= sizeof(long)
-//typedef double FLOAT;
-//#else
-typedef float FLOAT;
-//#endif
-
 // password.c
 #define MAX_SALT_LEN  20 //3 for id, 16 for key, 1 for '\0'
 #define SYS_FIRST_ID  100

@@ -148,7 +148,8 @@ int clearenv(void);
 #define SWAP_LE64(x) (x)
 #endif
 
-#if defined(__APPLE__) || defined(__ANDROID__) || (defined(__GLIBC__) && __GLIBC__ == 2 && __GLIBC_MINOR__ < 10)
+#if defined(__APPLE__) || defined(__ANDROID__) \
+    || (defined(__GLIBC__) && __GLIBC__ == 2 && __GLIBC_MINOR__ < 10)
 ssize_t getdelim(char **lineptr, size_t *n, int delim, FILE *stream);
 ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 #endif
@@ -163,3 +164,11 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 #ifndef O_NOFOLLOW
 #define O_NOFOLLOW 0
 #endif
+
+#if defined(__SIZEOF_DOUBLE__) && defined(__SIZEOF_LONG__) \
+    && __SIZEOF_DOUBLE__ <= __SIZEOF_LONG__
+typedef double FLOAT;
+#else
+typedef float FLOAT;
+#endif
+
