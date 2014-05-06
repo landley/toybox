@@ -11,4 +11,3 @@ int update_password(char *filename, char* username, char* encrypted);
 
 // cut helper functions
 void daemonize(void);
-char *human_readable(unsigned long long size);

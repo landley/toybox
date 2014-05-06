@@ -55,16 +55,8 @@ static void print(long long size, struct dirtree *node)
   if (TT.maxdepth && TT.depth > TT.maxdepth) return;
 
   if (toys.optflags & FLAG_h) {
-    char buf[32];
-    int index, sz;
-
-    for (index = 0; 1024 < size>>(10*index); index++);
-    sz = size>>(10*index);
-    if (sz < 10) {
-      sprintf(buf, "%llu", size>>(10*(index-1)));
-      printf("%c.%c", buf[0], buf[1]);
-    } else printf("%d", sz);
-    if (index) printf("%c", " KMGTPE"[index]);
+    human_readable(toybuf, size);
+    printf("%s", toybuf);
   } else {
     int bits = 10;
 

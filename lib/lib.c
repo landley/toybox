@@ -783,3 +783,26 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
   }
   closedir(dp);
 }
+
+// display first few digits of number with power of two units, except we're
+// actually just counting decimal digits and showing mil/bil/trillions.
+int human_readable(char *buf, unsigned long long num)
+{
+  int end, len;
+
+  len = sprintf(buf, "%lld", num);
+  end = ((len-1)%3)+1;
+  len /= 3;
+
+  if (len && end == 1) {
+    buf[2] = buf[1];
+    buf[1] = '.';
+    end = 3;
+  }
+  buf[end++] = ' ';
+  if (len) buf[end++] = " KMGTPE"[len];
+  buf[end++] = 'B';
+  buf[end++] = 0;
+
+  return end;
+}

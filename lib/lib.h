@@ -153,6 +153,7 @@ void replace_tempfile(int fdin, int fdout, char **tempname);
 void crc_init(unsigned int *crc_table, int little_endian);
 int terminal_size(unsigned *x, unsigned *y);
 int yesno(char *prompt, int def);
+int human_readable(char *buf, unsigned long long num);
 
 // net.c
 int xsocket(int domain, int type, int protocol);
