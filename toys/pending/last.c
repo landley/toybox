@@ -138,7 +138,7 @@ void last_main(void)
       curlog_type = RUN_LVL;
     } else if (ut.ut_type == BOOT_TIME) {
       seize_duration(tm[0], tm[1]);
-      strncpy(ut.ut_line, "system boot", sizeof("system boot"));
+      strcpy(ut.ut_line, "system boot");
       free_list();
       printf("%-8.8s %-12.12s %-*.*s %-16.16s %-7.7s %s\n", ut.ut_user, 
           ut.ut_line, pwidth, pwidth, ut.ut_host, 
@@ -165,18 +165,18 @@ void last_main(void)
         seize_duration(tm[0], tm[2]);
         switch (type) {
           case EMPTY:
-            strncpy(toybuf+18, "  still", sizeof("  still"));
-            strncpy(toybuf+28, "logged in", sizeof("logged in")); 
+            strcpy(toybuf+18, "  still");
+            strcpy(toybuf+28, "logged in"); 
             break;
           case RUN_LVL:
-            strncpy(toybuf+18, "- down ", sizeof("- down "));
+            strcpy(toybuf+18, "- down ");
             break;
           case BOOT_TIME:
-            strncpy(toybuf+18, "- crash", sizeof("- crash"));
+            strcpy(toybuf+18, "- crash");
             break;
           case INIT_PROCESS:
-            strncpy(toybuf+18, "   gone", sizeof("   gone"));
-            strncpy(toybuf+28, "- no logout", sizeof("- no logout"));
+            strcpy(toybuf+18, "   gone");
+            strcpy(toybuf+28, "- no logout");
             break;
           default:
             break;
