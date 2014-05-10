@@ -44,7 +44,8 @@ struct flag *digest(char *string)
         blank->lopt = new;
         list = blank;
       }
-      while (*++string != ')') if (*string == '-') *string = '_';  // An empty longopt () would break this.
+      // An empty longopt () would break this.
+      while (*++string != ')') if (*string == '-') *string = '_';
       *(string++) = 0;
       continue;
     }
@@ -80,11 +81,19 @@ int main(int argc, char *argv[])
 
   for (;;) {
     struct flag *flist, *aflist, *offlist;
-    unsigned bit = 0;
+    unsigned bit;
 
-    if (3 != fscanf(stdin, "%255s \"%1023[^\"]\" \"%1023[^\"]\"\n",
-                    command, flags, allflags)) break;
+    *command = 0;
+    bit = fscanf(stdin, "%255s \"%1023[^\"]\" \"%1023[^\"]\"\n",
+                    command, flags, allflags);
 
+    if (!*command) break;
+    if (bit != 3) {
+      fprintf(stderr, "\nError in %s (duplicate command?)\n", command);
+      exit(1);
+    }
+
+    bit = 0;
     printf("// %s %s %s\n", command, flags, allflags);
 
     flist = digest(flags);
