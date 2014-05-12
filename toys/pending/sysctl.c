@@ -13,6 +13,8 @@ config SYSCTL
   help
     usage: sysctl [OPTIONS] [KEY[=VALUE]]...
 
+    Configure kernel parameters at runtime.
+
     -a, A      Show all values
     -e         Don't warn about unknown keys
     -N         Show only key names
@@ -45,10 +47,7 @@ show_error_msg:
 
 static void replace_char(char *str, char old, char new)
 {
-  char *tmp = str;
-
-  for (; *tmp; tmp++) 
-    if (*tmp == old) *tmp = new;
+  for (; *str; str++) if (*str == old) *str = new;
 }
 
 static void handle_file_error(char *key_name)
@@ -84,11 +83,11 @@ static void write_to_file(char *fpath, char *key_name, char *key_value)
 
 static char *get_key_value(char *buff, int *offset)
 {
-  char *line, *tmp = (char *) (buff + *offset);
+  char *line, *tmp = buff + *offset;
   int index = 0, multiplier = 1;
 
-  if (!(*tmp)) return NULL;
-  line = (char *) xmalloc(sizeof(char) * MAX_BYTES_LINE);
+  if (!*tmp) return 0;
+  line = xmalloc(MAX_BYTES_LINE);
   for (; *tmp != '\n'; tmp++) {
     line[index++] = *tmp;
     if (MAX_BYTES_LINE == index) { // buffer overflow
@@ -99,6 +98,43 @@ static char *get_key_value(char *buff, int *offset)
   line[index++] = '\0';
   *offset += index;
   return line;
+}
+
+static void trim_spaces(char **param)
+{
+  int len = 0;
+  char *str = *param, *p_start = str, *p_end;
+
+  if (p_start) {   // start pointer to string 
+    p_end = str + strlen(str) - 1; // end pointer to string
+    while (*p_start == ' ') p_start++;
+    str = p_start;
+    while (*p_end == ' ') p_end--;
+    p_end++;
+    *p_end = '\0';
+    len = (int) (p_end - str) + 1;
+    memmove(*param, str, len);
+  }
+}
+
+// Read config file and write values to corresponding key name files
+static void read_config_file(char *fname)
+{
+  char *line, *name = NULL, *value = NULL;
+  int fd = xopen(fname, O_RDONLY);
+
+  for (; (line = get_line(fd)); free(line), name = NULL, value = NULL) {
+    char *ptr = line;
+
+    while (*ptr == ' ' || *ptr == '\t') ptr++;
+    if (*ptr != '#' && *ptr != ';' && *ptr !='\n' && *ptr) {
+      parse_key_name_value(ptr, &name, &value);
+      trim_spaces(&name);
+      trim_spaces(&value);
+      if (name && value) write_to_file(PROC_SYS_DIR, name, value);
+    }
+  }
+  xclose(fd);
 }
 
 // Open file for each and every key name and read file contents
@@ -130,44 +166,7 @@ void read_key_values(char *fpath)
   free(fdata);
 }
 
-static void trim_spaces(char **param)
-{
-  int len = 0;
-  char *str = *param, *p_start = str, *p_end;
-
-  if (p_start) {   // start pointer to string 
-    p_end = str + strlen(str) - 1; // end pointer to string
-    while (*p_start == ' ') p_start++;
-    str = p_start;
-    while (*p_end == ' ') p_end--;
-    p_end++;
-    *p_end = '\0';
-    len = (int) (p_end - str) + 1;
-    memmove(*param, str, len);
-  }
-}
-
-// Read config file and write values to there corresponding key name files
-static void read_config_file(char *fname)
-{
-  char *line, *name = NULL, *value = NULL;
-  int fd = xopen(fname, O_RDONLY);
-
-  for (; (line = get_line(fd)); free(line), name = NULL, value = NULL) {
-    char *ptr = line;
-
-    while (*ptr == ' ' || *ptr == '\t') ptr++;
-    if (*ptr != '#' && *ptr != ';' && *ptr !='\n' && *ptr) {
-      parse_key_name_value(ptr, &name, &value);
-      trim_spaces(&name);
-      trim_spaces(&value);
-      if (name && value) write_to_file(PROC_SYS_DIR, name, value);
-    }
-  }
-  xclose(fd);
-}
-
-static int do_process(struct dirtree *dt)
+static int do_flag_a(struct dirtree *dt)
 {
   char *fpath;
 
@@ -177,15 +176,16 @@ static int do_process(struct dirtree *dt)
     read_key_values(fpath);
     free(fpath);
   }
+
   return 0;
 }
 
 void sysctl_main()
 {
-  char *name = NULL, *value = NULL, **args = NULL;
+  char *name = 0, *value = 0, **args = 0;
 
   if (toys.optflags & FLAG_a) {
-    dirtree_read(PROC_SYS_DIR, do_process);
+    dirtree_read(PROC_SYS_DIR, do_flag_a);
     return;
   }
   if (toys.optflags & FLAG_p) {
