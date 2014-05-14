@@ -11,38 +11,29 @@ config SYSCTL
   bool "sysctl"
   default n
   help
-    usage: sysctl [OPTIONS] [KEY[=VALUE]]...
+    usage: sysctl [-aAeNnqw] [-p [FILE] | KEY[=VALUE]...]
 
-    Configure kernel parameters at runtime.
+    Read/write system control data (under /proc/sys).
 
-    -a, A      Show all values
-    -e         Don't warn about unknown keys
-    -N         Show only key names
-    -n         Show only key values
-    -p FILE    Set values from FILE (default /etc/sysctl.conf)
-    -q         Set values silently
-    -w         Set values
+    -a,A	Show all values
+    -e	Don't warn about unknown keys
+    -N	Don't print key values
+    -n	Don't print key names
+    -p [FILE]	Read values from FILE (default /etc/sysctl.conf)
+    -q	Don't show value after write
+    -w	Only write values (object to reading)
 */
 #define FOR_sysctl
 #include "toys.h"
 
-#define PROC_SYS_DIR	"/proc/sys"
-#define MAX_BYTES_LINE	1024
-
-static void parse_key_name_value(char *param, char **key_name, char **key_value)
+// Null terminate at =, return value
+static char *split_key(char *key)
 {
-  char *name, *value;
+  char *value = strchr(key, '=');
 
-  if (!(name = strchr(param, '='))) goto show_error_msg;
-  value = name;
-  value++;
-  if (!(*value)) goto show_error_msg;
-  *name = '\0';
-  *key_name = param;
-  *key_value = value;
-  return;
-show_error_msg:
-  error_msg("error: '%s' must be of the form name=value", param);
+  if (value) *(value++)=0;
+
+  return value;
 }
 
 static void replace_char(char *str, char old, char new)
@@ -50,159 +41,107 @@ static void replace_char(char *str, char old, char new)
   for (; *str; str++) if (*str == old) *str = new;
 }
 
-static void handle_file_error(char *key_name)
+static void key_error(char *key)
 {
-  replace_char(key_name, '/', '.');
-  if (errno == ENOENT) { 
-    if (!(toys.optflags & FLAG_e)) 
-      error_msg("error: '%s' is an unknown key", key_name);
-    else toys.exitval = 1;
-  } else perror_msg("error: %s key '%s'", (toys.optflags & FLAG_w) ?
-      "setting" : "reading", key_name);
+  if (!(errno == ENOENT && (toys.optflags & FLAG_e)))
+    perror_msg("key '%s'", key);
 }
 
-static void write_to_file(char *fpath, char *key_name, char *key_value)
+static int write_key(char *path, char *key, char *value)
 {
-  int fd;
+  int fd = open(path, O_WRONLY);;
 
-  replace_char(key_name, '.', '/');
-  sprintf(toybuf, "%s/%s", fpath, key_name);
-  if ((fd = open(toybuf, O_WRONLY)) < 0) { 
-    handle_file_error(key_name);
-    return;
+  if (fd < 0) {
+    key_error(key);
+
+    return 0;
   }
-  xwrite(fd, key_value, strlen(key_value));
+  xwrite(fd, value, strlen(value));
   xclose(fd);
-  if (!(toys.optflags & FLAG_q)) {
-    replace_char(key_name, '/', '.');
-    if (toys.optflags & FLAG_N) xprintf("%s\n", key_name);
-    else if (toys.optflags & FLAG_n) xprintf("%s\n", key_value);
-    else xprintf("%s = %s\n", key_name, key_value);
-  }
+
+  return 1;
 }
 
-static char *get_key_value(char *buff, int *offset)
+// Display all keys under a path
+static int do_show_keys(struct dirtree *dt)
 {
-  char *line, *tmp = buff + *offset;
-  int index = 0, multiplier = 1;
-
-  if (!*tmp) return 0;
-  line = xmalloc(MAX_BYTES_LINE);
-  for (; *tmp != '\n'; tmp++) {
-    line[index++] = *tmp;
-    if (MAX_BYTES_LINE == index) { // buffer overflow
-      multiplier++;
-      line = (char *) xrealloc(line, multiplier * MAX_BYTES_LINE);
-    }
-  }
-  line[index++] = '\0';
-  *offset += index;
-  return line;
-}
-
-static void trim_spaces(char **param)
-{
-  int len = 0;
-  char *str = *param, *p_start = str, *p_end;
-
-  if (p_start) {   // start pointer to string 
-    p_end = str + strlen(str) - 1; // end pointer to string
-    while (*p_start == ' ') p_start++;
-    str = p_start;
-    while (*p_end == ' ') p_end--;
-    p_end++;
-    *p_end = '\0';
-    len = (int) (p_end - str) + 1;
-    memmove(*param, str, len);
-  }
-}
-
-// Read config file and write values to corresponding key name files
-static void read_config_file(char *fname)
-{
-  char *line, *name = NULL, *value = NULL;
-  int fd = xopen(fname, O_RDONLY);
-
-  for (; (line = get_line(fd)); free(line), name = NULL, value = NULL) {
-    char *ptr = line;
-
-    while (*ptr == ' ' || *ptr == '\t') ptr++;
-    if (*ptr != '#' && *ptr != ';' && *ptr !='\n' && *ptr) {
-      parse_key_name_value(ptr, &name, &value);
-      trim_spaces(&name);
-      trim_spaces(&value);
-      if (name && value) write_to_file(PROC_SYS_DIR, name, value);
-    }
-  }
-  xclose(fd);
-}
-
-// Open file for each and every key name and read file contents
-void read_key_values(char *fpath)
-{
-  char *key_value, *fdata, *key_name, *tmp = xstrdup(fpath);
-  int offset = 0;
-
-  key_name = (tmp + strlen(PROC_SYS_DIR) + 1);
-  replace_char(key_name, '/', '.');
-  if (!(fdata = readfile(fpath, NULL, 0))) {
-    handle_file_error(key_name);
-    free(tmp);
-    return;
-  }
-  if (toys.optflags & FLAG_N) {
-    xprintf("%s\n", key_name);
-    free(tmp);
-    free(fdata);
-    return;
-  }
-  for (; (key_value = get_key_value(fdata, &offset)); free(key_value)) {
-    if (!(toys.optflags & FLAG_q)) {
-      if (!(toys.optflags & FLAG_n)) xprintf("%s = ", key_name);
-      xprintf("%s\n", key_value);
-    }
-  }
-  free(tmp);
-  free(fdata);
-}
-
-static int do_flag_a(struct dirtree *dt)
-{
-  char *fpath;
+  char *path, *data, *key;
 
   if (!dirtree_notdotdot(dt)) return 0; // Skip . and ..
-  if (S_ISDIR(dt->st.st_mode)) return DIRTREE_RECURSE; 
-  if ((fpath = dirtree_path(dt, 0))) {
-    read_key_values(fpath);
-    free(fpath);
+  if (S_ISDIR(dt->st.st_mode)) return DIRTREE_RECURSE;
+
+  path = dirtree_path(dt, 0);
+  data = readfile(path, 0, 0);
+  replace_char(key = path + 10, '/', '.'); // skip "/proc/sys/"
+  if (!data) key_error(key);
+  else {
+    // Print the parts that aren't switched off by flags.
+    if (!(toys.optflags & FLAG_n)) xprintf("%s", key);
+    if (!(toys.optflags & (FLAG_N|FLAG_n))) xprintf(" = ");
+    for (key = data+strlen(data); key > data && isspace(*--key); *key = 0);
+    if (!(toys.optflags & FLAG_N)) xprintf("%s", data);
+    if ((toys.optflags & (FLAG_N|FLAG_n)) != (FLAG_N|FLAG_n)) xputc('\n');
   }
+
+  free(data);
+  free(path);
 
   return 0;
 }
 
+// Read/write entries under a key
+static void process_key(char *key, char *value)
+{
+  char *path, *pattern = "%s/%s/%s";
+
+  if ((toys.optflags & FLAG_w) && !value && !strchr(key, '=')) {
+    error_msg("'%s' not key=value");
+
+    return;
+  }
+
+  path = xmprintf(pattern + 3*!value, "/proc/sys", key, value);
+  value = split_key(path);
+  replace_char(path, '.', '/');
+  // Note: failure to assign to a non-leaf node suppresses the display.
+  if (!(value && (write_key(path, key, value) || (toys.optflags & FLAG_q))))
+    dirtree_read(path, do_show_keys);
+  free(path);
+}
+
 void sysctl_main()
 {
-  char *name = 0, *value = 0, **args = 0;
+  char **args = 0;
 
-  if (toys.optflags & FLAG_a) {
-    dirtree_read(PROC_SYS_DIR, do_flag_a);
-    return;
-  }
-  if (toys.optflags & FLAG_p) {
-    if (*toys.optargs) read_config_file(*toys.optargs);
-    else read_config_file("/etc/sysctl.conf");
-    return;
-  }
-  if (toys.optflags & FLAG_w) {
-    for (args = toys.optargs; *args; args++, name = NULL, value = NULL) {
-      parse_key_name_value(*args, &name, &value);
-      if (name && value) write_to_file(PROC_SYS_DIR, name, value);
+  // Display all keys
+  if (toys.optflags & FLAG_a) dirtree_read("/proc/sys", do_show_keys);
+
+  // read file
+  else if (toys.optflags & FLAG_p) {
+    FILE *fp = xfopen(*toys.optargs ? *toys.optargs : "/etc/sysctl.conf", "r");
+    char *line = 0;
+    size_t len;
+
+    for (;-1 != (len = getline(&line, &len, fp)); free(line), line = 0) {
+      char *key = line, *val;
+
+      while (isspace(*key)) key++;
+      if (*key == '#' || *key == ';' || !*key) continue;
+      if (!(val = split_key(line))) {
+        error_msg("'%s' not key=value");
+        continue;
+      }
+
+      // Trim whitespace off key and value
+      while (len && isspace(line[len-1])) line[--len] = 0;
+      len = (val-line)-1;
+      while (len && isspace(line[len-1])) line[--len] = 0;
+      while (isspace(*val)) val++;;
+
+      process_key(key, val);
     }
-    return;
-  }
-  for (args = toys.optargs; *args; args++) {
-    replace_char(*args, '.', '/');
-    sprintf(toybuf, "%s/%s", PROC_SYS_DIR, *args);
-    read_key_values(toybuf);
-  }
+    fclose(fp);
+
+  // Loop through arguments, displaying or assigning as appropriate
+  } else for (args = toys.optargs; *args; args++) process_key(*args, 0);
 }
