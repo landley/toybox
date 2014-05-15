@@ -9,7 +9,7 @@ USE_SYSCTL(NEWTOY(sysctl, "^neNqwpaA[!ap][!aq][!aw][+aA]", TOYFLAG_USR|TOYFLAG_B
 
 config SYSCTL
   bool "sysctl"
-  default n
+  default y
   help
     usage: sysctl [-aAeNnqw] [-p [FILE] | KEY[=VALUE]...]
 
