@@ -43,8 +43,9 @@ static void replace_char(char *str, char old, char new)
 
 static void key_error(char *key)
 {
-  if (!(errno == ENOENT && (toys.optflags & FLAG_e)))
-    perror_msg("key '%s'", key);
+  if (errno == ENOENT) {
+    if (!(toys.optflags & FLAG_e)) error_msg("unknown key '%s'", key);
+  } else perror_msg("key '%s'", key);
 }
 
 static int write_key(char *path, char *key, char *value)
@@ -89,23 +90,25 @@ static int do_show_keys(struct dirtree *dt)
   return 0;
 }
 
-// Read/write entries under a key
+// Read/write entries under a key. Accepts "key=value" in key if !value
 static void process_key(char *key, char *value)
 {
-  char *path, *pattern = "%s/%s/%s";
+  char *path;
 
-  if ((toys.optflags & FLAG_w) && !value && !strchr(key, '=')) {
+  if (!value) value = split_key(key);
+  if ((toys.optflags & FLAG_w) && !value) {
     error_msg("'%s' not key=value");
 
     return;
   }
 
-  path = xmprintf(pattern + 3*!value, "/proc/sys", key, value);
-  value = split_key(path);
+  path = xmprintf("/proc/sys/%s", key);
   replace_char(path, '.', '/');
   // Note: failure to assign to a non-leaf node suppresses the display.
-  if (!(value && (write_key(path, key, value) || (toys.optflags & FLAG_q))))
-    dirtree_read(path, do_show_keys);
+  if (!(value && (!write_key(path, key, value) || (toys.optflags & FLAG_q)))) {
+    if (!access(path, R_OK)) dirtree_read(path, do_show_keys);
+    else key_error(key);
+  }
   free(path);
 }
 
@@ -119,26 +122,28 @@ void sysctl_main()
   // read file
   else if (toys.optflags & FLAG_p) {
     FILE *fp = xfopen(*toys.optargs ? *toys.optargs : "/etc/sysctl.conf", "r");
-    char *line = 0;
     size_t len;
 
-    for (;-1 != (len = getline(&line, &len, fp)); free(line), line = 0) {
-      char *key = line, *val;
+    for (;;) {
+      char *line = 0, *key, *val;
 
+      if (-1 == (len = getline(&line, &len, fp))) break;
+      key = line;
       while (isspace(*key)) key++;
       if (*key == '#' || *key == ';' || !*key) continue;
+      while (len && isspace(line[len-1])) line[--len] = 0;
       if (!(val = split_key(line))) {
-        error_msg("'%s' not key=value");
+        error_msg("'%s' not key=value", line);
         continue;
       }
 
-      // Trim whitespace off key and value
-      while (len && isspace(line[len-1])) line[--len] = 0;
+      // Trim whitespace around =
       len = (val-line)-1;
       while (len && isspace(line[len-1])) line[--len] = 0;
       while (isspace(*val)) val++;;
 
       process_key(key, val);
+      free(line);
     }
     fclose(fp);
 
