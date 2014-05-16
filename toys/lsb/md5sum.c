@@ -46,6 +46,8 @@ GLOBALS(
   } buffer;
 )
 
+#define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
+
 // for(i=0; i<64; i++) md5table[i] = abs(sin(i+1))*(1<<32);  But calculating
 // that involves not just floating point but pulling in -lm (and arguing with
 // C about whether 1<<32 is a valid thing to do on 32 bit platforms) so:
@@ -64,44 +66,45 @@ static uint32_t md5table[64] = {
   0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391
 };
 
+static const uint8_t md5rot[64] = {
+  7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+  5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20,
+  4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+  6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21
+};
+
 // Mix next 64 bytes of data into md5 hash
 
 static void md5_transform(void)
 {
-  unsigned x[4], *b = (unsigned *)TT.buffer.c;
+  unsigned x[4], *b = TT.buffer.i;
   int i;
 
   memcpy(x, TT.state, sizeof(x));
 
   for (i=0; i<64; i++) {
-    unsigned int in, a, rot, temp;
-
-    a = (-i)&3;
+    unsigned int in, temp, swap;
     if (i<16) {
       in = i;
-      rot = 7+(5*(i&3));
-      temp = x[(a+1)&3];
-      temp = (temp & x[(a+2)&3]) | ((~temp) & x[(a+3)&3]);
+      temp = x[1];
+      temp = (temp & x[2]) | ((~temp) & x[3]);
     } else if (i<32) {
       in = (1+(5*i))&15;
-      temp = (i&3)+1;
-      rot = temp*5;
-      if (temp&2) rot--;
-      temp = x[(a+3)&3];
-      temp = (x[(a+1)&3] & temp) | (x[(a+2)&3] & ~temp);
+      temp = x[3];
+      temp = (x[1] & temp) | (x[2] & ~temp);
     } else if (i<48) {
-      in = (5+(3*(i&15)))&15;
-      rot = i&3;
-      rot = 4+(5*rot)+((rot+1)&6);
-      temp = x[(a+1)&3] ^ x[(a+2)&3] ^ x[(a+3)&3];
+      in = (3*i+5)&15;
+      temp = x[1] ^ x[2] ^ x[3];
     } else {
-      in = (7*(i&15))&15;
-      rot = (i&3)+1;
-      rot = (5*rot)+(((rot+2)&2)>>1);
-      temp = x[(a+2)&3] ^ (x[(a+1)&3] | ~x[(a+3)&3]);
+      in = (7*i)&15;
+      temp = x[2] ^ (x[1] | ~x[3]);
     }
-    temp += x[a] + b[in] + md5table[i];
-    x[a] = x[(a+1)&3] + ((temp<<rot) | (temp>>(32-rot)));
+    temp += x[0] + b[in] + md5table[i];
+    swap = x[3];
+    x[3] = x[2];
+    x[2] = x[1];
+    x[1] += rol(temp, md5rot[i]);
+    x[0] = swap;
   }
   for (i=0; i<4; i++) TT.state[i] += x[i];
 }
@@ -109,7 +112,6 @@ static void md5_transform(void)
 // Mix next 64 bytes of data into sha1 hash.
 
 static const unsigned rconsts[]={0x5A827999,0x6ED9EBA1,0x8F1BBCDC,0xCA62C1D6};
-#define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
 static void sha1_transform(void)
 {
