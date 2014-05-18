@@ -2,6 +2,7 @@
  *
  * Copyright 2013 Sandeep Sharma <sandeep.jack2756@gmail.com>
  * Copyright 2013 Kyungwan Han <asura321@gmail.com>
+ *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/ps.html
 
 USE_PS(NEWTOY(ps, ">0o*T", TOYFLAG_BIN))
@@ -13,9 +14,11 @@ config PS
     usage: ps [-o COL1,COL2=HEADER] [-T]
     
     Show list of processes
+
     -o COL1,COL2=HEADER Select columns for display
     -T      Show threads
 */
+
 #define FOR_ps
 #include "toys.h"
 
@@ -32,26 +35,6 @@ struct header_list {
   int width;
   int position;
   struct header_list *next;
-};
-
-struct header_list def_header[] = { 
-  {"user", "USER", "%-*s ", 8, 0, NULL},
-  {"group", "GROUP", "%-*s ", 8, 1, NULL},
-  {"comm", "COMMAND", "%-*s ",16, 2, NULL},
-  {"args", "COMMAND", "%-*s ",30, 3, NULL},
-  {"pid", "PID", "%*s ", 5, 4, NULL},
-  {"ppid","PPID", "%*s ", 5, 5, NULL},
-  {"pgid", "PGID", "%*s ", 5, 6, NULL},
-  {"etime","ELAPSED", "%*s ", 7, 7, NULL},
-  {"nice", "NI", "%*s ", 5, 8, NULL},
-  {"rgroup","RGROUP", "%-*s ", 8, 9, NULL},
-  {"ruser","RUSER", "%-*s ", 8, 10, NULL},
-  {"time", "TIME", "%*s ", 6, 11, NULL},
-  {"tty", "TT", "%-*s ", 6, 12, NULL},
-  {"vsz","VSZ", "%*s ", 7, 13, NULL},
-  {"stat", "STAT", "%-*s ", 4, 14, NULL},
-  {"rss", "RSS", "%*s ", 4, 15, NULL},
-  {NULL, NULL, NULL, 0, 0, NULL},
 };
 
 struct header_list *o_list = NULL; //List of Header attributes.
@@ -73,66 +56,67 @@ static void list_add(struct header_list **list, struct header_list *data, char *
   new->position = data->position;
 
   if (temp) {
-    while (temp->next != NULL) temp = temp->next;
+    while (temp->next) temp = temp->next;
     temp->next = new;
-  } else (*list) = new;
+  } else *list = new;
 }
 
 //print the default header OR header with -o args
-static void print_header(void)
+static void print_header(struct header_list *hdr, int hdr_len)
 {
   int i = 0;
   char *ptr = NULL, *str, *temp;
   struct arg_list *node = TT.llist_o;
 
-  if (!(toys.optflags & FLAG_o)) {
-    xprintf("  PID"" ""USER""      "" TIME"" ""COMMAND");
-    list_add(&o_list, &def_header[4], NULL); //pid
-    list_add(&o_list, &def_header[0], NULL); //user
-    list_add(&o_list, &def_header[11], NULL); //time
-    list_add(&o_list, &def_header[3], NULL); //comm
-    xputc('\n');
-    return ;
+  // Default pid, user, time, comm
+  if (!node) {
+    list_add(&o_list, hdr+4, 0);
+    list_add(&o_list, hdr, 0);
+    list_add(&o_list, hdr+11, 0);
+    list_add(&o_list, hdr+3, 0);
   }
+
   while (node) {
+    char *s = str = xstrdup(node->arg);
+
     i = 0;
-    str = xstrdup(node->arg);
     while (str) {
       if ((ptr = strsep(&str, ","))) { //seprate list
         if ((temp = strchr(ptr, '='))) { // Handle ppid = MOM
           *temp = 0;
           temp++;
-          while (def_header[i].name) {
-            if (!(strcmp(def_header[i].name, ptr))) { // search from default header
-              if (str) ptr = xmprintf("%s,%s", temp, str); //handle condition like ppid = M,OM
+          while (hdr[i].name) {
+            // search from default header
+            if (!(strcmp(hdr[i].name, ptr))) {
+              //handle condition like ppid = M,OM
+              if (str) ptr = xmprintf("%s,%s", temp, str);
               else ptr = xmprintf("%s", temp);
-              list_add(&o_list, &def_header[i], ptr);
+              list_add(&o_list, &hdr[i], ptr);
               break;
             }
             i++; 
           }
-          if (!def_header[i].name) perror_exit("Invalid arg for -o option");
+          if (!hdr[i].name) perror_exit("Invalid arg for -o option");
           break;
         } else {
-          while (def_header[i].name) {
-            if (!(strcmp(def_header[i].name, ptr))) {
-              list_add(&o_list, &def_header[i], NULL);
+          while (hdr[i].name) {
+            if (!(strcmp(hdr[i].name, ptr))) {
+              list_add(&o_list, &hdr[i], 0);
               break;
             }
             i++; 
           }
-          if (!def_header[i].name) perror_exit("Invalid arg for -o option");
+          if (!hdr[i].name) error_exit("bad -o");
           i = 0;
         }
       }
     }
+    free(s);
     node = node->next;
   }
-  struct header_list *p = o_list;
-  while (p) { //print Header
-    printf(p->format , p->width, p->header);
-    p = p->next;
-  }
+
+  for (hdr = o_list; hdr; hdr = hdr->next)
+    printf(hdr->format , hdr->width, hdr->header);
   xputc('\n');
 }
 
@@ -140,6 +124,7 @@ static void print_header(void)
 static void get_uid_gid(char *p, char *id_str, unsigned *id)
 {
   FILE *f; 
+
   if(!p) return;
   f = xfopen(p, "r");
   while (fgets(toybuf, BUFF_SIZE, f)) {
@@ -158,6 +143,7 @@ void get_etime(unsigned long s_time)
   unsigned sec;
   struct sysinfo info;
   char *temp;
+
   sysinfo(&info);
   min = s_time/sysconf(_SC_CLK_TCK);
   min = info.uptime - min;
@@ -174,6 +160,7 @@ void get_time(unsigned long s_time, unsigned long u_time)
   unsigned long min;
   unsigned sec;
   char *temp;
+
   min = (s_time + u_time)/sysconf(_SC_CLK_TCK);
   sec = min % 60;
   min = min / 60;
@@ -188,7 +175,8 @@ void get_time(unsigned long s_time, unsigned long u_time)
  */
 static void read_cmdline(int fd, char *cmd_ptr)
 {
-  int size = read(fd, cmd_ptr, 1024); //sizeof(cmd_buf)
+  int size = read(fd, cmd_ptr, BUFF_SIZE); //sizeof(cmd_buf)
+
   cmd_ptr[size] = '\0';
   while (--size > 0 && cmd_ptr[size] == '\0'); //reach to last char
 
@@ -204,7 +192,7 @@ static void read_cmdline(int fd, char *cmd_ptr)
  */
 static void do_ps_line(int pid, int tid)
 {
-  char *stat_buff = toybuf + 1024, *cmd_buff = toybuf + 2048;
+  char *stat_buff = toybuf + BUFF_SIZE, *cmd_buff = toybuf + (2*BUFF_SIZE);
   char state[4] = {0,};
   int tty, tty_major, tty_minor, fd, n, nice, width_counter = 0;
   struct stat stats;
@@ -392,10 +380,29 @@ void ps_main(void)
   DIR *dp;
   struct dirent *entry;
   int pid;
+  struct header_list def_header[] = { 
+    {"user", "USER", "%-*s ", 8, 0, NULL},
+    {"group", "GROUP", "%-*s ", 8, 1, NULL},
+    {"comm", "COMMAND", "%-*s ",16, 2, NULL},
+    {"args", "COMMAND", "%-*s ",30, 3, NULL},
+    {"pid", "PID", "%*s ", 5, 4, NULL},
+    {"ppid","PPID", "%*s ", 5, 5, NULL},
+    {"pgid", "PGID", "%*s ", 5, 6, NULL},
+    {"etime","ELAPSED", "%*s ", 7, 7, NULL},
+    {"nice", "NI", "%*s ", 5, 8, NULL},
+    {"rgroup","RGROUP", "%-*s ", 8, 9, NULL},
+    {"ruser","RUSER", "%-*s ", 8, 10, NULL},
+    {"time", "TIME", "%*s ", 6, 11, NULL},
+    {"tty", "TT", "%-*s ", 6, 12, NULL},
+    {"vsz","VSZ", "%*s ", 7, 13, NULL},
+    {"stat", "STAT", "%-*s ", 4, 14, NULL},
+    {"rss", "RSS", "%*s ", 4, 15, NULL},
+{0,0,0,0,0,0}
+  };
   
   TT.screen_width = 80; //default width
   terminal_size(&TT.screen_width, NULL);
-  print_header();
+  print_header(def_header, ARRAY_LEN(def_header));
 
   if (!(dp = opendir("/proc"))) perror_exit("opendir");
   while ((entry = readdir(dp))) {
