@@ -13,7 +13,7 @@ export KCONFIG_CONFIG=.singleconfig
 
 make allnoconfig > /dev/null &&
 sed -i -e "s/\(CONFIG_TOYBOX\)=y/# \1 is not set/" \
-       -e "s/# CONFIG_\($NAME\|TOYBOX_HELP[^ ]*\) is not set/CONFIG_\1=y/" \
+       -e "s/# CONFIG_\($NAME\|${NAME}_[^ ]*\|TOYBOX_HELP[^ ]*\) is not set/CONFIG_\1=y/" \
        "$KCONFIG_CONFIG" &&
 make &&
 mv toybox $PREFIX$1
