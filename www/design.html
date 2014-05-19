@@ -299,4 +299,104 @@ first pass of each command. (All commands should at least be 8-bit clean.)</p>
 <p>Locale support isn't currently a goal; that's a presentation layer issue,
 X11 or Dalvik's problem.</p>
 
+<a name="codestyle" />
+<h2>Coding style</h2>
+
+<p>The real coding style holy wars are over things that don't matter
+(whitespace, indentation, curly bracket placement...) and thus have no
+obviously correct answer. As in academia, "the fighting is so vicious because
+the stakes are so small". That said, being consistent makes the code readable,
+so here's how to make toybox code look like other toybox code.</p>
+
+<p>Toybox source uses two spaces per indentation level, and wraps at 80
+columns. (Indentation of continuation lines is awkward no matter what
+you do, sometimes two spaces looks better, sometimes indenting to the
+contents of a parentheses looks better.)</p>
+
+<p>There's a space after C flow control statements that look like functions, so
+"if (blah)" instead of "if(blah)". (Note that sizeof is actually an
+operator, so we don't give it a space for the same reason ++ doesn't get
+one. Yeah, it doesn't need the parentheses either, but it gets them.
+These rules are mostly to make the code look consistent, and thus easier
+to read.) We also put a space around assignment operators (on both sides),
+so "int x = 0;".</p>
+
+<p>Blank lines (vertical whitespace) go between thoughts. "We were doing that,
+now we're doing this. (Not a hard and fast rule about _where_ it goes,
+but there should be some.)"</p>
+
+<p>Variable declarations go at the start of blocks, with a blank line between
+them and other code. Yes, c99 allows you to put them anywhere, but they're
+harder to find if you do that. If there's a large enough distance between
+the declaration and the code using it to make you uncomfortable, maybe the
+function's too big, or is there an if statement or something you can
+use as an excuse to start a new closer block?</p>
+
+<p>If statments with a single line body go on the same line if the result
+fits in 80 columns, on a second line if it doesn't. We usually only use
+curly brackets if we need to, either because the body is multiple lines or
+because we need to distinguish which if an else binds to. Curly brackets go
+on the same line as the test/loop statement. The exception to both cases is
+if the test part of an if statement is long enough to split into multiple
+lines, then we put the curly bracket on its own line afterwards (so it doesn't
+get lost in the multple line variably indented mess), and we put it there
+even if it's only grouping one line (because the indentation level is not
+providing clear information in that case).</p>
+
+<p>I.E.</p>
+
+<blockquote>
+<pre>
+if (thingy) thingy;
+else thingy;
+
+if (thingy) {
+  thingy;
+  thingy;
+} else thingy;
+
+if (blah blah blah...
+    && blah blah blah)
+{
+  thingy;
+}
+</pre></blockquote>
+
+<p>Gotos are allowed for error handling, and for breaking out of
+nested loops. In general, a goto should only jump forward (not back), and
+should either jump to the end of an outer loop, or to error handling code
+at the end of the function. Goto labels are never indented: they override the
+block structure of the file. Putting them at the left edge makes them easy
+to spot as overrides to the normal flow of control, which they are.</p>
+
+<p>When there's a shorter way to say something, we tend to do that for
+consistency. For example, we tend to say "*blah" instead of "blah[0]" unless
+we're referring to more than one element of blah. Similarly, NULL is
+really just 0 (and C will automatically typecast 0 to anything),
+"if (function() != NULL)" is the same as "if (function())",
+"x = (blah == NULL);" is "x = !blah;", and so on. (The goal is to be
+concise, not cryptic: if you're worried about the code being hard to
+understand, splitting it to multiple steps on multiple lines is
+better than a NOP operation like "!= NULL". A common sign of trying to
+hard is nesting ? : three levels deep, sometimes if/else and a temporary
+variable is just plain easier to read. If you think you need a comment,
+you may be right.)</p>
+
+<p>Comments are nice, but don't overdo it. Comments should explain _why_,
+not how. If the code doesn't make the how part obvious, that's a problem with
+the code. Sometimes choosing a better variable name is more revealing than a
+comment. Comments on their own line are better than comments on the end of
+lines, and they usually have a blank line before them. Most of toybox's
+comments are c99 style // single line comments, even when there's more than
+one of them. The /* multiline */ style is used at the start for the metadata,
+but not so much in the code itself. They don't nest cleanly, are easy to leave
+accidentally unterminated, need extra nonfunctional * to look right, and if
+you need _that_ much explanation maybe what you really need is a URL citation
+linking to a standards document? Long comments can fall out of sync with what
+the code is doing. Comments do not get regression tested. There's no such
+thing as self-documenting code (if nothing else, code with _no_ comments
+is a bit unfriendly to new readers), but "chocolate sauce isn't the answer
+to bad cooking" either. Don't use comments as a crutch to explain unclear
+code if the code can be fixed.</p>
+
 <!--#include file="footer.html" -->
