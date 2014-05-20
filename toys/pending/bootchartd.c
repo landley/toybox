@@ -5,21 +5,25 @@
  *
  * No Standard
  
-USE_BOOTCHARTD(NEWTOY(bootchartd, NULL, TOYFLAG_STAYROOT|TOYFLAG_USR|TOYFLAG_BIN))
+USE_BOOTCHARTD(NEWTOY(bootchartd, 0, TOYFLAG_STAYROOT|TOYFLAG_USR|TOYFLAG_BIN))
 
 config BOOTCHARTD
   bool "bootchartd"
   default n
   help
-    usage: bootchartd start [PROG ARGS]|stop|init
+    usage: bootchartd {start [PROG ARGS]}|stop|init
 
     Create /var/log/bootlog.tgz with boot chart data
 
-    start: start background logging; with PROG, run PROG, then kill logging with USR1
+    start: start background logging; with PROG, run PROG,
+           then kill logging with USR1
     stop:  send USR1 to all bootchartd processes
-    init:  start background logging; stop when getty/xdm is seen (for init scripts)
+    init:  start background logging; stop when getty/xdm is seen
+          (for init scripts)
+
     Under PID 1: as init, then exec $bootchart_init, /init, /sbin/init
 */
+
 #define FOR_bootchartd
 #include "toys.h"
 #include <signal.h>
@@ -29,32 +33,23 @@ GLOBALS(
   long smpl_period_usec;
   int proc_accounting;
   int is_login;
-  int got_signal; 
+  int got_signal;
+
+  void *head;
 )
 
 struct pid_list {
-  struct pid_list *next;
+  struct pid_list *next, *prev;
   int pid;
 };
 
-static struct pid_list *head;
-
-static void insert_pid(struct pid_list **plist, int pid)
-{
-  struct pid_list *new_node = xmalloc(sizeof(struct pid_list));
-
-  new_node->pid = pid;
-  new_node->next = NULL;
-  if (!*plist) *plist = new_node;
-  else {
-    new_node->next = (*plist);
-    *plist = new_node;
-  }
-}
-
 static int push_pids_in_list(pid_t pid, char *name)
 {
-  insert_pid(&head, pid);
+  struct pid_list *new = xzalloc(sizeof(struct pid_list));
+
+  new->pid = pid;
+  dlist_add_nomalloc((void *)&TT.head, (void *)new);
+
   return 0;
 }
 
@@ -232,11 +227,11 @@ static void stop_logging(char *tmp_dir, char *prog)
   memset(toybuf, 0, sizeof(toybuf));
   if ((kcmd_line_fd = open("/proc/cmdline", O_RDONLY)) != -1) {
     ssize_t len;
+
     len = readall(kcmd_line_fd, toybuf, sizeof(toybuf)-1);
-    toybuf[len] = '\0';
-    while (--len >= 0 && toybuf[len] == '\0') continue;
-    for (; len > 0; len--)
-      if ((unsigned char)toybuf[len] < ' ') toybuf[len] = ' ';
+    toybuf[len] = 0;
+    while (--len >= 0 && !toybuf[len]) continue;
+    for (; len > 0; len--) if (toybuf[len] < ' ') toybuf[len] = ' ';
   }
   fprintf(hdr_fp, "system.kernel.options = %s", toybuf);
   close(kcmd_line_fd);
@@ -263,52 +258,43 @@ static void signal_handler(int sig)
 void bootchartd_main()
 {
   pid_t lgr_pid, self_pid = getpid();
-  int bchartd_opt;   // 1 -> start, 2 -> stop, 3 -> init, 4 -> PID1
+  int bchartd_opt = 0; // 0=PID1, 1=start, 2=stop, 3=init
   TT.smpl_period_usec = 200 * 1000;
 
-  if (toys.optargs[0]) {
-    if (!strcmp("start", toys.optargs[0])) bchartd_opt = 1;
-    else if (!strcmp("stop", toys.optargs[0])) bchartd_opt = 2;
-    else if (!strcmp("init", toys.optargs[0])) bchartd_opt = 3;
-    else {
-      toys.exithelp++;
-      error_exit("Unknown option '%s'", toys.optargs[0]);
-    }
+  TT.is_login = (self_pid == 1);
+  if (*toys.optargs) {
+    if (!strcmp("start", *toys.optargs)) bchartd_opt = 1;
+    else if (!strcmp("stop", *toys.optargs)) bchartd_opt = 2;
+    else if (!strcmp("init", *toys.optargs)) bchartd_opt = 3;
+    else error_exit("Unknown option '%s'", *toys.optargs);
+
     if (bchartd_opt == 2) {
       struct pid_list *temp;
       char *process_name[] = {"bootchartd", NULL};
 
       names_to_pid(process_name, push_pids_in_list);
-      for (temp = head; temp; temp = temp->next) 
+      temp = TT.head;
+      if (temp) temp->prev->next = 0;
+      for (; temp; temp = temp->next) 
         if (temp->pid != self_pid) kill(temp->pid, SIGUSR1);
-      temp = head;
-      while (head) {
-        temp = head->next;
-        free(head);
-        head = temp;
-      }
+      llist_traverse(TT.head, free);
+
       return;
     }
-  } else { 
-    if (self_pid != 1) {
-      toys.exithelp++;
-      error_exit("Its Not PID1");
-    }
-    bchartd_opt = 4; // PID1 case
-  }
+  } else if (!TT.is_login) error_exit("not PID 1");
+
   // Execute the code below for start or init or PID1 
   if (!parse_config_file("bootchartd.conf"))
     parse_config_file("/etc/bootchartd.conf");
 
-  TT.is_login = (self_pid == 1);
   memset(toybuf, 0, sizeof(toybuf));
   if (!(lgr_pid = fork())) {
     char *tmp_dir = create_tmp_dir();
 
     sigatexit(signal_handler);
     raise(SIGSTOP);
-    if (bchartd_opt == 4 && !getenv("PATH")) 
-      putenv((char*)"PATH=/sbin:/usr/sbin:/bin:/usr/bin");
+    if (!bchartd_opt && !getenv("PATH")) 
+      putenv("PATH=/sbin:/usr/sbin:/bin:/usr/bin");
     start_logging();
     stop_logging(tmp_dir, bchartd_opt == 1 ? toys.optargs[1] : NULL);
     free(tmp_dir);
@@ -317,12 +303,12 @@ void bootchartd_main()
   waitpid(lgr_pid, NULL, WUNTRACED);
   kill(lgr_pid, SIGCONT);
 
-  if (bchartd_opt == 4) { 
+  if (!bchartd_opt) { 
     char *pbchart_init = getenv("bootchart_init");
 
     if (pbchart_init) execl(pbchart_init, pbchart_init, NULL);
-    execl("/init", "init", (char *) 0);
-    execl("/sbin/init", "init", (char *) 0);
+    execl("/init", "init", (void *)0);
+    execl("/sbin/init", "init", (void *)0);
   }
   if (bchartd_opt == 1 && toys.optargs[1]) { 
     pid_t prog_pid;
