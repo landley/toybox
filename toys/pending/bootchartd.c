@@ -26,14 +26,12 @@ config BOOTCHARTD
 
 #define FOR_bootchartd
 #include "toys.h"
-#include <signal.h>
 
 GLOBALS(
   char buf[32];
   long smpl_period_usec;
   int proc_accounting;
   int is_login;
-  int got_signal;
 
   void *head;
 )
@@ -171,7 +169,7 @@ static void start_logging()
     acct("kernel_procs_acct");
   }
   memset(TT.buf, 0, sizeof(TT.buf));
-  while (--tcnt && !TT.got_signal) {
+  while (--tcnt && !toys.signal) {
     int i = 0, j = 0, fd = open("/proc/uptime", O_RDONLY);
     if (fd < 0) goto wait_usec;
     char *line = get_line(fd);
@@ -250,11 +248,6 @@ static void stop_logging(char *tmp_dir, char *prog)
   }
 }
 
-static void signal_handler(int sig)
-{
-  TT.got_signal = sig;
-}
-
 void bootchartd_main()
 {
   pid_t lgr_pid, self_pid = getpid();
@@ -291,7 +284,7 @@ void bootchartd_main()
   if (!(lgr_pid = fork())) {
     char *tmp_dir = create_tmp_dir();
 
-    sigatexit(signal_handler);
+    sigatexit(generic_signal);
     raise(SIGSTOP);
     if (!bchartd_opt && !getenv("PATH")) 
       putenv("PATH=/sbin:/usr/sbin:/bin:/usr/bin");
