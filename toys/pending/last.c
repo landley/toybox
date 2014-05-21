@@ -33,18 +33,10 @@ GLOBALS(
   struct arg_list *list;
 )
 
-static void free_node(void *data)
-{
-  void *arg = ((struct arg_list*)data)->arg;
-  
-  if (arg) free(arg);
-  free(data);
-}
-
 static void free_list()
 {
   if (TT.list) {
-    llist_traverse(TT.list, free_node);
+    llist_traverse(TT.list, free_arg_list);
     TT.list = NULL;
   }
 }
@@ -113,6 +105,7 @@ void last_main(void)
     if(loc < 0) break;
     xlseek(fd, loc, SEEK_SET);
 
+    // Read next structure, determine type
     xreadall(fd, &ut, sizeof(ut));
     *tm = ut.ut_tv.tv_sec;
     if (*ut.ut_line == '~') {
@@ -194,9 +187,10 @@ void last_main(void)
     xlseek(fd, loc, SEEK_SET);
   }
 
-  xclose(fd);
-
-  if (CFG_TOYBOX_FREE) free_list();
+  if (CFG_TOYBOX_FREE) {
+    xclose(fd);
+    free_list();
+  }
 
   xprintf("\n%s begins %-24.24s\n", basename(file), ctime(tm));
 }
