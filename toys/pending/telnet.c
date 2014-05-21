@@ -13,6 +13,7 @@ config TELNET
   default n
   help
     usage: telnet HOST [PORT]
+
     Connect to telnet server
 */
 
@@ -37,7 +38,6 @@ GLOBALS(
   uint8_t flags;
   unsigned win_width;
   unsigned win_height;
-  unsigned signalno;
 )
 
 #define DATABUFSIZE 128
@@ -134,7 +134,7 @@ static void handle_esc(void)
 {
   char input;
 
-  if(TT.signalno && TT.term_ok) tcsetattr(0, TCSADRAIN, &TT.raw_term);
+  if(toys.signal && TT.term_ok) tcsetattr(0, TCSADRAIN, &TT.raw_term);
   write(1,"\r\nConsole escape. Commands are:\r\n\n"
       " l  go to line mode\r\n"
       " c  go to character mode\r\n"
@@ -148,7 +148,7 @@ static void handle_esc(void)
 
   switch (input) {
   case 'l':
-    if (!TT.signalno) {
+    if (!toys.signal) {
       TT.term_mode = CM_TRY;
       TT.flags &= ~(UF_ECHO | UF_SGA);
       set_mode();
@@ -158,7 +158,7 @@ static void handle_esc(void)
     }
     break;
   case 'c':
-    if (TT.signalno) {
+    if (toys.signal) {
       TT.term_mode = CM_TRY;
       TT.flags |= (UF_ECHO | UF_SGA);
       set_mode();
@@ -179,10 +179,10 @@ static void handle_esc(void)
   }
 
   write(1, "continuing...\r\n", 15);
-  if (TT.signalno && TT.term_ok) tcsetattr(0, TCSADRAIN, &TT.def_term);
+  if (toys.signal && TT.term_ok) tcsetattr(0, TCSADRAIN, &TT.def_term);
 
 ret:
-  TT.signalno = 0;
+  toys.signal = 0;
 }
 
 /*
@@ -317,15 +317,6 @@ static void write_server(int len)
   if(i) write(TT.sfd, toybuf, i);
 }
 
-/*
- * SIGINT signal handling.
- * only sets signalno which get handle in main loop.
- */
-static void handle_sigint(int signo)
-{
-  TT.signalno = signo;
-}
-
 void telnet_main(void)
 {
   int set = 1, len;
@@ -336,8 +327,7 @@ void telnet_main(void)
   TT.win_height = 24; //rows
 
   if(toys.optc == 2) TT.port = atoi(toys.optargs[1]);
-  if(TT.port <= 0 || TT.port > 65535) 
-    error_exit("PORT can be non-zero upto 65535.");
+  if(TT.port <= 0 || TT.port > 65535) error_exit("bad PORT (1-65535)");
 
   TT.ttype = getenv("TERM");
   if(!TT.ttype) TT.ttype = "";
@@ -359,13 +349,13 @@ void telnet_main(void)
   pfds[1].fd = TT.sfd;
   pfds[1].events = POLLIN;
 
-  TT.piac = TT.pbuff = 0;
-  TT.signalno = 0;
-  signal(SIGINT, handle_sigint);
+  signal(SIGINT, generic_signal);
   while(1) {
     if(TT.piac) flush_iac();
     if(poll(pfds, 2, -1) < 0) {
-      (TT.signalno)?handle_esc():sleep(1);
+      if (toys.signal) handle_esc();
+      else sleep(1);
+
       continue;
     }
     if(pfds[0].revents) {
