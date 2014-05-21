@@ -1101,7 +1101,10 @@ static uint8_t dhcpc_parseoptions(dhcpc_result_t *presult, uint8_t *optptr)
   }
 
   while (*optptr != DHCP_OPTION_END) {
-    while (*optptr == DHCP_OPTION_PADDING) optptr++;
+    if (*optptr == DHCP_OPTION_PADDING) {
+      optptr++;
+      continue;
+    }
     if (*optptr == DHCP_OPTION_OVERLOAD) {
       overloaded = optptr[2];
       optptr += optptr[1] + 2;
