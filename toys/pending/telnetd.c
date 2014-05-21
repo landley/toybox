@@ -33,7 +33,6 @@ GLOBALS(
     long w_sec;
 
     int gmax_fd;
-    int sig;
     pid_t fork_pid;
 )
 
@@ -110,7 +109,7 @@ static void get_sockaddr(char *host, void *buf)
   else ((struct sockaddr_in6*)buf)->sin6_port = port_num;
 }
 
-static void utmp_entry(void)                                                                                                                                 
+static void utmp_entry(void)
 {               
   struct utmp entry;
   struct utmp *utp_ptr;
@@ -302,36 +301,6 @@ static int dup_iacs(char *start, int fd, int len)
   return ret;
 }
 
-static void kill_session(void)
-{
-  int status;
-  struct term_session *tm, *prev = NULL;
-  pid_t pid = wait(&status);
-  TT.sig = 0; //ASAP
-
-  tm = session_list;
-  if (toys.optflags & FLAG_i) exit(EXIT_SUCCESS);
-
-  if (pid < 0) return;
-  while (tm) {
-    if (tm->child_pid == pid) break;
-    prev = tm;
-    tm = tm->next;
-  }
-  if (!tm) return; //paranoia
-  if (!prev) session_list = session_list->next;
-  else prev->next = tm->next;
-  utmp_entry();
-  xclose(tm->pty_fd);
-  xclose(tm->new_fd);
-  free(tm);
-}
-
-static void session_handler(int sig) 
-{
-  TT.sig = sig;
-}
-
 void telnetd_main(void)
 {
   errno = 0;
@@ -339,9 +308,8 @@ void telnetd_main(void)
   struct term_session *tm = NULL;
   struct timeval tv, *tv_ptr = NULL;
   int pty_fd, new_fd, c = 0, w, master_fd = 0;
-  int inetd_m = (toys.optflags & FLAG_i);
+  int inetd_m = toys.optflags & FLAG_i;
 
-  TT.sig = 0;
   if (!(toys.optflags & FLAG_l)) TT.login_path = "/bin/login";
   if (!(toys.optflags & FLAG_f)) TT.issue_path = "/etc/issue.net";
   if (toys.optflags & FLAG_w) toys.optflags |= FLAG_F;
@@ -368,7 +336,7 @@ void telnetd_main(void)
     tv.tv_usec = 0;
     tv_ptr = &tv;
   }                
-  signal(SIGCHLD, session_handler);
+  signal(SIGCHLD, generic_signal);
 
   for (;;) {
     FD_ZERO(&rd);
@@ -446,6 +414,33 @@ void telnetd_main(void)
         tm->buff2_written = tm->buff2_avail = 0;
       fflush(NULL);
     }
-    if (TT.sig) kill_session();
+
+    // Loop to handle (unknown number of) SIGCHLD notifications
+    while (toys.signal) {
+      int status;
+      struct term_session *prev = NULL;
+      pid_t pid;
+
+      // funny little dance to avoid race conditions.
+      toys.signal = 0;
+      pid = waitpid(-1, &status, WNOHANG);
+      if (pid < 0) break;
+      toys.signal++;
+
+
+      for (tm = session_list; tm; tm = tm->next) {
+        if (tm->child_pid == pid) break;
+        prev = tm;
+      }
+      if (!tm) return; // reparented child we don't care about
+
+      if (toys.optflags & FLAG_i) exit(EXIT_SUCCESS);
+      if (!prev) session_list = session_list->next;
+      else prev->next = tm->next;
+      utmp_entry();
+      xclose(tm->pty_fd);
+      xclose(tm->new_fd);
+      free(tm);
+    }
   }
 }
