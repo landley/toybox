@@ -1,7 +1,7 @@
 /*
  * lspci - written by Isaac Dunham
 
-USE_LSPCI(NEWTOY(lspci, "emk"USE_LSPCI_TEXT("n@"), TOYFLAG_USR|TOYFLAG_BIN))
+USE_LSPCI(NEWTOY(lspci, "emkn"USE_LSPCI_TEXT("@i:"), TOYFLAG_USR|TOYFLAG_BIN))
 
 config LSPCI
   bool "lspci"
@@ -20,15 +20,17 @@ config LSPCI_TEXT
   depends on LSPCI
   default n
   help
-    usage: lspci [-n]
+    usage: lspci [-n] [-i /usr/share/misc/pci.ids ]
 
     -n	Numeric output (repeat for readable and numeric)
+    -i	Path to PCI ID database
 */
 
 #define FOR_lspci
 #include "toys.h"
 
 GLOBALS(
+  char *ids;
   long numeric;
 
   FILE *db;
@@ -138,7 +140,7 @@ int do_lspci(struct dirtree *new)
 void lspci_main(void)
 {
   if (CFG_LSPCI_TEXT && (TT.numeric != 1)) {
-    TT.db = fopen("/usr/share/misc/pci.ids", "r");
+    TT.db = fopen(TT.ids ? TT.ids : "/usr/share/misc/pci.ids", "r");
     if (errno) {
       TT.numeric = 1;
       error_msg("could not open PCI ID db");
