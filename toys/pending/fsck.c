@@ -351,30 +351,6 @@ void record_sig_num(int sig)
   TT.sig_num = sig;
 }
 
-static void list_free(void *node) //for satisfying Valgrind
-{
-  free(((struct double_list*)node)->data);
-  free(node);
-}
-
-static void free_all(void) 
-{
-  struct f_sys_info *finfo, *temp;
-
-  llist_traverse(TT.devices, list_free);
-  free(TT.arr_type);
-  free(TT.arr_flag);
-  for (finfo = filesys_info; finfo;) {
-    temp = finfo->next;
-    free(finfo->device);
-    free(finfo->mountpt);
-    free(finfo->type);
-    free(finfo->opts);
-    free(finfo);
-    finfo = temp;
-  }
-}
-
 void fsck_main(void)
 {
   struct mntent mt;
@@ -399,11 +375,11 @@ void fsck_main(void)
 
   if (!(toys.optflags & FLAG_T)) xprintf("fsck ----- (Toybox)\n");
 
-  if ((tmp = getenv("FSCK_MAX_INST"))) TT.max_nr_run = strtol_range(tmp, 0, INT_MAX);
+  if ((tmp = getenv("FSCK_MAX_INST")))
+    TT.max_nr_run = strtol_range(tmp, 0, INT_MAX);
   if (!TT.devices || (toys.optflags & FLAG_A)) {
     toys.exitval = scan_all();
-    if (CFG_TOYBOX_FREE) free_all();
-    return;
+    if (CFG_TOYBOX_FREE) goto free_all;
   }
 
   dev = TT.devices;
@@ -428,5 +404,22 @@ void fsck_main(void)
   if (TT.sig_num) kill_all();
   toys.exitval |= wait_for(1);
   finfo = filesys_info;
-  if (CFG_TOYBOX_FREE) free_all();
+
+free_all:
+  if (CFG_TOYBOX_FREE) {
+    struct f_sys_info *finfo, *temp;
+
+    llist_traverse(TT.devices, llist_free_double);
+    free(TT.arr_type);
+    free(TT.arr_flag);
+    for (finfo = filesys_info; finfo;) {
+      temp = finfo->next;
+      free(finfo->device);
+      free(finfo->mountpt);
+      free(finfo->type);
+      free(finfo->opts);
+      free(finfo);
+      finfo = temp;
+    }
+  }
 }
