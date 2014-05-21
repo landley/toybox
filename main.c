@@ -80,6 +80,7 @@ static void toy_singleinit(struct toy_list *which, char *argv[])
   }
   toys.old_umask = umask(0);
   if (!(which->flags & TOYFLAG_UMASK)) umask(toys.old_umask);
+  toys.signalfd--;
 }
 
 // Setup toybox global state for this command.

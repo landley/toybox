@@ -614,12 +614,24 @@ static struct signame signames[] = {
 // not in posix: SIGNIFY(STKFLT), SIGNIFY(WINCH), SIGNIFY(IO), SIGNIFY(PWR)
 // obsolete: SIGNIFY(PROF) SIGNIFY(POLL)
 
+// Handler that sets toys.signal, and writes to toys.signalfd if set
+void generic_signal(int sig)
+{
+  if (toys.signalfd) {
+    char c = sig;
+
+    writeall(toys.signalfd, &c, 1);
+  }
+  toys.signal = sig;
+}
+
 // Install the same handler on every signal that defaults to killing the process
 void sigatexit(void *handler)
 {
   int i;
   for (i=0; signames[i].num != SIGCHLD; i++) signal(signames[i].num, handler);
 }
+
 // Convert name to signal number.  If name == NULL print names.
 int sig_to_num(char *pidstr)
 {
