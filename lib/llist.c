@@ -5,8 +5,26 @@
 
 #include "toys.h"
 
+// Callback function to free data pointer of double_list or arg_list
+
+void llist_free_arg(void *node)
+{
+  struct arg_list *d = node;
+
+  free(d->arg);
+  free(d);
+}
+
+void llist_free_double(void *node)
+{
+  struct double_list *d = node;
+
+  free(d->data);
+  free(d);
+}
+
 // Call a function (such as free()) on each element of a linked list.
-void llist_traverse(void *list, void (*using)(void *data))
+void llist_traverse(void *list, void (*using)(void *node))
 {
   void *old = list;
 
