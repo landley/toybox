@@ -112,8 +112,8 @@ multiple commands:</li>
 <li><a href="#lib_dirtree">lib/dirtree.c</a></li>
 </ul>
 <li>The <a href="#toys">toys directory</a> contains the C files implementating
-each command. Currently it contains three subdirectories:
-posix, lsb, and other.</li>
+each command. Currently it contains five subdirectories categorizing the
+commands: posix, lsb, other, example, and pending.</li>
 <li>The <a href="#scripts">scripts directory</a> contains the build and
 test infrastructure.</li>
 <li>The <a href="#kconfig">kconfig directory</a> contains the configuration
@@ -130,27 +130,41 @@ all the information it needs (such as command line arguments) from specially
 formatted comments and macros in the C file.  (See the description of the
 <a href="#generated">"generated" directory</a> for details.)</p>
 
-<p>Currently there are three subdirectories under "toys", one for commands
+<p>Currently there are five subdirectories under "toys", one for commands
 defined by the POSIX standard, one for commands defined by the Linux Standard
-Base, and one for all other commands. (This is just for developer convenience
-sorting them, the directories are otherwise functionally identical.)</p>
+Base, an "other" directory for commands not covered by an obvious standard,
+a directory of example commands (templates to use when starting new commands),
+and a "pending" directory of commands that need further review/cleanup
+before moving to one of the other directories (run these at your own risk,
+cleanup patches welcome).
+These directories are just for developer convenience sorting the commands,
+the directories are otherwise functionally identical. To add a new category,
+create the appropriate directory with a README file in it whose first line
+is the description menuconfig should use for the directory.)</p>
 
-<p>An easy way to start a new command is copy the file "toys/other/hello.c" to
-the name of the new command, and modify this copy to implement the new command.
-This file is an example command meant to be used as a "skeleton" for
-new commands (more or less by turning every instance of "hello" into the
+<p>An easy way to start a new command is copy the file "toys/example/hello.c"
+to the name of the new command, and modify this copy to implement the new
+command (more or less by turning every instance of "hello" into the
 name of your command, updating the command line arguments, globals, and
-help data,  and then filling out its "main" function with code that does
-something interesting).  It provides examples of all the build infrastructure
-(including optional elements like command line argument parsing and global
-variables that a "hello world" program doesn't strictly need).</p>
+help data, and then filling out its "main" function with code that does
+something interesting).</p> 
+
+<p>You could also start with "toys/example/skeleton.c", which provides a lot
+more example code (showing several variants of command line option
+parsing, how to implement multiple commands in the same file, and so on).
+But usually it's just more stuff to delete.</p>
 
 <p>Here's a checklist of steps to turn hello.c into another command:</p>
 
 <ul>
-<li><p>First "cd toys/other" and "cp hello.c yourcommand.c".  Note that the name
-of this file is significant, it's the name of the new command you're adding
-to toybox.  Open your new file in your favorite editor.</p></li>
+<li><p>First "cp toys/example/hello.c toys/other/yourcommand.c" and open
+the new file in your preferred text editor.</p>
+<ul><li><p>Note that the
+name of the new file is significant: it's the name of the new command you're
+adding to toybox. The build includes all *.c files under toys/*/ whose
+names are a case insensitive match for an enabled config symbol. So
+toys/posix/cat.c only gets included if you have "CAT=y" in ".config".</p></li>
+</ul></p></li>
 
 <li><p>Change the one line comment at the top of the file (currently
 "hello.c - A hello world program") to describe your new file.</p></li>
@@ -168,7 +182,7 @@ structure.  The arguments to the NEWTOY macro are:</p>
 
 <ol>
 <li><p>the name used to run your command</p></li>
-<li><p>the command line argument <a href="#lib_args">option parsing string</a> (NULL if none)</p></li>
+<li><p>the command line argument <a href="#lib_args">option parsing string</a> (0 if none)</p></li>
 <li><p>a bitfield of TOYFLAG values
 (defined in toys.h) providing additional information such as where your
 command should be installed on a running system, whether to blank umask
@@ -216,7 +230,7 @@ correspond to the arguments specified in NEWTOY().
 where execution of your command starts. Your command line options are
 already sorted into this.optflags, this.optargs, this.optc, and the GLOBALS()
 as appropriate by the time this function is called. (See
-<a href="#lib_args">get_optflags()</a> for details.</p></li>
+<a href="#lib_args">get_optflags()</a> for details.)</p></li>
 </ul>
 
 <a name="headers" /><h2><a href="#headers">Headers.</a></h2>
