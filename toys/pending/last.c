@@ -36,7 +36,7 @@ GLOBALS(
 static void free_list()
 {
   if (TT.list) {
-    llist_traverse(TT.list, free_arg_list);
+    llist_traverse(TT.list, llist_free_arg);
     TT.list = NULL;
   }
 }
