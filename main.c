@@ -98,7 +98,10 @@ void toy_init(struct toy_list *which, char *argv[])
     } else if (CFG_TOYBOX_DEBUG && uid && which != toy_list)
       error_msg("Not installed suid root");
 
-    if ((which->flags & TOYFLAG_NEEDROOT) && euid) error_exit("Not root");
+    if ((which->flags & TOYFLAG_NEEDROOT) && euid) {
+      toys.exithelp++;
+      error_exit("Not root");
+    }
   }
 
   // Free old toys contents (to be reentrant), but leave rebound if any
