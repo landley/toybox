@@ -79,7 +79,7 @@ int read_password(char * buff, int buflen, char* mesg)
 
   while (1) {
     int ret = read(0, &buff[i], 1);
-    if ( ret < 0 ) {
+    if ( ret < 0 || (!ret && !i)) {
       buff[0] = 0;
       sigaction(SIGINT, &oldsa, NULL);
       tcsetattr(0, TCSANOW, &oldtermio);
