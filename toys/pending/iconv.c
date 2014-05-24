@@ -8,7 +8,7 @@ USE_ICONV(NEWTOY(iconv, "t:f:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config ICONV
   bool "iconv"
-  default y
+  default n
   depends on TOYBOX_ICONV
   help
     usage: iconv [-f FROM] [-t TO] [FILE...]

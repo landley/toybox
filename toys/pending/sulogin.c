@@ -12,7 +12,7 @@ USE_SULOGIN(NEWTOY(sulogin, "t#<0=0", TOYFLAG_SBIN|TOYFLAG_NEEDROOT))
 
 config SULOGIN
   bool "sulogin"
-  default y
+  default n
   help
     usage: sulogin [-t time] [tty]
 
