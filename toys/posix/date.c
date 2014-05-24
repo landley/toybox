@@ -95,13 +95,13 @@ int parse_posixdate(char *str, struct tm *tm)
 void date_main(void)
 {
   char *setdate = *toys.optargs, *format_string = "%a %b %e %H:%M:%S %Z %Y",
-       *tz;
+       *tz = 0;
   time_t now = time(NULL);
   struct tm tm;
 
   // We can't just pass a timezone to mktime because posix.
   if (toys.optflags & FLAG_u) {
-    tz = CFG_TOYBOX_FREE ? getenv("TZ") : 0;
+    if (CFG_TOYBOX_FREE) tz = getenv("TZ");
     setenv("TZ", "UTC", 1);
     tzset();
   }
@@ -114,7 +114,6 @@ void date_main(void)
   } else if (TT.showdate) {
     setdate = TT.showdate;
     if (TT.setfmt) {
-printf("TT.showdate=%s TT.setfmt=%s\n", TT.showdate, TT.setfmt);
       char *s = strptime(TT.showdate, TT.setfmt+(*TT.setfmt=='+'), &tm);
 
       if (!s || *s) goto bad_date;
