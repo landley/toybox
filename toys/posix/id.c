@@ -8,6 +8,8 @@
 
 USE_ID(NEWTOY(id, ">1nGgru[!Ggu]", TOYFLAG_BIN))
 USE_ID_GROUPS(OLDTOY(groups, id, NULL, TOYFLAG_USR|TOYFLAG_BIN))
+USE_ID_LOGNAME(OLDTOY(logname, id, ">0", TOYFLAG_BIN))
+USE_ID_LOGNAME(OLDTOY(whoami, id, ">0", TOYFLAG_BIN))
 
 config ID
   bool "id"
@@ -31,6 +33,15 @@ config ID_GROUPS
     usage: groups [user]
 
     Print the groups a user is in.
+
+config ID_LOGNAME
+  bool "logname"
+  default y
+  depends on ID
+  help
+    usage: logname
+
+    Print the current user name.
 
 */
 
@@ -116,6 +127,7 @@ void do_id(char *username)
 
 void id_main(void)
 {
+  if (toys.which->name[0] > 'i') toys.optflags = (FLAG_u | FLAG_n);
   if (toys.optc) while(*toys.optargs) do_id(*toys.optargs++);
   else do_id(NULL);
 }
