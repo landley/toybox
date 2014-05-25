@@ -20,10 +20,11 @@ config LSPCI_TEXT
   depends on LSPCI
   default n
   help
-    usage: lspci [-n] [-i /usr/share/misc/pci.ids ]
+    usage: lspci [-n] [-i FILE ]
 
     -n	Numeric output (repeat for readable and numeric)
-    -i	Path to PCI ID database
+    -i	PCI ID database (default /usr/share/misc/pci.ids)
+
 */
 
 #define FOR_lspci
@@ -44,6 +45,7 @@ char *id_check_match(char *id, char *buf)
     if (id[i] == buf[i]) i++;
     else return 0;
   }
+
   return buf + i + 2;
 }
 
@@ -67,7 +69,8 @@ int find_in_db(char *vendid, char *devid, FILE *fil, char *vname, char *devname)
       strncpy(vname, vtext, strlen(vtext) - 1);
   }
   while (!*devname) {
-    if (!fgets(buf, 255, fil) || *buf != '\t') return 1;
+    if (!fgets(buf, 255, fil) || (*buf != '\t' && *buf != '#')) return 1;
+    if (*buf == '#') continue;
     if ((dtext = id_check_match(devid, buf + 1)))
       strncpy(devname, dtext, strlen(dtext) - 1);
   }
@@ -139,7 +142,7 @@ int do_lspci(struct dirtree *new)
 
 void lspci_main(void)
 {
-  if (CFG_LSPCI_TEXT && (TT.numeric != 1)) {
+  if (CFG_LSPCI_TEXT && TT.numeric != 1) {
     TT.db = fopen(TT.ids ? TT.ids : "/usr/share/misc/pci.ids", "r");
     if (errno) {
       TT.numeric = 1;
