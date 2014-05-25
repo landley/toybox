@@ -27,16 +27,6 @@ config VCONFIG
 #include <linux/if_vlan.h>
 #include <linux/sockios.h>
 
-static long strtorange(char *str, long min, long max)
-{
-  char *end = 0;
-  long val = strtol(str, &end, 10);
-
-  if (end && *end && end != str && val >= min && val <= max) return val;
-
-  perror_exit("%s not %ld-%ld\n", str, min, max);
-}
-
 void vconfig_main(void)
 {
   struct vlan_ioctl_args request;
@@ -69,25 +59,25 @@ void vconfig_main(void)
 
   if (!strcmp(cmd, "add")) {
     request.cmd = ADD_VLAN_CMD;
-    if (toys.optargs[2]) request.u.VID = strtorange(toys.optargs[2], 0, 4094);
+    if (toys.optargs[2]) request.u.VID = atolx_range(toys.optargs[2], 0, 4094);
     if (request.u.VID == 1)
       xprintf("WARNING: VLAN 1 does not work with many switches.\n");
   } else if (!strcmp(cmd, "rem")) request.cmd = DEL_VLAN_CMD;
   else if (!strcmp(cmd, "set_flag")) {
     request.cmd = SET_VLAN_FLAG_CMD;
-    if (toys.optargs[2]) request.u.flag = strtorange(toys.optargs[2], 0, 1);
-    if (toys.optargs[3]) request.vlan_qos = strtorange(toys.optargs[3], 0, 7);
+    if (toys.optargs[2]) request.u.flag = atolx_range(toys.optargs[2], 0, 1);
+    if (toys.optargs[3]) request.vlan_qos = atolx_range(toys.optargs[3], 0, 7);
   } else if(strcmp(cmd, "set_egress_map") == 0) {
     request.cmd = SET_VLAN_EGRESS_PRIORITY_CMD;
     if (toys.optargs[2])
-      request.u.skb_priority = strtorange(toys.optargs[2], 0, INT_MAX);
-    if (toys.optargs[3]) request.vlan_qos = strtorange(toys.optargs[3], 0, 7);
+      request.u.skb_priority = atolx_range(toys.optargs[2], 0, INT_MAX);
+    if (toys.optargs[3]) request.vlan_qos = atolx_range(toys.optargs[3], 0, 7);
   } else if(strcmp(cmd, "set_ingress_map") == 0) {
     request.cmd = SET_VLAN_INGRESS_PRIORITY_CMD;
     if (toys.optargs[2])
-      request.u.skb_priority = strtorange(toys.optargs[2], 0, INT_MAX);
+      request.u.skb_priority = atolx_range(toys.optargs[2], 0, INT_MAX);
     //To set flag we must have to set vlan_qos
-    if (toys.optargs[3]) request.vlan_qos = strtorange(toys.optargs[3], 0, 7);
+    if (toys.optargs[3]) request.vlan_qos = atolx_range(toys.optargs[3], 0, 7);
   } else {
     xclose(fd);
     perror_exit("Unknown command %s", cmd);
