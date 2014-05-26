@@ -94,22 +94,23 @@ void xprintf(char *format, ...)
   va_start(va, format);
 
   vprintf(format, va);
-  if (ferror(stdout)) perror_exit("write");
+  if (fflush(stdout) || ferror(stdout)) perror_exit("write");
 }
 
 void xputs(char *s)
 {
-  if (EOF == puts(s) || fflush(stdout)) perror_exit("write");
+  if (EOF == puts(s) || fflush(stdout) || ferror(stdout)) perror_exit("write");
 }
 
 void xputc(char c)
 {
-  if (EOF == fputc(c, stdout) || fflush(stdout)) perror_exit("write");
+  if (EOF == fputc(c, stdout) || fflush(stdout) || ferror(stdout))
+    perror_exit("write");
 }
 
 void xflush(void)
 {
-  if (fflush(stdout)) perror_exit("write");;
+  if (fflush(stdout) || ferror(stdout)) perror_exit("write");;
 }
 
 // Call xexec with a chunk of optargs, starting at skip. (You can't just
