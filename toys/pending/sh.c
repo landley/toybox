@@ -24,8 +24,8 @@
 USE_SH(NEWTOY(cd, NULL, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(exit, NULL, TOYFLAG_NOFORK))
 
-USE_SH(NEWTOY(sh, "c:i", TOYFLAG_BIN))
-USE_SH(OLDTOY(toysh, sh, "c:i", TOYFLAG_BIN))
+USE_SH(NEWTOY(sh, "c:"USE_SH_INTERACTIVE("i"), TOYFLAG_BIN))
+USE_SH(OLDTOY(toysh, sh, OPTSTR_sh, TOYFLAG_BIN))
 
 config SH
   bool "sh (toysh)"
@@ -38,13 +38,46 @@ config SH
 
     -c	command line to execute
 
-config SH_TTY
-  bool "Interactive shell (terminal control)"
+config SH_INTERACTIVE
+  bool "Interactive shell"
   default n
   depends on SH
   help
-    Add terminal control to toysh.  This is necessary for interactive use,
-    so the shell isn't killed by CTRL-C.
+    This shell supports terminal control (so the shell isn't killed by CTRL-C),
+    job control (fg, bg, jobs), and reads /etc/profile and ~/.profile when
+    running interactively.
+
+    -i	interactive mode (default when STDIN is a tty)
+
+config EXIT
+  bool
+  default n
+  depends on SH
+  help
+    usage: exit [status]
+
+    Exit shell.  If no return value supplied on command line, use value
+    of most recent command, or 0 if none.
+
+config CD
+  bool
+  default n
+  depends on SH
+  help
+    usage: cd [-PL] [path]
+
+    Change current directory.  With no arguments, go $HOME.
+
+    -P	Physical path: resolve symlinks in path.
+    -L	Local path: .. trims directories off $PWD (default).
+*/
+
+/*
+This level of micromanagement is silly, it adds more complexity than it's
+worth. (Not just to the code, but decision fatigue configuring it.)
+
+That said, the following list is kept for the moment as a todo list of
+features I need to implement.
 
 config SH_PROFILE
   bool "Profile support"
@@ -143,35 +176,6 @@ config SH_BUILTINS
   help
     Adds the commands exec, fg, bg, help, jobs, pwd, export, source, set,
     unset, read, alias.
-
-config EXIT
-  bool
-  default n
-  depends on SH
-  help
-    usage: exit [status]
-
-    Exit shell.  If no return value supplied on command line, use value
-    of most recent command, or 0 if none.
-
-config CD
-  bool
-  default n
-  depends on SH
-  help
-    usage: cd [path]
-
-    Change current directory.  With no arguments, go to $HOME.
-
-config CD_P
-  bool # "-P support for cd"
-  default n
-  depends on SH
-  help
-    usage: cd [-PL]
-
-    -P    Physical path: resolve symlinks in path.
-    -L    Cancel previous -P and restore default behavior.
 */
 
 #define FOR_sh
@@ -218,7 +222,7 @@ static char *parse_word(char *start, struct command **cmd)
   char *end;
 
   // Detect end of line (and truncate line at comment)
-  if (CFG_SH_PIPES && strchr("><&|(;", *start)) return 0;
+  if (strchr("><&|(;", *start)) return 0;
 
   // Grab next word.  (Add dequote and envvar logic here)
   end = start;
@@ -244,7 +248,7 @@ static char *parse_pipeline(char *cmdline, struct pipeline *line)
 
   if (!cmdline) return 0;
 
-  if (CFG_SH_JOBCTL) line->cmdline = cmdline;
+  if (CFG_SH_INTERACTIVE) line->cmdline = cmdline;
 
   // Parse command into argv[]
   for (;;) {
@@ -253,7 +257,7 @@ static char *parse_pipeline(char *cmdline, struct pipeline *line)
     // Skip leading whitespace and detect end of line.
     while (isspace(*start)) start++;
     if (!*start || *start=='#') {
-      if (CFG_SH_JOBCTL) line->cmdlinelen = start-cmdline;
+      if (CFG_SH_INTERACTIVE) line->cmdlinelen = start-cmdline;
       return 0;
     }
 
@@ -265,7 +269,7 @@ static char *parse_pipeline(char *cmdline, struct pipeline *line)
 
     // If we hit the end of this command, how did it end?
     if (!end) {
-      if (CFG_SH_PIPES && *start) {
+      if (*start) {
         if (*start==';') {
           start++;
           break;
@@ -277,7 +281,7 @@ static char *parse_pipeline(char *cmdline, struct pipeline *line)
     start = end;
   }
 
-  if (CFG_SH_JOBCTL) line->cmdlinelen = start-cmdline;
+  if (CFG_SH_INTERACTIVE) line->cmdlinelen = start-cmdline;
 
   return start;
 }
@@ -300,7 +304,7 @@ static void run_pipeline(struct pipeline *line)
     memset(&toys, 0, sizeof(struct toy_context));
 
     if (!setjmp(rebound)) {
-      toys.rebound = rebound;
+      toys.rebound = &rebound;
       toy_init(tl, cmd->argv);
       tl->toy_main();
     }
@@ -315,10 +319,8 @@ static void run_pipeline(struct pipeline *line)
     if (!cmd->pid) xexec(cmd->argv);
     else waitpid(cmd->pid, &status, 0);
 
-    if (CFG_SH_FLOWCTL || CFG_SH_PIPES) {
-      if (WIFEXITED(status)) cmd->pid = WEXITSTATUS(status);
-      if (WIFSIGNALED(status)) cmd->pid = WTERMSIG(status);
-    }
+    if (WIFEXITED(status)) cmd->pid = WEXITSTATUS(status);
+    if (WIFSIGNALED(status)) cmd->pid = WTERMSIG(status);
   }
 
   return;
@@ -359,7 +361,8 @@ static void handle(char *command)
 void cd_main(void)
 {
   char *dest = *toys.optargs ? *toys.optargs : getenv("HOME");
-  xchdir(dest);
+
+  xchdir(dest ? dest : "/");
 }
 
 void exit_main(void)
@@ -372,16 +375,17 @@ void sh_main(void)
   FILE *f;
 
   // Set up signal handlers and grab control of this tty.
-  if (CFG_SH_TTY) {
-    if (isatty(0)) toys.optflags |= 1;
-  }
+  if (CFG_SH_INTERACTIVE && isatty(0)) toys.optflags |= FLAG_i;
+
   f = *toys.optargs ? xfopen(*toys.optargs, "r") : NULL;
   if (TT.command) handle(TT.command);
   else {
     size_t cmdlen = 0;
     for (;;) {
-      char *command = 0;
-      if (!f) xputc('$');
+      char *prompt = getenv("PS1"), *command = 0;
+
+      // TODO: parse escapes in prompt
+      if (!f) printf("%s", prompt ? prompt : "$ ");
       if (1 > getline(&command, &cmdlen, f ? f : stdin)) break;
       handle(command);
       free(command);
