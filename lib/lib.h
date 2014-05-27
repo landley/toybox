@@ -167,6 +167,7 @@ struct mtab_list {
   struct statvfs statvfs;
   char *dir;
   char *device;
+  char *opts;
   char type[0];
 };
 

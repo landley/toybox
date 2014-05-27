@@ -4,7 +4,6 @@
  */
 
 #include "toys.h"
-
 #include <mntent.h>
 
 // Get list of mounted filesystems, including stat and statvfs info.
@@ -25,17 +24,18 @@ struct mtab_list *xgetmountlist(char *path)
 
   for (mtlist = 0; (me = getmntent(fp)); mtlist = mt) {
     mt = xzalloc(sizeof(struct mtab_list) + strlen(me->mnt_fsname) +
-      strlen(me->mnt_dir) + strlen(me->mnt_type) + 3);
+      strlen(me->mnt_dir) + strlen(me->mnt_type) + strlen(me->mnt_opts) + 4);
     mt->next = mtlist;
 
     // Collect details about mounted filesystem (don't bother for /etc/fstab).
-    stat(me->mnt_dir, &(mt->stat));
-    statvfs(me->mnt_dir, &(mt->statvfs));
+    if (stat(me->mnt_dir, &(mt->stat)) || statvfs(me->mnt_dir, &(mt->statvfs)))
+      perror_msg("stat '%s'");
 
     // Remember information from /proc/mounts
-    mt->dir = stpcpy(mt->type, me->mnt_type) + 1;
-    mt->device = stpcpy(mt->dir, me->mnt_dir) + 1;
-    strcpy(mt->device, me->mnt_fsname);
+    mt->dir = stpcpy(mt->type, me->mnt_type)+1;
+    mt->device = stpcpy(mt->dir, me->mnt_dir)+1;
+    mt->opts = stpcpy(mt->device, me->mnt_fsname)+1;
+    strcpy(mt->opts, me->mnt_opts);
   }
   endmntent(fp);
 
