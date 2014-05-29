@@ -179,10 +179,13 @@ void losetup_main(void)
   } else {
     char *file = (toys.optflags & (FLAG_d|FLAG_c)) ? NULL : toys.optargs[1];
 
-    if (!toys.optc || (file && toys.optc>1)) {
+    if (!toys.optc || (file && toys.optc != 2)) {
       toys.exithelp++;
-      perror_exit("needs 1 arg");
+      perror_exit("needs %d arg%s", 1+!!file, file ? "s" : "");
     }
-    for (s = toys.optargs; *s; s++) loopback_setup(*s, file);
+    for (s = toys.optargs; *s; s++) {
+      loopback_setup(*s, file);
+      if (file) break;
+    }
   }
 }
