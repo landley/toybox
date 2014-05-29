@@ -85,3 +85,17 @@ struct double_list *dlist_add(struct double_list **list, char *data)
 
   return new;
 }
+
+// Terminate circular list for traversal in either direction. Returns end *.
+void *dlist_terminate(void *list)
+{
+  struct double_list *end = list;
+
+  if (!list) return 0;
+
+  end = end->prev;
+  end->next->prev = 0;
+  end->next = 0;
+
+  return end;
+}

@@ -31,6 +31,7 @@ void *llist_pop(void *list);  // actually void **list
 void *dlist_pop(void *list);  // actually struct double_list **list
 void dlist_add_nomalloc(struct double_list **list, struct double_list *new);
 struct double_list *dlist_add(struct double_list **list, char *data);
+void *dlist_terminate(void *list);
 
 // args.c
 void get_optflags(void);
@@ -162,7 +163,7 @@ int xsocket(int domain, int type, int protocol);
 
 // getmountlist.c
 struct mtab_list {
-  struct mtab_list *next;
+  struct mtab_list *next, *prev;
   struct stat stat;
   struct statvfs statvfs;
   char *dir;

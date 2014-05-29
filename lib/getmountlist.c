@@ -11,25 +11,28 @@
 
 struct mtab_list *xgetmountlist(char *path)
 {
-  struct mtab_list *mtlist, *mt;
+  struct mtab_list *mtlist = 0, *mt;
   struct mntent *me;
   FILE *fp;
+  char *p = path ? path : "/proc/mounts";
 
-  if (!path) path = "/proc/mounts";
-  if (!(fp = setmntent(path, "r"))) perror_exit("bad %s", path);
+  if (!(fp = setmntent(p, "r"))) perror_exit("bad %s", p);
 
   // The "test" part of the loop is done before the first time through and
   // again after each "increment", so putting the actual load there avoids
   // duplicating it. If the load was NULL, the loop stops.
 
-  for (mtlist = 0; (me = getmntent(fp)); mtlist = mt) {
+  while ((me = getmntent(fp))) {
     mt = xzalloc(sizeof(struct mtab_list) + strlen(me->mnt_fsname) +
       strlen(me->mnt_dir) + strlen(me->mnt_type) + strlen(me->mnt_opts) + 4);
-    mt->next = mtlist;
+    dlist_add_nomalloc((void *)&mtlist, (void *)mt);
 
-    // Collect details about mounted filesystem (don't bother for /etc/fstab).
-    if (stat(me->mnt_dir, &(mt->stat)) || statvfs(me->mnt_dir, &(mt->statvfs)))
-      perror_msg("stat '%s'");
+    // Collect details about mounted filesystem
+    // Don't report errors, just leave data zeroed
+    if (!path) {
+      stat(me->mnt_dir, &(mt->stat));
+      statvfs(me->mnt_dir, &(mt->statvfs));
+    }
 
     // Remember information from /proc/mounts
     mt->dir = stpcpy(mt->type, me->mnt_type)+1;

@@ -119,7 +119,10 @@ void umount_main(void)
     if (TT.t) arg_comma_collate(&typestr, TT.t);
 
     // Loop through mounted filesystems
-    for (mlsave = ml = xgetmountlist(0); ml; ml = ml->next) {
+    mlsave = xgetmountlist(0);
+    ml = ml->prev;
+
+    for (ml = dlist_terminate(mlsave); ml; ml = ml->prev) {
       if (TT.t) {
         char *type, *types = typestr;
         int len, skip = strncmp(types, "no", 2);

@@ -95,7 +95,7 @@ static void show_mt(struct mtab_list *mt)
 
 void df_main(void)
 {
-  struct mtab_list *mt, *mt2, *mtlist;
+  struct mtab_list *mt, *mtstart, *mtend;
 
   // Handle -P and -k
   TT.units = 1024;
@@ -106,7 +106,8 @@ void df_main(void)
       TT.units);
   } else puts("Filesystem\t1K-blocks\tUsed Available Use% Mounted on");
 
-  mtlist = xgetmountlist(0);
+  if (!(mtstart = xgetmountlist(0))) return;
+  mtend = dlist_terminate(mtstart);
 
   // If we have a list of filesystems on the command line, loop through them.
   if (*toys.optargs) {
@@ -123,36 +124,36 @@ void df_main(void)
 
       // Find and display this filesystem.  Use _last_ hit in case of
       // overmounts (which is first hit in the reversed list).
-      mt2 = NULL;
-      for (mt = mtlist; mt; mt = mt->next) {
+      for (mt = mtend; mt; mt = mt->prev) {
         if (st.st_dev == mt->stat.st_dev) {
-          mt2 = mt;
+          show_mt(mt);
           break;
         }
       }
-      show_mt(mt2);
     }
   } else {
-    // Get and loop through mount list.
-
-    for (mt = mtlist; mt; mt = mt->next) {
+    // Loop through mount list to filter out overmounts.
+    for (mt = mtend; mt; mt = mt->prev) {
       struct mtab_list *mt2, *mt3;
 
+      // 0:0 is LANANA null device
       if (!mt->stat.st_dev) continue;
 
       // Filter out overmounts.
       mt3 = mt;
-      for (mt2 = mt->next; mt2; mt2 = mt2->next) {
+      for (mt2 = mt->prev; mt2; mt2 = mt2->prev) {
         if (mt->stat.st_dev == mt2->stat.st_dev) {
-          // For --bind mounts, take last match
-          if (!strcmp(mt->device, mt2->device)) mt3 = mt2;
-          // Filter out overmounts
-          mt2->stat.st_dev = 0;
+          // For --bind mounts, take show earliest mount
+          if (!strcmp(mt->device, mt2->device)) {
+            if (!toys.optflags & FLAG_a) mt3->stat.st_dev = 0;
+            mt3 = mt2;
+          } else mt2->stat.st_dev = 0;
         }
       }
-      show_mt(mt3);
     }
+    // Cosmetic: show filesystems in creation order
+    for (mt = mtstart; mt; mt = mt->next) if (mt->stat.st_dev) show_mt(mt);
   }
 
-  if (CFG_TOYBOX_FREE) llist_traverse(mtlist, free);
+  if (CFG_TOYBOX_FREE) llist_traverse(mtstart, free);
 }
