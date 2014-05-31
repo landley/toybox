@@ -140,7 +140,7 @@ void netcat_main(void)
       // Do we need to return immediately because -l has arguments?
 
       if ((toys.optflags & FLAG_l) && toys.optc) {
-        if (fork()) goto cleanup;
+        if (xfork()) goto cleanup;
         close(0);
         close(1);
         close(2);
@@ -149,7 +149,7 @@ void netcat_main(void)
       for (;;) {
         pid_t child = 0;
 
-        // For -l, call accept from the _new_ thread.
+        // For -l, call accept from the _new_ process.
 
         pollfds[0].fd = accept(sockfd, (struct sockaddr *)&address, &len);
         if (pollfds[0].fd<0) perror_exit("accept");

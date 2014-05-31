@@ -94,7 +94,7 @@ static int do_exec(struct filter_node *filter, struct dirtree *node)
     arg_array[filter->data.e.arg_path_index] = path;
   }
 
-  if (!(pid = fork())) xexec(arg_array);
+  if (!(pid = xfork())) xexec(arg_array);
   free(path);
   waitpid(pid, &status, 0);
 

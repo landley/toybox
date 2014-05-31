@@ -281,7 +281,7 @@ void bootchartd_main()
     parse_config_file("/etc/bootchartd.conf");
 
   memset(toybuf, 0, sizeof(toybuf));
-  if (!(lgr_pid = fork())) {
+  if (!(lgr_pid = xfork())) {
     char *tmp_dir = create_tmp_dir();
 
     sigatexit(generic_signal);
@@ -306,7 +306,7 @@ void bootchartd_main()
   if (bchartd_opt == 1 && toys.optargs[1]) { 
     pid_t prog_pid;
 
-    if (!(prog_pid = fork())) xexec_optargs(1);
+    if (!(prog_pid = xfork())) xexec_optargs(1);
     waitpid(prog_pid, NULL, 0);
     kill(lgr_pid, SIGUSR1);
   }

@@ -113,6 +113,15 @@ void xflush(void)
   if (fflush(stdout) || ferror(stdout)) perror_exit("write");;
 }
 
+pid_t xfork(void)
+{
+  pid_t pid = fork();
+
+  if (pid < 0) perror_exit("fork");
+
+  return pid;
+}
+
 // Call xexec with a chunk of optargs, starting at skip. (You can't just
 // call xexec() directly because toy_init() frees optargs.)
 void xexec_optargs(int skip)

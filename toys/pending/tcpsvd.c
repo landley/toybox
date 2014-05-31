@@ -14,7 +14,7 @@ config TCPSVD
   default n
   help
     usage: tcpsvd [-hEv] [-c N] [-C N[:MSG]] [-b N] [-u User] [-l Name] IP Port Prog
-    udpsvd [-hEv] [-c N] [-u User] [-l Name] IP Port Prog
+    usage: udpsvd [-hEv] [-c N] [-u User] [-l Name] IP Port Prog
     
     Create TCP/UDP socket, bind to IP:PORT and listen for incoming connection. 
     Run PROG for each connection.
@@ -350,7 +350,7 @@ void tcpsvd_main(void)
       h[hash].head->count++;
     }
 
-    if (!(pid = fork())) {
+    if (!(pid = xfork())) {
       char *serv = NULL, *clie = NULL;
       char *client = sock_to_address((struct sockaddr*)buf, NI_NUMERICHOST | NI_NUMERICSERV);
       if (toys.optflags & FLAG_h) { //lookup name
@@ -393,11 +393,11 @@ void tcpsvd_main(void)
       dup2(newfd, 0);
       dup2(newfd, 1);
       xexec_optargs(2); //skip IP PORT
-    } else if(pid > 0) {
+    } else {
       insert(&pids, pid, addr);
       xclose(newfd); //close and reopen for next client.
       if (TT.udp) fd = create_bind_sock(toys.optargs[0],
           (struct sockaddr*)&haddr);
-    } else error_msg(" fork failed");
+    }
   } //while(1)
 }

@@ -100,7 +100,7 @@ void nbd_client_main(void)
     if (toys.optflags & FLAG_s) mlockall(MCL_CURRENT|MCL_FUTURE);
 
     // Open the device to force reread of the partition table.
-    if ((toys.optflags & FLAG_n) || !fork()) {
+    if ((toys.optflags & FLAG_n) || !xfork()) {
       char *s = strrchr(device, '/');
       int i;
 

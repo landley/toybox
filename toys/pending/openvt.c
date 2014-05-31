@@ -110,9 +110,8 @@ void openvt_main(void)
   while (vt_fd > 2)
     close(vt_fd--);
 
-  pid = vfork();
-  if (pid < 0)  perror_exit("Fork failed");
-  else if (!pid) {
+  pid = xfork();
+  if (!pid) {
     setsid();
     ioctl(vt_fd, TIOCSCTTY, 0);
     xexec(toys.optargs);

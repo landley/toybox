@@ -55,11 +55,10 @@ static void sig_handler(int sig)
 static int exec_wait(char **args)
 {
   int status = 0;
-  pid_t pid = fork();
+  pid_t pid = xfork();
 
   if (!pid) xexec(args);
-  else if (pid > 0) waitpid(pid, &status, 0);
-  else perror_exit("fork");
+  else waitpid(pid, &status, 0);
   return WEXITSTATUS(status);
 }
 

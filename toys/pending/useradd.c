@@ -58,12 +58,12 @@ static char* get_shell(void)
 static int exec_wait(char **args)
 {
   int status = 0;
-  pid_t pid = fork();
+  pid_t pid = xfork();
 
   if (!pid) xexec(args);
-  else if (pid > 0) waitpid(pid, &status, 0);
-  else perror_exit("fork failed");
-  return WEXITSTATUS(status);
+  else if waitpid(pid, &status, 0);
+
+  return WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status)+127;
 }
 
 /* create_copy_skel(), This function will create the home directory of the

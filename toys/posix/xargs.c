@@ -166,14 +166,14 @@ void xargs_main(void)
     for (dtemp = dlist; dtemp; dtemp = dtemp->next)
       handle_entries(dtemp->data, out+entries);
 
-    pid_t pid=fork();
+    pid_t pid=xfork();
     if (!pid) {
       xclose(0);
       open("/dev/null", O_RDONLY);
       xexec(out);
     }
     waitpid(pid, &status, 0);
-    status = WEXITSTATUS(status);
+    status = WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status)+127;
 
     // Abritrary number of execs, can't just leak memory each time...
     while (dlist) {
