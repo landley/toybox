@@ -8,7 +8,7 @@ USE_PARTPROBE(NEWTOY(partprobe, "<1", TOYFLAG_SBIN))
 
 config PARTPROBE
   bool "partprobe"
-  default n
+  default y
   help
     usage: partprobe DEVICE...
 
