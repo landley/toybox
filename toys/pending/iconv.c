@@ -4,7 +4,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/iconv.html
 
-USE_ICONV(NEWTOY(iconv, "t:f:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_ICONV(NEWTOY(iconv, "cst:f:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config ICONV
   bool "iconv"
@@ -38,16 +38,19 @@ static void do_iconv(int fd, char *name)
 
   do {
     size_t outleft = 2048;
-    char *in = toybuf, *out = outstart;
+    char *in = toybuf+inleft, *out = outstart;
 
-    len = read(fd, toybuf+inleft, 2048-inleft);
+    len = read(fd, in, 2048-inleft);
 
-    if (len < 0) perror_msg("read '%s'");
+    if (len < 0) {
+      perror_msg("read '%s'");
+      return;
+    }
     inleft += len;
 
     do {
       if (iconv(TT.ic, &in, &inleft, &out, &outleft) == -1
-          && (errno == EILSEQ || (in == toybuf && errno == EINVAL)))
+          && (errno == EILSEQ || (in == toybuf+inleft-len && errno == EINVAL)))
       {
         if (outleft) {
           // Skip first byte of illegal sequence to avoid endless loops
