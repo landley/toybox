@@ -1,0 +1,8 @@
+#!/bin/bash
+
+[ -e testing.sh ] && . testing.sh
+
+echo "" >foo
+testing "link has same inode" "link foo bar && stat -c '%DI%i bar'" "stat -c '%DI%i' foo" "" ""
+testing "link fails on non-existent file" "link foo/foo baz || echo GOOD" "GOOD\n" "" ""
+rm -f foo bar
