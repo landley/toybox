@@ -1,0 +1,39 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+# We need to test name and file padding.
+# This means all possible values of strlen(name)+1 % 4,
+# plus file sizes of at least 0-4.
+
+touch a bb ccc dddd
+testing "cpio name padding" "cpio -o -H newc|cpio -it" "a\nbb\nccc\ndddd\n" "" "a\nbb\nccc\ndddd\n"
+rm a bb ccc dddd
+
+touch a
+printf '1' >b
+printf '22' >c
+printf '333' >d
+testing "cpio file padding" "cpio -o -H newc|cpio -it" "a\nb\nc\nd\n" "" "a\nb\nc\nd\n"
+rm a b c d
+
+touch a
+printf '1' >bb
+printf '22' >ccc
+printf '333' >dddd
+# With the proper padding, header length, and file length, 
+# the relevant bit should be here:
+# 110*5 + 4*3 + 2 + 6*3 = 550 + 12 + 20 = 582
+# files are padded to n*4, names are padded to 2 + n*4 due to the header length
+testing "cpio archive length" "cpio -o -H newc|dd ibs=2 skip=291 count=5" "TRAILER!!!" "" "a\nbb\nccc\ndddd\n"
+testing "cpio archive magic" "cpio -o -H newc|dd ibs=2 count=3" "070701" "" "a\n"
+# check name length (8 bytes before the empty "crc")
+testing "cpio name length" "cpio -o -H newc|dd ibs=2 skip=47 count=4" "00000002" "" "a\n"
+rm a bb ccc dddd
+
+# archive dangling symlinks and empty files even if we cannot open them
+touch a; chmod a-rwx a; ln -s a/cant b
+testing "cpio archives unreadable empty files" "cpio -o -H newc|cpio -it" "a\nb\n" "" "a\nb\n"
+chmod u+rw a; rm -f a b
+
+

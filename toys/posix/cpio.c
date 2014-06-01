@@ -202,8 +202,8 @@ void cpio_main(void)
       if (len<1) break;
       if (name[len-1] == '\n') name[--len] = 0;
       nlen = len+1;
-      if (lstat(name, &st)
-          || (S_ISREG(st.st_mode) && (fd = open(name, O_RDONLY))<0))
+      if (lstat(name, &st) || (S_ISREG(st.st_mode) 
+          && st.st_size && (fd = open(name, O_RDONLY))<0))
       {
         perror_msg("%s", name);
         continue;
