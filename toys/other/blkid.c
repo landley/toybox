@@ -12,6 +12,7 @@ config BLKID
   default y
   help
     usage: blkid [block device...]
+
     Prints type, label and UUID of filesystem.
 */
 

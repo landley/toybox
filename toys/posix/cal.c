@@ -11,6 +11,7 @@ config CAL
   default y
   help
     usage: cal [[month] year]
+
     Print a calendar.
 
     With one argument, prints all months of the specified year.

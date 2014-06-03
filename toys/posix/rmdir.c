@@ -11,6 +11,7 @@ config RMDIR
   default y
   help
     usage: rmdir [-p] [dirname...]
+
     Remove one or more directories.
 
     -p	Remove path.

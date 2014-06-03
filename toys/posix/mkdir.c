@@ -11,6 +11,7 @@ config MKDIR
   default y
   help
     usage: mkdir [-vp] [-m mode] [dirname...]
+
     Create one or more directories.
 
     -m	set permissions of directory to mode.

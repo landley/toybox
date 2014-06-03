@@ -9,6 +9,7 @@ config MODINFO
   default y
   help
     usage: modinfo [-0] [-b basedir] [-k kernrelease] [-F field] [modulename...]
+
     Display module fields for all specified modules, looking in
     <basedir>/lib/modules/<kernrelease>/ (kernrelease defaults to uname -r).
 */

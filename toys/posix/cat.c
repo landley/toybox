@@ -11,6 +11,7 @@ config CAT
   default y
   help
     usage: cat [-u] [file...]
+
     Copy (concatenate) files to stdout.  If no files listed, copy from stdin.
     Filename "-" is a synonym for stdin.
 

@@ -11,13 +11,15 @@ config CUT
   default y
   help
     usage: cut OPTION... [FILE]...
+
     Print selected parts of lines from each FILE to standard output.
-      -b LIST    select only these bytes from LIST.
-      -c LIST    select only these characters from LIST.
-      -f LIST    select only these fields.
-      -d DELIM  use DELIM instead of TAB for field delimiter.
-      -s    do not print lines not containing delimiters.
-      -n    don't split multibyte characters (Ignored).
+
+    -b LIST    select only these bytes from LIST.
+    -c LIST    select only these characters from LIST.
+    -f LIST    select only these fields.
+    -d DELIM  use DELIM instead of TAB for field delimiter.
+    -s    do not print lines not containing delimiters.
+    -n    don't split multibyte characters (Ignored).
 */
 #define FOR_cut
 #include "toys.h"
