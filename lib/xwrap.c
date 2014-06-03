@@ -143,6 +143,67 @@ void xexec(char **argv)
   perror_exit("exec %s", argv[0]);
 }
 
+// Spawn child process, capturing stdin/stdout.
+// argv[]: command to exec. If null, child returns to original program.
+// pipes[]: stdin, stdout of new process. If null, block and wait for child.
+// return: pid of child process
+pid_t xpopen(char **argv, int *pipes)
+{
+  int cestnepasun[4], pid;
+
+  // Make the pipes?
+  if (pipes) {
+    if (pipe(cestnepasun) || pipe(cestnepasun+2)) perror_exit("pipe");
+    pipes[0] = cestnepasun[1];
+    pipes[1] = cestnepasun[2];
+  }
+
+  // Child process
+  if (!(pid = xfork())) {
+    // Dance of the stdin/stdout redirection.
+    if (pipes) {
+      close(cestnepasun[1]);
+      close(cestnepasun[2]);
+      // if we had no stdin/out, pipe handles could overlap, so test for that
+      if (cestnepasun[0]) {
+        dup2(cestnepasun[0], 0);
+        close(cestnepasun[0]);
+      }
+      dup2(cestnepasun[3], 1);
+      dup2(cestnepasun[3], 2);
+      if (cestnepasun[3] > 2) close(cestnepasun[3]);
+    }
+    if (argv) {
+      if (CFG_TOYBOX) toy_exec(argv);
+      execvp(argv[0], argv);
+      _exit(127);
+    }
+    return 0;
+
+  // Parent process
+  } else {
+    if (pipes) {
+      close(cestnepasun[0]);
+      close(cestnepasun[3]);
+    }
+
+    return pid;
+  }
+}
+
+int xpclose(pid_t pid, int *pipes)
+{
+  int rc = 127;
+
+  if (pipes) {
+    close(pipes[0]);
+    close(pipes[1]);
+  }
+  waitpid(pid, &rc, 0);
+
+  return WIFEXITED(rc) ? WEXITSTATUS(rc) : WTERMSIG(rc) + 127;
+}
+
 void xaccess(char *path, int flags)
 {
   if (access(path, flags)) perror_exit("Can't access '%s'", path);

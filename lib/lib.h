@@ -94,6 +94,8 @@ void xflush(void);
 pid_t xfork(void);
 void xexec_optargs(int skip);
 void xexec(char **argv);
+pid_t xpopen(char **argv, int *pipes);
+int xpclose(pid_t pid, int *pipes);
 void xaccess(char *path, int flags);
 void xunlink(char *path);
 int xcreate(char *path, int flags, int mode);
