@@ -372,15 +372,17 @@ to spot as overrides to the normal flow of control, which they are.</p>
 <p>When there's a shorter way to say something, we tend to do that for
 consistency. For example, we tend to say "*blah" instead of "blah[0]" unless
 we're referring to more than one element of blah. Similarly, NULL is
-really just 0 (and C will automatically typecast 0 to anything),
-"if (function() != NULL)" is the same as "if (function())",
-"x = (blah == NULL);" is "x = !blah;", and so on. (The goal is to be
+really just 0 (and C will automatically typecast 0 to anything, except in
+varargs), "if (function() != NULL)" is the same as "if (function())",
+"x = (blah == NULL);" is "x = !blah;", and so on.</p>
+
+<p>The goal is to be
 concise, not cryptic: if you're worried about the code being hard to
 understand, splitting it to multiple steps on multiple lines is
 better than a NOP operation like "!= NULL". A common sign of trying to
 hard is nesting ? : three levels deep, sometimes if/else and a temporary
 variable is just plain easier to read. If you think you need a comment,
-you may be right.)</p>
+you may be right.</p>
 
 <p>Comments are nice, but don't overdo it. Comments should explain _why_,
 not how. If the code doesn't make the how part obvious, that's a problem with
