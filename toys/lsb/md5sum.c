@@ -8,8 +8,8 @@
  * They're combined this way to share infrastructure, and because md5sum is
  * and LSB standard command, sha1sum is just a good idea.
 
-USE_MD5SUM(NEWTOY(md5sum, NULL, TOYFLAG_USR|TOYFLAG_BIN))
-USE_MD5SUM_SHA1SUM(OLDTOY(sha1sum, md5sum, NULL, TOYFLAG_USR|TOYFLAG_BIN))
+USE_MD5SUM(NEWTOY(md5sum, "b", TOYFLAG_USR|TOYFLAG_BIN))
+USE_MD5SUM_SHA1SUM(OLDTOY(sha1sum, md5sum, "b", TOYFLAG_USR|TOYFLAG_BIN))
 
 config MD5SUM
   bool "md5sum"
@@ -21,6 +21,8 @@ config MD5SUM
     Output one hash (16 hex digits) for each input file, followed by
     filename.
 
+    -b	brief (hash only, no filename)
+
 config MD5SUM_SHA1SUM
   bool "sha1sum"
   default y
@@ -28,9 +30,11 @@ config MD5SUM_SHA1SUM
   help
     usage: sha1sum [FILE]...
 
-    calculate sha1 hash for each input file, reading from stdin if one.
+    calculate sha1 hash for each input file, reading from stdin if none.
     Output one hash (20 hex digits) for each input file, followed by
     filename.
+
+    -b	brief (hash only, no filename)
 */
 
 #define FOR_md5sum
@@ -230,7 +234,7 @@ static void do_hash(int fd, char *name)
   // Wipe variables.  Cryptographer paranoia.
   memset(&TT, 0, sizeof(TT));
 
-  printf("  %s\n", name);
+  printf((toys.optflags & FLAG_b) ? "\n" : "  %s\n", name);
 }
 
 void md5sum_main(void)
