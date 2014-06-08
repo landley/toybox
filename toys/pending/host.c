@@ -69,8 +69,8 @@ void host_main(void)
 {
   int verbose=(toys.optflags & (FLAG_a|FLAG_v)), type;
   char *name, *nsname;
-  int i, j, ret, sec, count, rcode, qlen, alen, pllen = 0, v[5];
-  unsigned ttl, pri;
+  int i, j, ret, sec, count, rcode, qlen, alen, pllen = 0;
+  unsigned ttl, pri, v[5];
   unsigned char qbuf[280], abuf[512], *p;
   char rrname[256], plname[640], ptrbuf[64];
   struct addrinfo *ai, iplit_hints = { .ai_flags = AI_NUMERICHOST };
@@ -202,15 +202,15 @@ void host_main(void)
         i += dn_expand(abuf, abuf+alen, p+i, plname+strlen(plname),
           sizeof plname-strlen(plname));
         for (j=0; j<5; j++)
-          v[j] = 16777216*p[i+4*j] + 65536*p[1+i+4*j]
+          v[j] = 16777216u*p[i+4*j] + 65536*p[1+i+4*j]
             + 256*p[2+i+4*j] + p[3+i+4*j];
         snprintf(plname+strlen(plname),
           sizeof plname-strlen(plname),
-          "(\n\t\t%zu\t;serial (version)\n"
-          "\t\t%zu\t;refresh period\n"
-          "\t\t%zu\t;retry interval\n"
-          "\t\t%zu\t;expire time\n"
-          "\t\t%zu\t;default ttl\n"
+          "(\n\t\t%u\t;serial (version)\n"
+          "\t\t%u\t;refresh period\n"
+          "\t\t%u\t;retry interval\n"
+          "\t\t%u\t;expire time\n"
+          "\t\t%u\t;default ttl\n"
           "\t\t)", v[0], v[1], v[2], v[3], v[4]);
         break;
       case PL_MX:
@@ -225,7 +225,7 @@ void host_main(void)
         for (j=0; j<3; j++)
           v[j] = 256*p[2*j] + p[1+2*j];
         snprintf(plname, sizeof plname,
-          "%d %d %d ", v[0], v[1], v[2]);
+          "%u %u %u ", v[0], v[1], v[2]);
         dn_expand(abuf, abuf+alen, p+6,
           plname+strlen(plname),
           sizeof plname - strlen(plname));
