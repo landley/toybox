@@ -105,6 +105,10 @@ void toy_exec(char *argv[]);
 #define TOYFLAG_NEEDROOT (1<<7)
 #define TOYFLAG_ROOTONLY (TOYFLAG_STAYROOT|TOYFLAG_NEEDROOT)
 
+// Call setlocale to listen to environment variables.
+// This invalidates sprintf("%.*s", size, string) as a valid length constraint.
+#define TOYFLAG_LOCALE   (1<<8)
+
 // Array of available commands
 
 extern struct toy_list {

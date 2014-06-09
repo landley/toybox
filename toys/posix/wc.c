@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/wc.html
 
-USE_WC(NEWTOY(wc, USE_TOYBOX_I18N("m")"cwl", TOYFLAG_USR|TOYFLAG_BIN))
+USE_WC(NEWTOY(wc, USE_TOYBOX_I18N("m")"cwl", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config WC
   bool "wc"
