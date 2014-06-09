@@ -280,6 +280,16 @@ int stridx(char *haystack, char needle)
   return off-haystack;
 }
 
+// If *a starts with b, advance *a past it and return 1, else return 0;
+int strstart(char **a, char *b)
+{
+  int len = strlen(b), i = !strncmp(*a, b, len);
+
+  if (i) *a += len;
+
+  return i;
+}
+
 // Return how long the file at fd is, if there's any way to determine it.
 off_t fdlength(int fd)
 {
