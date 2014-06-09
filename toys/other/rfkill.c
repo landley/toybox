@@ -9,7 +9,7 @@ USE_RFKILL(NEWTOY(rfkill, "<1>2", TOYFLAG_SBIN))
 
 config RFKILL
   bool "rfkill"
-  default n
+  default y
   help
     Usage: rfkill COMMAND [DEVICE]
 
