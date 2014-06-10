@@ -61,7 +61,7 @@ static int exec_wait(char **args)
   pid_t pid = xfork();
 
   if (!pid) xexec(args);
-  else if waitpid(pid, &status, 0);
+  else waitpid(pid, &status, 0);
 
   return WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status)+127;
 }
