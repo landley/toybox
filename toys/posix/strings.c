@@ -11,7 +11,7 @@ USE_STRINGS(NEWTOY(strings, "an#=4<1fo", TOYFLAG_USR|TOYFLAG_BIN))
 
 config STRINGS
   bool "strings"
-  default n
+  default y
   help
     usage: strings [-fo] [-n LEN] [FILE...]
 
