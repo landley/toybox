@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/nohup.html
 
-USE_NOHUP(NEWTOY(nohup, "<1", TOYFLAG_USR|TOYFLAG_BIN))
+USE_NOHUP(NEWTOY(nohup, "<1^", TOYFLAG_USR|TOYFLAG_BIN))
 
 config NOHUP
   bool "nohup"
@@ -13,8 +13,8 @@ config NOHUP
     usage: nohup COMMAND [ARGS...]
 
     Run a command that survives the end of its terminal.
-    If stdin is a tty, redirect from /dev/null
-    If stdout is a tty, redirect to file "nohup.out"
+
+    Redirect tty on stdin to /dev/null, tty on stdout to "nohup.out".
 */
 
 #include "toys.h"
@@ -29,7 +29,7 @@ void nohup_main(void)
     {
       char *temp = getenv("HOME");
       temp = xmprintf("%s/%s", temp ? temp : "", "nohup.out");
-      xcreate(temp, O_CREAT|O_APPEND|O_WRONLY, S_IRUSR|S_IWUSR);
+      xcreate(temp, O_CREAT|O_APPEND|O_WRONLY, 0600);
     }
   }
   if (isatty(0)) {
