@@ -23,18 +23,18 @@ config LOGIN
 #define FOR_login
 #include "toys.h"
 
-#define LOGIN_TIMEOUT 60
-#define LOGIN_FAIL_TIMEOUT 3
 #define USER_NAME_MAX_SIZE 32
 #define HOSTNAME_SIZE 32
 
 GLOBALS(
   char *hostname;
+
+  int login_timeout, login_fail_timeout;
 )
 
 static void login_timeout_handler(int sig __attribute__((unused)))
 {
-  printf("\nLogin timed out after %d seconds.\n", LOGIN_TIMEOUT);
+  printf("\nLogin timed out after %d seconds.\n", TT.login_timeout);
   exit(0);
 }
 
@@ -62,8 +62,9 @@ void read_user(char * buff, int size)
 {
   char hostname[HOSTNAME_SIZE+1];
   int i = 0;
+
   hostname[HOSTNAME_SIZE] = 0;
-  if(!gethostname(hostname, HOSTNAME_SIZE)) fputs(hostname, stdout);
+  if (!gethostname(hostname, HOSTNAME_SIZE)) fputs(hostname, stdout);
 
   fputs(" login: ", stdout);
   fflush(stdout);
@@ -71,10 +72,10 @@ void read_user(char * buff, int size)
   do {
     int c = getchar();
     if (c == EOF) exit(EXIT_FAILURE);
-    buff[0] = c;
-  } while (isblank(buff[0]));
+    *buff = c;
+  } while (isblank(*buff));
 
-  if (buff[0] != '\n') if(!fgets(&buff[1], HOSTNAME_SIZE-1, stdin)) _exit(1);
+  if (*buff != '\n') if(!fgets(&buff[1], HOSTNAME_SIZE-1, stdin)) _exit(1);
 
   while(i<HOSTNAME_SIZE-1 && isgraph(buff[i])) i++;
   buff[i] = 0;
@@ -84,6 +85,7 @@ void handle_nologin(void)
 {
   int fd = open("/etc/nologin", O_RDONLY);
   int size;
+
   if (fd == -1) return;
 
   size = readall(fd, toybuf,sizeof(toybuf)-1);
@@ -93,7 +95,7 @@ void handle_nologin(void)
 
   close(fd);
   fflush(stdout);
-  exit(EXIT_FAILURE);
+  exit(1);
 }
 
 void handle_motd(void)
@@ -126,7 +128,7 @@ void setup_environment(const struct passwd *pwd, int clear_env)
   if (chdir(pwd->pw_dir)) printf("bad home dir: %s\n", pwd->pw_dir);
 
   if (clear_env) {
-    const char * term = getenv("TERM");
+    const char *term = getenv("TERM");
     clearenv();
     if (term) setenv("TERM", term, 1);
   }
@@ -141,7 +143,7 @@ void login_main(void)
 {
   int f_flag = toys.optflags & FLAG_f;
   int h_flag = toys.optflags & FLAG_h;
-  char username[USER_NAME_MAX_SIZE+1], *pass = NULL, **ss;
+  char username[33], *pass = NULL, **ss;
   struct passwd * pwd = NULL;
   struct spwd * spwd = NULL;
   int auth_fail_cnt = 0;
@@ -154,18 +156,18 @@ void login_main(void)
 
   openlog("login", LOG_PID | LOG_CONS, LOG_AUTH);
   signal(SIGALRM, login_timeout_handler);
-  alarm(LOGIN_TIMEOUT);
+  alarm(TT.login_timeout = 60);
 
   for (ss = forbid; *ss; ss++) unsetenv(*ss);
 
   while (1) {
     tcflush(0, TCIFLUSH);
 
-    username[USER_NAME_MAX_SIZE] = 0;
-    if (toys.optargs[0]) strncpy(username, toys.optargs[0], USER_NAME_MAX_SIZE);
+    username[sizeof(username)-1] = 0;
+    if (*toys.optargs) strncpy(username, *toys.optargs, sizeof(username)-1);
     else {
-      read_user(username, USER_NAME_MAX_SIZE+1);
-      if (username[0] == 0) continue;
+      read_user(username, sizeof(username));
+      if (!*username) continue;
     }
 
     pwd = getpwnam(username);
@@ -191,15 +193,15 @@ query_pass:
     syslog(LOG_WARNING, "invalid password for '%s' on %s %s %s", username,
       ttyname(0), h_flag?"from":"", h_flag?TT.hostname:"");
 
-    sleep(LOGIN_FAIL_TIMEOUT);
+    sleep(3);
     puts("Login incorrect");
 
     if (++auth_fail_cnt == 3)
-      error_exit("Maximum number of tries exceeded (%d)\n", auth_fail_cnt);
+      error_exit("Maximum number of tries exceeded (3)\n");
 
-    username[0] = 0;
-    pwd = NULL;
-    spwd = NULL;
+    *username = 0;
+    pwd = 0;
+    spwd = 0;
   }
 
   alarm(0);
