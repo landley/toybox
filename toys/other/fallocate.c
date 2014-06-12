@@ -8,7 +8,7 @@ USE_FALLOCATE(NEWTOY(fallocate, ">1l#|", TOYFLAG_USR|TOYFLAG_BIN))
 
 config FALLOCATE
   bool "fallocate"
-  default n
+  default y
   help
     usage: fallocate [-l size] file
 
