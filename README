@@ -69,7 +69,7 @@ an operating system. Booting a simple system to a shell prompt requires
 three packages: an operating system kernel (Linux) to drive the hardware,
 a program for the system to run (toybox), and a C library to tie them
 together (toybox has been tested with musl, uClibc, and glibc, on Android
-systems musl is recommended).</p>
+systems musl is recommended).
 
 The C library is part of a "toolchain", which is an integrated suite
 of compiler, assembler, and linker, plus the standard headers and libraries
