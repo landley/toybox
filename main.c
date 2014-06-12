@@ -81,6 +81,7 @@ static void toy_singleinit(struct toy_list *which, char *argv[])
   toys.old_umask = umask(0);
   if (!(which->flags & TOYFLAG_UMASK)) umask(toys.old_umask);
   toys.signalfd--;
+  toys.toycount = ARRAY_LEN(toy_list);
 }
 
 // Setup toybox global state for this command.
@@ -166,8 +167,6 @@ list:
 int main(int argc, char *argv[])
 {
   if (CFG_TOYBOX_I18N) setlocale(LC_ALL, "");
-
-  toys.toycount = ARRAY_LEN(toy_list);
 
   if (CFG_TOYBOX) {
     // Trim path off of command name
