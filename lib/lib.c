@@ -194,10 +194,13 @@ struct string_list **splitpath(char *path, struct string_list **list)
 struct string_list *find_in_path(char *path, char *filename)
 {
   struct string_list *rlist = NULL, **prlist=&rlist;
-  char *cwd = xgetcwd();
+  char *cwd;
 
+  if (!path) return 0;
+
+  cwd = xgetcwd();
   for (;;) {
-    char *next = path ? strchr(path, ':') : NULL;
+    char *next = strchr(path, ':');
     int len = next ? next-path : strlen(path);
     struct string_list *rnext;
     struct stat st;
