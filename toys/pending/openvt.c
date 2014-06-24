@@ -5,20 +5,29 @@
  * No Standard
 
 USE_OPENVT(NEWTOY(openvt, "c#<1>63sw", TOYFLAG_BIN|TOYFLAG_NEEDROOT))
+USE_DEALLOCVT(NEWTOY(deallocvt, ">1", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_NEEDROOT))
 
 config OPENVT
   bool "openvt"
   default n
   help
-    usage: openvt [-c N] [-s] [-w] [--] [command [command_options]]
+    usage: openvt [-c N] [-sw] [command [command_options]]
 
     start a program on a new virtual terminal (VT)
 
     -c N  Use VT N
     -s    Switch to new VT
     -w    Wait for command to exit
-          if -s and -w option used together, switch back
-          to originating VT when command completes
+
+    if -sw used together, switch back to originating VT when command completes
+
+config DEALLOCVT
+  bool "deallocvt"
+  default n
+  help
+    usage: deallocvt [N]
+
+    Deallocate unused virtual terminal /dev/ttyN, or all unused consoles.
 */
 
 #define FOR_openvt
@@ -30,32 +39,24 @@ GLOBALS(
   unsigned long vt_num;
 )
 
-int find_console_fd(void)
+int open_console(void)
 {
-  char *console_name[] = {"/dev/tty", "/dev/tty0", "/dev/console"};
-  int i;
-  int fd;
-  char arg;
+  char arg, *console_name[] = {"/dev/tty", "/dev/tty0", "/dev/console"};
+  int i, fd;
 
-  for (i = 0; i < 3; i++) {
-    fd = open(console_name[i], O_RDONLY);
-    if (fd < 0 && errno == EACCES)
-      fd = open(console_name[i], O_WRONLY);
-
+  for (i = 0; i < ARRAY_LEN(console_name); i++) {
+    fd = open(console_name[i], O_RDWR);
     if (fd >= 0) {
       arg = 0;
-      if (0 == ioctl(fd, KDGKBTYPE, &arg))
-        return fd;
-      else
-        close(fd);
+      if (!ioctl(fd, KDGKBTYPE, &arg)) return fd;
+      close(fd);
     }
   }
 
   /* check std fd 0, 1 and 2 */
   for (fd = 0; fd < 3; fd++) {
     arg = 0;
-    if (0 == ioctl(fd, KDGKBTYPE, &arg))
-      return fd;
+    if (0 == ioctl(fd, KDGKBTYPE, &arg)) return fd;
   }
 
   return -1;
@@ -73,8 +74,9 @@ int xvtnum(int fd)
 
 void openvt_main(void)
 {
-  int fd = -1, vt_fd = -1, pid, ret = 0;
+  int fd, vt_fd, ret = 0;
   struct vt_stat vstate;
+  pid_t pid;
 
   if (!(toys.optflags & FLAG_c)) {
     // check if fd 0,1 or 2 is already opened
@@ -93,7 +95,7 @@ void openvt_main(void)
   }
 
   sprintf(toybuf, "/dev/tty%lu", TT.vt_num);
-  fd = find_console_fd();
+  fd = open_console();
   xioctl(fd, VT_GETSTATE, &vstate);
 
   close(0);  //new vt becomes stdin
@@ -127,4 +129,16 @@ void openvt_main(void)
       xioctl(fd, VT_DISALLOCATE, (void *)(ptrdiff_t)TT.vt_num); 
     }
   }
+}
+
+void deallocvt_main(void)
+{
+  long vt_num = 0; // 0 deallocates all unused consoles
+  int fd;
+
+  if (*toys.optargs) vt_num = atolx_range(*toys.optargs, 1, 63);
+
+  if ((fd = open_console()) < 0) error_exit("can't open console");
+  xioctl(fd, VT_DISALLOCATE, (void *)vt_num);
+  if (CFG_TOYBOX_FREE) close(fd);
 }
