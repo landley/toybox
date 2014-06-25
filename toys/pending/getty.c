@@ -165,7 +165,7 @@ static void termios_init(void)
   TT.termios.c_cc[VEOF] = CTL('D');
   TT.termios.c_cc[VEOL] = '\n';
   TT.termios.c_cc[VKILL] = CTL('U');
-  TT.termios.c_cc[VERASE] = CERASE;
+  TT.termios.c_cc[VERASE] = 127; // CERASE
   TT.termios.c_iflag = ICRNL|IXON|IXOFF;
   // set non-zero baud rate. Zero baud rate left it unchanged.
   if (TT.speeds[0] != B0) cfsetspeed(&TT.termios, TT.speeds[0]); 
