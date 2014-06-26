@@ -1,0 +1,98 @@
+#!/bin/bash
+
+# Copyright 2013 Robin Mittal <robinmittal.it@gmail.com>
+# Copyright 2013 Divya Kothari <divya.s.kothari@gmail.com>
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+touch file
+testing "Move old_file to  new_file" "mv file file1 && [ ! -e file -a -f file1 ] &&
+   echo 'yes'" "yes\n" "" ""
+rm -f file*
+
+touch file
+mkdir dir
+testing "Move file to a dir" "mv file dir && [ ! -e file -a -f dir/file ] &&
+   echo 'yes'" "yes\n" "" ""
+rm -rf file* dir*
+
+mkdir dir
+testing "Move old_dir to new_dir" "mv dir dir1 && [ ! -e dir -a -d dir1 ] &&
+   echo 'yes'" "yes\n" "" ""
+rm -rf dir*
+
+mkdir dir1 dir2
+touch file1 file2 dir1/file3
+ln -s file1 link1
+testing "Move multiple files/dir to a dir" "mv file1 file2 link1 dir1 dir2 &&
+   [ ! -e file1 -a ! -e file2 -a ! -e link1 -a ! -e dir1 ] &&
+   [ -f dir2/file1 -a -f dir2/file2 -a -L dir2/link1 -a -d dir2/dir1 ] &&
+   [ -f dir2/dir1/file3 ] && readlink dir2/link1" "file1\n" "" ""
+rm -rf file* link* dir*
+
+touch file1
+testing "Move a empty file to new_file" "mv file1 file2 &&
+   [ ! -e file1 -a -f file2 ] && stat -c %s file2" "0\n" "" ""
+rm -rf file*
+
+mkdir dir1
+testing "Move enpty dir to new_dir" "mv dir1 dir2 &&
+   [ ! -d dir1 -a -d dir2 ] && echo 'yes'" "yes\n" "" ""
+rm -rf dir*
+
+dd if=/dev/zero of=file1 seek=10k count=1 >/dev/null 2>&1
+testing "Move file new_file (random file)" "mv file1 file2 &&
+   [ ! -e file1 -a -f file2 ] && stat -c %s file2" "5243392\n" "" ""
+rm -f file*
+
+touch file1
+ln -s file1 link1
+testing "Move link new_link (softlink)" "mv link1 link2 &&
+   [ ! -e link1 -a -L link2 ] && readlink link2" "file1\n" "" ""
+unlink tLink2 &>/dev/null
+rm -f file* link*
+
+touch file1
+ln file1 link1
+testing "Move link new_link (hardlink)" "mv link1 link2 &&
+   [ ! -e link1 -a -f link2 -a file1 -ef link2 ] && echo 'yes'" "yes\n" "" ""
+unlink link2 &>/dev/null
+rm -f file* link*
+
+touch file1
+chmod a-r file1
+testing "Move file new_file (unreadable)" "mv file1 file2 &&
+   [ ! -e file1 -a -f file2 ] && echo 'yes'" "yes\n" "" ""
+rm -f file*
+
+touch file1
+ln file1 link1
+mkdir dir1
+testing "Move file link dir (hardlink)" "mv file1 link1 dir1 &&
+   [ ! -e file1 -a ! -e link1 -a -f dir1/file1 -a -f dir1/link1 ] &&
+   [ dir1/file1 -ef dir1/link1 ] && echo 'yes'" "yes\n" "" ""
+rm -rf file* link* dir*
+
+mkdir -p dir1/dir2 dir3
+touch dir1/dir2/file1 dir1/dir2/file2
+testing "Move dir1/dir2 dir3/new_dir" "mv dir1/dir2 dir3/dir4 &&
+   [ ! -e dir1/dir2 -a -d dir3/dir4 -a -f dir3/dir4/file1 ] &&
+   [ -f dir3/dir4/file2 ] && echo 'yes'" "yes\n" "" ""
+rm -rf file* dir*
+
+mkdir dir1 dir2
+testing "Move dir new_dir (already exist)" "mv dir1 dir2 &&
+   [ ! -e dir1 -a -d dir2/dir1 ] && echo 'yes'" "yes\n" "" ""
+rm -rf dir*
+
+touch file1 file2
+testing "Move -f file new_file (exist)" "mv -f file1 file2 &&
+   [ ! -e file1 -a -e file2 ] && echo 'yes'" "yes\n" "" ""
+rm -f file*
+
+touch file1 file2
+testing "Move -n file new_file (exist)" "mv -n file1 file2 &&
+   [ -e file1 -a -e file2 ] && echo 'yes'" "yes\n" "" ""
+rm -f file*

@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# Copyright 2013 Robin Mittal <robinmittal.it@gmail.com>
+# Copyright 2013 Divya Kothari <divya.s.kothari@gmail.com>
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+#set -x
+
+testing "printf TEXT" "printf toyTestText" "toyTestText" "" ""
+testing "printf MULTILINE_TEXT" \
+  "printf 'Testing\nmultiline\ntext\nfrom\ntoybox\tcommand.\b'" \
+  "Testing\nmultiline\ntext\nfrom\ntoybox\tcommand.\b" "" ""
+testing "printf '%5d%4d' 1 21 321 4321 54321" \
+  "printf '%5d%4d' 1 21 321 4321 54321" "    1  21  321432154321   0" "" ""
+testing "printf '%c %c' 78 79" "printf '%c %c' 78 79" "7 7" "" ""
+testing "printf '%d %d' 78 79" "printf '%d %d' 78 79" "78 79" "" ""
+testing "printf '%f %f' 78 79" "printf '%f %f' 78 79" \
+  "78.000000 79.000000" "" ""
+testing "printf 'f f' 78 79" "printf 'f f' 78 79" "f f" "" ""
+testing "printf '%i %i' 78 79" "printf '%i %i' 78 79" "78 79" "" ""
+testing "printf '%o %o' 78 79" "printf '%o %o' 78 79" "116 117" "" ""
+testing "printf '%u %u' 78 79" "printf '%u %u' 78 79" "78 79" "" ""
+testing "printf '%u %u' -1 -2" "printf '%u %u' -1 -2" \
+  "18446744073709551615 18446744073709551614" "" ""
+testing "printf '%x %X' 78 79" "printf '%x %X' 78 79" "4e 4F" "" ""
+testing "printf '%g %G' 78 79" "printf '%g %G' 78 79" "78 79" "" ""
+testing "printf '%s %s' 78 79" "printf '%s %s' 78 79" "78 79" "" ""

@@ -1,0 +1,83 @@
+#!/bin/bash
+
+# Copyright 2013 Robin Mittal <robinmittal.it@gmail.com>
+# Copyright 2013 Divya Kothari <divya.s.kothari@gmail.com>
+
+[ -f testing.sh ] && . testing.sh
+
+# 'dd' command, stderr prints redirecting to /dev/null
+opt="2>/dev/null"
+
+#testing "name" "command" "result" "infile" "stdin"
+
+testing "dd if=(file)" "dd if=input $opt" "I WANT\n" "I WANT\n" ""
+testing "dd of=(file)" "dd of=file $opt && cat file" "I WANT\n" "" "I WANT\n"
+testing "dd if=file of=file" "dd if=input of=foo $opt && cat foo && rm -f foo" \
+  "I WANT\n" "I WANT\n" ""
+testing "dd if=file | dd of=file" "dd if=input $opt | dd of=foo $opt &&
+   cat foo && rm -f foo" "I WANT\n" "I WANT\n" ""
+testing "dd (stdout)" "dd $opt" "I WANT\n" "" "I WANT\n"
+testing "dd sync,noerror" \
+  "dd if=input of=outFile seek=8860 bs=1M conv=sync,noerror $opt &&
+   stat -c \"%s\" outFile && rm -f outFile" "9291431936\n" "I WANT\n" ""
+testing "dd if=file of=(null)" \
+  "dd if=input of=/dev/null $opt && echo 'yes'" "yes\n" "I WANT\n" ""
+testing "dd with if of bs" \
+  "dd if=/dev/zero of=sda.txt bs=512 count=1 $opt &&
+   stat -c '%s' sda.txt && rm -f sda.txt" "512\n" "" ""
+testing "dd with if of ibs obs" \
+  "dd if=/dev/zero of=sda.txt ibs=512 obs=256 count=1 $opt &&
+   stat -c '%s' sda.txt && rm -f sda.txt" "512\n" "" ""
+testing "dd with if of ibs obs count" \
+  "dd if=/dev/zero of=sda.txt ibs=512 obs=256 count=3 $opt &&
+   stat -c '%s' sda.txt && rm -f sda.txt" "1536\n" "" ""
+
+ln -s input softlink
+testing "dd if=softlink" "dd if=softlink $opt" "I WANT\n" "I WANT\n" ""
+unlink softlink
+
+ln -s file softlink
+testing "dd if=file of=softlink" "dd if=input of=softlink $opt &&
+   [ -f file -a -L softlink ] && cat softlink" "I WANT\n" "I WANT\n" ""
+unlink softlink && rm -f file
+
+testing "dd if=file of=file (same file)" "dd if=input of=input $opt &&
+   [ -f input ] && cat input && echo 'yes'" "yes\n" "I WANT\n" ""
+
+testing "dd with ibs obs bs" "dd ibs=2 obs=5 bs=9 $opt" "I WANT\n" "" "I WANT\n"
+testing "dd with ibs obs bs if" "dd ibs=2 obs=5 bs=9 if=input $opt" \
+  "I WANT\n" "I WANT\n" ""
+
+testing "dd with ibs obs count" "dd ibs=1 obs=1 count=1 $opt" "I" "" "I WANT\n"
+testing "dd with ibs obs count if" "dd ibs=1 obs=1 count=3 if=input $opt" \
+  "I W" "I WANT\n" ""
+
+testing "dd with count" "dd count=1 $opt" "I WANT\n" "" "I WANT\n"
+testing "dd with count if" "dd count=1 if=input $opt" "I WANT\n" "I WANT\n" ""
+
+testing "dd with skip" "dd skip=0 $opt" "I WANT\n" "" "I WANT\n"
+testing "dd with skip if" "dd skip=0 if=input $opt" "I WANT\n" "I WANT\n" ""
+
+testing "dd with seek" "dd seek=0 $opt" "I WANT\n" "" "I WANT\n"
+testing "dd with seek if" "dd seek=0 if=input $opt" "I WANT\n" "I WANT\n" ""
+
+# These type of conv is not supported in toybox: 'ascii', 'ebcdic', 'ibm',
+# 'block', 'unblock', 'nocreat', 'notronc', 'lcase', 'ucase', 'excl', 'swab'
+
+# Testing only 'notrunc', 'noerror', 'fsync', 'sync'
+
+testing "dd conv=notrunc" "dd conv=notrunc $opt" "I WANT\n" "" "I WANT\n"
+testing "dd conv=notrunc with IF" "dd conv=notrunc if=input $opt" "I WANT\n" \
+  "I WANT\n" ""
+
+testing "dd conv=noerror" "dd conv=noerror $opt" "I WANT\n" "" "I WANT\n"
+testing "dd conv=noerror with IF" "dd conv=noerror if=input $opt" "I WANT\n" \
+  "I WANT\n" ""
+
+testing "dd conv=fsync" "dd conv=fsync $opt" "I WANT\n" "" "I WANT\n"
+testing "dd conv=fsync with IF" "dd conv=fsync if=input $opt" "I WANT\n" \
+  "I WANT\n" ""
+
+testing "dd conv=sync" "dd conv=sync $opt | head -n 1" "I WANT\n" "" "I WANT\n"
+testing "dd conv=sync with IF" "dd conv=sync if=input $opt | head -n 1" "I WANT\n" \
+  "I WANT\n" ""
