@@ -165,6 +165,9 @@ int human_readable(char *buf, unsigned long long num);
 // net.c
 int xsocket(int domain, int type, int protocol);
 
+// password.c
+int get_salt(char *salt, char * algo);
+
 // getmountlist.c
 struct mtab_list {
   struct mtab_list *next, *prev;

@@ -6,48 +6,48 @@
 #include "toys.h"
 #include <time.h>
 
+// generate appropriate random salt string for given encryption algorithm.
 int get_salt(char *salt, char *algo)
 {      
-  int i, len = 0, offset = 0;
-  char buf[12];
+  struct {
+    char *type, id, len;
+  } al[] = {{"des", 0, 2}, {"md5", 1, 8}, {"sha256", 5, 16}, {"sha512", 6, 16}};
+  int i;
 
-  if (!strcmp(algo,"des")) len = 2;
-  else {
-    *salt++ = '$';
-    if (!strcmp(algo,"md5")) {
-      *salt++ = '1';
-      len = 8;
-    } else if (!strcmp(algo,"sha256")) {
-      *salt++ = '5';
-      len = 16;
-    } else if (!strcmp(algo,"sha512")) {
-      *salt++ = '6';
-      len = 16;
-    } else return -1;
+  for (i = 0; i < ARRAY_LEN(al); i++) {
+    if (!strcmp(algo, al[i].type)) {
+      int len = al[i].len;
+      char *s = salt;
 
-    *salt++ = '$';
-    offset = 3;
-  }    
+      if (al[i].id) {
+        *s++ = '$';
+        *s++ = '0'+al[i].id;
+      }
+      *s++ = '$';
 
-  // Read appropriate number of random bytes for salt
-  i = xopen("/dev/urandom", O_RDONLY);
-  xreadall(i, buf, ((len*6)+7)/8);
-  close(i);
+      // Read appropriate number of random bytes for salt
+      i = xopen("/dev/urandom", O_RDONLY);
+      xreadall(i, libbuf, ((len*6)+7)/8);
+      close(i);
 
-  // Grab 6 bit chunks and convert to characters in ./0-9a-zA-Z
-  for (i=0; i<len; i++) {
-    int bitpos = i*6, bits = bitpos/8;
+      // Grab 6 bit chunks and convert to characters in ./0-9a-zA-Z
+      for (i=0; i<len; i++) {
+        int bitpos = i*6, bits = bitpos/8;
 
-    bits = ((buf[i]+(buf[i+1]<<8)) >> (bitpos&7)) & 0x3f;
-    bits += 46;
-    if (bits > 57) bits += 7;
-    if (bits > 90) bits += 6;
+        bits = ((libbuf[i]+(libbuf[i+1]<<8)) >> (bitpos&7)) & 0x3f;
+        bits += 46;
+        if (bits > 57) bits += 7;
+        if (bits > 90) bits += 6;
 
-    salt[i] = bits;
+        s[i] = bits;
+      }
+      salt[len] = 0;
+
+      return s-salt;
+    }
   }
-  salt[i] = 0;
 
-  return offset;
+  return -1;
 }
 
 static void handle(int signo)

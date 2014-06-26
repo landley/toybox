@@ -11,12 +11,12 @@ config MKPASSWD
   bool "mkpasswd"
   default n
   help
-    usage: mkpasswd [OPTIONS] [PASSWORD] [SALT]
+    usage: mkpasswd [-P FD] [-m TYPE] [-S SALT] [PASSWORD] [SALT]
 
     Crypt PASSWORD using crypt(3)
 
-    -P N    Read password from fd N
-    -m TYPE Encryption method, when TYPE='help', then show the methods available
+    -P FD   Read password from file descriptor FD
+    -m TYPE Encryption method (des, md5, sha256, or sha512; default is des)
     -S SALT
 */
 
@@ -29,74 +29,49 @@ GLOBALS(
   char *salt;
 )
 
-
-/*
- * validate the salt provided by user.
- * the allowed character set for salt is [./A-Za-z0-9]
- */
-static void is_salt_valid(char *salt)
-{
-  regex_t rp;
-  regmatch_t rm[1];
-  char *regex = "[./A-Za-z0-9]*"; //salt REGEX
-
-  xregcomp(&rp, regex, REG_NEWLINE);
-
-  /* compare string against pattern --  remember that patterns 
-     are anchored to the beginning of the line */
-  if (regexec(&rp, salt, 1, rm, 0) == 0 && rm[0].rm_so == 0 
-      && rm[0].rm_eo == strlen(salt))
-      return;
-
-  error_exit("salt should be in character set [./A-Za-z0-9]");
-}
-
 void mkpasswd_main(void)
 {
-  int offset = 0;
   char salt[MAX_SALT_LEN] = {0,};
+  int i;
 
-  if (!(toys.optflags & FLAG_m)) TT.method = "des";
-  else if (!strcmp(TT.method, "help")) {
-    xprintf("Available encryption methods are:\n"
-        " des\n md5\n sha256\n sha512\n");
-    return;
+  if (!TT.method) TT.method = "des";
+  if (toys.optc == 2) {
+    if (TT.salt) error_exit("duplicate salt");
+    TT.salt = toys.optargs[1];
   }
-  // If arguments are there, then the second argument is Salt, can be NULL also
-  if ((toys.optc == 2) && !(toys.optflags & FLAG_S)) TT.salt = toys.optargs[1];
 
-  offset= get_salt(salt, TT.method);
-  if (offset == -1) error_exit("unknown encryption method");
+  if (-1 == (i = get_salt(salt, TT.method))) error_exit("bad -m");
   if (TT.salt) {
-    is_salt_valid(TT.salt);
-    snprintf(salt + offset, MAX_SALT_LEN - offset, "%s", TT.salt);
+    char *s = TT.salt;
+
+    // In C locale, isalnum() means [A-Za-Z0-0]
+    while (isalnum(*s) || *s == '.' || *s == '/') s++;
+    if (*s) error_exit("salt not in [./A-Za-z0-9]");
+
+    snprintf(salt+i, sizeof(salt)-i, "%s", TT.salt);
   }
 
-  if (toys.optflags & FLAG_P) {
-    if (dup2(TT.pfd, STDIN_FILENO) == -1) perror_exit("fd");
+  // Because read_password() doesn't have an fd argument
+  if (TT.pfd) {
+    if (dup2(TT.pfd, 0) == -1) perror_exit("fd");
     close(TT.pfd);
   }
 
-  if (!toys.optc) {
-    if (isatty(STDIN_FILENO)) {
+  // If we haven't got a password on the command line, read it from tty or FD
+  if (!*toys.optargs) {
+    // Prompt and read interactively?
+    if (isatty(0)) {
       if (read_password(toybuf, sizeof(toybuf), "Password: ")) 
         perror_exit("password read failed");
     } else {
-      // read from the given FD
-      int i = 0;
-      while (1) {
-        int ret = read(0, &toybuf[i], 1);
-        if ( ret < 0 ) perror_exit("password read failed");
-        else if (ret == 0 || toybuf[i] == '\n' || toybuf[i] == '\r' ||
-            sizeof(toybuf) == i+1) {
-          toybuf[i] = '\0';
-          break;
-        }
-        i++;
+      for (i = 0; i<sizeof(toybuf)-1; i++) {
+        if (!xread(0, toybuf+i, 1)) break;
+        if (toybuf[i] == '\n' || toybuf[i] == '\r') break;
       }
+      toybuf[i] = 0;
     }
-  } else snprintf(toybuf, sizeof(toybuf), "%s", toys.optargs[0]);
+  }
 
   // encrypt & print the password
-  xprintf("%s\n",crypt(toybuf, salt));
+  xprintf("%s\n",crypt(*toys.optargs ? *toys.optargs : toybuf, salt));
 }
