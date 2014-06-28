@@ -168,9 +168,15 @@ infrastructure cleanup from Isaac Dunham</a>
 <li>commit: <a href=/hg/toybox/rev/862>862</a>, description:
 <a href=http://lists.landley.net/pipermail/toybox-landley.net/2014-January/001525.html>remove unused headers and function, replace local buffer with toybuf, perror_exit(), avoid unnecessary assignment.</a></li>
 <li>commit: <a href=/hg/toybox/rev/864>864</a>, description:
-<a href=>blah</a></li>
+<a href=http://lists.landley.net/pipermail/toybox-landley.net/2014-January/001526.html>use common linked list functions, inline set_data, add xioctl, clean up error messages, whitespace and comment tweaks, remove NOP return statements</a></li>
 <li>commit: <a href=/hg/toybox/rev/866>866</a>, description:
-<a href=>blah</a></li>
+<a href=http://lists.landley.net/pipermail/toybox-landley.net/2014-January/001528.html>move standalone globals into GLOBALS() block, collate structs into
+iface_list. Inline/rewrite/remove field_format, iface_flags_str,
+omit_whitespace(), print_iface_flags(), print_media(), get_ifconfig_info(),
+and clear_list(). Merge duplicate function
+calls. Show get_proc_info() version field can't matter in 2.6 or newer kernel,
+and that SIOCGIFMAP has been there since 1994 so doesn't need an #ifdef.
+Loop simplification in readconf() and show_iface().</a></li>
 
 <li>commit: <a href=/hg/toybox/rev/869>869</a> and <a href=/hg/toybox/rev/870>870</a>,
 description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000928.html>869:
@@ -208,12 +214,12 @@ assignment, trusting -funsigned-char.</a></li>
 <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-June/001027.html>todo whitespace damage, introduce IFREQ_OFFSZ() and poke() to
 ifconfig_main() table logic to fold more if/else parts into the table</a></li>
 <li>Status update: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-June/001033.html>Entering the home stretch on ifconfig</a> (and a <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-June/001043.html>note about infiniband</a>)</li>
-<li>commit: <a href=/hg/toybox/rev/921>921</a>, description: todo</li>
-<li>commit: <a href=/hg/toybox/rev/957>957</a>, description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-July/001121.html>here</a></li>
-<li>commit: <a href=/hg/toybox/rev/958>958</a>, description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-July/001131.html>here</a></li>
-<li>commit: <a href=/hg/toybox/rev/1104>1104</a>, description: todo</li>
-<li>commit: <a href=/hg/toybox/rev/1127>1127</a>, description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-November/001464.html>here</a></li>
-<li>commit: <a href=/hg/toybox/rev/1128>1128</a>, description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-November/001463.html>here</a></li>
+<li>commit: <a href=/hg/toybox/rev/921>921</a>, description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2014-June/003508.html>Inline a couple more functions and make sockfd a global.</li>
+<li>commit: <a href=/hg/toybox/rev/957>957</a>, description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-July/001121.html>Remove unused socklen and addr_to_len(), cleanup so we can merge get_device_info()/display_ifconfig().</a></li>
+<li>commit: <a href=/hg/toybox/rev/958>958</a>, description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-July/001131.html>This commit removes struct if_list by unifying get_device_info() and display_ifconfig().</a></li>
+<li>commit: <a href=/hg/toybox/rev/1104>1104</a>, description: Merge toynet into toys.h: musl supports it and micromanaging uClibc config options isn't very interesting anymore.</li>
+<li>commit: <a href=/hg/toybox/rev/1127>1127</a>, description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-November/001464.html>Start tacling ipv6 issues, beginning with display_ifconfig().</a></li>
+<li>commit: <a href=/hg/toybox/rev/1128>1128</a>, description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-November/001463.html>More ipv6, make struct sockaddr_with_len go away, merge more arguments into the table in main().</a></li>
 <li>commit: <a href=/hg/toybox/rev/1132>1132</a>, description: promotion from pending to other</li>
 <li>commit: <a href=/hg/toybox/rev/1132>1133</a>, description: <a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-November/001462.html>cleanup help text, remove obsolete/NOP commands</a></li>
 </ul>
