@@ -9,7 +9,7 @@ USE_MKPASSWD(NEWTOY(mkpasswd, ">2S:m:P#=0<0", TOYFLAG_USR|TOYFLAG_BIN))
 
 config MKPASSWD
   bool "mkpasswd"
-  default n
+  default y
   help
     usage: mkpasswd [-P FD] [-m TYPE] [-S SALT] [PASSWORD] [SALT]
 
