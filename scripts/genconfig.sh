@@ -35,9 +35,14 @@ EOF
     #endif
 EOF
 
-  # Hard to come by in uClibc.
+  # Work around some uClibc limitations
   probesymbol TOYBOX_ICONV -c << EOF
     #include "iconv.h"
+EOF
+  probesymbol TOYBOX_FALLOCATE << EOF
+    #include <fcntl.h>
+
+    int main(int argc, char *argv[]) { return posix_fallocate(0,0,0); }
 EOF
 }
 
