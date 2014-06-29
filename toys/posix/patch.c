@@ -93,7 +93,7 @@ static void finish_oldfile(void)
 static void fail_hunk(void)
 {
   if (!TT.current_hunk) return;
-  TT.current_hunk->prev->next = 0;
+  dlist_terminate(TT.current_hunk);
 
   fprintf(stderr, "Hunk %d FAILED %ld/%ld.\n",
       TT.hunknum, TT.oldline, TT.newline);
@@ -138,8 +138,7 @@ static int apply_one_hunk(void)
 
   lcmp = (toys.optflags & FLAG_l) ? (void *)loosecmp : (void *)strcmp;
 
-  // Break doubly linked list so we can use singly linked traversal function.
-  TT.current_hunk->prev->next = NULL;
+  dlist_terminate(TT.current_hunk);
 
   // Match EOF if there aren't as many ending context lines as beginning
   for (plist = TT.current_hunk; plist; plist = plist->next) {
@@ -235,7 +234,7 @@ out:
   TT.state = 1;
 done:
   if (buf) {
-    buf->prev->next = NULL;
+    dlist_terminate(buf);
     llist_traverse(buf, do_line);
   }
 
