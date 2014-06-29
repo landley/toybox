@@ -5,6 +5,7 @@
  * See http://opengroup.org/onlinepubs/9699919799/utilities/true.html
 
 USE_TRUE(NEWTOY(true, NULL, TOYFLAG_BIN))
+USE_TRUE(OLDTOY(:, true, 0, TOYFLAG_NOFORK))
 
 config TRUE
   bool "true"
