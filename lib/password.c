@@ -22,8 +22,8 @@ int get_salt(char *salt, char *algo)
       if (al[i].id) {
         *s++ = '$';
         *s++ = '0'+al[i].id;
+        *s++ = '$';
       }
-      *s++ = '$';
 
       // Read appropriate number of random bytes for salt
       i = xopen("/dev/urandom", O_RDONLY);
@@ -50,54 +50,76 @@ int get_salt(char *salt, char *algo)
   return -1;
 }
 
-static void handle(int signo)
+// Reset terminal to known state, returning old state if old != NULL.
+int set_terminal(int fd, int raw, struct termios *old)
 {
-  //Dummy.. so that read breaks on the signal, 
-  //instead of the applocation exit
+  struct termios termio;
+
+  if (!tcgetattr(fd, &termio) && old) *old = termio;
+
+  // the following are the bits set for an xterm. Linux text mode TTYs by
+  // default add two additional bits that only matter for serial processing
+  // (turn serial line break into an interrupt, and XON/XOFF flow control)
+
+  // Any key unblocks output, swap CR and NL on input
+  termio.c_iflag = IXANY|ICRNL|INLCR;
+  if (toys.which->flags & TOYFLAG_LOCALE) termio.c_iflag |= IUTF8;
+
+  // Output appends CR to NL, does magic undocumented postprocessing
+  termio.c_oflag = ONLCR|OPOST;
+
+  // Leave serial port speed alone
+  // termio.c_cflag = C_READ|CS8|EXTB;
+
+  // Generate signals, input entire line at once, echo output
+  // erase, line kill, escape control characters with ^
+  // erase line char at a time
+  // "extended" behavior: ctrl-V quotes next char, ctrl-R reprints unread chars,
+  // ctrl-W erases word
+  termio.c_lflag = ISIG|ICANON|ECHO|ECHOE|ECHOK|ECHOCTL|ECHOKE|IEXTEN;
+
+  if (raw) cfmakeraw(&termio);
+
+  return tcsetattr(fd, TCSANOW, &termio);
 }
 
-int read_password(char * buff, int buflen, char* mesg)
+// Prompt with mesg, read password into buf, return 0 for success 1 for fail
+int read_password(char *buf, int buflen, char *mesg)
 {
-  int i = 0;
-  struct termios termio, oldtermio;
+  struct termios oldtermio;
   struct sigaction sa, oldsa;
+  int i, ret = 1;
 
-  tcgetattr(0, &oldtermio);
-  tcflush(0, TCIFLUSH);
-  termio = oldtermio;
-
+  // NOP signal handler to return from the read
   memset(&sa, 0, sizeof(sa));
-  sa.sa_handler = handle;
+  sa.sa_handler = generic_signal;
   sigaction(SIGINT, &sa, &oldsa);
 
-  termio.c_iflag &= ~(IUCLC|IXON|IXOFF|IXANY);
-  termio.c_lflag &= ~(ECHO|ECHOE|ECHOK|ECHONL|TOSTOP);
-  tcsetattr(0, TCSANOW, &termio);
+  tcflush(0, TCIFLUSH);
+  set_terminal(0, 1, &oldtermio);
 
-  fputs(mesg, stdout);
-  fflush(stdout);
+  xprintf("%s", mesg);
 
-  while (1) {
-    int ret = read(0, &buff[i], 1);
-    if ( ret < 0 || (!ret && !i)) {
-      buff[0] = 0;
-      sigaction(SIGINT, &oldsa, NULL);
-      tcsetattr(0, TCSANOW, &oldtermio);
-      xputc('\n');
-      fflush(stdout);
-      return 1;
-    } else if (ret == 0 || buff[i] == '\n' || buff[i] == '\r' || buflen == i+1)
-    {
-      buff[i] = '\0';
+  for (i=0; i < buflen-1; i++) {
+    if ((ret = read(0, buf+i, 1)) < 0 || (!ret && !i)) {
+      i = 0;
+      ret = 1;
+
       break;
-    }
-    i++;
+    } else if (!ret || buf[i] == '\n' || buf[i] == '\r') {
+      ret = 0;
+
+      break;
+    } else if (buf[i] == 8 || buf[i] == 127) i -= i ? 2 : 1;
   }
+
+  // Restore terminal/signal state, terminate string
   sigaction(SIGINT, &oldsa, NULL);
   tcsetattr(0, TCSANOW, &oldtermio);
-  puts("");
-  fflush(stdout);
-  return 0;
+  buf[i] = 0;
+  xputc('\n');
+
+  return ret;
 }
 
 static char *get_nextcolon(char *line, int cnt)
