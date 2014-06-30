@@ -9,7 +9,7 @@ USE_MAKEDEVS(NEWTOY(makedevs, "<1>1d:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config MAKEDEVS
   bool "makedevs"
-  default n
+  default y
   help
     usage: makedevs [-d device_table] rootdir
 
