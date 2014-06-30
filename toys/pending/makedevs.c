@@ -49,11 +49,11 @@ void makedevs_main()
   if (toys.optflags & FLAG_d && strcmp(TT.fname, "-")) {
     fd = xopen(TT.fname, O_RDONLY);
     xprintf("table = %s\n", TT.fname);
-  } else xprintf("table = <stdin>");
+  } else xprintf("table = <stdin>\n");
   xchdir(*toys.optargs);
 
   for (line_no = 0; (line = get_line(fd)); free(line)) {
-    char type=0, str[64], user[64], group[64], *node = str, *ptr = line;
+    char type=0, user[64], group[64], *node, *ptr = line;
     unsigned int mode = 0755, major = 0, minor = 0, cnt = 0, incr = 0, 
                  st_val = 0;
     uid_t uid;
@@ -63,9 +63,10 @@ void makedevs_main()
     line_no++;
     while (isspace(*ptr)) ptr++;
     if (!*ptr || *ptr == '#') continue;
+    node = ptr;
 
     while (*ptr && !isspace(*ptr)) ptr++;
-    if (*ptr) *ptr++ = 0;
+    if (*ptr) *(ptr++) = 0;
     *user = *group = 0;
     sscanf(ptr, "%c %o %63s %63s %u %u %u %u %u", &type, &mode,
            user, group, &major, &minor, &st_val, &incr, &cnt);
@@ -100,28 +101,31 @@ void makedevs_main()
     } else gid = getgid();
 
     while (*node == '/') node++; // using relative path
-    if (type == 'd') {
-      if (mkpathat(AT_FDCWD, node, mode, 3))  {
-        perror_msg("can't create directory '%s'", node);
-        continue;
-      }
-    } else if (type == 'f') {
-      if (stat(node, &st) || !S_ISREG(st.st_mode)) {
-        perror_msg("line %d: regular file '%s' does not exist", line_no, node);
-        continue;
-      }
-    } else {
-      if (cnt) --cnt;
-      for (i = 0; i <= cnt; i++) {
-        sprintf(toybuf, cnt ? "%s%u" : "%s", node, st_val + i);
-        if (mknod(toybuf, mode, makedev(major, minor + i*incr))) {
-          perror_msg("line %d: can't create node '%s'", line_no, toybuf);
+
+    for (i = 0; (!cnt && !i) || i < cnt; i++) {
+      if (cnt) {
+        snprintf(toybuf, sizeof(toybuf), "%s%u", node, st_val + i);
+        ptr = toybuf;
+      } else ptr = node;
+
+      if (type == 'd') {
+        if (mkpathat(AT_FDCWD, ptr, mode, 3))  {
+          perror_msg("can't create directory '%s'", ptr);
           continue;
         }
+      } else if (type == 'f') {
+        if (stat(ptr, &st) || !S_ISREG(st.st_mode)) {
+          perror_msg("line %d: file '%s' does not exist", line_no, ptr);
+          continue;
+        }
+      } else if (mknod(ptr, mode, makedev(major, minor + i*incr))) {
+        perror_msg("line %d: can't create node '%s'", line_no, ptr);
+        continue;
       }
+
+      if (chown(ptr, uid, gid) || chmod(ptr, mode)) 
+        perror_msg("line %d: can't chown/chmod '%s'", line_no, ptr);
     }
-    if (chown(toybuf, uid, gid) || chmod(toybuf, mode)) 
-      perror_msg("line %d: can't chown/chmod '%s'", line_no, toybuf);
   }
   xclose(fd);
 }
