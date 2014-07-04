@@ -3,7 +3,7 @@
 [ -z "$TOPDIR" ] && TOPDIR="$(pwd)"
 
 rm -rf testdir
-mkdir -p testdir
+mkdir -p testdir/testdir
 
 if [ -z "$TEST_HOST" ]
 then
@@ -16,7 +16,8 @@ then
 fi
 
 cd testdir
-PATH="$(pwd):$PATH"
+PATH="$PWD:$PATH"
+cd testdir
 
 . "$TOPDIR"/scripts/test/testing.sh
 [ -f "$TOPDIR/generated/config.h" ] && export OPTIONFLAGS=:$(echo $(sed -nr 's/^#define CFG_(.*) 1/\1/p' "$TOPDIR/generated/config.h") | sed 's/ /:/g')
@@ -31,8 +32,9 @@ else
   for i in "$TOPDIR"/scripts/test/*.test
   do
     CMDNAME="$(echo "$i" | sed 's@.*/\(.*\)\.test@\1@')"
-    if [ -h $CMDNAME ] || [ ! -z "$TEST_HOST" ]
+    if [ -h ../$CMDNAME ] || [ ! -z "$TEST_HOST" ]
     then
+      cd .. && rm -rf testdir && mkdir testdir && cd testdir || exit 1
       . $i
     else
       echo "$CMDNAME disabled"
