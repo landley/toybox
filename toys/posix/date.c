@@ -7,7 +7,7 @@
  * Note: setting a 2 year date is 50 years back/forward from today,
  * not posix's hardwired magic dates.
 
-USE_DATE(NEWTOY(date, "d:s:r:u", TOYFLAG_BIN))
+USE_DATE(NEWTOY(date, "d:s:r:u[!dr]", TOYFLAG_BIN))
 
 config DATE
   bool "date"
@@ -96,7 +96,6 @@ void date_main(void)
 {
   char *setdate = *toys.optargs, *format_string = "%a %b %e %H:%M:%S %Z %Y",
        *tz = 0;
-  time_t now = time(NULL);
   struct tm tm;
 
   // We can't just pass a timezone to mktime because posix.
@@ -106,19 +105,25 @@ void date_main(void)
     tzset();
   }
 
-  if (TT.file) {
-    struct stat st;
-
-    xstat(TT.file, &st);
-    now = st.st_mtim.tv_sec;
-  } else if (TT.showdate) {
+  if (TT.showdate) {
     setdate = TT.showdate;
     if (TT.setfmt) {
       char *s = strptime(TT.showdate, TT.setfmt+(*TT.setfmt=='+'), &tm);
 
       if (!s || *s) goto bad_date;
     } else if (parse_posixdate(TT.showdate, &tm)) goto bad_date;
-  } else localtime_r(&now, &tm);
+  } else {
+    time_t now;
+
+    if (TT.file) {
+      struct stat st;
+
+      xstat(TT.file, &st);
+      now = st.st_mtim.tv_sec;
+    } else now = time(0);
+
+    ((toys.optflags & FLAG_u) ? gmtime_r : localtime_r)(&now, &tm);
+  }
 
   setdate = *toys.optargs;
   // Fall through if no arguments
