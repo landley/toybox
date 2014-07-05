@@ -1,0 +1,159 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+# chattr - Testcases
+
+mkdir testattr
+IN="cd testattr"
+OUT="cd .."
+_t="abcdefghijklmnopqrstuvwxyz"
+
+testing "chattr [-/+]i FILE[write]" "$IN && echo "$_t" > testFile &&
+         chattr +i testFile && lsattr testFile && echo "$_t" > testFile; 
+         chattr -i testFile; rm -rf testFile; $OUT " "----i-------- testFile\n" "" ""
+testing "chattr [-/+]i FILE[re-write]" "$IN && echo "$_t" > testFile && 
+         chattr +i testFile && echo \"$_t\" > testFile || chattr -i testFile && 
+         echo \"$_t\" > testFile && lsattr testFile; rm -rf testFile; $OUT" \
+         "------------- testFile\n" "" ""
+testing "chattr [-/+]i FILE[append]" "$IN && echo "$_t" > testFile && 
+         chattr +i testFile && echo \"$_t\" >> testFile || lsattr testFile && 
+         chattr -i testFile; rm -rf testFile; $OUT" "----i-------- testFile\n" "" ""
+testing "chattr [-/+]i FILE[move]" "$IN && echo "$_t" > testFile && 
+         chattr +i testFile && mv testFile testFile1 || lsattr testFile && 
+         chattr -i testFile; rm -rf testFile; $OUT" "----i-------- testFile\n" "" ""
+testing "chattr [-/+]i FILE[delete]" "$IN && echo "$_t" > testFile && 
+         chattr +i testFile && rm -f testFile || lsattr testFile && 
+         chattr -i testFile; rm -rf testFile; $OUT" "----i-------- testFile\n" "" ""
+testing "chattr [-/+]i FILE[read]" "$IN && echo "$_t" > testFile && 
+         chattr +i testFile && cat testFile && lsattr testFile && 
+         chattr -i testFile; rm -rf testFile; $OUT" "$_t\n----i-------- testFile\n" "" ""
+testing "chattr [-/+]a FILE[write]" "$IN && echo "$_t" > testFile && 
+         chattr +a testFile && echo $_t > testFile || lsattr testFile && 
+         chattr -a testFile; rm -rf testFile; $OUT" "-----a------- testFile\n" "" ""
+testing "chattr [-/+]a FILE[re-write]" "$IN && echo "$_t" > testFile && 
+         chattr +a testFile && echo $_t > testFile || lsattr testFile && 
+         chattr -a testFile && echo $_t > testFile && cat testFile && 
+         lsattr testFile; rm -rf testFile; 
+         $OUT" "-----a------- testFile\n$_t\n------------- testFile\n" "" ""
+testing "chattr [-/+]a FILE[append]" "$IN && echo "$_t" > testFile && 
+         chattr +a testFile && echo $_t >> testFile && cat testFile && 
+         lsattr testFile && chattr -a testFile; rm -rf testFile; $OUT" \
+         "$_t\n$_t\n-----a------- testFile\n" "" ""
+testing "chattr [-/+]a FILE[move]" "$IN && echo "$_t" > testFile && 
+         chattr +a testFile && mv testFile testFile1 || lsattr testFile && 
+         chattr -a testFile; rm -rf testFile; $OUT" "-----a------- testFile\n" "" ""
+testing "chattr [-/+]a FILE[delete]" "$IN && echo "$_t" > testFile && 
+         chattr +a testFile && rm -f testFile || lsattr testFile && 
+         chattr -a testFile; rm -rf testFile; $OUT" "-----a------- testFile\n" "" ""
+testing "chattr [-/+]a FILE[read]" "$IN && echo "$_t" > testFile && 
+         chattr +a testFile && cat testFile && lsattr testFile && chattr -a testFile; 
+         rm -rf testFile; $OUT" "$_t\n-----a------- testFile\n" "" ""
+
+for attr in "A" "a" "c" "D" "d" "i" "j" "s" "S" "t" "T" "u"
+do
+  testing "chattr [-/+]$attr FILE" "$IN && echo "$_t" > testFile && 
+           chattr +$attr testFile && cat testFile && chattr -$attr testFile && 
+           lsattr testFile; rm -rf testFile; $OUT" "$_t\n------------- testFile\n" "" ""
+done
+
+for attr in "A" "a" "c" "D" "d" "i" "j" "s" "S" "t" "T" "u"
+do
+  testing "chattr -$attr FILE" "$IN && echo "$_t" > testFile && chattr -$attr testFile &&
+           cat testFile && lsattr testFile; rm -rf testFile; $OUT" "$_t\n------------- testFile\n" "" ""
+done
+
+testing "chattr [-/+]AacDdijsStTu FILE" "$IN && echo "$_t" > testFile && 
+         chattr +AacDdijsStTu testFile && cat testFile && chattr -AacDdijsStTu testFile && 
+         lsattr testFile; rm -rf testFile; $OUT" "$_t\n------------- testFile\n" "" ""
+testing "chattr [-/+]AacDdijsStTu(random) FILE" \
+        "$IN && echo "$_t" > testFile && 
+        chattr +AacDdijsStTu testFile && cat testFile && chattr -A testFile &&
+        chattr -a testFile && chattr -c testFile && chattr -D testFile &&
+        chattr -d testFile && chattr -i testFile && chattr -j testFile &&
+        chattr -s testFile && chattr -S testFile && chattr -t testFile &&
+        chattr -T testFile && chattr -u testFile && lsattr testFile &&
+        chattr -AacDdijsStTu testFile; rm -rf testFile; $OUT" \
+        "$_t\n------------- testFile\n" "" ""
+testing "chattr [-/+]AacDdijsStTu FILE*" "$IN && 
+        echo "$_t" > testFile && echo "$_t" > testFile1 &&
+        echo "$_t" > testFile2 && echo "$_t" > testFile3 &&
+        echo "$_t" > testFile4 && echo "$_t" > testFile5 &&
+        echo "$_t" > testFile6 && echo "$_t" > testFile7 &&
+        echo "$_t" > testFile8 && echo "$_t" > testFile9 &&
+        echo "$_t" > testFile10 && echo "$_t" > testFile11 &&
+       chattr +AacDdijsStTu testFile* &&
+       cat testFile9 && chattr -AacDdijsStTu testFile* && lsattr testFile*; rm -rf testFile*; $OUT" \
+       "$_t\n------------- testFile\n------------- testFile1\n------------- testFile10\n------------- testFile11\n------------- testFile2\n------------- testFile3\n------------- testFile4\n------------- testFile5\n------------- testFile6\n------------- testFile7\n------------- testFile8\n------------- testFile9\n" "" ""
+testing "chattr [-/+]AacDdijsStTu(random) FILE*" \
+        "$IN && echo "$_t" > testFile &&
+        chattr +AacDdijsStTu testFile* && cat testFile && chattr -A testFile* &&
+	chattr -a testFile* && chattr -c testFile* && chattr -D testFile* &&
+	chattr -d testFile* && chattr -i testFile* && chattr -j testFile* &&
+	chattr -s testFile* && chattr -S testFile* && chattr -t testFile* &&
+	chattr -T testFile* && chattr -u testFile* && lsattr testFile;
+        rm -rf testFile; $OUT" \
+	"$_t\n------------- testFile\n" "" ""
+testing "chattr [-/+]i FILE[write]" \
+	"$IN && echo "$_t" > testFile &&
+	chattr +i testFile &&
+	echo \"$_t\" > testFile || lsattr testFile && chattr -i testFile;
+	rm -rf testFile; $OUT" "----i-------- testFile\n" "" ""
+testing "chattr [-/+]A FILE[write]" \
+	"$IN && echo "$_t" > testFile && chattr +A testFile &&
+	echo \"$_t\" > testFile && lsattr testFile && chattr -A testFile;
+	rm -rf testFile; $OUT" "-------A----- testFile\n" "" ""
+testing "chattr [-/+]s FILE[write]" \
+	"$IN && echo "$_t" > testFile && chattr +s testFile &&
+	echo \"$_t\" > testFile && lsattr testFile && chattr -s testFile
+	rm -rf testFile; $OUT" "s------------ testFile\n" "" ""
+testing "chattr -v version FILE[write]" \
+	"$IN && echo "$_t" > testFile &&
+	chattr -v 1234 testFile && echo \"$_t\" > testFile && 
+	lsattr -v testFile; rm -rf testFile" \
+	" 1234 ------------- testFile\n" "" ""
+
+_a="-------A-----"
+testing "chattr -R [-/+]a FILE" "$IN && touch aa && chattr -R +A aa && lsattr aa &&
+	chattr -R -A aa; rm -rf aa; $OUT" "$_a aa\n" "" ""
+testing "chattr -R [-/+]a FILE.." "$IN && touch aa bb &&
+	chattr -R +A aa bb && lsattr aa bb &&
+	chattr -R -A aa bb; rm -rf aa bb; $OUT" "$_a aa\n$_a bb\n" "" ""
+
+# Clean up
+rm -rf testattr
+
+# lsattr - Testcases
+mkdir dir && cd dir && touch file
+chattr +A file &>/dev/null
+
+_p=$PWD
+_b="-------------"
+_A="-------A-----"
+
+testing "lsattr file" "lsattr file" "$_A file\n" "" ""
+testing "lsattr file_path" "lsattr $_p/file" "$_A $_p/file\n" "" ""
+testing "lsattr -R file" "lsattr -R file" "$_A file\n" "" ""
+testing "lsattr -R file_path" "lsattr -R $_p/file" "$_A $_p/file\n" "" ""
+testing "lsattr -a file" "lsattr -a file" "$_A file\n" "" ""
+testing "lsattr -a file_path" "lsattr -a $_p/file" "$_A $_p/file\n" "" ""
+testing "lsattr -d ." "lsattr -d ." "$_b .\n" "" ""
+testing "lsattr -d dir_path" "lsattr -d $_p" "$_b $_p\n" "" ""
+testing "lsattr -d file" "lsattr -d file" "$_A file\n" "" ""
+testing "lsattr -d file_path" "lsattr -d $_p/file" "$_A $_p/file\n" "" ""
+sp_44="                                            "
+testing "lsattr -l file" "lsattr -l file" "file  $sp_44 No_Atime\n" "" ""
+_v="12345"
+testing "lsattr -v file" "chattr -v $_v * && lsattr -v file" \
+  "$_v $_A file\n" "" ""
+testing "lsattr -v file_path" "chattr -v $_v * && lsattr -v $_p/file" \
+  "$_v $_A $_p/file\n" "" ""
+testing "lsattr -Radlv file1 file2" "chattr -v $_v * &&
+   lsattr -Radlv file input" \
+  "$_v file  $sp_44 No_Atime\n$_v input $sp_44 ---\n" "" ""
+
+# Cleanup
+chattr -AacDdijsStTu file && cd ..
+rm -rf dir

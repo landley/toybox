@@ -1,0 +1,90 @@
+#!/bin/bash
+
+# Copyright 2013 Divya Kothari <divya.s.kothari@gmail.com>
+# Copyright 2013 Robin Mittal <robinmittal.it@gmail.com>
+
+[ -f testing.sh ] && . testing.sh
+
+# 70 characters long string; hereafter, we will use it as per our need.
+_s70="abcdefghijklmnopqrstuvwxyz123456789abcdefghijklmnopqrstuvwxyz123456789"
+
+# Redirecting all output to /dev/null for grep, adduser and deluser
+arg="&>/dev/null"
+
+#testing "name" "command" "result" "infile" "stdin"
+
+# Default password for adding user is: 'password'
+pass=`echo -ne 'password\npassword\n'`
+
+testing "adduser user_name (text)" "useradd toyTestUser $arg ||
+   grep '^toyTestUser:' /etc/passwd $arg && test -d /home/toyTestUser &&
+   userdel toyTestUser $arg && rm -rf /home/toyTestUser && echo 'yes'" \
+  "yes\n" "" "$pass"
+
+testing "adduser user_name (alphanumeric)" "useradd toy1Test2User3 $arg ||
+   grep '^toy1Test2User3:' /etc/passwd $arg && test -d /home/toy1Test2User3 &&
+   userdel toy1Test2User3 $arg && rm -rf /home/toy1Test2User3 && echo 'yes'" \
+  "yes\n" "" "$pass"
+
+testing "adduser user_name (numeric)" "useradd 987654321 $arg ||
+   grep '^987654321:' /etc/passwd $arg && test -d /home/987654321 &&
+   userdel 987654321 $arg && rm -rf /home/987654321 && echo 'yes'" \
+  "yes\n" "" "$pass"
+
+testing "adduser user_name (with ./-/_)" "useradd toy.1Test-2User_3 $arg ||
+   grep '^toy.1Test-2User_3:' /etc/passwd $arg &&
+   test -d /home/toy.1Test-2User_3 && userdel toy.1Test-2User_3 $arg &&
+   rm -rf /home/toy.1Test-2User_3 && echo 'yes'" "yes\n" "" "$pass"
+
+testing "adduser user_name (long string)" "useradd $_s70 $arg ||
+   grep '^$_s70:' /etc/passwd $arg && test -d /home/$_s70 &&
+   userdel $_s70 $arg && rm -rf /home/$_s70 && echo 'yes'" "yes\n" "" "$pass"
+
+testing "adduser user_name with dir" "useradd -h $PWD/dir toyTestUser $arg ||
+   grep '^toyTestUser:.*dir' /etc/passwd $arg && test -d $PWD/dir &&
+   userdel toyTestUser $arg && rm -rf $PWD/dir && echo 'yes'" "yes\n" "" "$pass"
+
+gecos="aaa,bbb,ccc,ddd,eee"
+testing "adduser user_name with gecos" "useradd -g '$gecos' toyTestUser $arg ||
+   grep '^toyTestUser:.*$gecos' /etc/passwd $arg && test -d /home/toyTestUser &&
+   userdel toyTestUser $arg && rm -rf /home/toyTestUser && echo 'yes'" \
+  "yes\n" "" "$pass"
+
+shl="/bin/sh"
+testing "adduser user_name with shell" "useradd -s $shl toyTestUser $arg ||
+   grep '^toyTestUser:.*$shl$' /etc/passwd $arg && test -d /home/toyTestUser &&
+   userdel toyTestUser $arg && rm -rf /home/toyTestUser && echo 'yes'" \
+  "yes\n" "" "$pass"
+
+g_name="root"
+g_id=`grep $g_name /etc/group | cut -d : -f 3`
+testing "adduser user_name with group" "useradd -G $g_name toyTestUser $arg ||
+   grep '^toyTestUser:.*:.*:$g_id:.*' /etc/passwd $arg &&
+   test -d /home/toyTestUser && userdel toyTestUser $arg &&
+   rm -rf /home/toyTestUser && echo 'yes'" "yes\n" "" "$pass"
+
+testing "adduser user_name (system user)" "useradd -S toyTestUser $arg ||
+   grep '^toyTestUser:.*:.*:.*' /etc/passwd $arg &&
+   test ! -e /home/toyTestUser && userdel toyTestUser $arg && echo 'yes'" \
+  "yes\n" "" "$pass"
+
+testing "adduser user_name with -D" "useradd -D toyTestUser $arg ||
+   grep '^toyTestUser:.*:.*:.*' /etc/passwd $arg && test -d /home/toyTestUser &&
+   userdel toyTestUser $arg && rm -rf /home/toyTestUser && echo 'yes'" \
+  "yes\n" "" "$pass"
+
+testing "adduser user_name with -H" "useradd -H toyTestUser $arg ||
+   grep '^toyTestUser:.*:.*:.*' /etc/passwd $arg &&
+   test ! -e /home/toyTestUser && userdel toyTestUser $arg && echo 'yes'" \
+  "yes\n" "" "$pass"
+
+testing "adduser user_name with dir and -H" \
+  "useradd -H -h $PWD/dir toyTestUser $arg ||
+   grep '^toyTestUser:.*dir' /etc/passwd $arg && test ! -e $PWD/dir &&
+   userdel toyTestUser $arg && echo 'yes'" "yes\n" "" "$pass"
+
+testing "adduser user_name with user_id" "useradd -u 49999 toyTestUser $arg ||
+   grep '^toyTestUser:x:49999:.*' /etc/passwd $arg &&
+   test -d /home/toyTestUser && userdel toyTestUser $arg &&
+   rm -rf /home/toyTestUser && echo 'yes'" "yes\n" "" "$pass"
+
