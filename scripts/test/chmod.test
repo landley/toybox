@@ -5,48 +5,42 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-declare -a StrForMod=('---' '--x' '-w-' '-wx' 'r--' 'r-x' 'rw-' 'rwx')
-#StrForMod[0]='---'
-#StrForMod[1]='--x'
-#StrForMod[2]='-w-'
-#StrForMod[3]='-wx'
-#StrForMod[4]='r--'
-#StrForMod[5]='r-x'
-#StrForMod[6]='rw-'
-#StrForMod[7]='rwx'
+PERM="---""--x""-w-""-wx""r--""r-x""rw-""rwx"
+
+num2perm()
+{
+  for i in 0 1 2
+  do
+    num=${1:$i:1}
+    printf "%s" ${PERM:$(($num*3)):3}
+  done
+  echo
+}
 
 # Creating test files to test chmod command
 mkdir dir
 touch file
 
-for u in {0..7}
+# We don't need to test all 511 permissions
+for u in 0 1 2 3 4 5 6 7
 do
-  for g in {0..7}
+  for g in 0 3 6
   do
-    for o in {0..7}
+    for o in 0 7
     do
-      rm -rf dir && mkdir dir
-      uu=${StrForMod[$u]}
-      gg=${StrForMod[$g]}
-      oo=${StrForMod[$o]}
-      testing "chmod $u$g$o dir" "chmod $u$g$o dir && 
-	ls -ld dir | cut -d' ' -f 1" "d$uu$gg$oo\n" "" ""
-    done
-  done
-done
-
-for u in {0..7}
-do
-  for g in {0..7}
-  do
-    for o in {0..7}
-    do
-      rm -rf file && touch file
-      uu=${StrForMod[$u]}
-      gg=${StrForMod[$g]}
-      oo=${StrForMod[$o]}
-      testing "chmod $u$g$o file" "chmod $u$g$o file &&
-         ls -ld file | cut -d' ' -f 1" "-$uu$gg$oo\n" "" ""
+      if [ "$type" == file ]
+      then
+        type=dir
+        rm -rf "./$type" && mkdir $type
+        DASH=d
+      else
+        type=file
+        rm -f "./$type" && touch $type
+        DASH=-
+      fi
+      DASHES=$(num2perm $u$g$o)
+      testing "chmod $u$g$o $type" "chmod $u$g$o $type && 
+        ls -ld $type | cut -d' ' -f 1" "$DASH$DASHES\n" "" ""
     done
   done
 done
