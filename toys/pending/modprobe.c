@@ -34,6 +34,7 @@ GLOBALS(
   char *cmdopts;
   int nudeps;
   uint8_t symreq;
+  void (*dbg)(char *format, ...);
 )
 
 /* Note: if "#define DBASE_SIZE" modified, 
@@ -48,7 +49,6 @@ GLOBALS(
 #define MOD_FNDDEPMOD 0x0004
 #define MOD_NDDEPS    0x0008
 
-static void (*dbg)(char *format, ...);
 // dummy interface for debugging.
 static void dummy(char *format, ...)
 {
@@ -64,27 +64,20 @@ struct module_s {
 // Converts path name FILE to module name.
 static char *path2mod(char *file, char *mod)
 {
-	int i;
-	char *from, *lslash;
+  int i;
+  char *from, *lslash;
 
-	if (!file) return NULL;
-	if (!mod) mod = xmalloc(MODNAME_LEN);
+  if (!file) return NULL;
+  if (!mod) mod = xmalloc(MODNAME_LEN);
 	
   lslash = strrchr(file, '/');
   if (!lslash || (lslash == file && !lslash[1])) from = file;
   else from = lslash + 1;
   
   for (i = 0; i < (MODNAME_LEN-1) && from[i] && from[i] != '.'; i++)
-		mod[i] = (from[i] == '-') ? '_' : from[i];
-	mod[i] = '\0';
-	return mod;
-}
-
-// locate character in string.
-static char *strchr_nul(char *s, int c)
-{
-  while(*s != '\0' && *s != c) s++;
-  return (char*)s;
+    mod[i] = (from[i] == '-') ? '_' : from[i];
+  mod[i] = '\0';
+  return mod;
 }
 
 // Add options in opts from toadd.
@@ -303,7 +296,7 @@ static int depmode_read_entry(char *cmdname)
       if (tmp) *tmp = '\0';
       if (!cmdname || !fnmatch(cmdname, name, 0)) {
         if (tmp) *tmp = '.';
-        dbg("%s\n", line);
+        TT.dbg("%s\n", line);
         ret = 0;
       }
     }
@@ -351,14 +344,15 @@ static void find_dep(void)
 // Remove a module from the Linux Kernel. if !modules does auto remove.
 static int rm_mod(char *modules, uint32_t flags)
 {
-  errno = 0;
   if (modules) {
     int len = strlen(modules);
 
-    if (len > 3 && !strcmp(&modules[len-3], ".ko" )) modules[len-3] = 0;
+    if (len > 3 && !strcmp(modules+len-3, ".ko" )) modules[len-3] = 0;
   }
-  if (!flags) flags = O_NONBLOCK|O_EXCL;
-  syscall(__NR_delete_module, modules, flags);
+
+  errno = 0;
+  syscall(__NR_delete_module, modules, flags ? flags : O_NONBLOCK|O_EXCL);
+
   return errno;
 }
 
@@ -390,10 +384,10 @@ static void add_mod(char *name)
   struct module_s *mod = get_mod(name, 1);
 
   if (!(toys.optflags & (FLAG_r | FLAG_D)) && (mod->flags & MOD_ALOADED)) {
-    dbg("skipping %s, it is already loaded\n", name);
+    TT.dbg("skipping %s, it is already loaded\n", name);
     return;
   }
-  dbg("queuing %s\n", name);
+  TT.dbg("queuing %s\n", name);
   mod->cmdname = name;
   mod->flags |= MOD_NDDEPS;
   llist_add_tail(&TT.probes, mod);
@@ -414,11 +408,8 @@ static char *add_cmdopt(char **argv)
     opt = xrealloc(opt, lopt + 2 + strlen(var) + 2);
     // check for key=val or key = val.
     fmt = "%.*s%s ";
-    val = strchr_nul(var, '=');
-    if (*val) {
-      val++;
-      if (strchr(val, ' ')) fmt = "%.*s\"%s\" ";
-    }
+    for (val = var; *val && *val != '='; val++);
+    if (*val && strchr(++val, ' ')) fmt = "%.*s\"%s\" ";
     lopt += sprintf(opt + lopt, fmt, (int) (val - var), var, val);
   }
   return opt;
@@ -434,7 +425,7 @@ static int go_probe(struct module_s *m)
       error_msg("module %s not found in modules.dep", m->name);
     return -ENOENT;
   }
-  dbg("go_prob'ing %s\n", m->name);
+  TT.dbg("go_prob'ing %s\n", m->name);
   if (!(toys.optflags & FLAG_r)) m->dep = llist_rev(m->dep);
   
   while (m->dep) {
@@ -463,18 +454,18 @@ static int go_probe(struct module_s *m)
 
     // are we only checking dependencies ?
     if (toys.optflags & FLAG_D) {
-      dbg(options ? "insmod %s %s\n" : "insmod %s\n", fn, options);
+      TT.dbg(options ? "insmod %s %s\n" : "insmod %s\n", fn, options);
       if (options) free(options);
       continue;
     }
     if (m2->flags & MOD_ALOADED) {
-      dbg("%s is already loaded, skipping\n", fn);
+      TT.dbg("%s is already loaded, skipping\n", fn);
       if (options) free(options);
       continue;
     }
     // none of above is true insert the module.
     rc = ins_mod(fn, options);
-    dbg("loaded %s '%s', rc:%d\n", fn, options, rc);
+    TT.dbg("loaded %s '%s', rc:%d\n", fn, options, rc);
     if (rc == EEXIST) rc = 0;
     if (options) free(options);
     if (rc) {
@@ -494,17 +485,17 @@ void modprobe_main(void)
   struct module_s *module;
   unsigned flags = toys.optflags;
 
-  dbg = dummy;
-  if (flags & FLAG_v) dbg = xprintf;
+  TT.dbg = (flags & FLAG_v) ? xprintf : dummy;
 
   if ((toys.optc < 1) && (((flags & FLAG_r) && (flags & FLAG_l))
-        ||(!((flags & FLAG_r)||(flags & FLAG_l))))) {
+        ||(!((flags & FLAG_r)||(flags & FLAG_l)))))
+  {
 	  toys.exithelp++;
 	  error_exit("bad syntax");
   }
   // Check for -r flag without arg if yes then do auto remove.
-  if ((flags & FLAG_r) && (!toys.optc)) {
-    if (rm_mod(NULL, O_NONBLOCK | O_EXCL) != 0)	perror_exit("rmmod");
+  if ((flags & FLAG_r) && !toys.optc) {
+    if (rm_mod(NULL, O_NONBLOCK | O_EXCL)) perror_exit("rmmod");
     return;
   }
 
@@ -537,7 +528,7 @@ void modprobe_main(void)
     TT.cmdopts = add_cmdopt(argv);
   }
   if (!TT.probes) {
-    dbg("All modules loaded\n");
+    TT.dbg("All modules loaded\n");
     return;
   }
   dirtree_read("/etc/modprobe.conf", config_action);
@@ -547,7 +538,7 @@ void modprobe_main(void)
   find_dep();
   while ((module = llist_popme(&TT.probes))) {
     if (!module->rnames) {
-      dbg("probing by module name\n");
+      TT.dbg("probing by module name\n");
       /* This is not an alias. Literal names are blacklisted
        * only if '-b' is given.
        */
@@ -559,7 +550,7 @@ void modprobe_main(void)
       char *real = ((struct arg_list*)llist_pop(&module->rnames))->arg;
       struct module_s *m2 = get_mod(real, 0);
       
-      dbg("probing alias %s by realname %s\n", module->name, real);
+      TT.dbg("probing alias %s by realname %s\n", module->name, real);
       if (!m2) continue;
       if (!(m2->flags & MOD_BLACKLIST) 
           && (!(m2->flags & MOD_ALOADED) || (flags & (FLAG_r | FLAG_D))))
