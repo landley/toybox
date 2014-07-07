@@ -8,6 +8,128 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+<hr><b>July 7, 2014</b>
+<blockquote><p>"This planet has - or rather had - a problem, which was this:
+most of the people living on it were unhappy for pretty much of the time. Many
+solutions were suggested for this problem, but most of these were largely
+concerned with the movement of small green pieces of paper, which was odd
+because on the whole it wasn't the small green pieces of paper that were
+unhappy." - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+
+<p><a href=downloads/toybox-0.4.9.tar.bz2>Toybox 0.4.9</a> (<a href=/hg/toybox/shortlog/1385>commit 1385</a>) is out.</p>
+
+<p><b>New commands</b> added to pending include:
+lsattr, chattr, inotifyd, rfkill, sulogin, strings, makedevs,
+killall5, and tar from Ashwini Sharma, arp from Kyungwan Han,
+sysctl by Bilal Qureshi, partprobe from Bertold Van den Bergh,
+host from Rich felker, and I did nbd-client and the first 2/3 of mount.</p>
+
+<p>Finished cleanups (commands promoted out of pending):
+sysctl, rfkill, strings, mkpasswd, makedevs, partprobe, killall5,
+fallocate, and nbd-client.</p>
+
+<p>(Along the way partial cleanups got made to: last, fold, lspci, ps,
+bootchartd, init, fsck, telnetd, telnet, vconfig, toysh, iconv, useradd,
+login, host, openvt, deallocvt, getty, tftpd, and modprobe. But there's
+still more to do on all of those.)</p>
+
+<p>This time around the <a href=bin>static binaries</a> are linked against
+musl instead of uClibc. (That's why there's no sparc version, musl doesn't
+support that target yet.)</p>
+
+<p><b>Documentation:</b></p>
+
+<p>The help text parser expects lower case "usage:" lines with
+a blank line after them, so go through and regularize those. Expand the
+"coding style" section in the docs and move it to design.html. (Not a show
+stopper for incoming
+contributions, just an explanation of some of the things I'll do to them
+during cleanup.) The help text for the "toybox" command now includes
+the shell script snippet to install symlinks to the toybox binary.</p>
+
+<p>The <a href=cleanup.html>cleanup page</a> now has descriptions for the
+full ifconfig cleanup series, among others.</p>
+
+<p>The new toys/examples directory contains hello.c and skeleton.c. The first is
+a simple hello world program in toybox style, the second is a much more
+elaborate example program using showing how to use the command line option
+parsing and how to provide multiple commands in the same C file.</p>
+
+<p><b>Fixes</b>:</p>
+
+<p>Fix od bug reported by Samuel Holland ("od -v -b" was appending the default
+output type even though an output type was specified). Ashwini Sharma reported
+bugs where readfile() was incorrectly freeing its buffer, and where toy_init()
+was zeroing the wrong data because the field it was using to measure (rebound)
+had moved (when I moved it back I added a comment why the field needs to be
+there), fixed a segfault in the dhcp client, and made a 0 length read at
+the start of password entry count as EOF. Make the "we are not root" test
+in the init code show the help text. Posix implies that fflush() can return
+success even when the stream's error bit is set, so call both fflush() and
+ferror() from xprintf().</p>
+
+<p>Isaac Dunham pointed out that bloatcheck couldn't deal with diff
+implementations that only implement "unified diff" format, and that some
+diff implementations can't handle nonseekable input (I.E. reading from
+a pipe). Bugfix so "help -a" works again. Option parsing on nohup now stops
+at first nonoption argument. Fix segfault in "which" if PATH wasn't set,
+which was actually a bug in lib function find_in_path(). Made rm -rf of
+chmod 000 directories actually remove them.</p>
+
+<p>The build now passes the same $CFLAGS to the library probe as the final
+build, because arch linux is so broken it provides different sets of
+libraries for static and dynamic linking.</p>
+
+<p>It turns out sprintf("%.123s", str) is counting characters, not bytes,
+so globally enabling locale support opens stack smashing vulnerabilities.
+So there's a new TOYFLAGS_LOCALE you set in toyflags when you want the
+setup code to setlocale().</p>
+
+<p><b>Upgrades:</b></p>
+
+<p>Isaac Dunham extended cpio to archive unreadable empty files, and I taught it
+to set uid/gid and timestamp when extracting archives. Isaac also
+added tests for cpio, link, and du, added lspci -i, made the pci database
+parsing skip # comment lines, merged logname and whoami into id.</p>
+
+<p>Daniel Verkamp sped up md5sum about 30% with some loop unrolling, making
+it actually smaller in the process. I added -b flags to md5sum and sha1sum
+for "brief" output that's just the hash with no filename. (I'm aware other
+implementations use that for MSDOS "binary" mode, and don't care.)</p>
+
+<p>When building standalone commands (scripts/singleconfig.sh commandname),
+the build now switches on all the sub-options of the command so we get
+a standalone version with all the bells and whistles enabled.</p>
+
+<p>Add -ds flags to date and document +FORMAT escapes. Add the shell NOP
+command ":" as an alias for true (for toysh).</p>
+
+<p>Add uClibc probe for iconv() and fallocate. (The fact it didn't always
+build against uClibc is why fallocate wasn't enabled in defconfig before.)</p>
+
+<p>The umount command now does an losetup -d on the device by default, so
+we don't leak loopback devices. Bugfix to losetup so "losetup /dev/loop0
+filename" actually works again.</p>
+
+<p>Divya Kothari sent in test suite entries for ls, ln, rm, mv, printf, dd,
+and renice. Then a second round for lsattr/chattr, mount, chmod, pgrep/pkill,
+groupadd, groupdel, and useradd. Several of these uncovered bugs, still
+working to fix them.</p>
+
+<p>There are now free() functions for the predefined llist types and a
+dlist_terminate() function to break doubly linked lists. The new
+generic_signal() handler either sets "toys.signal" or writes a byte
+to toys.signalfd with the signal number if signalfd isn't -1 (which it's
+initialized to in toy_init).</p>
+
+<p>The option parsing logic can now detect when a double fits in a long and
+use the more precise type for floating point arguments (the FLOAT macro
+contains the type used). The human_readable() function now just outputs
+decimal kilo/mega/gigabytes (so when du -u says 5.0G it means 5.0 billion
+bytes). The build infrastructure now notices duplicate commands (so if you
+cp toys/pending/command.c toys/other/command.c and forget to delete the
+first one, the build break is now more informative).</p>
+
 <hr><b>April 20, 2014</b>
 <blockquote><p>And to this end they built themselves a stupendous supercomputer
 which was so amazingly intelligent that even before the data banks
