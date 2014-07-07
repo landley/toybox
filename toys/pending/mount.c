@@ -66,7 +66,7 @@ static long parse_opts(char *new, long flags, char **more)
     {"slave", MS_SLAVE}, {"rslave", MS_SLAVE|MS_REC},
     {"private", MS_PRIVATE}, {"rprivate", MS_SLAVE|MS_REC},
     {"unbindable", MS_UNBINDABLE}, {"runbindable", MS_UNBINDABLE|MS_REC},
-    {"remount", MS_REMOUNT}, {"bind", MS_BIND}, {"move", MS_MOVE},
+    {"remount", MS_REMOUNT}, {"move", MS_MOVE},
     // mand dirsync rec iversion strictatime
   };
 
@@ -110,31 +110,16 @@ static void mount_filesystem(char *dev, char *dir, char *type,
 
   if (toys.optflags & FLAG_f) return;
 
+  // Autodetect bind mount or filesystem type
   if (!type) {
     struct stat stdev, stdir;
 
-    if (!stat(dev, &stdev) && !stat(dir, &stdir)) {
-      if (S_ISREG(stdev.st_mode)) {
-        // Loopback mount?
-        if (S_ISDIR(stdir.st_mode)) {
-          char *losetup[] = {"losetup", "-fs", dev, 0};
-          int pipes[2], len;
-          pid_t pid;
-
-          if (flags & MS_RDONLY) losetup[1] = "-fsr";
-          pid = xpopen(losetup, pipes);
-          len = readall(pipes[1], toybuf, sizeof(toybuf)-1);
-          if (!xpclose(pid, pipes) && len > 1) {
-            if (toybuf[len-1] == '\n') --len;
-            toybuf[len] = 0;
-            dev = toybuf;
-          } else error_msg("losetup failed %d", len);
-        } else if (S_ISREG(stdir.st_mode)) flags |= MS_BIND;
-      } else if (S_ISDIR(stdev.st_mode) && S_ISDIR(stdir.st_mode))
-        flags |= MS_BIND;
-    }
-
-    if (!(flags & MS_BIND)) fp = xfopen("/proc/filesystems", "r");
+    if (!stat(dev, &stdev) && !stat(dir, &stdir)
+        && ((S_ISREG(stdev.st_mode) && S_ISREG(stdir.st_mode))
+            || (S_ISDIR(stdev.st_mode) && S_ISDIR(stdir.st_mode))))
+    {
+      flags |= MS_BIND;
+    } else fp = xfopen("/proc/filesystems", "r");
   }
 
   for (;;) {
@@ -159,6 +144,33 @@ static void mount_filesystem(char *dev, char *dir, char *type,
     if (toys.optflags & FLAG_v)
       printf("try '%s' type '%s' on '%s'\n", dev, type, dir);
     rc = mount(dev, dir, type, flags, opts);
+
+    // Looking for bind mounts in autodetect above isn't good enough because
+    // "mount -t ext2 fs.img dir" is valid, but if you _do_ accept bind mounts
+    // with -t how do you tell "-t cifs" isn't looking for a block device if
+    // it's not in /proc/filesystems yet because the module that won't be
+    // loaded until you try the mount, and if you can't then DEVICE
+    // existing as a file would cause a false positive loopback mount.
+    //
+    // Solution: try mount, let the kernel tell us it wanted a block device,
+    // do the loopback setup and retry the mount.
+    if (rc && errno == ENOTBLK) {
+      char *losetup[] = {"losetup", "-fs", dev, 0};
+      int pipes[2], len;
+      pid_t pid;
+
+      if (flags & MS_RDONLY) losetup[1] = "-fsr";
+      pid = xpopen(losetup, pipes);
+      len = readall(pipes[1], toybuf, sizeof(toybuf)-1);
+      if (!xpclose(pid, pipes) && len > 1) {
+        if (toybuf[len-1] == '\n') --len;
+        toybuf[len] = 0;
+        dev = toybuf;
+
+        continue;
+      } else error_msg("losetup failed %d", len);
+    }
+
     if (!fp || (rc && errno != EINVAL)) break;
     free(buf);
   }
