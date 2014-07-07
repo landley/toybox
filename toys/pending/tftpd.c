@@ -15,9 +15,9 @@ config TFTPD
 
     Transfer file from/to tftp server.
 
-    -r	Prohibit upload
+    -r	read only
     -c	Allow file creation via upload
-    -u	Access files as USER
+    -u	run as USER
     -l	Log to syslog (inetd mode requires this)
 */
 
@@ -236,7 +236,7 @@ CLEAN_APP:
 
 void tftpd_main(void)
 {
-  int recvmsg_len, rbuflen, opcode, blksize = TFTPD_BLKSIZE, tsize = 0, set =1;
+  int fd = 0, recvmsg_len, rbuflen, opcode, blksize = TFTPD_BLKSIZE, tsize = 0, set =1;
   struct sockaddr_storage srcaddr, dstaddr;
   socklen_t socklen = sizeof(struct sockaddr_storage);
   char *buf = toybuf;
@@ -250,28 +250,26 @@ void tftpd_main(void)
   if (TT.user) TT.pw = xgetpwnam(TT.user);
   if (*toys.optargs) xchroot(*toys.optargs);
 
-  recvmsg_len = recvfrom(STDIN_FILENO, toybuf, TFTPD_BLKSIZE, 0,
-      (struct sockaddr*)&dstaddr, &socklen);
+  recvmsg_len = recvfrom(fd, toybuf, blksize, 0, (void *)&dstaddr, &socklen);
 
-  TT.sfd = xsocket(((struct sockaddr*)&dstaddr)->sa_family, SOCK_DGRAM, 0);
+  TT.sfd = xsocket(dstaddr.ss_family, SOCK_DGRAM, 0);
   if (setsockopt(TT.sfd, SOL_SOCKET, SO_REUSEADDR, (const void *)&set,
         sizeof(set)) < 0) perror_exit("setsockopt failed");
-  if (bind(TT.sfd, (struct sockaddr*)&srcaddr, socklen)) perror_exit("bind");
-  if (connect(TT.sfd, (struct sockaddr*)&dstaddr, socklen) < 0)
+  if (bind(TT.sfd, (void *)&srcaddr, socklen)) perror_exit("bind");
+  if (connect(TT.sfd, (void *)&dstaddr, socklen) < 0)
     perror_exit("can't connect to remote host");
   // Error condition.
-  if (recvmsg_len < 4 || recvmsg_len > TFTPD_BLKSIZE
-		  || toybuf[recvmsg_len-1] != '\0') {
+  if (recvmsg_len<4 || recvmsg_len>TFTPD_BLKSIZE || toybuf[recvmsg_len-1]) {
     send_errpkt((struct sockaddr*)&dstaddr, socklen, "packet format error");
     return;
   }
 
   // request is either upload or Download.
-  opcode = ntohs(*(uint16_t*)buf);
+  opcode = buf[1];
   if (((opcode != TFTPD_OP_RRQ) && (opcode != TFTPD_OP_WRQ))
       || ((opcode == TFTPD_OP_WRQ) && (toys.optflags & FLAG_r))) {
     send_errpkt((struct sockaddr*)&dstaddr, socklen,
-    	((opcode == TFTPD_OP_WRQ) ? "write error" : "packet format error"));
+    	(opcode == TFTPD_OP_WRQ) ? "write error" : "packet format error");
     return;
   }
 
@@ -283,7 +281,7 @@ void tftpd_main(void)
 
   buf += strlen(buf) + 1; //1 '\0'.
   // As per RFC 1350, mode is case in-sensitive.
-  if ((buf >= (toybuf + recvmsg_len)) || (strcasecmp(buf, "octet"))) {
+  if (buf >= toybuf+recvmsg_len || strcasecmp(buf, "octet")) {
     send_errpkt((struct sockaddr*)&dstaddr, socklen, "packet format error");
     return;
   }
