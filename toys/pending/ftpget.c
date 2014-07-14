@@ -129,7 +129,7 @@ static void send_requests(void)
 static void get_sockaddr(char *host)
 {  
   struct addrinfo hints, *result;
-  char *ptr, port[6];
+  char port[6];
   int status;
   
   errno = 0;

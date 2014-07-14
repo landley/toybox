@@ -243,6 +243,13 @@ static void read_ebr(int idx)
 
   if (!extended_offset) extended_offset = local_start_off;
   do {
+    if (num_parts >= 60) {
+      xprintf("Warning: deleting partitions after 60\n");
+      memset(q, 0, sizeof(struct partition)); //clear_partition
+      partitions[num_parts-1].modified = 1;
+      break;
+    }
+
     sec_buf = xzalloc(g_sect_size);
     partitions[num_parts].part = part_offset(sec_buf, 0);
     partitions[num_parts].sec_buffer = sec_buf;
@@ -258,7 +265,7 @@ static void read_ebr(int idx)
     }
     num_parts++; //extended partions present.
     q = part_offset(sec_buf, 1);
-  } while (!is_partition_clear(q));
+  } while (!is_partition_clear(q) && IS_EXTENDED(q->sys_ind));
 }
 
 static void physical_HS(int* h, int *s)
@@ -461,7 +468,7 @@ static void list_partitions(int validate)
     p = partitions[i].part;
     if (is_partition_clear(p)) continue;
 
-    boot = p->boot_ind == 0x80?'*':' ';
+    boot = ((p->boot_ind == 0x80)?'*':(!p->boot_ind)?' ':'?');
     start_sec = swap_le32toh(p->start4) + partitions[i].start_offset;
     secs = swap_le32toh(p->size4);
 
@@ -872,8 +879,11 @@ static sector_t ask_end_sector(int idx, sector_t* begin, sector_t* end, int ext_
 
   if (idx >= 4) limit = end[ext_idx];
 
-  for (i = 0; i < num_parts; i++)
+  for (i = 0; i < num_parts; i++) {
+    struct part_entry *pe = &partitions[i];
+    if (start < pe->start_offset && limit >= pe->start_offset) limit = pe->start_offset - 1;
     if (start < begin[i] && limit >= begin[i]) limit = begin[i] - 1;
+  }
 
   start_cyl = start/(g_sectors * g_heads) + 1;
   limit_cyl = limit/(g_sectors * g_heads) + 1;
@@ -949,7 +959,7 @@ static int add_partition(int idx, int sys_id)
     p = partitions[idx-1].part + 1; //extended pointer for logical partitions
     set_levalue(p->start4, pe->start_offset - extended_offset);
     set_levalue(p->size4, end - start + 1 + (dos_flag? g_sectors: 1));
-    set_hsc(p, start, end);
+    set_hsc(p, pe->start_offset, end);
     p->boot_ind = 0;  
     p->sys_ind = EXTENDED;
     partitions[idx-1].modified = 1;   

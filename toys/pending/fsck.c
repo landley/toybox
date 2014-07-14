@@ -215,8 +215,10 @@ static void do_fsck(struct f_sys_info *finfo)
     xputc('\n');
   }
 
-  if (toys.optflags & FLAG_N) return;
-  else { 
+  if (toys.optflags & FLAG_N) {
+    free(args);
+    return;
+  } else { 
     if ((pid = fork()) < 0) {
       perror_msg(args[0]);
       return; 
@@ -244,12 +246,13 @@ static int wait_for(int for_all)
 {
   pid_t pid;
   int status = 0, child_exited;
-  struct child_list *prev, *temp = c_list;
-  prev = temp;
+  struct child_list *prev, *temp;
 
   errno = 0;
   if (!c_list) return 0;
   while ((pid = wait(&status))) {
+    temp = c_list;
+    prev = temp;
     if (TT.sig_num) kill_all();
     child_exited = 0;
     if (pid < 0) {
