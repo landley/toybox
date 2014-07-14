@@ -2,12 +2,12 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/cp.html
  *
- * TODO: sHLP
+ * Posix says "cp -Rf dir file" shouldn't delete file, but our -f does.
 
 // This is subtle: MV options must be in same order (right to left) as CP
 // for FLAG_X macros to work out right.
 
-USE_CP(NEWTOY(cp, "<2RHLPp"USE_CP_MORE("rdaslvn")"fi"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
+USE_CP(NEWTOY(cp, "<2RHLPp"USE_CP_MORE("rdaslvn")"fi[-HLPd]"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
 USE_CP_MV(OLDTOY(mv, cp, "<2"USE_CP_MORE("vn")"fi"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
 
 config CP
@@ -65,8 +65,6 @@ config CP_MV_MORE
 
 #define FOR_cp
 #include "toys.h"
-
-// TODO: PLHlsd
 
 GLOBALS(
   char *destname;
@@ -155,8 +153,9 @@ int cp_node(struct dirtree *try)
 
         if (!mkdirat(cfd, catch, try->st.st_mode | 0200) || errno == EEXIST)
           if (-1 != (try->extra = openat(cfd, catch, O_NOFOLLOW)))
-            if (!fstat(try->extra, &st2))
-              if (S_ISDIR(st2.st_mode)) return DIRTREE_COMEAGAIN;
+            if (!fstat(try->extra, &st2) && S_ISDIR(st2.st_mode))
+              return DIRTREE_COMEAGAIN
+                     | (DIRTREE_SYMFOLLOW*!!(toys.optflags&FLAG_L));
 
       // Hardlink
 
@@ -283,8 +282,9 @@ void cp_main(void)
 
     // Skip nonexistent sources
     if (rc) {
-      if (errno != EXDEV ||
-        !(new = dirtree_add_node(0, src, !(toys.optflags & (FLAG_d|FLAG_a)))))
+      int symfollow = toys.optflags & (FLAG_H|FLAG_L);
+
+      if (errno != EXDEV || !(new = dirtree_add_node(0, src, symfollow)))
           perror_msg("bad '%s'", src);
       else dirtree_handle_callback(new, cp_node);
     }
