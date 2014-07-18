@@ -68,7 +68,7 @@ void klogd_main(void)
 
   sigatexit(handle_signal);
   if (toys.optflags & FLAG_c) set_log_level(TT.level);    //set log level
-  if (!(toys.optflags & FLAG_n)) daemonize();             //Make it daemon
+  if (!(toys.optflags & FLAG_n)) daemon(0, 0);            //Make it daemon
 
   if (CFG_KLOGD_SOURCE_RING_BUFFER) {
     syslog(LOG_NOTICE, "KLOGD: started with Kernel ring buffer as log source\n");

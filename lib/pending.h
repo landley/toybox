@@ -7,6 +7,3 @@
 void is_valid_username(const char *name);
 int read_password(char * buff, int buflen, char* mesg);
 int update_password(char *filename, char* username, char* encrypted);
-
-// cut helper functions
-void daemonize(void);

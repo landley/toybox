@@ -317,7 +317,7 @@ void telnetd_main(void)
     master_fd = listen_socket();
     fcntl(master_fd, F_SETFD, FD_CLOEXEC);
     if (master_fd > TT.gmax_fd) TT.gmax_fd = master_fd;
-    if (!(toys.optflags & FLAG_F)) daemonize(); 
+    if (!(toys.optflags & FLAG_F)) daemon(0, 0); 
   } else {
     pty_fd = new_session(master_fd); //master_fd = 0
     if (pty_fd > TT.gmax_fd) TT.gmax_fd = pty_fd;

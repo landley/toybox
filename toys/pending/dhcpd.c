@@ -1086,7 +1086,7 @@ void dhcpd_main(void)
 
   infomode = LOG_CONSOLE;
   if (!(flag_chk(FLAG_f))) {
-    daemonize();
+    daemon(0,0);
     infomode = LOG_SILENT;
   }
   if (flag_chk(FLAG_S)) {

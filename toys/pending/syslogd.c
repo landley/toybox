@@ -470,7 +470,7 @@ init_jumpin:
   if (parse_config_file() == -1) goto clean_and_exit;
   open_logfiles();
   if (!(toys.optflags & FLAG_n)) {
-    daemonize();
+    daemon(0, 0);
     //don't daemonize again if SIGHUP received.
     toys.optflags |= FLAG_n;
   }
