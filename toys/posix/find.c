@@ -143,6 +143,7 @@ static int do_find(struct dirtree *new)
         if (pcount == sizeof(toybuf)) goto error;
         toybuf[pcount++] = not+(active<<1);
         if (!check) active = 0;
+        not = 0;
 
       // Pop status, apply deferred not to test
       } else if (*s == ')') {
@@ -171,7 +172,7 @@ static int do_find(struct dirtree *new)
 
     } else if (!strcmp(s, "print") || !strcmp("print0", s)) {
       print++;
-      if (check) do_print(new, s[6] ? 0 : '\n');
+      if (check) do_print(new, s[5] ? 0 : '\n');
 
     } else if (!strcmp(s, "nouser")) {
       if (check) if (getpwuid(new->st.st_uid)) test = 0;
