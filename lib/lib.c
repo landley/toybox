@@ -236,13 +236,13 @@ struct string_list *find_in_path(char *path, char *filename)
 // (zetta and yotta don't fit in 64 bits.)
 long atolx(char *numstr)
 {
-  char *c, *suffixes="bkmgtpe", *end;
+  char *c, *suffixes="cbkmgtpe", *end;
   long val = strtol(numstr, &c, 0);
 
   if (*c) {
     if (c != numstr && (end = strchr(suffixes, tolower(*c)))) {
-      int shift = end-suffixes;
-      if (shift--) val *= 1024L<<(shift*10);
+      int shift = end-suffixes-2;
+      if (shift >= 0) val *= 1024L<<(shift*10);
     } else {
       while (isspace(*c)) c++;
       if (*c) error_exit("not integer: %s", numstr);
