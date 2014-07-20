@@ -5,7 +5,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/ls.html
 
-USE_LS(NEWTOY(ls, USE_LS_COLOR("(color):;")"goACFHLRSacdfiklmnpqrstux1[-1Cglmnox][-cu][-ftS][-HL]", TOYFLAG_BIN))
+USE_LS(NEWTOY(ls, USE_LS_COLOR("(color):;")"goACFHLRSacdfiklmnpqrstux1[-1Cglmnox][-cu][-ftS][-HL]", TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config LS
   bool "ls"
@@ -61,6 +61,31 @@ GLOBALS(
   char uid_buf[12], gid_buf[12];
 )
 
+// Does two things: 1) Returns wcwidth(utf8) version of strlen,
+// 2) replaces unprintable characters input string with '?' wildcard char.
+int strwidth(char *s)
+{
+  int total = 0, width, len;
+  wchar_t c;
+
+  if (!CFG_TOYBOX_I18N) {
+    total = strlen(s);
+    if (toys.optflags & FLAG_q) for (; *s; s++) if (!isprint(*s)) *s = '?';
+  } else while (*s) {
+    len = mbrtowc(&c, s, MB_CUR_MAX, 0);
+    if (len < 1 || (width = wcwidth(c)) < 0) {
+      total++;
+      if (toys.optflags & FLAG_q) *(s++) = '?';
+
+      continue;
+    }
+    s += len;
+    total += width;
+  }
+
+  return total;
+}
+
 void dlist_to_dirtree(struct dirtree *parent)
 {
   // Turn double_list into dirtree
@@ -110,7 +135,7 @@ static void entrylen(struct dirtree *dt, unsigned *len)
   struct stat *st = &(dt->st);
   unsigned flags = toys.optflags;
 
-  *len = strlen(dt->name);
+  *len = strwidth(dt->name);
   if (endtype(st)) ++*len;
   if (flags & FLAG_m) ++*len;
 
@@ -119,9 +144,9 @@ static void entrylen(struct dirtree *dt, unsigned *len)
     unsigned fn = flags & FLAG_n;
     len[2] = numlen(st->st_nlink);
     len[3] = fn ? snprintf(0, 0, "%u", (unsigned)st->st_uid)
-                : strlen(getusername(st->st_uid));
+                : strwidth(getusername(st->st_uid));
     len[4] = fn ? snprintf(0, 0, "%u", (unsigned)st->st_gid)
-                : strlen(getgroupname(st->st_gid));
+                : strwidth(getgroupname(st->st_gid));
     if (S_ISBLK(st->st_mode) || S_ISCHR(st->st_mode)) {
       // cheating slightly here: assuming minor is always 3 digits to avoid
       // tracking another column
@@ -361,8 +386,8 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
       if (flags&FLAG_o) grp = grpad = toybuf+256;
       else {
-        sprintf(thyme, "%u", (unsigned)st->st_gid);
-        grp = (flags&FLAG_n) ? thyme : getgroupname(st->st_gid);
+        if (flags&FLAG_n) sprintf(grp = thyme, "%u", (unsigned)st->st_gid);
+        else strwidth(grp = getgroupname(st->st_gid));
         grpad = toybuf+256-(totals[4]-len[4]);
       }
 
@@ -370,7 +395,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
       else {
         upad = toybuf+255-(totals[3]-len[3]);
         if (flags&FLAG_n) sprintf(usr = TT.uid_buf, "%u", (unsigned)st->st_uid);
-        else usr = getusername(st->st_uid);
+        else strwidth(usr = getusername(st->st_uid));
       }
 
       // Coerce the st types into something we know we can print.
@@ -393,7 +418,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
     if (flags & FLAG_q) {
       char *p;
-      for (p=sort[next]->name; *p; p++) xputc(isprint(*p) ? *p : '?');
+      for (p=sort[next]->name; *p; p++) fputc(isprint(*p) ? *p : '?', stdout);
     } else xprintf("%s", sort[next]->name);
     if (color) xprintf("\033[0m");
 

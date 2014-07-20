@@ -60,6 +60,11 @@
 // http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/unistd.h.html
 char *crypt(const char *key, const char *salt);
 
+// According to posix, #include header, get a function definition. But glibc...
+// http://pubs.opengroup.org/onlinepubs/9699919799/functions/wcwidth.html
+#include <wchar.h>
+int wcwidth(wchar_t wc);
+
 // see http://pubs.opengroup.org/onlinepubs/9699919799/functions/strptime.html
 #include <time.h>
 char *strptime(const char *buf, const char *format, struct tm *tm);
