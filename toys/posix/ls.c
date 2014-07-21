@@ -75,12 +75,12 @@ int strwidth(char *s)
     len = mbrtowc(&c, s, MB_CUR_MAX, 0);
     if (len < 1 || (width = wcwidth(c)) < 0) {
       total++;
-      if (toys.optflags & FLAG_q) *(s++) = '?';
-
-      continue;
+      if (toys.optflags & FLAG_q) *s = '?';
+      s++;
+    } else {
+      s += len;
+      total += width;
     }
-    s += len;
-    total += width;
   }
 
   return total;
