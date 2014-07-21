@@ -314,22 +314,6 @@ static int get_interface( char *interface, int *ifindex, uint32_t *oip, uint8_t 
   return 0;
 }
 
-static int dhcp_daemon(void)
-{
-  int fd = open("/dev/null", O_RDWR);
-  if (fd < 0) fd = xcreate("/", O_RDONLY, 0666);
-
-  if (xfork()) exit(0);
-
-  setsid();
-  dup2(fd, 0);
-  dup2(fd, 1);
-  dup2(fd, 2);
-  if (fd > 2) xclose(fd);
-
-  return 0;
-}
-
 /*
  *logs messeges to syslog or console
  *opening the log is still left with applet.
@@ -1368,7 +1352,7 @@ lease_fail:
         }
         if (flag_chk(FLAG_b)) {
           infomsg(infomode, "Lease failed. Going Daemon mode");
-          dhcp_daemon();
+          daemon(0, 0);
           if (flag_chk(FLAG_p)) write_pid(TT.pidfile);
           toys.optflags &= ~FLAG_b;
           toys.optflags |= FLAG_f;
@@ -1505,7 +1489,7 @@ renew_requested:
           }
           toys.optflags &= ~FLAG_n;
           if (!flag_chk(FLAG_f)) {
-            dhcp_daemon();
+            daemon(0, 0);
             toys.optflags |= FLAG_f;
             if (flag_chk(FLAG_p)) write_pid(TT.pidfile);
           }
