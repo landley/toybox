@@ -372,21 +372,31 @@ void msleep(long miliseconds)
   nanosleep(&ts, &ts);
 }
 
-int64_t peek(void *ptr, int size)
+// Inefficient, but deals with unaligned access
+int64_t peek_le(void *ptr, unsigned size)
 {
-  if (size & 8) {
-    volatile int64_t *p = (int64_t *)ptr;
-    return *p;
-  } else if (size & 4) {
-    volatile int *p = (int *)ptr;
-    return *p;
-  } else if (size & 2) {
-    volatile short *p = (short *)ptr;
-    return *p;
-  } else {
-    volatile char *p = (char *)ptr;
-    return *p;
-  }
+  int64_t ret = 0;
+  char *c = ptr;
+  int i;
+
+  for (i=0; i<size; i++) ret |= ((int64_t)c[i])<<i;
+
+  return ret;
+}
+
+int64_t peek_be(void *ptr, unsigned size)
+{
+  int64_t ret = 0;
+  char *c = ptr;
+
+  while (size--) ret = (ret<<8)|c[size];
+
+  return ret;
+}
+
+int64_t peek(void *ptr, unsigned size)
+{
+  return IS_BIG_ENDIAN ? peek_be(ptr, size) : peek_le(ptr, size);
 }
 
 void poke(void *ptr, uint64_t val, int size)
