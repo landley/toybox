@@ -60,7 +60,9 @@ struct dirtree *dirtree_add_node(struct dirtree *parent, char *name,
 error:
   if (notdotdot(name)) {
     char *path = parent ? dirtree_path(parent, 0) : "";
-    perror_msg("%s%s%s",path, parent ? "/" : "", name);
+
+    perror_msg("%s%s%s", path, parent ? "/" : "", name);
+    if (parent) free(path);
   }
   if (parent) parent->symlink = (char *)1;
   free(dt);
