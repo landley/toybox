@@ -450,14 +450,16 @@ struct passwd *xgetpwuid(uid_t uid)
 struct group *xgetgrgid(gid_t gid)
 {
   struct group *group = getgrgid(gid);
-  if (!group) error_exit("bad gid %ld", (long)gid);
+
+  if (!group) perror_exit("gid %ld", (long)gid);
   return group;
 }
 
 struct passwd *xgetpwnam(char *name)
 {
   struct passwd *up = getpwnam(name);
-  if (!up) error_exit("bad user '%s'", name);
+
+  if (!up) perror_exit("user '%s'", name);
   return up;
 }
 
