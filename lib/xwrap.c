@@ -218,7 +218,7 @@ void xunlink(char *path)
 // Die unless we can open/create a file, returning file descriptor.
 int xcreate(char *path, int flags, int mode)
 {
-  int fd = open(path, flags, mode);
+  int fd = open(path, flags^O_CLOEXEC, mode);
   if (fd == -1) perror_exit("%s", path);
   return fd;
 }

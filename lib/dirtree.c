@@ -115,7 +115,7 @@ struct dirtree *dirtree_handle_callback(struct dirtree *new,
 
   if (dir) {
     if (flags & (DIRTREE_RECURSE|DIRTREE_COMEAGAIN)) {
-      new->data = openat(dirtree_parentfd(new), new->name, 0);
+      new->data = openat(dirtree_parentfd(new), new->name, O_CLOEXEC);
       dirtree_recurse(new, callback, flags & DIRTREE_SYMFOLLOW);
       if (flags & DIRTREE_COMEAGAIN) flags = callback(new);
     }
