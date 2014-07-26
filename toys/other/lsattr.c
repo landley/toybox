@@ -140,7 +140,7 @@ static int retell_dir(struct dirtree *root)
 {
   char *fpath = NULL;
   
-  if (root->data == -1) {
+  if (root->again) {
     xputc('\n');
     return 0;
   }

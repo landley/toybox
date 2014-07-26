@@ -44,7 +44,7 @@ static int do_chgrp(struct dirtree *node)
 
   // Depth first search
   if (!dirtree_notdotdot(node)) return 0;
-  if ((flags & FLAG_R) && node->data != -1 && S_ISDIR(node->st.st_mode))
+  if ((flags & FLAG_R) && !node->again && S_ISDIR(node->st.st_mode))
     return DIRTREE_COMEAGAIN|((flags&FLAG_L) ? DIRTREE_SYMFOLLOW : 0);
 
   fd = dirtree_parentfd(node);

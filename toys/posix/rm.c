@@ -37,7 +37,7 @@ static int do_rm(struct dirtree *try)
   // This is either the posix section 2(b) prompt or the section 3 prompt.
   if (!(flags & FLAG_f)
     && (!S_ISLNK(try->st.st_mode) && faccessat(fd, try->name, W_OK, 0))) or++;
-  if (!(dir && try->data == -1) && ((or && isatty(0)) || (flags & FLAG_i))) {
+  if (!(dir && try->again) && ((or && isatty(0)) || (flags & FLAG_i))) {
     char *s = dirtree_path(try, 0);
     fprintf(stderr, "rm %s%s", or ? "ro " : "", dir ? "dir " : "");
     or = yesno(s, 0);
@@ -52,7 +52,7 @@ static int do_rm(struct dirtree *try)
       if (toys.optflags & FLAG_f) wfchmodat(fd, try->name, 0600);
       else goto skip;
     }
-    if (try->data != -1) return DIRTREE_COMEAGAIN;
+    if (!try->again) return DIRTREE_COMEAGAIN;
     using = AT_REMOVEDIR;
     if (try->symlink) goto skip;
     if (flags & FLAG_i) {

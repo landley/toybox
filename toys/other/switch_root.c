@@ -32,7 +32,7 @@ static int del_node(struct dirtree *node)
   if (node->st.st_dev == TT.rootdev && dirtree_notdotdot(node)) {
     int flag = 0;
     if (S_ISDIR(node->st.st_mode)) {
-      if (node->data != -1) return DIRTREE_COMEAGAIN;
+      if (!node->again) return DIRTREE_COMEAGAIN;
       flag = AT_REMOVEDIR;
     }
     unlinkat(dirtree_parentfd(node), node->name, flag);

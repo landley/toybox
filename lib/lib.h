@@ -60,7 +60,8 @@ struct dirtree {
   long extra; // place for user to store their stuff (can be pointer)
   struct stat st;
   char *symlink;
-  int data;  // dirfd for directory, linklen for symlink, -1 = comeagain
+  int data;  // dirfd for directory, linklen for symlink
+  char again;
   char name[];
 };
 
@@ -70,8 +71,8 @@ int dirtree_notdotdot(struct dirtree *catch);
 int dirtree_parentfd(struct dirtree *node);
 struct dirtree *dirtree_handle_callback(struct dirtree *new,
   int (*callback)(struct dirtree *node));
-void dirtree_recurse(struct dirtree *node,
-  int (*callback)(struct dirtree *node), int symfollow);
+int dirtree_recurse(struct dirtree *node, int (*callback)(struct dirtree *node),
+  int symfollow);
 struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node));
 
 // help.c

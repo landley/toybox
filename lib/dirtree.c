@@ -116,8 +116,7 @@ struct dirtree *dirtree_handle_callback(struct dirtree *new,
   if (dir) {
     if (flags & (DIRTREE_RECURSE|DIRTREE_COMEAGAIN)) {
       new->data = openat(dirtree_parentfd(new), new->name, O_CLOEXEC);
-      dirtree_recurse(new, callback, flags & DIRTREE_SYMFOLLOW);
-      if (flags & DIRTREE_COMEAGAIN) flags = callback(new);
+      flags = dirtree_recurse(new, callback, flags);
     }
   }
 
@@ -133,8 +132,8 @@ struct dirtree *dirtree_handle_callback(struct dirtree *new,
 // Recursively read/process children of directory node (with dirfd in data),
 // filtering through callback().
 
-void dirtree_recurse(struct dirtree *node,
-          int (*callback)(struct dirtree *node), int symfollow)
+int dirtree_recurse(struct dirtree *node,
+          int (*callback)(struct dirtree *node), int flags)
 {
   struct dirtree *new, **ddt = &(node->child);
   struct dirent *entry;
@@ -146,7 +145,7 @@ void dirtree_recurse(struct dirtree *node,
     free(path);
     close(node->data);
 
-    return;
+    return flags;
   }
 
   // according to the fddir() man page, the filehandle in the DIR * can still
@@ -154,7 +153,7 @@ void dirtree_recurse(struct dirtree *node,
 
   // The extra parentheses are to shut the stupid compiler up.
   while ((entry = readdir(dir))) {
-    if (!(new = dirtree_add_node(node, entry->d_name, symfollow)))
+    if (!(new = dirtree_add_node(node, entry->d_name, flags&DIRTREE_SYMFOLLOW)))
       continue;
     new = dirtree_handle_callback(new, callback);
     if (new == DIRTREE_ABORTVAL) break;
@@ -164,9 +163,13 @@ void dirtree_recurse(struct dirtree *node,
     }
   }
 
+  if (flags & DIRTREE_COMEAGAIN) flags = callback(node);
+
   // This closes filehandle as well, so note it
   closedir(dir);
   node->data = -1;
+
+  return flags;
 }
 
 // Create dirtree from path, using callback to filter nodes.

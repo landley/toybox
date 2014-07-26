@@ -84,7 +84,7 @@ int cp_node(struct dirtree *try)
   if (!dirtree_notdotdot(try)) return 0;
 
   // If returning from COMEAGAIN, jump straight to -p logic at end.
-  if (S_ISDIR(try->st.st_mode) && try->data == -1) {
+  if (S_ISDIR(try->st.st_mode) && try->again) {
     fdout = try->extra;
     err = 0;
   } else {

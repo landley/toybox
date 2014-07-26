@@ -111,12 +111,12 @@ static int do_du(struct dirtree *node)
     return 0;
 
   // Don't count hard links twice
-  if (!(toys.optflags & FLAG_l) && node->data != -1)
+  if (!(toys.optflags & FLAG_l) && !node->again)
     if (seen_inode(&TT.inodes, &node->st)) return 0;
 
   // Collect child info before printing directory size
   if (S_ISDIR(node->st.st_mode)) {
-    if (node->data != -1) {
+    if (!node->again) {
       TT.depth++;
       return DIRTREE_COMEAGAIN | (DIRTREE_SYMFOLLOW*!!(toys.optflags & FLAG_L));
     } else TT.depth--;
