@@ -10,10 +10,14 @@ fi
 
 NAME=$(echo $1 | tr a-z- A-Z_)
 export KCONFIG_CONFIG=.singleconfig
+USET="is not set"
 
 make allnoconfig > /dev/null &&
-sed -i -e "s/\(CONFIG_TOYBOX\)=y/# \1 is not set/" \
-       -e "s/# CONFIG_\($NAME\|${NAME}_[^ ]*\|TOYBOX_HELP[^ ]*\|TOYBOX_I18N\|TOYBOX_FLOAT\) is not set/CONFIG_\1=y/" \
+sed -i -e "s/\(CONFIG_TOYBOX\)=y/# \1 $USET/" \
+       -e "s/# \(CONFIG_$NAME\) $USET/\1=y/"  \
+       -e "s/# \(CONFIG_TOYBOX_HELP\) $USET/\1=y/" \
+       -e "s/# \(CONFIG_TOYBOX_I18N\) $USET/\1=y/" \
+       -e "s/# \(CONFIG_TOYBOX_FLOAT\) $USET/\1=y/" \
        "$KCONFIG_CONFIG" &&
 make &&
 mv toybox $PREFIX$1
