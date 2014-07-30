@@ -163,7 +163,10 @@ int dirtree_recurse(struct dirtree *node,
     }
   }
 
-  if (flags & DIRTREE_COMEAGAIN) flags = callback(node);
+  if (flags & DIRTREE_COMEAGAIN) {
+    node->again++;
+    flags = callback(node);
+  }
 
   // This closes filehandle as well, so note it
   closedir(dir);
