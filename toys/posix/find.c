@@ -3,10 +3,12 @@
  * Copyright 2014 Rob Landley <rob@landley.net>
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/find.c
+ *
  * Our "unspecified" behavior for no paths is to use "."
  * Parentheses can only stack 4096 deep
+ * Not treating two {} as an error, but only using last
 
-USE_FIND(NEWTOY(find, "^HL", TOYFLAG_USR|TOYFLAG_BIN))
+USE_FIND(NEWTOY(find, "?^HL", TOYFLAG_USR|TOYFLAG_BIN))
 
 config FIND
   bool "find"
@@ -15,43 +17,46 @@ config FIND
     usage: find [-HL] [DIR...] [<options>]
 
     Search directories for matching files.
-    (Default is to search "." match all and display matches.)
+    Default: search "." match all -print all matches.
 
-    -H  Follow command line symlinks
-    -L  Follow all symlinks
+    -H  Follow command line symlinks         -L  Follow all symlinks
 
     Match filters:
-    -name <pattern>    filename (with wildcards)
-    -path <pattern>    path name (with wildcards)
-    -nouser            belongs to unknown user
-    -nogroup           belongs to unknown group
-    -xdev              do not cross into new filesystems
-    -prune             do not descend into children
-    -perm  MODE        permissons (prefixed with - means at least these)
-    -iname PATTERN     case insensitive filename
-    -links N           hardlink count
-    -user  UNAME       belongs to user
-    -group GROUP       belongs to group
-    -size  N[c]
-    -atime N
-    -ctime N
-    -type  [bcdflps]   type (block, char, dir, file, symlink, pipe, socket)
-    -mtime N           last modified N (24 hour) days ago
+    -name  PATTERN filename with wildcards   -iname   case insensitive -name
+    -path  PATTERN path name with wildcards  -ipath   case insensitive -path
+    -user  UNAME   belongs to user           -nouser  belongs to unknown user
+    -group GROUP   belongs to group          -nogroup belongs to unknown group
+    -perm  [-]MODE permissons (-=at least)   -prune   ignore contents of dir
+    -size  N[c]    512 byte blocks (c=bytes) -xdev    stay in this filesystem
+    -links N       hardlink count            -atime N accessed N days ago
+    -ctime N       created N days ago        -mtime N modified N days ago
+    -type [bcdflps] (block, char, dir, file, symlink, pipe, socket)
 
-    Numbers N may be prefixed by a - (less than) or + (greater than)
+    Numbers N may be prefixed by a - (less than) or + (greater than):
 
     Combine matches with:
     !, -a, -o, ( )    not, and, or, group expressions
 
-
     Actions:
-    -exec
-    -print
-    -print0
+    -print   Print match with newline  -print0    Print match with null
+    -exec    Run command with path     -execdir   Run command in file's dir
+    -ok      Ask before exec           -okdir     Ask before execdir
+
+    Commands substitute "{}" with matched file. End with ";" to run each file,
+    or "+" (next argument after "{}") to collect and run with multiple files.
 */
 
 // find . ! \( -name blah -print \)
 // find . -o
+// find -type f
+
+// pending issues:
+// old false -a ! new false does not yield true.
+// 
+// -user -group -newer evaluate once and save result (where?)
+// add -print if no action (-exec, -ok, -print)
+// find . -print -xdev (should xdev before print)
+// -exec {} + accepts any + after {}, not just immediately after. ";" optional
 
 #define FOR_find
 #include "toys.h"
@@ -59,9 +64,61 @@ config FIND
 GLOBALS(
   char **filter;
   struct double_list *argdata;
-  int xdev, depth;
+  int topdir, xdev, depth, envsize;
   time_t now;
 )
+
+// None of this can go in TT because you can have more than one -exec
+struct exec_range {
+  char *next, *prev;
+
+  int dir, plus, arglen, argsize, curly, namecount, namesize;
+  char **argstart;
+  struct double_list *names;
+};
+
+// Perform pending -exec (if any)
+static int flush_exec(struct dirtree *new, struct exec_range *aa)
+{
+  struct double_list **dl;
+  char **newargs;
+  int rc;
+
+  if (!aa->namecount) return 0;
+
+  if (aa->dir && new->parent) dl = (void *)&new->parent->extra;
+  else dl = &aa->names;
+  dlist_terminate(dl);
+
+  // switch to directory for -execdir, or back to top if we have an -execdir
+  // _and_ a normal -exec, or are at top of tree in -execdir
+  if (aa->dir && new->parent) fchdir(new->parent->data);
+  else if (TT.topdir != -1) fchdir(TT.topdir);
+
+  // execdir: accumulated execs in this directory's children.
+  newargs = xmalloc(sizeof(char *)*(aa->arglen+aa->namecount+1));
+  if (!aa->curly) {
+    memcpy(newargs, aa->argstart+1, sizeof(char *)*aa->arglen);
+    newargs[aa->arglen] = 0;
+  } else {
+    struct double_list *dl2 = *dl;
+    int pos = aa->curly, rest = aa->arglen - aa->curly;
+
+    // Collate argument list
+    memcpy(newargs, aa->argstart+1, sizeof(char *)*pos);
+    for (dl2 = *dl; dl2; dl2 = dl2->next) newargs[pos++] = dl2->data;
+    rest = aa->arglen - aa->curly;
+    memcpy(newargs+pos, aa->argstart+aa->curly+1,
+      sizeof(char *)*(rest-1));
+    newargs[pos+rest] = 0;
+  }
+
+  rc = xpclose(xpopen(newargs, 0), 0);
+
+  llist_traverse(dl, llist_free_double);
+
+  return rc;
+}
 
 // Return numeric value with explicit sign
 static int compare_numsign(long val, long units, char *str)
@@ -92,29 +149,70 @@ void todo_store_argument(void)
   error_exit("NOP");
 }
 
-// pending issues:
-// old false -a ! new false does not yield true.
-// 
-// -user -group -newer evaluate once and save result (where?)
-// add -print if no action (-exec, -ok, -print)
-// find . -print -xdev (should xdev before print)
+char *strlower(char *s)
+{
+  char *new;
 
-// Call this with 0 for first pass argument parsing, syntax checking.
+  if (!CFG_TOYBOX_I18N) {
+    new = xstrdup(s);
+    for (; *s; s++) *(new++) = tolower(*s);
+  } else {
+    // I can't guarantee the string _won't_ expand during reencoding, so...?
+    new = xmalloc(strlen(s)*2+1);
+
+    while (*s) {
+      wchar_t c;
+      int len = mbrtowc(&c, s, MB_CUR_MAX, 0);
+
+      if (len < 1) *(new++) = *(s++);
+      else {
+        // squash title case too
+        c = towlower(c);
+
+        // if we had a valid utf8 sequence, convert it to lower case, and can't
+        // encode back to utf8, something is wrong with your libc. But just
+        // in case somebody finds an exploit...
+        len = wcrtomb(s, c, 0);
+        if (len < 1) error_exit("bad utf8 %x", c);
+        s += len;
+      }
+    }
+  }
+
+  return new;
+}
+
+// Call this with 0 for first pass argument parsing and syntax checking (which
+// populates argdata). Later commands traverse argdata (in order) when they
+// need "do once" results.
 static int do_find(struct dirtree *new)
 {
   int pcount = 0, print = 0, not = 0, active = !!new, test = active, recurse;
+  struct double_list *argdata = TT.argdata;
   char *s, **ss;
 
-  recurse = DIRTREE_RECURSE|((toys.optflags&FLAG_L) ? DIRTREE_SYMFOLLOW : 0);
+  recurse = DIRTREE_COMEAGAIN|((toys.optflags&FLAG_L) ? DIRTREE_SYMFOLLOW : 0);
 
   // skip . and .. below topdir, handle -xdev and -depth
-  if (active) {
+  if (new) {
     if (new->parent) {
       if (!dirtree_notdotdot(new)) return 0;
       if (TT.xdev && new->st.st_dev != new->parent->st.st_dev) return 0;
     }
-    if (TT.depth && S_ISDIR(new->st.st_dev) && new->data != -1)
-      return DIRTREE_COMEAGAIN;
+    if (S_ISDIR(new->st.st_mode)) {
+      if (!new->again) {
+        if (TT.depth) return recurse;
+      } else {
+        struct double_list *dl;
+
+        if (TT.topdir != -1)
+          for (dl = TT.argdata; dl; dl = dl->next)
+            if (dl->prev == (void *)1 || !new->parent)
+              toys.exitval |= flush_exec(new, (void *)dl);
+
+        return 0;
+      }
+    }
   }
 
   // pcount: parentheses stack depth (using toybuf bytes, 4096 max depth)
@@ -183,24 +281,28 @@ static int do_find(struct dirtree *new)
 
     // Remaining filters take an argument
     } else {
+      if (!strcmp(s, "name") || !strcmp(s, "iname")
+        || !strcmp(s, "path") || !strcmp(s, "ipath"))
+      {
+        int i = (*s == 'i');
+        char *arg = ss[1], *path = 0, *name = new->name;
 
-      if (!strcmp(s, "name") || !strcmp(s, "iname")) {
-        if (check) {
-          if (*s == 'i') todo_store_argument();
-//            if (!new) {
-//            } else {
-//              name = xstrdup(name);
-//              while (
-          test = !fnmatch(ss[1], new->name, 0);
+        // Handle path expansion and case flattening
+        if (new && s[i] == 'p') name = path = dirtree_path(new, 0);
+        if (i) {
+          if (check || !new) {
+            name = strlower(new ? name : arg);
+            if (!new) {
+              dlist_add(&TT.argdata, name);
+              free(path);
+            } else arg = ((struct double_list *)llist_pop(&argdata))->data;
+          }
         }
-      } else if (!strcmp(s, "path")) {
-        if (check) {
-          char *path = dirtree_path(new, 0);
-          int len = strlen(ss[1]);
 
-          if (strncmp(path, ss[1], len) || (ss[1][len] && ss[1][len] != '/'))
-            test = 0;
-          free(s);
+        if (check) {
+          test = !fnmatch(arg, name, FNM_PATHNAME*(s[i] == 'p'));
+          free(path);
+          if (i) free(name);
         }
       } else if (!strcmp(s, "perm")) {
         if (check) {
@@ -217,7 +319,7 @@ static int do_find(struct dirtree *new)
           int types[] = {S_IFBLK, S_IFCHR, S_IFDIR, S_IFLNK, S_IFIFO,
                          S_IFREG, S_IFSOCK};
 
-          if ((new->st.st_dev & S_IFMT) != types[c]) test = 0;
+          if ((new->st.st_mode & S_IFMT) != types[c]) test = 0;
         }
 
       } else if (!strcmp(s, "atime")) {
@@ -240,9 +342,91 @@ static int do_find(struct dirtree *new)
         todo_store_argument();
       } else if (!strcmp(s, "newer")) {
         todo_store_argument();
-      } else if (!strcmp(s, "exec") || !strcmp("ok", s)) {
+      } else if (!strcmp(s, "exec") || !strcmp("ok", s)
+              || !strcmp(s, "execdir") || !strcmp(s, "okdir"))
+      {
+        struct exec_range *aa;
+
         print++;
-        if (check) error_exit("implement exec/ok");
+
+        // Initial argument parsing pass
+        if (!new) {
+          // special case "-exec \;" to fall through to "needs 1 arg" error.
+          if (!strcmp(ss[1], ";")) {
+            int len;
+
+            dlist_add_nomalloc(&TT.argdata,(void *)(aa = xzalloc(sizeof(*aa))));
+            aa->argstart = ++ss;
+
+            // Record command line arguments to -exec
+            for (len = 0; ss[len]; len++) {
+              if (!strcmp(ss[len], ";")) break;
+              else if (!strcmp(ss[len], "{}")) {
+                aa->curly = len;
+                if (!strcmp(ss[len+1], "+")) {
+
+                  // Measure environment space
+                  if (!TT.envsize) {
+                    char **env;
+
+                    for (env = environ; *env; env++)
+                      TT.envsize += sizeof(char *) + strlen(*env) + 1;
+                    TT.envsize += sizeof(char *);
+                  }
+                  aa->plus++;
+                  len++;
+                  break;
+                }
+              } else aa->argsize += sizeof(char *) + strlen(ss[len]) + 1;
+            }
+            if (!ss[len]) error_exit("-exec without \\;");
+            ss += len-1;
+            aa->arglen = len;
+            aa->dir = !!strchr(s, 'd');
+            if (aa->dir && TT.topdir == -1) TT.topdir = xopen(".", 0);
+          }
+
+        // collect names and execute commands
+        } else {
+          if (check) {
+            char *name;
+            struct double_list **dl;
+
+            // Grab command line exec argument list
+            aa = (void *)llist_pop(&argdata);
+
+            // name is always a new malloc, so we can always free it.
+            name = aa->dir ? xstrdup(new->name) : dirtree_path(new, 0);
+
+            // Mark entry so COMEAGAIN can call flush_exec() in parent.
+            // This is never a valid pointer valud for prev to have otherwise
+            if (aa->dir) aa->prev = (void *)1;
+
+            if (*s == 'o') {
+              char *prompt = xmprintf("[%s] %s", ss[1], name);
+              if(!(test = yesno(prompt, 0))) goto cont;
+            }
+
+            // Add next name to list (global list without -dir, local with)
+            if (aa->dir && new->parent)
+              dl = (struct double_list **)&new->parent->extra;
+            else dl = &aa->names;
+
+            // Is this + mode?
+            if (aa->plus) {
+              int size = sizeof(char *)+strlen(name)+1;
+
+              // Linux caps environment space (env vars + args) at 32 4k pages.
+              // todo: is there a way to probe this instead of constant here?
+
+              if (TT.envsize+aa->argsize+aa->namesize+size >= 131072)
+                toys.exitval |= flush_exec(new, aa);
+              aa->namesize += size;
+            }
+            dlist_add(dl, name);
+            if (!aa->plus) test = flush_exec(new, aa);
+          }
+        }
       } else goto error;
 
       // This test can go at the end because we do a syntax checking
@@ -250,14 +434,16 @@ static int do_find(struct dirtree *new)
       // vs -known noarg) right.
       if (!*++ss) error_exit("'%s' needs 1 arg", --s);
     }
-
+cont:
     // Apply pending "!" to result
     if (active && not) test = !test;
     not = 0;
   }
 
-  // If there was no action, print
-  if (!print && test && new) do_print(new, '\n');
+  if (new) {
+    // If there was no action, print
+    if (!print && test) do_print(new, '\n');
+  } else dlist_terminate(TT.argdata);
 
   return recurse;
 
@@ -270,13 +456,15 @@ void find_main(void)
   int i, len;
   char **ss = toys.optargs;
 
+  TT.topdir = -1;
+
   // Distinguish paths from filters
   for (len = 0; toys.optargs[len]; len++)
     if (strchr("-!(", *toys.optargs[len])) break;
   TT.filter = toys.optargs+len;
 
   // use "." if no paths
-  if (!*ss) {
+  if (!*ss || **ss == '-') {
     ss = (char *[]){"."};
     len = 1;
   }
@@ -291,5 +479,10 @@ void find_main(void)
 
     new = dirtree_add_node(0, ss[i], toys.optflags&(FLAG_H|FLAG_L));
     if (new) dirtree_handle_callback(new, do_find);
+  }
+
+  if (CFG_TOYBOX_FREE) {
+    close(TT.topdir);
+    llist_traverse(TT.argdata, free);
   }
 }
