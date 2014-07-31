@@ -106,8 +106,9 @@ static void loopback_setup(char *device, char *file)
     }
   // Associate file with this device?
   } else if (file) {
-    char *s = xrealpath(file);
+    char *s = xabspath(file, 1);
 
+    if (!s) perror_exit("file"); // already opened, but if deleted since...
     if (ioctl(lfd, LOOP_SET_FD, ffd)) perror_exit("%s=%s", device, file);
     loop->lo_offset = TT.offset;
     loop->lo_sizelimit = TT.size;
