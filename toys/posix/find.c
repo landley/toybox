@@ -151,14 +151,14 @@ void todo_store_argument(void)
 
 char *strlower(char *s)
 {
-  char *new;
+  char *try, *new;
 
   if (!CFG_TOYBOX_I18N) {
-    new = xstrdup(s);
+    try = new = xstrdup(s);
     for (; *s; s++) *(new++) = tolower(*s);
   } else {
     // I can't guarantee the string _won't_ expand during reencoding, so...?
-    new = xmalloc(strlen(s)*2+1);
+    try = new = xmalloc(strlen(s)*2+1);
 
     while (*s) {
       wchar_t c;
@@ -166,20 +166,22 @@ char *strlower(char *s)
 
       if (len < 1) *(new++) = *(s++);
       else {
+        s += len;
         // squash title case too
         c = towlower(c);
 
         // if we had a valid utf8 sequence, convert it to lower case, and can't
         // encode back to utf8, something is wrong with your libc. But just
         // in case somebody finds an exploit...
-        len = wcrtomb(s, c, 0);
+        len = wcrtomb(new, c, 0);
         if (len < 1) error_exit("bad utf8 %x", c);
-        s += len;
+        new += len;
       }
     }
+    *new = 0;
   }
 
-  return new;
+  return try;
 }
 
 // Call this with 0 for first pass argument parsing and syntax checking (which
