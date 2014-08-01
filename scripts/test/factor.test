@@ -1,0 +1,18 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+testing "factor -32" "factor -32" "-32: -1 2 2 2 2 2\n" "" ""
+testing "factor 0" "factor 0" "0: 0\n" "" ""
+testing "factor 1" "factor 1" "1: 1\n" "" ""
+testing "factor 2" "factor 2" "2: 2\n" "" ""
+testing "factor 3" "factor 3" "3: 3\n" "" ""
+testing "factor 4" "factor 4" "4: 2 2\n" "" ""
+testing "factor 10000000017" "factor 10000000017" \
+        "10000000017: 3 3 3 7 7 7 1079797\n" "" ""
+testing "factor 10000000018" "factor 10000000018" \
+        "10000000018: 2 131 521 73259\n" "" ""
+testing "factor 10000000019" "factor 10000000019" \
+        "10000000019: 10000000019\n" "" ""
