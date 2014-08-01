@@ -49,7 +49,9 @@ static void factor(char *s)
 
   // test odd numbers.
   for (ll=3; ;ll += 2) {
-    if (ll*ll>l) {
+    long lll = ll*ll;
+
+    if (lll>l || lll<ll) {
       if (l>1) printf(" %ld", l);
       break;
     }
