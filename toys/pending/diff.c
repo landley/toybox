@@ -34,12 +34,12 @@ config DIFF
 #include "toys.h"
 
 GLOBALS(
-	long ct;
-	char *start;
-	struct arg_list *L_list;
+  long ct;
+  char *start;
+  struct arg_list *L_list;
 
-	int dir_num, size, is_binary, status, change, len[2];
-	int *offset[2];
+  int dir_num, size, is_binary, status, change, len[2];
+  int *offset[2];
 )
 
 #define MIN(x,y) ((x) < (y) ? (x) : (y))
@@ -100,7 +100,7 @@ static int search (struct candidate **K, int r, int k, int j)
 {
   int low = r, upper = k, mid;
 
-	mid = (low + upper) / 2;
+  mid = (low + upper) / 2;
   while (low <= mid) {
     if (((struct candidate*)(K[mid]))->b < j &&
         ((struct candidate*)(K[mid + 1]))->b > j)
@@ -119,7 +119,7 @@ static struct candidate * new_candidate (int i, int j, struct candidate* prev)
 {
   struct candidate *c = xzalloc(sizeof(struct candidate));
 
-	c->a = i;
+  c->a = i;
   c->b = j;
   c->prev = prev;
   return c;
@@ -128,12 +128,12 @@ static struct candidate * new_candidate (int i, int j, struct candidate* prev)
 
 static void free_candidates(struct candidate *c)
 {
-	struct candidate *t = c;
-	
-	while ((t = c)) {
-		c = c->next;
-		free(t);
-	}
+  struct candidate *t = c;
+  
+  while ((t = c)) {
+    c = c->next;
+    free(t);
+  }
 }
 /*
  * 1. Search K[r: k] for an element K[s] such that K[s]-> b < j and K[s + 1]->b > j
@@ -147,32 +147,32 @@ static void free_candidates(struct candidate *c)
 static void  do_merge(struct candidate **K, int *k, int i,
     struct v_vector *E, int p)
 {
-	int r = 0, s, j;
-	struct candidate *pr = 0, *c = K[0];
+  int r = 0, s, j;
+  struct candidate *pr = 0, *c = K[0];
 
-	while (1) {
-		j = E[p].serial;
-		s = search(K, r, *k, j);
-		if (s >= 0 && (((struct candidate*)(K[s]))->b < j &&
-					((struct candidate*)(K[s + 1]))->b > j)) {
+  while (1) {
+    j = E[p].serial;
+    s = search(K, r, *k, j);
+    if (s >= 0 && (((struct candidate*)(K[s]))->b < j &&
+          ((struct candidate*)(K[s + 1]))->b > j)) {
 
-			if (((struct candidate*)(K[s + 1]))->b > j) {
-				pr = K[s];
-				if (r && K[r]) c->next = K[r];
-				K[r] = c;
-				r = s + 1;
-				c = new_candidate(i , j, pr);
-			}
-			if (s == *k) {
-				K[*k + 2] = K[*k + 1];
-				*k = *k + 1;
-				break;
-			}
-		}
-		if (E[p].last) break;
-		else p = p + 1;
-	}
-	K[r] = c;
+      if (((struct candidate*)(K[s + 1]))->b > j) {
+        pr = K[s];
+        if (r && K[r]) c->next = K[r];
+        K[r] = c;
+        r = s + 1;
+        c = new_candidate(i , j, pr);
+      }
+      if (s == *k) {
+        K[*k + 2] = K[*k + 1];
+        *k = *k + 1;
+        break;
+      }
+    }
+    if (E[p].last) break;
+    else p = p + 1;
+  }
+  K[r] = c;
 }
 
 static FILE* read_stdin()
@@ -228,15 +228,15 @@ static int read_tok(FILE *fp, off_t *off, int tok)
 
 int bcomp(const void *a, const void *b) 
 {
-	struct v_vector *l = (struct v_vector*)a,
-									*r = (struct v_vector*)b;
-	int ret = l->hash - r->hash;
+  struct v_vector *l = (struct v_vector*)a,
+                  *r = (struct v_vector*)b;
+  int ret = l->hash - r->hash;
 
-	if (!ret) {
-		if ((r -1)->last) return 0;
-		else return -1;
-	}
-	return ret;
+  if (!ret) {
+    if ((r -1)->last) return 0;
+    else return -1;
+  }
+  return ret;
 }
 /*  file[0] corresponds file 1 and file[1] correspond file 2.
  * 1. calc hashes for both the files and store them in vector(v[0], v[1])
@@ -306,14 +306,14 @@ static int * create_j_vector()
   }
 
   p_vector = xzalloc((file[0].len + 2) * sizeof(int));
-	for (i = 1; i <= file[0].len; i++) {
-		void *r = bsearch(&v[0][i], (e + 1), file[1].len, sizeof(e[0]), bcomp);
-		if (r) p_vector[i] = (struct v_vector*)r - e;
-	}
+  for (i = 1; i <= file[0].len; i++) {
+    void *r = bsearch(&v[0][i], (e + 1), file[1].len, sizeof(e[0]), bcomp);
+    if (r) p_vector[i] = (struct v_vector*)r - e;
+  }
 
-	for (i = 1; i <= file[0].len; i++)
-		e[i].p = p_vector[i];
-	free(p_vector);
+  for (i = 1; i <= file[0].len; i++)
+    e[i].p = p_vector[i];
+  free(p_vector);
 
   size = 100;
   kcand = xzalloc(size * sizeof(struct candidate*));
@@ -340,8 +340,8 @@ static int * create_j_vector()
     J[pr->a] = pr->b;
   J[file[0].len + 1] = file[1].len+1; //mark boundary
 
-	for (i = k + 1; i >= 0; i--) free_candidates(kcand[i]);
-	free(kcand);
+  for (i = k + 1; i >= 0; i--) free_candidates(kcand[i]);
+  free(kcand);
 
   for (i = 1; i <= file[0].len; i++) { // jackpot?
     if (!J[i]) continue;
@@ -473,7 +473,7 @@ static void add_to_list(struct dirtree *node)
 {
   char *full_path;
 
-	dir[TT.dir_num].list = xrealloc(dir[TT.dir_num].list,
+  dir[TT.dir_num].list = xrealloc(dir[TT.dir_num].list,
       (TT.size + 1)*sizeof(char*));
   TT.size++;
   full_path = dirtree_path(node, NULL);
@@ -513,19 +513,19 @@ static void do_diff(char **files)
 {
 
   long i = 1, size = 1, x = 0, change = 0, ignore_white,
-	 start1, end1, start2, end2;
+   start1, end1, start2, end2;
   struct diff *d;
   struct arg_list *llist = TT.L_list;
   int *J;
-	
-	TT.offset[0] = TT.offset[1] = NULL;
-	J = diff(files);
+  
+  TT.offset[0] = TT.offset[1] = NULL;
+  J = diff(files);
 
   if (!J) return; //No need to compare, have to status only
 
   d = xzalloc(size *sizeof(struct diff));
   do {
-		ignore_white = 0;
+    ignore_white = 0;
     for (d[x].a = i; d[x].a <= file[0].len; d[x].a++) {
       if (J[d[x].a] != (J[d[x].a - 1] + 1)) break;
       else continue;
@@ -538,22 +538,22 @@ static void do_diff(char **files)
     }
     d[x].d = (J[d[x].b + 1] - 1);
 
-		if ((toys.optflags & FLAG_B)) {
-			if (d[x].a <= d[x].b) {
-				if ((TT.offset[0][d[x].b] - TT.offset[0][d[x].a - 1])
-						== (d[x].b - d[x].a + 1))
-					ignore_white = 1;
-			} else if (d[x].c <= d[x].d){
-				if ((TT.offset[1][d[x].d] - TT.offset[1][d[x].c - 1])
-						== (d[x].d - d[x].c + 1))
-					ignore_white = 1;
-			}
-		}
+    if ((toys.optflags & FLAG_B)) {
+      if (d[x].a <= d[x].b) {
+        if ((TT.offset[0][d[x].b] - TT.offset[0][d[x].a - 1])
+            == (d[x].b - d[x].a + 1))
+          ignore_white = 1;
+      } else if (d[x].c <= d[x].d){
+        if ((TT.offset[1][d[x].d] - TT.offset[1][d[x].c - 1])
+            == (d[x].d - d[x].c + 1))
+          ignore_white = 1;
+      }
+    }
 
-		if ((d[x].a <= d[x].b || d[x].c <= d[x].d) && !ignore_white)
+    if ((d[x].a <= d[x].b || d[x].c <= d[x].d) && !ignore_white)
       change = 1; //is we have diff ?
 
-		if (!ignore_white) d = xrealloc(d, (x + 2) *sizeof(struct diff));
+    if (!ignore_white) d = xrealloc(d, (x + 2) *sizeof(struct diff));
     i = d[x].b + 1;
     if (i > file[0].len) break;
     J[d[x].b] = d[x].d;
@@ -561,7 +561,7 @@ static void do_diff(char **files)
   } while (i <= file[0].len);
 
   i = x+1;
-	TT.status = change; //update status, may change bcoz of -w etc.
+  TT.status = change; //update status, may change bcoz of -w etc.
 
   if (!(toys.optflags & FLAG_q) && change) {  //start of !FLAG_q
 
@@ -575,40 +575,40 @@ static void do_diff(char **files)
 
     struct diff *t, *ptr1 = d, *ptr2 = d;
     while (i) {
-			long a,b;
+      long a,b;
 
-			if (TT.ct > file[0].len) TT.ct = file[0].len; //trim context to file len.
+      if (TT.ct > file[0].len) TT.ct = file[0].len; //trim context to file len.
       if (ptr1->b < ptr1->a && ptr1->d < ptr1->c) {
         i--;
         continue;
-			}
-			//Handle the context stuff
-			a =  ptr1->a;
-			b =  ptr1->b;
+      }
+      //Handle the context stuff
+      a =  ptr1->a;
+      b =  ptr1->b;
 
-			b  = MIN(file[0].len, b);
-			if (i == x + 1) ptr1->suff = MAX(1,a - TT.ct);
-			else {
-				if ((ptr1 - 1)->prev >= (ptr1->a - TT.ct))
-					ptr1->suff = (ptr1 - 1)->prev + 1;
-				else ptr1->suff =  ptr1->a - TT.ct;
-			}
+      b  = MIN(file[0].len, b);
+      if (i == x + 1) ptr1->suff = MAX(1,a - TT.ct);
+      else {
+        if ((ptr1 - 1)->prev >= (ptr1->a - TT.ct))
+          ptr1->suff = (ptr1 - 1)->prev + 1;
+        else ptr1->suff =  ptr1->a - TT.ct;
+      }
 calc_ct:
-			if (i > 1) {
-				if ((ptr2->b + TT.ct) >= (ptr2  + 1)->a) {
-					ptr2++;
-					i--;
-					goto calc_ct;
-				} else ptr2->prev = ptr2->b + TT.ct;
-			} else ptr2->prev = ptr2->b;
-			start1 = (ptr2->prev - ptr1->suff + 1);
-			end1 = (start1 == 1) ? -1 : start1;
-			start2 = MAX(1, ptr1->c - (ptr1->a - ptr1->suff));
-			end2 = ptr2->prev - ptr2->b + ptr2->d;
+      if (i > 1) {
+        if ((ptr2->b + TT.ct) >= (ptr2  + 1)->a) {
+          ptr2++;
+          i--;
+          goto calc_ct;
+        } else ptr2->prev = ptr2->b + TT.ct;
+      } else ptr2->prev = ptr2->b;
+      start1 = (ptr2->prev - ptr1->suff + 1);
+      end1 = (start1 == 1) ? -1 : start1;
+      start2 = MAX(1, ptr1->c - (ptr1->a - ptr1->suff));
+      end2 = ptr2->prev - ptr2->b + ptr2->d;
 
-			printf("@@ -%ld", start1 ? ptr1->suff: (ptr1->suff -1));
-			if (end1 != -1) printf(",%ld ", ptr2->prev-ptr1->suff + 1);
-			else putchar(' ');
+      printf("@@ -%ld", start1 ? ptr1->suff: (ptr1->suff -1));
+      if (end1 != -1) printf(",%ld ", ptr2->prev-ptr1->suff + 1);
+      else putchar(' ');
 
       printf("+%ld", (end2 - start2 + 1) ? start2: (start2 -1));
       if ((end2 - start2 +1) != 1) printf(",%ld ", (end2 - start2 +1));
@@ -636,45 +636,45 @@ calc_ct:
 
 static void show_status(char **files)
 {
-	switch (TT.status) {
-		case SAME:
-			if (toys.optflags & FLAG_s)
-				printf("Files %s and %s are identical\n",files[0], files[1]);
-			break;
-		case DIFFER:
-			if ((toys.optflags & FLAG_q) || TT.is_binary)
-				printf("Files %s and %s differ\n",files[0], files[1]);
-			break;
-	}
+  switch (TT.status) {
+    case SAME:
+      if (toys.optflags & FLAG_s)
+        printf("Files %s and %s are identical\n",files[0], files[1]);
+      break;
+    case DIFFER:
+      if ((toys.optflags & FLAG_q) || TT.is_binary)
+        printf("Files %s and %s differ\n",files[0], files[1]);
+      break;
+  }
 }
 
 static void create_empty_entry(int l , int r, int j)
 {
-	struct stat st[2];
-	char *f[2], *path[2];
-	int i;
+  struct stat st[2];
+  char *f[2], *path[2];
+  int i;
 
-	if (j > 0 && (toys.optflags & FLAG_N)) {
-		path[0] = concat_file_path(dir[0].list[0], dir[1].list[r] + TT.len[1]);
-		f[0] = "/dev/null";
-		path[1] = f[1] = dir[1].list[r];
-		stat(f[1], &st[0]);
-		st[1] = st[0];
-	}
-	else if (j < 0 && (toys.optflags & FLAG_N)) {
-		path[1] = concat_file_path(dir[1].list[0], dir[0].list[l] + TT.len[0]);
-		f[1] = "/dev/null";
-		path[0] = f[0] = dir[0].list[l];
-		stat(f[0], &st[0]);
-		st[1] = st[0];
-	}
+  if (j > 0 && (toys.optflags & FLAG_N)) {
+    path[0] = concat_file_path(dir[0].list[0], dir[1].list[r] + TT.len[1]);
+    f[0] = "/dev/null";
+    path[1] = f[1] = dir[1].list[r];
+    stat(f[1], &st[0]);
+    st[1] = st[0];
+  }
+  else if (j < 0 && (toys.optflags & FLAG_N)) {
+    path[1] = concat_file_path(dir[1].list[0], dir[0].list[l] + TT.len[0]);
+    f[1] = "/dev/null";
+    path[0] = f[0] = dir[0].list[l];
+    stat(f[0], &st[0]);
+    st[1] = st[0];
+  }
 
-	if (!j) {
-		for (i = 0; i < 2; i++) {
-			path[i] = f[i] = dir[i].list[!i ? l: r];
-			stat(f[i], &st[i]);
-		}
-	}
+  if (!j) {
+    for (i = 0; i < 2; i++) {
+      path[i] = f[i] = dir[i].list[!i ? l: r];
+      stat(f[i], &st[i]);
+    }
+  }
 
   if (S_ISDIR(st[0].st_mode) && S_ISDIR(st[1].st_mode))
     printf("Common subdirectories: %s and %s\n", path[0], path[1]);
@@ -694,8 +694,8 @@ static void create_empty_entry(int l , int r, int j)
   } else {
     do_diff(f);
     show_status(path);
-		if (file[0].fp) fclose(file[0].fp);
-		if (file[1].fp) fclose(file[1].fp);
+    if (file[0].fp) fclose(file[0].fp);
+    if (file[1].fp) fclose(file[1].fp);
   }
 
   if ((toys.optflags & FLAG_N) && j) {
@@ -770,18 +770,18 @@ void diff_main(void)
   char *files[2];
   struct dirtree *root;
 
-	for (j = 0; j < 2; j++) {
-		files[j] = toys.optargs[j];
-		if (IS_STDIN(files[j])) {
-			if (fstat(0, &st[j]) == -1)
-				perror_exit("can fstat %s", files[j]);
-		} else {
-			if (stat(files[j], &st[j]) == -1)
-				perror_exit("can't stat %s", files[j]);
-		}
-	}
+  for (j = 0; j < 2; j++) {
+    files[j] = toys.optargs[j];
+    if (IS_STDIN(files[j])) {
+      if (fstat(0, &st[j]) == -1)
+        perror_exit("can fstat %s", files[j]);
+    } else {
+      if (stat(files[j], &st[j]) == -1)
+        perror_exit("can't stat %s", files[j]);
+    }
+  }
 
-	if (IS_STDIN(files[0]) && IS_STDIN(files[1])) { //compat :(
+  if (IS_STDIN(files[0]) && IS_STDIN(files[1])) { //compat :(
     show_status(files);  //check ASAP
     return;
   }
