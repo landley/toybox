@@ -276,7 +276,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
   } else {
     // Read directory contents. We dup() the fd because this will close it.
     indir->data = dup(dirfd);
-    dirtree_recurse(indir, filter, (flags&FLAG_L));
+    dirtree_recurse(indir, filter, (flags&FLAG_L) ? DIRTREE_SYMFOLLOW : 0);
   }
 
   // Copy linked list to array and sort it. Directories go in array because
