@@ -57,6 +57,7 @@ config FIND
 // add -print if no action (-exec, -ok, -print)
 // find . -print -xdev (should xdev before print)
 // -exec {} + accepts any + after {}, not just immediately after. ";" optional
+// posix wants loop detection?
 
 #define FOR_find
 #include "toys.h"
@@ -88,7 +89,7 @@ static int flush_exec(struct dirtree *new, struct exec_range *aa)
 
   if (aa->dir && new->parent) dl = (void *)&new->parent->extra;
   else dl = &aa->names;
-  dlist_terminate(dl);
+  dlist_terminate(*dl);
 
   // switch to directory for -execdir, or back to top if we have an -execdir
   // _and_ a normal -exec, or are at top of tree in -execdir
@@ -97,25 +98,26 @@ static int flush_exec(struct dirtree *new, struct exec_range *aa)
 
   // execdir: accumulated execs in this directory's children.
   newargs = xmalloc(sizeof(char *)*(aa->arglen+aa->namecount+1));
-  if (!aa->curly) {
-    memcpy(newargs, aa->argstart+1, sizeof(char *)*aa->arglen);
+  if (aa->curly < 0) {
+    memcpy(newargs, aa->argstart, sizeof(char *)*aa->arglen);
     newargs[aa->arglen] = 0;
   } else {
     struct double_list *dl2 = *dl;
     int pos = aa->curly, rest = aa->arglen - aa->curly;
 
     // Collate argument list
-    memcpy(newargs, aa->argstart+1, sizeof(char *)*pos);
+    memcpy(newargs, aa->argstart, sizeof(char *)*pos);
     for (dl2 = *dl; dl2; dl2 = dl2->next) newargs[pos++] = dl2->data;
-    rest = aa->arglen - aa->curly;
-    memcpy(newargs+pos, aa->argstart+aa->curly+1,
-      sizeof(char *)*(rest-1));
+    rest = aa->arglen - aa->curly - 1;
+    memcpy(newargs+pos, aa->argstart+aa->curly+1, sizeof(char *)*rest);
     newargs[pos+rest] = 0;
   }
 
   rc = xpclose(xpopen(newargs, 0), 0);
 
-  llist_traverse(dl, llist_free_double);
+  llist_traverse(*dl, llist_free_double);
+  *dl = 0;
+  aa->namecount = 0;
 
   return rc;
 }
@@ -353,49 +355,51 @@ static int do_find(struct dirtree *new)
 
         // Initial argument parsing pass
         if (!new) {
-          // special case "-exec \;" to fall through to "needs 1 arg" error.
-          if (!strcmp(ss[1], ";")) {
-            int len;
+          int len;
 
-            dlist_add_nomalloc(&TT.argdata,(void *)(aa = xzalloc(sizeof(*aa))));
-            aa->argstart = ++ss;
+          // catch "-exec" with no args and "-exec \;"
+          if (!ss[1] || !strcmp(ss[1], ";")) error_exit("'%s' needs 1 arg", s);
 
-            // Record command line arguments to -exec
-            for (len = 0; ss[len]; len++) {
-              if (!strcmp(ss[len], ";")) break;
-              else if (!strcmp(ss[len], "{}")) {
-                aa->curly = len;
-                if (!strcmp(ss[len+1], "+")) {
+          dlist_add_nomalloc(&TT.argdata, (void *)(aa = xzalloc(sizeof(*aa))));
+          aa->argstart = ++ss;
+          aa->curly = -1;
 
-                  // Measure environment space
-                  if (!TT.envsize) {
-                    char **env;
+          // Record command line arguments to -exec
+          for (len = 0; ss[len]; len++) {
+            if (!strcmp(ss[len], ";")) break;
+            else if (!strcmp(ss[len], "{}")) {
+              aa->curly = len;
+              if (!strcmp(ss[len+1], "+")) {
 
-                    for (env = environ; *env; env++)
-                      TT.envsize += sizeof(char *) + strlen(*env) + 1;
-                    TT.envsize += sizeof(char *);
-                  }
-                  aa->plus++;
-                  len++;
-                  break;
+                // Measure environment space
+                if (!TT.envsize) {
+                  char **env;
+
+                  for (env = environ; *env; env++)
+                    TT.envsize += sizeof(char *) + strlen(*env) + 1;
+                  TT.envsize += sizeof(char *);
                 }
-              } else aa->argsize += sizeof(char *) + strlen(ss[len]) + 1;
-            }
-            if (!ss[len]) error_exit("-exec without \\;");
-            ss += len-1;
-            aa->arglen = len;
-            aa->dir = !!strchr(s, 'd');
-            if (aa->dir && TT.topdir == -1) TT.topdir = xopen(".", 0);
+                aa->plus++;
+                len++;
+                break;
+              }
+            } else aa->argsize += sizeof(char *) + strlen(ss[len]) + 1;
           }
+          if (!ss[len]) error_exit("-exec without \\;");
+          ss += len;
+          aa->arglen = len;
+          aa->dir = !!strchr(s, 'd');
+          if (aa->dir && TT.topdir == -1) TT.topdir = xopen(".", 0);
 
         // collect names and execute commands
         } else {
           if (check) {
-            char *name;
+            char *name, *ss1 = ss[1];
             struct double_list **dl;
 
             // Grab command line exec argument list
             aa = (void *)llist_pop(&argdata);
+            ss += aa->arglen + 1;
 
             // name is always a new malloc, so we can always free it.
             name = aa->dir ? xstrdup(new->name) : dirtree_path(new, 0);
@@ -405,7 +409,7 @@ static int do_find(struct dirtree *new)
             if (aa->dir) aa->prev = (void *)1;
 
             if (*s == 'o') {
-              char *prompt = xmprintf("[%s] %s", ss[1], name);
+              char *prompt = xmprintf("[%s] %s", ss1, name);
               if(!(test = yesno(prompt, 0))) goto cont;
             }
 
@@ -426,9 +430,13 @@ static int do_find(struct dirtree *new)
               aa->namesize += size;
             }
             dlist_add(dl, name);
+            aa->namecount++;
             if (!aa->plus) test = flush_exec(new, aa);
           }
         }
+
+        // Argument consumed, skip the check.
+        goto cont;
       } else goto error;
 
       // This test can go at the end because we do a syntax checking
