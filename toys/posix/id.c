@@ -113,14 +113,13 @@ void do_id(char *username)
   i = sizeof(toybuf)/sizeof(gid_t);
   ngroups = username ? getgrouplist(username, gid, groups, &i)
     : getgroups(i, groups);
-  if (0 >= ngroups) perror_exit(0);
+  if (ngroups<0) perror_exit(0);
 
-  for (i = 0;;) {
+  for (i = 0; i<ngroups; i++) {
+    if (i) xputc(' ');
     if (!(grp = getgrgid(groups[i]))) perror_msg(0);
     else if (flags & FLAG_G) s_or_u(grp->gr_name, grp->gr_gid, 0);
     else if (grp->gr_gid != egid) showid("", grp->gr_gid, grp->gr_name);
-    if (++i >= ngroups) break;
-    xputc(' ');
   }
   xputc('\n');
 }
