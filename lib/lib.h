@@ -119,6 +119,7 @@ void xchroot(char *path);
 struct passwd *xgetpwuid(uid_t uid);
 struct group *xgetgrgid(gid_t gid);
 struct passwd *xgetpwnam(char *name);
+struct group *xgetgrnam(char *name);
 void xsetuser(struct passwd *pwd);
 char *xreadlink(char *name);
 long xparsetime(char *arg, long units, long *fraction);

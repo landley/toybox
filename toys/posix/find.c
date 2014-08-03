@@ -12,7 +12,7 @@ USE_FIND(NEWTOY(find, "?^HL", TOYFLAG_USR|TOYFLAG_BIN))
 
 config FIND
   bool "find"
-  default n
+  default y
   help
     usage: find [-HL] [DIR...] [<options>]
 
@@ -45,19 +45,6 @@ config FIND
     Commands substitute "{}" with matched file. End with ";" to run each file,
     or "+" (next argument after "{}") to collect and run with multiple files.
 */
-
-// find . ! \( -name blah -print \)
-// find . -o
-// find -type f
-
-// pending issues:
-// old false -a ! new false does not yield true.
-// 
-// -user -group -newer evaluate once and save result (where?)
-// add -print if no action (-exec, -ok, -print)
-// find . -print -xdev (should xdev before print)
-// -exec {} + accepts any + after {}, not just immediately after. ";" optional
-// posix wants loop detection?
 
 #define FOR_find
 #include "toys.h"
@@ -144,11 +131,6 @@ static void do_print(struct dirtree *new, char c)
 
   xprintf("%s%c", s, c);
   free(s);
-}
-
-void todo_store_argument(void)
-{
-  error_exit("NOP");
 }
 
 char *strlower(char *s)
@@ -340,12 +322,40 @@ static int do_find(struct dirtree *new)
           test = compare_numsign(new->st.st_size, 512, ss[1]);
       } else if (!strcmp(s, "links")) {
         if (check) test = compare_numsign(new->st.st_nlink, 0, ss[1]);
-      } else if (!strcmp(s, "user")) {
-        todo_store_argument();
-      } else if (!strcmp(s, "group")) {
-        todo_store_argument();
-      } else if (!strcmp(s, "newer")) {
-        todo_store_argument();
+      } else if (!strcmp(s, "user") || !strcmp(s, "group")
+              || !strcmp(s, "newer"))
+      {
+        struct {
+          void *next, *prev;
+          union {
+            uid_t uid;
+            gid_t gid;
+            struct timespec tm;
+          } u;
+        } *udl;
+
+        if (!new && ss[1]) {
+          udl = xmalloc(sizeof(*udl));
+          dlist_add_nomalloc(&TT.argdata, (void *)udl);
+
+          if (*s == 'u') udl->u.uid = xgetpwnam(ss[1])->pw_uid;
+          else if (*s == 'g') udl->u.gid = xgetgrnam(ss[1])->gr_gid;
+          else {
+            struct stat st;
+
+            xstat(ss[1], &st);
+            udl->u.tm = st.st_mtim;
+          }
+        } else if (check) {
+          udl = (void *)llist_pop(&argdata);
+          if (*s == 'u') test = new->st.st_uid == udl->u.uid;
+          else if (*s == 'g') test = new->st.st_gid == udl->u.gid;
+          else {
+            test = new->st.st_mtim.tv_sec > udl->u.tm.tv_sec;
+            if (new->st.st_mtim.tv_sec == udl->u.tm.tv_sec)
+              test = new->st.st_mtim.tv_nsec > udl->u.tm.tv_nsec;
+          }
+        }
       } else if (!strcmp(s, "exec") || !strcmp("ok", s)
               || !strcmp(s, "execdir") || !strcmp(s, "okdir"))
       {
@@ -392,47 +402,45 @@ static int do_find(struct dirtree *new)
           if (aa->dir && TT.topdir == -1) TT.topdir = xopen(".", 0);
 
         // collect names and execute commands
-        } else {
-          if (check) {
-            char *name, *ss1 = ss[1];
-            struct double_list **dl;
+        } else if (check) {
+          char *name, *ss1 = ss[1];
+          struct double_list **ddl;
 
-            // Grab command line exec argument list
-            aa = (void *)llist_pop(&argdata);
-            ss += aa->arglen + 1;
+          // Grab command line exec argument list
+          aa = (void *)llist_pop(&argdata);
+          ss += aa->arglen + 1;
 
-            // name is always a new malloc, so we can always free it.
-            name = aa->dir ? xstrdup(new->name) : dirtree_path(new, 0);
+          // name is always a new malloc, so we can always free it.
+          name = aa->dir ? xstrdup(new->name) : dirtree_path(new, 0);
 
-            // Mark entry so COMEAGAIN can call flush_exec() in parent.
-            // This is never a valid pointer valud for prev to have otherwise
-            if (aa->dir) aa->prev = (void *)1;
+          // Mark entry so COMEAGAIN can call flush_exec() in parent.
+          // This is never a valid pointer valud for prev to have otherwise
+          if (aa->dir) aa->prev = (void *)1;
 
-            if (*s == 'o') {
-              char *prompt = xmprintf("[%s] %s", ss1, name);
-              if(!(test = yesno(prompt, 0))) goto cont;
-            }
-
-            // Add next name to list (global list without -dir, local with)
-            if (aa->dir && new->parent)
-              dl = (struct double_list **)&new->parent->extra;
-            else dl = &aa->names;
-
-            // Is this + mode?
-            if (aa->plus) {
-              int size = sizeof(char *)+strlen(name)+1;
-
-              // Linux caps environment space (env vars + args) at 32 4k pages.
-              // todo: is there a way to probe this instead of constant here?
-
-              if (TT.envsize+aa->argsize+aa->namesize+size >= 131072)
-                toys.exitval |= flush_exec(new, aa);
-              aa->namesize += size;
-            }
-            dlist_add(dl, name);
-            aa->namecount++;
-            if (!aa->plus) test = flush_exec(new, aa);
+          if (*s == 'o') {
+            char *prompt = xmprintf("[%s] %s", ss1, name);
+            if(!(test = yesno(prompt, 0))) goto cont;
           }
+
+          // Add next name to list (global list without -dir, local with)
+          if (aa->dir && new->parent)
+            ddl = (struct double_list **)&new->parent->extra;
+          else ddl = &aa->names;
+
+          // Is this + mode?
+          if (aa->plus) {
+            int size = sizeof(char *)+strlen(name)+1;
+
+            // Linux caps environment space (env vars + args) at 32 4k pages.
+            // todo: is there a way to probe this instead of constant here?
+
+            if (TT.envsize+aa->argsize+aa->namesize+size >= 131072)
+              toys.exitval |= flush_exec(new, aa);
+            aa->namesize += size;
+          }
+          dlist_add(ddl, name);
+          aa->namecount++;
+          if (!aa->plus) test = flush_exec(new, aa);
         }
 
         // Argument consumed, skip the check.

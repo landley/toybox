@@ -455,6 +455,14 @@ struct passwd *xgetpwnam(char *name)
   return up;
 }
 
+struct group *xgetgrnam(char *name)
+{
+  struct group *gr = getgrnam(name);
+
+  if (!gr) perror_exit("group '%s'", name);
+  return gr;
+}
+
 // setuid() can fail (for example, too many processes belonging to that user),
 // which opens a security hole if the process continues as the original user.
 
