@@ -114,7 +114,6 @@ int xioctl(int fd, int request, void *data);
 char *xgetcwd(void);
 void xstat(char *path, struct stat *st);
 char *xabspath(char *path, int exact);
-char *xrealpath(char *path);
 void xchdir(char *path);
 void xchroot(char *path);
 struct passwd *xgetpwuid(uid_t uid);
