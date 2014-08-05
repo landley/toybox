@@ -22,14 +22,16 @@ config FIND
     -H  Follow command line symlinks         -L  Follow all symlinks
 
     Match filters:
-    -name  PATTERN filename with wildcards   -iname   case insensitive -name
-    -path  PATTERN path name with wildcards  -ipath   case insensitive -path
-    -user  UNAME   belongs to user           -nouser  belongs to unknown user
-    -group GROUP   belongs to group          -nogroup belongs to unknown group
-    -perm  [-]MODE permissons (-=at least)   -prune   ignore contents of dir
-    -size  N[c]    512 byte blocks (c=bytes) -xdev    stay in this filesystem
-    -links N       hardlink count            -atime N accessed N days ago
-    -ctime N       created N days ago        -mtime N modified N days ago
+    -name  PATTERN filename with wildcards   -iname      case insensitive -name
+    -path  PATTERN path name with wildcards  -ipath      case insensitive -path
+    -user  UNAME   belongs to user UNAME     -nouser     user not in /etc/passwd
+    -group GROUP   belongs to group GROUP    -nogroup    group not in /etc/group
+    -perm  [-]MODE permissons (-=at least)   -prune      ignore contents of dir
+    -size  N[c]    512 byte blocks (c=bytes) -xdev       stay in this filesystem
+    -links N       hardlink count            -atime N    accessed N days ago
+    -ctime N       created N days ago        -mtime N    modified N days ago
+    -newer FILE    newer mtime than FILE     -mindepth # at least # dirs down
+    -depth         ignore contents of dir    -maxdepth # at most # dirs down
     -type [bcdflps] (block, char, dir, file, symlink, pipe, socket)
 
     Numbers N may be prefixed by a - (less than) or + (greater than):
@@ -322,6 +324,15 @@ static int do_find(struct dirtree *new)
           test = compare_numsign(new->st.st_size, 512, ss[1]);
       } else if (!strcmp(s, "links")) {
         if (check) test = compare_numsign(new->st.st_nlink, 0, ss[1]);
+      } else if (!strcmp(s, "mindepth") || !strcmp(s, "maxdepth")) {
+        if (check) {
+          struct dirtree *dt = new;
+          int i = 0, d = atolx(ss[1]);
+
+          while ((dt = dt->parent)) i++;
+
+          test = s[1] == 'i' ? i >= d : i <= d;
+        }
       } else if (!strcmp(s, "user") || !strcmp(s, "group")
               || !strcmp(s, "newer"))
       {
