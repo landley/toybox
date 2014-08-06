@@ -189,7 +189,17 @@ static int do_find(struct dirtree *new)
     }
     if (S_ISDIR(new->st.st_mode)) {
       if (!new->again) {
+        struct dirtree *n;
+
         if (TT.depth) return recurse;
+        for (n = new->parent; n; n = n->parent) {
+          if (n->st.st_ino==new->st.st_ino && n->st.st_dev==new->st.st_dev) {
+            error_msg("'%s': loop detected", s = dirtree_path(new, 0));
+            free(s);
+
+            return 0;
+          }
+        }
       } else {
         struct double_list *dl;
 
