@@ -8,7 +8,7 @@
  * Parentheses can only stack 4096 deep
  * Not treating two {} as an error, but only using last
 
-USE_FIND(NEWTOY(find, "?^HL", TOYFLAG_USR|TOYFLAG_BIN))
+USE_FIND(NEWTOY(find, "?^HL[-HL]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config FIND
   bool "find"
