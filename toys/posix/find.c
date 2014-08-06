@@ -251,7 +251,8 @@ static int do_find(struct dirtree *new)
         if (!test) test = 1;
         else active = 0;     // decision has been made until next ")"
       }
-
+    } else if (!strcmp(s, "not")) {
+      if (check) not = !not;
     // Mostly ignore NOP argument
     } else if (!strcmp(s, "a") || !strcmp(s, "and")) {
       if (not) goto error;
