@@ -263,6 +263,7 @@ static int do_find(struct dirtree *new)
       }
     } else if (!strcmp(s, "not")) {
       if (check) not = !not;
+      continue;
     // Mostly ignore NOP argument
     } else if (!strcmp(s, "a") || !strcmp(s, "and")) {
       if (not) goto error;
@@ -504,7 +505,7 @@ void find_main(void)
   TT.filter = toys.optargs+len;
 
   // use "." if no paths
-  if (!*ss || **ss == '-') {
+  if (!len) {
     ss = (char *[]){"."};
     len = 1;
   }
