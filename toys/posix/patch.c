@@ -93,7 +93,6 @@ static void finish_oldfile(void)
 static void fail_hunk(void)
 {
   if (!TT.current_hunk) return;
-  dlist_terminate(TT.current_hunk);
 
   fprintf(stderr, "Hunk %d FAILED %ld/%ld.\n",
       TT.hunknum, TT.oldline, TT.newline);
@@ -137,7 +136,6 @@ static int apply_one_hunk(void)
   int (*lcmp)(char *aa, char *bb);
 
   lcmp = (toys.optflags & FLAG_l) ? (void *)loosecmp : (void *)strcmp;
-
   dlist_terminate(TT.current_hunk);
 
   // Match EOF if there aren't as many ending context lines as beginning
@@ -203,9 +201,12 @@ static int apply_one_hunk(void)
         if (PATCH_DEBUG) {
           int bug = 0;
 
-          while (plist->data[bug] == check->data[bug]) bug++;
-          fprintf(stderr, "NOT(%d:%d!=%d): %s\n", bug, plist->data[bug],
-            check->data[bug], plist->data);
+          if (!plist) fprintf(stderr, "NULL plist\n");
+          else {
+            while (plist->data[bug] == check->data[bug]) bug++;
+            fprintf(stderr, "NOT(%d:%d!=%d): %s\n", bug, plist->data[bug],
+              check->data[bug], plist->data);
+          }
         }
 
         TT.state = 3;
@@ -297,6 +298,7 @@ void patch_main(void)
         if (!TT.oldlen && !TT.newlen) state = apply_one_hunk();
         continue;
       }
+      dlist_terminate(TT.current_hunk);
       fail_hunk();
       state = 0;
       continue;
