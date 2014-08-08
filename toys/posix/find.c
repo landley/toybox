@@ -342,8 +342,13 @@ static int do_find(struct dirtree *new)
           int i = 0, d = atolx(ss[1]);
 
           while ((dt = dt->parent)) i++;
-
-          test = s[1] == 'i' ? i >= d : i <= d;
+          if (s[1] == 'i') {
+            test = i >= d;
+            if (i == d && not) recurse = 0;
+          } else {
+            test = i <= d;
+            if (i == d && !not) recurse = 0;
+          }
         }
       } else if (!strcmp(s, "user") || !strcmp(s, "group")
               || !strcmp(s, "newer"))
