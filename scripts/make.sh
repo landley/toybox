@@ -7,10 +7,10 @@ source ./configure
 
 [ -z "$KCONFIG_CONFIG" ] && KCONFIG_CONFIG=".config"
 
-if [ -z "$KCONFIG_CONFIG" ]
+if [ -z "$CPUS" ]
 then
-  echo "No $KCONFIG_CONFIG (see "make help" for configuration options)."
-  exit 1
+  CPUS=$(echo /sys/devices/system/cpu/cpu[0-9]* | wc -w)
+  CPUS=$(($CPUS+1))
 fi
 
 # Respond to V= by echoing command lines as well as running them
@@ -140,22 +140,6 @@ do_loudly $HOSTCC scripts/config2help.c -I . lib/xwrap.c lib/llist.c lib/lib.c \
   -o generated/config2help && \
 generated/config2help Config.in $KCONFIG_CONFIG > generated/help.h || exit 1
 
-# Extract a list of toys/*/*.c files to compile from the data in $KCONFIG_CONFIG
-
-# 1) Get a list of C files in toys/* and glue them together into a regex we can
-# feed to grep that will match any one of them (whole word, not substring).
-TOYFILES="^$(ls toys/*/*.c | sed -n 's@^.*/\(.*\)\.c$@\1@;s/-/_/g;H;${g;s/\n//;s/\n/$|^/gp}')\$"
-
-# 2) Grab the XXX part of all CONFIG_XXX entries, removing everything after the
-# second underline
-# 3) Sort the list, keeping only one of each entry.
-# 4) Convert to lower case.
-# 5) Remove any config symbol not recognized as a filename from step 1.
-# 6) Add "toys/*/" prefix and ".c" suffix.
-
-TOYFILES=$(sed -nre 's/^CONFIG_(.*)=y/\1/p' < "$KCONFIG_CONFIG" \
-  | sort -u | tr A-Z a-z | grep -E "$TOYFILES" | sed 's@\(.*\)@toys/\*/\1.c@')
-
 echo "Library probe..."
 
 # We trust --as-needed to remove each library if we don't use any symbols
@@ -163,19 +147,74 @@ echo "Library probe..."
 # that doesn't exist, so we have to detect and skip nonexistent libraries
 # for it.
 
-OPTLIBS="$(for i in util crypt m resolv; do echo "int main(int argc, char *argv[]) {return 0;}" | ${CROSS_COMPILE}${CC} $CFLAGS -xc - -o /dev/null -Wl,--as-needed -l$i > /dev/null 2>/dev/null && echo -l$i; done)"
+> generated/optlibs.dat
+for i in util crypt m resolv
+do
+  echo "int main(int argc, char *argv[]) {return 0;}" | \
+  ${CROSS_COMPILE}${CC} $CFLAGS -xc - -o /dev/null -Wl,--as-needed -l$i > /dev/null 2>/dev/null &&
+  echo -l$i >> generated/optlibs.dat
+done
 
-echo "Compile toybox..."
+echo -n "Compile toybox"
+[ ! -z "$V" ] && echo
+
+# Extract a list of toys/*/*.c files to compile from the data in $KCONFIG_CONFIG
+
+# Get a list of C files in toys/* and wash it through sed to chop out the
+# filename, convert - to _, and glue the result together into a new regex
+# we we can feed to grep to match any one of them (whole word, not substring).
+
+TOYFILES="^$(ls toys/*/*.c | sed -n 's@^.*/\(.*\)\.c$@\1@;s/-/_/g;H;${g;s/\n//;s/\n/$|^/gp}')\$"
+
+# 1) Grab the XXX part of all CONFIG_XXX entries from KCONFIG
+# 2) Sort the list, keeping only one of each entry.
+# 3) Convert to lower case.
+# 4) Remove any config symbol not recognized as a filename from step 1.
+# 5) Add "toys/*/" prefix and ".c" suffix.
+
+TOYFILES=$(sed -nre 's/^CONFIG_(.*)=y/\1/p' < "$KCONFIG_CONFIG" \
+  | sort -u | tr A-Z a-z | grep -E "$TOYFILES" | sed 's@\(.*\)@toys/\*/\1.c@')
 
 do_loudly()
 {
-  [ ! -z "$V" ] && echo "$@"
+  [ ! -z "$V" ] && echo "$@" || echo -n .
   "$@"
 }
 
-do_loudly ${CROSS_COMPILE}${CC} $CFLAGS -I . -o toybox_unstripped $OPTIMIZE \
-  main.c lib/*.c $TOYFILES -Wl,--as-needed $OPTLIBS  || exit 1
+BUILD="${CROSS_COMPILE}${CC} $CFLAGS -I . $OPTIMIZE"
+FILES="$(ls lib/*.c) main.c $TOYFILES"
+LINK="-o toybox_unstripped -Wl,--as-needed $(cat generated/optlibs.dat)"
+
+# This is a parallel version of: do_loudly $BUILD $FILES $LINK || exit 1
+
+rm -f generated/*.o
+for i in $FILES
+do
+  # build each generated/*.o file in parallel
+
+  X=${i/lib\//lib_}
+  X=${X##*/}
+  do_loudly $BUILD -c $i -o generated/${X%%.c}.o &
+
+  # ratelimit to $CPUS many parallel jobs, detecting errors
+
+  while true
+  do
+    [ $(jobs -rp | wc -w) -lt "$CPUS" ] && break;
+    wait $(jobs -p | head -n 1) || exit 1
+  done
+done
+
+# wait for all background jobs, detecting errors
+
+for i in $(jobs -p)
+do
+  wait $i || exit 1
+done
+
+do_loudly $BUILD generated/*.o $LINK || exit 1
 do_loudly ${CROSS_COMPILE}${STRIP} toybox_unstripped -o toybox || exit 1
 # gcc 4.4's strip command is buggy, and doesn't set the executable bit on
 # its output the way SUSv4 suggests it do so.
 do_loudly chmod +x toybox || exit 1
+echo
