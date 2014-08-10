@@ -65,7 +65,8 @@ void oneit_main(void)
   setsid();
   for (i=0; i<3; i++) {
     close(i);
-    xopen(TT.console ? TT.console : "/dev/tty0", O_RDWR);
+    // Remember, O_CLOEXEC is backwards for xopen()
+    xopen(TT.console ? TT.console : "/dev/tty0", O_RDWR|O_CLOEXEC);
   }
 
   // Can't xexec() here, because we vforked so we don't want to error_exit().
