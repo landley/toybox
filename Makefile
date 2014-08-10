@@ -41,10 +41,9 @@ uninstall:
 	scripts/install.sh --long --uninstall
 
 clean::
-	rm -rf toybox toybox_unstripped generated/config.h generated/Config.in \
-		generated/newtoys.h generated/globals.h testdir \
-		generated/Config.probed generated/oldtoys.h generated/flags.h \
-		.singleconfig .singleconfig.old generated/help.h \
+	rm -rf toybox toybox_unstripped testdir \
+		.singleconfig .singleconfig.old \
+		generated/Config.* generated/*.h generated/*.o generated/*.dat \
 		generated/instlist generated/mkflags generated/config2help
 
 distclean: clean
