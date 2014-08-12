@@ -5,7 +5,7 @@ USE_LSPCI(NEWTOY(lspci, "emkn"USE_LSPCI_TEXT("@i:"), TOYFLAG_USR|TOYFLAG_BIN))
 
 config LSPCI
   bool "lspci"
-  default n
+  default y
   help
     usage: lspci [-ekm]
 
@@ -18,7 +18,7 @@ config LSPCI
 config LSPCI_TEXT
   bool "lspci readable output"
   depends on LSPCI
-  default n
+  default y
   help
     usage: lspci [-n] [-i FILE ]
 
