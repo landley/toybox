@@ -170,6 +170,10 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 #define O_NOFOLLOW 0
 #endif
 
+#ifndef O_CLOEXEC
+#define O_CLOEXEC 02000000
+#endif
+
 #if defined(__SIZEOF_DOUBLE__) && defined(__SIZEOF_LONG__) \
     && __SIZEOF_DOUBLE__ <= __SIZEOF_LONG__
 typedef double FLOAT;

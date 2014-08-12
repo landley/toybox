@@ -84,8 +84,8 @@ static void copy_in_out(int src, int dst, off_t size)
   cnt = size/512 + (rem?1:0);
 
   for (i = 0; i < cnt; i++) {
-    rd = (((i == cnt-1) && rem)? rem:512);
-    if (readall(src, toybuf, rd) != rd) error_exit("short read");
+    rd = (i == cnt-1 && rem) ? rem : 512;
+    xreadall(src, toybuf, rd);
     writeall(dst, toybuf, rd);
   }
 }
@@ -93,11 +93,10 @@ static void copy_in_out(int src, int dst, off_t size)
 //convert to octal
 static void itoo(char *str, int len, off_t val)
 {
-  char *t, tmp[sizeof(off_t)*3+1]; //1 for NUL termination
+  char *t, tmp[sizeof(off_t)*3+1];
   int cnt  = sprintf(tmp, "%0*llo", len, val);
 
-  t = tmp;
-  t += (cnt - len);
+  t = tmp + cnt - len;
   if (*t == '0') t++;
   memcpy(str, t, len);
 }
@@ -547,7 +546,9 @@ static char *process_extended_hdr(struct archive_handler *tar, int size)
       break;
     }
   }
-  return ((value)?xstrdup(value) : NULL);
+  if (value) value = xstrdup(value);
+  free(buf);
+  return value;
 }
 
 static void tar_skip(struct archive_handler *tar, int sz)

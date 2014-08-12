@@ -421,7 +421,7 @@ void ifconfig_main(void)
       }
 
       if ((p-ptr) != count || *hw_addr)
-        error_exit("bad hw-addr '%s'", hw_addr ? hw_addr : "");
+        error_exit("bad hw-addr '%s'", *argv);
 
       // the linux kernel's "struct sockaddr" (include/linux/socket.h in the
       // kernel source) only has 14 bytes of sa_data, and an infiniband address

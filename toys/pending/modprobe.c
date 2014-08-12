@@ -199,7 +199,7 @@ static int read_line(FILE *fl, char **li)
   }
   line[len] = '\0';
   *li = xstrdup(line);
-  if (line) free(line);
+  free(line);
   if (nxtline) free(nxtline);
   return len;
 }
@@ -302,6 +302,7 @@ static int depmode_read_entry(char *cmdname)
     }
     free(line);
   }
+  fclose(fe);
   return ret;
 }
 

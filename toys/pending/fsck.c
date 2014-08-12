@@ -216,10 +216,13 @@ static void do_fsck(struct f_sys_info *finfo)
   }
 
   if (toys.optflags & FLAG_N) {
+    for (j=0;j<i;j++) free(args[i]);
     free(args);
     return;
   } else { 
     if ((pid = fork()) < 0) {
+      for (j=0;j<i;j++) free(args[i]);
+      free(args);
       perror_msg(args[0]);
       return; 
     }
@@ -383,6 +386,7 @@ void fsck_main(void)
   if (!TT.devices || (toys.optflags & FLAG_A)) {
     toys.exitval = scan_all();
     if (CFG_TOYBOX_FREE) goto free_all;
+    return; //if CFG_TOYBOX_FREE is not set, exit.
   }
 
   dev = TT.devices;

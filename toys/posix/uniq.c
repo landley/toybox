@@ -113,6 +113,8 @@ void uniq_main(void)
   print_line(outfile, prevline);
 
   if (CFG_TOYBOX_FREE) {
+    if (outfile != stdout) fclose(outfile);
+    if (infile != stdin) fclose(infile);
     free(prevline);
     free(thisline);
   }

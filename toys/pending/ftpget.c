@@ -153,21 +153,29 @@ static void verify_pasv_mode(char *r_filename)
   unsigned portnum;
 
   //vsftpd reply like:- "227 Entering Passive Mode (125,19,39,117,43,39)".
-  if (get_ftp_response("PASV", NULL) != PASSIVE_MODE) close_stream("PASV");
+  if (get_ftp_response("PASV", NULL) != PASSIVE_MODE) goto close_stream;
 
   //Response is "NNN <some text> (N1,N2,N3,N4,P1,P2) garbage.
   //Server's IP is N1.N2.N3.N4
   //Server's port for data connection is P1*256+P2.
-  if ((pch = strrchr(toybuf, ')'))) *pch = '\0';
-  if ((pch = strrchr(toybuf, ','))) *pch = '\0';
+  if (!(pch = strrchr(toybuf, ')'))) goto close_stream;
+  *pch = '\0';
+  if (!(pch = strrchr(toybuf, ','))) goto close_stream;
+  *pch = '\0';
+
   portnum = atolx_range(pch + 1, 0, 255);
 
-  if ((pch = strrchr(toybuf, ','))) *pch = '\0';
+  if (!(pch = strrchr(toybuf, ','))) goto close_stream;
+  *pch = '\0';
   portnum = portnum + (atolx_range(pch + 1, 0, 255) * 256);
   setport(htons(portnum));
 
   if (TT.isget && get_ftp_response("SIZE", r_filename) != FTPFILE_STATUS)
     TT.c = 0;
+  return;
+
+close_stream:
+  close_stream("PASV");
 }
 
 /*
