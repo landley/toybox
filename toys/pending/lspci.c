@@ -11,7 +11,7 @@ config LSPCI
 
     List PCI devices.
 
-    -e	Print all 6 digits in class (like elspci)
+    -e	Print all 6 digits in class
     -k	Print kernel driver
     -m	Machine parseable format
 
@@ -37,105 +37,82 @@ GLOBALS(
   FILE *db;
 )
 
-char *id_check_match(char *id, char *buf)
-{
-  int i = 0;
-
-  while (id[i]) {
-    if (id[i] == buf[i]) i++;
-    else return 0;
-  }
-
-  return buf + i + 2;
-}
-
-/*
- * In: vendid, devid, fil
- * Out: vname, devname
- * Out must be zeroed before use.
- * vmame and devname must be char[256], zeroed out
- * Returns (2 - number of IDs matched): vendor must be matched for 
- * dev to be matched
- */
-int find_in_db(char *vendid, char *devid, FILE *fil, char *vname, char *devname)
-{
-  char buf[256], *vtext = 0L, *dtext = 0L;
-
-  fseek(fil, 0, SEEK_SET);
-  while (!*vname) {
-    //loop through
-    if (!fgets(buf, 255, fil)) return 2;
-    if ((vtext = id_check_match(vendid, buf)))
-      strncpy(vname, vtext, strlen(vtext) - 1);
-  }
-  while (!*devname) {
-    if (!fgets(buf, 255, fil) || (*buf != '\t' && *buf != '#')) return 1;
-    if (*buf == '#') continue;
-    if ((dtext = id_check_match(devid, buf + 1)))
-      strncpy(devname, dtext, strlen(dtext) - 1);
-  }
-
-  // matched both
-  return 0;
-}
-
 int do_lspci(struct dirtree *new)
 {
-  int alen = 8, dirfd, res = 2; //no textual descriptions read
-  char *dname = dirtree_path(new, &alen);
-
-  memset(toybuf, 0, 4096);
-  struct {
-    char class[16], vendor[16], device[16], module[256],
-    vname[256], devname[256];
-  } *bufs = (void*)(toybuf + 2);
+  char *p = toybuf, *vendor = toybuf+9, *device = toybuf+18,
+       driver[256], *vbig = 0, *dbig = 0, **fields;
+  int dirfd;
 
   if (!new->parent) return DIRTREE_RECURSE;
-  errno = 0;
-  dirfd = open(dname, O_RDONLY);
-  if (dirfd > 0) {
-    char *p, **fields = (char*[]){"class", "vendor", "device", ""};
 
-    for (p = toybuf; **fields; p+=16, fields++) {
-      int fd, size = ((toys.optflags & FLAG_e) && p == toybuf) ? 8 : 6;
+  // Parse data out of /proc
 
-      if ((fd = openat(dirfd, *fields, O_RDONLY)) < 0) continue;
-      xread(fd, p, size);
-      close(fd);
+  if (-1 == (dirfd = openat(dirtree_parentfd(new), new->name, O_RDONLY)))
+    return 0;
 
-      p[size] = 0;
+  *driver = 0;
+  if (toys.optflags & FLAG_k)
+    readlinkat(dirfd, "driver", driver, sizeof(driver));
+
+  for (fields = (char*[]){"class", "vendor", "device", 0}; *fields; fields++) {
+    int fd, size = 6 + 2*((toys.optflags & FLAG_e) && p == toybuf);
+    *p = 0;
+
+    if (-1 == (fd = openat(dirfd, *fields, O_RDONLY))) {
+      close(dirfd);
+      return 0;
+    }
+    xreadall(fd, p, size);
+    memmove(p, p+2, size -= 2);
+    p[size] = 0;
+    close(fd);
+    p += 9;
+  }
+
+  close(dirfd);
+
+  // Lookup/display data from pci.ids?
+
+  if (CFG_LSPCI_TEXT && TT.db) {
+    if (TT.numeric != 1) {
+      char *s;
+
+      fseek(TT.db, 0, SEEK_SET);
+      while (!vbig || !dbig) {
+        s = p;
+        if (!fgets(s, sizeof(toybuf)-(p-toybuf)-1, TT.db)) break;
+        while (isspace(*s)) s++;
+        if (*s == '#') continue;
+        if (vbig && s == p) break;
+        if (strstart(&s, vbig ? device : vendor)) {
+          if (vbig) dbig = s+2;
+          else vbig = s+2;
+          s += strlen(s);
+          s[-1] = 0; // trim ending newline
+          p = s + 1;
+        }
+      }
     }
 
-    close(dirfd);
-    if (errno) return 0;
+    if (TT.numeric > 1) {
+      printf((toys.optflags & FLAG_m)
+        ? "%s, \"%s\" \"%s [%s]\" \"%s [%s]\""
+        : "%s Class %s: %s [%s] %s [%s]",
+        new->name+5, toybuf, vbig ? vbig : "", vendor,
+        dbig ? dbig : "", device);
 
-    {
-      char *driver = "";
-      char *fmt = (toys.optflags & FLAG_m) ? "%s, \"%s\" \"%s\" \"%s\" \"%s\"\n"
-                                                   : "%s Class %s: %s:%s %s\n";
-
-      if (toys.optflags & FLAG_k) {
-        strcat(dname, "/driver");
-        if (readlink(dname, bufs->module, sizeof(bufs->module)) != -1)
-          driver = basename(bufs->module);
-      }
-      if (CFG_LSPCI_TEXT && TT.numeric != 1) {
-        res = find_in_db(bufs->vendor, bufs->device, TT.db,
-                         bufs->vname, bufs->devname);
-      }
-      if (CFG_LSPCI_TEXT && TT.numeric > 1) {
-        fmt = (toys.optflags & FLAG_m)
-            ? "%s, \"%s\" \"%s [%s]\" \"%s [%s]\" \"%s\"\n"
-            : "%s Class %s: %s [%s] %s [%s] %s\n";
-        printf(fmt, new->name + 5, bufs->class, bufs->vname, bufs->vendor,
-               bufs->devname, bufs->device, driver);
-      } else {
-        printf(fmt, new->name + 5, bufs->class, 
-               (res < 2) ? bufs->vname : bufs->vendor, 
-               !(res) ? bufs->devname : bufs->device, driver);
-      }
+      goto driver;
     }
   }
+
+  printf((toys.optflags & FLAG_m) ? "%s \"%s\" \"%s\" \"%s\""
+    : "%s Class %s: %s:%s", new->name+5, toybuf, 
+    vbig ? vbig : vendor, dbig ? dbig : device);
+
+driver:
+  if (*driver)
+    printf((toys.optflags & FLAG_m) ? " \"%s\"" : " %s", basename(driver));
+  xputc('\n');
 
   return 0;
 }
@@ -143,11 +120,9 @@ int do_lspci(struct dirtree *new)
 void lspci_main(void)
 {
   if (CFG_LSPCI_TEXT && TT.numeric != 1) {
-    TT.db = fopen(TT.ids ? TT.ids : "/usr/share/misc/pci.ids", "r");
-    if (errno) {
-      TT.numeric = 1;
-      error_msg("could not open PCI ID db");
-    }
+    if (!TT.ids) TT.ids = "/usr/share/misc/pci.ids";
+    if (!(TT.db = fopen(TT.ids, "r")))
+      perror_msg("could not open PCI ID db");
   }
 
   dirtree_read("/sys/bus/pci/devices", do_lspci);
