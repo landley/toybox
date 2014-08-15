@@ -686,15 +686,16 @@ char *num_to_sig(int sig)
 // premute mode bits based on posix mode strings.
 mode_t string_to_mode(char *modestr, mode_t mode)
 {
-  char *whos = "ogua", *hows = "=+-", *whats = "xwrstX", *whys = "ogu";
-  char *s, *str = modestr;
+  char *whos = "ogua", *hows = "=+-", *whats = "xwrstX", *whys = "ogu",
+       *s, *str = modestr;
+  mode_t extrabits = mode & ~(07777);
 
   // Handle octal mode
   if (isdigit(*str)) {
     mode = strtol(str, &s, 8);
     if (*s || (mode & ~(07777))) goto barf;
 
-    return mode;
+    return mode | extrabits;
   }
 
   // Gaze into the bin of permission...
@@ -762,7 +763,8 @@ mode_t string_to_mode(char *modestr, mode_t mode)
 
     if (!*str) break;
   }
-  return mode;
+
+  return mode|extrabits;
 barf:
   error_exit("bad mode '%s'", modestr);
 }
