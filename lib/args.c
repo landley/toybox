@@ -138,15 +138,18 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt)
     error_exit("Unknown option %s", gof->arg);
   }
 
-  // Set flags
+  // Might enabling this switch off something else?
   if (toys.optflags & opt->dex[0]) {
     struct opts *clr;
     unsigned i = 1;
 
+    // Forget saved argument for flag we switch back off
     for (clr=gof->opts, i=1; clr; clr = clr->next, i<<=1)
-      if (clr->arg && (i & toys.optflags)) *clr->arg = 0;
+      if (clr->arg && (i & toys.optflags & opt->dex[0])) *clr->arg = 0;
     toys.optflags &= ~opt->dex[0];
   }
+
+  // Set flags
   toys.optflags |= opt->dex[1];
   gof->excludes |= opt->dex[2];
   if (opt->flags&2) gof->stopearly=2;
