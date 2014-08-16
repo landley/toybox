@@ -9,6 +9,8 @@
 
 USE_CP(NEWTOY(cp, "<2RHLPp"USE_CP_MORE("rdaslvn")"fi[-HLPd]"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
 USE_CP_MV(OLDTOY(mv, cp, "<2"USE_CP_MORE("vn")"fi"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
+USE_INSTALL(NEWTOY(install, "<1cdDpsvm:o:g:", TOYFLAG_USR|TOYFLAG_BIN))
+*
 
 config CP
   bool "cp"
@@ -61,14 +63,40 @@ config CP_MV_MORE
 
     -v	verbose
     -n	no clobber (don't overwrite DEST)
+
+config INSTALL
+  bool "install"
+  default y
+  depends on CP && CP_MORE
+  help
+    usage: install [-dDpsv] [-o USER] [-g GROUP] [-m MODE] [SOURCE...] DEST
+
+    Copy files and set attributes.
+
+    -d	Act like mkdir -p
+    -D	Create leading directories for DEST
+    -g	Make copy belong to GROUP
+    -m	Set permissions to MODE
+    -o	Make copy belong to USER
+    -p	Preserve timestamps
+    -s	Call "strip -p"
+    -v	Verbose
 */
 
 #define FOR_cp
 #include "toys.h"
 
 GLOBALS(
+  // install's options
+  char *group;
+  char *user;
+  char *mode;
+
   char *destname;
   struct stat top;
+  int (*callback)(struct dirtree *try);
+  uid_t uid;
+  gid_t gid;
 )
 
 // Callback from dirtree_read() for each file/directory under a source dir.
@@ -124,7 +152,7 @@ int cp_node(struct dirtree *try)
 
     if (flags & FLAG_v) {
       char *s = dirtree_path(try, 0);
-      printf("cp '%s'\n", s);
+      printf("%s '%s'\n", toys.which->name, s);
       free(s);
     }
 
@@ -249,8 +277,8 @@ int cp_node(struct dirtree *try)
 
     if (fdout != AT_FDCWD) xclose(fdout);
 
-    if (toys.which->name[0] == 'm')
-      if (unlinkat(tfd, try->name, S_ISDIR(try->st.st_mode) ? AT_REMOVEDIR : 0))
+    if (CFG_CP_MV && toys.which->name[0] == 'm')
+      if (unlinkat(tfd, try->name, S_ISDIR(try->st.st_mode) ? AT_REMOVEDIR :0))
         err = "%s";
   }
 
@@ -267,6 +295,8 @@ void cp_main(void)
   if (toys.which->name[0] == 'm') toys.optflags |= FLAG_d|FLAG_p|FLAG_R;
   if (toys.optflags & (FLAG_a|FLAG_p)) umask(0);
 
+  if (!TT.callback) TT.callback = cp_node;
+
   // Loop through sources
 
   for (i=0; i<toys.optc; i++) {
@@ -278,7 +308,7 @@ void cp_main(void)
     else TT.destname = destname;
 
     errno = EXDEV;
-    if (toys.which->name[0] == 'm') rc = rename(src, TT.destname);
+    if (CFG_CP_MV && toys.which->name[0] == 'm') rc = rename(src, TT.destname);
 
     // Skip nonexistent sources
     if (rc) {
@@ -286,8 +316,62 @@ void cp_main(void)
 
       if (errno != EXDEV || !(new = dirtree_add_node(0, src, symfollow)))
           perror_msg("bad '%s'", src);
-      else dirtree_handle_callback(new, cp_node);
+      else dirtree_handle_callback(new, TT.callback);
     }
     if (destdir) free(TT.destname);
   }
+}
+
+#define CLEANUP_cp
+#define FOR_install
+#include <generated/flags.h>
+
+static int install_node(struct dirtree *try)
+{
+  if (TT.mode) try->st.st_mode = string_to_mode(TT.mode, try->st.st_mode);
+  if (TT.group) try->st.st_gid = TT.gid;
+  if (TT.user) try->st.st_uid = TT.uid;
+
+  // Always returns 0 because no -r
+  cp_node(try);
+
+  // No -r so always one level deep, so destname as set by cp_node() is correct
+  if (toys.optflags & FLAG_s)
+    if (xpclose(xpopen((char *[]){"strip", "-p", TT.destname, 0}, 0), 0))
+      toys.exitval = 1;
+
+  return 0;
+}
+
+void install_main(void)
+{
+  char **ss;
+  int flags = toys.optflags;
+
+  if (flags & FLAG_d) {
+    for (ss = toys.optargs; *ss; ss++) {
+      if (mkpathat(AT_FDCWD, *ss, 0777, 3)) perror_msg("%s", *ss);
+      if (flags & FLAG_v) printf("%s\n", *ss);
+    }
+
+    return;
+  }
+
+  if (toys.optflags & FLAG_D) {
+    if (mkpathat(AT_FDCWD, TT.destname, 0, 2))
+      perror_exit("-D '%s'", TT.destname);
+    if (toys.optc == 1) return;
+  }
+  if (toys.optc < 2) error_exit("needs 2 args");
+
+  // Translate flags from install to cp
+  toys.optflags = 4;  // Force cp's FLAG_n
+  if (flags & FLAG_v) toys.optflags |= 8; // cp's FLAG_v
+  if (flags & (FLAG_p|FLAG_o|FLAG_g)) toys.optflags |= 512; // cp's FLAG_p
+
+  if (TT.user) TT.uid = xgetpwnam(TT.user)->pw_uid;
+  if (TT.group) TT.gid = xgetgrnam(TT.group)->gr_gid;
+
+  TT.callback = install_node;
+  cp_main();
 }
