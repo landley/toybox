@@ -111,55 +111,33 @@ static void new_user()
 {
   struct passwd pwd;
   char *entry, *args[4];
-  int max = INT_MAX;
 
   pwd.pw_name = *toys.optargs;
-  pwd.pw_passwd = (char *)"x";
-  if (toys.optflags & FLAG_g) pwd.pw_gecos = TT.gecos;
-  else pwd.pw_gecos = "Linux User,";
-  if (toys.optflags & FLAG_h) pwd.pw_dir = TT.dir;
-  else pwd.pw_dir = xmprintf("/home/%s", *toys.optargs);
-  if (toys.optflags & FLAG_s) pwd.pw_shell = TT.shell;
-  else pwd.pw_shell = get_shell();
+  pwd.pw_passwd = "x";
+  pwd.pw_gecos = (toys.optflags & FLAG_g) ? TT.gecos : "Linux User,";
+  pwd.pw_dir = (toys.optflags & FLAG_h) ? TT.dir
+    : xmprintf("/home/%s", *toys.optargs);
+  pwd.pw_shell = (toys.optflags & FLAG_s) ? TT.shell : get_shell();
 
   if (toys.optflags & FLAG_u) {
-    if (TT.uid > INT_MAX) error_exit("uid should be less than  '%d' ", INT_MAX);
-    if (getpwuid(TT.uid)) error_exit("user '%ld' is in use", TT.uid);
-    pwd.pw_uid = TT.uid;
+    if (TT.uid > INT_MAX) error_exit("bad uid");
+    if (getpwuid(TT.uid)) error_exit("uid '%ld' in use", TT.uid);
   } else {
-    if (toys.optflags & FLAG_S) {
-      TT.uid = SYS_FIRST_ID;
-      max = SYS_LAST_ID;
-    } else {
-      TT.uid = SYS_LAST_ID + 1; //i.e. starting from 1000
-      max = 60000; // as per config file on Linux desktop
-    }
+    if (toys.optflags & FLAG_S) TT.uid = CFG_TOYBOX_UID_SYS;
+    else TT.uid = CFG_TOYBOX_UID_USR;
     //find unused uid
-    while (TT.uid <= max) {
-      if (!getpwuid(TT.uid)) break;
-      if (TT.uid == max) error_exit("no more free uids left");
-      TT.uid++;
-    }
-    pwd.pw_uid = TT.uid;
+    while (getpwuid(TT.uid)) TT.uid++;
   }
+  pwd.pw_uid = TT.uid;
 
-  if (toys.optflags & FLAG_G) {
-    struct group *gr = getgrnam(TT.u_grp);
-    if (!gr) error_exit("The group '%s' doesn't exist", TT.u_grp);
-    TT.gid = gr->gr_gid;
-  } else {
+  if (toys.optflags & FLAG_G) TT.gid = xgetgrnam(TT.u_grp)->gr_gid;
+  else {
     // Set the GID for the user, if not specified
-    if (toys.optflags & FLAG_S) {
-      TT.gid = SYS_FIRST_ID;
-      max = SYS_LAST_ID;
-    } else TT.gid = ((TT.uid > SYS_LAST_ID) ? TT.uid : SYS_LAST_ID + 1);
-    if (getgrnam(pwd.pw_name)) error_exit("group '%s' is in use", pwd.pw_name);
+    if (toys.optflags & FLAG_S) TT.gid = CFG_TOYBOX_UID_SYS;
+    else TT.gid = CFG_TOYBOX_UID_USR;
+    if (getgrnam(pwd.pw_name)) error_exit("group '%s' in use", pwd.pw_name);
     //find unused gid
-    while (TT.gid <= max) {
-      if (!getgrgid(TT.gid)) break;
-      if (TT.gid == max) error_exit("no more free gids left");
-      TT.gid++;   
-    }
+    while (getgrgid(TT.gid)) TT.gid++;
   }
   pwd.pw_gid = TT.gid;
 

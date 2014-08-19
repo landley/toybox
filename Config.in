@@ -8,6 +8,7 @@ comment ""
 
 menu "Toybox global settings"
 
+# This entry controls the multiplexer, disabled for single command builds
 config TOYBOX
 	bool
 	default y
@@ -74,6 +75,19 @@ config TOYBOX_DEBUG
 	bool "Debugging tests"
 	default n
 	help
-	  Enable extra checks for debugging purposes.
+	  Enable extra checks for debugging purposes. All of them catch
+          things that can only go wrong at development time, not runtime.
+
+config TOYBOX_UID_SYS
+	int "First system UID"
+	default 100
+	help
+	  When commands like useradd/groupadd allocate system IDs, start here.
+
+config TOYBOX_UID_USR
+	int "First user UID"
+	default 500
+	help
+	  When commands like useradd/groupadd allocate user IDs, start here.
 
 endmenu

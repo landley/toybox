@@ -13,63 +13,70 @@ config GROUPDEL
   default n
   help
     usage: delgroup [USER] GROUP
-    groupdel GROUP
+    usage: groupdel GROUP
 
-    Delete a group or delete a user from a group
+    Delete a group or remove a user from a group
 */
 
 #define FOR_groupdel
 #include "toys.h"
 
+char *comma_find(char *name, char *list)
+{
+  int len = strlen(name);
+
+  while (*list) {
+    while (*list == ',') list++;
+    if (!strncmp(name, list, len) && (!list[len] || list[len]==','))
+      return list;
+    while (*list && *list!=',') list++;
+  }
+
+  return 0;
+}
+
 void groupdel_main(void)
 {
-  struct group *grp = NULL;
-  char *entry = NULL;
+  struct group *grp = getgrnam(toys.optargs[toys.optc-1]);
+  char *entry = 0;
 
-  if (toys.optc == 2) {  //del user from group
-    //toys.optargs[0]- user, toys.optargs[1] - group
-    if (!getpwnam(toys.optargs[0])) 
-      error_exit("user '%s' does not exist", toys.optargs[0]);
-    if (!(grp = getgrnam(toys.optargs[1]))) 
-      error_exit("group '%s' does not exist", toys.optargs[1]);
-    if (!(grp = getgrnam(toys.optargs[1]))) 
-      error_exit("group '%s' does not exist", toys.optargs[1]);
-    if (!grp->gr_mem) return;
-    else {
-      int i, found = -1;
+  if (!grp) perror_exit("group '%s'", toys.optargs[toys.optc-1]);
 
-      for (i = 0; grp->gr_mem[i] && (found == -1); i++)
-        if (!strcmp(grp->gr_mem[i], *toys.optargs)) found = i;
+  // delete user from group
+  if (toys.optc == 2) {
+    int i, len = 0, found = -1;
+    char *s;
 
-      if (found == -1) {
-        xprintf("%s: The user '%s' is not a member of '%s'\n", toys.which->name,
-            toys.optargs[0], toys.optargs[1]);
-        return;
-      }
-      entry = xstrdup("");
-      for (i=0; grp->gr_mem[i]; i++) {
-        if (found != i) { //leave out user from grp member list
-          if (i && *entry) strcat(entry, ",");
-          entry = xrealloc(entry, strlen(entry) + strlen(grp->gr_mem[i]) + 2);
-          strcat(entry, grp->gr_mem[i]);
-        }
+    xgetpwnam(*toys.optargs);
+    if (grp->gr_mem) {
+      for (i = 0; grp->gr_mem[i]; i++) {
+        if (found == -1 && !strcmp(*toys.optargs, grp->gr_mem[i])) found = i;
+        else len += strlen(grp->gr_mem[i]) + 1;
       }
     }
-  } else {    //delete the group
-    struct passwd *pw = NULL;
+    if (found == -1)
+      error_exit("user '%s' not in group '%s'", *toys.optargs, toys.optargs[1]);
 
-    if (!(grp = getgrnam(*toys.optargs))) 
-      error_exit("group '%s' doesn't exist", *toys.optargs);
-    //is it a primary grp of user
-    while ((pw = getpwent())) {
-      if (pw->pw_gid == grp->gr_gid) {
-        endpwent();
-        error_exit("can't remove primary group of user '%s'", pw->pw_name);
-      }
+    entry = s = xmalloc(len);
+    for (i = 0; grp->gr_mem[i]; ) {
+      if (i) *(s++) = ',';
+      s = stpcpy(s, grp->gr_mem[i]);
     }
+
+  // delete group
+  } else {
+    struct passwd *pw;
+
+    endpwent(); // possibly this should be in toy_init()?
+    for (;;) {
+      if (!(pw = getpwent())) break;
+      if (pw->pw_gid == grp->gr_gid) break;
+    }
+    if (pw) error_exit("can't remove primary group of user '%s'", pw->pw_name);
     endpwent();
   }
+
   update_password("/etc/group", grp->gr_name, entry);
   update_password("/etc/gshadow", grp->gr_name, entry);
-  free(entry);
+  if (CFG_TOYBOX_FREE) free(entry);
 }

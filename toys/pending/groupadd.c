@@ -38,25 +38,15 @@ GLOBALS(
 static void new_group()
 {
   char *entry = NULL;
-  int max = INT_MAX;
 
   if (toys.optflags & FLAG_g) {
     if (TT.gid > INT_MAX) error_exit("gid should be less than  '%d' ", INT_MAX);
     if (getgrgid(TT.gid)) error_exit("group '%ld' is in use", TT.gid);
   } else {
-    if (toys.optflags & FLAG_S) {
-      TT.gid = SYS_FIRST_ID;
-      max = SYS_LAST_ID;
-    } else {
-      TT.gid = SYS_LAST_ID + 1; //i.e. starting from 1000
-      max = 60000; // as per config file on Linux desktop
-    }
+    if (toys.optflags & FLAG_S) TT.gid = CFG_TOYBOX_UID_SYS;
+    else TT.gid = CFG_TOYBOX_UID_USR;
     //find unused gid
-    while (TT.gid <= max) {
-      if (!getgrgid(TT.gid)) break;
-      if (TT.gid == max) error_exit("no more free gids left");
-      TT.gid++;
-    }
+    while (getgrgid(TT.gid)) TT.gid++;
   }
 
   entry = xmprintf("%s:%s:%d:", *toys.optargs, "x", TT.gid);
