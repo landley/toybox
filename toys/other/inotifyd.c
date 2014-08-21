@@ -9,7 +9,7 @@ USE_INOTIFYD(NEWTOY(inotifyd, "<2", TOYFLAG_USR|TOYFLAG_BIN))
 
 config INOTIFYD
   bool "inotifyd"
-  default n
+  default y
   help
     usage: inotifyd PROG FILE[:MASK] ...
 
