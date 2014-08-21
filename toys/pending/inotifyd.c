@@ -17,6 +17,8 @@ config INOTIFYD
 
       PROG EVENTS FILE [DIRFILE]
 
+    If PROG is "-" events are sent to stdout.
+
     This file is:
       a  accessed    c  modified    e  metadata change  w  closed (writable)
       r  opened      D  deleted     M  moved            0  closed (unwritable)
@@ -26,7 +28,6 @@ config INOTIFYD
       m  moved in    y  moved out   n  created          d  deleted
 
     When x event happens for all FILEs, inotifyd exits (after waiting for PROG).
-    If PROG is -, events are sent to stdout.
 */
 
 #define FOR_inotifyd
