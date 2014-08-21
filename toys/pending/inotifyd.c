@@ -11,165 +11,115 @@ config INOTIFYD
   bool "inotifyd"
   default n
   help
-    usage: inotifyd PROG FILE[:mask] ...
+    usage: inotifyd PROG FILE[:MASK] ...
 
-    Run PROG on filesystem changes.
-    When a filesystem event matching MASK occurs on FILEn,
-    PROG ACTUAL_EVENTS FILEn [SUBFILE] is run.
+    When a filesystem event matching MASK occurs to a FILE, run PROG as:
+
+      PROG EVENTS FILE [DIRFILE]
+
+    This file is:
+      a  accessed    c  modified    e  metadata change  w  closed (writable)
+      r  opened      D  deleted     M  moved            0  closed (unwritable)
+      u  unmounted   o  overflow    x  unwatchable
+
+    A file in this directory is:
+      m  moved in    y  moved out   n  created          d  deleted
+
+    When x event happens for all FILEs, inotifyd exits (after waiting for PROG).
     If PROG is -, events are sent to stdout.
-
-    Events:
-      a   File is accessed
-      c   File is modified
-      e   Metadata changed
-      w   Writable file is closed
-      0   Unwritable file is closed
-      r   File is opened
-      D   File is deleted
-      M   File is moved
-      u   Backing fs is unmounted
-      o   Event queue overflowed
-      x   File can't be watched anymore
-    If watching a directory:
-      m   Subfile is moved into dir
-      y   Subfile is moved out of dir
-      n   Subfile is created
-      d   Subfile is deleted
-
-    inotifyd waits for PROG to exit.
-    When x event happens for all FILEs, inotifyd exits.
 */
+
 #define FOR_inotifyd
 #include "toys.h"
 #include <sys/inotify.h>
 
-GLOBALS(
-  int gotsignal;
-)
-
-static void sig_handler(int sig)
-{
-  TT.gotsignal = sig;
-}
-
-static int exec_wait(char **args)
-{
-  int status = 0;
-  pid_t pid = xfork();
-
-  if (!pid) xexec(args);
-  else waitpid(pid, &status, 0);
-  return WEXITSTATUS(status);
-}
-
 void inotifyd_main(void)
 {
   struct pollfd fds;
-  char *prog_args[5], **files, **restore;
-  struct mask_nameval {
-    char name;
-    unsigned long val;
-  } mask_nv[] = {
-    { 'a', IN_ACCESS },
-    { 'c', IN_MODIFY },
-    { 'e', IN_ATTRIB },
-    { 'w', IN_CLOSE_WRITE },
-    { '0', IN_CLOSE_NOWRITE },
-    { 'r', IN_OPEN },
-    { 'm', IN_MOVED_FROM },
-    { 'y', IN_MOVED_TO },
-    { 'n', IN_CREATE },
-    { 'd', IN_DELETE },
-    { 'D', IN_DELETE_SELF },
-    { 'M', IN_MOVE_SELF },
-    { 'u', IN_UNMOUNT },
-    { 'o', IN_Q_OVERFLOW },
-    { 'x', IN_IGNORED }
-  };
-  int mask, masks_len = ARRAY_LEN(mask_nv);
+  char *prog_args[5], **ss = toys.optargs;
+  char *masklist ="acew0rmyndDM uox";
 
-  prog_args[0] = toys.optargs[0];
-  prog_args[4] = NULL;
-  toys.optc--; // 1st one is program, rest are files to be watched
-  //wd ZERO is not used, hence toys.optargs is assigned to files.
-  restore = files = toys.optargs;
-  if ((fds.fd = inotify_init()) == -1) perror_exit("initialization failed");
-
-  while (*++toys.optargs) {
-    char *path = *toys.optargs;
-    char *masks = strchr(path, ':');
-
-    mask = 0x0fff; //assuming all non-kernel events to be notified.
-    if (masks) {
-      *masks++ = '\0';
-      mask = 0; 
-      while (*masks) {
-        int i = 0;
-
-        for (i = 0; i < masks_len; i++) {
-          if (*masks == mask_nv[i].name) {
-            mask |= mask_nv[i].val;
-            break;
-          }
-        }
-        if (i == masks_len) error_exit("wrong mask '%c'", *masks);
-        masks++;
-      }
-    }
-    if (inotify_add_watch(fds.fd, path, mask) < 0) 
-      perror_exit("add watch '%s' failed", path);
-  }
-  toys.optargs = restore;
-  sigatexit(sig_handler);
   fds.events = POLLIN;
 
-  while (1) {
-    int ret = 0, queue_len;
-    void *buf = NULL;
+  *prog_args = *toys.optargs;
+  prog_args[4] = 0;
+  if ((fds.fd = inotify_init()) == -1) perror_exit(0);
+
+  // Track number of watched files. First one was program to run.
+  toys.optc--;
+
+  while (*++ss) {
+    char *path = *ss, *masks = strchr(*ss, ':');
+    int i, mask = 0;
+
+    if (!masks) mask = 0xfff; // default to all
+    else{
+      *masks++ = 0;
+      for (*masks++ = 0; *masks; masks++) {
+        i = stridx(masklist, *masks);;
+        if (i == -1) error_exit("bad mask '%c'", *masks);
+        mask |= 1<<i;
+      }
+    }
+
+    // This returns increasing numbers starting from 1, which coincidentally
+    // is the toys.optargs position of the file. (0 is program to run.)
+    if (inotify_add_watch(fds.fd, path, mask) < 0) perror_exit("%s", path);
+  }
+
+  for (;;) {
+    int ret = 0, len;
+    void *buf = 0;
     struct inotify_event *event;
 
-retry:
-    if (TT.gotsignal) break;
+    // Read next event(s)
     ret = poll(&fds, 1, -1);
-    if (ret < 0 && errno == EINTR) goto retry;
+    if (ret < 0 && errno == EINTR) continue;
     if (ret <= 0) break;
-    xioctl(fds.fd, FIONREAD, &queue_len);
-    event = buf = xmalloc(queue_len);
-    queue_len = readall(fds.fd, buf, queue_len);
-    while (queue_len > 0) {
-      uint32_t m = event->mask;
+    xioctl(fds.fd, FIONREAD, &len);
+    event = buf = xmalloc(len);
+    len = readall(fds.fd, buf, len);
 
-      if (m) {
-        char evts[masks_len+1], *s = evts;
-        int i;
+    // Loop through set of events.
+    for (;;) {
+      int left = len - (((char *)event)-(char *)buf),
+          size = sizeof(struct inotify_event);
 
-        for (i = 0; i < masks_len; i++) 
-          if (m & mask_nv[i].val) *s++ = mask_nv[i].name;
-        *s = '\0';
+      // Don't dereference event if ->len is off end of bufer
+      if (left >= size) size += event->len;
+      if (left < size) break;
 
-        if (prog_args[0][0] == '-' && !prog_args[0][1]) { //stdout
-          printf(event->len ? "%s\t%s\t%s\n" : "%s\t%s\n", evts,
-              files[event->wd], event->name);
-          fflush(stdout);
+      if (event->mask) {
+        char *s = toybuf, *m;
+
+        for (m = masklist; *m; m++)
+          if (event->mask & (1<<(m-masklist))) *s++ = *m;
+        *s = 0;
+
+        if (**prog_args == '-' && !prog_args[0][1]) {
+          xprintf("%s\t%s\t%s\n" + 3*!event->len, toybuf,
+              toys.optargs[event->wd], event->name);
         } else {
-          prog_args[1] = evts;
-          prog_args[2] = files[event->wd];
-          prog_args[3] = event->len ? event->name : NULL;
-          exec_wait(prog_args); //exec and wait...
+          prog_args[1] = toybuf;
+          prog_args[2] = toys.optargs[event->wd];
+          prog_args[3] = event->len ? event->name : 0;
+          xpclose(xpopen(prog_args, 0), 0);
         }
+
         if (event->mask & IN_IGNORED) {
           if (--toys.optc <= 0) {
             free(buf);
+
             goto done;
           }
           inotify_rm_watch(fds.fd, event->wd);
         }
       }
-      queue_len -= sizeof(struct inotify_event) + event->len;
-      event = (void*)((char*)event + sizeof(struct inotify_event) + event->len); //next event
+      event = (void*)(size + (char*)event);
     }
     free(buf);
   }
+
 done:
-  toys.exitval = TT.gotsignal;
+  toys.exitval = !!toys.signal;
 }
