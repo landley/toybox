@@ -128,7 +128,7 @@ static void open_tty(void)
     if ((setsid() < 0) && (getpid() != getsid(0))) 
       perror_exit("setsid");
     xclose(0);
-    xopen(TT.tty_name, O_RDWR|O_NDELAY);
+    xopen(TT.tty_name, O_RDWR|O_NDELAY|O_CLOEXEC);
     fcntl(0, F_SETFL, fcntl(0, F_GETFL) & ~O_NONBLOCK); // Block read
     dup2(0, 1);
     dup2(0, 2);
