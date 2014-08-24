@@ -8,7 +8,7 @@ USE_BLOCKDEV(NEWTOY(blockdev, "<1>1(setro)(setrw)(getro)(getss)(getbsz)(setbsz)#
 
 config BLOCKDEV
   bool "blockdev"
-  default n
+  default y
   help
     usage: blockdev --OPTION... BLOCKDEV...
 
