@@ -3,7 +3,6 @@
  * Copyright 2014 Sameer Prakash Pradhan <sameer.p.pradhan@gmail.com>
  *
  * No Standard.
- *
 
 USE_BLOCKDEV(NEWTOY(blockdev, "<1>1(setro)(setrw)(getro)(getss)(getbsz)(setbsz)#<0(getsz)(getsize)(getsize64)(flushbufs)(rereadpt)",TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -11,20 +10,22 @@ config BLOCKDEV
   bool "blockdev"
   default n
   help
-  usage:blockdev OPTION BLOCKDEV
- 
- 
-  setro	Set ro
-  setrw	Set rw
-  getro	Get ro
-  getss	Get sector size
-  getbsz Get block size
-  setbsz BYTES	Set block size
-  getsz Get device size in 512-byte sectors
-  getsize Get device size in sectors (deprecated)
-  getsize64	Get device size in bytes
-  flushbufs	Flush buffers
-  rereadpt Reread partition table
+    usage: blockdev --OPTION... BLOCKDEV...
+
+    Call ioctl(s) on each listed block device
+
+    OPTIONs:
+    --setro		Set read only
+    --setrw		Set read write
+    --getro		Get read only
+    --getss		Get sector size
+    --getbsz	Get block size
+    --setbsz	BYTES	Set block size
+    --getsz		Get device size in 512-byte sectors
+    --getsize	Get device size in sectors (deprecated)
+    --getsize64	Get device size in bytes
+    --flushbufs	Flush buffers
+    --rereadpt	Reread partition table
 */
 
 #define FOR_blockdev
@@ -37,56 +38,33 @@ GLOBALS(
 
 void blockdev_main(void)
 {
+  int cmds[] = {BLKRRPART, BLKFLSBUF, BLKGETSIZE64, BLKGETSIZE, BLKGETSIZE64,
+                BLKBSZSET, BLKBSZGET, BLKSSZGET, BLKROGET, BLKROSET, BLKROSET};
+  char **ss;
   long long val = 0;
-  int cmd, fd, set = 0;
 
-  switch (toys.optflags) {
-    case FLAG_setro:
-      cmd = BLKROSET;
-      val = set = 1;
-      break;
-    case FLAG_setrw:
-      cmd = BLKROSET;
-      set = 1;
-      break;
-    case FLAG_getro:
-      cmd = BLKROGET;           
-      break;
-    case FLAG_getss:
-      cmd = BLKSSZGET;           
-      break;
-    case FLAG_getbsz:
-      cmd = BLKBSZGET;            
-      break;
-    case FLAG_setbsz:
-      cmd = BLKBSZSET;
-      set = 1;
-      val = TT.bsz;            
-      break;
-    case FLAG_getsz:
-      cmd = BLKGETSIZE64;            
-      break;
-    case FLAG_getsize:
-      cmd = BLKGETSIZE;            
-      break;
-    case FLAG_getsize64:
-      cmd = BLKGETSIZE64;            
-      break;
-    case FLAG_flushbufs:
-      cmd = BLKFLSBUF;
-      set = 1;
-      break;
-    case FLAG_rereadpt:
-      cmd = BLKRRPART;
-      set = 1;
-      break;
-    default:
-      toys.exithelp = 1;
-      error_exit(NULL);
+  if (!toys.optflags) {
+    toys.exithelp = 1;
+    error_exit("need --option");
   }
-  fd = xopen(*toys.optargs, O_RDONLY);
-  xioctl(fd, cmd, &val);
-  if (!set) 
-    printf("%lld\n",  ((toys.optflags & FLAG_getsz)?val >> 9: val));          
-  if (CFG_TOYBOX_FREE) xclose(fd);
+
+  for (ss = toys.optargs;  *ss; ss++) {
+    int fd = xopen(*ss, O_RDONLY), i;
+
+    // Command line order discarded so perform multiple operations in flag order
+    for (i = 0; i < 32; i++) {
+      long flag = toys.optflags & (1<<i);
+
+      if (!flag) continue;
+
+      if (flag & FLAG_setbsz) val = TT.bsz;
+      else val = !!(flag & FLAG_setro);
+
+      xioctl(fd, cmds[i], &val);
+
+      flag &= FLAG_setbsz|FLAG_setro|FLAG_flushbufs|FLAG_rereadpt|FLAG_setrw;
+      if (!flag) printf("%lld\n", (toys.optflags & FLAG_getsz) ? val >> 9: val);
+    }
+    xclose(fd);
+  }
 }
