@@ -7,11 +7,7 @@ source ./configure
 
 [ -z "$KCONFIG_CONFIG" ] && KCONFIG_CONFIG=".config"
 
-if [ -z "$CPUS" ]
-then
-  CPUS=$(echo /sys/devices/system/cpu/cpu[0-9]* | wc -w)
-  CPUS=$(($CPUS+1))
-fi
+[ -z "$CPUS" ] && CPUS=$(($(echo /sys/devices/system/cpu/cpu[0-9]* | wc -w)+1))
 
 # Respond to V= by echoing command lines as well as running them
 do_loudly()
@@ -188,6 +184,7 @@ LINK="-o toybox_unstripped -Wl,--as-needed $(cat generated/optlibs.dat)"
 # This is a parallel version of: do_loudly $BUILD $FILES $LINK || exit 1
 
 rm -f generated/*.o
+PENDING=
 for i in $FILES
 do
   # build each generated/*.o file in parallel
@@ -200,14 +197,17 @@ do
 
   while true
   do
-    [ $(jobs -rp | wc -w) -lt "$CPUS" ] && break;
-    wait $(jobs -p | head -n 1) || exit 1
+    PENDING="$(echo $PENDING $(jobs -rp) | tr ' ' '\n' | sort -u)"
+    [ $(echo $PENDING | wc -l) -lt "$CPUS" ] && break;
+
+    wait $(echo $PENDING | head -n 1) || exit 1
+    PENDING="$(echo "$PENDING" | tail -n +2)"
   done
 done
 
 # wait for all background jobs, detecting errors
 
-for i in $(jobs -p)
+for i in $PENDING
 do
   wait $i || exit 1
 done
