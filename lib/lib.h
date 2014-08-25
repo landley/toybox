@@ -182,6 +182,11 @@ struct mtab_list {
   char type[0];
 };
 
+void comma_collate(char **old, char *new);
+char *comma_iterate(char **list, int *len);
+int comma_scan(char *optlist, char *opt, int clean);
+int comma_scanall(char *optlist, char *scanlist);
+int mountlist_istype(struct mtab_list  *ml, char *typelist);
 struct mtab_list *xgetmountlist(char *path);
 
 // signal

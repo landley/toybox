@@ -37,53 +37,44 @@ GLOBALS(
   char *types;
 )
 
-// todo
+// todo (done?)
 //   borrow df code to identify filesystem?
 //   umount -a from fstab
 //   umount when getpid() not 0, according to fstab
 //   lookup mount: losetup -d, bind, file, block
+//   loopback delete
+//   fstab -o user
 
 // TODO
-// loopback delete
-// fstab -o user
-
-// Realloc *old with oldstring,newstring
-
-void comma_collate(char **old, char *new)
-{
-  char *temp, *atold = *old;
-
-  // Only add a comma if old string didn't end with one
-  if (atold && *atold) {
-    char *comma = ",";
-
-    if (atold[strlen(atold)-1] == ',') comma = "";
-    temp = xmprintf("%s%s%s", atold, comma, new);
-  } else temp = xstrdup(new);
-  free (atold);
-  *old = temp;
-}
-
-// iterate through strings in a comma separated list.
-// returns start of next entry or NULL if none
-// sets *len to length of entry (not including comma)
-// advances *list to start of next entry
-char *comma_iterate(char **list, int *len)
-{
-  char *start = *list, *end;
-
-  if (!*list) return 0;
-
-  if (!(end = strchr(*list, ','))) {
-    *len = strlen(*list);
-    *list = 0;
-  } else *list += (*len = end-start)+1;
-
-  return start;
-}
+// swapon, swapoff
 
 static void do_umount(char *dir, char *dev, int flags)
 {
+  // is it ok for this user to umount this mount?
+  if (CFG_TOYBOX_SUID && getuid()) {
+    struct mtab_list *mt = dlist_terminate(xgetmountlist("/etc/fstab"));
+    int len, user = 0;
+
+    while (mt) {
+      struct mtab_list *mtemp = mt;
+      char *s;
+
+      if (!strcmp(mt->dir, dir)) while ((s = comma_iterate(&mt->opts, &len))) {
+        if (len == 4 && strncmp(s, "user", 4)) user = 1;
+        else if (len == 6 && strncmp(s, "nouser", 6)) user = 0;  
+      }
+
+      mt = mt->next;
+      free(mtemp);
+    }
+
+    if (!user) {
+      error_msg("not root");
+
+      return;
+    }
+  }
+
   if (!umount2(dir, flags)) {
     if (toys.optflags & FLAG_v) xprintf("%s unmounted\n", dir);
 
@@ -136,30 +127,8 @@ void umount_main(void)
     struct arg_list *tal;
     
     for (tal = TT.t; tal; tal = tal->next) comma_collate(&typestr, tal->arg);
-    for (ml = mlrev; ml; ml = ml->prev) {
-      if (typestr) {
-        char *type, *types = typestr;
-        int len, skip = strncmp(types, "no", 2);
-
-        for (;;) {
-          if (!(type = comma_iterate(&types, &len))) break;
-          if (!skip) {
-            // If one -t starts with "no", the rest must too
-            if (strncmp(type, "no", 2)) error_exit("bad -t");
-            if (!strncmp(type+2, ml->type, len-2)) {
-              skip = 1;
-              break;
-            }
-          } else if (!strncmp(type, ml->type, len) && !ml->type[len]) {
-            skip = 0;
-            break;
-          }
-        }
-        if (skip) continue;
-      }
-
-      do_umount(ml->dir, ml->device, flags);
-    }
+    for (ml = mlrev; ml; ml = ml->prev)
+      if (mountlist_istype(ml, typestr)) do_umount(ml->dir, ml->device, flags);
     if (CFG_TOYBOX_FREE) {
       free(typestr);
       llist_traverse(mlsave, free);
