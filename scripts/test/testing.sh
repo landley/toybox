@@ -7,6 +7,7 @@
 # The following environment variables enable optional behavior in "testing":
 #    DEBUG - Show every command run by test script.
 #    VERBOSE - Print the diff -u of each failed test case.
+#              If equal to "fail", stop after first failed test.
 #    SKIP - do not perform this test (this is set by "optionflag")
 #
 # The "testing" function takes five arguments:
@@ -83,6 +84,7 @@ testing ()
     then
       echo "echo '$5' | $2"
       diff -u expected actual
+      [ "$VERBOSE" == fail ] && exit 1
     fi
   else
     echo "PASS: $NAME"
