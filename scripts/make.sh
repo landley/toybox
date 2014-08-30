@@ -180,7 +180,7 @@ do_loudly()
 
 BUILD="${CROSS_COMPILE}${CC} $CFLAGS -I . $OPTIMIZE"
 FILES="$(ls lib/*.c) main.c $TOYFILES"
-LINK="-o toybox_unstripped -Wl,--as-needed $(cat generated/optlibs.dat)"
+LINK="$LDOPTIMIZE -o toybox_unstripped -Wl,--as-needed $(cat generated/optlibs.dat)"
 
 # This is a parallel version of: do_loudly $BUILD $FILES $LINK || exit 1
 
