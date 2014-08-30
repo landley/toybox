@@ -3,6 +3,7 @@
 # Grab default values for $CFLAGS and such.
 
 export LANG=c
+export LC_ALL=C
 source ./configure
 
 [ -z "$KCONFIG_CONFIG" ] && KCONFIG_CONFIG=".config"
