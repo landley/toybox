@@ -96,8 +96,10 @@ void toy_init(struct toy_list *which, char *argv[])
     uid_t uid = getuid(), euid = geteuid();
 
     if (!(which->flags & TOYFLAG_STAYROOT)) {
-      if (uid != euid)
-        if (!setuid(euid=uid)) perror_exit("setuid"); // drop root
+      if (uid != euid) {
+        if (!setuid(uid)) perror_exit("setuid %d->%d", euid, uid); // drop root
+        else euid = uid;
+      }
     } else if (CFG_TOYBOX_DEBUG && uid && which != toy_list)
       error_msg("Not installed suid root");
 
