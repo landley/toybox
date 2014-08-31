@@ -58,6 +58,10 @@ GLOBALS(
 // TODO mount -o remount
 // TODO fstab: lookup default options for mount
 // TODO implement -v
+// TODO "mount -a -o remount,ro" should detect overmounts
+// TODO work out how that differs from "mount -ar"
+// TODO what if you --bind mount a block device somewhere (file, dir, dev)
+// TODO "touch servername; mount -t cifs servername path"
 
 // Strip flags out of comma separated list of options, return flags,.
 static long flag_opts(char *new, long flags, char **more)
@@ -170,38 +174,47 @@ static void mount_filesystem(char *dev, char *dir, char *type,
     }
     if (toys.optflags & FLAG_v)
       printf("try '%s' type '%s' on '%s'\n", dev, type, dir);
-    rc = mount(dev, dir, type, flags, opts);
-
-    // Trying to autodetect loop mounts like bind mounts above (file on dir)
-    // isn't good enough because "mount -t ext2 fs.img dir" is valid, but if
-    // you _do_ accept loop mounts with -t how do you tell "-t cifs" isn't
-    //  looking for a block device if it's not in /proc/filesystems yet
-    // because the module that won't be loaded until you try the mount, and
-    // if you can't then DEVICE existing as a file would cause a false
-    // positive loopback mount (so "touch servername" becomes a potential
-    // denial of service attack...)
-    //
-    // Solution: try the mount, let the kernel tell us it wanted a block device,
-    // then do the loopback setup and retry the mount.
-    if (rc && errno == ENOTBLK) {
-      char *losetup[] = {"losetup", "-fs", dev, 0};
-      int pipes[2], len;
-      pid_t pid;
-
-      if (flags & MS_RDONLY) losetup[1] = "-fsr";
-      pid = xpopen(losetup, pipes);
-      len = readall(pipes[1], toybuf, sizeof(toybuf)-1);
-      if (!xpclose(pid, pipes) && len > 1) {
-        if (toybuf[len-1] == '\n') --len;
-        toybuf[len] = 0;
-        dev = toybuf;
-
-        continue;
-      } else error_msg("losetup failed %d", len);
+    for (;;) {
+      rc = mount(dev, dir, type, flags, opts);
+      if ((rc != EACCES && rc != EROFS) || (flags & MS_RDONLY)) break;
+      fprintf(stderr, "'%s' is read-only", dev);
+      flags |= MS_RDONLY;
     }
-
-    if (!fp || (rc && errno != EINVAL)) break;
     free(buf);
+
+    if (rc) {
+      // Trying to autodetect loop mounts like bind mounts above (file on dir)
+      // isn't good enough because "mount -t ext2 fs.img dir" is valid, but if
+      // you _do_ accept loop mounts with -t how do you tell "-t cifs" isn't
+      // looking for a block device if it's not in /proc/filesystems yet
+      // because the module that won't be loaded until you try the mount, and
+      // if you can't then DEVICE existing as a file would cause a false
+      // positive loopback mount (so "touch servername" becomes a potential
+      // denial of service attack...)
+      //
+      // Solution: try the mount, let the kernel tell us it wanted a block
+      // device, then do the loopback setup and retry the mount.
+
+      if (fp && errno == EINVAL) continue;;
+
+      if (errno == ENOTBLK) {
+        char *losetup[] = {"losetup", "-fs", dev, 0};
+        int pipes[2], len;
+        pid_t pid;
+
+        if (flags & MS_RDONLY) losetup[1] = "-fsr";
+        pid = xpopen(losetup, pipes);
+        len = readall(pipes[1], toybuf, sizeof(toybuf)-1);
+        rc = xpclose(pid, pipes);
+        if (!rc && len > 1) {
+          if (toybuf[len-1] == '\n') --len;
+          toybuf[len] = 0;
+          dev = toybuf;
+
+          continue;
+        } else error_msg("losetup failed %d", rc);
+      } else perror_msg("'%s'->'%s'", dev, dir);
+    }
   }
   if (fp) fclose(fp);
 
@@ -213,54 +226,80 @@ void mount_main(void)
   char *opts = 0, *dev = 0, *dir = 0, **ss;
   long flags = MS_SILENT;
   struct arg_list *o;
-  struct mtab_list *mtl, *mm;
+  struct mtab_list *mtl, *mm, *remount = 0;
 
-// TODO what do mount -aw and -ar do?
-  for (o = TT.optlist; o; o = o->next) flags = flag_opts(o->arg, flags, &opts);
-  if (toys.optflags & FLAG_r) flags |= MS_RDONLY;
-  if (toys.optflags & FLAG_w) flags &= ~MS_RDONLY;
+// remount
+//   - overmounts
+// shared subtree
+// -o parsed after fstab options
+// test if mountpoint already exists (-o noremount?)
+
+  // First pass; just accumulate string, don't parse flags yet. (This is so
+  // we can modify fstab entries with -a, or mtab with remount.)
+  for (o = TT.optlist; o; o = o->next) comma_collate(&opts, o->arg);
+  if (toys.optflags & FLAG_r) comma_collate(&opts, "ro");
+  if (toys.optflags & FLAG_w) comma_collate(&opts, "rw");
 
   // Treat each --option as -o option
   for (ss = toys.optargs; *ss; ss++) {
-    if ((*ss)[0] && (*ss)[1]) flags = flag_opts(2+*ss, flags, &opts);
-    else if (!dev) dev = *ss;
-    else if (!dir) dir = *ss;
+    char *sss = *ss;
+
+    // If you realy, really want to mount a file named "--", we support it.
+    if (sss[0]=='-' && sss[1]=='-' && sss[2]) comma_collate(&opts, sss+2);
+    else if (!dev) dev = sss;
+    else if (!dir) dir = sss;
     // same message as lib/args.c ">2" which we can't use because --opts count
     else error_exit("Max 2 arguments\n");
   }
 
-  if ((toys.optflags & FLAG_a) && dir) error_exit("-a with DIR");
+  if ((toys.optflags & FLAG_a) && dir) error_exit("-a with >1 arg");
+
+  // For remount we need _last_ match (in case of overmounts), so traverse
+  // in reverse order.
+  if (comma_scan(opts, "remount", 1))
+    remount = dlist_terminate(mtl = xgetmountlist("/proc/mounts"));
 
   // Do we need to do an /etc/fstab trawl?
-  if (toys.optflags & FLAG_a || !dir || getpid()) {
-    for (mtl = xgetmountlist("/etc/fstab"); mtl && (mm = dlist_pop(&mtl));
-         free(mm))
+  // This covers -a, -o remount, one argument, all user mounts
+  if ((toys.optflags & FLAG_a) || remount || !dir || getuid()) {
+    if (!remount) mtl = xgetmountlist("/etc/fstab");
+    for (mm = remount ? remount : mtl; mm; mm = (remount ? mm->prev : mm->next))
     {
-      char *aopts = opts ? xstrdup(opts) : 0;
-      int aflags;
+      int aflags, noauto, len;
+      char *aopts = 0;
 
+      // Check for noauto and get it out of the option list. (Unknown options
+      // that make it to the kernel give filesystem drivers indigestion.)
+      noauto = comma_scan(mm->opts, "noauto", 1);
       if (toys.optflags & FLAG_a) {
-        if (!mountlist_istype(mtl,TT.type) || !comma_scanall(mtl->opts,TT.bigO))
+        // "mount -a /path" to mount all entries under /path
+        if (dev) {
+           len = strlen(dev);
+           if (strncmp(dev, mm->dir, len)
+               || (mm->dir[len] && mm->dir[len] != '/')) continue;
+        } else if (noauto) continue; // never present in the remount case
+        if (!mountlist_istype(mm,TT.type) || !comma_scanall(mm->opts,TT.bigO))
           continue;
-        
       } else {
-        if (dir && strcmp(dir, mtl->dir)) continue;
-        if (dev && strcmp(dev, mtl->device) && (dir || strcmp(dev, mtl->dir)))
+        if (dir && strcmp(dir, mm->dir)) continue;
+        if (dev && strcmp(dev, mm->device) && (dir || strcmp(dev, mm->dir)))
           continue;
       }
 
       // user only counts from fstab, not opts.
-      if (comma_scan(mtl->opts, "user", 1)) TT.okuser = 1;
-      aflags = flag_opts(mtl->opts, flags, &aopts);
+      TT.okuser = comma_scan(mm->opts, "user", 1);
+      aflags = flag_opts(mm->opts, flags, &aopts);
+      aflags = flag_opts(opts, aflags, &aopts);
 
-      mount_filesystem(mtl->device, mtl->dir, mtl->type, aflags, aopts);
-
+      mount_filesystem(mm->device, mm->dir, mm->type, aflags, aopts);
       free(aopts);
-    }
-  }
 
-  // show mounts
-  if (!dir) {
+      if (!(toys.optflags & FLAG_a)) break;
+    }
+    if (CFG_TOYBOX_FREE) llist_traverse(mtl, free);
+
+  // show mounts from /proc/mounts
+  } else if (!dev) {
     for (mtl = xgetmountlist(0); mtl && (mm = dlist_pop(&mtl)); free(mm)) {
       char *s = 0;
 
@@ -271,10 +310,11 @@ void mount_main(void)
       free(s);
     }
 
-  // one argument: from fstab, remount, subtree
-  } else if (!dev) {
-    fprintf(stderr, "not yet\n"); // TODO
-    return;
   // two arguments
-  } else mount_filesystem(dev, dir, TT.type, flags, opts);
+  } else {
+    char *more = 0;
+
+    mount_filesystem(dev, dir, TT.type, flag_opts(opts, flags, &more), more);
+    if (CFG_TOYBOX_FREE) free(more);
+  }
 }
