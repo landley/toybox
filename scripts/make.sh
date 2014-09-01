@@ -199,9 +199,9 @@ do
   while true
   do
     PENDING="$(echo $PENDING $(jobs -rp) | tr ' ' '\n' | sort -u)"
-    [ $(echo $PENDING | wc -l) -lt "$CPUS" ] && break;
+    [ $(echo "$PENDING" | wc -l) -lt "$CPUS" ] && break;
 
-    wait $(echo $PENDING | head -n 1) || exit 1
+    wait $(echo "$PENDING" | head -n 1) || exit 1
     PENDING="$(echo "$PENDING" | tail -n +2)"
   done
 done
