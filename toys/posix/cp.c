@@ -7,8 +7,8 @@
 // This is subtle: MV options must be in same order (right to left) as CP
 // for FLAG_X macros to work out right.
 
-USE_CP(NEWTOY(cp, "<2RHLPp"USE_CP_MORE("rdaslvn")"fi[-HLPd]"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
-USE_CP_MV(OLDTOY(mv, cp, "<2"USE_CP_MORE("vn")"fi"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
+USE_CP(NEWTOY(cp, "<2RHLPp"USE_CP_MORE("rdaslvnF")"fi[-HLPd]"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
+USE_CP_MV(OLDTOY(mv, cp, "<2"USE_CP_MORE("vnF")"fi"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
 USE_INSTALL(NEWTOY(install, "<1cdDpsvm:o:g:", TOYFLAG_USR|TOYFLAG_BIN))
 *
 
@@ -21,7 +21,8 @@ config CP
     Copy files from SOURCE to DEST.  If more than one SOURCE, DEST must
     be a directory.
 
-    -f	force copy by deleting destination file
+    -f	delete destination files we can't write to
+    -F	delete any existing destination file first (breaks hardlinks)
     -i	interactive, prompt before overwriting existing DEST
     -p	preserve timestamps, ownership, and permissions
     -R	recurse into subdirectories (DEST must be a directory)
@@ -141,6 +142,9 @@ int cp_node(struct dirtree *try)
       if (S_ISDIR(try->st.st_dev)) {
         error_msg("dir at '%s'", s = dirtree_path(try, 0));
         free(s);
+        return 0;
+      } else if ((flags & FLAG_F) && unlinkat(cfd, catch, 0)) {
+        error_msg("unlink '%s'", catch);
         return 0;
       } else if (flags & FLAG_n) return 0;
       else if (flags & FLAG_i) {
@@ -365,7 +369,7 @@ void install_main(void)
   if (toys.optc < 2) error_exit("needs 2 args");
 
   // Translate flags from install to cp
-  toys.optflags = 4;  // Force cp's FLAG_n
+  toys.optflags = 4;  // Force cp's FLAG_F
   if (flags & FLAG_v) toys.optflags |= 8; // cp's FLAG_v
   if (flags & (FLAG_p|FLAG_o|FLAG_g)) toys.optflags |= 512; // cp's FLAG_p
 
