@@ -1,0 +1,73 @@
+#!/bin/bash
+
+# Copyright 2014 Divya Kothari <divya.s.kothari@gmail.com>
+# Copyright 2014 Naha Maggu <maggu.neha@gmail.com>
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+#Creating  dir
+mkdir dir/dir1 -p
+echo "This is testdata" > dir/dir1/file
+testing "tar tgz - compession, extraction and data validation" "tar -czf dir.tgz dir/ && [ -e dir.tgz ] && echo 'yes'; rm -rf dir; tar -xf dir.tgz && [ -f dir/dir1/file ] && cat dir/dir1/file; rm -rf dir.tgz" "yes\nThis is testdata\n" "" ""
+
+#Creating  dir
+mkdir dir/dir1 -p
+echo "This is testdata" > dir/dir1/file
+testing "tar tar.gz - compession, extraction and data validation" "tar -czf dir.tar.gz dir/ && [ -e dir.tar.gz ] && echo 'yes'; rm -rf dir; tar -xf dir.tar.gz && [ -f dir/dir1/file ] && cat dir/dir1/file; rm -rf dir.tar.gz" "yes\nThis is testdata\n" "" ""
+
+#Creating  dir
+mkdir dir/dir1 -p
+echo "This is testdata" > dir/dir1/file
+testing "tar verbose compression" "tar -cvzf dir.tgz dir/; rm -rf dir.tgz" "dir/\ndir/dir1/\ndir/dir1/file\n" "" ""
+rm -rf dir/
+
+#creating test file
+dd if=/dev/zero of=testFile ibs=4096 obs=4096 count=1000 2>/dev/null
+testing "tar - compession and extraction of a file" "tar -czf testFile.tgz testFile && [ -e testFile.tgz ] && echo 'yes'; rm -rf testFile; tar -xf testFile.tgz && [ -f testFile ] && echo 'yes'; rm -rf testFile.tgz" "yes\nyes\n" "" ""
+
+#creating empty test file
+touch testFile
+testing "tar - compession and extraction of a empty file" "tar -czf testFile.tgz testFile && [ -e testFile.tgz ] && echo 'yes'; rm -rf testFile; tar -xf testFile.tgz && [ -f testFile ] && echo 'yes'; rm -rf testFile.tgz" "yes\nyes\n" "" ""
+
+#Creating  dir
+mkdir dir/dir1 -p
+touch dir/dir1/file1 dir/dir1/file2 dir/dir1/file3 dir/dir1/file4
+testing "tar -t option" "tar -czf dir.tar.gz dir/; rm -rf dir; tar -tf dir.tar.gz; rm -rf dir.tar.gz" "dir/\ndir/dir1/\ndir/dir1/file2\ndir/dir1/file4\ndir/dir1/file3\ndir/dir1/file1\n" "" ""
+rm -rf dir/
+
+#Creating nested directory 
+mkdir -p dir/dir1 dir/dir2 dir/dir3 dir/dir4
+echo "This is testdata" > dir/dir1/file; echo "Dont exclude me" >  dir/dir3/file1 ; 
+echo "Exclude me" >  dir/dir3/file2 ; echo "YO" > dir/dir4/file1 ; echo "Hello" >dir/dir4/file2; echo "Dont" > dir/dir2/file1
+echo "dir/dir4\ndir/dir3/file2" > exclude_file
+testing "Creating tar with files excluded : -X" "tar -cvzf dir.tgz dir/ -X exclude_file ; rm -rf dir ; tar -tf dir.tgz; rm -rf dir.tgz " "dir/\ndir/dir2/\ndir/dir2/file1\ndir/dir1/\ndir/dir1/file\ndir/dir3/\ndir/dir3/file1\ndir/\ndir/dir2/\ndir/dir2/file1\ndir/dir1/\ndir/dir1/file\ndir/dir3/\ndir/dir3/file1\n" "" ""
+rm -rf exclude_file
+
+#Creating nested directory
+mkdir dir/dir1 -p ;  mkdir dir/dir2 ;  mkdir dir/dir3 ; mkdir dir/dir4
+echo "This is testdata" > dir/dir1/file
+echo "Dont exclude me" >  dir/dir3/file1 ; echo "Exclude me" >  dir/dir3/file2 ; echo "YO" > dir/dir4/file1 ; echo "Hello" >dir/dir4/file2; echo "Dont" > dir/dir2/file1
+testing "tar with pattern --exclude" "tar --exclude=dir/dir3/* -cvzf dir.tgz dir/ ; rm -rf dir ; tar -tf dir.tgz; rm -rf dir.tgz " "dir/\ndir/dir2/\ndir/dir2/file1\ndir/dir1/\ndir/dir1/file\ndir/dir3/\ndir/dir4/\ndir/dir4/file2\ndir/dir4/file1\ndir/\ndir/dir2/\ndir/dir2/file1\ndir/dir1/\ndir/dir1/file\ndir/dir3/\ndir/dir4/\ndir/dir4/file2\ndir/dir4/file1\n" "" ""
+
+#Creating directory to be compressed
+mkdir dir/dir1 -p
+echo "This is testdata" > dir/dir1/file
+mkdir temp
+testing "Extraction with -C Dir" "tar -czf dir.tgz dir/ ;rm -rf dir ;tar -xf dir.tgz -C temp/ ; [ -e temp/dir ] && echo 'yes' ; rm -rf dir dir.tgz" "yes\n" "" ""
+rm -rf temp
+
+#Creating nested directory 
+mkdir dir/dir1 -p ;  mkdir dir/dir2 ;  mkdir dir/dir3 ; mkdir dir/dir4 ; mkdir temp_dir
+echo "dir1/file" > dir/dir1/file ; echo "temp_dir/file" > temp_dir/file 
+echo "dir3/file1" >  dir/dir3/file1 ; echo "dir3/file2" >  dir/dir3/file2 ; echo "YO" > dir/dir4/file1 ; echo "Hello" >dir/dir4/file2; echo "dir2/file1" > dir/dir2/file1
+echo  "temp_dir/file" > exclude_file
+testing "Creating tar extra files/directory included : -T" "tar -czf dir.tgz dir/ -T exclude_file ; rm -rf dir ; tar -tf dir.tgz; rm -rf dir.tgz " "dir/\ndir/dir2/\ndir/dir2/file1\ndir/dir1/\ndir/dir1/file\ndir/dir3/\ndir/dir3/file2\ndir/dir3/file1\ndir/dir4/\ndir/dir4/file2\ndir/dir4/file1\ntemp_dir/file\n" "" ""
+rm -rf exclude_file
+rm -rf temp_dir
+
+#Creating dir
+mkdir dir/dir1 -p 
+echo "Inside dir/dir1" > dir/dir1/file ; echo "Hello Inside dir" > dir/file
+testing "Exctraction on STDOUT : -O" " tar -czf dir.tgz dir/ ; rm -rf dir ; tar -xf dir.tgz -O ; [ -e 'Inside dir/dir1/\nHello Inside dir\n' ] && echo 'yes'; rm -rf dir.tgz "  "" "" ""

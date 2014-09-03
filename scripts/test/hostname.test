@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# Copyright 2014 Divya Kothari <divya.s.kothari@gmail.com>
+# Copyright 2014 Naha Maggu <maggu.neha@gmail.com>
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+# Get system hostname
+hostnameExe=`which hostname`
+hostnameOut=`$hostnameExe`
+
+# New hostname
+NewHostname="NewHostName.system"
+
+testing "Hostname - Get" "hostname" "$hostnameOut\n" "" ""
+testing "Hostname - Set, Get and then Reset" "hostname $NewHostname; hostname; hostname $hostnameOut; hostname" "$NewHostname\n$hostnameOut\n" "" ""

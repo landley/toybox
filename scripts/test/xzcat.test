@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# Copyright 2014 Divya Kothari <divya.s.kothari@gmail.com>
+# Copyright 2014 Naha Maggu <maggu.neha@gmail.com>
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+echo "hello" > file
+tar -cJf file.xz file
+# Get system xzcat
+xzcatExe=`which xzcat`
+$xzcatExe file.xz > xzcatOut
+testing "xzcat - decompresses a single file" "xzcat file.xz > Tempfile && echo "yes"; diff Tempfile xzcatOut && echo "yes"; rm -rf file* xzcatOut Tempfile" "yes\nyes\n" "" ""
+
+#testing "name" "command" "result" "infile" "stdin"
+echo "hello" > file1
+echo "hi" > file2
+echo "Hi, Good morning !! I am a xzcat tester" > file3
+tar -cJf file1.xz file1
+tar -cJf file2.xz file2
+tar -cJf file3.xz file3
+# Get system xzcat
+xzcatExe=`which xzcat`
+$xzcatExe file1.xz file2.xz file3.xz > xzcatOut
+testing "xzcat - decompresses multiple files" "xzcat file1.xz file2.xz file3.xz > Tempfile && echo "yes" ; diff Tempfile xzcatOut && echo "yes"; rm -rf file* xzcatOut Tempfile " "yes\nyes\n" "" ""
