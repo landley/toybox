@@ -75,6 +75,18 @@ char *strptime(const char *buf, const char *format, struct tm *tm);
 #include <stdio.h>
 ssize_t getdelim(char **lineptr, size_t *n, int delim, FILE *stream);
 
+// uClibc's last-ever release was in 2012, so of course it doesn't define
+// any flag newer than MS_MOVE, which was added in 2001 (linux 2.5.0.5),
+// eleven years earlier.
+
+#define MS_MOVE       (1<<13)
+#define MS_REC        (1<<14)
+#define MS_SILENT     (1<<15)
+#define MS_UNBINDABLE (1<<17)
+#define MS_PRIVATE    (1<<18)
+#define MS_SLAVE      (1<<19)
+#define MS_SHARED     (1<<20)
+
 // When building under obsolete glibc (Ubuntu 8.04-ish), hold its hand a bit.
 #elif __GLIBC__ == 2 && __GLIBC_MINOR__ < 10
 #define fstatat fstatat64
