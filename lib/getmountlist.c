@@ -31,7 +31,7 @@ char *comma_iterate(char **list, int *len)
 {
   char *start = *list, *end;
 
-  if (!*list) return 0;
+  if (!*list || !**list) return 0;
 
   if (!(end = strchr(*list, ','))) {
     *len = strlen(*list);
@@ -76,8 +76,10 @@ int comma_scan(char *optlist, char *opt, int clean)
 
     if (!s) break;
     no = 2*(*s == 'n' && s[1] == 'o');
-    if (optlen == len+no && !strcmp(opt, s+no)) got = !no;
-    if (clean) memmove(s, optlist, strlen(optlist)+1);
+    if (optlen == len+no && !strcmp(opt, s+no)) {
+      got = !no;
+      if (clean) memmove(s, optlist, strlen(optlist)+1);
+    }
   }
 
   return got;

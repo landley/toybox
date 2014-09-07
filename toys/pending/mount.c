@@ -139,7 +139,7 @@ static void mount_filesystem(char *dev, char *dir, char *type,
   }
 
   // Autodetect bind mount or filesystem type
-  if (!type || !strcmp(type, "auto")) {
+  if (!(flags & MS_MOVE) && (!type || !strcmp(type, "auto"))) {
     struct stat stdev, stdir;
 
     // file on file or dir on dir is a --bind mount.
@@ -182,43 +182,43 @@ static void mount_filesystem(char *dev, char *dir, char *type,
     }
     free(buf);
 
-    if (rc) {
-      // Trying to autodetect loop mounts like bind mounts above (file on dir)
-      // isn't good enough because "mount -t ext2 fs.img dir" is valid, but if
-      // you _do_ accept loop mounts with -t how do you tell "-t cifs" isn't
-      // looking for a block device if it's not in /proc/filesystems yet
-      // because the module that won't be loaded until you try the mount, and
-      // if you can't then DEVICE existing as a file would cause a false
-      // positive loopback mount (so "touch servername" becomes a potential
-      // denial of service attack...)
-      //
-      // Solution: try the mount, let the kernel tell us it wanted a block
-      // device, then do the loopback setup and retry the mount.
+    if (!rc) break;
 
-      if (fp && errno == EINVAL) continue;;
+    // Trying to autodetect loop mounts like bind mounts above (file on dir)
+    // isn't good enough because "mount -t ext2 fs.img dir" is valid, but if
+    // you _do_ accept loop mounts with -t how do you tell "-t cifs" isn't
+    // looking for a block device if it's not in /proc/filesystems yet
+    // because the module that won't be loaded until you try the mount, and
+    // if you can't then DEVICE existing as a file would cause a false
+    // positive loopback mount (so "touch servername" becomes a potential
+    // denial of service attack...)
+    //
+    // Solution: try the mount, let the kernel tell us it wanted a block
+    // device, then do the loopback setup and retry the mount.
 
-      if (errno == ENOTBLK) {
-        char *losetup[] = {"losetup", "-fs", dev, 0};
-        int pipes[2], len;
-        pid_t pid;
+    if (fp && errno == EINVAL) continue;
 
-        if (flags & MS_RDONLY) losetup[1] = "-fsr";
-        pid = xpopen(losetup, pipes);
-        len = readall(pipes[1], toybuf, sizeof(toybuf)-1);
-        rc = xpclose(pid, pipes);
-        if (!rc && len > 1) {
-          if (toybuf[len-1] == '\n') --len;
-          toybuf[len] = 0;
-          dev = toybuf;
+    if (errno == ENOTBLK) {
+      char *losetup[] = {"losetup", "-fs", dev, 0};
+      int pipes[2], len;
+      pid_t pid;
 
-          continue;
-        } else error_msg("losetup failed %d", rc);
-      } else perror_msg("'%s'->'%s'", dev, dir);
-    }
+      if (flags & MS_RDONLY) losetup[1] = "-fsr";
+      pid = xpopen(losetup, pipes);
+      len = readall(pipes[1], toybuf, sizeof(toybuf)-1);
+      rc = xpclose(pid, pipes);
+      if (!rc && len > 1) {
+        if (toybuf[len-1] == '\n') --len;
+        toybuf[len] = 0;
+        dev = toybuf;
+
+        continue;
+      } else error_msg("losetup failed %d", rc);
+    } else perror_msg("'%s'->'%s'", dev, dir);
+
+    break;
   }
   if (fp) fclose(fp);
-
-  if (rc) perror_msg("'%s' on '%s'", dev, dir);
 }
 
 void mount_main(void)
@@ -261,8 +261,9 @@ void mount_main(void)
 
   // Do we need to do an /etc/fstab trawl?
   // This covers -a, -o remount, one argument, all user mounts
-  if ((toys.optflags & FLAG_a) || remount || !dir || getuid()) {
+  if ((toys.optflags & FLAG_a) || (dev && (!dir || getuid() || remount))) {
     if (!remount) mtl = xgetmountlist("/etc/fstab");
+
     for (mm = remount ? remount : mtl; mm; mm = (remount ? mm->prev : mm->next))
     {
       int aflags, noauto, len;
