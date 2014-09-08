@@ -315,11 +315,11 @@ static int do_find(struct dirtree *new)
         }
       } else if (!strcmp(s, "type")) {
         if (check) {
-          char c = stridx("bcdlpfs", *ss[1]);
           int types[] = {S_IFBLK, S_IFCHR, S_IFDIR, S_IFLNK, S_IFIFO,
-                         S_IFREG, S_IFSOCK};
+                         S_IFREG, S_IFSOCK}, i = stridx("bcdlpfs", *ss[1]);
 
-          if ((new->st.st_mode & S_IFMT) != types[c]) test = 0;
+          if (i<0) error_exit("bad -type '%c'", *ss[1]);
+          if ((new->st.st_mode & S_IFMT) != types[i]) test = 0;
         }
 
       } else if (!strcmp(s, "atime")) {
@@ -447,7 +447,12 @@ static int do_find(struct dirtree *new)
 
           if (*s == 'o') {
             char *prompt = xmprintf("[%s] %s", ss1, name);
-            if(!(test = yesno(prompt, 0))) goto cont;
+            test = yesno(prompt, 0);
+            free(prompt);
+            if (!test) {
+              free(name);
+              goto cont;
+            }
           }
 
           // Add next name to list (global list without -dir, local with)
