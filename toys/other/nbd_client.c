@@ -119,10 +119,9 @@ void nbd_client_main(void)
     if (ioctl(nbd, NBD_DO_IT)>=0 || errno==EBADR) break;
     close(sock);
   }
-  close(nbd);
 
   // Flush queue and exit.
-
   ioctl(nbd, NBD_CLEAR_QUE);
   ioctl(nbd, NBD_CLEAR_SOCK);
+  if (CFG_TOYBOX_FREE) close(nbd);
 }
