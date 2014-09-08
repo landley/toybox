@@ -139,7 +139,11 @@ static void mount_filesystem(char *dev, char *dir, char *type,
   }
 
   // Autodetect bind mount or filesystem type
-  if (!(flags & MS_MOVE) && (!type || !strcmp(type, "auto"))) {
+
+  if (type && !strcmp(type, "auto")) type = 0;
+  if (flags & MS_MOVE) {
+    if (type) error_exit("--move with -t");
+  } else if (!type) {
     struct stat stdev, stdir;
 
     // file on file or dir on dir is a --bind mount.
