@@ -10,7 +10,7 @@ USE_MOUNT(NEWTOY(mount, "?O:afnrvwt:o*[-rw]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ST
 
 config MOUNT
   bool "mount"
-  default n
+  default y
   help
     usage: mount [-afFrsvw] [-t TYPE] [-o OPTIONS...] [[DEVICE] DIR]
 
