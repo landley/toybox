@@ -94,7 +94,10 @@ void cpio_main(void)
     // Read header and name.
     xreadall(afd, toybuf, 110);
     tofree = name = strpad(afd, x8u(toybuf+94), 110);
-    if (!strcmp("TRAILER!!!", name)) break;
+    if (!strcmp("TRAILER!!!", name)) {
+      if (CFG_TOYBOX_FREE) free(tofree);
+      break;
+    }
 
     // If you want to extract absolute paths, "cd /" and run cpio.
     while (*name == '/') name++;
@@ -121,6 +124,7 @@ void cpio_main(void)
     } else if (S_ISLNK(mode)) {
       data = strpad(afd, size, 0);
       if (!test) err = symlink(data, name);
+      free(data);
       // Can't get a filehandle to a symlink, so do special chown
       if (!err && !getpid()) err = lchown(name, uid, gid);
     } else if (S_ISREG(mode)) {
@@ -249,4 +253,5 @@ void cpio_main(void)
     xwrite(afd, toybuf,
       sprintf(toybuf, "070701%040X%056X%08XTRAILER!!!", 1, 0x0b, 0)+4);
   }
+  if (TT.archive) xclose(afd);
 }
