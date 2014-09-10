@@ -119,12 +119,18 @@ void toy_init(struct toy_list *which, char *argv[])
 }
 
 // Like exec() but runs an internal toybox command instead of another file.
-// Only returns if it can't find the command, otherwise exit() when done.
+// Only returns if it can't run command internally, otherwise exit() when done.
 void toy_exec(char *argv[])
 {
   struct toy_list *which;
 
+  // Return if we can't find it, or need to re-exec to acquire root,
+  // or if stack depth is getting silly.
   if (!(which = toy_find(argv[0]))) return;
+  if (toys.recursion && (which->flags & TOYFLAG_ROOTONLY) && getuid()) return;
+  if (toys.recursion++ > 5) return;
+
+  // Run command
   toy_init(which, argv);
   if (toys.which) toys.which->toy_main();
   if (fflush(NULL) || ferror(stdout)) perror_exit("write");

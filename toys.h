@@ -132,6 +132,7 @@ extern struct toy_context {
   int toycount;            // Total number of commands in this build
   int signal;              // generic_signal() records what signal it saw here
   int signalfd;            // and writes signal to this fd, if set
+  int recursion;           // How many nested calls to toy_exec()
 
   // This is at the end so toy_init() doesn't zero it.
   jmp_buf *rebound;        // longjmp here instead of exit when do_rebound set
