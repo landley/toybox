@@ -13,7 +13,7 @@
  * In order: magic ino mode uid gid nlink mtime filesize devmajor devminor
  * rdevmajor rdevminor namesize check
 
-USE_CPIO(NEWTOY(cpio, "duH:i|t|F:v(verbose)o|[!io][!ot]", TOYFLAG_BIN))
+USE_CPIO(NEWTOY(cpio, "mduH:i|t|F:v(verbose)o|[!io][!ot]", TOYFLAG_BIN))
 
 config CPIO
   bool "cpio"
