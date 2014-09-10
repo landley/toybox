@@ -4,6 +4,7 @@
 
 export LANG=c
 export LC_ALL=C
+set -o pipefail
 source ./configure
 
 [ -z "$KCONFIG_CONFIG" ] && KCONFIG_CONFIG=".config"
@@ -157,20 +158,7 @@ echo -n "Compile toybox"
 
 # Extract a list of toys/*/*.c files to compile from the data in $KCONFIG_CONFIG
 
-# Get a list of C files in toys/* and wash it through sed to chop out the
-# filename, convert - to _, and glue the result together into a new regex
-# we we can feed to grep to match any one of them (whole word, not substring).
-
-TOYFILES="^$(ls toys/*/*.c | sed -n 's@^.*/\(.*\)\.c$@\1@;s/-/_/g;H;${g;s/\n//;s/\n/$|^/gp}')\$"
-
-# 1) Grab the XXX part of all CONFIG_XXX entries from KCONFIG
-# 2) Sort the list, keeping only one of each entry.
-# 3) Convert to lower case.
-# 4) Remove any config symbol not recognized as a filename from step 1.
-# 5) Add "toys/*/" prefix and ".c" suffix.
-
-TOYFILES=$(sed -nre 's/^CONFIG_(.*)=y/\1/p' < "$KCONFIG_CONFIG" \
-  | sort -u | tr A-Z a-z | grep -E "$TOYFILES" | sed 's@\(.*\)@toys/\*/\1.c@')
+TOYFILES="$(egrep -l "TOY[(]($(sed -n 's/^CONFIG_\([^=]*\)=.*/\1/p' "$KCONFIG_CONFIG" | xargs | tr ' [A-Z]' '|[a-z]'))[ ,]" toys/*/*.c)"
 
 do_loudly()
 {
@@ -184,15 +172,15 @@ LINK="$LDOPTIMIZE -o toybox_unstripped -Wl,--as-needed $(cat generated/optlibs.d
 
 # This is a parallel version of: do_loudly $BUILD $FILES $LINK || exit 1
 
-rm -f generated/*.o
+rm -f generated/obj && mkdir -p generated/obj || exit 1
 PENDING=
 for i in $FILES
 do
-  # build each generated/*.o file in parallel
+  # build each generated/obj/*.o file in parallel
 
   X=${i/lib\//lib_}
   X=${X##*/}
-  do_loudly $BUILD -c $i -o generated/${X%%.c}.o &
+  do_loudly $BUILD -c $i -o generated/obj/${X%%.c}.o &
 
   # ratelimit to $CPUS many parallel jobs, detecting errors
 
@@ -213,7 +201,7 @@ do
   wait $i || exit 1
 done
 
-do_loudly $BUILD generated/*.o $LINK || exit 1
+do_loudly $BUILD generated/obj/*.o $LINK || exit 1
 do_loudly ${CROSS_COMPILE}${STRIP} toybox_unstripped -o toybox || exit 1
 # gcc 4.4's strip command is buggy, and doesn't set the executable bit on
 # its output the way SUSv4 suggests it do so.

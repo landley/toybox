@@ -42,8 +42,8 @@ uninstall:
 
 clean::
 	rm -rf toybox toybox_unstripped testdir \
-		.singleconfig .singleconfig.old \
-		generated/Config.* generated/*.h generated/*.o generated/*.dat \
+		.singleconfig .singleconfig.old generated/obj \
+		generated/Config.* generated/*.h generated/*.dat \
 		generated/instlist generated/mkflags generated/config2help
 
 distclean: clean
