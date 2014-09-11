@@ -172,7 +172,7 @@ LINK="$LDOPTIMIZE -o toybox_unstripped -Wl,--as-needed $(cat generated/optlibs.d
 
 # This is a parallel version of: do_loudly $BUILD $FILES $LINK || exit 1
 
-rm -f generated/obj && mkdir -p generated/obj || exit 1
+rm -rf generated/obj && mkdir -p generated/obj || exit 1
 PENDING=
 for i in $FILES
 do
