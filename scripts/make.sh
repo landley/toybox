@@ -166,11 +166,24 @@ do_loudly()
   "$@"
 }
 
-BUILD="${CROSS_COMPILE}${CC} $CFLAGS -I . $OPTIMIZE"
-FILES="$(ls lib/*.c) main.c $TOYFILES"
-LINK="$LDOPTIMIZE -o toybox_unstripped -Wl,--as-needed $(cat generated/optlibs.dat)"
+BUILD="$(echo ${CROSS_COMPILE}${CC} $CFLAGS -I . $OPTIMIZE)"
+FILES="$(echo lib/*.c main.c $TOYFILES)"
+LINK="$(echo $LDOPTIMIZE -o toybox_unstripped -Wl,--as-needed $(cat generated/optlibs.dat))"
 
 # This is a parallel version of: do_loudly $BUILD $FILES $LINK || exit 1
+
+# Write a canned build line for use on crippled build machines.
+(
+  echo "#!/bin/sh"
+  echo
+  echo "BUILD=\"$BUILD\""
+  echo
+  echo "LINK=\"$LINK\""
+  echo
+  echo "FILES=\"$FILES\""
+  echo
+  echo '$BUILD $FILES $LINK'
+) > generated/build.sh && chmod +x generated/build.sh || echo 1
 
 rm -rf generated/obj && mkdir -p generated/obj || exit 1
 PENDING=
