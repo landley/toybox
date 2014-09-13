@@ -88,11 +88,15 @@ void rm_main(void)
       continue;
     }
 
-    // There's a race here where a file removed between this access and
+    // Files that already don't exist aren't errors for -f, so try a quick
+    // unlink now to see if it succeeds or reports that it didn't exist.
+    if ((toys.optflags & FLAG_f) && (!unlink(*s) || errno == ENOENT))
+      continue;
+
+    // There's a race here where a file removed between the above check and
     // dirtree's stat would report the nonexistence as an error, but that's
     // not a normal "it didn't exist" so I'm ok with it.
-    if ((toys.optflags & FLAG_f) && (access(*s, F_OK) && errno == ENOENT))
-      continue;
+
     dirtree_read(*s, do_rm);
   }
 }
