@@ -104,7 +104,7 @@ void inotifyd_main(void)
           prog_args[1] = toybuf;
           prog_args[2] = toys.optargs[event->wd];
           prog_args[3] = event->len ? event->name : 0;
-          xpclose(xpopen(prog_args, 0), 0);
+          xrun(prog_args);
         }
 
         if (event->mask & IN_IGNORED) {

@@ -7,6 +7,7 @@
  * no mtab (/proc/mounts does it) so -n is NOP.
 
 USE_MOUNT(NEWTOY(mount, "?O:afnrvwt:o*[-rw]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
+USE_NFSMOUNT(NEWTOY(nfsmount, "?<2>2", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
 
 config MOUNT
   bool "mount"
@@ -32,6 +33,14 @@ config MOUNT
     bind mounts (file on file, directory on directory), so you don't need
     to say --bind or --loop. You can also "mount -a /path" to mount everything
     in /etc/fstab under /path, even if it's noauto.
+
+config NFSMOUNT
+  bool "nfsmount"
+  default n
+  help
+    usage: nfsmount SHARE DIR
+
+    Invoke an eldrich horror from the dawn of time.
 */
 
 #define FOR_mount
@@ -155,7 +164,7 @@ static void mount_filesystem(char *dev, char *dir, char *type,
     } else fp = xfopen("/proc/filesystems", "r");
   } else if (!strcmp(type, "ignore")) return;
   else if (!strcmp(type, "swap"))
-    toys.exitval |= xpclose(xpopen((char *[]){"swapon", "--", dev, 0}, 0), 0);
+    toys.exitval |= xrun((char *[]){"swapon", "--", dev, 0});
 
   for (;;) {
     char *buf = 0;
@@ -204,13 +213,13 @@ static void mount_filesystem(char *dev, char *dir, char *type,
 
     if (errno == ENOTBLK) {
       char *losetup[] = {"losetup", "-fs", dev, 0};
-      int pipes[2], len;
+      int pipe, len;
       pid_t pid;
 
       if (flags & MS_RDONLY) losetup[1] = "-fsr";
-      pid = xpopen(losetup, pipes);
-      len = readall(pipes[1], toybuf, sizeof(toybuf)-1);
-      rc = xpclose(pid, pipes);
+      pid = xpopen(losetup, &pipe, 1);
+      len = readall(pipe, toybuf, sizeof(toybuf)-1);
+      rc = xpclose(pid, pipe);
       if (!rc && len > 1) {
         if (toybuf[len-1] == '\n') --len;
         toybuf[len] = 0;

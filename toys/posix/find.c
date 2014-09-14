@@ -102,7 +102,7 @@ static int flush_exec(struct dirtree *new, struct exec_range *aa)
     newargs[pos+rest] = 0;
   }
 
-  rc = xpclose(xpopen(newargs, 0), 0);
+  rc = xrun(newargs);
 
   llist_traverse(*dl, llist_free_double);
   *dl = 0;

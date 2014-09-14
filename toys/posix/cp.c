@@ -341,8 +341,7 @@ static int install_node(struct dirtree *try)
 
   // No -r so always one level deep, so destname as set by cp_node() is correct
   if (toys.optflags & FLAG_s)
-    if (xpclose(xpopen((char *[]){"strip", "-p", TT.destname, 0}, 0), 0))
-      toys.exitval = 1;
+    if (xrun((char *[]){"strip", "-p", TT.destname, 0})) toys.exitval = 1;
 
   return 0;
 }

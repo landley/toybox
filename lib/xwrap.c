@@ -145,33 +145,41 @@ void xexec(char **argv)
 
 // Spawn child process, capturing stdin/stdout.
 // argv[]: command to exec. If null, child returns to original program.
-// pipes[]: stdin, stdout of new process. If null, block and wait for child.
+// pipes[2]: stdin, stdout of new process. If -1 will not have pipe allocated.
 // return: pid of child process
-pid_t xpopen(char **argv, int *pipes)
+pid_t xpopen_both(char **argv, int *pipes)
 {
   int cestnepasun[4], pid;
 
-  // Make the pipes?
+  // Make the pipes? Not this won't set either pipe to 0 because if fds are
+  // allocated in order and if fd0 was free it would go to cestnepasun[0]
   if (pipes) {
-    if (pipe(cestnepasun) || pipe(cestnepasun+2)) perror_exit("pipe");
-    pipes[0] = cestnepasun[1];
-    pipes[1] = cestnepasun[2];
+    for (pid = 0; pid < 2; pid++) {
+      if (pipes[pid] == -1) continue;
+      if (pipe(cestnepasun+(2*pid))) perror_exit("pipe");
+      pipes[pid] = cestnepasun[pid+1];
+    }
   }
 
   // Child process
   if (!(pid = xfork())) {
     // Dance of the stdin/stdout redirection.
     if (pipes) {
-      close(cestnepasun[1]);
-      close(cestnepasun[2]);
-      // if we had no stdin/out, pipe handles could overlap, so test for that
-      if (cestnepasun[0]) {
-        dup2(cestnepasun[0], 0);
-        close(cestnepasun[0]);
+      // if we had no stdin/out, pipe handles could overlap, so test for it
+      // and free up potentially overlapping pipe handles before reuse
+      if (pipes[1] != -1) close(cestnepasun[2]);
+      if (pipes[0] != -1) {
+        close(cestnepasun[1]);
+        if (cestnepasun[0]) {
+          dup2(cestnepasun[0], 0);
+          close(cestnepasun[0]);
+        }
       }
-      dup2(cestnepasun[3], 1);
-      dup2(cestnepasun[3], 2);
-      if (cestnepasun[3] > 2) close(cestnepasun[3]);
+      if (pipes[1] != -1) {
+        dup2(cestnepasun[3], 1);
+        dup2(cestnepasun[3], 2);
+        if (cestnepasun[3] > 2 || !cestnepasun[3]) close(cestnepasun[3]);
+      }
     }
     if (argv) {
       if (CFG_TOYBOX) toy_exec(argv);
@@ -180,18 +188,18 @@ pid_t xpopen(char **argv, int *pipes)
     }
     return 0;
 
-  // Parent process
-  } else {
-    if (pipes) {
-      close(cestnepasun[0]);
-      close(cestnepasun[3]);
-    }
-
-    return pid;
   }
+
+  // Parent process
+  if (pipes) {
+    if (pipes[0] != -1) close(cestnepasun[0]);
+    if (pipes[1] != -1) close(cestnepasun[3]);
+  }
+
+  return pid;
 }
 
-int xpclose(pid_t pid, int *pipes)
+int xpclose_both(pid_t pid, int *pipes)
 {
   int rc = 127;
 
@@ -202,6 +210,30 @@ int xpclose(pid_t pid, int *pipes)
   waitpid(pid, &rc, 0);
 
   return WIFEXITED(rc) ? WEXITSTATUS(rc) : WTERMSIG(rc) + 127;
+}
+
+// Wrapper to xpopen with a pipe for just one of stdin/stdout
+pid_t xpopen(char **argv, int *pipe, int stdout)
+{
+  int pipes[2];
+
+  pipe[!stdout] = -1;
+  pipe[!!stdout] = 0;
+
+  return xpopen_both(argv, pipes);
+}
+
+int xpclose(pid_t pid, int pipe)
+{
+  close(pipe);
+
+  return xpclose_both(pid, 0);
+}
+
+// Call xpopen and wait for it to finish, keeping existing stdin/stdout.
+int xrun(char **argv)
+{
+  return xpclose_both(xpopen_both(argv, 0), 0);
 }
 
 void xaccess(char *path, int flags)
