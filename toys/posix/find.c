@@ -185,7 +185,7 @@ static int do_find(struct dirtree *new)
   if (new) {
     if (new->parent) {
       if (!dirtree_notdotdot(new)) return 0;
-      if (TT.xdev && new->st.st_dev != new->parent->st.st_dev) return 0;
+      if (TT.xdev && new->st.st_dev != new->parent->st.st_dev) recurse = 0;
     }
     if (S_ISDIR(new->st.st_mode)) {
       if (!new->again) {
