@@ -215,12 +215,14 @@ int xpclose_both(pid_t pid, int *pipes)
 // Wrapper to xpopen with a pipe for just one of stdin/stdout
 pid_t xpopen(char **argv, int *pipe, int stdout)
 {
-  int pipes[2];
+  int pipes[2], pid;
 
-  pipe[!stdout] = -1;
-  pipe[!!stdout] = 0;
+  pipes[!stdout] = -1;
+  pipes[!!stdout] = 0;
+  pid = xpopen_both(argv, pipes);
+  *pipe = pid ? pipes[!!stdout] : -1;
 
-  return xpopen_both(argv, pipes);
+  return pid;
 }
 
 int xpclose(pid_t pid, int pipe)
