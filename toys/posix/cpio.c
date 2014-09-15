@@ -13,17 +13,18 @@
  * In order: magic ino mode uid gid nlink mtime filesize devmajor devminor
  * rdevmajor rdevminor namesize check
 
-USE_CPIO(NEWTOY(cpio, "mduH:i|t|F:v(verbose)o|[!io][!ot]", TOYFLAG_BIN))
+USE_CPIO(NEWTOY(cpio, "mduH:p:|i|t|F:v(verbose)o|[!pio][!pot][!pF]", TOYFLAG_BIN))
 
 config CPIO
   bool "cpio"
   default y
   help
-    usage: cpio -{o|t|i} [-v] [--verbose] [-F FILE] [ignored: -du -H newc]
+    usage: cpio -{o|t|i|p DEST} [-v] [--verbose] [-F FILE] [ignored: -mdu -H newc]
 
     copy files into and out of a "newc" format cpio archive
 
     -F FILE	use archive FILE instead of stdin/stdout
+    -p DEST	copy-pass mode, copy stdin file list to directory DEST
     -i	extract from archive into file system (stdin=archive)
     -o	create archive (stdin=list of files, stdout=archive)
     -t	test files (list only, stdin=archive, stdout=list of files)
@@ -35,6 +36,7 @@ config CPIO
 
 GLOBALS(
   char *archive;
+  char *pass;
   char *fmt;
 )
 
@@ -73,11 +75,22 @@ unsigned x8u(char *hex)
 
 void cpio_main(void)
 {
-  int afd;
-
   // Subtle bit: FLAG_o is 1 so we can just use it to select stdin/stdout.
+  int pipe, afd = toys.optflags & FLAG_o;
+  pid_t pid = 0;
 
-  afd = toys.optflags & FLAG_o;
+  // In passthrough mode, parent stays in original dir and generates archive
+  // to pipe, child does chdir to new dir and reads archive from stdin (pipe).
+  if (TT.pass) {
+    if (!(pid = xpopen(0, &pipe, 0))) {
+      toys.optflags |= FLAG_i;
+      xchdir(TT.pass);
+    } else {
+      toys.optflags |= FLAG_o;
+      afd = pipe;
+    }
+  }
+
   if (TT.archive) {
     int perm = (toys.optflags & FLAG_o) ? O_CREAT|O_WRONLY|O_TRUNC : O_RDONLY;
 
@@ -254,4 +267,6 @@ void cpio_main(void)
       sprintf(toybuf, "070701%040X%056X%08XTRAILER!!!", 1, 0x0b, 0)+4);
   }
   if (TT.archive) xclose(afd);
+
+  if (TT.pass) toys.exitval |= xpclose(pid, pipe);
 }
