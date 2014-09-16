@@ -5,24 +5,24 @@
  *
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/useradd.html
 
-USE_USERADD(NEWTOY(useradd, "<1>2u#<0G:s:g:h:SDH", TOYFLAG_NEEDROOT|TOYFLAG_SBIN))
-USE_USERADD(OLDTOY(adduser, useradd, OPTSTR_useradd, TOYFLAG_NEEDROOT|TOYFLAG_SBIN))
+USE_USERADD(NEWTOY(useradd, "<1>2u#<0G:s:g:h:SDH", TOYFLAG_NEEDROOT|TOYFLAG_UMASK|TOYFLAG_SBIN))
+USE_USERADD(OLDTOY(adduser, useradd, OPTSTR_useradd, TOYFLAG_NEEDROOT|TOYFLAG_UMASK|TOYFLAG_SBIN))
 
 config USERADD
   bool "useradd"
   default n
   help
-    usage: useradd [-SDH] [-hDIR] [-sSHELL] [-G GRP] [-gGECOS] [-uUID] USER [GROUP]
+    usage: useradd [-SDH] [-h DIR] [-s SHELL] [-G GRP] [-g NAME] [-u UID] USER [GROUP]
 
     Create new user, or add USER to GROUP
-    
-    -h DIR   Home directory
-    -g GECOS GECOS field
-    -s SHELL Login shell
-    -G GRP   Add user to existing group
-    -S       Create a system user
+
     -D       Don't assign a password
+    -g NAME  Real name
+    -G GRP   Add user to existing group
+    -h DIR   Home directory
     -H       Don't create home directory
+    -s SHELL Login shell
+    -S       Create a system user
     -u UID   User id
 */
 
@@ -35,89 +35,51 @@ GLOBALS(
   char *shell;
   char *u_grp;
   long uid;
+
   long gid;
 )
 
-static char* get_shell(void)    
-{                               
-  char *shell = getenv("SHELL");
-
-  if (!shell) {
-    struct passwd *pw;
-    pw = getpwuid(getuid());
-    if (pw && pw->pw_shell && pw->pw_shell[0])
-      shell = pw->pw_shell;                                                                                                           
-    else shell = "/bin/sh";     
-  }                             
-  return xstrdup(shell);        
-}
-
-/* exec_wait() function does a fork(), and exec the command,
- * waits for the child to exit and return the status to parent
- */
-static int exec_wait(char **args)
+void useradd_main(void)
 {
-  int status = 0;
-  pid_t pid = xfork();
-
-  if (!pid) xexec(args);
-  else waitpid(pid, &status, 0);
-
-  return WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status)+127;
-}
-
-/* create_copy_skel(), This function will create the home directory of the
- * user, by copying /etc/skel/ contents to /home/<username>.
- * Then change the ownership of home dir to the UID and GID of new user,
- * and Mode to 0700, i.e. rwx------ for user.
- */
-static void create_copy_skel(char *skel, char *hdir)
-{
-  char *args[5];
-  struct stat sb;
-
-  if (toys.optflags & FLAG_H) return;
-
-  umask(0);
-  args[4] = NULL;
-  if (stat(hdir, &sb)) {
-    args[0] = "cp";
-    args[1] = "-R";
-    args[2] = skel;
-    args[3] = hdir;
-    // Copy /etc/skel to home dir 
-    toys.exitval = exec_wait(args);
-
-    args[0] = "chown";
-    args[1] = "-R";
-    args[2] = xmprintf("%u:%u", TT.uid, TT.gid);
-    args[3] = hdir;
-    //Change ownership to that of UID and GID of new user
-    toys.exitval = exec_wait(args);
-
-  } else xprintf("Warning: home directory for the user already exists\n"
-      "Not copying any file from skel directory into it.\n");
-
-  if (chown(hdir, TT.uid, TT.gid) || chmod(hdir, 0700))
-    perror_exit("chown/chmod failed for '%s'", hdir);
-}
-
-/* Add a new group to the system, if UID is given then that is validated
- * to be free, else a free UID is choosen by self.
- * SYSTEM IDs are considered in the range 100 ... 999
- * add_user(), add a new entry in /etc/passwd, /etc/shadow files
- */
-static void new_user()
-{
+  char *s = *toys.optargs, *entry;
   struct passwd pwd;
-  char *entry, *args[4];
 
-  pwd.pw_name = *toys.optargs;
+  // Act like groupadd?
+  if (toys.optc == 2) {
+    if (toys.optflags) {
+      toys.exithelp = 1;
+      error_exit("options with USER GROUP");
+    }
+    xexec((char *[]){"groupadd", toys.optargs[0], toys.optargs[1], 0});
+  }
+
+  // Sanity check user to add
+  if (strchr(s, ':') || strchr(s, '/') || strlen(s) > LOGIN_NAME_MAX)
+    error_exit("bad name");
+  // race condition: two adds at same time?
+  if (getpwnam(s)) error_exit("'%s' in use", s);
+
+  // Add a new group to the system, if UID is given then that is validated
+  // to be free, else a free UID is choosen by self.
+  // SYSTEM IDs are considered in the range 100 ... 999
+  // add_user(), add a new entry in /etc/passwd, /etc/shadow files
+
+  pwd.pw_name = s;
   pwd.pw_passwd = "x";
-  pwd.pw_gecos = (toys.optflags & FLAG_g) ? TT.gecos : "Linux User,";
-  pwd.pw_dir = (toys.optflags & FLAG_h) ? TT.dir
-    : xmprintf("/home/%s", *toys.optargs);
-  pwd.pw_shell = (toys.optflags & FLAG_s) ? TT.shell : get_shell();
+  pwd.pw_gecos = TT.gecos ? TT.gecos : "Linux User,";
+  pwd.pw_dir = TT.dir ? TT.dir : xmprintf("/home/%s", *toys.optargs);
+
+  if (!TT.shell) {
+    TT.shell = getenv("SHELL");
+
+    if (!TT.shell) {
+      struct passwd *pw = getpwuid(getuid());
+
+      if (pw && pw->pw_shell && *pw->pw_shell) TT.shell = xstrdup(pw->pw_shell);
+      else TT.shell = "/bin/sh";
+    }
+  }
+  pwd.pw_shell = TT.shell;
 
   if (toys.optflags & FLAG_u) {
     if (TT.uid > INT_MAX) error_exit("bad uid");
@@ -141,14 +103,13 @@ static void new_user()
   }
   pwd.pw_gid = TT.gid;
 
+  // Create a new group for user
   if (!(toys.optflags & FLAG_G)) {
-    // Create a new group for user 
-    //add group, invoke addgroup command
-    args[0] = "groupadd";
-    args[1] = toys.optargs[0];
-    args[2] = xmprintf("-g%ld", pwd.pw_gid);
-    args[3] = NULL;
-    if (exec_wait(args)) error_msg("addgroup fail");
+    char *s = xmprintf("-g%ld", pwd.pw_gid);
+
+    if (xrun((char *[]){"groupadd", *toys.optargs, s, 0}))
+      error_msg("addgroup -g%ld fail", pwd.pw_gid);
+    free(s);
   }
 
   /*add user to system 
@@ -171,54 +132,29 @@ static void new_user()
   update_password("/etc/shadow", pwd.pw_name, entry);
   free(entry);
 
-  //2. craete home dir & copy skel dir to home
-  if (!(toys.optflags & FLAG_S)) create_copy_skel("/etc/skel", pwd.pw_dir);
+  // create home dir & copy skel dir to home
+  if (!(toys.optflags & (FLAG_S|FLAG_H))) {
+    char *skel = "/etc/skel", *p = pwd.pw_dir;
+
+    // Copy and change ownership
+    if (access(p, F_OK)) {
+      if (!access(skel, R_OK))
+        toys.exitval = xrun((char *[]){"cp", "-R", skel, p, 0});
+      else toys.exitval = xrun((char *[]){"mkdir", "-p", p, 0});
+      if (!toys.exitval)
+        toys.exitval |= xrun((char *[]){"chown", "-R",
+          xmprintf("%u:%u", TT.uid, TT.gid), p, 0});
+      wfchmodat(AT_FDCWD, p, 0700);
+    } else fprintf(stderr, "'%s' exists, not copying '%s'", p, skel);
+  }
 
   //3. update the user passwd by running 'passwd' utility
-  if (!(toys.optflags & FLAG_D)) {
-    args[0] = "passwd";
-    args[1] = pwd.pw_name;
-    args[2] = NULL;
-    if (exec_wait(args)) error_exit("changing user passwd failed");
-  }
+  if (!(toys.optflags & FLAG_D))
+    if (xrun((char *[]){"passwd", pwd.pw_name, 0})) error_exit("passwd");
+
   if (toys.optflags & FLAG_G) {
     /*add user to the existing group, invoke addgroup command */
-    args[0] = "groupadd";
-    args[1] = toys.optargs[0];
-    args[2] = TT.u_grp;
-    args[3] = NULL;
-    if (exec_wait(args)) error_exit("adding user to group Failed");
-  }
-}
-
-/* Entry point for useradd feature 
- * Specifying options and User, Group at cmdline is treated as error.
- * If only 2 parameters (Non-Option) are given, then User is added to the 
- * Group
- */
-void useradd_main(void)
-{
-  struct passwd *pwd = NULL;
-
-  if (toys.optflags && toys.optc == 2) {
-    toys.exithelp = 1;
-    error_exit("options, user and group can't be together");
-  }
-
-  if (toys.optc == 2) {
-    //add user to group
-    //toys.optargs[0]- user, toys.optargs[1] - group
-    char *args[4];
-    args[0] = "groupadd";
-    args[1] = toys.optargs[0];
-    args[2] = toys.optargs[1];
-    args[3] = NULL;
-    toys.exitval = exec_wait(args);
-  } else {    //new user to be created
-    // investigate the user to be created
-    if ((pwd = getpwnam(*toys.optargs))) 
-      error_exit("user '%s' is in use", *toys.optargs);
-    is_valid_username(*toys.optargs); //validate the user name
-    new_user();
+    if (xrun((char *[]){"groupadd", *toys.optargs, TT.u_grp, 0}))
+      error_exit("groupadd");
   }
 }
