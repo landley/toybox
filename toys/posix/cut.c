@@ -1,6 +1,7 @@
 /* cut.c - Cut from a file.
  *
- * Copyright 2012 Ranjan Kumar <ranjankumar.bth@gmail.com>, Kyungwan Han <asura321@gamil.com>
+ * Copyright 2012 Ranjan Kumar <ranjankumar.bth@gmail.com>
+ * Copyright 2012 Kyungwan Han <asura321@gmail.com>
  *
  * http://pubs.opengroup.org/onlinepubs/9699919799/utilities/cut.html 
 
@@ -14,57 +15,52 @@ config CUT
 
     Print selected parts of lines from each FILE to standard output.
 
-    -b LIST    select only these bytes from LIST.
-    -c LIST    select only these characters from LIST.
-    -f LIST    select only these fields.
-    -d DELIM  use DELIM instead of TAB for field delimiter.
-    -s    do not print lines not containing delimiters.
-    -n    don't split multibyte characters (Ignored).
+    -b LIST	select only these bytes from LIST.
+    -c LIST	select only these characters from LIST.
+    -f LIST	select only these fields.
+    -d DELIM	use DELIM instead of TAB for field delimiter.
+    -s	do not print lines not containing delimiters.
+    -n	don't split multibyte characters (Ignored).
 */
 #define FOR_cut
 #include "toys.h"
-
-typedef struct _slist {
-  int start_position;
-  int end_position;
-  struct _slist *next;
-} SLIST;
 
 GLOBALS(
   char *delim;
   char *flist;
   char *clist;
   char *blist;
-  struct _slist *slist_head;
+
+  void *slist_head;
   unsigned nelem;
 )
+
+struct slist {
+  struct slist *next;
+  int start, end;
+};
 
 void (*do_cut)(int);
 static void do_fcut(int fd);
 static void do_bccut(int fd);
-static void free_list(void);
 
-/*
- * add items in the slist.
- */
 static void add_to_list(int start, int end)
 {
-  SLIST *current, *head_ref, *temp1_node;
+  struct slist *current, *head_ref, *temp1_node;
 
   head_ref = TT.slist_head;
-  temp1_node = (SLIST *)xzalloc(sizeof(SLIST));
-  temp1_node->start_position = start;
-  temp1_node->end_position = end;
-  temp1_node->next = NULL;
+  temp1_node = xzalloc(sizeof(struct slist));
+  temp1_node->start = start;
+  temp1_node->end = end;
 
   /* Special case for the head end */
-  if (head_ref == NULL || (head_ref)->start_position >= start) { 
+  if (!head_ref || head_ref->start >= start) { 
       temp1_node->next = head_ref; 
       head_ref = temp1_node;
   } else { 
     /* Locate the node before the point of insertion */   
     current = head_ref;   
-    while (current->next!=NULL && current->next->start_position < temp1_node->start_position)
+    while (current->next && current->next->start < temp1_node->start)
         current = current->next;
     temp1_node->next = current->next;   
     current->next = temp1_node;
@@ -174,16 +170,25 @@ void cut_main(void)
     free(TT.delim);
     TT.delim = NULL;
   }
-  free_list();
+  llist_traverse(TT.slist_head, free);
 }
 
 // perform cut operation on the given delimiter.
 static void do_fcut(int fd)
 {
-  char *buff;
-  char *delimiter = TT.delim;
+  char *buff, *pfield = 0, *delimiter = TT.delim;
 
-  while ((buff = get_line(fd))) {
+  for (;;) {
+    unsigned cpos = 0;
+    int start, ndelimiters = -1;
+    int  nprinted_fields = 0;
+    struct slist *temp_node = TT.slist_head;
+
+    free(pfield);
+    pfield = 0;
+
+    if (!(buff = get_line(fd))) break;
+
     //does line have any delimiter?.
     if (strrchr(buff, (int)delimiter[0]) == NULL) {
       //if not then print whole line and move to next line.
@@ -191,19 +196,16 @@ static void do_fcut(int fd)
       continue;
     }
 
-    unsigned cpos = 0;
-    int start, ndelimiters = -1;
-    int  nprinted_fields = 0;
-    char *pfield = xzalloc(strlen(buff) + 1);
-    SLIST *temp_node = TT.slist_head;
+    pfield = xzalloc(strlen(buff) + 1);
 
-    if (temp_node != NULL) {
+    if (temp_node) {
       //process list on each line.
       while (cpos < TT.nelem && buff) {
         if (!temp_node) break;
-        start = temp_node->start_position;
+        start = temp_node->start;
         do {
-          char *field = NULL;
+          char *field = 0;
+
           //count number of delimeters per line.
           while (buff) {
             if (ndelimiters < start) {
@@ -222,16 +224,14 @@ static void do_fcut(int fd)
             }
           }
           start++;
-          if ((temp_node->end_position < 0) || (!buff)) break;          
-        } while(start <= temp_node->end_position);
+          if ((temp_node->end < 0) || !buff) break;          
+        } while(start <= temp_node->end);
         temp_node = temp_node->next;
         cpos++;
       }
     }
     xputc('\n');
-    free(pfield);
-    pfield = NULL;
-  }//End of while loop.
+  }
 }
 
 // perform cut operation char or byte.
@@ -243,18 +243,18 @@ static void do_bccut(int fd)
     unsigned cpos = 0;
     int buffln = strlen(buff);
     char *pfield = xzalloc(buffln + 1);
-    SLIST *temp_node = TT.slist_head;
+    struct slist *temp_node = TT.slist_head;
 
     if (temp_node != NULL) {
       while (cpos < TT.nelem) {
         int start;
 
         if (!temp_node) break;
-        start = temp_node->start_position;
+        start = temp_node->start;
         while (start < buffln) {
           //to avoid duplicate field printing.
           if (pfield[start]) {
-              if (++start <= temp_node->end_position) continue;
+              if (++start <= temp_node->end) continue;
               temp_node = temp_node->next;
               break;
           } else {
@@ -262,7 +262,7 @@ static void do_bccut(int fd)
             pfield[start] = (char) 0x23; //put some char at this position.
             xputc(buff[start]);
           }
-          if (++start > temp_node->end_position) {
+          if (++start > temp_node->end) {
             temp_node = temp_node->next;
             break;
           }
@@ -273,19 +273,5 @@ static void do_bccut(int fd)
     }
     free(pfield);
     pfield = NULL;
-  }
-}
-
-/*
- * free the slist.
-*/
-static void free_list(void)
-{
-  SLIST *temp;
-
-  while (TT.slist_head != NULL) {
-    temp = TT.slist_head->next;
-    free(TT.slist_head);
-    TT.slist_head = temp;
   }
 }
