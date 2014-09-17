@@ -53,30 +53,26 @@ int fetch(char *file, struct timeval *tv, unsigned flags)
 void touch_main(void)
 {
   struct timeval tv[2];
-  struct tm tm;
-  char **ss, *date, *s;
-  int flag, fd, i, len;
+  char **ss;
+  int flag, fd, i;
 
   // Set time from clock?
 
   gettimeofday(tv, NULL);
-  localtime_r(&(tv->tv_sec), &tm);
-
-  // Set time from -d?
 
   if (toys.optflags & (FLAG_t|FLAG_d)) {
+    char *s, *date;
+    struct tm tm;
+    int len;
+
+    localtime_r(&(tv->tv_sec), &tm);
+
+    // Set time from -d?
+
     if (toys.optflags & FLAG_d) {
       date = TT.date;
       i = strlen(date);
-      if (i && i < sizeof(toybuf)) {
-        // Trailing Z means UTC timezone, don't expect libc to know this.
-        if (toupper(date[i])=='Z') {
-          putenv("TZ=UTC");
-          strcpy(toybuf, date);
-          toybuf[i] = 0;
-          date = toybuf;
-          gmtime_r(&(tv->tv_sec), &tm);
-        }
+      if (i) {
         s = strptime(date, "%Y-%m-%dT%T", &tm);
         if (s && *s=='.') {
           sscanf(s, ".%d%n", &i, &len);
@@ -105,10 +101,7 @@ void touch_main(void)
 
     errno = 0;
     tv->tv_sec = mktime(&tm);
-    if (!s || *s || errno == EOVERFLOW) {
-      // Warn Indiana Jones the monkey died.
-      perror_exit("bad '%s'", date);
-    }
+    if (!s || *s || errno == EOVERFLOW) perror_exit("bad '%s'", date);
   }
   tv[1]=tv[0];
 
