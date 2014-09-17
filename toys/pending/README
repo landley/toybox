@@ -1,5 +1,18 @@
 pending
 
-These commands await additional review and/or cleanup. Code in this directory
-may or may not work, some of the commands here are unfinished stubs, others
-just need a more thorough inspection than I've had time for yet.
+Commands in this directory are external submissions awaiting review and/or
+cleanup before being "promoted" to one of the other directories.
+
+Code in this directory may or may not work, some of the commands here are
+unfinished stubs, others just need a more thorough inspection than we've had
+time for yet. Everything in here defaults to "n" in defconfig.
+
+Library code awaiting cleanup lives in lib/pending.c
+
+The following commands predate the pending directory, and are awaiting
+cleanup but don't live here:
+
+  vmstat, login, du, vconfig, mountpoint, free, chroot, cut, touch,
+  modinfo, expand, xargs
+
+  lib/password.c
