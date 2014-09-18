@@ -82,7 +82,10 @@ static int dump_proc_data(FILE *fp)
       char *ptr;
       ssize_t len;
 
-      if ((len = readall(fd, toybuf, sizeof(toybuf)-1)) < 0) continue;
+      if ((len = readall(fd, toybuf, sizeof(toybuf)-1)) < 0) {
+        xclose(fd);
+        continue;
+      }
       toybuf[len] = '\0';
       close(fd);
       fputs(toybuf, fp);
@@ -226,10 +229,11 @@ static void stop_logging(char *tmp_dir, char *prog)
   if ((kcmd_line_fd = open("/proc/cmdline", O_RDONLY)) != -1) {
     ssize_t len;
 
-    len = readall(kcmd_line_fd, toybuf, sizeof(toybuf)-1);
-    toybuf[len] = 0;
-    while (--len >= 0 && !toybuf[len]) continue;
-    for (; len > 0; len--) if (toybuf[len] < ' ') toybuf[len] = ' ';
+    if ((len = readall(kcmd_line_fd, toybuf, sizeof(toybuf)-1)) > 0) {
+      toybuf[len] = 0;
+      while (--len >= 0 && !toybuf[len]) continue;
+      for (; len > 0; len--) if (toybuf[len] < ' ') toybuf[len] = ' ';
+    } else *toybuf = 0;
   }
   fprintf(hdr_fp, "system.kernel.options = %s", toybuf);
   close(kcmd_line_fd);

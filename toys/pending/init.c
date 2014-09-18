@@ -141,6 +141,8 @@ static void inittab_parsing(void)
       line_number++;
       token_count = 0;
       action = 0;
+      tty_name = command = NULL;
+
       while ((extracted_token = strsep(&p,":"))) {
         token_count++;
         switch (token_count) {
@@ -172,8 +174,12 @@ static void inittab_parsing(void)
       }  //while token
 
       if (q) free(q);
-      if (token_count != 4) continue; 
-      if (action) add_new_action(action, command, tty_name);  
+      if (token_count != 4) {
+        free(tty_name);
+        free(command);
+        continue;
+      }
+      if (action) add_new_action(action, command, tty_name);
       free(tty_name);
       free(command);
     } //while line

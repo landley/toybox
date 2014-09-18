@@ -37,7 +37,7 @@ GLOBALS(
   char *t_list;
 
   struct double_list *devices;
-  int *arr_flag;
+  char *arr_flag;
   char **arr_type;
   int negate;
   int sum_status;
@@ -123,18 +123,20 @@ static void fix_tlist(void)
     n++;
   }
 
-  TT.arr_flag = xzalloc((n + 1) * sizeof(char));
+  TT.arr_flag = xzalloc(n + 1);
   TT.arr_type = xzalloc((n + 1) * sizeof(char *));
   s = TT.t_list;
   n = 0;
   while ((p = strsep(&s, ","))) {
     no = is_no_prefix(&p);
-    if (!strcmp(p, "loop")) TT.arr_flag[n] = no ? FLAG_WITH_NO_PRFX :FLAG_WITHOUT_NO_PRFX; 
-    else if (!strncmp(p, "opts=", 5)) {
+    if (!strcmp(p, "loop")) {
+      TT.arr_flag[n] = no ? FLAG_WITH_NO_PRFX :FLAG_WITHOUT_NO_PRFX;
+      TT.negate = no;
+    } else if (!strncmp(p, "opts=", 5)) {
       p+=5;
       TT.arr_flag[n] = is_no_prefix(&p) ?FLAG_WITH_NO_PRFX :FLAG_WITHOUT_NO_PRFX;
-    }
-    else {
+      TT.negate = no;
+    } else {
       if (!n) TT.negate = no;
       if (n && TT.negate != no) error_exit("either all or none of the filesystem"
           " types passed to -t must be prefixed with 'no' or '!'");
@@ -221,9 +223,9 @@ static void do_fsck(struct f_sys_info *finfo)
     return;
   } else { 
     if ((pid = fork()) < 0) {
+      perror_msg(args[0]);
       for (j=0;j<i;j++) free(args[i]);
       free(args);
-      perror_msg(args[0]);
       return; 
     }
     if (!pid) xexec(args); //child, executes fsck.type

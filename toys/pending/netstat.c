@@ -468,6 +468,7 @@ static void get_pid_list(void)
     strcpy(path + length - (sizeof("cmdline")-1), "fd");
     progname = append_pathandfile(pid, (char *)get_basename(toybuf)); //e.g. progname = 2054/gnome-keyring-daemon
     extract_inode(path, progname);
+    free(progname);
   }//end of while.
   closedir(dp);
 
