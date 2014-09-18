@@ -33,16 +33,13 @@ GLOBALS(
 
   void *slist_head;
   unsigned nelem;
+  void (*do_cut)(int fd);
 )
 
 struct slist {
   struct slist *next;
   int start, end;
 };
-
-void (*do_cut)(int);
-static void do_fcut(int fd);
-static void do_bccut(int fd);
 
 static void add_to_list(int start, int end)
 {
@@ -107,70 +104,21 @@ static void get_data(void)
   char **argv = toys.optargs; //file name.
   toys.exitval = EXIT_SUCCESS;
 
-  if(!*argv) do_cut(0); //for stdin
+  if(!*argv) TT.do_cut(0); //for stdin
   else {
     for(; *argv; ++argv) {
-      if(strcmp(*argv, "-") == 0) do_cut(0); //for stdin
+      if(strcmp(*argv, "-") == 0) TT.do_cut(0); //for stdin
       else {
         int fd = open(*argv, O_RDONLY, 0);
         if(fd < 0) {//if file not present then continue with other files.
           perror_msg(*argv);
           continue;
         }
-        do_cut(fd);
+        TT.do_cut(fd);
         xclose(fd);
       }
     }
   }
-}
-
-void cut_main(void)
-{
-  char delimiter = '\t'; //default delimiter.
-  char *list;
-
-  TT.nelem = 0;
-  TT.slist_head = NULL;
-
-  //Get list and assign the function.
-  if (toys.optflags & FLAG_f) {
-    list = TT.flist;
-    do_cut = do_fcut;
-  } else if (toys.optflags & FLAG_c) {
-    list = TT.clist;
-    do_cut = do_bccut;
-  } else {
-    list = TT.blist;
-    do_cut = do_bccut;
-  }
-
-  if (toys.optflags & FLAG_d) {
-    //delimiter must be 1 char.
-    if(TT.delim[0] && TT.delim[1])
-      perror_exit("the delimiter must be a single character");
-    delimiter = TT.delim[0];
-  }
-
-  if(!(toys.optflags & FLAG_d) && (toys.optflags & FLAG_f)) {
-    TT.delim = xzalloc(2);
-    TT.delim[0] = delimiter;
-  }
-  
-  //when field is not specified, cutting has some special handling.
-  if (!(toys.optflags & FLAG_f)) {
-    if (toys.optflags & FLAG_s)
-      perror_exit("suppressing non-delimited lines operating on fields");
-    if (delimiter != '\t')
-      perror_exit("an input delimiter may be specified only when operating on fields");
-  }
-
-  parse_list(list);
-  get_data();
-  if (!(toys.optflags & FLAG_d) && (toys.optflags & FLAG_f)) {
-    free(TT.delim);
-    TT.delim = NULL;
-  }
-  llist_traverse(TT.slist_head, free);
 }
 
 // perform cut operation on the given delimiter.
@@ -274,4 +222,53 @@ static void do_bccut(int fd)
     free(pfield);
     pfield = NULL;
   }
+}
+
+void cut_main(void)
+{
+  char delimiter = '\t'; //default delimiter.
+  char *list;
+
+  TT.nelem = 0;
+  TT.slist_head = NULL;
+
+  //Get list and assign the function.
+  if (toys.optflags & FLAG_f) {
+    list = TT.flist;
+    TT.do_cut = do_fcut;
+  } else if (toys.optflags & FLAG_c) {
+    list = TT.clist;
+    TT.do_cut = do_bccut;
+  } else {
+    list = TT.blist;
+    TT.do_cut = do_bccut;
+  }
+
+  if (toys.optflags & FLAG_d) {
+    //delimiter must be 1 char.
+    if(TT.delim[0] && TT.delim[1])
+      perror_exit("the delimiter must be a single character");
+    delimiter = TT.delim[0];
+  }
+
+  if(!(toys.optflags & FLAG_d) && (toys.optflags & FLAG_f)) {
+    TT.delim = xzalloc(2);
+    TT.delim[0] = delimiter;
+  }
+  
+  //when field is not specified, cutting has some special handling.
+  if (!(toys.optflags & FLAG_f)) {
+    if (toys.optflags & FLAG_s)
+      perror_exit("suppressing non-delimited lines operating on fields");
+    if (delimiter != '\t')
+      perror_exit("an input delimiter may be specified only when operating on fields");
+  }
+
+  parse_list(list);
+  get_data();
+  if (!(toys.optflags & FLAG_d) && (toys.optflags & FLAG_f)) {
+    free(TT.delim);
+    TT.delim = NULL;
+  }
+  llist_traverse(TT.slist_head, free);
 }
