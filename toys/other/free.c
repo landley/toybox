@@ -2,56 +2,46 @@
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
 
-USE_FREE(NEWTOY(free, "gmkb", TOYFLAG_USR|TOYFLAG_BIN))
+USE_FREE(NEWTOY(free, "tgmkb[!tgmkb]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config FREE
   bool "free"
   default y
   help
-    usage: free [-bkmg]
+    usage: free [-bkmgt]
 
-    Display the total, free and used amount of physical memory and
-    swap space.
+    Display the total, free and used amount of physical memory and swap space.
 
-    -bkmg	Output in bytes (default), KB, MB or GB
+    -bkmgt	Output units (default is bytes)
 */
 
 #define FOR_free
 #include "toys.h"
 
-static unsigned long long convert(unsigned long d, unsigned int iscale,
-        unsigned int oscale)
+GLOBALS(
+  unsigned bits;
+  unsigned long long units;
+)
+
+static unsigned long long convert(unsigned long d)
 {
-  return ((unsigned long long)d*iscale)>>oscale;
+  return (d*TT.units)>>TT.bits;
 }
 
 void free_main(void)
 {
-  struct sysinfo info;
-  unsigned int iscale = 1;
-  unsigned int oscale = 0;
+  struct sysinfo in;
 
-  sysinfo(&info);
-  if (info.mem_unit) iscale = info.mem_unit;
-  if (toys.optflags & FLAG_b) oscale = 0;
-  if (toys.optflags & FLAG_k) oscale = 10;
-  if (toys.optflags & FLAG_m) oscale = 20;
-  if (toys.optflags & FLAG_g) oscale = 30;
+  sysinfo(&in);
+  TT.units = in.mem_unit ? in.mem_unit : 1;
+  for (TT.bits = 0; toys.optflags && !(toys.optflags&(1<<TT.bits)); TT.bits++);
+  TT.bits *= 10;
 
-  xprintf("\t\ttotal        used        free      shared     buffers\n");
-  xprintf("Mem:%17llu%12llu%12llu%12llu%12llu\n",
-    convert(info.totalram, iscale, oscale),
-    convert(info.totalram-info.freeram, iscale, oscale),
-    convert(info.freeram, iscale, oscale),
-    convert(info.sharedram, iscale, oscale),
-    convert(info.bufferram, iscale, oscale));
-
-  xprintf("-/+ buffers/cache:%15llu%12llu\n",
-    convert(info.totalram - info.freeram - info.bufferram, iscale, oscale),
-    convert(info.freeram + info.bufferram, iscale, oscale));
-
-  xprintf("Swap:%16llu%12llu%12llu\n",
-    convert(info.totalswap, iscale, oscale),
-    convert(info.totalswap - info.freeswap, iscale, oscale),
-    convert(info.freeswap, iscale, oscale));
+  xprintf("\t\ttotal        used        free      shared     buffers\n"
+    "Mem:%17llu%12llu%12llu%12llu%12llu\n-/+ buffers/cache:%15llu%12llu\n"
+    "Swap:%16llu%12llu%12llu\n", convert(in.totalram),
+    convert(in.totalram-in.freeram), convert(in.freeram), convert(in.sharedram),
+    convert(in.bufferram), convert(in.totalram - in.freeram - in.bufferram),
+    convert(in.freeram + in.bufferram), convert(in.totalswap),
+    convert(in.totalswap - in.freeswap), convert(in.freeswap));
 }
