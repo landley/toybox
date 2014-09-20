@@ -14,8 +14,6 @@ source ./configure
 [ -z "$CPUS" ] &&
   CPUS=$((($(echo /sys/devices/system/cpu/cpu[0-9]* | wc -w)*3)/2))
 
-echo CPUS=$CPUS
-
 # Respond to V= by echoing command lines as well as running them
 do_loudly()
 {
