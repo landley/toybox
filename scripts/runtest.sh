@@ -51,7 +51,7 @@ optional()
 
 # The testing function
 
-testing ()
+testing()
 {
   NAME="$1"
   [ -z "$1" ] && NAME=$2
@@ -101,7 +101,7 @@ testing ()
 # the file is assumed to already be there and only its library dependencies
 # are copied.
 
-function mkchroot
+mkchroot()
 {
   [ $# -lt 2 ] && return
 
@@ -130,7 +130,7 @@ function mkchroot
 # Needed commands listed on command line
 # Script fed to stdin.
 
-function dochroot
+dochroot()
 {
   mkdir tmpdir4chroot
   mount -t ramfs tmpdir4chroot tmpdir4chroot
