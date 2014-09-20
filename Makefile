@@ -8,7 +8,7 @@ toybox toybox_unstripped: $(KCONFIG_CONFIG) *.[ch] lib/*.[ch] toys/*.h toys/*/*.
 	scripts/make.sh
 
 .PHONY: clean distclean baseline bloatcheck install install_flat \
-	uinstall uninstall_flat test tests help scripts/test
+	uinstall uninstall_flat test tests help
 
 include kconfig/Makefile
 
@@ -41,7 +41,7 @@ uninstall:
 	scripts/install.sh --long --uninstall
 
 clean::
-	rm -rf toybox toybox_unstripped testdir generated/build.sh \
+	rm -rf toybox toybox_unstripped generated/testdir generated/build.sh \
 		.singleconfig .singleconfig.old generated/obj \
 		generated/Config.* generated/*.h generated/*.dat \
 		generated/instlist generated/mkflags generated/config2help
