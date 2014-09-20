@@ -107,6 +107,7 @@ other global infrastructure.</li>
 multiple commands:</li>
 <ul>
 <li><a href="#lib_lib">lib/lib.c</a></li>
+<li><a href="#lib_xwrap">lib/xwrap.c</a></li>
 <li><a href="#lib_llist">lib/llist.c</a></li>
 <li><a href="#lib_args">lib/args.c</a></li>
 <li><a href="#lib_dirtree">lib/dirtree.c</a></li>
@@ -124,11 +125,12 @@ files generated from other parts of the source code.</li>
 
 <a name="adding" />
 <p><h1><a href="#adding">Adding a new command</a></h1></p>
-<p>To add a new command to toybox, add a C file implementing that command under
-the toys directory.  No other files need to be modified; the build extracts
-all the information it needs (such as command line arguments) from specially
-formatted comments and macros in the C file.  (See the description of the
-<a href="#generated">"generated" directory</a> for details.)</p>
+<p>To add a new command to toybox, add a C file implementing that command to
+one of the subdirectories under the toys directory.  No other files need to
+be modified; the build extracts all the information it needs (such as command
+line arguments) from specially formatted comments and macros in the C file.
+(See the description of the <a href="#generated">"generated" directory</a>
+for details.)</p>
 
 <p>Currently there are five subdirectories under "toys", one for commands
 defined by the POSIX standard, one for commands defined by the Linux Standard
@@ -489,8 +491,9 @@ instructions</a>.</p>
 which is for files generated at build time from other source files.</p>
 
 <ul>
-<li><p><b>generated/Config.in</b> - Included from the top level Config.in,
-contains one or more configuration entries for each command.</p>
+<li><p><b>generated/Config.in</b> - Kconfig entries for each command, included
+from the top level Config.in. The help text here is used to generate
+help.h.</p>
 
 <p>Each command has a configuration entry with an upper case version of
 the command name. Options to commands start with the command
@@ -498,16 +501,10 @@ name followed by an underscore and the option name. Global options are attached
 to the "toybox" command, and thus use the prefix "TOYBOX_".  This organization
 is used by scripts/cfg2files to select which toys/*/*.c files to compile for a
 given .config.</p>
-
-<p>A command with multiple names (or multiple similar commands implemented in
-the same .c file) should have config symbols prefixed with the name of their
-C file. I.E. config symbol prefixes are NEWTOY() names. If OLDTOY() names
-have config symbols they must be options (symbols with an underscore and
-suffix) to the NEWTOY() name. (See generated/toylist.h)</p>
 </li>
 
 <li><p><b>generated/config.h</b> - list of CFG_SYMBOL and USE_SYMBOL() macros,
-generated from .config by a sed invocation in the top level Makefile.</p>
+generated from .config by a sed invocation in scripts/make.sh.</p>
 
 <p>CFG_SYMBOL is a comple time constant set to 1 for enabled symbols and 0 for
 disabled symbols. This allows the use of normal if() statements to remove
@@ -518,12 +515,15 @@ breaks. (See the 1992 Usenix paper
 <a href=http://doc.cat-v.org/henry_spencer/ifdef_considered_harmful.pdf>#ifdef
 Considered Harmful</a> for more information.)</p>
 
-<p>USE_SYMBOL(code) evaluates to the code in parentheses when the symbol
-is enabled, and nothing when the symbol is disabled. This can be used
-for things like varargs or variable declarations which can't always be
-eliminated by a simple test on CFG_SYMBOL. Note that
-(unlike CFG_SYMBOL) this is really just a variant of #ifdef, and can
-still result in configuration dependent build breaks. Use with caution.</p>
+<p>When you can't entirely avoid an #ifdef, the USE_SYMBOL(code) macro
+provides a less intrusive alternative, evaluating to the code in parentheses
+when the symbol is enabled, and nothing when the symbol is disabled. This
+is most commonly used around NEWTOY() declarations (so only the enabled
+commands show up in toy_list), and in option strings. This can also be used
+for things like varargs or structure members which can't always be
+eliminated by a simple test on CFG_SYMBOL. Remember, unlike CFG_SYMBOL
+this is really just a variant of #ifdef, and can still result in configuration
+dependent build breaks. Use with caution.</p>
 </li>
 
 <li><p><b>generated/flags.h</b> - FLAG_? macros indicating which command
@@ -556,10 +556,10 @@ variables out of "this" as TT.variablename.</p>
 lib/args.c argument parsing code called from main.c.</p>
 </li>
 
-<li><p><b>toys/help.h</b> -
-#defines two help text strings for each command: a single line
-command_help and an additinal command_help_long.  This is used by help_main()
-in toys/help.c to display help for commands.</p>
+<li><p><b>toys/help.h</b> - Help strings for use by the "help" command and
+--help options. This file #defines a help_symbolname string for each
+symbolname, but only the symbolnames matching command names get used
+by show_help() in lib/help.c to display help for commands.</p>
 
 <p>This file is created by scripts/make.sh, which compiles scripts/config2help.c
 into the binary generated/config2help, and then runs it against the top
@@ -573,17 +573,19 @@ have their help text added to the command they depend on.</p>
 </li>
 
 <li><p><b>generated/newtoys.h</b> - 
-All the NEWTOY() and OLDTOY() macros in alphabetical order,
-each of which should be inside the appropriate USE_ macro. (Ok, not _quite_
-alphabetical orer: the "toybox" multiplexer is always the first entry.)</p>
+All the NEWTOY() and OLDTOY() macros from toys/*/*.c. The "toybox" multiplexer
+is the first entry, the rest are in alphabetical order. Each line should be
+inside an appropriate USE_ macro, so code that #includes this file only sees
+the currently enabled commands.</p>
 
 <p>By #definining NEWTOY() to various things before #including this file,
 it may be used to create function prototypes (in toys.h), initialize the
-toy_list array (in main.c, the alphabetical order lets toy_find() do a
-binary search), initialize the help_data array (in lib/help.c), and so on.
-(It's even used to initialize the NEED_OPTIONS macro, which is has a 1 or 0
-for each command using command line option parsing, ORed together.
-This allows compile-time dead code elimination to remove the whole of
+help_data array (in lib/help.c),  initialize the toy_list array (in main.c,
+the alphabetical order lets toy_find() do a binary search, the exception to
+the alphabetical order lets it use the multiplexer without searching), and so
+on.  (It's even used to initialize the NEED_OPTIONS macro, which produces a 1
+or 0 for each command using command line option parsing, which is ORed together
+to allow compile-time dead code elimination to remove the whole of
 lib/args.c if nothing currently enabled is using it.)<p>
 
 <p>Each NEWTOY and OLDTOY macro contains the command name, command line
@@ -607,6 +609,163 @@ having to repeat it.</p>
 <p>lib: getmountlist(), error_msg/error_exit, xmalloc(),
 strlcpy(), xexec(), xopen()/xread(), xgetcwd(), xabspath(), find_in_path(),
 itoa().</p>
+
+
+
+<a name="lib_xwrap"><h3>lib/xwrap.c</h3>
+
+<p>Functions prefixed with the letter x call perror_exit() when they hit
+errors, to eliminate common error checking. This prints an error message
+and the strerror() string for the errno encountered.</p>
+
+<p>You can intercept this exit by assigning a setjmp/longjmp buffer to
+toys.rebound (set it back to zero to restore the default behavior).
+If you do this, cleaning up resource leaks is your problem.</p>
+
+<ul>
+<li><b>void xstrncpy(char *dest, char *src, size_t size)</b></li>
+<li><b>void xexit(void)</b></li>
+<li><b>void *xmalloc(size_t size)</b></li>
+<li><b>void *xzalloc(size_t size)</b></li>
+<li><b>void *xrealloc(void *ptr, size_t size)</b></li>
+<li><b>char *xstrndup(char *s, size_t n)</b></li>
+<li><b>char *xstrdup(char *s)</b></li>
+<li><b>char *xmprintf(char *format, ...)</b></li>
+<li><b>void xprintf(char *format, ...)</b></li>
+<li><b>void xputs(char *s)</b></li>
+<li><b>void xputc(char c)</b></li>
+<li><b>void xflush(void)</b></li>
+<li><b>pid_t xfork(void)</b></li>
+<li><b>void xexec_optargs(int skip)</b></li>
+<li><b>void xexec(char **argv)</b></li>
+<li><b>pid_t xpopen(char **argv, int *pipes)</b></li>
+<li><b>int xpclose(pid_t pid, int *pipes)</b></li>
+<li><b>void xaccess(char *path, int flags)</b></li>
+<li><b>void xunlink(char *path)</b></li>
+<li><p><b>int xcreate(char *path, int flags, int mode)<br />
+int xopen(char *path, int flags)</b></p>
+
+<p>The xopen() and xcreate() functions open an existing file (exiting if
+it's not there) and create a new file (exiting if it can't).</p>
+
+<p>They default to O_CLOEXEC so the filehandles aren't passed on to child
+processes. Feed in O_CLOEXEC to disable this.</p>
+</li>
+<li><p><b>void xclose(int fd)</b></p>
+
+<p>Because NFS is broken, and won't necessarily perform the requested
+operation (and report the error) until you close the file. Of course, this
+being NFS, it's not guaranteed to report the error there either, but it
+_can_.</p>
+
+<p>Nothing else ever reports an error on close, everywhere else it's just a
+VFS operation freeing some resources. NFS is _special_, in a way that
+other network filesystems like smbfs and v9fs aren't..</p>
+</li>
+<li><b>int xdup(int fd)</b></li>
+<li><p><b>size_t xread(int fd, void *buf, size_t len)</b></p>
+
+<p>Can return 0, but not -1.</p>
+</li>
+<li><p><b>void xreadall(int fd, void *buf, size_t len)</b></p>
+
+<p>Reads the entire len-sized buffer, retrying to complete short
+reads. Exits if it can't get enough data.</p></li>
+
+<li><p><b>void xwrite(int fd, void *buf, size_t len)</b></p>
+
+<p>Retries short writes, exits if can't write the entire buffer.</p></li>
+
+<li><b>off_t xlseek(int fd, off_t offset, int whence)</b></li>
+<li><b>char *xgetcwd(void)</b></li>
+<li><b>void xstat(char *path, struct stat *st)</b></li>
+<li><p><b>char *xabspath(char *path, int exact) </b></p>
+
+<p>After several years of
+<a href=http://landley.net/notes-2007.html#18-06-2007>wrestling</a>
+<a href=http://landley.net/notes-2008.html#19-01-2008>with</a> realpath(), 
+I broke down and <a href=http://landley.net/notes-2012.html#20-11-2012>wrote
+my own</a> implementation that doesn't use the one in libc. As I explained:
+
+<blockquote><p>If the path ends with a broken link,
+readlink -f should show where the link points to, not where the broken link
+lives. (The point of readlink -f is "if I write here, where would it attempt
+to create a file".) The problem is, realpath() returns NULL for a path ending
+with a broken link, and I can't beat different behavior out of code locked
+away in libc.</p></blockquote>
+
+<p>
+</li>
+<li><b>void xchdir(char *path)</b></li>
+<li><b>void xchroot(char *path)</b></li>
+
+<li><p><b>struct passwd *xgetpwuid(uid_t uid)<br />
+struct group *xgetgrgid(gid_t gid)<br />
+struct passwd *xgetpwnam(char *name)</b></p>
+
+<p></p>
+</li>
+
+
+
+<li><b>void xsetuser(struct passwd *pwd)</b></li>
+<li><b>char *xreadlink(char *name)</b></li>
+<li><b>char *xreadfile(char *name, char *buf, off_t len)</b></li>
+<li><b>int xioctl(int fd, int request, void *data)</b></li>
+<li><b>void xpidfile(char *name)</b></li>
+<li><b>void xsendfile(int in, int out)</b></li>
+<li><b>long xparsetime(char *arg, long units, long *fraction)</b></li>
+<li><b>void xregcomp(regex_t *preg, char *regex, int cflags)</b></li>
+</ul>
+
+<a name="lib_lib"><h3>lib/lib.c</h3>
+<p>Eight gazillion common functions:</p>
+
+<ul>
+<li><b>void verror_msg(char *msg, int err, va_list va)</b></li>
+<li><b>void error_msg(char *msg, ...)</b></li>
+<li><b>void perror_msg(char *msg, ...)</b></li>
+<li><b>void error_exit(char *msg, ...)</b></li>
+<li><b>void perror_exit(char *msg, ...)</b></li>
+<li><b>ssize_t readall(int fd, void *buf, size_t len)</b></li>
+<li><b>ssize_t writeall(int fd, void *buf, size_t len)</b></li>
+<li><b>off_t lskip(int fd, off_t offset)</b></li>
+<li><b>int mkpathat(int atfd, char *dir, mode_t lastmode, int flags)</b></li>
+<li><b>struct string_list **splitpath(char *path, struct string_list **list)</b></li>
+<li><b>struct string_list *find_in_path(char *path, char *filename)</b></li>
+<li><b>long atolx(char *numstr)</b></li>
+<li><b>long atolx_range(char *numstr, long low, long high)</b></li>
+<li><b>int numlen(long l)</b></li>
+<li><b>int stridx(char *haystack, char needle)</b></li>
+<li><b>int strstart(char **a, char *b)</b></li>
+<li><b>off_t fdlength(int fd)</b></li>
+<li><b>char *readfile(char *name, char *ibuf, off_t len)</b></li>
+<li><b>void msleep(long miliseconds)</b></li>
+<li><b>int64_t peek_le(void *ptr, unsigned size)</b></li>
+<li><b>int64_t peek_be(void *ptr, unsigned size)</b></li>
+<li><b>int64_t peek(void *ptr, unsigned size)</b></li>
+<li><b>void poke(void *ptr, uint64_t val, int size)</b></li>
+<li><b>void loopfiles_rw(char **argv, int flags, int permissions, int failok,</b></li>
+<li><b>void loopfiles(char **argv, void (*function)(int fd, char *name))</b></li>
+<li><b>char *get_rawline(int fd, long *plen, char end)</b></li>
+<li><b>char *get_line(int fd)</b></li>
+<li><b>int wfchmodat(int fd, char *name, mode_t mode)</b></li>
+<li><b>static void tempfile_handler(int i)</b></li>
+<li><b>int copy_tempfile(int fdin, char *name, char **tempname)</b></li>
+<li><b>void delete_tempfile(int fdin, int fdout, char **tempname)</b></li>
+<li><b>void replace_tempfile(int fdin, int fdout, char **tempname)</b></li>
+<li><b>void crc_init(unsigned int *crc_table, int little_endian)</b></li>
+<li><b>int terminal_size(unsigned *xx, unsigned *yy)</b></li>
+<li><b>int yesno(char *prompt, int def)</b></li>
+<li><b>void generic_signal(int sig)</b></li>
+<li><b>void sigatexit(void *handler)</b></li>
+<li><b>int sig_to_num(char *pidstr)</b></li>
+<li><b>char *num_to_sig(int sig)</b></li>
+<li><b>mode_t string_to_mode(char *modestr, mode_t mode)</b></li>
+<li><b>void mode_to_string(mode_t mode, char *buf)</b></li>
+<li><b>void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))</b></li>
+<li><b>int human_readable(char *buf, unsigned long long num)</b></li>
+</ul>
 
 <h3>lib/portability.h</h3>
 
@@ -1124,16 +1283,23 @@ self-contained file. Adding a new command involves adding a single
 file, and removing a command involves removing that file. Commands use
 shared infrastructure from the lib/ and generated/ directories.</p>
 
-<p>Currently there are three subdirectories under "toys/" containing commands
-described in POSIX-2008, the Linux Standard Base 4.1, or "other". The only
-difference this makes is which menu the command shows up in during "make
-menuconfig", the directories are otherwise identical. Note that they commands
-exist within a single namespace at runtime, so you can't have the same
-command in multiple subdirectories.</p>
+<p>Currently there are five subdirectories under "toys/" containing "posix"
+commands described in POSIX-2008, "lsb" commands described in the Linux
+Standard Base 4.1, "other" commands not described by either standard,
+"pending" commands awaiting cleanup (which default to "n" in menuconfig
+because they don't necessarily work right yet), and "example" code showing
+how toybox infrastructure works and providing template/skeleton files to
+start new commands.</p>
 
-<p>(There are actually four sub-menus in "make menuconfig", the fourth
-contains global configuration options for toybox, and lives in Config.in at
-the top level.)</p>
+<p>The only difference directory location makes is which menu the command
+shows up in during "make menuconfig", the directories are otherwise identical.
+Note that the commands exist within a single namespace at runtime, so you can't
+have the same command in multiple subdirectories. (The build tries to fail
+informatively when you do that.)</p>
+
+<p>There is one more sub-menus in "make menuconfig" containing global
+configuration options for toybox. This menu is defined in the top level
+Config.in.</p>
 
 <p>See <a href="#adding">adding a new command</a> for details on the
 layout of a command file.</p>
@@ -1160,29 +1326,15 @@ Makefile.
 <p>Menuconfig infrastructure copied from the Linux kernel.  See the
 Linux kernel's Documentation/kbuild/kconfig-language.txt</p>
 
-<a name="generated">
-<h2>Directory generated/</h2>
+<!-- todo
 
-<p>All the files in this directory except the README are generated by the
-build. (See scripts/make.sh)</p>
+Better OLDTOY and multiple command explanation. From Config.in:
 
-<ul>
-<li><p><b>config.h</b> - CFG_COMMAND and USE_COMMAND() macros set by menuconfig via .config.</p></li>
-
-<li><p><b>Config.in</b> - Kconfig entries for each command.  Included by top level Config.in.  The help text in here is used to generated help.h</p></li>
-
-<li><p><b>help.h</b> - Help text strings for use by "help" command.  Building
-this file requires python on the host system, so the prebuilt file is shipped
-in the build tarball to avoid requiring python to build toybox.</p></li>
-
-<li><p><b>newtoys.h</b> - List of NEWTOY() or OLDTOY() macros for all available
-commands.  Associates command_main() functions with command names, provides
-option string for command line parsing (<a href="#lib_args">see lib/args.c</a>),
-specifies where to install each command and whether toysh should fork before
-calling it.</p></li>
-</ul>
-
-<p>Everything in this directory is a derivative file produced from something
-else.  The entire directory is deleted by "make distclean".</p>
+<p>A command with multiple names (or multiple similar commands implemented in
+the same .c file) should have config symbols prefixed with the name of their
+C file. I.E. config symbol prefixes are NEWTOY() names. If OLDTOY() names
+have config symbols they must be options (symbols with an underscore and
+suffix) to the NEWTOY() name. (See generated/toylist.h)</p>
+-->
 
 <!--#include file="footer.html" -->
