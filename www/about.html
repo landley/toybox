@@ -1,7 +1,7 @@
 <html><head><title>What is toybox?</title>
 <!--#include file="header.html" -->
 
-<h2><a name="what" />What is ToyBox?</h2>
+<h2><a name="what" />What is toybox?</h2>
 
 <p>Toybox combines the most common Linux command line utilities together into
 a single <a href=license.html>BSD-licensed</a> executable. It's simple, small, fast, and reasonably
@@ -13,7 +13,7 @@ A tiny system <a href=/aboriginal>built from</a> just toybox, linux, <a href=htt
 gcc 4.2.1+binutils 2.17) should be
 able to rebuild itself from source code without needing any other packages.</p>
 
-<b><h2><a name="status" />What commands are implemented in Toybox?</h2></b>
+<b><h2><a name="status" />What commands are implemented in toybox?</h2></b>
 
 <p>The current list of commands implemented by toybox is on the
 <a href=status.html>status page</a>, which is updated each release.
@@ -29,7 +29,7 @@ the toybox "df" isn't confused by initramfs the way other df implementations
 are. (If initramfs is visible, df shows it like any other mount point.)</p>
 
 <b><h3>Command Shell</h3></b>
-<p>The Toybox Shell (toysh) aims to be a reasonable bash replacement.  It
+<p>The toybox shell (toysh) aims to be a reasonable bash replacement.  It
 implements the "sh" and "toysh" commands, plus the built-in commands "cd" and
 "exit".  This is the largest single sub-project in toybox.</p>
 
@@ -56,7 +56,7 @@ tinycc) can rebuild itself from source code.</p>
 <p>Most commands are implemented according to
 <a href=http://opengroup.org/onlinepubs/9699919799/idx/utilities.html>The
 Single Unix Specification version 4</a> where applicable. This does not mean
-that Toybox is implementing every SUSv4 utility: some such as SCCS and ed are
+that toybox is implementing every SUSv4 utility: some such as SCCS and ed are
 obsolete, while others such as c99 are outside the scope of the project.
 Toybox also isn't implementing full internationalization support: it should be
 8-bit clean and handle UTF-8, but otherwise we leave this to X11 and higher
