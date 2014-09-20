@@ -1,4 +1,4 @@
-mainmenu "ToyBox Configuration"
+mainmenu "Toybox Configuration"
 
 
 source generated/Config.probed
