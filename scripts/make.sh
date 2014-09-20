@@ -21,6 +21,7 @@ do_loudly()
   "$@"
 }
 
+mkdir -p generated
 echo "Make generated/config.h from $KCONFIG_CONFIG."
 
 # This long and roundabout sed invocation is to make old versions of sed happy.
