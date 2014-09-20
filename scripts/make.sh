@@ -9,7 +9,12 @@ source ./configure
 
 [ -z "$KCONFIG_CONFIG" ] && KCONFIG_CONFIG=".config"
 
-[ -z "$CPUS" ] && CPUS=$(($(echo /sys/devices/system/cpu/cpu[0-9]* | wc -w)+1))
+# Since each cc invocation is short, launch half again as many processes
+# as we have processors so they don't exit faster than we can start them.
+[ -z "$CPUS" ] &&
+  CPUS=$((($(echo /sys/devices/system/cpu/cpu[0-9]* | wc -w)*3)/2))
+
+echo CPUS=$CPUS
 
 # Respond to V= by echoing command lines as well as running them
 do_loudly()
@@ -138,7 +143,7 @@ do_loudly $HOSTCC scripts/config2help.c -I . lib/xwrap.c lib/llist.c lib/lib.c \
   -o generated/config2help && \
 generated/config2help Config.in $KCONFIG_CONFIG > generated/help.h || exit 1
 
-echo "Library probe..."
+echo -n "Library probe"
 
 # We trust --as-needed to remove each library if we don't use any symbols
 # out of it, this loop is because the compiler has no way to ignore a library
@@ -151,7 +156,9 @@ do
   echo "int main(int argc, char *argv[]) {return 0;}" | \
   ${CROSS_COMPILE}${CC} $CFLAGS -xc - -o /dev/null -Wl,--as-needed -l$i > /dev/null 2>/dev/null &&
   echo -l$i >> generated/optlibs.dat
+  echo -n .
 done
+echo
 
 echo -n "Compile toybox"
 [ ! -z "$V" ] && echo
