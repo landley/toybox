@@ -74,6 +74,8 @@ char *strptime(const char *buf, const char *format, struct tm *tm);
 #include <unistd.h>
 #include <stdio.h>
 ssize_t getdelim(char **lineptr, size_t *n, int delim, FILE *stream);
+char *stpcpy(char *dest, const char *src);
+pid_t getsid(pid_t pid);
 
 // uClibc's last-ever release was in 2012, so of course it doesn't define
 // any flag newer than MS_MOVE, which was added in 2001 (linux 2.5.0.5),
