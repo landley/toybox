@@ -72,7 +72,7 @@ void killall_main(void)
     return;
   }
 
-  if (TT.sig || **TT.names == '-') {
+  if (TT.sig || (*TT.names && **TT.names == '-')) {
     if (0 > (TT.signum = sig_to_num(TT.sig ? TT.sig : (*TT.names)+1))) {
       if (toys.optflags & FLAG_q) exit(1);
       error_exit("Invalid signal");
