@@ -71,12 +71,16 @@ error:
 
 // Return path to this node, assembled recursively.
 
+// Initial call can pass in NULL to plen, or point to an int initialized to 0
+// to return the length of the path, or a value greater than 0 to allocate
+// extra space if you want to append your own text to the string.
+
 char *dirtree_path(struct dirtree *node, int *plen)
 {
   char *path;
   int len;
 
-  if (!node || !node->name) {
+  if (!node) {
     path = xmalloc(*plen);
     *plen = 0;
     return path;
