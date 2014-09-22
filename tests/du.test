@@ -13,13 +13,15 @@ testing "du (no options)" "du -k du_test" "4\tdu_test/test\n8\tdu_test\n" "" ""
 testing "du -s" "du -k -s du_test" "8\tdu_test\n" "" ""
 ln -s ../du_2 du_test/xyz
 # "du shall count the size of the symbolic link"
-# I assume this means the space used to store the link name
-testing "du counts symlinks without following" "du -ks du_test" "12\tdu_test\n" "" ""
+# The tests assume that like for most POSIX systems symbolic
+# links are stored directly in the inode so that the
+# allocated file space is zero.
+testing "du counts symlinks without following" "du -ks du_test" "8\tdu_test\n" "" ""
 testing "du -L follows symlinks" "du -ksL du_test" "16\tdu_test\n" "" ""
 # if -H and -L are specified, the last takes priority
 testing "du -HL follows symlinks" "du -ksHL du_test" "16\tdu_test\n" "" ""
-testing "du -H does not follow unspecified symlinks" "du -ksH du_test" "12\tdu_test\n" "" ""
-testing "du -LH does not follow unspecified symlinks" "du -ksLH du_test" "12\tdu_test\n" "" ""
+testing "du -H does not follow unspecified symlinks" "du -ksH du_test" "8\tdu_test\n" "" ""
+testing "du -LH does not follow unspecified symlinks" "du -ksLH du_test" "8\tdu_test\n" "" ""
 testing "du -H follows specified symlinks" "du -ksH du_test/xyz" "8\tdu_test/xyz\n" "" ""
 
 rm -rf du_test du_2
