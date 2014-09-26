@@ -28,7 +28,6 @@ config SKELETON
 config SKELETON_ALIAS
   bool "skeleton_alias"
   default n
-  depends on SKELETON
   help
     usage: skeleton_alias [-dq] [-b NUMBER]
 

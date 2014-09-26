@@ -9,7 +9,7 @@
  * and LSB standard command, sha1sum is just a good idea.
 
 USE_MD5SUM(NEWTOY(md5sum, "b", TOYFLAG_USR|TOYFLAG_BIN))
-USE_MD5SUM_SHA1SUM(OLDTOY(sha1sum, md5sum, "b", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SHA1SUM(NEWTOY(sha1sum, "b", TOYFLAG_USR|TOYFLAG_BIN))
 
 config MD5SUM
   bool "md5sum"
@@ -23,10 +23,9 @@ config MD5SUM
 
     -b	brief (hash only, no filename)
 
-config MD5SUM_SHA1SUM
+config SHA1SUM
   bool "sha1sum"
   default y
-  depends on MD5SUM
   help
     usage: sha1sum [FILE]...
 
@@ -240,4 +239,9 @@ static void do_hash(int fd, char *name)
 void md5sum_main(void)
 {
   loopfiles(toys.optargs, do_hash);
+}
+
+void sha1sum_main(void)
+{
+  md5sum_main();
 }
