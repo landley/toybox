@@ -19,11 +19,7 @@ int get_salt(char *salt, char *algo)
       int len = al[i].len;
       char *s = salt;
 
-      if (al[i].id) {
-        *s++ = '$';
-        *s++ = '0'+al[i].id;
-        *s++ = '$';
-      }
+      if (al[i].id) s += sprintf(s, "$%c$", '0'+al[i].id);
 
       // Read appropriate number of random bytes for salt
       i = xopen("/dev/urandom", O_RDONLY);
@@ -232,30 +228,4 @@ int update_password(char *filename, char* username, char* entry)
 free_storage:
   free(filenamesfx);
   return ret;
-}
-
-void is_valid_username(const char *name)                                                                                              
-{
-  regex_t rp;
-  regmatch_t rm[1]; 
-  int eval;
-  char *regex = "^[_.A-Za-z0-9][-_.A-Za-z0-9]*"; //User name REGEX
-
-  xregcomp(&rp, regex, REG_NEWLINE);
-
-  /* compare string against pattern --  remember that patterns 
-     are anchored to the beginning of the line */
-  eval = regexec(&rp, name, 1, rm, 0);
-  regfree(&rp);
-  if (!eval && !rm[0].rm_so) {
-    int len = strlen(name);
-    if ((rm[0].rm_eo == len) ||
-        (rm[0].rm_eo == len - 1 && name[len - 1] == '$')) {
-      if (len >= LOGIN_NAME_MAX) error_exit("name is too long");
-      else return;
-    }
-  }
-  error_exit("'%s', not valid %sname",name,
-      (((toys.which->name[3] == 'g') || 
-        (toys.which->name[0] == 'g'))? "group" : "user"));
 }

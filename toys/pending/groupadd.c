@@ -92,11 +92,12 @@ void groupadd_main(void)
     update_password(SECURE_GROUP_PATH, grp->gr_name, entry);
     free(entry);
   } else {    //new group to be created
+    char *s = *toys.optargs;
+
     /* investigate the group to be created */
-    if ((grp = getgrnam(*toys.optargs))) 
-      error_exit("group '%s' is in use", *toys.optargs);
-    setlocale(LC_ALL, "C");
-    is_valid_username(*toys.optargs);
+    if (getgrnam(s)) error_exit("'%s' in use", s);
+    if (s[strcspn(s, ":/\n")] || strlen(s) > LOGIN_NAME_MAX)
+      error_exit("bad name");
     new_group();
   }
 }

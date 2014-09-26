@@ -54,8 +54,8 @@ void useradd_main(void)
   }
 
   // Sanity check user to add
-  if (strchr(s, ':') || strchr(s, '/') || strlen(s) > LOGIN_NAME_MAX)
-    error_exit("bad name");
+  if (s[strcspn(s, ":/\n")] || strlen(s) > LOGIN_NAME_MAX)
+    error_exit("bad username");
   // race condition: two adds at same time?
   if (getpwnam(s)) error_exit("'%s' in use", s);
 
