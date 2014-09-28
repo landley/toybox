@@ -23,5 +23,5 @@ do
          -e "s/# \(CONFIG_TOYBOX_FLOAT\) $USET/\1=y/" \
          "$KCONFIG_CONFIG" &&
   make &&
-  mv toybox $PREFIX$i || break
+  mv toybox $PREFIX$i || exit 1
 done
