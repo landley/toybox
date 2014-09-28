@@ -12,8 +12,7 @@ config GROUPDEL
   bool "groupdel"
   default n
   help
-    usage: delgroup [USER] GROUP
-    usage: groupdel GROUP
+    usage: groupdel [USER] GROUP
 
     Delete a group or remove a user from a group
 */
@@ -21,40 +20,22 @@ config GROUPDEL
 #define FOR_groupdel
 #include "toys.h"
 
-char *comma_find(char *name, char *list)
-{
-  int len = strlen(name);
-
-  while (*list) {
-    while (*list == ',') list++;
-    if (!strncmp(name, list, len) && (!list[len] || list[len]==','))
-      return list;
-    while (*list && *list!=',') list++;
-  }
-
-  return 0;
-}
-
 void groupdel_main(void)
 {
-  struct group *grp = getgrnam(toys.optargs[toys.optc-1]);
+  struct group *grp = xgetgrnam(toys.optargs[toys.optc-1]);
   char *entry = 0;
-
-  if (!grp) perror_exit("group '%s'", toys.optargs[toys.optc-1]);
 
   // delete user from group
   if (toys.optc == 2) {
-    int i, len = 0, found = -1;
+    int i, len = 0, found = 0;
     char *s;
 
     xgetpwnam(*toys.optargs);
-    if (grp->gr_mem) {
-      for (i = 0; grp->gr_mem[i]; i++) {
-        if (found == -1 && !strcmp(*toys.optargs, grp->gr_mem[i])) found = i;
-        else len += strlen(grp->gr_mem[i]) + 1;
-      }
+    if (grp->gr_mem) for (i = 0; grp->gr_mem[i]; i++) {
+      if (!found && !strcmp(*toys.optargs, grp->gr_mem[i])) found++;
+      else len += strlen(grp->gr_mem[i]) + 1;
     }
-    if (found == -1)
+    if (!found)
       error_exit("user '%s' not in group '%s'", *toys.optargs, toys.optargs[1]);
 
     entry = s = xmalloc(len);
@@ -67,13 +48,11 @@ void groupdel_main(void)
   } else {
     struct passwd *pw;
 
-    endpwent(); // possibly this should be in toy_init()?
-    for (;;) {
-      if (!(pw = getpwent())) break;
+    for (endpwent(); (pw = getpwent());)
       if (pw->pw_gid == grp->gr_gid) break;
-    }
+
     if (pw) error_exit("can't remove primary group of user '%s'", pw->pw_name);
-    endpwent();
+    if (CFG_TOYBOX_FREE) endpwent();
   }
 
   update_password("/etc/group", grp->gr_name, entry);
