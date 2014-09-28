@@ -72,6 +72,7 @@ GLOBALS(
 // TODO what if you --bind mount a block device somewhere (file, dir, dev)
 // TODO "touch servername; mount -t cifs servername path"
 // TODO mount -o remount a user mount
+// TODO mount image.img sub (auto-loopback) then umount image.img
 
 // Strip flags out of comma separated list of options, return flags,.
 static long flag_opts(char *new, long flags, char **more)
@@ -136,6 +137,7 @@ static void mount_filesystem(char *dev, char *dir, char *type,
 {
   FILE *fp = 0;
   int rc = EINVAL;
+  char *buf = 0;
 
   if (toys.optflags & FLAG_f) return;
 
@@ -167,10 +169,8 @@ static void mount_filesystem(char *dev, char *dir, char *type,
     toys.exitval |= xrun((char *[]){"swapon", "--", dev, 0});
 
   for (;;) {
-    char *buf = 0;
-
     // If type wasn't specified, try all of them in order.
-    if (fp) {
+    if (fp && !buf) {
       size_t i;
 
       if (getline(&buf, &i, fp)<0) break;
@@ -178,6 +178,8 @@ static void mount_filesystem(char *dev, char *dir, char *type,
       // skip nodev devices
       if (!isspace(*type)) {
         free(buf);
+        buf = 0;
+
         continue;
       }
       // trim whitespace
@@ -193,9 +195,6 @@ static void mount_filesystem(char *dev, char *dir, char *type,
       fprintf(stderr, "'%s' is read-only", dev);
       flags |= MS_RDONLY;
     }
-    free(buf);
-
-    if (!rc) break;
 
     // Trying to autodetect loop mounts like bind mounts above (file on dir)
     // isn't good enough because "mount -t ext2 fs.img dir" is valid, but if
@@ -209,9 +208,7 @@ static void mount_filesystem(char *dev, char *dir, char *type,
     // Solution: try the mount, let the kernel tell us it wanted a block
     // device, then do the loopback setup and retry the mount.
 
-    if (fp && errno == EINVAL) continue;
-
-    if (errno == ENOTBLK) {
+    if (rc && errno == ENOTBLK) {
       char *losetup[] = {"losetup", "-fs", dev, 0};
       int pipe, len;
       pid_t pid;
@@ -226,8 +223,18 @@ static void mount_filesystem(char *dev, char *dir, char *type,
         dev = toybuf;
 
         continue;
-      } else error_msg("losetup failed %d", rc);
-    } else perror_msg("'%s'->'%s'", dev, dir);
+      }
+      error_msg("losetup failed %d", rc);
+
+      break;
+    }
+
+    free(buf);
+    buf = 0;
+    if (!rc) break;
+    if (fp && (errno == EINVAL || errno == EBUSY)) continue;
+
+    perror_msg("'%s'->'%s'", dev, dir);
 
     break;
   }
