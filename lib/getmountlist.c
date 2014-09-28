@@ -76,7 +76,7 @@ int comma_scan(char *optlist, char *opt, int clean)
 
     if (!s) break;
     no = 2*(*s == 'n' && s[1] == 'o');
-    if (optlen == len+no && !strcmp(opt, s+no)) {
+    if (optlen == len-no && !strncmp(opt, s+no, optlen)) {
       got = !no;
       if (clean) memmove(s, optlist, strlen(optlist)+1);
     }
