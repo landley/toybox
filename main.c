@@ -26,6 +26,8 @@ struct toy_list *toy_find(char *name)
 {
   int top, bottom, middle;
 
+  if (!CFG_TOYBOX) return 0;
+
   // If the name starts with "toybox" accept that as a match.  Otherwise
   // skip the first entry, which is out of order.
 
@@ -69,7 +71,7 @@ static void toy_singleinit(struct toy_list *which, char *argv[])
   if (CFG_TOYBOX_I18N) setlocale(LC_ALL, "C"+!!(which->flags & TOYFLAG_LOCALE));
 
   if (CFG_TOYBOX_HELP_DASHDASH && argv[1] && !strcmp(argv[1], "--help")) {
-    if (toys.which == toy_list && toys.argv[2])
+    if (CFG_TOYBOX && toys.which == toy_list && toys.argv[2])
       if (!(toys.which = toy_find(toys.argv[2]))) return;
     show_help();
     xexit();

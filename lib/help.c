@@ -25,6 +25,11 @@ void show_help(void)
     while (i--) s += strlen(s) + 1;
     // If it's an alias, restart search for real name
     if (*s != 255) break;
+    if (!CFG_TOYBOX) {
+      s = xmprintf("See %s --help\n", ++s);
+
+      break;
+    }
     i = toy_find(++s)-toy_list;
   }
 
