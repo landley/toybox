@@ -7,9 +7,9 @@
  * See http://opengroup.org/onlinepubs/9699919799/utilities/id.html
 
 USE_ID(NEWTOY(id, ">1nGgru[!Ggu]", TOYFLAG_BIN))
-USE_ID_GROUPS(OLDTOY(groups, id, NULL, TOYFLAG_USR|TOYFLAG_BIN))
-USE_ID_LOGNAME(OLDTOY(logname, id, ">0", TOYFLAG_BIN))
-USE_ID_LOGNAME(OLDTOY(whoami, id, ">0", TOYFLAG_BIN))
+USE_GROUPS(OLDTOY(groups, id, NULL, TOYFLAG_USR|TOYFLAG_BIN))
+USE_LOGNAME(OLDTOY(logname, id, ">0", TOYFLAG_BIN))
+USE_LOGNAME(OLDTOY(whoami, id, ">0", TOYFLAG_BIN))
 
 config ID
   bool "id"
@@ -25,32 +25,41 @@ config ID
     -r	Show real ID instead of effective ID
     -u	Show only the effective user ID
 
-config ID_GROUPS
+config GROUPS
   bool "groups"
   default y
-  depends on ID
   help
     usage: groups [user]
 
     Print the groups a user is in.
 
-config ID_LOGNAME
+config LOGNAME
   bool "logname"
   default y
-  depends on ID
   help
     usage: logname
 
     Print the current user name.
 
+config WHOAMI
+  bool "whoami"
+  default y
+  help
+    usage: whoami
+
+    Print the current user name.
 */
 
 #define FOR_id
 #include "toys.h"
 
+GLOBALS(
+  int do_u, do_n, do_G, is_groups;
+)
+
 static void s_or_u(char *s, unsigned u, int done)
 {
-  if (toys.optflags & FLAG_n) printf("%s", s);
+  if (TT.do_n) printf("%s", s);
   else printf("%u", u);
   if (done) {
     xputc('\n');
@@ -65,14 +74,11 @@ static void showid(char *header, unsigned u, char *s)
 
 void do_id(char *username)
 {
-  int flags, i, ngroups, cmd_groups = toys.which->name[0] == 'g';
+  int flags, i, ngroups;
   struct passwd *pw;
   struct group *grp;
   uid_t uid = getuid(), euid = geteuid();
   gid_t gid = getgid(), egid = getegid(), *groups;
-
-  if (cmd_groups)
-      toys.optflags |= FLAG_G | FLAG_n;
 
   flags = toys.optflags;
 
@@ -81,17 +87,17 @@ void do_id(char *username)
     pw = xgetpwnam(username);
     uid = euid = pw->pw_uid;
     gid = egid = pw->pw_gid;
-    if (cmd_groups) printf("%s : ", pw->pw_name);
+    if (TT.is_groups) printf("%s : ", pw->pw_name);
   }
 
   i = flags & FLAG_r;
   pw = xgetpwuid(i ? uid : euid);
-  if (flags & FLAG_u) s_or_u(pw->pw_name, pw->pw_uid, 1);
+  if (TT.do_u) s_or_u(pw->pw_name, pw->pw_uid, 1);
 
   grp = xgetgrgid(i ? gid : egid);
   if (flags & FLAG_g) s_or_u(grp->gr_name, grp->gr_gid, 1);
 
-  if (!(flags & FLAG_G)) {
+  if (!TT.do_G) {
     showid("uid=", pw->pw_uid, pw->pw_name);
     showid(" gid=", grp->gr_gid, grp->gr_name);
 
@@ -116,9 +122,9 @@ void do_id(char *username)
   if (ngroups<0) perror_exit(0);
 
   for (i = 0; i<ngroups; i++) {
-    if (i) xputc(' ');
+    if (i || !TT.do_G) xputc(' ');
     if (!(grp = getgrgid(groups[i]))) perror_msg(0);
-    else if (flags & FLAG_G) s_or_u(grp->gr_name, grp->gr_gid, 0);
+    else if (TT.do_G) s_or_u(grp->gr_name, grp->gr_gid, 0);
     else if (grp->gr_gid != egid) showid("", grp->gr_gid, grp->gr_name);
   }
   xputc('\n');
@@ -126,7 +132,16 @@ void do_id(char *username)
 
 void id_main(void)
 {
-  if (toys.which->name[0] > 'i') toys.optflags = (FLAG_u | FLAG_n);
+  // FLAG macros can be 0 if "id" command enabled, so snapshot them here.
+  if (FLAG_u) TT.do_u = toys.optflags & FLAG_u;
+  if (FLAG_n) TT.do_n = toys.optflags & FLAG_n;
+  if (FLAG_G) TT.do_G = toys.optflags & FLAG_G;
+
+  // And set the variables for non-id commands.
+  TT.is_groups = toys.which->name[0] == 'g';
+  if (TT.is_groups) TT.do_G = TT.do_n = 1;
+  else if (toys.which->name[0] != 'i') TT.do_u = TT.do_n = 1;
+
   if (toys.optc) while(*toys.optargs) do_id(*toys.optargs++);
   else do_id(NULL);
 }
