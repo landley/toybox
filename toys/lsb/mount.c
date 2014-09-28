@@ -71,6 +71,7 @@ GLOBALS(
 // TODO work out how that differs from "mount -ar"
 // TODO what if you --bind mount a block device somewhere (file, dir, dev)
 // TODO "touch servername; mount -t cifs servername path"
+// TODO mount -o remount a user mount
 
 // Strip flags out of comma separated list of options, return flags,.
 static long flag_opts(char *new, long flags, char **more)
@@ -82,7 +83,6 @@ static long flag_opts(char *new, long flags, char **more)
     // NOPs (we autodetect --loop and --bind)
     {"loop", 0}, {"bind", 0}, {"defaults", 0}, {"quiet", 0},
     {"user", 0}, {"nouser", 0}, // checked in fstab, ignored in -o
-//    {"noauto", 0}, {"swap", 0},
     {"ro", MS_RDONLY}, {"rw", ~MS_RDONLY},
     {"nosuid", MS_NOSUID}, {"suid", ~MS_NOSUID},
     {"nodev", MS_NODEV}, {"dev", ~MS_NODEV},
@@ -275,7 +275,7 @@ void mount_main(void)
   // Do we need to do an /etc/fstab trawl?
   // This covers -a, -o remount, one argument, all user mounts
   if ((toys.optflags & FLAG_a) || (dev && (!dir || getuid() || remount))) {
-    if (!remount) mtl = xgetmountlist("/etc/fstab");
+    if (!remount) dlist_terminate(mtl = xgetmountlist("/etc/fstab"));
 
     for (mm = remount ? remount : mtl; mm; mm = (remount ? mm->prev : mm->next))
     {
@@ -311,6 +311,9 @@ void mount_main(void)
       if (!(toys.optflags & FLAG_a)) break;
     }
     if (CFG_TOYBOX_FREE) llist_traverse(mtl, free);
+    if (!mm && !(toys.optflags & FLAG_a))
+      error_exit("'%s' not in %s", dir ? dir : dev,
+                 remount ? "/proc/mounts" : "fstab");
 
   // show mounts from /proc/mounts
   } else if (!dev) {
