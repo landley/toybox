@@ -36,7 +36,7 @@ int fetch(char *file, struct timeval *tv, unsigned flags)
 {
   struct stat st;
 
-  if (stat(TT.file, &st)) return 1;
+  if (stat(file, &st)) return 1;
 
   if (flags & FLAG_a) {
     tv[0].tv_sec = st.st_atime;
@@ -73,6 +73,12 @@ void touch_main(void)
       date = TT.date;
       i = strlen(date);
       if (i) {
+        // Trailing Z means UTC timezone, don't expect libc to know this.
+        if (toupper(date[i-1])=='Z') {
+          date[i-1] = 0;
+          setenv("TZ", "UTC0", 1);
+          localtime_r(&(tv->tv_sec), &tm);
+        }
         s = strptime(date, "%Y-%m-%dT%T", &tm);
         if (s && *s=='.') {
           sscanf(s, ".%d%n", &i, &len);
