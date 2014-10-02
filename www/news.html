@@ -8,6 +8,157 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+<hr><b>October 2, 2014</b>
+<blockquote><p>"There is an art, it says, or rather, a knack to flying.
+The knack lies in learning how to throw yourself at the ground and miss...
+Clearly, it is this second part, the missing, which presents the
+difficulties." - The Hitchhiker's Guide to the Galaxy.<p></blockquote>
+
+<p><a href=downloads/toybox-0.5.0.tar.bz2>Toybox 0.5.0</a>
+(<a href=/hg/toybox/shortlog/1512>commit 1512</a>) is out.</p>
+
+<h3>New commands</h3>
+
+<p>The new commands are find, install, factor, and mount. Promoted commands
+(cleaned up and moved out of "pending") are lspci, inotifyd, and blockdev.</p>
+
+<p>cp now implements -HL and -F to force delete of pending files, cpio now
+ignores -m and implements -p, ls -C now has utf8 support (using wcwidth
+instead of strlen), and umount got a number of upgrades involving
+looking things up in /proc/mounts. Other minor cleanups happend to
+cut, touch, free, and id.</p>
+
+<p>In pending: Bradley Controy submitted mix (adjusts OSS sound volume). Ashwini
+Sharma submitted diff, userdel, blockdev, ipcs, and crond, upgraded
+fdisk, fsck, and ftpget, and ran a static analyzer on a lot of other code.
+Partial cleanup was done to useradd, userdel, groupadd, and groupdel.</p>
+
+<h3>Build infrastructure</h3>
+
+<p><b>Parallel builds</b></p>
+
+<p>The build now takes advantage of SMP, autodetecting the number of
+processors. (Export the environment variable CPUS to pick a specific number.)
+Other build changes: split out $LDOPTIMIZE because old compilers complain
+about linker options passed with -c, and the entire "generated" directory now
+gets deleted by clean (the README that was in there got merged into code.html).</p>
+
+<p><b>Standalone builds</b></p>
+
+<p>The standalone build infrastructure (scripts/single.sh) got upgraded to
+build more commands as standalone executables. In make.sh the source file
+selection uses a regex to find the source files with the NEWTOY/OLDTOY macro
+for the command. It enables each command's
+sub-options (so CP has CP_MORE), enables I18N and FLOAT support to build
+full-featured commands, and includes --help text (at least when
+the command doesn't use another command's help). The OLDTOY() macro
+now produces (redundant) function prototypes so you can build an OLDTOY
+without the NEWTOY</p>
+
+<p>It doesn't quite have complete coverage yet, the defconfig entries that
+aren't building standalone yet are:</p>
+
+<blockquote><p>chown, egrep, fgrep, fstype, halt, mv, nc, poweroff, unix2dos,
+whoami</p></blockquote>
+
+<p>The main reason for standalone build failures is NEWTOY() or OLDTOY()
+entries that don't have their own config symbol. Another problem is entries
+that depend on another entry in kconfig, usually because common infrastructure
+is using one command's flags (which the other commands copy): if that command
+is disabled, the FLAG macros become 0 so dead code elimination can remove the
+code. It's <a href=http://landley.net/hg/toybox/rev/1503>possible
+to untangle</a> this, but a bit awkward. (It boils down to conflicting
+design goals in the two contexts.)</p>
+
+<p>Standalone builds are used by the test suite when testing individual
+commands.
+
+<p><b>Snapshot builds</b></p>
+
+<p>A new addition to the "generated" directory is generated/build.sh
+containing a single compiler command line to build toybox in its current
+configuration. Combined with the generated/*.{h,sh} files from an
+exisiting build, this may let you build on a new system that hasn't quite
+got enough OS bits working to run a full configureand make.</p>
+
+<h3>Internals</h3>
+
+<p>Library code: xcreate/xopen now O_CLOEXEC by default to avoid leaking
+filehandles to child processes. DIRTREE_COMEAGAIN's second callback is now
+done with the directory filehandle still open (new dir->again variable added
+to distinguish first from second callback, and requesting DIRTREE_RECURSE now
+requires passing in the specific macro value, not just a true/false).
+Use daemon() out of libc instead of hand-rolled daemonize() in various
+pending commands. string_to_mode() now passes through type bits so you can
+use it to more easily modify a file's existing mode.
+Split xpopen() into xpopen_both(), xopen(), and xrun() depending on whether
+we want to redirect both, one, or neither of stdin/stdout.</p>
+
+<p>Bugfixes: Better error message when TOYBOX_SUID option can't drop priviliges
+(which happens when you suid something _other_ than root).
+The old pending version of nbd_client.c wasn't deleted when the
+command was promoted (and the build would break if both were enabled),
+toy_exec() sometimes needs to re-exec from $PATH rather than recurse
+internally (to gain dropped root permissions or limit stack depth),
+always call setlocale() when I18N is enabled to switch it back _off_ when
+we run commands that expect sscanf("%n") to return bytes,
+dirtree() had a memory leak in an error path, patch.c had some bugs in
+error paths (didn't report problem clearly). Ashwini Sharma spotted an
+option parsing bug where [-abc] would forget _all_ command line arguments
+saved in the GLOBALS() block (not just the ones for options being switched
+off), plus various minor fixes to nbd_client and cpio.
+Lukasz Szpakowski fixed rm -f on a broken symlink (failed), and killall
+with no arguments (segfaulted).</p>
+
+<p><b>Portability</b></p>
+
+<p>A somewhat fiddly fix to rm -rf (which needs to chmod directories to u+rwx
+to descend into them) which hit a musl bug in faccessat() which the musl
+maintainer refuses to fix. (He literally wants the man page changed
+instead, despite other libcs working.) Added an #ifdef __MUSL__ section
+to portability.h with a workaround, you may need CFLAGS=-D__MUSL__ in your
+build if your musl build's features.h doesn't #define that. (I may do
+a different workaround in future, but sometimes you've just got to make
+it work so you can ship. Also, toybox grep with multiple patterns
+requires <a href=http://landley.net/hg/aboriginal/rev/1692>a patch
+to musl's regex engine</a>, which applies to 1.1.4 but not to the current
+musl source control.)</p>
+
+<p>More portability.h fixes for uClibc too. (I don't expect that to ever have
+another release, so locally patching around posix-2008 violations is silly).</p>
+
+<p><b>Change to username filtering</b></p>
+
+<p>Posix recommends the username creation logic filter usernames to a small
+allowed set of characters (which even Red Hat breaks by explicitly allowing
+"$" at the end), but this prevents UTF-8 usernames. Posix' stated logic
+is to allow filesystems to create the user's home directory, but Linux
+filesystems can accept any character but NUL and "/". The only characters
+we actually _need_ to filter out are ":" (field separator in passwd),
+newline (line separator in passwd), and "/" (directory separator in
+filesystem).</p>
+
+<h3>Documentation</h3>
+
+<p>Web pages updated: cleanup.html documents more cleanup, code.html
+documents more code, and about.html now capitalizes "toybox" consistently
+(it's just a word, capitalize at start of sentence).</p>
+
+<p>The pending/README file now lists commands that needed review/cleanup
+before the pending directory was added.</p>
+
+<h3>Test Suite</h3>
+
+<p>Moved out of scripts/test into top level "tests" directory, and the
+testing.sh script is now in scripts rather than mixed into the *.test files.</p>
+
+<p>Johan Bergström requested VERBOSE=fail to make tests (telling it to
+stop at the first failure), and spotted a build bug where using gnu
+sort on the host broke in non-C locales.</p>
+
+<p>Divya Kothari submitted tests for chmod, link, tar, bzcat, xzcat, zcat,
+and hostname. (And more, but that's all that's merged so far.)</p>
+
 <hr><b>July 7, 2014</b>
 <blockquote><p>"This planet has - or rather had - a problem, which was this:
 most of the people living on it were unhappy for pretty much of the time. Many
