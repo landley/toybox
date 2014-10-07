@@ -201,6 +201,19 @@ require bash extensions not present in shells such as busybox ash.
 This means that toysh needs to supply several bash extensions _and_ work
 when called under the name "bash".</p>
 
+<p>The <a href=http://landley.net/aboriginal>Aboriginal Linux</a>
+self-bootstrapping build still uses the following busybox commands,
+not yet supplied by toybox:</p.
+
+<blockquote><p>
+ash awk bunzip2 bzip2 dd diff expr fdisk ftpd ftpget ftpput gunzip
+gzip less man pgrep ping pkill ps route sed sh sha512sum tar test tr unxz vi
+wget xzcat zcat</p></blockquote>
+
+<p>Many of those are in "pending". Most of the archive commands are needed
+because busybox tar doesn't call external versions. The remaining "difficult"
+commands are vi, awk, and ash.</p>
+
 <hr />
 <h2><a name=android /><a href="#android">Use case: Replacing Android Toolbox</a></h2>
 
@@ -715,7 +728,8 @@ OpenSolaris.</p>
 <hr />
 <h2>Requests:</h2>
 
-<p>The following additional commands have been requested by various users:</p>
+<p>The following additional commands have been requested (and often submitted)
+by various users:</p>
 <blockquote><b>
 <span id=request>
 dig freeramdisk getty halt hexdump hwclock klogd modprobe ping ping6 pivot_root
@@ -727,6 +741,12 @@ pmap realpath setsid timeout truncate
 mkswap swapon swapoff
 count oneit fstype
 acpi blkid eject pwdx
+sulogin rfkill bootchartd
+arp makedevs sysctl killall5 crond crontab deluser last mkpasswd watch
+ipaddr iplink iproute blockdev rpm2cpio arping brctl dumpleases fsck
+tcpsvd tftpd
+factor fallocate fsfreeze inotifyd lspci nbd-client partprobe strings
+
 </span>
 </b></blockquote>
 
