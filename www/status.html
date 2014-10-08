@@ -9,40 +9,50 @@
 
 <!--#include file="status.gen" -->
 
-<h1>The current status of toybox (as of 0.4.5 release):</h1>
+<h1>The current status of toybox (as of 0.5.0 release):</h1>
 
-<h3><u>These commands are reasonably finished</u>:</h3>
+<h3><u>These commands are reasonably finished (in defconfig)</u>:</h3>
 <blockquote><b>
 <span id=ready>
-basename cal cat catv chgrp chmod chown chvt cksum clear cmp comm count cp
-df dirname dmesg dos2unix echo egrep env false fgrep hostname grep groups
-killall link logname losetup ls lsmod md5sum mkdir mkfifo mkswap mktemp mv
-nice nohup od oneit paste pivot_root pmap pwd readahead realpath renice rev
-rm seq setsid sha1sum sleep sort split stat swapoff swapon sync tac taskset
-tee time timeout true truncate tty uniq unix2dos
-unlink usleep uudecode uuencode wc which whoami yes
-acpi blkid eject nl pwdx reboot su umount fstype halt poweroff
-blockdev chattr cpio factor fallocate find freeramdisk fsfreeze inotifyd
-install killall5 lsattr lspci makedevs mkpasswd mount nbd-client partprobe
-rfkill strings sysctl
+acpi basename blkid blockdev bzcat cal cat catv chattr chgrp chmod
+chown chvt cksum clear cmp comm count cp cpio date df dirname
+dmesg dos2unix echo egrep eject env factor fallocate false
+fgrep find free freeramdisk fsfreeze fstype grep groups halt head
+help hostname id ifconfig inotifyd insmod install kill killall killall5
+link ln logname losetup ls lsattr lsmod lspci lsusb makedevs
+md5sum mkdir mkfifo mknod mkpasswd mkswap mktemp mount
+mv nbd-client nc netcat nice nl nohup od oneit partprobe passwd paste
+patch pidof pivot_root pmap poweroff printenv pwd pwdx readahead readlink
+realpath reboot renice rev rfkill rm rmdir rmmod seq setsid sha1sum
+sleep sort split stat strings su swapoff swapon switch_root sync sysctl
+tac tail taskset tee time timeout true truncate tty umount uname
+uniq unix2dos unlink unshare uptime usleep uudecode uuencode
+w wc which who whoami yes
 </span>
 </b></blockquote>
 
-<h3><u>These commands are implemented but have pending todo items remaining:</u></h3>
+<h3><u>These commands are at least partially implemented (in toys/pending)
+but have todo items remaining:</u></h3>
 <blockquote><b>
 <span id=pending>
-bzcat bunzip2 chroot cut date du expand free head help hostname id ifconfig
-insmod kill ln login lsusb mdev
-mknod modinfo mountpoint nc netcat passwd patch pidof printenv readlink rmdir
-rmmod switch_root tail touch uname unshare uptime vconfig vmstat w who xargs
+ar arp arping bc bootchartd brctl compress crond dhcp dhcpd diff dumpleases
+expr fdisk fold fsck ftpget getty groupadd groupdel host iconv init ip ipcs
+kexec klogd last logger mdev mix mke2fs modprobe more netstat openvt p9d pgrep
+ping printf ps reset route sh sulogin syslogd tar tcpsvd telnet telnetd test
+tftpd top traceroute tr useradd userdel watch xzcat
 </span>
 </b></blockquote>
 
-<h3><u>Work on these is underway, but not usable yet:</u></h3>
-<blockquote><b>
-bzip2 mke2fs more mount umount sed tar sh grep/egrep/fgrep
-</blockquote></b>
+<h3><u>These commands predate the pending directory but also have unfinished
+todo items:</u></h3>
 
-<p>See <a href="todo.txt">the todo list</a> for details.</p>
+<blockquote><b>
+<span id=pending>
+vmstat login du vconfig mountpoint chroot cut touch modinfo expand xargs
+</span>
+</b></blockquote>
+
+<p>There is also <a href="todo.txt">a todo list</a>, but development's moved
+on a bit since it was written.</p>
 
 <!-- #include "footer.html" -->
