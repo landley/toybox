@@ -40,7 +40,7 @@ static int kill_process(pid_t pid, char *name)
   if (pid == TT.cur_pid) return 0;
 
   if (toys.optflags & FLAG_i) {
-    sprintf(toybuf, "Signal %4000s(%d) ?", name, (int)pid);
+    snprintf(toybuf, sizeof(toybuf), "Signal %s(%d) ?", name, (int)pid);
     if (!yesno(toybuf, 0)) return 0;
   }
 

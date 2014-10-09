@@ -22,7 +22,7 @@ void insmod_main(void)
 {
   char * buf = NULL;
   int len, res, i;
-  int fd = xopen(toys.optargs[0], O_RDONLY);
+  int fd = xopen(*toys.optargs, O_RDONLY);
 
   len = fdlength(fd);
   buf = xmalloc(len);
@@ -30,13 +30,17 @@ void insmod_main(void)
 
   i = 1;
   while(toys.optargs[i] &&
-    strlen(toybuf) + strlen(toys.optargs[i]) + 2 < sizeof(toybuf)) {
+    strlen(toybuf) + strlen(toys.optargs[i]) + 2 < sizeof(toybuf))
+  {
     strcat(toybuf, toys.optargs[i++]);
     strcat(toybuf, " ");
   }
 
   res = init_module(buf, len, toybuf);
-  if (CFG_TOYBOX_FREE && buf != toybuf) free(buf);
+  if (CFG_TOYBOX_FREE) {
+    if (buf != toybuf) free(buf);
+    close(fd);
+  }
 
   if (res) perror_exit("failed to load %s", toys.optargs[0]);
 }

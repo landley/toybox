@@ -9,7 +9,7 @@
 USE_ID(NEWTOY(id, ">1nGgru[!Ggu]", TOYFLAG_BIN))
 USE_GROUPS(OLDTOY(groups, id, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 USE_LOGNAME(OLDTOY(logname, id, ">0", TOYFLAG_BIN))
-USE_LOGNAME(OLDTOY(whoami, id, ">0", TOYFLAG_BIN))
+USE_WHOAMI(OLDTOY(whoami, id, ">0", TOYFLAG_BIN))
 
 config ID
   bool "id"
@@ -132,7 +132,7 @@ void do_id(char *username)
 
 void id_main(void)
 {
-  // FLAG macros can be 0 if "id" command enabled, so snapshot them here.
+  // FLAG macros can be 0 if "id" command not enabled, so snapshot them here.
   if (FLAG_u) TT.do_u = toys.optflags & FLAG_u;
   if (FLAG_n) TT.do_n = toys.optflags & FLAG_n;
   if (FLAG_G) TT.do_G = toys.optflags & FLAG_G;

@@ -77,5 +77,5 @@ void comm_main(void)
     line[i] = get_line(file[i]);
   }
 
-  if (CFG_TOYBOX_FREE) for (i = 0; i < 2; i--) xclose(file[i]);
+  if (CFG_TOYBOX_FREE) for (i = 0; i < 2; i++) xclose(file[i]);
 }

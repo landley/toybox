@@ -86,7 +86,7 @@ static void loopback_setup(char *device, char *file)
   // Stat the loop device to see if there's a current association.
   memset(loop, 0, sizeof(struct loop_info64));
   if (-1 == lfd || ioctl(lfd, LOOP_GET_STATUS64, loop)) {
-    if (errno == ENXIO && (flags & (FLAG_a|FLAG_j))) return;
+    if (errno == ENXIO && (flags & (FLAG_a|FLAG_j))) goto done;
     if (errno != ENXIO || !file) {
       perror_msg("%s", device ? device : "-f");
       goto done;

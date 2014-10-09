@@ -119,7 +119,7 @@ int cp_node(struct dirtree *try)
   } else {
 
     // -d is only the same as -r for symlinks, not for directories
-    if (S_ISLNK(try->st.st_mode) & (flags & FLAG_d)) flags |= FLAG_r;
+    if (S_ISLNK(try->st.st_mode) && (flags & FLAG_d)) flags |= FLAG_r;
 
     // Detect recursive copies via repeated top node (cp -R .. .) or
     // identical source/target (fun with hardlinks).

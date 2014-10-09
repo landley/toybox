@@ -6,7 +6,7 @@
  *
  * Not in SUSv4.
 
-USE_IFCONFIG(NEWTOY(ifconfig, "?a", TOYFLAG_BIN))
+USE_IFCONFIG(NEWTOY(ifconfig, "^?a", TOYFLAG_BIN))
 
 config IFCONFIG
   bool "ifconfig"
