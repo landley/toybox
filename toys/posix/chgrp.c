@@ -90,7 +90,6 @@ void chgrp_main(void)
       if (!p && isdigit(*own)) p=getpwuid(atoi(own));
       if (!p) error_exit("no user '%s'", own);
       TT.owner = p->pw_uid;
-      if (CFG_TOYBOX_FREE) free(own);
     }
   } else TT.group_name = *toys.optargs;
 
@@ -107,4 +106,6 @@ void chgrp_main(void)
     if (new) dirtree_handle_callback(new, do_chgrp);
     else toys.exitval = 1;
   }
+
+  if (CFG_TOYBOX_FREE && ischown) free(own);
 }
