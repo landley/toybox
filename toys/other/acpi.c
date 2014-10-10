@@ -4,18 +4,21 @@
  *
  * No standard.
 
-USE_ACPI(NEWTOY(acpi, "ab", TOYFLAG_USR|TOYFLAG_BIN))
+USE_ACPI(NEWTOY(acpi, "abctV", TOYFLAG_USR|TOYFLAG_BIN))
 
 config ACPI
   bool "acpi"
   default y
   help
-    usage: acpi [-ab]
+    usage: acpi [-abctV]
     
-    Show status of power sources.
+    Show status of power sources and thermal devices.
 
     -a	show power adapters
     -b	show batteries
+    -c	show cooling device state
+    -t	show temperatures
+    -V	show everything
 */
 
 #define FOR_acpi
@@ -24,6 +27,9 @@ config ACPI
 GLOBALS(
   int ac;
   int bat;
+  int therm;
+  int cool;
+  char *cpath;
 )
 
 int read_int_at(int dirfd, char *name)
@@ -46,10 +52,10 @@ int acpi_callback(struct dirtree *tree)
 
   if (tree->name[0]=='.') return 0;
 
-  if (strlen(dirtree_path(tree, NULL)) < 26)
-    return DIRTREE_RECURSE | DIRTREE_SYMFOLLOW;
+  if (!tree->parent)
+    return DIRTREE_RECURSE|DIRTREE_SYMFOLLOW;
 
-  if (0 <= (dfd = open(dirtree_path(tree, NULL), O_RDONLY))) {
+  if (0 <= (dfd = open((TT.cpath=dirtree_path(tree, NULL)), O_RDONLY))) {
     if ((fd = openat(dfd, "type", O_RDONLY)) < 0) goto done;
     len = readall(fd, toybuf, sizeof(toybuf));
     close(fd);
@@ -75,11 +81,69 @@ int acpi_callback(struct dirtree *tree)
 done:
     close(dfd);
   }
+  free(TT.cpath);
+  return 0;
+}
 
+int temp_callback(struct dirtree *tree)
+{
+  int dfd, temp;
+
+  if (tree->name[0]=='.') return 0;
+  if (!tree->parent || !tree->parent->parent)
+    return DIRTREE_RECURSE|DIRTREE_SYMFOLLOW;
+  errno = 0;
+
+  if (0 <= (dfd = open((TT.cpath=dirtree_path(tree, NULL)), O_RDONLY))) {
+    if ((0 < (temp = read_int_at(dfd, "temp"))) || !errno) {
+      //some tempertures are in milli-C, some in deci-C
+      //reputedly some are in deci-K, but I have not seen them
+      if (((temp >= 1000) || (temp <= -1000)) && (temp%100 == 0))
+        temp /= 100;
+      printf("Thermal %d: %d.%d degrees C\n", TT.therm++, temp/10, temp%10);
+    }
+    close(dfd);
+  }
+  free(TT.cpath);
+  return 0;
+}
+
+int cool_callback(struct dirtree *tree)
+{
+  int dfd=5, cur, max;
+  errno = 0;
+  memset(toybuf, 0, sizeof(toybuf));
+
+  if (tree->name[0]=='.') return 0;
+  if (!tree->parent) return DIRTREE_RECURSE|DIRTREE_SYMFOLLOW;
+
+
+  if (0 <= (dfd = open((TT.cpath=dirtree_path(tree, &dfd)), O_RDONLY))) {
+    TT.cpath = strcat(TT.cpath, "/type");
+    if (readfile(TT.cpath, toybuf, 256) && !errno) {
+      toybuf[strlen(toybuf) -1] = 0;
+      cur=read_int_at(dfd, "cur_state");
+      max=read_int_at(dfd, "max_state");
+      if (errno)
+        printf("Cooling %d: %s no state information\n", TT.cool++, toybuf);
+      else printf("Cooling %d: %s %d of %d\n", TT.cool++, toybuf, cur, max);
+    }
+    close(dfd);
+  }
+  free(TT.cpath);
   return 0;
 }
 
 void acpi_main(void)
 {
-  dirtree_read("/sys/class/power_supply", acpi_callback);
+  if (toys.optflags & FLAG_V)
+    toys.optflags = FLAG_a|FLAG_b|FLAG_c|FLAG_t;
+  if (!toys.optflags) toys.optflags = FLAG_b;
+  if (toys.optflags & (FLAG_a|FLAG_b))
+    dirtree_read("/sys/class/power_supply", acpi_callback);
+  if (toys.optflags & FLAG_t)
+    dirtree_read("/sys/class", temp_callback);
+  if (toys.optflags & FLAG_c)
+    dirtree_read("/sys/class/thermal", cool_callback);
+
 }
