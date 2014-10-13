@@ -34,6 +34,13 @@ config TOYBOX_SUID
 
 	  chown root:root toybox; chmod +s toybox
 
+config TOYBOX_SMACK
+	bool "Smack support"
+	default n
+	help
+	 Include Smack (Simple Mandatory Access Control Kernel) options in commands
+	 such as ls, id, ps, mkdir, mknod, mkfifo, cp.
+
 config TOYBOX_SELINUX
  bool "SELinux support"
  default n
