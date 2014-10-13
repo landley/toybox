@@ -1,137 +1,118 @@
-/* sed.c - Stream editor.
+/* sed.c - stream editor
  *
- * Copyright 2012 Rob Landley <rob@landley.net>
+ * Copyright 2014 Rob Landley <rob@landley.net>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/sed.c
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/sed.html
+ *
+ * todo "-e blah -f blah -e blah" what order?
+ * What happens when first address matched, then EOF? How about ",42" or "1,"
+ * Does $ match last line of file or last line of input
+ * If file doesn't end with newline
+ * command preceded by whitespace. whitespace before rw or s///w file
+ * space before address
+ * numerical addresses that cross, select one line
+ * test backslash escapes in regex; share code with printf?
 
-USE_SED(NEWTOY(sed, "irne*f*", TOYFLAG_BIN))
+USE_SED(NEWTOY(sed, "e*f*inr", TOYFLAG_USR|TOYFLAG_BIN))
 
 config SED
   bool "sed"
   default n
   help
-    usage: sed [-irn] {command | [-e command]...} [FILE...]
+    usage: sed [-inr] [-e SCRIPT]...|SCRIPT [-f SCRIPT_FILE]... [FILE...]
 
-    Stream EDitor, transforms text by appling script of command to each line
-    of input.
+    Stream editor. Apply one or more editing SCRIPTs to each line of each line
+    of input (from FILE or stdin) producing output (by default to stdout).
 
-    -e  Add expression to the command script (if no -e, use first argument)
-    -i	Modify file in place
-    -n  No default output (p commands only)
-    -r  Use extended regular expression syntex
+    -e	add SCRIPT to list
+    -f	add contents of SCRIPT_FILE to list
+    -i	Edit each file in place.
+    -n	No default output. (Use the p command to output matched lines.)
+    -r	Use extended regular expression syntax.
+
+    A SCRIPT is a series of one or more COMMANDs separated by newlines or
+    semicolons. All -e SCRIPTs are concatenated together as if separated
+    by newlines, followed by all lines from -f SCRIPT_FILEs, in order.
+    If no -e or -f SCRIPTs are specified, the first argument is the SCRIPT.
+
+    Each COMMAND may be preceded by an address which limits the command to
+    run only on the specified lines:
+
+    [ADDRESS[,ADDRESS]]COMMAND
+
+    The ADDRESS may be a decimal line number (starting at 1), a /regular
+    expression/ within a pair of forward slashes, or the character "$" which
+    matches the last line of input. A single address matches one line, a pair
+    of comma separated addresses match everything from the first address to
+    the second address (inclusive). If both addresses are regular expressions,
+    more than one range of lines in each file can match.
+
+    REGULAR EXPRESSIONS in sed are started and ended by the same character
+    (traditionally / but anything except a backslash or a newline works).
+    Backslashes may be used to escape the delimiter if it occurs in the
+    regex, and for the usual printf escapes (\abcefnrtv and octal, hex,
+    and unicode). An empty regex repeats the previous one. ADDRESS regexes
+    (above) require the first delimeter to be escaped with a backslash when
+    it isn't a forward slash (to distinguish it from the COMMANDs below).
+
+    Each COMMAND starts with a single character, which may be followed by
+    additional data depending on the COMMAND:
+
+    rwbrstwy:{
+
+    s  search and replace
+
+    The search and replace syntax
+
+    Deviations from posix: we allow extended regular expressions with -r,
+    editing in place with -i, printf escapes in text, semicolons after.
 */
 
 #define FOR_sed
 #include "toys.h"
 
 GLOBALS(
-  struct arg_list *files;
-  struct arg_list *scripts;
+  struct arg_list *f;
+  struct arg_list *e;
 
-  void *commands;
+  void *pattern;
 )
 
-// Digested version of what sed commands can actually tell use to do.
-
-
-struct sed_command {
-  // double_list compatibility (easier to create in-order)
-  struct sed_command *next, *prev;
-
-  // data string for (saicytb)
-  char c, *data;
-  // Regexes for s/match/data/ and /begin/,/end/command
-  regex_t *rmatch, *rbegin, *rend;
-  // For numeric ranges ala 10,20command
-  long lstart, lstop;
-  // Which match to replace, 0 for all. s and w commands can write to a file
-  int which, outfd;
-};
-
-//  Space. Space. Gotta get past space. Spaaaaaaaace! (But not newline.)
-static void spaceorb(char **s)
+static void do_line(char **pline, long len)
 {
-  while (**s == ' ' || **s == '\t') ++*s;
+  printf("len=%ld line=%s\n", len, *pline);
 }
 
-// Parse sed commands
-
-static void parse_scripts(void)
+static void do_lines(int fd, char *name, void (*call)(char **pline, long len))
 {
-  struct arg_list *script;
-  int which = 0, i;
+  FILE *fp = fdopen(fd, "r");
 
-  // Loop through list of scripts collated from command line and/or files
+  for (;;) {
+    char *line = 0;
+    ssize_t len;
 
-  for (script = TT.scripts; script; script = script->next) {
-    char *str = script->arg;
-    struct sed_command *cmd;
-
-    // we can get multiple commands from a string (semicolons and such)
-
-    which++;
-    for (i=1;;) {
-      if (!*str) break;
-
-      cmd = xzalloc(sizeof(struct sed_command));
-
-      // Identify prefix
-      for (;;) {
-        spaceorb(&str);
-        if (*str == '^') {
-          if (cmd->lstart) goto parse_fail;
-          cmd->lstart = -1;
-          str++;
-          continue;
-        } else if (*str == '$') {
-          cmd->lstop = LONG_MAX;
-          str++;
-          break;
-        } else if (isdigit(*str)) {
-          long ll = strtol(str, &str, 10);
-
-          if (ll<0) goto parse_fail;
-          if (cmd->lstart) {
-            cmd->lstop = ll;
-            break;
-          } else cmd->lstart = ll;
-        } else if (*str == '/' || *str == '\\') {
-          // set begin/end
-          printf("regex\n");
-          exit(1);
-        } else if (!cmd->lstart && !cmd->rbegin) break;
-        else goto parse_fail;  // , with no range after it
-
-        spaceorb(&str);
-        if (*str != ',') break;
-        str++;
-      }
-      i = stridx("{bcdDgGhHlnNpPstwxyrqia= \t#:}", *str);
-      if (i == -1) goto parse_fail;
-
-      dlist_add_nomalloc((struct double_list **)&TT.commands,
-                         (struct double_list *)cmd);
-      exit(1);
-    }
+    len = getline(&line, (void *)&len, fp);
+    do_line(&line, len);
+    free(line);
+    if (len < 1) break;
   }
+}
 
-  return;
-
-parse_fail:
-  error_exit("bad expression %d@%d: %s", which, i, script->arg+i);
+static void do_sed(int fd, char *name)
+{
+  do_lines(fd, name, do_line);
 }
 
 void sed_main(void)
 {
-  char **files=toys.optargs;
+  char **args = toys.optargs;
 
-  // If no -e, use first argument
-  if (!TT.scripts) {
-    if (!*files) error_exit("Need script");
-    (TT.scripts = xzalloc(sizeof(struct arg_list)))->arg = *(files++);
+  // Need a pattern
+  if (!TT.e) {
+    if (!*toys.optargs) error_exit("no pattern");
+    (TT.e = xzalloc(sizeof(struct arg_list)))->arg = *(args++);
   }
 
-  parse_scripts();
-
-  while (*files) dprintf(2,"file=%s\n", *(files++));
+  // Inflict pattern upon input files
+  loopfiles(args, do_sed);
 }
