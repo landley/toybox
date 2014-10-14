@@ -6,10 +6,10 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/id.html
 
-USE_ID(NEWTOY(id, ">1"USE_ID_SELINUX("Z")"nGgru[!"USE_ID_SELINUX("Z")"Ggu]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_ID(NEWTOY(id, ">1"USE_ID_SECURITY("Z")"nGgru[!"USE_ID_SECURITY("Z")"Ggu]", TOYFLAG_BIN))
 USE_GROUPS(NEWTOY(groups, NULL, TOYFLAG_USR|TOYFLAG_BIN))
-USE_LOGNAME(NEWTOY(logname, ">0", TOYFLAG_USR|TOYFLAG_BIN))
-USE_WHOAMI(OLDTOY(whoami, logname, TOYFLAG_USR|TOYFLAG_BIN))
+USE_LOGNAME(NEWTOY(logname, ">0", TOYFLAG_BIN))
+USE_WHOAMI(OLDTOY(whoami, logname, TOYFLAG_BIN))
 
 config ID
   bool "id"
@@ -25,14 +25,14 @@ config ID
     -r	Show real ID instead of effective ID
     -u	Show only the effective user ID
 
-config ID_SELINUX
+config ID_SECURITY
   bool
   default y
-  depends on ID && TOYBOX_SELINUX
+  depends on ID && (TOYBOX_SELINUX || TOYBOX_SMACK)
   help
     usage: id [-Z]
 
-    -Z Show only SELinux context
+    -Z	Show only the security context
 
 config GROUPS
   bool "groups"
@@ -146,17 +146,28 @@ void do_id(char *username)
     }
   }
 
-  if (CFG_TOYBOX_SELINUX) {
+  if (CFG_ID_SECURITY) {
     char *context = NULL;
+    if (CFG_TOYBOX_SELINUX) {
 
-    if (is_selinux_enabled() < 1) {
-      if (TT.do_Z)
-        error_exit("SELinux disabled");
-    } else if (getcon(&context) == 0) {
-      if (!TT.do_Z) xputc(' ');
-      printf("context=%s", context);
+      if (is_selinux_enabled() < 1) {
+        if (TT.do_Z)
+          error_exit("SELinux disabled");
+      } else if (getcon(&context) == 0) {
+        if (!TT.do_Z) xputc(' ');
+        printf("context=%s", context);
+      }
+      if (CFG_TOYBOX_FREE) free(context);
+    } else if (CFG_TOYBOX_SMACK) {
+      ssize_t sl_len = -1;
+
+      if ((sl_len = smack_new_label_from_self(&context)) > 0) {
+        if (!TT.do_Z) xputc(' ');
+        printf("context=%.*s", (int)sl_len, context);
+      } else if (TT.do_Z)
+          error_exit("LSM Smack disabled");
+      if (CFG_TOYBOX_FREE) free(context);
     }
-    if (CFG_TOYBOX_FREE) free(context);
   }
 
   xputc('\n');
