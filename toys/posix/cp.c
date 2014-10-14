@@ -319,10 +319,10 @@ void cp_main(void)
 
         // Technically "is writeable" is more complicated (022 is not writeable
         // by the owner, just everybody _else_) but I don't care.
-        if (!stat(src, &st)
+        if (!stat(TT.destname, &st)
           && ((toys.optflags & FLAG_i) || !(st.st_mode & 0222)))
         {
-          fprintf(stderr, "%s: overwrite '%s'", toys.which->name, src);
+          fprintf(stderr, "%s: overwrite '%s'", toys.which->name, TT.destname);
           if (!yesno("", 1)) rc = 0;
           else unlink(src);
         }
