@@ -148,7 +148,8 @@ int cp_node(struct dirtree *try)
         return 0;
       } else if (flags & FLAG_n) return 0;
       else if (flags & FLAG_i) {
-        fprintf(stderr, "cp: overwrite '%s'", s = dirtree_path(try, 0));
+        fprintf(stderr, "%s: overwrite '%s'", toys.which->name,
+          s = dirtree_path(try, 0));
         free(s);
         if (!yesno("", 1)) return 0;
       }
@@ -312,7 +313,23 @@ void cp_main(void)
     else TT.destname = destname;
 
     errno = EXDEV;
-    if (CFG_CP_MV && toys.which->name[0] == 'm') rc = rename(src, TT.destname);
+    if (CFG_CP_MV && toys.which->name[0] == 'm') {
+      if (!(toys.optflags & FLAG_f)) {
+        struct stat st;
+
+        // Technically "is writeable" is more complicated (022 is not writeable
+        // by the owner, just everybody _else_) but I don't care.
+        if (!stat(src, &st)
+          && ((toys.optflags & FLAG_i) || !(st.st_mode & 0222)))
+        {
+          fprintf(stderr, "%s: overwrite '%s'", toys.which->name, src);
+          if (!yesno("", 1)) rc = 0;
+          else unlink(src);
+        }
+      }
+
+      if (rc) rc = rename(src, TT.destname);
+    }
 
     // Skip nonexistent sources
     if (rc) {
