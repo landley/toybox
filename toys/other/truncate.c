@@ -35,6 +35,6 @@ void truncate_main(void)
 
   // Create files with mask rwrwrw.
   // Nonexistent files are only an error if we're supposed to create them.
-  loopfiles_rw(toys.optargs, O_WRONLY|(cr ? O_CREAT : 0), 0666, cr,
+  loopfiles_rw(toys.optargs, O_WRONLY|O_CLOEXEC|(cr ? O_CREAT : 0), 0666, cr,
     do_truncate);
 }

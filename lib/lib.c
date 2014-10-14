@@ -421,8 +421,8 @@ void poke(void *ptr, uint64_t val, int size)
 // flags is O_RDONLY, stdout otherwise.  An empty argument list calls
 // function() on just stdin/stdout.
 //
-// Note: read only filehandles are automatically closed when function()
-// returns, but writeable filehandles must be close by function()
+// Note: pass O_CLOEXEC to automatically close filehandles when function()
+// returns, otherwise filehandles must be closed by function()
 void loopfiles_rw(char **argv, int flags, int permissions, int failok,
   void (*function)(int fd, char *name))
 {
@@ -441,14 +441,14 @@ void loopfiles_rw(char **argv, int flags, int permissions, int failok,
       continue;
     }
     function(fd, *argv);
-    if (flags == O_RDONLY) close(fd);
+    if (flags & O_CLOEXEC) close(fd);
   } while (*++argv);
 }
 
-// Call loopfiles_rw with O_RDONLY and !failok (common case).
+// Call loopfiles_rw with O_RDONLY|O_CLOEXEC and !failok (common case).
 void loopfiles(char **argv, void (*function)(int fd, char *name))
 {
-  loopfiles_rw(argv, O_RDONLY, 0, 0, function);
+  loopfiles_rw(argv, O_RDONLY|O_CLOEXEC, 0, 0, function);
 }
 
 // Slow, but small.

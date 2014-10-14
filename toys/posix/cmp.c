@@ -79,6 +79,6 @@ out:
 
 void cmp_main(void)
 {
-  loopfiles_rw(toys.optargs, O_RDONLY, 0, toys.optflags&FLAG_s, do_cmp);
+  loopfiles_rw(toys.optargs, O_CLOEXEC, 0, toys.optflags&FLAG_s, do_cmp);
 }
 
