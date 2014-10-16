@@ -3,6 +3,7 @@
  * Copyright 2014 Sameer Prakash Pradhan <sameer.p.pradhan@gmail.com>
  * Copyright 2014 Ranjan Kumar <ranjankumar.bth@gmail.com>
  * Copyright 2014 Rajni Kant <rajnikant12345@gmail.com>
+ * Copyright 2014 Bilal Qureshi <bilal.jmi@gmail.com>
  *
  * No Standard.
  *
@@ -33,28 +34,13 @@ config IP
 #include <net/if_arp.h>
 #include <ifaddrs.h>
 #include <fnmatch.h>
-//=============================================================================
-
-// TODO List
-/*
- * 1. At this point of time, not clear about using hashing technique
- *    is useful to improve performance.
- * 2. Pending decision:
- *  a. rt_realms, rt_dsfield and rt_tables will get free or not.
- *  b. rt_realms, rt_dsfield and rt_tables will be global or local.
- * 3. Use atolx_range instead of strtoul.
- * 4. substring_to_idx for multiple match cases.
- */
+#include <netinet/ip.h>
+#include <linux/if_tunnel.h>
 
 GLOBALS(
-  char stats;
-  int sockfd;
-  char gbuf[8192];
-  int8_t addressfamily;
-  int8_t is_addr;
-  char singleline;
-  char flush;
-  char *filter_dev;
+  char stats, singleline, flush, *filter_dev, gbuf[8192];
+  int sockfd, connected, from_ok, route_cmd;
+  int8_t addressfamily, is_addr;
 )
 
 struct arglist {
@@ -83,6 +69,7 @@ typedef int (*cmdobj)(char **argv);
 // For "/etc/iproute2/RPDB_tables"
 enum {
   RPDB_rtdsfield = 1,
+  RPDB_rtprotos = 2,
   RPDB_rtrealms = 3,
   RPDB_rtscopes = 4,
   RPDB_rttables = 5
@@ -90,38 +77,16 @@ enum {
 
 #define RPDB_ENTRIES 256
 static int8_t rttable_init;
+static int8_t rtprotos_init;
 static int8_t rtdsfield_init;
 static int8_t rtscope_init;
 static int8_t rtrealms_init;
 
-static struct arglist default_table = {"default", RT_TABLE_DEFAULT};
-static struct arglist main_table = {"main", RT_TABLE_MAIN};
-static struct arglist local_table = {"local", RT_TABLE_LOCAL};
-static struct arglist unspec_realms = {"unspec", RT_TABLE_UNSPEC};
-
-static struct arglist *rt_dsfield[RPDB_ENTRIES] = {0};
-static struct arglist *rt_tables[RPDB_ENTRIES] = {
-  [RT_TABLE_DEFAULT] = &default_table,
-  [RT_TABLE_MAIN] = &main_table,
-  [RT_TABLE_LOCAL] = &local_table,
-};
-static struct arglist *rt_realms[RPDB_ENTRIES] = {
-  [0] = &unspec_realms,
-};
-
-// default values from /etc/iproute2/rt_scope
-static struct arglist global_table = {"global", 0};
-static struct arglist site_table = {"site", 200};
-static struct arglist link_table = {"link", 253};
-static struct arglist host_table = {"host", 254};
-static struct arglist nowhere_table = {"nowhere", 255};
-static struct arglist *rt_scope[256] = {
-  [RT_SCOPE_UNIVERSE] = &global_table,
-  [RT_SCOPE_SITE] = &site_table,
-  [RT_SCOPE_LINK] = &link_table,
-  [RT_SCOPE_HOST] = &host_table,
-  [RT_SCOPE_NOWHERE] = &nowhere_table,
-};
+static struct arglist *rt_dsfield[RPDB_ENTRIES];
+static struct arglist *rt_protos[RPDB_ENTRIES];
+static struct arglist *rt_tables[RPDB_ENTRIES];
+static struct arglist *rt_realms[RPDB_ENTRIES];
+static struct arglist *rt_scope[RPDB_ENTRIES];
 
 static struct arglist rtmtypes[] = { {"none", RTN_UNSPEC},
   {"unicast", RTN_UNICAST}, {"local", RTN_LOCAL},
@@ -142,21 +107,14 @@ static int  ipaddr_print(struct linkdata *, int flg);
 static int substring_to_idx(char *str, struct arglist *list)
 {
   struct arglist *alist;
-  int idx = -1, mcount = 0, len;
+  int len;
 
   if (!str) return -1;
   len = strlen(str);
 
-  for (alist = list; alist->name; alist++) {
-    if (!memcmp(str, alist->name, len)) {
-      if (!*(alist->name + len))
-        return alist->idx;
-      idx = alist->idx;
-      ++mcount; // No of matches.
-    }
-  }
-  if (mcount > 1) return -1; // Multiple match found.
-  return idx;
+  for (alist = list; alist->name; alist++)
+    if (!memcmp(str, alist->name, len)) return alist->idx;
+  return -1;
 }
 
 static int string_to_idx(char *str, struct arglist *list)
@@ -230,12 +188,31 @@ static void parseRPDB(char *fname, struct arglist **list, int32_t size)
     }
     if (idx >= 0 && idx < size) {
       int index = idx & (size-1);
-      list[index] = xzalloc(sizeof(struct arglist));
+      if (list[index]) free(list[index]->name);
+      else list[index] = xzalloc(sizeof(struct arglist));
       list[index]->idx = idx;
       list[index]->name = xstrdup(toybuf);
     }
   }
   xclose(fd);
+}
+
+static void free_alist(struct arglist **list)
+{
+  int i;
+  for (i = 0;i<RPDB_ENTRIES;i++) {
+    if (list[i]) {
+      free(list[i]->name);
+      free(list[i]);
+    }
+  }
+}
+
+static void init_arglist(struct arglist **list,int value, char* name)
+{
+  if (!list[value]) list[value] =  xzalloc(sizeof(struct arglist));
+  list[value]->idx = value;
+  list[value]->name = xstrdup(name);
 }
 
 static struct arglist **getlist(u_int8_t whichDB)
@@ -250,10 +227,28 @@ static struct arglist **getlist(u_int8_t whichDB)
         parseRPDB("/etc/iproute2/rt_dsfield", alist, ARRAY_LEN(rt_dsfield));
       }
       break;
+    case RPDB_rtprotos:
+      alist = rt_protos;
+      if (!rttable_init) {
+        rtprotos_init = 1;
+        init_arglist(rt_protos,0,"none");
+        init_arglist(rt_protos,1,"redirect");
+        init_arglist(rt_protos,2,"kernel");
+        init_arglist(rt_protos,3,"boot");
+        init_arglist(rt_protos,4,"static");
+        init_arglist(rt_protos,8,"gated");
+        init_arglist(rt_protos,9,"ra");
+        init_arglist(rt_protos,10,"mrt");
+        init_arglist(rt_protos,11,"zebra");
+        init_arglist(rt_protos,12,"bird");
+        parseRPDB("/etc/iproute2/rt_protos", alist, ARRAY_LEN(rt_protos));
+      }
+      break;
     case RPDB_rtrealms:
       alist = rt_realms;
       if (!rtrealms_init) {
         rtrealms_init = 1;
+        init_arglist(rt_realms,0,"unspec");
         parseRPDB("/etc/iproute2/rt_realms", alist, ARRAY_LEN(rt_realms));
       }
       break;
@@ -261,6 +256,11 @@ static struct arglist **getlist(u_int8_t whichDB)
       alist = rt_scope;
       if (!rtscope_init) {
         rtscope_init = 1;
+        init_arglist(rt_scope,0,"global");
+        init_arglist(rt_scope,200,"site");
+        init_arglist(rt_scope,253,"link");
+        init_arglist(rt_scope,254,"host");
+        init_arglist(rt_scope,255,"nowhere");
         parseRPDB("/etc/iproute2/rt_scopes", alist, ARRAY_LEN(rt_scope));
       }
       break;
@@ -268,6 +268,9 @@ static struct arglist **getlist(u_int8_t whichDB)
       alist = rt_tables;
       if (!rttable_init) {
         rttable_init = 1;
+        init_arglist(rt_tables,RT_TABLE_DEFAULT,"default");
+        init_arglist(rt_tables,RT_TABLE_MAIN,"main");
+        init_arglist(rt_tables,RT_TABLE_LOCAL,"local");
         parseRPDB("/etc/iproute2/rt_tables", alist, ARRAY_LEN(rt_tables));
       }
       break;
@@ -286,7 +289,7 @@ static char *namefromRPDB(int idx, u_int8_t whichDB)
 {
   struct arglist **alist;
 
-  if (idx < RT_TABLE_UNSPEC || idx >= RPDB_ENTRIES) {
+  if (idx < 0 || idx >= RPDB_ENTRIES) {
     snprintf(toybuf, RPDB_ENTRIES, "%u", idx);
     return toybuf;
   }
@@ -294,6 +297,7 @@ static char *namefromRPDB(int idx, u_int8_t whichDB)
   alist = getlist(whichDB);
 
   if (alist[idx] && alist[idx]->name) return alist[idx]->name;
+
   if (whichDB == RPDB_rtdsfield) snprintf(toybuf, RPDB_ENTRIES, "0x%02x", idx);
   else snprintf(toybuf, RPDB_ENTRIES, "%u", idx);
 
@@ -303,26 +307,25 @@ static char *namefromRPDB(int idx, u_int8_t whichDB)
 static int idxfromRPDB(char *name, u_int8_t whichDB)
 {
   struct arglist **alist;
-  int i = 0;
+  long i = 0;
+  char *ptr = NULL;
 
   for (alist = getlist(whichDB); i < RPDB_ENTRIES; i++) {
     if (!alist[i] || !alist[i]->name) continue;
     if (!strcmp(alist[i]->name, name)) return i;
   }
-  return (atolx_range(name, 0, 255));
+  i = strtol(name, &ptr, 0);
+  if (errno || (ptr && *ptr) || i < 0 || i > 255)
+    return -1;
+  return i;
 }
 
-/*
- * TODO:
- * rtmtype_idx2str and rtmtype_str2idx interfaces may be used in IPROUTE too.
- */
 static char *rtmtype_idx2str(u_int8_t idx)
 {
   char *name = idx_to_string(idx, rtmtypes);
 
   if (!name) snprintf(toybuf, RPDB_ENTRIES, "%u", idx);
-  else strcpy(toybuf, name);
-
+  else snprintf(toybuf, sizeof(toybuf), "%s", name);
   return toybuf;
 }
 
@@ -455,14 +458,15 @@ static uint32_t get_ifaceindex(char *name, int ext)
 {
   struct if_nameindex *if_ni, *i;
   int index = -1;
-  if_ni = if_nameindex();
-  if (if_ni == NULL) {
-    perror("if_nameindex");
-    exit(EXIT_FAILURE);
-  }
 
-  for (i = if_ni; ! (i->if_index == 0 && i->if_name == NULL); i++)
-    if(!strcmp(name,i->if_name)) { index =i->if_index; break; }
+  if_ni = if_nameindex();
+  if (!if_ni) perror_exit("if_nameindex");
+
+  for (i = if_ni; i->if_index && i->if_name; i++)
+    if (!strcmp(name, i->if_name)) { 
+      index = i->if_index; 
+      break;
+    }
   if_freenameindex(if_ni);
   if (index == -1 && ext) perror_exit("can't find device '%s'", name);
   return index;
@@ -474,10 +478,11 @@ static void fill_hwaddr(char *arg, int len, unsigned char *address)
 
   while (count < len) {
     val = length = 0;
+    if (!arg) error_exit("bad hw-addr '%s'", "");
     if (*arg == ':') arg++, count++;
     sscanf(arg, "%2x%n", &val, &length);
     if (!length || length > 2)
-      error_exit("bad hw-addr '%s'", arg ? arg : "");
+      error_exit("bad hw-addr '%s'", arg);
     arg += length;
     count += length;
     *address++ = val;
@@ -758,7 +763,7 @@ static int print_link_output(struct linkdata *link)
     xclose(fd);
   }
 
-  if(TT.is_addr && addrinfo.label && fnmatch(addrinfo.label, link->iface, 0))
+  if (TT.is_addr && addrinfo.label && fnmatch(addrinfo.label, link->iface, 0))
     return 0;
 
 
@@ -771,7 +776,7 @@ static int print_link_output(struct linkdata *link)
     if (!if_indextoname(link->parent, iface)) perror_exit(NULL);
     sprintf(toybuf,"%s@%s", link->iface, iface);
   }
-  if(link->flags & IFF_POINTOPOINT) peer = "peer";
+  if (link->flags & IFF_POINTOPOINT) peer = "peer";
   if (TT.is_addr && TT.singleline && TT.addressfamily)
     xprintf("%d: %s", link->iface_idx,
         ((link->parent == -1) ? link->iface : toybuf));
@@ -895,8 +900,8 @@ static int display_link_info(struct nlmsghdr *mhdr, char **argv)
 {
   struct linkdata link;
 
-  if(!get_link_info(mhdr, &link, argv)){
-    if(TT.is_addr) {
+  if (!get_link_info(mhdr, &link, argv)) {
+    if (TT.is_addr) {
       struct linkdata *lnk = xzalloc(sizeof(struct linkdata));
       memcpy(lnk, &link, sizeof(struct linkdata));
       dlist_add_nomalloc((struct double_list **)&linfo,
@@ -969,8 +974,9 @@ static int print_addrinfo(struct nlmsghdr *h, int flag_l)
 
   if (flag_l && addrinfo.label && ifa->ifa_family == AF_INET6) return 0;
   if ((rta_tb[IFA_LABEL])) {
-    strcpy(label, RTA_DATA(rta_tb[IFA_LABEL]));
-    if(addrinfo.label && fnmatch(addrinfo.label, label, 0))
+    strncpy(label, RTA_DATA(rta_tb[IFA_LABEL]), 256);
+    label[255] = '\0';
+    if (addrinfo.label && fnmatch(addrinfo.label, label, 0))
       return 0;
   }
 
@@ -1054,21 +1060,20 @@ static int ipaddrupdate(char **argv)
       scoped = 0;
   char *dev = NULL,*label = NULL, reply[8192];
 
-  unsigned    scope;
   struct nlmsghdr *addr_ptr = NULL;
   struct nlmsgerr *err = NULL;
   struct arglist cmd_objectlist[] = {{"dev",0}, {"peer", 1},
     {"remote", 2}, {"broadcast", 3}, {"brd", 4}, {"label", 5},
     {"anycast", 6},{"scope", 7}, {"local", 8}, {NULL, -1}};
-  struct{
+  struct {
     struct nlmsghdr nlm;
     struct ifaddrmsg ifadd;
     char buf[256];
   } req;
-  typedef struct{
+  typedef struct {
     int family, bytelen, bitlen;
     __u32  data[8];
-  }option_data;
+  } option_data;
   option_data local;
 
   memset(&req, 0, sizeof(req));
@@ -1077,7 +1082,7 @@ static int ipaddrupdate(char **argv)
   req.nlm.nlmsg_type = cmd;
   req.ifadd.ifa_family = TT.addressfamily;
 
-  while(*argv) {
+  while (*argv) {
     idx = substring_to_idx(*argv, cmd_objectlist);
     if (idx >= 0)
       if (!*++argv)
@@ -1137,17 +1142,16 @@ static int ipaddrupdate(char **argv)
           if (req.ifadd.ifa_family == AF_UNSPEC)
             req.ifadd.ifa_family = af;
           add_string_to_rtattr(&req.nlm, sizeof(req),
-              IFA_ANYCAST, &addr, length_brd);
+              IFA_ANYCAST, &addr, length_any);
         }
         break;
       case 7:
-        scope = idxfromRPDB(*argv, RPDB_rtscopes);
-        if (scope){
-          if (!strcmp(*argv, "scope"))
-            error_exit("wrong scope '%s'", *argv);
+        {
+          int scope = idxfromRPDB(*argv, RPDB_rtscopes);
+          if (scope < 0) error_exit("wrong scope '%s'", *argv);
+          req.ifadd.ifa_scope = scope;
+          scoped = 1;
         }
-        req.ifadd.ifa_scope = scope;
-        scoped =1;
         break;
       default:
         {
@@ -1213,7 +1217,7 @@ static int ipaddrupdate(char **argv)
       return 1;
     if (addr_ptr->nlmsg_type == NLMSG_ERROR)
       err = (struct nlmsgerr*) NLMSG_DATA(addr_ptr);
-    if (err->error != 0){
+    if (err && err->error) {
       errno = -err->error;
       perror_exit("RTNETLINK answers:");
     }
@@ -1240,13 +1244,11 @@ static int ipaddr_listflush(char **argv)
   }
   addrinfo.scope = -1;
   while (*argv) {
-    unsigned scope = 0;
-
     switch (idx = substring_to_idx(*argv, cmd_objectlist)) {
       case 0: 
         {// ADDR_TO
           if (!*++argv) error_exit("Incomplete Command line");
-          else if(!strcmp(*argv, "0")) return 0;
+          else if (!strcmp(*argv, "0")) return 0;
           uint32_t addr[4] = {0,};
           uint8_t len = 0;
 
@@ -1258,26 +1260,28 @@ static int ipaddr_listflush(char **argv)
         }
         break;
       case 1: // ADDR_SCOPE
-        if (!*++argv) error_exit("Incomplete Command line");
-        name = *argv;
+        {
+          int scope = 0;
+          if (!*++argv) error_exit("Incomplete Command line");
+          name = *argv;
 
-        addrinfo.scopemask = -1;
-        if (isdigit(**argv)) {
-          int idx = atolx(*argv);
+          addrinfo.scopemask = -1;
+          if (isdigit(**argv)) {
+            int idx = atolx(*argv);
 
-          name = xstrdup(namefromRPDB(idx, RPDB_rtscopes));
+            name = xstrdup(namefromRPDB(idx, RPDB_rtscopes));
+          }
+          if ((scope = idxfromRPDB(name, RPDB_rtscopes)) < 0) {
+            if (strcmp(name, "all"))
+              error_exit("wrong scope '%s'", name);
+            scope = RT_SCOPE_NOWHERE;
+            addrinfo.scopemask = 0;
+          }
+
+          if (isdigit(**argv))
+            free(name);
+          addrinfo.scope = scope;
         }
-        scope = idxfromRPDB(name, RPDB_rtscopes);
-
-        if (!scope && strcmp(name, "global")) {
-          if (strcmp(name, "all"))
-            error_exit("wrong scope '%s'", name);
-          scope = RT_SCOPE_NOWHERE;
-          addrinfo.scopemask = 0;
-        }
-        if (isdigit(**argv))
-          free(name);
-        addrinfo.scope = scope;
         break;       
       case 2: // ADDR_UP
         addrinfo.up = 1;
@@ -1338,7 +1342,7 @@ static int ipaddr_print( struct linkdata *link, int flag_l)
       AF_UNSPEC, NULL, 0);
   if (TT.addressfamily == AF_PACKET) print_link_output(link);
 
-  if(addrinfo.label){
+  if (addrinfo.label){
     char *col = strchr(addrinfo.label, ':');
     if (!col && (fnmatch(addrinfo.label, &link->iface[0], 0)))
       return 0;
@@ -1354,19 +1358,19 @@ static int ipaddr_print( struct linkdata *link, int flag_l)
     int len1 = addr_ptr->nlmsg_len - NLMSG_LENGTH(sizeof(*addressInfo));
     if (len1 > 0) {
       for (; NLMSG_OK(addr_ptr, len); addr_ptr = NLMSG_NEXT(addr_ptr, len)) {
-        addressInfo = NLMSG_DATA(addr_ptr);     
+        addressInfo = NLMSG_DATA(addr_ptr);
         if (TT.addressfamily && TT.addressfamily != addressInfo->ifa_family)
           continue;
         if (addrinfo.ifindex && addrinfo.ifindex != addressInfo->ifa_index)
           continue;
 
-        if(addrinfo.to){        
+        if (addrinfo.to) {        
           memset(rta_tb, 0, sizeof(rta_tb));
           int rt_len = IFA_PAYLOAD(addr_ptr);
           for (rta = IFA_RTA(addressInfo); RTA_OK(rta, rt_len); rta=RTA_NEXT(rta, rt_len)) {
             if (rta->rta_type <= IFA_MAX) rta_tb[rta->rta_type] = rta;
           }
-          if (!rta_tb[IFA_LOCAL]) rta_tb[IFA_LOCAL] = rta_tb[IFA_ADDRESS];              
+          if (!rta_tb[IFA_LOCAL]) rta_tb[IFA_LOCAL] = rta_tb[IFA_ADDRESS];
           if (rta_tb[IFA_LOCAL]) {
             if (!inet_ntop(TT.addressfamily, RTA_DATA(rta_tb[IFA_LOCAL]),
                   lbuf, sizeof(lbuf))) perror_exit("inet");
@@ -1374,15 +1378,15 @@ static int ipaddr_print( struct linkdata *link, int flag_l)
               continue;
             ip_match=1;
           }
-          if(!ip_match)
+          if (!ip_match)
             continue;
         }
 
-        if(!TT.flush){
+        if (!TT.flush){
           if (addrinfo.scope != -1 && TT.addressfamily && TT.addressfamily ==
               addressInfo->ifa_family &&
               (addrinfo.ifindex == addressInfo->ifa_index)) {
-            if(addrinfo.scope != addressInfo->ifa_scope)
+            if ((addrinfo.scope ^ addressInfo->ifa_scope) & addrinfo.scopemask)
               continue;
             else if (addrinfo.up && (link->flags & IFF_UP))
               print_link_output(link);
@@ -1396,6 +1400,7 @@ static int ipaddr_print( struct linkdata *link, int flag_l)
             else if (!addrinfo.up) print_link_output(link);
           }
         }
+
         for (; NLMSG_OK(addr_ptr, len); addr_ptr = NLMSG_NEXT(addr_ptr, len)) {
           if ((addr_ptr->nlmsg_type == RTM_NEWADDR))
             print_addrinfo(addr_ptr, flag_l);
@@ -1404,6 +1409,9 @@ static int ipaddr_print( struct linkdata *link, int flag_l)
               (TT.flush && addrinfo.to))
             goto ret_stop;          
         }
+        if ((addr_ptr->nlmsg_type == NLMSG_DONE) ||
+            (addr_ptr->nlmsg_type == NLMSG_ERROR))
+          break;
       }
     }
     else
@@ -1430,13 +1438,629 @@ static int ipaddr(char **argv)
 }
 
 // ===========================================================================
-// TODO: code for ip route.
+// code for ip route
 // ===========================================================================
-static int iproute(char **argv)
+struct I_data {
+  unsigned char family;
+  uint32_t addr[8] , netmask ;
+  uint8_t len ;
+};
+
+struct {
+  int tb,idev,odev,proto;
+  struct I_data rvia, rdst, mdst, rsrc, msrc;
+} gfilter;
+
+static void show_iproute_help(void)
 {
-  printf("__FUNCTION__ = %s\n", __FUNCTION__);
+  char *errmsg = "\n\n" \
+       "iproute { list | flush } SELECTOR\n" \
+       "iproute get ADDRESS [from ADDRESS iif STRING]\n" \
+       "	[oif STRING]\n" \
+       "iproute { add | del | change | append | replace | test } ROUTE\n" \
+       "	SELECTOR := [root PREFIX] [match PREFIX] [proto RTPROTO]\n" \
+       "	ROUTE := [TYPE] PREFIX [proto RTPROTO] [metric METRIC]";
+
+  error_exit(errmsg);
+}
+
+static int display_route_info(struct nlmsghdr *mhdr, char **argv)
+{
+  char *inetval = NULL, out[1024] = {0};
+  struct rtmsg *msg = NLMSG_DATA(mhdr);
+  struct rtattr *rta, *attr[RTA_MAX+1] = {0,};
+  int32_t tvar, msglen = mhdr->nlmsg_len - NLMSG_LENGTH(sizeof(struct rtmsg));
+  int hlen = ((msg->rtm_family == AF_INET) ? 32
+      : ((msg->rtm_family == AF_INET6) ? 128 : -1));
+
+  if (mhdr->nlmsg_type != RTM_NEWROUTE) return 0;
+  if (msglen < 0) return 1;
+
+  if (msg->rtm_family == AF_INET6) {
+    if (gfilter.tb) {
+      if (gfilter.tb < 0) {
+        if (!(msg->rtm_flags & RTM_F_CLONED)) return 0;
+      } else {
+        if (msg->rtm_flags & RTM_F_CLONED) return 0;
+        if (gfilter.tb == RT_TABLE_LOCAL && msg->rtm_type != RTN_LOCAL)
+          return 0;
+        else if (gfilter.tb == RT_TABLE_MAIN && msg->rtm_type == RTN_LOCAL)
+          return 0;
+      }
+    }
+  }
+  else if (gfilter.tb > 0 && gfilter.tb != msg->rtm_table) return 0;
+
+  if (gfilter.proto && (msg->rtm_protocol != gfilter.proto)) return 0;
+
+
+  if (gfilter.rdst.family && (msg->rtm_family != gfilter.rdst.family ||
+        gfilter.rdst.netmask > msg->rtm_dst_len)) return 0;
+  if (gfilter.mdst.family && (msg->rtm_family != gfilter.mdst.family
+        || (gfilter.mdst.netmask < msg->rtm_dst_len))) return 0;
+  if (gfilter.rsrc.family && (msg->rtm_family != gfilter.rsrc.family
+        || gfilter.rsrc.netmask > msg->rtm_src_len)) return 0;
+  if (gfilter.msrc.family && (msg->rtm_family != gfilter.msrc.family
+        || (gfilter.msrc.netmask < msg->rtm_src_len))) return 0;
+  tvar = msglen;
+
+  for (rta = RTM_RTA(msg); RTA_OK(rta, tvar); rta=RTA_NEXT(rta, tvar))
+    if (rta->rta_type <= RTA_MAX) attr[rta->rta_type] = rta;
+
+  if (msg->rtm_type != RTN_UNICAST)
+    sprintf(out,"%s%s ", out,rtmtype_idx2str(msg->rtm_type));
+  if (attr[RTA_DST]) {
+    inetval = (char *)inet_ntop(msg->rtm_family, RTA_DATA(attr[RTA_DST]),
+        toybuf, sizeof(toybuf));
+    if (gfilter.rdst.family &&
+        memcmp(RTA_DATA(attr[RTA_DST]), &gfilter.rdst.addr, gfilter.rdst.len))
+      return 0;
+    if (gfilter.mdst.family &&
+        memcmp(RTA_DATA(attr[RTA_DST]), &gfilter.mdst.addr, gfilter.mdst.len))
+      return 0;
+    sprintf(out,"%s%s",out,inetval);
+  }
+  if (msg->rtm_dst_len) sprintf(out,"%s/%d ", out,msg->rtm_dst_len);
+  else sprintf(out,"%s%s",out,"default ");
+
+  if (attr[RTA_SRC]) {
+    inetval = (char *)inet_ntop(msg->rtm_family, RTA_DATA(attr[RTA_SRC]),
+        toybuf, sizeof(toybuf));
+    if (gfilter.rsrc.family &&
+        memcmp(RTA_DATA(attr[RTA_SRC]), &gfilter.rsrc.addr, gfilter.rsrc.len))
+      return 0;
+    if (gfilter.msrc.family &&
+        memcmp(RTA_DATA(attr[RTA_SRC]), &gfilter.msrc.addr, gfilter.msrc.len))
+      return 0;
+    sprintf(out, "%s from %s", out, inetval);
+  }
+  if (msg->rtm_src_len) sprintf(out, "%s/%d ", out, msg->rtm_src_len);
+
+  if (attr[RTA_GATEWAY]) {
+    inetval = (char *)inet_ntop(msg->rtm_family, RTA_DATA(attr[RTA_GATEWAY]),
+        toybuf, sizeof(toybuf));
+    sprintf(out, "%s via %s ", out, inetval);
+  }
+  if (gfilter.rvia.family) {
+    char tmp[256];
+
+    if (!attr[RTA_GATEWAY]) return 0;
+    if (strcmp((char *)inet_ntop(msg->rtm_family, gfilter.rvia.addr,
+            tmp, sizeof(tmp)), inetval)) return 0;
+  }
+
+  if (gfilter.odev != 0) if (!attr[RTA_OIF]) return 0;
+  if (attr[RTA_OIF]) {
+    if (gfilter.odev !=0 && gfilter.odev != *(int*)RTA_DATA(attr[RTA_OIF]))
+      return 0;
+    sprintf(out, "%s dev %s ", out, 
+        if_indextoname(*(int*)RTA_DATA(attr[RTA_OIF]), toybuf));
+  }
+
+  if (attr[RTA_PREFSRC] && hlen) {
+    inetval = (char *)inet_ntop(msg->rtm_family, RTA_DATA(attr[RTA_PREFSRC]),
+        toybuf, sizeof(toybuf));
+    sprintf(out, "%s src %s ", out, inetval);
+  }
+  if (attr[RTA_PRIORITY])
+    sprintf(out, "%s metric %d ", out, *(uint32_t*)RTA_DATA(attr[RTA_PRIORITY]));
+  if (msg->rtm_family == AF_INET6) {
+    struct rta_cacheinfo *ci = NULL;
+    if (attr[RTA_CACHEINFO]) ci = RTA_DATA(attr[RTA_CACHEINFO]);
+    if ((msg->rtm_flags & RTM_F_CLONED) || (ci && ci->rta_expires)) {
+      if (msg->rtm_flags & RTM_F_CLONED) sprintf(out, "%s%s    cache ",
+          out, (!TT.singleline ? "\n" : " "));
+      if (ci && ci->rta_expires) {
+        int hz = 0;
+        FILE *fp = xfopen("/proc/net/psched","r");
+
+        if (fp) {
+          unsigned int nom, denom;
+
+          if (fscanf(fp, "%*08x%*08x%08x%08x", &nom, &denom) == 2)
+            if (nom == 1000000)
+              hz = denom;
+          fclose(fp);
+        }
+        if (!hz) hz = sysconf(_SC_CLK_TCK);
+        sprintf(out, "%s expires %dsec", out, ci->rta_expires /hz);
+      }
+      if (ci && ci->rta_error) sprintf(out, "%s error %d", out, ci->rta_error);
+    }
+    else if (ci && ci->rta_error)
+      sprintf(out, "%s error %d", out, ci->rta_error);
+  }
+  if (attr[RTA_IIF] && !gfilter.idev)
+    sprintf(out, "%s iif %s", out, 
+        if_indextoname(*(int*)RTA_DATA(attr[RTA_IIF]), toybuf));
+  if (TT.flush || (TT.connected && !TT.from_ok)) 
+    memcpy(toybuf, (void*)mhdr,mhdr->nlmsg_len);
+
+  if (TT.flush) {
+    int sockfd = 0;
+    struct nlmsghdr* mhdr = (struct nlmsghdr*)toybuf;
+    struct rtmsg *msg = NLMSG_DATA(mhdr);
+    int tvar, msglen = mhdr->nlmsg_len - NLMSG_LENGTH(sizeof(struct rtmsg));
+    struct rtattr *rta, *attr[RTA_MAX+1] = {0,};
+
+    tvar = msglen;
+    for (rta = RTM_RTA(msg); RTA_OK(rta, tvar); rta=RTA_NEXT(rta, tvar))
+      if (rta->rta_type <= RTA_MAX) attr[rta->rta_type] = rta;
+
+    if (msg->rtm_family == AF_INET6
+        && !msg->rtm_dst_len
+        && msg->rtm_type == RTN_UNREACHABLE
+        && attr[RTA_PRIORITY]
+        && *(int*)RTA_DATA(attr[RTA_PRIORITY]) == -1)
+      return 0;
+
+    mhdr->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+    mhdr->nlmsg_type  = RTM_DELROUTE;
+    mhdr->nlmsg_pid = 0;
+    sockfd = xsocket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+    if (send(sockfd , (void*)mhdr, mhdr->nlmsg_len, 0) < 0)
+      perror_exit("Unable to send data on socket.");
+
+    while (1) {
+      struct nlmsghdr *mhdr;
+      int msglen = recv(sockfd, toybuf, sizeof(toybuf), 0);
+
+      if ((msglen < 0) && (errno == EINTR || errno == EAGAIN)) continue;
+      else if (msglen < 0) {
+        error_msg("netlink receive error %s", strerror(errno));
+        xclose(sockfd);
+        return 1;
+      } else if (!msglen) {
+        error_msg("EOF on netlink");
+        xclose(sockfd);
+        return 1;
+      }
+
+      for (mhdr = (struct nlmsghdr*)toybuf; NLMSG_OK(mhdr, msglen);
+          mhdr = NLMSG_NEXT(mhdr, msglen)) {
+        switch (mhdr->nlmsg_type) {
+          case NLMSG_DONE:
+            xclose(sockfd);
+            return 0;
+          case NLMSG_ERROR:
+            {
+              struct nlmsgerr *merr = (struct nlmsgerr*)NLMSG_DATA(mhdr);
+
+              if (merr->error == 0)  { xclose(sockfd); return 0; }
+              if (mhdr->nlmsg_len < NLMSG_LENGTH(sizeof(struct nlmsgerr)))
+                error_msg("ERROR truncated");
+              else {
+                errno = -merr->error;
+                perror_msg("RTNETLINK answers");
+              }
+              xclose(sockfd);
+              return 1;
+            }
+          default:
+            break;
+        }
+      } // End of for loop.
+    } // End of while loop.
+
+    xclose(sockfd);
+  } else printf("%s\n",out);
   return 0;
 }
+
+static int route_get(char **argv)
+{
+  int idx, flag;
+  struct arglist cmd_objectlist[] = {{"from", 0}, {"iif", 1}, {"oif", 2}, 
+    {"dev", 3}, {"notify", 4}, {"connected", 5}, {"to", 6}, {NULL, -1}};
+  char *idev = NULL, *odev = NULL;
+  struct {
+    struct nlmsghdr mhdr;
+    struct rtmsg msg;
+    char buf[1024];
+  } request;
+
+  memset(&request, 0, sizeof(request));
+  request.mhdr.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
+  request.mhdr.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+  request.mhdr.nlmsg_type = RTM_GETROUTE;
+  request.msg.rtm_family = AF_UNSPEC;
+
+  for (; *argv; argv++) {
+    switch(idx = substring_to_idx(*argv, cmd_objectlist)) {
+      case 0: TT.from_ok = 1; // dst address
+      case 6: argv++; //fallthrough
+      default: 
+              {
+                uint32_t addr[8] = {0,}, netmask = 0;
+                uint8_t len = 0;
+
+                if (!*argv) error_exit("'%s': Missing Prefix", argv[-1]);
+                parse_prefix(addr, &netmask, &len, *argv, request.msg.rtm_family);
+                if (len) request.msg.rtm_family = ((len == 4) ? AF_INET : AF_INET6);
+                netmask = (request.msg.rtm_family == AF_INET6) ? 128 : 32;
+                if (!idx) request.msg.rtm_src_len = netmask;
+                else request.msg.rtm_dst_len = netmask;
+                add_string_to_rtattr(&request.mhdr, sizeof(request),
+                    (!idx ? RTA_SRC : RTA_DST), addr, len);
+                break;
+              }
+      case 1:
+      case 2:
+      case 3:
+              if (!*++argv) show_iproute_help();
+              if (idx == 1) idev = *argv, flag = RTA_IIF;
+              else odev = *argv, flag = RTA_OIF;
+              idx = get_ifaceindex(*argv, 1);
+              add_string_to_rtattr(&request.mhdr, sizeof(request),
+                  flag, (char*)&idx, sizeof(idx));
+              break;
+      case 4:
+              request.msg.rtm_flags |= RTM_F_NOTIFY;
+              break;
+      case 5:
+              TT.connected = 1;
+              break;
+    }
+  }
+  if (!request.msg.rtm_dst_len) 
+    error_exit("need at least destination address");
+
+  send_nlmesg(0, 0, 0, &request, sizeof(request));
+  filter_nlmesg(display_route_info, NULL);
+
+  if (TT.connected && !TT.from_ok) {
+    struct nlmsghdr *mhdr = (struct nlmsghdr*)toybuf;
+    struct rtmsg *msg = NLMSG_DATA(mhdr);
+    int tvar, msglen = mhdr->nlmsg_len - NLMSG_LENGTH(sizeof(struct rtmsg));
+    struct rtattr *rta, *attr[RTA_MAX+1] = {0,};
+
+    if (mhdr->nlmsg_type != RTM_NEWROUTE) error_exit("not a route?");
+    if (msglen < 0) error_exit("wrong len %d", msglen);
+
+    tvar = msglen;
+    for (rta = RTM_RTA(msg); RTA_OK(rta, tvar); rta=RTA_NEXT(rta, tvar))
+      if (rta->rta_type <= RTA_MAX) attr[rta->rta_type] = rta;
+
+    if (attr[RTA_PREFSRC]) {
+      attr[RTA_PREFSRC]->rta_type = RTA_SRC;
+      msg->rtm_src_len = 8*RTA_PAYLOAD(attr[RTA_PREFSRC]);
+    } else if (!attr[RTA_SRC]) error_exit("can't connect the route");
+
+    if (!odev && attr[RTA_OIF]) attr[RTA_OIF]->rta_type = 0;
+    if (attr[RTA_GATEWAY]) attr[RTA_GATEWAY]->rta_type = 0;
+    if (!idev && attr[RTA_IIF]) attr[RTA_IIF]->rta_type = 0;
+    mhdr->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+    mhdr->nlmsg_type  = RTM_GETROUTE;
+    mhdr->nlmsg_pid = 0;
+    xclose(TT.sockfd);
+    TT.sockfd = xsocket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+    send_nlmesg(0, 0, 0, mhdr, mhdr->nlmsg_len);
+    filter_nlmesg(display_route_info, NULL);
+  }
+  return 0;
+}
+
+static int route_show_flush(char **argv)
+{
+  struct arglist cmd_objectlist[] = {{"protocol", 0}, {"dev", 1}, {"oif", 2},
+    {"iif", 3}, {"via", 4}, {"table", 5}, {"cache", 6}, {"from", 7}, 
+    {"to", 8}, {"all", 9}, {"root", 10}, {"match", 11}, {"exact", 12}, 
+    {"main", 13}, {NULL,-1}};
+  int family = TT.addressfamily, idx;
+  struct {
+    struct nlmsghdr mhdr;
+    struct rtmsg msg;
+  } request;
+
+  if (*argv[-1] == 'f') TT.flush = 1;
+  if (TT.flush && !*argv) show_iproute_help();
+
+  gfilter.tb = RT_TABLE_MAIN;
+  for (; *argv; argv++) {
+    switch (idx = substring_to_idx(*argv, cmd_objectlist)) {
+      case 0:
+        if (!*++argv) show_iproute_help();
+        if ((idx = idxfromRPDB(*argv,RPDB_rtprotos)) < 0)
+          error_exit("Invalid argument protocol.");
+        gfilter.proto = idx;
+        break;
+      case 1:
+      case 2:
+      case 3:
+        {
+          if (!*++argv) show_iproute_help();
+          int dev = get_ifaceindex(*argv, 1);
+
+          if (idx == 3) gfilter.idev = dev;
+          else gfilter.odev = dev;        
+        }
+        break;
+      case 4:
+        if (!*++argv) show_iproute_help();
+        parse_prefix(gfilter.rvia.addr, &gfilter.rvia.netmask,
+            &gfilter.rvia.len, *argv, gfilter.rvia.family);
+        if (gfilter.rvia.len)
+          gfilter.rvia.family = ((gfilter.rvia.len == 4) ?
+              AF_INET : AF_INET6);
+        break;
+      case 5:
+        if (!*++argv) show_iproute_help();
+        idx = substring_to_idx(*argv, cmd_objectlist);
+        if (idx == 6) gfilter.tb = -1;
+        else if (idx == 9) gfilter.tb = 0;
+        else if (idx != 13) {
+          if ((gfilter.tb = idxfromRPDB(*argv, RPDB_rttables)) < 0)
+            error_exit("table %s is invalid.", *argv);
+        }
+        break;
+      case 6:
+        gfilter.tb = -1;
+        break;
+      case 7:
+        if (!*++argv) show_iproute_help();
+        idx = substring_to_idx(*argv, cmd_objectlist);
+        if (idx < 0)  if (!*++argv) show_iproute_help();
+        if (idx == 10)
+           if (!*++argv) show_iproute_help();
+          parse_prefix(gfilter.rsrc.addr, &gfilter.rsrc.netmask,
+              &gfilter.rsrc.len, *argv, gfilter.rsrc.family);
+        if (gfilter.rsrc.len)
+          gfilter.rsrc.family = ((gfilter.rsrc.len == 4) ?
+              AF_INET : AF_INET6);
+        else {
+          if ((idx == 12 ||idx == 11) && !*++argv) show_iproute_help();
+          parse_prefix(gfilter.msrc.addr, &gfilter.msrc.netmask,
+              &gfilter.msrc.len, *argv, gfilter.msrc.family);
+          if (gfilter.msrc.len)
+            gfilter.msrc.family = ((gfilter.msrc.len == 4) ?
+                AF_INET : AF_INET6);
+          if (idx != 11) gfilter.rsrc = gfilter.msrc;
+        }
+        break;
+      case 8:
+        idx = substring_to_idx(*argv, cmd_objectlist);
+        if (idx != -1 && !*++argv) show_iproute_help();
+      default: // fallthrough
+        if (idx == 10) {
+          if (!*++argv) show_iproute_help();
+          parse_prefix(gfilter.rdst.addr, &gfilter.rdst.netmask,
+              &gfilter.rdst.len, *argv, gfilter.rdst.family);
+        if (gfilter.rdst.len)
+          gfilter.rdst.family = ((gfilter.rdst.len == 4) ?
+              AF_INET : AF_INET6);
+        }
+        else {
+          if ((idx == 12 ||idx == 11) && !*++argv) show_iproute_help();
+          parse_prefix(gfilter.mdst.addr, &gfilter.mdst.netmask,
+              &gfilter.mdst.len, *argv, gfilter.mdst.family);
+          if (gfilter.mdst.len)
+            gfilter.mdst.family = ((gfilter.mdst.len == 4) ?
+                AF_INET : AF_INET6);
+          if (idx != 11) gfilter.rdst = gfilter.mdst;
+        }
+        break;
+    }
+  }
+  if (family == AF_UNSPEC && gfilter.tb) family = AF_INET;
+
+  if (TT.flush) {
+    if (gfilter.tb < 0) { // flush table cache
+      if (family != AF_INET6) {
+        FILE *fp = xfopen("/proc/sys/net/ipv4/route/flush", "w");
+
+        if (fwrite("-1",1,2,fp) < 2) error_exit("can't flush routing cache");
+        fclose(fp);
+      }
+      if (family == AF_INET) return 0;
+    }
+  }
+
+  memset(&request, 0, sizeof (request));
+  request.mhdr.nlmsg_len = NLMSG_LENGTH(sizeof (struct rtmsg));
+  request.mhdr.nlmsg_flags = NLM_F_REQUEST;
+  request.mhdr.nlmsg_flags |= NLM_F_ROOT | NLM_F_MATCH;
+  request.mhdr.nlmsg_type = RTM_GETROUTE;
+  request.msg.rtm_family = family;
+  if (gfilter.tb < 0) request.msg.rtm_flags = RTM_F_CLONED;
+  send_nlmesg(0, 0, 0, (void*)&request, sizeof (request));
+  return (filter_nlmesg(display_route_info, NULL));
+}
+
+static int route_update(char **argv, unsigned int route_flags)
+{
+  char mxbuf[256], *d = NULL;
+  struct rtattr *mxrta = (void*)mxbuf;
+  unsigned mxlock = 0, ok = 0;
+  int idx;
+  uint32_t addr[8] = {0,}, netmask = 0;
+  uint8_t len = 0;
+
+  struct arglist cmd_objectlist[] = {{"src", 0}, {"via", 1}, {"mtu", 2},
+    {"lock", 3}, {"protocol", 4}, {"table", 5}, {"dev", 6}, {"oif", 7},
+    {"to", 8}, {"metric", 9}, {NULL,-1}
+  };
+  enum {
+    gtwy_ok = 1,
+    dst_ok = 2,
+    proto_ok = 4,
+    type_ok = 8
+  };
+  struct {
+    struct nlmsghdr hdr;
+    struct rtmsg msg;
+    char buf[1024];
+  } req;
+
+  memset(&req, 0, sizeof(req));
+  req.hdr.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
+  req.hdr.nlmsg_flags = NLM_F_ACK| NLM_F_REQUEST | route_flags;
+  req.hdr.nlmsg_type = TT.route_cmd;
+  req.msg.rtm_family = AF_UNSPEC;
+  req.msg.rtm_table = RT_TABLE_MAIN;
+  req.msg.rtm_scope = RT_SCOPE_NOWHERE;
+
+  if (TT.route_cmd != RTM_DELROUTE) {
+    req.msg.rtm_protocol = RTPROT_BOOT;
+    req.msg.rtm_scope = RT_SCOPE_UNIVERSE;
+    req.msg.rtm_type = RTN_UNICAST;
+  }
+
+  mxrta->rta_type = RTA_METRICS;
+  mxrta->rta_len = RTA_LENGTH(0);
+
+  for (; *argv; argv++) {
+    idx = substring_to_idx(*argv, cmd_objectlist);
+    if (!idx) {
+      if (!*++argv) show_iproute_help();
+      parse_prefix(addr, &netmask, &len, *argv, req.msg.rtm_family);
+      if (len) req.msg.rtm_family = ((len == 4) ? AF_INET : AF_INET6);
+      add_string_to_rtattr(&req.hdr, sizeof(req), RTA_PREFSRC, addr, len);
+    } else if (idx == 1) {
+      ok |= gtwy_ok;
+      if (!*++argv) show_iproute_help();
+      parse_prefix(addr, &netmask, &len, *argv, req.msg.rtm_family);
+      if (len) req.msg.rtm_family = ((len == 4) ? AF_INET : AF_INET6);
+      add_string_to_rtattr(&req.hdr, sizeof(req),RTA_GATEWAY, addr, len);
+    } else if (idx == 2) {
+      if (!*++argv) show_iproute_help();
+      if (substring_to_idx(*argv, cmd_objectlist ) == 3) {
+        mxlock |= (1 << RTAX_MTU);
+        if (!*++argv) show_iproute_help();
+      }
+      idx = atolx(*argv);
+      add_string_to_rtattr(&req.hdr, sizeof(req),
+          RTAX_MTU, (char*)&idx, sizeof(idx));
+    } else if (idx == 4) {
+      if (!*++argv) show_iproute_help();
+      if ((idx = idxfromRPDB(*argv,RPDB_rtprotos)) < 0)
+      error_exit("Invalid argument protocol %s.",*argv);
+      req.msg.rtm_protocol = idx;
+      ok |= proto_ok;
+    } else if (idx == 5) {
+      if (!*++argv) show_iproute_help();
+      req.msg.rtm_table = idxfromRPDB(*argv, RPDB_rttables);
+    } else if (idx == 6 || idx == 7) {
+      if (!*++argv) show_iproute_help();
+      d = *argv;
+    } else if (idx == 9) {
+      unsigned long metric;
+      unsigned int res;
+      char* ptr;
+      if (!*++argv) show_iproute_help();
+      metric = strtoul(*argv, &ptr, 0);
+		  if (!(!*ptr && metric <= 0xFFFFFFFFUL)) 
+        error_exit("Invalid argument metric %s.",*argv);
+      else
+        res = metric;
+      add_string_to_rtattr(&req.hdr, sizeof(req),
+          RTA_PRIORITY, (char*)&res, sizeof(res));
+    } else {
+      if (idx == 8)
+        if (!*++argv) show_iproute_help();
+      idx = substring_to_idx(*argv,rtmtypes);
+      if (idx != -1) {
+        if (!*++argv) show_iproute_help();
+        req.msg.rtm_type = idx;
+        ok |= type_ok;
+      }
+      if (ok & dst_ok) error_exit("Duplicate argument 'to'");
+      parse_prefix(addr, &netmask, &len, *argv, req.msg.rtm_family);
+      if (len) req.msg.rtm_family = ((len == 4) ? AF_INET : AF_INET6);
+      req.msg.rtm_dst_len = netmask;
+      ok |= dst_ok;
+      if (len) add_string_to_rtattr(&req.hdr, sizeof(req),RTA_DST, addr, len);
+    }
+  }
+
+  if (d) {
+    idx = get_ifaceindex(d,1);
+    add_string_to_rtattr(&req.hdr, sizeof(req),
+        RTA_OIF, (char*)&idx, sizeof(idx));
+  }
+  if (mxrta->rta_len > RTA_LENGTH(0)) {
+    if (mxlock)
+      add_string_to_rtattr(&req.hdr, sizeof(req),
+          RTAX_LOCK, (char*)&mxlock, sizeof(mxlock));
+    add_string_to_rtattr(&req.hdr, sizeof(req),
+        RTA_METRICS, RTA_DATA(mxrta), RTA_PAYLOAD(mxrta));
+  }
+
+  if (req.msg.rtm_type == RTN_LOCAL || req.msg.rtm_type == RTN_NAT)
+    req.msg.rtm_scope = RT_SCOPE_HOST;
+  else if (req.msg.rtm_type == RTN_BROADCAST||req.msg.rtm_type == RTN_MULTICAST
+      || req.msg.rtm_type == RTN_ANYCAST)
+    req.msg.rtm_scope = RT_SCOPE_LINK;
+  else if (req.msg.rtm_type == RTN_UNICAST || req.msg.rtm_type == RTN_UNSPEC) {
+    if (TT.route_cmd == RTM_DELROUTE)
+      req.msg.rtm_scope = RT_SCOPE_NOWHERE;
+    else if (!(ok & gtwy_ok))
+      req.msg.rtm_scope = RT_SCOPE_LINK;
+  }
+  if (req.msg.rtm_family == AF_UNSPEC) req.msg.rtm_family = AF_INET;
+  send_nlmesg(0, 0, 0, &req, sizeof(req));
+  filter_nlmesg(NULL, NULL);
+  return 0;
+}
+
+static int iproute(char **argv)
+{
+  int idx = 1;
+  struct arglist cmd_objectlist1[] = {{"add", 0}, {"append", 1},{"change", 2},
+    {"chg", 3},{"delete",4}, {"get", 5}, {"list", 6}, {"show", 7},
+    {"prepend", 8},{"replace", 9},{"test", 10}, {"flush", 11},{NULL,-1}};
+
+  TT.route_cmd = RTM_NEWROUTE;
+  switch (idx = substring_to_idx(*argv , cmd_objectlist1)) {
+    case 0: // add
+      return route_update(++argv , NLM_F_CREATE|NLM_F_EXCL);
+    case 1: // append
+      return route_update(++argv , NLM_F_CREATE|NLM_F_APPEND);
+    case 2: // change
+    case 3: // chg
+      return route_update(++argv , NLM_F_REPLACE);
+    case 4: // delete
+      TT.route_cmd = RTM_DELROUTE;
+      return route_update(++argv , RTM_DELROUTE);
+    case 5:
+      return route_get(++argv);
+    case 6:
+    case 7:
+      return route_show_flush(++argv);
+    case 8: // prepend
+      return route_update(++argv , NLM_F_CREATE);
+    case 9: // replace
+      return route_update(++argv ,  NLM_F_CREATE|NLM_F_REPLACE);
+    case 10: // test
+      return route_update(++argv , NLM_F_EXCL);
+    case 11: // flush
+      return route_show_flush(++argv);
+    default:
+      if (!*argv) return route_show_flush(argv);
+      else show_iproute_help();
+  }
+  return 0; // non reachable code.
+}
+
 
 // ===========================================================================
 // code for ip rule.
@@ -1512,31 +2136,42 @@ static int ruleupdate(char **argv)
         break;
       case 3:
         {
+          uint32_t tos;
           if (!*++argv) error_exit("Missing TOS key");
-          request.msg.rtm_tos = idxfromRPDB(*argv, RPDB_rtdsfield);
+          if ((tos = idxfromRPDB(*argv, RPDB_rtdsfield)) < 0)
+            error_exit("Invalid TOS");
+          request.msg.rtm_tos = tos;
         }
         break;
       case 5:
         { // e.g. realms FROM_realm/TO_realm
           uint32_t realms = 0;
+          int ret;
           char *ptr;
 
           if (!*++argv) error_exit("Missing REALMSID");
           if ((ptr = strchr(*argv, '/'))) {
             *ptr = 0;
-            realms = idxfromRPDB(*argv, RPDB_rtrealms);
+            if ((ret = idxfromRPDB(*argv, RPDB_rtrealms)) < 0)
+              error_exit("Invalid realms");
+            realms = ret;
             realms <<= 16;
             *ptr++ = '/';
           } else ptr = *argv;
-          realms |= idxfromRPDB(ptr, RPDB_rtrealms);
+          if ((ret = idxfromRPDB(ptr, RPDB_rtrealms)) < 0)
+            error_exit("Invalid realms");
+          realms |= ret;
           add_string_to_rtattr(&request.mhdr, sizeof(request),
               RTA_FLOW, (void *)&realms, sizeof(uint32_t));
         }
         break;
       case 6:
         { // e.g. table tid/tableName
+          int tid;
           if (!*++argv) error_exit("Missing TableID");
-          request.msg.rtm_table = idxfromRPDB(*argv, RPDB_rttables);
+          if ((tid = idxfromRPDB(*argv, RPDB_rttables)) < 0)
+            error_exit("Invalid TID");
+          request.msg.rtm_table = tid;
           tflag = 1;
         }
         break;
@@ -1677,12 +2312,367 @@ static int iprule(char **argv)
   return ipcmd(argv);
 }
 //============================================================================
-// TODO: code for ip tunnel.
+// code for ip tunnel.
 //============================================================================
+static void show_iptunnel_help(void)
+{
+  char *errmsg = "Usage: iptunnel { add | change | del | show } [NAME]\n"
+    "           [mode { ipip | gre | sit }] [remote ADDR] [local ADDR]\n"
+    "           [[i|o]seq] [[i|o]key KEY] [[i|o]csum] [ttl TTL]\n"
+    "           [tos TOS] [[no]pmtudisc] [dev PHYS_DEV]";
+
+  error_exit(errmsg);
+}
+
+static int tnl_ioctl(char *dev, int rtype, struct ip_tunnel_parm *ptnl)
+{
+  struct ifreq req;
+  int fd, ret = 0;
+
+  if ((rtype == SIOCCHGTUNNEL || rtype == SIOCDELTUNNEL) && *ptnl->name)
+    strncpy(req.ifr_name, ptnl->name, IF_NAMESIZE);
+  else strncpy(req.ifr_name, dev, IF_NAMESIZE);
+
+  if (rtype != SIOCGIFHWADDR) req.ifr_ifru.ifru_data = (void*)ptnl;
+  fd = xsocket(AF_INET, SOCK_DGRAM, 0);
+
+  if (rtype == SIOCGETTUNNEL) ret = ioctl(fd, rtype, &req);
+  else if (rtype == SIOCGIFHWADDR)
+    ret = (ioctl(fd, rtype, &req) < 0) ? -1 : req.ifr_addr.sa_family;
+  else xioctl(fd, rtype, &req);
+
+  close(fd);
+  return ret;
+}
+
+static int display_tunnel(struct ip_tunnel_parm *ptnl)
+{
+  char rmt_addr[64], lcl_addr[64], ikey_str[64], okey_str[64];
+
+  printf("%s: %s/ip", ptnl->name, ptnl->iph.protocol == IPPROTO_IPIP ? "ip" :
+      (ptnl->iph.protocol == IPPROTO_GRE ? "gre" :
+       (ptnl->iph.protocol == IPPROTO_IPV6 ? "ipv6" : "unknown")));
+  printf("  remote %s  local %s ", ptnl->iph.daddr ?
+      inet_ntop(AF_INET, &ptnl->iph.daddr, rmt_addr, sizeof(rmt_addr)) : "any",
+      ptnl->iph.saddr ? inet_ntop(AF_INET, &ptnl->iph.saddr, lcl_addr,
+        sizeof(lcl_addr)) : "any");
+  if (ptnl->link) {
+    struct ifreq req;
+    int fd;
+
+    req.ifr_ifindex = ptnl->link;
+    fd = xsocket(AF_INET, SOCK_DGRAM, 0);
+    if (ioctl(fd, SIOCGIFNAME, &req) < 0) perror_msg("SIOCGIFNAME");
+    else printf(" dev %s ", req.ifr_name);
+    close(fd);
+  }
+  if (ptnl->iph.ttl) printf(" ttl %d ", ptnl->iph.ttl);
+  else printf(" ttl inherit ");
+
+  if (ptnl->iph.tos) {
+    printf(" tos");
+    if (ptnl->iph.tos & 1) printf(" inherit");
+    if (ptnl->iph.tos & ~1) printf("%c%s ", ptnl->iph.tos & 1 ? '/' : ' ',
+        namefromRPDB((ptnl->iph.tos & ~1), RPDB_rtdsfield));
+  }
+  if (!(ptnl->iph.frag_off & htons(IP_DF))) printf(" nopmtudisc");
+  inet_ntop(AF_INET, &ptnl->i_key, ikey_str, sizeof(ikey_str));
+  if ((ptnl->i_flags & GRE_KEY) && (ptnl->o_flags & GRE_KEY)
+      && ptnl->o_key == ptnl->i_key) printf(" key %s", ikey_str);
+  else if ((ptnl->i_flags | ptnl->o_flags) & GRE_KEY) {
+    inet_ntop(AF_INET, &ptnl->o_key, okey_str, sizeof(okey_str));
+    if (ptnl->i_flags & GRE_KEY) printf(" ikey %s ", ikey_str);
+    if (ptnl->o_flags & GRE_KEY) printf(" okey %s ", okey_str);
+  }
+  if (ptnl->i_flags & GRE_SEQ) printf("\n  Drop packets out of sequence.\n");
+  if (ptnl->i_flags & GRE_CSUM)
+    printf("\n  Checksum in received packet is required.");
+  if (ptnl->o_flags & GRE_SEQ) printf("\n  Sequence packets on output.");
+  if (ptnl->o_flags & GRE_CSUM) printf("\n  Checksum output packets.");
+  xputc('\n');
+  return 0;
+}
+
+static int read_tunnel(struct ip_tunnel_parm *ptnl)
+{
+  int count = 0;
+  char iface[IF_NAMESIZE];
+  struct ip_tunnel_parm iptnl;
+  FILE *fp = xfopen("/proc/net/dev", "r");
+
+  while (fgets(toybuf, sizeof(toybuf), fp)) {
+    char *ptr;
+    int ret;
+
+    if (count++ < 2) continue; // 1st two lines are header.
+
+    ptr = strchr(toybuf, ':');
+    if (!ptr || (*ptr++ = 0, sscanf(toybuf, "%s", iface) != 1))
+      error_exit("invalid format of '/proc/net/dev'");
+    if (*ptnl->name && strcmp(ptnl->name, iface)) continue;
+    if ((ret = tnl_ioctl(iface, SIOCGIFHWADDR, &iptnl)) < 0) {
+      error_msg("failed to get type of '%s'", iface);
+      continue;
+    }
+    if (ret != ARPHRD_TUNNEL && ret !=  ARPHRD_SIT &&
+        ret != ARPHRD_IPGRE) continue;
+
+    memset(&iptnl, 0, sizeof(iptnl));
+    if (tnl_ioctl(iface, SIOCGETTUNNEL, &iptnl) < 0) continue;
+    if ((ptnl->link && iptnl.link != ptnl->link) || (*ptnl->name &&
+          strcmp(iptnl.name, ptnl->name)) || (ptnl->iph.daddr &&
+          iptnl.iph.daddr != ptnl->iph.daddr) || (ptnl->iph.saddr &&
+            iptnl.iph.saddr != ptnl->iph.saddr) || (ptnl->i_key &&
+              iptnl.i_key != ptnl->i_key)) continue;
+    display_tunnel(&iptnl);
+  }
+  fclose(fp);
+  return 0;
+}
+
+static void parse_iptunnel_args(struct ip_tunnel_parm *ptnl, char **argv, 
+    int ipt_opt_idx)
+{
+  int idx;
+  uint8_t af = AF_INET;
+  uint32_t addr = 0;
+  struct arglist opts[] = { {"mode", 0}, {"key", 1}, {"ikey", 2},
+    {"okey", 3}, {"seq", 4}, {"iseq", 5}, {"oseq", 6}, {"csum", 7},
+    {"icsum", 8}, {"ocsum", 9}, {"nopmtudisc", 10}, {"pmtudisc", 11},
+    {"remote", 12}, {"local", 13},{"dev", 14}, {"ttl", 15}, {"tos", 16},
+    {"dsfield", 17}, {"name", 18}, {NULL, -1} 
+  };
+
+  ptnl->iph.version = 4; // The value indicates the version of IP (4 or 6)
+  ptnl->iph.ihl = 5; // Minimum Internet Header Length
+  // frag_off is measured in units of 8 octets (64 bits)
+  ptnl->iph.frag_off = htons(IP_DF);
+  if (*argv && ipt_opt_idx <= 2 && string_to_idx(*argv, opts) == -1) {
+    strncpy(ptnl->name, *argv, IF_NAMESIZE);
+    if (ipt_opt_idx == 1) {
+      struct ip_tunnel_parm iptnl_old;
+
+      memset(&iptnl_old, 0, sizeof(iptnl_old));
+      tnl_ioctl(ptnl->name, SIOCGETTUNNEL, &iptnl_old);
+      *ptnl = iptnl_old;
+    }
+    argv++;
+  }
+  for (; *argv; argv++, addr = 0) {
+    switch (idx = string_to_idx(*argv, opts)) {
+      case 0:
+        if (!*++argv) error_exit("mode is missing");
+        if ((!strcmp("ipip", *argv) || !strcmp("ip/ip", *argv)))
+          ptnl->iph.protocol = IPPROTO_IPIP;
+        else if ((!strcmp("gre", *argv) || !strcmp("gre/ip", *argv)))
+          ptnl->iph.protocol = IPPROTO_GRE;
+        else if ((!strcmp("sit", *argv) || !strcmp("ipv6/ip", *argv)))
+          ptnl->iph.protocol = IPPROTO_IPV6;
+        else show_iptunnel_help();
+        break;
+      case 1:
+      case 2:
+      case 3:
+        {
+          struct addrinfo *info, hint;
+          int ret;
+
+          if (!*++argv) error_exit("key value is missing");
+          memset(&hint, 0, sizeof(hint));
+          hint.ai_family = AF_INET;
+          ret = getaddrinfo(*argv, NULL, &hint, &info);
+          if (ret || !info) error_exit("invalid argument to key");
+          freeaddrinfo(info);
+
+          if (strchr(*argv, '.')) {
+            if (get_prefix(&addr, &af, *argv, AF_INET))
+              error_exit("invalid key '%s'", *argv);
+          } else {
+            unsigned key_val;
+
+            sscanf(*argv, "%u", &key_val);
+            addr = htonl(key_val);
+          }
+          if (idx == 1) {
+            ptnl->i_flags |= GRE_KEY;
+            ptnl->o_flags |= GRE_KEY;
+            ptnl->i_key = ptnl->o_key = addr;
+          } else if (idx == 2) {
+            ptnl->i_flags |= GRE_KEY;
+            ptnl->i_key = addr;
+          } else {
+            ptnl->o_flags |= GRE_KEY;
+            ptnl->o_key = addr;
+          }
+        }
+        break;
+      case 4:
+        ptnl->i_flags |= GRE_SEQ;
+        ptnl->o_flags |= GRE_SEQ;
+        break;
+      case 5:
+        ptnl->i_flags |= GRE_SEQ;
+        break;
+      case 6:
+        ptnl->o_flags |= GRE_SEQ;
+        break;
+      case 7:
+        ptnl->i_flags |= GRE_CSUM;
+        ptnl->o_flags |= GRE_CSUM;
+        break;
+      case 8:
+        ptnl->i_flags |= GRE_CSUM;
+        break;
+      case 9:
+        ptnl->o_flags |= GRE_CSUM;
+        break;
+      case 10:
+        ptnl->iph.frag_off = 0;
+        break;
+      case 11:
+        ptnl->iph.frag_off = htons(IP_DF);
+        break;
+      case 12:
+      case 13:
+        if (!*++argv) error_exit("remote/local address is missing");
+        if (get_prefix(&addr, &af, *argv, AF_INET))
+          error_exit("invalid remote/local address '%s'", *argv);
+        (idx == 12) ? (ptnl->iph.daddr = addr) : (ptnl->iph.saddr = addr);
+        break;
+      case 14:
+        if (!*++argv) error_exit("device name is missing");
+        else {
+          struct ifreq req;
+          int fd;
+
+          strncpy(req.ifr_name, *argv, IFNAMSIZ);
+          fd = xsocket(AF_INET, SOCK_DGRAM, 0);
+          xioctl(fd, SIOCGIFINDEX, &req);
+          close(fd);
+          ptnl->link = req.ifr_ifindex;
+        }
+        break;
+      case 15:
+        if (!*++argv) error_exit("ttl value is missing");
+        if (strcmp(*argv, "inherit"))
+          ptnl->iph.ttl = atolx_range(*argv, 0, 255);
+        break;
+      case 16:
+      case 17:
+        if (!*++argv) error_exit("tos value is missing");
+        if (strcmp(*argv, "inherit")) {
+          char *ptr;
+          unsigned long tval = strtoul(*argv, &ptr, 16);
+
+          if (tval > 255) error_exit("invalid tos value '%s'", *argv);
+          if (*ptr) {
+            int ret;
+
+            if ((ret = idxfromRPDB(*argv, RPDB_rtdsfield)) < 0)
+              error_exit("invalid tos value");
+            ptnl->iph.tos = ret;
+          } else ptnl->iph.tos = tval;
+        } else ptnl->iph.tos = 1;
+        break;
+      case 18:
+        if (*ptnl->name) error_exit("invalid tunnel");
+        else {
+          if (!*++argv) error_exit("name is missing");
+          strncpy(ptnl->name, *argv, IF_NAMESIZE);
+        }
+        break;
+      default:
+        if (*ptnl->name) error_exit("invalid tunnel");
+        strncpy(ptnl->name, *argv, IF_NAMESIZE);
+        break;
+    }
+  }
+  if (ptnl->iph.protocol == IPPROTO_IPIP ||
+      ptnl->iph.protocol == IPPROTO_IPV6) {
+    if ((ptnl->i_flags & GRE_KEY) || (ptnl->o_flags & GRE_KEY))
+      error_exit("[i|o]key is allowed with gre only");
+    if ((ptnl->i_flags & GRE_SEQ) || (ptnl->o_flags & GRE_SEQ))
+      error_exit("[i|o]seq is allowed with gre only");
+    if ((ptnl->i_flags & GRE_CSUM) || (ptnl->o_flags & GRE_CSUM))
+      error_exit("[i|o]csum is allowed with gre only");
+  }
+  if (!ptnl->i_key && IN_MULTICAST(ntohl(ptnl->iph.daddr))) {
+    ptnl->i_key = ptnl->iph.daddr;
+    ptnl->i_flags |= GRE_KEY;
+  }
+  if (!ptnl->o_key && IN_MULTICAST(ntohl(ptnl->iph.daddr))) {
+    ptnl->o_key = ptnl->iph.daddr;
+    ptnl->o_flags |= GRE_KEY;
+  }
+  if (IN_MULTICAST(ntohl(ptnl->iph.daddr)) && !ptnl->iph.saddr)
+    error_exit("broadcast tunnel requires a source address");
+}
+
+static int tunnellist(char **argv)
+{
+  struct ip_tunnel_parm iptnl;
+  int ret = 0;
+
+  memset(&iptnl, 0, sizeof(iptnl));
+  parse_iptunnel_args(&iptnl, argv, 3);
+
+  if (iptnl.iph.protocol == IPPROTO_IPIP) 
+    ret = tnl_ioctl(*iptnl.name ? iptnl.name : "tunl0", SIOCGETTUNNEL, &iptnl);
+  else if (iptnl.iph.protocol == IPPROTO_GRE) 
+    ret = tnl_ioctl(*iptnl.name ? iptnl.name : "gre0", SIOCGETTUNNEL, &iptnl);
+  else if (iptnl.iph.protocol == IPPROTO_IPV6) 
+    ret = tnl_ioctl(*iptnl.name ? iptnl.name : "sit0", SIOCGETTUNNEL, &iptnl);
+  else return read_tunnel(&iptnl);
+
+  if (ret < 0) {
+    perror_msg("SIOCGETTUNNEL");
+    return ret;
+  } else return display_tunnel(&iptnl);
+}
+
+// Performing add, change, & delete tunnel action, according to passed req_type
+static int tunnelupdate(char **argv)
+{
+  struct ip_tunnel_parm iptnl;
+  int idx = 2, rtype = SIOCDELTUNNEL;
+
+  if (*argv[-1] == 'a') {
+    idx = 0;
+    rtype = SIOCADDTUNNEL;
+  } else if (*argv[-1] == 'c') {
+    idx = 1;
+    rtype = SIOCCHGTUNNEL;
+  }
+
+  memset(&iptnl, 0, sizeof(iptnl));
+  parse_iptunnel_args(&iptnl, argv, idx);
+  if (idx != 2 && iptnl.iph.ttl && !(iptnl.iph.frag_off))
+    error_exit("ttl > 0 and nopmtudisc are incompatible");
+  if (iptnl.iph.protocol == IPPROTO_IPIP)
+    return (tnl_ioctl("tunl0", rtype, &iptnl) < 0) ? 1 : 0;
+  else if (iptnl.iph.protocol == IPPROTO_GRE)
+    return (tnl_ioctl("gre0", rtype, &iptnl) < 0) ? 1 : 0;
+  else if (iptnl.iph.protocol == IPPROTO_IPV6)
+    return (tnl_ioctl("sit0", rtype, &iptnl) < 0) ? 1 : 0;
+  else {
+    if (idx != 2) error_exit("invalid tunnel mode");
+    return (tnl_ioctl(iptnl.name, rtype, &iptnl) < 0) ? 1 : 0;
+  }
+}
+
 static int iptunnel(char **argv)
 {
-  printf("__FUNCTION__ = %s\n", __FUNCTION__);
-  return 0;
+  int idx;
+  struct arglist opts[] = {{"add", 0}, {"change", 0}, {"del", 0},
+    {"delete", 0}, {"show", 1}, {"list", 1}, {"lst", 1}, {NULL, -1}
+  };
+  cmdobj ipcmd, cmdobjlist[] = {tunnelupdate, tunnellist};
+
+  if (!*argv) idx = 1;
+  else if ((idx = substring_to_idx(*argv++, opts)) == -1)
+    show_iptunnel_help();
+  ipcmd = cmdobjlist[idx];
+  return ipcmd(argv);
 }
 
 // ===========================================================================
@@ -1739,7 +2729,6 @@ static int filter_nlmesg(int (*fun)(struct nlmsghdr *mhdr, char **argv),
 void ip_main(void)
 {
   char **optargv = toys.argv;
-  //TT.addressfamily = AF_UNSPEC;
   int idx, isip = !(toys.which->name[2]); //1 -> if only ip
   cmdobj ipcmd, cmdobjlist[] = {ipaddr, iplink, iproute, iprule, iptunnel};
 
@@ -1802,4 +2791,9 @@ void ip_main(void)
     toys.exitval = ipcmd(optargv);
   }
   xclose(TT.sockfd);
+  if (rtdsfield_init) free_alist(rt_dsfield);
+  if (rtrealms_init) free_alist(rt_realms);
+  if (rtscope_init) free_alist(rt_scope);
+  if (rttable_init) free_alist(rt_tables);
+  if (rtprotos_init) free_alist(rt_protos);
 }
