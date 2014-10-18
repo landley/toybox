@@ -2,14 +2,14 @@
  *
  * Copyright 2011 Rob Landley <rob@landley.net>
 
-USE_UNSHARE(NEWTOY(unshare, "<1^niumpU", TOYFLAG_USR|TOYFLAG_BIN))
+USE_UNSHARE(NEWTOY(unshare, "<1^imnpuU", TOYFLAG_USR|TOYFLAG_BIN))
 
 config UNSHARE
   bool "unshare"
   default y
   depends on TOYBOX_CONTAINER
   help
-    usage: unshare [-muin] COMMAND...
+    usage: unshare [-imnpuU] COMMAND...
 
     Create new namespace(s) for this process and its children, so some
     attribute is not shared with the parent process.  This is part of
@@ -20,7 +20,7 @@ config UNSHARE
     -n	Network address, sockets, routing, iptables
     -p	Process IDs and init
     -u	Host and domain names
-    -U  UIDs, GIDs, capabilities
+    -U	UIDs, GIDs, capabilities
 */
 
 #include "toys.h"
@@ -29,14 +29,14 @@ extern int unshare (int __flags);
 
 void unshare_main(void)
 {
-  unsigned flags[]={CLONE_NEWNS, CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWNET,
-                    CLONE_NEWPID, CLONE_NEWUSER, 0};
+  unsigned flags[]={CLONE_NEWUSER, CLONE_NEWUTS, CLONE_NEWPID, CLONE_NEWNET,
+                    CLONE_NEWNS, CLONE_NEWIPC, 0};
   unsigned f=0;
   int i;
 
   for (i=0; flags[i]; i++) if (toys.optflags & (1<<i)) f |= flags[i];
 
-  if(unshare(f)) perror_exit("failed");
+  if (unshare(f)) perror_exit("failed");
 
   xexec_optargs(0);
 }
