@@ -36,12 +36,12 @@ config ECHO
 void echo_main(void)
 {
   int i = 0, out;
-  char *arg, *from = "\\abfnrtv", *to = "\\\a\b\f\n\r\t\v", *c;
+  char *arg, *c;
 
   for (;;) {
     arg = toys.optargs[i];
     if (!arg) break;
-    if (i++) xputc(' ');
+    if (i++) putchar(' ');
 
     // Should we output arg verbatim?
 
@@ -52,19 +52,19 @@ void echo_main(void)
 
     // Handle -e
 
-    for (c=arg;;) {
+    for (c = arg;;) {
       if (!(out = *(c++))) break;
 
       // handle \escapes
       if (out == '\\' && *c) {
-        int n = 0, slash = *(c++);
-        char *found = strchr(from, slash);
-        if (found) out = to[found-from];
-        else if (slash == 'c') goto done;
-        else if (slash == '0') {
+        int slash = *(c++), n = unescape(slash);
+
+        if (n) out = n;
+        else if (slash=='c') goto done;
+        else if (slash=='0') {
           out = 0;
           while (*c>='0' && *c<='7' && n++<3) out = (out*8)+*(c++)-'0';
-        } else if (slash == 'x') {
+        } else if (slash=='x') {
           out = 0;
           while (n++<2) {
             if (*c>='0' && *c<='9') out = (out*16)+*(c++)-'0';
@@ -79,12 +79,12 @@ void echo_main(void)
         // Slash in front of unknown character, print literal.
         } else c--;
       }
-      xputc(out);
+      putchar(out);
     }
   }
 
   // Output "\n" if no -n
-  if (!(toys.optflags&FLAG_n)) xputc('\n');
+  if (!(toys.optflags&FLAG_n)) putchar('\n');
 done:
   xflush();
 }

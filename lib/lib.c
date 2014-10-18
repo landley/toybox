@@ -283,6 +283,14 @@ int stridx(char *haystack, char needle)
   return off-haystack;
 }
 
+int unescape(char c)
+{
+  char *from = "\\abefnrtv", *to = "\\\a\b\033\f\n\r\t\v";
+  int idx = stridx(from, c);
+
+  return (idx == -1) ? 0 : to[idx];
+}
+
 // If *a starts with b, advance *a past it and return 1, else return 0;
 int strstart(char **a, char *b)
 {

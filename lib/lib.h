@@ -152,6 +152,7 @@ long atolx(char *c);
 long atolx_range(char *numstr, long low, long high);
 int numlen(long l);
 int stridx(char *haystack, char needle);
+int unescape(char c);
 int strstart(char **a, char *b);
 off_t fdlength(int fd);
 void loopfiles_rw(char **argv, int flags, int permissions, int failok,
