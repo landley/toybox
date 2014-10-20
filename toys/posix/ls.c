@@ -5,7 +5,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/ls.html
 
-USE_LS(NEWTOY(ls, USE_LS_COLOR("(color):;")"goACFHLRSacdfiklmnpqrstux1[-1Cglmnox][-cu][-ftS][-HL]", TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_LS(NEWTOY(ls, USE_LS_COLOR("(color):;")"goACFHLR"USE_LS_SMACK("Z")"Sacdfiklmnpqrstux1[-1Cglmnox][-cu][-ftS][-HL]", TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config LS
   bool "ls"
@@ -31,6 +31,15 @@ config LS
 
     sorting (default is alphabetical):
     -f	unsorted	-r  reverse	-t  timestamp	-S  size
+
+config LS_SMACK
+  bool 
+  default y
+  depends on LS && TOYBOX_SMACK
+  help
+    usage: ls [-Z]
+
+    -Z	security context
 
 config LS_COLOR
   bool "ls --color"
@@ -158,6 +167,14 @@ static void entrylen(struct dirtree *dt, unsigned *len)
   }
 
   len[6] = (flags & FLAG_s) ? numlen(st->st_blocks) : 0;
+
+  if (CFG_LS_SMACK && (flags & FLAG_Z)) {
+    char *zpath = dirtree_path(dt, 0);
+    ssize_t zlen = lgetxattr(zpath, XATTR_NAME_SMACK, 0, 0);
+    free(zpath);
+    len[7] = (zlen <= 0) || (zlen > SMACK_LABEL_LEN) ? 0 : (int)zlen;
+  } else
+    len[7] = 0;
 }
 
 static int compare(void *a, void *b)
@@ -263,7 +280,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
 {
   struct dirtree *dt, **sort = 0;
   unsigned long dtlen = 0, ul = 0;
-  unsigned width, flags = toys.optflags, totals[7], len[7], totpad = 0,
+  unsigned width, flags = toys.optflags, totals[8], len[8], totpad = 0,
     *colsizes = (unsigned *)(toybuf+260), columns = (sizeof(toybuf)-260)/4;
 
   memset(totals, 0, sizeof(totals));
@@ -313,7 +330,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
     qsort(sort, dtlen, sizeof(void *), (void *)compare);
     for (ul = 0; ul<dtlen; ul++) {
       entrylen(sort[ul], len);
-      for (width = 0; width<7; width++)
+      for (width = 0; width<8; width++)
         if (len[width]>totals[width]) totals[width] = len[width];
       totpad = totals[1]+!!totals[1]+totals[6]+!!totals[6];
       blocks += sort[ul]->st.st_blocks;
@@ -410,6 +427,18 @@ static void listfiles(int dirfd, struct dirtree *indir)
       printf("%s% *ld %s%s%s%s", perm, totals[2]+1, (long)st->st_nlink,
              usr, upad, grp, grpad);
 
+      if (CFG_LS_SMACK) {
+        if (flags & FLAG_Z) {
+          char zbuf[SMACK_LABEL_LEN + 1];
+          char *zpath = dirtree_path(sort[next], 0);
+          ssize_t zlen = getxattr(zpath, XATTR_NAME_SMACK, zbuf, sizeof(zbuf));
+          free(zpath);
+          if ((zlen <= 0) || (zlen > SMACK_LABEL_LEN)) zbuf[0] = '?', zlen = 1;
+          zbuf[zlen] = '\0';
+          xprintf(" %s%s", zbuf, toybuf+256-(totals[7]-(int)zlen));
+        }
+      }
+
       if (S_ISCHR(st->st_mode) || S_ISBLK(st->st_mode))
         printf("% *d,% 4d", totals[5]-4, major(st->st_rdev),minor(st->st_rdev));
       else printf("% *"PRId64, totals[5]+1, (int64_t)st->st_size);
@@ -417,6 +446,16 @@ static void listfiles(int dirfd, struct dirtree *indir)
       tm = localtime(&(st->st_mtime));
       strftime(thyme, sizeof(thyme), "%F %H:%M", tm);
       xprintf(" %s ", thyme);
+    } else if (CFG_LS_SMACK) {
+      if (flags & FLAG_Z) {
+        char zbuf[SMACK_LABEL_LEN + 1];
+        char *zpath = dirtree_path(sort[next], 0);
+        ssize_t zlen = getxattr(zpath, XATTR_NAME_SMACK, zbuf, sizeof(zbuf));
+        free(zpath);
+        if ((zlen <= 0) || (zlen > SMACK_LABEL_LEN)) zbuf[0] = '?', zlen = 1;
+        zbuf[zlen] = '\0';
+        xprintf("%s%s ", toybuf+256-(totals[7]-(int)(zlen-1)), zbuf);
+      }
     }
 
     if (flags & FLAG_color) {
