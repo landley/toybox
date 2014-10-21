@@ -28,8 +28,10 @@ void nohup_main(void)
         S_IRUSR|S_IWUSR ))
     {
       char *temp = getenv("HOME");
+
       temp = xmprintf("%s/%s", temp ? temp : "", "nohup.out");
       xcreate(temp, O_CREAT|O_APPEND|O_WRONLY, 0600);
+      free(temp);
     }
   }
   if (isatty(0)) {

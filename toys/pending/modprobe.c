@@ -178,15 +178,21 @@ static int read_line(FILE *fl, char **li)
     line = NULL;
     linelen = nxtlinelen = 0;
     len = getline(&line, (size_t*)&linelen, fl);
-    if (len <= 0) return len;
+    if (len <= 0) {
+      free(line);
+      return len;
+    }
     // checking for commented lines.
     if (line[0] != '#') break;
     free(line);
   }
   for (;;) {
     if (line[len - 1] == '\n') len--;
-    // checking line continuation.
-    if (!len || line[len - 1] != '\\') break;
+    if (!len) { 
+      free(line);
+      return len;
+    } else if (line[len - 1] != '\\') break;
+    
     len--;
     nxtlen = getline(&nxtline, (size_t*)&nxtlinelen, fl);
     if (nxtlen <= 0) break;

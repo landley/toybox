@@ -94,6 +94,7 @@ void xprintf(char *format, ...)
   va_start(va, format);
 
   vprintf(format, va);
+  va_end(va);
   if (fflush(stdout) || ferror(stdout)) perror_exit("write");
 }
 

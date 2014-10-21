@@ -166,7 +166,6 @@ void netcat_main(void)
           if (!child && toys.optc) {
             int fd = pollfds[0].fd;
 
-            if (!temp) close(sockfd);
             dup2(fd, 0);
             dup2(fd, 1);
             if (toys.optflags&FLAG_L) dup2(fd, 2);
