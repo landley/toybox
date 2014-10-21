@@ -71,6 +71,19 @@ config TOYBOX_FREE
 	  without a real OS (ala newlib+libgloss), enable this to make toybox
 	  clean up after itself.
 
+config TOYBOX_NORECURSE
+	bool "Disable recursive execution"
+	default n
+	help
+	  When one toybox command calls another, usually it just calls the new
+	  command's main() function rather than searching the $PATH and calling
+	  exec on another file (which is much slower).
+
+	  This disables that optimization, so toybox will run external commands
+          even when it has a built-in version of that command. This requires
+          toybox symlinks to be installed in the $PATH, or re-invoking the
+          "toybox" multiplexer command by name.
+
 config TOYBOX_DEBUG
 	bool "Debugging tests"
 	default n
@@ -89,5 +102,4 @@ config TOYBOX_UID_USR
 	default 500
 	help
 	  When commands like useradd/groupadd allocate user IDs, start here.
-
 endmenu
