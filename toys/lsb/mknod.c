@@ -4,7 +4,7 @@
  *
  * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/mknod.html
 
-USE_MKNOD(NEWTOY(mknod, "<2>4m(mode):", TOYFLAG_BIN|TOYFLAG_UMASK))
+USE_MKNOD(NEWTOY(mknod, "<2>4m(mode):"USE_MKNOD_SMACK("Z:"), TOYFLAG_BIN|TOYFLAG_UMASK))
 
 config MKNOD
   bool "mknod"
@@ -16,6 +16,15 @@ config MKNOD
     c or u for character device, p for named pipe (which ignores MAJOR/MINOR).
 
     -m	Mode (file permissions) of new device, in octal or u+x format
+
+config MKNOD_SMACK
+  bool
+  default y
+  depends on PS && TOYBOX_SMACK
+  help
+    usage: mknod [-Z CONTEXT] ...
+
+    -Z	Set security context to created file
 */
 
 #define FOR_mknod
@@ -23,6 +32,7 @@ config MKNOD
 
 GLOBALS(
   char *m;
+  char *arg_context;
 )
 
 void mknod_main(void)
@@ -40,6 +50,15 @@ void mknod_main(void)
     minor = atoi(toys.optargs[3]);
   }
 
-  if (mknod(toys.optargs[0], mode | modes[type], makedev(major, minor)))
+  if (mknod(toys.optargs[0], mode | modes[type], makedev(major, minor))) {
     perror_exit("mknod %s failed", toys.optargs[0]);
+  }
+  if (CFG_MKNOD_SMACK) {
+    if (toys.optflags & FLAG_Z) {
+      if (smack_set_label_for_path(toys.optargs[0], XATTR_NAME_SMACK, 0, TT.arg_context) < 0) {
+        unlink(toys.optargs[0]);
+        error_exit("Unable to create node '%s' with '%s' as context.", toys.optargs[0], TT.arg_context);
+      }
+    }
+  }
 }
