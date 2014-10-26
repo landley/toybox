@@ -166,11 +166,9 @@ list:
         for (j=0; toy_paths[j]; j++)
           if (fl & (1<<j)) len += printf("%s", toy_paths[j]);
       }
-      len += printf("%s ",toy_list[i].name);
-      if (len>65) {
-        xputc('\n');
-        len=0;
-      }
+      len += printf("%s",toy_list[i].name);
+      if (++len > 65) len = 0;
+      xputc(len ? ' ' : '\n');
     }
   }
   xputc('\n');
