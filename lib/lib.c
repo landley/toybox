@@ -437,12 +437,12 @@ void loopfiles_rw(char **argv, int flags, int permissions, int failok,
   int fd;
 
   // If no arguments, read from stdin.
-  if (!*argv) function(flags ? 1 : 0, "-");
+  if (!*argv) function((flags & O_ACCMODE) != O_RDONLY ? 1 : 0, "-");
   else do {
     // Filename "-" means read from stdin.
     // Inability to open a file prints a warning, but doesn't exit.
 
-    if (!strcmp(*argv,"-")) fd=0;
+    if (!strcmp(*argv, "-")) fd=0;
     else if (0>(fd = open(*argv, flags, permissions)) && !failok) {
       perror_msg("%s", *argv);
       toys.exitval = 1;
