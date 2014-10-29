@@ -34,7 +34,7 @@ config SED
     -i	Edit each file in place.
     -n	No default output. (Use the p command to output matched lines.)
     -r	Use extended regular expression syntax.
-    -s  Treat input files separately (implied by -i)
+    -s	Treat input files separately (implied by -i)
 
     A SCRIPT is a series of one or more COMMANDs separated by newlines or
     semicolons. All -e SCRIPTs are concatenated together as if separated
@@ -190,12 +190,12 @@ struct step {
 
   // Begin and end of each match
   long lmatch[2];
-  regex_t *rmatch[2];
+  int rmatch[2]; // offset to regex_t, because realloc() would confuse pointer
+  int not, hit;
 
-  // Action
+  // action
   char c;
-
-  int hit;
+  int arg1, arg2;  // offset to argument
 };
 
 // Write out line with potential embedded NUL, handling eol/noeol
@@ -213,16 +213,32 @@ static int emit(char *line, long len, int eol)
   return 0;
 }
 
-// Do regex matching handling embedded NUL bytes in string.
-static int ghostwheel(regex_t *preg, char *string, int nmatch,
+// Do regex matching handling embedded NUL bytes in string. Note that
+// neither the pattern nor the match can currently include NUL bytes
+// (even with wildcards) and string must be nul terminated.
+static int ghostwheel(regex_t *preg, char *string, long len, int nmatch,
   regmatch_t pmatch[], int eflags)
 {
+/*
   // todo: this
+  long start = 0, rc = 0, matches = 0;
+
+  for (;;) {
+    long new = strlen(string+start);
+
+    // eflags nobegin noend
+    rc |= regexec(preg, string+start, nmatch-matches, pmatch+matches, eflags);
+    if ((start += end + 1) >= len) break;
+  }
+
+  return rc;
+*/
   return regexec(preg, string, nmatch, pmatch, eflags);
+
 }
 
 // Apply pattern to line from input file
-static void sed_line(char **pline, long plen)
+static void walk_pattern(char **pline, long plen)
 {
   char *line = TT.nextline;
   long len = TT.nextlen;
@@ -239,7 +255,6 @@ static void sed_line(char **pline, long plen)
   }
 
   if (!line || !len) return;
-
   if (line[len-1] == '\n') line[--len] = eol++;
   TT.count++;
 
@@ -247,35 +262,56 @@ static void sed_line(char **pline, long plen)
     char c = logrus->c;
 
     // Have we got a matching range for this rule?
-    if (logrus->lmatch || *logrus->rmatch) {
+    if (*logrus->lmatch || *logrus->rmatch) {
       int miss = 0;
       long lm;
-      regex_t *rm;
 
       // In a match that might end?
       if (logrus->hit) {
         if (!(lm = logrus->lmatch[1])) {
-          if (!(rm = logrus->rmatch[1])) logrus->hit = 0;
+          if (!logrus->rmatch[1]) logrus->hit = 0;
           else {
+            void *rm = logrus->rmatch[1] + (char *)logrus;
+
             // regex match end includes matching line, so defer deactivation
-            if (!ghostwheel(rm, line, 0, 0, 0)) miss = 1;
+            if (!ghostwheel(rm, line, len, 0, 0, 0)) miss = 1;
           }
         } else if (lm > 0 && lm < TT.count) logrus->hit = 0;
 
       // Start a new match?
       } else {
         if (!(lm = *logrus->lmatch)) {
-          if (!ghostwheel(*logrus->rmatch, line, 0, 0, 0)) logrus->hit++;
-        } else if (lm == TT.count) logrus->hit++;
+          void *rm = *logrus->rmatch + (char *)logrus;
+
+          if (!ghostwheel(rm, line, len, 0, 0, 0)) logrus->hit++;
+        } else if (lm == TT.count || (lm == -1 && !pline)) logrus->hit++;
       } 
 
-      if (!logrus->hit) continue;
+      // Didn't match?
+      if (!(logrus->hit ^ logrus->not)) {
+
+        // Handle skipping curly bracket command group
+        if (c == '{') {
+          int curly = 1;
+
+          while (curly) {
+            logrus = logrus->next;
+            if (logrus->c == '{') curly++;
+            if (logrus->c == '}') curly--;
+          }
+        }
+        continue;
+      }
+      // Deferred disable from regex end match
       if (miss) logrus->hit = 0;
     }
 
     // Process like the wind, bullseye!
 
-    // todo: embedded NUL, eol
+    // if (strchr("dDgGhHlnNpPqx=", c)) {
+
+
+//    if (strchr("abcirstTwy:", c)
     if (c == 'p') {
       if (emit(line, len, eol)) break;
     } else error_exit("what?");
@@ -300,9 +336,10 @@ static void do_lines(int fd, char *name, void (*call)(char **pline, long len))
     ssize_t len;
 
     len = getline(&line, (void *)&len, fp);
-    call(&line, len);
-    free(line);
-    if (len < 1) break;
+    if (len > 0) {
+      call(&line, len);
+      free(line);
+    } else break;
   }
   fclose(fp);
 }
@@ -335,9 +372,9 @@ static void do_sed(int fd, char *name)
   if (i) {
     // todo: rename dance
   }
-  do_lines(fd, name, sed_line);
+  do_lines(fd, name, walk_pattern);
   if (i) {
-    sed_line(0, 0);
+    walk_pattern(0, 0);
 
     // todo: rename dance
   }
@@ -346,13 +383,25 @@ static void do_sed(int fd, char *name)
 // Translate primal pattern into walkable form.
 static void jewel_of_judgement(char **pline, long len)
 {
-  struct step *corwin;
-  char *line = *pline, *reg;
+  struct step *corwin = (void *)TT.pattern;
+  char *line = *pline, *reg, c;
   int i;
 
-  for (line = *pline;;line++) {
-    while (isspace(*line)) line++;
-    if (*line == '#') return;
+  // Append additional line to pattern argument string?
+  if (corwin && corwin->prev->hit) {
+    corwin = corwin->prev;
+    corwin->hit = 0;
+    c = corwin->c;
+    reg = (char *)corwin;
+    reg += corwin->arg1 + strlen(reg + corwin->arg1);
+
+    goto append;
+  }
+
+  // Loop through characters in line
+  for (;;) {
+    while (isspace(*line) || *line == ';') line++;
+    if (!*line || *line == '#') return;
 
     memset(toybuf, 0, sizeof(struct step));
     corwin = (void *)toybuf;
@@ -397,27 +446,79 @@ static void jewel_of_judgement(char **pline, long len)
         }
         slash = *to;
         *to = 0;
-        xregcomp(corwin->rmatch[i] = (void *)reg, line,
+        xregcomp((void *)reg, line,
           ((toys.optflags & FLAG_r)*REG_EXTENDED)|REG_NOSUB);
         *to = slash;
+        corwin->rmatch[i] = reg-toybuf;
         reg += sizeof(regex_t);
         line = from + 1;
       } else break;
     }
 
     while (isspace(*line)) line++;
+    if (!*line) break;
 
-    if (!*line || !strchr("p", *line)) break;
-    corwin->c = *(line++);
+    while (*line == '!') corwin->not = 1;
+    while (isspace(*line)) line++;
+
+    c = corwin->c = *(line++);
+    if (strchr("}:", c) && i) break;
+    if (strchr("aiqr=", c) && i>1) break;
 
     // Add step to pattern
     corwin = xmalloc(reg-toybuf);
     memcpy(corwin, toybuf, reg-toybuf);
     dlist_add_nomalloc(&TT.pattern, (void *)corwin);
+    reg = (toybuf-reg) + (char *)corwin;
 
-    while (isspace(*line)) line++;
-    if (!*line) return;
-    if (*line != ';') break;
+    // Parse arguments by command type
+    if (c == '{') TT.nextlen++;
+    else if (c == '}') {
+      if (!TT.nextlen--) break;
+    } else if (c == 's') {
+      // s/S/R/F
+      //           [0-9]    A number, substitute only that occurrence of pattern
+      //           g        Global, substitute all occurrences of pattern
+      //           p        Print the line if match was found and replaced
+      //           w [file] Write (append) line to file if match replaced
+
+    } else if (c == 'y') {
+      // y/old/new/
+    } else if (strchr("abcirtTw:", c)) {
+      char *end, *class;
+      int len;
+
+      // Trim whitespace from "b ;" and ": blah " but only first space in "w x "
+
+      while (isspace(*line)) line++;
+append:
+      class = strchr("btT:", c);
+      end = line + strcspn(line, class ? "; \t\r\n\v\f" : "");
+
+      if (end == line) {
+        if (!strchr("btT", c)) break;
+        continue;
+      }
+
+      // Extend allocation to include new string. We use offsets instead of
+      // pointers so realloc() moving stuff doesn't break things. Do it
+      // here instead of toybuf so there's no maximum size.
+      len = reg - (char *)corwin;
+      corwin = xrealloc(corwin, len+(end-line)+1);
+      reg = len + (char *)corwin;
+      if (!corwin->arg1) corwin->arg1 = len;
+      len = end-line;
+      memcpy(reg, line, len);
+      reg[len] = 0;
+
+      // Line continuation?
+      if (!class && reg[--len] == '\\') {
+        reg[len] = 0;
+        corwin->hit++;
+      }
+
+    // Commands that take no arguments
+    } else if (!strchr("{dDgGhHlnNpPqx=", *line)) break;
   }
 
 brand:
@@ -448,11 +549,12 @@ void sed_main(void)
   for (dworkin = TT.f; dworkin; dworkin = dworkin->next)
     do_lines(xopen(dworkin->arg, O_RDONLY), dworkin->arg, jewel_of_judgement);
   dlist_terminate(TT.pattern);
+  if (TT.nextlen) error_exit("no }");  
 
   TT.fdout = 1;
 
   // Inflict pattern upon input files
   loopfiles_rw(args, O_RDONLY, 0, 0, do_sed);
 
-  if (!(toys.optflags & FLAG_i)) sed_line(0, 0);
+  if (!(toys.optflags & FLAG_i)) walk_pattern(0, 0);
 }
