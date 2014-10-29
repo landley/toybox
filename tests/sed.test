@@ -1,0 +1,28 @@
+#!/bin/echo Run scripts/test.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+# Exploring the wonders of sed addressing modes
+testing '' 'sed -n 1p' "one\n" "" "one\ntwo\nthree"
+testing '' 'sed 2p' "one\ntwo\ntwo\nthree" "" "one\ntwo\nthree"
+testing '' 'sed -n 2p' "two\n" "" "one\ntwo\nthree"
+# Fun with newlines!
+testing '' 'sed -n 3p' "three" "" "one\ntwo\nthree"
+testing 'sed as cat' 'sed ""' "one\ntwo\nthree" "" "one\ntwo\nthree"
+testing 'sed -n $p' 'sed -n \$p' "three" "" "one\ntwo\nthree"
+testing 'sed as cat #2' "sed -n '1,\$p'" "one\ntwo\nthree" "" "one\ntwo\nthree"
+testing '' 'sed -n 1,2p' "one\ntwo\n" "" "one\ntwo\nthree"
+testing '' 'sed -n 2,3p' "two\nthree" "" "one\ntwo\nthree"
+testing '' 'sed -n 2,1p' "two\n" "" "one\ntwo\nthree"
+testing 'sed -n $p (2 input)' 'sed -n \$p - input' "four\n" "four\n" \
+	"one\ntwo\nthree"
+# More fun with newlines! The missing \n is now _back_
+testing 'prodigal newline' "sed -n '1,\$p' - input" "one\ntwo\nthree\nfour\n" \
+	"four\n" "one\ntwo\nthree"
+ 
+testing 'sed 3p - input' "sed -n 3p" "three" "four\n" "one\ntwo\nthree"
+
+testing 'sed match \t tab' "sed -n '/\t/p'" "\tx\n" "" "\tx\n"
+testing 'sed match t delim disables \t tab' "sed -n '\t\txtp'" "" "" "\tx\n"
+testing 'sed match t delim makes \t literal t' \
+	"sed -n '\t\txtp'" "tx\n" "" "tx\n"
