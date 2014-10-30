@@ -37,6 +37,10 @@ testing "ls softlink - long listing" "$IN && ls -l slink | awk '{ print \$NF }' 
           "file1.txt\n" "" ""
 rm -f lstest/slink
 
+ln -s /dev/null/nosuchfile lstest/nosuchfile
+testing "ls with -d - broken softlink" "$IN && ls -d nosuchfile; $OUT" "nosuchfile\n" "" ""
+rm -f lstest/nosuchfile
+
 rm -rf lstest/* && mkdir -p lstest/dir1 && touch lstest/file1.txt
 testing "ls nested recursively" "$IN && ls -R; $OUT" \
           ".:\ndir1\nfile1.txt\n\n./dir1:\n" "" ""
