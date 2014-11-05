@@ -4,7 +4,6 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/sed.html
  *
- * todo "-e blah -f blah -e blah" what order? (All -e, then all -f.)
  * What happens when first address matched, then EOF? How about ",42" or "1,"
  * Does $ match last line of file or last line of input
  * If file doesn't end with newline
@@ -18,7 +17,7 @@
  *
  * echo -e "one\ntwo\nthree" | sed -n '$,$p'
 
-USE_SED(NEWTOY(sed, "(version)e*f*inr", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SED(NEWTOY(sed, "(version)e*f*inr", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config SED
   bool "sed"
@@ -146,6 +145,7 @@ config SED
 
                  [0-9]    A number, substitute only that occurrence of pattern
                  g        Global, substitute all occurrences of pattern
+                 i        Ignore case when matching
                  p        Print the line if match was found and replaced
                  w [file] Write (append) line to file if match replaced
 
@@ -191,11 +191,10 @@ struct step {
   // Begin and end of each match
   long lmatch[2];
   int rmatch[2]; // offset to regex_t, because realloc() would confuse pointer
-  int not, hit;
+  unsigned not, hit, sflags;
 
-  // action
-  char c;
-  int arg1, arg2;  // offset to argument
+  int arg1, arg2, arg3;  // offset start of to argument (string or regex_t)
+  char c; // action
 };
 
 // Write out line with potential embedded NUL, handling eol/noeol
@@ -329,7 +328,7 @@ static void walk_pattern(char **pline, long plen)
 // Passed file descriptor is closed at the end of processing.
 static void do_lines(int fd, char *name, void (*call)(char **pline, long len))
 {
-  FILE *fp = xfdopen(fd, "r");
+  FILE *fp = fd ? xfdopen(fd, "r") : stdin;
 
   for (;;) {
     char *line = 0;
@@ -341,7 +340,8 @@ static void do_lines(int fd, char *name, void (*call)(char **pline, long len))
       free(line);
     } else break;
   }
-  fclose(fp);
+
+  if (fd) fclose(fp);
 }
 
 // Iterate over newline delimited data blob (potentially with embedded NUL),
@@ -380,6 +380,63 @@ static void do_sed(int fd, char *name)
   }
 }
 
+// Note: removing backslash escapes edits the source string, which could
+// be from the environment space via -e, which could screw up what
+// "ps" sees, and I'm ok with that.
+
+// extract regex up to delimeter, converting \escapes
+// You can't use \ as delimiter because how would you escape anything?
+static int parse_regex(regex_t *reg, char **pstr, char delim)
+{
+  char *to, *from = *pstr;
+  int rc;
+
+  if (delim == '\\') rc = 0;
+  else {
+    for (to = from; *from != delim; *(to++) = *(from++)) {
+      if (!*from) break;
+      if (*from == '\\') {
+        if (!from[1]) break;
+
+        // Check escaped end delimiter before printf style escapes.
+        if (from[1] == delim) from++;
+        else {
+          char c = unescape(from[1]);
+
+          if (c) {
+            *to = c;
+            from++;
+          }
+        }
+      }
+    }
+    rc = (*from == delim);
+  }
+
+  if (rc) {
+    delim = *to;
+    *to = 0;
+    xregcomp(reg, *pstr, ((toys.optflags & FLAG_r)*REG_EXTENDED)|REG_NOSUB);
+    *to = delim;
+  }
+  *pstr = from + rc;
+  
+  return rc;
+}
+
+// Extend allocation to include new string. We use offsets instead of
+// pointers so realloc() moving stuff doesn't break things. Do it
+// here instead of toybuf so there's no maximum size.
+
+static char *extend_string(char **old, char *new, int oldlen, int newlen)
+{
+  *old = xrealloc(*old, oldlen+newlen+1);
+  memcpy(*old+oldlen, new, newlen);
+  (*old)[oldlen+newlen] = 0;
+
+  return (*old)+oldlen+newlen;
+}
+
 // Translate primal pattern into walkable form.
 static void jewel_of_judgement(char **pline, long len)
 {
@@ -389,17 +446,24 @@ static void jewel_of_judgement(char **pline, long len)
 
   // Append additional line to pattern argument string?
   if (corwin && corwin->prev->hit) {
-    corwin = corwin->prev;
+    // Remove half-finished entry from list so remalloc() doesn't confuse it
+    TT.pattern = TT.pattern->prev;
+    corwin = dlist_pop(&TT.pattern);
     corwin->hit = 0;
     c = corwin->c;
     reg = (char *)corwin;
     reg += corwin->arg1 + strlen(reg + corwin->arg1);
 
+    // Resume parsing
     goto append;
   }
 
-  // Loop through characters in line
+  // Loop through commands in line
+
+  corwin = 0;
   for (;;) {
+    if (corwin) dlist_add_nomalloc(&TT.pattern, (void *)corwin);
+
     while (isspace(*line) || *line == ';') line++;
     if (!*line || *line == '#') return;
 
@@ -417,41 +481,16 @@ static void jewel_of_judgement(char **pline, long len)
         corwin->lmatch[i] = -1;
         line++;
       } else if (*line == '/' || *line == '\\') {
-        char delim = *(line++), slash = 0, *to, *from;
+        char delim = *(line++);
 
         if (delim == '\\') {
           if (!*line) goto brand;
-          slash = delim = *(line++);
+          delim = *(line++);
         }
 
-        // Removing backslash escapes edits the source string, which could
-        // be from the environment space via -e, which could screw up what
-        // "ps" sees, and I'm ok with that.
-        for (to = from = line; *from != delim; *(to++) = *(from++)) {
-          if (!*from) goto brand;
-          if (*from == '\\') {
-            if (!from[1]) goto brand;
-
-            // Check escaped end delimiter before printf style escapes.
-            if (from[1] == slash) from++;
-            else {
-              char c = unescape(from[1]);
-
-              if (c) {
-                *to = c;
-                from++;
-              }
-            }
-          }
-        }
-        slash = *to;
-        *to = 0;
-        xregcomp((void *)reg, line,
-          ((toys.optflags & FLAG_r)*REG_EXTENDED)|REG_NOSUB);
-        *to = slash;
+        if (!parse_regex((void *)reg, &line, delim)) goto brand;
         corwin->rmatch[i] = reg-toybuf;
         reg += sizeof(regex_t);
-        line = from + 1;
       } else break;
     }
 
@@ -468,34 +507,79 @@ static void jewel_of_judgement(char **pline, long len)
     // Add step to pattern
     corwin = xmalloc(reg-toybuf);
     memcpy(corwin, toybuf, reg-toybuf);
-    dlist_add_nomalloc(&TT.pattern, (void *)corwin);
-    reg = (toybuf-reg) + (char *)corwin;
+    reg = (reg-toybuf) + (char *)corwin;
 
     // Parse arguments by command type
     if (c == '{') TT.nextlen++;
     else if (c == '}') {
       if (!TT.nextlen--) break;
     } else if (c == 's') {
-      // s/S/R/F
+      char delim = *line;
+      int end;
+
+      // s/pattern/replacement/flags
+
+      if (delim) line++;
+      else break;
+
+      // get pattern
+      end = reg - (char *)corwin;
+      corwin = xrealloc(corwin, end+sizeof(regex_t));
+      reg = end + (char *)corwin;
+      if (!parse_regex((void *)reg, &line, delim)) break;
+      corwin->arg1 = reg-toybuf;
+      reg += sizeof(regex_t);
+
+      // get replacement
+
+      for (end = 0; line[end] != delim; end++) {
+        if (line[end] == '\\') end++;
+        if (!line[end]) goto brand;
+      }
+
+      corwin->arg2 = reg - (char*)corwin;
+      reg = extend_string((void *)&corwin, line, corwin->arg2, end);
+      line += end+1;
+
+      // flags:
       //           [0-9]    A number, substitute only that occurrence of pattern
       //           g        Global, substitute all occurrences of pattern
       //           p        Print the line if match was found and replaced
       //           w [file] Write (append) line to file if match replaced
+      //           i        case insensitive match
 
+      for (;;) {
+        long l;
+
+        line++;
+        if (!*line || *line == ';') break;
+        if (isspace(*line)) continue;
+
+        if (0 <= (l = stridx("gpi", *line))) corwin->sflags |= 1<<l;
+        else if (!corwin->sflags >> 4 && 0<(l = strtol(line+end, &line, 10))) {
+          corwin->sflags |= l << 4;
+          line--;
+        } else if (*line == 'w') {
+          while (isspace(*++line));
+          if (!*line) goto brand;
+          corwin->arg3 = reg - (char *)corwin;
+          reg = extend_string((void *)&corwin, line, corwin->arg3,
+                              strlen(line));
+        } else goto brand;
+      }
     } else if (c == 'y') {
       // y/old/new/
     } else if (strchr("abcirtTw:", c)) {
-      char *end, *class;
-      int len;
+      int end, class;
 
       // Trim whitespace from "b ;" and ": blah " but only first space in "w x "
 
       while (isspace(*line)) line++;
 append:
-      class = strchr("btT:", c);
-      end = line + strcspn(line, class ? "; \t\r\n\v\f" : "");
+      class = !strchr("btT:", c);
+      end = strcspn(line, class ? "" : "; \t\r\n\v\f");
 
-      if (end == line) {
+      if (!end) {
         if (!strchr("btT", c)) break;
         continue;
       }
@@ -503,17 +587,13 @@ append:
       // Extend allocation to include new string. We use offsets instead of
       // pointers so realloc() moving stuff doesn't break things. Do it
       // here instead of toybuf so there's no maximum size.
-      len = reg - (char *)corwin;
-      corwin = xrealloc(corwin, len+(end-line)+1);
-      reg = len + (char *)corwin;
-      if (!corwin->arg1) corwin->arg1 = len;
-      len = end-line;
-      memcpy(reg, line, len);
-      reg[len] = 0;
+
+      if (!corwin->arg1) corwin->arg1 = reg - (char*)corwin;
+      reg = extend_string((void *)&corwin, line, reg - (char *)corwin, end); 
 
       // Line continuation?
-      if (!class && reg[--len] == '\\') {
-        reg[len] = 0;
+      if (class && reg[-1] == '\\') {
+        reg[-1] = 0;
         corwin->hit++;
       }
 
@@ -523,7 +603,7 @@ append:
 
 brand:
   // Reminisce about chestnut trees.
-  error_exit("bad pattern '%s'@%ld (%c)", *pline, line-*pline, *line);
+  error_exit("bad pattern '%s'@%ld (%c)", *pline, line-*pline+1, *line);
 }
 
 void sed_main(void)
@@ -544,6 +624,10 @@ void sed_main(void)
     if (!*toys.optargs) error_exit("no pattern");
     (TT.e = xzalloc(sizeof(struct arg_list)))->arg = *(args++);
   }
+
+  // Option parsing infrastructure can't interlace "-e blah -f blah -e blah"
+  // so handle all -e, then all -f. (At least the behavior's consistent.)
+
   for (dworkin = TT.e; dworkin; dworkin = dworkin->next)
     chop_lines(dworkin->arg, strlen(dworkin->arg), jewel_of_judgement);
   for (dworkin = TT.f; dworkin; dworkin = dworkin->next)
