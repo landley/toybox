@@ -19,6 +19,7 @@ testing 'sed -n $p (2 input)' 'sed -n \$p - input' "four\n" "four\n" \
 # More fun with newlines! The missing \n is now _back_
 testing 'prodigal newline' "sed -n '1,\$p' - input" "one\ntwo\nthree\nfour\n" \
 	"four\n" "one\ntwo\nthree"
+testing 'no input means no last line' "sed '\$a boing'" "" "" ""
  
 testing 'sed 3p - input' "sed -n 3p" "three" "four\n" "one\ntwo\nthree"
 
@@ -26,3 +27,25 @@ testing 'sed match \t tab' "sed -n '/\t/p'" "\tx\n" "" "\tx\n"
 testing 'sed match t delim disables \t tab' "sed -n '\t\txtp'" "" "" "\tx\n"
 testing 'sed match t delim makes \t literal t' \
 	"sed -n '\t\txtp'" "tx\n" "" "tx\n"
+testing 'sed match n delim' "sed -n '\n\txnp'" "\tx\n" "" "\tx\n"
+testing 'end match does not check starting match line' \
+	"sed -n '/two/,/two/p'" "two\nthree" "" "one\ntwo\nthree"
+testing 'end match/start match mixing number/letter' \
+	"sed -n '2,/two/p'" "two\nthree" "" "one\ntwo\nthree"
+testing 'sed num then regex' 'sed -n 2,/d/p' 'b\nc\nd\n' '' 'a\nb\nc\nd\ne\nf\n'
+testing 'sed regex then num' 'sed -n /b/,4p' 'b\nc\nd\n' '' 'a\nb\nc\nd\ne\nf\n'
+testing 'sed multiple regex address match' 'sed -n /on/,/off/p' \
+	'bone\nturtle\scoff\ntron\nlurid\noffer\n'  "" \
+	'zap\nbone\nturtle\scoff\nfred\ntron\nlurid\noffer\nbecause\n'
+testing 'sed regex address overlap' 'sed -n /on/,/off/p' "on\nzap\noffon\n" "" \
+	'on\nzap\noffon\nping\noff\n'
+
+testing "sed aci" \
+	"sed -e '3a boom' -e '/hre/i bang' -e '3a whack' -e '3c bong'" \
+	"one\ntwo\nbang\nbong\nboom\nwhack\nfour\n" "" \
+	"one\ntwo\nthree\nfour\n"
+testing 'sed prodigaler newline' 'sed -e a\\ -e woo' 'one\nwoo\n' '' 'one'
+testing 'sed newline staying away' 'sed s/o/x/' 'xne\ntwx' '' 'one\ntwo'
+# Why on _earth_ is this not an error? There's a \ with no continuation!
+testing 'sed what, _really_?' 'sed -e a\\ && echo yes really' \
+	'one\nyes really\n' '' 'one\n'
