@@ -86,6 +86,8 @@ config INSTALL
 #define FOR_cp
 #include "toys.h"
 
+#include <sys/xattr.h>
+
 GLOBALS(
   // install's options
   char *group;
@@ -249,6 +251,61 @@ int cp_node(struct dirtree *try)
           fdout = openat(cfd, catch, O_RDWR|O_CREAT|O_TRUNC, try->st.st_mode);
           if (fdout >= 0) {
             xsendfile(fdin, fdout);
+
+            // Duplicate xattrs for new file
+            if (flags & FLAG_p) {
+              ssize_t buffer_len = flistxattr(fdin, NULL, 0);
+
+              if (buffer_len > 0) {
+                char *xattrs_buffer = malloc(buffer_len);
+
+                // If we don't succeed, then we don't copy the xattrs
+                if (xattrs_buffer != NULL) {
+                  buffer_len = flistxattr(fdin, xattrs_buffer, buffer_len);
+                  char *tmp_buffer = xattrs_buffer;
+
+                  while (buffer_len > 0) {
+                    int len = strlen(tmp_buffer)+1;
+                    char *xattr_value = NULL;
+                    //Fetch size of xattr value
+                    ssize_t xattr_len = fgetxattr(fdin, tmp_buffer, xattr_value, 0);
+
+                    if (xattr_len == -1)
+                      goto exit_xattr;
+
+                    errno = 0;
+                    xattr_value = malloc(xattr_len);
+
+                    if (xattr_value == NULL)
+                      goto exit_xattr;
+
+                    xattr_len = fgetxattr(fdin, tmp_buffer, xattr_value, xattr_len);
+
+                    if (xattr_len == -1) {
+                      free(xattr_value);
+                      goto exit_xattr;
+                    }
+
+                    int ret = fsetxattr(fdout, tmp_buffer, xattr_value, xattr_len, 0);
+                    free(xattr_value);
+
+                    if (ret == -1) {
+                      //Something failed, we cannot fix it anyway, hence we break the loop
+                      fprintf(stderr, "cp: cannot apply extended attributes, \
+                        probably not supported by target filesystem");
+                      break;
+                    };
+
+                    tmp_buffer += len;
+                    buffer_len -= len;
+                  }
+
+exit_xattr:
+                free(xattrs_buffer);
+                errno = 0;
+                }
+              }
+            }
             err = 0;
           }
           close(fdin);
