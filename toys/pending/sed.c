@@ -180,8 +180,9 @@ GLOBALS(
   // processed pattern list
   struct double_list *pattern;
 
-  char *nextline;
-  long nextlen, count;
+  char *nextline, *remember;
+  void *restart;
+  long nextlen, rememberlen, count;
   int fdout, noeol;
 )
 
@@ -236,15 +237,31 @@ static int ghostwheel(regex_t *preg, char *string, long len, int nmatch,
 
 }
 
+// Extend allocation to include new string.
+
+static char *extend_string(char **old, char *new, int oldlen, int newlen)
+{
+  int newline = newlen < 0;
+  char *s;
+
+  if (newline) newlen = -newlen;
+  s = *old = xrealloc(*old, oldlen+newlen+newline+1);
+  if (newline) s[oldlen++] = '\n';
+  memcpy(s+oldlen, new, newlen);
+  s[oldlen+newlen] = 0;
+
+  return s+oldlen+newlen;
+}
+
 // Apply pattern to line from input file
 static void walk_pattern(char **pline, long plen)
 {
-  char *line = TT.nextline;
+  char *line = TT.nextline, *append = 0;
   long len = TT.nextlen;
   struct step *logrus;
-  int eol = 0;
+  int eol = 0, tea = 0;
 
-  // Grab next line for deferred processing (EOF detection, we get a NULL
+  // Grab next line for deferred processing (EOF detection: we get a NULL
   // pline at EOF to flush last line). Note that only end of _last_ input
   // file matches $ (unless we're doing -i).
   if (pline) {
@@ -257,8 +274,10 @@ static void walk_pattern(char **pline, long plen)
   if (line[len-1] == '\n') line[--len] = eol++;
   TT.count++;
 
-  for (logrus = (void *)TT.pattern; logrus; logrus = logrus->next) {
-    char c = logrus->c;
+  logrus = TT.restart ? TT.restart : (void *)TT.pattern;
+  TT.restart = 0;
+  while (logrus) {
+    char *str, c = logrus->c;
 
     // Have we got a matching range for this rule?
     if (*logrus->lmatch || *logrus->rmatch) {
@@ -305,20 +324,93 @@ static void walk_pattern(char **pline, long plen)
       if (miss) logrus->hit = 0;
     }
 
-    // Process like the wind, bullseye!
+    // Process command
 
-    // if (strchr("dDgGhHlnNpPqx=", c)) {
+    if (c == 'a') {
+      long alen = append ? strlen(append) : 0;
 
+      str = logrus->arg1+(char *)logrus;
+      extend_string(&append, str, alen, -strlen(str));
+    } else if (c == 'b') {
+      str = logrus->arg1+(char *)logrus;
 
-//    if (strchr("abcirstTwy:", c)
-    if (c == 'p') {
+      if (!*str) break;
+      for (logrus = (void *)TT.pattern; logrus; logrus = logrus->next)
+        if (logrus->c == ':' && !strcmp(logrus->arg1+(char *)logrus, str))
+          break;
+      if (!logrus) error_exit("no :%s", str);
+    } else if (c == 'd') goto done;
+    else if (c == 'D') {
+      // Delete up to \n or end of buffer
+      for (str = line; !*str || *str == '\n'; str++);
+      len -= str - line;
+      memmove(line, str, len);
+      line[len] = 0;
+
+      // restart script
+      logrus = (void *)TT.pattern;
+      continue;
+    } else if (c == 'g') {
+      free(line);
+      line = xstrdup(TT.remember);
+      len = TT.rememberlen;
+    } else if (c == 'G') {
+      line = xrealloc(line, len+TT.rememberlen+2);
+      line[len++] = '\n';
+      memcpy(line+len, TT.remember, TT.rememberlen);
+      line[len += TT.rememberlen] = 0;
+    } else if (c == 'h') {
+      free(TT.remember);
+      TT.remember = xstrdup(line);
+      TT.rememberlen = len;
+    } else if (c == 'H') {
+      TT.remember = xrealloc(TT.remember, TT.rememberlen+len+2);
+      TT.remember[TT.rememberlen++] = '\n';
+      memcpy(TT.remember+TT.rememberlen, line, len);
+      TT.remember[TT.rememberlen += len] = 0;
+    } else if (c == 'l') {
+      error_exit("todo: l");
+    } else if (c == 'n') {
+      TT.restart = logrus->next;
+
+      break;
+    } else if (c == 'N') {
+      if (pline) {
+        TT.restart = logrus->next;
+        extend_string(&line, TT.nextline, plen, -TT.nextlen);
+        free(TT.nextline);
+        TT.nextline = line;
+      }
+
+      goto append; 
+    } else if (c == 'p') {
       if (emit(line, len, eol)) break;
-    } else error_exit("what?");
+    } else if (c == 'q') break;
+    else if (c == 'x') {
+      long swap = TT.rememberlen;
+
+      str = TT.remember;
+      TT.remember = line;
+      line = str;
+      TT.rememberlen = len;
+      len = swap;
+    } else if (c == '=') xprintf("%ld\n", TT.count);
+    // labcirstTwy
+    else if (c != ':') error_exit("todo: %c", c);
+
+    logrus = logrus->next;
   }
 
   if (!(toys.optflags & FLAG_n)) emit(line, len, eol);
 
+done:
   free(line);
+
+append:
+  if (append) {
+    emit(append, strlen(append), 1);
+    free(append);
+  }
 }
 
 // Genericish function, can probably get moved to lib.c
@@ -422,19 +514,6 @@ static int parse_regex(regex_t *reg, char **pstr, char delim)
   *pstr = from + rc;
   
   return rc;
-}
-
-// Extend allocation to include new string. We use offsets instead of
-// pointers so realloc() moving stuff doesn't break things. Do it
-// here instead of toybuf so there's no maximum size.
-
-static char *extend_string(char **old, char *new, int oldlen, int newlen)
-{
-  *old = xrealloc(*old, oldlen+newlen+1);
-  memcpy(*old+oldlen, new, newlen);
-  (*old)[oldlen+newlen] = 0;
-
-  return (*old)+oldlen+newlen;
 }
 
 // Translate primal pattern into walkable form.
@@ -636,6 +715,7 @@ void sed_main(void)
   if (TT.nextlen) error_exit("no }");  
 
   TT.fdout = 1;
+  TT.remember = xstrdup("");
 
   // Inflict pattern upon input files
   loopfiles_rw(args, O_RDONLY, 0, 0, do_sed);
