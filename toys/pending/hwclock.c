@@ -4,22 +4,21 @@
  *
  * No Standard.
  *
-USE_HWCLOCK(NEWTOY(hwclock, "f(rtc):u(utc)l(localtime)t(systz)w(systohc)s(hctosys)r(show)[!ul][!rs][!rw][!rt][!sw][!st][!wt]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_HWCLOCK(NEWTOY(hwclock, ">0(fast)f(rtc):u(utc)l(localtime)t(systz)w(systohc)s(hctosys)r(show)[!ul][!rsw]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config HWCLOCK
   bool "hwclock"
   default n
   help
-    usage: hwclock [-r|--show] [-s|--hctosys] [-w|--systohc] [-t|--systz] [-l|--localtime] 
-    [-u|--utc] [-f|--rtc FILE]
+    usage: hwclock [-rswtluf]
 
-    -f FILE Use specified device file (e.g. /dev/rtc2) instead of default
-    -l      Assume hardware clock is kept in localtime
-    -r      Show hardware clock time
-    -s      Set system time from hardware clock
-    -t      Set the system time based on the current timezone 
-    -u      Assume hardware clock is kept in UTC
-    -w      Set hardware clock from system time
+    -f FILE Use specified device file instead of /dev/rtc (--show)
+    -l      Hardware clock uses localtime (--localtime)
+    -r      Show hardware clock time (--show)
+    -s      Set system time from hardware clock (--hctosys)
+    -t      Set the system time based on the current timezone (--systz)
+    -u      Hardware clock uses UTC (--utc)
+    -w      Set hardware clock from system time (--systohc)
 */
 #define FOR_hwclock
 #include "toys.h"
@@ -31,26 +30,25 @@ GLOBALS(
   int utc;
 )
 
-static int rtc_open(char **dev_rtc, int flag)
+static int rtc_open(int flag)
 {
-  if (!*dev_rtc) {
+  if (!TT.fname) {
     int fd; 
 
-    if ((fd = open((*dev_rtc = "/dev/rtc"), flag)) != -1) return fd;
-    else if ((fd = open((*dev_rtc = "/dev/rtc0"), flag)) != -1) return fd;
-    else *dev_rtc = "/dev/misc/rtc";
+    if ((fd = open((TT.fname = "/dev/rtc"), flag)) != -1) return fd;
+    else if ((fd = open((TT.fname = "/dev/rtc0"), flag)) != -1) return fd;
+    else TT.fname = "/dev/misc/rtc";
   }
-  return xopen(*dev_rtc, flag);
+  return xopen(TT.fname, flag);
 }
 
 static time_t get_rtc()
 {
   struct tm time;
   time_t tm;
-  char *ptz_old = NULL;
-  int fd = rtc_open(&TT.fname, O_RDONLY);
+  char *ptz_old = 0;
+  int fd = rtc_open(O_RDONLY);
 
-  memset(&time, 0, sizeof(time));
   xioctl(fd, RTC_RD_TIME, &time);
   close(fd);
   if (TT.utc) {
@@ -83,11 +81,11 @@ static void set_hwclock_from_sysclock()
 {
   struct timeval tmval;
   struct tm time;
-  int fd = rtc_open(&TT.fname, O_WRONLY);
+  int fd = rtc_open(O_WRONLY);
 
   if (gettimeofday(&tmval, NULL) < 0) perror_exit("gettimeofday");
   // converting a time value to broken-down UTC time
-  if (TT. utc && !gmtime_r((time_t*)&tmval.tv_sec, &time)) 
+  if (TT.utc && !gmtime_r((time_t*)&tmval.tv_sec, &time)) 
     error_exit("gmtime_r failed");
   // converting a time value to a broken-down localtime
   else if (!(localtime_r((time_t*)&tmval.tv_sec, &time)))
@@ -118,43 +116,41 @@ static void set_sysclock_timezone()
   if (settimeofday(&tmval, &tmzone) < 0) perror_exit("settimeofday");
 }
 
-static void rtc_adjtime()
-{
-  char *line = NULL;
-  int fd = open("/etc/adjtime", O_RDONLY);
-
-  if (fd != -1) {
-    for (; (line = get_line(fd)); free(line)) {
-      if (!strncmp(line, "UTC", 3)) {
-        TT.utc = 1;
-        break;
-      }
-    }
-    close(fd);
-  }
-}
-
-static void display_hwclock()
-{
-  time_t tm = get_rtc();
-  char *s, *pctm = ctime(&tm);
-
-  if (pctm) {
-    if ((s = strrchr(pctm, '\n'))) *s = '\0';
-    xprintf("%s  0.000000 seconds\n", pctm);
-  } else error_exit("failed to convert a time value to a date & time string");
-}
-
 void hwclock_main()
 {
-  (!(toys.optflags & FLAG_u)) ? rtc_adjtime() : (TT.utc = 1); // check for UTC
+  // check for UTC
+  if (!(toys.optflags & FLAG_u)) {
+    FILE *fp = fopen("/etc/adjtime", "r");
+
+    if (fp) {
+      char *line = NULL;
+      size_t st;
+
+      while (0 < getline(&line, &st, fp)) {
+        if (!strncmp(line, "UTC", 3)) {
+          TT.utc = 1;
+          break;
+        }
+        free(line);
+      }
+      fclose(fp);
+    }
+  } else TT.utc = 1;
+
   if (toys.optflags & FLAG_w) set_hwclock_from_sysclock();
   else if (toys.optflags & FLAG_s) set_sysclock_from_hwclock(); 
   else if (toys.optflags & FLAG_t) set_sysclock_timezone();
   else if ((toys.optflags & FLAG_r) || (toys.optflags & FLAG_l) 
-      || !*toys.optargs) display_hwclock();
-  else {
-    toys.exithelp++;
-    error_exit("invalid option '%s'", *toys.optargs);
+      || !*toys.optargs)
+  {
+    time_t tm = get_rtc();
+    char *s, *pctm = ctime(&tm);
+
+    // ctime() is defined as equivalent to asctime(localtime(t)),
+    // which is defined to overflow its buffer rather than return NULL.
+    // if (!pctm) error_exit("can't happen");
+    if ((s = strrchr(pctm, '\n'))) *s = '\0';
+    // TODO: implement this.
+    xprintf("%s  0.000000 seconds\n", pctm);
   }
 }
