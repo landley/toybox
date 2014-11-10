@@ -3,19 +3,6 @@
  * Copyright 2014 Rob Landley <rob@landley.net>
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/sed.html
- *
- * What happens when first address matched, then EOF? How about ",42" or "1,"
- * Does $ match last line of file or last line of input
- * If file doesn't end with newline
- * command preceded by whitespace. whitespace before rw or s///w file
- * space before address
- * numerical addresses that cross, select one line
- * test backslash escapes in regex; share code with printf?
- * address counts lines cumulatively across files
- * Why can't I start an address with \\ (posix says no, but _why_?)
- * Fun with \nblah\nn vs \tblah\tt
- *
- * echo -e "one\ntwo\nthree" | sed -n '$,$p'
 
 USE_SED(NEWTOY(sed, "(version)e*f*inr", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 
@@ -114,19 +101,19 @@ config SED
 
       =  Print the current line number (followed by a newline)
 
-    The following commands (may) take an argument. ("b", "s", "t", "T", "y"
-    and ":" may be ended with semicolons, the rest eat at least one line.)
+    The following commands (may) take an argument. The "text" arguments (to
+    the "a", "b", and "c" commands) may end with an unescaped "\" to append
+    the next line (for which leading whitespace is not skipped), and also
+    treat ";" as a literal character (use "\;" instead).
 
-      a [text]   Append text to output before attempting to read next line,
-                 if text ends with unescaped "\" append next line of script
+      a [text]   Append text to output before attempting to read next line
 
       b [label]  Branch, jumps to :label (or with no label, to end of SCRIPT)
 
-      c [text]   Delete current address range and print text instead,
-                 if text ends with unescaped "\" append next line of script
+      c [text]   Delete line, output text at end of matching address range
+                 (ignores remaining COMMANDs)
 
-      i [text]   Print text, if text ends with unescaped "\" append next
-                 line of script
+      i [text]   Print text
 
       r [file]   Append contents of file to output before attempting to read
                  next line.
@@ -164,10 +151,11 @@ config SED
 
       #  Comment, ignore rest of this line of SCRIPT
 
-    Deviations from posix: we allow extended regular expressions with -r,
+    Deviations from posix: allow extended regular expressions with -r,
     editing in place with -i, separate with -s, printf escapes in text, line
     continuations, semicolons after all commands, 2-address anywhere an
-    address is allowed, "T" command.
+    address is allowed, "T" command, multiline continuations for [abc],
+    \; to end [abc] argument before end of line.
 */
 
 #define FOR_sed
@@ -203,8 +191,8 @@ static int emit(char *line, long len, int eol)
 {
   if (TT.noeol && !writeall(TT.fdout, "\n", 1)) return 1;
   if (eol) line[len++] = '\n';
-  TT.noeol = !eol;
-  if (len != writeall(TT.fdout, line, len)) {
+  TT.noeol = len && !eol;
+  if (len && len != writeall(TT.fdout, line, len)) {
     perror_msg("short write");
 
     return 1;
@@ -237,7 +225,7 @@ static int ghostwheel(regex_t *preg, char *string, long len, int nmatch,
 
 }
 
-// Extend allocation to include new string.
+// Extend allocation to include new string, with newline between if newlen<0
 
 static char *extend_string(char **old, char *new, int oldlen, int newlen)
 {
@@ -256,7 +244,12 @@ static char *extend_string(char **old, char *new, int oldlen, int newlen)
 // Apply pattern to line from input file
 static void walk_pattern(char **pline, long plen)
 {
-  char *line = TT.nextline, *append = 0;
+  struct append {
+    struct append *next, *prev;
+    int file;
+    char *str;
+  } *append;
+  char *line = TT.nextline;
   long len = TT.nextlen;
   struct step *logrus;
   int eol = 0, tea = 0;
@@ -326,23 +319,29 @@ static void walk_pattern(char **pline, long plen)
 
     // Process command
 
-    if (c == 'a') {
-      long alen = append ? strlen(append) : 0;
+    if (c=='a' || c=='r') {
+      struct append *a = xzalloc(sizeof(struct append));
+      a->str = logrus->arg1+(char *)logrus;
+      a->file = c== 'r';
+      dlist_add_nomalloc((void *)&append, (void *)a);
+    } else if (c=='b' || c=='t' || c=='T') { 
+      if (c=='b' || tea^(c=='T')) {
+        str = logrus->arg1+(char *)logrus;
 
+        if (!*str) break;
+        for (logrus = (void *)TT.pattern; logrus; logrus = logrus->next)
+          if (logrus->c == ':' && !strcmp(logrus->arg1+(char *)logrus, str))
+            break;
+        if (!logrus) error_exit("no :%s", str);
+      }
+    } else if (c=='c') {
       str = logrus->arg1+(char *)logrus;
-      extend_string(&append, str, alen, -strlen(str));
-    } else if (c == 'b') {
-      str = logrus->arg1+(char *)logrus;
-
-      if (!*str) break;
-      for (logrus = (void *)TT.pattern; logrus; logrus = logrus->next)
-        if (logrus->c == ':' && !strcmp(logrus->arg1+(char *)logrus, str))
-          break;
-      if (!logrus) error_exit("no :%s", str);
-    } else if (c == 'd') goto done;
-    else if (c == 'D') {
+      if (!logrus->hit) emit(str, strlen(str), 1);
+      goto done;
+    } else if (c=='d') goto done;
+    else if (c=='D') {
       // Delete up to \n or end of buffer
-      for (str = line; !*str || *str == '\n'; str++);
+      for (str = line; !*str || *str=='\n'; str++);
       len -= str - line;
       memmove(line, str, len);
       line[len] = 0;
@@ -350,43 +349,61 @@ static void walk_pattern(char **pline, long plen)
       // restart script
       logrus = (void *)TT.pattern;
       continue;
-    } else if (c == 'g') {
+    } else if (c=='g') {
       free(line);
       line = xstrdup(TT.remember);
       len = TT.rememberlen;
-    } else if (c == 'G') {
+    } else if (c=='G') {
       line = xrealloc(line, len+TT.rememberlen+2);
       line[len++] = '\n';
       memcpy(line+len, TT.remember, TT.rememberlen);
       line[len += TT.rememberlen] = 0;
-    } else if (c == 'h') {
+    } else if (c=='h') {
       free(TT.remember);
       TT.remember = xstrdup(line);
       TT.rememberlen = len;
-    } else if (c == 'H') {
+    } else if (c=='H') {
       TT.remember = xrealloc(TT.remember, TT.rememberlen+len+2);
       TT.remember[TT.rememberlen++] = '\n';
       memcpy(TT.remember+TT.rememberlen, line, len);
       TT.remember[TT.rememberlen += len] = 0;
-    } else if (c == 'l') {
-      error_exit("todo: l");
-    } else if (c == 'n') {
+    } else if (c=='i') {
+      str = logrus->arg1+(char *)logrus;
+      emit(str, strlen(str), 1);
+//    } else if (c=='l') {
+//      error_exit("todo: l");
+    } else if (c=='n') {
       TT.restart = logrus->next;
 
       break;
-    } else if (c == 'N') {
+    } else if (c=='N') {
       if (pline) {
         TT.restart = logrus->next;
         extend_string(&line, TT.nextline, plen, -TT.nextlen);
         free(TT.nextline);
         TT.nextline = line;
+        line = 0;
       }
 
-      goto append; 
-    } else if (c == 'p') {
+      goto done; 
+    } else if (c=='p') {
       if (emit(line, len, eol)) break;
-    } else if (c == 'q') break;
-    else if (c == 'x') {
+    } else if (c=='q') break;
+//    else if (c=='s') {
+//      tea = 1;
+//    }
+    else if (c=='w') {
+      int fd = TT.fdout, noeol = TT.noeol;
+
+      TT.fdout = logrus->arg2;
+      TT.noeol = logrus->arg3;
+      
+      if (emit(line, len, eol))
+        perror_exit("w '%s'", logrus->arg1+(char *)logrus);
+      logrus->arg3 = TT.noeol;
+      TT.noeol = noeol;
+      TT.fdout = fd;
+    } else if (c=='x') {
       long swap = TT.rememberlen;
 
       str = TT.remember;
@@ -394,9 +411,10 @@ static void walk_pattern(char **pline, long plen)
       line = str;
       TT.rememberlen = len;
       len = swap;
-    } else if (c == '=') xprintf("%ld\n", TT.count);
+//    } else if (c=='y') {
+    } else if (c=='=') xprintf("%ld\n", TT.count);
     // labcirstTwy
-    else if (c != ':') error_exit("todo: %c", c);
+    else if (c!=':') error_exit("todo: %c", c);
 
     logrus = logrus->next;
   }
@@ -406,10 +424,19 @@ static void walk_pattern(char **pline, long plen)
 done:
   free(line);
 
-append:
-  if (append) {
-    emit(append, strlen(append), 1);
+  if (dlist_terminate(append)) while (append) {
+    struct append *a = append->next;
+
+    if (append->file) {
+      int fd = xopen(append->str, O_RDONLY);
+
+      // Force newline if noeol pending
+      emit(0, 0, 0);
+      xsendfile(fd, TT.fdout);
+      close(fd);
+    } else emit(append->str, strlen(append->str), 1);
     free(append);
+    append = a;
   }
 }
 
@@ -620,13 +647,7 @@ static void jewel_of_judgement(char **pline, long len)
       reg = extend_string((void *)&corwin, line, corwin->arg2, end);
       line += end+1;
 
-      // flags:
-      //           [0-9]    A number, substitute only that occurrence of pattern
-      //           g        Global, substitute all occurrences of pattern
-      //           p        Print the line if match was found and replaced
-      //           w [file] Write (append) line to file if match replaced
-      //           i        case insensitive match
-
+      // parse s///flags
       for (;;) {
         long l;
 
