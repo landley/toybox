@@ -156,7 +156,7 @@ int update_password(char *filename, char* username, char* entry)
   }
 
   *sfx = '-';
-  ret = unlink(filenamesfx);
+  unlink(filenamesfx);
   ret = link(filename, filenamesfx);
   if (ret < 0) error_msg("can't create backup file");
 
