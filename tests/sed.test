@@ -39,8 +39,7 @@ testing 'sed match t delim makes \t literal t' \
 	"sed -n '\t\txtp'" "tx\n" "" "tx\n"
 testing 'sed match n delim' "sed -n '\n\txnp'" "\tx\n" "" "\tx\n"
 testing 'sed match n delim disables \n newline' "sed -n '\n\nxnp'" "" "" "\nx\n"
-testing 'sed match n delim makes \n literal n' \
-	"sed -n '\n\nxnp'" "nx\n" "" "nx\n"
+SKIP_HOST=1 testing 'sed match \n literal n' "sed -n '\n\nxnp'" "nx\n" "" "nx\n"
 testing 'end match does not check starting match line' \
 	"sed -n '/two/,/two/p'" "two\nthree" "" "one\ntwo\nthree"
 testing 'end match/start match mixing number/letter' \
@@ -62,4 +61,24 @@ testing 'sed newline staying away' 'sed s/o/x/' 'xne\ntwx' '' 'one\ntwo'
 # Why on _earth_ is this not an error? There's a \ with no continuation!
 testing 'sed what, _really_?' 'sed -e a\\ && echo yes really' \
 	'one\nyes really\n' '' 'one\n'
+
+# all the s/// test
+
+
+testing 'sed \1' "sed 's/t\\(w\\)o/za\\1py/'" "one\nzawpy\nthree" "" \
+	"one\ntwo\nthree"
+testing 'sed \1 p' "sed 's/t\\(w\\)o/za\\1py/p'" "one\nzawpy\nzawpy\nthree" \
+	"" "one\ntwo\nthree"
+testing 'sed \1 no newline' "sed 's/t\\(w\\)o/za\\1py/'" "one\nzawpy" "" \
+	"one\ntwo"
+testing 'sed \1 p no newline' "sed 's/t\\(w\\)o/za\\1py/p'" \
+	"one\nzawpy\nzawpy" "" "one\ntwo"
+testing 'sed -n s//\1/p' "sed -n 's/t\\(w\\)o/za\\1py/p'" "zawpy" "" "one\ntwo"
+testing 'sed -n s//\1/p no newline' "sed -n 's/t\\(w\\)o/za\\1py/p'" "zawpy" \
+	"" "one\ntwo"
+testing 'sed backref error' "sed 's/w/ale \2 ha/' 2>/dev/null || echo no" \
+	"no\n" "" "one\ntwo\nthree"
+testing 'sed empty match after nonempty match' "sed -e 's/a*/c/g'" 'cbcncgc' \
+	'' 'baaang'
+testing 'sed empty match' "sed -e 's/[^ac]*/A/g'" 'AaAcA' '' 'abcde'
 
