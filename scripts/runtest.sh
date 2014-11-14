@@ -37,6 +37,17 @@ export SKIP=
 
 # Check config to see if option is enabled, set SKIP if not.
 
+SHOWPASS=PASS
+SHOWFAIL=FAIL
+SHOWSKIP=SKIP
+
+if tty -s <&1
+then
+  SHOWPASS="$(echo -e "\033[1m\033[32m${SHOWPASS}\033[0m")"
+  SHOWFAIL="$(echo -e "\033[1m\033[31m${SHOWFAIL}\033[0m")"
+  SHOWSKIP="$(echo -e "\033[1m\033[33m${SHOWSKIP}\033[0m")"
+fi
+
 optional()
 {
   option=`echo "$OPTIONFLAGS" | egrep "(^|:)$1(:|\$)"`
@@ -64,9 +75,9 @@ testing()
 
   [ -n "$DEBUG" ] && set -x
 
-  if [ -n "$SKIP" ]
+  if [ -n "$SKIP" ] || ( [ -n "$SKIP_HOST" ] && [ -n "$TEST_HOST" ])
   then
-    [ ! -z "$VERBOSE" ] && echo "SKIPPED: $NAME"
+    [ ! -z "$VERBOSE" ] && echo "$SHOWSKIP: $NAME"
     return 0
   fi
 
@@ -79,15 +90,16 @@ testing()
   if [ $? -ne 0 ]
   then
     FAILCOUNT=$[$FAILCOUNT+1]
-    echo "FAIL: $NAME"
+    echo "$SHOWFAIL: $NAME"
     if [ -n "$VERBOSE" ]
     then
-      echo "echo '$5' | $2"
+      [ ! -z "$4" ] && echo "echo -ne \"$4\" > input"
+      echo "echo -ne '$5' | $2"
       diff -u expected actual
       [ "$VERBOSE" == fail ] && exit 1
     fi
   else
-    echo "PASS: $NAME"
+    echo "$SHOWPASS: $NAME"
   fi
   rm -f input expected actual
 
