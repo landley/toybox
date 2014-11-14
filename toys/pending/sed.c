@@ -400,16 +400,16 @@ static void walk_pattern(char **pline, long plen)
       if (emit(line, len, eol)) break;
     } else if (c=='q') break;
     else if (c=='s') {
-      char *rline = line, *new = logrus->arg2 + (char *)logrus;;
+      char *rline = line, *new = logrus->arg2 + (char *)logrus, *swap, *rswap;
       regmatch_t *match = (void *)toybuf;
       regex_t *reg = (void *)(logrus->arg1+(char *)logrus);
-      unsigned mflags = 0, i = 0, rlen = len, mlen, off, newlen;
+      unsigned mflags = 0, count = 0, rlen = len, mlen, off, newlen;
 
-      // Find match
+      // Find match in remaining line (up to remaining len)
       while (!ghostwheel(reg, rline, rlen, 10, match, mflags)) {
         mflags = REG_NOTBOL;
 
-        // Zero length matches don't count immediately after last match
+        // Zero length matches don't count immediately after a previous match
         mlen = match[0].rm_eo-match[0].rm_so;
         if (!mlen && !match[0].rm_so) {
           if (!rlen--) break;
@@ -417,29 +417,68 @@ static void walk_pattern(char **pline, long plen)
           continue;
         }
 
-        // Replace only a specific match?
+        // If we're replacing only a specific match, skip if this isn't it
         off = logrus->sflags>>3;
-        if (off && off != ++i) {
+        if (off && off != ++count) {
           rline += match[0].rm_eo;
           rlen -= match[0].rm_eo;
 
           continue;
         }
 
-        // The strlen() and memcpy don't support \1 or & yet.
-        newlen = strlen(new);
+        // newlen = strlen(new) but with \1 and & and printf escapes
+        for (off = newlen = 0; new[off]; off++) {
+          int cc = 0;
 
-        len = len-mlen+newlen;
-        off = rline-line;
-        line = xrealloc(line, len+1);
-        rline = line+off;
+          if (new[off] == '\\') {
+            cc = new[++off] - '0';
+            if (cc < 0 || cc > 9) {
+              newlen += 1+!unescape(new[off]);
+              continue;
+            }
+          } else if (new[off] != '&') {
+            newlen++;
+            continue;
+          }
+          newlen += match[cc].rm_eo-match[cc].rm_so;
+        }
 
-        rlen -= match[0].rm_eo;
-        memmove(rline+match[0].rm_so+newlen, rline+match[0].rm_eo, rlen+1);
-        memcpy(rline+match[0].rm_so, new, newlen);
-        rline += newlen+match[0].rm_so;
+        // Allocate new size, copy start/end around match. (Can't extend in
+        // place because backrefs may refer to text after it's overwritten.)
+        len += newlen-mlen;
+        swap = xmalloc(len+1);
+        rswap = swap+(rline-line);
+        memcpy(swap, line, (rline-line)+match[0].rm_so);
+        memcpy(rswap+match[0].rm_so+newlen, rline+match[0].rm_eo,
+               (rlen -= match[0].rm_eo)+1);
 
-        // flag g
+        // copy in new replacement text
+        rswap += match[0].rm_so;
+        for (off = mlen = 0; new[off]; off++) {
+          int cc = 0, ll;
+
+          if ((rswap[mlen++] = new[off]) == '\\') {
+            cc = new[++off] - '0';
+            if (cc<0 || cc>9) {
+              cc = unescape(new[off]);
+              if (cc) rswap[mlen-1] = cc;
+              else rswap[mlen++] = new[off];
+
+              continue;
+            } else if (match[cc].rm_so == -1) error_exit("no s//\\%d/", cc);
+          } else if (new[off] != '&') continue;
+
+          ll = match[cc].rm_eo-match[cc].rm_so;
+          memcpy(rswap+(--mlen), rline+match[cc].rm_so, ll);
+          mlen += ll;
+        }
+
+        rline = rswap+newlen;
+        free(line);
+        line = swap;
+        len = rlen+(rline-line);
+
+        // Stop after first substitution unless we have flag g
         if (!(logrus->sflags & 2)) break;
       }
 
@@ -700,9 +739,7 @@ static void jewel_of_judgement(char **pline, long len)
     else if (c == '}') {
       if (!TT.nextlen--) break;
     } else if (c == 's') {
-      void *merlin, *fiona;
-      int end;
-      char delim = 0;
+      char *merlin, *fiona, delim = 0;
 
       // s/pattern/replacement/flags
 
@@ -711,20 +748,28 @@ static void jewel_of_judgement(char **pline, long len)
       merlin = line;
       if (-1 == unescape_delimited_string(&line, &delim)) goto brand;
 
-      // get replacement
+      // get replacement - don't replace escapes because \1 and \& need
+      // processing later, after we replace \\ with \ we can't tell \\1 from \1
       fiona = line;
-      if (-1 == (end = unescape_delimited_string(&line, &delim))) goto brand;
+      while (*line != delim) {
+        if (!*line) goto brand;
+        if (*line == '\\') {
+          if (!line[1]) goto brand;
+          line += 2;
+        } else line++;
+      }
+
       corwin->arg2 = corwin->arg1 + sizeof(regex_t);
-      reg = extend_string((void *)&corwin, fiona, corwin->arg2, end);
+      reg = extend_string((void *)&corwin, fiona, corwin->arg2, line-fiona)+1;
 
       // get flags
-      for (; *line && *line != ';'; line++) {
+      for (line++; *line && *line != ';'; line++) {
         long l;
 
         if (isspace(*line)) continue;
 
         if (0 <= (l = stridx("igp", *line))) corwin->sflags |= 1<<l;
-        else if (!corwin->sflags >> 3 && 0<(l = strtol(line+end, &line, 10))) {
+        else if (!corwin->sflags >> 3 && 0<(l = strtol(line, &line, 10))) {
           corwin->sflags |= l << 3;
           line--;
         } else if (*line == 'w') break;
