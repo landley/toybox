@@ -631,7 +631,8 @@ static void do_sed(int fd, char *name)
 // returns length of processed string, *pstr advances to next unused char,
 // if delim (or *delim) is 0 uses starting char as delimiter, otherwise
 // parses and saves delimiter from first character(s)
-static int unescape_delimited_string(char **pstr, char *delim)
+// if rexex, ignore delimiter in [ranges]
+static int unescape_delimited_string(char **pstr, char *delim, int regex)
 {
   char *to, *from, d;
   int rc;
@@ -646,6 +647,18 @@ static int unescape_delimited_string(char **pstr, char *delim)
 
   while (*from != d) {
     if (!*from) return -1;
+
+    // delimiter in regex character range doesn't count
+    if (*from == '[') {
+      int len = 1;
+
+      if (from[len] == ']') len++;
+      while (from[len] != ']') if (!from[len++]) return -1;
+      memmove(to, from, ++len);
+      to += len;
+      from += len;
+      continue;
+    }
     if (*from == '\\') {
       if (!from[1]) return -1;
 
@@ -716,7 +729,7 @@ static void jewel_of_judgement(char **pline, long len)
       } else if (*line == '/' || *line == '\\') {
         char *s = line;
 
-        if (-1 == unescape_delimited_string(&line, 0)) goto brand;
+        if (-1 == unescape_delimited_string(&line, 0, 1)) goto brand;
         xregcomp((void *)reg, s,
           ((toys.optflags & FLAG_r)*REG_EXTENDED)|REG_NOSUB);
         corwin->rmatch[i] = reg-toybuf;
@@ -754,7 +767,7 @@ static void jewel_of_judgement(char **pline, long len)
       // get pattern (just record, we parse it later)
       corwin->arg1 = reg - (char *)corwin;
       merlin = line;
-      if (-1 == unescape_delimited_string(&line, &delim)) goto brand;
+      if (-1 == unescape_delimited_string(&line, &delim, 1)) goto brand;
 
       // get replacement - don't replace escapes because \1 and \& need
       // processing later, after we replace \\ with \ we can't tell \\1 from \1
@@ -807,7 +820,7 @@ writenow:
       for (cc = line; *cc; cc++) if (*cc == '\\' && cc[1] == ';') break;
       delim = *cc;
       *cc = 0;
-      fd = xcreate(line, O_WRONLY|O_CREAT|O_TRUNC, 0544);
+      fd = xcreate(line, O_WRONLY|O_CREAT|O_TRUNC, 0644);
       *cc = delim;
 
       delim = cc-line;
@@ -828,12 +841,14 @@ writenow:
       char *s = line, delim = 0;
       int len1, len2;
 
-      if (-1 == (len1 = unescape_delimited_string(&line, &delim))) goto brand;
+      if (-1 == (len1 = unescape_delimited_string(&line, &delim, 0)))
+        goto brand;
       corwin->arg1 = reg-(char *)corwin;
       reg = extend_string((void *)&corwin, s, reg-(char *)corwin, len1);
       s = line;
       corwin->arg2 = reg-(char *)corwin;
-      if (-1 == (len2 = unescape_delimited_string(&line, &delim))) goto brand;
+      if (-1 == (len2 = unescape_delimited_string(&line, &delim, 0)))
+        goto brand;
       if (len1 != len2) goto brand;
       reg = extend_string((void *)&corwin, s, reg-(char*)corwin, len2);
     } else if (strchr("abcirtTw:", c)) {
@@ -865,7 +880,7 @@ append:
       }
 
     // Commands that take no arguments
-    } else if (!strchr("{dDgGhHlnNpPqx=", *line)) break;
+    } else if (!strchr("{dDgGhHlnNpPqx=", c)) break;
   }
 
 brand:
