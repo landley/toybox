@@ -277,7 +277,7 @@ static void walk_pattern(char **pline, long plen)
   while (logrus) {
     char *str, c = logrus->c;
 
-    // Have we got a matching range for this rule?
+    // Have we got a line or regex matching range for this rule?
     if (*logrus->lmatch || *logrus->rmatch) {
       int miss = 0;
       long lm;
@@ -346,7 +346,8 @@ static void walk_pattern(char **pline, long plen)
       }
     } else if (c=='c') {
       str = logrus->arg1+(char *)logrus;
-      if (!logrus->hit) emit(str, strlen(str), 1);
+      if (!logrus->hit || (!logrus->lmatch[1] && !logrus->rmatch[1]))
+        emit(str, strlen(str), 1);
       goto done;
     } else if (c=='d') goto done;
     else if (c=='D') {
@@ -403,7 +404,7 @@ static void walk_pattern(char **pline, long plen)
       char *rline = line, *new = logrus->arg2 + (char *)logrus, *swap, *rswap;
       regmatch_t *match = (void *)toybuf;
       regex_t *reg = (void *)(logrus->arg1+(char *)logrus);
-      unsigned mflags = 0, count = 0, rlen = len, mlen, off, newlen;
+      int mflags = 0, count = 0, zmatch = 1, rlen = len, mlen, off, newlen;
 
       // Find match in remaining line (up to remaining len)
       while (!ghostwheel(reg, rline, rlen, 10, match, mflags)) {
@@ -411,11 +412,12 @@ static void walk_pattern(char **pline, long plen)
 
         // Zero length matches don't count immediately after a previous match
         mlen = match[0].rm_eo-match[0].rm_so;
-        if (!mlen && !match[0].rm_so) {
+        if (!mlen && !zmatch) {
           if (!rlen--) break;
           rline++;
+          zmatch++;
           continue;
-        }
+        } else zmatch = 0;
 
         // If we're replacing only a specific match, skip if this isn't it
         off = logrus->sflags>>3;
@@ -425,6 +427,9 @@ static void walk_pattern(char **pline, long plen)
 
           continue;
         }
+        // The fact getline() can allocate unbounded amounts of memory is
+        // a bigger issue, but while we're here check for integer overflow
+        if (match[0].rm_eo > INT_MAX) perror_exit(0);
 
         // newlen = strlen(new) but with \1 and & and printf escapes
         for (off = newlen = 0; new[off]; off++) {
@@ -628,9 +633,10 @@ static void do_sed(int fd, char *name)
 // parses and saves delimiter from first character(s)
 static int unescape_delimited_string(char **pstr, char *delim)
 {
-  char *to, *from = *pstr, d;
+  char *to, *from, d;
   int rc;
 
+  to = from = *pstr;
   if (!delim || !*delim) {
     if (!(d = *(from++))) return -1;
     if (d == '\\') d = *(from++);
@@ -638,7 +644,7 @@ static int unescape_delimited_string(char **pstr, char *delim)
     if (delim) *delim = d;
   } else d = *delim;
 
-  for (to = *pstr; *from != d; *(to++) = *(from++)) {
+  while (*from != d) {
     if (!*from) return -1;
     if (*from == '\\') {
       if (!from[1]) return -1;
@@ -649,11 +655,13 @@ static int unescape_delimited_string(char **pstr, char *delim)
         char c = unescape(from[1]);
 
         if (c) {
-          *to = c;
-          from++;
+          *(to++) = c;
+          from+=2;
+          continue;
         }
       }
     }
+    *(to++) = *(from++);
   }
   rc = to-*pstr;
   *to = 0;
@@ -763,7 +771,7 @@ static void jewel_of_judgement(char **pline, long len)
       reg = extend_string((void *)&corwin, fiona, corwin->arg2, line-fiona)+1;
 
       // get flags
-      for (line++; *line && *line != ';'; line++) {
+      for (line++; *line && *line != ';' && *line != '#'; line++) {
         long l;
 
         if (isspace(*line)) continue;
@@ -846,9 +854,9 @@ append:
       // Extend allocation to include new string. We use offsets instead of
       // pointers so realloc() moving stuff doesn't break things. Do it
       // here instead of toybuf so there's no maximum size.
-
       if (!corwin->arg1) corwin->arg1 = reg - (char*)corwin;
       reg = extend_string((void *)&corwin, line, reg - (char *)corwin, end); 
+      line += end;
 
       // Line continuation?
       if (class && reg[-1] == '\\') {
