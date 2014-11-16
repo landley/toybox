@@ -3,6 +3,9 @@
  * Copyright 2014 Rob Landley <rob@landley.net>
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/sed.html
+ *
+ * TODO: lines > 2G could signed int wrap length counters. Not just getline()
+ * but N and s///
 
 USE_SED(NEWTOY(sed, "(version)e*f*inr", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 
@@ -335,10 +338,8 @@ static void walk_pattern(char **pline, long plen)
 
       if (c != 'b') tea = 0;
       if (c=='b' || t^(c=='T')) {
+        if (!logrus->arg1) break;
         str = logrus->arg1+(char *)logrus;
-
-        
-        if (!*str) break;
         for (logrus = (void *)TT.pattern; logrus; logrus = logrus->next)
           if (logrus->c == ':' && !strcmp(logrus->arg1+(char *)logrus, str))
             break;
@@ -388,14 +389,18 @@ static void walk_pattern(char **pline, long plen)
 
       break;
     } else if (c=='N') {
+      // Can't just grab next line because we could have multiple N and
+      // we need to actually read ahead to get N;$p EOF detection right.
       if (pline) {
         TT.restart = logrus->next;
-        extend_string(&line, TT.nextline, plen, -TT.nextlen);
+        extend_string(&line, TT.nextline, len, -TT.nextlen);
         free(TT.nextline);
         TT.nextline = line;
+        TT.nextlen += len + 1;
         line = 0;
       }
 
+      // Pending append goes out right after N
       goto done; 
     } else if (c=='p') {
       if (emit(line, len, eol)) break;
