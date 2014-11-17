@@ -172,7 +172,7 @@ GLOBALS(
   struct double_list *pattern;
 
   char *nextline, *remember;
-  void *restart;
+  void *restart, *lastregex;
   long nextlen, rememberlen, count;
   int fdout, noeol;
 )
@@ -190,10 +190,15 @@ struct step {
 // Write out line with potential embedded NUL, handling eol/noeol
 static int emit(char *line, long len, int eol)
 {
+  int l, old = line[len];
+
   if (TT.noeol && !writeall(TT.fdout, "\n", 1)) return 1;
   if (eol) line[len++] = '\n';
+  if (!len) return 0;
   TT.noeol = len && !eol;
-  if (len && len != writeall(TT.fdout, line, len)) {
+  l = writeall(TT.fdout, line, len);
+  if (eol) line[len-1] = old;
+  if (l != len) {
     perror_msg("short write");
 
     return 1;
@@ -252,6 +257,17 @@ static char *extend_string(char **old, char *new, int oldlen, int newlen)
   return s+oldlen+newlen;
 }
 
+// An empty regex repeats the previous one
+void *get_regex(void *trump, int offset)
+{
+  if (!offset) {
+    if (!TT.lastregex) error_exit("no previous regex");
+    return TT.lastregex;
+  }
+
+  return TT.lastregex = offset+(char *)trump;
+}
+
 // Apply pattern to line from input file
 static void walk_pattern(char **pline, long plen)
 {
@@ -294,19 +310,19 @@ static void walk_pattern(char **pline, long plen)
         if (!(lm = logrus->lmatch[1])) {
           if (!logrus->rmatch[1]) logrus->hit = 0;
           else {
-            void *rm = logrus->rmatch[1] + (char *)logrus;
+            void *rm = get_regex(logrus, logrus->rmatch[1]);
 
             // regex match end includes matching line, so defer deactivation
-            if (!ghostwheel(rm, line, len, 0, 0, 0)) miss = 1;
+            if (line && !ghostwheel(rm, line, len, 0, 0, 0)) miss = 1;
           }
         } else if (lm > 0 && lm < TT.count) logrus->hit = 0;
 
       // Start a new match?
       } else {
         if (!(lm = *logrus->lmatch)) {
-          void *rm = *logrus->rmatch + (char *)logrus;
+          void *rm = get_regex(logrus, *logrus->rmatch);
 
-          if (!ghostwheel(rm, line, len, 0, 0, 0)) logrus->hit++;
+          if (line && !ghostwheel(rm, line, len, 0, 0, 0)) logrus->hit++;
         } else if (lm == TT.count || (lm == -1 && !pline)) logrus->hit++;
       } 
 
@@ -328,6 +344,12 @@ static void walk_pattern(char **pline, long plen)
       }
       // Deferred disable from regex end match
       if (miss) logrus->hit = 0;
+    }
+
+    // A deleted line can still update line match state for later commands
+    if (!line) {
+      logrus = logrus->next;
+      continue;
     }
 
     // Process command
@@ -354,8 +376,11 @@ static void walk_pattern(char **pline, long plen)
       if (!logrus->hit || (!logrus->lmatch[1] && !logrus->rmatch[1]))
         emit(str, strlen(str), 1);
       goto done;
-    } else if (c=='d') goto done;
-    else if (c=='D') {
+    } else if (c=='d') {
+      free(line);
+      line = 0;
+      continue;
+    } else if (c=='D') {
       // Delete up to \n or end of buffer
       for (str = line; !*str || *str=='\n'; str++);
       len -= str - line;
@@ -414,7 +439,7 @@ static void walk_pattern(char **pline, long plen)
     else if (c=='s') {
       char *rline = line, *new = logrus->arg2 + (char *)logrus, *swap, *rswap;
       regmatch_t *match = (void *)toybuf;
-      regex_t *reg = (void *)(logrus->arg1+(char *)logrus);
+      regex_t *reg = get_regex(logrus, logrus->arg1);
       int mflags = 0, count = 0, zmatch = 1, rlen = len, mlen, off, newlen;
 
       // Find match in remaining line (up to remaining len)
@@ -546,7 +571,7 @@ writenow:
     logrus = logrus->next;
   }
 
-  if (!(toys.optflags & FLAG_n)) emit(line, len, eol);
+  if (line && !(toys.optflags & FLAG_n)) emit(line, len, eol);
 
 done:
   free(line);
@@ -593,15 +618,22 @@ static void do_lines(int fd, char *name, void (*call)(char **pline, long len))
 static void do_sed(int fd, char *name)
 {
   int i = toys.optflags & FLAG_i;
+  char *tmp;
 
   if (i) {
-    // todo: rename dance
+    if (!fd && *name=='-') {
+      error_msg("no -i on stdin");
+      return;
+    }
+    TT.fdout = copy_tempfile(fd, name, &tmp);
   }
   do_lines(fd, name, walk_pattern);
   if (i) {
     walk_pattern(0, 0);
-
-    // todo: rename dance
+    replace_tempfile(-1, TT.fdout, &tmp);
+    TT.fdout = 1;
+    TT.nextline = 0;
+    TT.nextlen = TT.noeol = 0;
   }
 }
 
@@ -715,10 +747,12 @@ static void jewel_of_judgement(char **pline, long len)
         char *s = line;
 
         if (-1 == unescape_delimited_string(&line, 0, 1)) goto brand;
-        xregcomp((void *)reg, s,
-          ((toys.optflags & FLAG_r)*REG_EXTENDED)|REG_NOSUB);
-        corwin->rmatch[i] = reg-toybuf;
-        reg += sizeof(regex_t);
+        if (!*s) corwin->rmatch[i] = 0;
+        else {
+          xregcomp((void *)reg, s, (toys.optflags & FLAG_r)*REG_EXTENDED);
+          corwin->rmatch[i] = reg-toybuf;
+          reg += sizeof(regex_t);
+        }
       } else break;
     }
 
@@ -784,7 +818,8 @@ static void jewel_of_judgement(char **pline, long len)
 
       // We deferred actually parsing the rexex until we had the s///i flag
       // allocating the space was done by extend_string() above
-      xregcomp((void *)(corwin->arg1 + (char *)corwin), merlin,
+      if (!*merlin) corwin->arg1 = 0;
+      else xregcomp((void *)(corwin->arg1 + (char *)corwin), merlin,
         ((toys.optflags & FLAG_r)*REG_EXTENDED)|((corwin->sflags&1)*REG_ICASE));
       if (*line == 'w') {
         line++;
