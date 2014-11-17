@@ -204,32 +204,36 @@ static int emit(char *line, long len, int eol)
 
 // Do regex matching handling embedded NUL bytes in string. Note that
 // neither the pattern nor the match can currently include NUL bytes
-// (even with wildcards) and string must be nul terminated.
+// (even with wildcards) and string must be null terminated.
 static int ghostwheel(regex_t *preg, char *string, long len, int nmatch,
   regmatch_t pmatch[], int eflags)
 {
-/*
-  while (len && !*string) {
-    string++;
-    len--;
-  int l = strlen(string);
-  if (len != strlen(string)) 
-
-  // todo: this
-  long start = 0, rc = 0, matches = 0;
+  char *s = string;
 
   for (;;) {
-    long new = strlen(string+start);
+    long ll = 0;
+    int rc;
 
-    // eflags nobegin noend
-    rc |= regexec(preg, string+start, nmatch-matches, pmatch+matches, eflags);
-    if ((start += end + 1) >= len) break;
+    while (len && !*s) {
+      s++;
+      len--;
+    }
+    while (s[ll] && ll<len) ll++;
+
+    rc = regexec(preg, s, nmatch, pmatch, eflags);
+    if (!rc) {
+      for (rc = 0; rc<nmatch && pmatch[rc].rm_so!=-1; rc++) {
+        pmatch[rc].rm_so += s-string;
+        pmatch[rc].rm_eo += s-string;
+      }
+          
+      return 0;
+    }
+    if (ll==len) return rc;
+
+    s += ll;
+    len -= ll;
   }
-
-  return rc;
-*/
-
-  return regexec(preg, string, nmatch, pmatch, eflags);
 }
 
 // Extend allocation to include new string, with newline between if newlen<0
@@ -402,8 +406,10 @@ static void walk_pattern(char **pline, long plen)
 
       // Pending append goes out right after N
       goto done; 
-    } else if (c=='p') {
-      if (emit(line, len, eol)) break;
+    } else if (c=='p' || c=='P') {
+      char *l = (c=='P') ? strchr(line, '\n') : 0;
+
+      if (emit(line, l ? l-line : len, eol)) break;
     } else if (c=='q') break;
     else if (c=='s') {
       char *rline = line, *new = logrus->arg2 + (char *)logrus, *swap, *rswap;
@@ -438,15 +444,11 @@ static void walk_pattern(char **pline, long plen)
 
         // newlen = strlen(new) but with \1 and & and printf escapes
         for (off = newlen = 0; new[off]; off++) {
-          int cc = 0;
+          int cc = -1;
 
-          if (new[off] == '\\') {
-            cc = new[++off] - '0';
-            if (cc < 0 || cc > 9) {
-              newlen += 1+!unescape(new[off]);
-              continue;
-            }
-          } else if (new[off] != '&') {
+          if (new[off] == '&') cc = 0;
+          else if (new[off] == '\\') cc = new[++off] - '0';
+          if (cc < 0 || cc > 9) {
             newlen++;
             continue;
           }
@@ -470,9 +472,8 @@ static void walk_pattern(char **pline, long plen)
           if ((rswap[mlen++] = new[off]) == '\\') {
             cc = new[++off] - '0';
             if (cc<0 || cc>9) {
-              cc = unescape(new[off]);
-              if (cc) rswap[mlen-1] = cc;
-              else rswap[mlen++] = new[off];
+              if (!(rswap[mlen-1] = unescape(new[off])))
+                rswap[mlen-1] = new[off];
 
               continue;
             } else if (match[cc].rm_so == -1) error_exit("no s//\\%d/", cc);
@@ -587,27 +588,6 @@ static void do_lines(int fd, char *name, void (*call)(char **pline, long len))
   }
 
   if (fd) fclose(fp);
-}
-
-// Iterate over newline delimited data blob (potentially with embedded NUL),
-// call function on each line.
-static void chop_lines(char *data, long len, void (*call)(char **p, long l))
-{
-  long ll;
-
-  for (ll = 0; ll < len; ll++) {
-    if (data[ll] == '\n') {
-      char *c = data;
-
-      data[ll] = 0;
-      call(&c, len);
-      data[ll++] = '\n';
-      data += ll;
-      len -= ll;
-      ll = -1;
-    }
-  }
-  if (len) call(&data, len);
 }
 
 static void do_sed(int fd, char *name)
@@ -828,9 +808,8 @@ writenow:
       fd = xcreate(line, O_WRONLY|O_CREAT|O_TRUNC, 0644);
       *cc = delim;
 
-      delim = cc-line;
       corwin->w = reg - (char *)corwin;
-      corwin = xrealloc(corwin, corwin->w + delim + 6);
+      corwin = xrealloc(corwin, corwin->w+(cc-line)+6);
       reg = corwin->w + (char *)corwin;
 
       memcpy(reg, &fd, 4);
@@ -864,7 +843,7 @@ writenow:
       while (isspace(*line)) line++;
 append:
       class = !strchr("btT:", c);
-      end = strcspn(line, class ? "" : "; \t\r\n\v\f");
+      end = strcspn(line, class ? "\n" : "; \t\r\n\v\f");
 
       if (!end) {
         if (!strchr("btT", c)) break;
@@ -916,7 +895,7 @@ void sed_main(void)
   // so handle all -e, then all -f. (At least the behavior's consistent.)
 
   for (dworkin = TT.e; dworkin; dworkin = dworkin->next)
-    chop_lines(dworkin->arg, strlen(dworkin->arg), jewel_of_judgement);
+    jewel_of_judgement(&dworkin->arg, strlen(dworkin->arg));
   for (dworkin = TT.f; dworkin; dworkin = dworkin->next)
     do_lines(xopen(dworkin->arg, O_RDONLY), dworkin->arg, jewel_of_judgement);
   dlist_terminate(TT.pattern);
