@@ -284,6 +284,8 @@ static void walk_pattern(char **pline, long plen)
   // Grab next line for deferred processing (EOF detection: we get a NULL
   // pline at EOF to flush last line). Note that only end of _last_ input
   // file matches $ (unless we're doing -i).
+  TT.nextline = 0;
+  TT.nextlen = 0;
   if (pline) {
     TT.nextline = *pline;
     TT.nextlen = plen;
@@ -435,8 +437,14 @@ static void walk_pattern(char **pline, long plen)
       char *l = (c=='P') ? strchr(line, '\n') : 0;
 
       if (emit(line, l ? l-line : len, eol)) break;
-    } else if (c=='q') break;
-    else if (c=='s') {
+    } else if (c=='q') {
+      if (pline) *pline = (void *)1;
+      free(TT.nextline);
+      TT.nextline = 0;
+      TT.nextlen = 0;
+
+      break;
+    } else if (c=='s') {
       char *rline = line, *new = logrus->arg2 + (char *)logrus, *swap, *rswap;
       regmatch_t *match = (void *)toybuf;
       regex_t *reg = get_regex(logrus, logrus->arg1);
@@ -566,7 +574,7 @@ writenow:
         if (j != -1) line[i] = to[j];
       }
     } else if (c=='=') xprintf("%ld\n", TT.count);
-    else if (c!=':') error_exit("todo: %c", c);
+    else if (!strchr(":{}", c)) error_exit("todo: %c", c);
 
     logrus = logrus->next;
   }
@@ -594,9 +602,9 @@ done:
 
 // Genericish function, can probably get moved to lib.c
 
-// Iterate over lines in file, calling function. Function can write NULL to
-// the line pointer if they want to keep it, otherwise line is freed.
-// Passed file descriptor is closed at the end of processing.
+// Iterate over lines in file, calling function. Function can write 0 to
+// the line pointer if they want to keep it, or 1 to terminate processing,
+// otherwise line is freed. Passed file descriptor is closed at the end.
 static void do_lines(int fd, char *name, void (*call)(char **pline, long len))
 {
   FILE *fp = fd ? xfdopen(fd, "r") : stdin;
@@ -608,6 +616,7 @@ static void do_lines(int fd, char *name, void (*call)(char **pline, long len))
     len = getline(&line, (void *)&len, fp);
     if (len > 0) {
       call(&line, len);
+      if (line == (void *)1) break;
       free(line);
     } else break;
   }
@@ -803,7 +812,7 @@ static void jewel_of_judgement(char **pline, long len)
       reg = extend_string((void *)&corwin, fiona, corwin->arg2, line-fiona)+1;
 
       // get flags
-      for (line++; *line && *line != ';' && *line != '#'; line++) {
+      for (line++; *line; line++) {
         long l;
 
         if (isspace(*line)) continue;
@@ -812,11 +821,10 @@ static void jewel_of_judgement(char **pline, long len)
         else if (!corwin->sflags >> 3 && 0<(l = strtol(line, &line, 10))) {
           corwin->sflags |= l << 3;
           line--;
-        } else if (*line == 'w') break;
-        else goto brand;
+        } else break;
       }
 
-      // We deferred actually parsing the rexex until we had the s///i flag
+      // We deferred actually parsing the regex until we had the s///i flag
       // allocating the space was done by extend_string() above
       if (!*merlin) corwin->arg1 = 0;
       else xregcomp((void *)(corwin->arg1 + (char *)corwin), merlin,
