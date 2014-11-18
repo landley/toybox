@@ -573,8 +573,10 @@ writenow:
         j = stridx(from, line[i]);
         if (j != -1) line[i] = to[j];
       }
-    } else if (c=='=') xprintf("%ld\n", TT.count);
-    else if (!strchr(":{}", c)) error_exit("todo: %c", c);
+    } else if (c=='=') {
+      sprintf(toybuf, "%ld", TT.count);
+      emit(toybuf, strlen(toybuf), 1);
+    } else if (!strchr(":{}", c)) error_exit("todo: %c", c);
 
     logrus = logrus->next;
   }
@@ -630,11 +632,16 @@ static void do_sed(int fd, char *name)
   char *tmp;
 
   if (i) {
+    struct step *primal;
+
     if (!fd && *name=='-') {
       error_msg("no -i on stdin");
       return;
     }
     TT.fdout = copy_tempfile(fd, name, &tmp);
+    TT.count = 0;
+    for (primal = (void *)TT.pattern; primal; primal = primal->next)
+      primal->hit = 0;
   }
   do_lines(fd, name, walk_pattern);
   if (i) {
@@ -653,6 +660,7 @@ static void do_sed(int fd, char *name)
 
 // Ok, what happens if we xexec() sed with constant arguments then?
 // TODO: ^^^ that
+// also screws up error reporting for bad patterns
 
 // returns length of processed string, *pstr advances to next unused char,
 // if delim (or *delim) is 0 uses starting char as delimiter, otherwise
@@ -690,7 +698,7 @@ static int unescape_delimited_string(char **pstr, char *delim, int regex)
 
       // Check escaped end delimiter before printf style escapes.
       if (from[1] == d) from++;
-      else {
+      else if (from[1]!='\\') {
         char c = unescape(from[1]);
 
         if (c) {
@@ -818,7 +826,7 @@ static void jewel_of_judgement(char **pline, long len)
         if (isspace(*line)) continue;
 
         if (0 <= (l = stridx("igp", *line))) corwin->sflags |= 1<<l;
-        else if (!corwin->sflags >> 3 && 0<(l = strtol(line, &line, 10))) {
+        else if (!(corwin->sflags>>3) && 0<(l = strtol(line, &line, 10))) {
           corwin->sflags |= l << 3;
           line--;
         } else break;
