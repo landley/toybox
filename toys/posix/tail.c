@@ -164,6 +164,7 @@ static void do_tail(int fd, char *name)
           }
           list->data += bytes;
           list->len -= bytes;
+          bytes = 0;
         }
       } else {
         int len = new->len, count;
