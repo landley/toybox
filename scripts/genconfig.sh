@@ -62,7 +62,7 @@ EOF
   probesymbol TOYBOX_PTY -c << EOF
     #include <pty.h>
     int main(int argc, char *argv[]) {
-      int master; return forkpty(&master, NULL, NULL, NULL);
+      int master; return forkpty(&master, 0, 0, 0);
     }
 EOF
 

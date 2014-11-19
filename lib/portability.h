@@ -188,14 +188,16 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 int sethostname(const char *name, size_t len);
 #endif
 // "generated/config.h" is included first
-#if defined(CFG_TOYBOX_SHADOW) && CFG_TOYBOX_SHADOW
+#if CFG_TOYBOX_SHADOW
 #include <shadow.h>
 #endif
-#if defined(CFG_TOYBOX_UTMPX) && CFG_TOYBOX_UTMPX
+#if CFG_TOYBOX_UTMPX
 #include <utmpx.h>
 #endif
-#if defined(CFG_TOYBOX_PTY) && CFG_TOYBOX_PTY
+#if CFG_TOYBOX_PTY
 #include <pty.h>
+#else
+pid_t forkpty(int *amaster, char *name, void *termp, void *winp);
 #endif
 
 
