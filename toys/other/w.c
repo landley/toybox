@@ -7,6 +7,7 @@ USE_W(NEWTOY(w, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 config W
   bool "w"
   default y
+  depends on TOYBOX_UTMPX
   help
     usage: w
 

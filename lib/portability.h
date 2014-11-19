@@ -180,9 +180,24 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 #endif
 
 // Linux headers not listed by POSIX or LSB
-#include <shadow.h>
 #include <sys/mount.h>
 #include <sys/swap.h>
+
+// Android is missing some headers and functions
+#if defined(__ANDROID__)
+int sethostname(const char *name, size_t len);
+#endif
+// "generated/config.h" is included first
+#if defined(CFG_TOYBOX_SHADOW) && CFG_TOYBOX_SHADOW
+#include <shadow.h>
+#endif
+#if defined(CFG_TOYBOX_UTMPX) && CFG_TOYBOX_UTMPX
+#include <utmpx.h>
+#endif
+#if defined(CFG_TOYBOX_PTY) && CFG_TOYBOX_PTY
+#include <pty.h>
+#endif
+
 
 // Some systems don't define O_NOFOLLOW, and it varies by architecture, so...
 #include <fcntl.h>

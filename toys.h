@@ -41,10 +41,10 @@
 #include <sys/utsname.h>
 #include <sys/wait.h>
 #include <syslog.h>
+#include <termios.h>
 #include <time.h>
 #include <unistd.h>
 #include <utime.h>
-#include <utmpx.h>
 
 // Posix networking
 
@@ -64,7 +64,6 @@
 #include <wctype.h>
 
 // LSB 4.1 headers
-#include <pty.h>
 #include <sys/ioctl.h>
 #include <sys/statfs.h>
 #include <sys/sysinfo.h>

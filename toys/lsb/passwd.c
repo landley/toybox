@@ -10,6 +10,7 @@ USE_PASSWD(NEWTOY(passwd, ">1a:dlu", TOYFLAG_STAYROOT|TOYFLAG_USR|TOYFLAG_BIN))
 config PASSWD
   bool "passwd"
   default y
+  depends on TOYBOX_SHADOW
   help
     usage: passwd [-a ALGO] [-dlu] <account name>
 

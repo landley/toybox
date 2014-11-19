@@ -25,17 +25,18 @@ void uptime_main(void)
   time_t tmptime;
   struct tm * now;
   unsigned int days, hours, minutes;
-  struct utmpx *entry;
-  int users = 0;
+  USE_TOYBOX_UTMPX(struct utmpx *entry;)
+  USE_TOYBOX_UTMPX(int users = 0;)
 
   // Obtain the data we need.
   sysinfo(&info);
   time(&tmptime);
   now = localtime(&tmptime);
+
   // Obtain info about logged on users
-  setutxent();
-  while ((entry = getutxent())) if (entry->ut_type == USER_PROCESS) users++;
-  endutxent();
+  USE_TOYBOX_UTMPX(setutxent();)
+  USE_TOYBOX_UTMPX(while ((entry = getutxent())) if (entry->ut_type == USER_PROCESS) users++;)
+  USE_TOYBOX_UTMPX(endutxent();)
 
   // Time
   xprintf(" %02d:%02d:%02d up ", now->tm_hour, now->tm_min, now->tm_sec);
@@ -48,7 +49,7 @@ void uptime_main(void)
   if (days) xprintf("%d day%s, ", days, (days!=1)?"s":"");
   if (hours) xprintf("%2d:%02d, ", hours, minutes);
   else printf("%d min, ", minutes);
-  printf(" %d user%s, ", users, (users!=1) ? "s" : "");
+  USE_TOYBOX_UTMPX(printf(" %d user%s, ", users, (users!=1) ? "s" : "");)
   printf(" load average: %.02f, %.02f, %.02f\n", info.loads[0]/65536.0,
     info.loads[1]/65536.0, info.loads[2]/65536.0);
 }

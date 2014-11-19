@@ -26,6 +26,7 @@ config NETCAT_LISTEN
   bool "netcat server options (-let)"
   default y
   depends on NETCAT
+  depends on TOYBOX_PTY
   help
     usage: netcat [-t] [-lL COMMAND...]
 

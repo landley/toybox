@@ -44,6 +44,34 @@ EOF
 
     int main(int argc, char *argv[]) { return posix_fallocate(0,0,0); }
 EOF
+  
+  # Android and some other platforms miss utmpx
+  probesymbol TOYBOX_UTMPX -c << EOF
+    #include <utmpx.h>
+    #ifndef BOOT_TIME
+    #error nope
+    #endif
+    int main(int argc, char *argv[]) {
+      struct utmpx *a; 
+      if (0 != (a = getutxent())) return 0;
+      return 1;
+    }
+EOF
+
+  # Android is missing shadow.h and pty.h
+  probesymbol TOYBOX_PTY -c << EOF
+    #include <pty.h>
+    int main(int argc, char *argv[]) {
+      int master; return forkpty(&master, NULL, NULL, NULL);
+    }
+EOF
+
+  probesymbol TOYBOX_SHADOW -c << EOF
+    #include <shadow.h>
+    int main(int argc, char *argv[]) {
+      struct spwd *a = getspnam("root"); return 0;
+    }
+EOF
 }
 
 genconfig()

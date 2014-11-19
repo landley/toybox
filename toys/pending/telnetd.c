@@ -8,6 +8,7 @@ USE_TELNETD(NEWTOY(telnetd, "w#<0b:p#<0>65535=23f:l:FSKi[!wi]", TOYFLAG_USR|TOYF
 config TELNETD
   bool "telnetd"
   default n
+  depends on TOYBOX_PTY
   help
     Handle incoming telnet connections
 
