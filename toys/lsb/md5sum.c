@@ -168,19 +168,21 @@ static void hash_update(char *data, unsigned int len, void (*transform)(void))
   j = TT.count & 63;
   TT.count += len;
 
-  // Enough data to process a frame?
-  if ((j + len) > 63) {
-    i = 64-j;
-    memcpy(TT.buffer.c + j, data, i);
+  for (;;) {
+    // Grab next chunk of data, return if it's not enough to process a frame
+    i = 64 - j;
+    if (i>len) i = len;
+    memcpy(TT.buffer.c+j, data, i);
+    if (j+i != 64) break;
+
+    // Process a frame
+    if (IS_BIG_ENDIAN)
+      for (j=0; j<16; j++) TT.buffer.i[j] = SWAP_LE32(TT.buffer.i[j]);
     transform();
-    for ( ; i + 63 < len; i += 64) {
-      memcpy(TT.buffer.c, data + i, 64);
-      transform();
-    }
-    j = 0;
-  } else i = 0;
-  // Grab remaining chunk
-  memcpy(TT.buffer.c + j, data + i, len - i);
+    j=0;
+    data += i;
+    len -= i;
+  }
 }
 
 // Callback for loopfiles()
@@ -221,16 +223,15 @@ static void do_hash(int fd, char *name)
     hash_update(&buf, 1, transform);
     buf = 0;
   } while ((TT.count & 63) != 56);
-  if (sha1) count=bswap_64(count);
-  for (i = 0; i < 8; i++) TT.buffer.c[56+i] = count >> (8*i);
-  transform();
+  count = sha1 ? SWAP_BE64(count) : SWAP_LE64(count);
+  hash_update((void *)&count, 8, transform);
 
   if (sha1)
     for (i = 0; i < 20; i++)
       printf("%02x", 255&(TT.state[i>>2] >> ((3-(i & 3)) * 8)));
-  else for (i=0; i<4; i++) printf("%08x", SWAP_BE32(TT.state[i]));
+  else for (i=0; i<4; i++) printf("%08x", bswap_32(TT.state[i]));
 
-  // Wipe variables.  Cryptographer paranoia.
+  // Wipe variables. Cryptographer paranoia.
   memset(&TT, 0, sizeof(TT));
 
   printf((toys.optflags & FLAG_b) ? "\n" : "  %s\n", name);
