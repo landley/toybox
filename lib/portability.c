@@ -6,7 +6,7 @@
 
 #include "toys.h"
 #if defined(__ANDROID__)
-#include <asm/unistd.h>
+#include <sys/syscall.h>
 #endif
 
 #if defined(__APPLE__) || defined(__ANDROID__)
