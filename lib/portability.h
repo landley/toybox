@@ -11,7 +11,10 @@
 
 // This makes it stop.
 
+// Except on Android, where fortify is mandatory.
+#if !defined(__ANDROID__)
 #undef _FORTIFY_SOURCE
+#endif
 
 // For musl
 #define _ALL_SOURCE
@@ -173,7 +176,7 @@ int clearenv(void);
 #define SWAP_LE64(x) (x)
 #endif
 
-#if defined(__APPLE__) || defined(__ANDROID__) \
+#if defined(__APPLE__) \
     || (defined(__GLIBC__) && __GLIBC__ == 2 && __GLIBC_MINOR__ < 10)
 ssize_t getdelim(char **lineptr, size_t *n, int delim, FILE *stream);
 ssize_t getline(char **lineptr, size_t *n, FILE *stream);
