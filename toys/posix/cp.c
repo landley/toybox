@@ -261,6 +261,7 @@ int cp_node(struct dirtree *try)
   if (fdout != -1) {
     if (flags & (FLAG_a|FLAG_p)) {
       struct timespec times[2];
+      int rc;
 
       // Inability to set these isn't fatal, some require root access.
 
@@ -268,13 +269,20 @@ int cp_node(struct dirtree *try)
       times[1] = try->st.st_mtim;
 
       // If we can't get a filehandle to the actual object, use racy functions
-      if (fdout == AT_FDCWD) {
-        fchownat(cfd, catch, try->st.st_uid, try->st.st_gid,
-                 AT_SYMLINK_NOFOLLOW);
-        utimensat(cfd, catch, times, AT_SYMLINK_NOFOLLOW);
-        // permission bits already correct for mknod, don't apply to symlink
-      } else {
-        fchown(fdout, try->st.st_uid, try->st.st_gid);
+      if (fdout == AT_FDCWD)
+        rc = fchownat(cfd, catch, try->st.st_uid, try->st.st_gid,
+                      AT_SYMLINK_NOFOLLOW);
+      else rc = fchown(fdout, try->st.st_uid, try->st.st_gid);
+      if (rc) {
+        char *pp;
+
+        perror_msg("chown '%s'", pp = dirtree_path(try, 0));
+        free(pp);
+      }
+
+      // permission bits already correct for mknod and don't apply to symlink
+      if (fdout == AT_FDCWD) utimensat(cfd, catch, times, AT_SYMLINK_NOFOLLOW);
+      else {
         futimens(fdout, times);
         fchmod(fdout, try->st.st_mode);
       }

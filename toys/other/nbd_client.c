@@ -112,7 +112,7 @@ void nbd_client_main(void)
 
     // Daemonize here.
 
-    daemon(0,0);
+    if (daemon(0,0)) perror_exit("daemonize");
 
     // Process NBD requests until further notice.
 

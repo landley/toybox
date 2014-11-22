@@ -50,9 +50,10 @@ int do_lspci(struct dirtree *new)
   if (-1 == (dirfd = openat(dirtree_parentfd(new), new->name, O_RDONLY)))
     return 0;
 
+  // it's ok for the driver link not to be there, whatever fortify says
   *driver = 0;
   if (toys.optflags & FLAG_k)
-    readlinkat(dirfd, "driver", driver, sizeof(driver));
+    if (readlinkat(dirfd, "driver", driver, sizeof(driver)));
 
   for (fields = (char*[]){"class", "vendor", "device", 0}; *fields; fields++) {
     int fd, size = 6 + 2*((toys.optflags & FLAG_e) && p == toybuf);

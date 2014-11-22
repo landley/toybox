@@ -15,5 +15,5 @@ config CLEAR
 
 void clear_main(void)
 {
-  write(1, "\e[2J\e[H", 7);
+  xwrite(1, "\e[2J\e[H", 7);
 }

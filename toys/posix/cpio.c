@@ -256,7 +256,7 @@ void cpio_main(void)
           xwrite(afd, toybuf, nlen);
         }
         llen = st.st_size & 3;
-        if (llen) write(afd, &zero, 4-llen);
+        if (llen) xwrite(afd, &zero, 4-llen);
       }
       close(fd);
     }

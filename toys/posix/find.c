@@ -72,7 +72,7 @@ static int flush_exec(struct dirtree *new, struct exec_range *aa)
 {
   struct double_list **dl;
   char **newargs;
-  int rc;
+  int rc = 0;
 
   if (!aa->namecount) return 0;
 
@@ -82,8 +82,13 @@ static int flush_exec(struct dirtree *new, struct exec_range *aa)
 
   // switch to directory for -execdir, or back to top if we have an -execdir
   // _and_ a normal -exec, or are at top of tree in -execdir
-  if (aa->dir && new->parent) fchdir(new->parent->data);
-  else if (TT.topdir != -1) fchdir(TT.topdir);
+  if (aa->dir && new->parent) rc = fchdir(new->parent->data);
+  else if (TT.topdir != -1) rc = fchdir(TT.topdir);
+  if (rc) {
+    perror_msg("%s", new->name);
+
+    return rc;
+  }
 
   // execdir: accumulated execs in this directory's children.
   newargs = xmalloc(sizeof(char *)*(aa->arglen+aa->namecount+1));

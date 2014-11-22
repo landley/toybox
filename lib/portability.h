@@ -4,18 +4,6 @@
 // in specific compiler, library, or OS versions, localize all that here
 // and in portability.c
 
-// The tendency of gcc to produce stupid warnings continues with
-// warn_unused_result, which warns about things like ignoring the return code
-// of nice(2) (which is completely useless since -1 is a legitimate return
-// value on success and even the man page tells you to use errno instead).
-
-// This makes it stop.
-
-// Except on Android, where fortify is mandatory.
-#if !defined(__ANDROID__)
-#undef _FORTIFY_SOURCE
-#endif
-
 // For musl
 #define _ALL_SOURCE
 

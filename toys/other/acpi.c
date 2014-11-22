@@ -38,7 +38,7 @@ int read_int_at(int dirfd, char *name)
   FILE *fil;
 
   if ((fd = openat(dirfd, name, O_RDONLY)) < 0) return -1;
-  fscanf(fil = xfdopen(fd, "r"), "%d", &ret);
+  if (!fscanf(fil = xfdopen(fd, "r"), "%d", &ret)) perror_exit("%s", name);
   fclose(fil);
 
   return ret;
