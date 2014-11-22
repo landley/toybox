@@ -111,10 +111,11 @@ int temp_callback(struct dirtree *tree)
 int cool_callback(struct dirtree *tree)
 {
   int dfd=5, cur, max;
+
   errno = 0;
   memset(toybuf, 0, sizeof(toybuf));
 
-  if (tree->name[0]=='.') return 0;
+  if (*tree->name == '.') return 0;
   if (!tree->parent) return DIRTREE_RECURSE|DIRTREE_SYMFOLLOW;
 
 
@@ -136,14 +137,11 @@ int cool_callback(struct dirtree *tree)
 
 void acpi_main(void)
 {
-  if (toys.optflags & FLAG_V)
-    toys.optflags = FLAG_a|FLAG_b|FLAG_c|FLAG_t;
+  if (toys.optflags & FLAG_V) toys.optflags = FLAG_a|FLAG_b|FLAG_c|FLAG_t;
   if (!toys.optflags) toys.optflags = FLAG_b;
   if (toys.optflags & (FLAG_a|FLAG_b))
     dirtree_read("/sys/class/power_supply", acpi_callback);
-  if (toys.optflags & FLAG_t)
-    dirtree_read("/sys/class", temp_callback);
-  if (toys.optflags & FLAG_c)
-    dirtree_read("/sys/class/thermal", cool_callback);
+  if (toys.optflags & FLAG_t) dirtree_read("/sys/class", temp_callback);
+  if (toys.optflags & FLAG_c) dirtree_read("/sys/class/thermal", cool_callback);
 
 }
