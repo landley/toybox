@@ -187,9 +187,6 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 #include <sys/swap.h>
 
 // Android is missing some headers and functions
-#if defined(__ANDROID__)
-int sethostname(const char *name, size_t len);
-#endif
 // "generated/config.h" is included first
 #if CFG_TOYBOX_SHADOW
 #include <shadow.h>

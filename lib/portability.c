@@ -5,11 +5,8 @@
  */
 
 #include "toys.h"
-#if defined(__ANDROID__)
-#include <sys/syscall.h>
-#endif
 
-#if defined(__APPLE__) || defined(__ANDROID__)
+#if defined(__APPLE__)
 ssize_t getdelim(char **linep, size_t *np, int delim, FILE *stream)
 {
   int ch;
@@ -62,16 +59,7 @@ ssize_t getline(char **linep, size_t *np, FILE *stream)
 {
   return getdelim(linep, np, '\n', stream);
 }
-#endif
 
-#if defined(__ANDROID__)
-int sethostname(const char *name, size_t len)
-{
-  return syscall(__NR_sethostname, name, len);
-}
-#endif
-
-#if defined(__APPLE__)
 extern char **environ;
 
 int clearenv(void)

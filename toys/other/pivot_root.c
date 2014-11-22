@@ -22,7 +22,8 @@ config PIVOT_ROOT
 #define FOR_pivot_root
 #include "toys.h"
 
-#include <linux/unistd.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 
 void pivot_root_main(void)
 {
