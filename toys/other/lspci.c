@@ -53,7 +53,7 @@ int do_lspci(struct dirtree *new)
   // it's ok for the driver link not to be there, whatever fortify says
   *driver = 0;
   if (toys.optflags & FLAG_k)
-    if (readlinkat(dirfd, "driver", driver, sizeof(driver)));
+    if (readlinkat(dirfd, "driver", driver, sizeof(driver))) {};
 
   for (fields = (char*[]){"class", "vendor", "device", 0}; *fields; fields++) {
     int fd, size = 6 + 2*((toys.optflags & FLAG_e) && p == toybuf);
