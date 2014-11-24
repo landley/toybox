@@ -203,7 +203,7 @@ when called under the name "bash".</p>
 
 <p>The <a href=http://landley.net/aboriginal>Aboriginal Linux</a>
 self-bootstrapping build still uses the following busybox commands,
-not yet supplied by toybox:</p.
+not yet supplied by toybox:</p>
 
 <blockquote><p>
 ash awk bunzip2 bzip2 dd diff expr fdisk ftpd ftpget ftpput gunzip
@@ -220,7 +220,9 @@ commands are vi, awk, and ash.</p>
 <p>Android has a policy against GPL in userspace, so even though BusyBox
 predates Android by many years, they couldn't use it. Instead they grabbed
 an old version of ash and implemented their own command line utility set
-called "toolbox".</p>
+called "toolbox". ash was later replaced by
+<a href="https://www.mirbsd.org/mksh.htm">mksh</a>; toolbox is being
+replaced by toybox.</p>
 
 <p>Toolbox doesn't have its own repository, instead it's part of Android's
 <a href=https://android.googlesource.com/platform/system/core>system/core
@@ -228,8 +230,8 @@ git repository</a> (this analysis looked at commit 51ccef27cab58).</p>
 
 <h3>Toolbox commands:</h3>
 
-<p>According to core/toolbox/Android.mk the toolbox directory builds the
-following commands:</p>
+<p>According to system/core/toolbox/Android.mk the toolbox directory builds
+the following commands:</p>
 
 <blockquote><b>
 ls mount cat ps kill ln insmod rmmod lsmod ifconfig setconsole
@@ -245,25 +247,11 @@ cp du grep watchdogd
 getenforce setenforce chcon restorecon runcon getsebool setsebool load_policy
 </b></blockquote>
 
-<p>The Android.mk file also refers to dynarray.c and toolbox.c as library
-code. This leaves the following apparently unused C files in toolbox/*.c, each
-of which has a command_main() function and seems to implement a standalone
-command:</p>
-
-<blockquote><b>
-alarm exists lsusb readtty rotatefb setkey syren
-</b></blockquote>
-
-<h3>Command shell (ash)</h3>
-
-<p>The core/sh subdirectory contains a fork of ash 1.17, and sucks in
-liblinenoise to provide command line history/editing.</p>
-
 <h3>Other Android core commands</h3>
 
-<p>Other than the toolbox and sh directories, the currently interesting
+<p>Other than the toolbox directory, the currently interesting
 subdirectories in the core repository are fs_mgr, gpttool, init,
-logcat, logwrapper, mkbootimg, netcfg, run-as, and sdcard.</p>
+logcat, logwrapper, mkbootimg, netcfg, reboot, and run-as.</p>
 
 <ul>
 <li><b>fs_mgr</b> - subset of mount</li>
@@ -273,8 +261,8 @@ logcat, logwrapper, mkbootimg, netcfg, run-as, and sdcard.</p>
 <li><b>logwrapper</b> - redirect stdio to android log</li>
 <li><b>mkbootimg</b> - create signed boot image</li>
 <li><b>netcfg</b> - network configuration (sucks in libnetutils)</li>
+<li><b>reboot</b> - Android's reboot(1)</li>
 <li><b>run-as</b> - subset of sudo</li>
-<li><b>sdcard</b> - FUSE wrapper to squash UID/GID/permissions to what FAT supports.</li>
 </ul>
 
 <p>Almost all of these reinvent an existing wheel with less functionality and a
@@ -285,8 +273,8 @@ and sudo) come first.</p>
 <p>Although logcat/logwrapper also reinvent a wheel, Android did so in the
 kernel and these provide an interface to that.</p>
 
-<p>Also, gpttool and mkbootimg are install tools, and sdcard looks like a
-testing tool. These aren't a priority if android wants to use its own
+<p>Also, gpttool and mkbootimg are install tools.
+These aren't a priority if android wants to use its own
 bespoke code to install itself.</p>
 
 <h3>Analysis</h3>
@@ -294,20 +282,20 @@ bespoke code to install itself.</p>
 <p>For reference, combining everything listed above, we get:</p>
 
 <blockquote><b>
-alarm ash cat chcon chmod chown cmp cp date dd df dmesg du exists fs_mgr
+cat chcon chmod chown cmp cp date dd df dmesg du fs_mgr
 getenforce
 getevent getprop getsebool gpttool grep hd id ifconfig iftop init insmod ioctl
-ionice kill ln load_policy log logcat logwrapper ls lsmod lsof lsusb md5
+ionice kill ln load_policy log logcat logwrapper ls lsmod lsof md5
 mkbootimg mkdir mount mv nandread netcfg netstat newfs_msdos notify printenv
-ps r readtty reboot renice restorecon rm rmdir rmmod rotatefb route run-as
-runcon schedtop sdcard sendevent setconsole setenforce setkey setprop setsebool
-sleep smd start stop sync syren top touch umount uptime vmstat watchdogd
+ps r reboot renice restorecon rm rmdir rmmod route run-as
+runcon schedtop sendevent setconsole setenforce setprop setsebool
+sleep smd start stop sync top touch umount uptime vmstat watchdogd
 watchprops wipe
 </b></blockquote>
 
 <p>We may eventually implement all of that, but for toybox 1.0 we need to
-focus a bit. For our first pass, let's ignore selinux, strip out the "unlisted"
-commands except lsusb, and grab just logcat and logwrapper from the "core"
+focus a bit. For our first pass, let's ignore selinux,
+and grab just logcat and logwrapper from the "core"
 commands (since the rest have some full/standard version providing that
 functionality, which we can implement a shim interface for later).</p>
 
