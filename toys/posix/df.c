@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/df.html
 
-USE_DF(NEWTOY(df, "Pkt*a", TOYFLAG_USR|TOYFLAG_SBIN))
+USE_DF(NEWTOY(df, "Pkt*a[-Pk]", TOYFLAG_USR|TOYFLAG_SBIN))
 
 config DF
   bool "df"
@@ -16,17 +16,9 @@ config DF
     each filesystem listed on the command line, or all currently mounted
     filesystems.
 
-    -t type	Display only filesystems of this type.
-
-config DF_PEDANTIC
-  bool "options -P and -k"
-  default y
-  depends on DF
-  help
-    usage: df [-Pk]
-
     -P	The SUSv3 "Pedantic" option
     -k	Sets units back to 1024 bytes (the default without -P)
+    -t type	Display only filesystems of this type.
 
     Pedantic provides a slightly less useful output format dictated by Posix,
     and sets the units to 512 bytes instead of the default 1024 bytes.
@@ -68,8 +60,7 @@ static void show_mt(struct mtab_list *mt)
   block = mt->statvfs.f_bsize ? mt->statvfs.f_bsize : 1;
   size = (block * mt->statvfs.f_blocks) / TT.units;
   used = (block * (mt->statvfs.f_blocks-mt->statvfs.f_bfree)) / TT.units;
-  avail = (block * (getuid() ? mt->statvfs.f_bavail : mt->statvfs.f_bfree))
-      / TT.units;
+  avail = (block*(getuid()?mt->statvfs.f_bavail:mt->statvfs.f_bfree))/TT.units;
   if (!(used+avail)) percent = 0;
   else {
     percent = (used*100)/(used+avail);
@@ -82,13 +73,8 @@ static void show_mt(struct mtab_list *mt)
   // Figure out appropriate spacing
   len = 25 - strlen(device);
   if (len < 1) len = 1;
-  if (CFG_DF_PEDANTIC && (toys.optflags & FLAG_P)) {
-    xprintf("%s %lld %lld %lld %lld%% %s\n", device, size, used, avail,
-      percent, mt->dir);
-  } else {
-    xprintf("%s% *lld % 10lld % 9lld % 3lld%% %s\n", device, len,
-      size, used, avail, percent, mt->dir);
-  }
+  xprintf("%s% *lld % 10lld % 10lld % *lld%% %s\n", device, len,
+    size, used, avail, (toys.optflags & FLAG_P) ? 7 : 3, percent, mt->dir);
 
   if (device != mt->device) free(device);
 }
@@ -96,15 +82,12 @@ static void show_mt(struct mtab_list *mt)
 void df_main(void)
 {
   struct mtab_list *mt, *mtstart, *mtend;
+  int p = toys.optflags & FLAG_P;
 
-  // Handle -P and -k
-  TT.units = 1024;
-  if (CFG_DF_PEDANTIC && (toys.optflags & FLAG_P)) {
-    // Units are 512 bytes if you select "pedantic" without "kilobytes".
-    if ((toys.optflags&(FLAG_P|FLAG_k)) == FLAG_P) TT.units = 512;
-    printf("Filesystem %ld-blocks Used Available Capacity Mounted on\n",
-      TT.units);
-  } else puts("Filesystem\t1K-blocks\tUsed Available Use% Mounted on");
+  // Units are 512 bytes if you select "pedantic" without "kilobytes".
+  TT.units = p ? 512 : 1024;
+  xprintf("Filesystem% 8s-blocks\tUsed  Available %s Mounted on\n",
+    p ? "512" : "1K", p ? "Capacity" : "Use%");
 
   if (!(mtstart = xgetmountlist(0))) return;
   mtend = dlist_terminate(mtstart);
@@ -118,14 +101,16 @@ void df_main(void)
 
       // Stat it (complain if we can't).
       if(stat(*next, &st)) {
-        perror_msg("`%s'", *next);
+        perror_msg("'%s'", *next);
         continue;
       }
 
       // Find and display this filesystem.  Use _last_ hit in case of
       // overmounts (which is first hit in the reversed list).
       for (mt = mtend; mt; mt = mt->prev) {
-        if (st.st_dev == mt->stat.st_dev) {
+        if (st.st_dev == mt->stat.st_dev
+            || (st.st_rdev && (st.st_rdev == mt->stat.st_dev)))
+        {
           show_mt(mt);
           break;
         }
@@ -143,7 +128,7 @@ void df_main(void)
       mt3 = mt;
       for (mt2 = mt->prev; mt2; mt2 = mt2->prev) {
         if (mt->stat.st_dev == mt2->stat.st_dev) {
-          // For --bind mounts, take show earliest mount
+          // For --bind mounts, show earliest mount
           if (!strcmp(mt->device, mt2->device)) {
             if (!toys.optflags & FLAG_a) mt3->stat.st_dev = 0;
             mt3 = mt2;
