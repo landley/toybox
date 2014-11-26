@@ -4,19 +4,21 @@
  *
  * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/dmesg.html
 
-USE_DMESG(NEWTOY(dmesg, "s#n#c", TOYFLAG_BIN))
+// We care that FLAG_c is 1, so keep c at the end.
+USE_DMESG(NEWTOY(dmesg, "rs#<1n#c", TOYFLAG_BIN))
 
 config DMESG
   bool "dmesg"
   default y
   help
-    usage: dmesg [-n level] [-s bufsize] | -c
+    usage: dmesg [-n LEVEL] [-s SIZE] | -c
 
     Print or control the kernel ring buffer.
 
-    -n	Set kernel logging level (1-9).
-    -s	Size of buffer to read (in bytes), default 16384.
-    -c	Clear the ring buffer after printing.
+    -c	Clear the ring buffer after printing
+    -n	Set kernel logging LEVEL (1-9)
+    -r	Raw output (with <level markers>)
+    -s	Show the last SIZE many bytes
 */
 
 #define FOR_dmesg
@@ -31,25 +33,36 @@ GLOBALS(
 void dmesg_main(void)
 {
   // For -n just tell kernel to which messages to keep.
-  if (toys.optflags & 2) {
-    if (klogctl(8, NULL, TT.level)) error_exit("klogctl");
+  if (toys.optflags & FLAG_n) {
+    if (klogctl(8, NULL, TT.level)) perror_exit("klogctl");
   } else {
-    int size, i, last = '\n';
-    char *data;
+    char *data, *to, *from;
+    int size;
 
     // Figure out how much data we need, and fetch it.
     size = TT.size;
-    if (size<2) size = 16384;
-    data = xmalloc(size);
-    size = klogctl(3 + (toys.optflags&1), data, size);
+    if (!size && 1>(size = klogctl(10, 0, 0))) perror_exit("klogctl");;
+    data = to = from = xmalloc(size+1);
+    size = klogctl(3 + (toys.optflags & FLAG_c), data, size);
     if (size < 0) error_exit("klogctl");
+    data[size] = 0;
 
-    // Display data, filtering out level markers.
-    for (i=0; i<size; ) {
-      if (last=='\n' && data[i]=='<') i += 3;
-      else xputc(last = data[i++]);
+    // Filter out level markers.
+    if (!(toys.optflags & FLAG_r)) while ((from - data) < size) {
+      if ((from == data || from[-1] == '\n') && *from == '<') {
+        int i = stridx(from, '>');
+
+        if (i>0) from += i+1;
+      }
+      *(to++) = *(from++);
+    } else to = data+size;
+
+    // Write result. The odds of somebody requesting a buffer of size 3 and
+    // getting "<1>" are remote, but don't segfault if they do.
+    if (to != data) {
+      xwrite(1, data, to-data);
+      if (to[-1] != '\n') xputc('\n');
     }
-    if (last!='\n') xputc('\n');
     if (CFG_TOYBOX_FREE) free(data);
   }
 }
