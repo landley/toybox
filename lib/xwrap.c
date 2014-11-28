@@ -587,13 +587,12 @@ void xpidfile(char *name)
 void xsendfile(int in, int out)
 {
   long len;
-  char buf[4096];
 
   if (in<0) return;
   for (;;) {
-    len = xread(in, buf, 4096);
+    len = xread(in, libbuf, sizeof(libbuf));
     if (len<1) break;
-    xwrite(out, buf, len);
+    xwrite(out, libbuf, len);
   }
 }
 
