@@ -230,6 +230,7 @@ else
 fi
 PENDING=
 LFILES=
+DONE=0
 for i in $FILES
 do
   # build each generated/obj/*.o file in parallel
@@ -248,17 +249,22 @@ do
     PENDING="$(echo $PENDING $(jobs -rp) | tr ' ' '\n' | sort -u)"
     [ $(echo -n "$PENDING" | wc -l) -lt "$CPUS" ] && break;
 
-    wait $(echo "$PENDING" | head -n 1) || exit 1
+    wait $(echo "$PENDING" | head -n 1)
+    DONE=$(($DONE+$?))
     PENDING="$(echo "$PENDING" | tail -n +2)"
   done
+  [ $DONE -ne 0 ] && break
 done
 
 # wait for all background jobs, detecting errors
 
 for i in $PENDING
 do
-  wait $i || exit 1
+  wait $i
+  DONE=$(($DONE+$?))
 done
+
+[ $DONE -ne 0 ] && exit 1
 
 do_loudly $BUILD $LFILES $LINK || exit 1
 do_loudly ${CROSS_COMPILE}${STRIP} toybox_unstripped -o toybox || exit 1
