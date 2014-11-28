@@ -8,6 +8,85 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+<hr><b>November 19, 2014</b>
+
+<blockquote><p>"This time it was right, it would work, and no one would have to get nailed to anything." - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+
+<p><a href=downloads/toybox-0.5.1.tar.bz2>Toybox 0.5.1</a>
+(<a href=/hg/toybox/shortlog/1566>commit 1566</a>) is out.</p>
+
+<p>It's an interim release, mostly bugfixes. There are several new commands,
+but they're all in pending.</p>
+
+<h3>Development</h3>
+
+<p>Finally implemented sed, which is still in pending because although
+it's feature complete according to posix, and even passes the parts of
+Busybox's sed test suite that aren't explicitly testing for gnu bugs we
+don't want to copy, it's not yet good enough to build Linux From Scratch.
+(The ./configure stages use very long sed scripts. 20 commits worth of
+implementation and debugging, just under 1000 lines of code, and there's
+still more to do. We're definitely up to some of the "fiddly" commands now.
+Did you know "echo hello | sed p - -" segfaults gnu sed in Ubuntu 12.04?
+Yeah...)</p>
+
+<p>Talked with the Tizen developers to follow up on their desire to
+make toybox a part of the base Tizen system, and got a list of commands
+to add to the roadmap. The tizen todo list is:</p>
+
+<blockquote><p>
+wget, sha256*, gzip, gunzip, bunzip2, rsync, zdiff*,
+less, ar, arch, base64, csplit, dir, fmt, join, 
+nproc, shred, shuf, stdbuf, stty, test, tr, unexpand,
+users, vdir, diff3, sdiff, dosfsck (fsck.vfat), awk, fdisk
+</p></blockquote>
+
+<p>(Most of which was already on the todo list, but it helps prioritize.)</p>
+
+<p>Fixed md5sum and sha1sum on big endian systems (reported by James McMechan).
+Andy Lutomirski fixed unshare's help text and option parsing,
+and submitted nsenter (a tool to use setns(2)) to pending.
+Isaac Dunham implemented acpi -ctV options, and spotted the bug that ls -d
+was inappropraitely following command line symlinks without -H or -L (it
+should act like ls -l does), and ls -F handles symlinks wrong too.
+Lukasz Szpakowski sent in two bugfixes to tail.c. Cynt Rynt spotted an
+unnecessary assignment in lib/password.c.</p>
+
+<p>Ashwini Sharma's team was as busy as usual, submitting tr, crontab, and
+ipcrm, and hwclock to pending, more features to the pending ip.c, and a
+pile of bugfixes (to chgrp, killall, ifconfig, insmod,
+losetup, comm, cp, id, xwrap, netcat, modprobe, nohup...) mostly found by
+static analysis. (These fixes are mostly to seldom-used codepaths like the
+TOYBOX_FREE config option, but test coverage is always appreciated.) Ashwini
+also suggested upgrading ln -f to leave the original target alone if link
+creation fails, and reported that mv -f and -i weren't implemented (now fixed).</p>
+
+<p>New config option: TOYBOX_NORECURSE prevents xexec() from making internal
+function calls (for nommu systems with a finite stack).</p>
+
+<p>The "toybox" multiplexer command no longer adds a trailing space to each
+line of command names, so things like "./toybox | tr ' \n' '|'" to create
+a grep pattern snippet are easier to do. (Why you'd want to is your business,
+but the output is tidier now.)</p>
+
+<h3>Infrastructure</h3>
+
+<p>Isaac Dunham added Android support to portability.h, including compile
+probes for functions missing from bionic-libc, and annotated the commands that
+use those functions. We haven't really tested building against bionic,
+but in theory it's possible now.</p>
+
+<p>Running the test suite now color codes the PASS/SKIP/FAIL notifications
+if output is to a tty. (And in case you missed it last time, VERBOSE=fail
+to stop at the first failure is really useful.)</p>
+
+<p>In loopfiles_rw() use O_CLOEXEC instead of O_RDONLY to request the loop
+function close filehandles for us. (Otherwise the callback function must
+close each supplied filehandle itself.)</p>
+
+<p>The printf-style escape parsing ("\n" and friends) got factored out into
+a new unescape() function.</p>
+
 <hr><b>October 2, 2014</b>
 <blockquote><p>"There is an art, it says, or rather, a knack to flying.
 The knack lies in learning how to throw yourself at the ground and miss...
