@@ -54,7 +54,7 @@ change: generated/instlist
 	done
 
 clean::
-	rm -rf toybox toybox_unstripped generated .singleconfig*
+	rm -rf toybox toybox_unstripped generated change .singleconfig*
 
 distclean: clean
 	rm -f toybox_old .config*
