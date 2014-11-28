@@ -345,7 +345,7 @@ static void walk_pattern(char **pline, long plen)
         continue;
       }
       // Deferred disable from regex end match
-      if (miss) logrus->hit = 0;
+      if (miss || logrus->lmatch[1] == TT.count) logrus->hit = 0;
     }
 
     // A deleted line can still update line match state for later commands
@@ -377,20 +377,29 @@ static void walk_pattern(char **pline, long plen)
       str = logrus->arg1+(char *)logrus;
       if (!logrus->hit || (!logrus->lmatch[1] && !logrus->rmatch[1]))
         emit(str, strlen(str), 1);
-      goto done;
+      free(line);
+      line = 0;
+      continue;
     } else if (c=='d') {
       free(line);
       line = 0;
       continue;
     } else if (c=='D') {
       // Delete up to \n or end of buffer
-      for (str = line; !*str || *str=='\n'; str++);
+      str = line;
+      while ((str-line)<len) if (*(str++) == '\n') break;
       len -= str - line;
       memmove(line, str, len);
-      line[len] = 0;
 
-      // restart script
-      logrus = (void *)TT.pattern;
+      // if "delete" blanks line, disable further processing
+      // otherwise trim and restart script
+      if (!len) {
+        free(line);
+        line = 0;
+      } else {
+        line[len] = 0;
+        logrus = (void *)TT.pattern;
+      }
       continue;
     } else if (c=='g') {
       free(line);
