@@ -95,7 +95,7 @@ testing()
     then
       [ ! -z "$4" ] && echo "echo -ne \"$4\" > input"
       echo "echo -ne '$5' | $2"
-      diff -u expected actual
+      diff -au expected actual
       [ "$VERBOSE" == fail ] && exit 1
     fi
   else
