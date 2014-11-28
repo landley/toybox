@@ -17,7 +17,6 @@ config MORE
 
 #define FOR_more
 #include "toys.h"
-#include <signal.h>
 
 GLOBALS(
   struct termios inf;
@@ -52,7 +51,6 @@ void more_main()
 
   if (!isatty(STDOUT_FILENO) || !(cin = fopen("/dev/tty", "r"))) {
     loopfiles(toys.optargs, do_cat_operation);
-    toys.exitval = 0;
     return;
   }
 
@@ -89,7 +87,7 @@ void more_main()
         if (st.st_size) 
           more_msg_len += printf("(%d%% of %lld bytes)",
               (int) (100 * ( (double) ftell(fp) / (double) st.st_size)), 
-              st.st_size);
+              (long long)st.st_size);
         fflush(NULL);
 
         while (1) {
@@ -117,5 +115,6 @@ void more_main()
 stop:
   tcsetattr(TT.cin_fd, TCSANOW, &TT.inf);
   fclose(cin);
+  // Even if optarg not found, exit value still 0
   toys.exitval = 0;
 }
