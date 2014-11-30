@@ -111,7 +111,23 @@ struct op {
 
 static void re(struct value *lhs, const struct value *rhs)
 {
-  error_exit("regular expression match not implemented");
+  regex_t rp;
+  regmatch_t rm[2];
+
+  xregcomp(&rp, rhs->s, 0);
+  if (!regexec(&rp, lhs->s, 2, rm, 0) && rm[0].rm_so == 0) {
+    if (rp.re_nsub > 0 && rm[1].rm_so >= 0) 
+      lhs->s = xmprintf("%.*s", rm[1].rm_eo - rm[1].rm_so, lhs->s+rm[1].rm_so);
+    else {
+      lhs->i = rm[0].rm_eo;
+      lhs->s = 0;
+    }
+  } else {
+    if (!rp.re_nsub) {
+      lhs->i = 0;
+      lhs->s = 0;
+    } else lhs->s = "";
+  }
 }
 
 static void mod(struct value *lhs, const struct value *rhs)
@@ -203,6 +219,7 @@ static const struct op ops[] = {
   {"|",   or  },
   {"&",   and },
   {"=",   eq  },
+  {"==",  eq  },
   {">",   gt  },
   {">=",  gte },
   {"<",   lt  },
