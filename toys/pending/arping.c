@@ -116,18 +116,18 @@ static void send_packet()
 
   ptr = mempcpy(ptr, &src_pk.sll_addr, src_pk.sll_halen);
   ptr = mempcpy(ptr, &src_addr, 4);
-  if (toys.optflags & FLAG_A) 
-    ptr = mempcpy(ptr, &src_pk.sll_addr, src_pk.sll_halen);
-  else ptr = mempcpy(ptr, &dst_pk.sll_addr, src_pk.sll_halen);
-
+  ptr = mempcpy(ptr,
+                (toys.optflags & FLAG_A) ? &src_pk.sll_addr : &dst_pk.sll_addr,
+                src_pk.sll_halen);
   ptr = mempcpy(ptr, &dest_addr, 4);
+
   ret = sendto(TT.sockfd, sbuf, ptr - sbuf, 0, 
       (struct sockaddr *)&dst_pk, sizeof(dst_pk));
   if (ret == ptr - sbuf) {
     struct timeval tval;
 
     gettimeofday(&tval, NULL);
-    TT.sent_at = (tval.tv_sec * 1000000ULL + (tval.tv_usec));
+    TT.sent_at = tval.tv_sec * 1000000ULL + tval.tv_usec;
     TT.sent_nr++;
     if (!TT.unicast_flag) TT.brd_sent++;
   }
