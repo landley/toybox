@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
 
-USE_MOUNTPOINT(NEWTOY(mountpoint, "<1qdx", TOYFLAG_BIN))
+USE_MOUNTPOINT(NEWTOY(mountpoint, "<1qdx[-dx]", TOYFLAG_BIN))
 
 config MOUNTPOINT
   bool "mountpoint"
@@ -22,33 +22,40 @@ config MOUNTPOINT
 void mountpoint_main(void)
 {
   struct stat st1, st2;
-  int res = 0;
+  char *arg = *toys.optargs;
   int quiet = toys.optflags & FLAG_q;
-  toys.exitval = 1; // be pessimistic
-  strncpy(toybuf, toys.optargs[0], sizeof(toybuf));
-  if (((toys.optflags & FLAG_x) && lstat(toybuf, &st1)) || stat(toybuf, &st1))
-    perror_exit("%s", toybuf);
 
-  if (toys.optflags & FLAG_x){
+  toys.exitval = 1;
+  if (((toys.optflags & FLAG_x) ? lstat : stat)(arg, &st1))
+    perror_exit("%s", arg);
+
+  if (toys.optflags & FLAG_x) {
     if (S_ISBLK(st1.st_mode)) {
       if (!quiet) printf("%u:%u\n", major(st1.st_rdev), minor(st1.st_rdev));
       toys.exitval = 0;
       return;
     }
-    if (!quiet) printf("%s: not a block device\n", toybuf);
+    if (!quiet) printf("%s: not a block device\n", arg);
     return;
   }
 
-  if(!S_ISDIR(st1.st_mode)){
-    if (!quiet) printf("%s: not a directory\n", toybuf);
+  // Ignore the fact a file can be a mountpoint for --bind mounts.
+  if (!S_ISDIR(st1.st_mode)) {
+    if (!quiet) printf("%s: not a directory\n", arg);
     return;
   }
-  strncat(toybuf, "/..", sizeof(toybuf));
-  stat(toybuf, &st2);
-  res = (st1.st_dev != st2.st_dev) ||
-    (st1.st_dev == st2.st_dev && st1.st_ino == st2.st_ino);
-  if (!quiet) printf("%s is %sa mountpoint\n", toys.optargs[0], res ? "" : "not ");
+
+  arg = xmprintf("%s/..", arg);
+  xstat(arg, &st2);
+  if (CFG_TOYBOX_FREE) free(arg);
+
+  // If the device is different, it's a mount point. If the device _and_
+  // inode are the same, it's probably "/". This misses --bind mounts from
+  // elsewhere in the same filesystem, but so does the other one and in the
+  // absence of a spec I guess that's the expected behavior?
+  toys.exitval = !(st1.st_dev != st2.st_dev || st1.st_ino == st2.st_ino);
   if (toys.optflags & FLAG_d)
     printf("%u:%u\n", major(st1.st_dev), minor(st1.st_dev));
-  toys.exitval = res ? 0 : 1;
+  else if (!quiet)
+    printf("%s is %sa mountpoint\n", *toys.optargs, toys.exitval ? "not " : "");
 }
