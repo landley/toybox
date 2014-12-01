@@ -18,6 +18,9 @@ ln -s ../du_2 du_test/xyz
 # allocated file space is zero.
 testing "du counts symlinks without following" "du -ks du_test" "8\tdu_test\n" "" ""
 testing "du -L follows symlinks" "du -ksL du_test" "16\tdu_test\n" "" ""
+ln -s . du_test/up
+testing "du -L avoid endless loop" "du -ksL du_test" "16\tdu_test\n" "" ""
+rm du_test/up
 # if -H and -L are specified, the last takes priority
 testing "du -HL follows symlinks" "du -ksHL du_test" "16\tdu_test\n" "" ""
 testing "du -H does not follow unspecified symlinks" "du -ksH du_test" "8\tdu_test\n" "" ""

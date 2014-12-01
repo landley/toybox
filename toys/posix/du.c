@@ -110,6 +110,15 @@ static int do_du(struct dirtree *node)
   if ((toys.optflags & FLAG_x) && (TT.st_dev != node->st.st_dev))
     return 0;
 
+  // Don't loop endlessly on recursive directory symlink
+  if (toys.optflags & FLAG_L) {
+    struct dirtree *try = node;
+
+    while ((try = try->parent))
+      if (node->st.st_dev==try->st.st_dev && node->st.st_ino==try->st.st_ino)
+        return 0;
+  }
+
   // Don't count hard links twice
   if (!(toys.optflags & FLAG_l) && !node->again)
     if (seen_inode(&TT.inodes, &node->st)) return 0;
