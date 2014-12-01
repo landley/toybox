@@ -17,3 +17,5 @@ testing "expr % * same priority" "expr 3 % 2 \* 4" "4\n" "" ""
 testing "expr * % same priority" "expr 3 \* 2 % 4" "2\n" "" ""
 testing "expr = > same priority" "expr 0 = 2 \> 3" "0\n" "" ""
 testing "expr > = same priority" "expr 3 \> 2 = 1" "1\n" "" ""
+testing "expr string becomes integer" "expr ab21xx : '[^0-9]*\([0-9]*\)' + 3" \
+	"24\n" "" ""
