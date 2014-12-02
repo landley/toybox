@@ -867,7 +867,7 @@ static int write_leasefile(void)
   struct arg_list *listdls = gstate.dleases;
   dyn_lease *dls;
 
-  if ((fd = open(gconfig.lease_file, O_WRONLY | O_CREAT | O_TRUNC)) < 0) {
+  if ((fd = open(gconfig.lease_file, O_WRONLY | O_CREAT | O_TRUNC, 0600)) < 0) {
     perror_msg("can't open %s ", gconfig.lease_file);
     return fd;
   }
