@@ -5,7 +5,8 @@
  * The inflate/deflate code lives here, so the various things that use it
  * either live here or call these commands to pipe data through them.
  *
- * Divergence from posix: replace obsolete "compress" with mutiplexer.
+ * Divergence from posix: replace obsolete/patented "compress" with mutiplexer.
+ * (gzip already replaces "uncompress".)
  *
  * See RFCs 1950 (zlib), 1951 (deflate), and 1952 (gzip)
  * LSB 4.1 has gzip, gunzip, and zcat
@@ -14,8 +15,10 @@
 // Accept many different kinds of command line argument.
 // Leave Lrg at end so flag values line up.
 
-USE_COMPRESS(NEWTOY(compress, "zcd9Lrg[-cd][!zgLr]", TOYFLAG_USR|TOYFLAG_BIN))
-USE_COMPRESS(NEWTOY(zcat, "aLrg[!aLrg]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_COMPRESS(NEWTOY(compress, "zcd9lrg[-cd][!zgLr]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_GZIP(NEWTOY(gzip, USE_GZIP_D("d")"19dcflqStvgLRz[!gLRz]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_ZCAT(NEWTOY(zcat, 0, TOYFLAG_USR|TOYFLAG_BIN))
+USE_GUNZIP(NEWTOY(gunzip, "cflqStv", TOYFLAG_USR|TOYFLAG_BIN))
 
 //zip unzip gzip gunzip zcat
 
@@ -23,38 +26,114 @@ config COMPRESS
   bool "compress"
   default n
   help
+    usage: compress [-zgLR19] [FILE]
+
+    Compress or decompress file (or stdin) using "deflate" algorithm.
+
+    -1	min compression
+    -9	max compression (default)
+    -g	gzip (default)
+    -L	zlib
+    -R	raw
+    -z	zip
+
+config GZIP
+  bool "gzip"
+  default y
+  depends on COMPRESS
+  help
+    usage: gzip [-19cfqStvzgLR] [FILE...]
+
+    Compess (deflate) file(s). With no files, compress stdin to stdout.
+
+    On successful decompression, compressed files are replaced with the
+    uncompressed version. The input file is removed and replaced with
+    a new file without the .gz extension (with same ownership/permissions).
+
+    -1	Minimal compression (fastest)
+    -9	Max compression (default)
+    -c	cat to stdout (act as zcat)
+    -f	force (if output file exists, input is tty, unrecognized extension)
+    -q	quiet (no warnings)
+    -S	specify exension (default .*)
+    -t	test compressed file(s)
+    -v	verbose (like -l, but compress files)
+
+    Compression type:
+    -g gzip (default)    -L zlib    -R raw    -z zip
+
+config GZIP_D
+  bool
+  default y
+  depends on GZIP && DECOMPRESS
+  help
+    usage: gzip [-d]
+
+    -d	decompress (act as gunzip)
+
+config DECOMPRESS
+  bool "decompress"
+  default n
+  help
     usage: compress [-zglrcd9] [FILE]
 
     Compress or decompress file (or stdin) using "deflate" algorithm.
 
-    -c	compress with -g gzip (default)  -L zlib  -r raw  -z zip
+    -c	compress with -g gzip (default)  -l zlib  -r raw  -z zip
     -d	decompress (autodetects type)
+
 
 config ZCAT
   bool "zcat"
-  default n
-  depends on COMPRESS
+  default y
+  depends on DECOMPRESS
   help
     usage: zcat [FILE...]
 
     Decompress deflated file(s) to stdout
+
+config GUNZIP
+  bool "gunzip"
+  default y
+  depends on DECOMPRESS
+  help
+    usage: gunzip [-cflqStv] [FILE...]
+
+    Decompess (deflate) file(s). With no files, compress stdin to stdout.
+
+    On successful decompression, compressed files are replaced with the
+    uncompressed version. The input file is removed and replaced with
+    a new file without the .gz extension (with same ownership/permissions).
+
+    -c	cat to stdout (act as zcat)
+    -f	force (output file exists, input is tty, unrecognized extension)
+    -l	list compressed/uncompressed/ratio/name for each input file.
+    -q	quiet (no warnings)
+    -S	specify exension (default .*)
+    -t	test compressed file(s)
+    -v	verbose (like -l, but decompress files)
 */
 
 #define FOR_compress
 #include "toys.h"
 
 GLOBALS(
-  // base offset and extra bits tables (length and distance)
+  // Huffman codes: base offset and extra bits tables (length and distance)
   char lenbits[29], distbits[30];
   unsigned short lenbase[29], distbase[30];
   void *fixdisthuff, *fixlithuff;
 
+  // CRC
   void (*crcfunc)(char *data, int len);
-  unsigned crc, len;
+  unsigned crc;
 
-  char *outbuf;
-  unsigned outlen;
-  int outfd;
+  // Compressed data buffer
+  char *data;
+  unsigned pos, len;
+  int fd;
+
+  // Tables only used for deflation
+  unsigned short *head, *chain;
 )
 
 // little endian bit buffer
@@ -125,12 +204,12 @@ unsigned bitbuf_get(struct bitbuf *bb, int bits)
   return result;
 }
 
-static void outbuf_crc(char sym)
+static void data_crc(char sym)
 {
-  TT.outbuf[TT.outlen++ & 32767] = sym;
+  TT.data[TT.pos++ & 32767] = sym;
 
-  if (!(TT.outlen & 32767)) {
-    xwrite(TT.outfd, TT.outbuf, 32768);
+  if (!(TT.pos & 32767)) {
+    xwrite(TT.fd, TT.data, 32768);
     if (TT.crcfunc) TT.crcfunc(0, 32768);
   }
 }
@@ -146,7 +225,7 @@ struct huff {
 
 // Create simple huffman tree from array of bit lengths.
 
-// The symbols in deflate's huffman trees are sorted (first by bit length
+// The symbols in the huffman trees are sorted (first by bit length
 // of the code to reach them, then by symbol number). This means that given
 // the bit length of each symbol, we can construct a unique tree.
 static void len2huff(struct huff *huff, char bitlen[], int len)
@@ -185,7 +264,36 @@ static unsigned huff_and_puff(struct bitbuf *bb, struct huff *huff)
   return huff->symbol[start + offset];
 }
 
-// Decompress deflated data from bitbuf to filehandle.
+// Deflate from TT.fd to bitbuf
+// For deflate, TT.len = input read, TT.pos = input consumed
+static void deflate(struct bitbuf *bb)
+{
+  char *data = TT.data;
+  int len, end = 0;
+
+  TT.crc = ~0;
+
+  while (!end) {
+    // Read next half-window of data if we haven't hit EOF yet.
+    len = readall(TT.fd, data + (TT.len & 32768), 32768);
+fprintf(stderr, "read %d@%d\n", len, TT.pos);
+    if (len < 0) perror_exit("read"); // todo: add filename
+    if (len != 32768) end++;
+    TT.len += len;
+
+    // repeat until spanked
+    while (TT.pos != TT.len) {
+      unsigned pos = TT.pos & 65535;
+
+      if (!(pos & 32767) && !end) break;
+
+      TT.pos++;
+    }
+  }
+fprintf(stderr, "total %d\n", TT.pos);
+}
+
+// Decompress deflated data from bitbuf to TT.fd.
 static void inflate(struct bitbuf *bb)
 {
   TT.crc = ~0;
@@ -216,7 +324,7 @@ static void inflate(struct bitbuf *bb)
         // dump bytes until done or end of current bitbuf contents
         if (bblen > len) bblen = len;
         pos = bblen;
-        while (pos--) outbuf_crc(*(p++));
+        while (pos--) data_crc(*(p++));
         bitbuf_skip(bb, bblen << 3);
         len -= bblen;
       }
@@ -276,7 +384,7 @@ static void inflate(struct bitbuf *bb)
         int sym = huff_and_puff(bb, lithuff);
 
         // Literal?
-        if (sym < 256) outbuf_crc(sym);
+        if (sym < 256) data_crc(sym);
 
         // Copy range?
         else if (sym > 256) {
@@ -286,9 +394,9 @@ static void inflate(struct bitbuf *bb)
           len = TT.lenbase[sym] + bitbuf_get(bb, TT.lenbits[sym]);
           sym = huff_and_puff(bb, disthuff);
           dist = TT.distbase[sym] + bitbuf_get(bb, TT.distbits[sym]);
-          sym = TT.outlen & 32767;
+          sym = TT.pos & 32767;
 
-          while (len--) outbuf_crc(TT.outbuf[(TT.outlen-dist) & 32767]);
+          while (len--) data_crc(TT.data[(TT.pos-dist) & 32767]);
 
         // End of block
         } else break;
@@ -299,18 +407,25 @@ static void inflate(struct bitbuf *bb)
     if (final) break;
   }
 
-  if (TT.outlen & 32767) {
-    xwrite(TT.outfd, TT.outbuf, TT.outlen & 32767);
-    if (TT.crcfunc) TT.crcfunc(0, TT.outlen & 32767);
+  if (TT.pos & 32767) {
+    xwrite(TT.fd, TT.data, TT.pos & 32767);
+    if (TT.crcfunc) TT.crcfunc(0, TT.pos & 32767);
   }
 }
 
-static void init_deflate(void)
+// Allocate memory for deflate/inflate.
+static void init_deflate(int compress)
 {
   int i, n = 1;
 
+// only supporting HASH_SIZE = 1 << 15, I.E. size = 32768
+
   // Ye olde deflate window
-  TT.outbuf = xmalloc(32768);
+  TT.data = xmalloc(32768*(compress+1));
+  if (compress) {
+    TT.head = (unsigned short *)(TT.data+65536);
+    TT.chain = TT.head + 0;
+  }
 
   // Calculate lenbits, lenbase, distbits, distbase
   *TT.lenbase = 3;
@@ -365,9 +480,25 @@ void gzip_crc(char *data, int len)
   unsigned crc, *crc_table = (unsigned *)(toybuf+sizeof(toybuf)-1024);
 
   crc = TT.crc;
-  for (i=0; i<len; i++) crc = crc_table[(crc^TT.outbuf[i])&0xff] ^ (crc>>8);
+  for (i=0; i<len; i++) crc = crc_table[(crc^TT.data[i])&0xff] ^ (crc>>8);
   TT.crc = crc;
   TT.len += len;
+}
+
+static void do_compress(int fd, char *name)
+{
+  struct bitbuf *bb = bitbuf_init(1, sizeof(toybuf));
+
+  // Header from RFC 1952 section 2.2:
+  // 2 ID bytes (1F, 8b), gzip method byte (8=deflate), FLAG byte (none),
+  // 4 byte MTIME (zeroed), Extra Flags (2=maximum compression),
+  // Operating System (FF=unknown)
+ 
+  xwrite(1, "\x1f\x8b\x08\0\0\0\0\0\x02\xff", 10);
+
+  deflate(bb);
+
+  free(bb);
 }
 
 static void do_zcat(int fd, char *name)
@@ -375,7 +506,7 @@ static void do_zcat(int fd, char *name)
   struct bitbuf *bb = bitbuf_init(fd, sizeof(toybuf));
 
   if (!is_gzip(bb)) error_exit("not gzip");
-  TT.outfd = 1;
+  TT.fd = 1;
 
   // Use last 1k of toybuf for little endian crc table
   crc_init((unsigned *)(toybuf+sizeof(toybuf)-1024), 1);
@@ -395,7 +526,8 @@ static void do_zcat(int fd, char *name)
 
 void compress_main(void)
 {
-  zcat_main();
+  // todo: this
+  printf("hello world");
 }
 
 //#define CLEANUP_compress
@@ -404,7 +536,28 @@ void compress_main(void)
 
 void zcat_main(void)
 {
-  init_deflate();
+  init_deflate(0);
 
   loopfiles(toys.optargs, do_zcat);
+}
+
+void gunzip_main(void)
+{
+  init_deflate(0);
+
+  loopfiles(toys.optargs, do_zcat);
+}
+
+void do_deflate(int fd, char *name)
+{
+  struct bitbuf *bb = bitbuf_init(1, sizeof(toybuf));
+
+  deflate(bb);
+}
+
+void gzip_main(void)
+{
+  init_deflate(1);
+
+  loopfiles(toys.optargs, do_compress);
 }
