@@ -7,7 +7,7 @@
  * no mtab (/proc/mounts does it) so -n is NOP.
 
 USE_MOUNT(NEWTOY(mount, "?O:afnrvwt:o*[-rw]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
-USE_NFSMOUNT(NEWTOY(nfsmount, "?<2>2", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
+//USE_NFSMOUNT(NEWTOY(nfsmount, "?<2>2", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
 
 config MOUNT
   bool "mount"
@@ -34,13 +34,13 @@ config MOUNT
     to say --bind or --loop. You can also "mount -a /path" to mount everything
     in /etc/fstab under /path, even if it's noauto.
 
-config NFSMOUNT
-  bool "nfsmount"
-  default n
-  help
-    usage: nfsmount SHARE DIR
-
-    Invoke an eldrich horror from the dawn of time.
+#config NFSMOUNT
+#  bool "nfsmount"
+#  default n
+#  help
+#    usage: nfsmount SHARE DIR
+#
+#    Invoke an eldrich horror from the dawn of time.
 */
 
 #define FOR_mount
@@ -246,8 +246,9 @@ void mount_main(void)
   char *opts = 0, *dev = 0, *dir = 0, **ss;
   long flags = MS_SILENT;
   struct arg_list *o;
-  struct mtab_list *mtl, *mm, *remount = 0;
+  struct mtab_list *mtl, *mtl2 = 0, *mm, *remount;
 
+// TODO
 // remount
 //   - overmounts
 // shared subtree
@@ -275,9 +276,13 @@ void mount_main(void)
   if ((toys.optflags & FLAG_a) && dir) error_exit("-a with >1 arg");
 
   // For remount we need _last_ match (in case of overmounts), so traverse
-  // in reverse order.
-  if (comma_scan(opts, "remount", 1))
-    remount = dlist_terminate(mtl = xgetmountlist("/proc/mounts"));
+  // in reverse order. (Yes I'm using remount as a boolean for a bit here,
+  // the double cast is to get gcc to shut up about it.)
+  remount = (void *)(long)comma_scan(opts, "remount", 1);
+  if (((toys.optflags & FLAG_a) && !access("/proc/mounts", R_OK)) || remount) {
+    mm = dlist_terminate(mtl = mtl2 = xgetmountlist(0));
+    if (remount) remount = mm;
+  }
 
   // Do we need to do an /etc/fstab trawl?
   // This covers -a, -o remount, one argument, all user mounts
@@ -286,12 +291,14 @@ void mount_main(void)
 
     for (mm = remount ? remount : mtl; mm; mm = (remount ? mm->prev : mm->next))
     {
-      int aflags, noauto, len;
       char *aopts = 0;
+      struct mtab_list *mmm = 0;
+      int aflags, noauto, len;
 
       // Check for noauto and get it out of the option list. (Unknown options
       // that make it to the kernel give filesystem drivers indigestion.)
       noauto = comma_scan(mm->opts, "noauto", 1);
+
       if (toys.optflags & FLAG_a) {
         // "mount -a /path" to mount all entries under /path
         if (dev) {
@@ -307,17 +314,29 @@ void mount_main(void)
           continue;
       }
 
+      // Don't overmount the same dev on the same directory
+      // (Unless root explicitly says to in non -a mode.)
+      if (mtl2 && !remount)
+        for (mmm = mtl2; mmm; mmm = mmm->next)
+          if (!strcmp(mm->dir, mmm->dir) && !strcmp(mm->device, mmm->device))
+            break;
+ 
       // user only counts from fstab, not opts.
-      TT.okuser = comma_scan(mm->opts, "user", 1);
-      aflags = flag_opts(mm->opts, flags, &aopts);
-      aflags = flag_opts(opts, aflags, &aopts);
+      if (!mmm) {
+        TT.okuser = comma_scan(mm->opts, "user", 1);
+        aflags = flag_opts(mm->opts, flags, &aopts);
+        aflags = flag_opts(opts, aflags, &aopts);
 
-      mount_filesystem(mm->device, mm->dir, mm->type, aflags, aopts);
+        mount_filesystem(mm->device, mm->dir, mm->type, aflags, aopts);
+      } // TODO else if (getuid()) error_msg("already there") ?
       free(aopts);
 
       if (!(toys.optflags & FLAG_a)) break;
     }
-    if (CFG_TOYBOX_FREE) llist_traverse(mtl, free);
+    if (CFG_TOYBOX_FREE) {
+      llist_traverse(mtl, free);
+      llist_traverse(mtl2, free);
+    }
     if (!mm && !(toys.optflags & FLAG_a))
       error_exit("'%s' not in %s", dir ? dir : dev,
                  remount ? "/proc/mounts" : "fstab");
