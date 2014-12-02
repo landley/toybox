@@ -84,10 +84,12 @@ void vmstat_main(void)
   if (toys.optc) loop_delay = atolx_range(toys.optargs[0], 0, INT_MAX);
   if (toys.optc > 1) loop_max = atolx_range(toys.optargs[1], 1, INT_MAX) - 1;
 
-  for (loop = 0; loop <= loop_max; loop++) {
+  for (loop = 0; !loop_max || loop <= loop_max; loop++) {
     unsigned idx = loop&1, offset = 0, expected = 0;
     uint64_t units, total_hz, *ptr = (uint64_t *)(top+idx),
              *oldptr = (uint64_t *)(top+!idx);
+
+    if (loop && loop_delay) sleep(loop_delay);
 
     // Print headers
     if (rows>3 && !(loop % (rows-3))) {
@@ -147,7 +149,6 @@ void vmstat_main(void)
     }
     xputc('\n');
 
-    if (loop_delay) sleep(loop_delay);
-    else break;
+    if (!loop_delay) break;
   }
 }
