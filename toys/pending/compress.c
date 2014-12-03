@@ -130,10 +130,10 @@ GLOBALS(
   // Compressed data buffer
   char *data;
   unsigned pos, len;
-  int fd;
+  int infd, outfd;
 
   // Tables only used for deflation
-  unsigned short *head, *chain;
+  unsigned short *hashhead, *hashchain;
 )
 
 // little endian bit buffer
@@ -145,9 +145,8 @@ struct bitbuf {
 // malloc a struct bitbuf
 struct bitbuf *bitbuf_init(int fd, int size)
 {
-  struct bitbuf *bb = xmalloc(sizeof(struct bitbuf)+size);
+  struct bitbuf *bb = xzalloc(sizeof(struct bitbuf)+size);
 
-  memset(bb, 0, sizeof(struct bitbuf));
   bb->max = size;
   bb->fd = fd;
 
@@ -204,13 +203,42 @@ unsigned bitbuf_get(struct bitbuf *bb, int bits)
   return result;
 }
 
+void bitbuf_flush(struct bitbuf *bb)
+{
+  if (!bb->bitpos) return;
+
+  xwrite(bb->fd, bb->buf, (bb->bitpos+7)/8);
+  memset(bb->buf, 0, bb->max);
+  bb->bitpos = 0;
+}
+
+void bitbuf_put(struct bitbuf *bb, int data, int len)
+{
+  while (len) {
+    int click = bb->bitpos >> 3, blow, blen;
+
+    // Flush buffer if necessary
+    if (click == bb->max) {
+      bitbuf_flush(bb);
+      click = 0;
+    }
+    blow = bb->bitpos & 7;
+    blen = 8-blow;
+    if (blen > len) blen = len;
+    bb->buf[click] |= data << blow;
+    bb->bitpos += blen;
+    data >>= blen;
+    len -= blen;
+  }
+}
+
 static void data_crc(char sym)
 {
   TT.data[TT.pos++ & 32767] = sym;
 
   if (!(TT.pos & 32767)) {
-    xwrite(TT.fd, TT.data, 32768);
-    if (TT.crcfunc) TT.crcfunc(0, 32768);
+    xwrite(TT.outfd, TT.data, 32768);
+    if (TT.crcfunc) TT.crcfunc(TT.data, 32768);
   }
 }
 
@@ -245,9 +273,9 @@ static void len2huff(struct huff *huff, char bitlen[], int len)
 }
 
 // Fetch and decode next huffman coded symbol from bitbuf.
-// This takes advantage of the the sorting to navigate the tree as an array:
+// This takes advantage of the sorting to navigate the tree as an array:
 // each time we fetch a bit we have all the codes at that bit level in
-// order with no gaps..
+// order with no gaps.
 static unsigned huff_and_puff(struct bitbuf *bb, struct huff *huff)
 {
   unsigned short *length = huff->length;
@@ -264,36 +292,7 @@ static unsigned huff_and_puff(struct bitbuf *bb, struct huff *huff)
   return huff->symbol[start + offset];
 }
 
-// Deflate from TT.fd to bitbuf
-// For deflate, TT.len = input read, TT.pos = input consumed
-static void deflate(struct bitbuf *bb)
-{
-  char *data = TT.data;
-  int len, end = 0;
-
-  TT.crc = ~0;
-
-  while (!end) {
-    // Read next half-window of data if we haven't hit EOF yet.
-    len = readall(TT.fd, data + (TT.len & 32768), 32768);
-fprintf(stderr, "read %d@%d\n", len, TT.pos);
-    if (len < 0) perror_exit("read"); // todo: add filename
-    if (len != 32768) end++;
-    TT.len += len;
-
-    // repeat until spanked
-    while (TT.pos != TT.len) {
-      unsigned pos = TT.pos & 65535;
-
-      if (!(pos & 32767) && !end) break;
-
-      TT.pos++;
-    }
-  }
-fprintf(stderr, "total %d\n", TT.pos);
-}
-
-// Decompress deflated data from bitbuf to TT.fd.
+// Decompress deflated data from bitbuf to TT.outfd.
 static void inflate(struct bitbuf *bb)
 {
   TT.crc = ~0;
@@ -408,9 +407,47 @@ static void inflate(struct bitbuf *bb)
   }
 
   if (TT.pos & 32767) {
-    xwrite(TT.fd, TT.data, TT.pos & 32767);
-    if (TT.crcfunc) TT.crcfunc(0, TT.pos & 32767);
+    xwrite(TT.outfd, TT.data, TT.pos & 32767);
+    if (TT.crcfunc) TT.crcfunc(TT.data, TT.pos & 32767);
   }
+}
+
+// Deflate from TT.infd to bitbuf
+// For deflate, TT.len = input read, TT.pos = input consumed
+static void deflate(struct bitbuf *bb)
+{
+  char *data = TT.data;
+  int len, final = 0;
+
+  TT.crc = ~0;
+
+  while (!final) {
+    // Read next half-window of data if we haven't hit EOF yet.
+    len = readall(TT.infd, data+(TT.len&32768), 32768);
+    if (len < 0) perror_exit("read"); // todo: add filename
+    if (len != 32768) final++;
+    if (TT.crcfunc) TT.crcfunc(data+(TT.len&32768), len);
+    // TT.len += len;  crcfunc advances len
+
+    // store block as literal
+    bitbuf_put(bb, final, 1);
+    bitbuf_put(bb, 0, 1);
+
+    bitbuf_put(bb, 0, (8-bb->bitpos)&7);
+    bitbuf_put(bb, len, 16);
+    bitbuf_put(bb, 0xffff & ~len, 16);
+
+    // repeat until spanked
+    while (TT.pos != TT.len) {
+      unsigned pos = TT.pos & 65535;
+
+      bitbuf_put(bb, data[pos], 8);
+
+      // need to refill buffer?
+      if (!(32767 & ++TT.pos) && !final) break;
+    }
+  }
+  bitbuf_flush(bb);
 }
 
 // Allocate memory for deflate/inflate.
@@ -418,13 +455,12 @@ static void init_deflate(int compress)
 {
   int i, n = 1;
 
-// only supporting HASH_SIZE = 1 << 15, I.E. size = 32768
-
-  // Ye olde deflate window
-  TT.data = xmalloc(32768*(compress+1));
+  // compress needs 64k data and 32k each for hashhead and hashchain.
+  // decompress just needs 32k data.
+  TT.data = xmalloc(32768*(compress ? 4 : 1));
   if (compress) {
-    TT.head = (unsigned short *)(TT.data+65536);
-    TT.chain = TT.head + 0;
+    TT.hashhead = (unsigned short *)(TT.data + 65536);
+    TT.hashchain = (unsigned short *)(TT.data + 65536 + 32768);
   }
 
   // Calculate lenbits, lenbase, distbits, distbase
@@ -480,12 +516,12 @@ void gzip_crc(char *data, int len)
   unsigned crc, *crc_table = (unsigned *)(toybuf+sizeof(toybuf)-1024);
 
   crc = TT.crc;
-  for (i=0; i<len; i++) crc = crc_table[(crc^TT.data[i])&0xff] ^ (crc>>8);
+  for (i=0; i<len; i++) crc = crc_table[(crc^data[i])&0xff] ^ (crc>>8);
   TT.crc = crc;
   TT.len += len;
 }
 
-static void do_compress(int fd, char *name)
+static void do_gzip(int fd, char *name)
 {
   struct bitbuf *bb = bitbuf_init(1, sizeof(toybuf));
 
@@ -494,10 +530,22 @@ static void do_compress(int fd, char *name)
   // 4 byte MTIME (zeroed), Extra Flags (2=maximum compression),
   // Operating System (FF=unknown)
  
-  xwrite(1, "\x1f\x8b\x08\0\0\0\0\0\x02\xff", 10);
+  TT.infd = fd;
+  xwrite(bb->fd, "\x1f\x8b\x08\0\0\0\0\0\x02\xff", 10);
+
+  // Use last 1k of toybuf for little endian crc table
+  crc_init((unsigned *)(toybuf+sizeof(toybuf)-1024), 1);
+  TT.crcfunc = gzip_crc;
 
   deflate(bb);
 
+  // tail: crc32, len32
+
+  bitbuf_put(bb, 0, (8-bb->bitpos)&7);
+  bitbuf_put(bb, ~TT.crc, 32);
+  bitbuf_put(bb, TT.len, 32);
+
+  bitbuf_flush(bb);
   free(bb);
 }
 
@@ -506,7 +554,7 @@ static void do_zcat(int fd, char *name)
   struct bitbuf *bb = bitbuf_init(fd, sizeof(toybuf));
 
   if (!is_gzip(bb)) error_exit("not gzip");
-  TT.fd = 1;
+  TT.outfd = 1;
 
   // Use last 1k of toybuf for little endian crc table
   crc_init((unsigned *)(toybuf+sizeof(toybuf)-1024), 1);
@@ -548,16 +596,9 @@ void gunzip_main(void)
   loopfiles(toys.optargs, do_zcat);
 }
 
-void do_deflate(int fd, char *name)
-{
-  struct bitbuf *bb = bitbuf_init(1, sizeof(toybuf));
-
-  deflate(bb);
-}
-
 void gzip_main(void)
 {
   init_deflate(1);
 
-  loopfiles(toys.optargs, do_compress);
+  loopfiles(toys.optargs, do_gzip);
 }
