@@ -81,6 +81,7 @@ void show_help(void);
 
 // xwrap.c
 void xstrncpy(char *dest, char *src, size_t size);
+void xstrncat(char *dest, char *src, size_t size);
 void xexit(void) noreturn;
 void *xmalloc(size_t size);
 void *xzalloc(size_t size);

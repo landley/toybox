@@ -9,11 +9,23 @@
 
 #include "toys.h"
 
-// Strcpy with size checking: exit if there's not enough space for the string.
+// strcpy and strncat with size checking. Size is the total space in "dest",
+// including null terminator. Exit if there's not enough space for the string
+// (including space for the null terminator), because silently truncating is
+// still broken behavior. (And leaving the string unterminated is INSANE.)
 void xstrncpy(char *dest, char *src, size_t size)
 {
   if (strlen(src)+1 > size) error_exit("'%s' > %ld bytes", src, (long)size);
   strcpy(dest, src);
+}
+
+void xstrncat(char *dest, char *src, size_t size)
+{
+  long len = strlen(src);
+
+  if (len+strlen(dest)+1 > size)
+    error_exit("'%s%s' > %ld bytes", src, (long)size);
+  strcpy(dest+len, src);
 }
 
 void xexit(void)
@@ -52,9 +64,10 @@ void *xrealloc(void *ptr, size_t size)
 // Die unless we can allocate a copy of this many bytes of string.
 char *xstrndup(char *s, size_t n)
 {
-  char *ret = xmalloc(++n);
-  strncpy(ret, s, n);
-  ret[--n]=0;
+  char *ret = strndup(s, ++n);
+
+  if (!ret) error_exit("xstrndup");
+  ret[--n] = 0;
 
   return ret;
 }
