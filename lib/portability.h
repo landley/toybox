@@ -72,13 +72,28 @@ pid_t getsid(pid_t pid);
 // any flag newer than MS_MOVE, which was added in 2001 (linux 2.5.0.5),
 // eleven years earlier.
 
+#include <sys/mount.h>
+#ifndef MS_MOVE
 #define MS_MOVE       (1<<13)
+#endif
+#ifndef MS_REC
 #define MS_REC        (1<<14)
+#endif
+#ifndef MS_SILENT
 #define MS_SILENT     (1<<15)
+#endif
+#ifndef MS_UNBINDABLE
 #define MS_UNBINDABLE (1<<17)
+#endif
+#ifndef MS_PRIVATE
 #define MS_PRIVATE    (1<<18)
+#endif
+#ifndef MS_SLAVE
 #define MS_SLAVE      (1<<19)
+#endif
+#ifndef MS_SHARED
 #define MS_SHARED     (1<<20)
+#endif
 
 // When building under obsolete glibc (Ubuntu 8.04-ish), hold its hand a bit.
 #elif __GLIBC__ == 2 && __GLIBC_MINOR__ < 10
@@ -206,3 +221,9 @@ typedef double FLOAT;
 typedef float FLOAT;
 #endif
 
+#ifndef __uClinux__
+pid_t xfork(void);
+#endif
+
+//#define strncpy(...) @@strncpyisbadmmkay@@
+//#define strncat(...) @@strcatisbadmmkay@@

@@ -6,6 +6,17 @@
 
 #include "toys.h"
 
+#if !defined(__uClinux__)
+pid_t xfork(void)
+{
+  pid_t pid = fork();
+
+  if (pid < 0) perror_exit("fork");
+
+  return pid;
+}
+#endif
+
 #if defined(__APPLE__)
 ssize_t getdelim(char **linep, size_t *np, int delim, FILE *stream)
 {
