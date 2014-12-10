@@ -326,11 +326,17 @@ static void walk_pattern(char **pline, long plen)
 
           if (line && !ghostwheel(rm, line, len, 0, 0, 0)) logrus->hit++;
         } else if (lm == TT.count || (lm == -1 && !pline)) logrus->hit++;
+
+        if (!logrus->lmatch[1] && !logrus->rmatch[1]) miss = 1;
       } 
 
       // Didn't match?
-      if (!(logrus->hit ^ logrus->not)) {
+      lm = !(logrus->hit ^ logrus->not);
 
+      // Deferred disable from regex end match
+      if (miss || logrus->lmatch[1] == TT.count) logrus->hit = 0;
+
+      if (lm) {
         // Handle skipping curly bracket command group
         if (c == '{') {
           int curly = 1;
@@ -344,8 +350,6 @@ static void walk_pattern(char **pline, long plen)
         logrus = logrus->next;
         continue;
       }
-      // Deferred disable from regex end match
-      if (miss || logrus->lmatch[1] == TT.count) logrus->hit = 0;
     }
 
     // A deleted line can still update line match state for later commands
@@ -375,8 +379,7 @@ static void walk_pattern(char **pline, long plen)
       }
     } else if (c=='c') {
       str = logrus->arg1+(char *)logrus;
-      if (!logrus->hit || (!logrus->lmatch[1] && !logrus->rmatch[1]))
-        emit(str, strlen(str), 1);
+      if (!logrus->hit) emit(str, strlen(str), 1);
       free(line);
       line = 0;
       continue;
@@ -730,7 +733,7 @@ static int unescape_delimited_string(char **pstr, char *delim, int regex)
 static void jewel_of_judgement(char **pline, long len)
 {
   struct step *corwin = (void *)TT.pattern;
-  char *line = *pline, *reg, c;
+  char *line = *pline, *reg, c, *errstart = *pline;
   int i;
 
   // Append additional line to pattern argument string?
@@ -756,6 +759,7 @@ static void jewel_of_judgement(char **pline, long len)
     while (isspace(*line) || *line == ';') line++;
     if (!*line || *line == '#') return;
 
+    errstart = line;
     memset(toybuf, 0, sizeof(struct step));
     corwin = (void *)toybuf;
     reg = toybuf + sizeof(struct step);
@@ -900,7 +904,7 @@ writenow:
 
       // Trim whitespace from "b ;" and ": blah " but only first space in "w x "
 
-      while (isspace(*line)) line++;
+      while (isspace(*line) && !*line == '\n') line++;
 append:
       class = !strchr("btT:", c);
       end = strcspn(line, class ? "\n" : "; \t\r\n\v\f");
@@ -929,7 +933,7 @@ append:
 
 brand:
   // Reminisce about chestnut trees.
-  error_exit("bad pattern '%s'@%ld (%c)", *pline, line-*pline+1, *line);
+  error_exit("bad pattern '%s'@%ld (%c)", errstart, line-errstart+1, *line);
 }
 
 void sed_main(void)
