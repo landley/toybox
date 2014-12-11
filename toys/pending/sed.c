@@ -665,48 +665,39 @@ static void do_sed(int fd, char *name)
   }
 }
 
-// Note: removing backslash escapes and null terminating edits the source
-// string, which could be from the environment space via -e, which could
-// screw up what "ps" sees, and I'm ok with that. (Modifying the environment
-// space like that means sed is very, very not reentrant.)
-
-// Ok, what happens if we xexec() sed with constant arguments then?
-// TODO: ^^^ that
-// also screws up error reporting for bad patterns
-
-// returns length of processed string, *pstr advances to next unused char,
-// if delim (or *delim) is 0 uses starting char as delimiter, otherwise
-// parses and saves delimiter from first character(s)
-// if rexex, ignore delimiter in [ranges]
-static int unescape_delimited_string(char **pstr, char *delim, int regex)
+// Copy chunk of string between two delimiters, converting printf escapes.
+// returns processed copy of string (0 if error), *pstr advances to next
+// unused char. if delim (or *delim) is 0 uses/saves starting char as delimiter
+// if regxex, ignore delimiter in [ranges]
+static char *unescape_delimited_string(char **pstr, char *delim, int regex)
 {
   char *to, *from, d;
-  int rc;
 
   to = from = *pstr;
   if (!delim || !*delim) {
-    if (!(d = *(from++))) return -1;
+    if (!(d = *(from++))) return 0;
     if (d == '\\') d = *(from++);
-    if (!d || d == '\\') return -1;
+    if (!d || d == '\\') return 0;
     if (delim) *delim = d;
   } else d = *delim;
+  to = delim = xmalloc(strlen(*pstr)+1);
 
   while (*from != d) {
-    if (!*from) return -1;
+    if (!*from) return 0;
 
     // delimiter in regex character range doesn't count
     if (*from == '[') {
       int len = 1;
 
       if (from[len] == ']') len++;
-      while (from[len] != ']') if (!from[len++]) return -1;
+      while (from[len] != ']') if (!from[len++]) return 0;
       memmove(to, from, ++len);
       to += len;
       from += len;
       continue;
     }
     if (*from == '\\') {
-      if (!from[1]) return -1;
+      if (!from[1]) return 0;
 
       // Check escaped end delimiter before printf style escapes.
       if (from[1] == d) from++;
@@ -722,11 +713,10 @@ static int unescape_delimited_string(char **pstr, char *delim, int regex)
     }
     *(to++) = *(from++);
   }
-  rc = to-*pstr;
   *to = 0;
   *pstr = from+1;
 
-  return rc;
+  return delim;
 }
 
 // Translate primal pattern into walkable form.
@@ -776,13 +766,14 @@ static void jewel_of_judgement(char **pline, long len)
       } else if (*line == '/' || *line == '\\') {
         char *s = line;
 
-        if (-1 == unescape_delimited_string(&line, 0, 1)) goto brand;
+        if (!(s = unescape_delimited_string(&line, 0, 1))) goto brand;
         if (!*s) corwin->rmatch[i] = 0;
         else {
           xregcomp((void *)reg, s, (toys.optflags & FLAG_r)*REG_EXTENDED);
           corwin->rmatch[i] = reg-toybuf;
           reg += sizeof(regex_t);
         }
+        free(s);
       } else break;
     }
 
@@ -815,8 +806,7 @@ static void jewel_of_judgement(char **pline, long len)
 
       // get pattern (just record, we parse it later)
       corwin->arg1 = reg - (char *)corwin;
-      merlin = line;
-      if (-1 == unescape_delimited_string(&line, &delim, 1)) goto brand;
+      if (!(merlin = unescape_delimited_string(&line, &delim, 1))) goto brand;
 
       // get replacement - don't replace escapes because \1 and \& need
       // processing later, after we replace \\ with \ we can't tell \\1 from \1
@@ -850,6 +840,7 @@ static void jewel_of_judgement(char **pline, long len)
       if (!*merlin) corwin->arg1 = 0;
       else xregcomp((void *)(corwin->arg1 + (char *)corwin), merlin,
         ((toys.optflags & FLAG_r)*REG_EXTENDED)|((corwin->sflags&1)*REG_ICASE));
+      free(merlin);
       if (*line == 'w') {
         line++;
         goto writenow;
@@ -886,19 +877,19 @@ writenow:
       line = cc;
       if (delim) line += 2;
     } else if (c == 'y') {
-      char *s = line, delim = 0;
-      int len1, len2;
+      char *s, delim = 0;
+      int len;
 
-      if (-1 == (len1 = unescape_delimited_string(&line, &delim, 0)))
-        goto brand;
+      if (!(s = unescape_delimited_string(&line, &delim, 0))) goto brand;
       corwin->arg1 = reg-(char *)corwin;
-      reg = extend_string((void *)&corwin, s, reg-(char *)corwin, len1);
-      s = line;
+      len = strlen(s);
+      reg = extend_string((void *)&corwin, s, reg-(char *)corwin, len);
+      free(s);
       corwin->arg2 = reg-(char *)corwin;
-      if (-1 == (len2 = unescape_delimited_string(&line, &delim, 0)))
-        goto brand;
-      if (len1 != len2) goto brand;
-      reg = extend_string((void *)&corwin, s, reg-(char*)corwin, len2);
+      if (!(s = unescape_delimited_string(&line, &delim, 0))) goto brand;
+      if (len != strlen(s)) goto brand;
+      reg = extend_string((void *)&corwin, s, reg-(char*)corwin, len);
+      free(s);
     } else if (strchr("abcirtTw:", c)) {
       int end, class;
 
