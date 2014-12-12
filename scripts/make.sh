@@ -89,7 +89,7 @@ then
   # for it.
 
   > generated/optlibs.dat
-  for i in util crypt m resolv
+  for i in util crypt m resolv selinux
   do
     echo "int main(int argc, char *argv[]) {return 0;}" | \
     ${CROSS_COMPILE}${CC} $CFLAGS -xc - -o /dev/null -Wl,--as-needed -l$i > /dev/null 2>/dev/null &&
