@@ -588,7 +588,7 @@ writenow:
     } else if (c=='=') {
       sprintf(toybuf, "%ld", TT.count);
       emit(toybuf, strlen(toybuf), 1);
-    } else if (!strchr(":{}", c)) error_exit("todo: %c", c);
+    }
 
     logrus = logrus->next;
   }
@@ -895,7 +895,10 @@ writenow:
 
       // Trim whitespace from "b ;" and ": blah " but only first space in "w x "
 
-      while (isspace(*line) && !*line == '\n') line++;
+      while (isspace(*line)) {
+        if (!strchr("btT", c) || *line != '\n') line++;
+        else break;
+      }
 append:
       class = !strchr("btT:", c);
       end = strcspn(line, class ? "\n" : "; \t\r\n\v\f");
