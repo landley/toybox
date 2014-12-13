@@ -22,7 +22,7 @@ config UUENCODE
 
 void uuencode_main(void)
 {
-  char *p, *name = toys.optargs[toys.optc-1], buf[(76/4)*3];
+  char *name = toys.optargs[toys.optc-1], buf[(76/4)*3];
 
   int i, m = toys.optflags & FLAG_m, fd = 0;
 
