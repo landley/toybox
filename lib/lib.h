@@ -166,12 +166,14 @@ int copy_tempfile(int fdin, char *name, char **tempname);
 void delete_tempfile(int fdin, int fdout, char **tempname);
 void replace_tempfile(int fdin, int fdout, char **tempname);
 void crc_init(unsigned int *crc_table, int little_endian);
+void base64_init(char *p);
 int terminal_size(unsigned *x, unsigned *y);
 int yesno(char *prompt, int def);
 int human_readable(char *buf, unsigned long long num);
 
 // net.c
 int xsocket(int domain, int type, int protocol);
+void xsetsockopt(int fd, int level, int opt, void *val, socklen_t len);
 
 // password.c
 int get_salt(char *salt, char * algo);
