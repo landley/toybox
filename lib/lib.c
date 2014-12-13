@@ -571,6 +571,21 @@ void crc_init(unsigned int *crc_table, int little_endian)
   }
 }
 
+// Init base64 table
+
+void base64_init(char *p)
+{
+  int i;
+
+  for (i = 'A'; i != ':'; i++) {
+    if (i == 'Z'+1) i = 'a';
+    if (i == 'z'+1) i = '0';
+    *(p++) = i;
+  }
+  *(p++) = '+';
+  *(p++) = '/';
+}
+
 // Quick and dirty query size of terminal, doesn't do ANSI probe fallback.
 // set x=80 y=25 before calling to provide defaults. Returns 0 if couldn't
 // determine size.
