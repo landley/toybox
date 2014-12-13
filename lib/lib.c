@@ -177,7 +177,7 @@ struct string_list **splitpath(char *path, struct string_list **list)
     if (len > 0) {
       *list = xmalloc(sizeof(struct string_list) + len + 1);
       (*list)->next = 0;
-      strncpy((*list)->str, new, len);
+      memcpy((*list)->str, new, len);
       (*list)->str[len] = 0;
       list = &(*list)->next;
     }
@@ -210,7 +210,8 @@ struct string_list *find_in_path(char *path, char *filename)
     if (!len) sprintf(rnext->str, "%s/%s", cwd, filename);
     else {
       char *res = rnext->str;
-      strncpy(res, path, len);
+
+      memcpy(res, path, len);
       res += len;
       *(res++) = '/';
       strcpy(res, filename);
