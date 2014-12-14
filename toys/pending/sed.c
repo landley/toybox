@@ -254,7 +254,7 @@ static char *extend_string(char **old, char *new, int oldlen, int newlen)
   memcpy(s+oldlen, new, newlen);
   s[oldlen+newlen] = 0;
 
-  return s+oldlen+newlen;
+  return s+oldlen+newlen+1;
 }
 
 // An empty regex repeats the previous one
@@ -504,13 +504,11 @@ static void walk_pattern(char **pline, long plen)
         // place because backrefs may refer to text after it's overwritten.)
         len += newlen-mlen;
         swap = xmalloc(len+1);
-        rswap = swap+(rline-line);
+        rswap = swap+(rline-line)+match[0].rm_so;
         memcpy(swap, line, (rline-line)+match[0].rm_so);
-        memcpy(rswap+match[0].rm_so+newlen, rline+match[0].rm_eo,
-               (rlen -= match[0].rm_eo)+1);
+        memcpy(rswap+newlen, rline+match[0].rm_eo, (rlen -= match[0].rm_eo)+1);
 
         // copy in new replacement text
-        rswap += match[0].rm_so;
         for (off = mlen = 0; new[off]; off++) {
           int cc = 0, ll;
 
