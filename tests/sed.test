@@ -119,6 +119,17 @@ testing "sed D further processing depends on whether line is blank" \
 	"sed -e '/one/,/three/{' -e 'i meep' -e'N;2D;}'" \
 	"meep\nmeep\ntwo\nthree\n" "" "one\ntwo\nthree\n"
 
+# Different ways of parsing line continuations
+
+testing "" "sed -e '1a\' -e 'huh'" "meep\nhuh\n" "" "meep"
+testing "" "sed -f input" "blah\nboom\n" '1a\\\nboom' 'blah'
+testing "" "sed '1a\
+hello'" "merp\nhello\n" "" "merp"
+#echo meep | sed/sed -e '1a\' -e 'huh'
+#echo blah | sed/sed -f <(echo -e "1a\\\\\nboom")
+#echo merp | sed/sed "1a\\
+#hello"
+
 # -i with $ last line test
 
 exit $FAILCOUNT

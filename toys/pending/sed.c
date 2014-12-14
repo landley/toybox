@@ -913,10 +913,15 @@ append:
       reg = extend_string((void *)&corwin, line, reg - (char *)corwin, end); 
       line += end;
 
-      // Line continuation?
-      if (class && reg[-1] == '\\') {
-        reg[-1] = 0;
-        corwin->hit++;
+      // Line continuation? (Two slightly different input methods, -e with
+      // embedded newline vs -f line by line. Must parse both correctly.)
+      if (class && line[-1] == '\\') {
+        reg[-2] = 0;
+        if (*line && line[1]) {
+          reg -= 2;
+          line++;
+          goto append;
+        } else corwin->hit++;
       }
 
     // Commands that take no arguments
