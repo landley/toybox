@@ -512,25 +512,28 @@ static void walk_pattern(char **pline, long plen)
         for (off = mlen = 0; new[off]; off++) {
           int cc = 0, ll;
 
-          if ((rswap[mlen++] = new[off]) == '\\') {
+          if (new[off] == '\\') {
             cc = new[++off] - '0';
             if (cc<0 || cc>9) {
-              if (!(rswap[mlen-1] = unescape(new[off])))
+              if (!(rswap[mlen++] = unescape(new[off])))
                 rswap[mlen-1] = new[off];
 
               continue;
             } else if (match[cc].rm_so == -1) error_exit("no s//\\%d/", cc);
-          } else if (new[off] != '&') continue;
+          } else if (new[off] != '&') {
+            rswap[mlen++] = new[off];
+
+            continue;
+          }
 
           ll = match[cc].rm_eo-match[cc].rm_so;
-          memcpy(rswap+(--mlen), rline+match[cc].rm_so, ll);
+          memcpy(rswap+mlen, rline+match[cc].rm_so, ll);
           mlen += ll;
         }
 
         rline = rswap+newlen;
         free(line);
         line = swap;
-        len = rlen+(rline-line);
 
         // Stop after first substitution unless we have flag g
         if (!(logrus->sflags & 2)) break;
