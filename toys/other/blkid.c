@@ -5,15 +5,23 @@
  * See ftp://ftp.kernel.org/pub/linux/utils/util-linux/v2.24/libblkid-docs/api-index-full.html
 
 USE_BLKID(NEWTOY(blkid, "<1", TOYFLAG_BIN))
-USE_BLKID(OLDTOY(fstype, blkid, "<1", TOYFLAG_BIN))
+USE_FSTYPE(NEWTOY(fstype, "<1", TOYFLAG_BIN))
 
 config BLKID
   bool "blkid"
   default y
   help
-    usage: blkid [block device...]
+    usage: blkid DEV...
 
-    Prints type, label and UUID of filesystem.
+    Prints type, label and UUID of filesystem on a block device or image.
+
+config FSTYPE
+  bool "fstype"
+  default y
+  help
+    usage: fstype DEV...
+
+    Prints type of filesystem on a block device or image.
 */
 
 #define FOR_blkid
@@ -26,9 +34,8 @@ struct fstype {
 };
 
 static const struct fstype fstypes[] = {
-  // ext3 = buf[1116]&4 ext4 = buf[1120]&64
-  {"ext2", 0xEF53, 2, 1080, 1128, 16, 1144},
-  // label actually 8/16 0x4d80 but horrible: 16 bit wide characters via
+  {"ext2", 0xEF53, 2, 1080, 1128, 16, 1144}, // keep this first for ext3/4 check
+  // NTFS label actually 8/16 0x4d80 but horrible: 16 bit wide characters via
   // codepage, something called a uuid that's only 8 bytes long...
   {"ntfs", 0x5346544e, 4, 3, 0x48+(8<<24), 0, 0},
 
@@ -124,10 +131,15 @@ void do_blkid(int fd, char *name)
     printf("\"");
   }
 
-  printf(" TYPE=\"%s\"\n", fstypes[i].name);
+  printf(" TYPE=\"%s\"\n", type);
 }
 
 void blkid_main(void)
 {
   loopfiles(toys.optargs, do_blkid);
+}
+
+void fstype_main(void)
+{
+  blkid_main();
 }
