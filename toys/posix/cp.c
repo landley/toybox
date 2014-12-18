@@ -4,11 +4,11 @@
  *
  * Posix says "cp -Rf dir file" shouldn't delete file, but our -f does.
 
-// This is subtle: MV options must be in same order (right to left) as CP
-// for FLAG_X macros to work out right.
+// This is subtle: MV options shared with CP must be in same order (right to
+// left) as CP for FLAG_X macros to work out right.
 
 USE_CP(NEWTOY(cp, "<2RHLPp"USE_CP_MORE("rdaslvnF")"fi[-HLPd]"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
-USE_CP_MV(OLDTOY(mv, cp, "<2"USE_CP_MORE("vnF")"fi"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
+USE_MV(NEWTOY(mv, "<2"USE_CP_MORE("vnF")"fi"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
 USE_INSTALL(NEWTOY(install, "<1cdDpsvm:o:g:", TOYFLAG_USR|TOYFLAG_BIN))
 *
 
@@ -45,7 +45,7 @@ config CP_MORE
     -s	symlink instead of copy
     -v	verbose
 
-config CP_MV
+config MV
   bool "mv"
   default y
   depends on CP
@@ -55,10 +55,10 @@ config CP_MV
     -f	force copy by deleting destination file
     -i	interactive, prompt before overwriting existing DEST
 
-config CP_MV_MORE
+config MV_MORE
   bool
   default y
-  depends on CP_MV && CP_MORE
+  depends on MV && CP_MORE
   help
     usage: mv [-vn]
 
@@ -290,7 +290,7 @@ int cp_node(struct dirtree *try)
 
     if (fdout != AT_FDCWD) xclose(fdout);
 
-    if (CFG_CP_MV && toys.which->name[0] == 'm')
+    if (CFG_MV && toys.which->name[0] == 'm')
       if (unlinkat(tfd, try->name, S_ISDIR(try->st.st_mode) ? AT_REMOVEDIR :0))
         err = "%s";
   }
@@ -321,7 +321,7 @@ void cp_main(void)
     else TT.destname = destname;
 
     errno = EXDEV;
-    if (CFG_CP_MV && toys.which->name[0] == 'm') {
+    if (CFG_MV && toys.which->name[0] == 'm') {
       if (!(toys.optflags & FLAG_f)) {
         struct stat st;
 
@@ -349,6 +349,11 @@ void cp_main(void)
     }
     if (destdir) free(TT.destname);
   }
+}
+
+void mv_main(void)
+{
+  cp_main();
 }
 
 #define CLEANUP_cp
