@@ -33,6 +33,7 @@ and progress towards implementing it.</p>
 <li><a href=#sigh>Linux "Standard" Base</a></li>
 <li><a href=#dev_env>Development Environment</a></li>
 <li><a href=#android>Android Toolbox</a></li>
+<li><a href=#tizen>Tizen Core</a></li>
 <li>Miscelaneous: <a href=#klibc>klibc</a>, <a href=#glibc>glibc</a>,
 <a href=#sash>sash</a>, <a href=#sbase>sbase</a>, <a href=#s6>s6</a>...</li>
 </ul>
@@ -325,6 +326,31 @@ lsmod mkdir mount mv ps renice rm rmdir rmmod route sleep sync top touch umount
 getevent getprop hd iftop ioctl ionice log lsof nandread netstat
 newfs_msdos notify printenv r reboot schedtop sendevent setconsole
 setprop smd start stop top uptime vmstat watchprops watchdogd wipe
+</b></blockquote>
+
+<hr />
+<h2><a name=tizen /><a href="#tizen">Use case: Tizen Core</a></h2>
+
+<p>The Tizen project has expressed a desire to eliminate GPLv3 software
+from its core system, and is installing toybox as
+<a href=https://wiki.tizen.org/wiki/Toybox>part of this process</a>.</p>
+
+<p>They have a fairly long list of new commands they'd like to see in toybox:</p>
+
+<blockquote><b>
+<span id=tizen>
+arch base64 users dir vdir unexpand shred join csplit
+hostid nproc runcon sha224 sha256 sha384 sha512 sha3 mkfs.vfat fsck.vfat 
+dosfslabel uname stdbuf pinky diff3 sdiff zcmp zdiff zegrep zfgrep zless zmore
+</span>
+</blockquote>
+
+<p>In addition, they'd like to use several commands currently in pending:</p>
+
+<blockquote><b>
+<span id=tizen>
+tar diff printf wget rsync fdisk vi less tr test stty fold expr dd
+</span>
 </b></blockquote>
 
 <hr /><a name=klibc />
