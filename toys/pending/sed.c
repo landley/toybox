@@ -702,7 +702,8 @@ static char *unescape_delimited_string(char **pstr, char *delim, int regex)
 
       // Check escaped end delimiter before printf style escapes.
       if (from[1] == d) from++;
-      else if (from[1]!='\\') {
+      else if (from[1]=='\\') *(to++) = *(from++);
+      else {
         char c = unescape(from[1]);
 
         if (c) {
@@ -827,7 +828,7 @@ static void jewel_of_judgement(char **pline, long len)
       for (line++; *line; line++) {
         long l;
 
-        if (isspace(*line)) continue;
+        if (isspace(*line) && *line != '\n') continue;
 
         if (0 <= (l = stridx("igp", *line))) corwin->sflags |= 1<<l;
         else if (!(corwin->sflags>>3) && 0<(l = strtol(line, &line, 10))) {
