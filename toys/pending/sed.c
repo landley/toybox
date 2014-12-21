@@ -83,9 +83,9 @@ config SED
 
       H  Remember this line (appending to remembered line, if any)
 
-      l  Print this line, escaping \abfrtv (but leaving \n as a newline),
-         using octal escapes for other nonprintable characters, and
-         wrapping lines to terminal width with a backslash and newline
+      l  Print line, escaping \abfrtv (but not newline), octal escaping other
+         nonprintable characters, wrapping lines to terminal width with a
+         backslash, and appending $ to actual end of line.
 
       n  Print default output and read next line, replacing current line
          (If no next line available, quit processing script)
@@ -175,6 +175,7 @@ GLOBALS(
   void *restart, *lastregex;
   long nextlen, rememberlen, count;
   int fdout, noeol;
+  unsigned xx;
 )
 
 struct step {
@@ -425,8 +426,31 @@ static void walk_pattern(char **pline, long plen)
     } else if (c=='i') {
       str = logrus->arg1+(char *)logrus;
       emit(str, strlen(str), 1);
-//    } else if (c=='l') {
-//      error_exit("todo: l");
+    } else if (c=='l') {
+      int i, x, off;
+
+      if (!TT.xx) {
+        terminal_size(&TT.xx, 0);
+        if (!TT.xx) TT.xx = 80;
+        if (TT.xx > sizeof(toybuf)-10) TT.xx = sizeof(toybuf)-10;
+        if (TT.xx > 4) TT.xx -= 4;
+      }
+
+      for (i = off = 0; i<len; i++) {
+        if (off >= TT.xx) {
+          toybuf[off++] = '\\';
+          emit(toybuf, off, 1);
+          off = 0;
+        }
+        x = stridx("\\\a\b\f\r\t\v", line[i]);
+        if (x != -1) {
+          toybuf[off++] = '\\';
+          toybuf[off++] = "\\abfrtv"[x];
+        } else if (line[i] >= ' ') toybuf[off++] = line[i];
+        else off += sprintf(toybuf+off, "\\%03o", line[i]);
+      }
+      toybuf[off++] = '$';
+      emit(toybuf, off, 1);
     } else if (c=='n') {
       TT.restart = logrus->next;
 
