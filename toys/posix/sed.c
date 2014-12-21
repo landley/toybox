@@ -11,7 +11,7 @@ USE_SED(NEWTOY(sed, "(version)e*f*inr", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config SED
   bool "sed"
-  default n
+  default y
   help
     usage: sed [-inr] [-e SCRIPT]...|SCRIPT [-f SCRIPT_FILE]... [FILE...]
 
