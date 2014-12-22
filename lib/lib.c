@@ -512,8 +512,7 @@ int copy_tempfile(int fdin, char *name, char **tempname)
   struct stat statbuf;
   int fd;
 
-  *tempname = xstrndup(name, strlen(name)+6);
-  strcat(*tempname,"XXXXXX");
+  *tempname = xmprintf("%s%s", name, "XXXXXX");
   if(-1 == (fd = mkstemp(*tempname))) error_exit("no temp file");
   if (!tempfile2zap) sigatexit(tempfile_handler);
   tempfile2zap = *tempname;
