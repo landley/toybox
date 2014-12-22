@@ -364,7 +364,7 @@ static void walk_pattern(char **pline, long plen)
     if (c=='a' || c=='r') {
       struct append *a = xzalloc(sizeof(struct append));
       a->str = logrus->arg1+(char *)logrus;
-      a->file = c== 'r';
+      a->file = c=='r';
       dlist_add_nomalloc((void *)&append, (void *)a);
     } else if (c=='b' || c=='t' || c=='T') {
       int t = tea;
@@ -627,12 +627,15 @@ done:
     struct append *a = append->next;
 
     if (append->file) {
-      int fd = xopen(append->str, O_RDONLY);
+      int fd = open(append->str, O_RDONLY);
 
       // Force newline if noeol pending
-      emit(0, 0, 0);
-      xsendfile(fd, TT.fdout);
-      close(fd);
+      if (fd != -1) {
+        if (TT.noeol) xwrite(TT.fdout, "\n", 1);
+        TT.noeol = 0;
+        xsendfile(fd, TT.fdout);
+        close(fd);
+      }
     } else emit(append->str, strlen(append->str), 1);
     free(append);
     append = a;
