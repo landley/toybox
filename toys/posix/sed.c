@@ -753,6 +753,7 @@ static void jewel_of_judgement(char **pline, long len)
   int i;
 
   // Append additional line to pattern argument string?
+  // We temporarily repurpose "hit" to indicate line continuations
   if (corwin && corwin->prev->hit) {
     // Remove half-finished entry from list so remalloc() doesn't confuse it
     TT.pattern = TT.pattern->prev;
@@ -917,33 +918,30 @@ writenow:
       reg = extend_string((void *)&corwin, s, reg-(char*)corwin, len);
       free(s);
     } else if (strchr("abcirtTw:", c)) {
-      int end, class;
+      int end;
 
       // Trim whitespace from "b ;" and ": blah " but only first space in "w x "
 
-      while (isspace(*line)) {
-        if (!strchr("btT", c) || *line != '\n') line++;
-        else break;
-      }
+      while (isspace(*line) && *line != '\n') line++;
 append:
-      class = !strchr("btT:", c);
-      end = strcspn(line, class ? "\n" : "; \t\r\n\v\f");
-
-      if (!end) {
-        if (!strchr("btT", c)) break;
-        continue;
+      if (!(end = strcspn(line, strchr("btT:", c) ? "; \t\r\n\v\f" : "\n"))) {
+        if (strchr("btT", c)) continue;
+        else if (!corwin->arg1) break;
       }
 
       // Extend allocation to include new string. We use offsets instead of
       // pointers so realloc() moving stuff doesn't break things. Do it
       // here instead of toybuf so there's no maximum size.
       if (!corwin->arg1) corwin->arg1 = reg - (char*)corwin;
-      reg = extend_string((void *)&corwin, line, reg - (char *)corwin, end); 
+      else if ((corwin+1) != (void *)reg) *(reg++) = '\n';
+      reg = extend_string((void *)&corwin, line, reg - (char *)corwin, end);
+
       line += end;
 
       // Line continuation? (Two slightly different input methods, -e with
       // embedded newline vs -f line by line. Must parse both correctly.)
-      if (class && line[-1] == '\\') {
+      if (!strchr("btT:", c) && line[-1] == '\\') {
+        // reg is next available space, so reg[-1] is the null terminator
         reg[-2] = 0;
         if (*line && line[1]) {
           reg -= 2;
