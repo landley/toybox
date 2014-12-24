@@ -21,46 +21,51 @@ static void factor(char *s)
 {
   long l, ll;
 
-  l = strtol(s, &s, 0);
-  if (*s) {
-    error_msg("%s: not integer");
-    return;
-  }
+  for (;;) {
+    while(isspace(*s)) s++;
+    if (!*s) return;
 
-  printf("%ld:", l);
-
-  // Negative numbers have -1 as a factor
-  if (l < 0) {
-    printf(" -1");
-    l *= -1;
-  }
-
-  // Deal with 0 and 1 (and 2 since we're here)
-  if (l < 3) {
-    printf(" %ld\n", l);
-    return;
-  }
-
-  // Special case factors of 2
-  while (l && !(l&1)) {
-    printf(" 2");
-    l >>= 1;
-  }
-
-  // test odd numbers.
-  for (ll=3; ;ll += 2) {
-    long lll = ll*ll;
-
-    if (lll>l || lll<ll) {
-      if (l>1) printf(" %ld", l);
-      break;
+    l = strtol(s, &s, 0);
+    if (*s && !isspace(*s)) {
+      error_msg("%s: not integer");
+      return;
     }
-    while (!(l%ll)) {
-      printf(" %ld", ll);
-      l /= ll;
+
+    printf("%ld:", l);
+
+    // Negative numbers have -1 as a factor
+    if (l < 0) {
+      printf(" -1");
+      l *= -1;
     }
+
+    // Nothing below 4 has factors
+    if (l < 4) {
+      printf(" %ld\n", l);
+      continue;
+    }
+
+    // Special case factors of 2
+    while (l && !(l&1)) {
+      printf(" 2");
+      l >>= 1;
+    }
+
+    // test odd numbers.
+    for (ll=3; ;ll += 2) {
+      long lll = ll*ll;
+
+      if (lll>l || lll<ll) {
+        if (l>1) printf(" %ld", l);
+        break;
+      }
+      while (!(l%ll)) {
+        printf(" %ld", ll);
+        l /= ll;
+      }
+    }
+    xputc('\n');
   }
-  xputc('\n');
 }
 
 void factor_main(void)

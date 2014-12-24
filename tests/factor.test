@@ -16,3 +16,7 @@ testing "factor 10000000018" "factor 10000000018" \
         "10000000018: 2 131 521 73259\n" "" ""
 testing "factor 10000000019" "factor 10000000019" \
         "10000000019: 10000000019\n" "" ""
+
+testing "factor 3 6 from stdin" "factor" "3: 3\n6: 2 3\n" "" "3 6"
+testing "factor stdin newline" "factor" "3: 3\n6: 2 3\n" "" "3\n6\n"
+
