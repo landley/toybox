@@ -49,7 +49,7 @@ then
 
   echo "USE_TOYBOX(NEWTOY(toybox, NULL, TOYFLAG_STAYROOT))" > generated/newtoys.h
   sed -n -e 's/^USE_[A-Z0-9_]*(/&/p' toys/*/*.c \
-	| sed 's/\(.*TOY(\)\([^,]*\),\(.*\)/\2 \1\2,\3/' | sort -k 1,1 \
+	| sed 's/\(.*TOY(\)\([^,]*\),\(.*\)/\2 \1\2,\3/' | sort -s -k 1,1 \
 	| sed 's/[^ ]* //'  >> generated/newtoys.h &&
   sed -n -e 's/.*(NEWTOY(\([^,]*\), *\(\("[^"]*"[^,]*\)*\),.*/#define OPTSTR_\1\t\2/p' \
     generated/newtoys.h > generated/oldtoys.h || exit 1
@@ -173,7 +173,7 @@ do
 # If no pair (because command's disabled in config), use " " for flags
 # so allflags can define the appropriate zero macros.
 
-done | sort | sed -n 's/ A / /;t pair;h;s/\([^ ]*\).*/\1 " "/;x;b single;:pair;h;n;:single;s/[^ ]* B //;H;g;s/\n/ /;p' |\
+done | sort -s | sed -n 's/ A / /;t pair;h;s/\([^ ]*\).*/\1 " "/;x;b single;:pair;h;n;:single;s/[^ ]* B //;H;g;s/\n/ /;p' |\
 generated/mkflags > generated/flags.h || exit 1
 
 # Extract global structure definitions and flag definitions from toys/*/*.c
