@@ -7,7 +7,7 @@ USE_MIX(NEWTOY(mix, "c:d:l#r#", TOYFLAG_USR|TOYFLAG_BIN))
 
 config MIX
   bool "mix"
-  default n
+  default y
   help
    usage: mix [-m DEV] [-d CHANNEL] [-l VOL] [-r RIGHT]
 
