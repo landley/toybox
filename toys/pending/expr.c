@@ -13,15 +13,31 @@ config EXPR
   bool "expr"
   default n
   help
-    usage: expr args
+    usage: expr ARG1 OPERATOR ARG2...
 
-    Evaluate expression and print result.
+    Evaluate expression and print result. For example, "expr 1 + 2".
 
-    The supported operators, in order of increasing precedence, are:
+    The supported operators are (grouped from highest to lowest priority):
 
-    | & = > >= < <= != + - * / % :
+      ( )    :    * / %    + -    != <= < >= > =    &    |
 
-    In addition, parentheses () are supported for grouping.
+    Each constant and operator must be a sparate command line argument.
+    All operators are infix, meaning they expect a constant (or expression
+    that resolves to a constant) on each side of the operator. Operators of
+    the same priority (within each group above) are evaluated left to right.
+    Parentheses may be used (as separate arguments) elevate the priority
+    of expressions.
+
+    Calling expr from a command shell requires a lot of \( or '*' escaping
+    to avoid interpreting shell control characters.
+
+    The & and | operators are logical, not bitwise) and may operate on
+    strings (a blank string is "false"). Comparison operators may also
+    operate on strings (alphabetical sort).
+
+    Constants may be strings or integers. Comparison, logical, and regex
+    operators may operate on strings (a blank string is "false"), other
+    operators require integers.
 */
 
 // TODO: int overflow checking
