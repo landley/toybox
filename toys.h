@@ -17,7 +17,6 @@
 #include <grp.h>
 #include <inttypes.h>
 #include <limits.h>
-#include <libgen.h>
 #include <math.h>
 #include <pwd.h>
 #include <regex.h>

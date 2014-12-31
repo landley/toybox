@@ -60,6 +60,15 @@ int wcwidth(wchar_t wc);
 #include <time.h>
 char *strptime(const char *buf, const char *format, struct tm *tm);
 
+// They didn't like posix basename so they defined another function with the
+// same name and if you include libgen.h it #defines basename to something
+// else (where they implemented the real basename), and that define breaks
+// the table entry for the basename command. They didn't make a new function
+// with a different name for their new behavior because gnu.
+//
+// Implement our own in portability.c and don't use their broken header.
+char *basename(char *path);
+
 // uClibc pretends to be glibc and copied a lot of its bugs, but has a few more
 #if defined(__UCLIBC__)
 #include <unistd.h>
