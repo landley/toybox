@@ -288,7 +288,7 @@ static int get_interface( char *interface, int *ifindex, uint32_t *oip, uint8_t 
   int fd = xsocket(AF_INET, SOCK_RAW, IPPROTO_RAW);
 
   req.ifr_addr.sa_family = AF_INET;
-  strncpy(req.ifr_name, interface, IFNAMSIZ);
+  xstrncpy(req.ifr_name, interface, IFNAMSIZ);
   req.ifr_name[IFNAMSIZ-1] = '\0';
 
   xioctl(fd, SIOCGIFFLAGS, &req);
@@ -628,7 +628,7 @@ static int mode_app(void)
     close(state->sockfd);
     return -1;
   }
-  strncpy(ifr.ifr_name, state->iface, IFNAMSIZ);
+  xstrncpy(ifr.ifr_name, state->iface, IFNAMSIZ);
   ifr.ifr_name[IFNAMSIZ -1] = '\0';
   setsockopt(state->sockfd, SOL_SOCKET, SO_BINDTODEVICE, &ifr, sizeof(ifr));
 
@@ -884,14 +884,16 @@ static uint8_t *dhcpc_addreqipaddr(struct in_addr *ipaddr, uint8_t *optptr)
 }
 
 // adds hostname to dhcp packet.
-static uint8_t *dhcpc_addfdnname(uint8_t *optptr,  char *hname)
+static uint8_t *dhcpc_addfdnname(uint8_t *optptr, char *hname)
 {
   int size = strlen(hname);
+
   *optptr++ = DHCP_OPTION_FQDN;
   *optptr++ = size + 3;
   *optptr++ = 0x1;  //flags
   optptr += 2;      // two blank bytes
-  strncpy((char*)optptr, hname, size); // name
+  strcpy((char*)optptr, hname); // name
+
   return optptr + size;
 }
 
