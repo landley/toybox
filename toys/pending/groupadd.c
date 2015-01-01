@@ -6,7 +6,7 @@
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/groupadd.html
 
 USE_GROUPADD(NEWTOY(groupadd, "<1>2g#<0S", TOYFLAG_NEEDROOT|TOYFLAG_SBIN))
-USE_GROUPADD(OLDTOY(addgroup, groupadd, OPTSTR_groupadd, TOYFLAG_NEEDROOT|TOYFLAG_SBIN))
+USE_GROUPADD(OLDTOY(addgroup, groupadd, TOYFLAG_NEEDROOT|TOYFLAG_SBIN))
 
 config GROUPADD
   bool "groupadd"

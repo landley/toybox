@@ -8,11 +8,11 @@
  * No Standard.
  *
 USE_IP(NEWTOY(ip, NULL, TOYFLAG_SBIN))
-USE_IP(OLDTOY(ipaddr, ip, NULL, TOYFLAG_SBIN))
-USE_IP(OLDTOY(iplink, ip, NULL, TOYFLAG_SBIN))
-USE_IP(OLDTOY(iproute, ip, NULL, TOYFLAG_SBIN))
-USE_IP(OLDTOY(iprule, ip, NULL, TOYFLAG_SBIN))
-USE_IP(OLDTOY(iptunnel, ip, NULL, TOYFLAG_SBIN))
+USE_IP(OLDTOY(ipaddr, ip, TOYFLAG_SBIN))
+USE_IP(OLDTOY(iplink, ip, TOYFLAG_SBIN))
+USE_IP(OLDTOY(iproute, ip, TOYFLAG_SBIN))
+USE_IP(OLDTOY(iprule, ip, TOYFLAG_SBIN))
+USE_IP(OLDTOY(iptunnel, ip, TOYFLAG_SBIN))
 
 config IP
   bool "ip"

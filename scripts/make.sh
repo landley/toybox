@@ -50,9 +50,7 @@ then
   echo "USE_TOYBOX(NEWTOY(toybox, NULL, TOYFLAG_STAYROOT))" > generated/newtoys.h
   sed -n -e 's/^USE_[A-Z0-9_]*(/&/p' toys/*/*.c \
 	| sed 's/\(.*TOY(\)\([^,]*\),\(.*\)/\2 \1\2,\3/' | sort -s -k 1,1 \
-	| sed 's/[^ ]* //'  >> generated/newtoys.h &&
-  sed -n -e 's/.*(NEWTOY(\([^,]*\), *\(\("[^"]*"[^,]*\)*\),.*/#define OPTSTR_\1\t\2/p' \
-    generated/newtoys.h > generated/oldtoys.h || exit 1
+	| sed 's/[^ ]* //'  >> generated/newtoys.h || exit 1
 fi
 
 [ ! -z "$V" ] && echo "Which C files to build..."

@@ -5,8 +5,8 @@
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/grep.html
 
 USE_GREP(NEWTOY(grep, "ZzEFHabhinorsvwclqe*f*m#x[!wx][!EFw]", TOYFLAG_BIN))
-USE_GREP(OLDTOY(egrep, grep, OPTSTR_grep, TOYFLAG_BIN))
-USE_GREP(OLDTOY(fgrep, grep, OPTSTR_grep, TOYFLAG_BIN))
+USE_GREP(OLDTOY(egrep, grep, TOYFLAG_BIN))
+USE_GREP(OLDTOY(fgrep, grep, TOYFLAG_BIN))
 
 config GREP
   bool "grep"

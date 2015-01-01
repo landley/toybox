@@ -17,11 +17,42 @@ struct flag {
   struct flag *lopt;
 };
 
+// replace chopped out USE_BLAH() sections with low-ascii characters
+// showing how many flags got skipped
+
+char *mark_gaps(char *flags, char *all)
+{
+  char *n, *new, c;
+
+  // Shell feeds in " " for blank args, leading space not meaningful.
+  while (isspace(*flags)) flags++;
+  while (isspace(*all)) all++;
+
+  n = new = strdup(all);
+  while (*all) {
+    if (*flags == *all) {
+      *(new++) = *(all++);
+      *flags++;
+      continue;
+    }
+
+    c = *(all++);
+    if (strchr("?&^-:#|@*; ", c));
+    else if (strchr("=<>", c)) while (isdigit(*all)) all++;
+    else if (c == '(') while(*(all++) != ')');
+    else *(new++) = 1;
+  }
+  *new = 0;
+
+  return n;
+}
+
 // Break down a command string into struct flag list.
 
 struct flag *digest(char *string)
 {
   struct flag *list = NULL;
+  char *err = string;
 
   while (*string) {
     // Groups must be at end.
@@ -52,6 +83,10 @@ struct flag *digest(char *string)
 
     if (strchr("?&^-:#|@*; ", *string)) string++;
     else if (strchr("=<>", *string)) {
+      if (!isdigit(string[1])) {
+        fprintf(stderr, "%c without number in '%s'", *string, err);
+        exit(1);
+      }
       while (isdigit(*++string)) {
         if (!list) {
            string++;
@@ -79,8 +114,12 @@ int main(int argc, char *argv[])
   // See "intentionally crappy", above.
   if (!(out = outbuf)) return 1;
 
+  printf("#ifdef FORCE_FLAGS\n#define FORCED_FLAG 1\n"
+         "#else\n#define FORCED_FLAG 0\n#endif\n\n");
+
   for (;;) {
     struct flag *flist, *aflist, *offlist;
+    char *gaps, *mgaps, c;
     unsigned bit;
 
     *command = 0;
@@ -95,6 +134,16 @@ int main(int argc, char *argv[])
 
     bit = 0;
     printf("// %s %s %s\n", command, flags, allflags);
+    mgaps = mark_gaps(flags, allflags);
+    for (gaps = mgaps; *gaps == 1; gaps++);
+    if (*gaps) c = '"';
+    else {
+      c = ' ';
+      gaps = "0";
+    }
+    printf("#undef OPTSTR_%s\n#define OPTSTR_%s %c%s%c\n",
+            command, command, c, gaps, c);
+    free(mgaps);
 
     flist = digest(flags);
     offlist = aflist = digest(allflags);
@@ -124,29 +173,28 @@ int main(int argc, char *argv[])
         {
           sprintf(out, "#define FLAG_%s (1<<%d)\n", flist->lopt->command, bit);
           flist->lopt = flist->lopt->next;
-        } else sprintf(out, "#define FLAG_%s 0\n", aflist->lopt->command);
+        } else sprintf(out, "#define FLAG_%s (FORCED_FLAG<<%d)\n",
+                       aflist->lopt->command, bit);
         aflist->lopt = aflist->lopt->next;
         if (!aflist->command) {
           aflist = aflist->next;
-          if (flist) {
-            flist = flist->next;
-            bit++;
-          }
+          bit++;
+          if (flist) flist = flist->next;
         }
       } else if (aflist->command) {
         if (flist && (!aflist->command || *aflist->command == *flist->command))
         {
           if (aflist->command)
             sprintf(out, "#define FLAG_%c (1<<%d)\n", *aflist->command, bit);
-          bit++;
           flist = flist->next;
-        } else sprintf(out, "#define FLAG_%c 0\n", *aflist->command);
+        } else sprintf(out, "#define FLAG_%c (FORCED_FLAG<<%d)\n",
+                       *aflist->command, bit);
+        bit++;
         aflist = aflist->next;
       }
       out += strlen(out);
     }
-    sprintf(out, "#endif\n\n");
-    out += strlen(out);
+    out = stpcpy(out, "#endif\n\n");
   }
 
   if (fflush(0) && ferror(stdout)) return 1;

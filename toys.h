@@ -73,9 +73,8 @@
 // Get list of function prototypes for all enabled command_main() functions.
 
 #define NEWTOY(name, opts, flags) void name##_main(void);
-#define OLDTOY(name, oldname, opts, flags) void oldname##_main(void);
+#define OLDTOY(name, oldname, flags) void oldname##_main(void);
 #include "generated/newtoys.h"
-#include "generated/oldtoys.h"
 #include "generated/flags.h"
 #include "generated/globals.h"
 

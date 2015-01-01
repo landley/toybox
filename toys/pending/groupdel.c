@@ -6,7 +6,7 @@
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/groupdel.html
 
 USE_GROUPDEL(NEWTOY(groupdel, "<1>2", TOYFLAG_NEEDROOT|TOYFLAG_SBIN))
-USE_GROUPDEL(OLDTOY(delgroup, groupdel, OPTSTR_groupdel, TOYFLAG_NEEDROOT|TOYFLAG_SBIN))
+USE_GROUPDEL(OLDTOY(delgroup, groupdel, TOYFLAG_NEEDROOT|TOYFLAG_SBIN))
 
 config GROUPDEL
   bool "groupdel"

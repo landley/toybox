@@ -6,7 +6,7 @@
  * No Standard.
  * 
 USE_FTPGET(NEWTOY(ftpget, "<2cvu:p:P#<0=21>65535", TOYFLAG_BIN))
-USE_FTPGET(OLDTOY(ftpput,ftpget, "<2vu:p:P#<0=21>65535", TOYFLAG_BIN))
+USE_FTPGET(OLDTOY(ftpput, ftpget, TOYFLAG_BIN))
 
 config FTPGET
   bool "ftpget/ftpput"

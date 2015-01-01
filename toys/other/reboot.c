@@ -3,8 +3,8 @@
  * Copyright 2013 Elie De Brauwer <eliedebrauwer@gmail.com>
 
 USE_REBOOT(NEWTOY(reboot, "n", TOYFLAG_BIN|TOYFLAG_NEEDROOT))
-USE_REBOOT(OLDTOY(halt, reboot, "n", TOYFLAG_BIN|TOYFLAG_NEEDROOT))
-USE_REBOOT(OLDTOY(poweroff, reboot, "n", TOYFLAG_BIN|TOYFLAG_NEEDROOT))
+USE_REBOOT(OLDTOY(halt, reboot, TOYFLAG_BIN|TOYFLAG_NEEDROOT))
+USE_REBOOT(OLDTOY(poweroff, reboot, TOYFLAG_BIN|TOYFLAG_NEEDROOT))
 
 config REBOOT
   bool "reboot"

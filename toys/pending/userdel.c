@@ -5,7 +5,7 @@
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/userdel.html
 
 USE_USERDEL(NEWTOY(userdel, "<1>1r", TOYFLAG_NEEDROOT|TOYFLAG_SBIN))
-USE_USERDEL(OLDTOY(deluser, userdel, OPTSTR_userdel, TOYFLAG_NEEDROOT|TOYFLAG_SBIN))
+USE_USERDEL(OLDTOY(deluser, userdel, TOYFLAG_NEEDROOT|TOYFLAG_SBIN))
 
 config USERDEL
   bool "userdel"

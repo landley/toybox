@@ -7,7 +7,7 @@
  * No Standard.
 
 USE_TCPSVD(NEWTOY(tcpsvd, "^<3c#=30<1C:b#=20<0u:l:hEv", TOYFLAG_USR|TOYFLAG_BIN))
-USE_TCPSVD(OLDTOY(udpsvd, tcpsvd, OPTSTR_tcpsvd, TOYFLAG_USR|TOYFLAG_BIN))
+USE_TCPSVD(OLDTOY(udpsvd, tcpsvd, TOYFLAG_USR|TOYFLAG_BIN))
 
 config TCPSVD
   bool "tcpsvd"

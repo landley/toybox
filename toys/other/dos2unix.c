@@ -3,7 +3,7 @@
  * Copyright 2012 Rob Landley <rob@landley.net>
 
 USE_DOS2UNIX(NEWTOY(dos2unix, NULL, TOYFLAG_BIN))
-USE_DOS2UNIX(OLDTOY(unix2dos, dos2unix, NULL, TOYFLAG_BIN))
+USE_DOS2UNIX(OLDTOY(unix2dos, dos2unix, TOYFLAG_BIN))
 
 config DOS2UNIX
   bool "dos2unix/unix2dos"

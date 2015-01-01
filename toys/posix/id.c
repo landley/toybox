@@ -7,9 +7,9 @@
  * See http://opengroup.org/onlinepubs/9699919799/utilities/id.html
 
 USE_ID(NEWTOY(id, ">1nGgru[!Ggu]", TOYFLAG_BIN))
-USE_GROUPS(OLDTOY(groups, id, NULL, TOYFLAG_USR|TOYFLAG_BIN))
-USE_LOGNAME(OLDTOY(logname, id, ">0", TOYFLAG_BIN))
-USE_WHOAMI(OLDTOY(whoami, id, ">0", TOYFLAG_BIN))
+USE_GROUPS(NEWTOY(groups, NULL, TOYFLAG_USR|TOYFLAG_BIN))
+USE_LOGNAME(NEWTOY(logname, ">0", TOYFLAG_BIN))
+USE_WHOAMI(OLDTOY(whoami, logname, TOYFLAG_BIN))
 
 config ID
   bool "id"
@@ -133,15 +133,23 @@ void do_id(char *username)
 void id_main(void)
 {
   // FLAG macros can be 0 if "id" command not enabled, so snapshot them here.
-  if (FLAG_u) TT.do_u = toys.optflags & FLAG_u;
-  if (FLAG_n) TT.do_n = toys.optflags & FLAG_n;
-  if (FLAG_G) TT.do_G = toys.optflags & FLAG_G;
-
-  // And set the variables for non-id commands.
-  TT.is_groups = toys.which->name[0] == 'g';
-  if (TT.is_groups) TT.do_G = TT.do_n = 1;
-  else if (toys.which->name[0] != 'i') TT.do_u = TT.do_n = 1;
+  if (FLAG_u) TT.do_u |= toys.optflags & FLAG_u;
+  if (FLAG_n) TT.do_n |= toys.optflags & FLAG_n;
+  if (FLAG_G) TT.do_G |= toys.optflags & FLAG_G;
 
   if (toys.optc) while(*toys.optargs) do_id(*toys.optargs++);
   else do_id(NULL);
+}
+
+void groups_main(void)
+{
+  TT.is_groups = 1;
+  TT.do_G = TT.do_n = 1;
+  id_main();
+}
+
+void logname_main(void)
+{
+  TT.do_u = TT.do_n = 1;
+  id_main();
 }
