@@ -31,9 +31,12 @@ for i in stuff:
 
 for i in toystuff:
   try:
+    if ("ready" in reverse[i]) and ("pending" in reverse[i]): print "barf", i
+  except: pass
+  try:
     if ("ready" in reverse[i]) or ("pending" in reverse[i]): continue
   except: pass
-  print i
+  print "Not ready or pending:", i
 
 pending=[]
 done=[]
@@ -48,7 +51,7 @@ conv = [("posix", '<a href="http://pubs.opengroup.org/onlinepubs/9699919799/util
         ("development", '<a href="http://linux.die.net/man/1/%s">%%s</a>', '(%s)'),
         ("toolbox", "", '{%s}'), ("klibc_cmd", "", '=%s='),
         ("sash_cmd", "", '#%s#'), ("sbase_cmd", "", '@%s@'),
-        ("beastiebox_cmd", "", '*%s*'),
+        ("beastiebox_cmd", "", '*%s*'), ("tizen", "", '$%s$'),
         ("request", '<a href="http://linux.die.net/man/1/%s">%%s</a>', '+%s+')]
 
 
