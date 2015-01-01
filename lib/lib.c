@@ -233,13 +233,30 @@ struct string_list *find_in_path(char *path, char *filename)
   return rlist;
 }
 
+long estrtol(char *str, char **end, int base)
+{
+  errno = 0;
+
+  return strtol(str, end, base);
+}
+
+long xstrtol(char *str, char **end, int base)
+{
+  long l = estrtol(str, end, base);
+
+  if (errno) perror_exit("%s", str);
+
+  return l;
+}
+
 // atol() with the kilo/mega/giga/tera/peta/exa extensions.
 // (zetta and yotta don't fit in 64 bits.)
 long atolx(char *numstr)
 {
   char *c, *suffixes="cbkmgtpe", *end;
-  long val = strtol(numstr, &c, 0);
+  long val;
 
+  val = xstrtol(numstr, &c, 0);
   if (*c) {
     if (c != numstr && (end = strchr(suffixes, tolower(*c)))) {
       int shift = end-suffixes-2;
@@ -685,8 +702,9 @@ int sig_to_num(char *pidstr)
 
   if (pidstr) {
     char *s;
-    i = strtol(pidstr, &s, 10);
-    if (!*s) return i;
+
+    i = estrtol(pidstr, &s, 10);
+    if (!errno && !*s) return i;
 
     if (!strncasecmp(pidstr, "sig", 3)) pidstr+=3;
   }
@@ -715,8 +733,8 @@ mode_t string_to_mode(char *modestr, mode_t mode)
 
   // Handle octal mode
   if (isdigit(*str)) {
-    mode = strtol(str, &s, 8);
-    if (*s || (mode & ~(07777))) goto barf;
+    mode = estrtol(str, &s, 8);
+    if (errno || *s || (mode & ~(07777))) goto barf;
 
     return mode | extrabits;
   }

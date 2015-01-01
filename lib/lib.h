@@ -148,6 +148,8 @@ int64_t peek_be(void *ptr, unsigned size);
 int64_t peek(void *ptr, unsigned size);
 void poke(void *ptr, uint64_t val, int size);
 struct string_list *find_in_path(char *path, char *filename);
+long estrtol(char *str, char **end, int base);
+long xstrtol(char *str, char **end, int base);
 long atolx(char *c);
 long atolx_range(char *numstr, long low, long high);
 int numlen(long l);
