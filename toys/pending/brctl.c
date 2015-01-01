@@ -49,7 +49,7 @@ static void get_ports(char *bridge, int *indices)
 
   memset(ifindices, 0, MAX_BRIDGES);
   args[1] = (unsigned long)ifindices;
-  strncpy(ifr.ifr_name, bridge, IFNAMSIZ);
+  xstrncpy(ifr.ifr_name, bridge, IFNAMSIZ);
   ifr.ifr_data = (char *)args;
   xioctl(TT.sockfd, SIOCDEVPRIVATE, &ifr);
   if (indices) memcpy(indices, ifindices, sizeof(ifindices));
@@ -62,7 +62,7 @@ void get_br_info(char *bridge, struct __bridge_info *info)
     (unsigned long) info, 0, 0 };
 
   memset(info, 0, sizeof(*info));
-  strncpy(ifr.ifr_name, bridge, IFNAMSIZ);
+  xstrncpy(ifr.ifr_name, bridge, IFNAMSIZ);
   ifr.ifr_data = (char *)args;
 
   if (ioctl(TT.sockfd, SIOCDEVPRIVATE, &ifr) < 0) {
@@ -118,7 +118,7 @@ void br_addbr(char **argv)
 #ifdef SIOCBRADDBR
   xioctl(TT.sockfd, SIOCBRADDBR, argv[0]);
 #else            
-  strncpy(br, argv[0], IFNAMSIZ);   
+  xstrncpy(br, argv[0], IFNAMSIZ);   
   xioctl(TT.sockfd, SIOCSIFBR, args);
 #endif
 }
@@ -131,7 +131,7 @@ void br_delbr(char **argv)
 #ifdef SIOCBRDELBR
   xioctl(TT.sockfd, SIOCBRDELBR, argv[0]);
 #else
-  strncpy(br, argv[0], IFNAMSIZ);
+  xstrncpy(br, argv[0], IFNAMSIZ);
   xioctl(TT.sockfd, SIOCSIFBR, args);
 #endif
 }
@@ -148,7 +148,7 @@ void br_addif(char **argv)
   xioctl(TT.sockfd, SIOCBRADDIF, &ifr);
 #else
   args[1] = index;
-  strncpy(ifr.ifr_name, argv[0], IFNAMSIZ);
+  xstrncpy(ifr.ifr_name, argv[0], IFNAMSIZ);
   ifr.ifr_data = (char *)args;
   xioctl(TT.sockfd, SIOCDEVPRIVATE, &ifr);
 #endif
@@ -166,7 +166,7 @@ void br_delif(char **argv)
   xioctl(TT.sockfd, SIOCBRDELIF, &ifr);
 #else
   args[1] = index;     
-  strncpy(ifr.ifr_name, argv[0], IFNAMSIZ);
+  xstrncpy(ifr.ifr_name, argv[0], IFNAMSIZ);
   ifr.ifr_data = (char *)args;  
   xioctl(TT.sockfd, SIOCDEVPRIVATE, &ifr);
 #endif
@@ -194,7 +194,7 @@ void set_time(char *br, unsigned long cmd, unsigned long val)
   struct ifreq ifr;
   unsigned long args[4] = {cmd, val, 0, 0};
 
-  strncpy(ifr.ifr_name, br, IFNAMSIZ);
+  xstrncpy(ifr.ifr_name, br, IFNAMSIZ);
   ifr.ifr_data = (char *)args;
   xioctl(TT.sockfd, SIOCDEVPRIVATE, &ifr);
 }
@@ -270,7 +270,7 @@ void set_cost_prio(char *br, char *port, unsigned long cmd, unsigned long val)
   }
   if (i >= MAX_BRIDGES) error_exit("%s not in bridge", port);
   args[1] = i;
-  strncpy(ifr.ifr_name, br, IFNAMSIZ);
+  xstrncpy(ifr.ifr_name, br, IFNAMSIZ);
   ifr.ifr_data = (char *)args;
   xioctl(TT.sockfd, SIOCDEVPRIVATE, &ifr);
 }

@@ -646,7 +646,7 @@ static int link_set(char **argv)
 
   memset(&req, 0, sizeof(req));
   if (!*argv) error_exit("\"dev\" missing");
-  strncpy(req.ifr_name, *argv, IF_NAMESIZE);
+  xstrncpy(req.ifr_name, *argv, IF_NAMESIZE);
   fd = xsocket(AF_INET, SOCK_DGRAM, 0);
   xioctl(fd, SIOCGIFINDEX, &req);
   for (++argv; *argv;) {
@@ -674,9 +674,9 @@ static int link_set(char **argv)
         ++argv;
         break;
       case 5:
-        strncpy(req.ifr_ifru.ifru_newname, *argv, IF_NAMESIZE);
+        xstrncpy(req.ifr_ifru.ifru_newname, *argv, IF_NAMESIZE);
         xioctl(fd, SIOCSIFNAME, &req);
-        strncpy(req.ifr_name, *argv++, IF_NAMESIZE);
+        xstrncpy(req.ifr_name, *argv++, IF_NAMESIZE);
         xioctl(fd, SIOCGIFINDEX, &req);
         break;
       case 6:
@@ -839,7 +839,7 @@ static int get_link_info(struct nlmsghdr* h,struct linkdata* link,char **argv)
   link->next = link->prev = 0;
   link->iface_type = iface->ifi_type;
   if (!lname) error_exit("Invalid link.");
-  strncpy(link->type, lname, IFNAMSIZ);
+  xstrncpy(link->type, lname, IFNAMSIZ);
   free(lname);
   link->iface_idx = iface->ifi_index;
   link->flags = iface->ifi_flags;
@@ -886,7 +886,7 @@ static int get_link_info(struct nlmsghdr* h,struct linkdata* link,char **argv)
             {"DORMANT", 5}, {"UP", 6}, {NULL, -1}};
           if (!(lname = get_flag_string(flags, *((int*)(RTA_DATA(attr))), 0)))
             error_exit("Invalid state.");
-          strncpy(link->state, lname,IFNAMSIZ);
+          xstrncpy(link->state, lname,IFNAMSIZ);
           free(lname);
         }
         break;
@@ -974,7 +974,7 @@ static int print_addrinfo(struct nlmsghdr *h, int flag_l)
 
   if (flag_l && addrinfo.label && ifa->ifa_family == AF_INET6) return 0;
   if ((rta_tb[IFA_LABEL])) {
-    strncpy(label, RTA_DATA(rta_tb[IFA_LABEL]), 256);
+    xstrncpy(label, RTA_DATA(rta_tb[IFA_LABEL]), 256);
     label[255] = '\0';
     if (addrinfo.label && fnmatch(addrinfo.label, label, 0))
       return 0;
@@ -2330,8 +2330,8 @@ static int tnl_ioctl(char *dev, int rtype, struct ip_tunnel_parm *ptnl)
   int fd, ret = 0;
 
   if ((rtype == SIOCCHGTUNNEL || rtype == SIOCDELTUNNEL) && *ptnl->name)
-    strncpy(req.ifr_name, ptnl->name, IF_NAMESIZE);
-  else strncpy(req.ifr_name, dev, IF_NAMESIZE);
+    xstrncpy(req.ifr_name, ptnl->name, IF_NAMESIZE);
+  else xstrncpy(req.ifr_name, dev, IF_NAMESIZE);
 
   if (rtype != SIOCGIFHWADDR) req.ifr_ifru.ifru_data = (void*)ptnl;
   fd = xsocket(AF_INET, SOCK_DGRAM, 0);
@@ -2448,7 +2448,7 @@ static void parse_iptunnel_args(struct ip_tunnel_parm *ptnl, char **argv,
   // frag_off is measured in units of 8 octets (64 bits)
   ptnl->iph.frag_off = htons(IP_DF);
   if (*argv && ipt_opt_idx <= 2 && string_to_idx(*argv, opts) == -1) {
-    strncpy(ptnl->name, *argv, IF_NAMESIZE);
+    xstrncpy(ptnl->name, *argv, IF_NAMESIZE);
     if (ipt_opt_idx == 1) {
       struct ip_tunnel_parm iptnl_old;
 
@@ -2545,7 +2545,7 @@ static void parse_iptunnel_args(struct ip_tunnel_parm *ptnl, char **argv,
           struct ifreq req;
           int fd;
 
-          strncpy(req.ifr_name, *argv, IFNAMSIZ);
+          xstrncpy(req.ifr_name, *argv, IFNAMSIZ);
           fd = xsocket(AF_INET, SOCK_DGRAM, 0);
           xioctl(fd, SIOCGIFINDEX, &req);
           close(fd);
@@ -2578,12 +2578,12 @@ static void parse_iptunnel_args(struct ip_tunnel_parm *ptnl, char **argv,
         if (*ptnl->name) error_exit("invalid tunnel");
         else {
           if (!*++argv) error_exit("name is missing");
-          strncpy(ptnl->name, *argv, IF_NAMESIZE);
+          xstrncpy(ptnl->name, *argv, IF_NAMESIZE);
         }
         break;
       default:
         if (*ptnl->name) error_exit("invalid tunnel");
-        strncpy(ptnl->name, *argv, IF_NAMESIZE);
+        xstrncpy(ptnl->name, *argv, IF_NAMESIZE);
         break;
     }
   }

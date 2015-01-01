@@ -189,7 +189,7 @@ static void add_file(struct archive_handler *tar, char **nam, struct stat *st)
   }
 
   memset(&hdr, 0, sizeof(hdr));
-  strncpy(hdr.name, hname, sizeof(hdr.name));
+  xstrncpy(hdr.name, hname, sizeof(hdr.name));
   itoo(hdr.mode, sizeof(hdr.mode), st->st_mode &07777);
   itoo(hdr.uid, sizeof(hdr.uid), st->st_uid);
   itoo(hdr.gid, sizeof(hdr.gid), st->st_gid);
@@ -202,7 +202,7 @@ static void add_file(struct archive_handler *tar, char **nam, struct stat *st)
     hdr.type = '1';
     if (strlen(node->arg) > sizeof(hdr.link))
       write_longname(tar, hname, 'K'); //write longname LINK
-    strncpy(hdr.link, node->arg, sizeof(hdr.link));
+    xstrncpy(hdr.link, node->arg, sizeof(hdr.link));
   } else if (S_ISREG(st->st_mode)) {
     hdr.type = '0';
     if (st->st_size <= (off_t)0777777777777LL)
@@ -219,7 +219,7 @@ static void add_file(struct archive_handler *tar, char **nam, struct stat *st)
     }
     if (strlen(lnk) > sizeof(hdr.link))
       write_longname(tar, hname, 'K'); //write longname LINK
-    strncpy(hdr.link, lnk, sizeof(hdr.link));
+    xstrncpy(hdr.link, lnk, sizeof(hdr.link));
     free(lnk);
   }
   else if (S_ISDIR(st->st_mode)) hdr.type = '5';

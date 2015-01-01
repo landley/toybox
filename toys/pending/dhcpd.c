@@ -246,8 +246,7 @@ static int get_interface(const char *interface, int *ifindex, uint32_t *oip, uin
   int fd = xsocket(AF_INET, SOCK_RAW, IPPROTO_RAW);
 
   req.ifr_addr.sa_family = AF_INET;
-  strncpy(req.ifr_name, interface, IFNAMSIZ);
-  req.ifr_name[IFNAMSIZ-1] = '\0';
+  xstrncpy(req.ifr_name, interface, IFNAMSIZ);
 
   xioctl(fd, SIOCGIFFLAGS, &req);
   
@@ -625,8 +624,7 @@ static int open_listensock(void)
       return -1;
   }
   memset(&ifr, 0, sizeof(ifr));
-  strncpy(ifr.ifr_name, gconfig.interface, IFNAMSIZ);
-  ifr.ifr_name[IFNAMSIZ -1] = '\0';
+  xstrncpy(ifr.ifr_name, gconfig.interface, IFNAMSIZ);
   setsockopt(gstate.listensock, SOL_SOCKET, SO_BINDTODEVICE, &ifr, sizeof(ifr));
 
   memset(&addr, 0, sizeof(addr));

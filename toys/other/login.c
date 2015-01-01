@@ -165,7 +165,7 @@ void login_main(void)
     tcflush(0, TCIFLUSH);
 
     username[sizeof(username)-1] = 0;
-    if (*toys.optargs) strncpy(username, *toys.optargs, sizeof(username)-1);
+    if (*toys.optargs) xstrncpy(username, *toys.optargs, sizeof(username));
     else {
       read_user(username, sizeof(username));
       if (!*username) continue;

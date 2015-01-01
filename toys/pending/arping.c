@@ -63,7 +63,7 @@ static void get_interface(char *interface, int *ifindex, uint32_t *oip,
   int fd = xsocket(AF_INET, SOCK_RAW, IPPROTO_RAW);
 
   req.ifr_addr.sa_family = AF_INET;
-  strncpy(req.ifr_name, interface, IFNAMSIZ);
+  xstrncpy(req.ifr_name, interface, IFNAMSIZ);
   req.ifr_name[IFNAMSIZ-1] = '\0';
 
   xioctl(fd, SIOCGIFFLAGS, &req);
@@ -215,7 +215,7 @@ void arping_main(void)
   TT.sockfd = xsocket(AF_PACKET, SOCK_DGRAM, 0);
 
   memset(&ifr, 0, sizeof(ifr));
-  strncpy(ifr.ifr_name, TT.iface, IFNAMSIZ);
+  xstrncpy(ifr.ifr_name, TT.iface, IFNAMSIZ);
   get_interface(TT.iface, &if_index, NULL, NULL);
   src_pk.sll_ifindex = if_index;
 

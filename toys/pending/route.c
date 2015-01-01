@@ -411,7 +411,7 @@ static void setroute_inet6(char **argv)
     if (dev_name) {
       char ifre_buf[sizeof(struct ifreq)] = {0,};
       struct ifreq *ifre = (struct ifreq*)ifre_buf;
-      strncpy(ifre->ifr_name, dev_name, IFNAMSIZ-1);
+      xstrncpy(ifre->ifr_name, dev_name, IFNAMSIZ);
       xioctl(sockfd, SIOGIFINDEX, ifre);
       rt.rtmsg_ifindex = ifre->ifr_ifindex;
     }          

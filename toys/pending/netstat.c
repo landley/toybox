@@ -76,15 +76,6 @@ static const char *get_basename(char *name)
   if (c) return c + 1;
   return name;
 }
-/*
- * copy string from src to dest -> only number of bytes.
- */
-static char *safe_strncpy(char *dst, char *src, size_t size)
-{
-  if(!size) return dst;
-  dst[--size] = '\0';
-  return strncpy(dst, src, size);
-}
 
 /*
  * locate character in string.
@@ -410,7 +401,7 @@ static void add2list(long inode, char *progname)
   }
   PID_LIST *new = (PID_LIST *)xzalloc(sizeof(PID_LIST));
   new->inode = inode;
-  safe_strncpy(new->name, progname, PROGNAME_LEN-1);
+  xstrncpy(new->name, progname, PROGNAME_LEN);
   new->next = pid_list;
   pid_list = new;
 }

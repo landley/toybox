@@ -175,7 +175,7 @@ static int set_entry(void)
   flags = ATF_PERM | ATF_COM;
   if (toys.optargs[2]) check_flags(&flags, (toys.optargs+2));
   req.arp_flags = flags;
-  strncpy(req.arp_dev, TT.device, sizeof(req.arp_dev));
+  xstrncpy(req.arp_dev, TT.device, sizeof(req.arp_dev));
   xioctl(TT.sockfd, SIOCSARP, &req);
   
   if (toys.optflags & FLAG_v) xprintf("Entry set for %s\n", toys.optargs[0]);
@@ -204,7 +204,7 @@ static int delete_entry(void)
   flags = ATF_PERM;
   if (toys.optargs[1]) check_flags(&flags, (toys.optargs+1));
   req.arp_flags = flags;
-  strncpy(req.arp_dev, TT.device, sizeof(req.arp_dev));
+  xstrncpy(req.arp_dev, TT.device, sizeof(req.arp_dev));
   xioctl(TT.sockfd, SIOCDARP, &req);
   
   if (toys.optflags & FLAG_v) xprintf("Delete entry for  %s\n", toys.optargs[0]);

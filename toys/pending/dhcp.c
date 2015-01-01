@@ -1230,16 +1230,14 @@ static void renew(void)
 // Sends a IP release request.
 static void release(void)
 {
-  int len = sizeof("255.255.255.255\0");
-  char buffer[len];
+  char buffer[sizeof("255.255.255.255\0")];
   struct in_addr temp_addr;
 
   mode_app();
   // send release packet
   if (state->status == STATE_BOUND || state->status == STATE_RENEWING || state->status == STATE_REBINDING) {
     temp_addr.s_addr = htonl(server);
-    strncpy(buffer, inet_ntoa(temp_addr), sizeof(buffer));
-    buffer[len - 1] = '\0';
+    xstrncpy(buffer, inet_ntoa(temp_addr), sizeof(buffer));
     temp_addr.s_addr = state->ipaddr.s_addr;
     infomsg( infomode, "Unicasting a release of %s to %s", inet_ntoa(temp_addr), buffer);
     dhcpc_sendmsg(DHCPRELEASE);
