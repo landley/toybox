@@ -9,13 +9,13 @@ config MIX
   bool "mix"
   default y
   help
-   usage: mix [-m DEV] [-d CHANNEL] [-l VOL] [-r RIGHT]
+   usage: mix [-d DEV] [-c CHANNEL] [-l VOL] [-r RIGHT]
 
    List OSS sound channels (module snd-mixer-oss), or set volume(s).
 
+   -c CHANNEL	Set/show volume of CHANNEL (default first channel found)
    -d DEV		Device node (default /dev/mixer)
    -l VOL		Volume level
-   -c CHANNEL	Set/show volume of CHANNEL (default first channel found)
    -r RIGHT	Volume of right stereo channel (with -r, -l sets left volume)
 */
 
@@ -41,8 +41,9 @@ void mix_main(void)
 
   for (channel = 0; channel < SOUND_MIXER_NRDEVICES; channel++) {
     if ((1<<channel) & mask) {
-      if (TT.chan && !strcmp(channels[channel], TT.chan)) break;
-      else if (toys.optflags & FLAG_l) break;
+      if (TT.chan) {
+        if (!strcmp(channels[channel], TT.chan)) break;
+      } else if (toys.optflags & FLAG_l) break;
       else printf("%s\n", channels[channel]);
     }
   }
