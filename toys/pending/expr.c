@@ -21,17 +21,17 @@ config EXPR
 
       ( )    :    * / %    + -    != <= < >= > =    &    |
 
-    Each constant and operator must be a sparate command line argument.
+    Each constant and operator must be a separate command line argument.
     All operators are infix, meaning they expect a constant (or expression
     that resolves to a constant) on each side of the operator. Operators of
     the same priority (within each group above) are evaluated left to right.
-    Parentheses may be used (as separate arguments) elevate the priority
+    Parentheses may be used (as separate arguments) to elevate the priority
     of expressions.
 
     Calling expr from a command shell requires a lot of \( or '*' escaping
     to avoid interpreting shell control characters.
 
-    The & and | operators are logical, not bitwise) and may operate on
+    The & and | operators are logical (not bitwise) and may operate on
     strings (a blank string is "false"). Comparison operators may also
     operate on strings (alphabetical sort).
 
