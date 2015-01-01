@@ -327,6 +327,7 @@ void parse_optflaglist(struct getoptflagstate *gof)
   for (new = gof->opts; new; new = new->next) {
     unsigned u = 1<<idx++;
 
+    if (new->c == 1) new->c = 0;
     new->dex[1] = u;
     if (new->flags & 1) gof->requires |= u;
     if (new->type) {
