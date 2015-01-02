@@ -7,8 +7,8 @@
 
 #undef NEWTOY
 #undef OLDTOY
-#define NEWTOY(name, opts, flags) {#name, 0, opts, flags},
-#define OLDTOY(name, oldname, opts, flags) {#name, 0, opts, flags},
+#define NEWTOY(name, opts, flags) {#name, 0, 0, flags},
+#define OLDTOY(name, oldname, flags) {#name, 0, 0, flags},
 
 // Populate toy_list[].
 
