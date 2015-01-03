@@ -30,6 +30,8 @@ void xstrncat(char *dest, char *src, size_t size)
 
 void xexit(void)
 {
+  if (fflush(NULL) || ferror(stdout))
+    if (!toys.exitval) perror_msg("write");
   if (toys.rebound) longjmp(*toys.rebound, 1);
   else exit(toys.exitval);
 }

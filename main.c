@@ -136,7 +136,6 @@ void toy_exec(char *argv[])
   // Run command
   toy_init(which, argv);
   if (toys.which) toys.which->toy_main();
-  if (fflush(NULL) || ferror(stdout)) perror_exit("write");
   xexit();
 }
 
@@ -189,8 +188,7 @@ int main(int argc, char *argv[])
     // a single toybox command built standalone with no multiplexer
     toy_singleinit(toy_list, argv);
     toy_list->toy_main();
-    if (fflush(NULL) || ferror(stdout)) perror_exit("write");
   }
 
-  return toys.exitval;
+  xexit();
 }
