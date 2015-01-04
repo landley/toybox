@@ -675,7 +675,7 @@ static void do_sed(int fd, char *name)
     struct step *primal;
 
     if (!fd && *name=='-') {
-      error_msg("no -i on stdin");
+      error_msg("-i on stdin");
       return;
     }
     TT.fdout = copy_tempfile(fd, name, &tmp);
@@ -699,7 +699,7 @@ static void do_sed(int fd, char *name)
 // if regxex, ignore delimiter in [ranges]
 static char *unescape_delimited_string(char **pstr, char *delim, int regex)
 {
-  char *to, *from, d;
+  char *to, *from, mode = 0, d;
 
   to = from = *pstr;
   if (!delim || !*delim) {
@@ -710,21 +710,15 @@ static char *unescape_delimited_string(char **pstr, char *delim, int regex)
   } else d = *delim;
   to = delim = xmalloc(strlen(*pstr)+1);
 
-  while (*from != d) {
+  while (mode || *from != d) {
     if (!*from) return 0;
 
     // delimiter in regex character range doesn't count
     if (*from == '[') {
-      int len = 1;
-
-      if (from[len] == ']') len++;
-      while (from[len] != ']') if (!from[len++]) return 0;
-      memmove(to, from, ++len);
-      to += len;
-      from += len;
-      continue;
-    }
-    if (*from == '\\') {
+      mode = '[';
+      if (from[1] == ']') *(to++) = *(from++);
+    } else if (mode && *from == ']') mode = 0;
+    else if (*from == '\\') {
       if (!from[1]) return 0;
 
       // Check escaped end delimiter before printf style escapes.
@@ -737,7 +731,7 @@ static char *unescape_delimited_string(char **pstr, char *delim, int regex)
           *(to++) = c;
           from+=2;
           continue;
-        }
+        } else if (from[1]) *(to++) = *(from++);
       }
     }
     *(to++) = *(from++);
