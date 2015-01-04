@@ -27,19 +27,14 @@ GLOBALS(
   int encountered;
 )
 
-// Calculate width and precision from format string
-static int get_w_p()
+// Detect matching character (return true/valse) and advance pointer if match.
+static int eat(char **s, char c)
 {
-  char *ptr, *str = *toys.optargs;
+  int x = (**s == c);
 
-  errno = 0;
-  if (*str == '-') str++;
-  long value = strtol(str, &ptr, 10);
-  if (errno || (ptr && (*ptr != '\0' || ptr == str)))
-    perror_msg("Invalid num %s", *toys.optargs);
-  if (*--str == '-') return (int)(-1 * value);
+  if (x) ++*s;
 
-  return value;
+  return x;
 }
 
 // Add ll and L to Interger and floating point formats respectively.
@@ -101,133 +96,88 @@ static void print(char *fmt, int w, int p)
   if (format) free(format);
 }
 
-// Handle the escape sequences.
+// Parse escape sequences.
 static int handle_slash(char **esc_val)
 {
   char *ptr = *esc_val;
-  int esc_length = 0;
-  unsigned  base = 0, num = 0, result = 0, count = 0;
+  int len = 1, base = 0;
+  unsigned result = 0;
 
-  /*
-   * Hex escape sequence have only 1 or 2 digits, xHH. Oct escape sequence 
-   * have 1,2 or 3 digits, xHHH. Leading "0" (\0HHH) we are ignoring.
-   */
-  if (*ptr == 'x') {
-    ptr++;
-    esc_length++;
-    base = 16;
-  } else if (isdigit(*ptr)) base = 8;
+  if (*ptr == 'c') xexit();
 
-  while (esc_length < 3 && base) {
-    num = tolower(*ptr) - '0';
-    if (num > 10) num += ('0' - 'a' + 10);
+  // 0x12 hex escapes have 1-2 digits, \123 octal escapes have 1-3 digits.
+  if (eat(&ptr, 'x')) base = 16;
+  else if (*ptr >= '0' && *ptr <= '8') base = 8;
+  len += (base-8)/8;
+
+  // Not a hex or octal escape? (This catches trailing \)
+  if (!len) {
+    if (!(result = unescape(*ptr))) result = '\\';
+    else ++*esc_val;
+
+    return result;
+  }
+
+  while (len) {
+    unsigned num = tolower(*ptr)-'0';
+
+    if (num > 10) num += '0'-'a'+10;
     if (num >= base) {
-      if (base == 16) {
-        esc_length--;
-        if (!esc_length) {// Invalid hex value eg. /xvd, print as it is /xvd
-          result = '\\';
-          ptr--;
-        }
+      // Don't parse invalid hex value ala "\xvd", print it verbatim
+      if (base == 16 && len == 2) {
+        ptr--;
+        result = '\\';
       }
       break;
     }
-    esc_length++;
-    count = result = (count * base) + num;
+    result = (result*base)+num;
     ptr++;
-  }
-  if (base) ptr--;
-  else if (!(result = unescape(*ptr))) {
-    result = '\\';
-    ptr--; // Let pointer pointing to / we will increment after returning.
+    len--;
   }
   *esc_val = ptr;
+
   return (char)result;
-}
-
-// Handle "%b" option with '\' interpreted.
-static void print_esc_str(char *str)              
-{
-  for (; *str; str++) {
-    if (*str == '\\') {
-      str++;
-      xputc(handle_slash(&str)); //print corresponding char
-    } else xputc(*str);
-  }
-}
-
-// Parse the format string and print.
-static void parse_print(char *format)
-{
-  char *start, *p, *f = format;
-  int len = 0, width = 0, prec = 0;
-
-  while (*f) {
-    if (*f == '%') {
-        start = f++;
-        len++;
-        if (*f == '%') {
-          xputc('%');
-          break;
-        }
-        if (*f == 'b') {
-          if (*toys.optargs) {
-            print_esc_str(*toys.optargs++);
-            TT.encountered = 1;
-          } else print_esc_str("");
-          break;
-        }
-        if (strchr("-+# ", *f)) f++, len++;
-        if (*f == '*') {
-          f++, len++;
-          if (*toys.optargs) {
-            width = get_w_p();
-            toys.optargs++;
-          }
-        } else while (isdigit(*f)) f++, len++;
-
-        if (*f == '.') {
-          f++, len++;
-          if (*f == '*') {
-            f++, len++;
-            if (*toys.optargs) {
-              prec = get_w_p();
-              toys.optargs++;
-            }
-          } else {
-            while (isdigit(*f)) f++, len++;
-          }
-        }
-        if (!(p = strchr("diouxXfeEgGcs", *f)))
-          perror_exit("bad format@%ld", f-format);
-        else {
-          len++;
-          TT.hv_p = strstr(start, ".*");
-          TT.hv_w = strchr(start, '*');
-          //pitfall: handle diff b/w * and .*
-          if ((TT.hv_w-1) == TT.hv_p) TT.hv_w = NULL;
-          memcpy((p = xzalloc(len+1)), start, len);
-          print(p+len-1, width, prec);
-          if (*toys.optargs) toys.optargs++;
-          free(p);
-          p = NULL;
-        } 
-        TT.encountered = 1;
-    } else if (*f == '\\' && f[1]) {
-      if (*++f == 'c') exit(0); //Got '\c', so no further output  
-      xputc(handle_slash(&f));
-    } else xputc(*f);
-    f++;
-    len = 0;
-  }
 }
 
 void printf_main(void)
 {
-  char *format = *toys.optargs++;
+  char *format = *toys.optargs, **arg = toys.optargs+1, *f, *p;
 
-  TT.encountered = 0;
-  parse_print(format); //printf acc. to format.
-  //Re-use FORMAT arg as necessary to convert all given ARGS.
-  while (*toys.optargs && TT.encountered) parse_print(format);
-  xflush();
+  for (f = format; *f; f++) {
+    if (eat(&f, '\\')) putchar(handle_slash(&f));
+    else if (*f != '%' || *++f == '%') xputc(*f);
+    else if (*f == 'b')
+      for (p = *arg ? *(arg++) : ""; *p; p++) 
+        putchar(eat(&p, '\\') ? handle_slash(&p) : *p);
+    else {
+      char *start = f;
+      int wp[2], i;
+
+      // todo: we currently ignore these?
+      if (strchr("-+# ", *f)) f++;
+      memset(wp, 0, 8);
+      for (i=0; i<2; i++) {
+        if (eat(&f, '*')) {
+          if (*arg) wp[i] = atolx(*(arg++));
+        } else while (isdigit(*f)) f++;
+        if (!eat(&f, '.')) break;
+      }
+      if (!(p = strchr("diouxXfeEgGcs", *f)))
+        perror_exit("bad format@%ld", f-format);
+      else {
+        int len = f-start;
+
+        TT.hv_p = strstr(start, ".*");
+        TT.hv_w = strchr(start, '*');
+        //pitfall: handle diff b/w * and .*
+        if ((TT.hv_w-1) == TT.hv_p) TT.hv_w = NULL;
+        memcpy((p = xzalloc(len+1)), start, len);
+        print(p+len-1, wp[0], wp[1]);
+        if (*arg) arg++;
+        free(p);
+        p = NULL;
+      } 
+      TT.encountered = 1;
+    }
+  }
 }
