@@ -14,8 +14,7 @@ config PRINTF
     usage: printf FORMAT [ARGUMENT...]
     
     Format and print ARGUMENT(s) according to FORMAT, using C printf syntax
-    (percent escapes for cdeEfgGiosuxX, slash escapes for \abefnrtv0 or
-    \0OCT or 0xHEX).
+    (% escapes for cdeEfgGiosuxX, \ escapes for abefnrtv0 or \OCTAL or \xHEX).
 */
 
 #define FOR_printf
@@ -50,9 +49,9 @@ static char *get_format(char *f)
 }
 
 // Print arguments with corresponding conversion and width and precision.
-static void print(char *fmt, int w, int p)
+static void print(char *fmt, int w, int p, char *arg)
 {
-  char *ptr = fmt, *ep = 0, *format = 0, *arg = *toys.optargs;
+  char *ptr = fmt, *ep = 0, *format = 0;
 
   errno = 0;
   if (strchr("diouxX", *ptr)) {
@@ -145,7 +144,7 @@ void printf_main(void)
 
   for (f = format; *f; f++) {
     if (eat(&f, '\\')) putchar(handle_slash(&f));
-    else if (*f != '%' || *++f == '%') xputc(*f);
+    else if (!eat(&f, '%') || *f == '%') putchar(*f);
     else if (*f == 'b')
       for (p = *arg ? *(arg++) : ""; *p; p++) 
         putchar(eat(&p, '\\') ? handle_slash(&p) : *p);
@@ -163,7 +162,7 @@ void printf_main(void)
         if (!eat(&f, '.')) break;
       }
       if (!(p = strchr("diouxXfeEgGcs", *f)))
-        perror_exit("bad format@%ld", f-format);
+        error_exit("bad format@%ld", f-format);
       else {
         int len = f-start;
 
@@ -172,7 +171,7 @@ void printf_main(void)
         //pitfall: handle diff b/w * and .*
         if ((TT.hv_w-1) == TT.hv_p) TT.hv_w = NULL;
         memcpy((p = xzalloc(len+1)), start, len);
-        print(p+len-1, wp[0], wp[1]);
+        print(p+len-1, wp[0], wp[1], *arg);
         if (*arg) arg++;
         free(p);
         p = NULL;

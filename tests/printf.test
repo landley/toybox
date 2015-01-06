@@ -6,12 +6,24 @@
 [ -f testing.sh ] && . testing.sh
 
 #testing "name" "command" "result" "infile" "stdin"
-#set -x
 
-testing "printf TEXT" "printf toyTestText" "toyTestText" "" ""
-testing "printf MULTILINE_TEXT" \
-  "printf 'Testing\nmultiline\ntext\nfrom\ntoybox\tcommand.\b'" \
-  "Testing\nmultiline\ntext\nfrom\ntoybox\tcommand.\b" "" ""
+testing "" "printf TEXT" "TEXT" "" ""
+testing "printf escapes" "printf 'one\ntwo\n\v\t\r\f\e\b\athree'" \
+  "one\ntwo\n\v\t\r\f\e\b\athree" "" ""
+testing "printf %b escapes" "printf %b 'one\ntwo\n\v\t\r\f\e\b\athree'" \
+  "one\ntwo\n\v\t\r\f\e\b\athree" "" ""
+testing "printf null" "printf 'x\0y' | od -An -tx1" ' 78 00 79\n' "" ""
+testing "printf trailing slash" "printf 'abc\'" 'abc\' "" ""
+testing "printf octal" "printf ' \1\002\429\045x'" ' \001\002"9%x' "" ""
+testing "printf not octal" "printf '\9'" '\9' "" ""
+testing "printf hex" "printf 'A\x1b\x2B\x3Q\xa' | od -An -tx1" \
+  ' 41 1b 2b 03 51 0a\n' "" ""
+testing "" "printf '%x\\n' 0x2a" "2a\n" "" ""
+
+testing "" "printf %d 42" "42" "" ""
+testing "" "printf %d 0x2a" "42" "" ""
+testing "" "printf %d 052" "42" "" ""
+
 testing "printf '%5d%4d' 1 21 321 4321 54321" \
   "printf '%5d%4d' 1 21 321 4321 54321" "    1  21  321432154321   0" "" ""
 testing "printf '%c %c' 78 79" "printf '%c %c' 78 79" "7 7" "" ""
