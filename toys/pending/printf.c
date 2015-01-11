@@ -20,12 +20,6 @@ config PRINTF
 #define FOR_printf
 #include "toys.h"
 
-GLOBALS(
-  char *hv_w;
-  char *hv_p;
-  int encountered;
-)
-
 // Detect matching character (return true/valse) and advance pointer if match.
 static int eat(char **s, char c)
 {
@@ -36,78 +30,19 @@ static int eat(char **s, char c)
   return x;
 }
 
-// Add ll and L to Interger and floating point formats respectively.
-static char *get_format(char *f)
-{
-  int len = strlen(f);
-  char last = f[--len], *post = "";
-
-  f[len] = 0;
-  if (strchr("diouxX", last)) post = "ll";  // add ll to integer modifier.
-  else if (strchr("feEgG", last)) post = "L"; // add L to float modifier.
-  return xmprintf("%s%s%c", f, post, last);
-}
-
-// Print arguments with corresponding conversion and width and precision.
-static void print(char *fmt, int w, int p, char *arg)
-{
-  char *ptr = fmt, *ep = 0, *format = 0;
-
-  errno = 0;
-  if (strchr("diouxX", *ptr)) {
-    long long val = 0;
-
-    if (arg) {
-      if (*arg == '\'' || *arg == '"') val = arg[1];
-      else {
-        val = strtoll(arg, &ep, 0);
-        if (errno || (ep && (*ep || ep == arg))) {
-          perror_msg("Invalid num %s", arg);
-          val = 0;
-        }
-      }
-    }
-    format = get_format(fmt);
-    TT.hv_w ? (TT.hv_p ? printf(format, w, p, val) : printf(format, w, val))
-      : (TT.hv_p ? printf(format, p, val) : printf(format, val));
-  } else if (strchr("gGeEf", *ptr)) {
-    long double dval = 0;
-
-    if (arg) {
-      dval = strtold(arg, &ep);
-      if (errno || (ep && (*ep || ep == arg))) {
-        perror_msg("Invalid num %s", arg);
-        dval = 0;
-      }
-    }
-    format = get_format(fmt);
-    TT.hv_w ? (TT.hv_p ? printf(format, w, p, dval) : printf(format, w, dval))
-      : (TT.hv_p ? printf(format, p, dval) :  printf(format, dval));
-  } else if (*ptr == 's') {
-    char *str = arg;
-
-    if (!str) str = "";
-
-    TT.hv_w ? (TT.hv_p ? printf(fmt,w,p,str): printf(fmt, w, str))
-      : (TT.hv_p ? printf(fmt, p, str) : printf(fmt, str));
-  } else if (*ptr == 'c') printf(fmt, arg ? *arg : 0);
-
-  if (format) free(format);
-}
-
 // Parse escape sequences.
 static int handle_slash(char **esc_val)
 {
   char *ptr = *esc_val;
-  int len = 1, base = 0;
-  unsigned result = 0;
+  int len, base = 0;
+  unsigned result = 0, num;
 
   if (*ptr == 'c') xexit();
 
   // 0x12 hex escapes have 1-2 digits, \123 octal escapes have 1-3 digits.
   if (eat(&ptr, 'x')) base = 16;
   else if (*ptr >= '0' && *ptr <= '8') base = 8;
-  len += (base-8)/8;
+  len = (char []){0,3,2}[base/8];
 
   // Not a hex or octal escape? (This catches trailing \)
   if (!len) {
@@ -118,9 +53,8 @@ static int handle_slash(char **esc_val)
   }
 
   while (len) {
-    unsigned num = tolower(*ptr)-'0';
-
-    if (num > 10) num += '0'-'a'+10;
+    num = tolower(*ptr) - '0';
+    if (num >= 'a'-'0') num += '0'-'a'+10;
     if (num >= base) {
       // Don't parse invalid hex value ala "\xvd", print it verbatim
       if (base == 16 && len == 2) {
@@ -135,48 +69,76 @@ static int handle_slash(char **esc_val)
   }
   *esc_val = ptr;
 
-  return (char)result;
+  return result;
 }
 
 void printf_main(void)
 {
-  char *format = *toys.optargs, **arg = toys.optargs+1, *f, *p;
+  char **arg = toys.optargs+1;
 
-  for (f = format; *f; f++) {
-    if (eat(&f, '\\')) putchar(handle_slash(&f));
-    else if (!eat(&f, '%') || *f == '%') putchar(*f);
-    else if (*f == 'b')
-      for (p = *arg ? *(arg++) : ""; *p; p++) 
-        putchar(eat(&p, '\\') ? handle_slash(&p) : *p);
-    else {
-      char *start = f;
-      int wp[2], i;
+  // Repeat format until arguments consumed
+  for (;;) {
+    int seen = 0;
+    char *f = *toys.optargs;
 
-      // todo: we currently ignore these?
-      if (strchr("-+# ", *f)) f++;
-      memset(wp, 0, 8);
-      for (i=0; i<2; i++) {
-        if (eat(&f, '*')) {
-          if (*arg) wp[i] = atolx(*(arg++));
-        } else while (isdigit(*f)) f++;
-        if (!eat(&f, '.')) break;
-      }
-      if (!(p = strchr("diouxXfeEgGcs", *f)))
-        error_exit("bad format@%ld", f-format);
+    // Loop through characters in format
+    while (*f) {
+      if (eat(&f, '\\')) putchar(handle_slash(&f));
+      else if (!eat(&f, '%') || *f == '%') putchar(*f++);
+
+      // Handle %escape
       else {
-        int len = f-start;
+        char c, *start = f, *end = 0, *aa, *width = "";
+        int wp[] = {-1,-1}, i;
+        union {
+          int c; // type promotion
+          char *str;
+          long long ll;
+          double dd;
+        } mash;
 
-        TT.hv_p = strstr(start, ".*");
-        TT.hv_w = strchr(start, '*');
-        //pitfall: handle diff b/w * and .*
-        if ((TT.hv_w-1) == TT.hv_p) TT.hv_w = NULL;
-        memcpy((p = xzalloc(len+1)), start, len);
-        print(p+len-1, wp[0], wp[1], *arg);
-        if (*arg) arg++;
-        free(p);
-        p = NULL;
-      } 
-      TT.encountered = 1;
+        // Parse width.precision between % and type indicator.
+        // todo: we currently ignore these?
+        if (strchr("-+# ", *f)) f++;
+        for (i=0; i<2; i++) {
+          if (eat(&f, '*')) {
+            if (*arg) wp[i] = atolx(*arg++);
+          } else while (isdigit(*f)) f++;
+          if (!eat(&f, '.')) break;
+        }
+        seen++;
+        errno = 0;
+        c = *f++;
+        aa = *arg ? *arg++ : "";
+
+        // Handle %esc, assembling new format string into toybuf if necessary.
+        if ((f-start) > sizeof(toybuf)-4) c = 0;
+        if (c == 'b') {
+          while (*aa) putchar(eat(&aa, '\\') ? handle_slash(&aa) : *aa++);
+
+          continue;
+        } else if (c == 'c') mash.c = *aa;
+        else if (c == 's') mash.str = aa;
+        else if (strchr("diouxX", c)) {
+          width = "ll";
+          if (*aa == '\'' || *aa == '"') mash.ll = aa[1];
+          else mash.ll = strtoll(aa, &end, 0);
+        } else if (strchr("feEgG", c)) mash.dd = strtod(aa, &end);
+        else error_exit("bad %%%c@%ld", c, f-*toys.optargs);
+
+        if (end && (errno || *end)) perror_msg("bad %%%c %s", c, aa);
+
+        sprintf(toybuf, "%%%.*s%s%c", (int)(f-start)-1, start, width, c);
+        wp[0]>=0
+          ? (wp[1]>=0 ? printf(toybuf, wp[0], wp[1], mash)
+                      : printf(toybuf, wp[0], mash))
+          : (wp[1]>=0 ? printf(toybuf, wp[1], mash)
+                      : printf(toybuf, mash));
+      }
     }
+
+    // Posix says to keep looping through format until we consume all args.
+    // This only works if the format actually consumed at least one arg.
+    if (!seen || !*arg) break;
   }
 }

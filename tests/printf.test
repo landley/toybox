@@ -21,7 +21,7 @@ testing "printf octal" "$PRINTF ' \1\002\429\045x'" ' \001\002"9%x' "" ""
 testing "printf not octal" "$PRINTF '\9'" '\9' "" ""
 testing "printf hex" "$PRINTF 'A\x1b\x2B\x3Q\xa' | od -An -tx1" \
   ' 41 1b 2b 03 51 0a\n' "" ""
-testing "printf " "$PRINTF '%x\n' 0x2a" "2a\n" "" ""
+testing "printf %x" "$PRINTF '%x\n' 0x2a" "2a\n" "" ""
 
 testing "printf %d 42" "$PRINTF %d 42" "42" "" ""
 testing "printf %d 0x2a" "$PRINTF %d 0x2a" "42" "" ""
@@ -30,6 +30,14 @@ testing "printf %d 052" "$PRINTF %d 052" "42" "" ""
 testing "printf %s width precision" \
   "$PRINTF '%3s,%.3s,%10s,%10.3s' abcde fghij klmno pqrst" \
   "abcde,fgh,     klmno,       pqr" "" ""
+
+# posix: "The format operand shall be reused as often as necessary to satisfy
+# the argument operands."
+
+testing "printf extra args" "$PRINTF 'abc%s!%ddef\n' X 42 ARG 36" \
+	"abcX!42def\nabcARG!36def\n" "" ""
+
+testing "printf '%3c'" "printf '%3c' x" "  x" "" ""
 
 testing "printf '%5d%4d' 1 21 321 4321 54321" \
   "$PRINTF '%5d%4d' 1 21 321 4321 54321" "    1  21  321432154321   0" "" ""
