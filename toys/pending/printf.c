@@ -88,52 +88,49 @@ void printf_main(void)
 
       // Handle %escape
       else {
-        char c, *start = f, *end = 0, *aa, *width = "";
-        int wp[] = {-1,-1}, i;
-        union {
-          int c; // type promotion
-          char *str;
-          long long ll;
-          double dd;
-        } mash;
+        char c, *end = 0, *aa, *to = toybuf;
+        int wp[] = {0,-1}, i;
 
         // Parse width.precision between % and type indicator.
-        // todo: we currently ignore these?
-        if (strchr("-+# ", *f)) f++;
+        *to++ = '%';
+        while (strchr("-+# '0", *f) && (to-toybuf)<10) *to = *f++;
         for (i=0; i<2; i++) {
           if (eat(&f, '*')) {
             if (*arg) wp[i] = atolx(*arg++);
-          } else while (isdigit(*f)) f++;
+          } else while (*f >= '0' && *f <= '9') {
+            if (wp[i]<0) wp[i] = 0;
+            wp[i] = (wp[i]*10)+(*f++)-'0';
+          }
           if (!eat(&f, '.')) break;
         }
-        seen++;
-        errno = 0;
         c = *f++;
+        seen = sprintf(to, "*.*%c", c);;
+        errno = 0;
         aa = *arg ? *arg++ : "";
 
-        // Handle %esc, assembling new format string into toybuf if necessary.
-        if ((f-start) > sizeof(toybuf)-4) c = 0;
+        // Output %esc using parsed format string
         if (c == 'b') {
           while (*aa) putchar(eat(&aa, '\\') ? handle_slash(&aa) : *aa++);
 
           continue;
-        } else if (c == 'c') mash.c = *aa;
-        else if (c == 's') mash.str = aa;
+        } else if (c == 'c') printf(toybuf, wp[0], wp[1], *aa);
+        else if (c == 's') printf(toybuf, wp[0], wp[1], aa);
         else if (strchr("diouxX", c)) {
-          width = "ll";
-          if (*aa == '\'' || *aa == '"') mash.ll = aa[1];
-          else mash.ll = strtoll(aa, &end, 0);
-        } else if (strchr("feEgG", c)) mash.dd = strtod(aa, &end);
-        else error_exit("bad %%%c@%ld", c, f-*toys.optargs);
+          long ll;
+
+          sprintf(to, "*.*ll%c", c);
+          if (*aa == '\'' || *aa == '"') ll = aa[1];
+          else ll = strtoll(aa, &end, 0);
+
+          printf(toybuf, wp[0], wp[1], ll);
+        } else if (strchr("feEgG", c)) {
+          long double ld = strtold(aa, &end);
+
+          sprintf(to, "*.*L%c", c);
+          printf(toybuf, wp[0], wp[1], ld);
+        } else error_exit("bad %%%c@%ld", c, f-*toys.optargs);
 
         if (end && (errno || *end)) perror_msg("bad %%%c %s", c, aa);
-
-        sprintf(toybuf, "%%%.*s%s%c", (int)(f-start)-1, start, width, c);
-        wp[0]>=0
-          ? (wp[1]>=0 ? printf(toybuf, wp[0], wp[1], mash)
-                      : printf(toybuf, wp[0], mash))
-          : (wp[1]>=0 ? printf(toybuf, wp[1], mash)
-                      : printf(toybuf, mash));
       }
     }
 
