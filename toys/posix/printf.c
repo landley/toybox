@@ -11,7 +11,7 @@ USE_PRINTF(NEWTOY(printf, "<1", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PRINTF 
   bool "printf"
-  default n
+  default y
   help
     usage: printf FORMAT [ARGUMENT...]
     
