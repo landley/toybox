@@ -37,7 +37,10 @@ testing "printf %s width precision" \
 testing "printf extra args" "$PRINTF 'abc%s!%ddef\n' X 42 ARG 36" \
 	"abcX!42def\nabcARG!36def\n" "" ""
 
-testing "printf '%3c'" "printf '%3c' x" "  x" "" ""
+testing "printf '%3c'" "$PRINTF '%3c' x" "  x" "" ""
+testing "printf '%-3c'" "$PRINTF '%-3c' x" "x  " "" ""
+testing "printf '%+d'" "$PRINTF '%+d' 5" "+5" "" ""
+
 
 testing "printf '%5d%4d' 1 21 321 4321 54321" \
   "$PRINTF '%5d%4d' 1 21 321 4321 54321" "    1  21  321432154321   0" "" ""

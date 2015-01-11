@@ -4,6 +4,8 @@
  * Copyright 2014 Kyungwan Han <asura321@gmail.com>
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/printf.html
+ *
+ * todo: *m$ ala printf("%1$d:%2$.*3$d:%4$.*3$d\n", hour, min, precision, sec);
 
 USE_PRINTF(NEWTOY(printf, "<1", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -93,7 +95,7 @@ void printf_main(void)
 
         // Parse width.precision between % and type indicator.
         *to++ = '%';
-        while (strchr("-+# '0", *f) && (to-toybuf)<10) *to = *f++;
+        while (strchr("-+# '0", *f) && (to-toybuf)<10) *to++ = *f++;
         for (i=0; i<2; i++) {
           if (eat(&f, '*')) {
             if (*arg) wp[i] = atolx(*arg++);
@@ -118,10 +120,10 @@ void printf_main(void)
         else if (strchr("diouxX", c)) {
           long ll;
 
-          sprintf(to, "*.*ll%c", c);
           if (*aa == '\'' || *aa == '"') ll = aa[1];
           else ll = strtoll(aa, &end, 0);
 
+          sprintf(to, "*.*ll%c", c);
           printf(toybuf, wp[0], wp[1], ll);
         } else if (strchr("feEgG", c)) {
           long double ld = strtold(aa, &end);
