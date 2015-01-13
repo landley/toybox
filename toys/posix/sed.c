@@ -711,7 +711,11 @@ static char *unescape_delimited_string(char **pstr, char *delim, int regex)
   to = delim = xmalloc(strlen(*pstr)+1);
 
   while (mode || *from != d) {
-    if (!*from) return 0;
+    if (!*from) {
+      *to = 0;
+
+      return 0;
+    }
 
     // delimiter in regex character range doesn't count
     if (*from == '[') {
@@ -746,22 +750,25 @@ static char *unescape_delimited_string(char **pstr, char *delim, int regex)
 static void jewel_of_judgement(char **pline, long len)
 {
   struct step *corwin = (void *)TT.pattern;
-  char *line = *pline, *reg, c, *errstart = *pline;
+  char *line, *reg, c, *errstart;
   int i;
+
+  line = errstart = pline ? *pline : "";
 
   // Append additional line to pattern argument string?
   // We temporarily repurpose "hit" to indicate line continuations
   if (corwin && corwin->prev->hit) {
+    if (!*pline) error_exit("unfinished %c", corwin->prev->c);;
     // Remove half-finished entry from list so remalloc() doesn't confuse it
     TT.pattern = TT.pattern->prev;
     corwin = dlist_pop(&TT.pattern);
-    corwin->hit = 0;
     c = corwin->c;
     reg = (char *)corwin;
     reg += corwin->arg1 + strlen(reg + corwin->arg1);
 
-    // Resume parsing
-    goto append;
+    // Resume parsing for 'a' or 's' command
+    if (corwin->hit < 256) goto resume_s;
+    else goto resume_a;
   }
 
   // Loop through commands in line
@@ -770,8 +777,12 @@ static void jewel_of_judgement(char **pline, long len)
   for (;;) {
     if (corwin) dlist_add_nomalloc(&TT.pattern, (void *)corwin);
 
-    while (isspace(*line) || *line == ';') line++;
-    if (!*line || *line == '#') return;
+    for (;;) {
+      while (isspace(*line) || *line == ';') line++;
+      if (*line == '#') while (*line && *line != '\n') line++;
+      else break;
+    }
+    if (!*line) return;
 
     errstart = line;
     memset(toybuf, 0, sizeof(struct step));
@@ -824,27 +835,51 @@ static void jewel_of_judgement(char **pline, long len)
     else if (c == '}') {
       if (!TT.nextlen--) break;
     } else if (c == 's') {
-      char *merlin, *fiona, delim = 0;
+      char *fiona, delim = 0;
 
       // s/pattern/replacement/flags
 
-      // get pattern (just record, we parse it later)
-      corwin->arg1 = reg - (char *)corwin;
-      if (!(merlin = unescape_delimited_string(&line, &delim, 1))) goto brand;
+      // line continuations use arg1, so we fill out arg2 first (since the
+      // regex part can't be multiple lines) and swap them back later.
 
+      // get pattern (just record, we parse it later)
+      corwin->arg2 = reg - (char *)corwin;
+      if (!(TT.remember = unescape_delimited_string(&line, &delim, 1)))
+        goto brand;
+
+      reg += sizeof(regex_t);
+      corwin->arg1 = reg-(char *)corwin;
+      corwin->hit = delim;
+resume_s:
       // get replacement - don't replace escapes because \1 and \& need
       // processing later, after we replace \\ with \ we can't tell \\1 from \1
       fiona = line;
-      while (*line != delim) {
-        if (!*line) goto brand;
-        if (*line == '\\') {
-          if (!line[1]) goto brand;
-          line += 2;
-        } else line++;
+      while (*fiona != corwin->hit) {
+        if (!*fiona) break;
+        if (*fiona++ == '\\') {
+          if (!*fiona || *fiona == '\n') {
+            fiona[-1] = '\n';
+            break;
+          }
+          fiona++;
+        }
       }
 
-      corwin->arg2 = corwin->arg1 + sizeof(regex_t);
-      reg = extend_string((void *)&corwin, fiona, corwin->arg2, line-fiona)+1;
+      reg = extend_string((void *)&corwin, line, reg-(char *)corwin,fiona-line);
+      line = fiona;
+      // line continuation? (note: '\n' can't be a valid delim).
+      if (*line == corwin->hit) corwin->hit = 0;
+      else {
+        if (!*line) continue;
+        reg--;
+        line++;
+        goto resume_s;
+      }
+
+      // swap arg1/arg2 so they're back in order arguments occur.
+      i = corwin->arg1;
+      corwin->arg1 = corwin->arg2;
+      corwin->arg2 = i;
 
       // get flags
       for (line++; *line; line++) {
@@ -861,10 +896,11 @@ static void jewel_of_judgement(char **pline, long len)
 
       // We deferred actually parsing the regex until we had the s///i flag
       // allocating the space was done by extend_string() above
-      if (!*merlin) corwin->arg1 = 0;
-      else xregcomp((void *)(corwin->arg1 + (char *)corwin), merlin,
+      if (!*TT.remember) corwin->arg1 = 0;
+      else xregcomp((void *)(corwin->arg1 + (char *)corwin), TT.remember,
         ((toys.optflags & FLAG_r)*REG_EXTENDED)|((corwin->sflags&1)*REG_ICASE));
-      free(merlin);
+      free(TT.remember);
+      TT.remember = 0;
       if (*line == 'w') {
         line++;
         goto writenow;
@@ -917,10 +953,14 @@ writenow:
     } else if (strchr("abcirtTw:", c)) {
       int end;
 
-      // Trim whitespace from "b ;" and ": blah " but only first space in "w x "
-
       while (isspace(*line) && *line != '\n') line++;
-append:
+
+      // Resume logic differs from 's' case because we don't add a newline
+      // unless it's after something, so we add it on return instead.
+resume_a:
+      corwin->hit = 0;
+
+      // Trim whitespace from "b ;" and ": blah " but only first space in "w x "
       if (!(end = strcspn(line, strchr("btT:", c) ? "; \t\r\n\v\f" : "\n"))) {
         if (strchr("btT", c)) continue;
         else if (!corwin->arg1) break;
@@ -938,13 +978,17 @@ append:
       // Line continuation? (Two slightly different input methods, -e with
       // embedded newline vs -f line by line. Must parse both correctly.)
       if (!strchr("btT:", c) && line[-1] == '\\') {
-        // reg is next available space, so reg[-1] is the null terminator
-        reg[-2] = 0;
-        if (*line && line[1]) {
-          reg -= 2;
-          line++;
-          goto append;
-        } else corwin->hit++;
+        // backslash only matters if we have an odd number of them
+        for (i = 0; i<end; i++) if (line[-i-1] != '\\') break;
+        if (i&1) {
+          // reg is next available space, so reg[-1] is the null terminator
+          reg[-2] = 0;
+          if (*line && line[1]) {
+            reg -= 2;
+            line++;
+            goto resume_a;
+          } else corwin->hit = 256;
+        }
       }
 
     // Commands that take no arguments
@@ -982,6 +1026,7 @@ void sed_main(void)
     jewel_of_judgement(&dworkin->arg, strlen(dworkin->arg));
   for (dworkin = TT.f; dworkin; dworkin = dworkin->next)
     do_lines(xopen(dworkin->arg, O_RDONLY), dworkin->arg, jewel_of_judgement);
+  jewel_of_judgement(0, 0);
   dlist_terminate(TT.pattern);
   if (TT.nextlen) error_exit("no }");  
 
