@@ -297,7 +297,9 @@ static void walk_pattern(char **pline, long plen)
   if (line[len-1] == '\n') line[--len] = eol++;
   TT.count++;
 
-  logrus = TT.restart ? TT.restart : (void *)TT.pattern;
+  // The restart-1 is because we added one to make sure it wasn't NULL,
+  // otherwise N as last command would restart script
+  logrus = TT.restart ? ((struct step *)TT.restart)-1 : (void *)TT.pattern;
   TT.restart = 0;
 
   while (logrus) {
@@ -452,14 +454,14 @@ static void walk_pattern(char **pline, long plen)
       toybuf[off++] = '$';
       emit(toybuf, off, 1);
     } else if (c=='n') {
-      TT.restart = logrus->next;
+      TT.restart = logrus->next+1;
 
       break;
     } else if (c=='N') {
       // Can't just grab next line because we could have multiple N and
       // we need to actually read ahead to get N;$p EOF detection right.
       if (pline) {
-        TT.restart = logrus->next;
+        TT.restart = logrus->next+1;
         extend_string(&line, TT.nextline, len, -TT.nextlen);
         free(TT.nextline);
         TT.nextline = line;
