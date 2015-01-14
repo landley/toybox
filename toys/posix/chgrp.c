@@ -4,20 +4,17 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/chown.html
  * See http://opengroup.org/onlinepubs/9699919799/utilities/chgrp.html
- *
- * TODO: group only one of [HLP]
 
-USE_CHGRP(NEWTOY(chgrp, "<2hPLHRfv", TOYFLAG_BIN))
-USE_CHGRP(OLDTOY(chown, chgrp, TOYFLAG_BIN))
+USE_CHGRP(NEWTOY(chgrp, "<2hPLHRfv[-HLP]", TOYFLAG_BIN))
+USE_CHOWN(OLDTOY(chown, chgrp, TOYFLAG_BIN))
 
 config CHGRP
-  bool "chgrp/chown"
+  bool "chgrp"
   default y
   help
-    usage: chown [-RHLP] [-fvh] [owner][:group] file...
-    usage: chgrp [-RHLP] [-fvh] group file...
+    usage: chgrp/chown [-RHLP] [-fvh] group file...
 
-    Change ownership of one or more files.
+    Change group of one or more files.
 
     -f	suppress most error messages.
     -h	change symlinks instead of what they point to
@@ -26,9 +23,16 @@ config CHGRP
     -L	with -R change target of symlink, follow all symlinks
     -P	with -R change symlink, do not follow symlinks (default)
     -v	verbose output.
+
+config CHOWN
+  bool "chown"
+  default y
+  help
+    see: chgrp
 */
 
 #define FOR_chgrp
+#define FORCE_FLAGS
 #include "toys.h"
 
 GLOBALS(
@@ -108,4 +112,9 @@ void chgrp_main(void)
   }
 
   if (CFG_TOYBOX_FREE && ischown) free(own);
+}
+
+void chown_main()
+{
+  chgrp_main();
 }
