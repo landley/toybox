@@ -18,7 +18,7 @@ config TOUCH
     -m	change modification time
     -c	don't create file
     -d	set time to DATE (in YYYY-MM-DDThh:mm:SS[.frac][tz] format)
-    -t	set time to TIME (in [[CC]YY]MMDDhhmm[.ss][frac] format)
+    -t	set time to TIME (in [[CC]YY]MMDDhhmm[.ss] format)
     -r	set time same as reference FILE
 */
 
@@ -80,10 +80,11 @@ void touch_main(void)
           localtime_r(&(tv->tv_sec), &tm);
         }
         s = strptime(date, "%Y-%m-%dT%T", &tm);
-        if (s && *s=='.') {
+        if (s && *s=='.' && isdigit(s[1])) {
           sscanf(s, ".%d%n", &i, &len);
           s += len;
           tv->tv_usec = i;
+          while (len++ < 7) tv->tv_usec *= 10;
         }
       } else s = 0;
 
@@ -92,17 +93,15 @@ void touch_main(void)
     } else {
       strcpy(toybuf, "%Y%m%d%H%M");
       date = TT.time;
+      i = ((s = strchr(date, '.'))) ? s-date : strlen(date);
+      if (i < 8 || i%2) error_exit("bad '%s'", date);
       for (i=0;i<3;i++) {
         s = strptime(date, toybuf+(i&2), &tm);
         if (s) break;
         toybuf[1]='y';
       }
-      if (s && *s=='.') {
-        int count = sscanf(s, ".%2d%u%n", &(tm.tm_sec), &i, &len);
-
-        if (count==2) tv->tv_usec = i;
+      if (s && *s=='.' && sscanf(s, ".%2u%n", &(tm.tm_sec), &len) == 1) 
         s += len;
-      }
     }
 
     errno = 0;
@@ -125,7 +124,7 @@ void touch_main(void)
     if ((flag == (FLAG_m|FLAG_a) || !fetch(*ss, tv, flag)) && !utimes(*ss, tv))
       ss++;
     else if (toys.optflags & FLAG_c) ss++;
-    else if (-1 != (fd = open(*ss, O_CREAT, 0666))) close(fd);
+    else if (access(*ss, F_OK) && (-1 != (fd = open(*ss, O_CREAT, 0666)))) close(fd);
     else perror_msg("'%s'", *ss++);
   }
 }
