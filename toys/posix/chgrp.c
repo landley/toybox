@@ -77,6 +77,8 @@ void chgrp_main(void)
   int ischown = toys.which->name[2] == 'o', hl = toys.optflags&(FLAG_H|FLAG_L);
   char **s, *own;
 
+  TT.owner = TT.group = -1;
+
   // Distinguish chown from chgrp
   if (ischown) {
     char *grp;
@@ -97,7 +99,7 @@ void chgrp_main(void)
     }
   } else TT.group_name = *toys.optargs;
 
-  if (TT.group_name) {
+  if (TT.group_name && *TT.group_name) {
     struct group *g;
     g = getgrnam(TT.group_name);
     if (!g) g=getgrgid(atoi(TT.group_name));
