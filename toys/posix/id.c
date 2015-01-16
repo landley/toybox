@@ -146,17 +146,18 @@ void do_id(char *username)
     }
   }
 
-#if CFG_TOYBOX_SELINUX
-  char *context = NULL;
-  if (is_selinux_enabled() < 1) {
-    if (TT.do_Z)
-      error_exit("SELinux disabled");
-  } else if (getcon(&context) == 0) {
-    if (!TT.do_Z) xputc(' ');
-    printf("context=%s", context);
+  if (CFG_TOYBOX_SELINUX) {
+    char *context = NULL;
+
+    if (is_selinux_enabled() < 1) {
+      if (TT.do_Z)
+        error_exit("SELinux disabled");
+    } else if (getcon(&context) == 0) {
+      if (!TT.do_Z) xputc(' ');
+      printf("context=%s", context);
+    }
+    if (CFG_TOYBOX_FREE) free(context);
   }
-  if (CFG_TOYBOX_FREE) free(context);
-#endif
 
   xputc('\n');
 }

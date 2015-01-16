@@ -239,4 +239,7 @@ pid_t xfork(void);
 
 #if CFG_TOYBOX_SELINUX
 #include <selinux/selinux.h>
+#else
+#define is_selinux_enabled() 0
+int getcon(void* con);
 #endif
