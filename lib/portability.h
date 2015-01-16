@@ -207,9 +207,6 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 #include <utmpx.h>
 #endif
 
-#include <pty.h>
-
-
 // Some systems don't define O_NOFOLLOW, and it varies by architecture, so...
 #include <fcntl.h>
 #ifndef O_NOFOLLOW
