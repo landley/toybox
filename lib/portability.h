@@ -206,11 +206,8 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 #if CFG_TOYBOX_UTMPX
 #include <utmpx.h>
 #endif
-#if CFG_TOYBOX_PTY
+
 #include <pty.h>
-#else
-pid_t forkpty(int *amaster, char *name, void *termp, void *winp);
-#endif
 
 
 // Some systems don't define O_NOFOLLOW, and it varies by architecture, so...

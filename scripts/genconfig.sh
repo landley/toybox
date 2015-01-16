@@ -58,14 +58,7 @@ EOF
     }
 EOF
 
-  # Android is missing shadow.h and pty.h
-  probesymbol TOYBOX_PTY -c << EOF
-    #include <pty.h>
-    int main(int argc, char *argv[]) {
-      int master; return forkpty(&master, 0, 0, 0);
-    }
-EOF
-
+  # Android is missing shadow.h
   probesymbol TOYBOX_SHADOW -c << EOF
     #include <shadow.h>
     int main(int argc, char *argv[]) {
