@@ -34,6 +34,13 @@ config TOYBOX_SUID
 
 	  chown root:root toybox; chmod +s toybox
 
+config TOYBOX_SELINUX
+ bool "SELinux support"
+ default n
+ help
+  Include SELinux options in commands such as ls, and add
+  SELinux-specific commands such as chcon.
+
 config TOYBOX_FLOAT
 	bool "Floating point support"
 	default y

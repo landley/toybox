@@ -6,7 +6,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/id.html
 
-USE_ID(NEWTOY(id, ">1nGgru[!Ggu]", TOYFLAG_BIN))
+USE_ID(NEWTOY(id, ">1"USE_ID_SELINUX("Z")"nGgru[!"USE_ID_SELINUX("Z")"Ggu]", TOYFLAG_BIN))
 USE_GROUPS(NEWTOY(groups, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 USE_LOGNAME(NEWTOY(logname, ">0", TOYFLAG_BIN))
 USE_WHOAMI(OLDTOY(whoami, logname, TOYFLAG_BIN))
@@ -24,6 +24,15 @@ config ID
     -g	Show only the effective group ID
     -r	Show real ID instead of effective ID
     -u	Show only the effective user ID
+
+config ID_SELINUX
+  bool
+  default y
+  depends on ID && TOYBOX_SELINUX
+  help
+    usage: id [-Z]
+
+    -Z Show only SELinux context
 
 config GROUPS
   bool "groups"
@@ -54,7 +63,7 @@ config WHOAMI
 #include "toys.h"
 
 GLOBALS(
-  int do_u, do_n, do_G, is_groups;
+  int do_u, do_n, do_G, do_Z, is_groups;
 )
 
 static void s_or_u(char *s, unsigned u, int done)
@@ -97,7 +106,7 @@ void do_id(char *username)
   grp = xgetgrgid(i ? gid : egid);
   if (flags & FLAG_g) s_or_u(grp->gr_name, grp->gr_gid, 1);
 
-  if (!TT.do_G) {
+  if (!TT.do_G && !TT.do_Z) {
     showid("uid=", pw->pw_uid, pw->pw_name);
     showid(" gid=", grp->gr_gid, grp->gr_name);
 
@@ -115,18 +124,40 @@ void do_id(char *username)
     showid(" groups=", grp->gr_gid, grp->gr_name);
   }
 
-  groups = (gid_t *)toybuf;
-  i = sizeof(toybuf)/sizeof(gid_t);
-  ngroups = username ? getgrouplist(username, gid, groups, &i)
-    : getgroups(i, groups);
-  if (ngroups<0) perror_exit(0);
+  if (!TT.do_Z) {
+    groups = (gid_t *)toybuf;
+    i = sizeof(toybuf)/sizeof(gid_t);
+    ngroups = username ? getgrouplist(username, gid, groups, &i)
+      : getgroups(i, groups);
+    if (ngroups<0) perror_exit(0);
 
-  for (i = 0; i<ngroups; i++) {
-    if (i || !TT.do_G) xputc(' ');
-    if (!(grp = getgrgid(groups[i]))) perror_msg(0);
-    else if (TT.do_G) s_or_u(grp->gr_name, grp->gr_gid, 0);
-    else if (grp->gr_gid != egid) showid("", grp->gr_gid, grp->gr_name);
+    int show_separator = !TT.do_G;
+    for (i = 0; i<ngroups; i++) {
+      if (show_separator) xputc(TT.do_G ? ' ' : ',');
+      show_separator = 1;
+      if (!(grp = getgrgid(groups[i]))) perror_msg(0);
+      else if (TT.do_G) s_or_u(grp->gr_name, grp->gr_gid, 0);
+      else if (grp->gr_gid != egid) showid("", grp->gr_gid, grp->gr_name);
+      else show_separator = 0; // Because we didn't show anything this time.
+    }
+    if (TT.do_G) {
+      xputc('\n');
+      exit(0);
+    }
   }
+
+#if CFG_TOYBOX_SELINUX
+  char *context = NULL;
+  if (is_selinux_enabled() < 1) {
+    if (TT.do_Z)
+      error_exit("SELinux disabled");
+  } else if (getcon(&context) == 0) {
+    if (!TT.do_Z) xputc(' ');
+    printf("context=%s", context);
+  }
+  if (CFG_TOYBOX_FREE) free(context);
+#endif
+
   xputc('\n');
 }
 
@@ -136,6 +167,7 @@ void id_main(void)
   if (FLAG_u) TT.do_u |= toys.optflags & FLAG_u;
   if (FLAG_n) TT.do_n |= toys.optflags & FLAG_n;
   if (FLAG_G) TT.do_G |= toys.optflags & FLAG_G;
+  if (FLAG_Z) TT.do_Z |= toys.optflags & FLAG_Z;
 
   if (toys.optc) while(*toys.optargs) do_id(*toys.optargs++);
   else do_id(NULL);

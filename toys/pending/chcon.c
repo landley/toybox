@@ -2,11 +2,12 @@
  *
  * Copyright 2014 The Android Open Source Project
 
-USE_CHCON(NEWTOY(chcon, "hRv", TOYFLAG_USR|TOYFLAG_BIN))
+USE_CHCON(NEWTOY(chcon, "<1hRv", TOYFLAG_USR|TOYFLAG_BIN))
 
 config CHCON
   bool "chcon"
-  default n
+  depends on TOYBOX_SELINUX
+  default y
   help
     usage: chcon [-hRv] CONTEXT FILE...
 
@@ -19,7 +20,6 @@ config CHCON
 
 #define FOR_chcon
 #include "toys.h"
-#include <selinux/selinux.h>
 
 GLOBALS(
   char *context;
