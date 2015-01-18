@@ -141,6 +141,11 @@ int utimensat(int fd, const char *path, const struct timespec times[2], int flag
 
 #endif
 
+#ifndef __GLIBC__
+// POSIX basename.
+#include <libgen.h>
+#endif
+
 #ifdef __MUSL__
 #include <unistd.h>
 // Without this "rm -r dir" fails with "is directory".
