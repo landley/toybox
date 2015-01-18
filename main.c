@@ -152,7 +152,7 @@ void toybox_main(void)
     toys.optc = toys.recursion = 0;
     toy_exec(toys.argv+1);
     if (toys.argv[1][0] == '-') goto list;
-    
+
     error_exit("Unknown command %s",toys.argv[1]);
   }
 

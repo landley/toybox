@@ -8,7 +8,7 @@
 
 // generate appropriate random salt string for given encryption algorithm.
 int get_salt(char *salt, char *algo)
-{      
+{
   struct {
     char *type, id, len;
   } al[] = {{"des", 0, 2}, {"md5", 1, 8}, {"sha256", 5, 16}, {"sha512", 6, 16}};
@@ -128,9 +128,9 @@ static char *get_nextcolon(char *line, int cnt)
 }
 
 /*update_password is used by multiple utilities to update /etc/passwd,
- * /etc/shadow, /etc/group and /etc/gshadow files, 
+ * /etc/shadow, /etc/group and /etc/gshadow files,
  * which are used as user, group databeses
- * entry can be 
+ * entry can be
  * 1. encrypted password, when updating user password.
  * 2. complete entry for user details, when creating new user
  * 3. group members comma',' separated list, when adding user to group
@@ -197,7 +197,7 @@ int update_password(char *filename, char* username, char* entry)
           current_ptr = get_nextcolon(current_ptr, 1);
           fprintf(newfp, "%s\n",current_ptr);
         } else fprintf(newfp, "%s\n",current_ptr);
-      } else if (!strcmp(toys.which->name, "groupadd") || 
+      } else if (!strcmp(toys.which->name, "groupadd") ||
           !strcmp(toys.which->name, "addgroup") ||
           !strcmp(toys.which->name, "delgroup") ||
           !strcmp(toys.which->name, "groupdel")){

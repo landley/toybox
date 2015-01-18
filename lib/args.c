@@ -82,7 +82,6 @@
 //     + Synonyms (switch on all)          [+abc] means -ab=-abc, -c=-abc
 //     ! More than one in group is error   [!abc] means -ab calls error_exit()
 //       primarily useful if you can switch things back off again.
-//     
 
 // Notes from getopt man page
 //   - and -- cannot be arguments.

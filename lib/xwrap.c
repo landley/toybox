@@ -349,7 +349,7 @@ void xstat(char *path, struct stat *st)
 
 // Cannonicalize path, even to file with one or more missing components at end.
 // if exact, require last path component to exist
-char *xabspath(char *path, int exact) 
+char *xabspath(char *path, int exact)
 {
   struct string_list *todo, *done = 0;
   int try = 9999, dirfd = open("/", 0);;
@@ -610,7 +610,7 @@ long xparsetime(char *arg, long units, long *fraction)
 
   if (CFG_TOYBOX_FLOAT) d = strtod(arg, &arg);
   else l = strtoul(arg, &arg, 10);
-  
+
   // Parse suffix
   if (*arg) {
     int ismhd[]={1,60,3600,86400}, i = stridx("smhd", *arg);

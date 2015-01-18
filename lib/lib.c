@@ -155,7 +155,7 @@ int mkpathat(int atfd, char *dir, mode_t lastmode, int flags)
       if (!(flags&2) || errno != EEXIST) return 1;
     } else if (flags&4)
       fprintf(stderr, "%s: created directory '%s'\n", toys.which->name, dir);
-    
+
     if (!(*s = save)) break;
   }
 
