@@ -66,8 +66,12 @@ char *strptime(const char *buf, const char *format, struct tm *tm);
 // the table entry for the basename command. They didn't make a new function
 // with a different name for their new behavior because gnu.
 //
-// Implement our own in portability.c and don't use their broken header.
-char *basename(char *path);
+// Solution: don't use their broken header, provide an inline to redirect the
+// correct name to the broken name.
+
+char *dirname(char *path);
+char *__xpg_basename (char *path);
+static inline char *basename(char *path) { return __xpg_basename(path); }
 
 // uClibc pretends to be glibc and copied a lot of its bugs, but has a few more
 #if defined(__UCLIBC__)
@@ -137,9 +141,9 @@ int utimensat(int fd, const char *path, const struct timespec times[2], int flag
 #ifndef MNT_DETACH
 #define MNT_DETACH 2
 #endif
-#endif
+#endif // Old glibc
 
-#endif
+#endif // glibc in general
 
 #ifndef __GLIBC__
 // POSIX basename.

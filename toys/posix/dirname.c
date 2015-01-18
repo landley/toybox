@@ -16,7 +16,6 @@ config DIRNAME
 */
 
 #include "toys.h"
-#include <libgen.h>
 
 void dirname_main(void)
 {

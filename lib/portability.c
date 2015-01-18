@@ -6,14 +6,6 @@
 
 #include "toys.h"
 
-#if defined(__GLIBC__)
-#include <libgen.h>
-char *basename(char *path)
-{
-  return __xpg_basename(path);
-}
-#endif
-
 #if !defined(__uClinux__)
 pid_t xfork(void)
 {
