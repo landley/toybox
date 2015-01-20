@@ -22,7 +22,7 @@ config PRINTF
 #define FOR_printf
 #include "toys.h"
 
-// Detect matching character (return true/valse) and advance pointer if match.
+// Detect matching character (return true/false) and advance pointer if match.
 static int eat(char **s, char c)
 {
   int x = (**s == c);
