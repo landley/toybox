@@ -30,13 +30,43 @@ GLOBALS(
   int utc;
 )
 
+static int check_hctosys(struct dirtree* node)
+{
+  FILE *fp;
+
+  if (!node->parent) return DIRTREE_RECURSE;
+
+  snprintf(toybuf, sizeof(toybuf), "/sys/class/rtc/%s/hctosys", node->name);
+  fp = fopen(toybuf, "r");
+  if (fp) {
+    int hctosys = 0;
+    int items = fscanf(fp, "%d", &hctosys);
+    fclose(fp);
+    if (items == 1 && hctosys == 1) {
+      snprintf(toybuf, sizeof(toybuf), "/dev/%s", node->name);
+      TT.fname = toybuf;
+      return DIRTREE_ABORT;
+    }
+  }
+  return 0;
+}
+
+// Search /sys/class/rtc for the RTC that the system clock is set from.
+// See the kernel's Documentation/rtc.txt.
+static int open_wall_clock_rtc(int flag)
+{
+  TT.fname = NULL;
+  dirtree_read("/sys/class/rtc", check_hctosys);
+  return TT.fname ? xopen(TT.fname, flag) : -1;
+}
+
 static int rtc_open(int flag)
 {
   if (!TT.fname) {
     int fd; 
 
     if ((fd = open((TT.fname = "/dev/rtc"), flag)) != -1) return fd;
-    else if ((fd = open((TT.fname = "/dev/rtc0"), flag)) != -1) return fd;
+    else if ((fd = open_wall_clock_rtc(flag)) != -1) return fd;
     else TT.fname = "/dev/misc/rtc";
   }
   return xopen(TT.fname, flag);
