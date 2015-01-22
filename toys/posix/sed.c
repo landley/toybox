@@ -713,11 +713,7 @@ static char *unescape_delimited_string(char **pstr, char *delim, int regex)
   to = delim = xmalloc(strlen(*pstr)+1);
 
   while (mode || *from != d) {
-    if (!*from) {
-      *to = 0;
-
-      return 0;
-    }
+    if (!*from) return 0;
 
     // delimiter in regex character range doesn't count
     if (*from == '[') {
@@ -737,7 +733,7 @@ static char *unescape_delimited_string(char **pstr, char *delim, int regex)
           *(to++) = c;
           from+=2;
           continue;
-        } else if (from[1]) *(to++) = *(from++);
+        } else *(to++) = *(from++);
       }
     }
     *(to++) = *(from++);
@@ -756,6 +752,7 @@ static void jewel_of_judgement(char **pline, long len)
   int i;
 
   line = errstart = pline ? *pline : "";
+  if (len && line[len-1]=='\n') line[--len] = 0;
 
   // Append additional line to pattern argument string?
   // We temporarily repurpose "hit" to indicate line continuations
@@ -857,7 +854,7 @@ resume_s:
       // processing later, after we replace \\ with \ we can't tell \\1 from \1
       fiona = line;
       while (*fiona != corwin->hit) {
-        if (!*fiona) break;
+        if (!*fiona) goto brand;
         if (*fiona++ == '\\') {
           if (!*fiona || *fiona == '\n') {
             fiona[-1] = '\n';
