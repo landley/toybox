@@ -19,31 +19,33 @@ config MOUNTPOINT
 #define FOR_mountpoint
 #include "toys.h"
 
+static void die(char *gripe)
+{
+  if (!(toys.optflags & FLAG_q)) printf("%s: not a %s\n", *toys.optargs, gripe);
+
+  toys.exitval++;
+  xexit();
+}
+
 void mountpoint_main(void)
 {
   struct stat st1, st2;
   char *arg = *toys.optargs;
   int quiet = toys.optflags & FLAG_q;
 
-  toys.exitval = 1;
-  if (((toys.optflags & FLAG_x) ? lstat : stat)(arg, &st1))
-    perror_exit("%s", arg);
+  if (lstat(arg, &st1)) perror_exit("%s", arg);
 
   if (toys.optflags & FLAG_x) {
     if (S_ISBLK(st1.st_mode)) {
       if (!quiet) printf("%u:%u\n", major(st1.st_rdev), minor(st1.st_rdev));
-      toys.exitval = 0;
+
       return;
     }
-    if (!quiet) printf("%s: not a block device\n", arg);
-    return;
+    die("block device");
   }
 
-  // Ignore the fact a file can be a mountpoint for --bind mounts.
-  if (!S_ISDIR(st1.st_mode)) {
-    if (!quiet) printf("%s: not a directory\n", arg);
-    return;
-  }
+  // TODO: Ignore the fact a file can be a mountpoint for --bind mounts.
+  if (!S_ISDIR(st1.st_mode)) die("directory");
 
   arg = xmprintf("%s/..", arg);
   xstat(arg, &st2);
