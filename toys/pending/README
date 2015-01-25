@@ -12,6 +12,6 @@ Library code awaiting cleanup lives in lib/pending.c
 The following commands predate the pending directory, and are awaiting
 cleanup but don't live here:
 
-  vmstat, login, du, vconfig, chroot, cut, touch, modinfo, expand, xargs
+  vmstat, login, du, vconfig, chroot, cut, touch, modinfo, xargs
 
   lib/password.c
