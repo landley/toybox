@@ -47,13 +47,13 @@ static int do_rm(struct dirtree *try)
 
   // handle directory recursion
   if (dir) {
+    using = AT_REMOVEDIR;
     // Handle chmod 000 directories when -f
     if (faccessat(fd, try->name, R_OK, 0)) {
       if (toys.optflags & FLAG_f) wfchmodat(fd, try->name, 0700);
       else goto skip;
     }
     if (!try->again) return DIRTREE_COMEAGAIN;
-    using = AT_REMOVEDIR;
     if (try->symlink) goto skip;
     if (flags & FLAG_i) {
       char *s = dirtree_path(try, 0);
