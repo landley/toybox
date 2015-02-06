@@ -48,7 +48,7 @@ static int do_rm(struct dirtree *try)
   // handle directory recursion
   if (dir) {
     // Handle chmod 000 directories when -f
-    if (faccessat(fd, try->name, R_OK, AT_SYMLINK_NOFOLLOW)) {
+    if (faccessat(fd, try->name, R_OK, 0)) {
       if (toys.optflags & FLAG_f) wfchmodat(fd, try->name, 0700);
       else goto skip;
     }

@@ -150,12 +150,6 @@ int utimensat(int fd, const char *path, const struct timespec times[2], int flag
 #include <libgen.h>
 #endif
 
-#ifdef __MUSL__
-#include <unistd.h>
-// Without this "rm -r dir" fails with "is directory".
-#define faccessat(A, B, C, D) faccessat(A, B, C, 0)
-#endif
-
 // Work out how to do endianness
 
 #ifndef __APPLE__
