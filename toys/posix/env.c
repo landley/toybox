@@ -24,28 +24,17 @@ extern char **environ;
 void env_main(void)
 {
   char **ev;
-  char **command = NULL;
   char *del = "=";
 
   if (toys.optflags) clearenv();
 
   for (ev = toys.optargs; *ev != NULL; ev++) {
-    char *env, *val = NULL;
+    char *env = strtok(*ev, del), *val = 0;
 
-    env = strtok(*ev, del);
-
-    if (env) val = strtok(NULL, del);
-
+    if (env) val = strtok(0, del);
     if (val) setenv(env, val, 1);
-    else {
-      command = ev;
-      break;
-    }
+    else xexec(ev);
   }
 
-  if (!command) {
-    char **ep;
-    if (environ) for (ep = environ; *ep; ep++) xputs(*ep);
-  } else xexec_optargs(command - toys.optargs);
-
+  if (environ) for (ev = environ; *ev; ev++) xputs(*ev);
 }
