@@ -10,18 +10,24 @@ fi
 
 for i in "$@"
 do
+
+  TOYFILE="$(egrep -l "TOY[(]($i)[ ,]" toys/*/*.c)"
+
+  if [ -z "$TOYFILE" ]
+  then
+    echo "Unknown command '$i'" >&2
+    exit 1
+  fi
+
+  DEPENDS="$(sed -n 's/^[ \t]*depends on //;T;s/[!][A-Z0-9_]*//g;s/ *&& */|/g;p' $TOYFILE | xargs | tr ' ' '|')"
+
   NAME=$(echo $i | tr a-z- A-Z_)
   export KCONFIG_CONFIG=.singleconfig
-  USET="is not set"
 
   make allnoconfig > /dev/null &&
-  sed -i -e "s/\(CONFIG_TOYBOX\)=y/# \1 $USET/" \
-         -e "s/# \(CONFIG_$NAME\) $USET/\1=y/"  \
-         -e "s/# \(CONFIG_${NAME}_.*\) $USET/\1=y/" \
-         -e "s/# \(CONFIG_TOYBOX_HELP.*\) $USET/\1=y/" \
-         -e "s/# \(CONFIG_TOYBOX_I18N\) $USET/\1=y/" \
-         -e "s/# \(CONFIG_TOYBOX_FLOAT\) $USET/\1=y/" \
-         "$KCONFIG_CONFIG" &&
+  sed -ri -e "s/CONFIG_TOYBOX=y/# CONFIG_TOYBOX is not set/;t" \
+    -e "s/# (CONFIG_(TOYBOX(|_HELP|_I18N|_FLOAT)|$NAME|${NAME}_.*${DEPENDS:+|$DEPENDS})) is not set/\1=y/" \
+    "$KCONFIG_CONFIG" &&
   make &&
   mv toybox $PREFIX$i || exit 1
 done

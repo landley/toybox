@@ -56,7 +56,10 @@ fi
 [ ! -z "$V" ] && echo "Which C files to build..."
 
 # Extract a list of toys/*/*.c files to compile from the data in $KCONFIG_CONFIG
-TOYFILES="$(egrep -l "TOY[(]($(sed -n 's/^CONFIG_\([^=]*\)=.*/\1/p' "$KCONFIG_CONFIG" | xargs | tr ' [A-Z]' '|[a-z]'))[ ,]" toys/*/*.c)"
+# (First command names, then filenames with relevant {NEW,OLD}TOY() macro.)
+
+TOYFILES="$(sed -n 's/^CONFIG_\([^=]*\)=.*/\1/p' "$KCONFIG_CONFIG" | xargs | tr ' [A-Z]' '|[a-z]')"
+TOYFILES="$(egrep -l "TOY[(]($TOYFILES)[ ,]" toys/*/*.c)"
 BUILD="$(echo ${CROSS_COMPILE}${CC} $CFLAGS -I . $OPTIMIZE)"
 FILES="$(echo lib/*.c main.c $TOYFILES)"
 
