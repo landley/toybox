@@ -93,7 +93,6 @@ void xprintf(char *format, ...);
 void xputs(char *s);
 void xputc(char c);
 void xflush(void);
-void xexec_optargs(int skip);
 void xexec(char **argv);
 pid_t xpopen_both(char **argv, int *pipes);
 int xpclose_both(pid_t pid, int *pipes);

@@ -129,17 +129,6 @@ void xflush(void)
   if (fflush(stdout) || ferror(stdout)) perror_exit("write");;
 }
 
-// Call xexec with a chunk of optargs, starting at skip. (You can't just
-// call xexec() directly because toy_init() frees optargs.)
-void xexec_optargs(int skip)
-{
-  char **s = toys.optargs;
-
-  toys.optargs = 0;
-  xexec(s+skip);
-}
-
-
 // Die unless we can exec argv[] (or run builtin command).  Note that anything
 // with a path isn't a builtin, so /bin/sh won't match the builtin sh.
 void xexec(char **argv)
