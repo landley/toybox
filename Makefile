@@ -45,12 +45,14 @@ uninstall_flat: generated/instlist
 uninstall:
 	scripts/install.sh --long --uninstall
 
-change: generated/instlist
+change:
+	@NOBUILD=1 scripts/make.sh > /dev/null&& \
+	$(HOSTCC) -I . scripts/install.c -o generated/instlist && \
 	export PREFIX=$${PREFIX:-change/} && \
 	mkdir -p "$$PREFIX" && \
 	for i in $$(generated/instlist); \
-		do echo make $$i && \
-		scripts/single.sh $$i || touch $$PREFIX/$${i}.bad; \
+		do echo -n "$$i " && \
+		scripts/single.sh $$i > /dev/null || touch $$PREFIX/$${i}.bad; \
 	done
 
 clean::
