@@ -20,6 +20,6 @@ void chroot_main(void)
   char *binsh[] = {"/bin/sh", "-i", 0};
 
   if (chdir(*toys.optargs) || chroot(".")) perror_exit("%s", *toys.optargs);
-  if (toys.optargs[1]) xexec_optargs(1);
+  if (toys.optargs[1]) xexec(toys.optargs+1);
   else xexec(binsh);
 }

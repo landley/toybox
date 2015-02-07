@@ -127,6 +127,9 @@ void toy_exec(char *argv[])
 {
   struct toy_list *which;
 
+  // don't blank old optargs if our new argc lives in the old optargs.
+  if (argv>=toys.optargs && argv<=toys.optargs+toys.optc) toys.optargs = 0;
+
   // Return if we can't find it, or need to re-exec to acquire root,
   // or if stack depth is getting silly.
   if (!(which = toy_find(argv[0]))) return;

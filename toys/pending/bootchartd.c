@@ -309,7 +309,7 @@ void bootchartd_main()
   if (bchartd_opt == 1 && toys.optargs[1]) { 
     pid_t prog_pid;
 
-    if (!(prog_pid = xfork())) xexec_optargs(1);
+    if (!(prog_pid = xfork())) xexec(toys.optargs+1);
     waitpid(prog_pid, NULL, 0);
     kill(lgr_pid, SIGUSR1);
   }

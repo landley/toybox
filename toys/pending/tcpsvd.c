@@ -392,7 +392,7 @@ void tcpsvd_main(void)
       close(1);
       dup2(newfd, 0);
       dup2(newfd, 1);
-      xexec_optargs(2); //skip IP PORT
+      xexec(toys.optargs+2); //skip IP PORT
     } else {
       insert(&pids, pid, addr);
       xclose(newfd); //close and reopen for next client.

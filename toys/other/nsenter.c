@@ -112,5 +112,5 @@ void unshare_main(void)
     }
   }
 
-  xexec_optargs(0);
+  xexec(toys.optargs);
 }

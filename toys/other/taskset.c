@@ -90,7 +90,7 @@ void taskset_main(void)
   if (!(toys.optflags & FLAG_p)) {
     if (toys.optc < 2) error_exit("Needs 2 args");
     do_taskset(getpid(), 1);
-    xexec_optargs(1);
+    xexec(toys.optargs+1);
   } else {
     char *c;
     pid_t pid = strtol(toys.optargs[toys.optc-1], &c, 10);

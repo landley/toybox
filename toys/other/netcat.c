@@ -185,7 +185,7 @@ void netcat_main(void)
   set_alarm(0);
 
   if (CFG_NETCAT_LISTEN && (toys.optflags&(FLAG_L|FLAG_l) && toys.optc))
-    xexec_optargs(0);
+    xexec(toys.optargs);
 
   // Poll loop copying stdin->socket and socket->stdout.
   for (;;) {
