@@ -4,21 +4,22 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/touch.html 
 
-USE_TOUCH(NEWTOY(touch, "acd:mr:t:[!dtr]", TOYFLAG_BIN))
+USE_TOUCH(NEWTOY(touch, "acd:mr:t:h[!dtr]", TOYFLAG_BIN))
 
 config TOUCH
   bool "touch"
   default y
   help
-    usage: touch [-amc] [-d DATE] [-t TIME] [-r FILE] FILE...
+    usage: touch [-amch] [-d DATE] [-t TIME] [-r FILE] FILE...
 
     Update the access and modification times of each FILE to the current time.
 
     -a	change access time
     -m	change modification time
     -c	don't create file
+    -h	change symlink
     -d	set time to DATE (in YYYY-MM-DDThh:mm:SS[.frac][tz] format)
-    -t	set time to TIME (in [[CC]YY]MMDDhhmm[.ss] format)
+    -t	set time to TIME (in [[CC]YY]MMDDhhmm[.ss][frac] format)
     -r	set time same as reference FILE
 */
 
@@ -31,41 +32,20 @@ GLOBALS(
   char *date;
 )
 
-// Fetch access and/or modification time of a file
-int fetch(char *file, struct timeval *tv, unsigned flags)
-{
-  struct stat st;
-
-  if (stat(file, &st)) return 1;
-
-  if (flags & FLAG_a) {
-    tv[0].tv_sec = st.st_atime;
-    tv[0].tv_usec = st.st_atim.tv_nsec/1000;
-  }
-  if (flags & FLAG_m) {
-    tv[1].tv_sec = st.st_mtime;
-    tv[1].tv_usec = st.st_mtim.tv_nsec/1000;
-  }
-
-  return 0;
-}
-
 void touch_main(void)
 {
-  struct timeval tv[2];
+  struct timespec ts[2];
   char **ss;
-  int flag, fd, i;
+  int fd, i;
 
-  // Set time from clock?
-
-  gettimeofday(tv, NULL);
-
+  // use current time if no -t or -d
+  ts[0].tv_nsec = UTIME_NOW;
   if (toys.optflags & (FLAG_t|FLAG_d)) {
     char *s, *date;
     struct tm tm;
-    int len;
+    int len = 0;
 
-    localtime_r(&(tv->tv_sec), &tm);
+    localtime_r(&(ts->tv_sec), &tm);
 
     // Set time from -d?
 
@@ -77,15 +57,12 @@ void touch_main(void)
         if (toupper(date[i-1])=='Z') {
           date[i-1] = 0;
           setenv("TZ", "UTC0", 1);
-          localtime_r(&(tv->tv_sec), &tm);
+          localtime_r(&(ts->tv_sec), &tm);
         }
         s = strptime(date, "%Y-%m-%dT%T", &tm);
-        if (s && *s=='.' && isdigit(s[1])) {
-          sscanf(s, ".%d%n", &i, &len);
-          s += len;
-          tv->tv_usec = i;
-          while (len++ < 7) tv->tv_usec *= 10;
-        }
+        if (s && *s=='.' && isdigit(s[1])) 
+          sscanf(s, ".%lu%n", &ts->tv_nsec, &len);
+        else len = 0;
       } else s = 0;
 
     // Set time from -t?
@@ -100,31 +77,46 @@ void touch_main(void)
         if (s) break;
         toybuf[1]='y';
       }
-      if (s && *s=='.' && sscanf(s, ".%2u%n", &(tm.tm_sec), &len) == 1) 
-        s += len;
+      if (s && *s=='.' && sscanf(s, ".%2u%n", &(tm.tm_sec), &len) == 1) {
+        sscanf(s += len, "%lu%n", &ts->tv_nsec, &len);
+        len++;
+      } else len = 0;
+    }
+    if (len) {
+      s += len;
+      if (ts->tv_nsec > 999999999) s = 0;
+      else while (len++ < 10) ts->tv_nsec *= 10;
     }
 
     errno = 0;
-    tv->tv_sec = mktime(&tm);
+    ts->tv_sec = mktime(&tm);
     if (!s || *s || errno == EOVERFLOW) perror_exit("bad '%s'", date);
   }
-  tv[1]=tv[0];
+  ts[1]=ts[0];
 
   // Set time from -r?
 
-  if (TT.file && fetch(TT.file, tv, FLAG_a|FLAG_m))
-    perror_exit("-r '%s'", TT.file);
+  if (TT.file) {
+    struct stat st;
 
-  // Ok, we've got a time. Flip -am flags so now it's the ones we _keep_.
+    xstat(TT.file, &st);
+    ts[0] = st.st_atim;
+    ts[1] = st.st_mtim;
+  }
 
-  flag = (~toys.optflags) & (FLAG_m|FLAG_a);
+  // Which time(s) should we actually change?
+  i = toys.optflags & (FLAG_a|FLAG_m);
+  if (i && i!=(FLAG_a|FLAG_m)) ts[i==FLAG_m].tv_nsec = UTIME_OMIT;
 
   // Loop through files on command line
-  for (ss=toys.optargs; *ss;) {
-    if ((flag == (FLAG_m|FLAG_a) || !fetch(*ss, tv, flag)) && !utimes(*ss, tv))
-      ss++;
+  for (ss = toys.optargs; *ss;) {
+
+    // cheat: FLAG_h is rightmost flag, so its value is 1
+    if (!utimensat(AT_FDCWD, *ss, ts,
+        (toys.optflags & FLAG_h)*AT_SYMLINK_NOFOLLOW)) ss++;
     else if (toys.optflags & FLAG_c) ss++;
-    else if (access(*ss, F_OK) && (-1 != (fd = open(*ss, O_CREAT, 0666)))) close(fd);
+    else if (access(*ss, F_OK) && (-1!=(fd = open(*ss, O_CREAT, 0666))))
+      close(fd);
     else perror_msg("'%s'", *ss++);
   }
 }
