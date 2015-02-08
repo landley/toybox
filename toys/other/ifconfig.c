@@ -462,7 +462,7 @@ void ifconfig_main(void)
       close(fd6);
       continue;
     // Iterate through table to find/perform operation
-    } else for (i = 0; i < sizeof(try)/sizeof(*try); i++) {
+    } else for (i = 0; i < ARRAY_LEN(try); i++) {
       struct argh *t = try+i;
       int on = t->on, off = t->off;
 
@@ -485,7 +485,7 @@ void ifconfig_main(void)
             poke((on>>16) + (char *)&ifre, l, on&15);
             xioctl(TT.sockfd, off, &ifre);
             break;
-          } else if (t->name || !strchr(ifre.ifr_name, ':')) {
+          } else {
             struct sockaddr_in *si = (struct sockaddr_in *)&ifre.ifr_addr;
             int mask = -1;
 
