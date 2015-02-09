@@ -627,3 +627,14 @@ void xregcomp(regex_t *preg, char *regex, int cflags)
     error_exit("xregcomp: %s", libbuf);
   }
 }
+
+char *xtzset(char *new)
+{
+  char *tz = getenv("TZ");
+
+  if (tz) tz = xstrdup(tz);
+  if (setenv("TZ", new, 1)) perror_exit("setenv");
+  tzset();
+
+  return tz;
+}

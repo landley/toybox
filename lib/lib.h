@@ -128,6 +128,7 @@ char *xreadlink(char *name);
 long xparsetime(char *arg, long units, long *fraction);
 void xpidfile(char *name);
 void xregcomp(regex_t *preg, char *rexec, int cflags);
+char *xtzset(char *new);
 
 // lib.c
 void verror_msg(char *msg, int err, va_list va);
