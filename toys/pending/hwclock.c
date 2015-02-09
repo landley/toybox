@@ -98,10 +98,11 @@ void hwclock_main()
     }
   }
 
-  if (toys.optflags & FLAG_w) {
+  if (toys.optflags & (FLAG_w|FLAG_t))
     if (gettimeofday(&timeval, 0)
         || (TT.utc ? gmtime_r : localtime_r)(&timeval.tv_sec, &tm)) goto bad;
 
+  if (toys.optflags & FLAG_w) {
     /* The value of tm_isdst will positive if daylight saving time is in effect,
      * zero if it is not and negative if the information is not available. 
      * todo: so why isn't this negative...? */
@@ -110,26 +111,23 @@ void hwclock_main()
   } else if (toys.optflags & FLAG_s) {
     tzone.tz_minuteswest = timezone / 60 - 60 * daylight;
     timeval.tv_sec = time;
-    timeval.tv_usec = 0;
-    tzone.tz_dsttime = 0;
-    if (settimeofday(&timeval, &tzone)) goto bad;
+    timeval.tv_usec = 0; // todo: fixit
   } else if (toys.optflags & FLAG_t) {
-    if (gettimeofday(&timeval, NULL) || !localtime_r(&timeval.tv_sec, &tm))
-      goto bad;
     // Adjust seconds for timezone and daylight saving time
     // extern long timezone is defined in header sys/time.h
     tzone.tz_minuteswest = timezone / 60;
     if (tm.tm_isdst) tzone.tz_minuteswest -= 60;
-    if (gettimeofday(&timeval, NULL)) goto bad;
     if (!TT.utc) timeval.tv_sec += tzone.tz_minuteswest * 60;
-    tzone.tz_dsttime = 0;
-    if (settimeofday(&timeval, &tzone)) goto bad;
   } else {
     char *c = ctime(&time), *s = strrchr(c, '\n');
 
     if (s) *s = '\0';
     // TODO: implement this.
     xprintf("%s  0.000000 seconds\n", c);
+  }
+  if (toys.optflags & (FLAG_t|FLAG_s)) {
+    tzone.tz_dsttime = 0;
+    if (settimeofday(&timeval, &tzone)) goto bad;
   }
 
   if (fd != -1) close(fd);
