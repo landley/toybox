@@ -4,7 +4,7 @@
  *
  * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/mktemp.html
 
-USE_MKTEMP(NEWTOY(mktemp, ">1q(directory)d(tmpdir)p:", TOYFLAG_BIN))
+USE_MKTEMP(NEWTOY(mktemp, ">1qd(directory)p(tmpdir):", TOYFLAG_BIN))
 
 config MKTEMP
   bool "mktemp"
