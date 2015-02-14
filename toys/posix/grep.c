@@ -5,8 +5,8 @@
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/grep.html
 
 USE_GREP(NEWTOY(grep, "ZzEFHabhinorsvwclqe*f*m#x[!wx][!EFw]", TOYFLAG_BIN))
-USE_GREP(OLDTOY(egrep, grep, TOYFLAG_BIN))
-USE_GREP(OLDTOY(fgrep, grep, TOYFLAG_BIN))
+USE_EGREP(OLDTOY(egrep, grep, TOYFLAG_BIN))
+USE_FGREP(OLDTOY(fgrep, grep, TOYFLAG_BIN))
 
 config GREP
   bool "grep"
@@ -36,6 +36,16 @@ config GREP
     output prefix (default: filename if checking more than 1 file)
     -H  force filename           -b  byte offset of match
     -h  hide filename            -n  line number of match
+
+config EGREP
+  bool
+  default y
+  depends on GREP
+
+config FGREP
+  bool
+  default y
+  depends on GREP
 */
 
 #define FOR_grep
