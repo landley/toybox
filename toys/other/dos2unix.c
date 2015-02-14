@@ -2,16 +2,25 @@
  *
  * Copyright 2012 Rob Landley <rob@landley.net>
 
-USE_DOS2UNIX(NEWTOY(dos2unix, NULL, TOYFLAG_BIN))
-USE_DOS2UNIX(OLDTOY(unix2dos, dos2unix, TOYFLAG_BIN))
+USE_DOS2UNIX(NEWTOY(dos2unix, 0, TOYFLAG_BIN))
+USE_UNIX2DOS(NEWTOY(unix2dos, 0, TOYFLAG_BIN))
 
 config DOS2UNIX
   bool "dos2unix/unix2dos"
   default y
   help
-    usage: dos2unix/unix2dos [file...]
+    usage: dos2unix [FILE...]
 
-    Convert newline format between dos (\r\n) and unix (just \n)
+    Convert newline format from dos "\r\n" to unix "\n".
+    If no files listed copy from stdin, "-" is a synonym for stdin.
+
+config UNIX2DOS
+  bool "unix2dos"
+  default y
+  help
+    usage: unix2dos [FILE...]
+
+    Convert newline format from unix "\n" to dos "\r\n".
     If no files listed copy from stdin, "-" is a synonym for stdin.
 */
 
@@ -59,4 +68,9 @@ static void do_dos2unix(int fd, char *name)
 void dos2unix_main(void)
 {
   loopfiles(toys.optargs, do_dos2unix);
+}
+
+void unix2dos_main(void)
+{
+  dos2unix_main();
 }
