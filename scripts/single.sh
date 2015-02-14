@@ -26,7 +26,7 @@ do
 
   make allnoconfig > /dev/null &&
   sed -ri -e "s/CONFIG_TOYBOX=y/# CONFIG_TOYBOX is not set/;t" \
-    -e "s/# (CONFIG_(TOYBOX(|_HELP|_I18N|_FLOAT)|$NAME|${NAME}_.*${DEPENDS:+|$DEPENDS})) is not set/\1=y/" \
+    -e "s/# (CONFIG_(TOYBOX(|_HELP.*|_I18N|_FLOAT)|$NAME|${NAME}_.*${DEPENDS:+|$DEPENDS})) is not set/\1=y/" \
     "$KCONFIG_CONFIG" &&
   make &&
   mv toybox $PREFIX$i || exit 1
