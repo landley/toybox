@@ -11,7 +11,7 @@ toybox toybox_unstripped: toybox_stuff
 	scripts/make.sh
 
 .PHONY: clean distclean baseline bloatcheck install install_flat \
-	uinstall uninstall_flat test tests help toybox_stuff
+	uinstall uninstall_flat test tests help toybox_stuff change
 
 include kconfig/Makefile
 
@@ -46,14 +46,7 @@ uninstall:
 	scripts/install.sh --long --uninstall
 
 change:
-	@NOBUILD=1 scripts/make.sh > /dev/null&& \
-	$(HOSTCC) -I . scripts/install.c -o generated/instlist && \
-	export PREFIX=$${PREFIX:-change/} && \
-	mkdir -p "$$PREFIX" && \
-	for i in $$(generated/instlist); \
-		do echo -n "$$i " && \
-		scripts/single.sh $$i > /dev/null || touch $$PREFIX/$${i}.bad; \
-	done
+	scripts/change.sh
 
 clean::
 	rm -rf toybox toybox_unstripped generated change .singleconfig*
