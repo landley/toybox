@@ -7,7 +7,7 @@
 // This is subtle: MV options shared with CP must be in same order (right to
 // left) as CP for FLAG_X macros to work out right.
 
-USE_CP(NEWTOY(cp, "<2RHLPp"USE_CP_MORE("rdaslvnF")"fi[-HLP"USE_CP_MORE("d")"]"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
+USE_CP(NEWTOY(cp, "<2RHLPp"USE_CP_MORE("rdaslvnF(remove-destination)")"fi[-HLP"USE_CP_MORE("d")"]"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
 USE_MV(NEWTOY(mv, "<2"USE_CP_MORE("vnF")"fi"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
 USE_INSTALL(NEWTOY(install, "<1cdDpsvm:o:g:", TOYFLAG_USR|TOYFLAG_BIN))
 *
@@ -22,7 +22,7 @@ config CP
     be a directory.
 
     -f	delete destination files we can't write to
-    -F	delete any existing destination file first (breaks hardlinks)
+    -F	delete any existing destination file first (--remove-destination)
     -i	interactive, prompt before overwriting existing DEST
     -p	preserve timestamps, ownership, and permissions
     -R	recurse into subdirectories (DEST must be a directory)
