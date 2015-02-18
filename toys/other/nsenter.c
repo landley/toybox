@@ -13,25 +13,28 @@
 
 // Note: flags go in same order (right to left) for shared subset
 USE_NSENTER(NEWTOY(nsenter, "<1F(no-fork)t#<1(target)i:(ipc);m:(mount);n:(net);p:(pid);u:(uts);U:(user);", TOYFLAG_USR|TOYFLAG_BIN))
-USE_UNSHARE(NEWTOY(unshare, "<1^imnpuU", TOYFLAG_USR|TOYFLAG_BIN))
+USE_UNSHARE(NEWTOY(unshare, "<1^rimnpuU", TOYFLAG_USR|TOYFLAG_BIN))
 
 config UNSHARE
   bool "unshare"
   default y
   depends on TOYBOX_CONTAINER
   help
-    usage: unshare [-imnpuU] COMMAND...
+    usage: unshare [-imnpuUr] COMMAND...
 
-    Create new namespace(s) for this process and its children, so some
-    attribute is not shared with the parent process.  This is part of
-    Linux Containers.  Each process can have its own:
+    Create new container namespace(s) for this process and its children, so
+    some attribute is not shared with the parent process.
 
     -i	SysV IPC (message queues, semaphores, shared memory)
     -m	Mount/unmount tree
     -n	Network address, sockets, routing, iptables
     -p	Process IDs and init
+    -r	Become root (map current euid/egid to 0/0, implies -U)
     -u	Host and domain names
     -U	UIDs, GIDs, capabilities
+
+    A namespace allows a set of processes to have a different view of the
+    system than other sets of processes.
 
 config NSENTER
   bool "nsenter"
@@ -39,7 +42,7 @@ config NSENTER
   help
     usage: nsenter [-t pid] [-F] [-i] [-m] [-n] [-p] [-u] [-U] COMMAND...
 
-    Run COMMAND in a different set of namespaces.
+    Run COMMAND in an existing (set of) namespace(s).
 
     -t  PID to take namespaces from    (--target)
     -F  don't fork, even if -p is used (--no-fork)
@@ -68,18 +71,62 @@ GLOBALS(
   long targetpid;
 )
 
+// Code that must run in unshare's flag context
+#define CLEANUP_nsenter
+#define FOR_unshare
+#include <generated/flags.h>
+
+static void write_ugid_map(char *map, unsigned eugid)
+{
+  int bytes = sprintf(toybuf, "0 %u 1", eugid), fd = xopen(map, O_WRONLY);
+    
+  xwrite(fd, toybuf, bytes);
+  xclose(fd);
+}
+
+
+static int handle_r(int test)
+{
+  int fd;
+
+  if (!CFG_UNSHARE || !(toys.optflags & FLAG_r) || *toys.which->name!='u')
+    return 0;
+  if (!test) return 1;
+
+  if (toys.optflags & FLAG_r) {
+    if ((fd = open("/proc/self/setgroups", O_WRONLY)) >= 0) {
+      xwrite(fd, "deny", 4);
+      close(fd);
+    }
+
+    write_ugid_map("/proc/self/uid_map", geteuid());
+    write_ugid_map("/proc/self/gid_map", getegid());
+  }
+
+  return 0;
+}
+
+// Shift back to the context GLOBALS lives in (I.E. matching the filename).
+#define CLEANUP_unshare
+#define FOR_nsenter
+#include <generated/flags.h>
+
 void unshare_main(void)
 {
   unsigned flags[]={CLONE_NEWUSER, CLONE_NEWUTS, CLONE_NEWPID, CLONE_NEWNET,
                     CLONE_NEWNS, CLONE_NEWIPC}, f = 0;
   int i, fd;
 
+  // unshare -U does not imply -r, so we cannot use [+rU]
+  if (handle_r(0))  toys.optflags |= FLAG_U;
+
   // Create new namespace(s)?
-  if (CFG_UNSHARE && toys.which->name[0]) {
+  if (CFG_UNSHARE && *toys.which->name=='u') {
     for (i = 0; i<ARRAY_LEN(flags); i++)
       if (toys.optflags & (1<<i)) f |= flags[i];
 
     if (unshare(f)) perror_exit(0);
+    handle_r(1);
 
   // Bind to existing namespace(s)?
   } else if (CFG_NSENTER) {
@@ -113,4 +160,9 @@ void unshare_main(void)
   }
 
   xexec(toys.optargs);
+}
+
+void nsenter_main(void)
+{
+  unshare_main();
 }
