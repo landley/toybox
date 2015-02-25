@@ -106,11 +106,11 @@ static void print_stat(char type)
 static void print_statfs(char type) {
   struct statfs *statfs = (struct statfs *)&TT.stat;
 
-  if (type == 'a') xprintf("%lu", statfs->f_bavail);
-  else if (type == 'b') xprintf("%lu", statfs->f_blocks);
-  else if (type == 'c') xprintf("%lu", statfs->f_files);
-  else if (type == 'd') xprintf("%lu", statfs->f_ffree);
-  else if (type == 'f') xprintf("%lu", statfs->f_bfree);
+  if (type == 'a') xprintf("%llu", statfs->f_bavail);
+  else if (type == 'b') xprintf("%llu", statfs->f_blocks);
+  else if (type == 'c') xprintf("%llu", statfs->f_files);
+  else if (type == 'd') xprintf("%llu", statfs->f_ffree);
+  else if (type == 'f') xprintf("%llu", statfs->f_bfree);
   else if (type == 'l') xprintf("%ld", statfs->f_namelen);
   else if (type == 't') xprintf("%lx", statfs->f_type);
   else if (type == 'i')
