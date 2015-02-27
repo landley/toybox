@@ -15,8 +15,10 @@ config PS
     
     Show list of processes
 
-    -o COL1,COL2=HEADER Select columns for display
-    -T      Show threads
+    -a	Show all processes with a tty
+    -A  Show all processes
+    -o	Select columns for display
+    -T	Show threads
 */
 
 #define FOR_ps
@@ -25,27 +27,24 @@ config PS
 GLOBALS(
   struct arg_list *llist_o;
   unsigned screen_width;
+
+  void *o;
 )
 
 #define BUFF_SIZE 1024
 struct header_list {
-  char *name;
-  char *header;
-  char *format;
-  int width;
-  int position;
   struct header_list *next;
+  char *name, *header, *format;
+  int width, position;
 };
-
-struct header_list *o_list = NULL; //List of Header attributes.
 
 /*
  * create list of header attributes taking care of -o (-o ooid=MOM..)
  * and width of attributes.
  */
-static void list_add(struct header_list **list, struct header_list *data, char *c_data)
+static void list_add(struct header_list *data, char *c_data)
 {
-  struct header_list  *temp = *list, *new = xzalloc(sizeof(struct header_list));
+  struct header_list *temp = TT.o, *new = xzalloc(sizeof(struct header_list));
 
   new->name = data->name;   
   if (c_data) new->header = c_data;
@@ -58,7 +57,7 @@ static void list_add(struct header_list **list, struct header_list *data, char *
   if (temp) {
     while (temp->next) temp = temp->next;
     temp->next = new;
-  } else *list = new;
+  } else TT.o = new;
 }
 
 //print the default header OR header with -o args
@@ -70,10 +69,10 @@ static void print_header(struct header_list *hdr, int hdr_len)
 
   // Default pid, user, time, comm
   if (!node) {
-    list_add(&o_list, hdr+4, 0);
-    list_add(&o_list, hdr, 0);
-    list_add(&o_list, hdr+11, 0);
-    list_add(&o_list, hdr+3, 0);
+    list_add(hdr+4, 0);
+    list_add(hdr, 0);
+    list_add(hdr+11, 0);
+    list_add(hdr+3, 0);
   }
 
   while (node) {
@@ -91,7 +90,7 @@ static void print_header(struct header_list *hdr, int hdr_len)
               //handle condition like ppid = M,OM
               if (str) ptr = xmprintf("%s,%s", temp, str);
               else ptr = xmprintf("%s", temp);
-              list_add(&o_list, &hdr[i], ptr);
+              list_add(hdr+i, ptr);
               break;
             }
             i++; 
@@ -101,7 +100,7 @@ static void print_header(struct header_list *hdr, int hdr_len)
         } else {
           while (hdr[i].name) {
             if (!(strcmp(hdr[i].name, ptr))) {
-              list_add(&o_list, &hdr[i], 0);
+              list_add(hdr+i, 0);
               break;
             }
             i++; 
@@ -115,7 +114,7 @@ static void print_header(struct header_list *hdr, int hdr_len)
     node = node->next;
   }
 
-  for (hdr = o_list; hdr; hdr = hdr->next)
+  for (hdr = TT.o; hdr; hdr = hdr->next)
     printf(hdr->format , hdr->width, hdr->header);
   xputc('\n');
 }
@@ -202,7 +201,7 @@ static void do_ps_line(int pid, int tid)
   long rss;
   unsigned long stime, utime, start_time, vsz;
   unsigned ppid, ruid, rgid, pgid;
-  struct header_list *p = o_list;
+  struct header_list *p = TT.o;
 
   sprintf(stat_buff, "/proc/%d", pid);
   if(stat(stat_buff, &stats)) return;
@@ -381,22 +380,22 @@ void ps_main(void)
   struct dirent *entry;
   int pid;
   struct header_list def_header[] = { 
-    {"user", "USER", "%-*s ", 8, 0, NULL},
-    {"group", "GROUP", "%-*s ", 8, 1, NULL},
-    {"comm", "COMMAND", "%-*s ",16, 2, NULL},
-    {"args", "COMMAND", "%-*s ",30, 3, NULL},
-    {"pid", "PID", "%*s ", 5, 4, NULL},
-    {"ppid","PPID", "%*s ", 5, 5, NULL},
-    {"pgid", "PGID", "%*s ", 5, 6, NULL},
-    {"etime","ELAPSED", "%*s ", 7, 7, NULL},
-    {"nice", "NI", "%*s ", 5, 8, NULL},
-    {"rgroup","RGROUP", "%-*s ", 8, 9, NULL},
-    {"ruser","RUSER", "%-*s ", 8, 10, NULL},
-    {"time", "TIME", "%*s ", 6, 11, NULL},
-    {"tty", "TT", "%-*s ", 6, 12, NULL},
-    {"vsz","VSZ", "%*s ", 7, 13, NULL},
-    {"stat", "STAT", "%-*s ", 4, 14, NULL},
-    {"rss", "RSS", "%*s ", 4, 15, NULL},
+    {0, "user", "USER", "%-*s ", 8, 0},
+    {0, "group", "GROUP", "%-*s ", 8, 1},
+    {0, "comm", "COMMAND", "%-*s ",16, 2},
+    {0, "args", "COMMAND", "%-*s ",30, 3},
+    {0, "pid", "PID", "%*s ", 5, 4},
+    {0, "ppid","PPID", "%*s ", 5, 5},
+    {0, "pgid", "PGID", "%*s ", 5, 6},
+    {0, "etime","ELAPSED", "%*s ", 7, 7},
+    {0, "nice", "NI", "%*s ", 5, 8},
+    {0, "rgroup","RGROUP", "%-*s ", 8, 9},
+    {0, "ruser","RUSER", "%-*s ", 8, 10},
+    {0, "time", "TIME", "%*s ", 6, 11},
+    {0, "tty", "TT", "%-*s ", 6, 12},
+    {0, "vsz","VSZ", "%*s ", 7, 13},
+    {0, "stat", "STAT", "%-*s ", 4, 14},
+    {0, "rss", "RSS", "%*s ", 4, 15},
 {0,0,0,0,0,0}
   };
   
@@ -409,18 +408,16 @@ void ps_main(void)
     if (isdigit(*entry->d_name)) {
       pid = atoi(entry->d_name);
       do_ps_line(pid, 0);
-      if (toys.optflags & FLAG_T)
-        do_ps_threads(pid);
+      if (toys.optflags & FLAG_T) do_ps_threads(pid);
     }
   }
   closedir(dp);
-  if (CFG_TOYBOX_FREE) {
-    struct header_list *temp = o_list;
-    while(temp) {
-      o_list = o_list->next;
-      free(temp->header);
-      free(temp);
-      temp = o_list;
-    }
+
+  while (CFG_TOYBOX_FREE) {
+    struct header_list *temp = llist_pop(&TT.o);
+
+    if (!temp) break;
+    free(temp->header);
+    free(temp);
   }
 }
