@@ -8,6 +8,143 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+<hr><b>February 25, 2015</b>
+<blockquote><p>"A common mistake that people make when trying to design
+something completely foolproof is to underestimate the ingenuity of
+complete fools."</p><p>- The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+
+<p><a href=downloads/toybox-0.5.2.tar.gz>Toybox 0.5.2</a>
+(<a href=/hg/toybox/shortlog/1702>commit 1702</a>) is out.</p>
+
+<p>New promoted commands: sed (finally fixed enough it builds Linux From
+Scratch), printf (cleaned up and promoted), shred and
+base64 (the Tizen guys wanted them), getenforce, setenforce, and chcon (android),
+mix (promoted with fixes from Isaac Dunham), nsenter (from
+Andy Lutomirski, merged into unshare).</p>
+
+<p>Elliott Hughes submited a bunch of patches to support Android (to
+both toybox and Bionic libc, which he maintains). On toybox's end this
+involved a lot of fixups to portability.[ch] and fixes to over a dozen
+commands, plus several new ones. Other portability fixes included working
+with buildroot's uclibc fork and building for nommu targets.</p>
+
+<p>The new "make change" target builds each toybox command as a standalone
+binary. Rather a lot of commands that didn't build by themselves (mv depending
+on cp and so on) were hit with a large rock until they built standalone.
+This involved rewriting bits of option parsing, more elaborate dependency
+generation, making each command have its own config
+symbol and main() function (even when it's just a wrapper calling another
+command's main()), and so on. Also, some commands can't be built standalone
+at a conceptual level: "help" describes other enabled commands and "sh"
+has a number of bulitin commands (cd, exit, set) that require the
+multiplexer infrastructure, so "make change" filters them out.</p>
+
+<p>The mailing list's web archive is still screwed up. Dreamhost has
+been trying to fix it since approximately September. There are
+<a href=http://www.mail-archive.com/toybox@lists.landley.net/>two</a>
+<a href=http://news.gmane.org/gmane.linux.toybox>other</a> less broken
+archives, but neither has quite the same UI as mailman.</p>
+
+<h3>Bugfixes and tweaks</h3>
+
+<p>Cynt Rynt sent in tests for ifconfig,
+Robert Thompson taught factor to accept whitespace separated arguments,
+Hyejin Kim pointed out that some of mktemp's longopts were attached to
+the wrong short options,
+Luis Felipe Strano Moraes fixed a wrong free() call in bootchartd in pending.
+Patches from Ashwini Sharma to make "df /dev/node" work, prevent du from
+looping endlessly following symlinks, and to make expr.c
+(in pending) understand == and regex matches. (Speaking of expr, it gets
+priority groupings wrong but the bug was actually in the posix spec's
+HTML conversion. They fixed the posix spec upstream for us. Still need
+to fix the expr code, but it's in pending for a reason...)</p>
+
+<p>Some commands grew new option flags, such as cp --remove-destination
+and touch -h.</p>
+
+<p>The parallel build has better error reporting now. When toybox needs to
+re-exec itself to regain suid root permissions and hasn't got the suid bit,
+it now gives the right error message ("not root" instead of "no such command").
+
+<p>Added a test to "mount" to not mount the same device/directory combination
+over itself (the OS catches this for block devices, but not for tmpfs).
+Make blkid distinguish ext3 from ext4. Added catv back into cat (because
+the Android guys wanted it, and they have historical usage on their side,
+so...). Handle nanoseconds in touch.</p>
+
+<p>Fixed a segfault when CP_MORE was disabled (the resulting option flag list
+no longer defined -d but still had it in option groups at the end).
+Workaround for glibc redefining dirname() and basename() to random non-posix
+semantics because gnu. (They could have created dirname_r() but didn't want
+to.)</p>
+
+<p>Fix an ifconfig test that was preventing assigning an ipv4 address to
+interface aliases. Several cleanup passes on hwclock but not quite
+promoted out of pending yet.<p>
+
+<p>Fixed a wrong error message in rm (if you had a chmod 000 directory and
+did rm -r on it without -f, after the prompt it would complain it was a
+directory, which was not the problem).</p>
+
+<p>The gzip compression code now does "store only" output to stdout, for
+what that's worth.</p>
+
+<p>Cleanup mountpoint and expand, and remove them from toys/pending/README
+(a list of commands that predate the toys/pending directory but needed
+another pass).</p>
+
+<h3>Library and infrastructure:</h3>
+
+<p>Reworked the option parsing infrastructure so more commands build
+standalone (via scripts/single.sh or "make change"). The option flag bit
+values are no longer packed, it leaves spaces where currently disabled
+flags go, and you can #define FORCE_FLAGS so disabled flags aren't zeroed.
+This allows multiple commands to more easily share infrastructure, even if
+your current flag context is for a disabled command (switched off in config),
+you can force them to stay on and as long as the flags read the same right
+to left they'll have the same values.</p>
+
+<p>We've started removing use of strncpy() because it's a hugely broken
+standard C function: the length is the maximum length to _append_, not
+the size of the destination buffer. It memsets the remaining space it didn't
+copy ala "memset(dest+strlen(dest), 0, len);" so
+if you think len is the size of dest you're guaranteed to stomp memory off the
+end). And if it runs out of space it won't null terminate because reasons.
+(Meanwhile sprintf("%*s", len, str) is counting wide characters in your current
+locale, so if you set a locale other than "C" it will also go past your
+allocated buffer size. Whoever is maintining the C library standards is really
+bad at strings.)
+Instead we have xstrncat() which will error_exit() if src+dest+1 doesn't
+fit in the buffer. (Because randomly truncating input data isn't necessarily
+an improvement.) And there's always xmprintf().</p>
+
+<p>Similarly, strtol() doesn't return an error indicator on overflow,
+you have to clear and then check errno. So new xstrtol() that cares
+about overflow.</p>
+
+<p>The bionic and musl guys agree faccessat(AT_SYMLINK_NOFOLLOW) is not
+supported, so stop using it.</p>
+
+<p>Fixed toy_exec() to detect when argc is in optargs, so we don't
+need a separate xexec_optargs().</p>
+
+<hr><b>February 18, 2015</b>
+<p>Dreamhost continues to be unable to make mailing list archives work, so
+here's <a href=http://www.mail-archive.com/toybox@lists.landley.net/>another
+list archive</a> with a less awkward interface than gmane.</p>
+
+<p>(Neither gives you the convenient historical monthly views of mailman,
+but I still have hopes dreamhost will someday figure out what they're doing
+wrong. They've only been trying since October. Last month they did a
+<a href=http://www.dreamhoststatus.com/2015/01/14/discussion-list-hardware-maintenance/>hardware upgrade to fix a software problem</a>, and the stale
+data loads much faster now, so that's something.)</p>
+
+<p>Update (Feb 19): the archive started updating again, by discarding
+all the pending data. So there are now _two_ giant holes in Dreamhost's
+web archive, from Dec 15-Jan 3, and then another hole from Jan 16-Feb 18.
+The relevant messages are in both of the other archives. Here's hoping
+the chronic archive constipation problem won't happen a sixth time.</p>
+
 <hr><b>December 30, 2014</b>
 <p>Due to Dreamhost's <a href=http://landley.net/dreamhost.txt>ongoing</a>
 <a href=http://landley.net/dreamhost2.txt>inability</a> to make mailman
@@ -17,6 +154,8 @@ on the left.</p>
 
 <p>You still subscribe to the list through
 <a href=http://lists.landley.net/listinfo.cgi/toybox-landley.net>the first link</a>.</p>
+
+<p>Update (January 27, 2015): they're <a href=https://twitter.com/landley/status/558428839462703104>still working on it</a>.</p>
 
 <hr><b>November 19, 2014</b>
 
