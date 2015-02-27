@@ -877,20 +877,21 @@ a double_list, dlist_add() your entries, and then break the circle with
 <a name="lib_args"><h3>lib/args.c</h3>
 
 <p>Toybox's main.c automatically parses command line options before calling the
-command's main function.  Option parsing starts in get_optflags(), which stores
+command's main function. Option parsing starts in get_optflags(), which stores
 results in the global structures "toys" (optflags and optargs) and "this".</p>
 
 <p>The option parsing infrastructure stores a bitfield in toys.optflags to
-indicate which options the current command line contained.  Arguments
+indicate which options the current command line contained, and defines FLAG
+macros code can use to check whether each argument's bit is set. Arguments
 attached to those options are saved into the command's global structure
-("this").  Any remaining command line arguments are collected together into
-the null-terminated array toys.optargs, with the length in toys.optc.  (Note
+("this"). Any remaining command line arguments are collected together into
+the null-terminated array toys.optargs, with the length in toys.optc. (Note
 that toys.optargs does not contain the current command name at position zero,
-use "toys.which->name" for that.)  The raw command line arguments get_optflags()
+use "toys.which->name" for that.) The raw command line arguments get_optflags()
 parsed are retained unmodified in toys.argv[].</p>
 
 <p>Toybox's option parsing logic is controlled by an "optflags" string, using
-a format reminiscent of getopt's optargs but has several important differences.
+a format reminiscent of getopt's optargs but with several important differences.
 Toybox does not use the getopt()
 function out of the C library, get_optflags() is an independent implementation
 which doesn't permute the original arguments (and thus doesn't change how the
@@ -904,14 +905,14 @@ command line arguments to look for, and what to do with them.
 If a command has no option
 definition string (I.E. the argument is NULL), option parsing is skipped
 for that command, which must look at the raw data in toys.argv to parse its
-own arguments.  (If no currently enabled command uses option parsing,
+own arguments. (If no currently enabled command uses option parsing,
 get_optflags() is optimized out of the resulting binary by the compiler's
 --gc-sections option.)</p>
 
 <p>You don't have to free the option strings, which point into the environment
-space (I.E. the string data is not copied).  A TOYFLAG_NOFORK command
+space (I.E. the string data is not copied). A TOYFLAG_NOFORK command
 that uses the linked list type "*" should free the list objects but not
-the data they point to, via "llist_free(TT.mylist, NULL);".  (If it's not
+the data they point to, via "llist_free(TT.mylist, NULL);". (If it's not
 NOFORK, exit() will free all the malloced data anyway unless you want
 to implement a CONFIG_TOYBOX_FREE cleanup for it.)</p>
 
@@ -932,7 +933,7 @@ available to command_main():
 <ul>
 <li><p>In <b>struct toys</b>:
 <ul>
-<li>toys.optflags = 13; // -a = 8 | -b = 4 | -d = 1</li>
+<li>toys.optflags = 13; // FLAG_a = 8 | FLAG_b = 4 | FLAG_d = 1</li>
 <li>toys.optargs[0] = "walrus"; // leftover argument</li>
 <li>toys.optargs[1] = NULL; // end of list</li>
 <li>toys.optc = 1; // there was 1 leftover argument</li>
@@ -958,6 +959,7 @@ GLOBALS(
 	long a;
 )
 </pre></blockquote>
+
 <p>That would mean TT.c == NULL, TT.b == "fruit", and TT.a == 42.  (Remember,
 each entry that receives an argument must be a long or pointer, to line up
 with the array position.  Right to left in the optflags string corresponds to
@@ -976,19 +978,39 @@ toys.optflags, with the same value as a corresponding binary digit.  The
 rightmost argument is (1<<0), the next to last is (1<<1) and so on.  If
 the option isn't encountered while parsing argv[], its bit remains 0.</p>
 
+<p>Each option -x has a FLAG_x macro for the command letter. Bare --longopts
+with no corresponding short option have a FLAG_longopt macro for the long
+optionname. Commands enable these macros by #defining FOR_commandname before
+#including <toys.h>. When multiple commands are implemented in the same
+source file, you can switch flag contexts later in the file by
+#defining CLEANUP_oldcommand and #defining FOR_newcommand, then
+#including <generated/flags.h>.</p>
+
+<p>Options disabled in the current configuration (wrapped in
+a USE_BLAH() macro for a CONFIG_BLAH that's switched off) have their
+corresponding FLAG macro set to zero, so code checking them ala
+if (toys.optargs & FLAG_x) gets optimized out via dead code elimination.
+#defining FORCE_FLAGS when switching flag context disables this
+behavior: the flag is never zero even if the config is disabled. This
+allows code shared between multiple commands to use the same flag
+values, as long as the common flags match up right to left in both option
+strings.</p>
+
 <p>For example,
 the optflags string "abcd" would parse the command line argument "-c" to set
 optflags to 2, "-a" would set optflags to 8, "-bd" would set optflags to
-6 (I.E. 4|2), and "-a -c" would set optflags to 10 (2|8).</p>
+6 (I.E. 4|2), and "-a -c" would set optflags to 10 (2|8). To check if -c
+was encountered, code could test: if (toys.optflags & FLAG_c) printf("yup");
+(See the toys/examples directory for more.)</p>
 
 <p>Only letters are relevant to optflags, punctuation is skipped: in the
-string "a*b:c#d", d=1, c=2, b=4, a=8.  The punctuation after a letter
+string "a*b:c#d", d=1, c=2, b=4, a=8. The punctuation after a letter
 usually indicate that the option takes an argument.</p>
 
-<p>Since toys.optflags is an unsigned int, it only stores 32 bits.  (Which is
+<p>Since toys.optflags is an unsigned int, it only stores 32 bits. (Which is
 the amount a long would have on 32-bit platforms anyway; 64 bit code on
 32 bit platforms is too expensive to require in common code used by almost
-all commands.)  Bit positions beyond the 1<<31 aren't recorded, but
+all commands.) Bit positions beyond the 1<<31 aren't recorded, but
 parsing higher options can still set global variables.</p>
 
 <p><b>Automatically setting global variables from arguments (union this)</b></p>
@@ -1010,15 +1032,6 @@ argument letter, indicating the option takes an additional argument:</p>
 </ul>
 </ul>
 
-<p>A note about "." and CFG_TOYBOX_FLOAT: option parsing only understands <>=
-after . when CFG_TOYBOX_FLOAT
-is enabled. (Otherwise the code to determine where floating point constants
-end drops out; it requires floating point).  When disabled, it can reserve a
-global data slot for the argument (so offsets won't change in your
-GLOBALS[] block), but will never fill it out. You can handle
-this by using the USE_BLAH() macros with C string concatenation, ala:
-"abc." USE_TOYBOX_FLOAT("<1.23>4.56=7.89") "def"</p>
-
 <p><b>GLOBALS</b></p>
 
 <p>Options which have an argument fill in the corresponding slot in the global
@@ -1033,7 +1046,7 @@ in the same order they're declared, and that padding won't be inserted between
 consecutive variables of register size.  Thus the first few entries can
 be longs or pointers corresponding to the saved arguments.</p>
 
-<p>See toys/other/hello.c for a longer example of parsing options into the
+<p>See toys/example/*.c for longer examples of parsing options into the
 GLOBALS block.</p>
 
 <p><b>char *toys.optargs[]</b></p>
@@ -1087,7 +1100,7 @@ optflag, but letters are never control characters.)</p>
 <p>Option parsing only understands <>= after . when CFG_TOYBOX_FLOAT
 is enabled. (Otherwise the code to determine where floating point constants
 end drops out.  When disabled, it can reserve a global data slot for the
-argument so offsets won't change, but will never fill it out.). You can handle
+argument so offsets won't change, but will never fill it out.) You can handle
 this by using the USE_BLAH() macros with C string concatenation, ala:</p>
 
 <blockquote>"abc." USE_TOYBOX_FLOAT("<1.23>4.56=7.89") "def"</blockquote>
@@ -1095,19 +1108,30 @@ this by using the USE_BLAH() macros with C string concatenation, ala:</p>
 <p><b>--longopts</b></p>
 
 <p>The optflags string can contain long options, which are enclosed in
-parentheses.  They may be appended to an existing option character, in
+parentheses. They may be appended to an existing option character, in
 which case the --longopt is a synonym for that option, ala "a:(--fred)"
 which understands "-a blah" or "--fred blah" as synonyms.</p>
 
 <p>Longopts may also appear before any other options in the optflags string,
 in which case they have no corresponding short argument, but instead set
-their own bit based on position.  So for "(walrus)#(blah)xy:z" "command
+their own bit based on position. So for "(walrus)#(blah)xy:z", "command
 --walrus 42" would set toys.optflags = 16 (-z = 1, -y = 2, -x = 4, --blah = 8)
 and would assign this[1] = 42;</p>
 
 <p>A short option may have multiple longopt synonyms, "a(one)(two)", but
 each "bare longopt" (ala "(one)(two)abc" before any option characters)
 always sets its own bit (although you can group them with +X).</p>
+
+<p>Only bare longopts have a FLAG_ macro with the longopt name
+(ala --fred would #define FLAG_fred). Other longopts use the short
+option's FLAG macro to test the toys.optflags bit.</p>
+
+<p>Options with a semicolon ";" after their data type can only set their
+corresponding GLOBALS() entry via "--longopt=value". For example, option
+string "x(boing): y" would set TT.x if it saw "--boing=value", but would
+treat "--boing value" as setting FLAG_x in toys.optargs, leaving TT.x NULL,
+and keeping "value" in toys.optargs[]. (This lets "ls --color" and
+"ls --color=auto" both work.)</p>
 
 <p><b>[groups]</b></p>
 
