@@ -1,5 +1,6 @@
 syntax: glob
 .config*
+change/
 generated/
 kconfig/mconf
 kconfig/conf
