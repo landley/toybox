@@ -94,7 +94,7 @@ static void copy_in_out(int src, int dst, off_t size)
 static void itoo(char *str, int len, off_t val)
 {
   char *t, tmp[sizeof(off_t)*3+1];
-  int cnt  = sprintf(tmp, "%0*llo", len, val);
+  int cnt  = sprintf(tmp, "%0*llo", len, (unsigned long long)val);
 
   t = tmp + cnt - len;
   if (*t == '0') t++;
@@ -130,11 +130,11 @@ static void write_longname(struct archive_handler *tar, char *name, char type)
 
   memset(&tmp, 0, sizeof(tmp));
   strcpy(tmp.name, "././@LongLink");
-  sprintf(tmp.mode, "%0*d", sizeof(tmp.mode)-1, 0);
-  sprintf(tmp.uid, "%0*d", sizeof(tmp.uid)-1, 0);
-  sprintf(tmp.gid, "%0*d", sizeof(tmp.gid)-1, 0);
-  sprintf(tmp.size, "%0*d", sizeof(tmp.size)-1, 0);
-  sprintf(tmp.mtime, "%0*d", sizeof(tmp.mtime)-1, 0);
+  sprintf(tmp.mode, "%0*d", (int)sizeof(tmp.mode)-1, 0);
+  sprintf(tmp.uid, "%0*d", (int)sizeof(tmp.uid)-1, 0);
+  sprintf(tmp.gid, "%0*d", (int)sizeof(tmp.gid)-1, 0);
+  sprintf(tmp.size, "%0*d", (int)sizeof(tmp.size)-1, 0);
+  sprintf(tmp.mtime, "%0*d", (int)sizeof(tmp.mtime)-1, 0);
   itoo(tmp.size, sizeof(tmp.size), sz);
   tmp.type = type;
   memset(tmp.chksum, ' ', 8);
@@ -184,7 +184,7 @@ static void add_file(struct archive_handler *tar, char **nam, struct stat *st)
   while ((c = strstr(hname, "../"))) hname = c + 3;
   if (warn && hname != name) {
     printf("removing leading '%.*s' "
-        "from member names\n",hname-name, name);
+        "from member names\n", (int)(hname-name), name);
     warn = 0;
   }
 
@@ -208,7 +208,8 @@ static void add_file(struct archive_handler *tar, char **nam, struct stat *st)
     if (st->st_size <= (off_t)0777777777777LL)
       itoo(hdr.size, sizeof(hdr.size), st->st_size);
     else {
-      error_msg("can't store file '%s' of size '%d'\n", hname, st->st_size);
+      error_msg("can't store file '%s' of size '%lld'\n",
+                hname, (unsigned long long)st->st_size);
       return;
     }
   } else if (S_ISLNK(st->st_mode)) {
@@ -229,7 +230,7 @@ static void add_file(struct archive_handler *tar, char **nam, struct stat *st)
     itoo(hdr.major, sizeof(hdr.major), major(st->st_rdev));
     itoo(hdr.minor, sizeof(hdr.minor), minor(st->st_rdev));
   } else {
-    error_msg("unknown file type '%s'");
+    error_msg("unknown file type '%o'", st->st_mode & S_IFMT);
     return;
   }
   if (strlen(hname) > sizeof(hdr.name))
