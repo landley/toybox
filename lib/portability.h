@@ -11,8 +11,10 @@
 
 #ifdef __GNUC__
 #define noreturn	__attribute__((noreturn))
+#define printf_format	__attribute__((format(printf, 1, 2)))
 #else
 #define noreturn
+#define printf_format
 #endif
 
 // Always use long file support.

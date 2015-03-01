@@ -88,8 +88,8 @@ void *xzalloc(size_t size);
 void *xrealloc(void *ptr, size_t size);
 char *xstrndup(char *s, size_t n);
 char *xstrdup(char *s);
-char *xmprintf(char *format, ...);
-void xprintf(char *format, ...);
+char *xmprintf(char *format, ...) printf_format;
+void xprintf(char *format, ...) printf_format;
 void xputs(char *s);
 void xputc(char c);
 void xflush(void);
@@ -132,10 +132,10 @@ char *xtzset(char *new);
 
 // lib.c
 void verror_msg(char *msg, int err, va_list va);
-void error_msg(char *msg, ...);
-void perror_msg(char *msg, ...);
-void error_exit(char *msg, ...) noreturn;
-void perror_exit(char *msg, ...) noreturn;
+void error_msg(char *msg, ...) printf_format;
+void perror_msg(char *msg, ...) printf_format;
+void error_exit(char *msg, ...) printf_format noreturn;
+void perror_exit(char *msg, ...) printf_format noreturn;
 ssize_t readall(int fd, void *buf, size_t len);
 ssize_t writeall(int fd, void *buf, size_t len);
 off_t lskip(int fd, off_t offset);
