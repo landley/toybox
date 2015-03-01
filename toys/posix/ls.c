@@ -375,8 +375,8 @@ static void listfiles(int dirfd, struct dirtree *indir)
     }
     width += *len;
 
-    if (flags & FLAG_i) xprintf("% *lu ", len[1], (unsigned long)st->st_ino);
-    if (flags & FLAG_s) xprintf("% *lu ", len[6], (unsigned long)st->st_blocks);
+    if (flags & FLAG_i) xprintf("%*lu ", len[1], (unsigned long)st->st_ino);
+    if (flags & FLAG_s) xprintf("%*lu ", len[6], (unsigned long)st->st_blocks);
 
     if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) {
       struct tm *tm;

@@ -208,7 +208,7 @@ int cp_node(struct dirtree *try)
 
         if (*or->name == '/') dotdots = 0;
         if (dotdots) {
-          char *s2 = xmprintf("% *c%s", 3*dotdots, ' ', s);
+          char *s2 = xmprintf("%*c%s", 3*dotdots, ' ', s);
           free(s);
           s = s2;
           while(dotdots--) {

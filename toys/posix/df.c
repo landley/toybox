@@ -86,7 +86,7 @@ void df_main(void)
 
   // Units are 512 bytes if you select "pedantic" without "kilobytes".
   TT.units = p ? 512 : 1024;
-  xprintf("Filesystem% 8s-blocks\tUsed  Available %s Mounted on\n",
+  xprintf("Filesystem%8s-blocks\tUsed  Available %s Mounted on\n",
     p ? "512" : "1K", p ? "Capacity" : "Use%");
 
   if (!(mtstart = xgetmountlist(0))) return;

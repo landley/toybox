@@ -254,7 +254,7 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
     xprintf("%10c", ' ');
     if(ifre.ifr_map.irq) xprintf("Interrupt:%d ", ifre.ifr_map.irq);
     if(ifre.ifr_map.base_addr >= 0x100) // IO_MAP_INDEX
-      xprintf("Base address:0x%lx ", ifre.ifr_map.base_addr);
+      xprintf("Base address:0x%x ", ifre.ifr_map.base_addr);
     if(ifre.ifr_map.mem_start)
       xprintf("Memory:%lx-%lx ", ifre.ifr_map.mem_start, ifre.ifr_map.mem_end);
     if(ifre.ifr_map.dma) xprintf("DMA chan:%x ", ifre.ifr_map.dma);
@@ -449,7 +449,7 @@ void ifconfig_main(void)
 
       if (!argv[1]) {
         toys.exithelp++;
-        error_exit(*argv);
+        error_exit("%s", *argv);
       }
 
       plen = get_addrinfo(argv[1], AF_INET6, &ifre6.addr);
