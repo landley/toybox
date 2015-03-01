@@ -24,7 +24,7 @@ void xstrncat(char *dest, char *src, size_t size)
   long len = strlen(src);
 
   if (len+strlen(dest)+1 > size)
-    error_exit("'%s%s' > %ld bytes", src, (long)size);
+    error_exit("'%s%s' > %ld bytes", dest, src, (long)size);
   strcpy(dest+len, src);
 }
 

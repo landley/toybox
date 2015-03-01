@@ -144,7 +144,8 @@ static void mount_filesystem(char *dev, char *dir, char *type,
   if (getuid()) {
     if (TT.okuser) TT.okuser = 0;
     else {
-      error_msg("'%s' not user mountable in fstab");
+      error_msg("'%s' not user mountable in fstab", dev);
+
       return;
     }
   }

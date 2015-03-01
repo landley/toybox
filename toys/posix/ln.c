@@ -40,7 +40,7 @@ void ln_main(void)
   if (((toys.optflags&FLAG_n) ? lstat : stat)(dest, &buf)
     || !S_ISDIR(buf.st_mode))
   {
-    if (toys.optc>1) error_exit("'%s' not a directory");
+    if (toys.optc>1) error_exit("'%s' not a directory", dest);
     buf.st_mode = 0;
   }
 

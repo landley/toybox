@@ -97,7 +97,7 @@ static void process_key(char *key, char *value)
 
   if (!value) value = split_key(key);
   if ((toys.optflags & FLAG_w) && !value) {
-    error_msg("'%s' not key=value");
+    error_msg("'%s' not key=value", key);
 
     return;
   }
