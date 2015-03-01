@@ -111,7 +111,7 @@ static void get_data(void)
       else {
         int fd = open(*argv, O_RDONLY, 0);
         if(fd < 0) {//if file not present then continue with other files.
-          perror_msg(*argv);
+          perror_msg("%s", *argv);
           continue;
         }
         TT.do_cut(fd);

@@ -53,7 +53,7 @@ void pmap_main(void)
 
     if ((toys.optflags & (FLAG_q|FLAG_x)) == FLAG_x)
       xprintf("Address%*cKbytes     PSS   Dirty    Swap  Mode  Mapping\n",
-        (sizeof(long)*2)-4, ' ');
+        (int)(sizeof(long)*2)-4, ' ');
 
     // Loop through mappings
     for (;;) {

@@ -22,12 +22,15 @@ static void factor(char *s)
   long l, ll;
 
   for (;;) {
+    char *err = s;
+
     while(isspace(*s)) s++;
     if (!*s) return;
 
     l = strtol(s, &s, 0);
     if (*s && !isspace(*s)) {
-      error_msg("%s: not integer");
+      error_msg("%s: not integer", err);
+
       return;
     }
 

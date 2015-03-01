@@ -27,7 +27,7 @@ GLOBALS(
 
 static void output_field(char *field, char *value)
 {
-  if (!TT.field) xprintf("%s:%*c", field, 15 - strlen(field), ' ');
+  if (!TT.field) xprintf("%s:%*c", field, 15-(int)strlen(field), ' ');
   else if (strcmp(TT.field, field)) return;
   xprintf("%s", value);
   xputc((toys.optflags & FLAG_0) ? 0 : '\n');
