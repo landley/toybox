@@ -24,7 +24,7 @@
 USE_SH(NEWTOY(cd, NULL, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(exit, NULL, TOYFLAG_NOFORK))
 
-USE_SH(NEWTOY(sh, "c:"USE_SH_INTERACTIVE("i"), TOYFLAG_BIN))
+USE_SH(NEWTOY(sh, "c:i", TOYFLAG_BIN))
 USE_SH(OLDTOY(toysh, sh, TOYFLAG_BIN))
 
 config SH
@@ -37,16 +37,6 @@ config SH
     and responds to it.
 
     -c	command line to execute
-
-config SH_INTERACTIVE
-  bool "Interactive shell"
-  default n
-  depends on SH
-  help
-    This shell supports terminal control (so the shell isn't killed by CTRL-C),
-    job control (fg, bg, jobs), and reads /etc/profile and ~/.profile when
-    running interactively.
-
     -i	interactive mode (default when STDIN is a tty)
 
 config EXIT
@@ -248,7 +238,7 @@ static char *parse_pipeline(char *cmdline, struct pipeline *line)
 
   if (!cmdline) return 0;
 
-  if (CFG_SH_INTERACTIVE) line->cmdline = cmdline;
+  line->cmdline = cmdline;
 
   // Parse command into argv[]
   for (;;) {
@@ -257,7 +247,7 @@ static char *parse_pipeline(char *cmdline, struct pipeline *line)
     // Skip leading whitespace and detect end of line.
     while (isspace(*start)) start++;
     if (!*start || *start=='#') {
-      if (CFG_SH_INTERACTIVE) line->cmdlinelen = start-cmdline;
+      line->cmdlinelen = start-cmdline;
       return 0;
     }
 
@@ -281,7 +271,7 @@ static char *parse_pipeline(char *cmdline, struct pipeline *line)
     start = end;
   }
 
-  if (CFG_SH_INTERACTIVE) line->cmdlinelen = start-cmdline;
+  line->cmdlinelen = start-cmdline;
 
   return start;
 }
@@ -375,7 +365,7 @@ void sh_main(void)
   FILE *f;
 
   // Set up signal handlers and grab control of this tty.
-  if (CFG_SH_INTERACTIVE && isatty(0)) toys.optflags |= FLAG_i;
+  if (isatty(0)) toys.optflags |= FLAG_i;
 
   f = *toys.optargs ? xfopen(*toys.optargs, "r") : NULL;
   if (TT.command) handle(TT.command);
