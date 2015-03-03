@@ -130,7 +130,7 @@ void printf_main(void)
 
           sprintf(to, "*.*L%c", c);
           printf(toybuf, wp[0], wp[1], ld);
-        } else error_exit("bad %%%c@%ld", c, f-*toys.optargs);
+        } else error_exit("bad %%%c@%ld", c, (long)(f-*toys.optargs));
 
         if (end && (errno || *end)) perror_msg("bad %%%c %s", c, aa);
       }

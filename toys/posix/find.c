@@ -165,7 +165,7 @@ char *strlower(char *s)
         // encode back to utf8, something is wrong with your libc. But just
         // in case somebody finds an exploit...
         len = wcrtomb(new, c, 0);
-        if (len < 1) error_exit("bad utf8 %x", c);
+        if (len < 1) error_exit("bad utf8 %x", (int)c);
         new += len;
       }
     }

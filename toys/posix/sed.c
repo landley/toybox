@@ -997,7 +997,7 @@ resume_a:
 
 brand:
   // Reminisce about chestnut trees.
-  error_exit("bad pattern '%s'@%ld (%c)", errstart, line-errstart+1, *line);
+  error_exit("bad pattern '%s'@%ld (%c)", errstart, line-errstart+1L, *line);
 }
 
 void sed_main(void)
