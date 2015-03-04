@@ -206,4 +206,6 @@ int main(int argc, char *argv[])
     if (i<0) return 1;
     out += i;
   }
+
+  return 0;
 }
