@@ -32,6 +32,7 @@ config TAR
     X File with names to exclude
     T File with names to include
 */
+
 #define FOR_tar
 #include "toys.h"
 
@@ -433,7 +434,8 @@ COPY:
       if (pw) u = pw->pw_uid;
       if (gr) g = gr->gr_gid;
     }
-    chown(file_hdr->name, u, g);
+    if (chown(file_hdr->name, u, g))
+      perror_msg("chown %d:%d '%s'", u, g, file_hdr->name);;
   }
 
   if (toys.optflags & FLAG_p) // || !(toys.optflags & FLAG_no_same_permissions))
@@ -745,14 +747,9 @@ SKIP:
 void tar_main(void)
 {
   struct archive_handler *tar_hdl;
-  int fd = 0, flags = O_RDONLY;
+  int fd = 0;
   struct arg_list *tmp;
   char **args = toys.optargs;
-
-  if (!toys.argv[1]) {
-    toys.exithelp++;
-    error_exit(NULL);
-  }
 
   if (!geteuid()) toys.optflags |= FLAG_p;
 
@@ -765,16 +762,16 @@ void tar_main(void)
 
   if (toys.optflags & FLAG_c) {
     if (!TT.inc) error_exit("empty archive");
-    fd = 1, flags = O_WRONLY|O_CREAT|O_TRUNC;
+    fd = 1;
   }
   if ((toys.optflags & FLAG_f) && strcmp(TT.fname, "-")) 
-    fd = xcreate(TT.fname, flags, 0666);
+    fd = xcreate(TT.fname, fd*(O_WRONLY|O_CREAT|O_TRUNC), 0666);
   if (toys.optflags & FLAG_C) xchdir(TT.dir);
 
   tar_hdl = init_handler();
   tar_hdl->src_fd = fd;
 
-  if (toys.optflags & FLAG_x || toys.optflags & FLAG_t) {
+  if ((toys.optflags & FLAG_x) || (toys.optflags & FLAG_t)) {
     if (toys.optflags & FLAG_O) tar_hdl->extract_handler = extract_to_stdout;
     if (toys.optflags & FLAG_to_command) {
       signal(SIGPIPE, SIG_IGN); //will be using pipe between child & parent
