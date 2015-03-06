@@ -7,7 +7,7 @@
  * TODO: lines > 2G could signed int wrap length counters. Not just getline()
  * but N and s///
 
-USE_SED(NEWTOY(sed, "(version)e*f*inrE", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_SED(NEWTOY(sed, "(version)e*f*inEr[+Er]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config SED
   bool "sed"
@@ -804,7 +804,7 @@ static void jewel_of_judgement(char **pline, long len)
         if (!(s = unescape_delimited_string(&line, 0, 1))) goto brand;
         if (!*s) corwin->rmatch[i] = 0;
         else {
-          xregcomp((void *)reg, s, (toys.optflags & (FLAG_r | FLAG_E))*REG_EXTENDED);
+          xregcomp((void *)reg, s, (toys.optflags & FLAG_r)*REG_EXTENDED);
           corwin->rmatch[i] = reg-toybuf;
           reg += sizeof(regex_t);
         }
@@ -898,7 +898,7 @@ resume_s:
       // allocating the space was done by extend_string() above
       if (!*TT.remember) corwin->arg1 = 0;
       else xregcomp((void *)(corwin->arg1 + (char *)corwin), TT.remember,
-        ((toys.optflags & (FLAG_r | FLAG_E))*REG_EXTENDED)|((corwin->sflags&1)*REG_ICASE));
+        ((toys.optflags & FLAG_r)*REG_EXTENDED)|((corwin->sflags&1)*REG_ICASE));
       free(TT.remember);
       TT.remember = 0;
       if (*line == 'w') {
