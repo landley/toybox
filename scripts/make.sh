@@ -268,11 +268,10 @@ done
 [ $DONE -ne 0 ] && exit 1
 
 do_loudly $BUILD $LFILES $LINK || exit 1
-if [ "$STRIP" == no ]
+if ! do_loudly ${CROSS_COMPILE}strip toybox_unstripped -o toybox
 then
-  mv toybox_unstripped toybox
-else
-  do_loudly ${CROSS_COMPILE}${STRIP} toybox_unstripped -o toybox || exit 1
+  echo "strip failed, using unstripped" && cp toybox_unstripped toybox ||
+  exit 1
 fi
 # gcc 4.4's strip command is buggy, and doesn't set the executable bit on
 # its output the way SUSv4 suggests it do so.

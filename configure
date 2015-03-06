@@ -16,7 +16,6 @@ CFLAGS="$CFLAGS -funsigned-char"
 [ -z "$LDOPTIMIZE" ] && LDOPTIMIZE="-Wl,--gc-sections"
 
 [ -z "$CC" ] && CC=cc
-[ -z "$STRIP" ] && STRIP=strip  # set STRIP=no to skip stripping entirely
 
 # If HOSTCC needs CFLAGS or LDFLAGS, just add them to the variable
 # ala HOSTCC="blah-cc --static"
