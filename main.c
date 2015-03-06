@@ -116,6 +116,7 @@ void toy_init(struct toy_list *which, char *argv[])
 
   if (toys.optargs != toys.argv+1) free(toys.optargs);
   memset(&toys, 0, offsetof(struct toy_context, rebound));
+  if (toys.recursion > 1) memset(&this, 0, sizeof(this));
 
   // Subset of init needed by singlemain.
   toy_singleinit(which, argv);
