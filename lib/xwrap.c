@@ -638,3 +638,14 @@ char *xtzset(char *new)
 
   return tz;
 }
+
+// Set a signal handler
+void xsignal(int signal, void *handler)
+{
+  struct sigaction *sa = (void *)libbuf;
+
+  memset(sa, 0, sizeof(struct sigaction));
+  sa->sa_handler = handler;
+
+  if (sigaction(signal, sa, 0)) perror_exit("xsignal %d", signal);
+}
