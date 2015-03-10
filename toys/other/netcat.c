@@ -54,12 +54,13 @@ GLOBALS(
 static void timeout(int signum)
 {
   if (TT.wait) error_exit("Timeout");
+  // This should be xexit() but would need siglongjmp()...
   exit(0);
 }
 
 static void set_alarm(int seconds)
 {
-  signal(SIGALRM, seconds ? timeout : SIG_DFL);
+  xsignal(SIGALRM, seconds ? timeout : SIG_DFL);
   alarm(seconds);
 }
 

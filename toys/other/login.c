@@ -156,7 +156,7 @@ void login_main(void)
   if (!isatty(0) || !isatty(1) || !isatty(2)) error_exit("no tty");
 
   openlog("login", LOG_PID | LOG_CONS, LOG_AUTH);
-  signal(SIGALRM, login_timeout_handler);
+  xsignal(SIGALRM, login_timeout_handler);
   alarm(TT.login_timeout = 60);
 
   for (ss = forbid; *ss; ss++) unsetenv(*ss);

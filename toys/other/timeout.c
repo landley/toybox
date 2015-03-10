@@ -45,7 +45,7 @@ static void handler(int i)
   if (TT.k_timeout) {
     TT.k_timeout = 0;
     TT.nextsig = SIGKILL;
-    signal(SIGALRM, handler);
+    xsignal(SIGALRM, handler);
     TT.itv.it_value = TT.ktv;
     setitimer(ITIMER_REAL, &TT.itv, (void *)toybuf);
   }
@@ -66,7 +66,7 @@ void timeout_main(void)
   else {
     int status;
 
-    signal(SIGALRM, handler);
+    xsignal(SIGALRM, handler);
     setitimer(ITIMER_REAL, &TT.itv, (void *)toybuf);
     while (-1 == waitpid(TT.pid, &status, 0) && errno == EINTR);
     toys.exitval = WIFEXITED(status)
