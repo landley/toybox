@@ -477,6 +477,38 @@ struct group *xgetgrgid(gid_t gid)
   return group;
 }
 
+struct passwd *xgetpwnamid(char *user)
+{
+  struct passwd *up = getpwnam(user);
+  uid_t uid;
+
+  if (!up) {
+    char *s = 0;
+
+    uid = estrtol(user, &s, 10);
+    if (!errno && s && !*s) up = getpwuid(uid);
+  }
+  if (!up) perror_exit("user '%s'", user);
+
+  return up;
+}
+
+struct group *xgetgrnamid(char *group)
+{
+  struct group *gr = getgrnam(group);
+  gid_t gid;
+
+  if (!gr) {
+    char *s = 0;
+
+    gid = estrtol(group, &s, 10);
+    if (!errno && s && !*s) gr = getgrgid(gid);
+  }
+  if (!gr) perror_exit("group '%s'", group);
+
+  return gr;
+}
+
 struct passwd *xgetpwnam(char *name)
 {
   struct passwd *up = getpwnam(name);

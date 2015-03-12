@@ -82,30 +82,17 @@ void chgrp_main(void)
   // Distinguish chown from chgrp
   if (ischown) {
     char *grp;
-    struct passwd *p;
 
     own = xstrdup(*toys.optargs);
     if ((grp = strchr(own, ':')) || (grp = strchr(own, '.'))) {
       *(grp++) = 0;
       TT.group_name = grp;
     }
-    if (*own) {
-      TT.owner_name = own;
-      p = getpwnam(own);
-      // TODO: trailing garbage?
-      if (!p && isdigit(*own)) p=getpwuid(atoi(own));
-      if (!p) error_exit("no user '%s'", own);
-      TT.owner = p->pw_uid;
-    }
+    if (*own) TT.owner = xgetpwnamid(TT.owner_name = own)->pw_uid;
   } else TT.group_name = *toys.optargs;
 
-  if (TT.group_name && *TT.group_name) {
-    struct group *g;
-    g = getgrnam(TT.group_name);
-    if (!g) g=getgrgid(atoi(TT.group_name));
-    if (!g) error_exit("no group '%s'", TT.group_name);
-    TT.group = g->gr_gid;
-  }
+  if (TT.group_name && *TT.group_name)
+    TT.group = xgetgrnamid(TT.group_name)->gr_gid;
 
   for (s=toys.optargs+1; *s; s++) {
     struct dirtree *new = dirtree_add_node(0, *s, hl);
