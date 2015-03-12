@@ -402,8 +402,8 @@ void install_main(void)
   if (flags & FLAG_v) toys.optflags |= 8; // cp's FLAG_v
   if (flags & (FLAG_p|FLAG_o|FLAG_g)) toys.optflags |= 512; // cp's FLAG_p
 
-  if (TT.user) TT.uid = xgetpwnam(TT.user)->pw_uid;
-  if (TT.group) TT.gid = xgetgrnam(TT.group)->gr_gid;
+  if (TT.user) TT.uid = xgetpwnamid(TT.user)->pw_uid;
+  if (TT.group) TT.gid = xgetgrnamid(TT.group)->gr_gid;
 
   TT.callback = install_node;
   cp_main();
