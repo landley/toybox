@@ -38,7 +38,7 @@ void mktemp_main(void)
   if (!template) template = "tmp.XXXXXX";
 
   if (!TT.tmpdir) TT.tmpdir = getenv("TMPDIR");
-  if (!TT.tmpdir) TT.tmpdir = "/tmp";
+  if (!TT.tmpdir || !*TT.tmpdir) TT.tmpdir = "/tmp";
 
   template = strchr(template, '/') ? xstrdup(template)
              : xmprintf("%s/%s", TT.tmpdir, template);
