@@ -41,7 +41,7 @@ GLOBALS(
 
 void makedevs_main()
 {
-  int value, fd = 0, line_no, i;
+  int fd = 0, line_no, i;
   char *line = NULL;
 
   // Open file and chdir, verbosely
@@ -78,27 +78,8 @@ void makedevs_main()
       continue;
     } else mode |= (mode_t[]){S_IFIFO, S_IFCHR, S_IFBLK, 0, 0}[i];
 
-    if (*user) {
-      struct passwd *usr;
-
-      if (!(usr = getpwnam(user)) && isdigit(*user)) {
-        sscanf(user, "%u", &value);
-        usr = xgetpwuid(value);
-      }
-      if (!usr) error_exit("bad user '%s'", user);
-      uid = usr->pw_uid;
-    } else uid = getuid();
-
-    if (*group) {
-      struct group *grp;
-
-      if (!(grp = getgrnam(group)) && isdigit(*group)) {
-        sscanf (group, "%u", &value);
-        grp = getgrgid(value);
-      }
-      if (!grp) error_exit("bad group '%s'", group);
-      gid = grp->gr_gid;
-    } else gid = getgid();
+    uid = *user ? xgetpwnamid(user)->pw_uid : getuid();
+    gid = *group ? xgetgrnamid(group)->gr_gid : getgid();
 
     while (*node == '/') node++; // using relative path
 
