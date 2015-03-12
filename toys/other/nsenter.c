@@ -38,7 +38,7 @@ config UNSHARE
 
 config NSENTER
   bool "nsenter"
-  default n
+  default y
   help
     usage: nsenter [-t pid] [-F] [-i] [-m] [-n] [-p] [-u] [-U] COMMAND...
 
