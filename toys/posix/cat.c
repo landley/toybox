@@ -28,8 +28,6 @@ config CAT_V
   help
     usage: cat [-evt]
 
-    Display nonprinting characters as escape sequences. Use M-x for
-
     -e	Mark each newline with $
     -t	Show tabs as ^I
     -v	Display nonprinting characters as escape sequences. Use M-x for
