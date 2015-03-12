@@ -8,7 +8,7 @@ USE_SHRED(NEWTOY(shred, "<1zxus#<1n#<1o#<0f", TOYFLAG_USR|TOYFLAG_BIN))
 
 config SHRED
   bool "shred"
-  default n
+  default y
   help
     usage: shred [-fuz] [-n COUNT] [-s SIZE] FILE...
 
@@ -100,5 +100,7 @@ void shred_main(void)
       if (throw != writeall(fd, toybuf, throw)) perror_msg("%s");
       pos += throw;
     }
+    if (toys.optflags & FLAG_u)
+      if (unlink(*try)) perror_msg("unlink '%s'", *try);
   }
 }
