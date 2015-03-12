@@ -9,6 +9,7 @@ USE_TIME(NEWTOY(time, "<1^p", TOYFLAG_USR|TOYFLAG_BIN))
 config TIME
   bool "time"
   default y
+  depends on TOYBOX_FLOAT
   help
     usage: time [-p] COMMAND [ARGS...]
 
