@@ -38,10 +38,8 @@ struct header_list {
   int width, position;
 };
 
-/*
- * create list of header attributes taking care of -o (-o ooid=MOM..)
- * and width of attributes.
- */
+// create list of header attributes taking care of -o (-o ooid=MOM..)
+// and width of attributes.
 static void list_add(struct header_list *data, char *c_data)
 {
   struct header_list *temp = TT.o, *new = xzalloc(sizeof(struct header_list));
@@ -168,10 +166,7 @@ void get_time(unsigned long s_time, unsigned long u_time)
   free(temp);
 }
 
-/*
- * read command line taking care of in between NUL's
- * in command line
- */
+// read command line taking care of in between NUL's in command line
 static void read_cmdline(int fd, char *cmd_ptr)
 {
   int size = read(fd, cmd_ptr, BUFF_SIZE); //sizeof(cmd_buf)
@@ -185,10 +180,8 @@ static void read_cmdline(int fd, char *cmd_ptr)
   }
 }
 
-/*
- * get the processes stats and print the stats 
- * corresponding to header attributes.
- */
+// get the processes stats and print the stats
+// corresponding to header attributes.
 static void do_ps_line(int pid, int tid)
 {
   char *stat_buff = toybuf + BUFF_SIZE, *cmd_buff = toybuf + (2*BUFF_SIZE);
@@ -351,7 +344,7 @@ clean:
   free(name);
 }
 
-//Do stats for threads (for -T option)
+// Do stats for threads (for -T option)
 void do_ps_threads(int pid)
 {       
   DIR *d; 
@@ -405,11 +398,10 @@ void ps_main(void)
 
   if (!(dp = opendir("/proc"))) perror_exit("opendir");
   while ((entry = readdir(dp))) {
-    if (isdigit(*entry->d_name)) {
-      pid = atoi(entry->d_name);
-      do_ps_line(pid, 0);
-      if (toys.optflags & FLAG_T) do_ps_threads(pid);
-    }
+    if (!isdigit(*entry->d_name)) continue;
+    pid = atoi(entry->d_name);
+    do_ps_line(pid, 0);
+    if (toys.optflags & FLAG_T) do_ps_threads(pid);
   }
   closedir(dp);
 
