@@ -14,9 +14,9 @@ config SORT
 
     Sort all lines of text from input files (or stdin) to stdout.
 
-    -r    reverse
-    -u    unique lines only
-    -n    numeric order (instead of alphabetical)
+    -r	reverse
+    -u	unique lines only
+    -n	numeric order (instead of alphabetical)
 
 config SORT_BIG
   bool "SuSv3 options (Support -ktcsbdfiozM)"
@@ -25,18 +25,18 @@ config SORT_BIG
   help
     usage: sort [-bcdfiMsz] [-k#[,#[x]] [-t X]] [-o FILE]
 
-    -b    ignore leading blanks (or trailing blanks in second part of key)
-    -c    check whether input is sorted
-    -d    dictionary order (use alphanumeric and whitespace chars only)
-    -f    force uppercase (case insensitive sort)
-    -i    ignore nonprinting characters
-    -M    month sort (jan, feb, etc).
-    -x    Hexadecimal numerical sort
-    -s    skip fallback sort (only sort with keys)
-    -z    zero (null) terminated input
-    -k    sort by "key" (see below)
-    -t    use a key separator other than whitespace
-    -o    output to FILE instead of stdout
+    -b	ignore leading blanks (or trailing blanks in second part of key)
+    -c	check whether input is sorted
+    -d	dictionary order (use alphanumeric and whitespace chars only)
+    -f	force uppercase (case insensitive sort)
+    -i	ignore nonprinting characters
+    -M	month sort (jan, feb, etc).
+    -x	Hexadecimal numerical sort
+    -s	skip fallback sort (only sort with keys)
+    -z	zero (null) terminated input
+    -k	sort by "key" (see below)
+    -t	use a key separator other than whitespace
+    -o	output to FILE instead of stdout
 
     Sorting by key looks at a subset of the words on each line.  -k2
     uses the second word to the end of the line, -k2,2 looks at only
@@ -46,15 +46,13 @@ config SORT_BIG
     (such as -2,2n) applies only to sorting that key.
 
 config SORT_FLOAT
-  bool "Floating point (-g)"
+  bool
   default y
-  depends on SORT_BIG
+  depends on SORT_BIG && TOYBOX_FLOAT
   help
     usage: sort [-g]
 
     -g	general numeric sort (double precision with nan and inf)
-
-    This version of sort requires floating point.
 */
 
 #define FOR_sort
