@@ -41,7 +41,7 @@ char *comma_iterate(char **list, int *len)
   return start;
 }
 
-static void deslash(char *s)
+static void octal_deslash(char *s)
 {
   char *o = s;
 
@@ -165,8 +165,8 @@ struct mtab_list *xgetmountlist(char *path)
     mt->opts = stpcpy(mt->device, me->mnt_fsname)+1;
     strcpy(mt->opts, me->mnt_opts);
 
-    deslash(mt->dir);
-    deslash(mt->device);
+    octal_deslash(mt->dir);
+    octal_deslash(mt->device);
   }
   endmntent(fp);
 
