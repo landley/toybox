@@ -90,7 +90,7 @@ int comma_scanall(char *optlist, char *scanlist)
 {
   int i = 1;
 
-  for (;;) {
+  while (scanlist && *scanlist) {
     char *opt = comma_iterate(&scanlist, &i), *s = xstrndup(opt, i);
 
     i = comma_scan(optlist, s, 0);
