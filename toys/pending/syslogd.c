@@ -300,6 +300,10 @@ static int write_rotate(struct logfile *tf, int len)
         unlink(tf->filename);
         close(tf->logfd);
         tf->logfd = open(tf->filename, O_CREAT | O_WRONLY | O_APPEND, 0666);
+        if (tf->logfd < 0) {
+          perror_msg("can't open %s", tf->filename);
+          return -1;
+        }
       }
       ftruncate(tf->logfd, 0);
     }
