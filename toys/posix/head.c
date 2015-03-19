@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/head.html
 
-USE_HEAD(NEWTOY(head, "n#<0=10", TOYFLAG_BIN))
+USE_HEAD(NEWTOY(head, "?n#<0=10", TOYFLAG_BIN))
 
 config HEAD
   bool "head"
@@ -50,5 +50,12 @@ static void do_head(int fd, char *name)
 
 void head_main(void)
 {
-  loopfiles(toys.optargs, do_head);
+  char *arg = *toys.optargs;
+
+  // handle old "-42" style arguments
+  if (arg && *arg == '-' && arg[1]) {
+    TT.lines = atolx(arg+1);
+    toys.optc--;
+  }
+  loopfiles(toys.optargs+!!arg, do_head);
 }
