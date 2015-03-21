@@ -45,7 +45,7 @@ ssize_t getdelim(char **linep, size_t *np, int delim, FILE *stream)
       new_line = realloc(*linep, new_len);
       if (!new_line) return -1;
       *np = new_len;
-      *linep = new_line;
+      line = *linep = new_line;
     }
 
     line[i] = ch;
@@ -59,7 +59,7 @@ ssize_t getdelim(char **linep, size_t *np, int delim, FILE *stream)
     new_line = realloc(*linep, new_len);
     if (!new_line) return -1;
     *np = new_len;
-    *linep = new_line;
+    line = *linep = new_line;
   }
   line[i + 1] = '\0';
 
