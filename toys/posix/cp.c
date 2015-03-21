@@ -4,13 +4,12 @@
  *
  * Posix says "cp -Rf dir file" shouldn't delete file, but our -f does.
 
-// This is subtle: MV options shared with CP must be in same order (right to
-// left) as CP for FLAG_X macros to work out right.
+// options shared between mv/cp must be in same order (right to left)
+// for FLAG macros to work out right in shared infrastructure.
 
 USE_CP(NEWTOY(cp, "<2RHLPp"USE_CP_MORE("rdaslvnF(remove-destination)")"fi[-HLP"USE_CP_MORE("d")"]"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
 USE_MV(NEWTOY(mv, "<2"USE_CP_MORE("vnF")"fi"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
 USE_INSTALL(NEWTOY(install, "<1cdDpsvm:o:g:", TOYFLAG_USR|TOYFLAG_BIN))
-*
 
 config CP
   bool "cp"
@@ -391,6 +390,7 @@ void install_main(void)
   }
 
   if (toys.optflags & FLAG_D) {
+    TT.destname = toys.optargs[toys.optc-1];
     if (mkpathat(AT_FDCWD, TT.destname, 0, 2))
       perror_exit("-D '%s'", TT.destname);
     if (toys.optc == 1) return;
