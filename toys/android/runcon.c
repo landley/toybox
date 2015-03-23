@@ -7,7 +7,7 @@ USE_RUNCON(NEWTOY(runcon, "<2", TOYFLAG_USR|TOYFLAG_SBIN))
 config RUNCON
   bool "runcon"
   depends on TOYBOX_SELINUX
-  default n
+  default y
   help
     usage: runcon CONTEXT COMMAND [ARGS...]
 
