@@ -21,9 +21,7 @@ void runcon_main(void)
 {
   char *context = *toys.optargs;
 
-  if (setexeccon(context))
-    error_exit("Could not set context to %s: %s", context, strerror(errno));
+  if (setexeccon(context)) perror_exit("Could not set context to %s", context);
 
-  toys.optargs++;
-  xexec(toys.optargs);
+  xexec(++toys.optargs);
 }
