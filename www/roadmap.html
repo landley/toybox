@@ -227,7 +227,7 @@ replaced by toybox.</p>
 
 <p>Toolbox doesn't have its own repository, instead it's part of Android's
 <a href=https://android.googlesource.com/platform/system/core>system/core
-git repository</a> (this analysis looked at commit 51ccef27cab58).</p>
+git repository</a> (this analysis looked at commit 8ac94d3).</p>
 
 <h3>Toolbox commands:</h3>
 
@@ -235,27 +235,19 @@ git repository</a> (this analysis looked at commit 51ccef27cab58).</p>
 the following commands:</p>
 
 <blockquote><b>
-ls mount cat ps kill ln insmod rmmod lsmod ifconfig setconsole
-rm mkdir rmdir reboot getevent sendevent date wipe sync umount
-start stop notify cmp dmesg route hd dd df getprop setprop watchprops
-log sleep renice printenv smd chmod chown newfs_msdos netstat ioctl 
-mv schedtop top iftop id uptime vmstat nandread ionice touch lsof md5 r
-cp du grep watchdogd
-</b></blockquote>
-
-<p>If selinux is enabled, you also get:</p>
-<blockquote><b>
-getenforce setenforce chcon restorecon runcon getsebool setsebool load_policy
+dd du df getevent getprop getsebool iftop ioctl ionice load_policy log ls
+lsof mount nandread newfs_msdos ps prlimit renice restorecon route runcon
+schedtop sendevent setprop setsebool smd start stop top umount uptime
+watchprops
 </b></blockquote>
 
 <h3>Other Android core commands</h3>
 
 <p>Other than the toolbox directory, the currently interesting
-subdirectories in the core repository are fs_mgr, gpttool, init,
+subdirectories in the core repository are gpttool, init,
 logcat, logwrapper, mkbootimg, reboot, and run-as.</p>
 
 <ul>
-<li><b>fs_mgr</b> - subset of mount</li>
 <li><b>gpttool</b> - subset of fdisk</li>
 <li><b>init</b> - Android's PID 1</li>
 <li><b>logcat</b> - read android log format</li>
@@ -267,8 +259,7 @@ logcat, logwrapper, mkbootimg, reboot, and run-as.</p>
 
 <p>Almost all of these reinvent an existing wheel with less functionality and a
 different user interface. We may want to provide that interface, but
-implementing the full commands (mount, fdisk, init, ifconfig with dhcp,
-and sudo) come first.</p>
+implementing the full commands (fdisk, init, and sudo) come first.</p>
 
 <p>Although logcat/logwrapper also reinvent a wheel, Android did so in the
 kernel and these provide an interface to that.</p>
@@ -282,15 +273,11 @@ bespoke code to install itself.</p>
 <p>For reference, combining everything listed above, we get:</p>
 
 <blockquote><b>
-cat chcon chmod chown cmp cp date dd df dmesg du fs_mgr
-getenforce
-getevent getprop getsebool gpttool grep hd id ifconfig iftop init insmod ioctl
-ionice kill ln load_policy log logcat logwrapper ls lsmod lsof md5
-mkbootimg mkdir mount mv nandread netstat newfs_msdos notify printenv
-ps r reboot renice restorecon rm rmdir rmmod route run-as
-runcon schedtop sendevent setconsole setenforce setprop setsebool
-sleep smd start stop sync top touch umount uptime vmstat watchdogd
-watchprops wipe
+dd du df getevent getprop getsebool gpttool iftop init ioctl ionice
+load_policy log logcat logwrapper ls lsof mkbootimg mount nandread
+newfs_msdos ps prlimit reboot renice restorecon route runcon run-as
+schedtop sendevent setprop setsebool smd start stop top umount uptime
+watchprops
 </b></blockquote>
 
 <p>We may eventually implement all of that, but for toybox 1.0 we need to
@@ -299,32 +286,13 @@ and grab just logcat and logwrapper from the "core"
 commands (since the rest have some full/standard version providing that
 functionality, which we can implement a shim interface for later).</p>
 
-<p>This means toybox should implement:</p>
+<p>This means toybox should implement (or finish implementing):</p>
 <blockquote><b>
 <span id=toolbox>
-cat chmod chown cmp cp date dd df dmesg du getevent getprop grep hd id ifconfig
-iftop insmod ioctl ionice kill ln log logcat logwrapper ls lsmod lsof lsusb md5
-mkdir mount mv nandread
-netstat newfs_msdos notify printenv ps r reboot renice rm rmdir rmmod route
-schedtop sendevent setconsole setprop sleep smd start stop sync top touch
-umount uptime vmstat watchprops watchdogd wipe
+dd du df getevent getprop iftop ioctl ionice log logcat logwrapper ls lsof
+mount nandread newfs_msdos ps prlimit renice route schedtop sendevent
+setprop smd start stop top umount uptime watchprops
 </span>
-</b></blockquote>
-
-<p>The following Toolbox commands are already covered in previous
-sections of this analysis:</p>
-
-<blockquote><b>
-cat chmod chown cmp cp date dd df dmesg du grep id ifconfig insmod kill ln ls
-lsmod mkdir mount mv ps renice rm rmdir rmmod route sleep sync top touch umount
-</b></blockquote>
-
-<p>Which leaves the following commands as new from Toolbox:</p>
-
-<blockquote><b>
-getevent getprop hd iftop ioctl ionice log lsof nandread netstat
-newfs_msdos notify printenv r reboot schedtop sendevent setconsole
-setprop smd start stop top uptime vmstat watchprops watchdogd wipe
 </b></blockquote>
 
 <hr />
