@@ -868,8 +868,8 @@ int human_readable(char *buf, unsigned long long num)
 {
   int end, len;
 
-  len = sprintf(buf, "%lld", num);
-  end = ((len-1)%3)+1;
+  len = sprintf(buf, "%lld", num)-1;
+  end = (len%3)+1;
   len /= 3;
 
   if (len && end == 1) {
