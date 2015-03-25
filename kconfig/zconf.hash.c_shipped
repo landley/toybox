@@ -159,7 +159,7 @@ static struct kconf_id_strings_t kconf_id_strings_contents =
     "enable"
   };
 #define kconf_id_strings ((const char *) &kconf_id_strings_contents)
-#ifdef __GNUC__
+#if defined(__GNUC__) && __STDC_VERSION__ < 199901L
 __inline
 #endif
 struct kconf_id *
