@@ -7,6 +7,7 @@ USE_GETENFORCE(NEWTOY(getenforce, "", TOYFLAG_USR|TOYFLAG_SBIN))
 config GETENFORCE
   bool "getenforce"
   default n
+  depends on TOYBOX_SELINUX
   help
     usage: getenforce
 
@@ -15,17 +16,14 @@ config GETENFORCE
 
 #define FOR_getenforce
 #include "toys.h"
-#include <selinux/selinux.h>
 
 void getenforce_main(void)
 {
-  if (!is_selinux_enabled())
-    printf("Disabled\n");
+  if (!is_selinux_enabled()) puts("Disabled");
   else {
     int ret = security_getenforce();
-    if (ret == -1)
-      perror_exit("Couldn't get enforcing status");
-    else
-      printf(ret ? "Enforcing\n" : "Permissive\n");
+
+    if (ret == -1) perror_exit("Couldn't get enforcing status");
+    else puts(ret ? "Enforcing" : "Permissive");
   }
 }
