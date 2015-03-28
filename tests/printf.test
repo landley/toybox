@@ -57,3 +57,5 @@ testing "printf '%u %u' -1 -2" "$PRINTF '%u %u' -1 -2" \
 testing "printf '%x %X' 78 79" "$PRINTF '%x %X' 78 79" "4e 4F" "" ""
 testing "printf '%g %G' 78 79" "$PRINTF '%g %G' 78 79" "78 79" "" ""
 testing "printf '%s %s' 78 79" "$PRINTF '%s %s' 78 79" "78 79" "" ""
+
+testing "printf %.s acts like %.0s" "$PRINTF %.s_ 1 2 3 4 5" "_____" "" ""

@@ -91,19 +91,17 @@ void printf_main(void)
       // Handle %escape
       else {
         char c, *end = 0, *aa, *to = toybuf;
-        int wp[] = {0,-1}, i;
+        int wp[] = {0,-1}, i = 0;
 
         // Parse width.precision between % and type indicator.
         *to++ = '%';
         while (strchr("-+# '0", *f) && (to-toybuf)<10) *to++ = *f++;
-        for (i=0; i<2; i++) {
+        for (;;) {
           if (eat(&f, '*')) {
             if (*arg) wp[i] = atolx(*arg++);
-          } else while (*f >= '0' && *f <= '9') {
-            if (wp[i]<0) wp[i] = 0;
-            wp[i] = (wp[i]*10)+(*f++)-'0';
-          }
-          if (!eat(&f, '.')) break;
+          } else while (*f >= '0' && *f <= '9') wp[i] = (wp[i]*10)+(*f++)-'0';
+          if (i++ || !eat(&f, '.')) break;
+          wp[1] = 0;
         }
         c = *f++;
         seen = sprintf(to, "*.*%c", c);;
