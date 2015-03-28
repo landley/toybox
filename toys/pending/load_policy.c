@@ -1,4 +1,4 @@
-/* runcon.c - Run command in specified security context
+/* load_policy.c - Load a policy file
  *
  * Copyright 2015 The Android Open Source Project
 
@@ -30,12 +30,8 @@ void load_policy_main(void)
     close(fd);
   }
 
-  if (!policy_data) {
-    error_exit("Couldn't read %s: %s", path, strerror(errno));
-  }
-
-  if (security_load_policy(policy_data, policy_len) < 0)
-    error_exit("Couldn't load %s: %s", path, strerror(errno));
+  if (!policy_data || security_load_policy(policy_data, policy_len) < 0)
+    perror_exit("Couldn't %s %s: %s", policy_data ? "load" : "read", path);
 
   munmap(policy_data, policy_len);
 }
