@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/tail.html
 
-USE_TAIL(NEWTOY(tail, "fc-n-[-cn]", TOYFLAG_BIN))
+USE_TAIL(NEWTOY(tail, "?fc-n-[-cn]", TOYFLAG_BIN))
 
 config TAIL
   bool "tail"
@@ -17,7 +17,7 @@ config TAIL
 
     -n	output the last NUMBER lines (default 10), +X counts from start.
     -c	output the last NUMBER bytes, +NUMBER counts from start
-    -f	follow FILE(s), waiting for more data to be appended
+    #-f	follow FILE(s), waiting for more data to be appended [TODO]
 
 config TAIL_SEEK
   bool "tail seek support"
@@ -213,10 +213,22 @@ static void do_tail(int fd, char *name)
 
 void tail_main(void)
 {
-  // if nothing specified, default -n to -10
-  if (!(toys.optflags&(FLAG_n|FLAG_c))) TT.lines = -10;
+  char **args = toys.optargs;
 
-  loopfiles(toys.optargs, do_tail);
+  if (!(toys.optflags&(FLAG_n|FLAG_c))) {
+    char *arg = *args;
+
+    // handle old "-42" style arguments
+    if (arg && *arg == '-' && arg[1]) {
+      TT.lines = atolx(*(args++));
+      toys.optc--;
+    }
+
+    // if nothing specified, default -n to -10
+    TT.lines = -10;
+  }
+
+  loopfiles(args, do_tail);
 
   // do -f stuff
 }
