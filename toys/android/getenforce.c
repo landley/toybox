@@ -6,7 +6,7 @@ USE_GETENFORCE(NEWTOY(getenforce, "", TOYFLAG_USR|TOYFLAG_SBIN))
 
 config GETENFORCE
   bool "getenforce"
-  default n
+  default y
   depends on TOYBOX_SELINUX
   help
     usage: getenforce
