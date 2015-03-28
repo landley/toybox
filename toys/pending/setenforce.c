@@ -7,6 +7,7 @@ USE_SETENFORCE(NEWTOY(setenforce, "<1", TOYFLAG_USR|TOYFLAG_SBIN))
 config SETENFORCE
   bool "setenforce"
   default n
+  depends on TOYBOX_SELINUX
   help
     usage: setenforce [enforcing|permissive|1|0]
 
@@ -15,22 +16,17 @@ config SETENFORCE
 
 #define FOR_setenforce
 #include "toys.h"
-#include <selinux/selinux.h>
 
 void setenforce_main(void)
 {
-  char *state_str = *toys.optargs;
-  int state;
-  if (!is_selinux_enabled())
-    error_exit("SELinux is disabled");
-  else if (!strcmp(state_str, "1") || !strcasecmp(state_str, "enforcing"))
-    state = 1;
-  else if (!strcmp(state_str, "0") || !strcasecmp(state_str, "permissive"))
-    state = 0;
-  else
-    error_exit("Invalid state: %s", state_str);
+  char *new = *toys.optargs;
+  int state, ret;
 
-  int ret = security_setenforce(state);
-  if (ret == -1)
-    perror_msg("Couldn't set enforcing status to '%s'", state_str);
+  if (!is_selinux_enabled()) error_exit("SELinux is disabled");
+  else if (!strcmp(new, "1") || !strcasecmp(new, "enforcing")) state = 1;
+  else if (!strcmp(new, "0") || !strcasecmp(new, "permissive")) state = 0;
+  else error_exit("Invalid state: %s", new);
+
+  ret = security_setenforce(state);
+  if (ret == -1) perror_msg("Couldn't set enforcing status to '%s'", new);
 }
