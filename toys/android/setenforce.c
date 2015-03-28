@@ -6,7 +6,7 @@ USE_SETENFORCE(NEWTOY(setenforce, "<1", TOYFLAG_USR|TOYFLAG_SBIN))
 
 config SETENFORCE
   bool "setenforce"
-  default n
+  default y
   depends on TOYBOX_SELINUX
   help
     usage: setenforce [enforcing|permissive|1|0]
