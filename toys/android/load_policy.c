@@ -7,7 +7,7 @@ USE_LOAD_POLICY(NEWTOY(load_policy, "<1>1", TOYFLAG_USR|TOYFLAG_SBIN))
 config LOAD_POLICY
   bool "load_policy"
   depends on TOYBOX_SELINUX
-  default n
+  default y
   help
     usage: load_policy FILE
 
