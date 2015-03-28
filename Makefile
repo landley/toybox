@@ -62,7 +62,7 @@ tests:
 help::
 	@echo  '  toybox          - Build toybox.'
 	@echo  '  change          - Build each command standalone under change/.'
-	@echo  '  baseline        - Create busybox_old for use by bloatcheck.'
+	@echo  '  baseline        - Create toybox_old for use by bloatcheck.'
 	@echo  '  bloatcheck      - Report size differences between old and current versions'
 	@echo  '  test            - Run test suite against compiled commands.'
 	@echo  '  clean           - Delete temporary files.'
