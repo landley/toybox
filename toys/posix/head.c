@@ -56,6 +56,6 @@ void head_main(void)
   if (arg && *arg == '-' && arg[1]) {
     TT.lines = atolx(arg+1);
     toys.optc--;
-  }
+  } else arg = 0;
   loopfiles(toys.optargs+!!arg, do_head);
 }
