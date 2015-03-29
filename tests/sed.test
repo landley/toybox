@@ -4,7 +4,7 @@
 
 testing 'sed as cat' 'sed ""' "one\ntwo\nthree" "" "one\ntwo\nthree"
 # This segfaults ubuntu 12.04's sed. No really.
-testing 'sed - - twice' 'sed "" - -' "hello\n" "" "hello\n"
+SKIP_HOST=1 testing 'sed - - twice' 'sed "" - -' "hello\n" "" "hello\n"
 testing 'sed -n' 'sed -n ""' "" "" "one\ntwo\nthree"
 testing 'sed -n p' 'sed -n p' "one\ntwo\nthree" "" "one\ntwo\nthree"
 testing 'sed explicit pattern' 'sed -e p -n' "one\ntwo\nthree" "" \
@@ -132,6 +132,9 @@ hello'" "merp\nhello\n" "" "merp"
 #echo merp | sed/sed "1a\\
 #hello"
 
+testing "sed bonus backslashes" \
+  "sed -e 'a \l \x\' -e \"\$(echo -e 'ab\\\nc')\"" \
+  "hello\nl x\nab\nc\n" "" "hello\n"
 # -i with $ last line test
 
 exit $FAILCOUNT

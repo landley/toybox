@@ -4,7 +4,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/sed.html
  *
- * TODO: lines > 2G could signed int wrap length counters. Not just getline()
+ * TODO: lines > 2G could wrap signed int length counters. Not just getline()
  * but N and s///
 
 USE_SED(NEWTOY(sed, "(version)e*f*inEr[+Er]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
@@ -967,29 +967,35 @@ resume_a:
       }
 
       // Extend allocation to include new string. We use offsets instead of
-      // pointers so realloc() moving stuff doesn't break things. Do it
-      // here instead of toybuf so there's no maximum size.
+      // pointers so realloc() moving stuff doesn't break things. Ok to write
+      // \n over NUL terminator because call to extend_string() adds it back.
       if (!corwin->arg1) corwin->arg1 = reg - (char*)corwin;
       else if ((corwin+1) != (void *)reg) *(reg++) = '\n';
       reg = extend_string((void *)&corwin, line, reg - (char *)corwin, end);
 
-      line += end;
+      // Recopy data to remove escape sequences and handle line continuation.
+      if (strchr("aci", c)) {
+        reg -= end+1;
+        for (i = end; i; i--) {
+          if ((*reg++ = *line++)=='\\') {
 
-      // Line continuation? (Two slightly different input methods, -e with
-      // embedded newline vs -f line by line. Must parse both correctly.)
-      if (!strchr("btT:", c) && line[-1] == '\\') {
-        // backslash only matters if we have an odd number of them
-        for (i = 0; i<end; i++) if (line[-i-1] != '\\') break;
-        if (i&1) {
-          // reg is next available space, so reg[-1] is the null terminator
-          reg[-2] = 0;
-          if (*line && line[1]) {
-            reg -= 2;
+            // escape at end of line: resume if -e escaped literal newline,
+            // else request callback and resume with next line
+            if (!--i) {
+              *--reg = 0;
+              if (*line) {
+                line++;
+                goto resume_a;
+              }
+              corwin->hit = 256;
+              break;
+            }
+            if (!(reg[-1] = unescape(*line))) reg[-1] = *line;
             line++;
-            goto resume_a;
-          } else corwin->hit = 256;
+          }
         }
-      }
+        *reg = 0;
+      } else line += end;
 
     // Commands that take no arguments
     } else if (!strchr("{dDgGhHlnNpPqx=", c)) break;
