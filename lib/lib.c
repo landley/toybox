@@ -362,14 +362,12 @@ off_t fdlength(int fd)
 
 // Read contents of file as a single nul-terminated string.
 // malloc new one if buf=len=0
-char *readfile(char *name, char *ibuf, off_t len)
+char *readfileat(int dirfd, char *name, char *ibuf, off_t len)
 {
   int fd;
   char *buf;
 
-  fd = open(name, O_RDONLY);
-  if (fd == -1) return 0;
-
+  if (-1 == (fd = openat(dirfd, name, O_RDONLY))) return 0;
   if (len<1) {
     len = fdlength(fd);
     // proc files don't report a length, so try 1 page minimum.
@@ -386,6 +384,11 @@ char *readfile(char *name, char *ibuf, off_t len)
   } else buf[len] = 0;
 
   return buf;
+}
+
+char *readfile(char *name, char *ibuf, off_t len)
+{
+  return readfileat(AT_FDCWD, name, ibuf, len);
 }
 
 // Sleep for this many thousandths of a second

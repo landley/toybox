@@ -144,6 +144,7 @@ ssize_t writeall(int fd, void *buf, size_t len);
 off_t lskip(int fd, off_t offset);
 int mkpathat(int atfd, char *dir, mode_t lastmode, int flags);
 struct string_list **splitpath(char *path, struct string_list **list);
+char *readfileat(int dirfd, char *name, char *buf, off_t len);
 char *readfile(char *name, char *buf, off_t len);
 void msleep(long miliseconds);
 int64_t peek_le(void *ptr, unsigned size);
