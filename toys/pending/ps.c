@@ -6,9 +6,9 @@
  * And http://kernel.org/doc/Documentation/filesystems/proc.txt Table 1-4
  * And linux kernel source fs/proc/array.c function do_task_stat()
  *
- * Deviation from posix: no -n
+ * Deviation from posix: no -n, "-o tty" called "TTY" not "TT", 
 
-USE_PS(NEWTOY(ps, "aAdeo*", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PS(NEWTOY(ps, "aAdeflo*", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PS
   bool "ps"
@@ -22,12 +22,11 @@ config PS
     -a	Processes with terminals, except session leaders
     -d	Processes that aren't session leaders
     -e	Same as -A
-
-
     -f	Full listing
+    -l	Long listing
+
     -g  Processes belonging to these session leaders
     -G	Processes with these real group IDs
-    -l	Long listing
     -o	Show FIELDS for each process
     -p	select by PID
     -t	select by TTY
@@ -56,7 +55,7 @@ GLOBALS(
 
   unsigned width;
   dev_t tty;
-  void *oo;
+  void *fields;
 )
 
 /*
@@ -68,17 +67,22 @@ GLOBALS(
     man page: F flags mean...
 */
 
+struct strawberry {
+  struct strawberry *next, *prev;
+  short which, len;
+  char title[];
+};
+
 // dirtree callback.
 // toybuf used as: 1024 /proc/$PID/stat, 1024 slot[], 2048 /proc/$PID/cmdline
 static int do_ps(struct dirtree *new)
 {
+  struct strawberry *fields;
   long long *slot = (void *)(toybuf+1024);
   char *name, *s, state;
-  int nlen, slots, i, field, width = TT.width, idxes[] = {0, -1, -2, -3};
+  int nlen, slots, i, width = TT.width, idxes[] = {0, -1, -2, -3};
   struct passwd *pw;
   struct group *gr;
-
-width=18;
 
   if (!new->parent) return DIRTREE_RECURSE;
   if (!(*slot = atol(new->name))) return 0;
@@ -104,40 +108,49 @@ width=18;
   if (!(toys.optflags*(FLAG_a|FLAG_d|FLAG_A|FLAG_e)) && TT.tty!=slot[4])
     return 0;
 
-  // default: pidi=1 user time args
+  // 0 "F", "S", "UID", "PID", "PPID", "C", "PRI",
+  // 7 "NI", "ADDR", "SZ", "WCHAN", "STIME", "TTY", "TIME", "CMD",
+  //15 "COMMAND", "ELAPSED", "GROUP", "%CPU", "PGID", "RGROUP",
+  //21 "RUSER", "USER", "VSZ"
 
-  for (field = 0; field<ARRAY_LEN(idxes); field++) {
+  for (fields = TT.fields; field = 0; field<ARRAY_LEN(idxes); field++) {
     char *out = toybuf+2048;
-    int idx = idxes[field];
+
+    i = fields->which;
+
+    unsigned idx = idxes[field];
 
     // Default: unsupported
     sprintf(out, "-");
 
-    // Our tests here are in octal to match \123 character escapes in typos[]
-
-    // Print a raw stat field?
-    if (idx<0300)
-      sprintf(out, (char *[]){"%lld","%llx","%llo"}[idx>>6], slot[idx&63]);
-
-    else if (idx == 0300) sprintf(out, "%c", state); // S
-    else if (idx == 0301 || idx == 0302) {           // UID and USER
+    // does strchr() find NUL if you look for it? No idea, test that first.
+    // F
+    if (!fields->which) sprintf(out, "%llo", slot[7]);
+    // PID, PPID, PRI, NI, ADDR, SZ
+    else if (-1 != (i = stridx((char[]){3,4,6,7,8,9}, fields->which)
+      sprintf(out, ((1<<i)&0x10) ? "%llx" : "%lld",
+              slot[((char[]){0,2,16,17,22})[i]]>>(((1<<i)&0x20) ? 12 : 0));
+    // S
+    else if ((i = fields->which) == 1)
+      sprintf(out, "%c", state);
+    else if (i == 2 || i == 22) {                          // UID and USER
       sprintf(out, "%d", new->st.st_uid);
-      if (idx == 302 || (toys.optflags&FLAG_f)) {
+      if (i == 2 || (toys.optflags&FLAG_f)) {
         struct passwd *pw = getpwuid(new->st.st_uid);
 
         if (pw) out = pw->pw_name;
       }
-    } else if (idx == 0303);                         // C (unsupported for now)
-    else if (idx == 0304)                            // SZ
-      sprintf(out, "%lld", slot[22]/4096);
-    else if (idx == 0305) {                          // WCHAN
-      sprintf(toybuf+512, "%lld/wchan");
+    // C (unsupported for now)
+//  else if (idx == 5);
+    // WCHAN
+    } else if (idx == 10) {                          // WCHAN
+      sprintf(toybuf+512, "%lld/wchan", *slot);
       readfileat(dirtree_parentfd(new), toybuf+512, out, 2047);
+    // SZ
 
-    // time
-    } else if (idx == -2) {
-      long seconds = (slot[11]+(idx==-3)*slot[12])/sysconf(_SC_CLK_TCK),
-           ll = 60*60*24;
+    // STIME and TIME
+    } else if (idx == 13) {
+      long seconds = (slot[11]+slot[12])/sysconf(_SC_CLK_TCK), ll = 60*60*24;
 
       for (s = out, i = 0; i<4; i++) {
         if (i>1 || seconds > ll)
@@ -173,12 +186,15 @@ width=18;
 
 void ps_main(void)
 {
-  int i, fd = -1;
+  struct strawberry *field;
   // Octal output code followed by header name
   char *typos[] = {
-    "\207F", "\300S", "\301UID", "\0PID", "\02PPID", "\303C", "\20PRI",
-    "\21NI", "\34ADDR", "\304SZ", "\305WCHAN", "STIME", "TTY", "TIME", "CMD"
+    "F", "S", "UID", "PID", "PPID", "C", "PRI",
+    "NI", "ADDR", "SZ", "WCHAN", "STIME", "TTY", "TIME", "CMD",
+    "COMMAND", "ELAPSED", "GROUP", "%CPU", "PGID", "RGROUP",
+    "RUSER", "USER", "VSZ"
   };
+  int i, fd = -1;
 
   // l l fl  a   fl   fl l  l  l    l  l     f     a   a    a
   // F S UID PID PPID C PRI NI ADDR SZ WCHAN STIME TTY TIME CMD
@@ -200,18 +216,33 @@ void ps_main(void)
   }
   if (fd != -1) close(fd);
 
+  // Select fields
   if (FLAG_o) {
     printf("todo\n");
   } else {
-    short def = 0x0807;
+    unsigned short def = 0x0807;
 
     if (toys.optflags&FLAG_f) def = 0x1e0f;
     if (toys.optflags&FLAG_l) def = 0x7ff7;
 
     // order of fields[] matches posix STDOUT section, so add enabled XSI
     // defaults according to bitmask
-  }
 
-  printf("pid user time args\n");
+    for (i=0; def>>i; i++) {
+      int len = strlen(typos[i]);
+
+      if (!((def>>i)&1)) continue;
+
+      field = xmalloc(sizeof(struct strawberry)+len+1);
+      field->which = i;
+      field->len = len;
+      strcpy(field->title, typos[i]);
+      dlist_add_nomalloc(&TT.fields, fields);
+    }
+  }
+  dlist_terminate(TT.fields);
+
+  for (field = TT.fields; *field; field = field->next)
+    printf(" %*s", field->len, title);
   dirtree_read("/proc", do_ps);
 }
