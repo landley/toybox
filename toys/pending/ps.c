@@ -56,6 +56,7 @@ GLOBALS(
   unsigned width;
   dev_t tty;
   void *fields;
+  long uptime;
 )
 
 /*
@@ -77,12 +78,10 @@ struct strawberry {
 // toybuf used as: 1024 /proc/$PID/stat, 1024 slot[], 2048 /proc/$PID/cmdline
 static int do_ps(struct dirtree *new)
 {
-  struct strawberry *fields;
+  struct strawberry *field;
   long long *slot = (void *)(toybuf+1024);
   char *name, *s, state;
-  int nlen, slots, i, width = TT.width, idxes[] = {0, -1, -2, -3};
-  struct passwd *pw;
-  struct group *gr;
+  int nlen, i, fd, len, width = TT.width;
 
   if (!new->parent) return DIRTREE_RECURSE;
   if (!(*slot = atol(new->name))) return 0;
@@ -99,8 +98,8 @@ static int do_ps(struct dirtree *new)
   if (1>sscanf(++s, " %c%n", &state, &i)) return 0;
 
   // parse numeric fields
-  for (slots = 1; slots<100; slots++)
-    if (1>sscanf(s += i, " %lld%n", slot+slots, &i)) break;
+  for (len = 1; len<100; len++)
+    if (1>sscanf(s += i, " %lld%n", slot+len, &i)) break;
 
   // skip entries we don't care about.
   if ((toys.optflags&(FLAG_a|FLAG_d)) && getsid(*slot)==*slot) return 0;
@@ -113,57 +112,85 @@ static int do_ps(struct dirtree *new)
   //15 "COMMAND", "ELAPSED", "GROUP", "%CPU", "PGID", "RGROUP",
   //21 "RUSER", "USER", "VSZ"
 
-  for (fields = TT.fields; field = 0; field<ARRAY_LEN(idxes); field++) {
+  for (field = TT.fields; field; field = field->next) {
     char *out = toybuf+2048;
 
-    i = fields->which;
-
-    unsigned idx = idxes[field];
-
-    // Default: unsupported
+    // Default: unsupported (5 "C")
     sprintf(out, "-");
 
-    // does strchr() find NUL if you look for it? No idea, test that first.
-    // F
-    if (!fields->which) sprintf(out, "%llo", slot[7]);
     // PID, PPID, PRI, NI, ADDR, SZ
-    else if (-1 != (i = stridx((char[]){3,4,6,7,8,9}, fields->which)
+    if (-1 != (i = stridx((char[]){3,4,6,7,8,9,0}, field->which)))
       sprintf(out, ((1<<i)&0x10) ? "%llx" : "%lld",
               slot[((char[]){0,2,16,17,22})[i]]>>(((1<<i)&0x20) ? 12 : 0));
+    // F
+    else if (!(i = field->which)) sprintf(out, "%llo", slot[7]);
     // S
-    else if ((i = fields->which) == 1)
+    else if (i == 1)
       sprintf(out, "%c", state);
-    else if (i == 2 || i == 22) {                          // UID and USER
+    // UID and USER
+    else if (i == 2 || i == 22) {
       sprintf(out, "%d", new->st.st_uid);
       if (i == 2 || (toys.optflags&FLAG_f)) {
         struct passwd *pw = getpwuid(new->st.st_uid);
 
         if (pw) out = pw->pw_name;
       }
-    // C (unsupported for now)
-//  else if (idx == 5);
     // WCHAN
-    } else if (idx == 10) {                          // WCHAN
+    } else if (i==10) {
       sprintf(toybuf+512, "%lld/wchan", *slot);
       readfileat(dirtree_parentfd(new), toybuf+512, out, 2047);
-    // SZ
 
-    // STIME and TIME
-    } else if (idx == 13) {
-      long seconds = (slot[11]+slot[12])/sysconf(_SC_CLK_TCK), ll = 60*60*24;
+    // STIME
+    // TTY
+    } else if (i==12) {
 
+      // Can we readlink() our way to a name?
+      for (i=0; i<3; i++) {
+        struct stat st;
+
+        sprintf(toybuf+512, "%lld/fd/%i", *slot, i);
+        fd = dirtree_parentfd(new);
+        if (!fstatat(fd, toybuf+512, &st, 0) && S_ISCHR(st.st_mode)
+          && st.st_rdev == slot[4]
+          && 0<(len = readlinkat(fd, toybuf+512, out, 2047)))
+        {
+          out[len] = 0;
+          if (!strncmp(out, "/dev/", 5)) out += 5;
+
+          break;
+        }
+      }
+
+      // Couldn't find it, show major:minor
+      if (i==3) {
+        i = slot[4];
+        sprintf(out, "%d:%d", (i>>8)&0xfff, ((i>>12)&0xfff00)|(i&0xff));
+      }
+
+    // TIME
+    } else if (i==13 || i==16) {
+      long seconds = (i==16) ? slot[20] : slot[11]+slot[12], ll = 60*60*24;
+
+      seconds /= sysconf(_SC_CLK_TCK);
+      if (i==16) seconds = TT.uptime-seconds;
       for (s = out, i = 0; i<4; i++) {
         if (i>1 || seconds > ll)
-          s += sprintf(s, "%*ld%c", 2*(i==3), seconds/ll, "-::"[i]);
+          s += sprintf(s, (i==3) ? "%02ld" : "%ld%c", seconds/ll, "-::"[i]);
+        seconds %= ll;
         ll /= i ? 60 : 24;
       }
 
+  //16 "ELAPSED", "GROUP", "%CPU", "PGID", "RGROUP",
+  //21 "RUSER", -, "VSZ"
+
+
     // Command line limited to 2k displayable. We could dynamically malloc, but
     // it'd almost never get used, querying length of a proc file is awkward,
-    // fixed buffer is nommu friendly... Waiting for somebody to complain. :)
-    } else if (idx == -3) {
-      int fd, len = 0;
+    // fixed buffer is nommu friendly... Wait for somebody to complain. :)
+    } else if (i == 14 || i == 15) {
+      int fd;
 
+      len = 0;
       sprintf(out, "%lld/cmdline", *slot);
       fd = openat(dirtree_parentfd(new), out, O_RDONLY);
  
@@ -177,7 +204,8 @@ static int do_ps(struct dirtree *new)
       if (len<1) sprintf(out, "[%.*s]", nlen, name);
     }
 
-    printf(" %*.*s", width, width, out);
+    i = width<field->len ? width : field->len;
+    width -= printf(" %*.*s", i, field->next ? i : width, out);
   }
   xputc('\n');
 
@@ -202,6 +230,7 @@ void ps_main(void)
 
   TT.width = 80;
   terminal_size(&TT.width, 0);
+  TT.width--;
 
   // find controlling tty, falling back to /dev/tty if none
   for (i = fd = 0; i < 4; i++) {
@@ -216,14 +245,21 @@ void ps_main(void)
   }
   if (fd != -1) close(fd);
 
+  sysinfo((void *)toybuf);
+  // Because "TT.uptime = *(long *)toybuf;" triggers a bug in gcc.
+  {
+    long *sigh = (long *)toybuf;
+    TT.uptime = *sigh;
+  }
+
   // Select fields
-  if (FLAG_o) {
+  if (toys.optflags&FLAG_o) {
     printf("todo\n");
   } else {
-    unsigned short def = 0x0807;
+    unsigned short def = 0x7008;
 
-    if (toys.optflags&FLAG_f) def = 0x1e0f;
-    if (toys.optflags&FLAG_l) def = 0x7ff7;
+    if (toys.optflags&FLAG_f) def = 0x783c;
+    if (toys.optflags&FLAG_l) def = 0x77ff;
 
     // order of fields[] matches posix STDOUT section, so add enabled XSI
     // defaults according to bitmask
@@ -237,12 +273,14 @@ void ps_main(void)
       field->which = i;
       field->len = len;
       strcpy(field->title, typos[i]);
-      dlist_add_nomalloc(&TT.fields, fields);
+      dlist_add_nomalloc((void *)&TT.fields, (void *)field);
     }
   }
   dlist_terminate(TT.fields);
 
-  for (field = TT.fields; *field; field = field->next)
-    printf(" %*s", field->len, title);
+  for (field = TT.fields; field; field = field->next)
+    printf(" %*s", field->len, field->title);
+  xputc('\n');
+
   dirtree_read("/proc", do_ps);
 }
