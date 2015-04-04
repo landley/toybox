@@ -5,7 +5,7 @@
  *
  * No Standard
 
-USE_RFKILL(NEWTOY(rfkill, "<1>2", TOYFLAG_SBIN))
+USE_RFKILL(NEWTOY(rfkill, "<1>2", TOYFLAG_USR|TOYFLAG_SBIN))
 
 config RFKILL
   bool "rfkill"

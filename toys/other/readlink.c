@@ -2,7 +2,7 @@
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
 
-USE_READLINK(NEWTOY(readlink, "<1>1fenq[-fe]", TOYFLAG_BIN))
+USE_READLINK(NEWTOY(readlink, "<1>1fenq[-fe]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config READLINK
   bool "readlink"

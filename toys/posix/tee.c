@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/tee.html
 
-USE_TEE(NEWTOY(tee, "ia", TOYFLAG_BIN))
+USE_TEE(NEWTOY(tee, "ia", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TEE
   bool "tee"

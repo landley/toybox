@@ -4,7 +4,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/renice.html
 
-USE_RENICE(NEWTOY(renice, "<1gpun#|", TOYFLAG_BIN))
+USE_RENICE(NEWTOY(renice, "<1gpun#|", TOYFLAG_USR|TOYFLAG_BIN))
 
 config RENICE
   bool "renice"

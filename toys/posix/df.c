@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/df.html
 
-USE_DF(NEWTOY(df, "Pkt*a[-Pk]", TOYFLAG_USR|TOYFLAG_SBIN))
+USE_DF(NEWTOY(df, "Pkt*a[-Pk]", TOYFLAG_SBIN))
 
 config DF
   bool "df"

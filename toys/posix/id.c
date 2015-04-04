@@ -6,10 +6,10 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/id.html
 
-USE_ID(NEWTOY(id, ">1"USE_ID_SELINUX("Z")"nGgru[!"USE_ID_SELINUX("Z")"Ggu]", TOYFLAG_BIN))
+USE_ID(NEWTOY(id, ">1"USE_ID_SELINUX("Z")"nGgru[!"USE_ID_SELINUX("Z")"Ggu]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_GROUPS(NEWTOY(groups, NULL, TOYFLAG_USR|TOYFLAG_BIN))
-USE_LOGNAME(NEWTOY(logname, ">0", TOYFLAG_BIN))
-USE_WHOAMI(OLDTOY(whoami, logname, TOYFLAG_BIN))
+USE_LOGNAME(NEWTOY(logname, ">0", TOYFLAG_USR|TOYFLAG_BIN))
+USE_WHOAMI(OLDTOY(whoami, logname, TOYFLAG_USR|TOYFLAG_BIN))
 
 config ID
   bool "id"

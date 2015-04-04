@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/tail.html
 
-USE_TAIL(NEWTOY(tail, "?fc-n-[-cn]", TOYFLAG_BIN))
+USE_TAIL(NEWTOY(tail, "?fc-n-[-cn]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TAIL
   bool "tail"

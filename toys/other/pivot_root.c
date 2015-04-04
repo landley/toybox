@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Rob Landley <rob@landley.net>
 
-USE_PIVOT_ROOT(NEWTOY(pivot_root, "<2>2", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PIVOT_ROOT(NEWTOY(pivot_root, "<2>2", TOYFLAG_SBIN))
 
 config PIVOT_ROOT
   bool "pivot_root"

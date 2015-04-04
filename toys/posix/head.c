@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/head.html
 
-USE_HEAD(NEWTOY(head, "?n#<0=10", TOYFLAG_BIN))
+USE_HEAD(NEWTOY(head, "?n#<0=10", TOYFLAG_USR|TOYFLAG_BIN))
 
 config HEAD
   bool "head"

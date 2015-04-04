@@ -4,7 +4,7 @@
  *
  * TODO: udp, ipv6, genericize for telnet/microcom/tail-f
 
-USE_NETCAT(OLDTOY(nc, netcat, TOYFLAG_BIN))
+USE_NETCAT(OLDTOY(nc, netcat, TOYFLAG_USR|TOYFLAG_BIN))
 USE_NETCAT(NEWTOY(netcat, USE_NETCAT_LISTEN("^tlL")"w#p#s:q#f:", TOYFLAG_BIN))
 
 config NETCAT

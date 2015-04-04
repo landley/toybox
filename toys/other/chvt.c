@@ -2,7 +2,7 @@
  *
  * Copyright (C) 2008 David Anders <danders@amltd.com>
 
-USE_CHVT(NEWTOY(chvt, "<1", TOYFLAG_USR|TOYFLAG_SBIN))
+USE_CHVT(NEWTOY(chvt, "<1", TOYFLAG_USR|TOYFLAG_BIN))
 
 config CHVT
   bool "chvt"

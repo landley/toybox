@@ -5,7 +5,7 @@
  *
  * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/pidof.html
 
-USE_PIDOF(NEWTOY(pidof, "<1so:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PIDOF(NEWTOY(pidof, "<1so:", TOYFLAG_BIN))
 
 config PIDOF
   bool "pidof"

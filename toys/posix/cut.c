@@ -5,7 +5,7 @@
  *
  * http://pubs.opengroup.org/onlinepubs/9699919799/utilities/cut.html 
 
-USE_CUT(NEWTOY(cut, "b:|c:|f:|d:sn[!cbf]", TOYFLAG_BIN))
+USE_CUT(NEWTOY(cut, "b:|c:|f:|d:sn[!cbf]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config CUT
   bool "cut"

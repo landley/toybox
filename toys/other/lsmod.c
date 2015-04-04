@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
 
-USE_LSMOD(NEWTOY(lsmod, NULL, TOYFLAG_BIN))
+USE_LSMOD(NEWTOY(lsmod, NULL, TOYFLAG_SBIN))
 
 config LSMOD
   bool "lsmod"
