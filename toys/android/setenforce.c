@@ -2,7 +2,7 @@
  *
  * Copyright 2014 The Android Open Source Project
 
-USE_SETENFORCE(NEWTOY(setenforce, "<1", TOYFLAG_USR|TOYFLAG_SBIN))
+USE_SETENFORCE(NEWTOY(setenforce, "<1>1", TOYFLAG_USR|TOYFLAG_SBIN))
 
 config SETENFORCE
   bool "setenforce"
