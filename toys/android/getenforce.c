@@ -2,7 +2,7 @@
  *
  * Copyright 2014 The Android Open Source Project
 
-USE_GETENFORCE(NEWTOY(getenforce, "", TOYFLAG_USR|TOYFLAG_SBIN))
+USE_GETENFORCE(NEWTOY(getenforce, ">0", TOYFLAG_USR|TOYFLAG_SBIN))
 
 config GETENFORCE
   bool "getenforce"
