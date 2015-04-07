@@ -21,7 +21,7 @@ Type "make help" for build instructions.
 Usually you want something like:
 
   make defconfig
-  CFLAGS="--static" CROSS_COMPILE=armv5l- make toybox
+  LDFLAGS="--static" CROSS_COMPILE=armv5l- make toybox
   PREFIX=/path/to/root/filesystem make install
 
 The CROSS_COMPILE argument is optional, and without it builds a version of
@@ -68,8 +68,7 @@ Toybox is not a complete operating system, it's a program that runs under
 an operating system. Booting a simple system to a shell prompt requires
 three packages: an operating system kernel (Linux) to drive the hardware,
 a program for the system to run (toybox), and a C library to tie them
-together (toybox has been tested with musl, uClibc, and glibc, on Android
-systems musl is recommended).
+together (toybox has been tested with musl, uClibc, glibc, and bionic).
 
 The C library is part of a "toolchain", which is an integrated suite
 of compiler, assembler, and linker, plus the standard headers and libraries
@@ -77,12 +76,44 @@ necessary to build C programs.
 
 Static linking (with the --static option) copies the shared library contents
 into the program, resulting in larger but more portable programs, which
-can run even if they'rr the only file in the filesystem. Otherwise,
+can run even if they're the only file in the filesystem. Otherwise,
 the "dynamically" linked programs require the library files to be present on
 the target system ("man ldd" and "man ld.so" for details).
 
-Toybox is not a kernel, it needs Linux to drive the hardware.
-
 An example toybox-based system is Aboriginal Linux:
 
-  http://landley.net/aboriginal
+  http://landley.net/aboriginal/about.html
+
+That's designed to run under qemu, emulating several different hardware
+architectures (x86, x86-64, arm, mips, sparc, powerpc, sh4). Each toybox
+release is regression tested by building Linux From Scratch under this
+toybox-based system on each supported architecture, using QEMU to emulate
+big and little endian systems with different word size and alignment
+requirements.
+
+--- Presentations
+
+1) "Why Toybox?" 2013 talk here at CELF
+
+    video: http://youtu.be/SGmtP5Lg_t0
+    outline: http://landley.net/talks/celf-2013.txt
+    linked from http://landley.net/toybox/ in nav bar on left as "Why is it?"
+    - march 21, 2013 entry has section links.
+
+2) "Why Public Domain?" The rise and fall of copyleft, Ohio LinuxFest 2013
+
+    audio: https://archive.org/download/OhioLinuxfest2013/24-Rob_Landley-The_Rise_and_Fall_of_Copyleft.mp3
+    outline: http://landley.net/talks/ohio-2013.txt
+
+3) Why did I do Aboriginal Linux (which led me here)
+
+    260 slide presentation:
+    https://speakerdeck.com/landley/developing-for-non-x86-targets-using-qemu
+
+    How and why to make android self-hosting:
+      http://landley.net/aboriginal/about.html#selfhost
+
+4) What's new with toybox (ELC 2015 status update):
+
+    video: http://elinux.org/ELC_2015_Presentations
+    outline: http://landley.net/talks/celf-2015.txt
