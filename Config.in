@@ -13,12 +13,13 @@ config TOYBOX
 	bool
 	default y
 	help
-	  usage: toybox [--long | [command] [arguments...]]
+	  usage: toybox [--long | --version | [command] [arguments...]]
 
 	  With no arguments, shows available commands. First argument is
 	  name of a command to run, followed by any arguments to that command.
 
 	  --long	Show path to each command
+	  --version	Show toybox version
 
 	  To install command symlinks, try:
 	    for i in $(/bin/toybox --long); do ln -s /bin/toybox $i; done
@@ -39,7 +40,7 @@ config TOYBOX_SELINUX
  default n
  help
   Include SELinux options in commands such as ls, and add
-  SELinux-specific commands such as chcon.
+  SELinux-specific commands such as chcon to the Android menu.
 
 config TOYBOX_FLOAT
 	bool "Floating point support"
