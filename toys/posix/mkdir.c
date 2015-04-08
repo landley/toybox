@@ -30,13 +30,16 @@ void mkdir_main(void)
 {
   char **s;
   mode_t mode = (0777&~toys.old_umask);
-
+  int mkflag;
 
   if (TT.arg_mode) mode = string_to_mode(TT.arg_mode, 0777);
 
-  // Note, -p and -v flags line up with mkpathat() flags
+  // Note, -p and -v flags AREN'T line up with mkpathat() flags
 
+  mkflag = 1;
+  if (toys.optflags & FLAG_p) mkflag |= 2;
+  if (toys.optflags & FLAG_v) mkflag |= 4;
   for (s=toys.optargs; *s; s++)
-    if (mkpathat(AT_FDCWD, *s, mode, toys.optflags|1))
+    if (mkpathat(AT_FDCWD, *s, mode, mkflags))
       perror_msg("'%s'", *s);
 }
