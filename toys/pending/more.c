@@ -32,19 +32,45 @@ static void signal_handler(int sig)
   _exit(sig | 128);
 }
 
+static void show_file_header(const char *name)
+{
+  printf(":::::::::::::::::::::::\n%s\n:::::::::::::::::::::::\n", name);
+}
+
+static int prompt(FILE *cin, const char* fmt, ...)
+{
+  int input_key;
+  va_list ap;
+
+  printf("\33[7m"); // Reverse video before printing the prompt.
+
+  va_start(ap, fmt);
+  vfprintf(stdout, fmt, ap);
+  va_end(ap);
+
+  while (1) {
+    fflush(NULL);
+    input_key = tolower(getc(cin));
+    printf("\33[0m\33[1K\r"); // Reset all attributes, erase to start of line.
+    if (strchr(" \nrq", input_key)) {
+      return input_key;
+    }
+    printf("\33[7m(Enter:Next line Space:Next page Q:Quit R:Show the rest)");
+  }
+}
+
 static void do_cat_operation(int fd, char *name)
 {
   char *buf = NULL;
   
-  if(toys.optc > 1) printf(":::::::::::::::::::::::\n"
-      "%s\n:::::::::::::::::::::::\n",name);
+  if (toys.optc > 1) show_file_header(name);
   for (; (buf = get_line(fd)); free(buf)) printf("%s\n", buf);
 }
 
 void more_main()
 {
-  int ch, lines, input_key = 0, disp_more, more_msg_len;
-  unsigned rows = 24, cols = 80;
+  int ch, input_key = 0, show_prompt;
+  unsigned rows = 24, cols = 80, row = 0, col = 0;
   struct stat st;  
   struct termios newf;
   FILE *fp, *cin;
@@ -55,7 +81,8 @@ void more_main()
   }
 
   TT.cin_fd = fileno(cin);
-  tcgetattr(TT.cin_fd,&TT.inf);
+  tcgetattr(TT.cin_fd, &TT.inf);
+
   //Prepare terminal for input
   memcpy(&newf, &TT.inf, sizeof(struct termios));
   newf.c_lflag &= ~(ICANON | ECHO);
@@ -71,46 +98,46 @@ void more_main()
         perror_msg("'%s'", *toys.optargs);
         continue;
     }
-    st.st_size = disp_more = more_msg_len = lines = 0;
+    st.st_size = show_prompt = col = row = 0;
     fstat(fileno(fp), &st);
     terminal_size(&cols, &rows);
     rows--;
-    if(toys.optc > 1) {
-      printf(":::::::::::::::::::::::\n"
-          "%s\n:::::::::::::::::::::::\n",*toys.optargs);
-      rows -= 3;
+
+    if (toys.optc > 1) {
+      show_file_header(*toys.optargs);
+      row += 3;
     }
 
     while ((ch = getc(fp)) != EOF) {
-      if (input_key != 'r' && disp_more) {
-        more_msg_len = printf("--More-- ");
-        if (st.st_size) 
-          more_msg_len += printf("(%d%% of %lld bytes)",
-              (int) (100 * ( (double) ftell(fp) / (double) st.st_size)), 
+      if (input_key != 'r' && show_prompt) {
+        if (st.st_size)
+          input_key = prompt(cin, "--More--(%d%% of %lld bytes)",
+              (int) (100 * ( (double) ftell(fp) / (double) st.st_size)),
               (long long)st.st_size);
-        fflush(NULL);
-
-        while (1) {
-          input_key = getc(cin);
-          input_key = tolower(input_key);
-          printf("\r%*s\r", more_msg_len, ""); // Remove previous msg
-          if (input_key == ' ' || input_key == '\n' || input_key == 'q' 
-              || input_key == 'r') break;
-          more_msg_len = printf("(Enter:Next line Space:Next page Q:Quit R:Show the rest)");
-        }
-        more_msg_len = lines = disp_more = 0;
+        else
+          input_key = prompt(cin, "--More--");
         if (input_key == 'q') goto stop; 
+
+        col = row = show_prompt = 0;
         terminal_size(&cols, &rows);
         rows--;
       }
 
-      if (ch == '\n') 
-        if (++lines >= rows || input_key == '\n') disp_more = 1;
       putchar(ch);
+      if (ch == '\t') col = (col | 0x7) + 1; else col++;
+      if (col == cols) putchar(ch = '\n');
+      if (ch == '\n') {
+        col = 0;
+        if (++row >= rows || input_key == '\n') show_prompt = 1;
+      }
     }
     fclose(fp);
-    fflush(NULL);
-  } while (*toys.optargs && *++toys.optargs);
+
+    if (*toys.optargs && *++toys.optargs) {
+      input_key = prompt(cin, "--More--(Next file: %s)", *toys.optargs);
+      if (input_key == 'q') goto stop;
+    }
+  } while (*toys.optargs);
 
 stop:
   tcsetattr(TT.cin_fd, TCSANOW, &TT.inf);
