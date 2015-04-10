@@ -236,8 +236,8 @@ the following commands:</p>
 
 <blockquote><b>
 dd du df getevent getprop iftop ioctl ionice load_policy log ls
-lsof mount nandread newfs_msdos ps prlimit renice restorecon route
-sendevent setprop start stop top umount uptime watchprops
+lsof mount nandread newfs_msdos ps prlimit renice restorecon
+sendevent setprop start stop top uptime watchprops
 </b></blockquote>
 
 <h3>Other Android core commands</h3>
@@ -260,9 +260,6 @@ logcat, logwrapper, mkbootimg, reboot, and run-as.</p>
 different user interface. We may want to provide that interface, but
 implementing the full commands (fdisk, init, and sudo) come first.</p>
 
-<p>Although logcat/logwrapper also reinvent a wheel, Android did so in the
-kernel and these provide an interface to that.</p>
-
 <p>Also, gpttool and mkbootimg are install tools.
 These aren't a priority if android wants to use its own
 bespoke code to install itself.</p>
@@ -273,9 +270,9 @@ bespoke code to install itself.</p>
 
 <blockquote><b>
 dd du df getevent getprop gpttool iftop init ioctl ionice
-load_policy log logcat logwrapper ls lsof mkbootimg mount nandread
-newfs_msdos ps prlimit reboot renice restorecon route run-as
-sendevent setprop start stop top umount uptime watchprops
+log logcat logwrapper ls lsof mkbootimg mount nandread
+newfs_msdos ps prlimit reboot renice restorecon run-as
+sendevent setprop start stop top uptime watchprops
 </b></blockquote>
 
 <p>We may eventually implement all of that, but for toybox 1.0 we need to
@@ -288,8 +285,8 @@ functionality, which we can implement a shim interface for later).</p>
 <blockquote><b>
 <span id=toolbox>
 dd du df getevent getprop iftop ioctl ionice log logcat logwrapper ls lsof
-mount nandread newfs_msdos ps prlimit renice route schedtop sendevent
-setprop smd start stop top umount uptime watchprops
+mount nandread newfs_msdos ps prlimit renice schedtop sendevent
+setprop smd start stop top uptime watchprops
 </span>
 </b></blockquote>
 
