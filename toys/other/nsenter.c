@@ -79,31 +79,27 @@ GLOBALS(
 static void write_ugid_map(char *map, unsigned eugid)
 {
   int bytes = sprintf(toybuf, "0 %u 1", eugid), fd = xopen(map, O_WRONLY);
-    
+
   xwrite(fd, toybuf, bytes);
   xclose(fd);
 }
 
-
-static int handle_r(int test)
+static void handle_r(int euid, int egid)
 {
   int fd;
 
-  if (!CFG_UNSHARE || !(toys.optflags & FLAG_r) || *toys.which->name!='u')
-    return 0;
-  if (!test) return 1;
-
-  if (toys.optflags & FLAG_r) {
-    if ((fd = open("/proc/self/setgroups", O_WRONLY)) >= 0) {
-      xwrite(fd, "deny", 4);
-      close(fd);
-    }
-
-    write_ugid_map("/proc/self/uid_map", geteuid());
-    write_ugid_map("/proc/self/gid_map", getegid());
+  if ((fd = open("/proc/self/setgroups", O_WRONLY)) >= 0) {
+    xwrite(fd, "deny", 4);
+    close(fd);
   }
 
-  return 0;
+  write_ugid_map("/proc/self/uid_map", euid);
+  write_ugid_map("/proc/self/gid_map", egid);
+}
+
+static int test_r()
+{
+  return toys.optflags & FLAG_r;
 }
 
 // Shift back to the context GLOBALS lives in (I.E. matching the filename).
@@ -117,16 +113,19 @@ void unshare_main(void)
                     CLONE_NEWNS, CLONE_NEWIPC}, f = 0;
   int i, fd;
 
-  // unshare -U does not imply -r, so we cannot use [+rU]
-  if (handle_r(0))  toys.optflags |= FLAG_U;
-
   // Create new namespace(s)?
   if (CFG_UNSHARE && *toys.which->name=='u') {
+    // For -r, we have to save our original [ug]id before calling unshare()
+    int euid = geteuid(), egid = getegid();
+
+    // unshare -U does not imply -r, so we cannot use [+rU]
+    if (test_r()) toys.optflags |= FLAG_U;
+
     for (i = 0; i<ARRAY_LEN(flags); i++)
       if (toys.optflags & (1<<i)) f |= flags[i];
 
     if (unshare(f)) perror_exit(0);
-    handle_r(1);
+    if (test_r()) handle_r(euid, egid);
 
   // Bind to existing namespace(s)?
   } else if (CFG_NSENTER) {
