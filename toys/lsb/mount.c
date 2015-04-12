@@ -56,6 +56,7 @@ GLOBALS(
   int okuser;
 )
 
+// mount.tests should check for all of this:
 // TODO detect existing identical mount (procfs with different dev name?)
 // TODO user, users, owner, group, nofail
 // TODO -p (passfd)
@@ -170,6 +171,8 @@ static void mount_filesystem(char *dev, char *dir, char *type,
     toys.exitval |= xrun((char *[]){"swapon", "--", dev, 0});
 
   for (;;) {
+    int fd = -1, ro = 0;
+
     // If type wasn't specified, try all of them in order.
     if (fp && !buf) {
       size_t i;
@@ -193,6 +196,14 @@ static void mount_filesystem(char *dev, char *dir, char *type,
     for (;;) {
       rc = mount(dev, dir, type, flags, opts);
       if ((rc != EACCES && rc != EROFS) || (flags & MS_RDONLY)) break;
+      if (rc == EROFS && fd == -1) {
+        if (-1 != (fd = open(dev, O_RDONLY))) {
+          ioctl(fd, BLKROSET, &ro);
+          close(fd);
+
+          continue;
+        }
+      }
       fprintf(stderr, "'%s' is read-only", dev);
       flags |= MS_RDONLY;
     }
