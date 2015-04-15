@@ -5,7 +5,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/ls.html
 
-USE_LS(NEWTOY(ls, USE_LS_COLOR("(color):;")"goACFHLRSacdfiklmnpqrstux1[-1Cglmnox][-cu][-ftS][-HL]", TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_LS(NEWTOY(ls, USE_LS_COLOR("(color):;")"goACFHLR"USE_LS_SMACK("Z")"Sacdfiklmnpqrstux1[-1Cglmnox][-cu][-ftS][-HL]", TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config LS
   bool "ls"
@@ -31,6 +31,15 @@ config LS
 
     sorting (default is alphabetical):
     -f	unsorted	-r  reverse	-t  timestamp	-S  size
+
+config LS_SMACK
+  bool 
+  default y
+  depends on LS && TOYBOX_SMACK
+  help
+    usage: ls [-Z]
+
+    -Z	security context
 
 config LS_COLOR
   bool "ls --color"
@@ -130,7 +139,7 @@ static char *getgroupname(gid_t gid)
 
 // Figure out size of printable entry fields for display indent/wrap
 
-static void entrylen(struct dirtree *dt, unsigned *len)
+static void entrylen(struct dirtree *dt, unsigned *len, unsigned *totals)
 {
   struct stat *st = &(dt->st);
   unsigned flags = toys.optflags;
@@ -139,7 +148,14 @@ static void entrylen(struct dirtree *dt, unsigned *len)
   if (endtype(st)) ++*len;
   if (flags & FLAG_m) ++*len;
 
-  if (flags & FLAG_i) *len += (len[1] = numlen(st->st_ino));
+  if (flags & FLAG_i) {
+    len[1] = numlen(st->st_ino) + 1;//+1 stands for additional space displayed
+    if (totals)
+      *len += totals[1];
+    else
+      *len += len[1];
+  }
+
   if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) {
     unsigned fn = flags & FLAG_n;
     len[2] = numlen(st->st_nlink);
@@ -153,7 +169,28 @@ static void entrylen(struct dirtree *dt, unsigned *len)
       len[5] = numlen(major(st->st_rdev))+5;
     } else len[5] = numlen(st->st_size);
   }
-  if (flags & FLAG_s) *len += (len[6] = numlen(st->st_blocks));
+
+  if (flags & FLAG_s) {
+    len[6] = numlen(st->st_blocks) + 1;//+1 stands for additional space
+    if (totals)
+      *len += totals[6];
+    else
+      *len += len[6];
+  }
+
+  if (CFG_LS_SMACK) {
+    if (flags & FLAG_Z) {
+      char *zpath = dirtree_path(dt, 0);
+      ssize_t zlen = getxattr(zpath, XATTR_NAME_SMACK, 0, 0);
+      free(zpath);
+      if ((zlen <= 0) || (zlen > SMACK_LABEL_LEN)) zlen = 1;
+      len[7] = 1 + (int)zlen;//+1 stands for additional space
+      if (totals)
+        *len += totals[7];
+      else
+        *len += len[7];
+    }
+  }
 }
 
 static int compare(void *a, void *b)
@@ -257,10 +294,12 @@ int color_from_mode(mode_t mode)
 
 static void listfiles(int dirfd, struct dirtree *indir)
 {
+  const unsigned LEN_MAX = 8;
   struct dirtree *dt, **sort = 0;
   unsigned long dtlen = 0, ul = 0;
-  unsigned width, flags = toys.optflags, totals[7], len[7],
+  unsigned width, flags = toys.optflags, totals[LEN_MAX], len[LEN_MAX],
     *colsizes = (unsigned *)(toybuf+260), columns = (sizeof(toybuf)-260)/4;
+  unsigned long blocks = 0;
 
   memset(totals, 0, sizeof(totals));
 
@@ -305,6 +344,14 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
   if (!(flags & FLAG_f)) qsort(sort, dtlen, sizeof(void *), (void *)compare);
 
+  for (ul = 0; ul<dtlen; ul++)
+  {
+    entrylen(sort[ul], len, NULL);
+    for (width=0; width<LEN_MAX; width++)
+      if (len[width] > totals[width]) totals[width] = len[width];
+    blocks += sort[ul]->st.st_blocks;
+  }
+
   // Find largest entry in each field for display alignment
   if (flags & (FLAG_C|FLAG_x)) {
 
@@ -319,7 +366,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
       memset(colsizes, 0, columns*sizeof(unsigned));
       for (ul=0; ul<dtlen; ul++) {
-        entrylen(sort[next_column(ul, dtlen, columns, &c)], len);
+        entrylen(sort[next_column(ul, dtlen, columns, &c)], len, totals);
         if (c == columns) break;
         // Does this put us over budget?
         if (*len > colsizes[c]) {
@@ -332,16 +379,6 @@ static void listfiles(int dirfd, struct dirtree *indir)
       if (ul == dtlen) break;
     }
   } else if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g|FLAG_s)) {
-    unsigned long blocks = 0;
-
-    for (ul = 0; ul<dtlen; ul++)
-    {
-      entrylen(sort[ul], len);
-      for (width=0; width<6; width++)
-        if (len[width] > totals[width]) totals[width] = len[width];
-      blocks += sort[ul]->st.st_blocks;
-    }
-
     if (indir->parent) xprintf("total %lu\n", blocks);
   }
 
@@ -360,7 +397,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
     TT.nl_title=1;
 
     // Handle padding and wrapping for display purposes
-    entrylen(sort[next], len);
+    entrylen(sort[next], len, totals);
     if (ul) {
       if (flags & FLAG_m) xputc(',');
       if (flags & (FLAG_C|FLAG_x)) {
@@ -375,8 +412,8 @@ static void listfiles(int dirfd, struct dirtree *indir)
     }
     width += *len;
 
-    if (flags & FLAG_i) xprintf("%*lu ", len[1], (unsigned long)st->st_ino);
-    if (flags & FLAG_s) xprintf("%*lu ", len[6], (unsigned long)st->st_blocks);
+    if (flags & FLAG_i) xprintf("%*lu ", totals[1], (unsigned long)st->st_ino);
+    if (flags & FLAG_s) xprintf("%*lu ", totals[6], (unsigned long)st->st_blocks);
 
     if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) {
       struct tm *tm;
@@ -402,6 +439,18 @@ static void listfiles(int dirfd, struct dirtree *indir)
       printf("%s% *ld %s%s%s%s", perm, totals[2]+1, (long)st->st_nlink,
              usr, upad, grp, grpad);
 
+      if (CFG_LS_SMACK) {
+        if (flags & FLAG_Z) {
+          char zbuf[SMACK_LABEL_LEN + 1];
+          char *zpath = dirtree_path(sort[next], 0);
+          ssize_t zlen = getxattr(zpath, XATTR_NAME_SMACK, zbuf, sizeof(zbuf));
+          free(zpath);
+          if ((zlen <= 0) || (zlen > SMACK_LABEL_LEN)) zbuf[0] = '?', zlen = 1;
+          zbuf[zlen] = '\0';
+          xprintf(" %s%s", zbuf, toybuf+256-(totals[7]-(int)zlen));
+        }
+      }
+
       if (S_ISCHR(st->st_mode) || S_ISBLK(st->st_mode))
         printf("% *d,% 4d", totals[5]-4, major(st->st_rdev),minor(st->st_rdev));
       else printf("% *"PRId64, totals[5]+1, (int64_t)st->st_size);
@@ -409,6 +458,16 @@ static void listfiles(int dirfd, struct dirtree *indir)
       tm = localtime(&(st->st_mtime));
       strftime(thyme, sizeof(thyme), "%F %H:%M", tm);
       xprintf(" %s ", thyme);
+    } else if (CFG_LS_SMACK) {
+      if (flags & FLAG_Z) {
+        char zbuf[SMACK_LABEL_LEN + 1];
+        char *zpath = dirtree_path(sort[next], 0);
+        ssize_t zlen = getxattr(zpath, XATTR_NAME_SMACK, zbuf, sizeof(zbuf));
+        free(zpath);
+        if ((zlen <= 0) || (zlen > SMACK_LABEL_LEN)) zbuf[0] = '?', zlen = 1;
+        zbuf[zlen] = '\0';
+        xprintf("%s%s ", toybuf+256-(totals[7]-(int)(zlen-1)), zbuf);
+      }
     }
 
     if (flags & FLAG_color) {
