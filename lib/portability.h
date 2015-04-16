@@ -246,3 +246,7 @@ pid_t xfork(void);
 #define is_selinux_enabled() 0
 int getcon(void* con);
 #endif
+
+#if CFG_TOYBOX_SMACK
+#include <sys/smack.h>
+#endif

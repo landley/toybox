@@ -35,12 +35,32 @@ config TOYBOX_SUID
 
 	  chown root:root toybox; chmod +s toybox
 
+choice
+	prompt "Security Blanket"
+	default TOYBOX_LSM_NONE
+	help
+	  Select a Linux Security Module to complicate your system
+	  until you can't find holes in it.
+
+config TOYBOX_LSM_NONE
+	bool "None"
+	help
+          Don't try to achieve "watertight" by plugging the holes in a
+          collander, instead use conventional unix security (and possibly
+          Linux Containers) for a simple straightforward system.
+	  
 config TOYBOX_SELINUX
- bool "SELinux support"
- default n
- help
-  Include SELinux options in commands such as ls, and add
-  SELinux-specific commands such as chcon to the Android menu.
+	bool "SELinux support"
+	help
+	  Include SELinux options in commands such as ls, and add
+	  SELinux-specific commands such as chcon to the Android menu.
+
+config TOYBOX_SMACK
+	bool "SMACK support"
+	help
+	  Include SMACK options in commands like ls for systems like Tizen.
+
+endchoice
 
 config TOYBOX_FLOAT
 	bool "Floating point support"
