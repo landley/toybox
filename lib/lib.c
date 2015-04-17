@@ -627,7 +627,7 @@ int terminal_size(unsigned *xx, unsigned *yy)
   }
   s = getenv("COLUMNS");
   if (s) sscanf(s, "%u", &x);
-  s = getenv("ROWS");
+  s = getenv("LINES");
   if (s) sscanf(s, "%u", &y);
 
   // Never return 0 for either value, leave it at default instead.
