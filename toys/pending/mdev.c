@@ -31,34 +31,53 @@ config MDEV_CONF
 
 #include "toys.h"
 
-// todo, open() block devices to trigger partition scanning.
-
 // mknod in /dev based on a path like "/sys/block/hda/hda1"
 static void make_device(char *path)
 {
-  char *device_name, *s, *temp;
+  char *device_name = NULL, *s, *temp;
   int major, minor, type, len, fd;
   int mode = 0660;
   uid_t uid = 0;
   gid_t gid = 0;
 
-  // Try to read major/minor string
+  if (path) {
+    // Try to read major/minor string
 
-  temp = strrchr(path, '/');
-  fd = open(path, O_RDONLY);
-  *temp=0;
-  temp = toybuf;
-  len = read(fd, temp, 64);
-  close(fd);
-  if (len<1) return;
-  temp[len] = 0;
+    temp = strrchr(path, '/');
+    fd = open(path, O_RDONLY);
+    *temp=0;
+    temp = toybuf;
+    len = read(fd, temp, 64);
+    close(fd);
+    if (len<1) return;
+    temp[len] = 0;
 
-  // Determine device name, type, major and minor
+    // Determine device type, major and minor
 
-  device_name = strrchr(path, '/') + 1;
-  type = path[5]=='c' ? S_IFCHR : S_IFBLK;
-  major = minor = 0;
-  sscanf(temp, "%u:%u", &major, &minor);
+    type = path[5]=='c' ? S_IFCHR : S_IFBLK;
+    major = minor = 0;
+    sscanf(temp, "%u:%u", &major, &minor);
+  } else {
+    // if (!path), do hotplug
+
+    if (!(temp = getenv("SUBSYSTEM")))
+      return;
+    type = strcmp(temp, "block") ? S_IFCHR : S_IFBLK;
+    major = minor = 0;
+    if (!(temp = getenv("MAJOR")))
+      return;
+    sscanf(temp, "%u", &major);
+    if (!(temp = getenv("MINOR")))
+      return;
+    sscanf(temp, "%u", &minor);
+    path = getenv("DEVPATH");
+    device_name = getenv("DEVNAME");
+    if (!path)
+      return;
+    temp = toybuf;
+  }
+  if (!device_name)
+    device_name = strrchr(path, '/') + 1;
 
   // If we have a config file, look up permissions for this device
 
@@ -167,8 +186,19 @@ found_device:
   }
 
   sprintf(temp, "/dev/%s", device_name);
+
+  if (getenv("ACTION") && !strcmp(getenv("ACTION"), "remove")) {
+    unlink(temp);
+    return;
+  }
+
+  if (strchr(device_name, '/'))
+    mkpathat(AT_FDCWD, temp, 0, 2);
   if (mknod(temp, mode | type, makedev(major, minor)) && errno != EEXIST)
     perror_exit("mknod %s failed", temp);
+
+ 
+  if (type == S_IFBLK) close(open(temp, O_RDONLY)); // scan for partitions
 
   if (CFG_MDEV_CONF) mode=chown(temp, uid, gid);
 }
@@ -202,7 +232,7 @@ void mdev_main(void)
   if (toys.optflags) {
     dirtree_read("/sys/class", callback);
     dirtree_read("/sys/block", callback);
+  } else { // hotplug support
+    make_device(NULL);
   }
-
-  // hotplug support goes here
 }
