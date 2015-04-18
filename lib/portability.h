@@ -249,4 +249,13 @@ int getcon(void* con);
 
 #if CFG_TOYBOX_SMACK
 #include <sys/smack.h>
+#include <sys/xattr.h>
+#include <linux/xattr.h>
+#else
+#define smack_new_label_from_path(...) (-1)
+#define smack_set_label_for_path(...)  (-1)
+#define smack_set_label_for_self(...)  (-1)
+#define XATTR_NAME_SMACK ""
+#define SMACK_LABEL_LEN  (1) /* for just ? */
 #endif
+
