@@ -231,13 +231,14 @@ git repository</a>.</p>
 
 <h3>Toolbox commands:</h3>
 
-<p>According to system/core/toolbox/Android.mk the toolbox directory builds
-the following commands:</p>
+<p>According to <a href=https://android.googlesource.com/platform/system/core/+/master/toolbox/Android.mk>
+system/core/toolbox/Android.mk</a> the toolbox directory builds the
+following commands:</p>
 
 <blockquote><b>
-dd du df getevent getprop iftop ioctl ionice load_policy log ls
-lsof mount nandread newfs_msdos ps prlimit renice restorecon
-sendevent setprop start stop top uptime watchprops
+dd du df getevent iftop ioctl ionice log ls
+lsof mount nandread newfs_msdos ps prlimit renice
+sendevent start stop top uptime watchprops
 </b></blockquote>
 
 <h3>Other Android core commands</h3>
@@ -269,14 +270,15 @@ bespoke code to install itself.</p>
 <p>For reference, combining everything listed above, we get:</p>
 
 <blockquote><b>
-dd du df getevent getprop gpttool iftop init ioctl ionice
+dd du df getevent gpttool iftop init ioctl ionice
 log logcat logwrapper ls lsof mkbootimg mount nandread
-newfs_msdos ps prlimit reboot renice restorecon run-as
-sendevent setprop start stop top uptime watchprops
+newfs_msdos ps prlimit reboot renice run-as
+sendevent start stop top uptime watchprops
 </b></blockquote>
 
 <p>We may eventually implement all of that, but for toybox 1.0 we need to
-focus a bit. For our first pass, let's ignore selinux,
+focus a bit. For our first pass, let's ignore selinux [note: the android
+guys submitted selinux code to us and we merged it],
 and grab just logcat and logwrapper from the "core"
 commands (since the rest have some full/standard version providing that
 functionality, which we can implement a shim interface for later).</p>
@@ -284,9 +286,9 @@ functionality, which we can implement a shim interface for later).</p>
 <p>This means toybox should implement (or finish implementing):</p>
 <blockquote><b>
 <span id=toolbox>
-dd du df getevent getprop iftop ioctl ionice log logcat logwrapper ls lsof
+dd du df getevent iftop ioctl ionice log logcat logwrapper ls lsof
 mount nandread newfs_msdos ps prlimit renice schedtop sendevent
-setprop smd start stop top uptime watchprops
+smd start stop top uptime watchprops
 </span>
 </b></blockquote>
 
@@ -305,7 +307,7 @@ arch base64 users dir vdir unexpand shred join csplit
 hostid nproc runcon sha224 sha256 sha384 sha512 sha3 mkfs.vfat fsck.vfat 
 dosfslabel uname stdbuf pinky diff3 sdiff zcmp zdiff zegrep zfgrep zless zmore
 </span>
-</blockquote>
+</b></blockquote>
 
 <p>In addition, they'd like to use several commands currently in pending:</p>
 
@@ -314,6 +316,10 @@ dosfslabel uname stdbuf pinky diff3 sdiff zcmp zdiff zegrep zfgrep zless zmore
 tar diff printf wget rsync fdisk vi less tr test stty fold expr dd
 </span>
 </b></blockquote>
+
+<p>Also, tizen uses a different Linux Security Module called SMACK, so
+many of the SELinux options ala ls -Z need smack alternatives in an
+if/else setup.</p>
 
 <hr /><a name=klibc />
 <h2>klibc:</h2>
@@ -378,7 +384,7 @@ from it into a /proc file, something the kernel is capable of doing itself.
 <a href=http://www.zytor.com/pipermail/klibc/2006-June/001748.html>attempted
 to remove</a> that capability from the kernel, current kernel/power/hibernate.c
 still parses "resume=" on the command line). And yet various distros seem to
-make use of klibc for this>
+make use of klibc for this.
 Given the history of swsusp/hibernate (and 
 <a href=http://lwn.net/Articles/333007>TuxOnIce</a>
 and <a href=http://lwn.net/Articles/242107>kexec jump</a>) I've lost track
