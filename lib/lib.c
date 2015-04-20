@@ -887,3 +887,11 @@ int human_readable(char *buf, unsigned long long num)
 
   return end;
 }
+
+// The qsort man page says you can use alphasort, the posix committee
+// disagreed, and doubled down: http://austingroupbugs.net/view.php?id=142
+// So just do our own. (The const is entirely to humor the stupid compiler.)
+int qstrcmp(const void *a, const void *b)
+{
+  return strcmp(*(char **)a, *(char **)b);
+}

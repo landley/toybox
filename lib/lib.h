@@ -176,6 +176,7 @@ void base64_init(char *p);
 int terminal_size(unsigned *x, unsigned *y);
 int yesno(char *prompt, int def);
 int human_readable(char *buf, unsigned long long num);
+int qstrcmp(const void *a, const void *b);
 
 // net.c
 int xsocket(int domain, int type, int protocol);

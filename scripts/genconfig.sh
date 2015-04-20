@@ -65,6 +65,13 @@ EOF
       struct spwd *a = getspnam("root"); return 0;
     }
 EOF
+
+  # Some commands are android-specific
+  probesymbol TOYBOX_ON_ANDROID -c << EOF
+    #ifndef __ANDROID__
+    #error nope
+    #endif
+EOF
 }
 
 genconfig()

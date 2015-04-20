@@ -7,6 +7,7 @@ USE_GETPROP(NEWTOY(getprop, ">2", TOYFLAG_USR|TOYFLAG_SBIN))
 config GETPROP
   bool "getprop"
   default y
+  depends on TOYBOX_ON_ANDROID
   help
     usage: getprop [NAME [DEFAULT]]
 
@@ -16,83 +17,32 @@ config GETPROP
 #define FOR_getprop
 #include "toys.h"
 
-#if defined(__ANDROID__)
-
-#include <cutils/properties.h>
+//#include <cutils/properties.h>
 
 GLOBALS(
   size_t size;
-  size_t capacity;
+  char **nv; // name/value pairs: even=name, odd=value
 )
 
-struct property_info {
-  char *name;
-  char *value;
-};
-
-static struct property_info **properties;
-
-static void add_property(const char *name, const char *value, void *unused)
+static void add_property(char *name, char *value, void *unused)
 {
-  struct property_info *new = xmalloc(sizeof(struct property_info));
+  if (!(TT.size&31)) TT.nv = xrealloc(TT.nv, (TT.size+32)*2*sizeof(char *));
 
-  if (TT.size >= TT.capacity) {
-    TT.capacity += 32;
-    properties = xrealloc(properties,
-        TT.capacity * sizeof(struct property_info *));
-  }
-
-  // TODO: fix xstrdup signature so we can remove these bogus casts.
-  new->name = xstrdup((char *) name);
-  new->value = xstrdup((char *) value);
-  properties[TT.size++] = new;
-}
-
-static void free_properties()
-{
-  size_t i;
-
-  for (i = 0; i < TT.size; ++i) {
-    free(properties[i]->name);
-    free(properties[i]->value);
-    free(properties[i]);
-  }
-  free(properties);
-}
-
-static int property_cmp(const void *a, const void *b)
-{
-  struct property_info *pa = *((struct property_info **)a);
-  struct property_info *pb = *((struct property_info **)b);
-
-  return strcmp(pa->name, pb->name);
+  TT.nv[2*TT.size] = xstrdup(name);
+  TT.nv[1+2*TT.size++] = xstrdup(value);
 }
 
 void getprop_main(void)
 {
   if (*toys.optargs) {
-    char value[PROPERTY_VALUE_MAX];
-    const char *default_value = "";
-
-    if (toys.optargs[1]) default_value = toys.optargs[1];
-    property_get(*toys.optargs, value, default_value);
-    puts(value);
+    property_get(*toys.optargs, toybuf, toys.optargs[1] ? toys.optargs[1] : "");
+    puts(toybuf);
   } else {
     size_t i;
 
-    if (property_list(add_property, NULL))
-      error_exit("property_list failed");
-    qsort(properties, TT.size, sizeof(struct property_info *), property_cmp);
-    for (i = 0; i < TT.size; ++i)
-      printf("[%s]: [%s]\n", properties[i]->name, properties[i]->value);
-    if (CFG_TOYBOX_FREE) free_properties();
+    if (property_list((void *)add_property, 0)) perror_exit("property_list");
+    qsort(TT.nv, TT.size, 2*sizeof(char *), alphasort);
+    for (i = 0; i<TT.size; i++) printf("[%s]: [%s]\n", TT.nv[i*2],TT.nv[1+i*2]);
+    if (CFG_TOYBOX_FREE) free(TT.nv);
   }
 }
-
-#else
-
-void getprop_main(void)
-{
-}
-
-#endif
