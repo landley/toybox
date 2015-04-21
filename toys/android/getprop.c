@@ -17,7 +17,7 @@ config GETPROP
 #define FOR_getprop
 #include "toys.h"
 
-//#include <cutils/properties.h>
+#include <cutils/properties.h>
 
 GLOBALS(
   size_t size;
