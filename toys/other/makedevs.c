@@ -84,8 +84,8 @@ void makedevs_main()
     while (*node == '/') node++; // using relative path
 
     for (i = 0; (!cnt && !i) || i < cnt; i++) {
-      if (cnt) {
-        snprintf(toybuf, sizeof(toybuf), "%s%u", node, st_val + i);
+      if (cnt>1) {
+        snprintf(toybuf, sizeof(toybuf), "%.999s%u", node, st_val + i);
         ptr = toybuf;
       } else ptr = node;
 
