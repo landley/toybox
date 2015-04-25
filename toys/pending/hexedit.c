@@ -25,13 +25,6 @@ GLOBALS(
   unsigned height;
 )
 
-static void sigttyreset(int i)
-{
-  set_terminal(1, 0, 0);
-  // how do I re-raise the signal so it dies with right signal info for wait()?
-  _exit(127);
-}
-
 static void esc(char *s)
 {
   printf("\033[%s", s);
@@ -43,6 +36,21 @@ static void jump(x, y)
 
   sprintf(s, "%d;%dH", y+1, x+1);
   esc(s);
+}
+
+static void fix_terminal(void)
+{
+  set_terminal(1, 0, 0);
+  esc("?25h");
+  esc("0m");
+  jump(0, 999);
+}
+
+static void sigttyreset(int i)
+{
+  fix_terminal();
+  // how do I re-raise the signal so it dies with right signal info for wait()?
+  _exit(127);
 }
 
 static void draw_line(long long yy)
@@ -58,7 +66,23 @@ static void draw_line(long long yy)
       else printf("   ");
     }
     printf("  ");
-    for (x=0; x<16; x++) printf("X");
+    for (x=0; x<16; x++) {
+      char broiled = TT.data[yy+x];
+
+      if (broiled<32 || broiled>=127) {
+        if (broiled>127) {
+          esc("2m");
+          broiled &= 127;
+        }
+        if (broiled<32 || broiled==127) {
+          esc("7m");
+          if (broiled==127) broiled = 32;
+          else broiled += 64;
+        }
+        printf("%c", broiled);
+        esc("0m");
+      } else printf("%c", broiled);
+    }
   }
   esc("K");
 }
@@ -100,6 +124,7 @@ void hexedit_main(void)
 
   TT.height = 25;
   terminal_size(0, &TT.height);
+  if (TT.height) TT.height--;
   sigatexit(sigttyreset);
   esc("0m");
   esc("?25l");
@@ -127,18 +152,17 @@ void hexedit_main(void)
     highlight(TT.data[pos], x, y);
     fflush(0);
     key = scan_key(toybuf, keys, 1);
-    if (key==-1 || key==4 || key==27) break;
+    if (key==-1 || key==4 || key==27 || key=='q') break;
     esc("0m");
     highlight(TT.data[pos], x, y);
-
-//jump(73,0);
-//printf("%d[%c]", key, (key > 255) ? 'X' : key);
 
     if (key==KEY_UP) {
       if (--y<0) {
         if (TT.base) {
           TT.base--;
           esc("1T");
+          jump(0, TT.height);
+          esc("K");
           jump(0, 0);
           draw_line(0);
         }
@@ -163,31 +187,20 @@ void hexedit_main(void)
     } else if (key==KEY_PGDN) {
       TT.base += TT.height;
       if ((TT.base*16)>=TT.len) TT.base=(TT.len-1)/16;
+      while ((TT.base+y)*16>=TT.len) y--;
+      if (16*(TT.base+y)+x>=TT.len) x = (TT.len-1)&15;
       draw_page();
     } else if (key==KEY_HOME) {
       TT.base = 0;
+      x = 0;
       draw_page();
     } else if (key==KEY_END) {
       TT.base=(TT.len-1)/16;
+      x = (TT.len-1)&15;
       draw_page();
     }
   }
   munmap(TT.data, TT.len);
   close(fd);
-  set_terminal(1, 0, 0);
-  esc("?25h");
-  esc("0m");
-  jump(0, 999);
-  xputc('\n');
-
-// DEBUG: dump unknown escape sequence
-for (;;) {
-  key = scan_key(toybuf, keys, 0);
-  if (key >= 0) printf("%d(%c) ", key, key);
-  else {
-    printf("%d\n", key);
-    break;
-  }
-}
-xputc('\n');
+  fix_terminal();
 }
