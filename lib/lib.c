@@ -283,10 +283,13 @@ long atolx_range(char *numstr, long low, long high)
 int numlen(long l)
 {
   int len = 0;
-  while (l) {
+  if( l < 0 )//one additional place for minus
+    len ++;
+  do {//a "0" has lenght of 1
      l /= 10;
      len++;
-  }
+  }while (l);
+
   return len;
 }
 
