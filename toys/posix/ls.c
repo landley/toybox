@@ -128,6 +128,11 @@ static char *getgroupname(gid_t gid)
   return gr ? gr->gr_name : TT.gid_buf;
 }
 
+static int numlen(long long ll)
+{
+  return snprintf(0, 0, "%llu", ll);
+}
+
 // Figure out size of printable entry fields for display indent/wrap
 
 static void entrylen(struct dirtree *dt, unsigned *len)
@@ -139,21 +144,20 @@ static void entrylen(struct dirtree *dt, unsigned *len)
   if (endtype(st)) ++*len;
   if (flags & FLAG_m) ++*len;
 
-  if (flags & FLAG_i) *len += (len[1] = numlen(st->st_ino));
+  len[1] = (flags & FLAG_i) ? numlen(st->st_ino) : 0;
   if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) {
     unsigned fn = flags & FLAG_n;
     len[2] = numlen(st->st_nlink);
-    len[3] = fn ? snprintf(0, 0, "%u", (unsigned)st->st_uid)
-                : strwidth(getusername(st->st_uid));
-    len[4] = fn ? snprintf(0, 0, "%u", (unsigned)st->st_gid)
-                : strwidth(getgroupname(st->st_gid));
+    len[3] = fn ? numlen(st->st_uid) : strwidth(getusername(st->st_uid));
+    len[4] = fn ? numlen(st->st_gid) : strwidth(getgroupname(st->st_gid));
     if (S_ISBLK(st->st_mode) || S_ISCHR(st->st_mode)) {
       // cheating slightly here: assuming minor is always 3 digits to avoid
       // tracking another column
       len[5] = numlen(major(st->st_rdev))+5;
     } else len[5] = numlen(st->st_size);
   }
-  if (flags & FLAG_s) *len += (len[6] = numlen(st->st_blocks));
+
+  len[6] = (flags & FLAG_s) ? numlen(st->st_blocks) : 0;
 }
 
 static int compare(void *a, void *b)
@@ -259,7 +263,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
 {
   struct dirtree *dt, **sort = 0;
   unsigned long dtlen = 0, ul = 0;
-  unsigned width, flags = toys.optflags, totals[7], len[7],
+  unsigned width, flags = toys.optflags, totals[7], len[7], totpad = 0,
     *colsizes = (unsigned *)(toybuf+260), columns = (sizeof(toybuf)-260)/4;
 
   memset(totals, 0, sizeof(totals));
@@ -303,7 +307,20 @@ static void listfiles(int dirfd, struct dirtree *indir)
     free(path);
   }
 
-  if (!(flags & FLAG_f)) qsort(sort, dtlen, sizeof(void *), (void *)compare);
+  if (!(flags & FLAG_f)) {
+    unsigned long long blocks = 0;
+
+    qsort(sort, dtlen, sizeof(void *), (void *)compare);
+    for (ul = 0; ul<dtlen; ul++) {
+      entrylen(sort[ul], len);
+      for (width = 0; width<7; width++)
+        if (len[width]>totals[width]) totals[width] = len[width];
+      totpad = totals[1]+!!totals[1]+totals[6]+!!totals[6];
+      blocks += sort[ul]->st.st_blocks;
+    }
+    if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g|FLAG_s) && indir->parent)
+      xprintf("total %llu\n", blocks);
+  }
 
   // Find largest entry in each field for display alignment
   if (flags & (FLAG_C|FLAG_x)) {
@@ -320,29 +337,18 @@ static void listfiles(int dirfd, struct dirtree *indir)
       memset(colsizes, 0, columns*sizeof(unsigned));
       for (ul=0; ul<dtlen; ul++) {
         entrylen(sort[next_column(ul, dtlen, columns, &c)], len);
+        *len += totpad;
         if (c == columns) break;
-        // Does this put us over budget?
+        // Expand this column if necessary, break if that puts us over budget
         if (*len > colsizes[c]) {
-          totlen += *len-colsizes[c];
+          totlen += (*len)-colsizes[c];
           colsizes[c] = *len;
           if (totlen > TT.screen_width) break;
         }
       }
-      // If it fit, stop here
+      // If everything fit, stop here
       if (ul == dtlen) break;
     }
-  } else if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g|FLAG_s)) {
-    unsigned long blocks = 0;
-
-    for (ul = 0; ul<dtlen; ul++)
-    {
-      entrylen(sort[ul], len);
-      for (width=0; width<6; width++)
-        if (len[width] > totals[width]) totals[width] = len[width];
-      blocks += sort[ul]->st.st_blocks;
-    }
-
-    if (indir->parent) xprintf("total %lu\n", blocks);
   }
 
   // Loop through again to produce output.
@@ -375,8 +381,10 @@ static void listfiles(int dirfd, struct dirtree *indir)
     }
     width += *len;
 
-    if (flags & FLAG_i) xprintf("%*lu ", len[1], (unsigned long)st->st_ino);
-    if (flags & FLAG_s) xprintf("%*lu ", len[6], (unsigned long)st->st_blocks);
+    if (flags & FLAG_i)
+      xprintf("%*lu ", totals[1], (unsigned long)st->st_ino);
+    if (flags & FLAG_s)
+      xprintf("%*lu ", totals[6], (unsigned long)st->st_blocks);
 
     if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) {
       struct tm *tm;
@@ -441,7 +449,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
     // Pad columns
     if (flags & (FLAG_C|FLAG_x)) {
-      curcol = colsizes[curcol] - *len;
+      curcol = colsizes[curcol]-(*len)-totpad;
       if (curcol < 255) xprintf("%s", toybuf+255-curcol);
     }
   }
