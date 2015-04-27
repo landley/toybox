@@ -4,7 +4,7 @@
  *
  * No standard
 
-USE_HEXEDIT(NEWTOY(hexedit, "<1>1", TOYFLAG_USR|TOYFLAG_BIN))
+USE_HEXEDIT(NEWTOY(hexedit, "<1>1r", TOYFLAG_USR|TOYFLAG_BIN))
 
 config HEXEDIT
   bool "hexedit"
@@ -13,6 +13,8 @@ config HEXEDIT
     usage: hexedit FILENAME
 
     Hexadecimal file editor.
+
+    -r	Read only (display but don't edit)
 */
 
 #define FOR_hexedit
@@ -30,7 +32,7 @@ static void esc(char *s)
   printf("\033[%s", s);
 }
 
-static void jump(x, y)
+static void jump(int x, int y)
 {
   char s[32];
 
@@ -53,6 +55,24 @@ static void sigttyreset(int i)
   _exit(127);
 }
 
+// Render all characters printable, using color to distinguish.
+static void draw_char(char broiled)
+{
+  if (broiled<32 || broiled>=127) {
+    if (broiled>127) {
+      esc("2m");
+      broiled &= 127;
+    }
+    if (broiled<32 || broiled==127) {
+      esc("7m");
+      if (broiled==127) broiled = 32;
+      else broiled += 64;
+    }
+    printf("%c", broiled);
+    esc("0m");
+  } else printf("%c", broiled);
+}
+
 static void draw_line(long long yy)
 {
   int x;
@@ -66,34 +86,12 @@ static void draw_line(long long yy)
       else printf("   ");
     }
     printf("  ");
-    for (x=0; x<16; x++) {
-      char broiled = TT.data[yy+x];
-
-      if (broiled<32 || broiled>=127) {
-        if (broiled>127) {
-          esc("2m");
-          broiled &= 127;
-        }
-        if (broiled<32 || broiled==127) {
-          esc("7m");
-          if (broiled==127) broiled = 32;
-          else broiled += 64;
-        }
-        printf("%c", broiled);
-        esc("0m");
-      } else printf("%c", broiled);
-    }
+    for (x=0; x<16; x++) draw_char(TT.data[yy+x]);
   }
   esc("K");
 }
 
-static void highlight(char c, unsigned x, unsigned y)
-{
-  jump(2+TT.numlen+3*x, y);
-  printf("%02X", c);
-}
-
-void draw_page(void)
+static void draw_page(void)
 {
   int y;
 
@@ -102,6 +100,26 @@ void draw_page(void)
     if (y) printf("\r\n");
     draw_line(y);
   }
+}
+
+// side: 0 = editing left, 1 = editing right, 2 = clear, 3 = read only
+static void highlight(int xx, int yy, int side)
+{
+  char cc = TT.data[16*(TT.base+yy)+xx];
+  int i;
+
+  // Display cursor
+  jump(2+TT.numlen+3*xx, yy);
+  esc("0m");
+  if (side!=2) esc("7m");
+  if (side>1) printf("%02X", cc);
+  else for (i=0; i<2;) {
+    if (side==i) esc("32m");
+    printf("%X", (cc>>(4*(1&++i)))&15);
+  }
+  esc("0m");
+  jump(TT.numlen+17*3+xx, yy);
+  draw_char(cc);
 }
 
 #define KEY_UP 256
@@ -120,7 +138,8 @@ void hexedit_main(void)
   char *keys[] = {"\033[A", "\033[B", "\033[C", "\033[D", "\033[5~", "\033[6~",
                   "\033OH", "\033OF", "\033[2~", 0};
   long long pos;
-  int x, y, key, fd = xopen(*toys.optargs, O_RDONLY);
+  int x, y, i, side = 0, key, ro = toys.optflags&FLAG_r,
+      fd = xopen(*toys.optargs, ro ? O_RDONLY : O_RDWR);
 
   TT.height = 25;
   terminal_size(0, &TT.height);
@@ -137,25 +156,49 @@ void hexedit_main(void)
   for (pos = TT.len, TT.numlen = 0; pos; pos >>= 4, TT.numlen++);
   TT.numlen += (4-TT.numlen)&3;
 
-  TT.data = mmap(0, TT.len, PROT_READ, MAP_SHARED, fd, 0);
+  TT.data = mmap(0, TT.len, PROT_READ|(PROT_WRITE*!ro), MAP_SHARED, fd, 0);
 
   draw_page();
 
   y = x = 0;
   for (;;) {
+    // Get position within file, trimming if we overshot end.
     pos = 16*(TT.base+y)+x;
     if (pos>=TT.len) {
       pos = TT.len-1;
       x = (TT.len-1)%15;
     }
-    esc("7m");
-    highlight(TT.data[pos], x, y);
-    fflush(0);
-    key = scan_key(toybuf, keys, 1);
-    if (key==-1 || key==4 || key==27 || key=='q') break;
-    esc("0m");
-    highlight(TT.data[pos], x, y);
 
+    // Display cursor
+    highlight(x, y, ro ? 3 : side);
+    fflush(0);
+
+    // Wait for next key
+    key = scan_key(toybuf, keys, 1);
+    // Exit for q, ctrl-c, ctrl-d, escape, or EOF
+    if (key==-1 || key==3 || key==4 || key==27 || key=='q') break;
+    highlight(x, y, 2);
+
+    if (key>='a' && key<='f') key-=32;
+    if (!ro && ((key>='0' && key<='9') || (key>='A' && key<='F'))) {
+      i = key - '0';
+      if (i>9) i -= 7;
+      TT.data[pos] &= 15<<(4*side);
+      TT.data[pos] |= i<<(4*!side);
+
+      highlight(x, y, ++side);
+      if (side==2) {
+        side = 0;
+        if (++pos<TT.len && ++x==16) {
+          x = 0;
+          if (++y == TT.height) {
+            --y;
+            goto down;
+          }
+        }
+      }
+    }
+    if (key>255) side = 0;
     if (key==KEY_UP) {
       if (--y<0) {
         if (TT.base) {
@@ -170,6 +213,7 @@ void hexedit_main(void)
       }
     } else if (key==KEY_DOWN) {
       if (y == TT.height-1 && pos+32<TT.len) {
+down:
         TT.base++;
         esc("1S");
         jump(0, TT.height-1);
