@@ -8,7 +8,7 @@ USE_HEXEDIT(NEWTOY(hexedit, "<1>1r", TOYFLAG_USR|TOYFLAG_BIN))
 
 config HEXEDIT
   bool "hexedit"
-  default n
+  default y
   help
     usage: hexedit FILENAME
 
