@@ -174,9 +174,12 @@ void replace_tempfile(int fdin, int fdout, char **tempname);
 void crc_init(unsigned int *crc_table, int little_endian);
 void base64_init(char *p);
 int terminal_size(unsigned *x, unsigned *y);
+int set_terminal(int fd, int raw, struct termios *old);
 int yesno(char *prompt, int def);
 int human_readable(char *buf, unsigned long long num);
 int qstrcmp(const void *a, const void *b);
+int xpoll(struct pollfd *fds, int nfds, int timeout);
+int scan_key(char *scratch, char **seqs, int block);
 
 // net.c
 int xsocket(int domain, int type, int protocol);

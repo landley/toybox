@@ -46,39 +46,6 @@ int get_salt(char *salt, char *algo)
   return -1;
 }
 
-// Reset terminal to known state, returning old state if old != NULL.
-int set_terminal(int fd, int raw, struct termios *old)
-{
-  struct termios termio;
-
-  if (!tcgetattr(fd, &termio) && old) *old = termio;
-
-  // the following are the bits set for an xterm. Linux text mode TTYs by
-  // default add two additional bits that only matter for serial processing
-  // (turn serial line break into an interrupt, and XON/XOFF flow control)
-
-  // Any key unblocks output, swap CR and NL on input
-  termio.c_iflag = IXANY|ICRNL|INLCR;
-  if (toys.which->flags & TOYFLAG_LOCALE) termio.c_iflag |= IUTF8;
-
-  // Output appends CR to NL, does magic undocumented postprocessing
-  termio.c_oflag = ONLCR|OPOST;
-
-  // Leave serial port speed alone
-  // termio.c_cflag = C_READ|CS8|EXTB;
-
-  // Generate signals, input entire line at once, echo output
-  // erase, line kill, escape control characters with ^
-  // erase line char at a time
-  // "extended" behavior: ctrl-V quotes next char, ctrl-R reprints unread chars,
-  // ctrl-W erases word
-  termio.c_lflag = ISIG|ICANON|ECHO|ECHOE|ECHOK|ECHOCTL|ECHOKE|IEXTEN;
-
-  if (raw) cfmakeraw(&termio);
-
-  return tcsetattr(fd, TCSANOW, &termio);
-}
-
 // Prompt with mesg, read password into buf, return 0 for success 1 for fail
 int read_password(char *buf, int buflen, char *mesg)
 {
