@@ -16,7 +16,7 @@ config TRUNCATE
     -s	New size (with optional prefix and suffix)
 
     SIZE prefix: + add, - subtract, < shrink to, > expand to,
-                 / block size rounding down, % block size rounding up
+                 / multiple rounding down, % multiple rounding up
     SIZE suffix: k=1024, m=1024^2, g=1024^3, t=1024^4, p=1024^5, e=1024^6
 */
 
@@ -41,7 +41,8 @@ static void do_truncate(int fd, char *name)
     size = fdlength(fd);
     if (TT.type<2) size += TT.size*(1-(2*TT.type));
     else if (TT.type<4) {
-      if ((TT.type==3) ? size > TT.size : size < TT.size) size = TT.size;
+      if ((TT.type==2) ? (size <= TT.size) : (size >= TT.size)) return;
+      size = TT.size;
     } else {
       size = (size+(TT.type-4)*(TT.size-1))/TT.size;
       size *= TT.size;

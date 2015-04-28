@@ -1,0 +1,28 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+SIZE='&& stat -c %s freep'
+testing "truncate 0" "truncate -s 0 freep $SIZE" "0\n" "" ""
+testing "truncate 12345" "truncate -s 12345 freep $SIZE" "12345\n" "" ""
+testing "truncate 1m" "truncate -s 1m freep $SIZE" "1048576\n" "" ""
+testing "truncate is sparse" "truncate -s 1g freep && stat -c %b freep" \
+	"0\n" "" ""
+testing "truncate +" "truncate -s 1k freep && truncate -s +1k freep $SIZE" \
+	"2048\n" "" ""
+testing "truncate -" "truncate -s 4k freep && truncate -s -1k freep $SIZE" \
+	"3072\n" "" ""
+testing "truncate < hit" \
+	"truncate -s 5k freep && truncate -s \<4k freep $SIZE" "4096\n" "" ""
+testing "truncate < miss" \
+	"truncate -s 4k freep && truncate -s \<6k freep $SIZE" "4096\n" "" ""
+testing "truncate > hit" \
+	"truncate -s 3k freep && truncate -s \>4k freep $SIZE" "4096\n" "" ""
+testing "truncate > miss" \
+	"truncate -s 4k freep && truncate -s \>2k freep $SIZE" "4096\n" "" ""
+testing "truncate /" "truncate -s 7k freep && truncate -s /3k freep $SIZE" \
+	"6144\n" "" ""
+testing "truncate %" "truncate -s 7k freep && truncate -s %3k freep $SIZE" \
+	"9216\n" "" ""
