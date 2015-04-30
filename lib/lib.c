@@ -280,16 +280,6 @@ long atolx_range(char *numstr, long low, long high)
   return val;
 }
 
-int numlen(long l)
-{
-  int len = 0;
-  while (l) {
-     l /= 10;
-     len++;
-  }
-  return len;
-}
-
 int stridx(char *haystack, char needle)
 {
   char *off;
