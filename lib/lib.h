@@ -156,7 +156,6 @@ long estrtol(char *str, char **end, int base);
 long xstrtol(char *str, char **end, int base);
 long atolx(char *c);
 long atolx_range(char *numstr, long low, long high);
-int numlen(long l);
 int stridx(char *haystack, char needle);
 int unescape(char c);
 int strstart(char **a, char *b);
