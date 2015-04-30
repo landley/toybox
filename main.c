@@ -183,8 +183,17 @@ void toybox_main(void)
   xputc('\n');
 }
 
+static void shutup_sigpipe(int i)
+{
+  // exit success from sigpipe to mollify overzealous crash reporting.
+  _exit(0);
+}
+
 int main(int argc, char *argv[])
 {
+  if (CFG_TOYBOX_ON_ANDROID) signal(SIGPIPE, shutup_sigpipe);
+  else signal(SIGPIPE, SIG_IGN);
+
   if (CFG_TOYBOX) {
     // Trim path off of command name
     *argv = basename(*argv);
