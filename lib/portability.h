@@ -226,6 +226,10 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 #define O_CLOEXEC 02000000
 #endif
 
+#ifndef O_PATH
+#define O_PATH   010000000
+#endif
+
 #if defined(__SIZEOF_DOUBLE__) && defined(__SIZEOF_LONG__) \
     && __SIZEOF_DOUBLE__ <= __SIZEOF_LONG__
 typedef double FLOAT;
@@ -257,5 +261,7 @@ int getcon(void* con);
 #define smack_set_label_for_self(...)  (-1)
 #define XATTR_NAME_SMACK ""
 #define SMACK_LABEL_LEN  (1) /* for just ? */
+
+ssize_t fgetxattr (int fd, char *name, void *value, size_t size);
 #endif
 
