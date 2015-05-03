@@ -45,7 +45,7 @@ void dmesg_main(void)
     if (!size && 1>(size = klogctl(10, 0, 0))) perror_exit("klogctl");;
     data = to = from = xmalloc(size+1);
     size = klogctl(3 + (toys.optflags & FLAG_c), data, size);
-    if (size < 0) error_exit("klogctl");
+    if (size < 0) perror_exit("klogctl");
     data[size] = 0;
 
     // Filter out level markers and optionally time markers
