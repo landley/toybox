@@ -5,13 +5,13 @@
  * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/dmesg.html
 
 // We care that FLAG_c is 1, so keep c at the end.
-USE_DMESG(NEWTOY(dmesg, "trs#<1n#c", TOYFLAG_BIN))
+USE_DMESG(NEWTOY(dmesg, "trs#<1n#c[!tr]", TOYFLAG_BIN))
 
 config DMESG
   bool "dmesg"
   default y
   help
-    usage: dmesg [-n LEVEL] [-s SIZE] [-r|-t] | -c
+    usage: dmesg [-c] [-r|-t] [-n LEVEL] [-s SIZE]
 
     Print or control the kernel ring buffer.
 
@@ -33,9 +33,6 @@ GLOBALS(
 
 void dmesg_main(void)
 {
-  if ((toys.optflags & FLAG_r) && (toys.optflags & FLAG_t)) {
-    error_exit("dmesg: -r and -t are mutually exclusive options");
-  }
   // For -n just tell kernel to which messages to keep.
   if (toys.optflags & FLAG_n) {
     if (klogctl(8, NULL, TT.level)) perror_exit("klogctl");
@@ -54,17 +51,11 @@ void dmesg_main(void)
     // Filter out level markers and optionally time markers
     if (!(toys.optflags & FLAG_r)) while ((from - data) < size) {
       if (from == data || from[-1] == '\n') {
-        if (*from == '<') {
-          int i = stridx(from, '>');
+        char *to;
 
-          if (i>0) from += i+1;
-        }
-        if ((*from == '[') && (toys.optflags & FLAG_t)) {
-          int i = stridx(from, ']');
-
-          if (i>0) from += i+1;
-          if (*from == ' ') ++from;
-        }
+        if (*from == '<' && (to = strchr(from, '>'))) from = ++to;
+        if ((toys.optflags&FLAG_t) && *from == '[' && (to = strchr(from, ']')))
+          from = to+1+(to[1]==' ');
       }
       *(to++) = *(from++);
     } else to = data+size;
