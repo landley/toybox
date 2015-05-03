@@ -40,8 +40,8 @@ void getprop_main(void)
   } else {
     size_t i;
 
-    if (property_list((void *)add_property, 0)) perror_exit("property_list");
-    qsort(TT.nv, TT.size, 2*sizeof(char *), alphasort);
+    if (property_list((void *)add_property, 0)) error_exit("property_list");
+    qsort(TT.nv, TT.size, 2*sizeof(char *), qstrcmp);
     for (i = 0; i<TT.size; i++) printf("[%s]: [%s]\n", TT.nv[i*2],TT.nv[1+i*2]);
     if (CFG_TOYBOX_FREE) free(TT.nv);
   }
