@@ -28,6 +28,9 @@
 
 #include <features.h>
 
+// Types various replacement prototypes need
+#include <sys/types.h>
+
 // Various constants old build environments might not have even if kernel does
 
 #ifndef AT_FDCWD

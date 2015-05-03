@@ -36,7 +36,6 @@
 #include <sys/statvfs.h>
 #include <sys/time.h>
 #include <sys/times.h>
-#include <sys/types.h>
 #include <sys/utsname.h>
 #include <sys/wait.h>
 #include <syslog.h>
