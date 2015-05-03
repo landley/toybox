@@ -122,9 +122,13 @@ int main(int argc, char *argv[])
     char *gaps, *mgaps, c;
     unsigned bit;
 
-    *command = 0;
+    *command = *flags = *allflags = 0;
     bit = fscanf(stdin, "%255s \"%1023[^\"]\" \"%1023[^\"]\"\n",
                     command, flags, allflags);
+
+    if (getenv("DEBUG"))
+      fprintf(stderr, "command=%s, flags=%s, allflags=%s\n",
+        command, flags, allflags);
 
     if (!*command) break;
     if (bit != 3) {
@@ -182,8 +186,7 @@ int main(int argc, char *argv[])
           if (flist) flist = flist->next;
         }
       } else if (aflist->command) {
-        if (flist && (!aflist->command || *aflist->command == *flist->command))
-        {
+        if (flist && (!flist->command || *aflist->command == *flist->command)) {
           if (aflist->command)
             sprintf(out, "#define FLAG_%c (1<<%d)\n", *aflist->command, bit);
           flist = flist->next;
