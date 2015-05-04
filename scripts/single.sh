@@ -19,7 +19,7 @@ do
     exit 1
   fi
 
-  DEPENDS="$(sed -n 's/^[ \t]*depends on //;T;s/[!][A-Z0-9_]*//g;s/ *&& */|/g;p' $TOYFILE | xargs | tr ' ' '|')"
+  DEPENDS="$(sed -n 's/^[ \t]*depends on //;T;s/[!][A-Z0-9_]*//g;s/ *&& */|/g;p' $TOYFILE | grep -v SMACK | xargs | tr ' ' '|')"
 
   NAME=$(echo $i | tr a-z- A-Z_)
   export KCONFIG_CONFIG=.singleconfig
