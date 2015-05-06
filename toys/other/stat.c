@@ -82,7 +82,7 @@ static void print_stat(char type)
     if (!stat->st_size && filetype == S_IFREG) t = "regular empty file";
     xprintf("%s", t);
   } else if (type == 'g') xprintf("%lu", stat->st_gid);
-  else if (type == 'G') xprintf("%8s", TT.user_name->pw_name);
+  else if (type == 'G') xprintf("%8s", TT.group_name->gr_name);
   else if (type == 'h') xprintf("%lu", stat->st_nlink);
   else if (type == 'i') xprintf("%llu", stat->st_ino);
   else if (type == 'N') {
