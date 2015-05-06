@@ -8,7 +8,7 @@
  *   http://cm.bell-labs.com/cm/cs/doc/84/kp.ps.gz
 
 USE_CAT(NEWTOY(cat, "u"USE_CAT_V("vte"), TOYFLAG_BIN))
-#USE_CATV(NEWTOY(catv, USE_CATV("vte"), TOYFLAG_USR|TOYFLAG_BIN))
+USE_CATV(NEWTOY(catv, USE_CATV("vte"), TOYFLAG_USR|TOYFLAG_BIN))
 
 config CAT
   bool "cat"
@@ -23,7 +23,7 @@ config CAT
 
 config CAT_V
   bool "cat -etv"
-  default y
+  default n
   depends on CAT
   help
     usage: cat [-evt]
@@ -32,15 +32,10 @@ config CAT_V
     -t	Show tabs as ^I
     -v	Display nonprinting characters as escape sequences. Use M-x for
     	high ascii characters (>127), and ^x for other nonprinting chars.
-*/
-
-/*
-todo:
 
 config CATV
   bool "catv"
   default y
-  depends on !CAT_V
   help
     usage: catv [-evt] [filename...]
 
@@ -53,6 +48,7 @@ config CATV
 */
 
 #define FOR_cat
+#define FORCE_FLAGS
 #include "toys.h"
 
 static void do_cat(int fd, char *name)
@@ -63,7 +59,7 @@ static void do_cat(int fd, char *name)
     len = read(fd, toybuf, size);
     if (len < 0) toys.exitval = EXIT_FAILURE;
     if (len < 1) break;
-    if (CFG_CAT_V && (toys.optflags&~FLAG_u)) {
+    if ((CFG_CAT_V || CFG_CATV) && (toys.optflags&~FLAG_u)) {
       for (i=0; i<len; i++) {
         char c=toybuf[i];
 
@@ -96,14 +92,8 @@ void cat_main(void)
   loopfiles(toys.optargs, do_cat);
 }
 
-//todo:
-//void catv_main(void)
-//{
-//  toys.optflags ^= FLAG_v;
-//  loopfiles(toys.optargs, do_catv);
-//}
-
-// The common infrastructure is testing FLAG_h which is only defined in cat
-// context (not catv), but catv can't use cat's flag context if cat is disabled
-// and its flags are zero. Need to upgrade flag parsing infrastructure so
-// defining FORCE_FLAGS along with FOR_command doesn't zero unused flag macros.
+void catv_main(void)
+{
+  toys.optflags ^= FLAG_v;
+  loopfiles(toys.optargs, do_cat);
+}
