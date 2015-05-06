@@ -67,8 +67,13 @@ void switch_root_main(void)
   }
   TT.rootdev=st2.st_dev;
 
+  // trim any / characters from the init cmdline, as we want to test it with
+  // stat(), relative to newroot. *cmdline is also used below, but by that
+  // point we are in the chroot, so a relative path is still OK.
+  while (**cmdline == '/') (*cmdline)++;
+
   // init program must exist and be an executable file
-  if (stat("init", &st1) || !S_ISREG(st1.st_mode) || !(st1.st_mode&0100)) {
+  if (stat(*cmdline, &st1) || !S_ISREG(st1.st_mode) || !(st1.st_mode&0100)) {
     error_msg("bad init");
     goto panic;
   }
@@ -80,6 +85,24 @@ void switch_root_main(void)
  
   // Ok, enough safety checks: wipe root partition.
   dirtree_read("/", del_node);
+
+  // Fix the appearance of the mount table in the newroot chroot
+  if (mount(".", "/", NULL, MS_MOVE, NULL)) {
+    perror_msg("mount");
+    goto panic;
+  }
+
+  // Enter the new root before starting init
+  if (chroot(".")) {
+    perror_msg("chroot");
+    goto panic;
+  }
+
+  // Make sure cwd does not point outside of the chroot
+  if (chdir("/")) {
+    perror_msg("chdir");
+    goto panic;
+  }
 
   if (TT.console) {
     int i;
