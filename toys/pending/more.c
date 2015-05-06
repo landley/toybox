@@ -53,6 +53,7 @@ static int prompt(FILE *cin, const char* fmt, ...)
     input_key = tolower(getc(cin));
     printf("\33[0m\33[1K\r"); // Reset all attributes, erase to start of line.
     if (strchr(" \nrq", input_key)) {
+      fflush(NULL);
       return input_key;
     }
     printf("\33[7m(Enter:Next line Space:Next page Q:Quit R:Show the rest)");
@@ -95,8 +96,8 @@ void more_main()
   do {
     fp = stdin;
     if (*toys.optargs && !(fp = fopen(*toys.optargs, "r"))) {
-        perror_msg("'%s'", *toys.optargs);
-        continue;
+        perror_msg("%s", *toys.optargs);
+        goto next_file;
     }
     st.st_size = show_prompt = col = row = 0;
     fstat(fileno(fp), &st);
@@ -133,6 +134,7 @@ void more_main()
     }
     fclose(fp);
 
+next_file:
     if (*toys.optargs && *++toys.optargs) {
       input_key = prompt(cin, "--More--(Next file: %s)", *toys.optargs);
       if (input_key == 'q') goto stop;
