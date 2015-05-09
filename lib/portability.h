@@ -245,7 +245,7 @@ pid_t xfork(void);
 #endif
 
 //#define strncpy(...) @@strncpyisbadmmkay@@
-//#define strncat(...) @@strcatisbadmmkay@@
+//#define strncat(...) @@strncatisbadmmkay@@
 
 #if CFG_TOYBOX_SELINUX
 #include <selinux/selinux.h>
