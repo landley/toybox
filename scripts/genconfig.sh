@@ -7,12 +7,16 @@ mkdir -p generated
 
 source configure
 
+probecc()
+{
+  ${CROSS_COMPILE}${CC} $CFLAGS -xc -o /dev/null $1 -
+}
+
 # Probe for a single config symbol with a "compiles or not" test.
 # Symbol name is first argument, flags second, feed C file to stdin
 probesymbol()
 {
-  ${CROSS_COMPILE}${CC} $CFLAGS -xc -o /dev/null $2 - 2>/dev/null
-  [ $? -eq 0 ] && DEFAULT=y || DEFAULT=n
+  probecc $2 2>/dev/null && DEFAULT=y || DEFAULT=n
   rm a.out 2>/dev/null
   echo -e "config $1\n\tbool" || exit 1
   echo -e "\tdefault $DEFAULT\n" || exit 1
@@ -20,6 +24,13 @@ probesymbol()
 
 probeconfig()
 {
+  > generated/cflags
+  # llvm produces its own really stupid warnings about things that aren't wrong,
+  # and although you can turn the warning off, gcc reacts badly to command line
+  # arguments it doesn't understand. So probe.
+  [ -z "$(probecc -Wno-string-plus-int <<< \#warn warn 2>&1 | grep string-plus-int)" ] &&
+    echo -Wno-string-plus-int >> generated/cflags
+
   # Probe for container support on target
   probesymbol TOYBOX_CONTAINER << EOF
     #include <linux/sched.h>
