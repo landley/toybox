@@ -540,10 +540,10 @@ void ls_main(void)
 
   // Iterate through command line arguments, collecting directories and files.
   // Non-absolute paths are relative to current directory.
-  TT.files = dirtree_add_node(0, 0, 0);
+  TT.files = dirtree_start(0, 0);
   for (s = *toys.optargs ? toys.optargs : noargs; *s; s++) {
-    dt = dirtree_add_node(0, *s, !(toys.optflags & (FLAG_l|FLAG_d|FLAG_F))
-      || (toys.optflags & (FLAG_L|FLAG_H)));
+    dt = dirtree_start(*s, !(toys.optflags&(FLAG_l|FLAG_d|FLAG_F)) ||
+                            (toys.optflags&(FLAG_L|FLAG_H)));
 
     if (!dt) {
       toys.exitval = 1;

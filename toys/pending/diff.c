@@ -768,7 +768,6 @@ void diff_main(void)
   struct stat st[2];
   int j = 0, k = 1, start[2] = {1, 1};
   char *files[2];
-  struct dirtree *root;
 
   for (j = 0; j < 2; j++) {
     files[j] = toys.optargs[j];
@@ -799,8 +798,7 @@ void diff_main(void)
   if (S_ISDIR(st[0].st_mode) && S_ISDIR(st[1].st_mode)) {
     for (j = 0; j < 2; j++) {
       memset(&dir[j], 0, sizeof(dir));
-      root = dirtree_add_node(0, files[j], 1);
-      if (root) dirtree_handle_callback(root, list_dir);
+      dirtree_handle_callback(dirtree_start(files[j], 1), list_dir);
       dir[j].nr_elm = TT.size; //size updated in list_dir
       qsort(&(dir[j].list[1]), (TT.size - 1), sizeof(char*), cmp);
 

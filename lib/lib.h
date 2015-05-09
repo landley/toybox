@@ -50,6 +50,8 @@ void get_optflags(void);
 #define DIRTREE_COMEAGAIN    4
 // Follow symlinks to directories
 #define DIRTREE_SYMFOLLOW    8
+// Don't warn about failure to stat
+#define DIRTREE_SHUTUP      16
 // Don't look at any more files in this directory.
 #define DIRTREE_ABORT      256
 
@@ -65,7 +67,8 @@ struct dirtree {
   char name[];
 };
 
-struct dirtree *dirtree_add_node(struct dirtree *p, char *name, int symfollow);
+struct dirtree *dirtree_start(char *name, int symfollow);
+struct dirtree *dirtree_add_node(struct dirtree *p, char *name, int flags);
 char *dirtree_path(struct dirtree *node, int *plen);
 int dirtree_notdotdot(struct dirtree *catch);
 int dirtree_parentfd(struct dirtree *node);

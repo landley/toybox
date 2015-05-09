@@ -104,7 +104,8 @@ static int seen_inode(void **list, struct stat *st)
 // dirtree callback, comput/display size of node
 static int do_du(struct dirtree *node)
 {
-  if (node->parent && !dirtree_notdotdot(node)) return 0;
+  if (!node->parent) TT.st_dev = node->st.st_dev;
+  else if (!dirtree_notdotdot(node)) return 0;
 
   // detect swiching filesystems
   if ((toys.optflags & FLAG_x) && (TT.st_dev != node->st.st_dev))
@@ -146,21 +147,12 @@ static int do_du(struct dirtree *node)
 
 void du_main(void)
 {
-  char *noargs[] = {".", 0};
-  struct dirtree *root;
-
-  if (!toys.optc) toys.optargs = noargs;
+  char *noargs[] = {".", 0}, **args;
 
   // Loop over command line arguments, recursing through children
-  while (*toys.optargs) {
-    root = dirtree_add_node(0, *toys.optargs, toys.optflags & (FLAG_H|FLAG_L));
-
-    if (root) {
-      TT.st_dev = root->st.st_dev;
-      dirtree_handle_callback(root, do_du);
-    }
-    toys.optargs++;
-  }
+  for (args = toys.optc ? toys.optargs : noargs; *args; args++)
+    dirtree_handle_callback(dirtree_start(*args,
+      DIRTREE_SYMFOLLOW*!!(toys.optflags & (FLAG_H|FLAG_L))), do_du);
   if (toys.optflags & FLAG_c) print(TT.total*512, 0);
 
   if (CFG_TOYBOX_FREE) seen_inode(TT.inodes, 0);

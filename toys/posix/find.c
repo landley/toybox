@@ -531,12 +531,9 @@ void find_main(void)
   do_find(0);
 
   // Loop through paths
-  for (i = 0; i < len; i++) {
-    struct dirtree *new;
-
-    new = dirtree_add_node(0, ss[i], toys.optflags&(FLAG_H|FLAG_L));
-    if (new) dirtree_handle_callback(new, do_find);
-  }
+  for (i = 0; i < len; i++)
+    dirtree_handle_callback(dirtree_start(ss[i], toys.optflags&(FLAG_H|FLAG_L)),
+      do_find);
 
   if (CFG_TOYBOX_FREE) {
     close(TT.topdir);

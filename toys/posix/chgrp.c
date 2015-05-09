@@ -49,12 +49,11 @@ static int do_chgrp(struct dirtree *node)
   // Depth first search
   if (!dirtree_notdotdot(node)) return 0;
   if ((flags & FLAG_R) && !node->again && S_ISDIR(node->st.st_mode))
-    return DIRTREE_COMEAGAIN|((flags&FLAG_L) ? DIRTREE_SYMFOLLOW : 0);
+    return DIRTREE_COMEAGAIN|(DIRTREE_SYMFOLLOW*!!(flags&FLAG_L));
 
   fd = dirtree_parentfd(node);
   ret = fchownat(fd, node->name, TT.owner, TT.group,
-    (flags&(FLAG_L|FLAG_H)) || !(flags&(FLAG_h|FLAG_R))
-      ? 0 : AT_SYMLINK_NOFOLLOW);
+    AT_SYMLINK_NOFOLLOW*(!(flags&(FLAG_L|FLAG_H)) && (flags&(FLAG_h|FLAG_R))));
 
   if (ret || (flags & FLAG_v)) {
     char *path = dirtree_path(node, 0);
@@ -74,7 +73,7 @@ static int do_chgrp(struct dirtree *node)
 
 void chgrp_main(void)
 {
-  int ischown = toys.which->name[2] == 'o', hl = toys.optflags&(FLAG_H|FLAG_L);
+  int ischown = toys.which->name[2] == 'o';
   char **s, *own;
 
   TT.owner = TT.group = -1;
@@ -94,11 +93,9 @@ void chgrp_main(void)
   if (TT.group_name && *TT.group_name)
     TT.group = xgetgrnamid(TT.group_name)->gr_gid;
 
-  for (s=toys.optargs+1; *s; s++) {
-    struct dirtree *new = dirtree_add_node(0, *s, hl);
-    if (new) dirtree_handle_callback(new, do_chgrp);
-    else toys.exitval = 1;
-  }
+  for (s=toys.optargs+1; *s; s++)
+    dirtree_handle_callback(dirtree_start(*s, toys.optflags&(FLAG_H|FLAG_L)),
+      do_chgrp);;
 
   if (CFG_TOYBOX_FREE && ischown) free(own);
 }

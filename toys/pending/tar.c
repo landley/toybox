@@ -788,9 +788,8 @@ void tar_main(void)
     for (tmp = TT.inc; tmp; tmp = tmp->next) {
       TT.handle = tar_hdl;
       //recurse thru dir and add files to archive
-      struct dirtree *root = dirtree_add_node(0,tmp->arg,toys.optflags & FLAG_h);
-
-      if (root) dirtree_handle_callback(root, add_to_tar);
+      dirtree_handle_callback(dirtree_start(tmp->arg, toys.optflags & FLAG_h),
+        add_to_tar);
     }
     memset(toybuf, 0, 1024);
     writeall(tar_hdl->src_fd, toybuf, 1024);
