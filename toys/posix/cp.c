@@ -340,9 +340,8 @@ void cp_main(void)
 
     // Skip nonexistent sources
     if (rc) {
-      int symfollow = DIRTREE_SYMFOLLOW*!!(toys.optflags & (FLAG_H|FLAG_L));
-
-      if (errno != EXDEV || !(new = dirtree_start(src, symfollow)))
+      if (errno!=EXDEV ||
+        !(new = dirtree_start(src, toys.optflags&(FLAG_H|FLAG_L))))
           perror_msg("bad '%s'", src);
       else dirtree_handle_callback(new, TT.callback);
     }

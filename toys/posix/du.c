@@ -128,7 +128,7 @@ static int do_du(struct dirtree *node)
   if (S_ISDIR(node->st.st_mode)) {
     if (!node->again) {
       TT.depth++;
-      return DIRTREE_COMEAGAIN | (DIRTREE_SYMFOLLOW*!!(toys.optflags & FLAG_L));
+      return DIRTREE_COMEAGAIN|(DIRTREE_SYMFOLLOW*!!(toys.optflags&FLAG_L));
     } else TT.depth--;
   }
 
@@ -151,8 +151,8 @@ void du_main(void)
 
   // Loop over command line arguments, recursing through children
   for (args = toys.optc ? toys.optargs : noargs; *args; args++)
-    dirtree_handle_callback(dirtree_start(*args,
-      DIRTREE_SYMFOLLOW*!!(toys.optflags & (FLAG_H|FLAG_L))), do_du);
+    dirtree_handle_callback(dirtree_start(*args, toys.optflags&(FLAG_H|FLAG_L)),
+      do_du);
   if (toys.optflags & FLAG_c) print(TT.total*512, 0);
 
   if (CFG_TOYBOX_FREE) seen_inode(TT.inodes, 0);

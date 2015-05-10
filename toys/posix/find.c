@@ -184,7 +184,7 @@ static int do_find(struct dirtree *new)
   struct double_list *argdata = TT.argdata;
   char *s, **ss;
 
-  recurse = DIRTREE_COMEAGAIN|((toys.optflags&FLAG_L) ? DIRTREE_SYMFOLLOW : 0);
+  recurse = DIRTREE_COMEAGAIN|(DIRTREE_SYMFOLLOW*!!(toys.optflags&FLAG_L));
 
   // skip . and .. below topdir, handle -xdev and -depth
   if (new) {
