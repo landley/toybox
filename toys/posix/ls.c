@@ -95,19 +95,6 @@ int strwidth(char *s)
   return total;
 }
 
-void dlist_to_dirtree(struct dirtree *parent)
-{
-  // Turn double_list into dirtree
-  struct dirtree *dt = parent->child;
-  if (dt) {
-    dt->parent->next = NULL;
-    while (dt) {
-      dt->parent = parent;
-      dt = dt->next;
-    }
-  }
-}
-
 static char endtype(struct stat *st)
 {
   mode_t mode = st->st_mode;
@@ -205,8 +192,7 @@ static void entrylen(struct dirtree *dt, unsigned *len)
   }
 
   len[6] = (flags & FLAG_s) ? numlen(st->st_blocks) : 0;
-
-  if (CFG_LS_Z && (flags & FLAG_Z)) len[7] = seclabel(dt, 0);
+  len[7] = (CFG_LS_Z && (flags & FLAG_Z)) ? seclabel(dt, 0) : 0;
 }
 
 static int compare(void *a, void *b)
@@ -324,6 +310,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
     if (S_ISDIR(dt->st.st_mode) && !dt->next && !(flags & FLAG_d)) {
       dt->extra = 1;
       listfiles(open(dt->name, 0), dt);
+
       return;
     }
   } else {
@@ -335,7 +322,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
   // Copy linked list to array and sort it. Directories go in array because
   // we visit them in sorted order too. (The nested loops let us measure and
   // fill with the same inner loop.)
-  for (sort = 0;;sort = xmalloc(dtlen * sizeof(void *))) {
+  for (sort = 0;;sort = xmalloc(dtlen*sizeof(void *))) {
     for (dtlen = 0, dt = indir->child; dt; dt = dt->next, dtlen++)
       if (sort) sort[dtlen] = dt;
     if (sort) break;
@@ -545,17 +532,14 @@ void ls_main(void)
     dt = dirtree_start(*s, !(toys.optflags&(FLAG_l|FLAG_d|FLAG_F)) ||
                             (toys.optflags&(FLAG_L|FLAG_H)));
 
-    if (!dt) {
-      toys.exitval = 1;
-      continue;
-    }
-
-    // Typecast means double_list->prev temporarirly goes in dirtree->parent
-    dlist_add_nomalloc((void *)&TT.files->child, (struct double_list *)dt);
+    // note: double_list->prev temporarirly goes in dirtree->parent
+    if (dt) dlist_add_nomalloc((void *)&TT.files->child, (void *)dt);
+    else toys.exitval = 1;
   }
 
-  // Turn double_list into dirtree
-  dlist_to_dirtree(TT.files);
+  // Convert double_list into dirtree.
+  dlist_terminate(TT.files->child);
+  for (dt = TT.files->child; dt; dt = dt->next) dt->parent = TT.files;
 
   // Display the files we collected
   listfiles(AT_FDCWD, TT.files);
