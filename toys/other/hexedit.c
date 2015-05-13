@@ -75,18 +75,17 @@ static void draw_char(char broiled)
 
 static void draw_line(long long yy)
 {
-  int x;
+  int x, xx = 16;
 
   yy = (TT.base+yy)*16;
+  if (yy+xx>=TT.len) xx = TT.len-yy;
 
   if (yy<TT.len) {
     printf("\r%0*llX ", TT.numlen, yy);
-    for (x=0; x<16; x++) {
-      if (yy+x<TT.len) printf(" %02X", TT.data[yy+x]);
-      else printf("   ");
-    }
-    printf("  ");
-    for (x=0; x<16; x++) draw_char(TT.data[yy+x]);
+    for (x=0; x<xx; x++) printf(" %02X", TT.data[yy+x]);
+    printf("%*s", 2+3*(16-xx), "");
+    for (x=0; x<xx; x++) draw_char(TT.data[yy+x]);
+    printf("%*s", 16-xx, "");
   }
   esc("K");
 }
@@ -166,7 +165,8 @@ void hexedit_main(void)
     pos = 16*(TT.base+y)+x;
     if (pos>=TT.len) {
       pos = TT.len-1;
-      x = (TT.len-1)%15;
+      x = pos&15;
+      y = (pos/16)-TT.base;
     }
 
     // Display cursor
@@ -212,14 +212,14 @@ void hexedit_main(void)
         y = 0;
       }
     } else if (key==KEY_DOWN) {
-      if (y == TT.height-1 && pos+32<TT.len) {
+      if (y == TT.height-1 && (pos|15)+1<TT.len) {
 down:
         TT.base++;
         esc("1S");
         jump(0, TT.height-1);
         draw_line(TT.height-1);
       }
-      if (pos+16<TT.len && ++y>=TT.height) y--;
+      if (++y>=TT.height) y--;
     } else if (key==KEY_RIGHT) {
       if (x<15 && pos+1<TT.len) x++;
     } else if (key==KEY_LEFT) {
