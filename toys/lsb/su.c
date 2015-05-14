@@ -54,11 +54,13 @@ void su_main()
   else name = "root";
 
   if (!(shp = getspnam(name))) perror_exit("no '%s'", name);
-  if (*shp->sp_pwdp != '$') goto deny;
-  if (read_password(toybuf, sizeof(toybuf), "Password: ")) goto deny;
-  passhash = crypt(toybuf, shp->sp_pwdp);
-  memset(toybuf, 0, sizeof(toybuf));
-  if (!passhash || strcmp(passhash, shp->sp_pwdp)) goto deny;
+  if (getuid()) {
+    if (*shp->sp_pwdp != '$') goto deny;
+    if (read_password(toybuf, sizeof(toybuf), "Password: ")) goto deny;
+    passhash = crypt(toybuf, shp->sp_pwdp);
+    memset(toybuf, 0, sizeof(toybuf));
+    if (!passhash || strcmp(passhash, shp->sp_pwdp)) goto deny;
+  }
 
   up = xgetpwnam(name);
   xsetuser(up);
