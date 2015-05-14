@@ -181,6 +181,7 @@ int qstrcmp(const void *a, const void *b);
 int xpoll(struct pollfd *fds, int nfds, int timeout);
 
 // interestingtimes.c
+int xgettty(void);
 int terminal_size(unsigned *xx, unsigned *yy);
 int set_terminal(int fd, int raw, struct termios *old);
 int scan_key(char *scratch, char **seqs, int block);

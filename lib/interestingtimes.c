@@ -5,6 +5,15 @@
 
 #include "toys.h"
 
+int xgettty(void)
+{
+  int i, j;
+
+  for (i = 0; i<3; i++) if (isatty(j = (i+1)%3)) return j;
+
+  return xopen("/dev/tty", O_RDWR);
+}
+
 // Quick and dirty query size of terminal, doesn't do ANSI probe fallback.
 // set x=80 y=25 before calling to provide defaults. Returns 0 if couldn't
 // determine size.
