@@ -289,7 +289,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
     // Silently descend into single directory listed by itself on command line.
     // In this case only show dirname/total header when given -R.
     dt = indir->child;
-    if (S_ISDIR(dt->st.st_mode) && !dt->next && !(flags & FLAG_d)) {
+    if (S_ISDIR(dt->st.st_mode) && !dt->next && !(flags&(FLAG_d|FLAG_R))) {
       listfiles(open(dt->name, 0), TT.singledir = dt);
 
       return;
@@ -480,8 +480,9 @@ static void listfiles(int dirfd, struct dirtree *indir)
     if ((flags & FLAG_d) || !S_ISDIR(sort[ul]->st.st_mode)) continue;
 
     // Recurse into dirs if at top of the tree or given -R
-    if (!indir->parent || ((flags&FLAG_R) && !dirtree_notdotdot(sort[ul])))
+    if (!indir->parent || ((flags&FLAG_R) && dirtree_notdotdot(sort[ul])))
       listfiles(openat(dirfd, sort[ul]->name, 0), sort[ul]);
+    free((void *)sort[ul]->extra);
   }
   free(sort);
   if (dirfd != AT_FDCWD) close(dirfd);
