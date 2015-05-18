@@ -195,7 +195,7 @@ static int filter(struct dirtree *new)
         lsm_lget_context(path, (char **)&new->extra);
         free(path);
       } else {
-        // Why O_NONBLOCK? No idea. Why not O_PATH|O_NOFOLLOW? Because reasons.
+        // Why O_NONBLOCK? No idea. Why not O_PATH|O_NOFOLLOW? Kernel's broken.
         int fd = openat(dirtree_parentfd(new), new->name,
           O_RDONLY|O_NONBLOCK|O_NOATIME);
 
@@ -294,6 +294,10 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
       return;
     }
+
+    // Do preprocessing (Dirtree didn't populate, so callback wasn't called.)
+    for (;dt; dt = dt->next) filter(dt);
+    if (flags == (FLAG_1|FLAG_f)) return;
   } else {
     // Read directory contents. We dup() the fd because this will close it.
     // This reads/saves contents to display later, except for in "ls -1f" mode.
