@@ -5,13 +5,13 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/ls.html
 
-USE_LS(NEWTOY(ls, USE_LS_COLOR("(color):;")USE_LS_Z("Z")"goACFHLRSacdfiklmnpqrstux1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL]", TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_LS(NEWTOY(ls, USE_LS_COLOR("(color):;")"ZgoACFHLRSacdfiklmnpqrstux1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL]", TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config LS
   bool "ls"
   default y
   help
-    usage: ls [-ACFHLRSacdfiklmnpqrstux1] [directory...]
+    usage: ls [-ACFHLRSZacdfiklmnpqrstux1] [directory...]
     list files
 
     what to show:
@@ -22,6 +22,7 @@ config LS
     -u	use access time for timestamps		-A  list all files but . and ..
     -H	follow command line symlinks		-L  follow symlinks
     -R	recursively list files in subdirs	-F  append /dir *exe @sym |FIFO
+    -Z	security context
 
     output formats:
     -1	list one file per line			-C  columns (sorted vertically)
@@ -31,15 +32,6 @@ config LS
 
     sorting (default is alphabetical):
     -f	unsorted	-r  reverse	-t  timestamp	-S  size
-
-config LS_Z
-  bool
-  default y
-  depends on LS && (TOYBOX_SELINUX || TOYBOX_SMACK)
-  help
-    usage: ls [-Z]
-
-    -Z	security context
 
 config LS_COLOR
   bool "ls --color"
@@ -55,6 +47,7 @@ config LS_COLOR
 
 #define FOR_ls
 #include "toys.h"
+#include "lib/lsm.h"
 
 // test sst output (suid/sticky in ls flaglist)
 
@@ -63,7 +56,7 @@ config LS_COLOR
 GLOBALS(
   char *color;
 
-  struct dirtree *files;
+  struct dirtree *files, *singledir;
 
   unsigned screen_width;
   int nl_title;
@@ -129,44 +122,6 @@ static int numlen(long long ll)
   return snprintf(0, 0, "%llu", ll);
 }
 
-// measure/print SELinux/smack security label. (If pad=0, just measure.)
-static unsigned seclabel(struct dirtree *dt, int pad)
-{
-  if (CFG_TOYBOX_SELINUX) {
-    char* path = dirtree_path(dt, 0);
-    char* label = 0;
-    size_t len;
-
-    lgetfilecon(path, &label);
-    if (!label) {
-      label = strdup("?");
-    }
-
-    len = strlen(label);
-    if (pad) printf(" %*s "+(pad>0), pad, label);
-
-    free(label);
-    free(path);
-    return len;
-  } else if (CFG_TOYBOX_SMACK) {
-    int fd = openat(dirtree_parentfd(dt), dt->name, O_PATH|O_NOFOLLOW);
-    char buf[SMACK_LABEL_LEN+1];
-    ssize_t len = 1;
-
-    strcpy(buf, "?");
-    if (fd != -1) {
-      len = fgetxattr(fd, XATTR_NAME_SMACK, pad?buf:0, pad?SMACK_LABEL_LEN:0);
-      close(fd);
-
-      if (len<1 || len>SMACK_LABEL_LEN) len = 0;
-      else buf[len] = 0;
-    }
-    if (pad) printf(" %*s "+(pad>0), pad, buf);
-
-    return len;
-  }
-}
-
 // Figure out size of printable entry fields for display indent/wrap
 
 static void entrylen(struct dirtree *dt, unsigned *len)
@@ -192,7 +147,7 @@ static void entrylen(struct dirtree *dt, unsigned *len)
   }
 
   len[6] = (flags & FLAG_s) ? numlen(st->st_blocks) : 0;
-  len[7] = (CFG_LS_Z && (flags & FLAG_Z)) ? seclabel(dt, 0) : 0;
+  len[7] = (flags & FLAG_Z) ? strwidth((char *)dt->extra) : 0;
 }
 
 static int compare(void *a, void *b)
@@ -223,6 +178,32 @@ static int filter(struct dirtree *new)
   if (flags == (FLAG_1|FLAG_f)) {
     xprintf("%s\n", new->name);
     return 0;
+  }
+
+  if (flags & FLAG_Z) {
+    if (!CFG_TOYBOX_LSM_NONE) {
+      // In theory we can just openat(O_PATH|O_NOFOLLOW) and getcontext() on
+      // that filehandle, but the kernel won't let us read this "metadata"
+      // unless we have permission to read the data, so we do these elaborate
+      // bug workarounds instead.
+      if (S_ISLNK(new->st.st_mode) && !(toys.optflags & FLAG_L)) {
+        char *path;
+
+        // Wouldn't it be nice if the lsm functions worked like openat(),
+        // fchmodat(), mknodat(), readlinkat()... but no, this is 1990's tech.
+        path = dirtree_path(new, 0);
+        lsm_lget_context(path, (char **)&new->extra);
+        free(path);
+      } else {
+        // Why O_NONBLOCK? No idea. Why not O_PATH|O_NOFOLLOW? Because reasons.
+        int fd = openat(dirtree_parentfd(new), new->name,
+          O_RDONLY|O_NONBLOCK|O_NOATIME);
+
+        if (fd != -1) lsm_fget_context(fd, (char **)&new->extra);
+        close(fd);
+      }
+    }
+    if (CFG_TOYBOX_LSM_NONE || !new->extra) new->extra = (long)xstrdup("?");
   }
 
   if (flags & FLAG_u) new->st.st_mtime = new->st.st_atime;
@@ -303,18 +284,19 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
   memset(totals, 0, sizeof(totals));
 
-  // Silently descend into single directory listed by itself on command line.
-  // In this case only show dirname/total header when given -R.
+  // Top level directory was already populated by main()
   if (!indir->parent) {
-    if (!(dt = indir->child)) return;
+    // Silently descend into single directory listed by itself on command line.
+    // In this case only show dirname/total header when given -R.
+    dt = indir->child;
     if (S_ISDIR(dt->st.st_mode) && !dt->next && !(flags & FLAG_d)) {
-      dt->extra = 1;
-      listfiles(open(dt->name, 0), dt);
+      listfiles(open(dt->name, 0), TT.singledir = dt);
 
       return;
     }
   } else {
     // Read directory contents. We dup() the fd because this will close it.
+    // This reads/saves contents to display later, except for in "ls -1f" mode.
     indir->data = dup(dirfd);
     dirtree_recurse(indir, filter, DIRTREE_SYMFOLLOW*!!(flags&FLAG_L));
   }
@@ -329,7 +311,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
   }
 
   // Label directory if not top of tree, or if -R
-  if (indir->parent && (!indir->extra || (flags & FLAG_R)))
+  if (indir->parent && (TT.singledir!=indir || (flags&FLAG_R)))
   {
     char *path = dirtree_path(indir, 0);
 
@@ -350,7 +332,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
       blocks += sort[ul]->st.st_blocks;
     }
     totpad = totals[1]+!!totals[1]+totals[6]+!!totals[6]+totals[7]+!!totals[7];
-    if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g|FLAG_s) && indir->parent)
+    if ((flags&(FLAG_l|FLAG_o|FLAG_n|FLAG_g|FLAG_s)) && indir->parent)
       xprintf("total %llu\n", blocks);
   }
 
@@ -442,7 +424,8 @@ static void listfiles(int dirfd, struct dirtree *indir)
       printf("%s% *ld %s%s%s%s", perm, totals[2]+1, (long)st->st_nlink,
              usr, upad, grp, grpad);
 
-      if (CFG_LS_Z && (flags & FLAG_Z)) seclabel(sort[next], -(int)totals[7]);
+      if (flags & FLAG_Z)
+        printf("%*s ", -(int)totals[7], (char *)sort[next]->extra);
 
       if (S_ISCHR(st->st_mode) || S_ISBLK(st->st_mode))
         printf("% *d,% 4d", totals[5]-4, major(st->st_rdev),minor(st->st_rdev));
@@ -451,7 +434,8 @@ static void listfiles(int dirfd, struct dirtree *indir)
       tm = localtime(&(st->st_mtime));
       strftime(thyme, sizeof(thyme), "%F %H:%M", tm);
       xprintf(" %s ", thyme);
-    } else if (CFG_LS_Z && (flags & FLAG_Z)) seclabel(sort[next], totals[7]);
+    } else if (flags & FLAG_Z)
+      printf("%*s ", (int)totals[7], (char *)sort[next]->extra);
 
     if (flags & FLAG_color) {
       color = color_from_mode(st->st_mode);
@@ -493,11 +477,10 @@ static void listfiles(int dirfd, struct dirtree *indir)
   // Free directory entries, recursing first if necessary.
 
   for (ul = 0; ul<dtlen; free(sort[ul++])) {
-    if ((flags & FLAG_d) || !S_ISDIR(sort[ul]->st.st_mode)
-      || !dirtree_notdotdot(sort[ul])) continue;
+    if ((flags & FLAG_d) || !S_ISDIR(sort[ul]->st.st_mode)) continue;
 
     // Recurse into dirs if at top of the tree or given -R
-    if (!indir->parent || (flags & FLAG_R))
+    if (!indir->parent || ((flags&FLAG_R) && !dirtree_notdotdot(sort[ul])))
       listfiles(openat(dirfd, sort[ul]->name, 0), sort[ul]);
   }
   free(sort);
