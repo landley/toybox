@@ -68,6 +68,7 @@
 #include <sys/sysinfo.h>
 
 #include "lib/lib.h"
+#include "lib/lsm.h"
 #include "toys/e2fs.h"
 
 // Get list of function prototypes for all enabled command_main() functions.

@@ -38,6 +38,14 @@ static inline int lsm_enabled(void)
   else return is_selinux_enabled() == 1;
 }
 
+static inline char *lsm_name(void)
+{
+  if (CFG_TOYBOX_SMACK) return "Smack";
+  if (CFG_TOYBOX_SELINUX) return "SELinux";
+
+  return "LSM";
+}
+
 // Fetch this process's lsm context
 static inline char *lsm_context(void)
 {

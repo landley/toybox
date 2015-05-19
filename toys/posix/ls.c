@@ -47,7 +47,6 @@ config LS_COLOR
 
 #define FOR_ls
 #include "toys.h"
-#include "lib/lsm.h"
 
 // test sst output (suid/sticky in ls flaglist)
 
