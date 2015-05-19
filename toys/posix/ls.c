@@ -181,24 +181,34 @@ static int filter(struct dirtree *new)
 
   if (flags & FLAG_Z) {
     if (!CFG_TOYBOX_LSM_NONE) {
-      // In theory we can just openat(O_PATH|O_NOFOLLOW) and getcontext() on
-      // that filehandle, but the kernel won't let us read this "metadata"
-      // unless we have permission to read the data, so we do these elaborate
-      // bug workarounds instead.
-      if (S_ISLNK(new->st.st_mode) && !(toys.optflags & FLAG_L)) {
+      int fd;
+
+      // Why not just openat(O_PATH|(O_NOFOLLOW*!!(toys.optflags&FLAG_L))) and
+      // lsm_fget_context() on that filehandle? Because the kernel is broken,
+      // and won't let us read this "metadata" from the filehandle unless we
+      // have permission to read the data. We _can_ read the same data in
+      // by path, we just can't do it through an O_PATH filehandle, because
+      // reasons. So as a bug workaround for the broken kernel, we do it
+      // both ways.
+      //
+      // The O_NONBLOCK is there to avoid triggering automounting (there's
+      // a rush of nostalgia for you) on directories we don't descend into,
+      // which O_PATH would have done for us but see "the kernel is broken".
+      if (S_ISSOCK(new->st.st_mode) ||
+          (S_ISLNK(new->st.st_mode) && !(toys.optflags & FLAG_L)) ||
+          -1 == (fd = openat(dirtree_parentfd(new), new->name,
+                             O_RDONLY|O_NONBLOCK|O_NOATIME)))
+      {
         char *path;
 
         // Wouldn't it be nice if the lsm functions worked like openat(),
-        // fchmodat(), mknodat(), readlinkat()... but no, this is 1990's tech.
+        // fchmodat(), mknodat(), readlinkat() so we could do this without
+        // even O_PATH? But no, this is 1990's tech.
         path = dirtree_path(new, 0);
         lsm_lget_context(path, (char **)&new->extra);
         free(path);
       } else {
-        // Why O_NONBLOCK? No idea. Why not O_PATH|O_NOFOLLOW? Kernel's broken.
-        int fd = openat(dirtree_parentfd(new), new->name,
-          O_RDONLY|O_NONBLOCK|O_NOATIME);
-
-        if (fd != -1) lsm_fget_context(fd, (char **)&new->extra);
+        lsm_fget_context(fd, (char **)&new->extra);
         close(fd);
       }
     }
