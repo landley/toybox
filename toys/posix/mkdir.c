@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/mkdir.html
 
-USE_MKDIR(NEWTOY(mkdir, "<1vpm:", TOYFLAG_BIN|TOYFLAG_UMASK))
+USE_MKDIR(NEWTOY(mkdir, "<1"USE_MKDIR_Z("Z")"vpm:", TOYFLAG_BIN|TOYFLAG_UMASK))
 
 config MKDIR
   bool "mkdir"
@@ -17,6 +17,15 @@ config MKDIR
     -m	set permissions of directory to mode.
     -p	make parent directories as needed.
     -v	verbose
+
+config MKDIR_Z
+  bool
+  default y
+  depends on MKDIR && !TOYBOX_LSM_NONE
+  help
+    usage: [-Z context]
+
+    -Z	set security context
 */
 
 #define FOR_mkdir
@@ -24,6 +33,7 @@ config MKDIR
 
 GLOBALS(
   char *arg_mode;
+  char *arg_context;
 )
 
 void mkdir_main(void)
@@ -36,7 +46,14 @@ void mkdir_main(void)
 
   // Note, -p and -v flags line up with mkpathat() flags
 
-  for (s=toys.optargs; *s; s++)
+  for (s=toys.optargs; *s; s++) {
     if (mkpathat(AT_FDCWD, *s, mode, toys.optflags|1))
       perror_msg("'%s'", *s);
+    else if (CFG_MKDIR_Z && (toys.optflags & FLAG_Z)) {
+      if (lsm_set_context(*s, TT.arg_context)) {
+        rmdir(*s);
+        error_msg("'%s': bad -Z '%s'", *s, TT.arg_context);
+      }
+    }
+  }
 }
