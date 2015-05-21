@@ -269,7 +269,7 @@ static int do_grep_r(struct dirtree *new)
 
 void grep_main(void)
 {
-  char **ss;
+  char **ss = toys.optargs;
 
   // Handle egrep and fgrep
   if (*toys.which->name == 'e' || (toys.optflags & FLAG_w))
@@ -277,9 +277,9 @@ void grep_main(void)
   if (*toys.which->name == 'f') toys.optflags |= FLAG_F;
 
   if (!TT.e && !TT.f) {
-    if (!*toys.optargs) error_exit("no REGEX");
+    if (!*ss) error_exit("no REGEX");
     TT.e = xzalloc(sizeof(struct arg_list));
-    TT.e->arg = *(toys.optargs++);
+    TT.e->arg = *(ss++);
     toys.optc--;
   }
 
@@ -294,7 +294,7 @@ void grep_main(void)
   }
 
   if (toys.optflags & FLAG_r) {
-    for (ss=toys.optargs; *ss; ss++) {
+    for (ss = *ss ? ss : (char *[]){".", 0}; *ss; ss++) {
       if (!strcmp(*ss, "-")) do_grep(0, *ss);
       else dirtree_read(*ss, do_grep_r);
     }
