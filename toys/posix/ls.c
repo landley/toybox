@@ -438,7 +438,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
              usr, upad, grp, grpad);
 
       if (flags & FLAG_Z)
-        printf("%*s ", -(int)totals[7], (char *)sort[next]->extra);
+        printf(" %*s ", -(int)totals[7], (char *)sort[next]->extra);
 
       if (S_ISCHR(st->st_mode) || S_ISBLK(st->st_mode))
         printf("% *d,% 4d", totals[5]-4, major(st->st_rdev),minor(st->st_rdev));
