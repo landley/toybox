@@ -4,7 +4,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/fold.html
 
-USE_FOLD(NEWTOY(fold, "bsuw#", TOYFLAG_USR|TOYFLAG_BIN))
+USE_FOLD(NEWTOY(fold, "bsuw#<1", TOYFLAG_USR|TOYFLAG_BIN))
 
 config FOLD
   bool "fold"
