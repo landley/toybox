@@ -41,19 +41,15 @@ void mkdir_main(void)
   char **s;
   mode_t mode = (0777&~toys.old_umask);
 
+  if (CFG_MKDIR_Z && (toys.optflags&FLAG_Z))
+    if (0>lsm_set_create(TT.arg_context))
+      error_exit("bad -Z '%s'", TT.arg_context);
 
   if (TT.arg_mode) mode = string_to_mode(TT.arg_mode, 0777);
 
   // Note, -p and -v flags line up with mkpathat() flags
-
   for (s=toys.optargs; *s; s++) {
     if (mkpathat(AT_FDCWD, *s, mode, toys.optflags|1))
       perror_msg("'%s'", *s);
-    else if (CFG_MKDIR_Z && (toys.optflags & FLAG_Z)) {
-      if (lsm_set_context(*s, TT.arg_context)) {
-        rmdir(*s);
-        error_msg("'%s': bad -Z '%s'", *s, TT.arg_context);
-      }
-    }
   }
 }

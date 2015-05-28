@@ -7,6 +7,7 @@
 #include <selinux/selinux.h>
 #else
 #define is_selinux_enabled() 0
+#define setfscreatecon(...) (-1)
 #define getcon(...) (-1)
 #define getfilecon(...) (-1)
 #define lgetfilecon(...) (-1)
@@ -27,6 +28,7 @@
 #define smack_new_label_from_self(...) (-1)
 #define smack_new_label_from_path(...) (-1)
 #define smack_new_label_from_file(...) (-1)
+#define smack_set_label_for_self(...) (-1)
 #define smack_set_label_for_path(...) (-1)
 #define smack_set_label_for_file(...) (-1)
 #endif
@@ -58,6 +60,14 @@ static inline char *lsm_context(void)
   return ok ? result : strdup("?");
 }
 
+// Set default label to apply to newly created stuff (NULL to clear it)
+static inline int lsm_set_create(char *context)
+{
+  if (CFG_TOYBOX_SMACK) return smack_set_label_for_self(context);
+  else return setfscreatecon(context);
+}
+
+// Label a file, following symlinks
 static inline int lsm_set_context(char *filename, char *context)
 {
   if (CFG_TOYBOX_SMACK)
@@ -65,6 +75,7 @@ static inline int lsm_set_context(char *filename, char *context)
   else return setfilecon(filename, context);
 }
 
+// Label a file, don't follow symlinks
 static inline int lsm_lset_context(char *filename, char *context)
 {
   if (CFG_TOYBOX_SMACK)
@@ -72,13 +83,13 @@ static inline int lsm_lset_context(char *filename, char *context)
   else return lsetfilecon(filename, context);
 }
 
+// Label a file by filehandle
 static inline int lsm_fset_context(int file, char *context)
 {
   if (CFG_TOYBOX_SMACK)
     return smack_set_label_for_file(file, XATTR_NAME_SMACK, context);
   else return fsetfilecon(file, context);
 }
-
 
 // returns -1 in case of error or else the length of the context */
 // context can be NULL to get the length only */
