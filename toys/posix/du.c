@@ -3,6 +3,8 @@
  * Copyright 2012 Ashwini Kumar <ak.ashwini@gmail.com>
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/du.html
+ *
+ * TODO: cleanup
 
 USE_DU(NEWTOY(du, "d#<0hmlcaHkKLsx[-HL][-kKmh]", TOYFLAG_USR|TOYFLAG_BIN))
 

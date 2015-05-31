@@ -3,6 +3,8 @@
  * Copyright 2011 Rob Landley <rob@landley.net>
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/xargs.html
+ *
+ * TODO: Rich's whitespace objection, env size isn't fixed anymore.
 
 USE_XARGS(NEWTOY(xargs, "^I:E:L#ptxrn#<1s#0", TOYFLAG_USR|TOYFLAG_BIN))
 

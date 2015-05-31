@@ -1,6 +1,8 @@
 /* modinfo.c - Display module info
  *
  * Copyright 2012 Andre Renaud <andre@bluewatersys.com>
+ *
+ * TODO: cleanup
 
 USE_MODINFO(NEWTOY(modinfo, "<1b:k:F:0", TOYFLAG_BIN))
 

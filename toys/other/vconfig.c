@@ -4,6 +4,8 @@
  * Copyright 2012 Kyungwan Han <asura321@gmail.com>
  *
  * No standard
+ *
+ * TODO: cleanup
 
 USE_VCONFIG(NEWTOY(vconfig, "<2>4", TOYFLAG_NEEDROOT|TOYFLAG_SBIN))
 

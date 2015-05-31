@@ -2,7 +2,9 @@
  *
  * Copyright 2012 Choubey Ji <warior.linux@gmail.com>
  *
- * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/touch.html 
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/touch.html
+ *
+ * TODO: have another go at merging the -t and -d stanzas
 
 USE_TOUCH(NEWTOY(touch, "acd:mr:t:h[!dtr]", TOYFLAG_BIN))
 

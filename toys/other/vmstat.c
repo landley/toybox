@@ -1,6 +1,9 @@
 /* vmstat.c - Report virtual memory statistics.
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
+ *
+ * TODO: I have no idea how the "io" and "system" categories are calculated.
+ * whatever we're doing isn't matching what other implementations are doing.
 
 USE_VMSTAT(NEWTOY(vmstat, ">2n", TOYFLAG_BIN))
 
