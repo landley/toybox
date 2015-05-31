@@ -4,10 +4,10 @@
 
 import subprocess,sys
 
-def readit(args):
+def readit(args, shell=False):
   ret={}
   arr=[]
-  blob=subprocess.Popen(args, stdout=subprocess.PIPE, shell=False)
+  blob=subprocess.Popen(args, stdout=subprocess.PIPE, shell=shell)
   for i in blob.stdout.read().split("\n"):
     if not i: continue
     i=i.split()
@@ -15,36 +15,37 @@ def readit(args):
     arr.extend(i)
   return ret,arr
 
-# Run sed on roadmap and status pages to get command lists, and run toybox too
+# Run sed on roadmap and source to get command lists, and run toybox too
 # This gives us a dictionary of types, each with a list of commands
+
+print "Collecting data..."
 
 stuff,blah=readit(["sed","-n", 's/<span id=\\([a-z_]*\\)>/\\1 /;t good;d;:good;h;:loop;n;s@</span>@@;t out;H;b loop;:out;g;s/\\n/ /g;p', "www/roadmap.html", "www/status.html"])
 blah,toystuff=readit(["./toybox"])
+blah,pending=readit(["sed -n 's/[^ \\t].*TOY(\\([^,]*\\),.*/\\1/p' toys/pending/*.c"], 1)
+blah,version=readit(["git","describe","--tags"])
 
-# Create reverse mappings: command is in which
+print "Analyzing..."
+
+# Create reverse mappings: reverse["command"] gives list of categories it's in
 
 reverse={}
 for i in stuff:
   for j in stuff[i]:
     try: reverse[j].append(i)
     except: reverse[j]=[i]
-
-for i in toystuff:
-  try:
-    if ("ready" in reverse[i]) and ("pending" in reverse[i]): print "barf", i
-  except: pass
-  try:
-    if ("ready" in reverse[i]) or ("pending" in reverse[i]): continue
-  except: pass
-  print "Not ready or pending:", i
-
-pending=[]
-done=[]
-
 print "all commands=%s" % len(reverse)
 
-outfile=open("www/status.gen", "w")
-outfile.write("<a name=all><h2><a href=#all>All commands</a></h2><blockquote><p>\n")
+# Run a couple sanity checks on input
+
+for i in toystuff:
+  if (i in pending): print "barf %s" % i
+
+unknowns=[]
+for i in toystuff + pending:
+  if not i in reverse: unknowns.append(i)
+
+if unknowns: print "uncategorized: %s" % " ".join(unknowns)
 
 conv = [("posix", '<a href="http://pubs.opengroup.org/onlinepubs/9699919799/utilities/%s.html">%%s</a>', "[%s]"),
         ("lsb", '<a href="http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/%s.html">%%s</a>', '&lt;%s&gt;'),
@@ -72,22 +73,38 @@ def categorize(reverse, i, skippy=""):
 
   return linky % out
 
+# Sort/annotate done, pending, and todo item lists
+
+allcmd=[]
+done=[]
+pend=[]
+todo=[]
 blah=list(reverse)
 blah.sort()
 for i in blah:
   out=categorize(reverse, i)
-  if "ready" in reverse[i] or "pending" in reverse[i]:
-    done.append(out)
+  allcmd.append(out)
+  if i in toystuff or i in pending:
+    if i in toystuff: done.append(out)
+    else: pend.append(out)
     out='<strike>%s</strike>' % out
-  else: pending.append(out)
+  else: todo.append(out)
 
-  outfile.write(out+"\n")
+print "implemented=%s" % len(toystuff)
 
-print "done=%s" % len(done)
-outfile.write("</p></blockquote>\n")
+# Write data to output file
 
-outfile.write("<a name=todo><h2><a href=#todo>TODO</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(pending))
-outfile.write("<a name=done><h2><a href=#done>Done</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(done))
+outfile=open("www/status.gen", "w")
+outfile.write("<h1>Status of toybox %s</h1>\n" % version[0]);
+outfile.write("<h3>Legend: [posix] &lt;lsb&gt; (development) {android}\n")
+outfile.write("=klibc= #sash# @sbase@ *beastiebox* $tizen$ +request+ other\n")
+outfile.write("<strike>pending</strike></h3>\n");
+
+outfile.write("<a name=done><h2><a href=#done>Completed</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(done))
+outfile.write("<a name=part><h2><a href=#part>Partially implemented</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(pend))
+outfile.write("<a name=todo><h2><a href=#todo>Not started yet</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(todo))
+
+# Output unfinished commands by category
 
 outfile.write("<hr><h2>Categories of remaining todo items</h2>")
 
@@ -95,8 +112,8 @@ for i in stuff:
   todo = []
 
   for j in stuff[i]:
-    if "ready" in reverse[j]: continue
-    elif "pending" in reverse[j]: todo.append('<strike>%s</strike>' % j)
+    if j in toystuff: continue
+    if j in pending: todo.append('<strike>%s</strike>' % j)
     else: todo.append(categorize(reverse,j,i))
 
   if todo:
@@ -108,3 +125,5 @@ for i in stuff:
     outfile.write("<a name=%s><h2><a href=#%s>%s<a></h2><blockquote><p>" % (i,i,k))
     outfile.write(" ".join(todo))
     outfile.write("</p></blockquote>\n")
+
+outfile.write("<hr><a name=all><h2><a href=#all>All commands together in one big list</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(allcmd))

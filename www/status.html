@@ -2,55 +2,7 @@
 <!--#include file="header.html" -->
 <title>Toybox Status</title>
 
-<h1>How are we doing on implementing stuff so far?</h1>
-
-<p>Legend: [posix] &lt;lsb&gt; (development) {android} =klibc= #sash# @sbase@
-*beastiebox* $tizen$ +request+ other <strike>implemented</strike></p>
-
 <!--#include file="status.gen" -->
-
-<h1>The current status of toybox (as of 0.5.2 release):</h1>
-
-<h3><u>These commands are reasonably finished (in defconfig)</u>:</h3>
-<blockquote><b>
-<span id=ready>
-acpi basename blkid blockdev bzcat cal cat catv chattr chgrp chmod
-chown chvt cksum clear cmp comm count cp cpio date df dirname
-dmesg dos2unix echo egrep eject env factor fallocate false
-fgrep find free freeramdisk fsfreeze fstype grep groups halt head
-help hostname id ifconfig inotifyd insmod install kill killall killall5
-link ln logname losetup ls lsattr lsmod lspci lsusb makedevs
-md5sum mkdir mkfifo mknod mkpasswd mkswap mktemp mount
-mv nbd-client nc netcat nice nl nohup od oneit partprobe passwd paste
-patch pidof pivot_root pmap poweroff printenv pwd pwdx readahead readlink
-realpath reboot renice rev rfkill rm rmdir rmmod seq setsid sha1sum
-sleep sort split stat strings su swapoff swapon switch_root sync sysctl
-tac tail taskset tee time timeout true truncate tty umount uname
-uniq unix2dos unlink unshare uptime usleep uudecode uuencode
-w wc which who whoami yes sed mix base64
-</span>
-</b></blockquote>
-
-<h3><u>These commands are at least partially implemented (in toys/pending)
-but have todo items remaining:</u></h3>
-<blockquote><b>
-<span id=pending>
-ar arp arping bc bootchartd brctl compress crond dhcp dhcpd diff dumpleases
-expr fdisk fold fsck ftpget getty groupadd groupdel host iconv init ip ipcs
-kexec klogd last logger mdev mix mke2fs modprobe more netstat openvt p9d pgrep
-ping printf ps reset route sh sulogin syslogd tar tcpsvd telnet telnetd test
-tftpd top traceroute tr useradd userdel watch xzcat
-</span>
-</b></blockquote>
-
-<h3><u>These commands predate the pending directory but also have unfinished
-todo items:</u></h3>
-
-<blockquote><b>
-<span id=pending>
-vmstat login du vconfig mountpoint chroot cut touch modinfo expand xargs
-</span>
-</b></blockquote>
 
 <p>There is also <a href="todo.txt">a todo list</a>, but development's moved
 on a bit since it was written.</p>
