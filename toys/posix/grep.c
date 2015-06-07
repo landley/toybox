@@ -298,5 +298,5 @@ void grep_main(void)
       if (!strcmp(*ss, "-")) do_grep(0, *ss);
       else dirtree_read(*ss, do_grep_r);
     }
-  } else loopfiles_rw(toys.optargs, O_RDONLY, 0, 1, do_grep);
+  } else loopfiles_rw(ss, O_RDONLY, 0, 1, do_grep);
 }
