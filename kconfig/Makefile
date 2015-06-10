@@ -21,16 +21,16 @@ silentoldconfig: $(obj)/conf $(KCONFIG_TOP)
 	$< -s $(KCONFIG_TOP)
 
 randconfig: $(obj)/conf $(KCONFIG_TOP)
-	$< -r $(KCONFIG_TOP)
+	$< -r $(KCONFIG_TOP) > /dev/null
 
 allyesconfig: $(obj)/conf $(KCONFIG_TOP)
-	$< -y $(KCONFIG_TOP)
+	$< -y $(KCONFIG_TOP) > /dev/null
 
 allnoconfig: $(obj)/conf $(KCONFIG_TOP)
-	$< -n $(KCONFIG_TOP)
+	$< -n $(KCONFIG_TOP) > /dev/null
 
 defconfig: $(obj)/conf $(KCONFIG_TOP)
-	$< -D /dev/null $(KCONFIG_TOP)
+	$< -D /dev/null $(KCONFIG_TOP) > /dev/null
 
 # Help text used by make help
 help::
