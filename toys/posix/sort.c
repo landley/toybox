@@ -386,8 +386,7 @@ void sort_main(void)
     char *s = TT.lines[idx];
     xwrite(fd, s, strlen(s));
     if (CFG_TOYBOX_FREE) free(s);
-    if (CFG_SORT_BIG && (toys.optflags&FLAG_z))
-      xwrite(fd, "\0", 1);
+    if (CFG_SORT_BIG && (toys.optflags&FLAG_z)) xwrite(fd, "\0", 1);
     else xwrite(fd, "\n", 1);
   }
 
