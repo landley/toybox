@@ -251,7 +251,7 @@ void parse_optflaglist(struct getoptflagstate *gof)
 
   if (!*options) gof->stopearly++;
   while (*options) {
-    char *temp;
+    char *temp = "";
 
     // Option groups come after all options are defined
     if (*options == '[') break;
