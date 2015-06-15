@@ -50,13 +50,9 @@ void mknod_main(void)
     minor = atoi(toys.optargs[3]);
   }
 
-  if (mknod(toys.optargs[0], mode | modes[type], makedev(major, minor))) {
-    perror_exit("mknod %s failed", toys.optargs[0]);
-  }
-  else if (CFG_MKNOD_Z && (toys.optflags & FLAG_Z)) {
-    if (lsm_set_context(toys.optargs[0], TT.arg_context) < 0) {
-      unlink(toys.optargs[0]);
-      error_msg("'%s': bad -Z '%s'", toys.optargs[0], TT.arg_context);
-    }
-  }
+  if (toys.optflags & FLAG_Z)
+    if (-1 == lsm_set_create(TT.arg_context))
+      error_exit("bad -Z '%s'", TT.arg_context);
+  if (mknod(*toys.optargs, mode|modes[type], makedev(major, minor)))
+    perror_exit("%s", *toys.optargs);
 }
