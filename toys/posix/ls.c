@@ -320,7 +320,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
   for (sort = 0;;sort = xmalloc(dtlen*sizeof(void *))) {
     for (dtlen = 0, dt = indir->child; dt; dt = dt->next, dtlen++)
       if (sort) sort[dtlen] = dt;
-    if (sort) break;
+    if (sort || !dtlen) break;
   }
 
   // Label directory if not top of tree, or if -R
