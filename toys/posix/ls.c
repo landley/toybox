@@ -415,35 +415,34 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
     if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) {
       struct tm *tm;
-      char perm[11], thyme[64], *usr, *upad, *grp, *grpad;
+      char perm[11], thyme[64], *ss;
 
+      // (long) is to coerce the st types into something we know we can print.
       mode_to_string(mode, perm);
+      printf("%s% *ld", perm, totals[2]+1, (long)st->st_nlink);
 
-      if (flags&FLAG_o) grp = grpad = toybuf+256;
-      else {
-        if (flags&FLAG_n) sprintf(grp = thyme, "%u", (unsigned)st->st_gid);
-        else strwidth(grp = getgroupname(st->st_gid));
-        grpad = toybuf+256-(totals[4]-len[4]);
+      // print group
+      if (!(flags&FLAG_o)) {
+        if (flags&FLAG_n) sprintf(ss = thyme, "%u", (unsigned)st->st_gid);
+        else strwidth(ss = getgroupname(st->st_gid));
+        printf(" %*s", (int)totals[4], ss);
       }
 
-      if (flags&FLAG_g) usr = upad = toybuf+256;
-      else {
-        upad = toybuf+255-(totals[3]-len[3]);
-        if (flags&FLAG_n) sprintf(usr = TT.uid_buf, "%u", (unsigned)st->st_uid);
-        else strwidth(usr = getusername(st->st_uid));
+      if (!(flags&FLAG_g)) {
+        if (flags&FLAG_n) sprintf(ss = thyme, "%u", (unsigned)st->st_uid);
+        else strwidth(ss = getusername(st->st_uid));
+        printf(" %*s", (int)totals[3], ss);
       }
-
-      // Coerce the st types into something we know we can print.
-      printf("%s% *ld %s%s%s%s", perm, totals[2]+1, (long)st->st_nlink,
-             usr, upad, grp, grpad);
 
       if (flags & FLAG_Z)
-        printf(" %*s ", -(int)totals[7], (char *)sort[next]->extra);
+        printf(" %*s", -(int)totals[7], (char *)sort[next]->extra);
 
+      // print major/minor
       if (S_ISCHR(st->st_mode) || S_ISBLK(st->st_mode))
         printf("% *d,% 4d", totals[5]-4, major(st->st_rdev),minor(st->st_rdev));
       else printf("% *lld", totals[5]+1, (long long)st->st_size);
 
+      // print time, always in --time-style=long-iso
       tm = localtime(&(st->st_mtime));
       strftime(thyme, sizeof(thyme), "%F %H:%M", tm);
       xprintf(" %s ", thyme);
