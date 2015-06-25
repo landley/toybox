@@ -86,6 +86,10 @@ testing()
   echo -ne "$5" | eval "$2" > actual
   RETVAL=$?
 
+  # Catch segfaults
+  [ $RETVAL -gt 128 ] && [ $RETVAL -lt 255 ] &&
+    echo "exited with signal (or returned $RETVAL)" >> actual
+ 
   cmp expected actual > /dev/null 2>&1
   if [ $? -ne 0 ]
   then
