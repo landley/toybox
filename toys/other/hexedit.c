@@ -27,50 +27,23 @@ GLOBALS(
   unsigned height;
 )
 
-static void esc(char *s)
-{
-  printf("\033[%s", s);
-}
-
-static void jump(int x, int y)
-{
-  char s[32];
-
-  sprintf(s, "%d;%dH", y+1, x+1);
-  esc(s);
-}
-
-static void fix_terminal(void)
-{
-  set_terminal(1, 0, 0);
-  esc("?25h");
-  esc("0m");
-  jump(0, 999);
-  esc("K");
-}
-
-static void sigttyreset(int i)
-{
-  fix_terminal();
-  // how do I re-raise the signal so it dies with right signal info for wait()?
-  _exit(127);
-}
+#define UNDO_LEN (sizeof(toybuf)/(sizeof(long)+1))
 
 // Render all characters printable, using color to distinguish.
 static void draw_char(char broiled)
 {
   if (broiled<32 || broiled>=127) {
     if (broiled>127) {
-      esc("2m");
+      tty_esc("2m");
       broiled &= 127;
     }
     if (broiled<32 || broiled==127) {
-      esc("7m");
+      tty_esc("7m");
       if (broiled==127) broiled = 32;
       else broiled += 64;
     }
     printf("%c", broiled);
-    esc("0m");
+    tty_esc("0m");
   } else printf("%c", broiled);
 }
 
@@ -79,8 +52,8 @@ static void draw_tail(void)
   int i = 0, width = 0, w, len;
   char *start = *toys.optargs, *end;
 
-  jump(0, TT.height);
-  esc("K");
+  tty_jump(0, TT.height);
+  tty_esc("K");
 
   // First time, make sure we fit in 71 chars (advancing start as necessary).
   // Second time, print from start to end, escaping nonprintable chars.
@@ -122,14 +95,14 @@ static void draw_line(long long yy)
     for (x=0; x<xx; x++) draw_char(TT.data[yy+x]);
     printf("%*s", 16-xx, "");
   }
-  esc("K");
+  tty_esc("K");
 }
 
 static void draw_page(void)
 {
   int y;
 
-  jump(0, 0);
+  tty_jump(0, 0);
   for (y = 0; y<TT.height; y++) {
     if (y) printf("\r\n");
     draw_line(y);
@@ -144,55 +117,42 @@ static void highlight(int xx, int yy, int side)
   int i;
 
   // Display cursor
-  jump(2+TT.numlen+3*xx, yy);
-  esc("0m");
-  if (side!=2) esc("7m");
+  tty_jump(2+TT.numlen+3*xx, yy);
+  tty_esc("0m");
+  if (side!=2) tty_esc("7m");
   if (side>1) printf("%02X", cc);
   else for (i=0; i<2;) {
-    if (side==i) esc("32m");
+    if (side==i) tty_esc("32m");
     printf("%X", (cc>>(4*(1&++i)))&15);
   }
-  esc("0m");
-  jump(TT.numlen+17*3+xx, yy);
+  tty_esc("0m");
+  tty_jump(TT.numlen+17*3+xx, yy);
   draw_char(cc);
 }
 
-#define KEY_UP 256
-#define KEY_DOWN 257
-#define KEY_RIGHT 258
-#define KEY_LEFT 259
-#define KEY_PGUP 260
-#define KEY_PGDN 261
-#define KEY_HOME 262
-#define KEY_END  263
-#define KEY_INSERT 264
-
 void hexedit_main(void)
 {
-  // up down right left pgup pgdn home end ins
-  char *keys[] = {"\033[A", "\033[B", "\033[C", "\033[D", "\033[5~", "\033[6~",
-                  "\033OH", "\033OF", "\033[2~", 0};
   long long pos;
   int x, y, i, side = 0, key, ro = toys.optflags&FLAG_r,
       fd = xopen(*toys.optargs, ro ? O_RDONLY : O_RDWR);
 
+  // Terminal setup
   TT.height = 25;
   terminal_size(0, &TT.height);
   if (TT.height) TT.height--;
-  sigatexit(sigttyreset);
-  esc("0m");
-  esc("?25l");
+  sigatexit(tty_sigreset);
+  tty_esc("0m");
+  tty_esc("?25l");
   fflush(0);
   set_terminal(1, 1, 0);
 
   if ((TT.len = fdlength(fd))<0) error_exit("bad length");
   if (sizeof(long)==32 && TT.len>SIZE_MAX) TT.len = SIZE_MAX;
-  // count file length hex digits, rounded up to multiple of 4
+  // count file length hex in digits, rounded up to multiple of 4
   for (pos = TT.len, TT.numlen = 0; pos; pos >>= 4, TT.numlen++);
   TT.numlen += (4-TT.numlen)&3;
 
   TT.data = mmap(0, TT.len, PROT_READ|(PROT_WRITE*!ro), MAP_SHARED, fd, 0);
-
   draw_page();
 
   y = x = 0;
@@ -210,7 +170,7 @@ void hexedit_main(void)
     xprintf("");
 
     // Wait for next key
-    key = scan_key(toybuf, keys, 1);
+    key = scan_key(toybuf, 1);
     // Exit for q, ctrl-c, ctrl-d, escape, or EOF
     if (key==-1 || key==3 || key==4 || key==27 || key=='q') break;
     highlight(x, y, 2);
@@ -239,9 +199,9 @@ void hexedit_main(void)
       if (--y<0) {
         if (TT.base) {
           TT.base--;
-          esc("1T");
+          tty_esc("1T");
           draw_tail();
-          jump(0, 0);
+          tty_jump(0, 0);
           draw_line(0);
         }
         y = 0;
@@ -250,8 +210,8 @@ void hexedit_main(void)
       if (y == TT.height-1 && (pos|15)+1<TT.len) {
 down:
         TT.base++;
-        esc("1S");
-        jump(0, TT.height-1);
+        tty_esc("1S");
+        tty_jump(0, TT.height-1);
         draw_line(TT.height-1);
         draw_tail();
       }
@@ -282,5 +242,5 @@ down:
   }
   munmap(TT.data, TT.len);
   close(fd);
-  fix_terminal();
+  tty_reset();
 }

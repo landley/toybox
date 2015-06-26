@@ -81,13 +81,15 @@ int set_terminal(int fd, int raw, struct termios *old)
 }
 
 // Scan stdin for a keypress, parsing known escape sequences
-// seqs is array of char * strings, ends with NULL ptr
 // Returns: 0-255=literal, -1=EOF, -2=NONE, 256-...=index into seq
 // scratch space is necessary because last char of !seq could start new seq
 // Zero out first byte of scratch before first call to scan_key
 // block=0 allows fetching multiple characters before updating display
-int scan_key(char *scratch, char **seqs, int block)
+int scan_key(char *scratch, int block)
 {
+  // up down right left pgup pgdn home end ins
+  char *seqs[] = {"\033[A", "\033[B", "\033[C", "\033[D", "\033[5~", "\033[6~",
+                  "\033OH", "\033OF", "\033[2~", 0};
   struct pollfd pfd;
   int maybe, i, j;
   char *test;
@@ -130,4 +132,32 @@ int scan_key(char *scratch, char **seqs, int block)
   if (--*scratch) memmove(scratch+1, scratch+2, *scratch);
 
   return i;
+}
+
+void tty_esc(char *s)
+{
+  printf("\033[%s", s);
+}
+
+void tty_jump(int x, int y)
+{
+  char s[32];
+
+  sprintf(s, "%d;%dH", y+1, x+1);
+  tty_esc(s);
+}
+
+void tty_reset(void)
+{
+  set_terminal(1, 0, 0);
+  tty_esc("?25h");
+  tty_esc("0m");
+  tty_jump(0, 999);
+  tty_esc("K");
+}
+
+void tty_sigreset(int i)
+{
+  tty_reset();
+  _exit(128+i);
 }
