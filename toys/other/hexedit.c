@@ -132,8 +132,8 @@ static void highlight(int xx, int yy, int side)
 
 void hexedit_main(void)
 {
-  long long pos;
-  int x, y, i, side = 0, key, ro = toys.optflags&FLAG_r,
+  long long pos = 0, y;
+  int x, i, side = 0, key, ro = toys.optflags&FLAG_r,
       fd = xopen(*toys.optargs, ro ? O_RDONLY : O_RDWR);
 
   // Terminal setup
@@ -155,17 +155,42 @@ void hexedit_main(void)
   TT.data = mmap(0, TT.len, PROT_READ|(PROT_WRITE*!ro), MAP_SHARED, fd, 0);
   draw_page();
 
-  y = x = 0;
   for (;;) {
-    // Get position within file, trimming if we overshot end.
-    pos = 16*(TT.base+y)+x;
-    if (pos>=TT.len) {
-      pos = TT.len-1;
-      x = pos&15;
-      y = (pos/16)-TT.base;
-    }
+    // Scroll display if necessary
+    if (pos<0) pos = 0;
+    if (pos>TT.len) pos = TT.len-1;
+    x = pos&15;
+    y = pos/16;
 
-    // Display cursor
+    i = 0;
+    while (y<TT.base) {
+      if (TT.base-y>(TT.height/2)) {
+        TT.base = y;
+        draw_page();
+      } else {
+        TT.base--;
+        i++;
+        tty_esc("1T");
+        tty_jump(0, 0);
+        draw_line(0);
+      }
+    }
+    while (y>=TT.base+TT.height) {
+      if (y-(TT.base+TT.height)>(TT.height/2)) {
+        TT.base = y-TT.height-1;
+        draw_page();
+      } else {
+        TT.base++;
+        i++;
+        tty_esc("1S");
+        tty_jump(0, TT.height-1);
+        draw_line(TT.height-1);
+      }
+    }
+    if (i) draw_tail();
+    y -= TT.base;
+
+    // Display cursor and flush output
     highlight(x, y, ro ? 3 : side);
     xprintf("");
 
@@ -185,60 +210,20 @@ void hexedit_main(void)
       highlight(x, y, ++side);
       if (side==2) {
         side = 0;
-        if (++pos<TT.len && ++x==16) {
-          x = 0;
-          if (++y == TT.height) {
-            --y;
-            goto down;
-          }
-        }
+        ++pos;
       }
     }
     if (key>255) side = 0;
-    if (key==KEY_UP) {
-      if (--y<0) {
-        if (TT.base) {
-          TT.base--;
-          tty_esc("1T");
-          draw_tail();
-          tty_jump(0, 0);
-          draw_line(0);
-        }
-        y = 0;
-      }
-    } else if (key==KEY_DOWN) {
-      if (y == TT.height-1 && (pos|15)+1<TT.len) {
-down:
-        TT.base++;
-        tty_esc("1S");
-        tty_jump(0, TT.height-1);
-        draw_line(TT.height-1);
-        draw_tail();
-      }
-      if (++y>=TT.height) y--;
-    } else if (key==KEY_RIGHT) {
-      if (x<15 && pos+1<TT.len) x++;
+    if (key==KEY_UP) pos -= 16;
+    else if (key==KEY_DOWN) pos += 16;
+    else if (key==KEY_RIGHT) {
+      if (x<15) pos++;
     } else if (key==KEY_LEFT) {
-      if (x) x--;
-    } else if (key==KEY_PGUP) {
-      TT.base -= TT.height;
-      if (TT.base<0) TT.base = 0;
-      draw_page();
-    } else if (key==KEY_PGDN) {
-      TT.base += TT.height;
-      if ((TT.base*16)>=TT.len) TT.base=(TT.len-1)/16;
-      while ((TT.base+y)*16>=TT.len) y--;
-      if (16*(TT.base+y)+x>=TT.len) x = (TT.len-1)&15;
-      draw_page();
-    } else if (key==KEY_HOME) {
-      TT.base = 0;
-      x = 0;
-      draw_page();
-    } else if (key==KEY_END) {
-      TT.base=(TT.len-1)/16;
-      x = (TT.len-1)&15;
-      draw_page();
-    }
+      if (x) pos--;
+    } else if (key==KEY_PGUP) pos -= 16*TT.height;
+    else if (key==KEY_PGDN) pos += 16*TT.height;
+    else if (key==KEY_HOME) pos = 0;
+    else if (key==KEY_END) pos = TT.len-1;
   }
   munmap(TT.data, TT.len);
   close(fd);
