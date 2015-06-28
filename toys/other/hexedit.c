@@ -23,11 +23,11 @@ config HEXEDIT
 GLOBALS(
   char *data;
   long long len, base;
-  int numlen;
+  int numlen, undo, undolen;
   unsigned height;
 )
 
-#define UNDO_LEN (sizeof(toybuf)/(sizeof(long)+1))
+#define UNDO_LEN (sizeof(toybuf)/(sizeof(long long)+1))
 
 // Render all characters printable, using color to distinguish.
 static void draw_char(char broiled)
@@ -135,6 +135,7 @@ void hexedit_main(void)
   long long pos = 0, y;
   int x, i, side = 0, key, ro = toys.optflags&FLAG_r,
       fd = xopen(*toys.optargs, ro ? O_RDONLY : O_RDWR);
+  char keybuf[16];
 
   // Terminal setup
   TT.height = 25;
@@ -195,26 +196,44 @@ void hexedit_main(void)
     xprintf("");
 
     // Wait for next key
-    key = scan_key(toybuf, 1);
+    key = scan_key(keybuf, 1);
     // Exit for q, ctrl-c, ctrl-d, escape, or EOF
     if (key==-1 || key==3 || key==4 || key==27 || key=='q') break;
     highlight(x, y, 2);
 
+    // Hex digit?
     if (key>='a' && key<='f') key-=32;
     if (!ro && ((key>='0' && key<='9') || (key>='A' && key<='F'))) {
+      if (!side) {
+        long long *ll = (long long *)toybuf;
+
+        ll[TT.undo] = pos;
+        toybuf[(sizeof(long long)*UNDO_LEN)+TT.undo++] = TT.data[pos];
+        if (TT.undolen < UNDO_LEN) TT.undolen++;
+        TT.undo %= UNDO_LEN;
+      }
+
       i = key - '0';
       if (i>9) i -= 7;
       TT.data[pos] &= 15<<(4*side);
       TT.data[pos] |= i<<(4*!side);
 
-      highlight(x, y, ++side);
-      if (side==2) {
+      if (++side==2) {
+        highlight(x, y, side);
         side = 0;
         ++pos;
       }
-    }
-    if (key>255) side = 0;
-    if (key==KEY_UP) pos -= 16;
+    } else side = 0;
+    if (key=='u') {
+      if (TT.undolen) {
+        long long *ll = (long long *)toybuf;
+
+        TT.undolen--;
+        if (!TT.undo) TT.undo = UNDO_LEN;
+        pos = ll[--TT.undo];
+        TT.data[pos] = toybuf[sizeof(long long)*UNDO_LEN+TT.undo];
+      }
+    } else if (key==KEY_UP) pos -= 16;
     else if (key==KEY_DOWN) pos += 16;
     else if (key==KEY_RIGHT) {
       if (x<15) pos++;
