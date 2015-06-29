@@ -4,15 +4,24 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/mkfifo.html
 
-USE_MKFIFO(NEWTOY(mkfifo, "<1m:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_MKFIFO(NEWTOY(mkfifo, "<1"USE_MKFIFO_Z("Z")"m:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config MKFIFO
   bool "mkfifo"
   default y
   help
-    usage: mkfifo [fifo_name...]
+    usage: mkfifo [NAME...]
 
     Create FIFOs (named pipes).
+
+config MKFIFO_Z
+  bool
+  default y
+  depends on MKFIFO && !TOYBOX_LSM_NONE
+  help
+    usage: mkfifo [-Z CONTEXT]
+
+    -Z	Security context
 */
 
 #define FOR_mkfifo
@@ -20,6 +29,8 @@ config MKFIFO
 
 GLOBALS(
   char *m_string;
+  char *Z;
+
   mode_t mode;
 )
 
@@ -29,6 +40,10 @@ void mkfifo_main(void)
 
   TT.mode = 0666;
   if (toys.optflags & FLAG_m) TT.mode = string_to_mode(TT.m_string, 0);
+
+  if (CFG_MKFIFO_Z && (toys.optflags&FLAG_Z))
+    if (0>lsm_set_create(TT.Z))
+      error_exit("bad -Z '%s'", TT.Z);
 
   for (s = toys.optargs; *s; s++)
     if (mknod(*s, S_IFIFO | TT.mode, 0) < 0) perror_msg("%s", *s);
