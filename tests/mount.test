@@ -82,6 +82,10 @@ testing "mount -o ro $tmp_b_fs /mnt" \
   "mount -o ro $tmp_b_fs /mnt >/dev/null 2>&1 &&
    mkdir /mnt/testDir 2>/dev/null || sleep 1 && umount /mnt" "" "" ""
 reCreateTmpFs
+testing "mount -o ro,remount $tmp_b_fs /mnt" \
+  "mount -o ro $tmp_b_fs /mnt >/dev/null 2>&1 &&
+   mkdir /mnt/testDir 2>/dev/null || sleep 1 && umount /mnt" "" "" ""
+reCreateTmpFs
 
 umount testDir1
 rm -f $tmp_b_fs
