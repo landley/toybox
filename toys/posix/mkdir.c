@@ -43,7 +43,7 @@ void mkdir_main(void)
 
   if (CFG_MKDIR_Z && (toys.optflags&FLAG_Z))
     if (0>lsm_set_create(TT.arg_context))
-      error_exit("bad -Z '%s'", TT.arg_context);
+      perror_exit("-Z '%s' failed", TT.arg_context);
 
   if (TT.arg_mode) mode = string_to_mode(TT.arg_mode, 0777);
 

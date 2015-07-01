@@ -43,7 +43,7 @@ void mkfifo_main(void)
 
   if (CFG_MKFIFO_Z && (toys.optflags&FLAG_Z))
     if (0>lsm_set_create(TT.Z))
-      error_exit("bad -Z '%s'", TT.Z);
+      perror_exit("-Z '%s' failed", TT.Z);
 
   for (s = toys.optargs; *s; s++)
     if (mknod(*s, S_IFIFO | TT.mode, 0) < 0) perror_msg("%s", *s);
