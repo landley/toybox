@@ -60,11 +60,6 @@ struct cpu_info {
   unsigned long long total;
 };
 
-enum CODE{
-  KEY_UP = 0x100, KEY_DOWN, KEY_HOME,
-  KEY_END, KEY_PAGEUP, KEY_PAGEDN,
-};
-
 struct keycode_map_s {
   char *key;
   int code;
@@ -208,8 +203,8 @@ static int get_key_code(char *ch, int i)
   };       
 
   static struct keycode_map_s type3[] = {
-    {"[1~", KEY_HOME}, {"[4~", KEY_END}, {"[5~", KEY_PAGEUP},
-    {"[6~", KEY_PAGEDN}, {"[7~", KEY_HOME}, {"[8~", KEY_END},
+    {"[1~", KEY_HOME}, {"[4~", KEY_END}, {"[5~", KEY_PGUP},
+    {"[6~", KEY_PGDN}, {"[7~", KEY_HOME}, {"[8~", KEY_END},
     {NULL, 0}
   };
   struct keycode_map_s *table, *keytable[3] = {type2, type3, NULL};
@@ -833,10 +828,10 @@ void top_main(void )
       case  KEY_END:
         TT.scroll_offset = TT.num_new_procs - TT.rows/2;
         break;
-      case KEY_PAGEUP:
+      case KEY_PGUP:
         TT.scroll_offset -= TT.rows/2;
         break;
-      case KEY_PAGEDN: 
+      case KEY_PGDN:
         TT.scroll_offset += TT.rows/2;
         break;
     }
