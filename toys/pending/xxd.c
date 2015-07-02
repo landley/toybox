@@ -2,11 +2,13 @@
  *
  * Copyright 2015 The Android Open Source Project
  *
+ * No obvious standard, output looks like:
+ * 0000000: 4c69 6e75 7820 7665 7273 696f 6e20 332e  Linux version 3.
+ *
  * TODO: support for reversing a hexdump back into the original data.
- * TODO: support > 4GiB files?
  * TODO: -s seek
 
-USE_XXD(NEWTOY(xxd, ">1c#<0=16l#g#<0=2", TOYFLAG_USR|TOYFLAG_BIN))
+USE_XXD(NEWTOY(xxd, ">1c#<1>4096=16l#g#<1=2", TOYFLAG_USR|TOYFLAG_BIN))
 
 config XXD
   bool "xxd"
@@ -25,58 +27,39 @@ config XXD
 #define FOR_xxd
 #include "toys.h"
 
-static const char* hex_digits = "0123456789abcdef";
-
 GLOBALS(
-  long bytes_per_group; // -g
-  long limit;           // -l
-  long bytes_per_line;  // -c
+  long g;
+  long l;
+  long c;
 )
 
-static void xxd_file(FILE *fp)
+static void do_xxd(int fd, char *name)
 {
-  // "0000000: 4c69 6e75 7820 7665 7273 696f 6e20 332e  Linux version 3.".
-  size_t hex_size = 8 + 2 +
-      2*TT.bytes_per_line + TT.bytes_per_line/TT.bytes_per_group + 1;
-  size_t line_size = hex_size + TT.bytes_per_line + 1;
-  char *line = xmalloc(line_size);
-  int offset = 0, bytes_this_line = 0, index = 0, ch;
+  long long pos = 0;
+  int i, len, space;
 
-  memset(line, ' ', line_size);
-  line[line_size - 1] = 0;
+  while (0<(len = readall(fd, toybuf, (TT.l && TT.l-pos<TT.c)?TT.l-pos:TT.c))) {
+    printf("%08llx: ", pos);
+    pos += len;
+    space = 2*TT.c+TT.c/TT.g+1;
 
-  while ((ch = getc(fp)) != EOF) {
-    if (!bytes_this_line) index = sprintf(line, "%08x: ", offset);
-    ++offset;
+    for (i=0; i<len;) {
+      space -= printf("%02x", toybuf[i]);
+      if (!(++i%TT.g)) {
+        putchar(' ');
+        space--;
+      }
+    }
 
-    line[index++] = hex_digits[(ch >> 4) & 0xf];
-    line[index++] = hex_digits[ch & 0xf];
-    line[hex_size + bytes_this_line] = (ch >= ' ' && ch <= '~') ? ch : '.';
-
-    ++bytes_this_line;
-    if (bytes_this_line == TT.bytes_per_line) {
-      puts(line);
-      memset(line, ' ', line_size - 1);
-      bytes_this_line = 0;
-    } else if (!(bytes_this_line % TT.bytes_per_group)) line[index++] = ' ';
-    if ((toys.optflags & FLAG_l) && offset == TT.limit) break;
+    printf("%*s", space, "");
+    for (i=0; i<len; i++)
+      putchar((toybuf[i]>=' ' && toybuf[i]<='~') ? toybuf[i] : '.');
+    putchar('\n');
   }
-  if (bytes_this_line) {
-    line[hex_size + bytes_this_line] = 0;
-    puts(line);
-  }
-
-  if (CFG_FREE) free(line);
+  if (len<0) perror_exit("read");
 }
 
 void xxd_main(void)
 {
-  FILE *fp;
-
-  if (!*toys.optargs || !strcmp(*toys.optargs, "-")) fp = stdin;
-  else fp = xfopen(*toys.optargs, "r");
-
-  xxd_file(fp);
-
-  fclose(fp);
+  loopfiles(toys.optargs, do_xxd);
 }
