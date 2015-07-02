@@ -1,0 +1,28 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+echo "this is some text" > file1
+echo -n > file2
+
+# Note that the xxd in vim-common on Ubuntu 14 uses %07x for the file offset.
+
+testing "xxd file1" "xxd file1" \
+    "00000000: 7468 6973 2069 7320 736f 6d65 2074 6578  this is some tex\n00000010: 740a                                     t.\n" \
+    "" ""
+testing "xxd file1 -l" "xxd -l 2 file1" \
+    "00000000: 7468                                     th\n" \
+    "" ""
+testing "xxd file2" "xxd file2" "" "" ""
+testing "xxd -" "xxd -" \
+    "00000000: 6865 6c6c 6f                             hello\n" "" "hello"
+testing "xxd" "xxd" \
+    "00000000: 776f 726c 64                             world\n" "" "world"
+testing "xxd -c 8 -g 4 file1" "xxd -c 8 -g 4 file1" \
+    "00000000: 74686973 20697320  this is \n00000008: 736f6d65 20746578  some tex\n00000010: 740a               t.\n" "" ""
+testing "xxd -c 8 -g 3 file1" "xxd -c 8 -g 3 file1" \
+    "00000000: 746869 732069 7320 this is \n00000008: 736f6d 652074 6578 some tex\n00000010: 740a               t.\n" "" ""
+
+rm file1 file2
