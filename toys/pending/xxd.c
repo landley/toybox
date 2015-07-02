@@ -6,7 +6,7 @@
  * TODO: support > 4GiB files?
  * TODO: -s seek
 
-USE_XXD(NEWTOY(xxd, ">1c#l#g#", TOYFLAG_USR|TOYFLAG_BIN))
+USE_XXD(NEWTOY(xxd, ">1c#<0=16l#g#<0=2", TOYFLAG_USR|TOYFLAG_BIN))
 
 config XXD
   bool "xxd"
@@ -29,8 +29,8 @@ static const char* hex_digits = "0123456789abcdef";
 
 GLOBALS(
   long bytes_per_group; // -g
-  long limit; // -l
-  long bytes_per_line; // -c
+  long limit;           // -l
+  long bytes_per_line;  // -c
 )
 
 static void xxd_file(FILE *fp)
@@ -40,20 +40,17 @@ static void xxd_file(FILE *fp)
       2*TT.bytes_per_line + TT.bytes_per_line/TT.bytes_per_group + 1;
   size_t line_size = hex_size + TT.bytes_per_line + 1;
   char *line = xmalloc(line_size);
-  int offset = 0;
-  int bytes_this_line = 0;
-  int line_index = 0;
-  int ch;
+  int offset = 0, bytes_this_line = 0, index = 0, ch;
 
   memset(line, ' ', line_size);
   line[line_size - 1] = 0;
 
   while ((ch = getc(fp)) != EOF) {
-    if (bytes_this_line == 0) line_index = sprintf(line, "%08x: ", offset);
+    if (!bytes_this_line) index = sprintf(line, "%08x: ", offset);
     ++offset;
 
-    line[line_index++] = hex_digits[(ch >> 4) & 0xf];
-    line[line_index++] = hex_digits[ch & 0xf];
+    line[index++] = hex_digits[(ch >> 4) & 0xf];
+    line[index++] = hex_digits[ch & 0xf];
     line[hex_size + bytes_this_line] = (ch >= ' ' && ch <= '~') ? ch : '.';
 
     ++bytes_this_line;
@@ -61,14 +58,10 @@ static void xxd_file(FILE *fp)
       puts(line);
       memset(line, ' ', line_size - 1);
       bytes_this_line = 0;
-    } else if ((bytes_this_line % TT.bytes_per_group) == 0) {
-      line[line_index++] = ' ';
-    }
-    if ((toys.optflags & FLAG_l) && offset == TT.limit) {
-      break;
-    }
+    } else if (!(bytes_this_line % TT.bytes_per_group)) line[index++] = ' ';
+    if ((toys.optflags & FLAG_l) && offset == TT.limit) break;
   }
-  if (bytes_this_line != 0) {
+  if (bytes_this_line) {
     line[hex_size + bytes_this_line] = 0;
     puts(line);
   }
@@ -79,14 +72,6 @@ static void xxd_file(FILE *fp)
 void xxd_main(void)
 {
   FILE *fp;
-
-  if (!TT.bytes_per_line) TT.bytes_per_line = 16;
-  else if (TT.bytes_per_line < 0)
-    error_exit("invalid -c value: %d", TT.bytes_per_line);
-
-  if (!TT.bytes_per_group) TT.bytes_per_group = 2;
-  else if (TT.bytes_per_group < 0)
-    error_exit("invalid -g value: %d", TT.bytes_per_group);
 
   if (!*toys.optargs || !strcmp(*toys.optargs, "-")) fp = stdin;
   else fp = xfopen(*toys.optargs, "r");
