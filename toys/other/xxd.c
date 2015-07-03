@@ -12,7 +12,7 @@ USE_XXD(NEWTOY(xxd, ">1c#<1>4096=16l#g#<1=2", TOYFLAG_USR|TOYFLAG_BIN))
 
 config XXD
   bool "xxd"
-  default n
+  default y
   help
     usage: xxd [-c n] [-g n] [-l n] [file]
 
