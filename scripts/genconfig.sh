@@ -83,6 +83,12 @@ EOF
     #error nope
     #endif
 EOF
+
+  # nommu support
+  probesymbol TOYBOX_FORK << EOF
+    #include <unistd.h>
+    int main(int argc, char *argv[]) { return fork(); }
+EOF
 }
 
 genconfig()
