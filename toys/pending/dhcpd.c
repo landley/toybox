@@ -4,15 +4,16 @@
  * Copyright 2013 Kyungwan Han <asura321@gamil.com>
  *
  * No Standard
-USE_DHCPD(NEWTOY(dhcpd, ">1P#<0>65535=67fS", TOYFLAG_SBIN|TOYFLAG_ROOTONLY))
+USE_DHCPD(NEWTOY(dhcpd, ">1P#<0>65535=67fi:S", TOYFLAG_SBIN|TOYFLAG_ROOTONLY))
 
 config DHCPD
   bool "dhcpd"
   default n
   help
-   usage: dhcpd [-fS] [-P N] [CONFFILE]
+   usage: dhcpd [-fS] [-i IFACE] [-P N] [CONFFILE]
 
     -f    Run in foreground
+    -i    Interface to use
     -S    Log to syslog too
     -P N  Use port N (default 67)
 
@@ -79,6 +80,7 @@ config DEBUG_DHCP
 #define DHCP_OPT_END                              0xff
 
 GLOBALS(
+    char *iface;
     long port;
 );
 
@@ -1104,7 +1106,7 @@ void dhcpd_main(void)
   write_pid(gconfig.pidfile);
   set_maxlease();
   read_leasefile();
-
+  if(TT.iface) gconfig.interface = TT.iface;
   if (get_interface(gconfig.interface, &gconfig.ifindex, &gconfig.server_nip,
         gconfig.server_mac)<0)
     perror_exit("Failed to get interface %s", gconfig.interface);
