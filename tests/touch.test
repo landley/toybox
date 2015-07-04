@@ -11,14 +11,20 @@ testing "touch -c" "touch -c walrus && [ -e walrus ] && echo yes" "yes\n" "" ""
 testing "touch -c missing" "touch -c warrus && [ ! -e warrus ] && echo yes" \
   "yes\n" "" ""
 
-# This isn't testing fraction of a second because I dunno how to read it back
-
 testing "touch -d" \
-  "touch -d 2009-02-13T23:31:30.12Z walrus && date -r walrus +%s.%N" "1234567890\n" \
-  "" ""
-#testing "touch -t" "touch -t 200902132331.42
-#testing "touch -r"
+  "touch -d 2009-02-13T23:31:30Z walrus && date -r walrus +%s" \
+  "1234567890\n" "" ""
+
+testing "touch -d nanoseconds" \
+  "touch -d 2009-02-13T23:31:30.123456789Z walrus && date -r walrus +%s.%N" \
+  "1234567890.123456789\n" "" ""
+
+testing "touch -r" \
+  "touch -r walrus walrus2 && date -r walrus2 +%s.%N" \
+   "1234567890.123456789\n" "" ""
+
 #testing "touch -a"
 #testing "touch -m"
 #testing "touch -am"
-rm walrus
+#testing "touch -t"
+rm walrus walrus2

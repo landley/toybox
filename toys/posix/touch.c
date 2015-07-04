@@ -62,6 +62,7 @@ void touch_main(void)
           localtime_r(&(ts->tv_sec), &tm);
         }
         s = strptime(date, "%Y-%m-%dT%T", &tm);
+        ts->tv_nsec = 0;
         if (s && *s=='.' && isdigit(s[1])) 
           sscanf(s, ".%lu%n", &ts->tv_nsec, &len);
         else len = 0;
@@ -79,6 +80,7 @@ void touch_main(void)
         if (s) break;
         toybuf[1]='y';
       }
+      ts->tv_nsec = 0;
       if (s && *s=='.' && sscanf(s, ".%2u%n", &(tm.tm_sec), &len) == 1) {
         sscanf(s += len, "%lu%n", &ts->tv_nsec, &len);
         len++;
