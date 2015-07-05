@@ -33,7 +33,7 @@ config SORT_BIG
     -M	month sort (jan, feb, etc).
     -x	Hexadecimal numerical sort
     -s	skip fallback sort (only sort with keys)
-    -z	zero (null) terminated input
+    -z	zero (null) terminated lines
     -k	sort by "key" (see below)
     -t	use a key separator other than whitespace
     -o	output to FILE instead of stdout
@@ -384,9 +384,11 @@ void sort_main(void)
   // Output result
   for (idx = 0; idx<TT.linecount; idx++) {
     char *s = TT.lines[idx];
-    xwrite(fd, s, strlen(s));
+    int i = strlen(s);
+
+    if (!(toys.optflags&FLAG_z)) s[i] = '\n';
+    xwrite(fd, s, i+1);
     if (CFG_TOYBOX_FREE) free(s);
-    xwrite(fd, "\n", 1);
   }
 
 exit_now:
