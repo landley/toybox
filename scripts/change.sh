@@ -14,6 +14,7 @@ mkdir -p "$PREFIX" || exit 1
 
 for i in $(generated/instlist | egrep -vw "sh|help")
 do
-  echo -n "$i " &&
-  scripts/single.sh $i > /dev/null || touch $PREFIX/${i}.bad
+  echo -n " $i" &&
+  scripts/single.sh $i > /dev/null 2>$PREFIX/${i}.bad &&
+    rm $PREFIX/${i}.bad || echo -n '*'
 done
