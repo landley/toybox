@@ -384,7 +384,7 @@ void sort_main(void)
   // Output result
   for (idx = 0; idx<TT.linecount; idx++) {
     char *s = TT.lines[idx];
-    int i = strlen(s);
+    unsigned i = strlen(s);
 
     if (!(toys.optflags&FLAG_z)) s[i] = '\n';
     xwrite(fd, s, i+1);
