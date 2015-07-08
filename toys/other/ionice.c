@@ -52,7 +52,9 @@ static int ioprio_get(void)
 
 static int ioprio_set(void)
 {
-  return syscall(__NR_ioprio_set, 1, (int)TT.pid, (int)TT.class, (int)TT.level);
+  int prio = ((int)TT.class << 13) | (int)TT.level;
+
+  return syscall(__NR_ioprio_set, 1, (int)TT.pid, prio);
 }
 
 void ionice_main(void)
@@ -65,7 +67,7 @@ void ionice_main(void)
       p&7);
   } else {
     if (-1 == ioprio_set() && !(toys.optflags&FLAG_t)) perror_exit("set");
-    if (TT.pid) xexec(toys.optargs);
+    if (!TT.pid) xexec(toys.optargs);
   }
 }
 
