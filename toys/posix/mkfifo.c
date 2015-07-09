@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/mkfifo.html
 
-USE_MKFIFO(NEWTOY(mkfifo, "<1"USE_MKFIFO_Z("Z")"m:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_MKFIFO(NEWTOY(mkfifo, "<1"USE_MKFIFO_Z("Z:")"m:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config MKFIFO
   bool "mkfifo"
