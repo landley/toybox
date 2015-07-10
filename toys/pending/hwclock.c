@@ -90,7 +90,7 @@ void hwclock_main()
 
       xioctl(fd, RTC_RD_TIME, &tm);
       if (TT.utc) s = xtzset("UTC0");
-      if ((time = mktime(&tm)) < 0) goto bad;
+      if ((time = mktime(&tm)) < 0) error_exit("mktime failed");
       if (TT.utc) {
         free(xtzset(s));
         free(s);
@@ -98,16 +98,18 @@ void hwclock_main()
     }
   }
 
-  if (toys.optflags & (FLAG_w|FLAG_t))
-    if (gettimeofday(&timeval, 0)
-        || (TT.utc ? gmtime_r : localtime_r)(&timeval.tv_sec, &tm)) goto bad;
+  if (toys.optflags & (FLAG_w|FLAG_t)) {
+    if (gettimeofday(&timeval, 0)) perror_exit("gettimeofday failed");
+    if (!(TT.utc ? gmtime_r : localtime_r)(&timeval.tv_sec, &tm))
+      error_exit(TT.utc ? "gmtime_r failed" : "localtime_r failed");
+  }
 
   if (toys.optflags & FLAG_w) {
     /* The value of tm_isdst will positive if daylight saving time is in effect,
      * zero if it is not and negative if the information is not available. 
      * todo: so why isn't this negative...? */
     tm.tm_isdst = 0;
-    xioctl(fd, RTC_SET_TIME, &time);
+    xioctl(fd, RTC_SET_TIME, &tm);
   } else if (toys.optflags & FLAG_s) {
     tzone.tz_minuteswest = timezone / 60 - 60 * daylight;
     timeval.tv_sec = time;
@@ -127,12 +129,8 @@ void hwclock_main()
   }
   if (toys.optflags & (FLAG_t|FLAG_s)) {
     tzone.tz_dsttime = 0;
-    if (settimeofday(&timeval, &tzone)) goto bad;
+    if (settimeofday(&timeval, &tzone)) perror_exit("settimeofday failed");
   }
 
   if (fd != -1) close(fd);
-
-  return;
-bad:
-  perror_exit("failed");
 }
