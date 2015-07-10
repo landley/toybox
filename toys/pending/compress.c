@@ -232,11 +232,13 @@ void bitbuf_put(struct bitbuf *bb, int data, int len)
   }
 }
 
-static void data_crc(char sym)
+static void output_byte(char sym)
 {
-  TT.data[TT.pos++ & 32767] = sym;
+  int pos = TT.pos++ & 32767;
 
-  if (!(TT.pos & 32767)) {
+  TT.data[pos] = sym;
+
+  if (!pos) {
     xwrite(TT.outfd, TT.data, 32768);
     if (TT.crcfunc) TT.crcfunc(TT.data, 32768);
   }
@@ -323,7 +325,7 @@ static void inflate(struct bitbuf *bb)
         // dump bytes until done or end of current bitbuf contents
         if (bblen > len) bblen = len;
         pos = bblen;
-        while (pos--) data_crc(*(p++));
+        while (pos--) output_byte(*(p++));
         bitbuf_skip(bb, bblen << 3);
         len -= bblen;
       }
@@ -383,7 +385,7 @@ static void inflate(struct bitbuf *bb)
         int sym = huff_and_puff(bb, lithuff);
 
         // Literal?
-        if (sym < 256) data_crc(sym);
+        if (sym < 256) output_byte(sym);
 
         // Copy range?
         else if (sym > 256) {
@@ -395,7 +397,7 @@ static void inflate(struct bitbuf *bb)
           dist = TT.distbase[sym] + bitbuf_get(bb, TT.distbits[sym]);
           sym = TT.pos & 32767;
 
-          while (len--) data_crc(TT.data[(TT.pos-dist) & 32767]);
+          while (len--) output_byte(TT.data[(TT.pos-dist) & 32767]);
 
         // End of block
         } else break;
