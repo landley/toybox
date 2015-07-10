@@ -32,6 +32,7 @@ config FIND
     -ctime N       created N days ago        -mtime N    modified N days ago
     -newer FILE    newer mtime than FILE     -mindepth # at least # dirs down
     -depth         ignore contents of dir    -maxdepth # at most # dirs down
+    -inum  N       inode number N
     -type [bcdflps] (block, char, dir, file, symlink, pipe, socket)
 
     Numbers N may be prefixed by a - (less than) or + (greater than):
@@ -341,6 +342,9 @@ static int do_find(struct dirtree *new)
           test = compare_numsign(new->st.st_size, 512, ss[1]);
       } else if (!strcmp(s, "links")) {
         if (check) test = compare_numsign(new->st.st_nlink, 0, ss[1]);
+      } else if (!strcmp(s, "inum")) {
+        if (check)
+          test = compare_numsign(new->st.st_ino, 0, ss[1]);
       } else if (!strcmp(s, "mindepth") || !strcmp(s, "maxdepth")) {
         if (check) {
           struct dirtree *dt = new;
