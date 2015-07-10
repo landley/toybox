@@ -123,7 +123,7 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
   xprintf("%-9s Link encap:%s  ", name, types[i].title);
   if(i >= 0 && ifre.ifr_hwaddr.sa_family == ARPHRD_ETHER) {
     xprintf("HWaddr ");
-    for (i=0; i<6; i++) xprintf(":%02X"+!i, ifre.ifr_hwaddr.sa_data[i]);
+    for (i=0; i<6; i++) xprintf(":%02x"+!i, ifre.ifr_hwaddr.sa_data[i]);
   }
   xputc('\n');
 
