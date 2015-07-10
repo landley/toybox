@@ -3,6 +3,12 @@
  * Copyright 2006 Rob Landley <rob@landley.net>
  */
 
+// NOTE: If option parsing segfaults, switch on TOYBOX_DEBUG in menuconfig.
+
+// Enabling TOYBOX_DEBUG in .config adds syntax checks to option string parsing
+// which aren't needed in the final code (your option string is hardwired and
+// should be correct when you ship), but are useful for development.
+
 #include "toys.h"
 
 // Design goals:
@@ -38,10 +44,6 @@
  *       this[0]=NULL (because -c didn't get an argument this time)
  *       this[1]="fruit" (argument to -b)
  */
-
-// Enabling TOYBOX_DEBUG in .config adds syntax checks to option string parsing
-// which aren't needed in the final code (your option string is hardwired and
-// should be correct when you ship), but are useful for development.
 
 // What you can put in a get_opt string:
 //   Any otherwise unused character (all letters, unprefixed numbers) specify
