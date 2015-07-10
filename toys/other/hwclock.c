@@ -8,7 +8,7 @@ USE_HWCLOCK(NEWTOY(hwclock, ">0(fast)f(rtc):u(utc)l(localtime)t(systz)s(hctosys)
 
 config HWCLOCK
   bool "hwclock"
-  default n
+  default y
   help
     usage: hwclock [-rswtluf]
 
