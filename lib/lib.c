@@ -798,6 +798,14 @@ void mode_to_string(mode_t mode, char *buf)
   *buf = c;
 }
 
+char *basename_r(char *name)
+{
+  char *s = strrchr(name, '/');
+
+  if (s) return s+1;
+  return name;
+}
+
 // Execute a callback for each PID that matches a process name from a list.
 void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
 {
@@ -816,7 +824,7 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
 
     for (curname = names; *curname; curname++)
       if (**curname == '/' ? !strcmp(cmd, *curname)
-          : !strcmp(basename(cmd), basename(*curname)))
+          : !strcmp(basename_r(cmd), basename_r(*curname)))
         if (callback(u, *curname)) break;
     if (*curname) break;
   }

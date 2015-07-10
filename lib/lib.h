@@ -235,6 +235,7 @@ char *num_to_sig(int sig);
 
 mode_t string_to_mode(char *mode_str, mode_t base);
 void mode_to_string(mode_t mode, char *buf);
+char *basename_r(char *name);
 void names_to_pid(char **names, int (*callback)(pid_t pid, char *name));
 
 // Functions in need of further review/cleanup
