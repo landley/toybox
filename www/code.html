@@ -233,6 +233,18 @@ where execution of your command starts. Your command line options are
 already sorted into this.optflags, this.optargs, this.optc, and the GLOBALS()
 as appropriate by the time this function is called. (See
 <a href="#lib_args">get_optflags()</a> for details.)</p></li>
+
+<li><p>Switch on TOYBOX_DEBUG in menuconfig (toybox global settings menu)
+the first time you build and run your new command. If anything is wrong
+with your option string, that will give you error messages.</p>
+
+<p>Otherwise it'll just segfault without
+explanation when it falls off the end because it didn't find a matching
+end parantheses for a longopt, or you put a nonexistent option in a square
+bracket grouping... Since these kind of errors can only be caused by a
+developer, not by end users, we don't normally want runtime checks for
+them. Once you're happy with your option string, you can switch TOYBOX_DEBUG
+back off.</p></li>
 </ul>
 
 <a name="headers" /><h2><a href="#headers">Headers.</a></h2>
