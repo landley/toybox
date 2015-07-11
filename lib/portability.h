@@ -79,7 +79,7 @@ char *strptime(const char *buf, const char *format, struct tm *tm);
 // correct name to the broken name.
 
 char *dirname(char *path);
-char *__xpg_basename (char *path);
+char *__xpg_basename(char *path);
 static inline char *basename(char *path) { return __xpg_basename(path); }
 
 // uClibc pretends to be glibc and copied a lot of its bugs, but has a few more
@@ -154,9 +154,17 @@ int utimensat(int fd, const char *path, const struct timespec times[2], int flag
 
 #endif // glibc in general
 
-#ifndef __GLIBC__
+#if !defined(__GLIBC__) && !defined(__BIONIC__)
 // POSIX basename.
 #include <libgen.h>
+#endif
+
+// glibc was handled above; for 32-bit bionic we need to avoid a collision
+// with toybox's basename_r so we can't include <libgen.h> even though that
+// would give us a POSIX basename(3).
+#if defined(__BIONIC__)
+char *basename(char *path);
+char *dirname(char *path);
 #endif
 
 // Work out how to do endianness
