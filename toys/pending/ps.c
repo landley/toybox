@@ -312,7 +312,7 @@ void ps_main(void)
           if (j!=2) break;
         }
         if (i == ARRAY_LEN(typos)) error_exit("bad -o %.*s", end-type, type);
-        if (!field->title) strcpy(field->title, typos[field->which]);
+        if (!*field->title) strcpy(field->title, typos[field->which]);
         dlist_add_nomalloc((void *)&TT.fields, (void *)field);
       }
     }
