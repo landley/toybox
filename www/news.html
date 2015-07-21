@@ -8,7 +8,238 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
-<hr><b>April 5, 2015</b>
+<a name="19-07-2015" /><a href="#19-07-2015"><hr><h2><b>July 19, 2015</b></h2></a>
+<blockquote><p>
+The reason why it was published in the form of a micro sub meson electronic
+component is that if it were printed in normal book form, an interstellar
+hitchhiker would require several inconveniently large buildings to carry it
+around in." - The Hitchhiker's Guide to the Galaxy </p></blockquote>
+
+<p><a href=downloads/toybox-0.6.0.tar.gz>Toybox 0.6.0</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.6.0>git commit</a>)
+is out. (Yes, git. See the <a href=#05-04-2015>previous news entry</a>.)</p>
+
+<p>Sorry for the unusually long gap between releases. Since last release Ye
+Olde Project Maintainer traveled to japan twice and had two more "once
+a century" floods at home. (Probably a coincidence.) Still catching up.</p>
+
+<h3><b>CELF/ELC talk and Wikipedia[citation needed] article</b></h3>
+
+<p>I gave another State Of The Toybox talk
+(<a href=https://www.youtube.com/watch?v=04XwAbtPmAg>video</a>
+<a href=http://landley.net/talks/celf-2015.txt>outline</a>), in which I
+repeat my <a href=http://landley.net/notes-2013.html#07-11-2013>perennial</a>
+<a href=https://twitter.com/landley/status/557309224535851009>complaint</a>
+that Wikipedia[citation needed]
+<a href=http://en.wikipedia.org/wiki/Toybox>still</a>
+<a href=https://en.wikipedia.org/wiki/BusyBox#Controversy_over_Toybox>says</a>
+toybox was relicensed before its hiatus, when relicensing was why
+the hiatus ended.</p>
+
+<p>Since Wikipedia[citation needed] seems unable to do the
+<a href=#15-11-2011>most</a>
+<a href=http://landley.net/hg/toybox/log/tip/LICENSE>basic</a>
+<a href=http://landley.net/notes-2011.html#13-11-2011>research</a> on
+this point, and has stuck to an incorrect sequence of events for years,
+I've been gradually escalating my attempts to correct them. Toybox
+came out of mothballs in November 2011 <b>because</b> it could be
+relicensed. That's what opened up a new niche busybox wasn't already
+filling with a 10 year headstart.</p>
+
+<a name="asterisk_back" />
+<p>The article has plenty of smaller issues<a href=#asterisk>*</a>, but
+given that I gave an entire talk at Ohio LinuxFest in 2013
+(<a href=http://landley.net/talks/ohio-2013.txt>outline</a>,
+<a href=https://archive.org/download/OhioLinuxfest2013/24-Rob_Landley-The_Rise_and_Fall_of_Copyleft.mp3>audio</a>) on why I switched away from GPL for
+my projects, that one bugs me.</p>
+
+<h3><b>New stuff this release</b></h3>
+
+<p>There's a new android menu in menuconfig, and rather a lot of Linux
+Security Module support (Smack for Tizen from Xavier Roche and José Bollo,
+and SELinux for Android from Elliott Hughes; see
+the Security Blanket menu under global settings in menuconfig) has
+trickled in, although there's still more to come.</p>
+
+<p><b>New commands:</b> Added reset, nproc, ionice, and iorenice.
+Elliott Hughes contributed xxd, runcon,
+restorecon, load_policy, getenforce, setenforce, getprop, and setprop.
+Promoted shred, nsenter, and hwclock.</p>
+
+<p>You can once again build catv now the flag infrastructure's been updated to
+let it coexist with cat -v.
+And on a long plane flight I wrote
+hexedit, an interactive hex editor that implements the start of
+cursor control infrastructure (for eventual use by less and vi and shell
+command history and so on).</p>
+
+<p><b>New options:</b> Added sed -E as a BSD-compatible synonym for -r.
+Upgraded oneit with -r (restart), -3 (send exiting PID values to child),
+and signal handling. Added -v option to timeout, -m to mknod, -u to shred,
+-t to dmesg, and -123 to head and tail. Added implicit "." to grep -r without
+any files to work on. Hyejin Kim requested prefix support for truncate -s.
+Greg Hackman added -inum to find.
+Jan Cybulski added the smack side of ls -Z support. Various patches also
+added -Z to mkdir, mknod, and mkfifo.
+Basic cp --preserve support went in, but not yet the xattr/LSM parts.</p>
+
+<p>The toybox command now has a --version option,
+which uses "git describe" if available.</p>
+
+<p><b>Build infrastructure:</b>
+The "make change" target now saves the output of each failed standalone
+command build in a .bad file, and "make defconfig" is quieter now.</p>
+
+<p>Paul Barker submitted a large patch changing command install paths so
+"toybox can be installed alongside busybox without confusing
+update-alternatives". (There's some argument over
+what the right paths should be, and I'm waiting for
+people to tell me what else needs fixing because I have no idea. I've
+been symlinking /bin to /usr/bin since 2002
+<a href=http://landley.net/writing/hackermonthly-issue022-pg33.pdf>for
+historical reasons</a>.)</p>
+
+<p><b>Docs:</b> The repository link now goes to github, with another link
+to the commit rss feed.</p>
+
+<p>Elliott Hughes updated the Android section of the roadmap
+(and he would know). Redid bits of scripts/mkstatus.py to make updating
+status.html easier, and the README is larger.</p>
+
+<p>More description of option parsing in code.html, which now describes the
+FLAG_x macros, switching flag macro sets with FOR_newcommand, how
+configuration zeroes flag macros and using FORCE_FLAGS to suppress the
+zeroing of options shared between commands. Also added description of ";"
+to make --longopts take an optional =value part, and more about TOYBOX_DEBUG
+to check NEWTOY() option strings (otherwise a bad option string makes
+lib/args.c obviously segfault, but doesn't explain why).</p>
+
+<p>Added a "Why 0BSD?" section to license.html when submitting zero clause bsd
+to SPDX (according to the pending license spreadsheet, it's been approved for
+SPDX 2.2).</p>
+
+<p>The old list of commands needing cleanup but not in pending was
+removed from toys/pending/README and instead the issues were added
+as TODO comments in the individual commands.</p>
+
+<p><b>Bugfixes:</b>
+Fixed mount -a segfaulting without -O (reported by Janus Troelsen),
+and made it try a "become rw" ioctl() on the block device before falling
+back to mounting read only (because Android expects that).
+Fixed printf -- and printf ---. Lots of tweaks to ls -l spacing with
+different options. Make touch -d and -t actually set time when you don't
+specify nanoseconds.
+Fixed a subtle bug where recursive calls (toybox commands that run other
+toybox commands) weren't resetting all their state. (This manifested as
+a "no }" error from "find | xargs sed", but could cause other problems.)
+And David Halls reported another sed bug trying to compile libiconv (which
+left extra \ at the start of lines in a generated shell script, breaking
+the build). Output an error message for "cat /mnt".</p>
+
+<p>Kylie McClain reported that mktemp broke when $TMPDIR was set to an empty
+string (which is not the same as unset), that install/find didn't support
+numeric uid/gids, and that sort -z affects both input and output.
+Isabella Parakiss fixed a printf.c bug.
+David Halls fixed bugs in install -D and find -exec. Samuel Holland
+fixed unshare -r. Hyejin Kim fixed makedevs with a count of 1, fold -w
+range checking, an error path in scripts/mkflags.c, added -i to dhcpd,
+and stopped su from prompting the root user for the new user's password.
+Jan Cybulski spotted wrong indentation when combining ls -s and -i with -C and
+-x. José Bollo fixed stat %G. Sameer Pradhan fixed a bug in mkfifo -Z.</p>
+
+<p>Elliott Hughes asked for a default SIGPIPE handler to disable
+the signal handler bionic's dynamic loader installs (yes really). Still not
+100% sure what the correct behavior is there. (Posix is
+(<a href=http://permalink.gmane.org/gmane.comp.standards.posix.austin.general/10915>actively unhelpful</a>, but at least they're taking
+<a href=http://austingroupbugs.net/view.php?id=789#c1976>years to
+make up their mind</a>. Elliott also sent patches to fix a typo in
+useradd.test, add missing arguments to error_exit() calls and clean up
+printf() format strings, fix an off by one error in human_readable(),
+fix dmesg -c error reporting, fix a segfault in comma_scan where the option
+was the last item in optlist (triggered by mount -o ro,remount), fix
+hwclock -w, made ifconfig print lowercase MAC addresses (it was bothering
+him), and make terminal_size() read the right environment variable
+(LINES, not ROWS). And he suggested the test suite notice high command exit
+values (corresponding to segfault or other signals).</p>
+
+<p>People are apparently using toys/pending commands, despite the police tape
+and flashing lights, so added louder warnings to toys/pending/README.
+Elliott Hughes fixed various problems with tar, dd, more, and top.
+Hyejin Kim cleaned up syslogd and dumpleases. Isaac Dunham added hotplug
+support to mdev. Yeongdeok Suh added RFC-3315 ipv6 support to dhcpd.</p>
+
+<p>I rewrote ps.c from scratch (in pending), but it's not ready for real use
+yet.</p>
+
+<p><b>Portability:</b>
+On the portability front Bernhard Rosenkranzer fixed a problem where the
+menuconfig code wouldn't compile in C99 mode. (This led to me documenting
+the craptacular nature of kconfig in a README, and the plan to replace it
+sometime before 1.0.) Some extra flags to shut up overzealous llvm warnings
+were added (and have to be probed for because gcc complains about
+arguments it doesn't recognize even when they switch stuff _off_ using
+a standard syntax). Don't depend on malloc(0) to return non-null in ls.
+David Halls fixed some mac/ios portability issues,
+implying somebody's built at least part of toybox on a mac.</p>
+
+<p>Added basename_r() to lib/lib.c because the posix semantics for basename()
+are stupid but what the gnu guys did to it was appalling.
+Turns out bionic already had a basename_r(), but posix still doesn't.
+Fixed it up in portability.h, but this
+could break more stuff in future. (Correct fix is to lobby posix to add it,
+which would probably take about 15 years...)</p>
+
+<p><b>Infrastructure:</b>
+The build now checks $LDFLAGS for linker-only flags, and allows the strip
+command to fail (binflt toolchains provide a strip that doesn't work).
+Since time.c uses floating point, added TOYBOX_FLOAT dependency in config.</p>
+
+<p>There's a lib/lsm.h defining varous inline functions for linux
+security modules stuff, if (lsm_enabled()) should turn into a compile-time
+constant 0 and let code drop out when TOYBOX_LSM_NONE selected, but
+testing against CFG_TOYBOX_LSM_NONE or derived symbols is still useful
+becuase when it _is_ enabled the probe turns into a system call you
+don't want to repeat too much.</p>
+
+<p>Switched a bunch of commands from signal() to xsignal(). Factored out
+xgetgrnamid() and xgetpwnamid() into xwrap.c. Make time.c depend on
+TOYBOX_FLOAT (since it always uses float so shouldn't be available on
+build targets without even software float). Added readfileat() to lib/lib.c.</p>
+
+<p>The dirtree infrastructure now passes in full flags for the old symlink
+field, and the new DIRTREE_SHUTUP flag disables warnings if a file vanishes
+out from under you during traverse. New dirtree_start() wrapper to
+create dirtree root with only two arguments.</p>
+
+<p>The not-curses infrastructure introduced by hexedit mostly moved to
+lib/interestingtimes.c.</p>
+
+<a name="asterisk" />
+<a href="#asterisk_back" />Asterisk:</a> such when
+Tim contacted me (my blog says a couple days before nov 13, 2011, I.E.
+11/11/11 not some specific day 2 months later) to ask if I wanted to work
+on a new project he was proposing called
+<a href=http://www.elinux.org/Busybox_replacement_project>BentoBox</a>
+(because I used to do busybox, he'd forgotten toybox existed
+until I brought it up). And don't ask me what "focuses not on compatibility
+with its GNU counterparts" means when CP_MORE adds 7 non-posix options
+and toys/other has 84 commands in neither posix nor LSB. I think they're
+struggling to explain the difference having dismissed "licensing" as being
+the reason it started up again after a long hiatus? The reason I don't think
+GNU is special is there are a half-dozen other independent
+implementations of the same unix command tools out there (AT&amp;T,
+BSD, Coherent, Minix, plan 9, busybox, toybox, and several more analyzed in
+the <a href=roadmap.html>roadmap</a>, and that's ignoring the implementations
+written for DOS or in assembly over the years). But I do care what
+Linux From Scratch expects, and if it's
+<a href=http://archive.linuxfromscratch.org/lfs-museum/7.6/LFS-BOOK-7.6-NOCHUNKS.html#ch-tools-gcc-pass1>calling mv -v</a>
+then I impelement mv -v
+even if <a href=http://landley.net/toybox/roadmap.html>posix hasn't got
+it</a>. And I don't know why "gnu counterparts" would describe this when
+util-linux isn't a gnu package, nor are info-zip, e2fsprogs, kmod, less,
+procps, shadow, sysklogd, vim, zlib, sudo, dhcpcd...</p>
+
+<a name="05-04-2015" /><a href="#05-04-2015"><hr><h2><b>April 5, 2015</b></h2></a>
 <p>Since <a href=https://android.googlesource.com/platform/external/toybox/>android</a> and
 <a href=https://git.tizen.org/cgit/platform/upstream/toybox.git>tizen</a>
 and <a href=https://github.com/kraj/meta-musl/tree/master/recipes-core/toybox>openembedded</a>
@@ -18,7 +249,7 @@ than the mercurial repository, I bit the bullet and switched the project's repo
 <a href=https://github.com/landley/toybox>to git</a>. Georgi's
 <a href=https://github.com/gfto/toybox>mirror</a> is now pulling from that.</p>
 
-<hr><b>February 25, 2015</b>
+<a name="25-02-2015" /><a href="#25-02-2015"><hr><h2><b>February 25, 2015</b></h2></a>
 <blockquote><p>"A common mistake that people make when trying to design
 something completely foolproof is to underestimate the ingenuity of
 complete fools."</p><p>- The Hitchhiker's Guide to the Galaxy.</p></blockquote>
@@ -138,7 +369,7 @@ supported, so stop using it.</p>
 <p>Fixed toy_exec() to detect when argc is in optargs, so we don't
 need a separate xexec_optargs().</p>
 
-<hr><b>February 18, 2015</b>
+<a name="18-02-2015" /><a href="#18-02-2015"><hr><h2><b>February 18, 2015</b></h2></a>
 <p>Dreamhost continues to be unable to make mailing list archives work, so
 here's <a href=http://www.mail-archive.com/toybox@lists.landley.net/>another
 list archive</a> with a less awkward interface than gmane.</p>
@@ -155,7 +386,7 @@ web archive, from Dec 15-Jan 3, and then another hole from Jan 16-Feb 18.
 The relevant messages are in both of the other archives. Here's hoping
 the chronic archive constipation problem won't happen a sixth time.</p>
 
-<hr><b>December 30, 2014</b>
+<a name="30-12-2014" /><a href="#30-12-2014"><hr><h2><b>December 30, 2014</b></h2></a>
 <p>Due to Dreamhost's <a href=http://landley.net/dreamhost.txt>ongoing</a>
 <a href=http://landley.net/dreamhost2.txt>inability</a> to make mailman
 work reliably, I've added a link to a backup web archive at
@@ -167,7 +398,7 @@ on the left.</p>
 
 <p>Update (January 27, 2015): they're <a href=https://twitter.com/landley/status/558428839462703104>still working on it</a>.</p>
 
-<hr><b>November 19, 2014</b>
+<a name="19-11-2014" /><a href="#19-11-2014"><hr><h2><b>November 19, 2014</b></h2></a>
 
 <blockquote><p>"This time it was right, it would work, and no one would have to get nailed to anything." - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
 
@@ -246,7 +477,7 @@ close each supplied filehandle itself.)</p>
 <p>The printf-style escape parsing ("\n" and friends) got factored out into
 a new unescape() function.</p>
 
-<hr><b>October 2, 2014</b>
+<a name="02-10-2014" /><a href="#02-10-2014"><hr><h2><b>October 2, 2014</b></h2></a>
 <blockquote><p>"There is an art, it says, or rather, a knack to flying.
 The knack lies in learning how to throw yourself at the ground and miss...
 Clearly, it is this second part, the missing, which presents the
@@ -397,7 +628,7 @@ sort on the host broke in non-C locales.</p>
 <p>Divya Kothari submitted tests for chmod, link, tar, bzcat, xzcat, zcat,
 and hostname. (And more, but that's all that's merged so far.)</p>
 
-<hr><b>July 7, 2014</b>
+<a name="07-07-2014" /><a href="#07-07-2014"><hr><h2><b>July 7, 2014</b></h2></a>
 <blockquote><p>"This planet has - or rather had - a problem, which was this:
 most of the people living on it were unhappy for pretty much of the time. Many
 solutions were suggested for this problem, but most of these were largely
@@ -519,7 +750,7 @@ bytes). The build infrastructure now notices duplicate commands (so if you
 cp toys/pending/command.c toys/other/command.c and forget to delete the
 first one, the build break is now more informative).</p>
 
-<hr><b>April 20, 2014</b>
+<a name="20-04-2014" /><a href="#20-04-2014"><hr><h2><b>April 20, 2014</b></h2></a>
 <blockquote><p>And to this end they built themselves a stupendous supercomputer
 which was so amazingly intelligent that even before the data banks
 had been connected up it had started from "I think therefore I am" and got as
@@ -605,7 +836,7 @@ of different kinds of simplicity, and why comments aren't a substitute for
 good code. The README no longer trails off into obvious unfinished confusion
 at the end. Each page on the website should now have its own title.</p>
 
-<hr><b>November 18, 2013</b>
+<a name="18-11-2013" /><a href="#18-11-2013"><hr><h2><b>November 18, 2013</b></h2></a>
 <blockquote><p>"Space," it says, "is big. Really big. You just won't believe how vastly, hugely, mindbogglingly big it is. I mean, you may think it's a long way down the street to the chemist's, but that's just peanuts to space." -
 The Hitchhiker's Guide to the Galaxy.</p></blockquote>
 
@@ -642,7 +873,7 @@ The "toynet.h" file got folded into toys.h since musl supports it and
 micromanging uClibc options isn't very interesting anymore. The test suite
 now uses scripts/single.sh when testing a single command.</p>
 
-<hr><b>September 17, 2013</b>
+<a name="17-09-2013" /><a href="#17-09-2013"><hr><h2><b>September 17, 2013</b></h2></a>
 <blockquote><p>"Think of a number," said the computer, "any number."
 Arthur told the computer the telephone number of King's Cross railway
 station passenger inquiries, on the grounds that it must have some function,
@@ -771,13 +1002,13 @@ delete sub and didn't exit with an error either. Neither was correct, rm
 should now be fixed.</p>
 
 <p>
-<hr><b>July 26, 2013</b>
+<a name="26-07-2013" /><a href="#26-07-2013"><hr><h2><b>July 26, 2013</b></h2></a>
 <p>Georgi Chorbadzhiyski maintains a <a href=https://github.com/gfto/toybox>git
 mirror</a> of the repository on github, automatically updated from the
 mercurial every 6 hours. The mirror is read only, but you can generate patches
 against it and post them to the list.</p>
 
-<hr><b>July 2, 2013</b>
+<a name="02-07-2013" /><a href="#02-07-2013"><hr><h2><b>July 2, 2013</b></h2></a>
 <blockquote><p>"Time is an illusion. Lunchtime doubly so." "Very deep. You
 should send that in to the Reader's Digest. They've got a page for people
 like you." -
@@ -856,7 +1087,7 @@ the GPL but "all copies must include this magic text blob" somehow don't?</p>
 or less public domain with a liability disclaimer, but we're still calling it
 BSD (sometimes "0 clause BSD") to avoid explaining.</p>
 
-<hr><b>March 21, 2013</b>
+<a name="21-03-2013" /><a href="#21-03-2013"><hr><h2><b>March 21, 2013</b></h2></a>
 <p>Video of my ELC talk
 "<a href=http://youtu.be/SGmtP5Lg_t0>Why is Toybox?</a>"
 is up on youtube. Related materials include the
@@ -891,7 +1122,7 @@ the ads, it's The Linux Foundation.)</p>
 </span>
 
 
-<hr><b>March 14, 2013</b>
+<a name="14-03-2013" /><a href="#14-03-2013"><hr><h2><b>March 14, 2013</b></h2></a>
 <blockquote><p>"Ford, you're turning into a penguin. Stop it." -
 The Hitchhiker's Guide to the Galaxy.</p></blockquote>
 
@@ -914,7 +1145,7 @@ should at least compile (although defconfig is still what's useful).</p>
 <p>Significant roadmap updates, checking several other multicall binaries
 (klibc, sash, sbase, s6...) to see what commands they include.</p>
 
-<hr><b>January 18, 2013</b>
+<a name="18-01-2013" /><a href="#18-01-2013"><hr><h2><b>January 18, 2013</b></h2></a>
 <blockquote><p>This must be Thursday. I never could get the hang of Thursdays. - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
 
 <p><a href=downloads/toybox-0.4.3.tar.bz2>Toybox 0.4.3</a> is based on
@@ -955,7 +1186,7 @@ it now correctly detects "/trailing/slash/" which the previous code didn't.</p>
 disabled compiler optimization, so the binary size bloated a bit. It's back
 to -Os by default now.</p>
 
-<hr><b>December 15, 2012</b>
+<a name="15-12-2012" /><a href="#15-12-2012"><hr><h2><b>December 15, 2012</b></h2></a>
 <blockquote><p>"The major difference between a thing that might go wrong and a
 thing that cannot possibly go wrong is that when a thing that cannot possibly
 go wrong goes wrong it usually turns out to be impossible to get at or repair."
@@ -1006,7 +1237,7 @@ to do it Posix's way, which is more brittle and needs extra security checks,
 but am waiting for somebody to complain first. The default "ulimit -n" is 1024
 filehandles, so drilling down over 1000 nested subdirectories).</p>
 
-<hr><b>November 13, 2012</b>
+<a name="13-11-2012" /><a href="#13-11-2012"><hr><h2><b>November 13, 2012</b></h2></a>
 <blockquote><p>"Rule Six: The winning team shall be the first team that wins."
 - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
 
@@ -1070,7 +1301,7 @@ a separate <a href=oldnews.html>oldnews</a> page.</p>
 back now.</p>
 </span>
 
-<hr><b>July 23, 2012</b>
+<a name="23-07-2012" /><a href="#23-07-2012"><hr><h2><b>July 23, 2012</b></h2></a>
 <blockquote><p>"Ford", Arthur said. "There's an infinite number of monkeys
 out here who want to talk to us about this script for Hamlet they've worked
 out." - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
@@ -1095,7 +1326,7 @@ corresponding executable bit wasn't set, and worked around a longstanding
 glibc bug where static linking prevents stdout from automatically flushing
 pending output on exit.</p>
 
-<hr><b>June 25, 2012</b>
+<a name="25-06-2012" /><a href="#25-06-2012"><hr><h2><b>June 25, 2012</b></h2></a>
 <blockquote><p>"For a moment, nothing happened. Then, after a second or so, nothing continued to happen." - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
 
 <p><a href=downloads/toybox-0.3.1.tar.bz2>Toybox 0.3.1</a> is based on commit
@@ -1111,7 +1342,7 @@ it is. The roadmap and documentation are a bit behind, and I've got ~40
 pending submissions to review. I need to catch up...</p>
 </span>
 
-<hr><b>June 12, 2012</b>
+<a name="12-06-2012" /><a href="#12-06-2012"><hr><h2><b>June 12, 2012</b></h2></a>
 <blockquote><p>"For instance, on the planet Earth, man had always assumed that
 he was more intelligent than dolphins because he had achieved so much - the
 wheel, New York, wars and so on - whilst all the dolphins had ever done was
@@ -1176,7 +1407,7 @@ yet, but if I wait until everything works we won't have a release before
 1.0, so here's a checkpoint.)</p>
 
 
-<hr><b>March 3, 2012</b>
+<a name="03-03-2012" /><a href="#03-03-2012"><hr><h2><b>March 3, 2012</b></h2></a>
 
 <blockquote><p>"They went unnoticed at Goonhilly, passed over Cape Canaveral
 without a blip, and Woomera and Jodrell Bank looked straight through them.
@@ -1216,7 +1447,7 @@ dirname, unshare, and various infrastructure tweaks, but it took me 3 months
 and those guys did their stuff in a week or so.)</p>
 
 
-<hr><b>February 12, 2012</b>
+<a name="12-02-2012" /><a href="#12-02-2012"><hr><h2><b>February 12, 2012</b></h2></a>
 <blockquote><p>
 "for though it has many omissions and contains much that is apocryphal, or at
 least wildly inaccurate, it scores over the older, more pedestrian work in two
@@ -1233,7 +1464,8 @@ patches pending on the mailing list I need to review and merge.</p>
 <p>More to come...</p>
 
 <hr>
-<p><b>November 15, 2011</b> - Back from the dead, Toybox is now under a 2
+<a name="15-11-2011" /><a href="#15-11-2011"><hr><h2><b>November 15, 2011</b></h2></a>
+- Back from the dead, Toybox is now under a 2
 clause BSD license, and aiming to become the default command line
 implementation of Android systems everywhere.</p>
 
