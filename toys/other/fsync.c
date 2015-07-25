@@ -8,14 +8,15 @@ USE_FSYNC(NEWTOY(fsync, "<1d", TOYFLAG_BIN))
 
 config FSYNC
   bool "fsync"
-  default n
+  default y
   help
-    usage: fsync [d] [FILE...]
+    usage: fsync [-d] [FILE...]
 
     Synchronize a file's in-core state with storage device.
 
-    -d Avoid syncing metadata.
+    -d	Avoid syncing metadata.
 */
+
 #define FOR_fsync
 #include "toys.h"
 
