@@ -117,7 +117,7 @@ config TOYBOX_DEBUG
 	default n
 	help
 	  Enable extra checks for debugging purposes. All of them catch
-          things that can only go wrong at development time, not runtime.
+	  things that can only go wrong at development time, not runtime.
 
 config TOYBOX_UID_SYS
 	int "First system UID"
