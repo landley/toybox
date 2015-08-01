@@ -141,41 +141,6 @@ static void do_print(struct dirtree *new, char c)
   free(s);
 }
 
-char *strlower(char *s)
-{
-  char *try, *new;
-
-  if (!CFG_TOYBOX_I18N) {
-    try = new = xstrdup(s);
-    for (; *s; s++) *(new++) = tolower(*s);
-  } else {
-    // I can't guarantee the string _won't_ expand during reencoding, so...?
-    try = new = xmalloc(strlen(s)*2+1);
-
-    while (*s) {
-      wchar_t c;
-      int len = mbrtowc(&c, s, MB_CUR_MAX, 0);
-
-      if (len < 1) *(new++) = *(s++);
-      else {
-        s += len;
-        // squash title case too
-        c = towlower(c);
-
-        // if we had a valid utf8 sequence, convert it to lower case, and can't
-        // encode back to utf8, something is wrong with your libc. But just
-        // in case somebody finds an exploit...
-        len = wcrtomb(new, c, 0);
-        if (len < 1) error_exit("bad utf8 %x", (int)c);
-        new += len;
-      }
-    }
-    *new = 0;
-  }
-
-  return try;
-}
-
 // Call this with 0 for first pass argument parsing and syntax checking (which
 // populates argdata). Later commands traverse argdata (in order) when they
 // need "do once" results.
