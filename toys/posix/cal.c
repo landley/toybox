@@ -64,14 +64,6 @@ static char *calstrings(char *buf, struct tm *tm)
   return buf;
 }
 
-void xcheckrange(long val, long low, long high)
-{
-  char *err = "%ld %s than %ld";
-
-  if (val < low) error_exit(err, val, "less", low);
-  if (val > high) error_exit(err, val, "greater", high);
-}
-
 // Worst case scenario toybuf usage: sizeof(struct tm) plus 21 bytes/line
 // plus 8 lines/month plus 12 months, comes to a bit over 2k of our 4k buffer.
 
@@ -86,12 +78,12 @@ void cal_main(void)
     buf += sizeof(struct tm);
 
     // Last argument is year, one before that (if any) is month.
-    xcheckrange(tm->tm_year = atol(toys.optargs[--toys.optc]),1,9999);
+    tm->tm_year = atolx_range(toys.optargs[--toys.optc], 1, 9999);
     tm->tm_year -= 1900;
     tm->tm_mday = 1;
     tm->tm_hour = 12;  // noon to avoid timezone weirdness
     if (toys.optc) {
-      xcheckrange(tm->tm_mon = atol(toys.optargs[--toys.optc]),1,12);
+      tm->tm_mon = atolx_range(toys.optargs[--toys.optc], 1, 12);
       tm->tm_mon--;
 
     // Print 12 months of the year
