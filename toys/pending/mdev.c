@@ -35,7 +35,7 @@ config MDEV_CONF
 static void make_device(char *path)
 {
   char *device_name = NULL, *s, *temp;
-  int major, minor, type, len, fd;
+  int major = 0, minor = 0, type, len, fd;
   int mode = 0660;
   uid_t uid = 0;
   gid_t gid = 0;
@@ -46,24 +46,21 @@ static void make_device(char *path)
     temp = strrchr(path, '/');
     fd = open(path, O_RDONLY);
     *temp=0;
-    temp = toybuf;
-    len = read(fd, temp, 64);
+    len = read(fd, toybuf, 64);
     close(fd);
     if (len<1) return;
-    temp[len] = 0;
+    toybuf[len] = 0;
 
     // Determine device type, major and minor
 
     type = path[5]=='c' ? S_IFCHR : S_IFBLK;
-    major = minor = 0;
-    sscanf(temp, "%u:%u", &major, &minor);
+    sscanf(toybuf, "%u:%u", &major, &minor);
   } else {
     // if (!path), do hotplug
 
     if (!(temp = getenv("SUBSYSTEM")))
       return;
     type = strcmp(temp, "block") ? S_IFCHR : S_IFBLK;
-    major = minor = 0;
     if (!(temp = getenv("MAJOR")))
       return;
     sscanf(temp, "%u", &major);
@@ -74,10 +71,14 @@ static void make_device(char *path)
     device_name = getenv("DEVNAME");
     if (!path)
       return;
-    temp = toybuf;
   }
   if (!device_name)
     device_name = strrchr(path, '/') + 1;
+
+  // as in linux/drivers/base/core.c, device_get_devnode()
+  while ((temp = strchr(device_name, '!'))) {
+    *temp = '/';
+  }
 
   // If we have a config file, look up permissions for this device
 
@@ -185,22 +186,22 @@ found_device:
     }
   }
 
-  sprintf(temp, "/dev/%s", device_name);
+  sprintf(toybuf, "/dev/%s", device_name);
 
-  if (getenv("ACTION") && !strcmp(getenv("ACTION"), "remove")) {
-    unlink(temp);
+  if ((temp=getenv("ACTION")) && !strcmp(temp, "remove")) {
+    unlink(toybuf);
     return;
   }
 
   if (strchr(device_name, '/'))
-    mkpathat(AT_FDCWD, temp, 0, 2);
-  if (mknod(temp, mode | type, makedev(major, minor)) && errno != EEXIST)
-    perror_exit("mknod %s failed", temp);
+    mkpathat(AT_FDCWD, toybuf, 0, 2);
+  if (mknod(toybuf, mode | type, makedev(major, minor)) && errno != EEXIST)
+    perror_exit("mknod %s failed", toybuf);
 
  
-  if (type == S_IFBLK) close(open(temp, O_RDONLY)); // scan for partitions
+  if (type == S_IFBLK) close(open(toybuf, O_RDONLY)); // scan for partitions
 
-  if (CFG_MDEV_CONF) mode=chown(temp, uid, gid);
+  if (CFG_MDEV_CONF) mode=chown(toybuf, uid, gid);
 }
 
 static int callback(struct dirtree *node)
