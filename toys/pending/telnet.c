@@ -48,39 +48,6 @@ GLOBALS(
 #define UF_ECHO     0x01
 #define UF_SGA      0x02
 
-/*
- * creates a socket of family INET/INET6 and protocol TCP and connects
- * it to HOST at PORT.
- * if successful then returns SOCK othrwise error
- */
-static int xconnect_inet_tcp(char *host, int port)
-{
-  int ret;
-  struct addrinfo *info, *rp;
-  char buf[32];
-
-  rp = xzalloc(sizeof(struct addrinfo));
-  rp->ai_family = AF_UNSPEC;
-  rp->ai_socktype = SOCK_STREAM;
-  rp->ai_protocol = IPPROTO_TCP;
-  sprintf(buf, "%d", port);
-
-  ret = getaddrinfo(host, buf, rp, &info);
-  if(ret || !info) perror_exit("BAD ADDRESS: can't find : %s ", host);
-  free(rp);
-
-  for (rp = info; rp; rp = rp->ai_next) 
-    if ( (rp->ai_family == AF_INET) || (rp->ai_family == AF_INET6)) break;
-
-  if (!rp) error_exit("Invalid IP %s", host);
-
-  ret = xsocket(rp->ai_family, SOCK_STREAM, IPPROTO_TCP);
-  if(connect(ret, rp->ai_addr, rp->ai_addrlen) == -1) perror_exit("connect");
-
-  freeaddrinfo(info);
-  return ret;
-}
-
 // sets terminal mode: LINE or CHARACTER based om internal stat.
 static char const es[] = "\r\nEscape character is ";
 static void set_mode(void)
@@ -135,7 +102,7 @@ static void handle_esc(void)
   char input;
 
   if(toys.signal && TT.term_ok) tcsetattr(0, TCSADRAIN, &TT.raw_term);
-  write(1,"\r\nConsole escape. Commands are:\r\n\n"
+  xwrite(1,"\r\nConsole escape. Commands are:\r\n\n"
       " l  go to line mode\r\n"
       " c  go to character mode\r\n"
       " z  suspend telnet\r\n"
@@ -178,7 +145,7 @@ static void handle_esc(void)
   default: break;
   }
 
-  write(1, "continuing...\r\n", 15);
+  xwrite(1, "continuing...\r\n", 15);
   if (toys.signal && TT.term_ok) tcsetattr(0, TCSADRAIN, &TT.def_term);
 
 ret:
@@ -292,7 +259,7 @@ static int read_server(int len)
     }
   } while (TT.pbuff < len);
 
-  if (i) write(STDIN_FILENO, toybuf, i);
+  if (i) xwrite(STDIN_FILENO, toybuf, i);
   return 0;
 }
 
@@ -314,7 +281,7 @@ static void write_server(int len)
     if (*c == IAC) toybuf[i++] = *c; /* IAC -> IAC IAC */
     else if (*c == '\r') toybuf[i++] = '\0'; /* CR -> CR NUL */
   }
-  if(i) write(TT.sfd, toybuf, i);
+  if(i) xwrite(TT.sfd, toybuf, i);
 }
 
 void telnet_main(void)
@@ -326,8 +293,7 @@ void telnet_main(void)
   TT.win_width = 80; //columns
   TT.win_height = 24; //rows
 
-  if(toys.optc == 2) TT.port = atoi(toys.optargs[1]);
-  if(TT.port <= 0 || TT.port > 65535) error_exit("bad PORT (1-65535)");
+  if(toys.optc == 2) TT.port = atolx_range(toys.optargs[1], 0, 65535);
 
   TT.ttype = getenv("TERM");
   if(!TT.ttype) TT.ttype = "";
@@ -340,7 +306,7 @@ void telnet_main(void)
   }
   terminal_size(&TT.win_width, &TT.win_height);
 
-  TT.sfd = xconnect_inet_tcp(toys.optargs[0], TT.port);
+  TT.sfd = xconnect(*toys.optargs, TT.port, 0, SOCK_STREAM, IPPROTO_TCP, 0);
   setsockopt(TT.sfd, SOL_SOCKET, SO_REUSEADDR, &set, sizeof(set));
   setsockopt(TT.sfd, SOL_SOCKET, SO_KEEPALIVE, &set, sizeof(set));
 
