@@ -39,7 +39,7 @@ struct vmstat_proc {
 
 // All the elements of vmstat_proc are the same size, so we can populate it as
 // a big array, then read the elements back out by name
-void get_vmstat_proc(struct vmstat_proc *vmstat_proc)
+static void get_vmstat_proc(struct vmstat_proc *vmstat_proc)
 {
   char *vmstuff[] = { "/proc/stat", "cpu ", 0, 0, 0, 0, 0, 0,
     "intr ", "ctxt ", "procs_running ", "procs_blocked ", "/proc/meminfo",

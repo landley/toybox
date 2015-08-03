@@ -15,7 +15,7 @@ config REV
 
 #include "toys.h"
 
-void do_rev(int fd, char *name)
+static void do_rev(int fd, char *name)
 {
   char *c;
 

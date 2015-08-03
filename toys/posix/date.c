@@ -53,7 +53,7 @@ GLOBALS(
 
 // Handle default posix date format: mmddhhmm[[cc]yy]
 // returns 0 success, nonzero for error
-int parse_posixdate(char *str, struct tm *tm)
+static int parse_posixdate(char *str, struct tm *tm)
 {
   int len;
 

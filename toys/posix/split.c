@@ -35,7 +35,7 @@ GLOBALS(
   char *outfile;
 )
 
-void do_split(int infd, char *in)
+static void do_split(int infd, char *in)
 {
   unsigned long bytesleft, linesleft, filenum, len, pos;
   int outfd = -1;

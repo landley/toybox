@@ -21,7 +21,7 @@ config CHCON
 #define FOR_chcon
 #include "toys.h"
 
-int do_chcon(struct dirtree *try)
+static int do_chcon(struct dirtree *try)
 {
   char *path, *con = *toys.optargs;
 

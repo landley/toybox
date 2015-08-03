@@ -82,7 +82,7 @@ static void showid(char *header, unsigned u, char *s)
   printf("%s%u(%s)", header, u, s);
 }
 
-void do_id(char *username)
+static void do_id(char *username)
 {
   int flags, i, ngroups;
   struct passwd *pw;

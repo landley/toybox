@@ -57,7 +57,7 @@ static const struct fstype fstypes[] = {
 };
 
 /* TODO if no args use proc/partitions */
-void do_blkid(int fd, char *name)
+static void do_blkid(int fd, char *name)
 {
   int off, i, j;
   char *type;

@@ -37,7 +37,7 @@ GLOBALS(
   FILE *db;
 )
 
-int do_lspci(struct dirtree *new)
+static int do_lspci(struct dirtree *new)
 {
   char *p = toybuf, *vendor = toybuf+9, *device = toybuf+18,
        driver[256], *vbig = 0, *dbig = 0, **fields;

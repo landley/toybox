@@ -28,7 +28,7 @@ GLOBALS(
 
 // This handles opening the file and
 
-void do_cmp(int fd, char *name)
+static void do_cmp(int fd, char *name)
 {
   int i, len1, len2, min_len, size = sizeof(toybuf)/2;
   long byte_no = 1, line_no = 1;
