@@ -65,14 +65,12 @@ struct module_s {
 static char *path2mod(char *file, char *mod)
 {
   int i;
-  char *from, *lslash;
+  char *from;
 
   if (!file) return NULL;
   if (!mod) mod = xmalloc(MODNAME_LEN);
 	
-  lslash = strrchr(file, '/');
-  if (!lslash || (lslash == file && !lslash[1])) from = file;
-  else from = lslash + 1;
+  from = basename_r(file);
   
   for (i = 0; i < (MODNAME_LEN-1) && from[i] && from[i] != '.'; i++)
     mod[i] = (from[i] == '-') ? '_' : from[i];
