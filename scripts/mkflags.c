@@ -6,10 +6,12 @@
 // This is intentionally crappy code because we control the inputs. It leaks
 // memory like a sieve and segfaults if malloc returns null, but does the job.
 
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <ctype.h>
 
 struct flag {
   struct flag *next;
