@@ -381,7 +381,6 @@ static int ins_mod(char *modules, char *flags)
   }
   res = syscall(__NR_init_module, buf, len, toybuf);
   if (CFG_TOYBOX_FREE && buf != toybuf) free(buf);
-  if (res) perror_exit("failed to load %s ", toys.optargs[0]);
   return res;
 }
 
