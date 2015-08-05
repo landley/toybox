@@ -275,7 +275,8 @@ static int config_action(struct dirtree *node)
       get_mod(tokens[1], 1)->flags |= MOD_BLACKLIST;
     else if (!strcmp(tokens[0], "install")) continue;
     else if (!strcmp(tokens[0], "remove")) continue;
-    else error_msg("Invalid option %s found in file %s", tokens[0], filename);
+    else if (toys.optflags & FLAG_q)
+      error_msg("Invalid option %s found in file %s", tokens[0], filename);
   }
   fclose(fc);
   free(filename);
@@ -425,7 +426,7 @@ static int go_probe(struct module_s *m)
   int rc = 0, first = 1;
 
   if (!(m->flags & MOD_FNDDEPMOD)) {
-    if (!(toys.optflags & FLAG_s))
+    if (!(toys.optflags & FLAG_q))
       error_msg("module %s not found in modules.dep", m->name);
     return -ENOENT;
   }
