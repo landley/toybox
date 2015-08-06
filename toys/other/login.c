@@ -160,8 +160,8 @@ void login_main(void)
     ttyname(tty), hh ? "from" : "", hh ? TT.hostname : "");
 
   // can't xexec here because name doesn't match argv[0]
-  snprintf(toybuf, sizeof(toybuf)-1, "-%s", ss = basename_r(pwd->pw_shell));
+  snprintf(toybuf, sizeof(toybuf)-1, "-%s", basename_r(pwd->pw_shell));
   toy_exec((char *[]){toybuf, 0});
-  execl(ss, toybuf, NULL);
+  execl(pwd->pw_shell, toybuf, NULL);
   error_exit("Failed to spawn shell");
 }
