@@ -18,3 +18,4 @@ do
   scripts/single.sh $i > /dev/null 2>$PREFIX/${i}.bad &&
     rm $PREFIX/${i}.bad || echo -n '*'
 done
+echo
