@@ -4,7 +4,7 @@
  *
  * See ftp://ftp.kernel.org/pub/linux/utils/util-linux/v2.24/libblkid-docs/api-index-full.html
 
-USE_BLKID(NEWTOY(blkid, "<1", TOYFLAG_BIN))
+USE_BLKID(NEWTOY(blkid, NULL, TOYFLAG_BIN))
 USE_FSTYPE(NEWTOY(fstype, "<1", TOYFLAG_BIN))
 
 config BLKID
@@ -26,6 +26,8 @@ config FSTYPE
 
 #define FOR_blkid
 #include "toys.h"
+
+#define ONE_K       1024
 
 struct fstype {
   char *name;
@@ -56,7 +58,6 @@ static const struct fstype fstypes[] = {
   {"vfat", 0x31544146, 4, 54, 39+(4<<24), 11, 43}     // fat1
 };
 
-/* TODO if no args use proc/partitions */
 static void do_blkid(int fd, char *name)
 {
   int off, i, j;
@@ -134,12 +135,36 @@ static void do_blkid(int fd, char *name)
   printf(" TYPE=\"%s\"\n", type);
 }
 
+static void loop_partitions()
+{
+  unsigned int ma, mi, sz, fd;
+  char device[14];
+  char *name = toybuf, *buffer = toybuf + ONE_K;
+  FILE* fp = xfopen("/proc/partitions", "r");
+
+  while (fgets(buffer, ONE_K, fp)) {
+    name[0] = '\0';
+    if (sscanf(buffer, " %u %u %u %[^\n ]", &ma, &mi, &sz, name) != 4)
+      continue;
+
+    sprintf(device,"/dev/%s",name);
+    fd = open(device, O_RDONLY);
+    if (-1 == fd) perror_exit("Could not open %s", device);
+    do_blkid(fd, device);
+    close(fd);
+  }
+  fclose(fp);
+}
+
 void blkid_main(void)
 {
-  loopfiles(toys.optargs, do_blkid);
+  if (*toys.optargs)
+    loopfiles(toys.optargs, do_blkid);
+  else
+    loop_partitions();
 }
 
 void fstype_main(void)
 {
-  blkid_main();
+  loopfiles(toys.optargs, do_blkid);
 }
