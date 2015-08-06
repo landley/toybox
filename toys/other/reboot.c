@@ -24,13 +24,12 @@ config REBOOT
 
 void reboot_main(void)
 {
-  int types[] = {RB_AUTOBOOT, RB_HALT_SYSTEM, RB_POWER_OFF};
-  int sigs[] = {SIGINT, SIGUSR1, SIGUSR2};
+  int types[] = {RB_AUTOBOOT, RB_HALT_SYSTEM, RB_POWER_OFF},
+      sigs[] = {SIGINT, SIGUSR1, SIGUSR2}, idx;
 
   if (!(toys.optflags & FLAG_n)) sync();
 
-  if (toys.optflags & FLAG_f)
-    toys.exitval = reboot(types[stridx("hp", *toys.which->name)+1]);
-  else
-    toys.exitval = kill(1, sigs[stridx("hp", *toys.which->name)+1]);
+  idx = stridx("hp", *toys.which->name)+1;
+  if (toys.optflags & FLAG_f) toys.exitval = reboot(types[idx]);
+  else toys.exitval = kill(1, sigs[idx]);
 }
