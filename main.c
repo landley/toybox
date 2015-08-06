@@ -163,7 +163,10 @@ void toybox_main(void)
       xputs(TOYBOX_VERSION);
       xexit();
     }
-    if (toys.argv[1][0] != '-') error_exit("Unknown command %s", toys.argv[1]);
+    if (toys.argv[1][0] != '-') {
+      toys.exitval = 127;
+      error_exit("Unknown command %s", toys.argv[1]);
+    }
   }
 
   // Output list of command.
