@@ -286,14 +286,14 @@ static void write_server(int len)
 
 void telnet_main(void)
 {
+  char *port = "23";
   int set = 1, len;
   struct pollfd pfds[2];
 
-  TT.port = 23; //TELNET_PORT
   TT.win_width = 80; //columns
   TT.win_height = 24; //rows
 
-  if(toys.optc == 2) TT.port = atolx_range(toys.optargs[1], 0, 65535);
+  if (toys.optc == 2) port = toys.optargs[1];
 
   TT.ttype = getenv("TERM");
   if(!TT.ttype) TT.ttype = "";
@@ -306,7 +306,7 @@ void telnet_main(void)
   }
   terminal_size(&TT.win_width, &TT.win_height);
 
-  TT.sfd = xconnect(*toys.optargs, TT.port, 0, SOCK_STREAM, IPPROTO_TCP, 0);
+  TT.sfd = xconnect(*toys.optargs, port, 0, SOCK_STREAM, IPPROTO_TCP, 0);
   setsockopt(TT.sfd, SOL_SOCKET, SO_REUSEADDR, &set, sizeof(set));
   setsockopt(TT.sfd, SOL_SOCKET, SO_KEEPALIVE, &set, sizeof(set));
 

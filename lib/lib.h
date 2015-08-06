@@ -205,7 +205,7 @@ void tty_sigreset(int i);
 // net.c
 int xsocket(int domain, int type, int protocol);
 void xsetsockopt(int fd, int level, int opt, void *val, socklen_t len);
-int xconnect(char *host, int port, int family, int socktype, int protocol,
+int xconnect(char *host, char *port, int family, int socktype, int protocol,
   int flags);
 
 // password.c

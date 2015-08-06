@@ -13,10 +13,9 @@ void xsetsockopt(int fd, int level, int opt, void *val, socklen_t len)
   if (-1 == setsockopt(fd, level, opt, val, len)) perror_exit("setsockopt");
 }
 
-int xconnect(char *host, int port, int family, int socktype, int protocol,
+int xconnect(char *host, char *port, int family, int socktype, int protocol,
              int flags)
 {
-  char buf[32];
   struct addrinfo info, *ai;
   int fd;
 
@@ -26,11 +25,10 @@ int xconnect(char *host, int port, int family, int socktype, int protocol,
   info.ai_protocol = protocol;
   info.ai_flags = flags;
 
-  sprintf(buf, "%d", port);
-  fd = getaddrinfo(host, port ? buf : 0, &info, &ai);
+  fd = getaddrinfo(host, port, &info, &ai);
 
   if (fd || !ai)
-    error_exit("Connect '%s:%d': %s", host, port,
+    error_exit("Connect '%s%s%s': %s", host, port ? ":" : "", port ? port : "",
       fd ? gai_strerror(fd) : "not found");
 
   fd = xsocket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
