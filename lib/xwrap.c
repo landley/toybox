@@ -30,10 +30,10 @@ void xstrncat(char *dest, char *src, size_t size)
 
 void xexit(void)
 {
+  if (toys.rebound) longjmp(*toys.rebound, 1);
   if (fflush(NULL) || ferror(stdout))
     if (!toys.exitval) perror_msg("write");
-  if (toys.rebound) longjmp(*toys.rebound, 1);
-  else exit(toys.exitval);
+  exit(toys.exitval);
 }
 
 // Die unless we can allocate memory.
@@ -136,7 +136,10 @@ void xexec(char **argv)
   if (CFG_TOYBOX && !CFG_TOYBOX_NORECURSE) toy_exec(argv);
   execvp(argv[0], argv);
 
-  perror_exit("exec %s", argv[0]);
+  perror_msg("exec %s", argv[0]);
+  toys.exitval = 127;
+  if (!CFG_TOYBOX_FORK) _exit(toys.exitval);
+  xexit();
 }
 
 // Spawn child process, capturing stdin/stdout.
