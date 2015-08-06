@@ -4,7 +4,7 @@
  *
  * See ftp://ftp.kernel.org/pub/linux/utils/util-linux/v2.24/libblkid-docs/api-index-full.html
 
-USE_BLKID(NEWTOY(blkid, NULL, TOYFLAG_BIN))
+USE_BLKID(NEWTOY(blkid, 0, TOYFLAG_BIN))
 USE_FSTYPE(NEWTOY(fstype, "<1", TOYFLAG_BIN))
 
 config BLKID
@@ -27,8 +27,6 @@ config FSTYPE
 #define FOR_blkid
 #include "toys.h"
 
-#define ONE_K       1024
-
 struct fstype {
   char *name;
   uint64_t magic;
@@ -36,6 +34,7 @@ struct fstype {
 };
 
 static const struct fstype fstypes[] = {
+  {"swap", 0x4341505350415753, 8, 4086, 1036, 15, 1052},
   {"ext2", 0xEF53, 2, 1080, 1128, 16, 1144}, // keep this first for ext3/4 check
   // NTFS label actually 8/16 0x4d80 but horrible: 16 bit wide characters via
   // codepage, something called a uuid that's only 8 bytes long...
@@ -90,7 +89,7 @@ static void do_blkid(int fd, char *name)
       if (test == fstypes[i].magic) break;
     }
 
-    if (i == sizeof(fstypes)/sizeof(struct fstype)) {
+    if (i == ARRAY_LEN(fstypes)) {
       off += len;
       if (pass) continue;
       return;
@@ -135,33 +134,29 @@ static void do_blkid(int fd, char *name)
   printf(" TYPE=\"%s\"\n", type);
 }
 
-static void loop_partitions()
-{
-  unsigned int ma, mi, sz, fd;
-  char device[14];
-  char *name = toybuf, *buffer = toybuf + ONE_K;
-  FILE* fp = xfopen("/proc/partitions", "r");
-
-  while (fgets(buffer, ONE_K, fp)) {
-    name[0] = '\0';
-    if (sscanf(buffer, " %u %u %u %[^\n ]", &ma, &mi, &sz, name) != 4)
-      continue;
-
-    sprintf(device,"/dev/%s",name);
-    fd = open(device, O_RDONLY);
-    if (-1 == fd) perror_exit("Could not open %s", device);
-    do_blkid(fd, device);
-    close(fd);
-  }
-  fclose(fp);
-}
-
 void blkid_main(void)
 {
-  if (*toys.optargs)
-    loopfiles(toys.optargs, do_blkid);
-  else
-    loop_partitions();
+  if (*toys.optargs) loopfiles(toys.optargs, do_blkid);
+  else {
+    unsigned int ma, mi, sz, fd;
+    char *name = toybuf, *buffer = toybuf+1024, device[32];
+    FILE *fp = xfopen("/proc/partitions", "r");
+
+    while (fgets(buffer, 1024, fp)) {
+      *name = 0;
+      if (sscanf(buffer, " %u %u %u %[^\n ]", &ma, &mi, &sz, name) != 4)
+        continue;
+
+      sprintf(device, "/dev/%.20s", name);
+      if (-1 == (fd = open(device, O_RDONLY))) {
+        if (errno != ENOMEDIUM) perror_msg("%s", device);
+      } else {
+        do_blkid(fd, device);
+        close(fd);
+      }
+    }
+    if (CFG_TOYBOX_FREE) fclose(fp);
+  }
 }
 
 void fstype_main(void)
