@@ -16,7 +16,7 @@ void xsetsockopt(int fd, int level, int opt, void *val, socklen_t len)
 int xconnect(char *host, char *port, int family, int socktype, int protocol,
              int flags)
 {
-  struct addrinfo info, *ai;
+  struct addrinfo info, *ai, *ai2;
   int fd;
 
   memset(&info, 0, sizeof(struct addrinfo));
@@ -26,14 +26,19 @@ int xconnect(char *host, char *port, int family, int socktype, int protocol,
   info.ai_flags = flags;
 
   fd = getaddrinfo(host, port, &info, &ai);
-
   if (fd || !ai)
     error_exit("Connect '%s%s%s': %s", host, port ? ":" : "", port ? port : "",
       fd ? gai_strerror(fd) : "not found");
 
-  fd = xsocket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-  if (connect(fd, ai->ai_addr, ai->ai_addrlen)) perror_exit("connect");
-  freeaddrinfo(ai);
+  // Try all the returned addresses. Report errors if last entry can't connect.
+  for (ai2 = ai; ai; ai = ai->ai_next) {
+    fd = (ai->ai_next ? socket : xsocket)(ai->ai_family, ai->ai_socktype,
+      ai->ai_protocol);
+    if (!connect(fd, ai->ai_addr, ai->ai_addrlen)) break;
+    else if (!ai2->ai_next) perror_exit("connect");
+    close(fd);
+  }
+  freeaddrinfo(ai2);
 
   return fd;
 }
