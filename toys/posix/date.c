@@ -51,6 +51,24 @@ GLOBALS(
   char *showdate;
 )
 
+// mktime(3) normalizes the struct tm fields, but date(1) shouldn't.
+// If we round trip via localtime_r(3) and get back where we started,
+// we know 'tm' is already in normal form.
+static time_t non_normalizing_mktime(struct tm *tm)
+{
+  struct tm tm0 = *tm;
+  time_t t = mktime(tm);
+  struct tm tm1;
+
+  if (t == -1 || !localtime_r(&t, &tm1) ||
+      tm0.tm_sec != tm1.tm_sec || tm0.tm_min != tm1.tm_min ||
+      tm0.tm_hour != tm1.tm_hour || tm0.tm_mday != tm1.tm_mday ||
+      tm0.tm_mon != tm1.tm_mon)
+    return -1;
+
+  return t;
+}
+
 // Handle default posix date format: mmddhhmm[[cc]yy]
 // returns 0 success, nonzero for error
 static int parse_posixdate(char *str, struct tm *tm)
@@ -145,13 +163,13 @@ void date_main(void)
       // We can't just pass a timezone to mktime because posix.
       setenv("TZ", "UTC", 1);
       tzset();
-      tv.tv_sec = mktime(&tm);
+      tv.tv_sec = non_normalizing_mktime(&tm);
       if (CFG_TOYBOX_FREE) {
         if (tz) setenv("TZ", tz, 1);
         else unsetenv("TZ");
         tzset();
       }
-    } else tv.tv_sec = mktime(&tm);
+    } else tv.tv_sec = non_normalizing_mktime(&tm);
     if (tv.tv_sec == (time_t)-1) goto bad_date;
 
     tv.tv_usec = 0;

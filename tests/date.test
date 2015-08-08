@@ -1,0 +1,10 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+# Accidentally given a Unix time, we should trivially reject that.
+testing "date Unix time" "date 1438053157 2>&1" "date: bad date '1438053157'\n" "" ""
+# But some invalid dates are more subtle, like Febuary 29th in a non-leap year.
+testing "date Feb 29th" "date 022900001975 2>&1" "date: bad date
