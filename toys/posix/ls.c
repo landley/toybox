@@ -422,17 +422,18 @@ static void listfiles(int dirfd, struct dirtree *indir)
       mode_to_string(mode, perm);
       printf("%s% *ld", perm, totals[2]+1, (long)st->st_nlink);
 
+      // print user
+      if (!(flags&FLAG_g)) {
+        if (flags&FLAG_n) sprintf(ss = thyme, "%u", (unsigned)st->st_uid);
+        else strwidth(ss = getusername(st->st_uid));
+        printf(" %*s", (int)totals[3], ss);
+      }
+
       // print group
       if (!(flags&FLAG_o)) {
         if (flags&FLAG_n) sprintf(ss = thyme, "%u", (unsigned)st->st_gid);
         else strwidth(ss = getgroupname(st->st_gid));
         printf(" %*s", (int)totals[4], ss);
-      }
-
-      if (!(flags&FLAG_g)) {
-        if (flags&FLAG_n) sprintf(ss = thyme, "%u", (unsigned)st->st_uid);
-        else strwidth(ss = getusername(st->st_uid));
-        printf(" %*s", (int)totals[3], ss);
       }
 
       if (flags & FLAG_Z)
