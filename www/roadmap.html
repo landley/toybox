@@ -244,15 +244,13 @@ sendevent start stop top uptime watchprops
 <h3>Other Android core commands</h3>
 
 <p>Other than the toolbox directory, the currently interesting
-subdirectories in the core repository are gpttool, init,
-logcat, logwrapper, mkbootimg, reboot, and run-as.</p>
+subdirectories in the core repository are init,
+logcat, logwrapper, reboot, and run-as.</p>
 
 <ul>
-<li><b>gpttool</b> - subset of fdisk</li>
 <li><b>init</b> - Android's PID 1</li>
 <li><b>logcat</b> - read android log format</li>
 <li><b>logwrapper</b> - redirect stdio to android log</li>
-<li><b>mkbootimg</b> - create signed boot image</li>
 <li><b>reboot</b> - Android's reboot(1)</li>
 <li><b>run-as</b> - subset of sudo</li>
 </ul>
@@ -261,17 +259,13 @@ logcat, logwrapper, mkbootimg, reboot, and run-as.</p>
 different user interface. We may want to provide that interface, but
 implementing the full commands (fdisk, init, and sudo) come first.</p>
 
-<p>Also, gpttool and mkbootimg are install tools.
-These aren't a priority if android wants to use its own
-bespoke code to install itself.</p>
-
 <h3>Analysis</h3>
 
 <p>For reference, combining everything listed above, we get:</p>
 
 <blockquote><b>
-dd du df getevent gpttool iftop init ioctl ionice
-log logcat logwrapper ls lsof mkbootimg mount nandread
+dd du df getevent iftop init ioctl ionice
+log logcat logwrapper ls lsof mount nandread
 newfs_msdos ps prlimit reboot renice run-as
 sendevent start stop top uptime watchprops
 </b></blockquote>
