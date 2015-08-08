@@ -7,22 +7,23 @@
  * Note: setting a 2 year date is 50 years back/forward from today,
  * not posix's hardwired magic dates.
 
-USE_DATE(NEWTOY(date, "d:s:r:u[!dr]", TOYFLAG_BIN))
+USE_DATE(NEWTOY(date, "d:D:r:u[!dr]", TOYFLAG_BIN))
 
 config DATE
   bool "date"
   default y
   help
-    usage: date [-u] [-r FILE] [-d DATE] [+DISPLAY_FORMAT] [-s SET_FORMAT] [SET]
+    usage: date [-u] [-r FILE] [-d DATE] [+DISPLAY_FORMAT] [-D SET_FORMAT] [SET]
 
     Set/get the current date/time. With no SET shows the current date.
 
     Default SET format is "MMDDhhmm[[CC]YY][.ss]", that's (2 digits each)
     month, day, hour (0-23), and minute. Optionally century, year, and second.
+    Also accepts "@UNIXTIME[.FRACTION]" as seconds since midnight Jan 1 1970.
 
     -d	Show DATE instead of current time (convert date format)
+    -D	+FORMAT for SET or -d (instead of MMDDhhmm[[CC]YY][.ss])
     -r	Use modification time of FILE instead of current date
-    -s	+FORMAT for SET or -d (instead of MMDDhhmm[[CC]YY][.ss])
     -u	Use UTC instead of current timezone
 
     +FORMAT specifies display format string using these escapes:
@@ -49,33 +50,73 @@ GLOBALS(
   char *file;
   char *setfmt;
   char *showdate;
+
+  char *tz;
+  unsigned nano;
 )
 
 // mktime(3) normalizes the struct tm fields, but date(1) shouldn't.
-// If we round trip via localtime_r(3) and get back where we started,
-// we know 'tm' is already in normal form.
-static time_t non_normalizing_mktime(struct tm *tm)
+static time_t chkmktime(struct tm *tm)
 {
-  struct tm tm0 = *tm;
+  struct tm tm2;
   time_t t = mktime(tm);
-  struct tm tm1;
+  int *tt1 = (void *)tm, *tt2=(void *)&tm2, i;
 
-  if (t == -1 || !localtime_r(&t, &tm1) ||
-      tm0.tm_sec != tm1.tm_sec || tm0.tm_min != tm1.tm_min ||
-      tm0.tm_hour != tm1.tm_hour || tm0.tm_mday != tm1.tm_mday ||
-      tm0.tm_mon != tm1.tm_mon)
-    return -1;
+  if (t != -1 && localtime_r(&t, &tm2)) {
+    for (i=0; i<6; i++) if (tt1[i] != tt2[i]) break;
+    if (i == 5) return t;
+  }
 
-  return t;
+  return -1;
 }
 
-// Handle default posix date format: mmddhhmm[[cc]yy]
-// returns 0 success, nonzero for error
-static int parse_posixdate(char *str, struct tm *tm)
+static void utzset(void)
 {
-  int len;
+  if (!(TT.tz = getenv("TZ"))) TT.tz = (char *)1;
+  setenv("TZ", "UTC", 1);
+  tzset();
+}
 
-  len = 0;
+static void utzreset(void)
+{
+  if (TT.tz) {
+    if (TT.tz != (char *)1) setenv("TZ", TT.tz, 1);
+    else unsetenv("TZ");
+    tzset();
+  }
+}
+
+// Handle default posix date format (mmddhhmm[[cc]yy]) or @UNIX[.FRAC]
+// returns 0 success, nonzero for error
+static int parse_default(char *str, struct tm *tm)
+{
+  int len = 0;
+
+  // Parse @UNIXTIME[.FRACTION]
+  if (*str == '@') {
+    long long ll;
+    time_t tt;
+
+    // Collect seconds and nanoseconds
+    // Note: struct tm hasn't got a fractional seconds field, thus strptime()
+    // doesn't support it, so store nanoseconds out of band (in globals).
+    // tt and ll are separate because we can't guarantee time_t is 64 bit (yet).
+    sscanf(str, "@%lld%n", &ll, &len);
+    if (str[len]=='.') {
+      str += len+1;
+      for (len = 0; len<9; len++) {
+        TT.nano *= 10;
+        if (isdigit(str[len])) TT.nano += str[len]-'0';
+      }
+    }
+    if (str[len]) return 1;
+    tt = ll;
+    gmtime_r(&tt, tm);
+
+    return 0;
+  }
+
+  // Posix format
   sscanf(str, "%2u%2u%2u%2u%n", &tm->tm_mon, &tm->tm_mday, &tm->tm_hour,
     &tm->tm_min, &len);
   if (len != 8) return 1;
@@ -112,16 +153,11 @@ static int parse_posixdate(char *str, struct tm *tm)
 
 void date_main(void)
 {
-  char *setdate = *toys.optargs, *format_string = "%a %b %e %H:%M:%S %Z %Y",
-       *tz = 0;
+  char *setdate = *toys.optargs, *format_string = "%a %b %e %H:%M:%S %Z %Y";
   struct tm tm;
 
   // We can't just pass a timezone to mktime because posix.
-  if (toys.optflags & FLAG_u) {
-    if (CFG_TOYBOX_FREE) tz = getenv("TZ");
-    setenv("TZ", "UTC", 1);
-    tzset();
-  }
+  if (toys.optflags & FLAG_u) utzset();
 
   if (TT.showdate) {
     setdate = TT.showdate;
@@ -129,7 +165,7 @@ void date_main(void)
       char *s = strptime(TT.showdate, TT.setfmt+(*TT.setfmt=='+'), &tm);
 
       if (!s || *s) goto bad_date;
-    } else if (parse_posixdate(TT.showdate, &tm)) goto bad_date;
+    } else if (parse_default(TT.showdate, &tm)) goto bad_date;
   } else {
     time_t now;
 
@@ -155,33 +191,22 @@ void date_main(void)
   } else if (setdate) {
     struct timeval tv;
 
-    if (parse_posixdate(setdate, &tm)) goto bad_date;
+    if (parse_default(setdate, &tm)) goto bad_date;
 
     if (toys.optflags & FLAG_u) {
-      char *tz = CFG_TOYBOX_FREE ? getenv("TZ") : 0;
-
       // We can't just pass a timezone to mktime because posix.
-      setenv("TZ", "UTC", 1);
-      tzset();
-      tv.tv_sec = non_normalizing_mktime(&tm);
-      if (CFG_TOYBOX_FREE) {
-        if (tz) setenv("TZ", tz, 1);
-        else unsetenv("TZ");
-        tzset();
-      }
-    } else tv.tv_sec = non_normalizing_mktime(&tm);
+      utzset();
+      tv.tv_sec = chkmktime(&tm);
+      utzreset();
+    } else tv.tv_sec = chkmktime(&tm);
     if (tv.tv_sec == (time_t)-1) goto bad_date;
 
-    tv.tv_usec = 0;
+    tv.tv_usec = TT.nano/1000;
+exit(1);
     if (settimeofday(&tv, NULL) < 0) perror_msg("cannot set date");
   }
 
-  if (toys.optflags & FLAG_u) {
-    if (tz) setenv("TZ", tz, 1);
-    else unsetenv("TZ");
-    tzset();
-  }
-
+  utzreset();
   if (!strftime(toybuf, sizeof(toybuf), format_string, &tm))
     perror_exit("bad format '%s'", format_string);
   puts(toybuf);
