@@ -473,7 +473,6 @@ void init_main(void)
   sigaction(SIGTSTP, &sig_act, NULL);
   memset(&sig_act, 0, sizeof(sig_act));
   sig_act.sa_handler = catch_signal;
-  sigaction(SIGINT, &sig_act, NULL);
   sigaction(SIGHUP, &sig_act, NULL);  
   run_action_from_list(SYSINIT);
   check_if_pending_signals();
