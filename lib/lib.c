@@ -868,7 +868,7 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
 
 // display first few digits of number with power of two units, except we're
 // actually just counting decimal digits and showing mil/bil/trillions.
-int human_readable(char *buf, unsigned long long num)
+int human_readable(char *buf, unsigned long long num, int style)
 {
   int end, len;
 
@@ -881,9 +881,9 @@ int human_readable(char *buf, unsigned long long num)
     buf[1] = '.';
     end = 3;
   }
-  buf[end++] = ' ';
+  if (style & HR_SPACE) buf[end++] = ' ';
   if (len) buf[end++] = " KMGTPE"[len];
-  buf[end++] = 'B';
+  if (style & HR_B) buf[end++] = 'B';
   buf[end++] = 0;
 
   return end;

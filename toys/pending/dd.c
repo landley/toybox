@@ -133,9 +133,9 @@ static void summary()
   //out to STDERR
   fprintf(stderr,"%llu+%llu records in\n%llu+%llu records out\n", st.in_full, st.in_part,
       st.out_full, st.out_part);
-  human_readable(toybuf, st.bytes);
+  human_readable(toybuf, st.bytes, HR_SPACE|HR_B);
   fprintf(stderr, "%llu bytes (%s) copied, ",st.bytes, toybuf);
-  human_readable(toybuf, st.bytes/seconds);
+  human_readable(toybuf, st.bytes/seconds, HR_SPACE|HR_B);
   fprintf(stderr, "%f s, %s/s\n", seconds, toybuf);
 }
 

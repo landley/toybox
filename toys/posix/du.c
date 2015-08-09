@@ -57,7 +57,7 @@ static void print(long long size, struct dirtree *node)
   if (TT.maxdepth && TT.depth > TT.maxdepth) return;
 
   if (toys.optflags & FLAG_h) {
-    human_readable(toybuf, size);
+    human_readable(toybuf, size, 0);
     printf("%s", toybuf);
   } else {
     int bits = 10;
