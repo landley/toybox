@@ -575,7 +575,7 @@ void delete_tempfile(int fdin, int fdout, char **tempname)
 {
   close(fdin);
   close(fdout);
-  unlink(*tempname);
+  if (*tempname) unlink(*tempname);
   tempfile2zap = (char *)1;
   free(*tempname);
   *tempname = NULL;
