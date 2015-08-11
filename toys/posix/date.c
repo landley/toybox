@@ -92,6 +92,8 @@ static int parse_default(char *str, struct tm *tm)
 {
   int len = 0;
 
+  memset(tm, 0, sizeof(struct tm));
+
   // Parse @UNIXTIME[.FRACTION]
   if (*str == '@') {
     long long ll;
@@ -160,7 +162,6 @@ void date_main(void)
   if (toys.optflags & FLAG_u) utzset();
 
   if (TT.showdate) {
-    setdate = TT.showdate;
     if (TT.setfmt) {
       char *s = strptime(TT.showdate, TT.setfmt+(*TT.setfmt=='+'), &tm);
 
@@ -179,7 +180,6 @@ void date_main(void)
     ((toys.optflags & FLAG_u) ? gmtime_r : localtime_r)(&now, &tm);
   }
 
-  setdate = *toys.optargs;
   // Fall through if no arguments
   if (!setdate);
   // Display the date?
@@ -202,7 +202,6 @@ void date_main(void)
     if (tv.tv_sec == (time_t)-1) goto bad_date;
 
     tv.tv_usec = TT.nano/1000;
-exit(1);
     if (settimeofday(&tv, NULL) < 0) perror_msg("cannot set date");
   }
 
