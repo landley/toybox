@@ -56,18 +56,24 @@ GLOBALS(
 )
 
 // mktime(3) normalizes the struct tm fields, but date(1) shouldn't.
-static time_t chkmktime(struct tm *tm)
+static time_t chkmktime(struct tm *tm, const char *str, const char* fmt)
 {
-  struct tm tm2;
+  struct tm tm0 = *tm;
+  struct tm tm1;
   time_t t = mktime(tm);
-  int *tt1 = (void *)tm, *tt2=(void *)&tm2, i;
 
-  if (t != -1 && localtime_r(&t, &tm2)) {
-    for (i=0; i<6; i++) if (tt1[i] != tt2[i]) break;
-    if (i == 5) return t;
+  if (t == -1 || !localtime_r(&t, &tm1) ||
+      tm0.tm_sec != tm1.tm_sec || tm0.tm_min != tm1.tm_min ||
+      tm0.tm_hour != tm1.tm_hour || tm0.tm_mday != tm1.tm_mday ||
+      tm0.tm_mon != tm1.tm_mon) {
+    int len;
+
+    strftime(toybuf, sizeof(toybuf), fmt, &tm0);
+    len = strlen(toybuf) + 1;
+    strftime(toybuf + len, sizeof(toybuf) - len, fmt, &tm1);
+    error_exit("bad date '%s'; %s != %s", str, toybuf, toybuf + len);
   }
-
-  return -1;
+  return t;
 }
 
 static void utzset(void)
@@ -91,8 +97,6 @@ static void utzreset(void)
 static int parse_default(char *str, struct tm *tm)
 {
   int len = 0;
-
-  memset(tm, 0, sizeof(struct tm));
 
   // Parse @UNIXTIME[.FRACTION]
   if (*str == '@') {
@@ -139,16 +143,18 @@ static int parse_default(char *str, struct tm *tm)
     // 2 digit years, next 50 years are "future", last 50 years are "past".
     // A "future" date in past is a century ahead.
     // A non-future date in the future is a century behind.
-    if ((r1 < r2) ? (r1 < year && year < r2) : (year < r1 || year > r2)) {
-      if (year < r1) year += 100;
-    } else if (year > r1) year -= 100;
+    if (len == 2) {
+      if ((r1 < r2) ? (r1 < year && year < r2) : (year < r1 || year > r2)) {
+        if (year < r1) year += 100;
+      } else if (year > r1) year -= 100;
+    }
     tm->tm_year = year + century;
   }
   if (*str == '.') {
     len = 0;
     sscanf(str, ".%u%n", &tm->tm_sec, &len);
     str += len;
-  }
+  } else tm->tm_sec = 0;
 
   return *str;
 }
@@ -158,6 +164,8 @@ void date_main(void)
   char *setdate = *toys.optargs, *format_string = "%a %b %e %H:%M:%S %Z %Y";
   struct tm tm;
 
+  memset(&tm, 0, sizeof(struct tm));
+
   // We can't just pass a timezone to mktime because posix.
   if (toys.optflags & FLAG_u) utzset();
 
@@ -165,8 +173,8 @@ void date_main(void)
     if (TT.setfmt) {
       char *s = strptime(TT.showdate, TT.setfmt+(*TT.setfmt=='+'), &tm);
 
-      if (!s || *s) goto bad_date;
-    } else if (parse_default(TT.showdate, &tm)) goto bad_date;
+      if (!s || *s) goto bad_showdate;
+    } else if (parse_default(TT.showdate, &tm)) goto bad_showdate;
   } else {
     time_t now;
 
@@ -191,15 +199,14 @@ void date_main(void)
   } else if (setdate) {
     struct timeval tv;
 
-    if (parse_default(setdate, &tm)) goto bad_date;
+    if (parse_default(setdate, &tm)) error_exit("bad date '%s'", setdate);
 
     if (toys.optflags & FLAG_u) {
       // We can't just pass a timezone to mktime because posix.
       utzset();
-      tv.tv_sec = chkmktime(&tm);
+      tv.tv_sec = chkmktime(&tm, setdate, format_string);
       utzreset();
-    } else tv.tv_sec = chkmktime(&tm);
-    if (tv.tv_sec == (time_t)-1) goto bad_date;
+    } else tv.tv_sec = chkmktime(&tm, setdate, format_string);
 
     tv.tv_usec = TT.nano/1000;
     if (settimeofday(&tv, NULL) < 0) perror_msg("cannot set date");
@@ -212,6 +219,6 @@ void date_main(void)
 
   return;
 
-bad_date:
-  error_exit("bad date '%s'", setdate);
+bad_showdate:
+  error_exit("bad date '%s'", TT.showdate);
 }

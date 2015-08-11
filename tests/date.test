@@ -4,7 +4,19 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
+# Test Unix date parsing.
+testing "date -d @0" "TZ=UTC date -d @0 2>&1" "Thu Jan  1 00:00:00 GMT 1970\n" "" ""
+testing "date -d @0x123" "TZ=UTC date -d @0x123 2>&1" "date: bad date '@0x123'\n" "" ""
+
+# Test basic date parsing.
+# Note that toybox's -d format is not the same as coreutils'.
+testing "date -d 06021234" "TZ=UTC date -d 06021234 2>&1" "Sun Jun  2 12:34:00 UTC 1900\n" "" ""
+testing "date -d 060212341982" "TZ=UTC date -d 060212341982 2>&1" "Sun Jun  2 12:34:00 UTC 1982\n" "" ""
+testing "date -d 123" "TZ=UTC date -d 123 2>&1" "date: bad date '123'\n" "" ""
+
 # Accidentally given a Unix time, we should trivially reject that.
-testing "date Unix time" "date 1438053157 2>&1" "date: bad date '1438053157'\n" "" ""
+testing "date Unix time missing @" "TZ=UTC date 1438053157 2>&1" \
+  "date: bad date '1438053157'; Tue February 38 05:31:00 UTC 2057 != Sun Mar 10 05:31:00 UTC 2058\n" "" ""
 # But some invalid dates are more subtle, like Febuary 29th in a non-leap year.
-testing "date Feb 29th" "date 022900001975 2>&1" "date: bad date
+testing "date Feb 29th" "TZ=UTC date 022900001975 2>&1" \
+  "date: bad date '022900001975'; Tue Feb 29 00:00:00 UTC 2075 != Fri Mar  1 00:00:00 UTC 2075\n" "" ""
