@@ -236,9 +236,9 @@ system/core/toolbox/Android.mk</a> the toolbox directory builds the
 following commands:</p>
 
 <blockquote><b>
-dd du df getevent iftop ioctl ionice log ls
-lsof mount nandread newfs_msdos ps prlimit renice
-sendevent start stop top uptime watchprops
+dd du df getevent iftop ioctl log ls
+lsof nandread newfs_msdos ps prlimit
+sendevent start stop top uptime
 </b></blockquote>
 
 <h3>Other Android core commands</h3>
@@ -264,25 +264,24 @@ implementing the full commands (fdisk, init, and sudo) come first.</p>
 <p>For reference, combining everything listed above, we get:</p>
 
 <blockquote><b>
-dd du df getevent iftop init ioctl ionice
-log logcat logwrapper ls lsof mount nandread
-newfs_msdos ps prlimit reboot renice run-as
-sendevent start stop top uptime watchprops
+dd du df getevent iftop init ioctl
+log logcat logwrapper ls lsof nandread
+newfs_msdos ps prlimit reboot run-as
+sendevent start stop top uptime
 </b></blockquote>
 
 <p>We may eventually implement all of that, but for toybox 1.0 we need to
-focus a bit. For our first pass, let's ignore selinux [note: the android
-guys submitted selinux code to us and we merged it],
-and grab just logcat and logwrapper from the "core"
-commands (since the rest have some full/standard version providing that
-functionality, which we can implement a shim interface for later).</p>
+focus a bit. For our first pass, let's grab just logcat and logwrapper
+from the "core" commands (since the rest have some full/standard version
+providing that functionality, which we can implement a shim interface
+for later).</p>
 
 <p>This means toybox should implement (or finish implementing):</p>
 <blockquote><b>
 <span id=toolbox>
-dd du df getevent iftop ioctl ionice log logcat logwrapper ls lsof
-mount nandread newfs_msdos ps prlimit renice schedtop sendevent
-smd start stop top uptime watchprops
+dd du df getevent iftop ioctl log logcat logwrapper ls lsof
+nandread newfs_msdos ps prlimit sendevent
+start stop top uptime
 </span>
 </b></blockquote>
 
