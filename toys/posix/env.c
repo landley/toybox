@@ -24,16 +24,17 @@ extern char **environ;
 void env_main(void)
 {
   char **ev;
-  char *del = "=";
 
   if (toys.optflags) clearenv();
 
-  for (ev = toys.optargs; *ev != NULL; ev++) {
-    char *env = strtok(*ev, del), *val = 0;
+  for (ev = toys.optargs; *ev; ev++) {
+    char *name = *ev, *val = strchr(name, '=');
 
-    if (env) val = strtok(0, del);
-    if (val) setenv(env, val, 1);
-    else xexec(ev);
+    if (val) {
+      *(val++) = 0;
+      if (*val) setenv(name, val, 1);
+      else unsetenv(name);
+    } else xexec(ev);
   }
 
   if (environ) for (ev = environ; *ev; ev++) xputs(*ev);
