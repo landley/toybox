@@ -24,8 +24,10 @@ void basename_main(void)
 
   // chop off the suffix if provided
   if (suffix) {
-    char *s = base + strlen(base) - strlen(suffix);
-    if (s > base && !strcmp(s, suffix)) *s = 0;
+    long bl = strlen(base), sl = strlen(suffix);
+    char *s = base + bl - sl;
+
+    if (bl > sl && !strcmp(s, suffix)) *s = 0;
   }
 
   puts(base);
