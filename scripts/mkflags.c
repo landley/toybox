@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
 
     if (!*command) break;
     if (bit != 3) {
-      fprintf(stderr, "\nError in %s (duplicate command?)\n", command);
+      fprintf(stderr, "\nError in %s (see generated/flags.raw)\n", command);
       exit(1);
     }
 

@@ -8,9 +8,16 @@ then
   exit 1
 fi
 
+# Harvest TOYBOX_* symbols from .config
+if [ ! -e .config ]
+then
+  echo "Need .config for toybox global settings. Run defconfig/menuconfig." >&2
+  exit 1
+fi
+
+export KCONFIG_CONFIG=.singleconfig
 for i in "$@"
 do
-
   TOYFILE="$(egrep -l "TOY[(]($i)[ ,]" toys/*/*.c)"
 
   if [ -z "$TOYFILE" ]
@@ -22,12 +29,17 @@ do
   DEPENDS="$(sed -n 's/^[ \t]*depends on //;T;s/[!][A-Z0-9_]*//g;s/ *&& */|/g;p' $TOYFILE | grep -v SMACK | xargs | tr ' ' '|')"
 
   NAME=$(echo $i | tr a-z- A-Z_)
-  export KCONFIG_CONFIG=.singleconfig
 
   make allnoconfig > /dev/null &&
-  sed -ri -e "s/CONFIG_TOYBOX=y/# CONFIG_TOYBOX is not set/;t" \
-    -e "s/# (CONFIG_(TOYBOX(|_HELP.*|_I18N|_FLOAT)|$NAME|${NAME}_.*${DEPENDS:+|$DEPENDS})) is not set/\1=y/" \
+  sed -ri -e '/CONFIG_TOYBOX/d' \
+    -e "s/# (CONFIG_($NAME|${NAME}_.*${DEPENDS:+|$DEPENDS})) is not set/\1=y/" \
     "$KCONFIG_CONFIG" &&
+  echo "# CONFIG_TOYBOX is not set" >> "$KCONFIG_CONFIG" &&
+  grep "CONFIG_TOYBOX_" .config >> "$KCONFIG_CONFIG" &&
+
+#  sed -ri -e "s/CONFIG_TOYBOX=y/# CONFIG_TOYBOX is not set/;t" \
+#    -e "s/# (CONFIG_(TOYBOX(|_HELP.*|_I18N|_FLOAT)|$NAME|${NAME}_.*${DEPENDS:+|$DEPENDS})) is not set/\1=y/" \
+#    "$KCONFIG_CONFIG" &&
   make &&
   mv toybox $PREFIX$i || exit 1
 done

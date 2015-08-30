@@ -177,7 +177,7 @@ do
 # If no pair (because command's disabled in config), use " " for flags
 # so allflags can define the appropriate zero macros.
 
-done | sort -s | sed -n 's/ A / /;t pair;h;s/\([^ ]*\).*/\1 " "/;x;b single;:pair;h;n;:single;s/[^ ]* B //;H;g;s/\n/ /;p' |\
+done | sort -s | sed -n 's/ A / /;t pair;h;s/\([^ ]*\).*/\1 " "/;x;b single;:pair;h;n;:single;s/[^ ]* B //;H;g;s/\n/ /;p' | tee generated/flags.raw | \
 generated/mkflags > generated/flags.h || exit 1
 
 # Extract global structure definitions and flag definitions from toys/*/*.c
@@ -271,12 +271,13 @@ done
 [ $DONE -ne 0 ] && exit 1
 
 do_loudly $BUILD $LFILES $LINK || exit 1
-if ! do_loudly ${CROSS_COMPILE}strip toybox_unstripped -o toybox
+if [ ! -z "$NOSTRIP" ] || ! do_loudly ${CROSS_COMPILE}strip toybox_unstripped -o toybox
 then
   echo "strip failed, using unstripped" && cp toybox_unstripped toybox ||
   exit 1
+else
+  # gcc 4.4's strip command is buggy, and doesn't set the executable bit on
+  # its output the way SUSv4 suggests it do so.
+  do_loudly chmod +x toybox || exit 1
 fi
-# gcc 4.4's strip command is buggy, and doesn't set the executable bit on
-# its output the way SUSv4 suggests it do so.
-do_loudly chmod +x toybox || exit 1
 echo
