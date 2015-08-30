@@ -225,6 +225,12 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 #endif
 #if CFG_TOYBOX_UTMPX
 #include <utmpx.h>
+#else
+struct utmpx {int ut_type;};
+#define USER_PROCESS 0
+static inline struct utmpx *getutxent(void) {return 0;}
+static inline void setutxent(void) {;}
+static inline void endutxent(void) {;}
 #endif
 
 // Some systems don't define O_NOFOLLOW, and it varies by architecture, so...
