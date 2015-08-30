@@ -382,7 +382,7 @@ void cp_main(void)
         {
           fprintf(stderr, "%s: overwrite '%s'", toys.which->name, TT.destname);
           if (!yesno("", 1)) rc = 0;
-          else unlink(src);
+          else unlink(TT.destname);
         }
       }
 

@@ -96,3 +96,10 @@ touch file1 file2
 testing "Move -n file new_file (exist)" "mv -n file1 file2 &&
    [ -e file1 -a -e file2 ] && echo 'yes'" "yes\n" "" ""
 rm -f file*
+
+touch file1 file2
+chmod 400 file1 file2
+testing "Move file over unwritable file with no stdin" \
+   "</dev/null mv file2 file1 && [ -e file -a ! -e file2 ] && echo 'yes'" \
+   "yes\n" "" ""
+rm -f file*
