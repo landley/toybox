@@ -89,6 +89,7 @@ EOF
     #include <unistd.h>
     int main(int argc, char *argv[]) { return fork(); }
 EOF
+  echo -e '\tdepends on !TOYBOX_MUSL_NOMMU_IS_BROKEN'
 }
 
 genconfig()
