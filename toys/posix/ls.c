@@ -426,18 +426,18 @@ static void listfiles(int dirfd, struct dirtree *indir)
       if (!(flags&FLAG_g)) {
         if (flags&FLAG_n) sprintf(ss = thyme, "%u", (unsigned)st->st_uid);
         else strwidth(ss = getusername(st->st_uid));
-        printf(" %*s", (int)totals[3], ss);
+        printf(" %-*s", (int)totals[3], ss);
       }
 
       // print group
       if (!(flags&FLAG_o)) {
         if (flags&FLAG_n) sprintf(ss = thyme, "%u", (unsigned)st->st_gid);
         else strwidth(ss = getgroupname(st->st_gid));
-        printf(" %*s", (int)totals[4], ss);
+        printf(" %-*s", (int)totals[4], ss);
       }
 
       if (flags & FLAG_Z)
-        printf(" %*s", -(int)totals[7], (char *)sort[next]->extra);
+        printf(" %-*s", -(int)totals[7], (char *)sort[next]->extra);
 
       // print major/minor
       if (S_ISCHR(st->st_mode) || S_ISBLK(st->st_mode))
@@ -449,7 +449,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
       strftime(thyme, sizeof(thyme), "%F %H:%M", tm);
       xprintf(" %s ", thyme);
     } else if (flags & FLAG_Z)
-      printf("%*s ", (int)totals[7], (char *)sort[next]->extra);
+      printf("%-*s ", (int)totals[7], (char *)sort[next]->extra);
 
     if (flags & FLAG_color) {
       color = color_from_mode(st->st_mode);
