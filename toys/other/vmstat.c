@@ -96,7 +96,8 @@ void vmstat_main(void)
 
     // Print headers
     if (rows>3 && !(loop % (rows-3))) {
-      const char *header = headers;
+      char *header = headers;
+
       if (isatty(1)) terminal_size(0, &rows);
       else rows = 0;
 
