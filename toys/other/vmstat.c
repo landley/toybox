@@ -96,14 +96,14 @@ void vmstat_main(void)
 
     // Print headers
     if (rows>3 && !(loop % (rows-3))) {
+      const char *header = headers;
       if (isatty(1)) terminal_size(0, &rows);
       else rows = 0;
 
       printf("procs -----------memory---------- ---swap-- -----io---- -system-- ----cpu----\n");
-
       for (i=0; i<sizeof(lengths); i++) {
-        printf(" %*s"+!i, lengths[i], headers);
-        headers += strlen(headers)+1;
+        printf(" %*s"+!i, lengths[i], header);
+        header += strlen(header)+1;
       }
       xputc('\n');
     }
