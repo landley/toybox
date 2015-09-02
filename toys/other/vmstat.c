@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
  *
- * TODO: I have no idea how the "io" and "system" categories are calculated.
+ * TODO: I have no idea how "system" category is calculated.
  * whatever we're doing isn't matching what other implementations are doing.
 
 USE_VMSTAT(NEWTOY(vmstat, ">2n", TOYFLAG_BIN))
@@ -33,8 +33,10 @@ struct vmstat_proc {
   uint64_t user, nice, sys, idle, wait, irq, sirq, intr, ctxt, running, blocked;
   // From /proc/meminfo (units are kb)
   uint64_t memfree, buffers, cached, swapfree, swaptotal;
+  // From /proc/vmstat (units are kb)
+  uint64_t io_in, io_out;
   // From /proc/vmstat (units are pages)
-  uint64_t io_in, io_out, swap_in, swap_out;
+  uint64_t swap_in, swap_out;
 };
 
 // All the elements of vmstat_proc are the same size, so we can populate it as
@@ -142,7 +144,8 @@ void vmstat_main(void)
       // Adjust rate and units
       if (i>5) out -= oldptr[order[i]];
       if (order[i]<7) out = ((out*100) + (total_hz/2)) / total_hz;
-      else if (order[i]>15) out = ((out * page_kb)+(units-1))/units;
+      else if (order[i]>17) out = ((out * page_kb)+(units-1))/units;
+      else if (order[i]>15) out = ((out)+(units-1))/units;
       else if (order[i]<9) out = (out+(units-1)) / units;
 
       // If a field was too big to fit in its slot, try to compensate later
