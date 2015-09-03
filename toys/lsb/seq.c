@@ -29,6 +29,26 @@ GLOBALS(
   char *fmt;
 )
 
+// Ensure there's one %f escape with correct attributes
+static void insanitize(char *f)
+{
+  char *s;
+  int found = 0;
+
+  for (s = f; *s; s++) {
+    while (*s != '%') continue;
+    if (*++s == '%') continue;
+    if (found++) break;
+    while (strchr("'#-+ ", *s)) s++;
+    while (isdigit(*s)) s++;
+    if (*s == '.') s++;
+    while (isdigit(*s)) s++;
+    if (!strchr("aAeEfFgG", *s)) break;
+  }
+  // The @ is a byte offset, not utf8 chars. Waiting for somebody to complain...
+  if (*s) error_exit("bad -f '%s@'%d");
+}
+
 void seq_main(void)
 {
   double first, increment, last, dd;
@@ -45,7 +65,7 @@ void seq_main(void)
     default: last = atof(toys.optargs[toys.optc-1]);
   }
 
-  if (toys.optflags & FLAG_f) fmt_str = TT.fmt;
+  if (toys.optflags & FLAG_f) insanitize(fmt_str = TT.fmt);
   if (toys.optflags & FLAG_s) sep_str = TT.sep;
 
   // Yes, we're looping on a double.  Yes rounding errors can accumulate if
