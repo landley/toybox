@@ -39,7 +39,7 @@ static void insanitize(char *f)
     if (*s != '%') continue;
     if (*++s == '%') continue;
     if (found++) break;
-    while (0 <= stridx("'#-+ ", *s)) s++;
+    while (0 <= stridx("0'#-+ ", *s)) s++;
     while (isdigit(*s)) s++;
     if (*s == '.') s++;
     while (isdigit(*s)) s++;
