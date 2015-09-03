@@ -36,17 +36,18 @@ static void insanitize(char *f)
   int found = 0;
 
   for (s = f; *s; s++) {
-    while (*s != '%') continue;
+    if (*s != '%') continue;
     if (*++s == '%') continue;
     if (found++) break;
-    while (strchr("'#-+ ", *s)) s++;
+    while (0 <= stridx("'#-+ ", *s)) s++;
     while (isdigit(*s)) s++;
     if (*s == '.') s++;
     while (isdigit(*s)) s++;
-    if (!strchr("aAeEfFgG", *s)) break;
+    if (-1 == stridx("aAeEfFgG", *s)) break;
   }
+
   // The @ is a byte offset, not utf8 chars. Waiting for somebody to complain...
-  if (*s) error_exit("bad -f '%s@'%d");
+  if (*s) error_exit("bad -f '%s'@%d", f, s-f+1);
 }
 
 void seq_main(void)
