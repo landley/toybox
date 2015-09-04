@@ -1,0 +1,415 @@
+/* lsof.c - list open files.
+ *
+ * Copyright 2015 The Android Open Source Project
+
+USE_LSOF(NEWTOY(lsof, "p#", TOYFLAG_USR|TOYFLAG_BIN))
+
+config LSOF
+  bool "lsof"
+  default n
+  help
+    usage: lsof
+
+    Lists open files.
+
+    -p	for given pid only (default all pids)
+*/
+
+#define FOR_lsof
+#include "toys.h"
+
+GLOBALS(
+  int pid;
+
+  struct double_list *head;
+  int shown_header;
+)
+
+struct proc_info {
+  char cmd[10];
+  int pid;
+  char user[12];
+};
+
+struct file_info {
+  char *next, *prev;
+
+  struct proc_info pi;
+  char fd[8];
+  char rw;
+  char locks;
+  char type[10];
+  char device[32];
+  char size_off[32];
+  char node[32];
+  char* name;
+};
+
+static void print_header()
+{
+  // TODO: llist_traverse to measure the columns first.
+  char* names[] = {
+    "COMMAND", "PID", "USER", "FD", "TYPE", "DEVICE", "SIZE/OFF", "NODE", "NAME"
+  };
+  printf("%-9s %5s %10s %4s   %7s %18s %9s %10s %s\n", names[0], names[1],
+         names[2], names[3], names[4], names[5], names[6], names[7], names[8]);
+
+  TT.shown_header = 1;
+}
+
+static void print_info(void *data)
+{
+  struct file_info *fi = data;
+
+  if (!TT.shown_header) print_header();
+
+  printf("%-9s %5d %10s %4s%c%c %7s %18s %9s %10s %s\n",
+         fi->pi.cmd, fi->pi.pid, fi->pi.user,
+         fi->fd, fi->rw, fi->locks, fi->type, fi->device, fi->size_off,
+         fi->node, fi->name);
+
+  if (CFG_FREE) {
+    free(((struct file_info *)data)->name);
+    free(data);
+  }
+}
+
+static void fill_flags(struct file_info *fi)
+{
+  FILE* fp;
+  long long pos;
+  unsigned flags;
+
+  snprintf(toybuf, sizeof(toybuf), "/proc/%d/fdinfo/%s", fi->pi.pid, fi->fd);
+  fp = fopen(toybuf, "r");
+  if (!fp) return;
+
+  if (fscanf(fp, "pos: %lld flags: %o", &pos, &flags) == 2) {
+    flags &= O_ACCMODE;
+    if (flags == O_RDONLY) fi->rw = 'r';
+    else if (flags == O_WRONLY) fi->rw = 'w';
+    else fi->rw = 'u';
+
+    snprintf(fi->size_off, sizeof(fi->size_off), "0t%lld", pos);
+  }
+  fclose(fp);
+}
+
+static char *chomp(char *s)
+{
+  char *p = strrchr(s, '\n');
+
+  if (p) *p = 0;
+  return s;
+}
+
+static int find_unix_socket(struct file_info *fi, long sought_inode)
+{
+  FILE *fp = fopen("/proc/net/unix", "r");
+  char *line = NULL;
+  size_t line_length = 0;
+
+  if (!fp) return 0;
+
+  if (!getline(&line, &line_length, fp)) return 0; // Skip header.
+
+  while (getline(&line, &line_length, fp) > 0) {
+    long inode;
+    int path_pos;
+
+    if (sscanf(line, "%*p: %*X %*X %*X %*X %*X %lu %n",
+               &inode, &path_pos) >= 1) {
+      if (inode == sought_inode) {
+        char *name = chomp(line + path_pos);
+
+        strcpy(fi->type, "unix");
+        fi->name = strdup(*name ? name : "socket");
+        break;
+      }
+    }
+  }
+
+  free(line);
+  fclose(fp);
+
+  return fi->name != 0;
+}
+
+// Matches lines in either /proc/net/tcp or /proc/net/tcp6, depending on 'af'.
+static int ip_match(int af, char* line, struct in6_addr* l, int* l_port,
+                    struct in6_addr* r, int* r_port, int* state, long* inode)
+{
+  if (af == AF_INET) {
+    return sscanf(line, " %*d: %x:%x %x:%x %x %*x:%*x %*X:%*X %*X %*d %*d %ld",
+                  &(l->s6_addr32[0]), l_port, &(r->s6_addr32[0]), r_port,
+                  state, inode) == 6;
+  } else {
+    return sscanf(line, " %*d: %8x%8x%8x%8x:%x %8x%8x%8x%8x:%x %x "
+                  "%*x:%*x %*X:%*X %*X %*d %*d %ld",
+                  &(l->s6_addr32[0]), &(l->s6_addr32[1]), &(l->s6_addr32[2]),
+                  &(l->s6_addr32[3]), l_port, &(r->s6_addr32[0]),
+                  &(r->s6_addr32[1]), &(r->s6_addr32[2]), &(r->s6_addr32[3]),
+                  r_port, state, inode) == 12;
+  }
+}
+
+static int find_ip_socket(struct file_info *fi, const char *path,
+                          int af, int type, long sought_inode)
+{
+  FILE *fp = fopen(path, "r");
+  char *line = NULL;
+  size_t line_length = 0;
+  char *tcp_states[] = {
+    "UNKNOWN", "ESTABLISHED", "SYN_SENT", "SYN_RECV", "FIN_WAIT1", "FIN_WAIT2",
+    "TIME_WAIT", "CLOSE", "CLOSE_WAIT", "LAST_ACK", "LISTEN", "CLOSING"
+  };
+
+  if (!fp) return 0;
+
+  if (!getline(&line, &line_length, fp)) return 0; // Skip header.
+
+  while (getline(&line, &line_length, fp) > 0) {
+    struct in6_addr local, remote;
+    int local_port, remote_port, state;
+    long inode;
+
+    if (ip_match(af, line, &local, &local_port, &remote, &remote_port,
+                  &state, &inode)) {
+      if (inode == sought_inode) {
+        char local_ip[INET6_ADDRSTRLEN] = {0};
+        char remote_ip[INET6_ADDRSTRLEN] = {0};
+
+        strcpy(fi->type, af == AF_INET ? "IPv4" : "IPv6");
+        inet_ntop(af, &local, local_ip, sizeof(local_ip));
+        inet_ntop(af, &remote, remote_ip, sizeof(remote_ip));
+        if (type == SOCK_STREAM) {
+          if (state < 0 || state > TCP_CLOSING) state = 0;
+          fi->name = xmprintf(af == AF_INET ?
+                              "TCP %s:%d->%s:%d (%s)" :
+                              "TCP [%s]:%d->[%s]:%d (%s)",
+                              local_ip, local_port, remote_ip, remote_port,
+                              tcp_states[state]);
+        } else {
+          fi->name = xmprintf(af == AF_INET ?
+                              "%s %s:%d->%s:%d" : "%s [%s]:%d->[%s]:%d",
+                              type == SOCK_DGRAM ? "UDP" : "RAW",
+                              local_ip, local_port, remote_ip, remote_port);
+        }
+        break;
+      }
+    }
+  }
+
+  free(line);
+  fclose(fp);
+
+  return fi->name != 0;
+}
+
+static int find_socket(struct file_info *fi, long inode)
+{
+  // TODO: other protocols (netlink).
+  return find_unix_socket(fi, inode) ||
+         find_ip_socket(fi, "/proc/net/tcp", AF_INET, SOCK_STREAM, inode) ||
+         find_ip_socket(fi, "/proc/net/tcp6", AF_INET6, SOCK_STREAM, inode) ||
+         find_ip_socket(fi, "/proc/net/udp", AF_INET, SOCK_DGRAM, inode) ||
+         find_ip_socket(fi, "/proc/net/udp6", AF_INET6, SOCK_DGRAM, inode) ||
+         find_ip_socket(fi, "/proc/net/raw", AF_INET, SOCK_RAW, inode) ||
+         find_ip_socket(fi, "/proc/net/raw6", AF_INET6, SOCK_RAW, inode);
+}
+
+static void fill_stat(struct file_info *fi, const char* path)
+{
+  struct stat sb;
+  long dev;
+
+  if (stat(path, &sb)) return;
+
+  // Fill TYPE.
+  switch ((sb.st_mode & S_IFMT)) {
+    case S_IFBLK: strcpy(fi->type, "BLK"); break;
+    case S_IFCHR: strcpy(fi->type, "CHR"); break;
+    case S_IFDIR: strcpy(fi->type, "DIR"); break;
+    case S_IFIFO: strcpy(fi->type, "FIFO"); break;
+    case S_IFLNK: strcpy(fi->type, "LINK"); break;
+    case S_IFREG: strcpy(fi->type, "REG"); break;
+    case S_IFSOCK: strcpy(fi->type, "sock"); break;
+    default:
+      snprintf(fi->type, sizeof(fi->type), "0%03o", sb.st_mode & S_IFMT);
+      break;
+  }
+
+  if (S_ISSOCK(sb.st_mode)) find_socket(fi, sb.st_ino);
+
+  // Fill DEVICE.
+  dev = (S_ISBLK(sb.st_mode) || S_ISCHR(sb.st_mode)) ? sb.st_rdev : sb.st_dev;
+  snprintf(fi->device, sizeof(fi->device), "%ld,%ld",
+           (long)major(dev), (long)minor(dev));
+
+  // Fill SIZE/OFF.
+  if (S_ISREG(sb.st_mode) || S_ISDIR(sb.st_mode))
+    snprintf(fi->size_off, sizeof(fi->size_off), "%lld",
+             (long long)sb.st_size);
+
+  // Fill NODE.
+  snprintf(fi->node, sizeof(fi->node), "%ld", (long)sb.st_ino);
+}
+
+struct file_info *new_file_info(struct proc_info *pi, const char* fd)
+{
+  struct file_info *fi = xzalloc(sizeof(struct file_info));
+
+  dlist_add_nomalloc(&TT.head, (struct double_list *)fi);
+
+  fi->pi = *pi;
+
+  // Defaults.
+  strcpy(fi->fd, fd);
+  strcpy(fi->type, "unknown");
+  fi->rw = fi->locks = ' ';
+
+  return fi;
+}
+
+static void visit_symlink(struct proc_info *pi, char* name, char* path)
+{
+  struct file_info *fi = new_file_info(pi, "");
+
+  // Get NAME.
+  if (name) { // "/proc/pid/[cwd]".
+    snprintf(fi->fd, sizeof(fi->fd), "%s", name);
+    snprintf(toybuf, sizeof(toybuf), "/proc/%d/%s", pi->pid, path);
+  } else { // "/proc/pid/fd/[3]"
+    snprintf(fi->fd, sizeof(fi->fd), "%s", path);
+    fill_flags(fi); // Clobbers toybuf.
+    snprintf(toybuf, sizeof(toybuf), "/proc/%d/fd/%s", pi->pid, path);
+  }
+  // TODO: code called by fill_stat would be easier to write if we didn't
+  // rely on toybuf being preserved here.
+  fill_stat(fi, toybuf);
+  if (!fi->name) { // We already have a name for things like sockets.
+    fi->name = xreadlink(toybuf);
+    if (!fi->name) {
+      fi->name = xmprintf("%s (readlink: %s)", toybuf, strerror(errno));
+    }
+  }
+}
+
+static void visit_maps(struct proc_info *pi)
+{
+  FILE *fp;
+  unsigned long long offset;
+  char device[10];
+  long inode;
+  char *line = NULL;
+  size_t line_length = 0;
+
+  snprintf(toybuf, sizeof(toybuf), "/proc/%d/maps", pi->pid);
+  fp = fopen(toybuf, "r");
+  if (!fp) return;
+
+  while (getline(&line, &line_length, fp) > 0) {
+    int name_pos;
+
+    if (sscanf(line, "%*x-%*x %*s %llx %s %ld %n",
+               &offset, device, &inode, &name_pos) >= 3) {
+      struct file_info *fi;
+
+      // Ignore non-file maps.
+      if (inode == 0 || !strcmp(device, "00:00")) continue;
+      // TODO: show unique maps even if they have a non-zero offset?
+      if (offset != 0) continue;
+
+      fi = new_file_info(pi, "mem");
+      fi->name = strdup(chomp(line + name_pos));
+      fill_stat(fi, fi->name);
+    }
+  }
+  free(line);
+  fclose(fp);
+}
+
+static void visit_fds(struct proc_info *pi)
+{
+  DIR *dir;
+  struct dirent *de;
+
+  snprintf(toybuf, sizeof(toybuf), "/proc/%d/fd", pi->pid);
+  if (!(dir = opendir(toybuf))) {
+    struct file_info *fi = new_file_info(pi, "NOFD");
+
+    fi->name = xmprintf("%s (opendir: %s)", toybuf, strerror(errno));
+    return;
+  }
+
+  while ((de = readdir(dir))) {
+    if (*de->d_name == '.') continue;
+    visit_symlink(pi, NULL, de->d_name);
+  }
+
+  closedir(dir);
+}
+
+static void lsof_pid(int pid)
+{
+  struct proc_info pi;
+  FILE *fp;
+  char *line;
+  struct stat sb;
+
+  // Does this process even exist?
+  snprintf(toybuf, sizeof(toybuf), "/proc/%d/stat", pid);
+  fp = fopen(toybuf, "r");
+  if (!fp) return;
+
+  // Get COMMAND.
+  strcpy(pi.cmd, "?");
+  line = fgets(toybuf, sizeof(toybuf), fp);
+  fclose(fp);
+  if (line) {
+    char *open_paren = strchr(toybuf, '(');
+    char *close_paren = strrchr(toybuf, ')');
+
+    if (open_paren && close_paren) {
+      *close_paren = 0;
+      snprintf(pi.cmd, sizeof(pi.cmd), "%s", open_paren + 1);
+    }
+  }
+
+  // We already know PID.
+  pi.pid = pid;
+
+  // Get USER.
+  snprintf(toybuf, sizeof(toybuf), "/proc/%d", pid);
+  if (!stat(toybuf, &sb)) {
+    struct passwd *pw = getpwuid(sb.st_uid);
+
+    if (pw) snprintf(pi.user, sizeof(pi.user), "%s", pw->pw_name);
+    else snprintf(pi.user, sizeof(pi.user), "%u", (unsigned)sb.st_uid);
+  }
+
+  visit_symlink(&pi, "cwd", "cwd");
+  visit_symlink(&pi, "rtd", "root");
+  visit_symlink(&pi, "txt", "exe");
+  visit_maps(&pi);
+  visit_fds(&pi);
+}
+
+static int scan_slash_proc(struct dirtree *node)
+{
+  int pid;
+
+  if (!node->parent) return DIRTREE_RECURSE;
+  if ((pid = atol(node->name))) lsof_pid(pid);
+  return 0;
+}
+
+void lsof_main(void)
+{
+  if (toys.optflags&FLAG_p) lsof_pid(TT.pid);
+  else dirtree_read("/proc", scan_slash_proc);
+
+  // TODO: path filtering.
+
+  llist_traverse(TT.head, print_info);
+}
