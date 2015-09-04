@@ -177,11 +177,13 @@ void replace_tempfile(int fdin, int fdout, char **tempname);
 void crc_init(unsigned int *crc_table, int little_endian);
 void base64_init(char *p);
 int yesno(char *prompt, int def);
-#define HR_SPACE 1
-#define HR_B 2
-int human_readable(char *buf, unsigned long long num, int style);
 int qstrcmp(const void *a, const void *b);
 int xpoll(struct pollfd *fds, int nfds, int timeout);
+
+#define HR_SPACE 1
+#define HR_B     2
+#define HR_SI    4
+int human_readable(char *buf, unsigned long long num, int style);
 
 // interestingtimes.c
 int xgettty(void);

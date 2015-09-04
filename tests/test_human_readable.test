@@ -1,0 +1,10 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+testing "human_readable" "test_human_readable 123456789" "123M\n" "" ""
+testing "human_readable -b" "test_human_readable -b 123456789" "123MB\n" "" ""
+testing "human_readable -s" "test_human_readable -s 123456789" "123 M\n" "" ""
+testing "human_readable -i" "test_human_readable -i 5675" "5.5k\n" "" ""
