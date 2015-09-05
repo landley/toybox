@@ -26,3 +26,17 @@ testing "seq separator -" "seq -s - 1 3" "1-2-3\n" "" ""
 testing "seq format string" 'seq -f %+01g -10 5 10' "-10\n-5\n+0\n+5\n+10\n" "" ""
 testing "seq separator and format string" "seq -f \%03g -s \; 5 -1 0" "005;004;003;002;001;000\n" "" ""
 
+# Test -f format filtering
+for i in %f %e %g "boo %f yah" "% f" %-1.2f %+-f "%+ - f" %.2f %3.f "%'.2f" \
+	%%%f%% %%%f%%%
+do
+  testing "seq filter -f \"$i\"" "seq -f \"$i\" 1 3 > /dev/null && echo yes" \
+    "yes\n" "" ""
+done
+# Test -f format filtering failures
+for i in %d %s "" "boo %f %f yah" "%*f" %-1.2.3f '%2$f' %1-f "%1 f" \
+	%2..2f
+do
+  testing "seq filter reject -f '$i'" \
+    "seq -f '$i' 1 3 2>/dev/null || echo no" "no\n" "" ""
+done

@@ -17,7 +17,7 @@ config SEQ
     to 1. Two arguments are used as first and last. Arguments can be
     negative or floating point.
 
-    -f	Use fmt_str as a floating point format string
+    -f	Use fmt_str as a printf-style floating point format string
     -s	Use sep_str as separator, default is a newline character
 */
 
@@ -47,7 +47,7 @@ static void insanitize(char *f)
   }
 
   // The @ is a byte offset, not utf8 chars. Waiting for somebody to complain...
-  if (*s) error_exit("bad -f '%s'@%d", f, s-f+1);
+  if (*s || !found) error_exit("bad -f '%s'@%d", f, s-f+1);
 }
 
 void seq_main(void)
