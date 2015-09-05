@@ -5,13 +5,13 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/ls.html
 
-USE_LS(NEWTOY(ls, USE_LS_COLOR("(color):;")"ZgoACFHLRSacdfiklmnpqrstux1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL]", TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_LS(NEWTOY(ls, USE_LS_COLOR("(color):;")"ZgoACFHLRSacdfhiklmnpqrstux1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL]", TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config LS
   bool "ls"
   default y
   help
-    usage: ls [-ACFHLRSZacdfiklmnpqrstux1] [directory...]
+    usage: ls [-ACFHLRSZacdfhiklmnpqrstux1] [directory...]
     list files
 
     what to show:
@@ -26,9 +26,10 @@ config LS
 
     output formats:
     -1	list one file per line			-C  columns (sorted vertically)
-    -g	like -l but no owner			-l  long (show full details)
-    -m	comma separated				-n  like -l but numeric uid/gid
-    -o	like -l but no group			-x  columns (horizontal sort)
+    -g	like -l but no owner			-h  human readable sizes
+    -l	long (show full details)		-m  comma separated
+    -n	like -l but numeric uid/gid		-o  like -l but no group
+    -x	columns (horizontal sort)
 
     sorting (default is alphabetical):
     -f	unsorted	-r  reverse	-t  timestamp	-S  size
@@ -127,6 +128,7 @@ static void entrylen(struct dirtree *dt, unsigned *len)
 {
   struct stat *st = &(dt->st);
   unsigned flags = toys.optflags;
+  char tmp[64];
 
   *len = strwidth(dt->name);
   if (endtype(st)) ++*len;
@@ -142,6 +144,9 @@ static void entrylen(struct dirtree *dt, unsigned *len)
       // cheating slightly here: assuming minor is always 3 digits to avoid
       // tracking another column
       len[5] = numlen(major(st->st_rdev))+5;
+    } else if (flags & FLAG_h) {
+        human_readable(tmp, st->st_size, 0);
+        len[5] = strwidth(tmp);
     } else len[5] = numlen(st->st_size);
   }
 
@@ -290,6 +295,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
   unsigned long dtlen, ul = 0;
   unsigned width, flags = toys.optflags, totals[8], len[8], totpad = 0,
     *colsizes = (unsigned *)(toybuf+260), columns = (sizeof(toybuf)-260)/4;
+  char tmp[64];
 
   memset(totals, 0, sizeof(totals));
 
@@ -346,8 +352,12 @@ static void listfiles(int dirfd, struct dirtree *indir)
       blocks += sort[ul]->st.st_blocks;
     }
     totpad = totals[1]+!!totals[1]+totals[6]+!!totals[6]+totals[7]+!!totals[7];
-    if ((flags&(FLAG_l|FLAG_o|FLAG_n|FLAG_g|FLAG_s)) && indir->parent)
-      xprintf("total %llu\n", blocks);
+    if ((flags&(FLAG_h|FLAG_l|FLAG_o|FLAG_n|FLAG_g|FLAG_s)) && indir->parent) {
+      if (flags&FLAG_h) {
+        human_readable(tmp, blocks*512, 0);
+        xprintf("total %s\n", tmp);
+      } else xprintf("total %llu\n", blocks);
+    }
   }
 
   // Find largest entry in each field for display alignment
@@ -416,22 +426,22 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
     if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) {
       struct tm *tm;
-      char perm[11], thyme[64], *ss;
+      char *ss;
 
       // (long) is to coerce the st types into something we know we can print.
-      mode_to_string(mode, perm);
-      printf("%s% *ld", perm, totals[2]+1, (long)st->st_nlink);
+      mode_to_string(mode, tmp);
+      printf("%s% *ld", tmp, totals[2]+1, (long)st->st_nlink);
 
       // print user
       if (!(flags&FLAG_g)) {
-        if (flags&FLAG_n) sprintf(ss = thyme, "%u", (unsigned)st->st_uid);
+        if (flags&FLAG_n) sprintf(ss = tmp, "%u", (unsigned)st->st_uid);
         else strwidth(ss = getusername(st->st_uid));
         printf(" %-*s", (int)totals[3], ss);
       }
 
       // print group
       if (!(flags&FLAG_o)) {
-        if (flags&FLAG_n) sprintf(ss = thyme, "%u", (unsigned)st->st_gid);
+        if (flags&FLAG_n) sprintf(ss = tmp, "%u", (unsigned)st->st_gid);
         else strwidth(ss = getgroupname(st->st_gid));
         printf(" %-*s", (int)totals[4], ss);
       }
@@ -439,15 +449,18 @@ static void listfiles(int dirfd, struct dirtree *indir)
       if (flags & FLAG_Z)
         printf(" %-*s", -(int)totals[7], (char *)sort[next]->extra);
 
-      // print major/minor
+      // print major/minor, or size
       if (S_ISCHR(st->st_mode) || S_ISBLK(st->st_mode))
         printf("% *d,% 4d", totals[5]-4, major(st->st_rdev),minor(st->st_rdev));
-      else printf("% *lld", totals[5]+1, (long long)st->st_size);
+      else if (flags&FLAG_h) {
+        human_readable(tmp, st->st_size, 0);
+        xprintf("%*s", totals[5]+1, tmp);
+      } else printf("% *lld", totals[5]+1, (long long)st->st_size);
 
       // print time, always in --time-style=long-iso
       tm = localtime(&(st->st_mtime));
-      strftime(thyme, sizeof(thyme), "%F %H:%M", tm);
-      xprintf(" %s ", thyme);
+      strftime(tmp, sizeof(tmp), "%F %H:%M", tm);
+      xprintf(" %s ", tmp);
     } else if (flags & FLAG_Z)
       printf("%-*s ", (int)totals[7], (char *)sort[next]->extra);
 
