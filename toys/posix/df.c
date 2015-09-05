@@ -4,13 +4,13 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/df.html
 
-USE_DF(NEWTOY(df, "Pkt*a[-Pk]", TOYFLAG_SBIN))
+USE_DF(NEWTOY(df, "HPkht*a[-HPkh]", TOYFLAG_SBIN))
 
 config DF
   bool "df"
   default y
   help
-    usage: df [-t type] [FILESYSTEM ...]
+    usage: df [-HPkh] [-t type] [FILESYSTEM ...]
 
     The "disk free" command shows total/used/available disk space for
     each filesystem listed on the command line, or all currently mounted
@@ -18,6 +18,8 @@ config DF
 
     -P	The SUSv3 "Pedantic" option
     -k	Sets units back to 1024 bytes (the default without -P)
+    -h	Human readable output (K=1024)
+    -H	Human readable output (k=1000)
     -t type	Display only filesystems of this type.
 
     Pedantic provides a slightly less useful output format dictated by Posix,
@@ -73,7 +75,16 @@ static void show_mt(struct mtab_list *mt)
   // Figure out appropriate spacing
   len = 25 - strlen(device);
   if (len < 1) len = 1;
-  xprintf("%s% *lld % 10lld % 10lld % *lld%% %s\n", device, len,
+  if (toys.optflags & (FLAG_H|FLAG_h)) {
+    char *size_str = toybuf, *used_str = toybuf+64, *avail_str = toybuf+128;
+    int hr_flags = (toys.optflags & FLAG_H) ? HR_SI : 0;
+
+    human_readable(size_str, size, hr_flags);
+    human_readable(used_str, used, hr_flags);
+    human_readable(avail_str, avail, hr_flags);
+    xprintf("%-16s%4s  %4s  %4s % 3lld%% %s\n", device,
+      size_str, used_str, avail_str, percent, mt->dir);
+  } else xprintf("%s% *lld % 10lld % 10lld % *lld%% %s\n", device, len,
     size, used, avail, (toys.optflags & FLAG_P) ? 7 : 3, percent, mt->dir);
 
   if (device != mt->device) free(device);
@@ -84,10 +95,17 @@ void df_main(void)
   struct mtab_list *mt, *mtstart, *mtend;
   int p = toys.optflags & FLAG_P;
 
-  // Units are 512 bytes if you select "pedantic" without "kilobytes".
-  TT.units = p ? 512 : 1024;
-  xprintf("Filesystem%8s-blocks\tUsed  Available %s Mounted on\n",
-    p ? "512" : "1K", p ? "Capacity" : "Use%");
+  // TODO: we don't actually know how wide the "Filesystem" column should be
+  // until we've looked at all the filesystems.
+  if (toys.optflags & (FLAG_H|FLAG_h)) {
+    TT.units = 1;
+    xprintf("Filesystem      Size  Used Avail Use% Mounted on\n");
+  } else {
+    // Units are 512 bytes if you select "pedantic" without "kilobytes".
+    TT.units = p ? 512 : 1024;
+    xprintf("Filesystem%8s-blocks\tUsed  Available %s Mounted on\n",
+      p ? "512" : "1K", p ? "Capacity" : "Use%");
+  }
 
   if (!(mtstart = xgetmountlist(0))) return;
   mtend = dlist_terminate(mtstart);
