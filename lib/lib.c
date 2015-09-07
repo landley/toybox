@@ -870,7 +870,7 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
 int human_readable(char *buf, unsigned long long num, int style)
 {
   unsigned long long snap = 0;
-  int len, unit, divisor = (style&HR_SI) ? 1024 : 1000;
+  int len, unit, divisor = (style&HR_1000) ? 1000 : 1024;
 
   // Divide rounding up until we have 3 or fewer digits. Since the part we
   // print is decimal, the test is 999 even when we divide by 1024.
@@ -879,7 +879,7 @@ int human_readable(char *buf, unsigned long long num, int style)
   for (unit = 0; num > 999; unit++) num = ((snap = num)+(divisor/2))/divisor;
   len = sprintf(buf, "%llu", num);
   if (unit && len == 1) {
-    // Redo rounding for 1.2M case, this works with HR_SI and not.
+    // Redo rounding for 1.2M case, this works with and without HR_1000.
     num = snap/divisor;
     snap -= num*divisor;
     snap = ((snap*100)+50)/divisor;
@@ -890,10 +890,9 @@ int human_readable(char *buf, unsigned long long num, int style)
   if (unit) {
     unit = " kMGTPE"[unit];
 
-    if (!(style&HR_SI)) unit = toupper(unit);
+    if (!(style&HR_1000)) unit = toupper(unit);
     buf[len++] = unit;
-  }
-  if (style & HR_B) buf[len++] = 'B';
+  } else if (style & HR_B) buf[len++] = 'B';
   buf[len] = 0;
 
   return len;

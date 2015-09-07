@@ -77,7 +77,7 @@ static void show_mt(struct mtab_list *mt)
   if (len < 1) len = 1;
   if (toys.optflags & (FLAG_H|FLAG_h)) {
     char *size_str = toybuf, *used_str = toybuf+64, *avail_str = toybuf+128;
-    int hr_flags = (toys.optflags & FLAG_H) ? HR_SI : 0;
+    int hr_flags = (toys.optflags & FLAG_H) ? HR_1000 : 0;
 
     human_readable(size_str, size, hr_flags);
     human_readable(used_str, used, hr_flags);
