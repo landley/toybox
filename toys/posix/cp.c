@@ -173,7 +173,7 @@ int cp_node(struct dirtree *try)
         fprintf(stderr, "%s: overwrite '%s'", toys.which->name,
           s = dirtree_path(try, 0));
         free(s);
-        if (!yesno("", 1)) return 0;
+        if (!yesno(1)) return 0;
       }
     }
 
@@ -348,11 +348,11 @@ void cp_main(void)
       // Try to interpret as letters, commas won't set anything this doesn't.
       for (s = TT.c.preserve; *s; s++) {
         for (i=0; i<ARRAY_LEN(preserve); i++)
-          if (*s == *preserve[i]) TT.pflags |= 1<<i;
+          if (*s == *preserve[i]) break;
         if (i == ARRAY_LEN(preserve)) {
           if (*s == 'a') TT.pflags = ~0;
           else break;
-        }
+        } else TT.pflags |= 1<<i;
       }
 
       if (*s) error_exit("bad --preserve=%s", pre);
@@ -381,7 +381,7 @@ void cp_main(void)
           && ((toys.optflags & FLAG_i) || !(st.st_mode & 0222)))
         {
           fprintf(stderr, "%s: overwrite '%s'", toys.which->name, TT.destname);
-          if (!yesno("", 1)) rc = 0;
+          if (!yesno(1)) rc = 0;
           else unlink(TT.destname);
         }
       }

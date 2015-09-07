@@ -421,10 +421,8 @@ static int do_find(struct dirtree *new)
           if (aa->dir) aa->prev = (void *)1;
 
           if (*s == 'o') {
-            char *prompt = xmprintf("[%s] %s", ss1, name);
-            test = yesno(prompt, 0);
-            free(prompt);
-            if (!test) {
+            fprintf(stderr, "[%s] %s", ss1, name);
+            if (!(test = yesno(0))) {
               free(name);
               goto cont;
             }

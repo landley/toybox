@@ -39,9 +39,10 @@ static int do_rm(struct dirtree *try)
     && (!S_ISLNK(try->st.st_mode) && faccessat(fd, try->name, W_OK, 0))) or++;
   if (!(dir && try->again) && ((or && isatty(0)) || (flags & FLAG_i))) {
     char *s = dirtree_path(try, 0);
-    fprintf(stderr, "rm %s%s", or ? "ro " : "", dir ? "dir " : "");
-    or = yesno(s, 0);
+
+    fprintf(stderr, "rm %s%s%s", or ? "ro " : "", dir ? "dir " : "", s);
     free(s);
+    or = yesno(0);
     if (!or) goto nodelete;
   }
 
@@ -57,10 +58,11 @@ static int do_rm(struct dirtree *try)
     if (try->symlink) goto skip;
     if (flags & FLAG_i) {
       char *s = dirtree_path(try, 0);
+
       // This is the section 2(d) prompt. (Yes, posix says to prompt twice.)
-      fprintf(stderr, "rmdir ");
-      or = yesno(s, 0);
+      fprintf(stderr, "rmdir %s", s);
       free(s);
+      or = yesno(0);
       if (!or) goto nodelete;
     }
   }

@@ -317,9 +317,9 @@ RETRY:
   }
   printf("%s: installing new crontab\n", toys.which->name);
   if (parse_crontab(tname)) {
-    snprintf(toybuf, sizeof(toybuf), "errors in crontab file, can't install.\n"
+    fprintf(stderr, "errors in crontab file, can't install.\n"
         "Do you want to retry the same edit? ");
-    if (!yesno(toybuf, 0)) {
+    if (!yesno(0)) {
       error_msg("edits left in '%s'", tname);
       return;
     }

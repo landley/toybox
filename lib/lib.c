@@ -630,11 +630,11 @@ void base64_init(char *p)
   *(p++) = '/';
 }
 
-int yesno(char *prompt, int def)
+int yesno(int def)
 {
   char buf;
 
-  fprintf(stderr, "%s (%c/%c):", prompt, def ? 'Y' : 'y', def ? 'n' : 'N');
+  fprintf(stderr, " (%c/%c):", def ? 'Y' : 'y', def ? 'n' : 'N');
   fflush(stderr);
   while (fread(&buf, 1, 1, stdin)) {
     int new;

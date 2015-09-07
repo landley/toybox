@@ -40,8 +40,8 @@ static int kill_process(pid_t pid, char *name)
   if (pid == TT.cur_pid) return 0;
 
   if (toys.optflags & FLAG_i) {
-    snprintf(toybuf, sizeof(toybuf), "Signal %s(%d) ?", name, (int)pid);
-    if (!yesno(toybuf, 0)) return 0;
+    fprintf(stderr, "Signal %s(%d)", name, (int)pid);
+    if (!yesno(0)) return 0;
   }
 
   errno = 0;
