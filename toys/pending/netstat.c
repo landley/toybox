@@ -29,7 +29,13 @@ config NETSTAT
 
 #define FOR_netstat
 #include "toys.h"
+
 #include <net/route.h>
+
+GLOBALS(
+  char current_name[21];
+  int some_process_unidentified;
+);
 
 typedef union _iaddr {
   unsigned u;
@@ -56,26 +62,13 @@ enum {
 };
 
 #define SOCK_NOT_CONNECTED 1
-//For PID/Progrma Name
-#define PROGRAM_NAME "PID/Program Name"
-#define PROGNAME_LEN 50
 
 typedef struct _pidlist {
   struct _pidlist *next;
   long inode;
-  char name[PROGNAME_LEN];
+  char name[21];
 } PID_LIST;
 PID_LIST *pid_list = NULL;
-
-/*
- * Get base name from the input name.
- */
-static const char *get_basename(char *name)
-{
-  const char *c = strrchr(name, '/');
-  if (c) return c + 1;
-  return name;
-}
 
 /*
  * locate character in string.
@@ -86,39 +79,6 @@ static char *strchr_nul(char *s, int c)
   return (char*)s;
 }
 
-// Find out if the last character of a string matches with the given one.
-// Don't underrun the buffer if the string length is 0.
-static char *find_last_char(char *str, int c)
-{
-  if (str && *str) {
-    size_t sz = strlen(str) - 1;
-    str += sz;
-    if ( (unsigned char)*str == c) return (char*)str;
-  }
-  return NULL;
-}
-/*
- * Concat path and the file name.
- */
-static char *append_pathandfile(char *path, char *fname)
-{
-  char *c;
-  if (!path) path = "";
-  c = find_last_char(path, '/');
-  while (*fname == '/') fname++;
-  return xmprintf("%s%s%s", path, (c)? "" : "/", fname);
-}
-/*
- * Concat sub-path and the file name.
- */
-static char *append_subpathandfile(char *path, char *fname)
-{
-#define ISDOTORDOTDOT(s) ((s)[0] == '.' && (!(s)[1] || ((s)[1] == '.' && !(s)[2])))
-  if(!fname) return NULL;
-  if(ISDOTORDOTDOT(fname)) return NULL;
-  return append_pathandfile(path, fname);
-#undef ISDOTORDOTDOT
-}
 /*
  * used to converts string into int and validate the input str for invalid int value or out-of-range.
  */
@@ -361,7 +321,7 @@ static void show_unix_sockets(char *fname, char *label)
       if (flags & SOCK_NO_SPACE) strcat(sock_flags, "N ");
       strcat(sock_flags, "]");
     }
-    xprintf("%-5s %-6ld %-11s %-10s %-13s %6lu ", (!label ? "unix" : "??"), refcount, sock_flags, sock_type, sock_state, inode);
+    xprintf("%-5s %-6ld %-11s %-10s %-13s %8lu ", (!label ? "unix" : "??"), refcount, sock_flags, sock_type, sock_state, inode);
     if (toys.optflags & FLAG_p) xprintf("%-20s", get_pid_name(inode));
 
     bptr += path_offset;
@@ -392,7 +352,7 @@ static long ss_inode(char *link)
 /*
  * add inode and progname in the pid list.
  */
-static void add2list(long inode, char *progname)
+static void add2list(long inode)
 {
   PID_LIST *node = pid_list;
   for(; node; node = node->next) {
@@ -401,71 +361,61 @@ static void add2list(long inode, char *progname)
   }
   PID_LIST *new = (PID_LIST *)xzalloc(sizeof(PID_LIST));
   new->inode = inode;
-  xstrncpy(new->name, progname, PROGNAME_LEN);
+  xstrncpy(new->name, TT.current_name, sizeof(new->name));
   new->next = pid_list;
   pid_list = new;
 }
-/*
- * add pid info in the list.
- */
-static void extract_inode(char *path, char *progname)
+
+static void scan_pid_inodes(char *path)
 {
   DIR *dp;
   struct dirent *entry;
 
   if (!(dp = opendir(path))) {
-    if (errno == EACCES) return;
-    else perror_exit("%s", path);
+    if (errno == EACCES) {
+      TT.some_process_unidentified = 1;
+      return;
+    } else perror_exit("%s", path);
   }
   while ((entry = readdir(dp))) {
-    char *link = NULL, *fname = append_subpathandfile(path, entry->d_name);
-    if (!fname) continue;
-    link = xreadlink(fname);
-    if (link) {
-      long inode = ss_inode(link);
-      free(link);
-      if (inode != -1) add2list(inode, progname);
-    }
-    free(fname);
-  }//end of while.
+    char link_name[64], *link;
+    long inode;
+
+    if (!isdigit(entry->d_name[0])) continue;
+    snprintf(link_name, sizeof(link_name), "%s/%s", path, entry->d_name);
+    link = xreadlink(link_name);
+    if ((inode = ss_inode(link)) != -1) add2list(inode);
+    free(link);
+  }
   closedir(dp);
 }
-/*
- * prepare the list for all pids in /proc directory.
- */
-static void get_pid_list(void)
+
+static void scan_pid(int pid)
 {
-  DIR *dp;
-  struct dirent *entry;
-  char path[64] = {0,};
-  uid_t uid = geteuid();
+  char *line, *p, *fd_dir;
 
-  if (!(dp = opendir("/proc"))) perror_exit("opendir");
+  snprintf(toybuf, sizeof(toybuf), "/proc/%d/cmdline", pid);
+  line = xreadfile(toybuf, 0, 0);
 
-  while ((entry = readdir(dp))) {
-    int fd, nitems = 0, length = 0;
-    char *pid, *progname;
+  if ((p = strchr(line, ' '))) *p = 0; // "/bin/netstat -ntp" -> "/bin/netstat"
+  snprintf(TT.current_name, sizeof(TT.current_name), "%d/%s",
+           pid, basename_r(line)); // "584/netstat"
+  free(line);
 
-    if (!isdigit(*entry->d_name)) continue;
-    pid = entry->d_name;
-    length = snprintf(path, sizeof(path), "/proc/%s/cmdline", entry->d_name);
-    if (sizeof(path) <= length) continue;
-
-    fd = xopen(path, O_RDONLY);
-    nitems = readall(fd, toybuf, sizeof(toybuf) - 1);
-    xclose(fd);
-    if (nitems < 1) continue;
-    toybuf[nitems] = '\0';
-    strcpy(path + length - (sizeof("cmdline")-1), "fd");
-    progname = append_pathandfile(pid, (char *)get_basename(toybuf)); //e.g. progname = 2054/gnome-keyring-daemon
-    extract_inode(path, progname);
-    free(progname);
-  }//end of while.
-  closedir(dp);
-
-  if (uid) fprintf(stderr, "(Not all processes could be identified, non-owned process info "
-      "will not be shown, you would have to be root to see it all.)\n");
+  fd_dir = xmprintf("/proc/%d/fd", pid);
+  scan_pid_inodes(fd_dir);
+  free(fd_dir);
 }
+
+static int scan_pids(struct dirtree *node)
+{
+  int pid;
+
+  if (!node->parent) return DIRTREE_RECURSE;
+  if ((pid = atol(node->name))) scan_pid(pid);
+  return 0;
+}
+
 /*
  * Dealloc pid list.
  */
@@ -484,9 +434,9 @@ static void clean_pid_list(void)
 static void show_header(void)
 {
   if ((toys.optflags & FLAG_W) && (toys.optflags & FLAG_p))
-    xprintf("\nProto Recv-Q Send-Q %-51s %-51s %-12s%s\n", "Local Address", "Foreign Address", "State", PROGRAM_NAME);
+    xprintf("\nProto Recv-Q Send-Q %-51s %-51s %-12s%s\n", "Local Address", "Foreign Address", "State", "PID/Program Name");
   else if (toys.optflags & FLAG_p)
-    xprintf("\nProto Recv-Q Send-Q %-23s %-23s %-12s%s\n", "Local Address", "Foreign Address", "State", PROGRAM_NAME);
+    xprintf("\nProto Recv-Q Send-Q %-23s %-23s %-12s%s\n", "Local Address", "Foreign Address", "State", "PID/Program Name");
   else if (toys.optflags & FLAG_W)
 	  xprintf("\nProto Recv-Q Send-Q %-51s %-51s State     \n", "Local Address", "Foreign Address");
   else xprintf("\nProto Recv-Q Send-Q %-23s %-23s State     \n", "Local Address", "Foreign Address");
@@ -610,7 +560,15 @@ void netstat_main(void)
     return;
   }
 
-  if (toys.optflags & FLAG_p) get_pid_list();
+  if (toys.optflags & FLAG_p) {
+    dirtree_read("/proc", scan_pids);
+    // TODO: we probably shouldn't warn if all the processes we're going to
+    // list were identified.
+    if (TT.some_process_unidentified)
+      fprintf(stderr,
+        "(Not all processes could be identified, non-owned process info\n"
+        " will not be shown, you would have to be root to see it all.)\n");
+  }
 
   //For TCP/UDP/RAW.
   if ( (toys.optflags & FLAG_t) || (toys.optflags & FLAG_u) || (toys.optflags & FLAG_w) ) {
@@ -640,8 +598,8 @@ void netstat_main(void)
     else if (toys.optflags & FLAG_l) xprintf("(only servers)");
     else xprintf("(w/o servers)");
 
-    if (toys.optflags & FLAG_p) xprintf("\nProto RefCnt Flags       Type       State         I-Node %s    Path\n", PROGRAM_NAME);
-    else xprintf("\nProto RefCnt Flags       Type       State         I-Node Path\n");
+    if (toys.optflags & FLAG_p) xprintf("\nProto RefCnt Flags       Type       State           I-Node PID/Program Name    Path\n");
+    else xprintf("\nProto RefCnt Flags       Type       State           I-Node Path\n");
     show_unix_sockets("/proc/net/unix", "unix");
   }
   if (toys.optflags & FLAG_p) clean_pid_list();
