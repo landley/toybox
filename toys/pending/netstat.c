@@ -58,7 +58,7 @@ enum {
 #define SOCK_NOT_CONNECTED 1
 //For PID/Progrma Name
 #define PROGRAM_NAME "PID/Program Name"
-#define PROGNAME_LEN 21
+#define PROGNAME_LEN 50
 
 typedef struct _pidlist {
   struct _pidlist *next;
