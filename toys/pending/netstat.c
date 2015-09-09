@@ -121,11 +121,16 @@ static const char *get_pid_name(unsigned long inode)
 /*
  * For TCP/UDP/RAW display data.
  */
-static void display_data(unsigned rport, char *label, unsigned rxq, unsigned txq, char *lip, char *rip, unsigned state, unsigned long inode)
+static void display_data(unsigned rport, char *label,
+                         unsigned rxq, unsigned txq, char *lip, char *rip,
+                         unsigned state, unsigned uid, unsigned long inode)
 {
   char *ss_state = "UNKNOWN", buf[12];
   char *state_label[] = {"", "ESTABLISHED", "SYN_SENT", "SYN_RECV", "FIN_WAIT1", "FIN_WAIT2",
   		                 "TIME_WAIT", "CLOSE", "CLOSE_WAIT", "LAST_ACK", "LISTEN", "CLOSING", "UNKNOWN"};
+  char user[11];
+  struct passwd *pw;
+
   if (!strcmp(label, "tcp")) {
     int sz = ARRAY_LEN(state_label);
     if (!state || state >= sz) state = sz-1;
@@ -137,24 +142,29 @@ static void display_data(unsigned rport, char *label, unsigned rxq, unsigned txq
   }
   else if (!strcmp(label, "raw")) sprintf(ss_state = buf, "%u", state);
 
-  if ( (toys.optflags & FLAG_W) && (toys.optflags & FLAG_p))
-    xprintf("%3s   %6d %6d %-51s %-51s %-12s%s\n", label, rxq, txq, lip, rip, ss_state, get_pid_name(inode));
-  else if (toys.optflags & FLAG_W)
-    xprintf("%3s   %6d %6d %-51s %-51s %-12s\n", label, rxq, txq, lip, rip, ss_state);
-  else if (toys.optflags & FLAG_p)
-    xprintf("%3s   %6d %6d %-23s %-23s %-12s%s\n", label, rxq, txq, lip, rip, ss_state, get_pid_name(inode));
-  else xprintf("%3s   %6d %6d %-23s %-23s %-12s\n", label, rxq, txq, lip, rip, ss_state);
+  if (!(toys.optflags & FLAG_n) && (pw = getpwuid(uid))) {
+    snprintf(user, sizeof(user), "%s", pw->pw_name);
+  } else snprintf(user, sizeof(user), "%d", uid);
+
+  xprintf("%3s   %6d %6d ", label, rxq, txq);
+  xprintf((toys.optflags & FLAG_W) ? "%-51.51s %-51.51s " : "%-23.23s %-23.23s ", lip, rip);
+  xprintf("%-11s ", ss_state);
+  if ((toys.optflags & FLAG_e)) xprintf("%-10s %-11d ", user, inode);
+  if ((toys.optflags & FLAG_p)) xprintf("%s", get_pid_name(inode));
+  xputc('\n');
 }
 /*
  * For TCP/UDP/RAW show data.
  */
-static void show_data(unsigned rport, char *label, unsigned rxq, unsigned txq, char *lip, char *rip, unsigned state, unsigned long inode)
+static void show_data(unsigned rport, char *label, unsigned rxq, unsigned txq,
+                      char *lip, char *rip, unsigned state, unsigned uid,
+                      unsigned long inode)
 {
   if (toys.optflags & FLAG_l) {
-    if (!rport && (state && 0xA)) display_data(rport, label, rxq, txq, lip, rip, state, inode);
-  } else if (toys.optflags & FLAG_a) display_data(rport, label, rxq, txq, lip, rip, state, inode);
+    if (!rport && (state && 0xA)) display_data(rport, label, rxq, txq, lip, rip, state, uid, inode);
+  } else if (toys.optflags & FLAG_a) display_data(rport, label, rxq, txq, lip, rip, state, uid, inode);
   //rport && (TCP | UDP | RAW)
-  else if (rport && (0x10 | 0x20 | 0x40)) display_data(rport, label, rxq, txq, lip, rip, state, inode);
+  else if (rport && (0x10 | 0x20 | 0x40)) display_data(rport, label, rxq, txq, lip, rip, state, uid, inode);
 }
 /*
  * used to get service name.
@@ -240,7 +250,7 @@ static void show_ipv4(char *fname, char *label)
     if (nitems == 10) {
       addr2str(AF_INET, &laddr, lport, lip, label);
       addr2str(AF_INET, &raddr, rport, rip, label);
-      show_data(rport, label, rxq, txq, lip, rip, state, inode);
+      show_data(rport, label, rxq, txq, lip, rip, state, uid, inode);
     }
   }//End of While
   fclose(fp);
@@ -267,7 +277,7 @@ static void show_ipv6(char *fname, char *label)
     if (nitems == 16) {
       addr2str(AF_INET6, &laddr6, lport, lip, label);
       addr2str(AF_INET6, &raddr6, rport, rip, label);
-      show_data(rport, label, rxq, txq, lip, rip, state, inode);
+      show_data(rport, label, rxq, txq, lip, rip, state, uid, inode);
     }
   }//End of While
   fclose(fp);
@@ -433,13 +443,13 @@ static void clean_pid_list(void)
  */
 static void show_header(void)
 {
-  if ((toys.optflags & FLAG_W) && (toys.optflags & FLAG_p))
-    xprintf("\nProto Recv-Q Send-Q %-51s %-51s %-12s%s\n", "Local Address", "Foreign Address", "State", "PID/Program Name");
-  else if (toys.optflags & FLAG_p)
-    xprintf("\nProto Recv-Q Send-Q %-23s %-23s %-12s%s\n", "Local Address", "Foreign Address", "State", "PID/Program Name");
-  else if (toys.optflags & FLAG_W)
-	  xprintf("\nProto Recv-Q Send-Q %-51s %-51s State     \n", "Local Address", "Foreign Address");
-  else xprintf("\nProto Recv-Q Send-Q %-23s %-23s State     \n", "Local Address", "Foreign Address");
+  xprintf("\nProto Recv-Q Send-Q ");
+  xprintf((toys.optflags & FLAG_W) ? "%-51s %-51s" : "%-23s %-23s",
+          "Local Address", "Foreign Address");
+  xprintf(" State      ");
+  if (toys.optflags & FLAG_e) xprintf(" User       Inode      ");
+  if (toys.optflags & FLAG_p) xprintf(" PID/Program Name");
+  xputc('\n');
 }
 /*
  * used to get the flag values for route command.
