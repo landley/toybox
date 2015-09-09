@@ -2,26 +2,32 @@
  *
  * Copyright 2015 The Android Open Source Project
 
-USE_LSOF(NEWTOY(lsof, "p#", TOYFLAG_USR|TOYFLAG_BIN))
+USE_LSOF(NEWTOY(lsof, "lp:t", TOYFLAG_USR|TOYFLAG_BIN))
 
 config LSOF
   bool "lsof"
   default n
   help
-    usage: lsof
+    usage: lsof [-lt] [-p PID1,PID2,...] [NAME]...
 
-    Lists open files.
+    Lists open files. If names are given on the command line, only
+    those files will be shown.
 
-    -p	for given pid only (default all pids)
+    -l	list uids numerically
+    -p	for given comma-separated pids only (default all pids)
+    -t	terse (pid only) output
 */
 
 #define FOR_lsof
 #include "toys.h"
 
 GLOBALS(
-  int pid;
+  char *pids;
 
-  struct double_list *head;
+  struct stat *sought_files;
+
+  struct double_list *files;
+  int last_shown_pid;
   int shown_header;
 )
 
@@ -34,6 +40,7 @@ struct proc_info {
 struct file_info {
   char *next, *prev;
 
+  // For output.
   struct proc_info pi;
   char fd[8];
   char rw;
@@ -43,7 +50,21 @@ struct file_info {
   char size_off[32];
   char node[32];
   char* name;
+
+  // For filtering.
+  dev_t st_dev;
+  ino_t st_ino;
 };
+
+static int filter_matches(struct file_info *fi)
+{
+  struct stat *sb = TT.sought_files;
+
+  for (; sb != &(TT.sought_files[toys.optc]); ++sb) {
+    if (sb->st_dev == fi->st_dev && sb->st_ino == fi->st_ino) return 1;
+  }
+  return 0;
+}
 
 static void print_header()
 {
@@ -53,7 +74,6 @@ static void print_header()
   };
   printf("%-9s %5s %10s %4s   %7s %18s %9s %10s %s\n", names[0], names[1],
          names[2], names[3], names[4], names[5], names[6], names[7], names[8]);
-
   TT.shown_header = 1;
 }
 
@@ -61,12 +81,18 @@ static void print_info(void *data)
 {
   struct file_info *fi = data;
 
-  if (!TT.shown_header) print_header();
+  if (toys.optc && !filter_matches(fi)) return;
 
-  printf("%-9s %5d %10s %4s%c%c %7s %18s %9s %10s %s\n",
-         fi->pi.cmd, fi->pi.pid, fi->pi.user,
-         fi->fd, fi->rw, fi->locks, fi->type, fi->device, fi->size_off,
-         fi->node, fi->name);
+  if (toys.optflags&FLAG_t) {
+    if (fi->pi.pid != TT.last_shown_pid)
+      printf("%d\n", (TT.last_shown_pid = fi->pi.pid));
+  } else {
+    if (!TT.shown_header) print_header();
+    printf("%-9s %5d %10s %4s%c%c %7s %18s %9s %10s %s\n",
+           fi->pi.cmd, fi->pi.pid, fi->pi.user,
+           fi->fd, fi->rw, fi->locks, fi->type, fi->device, fi->size_off,
+           fi->node, fi->name);
+  }
 
   if (CFG_FREE) {
     free(((struct file_info *)data)->name);
@@ -253,13 +279,17 @@ static void fill_stat(struct file_info *fi, const char* path)
 
   // Fill NODE.
   snprintf(fi->node, sizeof(fi->node), "%ld", (long)sb.st_ino);
+
+  // Stash st_dev and st_ino for filtering.
+  fi->st_dev = sb.st_dev;
+  fi->st_ino = sb.st_ino;
 }
 
 struct file_info *new_file_info(struct proc_info *pi, const char* fd)
 {
   struct file_info *fi = xzalloc(sizeof(struct file_info));
 
-  dlist_add_nomalloc(&TT.head, (struct double_list *)fi);
+  dlist_add_nomalloc(&TT.files, (struct double_list *)fi);
 
   fi->pi = *pi;
 
@@ -382,10 +412,11 @@ static void lsof_pid(int pid)
   // Get USER.
   snprintf(toybuf, sizeof(toybuf), "/proc/%d", pid);
   if (!stat(toybuf, &sb)) {
-    struct passwd *pw = getpwuid(sb.st_uid);
+    struct passwd *pw;
 
-    if (pw) snprintf(pi.user, sizeof(pi.user), "%s", pw->pw_name);
-    else snprintf(pi.user, sizeof(pi.user), "%u", (unsigned)sb.st_uid);
+    if (!(toys.optflags&FLAG_l) && (pw = getpwuid(sb.st_uid))) {
+      snprintf(pi.user, sizeof(pi.user), "%s", pw->pw_name);
+    } else snprintf(pi.user, sizeof(pi.user), "%u", (unsigned)sb.st_uid);
   }
 
   visit_symlink(&pi, "cwd", "cwd");
@@ -406,10 +437,24 @@ static int scan_slash_proc(struct dirtree *node)
 
 void lsof_main(void)
 {
-  if (toys.optflags&FLAG_p) lsof_pid(TT.pid);
-  else dirtree_read("/proc", scan_slash_proc);
+  int i;
 
-  // TODO: path filtering.
+  // lsof will only filter on paths it can stat (because it filters by inode).
+  TT.sought_files = xmalloc(toys.optc*sizeof(struct stat));
+  for (i = 0; i < toys.optc; ++i) {
+    xstat(toys.optargs[i], &(TT.sought_files[i]));
+  }
 
-  llist_traverse(TT.head, print_info);
+  if (toys.optflags&FLAG_p) {
+    char *pid_str;
+    int length, pid;
+
+    while ((pid_str = comma_iterate(&TT.pids, &length))) {
+      pid_str[length] = 0;
+      if (!(pid = atoi(pid_str))) error_exit("bad pid '%s'", pid_str);
+      lsof_pid(pid);
+    }
+  } else dirtree_read("/proc", scan_slash_proc);
+
+  llist_traverse(TT.files, print_info);
 }
