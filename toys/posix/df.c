@@ -99,7 +99,7 @@ void df_main(void)
   // until we've looked at all the filesystems.
   if (toys.optflags & (FLAG_H|FLAG_h)) {
     TT.units = 1;
-    xprintf("Filesystem      Size  Used Avail Use% Mounted on\n");
+    xprintf("Filesystem      Size  Used Avail Use%% Mounted on\n");
   } else {
     // Units are 512 bytes if you select "pedantic" without "kilobytes".
     TT.units = p ? 512 : 1024;
