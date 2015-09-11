@@ -242,10 +242,7 @@ void tftpd_main(void)
   char *buf = toybuf;
 
   memset(&srcaddr, 0, sizeof(srcaddr));
-  if (getsockname(0, (struct sockaddr *)&srcaddr, &socklen)) {
-    toys.exithelp = 1;
-    error_exit(NULL);
-  }
+  if (getsockname(0, (struct sockaddr *)&srcaddr, &socklen)) help_exit(0);
 
   if (TT.user) TT.pw = xgetpwnam(TT.user);
   if (*toys.optargs) xchroot(*toys.optargs);

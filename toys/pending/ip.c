@@ -137,12 +137,6 @@ static char *idx_to_string(int idx, struct arglist *list)
   return NULL;
 }
 
-static void iphelp(void)
-{
-  toys.exithelp = 1;
-  error_exit(NULL);
-}
-
 static void send_nlmesg(int type, int flags, int family,
     void *buf, int blen)
 {
@@ -519,16 +513,16 @@ static void vlan_parse_opt(char **argv, struct nlmsghdr *n, unsigned int size)
   for (; *argv; argv++) {
     int param, proto;
 
-    if ((idx = substring_to_idx(*argv++, vlan_optlist)) == -1) iphelp();
+    if ((idx = substring_to_idx(*argv++, vlan_optlist)) == -1) help_exit(0);
     switch (idx) {
       case 0: // ARG_id
-        if (!*argv) iphelp();
+        if (!*argv) help_exit(0);
         param = atolx(*argv);
         add_string_to_rtattr(n, size, IFLA_VLAN_ID, &param, sizeof(param));
         break;
       case 1: // ARG_protocol
         if (!*argv) error_exit("Invalid vlan id.");
-        if ((idx = substring_to_idx(*argv, vlan_protolist)) == -1) iphelp();
+        if ((idx = substring_to_idx(*argv, vlan_protolist)) == -1) help_exit(0);
         if (!idx) proto = ETH_P_8021Q; // PROTO_8021Q - 0
         else if (idx == 1) proto = 0x88A8; // ETH Protocol - 8021AD
         // IFLA VLAN PROTOCOL - 5
@@ -536,7 +530,7 @@ static void vlan_parse_opt(char **argv, struct nlmsghdr *n, unsigned int size)
         break;
       case 2: // ARG_reorder_hdr
       case 3: // ARG_gvrp
-        if ((param = substring_to_idx(*argv, on_off)) == -1) iphelp();
+        if ((param = substring_to_idx(*argv, on_off)) == -1) help_exit(0);
 
         flags.mask |= (idx -1); // VLAN FLAG REORDER Header              
         flags.flags &= ~(idx -1); // VLAN FLAG REORDER Header            
@@ -650,7 +644,7 @@ static int link_set(char **argv)
   fd = xsocket(AF_INET, SOCK_DGRAM, 0);
   xioctl(fd, SIOCGIFINDEX, &req);
   for (++argv; *argv;) {
-    if ((idx = substring_to_idx(*argv++, cmd_objectlist)) == -1) iphelp();
+    if ((idx = substring_to_idx(*argv++, cmd_objectlist)) == -1) help_exit(0);
     switch(idx) {
       case 0:
         flags |= IFF_UP; break;
@@ -659,7 +653,7 @@ static int link_set(char **argv)
       case 2:
       case 3:
       case 4:
-        if (!*argv) iphelp();
+        if (!*argv) help_exit(0);
         else if (!strcmp(*argv, "on")) {
           if (idx == 2) {
             masks &= ~case_flags[idx-2];
@@ -670,7 +664,7 @@ static int link_set(char **argv)
             masks |= case_flags[idx-2];
             flags |= case_flags[idx-2];
           } else masks &= ~case_flags[idx-2];
-        } else iphelp();
+        } else help_exit(0);
         ++argv;
         break;
       case 5:
@@ -941,7 +935,8 @@ static int iplink(char **argv)
     {"set", 1}, {"show", 2}, {"list", 2}, {"lst", 2}, {NULL,-1}};
 
   if (!*argv) idx = 2;
-  else if ((idx = substring_to_idx(*argv++, cmd_objectlist)) == -1) iphelp();
+  else if ((idx = substring_to_idx(*argv++, cmd_objectlist)) == -1)
+    help_exit(0);
   ipcmd = cmdobjlist[idx];
   return ipcmd(argv);
 }
@@ -1431,7 +1426,8 @@ static int ipaddr(char **argv)
 
   TT.is_addr++;
   if (!*argv) idx = 1;
-  else if ((idx = substring_to_idx(*argv++, cmd_objectlist)) == -1) iphelp();
+  else if ((idx = substring_to_idx(*argv++, cmd_objectlist)) == -1)
+    help_exit(0);
 
   ipcmd = cmdobjlist[idx];
   return ipcmd(argv);
@@ -2757,7 +2753,7 @@ void ip_main(void)
                   struct arglist ip_aflist[] = {{"inet", AF_INET},
                     {"inet6", AF_INET6}, {"link", AF_PACKET}, {NULL, -1}};
 
-                  if (!*++optargv) iphelp();
+                  if (!*++optargv) help_exit(0);
                   if ((TT.addressfamily = string_to_idx(*optargv, ip_aflist)) == -1)
                     error_exit("wrong family '%s'", *optargv);
                 }
@@ -2766,7 +2762,7 @@ void ip_main(void)
       case 2:
               TT.stats++;
               break;
-      default: iphelp();
+      default: help_exit(0);
                break; // unreachable code.
     }
   }
@@ -2778,15 +2774,15 @@ void ip_main(void)
       struct arglist ip_objectlist[] = { {"address", 0}, {"link", 1},
         {"route", 2}, {"rule", 3}, {"tunnel", 4}, {"tunl", 4}, {NULL, -1}};
 
-      if ((idx = substring_to_idx(*optargv, ip_objectlist)) == -1) iphelp();
+      if ((idx = substring_to_idx(*optargv, ip_objectlist)) == -1) help_exit(0);
       ipcmd = cmdobjlist[idx];
       toys.exitval = ipcmd(++optargv);
-    } else iphelp();
+    } else help_exit(0);
   } else {
     struct arglist ip_objectlist[] = { {"ipaddr", 0}, {"iplink", 1},
       {"iproute", 2}, {"iprule", 3}, {"iptunnel", 4}, {NULL, -1}};
     if ((idx = string_to_idx(toys.which->name, ip_objectlist)) == -1)
-      iphelp();
+      help_exit(0);
     ipcmd = cmdobjlist[idx];
     toys.exitval = ipcmd(optargv);
   }

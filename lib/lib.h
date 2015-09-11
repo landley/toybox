@@ -80,7 +80,7 @@ struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node));
 
 // help.c
 
-void show_help(void);
+void show_help(FILE *out);
 
 // xwrap.c
 void xstrncpy(char *dest, char *src, size_t size);
@@ -141,6 +141,7 @@ void verror_msg(char *msg, int err, va_list va);
 void error_msg(char *msg, ...) printf_format;
 void perror_msg(char *msg, ...) printf_format;
 void error_exit(char *msg, ...) printf_format noreturn;
+void help_exit(char *msg, ...) printf_format noreturn;
 void perror_exit(char *msg, ...) printf_format noreturn;
 ssize_t readall(int fd, void *buf, size_t len);
 ssize_t writeall(int fd, void *buf, size_t len);

@@ -46,10 +46,7 @@ void useradd_main(void)
 
   // Act like groupadd?
   if (toys.optc == 2) {
-    if (toys.optflags) {
-      toys.exithelp = 1;
-      error_exit("options with USER GROUP");
-    }
+    if (toys.optflags) help_exit("options with USER GROUP");
     xexec((char *[]){"groupadd", toys.optargs[0], toys.optargs[1], 0});
   }
 

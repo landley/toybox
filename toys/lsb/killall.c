@@ -83,10 +83,7 @@ void killall_main(void)
     }
   }
 
-  if (!(toys.optflags & FLAG_l) && !toys.optc) {
-    toys.exithelp++;
-    error_exit("no name");
-  }
+  if (!(toys.optflags & FLAG_l) && !toys.optc) help_exit("no name");
 
   TT.cur_pid = getpid();
 

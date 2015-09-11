@@ -403,10 +403,7 @@ void ifconfig_main(void)
           p = ptr = toybuf;
         }
       }
-      if (!sock->sa_family || !argv[1]) {
-        toys.exithelp++;
-        error_exit("bad hw '%s'", *argv);
-      }
+      if (!sock->sa_family || !argv[1]) help_exit("bad hw '%s'", *argv);
       hw_addr = *++argv;
 
       // Parse and verify address.
@@ -447,10 +444,7 @@ void ifconfig_main(void)
       } ifre6;
       int plen, fd6 = xsocket(AF_INET6, SOCK_DGRAM, 0);
 
-      if (!argv[1]) {
-        toys.exithelp++;
-        error_exit("%s", *argv);
-      }
+      if (!argv[1]) help_exit("%s", *argv);
 
       plen = get_addrinfo(argv[1], AF_INET6, &ifre6.addr);
       if (plen < 0) plen = 128;
@@ -517,10 +511,7 @@ void ifconfig_main(void)
 
       break;
     }
-    if (i == sizeof(try)/sizeof(*try)) {
-      toys.exithelp++;
-      error_exit("bad argument '%s'", *argv);
-    }
+    if (i == sizeof(try)/sizeof(*try)) help_exit("bad argument '%s'", *argv);
   }
   close(TT.sockfd);
 }

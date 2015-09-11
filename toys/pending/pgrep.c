@@ -91,14 +91,10 @@ void pgrep_main(void)
         error_exit("Unknown signal '%s'", arg);
     } else signum = SIGTERM;
   }
-  if (!(flag_chk(FLAG_s) || flag_chk(FLAG_P)) && !*toys.optargs) {
-    toys.exithelp++;
-    error_exit("missing argument");
-  }
-  if (*(toys.optargs+1) && !(flag_chk(FLAG_s) || flag_chk(FLAG_P))) {
-    toys.exithelp++;
-    error_exit("max argument > 1");
-  }
+  if (!(flag_chk(FLAG_s) || flag_chk(FLAG_P)) && !*toys.optargs)
+    help_exit("missing argument");
+  if (*(toys.optargs+1) && !(flag_chk(FLAG_s) || flag_chk(FLAG_P)))
+    help_exit("max argument > 1");
   if (*toys.optargs) { /* compile regular expression(PATTERN) */
     if ((eval = regcomp(&rp, *toys.optargs, REG_EXTENDED | REG_NOSUB)) != 0) {
       char errbuf[256];

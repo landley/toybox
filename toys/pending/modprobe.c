@@ -495,8 +495,7 @@ void modprobe_main(void)
   if ((toys.optc < 1) && (((flags & FLAG_r) && (flags & FLAG_l))
         ||(!((flags & FLAG_r)||(flags & FLAG_l)))))
   {
-	  toys.exithelp++;
-	  error_exit("bad syntax");
+	  help_exit("bad syntax");
   }
   // Check for -r flag without arg if yes then do auto remove.
   if ((flags & FLAG_r) && !toys.optc) {

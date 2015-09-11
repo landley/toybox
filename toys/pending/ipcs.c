@@ -425,10 +425,7 @@ void ipcs_main(void)
     if (flag(m)) show_shm_id();
     else if (flag(s)) show_sem_id();
     else if (flag(q)) show_msg_id();
-    else {
-      toys.exithelp++;
-      error_exit(NULL);
-    }
+    else help_exit(0);
     return;
   }
 

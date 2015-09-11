@@ -320,20 +320,14 @@ void brctl_main(void)
       if (strcmp(t->cmd, *toys.optargs)) continue;
 
       toys.optargs++, toys.optc--;
-      if (toys.optc < t->nargs) {            
-        toys.exithelp++;
-        error_exit("check args");
-      }
+      if (toys.optc < t->nargs) help_exit("check args");
       t->f(toys.optargs);
       toys.optargs += t->nargs;
       toys.optc -= t->nargs;
       break;
     }
 
-    if (i == ARRAY_LEN(cc)) {
-      toys.exithelp++;
-      error_exit("invalid option '%s'", *toys.optargs);
-    }
+    if (i == ARRAY_LEN(cc)) help_exit("invalid option '%s'", *toys.optargs);
   }
   xclose(TT.sockfd);
 }

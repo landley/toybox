@@ -37,12 +37,12 @@ static void do_help(struct toy_list *t)
     xprintf("<a name=\"%s\"><h1>%s</h1><blockquote><pre>\n", t->name, t->name);
 
   toys.which = t;
-  show_help();
+  show_help(stdout);
 
   if (toys.optflags & FLAG_h) xprintf("</blockquote></pre>\n");
 }
 
-// The simple help is just toys.which = toy_find("name"); show_help();
+// The simple help is just toys.which = toy_find("name"); show_help(stdout);
 // But iterating through html output and all commands is a big more 
 
 void help_main(void)

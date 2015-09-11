@@ -3,7 +3,7 @@
 // Humor toys.h
 struct toy_context toys;
 char libbuf[4096], toybuf[4096];
-void show_help(void) {;}
+void show_help(FILE *out) {;}
 void toy_exec(char *argv[]) {;}
 
 // Parse config files into data structures.

@@ -297,10 +297,7 @@ void dd_main()
   while (*toys.optargs) {
     if (!(arg = strchr(*toys.optargs, '='))) error_exit("unknown arg %s", *toys.optargs);
     *arg++ = '\0';
-    if (!*arg) {
-      toys.exithelp = 1;
-      error_exit("");
-    }
+    if (!*arg) help_exit(0);
     key.name = *toys.optargs;
     if (!(res = bsearch(&key, operands, ARRAY_LEN(operands), sizeof(struct pair),
             comp))) error_exit("unknown arg %s", key.name);

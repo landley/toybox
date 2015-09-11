@@ -78,7 +78,7 @@ static void toy_singleinit(struct toy_list *which, char *argv[])
   if (CFG_TOYBOX_HELP_DASHDASH && argv[1] && !strcmp(argv[1], "--help")) {
     if (CFG_TOYBOX && toys.which == toy_list && toys.argv[2])
       if (!(toys.which = toy_find(toys.argv[2]))) return;
-    show_help();
+    show_help(stdout);
     xexit();
   }
 
@@ -110,10 +110,7 @@ void toy_init(struct toy_list *which, char *argv[])
     } else if (CFG_TOYBOX_DEBUG && uid && which != toy_list)
       error_msg("Not installed suid root");
 
-    if ((which->flags & TOYFLAG_NEEDROOT) && euid) {
-      toys.exithelp++;
-      error_exit("Not root");
-    }
+    if ((which->flags & TOYFLAG_NEEDROOT) && euid) help_exit("Not root");
   }
 
   // Free old toys contents (to be reentrant), but leave rebound if any

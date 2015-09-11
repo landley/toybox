@@ -13,9 +13,11 @@ void verror_msg(char *msg, int err, va_list va)
   if (msg) vfprintf(stderr, msg, va);
   else s+=2;
   if (err) fprintf(stderr, s, strerror(err));
-  putc('\n', stderr);
+  if (msg || err) putc('\n', stderr);
   if (!toys.exitval) toys.exitval++;
 }
+
+// These functions don't collapse together because of the va_stuff.
 
 void error_msg(char *msg, ...)
 {
@@ -40,7 +42,19 @@ void error_exit(char *msg, ...)
 {
   va_list va;
 
-  if (CFG_TOYBOX_HELP && toys.exithelp) show_help();
+  va_start(va, msg);
+  verror_msg(msg, 0, va);
+  va_end(va);
+
+  xexit();
+}
+
+// Exit with an error message after showing help text.
+void help_exit(char *msg, ...)
+{
+  va_list va;
+
+  if (CFG_TOYBOX_HELP) show_help(stderr);
 
   va_start(va, msg);
   verror_msg(msg, 0, va);

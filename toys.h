@@ -125,7 +125,6 @@ extern struct toy_context {
   unsigned optflags;       // Command line option flags from get_optflags()
   int exitval;             // Value error_exit feeds to exit()
   int optc;                // Count of optargs
-  int exithelp;            // Should error_exit print a usage message first?
   int old_umask;           // Old umask preserved by TOYFLAG_UMASK
   int toycount;            // Total number of commands in this build
   int signal;              // generic_signal() records what signal it saw here

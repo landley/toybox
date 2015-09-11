@@ -151,9 +151,9 @@ static void read_sec_sz()
   if (ioctl(dev_fd, BLKSSZGET, &arg) == 0) g_sect_size = arg;
   if (toys.optflags & FLAG_b) {
     if (TT.sect_sz !=  512 && TT.sect_sz != 1024 && TT.sect_sz != 2048 &&
-        TT.sect_sz != 4096) {
-      toys.exithelp++;
-      error_exit("bad sector size");
+        TT.sect_sz != 4096)
+    {
+      help_exit("bad sector size");
     }
     g_sect_size = TT.sect_sz;
   }
@@ -1486,11 +1486,7 @@ void fdisk_main(void)
     toys.exitval = 0;
     return;
   } else {
-    if (!toys.optc || toys.optc > 1 ) {
-      toys.exitval = toys.exithelp = 1;
-      show_help();
-      return;
-    }
+    if (toys.optc != 1) help_exit(stdout);
     if (read_mbr(toys.optargs[0], 1)) return;
     while (1) {
       xputc('\n');
