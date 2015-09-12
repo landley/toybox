@@ -336,26 +336,30 @@ static int do_find(struct dirtree *new)
           } u;
         } *udl;
 
-        if (!new && ss[1]) {
-          udl = xmalloc(sizeof(*udl));
-          dlist_add_nomalloc(&TT.argdata, (void *)udl);
+        if (!new) {
+          if (ss[1]) {
+            udl = xmalloc(sizeof(*udl));
+            dlist_add_nomalloc(&TT.argdata, (void *)udl);
 
-          if (*s == 'u') udl->u.uid = xgetpwnamid(ss[1])->pw_uid;
-          else if (*s == 'g') udl->u.gid = xgetgrnamid(ss[1])->gr_gid;
-          else {
-            struct stat st;
+            if (*s == 'u') udl->u.uid = xgetpwnamid(ss[1])->pw_uid;
+            else if (*s == 'g') udl->u.gid = xgetgrnamid(ss[1])->gr_gid;
+            else {
+              struct stat st;
 
-            xstat(ss[1], &st);
-            udl->u.tm = st.st_mtim;
+              xstat(ss[1], &st);
+              udl->u.tm = st.st_mtim;
+            }
           }
-        } else if (check) {
+        } else {
           udl = (void *)llist_pop(&argdata);
-          if (*s == 'u') test = new->st.st_uid == udl->u.uid;
-          else if (*s == 'g') test = new->st.st_gid == udl->u.gid;
-          else {
-            test = new->st.st_mtim.tv_sec > udl->u.tm.tv_sec;
-            if (new->st.st_mtim.tv_sec == udl->u.tm.tv_sec)
-              test = new->st.st_mtim.tv_nsec > udl->u.tm.tv_nsec;
+          if (check) {
+            if (*s == 'u') test = new->st.st_uid == udl->u.uid;
+            else if (*s == 'g') test = new->st.st_gid == udl->u.gid;
+            else {
+              test = new->st.st_mtim.tv_sec > udl->u.tm.tv_sec;
+              if (new->st.st_mtim.tv_sec == udl->u.tm.tv_sec)
+                test = new->st.st_mtim.tv_nsec > udl->u.tm.tv_nsec;
+            }
           }
         }
       } else if (!strcmp(s, "exec") || !strcmp("ok", s)

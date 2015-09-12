@@ -39,4 +39,8 @@ testing "find -type f -a -print" \
 testing "find -print -o -print" \
 	"find dir -type f -a \( -print -o -print \)" "dir/file\n" "" ""
 
+# these were erroring or segfaulting:
+# find -type f -user nobody -exec : \;
+# find -type f -user nobody -exec : -exec : \;
+
 rm -rf dir
