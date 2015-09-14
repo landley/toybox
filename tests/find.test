@@ -43,4 +43,18 @@ testing "find -print -o -print" \
 # find -type f -user nobody -exec : \;
 # find -type f -user nobody -exec : -exec : \;
 
+# Testing previous failures
+
+testing "find -type f -user -exec" \
+  "find dir -type f -user $USER -exec ls {} \\;" "dir/file\n" "" ""
+testing "find -type l -newer -exec" \
+  "find dir -type l -newer dir/file -exec ls {} \\;" "dir/link\n" "" ""
+testing "find unterminated -exec {}" \
+  "find dir -type f -exec ls {}" "" "" ""
+
+# Still fails
+
+testing "find -exec {} +" \
+  "find dir -type f -exec ls {} +" "dir/file\n" "" ""
+
 rm -rf dir
