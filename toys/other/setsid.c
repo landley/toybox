@@ -19,9 +19,9 @@ config SETSID
 
 void setsid_main(void)
 {
-  while (setsid()<0) if (vfork()) _exit(0);
+  while (setsid()<0) if (xvfork()) _exit(0);
   if (toys.optflags) {
-    setpgid(0,0);
+    setpgid(0, 0);
     tcsetpgrp(0, getpid());
   }
   xexec(toys.optargs);

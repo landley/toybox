@@ -168,7 +168,7 @@ void xargs_main(void)
     for (dtemp = dlist; dtemp; dtemp = dtemp->next)
       handle_entries(dtemp->data, out+entries);
 
-    pid_t pid=xfork();
+    pid_t pid=xvfork();
     if (!pid) {
       xclose(0);
       open("/dev/null", O_RDONLY);

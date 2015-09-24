@@ -62,7 +62,7 @@ void timeout_main(void)
   if (TT.s_signal && -1 == (TT.nextsig = sig_to_num(TT.s_signal)))
     error_exit("bad -s: '%s'", TT.s_signal);
 
-  if (!(TT.pid = xfork())) xexec(toys.optargs+1);
+  if (!(TT.pid = xvfork())) xexec(toys.optargs+1);
   else {
     int status;
 

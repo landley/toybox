@@ -305,7 +305,7 @@ static void run_pipeline(struct pipeline *line)
   } else {
     int status;
 
-    cmd->pid = vfork();
+    cmd->pid = xvfork();
     if (!cmd->pid) xexec(cmd->argv);
     else waitpid(cmd->pid, &status, 0);
 
