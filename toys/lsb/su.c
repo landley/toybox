@@ -92,7 +92,6 @@ void su_main()
   }
   while ((*(argv++) = *(toys.optargs++)));
   xexec(argu);
-  perror_exit("can't exec %s", *argu);
 
 deny:
   puts("No.");
