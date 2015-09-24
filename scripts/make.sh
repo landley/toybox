@@ -96,10 +96,11 @@ then
   for i in util crypt m resolv selinux smack attr
   do
     echo "int main(int argc, char *argv[]) {return 0;}" | \
-    ${CROSS_COMPILE}${CC} $CFLAGS -xc - -o /dev/null -Wl,--as-needed -l$i > /dev/null 2>/dev/null &&
+    ${CROSS_COMPILE}${CC} $CFLAGS -xc - -o generated/libprobe -Wl,--as-needed -l$i > /dev/null 2>/dev/null &&
     echo -l$i >> generated/optlibs.dat
     echo -n .
   done
+  rm -f generated/libprobe
   echo
 fi
 
