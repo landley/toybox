@@ -133,7 +133,8 @@ void xflush(void)
 // with a path isn't a builtin, so /bin/sh won't match the builtin sh.
 void xexec(char **argv)
 {
-  if (CFG_TOYBOX && !CFG_TOYBOX_NORECURSE) toy_exec(argv);
+  // Only recurse to builtin when we have multiplexer and !vfork context.
+  if (CFG_TOYBOX && !CFG_TOYBOX_NORECURSE && toys.stacktop) toy_exec(argv);
   execvp(argv[0], argv);
 
   perror_msg("exec %s", argv[0]);
@@ -198,17 +199,24 @@ pid_t xpopen_both(char **argv, int *pipes)
   return pid;
 }
 
+// Wait for child process to exit, then return adjusted exit code.
+int xwaitpid(pid_t pid)
+{
+  int status;
+
+  while (-1 == waitpid(pid, &status, 0) && errno == EINTR);
+
+  return WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status)+127;
+}
+
 int xpclose_both(pid_t pid, int *pipes)
 {
-  int rc = 127;
-
   if (pipes) {
     close(pipes[0]);
     close(pipes[1]);
   }
-  waitpid(pid, &rc, 0);
 
-  return WIFEXITED(rc) ? WEXITSTATUS(rc) : WTERMSIG(rc) + 127;
+  return xwaitpid(pid);
 }
 
 // Wrapper to xpopen with a pipe for just one of stdin/stdout

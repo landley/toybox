@@ -98,6 +98,7 @@ void xputc(char c);
 void xflush(void);
 void xexec(char **argv);
 pid_t xpopen_both(char **argv, int *pipes);
+int xwaitpid(pid_t pid);
 int xpclose_both(pid_t pid, int *pipes);
 pid_t xpopen(char **argv, int *pipe, int stdout);
 pid_t xpclose(pid_t pid, int pipe);
@@ -248,12 +249,12 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name));
 
 // Returning from a function can modify a potentially shared stack,
 // so this has to always inline.
-
 static inline pid_t xvfork(void)
 {
-  pid_t p = vfork();
+  pid_t p;
 
-  if (p == -1) perror_exit("vfork");
+  toys.stacktop = 0;
+  if ((p = vfork()) == -1) perror_exit("vfork");
 
   return p;
 }

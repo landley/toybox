@@ -67,7 +67,7 @@ static const int NEED_OPTIONS =
 #include "generated/newtoys.h"
 0;  // Ends the opts || opts || opts...
 
-// Subset of init needed by singlemain
+// Setup toybox global state for this command.
 static void toy_singleinit(struct toy_list *which, char *argv[])
 {
   toys.which = which;
@@ -85,7 +85,7 @@ static void toy_singleinit(struct toy_list *which, char *argv[])
   if (NEED_OPTIONS && which->options) get_optflags();
   else {
     toys.optargs = argv+1;
-    for (toys.optc=0; toys.optargs[toys.optc]; toys.optc++);
+    for (toys.optc = 0; toys.optargs[toys.optc]; toys.optc++);
   }
   toys.old_umask = umask(0);
   if (!(which->flags & TOYFLAG_UMASK)) umask(toys.old_umask);
@@ -93,8 +93,7 @@ static void toy_singleinit(struct toy_list *which, char *argv[])
   toys.toycount = ARRAY_LEN(toy_list);
 }
 
-// Setup toybox global state for this command.
-
+// Full init needed by multiplexer or reentrant calls, calls singleinit at end
 void toy_init(struct toy_list *which, char *argv[])
 {
   // Drop permissions for non-suid commands.
@@ -114,12 +113,12 @@ void toy_init(struct toy_list *which, char *argv[])
   }
 
   // Free old toys contents (to be reentrant), but leave rebound if any
-
-  if (toys.optargs != toys.argv+1) free(toys.optargs);
+  // don't blank old optargs if our new argc lives in the old optargs.
+  if (argv<toys.optargs || argv>toys.optargs+toys.optc) free(toys.optargs);
   memset(&toys, 0, offsetof(struct toy_context, rebound));
-  if (toys.recursion > 1) memset(&this, 0, sizeof(this));
+  if (toys.which) memset(&this, 0, sizeof(this));
 
-  // Subset of init needed by singlemain.
+  // Continue to portion of init needed by standalone commands
   toy_singleinit(which, argv);
 }
 
@@ -129,14 +128,15 @@ void toy_exec(char *argv[])
 {
   struct toy_list *which;
 
-  // Return if we can't find it, or need to re-exec to acquire root,
-  // or if stack depth is getting silly.
-  if (!(which = toy_find(argv[0]))) return;
-  if (toys.recursion && (which->flags & TOYFLAG_ROOTONLY) && getuid()) return;
-  if (toys.recursion++ > 5) return;
+  // Return if we can't find it (which includes no multiplexer case),
+  if (!(which = toy_find(*argv))) return;
 
-  // don't blank old optargs if our new argc lives in the old optargs.
-  if (argv>=toys.optargs && argv<=toys.optargs+toys.optc) toys.optargs = 0;
+  // Return if stack depth getting noticeable (proxy for leaked heap, etc).
+  if (toys.stacktop && labs((char *)toys.stacktop-(char *)&which)>6000)
+    return;
+
+  // Return if we need to re-exec to acquire root via suid bit.
+  if (toys.which && (which->flags&TOYFLAG_ROOTONLY) && getuid()) return;
 
   // Run command
   toy_init(which, argv);
@@ -146,16 +146,19 @@ void toy_exec(char *argv[])
 
 // Multiplexer command, first argument is command to run, rest are args to that.
 // If first argument starts with - output list of command install paths.
-
 void toybox_main(void)
 {
   static char *toy_paths[]={"usr/","bin/","sbin/",0};
   int i, len = 0;
 
+  // fast path: try to exec immediately.
+  // (Leave toys.which null to disable suid return logic.)
+  if (toys.argv[1]) toy_exec(toys.argv+1);
+
+  // For early error reporting
   toys.which = toy_list;
+
   if (toys.argv[1]) {
-    toys.optc = toys.recursion = 0;
-    toy_exec(toys.argv+1);
     if (!strcmp("--version", toys.argv[1])) {
       xputs(TOYBOX_VERSION);
       xexit();
@@ -185,13 +188,27 @@ void toybox_main(void)
 
 int main(int argc, char *argv[])
 {
-  // We check our own stdout errors, disable sigpipe killer
-  signal(SIGPIPE, SIG_IGN);
+  if (!*argv) return 127;
+
+  // Snapshot stack location so we can detect recursion depth later.
+  // This is its own block so probe doesn't permanently consume stack.
+  else {
+    int stack;
+
+    toys.stacktop = &stack;
+  }
+  *argv = basename_r(*argv);
+
+  // If nommu can't fork, special reentry path.
+  // Use !stacktop to signal "vfork happened", both before and after xexec()
+  if (!CFG_TOYBOX_FORK) {
+    if (0x80 & **argv) {
+      **argv &= 0x7f;
+      toys.stacktop = 0;
+    }
+  }
 
   if (CFG_TOYBOX) {
-    // Trim path off of command name
-    *argv = basename(*argv);
-
     // Call the multiplexer, adjusting this argv[] to be its' argv[1].
     // (It will adjust it back before calling toy_exec().)
     toys.argv = argv-1;

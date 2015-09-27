@@ -67,18 +67,6 @@
 #include <sys/statfs.h>
 #include <sys/sysinfo.h>
 
-#include "lib/lib.h"
-#include "lib/lsm.h"
-#include "toys/e2fs.h"
-
-// Get list of function prototypes for all enabled command_main() functions.
-
-#define NEWTOY(name, opts, flags) void name##_main(void);
-#define OLDTOY(name, oldname, flags) void oldname##_main(void);
-#include "generated/newtoys.h"
-#include "generated/flags.h"
-#include "generated/globals.h"
-
 // These live in main.c
 
 struct toy_list *toy_find(char *name);
@@ -132,7 +120,7 @@ extern struct toy_context {
 
   // This is at the end so toy_init() doesn't zero it.
   jmp_buf *rebound;        // longjmp here instead of exit when do_rebound set
-  int recursion;           // How many nested calls to toy_exec()
+  void *stacktop;          // nested toy_exec() call count, or -1 if vforked
 } toys;
 
 // Two big temporary buffers: one for use by commands, one for library functions
@@ -144,3 +132,15 @@ extern char **environ;
 #define GLOBALS(...)
 
 #define ARRAY_LEN(array) (sizeof(array)/sizeof(*array))
+
+#include "lib/lib.h"
+#include "lib/lsm.h"
+#include "toys/e2fs.h"
+
+// Get list of function prototypes for all enabled command_main() functions.
+
+#define NEWTOY(name, opts, flags) void name##_main(void);
+#define OLDTOY(name, oldname, flags) void oldname##_main(void);
+#include "generated/newtoys.h"
+#include "generated/flags.h"
+#include "generated/globals.h"
