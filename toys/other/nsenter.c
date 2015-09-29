@@ -1,14 +1,14 @@
 /* nsenter.c - Enter existing namespaces
  *
- * Copyright 2014 andy Lutomirski <luto@amacapital.net>
+ * Copyright 2014 Andy Lutomirski <luto@amacapital.net>
  *
- * No standard
+ * See http://man7.org/linux/man-pages/man1/nsenter.1.html
  *
  * unshare.c - run command in new context
  *
  * Copyright 2011 Rob Landley <rob@landley.net>
  *
- * No Standard
+ * See http://man7.org/linux/man-pages/man1/unshare.1.html
  *
 
 // Note: flags go in same order (right to left) for shared subset
@@ -149,12 +149,9 @@ void unshare_main(void)
     }
 
     if ((toys.optflags & FLAG_p) && !(toys.optflags & FLAG_F)) {
-      pid_t pid = xfork();
+      toys.exitval = xrun(toys.optargs);
 
-      if (pid) {
-        while (waitpid(pid, 0, 0) == -1 && errno == EINTR);
-        return;
-      }
+      return;
     }
   }
 

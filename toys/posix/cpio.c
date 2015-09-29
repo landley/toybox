@@ -82,12 +82,15 @@ void cpio_main(void)
   // In passthrough mode, parent stays in original dir and generates archive
   // to pipe, child does chdir to new dir and reads archive from stdin (pipe).
   if (TT.pass) {
-    if (!(pid = xpopen(0, &pipe, 0))) {
+    if (toys.stacktop) {
+      // xpopen() doesn't return from child due to vfork(), instead restarts
+      // with !toys.stacktop
+      pid = xpopen(0, &pipe, 0);
+      afd = pipe;
+    } else {
+      // child
       toys.optflags |= FLAG_i;
       xchdir(TT.pass);
-    } else {
-      toys.optflags |= FLAG_o;
-      afd = pipe;
     }
   }
 

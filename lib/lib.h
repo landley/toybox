@@ -247,17 +247,8 @@ void mode_to_string(mode_t mode, char *buf);
 char *basename_r(char *name);
 void names_to_pid(char **names, int (*callback)(pid_t pid, char *name));
 
-// Returning from a function can modify a potentially shared stack,
-// so this has to always inline.
-static inline pid_t xvfork(void)
-{
-  pid_t p;
-
-  toys.stacktop = 0;
-  if ((p = vfork()) == -1) perror_exit("vfork");
-
-  return p;
-}
+pid_t xvforkwrap(pid_t pid);
+#define XVFORK() xvforkwrap(vfork())
 
 // Functions in need of further review/cleanup
 #include "lib/pending.h"

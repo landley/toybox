@@ -111,6 +111,7 @@ void xargs_main(void)
   struct double_list *dlist = NULL, *dtemp;
   int entries, bytes, done = 0, status;
   char *data = NULL, **out;
+  pid_t pid;
 
   if (!(toys.optflags & FLAG_0)) TT.delim = '\n';
 
@@ -168,8 +169,7 @@ void xargs_main(void)
     for (dtemp = dlist; dtemp; dtemp = dtemp->next)
       handle_entries(dtemp->data, out+entries);
 
-    pid_t pid=xvfork();
-    if (!pid) {
+    if (!(pid = XVFORK())) {
       xclose(0);
       open("/dev/null", O_RDONLY);
       xexec(out);

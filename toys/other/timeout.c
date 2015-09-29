@@ -62,14 +62,10 @@ void timeout_main(void)
   if (TT.s_signal && -1 == (TT.nextsig = sig_to_num(TT.s_signal)))
     error_exit("bad -s: '%s'", TT.s_signal);
 
-  if (!(TT.pid = xvfork())) xexec(toys.optargs+1);
+  if (!(TT.pid = XVFORK())) xexec(toys.optargs+1);
   else {
-    int status;
-
     xsignal(SIGALRM, handler);
     setitimer(ITIMER_REAL, &TT.itv, (void *)toybuf);
-    while (-1 == waitpid(TT.pid, &status, 0) && errno == EINTR);
-    toys.exitval = WIFEXITED(status)
-      ? WEXITSTATUS(status) : WTERMSIG(status) + 127;
+    toys.exitval = xwaitpid(TT.pid);
   }
 }

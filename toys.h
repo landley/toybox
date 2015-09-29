@@ -67,6 +67,18 @@
 #include <sys/statfs.h>
 #include <sys/sysinfo.h>
 
+#include "lib/lib.h"
+#include "lib/lsm.h"
+#include "toys/e2fs.h"
+
+// Get list of function prototypes for all enabled command_main() functions.
+
+#define NEWTOY(name, opts, flags) void name##_main(void);
+#define OLDTOY(name, oldname, flags) void oldname##_main(void);
+#include "generated/newtoys.h"
+#include "generated/flags.h"
+#include "generated/globals.h"
+
 // These live in main.c
 
 struct toy_list *toy_find(char *name);
@@ -132,15 +144,3 @@ extern char **environ;
 #define GLOBALS(...)
 
 #define ARRAY_LEN(array) (sizeof(array)/sizeof(*array))
-
-#include "lib/lib.h"
-#include "lib/lsm.h"
-#include "toys/e2fs.h"
-
-// Get list of function prototypes for all enabled command_main() functions.
-
-#define NEWTOY(name, opts, flags) void name##_main(void);
-#define OLDTOY(name, oldname, flags) void oldname##_main(void);
-#include "generated/newtoys.h"
-#include "generated/flags.h"
-#include "generated/globals.h"

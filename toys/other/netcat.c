@@ -26,10 +26,10 @@ config NETCAT_LISTEN
   bool "netcat server options (-let)"
   default y
   depends on NETCAT
+  depends on TOYBOX_FORK
   help
-    usage: netcat [-t] [-lL COMMAND...]
+    usage: netcat [-lL COMMAND...]
 
-    -t	allocate tty (must come before -l or -L)
     -l	listen for one incoming connection.
     -L	listen for multiple incoming connections (server mode).
 
@@ -38,6 +38,16 @@ config NETCAT_LISTEN
 
     For a quick-and-dirty server, try something like:
     netcat -s 127.0.0.1 -p 1234 -tL /bin/bash -l
+
+config NETCAT_LISTEN_TTY
+  bool
+  default y
+  depends on NETCAT_LISTEN
+  depends on TOYBOX_FORK
+  help
+    usage: netcat [-t]
+
+    -t	allocate tty (must come before -l or -L)
 */
 
 #define FOR_netcat
@@ -139,7 +149,7 @@ void netcat_main(void)
       // Do we need to return immediately because -l has arguments?
 
       if ((toys.optflags & FLAG_l) && toys.optc) {
-        if (xfork()) goto cleanup;
+        if (CFG_TOYBOX_FORK && xfork()) goto cleanup;
         close(0);
         close(1);
         close(2);
@@ -161,7 +171,10 @@ void netcat_main(void)
         // Do we need to fork and/or redirect for exec?
 
         else {
-          if (toys.optflags&FLAG_L) child = fork();
+          if (toys.optflags&FLAG_L) {
+            toys.stacktop = 0;
+            child = vfork();
+          }
           if (!child && toys.optc) {
             int fd = pollfds[0].fd;
 
@@ -183,7 +196,7 @@ void netcat_main(void)
   // (Does not play well with -L, but what _should_ that do?)
   set_alarm(0);
 
-  if (CFG_NETCAT_LISTEN && (toys.optflags&(FLAG_L|FLAG_l) && toys.optc))
+  if (CFG_NETCAT_LISTEN && ((toys.optflags&(FLAG_L|FLAG_l)) && toys.optc))
     xexec(toys.optargs);
 
   // Poll loop copying stdin->socket and socket->stdout.

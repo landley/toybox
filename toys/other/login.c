@@ -159,9 +159,7 @@ void login_main(void)
   syslog(LOG_INFO, "%s logged in on %s %s %s", pwd->pw_name,
     ttyname(tty), hh ? "from" : "", hh ? TT.hostname : "");
 
-  // can't xexec here because name doesn't match argv[0]
-  snprintf(toybuf, sizeof(toybuf)-1, "-%s", basename_r(pwd->pw_shell));
-  toy_exec((char *[]){toybuf, 0});
-  execl(pwd->pw_shell, toybuf, NULL);
-  error_exit("Failed to spawn shell");
+  // not using xexec(), login calls absolute path from filesystem so must exec()
+  execl(pwd->pw_shell, xmprintf("-%s", pwd->pw_shell), (char *)0);
+  perror_exit("exec shell '%s'", pwd->pw_shell);
 }
