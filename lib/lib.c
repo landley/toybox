@@ -56,9 +56,11 @@ void help_exit(char *msg, ...)
 
   if (CFG_TOYBOX_HELP) show_help(stderr);
 
-  va_start(va, msg);
-  verror_msg(msg, 0, va);
-  va_end(va);
+  if (msg) {
+    va_start(va, msg);
+    verror_msg(msg, 0, va);
+    va_end(va);
+  }
 
   xexit();
 }

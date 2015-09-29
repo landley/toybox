@@ -19,7 +19,7 @@ config SYSCTL
     -e	Don't warn about unknown keys
     -N	Don't print key values
     -n	Don't print key names
-    -p [FILE]	Read values from FILE (default /etc/sysctl.conf)
+    -p	Read values from FILE (default /etc/sysctl.conf)
     -q	Don't show value after write
     -w	Only write values (object to reading)
 */
@@ -148,5 +148,8 @@ void sysctl_main()
     fclose(fp);
 
   // Loop through arguments, displaying or assigning as appropriate
-  } else for (args = toys.optargs; *args; args++) process_key(*args, 0);
+  } else {
+    if (!*toys.optargs) help_exit(0);
+    for (args = toys.optargs; *args; args++) process_key(*args, 0);
+  }
 }
