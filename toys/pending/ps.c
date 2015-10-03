@@ -11,6 +11,10 @@
  * the same field should be called "TT" which is _INSANE_ and I'm not doing it.
  * It also says that -o "args" and "comm" should behave differently but use
  * the same title, which is not the same title as the default output. No.
+ *
+ * ps aux
+ * TODO: -o maj_flt, min_flt
+ * TODO: --sort
 
 USE_PS(NEWTOY(ps, "aAdeflo*[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -97,7 +101,7 @@ static int do_ps(struct dirtree *new)
   char *name, *s, state;
   int nlen, i, fd, len, width = TT.width;
 
-  if (!new->parent) return DIRTREE_RECURSE;
+  if (!new->parent) return DIRTREE_RECURSE|DIRTREE_SHUTUP;
   if (!(*slot = atol(new->name))) return 0;
 
   // name field limited to 256 bytes by VFS, plus 40 fields * max 20 chars:
@@ -267,9 +271,9 @@ void ps_main(void)
 
       // Set title, length of title, type, end of type, and display width
       while ((type = comma_iterate(&arg, &length))) {
-        if ((end = strchr(type, '=')) && length<(end-type)) {
+        if ((end = strchr(type, '=')) && length>(end-type)) {
           title = end+1;
-          length = (end-type)-1;
+          length -= (end-type)+1;
         } else {
           end = type+length;
           title = 0;
@@ -282,11 +286,8 @@ void ps_main(void)
 
         // Allocate structure, copy title
         field = xmalloc(sizeof(struct strawberry)+length+1);
-        if (title) {
-          memcpy(field->title, title, length);
-          field->title[length] = 0;
-        }
-        field->len = length;
+        memcpy(field->title, title ? title : type, length);
+        field->title[field->len = length] = 0;
 
         if (width) {
           field->len = strtol(++width, &title, 10);
@@ -296,7 +297,7 @@ void ps_main(void)
         }
 
         // Find type (reuse width as temp because we're done with it)
-        for (i = 0; i<ARRAY_LEN(typos) && !field->which; i++) {
+        for (i = 0; i<ARRAY_LEN(typos); i++) {
           int j, k;
           char *s;
 
@@ -304,7 +305,8 @@ void ps_main(void)
           for (j = 0; j < 2; j++) {
             if (!j) s = typos[i];
             // posix requires alternate names for some fields
-            else if (-1 == (k = stridx((char []){7, 14, 15, 16}, i))) break;
+            else if (-1 == (k = stridx((char []){7, 14, 15, 16, 0}, i)))
+              continue;
             else s = ((char *[]){"nice", "args", "comm", "etime"})[k];
 
             if (!strncasecmp(type, s, end-type) && strlen(s)==end-type) break;
