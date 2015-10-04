@@ -1,6 +1,11 @@
 # Makefile for toybox.
 # Copyright 2006 Rob Landley <rob@landley.net>
 
+# If people set these on the make command line, use 'em
+# Note that CC defaults to "cc" so the one in configure doesn't get
+# used when scripts/make.sh and care called through "make".
+export CROSS_COMPILE CFLAGS OPTIMIZE LDOPTIMIZE CC HOSTCC V
+
 all: toybox
 
 KCONFIG_CONFIG ?= .config
