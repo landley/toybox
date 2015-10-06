@@ -15,8 +15,11 @@ CFLAGS="$CFLAGS -funsigned-char"
 # We accept LDFLAGS, but by default don't have anything in it
 [ -z "$LDOPTIMIZE" ] && LDOPTIMIZE="-Wl,--gc-sections"
 
+# The makefile provides defaults for these, so this only gets used if
+# you call scripts/make.sh and friends directly.
+
 [ -z "$CC" ] && CC=cc
 
 # If HOSTCC needs CFLAGS or LDFLAGS, just add them to the variable
 # ala HOSTCC="blah-cc --static"
-[ -z "$HOSTCC" ] && HOSTCC=gcc
+[ -z "$HOSTCC" ] && HOSTCC=cc
