@@ -26,14 +26,11 @@ config PGREP
 
 #define FOR_pgrep
 #include "toys.h"
-#include <regex.h>
-
-#define flag_get(f,v,d)   ((toys.optflags & f) ? v : d)
-#define flag_chk(f)       ((toys.optflags & f) ? 1 : 0)
 
 GLOBALS(
   long sid;       //-s
   long ppid;      //-P
+
   char *signame;
 )
 
@@ -41,11 +38,10 @@ static int exec_action(unsigned pid, char *name, int signal)
 {
   if (toys.which->name[1] == 'g') {
     printf("%d", pid);
-    if (flag_chk(FLAG_l)) printf(" %s", name);
+    if (toys.optflags&FLAG_l) printf(" %s", name);
     printf("\n");
-  } else {
-    kill(pid, signal);
-  }
+  } else kill(pid, signal);
+
   return 0;
 }
 
@@ -54,7 +50,7 @@ static int regex_match(regex_t *rp, char *tar, char *patt)
   regmatch_t rm[1];
   int len = strlen(tar);
   if (regexec(rp, tar, 1, rm, 0) == 0) {
-    if (flag_chk(FLAG_x)) {
+    if (toys.optflags&FLAG_x) {
       if ((rm[0].rm_so == 0) && ((rm[0].rm_eo - rm[0].rm_so) == len)) return 1;
     } else return 1;
   }
@@ -63,46 +59,48 @@ static int regex_match(regex_t *rp, char *tar, char *patt)
 
 void pgrep_main(void)
 {
-  int signum=0, eval=0, ret=1;
-  DIR *dp=NULL;
-  struct dirent *entry=NULL;
+  int signum = 0, eval = 0, ret = 1;
+  DIR *dp = 0;
+  struct dirent *entry = 0;
   regex_t rp;
-  unsigned  pid=0, ppid=0, sid=0, latest_pid=0;
-  char *cmdline=NULL, *latest_cmdline = NULL;
+  unsigned pid = 0, ppid = 0, sid = 0, latest_pid = 0;
+  char *cmdline = 0, *latest_cmdline = 0;
   pid_t self = getpid();
 
   if (!(dp = opendir("/proc"))) perror_exit("OPENDIR: failed to open /proc");
   setlinebuf(stdout);
 
+  // pkill
   if (toys.which->name[1] == 'k') {
-    if (flag_chk(FLAG_l)) {
-      sig_to_num(NULL);
+    if (toys.optflags&FLAG_l) {
+      sig_to_num(0);
+
       return;
     }
-    if (!TT.signame && *toys.optargs && **toys.optargs == '-') {
-      TT.signame = *(toys.optargs++) + 1;
-    }
-    if (TT.signame) {
+// note: "pkill -" on ubuntu uses "-" as the pattern, this would error instead
+    if (*toys.optargs && **toys.optargs == '-') {
       char *arg;
-      int i = strtol(TT.signame, &arg, 10);
+      int i = strtol(TT.signame = *(toys.optargs++)+1, &arg, 10);
+
       if (!*arg) arg = num_to_sig(i);
       else arg = TT.signame;
       if (!arg || (signum = sig_to_num(arg)) == -1)
         error_exit("Unknown signal '%s'", arg);
     } else signum = SIGTERM;
   }
-  if (!(flag_chk(FLAG_s) || flag_chk(FLAG_P)) && !*toys.optargs)
+  if (!(toys.optflags&(FLAG_s|FLAG_P)) && !*toys.optargs)
     help_exit("missing argument");
-  if (*(toys.optargs+1) && !(flag_chk(FLAG_s) || flag_chk(FLAG_P)))
+  if (toys.optargs[1] && !(toys.optflags&(FLAG_s|FLAG_P)))
     help_exit("max argument > 1");
   if (*toys.optargs) { /* compile regular expression(PATTERN) */
     if ((eval = regcomp(&rp, *toys.optargs, REG_EXTENDED | REG_NOSUB)) != 0) {
       char errbuf[256];
+
       (void) regerror(eval, &rp, errbuf, sizeof(errbuf));
       error_exit("%s", errbuf);
     }
   }
-  if (flag_chk(FLAG_s)&&(TT.sid==0)) TT.sid = getsid(0);
+  if ((toys.optflags&FLAG_s) && !TT.sid) TT.sid = getsid(0);
   while ((entry = readdir(dp))) {
     int fd = -1, n = 0;
     if (!isdigit(*entry->d_name)) continue;
@@ -124,30 +122,30 @@ cmdline_fail:
       toybuf[--n] = '\0';
       if (n < 1) continue;
     }
-    if (flag_chk(FLAG_f)) {
+    if (toys.optflags & FLAG_f) {
       while (--n)
         if (toybuf[n] < ' ') toybuf[n] = ' ';
     }
     if (cmdline) free(cmdline);
     cmdline = xstrdup(toybuf);
-    if (flag_chk(FLAG_s) || flag_chk(FLAG_P)) {
+    if (toys.optflags&(FLAG_s|FLAG_P)) {
       snprintf(toybuf, sizeof(toybuf), "/proc/%s/stat", entry->d_name);
       if ((fd = open(toybuf, O_RDONLY)) == -1) continue;
       n = read(fd, toybuf, sizeof(toybuf));
       close(fd);
       if (n<1) continue;
       n = sscanf(toybuf, "%*u %*s %*c %u %*u %u", &ppid, &sid);
-      if (flag_chk(FLAG_s)) if (sid != TT.sid) continue;
-      if (flag_chk(FLAG_P)) if (ppid != TT.ppid) continue;
+      if ((toys.optflags&FLAG_s) && sid != TT.sid) continue;
+      if ((toys.optflags&FLAG_P) && ppid != TT.ppid) continue;
     }
-    if (!*toys.optargs || (regex_match(&rp, cmdline, *toys.optargs)^flag_chk(FLAG_v))) {
-      if (flag_chk(FLAG_n)) {
+    if (!*toys.optargs || (regex_match(&rp, cmdline, *toys.optargs)^!!(toys.optflags&FLAG_v))) {
+      if (toys.optflags&FLAG_n) {
         if (latest_cmdline) free(latest_cmdline);
         latest_cmdline = xstrdup(cmdline);
         latest_pid = pid;
       } else exec_action(pid, cmdline, signum);
       ret = 0;
-      if (flag_chk(FLAG_o)) break;
+      if (toys.optflags&FLAG_o) break;
     }
   }
   if (cmdline) free(cmdline);
