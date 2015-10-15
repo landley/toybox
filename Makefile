@@ -37,7 +37,7 @@ bloatcheck: toybox_old toybox_unstripped
 
 generated/instlist: toybox_stuff
 	NOBUILD=1 scripts/make.sh
-	$(HOSTCC) -I . scripts/install.c -o generated/instlist
+	$(HOSTCC) -I . $(CFLAGS) scripts/install.c -o generated/instlist
 
 install_flat: generated/instlist
 	scripts/install.sh --symlink --force
