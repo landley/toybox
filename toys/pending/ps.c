@@ -169,7 +169,8 @@ static int do_ps(struct dirtree *new)
     // PID, PPID, PRI, NI, ADDR, SZ, RSS
     if (-1 != (i = stridx((char[]){3,4,6,7,8,9,24,0}, field->which))) {
       ll = slot[((char[]){0,1,15,16,27,20,21})[i]];
-      if (i == 5) ll >>= 12;
+      if (i == 2) ll--;
+      else if (i == 5) ll >>= 12;
       else if (i == 6) ll <<= 2;
       sprintf(out, "%lld", ll);
     // F (also assignment of i used by later tests)
@@ -262,9 +263,17 @@ static int do_ps(struct dirtree *new)
       if (len<1) sprintf(out, "[%.*s]", nlen, name);
     }
 
-    // Output the field
-    i = width<field->len ? width : field->len;
-    width -= printf(" %*.*s" + (field == TT.fields), i, field->next ? i : width, out);
+    // Output the field, appropriately padded
+    len = width - (field != TT.fields);
+    if (!field->next && field->len<0) i = 0;
+    else {
+      i = len<abs(field->len) ? len : field->len;
+      len = abs(i);
+    }
+
+    // TODO test utf8 fontmetrics
+    width -= printf(" %*.*s" + (field == TT.fields), i, len, out);
+    if (!width) break;
   }
   xputc('\n');
 
@@ -285,7 +294,6 @@ void ps_main(void)
 
   TT.width = 80;
   terminal_size(&TT.width, 0);
-  TT.width--;
 
   // find controlling tty, falling back to /dev/tty if none
   for (i = fd = 0; i < 4; i++) {
