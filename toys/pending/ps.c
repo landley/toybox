@@ -9,10 +9,23 @@
  * Deviations from posix: no -n because /proc/self/wchan exists.
  * Posix says default output should have field named "TTY" but if you "-o tty"
  * the same field should be called "TT" which is _INSANE_ and I'm not doing it.
+ * Similarly -f is outputs UNAME but calls it UID (we call it UNAME).
  * It also says that -o "args" and "comm" should behave differently but use
- * the same title, which is not the same title as the default output. No.
+ * the same title, which is not the same title as the default output. (No.)
  *
- * ps aux
+ * Posix defines -o ADDR as "The address of the process" but the process
+ * start address is a constant on any elf system with mmu. The procps ADDR
+ * field always prints "-" with an alignment of 1, which is why it has 11
+ * characters left for "cmd" in in 80 column "ps -l" mode. On x86-64 you
+ * need 12 chars, leaving nothing for cmd: I.E. posix 2008 ps -l mode can't
+ * be sanely implemented on 64 bit Linux systems. In procps there's ps -y
+ * which changes -l by removing the "F" column and swapping RSS for ADDR,
+ * leaving 9 chars for cmd, so we're using that as our -l output.
+ *
+ *
+ * TODO: ps aux
+ * TODO: finalize F
+ * TODO: -tuUgG
  * TODO: -o maj_flt,min_flt,stat(<NLnl+),rss --sort -Z
  * TODO: att & bsd style "ps -ax" vs "ps ax" behavior difference
  * TODO: way too many hardwired constants here, how can I generate them?
@@ -22,13 +35,13 @@
  * significant. The array index is used in strawberry->which (consumed
  * in do_ps()) and in the bitmasks enabling default fields in ps_main().
 
-USE_PS(NEWTOY(ps, "aAdeflo*p*[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PS(NEWTOY(ps, "aAdeflo*p*t*u*U*g*G*w[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PS
   bool "ps"
   default n
   help
-    usage: ps [-Aade] [-fl] [-gG GROUP] [-o FIELD] [-p PID] [-t TTY] [-uU USER]
+    usage: ps [-Aadeflw] [-gG GROUP] [-o FIELD] [-p PID] [-t TTY] [-uU USER]
 
     List processes.
 
@@ -44,41 +57,46 @@ config PS
     -t	attached to selected TTYs
     -u	owned by selected USERs
     -U	owned by selected real USERs
+    -w	Wide output (don't truncate at terminal width)
 
     Which FIELDs to show. (Default = -o pid,tty,time,cmd)
 
     -f	Full listing (uid,pid,ppid,c,stime,tty,time,cmd)
     -l	Long listing (f,s,uid,pid,ppid,c,pri,ni,addr,sz,wchan,tty,time,cmd)
-    -o	Output the listed FIELDs
+    -o	Output the listed FIELDs, each with optional :size and/or =title
 
-    Available -o FIELDs are: F S UID PID PPID C PRI NI ADDR SZ WCHAN STIME TTY
-    TIME CMD COMMAND ELAPSED GROUP %CPU PGID RGROUP RUSER USER VSZ RSS
+    Available -o FIELDs: F S UID PID PPID PRI NI ADDR SZ WCHAN STIME TTY
+    TIME CMD ETIME GROUP %CPU PGID RGROUP RUSER USER VSZ RSS UNAME GID
 
-    STIME
-    TIME CMD COMMAND ELAPSED GROUP %CPU PGID RGROUP RUSER USER VSZ
+    GROUP %CPU PGID RGROUP RUSER USER VSZ RSS UNAME GID
 
-      ADDR  Process instruction pointer
-      C     Processor utilization for scheduling
+      ADDR  Instruction pointer
+      CMD   Command line
+      ETIME Elapsed time since process start
       F     Process flags (PF_*) from linux source file include/sched.h
             (in octal rather than hex because posix)
+      GID   Group id
+      GROUP Group name
       NI    Niceness of process (lower niceness is higher priority)
       PID   Process id
       PPID  Parent process id
       PRI   Priority
-      RSS   Resident Set Size (memory used)
+      RSS   Resident Set Size (memory currently used)
       S     Process state:
             R (running) S (sleeping) D (disk sleep) T (stopped)  t (traced)
             Z (zombie)  X (dead)     x (dead)       K (wakekill) W (waking)
-      SZ    Size (4k pages of memory used)
-      TTY   Controlling terminal of process
-      UID   User id of process owner
+      STIME Start time of process in hh:mm (size :19 shows yyyy-mm-dd hh:mm:ss)
+      SZ    Memory Size (4k pages needed to completely swap out process)
+      TTY   Controlling terminal
+      UID   User id
+      UNAME User name
       WCHAN What it's waiting for
 
     SZ is memory mapped while RSS is pages consumed. ADDR is an address,
     WCHAN is a name. S shows a single state letter, STAT adds substatus.
 
     Default output is -o PID,TTY,TIME,CMD
-    With -f USER=UID,PID,PPID,C,STIME,TTY,TIME,CMD
+    With -f USER:8=UID,PID,PPID,C,STIME,TTY,TIME,CMD
     With -l F,S,UID,PID,PPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD
 */
 
@@ -86,13 +104,18 @@ config PS
 #include "toys.h"
 
 GLOBALS(
+  struct arg_list *G;
+  struct arg_list *g;
+  struct arg_list *U;
+  struct arg_list *u;
+  struct arg_list *t;
   struct arg_list *p;
   struct arg_list *o;
 
   unsigned width;
   dev_t tty;
   void *fields;
-  long uptime, pidlen, *pids;
+  long pidlen, *pids;
 )
 
 /*
@@ -110,6 +133,15 @@ struct strawberry {
   char *title;
   char forever[];
 };
+
+static time_t get_uptime(void)
+{
+  struct sysinfo si;
+
+  sysinfo(&si);
+
+  return si.uptime;
+}
 
 static int match_process(long long *slot)
 {
@@ -159,20 +191,26 @@ static int do_ps(struct dirtree *new)
   // skip processes we don't care about.
   if (!match_process(slot)) return 0;
 
+  // At this point 512 bytes at toybuf+512 are free (already parsed).
+  // Start of toybuf still has name in it.
+
   // Loop through fields
   for (field = TT.fields; field; field = field->next) {
-    char *out = toybuf+2048;
+    char *out = toybuf+2048, *scratch = toybuf+512;
 
     // Default: unsupported (5 "C")
     sprintf(out, "-");
 
     // PID, PPID, PRI, NI, ADDR, SZ, RSS
     if (-1 != (i = stridx((char[]){3,4,6,7,8,9,24,0}, field->which))) {
+      char *fmt = "%lld";
+
       ll = slot[((char[]){0,1,15,16,27,20,21})[i]];
       if (i == 2) ll--;
+      if (i == 4) fmt = "%llx";
       else if (i == 5) ll >>= 12;
       else if (i == 6) ll <<= 2;
-      sprintf(out, "%lld", ll);
+      sprintf(out, fmt, ll);
     // F (also assignment of i used by later tests)
     // Posix doesn't specify what flags should say. Man page says
     // 1 for PF_FORKNOEXEC and 4 for PF_SUPERPRIV from linux/sched.h
@@ -189,10 +227,20 @@ static int do_ps(struct dirtree *new)
       }
     // WCHAN
     } else if (i==10) {
-      sprintf(toybuf+512, "%lld/wchan", *slot);
-      readfileat(dirtree_parentfd(new), toybuf+512, out, 2047);
+      sprintf(scratch, "%lld/wchan", *slot);
+      readfileat(dirtree_parentfd(new), scratch, out, 2047);
 
-    // STIME (11)
+    // STIME
+    } else if (i==11) {
+      time_t t = time(0) - get_uptime() + slot[19]/sysconf(_SC_CLK_TCK);
+
+      // Padding behavior's a bit odd: default field size is just hh:mm.
+      // Increasing stime:size reveals more data at left until full
+      // yyyy-mm-dd hh:mm revealed at :16, then adds :ss at end for :19. But
+      // expanding last field just adds :ss.
+      strftime(scratch, 512, "%F %T", localtime(&t));
+      out = scratch+strlen(scratch)-3-abs(field->len);
+      if (out<scratch) out = scratch;
 
     // TTY
     } else if (i==12) {
@@ -201,11 +249,11 @@ static int do_ps(struct dirtree *new)
       for (i=0; i<3; i++) {
         struct stat st;
 
-        sprintf(toybuf+512, "%lld/fd/%i", *slot, i);
+        sprintf(scratch, "%lld/fd/%i", *slot, i);
         fd = dirtree_parentfd(new);
-        if (!fstatat(fd, toybuf+512, &st, 0) && S_ISCHR(st.st_mode)
+        if (!fstatat(fd, scratch, &st, 0) && S_ISCHR(st.st_mode)
           && st.st_rdev == slot[4]
-          && 0<(len = readlinkat(fd, toybuf+512, out, 2047)))
+          && 0<(len = readlinkat(fd, scratch, out, 2047)))
         {
           out[len] = 0;
           if (!strncmp(out, "/dev/", 5)) out += 5;
@@ -223,7 +271,7 @@ static int do_ps(struct dirtree *new)
     // TIME ELAPSED
     } else if (i==13 || i==16) {
       int unit = 60*60*24, j = sysconf(_SC_CLK_TCK);
-      long long seconds = (i==16) ? (TT.uptime*j)-slot[19] : slot[11]+slot[12];
+      time_t seconds = (i==16) ? (get_uptime()*j)-slot[19] : slot[11]+slot[12];
 
       seconds /= j;
       for (s = 0, j = 0; j<4; j++) {
@@ -284,7 +332,9 @@ void ps_main(void)
 {
   struct strawberry *field;
   // Octal output code followed by header name
-  char widths[] = {1,1,5,5,5,2,3,3,4,5,6,5,8,8,27,27,11,8,4,5,8,8,8,6},
+  char widths[] = {1,1,5,5,5,2,3,3,4+sizeof(long),5,
+                   6,5,8,8,27,27,11,8,
+                   4,5,8,8,8,6,5},
        *typos[] = {
          "F", "S", "UID", "PID", "PPID", "C", "PRI", "NI", "ADDR", "SZ",
          "WCHAN", "STIME", "TTY", "TIME", "CMD", "COMMAND", "ELAPSED", "GROUP",
@@ -292,8 +342,8 @@ void ps_main(void)
        };
   int i, fd = -1;
 
-  TT.width = 80;
-  terminal_size(&TT.width, 0);
+  TT.width = 99999; // glibc produces no output for printf("%.*s", INT_MAX, x);
+  if (!FLAG_w) terminal_size(&TT.width, 0);
 
   // find controlling tty, falling back to /dev/tty if none
   for (i = fd = 0; i < 4; i++) {
@@ -307,14 +357,6 @@ void ps_main(void)
     }
   }
   if (fd != -1) close(fd);
-
-  // Fetch uptime
-  sysinfo((void *)toybuf);
-  // Because "TT.uptime = *(long *)toybuf;" triggers a bug in gcc.
-  {
-    long *sigh = (long *)toybuf;
-    TT.uptime = *sigh;
-  }
 
   // pid list via -p
   if (toys.optflags&FLAG_p) {
@@ -367,7 +409,7 @@ void ps_main(void)
           field->len = strtol(++width, &title, 10);
           if (!isdigit(*width) || title != end)
             error_exit("bad : in -o %s@%ld", ol->arg, title-ol->arg);
-          end = width;
+          end = --width;
         }
 
         // Find type (reuse width as temp because we're done with it)
@@ -381,7 +423,7 @@ void ps_main(void)
             // posix requires alternate names for some fields
             else if (-1 == (k = stridx((char []){7, 14, 15, 16, 0}, i)))
               continue;
-            else s = ((char *[]){"nice", "args", "comm", "etime"})[k];
+            else s = ((char *[]){"NICE", "ARGS", "COMM", "ETIME"})[k];
 
             if (!strncasecmp(type, s, end-type) && strlen(s)==end-type) break;
           }
@@ -421,8 +463,8 @@ void ps_main(void)
   for (field = TT.fields; field; field = field->next) {
 
     // right justify F, UID, PID, PPID, PRI, NI, ADDR SZ, TIME, ELAPSED, %CPU
-    // todo: STIME? C?
-    if (!((1<<field->which)&0x523dd)) field->len *= -1;
+    //               STIME
+    if (!((1<<field->which)&0x527dd)) field->len *= -1;
     printf(" %*s" + (field == TT.fields), field->len, field->title);
 
     // -f prints USER but calls it UID (but "ps -o uid -f" is numeric...?)
