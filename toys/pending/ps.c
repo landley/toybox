@@ -206,25 +206,25 @@ static int do_ps(struct dirtree *new)
     sprintf(out, "-");
 
     // PID, PPID, PRI, NI, ADDR, SZ, RSS
-    if (-1 != (i = stridx((char[]){3,4,6,7,8,9,24,0}, field->which))) {
+    if (-1!=(i = stridx((char[]){3,4,6,7,8,9,24,0}, field->which))) {
       char *fmt = "%lld";
 
       ll = slot[((char[]){0,1,15,16,27,20,21})[i]];
-      if (i == 2) ll--;
-      if (i == 4) fmt = "%llx";
-      else if (i == 5) ll >>= 12;
-      else if (i == 6) ll <<= 2;
+      if (i==2) ll--;
+      if (i==4) fmt = "%llx";
+      else if (i==5) ll >>= 12;
+      else if (i==6) ll <<= 2;
       sprintf(out, fmt, ll);
     // F (also assignment of i used by later tests)
     // Posix doesn't specify what flags should say. Man page says
     // 1 for PF_FORKNOEXEC and 4 for PF_SUPERPRIV from linux/sched.h
     } else if (!(i = field->which)) sprintf(out, "%llo", (slot[6]>>6)&5);
     // S
-    else if (i == 1) sprintf(out, "%c", state);
+    else if (i==1) sprintf(out, "%c", state);
     // UID and USER
-    else if (i == 2 || i == 22) {
+    else if (i==2 || i==22) {
       sprintf(out, "%d", new->st.st_uid);
-      if (i == 22) {
+      if (i==22) {
         struct passwd *pw = getpwuid(new->st.st_uid);
 
         if (pw) out = pw->pw_name;
@@ -293,7 +293,7 @@ static int do_ps(struct dirtree *new)
     // Command line limited to 2k displayable. We could dynamically malloc, but
     // it'd almost never get used, querying length of a proc file is awkward,
     // fixed buffer is nommu friendly... Wait for somebody to complain. :)
-    } else if (i == 14 || i == 15) {
+    } else if (i==14 || i==15) {
       int fd;
 
       len = 0;
@@ -311,14 +311,14 @@ static int do_ps(struct dirtree *new)
 
       if (len<1) sprintf(out, "[%.*s]", nlen, name);
     // GROUP GID
-    } else if (i == 17 || i == 26) {
+    } else if (i==17 || i==26) {
       sprintf(out, "%ld", (long)new->st.st_gid);
       if (i == 17) {
         struct group *gr = getgrgid(new->st.st_gid);
         if (gr) out = gr->gr_name;
       }
     // %CPU
-    } else if (i == 18) {
+    } else if (i==18) {
       ll = (get_uptime()*sysconf(_SC_CLK_TCK)-slot[19]);
       len = ((slot[11]+slot[12])*1000)/ll;
       sprintf(out, "%d.%d", len/10, len%10);
@@ -360,17 +360,17 @@ void ps_main(void)
   if (!FLAG_w) terminal_size(&TT.width, 0);
 
   // find controlling tty, falling back to /dev/tty if none
-  for (i = fd = 0; i < 4; i++) {
+  for (i = fd = 0; i<4; i++) {
     struct stat st;
 
-    if (i != 3 || -1 != (i = fd = open("/dev/tty", O_RDONLY))) {
+    if (i!=3 || -1 != (i = fd = open("/dev/tty", O_RDONLY))) {
       if (isatty(i) && !fstat(i, &st)) {
         TT.tty = st.st_rdev;
         break;
       }
     }
   }
-  if (fd != -1) close(fd);
+  if (fd!=-1) close(fd);
 
   // pid list via -p
   if (toys.optflags&FLAG_p) {
@@ -411,7 +411,7 @@ void ps_main(void)
             pts++;
           } else if (strstart(&next, "tty")) len -= 3;
         }
-        if (len < 256 && (!(ss = strchr(next, '/')) || ss-next>len))
+        if (len<256 && (!(ss = strchr(next, '/')) || ss-next>len))
         {
           struct stat st;
 
@@ -470,10 +470,10 @@ void ps_main(void)
           char *s;
 
           field->which = i;
-          for (j = 0; j < 2; j++) {
+          for (j = 0; j<2; j++) {
             if (!j) s = typos[i];
             // posix requires alternate names for some fields
-            else if (-1 == (k = stridx((char []){7, 14, 15, 16, 18, 0}, i)))
+            else if (-1==(k = stridx((char []){7, 14, 15, 16, 18, 0}, i)))
               continue;
             else s = ((char *[]){"NICE", "ARGS", "COMM", "ETIME", "PCPU"})[k];
 
@@ -481,7 +481,7 @@ void ps_main(void)
           }
           if (j!=2) break;
         }
-        if (i == ARRAY_LEN(typos)) error_exit("bad -o %.*s", end-type, type);
+        if (i==ARRAY_LEN(typos)) error_exit("bad -o %.*s", end-type, type);
         if (!field->title) field->title = typos[field->which];
         if (!field->len) field->len = widths[field->which];
         dlist_add_nomalloc((void *)&TT.fields, (void *)field);
