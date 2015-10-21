@@ -70,8 +70,8 @@ static void print_stat(char type)
     xprintf("%s", str);
   } else if (type == 'b') xprintf("%llu", stat->st_blocks);
   else if (type == 'B') xprintf("%lu", stat->st_blksize);
-  else if (type == 'd') xprintf("%ldd", stat->st_dev);
-  else if (type == 'D') xprintf("%llxh", stat->st_dev);
+  else if (type == 'd') xprintf("%ld", stat->st_dev);
+  else if (type == 'D') xprintf("%llx", stat->st_dev);
   else if (type == 'f') xprintf("%lx", stat->st_mode);
   else if (type == 'F') {
     char *t = "character device\0directory\0block device\0" \
@@ -146,7 +146,7 @@ void stat_main(void)
       "Blocks: Total: %b\tFree: %f\tAvailable: %a\n"
       "Inodes: Total: %c\tFree: %d"
     : "  File: %N\n  Size: %s\t Blocks: %b\t IO Blocks: %B\t%F\n"
-      "Device: %D\t Inode: %i\t Links: %h\n"
+      "Device: %Dh/%dd\t Inode: %i\t Links: %h\n"
       "Access: (%a/%A)\tUid: (%u/%U)\tGid: (%g/%G)\n"
       "Access: %x\nModify: %y\nChange: %z";
 
