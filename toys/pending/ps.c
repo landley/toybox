@@ -23,11 +23,10 @@
  * leaving 9 chars for cmd, so we're using that as our -l output.
  *
  *
- * TODO: ps aux
+ * TODO: ps aux (att & bsd style "ps -ax" vs "ps ax" behavior difference)
  * TODO: finalize F
- * TODO: -tuUgG
+ * TODO: -uUgG
  * TODO: -o maj_flt,min_flt,stat(<NLnl+),rss --sort -Z
- * TODO: att & bsd style "ps -ax" vs "ps ax" behavior difference
  * TODO: way too many hardwired constants here, how can I generate them?
  * TODO: ADDR? In 2015? Posix is literally _decades_ behind the times.
  *
@@ -66,9 +65,9 @@ config PS
     -o	Output the listed FIELDs, each with optional :size and/or =title
 
     Available -o FIELDs: F S UID PID PPID PRI NI ADDR SZ WCHAN STIME TTY
-    TIME CMD ETIME GROUP %CPU PGID RGROUP RUSER USER VSZ RSS UNAME GID
+    TIME CMD ETIME GROUP %CPU PGID RGROUP RUSER USER VSZ RSS UNAME GID STAT
 
-    GROUP %CPU PGID RGROUP RUSER USER VSZ RSS UNAME GID
+    GROUP %CPU PGID RGROUP RUSER USER VSZ RSS UNAME GID STAT
 
       ADDR  Instruction pointer
       CMD   Command line
@@ -85,6 +84,9 @@ config PS
       S     Process state:
             R (running) S (sleeping) D (disk sleep) T (stopped)  t (traced)
             Z (zombie)  X (dead)     x (dead)       K (wakekill) W (waking)
+      STAT  Process state (S) plus:
+            < high priority          N low priority L locked memory
+            s session leader         + foreground   l multithreaded
       STIME Start time of process in hh:mm (size :19 shows yyyy-mm-dd hh:mm:ss)
       SZ    Memory Size (4k pages needed to completely swap out process)
       TTY   Controlling terminal
@@ -115,7 +117,8 @@ GLOBALS(
   unsigned width;
   dev_t tty;
   void *fields;
-  long pidlen, *pids;
+  long pidlen, *pids, ttylen, *ttys;
+  long long ticks;
 )
 
 /*
@@ -148,8 +151,9 @@ static int match_process(long long *slot)
   long l;
 
   // skip processes we don't care about.
-  if (TT.pids) {
+  if (TT.pids || TT.ttys) {
     for (l=0; l<TT.pidlen; l++) if (TT.pids[l] == *slot) return 1;
+    for (l=0; l<TT.ttylen; l++) if (TT.ttys[l] == slot[4]) return 1;
     return 0;
   } else {
     if ((toys.optflags&(FLAG_a|FLAG_d)) && getsid(*slot)==*slot) return 0;
@@ -278,15 +282,12 @@ static int do_ps(struct dirtree *new)
         // TIME has 3 required fields, ETIME has 2. (Posix!)
         if (!s && (seconds>unit || j == 1+(i==16))) s = out;
         if (s) {
-          s += sprintf(s, "%02ld", (long)(seconds/unit));
+          s += sprintf(s, j ? "%02ld": "%2ld", (long)(seconds/unit));
           if ((*s = "-::"[j])) s++;
         }
         seconds %= unit;
         unit /= j ? 60 : 24;
       }
-
-//17 "GROUP", "%CPU", "PGID", "RGROUP",
-//21 "RUSER", -, "VSZ"
 
     // COMMAND CMD
     // Command line limited to 2k displayable. We could dynamically malloc, but
@@ -309,6 +310,18 @@ static int do_ps(struct dirtree *new)
       }
 
       if (len<1) sprintf(out, "[%.*s]", nlen, name);
+    // GROUP GID
+    } else if (i == 17 || i == 26) {
+      sprintf(out, "%ld", (long)new->st.st_gid);
+      if (i == 17) {
+        struct group *gr = getgrgid(new->st.st_gid);
+        if (gr) out = gr->gr_name;
+      }
+    // %CPU
+    } else if (i == 18) {
+      ll = (get_uptime()*sysconf(_SC_CLK_TCK)-slot[19]);
+      len = ((slot[11]+slot[12])*1000)/ll;
+      sprintf(out, "%d.%d", len/10, len%10);
     }
 
     // Output the field, appropriately padded
@@ -338,11 +351,12 @@ void ps_main(void)
        *typos[] = {
          "F", "S", "UID", "PID", "PPID", "C", "PRI", "NI", "ADDR", "SZ",
          "WCHAN", "STIME", "TTY", "TIME", "CMD", "COMMAND", "ELAPSED", "GROUP",
-         "%CPU", "PGID", "RGROUP", "RUSER", "USER", "VSZ", "RSS"
+         "%CPU", "PGID", "RGROUP", "RUSER", "USER", "VSZ", "RSS", "UNAME",
+         "GID", "STAT"
        };
   int i, fd = -1;
 
-  TT.width = 99999; // glibc produces no output for printf("%.*s", INT_MAX, x);
+  TT.width = 99999;
   if (!FLAG_w) terminal_size(&TT.width, 0);
 
   // find controlling tty, falling back to /dev/tty if none
@@ -371,6 +385,44 @@ void ps_main(void)
           TT.pids = xrealloc(TT.pids, sizeof(long)*(TT.pidlen+16));
         if ((TT.pids[TT.pidlen++] = xstrtol(next, &end, 10))<1 || end!=next+len)
           perror_exit("-p '%s'@%ld", pl->arg, 1+end-pl->arg);
+      }
+    }
+  }
+
+  // tty list via -t
+  if (toys.optflags&FLAG_t) {
+    struct arg_list *tl;
+    char *next, *arg, *ss;
+    int len, pts;
+
+    for (tl = TT.t; tl; tl = tl->next) {
+      arg = tl->arg;
+      while ((next = comma_iterate(&arg, &len))) {
+        if (!(15&TT.ttylen))
+          TT.ttys = xrealloc(TT.ttys, sizeof(long)*(TT.ttylen+16));
+
+        // -t pts = 12,pts/12, tty = /dev/tty2,tty2,S0
+        pts = 0;
+        if (isdigit(*next)) pts++;
+        else {
+          if (strstart(&next, strcpy(toybuf, "/dev/"))) len -= 5;
+          if (strstart(&next, "pts/")) {
+            len -= 4;
+            pts++;
+          } else if (strstart(&next, "tty")) len -= 3;
+        }
+        if (len < 256 && (!(ss = strchr(next, '/')) || ss-next>len))
+        {
+          struct stat st;
+
+          ss = toybuf + sprintf(toybuf, "/dev/%s", pts ? "pts/" : "tty");
+          memcpy(ss, next, len);
+          ss[len] = 0;
+          xstat(toybuf, &st);
+          TT.ttys[TT.ttylen++] = st.st_rdev;
+          continue;
+        }
+        perror_exit("-t '%s'@%ld", tl->arg, 1+next-tl->arg);
       }
     }
   }
@@ -421,9 +473,9 @@ void ps_main(void)
           for (j = 0; j < 2; j++) {
             if (!j) s = typos[i];
             // posix requires alternate names for some fields
-            else if (-1 == (k = stridx((char []){7, 14, 15, 16, 0}, i)))
+            else if (-1 == (k = stridx((char []){7, 14, 15, 16, 18, 0}, i)))
               continue;
-            else s = ((char *[]){"NICE", "ARGS", "COMM", "ETIME"})[k];
+            else s = ((char *[]){"NICE", "ARGS", "COMM", "ETIME", "PCPU"})[k];
 
             if (!strncasecmp(type, s, end-type) && strlen(s)==end-type) break;
           }
@@ -445,7 +497,6 @@ void ps_main(void)
 
     // order of fields[] matches posix STDOUT section, so add enabled XSI
     // defaults according to bitmask
-
     for (i=0; def>>i; i++) {
       if (!((def>>i)&1)) continue;
 
@@ -462,8 +513,7 @@ void ps_main(void)
   // time and pcpu count as numbers, tty does not)
   for (field = TT.fields; field; field = field->next) {
 
-    // right justify F, UID, PID, PPID, PRI, NI, ADDR SZ, TIME, ELAPSED, %CPU
-    //               STIME
+    // right justify F UID PID PPID PRI NI ADDR SZ TIME ELAPSED %CPU STIME
     if (!((1<<field->which)&0x527dd)) field->len *= -1;
     printf(" %*s" + (field == TT.fields), field->len, field->title);
 
@@ -474,4 +524,10 @@ void ps_main(void)
   xputc('\n');
 
   dirtree_read("/proc", do_ps);
+
+  if (CFG_TOYBOX_FREE) {
+    free(TT.pids);
+    free(TT.ttys);
+    llist_traverse(TT.fields, free);
+  }
 }
