@@ -66,8 +66,9 @@ config PS
 
     Available -o FIELDs: F S UID PID PPID PRI NI ADDR SZ WCHAN STIME TTY
     TIME CMD ETIME GROUP %CPU PGID RGROUP RUSER USER VSZ RSS UNAME GID STAT
+    RUID RGID
 
-    GROUP %CPU PGID RGROUP RUSER USER VSZ RSS UNAME GID STAT
+    GROUP %CPU PGID RGROUP RUSER USER VSZ RSS UNAME GID STAT RUID RGID
 
       ADDR  Instruction pointer
       CMD   Command line
@@ -117,7 +118,7 @@ GLOBALS(
   unsigned width;
   dev_t tty;
   void *fields;
-  long pidlen, *pids, ttylen, *ttys;
+  long pidlen, *pids, ttylen, *ttys, bits;
   long long ticks;
 )
 
@@ -172,7 +173,7 @@ static int do_ps(struct dirtree *new)
   struct strawberry *field;
   long long *slot = (void *)(toybuf+1024), ll;
   char *name, *s, state;
-  int nlen, i, fd, len, width = TT.width;
+  int nlen, i, fd, len, ruid = -1, rgid = -1, width = TT.width;
 
   if (!new->parent) return DIRTREE_RECURSE|DIRTREE_SHUTUP;
   if (!(*slot = atol(new->name))) return 0;
@@ -195,6 +196,18 @@ static int do_ps(struct dirtree *new)
   // skip processes we don't care about.
   if (!match_process(slot)) return 0;
 
+  // If RGROUP RUSER RUID RGID
+  if (TT.bits & 0x30300000) {
+    char *out = toybuf+2048;
+
+    sprintf(out, "%lld/status", *slot);
+    if (!readfileat(dirtree_parentfd(new), out, out, 2048)) *out = 0;
+    s = strstr(out, "\nUid:");
+    ruid = s ? atol(s+5) : new->st.st_uid;
+    s = strstr(out, "\nGid:");
+    rgid = s ? atol(s+5) : new->st.st_gid;
+  }
+
   // At this point 512 bytes at toybuf+512 are free (already parsed).
   // Start of toybuf still has name in it.
 
@@ -205,32 +218,44 @@ static int do_ps(struct dirtree *new)
     // Default: unsupported (5 "C")
     sprintf(out, "-");
 
-    // PID, PPID, PRI, NI, ADDR, SZ, RSS
-    if (-1!=(i = stridx((char[]){3,4,6,7,8,9,24,0}, field->which))) {
+    // PID, PPID, PRI, NI, ADDR, SZ, RSS, PGID
+    if (-1!=(i = stridx((char[]){3,4,6,7,8,9,24,19,0}, field->which))) {
       char *fmt = "%lld";
 
-      ll = slot[((char[]){0,1,15,16,27,20,21})[i]];
+      ll = slot[((char[]){0,1,15,16,27,20,21,2})[i]];
       if (i==2) ll--;
       if (i==4) fmt = "%llx";
       else if (i==5) ll >>= 12;
       else if (i==6) ll <<= 2;
       sprintf(out, fmt, ll);
+    // UID USER RUID RUSER GID GROUP RGID RGROUP
+    } else if (-1!=(i = stridx((char[]){2,22,28,21,26,17,29,20}, field->which)))
+    {
+      int id = (int[]){new->st.st_uid,ruid,new->st.st_gid,rgid}[i/2];
+
+      // Even entries are numbers, odd are names
+      sprintf(out, "%d", id);
+      if (i&1) {
+        if (i>3) {
+          struct group *gr = getgrgid(id);
+
+          if (gr) out = gr->gr_name;
+        } else {
+          struct passwd *pw = getpwuid(id);
+
+          if (pw) out = pw->pw_name;
+        }
+      }
+ 
     // F (also assignment of i used by later tests)
     // Posix doesn't specify what flags should say. Man page says
     // 1 for PF_FORKNOEXEC and 4 for PF_SUPERPRIV from linux/sched.h
     } else if (!(i = field->which)) sprintf(out, "%llo", (slot[6]>>6)&5);
     // S
     else if (i==1) sprintf(out, "%c", state);
-    // UID and USER
-    else if (i==2 || i==22) {
-      sprintf(out, "%d", new->st.st_uid);
-      if (i==22) {
-        struct passwd *pw = getpwuid(new->st.st_uid);
 
-        if (pw) out = pw->pw_name;
-      }
     // WCHAN
-    } else if (i==10) {
+    else if (i==10) {
       sprintf(scratch, "%lld/wchan", *slot);
       readfileat(dirtree_parentfd(new), scratch, out, 2047);
 
@@ -310,13 +335,6 @@ static int do_ps(struct dirtree *new)
       }
 
       if (len<1) sprintf(out, "[%.*s]", nlen, name);
-    // GROUP GID
-    } else if (i==17 || i==26) {
-      sprintf(out, "%ld", (long)new->st.st_gid);
-      if (i == 17) {
-        struct group *gr = getgrgid(new->st.st_gid);
-        if (gr) out = gr->gr_name;
-      }
     // %CPU
     } else if (i==18) {
       ll = (get_uptime()*sysconf(_SC_CLK_TCK)-slot[19]);
@@ -345,32 +363,31 @@ void ps_main(void)
 {
   struct strawberry *field;
   // Octal output code followed by header name
-  char widths[] = {1,1,5,5,5,2,3,3,4+sizeof(long),5,
-                   6,5,8,8,27,27,11,8,
-                   4,5,8,8,8,6,5},
-       *typos[] = {
+  char *typos[] = {
          "F", "S", "UID", "PID", "PPID", "C", "PRI", "NI", "ADDR", "SZ",
          "WCHAN", "STIME", "TTY", "TIME", "CMD", "COMMAND", "ELAPSED", "GROUP",
          "%CPU", "PGID", "RGROUP", "RUSER", "USER", "VSZ", "RSS", "UNAME",
-         "GID", "STAT"
-       };
-  int i, fd = -1;
+         "GID", "STAT", "RUID", "RGID"
+  };
+  signed char widths[] = {1,-1,5,5,5,2,3,3,4+sizeof(long),5,
+                          -6,5,-8,8,-27,-27,11,-8,
+                          4,5,-8,-8,-8,-6,-5,-5,
+                          -8,-5,-4,-4};
+  int i;
 
   TT.width = 99999;
   if (!FLAG_w) terminal_size(&TT.width, 0);
 
   // find controlling tty, falling back to /dev/tty if none
-  for (i = fd = 0; i<4; i++) {
+  for (i = 0; !TT.tty && i<4; i++) {
     struct stat st;
+    int fd = i;
 
-    if (i!=3 || -1 != (i = fd = open("/dev/tty", O_RDONLY))) {
-      if (isatty(i) && !fstat(i, &st)) {
-        TT.tty = st.st_rdev;
-        break;
-      }
-    }
+    if (i==3 && -1==(fd = open("/dev/tty", O_RDONLY))) break;
+
+    if (isatty(fd) && !fstat(fd, &st)) TT.tty = st.st_rdev;
+    if (i==3) close(fd);
   }
-  if (fd!=-1) close(fd);
 
   // pid list via -p
   if (toys.optflags&FLAG_p) {
@@ -437,6 +454,7 @@ void ps_main(void)
 
       // Set title, length of title, type, end of type, and display width
       while ((type = comma_iterate(&arg, &length))) {
+        // Chip off =display_name
         if ((end = strchr(type, '=')) && length>(end-type)) {
           title = end+1;
           length -= (end-type)+1;
@@ -445,7 +463,7 @@ void ps_main(void)
           title = 0;
         }
 
-        // If changing display width, trim title at the :
+        // Chip off :display_width
         if ((width = strchr(type, ':')) && width<end) {
           if (!title) length = width-type;
         } else width = 0;
@@ -464,7 +482,7 @@ void ps_main(void)
           end = --width;
         }
 
-        // Find type (reuse width as temp because we're done with it)
+        // Find type
         for (i = 0; i<ARRAY_LEN(typos); i++) {
           int j, k;
           char *s;
@@ -473,9 +491,8 @@ void ps_main(void)
           for (j = 0; j<2; j++) {
             if (!j) s = typos[i];
             // posix requires alternate names for some fields
-            else if (-1==(k = stridx((char []){7, 14, 15, 16, 18, 0}, i)))
-              continue;
-            else s = ((char *[]){"NICE", "ARGS", "COMM", "ETIME", "PCPU"})[k];
+            else if (-1==(k = stridx((char []){7,14,15,16,18,0}, i))) continue;
+            else s = ((char *[]){"NICE","ARGS","COMM","ETIME", "PCPU"})[k];
 
             if (!strncasecmp(type, s, end-type) && strlen(s)==end-type) break;
           }
@@ -484,6 +501,7 @@ void ps_main(void)
         if (i==ARRAY_LEN(typos)) error_exit("bad -o %.*s", end-type, type);
         if (!field->title) field->title = typos[field->which];
         if (!field->len) field->len = widths[field->which];
+        else if (widths[field->which]<0) field->len *= -1;
         dlist_add_nomalloc((void *)&TT.fields, (void *)field);
       }
     }
@@ -512,14 +530,12 @@ void ps_main(void)
   // Print padded headers. (Numbers are right justified, everyting else left.
   // time and pcpu count as numbers, tty does not)
   for (field = TT.fields; field; field = field->next) {
-
-    // right justify F UID PID PPID PRI NI ADDR SZ TIME ELAPSED %CPU STIME
-    if (!((1<<field->which)&0x527dd)) field->len *= -1;
     printf(" %*s" + (field == TT.fields), field->len, field->title);
 
     // -f prints USER but calls it UID (but "ps -o uid -f" is numeric...?)
     if ((toys.optflags&(FLAG_f|FLAG_o))==FLAG_f && field->which==2)
       field->which = 22;
+    TT.bits |= (i = 1<<field->which);
   }
   xputc('\n');
 
