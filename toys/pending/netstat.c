@@ -161,10 +161,10 @@ static void show_data(unsigned rport, char *label, unsigned rxq, unsigned txq,
                       unsigned long inode)
 {
   if (toys.optflags & FLAG_l) {
-    if (!rport && (state && 0xA)) display_data(rport, label, rxq, txq, lip, rip, state, uid, inode);
+    if (!rport && (state & 0xA)) display_data(rport, label, rxq, txq, lip, rip, state, uid, inode);
   } else if (toys.optflags & FLAG_a) display_data(rport, label, rxq, txq, lip, rip, state, uid, inode);
   //rport && (TCP | UDP | RAW)
-  else if (rport && (0x10 | 0x20 | 0x40)) display_data(rport, label, rxq, txq, lip, rip, state, uid, inode);
+  else if (rport & (0x10 | 0x20 | 0x40)) display_data(rport, label, rxq, txq, lip, rip, state, uid, inode);
 }
 /*
  * used to get service name.
