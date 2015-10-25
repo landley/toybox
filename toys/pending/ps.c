@@ -9,7 +9,7 @@
  * Deviations from posix: no -n because /proc/self/wchan exists.
  * Posix says default output should have field named "TTY" but if you "-o tty"
  * the same field should be called "TT" which is _INSANE_ and I'm not doing it.
- * Similarly -f is outputs UNAME but calls it UID (we call it UNAME).
+ * Similarly -f outputs USER but calls it UID (we call it USER).
  * It also says that -o "args" and "comm" should behave differently but use
  * the same title, which is not the same title as the default output. (No.)
  *
@@ -22,13 +22,13 @@
  * which changes -l by removing the "F" column and swapping RSS for ADDR,
  * leaving 9 chars for cmd, so we're using that as our -l output.
  *
- *
  * TODO: ps aux (att & bsd style "ps -ax" vs "ps ax" behavior difference)
- * TODO: finalize F
- * TODO: -uUgG
- * TODO: -o maj_flt,min_flt,stat(<NLnl+),rss --sort -Z
+ * TODO: finalize F, remove C
+ *       switch -fl to -y, use "string" instead of constants to set, remove C
+ * TODO: -uUgG --sort -Z
+ * TODO: -o maj_flt,min_flt --sort -Z
  * TODO: way too many hardwired constants here, how can I generate them?
- * TODO: ADDR? In 2015? Posix is literally _decades_ behind the times.
+ * TODO: thread support /proc/$d/task/%d/stat (and -o stat has "l")
  *
  * Design issue: the -o fields are an ordered array, and the order is
  * significant. The array index is used in strawberry->which (consumed
@@ -58,49 +58,46 @@ config PS
     -U	owned by selected real USERs
     -w	Wide output (don't truncate at terminal width)
 
-    Which FIELDs to show. (Default = -o pid,tty,time,cmd)
+    Which FIELDs to show. (Default = -o PID,TTY,TIME,CMD)
 
-    -f	Full listing (uid,pid,ppid,c,stime,tty,time,cmd)
-    -l	Long listing (f,s,uid,pid,ppid,c,pri,ni,addr,sz,wchan,tty,time,cmd)
+    -f	Full listing (-o USER:8=UID,PID,PPID,C,STIME,TTY,TIME,CMD)
+    -l	Long listing (-o F,S,UID,PID,PPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD)
     -o	Output the listed FIELDs, each with optional :size and/or =title
 
-    Available -o FIELDs: F S UID PID PPID PRI NI ADDR SZ WCHAN STIME TTY
-    TIME CMD ETIME GROUP %CPU PGID RGROUP RUSER USER VSZ RSS UNAME GID STAT
-    RUID RGID
+    Available -o FIELDs:
 
-    GROUP %CPU PGID RGROUP RUSER USER VSZ RSS UNAME GID STAT RUID RGID
-
-      ADDR  Instruction pointer
-      CMD   Command line
-      ETIME Elapsed time since process start
-      F     Process flags (PF_*) from linux source file include/sched.h
-            (in octal rather than hex because posix)
-      GID   Group id
-      GROUP Group name
-      NI    Niceness of process (lower niceness is higher priority)
-      PID   Process id
-      PPID  Parent process id
-      PRI   Priority
-      RSS   Resident Set Size (memory currently used)
-      S     Process state:
-            R (running) S (sleeping) D (disk sleep) T (stopped)  t (traced)
-            Z (zombie)  X (dead)     x (dead)       K (wakekill) W (waking)
-      STAT  Process state (S) plus:
-            < high priority          N low priority L locked memory
-            s session leader         + foreground   l multithreaded
-      STIME Start time of process in hh:mm (size :19 shows yyyy-mm-dd hh:mm:ss)
-      SZ    Memory Size (4k pages needed to completely swap out process)
-      TTY   Controlling terminal
-      UID   User id
-      UNAME User name
-      WCHAN What it's waiting for
-
-    SZ is memory mapped while RSS is pages consumed. ADDR is an address,
-    WCHAN is a name. S shows a single state letter, STAT adds substatus.
-
-    Default output is -o PID,TTY,TIME,CMD
-    With -f USER:8=UID,PID,PPID,C,STIME,TTY,TIME,CMD
-    With -l F,S,UID,PID,PPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD
+      ADDR   Instruction pointer
+      CMD    Command line
+      ETIME  Elapsed time since process start
+      F      Process flags (PF_*) from linux source file include/sched.h
+             (in octal rather than hex because posix)
+      GID    Group id
+      GROUP  Group name
+      NI     Niceness of process (lower niceness is higher priority)
+      PCPU   Percentage of CPU time used
+      PGID   Process Group ID
+      PID    Process ID
+      PPID   Parent Process ID
+      PRI    Priority
+      RGID   Real (before sgid) group ID
+      RGROUP Real (before sgid) group name
+      RSS    Resident Set Size (memory currently used)
+      RUID   Real (before suid) user ID
+      RUSER  Real (before suid) user name
+      S      Process state:
+             R (running) S (sleeping) D (disk sleep) T (stopped)  t (traced)
+             Z (zombie)  X (dead)     x (dead)       K (wakekill) W (waking)
+      STAT   Process state (S) plus:
+             < high priority          N low priority L locked memory
+             s session leader         + foreground   l multithreaded
+      STIME  Start time of process in hh:mm (size :19 shows yyyy-mm-dd hh:mm:ss)
+      SZ     Memory Size (4k pages needed to completely swap out process)
+      TIME   CPU time consumed
+      TTY    Controlling terminal
+      UID    User id
+      USER   User name
+      VSZ    Virtual memory size (1k units)
+      WCHAN  Waiting in kernel for
 */
 
 #define FOR_ps
@@ -127,7 +124,6 @@ GLOBALS(
   F S UID PID PPID C PRI NI ADDR SZ WCHAN STIME TTY TIME CMD
   ruser user rgroup group pid ppid pgid pcpu vsz nice etime time tty comm args
 
-  todo: thread support /proc/$d/task/%d/stat
     man page: F flags mean...
 */
 
@@ -157,7 +153,7 @@ static int match_process(long long *slot)
     for (l=0; l<TT.ttylen; l++) if (TT.ttys[l] == slot[4]) return 1;
     return 0;
   } else {
-    if ((toys.optflags&(FLAG_a|FLAG_d)) && getsid(*slot)==*slot) return 0;
+    if ((toys.optflags&(FLAG_a|FLAG_d)) && slot[3]==*slot) return 0;
     if ((toys.optflags&FLAG_a) && !slot[4]) return 0;
     if (!(toys.optflags&(FLAG_a|FLAG_d|FLAG_A|FLAG_e)) && TT.tty!=slot[4])
       return 0;
@@ -171,7 +167,7 @@ static int match_process(long long *slot)
 static int do_ps(struct dirtree *new)
 {
   struct strawberry *field;
-  long long *slot = (void *)(toybuf+1024), ll;
+  long long *slot = (void *)(toybuf+1024), ll, vmlck = 0;
   char *name, *s, state;
   int nlen, i, fd, len, ruid = -1, rgid = -1, width = TT.width;
 
@@ -196,8 +192,8 @@ static int do_ps(struct dirtree *new)
   // skip processes we don't care about.
   if (!match_process(slot)) return 0;
 
-  // If RGROUP RUSER RUID RGID
-  if (TT.bits & 0x30300000) {
+  // If RGROUP RUSER STAT RUID RGID
+  if (TT.bits & 0x38300000) {
     char *out = toybuf+2048;
 
     sprintf(out, "%lld/status", *slot);
@@ -206,6 +202,8 @@ static int do_ps(struct dirtree *new)
     ruid = s ? atol(s+5) : new->st.st_uid;
     s = strstr(out, "\nGid:");
     rgid = s ? atol(s+5) : new->st.st_gid;
+    s = strstr(out, "\nVmLck:");
+    if (s) vmlck = atoll(s+5);
   }
 
   // At this point 512 bytes at toybuf+512 are free (already parsed).
@@ -219,14 +217,15 @@ static int do_ps(struct dirtree *new)
     sprintf(out, "-");
 
     // PID, PPID, PRI, NI, ADDR, SZ, RSS, PGID
-    if (-1!=(i = stridx((char[]){3,4,6,7,8,9,24,19,0}, field->which))) {
+    if (-1!=(i = stridx((char[]){3,4,6,7,8,9,24,19,23,0}, field->which))) {
       char *fmt = "%lld";
 
-      ll = slot[((char[]){0,1,15,16,27,20,21,2})[i]];
+      ll = slot[((char[]){0,1,15,16,27,20,21,2,20})[i]];
       if (i==2) ll--;
       if (i==4) fmt = "%llx";
       else if (i==5) ll >>= 12;
       else if (i==6) ll <<= 2;
+      else if (i==8) ll >>= 10;
       sprintf(out, fmt, ll);
     // UID USER RUID RUSER GID GROUP RGID RGROUP
     } else if (-1!=(i = stridx((char[]){2,22,28,21,26,17,29,20}, field->which)))
@@ -251,11 +250,21 @@ static int do_ps(struct dirtree *new)
     // Posix doesn't specify what flags should say. Man page says
     // 1 for PF_FORKNOEXEC and 4 for PF_SUPERPRIV from linux/sched.h
     } else if (!(i = field->which)) sprintf(out, "%llo", (slot[6]>>6)&5);
-    // S
-    else if (i==1) sprintf(out, "%c", state);
-
+    // S STAT
+    else if (i==1 || i==27) {
+      sprintf(out, "%c", state);
+      if (i==27) {
+        // TODO l = multithreaded
+        s = out+1;
+        if (slot[16]<0) *s++ = '<';
+        else if (slot[16]>0) *s++ = 'N';
+        if (slot[3]==*slot) *s++ = 's';
+        if (vmlck) *s++ = 'L';
+        if (slot[5]==*slot) *s++ = '+';
+        *s = 0;
+      } 
     // WCHAN
-    else if (i==10) {
+    } else if (i==10) {
       sprintf(scratch, "%lld/wchan", *slot);
       readfileat(dirtree_parentfd(new), scratch, out, 2047);
 
@@ -366,13 +375,13 @@ void ps_main(void)
   char *typos[] = {
          "F", "S", "UID", "PID", "PPID", "C", "PRI", "NI", "ADDR", "SZ",
          "WCHAN", "STIME", "TTY", "TIME", "CMD", "COMMAND", "ELAPSED", "GROUP",
-         "%CPU", "PGID", "RGROUP", "RUSER", "USER", "VSZ", "RSS", "UNAME",
+         "%CPU", "PGID", "RGROUP", "RUSER", "USER", "VSZ", "RSS", "\xff",
          "GID", "STAT", "RUID", "RGID"
   };
   signed char widths[] = {1,-1,5,5,5,2,3,3,4+sizeof(long),5,
                           -6,5,-8,8,-27,-27,11,-8,
-                          4,5,-8,-8,-8,-6,-5,-5,
-                          -8,-5,-4,-4};
+                          4,5,-8,-8,-8,6,5,-5,
+                          8,-5,4,4};
   int i;
 
   TT.width = 99999;
@@ -491,8 +500,10 @@ void ps_main(void)
           for (j = 0; j<2; j++) {
             if (!j) s = typos[i];
             // posix requires alternate names for some fields
-            else if (-1==(k = stridx((char []){7,14,15,16,18,0}, i))) continue;
-            else s = ((char *[]){"NICE","ARGS","COMM","ETIME", "PCPU"})[k];
+            else if (-1==(k = stridx((char []){7,14,15,16,18,23,22,0}, i)))
+              continue;
+            else s = ((char *[]){"NICE","ARGS","COMM","ETIME","PCPU",
+                                 "VSIZE","UNAME"})[k];
 
             if (!strncasecmp(type, s, end-type) && strlen(s)==end-type) break;
           }
