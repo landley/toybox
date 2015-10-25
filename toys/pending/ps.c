@@ -119,14 +119,6 @@ GLOBALS(
   long long ticks;
 )
 
-/*
-  l l fl  a   fl   fl l  l  l    l  l     f     a   a    a
-  F S UID PID PPID C PRI NI ADDR SZ WCHAN STIME TTY TIME CMD
-  ruser user rgroup group pid ppid pgid pcpu vsz nice etime time tty comm args
-
-    man page: F flags mean...
-*/
-
 struct strawberry {
   struct strawberry *next, *prev;
   short which, len;
@@ -368,11 +360,10 @@ static int do_ps(struct dirtree *new)
   return 0;
 }
 
-void ps_main(void)
+void parse_o(char *ooo)
 {
   struct strawberry *field;
-  // Octal output code followed by header name
-  char *typos[] = {
+  char *width, *type, *title, *end, *arg = ooo, *s, *typos[] = {
          "F", "S", "UID", "PID", "PPID", "C", "PRI", "NI", "ADDR", "SZ",
          "WCHAN", "STIME", "TTY", "TIME", "CMD", "COMMAND", "ELAPSED", "GROUP",
          "%CPU", "PGID", "RGROUP", "RUSER", "USER", "VSZ", "RSS", "\xff",
@@ -382,6 +373,67 @@ void ps_main(void)
                           -6,5,-8,8,-27,-27,11,-8,
                           4,5,-8,-8,-8,6,5,-5,
                           8,-5,4,4};
+  int i, j, k, length;
+
+  // Set title, length of title, type, end of type, and display width
+  while ((type = comma_iterate(&arg, &length))) {
+    // Chip off =display_name
+    if ((end = strchr(type, '=')) && length>(end-type)) {
+      title = end+1;
+      length -= (end-type)+1;
+    } else {
+      end = type+length;
+      title = 0;
+    }
+
+    // Chip off :display_width
+    if ((width = strchr(type, ':')) && width<end) {
+      if (!title) length = width-type;
+    } else width = 0;
+
+    // Allocate structure, copy title
+    field = xzalloc(sizeof(struct strawberry)+(length+1)*!!title);
+    if (title) {
+      memcpy(field->title = field->forever, title, length);
+      field->title[field->len = length] = 0;
+    }
+
+    if (width) {
+      field->len = strtol(++width, &title, 10);
+      if (!isdigit(*width) || title != end)
+        error_exit("bad : in -o %s@%ld", ooo, title-ooo);
+      end = --width;
+    }
+
+    // Find type
+    for (i = 0; i<ARRAY_LEN(typos); i++) {
+      field->which = i;
+      for (j = 0; j<2; j++) {
+        if (!j) s = typos[i];
+        // posix requires alternate names for some fields
+        else if (-1==(k = stridx((char []){7,14,15,16,18,23,22,0}, i)))
+          continue;
+        else s = ((char *[]){"NICE","ARGS","COMM","ETIME","PCPU",
+                             "VSIZE","UNAME"})[k];
+
+        if (!strncasecmp(type, s, end-type) && strlen(s)==end-type) break;
+      }
+      if (j!=2) break;
+    }
+    if (i==ARRAY_LEN(typos)) error_exit("bad -o %.*s", end-type, type);
+    if (!field->title) field->title = typos[field->which];
+    if (!field->len) field->len = widths[field->which];
+    else if (widths[field->which]<0) field->len *= -1;
+    dlist_add_nomalloc((void *)&TT.fields, (void *)field);
+
+    // Print padded header.
+    printf(" %*s" + (field == TT.fields), field->len, field->title);
+    TT.bits |= (i = 1<<field->which);
+  }
+}
+
+void ps_main(void)
+{
   int i;
 
   TT.width = 99999;
@@ -456,98 +508,18 @@ void ps_main(void)
   // Manual field selection via -o
   if (toys.optflags&FLAG_o) {
     struct arg_list *ol;
-    int length;
 
-    for (ol = TT.o; ol; ol = ol->next) {
-      char *width, *type, *title, *end, *arg = ol->arg;
-
-      // Set title, length of title, type, end of type, and display width
-      while ((type = comma_iterate(&arg, &length))) {
-        // Chip off =display_name
-        if ((end = strchr(type, '=')) && length>(end-type)) {
-          title = end+1;
-          length -= (end-type)+1;
-        } else {
-          end = type+length;
-          title = 0;
-        }
-
-        // Chip off :display_width
-        if ((width = strchr(type, ':')) && width<end) {
-          if (!title) length = width-type;
-        } else width = 0;
-
-        // Allocate structure, copy title
-        field = xzalloc(sizeof(struct strawberry)+(length+1)*!!title);
-        if (title) {
-          memcpy(field->title = field->forever, title, length);
-          field->title[field->len = length] = 0;
-        }
-
-        if (width) {
-          field->len = strtol(++width, &title, 10);
-          if (!isdigit(*width) || title != end)
-            error_exit("bad : in -o %s@%ld", ol->arg, title-ol->arg);
-          end = --width;
-        }
-
-        // Find type
-        for (i = 0; i<ARRAY_LEN(typos); i++) {
-          int j, k;
-          char *s;
-
-          field->which = i;
-          for (j = 0; j<2; j++) {
-            if (!j) s = typos[i];
-            // posix requires alternate names for some fields
-            else if (-1==(k = stridx((char []){7,14,15,16,18,23,22,0}, i)))
-              continue;
-            else s = ((char *[]){"NICE","ARGS","COMM","ETIME","PCPU",
-                                 "VSIZE","UNAME"})[k];
-
-            if (!strncasecmp(type, s, end-type) && strlen(s)==end-type) break;
-          }
-          if (j!=2) break;
-        }
-        if (i==ARRAY_LEN(typos)) error_exit("bad -o %.*s", end-type, type);
-        if (!field->title) field->title = typos[field->which];
-        if (!field->len) field->len = widths[field->which];
-        else if (widths[field->which]<0) field->len *= -1;
-        dlist_add_nomalloc((void *)&TT.fields, (void *)field);
-      }
-    }
+    for (ol = TT.o; ol; ol = ol->next) parse_o(ol->arg);
 
   // Default fields (also with -f and -l)
   } else {
-    unsigned short def = 0x7008;
-
-    if (toys.optflags&FLAG_f) def = 0x783c;
-    if (toys.optflags&FLAG_l) def = 0x77ff;
-
-    // order of fields[] matches posix STDOUT section, so add enabled XSI
-    // defaults according to bitmask
-    for (i=0; def>>i; i++) {
-      if (!((def>>i)&1)) continue;
-
-      field = xmalloc(sizeof(struct strawberry)+strlen(typos[i])+1);
-      field->which = i;
-      field->len = widths[i];
-      strcpy(field->title = field->forever, typos[i]);
-      dlist_add_nomalloc((void *)&TT.fields, (void *)field);
-    }
+    if (toys.optflags&FLAG_f)
+      parse_o("USER:8=UID,PID,PPID,C,STIME,TTY,TIME,CMD");
+    else if (toys.optflags&FLAG_l)
+      parse_o("F,S,UID,PID,PPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD");
+    else parse_o("PID,TTY,TIME,CMD");
   }
   dlist_terminate(TT.fields);
-
-  // Print padded headers. (Numbers are right justified, everyting else left.
-  // time and pcpu count as numbers, tty does not)
-  for (field = TT.fields; field; field = field->next) {
-    printf(" %*s" + (field == TT.fields), field->len, field->title);
-
-    // -f prints USER but calls it UID (but "ps -o uid -f" is numeric...?)
-    if ((toys.optflags&(FLAG_f|FLAG_o))==FLAG_f && field->which==2)
-      field->which = 22;
-    TT.bits |= (i = 1<<field->which);
-  }
   xputc('\n');
 
   dirtree_read("/proc", do_ps);
