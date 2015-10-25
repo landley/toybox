@@ -723,3 +723,21 @@ void xsignal(int signal, void *handler)
 
   if (sigaction(signal, sa, 0)) perror_exit("xsignal %d", signal);
 }
+
+unsigned xcount_cpus(void)
+{
+  int len = 0, i, fd = xopen("/proc/stat", O_RDONLY);
+  unsigned cpus = 0;
+
+  for (;;) {
+    if (1>(i = xread(fd, libbuf, sizeof(libbuf)-len))) break;
+    len += i;
+    // Each cpu# line has data after it, so last 5 bytes of file can't match
+    for (i = 0; i<len-5; i++)
+      if (!strncmp(libbuf+i, "\ncpu", 4) && isdigit(libbuf[i+4])) cpus++;
+    memmove(libbuf, libbuf+i, 5);
+  }
+  close(fd);
+
+  return cpus;
+}
