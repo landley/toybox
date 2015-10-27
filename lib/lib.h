@@ -136,7 +136,6 @@ void xpidfile(char *name);
 void xregcomp(regex_t *preg, char *rexec, int cflags);
 char *xtzset(char *new);
 void xsignal(int signal, void *handler);
-unsigned xcount_cpus(void);
 
 // lib.c
 void verror_msg(char *msg, int err, va_list va);

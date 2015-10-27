@@ -127,7 +127,7 @@ void nproc_main(void)
   }
 
   // If getaffinity failed or --all, count cpu entries in proc
-  if (!nproc) nproc = xcount_cpus();
+  if (!nproc) nproc = sysconf(_SC_NPROCESSORS_CONF);
 
   xprintf("%u\n", nproc);
 }
