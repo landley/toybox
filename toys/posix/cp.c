@@ -1,6 +1,8 @@
 /* Copyright 2008 Rob Landley <rob@landley.net>
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/cp.html
+ * And http://opengroup.org/onlinepubs/9699919799/utilities/mv.html
+ * And http://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic.html#INSTALL
  *
  * Posix says "cp -Rf dir file" shouldn't delete file, but our -f does.
 
@@ -337,7 +339,7 @@ void cp_main(void)
     TT.pflags = 7; // preserve=mot
     umask(0);
   }
-  if (CFG_CP_PRESERVE && TT.c.preserve) {
+  if (CFG_CP_PRESERVE && (toys.optflags & FLAG_preserve)) {
     char *pre = xstrdup(TT.c.preserve), *s;
 
     if (comma_scan(pre, "all", 1)) TT.pflags = ~0;
@@ -407,13 +409,21 @@ void mv_main(void)
   cp_main();
 }
 
+// Export cp flags into install's flag context.
+
+static inline int cp_flag_F(void) { return FLAG_F; };
+static inline int cp_flag_p(void) { return FLAG_p; };
+static inline int cp_flag_v(void) { return FLAG_v; };
+
+// Switch to install's flag context
 #define CLEANUP_cp
 #define FOR_install
 #include <generated/flags.h>
 
 static int install_node(struct dirtree *try)
 {
-  if (TT.i.mode) try->st.st_mode = string_to_mode(TT.i.mode, try->st.st_mode);
+  try->st.st_mode = (TT.i.mode)
+    ? string_to_mode(TT.i.mode, try->st.st_mode) : 0755;
   if (TT.i.group) try->st.st_gid = TT.gid;
   if (TT.i.user) try->st.st_uid = TT.uid;
 
@@ -450,9 +460,9 @@ void install_main(void)
   if (toys.optc < 2) error_exit("needs 2 args");
 
   // Translate flags from install to cp
-  toys.optflags = 4;  // Force cp's FLAG_F
-  if (flags & FLAG_v) toys.optflags |= 8; // cp's FLAG_v
-  if (flags & (FLAG_p|FLAG_o|FLAG_g)) toys.optflags |= 512; // cp's FLAG_p
+  toys.optflags = cp_flag_F();
+  if (flags & FLAG_v) toys.optflags |= cp_flag_v();
+  if (flags & (FLAG_p|FLAG_o|FLAG_g)) toys.optflags |= cp_flag_p();
 
   if (TT.i.user) TT.uid = xgetpwnamid(TT.i.user)->pw_uid;
   if (TT.i.group) TT.gid = xgetgrnamid(TT.i.group)->gr_gid;
