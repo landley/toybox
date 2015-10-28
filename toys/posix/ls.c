@@ -297,6 +297,13 @@ static void listfiles(int dirfd, struct dirtree *indir)
     *colsizes = (unsigned *)(toybuf+260), columns = (sizeof(toybuf)-260)/4;
   char tmp[64];
 
+  if (-1 == dirfd) {
+    strwidth(indir->name);
+    perror_msg("%s", indir->name);
+
+    return;
+  }
+
   memset(totals, 0, sizeof(totals));
 
   // Top level directory was already populated by main()
