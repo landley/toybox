@@ -250,9 +250,9 @@ system/core/toolbox/Android.mk</a> the toolbox directory builds the
 following commands:</p>
 
 <blockquote><b>
-dd du df getevent iftop ioctl log ls
-lsof nandread newfs_msdos ps prlimit
-sendevent start stop top uptime
+dd getevent iftop ioctl log
+nandread newfs_msdos ps prlimit
+sendevent start stop top
 </b></blockquote>
 
 <h3>Other Android core commands</h3>
@@ -278,10 +278,10 @@ implementing the full commands (fdisk, init, and sudo) come first.</p>
 <p>For reference, combining everything listed above, we get:</p>
 
 <blockquote><b>
-dd du df getevent iftop init ioctl
-log logcat logwrapper ls lsof nandread
+dd getevent iftop init ioctl
+log logcat logwrapper nandread
 newfs_msdos ps prlimit reboot run-as
-sendevent start stop top uptime
+sendevent start stop top
 </b></blockquote>
 
 <p>We may eventually implement all of that, but for toybox 1.0 we need to
@@ -293,9 +293,9 @@ for later).</p>
 <p>This means toybox should implement (or finish implementing):</p>
 <blockquote><b>
 <span id=toolbox>
-dd du df getevent iftop ioctl log logcat logwrapper ls lsof
+dd getevent iftop ioctl log logcat logwrapper
 nandread newfs_msdos ps prlimit sendevent
-start stop top uptime
+start stop top
 </span>
 </b></blockquote>
 
