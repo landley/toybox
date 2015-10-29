@@ -38,7 +38,7 @@ USE_PS(NEWTOY(ps, "aAdeflo*p*s*t*u*U*g*G*w[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PS
   bool "ps"
-  default n
+  default y
   help
     usage: ps [-Aadeflw] [-gG GROUP] [-o FIELD] [-p PID] [-t TTY] [-uU USER]
 
