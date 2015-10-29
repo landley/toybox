@@ -12,6 +12,7 @@
  * Similarly -f outputs USER but calls it UID (we call it USER).
  * It also says that -o "args" and "comm" should behave differently but use
  * the same title, which is not the same title as the default output. (No.)
+ * Select by session id is -s not -g.
  *
  * Posix defines -o ADDR as "The address of the process" but the process
  * start address is a constant on any elf system with mmu. The procps ADDR
@@ -25,8 +26,7 @@
  * TODO: ps aux (att & bsd style "ps -ax" vs "ps ax" behavior difference)
  * TODO: finalize F, remove C
  *       switch -fl to -y, use "string" instead of constants to set, remove C
- * TODO: -uUgG --sort -Z
- * TODO: -o maj_flt,min_flt --sort -Z
+ * TODO: --sort -Z
  * TODO: way too many hardwired constants here, how can I generate them?
  * TODO: thread support /proc/$d/task/%d/stat (and -o stat has "l")
  *
@@ -34,7 +34,7 @@
  * significant. The array index is used in strawberry->which (consumed
  * in do_ps()) and in the bitmasks enabling default fields in ps_main().
 
-USE_PS(NEWTOY(ps, "aAdeflo*p*t*u*U*g*G*w[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PS(NEWTOY(ps, "aAdeflo*p*s*t*u*U*g*G*w[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PS
   bool "ps"
@@ -50,12 +50,13 @@ config PS
     -a	Processes with terminals that aren't session leaders
     -d	All processes that aren't session leaders
     -e	Same as -A
-    -g  belonging to selected session leaders (not groups: posix says so)
-    -G	belonging to selected real GROUP IDs
-    -p	selected PIDs
+    -g	belonging to GROUPs
+    -G	belonging to real GROUPs (before sgid)
+    -p	PIDs
+    -s	in session IDs
     -t	attached to selected TTYs
-    -u	owned by selected USERs
-    -U	owned by selected real USERs
+    -u	owned by USERs
+    -U	owned by real USERs (before suid)
     -w	Wide output (don't truncate at terminal width)
 
     Which FIELDs to show. (Default = -o PID,TTY,TIME,CMD)
@@ -73,6 +74,8 @@ config PS
              (in octal rather than hex because posix)
       GID    Group id
       GROUP  Group name
+      MAJFL  Major page faults
+      MINFL  Minor page faults
       NI     Niceness of process (lower niceness is higher priority)
       PCPU   Percentage of CPU time used
       PGID   Process Group ID
@@ -109,13 +112,15 @@ GLOBALS(
   struct arg_list *U;
   struct arg_list *u;
   struct arg_list *t;
+  struct arg_list *s;
   struct arg_list *p;
   struct arg_list *o;
 
+  struct ptr_len gg, GG, pp, ss, tt, uu, UU, *parsing;
   unsigned width;
   dev_t tty;
   void *fields;
-  long pidlen, *pids, ttylen, *ttys, bits;
+  long bits;
   long long ticks;
 )
 
@@ -135,21 +140,29 @@ static time_t get_uptime(void)
   return si.uptime;
 }
 
+// Return 1 to display, 0 to skip
 static int match_process(long long *slot)
 {
-  long l;
+  struct ptr_len *match[] = {&TT.gg,&TT.GG,&TT.pp,&TT.ss,&TT.tt,&TT.uu,&TT.UU};
+  int i, j, mslot[] = {33, 34, 0, 3, 4, 31, 32};
+  long *ll = 0;
 
-  // skip processes we don't care about.
-  if (TT.pids || TT.ttys) {
-    for (l=0; l<TT.pidlen; l++) if (TT.pids[l] == *slot) return 1;
-    for (l=0; l<TT.ttylen; l++) if (TT.ttys[l] == slot[4]) return 1;
-    return 0;
-  } else {
-    if ((toys.optflags&(FLAG_a|FLAG_d)) && slot[3]==*slot) return 0;
-    if ((toys.optflags&FLAG_a) && !slot[4]) return 0;
-    if (!(toys.optflags&(FLAG_a|FLAG_d|FLAG_A|FLAG_e)) && TT.tty!=slot[4])
-      return 0;
+  // Do we have -g -G -p -s -t -u -U options selecting processes?
+  for (i = 0; i < ARRAY_LEN(match); i++) {
+    if (match[i]->len) {
+      ll = match[i]->ptr;
+      for (j = 0; j<match[i]->len; j++) if (ll[j] == slot[mslot[i]]) return 1;
+    }
   }
+
+  // If we had selections and didn't match them, don't display
+  if (ll) return 0;
+
+  // Filter implicit categories for other display types
+  if ((toys.optflags&(FLAG_a|FLAG_d)) && slot[3]==*slot) return 0;
+  if ((toys.optflags&FLAG_a) && !slot[4]) return 0;
+  if (!(toys.optflags&(FLAG_a|FLAG_d|FLAG_A|FLAG_e)) && TT.tty!=slot[4])
+    return 0;
 
   return 1;
 }
@@ -159,9 +172,9 @@ static int match_process(long long *slot)
 static int do_ps(struct dirtree *new)
 {
   struct strawberry *field;
-  long long *slot = (void *)(toybuf+1024), ll, vmlck = 0;
+  long long *slot = (void *)(toybuf+1024), ll;
   char *name, *s, state;
-  int nlen, i, fd, len, ruid = -1, rgid = -1, width = TT.width;
+  int nlen, i, fd, len, width = TT.width;
 
   if (!new->parent) return DIRTREE_RECURSE|DIRTREE_SHUTUP;
   if (!(*slot = atol(new->name))) return 0;
@@ -181,22 +194,29 @@ static int do_ps(struct dirtree *new)
   for (len = 1; len<100; len++)
     if (1>sscanf(s += i, " %lld%n", slot+len, &i)) break;
 
-  // skip processes we don't care about.
-  if (!match_process(slot)) return 0;
+  // save uid, ruid, gid, gid, and rgid int slots 31-34 (we don't use sigcatch
+  // or numeric wchan, and the remaining two are always zero).
+  slot[31] = new->st.st_uid;
+  slot[33] = new->st.st_gid;
 
   // If RGROUP RUSER STAT RUID RGID
-  if (TT.bits & 0x38300000) {
+  // Save ruid in slot[34] and rgid in slot[35], which are otherwise zero,
+  // and vmlck into slot[18] (it_real_value, also always zero).
+  if ((TT.bits & 0x38300000) || TT.GG.len || TT.UU.len) {
     char *out = toybuf+2048;
 
     sprintf(out, "%lld/status", *slot);
     if (!readfileat(dirtree_parentfd(new), out, out, 2048)) *out = 0;
     s = strstr(out, "\nUid:");
-    ruid = s ? atol(s+5) : new->st.st_uid;
+    slot[32] = s ? atol(s+5) : new->st.st_uid;
     s = strstr(out, "\nGid:");
-    rgid = s ? atol(s+5) : new->st.st_gid;
+    slot[34] = s ? atol(s+5) : new->st.st_gid;
     s = strstr(out, "\nVmLck:");
-    if (s) vmlck = atoll(s+5);
+    if (s) slot[18] = atoll(s+5);
   }
+
+  // skip processes we don't care about.
+  if (!match_process(slot)) return 0;
 
   // At this point 512 bytes at toybuf+512 are free (already parsed).
   // Start of toybuf still has name in it.
@@ -208,11 +228,12 @@ static int do_ps(struct dirtree *new)
     // Default: unsupported (5 "C")
     sprintf(out, "-");
 
-    // PID, PPID, PRI, NI, ADDR, SZ, RSS, PGID
-    if (-1!=(i = stridx((char[]){3,4,6,7,8,9,24,19,23,0}, field->which))) {
+    // PID, PPID, PRI, NI, ADDR, SZ, RSS, PGID, VSS, MAJFL, MINFL
+    if (-1!=(i = stridx((char[]){3,4,6,7,8,9,24,19,23,25,30,0}, field->which)))
+    {
       char *fmt = "%lld";
 
-      ll = slot[((char[]){0,1,15,16,27,20,21,2,20})[i]];
+      ll = slot[((char[]){0,1,15,16,27,20,21,2,20,9,7})[i]];
       if (i==2) ll--;
       if (i==4) fmt = "%llx";
       else if (i==5) ll >>= 12;
@@ -222,7 +243,7 @@ static int do_ps(struct dirtree *new)
     // UID USER RUID RUSER GID GROUP RGID RGROUP
     } else if (-1!=(i = stridx((char[]){2,22,28,21,26,17,29,20}, field->which)))
     {
-      int id = (int[]){new->st.st_uid,ruid,new->st.st_gid,rgid}[i/2];
+      int id = slot[31+i/2]; // uid, ruid, gid, rgid
 
       // Even entries are numbers, odd are names
       sprintf(out, "%d", id);
@@ -251,7 +272,7 @@ static int do_ps(struct dirtree *new)
         if (slot[16]<0) *s++ = '<';
         else if (slot[16]>0) *s++ = 'N';
         if (slot[3]==*slot) *s++ = 's';
-        if (vmlck) *s++ = 'L';
+        if (slot[18]) *s++ = 'L';
         if (slot[5]==*slot) *s++ = '+';
         *s = 0;
       } 
@@ -361,33 +382,34 @@ static int do_ps(struct dirtree *new)
 }
 
 // Traverse arg_list of csv, calling callback on each value
-void comma_args(struct arg_list *al, char *(*callback)(char **str, int len))
+void comma_args(struct arg_list *al, char *err,
+  char *(*callback)(char *str, int len))
 {
-  char *err, *next, *arg;
+  char *next, *arg;
   int len;
 
   while (al) {
     arg = al->arg;
     while ((next = comma_iterate(&arg, &len)))
-      if ((err = callback(&next, len)))
-        perror_msg("%s '%s'@%ld", err, al->arg, 1+next-al->arg);
+      if ((next = callback(next, len)))
+        perror_exit("%s '%s'@%ld", err, al->arg, 1+next-al->arg);
     al = al->next;
   }
 }
 
-static char *parse_o(char **pstr, int length)
+static char *parse_o(char *type, int length)
 {
   struct strawberry *field;
-  char *width, *type = *pstr, *title, *end, *s, *typos[] = {
+  char *width, *title, *end, *s, *typos[] = {
          "F", "S", "UID", "PID", "PPID", "C", "PRI", "NI", "ADDR", "SZ",
          "WCHAN", "STIME", "TTY", "TIME", "CMD", "COMMAND", "ELAPSED", "GROUP",
-         "%CPU", "PGID", "RGROUP", "RUSER", "USER", "VSZ", "RSS", "\xff",
-         "GID", "STAT", "RUID", "RGID"
+         "%CPU", "PGID", "RGROUP", "RUSER", "USER", "VSZ", "RSS", "MAJFL",
+         "GID", "STAT", "RUID", "RGID", "MINFL"
   };
   signed char widths[] = {1,-1,5,5,5,2,3,3,4+sizeof(long),5,
                           -6,5,-8,8,-27,-27,11,-8,
-                          4,5,-8,-8,-8,6,5,-5,
-                          8,-5,4,4};
+                          4,5,-8,-8,-8,6,5,6,
+                          8,-5,4,4,6};
   int i, j, k;
 
   // Get title, length of title, type, end of type, and display width
@@ -415,10 +437,7 @@ static char *parse_o(char **pstr, int length)
 
   if (width) {
     field->len = strtol(++width, &title, 10);
-    if (!isdigit(*width) || title != end) {
-      *pstr = title;
-      return "bad : in -o";
-    }
+    if (!isdigit(*width) || title != end) return title;
     end = --width;
   }
 
@@ -436,7 +455,7 @@ static char *parse_o(char **pstr, int length)
     }
     if (j!=2) break;
   }
-  if (i==ARRAY_LEN(typos)) return "bad -o";
+  if (i==ARRAY_LEN(typos)) return type;
   if (!field->title) field->title = typos[field->which];
   if (!field->len) field->len = widths[field->which];
   else if (widths[field->which]<0) field->len *= -1;
@@ -449,48 +468,83 @@ static char *parse_o(char **pstr, int length)
   return 0;
 }
 
-// -p PID list
-static char *parse_p(char **str, int len)
+// Parse -p -s -t -u -U -g -G
+static char *parse_rest(char *str, int len)
 {
+  struct ptr_len *pl = TT.parsing;
+  long *ll = pl->ptr;
   char *end;
+  int num = 0;
 
-  if (!(15&TT.pidlen)) TT.pids = xrealloc(TT.pids, sizeof(long)*(TT.pidlen+16));
-  if ((TT.pids[TT.pidlen++] = xstrtol(*str, &end, 10))<1 || end!=len+*str)
-    return "-p";
+  // numeric: -p, -s
+  // gg, GG, pp, ss, tt, uu, UU, *parsing;
+ 
+  // Allocate next chunk of data
+  if (!(15&pl->len))
+    ll = pl->ptr = xrealloc(pl->ptr, sizeof(long)*(pl->len+16));
 
-  return 0;
-}
-
-static char *parse_t(char **pstr, int len)
-{
-  char *ss, *str = *pstr;
-  int pts = 0;
-
-  if (!(15&TT.ttylen)) TT.ttys = xrealloc(TT.ttys, sizeof(long)*(TT.ttylen+16));
-
-  // -t pts = 12,pts/12, tty = /dev/tty2,tty2,S0
-  if (isdigit(*str)) pts++;
-  else {
-    if (strstart(&str, strcpy(toybuf, "/dev/"))) len -= 5;
-    if (strstart(&str, "pts/")) {
-      len -= 4;
-      pts++;
-    } else if (strstart(&str, "tty")) len -= 3;
-  }
-  if (len<256 && (!(ss = strchr(str, '/')) || ss-str>len))
-  {
-    struct stat st;
-
-    ss = toybuf + sprintf(toybuf, "/dev/%s", pts ? "pts/" : "tty");
-    memcpy(ss, str, len);
-    ss[len] = 0;
-    xstat(toybuf, &st);
-    TT.ttys[TT.ttylen++] = st.st_rdev;
-
-    return 0;
+  // Parse numerical input
+  if (isdigit(*str)) {
+    ll[pl->len] = xstrtol(str, &end, 10);
+    if (end==(len+str)) num++;
   }
 
-  return "-t";
+  if (pl==&TT.pp || pl==&TT.ss) {
+    if (num && ll[pl->len]>0) {
+      pl->len++;
+
+      return 0;
+    }
+  } else if (pl==&TT.tt) {
+    // -t pts = 12,pts/12 tty = /dev/tty2,tty2,S0
+    if (!num) {
+      if (strstart(&str, strcpy(toybuf, "/dev/"))) len -= 5;
+      if (strstart(&str, "pts/")) {
+        len -= 4;
+        num++;
+      } else if (strstart(&str, "tty")) len -= 3;
+    }
+    if (len<256 && (!(end = strchr(str, '/')) || end-str>len)) {
+      struct stat st;
+
+      end = toybuf + sprintf(toybuf, "/dev/%s", num ? "pts/" : "tty");
+      memcpy(end, str, len);
+      end[len] = 0;
+      xstat(toybuf, &st);
+      ll[pl->len++] = st.st_rdev;
+
+      return 0;
+    }
+  } else if (len<255) {
+    char name[256];
+
+    if (num) {
+      pl->len++;
+
+      return 0;
+    }
+
+    memcpy(name, str, len);
+    name[len] = 0;
+    if (pl==&TT.gg || pl==&TT.GG) {
+      struct group *gr = getgrnam(name);
+      if (gr) {
+        ll[pl->len++] = gr->gr_gid;
+
+        return 0;
+      }
+    } else if (pl==&TT.uu || pl==&TT.UU) {
+      struct passwd *pw = getpwnam(name);
+      if (pw) {
+        ll[pl->len++] = pw->pw_uid;
+
+        return 0;
+      }
+    }
+  }
+
+  // Return error
+  return str;
 }
 
 void ps_main(void)
@@ -511,12 +565,24 @@ void ps_main(void)
     if (i==3) close(fd);
   }
 
-  // parse -p, -t
-  comma_args(TT.p, parse_p);
-  comma_args(TT.t, parse_t);
+  // parse command line options other than -o
+  TT.parsing = &TT.pp;
+  comma_args(TT.p, "bad -p", parse_rest);
+  TT.parsing = &TT.tt;
+  comma_args(TT.t, "bad -t", parse_rest);
+  TT.parsing = &TT.ss;
+  comma_args(TT.s, "bad -s", parse_rest);
+  TT.parsing = &TT.uu;
+  comma_args(TT.u, "bad -u", parse_rest);
+  TT.parsing = &TT.UU;
+  comma_args(TT.U, "bad -u", parse_rest);
+  TT.parsing = &TT.gg;
+  comma_args(TT.g, "bad -g", parse_rest);
+  TT.parsing = &TT.GG;
+  comma_args(TT.G, "bad -G", parse_rest);
 
   // Manual field selection, or default/-f/-l. Also prints header.
-  if (TT.o) comma_args(TT.o, parse_o);
+  if (TT.o) comma_args(TT.o, "-o", parse_o);
   else {
     struct arg_list al;
 
@@ -527,7 +593,7 @@ void ps_main(void)
       al.arg = "F,S,UID,PID,PPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD";
     else al.arg = "PID,TTY,TIME,CMD";
 
-    comma_args(&al, parse_o);
+    comma_args(&al, 0, parse_o);
   }
   dlist_terminate(TT.fields);
   xputc('\n');
@@ -535,8 +601,8 @@ void ps_main(void)
   dirtree_read("/proc", do_ps);
 
   if (CFG_TOYBOX_FREE) {
-    free(TT.pids);
-    free(TT.ttys);
+    free(TT.pp.ptr);
+    free(TT.tt.ptr);
     llist_traverse(TT.fields, free);
   }
 }
