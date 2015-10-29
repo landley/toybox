@@ -119,16 +119,28 @@ fairly low.</p>
 <p>POSIX allowed its standards process to be compromised
 by leaving things out, thus allowing IBM mainframes and Windows NT to drive
 a truck through the holes and declare themselves compilant. But it means what
-they DID standardize tends to be respected.</p>
+they DID standardize tends to be respected (if sometimes obsolete).</p>
 
 <p>The Linux Standard Base's failure mode is different, they respond to
 pressure by including special-case crap, such as allowing Red Hat to shoehorn
-RPM on the standard even though all sorts of distros (Debian, Slackware, Arch,
+RPM into the standard even though all sorts of distros (Debian, Slackware, Arch,
 Gentoo) don't use it and probably never will. This means anything in the LSB is
 at best a suggestion: arbitrary portions of this standard are widely
 ignored.</p>
 
-<p>The LSB does specify a <a href=http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html>list of command line
+<p>The community perception seems to be that the Linux Standard Base is
+the best standard money can buy, I.E. the Linux Foundation is supported by
+financial donations form large companies and the LSB represents the interests
+of those donors more than technical merit. Debian officially
+<a href=http://lwn.net/Articles/658809>washed its hands of LSB</a> when 5.0
+came out in 2015, and no longer even pretends to support it (which may affect
+Debian derivatives like Ubuntu and Knoppix). Toybox hasn't moved to 5.0 for
+similar reasons.</p>
+
+<p>That said, Posix by itself isn't enough, and this is the next most
+comprehensive standards effort for Linux so far.</p>
+
+<p>The LSB specifies a <a href=http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html>list of command line
 utilities</a>:</p>
 
 <blockquote><b>
