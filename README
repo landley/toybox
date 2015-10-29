@@ -18,13 +18,23 @@ specifying a path to it, so this should work:
 
 Type "make help" for build instructions.
 
-Usually you want something like:
+Toybox uses the "make menuconfig; make; make install" idiom same as
+the Linux kernel. Usually you want something like:
 
   make defconfig
-  LDFLAGS="--static" CROSS_COMPILE=armv5l- make toybox
-  PREFIX=/path/to/root/filesystem make install
+  make
+  make install
 
-The CROSS_COMPILE argument is optional, and without it builds a version of
+Or maybe:
+
+  LDFLAGS="--static" CROSS_COMPILE=armv5l- make defconfig toybox
+  PREFIX=/path/to/root/filesystem/bin make install_flat
+
+The file "configure" defines default values for many environment
+variables that control the toybox build; if you set a value for any of
+these, your value is used instead of the default in that file.
+
+The CROSS_COMPILE argument above is optional, the default builds a version of
 toybox to run on the current machine. Cross compiling requires an appropriately
 prefixed cross compiler toolchain, several example toolchains are available at:
 
@@ -39,6 +49,9 @@ For more about cross compiling, see:
 
   http://landley.net/writing/docs/cross-compiling.html
   http://landley.net/aboriginal/architectures.html
+
+For a more thorough description of the toybox build process, see
+http://landley.net/toybox/code.html#building
 
 --- Using toybox
 
