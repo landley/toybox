@@ -276,9 +276,12 @@ if [ ! -z "$NOSTRIP" ] || ! do_loudly ${CROSS_COMPILE}strip toybox_unstripped -o
 then
   echo "strip failed, using unstripped" && cp toybox_unstripped toybox ||
   exit 1
-else
-  # gcc 4.4's strip command is buggy, and doesn't set the executable bit on
-  # its output the way SUSv4 suggests it do so.
-  do_loudly chmod +x toybox || exit 1
 fi
+
+# gcc 4.4's strip command is buggy, and doesn't set the executable bit on
+# its output the way SUSv4 suggests it do so. While we're at it, make sure
+# we don't have the "w" bit set so things like bzip2's "cp -f" install don't
+# overwrite our binary through the symlink.
+do_loudly chmod 555 toybox || exit 1
+
 echo
