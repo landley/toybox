@@ -24,6 +24,11 @@ struct double_list {
   char *data;
 };
 
+struct ptr_len {
+  void *ptr;
+  long len;
+};
+
 void llist_free_arg(void *node);
 void llist_free_double(void *node);
 void llist_traverse(void *list, void (*using)(void *node));
