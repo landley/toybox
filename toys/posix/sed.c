@@ -260,7 +260,7 @@ static char *extend_string(char **old, char *new, int oldlen, int newlen)
 }
 
 // An empty regex repeats the previous one
-void *get_regex(void *trump, int offset)
+static void *get_regex(void *trump, int offset)
 {
   if (!offset) {
     if (!TT.lastregex) error_exit("no previous regex");
@@ -669,6 +669,7 @@ static void do_lines(int fd, char *name, void (*call)(char **pline, long len))
   if (fd) fclose(fp);
 }
 
+// Callback called on each input file
 static void do_sed(int fd, char *name)
 {
   int i = toys.optflags & FLAG_i;
@@ -677,7 +678,7 @@ static void do_sed(int fd, char *name)
   if (i) {
     struct step *primal;
 
-    if (!fd && *name=='-') {
+    if (!fd && !strcmp(name, "-")) {
       error_msg("-i on stdin");
       return;
     }
@@ -970,7 +971,7 @@ resume_a:
       // pointers so realloc() moving stuff doesn't break things. Ok to write
       // \n over NUL terminator because call to extend_string() adds it back.
       if (!corwin->arg1) corwin->arg1 = reg - (char*)corwin;
-      else if ((corwin+1) != (void *)reg) *(reg++) = '\n';
+      else if (*(corwin->arg1+(char *)corwin)) *(reg++) = '\n';
       reg = extend_string((void *)&corwin, line, reg - (char *)corwin, end);
 
       // Recopy data to remove escape sequences and handle line continuation.

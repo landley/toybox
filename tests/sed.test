@@ -127,6 +127,9 @@ testing "" "sed -e '1a\' -e 'huh'" "meep\nhuh\n" "" "meep"
 testing "" "sed -f input" "blah\nboom\n" '1a\\\nboom' 'blah'
 testing "" "sed '1a\
 hello'" "merp\nhello\n" "" "merp"
+
+testing "" "sed -e '/x/c\' -e 'y'" 'y\n' '' 'x\n'
+
 #echo meep | sed/sed -e '1a\' -e 'huh'
 #echo blah | sed/sed -f <(echo -e "1a\\\\\nboom")
 #echo merp | sed/sed "1a\\
