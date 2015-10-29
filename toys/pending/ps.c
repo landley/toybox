@@ -601,8 +601,13 @@ void ps_main(void)
   dirtree_read("/proc", do_ps);
 
   if (CFG_TOYBOX_FREE) {
+    free(TT.gg.ptr);
+    free(TT.GG.ptr);
     free(TT.pp.ptr);
+    free(TT.ss.ptr);
     free(TT.tt.ptr);
+    free(TT.uu.ptr);
+    free(TT.UU.ptr);
     llist_traverse(TT.fields, free);
   }
 }
