@@ -168,6 +168,7 @@ long atolx(char *c);
 long atolx_range(char *numstr, long low, long high);
 int stridx(char *haystack, char needle);
 char *strlower(char *s);
+char *chomp(char *s);
 int unescape(char c);
 int strstart(char **a, char *b);
 off_t fdlength(int fd);

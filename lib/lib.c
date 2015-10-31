@@ -342,6 +342,14 @@ char *strlower(char *s)
   return try;
 }
 
+char *chomp(char *s)
+{
+  char *p = strrchr(s, '\n');
+
+  if (p) *p = 0;
+  return s;
+}
+
 int unescape(char c)
 {
   char *from = "\\abefnrtv", *to = "\\\a\b\033\f\n\r\t\v";

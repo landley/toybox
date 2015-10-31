@@ -121,14 +121,6 @@ static void fill_flags(struct file_info *fi)
   fclose(fp);
 }
 
-static char *chomp(char *s)
-{
-  char *p = strrchr(s, '\n');
-
-  if (p) *p = 0;
-  return s;
-}
-
 static int scan_proc_net_file(char *path, int family, char type,
     void (*fn)(char *, int, char, struct file_info *, long),
     struct file_info *fi, long sought_inode)

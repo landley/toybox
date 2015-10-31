@@ -34,13 +34,13 @@
  * significant. The array index is used in strawberry->which (consumed
  * in do_ps()) and in the bitmasks enabling default fields in ps_main().
 
-USE_PS(NEWTOY(ps, "(ppid)*aAdeflo*p(pid)*s*t*u*U*g*G*w[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PS(NEWTOY(ps, "(ppid)*aAdeflo*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PS
   bool "ps"
   default y
   help
-    usage: ps [-Aadeflw] [-gG GROUP] [-o FIELD] [-p PID] [-t TTY] [-uU USER]
+    usage: ps [-AadeflwZ] [-gG GROUP] [-o FIELD] [-p PID] [-t TTY] [-uU USER]
 
     List processes.
 
@@ -65,6 +65,7 @@ config PS
     -f	Full listing (-o USER:8=UID,PID,PPID,C,STIME,TTY,TIME,CMD)
     -l	Long listing (-o F,S,UID,PID,PPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD)
     -o	Output the listed FIELDs, each with optional :size and/or =title
+    -Z	Include LABEL
 
     Available -o FIELDs:
 
@@ -75,6 +76,7 @@ config PS
              (in octal rather than hex because posix)
       GID    Group id
       GROUP  Group name
+      LABEL  Security label
       MAJFL  Major page faults
       MINFL  Minor page faults
       NI     Niceness of process (lower niceness is higher priority)
@@ -285,6 +287,12 @@ static int do_ps(struct dirtree *new)
       sprintf(scratch, "%lld/wchan", *slot);
       readfileat(dirtree_parentfd(new), scratch, out, 2047);
 
+    // LABEL
+    } else if (i==31) {
+      sprintf(scratch, "%lld/attr/current", *slot);
+      readfileat(dirtree_parentfd(new), scratch, out, 2047);
+      chomp(out);
+
     // STIME
     } else if (i==11) {
       time_t t = time(0) - get_uptime() + slot[19]/sysconf(_SC_CLK_TCK);
@@ -408,12 +416,13 @@ static char *parse_o(char *type, int length)
          "F", "S", "UID", "PID", "PPID", "C", "PRI", "NI", "ADDR", "SZ",
          "WCHAN", "STIME", "TTY", "TIME", "CMD", "COMMAND", "ELAPSED", "GROUP",
          "%CPU", "PGID", "RGROUP", "RUSER", "USER", "VSZ", "RSS", "MAJFL",
-         "GID", "STAT", "RUID", "RGID", "MINFL"
+         "GID", "STAT", "RUID", "RGID", "MINFL", "LABEL"
   };
+  // TODO: Android uses -30 for LABEL, but ideally it would auto-size.
   signed char widths[] = {1,-1,5,5,5,2,3,3,4+sizeof(long),5,
                           -6,5,-8,8,-27,-27,11,-8,
                           4,5,-8,-8,-8,6,5,6,
-                          8,-5,4,4,6};
+                          8,-5,4,4,6,-30};
   int i, j, k;
 
   // Get title, length of title, type, end of type, and display width
@@ -587,7 +596,12 @@ void ps_main(void)
   TT.parsing = &TT.GG;
   comma_args(TT.G, "bad -G", parse_rest);
 
-  // Manual field selection, or default/-f/-l. Also prints header.
+  // Manual field selection, or default/-f/-l, plus -Z. Also prints header.
+  if (toys.optflags&FLAG_Z) {
+    struct arg_list Z = { 0, "LABEL" };
+
+    comma_args(&Z, "-Z", parse_o);
+  }
   if (TT.o) comma_args(TT.o, "-o", parse_o);
   else {
     struct arg_list al;
