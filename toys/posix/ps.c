@@ -34,7 +34,7 @@
  * significant. The array index is used in strawberry->which (consumed
  * in do_ps()) and in the bitmasks enabling default fields in ps_main().
 
-USE_PS(NEWTOY(ps, "aAdeflo*p*s*t*u*U*g*G*w[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PS(NEWTOY(ps, "(ppid)*aAdeflo*p(pid)*s*t*u*U*g*G*w[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PS
   bool "ps"
@@ -50,13 +50,14 @@ config PS
     -a	Processes with terminals that aren't session leaders
     -d	All processes that aren't session leaders
     -e	Same as -A
-    -g	belonging to GROUPs
-    -G	belonging to real GROUPs (before sgid)
+    -g	Belonging to GROUPs
+    -G	Belonging to real GROUPs (before sgid)
     -p	PIDs
-    -s	in session IDs
-    -t	attached to selected TTYs
-    -u	owned by USERs
-    -U	owned by real USERs (before suid)
+    --ppid	Parent PIDs
+    -s	In session IDs
+    -t	Attached to selected TTYs
+    -u	Owned by USERs
+    -U	Owned by real USERs (before suid)
     -w	Wide output (don't truncate at terminal width)
 
     Which FIELDs to show. (Default = -o PID,TTY,TIME,CMD)
@@ -115,8 +116,9 @@ GLOBALS(
   struct arg_list *s;
   struct arg_list *p;
   struct arg_list *o;
+  struct arg_list *ppid;
 
-  struct ptr_len gg, GG, pp, ss, tt, uu, UU, *parsing;
+  struct ptr_len gg, GG, pp, ppids, ss, tt, uu, UU, *parsing;
   unsigned width;
   dev_t tty;
   void *fields;
@@ -143,11 +145,13 @@ static time_t get_uptime(void)
 // Return 1 to display, 0 to skip
 static int match_process(long long *slot)
 {
-  struct ptr_len *match[] = {&TT.gg,&TT.GG,&TT.pp,&TT.ss,&TT.tt,&TT.uu,&TT.UU};
-  int i, j, mslot[] = {33, 34, 0, 3, 4, 31, 32};
+  struct ptr_len *match[] = {
+    &TT.gg, &TT.GG, &TT.pp, &TT.ppids, &TT.ss, &TT.tt, &TT.uu, &TT.UU
+  };
+  int i, j, mslot[] = {33, 34, 0, 1, 3, 4, 31, 32};
   long *ll = 0;
 
-  // Do we have -g -G -p -s -t -u -U options selecting processes?
+  // Do we have -g -G -p --ppid -s -t -u -U options selecting processes?
   for (i = 0; i < ARRAY_LEN(match); i++) {
     if (match[i]->len) {
       ll = match[i]->ptr;
@@ -566,6 +570,8 @@ void ps_main(void)
   }
 
   // parse command line options other than -o
+  TT.parsing = &TT.ppids;
+  comma_args(TT.ppid, "bad --ppid", parse_rest);
   TT.parsing = &TT.pp;
   comma_args(TT.p, "bad -p", parse_rest);
   TT.parsing = &TT.tt;
@@ -604,6 +610,7 @@ void ps_main(void)
     free(TT.gg.ptr);
     free(TT.GG.ptr);
     free(TT.pp.ptr);
+    free(TT.ppids.ptr);
     free(TT.ss.ptr);
     free(TT.tt.ptr);
     free(TT.uu.ptr);
