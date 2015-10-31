@@ -126,6 +126,7 @@ GLOBALS(
   void *fields;
   long bits;
   long long ticks;
+  size_t header_len;
 )
 
 struct strawberry {
@@ -404,7 +405,9 @@ void comma_args(struct arg_list *al, char *err,
     arg = al->arg;
     while ((next = comma_iterate(&arg, &len)))
       if ((next = callback(next, len)))
-        perror_exit("%s '%s'@%ld", err, al->arg, 1+next-al->arg);
+        perror_exit("%s '%s'\n% *c", err, al->arg,
+                    strlen(toys.which->name) + 2 +
+                    strlen(err) + 2 + 1+next-al->arg, '^');
     al = al->next;
   }
 }
@@ -475,7 +478,9 @@ static char *parse_o(char *type, int length)
   dlist_add_nomalloc((void *)&TT.fields, (void *)field);
 
   // Print padded header.
-  printf(" %*s" + (field == TT.fields), field->len, field->title);
+  TT.header_len +=
+    snprintf(toybuf + TT.header_len, sizeof(toybuf) - TT.header_len,
+             " %*s" + (field == TT.fields), field->len, field->title);
   TT.bits |= (i = 1<<field->which);
 
   return 0;
@@ -596,13 +601,14 @@ void ps_main(void)
   TT.parsing = &TT.GG;
   comma_args(TT.G, "bad -G", parse_rest);
 
-  // Manual field selection, or default/-f/-l, plus -Z. Also prints header.
+  // Parse manual field selection, or default/-f/-l, plus -Z,
+  // constructing the header line in toybuf as we go.
   if (toys.optflags&FLAG_Z) {
     struct arg_list Z = { 0, "LABEL" };
 
     comma_args(&Z, "-Z", parse_o);
   }
-  if (TT.o) comma_args(TT.o, "-o", parse_o);
+  if (TT.o) comma_args(TT.o, "bad -o field", parse_o);
   else {
     struct arg_list al;
 
@@ -616,7 +622,7 @@ void ps_main(void)
     comma_args(&al, 0, parse_o);
   }
   dlist_terminate(TT.fields);
-  xputc('\n');
+  printf("%s\n", toybuf);
 
   dirtree_read("/proc", do_ps);
 
