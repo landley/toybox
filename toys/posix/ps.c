@@ -70,7 +70,8 @@ config PS
     Available -o FIELDs:
 
       ADDR   Instruction pointer
-      CMD    Command line
+      CMD    Command line (including args)
+      COMM   Command name (no args)
       ETIME  Elapsed time since process start
       F      Process flags (PF_*) from linux source file include/sched.h
              (in octal rather than hex because posix)
@@ -349,11 +350,11 @@ static int do_ps(struct dirtree *new)
         unit /= j ? 60 : 24;
       }
 
-    // COMMAND CMD
+    // COMM - command line including arguments
     // Command line limited to 2k displayable. We could dynamically malloc, but
     // it'd almost never get used, querying length of a proc file is awkward,
     // fixed buffer is nommu friendly... Wait for somebody to complain. :)
-    } else if (i==14 || i==15) {
+    } else if (i==14) {
       int fd;
 
       len = 0;
@@ -370,6 +371,11 @@ static int do_ps(struct dirtree *new)
       }
 
       if (len<1) sprintf(out, "[%.*s]", nlen, name);
+
+    // CMD - command name (without arguments)
+    } else if (i==15) {
+      sprintf(out, "%.*s", nlen, name);
+
     // %CPU
     } else if (i==18) {
       ll = (get_uptime()*sysconf(_SC_CLK_TCK)-slot[19]);
