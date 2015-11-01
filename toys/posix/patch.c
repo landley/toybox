@@ -7,7 +7,6 @@
  *
  * TODO:
  * -b backup
- * -l treat all whitespace as a single space
  * -N ignore already applied
  * -d chdir first
  * -D define wrap #ifdef and #ifndef around changes
@@ -143,7 +142,7 @@ static int apply_one_hunk(void)
     else trailing = 0;
     if (toys.optflags & FLAG_x) fprintf(stderr, "HUNK:%s\n", plist->data);
   }
-  matcheof = trailing < TT.context;
+  matcheof = !trailing || trailing < TT.context;
 
   if (toys.optflags & FLAG_x)
     fprintf(stderr,"MATCHEOF=%c\n", matcheof ? 'Y' : 'N');
