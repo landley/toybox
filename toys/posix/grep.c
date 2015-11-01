@@ -3,6 +3,8 @@
  * Copyright 2013 CE Strake <strake888 at gmail.com>
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/grep.html
+ *
+ * TODO: -ABC
 
 USE_GREP(NEWTOY(grep, "ZzEFHabhinorsvwclqe*f*m#x[!wx][!EFw]", TOYFLAG_BIN))
 USE_EGREP(OLDTOY(egrep, grep, TOYFLAG_BIN))
@@ -56,15 +58,14 @@ GLOBALS(
   long m;
   struct arg_list *f;
   struct arg_list *e;
-
-  struct arg_list *regex;
 )
 
+// Show matches in one file
 static void do_grep(int fd, char *name)
 {
   FILE *file = fdopen(fd, "r");
   long offset = 0;
-  int lcount = 0, mcount = 0, which = toys.optflags & FLAG_w ? 2 : 0;
+  int lcount = 0, mcount = 0;
   char indelim = '\n' * !(toys.optflags&FLAG_z),
        outdelim = '\n' * !(toys.optflags&FLAG_Z);
 
@@ -75,9 +76,10 @@ static void do_grep(int fd, char *name)
     return;
   }
 
+  // Loop through lines of input
   for (;;) {
     char *line = 0, *start;
-    regmatch_t matches[3];
+    regmatch_t matches;
     size_t unused;
     long len;
     int mmatch = 0;
@@ -88,10 +90,11 @@ static void do_grep(int fd, char *name)
 
     start = line;
 
-    for (;;)
-    {
+    // Loop through matches in this line
+    do {
       int rc = 0, skip = 0;
 
+      // Handle non-regex matches
       if (toys.optflags & FLAG_F) {
         struct arg_list *seek, fseek;
         char *s = 0;
@@ -117,30 +120,48 @@ static void do_grep(int fd, char *name)
         }
 
         if (s) {
-          matches[which].rm_so = (s-line);
-          skip = matches[which].rm_eo = (s-line)+strlen(seek->arg);
+          matches.rm_so = (s-line);
+          skip = matches.rm_eo = (s-line)+strlen(seek->arg);
         } else rc = 1;
       } else {
-        rc = regexec((regex_t *)toybuf, start, 3, matches,
+        rc = regexec((regex_t *)toybuf, start, 1, &matches,
                      start==line ? 0 : REG_NOTBOL);
-        skip = matches[which].rm_eo;
+        skip = matches.rm_eo;
       }
 
       if (toys.optflags & FLAG_x)
-        if (matches[which].rm_so || line[matches[which].rm_eo]) rc = 1;
+        if (matches.rm_so || line[matches.rm_eo]) rc = 1;
+
+      if (!rc && (toys.optflags & FLAG_w)) {
+        char c = 0;
+
+        if ((start+matches.rm_so)!=line) {
+          c = start[matches.rm_so-1];
+          if (!isalnum(c) && c != '_') c = 0;
+        }
+        if (!c) {
+          c = start[matches.rm_eo];
+          if (!isalnum(c) && c != '_') c = 0;
+        }
+        if (c) {
+          start += matches.rm_so+1;
+
+          continue;
+        }
+      }
 
       if (toys.optflags & FLAG_v) {
         if (toys.optflags & FLAG_o) {
-          if (rc) skip = matches[which].rm_eo = strlen(start);
-          else if (!matches[which].rm_so) {
+          if (rc) skip = matches.rm_eo = strlen(start);
+          else if (!matches.rm_so) {
             start += skip;
             continue;
-          } else matches[which].rm_eo = matches[which].rm_so;
+          } else matches.rm_eo = matches.rm_so;
         } else {
           if (!rc) break;
-          matches[which].rm_eo = strlen(start);
+          matches.rm_eo = strlen(start);
         }
-        matches[which].rm_so = 0;
+        matches.rm_so = 0;
       } else if (rc) break;
 
       mmatch++;
@@ -153,7 +174,7 @@ static void do_grep(int fd, char *name)
         return;
       }
       if (toys.optflags & FLAG_o)
-        if (matches[which].rm_eo == matches[which].rm_so)
+        if (matches.rm_eo == matches.rm_so)
           break;
 
       if (!(toys.optflags & FLAG_c)) {
@@ -161,17 +182,17 @@ static void do_grep(int fd, char *name)
         if (toys.optflags & FLAG_n) printf("%d:", lcount);
         if (toys.optflags & FLAG_b)
           printf("%ld:", offset + (start-line) +
-              ((toys.optflags & FLAG_o) ? matches[which].rm_so : 0));
+              ((toys.optflags & FLAG_o) ? matches.rm_so : 0));
         if (!(toys.optflags & FLAG_o)) xprintf("%s%c", line, outdelim);
         else {
-          xprintf("%.*s%c", matches[which].rm_eo - matches[which].rm_so,
-                  start + matches[which].rm_so, outdelim);
+          xprintf("%.*s%c", matches.rm_eo - matches.rm_so,
+                  start + matches.rm_so, outdelim);
         }
       }
 
       start += skip;
-      if (!(toys.optflags & FLAG_o) || !*start) break;
-    }
+      if (!(toys.optflags & FLAG_o)) break;
+    } while (*start);
     offset += len;
 
     free(line);
@@ -202,6 +223,7 @@ static void parse_regex(void)
     if (TT.f) s = ss = xreadfile(al->arg, 0, 0);
     else s = ss = al->arg;
 
+    // Split lines at \n, add individual lines to new list.
     do {
       ss = strchr(s, '\n');
       if (ss) *(ss++) = 0;
@@ -211,6 +233,8 @@ static void parse_regex(void)
       list = new;
       s = ss;
     } while (ss && *s);
+
+    // Advance, when we run out of -f switch to -e.
     al = al->next;
     if (!al && TT.f) {
       TT.f = 0;
@@ -220,30 +244,27 @@ static void parse_regex(void)
   TT.e = list;
 
   if (!(toys.optflags & FLAG_F)) {
-    int w = toys.optflags & FLAG_w;
     char *regstr;
+    int i;
 
     // Convert strings to one big regex
-    if (w) len = 36;
     for (al = TT.e; al; al = al->next)
       len += strlen(al->arg)+1+!(toys.optflags & FLAG_E);
 
     regstr = s = xmalloc(len);
-    if (w) s = stpcpy(s, "(^|[^_[:alnum:]])(");
     for (al = TT.e; al; al = al->next) {
       s = stpcpy(s, al->arg);
       if (!(toys.optflags & FLAG_E)) *(s++) = '\\';
       *(s++) = '|';
     }
     *(s-=(1+!(toys.optflags & FLAG_E))) = 0;
-    if (w) strcpy(s, ")($|[^_[:alnum:]])");
 
-    w = regcomp((regex_t *)toybuf, regstr,
+    i = regcomp((regex_t *)toybuf, regstr,
                 ((toys.optflags & FLAG_E) ? REG_EXTENDED : 0) |
                 ((toys.optflags & FLAG_i) ? REG_ICASE    : 0));
 
-    if (w) {
-      regerror(w, (regex_t *)toybuf, toybuf+sizeof(regex_t),
+    if (i) {
+      regerror(i, (regex_t *)toybuf, toybuf+sizeof(regex_t),
                sizeof(toybuf)-sizeof(regex_t));
       error_exit("bad REGEX: %s", toybuf);
     }
@@ -272,8 +293,7 @@ void grep_main(void)
   char **ss = toys.optargs;
 
   // Handle egrep and fgrep
-  if (*toys.which->name == 'e' || (toys.optflags & FLAG_w))
-    toys.optflags |= FLAG_E;
+  if (*toys.which->name == 'e') toys.optflags |= FLAG_E;
   if (*toys.which->name == 'f') toys.optflags |= FLAG_F;
 
   if (!TT.e && !TT.f) {
@@ -294,6 +314,7 @@ void grep_main(void)
   }
 
   if (toys.optflags & FLAG_r) {
+    // Iterate through -r arguments. Use "." as default if none provided.
     for (ss = *ss ? ss : (char *[]){".", 0}; *ss; ss++) {
       if (!strcmp(*ss, "-")) do_grep(0, *ss);
       else dirtree_read(*ss, do_grep_r);
