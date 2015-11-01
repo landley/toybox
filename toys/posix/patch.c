@@ -64,8 +64,6 @@ GLOBALS(
 // state = 3: write whole line to fileout
 // state > 3: write line+1 to fileout when *line != state
 
-#define PATCH_DEBUG (CFG_TOYBOX_DEBUG && (toys.optflags & 32))
-
 static void do_line(void *data)
 {
   struct double_list *dlist = (struct double_list *)data;
@@ -78,7 +76,8 @@ static void do_line(void *data)
     xwrite(i, "\n", 1);
   }
 
-  if (PATCH_DEBUG) fprintf(stderr, "DO %d: %s\n", TT.state, dlist->data);
+  if (toys.optflags & FLAG_x)
+    fprintf(stderr, "DO %d: %s\n", TT.state, dlist->data);
 
   free(dlist->data);
   free(data);
@@ -108,7 +107,7 @@ static void fail_hunk(void)
   TT.state = 0;
 }
 
-// Compare ignoring whitespace. Just returns
+// Compare ignoring whitespace. Just returns 0/1, no > or <
 static int loosecmp(char *aa, char *bb)
 {
   int a = 0, b = 0;
@@ -132,7 +131,7 @@ static int loosecmp(char *aa, char *bb)
 static int apply_one_hunk(void)
 {
   struct double_list *plist, *buf = NULL, *check;
-  int matcheof = 0, reverse = toys.optflags & FLAG_R, backwarn = 0;
+  int matcheof, trailing = 0, reverse = toys.optflags & FLAG_R, backwarn = 0;
   int (*lcmp)(char *aa, char *bb);
 
   lcmp = (toys.optflags & FLAG_l) ? (void *)loosecmp : (void *)strcmp;
@@ -140,24 +139,25 @@ static int apply_one_hunk(void)
 
   // Match EOF if there aren't as many ending context lines as beginning
   for (plist = TT.current_hunk; plist; plist = plist->next) {
-    if (plist->data[0]==' ') matcheof++;
-    else matcheof = 0;
-    if (PATCH_DEBUG) fprintf(stderr, "HUNK:%s\n", plist->data);
+    if (plist->data[0]==' ') trailing++;
+    else trailing = 0;
+    if (toys.optflags & FLAG_x) fprintf(stderr, "HUNK:%s\n", plist->data);
   }
-  matcheof = matcheof < TT.context;
+  matcheof = trailing < TT.context;
 
-  if (PATCH_DEBUG) fprintf(stderr,"MATCHEOF=%c\n", matcheof ? 'Y' : 'N');
+  if (toys.optflags & FLAG_x)
+    fprintf(stderr,"MATCHEOF=%c\n", matcheof ? 'Y' : 'N');
 
   // Loop through input data searching for this hunk.  Match all context
   // lines and all lines to be removed until we've found the end of a
   // complete hunk.
   plist = TT.current_hunk;
   buf = NULL;
-  if (TT.context) for (;;) {
+
+  for (;;) {
     char *data = get_line(TT.filein);
 
     TT.linenum++;
-
     // Figure out which line of hunk to compare with next.  (Skip lines
     // of the hunk we'd be adding.)
     while (plist && *plist->data == "+-"[reverse]) {
@@ -169,7 +169,7 @@ static int apply_one_hunk(void)
 
     // Is this EOF?
     if (!data) {
-      if (PATCH_DEBUG) fprintf(stderr, "INEOF\n");
+      if (toys.optflags & FLAG_x) fprintf(stderr, "INEOF\n");
 
       // Does this hunk need to match EOF?
       if (!plist && matcheof) break;
@@ -181,7 +181,7 @@ static int apply_one_hunk(void)
       // File ended before we found a place for this hunk.
       fail_hunk();
       goto done;
-    } else if (PATCH_DEBUG) fprintf(stderr, "IN: %s\n", data);
+    } else if (toys.optflags & FLAG_x) fprintf(stderr, "IN: %s\n", data);
     check = dlist_add(&buf, data);
 
     // Compare this line with next expected line of hunk.
@@ -198,7 +198,7 @@ static int apply_one_hunk(void)
         // Match failed.  Write out first line of buffered data and
         // recheck remaining buffered data for a new match.
 
-        if (PATCH_DEBUG) {
+        if (toys.optflags & FLAG_x) {
           int bug = 0;
 
           if (!plist) fprintf(stderr, "NULL plist\n");
@@ -207,6 +207,12 @@ static int apply_one_hunk(void)
             fprintf(stderr, "NOT(%d:%d!=%d): %s\n", bug, plist->data[bug],
               check->data[bug], plist->data);
           }
+        }
+
+        // If this hunk must match start of file, fail if it didn't.
+        if (!TT.context || trailing>TT.context) {
+          fail_hunk();
+          goto done;
         }
 
         TT.state = 3;
@@ -218,7 +224,7 @@ static int apply_one_hunk(void)
         if (!buf) break;
         check = buf;
       } else {
-        if (PATCH_DEBUG) fprintf(stderr, "MAYBE: %s\n", plist->data);
+        if (toys.optflags & FLAG_x) fprintf(stderr, "MAYBE: %s\n", plist->data);
         // This line matches.  Advance plist, detect successful match.
         plist = plist->next;
         if (!plist && !matcheof) goto out;
