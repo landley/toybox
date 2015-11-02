@@ -342,11 +342,12 @@ char *strlower(char *s)
   return try;
 }
 
+// Remove trailing \n
 char *chomp(char *s)
 {
   char *p = strrchr(s, '\n');
 
-  if (p) *p = 0;
+  if (p && !p[1]) *p = 0;
   return s;
 }
 
