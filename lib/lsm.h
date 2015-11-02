@@ -3,6 +3,8 @@
  * Copyright 2015 Rob Landley <rob@landley.net>
  */
 
+#ifndef BUILD_FOR_HOST
+
 #if CFG_TOYBOX_SELINUX
 #include <selinux/selinux.h>
 #else
@@ -113,3 +115,5 @@ static inline int lsm_fget_context(int file, char **context)
     return smack_new_label_from_file(file, XATTR_NAME_SMACK, context);
   return fgetfilecon(file, context);
 }
+
+#endif // BUILD_FOR_HOST

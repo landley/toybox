@@ -213,7 +213,7 @@ fi
 echo "generated/help.h"
 if [ generated/config2help -ot scripts/config2help.c ]
 then
-  do_loudly $HOSTCC scripts/config2help.c $CFLAGS -I . lib/xwrap.c lib/llist.c \
+  do_loudly $HOSTCC scripts/config2help.c -I . lib/xwrap.c lib/llist.c \
     lib/lib.c lib/portability.c -o generated/config2help || exit 1
 fi
 generated/config2help Config.in $KCONFIG_CONFIG > generated/help.h || exit 1
