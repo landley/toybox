@@ -34,7 +34,7 @@
  * significant. The array index is used in strawberry->which (consumed
  * in do_ps()) and in the bitmasks enabling default fields in ps_main().
 
-USE_PS(NEWTOY(ps, "(ppid)*aAdeflo*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PS(NEWTOY(ps, "P(ppid)*aAdeflo*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PS
   bool "ps"
@@ -52,8 +52,8 @@ config PS
     -e	Same as -A
     -g	Belonging to GROUPs
     -G	Belonging to real GROUPs (before sgid)
-    -p	PIDs
-    --ppid	Parent PIDs
+    -p	PIDs (--pid)
+    -P	Parent PIDs (--ppid)
     -s	In session IDs
     -t	Attached to selected TTYs
     -u	Owned by USERs
@@ -119,9 +119,9 @@ GLOBALS(
   struct arg_list *s;
   struct arg_list *p;
   struct arg_list *o;
-  struct arg_list *ppid;
+  struct arg_list *P;
 
-  struct ptr_len gg, GG, pp, ppids, ss, tt, uu, UU, *parsing;
+  struct ptr_len gg, GG, pp, PP, ss, tt, uu, UU, *parsing;
   unsigned width;
   dev_t tty;
   void *fields;
@@ -150,12 +150,12 @@ static time_t get_uptime(void)
 static int match_process(long long *slot)
 {
   struct ptr_len *match[] = {
-    &TT.gg, &TT.GG, &TT.pp, &TT.ppids, &TT.ss, &TT.tt, &TT.uu, &TT.UU
+    &TT.gg, &TT.GG, &TT.pp, &TT.PP, &TT.ss, &TT.tt, &TT.uu, &TT.UU
   };
   int i, j, mslot[] = {33, 34, 0, 1, 3, 4, 31, 32};
   long *ll = 0;
 
-  // Do we have -g -G -p --ppid -s -t -u -U options selecting processes?
+  // Do we have -g -G -p -P -s -t -u -U options selecting processes?
   for (i = 0; i < ARRAY_LEN(match); i++) {
     if (match[i]->len) {
       ll = match[i]->ptr;
@@ -590,8 +590,8 @@ void ps_main(void)
   }
 
   // parse command line options other than -o
-  TT.parsing = &TT.ppids;
-  comma_args(TT.ppid, "bad --ppid", parse_rest);
+  TT.parsing = &TT.PP;
+  comma_args(TT.P, "bad -P", parse_rest);
   TT.parsing = &TT.pp;
   comma_args(TT.p, "bad -p", parse_rest);
   TT.parsing = &TT.tt;
@@ -636,7 +636,7 @@ void ps_main(void)
     free(TT.gg.ptr);
     free(TT.GG.ptr);
     free(TT.pp.ptr);
-    free(TT.ppids.ptr);
+    free(TT.PP.ptr);
     free(TT.ss.ptr);
     free(TT.tt.ptr);
     free(TT.uu.ptr);
