@@ -8,6 +8,149 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+<a name="03-11-2015" /><a href="#03-11-2015"><hr><h2><b>November 3, 2015</b></h2></a>
+<blockquote><p>"Alright," said Ford. "How would you react if I said that I'm
+not from Guildford after all, but from a small planet somewhere in the vicinity
+of Betelgeuse?" Arthur shrugged in a so-so sort of way. "I don't know," he
+said, taking a pull of beer. "Why - do you think it's the sort of thing you're
+likely to say?" - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+
+<p><a href=downloads/toybox-0.6.1.tar.gz>Toybox 0.6.1</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.6.1>git commit</a>)
+is out.</p>
+
+<p>We have a new <b>ps</b> command with all the -o fields posix wants (although
+it doesn't accept BSD non-dash option syntax yet), and <b>bunzip2</b> (not just
+bzcat but the proper extract-in-place command).
+Sameer Pradhan added <b>hostid</b> and <b>fsync</b>.
+Elliott Hughes added <b>flock</b>.
+
+<p>The people waiting for <b>human readable number support</b> (du -hH, ls -h,
+and so on) can thank Elliott Hughes for implementing it. (Our output doesn't
+exactly match others' because we our "binary" mode will say 1.0G instead of
+1024M, which is a bug in the other one we didn't emulate.)</p>
+
+<p>The other big news is <b>nommu support</b>, tested on the new
+<a href=http://nommu.org/jcore>jcore</a> processor but presumaby working
+on any nommu system. A few commands don't support nommu yet, but those
+are disabled by dependencies on TOYBOX_FORK in menuconfig when building
+for nommu. The roadmap now has a large section analyzing the uClinux
+project (note that <a href=http://nommu.org>nommu.org</a> is slowly replacing
+<a href=http://uclinux.org>uclinux.org</a> as the standard repository of
+all knowledge and wisdom about nommu. The old site <a href=#12-02-2012>contains
+much that is apocryphal</a>, or at least wildly inaccurate, and the new one
+is trying to improve on that).</p>
+
+<p>Both "make change" and scripts/single.sh (for building standalone commands
+without the multiplexer logic) now use the top level .config
+for toybox global settings such as Linux Security Blanket Module selection,
+(so make defconfig before change now).</p>
+
+<p>Documentation updates to the <a href=code.html>code</a> and
+<a href=roadmap.html>roadmap</a> pages.</p>
+
+<h3>pending</h3>
+
+<p>In the pending directory Sameer Pradhan added tftp,
+and Elliott Hughes sent lsof. Isaac Dunham upgraded mdev,
+reboot, init, login, and modprobe, and fixed a distro-specific build break in
+scripts/mkflags.h. Elliott Hughes and Lipi Lee made netstat -p handle
+command lines longer than 21 characters, and Elliott fixed netstat -e and
+some build warnings. Yeongdeok Suh fixed a warning in dhcpd.
+I started cleanup on pgrep/pkill.</p>
+
+<h3>Command updates, bugfixes, and infrastructure</h3>
+
+<p>The multiplexer's "command not found" error exit is now 127, so now you can't
+distinguish between a command not being found in the multiplexer and
+the multiplexer itself not being found by the shell, because people wanted
+that for some reason.</p>
+
+<p>Elliott Hughes made date reject invalid dates rather
+than set the clock to something weird (setting the clock 100 years into the
+future makes most Linux desktops surprisingly unhappy, and ntpdate won't fix it
+either), fixed several ls -l display issues (user/group field ordering,
+make user/group/lsmcontext left aligned), did the aforementioned
+extensive work on human readable number output, fixed ionice's default
+class, fixed a mv overwrite bug, made df's columns auto-size, added
+--ppid and -Z to ps, and teamed up with Daniel K. Levy to fix
+a segfault in find's handling of -newer -group or -user.</p>
+
+<p>Hyejin Kim added stat -c %T support. Colin Cross worked
+on vmstat fixing
+a header printing bug and calculating the bi and bo columns in the right
+units. Isabella Parakiss reported that sed -e "/x/c\" -e "y" added an extra
+newline and that grep -w '\(x\)\1' didn't work, both now fixed.
+Alistair Strachan fixed several problems with switch_root. Kylie McClain
+pointed out env should be able to clear variables via NAME= syntax.
+Dima Krasner added support for running blkid without a partition (so it shows
+all partitions). Hyejin Kim sent in a bunch of static analysis bug reports.</p>
+
+<p>Isabella Parakiss reported that sed -e "/x/c\" -e "y" added an extra
+newline and that grep -w '\(x\)\1' didn't work, both now fixed.
+Alistair Strachan fixed several problems with switch_root. Kylie McClain
+pointed out env should be able to clear variables via NAME= syntax.
+Dima Krasner added support for running blkid without a partition (so it shows
+all partitions). Hyejin Kim sent in a bunch of static analysis bug reports.</p>
+
+<p>Two large thinko fixes in oneit: -3 was always enabled (which would
+eventually block if the child never read the exiting PID numbers from its file
+descriptor #3 until the pipe filled up), and the signal handlers weren't
+set up right (for requesting semi-graceful halt/poweroff/reboot).
+Calling install without a mode is now 0755, and install -g 0 no longer clashes
+with cp --preserve. Better error message for ls -r on unreadable
+directories, and ls -Z now uses O_PATH (with the /proc/self/fd/%d
+workaround for kernel stupidity as necessary).</p>
+
+<p>Date now understands @unixtime[.fraction] and uses -D for
+the set-side format (matching busybox's extension for this). The seq -f
+string now checks that it's got exactly one %f escape with the correct
+attributes (and a whole bunch of test cases for it). Fixed a bug
+in od that screwed up the position indicator on arm and mips.
+In stat the d/h units moved from %d %D to the default string.
+And patch can now correctly apply hunks with trailing context to the start of
+the file.</p>
+
+<p>The prompt argument moved out of yesno() (the caller can print the prompt
+themselves). Replaced toys.exithelp with help_exit(). Added new
+XVFORK() macro, and xpopen_both() calls /proc/self/exe when passed
+a NULL argv (see cpio -p for example usage). Replaced toys.recurse
+with toys.stacktop so the recurse or re-exec decision is now based
+on bytes of stack space used. Marked a bunch of command-local functions
+static.</p>
+
+<p>New additions to lib/ include strlower(), xconnect(), and the
+aforementioned help_exit().
+The testsuite now has some infrastructure tests based on "example"
+commands such as toys/examples/test_human_readable.c.
+The login command finally got a long-overdue cleanup (it's one of the
+commands that predate the "pending" directory but were part of the reason
+for it). Hexedit had an
+uninitialized variable (of course gcc didn't spot it, it was too busy
+warning about "may be used uninitialized but never actually is" variables).</p>
+
+<p>Tweaked makefile so
+"make CROSS_COMPILE=prefix-" (as well as "CROSS_COMPILE=prefix- make",
+which still works). Toybox is now installed chmod -w so broken installers
+(like the bunzip2 package's) that try to overwrite existing binaries won't
+knock out the whole of toybox.
+GCC 5.2.0 stopped being able to compile Linux 2.6.12's kconfig, but
+we added a workaround. You can now build uptime without utmpx.h.
+Alejandro Joya pointed out that enabling smack required smack on the host
+as well as target when cross compiling, which is now fixed.</p>
+
+<p>Note: toybox can autodetect nommu support when building with a uClibc
+toolchain such as <a href=http://landley.net/aboriginal/downloads/binaries/old/1.4.3/cross-compiler-sh2eb.tar.gz>the one from Aboriginal Linux</a>,
+but <a href=http://github.com/richfelker/musl-cross-make>with musl-libc</a>
+you'll have to enable CONFIG_TOYBOX_MUSL_NOMMU_IS_BROKEN to work around the
+fact they provide a non-functional fork() implementation that always returns
+-ENOSYS, to prevent you from compile-time probing for nommu support when
+cross-compiling. Unfortunately "preventing you from probing" seems to be
+an explicit policy with musl, they also don't provide an "#ifdef __MUSL__"
+because their library is perfect and you're only ever allowed to work around
+other people's bugs, not theirs. So we have to use menuconfig to manually
+enable musl-specific bug workarounds.</p>
+
 <a name="23-07-2015" /><a href="#23-07-2015"><hr><h2><b>July 23, 2015</b></h2></a>
 <p>I recreated the <a href=downloads/toybox-0.6.0.tar.gz>0.6.0 source tarball</a>
 (new sha1sum 08fb1c23f520c25a15f262a8a95ea5b676a98d54)

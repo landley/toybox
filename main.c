@@ -6,7 +6,7 @@
 #include "toys.h"
 
 #ifndef TOYBOX_VERSION
-#define TOYBOX_VERSION "0.6.0"
+#define TOYBOX_VERSION "0.6.1"
 #endif
 
 // Populate toy_list[].
