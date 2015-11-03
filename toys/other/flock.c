@@ -25,13 +25,12 @@ config FLOCK
 
 void flock_main(void)
 {
-  int fd = xstrtol(*toys.optargs, NULL, 10);
-  int op;
+  int fd = xstrtol(*toys.optargs, NULL, 10), op;
 
-  if ((toys.optflags & FLAG_u)) op = LOCK_UN;
+  if (toys.optflags & FLAG_u) op = LOCK_UN;
   else op = (toys.optflags & FLAG_s) ? LOCK_SH : LOCK_EX;
 
-  if ((toys.optflags & FLAG_n)) op |= LOCK_NB;
+  if (toys.optflags & FLAG_n) op |= LOCK_NB;
 
   if (flock(fd, op)) {
     if ((op & LOCK_NB) && errno == EAGAIN) toys.exitval = 1;
