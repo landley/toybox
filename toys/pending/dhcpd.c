@@ -51,9 +51,6 @@ config DEBUG_DHCP
 # define dbg(fmt, arg...)
 #endif
 
-#define flag_get(f,v,d)     ((toys.optflags & (f)) ? (v) : (d))
-#define flag_chk(f)         ((toys.optflags & (f)) ? 1 : 0)
-
 #define LOG_SILENT          0x0
 #define LOG_CONSOLE         0x1
 #define LOG_SYSTEM          0x2
@@ -1618,11 +1615,11 @@ void dhcpd_main(void)
   fd_set rfds;
 
   infomode = LOG_CONSOLE;
-  if (!(flag_chk(FLAG_f))) {
+  if (!(toys.optflags & FLAG_f)) {
     daemon(0,0);
     infomode = LOG_SILENT;
   }
-  if (flag_chk(FLAG_S)) {
+  if (toys.optflags & FLAG_S) {
         openlog("UDHCPD :", LOG_PID, LOG_DAEMON);
         infomode |= LOG_SYSTEM;
   }
@@ -1631,7 +1628,7 @@ void dhcpd_main(void)
   parse_server_config((toys.optc==1)?toys.optargs[0]:"/etc/dhcpd.conf", keywords);
   infomsg(infomode, "toybox dhcpd started");
 
-  if (flag_chk(FLAG_6)){
+  if (toys.optflags & FLAG_6){
     addr_version = AF_INET6;
     gconfig.t1 = ntohl(gconfig.t1);
     gconfig.t2 = ntohl(gconfig.t2);

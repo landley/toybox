@@ -94,9 +94,6 @@ GLOBALS(
 #define LOG_CONSOLE         0x1
 #define LOG_SYSTEM          0x2
   
-#define flag_get(f,v,d) ((toys.optflags & f) ? v : d)
-#define flag_chk(f)     ((toys.optflags & f) ? 1 : 0)
-    
 typedef struct __attribute__((packed)) dhcp6_msg_s {
   uint8_t msgtype, transaction_id[3], options[524];
 } dhcp6_msg_t;
@@ -142,8 +139,8 @@ static void logit(char *format, ...)
   va_list p, t;
   uint8_t infomode = LOG_SILENT;
   
-  if (flag_chk(FLAG_S)) infomode |= LOG_SYSTEM;
-  if(flag_chk(FLAG_v)) infomode |= LOG_CONSOLE;
+  if (toys.optflags & FLAG_S) infomode |= LOG_SYSTEM;
+  if(toys.optflags & FLAG_v) infomode |= LOG_CONSOLE;
   va_start(p, format);
   va_copy(t, p);
   used = vsnprintf(NULL, 0, format, t);
@@ -439,7 +436,8 @@ static void run_script(DHCP_DATA *res,  char *name)
   struct stat sts;
   pid_t pid;
   char *argv[3];  
-  char *script = flag_get(FLAG_s, TT.script, "/usr/share/dhcp/default.script");
+  char *script = (toys.optflags & FLAG_s) ? TT.script
+    : "/usr/share/dhcp/default.script";
 
   if (stat(script, &sts) == -1 && errno == ENOENT) return;
   if (!res || fill_envp(res)) {
@@ -474,15 +472,15 @@ static void lease_fail()
 {
   dbg("Lease failed.\n");
   run_script(NULL, "leasefail");
-  if (flag_chk(FLAG_n)) {
+  if (toys.optflags & FLAG_n) {
     xclose(TT.sock);
     xclose(TT.sock1);
     error_exit("Lease Failed, Exiting.");
   }
-  if (flag_chk(FLAG_b)) {
+  if (toys.optflags & FLAG_b) {
     dbg("Lease failed. Going to daemon mode.\n");
     if (daemon(0,0)) perror_exit("daemonize");
-    if (flag_chk(FLAG_p)) write_pid(TT.pidfile);
+    if (toys.optflags & FLAG_p) write_pid(TT.pidfile);
     toys.optflags &= ~FLAG_b;
     toys.optflags |= FLAG_f;
   }
@@ -519,7 +517,8 @@ static void signal_handler(int sig)
     case SIGTERM:
     case SIGINT:
       dbg((sig == SIGTERM)?"SIGTERM.\n":"SIGINT.\n");
-      if (flag_chk(FLAG_R) && TT.state == DHCP6CONFIRM) send_msg(DHCP6RELEASE);
+      if ((toys.optflags & FLAG_R) && TT.state == DHCP6CONFIRM)
+        send_msg(DHCP6RELEASE);
       if(sig == SIGINT) exit(0);
       break;
     default: break;
@@ -547,13 +546,13 @@ void dhcp6_main(void)
   dbg = dummy;
   TT.state = DHCP6SOLICIT;
   
-  if (flag_chk(FLAG_v)) dbg = logit;
+  if (toys.optflags & FLAG_v) dbg = logit;
   if (!TT.interface_name) TT.interface_name = "eth0";
-  if (flag_chk(FLAG_p)) write_pid(TT.pidfile);
+  if (toys.optflags & FLAG_p) write_pid(TT.pidfile);
   if (!TT.retry) TT.retry = 3;
   if (!TT.timeout) TT.timeout = 3;
   if (!TT.errortimeout) TT.errortimeout = 20;
-  if (flag_chk(FLAG_S)) {
+  if (toys.optflags & FLAG_S) {
     openlog("DHCP6 :", LOG_PID, LOG_DAEMON);
     dbg = logit;
   }
@@ -661,18 +660,18 @@ void dhcp6_main(void)
             TT.retries = 0;
             run_script(&dhcp_data, (TT.state == DHCP6REQUEST) ?
               "request" : "renew");
-            if (flag_chk(FLAG_q)) {
-              if (flag_chk(FLAG_R)) send_msg(DHCP6RELEASE);
+            if (toys.optflags & FLAG_q) {
+              if (toys.optflags & FLAG_R) send_msg(DHCP6RELEASE);
               break;
             }
             TT.state = DHCP6CONFIRM;
             set_timeout((dhcp_data.va_lf)?dhcp_data.va_lf:INT_MAX);
             dbg("Setting timeout to intmax.");
-            if (TT.state == DHCP6REQUEST || (!flag_chk(FLAG_f))) {
+            if (TT.state == DHCP6REQUEST || !(toys.optflags & FLAG_f)) {
               dbg("Making it a daemon\n");
               if (daemon(0,0)) perror_exit("daemonize");
               toys.optflags |= FLAG_f;
-              if (flag_chk(FLAG_p)) write_pid(TT.pidfile);
+              if (toys.optflags & FLAG_p) write_pid(TT.pidfile);
             }
             dbg("Making it a foreground.\n");
             continue;

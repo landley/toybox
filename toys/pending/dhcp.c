@@ -4,7 +4,7 @@
  * Copyright 2013 Kyungwan Han <asura321@gmail.com>
  *
  * Not in SUSv4.
-USE_DHCP(NEWTOY(dhcp, "V:H:F:x*r:O*A#<0T#<0t#<0s:p:i:SBRCaovqnbf", TOYFLAG_SBIN|TOYFLAG_ROOTONLY))
+USE_DHCP(NEWTOY(dhcp, "V:H:F:x*r:O*A#<0=20T#<0=3t#<0=3s:p:i:SBRCaovqnbf", TOYFLAG_SBIN|TOYFLAG_ROOTONLY))
 
 config DHCP
   bool "dhcp"
@@ -70,9 +70,6 @@ GLOBALS(
     char *hostname;
     char *vendor_cls;
 )
-
-#define flag_get(f,v,d) ((toys.optflags & f) ? v : d)
-#define flag_chk(f)     ((toys.optflags & f) ? 1 : 0)
 
 #define STATE_INIT            0
 #define STATE_REQUESTING      1
@@ -533,7 +530,8 @@ static void run_script(dhcpc_result_t *res,  char *name)
   pid_t pid;
   char *argv[3];
   struct stat sts;
-  char *script = flag_get(FLAG_s, TT.script, "/usr/share/dhcp/default.script");
+  char *script = (toys.optflags & FLAG_s) ? TT.script
+    : "/usr/share/dhcp/default.script";
 
   if (stat(script, &sts) == -1 && errno == ENOENT) return;
   if (fill_envp(res)) {
@@ -907,14 +905,14 @@ static uint8_t *dhcpc_addreqoptions(uint8_t *optptr)
   *len = 0;
   optptr++;
 
-  if (!flag_chk(FLAG_o)) {
+  if (!(toys.optflags & FLAG_o)) {
     *len = 4;
     *optptr++ = DHCP_OPTION_SUBNET_MASK;
     *optptr++ = DHCP_OPTION_ROUTER;
     *optptr++ = DHCP_OPTION_DNS_SERVER;
     *optptr++ = DHCP_OPTION_BROADCAST;
   }
-  if (flag_chk(FLAG_O)) {
+  if (toys.optflags & FLAG_O) {
     memcpy(optptr++, raw_opt, raw_optcount);
     *len += raw_optcount;
   }
@@ -1002,22 +1000,23 @@ static int dhcpc_sendmsg(int msgtype)
   pend = state->pdhcp.options;
   pend = dhcpc_addmsgtype(pend, msgtype);
 
-  if (!flag_chk(FLAG_C)) pend = dhcpc_addclientid(pend);
+  if (!(toys.optflags & FLAG_C)) pend = dhcpc_addclientid(pend);
   // Handle the message specific settings
   switch (msgtype) {
   case DHCPDISCOVER: // Broadcast DISCOVER message to all servers
     state->pdhcp.flags = htons(BOOTP_BROADCAST); //  Broadcast bit.
-    if (flag_chk(FLAG_r)) {
+    if (toys.optflags & FLAG_r) {
       inet_aton(TT.req_ip, &rqsd);
       pend = dhcpc_addreqipaddr(&rqsd, pend);
     }
     pend = dhcpc_addmaxsize(pend, htons(sizeof(dhcp_raw_t)));
-    vendor = flag_get(FLAG_V, TT.vendor_cls, "toybox\0");
+    vendor = (toys.optflags & FLAG_V) ? TT.vendor_cls : "toybox\0";
     pend = dhcpc_addstropt(pend, DHCP_OPTION_VENDOR, vendor, strlen(vendor));
-    if (flag_chk(FLAG_H)) pend = dhcpc_addstropt(pend, DHCP_OPTION_HOST_NAME, TT.hostname, strlen(TT.hostname));
-    if (flag_chk(FLAG_F)) pend = dhcpc_addfdnname(pend, TT.fdn_name);
-    if ((!flag_chk(FLAG_o)) || flag_chk(FLAG_O)) pend = dhcpc_addreqoptions(pend);
-    if (flag_chk(FLAG_x)) pend = set_xopt(pend);
+    if (toys.optflags & FLAG_H) pend = dhcpc_addstropt(pend, DHCP_OPTION_HOST_NAME, TT.hostname, strlen(TT.hostname));
+    if (toys.optflags & FLAG_F) pend = dhcpc_addfdnname(pend, TT.fdn_name);
+    if (!(toys.optflags & FLAG_o) || (toys.optflags & FLAG_O))
+      pend = dhcpc_addreqoptions(pend);
+    if (toys.optflags & FLAG_x) pend = set_xopt(pend);
     break;
   case DHCPREQUEST: // Send REQUEST message to the server that sent the *first* OFFER
     state->pdhcp.flags = htons(BOOTP_BROADCAST); //  Broadcast bit.
@@ -1026,12 +1025,13 @@ static int dhcpc_sendmsg(int msgtype)
     rqsd.s_addr = htonl(server);
     pend = dhcpc_addserverid(&rqsd, pend);
     pend = dhcpc_addreqipaddr(&state->ipaddr, pend);
-    vendor = flag_get(FLAG_V, TT.vendor_cls, "toybox\0");
+    vendor = (toys.optflags & FLAG_V) ? TT.vendor_cls : "toybox\0";
     pend = dhcpc_addstropt(pend, DHCP_OPTION_VENDOR, vendor, strlen(vendor));
-    if (flag_chk(FLAG_H)) pend = dhcpc_addstropt(pend, DHCP_OPTION_HOST_NAME, TT.hostname, strlen(TT.hostname));
-    if (flag_chk(FLAG_F)) pend = dhcpc_addfdnname(pend, TT.fdn_name);
-    if ((!flag_chk(FLAG_o)) || flag_chk(FLAG_O)) pend = dhcpc_addreqoptions(pend);
-    if (flag_chk(FLAG_x)) pend = set_xopt(pend);
+    if (toys.optflags & FLAG_H) pend = dhcpc_addstropt(pend, DHCP_OPTION_HOST_NAME, TT.hostname, strlen(TT.hostname));
+    if (toys.optflags & FLAG_F) pend = dhcpc_addfdnname(pend, TT.fdn_name);
+    if (!(toys.optflags & FLAG_o) || (toys.optflags & FLAG_O))
+      pend = dhcpc_addreqoptions(pend);
+    if (toys.optflags & FLAG_x) pend = set_xopt(pend);
     break;
   case DHCPRELEASE: // Send RELEASE message to the server.
     memcpy(&state->pdhcp.ciaddr, &state->ipaddr.s_addr, 4);
@@ -1060,7 +1060,7 @@ static uint8_t dhcpc_parseoptions(dhcpc_result_t *presult, uint8_t *optptr)
   struct in_addr addr;
   int count, optlen, size = ARRAY_LEN(options_list);
 
-  if (flag_chk(FLAG_x)) {
+  if (toys.optflags & FLAG_x) {
     if(msgopt_list){
       for (count = 0; count < size; count++){
         if(msgopt_list[count].val) free(msgopt_list[count].val);
@@ -1255,7 +1255,7 @@ static void free_option_stores(void)
   int count, size = ARRAY_LEN(options_list);
   for (count = 0; count < size; count++)
     if (options_list[count].val) free(options_list[count].val);
-  if(flag_chk(FLAG_x)){
+  if (toys.optflags & FLAG_x) {
     for (count = 0; count < size; count++)
         if (msgopt_list[count].val) free(msgopt_list[count].val);
     free(msgopt_list);
@@ -1274,22 +1274,22 @@ void dhcp_main(void)
   xid = 0;
   setlinebuf(stdout);
   dbg = dummy;
-  if (flag_chk(FLAG_v)) dbg = xprintf;
-  if (flag_chk(FLAG_p)) write_pid(TT.pidfile);
-  retries = flag_get(FLAG_t, TT.retries, 3);
-  if (flag_chk(FLAG_S)) {
+  if (toys.optflags & FLAG_v) dbg = xprintf;
+  if (toys.optflags & FLAG_p) write_pid(TT.pidfile);
+  retries = TT.retries;
+  if (toys.optflags & FLAG_S) {
       openlog("UDHCPC :", LOG_PID, LOG_DAEMON);
       infomode |= LOG_SYSTEM;
   }
   infomsg(infomode, "dhcp started");
-  if (flag_chk(FLAG_O)) {
+  if (toys.optflags & FLAG_O) {
     while (TT.req_opt) {
       raw_opt[raw_optcount] = (uint8_t) strtoopt(TT.req_opt->arg, 1);
       raw_optcount++;
       TT.req_opt = TT.req_opt->next;
     }
   }
-  if (flag_chk(FLAG_x)) {
+  if (toys.optflags & FLAG_x) {
     while (TT.pkt_opt) {
       (void) strtoopt(TT.pkt_opt->arg, 0);
       TT.pkt_opt = TT.pkt_opt->next;
@@ -1298,7 +1298,7 @@ void dhcp_main(void)
   memset(&result, 0, sizeof(dhcpc_result_t));
   state = (dhcpc_state_t*) xmalloc(sizeof(dhcpc_state_t));
   memset(state, 0, sizeof(dhcpc_state_t));
-  state->iface = flag_get(FLAG_i, TT.iface, "eth0");
+  state->iface = (toys.optflags & FLAG_i) ? TT.iface : "eth0";
 
   if (get_interface(state->iface, &state->ifindex, NULL, state->macaddr))
     perror_exit("Failed to get interface %s", state->iface);
@@ -1339,25 +1339,25 @@ void dhcp_main(void)
           infomsg(infomode, "Sending discover...");
           dhcpc_sendmsg(DHCPDISCOVER);
           server = 0;
-          timeout = flag_get(FLAG_T, TT.timeout, 3);
+          timeout = TT.timeout;
           waited = 0;
           packets++;
           continue;
         }
 lease_fail:
         run_script(NULL,"leasefail");
-        if (flag_chk(FLAG_n)) {
+        if (toys.optflags & FLAG_n) {
           infomsg(infomode, "Lease failed. Exiting");
           goto ret_with_sockfd;
         }
-        if (flag_chk(FLAG_b)) {
+        if (toys.optflags & FLAG_b) {
           infomsg(infomode, "Lease failed. Going Daemon mode");
           daemon(0, 0);
-          if (flag_chk(FLAG_p)) write_pid(TT.pidfile);
+          if (toys.optflags & FLAG_p) write_pid(TT.pidfile);
           toys.optflags &= ~FLAG_b;
           toys.optflags |= FLAG_f;
         }
-        timeout = flag_get(FLAG_A, TT.tryagain, 20);
+        timeout = TT.tryagain;
         waited = 0;
         packets = 0;
         continue;
@@ -1367,7 +1367,7 @@ lease_fail:
           dhcpc_sendmsg(DHCPREQUEST);
           infomsg(infomode, "Sending select for %d.%d.%d.%d...",
               (result.ipaddr.s_addr >> 24) & 0xff, (result.ipaddr.s_addr >> 16) & 0xff, (result.ipaddr.s_addr >> 8) & 0xff, (result.ipaddr.s_addr) & 0xff);
-          timeout = flag_get(FLAG_T, TT.timeout, 3);
+          timeout = TT.timeout;
           waited = 0;
           packets++;
           continue;
@@ -1436,7 +1436,7 @@ renew_requested:
         continue;
       case SIGTERM:
         infomsg(infomode, "Received SIGTERM");
-        if (flag_chk(FLAG_R)) release();
+        if (toys.optflags & FLAG_R) release();
         goto ret_with_sockfd;
       default: break;
       }
@@ -1483,15 +1483,15 @@ renew_requested:
               (result.ipaddr.s_addr >> 24) & 0xff, (result.ipaddr.s_addr >> 16) & 0xff, (result.ipaddr.s_addr >> 8) & 0xff, (result.ipaddr.s_addr) & 0xff,
               result.lease_time,
               (result.serverid.s_addr >> 24) & 0xff, (result.serverid.s_addr >> 16) & 0xff, (result.serverid.s_addr >> 8) & 0xff, (result.serverid.s_addr) & 0xff);
-          if (flag_chk(FLAG_q)) {
-            if (flag_chk(FLAG_R)) release();
+          if (toys.optflags & FLAG_q) {
+            if (toys.optflags & FLAG_R) release();
             goto ret_with_sockfd;
           }
           toys.optflags &= ~FLAG_n;
-          if (!flag_chk(FLAG_f)) {
+          if (!(toys.optflags & FLAG_f)) {
             daemon(0, 0);
             toys.optflags |= FLAG_f;
-            if (flag_chk(FLAG_p)) write_pid(TT.pidfile);
+            if (toys.optflags & FLAG_p) write_pid(TT.pidfile);
           }
           waited = 0;
           continue;
