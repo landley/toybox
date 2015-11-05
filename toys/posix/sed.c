@@ -718,7 +718,7 @@ static char *unescape_delimited_string(char **pstr, char *delim, int regex)
     if (!*from) return 0;
 
     // delimiter in regex character range doesn't count
-    if (*from == '[') {
+    if (!mode && *from == '[') {
       mode = '[';
       if (from[1] == ']') *(to++) = *(from++);
     } else if (mode && *from == ']') mode = 0;

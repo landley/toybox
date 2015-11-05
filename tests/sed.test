@@ -129,6 +129,7 @@ testing "" "sed '1a\
 hello'" "merp\nhello\n" "" "merp"
 
 testing "" "sed -e '/x/c\' -e 'y'" 'y\n' '' 'x\n'
+testing "" "sed -e 's/a[([]*b/X/'" 'X' '' 'a[(b'
 
 #echo meep | sed/sed -e '1a\' -e 'huh'
 #echo blah | sed/sed -f <(echo -e "1a\\\\\nboom")
