@@ -181,6 +181,32 @@ static int match_process(long long *slot)
   return 1;
 }
 
+static void find_tty_name(char *out, int rdev) {
+  int major = (rdev>>8)&0xfff, minor = ((rdev>>12)&0xfff00)|(rdev&0xff);
+  FILE *fp = fopen("/proc/tty/drivers", "r");
+
+  if (fp) {
+    int tty_major;
+
+    while (fscanf(fp, "%*s %s %d %*s %*s", out, &tty_major) == 2) {
+      // TODO: we could parse the minor range too.
+      if (tty_major == major) {
+        struct stat st;
+
+        sprintf(out + strlen(out), "%d", minor);
+        if (!stat(out, &st) && S_ISCHR(st.st_mode) && st.st_rdev == rdev) {
+          fclose(fp);
+          return;
+        }
+      }
+    }
+    fclose(fp);
+  }
+
+  // Really couldn't find it, so just show major:minor.
+  sprintf(out, "%d:%d", major, minor);
+}
+
 // dirtree callback.
 // toybuf used as: 1024 /proc/$PID/stat, 1024 slot[], 2048 /proc/$PID/cmdline
 static int do_ps(struct dirtree *new)
@@ -315,28 +341,30 @@ static int do_ps(struct dirtree *new)
 
     // TTY
     } else if (i==12) {
+      int rdev = slot[4];
 
-      // Can we readlink() our way to a name?
-      for (i=0; i<3; i++) {
-        struct stat st;
+      // The common case is no tty, and we call that "?" rather than "0:0".
+      if (rdev == 0) strcpy(out, "?");
+      else {
+        // Can we readlink() our way to a name?
+        for (i=0; i<3; i++) {
+          struct stat st;
 
-        sprintf(scratch, "%lld/fd/%i", *slot, i);
-        fd = dirtree_parentfd(new);
-        if (!fstatat(fd, scratch, &st, 0) && S_ISCHR(st.st_mode)
-          && st.st_rdev == slot[4]
-          && 0<(len = readlinkat(fd, scratch, out, 2047)))
-        {
-          out[len] = 0;
-          if (!strncmp(out, "/dev/", 5)) out += 5;
-
-          break;
+          sprintf(scratch, "%lld/fd/%i", *slot, i);
+          fd = dirtree_parentfd(new);
+          if (!fstatat(fd, scratch, &st, 0) && S_ISCHR(st.st_mode)
+            && st.st_rdev == rdev
+            && 0<(len = readlinkat(fd, scratch, out, 2047)))
+          {
+            out[len] = 0;
+            break;
+          }
         }
-      }
 
-      // Couldn't find it, show major:minor
-      if (i==3) {
-        i = slot[4];
-        sprintf(out, "%d:%d", (i>>8)&0xfff, ((i>>12)&0xfff00)|(i&0xff));
+        // Couldn't find it, try all the tty drivers.
+        if (i == 3) find_tty_name(out, rdev);
+
+        if (!strncmp(out, "/dev/", 5)) out += 5;
       }
 
     // TIME ELAPSED
