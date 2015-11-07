@@ -69,42 +69,43 @@ config PS
 
     Available -o FIELDs:
 
-      ADDR   Instruction pointer
-      CMD    Command line (including args)
-      COMM   Command name (no args)
-      ETIME  Elapsed time since process start
-      F      Process flags (PF_*) from linux source file include/sched.h
-             (in octal rather than hex because posix)
-      GID    Group id
-      GROUP  Group name
-      LABEL  Security label
-      MAJFL  Major page faults
-      MINFL  Minor page faults
-      NI     Niceness of process (lower niceness is higher priority)
-      PCPU   Percentage of CPU time used
-      PGID   Process Group ID
-      PID    Process ID
-      PPID   Parent Process ID
-      PRI    Priority
-      RGID   Real (before sgid) group ID
-      RGROUP Real (before sgid) group name
-      RSS    Resident Set Size (memory currently used)
-      RUID   Real (before suid) user ID
-      RUSER  Real (before suid) user name
-      S      Process state:
-             R (running) S (sleeping) D (disk sleep) T (stopped)  t (traced)
-             Z (zombie)  X (dead)     x (dead)       K (wakekill) W (waking)
-      STAT   Process state (S) plus:
-             < high priority          N low priority L locked memory
-             s session leader         + foreground   l multithreaded
-      STIME  Start time of process in hh:mm (size :19 shows yyyy-mm-dd hh:mm:ss)
-      SZ     Memory Size (4k pages needed to completely swap out process)
-      TIME   CPU time consumed
-      TTY    Controlling terminal
-      UID    User id
-      USER   User name
-      VSZ    Virtual memory size (1k units)
-      WCHAN  Waiting in kernel for
+      ADDR    Instruction pointer
+      CMD     Command line (from /proc/pid/cmdline, including args)
+      CMDLINE Command line (from /proc/pid/cmdline, no args)
+      COMM    Command name (from /proc/pid/stat, no args)
+      ETIME   Elapsed time since process start
+      F       Process flags (PF_*) from linux source file include/sched.h
+              (in octal rather than hex because posix)
+      GID     Group id
+      GROUP   Group name
+      LABEL   Security label
+      MAJFL   Major page faults
+      MINFL   Minor page faults
+      NI      Niceness of process (lower niceness is higher priority)
+      PCPU    Percentage of CPU time used
+      PGID    Process Group ID
+      PID     Process ID
+      PPID    Parent Process ID
+      PRI     Priority
+      RGID    Real (before sgid) group ID
+      RGROUP  Real (before sgid) group name
+      RSS     Resident Set Size (memory currently used)
+      RUID    Real (before suid) user ID
+      RUSER   Real (before suid) user name
+      S       Process state:
+              R (running) S (sleeping) D (disk sleep) T (stopped)  t (traced)
+              Z (zombie)  X (dead)     x (dead)       K (wakekill) W (waking)
+      STAT    Process state (S) plus:
+              < high priority          N low priority L locked memory
+              s session leader         + foreground   l multithreaded
+      STIME   Start time of process in hh:mm (size :19 shows yyyy-mm-dd hh:mm:ss)
+      SZ      Memory Size (4k pages needed to completely swap out process)
+      TIME    CPU time consumed
+      TTY     Controlling terminal
+      UID     User id
+      USER    User name
+      VSZ     Virtual memory size (1k units)
+      WCHAN   Waiting in kernel for
 */
 
 #define FOR_ps
@@ -354,7 +355,8 @@ static int do_ps(struct dirtree *new)
     // Command line limited to 2k displayable. We could dynamically malloc, but
     // it'd almost never get used, querying length of a proc file is awkward,
     // fixed buffer is nommu friendly... Wait for somebody to complain. :)
-    } else if (i==14) {
+    // CMDLINE - command line from /proc/pid/cmdline without arguments
+    } else if (i==14 || i==32) {
       int fd;
 
       len = 0;
@@ -365,7 +367,7 @@ static int do_ps(struct dirtree *new)
         if (0<(len = read(fd, out, 2047))) {
           if (!out[len-1]) len--;
           else out[len] = 0;
-          for (i = 0; i<len; i++) if (out[i] < ' ') out[i] = ' ';
+          if (i==14) for (i = 0; i<len; i++) if (out[i] < ' ') out[i] = ' ';
         }
         close(fd);
       }
@@ -425,13 +427,13 @@ static char *parse_o(char *type, int length)
          "F", "S", "UID", "PID", "PPID", "C", "PRI", "NI", "ADDR", "SZ",
          "WCHAN", "STIME", "TTY", "TIME", "CMD", "COMMAND", "ELAPSED", "GROUP",
          "%CPU", "PGID", "RGROUP", "RUSER", "USER", "VSZ", "RSS", "MAJFL",
-         "GID", "STAT", "RUID", "RGID", "MINFL", "LABEL"
+         "GID", "STAT", "RUID", "RGID", "MINFL", "LABEL", "CMDLINE"
   };
   // TODO: Android uses -30 for LABEL, but ideally it would auto-size.
   signed char widths[] = {1,-1,5,5,5,2,3,3,4+sizeof(long),5,
                           -6,5,-8,8,-27,-27,11,-8,
                           4,5,-8,-8,-8,6,5,6,
-                          8,-5,4,4,6,-30};
+                          8,-5,4,4,6,-30,-27};
   int i, j, k;
 
   // Get title, length of title, type, end of type, and display width
