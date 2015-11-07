@@ -630,6 +630,8 @@ void ps_main(void)
       al.arg = "USER:8=UID,PID,PPID,C,STIME,TTY,TIME,CMD";
     else if (toys.optflags&FLAG_l)
       al.arg = "F,S,UID,PID,PPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD";
+    else if (CFG_TOYBOX_ON_ANDROID)
+      al.arg = "USER,PID,PPID,VSIZE,RSS,WCHAN:10,ADDR:10=PC,S,CMDLINE";
     else al.arg = "PID,TTY,TIME,CMD";
 
     comma_args(&al, 0, parse_o);
