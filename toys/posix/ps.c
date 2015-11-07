@@ -6,7 +6,8 @@
  * And http://kernel.org/doc/Documentation/filesystems/proc.txt Table 1-4
  * And linux kernel source fs/proc/array.c function do_task_stat()
  *
- * Deviations from posix: no -n because /proc/self/wchan exists.
+ * Deviations from posix: no -n because /proc/self/wchan exists; we use -n to
+ * mean "show numeric users and groups" instead.
  * Posix says default output should have field named "TTY" but if you "-o tty"
  * the same field should be called "TT" which is _INSANE_ and I'm not doing it.
  * Similarly -f outputs USER but calls it UID (we call it USER).
@@ -26,7 +27,7 @@
  * TODO: ps aux (att & bsd style "ps -ax" vs "ps ax" behavior difference)
  * TODO: finalize F, remove C
  *       switch -fl to -y, use "string" instead of constants to set, remove C
- * TODO: --sort -Z
+ * TODO: --sort
  * TODO: way too many hardwired constants here, how can I generate them?
  * TODO: thread support /proc/$d/task/%d/stat (and -o stat has "l")
  *
@@ -34,13 +35,13 @@
  * significant. The array index is used in strawberry->which (consumed
  * in do_ps()) and in the bitmasks enabling default fields in ps_main().
 
-USE_PS(NEWTOY(ps, "P(ppid)*aAdeflo*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PS(NEWTOY(ps, "P(ppid)*aAdeflno*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PS
   bool "ps"
   default y
   help
-    usage: ps [-AadeflwZ] [-gG GROUP] [-o FIELD] [-p PID] [-t TTY] [-uU USER]
+    usage: ps [-AadeflnwZ] [-gG GROUP] [-o FIELD] [-p PID] [-t TTY] [-uU USER]
 
     List processes.
 
@@ -58,6 +59,10 @@ config PS
     -t	Attached to selected TTYs
     -u	Owned by USERs
     -U	Owned by real USERs (before suid)
+
+    Output modifiers:
+
+    -n	Show numeric USER and GROUP
     -w	Wide output (don't truncate at terminal width)
 
     Which FIELDs to show. (Default = -o PID,TTY,TIME,CMD)
@@ -256,7 +261,7 @@ static int do_ps(struct dirtree *new)
 
       // Even entries are numbers, odd are names
       sprintf(out, "%d", id);
-      if (i&1) {
+      if (!(toys.optflags&FLAG_n) && i&1) {
         if (i>3) {
           struct group *gr = getgrgid(id);
 
