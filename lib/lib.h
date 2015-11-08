@@ -256,5 +256,16 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name));
 pid_t xvforkwrap(pid_t pid);
 #define XVFORK() xvforkwrap(vfork())
 
+#define WOULD_EXIT(y, x) { jmp_buf _noexit; \
+  int _noexit_res; \
+  toys.rebound = &_noexit; \
+  _noexit_res = setjmp(_noexit); \
+  if (!_noexit_res) do {x;} while(0); \
+  toys.rebound = 0; \
+  y = _noexit_res; \
+}
+
+#define NOEXIT(x) WOULD_EXIT(_noexit_res, x)
+
 // Functions in need of further review/cleanup
 #include "lib/pending.h"
