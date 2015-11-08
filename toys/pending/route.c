@@ -10,19 +10,18 @@ config ROUTE
   bool "route"
   default n
   help
-    usage: route -ne [-A inet[6]] / [add|del]
+    usage: route [-ne] [-A inet[6]] / [add|del]
 
     Display/Edit kernel routing tables.
 
-    -n  Don't resolve names
-    -e  Display other/more information
-    -A  inet{6} Select Address Family
+    -n	Don't resolve names
+    -e	Display other/more information
+    -A	inet{6} Select Address Family
 */
 
 #define FOR_route
 #include "toys.h"
 #include <net/route.h>
-#include <sys/param.h>
 
 GLOBALS(
   char *family;
@@ -88,18 +87,17 @@ static int get_addrinfo(char *ip, struct sockaddr_in6 *sock_in6)
   return 0;
 }
 
-//get the flag values for route command.
 static void get_flag_value(char *str, int flags)
 {
-  int i = 0;
-  static unsigned flagarray[] = {
-    RTF_GATEWAY, RTF_HOST, RTF_REINSTATE, RTF_DYNAMIC,
-    RTF_MODIFIED, RTF_DEFAULT, RTF_ADDRCONF, RTF_CACHE
-  };
+  // RTF_* bits in order:
+  // UP, GATEWAY, HOST, REINSTATE, DYNAMIC, MODIFIED, DEFAULT, ADDRCONF, CACHE
+  int i = 0, mask = 0x105003f;
 
-  *str++ = 'U';
-  while ((*str = "GHRDMDAC"[i]))
-    if (flags & flagarray[i++]) ++str;
+  for (; mask; mask>>=1) if (mask&1) {
+    if (1<<i) *str++ = "UGHRDMDAC"[i];
+    i++;
+  }
+  *str = 0;
 }
 
 // extract inet4 route info from /proc/net/route file and display it.
@@ -120,7 +118,6 @@ static void display_routes(void)
           &gate, &flags, &ref, &use, &metric, &mask, &mss, &win, &irtt)) == 11) {
 
     char *destip = toybuf, *gateip = toybuf+32, *maskip = toybuf+64; //ip string 16
-    memset(flag_val, 0, 10);
 
     if (!(flags & RTF_UP)) continue; //skip down interfaces.
 
@@ -133,8 +130,7 @@ static void display_routes(void)
     if (!inet_ntop(AF_INET, &mask, maskip, 32)) perror_exit("inet");
 
     //Get flag Values
-    get_flag_value(flag_val, (flags & (RTF_GATEWAY|RTF_HOST|RTF_REINSTATE
-            |RTF_DYNAMIC|RTF_MODIFIED)));
+    get_flag_value(flag_val, flags);
     if (flags & RTF_REJECT) flag_val[0] = '!';
     xprintf("%-15.15s %-15.15s %-16s%-6s", destip, gateip, maskip, flag_val);
     if (toys.optflags & FLAG_e) xprintf("%5d %-5d %6d %s\n", mss, win, irtt, iface);
@@ -240,15 +236,11 @@ static void get_next_params(char **argv, struct rtentry *rt, char **netmask)
       argv++;
       TEST_ARGV(argv);
       if ((!rt->rt_dev)) rt->rt_dev = *argv;
-    } else if (!strcmp(*argv, "reject")) {
-      rt->rt_flags |= RTF_REJECT;
-    } else if (!strcmp(*argv, "mod")) {
-      rt->rt_flags |= RTF_MODIFIED;
-    } else if (!strcmp(*argv, "dyn")) {
-      rt->rt_flags |= RTF_DYNAMIC;
-    } else if (!strcmp(*argv, "reinstate")) {
-      rt->rt_flags |= RTF_REINSTATE;
-    } else help_exit("no '%s'", *argv);
+    } else if (!strcmp(*argv, "reject")) rt->rt_flags |= RTF_REJECT;
+    else if (!strcmp(*argv, "mod")) rt->rt_flags |= RTF_MODIFIED;
+    else if (!strcmp(*argv, "dyn")) rt->rt_flags |= RTF_DYNAMIC;
+    else if (!strcmp(*argv, "reinstate")) rt->rt_flags |= RTF_REINSTATE;
+    else help_exit("no '%s'", *argv);
     argv++;
   }
 
@@ -365,19 +357,18 @@ static void setroute_inet6(char **argv)
 {
   struct sockaddr_in6 sock_in6;
   struct in6_rtmsg rt;
-  char *targetip;
+  char *targetip, *dev_name = 0;
   int sockfd, action = get_action(&argv, arglist1);
 
   if (!action || !*argv) help_exit(0);
   memset(&sock_in6, 0, sizeof(struct sockaddr_in6));
   memset(&rt, 0, sizeof(struct in6_rtmsg));
   targetip = *argv++;
-  if (*argv) {
-    unsigned long plen = 0;
-    char *dev_name = NULL;
+  if (!*argv) help_exit(0);
+
     if (!strcmp(targetip, "default")) {
       rt.rtmsg_flags = RTF_UP;
-      rt.rtmsg_dst_len = plen;
+      rt.rtmsg_dst_len = 0;
     } else {
       is_prefix_inet6((char **)&targetip, &rt);
       if (get_addrinfo(targetip, (struct sockaddr_in6 *) &sock_in6))
@@ -398,7 +389,6 @@ static void setroute_inet6(char **argv)
     if (action == 1) xioctl(sockfd, SIOCADDRT, &rt);
     else xioctl(sockfd, SIOCDELRT, &rt);
     xclose(sockfd);
-  } else help_exit(0);
 }
 
 /*
@@ -437,16 +427,13 @@ static void display_routes6(void)
           &prefixlen, ipv6_src_addr+8, &metric, &use, &refcount, &flag, 
           iface)) == 8) {
 
-    memset(flag_val, 0, 10);
-
     if (!(flag & RTF_UP)) continue; //skip down interfaces.
 
     //ipv6_dest_addr+8: as the values are filled from the 8th location of the array.
     ipv6_addr_formating(ipv6_dest_addr+8, ipv6_dest_addr);
     ipv6_addr_formating(ipv6_src_addr+8, ipv6_src_addr);
 
-    get_flag_value(flag_val, (flag & (RTF_GATEWAY|RTF_HOST|RTF_DEFAULT|
-            RTF_ADDRCONF|RTF_CACHE)));
+    get_flag_value(flag_val, flag);
     if (inet_pton(AF_INET6, ipv6_dest_addr, buf) <= 0) perror_exit("inet");
     if (inet_ntop(AF_INET6, buf, buf2, INET6_ADDRSTRLEN)) {
       sprintf(toybuf, "%s/%d", buf2, prefixlen);
@@ -470,8 +457,8 @@ void route_main(void)
     if (!strcmp(TT.family, "inet")) display_routes();
     else if (!strcmp(TT.family, "inet6")) display_routes6();
     else help_exit(0);
+  } else {
+    if (!strcmp(TT.family, "inet6")) setroute_inet6(toys.optargs);
+    else setroute(toys.optargs);
   }
-
-  if (!strcmp(TT.family, "inet6")) setroute_inet6(toys.optargs);
-  else setroute(toys.optargs);
 }
