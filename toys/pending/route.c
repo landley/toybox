@@ -14,9 +14,11 @@ config ROUTE
 
     Display/Edit kernel routing tables.
 
-    -n	Don't resolve names
-    -e	Display other/more information
+    -n	no name lookups
+    -e	display other/more information
     -A	inet{6} Select Address Family
+
+    reject mod dyn reinstate metric netmask gw mss window irtt dev
 */
 
 #define FOR_route
@@ -92,7 +94,7 @@ static void get_flag_value(char *str, int flags)
   int i = 0, mask = 0x105003f;
 
   for (; mask; mask>>=1) if (mask&1) {
-    if (1<<i) *str++ = "UGHRDMDAC"[i];
+    if (flags&(1<<i)) *str++ = "UGHRDMDAC"[i];
     i++;
   }
   *str = 0;
