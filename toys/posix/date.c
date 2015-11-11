@@ -35,6 +35,7 @@ config DATE
     %a short weekday name    %A weekday name         %u day of week (1-7, 1=mon)
     %b short month name      %B month name           %Z timezone name
     %j day of year (001-366) %d day of month (01-31) %e day of month ( 1-31)
+    %s seconds past the Epoch
 
     %U Week of year (0-53 start sunday)   %W Week of year (0-53 start monday)
     %V Week of year (1-53 start monday, week < 4 days not part of this year) 
