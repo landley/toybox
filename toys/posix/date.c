@@ -131,12 +131,11 @@ static int parse_default(char *str, struct tm *tm)
 
   // If year specified, overwrite one we fetched earlier
   if (*str && *str != '.') {
-    unsigned year, r1 = tm->tm_year % 100, r2 = (tm->tm_year + 50) % 100,
-      century = tm->tm_year - r1;
+    unsigned year;
 
     len = 0;
     sscanf(str, "%u%n", &year, &len);
-    if (len == 4) year -= 1900;
+    if (len == 4) tm->tm_year = year - 1900;
     else if (len != 2) return 1;
     str += len;
 
@@ -144,11 +143,14 @@ static int parse_default(char *str, struct tm *tm)
     // A "future" date in past is a century ahead.
     // A non-future date in the future is a century behind.
     if (len == 2) {
+      unsigned r1 = tm->tm_year % 100, r2 = (tm->tm_year + 50) % 100,
+        century = tm->tm_year - r1;
+
       if ((r1 < r2) ? (r1 < year && year < r2) : (year < r1 || year > r2)) {
         if (year < r1) year += 100;
       } else if (year > r1) year -= 100;
+      tm->tm_year = year + century;
     }
-    tm->tm_year = year + century;
   }
   if (*str == '.') {
     len = 0;
