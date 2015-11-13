@@ -58,8 +58,14 @@ testing "find -perm (exact success)" \
   "find perm -type f -perm 0444" "perm/all-read-only\n" "" ""
 testing "find -perm (exact failure)" \
   "find perm -type f -perm 0400" "" "" ""
-testing "find -perm (at least)" \
+testing "find -perm (min success)" \
   "find perm -type f -perm -0400" "perm/all-read-only\n" "" ""
+testing "find -perm (min failure)" \
+  "find perm -type f -perm -0600" "" "" ""
+testing "find -perm (any success)" \
+  "find perm -type f -perm -0444" "perm/all-read-only\n" "" ""
+testing "find -perm (any failure)" \
+  "find perm -type f -perm -0222" "" "" ""
 
 # Still fails
 

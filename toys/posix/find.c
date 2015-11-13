@@ -22,17 +22,17 @@ config FIND
     -H  Follow command line symlinks         -L  Follow all symlinks
 
     Match filters:
-    -name  PATTERN filename with wildcards   -iname      case insensitive -name
-    -path  PATTERN path name with wildcards  -ipath      case insensitive -path
-    -user  UNAME   belongs to user UNAME     -nouser     user not in /etc/passwd
-    -group GROUP   belongs to group GROUP    -nogroup    group not in /etc/group
-    -perm  [-]MODE permissons (-=at least)   -prune      ignore contents of dir
-    -size  N[c]    512 byte blocks (c=bytes) -xdev       stay in this filesystem
-    -links N       hardlink count            -atime N    accessed N days ago
-    -ctime N       created N days ago        -mtime N    modified N days ago
-    -newer FILE    newer mtime than FILE     -mindepth # at least # dirs down
-    -depth         ignore contents of dir    -maxdepth # at most # dirs down
-    -inum  N       inode number N
+    -name  PATTERN  filename with wildcards   -iname      case insensitive -name
+    -path  PATTERN  path name with wildcards  -ipath      case insensitive -path
+    -user  UNAME    belongs to user UNAME     -nouser     user ID not known
+    -group GROUP    belongs to group GROUP    -nogroup    group ID not known
+    -perm  [-/]MODE permissions (-=min /=any) -prune      ignore contents of dir
+    -size  N[c]     512 byte blocks (c=bytes) -xdev       only this filesystem
+    -links N        hardlink count            -atime N    accessed N days ago
+    -ctime N        created N days ago        -mtime N    modified N days ago
+    -newer FILE     newer mtime than FILE     -mindepth # at least # dirs down
+    -depth          ignore contents of dir    -maxdepth # at most # dirs down
+    -inum  N        inode number N
     -type [bcdflps] (block, char, dir, file, symlink, pipe, socket)
 
     Numbers N may be prefixed by a - (less than) or + (greater than):
@@ -278,11 +278,13 @@ static int do_find(struct dirtree *new)
       } else if (!strcmp(s, "perm")) {
         if (check) {
           char *m = ss[1];
-          mode_t m1 = string_to_mode(m+(*m == '-'), 0),
+          int match_min = *m == '-',
+              match_any = *m == '/';
+          mode_t m1 = string_to_mode(m+(match_min || match_any), 0),
                  m2 = new->st.st_mode & 07777;
 
-          if (*m == '-') m2 &= m1;
-          test = m1 == m2;
+          if (match_min || match_any) m2 &= m1;
+          test = match_any ? !m1 || m2 : m1 == m2;
         }
       } else if (!strcmp(s, "type")) {
         if (check) {
