@@ -8,6 +8,11 @@ touch file
 mkfifo fifo
 ln -s fifo link
 cd ..
+touch b
+
+mkdir perm
+touch perm/all-read-only
+chmod a=r perm/all-read-only
 
 #testing "name" "command" "result" "infile" "stdin"
 
@@ -23,7 +28,7 @@ testing "find -type l -o -type d -type p" "find dir -type l -o -type d -type p" 
 	"dir/link\n" "" ""
 testing "find -type l ( -type d -o -type l )" \
 	"find dir -type l \( -type d -o -type l \)" "dir/link\n" "" ""
-testing "find extra parantheses" \
+testing "find extra parentheses" \
 	"find dir \( \( -type l \) \( -type d -o \( \( -type l \) \) \) \)" \
 	"dir/link\n" "" ""
 testing "find ( -type p -o -type d ) -type p" \
@@ -49,11 +54,17 @@ testing "find -type f -user -exec" \
   "find dir -type f -user $USER -exec ls {} \\;" "dir/file\n" "" ""
 testing "find -type l -newer -exec" \
   "find dir -type l -newer dir/file -exec ls {} \\;" "dir/link\n" "" ""
-testing "find unterminated -exec {}" \
-  "find dir -type f -exec ls {}" "" "" ""
+testing "find -perm (exact success)" \
+  "find perm -type f -perm 0444" "perm/all-read-only\n" "" ""
+testing "find -perm (exact failure)" \
+  "find perm -type f -perm 0400" "" "" ""
+testing "find -perm (at least)" \
+  "find perm -type f -perm -0400" "perm/all-read-only\n" "" ""
 
 # Still fails
 
+testing "find unterminated -exec {}" \
+  "find dir -type f -exec ls {}" "" "" ""
 testing "find -exec {} +" \
   "find dir -type f -exec ls {} +" "dir/file\n" "" ""
 

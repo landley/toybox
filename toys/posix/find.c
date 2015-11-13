@@ -279,9 +279,9 @@ static int do_find(struct dirtree *new)
         if (check) {
           char *m = ss[1];
           mode_t m1 = string_to_mode(m+(*m == '-'), 0),
-                 m2 = new->st.st_dev & 07777;
+                 m2 = new->st.st_mode & 07777;
 
-          if (*m != '-') m2 &= m1;
+          if (*m == '-') m2 &= m1;
           test = m1 == m2;
         }
       } else if (!strcmp(s, "type")) {
