@@ -86,7 +86,10 @@ revisited later, but not for toybox 1.0.)</p>
 separate executables (alias bg cd command fc fg getopts hash jobs kill read
 type ulimit umask unalias wait).  These may be revisited as part of a built-in
 toybox shell, but are not exported into $PATH via symlinks.  (If you fork a
-child process and have it "cd" then exit, you've accomplished nothing.)</p>
+child process and have it "cd" then exit, you've accomplished nothing.
+This is not a complete list, a shell also needs exit, if, while, for, case,
+export, set, unset, trap, exec... And for bash compatability, function and
+source.)</p>
 
 <p>A few other commands are judgement calls, providing command-line
 internationalization support (iconv locale localedef), System V inter-process
@@ -220,14 +223,22 @@ self-bootstrapping build still uses the following busybox commands,
 not yet supplied by toybox:</p>
 
 <blockquote><p>
-awk dd diff expr fdisk ftpd ftpget ftpput gunzip
-gzip less pgrep ping pkill ps route sh sha512sum tar test tr unxz vi
-wget xzcat zcat
+awk bunzip2 bzcat dd diff expr fdisk ftpd ftpget
+ftpput gunzip gzip less pgrep ping pkill route sh
+sha512sum tar test tr unxz vi wget xzcat zcat
 </p></blockquote>
 
-<p>Many of those are in "pending". Most of the archive commands are needed
-because busybox tar doesn't call external versions. The remaining "difficult"
+<p>Many of those are in "pending". The remaining "difficult"
 commands are vi, awk, and sh.</p>
+
+<p>Building Linux From Scratch is not the same as building the
+<a href=https://source.android.com>Android Open Source Project</a>,
+but after toybox 1.0 focus may shift to <a href=http://landley.net/aboriginal/about.html#hairball>modifying the AOSP build</a>
+to reduce dependencies. (It's fairly likely we'll have to add at least
+a read-only git utility so repo can download the build's source code,
+but that's actually <a href=https://www.youtube.com/watch?v=P7n6G2IL6eo>not
+that hard</a>. We'll probably also need our own "make" at some point after
+1.0.)</p>
 
 <hr />
 <h2><a name=android /><a href="#android">Use case: Replacing Android Toolbox</a></h2>
@@ -311,7 +322,7 @@ from its core system, and is installing toybox as
 <blockquote><b>
 <span id=tizen>
 arch base64 users dir vdir unexpand shred join csplit
-hostid nproc runcon sha224 sha256 sha384 sha512 sha3 mkfs.vfat fsck.vfat 
+hostid nproc runcon sha224sum sha256sum sha384sum sha512sum sha3sum mkfs.vfat fsck.vfat 
 dosfslabel uname stdbuf pinky diff3 sdiff zcmp zdiff zegrep zfgrep zless zmore
 </span>
 </b></blockquote>
@@ -342,19 +353,19 @@ replacement.</p>
 musl), klibc builds a random assortment of executables to run init scripts
 with. There's no multiplexer command, these are individual executables:</p>
 
-<blockquote><p>
+<blockquote><p><b>
 cat chroot cpio dd dmesg false fixdep fstype gunzip gzip halt ipconfig kill
 kinit ln losetup ls minips mkdir mkfifo mknodes
 mksyntax mount mv nfsmount nuke pivot_root poweroff readlink reboot resume
 run-init sh sha1hash sleep sync true umount uname zcat
-</p></blockquote>
+</b></p></blockquote>
 
 <p>To get that list, build klibc according to the instructions (I
 <a href=http://landley.net/notes-2013.html#23-01-2013>looked at</a> version
 2.0.2 and did cd klibc-*; ln -s /output/of/kernel/make/headers_install
 linux; make) then <b>echo $(for i in $(find . -type f); do file $i | grep -q
 executable && basename $i; done | grep -v '[.]g$' | sort -u)</b> to find
-executables, then eliminated the *.so files and *.shared duplicates.</p>
+executables, then eliminate the *.so files and *.shared duplicates.</p>
 
 <p>Some of those binaries are build-time tools that don't get installed,
 which removes mknodes, mksyntax, sha1hash, and fixdep from the list.
@@ -368,7 +379,7 @@ for the oddball names.</p>
 license terms" above), adding nothing to the other projects we've looked at.
 But we still need sh, gunzip, gzip, and zcat to replace this package.</p>
 
-<p>By the time I did the analysis toybox already had cat, chroot, dmesg, false,
+<p>At the time I did the initial analysis toybox already had cat, chroot, dmesg, false,
 kill, ln, losetup, ls, mkdir, mkfifo, readlink, rm, switch_root, sleep, sync,
 true, and uname.</p>
 
@@ -514,29 +525,33 @@ it sucks in -lz from the host.)</p>
 <a name=sbase />
 <h2>sbase:</h2>
 
-<p>It's <a href=http://git.suckless.org/sbase>on suckless</a>. So far it's
-implemented:</p>
+<p>It's <a href=http://git.suckless.org/sbase>on suckless</a> in
+<a href=http://git.suckless.org/ubase>two parts</a>. As of November 2015 it's
+implemented the following (renaming "cron" to "crond" for
+consistency, and yanking "sponge", "mesg", "pagesize", "respawn", and
+"vtallow"):</p>
 
 <blockquote><p>
 <span id=sbase_cmd>
-basename cat chmod chown cksum cmp cp date dirname echo false fold grep head
-kill ln ls mc mkdir mkfifo mv nl nohup pwd rm seq sleep sort tail tee test
-touch true tty uname uniq wc yes
+basename cal cat chgrp chmod chown chroot cksum cmp cols comm cp crond cut date
+dirname du echo env expand expr false find flock fold getconf grep head
+hostname join kill link ln logger logname ls md5sum mkdir mkfifo mktemp mv
+nice nl nohup od paste printenv printf pwd readlink renice rm rmdir sed seq
+setsid sha1sum sha256sum sha512sum sleep sort split strings sync tail
+tar tee test tftp time touch tr true tty uname unexpand uniq unlink uudecode
+uuencode wc which xargs yes
 </span>
 </p></blockquote>
 
-<p>And has a TODO list:</p>
+<p>and<p>
 
 <blockquote><p>
 <span id=sbase_cmd>
-cal chgrp chvt comm cut df diff du env expand expr id md5sum nice paste
-printenv printf readlink rmdir seq sha1sum split sync test tr unexpand unlink
+chvt clear dd df dmesg eject fallocate free id login mknod mountpoint
+passwd pidof ps stat su truncate unshare uptime watch
 who
 </span>
 </p></blockquote>
-
-<p>At triage time, of the first list I still need to do: fold grep mc mv nl. Of
-the second list: diff expr paste printf split test tr unexpand who.</p>
 
 <hr />
 <a name=s6 />
@@ -666,18 +681,18 @@ mount_ffs mv pfctl ping poweroff ps reboot rm route sed sh stty sysctl tar test
 traceroute umount vi wiconfig
 </p></blockquote>
 
-<p>Apparently lv is the missing link ed and vi, copyright 1982-1997 (do not
-want), ex is another obsolete vi mode, lesskey is "used to
+<p>Apparently lv is the missing link between ed and vi, copyright 1982-1997 (do
+not want), ex is another obsolete vi mode, lesskey is "used to
 specify a set of key bindings to be used with less", and csh is a shell they
-sucked in, [ is an alias for test. Several more bsd-isms that don't have Linux
+sucked in (even though they have mksh?), [ is an alias for test. Several more bsd-isms that don't have Linux
 equivalents (even in the ubuntu "install this package" search) are
-disklabel, fsck_ffs, mount_ffs, and pfctl. And wiconfig is a wavelan interface
-network card driver utility. Subtracting all that and the commands toybox
-already implements at triage time, we get:</p>
+disklabel, fsck_ffs, mount_ffs, and pfctl. And wiconfig is a
+wavelan interface network card driver utility. Subtracting all that and the
+commands toybox already implements at triage time, we get:</p>
 
 <blockquote><p>
 <span id=beastiebox_cmd>
-fdisk fsck getty halt ifconfig init kill less mksh more mount mv ping poweroff
+fdisk fsck getty halt ifconfig init kill less more mount mv ping poweroff
 ps reboot route sed sh stty sysctl tar test traceroute umount vi
 </span>
 </p></blockquote>
