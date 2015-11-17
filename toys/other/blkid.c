@@ -99,7 +99,7 @@ static void do_blkid(int fd, char *name)
 
   // distinguish ext2/3/4
   type = fstypes[i].name;
-  if (!i) {
+  if (!strcmp(type, "ext2")) {
     if (toybuf[1116]&4) type = "ext3";
     if (toybuf[1120]&64) type = "ext4";
   }
