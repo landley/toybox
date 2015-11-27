@@ -411,14 +411,16 @@ off_t fdlength(int fd)
 }
 
 // Read contents of file as a single nul-terminated string.
-// malloc new one if buf=len=0
-char *readfileat(int dirfd, char *name, char *ibuf, off_t len)
+// measure file size if !len, allocate buffer if !buf
+// note: for existing buffers use len = size-1, will set buf[len] = 0
+char *readfileat(int dirfd, char *name, char *ibuf, off_t *plen)
 {
+  off_t len = *plen-!!ibuf;
   int fd;
   char *buf;
 
   if (-1 == (fd = openat(dirfd, name, O_RDONLY))) return 0;
-  if (len<1) {
+  if (!len) {
     len = fdlength(fd);
     // proc files don't report a length, so try 1 page minimum.
     if (len<4096) len = 4096;
@@ -426,11 +428,11 @@ char *readfileat(int dirfd, char *name, char *ibuf, off_t len)
   if (!ibuf) buf = xmalloc(len+1);
   else buf = ibuf;
 
-  len = readall(fd, buf, len-1);
+  *plen = len = readall(fd, buf, len);
   close(fd);
   if (len<0) {
     if (ibuf != buf) free(buf);
-    buf = 0;
+    buf =  0;
   } else buf[len] = 0;
 
   return buf;
@@ -438,7 +440,7 @@ char *readfileat(int dirfd, char *name, char *ibuf, off_t len)
 
 char *readfile(char *name, char *ibuf, off_t len)
 {
-  return readfileat(AT_FDCWD, name, ibuf, len);
+  return readfileat(AT_FDCWD, name, ibuf, &len);
 }
 
 // Sleep for this many thousandths of a second
