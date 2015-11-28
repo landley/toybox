@@ -174,23 +174,22 @@ static int match_process(long long *slot)
   return 1;
 }
 
+// Data layout in toybuf
+struct carveup {
+  long long slot[50];       // data from /proc, skippint #2 and #3
+  unsigned short offset[4]; // offset of fields in str[] (skip name, always 0)
+  char state;
+  char str[];              // name, tty, wchan, attr, cmdline
+};
+
 // Display process data that get_ps() read from /proc, formatting with TT.fields
 static void show_ps(long long *slot)
 {
-  char state, *s, *buf, *strslot[5]; // name, tty, wchan, attr, cmdline
+  char *s, *buf = toybuf+sizeof(toybuf)-64;
+  struct carveup *tb = (void *)slot;
   struct strawberry *field;
   long long ll;
   int i, len, width = TT.width;
-
-  // Carve toybuf up into chunks to extract our incoming data
-  s = (char *)(slot+50);
-  state = *s++;
-  for (i=0; i<5; i++) {
-    strslot[i] = s;
-    s += strlen(s)+1;
-  }
-  // 64 byte sscratch space reserved for sprintf to output data to
-  buf = toybuf+sizeof(toybuf)-64;
 
   // Loop through fields to display
   for (field = TT.fields; field; field = field->next) {
@@ -229,18 +228,19 @@ static void show_ps(long long *slot)
           if (pw) out = pw->pw_name;
         }
       }
-    // strslot: CMD TTY WCHAN LABEL (plus CMDLINE handled elsewhere)
-    } else if (-1!=(i = stridx((char[]){15,12,10,31}, field->which)))
-      out = strslot[i];
+    // CMD TTY WCHAN LABEL (CMDLINE handled elsewhere)
+    } else if (-1!=(i = stridx((char[]){15,12,10,31}, field->which))) {
+      out = tb->str;
+      if (i) out += tb->offset[i-1];
  
     // F (also assignment of i used by later tests)
     // Posix doesn't specify what flags should say. Man page says
     // 1 for PF_FORKNOEXEC and 4 for PF_SUPERPRIV from linux/sched.h
-    else if (!(i = field->which)) sprintf(out, "%llo", (slot[6]>>6)&5);
+    } else if (!(i = field->which)) sprintf(out, "%llo", (slot[6]>>6)&5);
     // S STAT
     else if (i==1 || i==27) {
       s = out;
-      *s++ = state;
+      *s++ = tb->state;
       if (i==27) {
         // TODO l = multithreaded
         if (slot[16]<0) *s++ = '<';
@@ -284,9 +284,9 @@ static void show_ps(long long *slot)
     } else if (i==14 || i==32) {
       if (slot[47]<1) {
         out = toybuf+sizeof(toybuf)-300;
-        sprintf(out, "[%s]", *strslot); // kernel thread, use real name
+        sprintf(out, "[%s]", tb->str); // kernel thread, use real name
       } else {
-        out = strslot[4];
+        out = tb->str+tb->offset[3];
         if (slot[47]!=INT_MAX) out[slot[47]] = ' '*(i==14);
       }
 
@@ -321,8 +321,9 @@ static int get_ps(struct dirtree *new)
     long long bits;
   } fetch[] = {{"fd/", 1<<12}, {"wchan", 1<<10}, {"attr/current", 1<<31},
                {"cmdline", (1<<14)|(1LL<<32)}};
+  struct carveup *tb = (void *)toybuf;
   long long *slot = (void *)toybuf;
-  char *name, *s, *buf = (char *)(slot+50), *end = 0;
+  char *name, *s, *buf = tb->str, *end = 0;
   int i, j, fd, ksave = DIRTREE_SAVE*!!(toys.optflags&FLAG_k);
   off_t len;
 
@@ -342,15 +343,23 @@ static int get_ps(struct dirtree *new)
   for (s = ++name; *s; s++) if (*s == ')') end = s;
   if (!end || end-name>255) return 0;
 
-  // Put status in first byte, and copy name after with low chars spaced.
-  if (1>sscanf(s = end, ") %c%n", buf++, &i)) return 0;
-  for (i = 0; i<end-name; i++) if ((buf[i] = name[i]) < ' ') buf[i] = ' ';
-  buf += i;
+  // Move name right after slot[] array (pid already set, so stomping it's ok)
+  // and convert low chars to spaces while we're at it.
+  for (i = 0; i<end-name; i++)
+    if ((tb->str[i] = name[i]) < ' ') tb->str[i] = ' ';
+  buf = tb->str+i;
   *buf++ = 0;
-  i = 3;
 
-  // parse numeric fields (PID = 0, skip 2, then 4th field goes in slot[1])
+  // Parse numeric fields (starting at 4th field in slot[1])
+  if (1>sscanf(s = end, ") %c%n", &tb->state, &i)) return 0;
   for (j = 1; j<50; j++) if (1>sscanf(s += i, " %lld%n", slot+j, &i)) break;
+
+  // Now we've read the data, move status and name right after slot[] array,
+  // and convert low chars to spaces while we're at it.
+  for (i = 0; i<end-name; i++)
+    if ((tb->str[i] = name[i]) < ' ') tb->str[i] = ' ';
+  buf = tb->str+i;
+  *buf++ = 0;
 
   // save uid, ruid, gid, gid, and rgid int slots 31-34 (we don't use sigcatch
   // or numeric wchan, and the remaining two are always zero), and vmlck into
@@ -386,6 +395,7 @@ static int get_ps(struct dirtree *new)
   // it'd almost never get used, querying length of a proc file is awkward,
   // fixed buffer is nommu friendly... Wait for somebody to complain. :)
   for (j = 0; j<ARRAY_LEN(fetch); j++) { 
+    tb->offset[j] = buf-(tb->str);
     if (!(TT.bits&fetch[j].bits)) {
       *buf++ = 0;
       continue;
