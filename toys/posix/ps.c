@@ -182,120 +182,126 @@ struct carveup {
   char str[];              // name, tty, wchan, attr, cmdline
 };
 
-// Display process data that get_ps() read from /proc, formatting with TT.fields
-static void show_ps(long long *slot)
+static char *string_field(struct carveup *tb, struct strawberry *field)
 {
-  char *s, *buf = toybuf+sizeof(toybuf)-64;
-  struct carveup *tb = (void *)slot;
+  char *buf = toybuf+sizeof(toybuf)-64, *out = buf, *s;
+  long long ll, *slot = tb->slot;
+  int i;
+
+  // Default: unsupported (5 "C")
+  sprintf(out, "-");
+
+  // stat#s: PID, PPID, PRI, NI, ADDR, SZ, RSS, PGID, VSS, MAJFL, MINFL
+  if (-1!=(i = stridx((char[]){3,4,6,7,8,9,24,19,23,25,30,0}, field->which)))
+  {
+    char *fmt = "%lld";
+
+    ll = slot[((char[]){0,1,15,16,27,20,21,2,20,9,7})[i]];
+    if (i==2) ll--;
+    if (i==4) fmt = "%llx";
+    else if (i==5) ll >>= 12;
+    else if (i==6) ll <<= 2;
+    else if (i==8) ll >>= 10;
+    sprintf(out, fmt, ll);
+  // user/group: UID USER RUID RUSER GID GROUP RGID RGROUP
+  } else if (-1!=(i = stridx((char[]){2,22,28,21,26,17,29,20}, field->which)))
+  {
+    int id = slot[31+i/2]; // uid, ruid, gid, rgid
+
+    // Even entries are numbers, odd are names
+    sprintf(out, "%d", id);
+    if (!(toys.optflags&FLAG_n) && i&1) {
+      if (i>3) {
+        struct group *gr = getgrgid(id);
+
+        if (gr) out = gr->gr_name;
+      } else {
+        struct passwd *pw = getpwuid(id);
+
+        if (pw) out = pw->pw_name;
+      }
+    }
+  // CMD TTY WCHAN LABEL (CMDLINE handled elsewhere)
+  } else if (-1!=(i = stridx((char[]){15,12,10,31}, field->which))) {
+    out = tb->str;
+    if (i) out += tb->offset[i-1];
+
+  // F (also assignment of i used by later tests)
+  // Posix doesn't specify what flags should say. Man page says
+  // 1 for PF_FORKNOEXEC and 4 for PF_SUPERPRIV from linux/sched.h
+  } else if (!(i = field->which)) sprintf(out, "%llo", (slot[6]>>6)&5);
+  // S STAT
+  else if (i==1 || i==27) {
+    s = out;
+    *s++ = tb->state;
+    if (i==27) {
+      // TODO l = multithreaded
+      if (slot[16]<0) *s++ = '<';
+      else if (slot[16]>0) *s++ = 'N';
+      if (slot[3]==*slot) *s++ = 's';
+      if (slot[18]) *s++ = 'L';
+      if (slot[5]==*slot) *s++ = '+';
+    } 
+    *s = 0;
+  // STIME
+  } else if (i==11) {
+    time_t t = time(0)-slot[46]+slot[19]/sysconf(_SC_CLK_TCK);
+
+    // Padding behavior's a bit odd: default field size is just hh:mm.
+    // Increasing stime:size reveals more data at left until full,
+    // so move start address so yyyy-mm-dd hh:mm revealed on left at :16,
+    // then add :ss on right for :19.
+    strftime(out, 64, "%F %T", localtime(&t));
+    out = out+strlen(out)-3-abs(field->len);
+    if (out<buf) out = buf;
+
+  // TIME ELAPSED
+  } else if (i==13 || i==16) {
+    int unit = 60*60*24, j = sysconf(_SC_CLK_TCK);
+    time_t seconds = (i==16) ? (slot[46]*j)-slot[19] : slot[11]+slot[12];
+
+    seconds /= j;
+    for (s = 0, j = 0; j<4; j++) {
+      // TIME has 3 required fields, ETIME has 2. (Posix!)
+      if (!s && (seconds>unit || j == 1+(i==16))) s = out;
+      if (s) {
+        s += sprintf(s, j ? "%02ld": "%2ld", (long)(seconds/unit));
+        if ((*s = "-::"[j])) s++;
+      }
+      seconds %= unit;
+      unit /= j ? 60 : 24;
+    }
+
+  // COMM - command line including arguments
+  // CMDLINE - command name from /proc/pid/cmdline (no arguments)
+  } else if (i==14 || i==32) {
+    if (slot[47]<1) {
+      out = toybuf+sizeof(toybuf)-300;
+      sprintf(out, "[%s]", tb->str); // kernel thread, use real name
+    } else {
+      out = tb->str+tb->offset[3];
+      if (slot[47]!=INT_MAX) out[slot[47]] = ' '*(i==14);
+    }
+
+  // %CPU
+  } else if (i==18) {
+    ll = (slot[46]*sysconf(_SC_CLK_TCK)-slot[19]);
+    i = ((slot[11]+slot[12])*1000)/ll;
+    sprintf(out, "%d.%d", i/10, i%10);
+  }
+
+  return out;
+}
+
+// Display process data that get_ps() read from /proc, formatting with TT.fields
+static void show_ps(struct carveup *tb)
+{
   struct strawberry *field;
-  long long ll;
   int i, len, width = TT.width;
 
   // Loop through fields to display
   for (field = TT.fields; field; field = field->next) {
-    char *out = buf;
-
-    // Default: unsupported (5 "C")
-    sprintf(out, "-");
-
-    // stat#s: PID, PPID, PRI, NI, ADDR, SZ, RSS, PGID, VSS, MAJFL, MINFL
-    if (-1!=(i = stridx((char[]){3,4,6,7,8,9,24,19,23,25,30,0}, field->which)))
-    {
-      char *fmt = "%lld";
-
-      ll = slot[((char[]){0,1,15,16,27,20,21,2,20,9,7})[i]];
-      if (i==2) ll--;
-      if (i==4) fmt = "%llx";
-      else if (i==5) ll >>= 12;
-      else if (i==6) ll <<= 2;
-      else if (i==8) ll >>= 10;
-      sprintf(out, fmt, ll);
-    // user/group: UID USER RUID RUSER GID GROUP RGID RGROUP
-    } else if (-1!=(i = stridx((char[]){2,22,28,21,26,17,29,20}, field->which)))
-    {
-      int id = slot[31+i/2]; // uid, ruid, gid, rgid
-
-      // Even entries are numbers, odd are names
-      sprintf(out, "%d", id);
-      if (!(toys.optflags&FLAG_n) && i&1) {
-        if (i>3) {
-          struct group *gr = getgrgid(id);
-
-          if (gr) out = gr->gr_name;
-        } else {
-          struct passwd *pw = getpwuid(id);
-
-          if (pw) out = pw->pw_name;
-        }
-      }
-    // CMD TTY WCHAN LABEL (CMDLINE handled elsewhere)
-    } else if (-1!=(i = stridx((char[]){15,12,10,31}, field->which))) {
-      out = tb->str;
-      if (i) out += tb->offset[i-1];
- 
-    // F (also assignment of i used by later tests)
-    // Posix doesn't specify what flags should say. Man page says
-    // 1 for PF_FORKNOEXEC and 4 for PF_SUPERPRIV from linux/sched.h
-    } else if (!(i = field->which)) sprintf(out, "%llo", (slot[6]>>6)&5);
-    // S STAT
-    else if (i==1 || i==27) {
-      s = out;
-      *s++ = tb->state;
-      if (i==27) {
-        // TODO l = multithreaded
-        if (slot[16]<0) *s++ = '<';
-        else if (slot[16]>0) *s++ = 'N';
-        if (slot[3]==*slot) *s++ = 's';
-        if (slot[18]) *s++ = 'L';
-        if (slot[5]==*slot) *s++ = '+';
-      } 
-      *s = 0;
-    // STIME
-    } else if (i==11) {
-      time_t t = time(0)-slot[46]+slot[19]/sysconf(_SC_CLK_TCK);
-
-      // Padding behavior's a bit odd: default field size is just hh:mm.
-      // Increasing stime:size reveals more data at left until full,
-      // so move start address so yyyy-mm-dd hh:mm revealed on left at :16,
-      // then add :ss on right for :19.
-      strftime(out, 64, "%F %T", localtime(&t));
-      out = out+strlen(out)-3-abs(field->len);
-      if (out<buf) out = buf;
-
-    // TIME ELAPSED
-    } else if (i==13 || i==16) {
-      int unit = 60*60*24, j = sysconf(_SC_CLK_TCK);
-      time_t seconds = (i==16) ? (slot[46]*j)-slot[19] : slot[11]+slot[12];
-
-      seconds /= j;
-      for (s = 0, j = 0; j<4; j++) {
-        // TIME has 3 required fields, ETIME has 2. (Posix!)
-        if (!s && (seconds>unit || j == 1+(i==16))) s = out;
-        if (s) {
-          s += sprintf(s, j ? "%02ld": "%2ld", (long)(seconds/unit));
-          if ((*s = "-::"[j])) s++;
-        }
-        seconds %= unit;
-        unit /= j ? 60 : 24;
-      }
-
-    // COMM - command line including arguments
-    // CMDLINE - command name from /proc/pid/cmdline (no arguments)
-    } else if (i==14 || i==32) {
-      if (slot[47]<1) {
-        out = toybuf+sizeof(toybuf)-300;
-        sprintf(out, "[%s]", tb->str); // kernel thread, use real name
-      } else {
-        out = tb->str+tb->offset[3];
-        if (slot[47]!=INT_MAX) out[slot[47]] = ' '*(i==14);
-      }
-
-    // %CPU
-    } else if (i==18) {
-      ll = (slot[46]*sysconf(_SC_CLK_TCK)-slot[19]);
-      len = ((slot[11]+slot[12])*1000)/ll;
-      sprintf(out, "%d.%d", len/10, len%10);
-    }
+    char *out = string_field(tb, field);
 
     // Output the field, appropriately padded
     len = width - (field != TT.fields);
@@ -483,7 +489,7 @@ static int get_ps(struct dirtree *new)
     TT.kcount++;
 
   // Otherwise display it now
-  } else show_ps(slot);
+  } else show_ps(tb);
 
   return ksave;
 }
