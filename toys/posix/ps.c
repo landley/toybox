@@ -145,6 +145,14 @@ struct strawberry {
   char forever[];
 };
 
+// Data layout in toybuf
+struct carveup {
+  long long slot[50];       // data from /proc, skippint #2 and #3
+  unsigned short offset[4]; // offset of fields in str[] (skip name, always 0)
+  char state;
+  char str[];              // name, tty, wchan, attr, cmdline
+};
+
 // Return 1 to keep, 0 to discard
 static int match_process(long long *slot)
 {
@@ -173,14 +181,6 @@ static int match_process(long long *slot)
 
   return 1;
 }
-
-// Data layout in toybuf
-struct carveup {
-  long long slot[50];       // data from /proc, skippint #2 and #3
-  unsigned short offset[4]; // offset of fields in str[] (skip name, always 0)
-  char state;
-  char str[];              // name, tty, wchan, attr, cmdline
-};
 
 static char *string_field(struct carveup *tb, struct strawberry *field)
 {
@@ -667,8 +667,28 @@ static char *parse_rest(char *str, int len)
 // sort for -k
 static int ksort(void *aa, void *bb)
 {
-  // TODO: sort!
-  return 1;
+  long long lla, llb;
+  char *out, *end;
+
+  // Convert fields to string version, saving first in toybuf
+  out = string_field((void *)aa, TT.fields);
+  memccpy(toybuf, out, 0, 2048);
+  toybuf[2048] = 0;
+  out = string_field((void *)bb, TT.fields);
+
+  // Numeric comparison?
+  llb = strtoll(out, &end, 10);
+  if (!*end) {
+    lla = strtoll(toybuf, &end, 10);
+    if (!*end) {
+      if (lla<llb) return -1;
+      if (lla>llb) return 1;
+      return 0;
+    }
+  }
+
+  // String compare
+  return strcmp(toybuf, out);
 }
 
 void ps_main(void)
@@ -736,21 +756,27 @@ void ps_main(void)
   dt = dirtree_read("/proc", get_ps);
 
   if (toys.optflags&FLAG_k) {
-    struct dirtree **dtsort = xmalloc(TT.kcount*sizeof(struct dirtree *));
+    struct carveup **tbsort = xmalloc(TT.kcount*sizeof(struct carveup *));
 
     // descend into child list
-    *dtsort = dt;
+    *tbsort = (void *)dt;
     dt = dt->child;
-    free(*dtsort);
+    free(*tbsort);
 
     // populate array
     i = 0;
-    for (i = 0; dt; dt = dt->next) dtsort[i++] = dt;
-    qsort(dtsort, TT.kcount, sizeof(struct dirtree *), (void *)ksort);
+    while (dt) {
+      void *temp = dt->next;
+
+      tbsort[i++] = (void *)dt->extra;
+      free(dt);
+      dt = temp;
+    }
+
+    qsort(tbsort, TT.kcount, sizeof(struct dirtree *), (void *)ksort);
     for (i = 0; i<TT.kcount; i++) {
-      show_ps((void *)dtsort[i]->extra);
-      free((void *)dtsort[i]->extra);
-      free(dtsort[i]);
+      show_ps(tbsort[i]);
+      free(tbsort[i]);
     }
   }
 
