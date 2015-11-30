@@ -35,7 +35,7 @@
  * significant. The array index is used in strawberry->which (consumed
  * in do_ps()) and in the bitmasks enabling default fields in ps_main().
 
-USE_PS(NEWTOY(ps, "k(sort)P(ppid)*aAdeflno*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflno*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PS
   bool "ps"
@@ -129,10 +129,10 @@ GLOBALS(
   struct arg_list *P;
   struct arg_list *k;
 
-  struct ptr_len gg, GG, pp, PP, ss, tt, uu, UU, *parsing;
+  struct ptr_len gg, GG, pp, PP, ss, tt, uu, UU;
   unsigned width;
   dev_t tty;
-  void *fields;
+  void *fields, *kfields;
   long long ticks, bits;
   size_t header_len;
   int kcount;
@@ -140,7 +140,7 @@ GLOBALS(
 
 struct strawberry {
   struct strawberry *next, *prev;
-  short which, len;
+  short which, len, reverse;
   char *title;
   char forever[];
 };
@@ -156,17 +156,19 @@ struct carveup {
 // Return 1 to keep, 0 to discard
 static int match_process(long long *slot)
 {
-  struct ptr_len *match[] = {
-    &TT.gg, &TT.GG, &TT.pp, &TT.PP, &TT.ss, &TT.tt, &TT.uu, &TT.UU
+  struct ptr_len match[] = {
+    {&TT.gg, 33}, {&TT.GG, 34}, {&TT.pp, 0}, {&TT.PP, 1}, {&TT.ss, 3},
+    {&TT.tt, 4}, {&TT.uu, 31}, {&TT.UU, 32}
   };
-  int i, j, mslot[] = {33, 34, 0, 1, 3, 4, 31, 32};
+  int i, j;
   long *ll = 0;
 
   // Do we have -g -G -p -P -s -t -u -U options selecting processes?
   for (i = 0; i < ARRAY_LEN(match); i++) {
-    if (match[i]->len) {
-      ll = match[i]->ptr;
-      for (j = 0; j<match[i]->len; j++) if (ll[j] == slot[mslot[i]]) return 1;
+    struct ptr_len *mm = match[i].ptr;
+    if (mm->len) {
+      ll = mm->ptr;
+      for (j = 0; j<mm->len; j++) if (ll[j] == slot[match[i].len]) return 1;
     }
   }
 
@@ -184,7 +186,7 @@ static int match_process(long long *slot)
 
 static char *string_field(struct carveup *tb, struct strawberry *field)
 {
-  char *buf = toybuf+sizeof(toybuf)-64, *out = buf, *s;
+  char *buf = toybuf+sizeof(toybuf)-260, *out = buf, *s;
   long long ll, *slot = tb->slot;
   int i;
 
@@ -203,6 +205,7 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     else if (i==6) ll <<= 2;
     else if (i==8) ll >>= 10;
     sprintf(out, fmt, ll);
+
   // user/group: UID USER RUID RUSER GID GROUP RGID RGROUP
   } else if (-1!=(i = stridx((char[]){2,22,28,21,26,17,29,20}, field->which)))
   {
@@ -251,7 +254,7 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     // Increasing stime:size reveals more data at left until full,
     // so move start address so yyyy-mm-dd hh:mm revealed on left at :16,
     // then add :ss on right for :19.
-    strftime(out, 64, "%F %T", localtime(&t));
+    strftime(out, 260, "%F %T", localtime(&t));
     out = out+strlen(out)-3-abs(field->len);
     if (out<buf) out = buf;
 
@@ -275,10 +278,9 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
   // COMM - command line including arguments
   // CMDLINE - command name from /proc/pid/cmdline (no arguments)
   } else if (i==14 || i==32) {
-    if (slot[47]<1) {
-      out = toybuf+sizeof(toybuf)-300;
-      sprintf(out, "[%s]", tb->str); // kernel thread, use real name
-    } else {
+    // Use [real name] for kernel threads, max buf space 255+2+1 bytes
+    if (slot[47]<1) sprintf(out, "[%s]", tb->str);
+    else {
       out = tb->str+tb->offset[3];
       if (slot[47]!=INT_MAX) out[slot[47]] = ' '*(i==14);
     }
@@ -328,7 +330,7 @@ static int get_ps(struct dirtree *new)
   } fetch[] = {{"fd/", 1<<12}, {"wchan", 1<<10}, {"attr/current", 1<<31},
                {"cmdline", (1<<14)|(1LL<<32)}};
   struct carveup *tb = (void *)toybuf;
-  long long *slot = (void *)toybuf;
+  long long *slot = tb->slot;
   char *name, *s, *buf = tb->str, *end = 0;
   int i, j, fd, ksave = DIRTREE_SAVE*!!(toys.optflags&FLAG_k);
   off_t len;
@@ -408,8 +410,8 @@ static int get_ps(struct dirtree *new)
     }
 
     // Determine remaining space, reserving minimum of 256 bytes/field and
-    // 64 bytes scratch space at the end (for output conversion later).
-    len = sizeof(toybuf)-(buf-toybuf)-64-256*(ARRAY_LEN(fetch)-j);
+    // 260 bytes scratch space at the end (for output conversion later).
+    len = sizeof(toybuf)-(buf-toybuf)-260-256*(ARRAY_LEN(fetch)-j);
     sprintf(buf, "%lld/%s", *slot, fetch[j].name);
 
     // If it's not the TTY field, data we want is in a file.
@@ -495,8 +497,8 @@ static int get_ps(struct dirtree *new)
 }
 
 // Traverse arg_list of csv, calling callback on each value
-void comma_args(struct arg_list *al, char *err,
-  char *(*callback)(char *str, int len))
+void comma_args(struct arg_list *al, void *data, char *err,
+  char *(*callback)(void *data, char *str, int len))
 {
   char *next, *arg;
   int len;
@@ -504,14 +506,14 @@ void comma_args(struct arg_list *al, char *err,
   while (al) {
     arg = al->arg;
     while ((next = comma_iterate(&arg, &len)))
-      if ((next = callback(next, len)))
+      if ((next = callback(data, next, len)))
         perror_exit("%s '%s'\n%*c", err, al->arg,
           (int)(5+strlen(toys.which->name)+strlen(err)+next-al->arg), '^');
     al = al->next;
   }
 }
 
-static char *parse_o(char *type, int length)
+static char *parse_ko(void *data, char *type, int length)
 {
   struct strawberry *field;
   char *width, *title, *end, *s, *typos[] = {
@@ -557,6 +559,12 @@ static char *parse_o(char *type, int length)
   }
 
   // Find type
+  if (*(struct strawberry **)data == TT.kfields) {
+    field->reverse = 1;
+    if (*type == '-') field->reverse = -1;
+    else if (*type != '+') type--;
+    type++;
+  }
   for (i = 0; i<ARRAY_LEN(typos); i++) {
     field->which = i;
     for (j = 0; j<2; j++) {
@@ -574,21 +582,23 @@ static char *parse_o(char *type, int length)
   if (!field->title) field->title = typos[field->which];
   if (!field->len) field->len = widths[field->which];
   else if (widths[field->which]<0) field->len *= -1;
-  dlist_add_nomalloc((void *)&TT.fields, (void *)field);
+  dlist_add_nomalloc(data, (void *)field);
 
-  // Print padded header.
-  TT.header_len +=
-    snprintf(toybuf + TT.header_len, sizeof(toybuf) - TT.header_len,
-             " %*s" + (field == TT.fields), field->len, field->title);
-  TT.bits |= (i = 1<<field->which);
+  // Print padded header for -o.
+  if (*(struct strawberry **)data == TT.fields) {
+    TT.header_len +=
+      snprintf(toybuf + TT.header_len, sizeof(toybuf) - TT.header_len,
+               " %*s" + (field == TT.fields), field->len, field->title);
+    TT.bits |= 1<<field->which;
+  }
 
   return 0;
 }
 
 // Parse -p -s -t -u -U -g -G
-static char *parse_rest(char *str, int len)
+static char *parse_rest(void *data, char *str, int len)
 {
-  struct ptr_len *pl = TT.parsing;
+  struct ptr_len *pl = (struct ptr_len *)data;
   long *ll = pl->ptr;
   char *end;
   int num = 0;
@@ -667,28 +677,36 @@ static char *parse_rest(char *str, int len)
 // sort for -k
 static int ksort(void *aa, void *bb)
 {
+  struct strawberry *field;
   long long lla, llb;
   char *out, *end;
+  int ret = 0;
 
-  // Convert fields to string version, saving first in toybuf
-  out = string_field((void *)aa, TT.fields);
-  memccpy(toybuf, out, 0, 2048);
-  toybuf[2048] = 0;
-  out = string_field((void *)bb, TT.fields);
+  for (field = TT.kfields; field; field = field->next) {
 
-  // Numeric comparison?
-  llb = strtoll(out, &end, 10);
-  if (!*end) {
-    lla = strtoll(toybuf, &end, 10);
+    // Convert fields to string version, saving first in toybuf
+    out = string_field(*(void **)aa, field);
+    memccpy(toybuf, out, 0, 2048);
+    toybuf[2048] = 0;
+    out = string_field(*(void **)bb, field);
+
+    // Numeric comparison?
+    llb = strtoll(out, &end, 10);
     if (!*end) {
-      if (lla<llb) return -1;
-      if (lla>llb) return 1;
-      return 0;
+      lla = strtoll(toybuf, &end, 10);
+      if (!*end) {
+        if (lla<llb) ret = -1;
+        if (lla>llb) ret = 1;
+      }
     }
+
+    // String compare
+    if (*end) ret = strcmp(toybuf, out);
+
+    if (ret) return ret*field->reverse;
   }
 
-  // String compare
-  return strcmp(toybuf, out);
+  return 0;
 }
 
 void ps_main(void)
@@ -711,31 +729,25 @@ void ps_main(void)
   }
 
   // parse command line options other than -o
-  TT.parsing = &TT.PP;
-  comma_args(TT.P, "bad -P", parse_rest);
-  TT.parsing = &TT.pp;
-  comma_args(TT.p, "bad -p", parse_rest);
-  TT.parsing = &TT.tt;
-  comma_args(TT.t, "bad -t", parse_rest);
-  TT.parsing = &TT.ss;
-  comma_args(TT.s, "bad -s", parse_rest);
-  TT.parsing = &TT.uu;
-  comma_args(TT.u, "bad -u", parse_rest);
-  TT.parsing = &TT.UU;
-  comma_args(TT.U, "bad -u", parse_rest);
-  TT.parsing = &TT.gg;
-  comma_args(TT.g, "bad -g", parse_rest);
-  TT.parsing = &TT.GG;
-  comma_args(TT.G, "bad -G", parse_rest);
+  comma_args(TT.P, &TT.PP, "bad -P", parse_rest);
+  comma_args(TT.p, &TT.pp, "bad -p", parse_rest);
+  comma_args(TT.t, &TT.tt, "bad -t", parse_rest);
+  comma_args(TT.s, &TT.ss, "bad -s", parse_rest);
+  comma_args(TT.u, &TT.uu, "bad -u", parse_rest);
+  comma_args(TT.U, &TT.UU, "bad -u", parse_rest);
+  comma_args(TT.g, &TT.gg, "bad -g", parse_rest);
+  comma_args(TT.G, &TT.GG, "bad -G", parse_rest);
+  comma_args(TT.k, &TT.kfields, "bad -k", parse_ko);
+  dlist_terminate(TT.kfields);
 
   // Parse manual field selection, or default/-f/-l, plus -Z,
   // constructing the header line in toybuf as we go.
   if (toys.optflags&FLAG_Z) {
     struct arg_list Z = { 0, "LABEL" };
 
-    comma_args(&Z, "-Z", parse_o);
+    comma_args(&Z, &TT.fields, "-Z", parse_ko);
   }
-  if (TT.o) comma_args(TT.o, "bad -o field", parse_o);
+  if (TT.o) comma_args(TT.o, &TT.fields, "bad -o field", parse_ko);
   else {
     struct arg_list al;
 
@@ -748,7 +760,7 @@ void ps_main(void)
       al.arg = "USER,PID,PPID,VSIZE,RSS,WCHAN:10,ADDR:10=PC,S,CMDLINE";
     else al.arg = "PID,TTY,TIME,CMD";
 
-    comma_args(&al, 0, parse_o);
+    comma_args(&al, &TT.fields, 0, parse_ko);
   }
   dlist_terminate(TT.fields);
   printf("%s\n", toybuf);
@@ -773,11 +785,13 @@ void ps_main(void)
       dt = temp;
     }
 
-    qsort(tbsort, TT.kcount, sizeof(struct dirtree *), (void *)ksort);
+    // Sort and show
+    qsort(tbsort, TT.kcount, sizeof(struct carveup *), (void *)ksort);
     for (i = 0; i<TT.kcount; i++) {
       show_ps(tbsort[i]);
       free(tbsort[i]);
     }
+    if (CFG_TOYBOX_FREE) free(tbsort);
   }
 
   if (CFG_TOYBOX_FREE) {
