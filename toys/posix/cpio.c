@@ -16,13 +16,13 @@
  * rdevmajor rdevminor namesize check
  * This is the equiavlent of mode -H newc when using GNU CPIO.
 
-USE_CPIO(NEWTOY(cpio, "mduH:p:|i|t|F:v(verbose)o|[!pio][!pot][!pF]", TOYFLAG_BIN))
+USE_CPIO(NEWTOY(cpio, "(no-preserve-owner)mduH:p:|i|t|F:v(verbose)o|[!pio][!pot][!pF]", TOYFLAG_BIN))
 
 config CPIO
   bool "cpio"
   default y
   help
-    usage: cpio -{o|t|i|p DEST} [-v] [--verbose] [-F FILE] [ignored: -mdu -H newc]
+    usage: cpio -{o|t|i|p DEST} [-v] [--verbose] [-F FILE] [--no-preserve-owner] [ignored: -mdu -H newc]
 
     copy files into and out of a "newc" format cpio archive
 
@@ -32,6 +32,7 @@ config CPIO
     -o	create archive (stdin=list of files, stdout=archive)
     -t	test files (list only, stdin=archive, stdout=list of files)
     -v	verbose (list files during create/extract)
+    --no-preserve-owner (don't set ownership during extract) 
 */
 
 #define FOR_cpio
@@ -145,7 +146,7 @@ void cpio_main(void)
       if (!test) err = symlink(data, name);
       free(data);
       // Can't get a filehandle to a symlink, so do special chown
-      if (!err && !geteuid()) err = lchown(name, uid, gid);
+      if (!err && !geteuid() && !(toys.optflags & FLAG_no_preserve_owner)) err = lchown(name, uid, gid);
     } else if (S_ISREG(mode)) {
       int fd = test ? 0 : open(name, O_CREAT|O_WRONLY|O_TRUNC|O_NOFOLLOW, mode);
 
@@ -170,7 +171,7 @@ void cpio_main(void)
 
       if (!test) {
         // set owner, restore dropped suid bit
-        if (!geteuid()) {
+        if (!geteuid() && !(toys.optflags & FLAG_no_preserve_owner)) {
           err = fchown(fd, uid, gid);
           if (!err) err = fchmod(fd, mode);
         }
@@ -185,7 +186,7 @@ void cpio_main(void)
       // by name to chown/utime, but how do we know it's the same item?
       // Check that we at least have the right type of entity open, and do
       // NOT restore dropped suid bit in this case.
-      if (!S_ISREG(mode) && !S_ISLNK(mode) && !geteuid()) {
+      if (!S_ISREG(mode) && !S_ISLNK(mode) && !geteuid() && !(toys.optflags & FLAG_no_preserve_owner)) {
         int fd = open(name, O_RDONLY|O_NOFOLLOW);
         struct stat st;
 
