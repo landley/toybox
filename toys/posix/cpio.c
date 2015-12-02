@@ -3,6 +3,8 @@
  * Written 2013 AD by Isaac Dunham; this code is placed under the 
  * same license as toybox or as CC0, at your option.
  *
+ * Portions Copyright 2015 by Frontier Silicon Ltd.
+ *
  * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cpio.html
  * and http://pubs.opengroup.org/onlinepubs/7908799/xcu/cpio.html
  *
@@ -12,6 +14,7 @@
  * Modern cpio expanded header to 110 bytes (first field 6 bytes, rest are 8).
  * In order: magic ino mode uid gid nlink mtime filesize devmajor devminor
  * rdevmajor rdevminor namesize check
+ * This is the equiavlent of mode -H newc when using GNU CPIO.
 
 USE_CPIO(NEWTOY(cpio, "mduH:p:|i|t|F:v(verbose)o|[!pio][!pot][!pF]", TOYFLAG_BIN))
 
@@ -121,8 +124,8 @@ void cpio_main(void)
 
     size = x8u(toybuf+54);
     mode = x8u(toybuf+14);
-    uid = x8u(toybuf+30);
-    gid = x8u(toybuf+38);
+    uid = x8u(toybuf+22);
+    gid = x8u(toybuf+30);
     timestamp = x8u(toybuf+46); // unsigned 32 bit, so year 2100 problem
 
     if (toys.optflags & (FLAG_t|FLAG_v)) puts(name);
@@ -142,7 +145,7 @@ void cpio_main(void)
       if (!test) err = symlink(data, name);
       free(data);
       // Can't get a filehandle to a symlink, so do special chown
-      if (!err && !getpid()) err = lchown(name, uid, gid);
+      if (!err && !geteuid()) err = lchown(name, uid, gid);
     } else if (S_ISREG(mode)) {
       int fd = test ? 0 : open(name, O_CREAT|O_WRONLY|O_TRUNC|O_NOFOLLOW, mode);
 
@@ -167,14 +170,14 @@ void cpio_main(void)
 
       if (!test) {
         // set owner, restore dropped suid bit
-        if (!getpid()) {
+        if (!geteuid()) {
           err = fchown(fd, uid, gid);
           if (!err) err = fchmod(fd, mode);
         }
         close(fd);
       }
     } else if (!test)
-      err = mknod(name, mode, makedev(x8u(toybuf+62), x8u(toybuf+70)));
+      err = mknod(name, mode, makedev(x8u(toybuf+78), x8u(toybuf+86)));
 
     // Set ownership and timestamp.
     if (!test && !err) {
@@ -182,11 +185,11 @@ void cpio_main(void)
       // by name to chown/utime, but how do we know it's the same item?
       // Check that we at least have the right type of entity open, and do
       // NOT restore dropped suid bit in this case.
-      if (!S_ISREG(mode) && !S_ISLNK(mode) && !getpid()) {
-        int fd = open(name, O_WRONLY|O_NOFOLLOW);
+      if (!S_ISREG(mode) && !S_ISLNK(mode) && !geteuid()) {
+        int fd = open(name, O_RDONLY|O_NOFOLLOW);
         struct stat st;
 
-        if (fd != -1 && !fstat(fd, &st) && (st.st_mode&S_IFMT) == mode)
+        if (fd != -1 && !fstat(fd, &st) && (st.st_mode&S_IFMT) == (mode&S_IFMT)) 
           err = fchown(fd, uid, gid);
         else err = 1;
 
