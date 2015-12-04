@@ -34,8 +34,8 @@ struct fstype {
 };
 
 static const struct fstype fstypes[] = {
-  {"swap", 0x4341505350415753LL, 8, 4086, 1036, 15, 1052},
   {"ext2", 0xEF53, 2, 1080, 1128, 16, 1144}, // keep this first for ext3/4 check
+  {"swap", 0x4341505350415753LL, 8, 4086, 1036, 15, 1052},
   // NTFS label actually 8/16 0x4d80 but horrible: 16 bit wide characters via
   // codepage, something called a uuid that's only 8 bytes long...
   {"ntfs", 0x5346544e, 4, 3, 0x48+(8<<24), 0, 0},

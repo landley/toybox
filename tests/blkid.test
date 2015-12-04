@@ -16,10 +16,10 @@ testing "blkid ext2" 'bzcat "$BDIR"/ext2.bz2 | blkid -' \
   '-: LABEL="myext2" UUID="e59093ba-4135-4fdb-bcc4-f20beae4dfaf" TYPE="ext2"\n' \
   "" "" 
 testing "blkid ext3" 'bzcat "$BDIR"/ext3.bz2 | blkid -' \
-  '-: LABEL="myext3" UUID="79d1c877-1a0f-4e7d-b21d-fc32ae3ef101" TYPE="ext2"\n' \
+  '-: LABEL="myext3" UUID="79d1c877-1a0f-4e7d-b21d-fc32ae3ef101" TYPE="ext3"\n' \
   "" "" 
 testing "blkid ext4" 'bzcat "$BDIR"/ext4.bz2 | blkid -' \
-  '-: LABEL="myext4" UUID="dc4b7c00-c0c0-4600-af7e-0335f09770fa" TYPE="ext2"\n' \
+  '-: LABEL="myext4" UUID="dc4b7c00-c0c0-4600-af7e-0335f09770fa" TYPE="ext4"\n' \
   "" ""
 testing "blkid f2fs" 'bzcat "$BDIR"/f2fs.bz2 | blkid -' \
   '-: LABEL="" UUID="b53d3619-c204-4c0b-8504-36363578491c" TYPE="f2fs"\n' \
