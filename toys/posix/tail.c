@@ -74,7 +74,7 @@ static int try_lseek(int fd, long bytes, long lines)
 {
   struct line_list *list = 0, *temp;
   int flag = 0, chunk = sizeof(toybuf);
-  ssize_t pos = lseek(fd, 0, SEEK_END);
+  off_t pos = lseek(fd, 0, SEEK_END);
 
   // If lseek() doesn't work on this stream, return now.
   if (pos<0) return 0;
