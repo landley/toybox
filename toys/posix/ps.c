@@ -25,17 +25,16 @@
  * leaving 9 chars for cmd, so we're using that as our -l output.
  *
  * TODO: ps aux (att & bsd style "ps -ax" vs "ps ax" behavior difference)
- * TODO: finalize F, remove C
- *       switch -fl to -y, use "string" instead of constants to set, remove C
- * TODO: --sort
+ * TODO: switch -fl to -y
  * TODO: way too many hardwired constants here, how can I generate them?
  * TODO: thread support /proc/$d/task/%d/stat (and -o stat has "l")
  *
  * Design issue: the -o fields are an ordered array, and the order is
  * significant. The array index is used in strawberry->which (consumed
- * in do_ps()) and in the bitmasks enabling default fields in ps_main().
+ * in do_ps()) and in the TT.bits bitmask.
 
 USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflno*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TTOP(NEWTOY(ttop, ">0d#=3n#<1mb", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PS
   bool "ps"
@@ -79,6 +78,7 @@ config PS
       CMD     Command name (original)
       CMDLINE Command name (current argv[0])
       COMM    Command line (with arguments)
+      CPU     Which processor is process running on
       ETIME   Elapsed time since process start
       F       Process flags (PF_*) from linux source file include/sched.h
               (in octal rather than hex because posix)
@@ -112,23 +112,54 @@ config PS
       USER    User name
       VSZ     Virtual memory size (1k units)
       WCHAN   Waiting in kernel for
+
+config TTOP
+  bool "ttop"
+  default n
+  help
+
+    usage: ttop [-mb] [ -d seconds ] [ -n iterations ]
+
+    Provide a view of process activity in real time.
+    Keys
+       N/M/P/T show CPU usage, sort by pid/mem/cpu/time
+       S       show memory
+       R       reverse sort
+       H       toggle threads
+       C,1     toggle SMP
+       Q,^C    exit
+
+    Options
+       -n Iterations before exiting
+       -d Delay between updates
+       -m Same as 's' key
+       -b Batch mode
 */
 
 #define FOR_ps
 #include "toys.h"
 
 GLOBALS(
-  struct arg_list *G;
-  struct arg_list *g;
-  struct arg_list *U;
-  struct arg_list *u;
-  struct arg_list *t;
-  struct arg_list *s;
-  struct arg_list *p;
-  struct arg_list *o;
-  struct arg_list *P;
-  struct arg_list *k;
+  union {
+    struct {
+      struct arg_list *G;
+      struct arg_list *g;
+      struct arg_list *U;
+      struct arg_list *u;
+      struct arg_list *t;
+      struct arg_list *s;
+      struct arg_list *p;
+      struct arg_list *o;
+      struct arg_list *P;
+      struct arg_list *k;
+    } ps;
+    struct {
+      long n;
+      long d;
+    } ttop;
+  };
 
+  struct sysinfo si;
   struct ptr_len gg, GG, pp, PP, ss, tt, uu, UU;
   unsigned width;
   dev_t tty;
@@ -152,6 +183,61 @@ struct carveup {
   char state;
   char str[];              // name, tty, wchan, attr, cmdline
 };
+
+/* The slot[] array is mostly populated from /proc/$PID/stat (kernel proc.txt
+ * table 1-4) but we shift and repurpose fields, with the result being:
+ *
+ * 0  pid           process id
+ * 1  ppid          parent process id
+ * 2  pgrp          pgrp of the process
+ * 3  sid           session id
+ * 4  tty_nr        tty the process uses
+ * 5  tty_pgrp      pgrp of the tty
+ * 6  flags         task flags
+ * 7  min_flt       number of minor faults
+ * 8  cmin_flt      number of minor faults with child's
+ * 9  maj_flt       number of major faults
+ * 10 cmaj_flt      number of major faults with child's
+ * 11 utime         user mode jiffies
+ * 12 stime         kernel mode jiffies
+ * 13 cutime        user mode jiffies with child's
+ * 14 cstime        kernel mode jiffies with child's
+ * 15 priority      priority level
+ * 16 nice          nice level
+ * 17 num_threads   number of threads
+ * 18 vmlck         locked memory
+ * 19 start_time    time the process started after system boot
+ * 20 vsize         virtual memory size
+ * 21 rss           resident set memory size
+ * 22 rsslim        current limit in bytes on the rss
+ * 23 start_code    address above which program text can run
+ * 24 end_code      address below which program text can run
+ * 25 start_stack   address of the start of the main process stack
+ * 26 esp           current value of ESP
+ * 27 eip           current value of EIP
+ * 28 pending       bitmap of pending signals
+ * 29 blocked       bitmap of blocked signals
+ * 30 sigign        bitmap of ignored signals
+ * 31 uid           user id
+ * 32 ruid          real user id
+ * 33 gid           group id
+ * 34 rgid          real group id
+ * 35 exit_signal   signal to send to parent thread on exit
+ * 36 task_cpu      which CPU the task is scheduled on
+ * 37 rt_priority   realtime priority
+ * 38 policy        scheduling policy (man sched_setscheduler)
+ * 39 blkio_ticks   time spent waiting for block IO
+ * 40 gtime         guest time of the task in jiffies
+ * 41 cgtime        guest time of the task children in jiffies
+ * 42 start_data    address above which program data+bss is placed
+ * 43 end_data      address below which program data+bss is placed
+ * 44 start_brk     address above which program heap can be expanded with brk()
+ * 45 argv0len      length of argv[0] read from /proc/$PID/cmdline
+ * 46 uptime        sysinfo.uptime when this entry was read
+ * 47 vsz           Virtual Size
+ * 48 rss           Resident Set Size
+ * 49 shr           Shared memory
+ */
 
 // Return 1 to keep, 0 to discard
 static int match_process(long long *slot)
@@ -193,21 +279,22 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
   // Default: unsupported (5 "C")
   sprintf(out, "-");
 
-  // stat#s: PID, PPID, PRI, NI, ADDR, SZ, RSS, PGID, VSS, MAJFL, MINFL
-  if (-1!=(i = stridx((char[]){3,4,6,7,8,9,24,19,23,25,30,0}, field->which)))
+  // stat#s: PID, PPID, PRI, NI, ADDR, SZ, RSS, PGID, VSZ, MAJFL, MINFL, PR
+  if (-1!=(i = stridx((char[]){3,4,6,7,8,9,24,19,23,25,30,34,0}, field->which)))
   {
     char *fmt = "%lld";
 
-    ll = slot[((char[]){0,1,15,16,27,20,21,2,20,9,7})[i]];
-    if (i==2) ll--;
+    ll = slot[((char[]){0,1,15,16,27,20,21,2,20,9,7,15})[i]];
+    if (i==2) ll = 39-ll;
     if (i==4) fmt = "%llx";
     else if (i==5) ll >>= 12;
     else if (i==6) ll <<= 2;
     else if (i==8) ll >>= 10;
+    else if (i==11) if (ll<-9) fmt="RT";
     sprintf(out, fmt, ll);
 
   // user/group: UID USER RUID RUSER GID GROUP RGID RGROUP
-  } else if (-1!=(i = stridx((char[]){2,22,28,21,26,17,29,20}, field->which)))
+  } else if (-1!=(i = stridx((char[]){2,22,28,21,26,17,29,20,0}, field->which)))
   {
     int id = slot[31+i/2]; // uid, ruid, gid, rgid
 
@@ -225,7 +312,7 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
       }
     }
   // CMD TTY WCHAN LABEL (CMDLINE handled elsewhere)
-  } else if (-1!=(i = stridx((char[]){15,12,10,31}, field->which))) {
+  } else if (-1!=(i = stridx((char[]){15,12,10,31,0}, field->which))) {
     out = tb->str;
     if (i) out += tb->offset[i-1];
 
@@ -248,7 +335,7 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     *s = 0;
   // STIME
   } else if (i==11) {
-    time_t t = time(0)-slot[46]+slot[19]/sysconf(_SC_CLK_TCK);
+    time_t t = time(0)-slot[46]+slot[19]/TT.ticks;
 
     // Padding behavior's a bit odd: default field size is just hh:mm.
     // Increasing stime:size reveals more data at left until full,
@@ -260,7 +347,7 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
 
   // TIME ELAPSED
   } else if (i==13 || i==16) {
-    int unit = 60*60*24, j = sysconf(_SC_CLK_TCK);
+    int unit = 60*60*24, j = TT.ticks; 
     time_t seconds = (i==16) ? (slot[46]*j)-slot[19] : slot[11]+slot[12];
 
     seconds /= j;
@@ -279,18 +366,21 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
   // CMDLINE - command name from /proc/pid/cmdline (no arguments)
   } else if (i==14 || i==32) {
     // Use [real name] for kernel threads, max buf space 255+2+1 bytes
-    if (slot[47]<1) sprintf(out, "[%s]", tb->str);
+    if (slot[45]<1) sprintf(out, "[%s]", tb->str);
     else {
       out = tb->str+tb->offset[3];
-      if (slot[47]!=INT_MAX) out[slot[47]] = ' '*(i==14);
+      if (slot[45]!=INT_MAX) out[slot[45]] = ' '*(i==14);
     }
 
-  // %CPU
-  } else if (i==18) {
-    ll = (slot[46]*sysconf(_SC_CLK_TCK)-slot[19]);
-    i = ((slot[11]+slot[12])*1000)/ll;
+  // %CPU %VSZ
+  } else if (i==18 || i==33) {
+    if (i==18) {
+      ll = (slot[46]*TT.ticks-slot[19]);
+      i = ((slot[11]+slot[12])*1000)/ll;
+    } else i = (slot[23]*1000)/TT.si.totalram;
     sprintf(out, "%d.%d", i/10, i%10);
-  }
+  } else if (i>=35 && i<=37)
+    human_readable(out, slot[i-35+47]*sysconf(_SC_PAGESIZE), 0);
 
   return out;
 }
@@ -321,7 +411,8 @@ static void show_ps(struct carveup *tb)
 }
 
 // dirtree callback: read data about process to display, store, or discard it.
-// Collects slot[50] plus  stat, name, tty, wchan, attr, cmdline
+// Fills toybuf with struct carveup and either DIRTREE_SAVEs a copy to ->extra
+// (in -k mode) or calls show_ps on toybuf (no malloc/copy/free there).
 static int get_ps(struct dirtree *new)
 {
   struct {
@@ -368,20 +459,22 @@ static int get_ps(struct dirtree *new)
     if ((tb->str[i] = name[i]) < ' ') tb->str[i] = ' ';
   buf = tb->str+i;
   *buf++ = 0;
+  len = sizeof(toybuf)-(buf-toybuf);
+
 
   // save uid, ruid, gid, gid, and rgid int slots 31-34 (we don't use sigcatch
   // or numeric wchan, and the remaining two are always zero), and vmlck into
-  // 18 (which is "obsolete, always 0")
+  // 18 (which is "obsolete, always 0" from stat)
   slot[31] = new->st.st_uid;
   slot[33] = new->st.st_gid;
 
   // If RGROUP RUSER STAT RUID RGID happening, or -G or -U, parse "status"
-  // Save ruid in slot[34] and rgid in slot[35], which are otherwise zero,
-  // and vmlck into slot[18] (it_real_value, also always zero).
+  // and save ruid, rgid, and vmlck.
   if ((TT.bits & 0x38300000) || TT.GG.len || TT.UU.len) {
-    len = sizeof(toybuf)-(buf-toybuf);
+    off_t temp = len;
+
     sprintf(buf, "%lld/status", *slot);
-    if (!readfileat(fd, buf, buf, &len)) *buf = 0;
+    if (!readfileat(fd, buf, buf, &temp)) *buf = 0;
     s = strstr(buf, "\nUid:");
     slot[32] = s ? atol(s+5) : new->st.st_uid;
     s = strstr(buf, "\nGid:");
@@ -393,10 +486,22 @@ static int get_ps(struct dirtree *new)
   // We now know enough to skip processes we don't care about.
   if (!match_process(slot)) return 0;
 
+  // Fetch VIRT RES SHR (for top)
+  if (TT.bits & (7LL<<35)) {
+    off_t temp = len;
+
+    sprintf(buf, "%lld/statm", *slot);
+    if (!readfileat(fd, buf, buf, &temp)) *buf = 0;
+    
+    for (s = buf, i=0; i<3; i++)
+      if (!sscanf(s, " %lld%n", slot+47+i, &j)) slot[47+i] = 0;
+      else s += j;
+  }
+
   // /proc data is generated as it's read, so for maximum accuracy on slow
   // systems (or ps | more) we re-fetch uptime as we fetch each /proc line.
-  sysinfo((void *)(toybuf+2048));
-  slot[46] = ((struct sysinfo *)toybuf)->uptime;
+  sysinfo(&TT.si);
+  slot[46] = TT.si.uptime;
 
   // fetch remaining data while parentfd still available, appending to buf.
   // (There's well over 3k of toybuf left. We could dynamically malloc, but
@@ -435,7 +540,7 @@ static int get_ps(struct dirtree *new)
         else len = INT_MAX;
       } else *buf = len = 0;
       // Store end of argv[0] so COMM and CMDLINE can differ.
-      slot[47] = len;
+      slot[45] = len;
     } else {
       int rdev = slot[4];
       struct stat st;
@@ -520,13 +625,15 @@ static char *parse_ko(void *data, char *type, int length)
          "F", "S", "UID", "PID", "PPID", "C", "PRI", "NI", "ADDR", "SZ",
          "WCHAN", "STIME", "TTY", "TIME", "CMD", "COMMAND", "ELAPSED", "GROUP",
          "%CPU", "PGID", "RGROUP", "RUSER", "USER", "VSZ", "RSS", "MAJFL",
-         "GID", "STAT", "RUID", "RGID", "MINFL", "LABEL", "CMDLINE"
+         "GID", "STAT", "RUID", "RGID", "MINFL", "LABEL", "CMDLINE", "%VSZ",
+         "PR", "VIRT", "RES", "SHR", "TIME+"
   };
   // TODO: Android uses -30 for LABEL, but ideally it would auto-size.
   signed char widths[] = {1,-1,5,5,5,2,3,3,4+sizeof(long),5,
                           -6,5,-8,8,-27,-27,11,-8,
                           4,5,-8,-8,-8,6,5,6,
-                          8,-5,4,4,6,-30,-27};
+                          8,-5,4,4,6,-30,-27,5,
+                          2,4,4,4,9};
   int i, j, k;
 
   // Get title, length of title, type, end of type, and display width
@@ -589,7 +696,7 @@ static char *parse_ko(void *data, char *type, int length)
     TT.header_len +=
       snprintf(toybuf + TT.header_len, sizeof(toybuf) - TT.header_len,
                " %*s" + (field == TT.fields), field->len, field->title);
-    TT.bits |= 1<<field->which;
+    TT.bits |= 1LL<<field->which;
   }
 
   return 0;
@@ -714,6 +821,7 @@ void ps_main(void)
   struct dirtree *dt;
   int i;
 
+  TT.ticks = sysconf(_SC_CLK_TCK);
   TT.width = 99999;
   if (!(toys.optflags&FLAG_w)) terminal_size(&TT.width, 0);
 
@@ -729,15 +837,15 @@ void ps_main(void)
   }
 
   // parse command line options other than -o
-  comma_args(TT.P, &TT.PP, "bad -P", parse_rest);
-  comma_args(TT.p, &TT.pp, "bad -p", parse_rest);
-  comma_args(TT.t, &TT.tt, "bad -t", parse_rest);
-  comma_args(TT.s, &TT.ss, "bad -s", parse_rest);
-  comma_args(TT.u, &TT.uu, "bad -u", parse_rest);
-  comma_args(TT.U, &TT.UU, "bad -u", parse_rest);
-  comma_args(TT.g, &TT.gg, "bad -g", parse_rest);
-  comma_args(TT.G, &TT.GG, "bad -G", parse_rest);
-  comma_args(TT.k, &TT.kfields, "bad -k", parse_ko);
+  comma_args(TT.ps.P, &TT.PP, "bad -P", parse_rest);
+  comma_args(TT.ps.p, &TT.pp, "bad -p", parse_rest);
+  comma_args(TT.ps.t, &TT.tt, "bad -t", parse_rest);
+  comma_args(TT.ps.s, &TT.ss, "bad -s", parse_rest);
+  comma_args(TT.ps.u, &TT.uu, "bad -u", parse_rest);
+  comma_args(TT.ps.U, &TT.UU, "bad -u", parse_rest);
+  comma_args(TT.ps.g, &TT.gg, "bad -g", parse_rest);
+  comma_args(TT.ps.G, &TT.GG, "bad -G", parse_rest);
+  comma_args(TT.ps.k, &TT.kfields, "bad -k", parse_ko);
   dlist_terminate(TT.kfields);
 
   // Parse manual field selection, or default/-f/-l, plus -Z,
@@ -747,7 +855,7 @@ void ps_main(void)
 
     comma_args(&Z, &TT.fields, "-Z", parse_ko);
   }
-  if (TT.o) comma_args(TT.o, &TT.fields, "bad -o field", parse_ko);
+  if (TT.ps.o) comma_args(TT.ps.o, &TT.fields, "bad -o field", parse_ko);
   else {
     struct arg_list al;
 
@@ -805,4 +913,13 @@ void ps_main(void)
     free(TT.UU.ptr);
     llist_traverse(TT.fields, free);
   }
+}
+
+#define CLEANUP_ps
+#define FOR_top
+#include "generated/flags.h"
+
+void ttop_main(void)
+{
+  ps_main();
 }
