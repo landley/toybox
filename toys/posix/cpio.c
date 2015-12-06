@@ -1,6 +1,6 @@
 /* cpio.c - a basic cpio
  *
- * Written 2013 AD by Isaac Dunham; this code is placed under the 
+ * Written 2013 AD by Isaac Dunham; this code is placed under the
  * same license as toybox or as CC0, at your option.
  *
  * Portions Copyright 2015 by Frontier Silicon Ltd.
@@ -22,7 +22,8 @@ config CPIO
   bool "cpio"
   default y
   help
-    usage: cpio -{o|t|i|p DEST} [-v] [--verbose] [-F FILE] [--no-preserve-owner] [ignored: -mdu -H newc]
+    usage: cpio -{o|t|i|p DEST} [-v] [--verbose] [-F FILE] [--no-preserve-owner]
+           [ignored: -mdu -H newc]
 
     copy files into and out of a "newc" format cpio archive
 
@@ -32,7 +33,7 @@ config CPIO
     -o	create archive (stdin=list of files, stdout=archive)
     -t	test files (list only, stdin=archive, stdout=list of files)
     -v	verbose (list files during create/extract)
-    --no-preserve-owner (don't set ownership during extract) 
+    --no-preserve-owner (don't set ownership during extract)
 */
 
 #define FOR_cpio
@@ -146,7 +147,8 @@ void cpio_main(void)
       if (!test) err = symlink(data, name);
       free(data);
       // Can't get a filehandle to a symlink, so do special chown
-      if (!err && !geteuid() && !(toys.optflags & FLAG_no_preserve_owner)) err = lchown(name, uid, gid);
+      if (!err && !geteuid() && !(toys.optflags & FLAG_no_preserve_owner))
+        err = lchown(name, uid, gid);
     } else if (S_ISREG(mode)) {
       int fd = test ? 0 : open(name, O_CREAT|O_WRONLY|O_TRUNC|O_NOFOLLOW, mode);
 
@@ -186,11 +188,13 @@ void cpio_main(void)
       // by name to chown/utime, but how do we know it's the same item?
       // Check that we at least have the right type of entity open, and do
       // NOT restore dropped suid bit in this case.
-      if (!S_ISREG(mode) && !S_ISLNK(mode) && !geteuid() && !(toys.optflags & FLAG_no_preserve_owner)) {
+      if (!S_ISREG(mode) && !S_ISLNK(mode) && !geteuid()
+          && !(toys.optflags & FLAG_no_preserve_owner))
+      {
         int fd = open(name, O_RDONLY|O_NOFOLLOW);
         struct stat st;
 
-        if (fd != -1 && !fstat(fd, &st) && (st.st_mode&S_IFMT) == (mode&S_IFMT)) 
+        if (fd != -1 && !fstat(fd, &st) && (st.st_mode&S_IFMT) == (mode&S_IFMT))
           err = fchown(fd, uid, gid);
         else err = 1;
 
@@ -226,7 +230,7 @@ void cpio_main(void)
       if (len<1) break;
       if (name[len-1] == '\n') name[--len] = 0;
       nlen = len+1;
-      if (lstat(name, &st) || (S_ISREG(st.st_mode) 
+      if (lstat(name, &st) || (S_ISREG(st.st_mode)
           && st.st_size && (fd = open(name, O_RDONLY))<0))
       {
         perror_msg("%s", name);
@@ -246,7 +250,7 @@ void cpio_main(void)
 
         // NUL Pad header up to 4 multiple bytes.
         llen = (llen + nlen) & 3;
-        if (llen) xwrite(afd, &zero, 4-llen); 
+        if (llen) xwrite(afd, &zero, 4-llen);
 
         // Write out body for symlink or regular file
         llen = st.st_size;
