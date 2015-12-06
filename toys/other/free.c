@@ -2,7 +2,8 @@
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
 
-USE_FREE(NEWTOY(free, "tgmkb[!tgmkb]", TOYFLAG_USR|TOYFLAG_BIN))
+// Flag order is signifcant: b-t are units in order, FLAG_h-1 is unit mask
+USE_FREE(NEWTOY(free, "htgmkb[!htgmkb]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config FREE
   bool "free"
@@ -13,6 +14,7 @@ config FREE
     Display the total, free and used amount of physical memory and swap space.
 
     -bkmgt	Output units (default is bytes)
+    -h	Human readable
 */
 
 #define FOR_free
@@ -21,11 +23,19 @@ config FREE
 GLOBALS(
   unsigned bits;
   unsigned long long units;
+  char *buf;
 )
 
-static unsigned long long convert(unsigned long d)
+static char *convert(unsigned long d)
 {
-  return (d*TT.units)>>TT.bits;
+  long long ll = d*TT.units;
+  char *s = TT.buf;
+
+  if (toys.optflags & FLAG_h) human_readable(s, ll, 0);
+  else sprintf(s, "%llu",ll>>TT.bits);
+  TT.buf += strlen(TT.buf)+1;
+
+  return s;
 }
 
 void free_main(void)
@@ -34,12 +44,13 @@ void free_main(void)
 
   sysinfo(&in);
   TT.units = in.mem_unit ? in.mem_unit : 1;
-  for (TT.bits = 0; toys.optflags && !(toys.optflags&(1<<TT.bits)); TT.bits++);
+  while ((toys.optflags&(FLAG_h-1)) && !(toys.optflags&(1<<TT.bits))) TT.bits++;
   TT.bits *= 10;
+  TT.buf = toybuf;
 
   xprintf("\t\ttotal        used        free      shared     buffers\n"
-    "Mem:%17llu%12llu%12llu%12llu%12llu\n-/+ buffers/cache:%15llu%12llu\n"
-    "Swap:%16llu%12llu%12llu\n", convert(in.totalram),
+    "Mem:%17s%12s%12s%12s%12s\n-/+ buffers/cache:%15s%12s\n"
+    "Swap:%16s%12s%12s\n", convert(in.totalram),
     convert(in.totalram-in.freeram), convert(in.freeram), convert(in.sharedram),
     convert(in.bufferram), convert(in.totalram - in.freeram - in.bufferram),
     convert(in.freeram + in.bufferram), convert(in.totalswap),
