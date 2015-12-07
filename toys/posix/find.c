@@ -83,7 +83,7 @@ static int flush_exec(struct dirtree *new, struct exec_range *aa)
 
   // switch to directory for -execdir, or back to top if we have an -execdir
   // _and_ a normal -exec, or are at top of tree in -execdir
-  if (aa->dir && new->parent) rc = fchdir(new->parent->data);
+  if (aa->dir && new->parent) rc = fchdir(new->parent->dirfd);
   else if (TT.topdir != -1) rc = fchdir(TT.topdir);
   if (rc) {
     perror_msg("%s", new->name);

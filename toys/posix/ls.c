@@ -12,6 +12,7 @@ config LS
   default y
   help
     usage: ls [-ACFHLRSZacdfhiklmnpqrstux1] [directory...]
+
     list files
 
     what to show:
@@ -317,7 +318,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
   } else {
     // Read directory contents. We dup() the fd because this will close it.
     // This reads/saves contents to display later, except for in "ls -1f" mode.
-    indir->data = dup(dirfd);
+    indir->dirfd = dup(dirfd);
     dirtree_recurse(indir, filter, DIRTREE_SYMFOLLOW*!!(flags&FLAG_L));
   }
 

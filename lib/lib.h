@@ -67,7 +67,7 @@ struct dirtree {
   long extra; // place for user to store their stuff (can be pointer)
   struct stat st;
   char *symlink;
-  int data;  // dirfd for directory, linklen for symlink
+  int dirfd;
   char again;
   char name[];
 };
