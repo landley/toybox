@@ -97,8 +97,8 @@ struct opts {
   struct opts *next;
   long *arg;         // Pointer into union "this" to store arguments at.
   int c;             // Argument character to match
-  int flags;         // |=1, ^=2
-  unsigned dex[3];   // which bits to disable/enable/exclude in toys.optflags
+  int flags;         // |=1, ^=2, " "=4, ;=8
+  unsigned long long dex[3]; // bits to disable/enable/exclude in toys.optflags
   char type;         // Type of arguments to store union "this"
   union {
     long l;
@@ -142,7 +142,7 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt)
   // Might enabling this switch off something else?
   if (toys.optflags & opt->dex[0]) {
     struct opts *clr;
-    unsigned i = 1;
+    unsigned long long i = 1;
 
     // Forget saved argument for flag we switch back off
     for (clr=gof->opts, i=1; clr; clr = clr->next, i<<=1)
@@ -326,7 +326,7 @@ void parse_optflaglist(struct getoptflagstate *gof)
   // (This goes right to left so we need the whole list before we can start.)
   idx = 0;
   for (new = gof->opts; new; new = new->next) {
-    unsigned u = 1<<idx++;
+    unsigned long long u = 1L<<idx++;
 
     if (new->c == 1) new->c = 0;
     new->dex[1] = u;
@@ -378,7 +378,7 @@ void get_optflags(void)
 {
   struct getoptflagstate gof;
   struct opts *catch;
-  long saveflags;
+  unsigned long long saveflags;
   char *letters[]={"s",""};
 
   // Option parsing is a two stage process: parse the option string into

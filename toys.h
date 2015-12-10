@@ -122,7 +122,7 @@ extern struct toy_context {
   struct toy_list *which;  // Which entry in toy_list is this one?
   char **argv;             // Original command line arguments
   char **optargs;          // Arguments left over from get_optflags()
-  unsigned optflags;       // Command line option flags from get_optflags()
+  unsigned long long optflags; // Command line option flags from get_optflags()
   int exitval;             // Value error_exit feeds to exit()
   int optc;                // Count of optargs
   int old_umask;           // Old umask preserved by TOYFLAG_UMASK
