@@ -299,6 +299,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
   }
 
   memset(totals, 0, sizeof(totals));
+  if (CFG_TOYBOX_DEBUG) memset(len, 0, sizeof(len));
 
   // Top level directory was already populated by main()
   if (!indir->parent) {
