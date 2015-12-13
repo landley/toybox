@@ -210,6 +210,19 @@ then
   ) > generated/globals.h
 fi
 
+if [ generated/mktags -ot scripts/mktags.c ]
+then
+  do_loudly $HOSTCC scripts/mktags.c -o generated/mktags || exit 1
+fi
+
+if isnewer generated/tags.h toys
+then
+  echo -n "generated/tags.h "
+
+  sed -n '/TAGGED_ARRAY(/,/^)/{s/.*TAGGED_ARRAY[(]\([^,]*\),/\1/;p}' \
+    toys/*/*.c | generated/mktags > generated/tags.h
+fi
+
 echo "generated/help.h"
 if [ generated/config2help -ot scripts/config2help.c ]
 then

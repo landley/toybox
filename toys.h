@@ -78,6 +78,7 @@
 #include "generated/newtoys.h"
 #include "generated/flags.h"
 #include "generated/globals.h"
+#include "generated/tags.h"
 
 // These live in main.c
 
