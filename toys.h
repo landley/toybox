@@ -142,5 +142,5 @@ extern char toybuf[4096], libbuf[4096];
 extern char **environ;
 
 #define GLOBALS(...)
-
 #define ARRAY_LEN(array) (sizeof(array)/sizeof(*array))
+#define TAGGED_ARRAY(X, ...) {__VA_ARGS__}

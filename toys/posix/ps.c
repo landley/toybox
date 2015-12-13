@@ -176,6 +176,36 @@ struct strawberry {
   char forever[];
 };
 
+/* The slot[] array is mostly populated from /proc/$PID/stat (kernel proc.txt
+ * table 1-4) but we shift and repurpose fields, with the result being:
+ *
+ * 0  pid         process id                1  ppid        parent process id
+ * 2  pgrp        process group             3  sid         session id
+ * 4  tty_nr      tty the process uses      5  tty_pgrp    pgrp of the tty
+ * 6  flags       task flags                7  min_flt     minor faults
+ * 8  cmin_flt    minor faults+child        9  maj_flt     major faults
+ * 10 cmaj_flt    major faults+child        11 utime       user+kernel jiffies
+ * 12 stime       kernel mode jiffies       13 cutime      user jiffies+child
+ * 14 cstime      kernel mode jiffies+child 15 priority    priority level
+ * 16 nice        nice level                17 num_threads number of threads
+ * 18 vmlck       locked memory             19 start_time  jiffies after boot
+ * 20 vsize       virtual memory size       21 rss         resident set size
+ * 22 rsslim      limit in bytes on rss     23 start_code  code segment addr
+ * 24 end_code    code segment address      25 start_stack stack address
+ * 26 esp         current value of ESP      27 eip         current value of EIP
+ * 28 pending     bitmap of pending signals 29 blocked     blocked signal bmap
+ * 30 sigign      bitmap of ignored signals 31 uid         user id
+ * 32 ruid        real user id              33 gid         group id
+ * 34 rgid        real group id             35 exit_signal sent to parent thread
+ * 36 task_cpu    CPU task is scheduled on  37 rt_priority realtime priority
+ * 38 policy      man sched_setscheduler    39 blkio_ticks spent wait block IO
+ * 40 gtime       guest jiffies of task     41 cgtime      guest jiff of child
+ * 42 start_data  program data+bss address  43 end_data    program data+bss
+ * 44 start_brk   heap expand with brk()    45 argv0len    argv[0] length
+ * 46 uptime      sysinfo.uptime @read time 47 vsz         Virtual Size
+ * 48 rss         Resident Set Size         49 shr         Shared memory
+ */
+
 // Data layout in toybuf
 struct carveup {
   long long slot[50];       // data from /proc, skippint #2 and #3
@@ -184,60 +214,22 @@ struct carveup {
   char str[];              // name, tty, wchan, attr, cmdline
 };
 
-/* The slot[] array is mostly populated from /proc/$PID/stat (kernel proc.txt
- * table 1-4) but we shift and repurpose fields, with the result being:
- *
- * 0  pid           process id
- * 1  ppid          parent process id
- * 2  pgrp          pgrp of the process
- * 3  sid           session id
- * 4  tty_nr        tty the process uses
- * 5  tty_pgrp      pgrp of the tty
- * 6  flags         task flags
- * 7  min_flt       number of minor faults
- * 8  cmin_flt      number of minor faults with child's
- * 9  maj_flt       number of major faults
- * 10 cmaj_flt      number of major faults with child's
- * 11 utime         user mode jiffies
- * 12 stime         kernel mode jiffies
- * 13 cutime        user mode jiffies with child's
- * 14 cstime        kernel mode jiffies with child's
- * 15 priority      priority level
- * 16 nice          nice level
- * 17 num_threads   number of threads
- * 18 vmlck         locked memory
- * 19 start_time    time the process started after system boot
- * 20 vsize         virtual memory size
- * 21 rss           resident set memory size
- * 22 rsslim        current limit in bytes on the rss
- * 23 start_code    address above which program text can run
- * 24 end_code      address below which program text can run
- * 25 start_stack   address of the start of the main process stack
- * 26 esp           current value of ESP
- * 27 eip           current value of EIP
- * 28 pending       bitmap of pending signals
- * 29 blocked       bitmap of blocked signals
- * 30 sigign        bitmap of ignored signals
- * 31 uid           user id
- * 32 ruid          real user id
- * 33 gid           group id
- * 34 rgid          real group id
- * 35 exit_signal   signal to send to parent thread on exit
- * 36 task_cpu      which CPU the task is scheduled on
- * 37 rt_priority   realtime priority
- * 38 policy        scheduling policy (man sched_setscheduler)
- * 39 blkio_ticks   time spent waiting for block IO
- * 40 gtime         guest time of the task in jiffies
- * 41 cgtime        guest time of the task children in jiffies
- * 42 start_data    address above which program data+bss is placed
- * 43 end_data      address below which program data+bss is placed
- * 44 start_brk     address above which program heap can be expanded with brk()
- * 45 argv0len      length of argv[0] read from /proc/$PID/cmdline
- * 46 uptime        sysinfo.uptime when this entry was read
- * 47 vsz           Virtual Size
- * 48 rss           Resident Set Size
- * 49 shr           Shared memory
- */
+// TODO: Android uses -30 for LABEL, but ideally it would auto-size.
+struct typography {
+  char *name;
+  signed char width, slot;
+} static const typos[] = TAGGED_ARRAY(PS,
+  {"F", 1, 64|6}, {"S", -1, 64}, {"UID", 5, 31}, {"PID", 5, 0},
+  {"PPID", 5, 1}, {"C", 2, 0}, {"PRI", 3, 15}, {"NI", 3, 16},
+  {"ADDR", 4+sizeof(long), 27}, {"SZ", 5, 20}, {"WCHAN", -6, -3}, {"STIME", 5, 19},
+  {"TTY", -8, -2}, {"TIME", 8, 11}, {"CMD", -27, -1}, {"COMMAND", -27, -5},
+  {"ELAPSED", 11, 19}, {"GROUP", -8, 64|33}, {"%CPU", 4, 64}, {"PGID", 5, 2},
+  {"RGROUP", -8, 64|34}, {"RUSER", -8, 64|32}, {"USER", -8, 64|31}, {"VSZ", 6, 20},
+  {"RSS", 5, 21}, {"MAJFL", 6, 9}, {"GID", 8, 33}, {"STAT", -5, 64},
+  {"RUID", 4, 32}, {"RGID", 4, 34}, {"MINFL", 6, 7}, {"LABEL", -30, -4},
+  {"CMDLINE", -27, -5}, {"%VSZ", 5, 23}, {"PR", 2, 15}, {"VIRT", 4, 47},
+  {"RES", 4, 48}, {"SHR", 4, 49}, {"TIME+", 9, 11}
+);
 
 // Return 1 to keep, 0 to discard
 static int match_process(long long *slot)
@@ -274,13 +266,13 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
 {
   char *buf = toybuf+sizeof(toybuf)-260, *out = buf, *s;
   long long ll, *slot = tb->slot;
-  int i;
+  int i, which = field->which;
 
   // Default: unsupported (5 "C")
   sprintf(out, "-");
 
   // stat#s: PID, PPID, PRI, NI, ADDR, SZ, RSS, PGID, VSZ, MAJFL, MINFL, PR
-  if (-1!=(i = stridx((char[]){3,4,6,7,8,9,24,19,23,25,30,34,0}, field->which)))
+  if (-1!=(i = stridx((char[]){3,4,6,7,8,9,24,19,23,25,30,34,0}, which)))
   {
     char *fmt = "%lld";
 
@@ -294,7 +286,7 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     sprintf(out, fmt, ll);
 
   // user/group: UID USER RUID RUSER GID GROUP RGID RGROUP
-  } else if (-1!=(i = stridx((char[]){2,22,28,21,26,17,29,20,0}, field->which)))
+  } else if (-1!=(i = stridx((char[]){2,22,28,21,26,17,29,20,0}, which)))
   {
     int id = slot[31+i/2]; // uid, ruid, gid, rgid
 
@@ -312,19 +304,38 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
       }
     }
   // CMD TTY WCHAN LABEL (CMDLINE handled elsewhere)
-  } else if (-1!=(i = stridx((char[]){15,12,10,31,0}, field->which))) {
+  } else if (-1!=(i = stridx((char[]){15,12,10,31,0}, which))) {
     out = tb->str;
     if (i) out += tb->offset[i-1];
+
+  // TIME ELAPSED TIME+
+  } else if (-1!=(i = stridx((char[]){13,16,38,0}, which))) {
+    int unit = 60*60*24, j = TT.ticks; 
+    time_t seconds = (i==1) ? (slot[46]*j)-slot[19] : slot[11];
+
+    seconds /= j;
+    for (s = 0, j = 0; j<4; j++) {
+      // TIME has 3 required fields, ETIME has 2. (Posix!)
+      if (!s && (seconds>unit || j == 1+i)) s = out;
+      if (s) {
+        s += sprintf(s, j ? "%02ld": "%2ld", (long)(seconds/unit));
+        if ((*s = "-::"[j])) s++;
+      }
+      seconds %= unit;
+      unit /= j ? 60 : 24;
+    }
+    if (i==2 && s-out<8)
+      sprintf(s, ".%02lld", (100*(slot[11]%TT.ticks))/TT.ticks);
 
   // F (also assignment of i used by later tests)
   // Posix doesn't specify what flags should say. Man page says
   // 1 for PF_FORKNOEXEC and 4 for PF_SUPERPRIV from linux/sched.h
-  } else if (!(i = field->which)) sprintf(out, "%llo", (slot[6]>>6)&5);
+  } else if (!which) sprintf(out, "%llo", (slot[6]>>6)&5);
   // S STAT
-  else if (i==1 || i==27) {
+  else if (which==1 || which==27) {
     s = out;
     *s++ = tb->state;
-    if (i==27) {
+    if (which==27) {
       // TODO l = multithreaded
       if (slot[16]<0) *s++ = '<';
       else if (slot[16]>0) *s++ = 'N';
@@ -334,7 +345,7 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     } 
     *s = 0;
   // STIME
-  } else if (i==11) {
+  } else if (which==11) {
     time_t t = time(0)-slot[46]+slot[19]/TT.ticks;
 
     // Padding behavior's a bit odd: default field size is just hh:mm.
@@ -345,26 +356,9 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     out = out+strlen(out)-3-abs(field->len);
     if (out<buf) out = buf;
 
-  // TIME ELAPSED
-  } else if (i==13 || i==16) {
-    int unit = 60*60*24, j = TT.ticks; 
-    time_t seconds = (i==16) ? (slot[46]*j)-slot[19] : slot[11]+slot[12];
-
-    seconds /= j;
-    for (s = 0, j = 0; j<4; j++) {
-      // TIME has 3 required fields, ETIME has 2. (Posix!)
-      if (!s && (seconds>unit || j == 1+(i==16))) s = out;
-      if (s) {
-        s += sprintf(s, j ? "%02ld": "%2ld", (long)(seconds/unit));
-        if ((*s = "-::"[j])) s++;
-      }
-      seconds %= unit;
-      unit /= j ? 60 : 24;
-    }
-
   // COMM - command line including arguments
   // CMDLINE - command name from /proc/pid/cmdline (no arguments)
-  } else if (i==14 || i==32) {
+  } else if (which==14 || which==32) {
     // Use [real name] for kernel threads, max buf space 255+2+1 bytes
     if (slot[45]<1) sprintf(out, "[%s]", tb->str);
     else {
@@ -373,14 +367,14 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     }
 
   // %CPU %VSZ
-  } else if (i==18 || i==33) {
-    if (i==18) {
+  } else if (which==18 || which==33) {
+    if (which==18) {
       ll = (slot[46]*TT.ticks-slot[19]);
-      i = ((slot[11]+slot[12])*1000)/ll;
+      i = (slot[11]*1000)/ll;
     } else i = (slot[23]*1000)/TT.si.totalram;
     sprintf(out, "%d.%d", i/10, i%10);
-  } else if (i>=35 && i<=37)
-    human_readable(out, slot[i-35+47]*sysconf(_SC_PAGESIZE), 0);
+  } else if (which>=35 && which<=37)
+    human_readable(out, slot[which-35+47]*sysconf(_SC_PAGESIZE), 0);
 
   return out;
 }
@@ -442,13 +436,6 @@ static int get_ps(struct dirtree *new)
   for (s = ++name; *s; s++) if (*s == ')') end = s;
   if (!end || end-name>255) return 0;
 
-  // Move name right after slot[] array (pid already set, so stomping it's ok)
-  // and convert low chars to spaces while we're at it.
-  for (i = 0; i<end-name; i++)
-    if ((tb->str[i] = name[i]) < ' ') tb->str[i] = ' ';
-  buf = tb->str+i;
-  *buf++ = 0;
-
   // Parse numeric fields (starting at 4th field in slot[1])
   if (1>sscanf(s = end, ") %c%n", &tb->state, &i)) return 0;
   for (j = 1; j<50; j++) if (1>sscanf(s += i, " %lld%n", slot+j, &i)) break;
@@ -461,12 +448,14 @@ static int get_ps(struct dirtree *new)
   *buf++ = 0;
   len = sizeof(toybuf)-(buf-toybuf);
 
-
   // save uid, ruid, gid, gid, and rgid int slots 31-34 (we don't use sigcatch
   // or numeric wchan, and the remaining two are always zero), and vmlck into
   // 18 (which is "obsolete, always 0" from stat)
   slot[31] = new->st.st_uid;
   slot[33] = new->st.st_gid;
+
+  // TIME and TIME+ use combined value, ksort needs 'em added.
+  slot[11] += slot[12];
 
   // If RGROUP RUSER STAT RUID RGID happening, or -G or -U, parse "status"
   // and save ruid, rgid, and vmlck.
@@ -621,19 +610,7 @@ void comma_args(struct arg_list *al, void *data, char *err,
 static char *parse_ko(void *data, char *type, int length)
 {
   struct strawberry *field;
-  char *width, *title, *end, *s, *typos[] = {
-         "F", "S", "UID", "PID", "PPID", "C", "PRI", "NI", "ADDR", "SZ",
-         "WCHAN", "STIME", "TTY", "TIME", "CMD", "COMMAND", "ELAPSED", "GROUP",
-         "%CPU", "PGID", "RGROUP", "RUSER", "USER", "VSZ", "RSS", "MAJFL",
-         "GID", "STAT", "RUID", "RGID", "MINFL", "LABEL", "CMDLINE", "%VSZ",
-         "PR", "VIRT", "RES", "SHR", "TIME+"
-  };
-  // TODO: Android uses -30 for LABEL, but ideally it would auto-size.
-  signed char widths[] = {1,-1,5,5,5,2,3,3,4+sizeof(long),5,
-                          -6,5,-8,8,-27,-27,11,-8,
-                          4,5,-8,-8,-8,6,5,6,
-                          8,-5,4,4,6,-30,-27,5,
-                          2,4,4,4,9};
+  char *width, *title, *end, *s;
   int i, j, k;
 
   // Get title, length of title, type, end of type, and display width
@@ -675,7 +652,7 @@ static char *parse_ko(void *data, char *type, int length)
   for (i = 0; i<ARRAY_LEN(typos); i++) {
     field->which = i;
     for (j = 0; j<2; j++) {
-      if (!j) s = typos[i];
+      if (!j) s = typos[i].name;
       // posix requires alternate names for some fields
       else if (-1==(k = stridx((char []){7,14,15,16,18,23,22,0}, i))) continue;
       else s = ((char *[]){"NICE","ARGS","COMM","ETIME","PCPU",
@@ -686,9 +663,9 @@ static char *parse_ko(void *data, char *type, int length)
     if (j!=2) break;
   }
   if (i==ARRAY_LEN(typos)) return type;
-  if (!field->title) field->title = typos[field->which];
-  if (!field->len) field->len = widths[field->which];
-  else if (widths[field->which]<0) field->len *= -1;
+  if (!field->title) field->title = typos[field->which].name;
+  if (!field->len) field->len = typos[field->which].width;
+  else if (typos[field->which].width<0) field->len *= -1;
   dlist_add_nomalloc(data, (void *)field);
 
   // Print padded header for -o.
@@ -785,30 +762,21 @@ static char *parse_rest(void *data, char *str, int len)
 static int ksort(void *aa, void *bb)
 {
   struct strawberry *field;
-  long long lla, llb;
-  char *out, *end;
-  int ret = 0;
+  struct carveup *ta = *(struct carveup **)aa, *tb = *(struct carveup **)bb;
+  int ret = 0, slot;
 
   for (field = TT.kfields; field; field = field->next) {
 
-    // Convert fields to string version, saving first in toybuf
-    out = string_field(*(void **)aa, field);
-    memccpy(toybuf, out, 0, 2048);
-    toybuf[2048] = 0;
-    out = string_field(*(void **)bb, field);
-
-    // Numeric comparison?
-    llb = strtoll(out, &end, 10);
-    if (!*end) {
-      lla = strtoll(toybuf, &end, 10);
-      if (!*end) {
-        if (lla<llb) ret = -1;
-        if (lla>llb) ret = 1;
-      }
+    slot = typos[field->which].slot;
+    // Compare as strings?
+    if (slot&64) {
+      memccpy(toybuf, string_field(ta, field), 0, 2048);
+      toybuf[2048] = 0;
+      ret = strcmp(toybuf, string_field(tb, field));
+    } else {
+      if (ta->slot[slot]<tb->slot[slot]) ret = -1;
+      if (ta->slot[slot]>tb->slot[slot]) ret = 1;
     }
-
-    // String compare
-    if (*end) ret = strcmp(toybuf, out);
 
     if (ret) return ret*field->reverse;
   }
