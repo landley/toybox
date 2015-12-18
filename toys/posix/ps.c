@@ -24,14 +24,14 @@
  * which changes -l by removing the "F" column and swapping RSS for ADDR,
  * leaving 9 chars for cmd, so we're using that as our -l output.
  *
+ * Added a bunch of new -o fields posix doesn't mention, and we don't
+ * label "ps -o command,args,comm" as "COMMAND COMMAND COMMAND". We don't
+ * output argv[0] unmodified for -o comm or -o args (but procps violates
+ * posix for -o comm anyway, it's stat[2] not argv[0]).
+ *
  * TODO: ps aux (att & bsd style "ps -ax" vs "ps ax" behavior difference)
  * TODO: switch -fl to -y
- * TODO: way too many hardwired constants here, how can I generate them?
  * TODO: thread support /proc/$d/task/%d/stat (and -o stat has "l")
- *
- * Design issue: the -o fields are an ordered array, and the order is
- * significant. The array index is used in strawberry->which (consumed
- * in do_ps()) and in the TT.bits bitmask.
 
 USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflno*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_TTOP(NEWTOY(ttop, ">0d#=3n#<1mb", TOYFLAG_USR|TOYFLAG_BIN))
@@ -75,32 +75,34 @@ config PS
     Available -o FIELDs:
 
       ADDR    Instruction pointer
-      CMD     Command name (original)
-      CMDLINE Command name (current argv[0])
-      COMM    Command line (with arguments)
-      CPU     Which processor is process running on
+      ARGS    Command line (argv[0-X] minus path)
+      CMD     COMM without -f, ARGS with -f
+      CMDLINE Command line (argv[0-X])
+      COMM    Original command name
+      COMMAND Original command path
+      CPU     Which processor running on
       ETIME   Elapsed time since process start
-      F       Process flags (PF_*) from linux source file include/sched.h
-              (in octal rather than hex because posix)
+      F       Flags (1=FORKNOEXEC, 4=SUPERPRIV)
       GID     Group id
       GROUP   Group name
       LABEL   Security label
       MAJFL   Major page faults
       MINFL   Minor page faults
-      NI      Niceness of process (lower niceness is higher priority)
+      NAME    Command name (argv[0])
+      NI      Niceness (lower is faster)
       PCPU    Percentage of CPU time used
       PGID    Process Group ID
       PID     Process ID
       PPID    Parent Process ID
-      PRI     Priority
+      PRI     Priority (higher is faster)
       RGID    Real (before sgid) group ID
       RGROUP  Real (before sgid) group name
-      RSS     Resident Set Size (memory currently used)
+      RSS     Resident Set Size (memory in use)
       RUID    Real (before suid) user ID
       RUSER   Real (before suid) user name
       S       Process state:
-              R (running) S (sleeping) D (disk sleep) T (stopped)  t (traced)
-              Z (zombie)  X (dead)     x (dead)       K (wakekill) W (waking)
+              R (running) S (sleeping) D (device I/O) T (stopped)  t (traced)
+              Z (zombie)  X (deader)   x (dead)       K (wakekill) W (waking)
       STAT    Process state (S) plus:
               < high priority          N low priority L locked memory
               s session leader         + foreground   l multithreaded
@@ -209,26 +211,38 @@ struct strawberry {
 // Data layout in toybuf
 struct carveup {
   long long slot[50];       // data from /proc, skippint #2 and #3
-  unsigned short offset[4]; // offset of fields in str[] (skip name, always 0)
+  unsigned short offset[5]; // offset of fields in str[] (skip name, always 0)
   char state;
-  char str[];              // name, tty, wchan, attr, cmdline
+  char str[];               // name, tty, command, wchan, attr, cmdline
 };
 
 // TODO: Android uses -30 for LABEL, but ideally it would auto-size.
 struct typography {
   char *name;
   signed char width, slot;
+
 } static const typos[] = TAGGED_ARRAY(PS,
-  {"F", 1, 64|6}, {"S", -1, 64}, {"UID", 5, 31}, {"PID", 5, 0},
-  {"PPID", 5, 1}, {"C", 2, 0}, {"PRI", 3, 15}, {"NI", 3, 16},
-  {"ADDR", 4+sizeof(long), 27}, {"SZ", 5, 20}, {"WCHAN", -6, -3}, {"STIME", 5, 19},
-  {"TTY", -8, -2}, {"TIME", 8, 11}, {"CMD", -27, -1}, {"COMMAND", -27, -5},
-  {"ELAPSED", 11, 19}, {"GROUP", -8, 64|33}, {"%CPU", 4, 64}, {"PGID", 5, 2},
-  {"RGROUP", -8, 64|34}, {"RUSER", -8, 64|32}, {"USER", -8, 64|31}, {"VSZ", 6, 20},
-  {"RSS", 5, 21}, {"MAJFL", 6, 9}, {"GID", 8, 33}, {"STAT", -5, 64},
-  {"RUID", 4, 32}, {"RGID", 4, 34}, {"MINFL", 6, 7}, {"LABEL", -30, -4},
-  {"CMDLINE", -27, -5}, {"%VSZ", 5, 23}, {"PR", 2, 15}, {"VIRT", 4, 47},
-  {"RES", 4, 48}, {"SHR", 4, 49}, {"TIME+", 9, 11}
+  // stat#s: PID, PPID, PRI, NI, ADDR, SZ, RSS, PGID, VSZ, MAJFL, MINFL, PR
+  {"PID", 5, 0}, {"PPID", 5, 1}, {"PRI", 3, 15}, {"NI", 3, 16},
+  {"ADDR", 4+sizeof(long), 27}, {"SZ", 5, 20}, {"RSS", 5, 21}, {"PGID", 5, 2},
+  {"VSZ", 6, 20}, {"MAJFL", 6, 9}, {"MINFL", 6, 7}, {"PR", 2, 15},
+
+  // user/group: UID USER RUID RUSER GID GROUP RGID RGROUP
+  {"UID", 5, 31}, {"USER", -8, 64|31}, {"RUID", 4, 32}, {"RUSER", -8, 64|32},
+  {"GID", 8, 33}, {"GROUP", -8, 64|33}, {"RGID", 4, 34}, {"RGROUP", -8, 64|34},
+
+  // CMD TTY WCHAN LABEL CMDLINE COMMAND
+  {"COMM", -15, -1}, {"TTY", -8, -2}, {"WCHAN", -6, -3}, {"LABEL", -30, -4},
+  {"COMMAND", -27, -5}, {"CMDLINE", -27, -6}, {"ARGS", -27, -6},
+  {"NAME", -15, -6}, {"CMD", -27, -1},
+
+  // TIME ELAPSED TIME+
+  {"TIME", 8, 11}, {"ELAPSED", 11, 19}, {"TIME+", 9, 11},
+
+  // Remaining ungrouped
+  {"STIME", 5, 19}, {"F", 1, 64|6}, {"S", -1, 64}, {"C", 1, 0}, {"%CPU", 4, 64},
+  {"STAT", -5, 64}, {"%VSZ", 5, 23}, {"VIRT", 4, 47}, {"RES", 4, 48},
+  {"SHR", 4, 49}
 );
 
 // Return 1 to keep, 0 to discard
@@ -262,80 +276,88 @@ static int match_process(long long *slot)
   return 1;
 }
 
+// Convert field to string representation
 static char *string_field(struct carveup *tb, struct strawberry *field)
 {
   char *buf = toybuf+sizeof(toybuf)-260, *out = buf, *s;
-  long long ll, *slot = tb->slot;
-  int i, which = field->which;
+  int which = field->which, sl = typos[which].slot;
+  long long *slot = tb->slot, ll = (sl >= 0) ? slot[sl&63] : 0;
 
   // Default: unsupported (5 "C")
   sprintf(out, "-");
 
   // stat#s: PID, PPID, PRI, NI, ADDR, SZ, RSS, PGID, VSZ, MAJFL, MINFL, PR
-  if (-1!=(i = stridx((char[]){3,4,6,7,8,9,24,19,23,25,30,34,0}, which)))
-  {
+  if (which <= PS_PR) {
     char *fmt = "%lld";
 
-    ll = slot[((char[]){0,1,15,16,27,20,21,2,20,9,7,15})[i]];
-    if (i==2) ll = 39-ll;
-    if (i==4) fmt = "%llx";
-    else if (i==5) ll >>= 12;
-    else if (i==6) ll <<= 2;
-    else if (i==8) ll >>= 10;
-    else if (i==11) if (ll<-9) fmt="RT";
+    if (which==PS_PRI) ll = 39-ll;
+    if (which==PS_ADDR) fmt = "%llx";
+    else if (which==PS_SZ) ll >>= 12;
+    else if (which==PS_RSS) ll <<= 2;
+    else if (which==PS_VSZ) ll >>= 10;
+    else if (which==PS_PR) if (ll<-9) fmt="RT";
     sprintf(out, fmt, ll);
 
   // user/group: UID USER RUID RUSER GID GROUP RGID RGROUP
-  } else if (-1!=(i = stridx((char[]){2,22,28,21,26,17,29,20,0}, which)))
-  {
-    int id = slot[31+i/2]; // uid, ruid, gid, rgid
-
-    // Even entries are numbers, odd are names
-    sprintf(out, "%d", id);
-    if (!(toys.optflags&FLAG_n) && i&1) {
-      if (i>3) {
-        struct group *gr = getgrgid(id);
+  } else if (which <= PS_RGROUP) {
+    sprintf(out, "%lld", ll);
+    if (!(toys.optflags&FLAG_n) && (sl&64)) {
+      if (which > PS_RUSER) {
+        struct group *gr = getgrgid(ll);
 
         if (gr) out = gr->gr_name;
       } else {
-        struct passwd *pw = getpwuid(id);
+        struct passwd *pw = getpwuid(ll);
 
         if (pw) out = pw->pw_name;
       }
     }
-  // CMD TTY WCHAN LABEL (CMDLINE handled elsewhere)
-  } else if (-1!=(i = stridx((char[]){15,12,10,31,0}, which))) {
+
+  // COMM TTY WCHAN LABEL COMMAND CMDLINE ARGS NAME CMD
+
+  // CMD TTY WCHAN LABEL CMDLINE COMMAND COMM NAME
+  } else if (sl < 0) {
+    if (which==PS_CMD && (toys.optflags&FLAG_f)) sl = typos[which=PS_ARGS].slot;
+    if (slot[45])
+      tb->str[tb->offset[4]+slot[45]] = (which == PS_NAME) ? 0 : ' ';
     out = tb->str;
-    if (i) out += tb->offset[i-1];
-
+    sl *= -1;
+    if (--sl) out += tb->offset[--sl];
+    if (which==PS_ARGS)
+      for (s = out; *s && *s != ' '; s++) if (*s == '/') out = s+1;
+    if (which>=PS_COMMAND && !*out) sprintf(out = buf, "[%s]", tb->str);
   // TIME ELAPSED TIME+
-  } else if (-1!=(i = stridx((char[]){13,16,38,0}, which))) {
-    int unit = 60*60*24, j = TT.ticks; 
-    time_t seconds = (i==1) ? (slot[46]*j)-slot[19] : slot[11];
+  } else if (which <= PS_TIME_) {
+    int unit = 60, pad = 2, j = TT.ticks; 
+    time_t seconds;
 
-    seconds /= j;
-    for (s = 0, j = 0; j<4; j++) {
-      // TIME has 3 required fields, ETIME has 2. (Posix!)
-      if (!s && (seconds>unit || j == 1+i)) s = out;
+    if (which!=PS_TIME_) unit *= 60*24;
+    else pad = 0;
+    if (which==PS_ELAPSED) ll = (slot[46]*j)-slot[19];
+    seconds = ll/j;
+
+    // Output days-hours:mins:secs, skipping non-required fields with zero
+    // TIME has 3 required fields, ETIME has 2. (Posix!) TIME+ is from top
+    for (s = 0, j = 2*(which==PS_TIME_); j<4; j++) {
+      if (!s && (seconds>unit || j == 1+(which!=PS_TIME))) s = out;
       if (s) {
-        s += sprintf(s, j ? "%02ld": "%2ld", (long)(seconds/unit));
+        s += sprintf(s, j ? "%0*ld": "%*ld", pad, (long)(seconds/unit));
+        pad = 2;
         if ((*s = "-::"[j])) s++;
       }
       seconds %= unit;
       unit /= j ? 60 : 24;
     }
-    if (i==2 && s-out<8)
-      sprintf(s, ".%02lld", (100*(slot[11]%TT.ticks))/TT.ticks);
+    if (which==PS_TIME_ && s-out<8)
+      sprintf(s, ".%02lld", (100*(ll%TT.ticks))/TT.ticks);
 
-  // F (also assignment of i used by later tests)
   // Posix doesn't specify what flags should say. Man page says
   // 1 for PF_FORKNOEXEC and 4 for PF_SUPERPRIV from linux/sched.h
-  } else if (!which) sprintf(out, "%llo", (slot[6]>>6)&5);
-  // S STAT
-  else if (which==1 || which==27) {
+  } else if (which==PS_F) sprintf(out, "%llo", (slot[6]>>6)&5);
+  else if (which==PS_S || which==PS_STAT) {
     s = out;
     *s++ = tb->state;
-    if (which==27) {
+    if (which==PS_STAT) {
       // TODO l = multithreaded
       if (slot[16]<0) *s++ = '<';
       else if (slot[16]>0) *s++ = 'N';
@@ -344,8 +366,7 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
       if (slot[5]==*slot) *s++ = '+';
     } 
     *s = 0;
-  // STIME
-  } else if (which==11) {
+  } else if (which==PS_STIME) {
     time_t t = time(0)-slot[46]+slot[19]/TT.ticks;
 
     // Padding behavior's a bit odd: default field size is just hh:mm.
@@ -355,26 +376,14 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     strftime(out, 260, "%F %T", localtime(&t));
     out = out+strlen(out)-3-abs(field->len);
     if (out<buf) out = buf;
-
-  // COMM - command line including arguments
-  // CMDLINE - command name from /proc/pid/cmdline (no arguments)
-  } else if (which==14 || which==32) {
-    // Use [real name] for kernel threads, max buf space 255+2+1 bytes
-    if (slot[45]<1) sprintf(out, "[%s]", tb->str);
-    else {
-      out = tb->str+tb->offset[3];
-      if (slot[45]!=INT_MAX) out[slot[45]] = ' '*(i==14);
-    }
-
-  // %CPU %VSZ
-  } else if (which==18 || which==33) {
-    if (which==18) {
+  } else if (which==PS__CPU || which==PS__VSZ) {
+    if (which==PS__CPU) {
       ll = (slot[46]*TT.ticks-slot[19]);
-      i = (slot[11]*1000)/ll;
-    } else i = (slot[23]*1000)/TT.si.totalram;
-    sprintf(out, "%d.%d", i/10, i%10);
-  } else if (which>=35 && which<=37)
-    human_readable(out, slot[which-35+47]*sysconf(_SC_PAGESIZE), 0);
+      sl = (slot[11]*1000)/ll;
+    } else sl = (slot[23]*1000)/TT.si.totalram;
+    sprintf(out, "%d.%d", sl/10, sl%10);
+  } else if (which==PS_VIRT || which==PS_RES || which==PS_SHR)
+    human_readable(out, slot[typos[which].slot]*sysconf(_SC_PAGESIZE), 0);
 
   return out;
 }
@@ -412,8 +421,11 @@ static int get_ps(struct dirtree *new)
   struct {
     char *name;
     long long bits;
-  } fetch[] = {{"fd/", 1<<12}, {"wchan", 1<<10}, {"attr/current", 1<<31},
-               {"cmdline", (1<<14)|(1LL<<32)}};
+  } fetch[] = {
+    {"fd/", _PS_TTY}, {"wchan", _PS_WCHAN}, {"attr/current", _PS_LABEL},
+    {"exe", _PS_COMMAND}, {"cmdline",
+     (_PS_CMD*!!(toys.optflags&FLAG_f))|_PS_CMDLINE|_PS_ARGS|_PS_NAME}
+  };
   struct carveup *tb = (void *)toybuf;
   long long *slot = tb->slot;
   char *name, *s, *buf = tb->str, *end = 0;
@@ -441,9 +453,9 @@ static int get_ps(struct dirtree *new)
   for (j = 1; j<50; j++) if (1>sscanf(s += i, " %lld%n", slot+j, &i)) break;
 
   // Now we've read the data, move status and name right after slot[] array,
-  // and convert low chars to spaces while we're at it.
+  // and convert low chars to ? while we're at it.
   for (i = 0; i<end-name; i++)
-    if ((tb->str[i] = name[i]) < ' ') tb->str[i] = ' ';
+    if ((tb->str[i] = name[i]) < ' ') tb->str[i] = '?';
   buf = tb->str+i;
   *buf++ = 0;
   len = sizeof(toybuf)-(buf-toybuf);
@@ -459,7 +471,9 @@ static int get_ps(struct dirtree *new)
 
   // If RGROUP RUSER STAT RUID RGID happening, or -G or -U, parse "status"
   // and save ruid, rgid, and vmlck.
-  if ((TT.bits & 0x38300000) || TT.GG.len || TT.UU.len) {
+  if ((TT.bits&(_PS_RGROUP|_PS_RUSER|_PS_STAT|_PS_RUID|_PS_RGID))
+    || TT.GG.len || TT.UU.len)
+  {
     off_t temp = len;
 
     sprintf(buf, "%lld/status", *slot);
@@ -475,8 +489,8 @@ static int get_ps(struct dirtree *new)
   // We now know enough to skip processes we don't care about.
   if (!match_process(slot)) return 0;
 
-  // Fetch VIRT RES SHR (for top)
-  if (TT.bits & (7LL<<35)) {
+  // Do we need to read "statm"?
+  if (TT.bits&(_PS_VIRT|_PS_RES|_PS_SHR)) {
     off_t temp = len;
 
     sprintf(buf, "%lld/statm", *slot);
@@ -492,10 +506,11 @@ static int get_ps(struct dirtree *new)
   sysinfo(&TT.si);
   slot[46] = TT.si.uptime;
 
-  // fetch remaining data while parentfd still available, appending to buf.
+  // Fetch string data while parentfd still available, appending to buf.
   // (There's well over 3k of toybuf left. We could dynamically malloc, but
   // it'd almost never get used, querying length of a proc file is awkward,
   // fixed buffer is nommu friendly... Wait for somebody to complain. :)
+  slot[45] = 0;
   for (j = 0; j<ARRAY_LEN(fetch); j++) { 
     tb->offset[j] = buf-(tb->str);
     if (!(TT.bits&fetch[j].bits)) {
@@ -508,29 +523,13 @@ static int get_ps(struct dirtree *new)
     len = sizeof(toybuf)-(buf-toybuf)-260-256*(ARRAY_LEN(fetch)-j);
     sprintf(buf, "%lld/%s", *slot, fetch[j].name);
 
+    // For cmdline we readlink instead of read contents
+    if (j==3) {
+      if (0>=(len = readlinkat(fd, buf, buf, len))) buf[len] = 0;
+ 
     // If it's not the TTY field, data we want is in a file.
     // Last length saved in slot[] is command line (which has embedded NULs)
-    if (j) {
-      readfileat(fd, buf, buf, &len);
-
-      // When command has no arguments, don't space over the NUL
-      if (len>0) {
-        int temp = 0;
-
-        if (buf[len-1]=='\n') buf[--len] = 0;
-
-        // Always escape spaces because an executable named esc[0m would be bad.
-        // Escaping low ascii does not affect utf8.
-        for (i=0; i<len; i++) {
-          if (!temp && !buf[i]) temp = i;
-          if (buf[i]<' ') buf[i] = ' ';
-        }
-        if (temp) len = temp; // position of _first_ NUL
-        else len = INT_MAX;
-      } else *buf = len = 0;
-      // Store end of argv[0] so COMM and CMDLINE can differ.
-      slot[45] = len;
-    } else {
+    } else if (!j) {
       int rdev = slot[4];
       struct stat st;
 
@@ -571,9 +570,36 @@ static int get_ps(struct dirtree *new)
         }
 
         s = buf;
-        if (strstart(&s, "/dev/")) memmove(buf, s, strlen(s)+1);;
+        if (strstart(&s, "/dev/")) memmove(buf, s, strlen(s)+1);
       }
+
+    // Data we want is in a file.
+    // Last length saved in slot[] is command line (which has embedded NULs)
+    } else {
+      readfileat(fd, buf, buf, &len);
+
+      // When command has no arguments, don't space over the NUL
+      if (len>0) {
+        int temp = 0;
+
+        if (buf[len-1]=='\n') buf[--len] = 0;
+
+        // Turn NUL to space, other low ascii to ?
+        for (i=0; i<len; i++) {
+          char c = buf[i];
+
+          if (!c) {
+            if (!temp) temp = i;
+            c = ' ';
+          } else if (c<' ') c = '?';
+          buf[i] = c;
+        }
+        len = temp; // position of _first_ NUL
+      } else *buf = len = 0;
+      // Store end of argv[0] so NAME and CMDLINE can differ.
+      slot[45] = len;
     }
+
     buf += strlen(buf)+1;
   }
 
@@ -654,9 +680,9 @@ static char *parse_ko(void *data, char *type, int length)
     for (j = 0; j<2; j++) {
       if (!j) s = typos[i].name;
       // posix requires alternate names for some fields
-      else if (-1==(k = stridx((char []){7,14,15,16,18,23,22,0}, i))) continue;
-      else s = ((char *[]){"NICE","ARGS","COMM","ETIME","PCPU",
-                           "VSIZE","UNAME"})[k];
+      else if (-1==(k = stridx((char []){PS_NI, PS_ELAPSED, PS__CPU, PS_VSZ,
+        PS_USER, 0}, i))) continue;
+      else s = ((char *[]){"NICE", "ETIME", "PCPU", "VSIZE", "UNAME"})[k];
 
       if (!strncasecmp(type, s, end-type) && strlen(s)==end-type) break;
     }

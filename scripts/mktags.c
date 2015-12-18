@@ -47,8 +47,10 @@ int main(int argc, char *argv[])
         if (!isalpha(*s) && !isdigit(*s)) *s = '_';
         s++;
       }
-      printf("% *d\n",
-        30-printf("#define %s_%.*s", tag, (int)(s-start), start), ++idx);
+      printf("#define %s_%*.*s %d\n", tag, -40, (int)(s-start), start, idx);
+      printf("#define _%s_%*.*s (1%s<<%d)\n", tag, -39, (int)(s-start), start,
+        idx>31 ? "LL": "", idx);
+      idx++;
     }
     free(line);
   }
