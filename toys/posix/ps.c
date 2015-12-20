@@ -95,14 +95,17 @@ config PS
       PID     Process ID
       PPID    Parent Process ID
       PRI     Priority (higher is faster)
+      PSR     Processor last executed on
       RGID    Real (before sgid) group ID
       RGROUP  Real (before sgid) group name
       RSS     Resident Set Size (memory in use)
+      RTPRIO  Realtime priority
       RUID    Real (before suid) user ID
       RUSER   Real (before suid) user name
       S       Process state:
               R (running) S (sleeping) D (device I/O) T (stopped)  t (traced)
               Z (zombie)  X (deader)   x (dead)       K (wakekill) W (waking)
+      SCHED   Scheduling policy (0=other, 1=fifo, 2=rr, 3=batch, 4=iso, 5=idle)
       STAT    Process state (S) plus:
               < high priority          N low priority L locked memory
               s session leader         + foreground   l multithreaded
@@ -222,10 +225,12 @@ struct typography {
   signed char width, slot;
 
 } static const typos[] = TAGGED_ARRAY(PS,
-  // stat#s: PID, PPID, PRI, NI, ADDR, SZ, RSS, PGID, VSZ, MAJFL, MINFL, PR
+  // stat#s: PID PPID PRI NI ADDR SZ RSS PGID VSZ MAJFL MINFL PR PSR RTPRIO
+  // SCHED
   {"PID", 5, 0}, {"PPID", 5, 1}, {"PRI", 3, 15}, {"NI", 3, 16},
   {"ADDR", 4+sizeof(long), 27}, {"SZ", 5, 20}, {"RSS", 5, 21}, {"PGID", 5, 2},
   {"VSZ", 6, 20}, {"MAJFL", 6, 9}, {"MINFL", 6, 7}, {"PR", 2, 15},
+  {"PSR", 3, 36}, {"RTPRIO", 6, 37}, {"SCH", 3, 38},
 
   // user/group: UID USER RUID RUSER GID GROUP RGID RGROUP
   {"UID", 5, 31}, {"USER", -8, 64|31}, {"RUID", 4, 32}, {"RUSER", -8, 64|32},
@@ -286,8 +291,8 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
   // Default: unsupported (5 "C")
   sprintf(out, "-");
 
-  // stat#s: PID, PPID, PRI, NI, ADDR, SZ, RSS, PGID, VSZ, MAJFL, MINFL, PR
-  if (which <= PS_PR) {
+  // stat#s: PID PPID PRI NI ADDR SZ RSS PGID VSZ MAJFL MINFL PR PSR RTPRIO SCH
+  if (which <= PS_SCH) {
     char *fmt = "%lld";
 
     if (which==PS_PRI) ll = 39-ll;
@@ -295,7 +300,8 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     else if (which==PS_SZ) ll >>= 12;
     else if (which==PS_RSS) ll <<= 2;
     else if (which==PS_VSZ) ll >>= 10;
-    else if (which==PS_PR) if (ll<-9) fmt="RT";
+    else if (which==PS_PR && ll<-9) fmt="RT";
+    else if (which==PS_RTPRIO && ll == 0) fmt="-";
     sprintf(out, fmt, ll);
 
   // user/group: UID USER RUID RUSER GID GROUP RGID RGROUP
@@ -680,9 +686,11 @@ static char *parse_ko(void *data, char *type, int length)
     for (j = 0; j<2; j++) {
       if (!j) s = typos[i].name;
       // posix requires alternate names for some fields
-      else if (-1==(k = stridx((char []){PS_NI, PS_ELAPSED, PS__CPU, PS_VSZ,
-        PS_USER, 0}, i))) continue;
-      else s = ((char *[]){"NICE", "ETIME", "PCPU", "VSIZE", "UNAME"})[k];
+      else if (-1==(k = stridx((char []){PS_NI, PS_SCH, PS_ELAPSED, PS__CPU,
+        PS_VSZ, PS_USER, 0}, i))) continue;
+      else {
+        s = ((char *[]){"NICE", "SCHED", "ETIME", "PCPU", "VSIZE", "UNAME"})[k];
+      }
 
       if (!strncasecmp(type, s, end-type) && strlen(s)==end-type) break;
     }
