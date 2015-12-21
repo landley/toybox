@@ -29,21 +29,13 @@ config TAIL_SEEK
 
 #define FOR_tail
 #include "toys.h"
-
 #include <sys/inotify.h>
-
-struct file_info {
-  int fd;
-  int wd;
-  const char* path;
-};
 
 GLOBALS(
   long lines;
   long bytes;
 
-  int file_no;
-  struct file_info *files;
+  int file_no, ffd, *files;
 )
 
 struct line_list {
@@ -143,15 +135,20 @@ static void do_tail(int fd, char *name)
   long bytes = TT.bytes, lines = TT.lines;
   int linepop = 1;
 
-  if (toys.optc > 1) {
-    if (TT.file_no > 0) xputc('\n');
-    xprintf("==> %s <==\n", name);
+  if (toys.optflags & FLAG_f) {
+    int f = TT.file_no*2;
+    char *s = name;
+
+    if (!fd) sprintf(s = toybuf, "/proc/self/fd/%d", fd);
+    TT.files[f++] = fd;
+    if (0 > (TT.files[f] = inotify_add_watch(TT.ffd, s, IN_MODIFY)))
+      perror_msg("bad -f on '%s'", name);
   }
 
-  // -f support: cache name/descriptor
-  TT.files[TT.file_no].fd = dup(fd);
-  TT.files[TT.file_no].path = strdup(name);
-  ++TT.file_no;
+  if (toys.optc > 1) {
+    if (TT.file_no++) xputc('\n');
+    xprintf("==> %s <==\n", name);
+  }
 
   // Are we measuring from the end of the file?
 
@@ -240,60 +237,33 @@ void tail_main(void)
     TT.lines = -10;
   }
 
-  TT.files = xmalloc(toys.optc * sizeof(struct file_info));
-  loopfiles(args, do_tail);
+  // Allocate 2 ints per optarg for -f
+  if (toys.optflags&FLAG_f) {
+    if ((TT.ffd = inotify_init()) < 0) perror_exit("inotify_init");
+    TT.files = xmalloc(toys.optc*8);
+  }
+  loopfiles_rw(args, O_RDONLY|(O_CLOEXEC*!(toys.optflags&FLAG_f)),
+    0, 0, do_tail);
 
-  // do -f stuff
   if (toys.optflags & FLAG_f) {
-    int infd, last_wd, i;
+    int len, last_fd = TT.files[(TT.file_no-1)*2], i, fd;
+    struct inotify_event ev;
 
-    infd = inotify_init();
-    if (infd < 0) {
-      perror_exit("failed to create inotify fd");
-    }
+    for (;;) {
+      if (sizeof(ev)!=read(TT.ffd, &ev, sizeof(ev))) perror_exit("inotify");
 
-    for (i = 0; i < TT.file_no; ++i) {
-      #define STR(x) #x
-      char path[sizeof("/proc/self/fd/" STR(INT_MIN))];
+      for (i = 0; i<TT.file_no && ev.wd!=TT.files[(i*2)+1]; i++);
+      if (i==TT.file_no) continue;
+      fd = TT.files[i*2];
 
-      snprintf(path, sizeof(path), "/proc/self/fd/%d", TT.files[i].fd);
-
-      TT.files[i].wd = inotify_add_watch(infd, path, IN_MODIFY);
-      if (TT.files[i].wd < 0) {
-        perror_msg("failed to add inotify watch for %s", TT.files[i].path);
-        continue;
-      }
-    }
-
-    last_wd = TT.files[TT.file_no - 1].wd;
-
-    while (1) {
-      struct inotify_event ev;
-      int len;
-
-      len = read(infd, &ev, sizeof(ev));
-      if (len < 0) {
-        perror_exit("inotify read failed");
-      }
-
-      for (i = 0; i < TT.file_no; ++i) {
-        if (ev.wd != TT.files[i].wd) {
-          continue;
+      // Read new data.
+      while ((len = read(fd, toybuf, sizeof(toybuf)))>0) {
+        if (last_fd != fd) {
+          last_fd = fd;
+          xprintf("\n==> %s <==\n", args[i]);
         }
 
-        // Read until we hit the end.
-        while (1) {
-          len = read(TT.files[i].fd, toybuf, sizeof(toybuf));
-          if (len <= 0) break;
-
-          if (last_wd != TT.files[i].wd) {
-            last_wd = TT.files[i].wd;
-            xprintf("\n==> %s <==\n", TT.files[i].path);
-          }
-
-          xwrite(1, toybuf, len);
-        }
-        break;
+        xwrite(1, toybuf, len);
       }
     }
   }
