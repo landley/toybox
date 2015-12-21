@@ -109,7 +109,7 @@ void cpio_main(void)
 
   if (toys.optflags & (FLAG_i|FLAG_t)) for (;;) {
     char *name, *tofree, *data;
-    unsigned size, mode, uid, gid, timestamp, ala = 0;
+    unsigned size, mode, uid, gid, timestamp;
     int test = toys.optflags & FLAG_t, err = 0;
 
     // Read header and name.
@@ -132,10 +132,6 @@ void cpio_main(void)
 
     if (toys.optflags & (FLAG_t|FLAG_v)) puts(name);
 
-    // If we need to reopen dir or mknod for write later, force u+w now
-    if (!(toys.optflags & FLAG_no_preserve_owner)
-        && !S_ISREG(mode) && !S_ISLNK(mode) && !geteuid()) ala = 0200;
-
     if (!test && strrchr(name, '/') && mkpathat(AT_FDCWD, name, 0, 2)) {
       perror_msg("mkpath '%s'", name);
       test++;
@@ -145,7 +141,7 @@ void cpio_main(void)
     // properly aligned with next file.
 
     if (S_ISDIR(mode)) {
-      if (!test) err = mkdir(name, ala|mode);
+      if (!test) err = mkdir(name, mode);
     } else if (S_ISLNK(mode)) {
       data = strpad(afd, size, 0);
       if (!test) err = symlink(data, name);
@@ -184,29 +180,24 @@ void cpio_main(void)
         close(fd);
       }
     } else if (!test)
-      err = mknod(name, ala|mode, makedev(x8u(toybuf+78), x8u(toybuf+86)));
+      err = mknod(name, mode, makedev(x8u(toybuf+78), x8u(toybuf+86)));
 
     // Set ownership and timestamp.
     if (!test && !err) {
-      // Creating dir/dev doesn't give us a filehandle, we have to refer to it
-      // by name to chown/utime, but how do we know it's the same item? Use
-      // filehandle to check that we at least have the right type of entity
-      // open. If we forced it writeable, chmod it back, but do _not_ restore
-      // dropped suid/sgid bit.
-      if (ala) {
-        int fd = open(name, O_WRONLY|O_NOFOLLOW);
+      // Creading dir/dev doesn't give us a filehandle, we have to refer to it
+      // by name to chown/utime, but how do we know it's the same item?
+      // Check that we at least have the right type of entity open, and do
+      // NOT restore dropped suid bit in this case.
+      if (!S_ISREG(mode) && !S_ISLNK(mode) && !geteuid()
+          && !(toys.optflags & FLAG_no_preserve_owner))
+      {
+        int fd = open(name, O_RDONLY|O_NOFOLLOW);
         struct stat st;
 
-        // If we forced it writeable, change it back, but do _not_ restore
-        // dropped suid/sgid bit.
+        if (fd != -1 && !fstat(fd, &st) && (st.st_mode&S_IFMT) == (mode&S_IFMT))
+          err = fchown(fd, uid, gid);
+        else err = 1;
 
-        if (fd != -1 && !fstat(fd, &st) && (st.st_mode&S_IFMT)==(mode&S_IFMT)) {
-          if (!(err = fchown(fd, uid, gid)))
-            if ((ala|mode)!=mode) err = fchmod(fd, mode&~(S_ISUID|S_ISGID));
-        } else err = 1;
-
-        // If we forced it writeable, change it back, but do _not_ restore
-        // dropped suid/sgid bit.
         close(fd);
       }
 
