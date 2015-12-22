@@ -124,6 +124,12 @@ GLOBALS(
   int pflags;
 )
 
+struct cp_preserve {
+  char *name;
+} static const cp_preserve[] = TAGGED_ARRAY(CP,
+  {"mode"}, {"ownership"}, {"timestamps"}
+);
+
 // Callback from dirtree_read() for each file/directory under a source dir.
 
 int cp_node(struct dirtree *try)
@@ -288,7 +294,7 @@ int cp_node(struct dirtree *try)
     // Inability to set --preserve isn't fatal, some require root access.
 
     // ownership
-    if (TT.pflags & 2) {
+    if (TT.pflags & _CP_ownership) {
 
       // permission bits already correct for mknod and don't apply to symlink
       // If we can't get a filehandle to the actual object, use racy functions
@@ -305,7 +311,7 @@ int cp_node(struct dirtree *try)
     }
 
     // timestamp
-    if (TT.pflags & 4) {
+    if (TT.pflags & _CP_timestamps) {
       struct timespec times[] = {try->st.st_atim, try->st.st_mtim};
 
       if (fdout == AT_FDCWD) utimensat(cfd, catch, times, AT_SYMLINK_NOFOLLOW);
@@ -314,7 +320,7 @@ int cp_node(struct dirtree *try)
 
     // mode comes last because other syscalls can strip suid bit
     if (fdout != AT_FDCWD) {
-      if (TT.pflags & 1) fchmod(fdout, try->st.st_mode);
+      if (TT.pflags & _CP_mode) fchmod(fdout, try->st.st_mode);
       xclose(fdout);
     }
 
@@ -329,29 +335,29 @@ int cp_node(struct dirtree *try)
 
 void cp_main(void)
 {
-  char *destname = toys.optargs[--toys.optc],
-       *preserve[] = {"mode", "ownership", "timestamps"};
+  char *destname = toys.optargs[--toys.optc];
   int i, destdir = !stat(destname, &TT.top) && S_ISDIR(TT.top.st_mode);
 
   if (toys.optc>1 && !destdir) error_exit("'%s' not directory", destname);
 
   if (toys.optflags & (FLAG_a|FLAG_p)) {
-    TT.pflags = 7; // preserve=mot
+    TT.pflags = CP_mode|CP_ownership|CP_timestamps;
     umask(0);
   }
+  // Not using comma_args() (yet?) because interpeting as letters.
   if (CFG_CP_PRESERVE && (toys.optflags & FLAG_preserve)) {
     char *pre = xstrdup(TT.c.preserve), *s;
 
     if (comma_scan(pre, "all", 1)) TT.pflags = ~0;
-    for (i=0; i<ARRAY_LEN(preserve); i++)
-      if (comma_scan(pre, preserve[i], 1)) TT.pflags |= 1<<i;
+    for (i=0; i<ARRAY_LEN(cp_preserve); i++)
+      if (comma_scan(pre, cp_preserve[i].name, 1)) TT.pflags |= 1<<i;
     if (*pre) {
 
       // Try to interpret as letters, commas won't set anything this doesn't.
       for (s = TT.c.preserve; *s; s++) {
-        for (i=0; i<ARRAY_LEN(preserve); i++)
-          if (*s == *preserve[i]) break;
-        if (i == ARRAY_LEN(preserve)) {
+        for (i=0; i<ARRAY_LEN(cp_preserve); i++)
+          if (*s == *cp_preserve[i].name) break;
+        if (i == ARRAY_LEN(cp_preserve)) {
           if (*s == 'a') TT.pflags = ~0;
           else break;
         } else TT.pflags |= 1<<i;
