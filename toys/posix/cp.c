@@ -5,6 +5,9 @@
  * And http://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic.html#INSTALL
  *
  * Posix says "cp -Rf dir file" shouldn't delete file, but our -f does.
+ *
+ * TODO: --preserve=links
+ * TODO: what's this _CP_mode system.posix_acl_ business? We chmod()?
 
 // options shared between mv/cp must be in same order (right to left)
 // for FLAG macros to work out right in shared infrastructure.
@@ -25,7 +28,7 @@ config CP
     -f	delete destination files we can't write to
     -F	delete any existing destination file first (--remove-destination)
     -i	interactive, prompt before overwriting existing DEST
-    -p	preserve timestamps, ownership, and permissions
+    -p	preserve timestamps, ownership, and mode
     -R	recurse into subdirectories (DEST must be a directory)
     -H	Follow symlinks listed on command line
     -L	Follow all symlinks
@@ -51,7 +54,7 @@ config CP_PRESERVE
   default y
   depends on CP_MORE
   help
-    usage: cp [--preserve=mota]
+    usage: cp [--preserve=motcxa]
 
     --preserve takes either a comma separated list of attributes, or the first
     letter(s) of:
@@ -59,6 +62,8 @@ config CP_PRESERVE
             mode - permissions (ignore umask for rwx, copy suid and sticky bit)
        ownership - user and group
       timestamps - file creation, modification, and access times.
+         context - security context
+           xattr - extended attributes
              all - all of the above
 
 config MV
@@ -102,6 +107,9 @@ config INSTALL
 
 #define FOR_cp
 #include "toys.h"
+#if CFG_CP_PRESERVE
+#include <sys/xattr.h>
+#endif
 
 GLOBALS(
   union {
@@ -127,7 +135,7 @@ GLOBALS(
 struct cp_preserve {
   char *name;
 } static const cp_preserve[] = TAGGED_ARRAY(CP,
-  {"mode"}, {"ownership"}, {"timestamps"}
+  {"mode"}, {"ownership"}, {"timestamps"}, {"context"}, {"xattr"},
 );
 
 // Callback from dirtree_read() for each file/directory under a source dir.
@@ -282,6 +290,31 @@ int cp_node(struct dirtree *try)
           xsendfile(fdin, fdout);
           err = 0;
         }
+
+        // We only copy xattrs for files because there's no flistxattrat()
+        if (TT.pflags&(_CP_xattr|_CP_context)) {
+          ssize_t listlen = flistxattr(fdin, 0, 0), len;
+          char *name, *value, *list;
+
+          if (listlen>0) {
+            list = xmalloc(listlen);
+            flistxattr(fdin, list, listlen);
+            list[listlen-1] = 0; // I do not trust this API.
+            for (name = list; name-list < listlen; name += strlen(name)+1) {
+              if (!(TT.pflags&_CP_xattr) && strncmp(name, "security.", 9))
+                continue;
+              if ((len = fgetxattr(fdin, name, 0, 0))>0) {
+                value = xmalloc(len);
+                if (len == fgetxattr(fdin, name, value, len))
+                  if (fsetxattr(fdout, name, value, len, 0))
+                    perror_msg("%s setxattr(%s=%s)", catch, name, value);
+                free(value);
+              }
+            }
+            free(list);
+          }
+        }
+
         close(fdin);
       }
     } while (err && (flags & (FLAG_f|FLAG_n)) && !unlinkat(cfd, catch, 0));
