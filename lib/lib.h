@@ -180,8 +180,6 @@ off_t fdlength(int fd);
 void loopfiles_rw(char **argv, int flags, int permissions, int failok,
   void (*function)(int fd, char *name));
 void loopfiles(char **argv, void (*function)(int fd, char *name));
-char *get_rawline(int fd, long *plen, char end);
-char *get_line(int fd);
 void xsendfile(int in, int out);
 int wfchmodat(int rc, char *name, mode_t mode);
 int copy_tempfile(int fdin, char *name, char **tempname);
