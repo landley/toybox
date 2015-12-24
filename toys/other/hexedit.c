@@ -30,55 +30,33 @@ GLOBALS(
 #define UNDO_LEN (sizeof(toybuf)/(sizeof(long long)+1))
 
 // Render all characters printable, using color to distinguish.
-static void draw_char(char broiled)
+static int draw_char(FILE *fp, wchar_t broiled)
 {
-  if (broiled<32 || broiled>=127) {
-    if (broiled>127) {
-      tty_esc("2m");
-      broiled &= 127;
-    }
-    if (broiled<32 || broiled==127) {
-      tty_esc("7m");
-      if (broiled==127) broiled = 32;
-      else broiled += 64;
-    }
-    printf("%c", broiled);
-    tty_esc("0m");
-  } else printf("%c", broiled);
+  if (fp) {
+    if (broiled<32 || broiled>=127) {
+      if (broiled>127) {
+        tty_esc("2m");
+        broiled &= 127;
+      }
+      if (broiled<32 || broiled==127) {
+        tty_esc("7m");
+        if (broiled==127) broiled = 32;
+        else broiled += 64;
+      }
+      printf("%c", broiled);
+      tty_esc("0m");
+    } else printf("%c", broiled);
+  }
+
+  return 1;
 }
 
 static void draw_tail(void)
 {
-  int i = 0, width = 0, w, len;
-  char *start = *toys.optargs, *end;
-
   tty_jump(0, TT.height);
   tty_esc("K");
 
-  // First time, make sure we fit in 71 chars (advancing start as necessary).
-  // Second time, print from start to end, escaping nonprintable chars.
-  for (i=0; i<2; i++) {
-    for (end = start; *end;) {
-      wchar_t wc;
-
-      len = mbrtowc(&wc, end, 99, 0);
-      if (len<0 || wc<32 || (w = wcwidth(wc))<0) {
-        len = w = 1;
-        if (i) draw_char(*end);
-      } else if (i) fwrite(end, len, 1, stdout);
-      end += len;
-
-      if (!i) {
-        width += w;
-        while (width > 71) {
-          len = mbrtowc(&wc, start, 99, 0);
-          if (len<0 || wc<32 || (w = wcwidth(wc))<0) len = w = 1;
-          width -= w;
-          start += len;
-        }
-      }
-    }
-  }
+  draw_rstr(*toys.optargs, 71, draw_char);
 }
 
 static void draw_line(long long yy)
@@ -92,7 +70,7 @@ static void draw_line(long long yy)
     printf("\r%0*llX ", TT.numlen, yy);
     for (x=0; x<xx; x++) printf(" %02X", TT.data[yy+x]);
     printf("%*s", 2+3*(16-xx), "");
-    for (x=0; x<xx; x++) draw_char(TT.data[yy+x]);
+    for (x=0; x<xx; x++) draw_char(stdout, TT.data[yy+x]);
     printf("%*s", 16-xx, "");
   }
   tty_esc("K");
@@ -127,7 +105,7 @@ static void highlight(int xx, int yy, int side)
   }
   tty_esc("0m");
   tty_jump(TT.numlen+17*3+xx, yy);
-  draw_char(cc);
+  draw_char(stdout, cc);
 }
 
 void hexedit_main(void)

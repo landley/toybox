@@ -3,6 +3,16 @@
  * Copyright 2006 Rob Landley <rob@landley.net>
  */
 
+struct ptr_len {
+  void *ptr;
+  long len;
+};
+
+struct str_len {
+  char *str;
+  long len;
+};
+
 // llist.c
 
 // All these list types can be handled by the same code because first element
@@ -22,11 +32,6 @@ struct arg_list {
 struct double_list {
   struct double_list *next, *prev;
   char *data;
-};
-
-struct ptr_len {
-  void *ptr;
-  long len;
 };
 
 void llist_free_arg(void *node);
@@ -193,6 +198,23 @@ int xpoll(struct pollfd *fds, int nfds, int timeout);
 #define HR_1000  4 // Use decimal instead of binary units
 int human_readable(char *buf, unsigned long long num, int style);
 
+// linestack.c
+
+struct linestack {
+  long len, max;
+  struct ptr_len idx[];
+};
+
+void linestack_addstack(struct linestack **lls, struct linestack *throw,
+  long pos);
+void linestack_insert(struct linestack **lls, long pos, char *line, long len);
+void linestack_append(struct linestack **lls, char *line);
+struct linestack *linestack_load(char *name);
+int crunch_str(char **str, int width, FILE *out,
+  int (*escout)(FILE *out, wchar_t wc));
+int draw_str(char *start, int width, int (*escout)(FILE *out, wchar_t wc));
+int draw_rstr(char *start, int width, int (*escout)(FILE *out, wchar_t wc));
+
 // interestingtimes.c
 int xgettty(void);
 int terminal_size(unsigned *xx, unsigned *yy);
@@ -234,6 +256,8 @@ struct mtab_list {
   char type[0];
 };
 
+void comma_args(struct arg_list *al, void *data, char *err,
+  char *(*callback)(void *data, char *str, int len));
 void comma_collate(char **old, char *new);
 char *comma_iterate(char **list, int *len);
 int comma_scan(char *optlist, char *opt, int clean);
@@ -256,6 +280,8 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name));
 pid_t xvforkwrap(pid_t pid);
 #define XVFORK() xvforkwrap(vfork())
 
+// Wrapper to make xfuncs() return (via longjmp) instead of exiting.
+// Assigns true/false "did it exit" value to first argument.
 #define WOULD_EXIT(y, x) do { jmp_buf _noexit; \
   int _noexit_res; \
   toys.rebound = &_noexit; \
@@ -265,6 +291,7 @@ pid_t xvforkwrap(pid_t pid);
   y = _noexit_res; \
 } while(0);
 
+// Wrapper that discards true/false "did it exit" value.
 #define NOEXIT(x) WOULD_EXIT(_noexit_res, x)
 
 // Functions in need of further review/cleanup
