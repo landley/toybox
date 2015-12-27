@@ -46,6 +46,38 @@ int terminal_size(unsigned *xx, unsigned *yy)
   return x || y;
 }
 
+// Wrapper that parses results from ANSI probe. If block|2 query size and
+// send ANSI probe if we can't. (Probe queries xterm size through
+// serial connection, when local TTY doesn't know and only remote end knows.)
+// Otherwise acts like scan_key()
+int scan_key_getsize(char *scratch, int block, unsigned *xx, unsigned *yy)
+{
+  int key;
+
+  if (block&2) {
+    struct pollfd pfd;
+
+    if (terminal_size(xx, yy)) {
+      if (!(block&1)) return -2;
+    } else {
+      // Send probe: bookmark cursor position, jump to bottom right,
+      // query position, return cursor to bookmarked position.
+      xprintf("\e[s\e[999C\e[999B\e[6n\e[u");
+
+      // Wait up to a quarter second for a result
+      memset(&pfd, 0, sizeof(struct pollfd));
+      pfd.events = POLLIN;
+      xpoll(&pfd, 0, 250);
+    }
+  }
+  while (512&(key = scan_key(scratch, block&1))) {
+    if (xx) *xx = (key>>10)&1023;
+    if (yy) *yy = (key>>20)&1023;
+  }
+
+  return key;
+}
+
 // Reset terminal to known state, saving copy of old state if old != NULL.
 int set_terminal(int fd, int raw, struct termios *old)
 {
@@ -80,16 +112,23 @@ int set_terminal(int fd, int raw, struct termios *old)
   return tcsetattr(fd, TCSANOW, &termio);
 }
 
+struct scan_key_list {
+  char *name, *seq;
+} static const scan_key_list[] = TAGGED_ARRAY(KEY,
+  // up down right left pgup pgdn home end ins
+  {"UP", "\033[A"}, {"DOWN", "\033[B"}, {"RIGHT", "\033[C"}, {"LEFT", "\033[D"},
+  {"PGUP", "\033[5~"}, {"PGDN", "\033[6~"}, {"HOME", "\033OH"},
+  {"END", "\033OF"}, {"INSERT", "\033[2~"}
+);
+
 // Scan stdin for a keypress, parsing known escape sequences
-// Returns: 0-255=literal, -1=EOF, -2=NONE, 256-...=index into seq
+// Returns: 0-255=literal, -1=EOF, -2=NONE, 256-...=index into scan_key_list
+// >512 is x<<9+y<<21
 // scratch space is necessary because last char of !seq could start new seq
 // Zero out first byte of scratch before first call to scan_key
 // block=0 allows fetching multiple characters before updating display
 int scan_key(char *scratch, int block)
 {
-  // up down right left pgup pgdn home end ins
-  char *seqs[] = {"\033[A", "\033[B", "\033[C", "\033[D", "\033[5~", "\033[6~",
-                  "\033OH", "\033OF", "\033[2~", 0};
   struct pollfd pfd;
   int maybe, i, j;
   char *test;
@@ -99,10 +138,24 @@ int scan_key(char *scratch, int block)
     pfd.events = POLLIN;
     pfd.revents = 0;
 
-    // check sequences
     maybe = 0;
     if (*scratch) {
-      for (i = maybe = 0; (test = seqs[i]); i++) {
+      int pos[6];
+      unsigned x, y;
+
+      // Check for return from terminal size probe
+      memset(pos, 0, 6*sizeof(int));
+      sscanf(scratch+1, "\033%n[%n%3u%n,%n%3u%nR%n", pos, pos+1, &y,
+             pos+2, pos+3, &x, pos+4, pos+5);
+      if (pos[5]) {
+        // Recognized X/Y position, consume and return
+        *scratch = 0;
+        return 512+(x<<10)+(y<<20);
+      } else for (i=0; i<6; i++) if (pos[i]==*scratch) maybe = 1;
+
+      // Check sequences
+      for (i = 0; i<ARRAY_LEN(scan_key_list); i++) {
+        test = scan_key_list[i].seq;
         for (j = 0; j<*scratch; j++) if (scratch[j+1] != test[j]) break;
         if (j == *scratch) {
           maybe = 1;
@@ -113,6 +166,7 @@ int scan_key(char *scratch, int block)
           }
         }
       }
+
       // If current data can't be a known sequence, return next raw char
       if (!maybe) break;
     }
@@ -122,6 +176,8 @@ int scan_key(char *scratch, int block)
     // 30 miliseconds is about the gap between characters at 300 baud 
     if (maybe || !block) if (!xpoll(&pfd, 1, 30*maybe)) break;
 
+    // Read 1 byte so we don't overshoot sequence match. (We can deviate
+    // and fail to match, but match consumes entire buffer.)
     if (1 != read(0, scratch+1+*scratch, 1)) return -1;
     ++*scratch;
   }

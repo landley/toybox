@@ -216,23 +216,13 @@ int draw_rstr(char *start, int width, int (*escout)(FILE *out, wchar_t wc));
 // interestingtimes.c
 int xgettty(void);
 int terminal_size(unsigned *xx, unsigned *yy);
+int scan_key_getsize(char *scratch, int block, unsigned *xx, unsigned *yy);
 int set_terminal(int fd, int raw, struct termios *old);
 int scan_key(char *scratch, int block);
 void tty_esc(char *s);
 void tty_jump(int x, int y);
 void tty_reset(void);
 void tty_sigreset(int i);
-
-// Results from scan_key()
-#define KEY_UP 256
-#define KEY_DOWN 257
-#define KEY_RIGHT 258
-#define KEY_LEFT 259
-#define KEY_PGUP 260
-#define KEY_PGDN 261
-#define KEY_HOME 262
-#define KEY_END  263
-#define KEY_INSERT 264
 
 // net.c
 int xsocket(int domain, int type, int protocol);

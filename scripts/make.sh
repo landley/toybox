@@ -220,7 +220,7 @@ then
   echo -n "generated/tags.h "
 
   sed -n '/TAGGED_ARRAY(/,/^)/{s/.*TAGGED_ARRAY[(]\([^,]*\),/\1/;p}' \
-    toys/*/*.c | generated/mktags > generated/tags.h
+    toys/*/*.c lib/*.c | generated/mktags > generated/tags.h
 fi
 
 echo "generated/help.h"

@@ -88,7 +88,7 @@ int crunch_str(char **str, int width, FILE *out,
   for (end = start = *str; *end;) {
     wchar_t wc;
 
-    if (width>=0 && columns+lowlen>width) break;
+    if (columns+lowlen>width) break;
 
     bytes = mbrtowc(&wc, end, 99, 0);
     if (bytes<0 || wc<32 || (col = wcwidth(wc))<0) {

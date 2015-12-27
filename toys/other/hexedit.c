@@ -213,16 +213,21 @@ void hexedit_main(void)
         pos = ll[--TT.undo];
         TT.data[pos] = toybuf[sizeof(long long)*UNDO_LEN+TT.undo];
       }
-    } else if (key==KEY_UP) pos -= 16;
-    else if (key==KEY_DOWN) pos += 16;
-    else if (key==KEY_RIGHT) {
-      if (x<15) pos++;
-    } else if (key==KEY_LEFT) {
-      if (x) pos--;
-    } else if (key==KEY_PGUP) pos -= 16*TT.height;
-    else if (key==KEY_PGDN) pos += 16*TT.height;
-    else if (key==KEY_HOME) pos = 0;
-    else if (key==KEY_END) pos = TT.len-1;
+    }
+    if (key>256) {
+      key -= 256;
+
+      if (key==KEY_UP) pos -= 16;
+      else if (key==KEY_DOWN) pos += 16;
+      else if (key==KEY_RIGHT) {
+        if (x<15) pos++;
+      } else if (key==KEY_LEFT) {
+        if (x) pos--;
+      } else if (key==KEY_PGUP) pos -= 16*TT.height;
+      else if (key==KEY_PGDN) pos += 16*TT.height;
+      else if (key==KEY_HOME) pos = 0;
+      else if (key==KEY_END) pos = TT.len-1;
+    }
   }
   munmap(TT.data, TT.len);
   close(fd);
