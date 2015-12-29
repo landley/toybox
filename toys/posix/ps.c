@@ -622,23 +622,6 @@ static int get_ps(struct dirtree *new)
   return ksave;
 }
 
-// Traverse arg_list of csv, calling callback on each value
-void comma_args(struct arg_list *al, void *data, char *err,
-  char *(*callback)(void *data, char *str, int len))
-{
-  char *next, *arg;
-  int len;
-
-  while (al) {
-    arg = al->arg;
-    while ((next = comma_iterate(&arg, &len)))
-      if ((next = callback(data, next, len)))
-        perror_exit("%s '%s'\n%*c", err, al->arg,
-          (int)(5+strlen(toys.which->name)+strlen(err)+next-al->arg), '^');
-    al = al->next;
-  }
-}
-
 static char *parse_ko(void *data, char *type, int length)
 {
   struct strawberry *field;
