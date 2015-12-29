@@ -342,6 +342,14 @@ char *strlower(char *s)
   return try;
 }
 
+// strstr but returns pointer after match
+char *strafter(char *haystack, char *needle)
+{
+  char *s = strstr(haystack, needle);
+
+  return s ? s+strlen(needle) : s;
+}
+
 // Remove trailing \n
 char *chomp(char *s)
 {

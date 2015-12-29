@@ -62,10 +62,7 @@ static void get_vmstat_proc(struct vmstat_proc *vmstat_proc)
       xreadfile(name = vmstuff[i], toybuf, sizeof(toybuf));
 
       continue;
-    } else {
-      if (!(p = strstr(toybuf, vmstuff[i]))) goto error;
-      p += strlen(vmstuff[i]);
-    }
+    } else if (!(p = strafter(toybuf, vmstuff[i]))) goto error;
     if (1 != sscanf(p, "%"PRIu64"%n", new++, &j)) goto error;
     p += j;
   }
@@ -123,7 +120,7 @@ void vmstat_main(void)
     if (!loop) {
       char *s = toybuf;
 
-      xreadfile("/proc/uptime", toybuf, sizeof(toybuf)-1);
+      xreadfile("/proc/uptime", toybuf, sizeof(toybuf));
       while (*(s++) > ' ');
       sscanf(s, "%"PRIu64, &units);
     } else units = loop_delay;
