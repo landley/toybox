@@ -71,6 +71,7 @@ int scan_key_getsize(char *scratch, int block, unsigned *xx, unsigned *yy)
     }
   }
   while (512&(key = scan_key(scratch, block&1))) {
+    if (key<0) break;
     if (xx) *xx = (key>>10)&1023;
     if (yy) *yy = (key>>20)&1023;
   }
@@ -118,7 +119,12 @@ struct scan_key_list {
   // up down right left pgup pgdn home end ins
   {"UP", "\033[A"}, {"DOWN", "\033[B"}, {"RIGHT", "\033[C"}, {"LEFT", "\033[D"},
   {"PGUP", "\033[5~"}, {"PGDN", "\033[6~"}, {"HOME", "\033OH"},
-  {"END", "\033OF"}, {"INSERT", "\033[2~"}
+  {"END", "\033OF"}, {"INSERT", "\033[2~"},
+  {"SUP", "\033[1;2A"}, {"AUP", "\033[1;3A"}, {"CUP", "\033[1;5A"},
+  {"SDOWN", "\033[1;2B"}, {"ADOWN", "\033[1;3B"}, {"CDOWN", "\033[1;5B"},
+  {"SRIGHT", "\033[1;2C"}, {"ARIGHT", "\033[1;3C"}, {"CRIGHT", "\033[1;5C"},
+  {"SLEFT", "\033[1;2D"}, {"ALEFT", "\033[1;3D"}, {"CLEFT", "\033[1;5D"}
+
 );
 
 // Scan stdin for a keypress, parsing known escape sequences
@@ -210,6 +216,7 @@ void tty_reset(void)
   tty_esc("0m");
   tty_jump(0, 999);
   tty_esc("K");
+  fflush(0);
 }
 
 void tty_sigreset(int i)
