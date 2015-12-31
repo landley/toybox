@@ -40,7 +40,7 @@ void xexit(void)
 void *xmalloc(size_t size)
 {
   void *ret = malloc(size);
-  if (!ret) error_exit("xmalloc");
+  if (!ret) error_exit("xmalloc(%ld)", (long)size);
 
   return ret;
 }
