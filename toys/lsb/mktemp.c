@@ -48,8 +48,10 @@ void mktemp_main(void)
     if (toys.optflags & FLAG_q) toys.exitval = 1;
     else perror_exit("Failed to create %s %s/%s",
                      d_flag ? "directory" : "file", TT.tmpdir, template);
-  } else xputs(template);
-  if (toys.optflags & FLAG_u) unlink(template);
+  } else {
+    if (toys.optflags & FLAG_u) unlink(template);
+    xputs(template);
+  }
 
   if (CFG_TOYBOX_FREE) free(template);
 }
