@@ -38,7 +38,7 @@
 
 USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflno*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_TTOP(NEWTOY(ttop, ">0d#=3n#<1mb", TOYFLAG_USR|TOYFLAG_BIN))
-USE_IOTOP(NEWTOY(iotop, "abkoqp*u*d#n#", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
+USE_IOTOP(NEWTOY(iotop, "Aabkoqp*u*d#n#", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
 
 config PS
   bool "ps"
@@ -151,9 +151,9 @@ config TTOP
 # Requires CONFIG_IRQ_TIME_ACCOUNTING in the kernel for /proc/$$/io
 config IOTOP
   bool "iotop"
-  default n
+  default y
   help
-    usage: iotop [-abkoq] [-n NUMBER] [-d SECONDS] [-p PID,] [-u USER,]
+    usage: iotop [-Aabkoq] [-n NUMBER] [-d SECONDS] [-p PID,] [-u USER,]
 
     Rank processes by I/O.
 
@@ -200,12 +200,12 @@ GLOBALS(
 
   struct sysinfo si;
   struct ptr_len gg, GG, pp, PP, ss, tt, uu, UU;
-  unsigned width;
+  unsigned width, height;
   dev_t tty;
   void *fields, *kfields;
   long long ticks, bits, ioread, iowrite, aioread, aiowrite;
   size_t header_len;
-  int kcount, ksave;
+  int kcount, ksave, forcek;
   int (*match_process)(long long *slot);
 )
 
@@ -241,7 +241,7 @@ struct strawberry {
  * 38 policy      man sched_setscheduler    39 blkio_ticks spent wait block IO
  * 40 gtime       guest jiffies of task     41 cgtime      guest jiff of child
  * 42 start_data  program data+bss address  43 end_data    program data+bss
- * 44 start_brk   heap expand with brk()    45 argv0len    argv[0] length
+ * 44 upticks     46-19 (divisor for %)     45 argv0len    argv[0] length
  * 46 uptime      sysinfo.uptime @read time 47 vsz         Virtual Size
  * 48 rss         Resident Set Size         49 shr         Shared memory
  * 50 rchar       All bytes read            51 wchar       All bytes written
@@ -258,6 +258,7 @@ struct carveup {
 };
 
 // TODO: Android uses -30 for LABEL, but ideally it would auto-size.
+// 64|slot means compare as string when sorting
 struct typography {
   char *name;
   signed char width, slot;
@@ -285,9 +286,7 @@ struct typography {
   {"STIME", 5, 19}, {"F", 1, 64|6}, {"S", -1, 64}, {"C", 1, 0}, {"%CPU", 4, 64},
   {"STAT", -5, 64}, {"%VSZ", 5, 23}, {"VIRT", 4, 47}, {"RES", 4, 48},
   {"SHR", 4, 49}, {"READ", 6, 50}, {"WRITE", 6, 51}, {"IO", 6, 28},
-  {"DREAD", 6, 52}, {"DWRITE", 6, 53}, {"SWAP", 6, 54}, {"DIO", 6, 29},
-  {"%READ", 6, 50}, {"%WRITE", 6, 51}, {"%IO", 6, 28},
-  {"%DREAD", 6, 52}, {"%DWRITE", 6, 53}, {"%SWAP", 11, 54}, {"%DIO", 6, 29}
+  {"DREAD", 6, 52}, {"DWRITE", 6, 53}, {"SWAP", 6, 54}, {"DIO", 6, 29}
 );
 
 // Return 0 to discard, nonzero to keep
@@ -313,7 +312,7 @@ static int shared_match_process(long long *slot)
 }
 
 
-// Return >0 to keep, <=0 to discard
+// Return 0 to discard, nonzero to keep
 static int ps_match_process(long long *slot)
 {
   int i = shared_match_process(slot);
@@ -386,6 +385,7 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
 
     if (which!=PS_TIME_) unit *= 60*24;
     else pad = 0;
+    // top adjusts slot[44], we want original meaning.
     if (which==PS_ELAPSED) ll = (slot[46]*j)-slot[19];
     seconds = ll/j;
 
@@ -430,15 +430,14 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     out = out+strlen(out)-3-abs(field->len);
     if (out<buf) out = buf;
   } else if (which==PS__CPU || which==PS__VSZ) {
-    if (which==PS__CPU) {
-      ll = (slot[46]*TT.ticks-slot[19]);
-      sl = (slot[11]*1000)/ll;
-    } else sl = (slot[23]*1000)/TT.si.totalram;
+    if (which==PS__CPU) sl = (slot[11]*1000)/slot[44];
+    else sl = (slot[23]*1000)/TT.si.totalram;
     sprintf(out, "%d.%d", sl/10, sl%10);
-  } else if (which>=PS_VIRT && which <= PS_SWAP) {
+  } else if (which>=PS_VIRT && which <= PS_DIO) {
     ll = slot[typos[which].slot];
     if (which <= PS_SHR) ll *= sysconf(_SC_PAGESIZE);
-    human_readable(out, ll, 0);
+    if (TT.forcek) sprintf(out, "%lldk", ll/1024);
+    else human_readable(out, ll, 0);
   }
 
   return out;
@@ -489,6 +488,8 @@ static int get_ps(struct dirtree *new)
 
   // Recurse one level into /proc children, skip non-numeric entries
   if (!new->parent) return DIRTREE_RECURSE|DIRTREE_SHUTUP|TT.ksave;
+
+  memset(slot, 0, sizeof(tb->slot));
   if (!(*slot = atol(new->name))) return 0;
   fd = dirtree_parentfd(new);
 
@@ -547,10 +548,10 @@ static int get_ps(struct dirtree *new)
 
     sprintf(buf, "%lld/io", *slot);
     if (!readfileat(fd, buf, buf, &temp)) *buf = 0;
-    if ((s = strafter(buf, "rchar: "))) slot[50] = atoll(s);
-    if ((s = strafter(buf, "wchar: "))) slot[51] = atoll(s);
-    if ((s = strafter(buf, "read_bytes: "))) slot[52] = atoll(s);
-    if ((s = strafter(buf, "write_bytes: "))) slot[53] = atoll(s);
+    if ((s = strafter(buf, "rchar:"))) slot[50] = atoll(s);
+    if ((s = strafter(buf, "wchar:"))) slot[51] = atoll(s);
+    if ((s = strafter(buf, "read_bytes:"))) slot[52] = atoll(s);
+    if ((s = strafter(buf, "write_bytes:"))) slot[53] = atoll(s);
     slot[28] = slot[50]+slot[51]+slot[54];
     slot[29] = slot[52]+slot[53]+slot[54];
   }
@@ -561,7 +562,7 @@ static int get_ps(struct dirtree *new)
   // /proc data is generated as it's read, so for maximum accuracy on slow
   // systems (or ps | more) we re-fetch uptime as we fetch each /proc line.
   sysinfo(&TT.si);
-  slot[46] = TT.si.uptime;
+  slot[44] = ((slot[46] = TT.si.uptime)*TT.ticks) - slot[19];
 
   // Do we need to read "statm"?
   if (TT.bits&(_PS_VIRT|_PS_RES|_PS_SHR)) {
@@ -863,6 +864,30 @@ static int ksort(void *aa, void *bb)
   return 0;
 }
 
+static struct carveup **collate(int count, struct dirtree *dt,
+  int (*sort)(void *a, void *b))
+{
+  struct dirtree *temp;
+  struct carveup **tbsort = xmalloc(count*sizeof(struct carveup *));
+  int i;
+
+  // descend into child list
+  *tbsort = (void *)dt;
+  dt = dt->child;
+  free(*tbsort);
+
+  // populate array
+  for (i = 0; i < count; i++) {
+    temp = dt->next;
+    tbsort[i] = (void *)dt->extra;
+    free(dt);
+    dt = temp;
+  }
+
+
+  return tbsort;
+} 
+
 static void shared_main(void)
 {
   int i;
@@ -870,7 +895,8 @@ static void shared_main(void)
   TT.ticks = sysconf(_SC_CLK_TCK);
   if (!TT.width) {
     TT.width = 80;
-    terminal_size(&TT.width, 0);
+    TT.height = 25;
+    terminal_size(&TT.width, &TT.height);
   }
 
   // find controlling tty, falling back to /dev/tty if none
@@ -947,30 +973,13 @@ void ps_main(void)
     }
   }
 
-
   TT.ksave = DIRTREE_SAVE*!!(toys.optflags&FLAG_k);
   TT.match_process = ps_match_process;
   dt = dirtree_read("/proc", get_ps);
 
   if (toys.optflags&FLAG_k) {
-    struct carveup **tbsort = xmalloc(TT.kcount*sizeof(struct carveup *));
+    struct carveup **tbsort = collate(TT.kcount, dt, ksort);
 
-    // descend into child list
-    *tbsort = (void *)dt;
-    dt = dt->child;
-    free(*tbsort);
-
-    // populate array
-    i = 0;
-    while (dt) {
-      void *temp = dt->next;
-
-      tbsort[i++] = (void *)dt->extra;
-      free(dt);
-      dt = temp;
-    }
-
-    // Sort and show
     qsort(tbsort, TT.kcount, sizeof(struct carveup *), (void *)ksort);
     for (i = 0; i<TT.kcount; i++) {
       show_ps(tbsort[i]);
@@ -1007,21 +1016,103 @@ void ttop_main(void)
 
 void iotop_main(void)
 {
-  struct dirtree *dt;
+  struct proclist {
+    struct carveup **tb;
+    int count;
+  } plist[2], *plold, *plnew, old, new, mix;
   struct arg_list al;
+  char *d = "D"+!!(toys.optflags&FLAG_A), *header,
+            deltas[] = {11,28,29,44,50,51,52,53,54};
+  unsigned tock = 0;
+  int i, lines;
 
+  if (!TT.iotop.d) TT.iotop.d = 3;
+  if (toys.optflags&FLAG_k) TT.forcek++;
+  if (toys.optflags&FLAG_b) TT.width = TT.height = 99999;
   shared_main();
 
-  // usage: iotop [-abkoq] [-n NUMBER] [-d SECONDS] [-p PID,] [-u USER,]
+  // TODO: usage: iotop [-oq]
+
   comma_args(TT.iotop.u, &TT.uu, "bad -u", parse_rest);
   comma_args(TT.iotop.p, &TT.pp, "bad -p", parse_rest);
 
   al.next = 0;
-  al.arg = "PID,PR,USER,DREAD,DWRITE,SWAP,IO,COMMAND";
-  comma_args(&al, &TT.fields, "meep", parse_ko);
+  al.arg = xmprintf("PID,PR,USER,%sREAD,%sWRITE,SWAP,%sIO,COMM", d, d, d);
+  comma_args(&al, &TT.fields, 0, parse_ko);
+  free(al.arg);
   dlist_terminate(TT.fields);
-  printf("%s\n", toybuf);
+  header = strdup(toybuf);
 
+  al.arg = xmprintf("-%sIO,-%sREAD,-%sWRITE,-SWAP,-ETIME,-PID",d,d,d);
+  comma_args(&al, &TT.kfields, 0, parse_ko);
+  free(al.arg);
+  dlist_terminate(TT.kfields);
+
+  TT.ksave = DIRTREE_SAVE;
   TT.match_process = shared_match_process;
-  dt = dirtree_read("/proc", get_ps);
+  memset(plist, 0, sizeof(plist));
+  for (;;) {
+    struct dirtree *dt = dirtree_read("/proc", get_ps);
+
+    plold = plist+(tock++&1);
+    plnew = plist+(tock&1);
+    plnew->tb = collate(plnew->count = TT.kcount, dt, ksort);
+    TT.kcount = 0;
+
+    // First time, wait a quarter of a second to collect a little delta data.
+    if (!plold->tb) {
+      msleep(250);
+      continue;
+    }
+
+    // Collate old and new into "mix", depends on /proc read in pid sort order
+    old = *plold;
+    new = *plnew;
+    mix.tb = xmalloc((old.count+new.count)*sizeof(struct carveup));
+    mix.count = 0;
+
+    while (old.count || new.count) {
+      struct carveup *otb = *old.tb, *ntb = *new.tb;
+
+      // If we just have old, discard it.
+      if (old.count && (!new.count || *otb->slot < *ntb->slot)) {
+        old.tb++;
+        old.count--;
+
+        continue;
+      }
+
+      // If we just have new, use it verbatim
+      if (!old.count || *otb->slot > *ntb->slot) mix.tb[mix.count] = ntb;
+      else {
+
+        // If we have both, adjust deltas. Stomping old data is fine because
+        // we free it after displaying.
+        if (!(toys.optflags&FLAG_a))
+          for (i = 0; i<ARRAY_LEN(deltas); i++)
+            otb->slot[deltas[i]] = ntb->slot[deltas[i]] - otb->slot[deltas[i]];
+        if (!(toys.optflags&FLAG_o) || otb->slot[28+!(toys.optflags&FLAG_A)]) {
+          mix.tb[mix.count] = otb;
+          mix.count++;
+        }
+        old.tb++;
+        old.count--;
+      }
+      new.tb++;
+      new.count--;
+    }
+
+    qsort(mix.tb, mix.count, sizeof(struct carveup *), (void *)ksort);
+    if (!(toys.optflags&FLAG_q))
+      printf("%s%s\n", (toys.optflags&FLAG_b) ? "" : "\033[H\033[J", header);
+    lines = TT.height-2;
+
+    for (i=0; i<lines && i<mix.count; i++) show_ps(mix.tb[i]);
+    free(mix.tb);
+    for (i=0; i<plold->count; i++) free(plold->tb[i]);
+    free(plold->tb);
+
+    if (TT.iotop.n) if (!--TT.iotop.n) break;
+    msleep(1000*TT.iotop.d);
+  }
 }
