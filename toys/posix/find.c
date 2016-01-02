@@ -61,7 +61,7 @@ GLOBALS(
 
 // None of this can go in TT because you can have more than one -exec
 struct exec_range {
-  char *next, *prev;
+  char *next, *prev;  // layout compatible with struct double_list
 
   int dir, plus, arglen, argsize, curly, namecount;
   char **argstart;
@@ -248,7 +248,7 @@ static int do_find(struct dirtree *new)
     } else if (!strcmp(s, "nogroup")) {
       if (check) if (getgrgid(new->st.st_gid)) test = 0;
     } else if (!strcmp(s, "prune")) {
-      if (check && S_ISDIR(new->st.st_dev) && !TT.depth) recurse = 0;
+      if (check && S_ISDIR(new->st.st_mode) && !TT.depth) recurse = 0;
 
     // Remaining filters take an argument
     } else {
