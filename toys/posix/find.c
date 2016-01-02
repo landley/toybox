@@ -55,7 +55,7 @@ config FIND
 GLOBALS(
   char **filter;
   struct double_list *argdata;
-  int topdir, xdev, depth, envsize;
+  int topdir, xdev, depth;
   time_t now;
 )
 
@@ -63,7 +63,7 @@ GLOBALS(
 struct exec_range {
   char *next, *prev;
 
-  int dir, plus, arglen, argsize, curly, namecount, namesize;
+  int dir, plus, arglen, argsize, curly, namecount;
   char **argstart;
   struct double_list *names;
 };
@@ -387,16 +387,7 @@ static int do_find(struct dirtree *new)
             if (!strcmp(ss[len], ";")) break;
             else if (!strcmp(ss[len], "{}")) {
               aa->curly = len;
-              if (!strcmp(ss[len+1], "+")) {
-
-                // Measure environment space
-                if (!TT.envsize) {
-                  char **env;
-
-                  for (env = environ; *env; env++)
-                    TT.envsize += sizeof(char *) + strlen(*env) + 1;
-                  TT.envsize += sizeof(char *);
-                }
+              if (ss[len+1] && !strcmp(ss[len+1], "+")) {
                 aa->plus++;
                 len++;
                 break;
@@ -439,17 +430,6 @@ static int do_find(struct dirtree *new)
             ddl = (struct double_list **)&new->parent->extra;
           else ddl = &aa->names;
 
-          // Is this + mode?
-          if (aa->plus) {
-            int size = sizeof(char *)+strlen(name)+1;
-
-            // Linux caps environment space (env vars + args) at 32 4k pages.
-            // todo: is there a way to probe this instead of constant here?
-
-            if (TT.envsize+aa->argsize+aa->namesize+size >= 131072)
-              toys.exitval |= flush_exec(new, aa);
-            aa->namesize += size;
-          }
           dlist_add(ddl, name);
           aa->namecount++;
           if (!aa->plus) test = flush_exec(new, aa);
