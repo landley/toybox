@@ -293,7 +293,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
   if (-1 == dirfd) {
     strwidth(indir->name);
-    perror_msg("%s", indir->name);
+    perror_msg_raw(indir->name);
 
     return;
   }

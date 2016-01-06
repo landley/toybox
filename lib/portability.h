@@ -11,11 +11,7 @@
 
 #ifdef __GNUC__
 #define noreturn	__attribute__((noreturn))
-#if CFG_TOYBOX_DEBUG
 #define printf_format	__attribute__((format(printf, 1, 2)))
-#else
-#define printf_format
-#endif
 #else
 #define noreturn
 #define printf_format

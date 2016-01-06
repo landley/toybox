@@ -94,7 +94,7 @@ void killall_main(void)
     if (TT.err[i]) {
       toys.exitval = 1;
       errno = TT.err[i];
-      perror_msg("%s", TT.names[i]);
+      perror_msg_raw(TT.names[i]);
     }
   }
   if (CFG_TOYBOX_FREE) free(TT.err);

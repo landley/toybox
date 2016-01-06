@@ -483,7 +483,7 @@ void install_main(void)
 
   if (flags & FLAG_d) {
     for (ss = toys.optargs; *ss; ss++) {
-      if (mkpathat(AT_FDCWD, *ss, 0777, 3)) perror_msg("%s", *ss);
+      if (mkpathat(AT_FDCWD, *ss, 0777, 3)) perror_msg_raw(*ss);
       if (flags & FLAG_v) printf("%s\n", *ss);
     }
 

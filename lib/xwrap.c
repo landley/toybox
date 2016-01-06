@@ -214,7 +214,7 @@ pid_t xpopen_both(char **argv, int *pipes)
       // setting high bit of argv[0][0] to let new process know
       **toys.argv |= 0x80;
       execv(s, toys.argv);
-      perror_msg(s);
+      perror_msg_raw(s);
 
       _exit(127);
     }
@@ -291,7 +291,7 @@ void xunlink(char *path)
 int xcreate(char *path, int flags, int mode)
 {
   int fd = open(path, flags^O_CLOEXEC, mode);
-  if (fd == -1) perror_exit("%s", path);
+  if (fd == -1) perror_exit_raw(path);
   return fd;
 }
 

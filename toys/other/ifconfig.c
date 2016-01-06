@@ -110,7 +110,7 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
   short flags;
 
   xstrncpy(ifre.ifr_name, name, IFNAMSIZ);
-  if (ioctl(TT.sockfd, SIOCGIFFLAGS, &ifre)<0) perror_exit("%s", name);
+  if (ioctl(TT.sockfd, SIOCGIFFLAGS, &ifre)<0) perror_exit_raw(name);
   flags = ifre.ifr_flags;
   if (!always && !(flags & IFF_UP)) return;
 

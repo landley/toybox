@@ -54,5 +54,5 @@ void mknod_main(void)
     if (-1 == lsm_set_create(TT.arg_context))
       perror_exit("-Z '%s' failed", TT.arg_context);
   if (mknod(*toys.optargs, mode|modes[type], makedev(major, minor)))
-    perror_exit("%s", *toys.optargs);
+    perror_exit_raw(*toys.optargs);
 }

@@ -24,7 +24,7 @@ void chroot_main(void)
 {
   char *binsh[] = {"/bin/sh", "-i", 0};
 
-  if (chdir(*toys.optargs) || chroot(".")) perror_exit("%s", *toys.optargs);
+  if (chdir(*toys.optargs) || chroot(".")) perror_exit_raw(*toys.optargs);
   if (toys.optargs[1]) xexec(toys.optargs+1);
   else xexec(binsh);
 }

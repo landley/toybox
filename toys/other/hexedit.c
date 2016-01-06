@@ -173,7 +173,7 @@ void hexedit_main(void)
 
     // Display cursor and flush output
     highlight(x, y, ro ? 3 : side);
-    xprintf("");
+    xflush();
 
     // Wait for next key
     key = scan_key(keybuf, 1);

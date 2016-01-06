@@ -46,5 +46,5 @@ void mkfifo_main(void)
       perror_exit("-Z '%s' failed", TT.Z);
 
   for (s = toys.optargs; *s; s++)
-    if (mknod(*s, S_IFIFO | TT.mode, 0) < 0) perror_msg("%s", *s);
+    if (mknod(*s, S_IFIFO | TT.mode, 0) < 0) perror_msg_raw(*s);
 }

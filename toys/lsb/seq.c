@@ -47,7 +47,7 @@ static void insanitize(char *f)
   }
 
   // The @ is a byte offset, not utf8 chars. Waiting for somebody to complain...
-  if (*s || !found) error_exit("bad -f '%s'@%d", f, s-f+1);
+  if (*s || !found) error_exit("bad -f '%s'@%ld", f, s-f+1);
 }
 
 void seq_main(void)

@@ -38,7 +38,7 @@ static void do_expand(int fd, char *name)
   for (;;) {
     len = readall(fd, toybuf, sizeof(toybuf));
     if (len<0) {
-      perror_msg("%s", name);
+      perror_msg_raw(name);
       return;
     }
     if (!len) break;

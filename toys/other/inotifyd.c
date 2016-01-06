@@ -65,7 +65,7 @@ void inotifyd_main(void)
 
     // This returns increasing numbers starting from 1, which coincidentally
     // is the toys.optargs position of the file. (0 is program to run.)
-    if (inotify_add_watch(fds.fd, path, mask) < 0) perror_exit("%s", path);
+    if (inotify_add_watch(fds.fd, path, mask) < 0) perror_exit_raw(path);
   }
 
   for (;;) {

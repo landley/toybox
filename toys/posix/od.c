@@ -207,7 +207,7 @@ static void do_od(int fd, char *name)
 
     len = readall(fd, buf, len);
     if (len < 0) {
-      perror_msg("%s", name);
+      perror_msg_raw(name);
       break;
     }
     if (TT.max_count) TT.max_count -= len;

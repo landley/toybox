@@ -101,7 +101,7 @@ static void do_umount(char *dir, char *dev, int flags)
     }
   }
 
-  perror_msg("%s", dir);
+  perror_msg_raw(dir);
 }
 
 void umount_main(void)

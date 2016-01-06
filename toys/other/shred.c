@@ -57,7 +57,7 @@ void shred_main(void)
       fd = open(*try, O_RDWR);
     }
     if (fd == -1) {
-      perror_msg("%s", *try);
+      perror_msg_raw(*try);
       continue;
     }
 
@@ -84,7 +84,7 @@ void shred_main(void)
 
       if (pos < TT.offset) {
         if (TT.offset != lseek(fd, TT.offset, SEEK_SET)) {
-          perror_msg("%s", *try);
+          perror_msg_raw(*try);
           break;
         }
         pos = TT.offset;
@@ -97,7 +97,7 @@ void shred_main(void)
         if (len-pos < throw) throw = len-pos;
 
       if (iter != TT.iterations) xread(TT.ufd, toybuf, throw);
-      if (throw != writeall(fd, toybuf, throw)) perror_msg("%s");
+      if (throw != writeall(fd, toybuf, throw)) perror_msg_raw(*try);
       pos += throw;
     }
     if (toys.optflags & FLAG_u)

@@ -82,7 +82,7 @@ void iorenice_main(void)
     if (p == -1) perror_exit("read priority");
     TT.class = (p>>13)&3;
     p &= 7;
-    xprintf("Pid %d, class %s (%d), prio %d\n",
+    xprintf("Pid %ld, class %s (%ld), prio %d\n",
             TT.pid, classes[TT.class], TT.class, p);
     return;
   }

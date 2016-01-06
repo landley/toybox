@@ -211,7 +211,7 @@ void cpio_main(void)
       }
     }
 
-    if (err) perror_msg("'%s'", name);
+    if (err) perror_msg_raw(name);
     free(tofree);
 
   // Output cpio archive
@@ -233,7 +233,7 @@ void cpio_main(void)
       if (lstat(name, &st) || (S_ISREG(st.st_mode)
           && st.st_size && (fd = open(name, O_RDONLY))<0))
       {
-        perror_msg("%s", name);
+        perror_msg_raw(name);
         continue;
       }
 

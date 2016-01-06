@@ -49,6 +49,18 @@ void error_exit(char *msg, ...)
   xexit();
 }
 
+// Die with an error message and strerror(errno)
+void perror_exit(char *msg, ...)
+{
+  va_list va;
+
+  va_start(va, msg);
+  verror_msg(msg, errno, va);
+  va_end(va);
+
+  xexit();
+}
+
 // Exit with an error message after showing help text.
 void help_exit(char *msg, ...)
 {
@@ -65,16 +77,28 @@ void help_exit(char *msg, ...)
   xexit();
 }
 
-// Die with an error message and strerror(errno)
-void perror_exit(char *msg, ...)
+// If you want to explicitly disable the printf() behavior (because you're
+// printing user-supplied data, or because android's static checker produces
+// false positives for 'char *s = x ? "blah1" : "blah2"; printf(s);' and it's
+// -Werror there for policy reasons).
+void error_msg_raw(char *msg)
 {
-  va_list va;
+  error_msg("%s", msg);
+}
 
-  va_start(va, msg);
-  verror_msg(msg, errno, va);
-  va_end(va);
+void perror_msg_raw(char *msg)
+{
+  perror_msg("%s", msg);
+}
 
-  xexit();
+void error_exit_raw(char *msg)
+{
+  error_exit("%s", msg);
+}
+
+void perror_exit_raw(char *msg)
+{
+  error_exit("%s", msg);
 }
 
 // Keep reading until full or EOF
@@ -260,7 +284,7 @@ long xstrtol(char *str, char **end, int base)
 {
   long l = estrtol(str, end, base);
 
-  if (errno) perror_exit("%s", str);
+  if (errno) perror_exit_raw(str);
 
   return l;
 }
@@ -525,7 +549,7 @@ void loopfiles_rw(char **argv, int flags, int permissions, int failok,
 
     if (!strcmp(*argv, "-")) fd=0;
     else if (0>(fd = open(*argv, flags, permissions)) && !failok)
-      perror_msg("%s", *argv);
+      perror_msg_raw(*argv);
     else {
       function(fd, *argv);
       if (flags & O_CLOEXEC) close(fd);

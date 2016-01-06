@@ -72,7 +72,7 @@ static void do_grep(int fd, char *name)
   if (!fd) name = "(standard input)";
 
   if (!file) {
-    perror_msg("%s", name);
+    perror_msg_raw(name);
     return;
   }
 

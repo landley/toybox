@@ -25,7 +25,7 @@ static void do_rmdir(char *name)
 
   for (;;) {
     if (rmdir(name)) {
-      perror_msg("%s",name);
+      perror_msg_raw(name);
       return;
     }
 
