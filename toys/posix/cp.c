@@ -177,7 +177,7 @@ int cp_node(struct dirtree *try)
     if (!faccessat(cfd, catch, F_OK, 0) && !S_ISDIR(cst.st_mode)) {
       char *s;
 
-      if (S_ISDIR(try->st.st_dev)) {
+      if (S_ISDIR(try->st.st_mode)) {
         error_msg("dir at '%s'", s = dirtree_path(try, 0));
         free(s);
         return 0;
