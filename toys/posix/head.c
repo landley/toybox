@@ -39,7 +39,7 @@ static void do_head(int fd, char *name)
 
   while (lines) {
     len = read(fd, toybuf, size);
-    if (len<0) perror_msg("%s",name);
+    if (len<0) perror_msg_raw(name);
     if (len<1) break;
 
     for(i=0; i<len;) if (toybuf[i++] == '\n' && !--lines) break;

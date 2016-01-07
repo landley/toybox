@@ -32,7 +32,7 @@ struct dirtree *dirtree_add_node(struct dirtree *parent, char *name, int flags)
 
   if (name) {
     // open code this because haven't got node to call dirtree_parentfd() on yet
-    int fd = parent ? parent->data : AT_FDCWD;
+    int fd = parent ? parent->dirfd : AT_FDCWD;
 
     if (fstatat(fd, name, &st, AT_SYMLINK_NOFOLLOW*!(flags&DIRTREE_SYMFOLLOW)))
       goto error;
@@ -48,10 +48,7 @@ struct dirtree *dirtree_add_node(struct dirtree *parent, char *name, int flags)
     memcpy(&(dt->st), &st, sizeof(struct stat));
     strcpy(dt->name, name);
 
-    if (linklen) {
-      dt->symlink = memcpy(len+(char *)dt, libbuf, linklen);
-      dt->data = --linklen;
-    }
+    if (linklen) dt->symlink = memcpy(len+(char *)dt, libbuf, linklen);
   }
 
   return dt;
@@ -96,7 +93,7 @@ char *dirtree_path(struct dirtree *node, int *plen)
 
 int dirtree_parentfd(struct dirtree *node)
 {
-  return node->parent ? node->parent->data : AT_FDCWD;
+  return node->parent ? node->parent->dirfd : AT_FDCWD;
 }
 
 // Handle callback for a node in the tree. Returns saved node(s) or NULL.
@@ -118,7 +115,7 @@ struct dirtree *dirtree_handle_callback(struct dirtree *new,
 
   if (S_ISDIR(new->st.st_mode)) {
     if (flags & (DIRTREE_RECURSE|DIRTREE_COMEAGAIN)) {
-      new->data = openat(dirtree_parentfd(new), new->name, O_CLOEXEC);
+      new->dirfd = openat(dirtree_parentfd(new), new->name, O_CLOEXEC);
       flags = dirtree_recurse(new, callback, flags);
     }
   }
@@ -132,8 +129,8 @@ struct dirtree *dirtree_handle_callback(struct dirtree *new,
   return (flags & DIRTREE_ABORT)==DIRTREE_ABORT ? DIRTREE_ABORTVAL : new;
 }
 
-// Recursively read/process children of directory node (with dirfd in data),
-// filtering through callback().
+// Recursively read/process children of directory node, filtering through
+// callback(). Uses and closes supplied ->dirfd.
 
 int dirtree_recurse(struct dirtree *node,
           int (*callback)(struct dirtree *node), int flags)
@@ -142,13 +139,13 @@ int dirtree_recurse(struct dirtree *node,
   struct dirent *entry;
   DIR *dir;
 
-  if (node->data == -1 || !(dir = fdopendir(node->data))) {
+  if (node->dirfd == -1 || !(dir = fdopendir(node->dirfd))) {
     if (!(flags & DIRTREE_SHUTUP)) {
       char *path = dirtree_path(node, 0);
       perror_msg("No %s", path);
       free(path);
     }
-    close(node->data);
+    close(node->dirfd);
 
     return flags;
   }
@@ -174,7 +171,7 @@ int dirtree_recurse(struct dirtree *node,
 
   // This closes filehandle as well, so note it
   closedir(dir);
-  node->data = -1;
+  node->dirfd = -1;
 
   return flags;
 }

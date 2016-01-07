@@ -50,7 +50,7 @@ void paste_main(void)
 
     for (; *args; args++) {
       if ((*args)[0] == '-' && !(*args)[1]) f = stdin;
-      else if (!(f = fopen(*args, "r"))) perror_exit("%s", *args);
+      else if (!(f = fopen(*args, "r"))) perror_exit_raw(*args);
       for (i = 0, c = 0; c != EOF;) {
         switch(c = getc(f)) {
         case '\n':
@@ -72,7 +72,7 @@ void paste_main(void)
     files = (FILE**)(buf + 1);
     for (; *args; args++, files++) {
       if ((*args)[0] == '-' && !(*args)[1]) *files = stdin;
-      else if (!(*files = fopen(*args, "r"))) perror_exit("%s", *args);
+      else if (!(*files = fopen(*args, "r"))) perror_exit_raw(*args);
     }
     while (anyopen) {
       anyopen = 0;

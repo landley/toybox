@@ -33,7 +33,7 @@ void mountpoint_main(void)
   char *arg = *toys.optargs;
   int quiet = toys.optflags & FLAG_q;
 
-  if (lstat(arg, &st1)) perror_exit("%s", arg);
+  if (lstat(arg, &st1)) perror_exit_raw(arg);
 
   if (toys.optflags & FLAG_x) {
     if (S_ISBLK(st1.st_mode)) {

@@ -35,7 +35,8 @@ and progress towards implementing it.</p>
 <li><a href=#android>Android Toolbox</a></li>
 <li><a href=#tizen>Tizen Core</a></li>
 <li>Miscelaneous: <a href=#klibc>klibc</a>, <a href=#glibc>glibc</a>,
-<a href=#sash>sash</a>, <a href=#sbase>sbase</a>, <a href=#s6>s6</a>...</li>
+<a href=#sash>sash</a>, <a href=#sbase>sbase</a>, <a href=#s6>s6</a>,
+<a href=#uclinux>uclinux</a>...</li>
 </ul>
 
 <hr />
@@ -85,7 +86,10 @@ revisited later, but not for toybox 1.0.)</p>
 separate executables (alias bg cd command fc fg getopts hash jobs kill read
 type ulimit umask unalias wait).  These may be revisited as part of a built-in
 toybox shell, but are not exported into $PATH via symlinks.  (If you fork a
-child process and have it "cd" then exit, you've accomplished nothing.)</p>
+child process and have it "cd" then exit, you've accomplished nothing.
+This is not a complete list, a shell also needs exit, if, while, for, case,
+export, set, unset, trap, exec... And for bash compatability, function and
+source.)</p>
 
 <p>A few other commands are judgement calls, providing command-line
 internationalization support (iconv locale localedef), System V inter-process
@@ -118,16 +122,28 @@ fairly low.</p>
 <p>POSIX allowed its standards process to be compromised
 by leaving things out, thus allowing IBM mainframes and Windows NT to drive
 a truck through the holes and declare themselves compilant. But it means what
-they DID standardize tends to be respected.</p>
+they DID standardize tends to be respected (if sometimes obsolete).</p>
 
 <p>The Linux Standard Base's failure mode is different, they respond to
 pressure by including special-case crap, such as allowing Red Hat to shoehorn
-RPM on the standard even though all sorts of distros (Debian, Slackware, Arch,
+RPM into the standard even though all sorts of distros (Debian, Slackware, Arch,
 Gentoo) don't use it and probably never will. This means anything in the LSB is
 at best a suggestion: arbitrary portions of this standard are widely
 ignored.</p>
 
-<p>The LSB does specify a <a href=http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html>list of command line
+<p>The community perception seems to be that the Linux Standard Base is
+the best standard money can buy, I.E. the Linux Foundation is supported by
+financial donations form large companies and the LSB represents the interests
+of those donors more than technical merit. Debian officially
+<a href=http://lwn.net/Articles/658809>washed its hands of LSB</a> when 5.0
+came out in 2015, and no longer even pretends to support it (which may affect
+Debian derivatives like Ubuntu and Knoppix). Toybox hasn't moved to 5.0 for
+similar reasons.</p>
+
+<p>That said, Posix by itself isn't enough, and this is the next most
+comprehensive standards effort for Linux so far.</p>
+
+<p>The LSB specifies a <a href=http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html>list of command line
 utilities</a>:</p>
 
 <blockquote><b>
@@ -186,13 +202,13 @@ C library, those are outside the scope of this project.)</p>
 <span id=development>
 bzcat cat cp dirname echo env patch rmdir sha1sum sleep sort sync
 true uname wc which yes zcat
-awk basename bzip2 chmod chown cmp cut date dd diff
+awk basename chmod chown cmp cut date dd diff
 egrep expr find grep gzip head hostname id install ln ls
 mkdir mktemp mv od readlink rm sed sh tail tar touch tr uniq
-wget whoami xargs chgrp comm gunzip less logname man split
+wget whoami xargs chgrp comm gunzip less logname split
 tee test time bunzip2 chgrp chroot comm cpio dmesg
 dnsdomainname ftpd ftpget ftpput gunzip ifconfig init less
-logname losetup man mdev mount mountpoint nc pgrep pkill 
+logname losetup mdev mount mountpoint nc pgrep pkill 
 pwd route split stat switch_root tac umount vi
 </span>
 </b></blockquote>
@@ -207,13 +223,22 @@ self-bootstrapping build still uses the following busybox commands,
 not yet supplied by toybox:</p>
 
 <blockquote><p>
-ash awk bunzip2 bzip2 dd diff expr fdisk ftpd ftpget ftpput gunzip
-gzip less man pgrep ping pkill ps route sed sh sha512sum tar test tr unxz vi
-wget xzcat zcat</p></blockquote>
+awk bunzip2 bzcat dd diff expr fdisk ftpd ftpget
+ftpput gunzip gzip less pgrep ping pkill route sh
+sha512sum tar test tr unxz vi wget xzcat zcat
+</p></blockquote>
 
-<p>Many of those are in "pending". Most of the archive commands are needed
-because busybox tar doesn't call external versions. The remaining "difficult"
-commands are vi, awk, and ash.</p>
+<p>Many of those are in "pending". The remaining "difficult"
+commands are vi, awk, and sh.</p>
+
+<p>Building Linux From Scratch is not the same as building the
+<a href=https://source.android.com>Android Open Source Project</a>,
+but after toybox 1.0 focus may shift to <a href=http://landley.net/aboriginal/about.html#hairball>modifying the AOSP build</a>
+to reduce dependencies. (It's fairly likely we'll have to add at least
+a read-only git utility so repo can download the build's source code,
+but that's actually <a href=https://www.youtube.com/watch?v=P7n6G2IL6eo>not
+that hard</a>. We'll probably also need our own "make" at some point after
+1.0.)</p>
 
 <hr />
 <h2><a name=android /><a href="#android">Use case: Replacing Android Toolbox</a></h2>
@@ -236,9 +261,9 @@ system/core/toolbox/Android.mk</a> the toolbox directory builds the
 following commands:</p>
 
 <blockquote><b>
-dd du df getevent iftop ioctl log ls
-lsof nandread newfs_msdos ps prlimit
-sendevent start stop top uptime
+dd getevent iftop ioctl log
+nandread newfs_msdos ps prlimit
+sendevent start stop top
 </b></blockquote>
 
 <h3>Other Android core commands</h3>
@@ -264,10 +289,10 @@ implementing the full commands (fdisk, init, and sudo) come first.</p>
 <p>For reference, combining everything listed above, we get:</p>
 
 <blockquote><b>
-dd du df getevent iftop init ioctl
-log logcat logwrapper ls lsof nandread
+dd getevent iftop init ioctl
+log logcat logwrapper nandread
 newfs_msdos ps prlimit reboot run-as
-sendevent start stop top uptime
+sendevent start stop top
 </b></blockquote>
 
 <p>We may eventually implement all of that, but for toybox 1.0 we need to
@@ -279,9 +304,9 @@ for later).</p>
 <p>This means toybox should implement (or finish implementing):</p>
 <blockquote><b>
 <span id=toolbox>
-dd du df getevent iftop ioctl log logcat logwrapper ls lsof
+dd getevent iftop ioctl log logcat logwrapper
 nandread newfs_msdos ps prlimit sendevent
-start stop top uptime
+start stop top
 </span>
 </b></blockquote>
 
@@ -297,7 +322,7 @@ from its core system, and is installing toybox as
 <blockquote><b>
 <span id=tizen>
 arch base64 users dir vdir unexpand shred join csplit
-hostid nproc runcon sha224 sha256 sha384 sha512 sha3 mkfs.vfat fsck.vfat 
+hostid nproc runcon sha224sum sha256sum sha384sum sha512sum sha3sum mkfs.vfat fsck.vfat 
 dosfslabel uname stdbuf pinky diff3 sdiff zcmp zdiff zegrep zfgrep zless zmore
 </span>
 </b></blockquote>
@@ -328,19 +353,19 @@ replacement.</p>
 musl), klibc builds a random assortment of executables to run init scripts
 with. There's no multiplexer command, these are individual executables:</p>
 
-<blockquote><p>
+<blockquote><p><b>
 cat chroot cpio dd dmesg false fixdep fstype gunzip gzip halt ipconfig kill
 kinit ln losetup ls minips mkdir mkfifo mknodes
 mksyntax mount mv nfsmount nuke pivot_root poweroff readlink reboot resume
 run-init sh sha1hash sleep sync true umount uname zcat
-</p></blockquote>
+</b></p></blockquote>
 
 <p>To get that list, build klibc according to the instructions (I
 <a href=http://landley.net/notes-2013.html#23-01-2013>looked at</a> version
 2.0.2 and did cd klibc-*; ln -s /output/of/kernel/make/headers_install
 linux; make) then <b>echo $(for i in $(find . -type f); do file $i | grep -q
 executable && basename $i; done | grep -v '[.]g$' | sort -u)</b> to find
-executables, then eliminated the *.so files and *.shared duplicates.</p>
+executables, then eliminate the *.so files and *.shared duplicates.</p>
 
 <p>Some of those binaries are build-time tools that don't get installed,
 which removes mknodes, mksyntax, sha1hash, and fixdep from the list.
@@ -354,7 +379,7 @@ for the oddball names.</p>
 license terms" above), adding nothing to the other projects we've looked at.
 But we still need sh, gunzip, gzip, and zcat to replace this package.</p>
 
-<p>By the time I did the analysis toybox already had cat, chroot, dmesg, false,
+<p>At the time I did the initial analysis toybox already had cat, chroot, dmesg, false,
 kill, ln, losetup, ls, mkdir, mkfifo, readlink, rm, switch_root, sleep, sync,
 true, and uname.</p>
 
@@ -500,29 +525,33 @@ it sucks in -lz from the host.)</p>
 <a name=sbase />
 <h2>sbase:</h2>
 
-<p>It's <a href=http://git.suckless.org/sbase>on suckless</a>. So far it's
-implemented:</p>
+<p>It's <a href=http://git.suckless.org/sbase>on suckless</a> in
+<a href=http://git.suckless.org/ubase>two parts</a>. As of November 2015 it's
+implemented the following (renaming "cron" to "crond" for
+consistency, and yanking "sponge", "mesg", "pagesize", "respawn", and
+"vtallow"):</p>
 
 <blockquote><p>
 <span id=sbase_cmd>
-basename cat chmod chown cksum cmp cp date dirname echo false fold grep head
-kill ln ls mc mkdir mkfifo mv nl nohup pwd rm seq sleep sort tail tee test
-touch true tty uname uniq wc yes
+basename cal cat chgrp chmod chown chroot cksum cmp cols comm cp crond cut date
+dirname du echo env expand expr false find flock fold getconf grep head
+hostname join kill link ln logger logname ls md5sum mkdir mkfifo mktemp mv
+nice nl nohup od paste printenv printf pwd readlink renice rm rmdir sed seq
+setsid sha1sum sha256sum sha512sum sleep sort split strings sync tail
+tar tee test tftp time touch tr true tty uname unexpand uniq unlink uudecode
+uuencode wc which xargs yes
 </span>
 </p></blockquote>
 
-<p>And has a TODO list:</p>
+<p>and<p>
 
 <blockquote><p>
 <span id=sbase_cmd>
-cal chgrp chvt comm cut df diff du env expand expr id md5sum nice paste
-printenv printf readlink rmdir seq sha1sum split sync test tr unexpand unlink
+chvt clear dd df dmesg eject fallocate free id login mknod mountpoint
+passwd pidof ps stat su truncate unshare uptime watch
 who
 </span>
 </p></blockquote>
-
-<p>At triage time, of the first list I still need to do: fold grep mc mv nl. Of
-the second list: diff expr paste printf split test tr unexpand who.</p>
 
 <hr />
 <a name=s6 />
@@ -652,18 +681,18 @@ mount_ffs mv pfctl ping poweroff ps reboot rm route sed sh stty sysctl tar test
 traceroute umount vi wiconfig
 </p></blockquote>
 
-<p>Apparently lv is the missing link ed and vi, copyright 1982-1997 (do not
-want), ex is another obsolete vi mode, lesskey is "used to
+<p>Apparently lv is the missing link between ed and vi, copyright 1982-1997 (do
+not want), ex is another obsolete vi mode, lesskey is "used to
 specify a set of key bindings to be used with less", and csh is a shell they
-sucked in, [ is an alias for test. Several more bsd-isms that don't have Linux
+sucked in (even though they have mksh?), [ is an alias for test. Several more bsd-isms that don't have Linux
 equivalents (even in the ubuntu "install this package" search) are
-disklabel, fsck_ffs, mount_ffs, and pfctl. And wiconfig is a wavelan interface
-network card driver utility. Subtracting all that and the commands toybox
-already implements at triage time, we get:</p>
+disklabel, fsck_ffs, mount_ffs, and pfctl. And wiconfig is a
+wavelan interface network card driver utility. Subtracting all that and the
+commands toybox already implements at triage time, we get:</p>
 
 <blockquote><p>
 <span id=beastiebox_cmd>
-fdisk fsck getty halt ifconfig init kill less mksh more mount mv ping poweroff
+fdisk fsck getty halt ifconfig init kill less more mount mv ping poweroff
 ps reboot route sed sh stty sysctl tar test traceroute umount vi
 </span>
 </p></blockquote>
@@ -701,6 +730,218 @@ OpenSolaris.</p>
 <p>Verdict: ignore.</p>
 
 <hr />
+<a name=uclinux />
+<h2>uClinux</h2>
+
+<p>Long ago a hardware developer named Jeff Dionne put together a
+nommu Linux distribution, which involved rewriting a lot of command line
+utilities that relied on <a href=http://nommu.org/memory-faq.txt>features
+unavailable on nommu</a> hardware.</p>
+
+<p>In 2003 Jeff moved to Japan and handed
+the project off to people who allowed it to roll to a stop. The website
+turned into a mess of 404 links, the navigation indexes stopped being
+updated over a decade ago, and the project's CVS repository suffered a
+hard drive failure for which there were no backups. The project continued
+to put out "releases" through 2014 (you have to scroll down in the "news"
+section to find them, the "HTTP download" section in the nav bar on the
+left hasn't been updated in over a decade), which were hand-updated tarball
+snapshots mostly consisting of software from the 1990's. For example the
+2014 release still contained ipfwadm, the package which predated ipchains,
+which predated iptables, which is in the process of being replaced by
+nftables.</p>
+
+<p>Nevertheless, people still try to use this because (at least until the
+launch of <a href=http://nommu.org>nommu.org</a>) the project was viewed
+as the place to discuss, develop, and learn about nommu Linux.
+The role of uclinux.org as an educational resource kept people coming
+to it long after it had collapsed as a Linux distro.</p>
+
+<p>Starting around 0.6.0 toybox began to address nommu support with the goal
+of putting uClinux out of its misery.</p>
+
+<p>An analysis of <a href=http://www.uclinux.org/pub/uClinux/dist/uClinux-dist-20140504.tar.bz2>uClinux-dist-20140504</a> found 312 package
+subdirectories under "user".</p>
+
+<h3>Taking out the trash</h3>
+
+<p>A bunch of packages (<b>inotify-tools, input-event-demon, ipsec-tools, netifd,
+keepalived, mobile-broadband-provider-info, nuttp, readline, snort,
+snort-barnyard, socat, sqlite, sysklogd, sysstat, tcl, ubus, uci, udev,
+unionfs, uqmi, usb_modeswitch, usbutils, util-linux</b>)
+are hard to evaluate because
+uclinux has directories for them, but their source isn't actually in the
+uclinux tree. In some of these the makefiles download a git repo during
+the build, so I'm assuming you can build the external package if you really
+care. (Even when I know what these packages do, I'm skipping them
+because uclinux doesn't actually contain them, and any given snapshot
+of the build system will bitrot as external web links change over time.)</p>
+
+<p>Other packages are orphaned, meaning they're not mentioned from any Kconfig
+or Makefiles outside of their directory, so uclinux can't actually build
+them: <b>mbus</b> is an orphaned i2c test program expecting to run in some sort
+of hardwired hardware context, <b>mkeccbin</b> is an orphaned "ECC annotated
+binary file" generator (meaning it's half of a flash writer),
+<b>wsc_upnp</b> is a "Ralink WPS" driver (some sort of stale wifi chip)...</p>
+
+<p>The majority of the remaining packages are probably not of interest to
+toybox due to being so obsolete or special purpose they may not actually be
+of interest to anybody anymore. (This list also includes a lot of
+special-purpose network back-end stuff that's hard for anybody but
+datacenter admins to evaluate the current relevance of.)</p>
+
+<blockquote><b><p>
+arj asterisk boottools bpalogin br2684ctl camserv can4linux cgi_generic
+cgihtml clamav clamsmtp conntrack-tools cramfs crypto-tools cxxtest
+ddns3-client de2ts-cal debug demo diald discard dnsmasq dnsmasq2
+ethattach expat-examples ez-ipupdate fakeidentd
+fconfig ferret flatfs flthdr freeradius freeswan frob-led frox fswcert
+game gettyd gnugk haserl horch
+hostap hping httptunnel ifattach ipchains
+ipfwadm ipmasqadm ipportfw ipredir ipset iso_client
+jamvm jffs-tools jpegview jquery-ui kendin-config kismet klaxon kmod
+l2tpd lcd ledcmd ledcon lha lilo lirc lissa load loattach
+lpr lrpstat lrzsz mail mbus mgetty microwin ModemManager msntp musicbox
+nooom null openswan openvpn palmbot pam_* pcmcia-cs playrt plugdaemon pop3proxy
+potrace qspitest quagga radauth
+ramimage readprofile rdate readprofile routed rrdtool rtc-ds1302
+sendip ser sethdlc setmac setserial sgutool sigs siproxd slattach
+smtpclient snmpd net-snmp snortrules speedtouch squashfs scep sslwrap stp
+stunnel tcpblast tcpdump tcpwrappers threaddemos tinylogin tinyproxy
+tpt tripwire unrar unzoo version vpnled w3cam xl2tpd zebra
+</p></b></blockquote>
+    
+<p>This stuff is all over the place: arj, lha, rar, and zoo are DOS archivers,
+ethattach describes itself as just "a network tool",
+mail is a textmode smtp mailer literally described as "Some kind of mail
+proggy" in uclinux's kconfig (as opposed to clamsmtp and smtpclient and
+so on), this gettyd isn't a generic version but specifically a
+hardwired ppp dialin utility, mgetty isn't a generic version but is combined
+with "sendfax", hostap is an intersil prism driver, wlan-ng is also an
+intersil prism dirver, null is a program to intentionally dereference a
+null pointer (in case you needed one), iso_client is a
+"Demo Application for the USB Device Driver", kendin-config is
+"for configuring the Micrel Kendin KS8995M over QSPI", speedtouch configures
+a specific brand of asdl modem, portmap is part of Anfs,
+ferret, linux-igd, and miniupnp are all upnp packages,
+lanbypass "can be used to control the LAN
+bypass switches on the Advantech x86 based hardware platforms", lcd is
+"test of lcddma device driver" (an out-of-tree Coldfire driver apparently
+lost to history, the uclinux linux-2.4.x directory has a config symbol for
+it, but nothing in the code actually _uses_ it...), qspitest is another
+coldfire thing, mii-tool-fec is
+"strictly for the FEC Ethernet driver as implemented (and modified) for
+the uCdimm5272", rtc-ds1302 and rtc-m41t11 are usermode drivers for specific
+clock chips, stunnel is basically "openssl s_client -quiet -connect",
+potrace is a bitmap to vector graphic converter, radauth performs command line
+authentication against a radius server,
+clamav, klaxon, ferret, l7-protocols, and nessus are very old network security
+software (it's got a stale snapshot of nmap too), xl2tpd is a PPP over UDP
+tunnel (rfc 2661), zebra is the package quagga replaced,
+lilo is the x86-only bootloader that predated grub (and recently discontinued
+development), lissa is a "framebuffer graphics demo" from
+1998, the squashfs package here is the out of tree patches for 2.4 kernels
+and such before the filesystem was merged upstream (as opposed to the
+squashfs-new package which is a snapshot of the userspace tool from 2011),
+load is basically "dd file /dev/spi", version is basically "cat /proc/version",
+microwin is a port of the WinCE graphics API to Linux, scep is a 2003
+implementation of an IETF draft abandoned in 2010, tpt depends on
+Andrew Morton's 15 year old unmerged "timepegs" kernel patch using the pentium
+cycle counter, vpnled controls a light that reboots systems (what?),
+w3cam is a video4linux 1.0 client (v4l2 showed up during 2.5 and support for
+the old v4l1 was removed in 2.6.38 back in 2011), busybox ate tinylogin
+over a decade ago, lrpstat is a java network monitor
+from 2001, lrzsz is zmodem/ymodem/zmodem, msntp and stp implement rfc2030
+meaning it overflows in 2036 (the package was last updated in 2000), rdate
+is rfc 868 meaning it also overflows in 2036 (which is why ntp was invented
+a few decades back), reiserfsprogs development stopped abruptly after
+Hans Reiser was convicted of murdering his wife Nina (denying it on the
+stand and then leading them to the body as part of his plea bargain during
+sentencing)...
+</p>
+
+<p>Seriously, there's a lot of crap in there. It's hard to analyze most
+of it far enough to prove it _doesn't_ do anything.</p>
+
+<h3>Non-toybox programs</h3>
+
+<p>The following software may actually still do something intelligible
+(although the package versions tend to be years out of date), but
+it's not a direction toybox has chosen to go in.</p>
+
+<p>There are several programming languages (<b>bash, lua, jamvm, tinytcl,
+perl, python</b>) in there. Maybe someone somewhere wants a 2008 release of a
+java virtual machine tested to work on nommu systems (jamvm), but it's out
+of scope for toybox.</p>
+
+<p>A bunch of benchmark programs: <b>cpu, dhrystone, mathtest, nbench, netperf,
+netpipe, and whetstone</b>.</p>
+
+<p>A bunch of web servers: <b>appWeb, boa, fnord (via tcpserver), goahead, httpd,
+mini_httpd, and thttpd</b>.</p>
+
+<p>A bunch of shells: <b>msh</b> is a clever (I.E. obfuscated) little shell,
+<b>nwsh</b> is "new shell" (that's what it called itself in 1999 anyway),
+<b>sash</b> is another shell with a bunch of builtins (ls, ps, df, cp, date, reboot,
+and shutdown, this roadmap analyzes it <a href="#sash">elsewhere</a>),
+<b>sh</b> is a very old minix shell fork, and <b>tcsh</b> is also a shell.</p>
+
+<p>Also in this category, we have:</p>
+
+<blockquote><b><p>
+dropbear jffs-tools jpegview kexec-tools bind ctorrent
+iperf iproute2 ip-sentinel iptables kexec
+nmap oggplay openssl oprofile p7zip pppd pptp play vplay
+hdparm mp3play at clock
+mtd-utils mysql logrotate brcfg bridge-utils flashw
+ebtables etherwake ethtool expect gdb gdbserver hostapd
+lm_sensors load netflash netstat-nat
+radvd recover rootloader resolveip rp-pppoe
+rsyslog rsyslogd samba smbmount squashfs-new squid ssh strace tip
+uboot-envtools ulogd usbhubctrl vconfig vixie-cron watchdogd
+wireless_tools wpa_supplicant
+</p></b></blockquote>
+
+<p>An awful lot of those are borderline: play and vplay are wav file
+audio players, there's oprofile _and_ readprofile (which just reads kernel
+profiling data from /proc/profile),
+radvd is a "routr advertisement daemon" (ipv6 stateless autoconf),
+ctorrent is a bittorent client, 
+lm_sensors is hardware (heat?) monitoring,
+resolveip is dig only less so,
+rp-pppoe is ppp over ethernet,
+ebtables is an ethernet version of iptables (for bridging),
+their dropbear is from 2012, and that ssh version is from 2011
+(which means it's about nine months too _old_ to have the heartbleed bug).
+There's both ulogd and ulogd2 (no idea why), and pppd is version 2.4 but
+there's a ppd-2.3 directory also.</p>
+
+<p>Lots of flash stuff:
+flashw is a flash writer, load is an spi flash loader, netflash writes
+to flash via tftp,
+recover is also a reflash daemon intended to come up when the system can't boot,
+rootloader seems to be another reflash daemon but without dhcp.</p>
+
+<h3>Already in roadmap</h3>
+
+<p>The following packages contain commands already in the toybox roadmap:</p>
+
+<blockquote><b><p>
+agetty cal cksum cron dhcpcd dhcpcd-new dhcpd dhcp-isc dosfstools e2fsprogs
+elvis-tiny levee fdisk fileutils ftp ftpd grep hd hwclock inetd init ntp
+iputils login module-init-tools netcat shutils ntpdate lspci ping procps
+proftpd rsync shadow shutils stty sysutils telnet telnetd tftp tftpd traceroute
+unzip wget mawk net-tools
+</p></b></blockquote>
+
+<p>There are some duplicates in there, levee is a tiny vi implementation
+like elvis-tiny, ntp and ntpdate overlap, etc.</p>
+
+<p>Verdict: We don't really need to do a whole lot special for nommu
+systems, just get the existing toybox roadmap working on nommu and
+we're good. The uClinux project can rest in peace.</p>
+
+<hr />
 <h2>Requests:</h2>
 
 <p>The following additional commands have been requested (and often submitted)
@@ -722,6 +963,7 @@ ipaddr iplink iproute blockdev rpm2cpio arping brctl dumpleases fsck
 tcpsvd tftpd
 factor fallocate fsfreeze inotifyd lspci nbd-client partprobe strings
 base64 mix
+reset hexedit nsenter shred
 </span>
 </b></blockquote>
 

@@ -346,20 +346,15 @@ void crontab_main(void)
 
   if (!toys.optc) {
     if (!FLAG_elr) {
-      if (toys.optflags & FLAG_u) {
-        toys.exithelp++;
-        error_exit("file name must be specified for replace");
-      }
+      if (toys.optflags & FLAG_u) 
+        help_exit("file name must be specified for replace");
       do_replace(pwd->pw_name);
     }
     else if (toys.optflags & FLAG_e) do_edit(pwd);
     else if (toys.optflags & FLAG_l) do_list(pwd->pw_name);
     else if (toys.optflags & FLAG_r) do_remove(pwd->pw_name);
   } else {
-    if (FLAG_elr) {
-      toys.exithelp++;
-      error_exit("no arguments permitted after this option");
-    }
+    if (FLAG_elr) help_exit("no arguments permitted after this option");
     do_replace(pwd->pw_name);
   }
   if (!(toys.optflags & FLAG_c)) free(TT.cdir);

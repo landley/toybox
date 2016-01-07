@@ -88,7 +88,7 @@ static void loopback_setup(char *device, char *file)
   if (-1 == lfd || ioctl(lfd, LOOP_GET_STATUS64, loop)) {
     if (errno == ENXIO && (flags & (FLAG_a|FLAG_j))) goto done;
     if (errno != ENXIO || !file) {
-      perror_msg("%s", device ? device : "-f");
+      perror_msg_raw(device ? device : "-f");
       goto done;
     }
   }
@@ -101,7 +101,7 @@ static void loopback_setup(char *device, char *file)
   if (flags & (FLAG_c|FLAG_d)) {
     // The constant is LOOP_SET_CAPACITY
     if (ioctl(lfd, (flags & FLAG_c) ? 0x4C07 : LOOP_CLR_FD, 0)) {
-      perror_msg("%s", device);
+      perror_msg_raw(device);
       goto done;
     }
   // Associate file with this device?
@@ -180,10 +180,8 @@ void losetup_main(void)
   } else {
     char *file = (toys.optflags & (FLAG_d|FLAG_c)) ? NULL : toys.optargs[1];
 
-    if (!toys.optc || (file && toys.optc != 2)) {
-      toys.exithelp++;
-      perror_exit("needs %d arg%s", 1+!!file, file ? "s" : "");
-    }
+    if (!toys.optc || (file && toys.optc != 2)) 
+      help_exit("needs %d arg%s", 1+!!file, file ? "s" : "");
     for (s = toys.optargs; *s; s++) {
       loopback_setup(*s, file);
       if (file) break;

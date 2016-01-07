@@ -17,7 +17,7 @@ config TAIL
 
     -n	output the last NUMBER lines (default 10), +X counts from start.
     -c	output the last NUMBER bytes, +NUMBER counts from start
-    #-f	follow FILE(s), waiting for more data to be appended [TODO]
+    -f	follow FILE(s), waiting for more data to be appended
 
 config TAIL_SEEK
   bool "tail seek support"
@@ -29,12 +29,13 @@ config TAIL_SEEK
 
 #define FOR_tail
 #include "toys.h"
+#include <sys/inotify.h>
 
 GLOBALS(
   long lines;
   long bytes;
 
-  int file_no;
+  int file_no, ffd, *files;
 )
 
 struct line_list {
@@ -74,7 +75,7 @@ static int try_lseek(int fd, long bytes, long lines)
 {
   struct line_list *list = 0, *temp;
   int flag = 0, chunk = sizeof(toybuf);
-  ssize_t pos = lseek(fd, 0, SEEK_END);
+  off_t pos = lseek(fd, 0, SEEK_END);
 
   // If lseek() doesn't work on this stream, return now.
   if (pos<0) return 0;
@@ -133,6 +134,16 @@ static void do_tail(int fd, char *name)
 {
   long bytes = TT.bytes, lines = TT.lines;
   int linepop = 1;
+
+  if (toys.optflags & FLAG_f) {
+    int f = TT.file_no*2;
+    char *s = name;
+
+    if (!fd) sprintf(s = toybuf, "/proc/self/fd/%d", fd);
+    TT.files[f++] = fd;
+    if (0 > (TT.files[f] = inotify_add_watch(TT.ffd, s, IN_MODIFY)))
+      perror_msg("bad -f on '%s'", name);
+  }
 
   if (toys.optc > 1) {
     if (TT.file_no++) xputc('\n');
@@ -207,8 +218,6 @@ static void do_tail(int fd, char *name)
     }
     if (offset<len) xwrite(1, toybuf+offset, len-offset);
   }
-
-  // -f support: cache name/descriptor
 }
 
 void tail_main(void)
@@ -228,7 +237,34 @@ void tail_main(void)
     TT.lines = -10;
   }
 
-  loopfiles(args, do_tail);
+  // Allocate 2 ints per optarg for -f
+  if (toys.optflags&FLAG_f) {
+    if ((TT.ffd = inotify_init()) < 0) perror_exit("inotify_init");
+    TT.files = xmalloc(toys.optc*8);
+  }
+  loopfiles_rw(args, O_RDONLY|(O_CLOEXEC*!(toys.optflags&FLAG_f)),
+    0, 0, do_tail);
 
-  // do -f stuff
+  if (toys.optflags & FLAG_f) {
+    int len, last_fd = TT.files[(TT.file_no-1)*2], i, fd;
+    struct inotify_event ev;
+
+    for (;;) {
+      if (sizeof(ev)!=read(TT.ffd, &ev, sizeof(ev))) perror_exit("inotify");
+
+      for (i = 0; i<TT.file_no && ev.wd!=TT.files[(i*2)+1]; i++);
+      if (i==TT.file_no) continue;
+      fd = TT.files[i*2];
+
+      // Read new data.
+      while ((len = read(fd, toybuf, sizeof(toybuf)))>0) {
+        if (last_fd != fd) {
+          last_fd = fd;
+          xprintf("\n==> %s <==\n", args[i]);
+        }
+
+        xwrite(1, toybuf, len);
+      }
+    }
+  }
 }

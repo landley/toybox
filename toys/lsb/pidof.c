@@ -28,18 +28,9 @@ GLOBALS(
 
 static int print_pid(pid_t pid, char *name)
 {
-  char * res;
-  int len;
-
   sprintf(toybuf, "%d", (int)pid);
-  len = strlen(toybuf);
-
-  // Check omit string
-  if (TT.omit && (res = strstr(TT.omit, toybuf)))
-    if ((res == TT.omit || res[-1] == ',') &&
-      (res[len] == ',' || !res[len])) return 0;
-
-  xprintf("%*s", len+(!toys.exitval), toybuf);
+  if (comma_scan(TT.omit, toybuf, 0)) return 0;
+  xprintf(" %s"+!!toys.exitval, toybuf);
   toys.exitval = 0;
 
   return toys.optflags & FLAG_s;

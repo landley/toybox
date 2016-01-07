@@ -37,7 +37,7 @@ static void do_strings(int fd, char *filename)
 
   for (;;) {
     nread = read(fd, toybuf, sizeof(toybuf));
-    if (nread < 0) perror_msg("%s", filename);
+    if (nread < 0) perror_msg_raw(filename);
     if (nread < 1) break;
     for (i = 0; i < nread; i++, offset++) {
       if (((toybuf[i] >= 32) && (toybuf[i] <= 126)) || (toybuf[i] == '\t')) {

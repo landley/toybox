@@ -50,7 +50,7 @@ static void modinfo_file(char *full_name)
   }
 
   if (!buf) {
-    perror_msg("%s", full_name);
+    perror_msg_raw(full_name);
     return;
   } 
 

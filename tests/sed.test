@@ -117,9 +117,10 @@ testing "sed delimiter in regex [char range] doesn't count" "sed -e 's/[/]//'" \
 testing "sed delete regex range start line after trigger" \
 	"sed -e '/one/,/three/{' -e 'i meep' -e '1D;}'" \
 	"meep\nmeep\ntwo\nmeep\nthree" "" "one\ntwo\nthree"
-testing "sed D further processing depends on whether line is blank" \
-	"sed -e '/one/,/three/{' -e 'i meep' -e'N;2D;}'" \
-	"meep\nmeep\ntwo\nthree\n" "" "one\ntwo\nthree\n"
+testing "sed blank pattern repeats last pattern" \
+	"sed -e '/^three/s//abc&def/'" \
+	"one two three\nabcthreedef four five\nfive six seven\n" "" \
+	"one two three\nthree four five\nfive six seven\n"
 
 # Different ways of parsing line continuations
 
@@ -127,6 +128,10 @@ testing "" "sed -e '1a\' -e 'huh'" "meep\nhuh\n" "" "meep"
 testing "" "sed -f input" "blah\nboom\n" '1a\\\nboom' 'blah'
 testing "" "sed '1a\
 hello'" "merp\nhello\n" "" "merp"
+
+testing "" "sed -e '/x/c\' -e 'y'" 'y\n' '' 'x\n'
+testing "" "sed -e 's/a[([]*b/X/'" 'X' '' 'a[(b'
+
 #echo meep | sed/sed -e '1a\' -e 'huh'
 #echo blah | sed/sed -f <(echo -e "1a\\\\\nboom")
 #echo merp | sed/sed "1a\\

@@ -52,7 +52,7 @@ static void do_cksum(int fd, char *name)
     int len, i;
 
     len = read(fd, toybuf, sizeof(toybuf));
-    if (len<0) perror_msg("%s", name);
+    if (len<0) perror_msg_raw(name);
     if (len<1) break;
 
     llen += len;

@@ -42,8 +42,8 @@ testing "grep -o" "grep -o is input" "is\nis\nis\nis\n" \
 testing "grep -s" "grep -hs hello asdf input 2>&1" "hello\n" "hello\n" ""
 testing "grep -v" "grep -v abc input" "1234123asdfas123123\n1ABa\n" \
   "1234123asdfas123123\n1ABabc\nabc\n1ABa\nabcde" ""
-testing "grep -w" "grep -w abc input" "abc\n" \
-  "1234123asdfas123123\n1ABabc\nabc\n1ABa\nabcde" ""
+testing "grep -w" "grep -w abc input" "abc\n123 abc\nabc 123\n123 abc 456\n" \
+  "1234123asdfas123123\n1ABabc\nabc\n1ABa\nabcde\n123 abc\nabc 123\n123 abc 456\n" ""
 testing "grep -x" "grep -x abc input" "abc\n" \
   "aabcc\nabc\n" ""
 
@@ -84,15 +84,16 @@ testing "grep -r dir" "grep -r one sub | sort" "sub/one:one\nsub/two:one\n" \
   "" ""
 rm -rf sub
 
-# Not sure if -Fx '' should do? Posix is unclear, '' match every line but does
-# it match every _byte_ in that line?
-testing "grep -Fx ''" "grep -Fx '' input" "one one one\n" "one one one\n" ""
+# -x exact match trumps -F's "empty string matches whole line" behavior
+testing "grep -Fx ''" "grep -Fx '' input" "" "one one one\n" ""
 testing "grep -F ''" "grep -F '' input" "one one one\n" "one one one\n" ""
 testing "grep -F -e blah -e ''" "grep -F -e blah -e '' input" "one one one\n" \
   "one one one\n" ""
 testing "grep -e blah -e ''" "grep -e blah -e '' input" "one one one\n" \
   "one one one\n" ""
 testing "grep -w ''" "grep -w '' input" "" "one one one\n" ""
+testing "grep -w '' 2" "grep -w '' input" "one  two\n" "one  two\n" ""
+testing "grep -w \\1" "grep -wo '\\(x\\)\\1'" "xx\n" "" "xx"
 testing "grep -o ''" "grep -o '' input" "" "one one one\n" ""
 testing "grep backref" 'grep -e "a\(b\)" -e "b\(c\)\1"' "bcc\nab\n" \
   "" "bcc\nbcb\nab\n"

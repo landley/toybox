@@ -1,4 +1,4 @@
-/* route.c - Display routing table.
+/* route.c - Display/edit network routing table.
  *
  * Copyright 2012 Ranjan Kumar <ranjankumar.bth@gmail.com>
  * Copyright 2013 Kyungwan Han <asura321@gmail.com>
@@ -10,19 +10,20 @@ config ROUTE
   bool "route"
   default n
   help
-    usage: route -neA inet{6} / [{add|del}]
+    usage: route [-ne] [-A inet[6]] / [add|del]
 
     Display/Edit kernel routing tables.
 
-    -n  Don't resolve names
-    -e  Display other/more information
-    -A  inet{6} Select Address Family
+    -n	no name lookups
+    -e	display other/more information
+    -A	inet{6} Select Address Family
+
+    reject mod dyn reinstate metric netmask gw mss window irtt dev
 */
 
 #define FOR_route
 #include "toys.h"
 #include <net/route.h>
-#include <sys/param.h>
 
 GLOBALS(
   char *family;
@@ -32,10 +33,9 @@ GLOBALS(
 #define INVALID_ADDR 0xffffffffUL
 #define IPV6_ADDR_LEN 40 //32 + 7 (':') + 1 ('\0')
 
-#define TEST_ARGV(argv) if (!*argv) show_route_help()
-
 struct _arglist {
   char *arg;
+
   int action;
 };
 
@@ -48,13 +48,6 @@ static struct _arglist arglist2[] = {
   { "-net", 1 }, { "-host", 2 },
   { NULL, 0 }
 };
-
-// display help info and exit.
-static void show_route_help(void)
-{
-  toys.exithelp = 1;
-  error_exit("Invalid Argument");
-}
 
 // to get the host name from the given ip.
 static int get_hostname(char *ipstr, struct sockaddr_in *sockin)
@@ -94,18 +87,17 @@ static int get_addrinfo(char *ip, struct sockaddr_in6 *sock_in6)
   return 0;
 }
 
-//get the flag values for route command.
 static void get_flag_value(char *str, int flags)
 {
-  int i = 0;
-  static unsigned flagarray[] = {
-    RTF_GATEWAY, RTF_HOST, RTF_REINSTATE, RTF_DYNAMIC,
-    RTF_MODIFIED, RTF_DEFAULT, RTF_ADDRCONF, RTF_CACHE
-  };
+  // RTF_* bits in order:
+  // UP, GATEWAY, HOST, REINSTATE, DYNAMIC, MODIFIED, DEFAULT, ADDRCONF, CACHE
+  int i = 0, mask = 0x105003f;
 
-  *str++ = 'U';
-  while ((*str = "GHRDMDAC"[i]))
-    if (flags & flagarray[i++]) ++str;
+  for (; mask; mask>>=1) if (mask&1) {
+    if (flags&(1<<i)) *str++ = "UGHRDMDAC"[i];
+    i++;
+  }
+  *str = 0;
 }
 
 // extract inet4 route info from /proc/net/route file and display it.
@@ -123,10 +115,9 @@ static void display_routes(void)
 
   if (fscanf(fp, "%*[^\n]\n") < 0) perror_exit("fscanf"); //skip 1st line
   while ((items = fscanf(fp, "%63s%lx%lx%X%d%d%d%lx%d%d%d\n", iface, &dest, 
-          &gate, &flags, &ref, &use, &metric, &mask, &mss, &win, &irtt)) == 11) {
-
+          &gate, &flags, &ref, &use, &metric, &mask, &mss, &win, &irtt)) == 11)
+  {
     char *destip = toybuf, *gateip = toybuf+32, *maskip = toybuf+64; //ip string 16
-    memset(flag_val, 0, 10);
 
     if (!(flags & RTF_UP)) continue; //skip down interfaces.
 
@@ -139,8 +130,7 @@ static void display_routes(void)
     if (!inet_ntop(AF_INET, &mask, maskip, 32)) perror_exit("inet");
 
     //Get flag Values
-    get_flag_value(flag_val, (flags & (RTF_GATEWAY|RTF_HOST|RTF_REINSTATE
-            |RTF_DYNAMIC|RTF_MODIFIED)));
+    get_flag_value(flag_val, flags);
     if (flags & RTF_REJECT) flag_val[0] = '!';
     xprintf("%-15.15s %-15.15s %-16s%-6s", destip, gateip, maskip, flag_val);
     if (toys.optflags & FLAG_e) xprintf("%5d %-5d %6d %s\n", mss, win, irtt, iface);
@@ -150,7 +140,6 @@ static void display_routes(void)
   if (items > 0 && feof(fp)) perror_exit("fscanf %d", items);
   fclose(fp);
 }
-
 
 /*
  * find the given parameter in list like add/del/net/host.
@@ -194,79 +183,52 @@ static void is_prefix(char **tip, char **netmask, struct rtentry *rt)
  */
 static void get_next_params(char **argv, struct rtentry *rt, char **netmask)
 {
-  while (*argv) {
-    //set the metric field in the routing table.
-    if (!strcmp(*argv, "metric")) {
-      argv++;
-      TEST_ARGV(argv);
-      rt->rt_metric = atolx_range(*argv, 0, ULONG_MAX) + 1;
-      argv++;
-    } else if (!strcmp(*argv, "netmask")) {
-      //when adding a network route, the netmask to be used.
-      struct sockaddr sock;
-      unsigned int addr_mask = (((struct sockaddr_in *)&((rt)->rt_genmask))->sin_addr.s_addr);
-      if (addr_mask) show_route_help();
-      argv++;
-      TEST_ARGV(argv);
-      *netmask = *argv;
-      if (get_hostname(*netmask, (struct sockaddr_in *) &sock) < 0)
-        perror_exit("resolving '%s'", *netmask);
-      rt->rt_genmask = sock;
-      argv++;
-    } else if (!strcmp(*argv, "gw")) { 
-      //route packets via a gateway.
-      if (!(rt->rt_flags & RTF_GATEWAY)) {
-        int ishost;
-        argv++;
-        TEST_ARGV(argv);
-        if ((ishost = get_hostname(*argv, (struct sockaddr_in *) &rt->rt_gateway)) == 0) {
-          rt->rt_flags |= RTF_GATEWAY;
-          argv++;
-        } else if (ishost < 0) perror_exit("resolving '%s'", *argv);
-        else perror_exit("gateway '%s' is a NETWORK", *argv);
-      } else show_route_help();
-    } else if (!strcmp(*argv, "mss")) {
-      //set the TCP Maximum Segment Size for connections over this route.
-      argv++;
-      TEST_ARGV(argv);
-      rt->rt_mss = atolx_range(*argv, 64, 32768); //MSS low and max
-      rt->rt_flags |= RTF_MSS;
-      argv++;
-    } else if (!strcmp(*argv, "window")) {
-      //set the TCP window size for connections over this route to W bytes.
-      argv++;
-      TEST_ARGV(argv);
-      rt->rt_window = atolx_range(*argv, 128, INT_MAX); //win low
-      rt->rt_flags |= RTF_WINDOW;
-      argv++;
-    } else if (!strcmp(*argv, "irtt")) {
-      long nclock_ticks = sysconf(_SC_CLK_TCK); //number of clock ticks per second.
-      argv++;
-      TEST_ARGV(argv);
-      nclock_ticks /= 100;
-      rt->rt_irtt = strtoul(*argv, NULL, 10);
-      if (nclock_ticks > 0) rt->rt_irtt *= nclock_ticks;
-      rt->rt_flags |= 0x0100; //RTF_IRTT
-      argv++;
-    } else if (!strcmp(*argv, "dev")) {
-      argv++;
-      TEST_ARGV(argv);
-      if ((!rt->rt_dev)) rt->rt_dev = *argv;
-      argv++;
-    } else if (!strcmp(*argv, "reject")) {
-      rt->rt_flags |= RTF_REJECT;
-      argv++;
-    } else if (!strcmp(*argv, "mod")) {
-      rt->rt_flags |= RTF_MODIFIED;
-      argv++;
-    } else if (!strcmp(*argv, "dyn")) {
-      rt->rt_flags |= RTF_DYNAMIC;
-      argv++;
-    } else if (!strcmp(*argv, "reinstate")) {
-      rt->rt_flags |= RTF_REINSTATE;
-      argv++;
-    } else show_route_help();  //No match found; exit form the application.
-  }//end of while loop.
+  for (;*argv;argv++) {
+    if (!strcmp(*argv, "reject")) rt->rt_flags |= RTF_REJECT;
+    else if (!strcmp(*argv, "mod")) rt->rt_flags |= RTF_MODIFIED;
+    else if (!strcmp(*argv, "dyn")) rt->rt_flags |= RTF_DYNAMIC;
+    else if (!strcmp(*argv, "reinstate")) rt->rt_flags |= RTF_REINSTATE;
+    else {
+      if (!argv[1]) help_exit(0);
+
+      //set the metric field in the routing table.
+      if (!strcmp(*argv, "metric"))
+        rt->rt_metric = atolx_range(*argv, 0, ULONG_MAX) + 1;
+      else if (!strcmp(*argv, "netmask")) {
+        //when adding a network route, the netmask to be used.
+        struct sockaddr sock;
+        unsigned int addr_mask = (((struct sockaddr_in *)&((rt)->rt_genmask))->sin_addr.s_addr);
+
+        if (addr_mask) help_exit("dup netmask");
+        *netmask = *argv;
+        if (get_hostname(*netmask, (struct sockaddr_in *) &sock) < 0)
+          perror_exit("resolving '%s'", *netmask);
+        rt->rt_genmask = sock;
+      } else if (!strcmp(*argv, "gw")) { 
+        //route packets via a gateway.
+        if (!(rt->rt_flags & RTF_GATEWAY)) {
+          int ishost;
+
+          if ((ishost = get_hostname(*argv, (struct sockaddr_in *) &rt->rt_gateway)) == 0) {
+            rt->rt_flags |= RTF_GATEWAY;
+          } else if (ishost < 0) perror_exit("resolving '%s'", *argv);
+          else perror_exit("gateway '%s' is a NETWORK", *argv);
+        } else help_exit("dup gw");
+      } else if (!strcmp(*argv, "mss")) {
+        //set the TCP Maximum Segment Size for connections over this route.
+        rt->rt_mss = atolx_range(*argv, 64, 32768); //MSS low and max
+        rt->rt_flags |= RTF_MSS;
+      } else if (!strcmp(*argv, "window")) {
+        //set the TCP window size for connections over this route to W bytes.
+        rt->rt_window = atolx_range(*argv, 128, INT_MAX); //win low
+        rt->rt_flags |= RTF_WINDOW;
+      } else if (!strcmp(*argv, "irtt")) {
+        rt->rt_irtt = atolx_range(*argv, 0, INT_MAX);
+        rt->rt_flags |= RTF_IRTT;
+      } else if (!strcmp(*argv, "dev") && !rt->rt_dev) rt->rt_dev = *argv;
+      else help_exit("no '%s'", *argv);
+    }
+  }
 
   if (!rt->rt_dev && (rt->rt_flags & RTF_REJECT)) rt->rt_dev = (char *)"lo";
 }
@@ -295,10 +257,10 @@ static void setroute(char **argv)
   int is_net_or_host = 0, sokfd, arg2_action;
   int action = get_action(&argv, arglist1); //verify the arg for add/del.
 
-  if (!action || !*argv) show_route_help();
+  if (!action || !*argv) help_exit("setroute");
 
   arg2_action = get_action(&argv, arglist2); //verify the arg for -net or -host
-  if (!*argv) show_route_help(); 
+  if (!*argv) help_exit("setroute");
 
   memset(&rt, 0, sizeof(struct rtentry));
   targetip = *argv++;
@@ -347,37 +309,27 @@ static void is_prefix_inet6(char **tip, struct in6_rtmsg *rt)
  */
 static void get_next_params_inet6(char **argv, struct sockaddr_in6 *sock_in6, struct in6_rtmsg *rt, char **dev_name)
 {
-  while (*argv) {
-    if (!strcmp(*argv, "metric")) {
-      //set the metric field in the routing table.
-      argv++;
-      TEST_ARGV(argv);
-      rt->rtmsg_metric = atolx_range(*argv, 0, ULONG_MAX);
-      argv++;
-    } else if (!strcmp(*argv, "gw")) {
-      //route packets via a gateway.
-      if (!(rt->rtmsg_flags & RTF_GATEWAY)) {
-        argv++;
-        TEST_ARGV(argv);
-        if (!get_addrinfo(*argv, (struct sockaddr_in6 *) &sock_in6)) {
-          memcpy(&rt->rtmsg_gateway, sock_in6->sin6_addr.s6_addr, sizeof(struct in6_addr));
-          rt->rtmsg_flags |= RTF_GATEWAY;
-          argv++;
-        } else perror_exit("resolving '%s'", *argv);
-      } else show_route_help();
-    } else if (!strcmp(*argv, "dev")) {
-      argv++;
-      TEST_ARGV(argv);
-      if (!*dev_name) *dev_name = *argv;
-      argv++;
-    } else if (!strcmp(*argv, "mod")) {
-      rt->rtmsg_flags |= RTF_MODIFIED;
-      argv++;
-    } else if (!strcmp(*argv, "dyn")) {
-      rt->rtmsg_flags |= RTF_DYNAMIC;
-      argv++;
-    } else show_route_help();
-  }//end of while loop.
+  for (;*argv;argv++) {
+    if (!strcmp(*argv, "mod")) rt->rtmsg_flags |= RTF_MODIFIED;
+    else if (!strcmp(*argv, "dyn")) rt->rtmsg_flags |= RTF_DYNAMIC;
+    else {
+      if (!argv[1]) help_exit(0);
+
+      if (!strcmp(*argv, "metric")) 
+        rt->rtmsg_metric = atolx_range(*argv, 0, ULONG_MAX);
+      else if (!strcmp(*argv, "gw")) {
+        //route packets via a gateway.
+        if (!(rt->rtmsg_flags & RTF_GATEWAY)) {
+          if (!get_addrinfo(*argv, (struct sockaddr_in6 *) &sock_in6)) {
+            memcpy(&rt->rtmsg_gateway, sock_in6->sin6_addr.s6_addr, sizeof(struct in6_addr));
+            rt->rtmsg_flags |= RTF_GATEWAY;
+          } else perror_exit("resolving '%s'", *argv);
+        } else help_exit(0);
+      } else if (!strcmp(*argv, "dev")) {
+        if (!*dev_name) *dev_name = *argv;
+      } else help_exit(0);
+    }
+  }
 }
 
 // add/del a route.
@@ -385,40 +337,38 @@ static void setroute_inet6(char **argv)
 {
   struct sockaddr_in6 sock_in6;
   struct in6_rtmsg rt;
-  char *targetip;
+  char *targetip, *dev_name = 0;
   int sockfd, action = get_action(&argv, arglist1);
 
-  if (!action || !*argv) show_route_help();
+  if (!action || !*argv) help_exit(0);
   memset(&sock_in6, 0, sizeof(struct sockaddr_in6));
   memset(&rt, 0, sizeof(struct in6_rtmsg));
   targetip = *argv++;
-  if (*argv) {
-    unsigned long plen = 0;
-    char *dev_name = NULL;
-    if (!strcmp(targetip, "default")) {
-      rt.rtmsg_flags = RTF_UP;
-      rt.rtmsg_dst_len = plen;
-    } else {
-      is_prefix_inet6((char **)&targetip, &rt);
-      if (get_addrinfo(targetip, (struct sockaddr_in6 *) &sock_in6))
-        perror_exit("resolving '%s'", targetip);
-    }
-    rt.rtmsg_metric = 1; //default metric.
-    memcpy(&rt.rtmsg_dst, sock_in6.sin6_addr.s6_addr, sizeof(struct in6_addr));
-    get_next_params_inet6(argv, &sock_in6, &rt, (char **)&dev_name);
+  if (!*argv) help_exit(0);
 
-    sockfd = xsocket(AF_INET6, SOCK_DGRAM, 0);
-    if (dev_name) {
-      char ifre_buf[sizeof(struct ifreq)] = {0,};
-      struct ifreq *ifre = (struct ifreq*)ifre_buf;
-      xstrncpy(ifre->ifr_name, dev_name, IFNAMSIZ);
-      xioctl(sockfd, SIOGIFINDEX, ifre);
-      rt.rtmsg_ifindex = ifre->ifr_ifindex;
-    }          
-    if (action == 1) xioctl(sockfd, SIOCADDRT, &rt);
-    else xioctl(sockfd, SIOCDELRT, &rt);
-    xclose(sockfd);
-  } else show_route_help();
+  if (!strcmp(targetip, "default")) {
+    rt.rtmsg_flags = RTF_UP;
+    rt.rtmsg_dst_len = 0;
+  } else {
+    is_prefix_inet6((char **)&targetip, &rt);
+    if (get_addrinfo(targetip, (struct sockaddr_in6 *) &sock_in6))
+      perror_exit("resolving '%s'", targetip);
+  }
+  rt.rtmsg_metric = 1; //default metric.
+  memcpy(&rt.rtmsg_dst, sock_in6.sin6_addr.s6_addr, sizeof(struct in6_addr));
+  get_next_params_inet6(argv, &sock_in6, &rt, (char **)&dev_name);
+
+  sockfd = xsocket(AF_INET6, SOCK_DGRAM, 0);
+  if (dev_name) {
+    char ifre_buf[sizeof(struct ifreq)] = {0,};
+    struct ifreq *ifre = (struct ifreq*)ifre_buf;
+    xstrncpy(ifre->ifr_name, dev_name, IFNAMSIZ);
+    xioctl(sockfd, SIOGIFINDEX, ifre);
+    rt.rtmsg_ifindex = ifre->ifr_ifindex;
+  }          
+  if (action == 1) xioctl(sockfd, SIOCADDRT, &rt);
+  else xioctl(sockfd, SIOCDELRT, &rt);
+  xclose(sockfd);
 }
 
 /*
@@ -455,28 +405,23 @@ static void display_routes6(void)
 
   while ((items = fscanf(fp, "%32s%x%*s%*x%32s%x%x%x%x%10s\n", ipv6_dest_addr+8,
           &prefixlen, ipv6_src_addr+8, &metric, &use, &refcount, &flag, 
-          iface)) == 8) {
-
-    memset(flag_val, 0, 10);
-
+          iface)) == 8)
+  {
     if (!(flag & RTF_UP)) continue; //skip down interfaces.
 
     //ipv6_dest_addr+8: as the values are filled from the 8th location of the array.
     ipv6_addr_formating(ipv6_dest_addr+8, ipv6_dest_addr);
     ipv6_addr_formating(ipv6_src_addr+8, ipv6_src_addr);
 
-    get_flag_value(flag_val, (flag & (RTF_GATEWAY|RTF_HOST|RTF_DEFAULT|
-            RTF_ADDRCONF|RTF_CACHE)));
+    get_flag_value(flag_val, flag);
     if (inet_pton(AF_INET6, ipv6_dest_addr, buf) <= 0) perror_exit("inet");
-    if (inet_ntop(AF_INET6, buf, buf2, INET6_ADDRSTRLEN)) {
+    if (inet_ntop(AF_INET6, buf, buf2, INET6_ADDRSTRLEN))
       sprintf(toybuf, "%s/%d", buf2, prefixlen);
-    }
 
     if (inet_pton(AF_INET6, ipv6_src_addr, buf) <= 0) perror_exit("inet");
-    if (inet_ntop(AF_INET6, buf, buf2, INET6_ADDRSTRLEN)) {
+    if (inet_ntop(AF_INET6, buf, buf2, INET6_ADDRSTRLEN))
       xprintf("%-43s %-39s %-5s %-6d %-4d %5d %-8s\n",
           toybuf, buf2, flag_val, metric, refcount, use, iface);
-    }
   }
   if ((items > 0) && feof(fp)) perror_exit("fscanf");
 
@@ -485,14 +430,13 @@ static void display_routes6(void)
 
 void route_main(void)
 {
-  if (!(toys.optflags & FLAG_A)) TT.family = "inet";
+  if (!TT.family) TT.family = "inet";
   if (!*toys.optargs) {
     if (!strcmp(TT.family, "inet")) display_routes();
     else if (!strcmp(TT.family, "inet6")) display_routes6();
-    else show_route_help();
-    return;
-  }//End of if statement.
-
-  if (!strcmp(TT.family, "inet6")) setroute_inet6(toys.optargs);
-  else setroute(toys.optargs);
+    else help_exit(0);
+  } else {
+    if (!strcmp(TT.family, "inet6")) setroute_inet6(toys.optargs);
+    else setroute(toys.optargs);
+  }
 }

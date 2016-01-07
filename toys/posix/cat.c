@@ -59,7 +59,7 @@ static void do_cat(int fd, char *name)
     len = read(fd, toybuf, size);
     if (len < 0) {
       toys.exitval = EXIT_FAILURE;
-      perror_msg("%s", name);
+      perror_msg_raw(name);
     }
     if (len < 1) break;
     if ((CFG_CAT_V || CFG_CATV) && (toys.optflags&~FLAG_u)) {

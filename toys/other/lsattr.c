@@ -186,12 +186,6 @@ static struct _chattr {
   unsigned char vflag, recursive;
 } chattr;
 
-static inline void chattr_help(void)
-{
-  toys.exithelp++;
-  error_exit("Invalid Argument");
-}
-
 // Set file flags on a Linux second extended file system.
 static inline int ext2_setflag(int fd, struct stat *sb, unsigned long flag)
 {
@@ -208,8 +202,7 @@ static unsigned long get_flag_val(char ch)
 
   for (; ptr->name; ptr++)
     if (ptr->opt == ch) return ptr->flag;
-  chattr_help(); // if no match found then Show help
-  return 0; // silent warning.
+  help_exit("bad '%c'", ch);
 }
 
 // Parse command line argument and fill the chattr structure.
@@ -229,7 +222,7 @@ static void parse_cmdline_arg(char ***argv)
 
             errno = 0;
             arg = *(*argv += 1);
-            if (!arg) chattr_help();
+            if (!arg) help_exit("bad -v");
             if (*arg == '-') perror_exit("Invalid Number '%s'", arg);
             chattr.version = strtoul(arg, &endptr, 0);
             if (errno || *endptr) perror_exit("bad version '%s'", arg);
@@ -309,12 +302,12 @@ void chattr_main(void)
 
   memset(&chattr, 0, sizeof(struct _chattr));
   parse_cmdline_arg(&argv);
-  if (!*argv) chattr_help();
+  if (!*argv) help_exit("no file");
   if (chattr.set && (chattr.add || chattr.rm))
-    error_exit("'=' is incompatible with '-' and '+'");
-  if (chattr.rm & chattr.add) error_exit("Can't set and unset same flag.");
+    error_exit("no '=' with '-' or '+'");
+  if (chattr.rm & chattr.add) error_exit("set/unset same flag");
   if (!(chattr.add || chattr.rm || chattr.set || chattr.vflag))
-    error_exit(("Must use '-v', '=', '-' or '+'"));
+    error_exit("need '-v', '=', '-' or '+'");
   for (; *argv; argv++) dirtree_read(*argv, update_attr);
   toys.exitval = 0; //always set success at this point.
 }

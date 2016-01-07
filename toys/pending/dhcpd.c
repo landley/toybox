@@ -5,7 +5,7 @@
  * Copyright 2015 Yeongdeok Suh <skyducks111@gmail.com>
  *
  * No Standard
-USE_DHCPD(NEWTOY(dhcpd, ">1P#<0>65535=67fi:S46[!46]", TOYFLAG_SBIN|TOYFLAG_ROOTONLY))
+USE_DHCPD(NEWTOY(dhcpd, ">1P#<0>65535fi:S46[!46]", TOYFLAG_SBIN|TOYFLAG_ROOTONLY))
 
 config DHCPD
   bool "dhcpd"
@@ -26,8 +26,7 @@ config DEBUG_DHCP
 */
 
 /*
- * Things to do
- * 
+ * TODO
  * - Working as an relay agent
  * - Rapid commit option support
  * - Additional packet options (commented on the middle of sources)
@@ -51,9 +50,6 @@ config DEBUG_DHCP
 #else
 # define dbg(fmt, arg...)
 #endif
-
-#define flag_get(f,v,d)     ((toys.optflags & (f)) ? (v) : (d))
-#define flag_chk(f)         ((toys.optflags & (f)) ? 1 : 0)
 
 #define LOG_SILENT          0x0
 #define LOG_CONSOLE         0x1
@@ -186,7 +182,7 @@ typedef struct static_lease6_s {
   uint16_t duid_len;
   uint16_t ia_type;
   uint32_t iaid;
-  uint32_t nip6[4];
+  uint8_t nip6[16];
   uint8_t duid[20];
 } static_lease6;
 
@@ -203,7 +199,7 @@ typedef struct {
   uint16_t ia_type;
   uint32_t expires;
   uint32_t iaid;
-  uint32_t lease_nip6[4];
+  uint8_t lease_nip6[16];
   uint8_t duid[20];
 } dyn_lease6;
 
@@ -218,28 +214,28 @@ struct __attribute__((packed)) optval_duid_llt {
   uint16_t type;
   uint16_t hwtype;
   uint32_t time;
-  uint8_t *lladdr;
+  uint8_t lladdr[];   //flexible
 };
 
 struct __attribute__((packed)) optval_ia_na {
   uint32_t iaid;
   uint32_t t1, t2;
-  uint8_t *optval;
+  uint8_t optval[];   //flexible
 };
 struct __attribute__((packed)) optval_ia_addr {
-  uint32_t ipv6_addr[4];
+  uint8_t ipv6_addr[16];
   uint32_t pref_lifetime;
   uint32_t valid_lifetime;
 };
 struct __attribute__((packed)) optval_status_code {
   uint16_t status_code;
-  uint8_t *status_msg;
+  uint8_t status_msg[]; //flexible
 };
 
 typedef struct __attribute__((__may_alias__)) server_config_s {
   char *interface;                // interface to use
   int ifindex;
-  uint32_t server_nip6[4];
+  uint8_t server_nip6[16];
   uint32_t server_nip;
   uint32_t port;
   uint8_t server_mac[6];          // our MAC address (used only for ARP probing)
@@ -247,8 +243,8 @@ typedef struct __attribute__((__may_alias__)) server_config_s {
   /* start,end are in host order: we need to compare start <= ip <= end*/
   uint32_t start_ip;              // start address of leases, in host order
   uint32_t end_ip;                // end of leases, in host order
-  uint32_t start_ip6[4];          // start address of leases, in IPv6 mode
-  uint32_t end_ip6[4];            // end of leases, in IPv6 mode
+  uint8_t start_ip6[16];          // start address of leases, in IPv6 mode
+  uint8_t end_ip6[16];            // end of leases, in IPv6 mode
   uint32_t max_lease_sec;         // maximum lease time (host order)
   uint32_t min_lease_sec;         // minimum lease time a client can request
   uint32_t max_leases;            // maximum number of leases (including reserved addresses)
@@ -272,6 +268,8 @@ typedef struct __attribute__((__may_alias__)) server_config_s {
 } server_config_t;
 
 typedef struct __attribute__((__may_alias__)) server_state_s {
+  uint8_t client_nip6[16];
+  uint32_t client_port;
   uint8_t rqcode;
   int listensock;
   union {
@@ -330,26 +328,6 @@ static struct fd_pair sigfd;
 static int constone = 1;
 static sa_family_t addr_version = AF_INET;
 
-static void htonl6(uint32_t *host_order, uint32_t *network_order)
-{
-  int i;
-  if(!host_order) {
-    error_msg("NULL ipv6 address");
-  } else {
-    for(i=0;i<4;i++) network_order[i] = htonl(host_order[i]);
-  }
-}
-
-static void ntohl6(uint32_t *network_order, uint32_t *host_order)
-{
-  int i;
-  if(!network_order) {
-    error_msg("NULL ipv6 address");
-  } else {
-    for(i=0;i<4;i++) host_order[i] = ntohl(network_order[i]);
-  }
-}
-
 // calculate options size.
 static int dhcp_opt_size(uint8_t *optionptr)
 {
@@ -378,7 +356,7 @@ static uint16_t dhcp_checksum(void *addr, int count)
 }
 
 // gets information of INTERFACE and updates IFINDEX, MAC and IP
-static int get_interface(const char *interface, int *ifindex, uint32_t *oip,
+static int get_interface(const char *interface, int *ifindex, void *oip,
     uint8_t *mac)
 {
   struct ifreq req;
@@ -397,20 +375,19 @@ static int get_interface(const char *interface, int *ifindex, uint32_t *oip,
   if (addr_version == AF_INET6) {
 
     FILE *fd6 = fopen("/proc/net/if_inet6", "r");
+    uint8_t *oip6 = (uint8_t*)oip;
     int i;
 
     while(fgets(toybuf, sizeof(toybuf), fd6)) {
       if (!strstr(toybuf, interface))
         continue;
 
-      if (sscanf(toybuf, "%32s \n", ipv6_addr) != 1)
-        continue;
-
-      if (strstr(ipv6_addr, "fe80")) break;
+      if (sscanf(toybuf, "%32s \n", ipv6_addr) == 1)
+        break;
     }
     fclose(fd6);
 
-    if (oip) {
+    if (oip6) {
       char *ptr = ipv6_addr+sizeof(ipv6_addr)-1;
 
       // convert giant hex string into colon-spearated ipv6 address by
@@ -422,14 +399,15 @@ static int get_interface(const char *interface, int *ifindex, uint32_t *oip,
       if(inet_pton(AF_INET6, ipv6_addr, &ip6.sin6_addr) <= 0)
         error_msg("inet : the ipv6 address is not proper");
       else
-        ntohl6(ip6.sin6_addr.s6_addr32, oip);
+        memcpy(oip6, ip6.sin6_addr.s6_addr32, sizeof(uint32_t)*4);
     }
   } else {
-    if (oip) {
+    uint32_t *oip4 = (uint32_t*)oip;
+    if (oip4) {
       xioctl(fd, SIOCGIFADDR, &req);
       ip = (struct sockaddr_in*) &req.ifr_addr;
       dbg("IP %s\n", inet_ntoa(ip->sin_addr));
-      *oip = ntohl(ip->sin_addr.s_addr);
+      *oip4 = ntohl(ip->sin_addr.s_addr);
     }
   }
 
@@ -803,6 +781,7 @@ static int open_listensock6(void)
 
   gstate.listensock = xsocket(PF_INET6, SOCK_DGRAM, 0);
   setsockopt(gstate.listensock, SOL_SOCKET, SO_REUSEADDR, &constone, sizeof(constone));
+  setsockopt(gstate.listensock, IPPROTO_IPV6, IPV6_CHECKSUM, &constone, sizeof(constone));
 
   if (setsockopt(gstate.listensock, IPPROTO_IPV6, IPV6_RECVPKTINFO, &constone,
         sizeof(constone)) == -1) {
@@ -815,7 +794,7 @@ static int open_listensock6(void)
 
   memset(&addr6, 0, sizeof(addr6));
   addr6.sin6_family = AF_INET6;
-  addr6.sin6_port = (flag_chk(FLAG_P))?htons(TT.port):htons(gconfig.port); //SERVER_PORT
+  addr6.sin6_port = htons(gconfig.port); //SERVER_PORT
   addr6.sin6_scope_id = if_nametoindex(gconfig.interface);
   //Listening for multicast packet
   inet_pton(AF_INET6, "ff02::1:2", &addr6.sin6_addr);
@@ -861,7 +840,7 @@ static int open_listensock(void)
 
   memset(&addr, 0, sizeof(addr));
   addr.sin_family = AF_INET;
-  addr.sin_port = (flag_chk(FLAG_P))?htons(TT.port):htons(gconfig.port); //SERVER_PORT
+  addr.sin_port = htons(gconfig.port); //SERVER_PORT
   addr.sin_addr.s_addr = INADDR_ANY ;
 
   if (bind(gstate.listensock, (struct sockaddr *) &addr, sizeof(addr))) {
@@ -878,7 +857,6 @@ static int send_packet6(uint8_t relay, uint8_t *client_lla, uint16_t optlen)
   dhcp6_raw_t packet;
   unsigned padding;
   int fd, result = -1;
-  uint32_t front, back;
 
   memset(&packet, 0, sizeof(dhcp6_raw_t));
   memcpy(&packet.dhcp6, &gstate.send.send_pkt6, sizeof(dhcp6_msg_t));
@@ -893,7 +871,7 @@ static int send_packet6(uint8_t relay, uint8_t *client_lla, uint16_t optlen)
   dest_sll.sll_protocol = htons(ETH_P_IPV6);
   dest_sll.sll_ifindex = gconfig.ifindex;
   dest_sll.sll_halen = ETH_ALEN;
-  memcpy(dest_sll.sll_addr, client_lla, sizeof(client_lla));
+  memcpy(dest_sll.sll_addr, client_lla, sizeof(uint8_t)*6);
 
   if (bind(fd, (struct sockaddr *) &dest_sll, sizeof(dest_sll)) < 0) {
     dbg("SEND : bind failed\n");
@@ -901,19 +879,10 @@ static int send_packet6(uint8_t relay, uint8_t *client_lla, uint16_t optlen)
     return -1;
   }
   memcpy(&packet.iph.ip6_src, &gconfig.server_nip6, sizeof(uint32_t)*4);
-  //HW addr to Link-Local addr
-  inet_pton(AF_INET6, "fe80::0200:00ff:fe00:0000", &packet.iph.ip6_dst);
-  ntohl6(packet.iph.ip6_dst.__in6_u.__u6_addr32,packet.iph.ip6_dst.__in6_u.__u6_addr32);
-  front = ntohl(*(uint32_t*)(client_lla+3) & 0x00ffffff) >> 8;
-  back = ntohl(*(uint32_t*)(client_lla) & 0x00ffffff);
-  packet.iph.ip6_dst.__in6_u.__u6_addr32[3] =
-    packet.iph.ip6_dst.__in6_u.__u6_addr32[3] | front;
-  packet.iph.ip6_dst.__in6_u.__u6_addr32[2] =
-    packet.iph.ip6_dst.__in6_u.__u6_addr32[2] | back;
-  htonl6(packet.iph.ip6_dst.__in6_u.__u6_addr32,packet.iph.ip6_dst.__in6_u.__u6_addr32);
+  memcpy(&packet.iph.ip6_dst, &gstate.client_nip6, sizeof(uint32_t)*4);
 
-  packet.udph.source = htons(gconfig.port);
-  packet.udph.dest = htons(546);
+  packet.udph.source = htons(gconfig.port); //SERVER_PORT
+  packet.udph.dest = gstate.client_port; //CLIENT_PORT
   packet.udph.len = htons(sizeof(dhcp6_raw_t) - sizeof(struct ip6_hdr) - padding);
   packet.iph.ip6_ctlun.ip6_un1.ip6_un1_plen = htons(ntohs(packet.udph.len) + 0x11);
   packet.udph.check = dhcp_checksum(&packet, sizeof(dhcp6_raw_t) - padding);
@@ -962,9 +931,10 @@ static int send_packet(uint8_t broadcast)
   padding = 308 - 1 - dhcp_opt_size(gstate.send.send_pkt.options);
   packet.iph.protocol = IPPROTO_UDP;
   packet.iph.saddr = gconfig.server_nip;
-  packet.iph.daddr = (broadcast || (gstate.rcvd.rcvd_pkt.ciaddr == 0))?INADDR_BROADCAST:gstate.rcvd.rcvd_pkt.ciaddr;
-  packet.udph.source = htons(67);//SERVER_PORT
-  packet.udph.dest = htons(68); //CLIENT_PORT
+  packet.iph.daddr = (broadcast || (gstate.rcvd.rcvd_pkt.ciaddr == 0))?
+    INADDR_BROADCAST : gstate.rcvd.rcvd_pkt.ciaddr;
+  packet.udph.source = htons(gconfig.port);//SERVER_PORT
+  packet.udph.dest = gstate.client_port; //CLIENT_PORT
   packet.udph.len = htons(sizeof(dhcp_raw_t) - sizeof(struct iphdr) - padding);
   packet.iph.tot_len = packet.udph.len;
   packet.udph.check = dhcp_checksum(&packet, sizeof(dhcp_raw_t) - padding);
@@ -986,9 +956,14 @@ static int send_packet(uint8_t broadcast)
 static int read_packet6(void)
 {
   int ret;
+  struct sockaddr_in6 c_addr;
+  socklen_t c_addr_size = sizeof(c_addr);
 
   memset(&gstate.rcvd.rcvd_pkt6, 0, sizeof(dhcp6_msg_t));
-  ret = read(gstate.listensock, &gstate.rcvd.rcvd_pkt6, sizeof(dhcp6_msg_t));
+  ret = recvfrom(gstate.listensock, &gstate.rcvd.rcvd_pkt6, sizeof(dhcp6_msg_t),
+      0, (struct sockaddr*) &c_addr, &c_addr_size);
+  memcpy(gstate.client_nip6, &c_addr.sin6_addr, sizeof(uint32_t)*4);
+  memcpy(&gstate.client_port, &c_addr.sin6_port, sizeof(uint32_t));
   if (ret < 0) {
     dbg("Packet read error, ignoring. \n");
     return ret; // returns -1
@@ -1006,9 +981,14 @@ static int read_packet6(void)
 static int read_packet(void)
 {
   int ret;
+  struct sockaddr_in c_addr;
+  socklen_t c_addr_size = sizeof(c_addr);
 
   memset(&gstate.rcvd.rcvd_pkt, 0, sizeof(dhcp_msg_t));
-  ret = read(gstate.listensock, &gstate.rcvd.rcvd_pkt, sizeof(dhcp_msg_t));
+  ret = recvfrom(gstate.listensock, &gstate.rcvd.rcvd_pkt, sizeof(dhcp_msg_t),
+      0, (struct sockaddr*) &c_addr, &c_addr_size);
+  memcpy(&gstate.client_port, &c_addr.sin_port, sizeof(uint32_t));
+  /*ret = read(gstate.listensock, &gstate.rcvd.rcvd_pkt, sizeof(dhcp_msg_t));*/
   if (ret < 0) {
     dbg("Packet read error, ignoring. \n");
     return ret; // returns -1
@@ -1323,11 +1303,10 @@ static uint32_t get_lease(uint32_t req_exp)
   return req_exp;
 }
 
-static int verifyip6_in_lease(uint32_t *nip6, uint8_t *duid, uint16_t ia_type, uint32_t iaid)
+static int verifyip6_in_lease(uint8_t *nip6, uint8_t *duid, uint16_t ia_type, uint32_t iaid)
 {
   static_lease6 *sls6;
   struct arg_list *listdls;
-  uint32_t tmpnip6[4] = {0,};
 
   for (listdls = gstate.dleases; listdls; listdls = listdls->next) {
     if (!memcmp(((dyn_lease6*) listdls->arg)->lease_nip6, nip6, sizeof(uint32_t)*4))
@@ -1340,9 +1319,8 @@ static int verifyip6_in_lease(uint32_t *nip6, uint8_t *duid, uint16_t ia_type, u
   for (sls6 = gstate.leases.sleases6; sls6; sls6 = sls6->next)
     if (memcmp(sls6->nip6, nip6, sizeof(uint32_t)*4)==0) return -2;
 
-  ntohl6(nip6, tmpnip6);
-  if (memcmp(tmpnip6, gconfig.start_ip6, sizeof(tmpnip6)) < 0 ||
-      memcmp(tmpnip6, gconfig.end_ip6, sizeof(tmpnip6)) > 0)
+  if (memcmp(nip6, gconfig.start_ip6, sizeof(uint32_t)*4) < 0 ||
+      memcmp(nip6, gconfig.end_ip6, sizeof(uint32_t)*4) > 0)
     return -3;
 
   return 0;
@@ -1403,7 +1381,7 @@ static int addip_to_lease(uint32_t assigned_nip, uint8_t mac[6], uint32_t *req_e
   return 0;
 }
 
-static int addip6_to_lease(uint32_t *assigned_nip, uint8_t *duid, uint16_t ia_type, uint32_t iaid, uint32_t *lifetime, uint8_t update)
+static int addip6_to_lease(uint8_t *assigned_nip, uint8_t *duid, uint16_t duid_len, uint16_t ia_type, uint32_t iaid, uint32_t *lifetime, uint8_t update)
 {
   dyn_lease6 *dls6;
   struct arg_list *listdls = gstate.dleases;
@@ -1419,8 +1397,8 @@ static int addip6_to_lease(uint32_t *assigned_nip, uint8_t *duid, uint16_t ia_ty
   }
 
   dls6 = xzalloc(sizeof(dyn_lease6));
-  dls6->duid_len = sizeof(duid);
-  memcpy(dls6->duid, duid, dls6->duid_len);
+  dls6->duid_len = duid_len; 
+  memcpy(dls6->duid, duid, duid_len);
   dls6->ia_type = ia_type;
   dls6->iaid = iaid;
   memcpy(dls6->lease_nip6, assigned_nip, sizeof(uint32_t)*4);
@@ -1499,9 +1477,9 @@ static uint32_t getip_from_pool(uint32_t req_nip, uint8_t mac[6], uint32_t *req_
   return nip;
 }
 
-static uint32_t *getip6_from_pool(uint8_t *duid, uint16_t duid_len, uint16_t ia_type, uint32_t iaid, uint32_t *lifetime)
+static uint8_t *getip6_from_pool(uint8_t *duid, uint16_t duid_len, uint16_t ia_type, uint32_t iaid, uint32_t *lifetime)
 {
-  uint32_t nip6[4] = {0,};
+  static uint8_t nip6[16] = {0, };
   static_lease6 *sls6 = gstate.leases.sleases6;
   struct arg_list *listdls6 = gstate.dleases, *tmp = NULL;
 
@@ -1521,7 +1499,7 @@ static uint32_t *getip6_from_pool(uint8_t *duid, uint16_t duid_len, uint16_t ia_
     listdls6 = listdls6->next;
   }
 
-  if(!nip6[0] && !nip6[1] && !nip6[2] && !nip6[3]) {
+  if(!memcmp(nip6, (uint8_t[16]){0}, sizeof(uint32_t)*4)) {
     while(sls6) {
       if(!memcmp(sls6->duid, duid, 6)) {
         memcpy(nip6, sls6->nip6, sizeof(nip6));
@@ -1531,34 +1509,33 @@ static uint32_t *getip6_from_pool(uint8_t *duid, uint16_t duid_len, uint16_t ia_
     }
   }
 
-  if(!nip6[0] && !nip6[1] && !nip6[2] && !nip6[3]) {
-    uint32_t tmpip6[4] = {0,};
-    int i=3;
-    memcpy(tmpip6, gconfig.start_ip6, sizeof(tmpip6));
-    htonl6(gconfig.start_ip6, nip6);
-    while(memcmp(tmpip6, gconfig.end_ip6, sizeof(tmpip6))<=0) {
+  if(!memcmp(nip6, (uint8_t[16]){0}, sizeof(uint32_t)*4)) {
+    memcpy(nip6, gconfig.start_ip6, sizeof(nip6));
+    while(memcmp(nip6, gconfig.end_ip6, sizeof(nip6)) < 0) {
       if(!verifyip6_in_lease(nip6, duid, ia_type, iaid)) break;
-      ntohl6(nip6, tmpip6);
+      int i=sizeof(nip6);
       while(i--) {
-        if (tmpip6[i] == 0xffff) {
-          tmpip6[i] = 0x0001;
-        } else {
-          ++tmpip6[i];
+        ++nip6[i];
+        if (!nip6[i]) {
+          if(i==(sizeof(nip6)-1)) ++nip6[i];
+          ++nip6[i-1];
+        } else
           break;
-        }
       }
-      htonl6(tmpip6, nip6);
     }
 
-    ntohl6(nip6, tmpip6);
-    if (memcmp(tmpip6, gconfig.end_ip6, sizeof(tmpip6))>0) {
+    if (memcmp(nip6, gconfig.end_ip6, sizeof(nip6)) > 0) {
       memset(nip6, 0, sizeof(nip6));
       infomsg(infomode, "can't find free IP in IPv6 Pool.");
     }
   }
 
-  if(nip6[0] && nip6[1] && nip6[2] && nip6[3])
-    addip6_to_lease(nip6, duid, ia_type, iaid, lifetime, 1);
+  if(memcmp(nip6, (uint8_t[16]){0}, sizeof(uint32_t)*4)) {
+    addip6_to_lease(nip6, duid, duid_len, ia_type, iaid, lifetime, 1);
+    infomsg(infomode, "Assigned IPv6 %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X",
+        nip6[0], nip6[1], nip6[2], nip6[3], nip6[4], nip6[5], nip6[6], nip6[7], nip6[8],
+        nip6[9], nip6[10], nip6[11], nip6[12], nip6[13], nip6[14], nip6[15]);
+  }
   return nip6;
 }
 
@@ -1595,7 +1572,7 @@ lease_error_exit:
 
 static void read_lease6file(void)
 {
-  uint32_t passed, ip6[4];
+  uint32_t passed;
   uint32_t tmp_time;
   int64_t timestamp;
   dyn_lease6 *dls6;
@@ -1611,12 +1588,11 @@ static void read_lease6file(void)
   if ((uint64_t)passed > 12 * 60 * 60) goto lease6_error_exit;
 
   while (read(fd, dls6, sizeof(dyn_lease6)) == sizeof(dyn_lease6)) {
-    ntohl6(dls6->lease_nip6, ip6);
-    if (memcmp(ip6, gconfig.start_ip6, sizeof(ip6))<0 &&
-        memcmp(ip6, gconfig.end_ip6, sizeof(ip6))>9) {
+    if (memcmp(dls6->lease_nip6, gconfig.start_ip6, sizeof(uint32_t)*4) > 0 &&
+        memcmp(dls6->lease_nip6, gconfig.end_ip6, sizeof(uint32_t)*4) < 0) {
       tmp_time = ntohl(dls6->expires) - passed;
       if (tmp_time < 0U) continue;
-      addip6_to_lease(dls6->lease_nip6, dls6->duid, dls6->ia_type, dls6->iaid,
+      addip6_to_lease(dls6->lease_nip6, dls6->duid, dls6->duid_len, dls6->ia_type, dls6->iaid,
           (uint32_t*)&tmp_time, 0);
     }
   }
@@ -1633,18 +1609,17 @@ void dhcpd_main(void)
   uint8_t *optptr, msgtype = 0;
   uint16_t optlen = 0;
   uint32_t waited = 0, serverid = 0, requested_nip = 0;
-  uint32_t requested_nip6[4] = {0,};
   uint8_t transactionid[3] = {0,};
   uint32_t reqested_lease = 0, ip_pool_size = 0;
   char *hstname = NULL;
   fd_set rfds;
 
   infomode = LOG_CONSOLE;
-  if (!(flag_chk(FLAG_f))) {
+  if (!(toys.optflags & FLAG_f)) {
     daemon(0,0);
     infomode = LOG_SILENT;
   }
-  if (flag_chk(FLAG_S)) {
+  if (toys.optflags & FLAG_S) {
         openlog("UDHCPD :", LOG_PID, LOG_DAEMON);
         infomode |= LOG_SYSTEM;
   }
@@ -1653,14 +1628,13 @@ void dhcpd_main(void)
   parse_server_config((toys.optc==1)?toys.optargs[0]:"/etc/dhcpd.conf", keywords);
   infomsg(infomode, "toybox dhcpd started");
 
-  if (flag_chk(FLAG_6)){
+  if (toys.optflags & FLAG_6){
     addr_version = AF_INET6;
-    ntohl6(gconfig.start_ip6, gconfig.start_ip6);
-    ntohl6(gconfig.end_ip6, gconfig.end_ip6);
     gconfig.t1 = ntohl(gconfig.t1);
     gconfig.t2 = ntohl(gconfig.t2);
     gconfig.pref_lifetime = ntohl(gconfig.pref_lifetime);
     gconfig.valid_lifetime = ntohl(gconfig.valid_lifetime);
+    gconfig.port = 547;
     for(i=0;i<4;i++)
       ip_pool_size += (gconfig.end_ip6[i]-gconfig.start_ip6[i])<<((3-i)*8);
   } else {
@@ -1676,17 +1650,17 @@ void dhcpd_main(void)
   }
   write_pid(gconfig.pidfile);
   set_maxlease();
-  read_leasefile();
   if(TT.iface) gconfig.interface = TT.iface;
+  if(TT.port) gconfig.port = TT.port;
   (addr_version==AF_INET6) ? read_lease6file() : read_leasefile();
 
+
   if (get_interface(gconfig.interface, &gconfig.ifindex,
-        (addr_version==AF_INET6)? gconfig.server_nip6 : &gconfig.server_nip,
-        gconfig.server_mac)<0)
+        (addr_version==AF_INET6)? (void*)gconfig.server_nip6 :
+        (void*)&gconfig.server_nip, gconfig.server_mac) < 0)
     perror_exit("Failed to get interface %s", gconfig.interface);
   setup_signal();
   if (addr_version==AF_INET6) {
-    htonl6(gconfig.server_nip6, gconfig.server_nip6);
     open_listensock6();
   } else {
     gconfig.server_nip = htonl(gconfig.server_nip);
@@ -1720,14 +1694,14 @@ void dhcpd_main(void)
     if (!retval) { // Timed out 
       dbg("select wait Timed Out...\n");
       waited = 0;
-      (addr_version==AF_INET6)? write_lease6file() : write_leasefile();
+      (addr_version == AF_INET6)? write_lease6file() : write_leasefile();
       if (get_interface(gconfig.interface, &gconfig.ifindex,
-            (addr_version==AF_INET6)? gconfig.server_nip6 : &gconfig.server_nip,
-            gconfig.server_mac)<0)
+            (addr_version==AF_INET6)? (void*)gconfig.server_nip6 :
+            (void*)&gconfig.server_nip, gconfig.server_mac)<0)
         perror_exit("Failed to get interface %s", gconfig.interface);
-      if(addr_version == AF_INET6) {
-        htonl6(gconfig.server_nip6, gconfig.server_nip6);
-      } else gconfig.server_nip = htonl(gconfig.server_nip);
+      if(addr_version != AF_INET6) {
+        gconfig.server_nip = htonl(gconfig.server_nip);
+      }
       continue;
     }
     if (FD_ISSET(sigfd.rd, &rfds)) { // Some Activity on RDFDs : is signal 
@@ -1750,11 +1724,11 @@ void dhcpd_main(void)
         default: break;
       }
     }
-    if (FD_ISSET(gstate.listensock, &rfds)) { // Some Activity on RDFDs : is socke
+    if (FD_ISSET(gstate.listensock, &rfds)) { // Some Activity on RDFDs : is socket
       dbg("select listen sock read\n");
       if(addr_version==AF_INET6) {
         void *client_duid, *server_duid, *client_ia_na, *server_ia_na,
-             *client_ia_pd, *server_ia_pd;
+             *client_ia_pd;
         uint8_t client_lla[6] = {0,};
         uint16_t client_duid_len = 0, server_duid_len = 0, server_ia_na_len = 0,
                  client_ia_na_len = 0, client_ia_pd_len = 0;
@@ -1790,6 +1764,10 @@ void dhcpd_main(void)
             //TODO policy check
             //TODO Receive: ORO check (e.g. DNS)
 
+            //Receive: Client Identifier (DUID)
+            get_optval6((uint8_t*)&gstate.rcvd.rcvd_pkt6.options,
+                DHCP6_OPT_CLIENTID, &client_duid_len, &client_duid);
+
             //Receive: Identity Association for Non-temporary Address
             if(get_optval6((uint8_t*)&gstate.rcvd.rcvd_pkt6.options,
                   DHCP6_OPT_IA_NA, &client_ia_na_len, &client_ia_na)) {
@@ -1797,7 +1775,7 @@ void dhcpd_main(void)
               void *ia_addr, *status_code;
               char *status_code_msg;
               uint16_t status_code_len = 0;
-              server_ia_na_len = sizeof(struct optval_ia_na)-sizeof(uint8_t*);
+              server_ia_na_len = sizeof(struct optval_ia_na);
 
               //IA Address
               ia_addr = xzalloc(ia_addr_len);
@@ -1811,14 +1789,14 @@ void dhcpd_main(void)
               server_ia_na_len += (ia_addr_len+4);
 
               //Status Code
-              if(*(*ia_addr_p).ipv6_addr) {
+              if(memcmp((*ia_addr_p).ipv6_addr, (uint8_t[16]){0}, sizeof(uint32_t)*4)) {
                 status_code_msg = xstrdup("Assigned an address.");
                 status_code_len = strlen(status_code_msg)+1;
                 status_code = xzalloc(status_code_len);
                 struct optval_status_code *status_code_p =
                   (struct optval_status_code*)status_code;
                 (*status_code_p).status_code = htons(DHCP6_STATUS_SUCCESS);
-                memcpy(&(*status_code_p).status_msg, status_code_msg,
+                memcpy((*status_code_p).status_msg, status_code_msg,
                     status_code_len);
                 server_ia_na_len += (status_code_len+4);
                 free(status_code_msg);
@@ -1829,7 +1807,7 @@ void dhcpd_main(void)
                 struct optval_status_code *status_code_p =
                   (struct optval_status_code*)status_code;
                 (*status_code_p).status_code = htons(DHCP6_STATUS_NOADDRSAVAIL);
-                memcpy(&(*status_code_p).status_msg, status_code_msg,
+                memcpy((*status_code_p).status_msg, status_code_msg,
                     status_code_len);
                 server_ia_na_len += (status_code_len+4);
                 server_ia_na_len -= (ia_addr_len+4);
@@ -1847,7 +1825,7 @@ void dhcpd_main(void)
               (*ia_na_p).t1 = gconfig.t1;
               (*ia_na_p).t2 = gconfig.t2;
 
-              uint8_t* ia_na_optptr = &(*ia_na_p).optval;
+              uint8_t* ia_na_optptr = (*ia_na_p).optval;
               if(ia_addr_len) {
                 set_optval6(ia_na_optptr, DHCP6_OPT_IA_ADDR, ia_addr, ia_addr_len);
                 ia_na_optptr += (ia_addr_len + 4);
@@ -1874,10 +1852,6 @@ void dhcpd_main(void)
               //Response: Identity Association for Prefix Delegation
             }
 
-            //Receive: Client Identifier (DUID)
-            get_optval6((uint8_t*)&gstate.rcvd.rcvd_pkt6.options,
-                DHCP6_OPT_CLIENTID, &client_duid_len, &client_duid);
-
             //DUID type: link-layer address plus time
             if(ntohs((*(struct optval_duid_llt*)client_duid).type) ==
                 DHCP6_DUID_LLT) {
@@ -1889,9 +1863,9 @@ void dhcpd_main(void)
               (*server_duid_p).hwtype = htons(1);
               (*server_duid_p).time = htonl((uint32_t)
                   (time(NULL) - 946684800) & 0xffffffff);
-              memcpy(&(*server_duid_p).lladdr, gconfig.server_mac,
+              memcpy((*server_duid_p).lladdr, gconfig.server_mac,
                   sizeof(gconfig.server_mac));
-              memcpy(&client_lla, &(*(struct optval_duid_llt*)client_duid).lladdr,
+              memcpy(&client_lla, (*(struct optval_duid_llt*)client_duid).lladdr,
                   sizeof(client_lla));
 
               //Response: Server Identifier (DUID)
@@ -1919,7 +1893,7 @@ void dhcpd_main(void)
             optptr = set_optval6(optptr, DHCP6_OPT_CLIENTID, client_duid,
                 client_duid_len);
             optlen += (client_duid_len + 4);
-            memcpy(&client_lla, &(*(struct optval_duid_llt*)client_duid).lladdr,
+            memcpy(client_lla, (*(struct optval_duid_llt*)client_duid).lladdr,
                 sizeof(client_lla));
 
             //Receive: Identity Association for Non-temporary Address
@@ -1927,12 +1901,11 @@ void dhcpd_main(void)
                   DHCP6_OPT_IA_NA, &client_ia_na_len, &client_ia_na)) {
               uint16_t ia_addr_len = 0, status_code_len = 0;
               void *ia_addr, *status_code;
-              uint16_t server_ia_na_len =
-                sizeof(struct optval_ia_na)-sizeof(uint8_t*);
+              uint16_t server_ia_na_len = sizeof(struct optval_ia_na);
               char *status_code_msg;
 
               //Check IA Address
-              get_optval6((uint8_t*)&(*(struct optval_ia_na*)client_ia_na).optval,
+              get_optval6((uint8_t*)(*(struct optval_ia_na*)client_ia_na).optval,
                   DHCP6_OPT_IA_ADDR, &ia_addr_len, &ia_addr);
               struct optval_ia_addr *ia_addr_p = (struct optval_ia_addr*)ia_addr;
               if(verifyip6_in_lease((*ia_addr_p).ipv6_addr, client_duid,
@@ -1946,7 +1919,7 @@ void dhcpd_main(void)
                 struct optval_status_code *status_code_p =
                   (struct optval_status_code*)status_code;
                 (*status_code_p).status_code = htons(DHCP6_STATUS_SUCCESS);
-                memcpy(&(*status_code_p).status_msg, status_code_msg,
+                memcpy((*status_code_p).status_msg, status_code_msg,
                     status_code_len);
                 server_ia_na_len += (status_code_len+4);
               } else {
@@ -1961,7 +1934,7 @@ void dhcpd_main(void)
               (*ia_na_p).t1 = gconfig.t1;
               (*ia_na_p).t2 = gconfig.t2;
 
-              uint8_t* ia_na_optptr = &(*ia_na_p).optval;
+              uint8_t* ia_na_optptr = (*ia_na_p).optval;
               ia_na_optptr = set_optval6(ia_na_optptr, DHCP6_OPT_IA_ADDR,
                   ia_addr, ia_addr_len);
               free(ia_addr);
@@ -1992,8 +1965,9 @@ void dhcpd_main(void)
             send_packet6(0, client_lla, optlen);
             write_lease6file();
             break;
-          case DHCP6RENEW:  //TODO
-          case DHCP6REBIND: //TODO
+          case DHCP6DECLINE:  //TODO
+          case DHCP6RENEW:    //TODO
+          case DHCP6REBIND:   //TODO
           case DHCP6RELEASE:
             dbg("Message Type: DHCP6RELEASE\n");
             optptr = prepare_send_pkt6(DHCP6REPLY);

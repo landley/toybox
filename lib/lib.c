@@ -13,9 +13,11 @@ void verror_msg(char *msg, int err, va_list va)
   if (msg) vfprintf(stderr, msg, va);
   else s+=2;
   if (err) fprintf(stderr, s, strerror(err));
-  putc('\n', stderr);
+  if (msg || err) putc('\n', stderr);
   if (!toys.exitval) toys.exitval++;
 }
+
+// These functions don't collapse together because of the va_stuff.
 
 void error_msg(char *msg, ...)
 {
@@ -40,8 +42,6 @@ void error_exit(char *msg, ...)
 {
   va_list va;
 
-  if (CFG_TOYBOX_HELP && toys.exithelp) show_help();
-
   va_start(va, msg);
   verror_msg(msg, 0, va);
   va_end(va);
@@ -59,6 +59,46 @@ void perror_exit(char *msg, ...)
   va_end(va);
 
   xexit();
+}
+
+// Exit with an error message after showing help text.
+void help_exit(char *msg, ...)
+{
+  va_list va;
+
+  if (CFG_TOYBOX_HELP) show_help(stderr);
+
+  if (msg) {
+    va_start(va, msg);
+    verror_msg(msg, 0, va);
+    va_end(va);
+  }
+
+  xexit();
+}
+
+// If you want to explicitly disable the printf() behavior (because you're
+// printing user-supplied data, or because android's static checker produces
+// false positives for 'char *s = x ? "blah1" : "blah2"; printf(s);' and it's
+// -Werror there for policy reasons).
+void error_msg_raw(char *msg)
+{
+  error_msg("%s", msg);
+}
+
+void perror_msg_raw(char *msg)
+{
+  perror_msg("%s", msg);
+}
+
+void error_exit_raw(char *msg)
+{
+  error_exit("%s", msg);
+}
+
+void perror_exit_raw(char *msg)
+{
+  error_exit("%s", msg);
 }
 
 // Keep reading until full or EOF
@@ -244,7 +284,7 @@ long xstrtol(char *str, char **end, int base)
 {
   long l = estrtol(str, end, base);
 
-  if (errno) perror_exit("%s", str);
+  if (errno) perror_exit_raw(str);
 
   return l;
 }
@@ -326,6 +366,23 @@ char *strlower(char *s)
   return try;
 }
 
+// strstr but returns pointer after match
+char *strafter(char *haystack, char *needle)
+{
+  char *s = strstr(haystack, needle);
+
+  return s ? s+strlen(needle) : s;
+}
+
+// Remove trailing \n
+char *chomp(char *s)
+{
+  char *p = strrchr(s, '\n');
+
+  if (p && !p[1]) *p = 0;
+  return s;
+}
+
 int unescape(char c)
 {
   char *from = "\\abefnrtv", *to = "\\\a\b\033\f\n\r\t\v";
@@ -386,14 +443,16 @@ off_t fdlength(int fd)
 }
 
 // Read contents of file as a single nul-terminated string.
-// malloc new one if buf=len=0
-char *readfileat(int dirfd, char *name, char *ibuf, off_t len)
+// measure file size if !len, allocate buffer if !buf
+// note: for existing buffers use len = size-1, will set buf[len] = 0
+char *readfileat(int dirfd, char *name, char *ibuf, off_t *plen)
 {
+  off_t len = *plen-!!ibuf;
   int fd;
   char *buf;
 
   if (-1 == (fd = openat(dirfd, name, O_RDONLY))) return 0;
-  if (len<1) {
+  if (!len) {
     len = fdlength(fd);
     // proc files don't report a length, so try 1 page minimum.
     if (len<4096) len = 4096;
@@ -401,11 +460,11 @@ char *readfileat(int dirfd, char *name, char *ibuf, off_t len)
   if (!ibuf) buf = xmalloc(len+1);
   else buf = ibuf;
 
-  len = readall(fd, buf, len-1);
+  *plen = len = readall(fd, buf, len);
   close(fd);
   if (len<0) {
     if (ibuf != buf) free(buf);
-    buf = 0;
+    buf =  0;
   } else buf[len] = 0;
 
   return buf;
@@ -413,7 +472,7 @@ char *readfileat(int dirfd, char *name, char *ibuf, off_t len)
 
 char *readfile(char *name, char *ibuf, off_t len)
 {
-  return readfileat(AT_FDCWD, name, ibuf, len);
+  return readfileat(AT_FDCWD, name, ibuf, &len);
 }
 
 // Sleep for this many thousandths of a second
@@ -489,13 +548,12 @@ void loopfiles_rw(char **argv, int flags, int permissions, int failok,
     // Inability to open a file prints a warning, but doesn't exit.
 
     if (!strcmp(*argv, "-")) fd=0;
-    else if (0>(fd = open(*argv, flags, permissions)) && !failok) {
-      perror_msg("%s", *argv);
-      toys.exitval = 1;
-      continue;
+    else if (0>(fd = open(*argv, flags, permissions)) && !failok)
+      perror_msg_raw(*argv);
+    else {
+      function(fd, *argv);
+      if (flags & O_CLOEXEC) close(fd);
     }
-    function(fd, *argv);
-    if (flags & O_CLOEXEC) close(fd);
   } while (*++argv);
 }
 

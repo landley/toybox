@@ -43,10 +43,7 @@ void blockdev_main(void)
   char **ss;
   long long val = 0;
 
-  if (!toys.optflags) {
-    toys.exithelp = 1;
-    error_exit("need --option");
-  }
+  if (!toys.optflags) help_exit("need --option");
 
   for (ss = toys.optargs;  *ss; ss++) {
     int fd = xopen(*ss, O_RDONLY), i;

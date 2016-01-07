@@ -11,7 +11,8 @@ def readit(args, shell=False):
   for i in blob.stdout.read().split("\n"):
     if not i: continue
     i=i.split()
-    ret[i[0]]=i[1:]
+    try: ret[i[0]].extend(i[1:])
+    except: ret[i[0]]=i[1:]
     arr.extend(i)
   return ret,arr
 

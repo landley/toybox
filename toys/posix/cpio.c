@@ -1,7 +1,9 @@
 /* cpio.c - a basic cpio
  *
- * Written 2013 AD by Isaac Dunham; this code is placed under the 
+ * Written 2013 AD by Isaac Dunham; this code is placed under the
  * same license as toybox or as CC0, at your option.
+ *
+ * Portions Copyright 2015 by Frontier Silicon Ltd.
  *
  * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cpio.html
  * and http://pubs.opengroup.org/onlinepubs/7908799/xcu/cpio.html
@@ -12,14 +14,16 @@
  * Modern cpio expanded header to 110 bytes (first field 6 bytes, rest are 8).
  * In order: magic ino mode uid gid nlink mtime filesize devmajor devminor
  * rdevmajor rdevminor namesize check
+ * This is the equiavlent of mode -H newc when using GNU CPIO.
 
-USE_CPIO(NEWTOY(cpio, "mduH:p:|i|t|F:v(verbose)o|[!pio][!pot][!pF]", TOYFLAG_BIN))
+USE_CPIO(NEWTOY(cpio, "(no-preserve-owner)mduH:p:|i|t|F:v(verbose)o|[!pio][!pot][!pF]", TOYFLAG_BIN))
 
 config CPIO
   bool "cpio"
   default y
   help
-    usage: cpio -{o|t|i|p DEST} [-v] [--verbose] [-F FILE] [ignored: -mdu -H newc]
+    usage: cpio -{o|t|i|p DEST} [-v] [--verbose] [-F FILE] [--no-preserve-owner]
+           [ignored: -mdu -H newc]
 
     copy files into and out of a "newc" format cpio archive
 
@@ -29,6 +33,7 @@ config CPIO
     -o	create archive (stdin=list of files, stdout=archive)
     -t	test files (list only, stdin=archive, stdout=list of files)
     -v	verbose (list files during create/extract)
+    --no-preserve-owner (don't set ownership during extract)
 */
 
 #define FOR_cpio
@@ -82,12 +87,15 @@ void cpio_main(void)
   // In passthrough mode, parent stays in original dir and generates archive
   // to pipe, child does chdir to new dir and reads archive from stdin (pipe).
   if (TT.pass) {
-    if (!(pid = xpopen(0, &pipe, 0))) {
+    if (toys.stacktop) {
+      // xpopen() doesn't return from child due to vfork(), instead restarts
+      // with !toys.stacktop
+      pid = xpopen(0, &pipe, 0);
+      afd = pipe;
+    } else {
+      // child
       toys.optflags |= FLAG_i;
       xchdir(TT.pass);
-    } else {
-      toys.optflags |= FLAG_o;
-      afd = pipe;
     }
   }
 
@@ -118,8 +126,8 @@ void cpio_main(void)
 
     size = x8u(toybuf+54);
     mode = x8u(toybuf+14);
-    uid = x8u(toybuf+30);
-    gid = x8u(toybuf+38);
+    uid = x8u(toybuf+22);
+    gid = x8u(toybuf+30);
     timestamp = x8u(toybuf+46); // unsigned 32 bit, so year 2100 problem
 
     if (toys.optflags & (FLAG_t|FLAG_v)) puts(name);
@@ -139,7 +147,8 @@ void cpio_main(void)
       if (!test) err = symlink(data, name);
       free(data);
       // Can't get a filehandle to a symlink, so do special chown
-      if (!err && !getpid()) err = lchown(name, uid, gid);
+      if (!err && !geteuid() && !(toys.optflags & FLAG_no_preserve_owner))
+        err = lchown(name, uid, gid);
     } else if (S_ISREG(mode)) {
       int fd = test ? 0 : open(name, O_CREAT|O_WRONLY|O_TRUNC|O_NOFOLLOW, mode);
 
@@ -164,14 +173,14 @@ void cpio_main(void)
 
       if (!test) {
         // set owner, restore dropped suid bit
-        if (!getpid()) {
+        if (!geteuid() && !(toys.optflags & FLAG_no_preserve_owner)) {
           err = fchown(fd, uid, gid);
           if (!err) err = fchmod(fd, mode);
         }
         close(fd);
       }
     } else if (!test)
-      err = mknod(name, mode, makedev(x8u(toybuf+62), x8u(toybuf+70)));
+      err = mknod(name, mode, makedev(x8u(toybuf+78), x8u(toybuf+86)));
 
     // Set ownership and timestamp.
     if (!test && !err) {
@@ -179,11 +188,13 @@ void cpio_main(void)
       // by name to chown/utime, but how do we know it's the same item?
       // Check that we at least have the right type of entity open, and do
       // NOT restore dropped suid bit in this case.
-      if (!S_ISREG(mode) && !S_ISLNK(mode) && !getpid()) {
-        int fd = open(name, O_WRONLY|O_NOFOLLOW);
+      if (!S_ISREG(mode) && !S_ISLNK(mode) && !geteuid()
+          && !(toys.optflags & FLAG_no_preserve_owner))
+      {
+        int fd = open(name, O_RDONLY|O_NOFOLLOW);
         struct stat st;
 
-        if (fd != -1 && !fstat(fd, &st) && (st.st_mode&S_IFMT) == mode)
+        if (fd != -1 && !fstat(fd, &st) && (st.st_mode&S_IFMT) == (mode&S_IFMT))
           err = fchown(fd, uid, gid);
         else err = 1;
 
@@ -200,7 +211,7 @@ void cpio_main(void)
       }
     }
 
-    if (err) perror_msg("'%s'", name);
+    if (err) perror_msg_raw(name);
     free(tofree);
 
   // Output cpio archive
@@ -219,10 +230,10 @@ void cpio_main(void)
       if (len<1) break;
       if (name[len-1] == '\n') name[--len] = 0;
       nlen = len+1;
-      if (lstat(name, &st) || (S_ISREG(st.st_mode) 
+      if (lstat(name, &st) || (S_ISREG(st.st_mode)
           && st.st_size && (fd = open(name, O_RDONLY))<0))
       {
-        perror_msg("%s", name);
+        perror_msg_raw(name);
         continue;
       }
 
@@ -239,7 +250,7 @@ void cpio_main(void)
 
         // NUL Pad header up to 4 multiple bytes.
         llen = (llen + nlen) & 3;
-        if (llen) xwrite(afd, &zero, 4-llen); 
+        if (llen) xwrite(afd, &zero, 4-llen);
 
         // Write out body for symlink or regular file
         llen = st.st_size;

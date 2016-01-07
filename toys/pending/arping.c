@@ -39,15 +39,9 @@ GLOBALS(
     char *src_ip;
 
     int sockfd;
-    unsigned start;
-    unsigned end;
-    unsigned sent_at;
-    unsigned sent_nr;
-    unsigned rcvd_nr;
-    unsigned brd_sent;
-    unsigned rcvd_req;
-    unsigned brd_rcv;
-    unsigned unicast_flag;
+    unsigned long start, end;
+    unsigned sent_at, sent_nr, rcvd_nr, brd_sent, rcvd_req, brd_rcv,
+             unicast_flag;
 )
 
 struct sockaddr_ll src_pk, dst_pk; 

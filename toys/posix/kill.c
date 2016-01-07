@@ -136,10 +136,7 @@ void kill_main(void)
   } else {
 
     // "<1" in optstr wouldn't cover this because "-SIGNAL"
-    if (!*args) {
-      toys.exithelp++;
-      error_exit("missing argument");
-    }
+    if (!*args) help_exit("missing argument");
 
     while (*args) {
       char *arg = *(args++);

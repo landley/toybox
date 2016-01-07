@@ -46,10 +46,7 @@ void useradd_main(void)
 
   // Act like groupadd?
   if (toys.optc == 2) {
-    if (toys.optflags) {
-      toys.exithelp = 1;
-      error_exit("options with USER GROUP");
-    }
+    if (toys.optflags) help_exit("options with USER GROUP");
     xexec((char *[]){"groupadd", toys.optargs[0], toys.optargs[1], 0});
   }
 
@@ -105,10 +102,10 @@ void useradd_main(void)
 
   // Create a new group for user
   if (!(toys.optflags & FLAG_G)) {
-    char *s = xmprintf("-g%ld", pwd.pw_gid);
+    char *s = xmprintf("-g%ld", (long)pwd.pw_gid);
 
     if (xrun((char *[]){"groupadd", *toys.optargs, s, 0}))
-      error_msg("addgroup -g%ld fail", pwd.pw_gid);
+      error_msg("addgroup -g%ld fail", (long)pwd.pw_gid);
     free(s);
   }
 
@@ -120,15 +117,16 @@ void useradd_main(void)
 
   // 1. add an entry to /etc/passwd and /etc/shadow file
   entry = xmprintf("%s:%s:%ld:%ld:%s:%s:%s", pwd.pw_name, pwd.pw_passwd,
-      pwd.pw_uid, pwd.pw_gid, pwd.pw_gecos, pwd.pw_dir, pwd.pw_shell);
+      (long)pwd.pw_uid, (long)pwd.pw_gid, pwd.pw_gecos, pwd.pw_dir,
+      pwd.pw_shell);
   if (update_password("/etc/passwd", pwd.pw_name, entry)) error_exit("updating passwd file failed");
   free(entry);
 
   if (toys.optflags & FLAG_S) 
   entry = xmprintf("%s:!!:%u::::::", pwd.pw_name, 
       (unsigned)(time(NULL))/(24*60*60)); //passwd is not set initially
-  else entry = xmprintf("%s:!!:%u:%ld:%ld:%ld:::", pwd.pw_name, 
-            (unsigned)(time(NULL))/(24*60*60), 0, 99999, 7); //passwd is not set initially
+  else entry = xmprintf("%s:!!:%u:0:99999:7:::", pwd.pw_name, 
+            (unsigned)(time(0))/(24*60*60)); //passwd is not set initially
   update_password("/etc/shadow", pwd.pw_name, entry);
   free(entry);
 
@@ -143,7 +141,7 @@ void useradd_main(void)
       else toys.exitval = xrun((char *[]){"mkdir", "-p", p, 0});
       if (!toys.exitval)
         toys.exitval |= xrun((char *[]){"chown", "-R",
-          xmprintf("%u:%u", TT.uid, TT.gid), p, 0});
+          xmprintf("%lu:%lu", TT.uid, TT.gid), p, 0});
       wfchmodat(AT_FDCWD, p, 0700);
     } else fprintf(stderr, "'%s' exists, not copying '%s'", p, skel);
   }

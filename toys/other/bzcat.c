@@ -663,7 +663,7 @@ static void do_bzcat(int fd, char *name)
 {
   char *err = bunzipStream(fd, 1);
 
-  if (err) error_exit(err);
+  if (err) error_exit_raw(err);
 }
 
 void bzcat_main(void)
@@ -700,7 +700,7 @@ static void do_bunzip2(int fd, char *name)
   if (toys.optflags&FLAG_v) {
     printf("%s\n", err ? err : "ok");
     toys.exitval |= !!err;
-  } else if (err) error_msg(err);
+  } else if (err) error_msg_raw(err);
 
   // can't test outfd==1 because may have been called with stdin+stdout closed
   if (rename) {
@@ -709,7 +709,7 @@ static void do_bunzip2(int fd, char *name)
       tmp = 0;
     } else {
       if (dotbz) *dotbz = '.';
-      if (!unlink(name)) perror_msg("%s", name);
+      if (!unlink(name)) perror_msg_raw(name);
     }
     (err ? delete_tempfile : replace_tempfile)(-1, outfd, &tmp);
   }

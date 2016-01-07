@@ -22,6 +22,9 @@ config ONEIT
     Spawns a single child process (because PID 1 has signals blocked)
     in its own session, reaps zombies until the child exits, then
     reboots the system (or powers off with -p, or restarts the child with -r).
+
+    Responds to SIGUSR1 by halting the system, SIGUSR2 by powering off,
+    and SIGTERM or SIGINT reboot.
 */
 
 #define FOR_oneit

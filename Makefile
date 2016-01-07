@@ -1,6 +1,14 @@
 # Makefile for toybox.
 # Copyright 2006 Rob Landley <rob@landley.net>
 
+# If people set these on the make command line, use 'em
+# Note that CC defaults to "cc" so the one in configure doesn't get
+# used when scripts/make.sh and care called through "make".
+
+HOSTCC?=cc
+
+export CROSS_COMPILE CFLAGS OPTIMIZE LDOPTIMIZE CC HOSTCC V
+
 all: toybox
 
 KCONFIG_CONFIG ?= .config
@@ -19,8 +27,6 @@ $(KCONFIG_CONFIG): $(KCONFIG_TOP)
 $(KCONFIG_TOP): generated/Config.in
 generated/Config.in: toys/*/*.c scripts/genconfig.sh
 	scripts/genconfig.sh
-
-HOSTCC?=cc
 
 # Development targets
 baseline: toybox_unstripped

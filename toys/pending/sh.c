@@ -26,6 +26,9 @@ USE_SH(NEWTOY(exit, NULL, TOYFLAG_NOFORK))
 
 USE_SH(NEWTOY(sh, "c:i", TOYFLAG_BIN))
 USE_SH(OLDTOY(toysh, sh, TOYFLAG_BIN))
+// Login lies in argv[0], so add some aliases to catch that
+USE_SH(OLDTOY(-sh, sh, 0))
+USE_SH(OLDTOY(-toysh, sh, 0))
 
 config SH
   bool "sh (toysh)"

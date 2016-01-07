@@ -30,6 +30,10 @@ controls which features are included when compiling toybox.</p>
 either isn't complete or is a special-purpose option (such as debugging
 code) that isn't intended for general purpose use.</p>
 
+<p>For a more compact human-editable version .config files, you can use the
+<a href=http://landley.net/aboriginal/FAQ.html#dev_miniconfig>miniconfig</a>
+format.</p>
+
 <p>The standard build invocation is:</p>
 
 <ul>
@@ -47,8 +51,9 @@ accepts existing definitions of the environment variables, so it may be sourced
 or modified by the developer before building and the definitions exported
 to the environment will take precedence.</p>
 
-<p>(To clarify: "configure" describes the build and installation environment,
-".config" lists the features selected by defconfig/menuconfig.)</p>
+<p>(To clarify: ".config" lists the features selected by defconfig/menuconfig,
+I.E. "what to build", and "configure" describes the build and installation
+environment, I.E. "how to build it".)</p>
 
 <p><h1><a name="running"><a href="#running">Running a command</a></h1></p>
 
@@ -404,9 +409,6 @@ the first argument, not the command name.  Use toys.which->name for the command
 name.</p></li>
 <li><p>int <b>optc</b> - Optarg count, equivalent to argc but for
 optargs[].<p></li>
-<li><p>int <b>exithelp</b> - Whether error_exit() should print a usage message
-via help_main() before exiting.  (True during option parsing, defaults to
-false afterwards.)</p></li>
 </ul>
 
 <a name="toy_union" />

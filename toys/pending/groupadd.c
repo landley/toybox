@@ -62,10 +62,8 @@ void groupadd_main(void)
   struct group *grp = NULL;
   char *entry = NULL;
 
-  if (toys.optflags && toys.optc == 2) {
-    toys.exithelp = 1;
-    error_exit("options, user and group can't be together");
-  }
+  if (toys.optflags && toys.optc == 2)
+    help_exit("options, user and group can't be together");
 
   if (toys.optc == 2) {  //add user to group
     //toys.optargs[0]- user, toys.optargs[1] - group

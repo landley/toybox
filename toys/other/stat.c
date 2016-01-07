@@ -2,7 +2,7 @@
  * Copyright 2012 <warior.linux@gmail.com>
  * Copyright 2013 <anand.sinha85@gmail.com>
 
-USE_STAT(NEWTOY(stat, "c:f", TOYFLAG_BIN)) 
+USE_STAT(NEWTOY(stat, "<1c:f", TOYFLAG_BIN)) 
 
 config STAT
   bool stat
@@ -29,7 +29,7 @@ config STAT
     %a  Available blocks    |%b  Total blocks       |%c  Total inodes
     %d  Free inodes         |%f  Free blocks        |%i  File system ID
     %l  Max filename length |%n  File name          |%s  Fragment size
-    %S  Best transfer size  |%t  File system type
+    %S  Best transfer size  |%t  Filesystem type    |%T  Filesystem type name
 */
 
 #define FOR_stat
@@ -55,24 +55,31 @@ static void date_stat_format(struct timespec *ts)
 {
   strftime(toybuf, sizeof(toybuf), "%Y-%m-%d %H:%M:%S",
     localtime(&(ts->tv_sec)));
-  xprintf("%s.%09d", toybuf, ts->tv_nsec);
+  xprintf("%s.%09ld", toybuf, ts->tv_nsec);
+}
+
+// Force numeric output to long long instead of manually typecasting everything
+static void out(char c, long long val)
+{
+  sprintf(toybuf, "%%ll%c", c);
+  printf(toybuf, val);
 }
 
 static void print_stat(char type)
 {
   struct stat *stat = (struct stat *)&TT.stat;
 
-  if (type == 'a') xprintf("%lo", stat->st_mode & ~S_IFMT);
+  if (type == 'a') out('o', stat->st_mode&~S_IFMT);
   else if (type == 'A') {
     char str[11];
 
     mode_to_string(stat->st_mode, str);
     xprintf("%s", str);
-  } else if (type == 'b') xprintf("%llu", stat->st_blocks);
-  else if (type == 'B') xprintf("%lu", stat->st_blksize);
-  else if (type == 'd') xprintf("%ldd", stat->st_dev);
-  else if (type == 'D') xprintf("%llxh", stat->st_dev);
-  else if (type == 'f') xprintf("%lx", stat->st_mode);
+  } else if (type == 'b') out('u', stat->st_blocks);
+  else if (type == 'B') out('u', stat->st_blksize);
+  else if (type == 'd') out('d', stat->st_dev);
+  else if (type == 'D') out('x', stat->st_dev);
+  else if (type == 'f') out('x', stat->st_mode);
   else if (type == 'F') {
     char *t = "character device\0directory\0block device\0" \
               "regular file\0symbolic link\0socket\0FIFO (named pipe)";
@@ -81,42 +88,59 @@ static void print_stat(char type)
     for (i = 1; filetype != (i*8192) && i < 7; i++) t += strlen(t)+1;
     if (!stat->st_size && filetype == S_IFREG) t = "regular empty file";
     xprintf("%s", t);
-  } else if (type == 'g') xprintf("%lu", stat->st_gid);
+  } else if (type == 'g') out('u', stat->st_gid);
   else if (type == 'G') xprintf("%8s", TT.group_name->gr_name);
-  else if (type == 'h') xprintf("%lu", stat->st_nlink);
-  else if (type == 'i') xprintf("%llu", stat->st_ino);
+  else if (type == 'h') out('u', stat->st_nlink);
+  else if (type == 'i') out('u', stat->st_ino);
   else if (type == 'N') {
     xprintf("`%s'", *toys.optargs);
     if (S_ISLNK(stat->st_mode))
       if (0<readlink(*toys.optargs, toybuf, sizeof(toybuf)))
         xprintf(" -> `%s'", toybuf);
-  } else if (type == 'o') xprintf("%lu", stat->st_blksize);
-  else if (type == 's') xprintf("%llu", stat->st_size);
-  else if (type == 'u') xprintf("%lu", stat->st_uid);
+  } else if (type == 'o') out('u', stat->st_blksize);
+  else if (type == 's') out('u', stat->st_size);
+  else if (type == 'u') out('u', stat->st_uid);
   else if (type == 'U') xprintf("%8s", TT.user_name->pw_name);
   else if (type == 'x') date_stat_format((void *)&stat->st_atime);
-  else if (type == 'X') xprintf("%llu", (long long)stat->st_atime);
+  else if (type == 'X') out('u', stat->st_atime);
   else if (type == 'y') date_stat_format((void *)&stat->st_mtime);
-  else if (type == 'Y') xprintf("%llu", (long long)stat->st_mtime);
+  else if (type == 'Y') out('u', stat->st_mtime);
   else if (type == 'z') date_stat_format((void *)&stat->st_ctime);
-  else if (type == 'Z') xprintf("%llu", (long long)stat->st_ctime);
+  else if (type == 'Z') out('u', stat->st_ctime);
   else xprintf("?");
 }
 
 static void print_statfs(char type) {
   struct statfs *statfs = (struct statfs *)&TT.stat;
 
-  if (type == 'a') xprintf("%llu", statfs->f_bavail);
-  else if (type == 'b') xprintf("%llu", statfs->f_blocks);
-  else if (type == 'c') xprintf("%llu", statfs->f_files);
-  else if (type == 'd') xprintf("%llu", statfs->f_ffree);
-  else if (type == 'f') xprintf("%llu", statfs->f_bfree);
-  else if (type == 'l') xprintf("%ld", statfs->f_namelen);
-  else if (type == 't') xprintf("%lx", statfs->f_type);
-  else if (type == 'i')
+  if (type == 'a') out('u', statfs->f_bavail);
+  else if (type == 'b') out('u', statfs->f_blocks);
+  else if (type == 'c') out('u', statfs->f_files);
+  else if (type == 'd') out('u', statfs->f_ffree);
+  else if (type == 'f') out('u', statfs->f_bfree);
+  else if (type == 'l') out('d', statfs->f_namelen);
+  else if (type == 't') out('x', statfs->f_type);
+  else if (type == 'T') {
+    char *s = "unknown";
+    struct {unsigned num; char *name;} nn[] = {
+      {0xADFF, "affs"}, {0x5346544e, "ntfs"}, {0x1Cd1, "devpts"},
+      {0x137D, "ext"}, {0xEF51, "ext2"}, {0xEF53, "ext3"},
+      {0x1BADFACE, "bfs"}, {0x9123683E, "btrfs"}, {0x28cd3d45, "cramfs"},
+      {0x3153464a, "jfs"}, {0x7275, "romfs"}, {0x01021994, "tmpfs"},
+      {0x3434, "nilfs"}, {0x6969, "nfs"}, {0x9fa0, "proc"},
+      {0x534F434B, "sockfs"}, {0x62656572, "sysfs"}, {0x517B, "smb"},
+      {0x4d44, "msdos"}, {0x4006, "fat"}, {0x43415d53, "smackfs"},
+      {0x73717368, "squashfs"}
+    };
+    int i;
+
+    for (i=0; i<ARRAY_LEN(nn); i++)
+      if (nn[i].num == statfs->f_type) s = nn[i].name;
+    fputs(s, stdout);
+  } else if (type == 'i')
     xprintf("%08x%08x", statfs->f_fsid.__val[0], statfs->f_fsid.__val[1]);
-  else if (type == 's') xprintf("%d", statfs->f_frsize);
-  else if (type == 'S') xprintf("%d", statfs->f_bsize);
+  else if (type == 's') out('d', statfs->f_frsize);
+  else if (type == 'S') out('d', statfs->f_bsize);
   else xprintf("?");
 }
 
@@ -129,7 +153,7 @@ void stat_main(void)
       "Blocks: Total: %b\tFree: %f\tAvailable: %a\n"
       "Inodes: Total: %c\tFree: %d"
     : "  File: %N\n  Size: %s\t Blocks: %b\t IO Blocks: %B\t%F\n"
-      "Device: %D\t Inode: %i\t Links: %h\n"
+      "Device: %Dh/%dd\t Inode: %i\t Links: %h\n"
       "Access: (%a/%A)\tUid: (%u/%U)\tGid: (%g/%G)\n"
       "Access: %x\nModify: %y\nChange: %z";
 

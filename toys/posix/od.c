@@ -125,7 +125,7 @@ static int od_out_t(struct odtype *t, char *buf, int *offset)
 static void od_outline(void)
 {
   unsigned flags = toys.optflags;
-  char buf[128], *abases[] = {"", "%07d", "%07o", "%06x"};
+  char buf[128], *abases[] = {"", "%07lld", "%07llo", "%06llx"};
   struct odtype *types = (struct odtype *)toybuf;
   int i, j, len, pad;
 
@@ -144,7 +144,8 @@ static void od_outline(void)
   } else {
     TT.star = 0;
 
-    xprintf(abases[TT.address_idx], TT.pos);
+    // off_t varies so expand it to largest possible size
+    xprintf(abases[TT.address_idx], (long long)TT.pos);
     if (!TT.leftover) {
       if (TT.address_idx) xputc('\n');
       return;
@@ -206,7 +207,7 @@ static void do_od(int fd, char *name)
 
     len = readall(fd, buf, len);
     if (len < 0) {
-      perror_msg("%s", name);
+      perror_msg_raw(name);
       break;
     }
     if (TT.max_count) TT.max_count -= len;

@@ -83,9 +83,6 @@ void ipcrm_main(void)
     for (tmp = TT.qid; tmp; tmp = tmp->next) do_ipcrm(0, 2, tmp->arg);
     for (tmp = TT.skey; tmp; tmp = tmp->next) do_ipcrm(1, 3, tmp->arg);
     for (tmp = TT.sid; tmp; tmp = tmp->next) do_ipcrm(0, 3, tmp->arg);
-    if (toys.optc) {
-      toys.exithelp++;
-      error_exit("unknown argument: %s", *toys.optargs);
-    }
+    if (toys.optc) help_exit("unknown argument: %s", *toys.optargs);
   }
 }

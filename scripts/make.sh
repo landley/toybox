@@ -96,10 +96,11 @@ then
   for i in util crypt m resolv selinux smack attr
   do
     echo "int main(int argc, char *argv[]) {return 0;}" | \
-    ${CROSS_COMPILE}${CC} $CFLAGS -xc - -o /dev/null -Wl,--as-needed -l$i > /dev/null 2>/dev/null &&
+    ${CROSS_COMPILE}${CC} $CFLAGS -xc - -o generated/libprobe -Wl,--as-needed -l$i > /dev/null 2>/dev/null &&
     echo -l$i >> generated/optlibs.dat
     echo -n .
   done
+  rm -f generated/libprobe
   echo
 fi
 
@@ -209,6 +210,19 @@ then
   ) > generated/globals.h
 fi
 
+if [ generated/mktags -ot scripts/mktags.c ]
+then
+  do_loudly $HOSTCC scripts/mktags.c -o generated/mktags || exit 1
+fi
+
+if isnewer generated/tags.h toys
+then
+  echo -n "generated/tags.h "
+
+  sed -n '/TAGGED_ARRAY(/,/^)/{s/.*TAGGED_ARRAY[(]\([^,]*\),/\1/;p}' \
+    toys/*/*.c lib/*.c | generated/mktags > generated/tags.h
+fi
+
 echo "generated/help.h"
 if [ generated/config2help -ot scripts/config2help.c ]
 then
@@ -275,9 +289,12 @@ if [ ! -z "$NOSTRIP" ] || ! do_loudly ${CROSS_COMPILE}strip toybox_unstripped -o
 then
   echo "strip failed, using unstripped" && cp toybox_unstripped toybox ||
   exit 1
-else
-  # gcc 4.4's strip command is buggy, and doesn't set the executable bit on
-  # its output the way SUSv4 suggests it do so.
-  do_loudly chmod +x toybox || exit 1
 fi
+
+# gcc 4.4's strip command is buggy, and doesn't set the executable bit on
+# its output the way SUSv4 suggests it do so. While we're at it, make sure
+# we don't have the "w" bit set so things like bzip2's "cp -f" install don't
+# overwrite our binary through the symlink.
+do_loudly chmod 555 toybox || exit 1
+
 echo

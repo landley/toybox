@@ -91,7 +91,8 @@ just like the speed hit for swapping to disk.  These days, a _big_ L1 cache
 is 128k and a big L2 cache is a couple of megabytes.  A cheap low-power
 embedded processor may have 8k of L1 cache and no L2.)</p>
 
-<p>Learn how virtual memory and memory managment units work.  Don't touch
+<p>Learn how <a href=http://nommu.org/memory-faq.txt>virtual memory and
+memory managment units work</a>.  Don't touch
 memory you don't have to.  Even just reading memory evicts stuff from L1 and L2
 cache, which may have to be read back in later.  Writing memory can force the
 operating system to break copy-on-write, which allocates more memory.  (The
@@ -100,7 +101,7 @@ copy-on-write mappings of the zero page.  Actual physical pages get allocated
 when the copy-on-write gets broken by writing to the virtual page.  This
 is why checking the return value of malloc() isn't very useful anymore, it
 only detects running out of virtual memory, not physical memory.  Unless
-you're using a NOMMU system, where all bets are off.)</p>
+you're using a <a href=http://nommu.org>NOMMU system</a>, where all bets are off.)</p>
 
 <p>Don't think that just because you don't have a swap file the system can't
 start swap thrashing: any file backed page (ala mmap) can be evicted, and
@@ -233,9 +234,14 @@ don't understand the problem until you _have_ solved it.)</p>
 that works and has been paid for is a corporate asset not lightly abandoned.
 Open source software can afford to re-implement code that works, over and
 over from scratch, for incremental gains.  Before toybox, the unix command line
-has already been reimplemented from scratch several times in a row (the
+has already been reimplemented from scratch several times (the
 original AT&amp;T Unix command line in assembly and then in C, the BSD
-versions, the GNU tools, BusyBox...) but maybe toybox can do a better job. :)</p>
+versions, Coherent was the first full from-scratch Unix clone in 1980,
+Minix was another clone which Linux was inspired by and developed under,
+the GNU tools were yet another rewrite intended for use in the stillborn
+"Hurd" project, BusyBox was still another rewrite, and more versions
+were written in Plan 9, uclinux, klibc, sash, sbase, s6, and of course
+android toolbox...) but maybe toybox can do a better job. :)</p>
 
 <p>P.S.  How could I resist linking to an article about
 <a href=http://blog.outer-court.com/archive/2005-08-24-n14.html>why
@@ -251,6 +257,13 @@ interesting but only if they're easy to support; I'm not going to spend much
 effort on them.</p>
 
 <p>I don't do windows.</p>
+
+<p>We depend on C99 and posix-2008 libc features such as the openat() family of
+functions. We also assume certain "modern" linux kernel behavior such
+as large environment sizes (linux commit b6a2fea39318, went into 2.6.22
+released July 2007). In theory this shouldn't prevent us from working on
+older kernels or other implementations (ala BSD), but we don't police their
+corner cases.</p>
 
 <b><h3>32/64 bit</h3></b>
 <p>Toybox should work on both 32 bit and 64 bit systems.  By the end of 2008

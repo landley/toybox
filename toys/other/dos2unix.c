@@ -42,7 +42,7 @@ static void do_dos2unix(int fd, char *name)
     int len, in, out;
 
     len = read(fd, toybuf+(sizeof(toybuf)/2), sizeof(toybuf)/2);
-    if (len<0) perror_msg("%s",name);
+    if (len<0) perror_msg_raw(name);
     if (len<1) break;
 
     for (in = out = 0; in < len; in++) {

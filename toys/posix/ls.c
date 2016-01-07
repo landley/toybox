@@ -12,6 +12,7 @@ config LS
   default y
   help
     usage: ls [-ACFHLRSZacdfhiklmnpqrstux1] [directory...]
+
     list files
 
     what to show:
@@ -186,34 +187,27 @@ static int filter(struct dirtree *new)
 
   if (flags & FLAG_Z) {
     if (!CFG_TOYBOX_LSM_NONE) {
-      int fd;
 
-      // Why not just openat(O_PATH|(O_NOFOLLOW*!!(toys.optflags&FLAG_L))) and
-      // lsm_fget_context() on that filehandle? Because the kernel is broken,
-      // and won't let us read this "metadata" from the filehandle unless we
-      // have permission to read the data. We _can_ read the same data in
-      // by path, we just can't do it through an O_PATH filehandle, because
-      // reasons. So as a bug workaround for the broken kernel, we do it
-      // both ways.
-      //
-      // The O_NONBLOCK is there to avoid triggering automounting (there's
-      // a rush of nostalgia for you) on directories we don't descend into,
-      // which O_PATH would have done for us but see "the kernel is broken".
-      if (S_ISSOCK(new->st.st_mode) ||
-          (S_ISLNK(new->st.st_mode) && !(toys.optflags & FLAG_L)) ||
-          -1 == (fd = openat(dirtree_parentfd(new), new->name,
-                             O_RDONLY|O_NONBLOCK|O_NOATIME)))
-      {
-        char *path;
+      // (Wouldn't it be nice if the lsm functions worked like openat(),
+      // fchmodat(), mknodat(), readlinkat() so we could do this without
+      // even O_PATH? But no, this is 1990's tech.)
+      int fd = openat(dirtree_parentfd(new), new->name,
+        O_PATH|(O_NOFOLLOW*!!(toys.optflags&FLAG_L)));
 
-        // Wouldn't it be nice if the lsm functions worked like openat(),
-        // fchmodat(), mknodat(), readlinkat() so we could do this without
-        // even O_PATH? But no, this is 1990's tech.
-        path = dirtree_path(new, 0);
-        lsm_lget_context(path, (char **)&new->extra);
-        free(path);
-      } else {
-        lsm_fget_context(fd, (char **)&new->extra);
+      if (fd != -1) {
+        if (-1 == lsm_fget_context(fd, (char **)&new->extra) && errno == EBADF)
+        {
+          char hack[32];
+
+          // Work around kernel bug that won't let us read this "metadata" from
+          // the filehandle unless we have permission to read the data. (We can
+          // query the same data in by path, but can't do it through an O_PATH
+          // filehandle, because reasons. But for some reason, THIS is ok? If
+          // they ever fix the kernel, this should stop triggering.)
+
+          sprintf(hack, "/proc/self/fd/%d", fd);
+          lsm_lget_context(hack, (char **)&new->extra);
+        }
         close(fd);
       }
     }
@@ -297,7 +291,15 @@ static void listfiles(int dirfd, struct dirtree *indir)
     *colsizes = (unsigned *)(toybuf+260), columns = (sizeof(toybuf)-260)/4;
   char tmp[64];
 
+  if (-1 == dirfd) {
+    strwidth(indir->name);
+    perror_msg_raw(indir->name);
+
+    return;
+  }
+
   memset(totals, 0, sizeof(totals));
+  if (CFG_TOYBOX_DEBUG) memset(len, 0, sizeof(len));
 
   // Top level directory was already populated by main()
   if (!indir->parent) {
@@ -317,7 +319,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
   } else {
     // Read directory contents. We dup() the fd because this will close it.
     // This reads/saves contents to display later, except for in "ls -1f" mode.
-    indir->data = dup(dirfd);
+    indir->dirfd = dup(dirfd);
     dirtree_recurse(indir, filter, DIRTREE_SYMFOLLOW*!!(flags&FLAG_L));
   }
 
@@ -526,7 +528,7 @@ void ls_main(void)
 
   // Do we have an implied -1
   if (!isatty(1)) {
-    toys.optflags |= FLAG_1;
+    if (!(toys.optflags & FLAG_m)) toys.optflags |= FLAG_1;
     if (TT.color) toys.optflags ^= FLAG_color;
   } else if (toys.optflags&(FLAG_l|FLAG_o|FLAG_n|FLAG_g))
     toys.optflags |= FLAG_1;

@@ -12,6 +12,7 @@ USE_NBD_CLIENT(OLDTOY(nbd-client, nbd_client, TOYFLAG_USR|TOYFLAG_BIN))
 
 config NBD_CLIENT
   bool "nbd-client"
+  depends on TOYBOX_FORK
   default y
   help
     usage: nbd-client [-ns] HOST PORT DEVICE

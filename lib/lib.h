@@ -3,6 +3,16 @@
  * Copyright 2006 Rob Landley <rob@landley.net>
  */
 
+struct ptr_len {
+  void *ptr;
+  long len;
+};
+
+struct str_len {
+  char *str;
+  long len;
+};
+
 // llist.c
 
 // All these list types can be handled by the same code because first element
@@ -62,7 +72,7 @@ struct dirtree {
   long extra; // place for user to store their stuff (can be pointer)
   struct stat st;
   char *symlink;
-  int data;  // dirfd for directory, linklen for symlink
+  int dirfd;
   char again;
   char name[];
 };
@@ -80,7 +90,7 @@ struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node));
 
 // help.c
 
-void show_help(void);
+void show_help(FILE *out);
 
 // xwrap.c
 void xstrncpy(char *dest, char *src, size_t size);
@@ -98,6 +108,7 @@ void xputc(char c);
 void xflush(void);
 void xexec(char **argv);
 pid_t xpopen_both(char **argv, int *pipes);
+int xwaitpid(pid_t pid);
 int xpclose_both(pid_t pid, int *pipes);
 pid_t xpopen(char **argv, int *pipe, int stdout);
 pid_t xpclose(pid_t pid, int pipe);
@@ -142,12 +153,17 @@ void error_msg(char *msg, ...) printf_format;
 void perror_msg(char *msg, ...) printf_format;
 void error_exit(char *msg, ...) printf_format noreturn;
 void perror_exit(char *msg, ...) printf_format noreturn;
+void help_exit(char *msg, ...) printf_format noreturn;
+void error_msg_raw(char *msg);
+void perror_msg_raw(char *msg);
+void error_exit_raw(char *msg);
+void perror_exit_raw(char *msg);
 ssize_t readall(int fd, void *buf, size_t len);
 ssize_t writeall(int fd, void *buf, size_t len);
 off_t lskip(int fd, off_t offset);
 int mkpathat(int atfd, char *dir, mode_t lastmode, int flags);
 struct string_list **splitpath(char *path, struct string_list **list);
-char *readfileat(int dirfd, char *name, char *buf, off_t len);
+char *readfileat(int dirfd, char *name, char *buf, off_t *len);
 char *readfile(char *name, char *buf, off_t len);
 void msleep(long miliseconds);
 int64_t peek_le(void *ptr, unsigned size);
@@ -161,14 +177,14 @@ long atolx(char *c);
 long atolx_range(char *numstr, long low, long high);
 int stridx(char *haystack, char needle);
 char *strlower(char *s);
+char *strafter(char *haystack, char *needle);
+char *chomp(char *s);
 int unescape(char c);
 int strstart(char **a, char *b);
 off_t fdlength(int fd);
 void loopfiles_rw(char **argv, int flags, int permissions, int failok,
   void (*function)(int fd, char *name));
 void loopfiles(char **argv, void (*function)(int fd, char *name));
-char *get_rawline(int fd, long *plen, char end);
-char *get_line(int fd);
 void xsendfile(int in, int out);
 int wfchmodat(int rc, char *name, mode_t mode);
 int copy_tempfile(int fdin, char *name, char **tempname);
@@ -185,26 +201,33 @@ int xpoll(struct pollfd *fds, int nfds, int timeout);
 #define HR_1000  4 // Use decimal instead of binary units
 int human_readable(char *buf, unsigned long long num, int style);
 
+// linestack.c
+
+struct linestack {
+  long len, max;
+  struct ptr_len idx[];
+};
+
+void linestack_addstack(struct linestack **lls, struct linestack *throw,
+  long pos);
+void linestack_insert(struct linestack **lls, long pos, char *line, long len);
+void linestack_append(struct linestack **lls, char *line);
+struct linestack *linestack_load(char *name);
+int crunch_str(char **str, int width, FILE *out,
+  int (*escout)(FILE *out, wchar_t wc));
+int draw_str(char *start, int width, int (*escout)(FILE *out, wchar_t wc));
+int draw_rstr(char *start, int width, int (*escout)(FILE *out, wchar_t wc));
+
 // interestingtimes.c
 int xgettty(void);
 int terminal_size(unsigned *xx, unsigned *yy);
+int scan_key_getsize(char *scratch, int block, unsigned *xx, unsigned *yy);
 int set_terminal(int fd, int raw, struct termios *old);
 int scan_key(char *scratch, int block);
 void tty_esc(char *s);
 void tty_jump(int x, int y);
 void tty_reset(void);
 void tty_sigreset(int i);
-
-// Results from scan_key()
-#define KEY_UP 256
-#define KEY_DOWN 257
-#define KEY_RIGHT 258
-#define KEY_LEFT 259
-#define KEY_PGUP 260
-#define KEY_PGDN 261
-#define KEY_HOME 262
-#define KEY_END  263
-#define KEY_INSERT 264
 
 // net.c
 int xsocket(int domain, int type, int protocol);
@@ -226,6 +249,8 @@ struct mtab_list {
   char type[0];
 };
 
+void comma_args(struct arg_list *al, void *data, char *err,
+  char *(*callback)(void *data, char *str, int len));
 void comma_collate(char **old, char *new);
 char *comma_iterate(char **list, int *len);
 int comma_scan(char *optlist, char *opt, int clean);
@@ -244,6 +269,23 @@ mode_t string_to_mode(char *mode_str, mode_t base);
 void mode_to_string(mode_t mode, char *buf);
 char *basename_r(char *name);
 void names_to_pid(char **names, int (*callback)(pid_t pid, char *name));
+
+pid_t xvforkwrap(pid_t pid);
+#define XVFORK() xvforkwrap(vfork())
+
+// Wrapper to make xfuncs() return (via longjmp) instead of exiting.
+// Assigns true/false "did it exit" value to first argument.
+#define WOULD_EXIT(y, x) do { jmp_buf _noexit; \
+  int _noexit_res; \
+  toys.rebound = &_noexit; \
+  _noexit_res = setjmp(_noexit); \
+  if (!_noexit_res) do {x;} while(0); \
+  toys.rebound = 0; \
+  y = _noexit_res; \
+} while(0);
+
+// Wrapper that discards true/false "did it exit" value.
+#define NOEXIT(x) WOULD_EXIT(_noexit_res, x)
 
 // Functions in need of further review/cleanup
 #include "lib/pending.h"
