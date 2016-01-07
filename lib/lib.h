@@ -221,9 +221,10 @@ int draw_rstr(char *start, int width, int (*escout)(FILE *out, wchar_t wc));
 // interestingtimes.c
 int xgettty(void);
 int terminal_size(unsigned *xx, unsigned *yy);
-int scan_key_getsize(char *scratch, int block, unsigned *xx, unsigned *yy);
+int terminal_probesize(unsigned *xx, unsigned *yy);
+int scan_key_getsize(char *scratch, int miliwait, unsigned *xx, unsigned *yy);
 int set_terminal(int fd, int raw, struct termios *old);
-int scan_key(char *scratch, int block);
+int scan_key(char *scratch, int miliwait);
 void tty_esc(char *s);
 void tty_jump(int x, int y);
 void tty_reset(void);

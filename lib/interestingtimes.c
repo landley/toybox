@@ -46,31 +46,28 @@ int terminal_size(unsigned *xx, unsigned *yy)
   return x || y;
 }
 
-// Wrapper that parses results from ANSI probe. If block|2 query size and
-// send ANSI probe if we can't. (Probe queries xterm size through
-// serial connection, when local TTY doesn't know and only remote end knows.)
+// Query terminal size, sending ANSI probe if necesary. (Probe queries xterm
+// size through serial connection, when local TTY doesn't know but remote does.)
+// Returns 0 if ANSI probe sent, 1 if size determined from tty or environment
+
+int terminal_probesize(unsigned *xx, unsigned *yy)
+{
+  if (terminal_size(xx, yy) && (!xx || *xx) && (!yy || *yy)) return 1;
+
+  // Send probe: bookmark cursor position, jump to bottom right,
+  // query position, return cursor to bookmarked position.
+  xprintf("\e[s\e[999C\e[999B\e[6n\e[u");
+
+  return 0;
+}
+
+// Wrapper that parses results from ANSI probe to update screensize.
 // Otherwise acts like scan_key()
-int scan_key_getsize(char *scratch, int block, unsigned *xx, unsigned *yy)
+int scan_key_getsize(char *scratch, int miliwait, unsigned *xx, unsigned *yy)
 {
   int key;
 
-  if (block&2) {
-    struct pollfd pfd;
-
-    if (terminal_size(xx, yy)) {
-      if (!(block&1)) return -2;
-    } else {
-      // Send probe: bookmark cursor position, jump to bottom right,
-      // query position, return cursor to bookmarked position.
-      xprintf("\e[s\e[999C\e[999B\e[6n\e[u");
-
-      // Wait up to a quarter second for a result
-      memset(&pfd, 0, sizeof(struct pollfd));
-      pfd.events = POLLIN;
-      xpoll(&pfd, 0, 250);
-    }
-  }
-  while (512&(key = scan_key(scratch, block&1))) {
+  while (512&(key = scan_key(scratch, miliwait))) {
     if (key<0) break;
     if (xx) *xx = (key>>10)&1023;
     if (yy) *yy = (key>>20)&1023;
@@ -120,20 +117,27 @@ struct scan_key_list {
   {"UP", "\033[A"}, {"DOWN", "\033[B"}, {"RIGHT", "\033[C"}, {"LEFT", "\033[D"},
   {"PGUP", "\033[5~"}, {"PGDN", "\033[6~"}, {"HOME", "\033OH"},
   {"END", "\033OF"}, {"INSERT", "\033[2~"},
+
+  {"F1", "\033OP"}, {"F2", "\033OQ"}, {"F3", "\033OR"}, {"F4", "\033OS"},
+  {"F5", "\033[15~"}, {"F6", "\033[17~"}, {"F7", "\033[18~"},
+  {"F8", "\033[19~"}, {"F9", "\033[20~"},
+
   {"SUP", "\033[1;2A"}, {"AUP", "\033[1;3A"}, {"CUP", "\033[1;5A"},
   {"SDOWN", "\033[1;2B"}, {"ADOWN", "\033[1;3B"}, {"CDOWN", "\033[1;5B"},
   {"SRIGHT", "\033[1;2C"}, {"ARIGHT", "\033[1;3C"}, {"CRIGHT", "\033[1;5C"},
-  {"SLEFT", "\033[1;2D"}, {"ALEFT", "\033[1;3D"}, {"CLEFT", "\033[1;5D"}
+  {"SLEFT", "\033[1;2D"}, {"ALEFT", "\033[1;3D"}, {"CLEFT", "\033[1;5D"},
 
+  {"SF1", "\033O1;2P"}, {"AF1", "\033O1;3P"}, {"CF1", "\033[1;5P"}
 );
 
 // Scan stdin for a keypress, parsing known escape sequences
+// Blocks for miliwait miliseconds, none 0, forever if -1
 // Returns: 0-255=literal, -1=EOF, -2=NONE, 256-...=index into scan_key_list
 // >512 is x<<9+y<<21
 // scratch space is necessary because last char of !seq could start new seq
 // Zero out first byte of scratch before first call to scan_key
 // block=0 allows fetching multiple characters before updating display
-int scan_key(char *scratch, int block)
+int scan_key(char *scratch, int miliwait)
 {
   struct pollfd pfd;
   int maybe, i, j;
@@ -151,7 +155,8 @@ int scan_key(char *scratch, int block)
 
       // Check for return from terminal size probe
       memset(pos, 0, 6*sizeof(int));
-      sscanf(scratch+1, "\033%n[%n%3u%n,%n%3u%nR%n", pos, pos+1, &y,
+      scratch[(1+*scratch)&15] = 0;
+      sscanf(scratch+1, "\033%n[%n%3u%n;%n%3u%nR%n", pos, pos+1, &y,
              pos+2, pos+3, &x, pos+4, pos+5);
       if (pos[5]) {
         // Recognized X/Y position, consume and return
@@ -180,7 +185,8 @@ int scan_key(char *scratch, int block)
     // Need more data to decide
 
     // 30 miliseconds is about the gap between characters at 300 baud 
-    if (maybe || !block) if (!xpoll(&pfd, 1, 30*maybe)) break;
+    if (maybe || miliwait != -1)
+      if (!xpoll(&pfd, 1, maybe ? 30 : miliwait)) break;
 
     // Read 1 byte so we don't overshoot sequence match. (We can deviate
     // and fail to match, but match consumes entire buffer.)

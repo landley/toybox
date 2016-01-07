@@ -176,7 +176,7 @@ void hexedit_main(void)
     xflush();
 
     // Wait for next key
-    key = scan_key(keybuf, 1);
+    key = scan_key(keybuf, -1);
     // Exit for q, ctrl-c, ctrl-d, escape, or EOF
     if (key==-1 || key==3 || key==4 || key==27 || key=='q') break;
     highlight(x, y, 2);

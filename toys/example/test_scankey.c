@@ -1,6 +1,8 @@
 /* test_scankey.c - collate incoming ansi escape sequences.
  *
  * Copyright 2015 Rob Landley <rob@landley.net>
+ *
+ * TODO sigwinch
 
 USE_TEST_SCANKEY(NEWTOY(test_scankey, 0, 0))
 
@@ -37,10 +39,21 @@ void test_scankey_main(void)
     tty_jump(x, y);
     xputc(c);
     t[1&++tick] = time(0);
-    key = scan_key_getsize(scratch, !!t[0]+2*(t[0] != t[1]), &width, &height);
+    if (t[0] != t[1]) terminal_probesize(&width, &height);
+    // Don't block first time through, to force header print
+    key = scan_key_getsize(scratch, -1*!!t[0], &width, &height);
     tty_jump(0, 0);
-    printf("ESC to exit: key=%d x=%d y=%d width=%d height=%d   ",
-           key, x, y, width, height);
+    printf("ESC to exit: ");
+    // Print unknown escape sequence
+    if (*scratch) {
+      printf("key=[ESC");
+      // Fetch rest of sequence after deviation, time gap determines end
+      while (0<(key = scan_key_getsize(scratch, 0, &width, &height)))
+        printf("%c", key);
+      printf("] ");
+    } else printf("key=%d ", key);
+    printf("x=%d y=%d width=%d height=%d\033[K", x, y, width, height);
+    fflush(0);
 
     if (key == -2) continue;
     if (key <= ' ') break;
