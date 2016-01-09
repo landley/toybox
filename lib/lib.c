@@ -548,12 +548,12 @@ void loopfiles_rw(char **argv, int flags, int permissions, int failok,
     // Inability to open a file prints a warning, but doesn't exit.
 
     if (!strcmp(*argv, "-")) fd=0;
-    else if (0>(fd = open(*argv, flags, permissions)) && !failok)
+    else if (0>(fd = open(*argv, flags, permissions)) && !failok) {
       perror_msg_raw(*argv);
-    else {
-      function(fd, *argv);
-      if (flags & O_CLOEXEC) close(fd);
+      continue;
     }
+    function(fd, *argv);
+    if (flags & O_CLOEXEC) close(fd);
   } while (*++argv);
 }
 
