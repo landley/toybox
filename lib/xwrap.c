@@ -704,13 +704,13 @@ void xregcomp(regex_t *preg, char *regex, int cflags)
 
 char *xtzset(char *new)
 {
-  char *tz = getenv("TZ");
+  char *old = getenv("TZ");
 
-  if (tz) tz = xstrdup(tz);
-  if (setenv("TZ", new, 1)) perror_exit("setenv");
+  if (old) old = xstrdup(old);
+  if (new ? setenv("TZ", new, 1) : unsetenv("TZ")) perror_exit("setenv");
   tzset();
 
-  return tz;
+  return old;
 }
 
 // Set a signal handler
