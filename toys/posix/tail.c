@@ -245,7 +245,7 @@ void tail_main(void)
   loopfiles_rw(args, O_RDONLY|(O_CLOEXEC*!(toys.optflags&FLAG_f)),
     0, 0, do_tail);
 
-  if (toys.optflags & FLAG_f) {
+  if ((toys.optflags & FLAG_f) && TT.file_no) {
     int len, last_fd = TT.files[(TT.file_no-1)*2], i, fd;
     struct inotify_event ev;
 
