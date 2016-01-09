@@ -98,7 +98,7 @@ void error_exit_raw(char *msg)
 
 void perror_exit_raw(char *msg)
 {
-  error_exit("%s", msg);
+  perror_exit("%s", msg);
 }
 
 // Keep reading until full or EOF
