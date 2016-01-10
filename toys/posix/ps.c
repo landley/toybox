@@ -155,7 +155,7 @@ config IOTOP
   help
     usage: iotop [-Aabkoq] [-n NUMBER] [-d SECONDS] [-p PID,] [-u USER,]
 
-    Rank processes by I/O.
+    Rank processes by I/O. Cursor left/right to change sort, Q to exit.
 
     -A	All I/O, not just disk
     -a	Accumulated I/O (not percentage)
@@ -205,7 +205,7 @@ GLOBALS(
   void *fields, *kfields;
   long long ticks, bits, ioread, iowrite, aioread, aiowrite;
   size_t header_len;
-  int kcount, ksave, forcek;
+  int kcount, ksave, forcek, sortpos;
   int (*match_process)(long long *slot);
 )
 
@@ -846,7 +846,6 @@ static int ksort(void *aa, void *bb)
   int ret = 0, slot;
 
   for (field = TT.kfields; field; field = field->next) {
-
     slot = typos[field->which].slot;
     // Compare as strings?
     if (slot&64) {
@@ -883,7 +882,6 @@ static struct carveup **collate(int count, struct dirtree *dt,
     free(dt);
     dt = temp;
   }
-
 
   return tbsort;
 } 
@@ -1014,21 +1012,45 @@ void ttop_main(void)
 #define FOR_iotop
 #include "generated/flags.h"
 
+// select which of the -o fields to sort by
+static void setsort(int pos)
+{
+  struct strawberry *field, *going2;
+  int i = 0;
+
+  if (pos<0) pos = 0;
+
+  for (field = TT.fields; field; field = field->next) {
+    if ((TT.sortpos = i++)<pos) continue;
+    going2 = TT.kfields;
+    going2->which = field->which;
+    going2->len = field->len;
+    break;
+  }
+}
+
 void iotop_main(void)
 {
+  struct timespec ts;
+  long long timeout = 0, now;
   struct proclist {
     struct carveup **tb;
     int count;
   } plist[2], *plold, *plnew, old, new, mix;
   struct arg_list al;
-  char *d = "D"+!!(toys.optflags&FLAG_A), *header,
+  char *d = "D"+!!(toys.optflags&FLAG_A), *header, scratch[16],
             deltas[] = {11,28,29,44,50,51,52,53,54};
   unsigned tock = 0;
-  int i, lines;
+  int i, lines, done = 0;
 
   if (!TT.iotop.d) TT.iotop.d = 3;
+  TT.iotop.d *= 1000;
   if (toys.optflags&FLAG_k) TT.forcek++;
   if (toys.optflags&FLAG_b) TT.width = TT.height = 99999;
+  else {
+    xset_terminal(0, 1, 0);
+    sigatexit(tty_sigreset);
+  }
   shared_main();
 
   // TODO: usage: iotop [-oq]
@@ -1043,15 +1065,17 @@ void iotop_main(void)
   dlist_terminate(TT.fields);
   header = strdup(toybuf);
 
-  al.arg = xmprintf("-%sIO,-%sREAD,-%sWRITE,-SWAP,-ETIME,-PID",d,d,d);
+  // Fallback sorts. First (dummy) field gets overwritten by setsort()
+  al.arg = xmprintf("-S,-%sIO,-ETIME,-PID",d);
   comma_args(&al, &TT.kfields, 0, parse_ko);
   free(al.arg);
   dlist_terminate(TT.kfields);
+  setsort(6);
 
   TT.ksave = DIRTREE_SAVE;
   TT.match_process = shared_match_process;
   memset(plist, 0, sizeof(plist));
-  for (;;) {
+  do {
     struct dirtree *dt = dirtree_read("/proc", get_ps);
 
     plold = plist+(tock++&1);
@@ -1086,8 +1110,9 @@ void iotop_main(void)
       if (!old.count || *otb->slot > *ntb->slot) mix.tb[mix.count] = ntb;
       else {
 
-        // If we have both, adjust deltas. Stomping old data is fine because
-        // we free it after displaying.
+        // If we have both, adjust slot[deltas[]] to be relative to previous
+        // measurement rather than process start. Stomping old.data is fine
+        // because we free it after displaying.
         if (!(toys.optflags&FLAG_a))
           for (i = 0; i<ARRAY_LEN(deltas); i++)
             otb->slot[deltas[i]] = ntb->slot[deltas[i]] - otb->slot[deltas[i]];
@@ -1102,17 +1127,67 @@ void iotop_main(void)
       new.count--;
     }
 
-    qsort(mix.tb, mix.count, sizeof(struct carveup *), (void *)ksort);
-    if (!(toys.optflags&FLAG_q))
-      printf("%s%s\n", (toys.optflags&FLAG_b) ? "" : "\033[H\033[J", header);
-    lines = TT.height-2;
+    // Will will re-fetch no data before its time. - Mork calling Orson Welles
+    for (;;) {
+      char was, is, *pos;
 
-    for (i=0; i<lines && i<mix.count; i++) show_ps(mix.tb[i]);
+      qsort(mix.tb, mix.count, sizeof(struct carveup *), (void *)ksort);
+      if (!(toys.optflags&FLAG_b)) printf("\033[H\033[J");
+      if (!(toys.optflags&FLAG_q)) {
+        i = 0;
+        strcpy(pos = toybuf, header);
+        for (i=0, is = *pos; *pos; pos++) {
+          was = is;
+          is = *pos;
+          if (isspace(was) && !isspace(is) && i++==TT.sortpos) pos[-1] = '[';
+          if (!isspace(was) && isspace(is) && i==TT.sortpos+1) *pos = ']';
+        }
+        printf("\033[7m%s\033[0m\n\r", toybuf);
+
+        if (!(toys.optflags&FLAG_b))
+          terminal_probesize(&TT.width, &TT.height);
+      }
+      lines = TT.height-2;
+
+      for (i=0; i<lines && i<mix.count; i++) {
+        show_ps(mix.tb[i]);
+        xputc('\r');
+      }
+
+      if (TT.iotop.n && !--TT.iotop.n) {
+        done++;
+        break;
+      }
+
+      // Get current time in miliseconds
+      clock_gettime(CLOCK_MONOTONIC, &ts);
+      now = ts.tv_sec*1000+ts.tv_nsec/1000000;
+      if (timeout<=now) timeout += TT.iotop.d;
+      if (timeout<=now) timeout = now+TT.iotop.d;
+
+      i = scan_key_getsize(scratch, timeout-now, &TT.width, &TT.height);
+      if (i==-1 || i==3 || toupper(i)=='Q') {
+        done++;
+        break;
+      }
+      if (i==-2) break;
+
+      // Flush unknown escape sequences.
+      if (i==27) {
+        while (0<scan_key_getsize(scratch, 0, &TT.width, &TT.height));
+        continue;
+      }
+
+      i -= 256;
+      if (i == KEY_LEFT) setsort(TT.sortpos-1);
+      else if (i == KEY_RIGHT) setsort(TT.sortpos+1);
+      else continue;
+      break;
+    }
+
     free(mix.tb);
     for (i=0; i<plold->count; i++) free(plold->tb[i]);
     free(plold->tb);
-
-    if (TT.iotop.n) if (!--TT.iotop.n) break;
-    msleep(1000*TT.iotop.d);
-  }
+  } while (!done);
+  if (!(toys.optflags&FLAG_b)) tty_reset();
 }

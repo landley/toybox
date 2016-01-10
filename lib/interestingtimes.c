@@ -110,6 +110,11 @@ int set_terminal(int fd, int raw, struct termios *old)
   return tcsetattr(fd, TCSANOW, &termio);
 }
 
+void xset_terminal(int fd, int raw, struct termios *old)
+{
+  if (-1 == set_terminal(fd, raw, old)) perror_exit("bad tty fd#%d", fd);
+}
+
 struct scan_key_list {
   char *name, *seq;
 } static const scan_key_list[] = TAGGED_ARRAY(KEY,
@@ -225,6 +230,7 @@ void tty_reset(void)
   fflush(0);
 }
 
+// If you call set_terminal(), use sigatexit(tty_sigreset);
 void tty_sigreset(int i)
 {
   tty_reset();

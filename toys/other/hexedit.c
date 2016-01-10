@@ -125,7 +125,7 @@ void hexedit_main(void)
   tty_esc("0m");
   tty_esc("?25l");
   fflush(0);
-  set_terminal(1, 1, 0);
+  xset_terminal(1, 1, 0);
 
   if ((TT.len = fdlength(fd))<0) error_exit("bad length");
   if (sizeof(long)==32 && TT.len>SIZE_MAX) TT.len = SIZE_MAX;

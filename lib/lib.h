@@ -224,6 +224,7 @@ int terminal_size(unsigned *xx, unsigned *yy);
 int terminal_probesize(unsigned *xx, unsigned *yy);
 int scan_key_getsize(char *scratch, int miliwait, unsigned *xx, unsigned *yy);
 int set_terminal(int fd, int raw, struct termios *old);
+void xset_terminal(int fd, int raw, struct termios *old);
 int scan_key(char *scratch, int miliwait);
 void tty_esc(char *s);
 void tty_jump(int x, int y);
