@@ -40,8 +40,12 @@ help::
 	@echo  '  silentoldconfig - Same as oldconfig, but quietly'
 	@echo  '  randconfig	  - New config with random answer to all options'
 	@echo  '  defconfig	  - New config with default answer to all options'
+	@echo  '                    This is the maximum sane configuration.'
 	@echo  '  allyesconfig	  - New config where all options are accepted with yes'
+	@echo  "                    This may not actually compile, it's a starting point"
+	@echo  '                    for further configuration (probably with menuconfig)'
 	@echo  '  allnoconfig	  - New config where all options are answered with no'
+	@echo  '                    (NOP binary, starting point for further configuration)'
 
 # Cheesy build
 
