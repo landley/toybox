@@ -82,7 +82,7 @@ static int flush_exec(struct dirtree *new, struct exec_range *aa)
 {
   struct execdir_data *bb = aa->execdir ? aa->execdir : &aa->exec;
   char **newargs;
-  int rc;
+  int rc, revert = 0;
 
   if (!bb->namecount) return 0;
 
@@ -90,12 +90,16 @@ static int flush_exec(struct dirtree *new, struct exec_range *aa)
 
   // switch to directory for -execdir, or back to top if we have an -execdir
   // _and_ a normal -exec, or are at top of tree in -execdir
-  if (aa->dir && new->parent) rc = fchdir(new->parent->dirfd);
-  else rc = fchdir(TT.topdir);
-  if (rc) {
-    perror_msg("%s", new->name);
+  if (TT.topdir != -1) {
+    if (aa->dir && new && new->parent) {
+      revert++;
+      rc = fchdir(new->parent->dirfd);
+    } else rc = fchdir(TT.topdir);
+    if (rc) {
+      perror_msg_raw(revert ? new->name : ".");
 
-    return rc;
+      return rc;
+    }
   }
 
   // execdir: accumulated execs in this directory's children.
@@ -120,6 +124,8 @@ static int flush_exec(struct dirtree *new, struct exec_range *aa)
   llist_traverse(bb->names, llist_free_double);
   bb->names = 0;
   bb->namecount = 0;
+
+  if (revert) revert = fchdir(TT.topdir);
 
   return rc;
 }
@@ -148,6 +154,42 @@ static void do_print(struct dirtree *new, char c)
   free(s);
 }
 
+// Descend or ascend -execdir + directory level
+static void execdir(struct dirtree *new, int flush)
+{
+  struct double_list *dl;
+  struct exec_range *aa;
+  struct execdir_data *bb;
+
+  if (new && TT.topdir == -1) return;
+
+  for (dl = TT.argdata; dl; dl = dl->next) {
+    if (dl->prev != (void *)1) continue;
+    aa = (void *)dl;
+    if (!aa->plus || (new && !aa->dir)) continue;
+
+    if (flush) {
+
+      // Flush pending "-execdir +" instances for this dir
+      // or flush everything for -exec at top
+      toys.exitval |= flush_exec(new, aa);
+
+      // pop per-directory struct
+      if ((bb = aa->execdir)) {
+        aa->execdir = bb->next;
+        free(bb);
+      }
+    } else if (aa->dir) {
+
+      // Push new per-directory struct for -execdir/okdir + codepath. (Can't
+      // use new->extra because command line may have multiple -execdir)
+      bb = xzalloc(sizeof(struct execdir_data));
+      bb->next = aa->execdir;
+      aa->execdir = bb;
+    }
+  }
+} 
+
 // Call this with 0 for first pass argument parsing and syntax checking (which
 // populates argdata). Later commands traverse argdata (in order) when they
 // need "do once" results.
@@ -165,11 +207,9 @@ static int do_find(struct dirtree *new)
       if (!dirtree_notdotdot(new)) return 0;
       if (TT.xdev && new->st.st_dev != new->parent->st.st_dev) recurse = 0;
     }
-    if (S_ISDIR(new->st.st_mode)) {
-      struct double_list *dl;
-      struct exec_range *aa;
-      struct execdir_data *bb;
 
+    if (S_ISDIR(new->st.st_mode)) {
+      // Descending into new directory
       if (!new->again) {
         struct dirtree *n;
 
@@ -181,35 +221,15 @@ static int do_find(struct dirtree *new)
             return 0;
           }
         }
-        // Push new per-directory struct for -execdir/okdir + codepath. (Can't
-        // use new->extra because command line may have multiple -execdir)
-        if (TT.topdir != -1) for (dl = TT.argdata; dl; dl = dl->next) {
-          if (dl->prev != (void *)1) continue;
-          aa = (void *)dl;
-          if (!aa->plus || !aa->dir) continue;
-          bb = xzalloc(sizeof(struct execdir_data));
-          bb->next = aa->execdir;
-          aa->execdir = bb;
+
+        if (TT.depth) {
+          execdir(new, 0);
+
+          return recurse;
         }
-        if (TT.depth) return recurse;
-      // On COMEAGAIN call flush pending "-execdir +" instances for this dir
-      // or flush everything for -exec at top
+      // Done with directory (COMEAGAIN call)
       } else {
-        struct double_list *dl;
-
-        if (TT.topdir != -1) for (dl = TT.argdata; dl; dl = dl->next) {
-          if (dl->prev != (void *)1) continue;
-          aa = (void *)dl;
-          if (!aa->plus) continue;
-          if (!new->parent || aa->dir) toys.exitval |= flush_exec(new, aa);
-
-          // pop per-directory struct
-          if ((bb = aa->execdir)) {
-            aa->execdir = bb->next;
-            free(bb);
-          }
-        }
-
+        execdir(new, 1);
         recurse = 0;
         if (!TT.depth) return 0;
       }
@@ -494,6 +514,9 @@ cont:
   if (new) {
     // If there was no action, print
     if (!print && test) do_print(new, '\n');
+
+    if (S_ISDIR(new->st.st_mode)) execdir(new, 0);
+ 
   } else dlist_terminate(TT.argdata);
 
   return recurse;
@@ -528,6 +551,8 @@ void find_main(void)
   for (i = 0; i < len; i++)
     dirtree_handle_callback(dirtree_start(ss[i], toys.optflags&(FLAG_H|FLAG_L)),
       do_find);
+
+  execdir(0, 1);
 
   if (CFG_TOYBOX_FREE) {
     close(TT.topdir);
