@@ -541,6 +541,7 @@ void ls_main(void)
   // Iterate through command line arguments, collecting directories and files.
   // Non-absolute paths are relative to current directory.
   TT.files = dirtree_start(0, 0);
+  TT.files->dirfd = AT_FDCWD;
   for (s = *toys.optargs ? toys.optargs : noargs; *s; s++) {
     dt = dirtree_start(*s, !(toys.optflags&(FLAG_l|FLAG_d|FLAG_F)) ||
                             (toys.optflags&(FLAG_L|FLAG_H)));
