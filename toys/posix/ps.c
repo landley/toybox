@@ -32,13 +32,15 @@
  * TODO: ps aux (att & bsd style "ps -ax" vs "ps ax" behavior difference)
  * TODO: switch -fl to -y
  * TODO: thread support /proc/$d/task/%d/stat (and -o stat has "l")
- * TODO: iotop: TID PRIO USER DISK_READ DISK_WRITE SWAPIN IO% COMMAND
- *       DISK_READ in B/s, K/s..., length 11
- *       Total DISK READ: | Total DISK WRITE:
+ * TODO: iotop: Window size change: respond immediately. Why not padding
+ *       at right edge? (Not adjusting to screen size at all? Header wraps?)
+ * TODO: utf8 fontmetrics
 
 USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflno*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_TTOP(NEWTOY(ttop, ">0d#=3n#<1mb", TOYFLAG_USR|TOYFLAG_BIN))
 USE_IOTOP(NEWTOY(iotop, "Aabkoqp*u*d#n#", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
+USE_PGREP(NEWTOY(pgrep, "?cld:u*U*t*s*P*g*G*fnovxL:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PKILL(NEWTOY(pkill,      "u*U*t*s*P*g*G*fnovxl:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PS
   bool "ps"
@@ -167,6 +169,48 @@ config IOTOP
     -p	Show these PIDs
     -q	Quiet (no header lines)
     -u	Show these USERs
+
+config PGREP
+  bool "pgrep"
+  default n
+  depends on PGKILL_COMMON
+  help
+    usage: pgrep [-cL] [-d DELIM] [-L SIGNAL] [PATTERN]
+
+    Search for process(es). PATTERN is an extended regular expression checked
+    against command names.
+
+    -c	Show only count of matches
+    -d	Use DELIM instead of newline
+    -L	Send SIGNAL instead of printing name
+    -l	Show command name
+
+config PGKILL_COMMON
+  bool
+  default y
+  help
+    usage: pgrep [-fnovx] [-G GID,] [-g PGRP,] [-P PPID,] [-s SID,] [-t TERM,] [-U UID,] [-u EUID,]
+
+    -f	Check full command line for PATTERN
+    -G	Match real Group ID(s)
+    -g	Match Process Group(s) (0 is current user)
+    -n	Newest match only
+    -o	Oldest match only
+    -P	Match Parent Process ID(s)
+    -s	Match Session ID(s) (0 for current)
+    -t	Match Terminal(s)
+    -U	Match real User ID(s)
+    -u	Match effective User ID(s)
+    -v	Negate the match
+    -x	Match whole command (not substring)
+
+config PKILL
+  bool "pkill"
+  default n
+  help
+    usage: pkill [-l SIGNAL] [PATTERN]
+
+    -l	SIGNAL to send
 */
 
 #define FOR_ps
@@ -196,6 +240,20 @@ GLOBALS(
       struct arg_list *u;
       struct arg_list *p;
     } iotop;
+    struct{
+      char *L;
+      struct arg_list *G;
+      struct arg_list *g;
+      struct arg_list *P;
+      struct arg_list *s;
+      struct arg_list *t;
+      struct arg_list *U;
+      struct arg_list *u;
+      char *d;
+
+      void *regexes;
+      int signal;
+    } pgrep;
   };
 
   struct sysinfo si;
@@ -205,8 +263,9 @@ GLOBALS(
   void *fields, *kfields;
   long long ticks, bits, ioread, iowrite, aioread, aiowrite;
   size_t header_len;
-  int kcount, ksave, forcek, sortpos;
+  int kcount, forcek, sortpos;
   int (*match_process)(long long *slot);
+  void (*show_process)(void *tb);
 )
 
 struct strawberry {
@@ -487,7 +546,8 @@ static int get_ps(struct dirtree *new)
   off_t len;
 
   // Recurse one level into /proc children, skip non-numeric entries
-  if (!new->parent) return DIRTREE_RECURSE|DIRTREE_SHUTUP|TT.ksave;
+  if (!new->parent)
+    return DIRTREE_RECURSE|DIRTREE_SHUTUP|(DIRTREE_SAVE*!TT.show_process);
 
   memset(slot, 0, sizeof(tb->slot));
   if (!(*slot = atol(new->name))) return 0;
@@ -673,17 +733,19 @@ static int get_ps(struct dirtree *new)
     buf += strlen(buf)+1;
   }
 
+  if (TT.show_process) {
+    TT.show_process(tb);
+
+    return 0;
+  }
+
   // If we need to sort the output, add it to the list and return.
-  if (TT.ksave) {
-    s = xmalloc(buf-toybuf);
-    new->extra = (long)s;
-    memcpy(s, toybuf, buf-toybuf);
-    TT.kcount++;
+  s = xmalloc(buf-toybuf);
+  new->extra = (long)s;
+  memcpy(s, toybuf, buf-toybuf);
+  TT.kcount++;
 
-  // Otherwise display it now
-  } else show_ps(tb);
-
-  return TT.ksave;
+  return DIRTREE_SAVE;
 }
 
 static char *parse_ko(void *data, char *type, int length)
@@ -971,7 +1033,7 @@ void ps_main(void)
     }
   }
 
-  TT.ksave = DIRTREE_SAVE*!!(toys.optflags&FLAG_k);
+  if (!(toys.optflags&FLAG_k)) TT.show_process = (void *)show_ps;
   TT.match_process = ps_match_process;
   dt = dirtree_read("/proc", get_ps);
 
@@ -1072,7 +1134,6 @@ void iotop_main(void)
   dlist_terminate(TT.kfields);
   setsort(6);
 
-  TT.ksave = DIRTREE_SAVE;
   TT.match_process = shared_match_process;
   memset(plist, 0, sizeof(plist));
   do {
@@ -1190,4 +1251,72 @@ void iotop_main(void)
     free(plold->tb);
   } while (!done);
   if (!(toys.optflags&FLAG_b)) tty_reset();
+}
+
+#define CLEANUP_iotop
+#define FOR_pgrep
+#include "generated/flags.h"
+
+struct regex_list {
+  struct regex_list *next;
+  regex_t reg;
+};
+
+static void show_pgrep(struct carveup *tb)
+{
+  regmatch_t match;
+  struct regex_list *reg;
+  char *name = tb->str;
+
+  if (toys.optflags&FLAG_f) name += tb->offset[4];
+
+  if (TT.pgrep.regexes) {
+    for (reg = TT.pgrep.regexes; reg; reg = reg->next) {
+      if (regexec(&reg->reg, name, 1, &match, 0)) continue;
+      if (toys.optflags&FLAG_x)
+        if (match.rm_so || match.rm_eo!=strlen(name)) continue;
+      break;
+    }
+    if (!reg) return;
+  }
+
+  printf("%lld%s", *tb->slot, TT.pgrep.d ? TT.pgrep.d : "\n");
+}
+
+void pgrep_main(void)
+{
+  char **arg;
+  struct regex_list *reg;
+
+  comma_args(TT.pgrep.G, &TT.GG, "bad -G", parse_rest);
+  comma_args(TT.pgrep.g, &TT.gg, "bad -g", parse_rest);
+  comma_args(TT.pgrep.P, &TT.PP, "bad -P", parse_rest);
+  comma_args(TT.pgrep.s, &TT.ss, "bad -s", parse_rest);
+  comma_args(TT.pgrep.t, &TT.tt, "bad -t", parse_rest);
+  comma_args(TT.pgrep.U, &TT.UU, "bad -U", parse_rest);
+  comma_args(TT.pgrep.u, &TT.uu, "bad -u", parse_rest);
+
+  if ((toys.optflags&(FLAG_x|FLAG_f)) ||
+      !(toys.optflags&(FLAG_G|FLAG_g|FLAG_P|FLAG_s|FLAG_t|FLAG_U|FLAG_u)))
+    if (!toys.optc) help_exit("No PATTERN");
+
+  if (toys.optflags&FLAG_f) TT.bits |= _PS_CMDLINE;
+
+  for (arg = toys.optargs; *arg; arg++) {
+    reg = xmalloc(sizeof(struct regex_list));
+    xregcomp(&reg->reg, *arg, REG_EXTENDED);
+    reg->next = TT.pgrep.regexes;
+    TT.pgrep.regexes = reg;
+  }
+  TT.match_process = shared_match_process;
+  TT.show_process = (void *)show_pgrep;
+
+  dirtree_read("/proc", get_ps);
+  if (TT.pgrep.d) xputc('\n');
+}
+
+void pkill_main(void)
+{
+  if (!TT.pgrep.L) TT.pgrep.signal = SIGTERM;
+  pgrep_main();
 }
