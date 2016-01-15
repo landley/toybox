@@ -90,6 +90,12 @@ testing "sort key edge case with -t" "sort -n -k4 -t/" \
 
 testing "sort -x" "sort -x" "010\na0\n 0c0\n" "" "a0\n010\n 0c0\n"
 
+# Test that -f applies to key or fallback independently
+
+testing "" "sort -k2,2f" "A b b\na B C\na B a\n" "" "a B a\nA b b\na B C\n"
+testing "" "sort -k2,2" "a B C\na B a\nA b b\n" "" "a B a\nA b b\na B C\n"
+testing "" "sort -f -k2,2" "A b b\na B C\na B a\n" "" "a B a\nA b b\na B C\n" 
+
 optional SORT_FLOAT
 
 # not numbers < NaN < -infinity < numbers < +infinity

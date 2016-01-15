@@ -3,6 +3,9 @@
  * Copyright 2004, 2008 Rob Landley <rob@landley.net>
  *
  * See http://opengroup.org/onlinepubs/007904975/utilities/sort.html
+ *
+ * Deviations from POSIX: Lots.
+ * We invented -x
 
 USE_SORT(NEWTOY(sort, USE_SORT_FLOAT("g")USE_SORT_BIG("S:T:m" "o:k*t:xbMcszdfi") "run", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -92,7 +95,7 @@ static char *get_key_data(char *str, struct sort_key *key, int flags)
   // Special case whole string, so we don't have to make a copy
 
   if(key->range[0]==1 && !key->range[1] && !key->range[2] && !key->range[3]
-    && !(flags&(FLAG_b&FLAG_d&FLAG_f&FLAG_i&FLAG_bb))) return str;
+    && !(flags&(FLAG_b|FLAG_d|FLAG_i|FLAG_bb))) return str;
 
   // Find start of key on first pass, end on second pass
 
@@ -155,9 +158,6 @@ static char *get_key_data(char *str, struct sort_key *key, int flags)
     str[start] = 0;
   }
 
-  // Handle -f
-  if (flags*FLAG_f) for(i=0; str[i]; i++) str[i] = toupper(str[i]);
-
   return str;
 }
 
@@ -178,7 +178,7 @@ static int compare_values(int flags, char *x, char *y)
   int ff = flags & (FLAG_n|FLAG_g|FLAG_M|FLAG_x);
 
   // Ascii sort
-  if (!ff) return strcmp(x, y);
+  if (!ff) return ((flags&FLAG_f) ? strcasecmp : strcmp)(x, y);
 
   if (CFG_SORT_FLOAT && ff == FLAG_g) {
     char *xx,*yy;
@@ -259,10 +259,11 @@ static int compare_keys(const void *xarg, const void *yarg)
     }
   } else retval = compare_values(flags, xx, yy);
 
-  // Perform fallback sort if necessary
+  // Perform fallback sort if necessary (always case insensitive, no -f,
+  // the point is to get a stable order even for -f sorts)
   if (!retval && !(CFG_SORT_BIG && (toys.optflags&FLAG_s))) {
-    retval = strcmp(xx, yy);
     flags = toys.optflags;
+    retval = strcmp(xx, yy);
   }
 
   return retval * ((flags&FLAG_r) ? -1 : 1);
