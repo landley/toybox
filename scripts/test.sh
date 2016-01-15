@@ -20,7 +20,7 @@ fi
 cd generated/testdir
 PATH="$PWD:$PATH"
 cd testdir
-export LC_COLLATE=c
+export LC_COLLATE=C
 
 . "$TOPDIR"/scripts/runtest.sh
 [ -f "$TOPDIR/generated/config.h" ] && export OPTIONFLAGS=:$(echo $(sed -nr 's/^#define CFG_(.*) 1/\1/p' "$TOPDIR/generated/config.h") | sed 's/ /:/g')
