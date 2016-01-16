@@ -42,3 +42,15 @@ int xconnect(char *host, char *port, int family, int socktype, int protocol,
 
   return fd;
 }
+
+int xpoll(struct pollfd *fds, int nfds, int timeout)
+{
+  int i;
+
+  for (;;) {
+    if (0>(i = poll(fds, nfds, timeout))) {
+      if (errno != EINTR && errno != ENOMEM) perror_exit("xpoll");
+      else if (timeout>0) timeout--;
+    } else return i;
+  }
+}

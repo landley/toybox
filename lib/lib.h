@@ -194,7 +194,7 @@ void crc_init(unsigned int *crc_table, int little_endian);
 void base64_init(char *p);
 int yesno(int def);
 int qstrcmp(const void *a, const void *b);
-int xpoll(struct pollfd *fds, int nfds, int timeout);
+void create_uuid(char *uuid);
 
 #define HR_SPACE 1 // Space between number and units
 #define HR_B     2 // Use "B" for single byte units
@@ -236,6 +236,7 @@ int xsocket(int domain, int type, int protocol);
 void xsetsockopt(int fd, int level, int opt, void *val, socklen_t len);
 int xconnect(char *host, char *port, int family, int socktype, int protocol,
   int flags);
+int xpoll(struct pollfd *fds, int nfds, int timeout);
 
 // password.c
 int get_salt(char *salt, char * algo);

@@ -964,14 +964,27 @@ int qstrcmp(const void *a, const void *b)
   return strcmp(*(char **)a, *(char **)b);
 }
 
-int xpoll(struct pollfd *fds, int nfds, int timeout)
-{
-  int i;
+// According to http://www.opengroup.org/onlinepubs/9629399/apdxa.htm
+// we should generate a uuid structure by reading a clock with 100 nanosecond
+// precision, normalizing it to the start of the gregorian calendar in 1582,
+// and looking up our eth0 mac address.
+//
+// On the other hand, we have 128 bits to come up with a unique identifier, of
+// which 6 have a defined value.  /dev/urandom it is.
 
-  for (;;) {
-    if (0>(i = poll(fds, nfds, timeout))) {
-      if (errno != EINTR && errno != ENOMEM) perror_exit("xpoll");
-      else if (timeout>0) timeout--;
-    } else return i;
-  }
+void create_uuid(char *uuid)
+{
+  // Read 128 random bits
+  int fd = xopen("/dev/urandom", O_RDONLY);
+  xreadall(fd, uuid, 16);
+  close(fd);
+
+  // Claim to be a DCE format UUID.
+  uuid[6] = (uuid[6] & 0x0F) | 0x40;
+  uuid[8] = (uuid[8] & 0x3F) | 0x80;
+
+  // rfc2518 section 6.4.1 suggests if we're not using a macaddr, we should
+  // set bit 1 of the node ID, which is the mac multicast bit.  This means we
+  // should never collide with anybody actually using a macaddr.
+  uuid[11] |= 128;
 }
