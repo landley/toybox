@@ -56,7 +56,7 @@ static void draw_tail(void)
   tty_jump(0, TT.height);
   tty_esc("K");
 
-  draw_rstr(*toys.optargs, 71, draw_char);
+  draw_rstr(*toys.optargs, 71);
 }
 
 static void draw_line(long long yy)
@@ -127,7 +127,7 @@ void hexedit_main(void)
   fflush(0);
   xset_terminal(1, 1, 0);
 
-  if ((TT.len = fdlength(fd))<0) error_exit("bad length");
+  if ((TT.len = fdlength(fd))<1) error_exit("bad length");
   if (sizeof(long)==32 && TT.len>SIZE_MAX) TT.len = SIZE_MAX;
   // count file length hex in digits, rounded up to multiple of 4
   for (pos = TT.len, TT.numlen = 0; pos; pos >>= 4, TT.numlen++);
@@ -139,7 +139,7 @@ void hexedit_main(void)
   for (;;) {
     // Scroll display if necessary
     if (pos<0) pos = 0;
-    if (pos>TT.len) pos = TT.len-1;
+    if (pos>=TT.len) pos = TT.len-1;
     x = pos&15;
     y = pos/16;
 
@@ -214,7 +214,7 @@ void hexedit_main(void)
         TT.data[pos] = toybuf[sizeof(long long)*UNDO_LEN+TT.undo];
       }
     }
-    if (key>256) {
+    if (key>=256) {
       key -= 256;
 
       if (key==KEY_UP) pos -= 16;

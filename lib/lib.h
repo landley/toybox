@@ -214,9 +214,9 @@ void linestack_insert(struct linestack **lls, long pos, char *line, long len);
 void linestack_append(struct linestack **lls, char *line);
 struct linestack *linestack_load(char *name);
 int crunch_str(char **str, int width, FILE *out,
-  int (*escout)(FILE *out, wchar_t wc));
-int draw_str(char *start, int width, int (*escout)(FILE *out, wchar_t wc));
-int draw_rstr(char *start, int width, int (*escout)(FILE *out, wchar_t wc));
+  int (*escout)(FILE *out, int cols, char **buf));
+int draw_str(char *start, int width);
+int draw_rstr(char *start, int width);
 
 // interestingtimes.c
 int xgettty(void);

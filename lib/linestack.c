@@ -76,25 +76,43 @@ struct linestack *linestack_load(char *name)
   return ls;
 }
 
-// Show width many columns, negative means from right edge. Write unprintable
-// chars through escout() instead of write(). If out=0 just measure.
-// Returns width in columns.
+// Show width many columns, negative means from right edge.
+// If out=0 just measure
+// if escout, send it unprintable chars, returns columns output or -1 for
+// standard escape: ^X if <32, <XX> if invliad UTF8, U+XXXX if UTF8 !iswprint()
+// Returns width in columns, moves *str to end of data consumed.
 int crunch_str(char **str, int width, FILE *out,
-  int (*escout)(FILE *out, wchar_t wc))
+  int (*escout)(FILE *out, int cols, char **buf))
 {
-  int columns = 0, col, bytes, lowlen = escout(0, 0);
+  int columns = 0, col, bytes;
   char *start, *end;
 
   for (end = start = *str; *end;) {
-    wchar_t wc;
+    wchar_t wc = *end;
 
-    if (columns+lowlen>width) break;
+    bytes = 0;
+    if (*end >= ' ' && (bytes = mbrtowc(&wc, end, 99,0))>0
+        && (col = wcwidth(wc))>=0)
+    {
+      if (width-columns<col) break;
+      if (out) fwrite(end, bytes, 1, out);
+    } else if (!escout || 0>(col = escout(out, width-columns, &end))) {
+      char buf[32];
 
-    bytes = mbrtowc(&wc, end, 99, 0);
-    if (bytes<0 || wc<32 || (col = wcwidth(wc))<0) {
-      bytes = 1;
-      col = escout(out, *end);
-    } else if (out) fwrite(end, bytes, 1, out);
+      tty_esc("7m");
+      if (*end < ' ') {
+        bytes = 1;
+        sprintf(buf, "^%c", '@'+*end);
+      } else if (bytes<1) {
+        bytes = 1;
+        sprintf(buf, "<%02X>", *end);
+      } else sprintf(buf, "U+%04X", wc);
+      col = strlen(buf);
+      if (width-columns<col) buf[col = width-columns] = 0;
+      if (out) fputs(buf, out);
+      tty_esc("27m");
+    } else continue;
+    columns += col;
     end += bytes;
   }
   *str = end;
@@ -102,17 +120,20 @@ int crunch_str(char **str, int width, FILE *out,
   return columns;
 }
 
-int draw_str(char *start, int width, int (*escout)(FILE *out, wchar_t wc))
+// Write width chars at start of string to strdout with standard escapes
+// Returns length in columns so caller can pad it out with spaces.
+int draw_str(char *start, int width)
 {
-  return crunch_str(&start, width, stdout, escout);
+  return crunch_str(&start, width, stdout, 0);
 }
 
-int draw_rstr(char *start, int width, int (*escout)(FILE *out, wchar_t wc))
+// Write width chars at end of string to stdout with standard escapes
+int draw_rstr(char *start, int width)
 {
   char *s = start;
-  int len = crunch_str(&s, -1, 0, escout);
+  int len = crunch_str(&s, INT_MAX, 0, 0);
 
   s = start;
-  if (len > width) crunch_str(&s, len-width, 0, escout);
-  return crunch_str(&s, width, stdout, escout);
+  if (len > width) crunch_str(&s, len-width, 0, 0);
+  return crunch_str(&s, width, stdout, 0);
 }
