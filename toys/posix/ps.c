@@ -36,9 +36,9 @@
  *       at right edge? (Not adjusting to screen size at all? Header wraps?)
  * TODO: utf8 fontmetrics
 
-USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflno*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflno*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 USE_TTOP(NEWTOY(ttop, ">0d#=3n#<1mb", TOYFLAG_USR|TOYFLAG_BIN))
-USE_IOTOP(NEWTOY(iotop, "Aabkoqp*u*d#n#", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
+USE_IOTOP(NEWTOY(iotop, "Aabkoqp*u*d#n#", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
 USE_PGREP(NEWTOY(pgrep, "?cld:u*U*t*s*P*g*G*fnovxL:", TOYFLAG_USR|TOYFLAG_BIN))
 USE_PKILL(NEWTOY(pkill,      "u*U*t*s*P*g*G*fnovxl:", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -506,22 +506,24 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
 static void show_ps(struct carveup *tb)
 {
   struct strawberry *field;
-  int i, len, width = TT.width;
+  int pad, len, width = TT.width;
 
   // Loop through fields to display
   for (field = TT.fields; field; field = field->next) {
     char *out = string_field(tb, field);
 
     // Output the field, appropriately padded
-    len = width - (field != TT.fields);
-    if (!field->next && field->len<0) i = 0;
-    else {
-      i = len<abs(field->len) ? len : field->len;
-      len = abs(i);
+    if (field != TT.fields) {
+      putchar(' ');
+      width--;
     }
+    len = width;
+    pad = 0;
+    if (field->next || field->len>0)
+      len = abs(pad = width<abs(field->len) ? width : field->len);
 
-    // TODO test utf8 fontmetrics
-    width -= printf(" %*.*s" + (field == TT.fields), i, len, out);
+    if (TT.tty) width -= draw_trim(out, pad, len);
+    else width -= printf("%*.*s", pad, len, out);
     if (!width) break;
   }
   xputc('\n');
@@ -569,9 +571,10 @@ static int get_ps(struct dirtree *new)
   for (j = 1; j<50; j++) if (1>sscanf(s += i, " %lld%n", slot+j, &i)) break;
 
   // Now we've read the data, move status and name right after slot[] array,
-  // and convert low chars to ? while we're at it.
+  // and convert low chars to ? for non-tty display while we're at it.
   for (i = 0; i<end-name; i++)
-    if ((tb->str[i] = name[i]) < ' ') tb->str[i] = '?';
+    if ((tb->str[i] = name[i]) < ' ')
+      if (!TT.tty) tb->str[i] = '?';
   buf = tb->str+i;
   *buf++ = 0;
   len = sizeof(toybuf)-(buf-toybuf);
@@ -714,14 +717,14 @@ static int get_ps(struct dirtree *new)
 
         if (buf[len-1]=='\n') buf[--len] = 0;
 
-        // Turn NUL to space, other low ascii to ?
+        // Turn NUL to space, other low ascii to ? (in non-tty mode)
         for (i=0; i<len; i++) {
           char c = buf[i];
 
           if (!c) {
             if (!temp) temp = i;
             c = ' ';
-          } else if (c<' ') c = '?';
+          } else if (!TT.tty && c<' ') c = '?';
           buf[i] = c;
         }
         len = temp; // position of _first_ NUL

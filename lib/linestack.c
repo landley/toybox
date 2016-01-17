@@ -127,13 +127,35 @@ int draw_str(char *start, int width)
   return crunch_str(&start, width, stdout, 0);
 }
 
-// Write width chars at end of string to stdout with standard escapes
-int draw_rstr(char *start, int width)
+// Return utf8 columns
+int utf8len(char *str)
 {
-  char *s = start;
-  int len = crunch_str(&s, INT_MAX, 0, 0);
+  return crunch_str(&str, INT_MAX, 0, 0);
+}
 
-  s = start;
-  if (len > width) crunch_str(&s, len-width, 0, 0);
-  return crunch_str(&s, width, stdout, 0);
+// Return bytes used by (up to) this many columns
+int utf8skip(char *str, int width)
+{
+  char *s = str;
+
+  crunch_str(&s, width, 0, 0);
+
+  return s-str;
+}
+
+// Print utf8 to stdout with standard escapes,trimmed to width and padded
+// out to padto. If padto<0 left justify. Returns columns printed
+int draw_trim(char *str, int padto, int width)
+{
+  int apad = abs(padto), len = utf8len(str);
+
+  if (padto<0 && len>width) str += utf8skip(str, len-width);
+  if (len>width) len = width;
+
+  // Left pad if right justified 
+  if (padto>0 && apad>len) printf("%*s", apad-len, "");
+  crunch_str(&str, len, stdout, 0);
+  if (padto<0 && apad>len) printf("%*s", apad-len, "");
+
+  return (apad > len) ? apad : len;
 }

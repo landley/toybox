@@ -988,3 +988,14 @@ void create_uuid(char *uuid)
   // should never collide with anybody actually using a macaddr.
   uuid[11] |= 128;
 }
+
+char *show_uuid(char *uuid)
+{
+  char *out = libbuf;
+  int i;
+
+  for (i=0; i<16; i++) out+=sprintf(out, "-%02x"+!(0x550&(1<<i)), uuid[i]);
+  *out = 0;
+
+  return libbuf;
+}

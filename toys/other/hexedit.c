@@ -56,7 +56,7 @@ static void draw_tail(void)
   tty_jump(0, TT.height);
   tty_esc("K");
 
-  draw_rstr(*toys.optargs, 71);
+  draw_trim(*toys.optargs, -1, 71);
 }
 
 static void draw_line(long long yy)

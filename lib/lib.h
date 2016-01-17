@@ -195,6 +195,7 @@ void base64_init(char *p);
 int yesno(int def);
 int qstrcmp(const void *a, const void *b);
 void create_uuid(char *uuid);
+char *show_uuid(char *uuid);
 
 #define HR_SPACE 1 // Space between number and units
 #define HR_B     2 // Use "B" for single byte units
@@ -216,7 +217,9 @@ struct linestack *linestack_load(char *name);
 int crunch_str(char **str, int width, FILE *out,
   int (*escout)(FILE *out, int cols, char **buf));
 int draw_str(char *start, int width);
-int draw_rstr(char *start, int width);
+int utf8len(char *str);
+int utf8skip(char *str, int width);
+int draw_trim(char *str, int padto, int width);
 
 // interestingtimes.c
 int xgettty(void);
