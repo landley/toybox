@@ -40,7 +40,7 @@ USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflno*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TO
 USE_TTOP(NEWTOY(ttop, ">0d#=3n#<1mb", TOYFLAG_USR|TOYFLAG_BIN))
 USE_IOTOP(NEWTOY(iotop, "Aabkoqp*u*d#n#", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
 USE_PGREP(NEWTOY(pgrep, "?cld:u*U*t*s*P*g*G*fnovxL:", TOYFLAG_USR|TOYFLAG_BIN))
-USE_PKILL(NEWTOY(pkill,      "u*U*t*s*P*g*G*fnovxl:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PKILL(NEWTOY(pkill,     "Vu*U*t*s*P*g*G*fnovxl:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PS
   bool "ps"
@@ -206,11 +206,12 @@ config PGKILL_COMMON
 
 config PKILL
   bool "pkill"
-  default n
+  default y
   help
     usage: pkill [-l SIGNAL] [PATTERN]
 
     -l	SIGNAL to send
+    -V	verbose
 */
 
 #define FOR_ps
@@ -253,6 +254,7 @@ GLOBALS(
 
       void *regexes;
       int signal;
+      pid_t self;
     } pgrep;
   };
 
@@ -1256,6 +1258,10 @@ void iotop_main(void)
   if (!(toys.optflags&FLAG_b)) tty_reset();
 }
 
+// pkill's plumbing wrap's pgrep's and thus mostly takes place in pgrep's flag
+// context, so force pgrep's flags on even when building pkill standalone.
+// (All the pgrep/pkill functions drop out when building ps standalone.)
+#define FORCE_FLAGS
 #define CLEANUP_iotop
 #define FOR_pgrep
 #include "generated/flags.h"
@@ -1271,6 +1277,9 @@ static void show_pgrep(struct carveup *tb)
   struct regex_list *reg;
   char *name = tb->str;
 
+  // Never match ourselves.
+  if (TT.pgrep.self == *tb->slot) return;
+
   if (toys.optflags&FLAG_f) name += tb->offset[4];
 
   if (TT.pgrep.regexes) {
@@ -1283,13 +1292,29 @@ static void show_pgrep(struct carveup *tb)
     if (!reg) return;
   }
 
-  printf("%lld%s", *tb->slot, TT.pgrep.d ? TT.pgrep.d : "\n");
+  if (TT.pgrep.signal) {
+    if (kill(*tb->slot, TT.pgrep.signal)) {
+      char *s = num_to_sig(TT.pgrep.signal);
+
+      if (!s) sprintf(s = toybuf, "%d", TT.pgrep.signal);
+      
+      perror_msg("%s->%lld", s, *tb->slot);
+    }
+  }
+  if (!TT.pgrep.signal || TT.tty)
+    printf("%lld%s", *tb->slot, TT.pgrep.d ? TT.pgrep.d : "\n");
 }
 
 void pgrep_main(void)
 {
   char **arg;
   struct regex_list *reg;
+
+  TT.pgrep.self = getpid();
+
+  // No signal names start with "L", so no need for "L: " parsing.
+  if (TT.pgrep.L && 1>(TT.pgrep.signal = sig_to_num(TT.pgrep.L)))
+    error_exit("bad -L '%s'", TT.pgrep.L);
 
   comma_args(TT.pgrep.G, &TT.GG, "bad -G", parse_rest);
   comma_args(TT.pgrep.g, &TT.gg, "bad -g", parse_rest);
@@ -1303,8 +1328,10 @@ void pgrep_main(void)
       !(toys.optflags&(FLAG_G|FLAG_g|FLAG_P|FLAG_s|FLAG_t|FLAG_U|FLAG_u)))
     if (!toys.optc) help_exit("No PATTERN");
 
-  if (toys.optflags&FLAG_f) TT.bits |= _PS_CMDLINE;
-
+printf("f=%llx in %llx\n", (long long)FLAG_v, (long long)toys.optflags);
+  if (toys.optflags&FLAG_f) {TT.bits |= _PS_CMDLINE;
+printf("got f\n");
+}
   for (arg = toys.optargs; *arg; arg++) {
     reg = xmalloc(sizeof(struct regex_list));
     xregcomp(&reg->reg, *arg, REG_EXTENDED);
@@ -1318,8 +1345,13 @@ void pgrep_main(void)
   if (TT.pgrep.d) xputc('\n');
 }
 
+#define CLEANUP_pgrep
+#define FOR_pkill
+#include "generated/flags.h"
+
 void pkill_main(void)
 {
   if (!TT.pgrep.L) TT.pgrep.signal = SIGTERM;
+  if (toys.optflags & FLAG_V) TT.tty = 1;
   pgrep_main();
 }

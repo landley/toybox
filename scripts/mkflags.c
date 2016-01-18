@@ -116,8 +116,9 @@ int main(int argc, char *argv[])
   // See "intentionally crappy", above.
   if (!(out = outbuf)) return 1;
 
-  printf("#ifdef FORCE_FLAGS\n#define FORCED_FLAG 1\n#define FORCED_FLAGLL 1LL\n"
-         "#else\n#define FORCED_FLAG 0\n#define FORCED_FLAGLL 0\n#endif\n\n");
+  printf("#undef FORCED_FLAG\n#undef FORCED_FLAGLL\n"
+    "#ifdef FORCE_FLAGS\n#define FORCED_FLAG 1\n#define FORCED_FLAGLL 1LL\n"
+    "#else\n#define FORCED_FLAG 0\n#define FORCED_FLAGLL 0\n#endif\n\n");
 
   for (;;) {
     struct flag *flist, *aflist, *offlist;
