@@ -1289,20 +1289,32 @@ static void show_pgrep(struct carveup *tb)
         if (match.rm_so || match.rm_eo!=strlen(name)) continue;
       break;
     }
-    if (!reg) return;
+    if ((toys.optflags&FLAG_v) ? !!reg : !reg) return;
   }
 
+  // Repurpose a field for -c count
+  TT.sortpos++;
   if (TT.pgrep.signal) {
     if (kill(*tb->slot, TT.pgrep.signal)) {
       char *s = num_to_sig(TT.pgrep.signal);
 
       if (!s) sprintf(s = toybuf, "%d", TT.pgrep.signal);
-      
       perror_msg("%s->%lld", s, *tb->slot);
     }
   }
-  if (!TT.pgrep.signal || TT.tty)
-    printf("%lld%s", *tb->slot, TT.pgrep.d ? TT.pgrep.d : "\n");
+  if (!(toys.optflags&FLAG_c) && (!TT.pgrep.signal || TT.tty)) {
+    printf("%lld", *tb->slot);
+    if (toys.optflags&FLAG_l) printf(" %s", name);
+    
+    printf("%s", TT.pgrep.d ? TT.pgrep.d : "\n");
+  }
+}
+
+static int pgrep_match_process(long long *slot)
+{
+  int match = shared_match_process(slot);
+
+  return (toys.optflags&FLAG_v) ? !match : match;
 }
 
 void pgrep_main(void)
@@ -1328,20 +1340,18 @@ void pgrep_main(void)
       !(toys.optflags&(FLAG_G|FLAG_g|FLAG_P|FLAG_s|FLAG_t|FLAG_U|FLAG_u)))
     if (!toys.optc) help_exit("No PATTERN");
 
-printf("f=%llx in %llx\n", (long long)FLAG_v, (long long)toys.optflags);
-  if (toys.optflags&FLAG_f) {TT.bits |= _PS_CMDLINE;
-printf("got f\n");
-}
+  if (toys.optflags&FLAG_f) TT.bits |= _PS_CMDLINE;
   for (arg = toys.optargs; *arg; arg++) {
     reg = xmalloc(sizeof(struct regex_list));
     xregcomp(&reg->reg, *arg, REG_EXTENDED);
     reg->next = TT.pgrep.regexes;
     TT.pgrep.regexes = reg;
   }
-  TT.match_process = shared_match_process;
+  TT.match_process = pgrep_match_process;
   TT.show_process = (void *)show_pgrep;
 
   dirtree_read("/proc", get_ps);
+  if (toys.optflags&FLAG_c) printf("%d\n", TT.sortpos);
   if (TT.pgrep.d) xputc('\n');
 }
 
