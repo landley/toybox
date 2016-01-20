@@ -23,5 +23,6 @@ void runcon_main(void)
 
   if (setexeccon(context)) perror_exit("Could not set context to %s", context);
 
+  toys.stacktop = 0;
   xexec(++toys.optargs);
 }
