@@ -34,11 +34,11 @@
  * TODO: thread support /proc/$d/task/%d/stat (and -o stat has "l")
  * TODO: iotop: Window size change: respond immediately. Why not padding
  *       at right edge? (Not adjusting to screen size at all? Header wraps?)
- * TODO: utf8 fontmetrics
 
 USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflno*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
-USE_TTOP(NEWTOY(ttop, ">0d#=3n#<1mb", TOYFLAG_USR|TOYFLAG_BIN))
-USE_IOTOP(NEWTOY(iotop, "Aabkoqp*u*d#n#", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
+// stayroot because iotop needs root to read other process' proc/$$/io
+USE_TOP(NEWTOY(top, ">0m" "p*u*d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
+USE_IOTOP(NEWTOY(iotop, ">0Aako"  "p*u*d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
 USE_PGREP(NEWTOY(pgrep, "?cld:u*U*t*s*P*g*G*fnovxL:", TOYFLAG_USR|TOYFLAG_BIN))
 USE_PKILL(NEWTOY(pkill,     "Vu*U*t*s*P*g*G*fnovxl:", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -80,60 +80,39 @@ config PS
 
     Available -o FIELDs:
 
-      ADDR    Instruction pointer
-      ARGS    Command line (argv[0-X] minus path)
-      CMD     COMM without -f, ARGS with -f
-      CMDLINE Command line (argv[0-X])
-      COMM    Original command name
-      COMMAND Original command path
-      CPU     Which processor running on
-      ETIME   Elapsed time since process start
-      F       Flags (1=FORKNOEXEC, 4=SUPERPRIV)
-      GID     Group id
-      GROUP   Group name
-      LABEL   Security label
-      MAJFL   Major page faults
-      MINFL   Minor page faults
-      NAME    Command name (argv[0])
-      NI      Niceness (lower is faster)
-      PCPU    Percentage of CPU time used
-      PGID    Process Group ID
-      PID     Process ID
-      PPID    Parent Process ID
-      PRI     Priority (higher is faster)
-      PSR     Processor last executed on
-      RGID    Real (before sgid) group ID
-      RGROUP  Real (before sgid) group name
-      RSS     Resident Set Size (memory in use, 4k pages)
-      RTPRIO  Realtime priority
-      RUID    Real (before suid) user ID
-      RUSER   Real (before suid) user name
-      S       Process state:
-              R (running) S (sleeping) D (device I/O) T (stopped)  t (traced)
-              Z (zombie)  X (deader)   x (dead)       K (wakekill) W (waking)
-      SCHED   Scheduling policy (0=other, 1=fifo, 2=rr, 3=batch, 4=iso, 5=idle)
-      STAT    Process state (S) plus:
-              < high priority          N low priority L locked memory
-              s session leader         + foreground   l multithreaded
-      STIME   Start time of process in hh:mm (size :19 shows yyyy-mm-dd hh:mm:ss)
-      SZ      Memory Size (4k pages needed to completely swap out process)
-      TIME    CPU time consumed
-      TTY     Controlling terminal
-      UID     User id
-      USER    User name
-      VSZ     Virtual memory size (1k units)
-      WCHAN   Waiting in kernel for
+      ADDR  Instruction pointer               ARGS    Command line (argv[] -path)
+      CMD   COMM without -f, ARGS with -f     CMDLINE Command line (argv[])
+      COMM  Original command name             COMMAND Original command path
+      CPU   Which processor running on        ETIME   Elapsed time since PID start
+      F     Flags (1=FORKNOEXEC 4=SUPERPRIV)  GID     Group id
+      GROUP Group name                        LABEL   Security label
+      MAJFL Major page faults                 MINFL   Minor page faults
+      NAME  Command name (argv[0])            NI      Niceness (lower is faster)
+      PCPU  Percentage of CPU time used       PGID    Process Group ID
+      PID   Process ID                        PPID    Parent Process ID
+      PRI   Priority (higher is faster)       PSR     Processor last executed on
+      RGID  Real (before sgid) group ID       RGROUP  Real (before sgid) group name
+      RSS   Resident Set Size (pages in use)  RTPRIO  Realtime priority
+      RUID  Real (before suid) user ID        RUSER   Real (before suid) user name
+      S     Process state:
+            R (running) S (sleeping) D (device I/O) T (stopped)  t (traced)
+            Z (zombie)  X (deader)   x (dead)       K (wakekill) W (waking)
+      SCHED Scheduling policy (0=other, 1=fifo, 2=rr, 3=batch, 4=iso, 5=idle)
+      STAT  Process state (S) plus:
+            < high priority          N low priority L locked memory
+            s session leader         + foreground   l multithreaded
+      STIME Start time of process in hh:mm (size :19 shows yyyy-mm-dd hh:mm:ss)
+      SZ    Memory Size (4k pages needed to completely swap out process)
+      TIME  CPU time consumed                 TTY     Controlling terminal
+      UID   User id                           USER    User name
+      VSZ   Virtual memory size (1k units)    %VSZ    VSZ as % of physical memory
+      WCHAN Waiting in kernel for
 
-      You can put a % after SZ, RSS
-      to get percentage
-
-config TTOP
-  bool "ttop"
-  default n
+config TOP
+  bool "top"
+  default y
   help
-    usage: ttop [-mb] [ -d seconds ] [ -n iterations ]
-
-    todo: implement top
+    usage: top [-m] [ -d seconds ] [ -n iterations ]
 
     Provide a view of process activity in real time.
     Keys
@@ -148,31 +127,38 @@ config TTOP
        -n Iterations before exiting
        -d Delay between updates
        -m Same as 's' key
-       -b Batch mode
 
 # Requires CONFIG_IRQ_TIME_ACCOUNTING in the kernel for /proc/$$/io
 config IOTOP
   bool "iotop"
   default y
   help
-    usage: iotop [-Aabkoq] [-n NUMBER] [-d SECONDS] [-p PID,] [-u USER,]
+    usage: iotop [-Aako]
 
-    Rank processes by I/O. Cursor left/right to change sort, Q to exit.
+    Rank processes by I/O.
 
     -A	All I/O, not just disk
     -a	Accumulated I/O (not percentage)
+    -k	Kilobytes
+    -o	Only show processes doing I/O
+
+    Cursor left/right to change sort, space to update, Q to exit.
+
+config TOP_COMMON
+  bool
+  default y
+  help
+    usage: COMMON [-bq] [-n NUMBER] [-d SECONDS] [-p PID,] [-u USER,]
     -b	Batch mode (no tty)
     -d	Delay SECONDS between each cycle (default 3)
-    -k	Kilobytes
     -n	Exit after NUMBER iterations
-    -o	Only show processes doing I/O
     -p	Show these PIDs
-    -q	Quiet (no header lines)
     -u	Show these USERs
+    -q	Quiet (no header lines)
 
 config PGREP
   bool "pgrep"
-  default n
+  default y
   depends on PGKILL_COMMON
   help
     usage: pgrep [-cL] [-d DELIM] [-L SIGNAL] [PATTERN]
@@ -234,13 +220,9 @@ GLOBALS(
     struct {
       long n;
       long d;
-    } ttop;
-    struct {
-      long n;
-      long d;
       struct arg_list *u;
       struct arg_list *p;
-    } iotop;
+    } top;
     struct{
       char *L;
       struct arg_list *G;
@@ -329,7 +311,7 @@ struct typography {
   {"PID", 5, 0}, {"PPID", 5, 1}, {"PRI", 3, 15}, {"NI", 3, 16},
   {"ADDR", 4+sizeof(long), 27}, {"SZ", 5, 20}, {"RSS", 5, 21}, {"PGID", 5, 2},
   {"VSZ", 6, 20}, {"MAJFL", 6, 9}, {"MINFL", 6, 7}, {"PR", 2, 15},
-  {"PSR", 3, 36}, {"RTPRIO", 6, 37}, {"SCH", 3, 38},
+  {"PSR", 3, 36}, {"RTPRIO", 6, 37}, {"SCH", 3, 38}, {"CPU", 1, 36},
 
   // user/group: UID USER RUID RUSER GID GROUP RGID RGROUP
   {"UID", 5, 31}, {"USER", -8, 64|31}, {"RUID", 4, 32}, {"RUSER", -8, 64|32},
@@ -344,10 +326,11 @@ struct typography {
   {"TIME", 8, 11}, {"ELAPSED", 11, 19}, {"TIME+", 9, 11},
 
   // Remaining ungrouped
-  {"STIME", 5, 19}, {"F", 1, 64|6}, {"S", -1, 64}, {"C", 1, 0}, {"%CPU", 4, 64},
+  {"STIME", 5, 19}, {"F", 1, 64|6}, {"S", -1, 64}, {"C", 1, 64|11}, {"%CPU", 4, 64|11},
   {"STAT", -5, 64}, {"%VSZ", 5, 23}, {"VIRT", 4, 47}, {"RES", 4, 48},
   {"SHR", 4, 49}, {"READ", 6, 50}, {"WRITE", 6, 51}, {"IO", 6, 28},
-  {"DREAD", 6, 52}, {"DWRITE", 6, 53}, {"SWAP", 6, 54}, {"DIO", 6, 29}
+  {"DREAD", 6, 52}, {"DWRITE", 6, 53}, {"SWAP", 6, 54}, {"DIO", 6, 29},
+  {"%MEM", 5, 21}
 );
 
 // Return 0 to discard, nonzero to keep
@@ -397,9 +380,6 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
   char *buf = toybuf+sizeof(toybuf)-260, *out = buf, *s;
   int which = field->which, sl = typos[which].slot;
   long long *slot = tb->slot, ll = (sl >= 0) ? slot[sl&63] : 0;
-
-  // Default: unsupported (5 "C")
-  sprintf(out, "-");
 
   // stat#s: PID PPID PRI NI ADDR SZ RSS PGID VSZ MAJFL MINFL PR PSR RTPRIO SCH
   if (which <= PS_SCH) {
@@ -490,16 +470,20 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     strftime(out, 260, "%F %T", localtime(&t));
     out = out+strlen(out)-3-abs(field->len);
     if (out<buf) out = buf;
-  } else if (which==PS__CPU || which==PS__VSZ) {
-    if (which==PS__CPU) sl = (slot[11]*1000)/slot[44];
-    else sl = (slot[23]*1000)/TT.si.totalram;
-    sprintf(out, "%d.%d", sl/10, sl%10);
+  } else if (strchr((char []){PS_C,PS__CPU,PS__VSZ,PS__MEM,0}, which)) {
+    ll = slot[sl&63]*1000;
+    if (which==PS__VSZ || which==PS__MEM) ll /= TT.si.totalram;
+    else if (slot[44]) ll /= slot[44];
+    sl = ll;
+    if (which==PS_C) sl += 5;
+    sprintf(out, "%d", sl/10);
+    if (which!=PS_C && sl<1000) sprintf(out+strlen(out), ".%d", sl%10);
   } else if (which>=PS_VIRT && which <= PS_DIO) {
     ll = slot[typos[which].slot];
     if (which <= PS_SHR) ll *= sysconf(_SC_PAGESIZE);
     if (TT.forcek) sprintf(out, "%lldk", ll/1024);
     else human_readable(out, ll, 0);
-  }
+  } else if (CFG_TOYBOX_DEBUG) error_exit("bad which %d", which);
 
   return out;
 }
@@ -914,6 +898,7 @@ static int ksort(void *aa, void *bb)
 
   for (field = TT.kfields; field; field = field->next) {
     slot = typos[field->which].slot;
+
     // Compare as strings?
     if (slot&64) {
       memccpy(toybuf, string_field(ta, field), 0, 2048);
@@ -1067,16 +1052,7 @@ void ps_main(void)
 }
 
 #define CLEANUP_ps
-#define FOR_ttop
-#include "generated/flags.h"
-
-void ttop_main(void)
-{
-  printf("hello world\n");
-}
-
-#define CLEANUP_ttop
-#define FOR_iotop
+#define FOR_top
 #include "generated/flags.h"
 
 // select which of the -o fields to sort by
@@ -1096,7 +1072,22 @@ static void setsort(int pos)
   }
 }
 
-void iotop_main(void)
+// If we have both, adjust slot[deltas[]] to be relative to previous
+// measurement rather than process start. Stomping old.data is fine
+// because we free it after displaying.
+static int merge_deltas(long long *oslot, long long *nslot)
+{
+  char deltas[] = {11,28,29,44,50,51,52,53,54};
+  int i;
+
+  for (i = 0; i<ARRAY_LEN(deltas); i++)
+    oslot[deltas[i]] = nslot[deltas[i]] - oslot[deltas[i]];
+
+  return 1;
+}
+
+static void top_common(char *header,
+  int (*filter)(long long *oslot, long long *nslot))
 {
   struct timespec ts;
   long long timeout = 0, now;
@@ -1104,15 +1095,12 @@ void iotop_main(void)
     struct carveup **tb;
     int count;
   } plist[2], *plold, *plnew, old, new, mix;
-  struct arg_list al;
-  char *d = "D"+!!(toys.optflags&FLAG_A), *header, scratch[16],
-            deltas[] = {11,28,29,44,50,51,52,53,54};
+  char scratch[16];
   unsigned tock = 0;
   int i, lines, done = 0;
 
-  if (!TT.iotop.d) TT.iotop.d = 3;
-  TT.iotop.d *= 1000;
-  if (toys.optflags&FLAG_k) TT.forcek++;
+  *scratch = 0;
+  TT.top.d *= 1000;
   if (toys.optflags&FLAG_b) TT.width = TT.height = 99999;
   else {
     xset_terminal(0, 1, 0);
@@ -1120,24 +1108,8 @@ void iotop_main(void)
   }
   shared_main();
 
-  // TODO: usage: iotop [-oq]
-
-  comma_args(TT.iotop.u, &TT.uu, "bad -u", parse_rest);
-  comma_args(TT.iotop.p, &TT.pp, "bad -p", parse_rest);
-
-  al.next = 0;
-  al.arg = xmprintf("PID,PR,USER,%sREAD,%sWRITE,SWAP,%sIO,COMM", d, d, d);
-  comma_args(&al, &TT.fields, 0, parse_ko);
-  free(al.arg);
-  dlist_terminate(TT.fields);
-  header = strdup(toybuf);
-
-  // Fallback sorts. First (dummy) field gets overwritten by setsort()
-  al.arg = xmprintf("-S,-%sIO,-ETIME,-PID",d);
-  comma_args(&al, &TT.kfields, 0, parse_ko);
-  free(al.arg);
-  dlist_terminate(TT.kfields);
-  setsort(6);
+  comma_args(TT.top.u, &TT.uu, "bad -u", parse_rest);
+  comma_args(TT.top.p, &TT.pp, "bad -p", parse_rest);
 
   TT.match_process = shared_match_process;
   memset(plist, 0, sizeof(plist));
@@ -1175,14 +1147,8 @@ void iotop_main(void)
       // If we just have new, use it verbatim
       if (!old.count || *otb->slot > *ntb->slot) mix.tb[mix.count] = ntb;
       else {
-
-        // If we have both, adjust slot[deltas[]] to be relative to previous
-        // measurement rather than process start. Stomping old.data is fine
-        // because we free it after displaying.
-        if (!(toys.optflags&FLAG_a))
-          for (i = 0; i<ARRAY_LEN(deltas); i++)
-            otb->slot[deltas[i]] = ntb->slot[deltas[i]] - otb->slot[deltas[i]];
-        if (!(toys.optflags&FLAG_o) || otb->slot[28+!(toys.optflags&FLAG_A)]) {
+        // Keep or discard
+        if (filter(otb->slot, ntb->slot)) {
           mix.tb[mix.count] = otb;
           mix.count++;
         }
@@ -1202,13 +1168,16 @@ void iotop_main(void)
       if (!(toys.optflags&FLAG_q)) {
         i = 0;
         strcpy(pos = toybuf, header);
+
         for (i=0, is = *pos; *pos; pos++) {
           was = is;
           is = *pos;
           if (isspace(was) && !isspace(is) && i++==TT.sortpos) pos[-1] = '[';
           if (!isspace(was) && isspace(is) && i==TT.sortpos+1) *pos = ']';
         }
-        printf("\033[7m%s\033[0m\n\r", toybuf);
+        *pos = 0;
+        printf("\033[7m%*.*s\033[0m\n\r",
+          (toys.optflags&FLAG_b) ? 0 : -TT.width, TT.width, toybuf);
 
         if (!(toys.optflags&FLAG_b))
           terminal_probesize(&TT.width, &TT.height);
@@ -1220,7 +1189,7 @@ void iotop_main(void)
         xputc('\r');
       }
 
-      if (TT.iotop.n && !--TT.iotop.n) {
+      if (TT.top.n && !--TT.top.n) {
         done++;
         break;
       }
@@ -1228,8 +1197,8 @@ void iotop_main(void)
       // Get current time in miliseconds
       clock_gettime(CLOCK_MONOTONIC, &ts);
       now = ts.tv_sec*1000+ts.tv_nsec/1000000;
-      if (timeout<=now) timeout += TT.iotop.d;
-      if (timeout<=now) timeout = now+TT.iotop.d;
+      if (timeout<=now) timeout += TT.top.d;
+      if (timeout<=now) timeout = now+TT.top.d;
 
       i = scan_key_getsize(scratch, timeout-now, &TT.width, &TT.height);
       if (i==-1 || i==3 || toupper(i)=='Q') {
@@ -1239,16 +1208,16 @@ void iotop_main(void)
       if (i==-2) break;
 
       // Flush unknown escape sequences.
-      if (i==27) {
-        while (0<scan_key_getsize(scratch, 0, &TT.width, &TT.height));
-        continue;
+      if (i==27) while (0<scan_key_getsize(scratch, 0, &TT.width, &TT.height));
+      else if (i==' ') {
+        timeout = now;
+        break;
+      } else {
+        i -= 256;
+        if (i == KEY_LEFT) setsort(TT.sortpos-1);
+        else if (i == KEY_RIGHT) setsort(TT.sortpos+1);
       }
-
-      i -= 256;
-      if (i == KEY_LEFT) setsort(TT.sortpos-1);
-      else if (i == KEY_RIGHT) setsort(TT.sortpos+1);
-      else continue;
-      break;
+      continue;
     }
 
     free(mix.tb);
@@ -1256,6 +1225,63 @@ void iotop_main(void)
     free(plold->tb);
   } while (!done);
   if (!(toys.optflags&FLAG_b)) tty_reset();
+}
+
+void top_main(void)
+{
+  struct arg_list al;
+  char *header;
+
+  // Display fields
+  al.next = 0;
+  al.arg = xstrdup("PID,USER,PR,NI,VIRT,RES,SHR,S,%CPU,%MEM,TIME+,CMDLINE");
+  comma_args(&al, &TT.fields, 0, parse_ko);
+  free(al.arg);
+  dlist_terminate(TT.fields);
+  header=xstrdup(toybuf);
+
+  // Fallback sorts
+  al.arg = xstrdup("-S,-%CPU,-ETIME,-PID");
+  comma_args(&al, &TT.kfields, "bang", parse_ko);
+  dlist_terminate(TT.kfields);
+  setsort(8);
+
+  top_common(header, merge_deltas);
+}
+
+#define CLEANUP_top
+#define FOR_iotop
+#include "generated/flags.h"
+
+static int iotop_filter(long long *oslot, long long *nslot)
+{
+  if (!(toys.optflags&FLAG_a)) merge_deltas(oslot, nslot);
+
+  return !(toys.optflags&FLAG_o) || oslot[28+!(toys.optflags&FLAG_A)];
+}
+
+void iotop_main(void)
+{
+  struct arg_list al;
+  char *header, *d = "D"+!!(toys.optflags&FLAG_A);
+
+  if (toys.optflags&FLAG_k) TT.forcek++;
+
+  al.next = 0;
+  al.arg = xmprintf("PID,PR,USER,%sREAD,%sWRITE,SWAP,%sIO,COMM", d, d, d);
+  comma_args(&al, &TT.fields, 0, parse_ko);
+  free(al.arg);
+  dlist_terminate(TT.fields);
+  header = strdup(toybuf);
+
+  // Fallback sorts. First (dummy) field gets overwritten by setsort()
+  al.arg = xmprintf("-S,-%sIO,-ETIME,-PID",d);
+  comma_args(&al, &TT.kfields, 0, parse_ko);
+  free(al.arg);
+  dlist_terminate(TT.kfields);
+  setsort(6);
+
+  top_common(header, iotop_filter);
 }
 
 // pkill's plumbing wrap's pgrep's and thus mostly takes place in pgrep's flag
