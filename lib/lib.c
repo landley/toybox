@@ -447,22 +447,38 @@ off_t fdlength(int fd)
 // note: for existing buffers use len = size-1, will set buf[len] = 0
 char *readfileat(int dirfd, char *name, char *ibuf, off_t *plen)
 {
-  off_t len = *plen-!!ibuf;
+  off_t len, rlen;
   int fd;
-  char *buf;
+  char *buf, *rbuf;
+
+  // Unsafe to probe for size with a supplied buffer, don't ever do that.
+  if (CFG_TOYBOX_DEBUG && (ibuf ? !*plen : *plen)) error_exit("bad readfileat");
 
   if (-1 == (fd = openat(dirfd, name, O_RDONLY))) return 0;
-  if (!len) {
-    len = fdlength(fd);
-    // proc files don't report a length, so try 1 page minimum.
-    if (len<4096) len = 4096;
-  }
+
+  // If we dunno the length, probe it. If we can't probe, start with 1 page.
+  if (!*plen) {
+    if ((len = fdlength(fd))>0) *plen = len;
+    else len = 4096;
+  } else len = *plen-1;
+
   if (!ibuf) buf = xmalloc(len+1);
   else buf = ibuf;
 
-  *plen = len = readall(fd, buf, len);
+  for (rbuf = buf;;) {
+    rlen = readall(fd, rbuf, len);
+    if (*plen || rlen<len) break;
+
+    // If reading unknown size, expand buffer by 1.5 each time we fill it up.
+    rlen += rbuf-buf;
+    buf = xrealloc(buf, len = (rlen*3)/2);
+    rbuf = buf+rlen;
+    len -= rlen;
+  }
+  *plen = len = rlen+(buf-ibuf);
   close(fd);
-  if (len<0) {
+
+  if (rlen<0) {
     if (ibuf != buf) free(buf);
     buf =  0;
   } else buf[len] = 0;
