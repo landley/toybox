@@ -327,7 +327,7 @@ struct typography {
 
   // Remaining ungrouped
   {"STIME", 5, 19}, {"F", 1, 64|6}, {"S", -1, 64}, {"C", 1, 64|11}, {"%CPU", 4, 64|11},
-  {"STAT", -5, 64}, {"%VSZ", 5, 23}, {"VIRT", 4, 47}, {"RES", 4, 48},
+  {"STAT", -5, 64}, {"%VSZ", 5, 20}, {"VIRT", 4, 47}, {"RES", 4, 48},
   {"SHR", 4, 49}, {"READ", 6, 50}, {"WRITE", 6, 51}, {"IO", 6, 28},
   {"DREAD", 6, 52}, {"DWRITE", 6, 53}, {"SWAP", 6, 54}, {"DIO", 6, 29},
   {"%MEM", 5, 21}
@@ -472,7 +472,8 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     if (out<buf) out = buf;
   } else if (strchr((char []){PS_C,PS__CPU,PS__VSZ,PS__MEM,0}, which)) {
     ll = slot[sl&63]*1000;
-    if (which==PS__VSZ || which==PS__MEM) ll /= TT.si.totalram;
+    if (which==PS__VSZ || which==PS__MEM)
+      ll /= TT.si.totalram/((which==PS__VSZ) ? 1024 : 4096);
     else if (slot[44]) ll /= slot[44];
     sl = ll;
     if (which==PS_C) sl += 5;
