@@ -13,6 +13,8 @@ void comma_args(struct arg_list *al, void *data, char *err,
   char *next, *arg;
   int len;
 
+  if (CFG_TOYBOX_DEBUG && !err) err = "INTERNAL";
+
   while (al) {
     arg = al->arg;
     while ((next = comma_iterate(&arg, &len)))
