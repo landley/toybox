@@ -132,6 +132,10 @@ hello'" "merp\nhello\n" "" "merp"
 testing "" "sed -e '/x/c\' -e 'y'" 'y\n' '' 'x\n'
 testing "" "sed -e 's/a[([]*b/X/'" 'X' '' 'a[(b'
 
+# You have to match the first line of a range in order to activate
+# the range, numeric and ascii work the same way
+testing "skip start of range" "sed -e n -e '1,2s/b/c/'" "a\nb\n" "" "a\nb\n"
+
 #echo meep | sed/sed -e '1a\' -e 'huh'
 #echo blah | sed/sed -f <(echo -e "1a\\\\\nboom")
 #echo merp | sed/sed "1a\\
