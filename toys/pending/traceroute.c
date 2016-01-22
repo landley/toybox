@@ -254,7 +254,7 @@ static void do_trace()
             struct ip *rcv_pkt = (struct ip*) toybuf;
             struct icmp *ricmp;
 
-            ricmp = (struct icmp *) ((void*)rcv_pkt + (rcv_pkt->ip_hl << 2));
+            ricmp = (struct icmp *) ((char*)rcv_pkt + (rcv_pkt->ip_hl << 2));
             if (ricmp->icmp_code == ICMP_UNREACH_NEEDFRAG)
               pmtu = ntohs(ricmp->icmp_nextmtu);
 
@@ -275,7 +275,7 @@ static void do_trace()
                   icmp_res = (ricmp->icmp_type == ICMP_TIMXCEED ? -1 :
                       ricmp->icmp_code);
               } else {
-                hicmp = (struct icmp *) ((void*)hip + (hip->ip_hl << 2));
+                hicmp = (struct icmp *) ((char*)hip + (hip->ip_hl << 2));
                 if (ricmp->icmp_type == ICMP_ECHOREPLY 
                     && ricmp->icmp_id == ntohs(TT.ident)
                     && ricmp->icmp_seq == ntohs(seq))
@@ -481,7 +481,7 @@ void traceroute_main(void)
   int lsrr = 0, set = 1;
   
   if(!(toys.optflags & FLAG_4) && 
-      (inet_pton(AF_INET6, toys.optargs[0], (void*)&dest)))
+      (inet_pton(AF_INET6, toys.optargs[0], &dest)))
     toys.optflags |= FLAG_6;
 
   memset(&dest, 0, sizeof(dest));
@@ -562,7 +562,7 @@ void traceroute_main(void)
   if (!TT.istraceroute6) {
     if ((toys.optflags & FLAG_t) && 
         setsockopt(TT.snd_sock, IPPROTO_IP, IP_TOS, &tyser, sizeof(tyser)) < 0)
-      perror_exit("IP_TOS %d failed ", TT.tos);
+      perror_exit("IP_TOS %ld failed ", TT.tos);
 
 #ifdef IP_DONTFRAG
     if ((toys.optflags & FLAG_F) &&
@@ -570,7 +570,7 @@ void traceroute_main(void)
                     sizeof(set)) < 0)) perror_exit("IP_DONTFRAG failed ");
 #endif
   } else if (setsockopt(TT.snd_sock, IPPROTO_IPV6, IPV6_TCLASS, &TT.tos,
-        sizeof(TT.tos)) < 0) perror_exit("IPV6_TCLASS %d failed ", TT.tos);
+        sizeof(TT.tos)) < 0) perror_exit("IPV6_TCLASS %ld failed ", TT.tos);
 
   set_flag_dr(TT.snd_sock);
   TT.packet = xzalloc(TT.msg_len);
@@ -592,7 +592,7 @@ void traceroute_main(void)
     }
 
     if(TT.first_ttl > TT.max_ttl) 
-      error_exit("ERROR :Range for -f is 1 to %d (max ttl)", TT.max_ttl);
+      error_exit("ERROR :Range for -f is 1 to %ld (max ttl)", TT.max_ttl);
 
     xprintf("traceroute to %s(%s)", toys.optargs[0], 
            inet_ntoa(((struct sockaddr_in *)&dest)->sin_addr));
