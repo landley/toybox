@@ -260,37 +260,38 @@ struct strawberry {
 };
 
 /* The slot[] array is mostly populated from /proc/$PID/stat (kernel proc.txt
- * table 1-4) but we shift and repurpose fields, with the result being:
- *
- * 0  pid         process id                1  ppid        parent process id
- * 2  pgrp        process group             3  sid         session id
- * 4  tty_nr      tty the process uses      5  tty_pgrp    pgrp of the tty
- * 6  flags       task flags                7  min_flt     minor faults
- * 8  cmin_flt    minor faults+child        9  maj_flt     major faults
- * 10 cmaj_flt    major faults+child        11 utime       user+kernel jiffies
- * 12 stime       kernel mode jiffies       13 cutime      user jiffies+child
- * 14 cstime      kernel mode jiffies+child 15 priority    priority level
- * 16 nice        nice level                17 num_threads number of threads
- * 18 vmlck       locked memory             19 start_time  jiffies after boot
- * 20 vsize       virtual memory size       21 rss         resident set size
- * 22 rsslim      limit in bytes on rss     23 start_code  code segment addr
- * 24 end_code    code segment address      25 start_stack stack address
- * 26 esp         current value of ESP      27 eip         current value of EIP
- * 28 iobytes     All I/O bytes             29 diobytes    disk I/O bytes
- * 30 sigign      bitmap of ignored signals 31 uid         user id
- * 32 ruid        real user id              33 gid         group id
- * 34 rgid        real group id             35 exit_signal sent to parent thread
- * 36 task_cpu    CPU task is scheduled on  37 rt_priority realtime priority
- * 38 policy      man sched_setscheduler    39 blkio_ticks spent wait block IO
- * 40 gtime       guest jiffies of task     41 cgtime      guest jiff of child
- * 42 start_data  program data+bss address  43 end_data    program data+bss
- * 44 upticks     46-19 (divisor for %)     45 argv0len    argv[0] length
- * 46 uptime      sysinfo.uptime @read time 47 vsz         Virtual Size
- * 48 rss         Resident Set Size         49 shr         Shared memory
- * 50 rchar       All bytes read            51 wchar       All bytes written
- * 52 rbytes      Disk bytes read           53 rbytes      Disk bytes written
- * 54 swap        Swap pages used
- */
+ * table 1-4) but we shift and repurpose fields, with the result being: */
+
+enum {
+ SLOT_pid,      /*process id*/            SLOT_ppid,      // parent process id
+ SLOT_pgrp,     /*process group*/         SLOT_sid,       // session id
+ SLOT_ttynr,    /*tty the process uses*/  SLOT_ttypgrp,   // pgrp of the tty
+ SLOT_flags,    /*task flags*/            SLOT_minflt,    // minor faults
+ SLOT_cminflt,  /*minor faults+child*/    SLOT_majflt,    // major faults
+ SLOT_cmajflt,  /*major faults+child*/    SLOT_utime,     // user+kernel jiffies
+ SLOT_stime,    /*kernel mode jiffies*/   SLOT_cutime,    // utime+child
+ SLOT_cstime,   /*stime+child*/           SLOT_priority,  // priority level
+ SLOT_nice,     /*nice level*/            SLOT_numthreads,// thread count
+ SLOT_vmlck,    /*locked memory*/         SLOT_starttime, // jiffies after boot
+ SLOT_vsize,    /*virtual memory size*/   SLOT_rss,       // resident set size
+ SLOT_rsslim,   /*limit in bytes on rss*/ SLOT_startcode, // code segment addr
+ SLOT_endcode,  /*code segment address*/  SLOT_startstack,// stack address
+ SLOT_esp,      /*task stack pointer*/    SLOT_eip,       // instruction pointer
+ SLOT_iobytes,  /*All I/O bytes*/         SLOT_diobytes,  // disk I/O bytes
+ SLOT_utime2,   /*relative utime (top)*/  SLOT_uid,       // user id
+ SLOT_ruid,     /*real user id*/          SLOT_gid,       // group id
+ SLOT_rgid,     /*real group id*/         SLOT_exitsig,   // sent to parent
+ SLOT_taskcpu,  /*CPU running on*/        SLOT_rtprio,    // realtime priority
+ SLOT_policy,   /*man sched_setscheduler*/SLOT_blkioticks,// IO wait time
+ SLOT_gtime,    /*guest jiffies of task*/ SLOT_cgtime,    // gtime+child
+ SLOT_startbss, /*data/bss address*/      SLOT_endbss,    // end addr data+bss
+ SLOT_upticks,  /*46-19 (divisor for %)*/ SLOT_argv0len,  // argv[0] length
+ SLOT_uptime,   /*si.uptime @read time*/  SLOT_vsz,       // Virtual mem Size
+ SLOT_rss2,     /*Resident Set Size*/     SLOT_shr,       // Shared memory
+ SLOT_rchar,    /*All bytes read*/        SLOT_wchar,     // All bytes written
+ SLOT_rbytes,   /*Disk bytes read*/       SLOT_wbytes,    // Disk bytes written
+ SLOT_swap,     /*Swap pages used*/
+};
 
 // Data layout in toybuf
 struct carveup {
@@ -306,39 +307,52 @@ struct typography {
   char *name;
   signed char width, slot;
 } static const typos[] = TAGGED_ARRAY(PS,
-  // stat#s: PID PPID PRI NI ADDR SZ RSS PGID VSZ MAJFL MINFL PR PSR RTPRIO
-  // SCHED
-  {"PID", 5, 0}, {"PPID", 5, 1}, {"PRI", 3, 15}, {"NI", 3, 16},
-  {"ADDR", 4+sizeof(long), 27}, {"SZ", 5, 20}, {"RSS", 5, 21}, {"PGID", 5, 2},
-  {"VSZ", 6, 20}, {"MAJFL", 6, 9}, {"MINFL", 6, 7}, {"PR", 2, 15},
-  {"PSR", 3, 36}, {"RTPRIO", 6, 37}, {"SCH", 3, 38}, {"CPU", 1, 36},
+  // Numbers
+  {"PID", 5, SLOT_pid}, {"PPID", 5, SLOT_ppid}, {"PRI", 3, SLOT_priority},
+  {"NI", 3, SLOT_nice}, {"ADDR", 4+sizeof(long), SLOT_eip},
+  {"SZ", 5, SLOT_vsize}, {"RSS", 5, SLOT_rss}, {"PGID", 5, SLOT_pgrp},
+  {"VSZ", 6, SLOT_vsize}, {"MAJFL", 6, SLOT_majflt}, {"MINFL", 6, SLOT_minflt},
+  {"PR", 2, SLOT_priority}, {"PSR", 3, SLOT_taskcpu},
+  {"RTPRIO", 6, SLOT_rtprio}, {"SCH", 3, SLOT_policy}, {"CPU", 3, SLOT_taskcpu},
 
-  // user/group: UID USER RUID RUSER GID GROUP RGID RGROUP
-  {"UID", 5, 31}, {"USER", -8, 64|31}, {"RUID", 4, 32}, {"RUSER", -8, 64|32},
-  {"GID", 8, 33}, {"GROUP", -8, 64|33}, {"RGID", 4, 34}, {"RGROUP", -8, 64|34},
-
-  // CMD TTY WCHAN LABEL CMDLINE COMMAND
+  // String fields
   {"COMM", -15, -1}, {"TTY", -8, -2}, {"WCHAN", -6, -3}, {"LABEL", -30, -4},
   {"COMMAND", -27, -5}, {"CMDLINE", -27, -6}, {"ARGS", -27, -6},
   {"NAME", -15, -6}, {"CMD", -27, -1},
 
-  // TIME ELAPSED TIME+
-  {"TIME", 8, 11}, {"ELAPSED", 11, 19}, {"TIME+", 9, 11},
+  // user/group
+  {"UID", 5, SLOT_uid}, {"USER", -8, 64|SLOT_uid}, {"RUID", 4, SLOT_ruid},
+  {"RUSER", -8, 64|SLOT_ruid}, {"GID", 8, SLOT_gid}, {"GROUP", -8, 64|SLOT_gid},
+  {"RGID", 4, SLOT_rgid}, {"RGROUP", -8, 64|SLOT_rgid},
 
-  // Remaining ungrouped
-  {"STIME", 5, 19}, {"F", 1, 64|6}, {"S", -1, 64}, {"C", 1, 64|11}, {"%CPU", 4, 64|11},
-  {"STAT", -5, 64}, {"%VSZ", 5, 20}, {"VIRT", 4, 47}, {"RES", 4, 48},
-  {"SHR", 4, 49}, {"READ", 6, 50}, {"WRITE", 6, 51}, {"IO", 6, 28},
-  {"DREAD", 6, 52}, {"DWRITE", 6, 53}, {"SWAP", 6, 54}, {"DIO", 6, 29},
-  {"%MEM", 5, 21}
+  // clock displays
+  {"TIME", 8, SLOT_utime}, {"ELAPSED", 11, SLOT_starttime},
+  {"TIME+", 9, SLOT_utime},
+
+  // Percentage displays
+  {"C", 1, SLOT_utime2}, {"%VSZ", 5, SLOT_vsize}, {"%MEM", 5, SLOT_rss},
+  {"%CPU", 4, SLOT_utime2},
+
+  // human_readable
+  {"VIRT", 4, SLOT_vsz}, {"RES", 4, SLOT_rss2},
+  {"SHR", 4, SLOT_shr}, {"READ", 6, SLOT_rchar}, {"WRITE", 6, SLOT_wchar},
+  {"IO", 6, SLOT_iobytes}, {"DREAD", 6, SLOT_rbytes},
+  {"DWRITE", 6, SLOT_wbytes}, {"SWAP", 6, SLOT_swap}, {"DIO", 6, SLOT_diobytes},
+
+  // Misc
+  {"STIME", 5, SLOT_starttime}, {"F", 1, 64|SLOT_flags}, {"S", -1, 64},
+  {"STAT", -5, 64},
+
+
 );
 
 // Return 0 to discard, nonzero to keep
 static int shared_match_process(long long *slot)
 {
   struct ptr_len match[] = {
-    {&TT.gg, 33}, {&TT.GG, 34}, {&TT.pp, 0}, {&TT.PP, 1}, {&TT.ss, 3},
-    {&TT.tt, 4}, {&TT.uu, 31}, {&TT.UU, 32}
+    {&TT.gg, SLOT_gid}, {&TT.GG, SLOT_rgid}, {&TT.pp, SLOT_pid},
+    {&TT.PP, SLOT_ppid}, {&TT.ss, SLOT_sid}, {&TT.tt, SLOT_ttynr},
+    {&TT.uu, SLOT_uid}, {&TT.UU, SLOT_ruid}
   };
   int i, j;
   long *ll = 0;
@@ -366,10 +380,10 @@ static int ps_match_process(long long *slot)
   if (!i) return 0;
 
   // Filter implicit categories for other display types
-  if ((toys.optflags&(FLAG_a|FLAG_d)) && slot[3]==*slot) return 0;
-  if ((toys.optflags&FLAG_a) && !slot[4]) return 0;
-  if (!(toys.optflags&(FLAG_a|FLAG_d|FLAG_A|FLAG_e)) && TT.tty!=slot[4])
-    return 0;
+  if ((toys.optflags&(FLAG_a|FLAG_d)) && slot[SLOT_sid]==*slot) return 0;
+  if ((toys.optflags&FLAG_a) && !slot[SLOT_ttynr]) return 0;
+  if (!(toys.optflags&(FLAG_a|FLAG_d|FLAG_A|FLAG_e))
+      && TT.tty!=slot[SLOT_ttynr]) return 0;
 
   return 1;
 }
@@ -381,8 +395,8 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
   int which = field->which, sl = typos[which].slot;
   long long *slot = tb->slot, ll = (sl >= 0) ? slot[sl&63] : 0;
 
-  // stat#s: PID PPID PRI NI ADDR SZ RSS PGID VSZ MAJFL MINFL PR PSR RTPRIO SCH
-  if (which <= PS_SCH) {
+  // numbers, mostly from /proc/$PID/stat
+  if (which <= PS_CPU) {
     char *fmt = "%lld";
 
     if (which==PS_PRI) ll = 39-ll;
@@ -394,7 +408,18 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     else if (which==PS_RTPRIO && ll == 0) fmt="-";
     sprintf(out, fmt, ll);
 
-  // user/group: UID USER RUID RUSER GID GROUP RGID RGROUP
+  // String fields
+  } else if (sl < 0) {
+    if (slot[SLOT_argv0len])
+      tb->str[tb->offset[4]+slot[SLOT_argv0len]] = (which==PS_NAME) ? 0 : ' ';
+    out = tb->str;
+    sl *= -1;
+    if (--sl) out += tb->offset[--sl];
+    if (which==PS_ARGS)
+      for (s = out; *s && *s != ' '; s++) if (*s == '/') out = s+1;
+    if (which>=PS_COMMAND && !*out) sprintf(out = buf, "[%s]", tb->str);
+
+  // user/group
   } else if (which <= PS_RGROUP) {
     sprintf(out, "%lld", ll);
     if (sl&64) {
@@ -409,25 +434,15 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
       }
     }
 
-  // COMM TTY WCHAN LABEL COMMAND CMDLINE ARGS NAME CMD
-  } else if (sl < 0) {
-    if (slot[45])
-      tb->str[tb->offset[4]+slot[45]] = (which == PS_NAME) ? 0 : ' ';
-    out = tb->str;
-    sl *= -1;
-    if (--sl) out += tb->offset[--sl];
-    if (which==PS_ARGS)
-      for (s = out; *s && *s != ' '; s++) if (*s == '/') out = s+1;
-    if (which>=PS_COMMAND && !*out) sprintf(out = buf, "[%s]", tb->str);
-  // TIME ELAPSED TIME+
+  // Clock displays
   } else if (which <= PS_TIME_) {
     int unit = 60, pad = 2, j = TT.ticks; 
     time_t seconds;
 
     if (which!=PS_TIME_) unit *= 60*24;
     else pad = 0;
-    // top adjusts slot[44], we want original meaning.
-    if (which==PS_ELAPSED) ll = (slot[46]*j)-slot[19];
+    // top adjusts slot[SLOT_upticks], we want original meaning.
+    if (which==PS_ELAPSED) ll = (slot[SLOT_uptime]*j)-slot[SLOT_starttime];
     seconds = ll/j;
 
     // Output days-hours:mins:secs, skipping non-required fields with zero
@@ -445,23 +460,41 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     if (which==PS_TIME_ && s-out<8)
       sprintf(s, ".%02lld", (100*(ll%TT.ticks))/TT.ticks);
 
+  // Percentage displays
+  } else if (which <= PS__CPU) {
+    ll = slot[sl&63]*1000;
+    if (which==PS__VSZ || which==PS__MEM)
+      ll /= TT.si.totalram/((which==PS__VSZ) ? 1024 : 4096);
+    else if (slot[SLOT_upticks]) ll /= slot[SLOT_upticks];
+    sl = ll;
+    if (which==PS_C) sl += 5;
+    sprintf(out, "%d", sl/10);
+    if (which!=PS_C && sl<1000) sprintf(out+strlen(out), ".%d", sl%10);
+
+  // Human readable
+  } else if (which <= PS_DIO) {
+    ll = slot[typos[which].slot];
+    if (which <= PS_SHR) ll *= sysconf(_SC_PAGESIZE);
+    if (TT.forcek) sprintf(out, "%lldk", ll/1024);
+    else human_readable(out, ll, 0);
+
   // Posix doesn't specify what flags should say. Man page says
   // 1 for PF_FORKNOEXEC and 4 for PF_SUPERPRIV from linux/sched.h
-  } else if (which==PS_F) sprintf(out, "%llo", (slot[6]>>6)&5);
+  } else if (which==PS_F) sprintf(out, "%llo", (slot[SLOT_flags]>>6)&5);
   else if (which==PS_S || which==PS_STAT) {
     s = out;
     *s++ = tb->state;
     if (which==PS_STAT) {
       // TODO l = multithreaded
-      if (slot[16]<0) *s++ = '<';
-      else if (slot[16]>0) *s++ = 'N';
-      if (slot[3]==*slot) *s++ = 's';
-      if (slot[18]) *s++ = 'L';
-      if (slot[5]==*slot) *s++ = '+';
+      if (slot[SLOT_nice]<0) *s++ = '<';
+      else if (slot[SLOT_nice]>0) *s++ = 'N';
+      if (slot[SLOT_sid]==*slot) *s++ = 's';
+      if (slot[SLOT_vmlck]) *s++ = 'L';
+      if (slot[SLOT_ttypgrp]==*slot) *s++ = '+';
     } 
     *s = 0;
   } else if (which==PS_STIME) {
-    time_t t = time(0)-slot[46]+slot[19]/TT.ticks;
+    time_t t = time(0)-slot[SLOT_uptime]+slot[SLOT_starttime]/TT.ticks;
 
     // Padding behavior's a bit odd: default field size is just hh:mm.
     // Increasing stime:size reveals more data at left until full,
@@ -470,20 +503,7 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     strftime(out, 260, "%F %T", localtime(&t));
     out = out+strlen(out)-3-abs(field->len);
     if (out<buf) out = buf;
-  } else if (strchr((char []){PS_C,PS__CPU,PS__VSZ,PS__MEM,0}, which)) {
-    ll = slot[sl&63]*1000;
-    if (which==PS__VSZ || which==PS__MEM)
-      ll /= TT.si.totalram/((which==PS__VSZ) ? 1024 : 4096);
-    else if (slot[44]) ll /= slot[44];
-    sl = ll;
-    if (which==PS_C) sl += 5;
-    sprintf(out, "%d", sl/10);
-    if (which!=PS_C && sl<1000) sprintf(out+strlen(out), ".%d", sl%10);
-  } else if (which>=PS_VIRT && which <= PS_DIO) {
-    ll = slot[typos[which].slot];
-    if (which <= PS_SHR) ll *= sysconf(_SC_PAGESIZE);
-    if (TT.forcek) sprintf(out, "%lldk", ll/1024);
-    else human_readable(out, ll, 0);
+
   } else if (CFG_TOYBOX_DEBUG) error_exit("bad which %d", which);
 
   return out;
@@ -553,7 +573,7 @@ static int get_ps(struct dirtree *new)
   for (s = ++name; *s; s++) if (*s == ')') end = s;
   if (!end || end-name>255) return 0;
 
-  // Parse numeric fields (starting at 4th field in slot[1])
+  // Parse numeric fields (starting at 4th field in slot[SLOT_ppid])
   if (1>sscanf(s = end, ") %c%n", &tb->state, &i)) return 0;
   for (j = 1; j<50; j++) if (1>sscanf(s += i, " %lld%n", slot+j, &i)) break;
 
@@ -569,11 +589,12 @@ static int get_ps(struct dirtree *new)
   // save uid, ruid, gid, gid, and rgid int slots 31-34 (we don't use sigcatch
   // or numeric wchan, and the remaining two are always zero), and vmlck into
   // 18 (which is "obsolete, always 0" from stat)
-  slot[31] = new->st.st_uid;
-  slot[33] = new->st.st_gid;
+  slot[SLOT_uid] = new->st.st_uid;
+  slot[SLOT_gid] = new->st.st_gid;
 
   // TIME and TIME+ use combined value, ksort needs 'em added.
-  slot[11] += slot[12];
+  slot[SLOT_utime] += slot[SLOT_stime];
+  slot[SLOT_utime2] = slot[SLOT_utime];
 
   // If RGROUP RUSER STAT RUID RGID SWAP happening, or -G or -U, parse "status"
   // and save ruid, rgid, and vmlck.
@@ -585,11 +606,11 @@ static int get_ps(struct dirtree *new)
     sprintf(buf, "%lld/status", *slot);
     if (!readfileat(fd, buf, buf, &temp)) *buf = 0;
     s = strafter(buf, "\nUid:");
-    slot[32] = s ? atol(s) : new->st.st_uid;
+    slot[SLOT_ruid] = s ? atol(s) : new->st.st_uid;
     s = strafter(buf, "\nGid:");
-    slot[34] = s ? atol(s) : new->st.st_gid;
-    if ((s = strafter(buf, "\nVmLck:"))) slot[18] = atoll(s);
-    if ((s = strafter(buf, "\nVmSwap:"))) slot[54] = atoll(s);
+    slot[SLOT_rgid] = s ? atol(s) : new->st.st_gid;
+    if ((s = strafter(buf, "\nVmLck:"))) slot[SLOT_vmlck] = atoll(s);
+    if ((s = strafter(buf, "\nVmSwap:"))) slot[SLOT_swap] = atoll(s);
   }
 
   // Do we need to read "io"?
@@ -598,12 +619,12 @@ static int get_ps(struct dirtree *new)
 
     sprintf(buf, "%lld/io", *slot);
     if (!readfileat(fd, buf, buf, &temp)) *buf = 0;
-    if ((s = strafter(buf, "rchar:"))) slot[50] = atoll(s);
-    if ((s = strafter(buf, "wchar:"))) slot[51] = atoll(s);
-    if ((s = strafter(buf, "read_bytes:"))) slot[52] = atoll(s);
-    if ((s = strafter(buf, "write_bytes:"))) slot[53] = atoll(s);
-    slot[28] = slot[50]+slot[51]+slot[54];
-    slot[29] = slot[52]+slot[53]+slot[54];
+    if ((s = strafter(buf, "rchar:"))) slot[SLOT_rchar] = atoll(s);
+    if ((s = strafter(buf, "wchar:"))) slot[SLOT_wchar] = atoll(s);
+    if ((s = strafter(buf, "read_bytes:"))) slot[SLOT_rbytes] = atoll(s);
+    if ((s = strafter(buf, "write_bytes:"))) slot[SLOT_wbytes] = atoll(s);
+    slot[SLOT_iobytes] = slot[SLOT_rchar]+slot[SLOT_wchar]+slot[SLOT_swap];
+    slot[SLOT_diobytes] = slot[SLOT_rbytes]+slot[SLOT_wbytes]+slot[SLOT_swap];
   }
 
   // We now know enough to skip processes we don't care about.
@@ -612,7 +633,8 @@ static int get_ps(struct dirtree *new)
   // /proc data is generated as it's read, so for maximum accuracy on slow
   // systems (or ps | more) we re-fetch uptime as we fetch each /proc line.
   sysinfo(&TT.si);
-  slot[44] = ((slot[46] = TT.si.uptime)*TT.ticks) - slot[19];
+  slot[SLOT_uptime] = TT.si.uptime;
+  slot[SLOT_upticks] = slot[SLOT_uptime]*TT.ticks - slot[SLOT_rss];
 
   // Do we need to read "statm"?
   if (TT.bits&(_PS_VIRT|_PS_RES|_PS_SHR)) {
@@ -622,7 +644,7 @@ static int get_ps(struct dirtree *new)
     if (!readfileat(fd, buf, buf, &temp)) *buf = 0;
     
     for (s = buf, i=0; i<3; i++)
-      if (!sscanf(s, " %lld%n", slot+47+i, &j)) slot[47+i] = 0;
+      if (!sscanf(s, " %lld%n", slot+SLOT_vsz+i, &j)) slot[SLOT_vsz+i] = 0;
       else s += j;
   }
 
@@ -630,7 +652,7 @@ static int get_ps(struct dirtree *new)
   // (There's well over 3k of toybuf left. We could dynamically malloc, but
   // it'd almost never get used, querying length of a proc file is awkward,
   // fixed buffer is nommu friendly... Wait for somebody to complain. :)
-  slot[45] = 0;
+  slot[SLOT_argv0len] = 0;
   for (j = 0; j<ARRAY_LEN(fetch); j++) { 
     tb->offset[j] = buf-(tb->str);
     if (!(TT.bits&fetch[j].bits)) {
@@ -651,7 +673,7 @@ static int get_ps(struct dirtree *new)
     // If it's not the TTY field, data we want is in a file.
     // Last length saved in slot[] is command line (which has embedded NULs)
     } else if (!j) {
-      int rdev = slot[4];
+      int rdev = slot[SLOT_ttynr];
       struct stat st;
 
       // Call no tty "?" rather than "0:0".
@@ -717,7 +739,7 @@ static int get_ps(struct dirtree *new)
         len = temp; // position of _first_ NUL
       } else *buf = len = 0;
       // Store end of argv[0] so NAME and CMDLINE can differ.
-      slot[45] = len;
+      slot[SLOT_argv0len] = len;
     }
 
     buf += strlen(buf)+1;
@@ -819,9 +841,6 @@ static char *parse_rest(void *data, char *str, int len)
   char *end;
   int num = 0;
 
-  // numeric: -p, -s
-  // gg, GG, pp, ss, tt, uu, UU, *parsing;
- 
   // Allocate next chunk of data
   if (!(15&pl->len))
     ll = pl->ptr = xrealloc(pl->ptr, sizeof(long)*(pl->len+16));
@@ -897,23 +916,25 @@ static int ksort(void *aa, void *bb)
   struct carveup *ta = *(struct carveup **)aa, *tb = *(struct carveup **)bb;
   int ret = 0, slot;
 
-  for (field = TT.kfields; field; field = field->next) {
+  for (field = TT.kfields; field && !ret; field = field->next) {
     slot = typos[field->which].slot;
 
-    // Compare as strings?
-    if (slot&64) {
-      memccpy(toybuf, string_field(ta, field), 0, 2048);
-      toybuf[2048] = 0;
-      ret = strcmp(toybuf, string_field(tb, field));
-    } else {
+    // Can we do numeric sort?
+    if (!(slot&64)) {
       if (ta->slot[slot]<tb->slot[slot]) ret = -1;
       if (ta->slot[slot]>tb->slot[slot]) ret = 1;
     }
 
-    if (ret) return ret*field->reverse;
+    // fallback to string sort
+    if (!ret) {
+      memccpy(toybuf, string_field(ta, field), 0, 2048);
+      toybuf[2048] = 0;
+      ret = strcmp(toybuf, string_field(tb, field));
+    }
+    ret *= field->reverse;
   }
 
-  return 0;
+  return ret;
 }
 
 static struct carveup **collate(int count, struct dirtree *dt,
@@ -1078,7 +1099,8 @@ static void setsort(int pos)
 // because we free it after displaying.
 static int merge_deltas(long long *oslot, long long *nslot)
 {
-  char deltas[] = {11,28,29,44,50,51,52,53,54};
+  char deltas[] = {SLOT_utime2, SLOT_iobytes, SLOT_diobytes, SLOT_upticks,
+                   SLOT_rchar, SLOT_wchar, SLOT_rbytes, SLOT_wbytes, SLOT_swap};
   int i;
 
   for (i = 0; i<ARRAY_LEN(deltas); i++)
@@ -1165,6 +1187,7 @@ static void top_common(char *header,
       char was, is, *pos;
 
       qsort(mix.tb, mix.count, sizeof(struct carveup *), (void *)ksort);
+printf("cheese\n");
       if (!(toys.optflags&FLAG_b)) printf("\033[H\033[J");
       if (!(toys.optflags&FLAG_q)) {
         i = 0;
@@ -1258,7 +1281,7 @@ static int iotop_filter(long long *oslot, long long *nslot)
 {
   if (!(toys.optflags&FLAG_a)) merge_deltas(oslot, nslot);
 
-  return !(toys.optflags&FLAG_o) || oslot[28+!(toys.optflags&FLAG_A)];
+  return !(toys.optflags&FLAG_o) || oslot[SLOT_iobytes+!(toys.optflags&FLAG_A)];
 }
 
 void iotop_main(void)
