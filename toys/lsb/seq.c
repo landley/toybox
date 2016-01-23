@@ -32,22 +32,13 @@ GLOBALS(
 // Ensure there's one %f escape with correct attributes
 static void insanitize(char *f)
 {
-  char *s;
-  int found = 0;
+  char *s = next_printf(f, 0);
 
-  for (s = f; *s; s++) {
-    if (*s != '%') continue;
-    if (*++s == '%') continue;
-    if (found++) break;
-    while (0 <= stridx("0'#-+ ", *s)) s++;
-    while (isdigit(*s)) s++;
-    if (*s == '.') s++;
-    while (isdigit(*s)) s++;
-    if (-1 == stridx("aAeEfFgG", *s)) break;
+  if (!s) error_exit("bad -f no %%f");
+  if (-1 == stridx("aAeEfFgG", *s) || (s = next_printf(s, 0))) {
+    // The @ is a byte offset, not utf8 chars. Waiting for somebody to complain.
+    error_exit("bad -f '%s'@%ld", f, s-f+1);
   }
-
-  // The @ is a byte offset, not utf8 chars. Waiting for somebody to complain...
-  if (*s || !found) error_exit("bad -f '%s'@%ld", f, s-f+1);
 }
 
 void seq_main(void)

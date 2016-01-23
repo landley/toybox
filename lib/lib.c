@@ -1015,3 +1015,21 @@ char *show_uuid(char *uuid)
 
   return libbuf;
 }
+
+// Returns pointer to letter at end, 0 if none. *start = initial %
+char *next_printf(char *s, char **start)
+{
+  for (; *s; s++) {
+    if (*s != '%') continue;
+    if (*++s == '%') continue;
+    if (start) *start = s-1;
+    while (0 <= stridx("0'#-+ ", *s)) s++;
+    while (isdigit(*s)) s++;
+    if (*s == '.') s++;
+    while (isdigit(*s)) s++;
+
+    return s;
+  }
+
+  return 0;
+}
