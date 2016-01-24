@@ -19,7 +19,7 @@ void comma_args(struct arg_list *al, void *data, char *err,
     arg = al->arg;
     while ((next = comma_iterate(&arg, &len)))
       if ((next = callback(data, next, len)))
-        perror_exit("%s '%s'\n%*c", err, al->arg,
+        error_exit("%s '%s'\n%*c", err, al->arg,
           (int)(5+strlen(toys.which->name)+strlen(err)+next-al->arg), '^');
     al = al->next;
   }
