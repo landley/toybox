@@ -29,6 +29,12 @@
  * output argv[0] unmodified for -o comm or -o args (but procps violates
  * posix for -o comm anyway, it's stat[2] not argv[0]).
  *
+ * Note: iotop is STAYROOT so it can read other process's /proc/$PID/io
+ *       files (why they're not globally readable when the rest of proc
+ *       data is...?) and get a global I/O picture. Normal top is NOT,
+ *       even though you can -o AIO there, to give sysadmins the option
+ *       to reduce security exposure.)
+ *
  * TODO: ps aux (att & bsd style "ps -ax" vs "ps ax" behavior difference)
  * TODO: switch -fl to -y
  * TODO: thread support /proc/$d/task/%d/stat (and -o stat has "l")
@@ -37,8 +43,8 @@
 
 USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflno*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 // stayroot because iotop needs root to read other process' proc/$$/io
-USE_TOP(NEWTOY(top, ">0m" "p*u*d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
-USE_IOTOP(NEWTOY(iotop, ">0Aako"  "p*u*d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
+USE_TOP(NEWTOY(top, ">0m" "h:k*o*p*u*s#<1=9d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_IOTOP(NEWTOY(iotop, ">0AaKO" "h:k*o*p*u*s#<1=7d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
 USE_PGREP(NEWTOY(pgrep, "?cld:u*U*t*s*P*g*G*fnovxL:", TOYFLAG_USR|TOYFLAG_BIN))
 USE_PKILL(NEWTOY(pkill,     "Vu*U*t*s*P*g*G*fnovxl:", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -114,47 +120,53 @@ config TOP
   help
     usage: top [-m] [ -d seconds ] [ -n iterations ]
 
-    Provide a view of process activity in real time.
-    Keys
-       N/M/P/T show CPU usage, sort by pid/mem/cpu/time
-       S       show memory
-       R       reverse sort
+    Show process activity in real time.
+
+    -h	Header (default Tasks: %PID, %S=R running, %S=S sleeping, %S
+    -k	Fallback sort FIELDS (default -S,-%CPU,-ETIME,-PID)
+    -o	Show FIELDS (def PID,USER,PR,NI,VIRT,RES,SHR,S,%CPU,%MEM,TIME+,CMDLINE)
+    -s	Sort by field number (1-X, default 9)
+
+    Default header is:
+    Tasks: %PID, %S=R= running, %S=S= sleeping, %S=T= stopped, %S=Z= zombie\n
+    Mem: %10KMEM total, %10KMUSED used, %10KMFREE free, %10KBUF buffers
+    Swap: %9KSWAP total, %10KSWUSED used, %10KSWFREE free, %10K
+
        H       toggle threads
        C,1     toggle SMP
-       Q,^C    exit
-
-    Options
-       -n Iterations before exiting
-       -d Delay between updates
-       -m Same as 's' key
 
 # Requires CONFIG_IRQ_TIME_ACCOUNTING in the kernel for /proc/$$/io
 config IOTOP
   bool "iotop"
   default y
   help
-    usage: iotop [-Aako]
+    usage: iotop [-AaKO]
 
     Rank processes by I/O.
 
     -A	All I/O, not just disk
     -a	Accumulated I/O (not percentage)
-    -k	Kilobytes
-    -o	Only show processes doing I/O
-
-    Cursor left/right to change sort, space to update, Q to exit.
+    -K	Kilobytes
+    -k	Fallback sort FIELDS (default -[D]IO,-ETIME,-PID)
+    -O	Only show processes doing I/O
+    -o	Show FIELDS (default PID,PR,USER,[D]READ,[D]WRITE,SWAP,[D]IO,COMM)
+    -s	Sort by field number (0-X, default 6)
 
 config TOP_COMMON
   bool
   default y
   help
-    usage: COMMON [-bq] [-n NUMBER] [-d SECONDS] [-p PID,] [-u USER,]
+    usage: COMMON [-bq] [-n NUMBER] [-d SECONDS] [-p PID,] [-u USER,] [-s SORT]
+
     -b	Batch mode (no tty)
     -d	Delay SECONDS between each cycle (default 3)
     -n	Exit after NUMBER iterations
     -p	Show these PIDs
     -u	Show these USERs
     -q	Quiet (no header lines)
+
+    Cursor LEFT/RIGHT to change sort, UP/DOWN move list, space to force
+    update, R to reverse sort, Q to exit.
 
 config PGREP
   bool "pgrep"
@@ -220,8 +232,12 @@ GLOBALS(
     struct {
       long n;
       long d;
+      long s;
       struct arg_list *u;
       struct arg_list *p;
+      struct arg_list *o;
+      struct arg_list *k;
+      char *h;
     } top;
     struct{
       char *L;
@@ -245,7 +261,7 @@ GLOBALS(
   unsigned width, height;
   dev_t tty;
   void *fields, *kfields;
-  long long ticks, bits, ioread, iowrite, aioread, aiowrite;
+  long long ticks, bits;
   size_t header_len;
   int kcount, forcek, sortpos;
   int (*match_process)(long long *slot);
@@ -533,7 +549,6 @@ static void show_ps(struct carveup *tb)
     else width -= printf("%*.*s", pad, len, out);
     if (!width) break;
   }
-  xputc('\n');
 }
 
 // dirtree callback: read data about process to display, store, or discard it.
@@ -747,6 +762,7 @@ static int get_ps(struct dirtree *new)
 
   if (TT.show_process) {
     TT.show_process(tb);
+    xputc('\n');
 
     return 0;
   }
@@ -960,6 +976,18 @@ static struct carveup **collate(int count, struct dirtree *dt,
   return tbsort;
 } 
 
+static void quick_ko(char *str, void *fields, char *err)
+{
+  struct arg_list al;
+
+  // Display fields
+  al.next = 0;
+  al.arg = xstrdup(str);
+  comma_args(&al, fields, err, parse_ko);
+  free(al.arg);
+  if (err != (char *)1) dlist_terminate(*(void **)fields);
+}
+
 static void shared_main(void)
 {
   int i;
@@ -1005,11 +1033,7 @@ void ps_main(void)
 
   // Parse manual field selection, or default/-f/-l, plus -Z,
   // constructing the header line in toybuf as we go.
-  if (toys.optflags&FLAG_Z) {
-    struct arg_list Z = { 0, "LABEL" };
-
-    comma_args(&Z, &TT.fields, "-Z", parse_ko);
-  }
+  if (toys.optflags&FLAG_Z) quick_ko("LABEL", &TT.fields, (char *)1);
   if (TT.ps.o) comma_args(TT.ps.o, &TT.fields, "bad -o field", parse_ko);
   else {
     struct arg_list al;
@@ -1056,6 +1080,7 @@ void ps_main(void)
     for (i = 0; i<TT.kcount; i++) {
       show_ps(tbsort[i]);
       free(tbsort[i]);
+      xputc('\n');
     }
     if (CFG_TOYBOX_FREE) free(tbsort);
   }
@@ -1086,7 +1111,7 @@ static void setsort(int pos)
   if (pos<0) pos = 0;
 
   for (field = TT.fields; field; field = field->next) {
-    if ((TT.sortpos = i++)<pos) continue;
+    if ((TT.sortpos = i++)<pos && field->next) continue;
     going2 = TT.kfields;
     going2->which = field->which;
     going2->len = field->len;
@@ -1109,7 +1134,7 @@ static int merge_deltas(long long *oslot, long long *nslot)
   return 1;
 }
 
-static void top_common(char *header,
+static void top_common(char *intro, char *header,
   int (*filter)(long long *oslot, long long *nslot))
 {
   struct timespec ts;
@@ -1120,21 +1145,9 @@ static void top_common(char *header,
   } plist[2], *plold, *plnew, old, new, mix;
   char scratch[16];
   unsigned tock = 0;
-  int i, lines, done = 0;
+  int i, lines, topoff = 0, done = 0;
 
   *scratch = 0;
-  TT.top.d *= 1000;
-  if (toys.optflags&FLAG_b) TT.width = TT.height = 99999;
-  else {
-    xset_terminal(0, 1, 0);
-    sigatexit(tty_sigreset);
-  }
-  shared_main();
-
-  comma_args(TT.top.u, &TT.uu, "bad -u", parse_rest);
-  comma_args(TT.top.p, &TT.pp, "bad -p", parse_rest);
-
-  TT.match_process = shared_match_process;
   memset(plist, 0, sizeof(plist));
   do {
     struct dirtree *dt = dirtree_read("/proc", get_ps);
@@ -1182,18 +1195,76 @@ static void top_common(char *header,
       new.count--;
     }
 
-    // Will will re-fetch no data before its time. - Mork calling Orson Welles
+    // We will re-fetch no data before its time. - Mork calling Orson Welles
     for (;;) {
-      char was, is, *pos;
+      int and, or, not, xor;
+      char *pos, *pct, *end=end, buf[32], was, is;
 
       qsort(mix.tb, mix.count, sizeof(struct carveup *), (void *)ksort);
-printf("cheese\n");
+      lines = TT.height;
       if (!(toys.optflags&FLAG_b)) printf("\033[H\033[J");
       if (!(toys.optflags&FLAG_q)) {
-        i = 0;
-        strcpy(pos = toybuf, header);
 
-        for (i=0, is = *pos; *pos; pos++) {
+        // Show intro lines, parsing printf-ish escapes
+        i = 0;
+        pos = end = TT.top.h ? TT.top.h : intro;
+        for (;;) {
+          if (i==sizeof(toybuf)-8) error_exit("tilt");
+          toybuf[i] = 0;
+          if (end && end<=pos) end = next_printf(pos, &pct);
+
+          // Not an %escape sequence?
+          if (!end || pct>pos) {
+            char c = *pos;
+
+            if (c=='\\') {
+              if ((or = unescape(*++pos))) c = or;
+              else if (!*pos) error_exit("bad -h \\");
+            }
+
+            if (c=='\t') {
+              and = 8-utf8len(toybuf);
+              while (and--) toybuf[i++] = ' ';
+            } else if (!c || '\n'==c) {
+              draw_str(toybuf, TT.width);
+              putchar('\r');
+              putchar('\n');
+              if (1>--lines) break;
+              i = 0;
+              if (!c) break;
+            } else toybuf[i++] = c;
+
+          // Escape sequences
+          } else if (pct) {
+            not = -1;
+            for (and = or = 0; and < ARRAY_LEN(typos); and++) {
+              xor = strlen(typos[and].name);
+              if (xor>or && !strncasecmp(typos[and].name, end, xor)) {
+                not = and;
+                or = xor;
+              }
+            }
+            if (!or) error_exit("bad -h '%.16ss'", end);
+            snprintf(buf, sizeof(buf)-1, "%.*s", (int)(end-pct), pct);
+            strcat(buf, "s");
+            pos = (end += or);
+
+            or = *pos;
+            if (or == '=') {
+              for (pos++; *pos && *pos != '='; pos++);
+              if (!*pos++) error_exit("-h bad =");
+            }
+            // i += snprintf(toybuf+i, sizeof(toybuf)-i, "[%s]", buf);
+            i += snprintf(toybuf+i, sizeof(toybuf)-i, "{%d}", not);
+            // for (and = 0; and<mix.count; and++) { }
+
+            pos--;
+          }
+          pos++;
+        }
+
+        strcpy(pos = toybuf, header);
+        for (i = 0, is = *pos; *pos; pos++) {
           was = is;
           is = *pos;
           if (isspace(was) && !isspace(is) && i++==TT.sortpos) pos[-1] = '[';
@@ -1202,15 +1273,15 @@ printf("cheese\n");
         *pos = 0;
         printf("\033[7m%*.*s\033[0m\n\r",
           (toys.optflags&FLAG_b) ? 0 : -TT.width, TT.width, toybuf);
+        lines--;
 
         if (!(toys.optflags&FLAG_b))
           terminal_probesize(&TT.width, &TT.height);
       }
-      lines = TT.height-2;
 
-      for (i=0; i<lines && i<mix.count; i++) {
-        show_ps(mix.tb[i]);
-        xputc('\r');
+      for (i = 0; i<lines && i+topoff<mix.count; i++) {
+        if (i) xprintf("\r\n");
+        show_ps(mix.tb[i+topoff]);
       }
 
       if (TT.top.n && !--TT.top.n) {
@@ -1236,10 +1307,15 @@ printf("cheese\n");
       else if (i==' ') {
         timeout = now;
         break;
-      } else {
+      } else if (toupper(i)=='R')
+        ((struct strawberry *)TT.kfields)->reverse *= -1;
+      else {
         i -= 256;
         if (i == KEY_LEFT) setsort(TT.sortpos-1);
         else if (i == KEY_RIGHT) setsort(TT.sortpos+1);
+        else if (i == KEY_UP) {
+          if (topoff) topoff--;
+        } else if (i == KEY_DOWN) topoff++;
       }
       continue;
     }
@@ -1251,26 +1327,49 @@ printf("cheese\n");
   if (!(toys.optflags&FLAG_b)) tty_reset();
 }
 
-void top_main(void)
+static char *top_setup(char *defo, char *defk)
 {
-  struct arg_list al;
   char *header;
+  int len;
 
-  // Display fields
-  al.next = 0;
-  al.arg = xstrdup("PID,USER,PR,NI,VIRT,RES,SHR,S,%CPU,%MEM,TIME+,CMDLINE");
-  comma_args(&al, &TT.fields, 0, parse_ko);
-  free(al.arg);
+  TT.top.d *= 1000;
+  if (toys.optflags&FLAG_b) TT.width = TT.height = 99999;
+  else {
+    xset_terminal(0, 1, 0);
+    sigatexit(tty_sigreset);
+  }
+  shared_main();
+
+  comma_args(TT.top.u, &TT.uu, "bad -u", parse_rest);
+  comma_args(TT.top.p, &TT.pp, "bad -p", parse_rest);
+  TT.match_process = shared_match_process;
+
+  if (TT.top.o) comma_args(TT.top.o, &TT.fields, "-o", parse_ko);
+  else quick_ko(defo, &TT.fields, (char *)1);
   dlist_terminate(TT.fields);
+  len = strlen(toybuf);
+  if (toybuf[len-1]!=' ' && len<sizeof(toybuf)-1) strcpy(toybuf+len, " ");
   header=xstrdup(toybuf);
 
-  // Fallback sorts
-  al.arg = xstrdup("-S,-%CPU,-ETIME,-PID");
-  comma_args(&al, &TT.kfields, "bang", parse_ko);
+  // First (dummy) sort field is overwritten by setsort()
+  quick_ko("-S", &TT.kfields, (char *)1);
+  if (TT.top.k) comma_args(TT.top.k, &TT.kfields, "-k", parse_ko);
+  else quick_ko(defk, &TT.kfields, (char *)1);
   dlist_terminate(TT.kfields);
-  setsort(8);
+  setsort(TT.top.s-1);
 
-  top_common(header, merge_deltas);
+  return header;
+}
+
+void top_main(void)
+{
+  // usage: [-h HEADER] -o OUTPUT -k SORT
+
+  char *header = top_setup(
+    "PID,USER,PR,NI,VIRT,RES,SHR,S,%CPU,%MEM,TIME+,CMDLINE",
+    "-%CPU,-ETIME,-PID");
+
+  top_common("top", header, merge_deltas);
 }
 
 #define CLEANUP_top
@@ -1281,31 +1380,22 @@ static int iotop_filter(long long *oslot, long long *nslot)
 {
   if (!(toys.optflags&FLAG_a)) merge_deltas(oslot, nslot);
 
-  return !(toys.optflags&FLAG_o) || oslot[SLOT_iobytes+!(toys.optflags&FLAG_A)];
+  return !(toys.optflags&FLAG_o)||oslot[SLOT_iobytes+!(toys.optflags&FLAG_A)];
 }
 
 void iotop_main(void)
 {
-  struct arg_list al;
-  char *header, *d = "D"+!!(toys.optflags&FLAG_A);
+  char *s1 = 0, *s2 = 0, *header, *d = "D"+!!(toys.optflags&FLAG_A);
 
-  if (toys.optflags&FLAG_k) TT.forcek++;
+  if (toys.optflags&FLAG_K) TT.forcek++;
 
-  al.next = 0;
-  al.arg = xmprintf("PID,PR,USER,%sREAD,%sWRITE,SWAP,%sIO,COMM", d, d, d);
-  comma_args(&al, &TT.fields, 0, parse_ko);
-  free(al.arg);
-  dlist_terminate(TT.fields);
-  header = strdup(toybuf);
+  header = top_setup(
+    s1 = xmprintf("PID,PR,USER,%sREAD,%sWRITE,SWAP,%sIO,COMM", d, d, d),
+    s2 = xmprintf("-%sIO,-ETIME,-PID",d));
+  free(s1);
+  free(s2);
 
-  // Fallback sorts. First (dummy) field gets overwritten by setsort()
-  al.arg = xmprintf("-S,-%sIO,-ETIME,-PID",d);
-  comma_args(&al, &TT.kfields, 0, parse_ko);
-  free(al.arg);
-  dlist_terminate(TT.kfields);
-  setsort(6);
-
-  top_common(header, iotop_filter);
+  top_common("iotop", header, iotop_filter);
 }
 
 // pkill's plumbing wrap's pgrep's and thus mostly takes place in pgrep's flag
