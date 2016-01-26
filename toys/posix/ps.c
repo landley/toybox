@@ -41,7 +41,7 @@
  * TODO: iotop: Window size change: respond immediately. Why not padding
  *       at right edge? (Not adjusting to screen size at all? Header wraps?)
 
-USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflno*O*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflMno*O*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 // stayroot because iotop needs root to read other process' proc/$$/io
 USE_TOP(NEWTOY(top, ">0m" "h:k*o*p*u*s#<1=9d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 USE_IOTOP(NEWTOY(iotop, ">0AaKO" "h:k*o*p*u*s#<1=7d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
@@ -74,6 +74,7 @@ config PS
     Output modifiers:
 
     -k	Sort FIELDs in +increasing or -decreasting order (--sort)
+    -M	Measure field widths (expanding as necessary)
     -n	Show numeric USER and GROUP
     -w	Wide output (don't truncate at terminal width)
 
@@ -359,8 +360,6 @@ struct typography {
   // Misc
   {"STIME", 5, SLOT_starttime}, {"F", 1, 64|SLOT_flags}, {"S", -1, 64},
   {"STAT", -5, 64},
-
-
 );
 
 // Return 0 to discard, nonzero to keep
@@ -761,6 +760,7 @@ static int get_ps(struct dirtree *new)
     buf += strlen(buf)+1;
   }
 
+  TT.kcount++;
   if (TT.show_process) {
     TT.show_process(tb);
     xputc('\n');
@@ -772,7 +772,6 @@ static int get_ps(struct dirtree *new)
   s = xmalloc(buf-toybuf);
   new->extra = (long)s;
   memcpy(s, toybuf, buf-toybuf);
-  TT.kcount++;
 
   return DIRTREE_SAVE;
 }
@@ -1062,17 +1061,37 @@ void ps_main(void)
     }
   }
 
+  // Calculate seen fields bit array, and if we aren't deferring printing
+  // print headers now (for low memory/nommu systems).
   TT.bits = get_headers(TT.fields, toybuf, sizeof(toybuf));
-  printf("%s\n", toybuf);
-
-  if (!(toys.optflags&FLAG_k)) TT.show_process = (void *)show_ps;
+  if (!(toys.optflags&(FLAG_k|FLAG_M))) {
+    TT.show_process = (void *)show_ps;
+    printf("%s\n", toybuf);
+  }
   TT.match_process = ps_match_process;
   dt = dirtree_read("/proc", get_ps);
 
-  if (toys.optflags&FLAG_k) {
+  if (toys.optflags&(FLAG_k|FLAG_M)) {
     struct carveup **tbsort = collate(TT.kcount, dt, ksort);
 
-    qsort(tbsort, TT.kcount, sizeof(struct carveup *), (void *)ksort);
+    if (toys.optflags&FLAG_M) {
+      for (i = 0; i<TT.kcount; i++) {
+        struct strawberry *field;
+
+        for (field = TT.fields; field; field = field->next) {
+          int len = strlen(string_field(tbsort[i], field));
+
+          if (abs(field->len)<len) field->len = (field->len<0) ? -len : len;
+        }
+      }
+
+      // Now that we've recalculated field widths, re-pad headers again
+      get_headers(TT.fields, toybuf, sizeof(toybuf));
+    }
+    printf("%s\n", toybuf);
+
+    if (toys.optflags&FLAG_k)
+      qsort(tbsort, TT.kcount, sizeof(struct carveup *), (void *)ksort);
     for (i = 0; i<TT.kcount; i++) {
       show_ps(tbsort[i]);
       free(tbsort[i]);
