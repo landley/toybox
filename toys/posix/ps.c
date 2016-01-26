@@ -41,7 +41,7 @@
  * TODO: iotop: Window size change: respond immediately. Why not padding
  *       at right edge? (Not adjusting to screen size at all? Header wraps?)
 
-USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflno*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflno*O*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 // stayroot because iotop needs root to read other process' proc/$$/io
 USE_TOP(NEWTOY(top, ">0m" "h:k*o*p*u*s#<1=9d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 USE_IOTOP(NEWTOY(iotop, ">0AaKO" "h:k*o*p*u*s#<1=7d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
@@ -81,7 +81,8 @@ config PS
 
     -f	Full listing (-o USER:8=UID,PID,PPID,C,STIME,TTY,TIME,CMD)
     -l	Long listing (-o F,S,UID,PID,PPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD)
-    -o	Output the listed FIELDs, each with optional :size and/or =title
+    -o	Output FIELDs instead of defaults, each with optional :size and =title
+    -O  Add FIELDS to defaults
     -Z	Include LABEL
 
     Available -o FIELDs:
@@ -225,6 +226,7 @@ GLOBALS(
       struct arg_list *t;
       struct arg_list *s;
       struct arg_list *p;
+      struct arg_list *O;
       struct arg_list *o;
       struct arg_list *P;
       struct arg_list *k;
@@ -262,7 +264,6 @@ GLOBALS(
   dev_t tty;
   void *fields, *kfields;
   long long ticks, bits;
-  size_t header_len;
   int kcount, forcek, sortpos;
   int (*match_process)(long long *slot);
   void (*show_process)(void *tb);
@@ -812,12 +813,10 @@ static char *parse_ko(void *data, char *type, int length)
   }
 
   // Find type
-  if (*(struct strawberry **)data == TT.kfields) {
-    field->reverse = 1;
-    if (*type == '-') field->reverse = -1;
-    else if (*type != '+') type--;
-    type++;
-  }
+  field->reverse = 1;
+  if (*type == '-') field->reverse = -1;
+  else if (*type != '+') type--;
+  type++;
   for (i = 0; i<ARRAY_LEN(typos); i++) {
     field->which = i;
     for (j = 0; j<2; j++) {
@@ -838,15 +837,21 @@ static char *parse_ko(void *data, char *type, int length)
   else if (typos[field->which].width<0) field->len *= -1;
   dlist_add_nomalloc(data, (void *)field);
 
-  // Print padded header for -o.
-  if (*(struct strawberry **)data == TT.fields) {
-    TT.header_len +=
-      snprintf(toybuf + TT.header_len, sizeof(toybuf) - TT.header_len,
-               " %*s" + (field == TT.fields), field->len, field->title);
-    TT.bits |= 1LL<<field->which;
+  return 0;
+}
+
+long long get_headers(struct strawberry *fields, char *buf, int blen)
+{
+  long long bits = 0;
+  int len = 0;
+
+  for (; fields; fields = fields->next) {
+    len += snprintf(buf+len, blen-len, " %*s"+!bits, fields->len,
+      fields->title);
+    bits |= 1LL<<fields->which;
   }
 
-  return 0;
+  return bits;
 }
 
 // Parse -p -s -t -u -U -g -G
@@ -976,16 +981,13 @@ static struct carveup **collate(int count, struct dirtree *dt,
   return tbsort;
 } 
 
-static void quick_ko(char *str, void *fields, char *err)
+static void default_ko(char *s, void *fields, char *err, struct arg_list *arg)
 {
-  struct arg_list al;
+  struct arg_list def;
 
-  // Display fields
-  al.next = 0;
-  al.arg = xstrdup(str);
-  comma_args(&al, fields, err, parse_ko);
-  free(al.arg);
-  if (err != (char *)1) dlist_terminate(*(void **)fields);
+  memset(&def, 0, sizeof(struct arg_list));
+  def.arg = s;
+  comma_args(arg ? arg : &def, fields, err, parse_ko);
 }
 
 static void shared_main(void)
@@ -994,7 +996,7 @@ static void shared_main(void)
 
   TT.ticks = sysconf(_SC_CLK_TCK);
   if (!TT.width) {
-    TT.width = 80;
+    TT.width = (toys.which->name[1] == 's') ? 99999 : 80;
     TT.height = 25;
     terminal_size(&TT.width, &TT.height);
   }
@@ -1014,6 +1016,7 @@ static void shared_main(void)
 void ps_main(void)
 {
   struct dirtree *dt;
+  char *s;
   int i;
 
   if (toys.optflags&FLAG_w) TT.width = 99999;
@@ -1031,43 +1034,36 @@ void ps_main(void)
   comma_args(TT.ps.k, &TT.kfields, "bad -k", parse_ko);
   dlist_terminate(TT.kfields);
 
-  // Parse manual field selection, or default/-f/-l, plus -Z,
-  // constructing the header line in toybuf as we go.
-  if (toys.optflags&FLAG_Z) quick_ko("LABEL", &TT.fields, (char *)1);
-  if (TT.ps.o) comma_args(TT.ps.o, &TT.fields, "bad -o field", parse_ko);
-  else {
-    struct arg_list al;
-
-    al.next = 0;
-    if (toys.optflags&FLAG_f)
-      al.arg = "USER:8=UID,PID,PPID,C,STIME,TTY,TIME,CMD";
-    else if (toys.optflags&FLAG_l)
-      al.arg = "F,S,UID,PID,PPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD";
-    else if (CFG_TOYBOX_ON_ANDROID)
-      al.arg = "USER,PID,PPID,VSIZE,RSS,WCHAN:10,ADDR:10=PC,S,CMDLINE";
-    else al.arg = "PID,TTY,TIME,CMD";
-
-    comma_args(&al, &TT.fields, 0, parse_ko);
+  // Parse manual field selection, or default/-f/-l, plus -Z and -O
+  if (toys.optflags&FLAG_Z) default_ko("LABEL", &TT.fields, 0, 0);
+  if (toys.optflags&FLAG_f) s = "USER:8=UID,PID,PPID,C,STIME,TTY,TIME,CMD";
+  else if (toys.optflags&FLAG_l)
+    s = "F,S,UID,PID,PPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD";
+  else if (CFG_TOYBOX_ON_ANDROID)
+    s = "USER,PID,PPID,VSIZE,RSS,WCHAN:10,ADDR:10=PC,S,NAME";
+  else s = "PID,TTY,TIME,CMD";
+  default_ko(s, &TT.fields, "bad -o", TT.ps.o);
+  if (TT.ps.O) {
+    if (TT.fields) TT.fields = ((struct strawberry *)TT.fields)->prev;
+    comma_args(TT.ps.O, &TT.fields, "bad -O", parse_ko);
+    if (TT.fields) TT.fields = ((struct strawberry *)TT.fields)->next;
   }
   dlist_terminate(TT.fields);
-  printf("%s\n", toybuf);
 
-  // misunderstand fields the flags say to
+  // -f and -n change the meaning of some fields
   if (toys.optflags&(FLAG_f|FLAG_n)) {
     struct strawberry *ever;
 
     for (ever = TT.fields; ever; ever = ever->next) {
-      int alluc = ever->which;
-
-      if ((toys.optflags&FLAG_f) && alluc==PS_CMD) alluc = PS_ARGS;
-      if ((toys.optflags&FLAG_n) && alluc>=PS_UID && alluc<=PS_RGROUP
-          && (typos[alluc].slot&64)) alluc--;
-      if (alluc != ever->which) {
-        TT.bits &= 1LL<<ever->which;
-        TT.bits |= 1LL<<(ever->which = alluc);
-      }
+      if ((toys.optflags&FLAG_f) && ever->which==PS_CMD) ever->which = PS_ARGS;
+      if ((toys.optflags&FLAG_n) && ever->which>=PS_UID
+        && ever->which<=PS_RGROUP && (typos[ever->which].slot&64))
+          ever->which--;
     }
   }
+
+  TT.bits = get_headers(TT.fields, toybuf, sizeof(toybuf));
+  printf("%s\n", toybuf);
 
   if (!(toys.optflags&FLAG_k)) TT.show_process = (void *)show_ps;
   TT.match_process = ps_match_process;
@@ -1134,7 +1130,7 @@ static int merge_deltas(long long *oslot, long long *nslot)
   return 1;
 }
 
-static void top_common(char *intro, char *header,
+static void top_common(char *intro,
   int (*filter)(long long *oslot, long long *nslot))
 {
   struct timespec ts;
@@ -1143,10 +1139,12 @@ static void top_common(char *intro, char *header,
     struct carveup **tb;
     int count;
   } plist[2], *plold, *plnew, old, new, mix;
-  char scratch[16];
+  char scratch[16], *header;
   unsigned tock = 0;
   int i, lines, topoff = 0, done = 0;
 
+  TT.bits = get_headers(TT.fields, toybuf, sizeof(toybuf));
+  header = xstrdup(toybuf);
   *scratch = 0;
   memset(plist, 0, sizeof(plist));
   do {
@@ -1327,9 +1325,8 @@ static void top_common(char *intro, char *header,
   if (!(toys.optflags&FLAG_b)) tty_reset();
 }
 
-static char *top_setup(char *defo, char *defk)
+static void top_setup(char *defo, char *defk)
 {
-  char *header;
   int len;
 
   TT.top.d *= 1000;
@@ -1344,32 +1341,26 @@ static char *top_setup(char *defo, char *defk)
   comma_args(TT.top.p, &TT.pp, "bad -p", parse_rest);
   TT.match_process = shared_match_process;
 
-  if (TT.top.o) comma_args(TT.top.o, &TT.fields, "-o", parse_ko);
-  else quick_ko(defo, &TT.fields, (char *)1);
+  default_ko(defo, &TT.fields, "bad -o", TT.top.o);
   dlist_terminate(TT.fields);
   len = strlen(toybuf);
   if (toybuf[len-1]!=' ' && len<sizeof(toybuf)-1) strcpy(toybuf+len, " ");
-  header=xstrdup(toybuf);
 
   // First (dummy) sort field is overwritten by setsort()
-  quick_ko("-S", &TT.kfields, (char *)1);
-  if (TT.top.k) comma_args(TT.top.k, &TT.kfields, "-k", parse_ko);
-  else quick_ko(defk, &TT.kfields, (char *)1);
+  default_ko("-S", &TT.kfields, 0, 0);
+  default_ko(defk, &TT.kfields, "bad -k", TT.top.k);
   dlist_terminate(TT.kfields);
   setsort(TT.top.s-1);
-
-  return header;
 }
 
 void top_main(void)
 {
   // usage: [-h HEADER] -o OUTPUT -k SORT
 
-  char *header = top_setup(
-    "PID,USER,PR,NI,VIRT,RES,SHR,S,%CPU,%MEM,TIME+,CMDLINE",
+  top_setup(
+    "PID,USER,PR,NI,VIRT,RES,SHR,S,%CPU,%MEM,TIME+,ARGS",
     "-%CPU,-ETIME,-PID");
-
-  top_common("top", header, merge_deltas);
+  top_common("top", merge_deltas);
 }
 
 #define CLEANUP_top
@@ -1385,17 +1376,15 @@ static int iotop_filter(long long *oslot, long long *nslot)
 
 void iotop_main(void)
 {
-  char *s1 = 0, *s2 = 0, *header, *d = "D"+!!(toys.optflags&FLAG_A);
+  char *s1 = 0, *s2 = 0, *d = "D"+!!(toys.optflags&FLAG_A);
 
   if (toys.optflags&FLAG_K) TT.forcek++;
 
-  header = top_setup(
-    s1 = xmprintf("PID,PR,USER,%sREAD,%sWRITE,SWAP,%sIO,COMM", d, d, d),
+  top_setup(s1 = xmprintf("PID,PR,USER,%sREAD,%sWRITE,SWAP,%sIO,COMM",d,d,d),
     s2 = xmprintf("-%sIO,-ETIME,-PID",d));
   free(s1);
   free(s2);
-
-  top_common("iotop", header, iotop_filter);
+  top_common("iotop", iotop_filter);
 }
 
 // pkill's plumbing wrap's pgrep's and thus mostly takes place in pgrep's flag
