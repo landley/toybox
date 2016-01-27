@@ -13,7 +13,7 @@
 
 // Note: flags go in same order (right to left) for shared subset
 USE_NSENTER(NEWTOY(nsenter, "<1F(no-fork)t#<1(target)i:(ipc);m:(mount);n:(net);p:(pid);u:(uts);U:(user);", TOYFLAG_USR|TOYFLAG_BIN))
-USE_UNSHARE(NEWTOY(unshare, "<1^rimnpuU", TOYFLAG_USR|TOYFLAG_BIN))
+USE_UNSHARE(NEWTOY(unshare, "<1^f(fork);r(map-root-user);i:(ipc);m:(mount);n:(net);p:(pid);u:(uts);U:(user);", TOYFLAG_USR|TOYFLAG_BIN))
 
 config UNSHARE
   bool "unshare"
@@ -25,13 +25,14 @@ config UNSHARE
     Create new container namespace(s) for this process and its children, so
     some attribute is not shared with the parent process.
 
-    -i	SysV IPC (message queues, semaphores, shared memory)
-    -m	Mount/unmount tree
-    -n	Network address, sockets, routing, iptables
-    -p	Process IDs and init
-    -r	Become root (map current euid/egid to 0/0, implies -U)
-    -u	Host and domain names
-    -U	UIDs, GIDs, capabilities
+    -f  Fork command in the background (--fork)
+    -i	SysV IPC (message queues, semaphores, shared memory) (--ipc)
+    -m	Mount/unmount tree (--mount)
+    -n	Network address, sockets, routing, iptables (--net)
+    -p	Process IDs and init (--pid)
+    -r	Become root (map current euid/egid to 0/0, implies -U) (--map-root-user)
+    -u	Host and domain names (--uts)
+    -U	UIDs, GIDs, capabilities (--user)
 
     A namespace allows a set of processes to have a different view of the
     system than other sets of processes.
@@ -50,7 +51,7 @@ config NSENTER
     The namespaces to switch are:
 
     -i	SysV IPC: message queues, semaphores, shared memory (--ipc)
-    -m	Mount/unmount tree (--mnt)
+    -m	Mount/unmount tree (--mount)
     -n	Network address, sockets, routing, iptables (--net)
     -p	Process IDs and init, will fork unless -F is used (--pid)
     -u	Host and domain names (--uts)
@@ -102,6 +103,11 @@ static int test_r()
   return toys.optflags & FLAG_r;
 }
 
+static int test_f()
+{
+  return toys.optflags & FLAG_f;
+}
+
 // Shift back to the context GLOBALS lives in (I.E. matching the filename).
 #define CLEANUP_unshare
 #define FOR_nsenter
@@ -127,6 +133,11 @@ void unshare_main(void)
     if (unshare(f)) perror_exit(0);
     if (test_r()) handle_r(euid, egid);
 
+    if (test_f()) {
+      toys.exitval = xrun(toys.optargs);
+
+      return;
+    }
   // Bind to existing namespace(s)?
   } else if (CFG_NSENTER) {
     char *nsnames = "user\0uts\0pid\0net\0mnt\0ipc";
