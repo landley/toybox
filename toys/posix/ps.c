@@ -43,8 +43,8 @@
 
 USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflMno*O*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 // stayroot because iotop needs root to read other process' proc/$$/io
-USE_TOP(NEWTOY(top, ">0m" "h:k*o*p*u*s#<1=9d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
-USE_IOTOP(NEWTOY(iotop, ">0AaKO" "h:k*o*p*u*s#<1=7d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
+USE_TOP(NEWTOY(top, ">0m" "k*o*p*u*s#<1=9d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_IOTOP(NEWTOY(iotop, ">0AaKO" "k*o*p*u*s#<1=7d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
 USE_PGREP(NEWTOY(pgrep, "?cld:u*U*t*s*P*g*G*fnovxL:", TOYFLAG_USR|TOYFLAG_BIN))
 USE_PKILL(NEWTOY(pkill,     "Vu*U*t*s*P*g*G*fnovxl:", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -124,15 +124,9 @@ config TOP
 
     Show process activity in real time.
 
-    -h	Header (default Tasks: %PID, %S=R running, %S=S sleeping, %S
     -k	Fallback sort FIELDS (default -S,-%CPU,-ETIME,-PID)
     -o	Show FIELDS (def PID,USER,PR,NI,VIRT,RES,SHR,S,%CPU,%MEM,TIME+,CMDLINE)
     -s	Sort by field number (1-X, default 9)
-
-    Default header is:
-    Tasks: %PID, %S=R= running, %S=S= sleeping, %S=T= stopped, %S=Z= zombie\n
-    Mem: %10KMEM total, %10KMUSED used, %10KMFREE free, %10KBUF buffers
-    Swap: %9KSWAP total, %10KSWUSED used, %10KSWFREE free, %10K
 
        H       toggle threads
        C,1     toggle SMP
@@ -240,7 +234,6 @@ GLOBALS(
       struct arg_list *p;
       struct arg_list *o;
       struct arg_list *k;
-      char *h;
     } top;
     struct{
       char *L;
@@ -1149,8 +1142,18 @@ static int merge_deltas(long long *oslot, long long *nslot)
   return 1;
 }
 
-static void top_common(char *intro,
-  int (*filter)(long long *oslot, long long *nslot))
+static int header_line(int line, int rev)
+{
+  if (!line) return 0;
+
+  printf("%s%*.*s%s\r\n", rev ? "\033[7m" : "",
+    (toys.optflags&FLAG_b) ? 0 : -TT.width, TT.width, toybuf,
+    rev ? "\033[0m" : "");
+
+  return line-1;
+}
+
+static void top_common(int (*filter)(long long *oslot, long long *nslot))
 {
   struct timespec ts;
   long long timeout = 0, now;
@@ -1158,12 +1161,11 @@ static void top_common(char *intro,
     struct carveup **tb;
     int count;
   } plist[2], *plold, *plnew, old, new, mix;
-  char scratch[16], *header;
+  char scratch[16];
   unsigned tock = 0;
   int i, lines, topoff = 0, done = 0;
 
   TT.bits = get_headers(TT.fields, toybuf, sizeof(toybuf));
-  header = xstrdup(toybuf);
   *scratch = 0;
   memset(plist, 0, sizeof(plist));
   do {
@@ -1214,73 +1216,66 @@ static void top_common(char *intro,
 
     // We will re-fetch no data before its time. - Mork calling Orson Welles
     for (;;) {
-      int and, or, not, xor;
-      char *pos, *pct, *end=end, buf[32], was, is;
+      char *pos, *end=end, was, is;
 
       qsort(mix.tb, mix.count, sizeof(struct carveup *), (void *)ksort);
       lines = TT.height;
       if (!(toys.optflags&FLAG_b)) printf("\033[H\033[J");
       if (!(toys.optflags&FLAG_q)) {
+        if (*toys.which->name == 't') {
+          long run[6];
+          struct strawberry alluc;
 
-        // Show intro lines, parsing printf-ish escapes
-        i = 0;
-        pos = end = TT.top.h ? TT.top.h : intro;
-        for (;;) {
-          if (i==sizeof(toybuf)-8) error_exit("tilt");
-          toybuf[i] = 0;
-          if (end && end<=pos) end = next_printf(pos, &pct);
+          alluc.which = PS_S;
+          memset(run, 0, sizeof(run));
+          for (i = 0; i<mix.count; i++)
+            run[1+stridx("RSTZ", *string_field(mix.tb[i], &alluc))]++;
 
-          // Not an %escape sequence?
-          if (!end || pct>pos) {
-            char c = *pos;
+          sprintf(toybuf,
+            "Tasks: %d total,%4ld running,%4ld sleeping,%4ld stopped,"
+            "%4ld zombie", mix.count, run[1], run[2], run[3], run[4]);
+          lines = header_line(lines, 0);
 
-            if (c=='\\') {
-              if ((or = unescape(*++pos))) c = or;
-              else if (!*pos) error_exit("bad -h \\");
+          if (readfile("/proc/meminfo", toybuf, sizeof(toybuf))) {
+            for (i=0; i<6; i++) {
+              pos = strafter(toybuf, (char *[]){"MemTotal:","\nMemFree:",
+                    "\nBuffers:","\nCached:","\nSwapTotal:","\nSwapFree:"}[i]);
+              run[i] = pos ? atol(pos) : 0;
             }
-
-            if (c=='\t') {
-              and = 8-utf8len(toybuf);
-              while (and--) toybuf[i++] = ' ';
-            } else if (!c || '\n'==c) {
-              draw_str(toybuf, TT.width);
-              putchar('\r');
-              putchar('\n');
-              if (1>--lines) break;
-              i = 0;
-              if (!c) break;
-            } else toybuf[i++] = c;
-
-          // Escape sequences
-          } else if (pct) {
-            not = -1;
-            for (and = or = 0; and < ARRAY_LEN(typos); and++) {
-              xor = strlen(typos[and].name);
-              if (xor>or && !strncasecmp(typos[and].name, end, xor)) {
-                not = and;
-                or = xor;
-              }
-            }
-            if (!or) error_exit("bad -h '%.16ss'", end);
-            snprintf(buf, sizeof(buf)-1, "%.*s", (int)(end-pct), pct);
-            strcat(buf, "s");
-            pos = (end += or);
-
-            or = *pos;
-            if (or == '=') {
-              for (pos++; *pos && *pos != '='; pos++);
-              if (!*pos++) error_exit("-h bad =");
-            }
-            // i += snprintf(toybuf+i, sizeof(toybuf)-i, "[%s]", buf);
-            i += snprintf(toybuf+i, sizeof(toybuf)-i, "{%d}", not);
-            // for (and = 0; and<mix.count; and++) { }
-
-            pos--;
+            sprintf(toybuf,
+             "Mem:%10ldk total,%9ldk used,%9ldk free,%9ldk buffers",
+              run[0], run[0]-run[1], run[1], run[2]);
+            lines = header_line(lines, 0);
+            sprintf(toybuf,
+              "Swap:%9ldk total,%9ldk used,%9ldk free,%9ldk cached",
+              run[4], run[4]-run[5], run[5], run[3]);
+            lines = header_line(lines, 0);
           }
-          pos++;
+        } else {
+          struct strawberry *fields;
+          struct carveup tb;
+
+          memset(&tb, 0, sizeof(struct carveup));
+          pos = stpcpy(toybuf, "Totals:");
+          for (fields = TT.fields; fields; fields = fields->next) {
+            long long ll, bits = 0;
+            int slot = typos[fields->which].slot&63;
+
+            if (fields->which<PS_C || fields->which>PS_DIO) continue;
+            ll = 1LL<<fields->which;
+            if (bits&ll) continue;
+            bits |= ll;
+            for (i=0; i<mix.count; i++)
+              tb.slot[slot] += mix.tb[i]->slot[slot];
+            pos += snprintf(pos, sizeof(toybuf)/2-(pos-toybuf),
+              " %s: %*s,", typos[fields->which].name,
+              fields->len, string_field(&tb, fields));
+          }
+          *--pos = 0;
+          lines = header_line(lines, 0);
         }
 
-        strcpy(pos = toybuf, header);
+        get_headers(TT.fields, pos = toybuf, sizeof(toybuf));
         for (i = 0, is = *pos; *pos; pos++) {
           was = is;
           is = *pos;
@@ -1288,9 +1283,7 @@ static void top_common(char *intro,
           if (!isspace(was) && isspace(is) && i==TT.sortpos+1) *pos = ']';
         }
         *pos = 0;
-        printf("\033[7m%*.*s\033[0m\n\r",
-          (toys.optflags&FLAG_b) ? 0 : -TT.width, TT.width, toybuf);
-        lines--;
+        lines = header_line(lines, 1);
 
         if (!(toys.optflags&FLAG_b))
           terminal_probesize(&TT.width, &TT.height);
@@ -1379,7 +1372,7 @@ void top_main(void)
   top_setup(
     "PID,USER,PR,NI,VIRT,RES,SHR,S,%CPU,%MEM,TIME+,ARGS",
     "-%CPU,-ETIME,-PID");
-  top_common("top", merge_deltas);
+  top_common(merge_deltas);
 }
 
 #define CLEANUP_top
@@ -1403,7 +1396,7 @@ void iotop_main(void)
     s2 = xmprintf("-%sIO,-ETIME,-PID",d));
   free(s1);
   free(s2);
-  top_common("iotop", iotop_filter);
+  top_common(iotop_filter);
 }
 
 // pkill's plumbing wrap's pgrep's and thus mostly takes place in pgrep's flag
