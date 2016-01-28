@@ -40,6 +40,7 @@
  * TODO: thread support /proc/$d/task/%d/stat (and -o stat has "l")
  * TODO: iotop: Window size change: respond immediately. Why not padding
  *       at right edge? (Not adjusting to screen size at all? Header wraps?)
+ * TODO: top: thread support and SMP
 
 USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflMno*O*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 // stayroot because iotop needs root to read other process' proc/$$/io
@@ -127,9 +128,6 @@ config TOP
     -k	Fallback sort FIELDS (default -S,-%CPU,-ETIME,-PID)
     -o	Show FIELDS (def PID,USER,PR,NI,VIRT,RES,SHR,S,%CPU,%MEM,TIME+,CMDLINE)
     -s	Sort by field number (1-X, default 9)
-
-       H       toggle threads
-       C,1     toggle SMP
 
 # Requires CONFIG_IRQ_TIME_ACCOUNTING in the kernel for /proc/$$/io
 config IOTOP
@@ -234,6 +232,8 @@ GLOBALS(
       struct arg_list *p;
       struct arg_list *o;
       struct arg_list *k;
+
+      long long milistart;
     } top;
     struct{
       char *L;
@@ -642,7 +642,7 @@ static int get_ps(struct dirtree *new)
   // systems (or ps | more) we re-fetch uptime as we fetch each /proc line.
   sysinfo(&TT.si);
   slot[SLOT_uptime] = TT.si.uptime;
-  slot[SLOT_upticks] = slot[SLOT_uptime]*TT.ticks - slot[SLOT_rss];
+  slot[SLOT_upticks] = slot[SLOT_uptime]*TT.ticks - slot[SLOT_starttime];
 
   // Do we need to read "statm"?
   if (TT.bits&(_PS_VIRT|_PS_RES|_PS_SHR)) {
@@ -1130,14 +1130,15 @@ static void setsort(int pos)
 // If we have both, adjust slot[deltas[]] to be relative to previous
 // measurement rather than process start. Stomping old.data is fine
 // because we free it after displaying.
-static int merge_deltas(long long *oslot, long long *nslot)
+static int merge_deltas(long long *oslot, long long *nslot, int milis)
 {
-  char deltas[] = {SLOT_utime2, SLOT_iobytes, SLOT_diobytes, SLOT_upticks,
-                   SLOT_rchar, SLOT_wchar, SLOT_rbytes, SLOT_wbytes, SLOT_swap};
+  char deltas[] = {SLOT_utime2, SLOT_iobytes, SLOT_diobytes, SLOT_rchar,
+                   SLOT_wchar, SLOT_rbytes, SLOT_wbytes, SLOT_swap};
   int i;
 
   for (i = 0; i<ARRAY_LEN(deltas); i++)
     oslot[deltas[i]] = nslot[deltas[i]] - oslot[deltas[i]];
+  oslot[SLOT_upticks] = (milis*TT.ticks)/1000;
 
   return 1;
 }
@@ -1153,28 +1154,52 @@ static int header_line(int line, int rev)
   return line-1;
 }
 
-static void top_common(int (*filter)(long long *oslot, long long *nslot))
+// Get current time in miliseconds
+static long long militime(void)
 {
   struct timespec ts;
-  long long timeout = 0, now;
+
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+
+  return ts.tv_sec*1000+ts.tv_nsec/1000000;
+}
+
+static void top_common(
+  int (*filter)(long long *oslot, long long *nslot, int milis))
+{
+  long long timeout = 0, now, stats[16];
   struct proclist {
     struct carveup **tb;
     int count;
+    long long whence;
   } plist[2], *plold, *plnew, old, new, mix;
-  char scratch[16];
+  char scratch[16], *pos, *cpufields[] = {"user", "nice", "sys", "idle",
+    "iow", "irq", "sirq", "host"};
+ 
   unsigned tock = 0;
   int i, lines, topoff = 0, done = 0;
 
   TT.bits = get_headers(TT.fields, toybuf, sizeof(toybuf));
   *scratch = 0;
   memset(plist, 0, sizeof(plist));
+  memset(stats, 0, sizeof(stats));
   do {
-    struct dirtree *dt = dirtree_read("/proc", get_ps);
+    struct dirtree *dt;
 
     plold = plist+(tock++&1);
     plnew = plist+(tock&1);
+    plnew->whence = militime();
+    dt= dirtree_read("/proc", get_ps);
     plnew->tb = collate(plnew->count = TT.kcount, dt, ksort);
     TT.kcount = 0;
+
+    if (readfile("/proc/stat", pos = toybuf, sizeof(toybuf))) {
+      long long *st = stats+8*(tock&1);
+
+      // user nice system idle iowait irq softirq host
+      sscanf(pos, "cpu %lld %lld %lld %lld %lld %lld %lld %lld",
+        st, st+1, st+2, st+3, st+4, st+5, st+6, st+7);
+    }
 
     // First time, wait a quarter of a second to collect a little delta data.
     if (!plold->tb) {
@@ -1203,7 +1228,7 @@ static void top_common(int (*filter)(long long *oslot, long long *nslot))
       if (!old.count || *otb->slot > *ntb->slot) mix.tb[mix.count] = ntb;
       else {
         // Keep or discard
-        if (filter(otb->slot, ntb->slot)) {
+        if (filter(otb->slot, ntb->slot, new.whence-old.whence)) {
           mix.tb[mix.count] = otb;
           mix.count++;
         }
@@ -1216,15 +1241,17 @@ static void top_common(int (*filter)(long long *oslot, long long *nslot))
 
     // We will re-fetch no data before its time. - Mork calling Orson Welles
     for (;;) {
-      char *pos, *end=end, was, is;
+      char was, is;
 
       qsort(mix.tb, mix.count, sizeof(struct carveup *), (void *)ksort);
       lines = TT.height;
       if (!(toys.optflags&FLAG_b)) printf("\033[H\033[J");
       if (!(toys.optflags&FLAG_q)) {
         if (*toys.which->name == 't') {
-          long run[6];
           struct strawberry alluc;
+          long long ll, up = 0;
+          long run[6];
+          int j;
 
           alluc.which = PS_S;
           memset(run, 0, sizeof(run));
@@ -1251,6 +1278,26 @@ static void top_common(int (*filter)(long long *oslot, long long *nslot))
               run[4], run[4]-run[5], run[5], run[3]);
             lines = header_line(lines, 0);
           }
+
+          pos = toybuf;
+          i = sysconf(_SC_NPROCESSORS_CONF);
+          pos += sprintf(pos, "%d%%cpu", i*100);
+          j = 4+(i>10);
+
+          // If a processor goes idle it's powered down and its idle ticks don't
+          // advance, so calculate idle time as potential time - used.
+          if (mix.count) up = mix.tb[0]->slot[SLOT_upticks];
+          if (!up) up = 1;
+          now = up*i;
+          ll = stats[3] = stats[11] = 0;
+          for (i = 0; i<8; i++) ll += stats[i]-stats[i+8];
+          stats[3] = now - llabs(ll);
+
+          for (i = 0; i<8; i++) {
+            ll = (llabs(stats[i]-stats[i+8])*1000)/up;
+            pos += sprintf(pos, "% *lld%%%s", j, (ll+5)/10, cpufields[i]);
+          }
+          lines = header_line(lines, 0);
         } else {
           struct strawberry *fields;
           struct carveup tb;
@@ -1300,10 +1347,9 @@ static void top_common(int (*filter)(long long *oslot, long long *nslot))
       }
 
       // Get current time in miliseconds
-      clock_gettime(CLOCK_MONOTONIC, &ts);
-      now = ts.tv_sec*1000+ts.tv_nsec/1000000;
-      if (timeout<=now) timeout += TT.top.d;
-      if (timeout<=now) timeout = now+TT.top.d;
+      now = militime();
+      if (timeout<=now) timeout = new.whence+TT.top.d;
+      if (timeout<=now || timeout>now+TT.top.d) timeout = now+TT.top.d;
 
       i = scan_key_getsize(scratch, timeout-now, &TT.width, &TT.height);
       if (i==-1 || i==3 || toupper(i)=='Q') {
@@ -1315,7 +1361,7 @@ static void top_common(int (*filter)(long long *oslot, long long *nslot))
       // Flush unknown escape sequences.
       if (i==27) while (0<scan_key_getsize(scratch, 0, &TT.width, &TT.height));
       else if (i==' ') {
-        timeout = now;
+        timeout = 0;
         break;
       } else if (toupper(i)=='R')
         ((struct strawberry *)TT.kfields)->reverse *= -1;
@@ -1379,9 +1425,10 @@ void top_main(void)
 #define FOR_iotop
 #include "generated/flags.h"
 
-static int iotop_filter(long long *oslot, long long *nslot)
+static int iotop_filter(long long *oslot, long long *nslot, int milis)
 {
-  if (!(toys.optflags&FLAG_a)) merge_deltas(oslot, nslot);
+  if (!(toys.optflags&FLAG_a)) merge_deltas(oslot, nslot, milis);
+  else oslot[SLOT_upticks] = ((militime()-TT.top.milistart)*TT.ticks)/1000;
 
   return !(toys.optflags&FLAG_o)||oslot[SLOT_iobytes+!(toys.optflags&FLAG_A)];
 }
@@ -1392,6 +1439,7 @@ void iotop_main(void)
 
   if (toys.optflags&FLAG_K) TT.forcek++;
 
+  TT.top.milistart = militime();
   top_setup(s1 = xmprintf("PID,PR,USER,%sREAD,%sWRITE,SWAP,%sIO,COMM",d,d,d),
     s2 = xmprintf("-%sIO,-ETIME,-PID",d));
   free(s1);
