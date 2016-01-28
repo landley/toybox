@@ -101,6 +101,7 @@ void *xzalloc(size_t size);
 void *xrealloc(void *ptr, size_t size);
 char *xstrndup(char *s, size_t n);
 char *xstrdup(char *s);
+void *xmemdup(void *s, long len);
 char *xmprintf(char *format, ...) printf_format;
 void xprintf(char *format, ...) printf_format;
 void xputs(char *s);

@@ -21,9 +21,9 @@ void xstrncpy(char *dest, char *src, size_t size)
 
 void xstrncat(char *dest, char *src, size_t size)
 {
-  long len = strlen(src);
+  long len = strlen(dest);
 
-  if (len+strlen(dest)+1 > size)
+  if (len+strlen(src)+1 > size)
     error_exit("'%s%s' > %ld bytes", dest, src, (long)size);
   strcpy(dest+len, src);
 }
@@ -78,6 +78,14 @@ char *xstrndup(char *s, size_t n)
 char *xstrdup(char *s)
 {
   return xstrndup(s, strlen(s));
+}
+
+void *xmemdup(void *s, long len)
+{
+  void *ret = xmalloc(len);
+  memcpy(ret, s, len);
+
+  return ret;
 }
 
 // Die unless we can allocate enough space to sprintf() into.

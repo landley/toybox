@@ -827,8 +827,7 @@ static void jewel_of_judgement(char **pline, long len)
     if (strchr("aiqr=", c) && i>1) break;
 
     // Add step to pattern
-    corwin = xmalloc(reg-toybuf);
-    memcpy(corwin, toybuf, reg-toybuf);
+    corwin = xmemdup(toybuf, reg-toybuf);
     reg = (reg-toybuf) + (char *)corwin;
 
     // Parse arguments by command type
