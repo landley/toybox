@@ -1185,6 +1185,7 @@ static void top_common(
   memset(stats, 0, sizeof(stats));
   do {
     struct dirtree *dt;
+    int recalc = 1;
 
     plold = plist+(tock++&1);
     plnew = plist+(tock&1);
@@ -1243,10 +1244,12 @@ static void top_common(
     for (;;) {
       char was, is;
 
-      qsort(mix.tb, mix.count, sizeof(struct carveup *), (void *)ksort);
-      lines = TT.height;
-      if (!(toys.optflags&FLAG_b)) printf("\033[H\033[J");
-      if (!(toys.optflags&FLAG_q)) {
+      if (recalc) {
+        qsort(mix.tb, mix.count, sizeof(struct carveup *), (void *)ksort);
+        lines = TT.height;
+        if (!(toys.optflags&FLAG_b)) printf("\033[H\033[J");
+      }
+      if (recalc && !(toys.optflags&FLAG_q)) {
         if (*toys.which->name == 't') {
           struct strawberry alluc;
           long long ll, up = 0;
@@ -1335,6 +1338,8 @@ static void top_common(
         if (!(toys.optflags&FLAG_b))
           terminal_probesize(&TT.width, &TT.height);
       }
+      if (!recalc) printf("\033[%dH\033[J", 1+TT.height-lines);
+      recalc = 1;
 
       for (i = 0; i<lines && i+topoff<mix.count; i++) {
         if (i) xprintf("\r\n");
@@ -1369,9 +1374,17 @@ static void top_common(
         i -= 256;
         if (i == KEY_LEFT) setsort(TT.sortpos-1);
         else if (i == KEY_RIGHT) setsort(TT.sortpos+1);
-        else if (i == KEY_UP) {
-          if (topoff) topoff--;
-        } else if (i == KEY_DOWN) topoff++;
+        // KEY_UP is 0, so at end of strchr
+        else if (strchr((char []){KEY_DOWN,KEY_PGUP,KEY_PGDN,KEY_UP}, i)) {
+          recalc = 0;
+
+          if (i == KEY_UP) topoff--;
+          else if (i == KEY_DOWN) topoff++;
+          else if (i == KEY_PGDN) topoff += lines;
+          else if (i == KEY_PGUP) topoff -= lines;
+          if (topoff<0) topoff = 0; 
+          if (topoff>mix.count) topoff = mix.count;
+        }
       }
       continue;
     }
@@ -1380,6 +1393,7 @@ static void top_common(
     for (i=0; i<plold->count; i++) free(plold->tb[i]);
     free(plold->tb);
   } while (!done);
+
   if (!(toys.optflags&FLAG_b)) tty_reset();
 }
 
@@ -1447,7 +1461,7 @@ void iotop_main(void)
   top_common(iotop_filter);
 }
 
-// pkill's plumbing wrap's pgrep's and thus mostly takes place in pgrep's flag
+// pkill's plumbing wraps pgrep's and thus mostly takes place in pgrep's flag
 // context, so force pgrep's flags on even when building pkill standalone.
 // (All the pgrep/pkill functions drop out when building ps standalone.)
 #define FORCE_FLAGS
