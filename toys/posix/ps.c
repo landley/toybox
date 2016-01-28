@@ -1057,10 +1057,8 @@ void ps_main(void)
   // Calculate seen fields bit array, and if we aren't deferring printing
   // print headers now (for low memory/nommu systems).
   TT.bits = get_headers(TT.fields, toybuf, sizeof(toybuf));
-  if (!(toys.optflags&(FLAG_k|FLAG_M))) {
-    TT.show_process = (void *)show_ps;
-    printf("%s\n", toybuf);
-  }
+  if (!(toys.optflags&FLAG_M)) printf("%s\n", toybuf);
+  if (!(toys.optflags&(FLAG_k|FLAG_M))) TT.show_process = (void *)show_ps;
   TT.match_process = ps_match_process;
   dt = dirtree_read("/proc", get_ps);
 
@@ -1080,8 +1078,8 @@ void ps_main(void)
 
       // Now that we've recalculated field widths, re-pad headers again
       get_headers(TT.fields, toybuf, sizeof(toybuf));
+      printf("%s\n", toybuf);
     }
-    printf("%s\n", toybuf);
 
     if (toys.optflags&FLAG_k)
       qsort(tbsort, TT.kcount, sizeof(struct carveup *), (void *)ksort);
