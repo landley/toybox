@@ -49,6 +49,7 @@ int xpoll(struct pollfd *fds, int nfds, int timeout)
 
   for (;;) {
     if (0>(i = poll(fds, nfds, timeout))) {
+      if (toys.signal) return i;
       if (errno != EINTR && errno != ENOMEM) perror_exit("xpoll");
       else if (timeout>0) timeout--;
     } else return i;

@@ -41,13 +41,14 @@
  * TODO: iotop: Window size change: respond immediately. Why not padding
  *       at right edge? (Not adjusting to screen size at all? Header wraps?)
  * TODO: top: thread support and SMP
+ * TODO: pgrep -f only searches the amount of cmdline that fits in toybuf.
 
 USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflMno*O*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 // stayroot because iotop needs root to read other process' proc/$$/io
 USE_TOP(NEWTOY(top, ">0m" "k*o*p*u*s#<1=9d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 USE_IOTOP(NEWTOY(iotop, ">0AaKO" "k*o*p*u*s#<1=7d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
-USE_PGREP(NEWTOY(pgrep, "?cld:u*U*t*s*P*g*G*fnovxL:", TOYFLAG_USR|TOYFLAG_BIN))
-USE_PKILL(NEWTOY(pkill,     "Vu*U*t*s*P*g*G*fnovxl:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PGREP(NEWTOY(pgrep, "?cld:u*U*t*s*P*g*G*fnovxL:[-no]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PKILL(NEWTOY(pkill,     "Vu*U*t*s*P*g*G*fnovxl:[-no]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PS
   bool "ps"
@@ -232,8 +233,6 @@ GLOBALS(
       struct arg_list *p;
       struct arg_list *o;
       struct arg_list *k;
-
-      long long milistart;
     } top;
     struct{
       char *L;
@@ -246,9 +245,9 @@ GLOBALS(
       struct arg_list *u;
       char *d;
 
-      void *regexes;
+      void *regexes, *snapshot;
       int signal;
-      pid_t self;
+      pid_t self, match;
     } pgrep;
   };
 
@@ -257,7 +256,7 @@ GLOBALS(
   unsigned width, height;
   dev_t tty;
   void *fields, *kfields;
-  long long ticks, bits;
+  long long ticks, bits, time;
   int kcount, forcek, sortpos;
   int (*match_process)(long long *slot);
   void (*show_process)(void *tb);
@@ -542,6 +541,7 @@ static void show_ps(struct carveup *tb)
     else width -= printf("%*.*s", pad, len, out);
     if (!width) break;
   }
+  xputc(TT.time ? '\r' : '\n');
 }
 
 // dirtree callback: read data about process to display, store, or discard it.
@@ -756,7 +756,6 @@ static int get_ps(struct dirtree *new)
   TT.kcount++;
   if (TT.show_process) {
     TT.show_process(tb);
-    xputc('\n');
 
     return 0;
   }
@@ -1057,7 +1056,7 @@ void ps_main(void)
   // Calculate seen fields bit array, and if we aren't deferring printing
   // print headers now (for low memory/nommu systems).
   TT.bits = get_headers(TT.fields, toybuf, sizeof(toybuf));
-  if (!(toys.optflags&FLAG_M)) printf("%s\n", toybuf);
+  if (!(toys.optflags&FLAG_M)) printf("%.*s\n", TT.width, toybuf);
   if (!(toys.optflags&(FLAG_k|FLAG_M))) TT.show_process = (void *)show_ps;
   TT.match_process = ps_match_process;
   dt = dirtree_read("/proc", get_ps);
@@ -1078,7 +1077,7 @@ void ps_main(void)
 
       // Now that we've recalculated field widths, re-pad headers again
       get_headers(TT.fields, toybuf, sizeof(toybuf));
-      printf("%s\n", toybuf);
+      printf("%.*s\n", TT.width, toybuf);
     }
 
     if (toys.optflags&FLAG_k)
@@ -1086,7 +1085,6 @@ void ps_main(void)
     for (i = 0; i<TT.kcount; i++) {
       show_ps(tbsort[i]);
       free(tbsort[i]);
-      xputc('\n');
     }
     if (CFG_TOYBOX_FREE) free(tbsort);
   }
@@ -1177,6 +1175,7 @@ static void top_common(
   unsigned tock = 0;
   int i, lines, topoff = 0, done = 0;
 
+  toys.signal = SIGWINCH;
   TT.bits = get_headers(TT.fields, toybuf, sizeof(toybuf));
   *scratch = 0;
   memset(plist, 0, sizeof(plist));
@@ -1244,8 +1243,14 @@ static void top_common(
 
       if (recalc) {
         qsort(mix.tb, mix.count, sizeof(struct carveup *), (void *)ksort);
+        if (!(toys.optflags&FLAG_b)) {
+          printf("\033[H\033[J");
+          if (toys.signal) {
+            toys.signal = 0;
+            terminal_probesize(&TT.width, &TT.height);
+          }
+        }
         lines = TT.height;
-        if (!(toys.optflags&FLAG_b)) printf("\033[H\033[J");
       }
       if (recalc && !(toys.optflags&FLAG_q)) {
         if (*toys.which->name == 't') {
@@ -1332,15 +1337,12 @@ static void top_common(
         }
         *pos = 0;
         lines = header_line(lines, 1);
-
-        if (!(toys.optflags&FLAG_b))
-          terminal_probesize(&TT.width, &TT.height);
       }
       if (!recalc) printf("\033[%dH\033[J", 1+TT.height-lines);
       recalc = 1;
 
       for (i = 0; i<lines && i+topoff<mix.count; i++) {
-        if (i) xprintf("\r\n");
+        if (i) xputc('\n');
         show_ps(mix.tb[i+topoff]);
       }
 
@@ -1399,11 +1401,14 @@ static void top_setup(char *defo, char *defk)
 {
   int len;
 
+  TT.time = militime();
   TT.top.d *= 1000;
   if (toys.optflags&FLAG_b) TT.width = TT.height = 99999;
   else {
     xset_terminal(0, 1, 0);
     sigatexit(tty_sigreset);
+    xsignal(SIGWINCH, generic_signal);
+    printf("\033[?25l\033[0m");
   }
   shared_main();
 
@@ -1440,7 +1445,7 @@ void top_main(void)
 static int iotop_filter(long long *oslot, long long *nslot, int milis)
 {
   if (!(toys.optflags&FLAG_a)) merge_deltas(oslot, nslot, milis);
-  else oslot[SLOT_upticks] = ((militime()-TT.top.milistart)*TT.ticks)/1000;
+  else oslot[SLOT_upticks] = ((militime()-TT.time)*TT.ticks)/1000;
 
   return !(toys.optflags&FLAG_o)||oslot[SLOT_iobytes+!(toys.optflags&FLAG_A)];
 }
@@ -1451,7 +1456,6 @@ void iotop_main(void)
 
   if (toys.optflags&FLAG_K) TT.forcek++;
 
-  TT.top.milistart = militime();
   top_setup(s1 = xmprintf("PID,PR,USER,%sREAD,%sWRITE,SWAP,%sIO,COMM",d,d,d),
     s2 = xmprintf("-%sIO,-ETIME,-PID",d));
   free(s1);
@@ -1472,16 +1476,33 @@ struct regex_list {
   regex_t reg;
 };
 
-static void show_pgrep(struct carveup *tb)
+static void do_pgk(struct carveup *tb)
+{
+  if (TT.pgrep.signal) {
+    if (kill(*tb->slot, TT.pgrep.signal)) {
+      char *s = num_to_sig(TT.pgrep.signal);
+
+      if (!s) sprintf(s = toybuf, "%d", TT.pgrep.signal);
+      perror_msg("%s->%lld", s, *tb->slot);
+    }
+  }
+  if (!(toys.optflags&FLAG_c) && (!TT.pgrep.signal || TT.tty)) {
+    printf("%lld", *tb->slot);
+    if (toys.optflags&FLAG_l)
+      printf(" %s", tb->str+tb->offset[4]*!!(toys.optflags&FLAG_f));
+    
+    printf("%s", TT.pgrep.d ? TT.pgrep.d : "\n");
+  }
+}
+
+static void match_pgrep(struct carveup *tb)
 {
   regmatch_t match;
   struct regex_list *reg;
-  char *name = tb->str;
+  char *name = tb->str+tb->offset[4]*!!(toys.optflags&FLAG_f);;
 
   // Never match ourselves.
   if (TT.pgrep.self == *tb->slot) return;
-
-  if (toys.optflags&FLAG_f) name += tb->offset[4];
 
   if (TT.pgrep.regexes) {
     for (reg = TT.pgrep.regexes; reg; reg = reg->next) {
@@ -1495,20 +1516,15 @@ static void show_pgrep(struct carveup *tb)
 
   // Repurpose a field for -c count
   TT.sortpos++;
-  if (TT.pgrep.signal) {
-    if (kill(*tb->slot, TT.pgrep.signal)) {
-      char *s = num_to_sig(TT.pgrep.signal);
+  if (toys.optflags&(FLAG_n|FLAG_o)) {
+    long long ll = tb->slot[SLOT_starttime];
 
-      if (!s) sprintf(s = toybuf, "%d", TT.pgrep.signal);
-      perror_msg("%s->%lld", s, *tb->slot);
-    }
-  }
-  if (!(toys.optflags&FLAG_c) && (!TT.pgrep.signal || TT.tty)) {
-    printf("%lld", *tb->slot);
-    if (toys.optflags&FLAG_l) printf(" %s", name);
-    
-    printf("%s", TT.pgrep.d ? TT.pgrep.d : "\n");
-  }
+    if (toys.optflags&FLAG_o) ll *= -1;
+    if (TT.time && TT.time>ll) return;
+    TT.time = ll;
+    free(TT.pgrep.snapshot);
+    TT.pgrep.snapshot = xmemdup(toybuf, (name+strlen(name)+1)-toybuf);
+  } else do_pgk(tb);
 }
 
 static int pgrep_match_process(long long *slot)
@@ -1549,10 +1565,14 @@ void pgrep_main(void)
     TT.pgrep.regexes = reg;
   }
   TT.match_process = pgrep_match_process;
-  TT.show_process = (void *)show_pgrep;
+  TT.show_process = (void *)match_pgrep;
 
   dirtree_read("/proc", get_ps);
   if (toys.optflags&FLAG_c) printf("%d\n", TT.sortpos);
+  if (TT.pgrep.snapshot) {
+    do_pgk(TT.pgrep.snapshot);
+    if (CFG_TOYBOX_FREE) free(TT.pgrep.snapshot);
+  }
   if (TT.pgrep.d) xputc('\n');
 }
 

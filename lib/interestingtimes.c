@@ -67,10 +67,14 @@ int scan_key_getsize(char *scratch, int miliwait, unsigned *xx, unsigned *yy)
 {
   int key;
 
-  while (512&(key = scan_key(scratch, miliwait))) {
-    if (key<0) break;
-    if (xx) *xx = (key>>10)&1023;
-    if (yy) *yy = (key>>20)&1023;
+  if (512&(key = scan_key(scratch, miliwait))) {
+    if (key>0) {
+      if (xx) *xx = (key>>10)&1023;
+      if (yy) *yy = (key>>20)&1023;
+      toys.signal = SIGWINCH;
+
+      return -3;
+    }
   }
 
   return key;
@@ -195,7 +199,8 @@ int scan_key(char *scratch, int miliwait)
 
     // Read 1 byte so we don't overshoot sequence match. (We can deviate
     // and fail to match, but match consumes entire buffer.)
-    if (1 != read(0, scratch+1+*scratch, 1)) return -1;
+    if (toys.signal || 1 != read(0, scratch+1+*scratch, 1))
+      return toys.signal ? -3 : -1;
     ++*scratch;
   }
 
