@@ -96,15 +96,20 @@ static void toy_singleinit(struct toy_list *which, char *argv[])
 // Full init needed by multiplexer or reentrant calls, calls singleinit at end
 void toy_init(struct toy_list *which, char *argv[])
 {
+  void *oldwhich = toys.which;
+
   // Drop permissions for non-suid commands.
 
   if (CFG_TOYBOX_SUID) {
+    if (!toys.which) toys.which = toy_list;
+
     uid_t uid = getuid(), euid = geteuid();
 
     if (!(which->flags & TOYFLAG_STAYROOT)) {
       if (uid != euid) {
         if (!setuid(uid)) perror_exit("setuid %d->%d", euid, uid); // drop root
-        else euid = uid;
+        euid = uid;
+        toys.wasroot++;
       }
     } else if (CFG_TOYBOX_DEBUG && uid && which != toy_list)
       error_msg("Not installed suid root");
@@ -116,7 +121,7 @@ void toy_init(struct toy_list *which, char *argv[])
   // don't blank old optargs if our new argc lives in the old optargs.
   if (argv<toys.optargs || argv>toys.optargs+toys.optc) free(toys.optargs);
   memset(&toys, 0, offsetof(struct toy_context, rebound));
-  if (toys.which) memset(&this, 0, sizeof(this));
+  if (oldwhich) memset(&this, 0, sizeof(this));
 
   // Continue to portion of init needed by standalone commands
   toy_singleinit(which, argv);
@@ -136,7 +141,7 @@ void toy_exec(char *argv[])
     return;
 
   // Return if we need to re-exec to acquire root via suid bit.
-  if (toys.which && (which->flags&TOYFLAG_ROOTONLY) && getuid()) return;
+  if (toys.which && (which->flags&TOYFLAG_ROOTONLY) && toys.wasroot) return;
 
   // Run command
   toy_init(which, argv);
