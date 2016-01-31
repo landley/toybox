@@ -97,3 +97,6 @@ testing "grep -w \\1" "grep -wo '\\(x\\)\\1'" "xx\n" "" "xx"
 testing "grep -o ''" "grep -o '' input" "" "one one one\n" ""
 testing "grep backref" 'grep -e "a\(b\)" -e "b\(c\)\1"' "bcc\nab\n" \
   "" "bcc\nbcb\nab\n"
+
+testing "grep -A" "grep -A 2 yes" "yes\nno\nno\n--\nyes\nno\nno\nyes\nno\n" \
+  "" "yes\nno\nno\nno\nyes\nno\nno\nyes\nno"

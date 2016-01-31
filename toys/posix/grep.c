@@ -6,7 +6,7 @@
  *
  * TODO: -ABC
 
-USE_GREP(NEWTOY(grep, "ZzEFHabhinorsvwclqe*f*m#x[!wx][!EFw]", TOYFLAG_BIN))
+USE_GREP(NEWTOY(grep, "A#ZzEFHabhinorsvwclqe*f*m#x[!wx][!EFw]", TOYFLAG_BIN))
 USE_EGREP(OLDTOY(egrep, grep, TOYFLAG_BIN))
 USE_FGREP(OLDTOY(fgrep, grep, TOYFLAG_BIN))
 
@@ -14,7 +14,7 @@ config GREP
   bool "grep"
   default y
   help
-    usage: grep [-EFivwcloqsHbhn] [-m MAX] [-e REGEX]... [-f REGFILE] [FILE]...
+    usage: grep [-EFivwcloqsHbhn] [-A NUM] [-m MAX] [-e REGEX]... [-f REGFILE] [FILE]...
 
     Show lines matching regular expressions. If no -e, first argument is
     regular expression to match. With no files (or "-" filename) read stdin.
@@ -24,6 +24,7 @@ config GREP
     -f  File containing regular expressions to match.
 
     match type:
+    -A  NUM lines after match
     -E  extended regex syntax    -F  fixed (match literal string)
     -i  case insensitive         -m  stop after this many lines matched
     -r  recursive (on dir)       -v  invert match
@@ -58,15 +59,16 @@ GLOBALS(
   long m;
   struct arg_list *f;
   struct arg_list *e;
+  long a;
 )
 
 // Show matches in one file
 static void do_grep(int fd, char *name)
 {
   FILE *file = fdopen(fd, "r");
-  long offset = 0;
+  long offset = 0, after = 0;
   int lcount = 0, mcount = 0;
-  char indelim = '\n' * !(toys.optflags&FLAG_z),
+  char *bars = 0, indelim = '\n' * !(toys.optflags&FLAG_z),
        outdelim = '\n' * !(toys.optflags&FLAG_Z);
 
   if (!fd) name = "(standard input)";
@@ -164,6 +166,10 @@ static void do_grep(int fd, char *name)
         matches.rm_so = 0;
       } else if (rc) break;
 
+      if (bars) {
+        xputs(bars);
+        bars = 0;
+      }
       mmatch++;
       toys.exitval = 0;
       if (toys.optflags & FLAG_q) xexit();
@@ -183,10 +189,12 @@ static void do_grep(int fd, char *name)
         if (toys.optflags & FLAG_b)
           printf("%ld:", offset + (start-line) +
               ((toys.optflags & FLAG_o) ? matches.rm_so : 0));
-        if (!(toys.optflags & FLAG_o)) xprintf("%s%c", line, outdelim);
-        else {
-          xprintf("%.*s%c", matches.rm_eo - matches.rm_so,
-                  start + matches.rm_so, outdelim);
+        if (!(toys.optflags & FLAG_o)) {
+          xprintf("%s%c", line, outdelim);
+          if (TT.a) after = TT.a;
+        } else {
+          xprintf("%.*s%c", (int)(matches.rm_eo-matches.rm_so),
+                  start+matches.rm_so, outdelim);
         }
       }
 
@@ -195,9 +203,15 @@ static void do_grep(int fd, char *name)
     } while (*start);
     offset += len;
 
+    if (mmatch) mcount++;
+    else if (after) {
+      if (after>0) {
+        xprintf("%s%c", line, outdelim);
+        if (!--after) after = -1;
+      } else bars = "--";
+    }
     free(line);
 
-    if (mmatch) mcount++;
     if ((toys.optflags & FLAG_m) && mcount >= TT.m) break;
   }
 
