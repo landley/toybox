@@ -70,7 +70,7 @@ testing "find -perm (any failure)" \
 # Still fails
 
 testing "find unterminated -exec {}" \
-  "find dir -type f -exec ls {}" "" "" ""
+  "find dir -type f -exec ls {} 2>/dev/null || echo bad" "bad\n" "" ""
 testing "find -exec {} +" \
   "find dir -type f -exec ls {} +" "dir/file\n" "" ""
 
