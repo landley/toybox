@@ -5,6 +5,8 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
+umask 022
+
 PERM="---""--x""-w-""-wx""r--""r-x""rw-""rwx"
 
 num2perm()
@@ -21,7 +23,7 @@ num2perm()
 mkdir dir
 touch file
 
-# We don't need to test all 511 permissions
+# We don't need to test all 512 permissions
 for u in 0 1 2 3 4 5 6 7
 do
   for g in 0 3 6
