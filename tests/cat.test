@@ -16,8 +16,9 @@ testing "cat file1 notfound file2" \
         "cat file1 notfound file2 2>stderr && echo ok ; cat stderr; rm stderr" \
         "one\ntwo\ncat: notfound: No such file or directory\n" "" ""
 
+FILE="$(readlink -f /proc/self/exe)"
 testing "cat file1" \
-        "cat /proc/self/exe > file1 && cmp /proc/self/exe file1 && echo yes" \
+        'cat "$FILE" > file1 && cmp "$FILE" file1 && echo yes' \
         "yes\n" "" ""
 
 testing "cat - file1" \
