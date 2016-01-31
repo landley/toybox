@@ -100,3 +100,8 @@ testing "grep backref" 'grep -e "a\(b\)" -e "b\(c\)\1"' "bcc\nab\n" \
 
 testing "grep -A" "grep -A 2 yes" "yes\nno\nno\n--\nyes\nno\nno\nyes\nno\n" \
   "" "yes\nno\nno\nno\nyes\nno\nno\nyes\nno"
+testing "grep -B" "grep -B 1 yes" "no\nyes\n--\nno\nyes\nno\nyes\n" \
+  "" "no\nno\nno\nyes\nno\nno\nyes\nno\nyes"
+testing "grep -C" "grep -C 1 yes" \
+  "yes\nno\n--\nno\nyes\nno\nno\nyes\nno\nyes\nno\n" \
+  "" "yes\nno\nno\nno\nyes\nno\nno\nyes\nno\nyes\nno\nno"
