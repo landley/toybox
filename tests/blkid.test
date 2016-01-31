@@ -29,7 +29,7 @@ testing "blkid msdos" 'bzcat "$BDIR"/msdos.bz2 | blkid -' \
 testing "blkid ntfs" 'bzcat "$BDIR"/ntfs.bz2 | blkid -' \
   '-: UUID="8585600838bfe16e" TYPE="ntfs"\n' "" ""
 testing "blkid reiserfs" 'bzcat "$BDIR"/reiser3.bz2 | blkid -' \
-  '-: LABEL="" UUID="a5b99bec-45cc-41d7-986e-32f4b6fc28f2" TYPE="reiserfs"\n' \
+  '-: LABEL="myreiser" UUID="a5b99bec-45cc-41d7-986e-32f4b6fc28f2" TYPE="reiserfs"\n' \
   "" ""
 testing "blkid squashfs" 'bzcat "$BDIR"/squashfs.bz2 | blkid -' \
   '-: TYPE="squashfs"\n' "" ""
