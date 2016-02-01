@@ -8,7 +8,7 @@
  * Parentheses can only stack 4096 deep
  * Not treating two {} as an error, but only using last
  *
- * TODO: -empty (dirs too!) -delete -execdir +
+ * TODO: -empty (dirs too!)
 
 USE_FIND(NEWTOY(find, "?^HL[-HL]", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -46,6 +46,7 @@ config FIND
     -print   Print match with newline  -print0    Print match with null
     -exec    Run command with path     -execdir   Run command in file's dir
     -ok      Ask before exec           -okdir     Ask before execdir
+    -delete  Remove matching file/dir
 
     Commands substitute "{}" with matched file. End with ";" to run each file,
     or "+" (next argument after "{}") to collect and run with multiple files.
@@ -277,7 +278,13 @@ static int do_find(struct dirtree *new)
     } else s++;
 
     if (!strcmp(s, "xdev")) TT.xdev = 1;
-    else if (!strcmp(s, "depth")) TT.depth = 1;
+    else if (!strcmp(s, "delete")) {
+      // Delete forces depth first
+      TT.depth = 1;
+      if (new && check)
+        test = !unlinkat(dirtree_parentfd(new), new->name,
+          S_ISDIR(new->st.st_mode) ? AT_REMOVEDIR : 0);
+    } else if (!strcmp(s, "depth")) TT.depth = 1;
     else if (!strcmp(s, "o") || !strcmp(s, "or")) {
       if (not) goto error;
       if (active) {
