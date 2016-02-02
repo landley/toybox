@@ -62,7 +62,9 @@ not directly related to a specific cleanup series:</p>
 
 <ul>
 <li><a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000850.html>Error messages and internationalization.</a></li>
-<li><a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000891.html>Why not "const"?</a></li>
+<li><a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000891.html>Why not "const"?</a> (Exception: global variables
+outside of GLOBALS can be static const, to go in rodata instead of data.
+This means the pages can be shared between instances.)</li>
 <li><a href=http://lkml.indiana.edu/hypermail/linux/kernel/1308.3/03890.html>Why not "bool"?</a> (explanation from Linus Torvalds)</li>
 <li><a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-April/000893.html>Why not to check in debug code.</a></li>
 <li><a href=http://lists.landley.net/pipermail/toybox-landley.net/2013-June/001044.html>Relationship between /proc and /sys</a> (/proc isn't obsolete and /sys is an ABI)</li>
