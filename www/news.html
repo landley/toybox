@@ -8,6 +8,139 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+todo: document TAGGED_ARRAY in design.html, linestack, interestingtimes
+
+<a name="02-02-2016" /><a href="#02-02-2016"><hr><h2><b>February 2, 2016</b></h2></a>
+<blockquote><p>"I checked it very thoroughly," said the computer, "and that
+quite definitely is the answer. I think the problem, to be quite honest with
+you, is that you've never actually known what the question is."
+- The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+
+<p><a href=downloads/toybox-0.7.0.tar.gz>Toybox 0.7.0</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.7.0>git commit</a>)
+is out.</p>
+
+<p>The new commands in defconfig are <b>iotop</b>, <b>top</b>, <b>pgrep</b>,
+and <b>pkill</b>
+(most replacing corresponding versions from pending). Added find -ABC,
+swapon -d (discard), mkswap -L (label) and UUID support, and find -delete.
+Izabera added free -h and unshare -f. Josh Gao implemented tail -f.
+Jose Bollo submitted cp --preserve=context,attr. Kylie McClain added
+mktemp -u.</p>
+
+<p>In pending there's the start of a vi command, and Sameer Pradhan contributed
+a new dhcp6. This cycle saw several rounds of route cleanup and a little dhcp
+cleanup, but neither are complete yet. Lipi Lee did some cleanup to netstat.c
+and Elliott Hughes removed warnings from traceroute.</p>
+
+<p>Lots of updates to ps: several new -o options, -k (--sort) -O and -M,
+improved compatability with Android's historical behavior, and
+extensive internal code cleanup (including the removal of all
+the magic constants).</p>
+
+<h3><b>Website</b></h3>
+
+<p>Dreamhost restored the <a href="#12-21-2015">missing 11 months</a>
+to the mailing list archive, in the process deleting the month after
+that. Now they've asked if I have mbox files archiving the new
+gap (between December 20, 2015 to January 21, 2016, and presumably they
+could also fill in the gap from December 14, 2014 to january 3, 2015 that's
+been there since the last time they did this),
+but due some gmail filtering I've
+<a href=http://landley.net/notes-2012.html#15-10-2012>never
+been able to disable</a>, my copy of those files is spread among 3 different
+mbox files I'd have to sort/filter/collate. (It's on the todo list.)</p>
+
+<p>Added a code of conduct to the README (we're
+<a href=https://engineering.twitter.com/opensource/code-of-conduct>borrowing twitter's</a>) because somebody
+made it necessary.</p>
+
+<h3><b>Bugfixes</b></h3>
+<p>Fixed another sed bug where any ] right after [ was skipped (not just the
+first one in the range). Fixed sort -f and added test cases.
+Assume 80 columns in "ls -m | cat", ls -L is no longer backwards,
+and ls of files with no paths no longer uses an uninitialized (zero) dirfd.
+Several bugfixes
+to find (Gilad Arnold fixed -perm, Daniel K. Levy fixed "find . -exec echo {}",
+and while we're there Rob Landley fixed find --prune, made "find . -execdir
+echo {} + -execdir ls {} +" work, and ripped out the environment size
+measuring code that checked for a 128k limit removed back in linux 2.6.22).
+Elliott Hughes fixed the date command's parsing of 4 digit
+years and documented the %s escape, fixed hwclock -u, and pointed out
+that runcon needs to exec to do its job (not recursively call another
+command_main() in the same process). Tom Marshall reported that blkid was
+handling ext2 wrong. Mike Moreton corrected cpio extraction's uid and gid
+values, and added a --no-preserve-owner option. Fixed the SUID permission
+dropping logic (which was a bit over-zealous, preventing some commands from
+running at all).</p>
+
+,p>I'm told that debian-testing broke its libc so the nsenter build breaks,
+but my attempts to install the debian-testing network cd image under
+qemu keep breaking. Maybe next release they'll fix it enough I can actually
+reproduce the problem. (Debootstrap under unbuntu builds an ubuntu-flavored
+chroot in which toybox builds fine.)</p>
+
+<h3><b>Documentation</b></h3>
+<p>Rewrite of the about.html page, tweaks to design.html, and a re-triage of
+sbase in roadmap.html. Update to mkstatus.py to collate multiple span
+tags with the same id, resulting in a larger status.html page (which
+was previously ignoring some commands in the roadmap).</p>
+
+<p>Expanded the defconfig/allyesconfig/allnoconfighelp text in "make help"
+to explain what they're for.</p>
+
+<h3><b>infrastructure</b></h3>
+<ul>
+<li><p>Expanded toys.optargs to 64 bits so a command can have more than 32 options.</p></li>
+<li><p>Added NOEXIT() wrapper to turn xwrap() functions into warning versions
+using the existing longjump(toys.rebound) infrastructure.</p></li>
+<li><p>Renamed dirtree->data to dirfd and stopped storing symlink length
+into it (this fixed a bug where following symlinks to directories
+didn't give a valid directory filehandle, noticeable with ls -Z).</p></li>
+<li><p>New TAGGED_ARRAY() infrastructure generates index and bitmask macros
+for arrays of structures starting with a name string.</p></li>
+<li><p>New lib/linestack.c for utf8 fontmetrics (draw_str() and utf8len()
+and so on), and for tracking multiple lines of text
+(vi, less, shell history) that need wordwrapping and scrolling up/down.</p></li>
+<li><p>Upgrades to lib/interestingtimes.c: scan_key() now has a timeout
+in miliseconds and to recognizes more sequences including ANSI
+window size probes. New utf8 test files in tests/files/utf8 including
+sequence reversing, stacked combining chars, and all three types of
+unprintable sequences (low ascii <32 ala ^X, invalid utf8 sequences ala
+<AB><CD>, and invalid unicode code points ala U+1234).</p></li>
+<li><p>More comma handling code in lib.c: comma_args()</p></li>
+<li><p>Added error_msg_raw() to shut up fortify's endless static checking false
+positives.</p></li>
+<li><p>readfileat() can now realloc() in a loop to read long files.</p></li>
+</ul>
+
+<a name="12-21-2015" /><a href="#12-21-2015"><hr><h2><b>December 21, 2015</b></h2></a>
+
+<p>Yes, 11 months have gone missing from the mailing list web archive.</p>
+
+<p>Yesterday evening Dreamhost's mailman server went down (timing out trying
+to connect). I poked them about it, they
+<a href=https://twitter.com/landley/status/678781271670149121>blamed
+DNS</a>, I explained that the hang was _after_ the DNS lookup and
+entered the dig info into the trouble ticket showing the IPs the DNS
+queries were returning, they reinstalled the server at that IP from what I
+assume was their most recent backup, and that's how 11 months of messages
+vanished out of the archive.</p>
+
+<p>I've <a href=https://twitter.com/landley/status/679114451975467008>continued to poke them about it</a> but I honestly believe that's the best they
+can do. <a href=http://landley.net/dreamhost.txt>Last time</a>
+this sort of thing <a href=http://landley.net/dreamhost2.txt>happened</a>
+we went back and forth for months, so I added a link to a backup web
+archive (in the nav bar on the left) that isn't controlled by dreamhost,
+and thus doesn't gratuitously lose data on a regular basis. (I note
+the earlier hole in Dreamhost's archive was never fixed either. That
+was data never getting archived, this is a year's worth of data that
+was in the archive until yesterday vanishing after the fact.)</p>
+
+<p>If you're wondering why the <a href=http://lists.landley.net>top level</a>
+list page has been "temporarily disabled" for multiple years now... you'd have
+to ask Dreamhost. I know I have. More than a dozen times.</p>
+
 <a name="03-11-2015" /><a href="#03-11-2015"><hr><h2><b>November 3, 2015</b></h2></a>
 <blockquote><p>"Alright," said Ford. "How would you react if I said that I'm
 not from Guildford after all, but from a small planet somewhere in the vicinity
