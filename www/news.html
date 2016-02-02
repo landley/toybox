@@ -8,8 +8,6 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
-todo: document TAGGED_ARRAY in design.html, linestack, interestingtimes
-
 <a name="02-02-2016" /><a href="#02-02-2016"><hr><h2><b>February 2, 2016</b></h2></a>
 <blockquote><p>"I checked it very thoroughly," said the computer, "and that
 quite definitely is the answer. I think the problem, to be quite honest with
@@ -22,7 +20,7 @@ is out.</p>
 
 <p>The new commands in defconfig are <b>iotop</b>, <b>top</b>, <b>pgrep</b>,
 and <b>pkill</b>
-(most replacing corresponding versions from pending). Added find -ABC,
+(most replacing corresponding versions from pending). Added grep -ABC,
 swapon -d (discard), mkswap -L (label) and UUID support, and find -delete.
 Izabera added free -h and unshare -f. Josh Gao implemented tail -f.
 Jose Bollo submitted cp --preserve=context,attr. Kylie McClain added
@@ -34,7 +32,7 @@ cleanup, but neither are complete yet. Lipi Lee did some cleanup to netstat.c
 and Elliott Hughes removed warnings from traceroute.</p>
 
 <p>Lots of updates to ps: several new -o options, -k (--sort) -O and -M,
-improved compatability with Android's historical behavior, and
+improved compatibility with Android's historical behavior, and
 extensive internal code cleanup (including the removal of all
 the magic constants).</p>
 
@@ -44,9 +42,9 @@ the magic constants).</p>
 to the mailing list archive, in the process deleting the month after
 that. Now they've asked if I have mbox files archiving the new
 gap (between December 20, 2015 to January 21, 2016, and presumably they
-could also fill in the gap from December 14, 2014 to january 3, 2015 that's
+could also fill in the gap from December 14, 2014 to January 3, 2015 that's
 been there since the last time they did this),
-but due some gmail filtering I've
+but due to some gmail filtering I've
 <a href=http://landley.net/notes-2012.html#15-10-2012>never
 been able to disable</a>, my copy of those files is spread among 3 different
 mbox files I'd have to sort/filter/collate. (It's on the todo list.)</p>
@@ -57,12 +55,12 @@ made it necessary.</p>
 
 <h3><b>Bugfixes</b></h3>
 <p>Fixed another sed bug where any ] right after [ was skipped (not just the
-first one in the range). Fixed sort -f and added test cases.
+first one in the range, so [[] didn't terminate). Fixed sort -f and added test cases.
 Assume 80 columns in "ls -m | cat", ls -L is no longer backwards,
 and ls of files with no paths no longer uses an uninitialized (zero) dirfd.
 Several bugfixes
 to find (Gilad Arnold fixed -perm, Daniel K. Levy fixed "find . -exec echo {}",
-and while we're there Rob Landley fixed find --prune, made "find . -execdir
+and while we're there I fixed find --prune, made "find . -execdir
 echo {} + -execdir ls {} +" work, and ripped out the environment size
 measuring code that checked for a 128k limit removed back in linux 2.6.22).
 Elliott Hughes fixed the date command's parsing of 4 digit
@@ -74,9 +72,9 @@ values, and added a --no-preserve-owner option. Fixed the SUID permission
 dropping logic (which was a bit over-zealous, preventing some commands from
 running at all).</p>
 
-,p>I'm told that debian-testing broke its libc so the nsenter build breaks,
+<p>I'm told that debian-testing broke its libc so the nsenter build breaks,
 but my attempts to install the debian-testing network cd image under
-qemu keep breaking. Maybe next release they'll fix it enough I can actually
+qemu keep breaking. Maybe someday they'll fix it enough I can actually
 reproduce the problem. (Debootstrap under unbuntu builds an ubuntu-flavored
 chroot in which toybox builds fine.)</p>
 
@@ -103,7 +101,7 @@ for arrays of structures starting with a name string.</p></li>
 and so on), and for tracking multiple lines of text
 (vi, less, shell history) that need wordwrapping and scrolling up/down.</p></li>
 <li><p>Upgrades to lib/interestingtimes.c: scan_key() now has a timeout
-in miliseconds and to recognizes more sequences including ANSI
+in miliseconds and recognizes more sequences including ANSI
 window size probes. New utf8 test files in tests/files/utf8 including
 sequence reversing, stacked combining chars, and all three types of
 unprintable sequences (low ascii <32 ala ^X, invalid utf8 sequences ala
@@ -111,8 +109,37 @@ unprintable sequences (low ascii <32 ala ^X, invalid utf8 sequences ala
 <li><p>More comma handling code in lib.c: comma_args()</p></li>
 <li><p>Added error_msg_raw() to shut up fortify's endless static checking false
 positives.</p></li>
-<li><p>readfileat() can now realloc() in a loop to read long files.</p></li>
+<li><p>readfileat() can now realloc() in a loop to read long files
+("zcat | insmod" needed it).</p></li>
 </ul>
+
+<h3><b>Roadmap</b></h3>
+<p>We're getting close to having a self-hosting development environment
+using toybox for the command line. The remaining busybox commands in
+<a href=http://landley.net/aboriginal/about.html>Aboriginal Linux</a> are:</p>
+
+<blockquote><p><b>
+awk bunzip2 bzcat bzip2 dd diff expr fdisk ftpd ftpget ftpput gunzip gzip
+less ping route sh sha512sum tar test tr unxz vi wget xzcat zcat
+</b></p></blockquote>
+
+<p>And the remaining non-busybox commands in Aboriginal Linux's build/host
+directory (from the distcc, genext2fs, e2fsprogs, zlib, and squashfs packagesi)
+are:</p>
+
+<blockquote><p><b>
+mke2fs fsck.ext2 resize2fs distcc genext2fs unsquashfs distccd mksquashfs tune2fs
+</b></p></blockquote>
+
+<p>Squashfs and distcc are probably out of scope for toybox, but mke2fs,
+fsck.ext2, resize2fs, genext2fs, and tune2fs should all be added to the
+above "busybox" replacement list.</p>
+
+<p>Remind me to include this countdown in future releases. Once they've all
+been replaced, the next goal is <a href=http://landley.net/aboriginal/about.html#selfhost>building AOSP under itself</a>.</p>
+
+<p>See the full <a href=roadmap.html>roadmap</a> and <a href=status.html>status</a>
+pages for more details.</p>
 
 <a name="12-21-2015" /><a href="#12-21-2015"><hr><h2><b>December 21, 2015</b></h2></a>
 
