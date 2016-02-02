@@ -18,6 +18,7 @@ fi
 export KCONFIG_CONFIG=.singleconfig
 for i in "$@"
 do
+  echo -n "$i:"
   TOYFILE="$(egrep -l "TOY[(]($i)[ ,]" toys/*/*.c)"
 
   if [ -z "$TOYFILE" ]

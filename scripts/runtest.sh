@@ -43,9 +43,9 @@ SHOWSKIP=SKIP
 
 if tty -s <&1
 then
-  SHOWPASS="$(echo -e "\033[1m\033[32m${SHOWPASS}\033[0m")"
-  SHOWFAIL="$(echo -e "\033[1m\033[31m${SHOWFAIL}\033[0m")"
-  SHOWSKIP="$(echo -e "\033[1m\033[33m${SHOWSKIP}\033[0m")"
+  SHOWPASS="$(echo -e "\033[1;32m${SHOWPASS}\033[0m")"
+  SHOWFAIL="$(echo -e "\033[1;31m${SHOWFAIL}\033[0m")"
+  SHOWSKIP="$(echo -e "\033[1;33m${SHOWSKIP}\033[0m")"
 fi
 
 optional()

@@ -54,6 +54,7 @@ conv = [("posix", '<a href="http://pubs.opengroup.org/onlinepubs/9699919799/util
         ("toolbox", "", '{%s}'), ("klibc_cmd", "", '=%s='),
         ("sash_cmd", "", '#%s#'), ("sbase_cmd", "", '@%s@'),
         ("beastiebox_cmd", "", '*%s*'), ("tizen", "", '$%s$'),
+        ("shell", "", "%%%s%%"),
         ("request", '<a href="http://linux.die.net/man/1/%s">%%s</a>', '+%s+')]
 
 
@@ -98,7 +99,7 @@ print "implemented=%s" % len(toystuff)
 outfile=open("www/status.gen", "w")
 outfile.write("<h1>Status of toybox %s</h1>\n" % version[0]);
 outfile.write("<h3>Legend: [posix] &lt;lsb&gt; (development) {android}\n")
-outfile.write("=klibc= #sash# @sbase@ *beastiebox* $tizen$ +request+ other\n")
+outfile.write("=klibc= #sash# @sbase@ *beastiebox* $tizen$ %shell% +request+ other\n")
 outfile.write("<strike>pending</strike></h3>\n");
 
 outfile.write("<a name=done><h2><a href=#done>Completed</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(done))
