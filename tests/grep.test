@@ -60,6 +60,7 @@ def' input" "aabcc\nddeff\n" \
 
 testing "grep -lH" "grep -lH abc input" "input\n" "abc\n" ""
 testing "grep -cn" "grep -cn abc input" "1\n" "abc\n" ""
+testing "grep -cH" "grep -cH abc input" "input:1\n" "abc\n" ""
 testing "grep -qs" "grep -qs abc none input && echo yes" "yes\n" "abc\n" ""
 testing "grep -hl" "grep -hl abc input" "input\n" "abc\n" ""
 testing "grep -b stdin" "grep -b one" "0:one\n4:one\n8:one\n" "" "one\none\none\n"
@@ -105,3 +106,6 @@ testing "grep -B" "grep -B 1 yes" "no\nyes\n--\nno\nyes\nno\nyes\n" \
 testing "grep -C" "grep -C 1 yes" \
   "yes\nno\n--\nno\nyes\nno\nno\nyes\nno\nyes\nno\n" \
   "" "yes\nno\nno\nno\nyes\nno\nno\nyes\nno\nyes\nno\nno"
+testing "grep -HnC" "grep -HnC1 two" \
+  "(standard input)-1-one\n(standard input):2:two\n(standard input)-3-three\n" \
+  "" "one\ntwo\nthree"

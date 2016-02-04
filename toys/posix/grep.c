@@ -62,17 +62,28 @@ GLOBALS(
   long a;
   long b;
   long c;
+
+  char indelim, outdelim;
 )
+
+// Emit line with various potential prefixes and delimiter
+static void outline(char *line, char dash, char *name, long lcount, long bcount,
+  int trim)
+{
+  if (name && (toys.optflags&FLAG_H)) printf("%s%c", name, dash);
+  if (!line || (lcount && (toys.optflags&FLAG_n)))
+    printf("%ld%c", lcount, line ? dash : TT.outdelim);
+  if (bcount && (toys.optflags&FLAG_b)) printf("%ld%c", bcount-1, dash);
+  if (line) xprintf("%.*s%c", trim ? trim : INT_MAX, line, TT.outdelim);
+}
 
 // Show matches in one file
 static void do_grep(int fd, char *name)
 {
   struct double_list *dlb = 0;
   FILE *file = fdopen(fd, "r");
-  long offset = 0, after = 0, before = 0;
-  int lcount = 0, mcount = 0;
-  char *bars = 0, indelim = '\n' * !(toys.optflags&FLAG_z),
-       outdelim = '\n' * !(toys.optflags&FLAG_Z);
+  long lcount = 0, mcount = 0, offset = 0, after = 0, before = 0;
+  char *bars = 0;
 
   if (!fd) name = "(standard input)";
 
@@ -90,8 +101,8 @@ static void do_grep(int fd, char *name)
     int mmatch = 0;
 
     lcount++;
-    if (0 > (len = getdelim(&line, &unused, indelim, file))) break;
-    if (line[len-1] == indelim) line[len-1] = 0;
+    if (0 > (len = getdelim(&line, &unused, TT.indelim, file))) break;
+    if (line[len-1] == TT.indelim) line[len-1] = 0;
 
     start = line;
 
@@ -178,7 +189,7 @@ static void do_grep(int fd, char *name)
       toys.exitval = 0;
       if (toys.optflags & FLAG_q) xexit();
       if (toys.optflags & FLAG_l) {
-        printf("%s%c", name, outdelim);
+        xprintf("%s%c", name, TT.outdelim);
         free(line);
         fclose(file);
         return;
@@ -188,28 +199,23 @@ static void do_grep(int fd, char *name)
           break;
 
       if (!(toys.optflags & FLAG_c)) {
-        if (toys.optflags & FLAG_H) printf("%s:", name);
-        if (toys.optflags & FLAG_n) printf("%d:", lcount);
-        if (toys.optflags & FLAG_b)
-          printf("%ld:", offset + (start-line) +
-              ((toys.optflags & FLAG_o) ? matches.rm_so : 0));
+        long bcount = 1 + offset + (start-line) +
+          ((toys.optflags & FLAG_o) ? matches.rm_so : 0);
+ 
         if (!(toys.optflags & FLAG_o)) {
           while (dlb) {
             struct double_list *dl = dlist_pop(&dlb);
 
-            xprintf("%s%c", dl->data, outdelim);
+            outline(dl->data, '-', name, lcount-before, 0, 0);
             free(dl->data);
             free(dl);
             before--;
           }
 
-          while (before) xprintf("%s%c", line, outdelim);
-          xprintf("%s%c", line, outdelim);
+          outline(line, ':', name, lcount, bcount, 0);
           if (TT.a) after = TT.a+1;
-        } else {
-          xprintf("%.*s%c", (int)(matches.rm_eo-matches.rm_so),
-                  start+matches.rm_so, outdelim);
-        }
+        } else outline(start+matches.rm_so, ':', name, lcount, bcount,
+                       matches.rm_eo-matches.rm_so);
       }
 
       start += skip;
@@ -222,7 +228,7 @@ static void do_grep(int fd, char *name)
       int discard = (after || TT.b);
 
       if (after && --after) {
-        xprintf("%s%c", line, outdelim);
+        outline(line, '-', name, lcount, 0, 0);
         discard = 0;
       }
       if (discard && TT.b) {
@@ -237,6 +243,8 @@ static void do_grep(int fd, char *name)
           before--;
         } else discard = 0;
       }
+      // If we discarded a line while displaying context, show bars before next
+      // line (but don't show them now in case that was last match in file)
       if (discard && mcount) bars = "--";
     }
     free(line);
@@ -244,10 +252,7 @@ static void do_grep(int fd, char *name)
     if ((toys.optflags & FLAG_m) && mcount >= TT.m) break;
   }
 
-  if (toys.optflags & FLAG_c) {
-    if (toys.optflags & FLAG_H) printf("%s:", name);
-    xprintf("%d%c", mcount, outdelim);
-  }
+  if (toys.optflags & FLAG_c) outline(0, ':', name, mcount, 0, 0);
 
   // loopfiles will also close the fd, but this frees an (opaque) struct.
   fclose(file);
@@ -337,6 +342,9 @@ void grep_main(void)
 
   if (!TT.a) TT.a = TT.c;
   if (!TT.b) TT.b = TT.c;
+
+  TT.indelim = '\n' * !(toys.optflags&FLAG_z);
+  TT.outdelim = '\n' * !(toys.optflags&FLAG_Z);
 
   // Handle egrep and fgrep
   if (*toys.which->name == 'e') toys.optflags |= FLAG_E;
