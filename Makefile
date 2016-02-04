@@ -35,11 +35,7 @@ baseline: toybox_unstripped
 bloatcheck: toybox_old toybox_unstripped
 	@scripts/bloatcheck toybox_old toybox_unstripped
 
-generated/instlist: toybox_stuff
-	NOBUILD=1 scripts/make.sh
-	$(HOSTCC) -I . scripts/install.c -o generated/instlist
-
-install_flat: generated/instlist
+install_flat:
 	scripts/install.sh --symlink --force
 
 install:
