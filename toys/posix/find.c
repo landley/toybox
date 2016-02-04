@@ -321,7 +321,8 @@ static int do_find(struct dirtree *new)
         if (new && s[i] == 'p') name = path = dirtree_path(new, 0);
         if (i) {
           if (check || !new) {
-            name = strlower(new ? name : arg);
+            char *temp = new ? name : arg;
+            name = temp ? strlower(temp) : 0;
             if (!new) {
               dlist_add(&TT.argdata, name);
               free(path);

@@ -74,4 +74,20 @@ testing "find unterminated -exec {}" \
 testing "find -exec {} +" \
   "find dir -type f -exec ls {} +" "dir/file\n" "" ""
 
+# `find . -iname` was segfaulting
+testing "find -name file" \
+  "find dir -name file" "dir/file\n" "" ""
+testing "find -name FILE" \
+  "find dir -name FILE" "" "" ""
+
+testing "find -iname file" \
+  "find dir -iname FILE" "dir/file\n" "" ""
+testing "find -iname FILE" \
+  "find dir -iname FILE" "dir/file\n" "" ""
+
+
+testing "find -name (no arguments)" \
+  "find dir -name 2>&1" "find: '-name' needs 1 arg\n" "" ""
+testing "find -iname (no arguments)" \
+  "find dir -iname 2>&1" "find: '-iname' needs 1 arg\n" "" ""
 rm -rf dir
