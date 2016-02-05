@@ -315,14 +315,13 @@ static int do_find(struct dirtree *new)
         || !strcmp(s, "path") || !strcmp(s, "ipath"))
       {
         int i = (*s == 'i');
-        char *arg = ss[1], *path = 0, *name = new->name;
+        char *arg = ss[1], *path = 0, *name = new ? new->name : arg;
 
         // Handle path expansion and case flattening
         if (new && s[i] == 'p') name = path = dirtree_path(new, 0);
         if (i) {
           if (check || !new) {
-            char *temp = new ? name : arg;
-            name = temp ? strlower(temp) : 0;
+            if (name) name = strlower(name);
             if (!new) {
               dlist_add(&TT.argdata, name);
               free(path);
