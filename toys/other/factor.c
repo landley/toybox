@@ -19,7 +19,7 @@ config FACTOR
 
 static void factor(char *s)
 {
-  long l, ll;
+  unsigned long l, ll;
 
   for (;;) {
     char *err = s;
@@ -27,14 +27,14 @@ static void factor(char *s)
     while(isspace(*s)) s++;
     if (!*s) return;
 
-    l = strtol(s, &s, 0);
+    l = strtoul(s, &s, 0);
     if (*s && !isspace(*s)) {
       error_msg("%s: not integer", err);
 
       return;
     }
 
-    printf("%ld:", l);
+    printf("%lu:", l);
 
     // Negative numbers have -1 as a factor
     if (l < 0) {
@@ -44,7 +44,7 @@ static void factor(char *s)
 
     // Nothing below 4 has factors
     if (l < 4) {
-      printf(" %ld\n", l);
+      printf(" %lu\n", l);
       continue;
     }
 
@@ -59,11 +59,11 @@ static void factor(char *s)
       long lll = ll*ll;
 
       if (lll>l || lll<ll) {
-        if (l>1) printf(" %ld", l);
+        if (l>1) printf(" %lu", l);
         break;
       }
       while (!(l%ll)) {
-        printf(" %ld", ll);
+        printf(" %lu", ll);
         l /= ll;
       }
     }
