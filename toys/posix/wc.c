@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/wc.html
 
-USE_WC(NEWTOY(wc, USE_TOYBOX_I18N("m")"cwl", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_WC(NEWTOY(wc, USE_TOYBOX_I18N("m")"cwl[!cm]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config WC
   bool "wc"
@@ -50,10 +50,24 @@ static void do_wc(int fd, char *name)
   int i, len, clen=1, space;
   unsigned long word=0, lengths[]={0,0,0};
 
+  if (toys.optflags == FLAG_c) {
+    struct stat st;
+
+    fstat(fd, &st);
+    if (S_ISREG(st.st_mode)) {
+      lengths[2] = st.st_size;
+      goto show;
+    }
+  }
+
   for (;;) {
     len = read(fd, toybuf, sizeof(toybuf));
     if (len<0) perror_msg_raw(name);
     if (len<1) break;
+    if (toys.optflags == FLAG_c) {
+      lengths[2] += len;
+      continue;
+    }
     for (i=0; i<len; i+=clen) {
       wchar_t wchar;
 
@@ -78,6 +92,7 @@ static void do_wc(int fd, char *name)
     }
   }
 
+show:
   show_lengths(lengths, name);
 }
 
