@@ -33,6 +33,7 @@ void xexit(void)
   if (toys.rebound) longjmp(*toys.rebound, 1);
   if (fflush(NULL) || ferror(stdout))
     if (!toys.exitval) perror_msg("write");
+
   exit(toys.exitval);
 }
 
@@ -307,6 +308,11 @@ int xcreate(char *path, int flags, int mode)
 int xopen(char *path, int flags)
 {
   return xcreate(path, flags, 0);
+}
+
+void xpipe(int pp)
+{
+  if (pipe(pp)) perror_exit("xpipe");
 }
 
 void xclose(int fd)

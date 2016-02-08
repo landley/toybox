@@ -287,7 +287,7 @@ static void compress_stream(struct archive_handler *tar_hdl)
   int pipefd[2];
   pid_t cpid;
 
-  if (pipe(pipefd) == -1) error_exit("pipe");
+  xpipe(pipefd);
 
   signal(SIGPIPE, SIG_IGN);
   cpid = fork();

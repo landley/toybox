@@ -119,6 +119,7 @@ void xaccess(char *path, int flags);
 void xunlink(char *path);
 int xcreate(char *path, int flags, int mode);
 int xopen(char *path, int flags);
+void xpipe(int pp);
 void xclose(int fd);
 int xdup(int fd);
 FILE *xfdopen(int fd, char *mode);

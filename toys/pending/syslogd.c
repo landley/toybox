@@ -460,7 +460,7 @@ init_jumpin:
   }
 
   // Setup signals
-  if (pipe(TT.sigfd) < 0) error_exit("pipe failed\n");
+  xpipe(TT.sigfd);
 
   fcntl(TT.sigfd[1] , F_SETFD, FD_CLOEXEC);
   fcntl(TT.sigfd[0] , F_SETFD, FD_CLOEXEC);
