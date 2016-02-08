@@ -19,9 +19,11 @@ toybox toybox_unstripped: toybox_stuff
 	scripts/make.sh
 
 .PHONY: clean distclean baseline bloatcheck install install_flat \
-	uinstall uninstall_flat test tests help toybox_stuff change
+	uinstall uninstall_flat test tests help toybox_stuff change \
+	working pending
 
 include kconfig/Makefile
+-include .singlemake
 
 $(KCONFIG_CONFIG): $(KCONFIG_TOP)
 $(KCONFIG_TOP): generated/Config.in
@@ -54,7 +56,7 @@ clean::
 	rm -rf toybox toybox_unstripped generated change .singleconfig*
 
 distclean: clean
-	rm -f toybox_old .config*
+	rm -f toybox_old .config* .singlemake
 
 test: tests
 
@@ -63,6 +65,9 @@ tests:
 
 help::
 	@echo  '  toybox          - Build toybox.'
+	@echo  '  COMMANDNAME     - Build individual toybox command as a standalone binary.'
+	@echo  '  working         - List working COMMANDNAMEs.'
+	@echo  '  pending         - List pending (unfinished) COMMANDNAMEs.'
 	@echo  '  change          - Build each command standalone under change/.'
 	@echo  '  baseline        - Create toybox_old for use by bloatcheck.'
 	@echo  '  bloatcheck      - Report size differences between old and current versions'

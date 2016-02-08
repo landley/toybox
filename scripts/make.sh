@@ -66,7 +66,7 @@ CFLAGS="$CFLAGS $(cat generated/cflags)"
 BUILD="$(echo ${CROSS_COMPILE}${CC} $CFLAGS -I . $OPTIMIZE $GITHASH)"
 FILES="$(echo lib/*.c main.c $TOYFILES)"
 
-if [ "${FILES/pending//}" != "$FILES" ]
+if [ "${TOYFILES/pending//}" != "$TOYFILES" ]
 then
   echo -e "\n\033[1;31mwarning: using unfinished code from toys/pending\033[0m"
 fi

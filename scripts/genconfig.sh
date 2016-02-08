@@ -119,3 +119,29 @@ genconfig()
 
 probeconfig > generated/Config.probed || rm generated/Config.probed
 genconfig > generated/Config.in || rm generated/Config.in
+
+# Find names of commands that can be built standalone in these C files
+toys()
+{
+  grep 'TOY(.*)' "$@" | grep -v TOYFLAG_NOFORK | \
+    sed -rn 's/([^:]*):.*(OLD|NEW)TOY\( *([a-zA-Z][^,]*) *,.*/\1:\3/p'
+}
+
+WORKING=
+PENDING=
+toys toys/*/*.c | (
+while IFS=":" read FILE NAME
+do
+  [ "$NAME" == help ] && continue
+  [ "$NAME" == install ] && continue
+  echo -e "$NAME:\n\tscripts/single.sh $NAME\n"
+  [ "${FILE/pending//}" != "$FILE" ] &&
+    PENDING="$PENDING $NAME" ||
+    WORKING="$WORKING $NAME"
+done > .singlemake &&
+echo -e "clean::\n\trm -f $WORKING $PENDING" >> .singlemake &&
+echo -e "working:\n\t@echo $(echo $WORKING | tr ' ' '\n' | sort | xargs)" \
+  >> .singlemake &&
+echo -e "pending:\n\t@echo $(echo $PENDING | tr ' ' '\n' | sort | xargs)" \
+  >> .singlemake
+)
