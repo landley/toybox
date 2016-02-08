@@ -134,7 +134,7 @@ while IFS=":" read FILE NAME
 do
   [ "$NAME" == help ] && continue
   [ "$NAME" == install ] && continue
-  echo -e "$NAME:\n\tscripts/single.sh $NAME\n"
+  echo -e "$NAME: $FILE *.[ch] lib/*.[ch]\n\tscripts/single.sh $NAME\n"
   [ "${FILE/pending//}" != "$FILE" ] &&
     PENDING="$PENDING $NAME" ||
     WORKING="$WORKING $NAME"
