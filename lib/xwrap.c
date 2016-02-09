@@ -310,7 +310,7 @@ int xopen(char *path, int flags)
   return xcreate(path, flags, 0);
 }
 
-void xpipe(int pp)
+void xpipe(int *pp)
 {
   if (pipe(pp)) perror_exit("xpipe");
 }
