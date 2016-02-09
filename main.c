@@ -107,7 +107,7 @@ void toy_init(struct toy_list *which, char *argv[])
 
     if (!(which->flags & TOYFLAG_STAYROOT)) {
       if (uid != euid) {
-        if (!setuid(uid)) perror_exit("setuid %d->%d", euid, uid); // drop root
+        if (setuid(uid)) perror_exit("setuid %d->%d", euid, uid); // drop root
         euid = uid;
         toys.wasroot++;
       }
