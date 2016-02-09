@@ -247,6 +247,16 @@ static inline void endutxent(void) {;}
 #define O_PATH   010000000
 #endif
 
+// Glibc won't give you linux-kernel constants unless you say "no, a BUD lite"
+// even though linux has nothing to do with the FSF and never has.
+#ifndef F_SETPIPE_SZ
+#define F_SETPIPE_SZ 1031
+#endif
+
+#ifndef F_GETPIPE_SZ
+#define F_GETPIPE_SZ 1032
+#endif
+
 #if defined(__SIZEOF_DOUBLE__) && defined(__SIZEOF_LONG__) \
     && __SIZEOF_DOUBLE__ <= __SIZEOF_LONG__
 typedef double FLOAT;
