@@ -71,3 +71,20 @@ rm -rf temp_dir
 mkdir dir/dir1 -p 
 echo "Inside dir/dir1" > dir/dir1/file ; echo "Hello Inside dir" > dir/file
 testing "Extraction on STDOUT : -O" " tar -czf dir.tgz dir/ ; rm -rf dir ; tar -xf dir.tgz -O ; [ -e 'Inside dir/dir1/\nHello Inside dir\n' ] && echo 'yes'; rm -rf dir.tgz "  "" "" ""
+
+#Creating short filename
+f="filename_with_100_chars_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+echo "This is testdata" > $f
+testing "tar shortname filename" "tar -cf testFile.tar $f && [ -e testFile.tar ] && echo 'yes'; rm -f $f; tar -xf testFile.tar && [ -f $f ] && cat $f && strings testFile.tar | grep -o LongLink; rm -f testFile.tar; rm -f $f" "yes\nThis is testdata\n" "" ""
+
+#Creating long filename
+f="filename_with_101_chars_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+echo "This is testdata" > $f
+testing "tar longname filename" "tar -cf testFile.tar $f && [ -e testFile.tar ] && echo 'yes'; rm -f $f; tar -xf testFile.tar && [ -f $f ] && cat $f && strings testFile.tar | grep -o LongLink; rm -f testFile.tar; rm -f $f" "yes\nThis is testdata\nLongLink\n" "" ""
+
+#Creating long pathname
+d="dirname_with_50_chars_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+f="filename_with_50_chars_xxxxxxxxxxxxxxxxxxxxxxxxxxx"
+mkdir $d
+echo "This is testdata" > $d/$f
+testing "tar longname pathname" "tar -cf testFile.tar $d/$f && [ -e testFile.tar ] && echo 'yes'; rm -rf $d; tar -xf testFile.tar && [ -f $d/$f ] && cat $d/$f && strings testFile.tar | grep -o LongLink; rm -f testFile.tar; rm -rf $d" "yes\nThis is testdata\nLongLink\n" "" ""
