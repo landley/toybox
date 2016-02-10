@@ -74,7 +74,7 @@ static void outline(char *line, char dash, char *name, long lcount, long bcount,
   if (!line || (lcount && (toys.optflags&FLAG_n)))
     printf("%ld%c", lcount, line ? dash : TT.outdelim);
   if (bcount && (toys.optflags&FLAG_b)) printf("%ld%c", bcount-1, dash);
-  if (line) xprintf("%.*s%c", trim ? trim : INT_MAX, line, TT.outdelim);
+  if (line) xprintf("%.*s%c", trim ? trim : INT_MAX/2, line, TT.outdelim);
 }
 
 // Show matches in one file
