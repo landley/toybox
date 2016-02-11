@@ -199,6 +199,7 @@ int qstrcmp(const void *a, const void *b);
 void create_uuid(char *uuid);
 char *show_uuid(char *uuid);
 char *next_printf(char *s, char **start);
+char *strnstr(char *line, char *str);
 
 #define HR_SPACE 1 // Space between number and units
 #define HR_B     2 // Use "B" for single byte units

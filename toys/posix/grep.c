@@ -125,13 +125,8 @@ static void do_grep(int fd, char *name)
             fseek.arg = s = line;
             break;
           }
-          if (toys.optflags & FLAG_i) {
-            long ll = strlen(seek->arg);;
-
-            // Alas, posix hasn't got strcasestr()
-            for (s = line; *s; s++) if (!strncasecmp(s, seek->arg, ll)) break;
-            if (!*s) s = 0;
-          } else s = strstr(line, seek->arg);
+          if (toys.optflags & FLAG_i) s = strnstr(line, seek->arg);
+          else s = strstr(line, seek->arg);
           if (s) break;
         }
 

@@ -20,6 +20,16 @@ config PASSWD
     -d		Set password to ''
     -l		Lock (disable) account
     -u		Unlock (enable) account
+
+config PASSWD_SAD
+  bool "Add sad password checking heuristics"
+  default n
+  depends on PASSWD
+  help
+    Password changes are checked to make sure they don't include the entire
+    username (but not a subset of it), and the entire previous password
+    (but changing password1, password2, password3 is fine). This heuristic
+    accepts "aaaaaa" as a password.
 */
 
 #define FOR_passwd
@@ -29,16 +39,13 @@ GLOBALS(
   char *algo;
 )
 
-#ifndef _GNU_SOURCE
-char *strcasestr(const char *haystack, const char *needle);
-#endif
-
 static int str_check(char *s, char *p)
 {
-  if (strcasestr(s, p) || strcasestr(p, s)) return 1;
+  if (strnstr(s, p) || strnstr(p, s)) return 1;
   return 0;
 }
 
+// Insane heuristic won't find password1 password2 password3...?
 static void strength_check(char *newp, char *oldp, char *user)
 {
   char *msg = NULL;
@@ -81,7 +88,7 @@ static char *new_password(char *oldp, char *user)
     return NULL; //may be due to Ctrl-C
 
   newp = xstrdup(toybuf);
-  strength_check(newp, oldp, user);
+  if (CFG_PASSWD_SAD) strength_check(newp, oldp, user);
   if (read_password(toybuf, sizeof(toybuf), "Retype password:")) {
     free(newp);
     return NULL; //may be due to Ctrl-C
@@ -114,8 +121,7 @@ void passwd_main(void)
 
   pw = xgetpwnam(name);
 
-  if (myuid && (myuid != pw->pw_uid))
-    error_exit("You need to be root to change '%s' password\n", name);
+  if (myuid && (myuid != pw->pw_uid)) error_exit("Not root");
 
   pass = pw->pw_passwd;
   if (pw->pw_passwd[0] == 'x') {
