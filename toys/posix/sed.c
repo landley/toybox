@@ -705,6 +705,7 @@ static char *unescape_delimited_string(char **pstr, char *delim, int regex)
 {
   char *to, *from, mode = 0, d;
 
+  from = *pstr;
   if (!delim || !*delim) {
     if (!(d = *(from++))) return 0;
     if (d == '\\') d = *(from++);
