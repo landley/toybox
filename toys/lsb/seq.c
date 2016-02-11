@@ -4,14 +4,14 @@
  *
  * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/seq.html
 
-USE_SEQ(NEWTOY(seq, "<1>3?f:s:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SEQ(NEWTOY(seq, "<1>3?f:s:w[!fw]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config SEQ
   bool "seq"
   depends on TOYBOX_FLOAT
   default y
   help
-    usage: seq [-f fmt_str] [-s sep_str] [first] [increment] last
+    usage: seq [-w|-f fmt_str] [-s sep_str] [first] [increment] last
 
     Count from first to last, by increment. Omitted arguments default
     to 1. Two arguments are used as first and last. Arguments can be
@@ -19,6 +19,7 @@ config SEQ
 
     -f	Use fmt_str as a printf-style floating point format string
     -s	Use sep_str as separator, default is a newline character
+    -w	Pad to equal width with leading zeroes.
 */
 
 #define FOR_seq
@@ -44,8 +45,7 @@ static void insanitize(char *f)
 void seq_main(void)
 {
   double first, increment, last, dd;
-  char *sep_str = "\n";
-  char *fmt_str = "%g";
+  char *sep_str = "\n", *fmt_str = "%g";
   int output = 0;
 
   // Parse command line arguments, with appropriate defaults.
@@ -57,6 +57,25 @@ void seq_main(void)
     default: last = atof(toys.optargs[toys.optc-1]);
   }
 
+  // Pad to largest width
+  if (toys.optflags & FLAG_w) {
+    char *s;
+    int i, len, dot, left = 0, right = 0;
+
+    for (i=0; i<3; i++) {
+      dd = (double []){first, increment, last}[i];
+
+      len = sprintf(toybuf, "%g", dd);
+      if ((s = strchr(toybuf, '.'))) {
+        dot = s-toybuf;
+        if (left<dot) left = dot;
+        dot = len-dot-1;
+        if (right<dot) right = dot;
+      } else if (len>left) left = len;
+    }
+
+    sprintf(fmt_str = toybuf, "%%0%d.%df", left+right+!!right, right);
+  }
   if (toys.optflags & FLAG_f) insanitize(fmt_str = TT.fmt);
   if (toys.optflags & FLAG_s) sep_str = TT.sep;
 
