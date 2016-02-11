@@ -9,7 +9,7 @@ void show_help(FILE *out) {;}
 
 #undef NEWTOY
 #undef OLDTOY
-#define NEWTOY(name,opt,flags) help_##name "\0"
+#define NEWTOY(name,opt,flags) HELP_##name "\0"
 #define OLDTOY(name,oldname,flags) "\xff" #oldname "\0"
 static char *help_data =
 #include "generated/newtoys.h"

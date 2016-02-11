@@ -1,11 +1,24 @@
-#include "toys.h"
+//#include "toys.h"
 
-// Humor toys.h
-struct toy_context toys;
-char libbuf[4096], toybuf[4096];
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <regex.h>
+#include <inttypes.h>
+#include <termios.h>
+#include <poll.h>
+struct statvfs {int i;};
+#include "lib/portability.h"
+#include "lib/lib.h"
+
+// Humor toys.h (lie through our teeth, C's linker doesn't care).
+char toys[4096], libbuf[4096], toybuf[4096];
 void show_help(FILE *out) {;}
 void toy_exec(char *argv[]) {;}
-void toy_init(struct toy_list *which, char *argv[]) {;}
+void toy_init(void *which, char *argv[]) {;}
 
 // Parse config files into data structures.
 
@@ -16,6 +29,7 @@ struct symbol {
   struct double_list *help;
 } *sym;
 
+// remove leading spaces
 char *trim(char *s)
 {
   while (isspace(*s)) s++;
@@ -23,6 +37,7 @@ char *trim(char *s)
   return s;
 }
 
+// if line starts with name (as whole word) return pointer after it, else NULL
 char *keyword(char *name, char *line)
 {
   int len = strlen(name);
@@ -36,6 +51,7 @@ char *keyword(char *name, char *line)
   return line;
 }
 
+// dlist_pop() freeing wrapper structure for you.
 char *dlist_zap(struct double_list **help)
 {
   struct double_list *dd = dlist_pop(help);
@@ -366,7 +382,7 @@ int main(int argc, char *argv[])
       char *s = xstrdup(sym->name);
 
       for (i = 0; s[i]; i++) s[i] = tolower(s[i]);
-      printf("#define help_%s \"", s);
+      printf("#define HELP_%s \"", s);
       free(s);
 
       dd = sym->help;
