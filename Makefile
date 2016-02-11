@@ -43,7 +43,7 @@ install_flat:
 install:
 	scripts/install.sh --long --symlink --force
 
-uninstall_flat: generated/instlist
+uninstall_flat:
 	scripts/install.sh --uninstall
 
 uninstall:

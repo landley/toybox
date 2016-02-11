@@ -3,20 +3,18 @@
  * Copyright 2006 Rob Landley <rob@landley.net>
  */
 
-#include "toys.h"
+#include <stdio.h>
+#include "generated/config.h"
+#include "lib/toyflags.h"
 
-#undef NEWTOY
-#undef OLDTOY
-#define NEWTOY(name, opts, flags) {#name, 0, 0, flags},
-#define OLDTOY(name, oldname, flags) {#name, 0, 0, flags},
+#define NEWTOY(name, opts, flags) {#name, flags},
+#define OLDTOY(name, oldname, flags) {#name, flags},
 
 // Populate toy_list[].
 
-struct toy_list toy_list[] = {
+struct {char *name; int flags;} toy_list[] = {
 #include "generated/newtoys.h"
 };
-
-#define TOY_LIST_LEN (sizeof(toy_list)/sizeof(struct toy_list))
 
 int main(int argc, char *argv[])
 {
@@ -24,7 +22,7 @@ int main(int argc, char *argv[])
   int i, len = 0;
 
   // Output list of applets.
-  for (i=1; i<TOY_LIST_LEN; i++) {
+  for (i=1; i<sizeof(toy_list)/sizeof(*toy_list); i++) {
     int fl = toy_list[i].flags;
     if (fl & TOYMASK_LOCATION) {
       if (argc>1) {

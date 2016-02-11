@@ -23,4 +23,3 @@ CFLAGS="$CFLAGS -funsigned-char"
 # If HOSTCC needs CFLAGS or LDFLAGS, just add them to the variable
 # ala HOSTCC="blah-cc --static"
 [ -z "$HOSTCC" ] && HOSTCC=cc
-HOSTCC="$HOSTCC -DBUILD_FOR_HOST"
