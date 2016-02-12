@@ -53,8 +53,8 @@ static void do_wc(int fd, char *name)
   if (toys.optflags == FLAG_c) {
     struct stat st;
 
-    fstat(fd, &st);
-    if (S_ISREG(st.st_mode)) {
+    // On Linux, files in /proc often report their size as 0.
+    if (!fstat(fd, &st) && S_ISREG(st.st_mode) && st.st_size > 0) {
       lengths[2] = st.st_size;
       goto show;
     }
