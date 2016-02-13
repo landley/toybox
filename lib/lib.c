@@ -508,8 +508,7 @@ int64_t peek_le(void *ptr, unsigned size)
   char *c = ptr;
   int i;
 
-  for (i=0; i<size; i++) ret |= ((int64_t)c[i])<<i;
-
+  for (i=0; i<size; i++) ret |= ((int64_t)c[i])<<(i*8);
   return ret;
 }
 
@@ -517,9 +516,9 @@ int64_t peek_be(void *ptr, unsigned size)
 {
   int64_t ret = 0;
   char *c = ptr;
+  int i;
 
-  while (size--) ret = (ret<<8)|c[size];
-
+  for (i=0; i<size; i++) ret = (ret<<8)|(c[i]&0xff);
   return ret;
 }
 
