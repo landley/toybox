@@ -3,6 +3,8 @@
  * Copyright 2016 The Android Open Source Project
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/file.html
+ *
+ * TODO: ar
 
 USE_FILE(NEWTOY(file, "<1", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -22,9 +24,11 @@ GLOBALS(
   int max_name_len;
 )
 
-static void do_elf_file()
+// We don't trust elf.h to be there, and two codepaths for 32/64 is awkward
+// anyway, so calculate struct offsets manually. (It's a fixed ABI.)
+static void do_elf_file(int fd)
 {
-  int elf_endian = toybuf[5], e_type, e_machine, i;
+  int endian = toybuf[5], bits = toybuf[4], i, j;
   int64_t (*elf_int)(void *ptr, unsigned size) = peek_le;
   // Values from include/linux/elf-em.h (plus arch/*/include/asm/elf.h)
   // Names are linux/arch/ directory name
@@ -40,43 +44,74 @@ static void do_elf_file()
   xprintf("ELF ");
 
   // "64-bit"
-  if (toybuf[4] == 1) xprintf("32-bit ");
-  else if (toybuf[4] == 2) xprintf("64-bit ");
-  else xprintf("(bad class %d)", toybuf[4]);
+  if (bits == 1) xprintf("32-bit ");
+  else if (bits == 2) xprintf("64-bit ");
+  else {
+    xprintf("(bad class %d) ", bits);
+    bits = 0;
+  }
+
+  // e_machine, ala "x86", from big table above
+  j = elf_int(toybuf+18, 2);
+  for (i = 0; i<ARRAY_LEN(type); i++) if (j==type[i].val) break;
+  if (i<ARRAY_LEN(type)) xprintf("%s ", type[i].name);
+  else xprintf("(unknown arch %d) ", j);
 
   // "LSB"
-  if (elf_endian == 1) xprintf("LSB ");
-  else if (elf_endian == 2) {
+  if (endian == 1) xprintf("LSB ");
+  else if (endian == 2) {
     xprintf("MSB ");
     elf_int = peek_be;
   } else {
-    xprintf("(bad endian %d)\n", elf_endian);
-
-    // At this point we can't parse remaining fields.
-    return;
+    xprintf("(bad endian %d)\n", endian);
+    endian = 0;
   }
 
   // ", executable"
-  e_type = elf_int(&toybuf[0x10], 2);
-  if (e_type == 1) xprintf("relocatable");
-  else if (e_type == 2) xprintf("executable");
-  else if (e_type == 3) xprintf("shared object");
-  else if (e_type == 4) xprintf("core dump");
-  else xprintf("(invalid type %d)", e_type);
+  i = elf_int(toybuf+16, 2);
+  if (i == 1) xprintf("relocatable");
+  else if (i == 2) xprintf("executable");
+  else if (i == 3) xprintf("shared object");
+  else if (i == 4) xprintf("core dump");
+  else xprintf("(bad type %d)", i);
 
-  // ", x86-64"
-  e_machine = elf_int(&toybuf[0x12], 2);
-  for (i = 0; i<ARRAY_LEN(type); i++) if (e_machine == type[i].val) break;
-  if (i<ARRAY_LEN(type)) xprintf(", %s", type[i].name);
-  else xprintf(", (unknown arch %d)", e_machine);
+  bits--;
+  // If we know our bits and endianness and phentsize agrees show dynamic linker
+  if ((bits&1)==bits && endian &&
+      (i = elf_int(toybuf+42+12*bits, 2)) == 32+24*bits)
+  {
+    char *map, *phdr;
+    int phsize = i, phnum = elf_int(toybuf+44+12*bits, 2),
+        psz = sysconf(_SC_PAGE_SIZE), lib = 0;
+    off_t phoff = elf_int(toybuf+28+4*bits, 4+4*bits),
+          mapoff = phoff^(phoff&(psz-1));
 
-  // "version 1"
-  xprintf(", version %d", toybuf[6]);
+    // map e_phentsize*e_phnum bytes at e_phoff
+    map = mmap(0, phsize*phnum, PROT_READ, MAP_SHARED, fd, mapoff);
+    if (map) {
+      // Find PT_INTERP entry. (Not: fields got reordered for 64 bit)
+      for (i = 0; i<phnum; i++) {
+        long long dlpos, dllen;
 
-  // " (SYSV)"
-  // TODO: will we ever meet any of the others in practice?
-  if (!toybuf[7]) xprintf(" (SYSV)");
-  else xprintf(" (OS %d)", toybuf[7]);
+        // skip non-PT_INTERP entries
+        j = elf_int(phdr = map+(phoff-mapoff)+i*phsize, 4);
+        if (j==2) lib++;
+        if (j!=3) continue;
+
+        // Read p_offset and p_filesz
+        j = bits+1;
+        dlpos = elf_int(phdr+4*j, 4*j);
+        dllen = elf_int(phdr+16*j, 4*j);
+        if (dllen<0 || dllen>sizeof(toybuf)-128
+            || dlpos!=lseek(fd, dlpos, SEEK_SET)
+            || dllen!=readall(fd, toybuf+128, dllen)) break;
+        printf(", dynamic (%.*s)", (int)dllen, toybuf+128);
+      }
+      if (!lib) printf(", static");
+      else printf(", needs %d lib%s", lib, lib>1 ? "s" : "");
+      munmap(map, phsize*phnum);
+    }
+  }
 
   // TODO: we'd need to actually parse the ELF file to report the rest...
   // ", dynamically linked"
@@ -84,7 +119,6 @@ static void do_elf_file()
   // ", for Linux 2.6.24"
   // ", BuildID[sha1]=SHA"
   // ", stripped"
-
   xputc('\n');
 }
 
@@ -95,9 +129,8 @@ static void do_regular_file(int fd, char *name)
 
   if (len<0) perror_msg("%s", name);
 
-  if (len>20 && strstart(&s, "\177ELF")) {
-    do_elf_file(len);
-  } else if (len>28 && strstart(&s, "\x89PNG\x0d\x0a\x1a\x0a")) {
+  if (len>40 && strstart(&s, "\177ELF")) do_elf_file(fd);
+  else if (len>28 && strstart(&s, "\x89PNG\x0d\x0a\x1a\x0a")) {
     // PNG is big-endian: https://www.w3.org/TR/PNG/#7Integers-and-byte-order
     int chunk_length = peek_be(s, 4);
 
