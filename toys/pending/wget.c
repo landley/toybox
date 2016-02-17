@@ -23,47 +23,32 @@ GLOBALS(
 )
 
 #define TOYBOX_VERSION "0.7.0"
+#define HN_LEN 128 // MAX HOSTNAME LENGTH
+#define PATH_LEN 256 // MAX PATH LENGTH
 
 struct httpinfo {
-  unsigned int proto;
-  char *hostname;
-  char port[6];      // max string: "65535"
-  char *uri;
+  char hostname[HN_LEN];
+  char port[6];      // MAX port string: "65535"
+  char path[PATH_LEN];
 };
-
-enum PROTO {HTTP, HTTPS, NONE};
-char *protocol[] = {"http", "https"};
-
-// check protocol in URL
-static unsigned int chk_proto(char *url, unsigned int *i) {
-  if(!strncmp(url, "http://", *i = 7)) return HTTP;
-  else if(!strncmp(url, "https://", *i = 8)) return HTTPS;
-
-  return NONE;
-}
 
 // get the hostname's size in URL
 static unsigned int get_hnsz(char *url) {
   unsigned int i;
 
-  for (i = 0; url[i] != '\0' && url[i] != ':' && url[i] != '/'; i++)
+  for (i=0; url[i] != '\0' && url[i] != ':' && url[i] != '/'; i++)
     ;
 
   return i;
 }
 
 // get hostname
-static char *get_hn(char *url, unsigned int len) {
-  char *hostname;
+static void get_hn(char *url, char *hn) {
   int i;
 
-  if (!(hostname = (char *) xmalloc(sizeof(char) * (len + 1))))
-    error_exit("Dynamic memory alloc error");
   for (i = 0; url[i] != '\0' && url[i] != ':' && url[i] != '/'; i++)
-    hostname[i] = url[i];
-  hostname[j] = '\0';
-
-  return hostname;
+    hn[i] = url[i];
+  hn[i] = '\0';
 }
 
 // get port number
@@ -83,14 +68,10 @@ static void get_info(struct httpinfo *hi, char *url) {
   unsigned int i, j, len;
   char *path, *port;
 
-  // check protocol
-  if((hi->proto = chk_proto(url, &i)) == NONE) error_exit("Unknown protocol");
-
-  // get hostname length
-  len = get_hnsz(url+i);
-
-  // get hostname
-  hi->hostname = get_hn(url+i, len);
+  if (strncmp(url, "http://", 7)) error_exit("Only HTTP can be supported.");
+  if ((len = get_hnsz(url+7)) >= HN_SZ)
+    error_exit("Hostname length is lower than 128");
+  get_hn(url+7, hi->hn);
   i += len;
 
   // get port if exists
@@ -119,8 +100,8 @@ static char *make_ua(char *name, char* ver) {
   return ua_str;
 }
 
-// connect to server in either IPv4 or IPv6 network
-static int conn_svr(struct httpinfo *hi) {
+// connect to any IPv4 or IPv6 server
+static int conn_svr(const char *hostname, const char *port) {
   struct addrinfo hints, *result, *rp;
 
   memset(&hints, 0, sizeof(struct addrinfo));
@@ -129,49 +110,40 @@ static int conn_svr(struct httpinfo *hi) {
   hints.ai_flags = 0;
   hints.ai_protocol = 0;
 
-  if ((errno = getaddrinfo(hi->hostname, hi->port, &hints, &result)))
+  if ((errno = getaddrinfo(hostname, port, &hints, &result)))
     error_exit("getaddrinfo: %s", gai_strerror(errno));
 
-  // try all address list(IPv4 or IPv6) until succeed
+  // try all address list(IPv4 or IPv6) until success
   for (rp = result; rp; rp = rp->ai_next) {
     if ((sock_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol))
-        == -1)
+        == -1) {
+      perror_msg("Socket Error");
       continue;
+    }
     if (connect(sock_fd, rp->ai_addr, rp->ai_addrlen) != -1)
-      break; // Success
+      break; // succeed in connecting to any server IP 
+    else perror_msg("Connect Error");
     close(sock_fd);
   }
   freeaddrinfo(result);
-  if(!rp) error_exit("Could not connect");
+  if(!rp) error_exit("Can not connect to HTTP server");
 
   return sock_fd;
 }
 
 // make HTTP request header field
-static char *mk_fld(char *name, char *value) {
-  unsigned int len_n, len_v;
-  char *field;
-
-  len_n = strlen(name);
-  len_v = strlen(value);
-
-  field = (char *) xmalloc(sizeof(char)*(len_n+len_v+5));
-  strcpy(field, name);
+static void mk_fld(char *name, char *value) {
+  strcat(toybuf, name);
   strcat(field, ": ");
   strcat(field, value);
   strcat(filed, "\r\n");
-  return field;
 }
 
 // make http request
-static char *mk_rq(char *path) {
-  char *req;
-  unsigned int len = strlen(path);
-
-  req = (char *) xmalloc(sizeof(char)*(len+15));
-  strcpy(req, "GET ");
-  strcat(req, path);
-  strcat(req, " HTTP/1.1\r\n");
+static void mk_rq(char *path) {
+  strcpy(toybuf, "GET ");
+  strcat(toybuf, path);
+  strcat(toybuf, " HTTP/1.1\r\n");
 }
 
 void wget_main(void)
@@ -189,28 +161,23 @@ void wget_main(void)
   if(!toys.optargs[0]) help_exit("URL should be needed");
   get_info(&hi, toys.optargs[0]);
 
-  sock_fd =  conn_svr(&hi, &sock_fd);
+  sock_fd = conn_svr(hi.hostname, hi.port);
 
   // make HTTP request
-  req = mk_rq(hi.path);
+  mk_rq(hi.path);
 
   // make HTTP header fields
-  hn = mk_fld("Host", hi.hostname);
+  mk_fld("Host", hi.hostname);
   full_ua = make_ua(usr_agnt, TOYBOX_VERSION);
-  ua = mk_fld("User-Agent", full_ua); 
-  conn_type = mk_fld("Connection", "close");
-
-  len = strlen(req) + strlen(hn) + strlen(ua) + strlen(conn_type) + 3;
-  hdr = (char *) xmalloc(sizeof(char)*len);
-  strcpy(hdr, req);
-  strcat(hdr, hn);
-  strcat(hdr, ua);
-  strcat(hdr, conn_type);
-  strcat(hdr, "\r\n");
+  mk_fld("User-Agent", full_ua); 
+  mk_fld("Connection", "close");
+  strcat(toybuf, "\r\n");
 
   // send the request and HTTP header
-  if (write(sock_fd, hdr, len) != len)
-    "write failed.");
+  if (write(sock_fd, toybuf, strlen(toybuf)) != len) {
+    perror_msg("HTTP GET failed.");
+    goto cleanup;
+  }
 
   // read HTTP response
   if ((len = read(sock_fd, res, 3)) != 3)
@@ -227,16 +194,10 @@ void wget_main(void)
   fputc(EOF, fp);
 
   close(sock_fd);
-  // TODO free dynamic memory before exit
-  if (fclose(fp)) perror_exit("File Close Error");
+  if (fclose(fp)) perror_msg("File Close Error");
 
-error:
+cleanup:
   if (full_ua) free(full_ua);
-  if (req) free(req);
-  if (hn) free(hn);
-  if (ua) free(ua);
-  if (conn_type) free(conn_type);  
-  if (hdr) free(hdr);
   if (hi.hostname) free(hi.hostname);
   if (hi.path) free(hi.path);
 }
