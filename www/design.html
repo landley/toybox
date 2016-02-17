@@ -294,24 +294,40 @@ feeding the compiler -funsigned-char.</p>
 <p>The reason to pick "unsigned" is that way we're 8-bit clean by default.</p>
 
 <p><h3>Error messages and internationalization:</h3></p>
+
 <p>Error messages are extremely terse not just to save bytes, but because we
-don't use any sort of _("string") translation infrastructure.</p>
+don't use any sort of _("string") translation infrastructure. (We're not
+translating the command names themselves, so we must expect a minimum amount of
+english knowledge from our users, but let's keep it to a minimum.)</p>
 
 <p>Thus "bad -A '%c'" is
 preferable to "Unrecognized address base '%c'", because a non-english speaker
-can see that -A was the problem, and with a ~20 word english vocabulary is
-more likely to know (or guess) "bad" than the longer message.</p>
+can see that -A was the problem (giving back the command line argument they
+supplied). A user with a ~20 word english vocabulary is
+more likely to know (or guess) "bad" than the longer message, and you can
+use "bad" in place of "invalid", "inappropriate", "unrecognized"...
+Similarly when atolx_range() complains about range constraints with
+"4 < 17" or "12 > 5", it's intentional: those don't need to be translated.</p>
 
-<p>The help text might someday have translated versions, and strerror()
-messages produced by perror_exit() and friends can be expected to be
-localized by libc. Our error functions also prepend the command name,
-which non-english speakers can presumably recognize already.</p>
+<p>The strerror() messages produced by perror_exit() and friends should be
+localized by libc, and our error functions also prepend the command name
+(which non-english speakers can presumably recognize already). Keep the
+explanation in between to a minimum, and where possible feed back the values
+they passed in to identify _what_ we couldn't process.
+If you say perror_exit("setsockopt"), you've identified the action you
+were trying to take, and the perror gives a translated error message (from libc)
+explaining _why_ it couldn't do it, so you probably don't need to add english
+words like "failed" or "couldn't assign".</p>
 
-<p>An enventual goal is <a href=http://yarchive.net/comp/linux/utf8.html>UTF-8</a> support, although it isn't a priority for the
-first pass of each command. (All commands should at least be 8-bit clean.)</p>
+<p>All commands should be 8-bit clean, with explicit
+<a href=http://yarchive.net/comp/linux/utf8.html>UTF-8</a> support where
+necessary. Assume all input data might be utf8, and at least preserve
+it and pass it through. (For this reason, our build is -funsigned-char on
+all architectures; "char" is unsigned unless you stick "signed" in front
+of it.)</p>
 
-<p>Locale support isn't currently a goal; that's a presentation layer issue,
-X11 or Dalvik's problem.</p>
+<p>Locale support isn't currently a goal; that's a presentation layer issue
+(I.E. a GUI problem).</p>
 
 <a name="codestyle" />
 <h2>Coding style</h2>
@@ -327,6 +343,17 @@ columns. (Indentation of continuation lines is awkward no matter what
 you do, sometimes two spaces looks better, sometimes indenting to the
 contents of a parentheses looks better.)</p>
 
+<p>I'm aware this indentation style creeps some people out, so here's
+the sed invocation to convert groups of two leading spaces to tabs:</p>
+<blockquote><pre>
+sed -i ':loop;s/^\( *\)  /\1\t/;t loop' filename
+</pre></blockquote>
+
+<p>And here's the sed invocation to convert leading tabs to two spaces each:</p>
+<blockquote><pre>
+sed -i ':loop;s/^\( *\)\t/\1  /;t loop' filename
+</pre></blockquote>
+
 <p>There's a space after C flow control statements that look like functions, so
 "if (blah)" instead of "if(blah)". (Note that sizeof is actually an
 operator, so we don't give it a space for the same reason ++ doesn't get
@@ -336,8 +363,8 @@ to read.) We also put a space around assignment operators (on both sides),
 so "int x = 0;".</p>
 
 <p>Blank lines (vertical whitespace) go between thoughts. "We were doing that,
-now we're doing this. (Not a hard and fast rule about _where_ it goes,
-but there should be some.)"</p>
+now we're doing this." (Not a hard and fast rule about _where_ it goes,
+but there should be some for the same reason writing has paragraph breaks.)</p>
 
 <p>Variable declarations go at the start of blocks, with a blank line between
 them and other code. Yes, c99 allows you to put them anywhere, but they're
