@@ -22,13 +22,12 @@ GLOBALS(
   char *filename;
 )
 
-#define TOYBOX_VERSION "0.7.0"
-#define HN_LEN 128 // MAX HOSTNAME LENGTH
-#define PATH_LEN 256 // MAX PATH LENGTH
+#define HN_LEN 128 // HOSTNAME MAX LENGTH 
+#define PATH_LEN 256 // PATH MAX LENGTH
 
 struct httpinfo {
   char hostname[HN_LEN];
-  char port[6];      // MAX port string: "65535"
+  char port[6];      // MAX port value: 65535
   char path[PATH_LEN];
 };
 
@@ -42,7 +41,7 @@ static unsigned int get_hnsz(char *url) {
   return i;
 }
 
-// get hostname
+// extract hostname from url
 static void get_hn(char *url, char *hn) {
   int i;
 
@@ -51,7 +50,7 @@ static void get_hn(char *url, char *hn) {
   hn[i] = '\0';
 }
 
-// get port number
+// extract port number
 static void get_port(char *url, char *port, unsigned int *url_i) {
   unsigned int i;
 
@@ -65,44 +64,32 @@ static void get_port(char *url, char *port, unsigned int *url_i) {
 
 // get http infos in URL
 static void get_info(struct httpinfo *hi, char *url) {
-  unsigned int i, j, len;
-  char *path, *port;
+  unsigned int i = 7, len;
 
-  if (strncmp(url, "http://", 7)) error_exit("Only HTTP can be supported.");
-  if ((len = get_hnsz(url+7)) >= HN_SZ)
+  if (strncmp(url, "http://", i)) error_exit("Only HTTP can be supported.");
+  if ((len = get_hnsz(url+i)) >= HN_LEN)
     error_exit("Hostname length is lower than 128");
-  get_hn(url+7, hi->hn);
+  get_hn(url+i, hi->hostname);
   i += len;
 
   // get port if exists
-  if (url[i] == ':') get_port(url+i+1, hi->port, &i);
-  else strcpy(hi->port, "80");
+  if (url[i] == ':') {
+    i++;
+    get_port(url+i, hi->port, &i);
+  } else strcpy(hi->port, "80");
 
   // get uri in URL
-  if (url[i] == '\0') hi->uri = "/";
-  else if (url[i] == '/') hi->uri = url+i;
-  else error_exit("URL is NOT valid.");
-}
-
-// merge UA profile with toybox version info
-static char *make_ua(char *name, char* ver) {
-  unsigned int name_len, ver_len;
-  char *ua_str;
-
-  name_len = strlen(name);
-  ver_len = strlen(ver);
-
-  // 4 in the end of below line means " \r\n" + NULL
-  ua_str = xmalloc(sizeof(char) * (name_len + ver_len + 4));
-  strcpy(ua_str, name);
-  strcat(ua_str, ver);
-
-  return ua_str;
+  if (url[i] == '\0') strcpy(hi->path, "/");
+  else if (url[i] == '/') {
+    if (strlen(url+i) < PATH_LEN) strcpy(hi->path, url+i);
+    else error_exit("URL path length is less than 256.");
+  } else error_exit("URL is NOT valid.");
 }
 
 // connect to any IPv4 or IPv6 server
 static int conn_svr(const char *hostname, const char *port) {
   struct addrinfo hints, *result, *rp;
+  int sock_fd;
 
   memset(&hints, 0, sizeof(struct addrinfo));
   hints.ai_family = AF_UNSPEC;
@@ -134,9 +121,9 @@ static int conn_svr(const char *hostname, const char *port) {
 // make HTTP request header field
 static void mk_fld(char *name, char *value) {
   strcat(toybuf, name);
-  strcat(field, ": ");
-  strcat(field, value);
-  strcat(filed, "\r\n");
+  strcat(toybuf, ": ");
+  strcat(toybuf, value);
+  strcat(toybuf, "\r\n");
 }
 
 // make http request
@@ -149,11 +136,10 @@ static void mk_rq(char *path) {
 void wget_main(void)
 {
   int sock_fd;
-  char *req, *hn, *full_ua, *ua, *conn_type, *hdr;
-  char res[10];
-  unsigned int len;
   struct httpinfo hi;
   FILE *fp;
+  size_t len;
+  char *res_hdr, *res_body, *result, *rcode, ua[18] = "toybox wget/";
 
   if (!(toys.optflags & FLAG_f)) help_exit("Filename should be needed.");
   if (fopen(TT.filename, "r")) error_exit("The file already exists.");
@@ -163,41 +149,35 @@ void wget_main(void)
 
   sock_fd = conn_svr(hi.hostname, hi.port);
 
-  // make HTTP request
+  // compose HTTP request
   mk_rq(hi.path);
-
-  // make HTTP header fields
   mk_fld("Host", hi.hostname);
-  full_ua = make_ua(usr_agnt, TOYBOX_VERSION);
-  mk_fld("User-Agent", full_ua); 
+  strcat(ua, TOYBOX_VERSION);
+  mk_fld("User-Agent", ua); 
   mk_fld("Connection", "close");
   strcat(toybuf, "\r\n");
 
-  // send the request and HTTP header
-  if (write(sock_fd, toybuf, strlen(toybuf)) != len) {
-    perror_msg("HTTP GET failed.");
-    goto cleanup;
-  }
+  // send the HTTP request
+  len = strlen(toybuf);
+  if (write(sock_fd, toybuf, len) != len) perror_exit("HTTP GET failed.");
 
   // read HTTP response
-  if ((len = read(sock_fd, res, 3)) != 3)
-    error_exit("HTTP response read error");
-  if (strncmp(res, "200", 3))
-  fp = fopen(TT.filename, "w");
+  if ((len = read(sock_fd, toybuf, 4096)) == -1)
+    perror_exit("HTTP response failed.");
+  if (!strstr(toybuf, "\r\n\r\n"))
+    error_exit("HTTP response header is too long.");
+  res_hdr = strtok(toybuf, "\r\n\r\n");
+  res_body = strtok(NULL, "\r\n\r\n");
+  result = strtok(res_hdr, "\r\n");
+  strtok(result, " ");
+  rcode = strtok(NULL, " ");
+  if (strcmp(rcode, "200")) error_exit("HTTP res code is %s.", rcode);
 
-  while ((len = read(sock_fd, res, 10)) > 0)
-    if (pos = skip_hdr(res, &len)) break;
-  for (i = 0; i < len; i++) fputc(res[i], fp);
-  while ((len = read(sock_fd, res, 10)) > 0)
-    for (i = 0; i < len; i++)
-      fputc(res[i], fp);
+  if ((fp = fopen(TT.filename, "w")) == NULL) perror_exit("File write error");
+  fwrite(res_body, len-strlen(res_hdr)-4, sizeof(char), fp);
+  while ((len = read(sock_fd, toybuf, 4096)) > 0)
+    fwrite(toybuf, len, sizeof(char), fp);
   fputc(EOF, fp);
-
   close(sock_fd);
-  if (fclose(fp)) perror_msg("File Close Error");
-
-cleanup:
-  if (full_ua) free(full_ua);
-  if (hi.hostname) free(hi.hostname);
-  if (hi.path) free(hi.path);
+  if (fclose(fp) == EOF) perror_exit("File Close Error");
 }
