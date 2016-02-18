@@ -131,10 +131,13 @@ hello'" "merp\nhello\n" "" "merp"
 
 testing "" "sed -e '/x/c\' -e 'y'" 'y\n' '' 'x\n'
 testing "" "sed -e 's/a[([]*b/X/'" 'X' '' 'a[(b'
+testing "" "sed 'y/a\\bc/de\f/'" "db\f" "" "abc"
+testing "sed [a-a] (for perl)" "sed '"'s/\([^a-zA-Z0-9.:_\-\/]\)/\\\1/g'"'" \
+  'he\ llo' "" "he llo"
 
 # You have to match the first line of a range in order to activate
 # the range, numeric and ascii work the same way
-testing "skip start of range" "sed -e n -e '1,2s/b/c/'" "a\nb\n" "" "a\nb\n"
+testing "sed skip start of range" "sed -e n -e '1,2s/b/c/'" "a\nb\n" "" "a\nb\n"
 
 #echo meep | sed/sed -e '1a\' -e 'huh'
 #echo blah | sed/sed -f <(echo -e "1a\\\\\nboom")
@@ -145,5 +148,6 @@ testing "sed bonus backslashes" \
   "sed -e 'a \l \x\' -e \"\$(echo -e 'ab\\\nc')\"" \
   "hello\nl x\nab\nc\n" "" "hello\n"
 # -i with $ last line test
+
 
 exit $FAILCOUNT

@@ -701,7 +701,7 @@ static void do_sed(int fd, char *name)
 // returns processed copy of string (0 if error), *pstr advances to next
 // unused char. if delim (or *delim) is 0 uses/saves starting char as delimiter
 // if regxex, ignore delimiter in [ranges]
-static char *unescape_delimited_string(char **pstr, char *delim, int regex)
+static char *unescape_delimited_string(char **pstr, char *delim)
 {
   char *to, *from, mode = 0, d;
 
@@ -720,9 +720,14 @@ static char *unescape_delimited_string(char **pstr, char *delim, int regex)
     // delimiter in regex character range doesn't count
     if (!mode && *from == '[') {
       mode = '[';
-      if (from[1] == ']') *(to++) = *(from++);
+      if (from[1]=='-' || from[1]==']') *(to++) = *(from++);
     } else if (mode && *from == ']') mode = 0;
-    else if (*from == '\\') {
+    // Length 1 range (X-X with same X) is "undefined" and makes regcomp err,
+    // but the perl build does it, so we need to filter it out.
+    else if (mode && *from == '-' && from[-1] == from[1]) {
+      from+=2;
+      continue;
+    } else if (*from == '\\') {
       if (!from[1]) return 0;
 
       // Check escaped end delimiter before printf style escapes.
@@ -735,7 +740,7 @@ static char *unescape_delimited_string(char **pstr, char *delim, int regex)
           *(to++) = c;
           from+=2;
           continue;
-        } else *(to++) = *(from++);
+        } else if (!mode) *(to++) = *(from++);
       }
     }
     *(to++) = *(from++);
@@ -802,7 +807,7 @@ static void jewel_of_judgement(char **pline, long len)
       } else if (*line == '/' || *line == '\\') {
         char *s = line;
 
-        if (!(s = unescape_delimited_string(&line, 0, 1))) goto brand;
+        if (!(s = unescape_delimited_string(&line, 0))) goto brand;
         if (!*s) corwin->rmatch[i] = 0;
         else {
           xregcomp((void *)reg, s, (toys.optflags & FLAG_r)*REG_EXTENDED);
@@ -844,7 +849,7 @@ static void jewel_of_judgement(char **pline, long len)
 
       // get pattern (just record, we parse it later)
       corwin->arg2 = reg - (char *)corwin;
-      if (!(TT.remember = unescape_delimited_string(&line, &delim, 1)))
+      if (!(TT.remember = unescape_delimited_string(&line, &delim)))
         goto brand;
 
       reg += sizeof(regex_t);
@@ -940,13 +945,13 @@ writenow:
       char *s, delim = 0;
       int len;
 
-      if (!(s = unescape_delimited_string(&line, &delim, 0))) goto brand;
+      if (!(s = unescape_delimited_string(&line, &delim))) goto brand;
       corwin->arg1 = reg-(char *)corwin;
       len = strlen(s);
       reg = extend_string((void *)&corwin, s, reg-(char *)corwin, len);
       free(s);
       corwin->arg2 = reg-(char *)corwin;
-      if (!(s = unescape_delimited_string(&line, &delim, 0))) goto brand;
+      if (!(s = unescape_delimited_string(&line, &delim))) goto brand;
       if (len != strlen(s)) goto brand;
       reg = extend_string((void *)&corwin, s, reg-(char*)corwin, len);
       free(s);
