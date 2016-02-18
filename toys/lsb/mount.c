@@ -91,6 +91,7 @@ static long flag_opts(char *new, long flags, char **more)
     {"noexec", MS_NOEXEC}, {"exec", ~MS_NOEXEC},
     {"sync", MS_SYNCHRONOUS}, {"async", ~MS_SYNCHRONOUS},
     {"noatime", MS_NOATIME}, {"atime", ~MS_NOATIME},
+    {"norelatime", ~MS_RELATIME}, {"relatime", MS_RELATIME},
     {"nodiratime", MS_NODIRATIME}, {"diratime", ~MS_NODIRATIME},
     {"loud", ~MS_SILENT},
     {"shared", MS_SHARED}, {"rshared", MS_SHARED|MS_REC},
@@ -195,16 +196,21 @@ static void mount_filesystem(char *dev, char *dir, char *type,
       printf("try '%s' type '%s' on '%s'\n", dev, type, dir);
     for (;;) {
       rc = mount(dev, dir, type, flags, opts);
-      if ((rc != EACCES && rc != EROFS) || (flags & MS_RDONLY)) break;
-      if (rc == EROFS && fd == -1) {
+      // Did we succeed, fail unrecoverably, or already try read-only?
+      if (rc == 0 || (errno != EACCES && errno != EROFS) || (flags&MS_RDONLY))
+        break;
+      // If we haven't already tried it, use the BLKROSET ioctl to ensure
+      // that the underlying device isn't read-only.
+      if (fd == -1) {
+        if (toys.optflags & FLAG_v)
+          printf("trying BLKROSET ioctl on '%s'\n", dev);
         if (-1 != (fd = open(dev, O_RDONLY))) {
-          ioctl(fd, BLKROSET, &ro);
+          rc = ioctl(fd, BLKROSET, &ro);
           close(fd);
-
-          continue;
+          if (rc == 0) continue;
         }
       }
-      fprintf(stderr, "'%s' is read-only", dev);
+      fprintf(stderr, "'%s' is read-only\n", dev);
       flags |= MS_RDONLY;
     }
 
