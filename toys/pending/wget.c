@@ -68,7 +68,7 @@ static void get_info(struct httpinfo *hi, char *url) {
 
   if (strncmp(url, "http://", i)) error_exit("Only HTTP can be supported.");
   if ((len = get_hnsz(url+i)) >= HN_LEN)
-    error_exit("Hostname length is lower than 128");
+    error_exit("The hostname's length is lower than %d.", HN_LEN);
   get_hn(url+i, hi->hostname);
   i += len;
 
@@ -82,8 +82,8 @@ static void get_info(struct httpinfo *hi, char *url) {
   if (url[i] == '\0') strcpy(hi->path, "/");
   else if (url[i] == '/') {
     if (strlen(url+i) < PATH_LEN) strcpy(hi->path, url+i);
-    else error_exit("URL path length is less than 256.");
-  } else error_exit("URL is NOT valid.");
+    else error_exit("The URL path's length is less than %d.", PATH_LEN);
+  } else error_exit("The URL is NOT valid.");
 }
 
 // connect to any IPv4 or IPv6 server
@@ -133,18 +133,31 @@ static void mk_rq(char *path) {
   strcat(toybuf, " HTTP/1.1\r\n");
 }
 
+// get http response body address and its length
+static char *get_body(size_t len, size_t *body_len) {
+  unsigned int i;
+
+  for (i = 0; i < len; i++) {
+    if (toybuf[i] == '\r' && toybuf[i+1] == '\n' && toybuf[i+2] == '\r'
+        && toybuf[i+3]) break;
+  }
+  *body_len = len-i-4;
+  return toybuf+i+4;
+}
+
 void wget_main(void)
 {
   int sock_fd;
   struct httpinfo hi;
   FILE *fp;
-  size_t len;
-  char *res_hdr, *res_body, *result, *rcode, ua[18] = "toybox wget/";
+  size_t len, body_len;
+  char *body, *result, *rcode, *r_str, ua[18] = "toybox wget/", ver[6];
 
   if (!(toys.optflags & FLAG_f)) help_exit("Filename should be needed.");
-  if (fopen(TT.filename, "r")) error_exit("The file already exists.");
+  if (fopen(TT.filename, "r"))
+    error_exit("The file you specified already exists.");
 
-  if(!toys.optargs[0]) help_exit("URL should be needed");
+  if(!toys.optargs[0]) help_exit("The URL should be specified.");
   get_info(&hi, toys.optargs[0]);
 
   sock_fd = conn_svr(hi.hostname, hi.port);
@@ -152,7 +165,8 @@ void wget_main(void)
   // compose HTTP request
   mk_rq(hi.path);
   mk_fld("Host", hi.hostname);
-  strcat(ua, TOYBOX_VERSION);
+  strncpy(ver, TOYBOX_VERSION, 5);
+  strcat(ua, ver);
   mk_fld("User-Agent", ua); 
   mk_fld("Connection", "close");
   strcat(toybuf, "\r\n");
@@ -166,18 +180,18 @@ void wget_main(void)
     perror_exit("HTTP response failed.");
   if (!strstr(toybuf, "\r\n\r\n"))
     error_exit("HTTP response header is too long.");
-  res_hdr = strtok(toybuf, "\r\n\r\n");
-  res_body = strtok(NULL, "\r\n\r\n");
-  result = strtok(res_hdr, "\r\n");
+  body = get_body(len, &body_len);
+  result = strtok(toybuf, "\r");
   strtok(result, " ");
   rcode = strtok(NULL, " ");
-  if (strcmp(rcode, "200")) error_exit("HTTP res code is %s.", rcode);
+  r_str = strtok(NULL, " ");
+  if (strcmp(rcode, "200")) error_exit("HTTP response: %s(%s).", rcode, r_str);
 
-  if ((fp = fopen(TT.filename, "w")) == NULL) perror_exit("File write error");
-  fwrite(res_body, len-strlen(res_hdr)-4, sizeof(char), fp);
+  if (!(fp = fopen(TT.filename, "w"))) perror_exit("File write error");
+  if (fwrite(body, sizeof(char), body_len, fp) != body_len)
+    error_exit("File write is not successful.0");
   while ((len = read(sock_fd, toybuf, 4096)) > 0)
-    fwrite(toybuf, len, sizeof(char), fp);
-  fputc(EOF, fp);
-  close(sock_fd);
+    if (fwrite(toybuf, sizeof(char), len, fp) != len)
+      error_exit("File write is not successful.1");
   if (fclose(fp) == EOF) perror_exit("File Close Error");
 }
