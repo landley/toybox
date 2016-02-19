@@ -475,12 +475,12 @@ char *readfileat(int dirfd, char *name, char *ibuf, off_t *plen)
     rbuf = buf+rlen;
     len -= rlen;
   }
-  *plen = len = rlen+(buf-ibuf);
+  *plen = len = rlen+(rbuf-buf);
   close(fd);
 
   if (rlen<0) {
     if (ibuf != buf) free(buf);
-    buf =  0;
+    buf = 0;
   } else buf[len] = 0;
 
   return buf;

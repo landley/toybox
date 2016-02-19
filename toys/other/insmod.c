@@ -16,31 +16,35 @@ config INSMOD
 #include "toys.h"
 
 #include <sys/syscall.h>
-#define init_module(mod, len, opts) syscall(__NR_init_module, mod, len, opts)
+#define finit_module(fd, opts, flags) syscall(SYS_finit_module, fd, opts, flags)
+#define init_module(mod, len, opts) syscall(SYS_init_module, mod, len, opts)
 
 void insmod_main(void)
 {
-  char * buf = NULL;
-  int len, res, i;
-  int fd = xopen(*toys.optargs, O_RDONLY);
-
-  len = fdlength(fd);
-  buf = xmalloc(len);
-  xreadall(fd, buf, len);
+  int fd = !strcmp(*toys.optargs, "-") ? 0 : xopen(*toys.optargs, O_RDONLY);
+  int i, rc;
 
   i = 1;
-  while(toys.optargs[i] &&
+  while (toys.optargs[i] &&
     strlen(toybuf) + strlen(toys.optargs[i]) + 2 < sizeof(toybuf))
   {
     strcat(toybuf, toys.optargs[i++]);
     strcat(toybuf, " ");
   }
 
-  res = init_module(buf, len, toybuf);
-  if (CFG_TOYBOX_FREE) {
-    if (buf != toybuf) free(buf);
-    close(fd);
+  // finit_module was new in Linux 3.8, and doesn't work on stdin,
+  // so we fall back to init_module if necessary.
+  rc = finit_module(fd, toybuf, 0);
+  if (rc && (fd == 0 || errno == ENOSYS)) {
+    off_t len = 0;
+    char *path = !strcmp(*toys.optargs, "-") ? "/dev/stdin" : *toys.optargs;
+    char *buf = readfileat(AT_FDCWD, path, NULL, &len);
+
+    rc = init_module(buf, len, toybuf);
+    if (CFG_TOYBOX_FREE) free(buf);
   }
 
-  if (res) perror_exit("failed to load %s", toys.optargs[0]);
+  if (rc) perror_exit("failed to load %s", toys.optargs[0]);
+
+  if (CFG_TOYBOX_FREE) close(fd);
 }
