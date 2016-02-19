@@ -25,4 +25,23 @@ testing "xxd -c 8 -g 4 file1" "xxd -c 8 -g 4 file1" \
 testing "xxd -c 8 -g 3 file1" "xxd -c 8 -g 3 file1" \
     "00000000: 746869 732069 7320 this is \n00000008: 736f6d 652074 6578 some tex\n00000010: 740a               t.\n" "" ""
 
+testing "xxd -p" "xxd -p file1" "7468697320697320736f6d6520746578740a\n" "" ""
+
+testing "xxd -r" "xxd file1 | xxd -r" "this is some text\n" "" ""
+testing "xxd -r -p" "xxd -p file1 | xxd -r -p" "this is some text\n" "" ""
+
+testing "xxd -r garbage" "echo '0000: 68 65 6c6c 6fxxxx' | xxd -r -" "hello" "" ""
+
+# -r will only read -c bytes (default 16) before skipping to the next line,
+# ignoring the rest.
+testing "xxd -r long" \
+    "echo '0000: 40404040404040404040404040404040404040404040404040404040404040404040404040404040' | xxd -r -" \
+    "@@@@@@@@@@@@@@@@" "" ""
+
+# -r -p ignores the usual -p 30-byte/line limit (or any limit set by -c) and
+# will take as many bytes as you give it.
+testing "xxd -r -p long" \
+    "echo '40404040404040404040404040404040404040404040404040404040404040404040404040404040' | xxd -r -p -" \
+    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" "" ""
+
 rm file1 file2
