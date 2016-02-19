@@ -66,11 +66,14 @@ tests:
 help::
 	@echo  '  toybox          - Build toybox.'
 	@echo  '  COMMANDNAME     - Build individual toybox command as a standalone binary.'
-	@echo  '  list            - List COMMANDNAMEs (also list_working and list_pending)."
+	@echo  '  list            - List COMMANDNAMEs (also list_working and list_pending).'
 	@echo  '  change          - Build each command standalone under change/.'
 	@echo  '  baseline        - Create toybox_old for use by bloatcheck.'
 	@echo  '  bloatcheck      - Report size differences between old and current versions'
-	@echo  '  test            - Run test suite against compiled commands.'
+	@echo  '  test_COMMAND    - Run tests for COMMAND (test_ps, test_cat, etc.)
+	@echo  '  test            - Run test suite against all compiled commands.'
+	@echo  '                    export TEST_HOST=1 to test host command, VERBOSE=1'
+	@echo  '                    to show diff, VERBOSE=fail to stop after first failure.'
 	@echo  '  clean           - Delete temporary files.'
 	@echo  "  distclean       - Delete everything that isn't shipped."
 	@echo  '  install_flat    - Install toybox into $$PREFIX directory.'
