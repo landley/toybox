@@ -2,7 +2,7 @@
  *
  * Copyright 2015 The Android Open Source Project
 
-USE_LSOF(NEWTOY(lsof, "lp:t", TOYFLAG_USR|TOYFLAG_BIN))
+USE_LSOF(NEWTOY(lsof, "lp*t", TOYFLAG_USR|TOYFLAG_BIN))
 
 config LSOF
   bool "lsof"
@@ -22,7 +22,7 @@ config LSOF
 #include "toys.h"
 
 GLOBALS(
-  char *pids;
+  struct arg_list *p;
 
   struct stat *sought_files;
 
@@ -42,29 +42,13 @@ struct file_info {
 
   // For output.
   struct proc_info pi;
-  char fd[8];
-  char rw;
-  char locks;
-  char type[10];
-  char device[32];
-  char size_off[32];
-  char node[32];
   char* name;
+  char fd[8], rw, locks, type[10], device[32], size_off[32], node[32];
 
   // For filtering.
   dev_t st_dev;
   ino_t st_ino;
 };
-
-static int filter_matches(struct file_info *fi)
-{
-  struct stat *sb = TT.sought_files;
-
-  for (; sb != &(TT.sought_files[toys.optc]); ++sb) {
-    if (sb->st_dev == fi->st_dev && sb->st_ino == fi->st_ino) return 1;
-  }
-  return 0;
-}
 
 static void print_header()
 {
@@ -81,11 +65,20 @@ static void print_info(void *data)
 {
   struct file_info *fi = data;
 
-  if (toys.optc && !filter_matches(fi)) return;
+  // Filter matches
+  if (toys.optc) {
+    int i;
+
+    for (i = 0; i<toys.optc; i++)
+      if (TT.sought_files[i].st_dev==fi->st_dev)
+        if (TT.sought_files[i].st_ino==fi->st_ino) break;
+
+    if (i==toys.optc) return;
+  }
 
   if (toys.optflags&FLAG_t) {
     if (fi->pi.pid != TT.last_shown_pid)
-      printf("%d\n", (TT.last_shown_pid = fi->pi.pid));
+      printf("%d\n", TT.last_shown_pid = fi->pi.pid);
   } else {
     if (!TT.shown_header) print_header();
     printf("%-9s %5d %10.10s %4s%c%c %7s %18s %9s %10s %s\n",
@@ -242,7 +235,7 @@ static int find_socket(struct file_info *fi, long inode)
     scan_proc_net_file("/proc/net/netlink", 0, 0, match_netlink, fi, inode);
 }
 
-static void fill_stat(struct file_info *fi, const char* path)
+static void fill_stat(struct file_info *fi, const char *path)
 {
   struct stat sb;
   long dev;
@@ -284,7 +277,7 @@ static void fill_stat(struct file_info *fi, const char* path)
   fi->st_ino = sb.st_ino;
 }
 
-struct file_info *new_file_info(struct proc_info *pi, const char* fd)
+struct file_info *new_file_info(struct proc_info *pi, const char *fd)
 {
   struct file_info *fi = xzalloc(sizeof(struct file_info));
 
@@ -300,7 +293,7 @@ struct file_info *new_file_info(struct proc_info *pi, const char* fd)
   return fi;
 }
 
-static void visit_symlink(struct proc_info *pi, char* name, char* path)
+static void visit_symlink(struct proc_info *pi, char *name, char *path)
 {
   struct file_info *fi = new_file_info(pi, "");
 
@@ -382,19 +375,15 @@ static void visit_fds(struct proc_info *pi)
 static void lsof_pid(int pid)
 {
   struct proc_info pi;
-  FILE *fp;
   char *line;
   struct stat sb;
 
-  // Does this process even exist?
-  snprintf(toybuf, sizeof(toybuf), "/proc/%d/stat", pid);
-  fp = fopen(toybuf, "r");
-  if (!fp) return;
+  // Skip nonexistent pids
+  sprintf(toybuf, "/proc/%d/stat", pid);
+  if (!(line = readfile(toybuf, toybuf, sizeof(toybuf)))) return;
 
   // Get COMMAND.
   strcpy(pi.cmd, "?");
-  line = fgets(toybuf, sizeof(toybuf), fp);
-  fclose(fp);
   if (line) {
     char *open_paren = strchr(toybuf, '(');
     char *close_paren = strrchr(toybuf, ')');
@@ -429,31 +418,33 @@ static int scan_slash_proc(struct dirtree *node)
 {
   int pid;
 
-  if (!node->parent) return DIRTREE_RECURSE;
+  if (!node->parent) return DIRTREE_RECURSE|DIRTREE_SHUTUP;
   if ((pid = atol(node->name))) lsof_pid(pid);
+
   return 0;
 }
 
 void lsof_main(void)
 {
+  struct arg_list *pp;
   int i;
 
   // lsof will only filter on paths it can stat (because it filters by inode).
   TT.sought_files = xmalloc(toys.optc*sizeof(struct stat));
-  for (i = 0; i < toys.optc; ++i) {
-    xstat(toys.optargs[i], &(TT.sought_files[i]));
-  }
+  for (i = 0; i<toys.optc; ++i) xstat(toys.optargs[i], TT.sought_files+i);
 
-  if (toys.optflags&FLAG_p) {
-    char *pid_str;
+  if (!TT.p) dirtree_read("/proc", scan_slash_proc);
+  else for (pp = TT.p; pp; pp = pp->next) {
+    char *start, *end, *next = pp->arg;
     int length, pid;
 
-    while ((pid_str = comma_iterate(&TT.pids, &length))) {
-      pid_str[length] = 0;
-      if (!(pid = atoi(pid_str))) error_exit("bad pid '%s'", pid_str);
+    while ((start = comma_iterate(&next, &length))) {
+      pid = strtol(start, &end, 10);
+      if (pid<1 || (*end && *end!=','))
+        error_exit("bad -p '%.*s'", (int)(end-start), start);
       lsof_pid(pid);
     }
-  } else dirtree_read("/proc", scan_slash_proc);
+  }
 
   llist_traverse(TT.files, print_info);
 }
