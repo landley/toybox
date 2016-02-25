@@ -10,6 +10,7 @@
 #include <inttypes.h>
 #include <termios.h>
 #include <poll.h>
+#include <sys/socket.h>
 struct statvfs {int i;};
 #include "lib/portability.h"
 #include "lib/lib.h"
