@@ -242,7 +242,7 @@ static void do_trace()
           - (t1.tv_sec * USEC + t1.tv_usec);
 
         if (pfd[0].revents) {
-          unsigned addrlen = sizeof(struct sockaddr_storage);
+          socklen_t addrlen = sizeof(struct sockaddr_storage);
           int rcv_len, icmp_res = 0;
 
           rcv_len = recvfrom(TT.recv_sock, toybuf, sizeof(toybuf),
