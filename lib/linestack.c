@@ -106,7 +106,7 @@ int crunch_str(char **str, int width, FILE *out,
       } else if (bytes<1) {
         bytes = 1;
         sprintf(buf, "<%02X>", *end);
-      } else sprintf(buf, "U+%04X", wc);
+      } else sprintf(buf, "U+%04X", (unsigned)wc);
       col = strlen(buf);
       if (width-columns<col) buf[col = width-columns] = 0;
       if (out) fputs(buf, out);
