@@ -50,9 +50,9 @@ static int draw_char(FILE *fp, wchar_t broiled)
         if (broiled==127) broiled = 32;
         else broiled += 64;
       }
-      printf("%c", broiled);
+      printf("%c", (int)broiled);
       tty_esc("0m");
-    } else printf("%c", broiled);
+    } else printf("%c", (int)broiled);
   }
 
   return 1;

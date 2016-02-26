@@ -38,7 +38,7 @@ static void insanitize(char *f)
   if (!s) error_exit("bad -f no %%f");
   if (-1 == stridx("aAeEfFgG", *s) || (s = next_printf(s, 0))) {
     // The @ is a byte offset, not utf8 chars. Waiting for somebody to complain.
-    error_exit("bad -f '%s'@%ld", f, s-f+1);
+    error_exit("bad -f '%s'@%d", f, (int)(s-f+1));
   }
 }
 
