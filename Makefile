@@ -70,7 +70,7 @@ help::
 	@echo  '  change          - Build each command standalone under change/.'
 	@echo  '  baseline        - Create toybox_old for use by bloatcheck.'
 	@echo  '  bloatcheck      - Report size differences between old and current versions'
-	@echo  '  test_COMMAND    - Run tests for COMMAND (test_ps, test_cat, etc.)
+	@echo  '  test_COMMAND    - Run tests for COMMAND (test_ps, test_cat, etc.)'
 	@echo  '  test            - Run test suite against all compiled commands.'
 	@echo  '                    export TEST_HOST=1 to test host command, VERBOSE=1'
 	@echo  '                    to show diff, VERBOSE=fail to stop after first failure.'
