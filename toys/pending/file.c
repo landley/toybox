@@ -244,7 +244,7 @@ void file_main(void)
     if (!lstat(name, &sb)) {
       if (S_ISFIFO(sb.st_mode)) what = "fifo";
       else if (S_ISREG(sb.st_mode)) {
-        int fd = strcmp(name, "-") ? 0 : open(name, O_RDONLY);
+        int fd = !strcmp(name, "-") ? 0 : open(name, O_RDONLY);
 
         if (fd!=-1) {
           if (sb.st_size == 0) what = "empty";
