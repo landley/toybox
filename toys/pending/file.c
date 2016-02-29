@@ -31,15 +31,20 @@ static void do_elf_file(int fd)
   int endian = toybuf[5], bits = toybuf[4], i, j;
   int64_t (*elf_int)(void *ptr, unsigned size) = peek_le;
   // Values from include/linux/elf-em.h (plus arch/*/include/asm/elf.h)
-  // Names are linux/arch/ directory name
-  struct {int val; char *name;} type[] = {{0x9026, "alpha"},
-    {40, "arm"}, {183, "arm"}, {0x18ad, "avr32"}, {106, "blackfin"},
-    {76, "cris"}, {0x5441, "frv"}, {46, "h8300"}, {50, "ia64"},//ia intel ftaghn
-    {88, "m32r"}, {4, "m68k"}, {0xbaab, "microblaze"}, {8, "mips"},
-    {10, "mips"}, {89, "mn10300"}, {15, "parisc"}, {22, "s390"},
-    {135, "score"}, {42, "sh"}, {2, "sparc"}, {18, "sparc"}, {43, "sparc"},
-    {187, "tile"}, {188, "tile"}, {191, "tile"}, {3, "x86"}, {6, "x86"},
-    {62, "x86"}, {94, "xtensa"}, {0xabc7, "xtensa"}};
+  // Names are linux/arch/ directory (sometimes before 32/64 bit merges)
+  struct {int val; char *name;} type[] = {{0x9026, "alpha"}, {93, "arc"},
+    {195, "arcv2"}, {40, "arm"}, {183, "arm64"}, {0x18ad, "avr32"},
+    {106, "blackfin"}, {140, "c6x"}, {23, "cell"}, {76, "cris"},
+    {0x5441, "frv"}, {46, "h8300"}, {164, "hexagon"}, {50, "ia64"},
+    {88, "m32r"}, {0x9041, "m32r"}, {4, "m68k"}, {174, "metag"},
+    {0xbaab, "microblaze"}, {8, "mips"}, {10, "mips-old"}, {89, "mn10300"},
+    {0xbeef, mn10300-old"}, {113, "nios2"}, {92, "openrisc"},
+    {0x8472, "openrisc-old"}, {15, "parisc"}, {20, "ppc"}, {21, "ppc64"},
+    {22, "s390"}, {0xa390, "s390-old"}, {135, "score"}, {42, "sh"},
+    {2, "sparc"}, {18, "sparc8+"}, {43, "sparc9"}, {188, "tile"},
+    {191, "tilegx"}, {3, "386"}, {6, "486"}, {62, "x86-64"}, {94, "xtensa"},
+    {0xabc7, "xtensa-old"}
+  };
 
   xprintf("ELF ");
 
@@ -203,7 +208,7 @@ static void do_file(int fd, char *name)
   xprintf("%s: %*s", name, (int)(TT.max_name_len - strlen(name)), "");
 
   if (!fstat(fd, &sb)) what = "cannot open";
-  if (S_ISREG(sb.st_mode)) {
+  else if (S_ISREG(sb.st_mode)) {
     if (sb.st_size == 0) what = "empty";
     else {
       do_regular_file(fd, name);
