@@ -38,7 +38,7 @@ static void do_elf_file(int fd)
     {0x5441, "frv"}, {46, "h8300"}, {164, "hexagon"}, {50, "ia64"},
     {88, "m32r"}, {0x9041, "m32r"}, {4, "m68k"}, {174, "metag"},
     {0xbaab, "microblaze"}, {8, "mips"}, {10, "mips-old"}, {89, "mn10300"},
-    {0xbeef, mn10300-old"}, {113, "nios2"}, {92, "openrisc"},
+    {0xbeef, "mn10300-old"}, {113, "nios2"}, {92, "openrisc"},
     {0x8472, "openrisc-old"}, {15, "parisc"}, {20, "ppc"}, {21, "ppc64"},
     {22, "s390"}, {0xa390, "s390-old"}, {135, "score"}, {42, "sh"},
     {2, "sparc"}, {18, "sparc8+"}, {43, "sparc9"}, {188, "tile"},
@@ -200,38 +200,41 @@ static void do_regular_file(int fd, char *name)
   }
 }
 
-static void do_file(int fd, char *name)
-{
-  struct stat sb;
-  char *what = "unknown";
-
-  xprintf("%s: %*s", name, (int)(TT.max_name_len - strlen(name)), "");
-
-  if (!fstat(fd, &sb)) what = "cannot open";
-  else if (S_ISREG(sb.st_mode)) {
-    if (sb.st_size == 0) what = "empty";
-    else {
-      do_regular_file(fd, name);
-      return;
-    }
-  } else if (S_ISBLK(sb.st_mode)) what = "block special";
-  else if (S_ISCHR(sb.st_mode)) what = "character special";
-  else if (S_ISDIR(sb.st_mode)) what = "directory";
-  else if (S_ISFIFO(sb.st_mode)) what = "fifo";
-  else if (S_ISSOCK(sb.st_mode)) what = "socket";
-  else if (S_ISLNK(sb.st_mode)) what = "symbolic link";
-  xputs(what);
-}
-
 void file_main(void)
 {
-  char **name;
+  char **arg;
 
-  for (name = toys.optargs; *name; ++name) {
-    int name_len = strlen(*name);
+  for (arg = toys.optargs; *arg; ++arg) {
+    int name_len = strlen(*arg);
 
     if (name_len > TT.max_name_len) TT.max_name_len = name_len;
   }
 
-  loopfiles(toys.optargs, do_file);
+  // Can't use loopfiles here because it doesn't call function when can't open
+  for (arg = toys.optargs; *arg; arg++) {
+    struct stat sb;
+    char *name = *arg, *what = "cannot open";
+
+    xprintf("%s: %*s", name, (int)(TT.max_name_len - strlen(name)), "");
+
+    if (!lstat(name, &sb)) {
+      if (S_ISFIFO(sb.st_mode)) what = "fifo";
+      else if (S_ISREG(sb.st_mode)) {
+        int fd = strcmp(name, "-") ? 0 : open(name, O_RDONLY);
+
+        if (fd!=-1) {
+          if (sb.st_size == 0) what = "empty";
+          else do_regular_file(fd, name);
+        }
+        if (fd>0) close(fd);
+      } else if (S_ISBLK(sb.st_mode)) what = "block special";
+      else if (S_ISCHR(sb.st_mode)) what = "character special";
+      else if (S_ISDIR(sb.st_mode)) what = "directory";
+      else if (S_ISSOCK(sb.st_mode)) what = "socket";
+      else if (S_ISLNK(sb.st_mode)) what = "symbolic link";
+      else what = "unknown";
+    }
+
+    xputs(what);
+  }
 }
