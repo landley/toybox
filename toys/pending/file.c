@@ -131,6 +131,7 @@ static void do_regular_file(int fd, char *name)
 {
   char *s;
   int len = read(fd, s = toybuf, sizeof(toybuf)-256);
+  int magic;
 
   if (len<0) perror_msg("%s", name);
 
@@ -171,9 +172,32 @@ static void do_regular_file(int fd, char *name)
     xprintf("Java class file, version %d.%d\n",
       (int)peek_be(s+6, 2), (int)peek_be(s, 2));
 
-    // TODO: cpio archive.
-    // TODO: tar archive.
-    // TODO: zip/jar/apk archive.
+  // https://people.freebsd.org/~kientzle/libarchive/man/cpio.5.txt
+  // the lengths for cpio are size of header + 9 bytes, since any valid
+  // cpio archive ends with a record for "TARGET!!!"
+  else if (len>85 && strstart(&s, "07070")) {
+    char *cpioformat = "unknown type";
+    if (toybuf[5] == '7') cpioformat = "pre-SVR4 or odc";
+    else if (toybuf[5] == '1') cpioformat = "SVR4 with no CRC";
+    else if (toybuf[5] == '2') cpioformat = "SVR4 with CRC";
+    xprintf("ASCII cpio archive (%s)\n", cpioformat);
+  }
+  else if (len>33 && (magic=peek(&s,2), magic==0143561 || magic==070707)) {
+    if (magic == 0143561) printf("byte-swapped ");
+    xprintf("cpio archive\n");
+  }
+  // tar archive (ustar/pax or gnu)
+  else if (len>500 && !strncmp(s+257, "ustar", 5)) {
+    xprintf("POSIX tar archive%s\n", strncmp(s+262,"  ",2)?"":" (GNU)");
+  }
+  // zip/jar/apk archive, ODF/OOXML document, or such
+  else if (len>5 && strstart(&s, "PK\03\04")) {
+    int ver = (int)(char)(toybuf[4]);
+    xprintf("Zip archive data");
+    if (ver)
+      xprintf(", requires at least v%d.%d to extract", ver/10, ver%10);
+    xputc('\n');
+  }
   else {
     char *what = 0;
     int i, bytes;
