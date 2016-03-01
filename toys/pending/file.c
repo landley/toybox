@@ -248,7 +248,10 @@ void file_main(void)
 
         if (fd!=-1) {
           if (sb.st_size == 0) what = "empty";
-          else do_regular_file(fd, name);
+          else {
+            do_regular_file(fd, name);
+            continue;
+          }
         }
         if (fd>0) close(fd);
       } else if (S_ISBLK(sb.st_mode)) what = "block special";
