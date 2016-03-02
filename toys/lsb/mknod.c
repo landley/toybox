@@ -53,6 +53,6 @@ void mknod_main(void)
   if (toys.optflags & FLAG_Z)
     if (-1 == lsm_set_create(TT.arg_context))
       perror_exit("-Z '%s' failed", TT.arg_context);
-  if (mknod(*toys.optargs, mode|modes[type], makedev(major, minor)))
+  if (mknod(*toys.optargs, mode|modes[type], dev_makedev(major, minor)))
     perror_exit_raw(*toys.optargs);
 }

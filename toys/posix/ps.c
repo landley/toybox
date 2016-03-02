@@ -701,7 +701,7 @@ static int get_ps(struct dirtree *new)
         // Couldn't find it, try all the tty drivers.
         if (i == 3) {
           FILE *fp = fopen("/proc/tty/drivers", "r");
-          int tty_major = 0, maj = major(rdev), min = minor(rdev);
+          int tty_major = 0, maj = dev_major(rdev), min = dev_minor(rdev);
 
           if (fp) {
             while (fscanf(fp, "%*s %256s %d %*s %*s", buf, &tty_major) == 2) {

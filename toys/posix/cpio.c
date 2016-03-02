@@ -114,6 +114,7 @@ void cpio_main(void)
 
     // Read header and name.
     xreadall(afd, toybuf, 110);
+    if (memcmp(toybuf, "070701", 6)) error_exit("bad cpio magic");
     tofree = name = strpad(afd, x8u(toybuf+94), 110);
     if (!strcmp("TRAILER!!!", name)) {
       if (CFG_TOYBOX_FREE) free(tofree);
@@ -180,7 +181,7 @@ void cpio_main(void)
         close(fd);
       }
     } else if (!test)
-      err = mknod(name, mode, makedev(x8u(toybuf+78), x8u(toybuf+86)));
+      err = mknod(name, mode, dev_makedev(x8u(toybuf+78), x8u(toybuf+86)));
 
     // Set ownership and timestamp.
     if (!test && !err) {
@@ -243,8 +244,9 @@ void cpio_main(void)
         llen = sprintf(toybuf,
           "070701%08X%08X%08X%08X%08X%08X%08X%08X%08X%08X%08X%08X%08X",
           (int)st.st_ino, st.st_mode, st.st_uid, st.st_gid, (int)st.st_nlink,
-          (int)st.st_mtime, (int)st.st_size, major(st.st_dev),
-          minor(st.st_dev), major(st.st_rdev), minor(st.st_rdev), nlen, 0);
+          (int)st.st_mtime, (int)st.st_size, dev_major(st.st_dev),
+          dev_minor(st.st_dev), dev_major(st.st_rdev), dev_minor(st.st_rdev),
+          nlen, 0);
         xwrite(afd, toybuf, llen);
         xwrite(afd, name, nlen);
 

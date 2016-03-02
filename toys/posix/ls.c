@@ -144,7 +144,7 @@ static void entrylen(struct dirtree *dt, unsigned *len)
     if (S_ISBLK(st->st_mode) || S_ISCHR(st->st_mode)) {
       // cheating slightly here: assuming minor is always 3 digits to avoid
       // tracking another column
-      len[5] = numlen(major(st->st_rdev))+5;
+      len[5] = numlen(dev_major(st->st_rdev))+5;
     } else if (flags & FLAG_h) {
         human_readable(tmp, st->st_size, 0);
         len[5] = strwidth(tmp);
@@ -453,7 +453,8 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
       // print major/minor, or size
       if (S_ISCHR(st->st_mode) || S_ISBLK(st->st_mode))
-        printf("% *d,% 4d", totals[5]-4, major(st->st_rdev),minor(st->st_rdev));
+        printf("% *d,% 4d", totals[5]-4, dev_major(st->st_rdev),
+          dev_minor(st->st_rdev));
       else if (flags&FLAG_h) {
         human_readable(tmp, st->st_size, 0);
         xprintf("%*s", totals[5]+1, tmp);

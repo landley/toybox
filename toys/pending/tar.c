@@ -228,8 +228,8 @@ static void add_file(struct archive_handler *tar, char **nam, struct stat *st)
   else if (S_ISFIFO(st->st_mode)) hdr.type = '6';
   else if (S_ISBLK(st->st_mode) || S_ISCHR(st->st_mode)) {
     hdr.type = (S_ISCHR(st->st_mode))?'3':'4';
-    itoo(hdr.major, sizeof(hdr.major), major(st->st_rdev));
-    itoo(hdr.minor, sizeof(hdr.minor), minor(st->st_rdev));
+    itoo(hdr.major, sizeof(hdr.major), dev_major(st->st_rdev));
+    itoo(hdr.minor, sizeof(hdr.minor), dev_minor(st->st_rdev));
   } else {
     error_msg("unknown file type '%o'", st->st_mode & S_IFMT);
     return;
@@ -623,7 +623,7 @@ CHECK_MAGIC:
     file_hdr->gname = xstrdup(tar.gname);
     maj = otoi(tar.major, sizeof(tar.major));
     min = otoi(tar.minor, sizeof(tar.minor));
-    file_hdr->device = makedev(maj, min);
+    file_hdr->device = dev_makedev(maj, min);
 
     if (tar.type <= '7') {
       if (tar.link[0]) {

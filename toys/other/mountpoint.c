@@ -37,7 +37,8 @@ void mountpoint_main(void)
 
   if (toys.optflags & FLAG_x) {
     if (S_ISBLK(st1.st_mode)) {
-      if (!quiet) printf("%u:%u\n", major(st1.st_rdev), minor(st1.st_rdev));
+      if (!quiet)
+        printf("%u:%u\n", dev_major(st1.st_rdev), dev_minor(st1.st_rdev));
 
       return;
     }
@@ -57,7 +58,7 @@ void mountpoint_main(void)
   // absence of a spec I guess that's the expected behavior?
   toys.exitval = !(st1.st_dev != st2.st_dev || st1.st_ino == st2.st_ino);
   if (toys.optflags & FLAG_d)
-    printf("%u:%u\n", major(st1.st_dev), minor(st1.st_dev));
+    printf("%u:%u\n", dev_major(st1.st_dev), dev_minor(st1.st_dev));
   else if (!quiet)
     printf("%s is %sa mountpoint\n", *toys.optargs, toys.exitval ? "not " : "");
 }

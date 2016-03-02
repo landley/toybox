@@ -99,7 +99,7 @@ void makedevs_main()
           perror_msg("line %d: file '%s' does not exist", line_no, ptr);
           continue;
         }
-      } else if (mknod(ptr, mode, makedev(major, minor + i*incr))) {
+      } else if (mknod(ptr, mode, dev_makedev(major, minor + i*incr))) {
         perror_msg("line %d: can't create node '%s'", line_no, ptr);
         continue;
       }

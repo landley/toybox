@@ -200,6 +200,9 @@ void create_uuid(char *uuid);
 char *show_uuid(char *uuid);
 char *next_printf(char *s, char **start);
 char *strnstr(char *line, char *str);
+int dev_minor(int dev);
+int dev_major(int dev);
+int dev_makedev(int major, int minor);
 
 #define HR_SPACE 1 // Space between number and units
 #define HR_B     2 // Use "B" for single byte units

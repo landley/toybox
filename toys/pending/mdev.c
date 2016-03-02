@@ -190,7 +190,7 @@ found_device:
 
   if (strchr(device_name, '/'))
     mkpathat(AT_FDCWD, toybuf, 0, 2);
-  if (mknod(toybuf, mode | type, makedev(major, minor)) && errno != EEXIST)
+  if (mknod(toybuf, mode | type, dev_makedev(major, minor)) && errno != EEXIST)
     perror_exit("mknod %s failed", toybuf);
 
  
