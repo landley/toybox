@@ -8,15 +8,15 @@
 #testing "name" "command" "result" "infile" "stdin"
 
 echo "abcdefghijklmnopqrstuvwxyz" > file.txt
-testing "Remove text-file" "rm file.txt && [ ! -e file.txt ] && echo 'yes'" "yes\n" "" ""
+testing "rm text-file" "rm file.txt && [ ! -e file.txt ] && echo 'yes'" "yes\n" "" ""
 rm -f file*
 
 mkdir dir
-testing "Remove empty directory" "rm -r dir && [ ! -d dir ] && echo 'yes'" "yes\n" "" ""
+testing "rm empty directory" "rm -r dir && [ ! -d dir ] && echo 'yes'" "yes\n" "" ""
 rm -rf dir
 
 echo "abcdefghijklmnopqrstuvwxyz" > file.txt && chmod 000 file.txt
-testing "Remove text file(mode 000)" "rm -f file.txt && [ ! -e file.txt ] && echo 'yes'" \
+testing "rm text file(mode 000)" "rm -f file.txt && [ ! -e file.txt ] && echo 'yes'" \
   "yes\n" "" ""
 rm -f file*
 

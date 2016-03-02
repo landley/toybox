@@ -12,15 +12,15 @@ testing "link fails on non-existent file" "link foo/foo baz || echo GOOD" "GOOD\
 rm -f foo bar
 
 echo file1 > file
-testing "ln create_hardlink" "link file hlink && [ file -ef hlink ] &&
+testing "link create_hardlink" "link file hlink && [ file -ef hlink ] &&
           echo 'yes'; rm  -rf hlink" "yes\n" "" ""
 
 echo hlink1 > hlink
 set +e
-testing "ln preserves_hardlinks" "link file hlink 2>/dev/null || echo 'yes'; rm -rf hlink" \
+testing "link preserves_hardlinks" "link file hlink 2>/dev/null || echo 'yes'; rm -rf hlink" \
           "yes\n" "" ""
 
 echo file1 > file
-testing "ln create_hardlink_and_remove_sourcefile" "link file hlink &&
+testing "link create_hardlink_and_remove_sourcefile" "link file hlink &&
           [ file -ef hlink ] && rm -rf file && [ -f hlink ] && echo 'yes'; rm -f file hlink" \
           "yes\n" "" ""
