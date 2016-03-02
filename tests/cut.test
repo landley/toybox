@@ -14,20 +14,20 @@ echo "one:two:three:four:five:six:seven
 alpha:beta:gamma:delta:epsilon:zeta:eta:teta:iota:kappa:lambda:mu
 the quick brown fox jumps over the lazy dog" >abc.txt
 
-testing "cut with -c (a-b)" "cut -c 4-10 abc.txt" ":two:th\nha:beta\n quick \n" "" ""
-testing "cut with -f (a-)" "cut -d ':' -f 5- abc.txt" "five:six:seven\nepsilon:zeta:eta:teta:iota:kappa:lambda:mu\nthe quick brown fox jumps over the lazy dog\n" "" ""
+testing "with -c (a-b)" "cut -c 4-10 abc.txt" ":two:th\nha:beta\n quick \n" "" ""
+testing "with -f (a-)" "cut -d ':' -f 5- abc.txt" "five:six:seven\nepsilon:zeta:eta:teta:iota:kappa:lambda:mu\nthe quick brown fox jumps over the lazy dog\n" "" ""
 
-testing "cut with -f (a)" "cut -d ' ' -f 3 abc.txt" "one:two:three:four:five:six:seven\nalpha:beta:gamma:delta:epsilon:zeta:eta:teta:iota:kappa:lambda:mu\nbrown\n" "" ""
+testing "with -f (a)" "cut -d ' ' -f 3 abc.txt" "one:two:three:four:five:six:seven\nalpha:beta:gamma:delta:epsilon:zeta:eta:teta:iota:kappa:lambda:mu\nbrown\n" "" ""
 
-testing "cut with echo, -c (a-b)" "echo 'ref_categorie=test' | cut -c 1-15 " "ref_categorie=t\n" "" ""
-testing "cut with echo, -c (a)" "echo 'ref_categorie=test' | cut -c 14" "=\n" "" ""
+testing "with echo, -c (a-b)" "echo 'ref_categorie=test' | cut -c 1-15 " "ref_categorie=t\n" "" ""
+testing "with echo, -c (a)" "echo 'ref_categorie=test' | cut -c 14" "=\n" "" ""
 
 # Modifying abc.txt data as per new testcase
 echo "abcdefghijklmnopqrstuvwxyz" >abc.txt
 
-testing "cut with -c (a,b,c)" "cut -c 4,5,20 abc.txt" "det\n" "" ""
+testing "with -c (a,b,c)" "cut -c 4,5,20 abc.txt" "det\n" "" ""
 
-testing "cut with -b (a,b,c)" "cut -b 4,5,20 abc.txt" "det\n" "" ""
+testing "with -b (a,b,c)" "cut -b 4,5,20 abc.txt" "det\n" "" ""
 
 # Modifying abc.txt data as per testcase
 echo "406378:Sales:Itorre:Jan
@@ -35,13 +35,13 @@ echo "406378:Sales:Itorre:Jan
 636496:Research:Ancholie:Mel
 396082:Sales:Jucacion:Ed" >abc.txt
 
-testing "cut with -d -f(:) -s" "cut -d: -f3 -s abc.txt" "Itorre\nNasium\nAncholie\nJucacion\n" "" ""
+testing "with -d -f(:) -s" "cut -d: -f3 -s abc.txt" "Itorre\nNasium\nAncholie\nJucacion\n" "" ""
 
-testing "cut with -d -f( ) -s" "cut -d' ' -f3 -s abc.txt && echo yes" "yes\n" "" ""
+testing "with -d -f( ) -s" "cut -d' ' -f3 -s abc.txt && echo yes" "yes\n" "" ""
 
-testing "cut with -d -f(a) -s" "cut -da -f3 -s abc.txt" "n\nsium:Jim\n\ncion:Ed\n" "" ""
+testing "with -d -f(a) -s" "cut -da -f3 -s abc.txt" "n\nsium:Jim\n\ncion:Ed\n" "" ""
 
-testing "cut with -d -f(a) -s -n" "cut -da -f3 -s -n abc.txt" "n\nsium:Jim\n\ncion:Ed\n" "" ""
+testing "with -d -f(a) -s -n" "cut -da -f3 -s -n abc.txt" "n\nsium:Jim\n\ncion:Ed\n" "" ""
 
 # Removing abc.txt file for cleanup purpose
 rm abc.txt

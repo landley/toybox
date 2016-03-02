@@ -17,36 +17,36 @@ echo "hidden file1" > lstest/.hfile1
 IN="cd lstest"
 OUT="cd .. "
 
-testing "ls no argument" "$IN && ls; $OUT" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
-testing "ls with wild char" "$IN && ls file*; $OUT" "file1.txt\nfile2.txt\n" "" ""
-testing "ls with wild char - long listing" "$IN && ls -1 file*; $OUT" "file1.txt\nfile2.txt\n" "" ""
-testing "ls with -p" "$IN && ls -p; $OUT" "dir1/\ndir2/\nfile1.txt\nfile2.txt\n" "" ""
-testing "ls with -a" "$IN && ls -a; $OUT" \
+testing "no argument" "$IN && ls; $OUT" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
+testing "with wild char" "$IN && ls file*; $OUT" "file1.txt\nfile2.txt\n" "" ""
+testing "with wild char - long listing" "$IN && ls -1 file*; $OUT" "file1.txt\nfile2.txt\n" "" ""
+testing "with -p" "$IN && ls -p; $OUT" "dir1/\ndir2/\nfile1.txt\nfile2.txt\n" "" ""
+testing "with -a" "$IN && ls -a; $OUT" \
         ".\n..\ndir1\ndir2\nfile1.txt\nfile2.txt\n.hfile1\n" "" ""
-testing "ls with -A" "$IN && ls -A; $OUT" \
+testing "with -A" "$IN && ls -A; $OUT" \
         "dir1\ndir2\nfile1.txt\nfile2.txt\n.hfile1\n" "" ""
-testing "ls with -d" "$IN && ls -d; $OUT" ".\n" "" ""
-testing "ls with wild char and -d *" "$IN && ls -d *; $OUT" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
-testing "ls with -k" "$IN && ls -k; $OUT" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
-testing "ls with -m" "$IN && ls -m; $OUT" "dir1, dir2, file1.txt, file2.txt\n" "" ""
-testing "ls with -F" "$IN && ls -F; $OUT" "dir1/\ndir2/\nfile1.txt\nfile2.txt\n" "" ""
-testing "ls with -dk *" "$IN && ls -dk *; $OUT" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
+testing "with -d" "$IN && ls -d; $OUT" ".\n" "" ""
+testing "with wild char and -d *" "$IN && ls -d *; $OUT" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
+testing "with -k" "$IN && ls -k; $OUT" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
+testing "with -m" "$IN && ls -m; $OUT" "dir1, dir2, file1.txt, file2.txt\n" "" ""
+testing "with -F" "$IN && ls -F; $OUT" "dir1/\ndir2/\nfile1.txt\nfile2.txt\n" "" ""
+testing "with -dk *" "$IN && ls -dk *; $OUT" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
 
 ln -s file1.txt lstest/slink
-testing "ls softlink - long listing" "$IN && ls -l slink | awk '{ print \$NF }' ; $OUT" \
+testing "softlink - long listing" "$IN && ls -l slink | awk '{ print \$NF }' ; $OUT" \
           "file1.txt\n" "" ""
 rm -f lstest/slink
 
 ln -s /dev/null/nosuchfile lstest/nosuchfile
-testing "ls with -d - broken softlink" "$IN && ls -d nosuchfile; $OUT" "nosuchfile\n" "" ""
+testing "with -d - broken softlink" "$IN && ls -d nosuchfile; $OUT" "nosuchfile\n" "" ""
 rm -f lstest/nosuchfile
 
 rm -rf lstest/* && mkdir -p lstest/dir1 && touch lstest/file1.txt
-testing "ls nested recursively" "$IN && ls -R; $OUT" \
+testing "nested recursively" "$IN && ls -R; $OUT" \
           ".:\ndir1\nfile1.txt\n\n./dir1:\n" "" ""
 
 rm -rf lstest/* && touch lstest/file1.txt && INODE=`stat -c %i lstest/file1.txt`
-testing "ls with -i" "$IN && ls -i 2>/dev/null; $OUT" "$INODE file1.txt\n" "" ""
+testing "with -i" "$IN && ls -i 2>/dev/null; $OUT" "$INODE file1.txt\n" "" ""
 unset INODE
 
 # Removing test dir for cleanup purpose

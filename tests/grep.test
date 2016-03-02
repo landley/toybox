@@ -7,105 +7,105 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-testing "grep -c" "grep -c 123 input" "3\n" "123\ncount 123\n123\nfasdfasdf" ""
+testing "-c" "grep -c 123 input" "3\n" "123\ncount 123\n123\nfasdfasdf" ""
 
 echo -e "this is test" > foo
 echo -e "this is test2" > foo2
 echo -e "this is foo3" > foo3
-testing "grep -l" "grep -l test foo foo2 foo3" "foo\nfoo2\n" "" ""
+testing "-l" "grep -l test foo foo2 foo3" "foo\nfoo2\n" "" ""
 rm foo foo2 foo3
 
-testing "grep -q" "grep -q test input && echo yes" "yes\n" "this is a test\n" ""
-testing "grep -E" "grep -E '[0-9]' input" "1234123asdfas123123\n1\n" \
+testing "-q" "grep -q test input && echo yes" "yes\n" "this is a test\n" ""
+testing "-E" "grep -E '[0-9]' input" "1234123asdfas123123\n1\n" \
   "1234123asdfas123123\nabc\n1\nabcde" ""
-testing "grep -e" "grep -e '[0-9]' input" "1234123asdfas123123\n1\n" \
+testing "-e" "grep -e '[0-9]' input" "1234123asdfas123123\n1\n" \
   "1234123asdfas123123\nabc\n1\nabcde" ""
-testing "grep -e -e" "grep -e one -e two -e three input" \
+testing "-e -e" "grep -e one -e two -e three input" \
   "two\ntwo\nthree\none\n" "two\ntwo\nthree\nand\none\n" ""
-testing "grep -F" "grep -F is input" "this is test\nthis is test2\n" \
+testing "-F" "grep -F is input" "this is test\nthis is test2\n" \
   "this is test\nthis is test2\ntest case" ""
 
 echo -e "this is test\nthis is test2\ntest case" > foo
 echo -e "hello this is test" > foo2
 echo -e "hi hello" > foo3
-testing "grep -H" "grep -H is foo foo2 foo3" "foo:this is test\nfoo:this is test2\nfoo2:hello this is test\n" "" ""
+testing "-H" "grep -H is foo foo2 foo3" "foo:this is test\nfoo:this is test2\nfoo2:hello this is test\n" "" ""
 rm foo foo2 foo3
 
-testing "grep -b" "grep -b is input" "0:this is test\n13:this is test2\n" \
+testing "-b" "grep -b is input" "0:this is test\n13:this is test2\n" \
   "this is test\nthis is test2\ntest case" ""
-testing "grep -i" "grep -i is input" "thisIs test\nthis is test2\n" \
+testing "-i" "grep -i is input" "thisIs test\nthis is test2\n" \
   "thisIs test\nthis is test2\ntest case" ""
-testing "grep -n" "grep -n is input" "1:this is test\n2:this is test2\n" \
+testing "-n" "grep -n is input" "1:this is test\n2:this is test2\n" \
   "this is test\nthis is test2\ntest case" ""
-testing "grep -o" "grep -o is input" "is\nis\nis\nis\n" \
+testing "-o" "grep -o is input" "is\nis\nis\nis\n" \
   "this is test\nthis is test2\ntest case" ""
-testing "grep -s" "grep -hs hello asdf input 2>&1" "hello\n" "hello\n" ""
-testing "grep -v" "grep -v abc input" "1234123asdfas123123\n1ABa\n" \
+testing "-s" "grep -hs hello asdf input 2>&1" "hello\n" "hello\n" ""
+testing "-v" "grep -v abc input" "1234123asdfas123123\n1ABa\n" \
   "1234123asdfas123123\n1ABabc\nabc\n1ABa\nabcde" ""
-testing "grep -w" "grep -w abc input" "abc\n123 abc\nabc 123\n123 abc 456\n" \
+testing "-w" "grep -w abc input" "abc\n123 abc\nabc 123\n123 abc 456\n" \
   "1234123asdfas123123\n1ABabc\nabc\n1ABa\nabcde\n123 abc\nabc 123\n123 abc 456\n" ""
-testing "grep -x" "grep -x abc input" "abc\n" \
+testing "-x" "grep -x abc input" "abc\n" \
   "aabcc\nabc\n" ""
 
-testing "grep -H (standard input)" "grep -H abc" "(standard input):abc\n" \
+testing "-H (standard input)" "grep -H abc" "(standard input):abc\n" \
   "" "abc\n"
-testing "grep -l (standard input)" "grep -l abc" "(standard input)\n" \
+testing "-l (standard input)" "grep -l abc" "(standard input)\n" \
   "" "abc\n"
-testing "grep -n two inputs" "grep -hn def - input" "2:def\n2:def\n" \
+testing "-n two inputs" "grep -hn def - input" "2:def\n2:def\n" \
   "abc\ndef\n" "abc\ndef\n"
 
-testing "grep pattern with newline" "grep 'abc
+testing "pattern with newline" "grep 'abc
 def' input" "aabcc\nddeff\n" \
   "aaaa\naabcc\n\dddd\nddeff\nffff\n" ""
 
-testing "grep -lH" "grep -lH abc input" "input\n" "abc\n" ""
-testing "grep -cn" "grep -cn abc input" "1\n" "abc\n" ""
-testing "grep -cH" "grep -cH abc input" "input:1\n" "abc\n" ""
-testing "grep -qs" "grep -qs abc none input && echo yes" "yes\n" "abc\n" ""
-testing "grep -hl" "grep -hl abc input" "input\n" "abc\n" ""
-testing "grep -b stdin" "grep -b one" "0:one\n4:one\n8:one\n" "" "one\none\none\n"
-testing "grep -o overlap" "grep -bo aaa" "1:aaa\n" "" "baaaa\n"
+testing "-lH" "grep -lH abc input" "input\n" "abc\n" ""
+testing "-cn" "grep -cn abc input" "1\n" "abc\n" ""
+testing "-cH" "grep -cH abc input" "input:1\n" "abc\n" ""
+testing "-qs" "grep -qs abc none input && echo yes" "yes\n" "abc\n" ""
+testing "-hl" "grep -hl abc input" "input\n" "abc\n" ""
+testing "-b stdin" "grep -b one" "0:one\n4:one\n8:one\n" "" "one\none\none\n"
+testing "-o overlap" "grep -bo aaa" "1:aaa\n" "" "baaaa\n"
 # nonobvious: -co counts lines, not matches
-testing "grep -co" "grep -co one input" "1\n" "one one one\n" ""
-testing "grep -nom" "grep -nom 2 one" "1:one\n1:one\n1:one\n2:one\n2:one\n" \
+testing "-co" "grep -co one input" "1\n" "one one one\n" ""
+testing "-nom" "grep -nom 2 one" "1:one\n1:one\n1:one\n2:one\n2:one\n" \
   "" "one one one\none one\none"
-testing "grep -vo" "grep -vo one input" "two\nthree\n" "onetwoonethreeone\n" ""
-testing "grep no newline" "grep -h one input -" \
+testing "-vo" "grep -vo one input" "two\nthree\n" "onetwoonethreeone\n" ""
+testing "no newline" "grep -h one input -" \
   "hello one\nthere one\n" "hello one" "there one"
 
-testing "grep -e multi" "grep -e one -ethree input" \
+testing "-e multi" "grep -e one -ethree input" \
   "three\none\n" "three\ntwo\none\n" ""
 # Suppress filenames for recursive test because dunno order they'd occur in
 mkdir sub
 echo -e "one\ntwo\nthree" > sub/one
 echo -e "three\ntwo\none" > sub/two
-testing "grep -hr" "grep -hr one sub" "one\none\n" "" ""
-testing "grep -r file" "grep -r three sub/two" "three\n" "" ""
-testing "grep -r dir" "grep -r one sub | sort" "sub/one:one\nsub/two:one\n" \
+testing "-hr" "grep -hr one sub" "one\none\n" "" ""
+testing "-r file" "grep -r three sub/two" "three\n" "" ""
+testing "-r dir" "grep -r one sub | sort" "sub/one:one\nsub/two:one\n" \
   "" ""
 rm -rf sub
 
 # -x exact match trumps -F's "empty string matches whole line" behavior
-testing "grep -Fx ''" "grep -Fx '' input" "" "one one one\n" ""
-testing "grep -F ''" "grep -F '' input" "one one one\n" "one one one\n" ""
-testing "grep -F -e blah -e ''" "grep -F -e blah -e '' input" "one one one\n" \
+testing "-Fx ''" "grep -Fx '' input" "" "one one one\n" ""
+testing "-F ''" "grep -F '' input" "one one one\n" "one one one\n" ""
+testing "-F -e blah -e ''" "grep -F -e blah -e '' input" "one one one\n" \
   "one one one\n" ""
-testing "grep -e blah -e ''" "grep -e blah -e '' input" "one one one\n" \
+testing "-e blah -e ''" "grep -e blah -e '' input" "one one one\n" \
   "one one one\n" ""
-testing "grep -w ''" "grep -w '' input" "" "one one one\n" ""
-testing "grep -w '' 2" "grep -w '' input" "one  two\n" "one  two\n" ""
-testing "grep -w \\1" "grep -wo '\\(x\\)\\1'" "xx\n" "" "xx"
-testing "grep -o ''" "grep -o '' input" "" "one one one\n" ""
-testing "grep backref" 'grep -e "a\(b\)" -e "b\(c\)\1"' "bcc\nab\n" \
+testing "-w ''" "grep -w '' input" "" "one one one\n" ""
+testing "-w '' 2" "grep -w '' input" "one  two\n" "one  two\n" ""
+testing "-w \\1" "grep -wo '\\(x\\)\\1'" "xx\n" "" "xx"
+testing "-o ''" "grep -o '' input" "" "one one one\n" ""
+testing "backref" 'grep -e "a\(b\)" -e "b\(c\)\1"' "bcc\nab\n" \
   "" "bcc\nbcb\nab\n"
 
-testing "grep -A" "grep -A 2 yes" "yes\nno\nno\n--\nyes\nno\nno\nyes\nno\n" \
+testing "-A" "grep -A 2 yes" "yes\nno\nno\n--\nyes\nno\nno\nyes\nno\n" \
   "" "yes\nno\nno\nno\nyes\nno\nno\nyes\nno"
-testing "grep -B" "grep -B 1 yes" "no\nyes\n--\nno\nyes\nno\nyes\n" \
+testing "-B" "grep -B 1 yes" "no\nyes\n--\nno\nyes\nno\nyes\n" \
   "" "no\nno\nno\nyes\nno\nno\nyes\nno\nyes"
-testing "grep -C" "grep -C 1 yes" \
+testing "-C" "grep -C 1 yes" \
   "yes\nno\n--\nno\nyes\nno\nno\nyes\nno\nyes\nno\n" \
   "" "yes\nno\nno\nno\nyes\nno\nno\nyes\nno\nyes\nno\nno"
-testing "grep -HnC" "grep -HnC1 two" \
+testing "-HnC" "grep -HnC1 two" \
   "(standard input)-1-one\n(standard input):2:two\n(standard input)-3-three\n" \
   "" "one\ntwo\nthree"

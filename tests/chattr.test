@@ -11,64 +11,64 @@ IN="cd testattr"
 OUT="cd .."
 _t="abcdefghijklmnopqrstuvwxyz"
 
-testing "chattr [-/+]i FILE[write]" "$IN && echo "$_t" > testFile &&
+testing "[-/+]i FILE[write]" "$IN && echo "$_t" > testFile &&
          chattr +i testFile && lsattr testFile && echo "$_t" > testFile; 
          chattr -i testFile; rm -rf testFile; $OUT " "----i-------- testFile\n" "" ""
-testing "chattr [-/+]i FILE[re-write]" "$IN && echo "$_t" > testFile && 
+testing "[-/+]i FILE[re-write]" "$IN && echo "$_t" > testFile && 
          chattr +i testFile && echo \"$_t\" > testFile || chattr -i testFile && 
          echo \"$_t\" > testFile && lsattr testFile; rm -rf testFile; $OUT" \
          "------------- testFile\n" "" ""
-testing "chattr [-/+]i FILE[append]" "$IN && echo "$_t" > testFile && 
+testing "[-/+]i FILE[append]" "$IN && echo "$_t" > testFile && 
          chattr +i testFile && echo \"$_t\" >> testFile || lsattr testFile && 
          chattr -i testFile; rm -rf testFile; $OUT" "----i-------- testFile\n" "" ""
-testing "chattr [-/+]i FILE[move]" "$IN && echo "$_t" > testFile && 
+testing "[-/+]i FILE[move]" "$IN && echo "$_t" > testFile && 
          chattr +i testFile && mv testFile testFile1 || lsattr testFile && 
          chattr -i testFile; rm -rf testFile; $OUT" "----i-------- testFile\n" "" ""
-testing "chattr [-/+]i FILE[delete]" "$IN && echo "$_t" > testFile && 
+testing "[-/+]i FILE[delete]" "$IN && echo "$_t" > testFile && 
          chattr +i testFile && rm -f testFile || lsattr testFile && 
          chattr -i testFile; rm -rf testFile; $OUT" "----i-------- testFile\n" "" ""
-testing "chattr [-/+]i FILE[read]" "$IN && echo "$_t" > testFile && 
+testing "[-/+]i FILE[read]" "$IN && echo "$_t" > testFile && 
          chattr +i testFile && cat testFile && lsattr testFile && 
          chattr -i testFile; rm -rf testFile; $OUT" "$_t\n----i-------- testFile\n" "" ""
-testing "chattr [-/+]a FILE[write]" "$IN && echo "$_t" > testFile && 
+testing "[-/+]a FILE[write]" "$IN && echo "$_t" > testFile && 
          chattr +a testFile && echo $_t > testFile || lsattr testFile && 
          chattr -a testFile; rm -rf testFile; $OUT" "-----a------- testFile\n" "" ""
-testing "chattr [-/+]a FILE[re-write]" "$IN && echo "$_t" > testFile && 
+testing "[-/+]a FILE[re-write]" "$IN && echo "$_t" > testFile && 
          chattr +a testFile && echo $_t > testFile || lsattr testFile && 
          chattr -a testFile && echo $_t > testFile && cat testFile && 
          lsattr testFile; rm -rf testFile; 
          $OUT" "-----a------- testFile\n$_t\n------------- testFile\n" "" ""
-testing "chattr [-/+]a FILE[append]" "$IN && echo "$_t" > testFile && 
+testing "[-/+]a FILE[append]" "$IN && echo "$_t" > testFile && 
          chattr +a testFile && echo $_t >> testFile && cat testFile && 
          lsattr testFile && chattr -a testFile; rm -rf testFile; $OUT" \
          "$_t\n$_t\n-----a------- testFile\n" "" ""
-testing "chattr [-/+]a FILE[move]" "$IN && echo "$_t" > testFile && 
+testing "[-/+]a FILE[move]" "$IN && echo "$_t" > testFile && 
          chattr +a testFile && mv testFile testFile1 || lsattr testFile && 
          chattr -a testFile; rm -rf testFile; $OUT" "-----a------- testFile\n" "" ""
-testing "chattr [-/+]a FILE[delete]" "$IN && echo "$_t" > testFile && 
+testing "[-/+]a FILE[delete]" "$IN && echo "$_t" > testFile && 
          chattr +a testFile && rm -f testFile || lsattr testFile && 
          chattr -a testFile; rm -rf testFile; $OUT" "-----a------- testFile\n" "" ""
-testing "chattr [-/+]a FILE[read]" "$IN && echo "$_t" > testFile && 
+testing "[-/+]a FILE[read]" "$IN && echo "$_t" > testFile && 
          chattr +a testFile && cat testFile && lsattr testFile && chattr -a testFile; 
          rm -rf testFile; $OUT" "$_t\n-----a------- testFile\n" "" ""
 
 for attr in "A" "a" "c" "D" "d" "i" "j" "s" "S" "t" "T" "u"
 do
-  testing "chattr [-/+]$attr FILE" "$IN && echo "$_t" > testFile && 
+  testing "[-/+]$attr FILE" "$IN && echo "$_t" > testFile && 
            chattr +$attr testFile && cat testFile && chattr -$attr testFile && 
            lsattr testFile; rm -rf testFile; $OUT" "$_t\n------------- testFile\n" "" ""
 done
 
 for attr in "A" "a" "c" "D" "d" "i" "j" "s" "S" "t" "T" "u"
 do
-  testing "chattr -$attr FILE" "$IN && echo "$_t" > testFile && chattr -$attr testFile &&
+  testing "-$attr FILE" "$IN && echo "$_t" > testFile && chattr -$attr testFile &&
            cat testFile && lsattr testFile; rm -rf testFile; $OUT" "$_t\n------------- testFile\n" "" ""
 done
 
-testing "chattr [-/+]AacDdijsStTu FILE" "$IN && echo "$_t" > testFile && 
+testing "[-/+]AacDdijsStTu FILE" "$IN && echo "$_t" > testFile && 
          chattr +AacDdijsStTu testFile && cat testFile && chattr -AacDdijsStTu testFile && 
          lsattr testFile; rm -rf testFile; $OUT" "$_t\n------------- testFile\n" "" ""
-testing "chattr [-/+]AacDdijsStTu(random) FILE" \
+testing "[-/+]AacDdijsStTu(random) FILE" \
         "$IN && echo "$_t" > testFile && 
         chattr +AacDdijsStTu testFile && cat testFile && chattr -A testFile &&
         chattr -a testFile && chattr -c testFile && chattr -D testFile &&
@@ -77,7 +77,7 @@ testing "chattr [-/+]AacDdijsStTu(random) FILE" \
         chattr -T testFile && chattr -u testFile && lsattr testFile &&
         chattr -AacDdijsStTu testFile; rm -rf testFile; $OUT" \
         "$_t\n------------- testFile\n" "" ""
-testing "chattr [-/+]AacDdijsStTu FILE*" "$IN && 
+testing "[-/+]AacDdijsStTu FILE*" "$IN && 
         echo "$_t" > testFile && echo "$_t" > testFile1 &&
         echo "$_t" > testFile2 && echo "$_t" > testFile3 &&
         echo "$_t" > testFile4 && echo "$_t" > testFile5 &&
@@ -87,7 +87,7 @@ testing "chattr [-/+]AacDdijsStTu FILE*" "$IN &&
        chattr +AacDdijsStTu testFile* &&
        cat testFile9 && chattr -AacDdijsStTu testFile* && lsattr testFile*; rm -rf testFile*; $OUT" \
        "$_t\n------------- testFile\n------------- testFile1\n------------- testFile10\n------------- testFile11\n------------- testFile2\n------------- testFile3\n------------- testFile4\n------------- testFile5\n------------- testFile6\n------------- testFile7\n------------- testFile8\n------------- testFile9\n" "" ""
-testing "chattr [-/+]AacDdijsStTu(random) FILE*" \
+testing "[-/+]AacDdijsStTu(random) FILE*" \
         "$IN && echo "$_t" > testFile &&
         chattr +AacDdijsStTu testFile* && cat testFile && chattr -A testFile* &&
 	chattr -a testFile* && chattr -c testFile* && chattr -D testFile* &&
@@ -96,29 +96,29 @@ testing "chattr [-/+]AacDdijsStTu(random) FILE*" \
 	chattr -T testFile* && chattr -u testFile* && lsattr testFile;
         rm -rf testFile; $OUT" \
 	"$_t\n------------- testFile\n" "" ""
-testing "chattr [-/+]i FILE[write]" \
+testing "[-/+]i FILE[write]" \
 	"$IN && echo "$_t" > testFile &&
 	chattr +i testFile &&
 	echo \"$_t\" > testFile || lsattr testFile && chattr -i testFile;
 	rm -rf testFile; $OUT" "----i-------- testFile\n" "" ""
-testing "chattr [-/+]A FILE[write]" \
+testing "[-/+]A FILE[write]" \
 	"$IN && echo "$_t" > testFile && chattr +A testFile &&
 	echo \"$_t\" > testFile && lsattr testFile && chattr -A testFile;
 	rm -rf testFile; $OUT" "-------A----- testFile\n" "" ""
-testing "chattr [-/+]s FILE[write]" \
+testing "[-/+]s FILE[write]" \
 	"$IN && echo "$_t" > testFile && chattr +s testFile &&
 	echo \"$_t\" > testFile && lsattr testFile && chattr -s testFile
 	rm -rf testFile; $OUT" "s------------ testFile\n" "" ""
-testing "chattr -v version FILE[write]" \
+testing "-v version FILE[write]" \
 	"$IN && echo "$_t" > testFile &&
 	chattr -v 1234 testFile && echo \"$_t\" > testFile && 
 	lsattr -v testFile; rm -rf testFile" \
 	" 1234 ------------- testFile\n" "" ""
 
 _a="-------A-----"
-testing "chattr -R [-/+]a FILE" "$IN && touch aa && chattr -R +A aa && lsattr aa &&
+testing "-R [-/+]a FILE" "$IN && touch aa && chattr -R +A aa && lsattr aa &&
 	chattr -R -A aa; rm -rf aa; $OUT" "$_a aa\n" "" ""
-testing "chattr -R [-/+]a FILE.." "$IN && touch aa bb &&
+testing "-R [-/+]a FILE.." "$IN && touch aa bb &&
 	chattr -R +A aa bb && lsattr aa bb &&
 	chattr -R -A aa bb; rm -rf aa bb; $OUT" "$_a aa\n$_a bb\n" "" ""
 

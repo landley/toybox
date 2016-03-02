@@ -11,7 +11,7 @@ tar -czf file.gz file
 # Get system zcat
 zcatExe=`which zcat`
 $zcatExe file.gz > zcatOut
-testing "zcat - decompresses a single file" "zcat file.gz > Tempfile && echo "yes"; diff Tempfile zcatOut && echo "yes"; rm -rf file* zcatOut Tempfile" "yes\nyes\n" "" ""
+testing "- decompresses a single file" "zcat file.gz > Tempfile && echo "yes"; diff Tempfile zcatOut && echo "yes"; rm -rf file* zcatOut Tempfile" "yes\nyes\n" "" ""
 
 #testing "name" "command" "result" "infile" "stdin"
 echo "hello" > file1
@@ -23,4 +23,4 @@ tar -czf file3.gz file3
 # Get system zcat
 zcatExe=`which zcat`
 $zcatExe file1.gz file2.gz file3.gz > zcatOut
-testing "zcat - decompresses multiple files" "zcat file1.gz file2.gz file3.gz > Tempfile && echo "yes" ; diff Tempfile zcatOut && echo "yes"; rm -rf file* zcatOut Tempfile " "yes\nyes\n" "" ""
+testing "- decompresses multiple files" "zcat file1.gz file2.gz file3.gz > Tempfile && echo "yes" ; diff Tempfile zcatOut && echo "yes"; rm -rf file* zcatOut Tempfile " "yes\nyes\n" "" ""

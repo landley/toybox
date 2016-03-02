@@ -11,7 +11,7 @@ tar -cjf file.tar.bz2 file
 # Get system bzcat
 bzcatExe=`which bzcat`
 $bzcatExe file.tar.bz2 > bzcatOut
-testing "bzcat - decompresses a single file" "bzcat file.tar.bz2 > Tempfile && echo "yes"; diff Tempfile bzcatOut && echo "yes"; rm -rf file* bzcatOut Tempfile" "yes\nyes\n" "" ""
+testing "- decompresses a single file" "bzcat file.tar.bz2 > Tempfile && echo "yes"; diff Tempfile bzcatOut && echo "yes"; rm -rf file* bzcatOut Tempfile" "yes\nyes\n" "" ""
 
 #testing "name" "command" "result" "infile" "stdin"
 echo "hello" > file1
@@ -23,4 +23,4 @@ tar -cjf file3.tar.bz2 file3
 # Get system bzcat
 bzcatExe=`which bzcat`
 $bzcatExe file1.tar.bz2 file2.tar.bz2 file3.tar.bz2 > bzcatOut
-testing "bzcat - decompresses multiple files" "bzcat file1.tar.bz2 file2.tar.bz2 file3.tar.bz2 > Tempfile && echo "yes" ; diff Tempfile bzcatOut && echo "yes"; rm -rf file* bzcatOut Tempfile " "yes\nyes\n" "" ""
+testing "- decompresses multiple files" "bzcat file1.tar.bz2 file2.tar.bz2 file3.tar.bz2 > Tempfile && echo "yes" ; diff Tempfile bzcatOut && echo "yes"; rm -rf file* bzcatOut Tempfile " "yes\nyes\n" "" ""

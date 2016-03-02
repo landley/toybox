@@ -14,5 +14,5 @@ hostnameOut=`$hostnameExe`
 # New hostname
 NewHostname="NewHostName.system"
 
-testing "hostname get" "hostname" "$hostnameOut\n" "" ""
-testing "hostname set, Get and then Reset" "hostname $NewHostname; hostname; hostname $hostnameOut; hostname" "$NewHostname\n$hostnameOut\n" "" ""
+testing "get" "hostname" "$hostnameOut\n" "" ""
+testing "set, Get and then Reset" "hostname $NewHostname; hostname; hostname $hostnameOut; hostname" "$NewHostname\n$hostnameOut\n" "" ""

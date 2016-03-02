@@ -20,14 +20,14 @@ proc_parent=`cat /proc/${proc}/stat | awk '{ print $4 }'`
 #echo "# Parent Process id of $proc is $proc_parent"
 
 # Testcases for pgrep command
-testing "pgrep pattern" "pgrep yes" "$proc\n" "" ""
-testing "pgrep wildCardPattern" "pgrep ^y.*s$" "$proc\n" "" ""
-testing "pgrep -l pattern" "pgrep -l yes" "$proc yes\n" "" ""
-testing "pgrep -f pattern" "pgrep -f yes" "$proc\n" "" ""
-testing "pgrep -n pattern" "pgrep -n yes" "$proc\n" "" ""
-testing "pgrep -o pattern" "pgrep -o yes" "$proc\n" "" ""
-testing "pgrep -s" "pgrep -s $session_id yes" "$proc\n" "" ""
-testing "pgrep -P" "pgrep -P $proc_parent yes" "$proc\n" "" ""
+testing "pattern" "pgrep yes" "$proc\n" "" ""
+testing "wildCardPattern" "pgrep ^y.*s$" "$proc\n" "" ""
+testing "-l pattern" "pgrep -l yes" "$proc yes\n" "" ""
+testing "-f pattern" "pgrep -f yes" "$proc\n" "" ""
+testing "-n pattern" "pgrep -n yes" "$proc\n" "" ""
+testing "-o pattern" "pgrep -o yes" "$proc\n" "" ""
+testing "-s" "pgrep -s $session_id yes" "$proc\n" "" ""
+testing "-P" "pgrep -P $proc_parent yes" "$proc\n" "" ""
 
 #Clean-up
 killall yes >/dev/null 2>&1

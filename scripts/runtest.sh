@@ -64,7 +64,7 @@ optional()
 
 testing()
 {
-  NAME="$1"
+  NAME="$CMDNAME $1"
   [ -z "$1" ] && NAME=$2
 
   if [ $# -ne 5 ]

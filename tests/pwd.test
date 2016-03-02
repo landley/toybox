@@ -8,7 +8,7 @@
 
 testing "pwd" "[ $(stat -c %i "$(pwd)") = $(stat -c %i .) ] && echo yes" \
 	"yes\n" "" ""
-testing "pwd -P" "[ $(stat -c %i "$(pwd -P)") = $(stat -c %i .) ] && echo yes" \
+testing "-P" "[ $(stat -c %i "$(pwd -P)") = $(stat -c %i .) ] && echo yes" \
 	"yes\n" "" ""
 
 
@@ -16,11 +16,11 @@ ln -s . sym
 cd sym
 testing "pwd" "[ $(stat -c %i "$(pwd)") = $(stat -c %i "$PWD") ] && echo yes" \
 	"yes\n" "" ""
-testing "pwd -P" "[ $(stat -c %i "$(pwd -P)") = $(stat -c %i "$PWD") ] || echo yes" \
+testing "-P" "[ $(stat -c %i "$(pwd -P)") = $(stat -c %i "$PWD") ] || echo yes" \
 	"yes\n" "" ""
 cd ..
 rm sym
 
 export PWD=walrus
-testing "pwd (bad PWD)" "[ "$(pwd)" = "$(cd . ; pwd)" ] && echo yes" \
+testing "(bad PWD)" "[ "$(pwd)" = "$(cd . ; pwd)" ] && echo yes" \
 	"yes\n" "" ""

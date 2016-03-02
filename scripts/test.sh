@@ -29,12 +29,15 @@ if [ $# -ne 0 ]
 then
   for i in "$@"
   do
+    CMDNAME="${i##*/}"
+    CMDNAME="${CMDNAME%.test}"
     . "$TOPDIR"/tests/$i.test
   done
 else
   for i in "$TOPDIR"/tests/*.test
   do
-    CMDNAME="$(echo "$i" | sed 's@.*/\(.*\)\.test@\1@')"
+    CMDNAME="${i##*/}"
+    CMDNAME="${CMDNAME%.test}"
     if [ -h ../$CMDNAME ] || [ ! -z "$TEST_HOST" ]
     then
       cd .. && rm -rf testdir && mkdir testdir && cd testdir || exit 1

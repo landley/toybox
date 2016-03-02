@@ -32,71 +32,71 @@ OUT="&& cd .. && echo \$(ls -lR testdir | awk '{print \$4}')"
 #testing "name" "command" "result" "infile" "stdin"
 
 # Basic smoketest
-testing "chgrp dir" "$IN chgrp root dir $OUT" \
+testing "dir" "$IN chgrp root dir $OUT" \
 	"root $GRP $GRP $GRP $GRP $GRP $GRP\n" "" ""
-testing "chgrp file" "$IN chgrp root dir/file $OUT" \
+testing "file" "$IN chgrp root dir/file $OUT" \
 	"$GRP $GRP $GRP root $GRP $GRP $GRP\n" "" ""
-testing "chgrp dir and file" "$IN chgrp root dir dir/file $OUT" \
+testing "dir and file" "$IN chgrp root dir dir/file $OUT" \
 	"root $GRP $GRP root $GRP $GRP $GRP\n" "" ""
 
 # symlinks (affect target, not symlink)
-testing "chgrp symlink->file" "$IN chgrp root dir2/file $OUT" \
+testing "symlink->file" "$IN chgrp root dir2/file $OUT" \
 	"$GRP $GRP $GRP root $GRP $GRP $GRP\n" "" ""
-testing "chgrp symlink->dir" "$IN chgrp root dir2/dir $OUT" \
+testing "symlink->dir" "$IN chgrp root dir2/dir $OUT" \
 	"$GRP $GRP root $GRP $GRP $GRP $GRP\n" "" ""
-testing "chgrp -h symlink->dir" "$IN chgrp -h root dir2/dir $OUT" \
+testing "-h symlink->dir" "$IN chgrp -h root dir2/dir $OUT" \
 	"$GRP $GRP $GRP $GRP $GRP root $GRP\n" "" ""
 
 # What does -h do (affect symlink, not target)
-testing "chgrp -h symlink->file" "$IN chgrp -h root dir2/file $OUT" \
+testing "-h symlink->file" "$IN chgrp -h root dir2/file $OUT" \
 	"$GRP $GRP $GRP $GRP $GRP $GRP root\n" "" ""
-testing "chgrp -h symlink->dir" "$IN chgrp -h root dir2/dir $OUT" \
+testing "-h symlink->dir" "$IN chgrp -h root dir2/dir $OUT" \
 	"$GRP $GRP $GRP $GRP $GRP root $GRP\n" "" ""
 
 # chgrp -R (note, -h is implied by -R)
 
-testing "chgrp -R dir" "$IN chgrp -R root dir $OUT" \
+testing "-R dir" "$IN chgrp -R root dir $OUT" \
 	"root $GRP root root root $GRP $GRP\n" "" ""
-testing "chgrp -R dir2" "$IN chgrp -R root dir2 $OUT" \
+testing "-R dir2" "$IN chgrp -R root dir2 $OUT" \
 	"$GRP root $GRP $GRP $GRP root root\n" "" ""
-testing "chgrp -R symlink->dir" "$IN chgrp -R root dir2/dir $OUT" \
+testing "-R symlink->dir" "$IN chgrp -R root dir2/dir $OUT" \
 	"$GRP $GRP $GRP $GRP $GRP root $GRP\n" "" ""
-testing "chgrp -R symlink->file" "$IN chgrp -R root dir2/file $OUT" \
+testing "-R symlink->file" "$IN chgrp -R root dir2/file $OUT" \
 	"$GRP $GRP $GRP $GRP $GRP $GRP root\n" "" ""
 
 # chgrp -RP (same as -R by itself)
 
-testing "chgrp -RP dir2" "$IN chgrp -RP root dir2 $OUT" \
+testing "-RP dir2" "$IN chgrp -RP root dir2 $OUT" \
 	"$GRP root $GRP $GRP $GRP root root\n" "" ""
-testing "chgrp -RP symlink->dir" "$IN chgrp -RP root dir2/dir $OUT" \
+testing "-RP symlink->dir" "$IN chgrp -RP root dir2/dir $OUT" \
 	"$GRP $GRP $GRP $GRP $GRP root $GRP\n" "" ""
-testing "chgrp -RP symlink->file" "$IN chgrp -RP root dir2/file $OUT" \
+testing "-RP symlink->file" "$IN chgrp -RP root dir2/file $OUT" \
 	"$GRP $GRP $GRP $GRP $GRP $GRP root\n" "" ""
 
 # chgrp -RH (change target but only recurse through symlink->dir on cmdline)
 
-testing "chgrp -RH dir2" "$IN chgrp -RH root dir2 $OUT" \
+testing "-RH dir2" "$IN chgrp -RH root dir2 $OUT" \
 	"$GRP root root root $GRP $GRP $GRP\n" "" ""
-testing "chgrp -RH symlink->dir" "$IN chgrp -RH root dir2/dir $OUT" \
+testing "-RH symlink->dir" "$IN chgrp -RH root dir2/dir $OUT" \
 	"$GRP $GRP root $GRP root $GRP $GRP\n" "" ""
-testing "chgrp -RH symlink->file" "$IN chgrp -RH root dir2/file $OUT" \
+testing "-RH symlink->file" "$IN chgrp -RH root dir2/file $OUT" \
 	"$GRP $GRP $GRP root $GRP $GRP $GRP\n" "" ""
 
 # chgrp -RL (change target and always recurse through symlink->dir)
 
-testing "chgrp -RL dir2" "$IN chgrp -RL root dir2 $OUT" \
+testing "-RL dir2" "$IN chgrp -RL root dir2 $OUT" \
 	"$GRP root root root root $GRP $GRP\n" "" ""
-testing "chgrp -RL symlink->dir" "$IN chgrp -RL root dir2/dir $OUT" \
+testing "-RL symlink->dir" "$IN chgrp -RL root dir2/dir $OUT" \
 	"$GRP $GRP root $GRP root $GRP $GRP\n" "" ""
-testing "chgrp -RL symlink->file" "$IN chgrp -RL root dir2/file $OUT" \
+testing "-RL symlink->file" "$IN chgrp -RL root dir2/file $OUT" \
 	"$GRP $GRP $GRP root $GRP $GRP $GRP\n" "" ""
 
 # -HLP are NOPs without -R
-testing "chgrp -H without -R" "$IN chgrp -H root dir2/dir $OUT" \
+testing "-H without -R" "$IN chgrp -H root dir2/dir $OUT" \
 	"$GRP $GRP root $GRP $GRP $GRP $GRP\n" "" ""
-testing "chgrp -L without -R" "$IN chgrp -L root dir2/dir $OUT" \
+testing "-L without -R" "$IN chgrp -L root dir2/dir $OUT" \
 	"$GRP $GRP root $GRP $GRP $GRP $GRP\n" "" ""
-testing "chgrp -P without -R" "$IN chgrp -P root dir2/dir $OUT" \
+testing "-P without -R" "$IN chgrp -P root dir2/dir $OUT" \
 	"$GRP $GRP root $GRP $GRP $GRP $GRP\n" "" ""
 
 rm -rf testdir

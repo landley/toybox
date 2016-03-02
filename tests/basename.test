@@ -5,19 +5,19 @@
 #testing "name" "command" "result" "infile" "stdin"
 
 # Removal of extra /'s
-testing "basename /-only" "basename ///////" "/\n" "" ""
-testing "basename trailing /" "basename a//////" "a\n" "" ""
-testing "basename combined" "basename /////a///b///c///d/////" "d\n" "" ""
+testing "/-only" "basename ///////" "/\n" "" ""
+testing "trailing /" "basename a//////" "a\n" "" ""
+testing "combined" "basename /////a///b///c///d/////" "d\n" "" ""
 
 # Standard suffix behavior.
-testing "basename suffix" "basename a/b/c/d.suffix .suffix" "d\n" "" ""
+testing "suffix" "basename a/b/c/d.suffix .suffix" "d\n" "" ""
 
 # A suffix cannot be the entire result.
-testing "basename suffix=result" "basename .txt .txt" ".txt\n" "" ""
+testing "suffix=result" "basename .txt .txt" ".txt\n" "" ""
 
 # Deal with suffix appearing in the filename
-testing "basename reappearing suffix 1" "basename a.txt.txt .txt" "a.txt\n" "" ""
-testing "basename reappearing suffix 2" "basename a.txt.old .txt" "a.txt.old\n" "" ""
+testing "reappearing suffix 1" "basename a.txt.txt .txt" "a.txt\n" "" ""
+testing "reappearing suffix 2" "basename a.txt.old .txt" "a.txt.old\n" "" ""
 
 # A suffix should be a real suffix, only a the end.
-testing "basename invalid suffix" "basename isthisasuffix? suffix" "isthisasuffix?\n" "" ""
+testing "invalid suffix" "basename isthisasuffix? suffix" "isthisasuffix?\n" "" ""

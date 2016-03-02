@@ -11,7 +11,7 @@ tar -cJf file.xz file
 # Get system xzcat
 xzcatExe=`which xzcat`
 $xzcatExe file.xz > xzcatOut
-testing "xzcat - decompresses a single file" "xzcat file.xz > Tempfile && echo "yes"; diff Tempfile xzcatOut && echo "yes"; rm -rf file* xzcatOut Tempfile" "yes\nyes\n" "" ""
+testing "- decompresses a single file" "xzcat file.xz > Tempfile && echo "yes"; diff Tempfile xzcatOut && echo "yes"; rm -rf file* xzcatOut Tempfile" "yes\nyes\n" "" ""
 
 #testing "name" "command" "result" "infile" "stdin"
 echo "hello" > file1
@@ -23,4 +23,4 @@ tar -cJf file3.xz file3
 # Get system xzcat
 xzcatExe=`which xzcat`
 $xzcatExe file1.xz file2.xz file3.xz > xzcatOut
-testing "xzcat - decompresses multiple files" "xzcat file1.xz file2.xz file3.xz > Tempfile && echo "yes" ; diff Tempfile xzcatOut && echo "yes"; rm -rf file* xzcatOut Tempfile " "yes\nyes\n" "" ""
+testing "- decompresses multiple files" "xzcat file1.xz file2.xz file3.xz > Tempfile && echo "yes" ; diff Tempfile xzcatOut && echo "yes"; rm -rf file* xzcatOut Tempfile " "yes\nyes\n" "" ""

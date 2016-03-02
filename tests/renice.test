@@ -45,7 +45,7 @@ do
     nice_val3=$((`fun_nice_val $proc3` + $n_v))
     nice_val4=$((`fun_nice_val $proc4` + $n_v))
     nice_val5=$((`fun_nice_val $proc5` + $n_v))
-    testing "renice with -n=$n_v and with$n_o multiple_pids" \
+    testing "with -n=$n_v and with$n_o multiple_pids" \
       "renice -n $n_v$n_o $proc1 $proc2 $proc3 $proc4 $proc5 &&
        fun_nice_val $proc1 $proc2 $proc3 $proc4 $proc5" \
       "$nice_val1\n$nice_val2\n$nice_val3\n$nice_val4\n$nice_val5\n" "" ""
@@ -55,7 +55,7 @@ do
     nice_val3=$((`fun_nice_val $proc3` + $n_v))
     nice_val4=$((`fun_nice_val $proc4` + $n_v))
     nice_val5=$((`fun_nice_val $proc5` + $n_v))
-    testing "renice with -n=$n_v and with$n_o multiple_pids (some invalid)" \
+    testing "with -n=$n_v and with$n_o multiple_pids (some invalid)" \
       "renice -n $n_v$n_o $proc1 $proc2 88888 99999 $proc3 $proc4 $proc5 $arg ||
        fun_nice_val $proc1 $proc2 $proc3 $proc4 $proc5" \
       "$nice_val1\n$nice_val2\n$nice_val3\n$nice_val4\n$nice_val5\n" "" ""

@@ -18,30 +18,30 @@ chmod a=r perm/all-read-only
 
 # Testing operators
 
-testing "find -type l -a -type d -o -type p" \
+testing "-type l -a -type d -o -type p" \
 	"find dir -type l -a -type d -o -type p" "dir/fifo\n" "" ""
-testing "find -type l -type d -o -type p" "find dir -type l -type d -o -type p" \
+testing "-type l -type d -o -type p" "find dir -type l -type d -o -type p" \
 	"dir/fifo\n" "" ""
-testing "find -type l -o -type d -a -type p" \
+testing "-type l -o -type d -a -type p" \
 	"find dir -type l -o -type d -a -type p" "dir/link\n" "" ""
-testing "find -type l -o -type d -type p" "find dir -type l -o -type d -type p" \
+testing "-type l -o -type d -type p" "find dir -type l -o -type d -type p" \
 	"dir/link\n" "" ""
-testing "find -type l ( -type d -o -type l )" \
+testing "-type l ( -type d -o -type l )" \
 	"find dir -type l \( -type d -o -type l \)" "dir/link\n" "" ""
-testing "find extra parentheses" \
+testing "extra parentheses" \
 	"find dir \( \( -type l \) \( -type d -o \( \( -type l \) \) \) \)" \
 	"dir/link\n" "" ""
-testing "find ( -type p -o -type d ) -type p" \
+testing "( -type p -o -type d ) -type p" \
 	"find dir \( -type p -o -type d \) -type p" "dir/fifo\n" "" ""
-testing "find -type l -o -type d -type p -o -type f" \
+testing "-type l -o -type d -type p -o -type f" \
 	"find dir -type l -o -type d -type p -o -type f | sort" \
 	"dir/file\ndir/link\n" "" ""
 
 # Testing short-circuit evaluations
 
-testing "find -type f -a -print" \
+testing "-type f -a -print" \
 	"find dir -type f -a -print" "dir/file\n" "" ""
-testing "find -print -o -print" \
+testing "-print -o -print" \
 	"find dir -type f -a \( -print -o -print \)" "dir/file\n" "" ""
 
 # these were erroring or segfaulting:
@@ -50,44 +50,44 @@ testing "find -print -o -print" \
 
 # Testing previous failures
 
-testing "find -type f -user -exec" \
+testing "-type f -user -exec" \
   "find dir -type f -user $USER -exec ls {} \\;" "dir/file\n" "" ""
-testing "find -type l -newer -exec" \
+testing "-type l -newer -exec" \
   "find dir -type l -newer dir/file -exec ls {} \\;" "dir/link\n" "" ""
-testing "find -perm (exact success)" \
+testing "-perm (exact success)" \
   "find perm -type f -perm 0444" "perm/all-read-only\n" "" ""
-testing "find -perm (exact failure)" \
+testing "-perm (exact failure)" \
   "find perm -type f -perm 0400" "" "" ""
-testing "find -perm (min success)" \
+testing "-perm (min success)" \
   "find perm -type f -perm -0400" "perm/all-read-only\n" "" ""
-testing "find -perm (min failure)" \
+testing "-perm (min failure)" \
   "find perm -type f -perm -0600" "" "" ""
-testing "find -perm (any success)" \
+testing "-perm (any success)" \
   "find perm -type f -perm -0444" "perm/all-read-only\n" "" ""
-testing "find -perm (any failure)" \
+testing "-perm (any failure)" \
   "find perm -type f -perm -0222" "" "" ""
 
 # Still fails
 
-testing "find unterminated -exec {}" \
+testing "unterminated -exec {}" \
   "find dir -type f -exec ls {} 2>/dev/null || echo bad" "bad\n" "" ""
-testing "find -exec {} +" \
+testing "-exec {} +" \
   "find dir -type f -exec ls {} +" "dir/file\n" "" ""
 
 # `find . -iname` was segfaulting
-testing "find -name file" \
+testing "-name file" \
   "find dir -name file" "dir/file\n" "" ""
-testing "find -name FILE" \
+testing "-name FILE" \
   "find dir -name FILE" "" "" ""
 
-testing "find -iname file" \
+testing "-iname file" \
   "find dir -iname FILE" "dir/file\n" "" ""
-testing "find -iname FILE" \
+testing "-iname FILE" \
   "find dir -iname FILE" "dir/file\n" "" ""
 
 
-testing "find -name (no arguments)" \
+testing "-name (no arguments)" \
   "find dir -name 2>&1" "find: '-name' needs 1 arg\n" "" ""
-testing "find -iname (no arguments)" \
+testing "-iname (no arguments)" \
   "find dir -iname 2>&1" "find: '-iname' needs 1 arg\n" "" ""
 rm -rf dir

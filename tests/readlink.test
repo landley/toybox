@@ -6,54 +6,54 @@
 
 APWD="$(pwd -P)"
 
-testing "readlink missing" "readlink notfound || echo yes" "yes\n" "" ""
+testing "missing" "readlink notfound || echo yes" "yes\n" "" ""
 
 # simple tests on a file
 
 touch file
-testing "readlink file" "readlink file || echo yes" "yes\n" "" ""
-testing "readlink -f dir" "readlink -f ." "$APWD\n" "" ""
-testing "readlink -f missing" "readlink -f notfound" "$APWD/notfound\n" "" ""
+testing "file" "readlink file || echo yes" "yes\n" "" ""
+testing "-f dir" "readlink -f ." "$APWD\n" "" ""
+testing "-f missing" "readlink -f notfound" "$APWD/notfound\n" "" ""
 
 ln -sf notfound link
-testing "readlink link" "readlink link" "notfound\n" "" ""
-testing "readlink link->missing" "readlink -f link" "$APWD/notfound\n" "" ""
+testing "link" "readlink link" "notfound\n" "" ""
+testing "link->missing" "readlink -f link" "$APWD/notfound\n" "" ""
 ln -sf ../../ link
-testing "readlink stays relative" "readlink link" "../../\n" "" ""
+testing "stays relative" "readlink link" "../../\n" "" ""
 rm link
 ln -sf file link
-testing "readlink -f link->file" "readlink -f link" "$APWD/file\n" "" ""
+testing "-f link->file" "readlink -f link" "$APWD/file\n" "" ""
 ln -sf . link
-testing "readlink -f link->dir" "readlink -f link" "$APWD\n" "" ""
+testing "-f link->dir" "readlink -f link" "$APWD\n" "" ""
 ln -snf link link
-testing "readlink link->link (recursive)" "readlink link" "link\n" "" ""
-testing "readlink -f link->link (recursive)" \
+testing "link->link (recursive)" "readlink link" "link\n" "" ""
+testing "-f link->link (recursive)" \
   "readlink -f link 2>/dev/null || echo yes" "yes\n" "" ""
 
-testing "readlink -q notlink" "readlink -q file || echo yes" "yes\n" "" ""
-testing "readlink -q link" "readlink -q link && echo yes" "yes\n" "" ""
-testing "readlink -q notfound" "readlink -q notfound || echo yes" "yes\n" "" ""
-testing "readlink -e found" "readlink -e file" "$APWD/file\n" "" ""
-testing "readlink -e notfound" \
+testing "-q notlink" "readlink -q file || echo yes" "yes\n" "" ""
+testing "-q link" "readlink -q link && echo yes" "yes\n" "" ""
+testing "-q notfound" "readlink -q notfound || echo yes" "yes\n" "" ""
+testing "-e found" "readlink -e file" "$APWD/file\n" "" ""
+testing "-e notfound" \
   "readlink -e notfound 2>/dev/null || echo yes" "yes\n" "" ""
-testing "readlink -nf ." "readlink -nf ." "$APWD" "" ""
+testing "-nf ." "readlink -nf ." "$APWD" "" ""
 
 mkdir sub &&
 ln -s . here &&
 ln -s ./sub dir &&
 touch sub/bang || exit 1
-testing "readlink -f multi" "readlink -f dir/../here/dir/bang" \
+testing "-f multi" "readlink -f dir/../here/dir/bang" \
   "$APWD/sub/bang\n" "" ""
-testing "readlink -f link/missing" "readlink -f dir/boing" \
+testing "-f link/missing" "readlink -f dir/boing" \
   "$APWD/sub/boing\n" "" ""
-testing "readlink -f /dev/null/file" \
+testing "-f /dev/null/file" \
   "readlink -f /dev/null/file 2>/dev/null || echo yes" "yes\n" "" ""
 ln -sf / link || exit 1
-testing "readlink -f link->/" "readlink -e link/dev" "/dev\n" "" ""
-testing "readlink -f /dev/null/.." \
+testing "-f link->/" "readlink -e link/dev" "/dev\n" "" ""
+testing "-f /dev/null/.." \
   "readlink -f link/null/.. 2>/dev/null || echo yes" "yes\n" "" ""
 rm -f link && ln -sf link link || exit 1
-testing "readlink recurse" "readlink link" "link\n" "" ""
+testing "recurse" "readlink link" "link\n" "" ""
 
 rm file link sub/bang dir here
 rmdir sub
@@ -62,6 +62,6 @@ rmdir sub
 
 ln -s link1 link2
 ln -s link2 link1
-testing "readlink follow recursive2" "readlink -f link1 || echo yes" \
+testing "follow recursive2" "readlink -f link1 || echo yes" \
 	"yes\n" "" ""
 rm link1 link2

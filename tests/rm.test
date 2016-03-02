@@ -8,21 +8,21 @@
 #testing "name" "command" "result" "infile" "stdin"
 
 echo "abcdefghijklmnopqrstuvwxyz" > file.txt
-testing "rm text-file" "rm file.txt && [ ! -e file.txt ] && echo 'yes'" "yes\n" "" ""
+testing "text-file" "rm file.txt && [ ! -e file.txt ] && echo 'yes'" "yes\n" "" ""
 rm -f file*
 
 mkdir dir
-testing "rm empty directory" "rm -r dir && [ ! -d dir ] && echo 'yes'" "yes\n" "" ""
+testing "empty directory" "rm -r dir && [ ! -d dir ] && echo 'yes'" "yes\n" "" ""
 rm -rf dir
 
 echo "abcdefghijklmnopqrstuvwxyz" > file.txt && chmod 000 file.txt
-testing "rm text file(mode 000)" "rm -f file.txt && [ ! -e file.txt ] && echo 'yes'" \
+testing "text file(mode 000)" "rm -f file.txt && [ ! -e file.txt ] && echo 'yes'" \
   "yes\n" "" ""
 rm -f file*
 
 touch file1.txt file2.txt
 mkdir dir1 dir2
-testing "rm -r (multiple files and dirs)" \
+testing "-r (multiple files and dirs)" \
   "rm -r file1.txt file2.txt dir1 dir2 2>/dev/null &&
    [ ! -e file1.txt -a ! -e file2.txt -a ! -d dir1 -a ! -d dir2 ] && echo 'yes'" \
   "yes\n" "" ""
@@ -30,7 +30,7 @@ rm -rf file* dir*
 
 touch file1.txt file2.txt
 mkdir dir1 dir2
-testing "rm -rf (present + missing files and dirs)" \
+testing "-rf (present + missing files and dirs)" \
   "rm -rf file1.txt file2.txt file3.txt dir1 dir2 dir3 2>/dev/null &&
   [ ! -e file1.txt -a ! -e file2.txt -a ! -d dir1 -a ! -d dir2 ] && echo 'yes'" \
   "yes\n" "" ""
@@ -39,7 +39,7 @@ rm -rf file* dir*
 # testing with nested dirs.
 mkdir -p dir1/dir2/dir3 dir1/dir2/dir4
 touch dir1/file1.txt dir1/dir2/file2.txt dir1/dir2/dir3/file3.txt
-testing "rm -r nested_dir" "rm -r dir1/dir2/ 2>/dev/null &&
+testing "-r nested_dir" "rm -r dir1/dir2/ 2>/dev/null &&
   [ -d dir1 -a -f dir1/file1.txt -a ! -d dir1/dir2 ] && echo 'yes'" \
   "yes\n" "" ""
 rm -rf dir*

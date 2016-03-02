@@ -7,38 +7,38 @@
 BIGTEST="one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\neleven\n"
 echo -ne "$BIGTEST" > file1
 testing "tail" "tail && echo yes" "oneyes\n" "" "one"
-testing "tail file" "tail file1" \
+testing "file" "tail file1" \
 	"two\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\neleven\n" "" ""
-testing "tail -n in bounds" "tail -n 3 file1" "nine\nten\neleven\n" "" ""
-testing "tail -n out of bounds" "tail -n 999 file1" "$BIGTEST" "" ""
-testing "tail -n+ in bounds" "tail -n +3 file1" \
+testing "-n in bounds" "tail -n 3 file1" "nine\nten\neleven\n" "" ""
+testing "-n out of bounds" "tail -n 999 file1" "$BIGTEST" "" ""
+testing "-n+ in bounds" "tail -n +3 file1" \
 	"three\nfour\nfive\nsix\nseven\neight\nnine\nten\neleven\n" "" ""
-testing "tail -n+ outof bounds" "tail -n +999 file1" "" "" ""
-testing "tail -c in bounds" "tail -c 27 file1" \
+testing "-n+ outof bounds" "tail -n +999 file1" "" "" ""
+testing "-c in bounds" "tail -c 27 file1" \
 	"even\neight\nnine\nten\neleven\n" "" ""
-testing "tail -c out of bounds" "tail -c 999 file1" "$BIGTEST" "" ""
-testing "tail -c+ in bounds" "tail -c +27 file1" \
+testing "-c out of bounds" "tail -c 999 file1" "$BIGTEST" "" ""
+testing "-c+ in bounds" "tail -c +27 file1" \
 	"x\nseven\neight\nnine\nten\neleven\n" "" ""
-testing "tail -c+ out of bonds" "tail -c +999 file1" "" "" ""
+testing "-c+ out of bonds" "tail -c +999 file1" "" "" ""
 rm file1
 
-testing "tail stdin no trailing newline" "tail -n 1 - " "c" "" "a\nb\nc"
-testing "tail file no trailing newline" "tail -n 1 input" "c" "a\nb\nc" ""
+testing "stdin no trailing newline" "tail -n 1 - " "c" "" "a\nb\nc"
+testing "file no trailing newline" "tail -n 1 input" "c" "a\nb\nc" ""
 
 optional TAIL_SEEK
-testing "tail noseek -n in bounds" "tail -n 3" "nine\nten\neleven\n" \
+testing "noseek -n in bounds" "tail -n 3" "nine\nten\neleven\n" \
 	"" "$BIGTEST"
-testing "tail noseek -n out of bounds" "tail -n 999" "$BIGTEST" "" "$BIGTEST"
-testing "tail noseek -n+ in bounds" "tail -n +3" \
+testing "noseek -n out of bounds" "tail -n 999" "$BIGTEST" "" "$BIGTEST"
+testing "noseek -n+ in bounds" "tail -n +3" \
 	"three\nfour\nfive\nsix\nseven\neight\nnine\nten\neleven\n" "" \
 	"$BIGTEST"
-testing "tail noseek -n+ outof bounds" "tail -n +999" "" "" "$BIGTEST"
-testing "tail noseek -c in bounds" "tail -c 27" \
+testing "noseek -n+ outof bounds" "tail -n +999" "" "" "$BIGTEST"
+testing "noseek -c in bounds" "tail -c 27" \
 	"even\neight\nnine\nten\neleven\n" "" "$BIGTEST"
-testing "tail noseek -c out of bounds" "tail -c 999" "$BIGTEST" "" "$BIGTEST"
-testing "tail noseek -c+ in bounds" "tail -c +27" \
+testing "noseek -c out of bounds" "tail -c 999" "$BIGTEST" "" "$BIGTEST"
+testing "noseek -c+ in bounds" "tail -c +27" \
 	"x\nseven\neight\nnine\nten\neleven\n" "" "$BIGTEST"
-testing "tail noseek -c+ out of bonds" "tail -c +999" "" "" "$BIGTEST"
+testing "noseek -c+ out of bonds" "tail -c +999" "" "" "$BIGTEST"
 
 makebigfile()
 {
@@ -55,7 +55,7 @@ makebigfile()
 }
 makebigfile > bigfile
 
-testing "tail -c 12345 -n 3 bigfile" "tail -c 12345 -n 3 bigfile | md5sum" \
+testing "-c 12345 -n 3 bigfile" "tail -c 12345 -n 3 bigfile | md5sum" \
   "347bbdcbad8a313f4dc7bd558c5bfcb8  -\n" "" ""
-testing "tail -n 3 -c 12345 bigfile" "tail -n 3 -c 12345 bigfile | md5sum" \
+testing "-n 3 -c 12345 bigfile" "tail -n 3 -c 12345 bigfile | md5sum" \
   "1698825a750288284ec3ba7d8a59f302  -\n" "" ""

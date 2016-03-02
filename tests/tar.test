@@ -10,31 +10,31 @@
 #Creating  dir
 mkdir dir/dir1 -p
 echo "This is testdata" > dir/dir1/file
-testing "tar tgz - compession, extraction and data validation" "tar -czf dir.tgz dir/ && [ -e dir.tgz ] && echo 'yes'; rm -rf dir; tar -xf dir.tgz && [ -f dir/dir1/file ] && cat dir/dir1/file; rm -rf dir.tgz" "yes\nThis is testdata\n" "" ""
+testing "tgz - compession, extraction and data validation" "tar -czf dir.tgz dir/ && [ -e dir.tgz ] && echo 'yes'; rm -rf dir; tar -xf dir.tgz && [ -f dir/dir1/file ] && cat dir/dir1/file; rm -rf dir.tgz" "yes\nThis is testdata\n" "" ""
 
 #Creating  dir
 mkdir dir/dir1 -p
 echo "This is testdata" > dir/dir1/file
-testing "tar tar.gz - compession, extraction and data validation" "tar -czf dir.tar.gz dir/ && [ -e dir.tar.gz ] && echo 'yes'; rm -rf dir; tar -xf dir.tar.gz && [ -f dir/dir1/file ] && cat dir/dir1/file; rm -rf dir.tar.gz" "yes\nThis is testdata\n" "" ""
+testing "tar.gz - compession, extraction and data validation" "tar -czf dir.tar.gz dir/ && [ -e dir.tar.gz ] && echo 'yes'; rm -rf dir; tar -xf dir.tar.gz && [ -f dir/dir1/file ] && cat dir/dir1/file; rm -rf dir.tar.gz" "yes\nThis is testdata\n" "" ""
 
 #Creating  dir
 mkdir dir/dir1 -p
 echo "This is testdata" > dir/dir1/file
-testing "tar verbose compression" "tar -cvzf dir.tgz dir/; rm -rf dir.tgz" "dir/\ndir/dir1/\ndir/dir1/file\n" "" ""
+testing "verbose compression" "tar -cvzf dir.tgz dir/; rm -rf dir.tgz" "dir/\ndir/dir1/\ndir/dir1/file\n" "" ""
 rm -rf dir/
 
 #creating test file
 dd if=/dev/zero of=testFile ibs=4096 obs=4096 count=1000 2>/dev/null
-testing "tar - compession and extraction of a file" "tar -czf testFile.tgz testFile && [ -e testFile.tgz ] && echo 'yes'; rm -rf testFile; tar -xf testFile.tgz && [ -f testFile ] && echo 'yes'; rm -rf testFile.tgz" "yes\nyes\n" "" ""
+testing "- compession and extraction of a file" "tar -czf testFile.tgz testFile && [ -e testFile.tgz ] && echo 'yes'; rm -rf testFile; tar -xf testFile.tgz && [ -f testFile ] && echo 'yes'; rm -rf testFile.tgz" "yes\nyes\n" "" ""
 
 #creating empty test file
 touch testFile
-testing "tar - compession and extraction of a empty file" "tar -czf testFile.tgz testFile && [ -e testFile.tgz ] && echo 'yes'; rm -rf testFile; tar -xf testFile.tgz && [ -f testFile ] && echo 'yes'; rm -rf testFile.tgz" "yes\nyes\n" "" ""
+testing "- compession and extraction of a empty file" "tar -czf testFile.tgz testFile && [ -e testFile.tgz ] && echo 'yes'; rm -rf testFile; tar -xf testFile.tgz && [ -f testFile ] && echo 'yes'; rm -rf testFile.tgz" "yes\nyes\n" "" ""
 
 #Creating  dir
 mkdir dir/dir1 -p
 touch dir/dir1/file1 dir/dir1/file2 dir/dir1/file3 dir/dir1/file4
-testing "tar -t option" "tar -czf dir.tar.gz dir/; rm -rf dir; tar -tf dir.tar.gz | sort; rm -rf dir.tar.gz" "dir/\ndir/dir1/\ndir/dir1/file1\ndir/dir1/file2\ndir/dir1/file3\ndir/dir1/file4\n" "" ""
+testing "-t option" "tar -czf dir.tar.gz dir/; rm -rf dir; tar -tf dir.tar.gz | sort; rm -rf dir.tar.gz" "dir/\ndir/dir1/\ndir/dir1/file1\ndir/dir1/file2\ndir/dir1/file3\ndir/dir1/file4\n" "" ""
 rm -rf dir/
 
 #Creating nested directory 
@@ -42,20 +42,20 @@ mkdir -p dir/dir1 dir/dir2 dir/dir3 dir/dir4
 echo "This is testdata" > dir/dir1/file; echo "Dont exclude me" >  dir/dir3/file1 ; 
 echo "Exclude me" >  dir/dir3/file2 ; echo "YO" > dir/dir4/file1 ; echo "Hello" >dir/dir4/file2; echo "Dont" > dir/dir2/file1
 echo -ne "dir/dir4\ndir/dir3/file2\n" > exclude_file
-testing "tar create with files excluded : -X" "tar -czf dir.tgz dir/ -X exclude_file ; rm -rf dir ; tar -tf dir.tgz | sort; rm -rf dir.tgz " "dir/\ndir/dir1/\ndir/dir1/file\ndir/dir2/\ndir/dir2/file1\ndir/dir3/\ndir/dir3/file1\n" "" ""
+testing "create with files excluded : -X" "tar -czf dir.tgz dir/ -X exclude_file ; rm -rf dir ; tar -tf dir.tgz | sort; rm -rf dir.tgz " "dir/\ndir/dir1/\ndir/dir1/file\ndir/dir2/\ndir/dir2/file1\ndir/dir3/\ndir/dir3/file1\n" "" ""
 rm -rf exclude_file
 
 #Creating nested directory
 mkdir dir/dir1 -p ;  mkdir dir/dir2 ;  mkdir dir/dir3 ; mkdir dir/dir4
 echo "This is testdata" > dir/dir1/file
 echo "Dont exclude me" >  dir/dir3/file1 ; echo "Exclude me" >  dir/dir3/file2 ; echo "YO" > dir/dir4/file1 ; echo "Hello" >dir/dir4/file2; echo "Dont" > dir/dir2/file1
-testing "tar with pattern --exclude" "tar --exclude=dir/dir3/* -czf dir.tgz dir/ ; rm -rf dir ; tar -tf dir.tgz | sort; rm -rf dir.tgz " "dir/\ndir/dir1/\ndir/dir1/file\ndir/dir2/\ndir/dir2/file1\ndir/dir3/\ndir/dir4/\ndir/dir4/file1\ndir/dir4/file2\n" "" ""
+testing "with pattern --exclude" "tar --exclude=dir/dir3/* -czf dir.tgz dir/ ; rm -rf dir ; tar -tf dir.tgz | sort; rm -rf dir.tgz " "dir/\ndir/dir1/\ndir/dir1/file\ndir/dir2/\ndir/dir2/file1\ndir/dir3/\ndir/dir4/\ndir/dir4/file1\ndir/dir4/file2\n" "" ""
 
 #Creating directory to be compressed
 mkdir dir/dir1 -p
 echo "This is testdata" > dir/dir1/file
 mkdir temp
-testing "tar extract with -C Dir" "tar -czf dir.tgz dir/ ;rm -rf dir ;tar -xf dir.tgz -C temp/ ; [ -e temp/dir ] && echo 'yes' ; rm -rf dir dir.tgz" "yes\n" "" ""
+testing "extract with -C Dir" "tar -czf dir.tgz dir/ ;rm -rf dir ;tar -xf dir.tgz -C temp/ ; [ -e temp/dir ] && echo 'yes' ; rm -rf dir dir.tgz" "yes\n" "" ""
 rm -rf temp
 
 #Creating nested directory 
@@ -63,28 +63,28 @@ mkdir dir/dir1 -p ;  mkdir dir/dir2 ;  mkdir dir/dir3 ; mkdir dir/dir4 ; mkdir t
 echo "dir1/file" > dir/dir1/file ; echo "temp_dir/file" > temp_dir/file 
 echo "dir3/file1" >  dir/dir3/file1 ; echo "dir3/file2" >  dir/dir3/file2 ; echo "YO" > dir/dir4/file1 ; echo "Hello" >dir/dir4/file2; echo "dir2/file1" > dir/dir2/file1
 echo  "temp_dir/file" > exclude_file
-testing "tar create with extra files/directory included : -T" "tar -czf dir.tgz dir/ -T exclude_file ; rm -rf dir ; tar -tf dir.tgz | sort; rm -rf dir.tgz " "dir/\ndir/dir1/\ndir/dir1/file\ndir/dir2/\ndir/dir2/file1\ndir/dir3/\ndir/dir3/file1\ndir/dir3/file2\ndir/dir4/\ndir/dir4/file1\ndir/dir4/file2\ntemp_dir/file\n" "" ""
+testing "create with extra files/directory included : -T" "tar -czf dir.tgz dir/ -T exclude_file ; rm -rf dir ; tar -tf dir.tgz | sort; rm -rf dir.tgz " "dir/\ndir/dir1/\ndir/dir1/file\ndir/dir2/\ndir/dir2/file1\ndir/dir3/\ndir/dir3/file1\ndir/dir3/file2\ndir/dir4/\ndir/dir4/file1\ndir/dir4/file2\ntemp_dir/file\n" "" ""
 rm -rf exclude_file
 rm -rf temp_dir
 
 #Creating dir
 mkdir dir/dir1 -p 
 echo "Inside dir/dir1" > dir/dir1/file ; echo "Hello Inside dir" > dir/file
-testing "tar extract to STDOUT : -O" " tar -czf dir.tgz dir/ ; rm -rf dir ; tar -xf dir.tgz -O ; [ -e 'Inside dir/dir1/\nHello Inside dir\n' ] && echo 'yes'; rm -rf dir.tgz "  "" "" ""
+testing "extract to STDOUT : -O" " tar -czf dir.tgz dir/ ; rm -rf dir ; tar -xf dir.tgz -O ; [ -e 'Inside dir/dir1/\nHello Inside dir\n' ] && echo 'yes'; rm -rf dir.tgz "  "" "" ""
 
 #Creating short filename
 f="filename_with_100_chars_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 echo "This is testdata" > $f
-testing "tar shortname filename" "tar -cf testFile.tar $f && [ -e testFile.tar ] && echo 'yes'; rm -f $f; tar -xf testFile.tar && [ -f $f ] && cat $f && strings testFile.tar | grep -o LongLink; rm -f testFile.tar; rm -f $f" "yes\nThis is testdata\n" "" ""
+testing "shortname filename" "tar -cf testFile.tar $f && [ -e testFile.tar ] && echo 'yes'; rm -f $f; tar -xf testFile.tar && [ -f $f ] && cat $f && strings testFile.tar | grep -o LongLink; rm -f testFile.tar; rm -f $f" "yes\nThis is testdata\n" "" ""
 
 #Creating long filename
 f="filename_with_101_chars_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 echo "This is testdata" > $f
-testing "tar longname filename" "tar -cf testFile.tar $f && [ -e testFile.tar ] && echo 'yes'; rm -f $f; tar -xf testFile.tar && [ -f $f ] && cat $f && strings testFile.tar | grep -o LongLink; rm -f testFile.tar; rm -f $f" "yes\nThis is testdata\nLongLink\n" "" ""
+testing "longname filename" "tar -cf testFile.tar $f && [ -e testFile.tar ] && echo 'yes'; rm -f $f; tar -xf testFile.tar && [ -f $f ] && cat $f && strings testFile.tar | grep -o LongLink; rm -f testFile.tar; rm -f $f" "yes\nThis is testdata\nLongLink\n" "" ""
 
 #Creating long pathname
 d="dirname_with_50_chars_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 f="filename_with_50_chars_xxxxxxxxxxxxxxxxxxxxxxxxxxx"
 mkdir $d
 echo "This is testdata" > $d/$f
-testing "tar longname pathname" "tar -cf testFile.tar $d/$f && [ -e testFile.tar ] && echo 'yes'; rm -rf $d; tar -xf testFile.tar && [ -f $d/$f ] && cat $d/$f && strings testFile.tar | grep -o LongLink; rm -f testFile.tar; rm -rf $d" "yes\nThis is testdata\nLongLink\n" "" ""
+testing "longname pathname" "tar -cf testFile.tar $d/$f && [ -e testFile.tar ] && echo 'yes'; rm -rf $d; tar -xf testFile.tar && [ -f $d/$f ] && cat $d/$f && strings testFile.tar | grep -o LongLink; rm -f testFile.tar; rm -rf $d" "yes\nThis is testdata\nLongLink\n" "" ""

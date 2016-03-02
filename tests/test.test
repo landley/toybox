@@ -25,17 +25,17 @@ type_test()
   printf "%s" $result
 }
 
-testing "test -b" "type_test -b" "" "" ""
-testing "test -c" "type_test -c" "L" "" ""
-testing "test -d" "type_test -d" "d" "" ""
-testing "test -f" "type_test -f" "fs" "" ""
-testing "test -h" "type_test -h" "L" "" ""
-testing "test -L" "type_test -L" "L" "" ""
-testing "test -s" "type_test -s" "ds" "" ""
-testing "test -S" "type_test -S" "" "" ""
-testing "test -p" "type_test -p" "p" "" ""
-testing "test -e" "type_test -e" "dfLsp" "" ""
-testing "test ! -e" "type_test ! -e" "n" "" ""
+testing "-b" "type_test -b" "" "" ""
+testing "-c" "type_test -c" "L" "" ""
+testing "-d" "type_test -d" "d" "" ""
+testing "-f" "type_test -f" "fs" "" ""
+testing "-h" "type_test -h" "L" "" ""
+testing "-L" "type_test -L" "L" "" ""
+testing "-s" "type_test -s" "ds" "" ""
+testing "-S" "type_test -S" "" "" ""
+testing "-p" "type_test -p" "p" "" ""
+testing "-e" "type_test -e" "dfLsp" "" ""
+testing "! -e" "type_test ! -e" "n" "" ""
 
 rm f L s p
 rmdir d
@@ -43,10 +43,10 @@ rmdir d
 # TODO: Test rwx gu t
 
 testing "test" "test "" || test a && echo yes" "yes\n" "" ""
-testing "test -n" "test -n "" || test -n a && echo yes" "yes\n" "" ""
-testing "test -z" "test -n a || test -n "" && echo yes" "yes\n" "" ""
-testing "test a = b" "test a = b || test "" = "" && echo yes" "yes\n" "" ""
-testing "test a != b" "test "" != "" || test a = b && echo yes" "yes\n" "" ""
+testing "-n" "test -n "" || test -n a && echo yes" "yes\n" "" ""
+testing "-z" "test -n a || test -n "" && echo yes" "yes\n" "" ""
+testing "a = b" "test a = b || test "" = "" && echo yes" "yes\n" "" ""
+testing "a != b" "test "" != "" || test a = b && echo yes" "yes\n" "" ""
 
 arith_test()
 {
@@ -55,12 +55,12 @@ arith_test()
   test -3 $1 -5 && echo g
 }
 
-testing "test -eq" "arith_test -eq" "e\n" "" ""
-testing "test -ne" "arith_test -ne" "l\ng\n" "" ""
-testing "test -gt" "arith_test -gt" "g\n" "" ""
-testing "test -ge" "arith_test -ge" "e\ng\n" "" ""
-testing "test -lt" "arith_test -lt" "l\n" "" ""
-testing "test -le" "arith_test -le" "l\ne\n" "" ""
+testing "-eq" "arith_test -eq" "e\n" "" ""
+testing "-ne" "arith_test -ne" "l\ng\n" "" ""
+testing "-gt" "arith_test -gt" "g\n" "" ""
+testing "-ge" "arith_test -ge" "e\ng\n" "" ""
+testing "-lt" "arith_test -lt" "l\n" "" ""
+testing "-le" "arith_test -le" "l\ne\n" "" ""
 
 # test ! = -o a
 # test ! \( = -o a \)

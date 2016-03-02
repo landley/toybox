@@ -8,48 +8,48 @@ mkdir one
 testing "rmdir" "rmdir one && [ ! -d one ] && echo yes" "yes\n" "" ""
 
 touch walrus
-testing "rmdir file" \
+testing "file" \
 	"rmdir walrus 2> /dev/null || [ -f walrus ] && echo yes" "yes\n" "" ""
 
 mkdir one two
-testing "rmdir one two" \
+testing "one two" \
 	"rmdir one two 2> /dev/null && [ ! -d one ] && [ ! -d two ] && echo yes" \
 	"yes\n" "" ""
 
 mkdir one two three
-testing "rmdir one missing two file three" \
+testing "one missing two file three" \
 	"rmdir one missing two walrus three 2> /dev/null || [ ! -d three ] && echo yes" \
 	"yes\n" "" ""
 rm walrus
 
 mkdir one
 chmod 000 one
-testing "rmdir mode 000" "rmdir one && [ ! -d one ] && echo yes" "yes\n" "" ""
+testing "mode 000" "rmdir one && [ ! -d one ] && echo yes" "yes\n" "" ""
 
 mkdir temp
 touch temp/thing
-testing "rmdir non-empty" \
+testing "non-empty" \
 	"rmdir temp 2>/dev/null || [ -d temp ] && echo yes" "yes\n" "" ""
-testing "rmdir -p dir/file" \
+testing "-p dir/file" \
 	"rmdir -p temp/thing 2>/dev/null || [ -f temp/thing ] && echo yes" \
 	"yes\n" "" ""
 
 mkdir -p temp/one/two/three
-testing "rmdir -p part of path" \
+testing "-p part of path" \
 	"rmdir -p temp/one/two/three 2>/dev/null || [ -d temp ] && [ ! -e temp/one ] && echo yes" \
 	"yes\n" "" ""
 rm -rf temp
 
 
 mkdir -p one/two/three
-testing "rmdir -p one/two/three" \
+testing "-p one/two/three" \
 	"rmdir -p one/two/three && [ ! -e one ] && echo yes" "yes\n" "" ""
 
 mkdir -p one/two/three
-testing "rmdir -p one/two/three/" \
+testing "-p one/two/three/" \
 	"rmdir -p one/two/three/ && [ ! -e one ] && echo yes" "yes\n" "" ""
 
 #mkdir -p one/two/three
 #chmod 000 one/two/three one/two one
-#testing "rmdir -p one/two/three" \
+#testing "-p one/two/three" \
 #	"rmdir -p one/two/three && [ ! -e one ] && echo yes" "yes\n" "" ""

@@ -7,11 +7,11 @@
 
 # some basic tests
 
-testing "expand default" "expand input" "        foo     bar\n" "\tfoo\tbar\n" ""
-testing "expand default stdin" "expand"  "        foo     bar\n" "" "\tfoo\tbar\n"
-testing "expand single" "expand -t 2 input" "  foo bar\n" "\tfoo\tbar\n" ""
-testing "expand tablist" "expand -t 5,10,12 input" "     foo  bar foo\n" "\tfoo\tbar\tfoo\n" ""
-testing "expand backspace" "expand input" "foobarfoo\b\b bar\n" "foobarfoo\b\b\tbar\n" ""
+testing "default" "expand input" "        foo     bar\n" "\tfoo\tbar\n" ""
+testing "default stdin" "expand"  "        foo     bar\n" "" "\tfoo\tbar\n"
+testing "single" "expand -t 2 input" "  foo bar\n" "\tfoo\tbar\n" ""
+testing "tablist" "expand -t 5,10,12 input" "     foo  bar foo\n" "\tfoo\tbar\tfoo\n" ""
+testing "backspace" "expand input" "foobarfoo\b\b bar\n" "foobarfoo\b\b\tbar\n" ""
 
 # advanced tests
 
@@ -22,12 +22,12 @@ for i in $(seq $POW); do
     BIGTAB=$BIGTAB$BIGTAB
     TABSTOP=$[$TABSTOP*2]
 done
-testing "expand long tab single" "expand -t $TABSTOP input" "${BIGTAB}foo\n" "\tfoo\n" ""
-testing "expand long tab tablist" "expand -t $TABSTOP,$[TABSTOP+5] input" \
+testing "long tab single" "expand -t $TABSTOP input" "${BIGTAB}foo\n" "\tfoo\n" ""
+testing "long tab tablist" "expand -t $TABSTOP,$[TABSTOP+5] input" \
         "${BIGTAB}foo  bar\n" "\tfoo\tbar\n" ""
 
-testing "expand multiline single" "expand -t 4 input" "foo \n    bar\n" "foo\t\n\tbar\n" ""
-testing "expand multiline tablist" "expand -t 4,8 input" \
+testing "multiline single" "expand -t 4 input" "foo \n    bar\n" "foo\t\n\tbar\n" ""
+testing "multiline tablist" "expand -t 4,8 input" \
         "foo     bar\n    bar foo\n" "foo\t\tbar\n\tbar\tfoo\n" ""
 POW=15
 BIGLINE="foo "
@@ -40,5 +40,5 @@ else
     EXPANDLINE="${BIGLINE}    foo\n"
 fi
 BIGLINE="${BIGLINE}\tfoo\n"
-testing "expand long line single" "expand input" \
+testing "long line single" "expand input" \
         "${EXPANDLINE}" "$BIGLINE" ""

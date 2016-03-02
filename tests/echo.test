@@ -12,26 +12,26 @@ CMD="$(which echo)"
 #testing "name" "command" "result" "infile" "stdin"
 
 testing "echo" "$CMD && echo yes" "\nyes\n" "" ""
-testing "echo 1 2 3" "$CMD one  two	three" "one two three\n" "" ""
-testing "echo with spaces" "$CMD 'one  two	three'" \
+testing "1 2 3" "$CMD one  two	three" "one two three\n" "" ""
+testing "with spaces" "$CMD 'one  two	three'" \
 	"one  two	three\n" "" ""
-testing "echo -n" "$CMD -n" "" "" ""
-testing "echo -n one" "$CMD -n one" "one" "" ""
-testing "echo one -n" "$CMD one -n" "one -n\n" "" ""
-testing "echo -en" "$CMD -en 'one\ntwo'" "one\ntwo" "" ""
-testing "echo --hello" "$CMD --hello" "--hello\n" "" ""
-testing "echo -e all" "$CMD -e '\a\b\c\f\n\r\t\v\\\0123'" \
+testing "-n" "$CMD -n" "" "" ""
+testing "-n one" "$CMD -n one" "one" "" ""
+testing "one -n" "$CMD one -n" "one -n\n" "" ""
+testing "-en" "$CMD -en 'one\ntwo'" "one\ntwo" "" ""
+testing "--hello" "$CMD --hello" "--hello\n" "" ""
+testing "-e all" "$CMD -e '\a\b\c\f\n\r\t\v\\\0123'" \
 	"\a\b\c\f\n\r\t\v\\\0123\n" "" ""
-testing "echo -nex hello" "$CMD -nex hello" "-nex hello\n" "" ""
+testing "-nex hello" "$CMD -nex hello" "-nex hello\n" "" ""
 
 # Octal formatting tests
-testing "echo -e octal values" \
+testing "-e octal values" \
 	"$CMD -ne '\01234 \0060 \060 \0130\0131\0132 \077\012'" \
 	"S4 0 0 XYZ ?\n" "" ""
 
 # Hexadecimal value tests
-testing "echo -e hexadecimal values" \
+testing "-e hexadecimal values" \
 	"$CMD -ne '\x534 \x30 \x58\x59\x5a \x3F\x0A'"\
 	"S4 0 XYZ ?\n" "" ""
 
-testing "echo -e \p" "$CMD -e '\\p'" "\\p\n" "" ""
+testing "-e \p" "$CMD -e '\\p'" "\\p\n" "" ""

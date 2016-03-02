@@ -12,13 +12,13 @@ lines
 EOF
 
 testing "wc" "wc >/dev/null && echo yes" "yes\n" "" ""
-testing "wc empty file" "wc" "0 0 0\n" "" ""
-testing "wc standard input" "wc" "1 3 5\n" "" "a b\nc"
-testing "wc -c" "wc -c file1" "26 file1\n" "" ""
-testing "wc -l" "wc -l file1" "4 file1\n" "" ""
-testing "wc -w" "wc -w file1" "5 file1\n" "" ""
-testing "wc format" "wc file1" "4 5 26 file1\n" "" ""
-testing "wc multiple files" "wc input - file1" \
+testing "empty file" "wc" "0 0 0\n" "" ""
+testing "standard input" "wc" "1 3 5\n" "" "a b\nc"
+testing "-c" "wc -c file1" "26 file1\n" "" ""
+testing "-l" "wc -l file1" "4 file1\n" "" ""
+testing "-w" "wc -w file1" "5 file1\n" "" ""
+testing "format" "wc file1" "4 5 26 file1\n" "" ""
+testing "multiple files" "wc input - file1" \
         "1 2 3 input\n0 2 3 -\n4 5 26 file1\n5 9 32 total\n" "a\nb" "a b"
 
 optional TOYBOX_I18N
@@ -32,14 +32,14 @@ for i in $(seq 1 8192)
 do
   printf "ü" >> file1
 done
-testing "wc -m" "wc -m file1" "8193 file1\n" "" ""
+testing "-m" "wc -m file1" "8193 file1\n" "" ""
 printf " " > file1
 for i in $(seq 1 8192)
 do
   printf "ü" >> file1
 done
-testing "wc -m (invalid chars)" "wc -m file1" "8193 file1\n" "" ""
-testing "wc -mlw" "wc -mlw input" "1 2 11 input\n" "hello, 世界!\n" ""
+testing "-m (invalid chars)" "wc -m file1" "8193 file1\n" "" ""
+testing "-mlw" "wc -mlw input" "1 2 11 input\n" "hello, 世界!\n" ""
 
 else
 printf "skipping tests for wc -m"

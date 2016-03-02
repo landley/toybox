@@ -29,13 +29,13 @@ OUT="&& echo \$(ls -l testdir/file | awk '{print \$3,\$4}')"
 #testing "name" "command" "result" "infile" "stdin"
 
 # Basic smoketest
-testing "chown initial" "chown root:root $F $OUT" "root root\n" "" ""
-testing "chown usr:grp" "chown $USR:$GRP $F $OUT" "$USR $GRP\n" "" ""
-testing "chown root"    "chown root $F $OUT" "root $GRP\n" "" ""
+testing "initial" "chown root:root $F $OUT" "root root\n" "" ""
+testing "usr:grp" "chown $USR:$GRP $F $OUT" "$USR $GRP\n" "" ""
+testing "root"    "chown root $F $OUT" "root $GRP\n" "" ""
 # TODO: can we test "owner:"?
-testing "chown :grp"    "chown root:root $F && chown :$GRP $F $OUT" \
+testing ":grp"    "chown root:root $F && chown :$GRP $F $OUT" \
     "root $GRP\n" "" ""
-testing "chown :"       "chown $USR:$GRP $F && chown : $F $OUT" \
+testing ":"       "chown $USR:$GRP $F && chown : $F $OUT" \
     "$USR $GRP\n" "" ""
 
 rm -rf testdir

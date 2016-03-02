@@ -8,66 +8,66 @@ testing "mkdir" "mkdir one && [ -d one ] && echo yes" "yes\n" "" ""
 rmdir one
 
 touch existing
-testing "mkdir existing" \
+testing "existing" \
 	"mkdir existing 2> /dev/null || [ -f existing ] && echo yes" "yes\n" "" ""
 rm existing
 
-testing "mkdir one two" \
+testing "one two" \
 	"mkdir one two && [ -d one ] && [ -d two ] && echo yes" "yes\n" "" ""
 rmdir one two
 
-testing "mkdir missing/one" \
+testing "missing/one" \
 	"mkdir missing/one 2> /dev/null || [ ! -d missing ] && echo yes" "yes\n" "" ""
 
-testing "mkdir -p" \
+testing "-p" \
 	"mkdir -p one/two/three && [ -d one/two/three ] && echo yes" "yes\n" "" ""
 rm -rf one
 
 mkdir existing
-testing "mkdir -p existing" "mkdir -p existing && echo yes" "yes\n" "" ""
+testing "-p existing" "mkdir -p existing && echo yes" "yes\n" "" ""
 rmdir existing
 
 umask 123
-testing "mkdir (default permissions)" \
+testing "(default permissions)" \
 	"mkdir one && stat -c %a one" "654\n" "" ""
 rmdir one
 
-testing "mkdir -m 124" \
+testing "-m 124" \
 	"mkdir -m 124 one && stat -c %a one" "124\n" "" ""
 rmdir one
 
 umask 000
-testing "mkdir -p -m 653" \
+testing "-p -m 653" \
 	"mkdir -p -m 653 one/two && stat -c %a one && stat -c %a one/two" \
 	"777\n653\n" "" ""
 rm -rf one
 
-testing "mkdir -p one/two/ (trailing slash)" \
+testing "-p one/two/ (trailing slash)" \
 	"mkdir -p one/two/ &&  [ -d one/two ] && echo yes" "yes\n" "" ""
 rm -rf one
 
 umask 022
-testing "mkdir -p -m 777 (022 umask)" \
+testing "-p -m 777 (022 umask)" \
 	"mkdir -p -m 777 one/two && stat -c %a one && stat -c %a one/two" \
 	"755\n777\n" "" ""
 rm -rf one
 
 umask 377
-testing "mkdir -p -m 777 (377 umask)" \
+testing "-p -m 777 (377 umask)" \
 	"mkdir -p -m 777 one/two && stat -c %a one && stat -c %a one/two" \
 	"700\n777\n" "" ""
 umask 002
 rm -rf one
 
-testing "mkdir -vp" "mkdir -vp walrus 2>&1" \
+testing "-vp" "mkdir -vp walrus 2>&1" \
 	"mkdir: created directory 'walrus'\n" "" ""
 
-testing "mkdir -vp exists" "mkdir -vp walrus 2>&1" \
+testing "-vp exists" "mkdir -vp walrus 2>&1" \
 	"" "" ""
 rm -rf walrus
 
 touch two
-testing "mkdir continue after fail" \
+testing "continue after fail" \
 	"mkdir -m 777 one two three 2>/dev/null || stat -c %a three" \
 	"777\n" "" ""
 rm -rf one two three

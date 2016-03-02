@@ -4,7 +4,7 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-testing "dirname /-only" "dirname ///////" "/\n" "" ""
-testing "dirname trailing /" "dirname a//////" ".\n" "" ""
-testing "dirname combined" "dirname /////a///b///c///d/////" "/////a///b///c\n" "" ""
-testing "dirname /a/" "dirname /////a///" "/\n" "" ""
+testing "/-only" "dirname ///////" "/\n" "" ""
+testing "trailing /" "dirname a//////" ".\n" "" ""
+testing "combined" "dirname /////a///b///c///d/////" "/////a///b///c\n" "" ""
+testing "/a/" "dirname /////a///" "/\n" "" ""

@@ -12,24 +12,24 @@ _p=$PWD
 _b="-------------"
 _A="-------A-----"
 
-testing "lsattr file" "lsattr file" "$_A file\n" "" ""
-testing "lsattr file_path" "lsattr $_p/file" "$_A $_p/file\n" "" ""
-testing "lsattr -R file" "lsattr -R file" "$_A file\n" "" ""
-testing "lsattr -R file_path" "lsattr -R $_p/file" "$_A $_p/file\n" "" ""
-testing "lsattr -a file" "lsattr -a file" "$_A file\n" "" ""
-testing "lsattr -a file_path" "lsattr -a $_p/file" "$_A $_p/file\n" "" ""
-testing "lsattr -d ." "lsattr -d ." "$_b .\n" "" ""
-testing "lsattr -d dir_path" "lsattr -d $_p" "$_b $_p\n" "" ""
-testing "lsattr -d file" "lsattr -d file" "$_A file\n" "" ""
-testing "lsattr -d file_path" "lsattr -d $_p/file" "$_A $_p/file\n" "" ""
+testing "file" "lsattr file" "$_A file\n" "" ""
+testing "file_path" "lsattr $_p/file" "$_A $_p/file\n" "" ""
+testing "-R file" "lsattr -R file" "$_A file\n" "" ""
+testing "-R file_path" "lsattr -R $_p/file" "$_A $_p/file\n" "" ""
+testing "-a file" "lsattr -a file" "$_A file\n" "" ""
+testing "-a file_path" "lsattr -a $_p/file" "$_A $_p/file\n" "" ""
+testing "-d ." "lsattr -d ." "$_b .\n" "" ""
+testing "-d dir_path" "lsattr -d $_p" "$_b $_p\n" "" ""
+testing "-d file" "lsattr -d file" "$_A file\n" "" ""
+testing "-d file_path" "lsattr -d $_p/file" "$_A $_p/file\n" "" ""
 sp_44="                                            "
-testing "lsattr -l file" "lsattr -l file" "file  $sp_44 No_Atime\n" "" ""
+testing "-l file" "lsattr -l file" "file  $sp_44 No_Atime\n" "" ""
 _v="12345"
-testing "lsattr -v file" "chattr -v $_v * && lsattr -v file" \
+testing "-v file" "chattr -v $_v * && lsattr -v file" \
   "$_v $_A file\n" "" ""
-testing "lsattr -v file_path" "chattr -v $_v * && lsattr -v $_p/file" \
+testing "-v file_path" "chattr -v $_v * && lsattr -v $_p/file" \
   "$_v $_A $_p/file\n" "" ""
-testing "lsattr -Radlv file1 file2" "chattr -v $_v * &&
+testing "-Radlv file1 file2" "chattr -v $_v * &&
    lsattr -Radlv file input" \
   "$_v file  $sp_44 No_Atime\n$_v input $sp_44 ---\n" "" ""
 

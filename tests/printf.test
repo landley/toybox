@@ -10,52 +10,52 @@
 # Disable shell builtin
 PRINTF="$(which printf)"
 
-testing "printf text" "$PRINTF TEXT" "TEXT" "" ""
-testing "printf escapes" "$PRINTF 'one\ntwo\n\v\t\r\f\e\b\athree'" \
+testing "text" "$PRINTF TEXT" "TEXT" "" ""
+testing "escapes" "$PRINTF 'one\ntwo\n\v\t\r\f\e\b\athree'" \
   "one\ntwo\n\v\t\r\f\e\b\athree" "" ""
-testing "printf %b escapes" "$PRINTF %b 'one\ntwo\n\v\t\r\f\e\b\athree'" \
+testing "%b escapes" "$PRINTF %b 'one\ntwo\n\v\t\r\f\e\b\athree'" \
   "one\ntwo\n\v\t\r\f\e\b\athree" "" ""
-testing "printf null" "$PRINTF 'x\0y' | od -An -tx1" ' 78 00 79\n' "" ""
-testing "printf trailing slash" "$PRINTF 'abc\'" 'abc\' "" ""
-testing "printf octal" "$PRINTF ' \1\002\429\045x'" ' \001\002"9%x' "" ""
-testing "printf not octal" "$PRINTF '\9'" '\9' "" ""
-testing "printf hex" "$PRINTF 'A\x1b\x2B\x3Q\xa' | od -An -tx1" \
+testing "null" "$PRINTF 'x\0y' | od -An -tx1" ' 78 00 79\n' "" ""
+testing "trailing slash" "$PRINTF 'abc\'" 'abc\' "" ""
+testing "octal" "$PRINTF ' \1\002\429\045x'" ' \001\002"9%x' "" ""
+testing "not octal" "$PRINTF '\9'" '\9' "" ""
+testing "hex" "$PRINTF 'A\x1b\x2B\x3Q\xa' | od -An -tx1" \
   ' 41 1b 2b 03 51 0a\n' "" ""
-testing "printf %x" "$PRINTF '%x\n' 0x2a" "2a\n" "" ""
+testing "%x" "$PRINTF '%x\n' 0x2a" "2a\n" "" ""
 
-testing "printf %d 42" "$PRINTF %d 42" "42" "" ""
-testing "printf %d 0x2a" "$PRINTF %d 0x2a" "42" "" ""
-testing "printf %d 052" "$PRINTF %d 052" "42" "" ""
+testing "%d 42" "$PRINTF %d 42" "42" "" ""
+testing "%d 0x2a" "$PRINTF %d 0x2a" "42" "" ""
+testing "%d 052" "$PRINTF %d 052" "42" "" ""
 
-testing "printf %s width precision" \
+testing "%s width precision" \
   "$PRINTF '%3s,%.3s,%10s,%10.3s' abcde fghij klmno pqrst" \
   "abcde,fgh,     klmno,       pqr" "" ""
 
 # posix: "The format operand shall be reused as often as necessary to satisfy
 # the argument operands."
 
-testing "printf extra args" "$PRINTF 'abc%s!%ddef\n' X 42 ARG 36" \
+testing "extra args" "$PRINTF 'abc%s!%ddef\n' X 42 ARG 36" \
 	"abcX!42def\nabcARG!36def\n" "" ""
 
-testing "printf '%3c'" "$PRINTF '%3c' x" "  x" "" ""
-testing "printf '%-3c'" "$PRINTF '%-3c' x" "x  " "" ""
-testing "printf '%+d'" "$PRINTF '%+d' 5" "+5" "" ""
+testing "'%3c'" "$PRINTF '%3c' x" "  x" "" ""
+testing "'%-3c'" "$PRINTF '%-3c' x" "x  " "" ""
+testing "'%+d'" "$PRINTF '%+d' 5" "+5" "" ""
 
 
-testing "printf '%5d%4d' 1 21 321 4321 54321" \
+testing "'%5d%4d' 1 21 321 4321 54321" \
   "$PRINTF '%5d%4d' 1 21 321 4321 54321" "    1  21  321432154321   0" "" ""
-testing "printf '%c %c' 78 79" "$PRINTF '%c %c' 78 79" "7 7" "" ""
-testing "printf '%d %d' 78 79" "$PRINTF '%d %d' 78 79" "78 79" "" ""
-testing "printf '%f %f' 78 79" "$PRINTF '%f %f' 78 79" \
+testing "'%c %c' 78 79" "$PRINTF '%c %c' 78 79" "7 7" "" ""
+testing "'%d %d' 78 79" "$PRINTF '%d %d' 78 79" "78 79" "" ""
+testing "'%f %f' 78 79" "$PRINTF '%f %f' 78 79" \
   "78.000000 79.000000" "" ""
-testing "printf 'f f' 78 79" "$PRINTF 'f f' 78 79" "f f" "" ""
-testing "printf '%i %i' 78 79" "$PRINTF '%i %i' 78 79" "78 79" "" ""
-testing "printf '%o %o' 78 79" "$PRINTF '%o %o' 78 79" "116 117" "" ""
-testing "printf '%u %u' 78 79" "$PRINTF '%u %u' 78 79" "78 79" "" ""
-testing "printf '%u %u' -1 -2" "$PRINTF '%u %u' -1 -2" \
+testing "'f f' 78 79" "$PRINTF 'f f' 78 79" "f f" "" ""
+testing "'%i %i' 78 79" "$PRINTF '%i %i' 78 79" "78 79" "" ""
+testing "'%o %o' 78 79" "$PRINTF '%o %o' 78 79" "116 117" "" ""
+testing "'%u %u' 78 79" "$PRINTF '%u %u' 78 79" "78 79" "" ""
+testing "'%u %u' -1 -2" "$PRINTF '%u %u' -1 -2" \
   "18446744073709551615 18446744073709551614" "" ""
-testing "printf '%x %X' 78 79" "$PRINTF '%x %X' 78 79" "4e 4F" "" ""
-testing "printf '%g %G' 78 79" "$PRINTF '%g %G' 78 79" "78 79" "" ""
-testing "printf '%s %s' 78 79" "$PRINTF '%s %s' 78 79" "78 79" "" ""
+testing "'%x %X' 78 79" "$PRINTF '%x %X' 78 79" "4e 4F" "" ""
+testing "'%g %G' 78 79" "$PRINTF '%g %G' 78 79" "78 79" "" ""
+testing "'%s %s' 78 79" "$PRINTF '%s %s' 78 79" "78 79" "" ""
 
-testing "printf %.s acts like %.0s" "$PRINTF %.s_ 1 2 3 4 5" "_____" "" ""
+testing "%.s acts like %.0s" "$PRINTF %.s_ 1 2 3 4 5" "_____" "" ""
