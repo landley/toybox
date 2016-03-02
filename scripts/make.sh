@@ -254,6 +254,7 @@ fi
 PENDING=
 LFILES=
 DONE=0
+COUNT=0
 for i in $FILES
 do
   # build each generated/obj/*.o file in parallel
@@ -265,16 +266,18 @@ do
   [ "$OUT" -nt "$i" ] && continue
   do_loudly $BUILD -c $i -o $OUT &
   PENDING="$PENDING $!"
+  COUNT=$(($COUNT+1))
 
   # ratelimit to $CPUS many parallel jobs, detecting errors
 
-  while true
+  for j in $PENDING
   do
-    [ $(echo "$PENDING" | wc -w) -lt "$CPUS" ] && break;
+    [ "$COUNT" -lt "$CPUS" ] && break;
 
-    wait $(echo "$PENDING" | awk '{print $1}')
+    wait $j
     DONE=$(($DONE+$?))
-    PENDING="$(echo "$PENDING" | sed 's/^ *[0-9]*//')"
+    COUNT=$(($COUNT-1))
+    PENDING="${PENDING## $j}"
   done
   [ $DONE -ne 0 ] && break
 done
