@@ -116,6 +116,9 @@ pid_t getsid(pid_t pid);
 #ifndef MS_SHARED
 #define MS_SHARED     (1<<20)
 #endif
+#ifndef MS_RELATIME
+#define MS_RELATIME (1<<21)
+#endif
 
 // When building under obsolete glibc (Ubuntu 8.04-ish), hold its hand a bit.
 #elif __GLIBC__ == 2 && __GLIBC_MINOR__ < 10
