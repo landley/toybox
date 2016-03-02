@@ -21,83 +21,83 @@ arg="&>/dev/null"
 pass=`echo -ne 'password\npassword\n'`
 
 user="toyTestUser"
-testing "adduser user_name (text)" "useradd $user $arg || 
+testing "useradd (text)" "useradd $user $arg || 
    grep '^$user:' /etc/passwd $arg && [ -d /home/$user ] &&
    echo 'yes'" "yes\n" "" "$pass"
 userdel -r $user $arg
 
 user="toy1Test2User3"
-testing "adduser user_name (alphanumeric)" "useradd $user $arg ||
+testing "useradd (alphanumeric)" "useradd $user $arg ||
    grep '^$user:' /etc/passwd $arg && [ -d /home/$user ] &&
    echo 'yes'" "yes\n" "" "$pass"
 userdel -r $user $arg
 
 user="987654321"
-testing "adduser user_name (numeric)" "useradd $user $arg ||
+testing "useradd (numeric)" "useradd $user $arg ||
    grep '^$user:' /etc/passwd $arg && [ -d /home/$user ] &&
    echo 'yes'" "yes\n" "" "$pass"
 userdel -r $user $arg
 
 user="toy.1Test-2User_3"
-testing "adduser user_name (with ./-/_)" "useradd $user $arg ||
+testing "useradd (with ./-/_)" "useradd $user $arg ||
    grep '^$user:' /etc/passwd $arg && [ -d /home/$user ] && 
    echo 'yes'" "yes\n" "" "$pass"
 userdel -r $user $arg
 
 # 70 characters long string; hereafter, we will use it as per our need.
 user="abcdefghijklmnopqrstuvwxyz123456789abcdefghijklmnopqrstuvwxyz123456789"
-testing "adduser user_name (long string)" "useradd $user $arg ||
+testing "useradd (long string)" "useradd $user $arg ||
    grep '^$user:' /etc/passwd $arg && [ -d /home/$user ] &&
    echo 'yes'" "yes\n" "" "$pass"
 userdel -r $user $arg
 
 user="toyTestUser"
-testing "adduser user_name with dir" "useradd -h $PWD/dir $user $arg ||
+testing "useradd dir" "useradd -h $PWD/dir $user $arg ||
    grep '^$user:.*dir' /etc/passwd $arg && [ -d $PWD/dir ] &&
    echo 'yes'" "yes\n" "" "$pass"
 userdel -r $user $arg
 rm -rf $PWD/dir
 
 gecos="aaa,bbb,ccc,ddd,eee"
-testing "adduser user_name with gecos" "useradd -g '$gecos' $user $arg ||
+testing "useradd gecos" "useradd -g '$gecos' $user $arg ||
    grep '^$user:.*$gecos' /etc/passwd $arg && [ -d /home/$user ] &&
    echo 'yes'" "yes\n" "" "$pass"
 userdel -r $user $arg
 
 shl="/bin/sh"
-testing "adduser user_name with shell" "useradd -s $shl $user $arg ||
+testing "useradd shell" "useradd -s $shl $user $arg ||
    grep '^$user:.*$shl$' /etc/passwd $arg && [ -d /home/$user ] &&
    echo 'yes'" "yes\n" "" "$pass"
 userdel -r $user $arg
 
 g_name="root"
 g_id=`grep $g_name':.*:.*' /etc/group | cut -d : -f 3`
-testing "adduser user_name with group" "useradd -G $g_name $user $arg ||
+testing "useradd group" "useradd -G $g_name $user $arg ||
    grep '^$user:.*:.*:$g_id:.*' /etc/passwd $arg && [ -d /home/$user ] &&
    echo 'yes'" "yes\n" "" "$pass"
 userdel -r $user $arg
 
-testing "adduser user_name (system user)" "useradd -S $user $arg ||
+testing "useradd (system user)" "useradd -S $user $arg ||
    grep '^$user:.*:.*:.*' /etc/passwd $arg && [ ! -e /home/$user ] && 
    echo 'yes'" "yes\n" "" "$pass"   
 userdel -r $user $arg
 
-testing "adduser user_name with -D" "useradd -D $user $arg ||
+testing "useradd -D" "useradd -D $user $arg ||
    grep '^$user:.*:.*:.*' /etc/passwd $arg && [ -d /home/$user ] &&
    echo 'yes'" "yes\n" "" "$pass"
 userdel -r $user $arg
 
-testing "adduser user_name with -H" "useradd -H $user $arg ||
+testing "useradd -H" "useradd -H $user $arg ||
    grep '^$user:.*:.*:.*' /etc/passwd $arg && [ ! -e /home/$user ] &&
    echo 'yes'" "yes\n" "" "$pass"
 userdel -r $user $arg
 
-testing "adduser user_name with dir and -H" "useradd -H -h $PWD/dir $user $arg ||
+testing "useradd dir and -H" "useradd -H -h $PWD/dir $user $arg ||
    grep '^$user:.*dir' /etc/passwd $arg && [ ! -e $PWD/dir ] &&
    echo 'yes'" "yes\n" "" "$pass"
 userdel -r $user $arg
 
-testing "adduser user_name with user_id" "useradd -u 49999 $user $arg ||
+testing "useradd -u" "useradd -u 49999 $user $arg ||
    grep '^$user:x:49999:.*' /etc/passwd $arg && [ -d /home/$user ] && 
    echo 'yes'" "yes\n" "" "$pass"
 userdel -r $user $arg
