@@ -90,6 +90,13 @@ EOF
     int main(int argc, char *argv[]) { return fork(); }
 EOF
   echo -e '\tdepends on !TOYBOX_MUSL_NOMMU_IS_BROKEN'
+
+  probesymbol TOYBOX_PRLIMIT << EOF
+    #include <sys/time.h>
+    #include <sys/resource.h>
+
+    int main(int argc, char *argv[]) { prlimit(0, 0, 0, 0); }
+EOF
 }
 
 genconfig()

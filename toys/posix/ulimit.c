@@ -21,6 +21,7 @@ USE_ULIMIT(NEWTOY(ulimit, ">1P#<1SHavutsrRqpnmlifedc[-SH][!apvutsrRqnmlifedc]", 
 config ULIMIT
   bool "ulimit"
   default y
+  depends on TOYBOX_PRLIMIT
   help
     usage: ulimit [-P PID] [-SHRacdefilmnpqrstuv] [LIMIT]
 
