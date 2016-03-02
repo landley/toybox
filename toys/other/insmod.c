@@ -16,7 +16,11 @@ config INSMOD
 #include "toys.h"
 
 #include <sys/syscall.h>
+#ifdef SYS_finit_module
 #define finit_module(fd, opts, flags) syscall(SYS_finit_module, fd, opts, flags)
+#else
+#define finit_module(a, b, c) (errno = ENOSYS)
+#endif
 #define init_module(mod, len, opts) syscall(SYS_init_module, mod, len, opts)
 
 void insmod_main(void)
