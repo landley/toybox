@@ -13,11 +13,11 @@ killall yes >/dev/null 2>&1
 # Starting processes to test pgrep command
 yes >/dev/null &
 proc=$!
-echo "# Process created with id: $proc"
-sleep 1
+#echo "# Process created with id: $proc"
+sleep .1
 session_id=0
 proc_parent=`cat /proc/${proc}/stat | awk '{ print $4 }'`
-echo "# Parent Process id of $proc is $proc_parent"
+#echo "# Parent Process id of $proc is $proc_parent"
 
 # Testcases for pgrep command
 testing "pgrep pattern" "pgrep yes" "$proc\n" "" ""
@@ -31,92 +31,3 @@ testing "pgrep -P" "pgrep -P $proc_parent yes" "$proc\n" "" ""
 
 #Clean-up
 killall yes >/dev/null 2>&1
-
-# Testcases for pkill command
-
-yes >/dev/null &
-sleep 1
-testing "pkill pattern" "pkill yes && sleep 1 && (pgrep yes || echo 'yes')" \
-  "yes\n" "" ""
-killall yes >/dev/null 2>&1
-
-yes >/dev/null &
-yes print1 >/dev/null &
-yes print2 >/dev/null &
-sleep 1
-testing "pkill pattern (multiple)" "pkill yes && sleep 1 &&
-   (pgrep yes || echo 'yes')" "yes\n" "" ""
-killall yes >/dev/null 2>&1
-
-yes >/dev/null &
-sleep 1
-testing "pkill -f pattern (one)" "pkill -f yes && sleep 1 &&
-   (pgrep yes || echo 'yes')" "yes\n" "" ""
-killall yes >/dev/null 2>&1
-
-yes print1 >/dev/null &
-sleep 1
-testing "pkill -f pattern args" "pkill -f \"yes print1\" && sleep 1 &&
-   (pgrep yes || echo 'yes')" "yes\n" "" ""
-killall yes >/dev/null 2>&1
-
-yes >/dev/null &
-yes print1 >/dev/null &
-yes print2 >/dev/null &
-sleep 1
-testing "pkill -f pattern (multiple)" "pkill -f yes && sleep 1 &&
-   (pgrep yes || echo 'yes')" "yes\n" "" ""
-killall yes >/dev/null 2>&1
-
-yes >/dev/null &
-sleep 1
-testing "pkill -s 0 -f pattern (regexp)" "pkill -s 0 -f ye* && sleep 1 &&
-   (pgrep yes || echo 'yes')" "yes\n" "" ""
-killall yes >/dev/null 2>&1
-
-yes >/dev/null &
-proc1=$!
-yes >/dev/null &
-proc2=$!
-sleep 1
-testing "pkill -n pattern" "pkill -n yes && sleep 1 && pgrep yes" \
-  "$proc1\n" "" ""
-killall yes >/dev/null 2>&1
-
-yes >/dev/null &
-proc1=$!
-yes >/dev/null &
-proc2=$!
-sleep 1
-testing "pkill -o pattern" "pkill -o yes && sleep 1 && pgrep yes" \
-  "$proc2\n" "" ""
-killall yes >/dev/null 2>&1
-
-yes >/dev/null &
-sleep 1
-testing "pkill -s (blank) pattern" "pkill -s '' yes && sleep 1 &&
-   (pgrep yes || echo 'yes')" "yes\n" "" ""
-killall yes >/dev/null 2>&1
-
-yes >/dev/null &
-sleep 1
-testing "pkill -s 0 pattern" "pkill -s 0 yes && sleep 1 &&
-   (pgrep yes || echo 'yes')" "yes\n" "" ""
-killall yes >/dev/null 2>&1
-
-yes >/dev/null &
-proc=$!
-proc_p=`cat /proc/${proc}/stat | awk '{ print $4 }'`
-sleep 1
-testing "pkill -P parent_prodId pattern" "pkill -P $proc_p yes && sleep 1 &&
-   (pgrep yes || echo 'yes')" "yes\n" "" ""
-killall yes >/dev/null 2>&1
-
-yes >/dev/null &
-proc=$!
-proc_parent=`cat /proc/${proc}/stat | awk '{ print $4 }'`
-sleep 1
-testing "pkill -9 pattern" "pkill -9 yes && sleep 1 &&
-   (pgrep yes || echo 'yes')" "yes\n" "" ""
-killall yes >/dev/null 2>&1
-
