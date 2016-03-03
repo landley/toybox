@@ -31,6 +31,7 @@ config IP
 #include <linux/rtnetlink.h>
 #include <linux/if_ether.h>
 #include <linux/if_addr.h>
+#include <linux/sockios.h>
 #include <net/if_arp.h>
 #include <ifaddrs.h>
 #include <fnmatch.h>
