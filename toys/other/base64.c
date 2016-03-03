@@ -24,26 +24,39 @@ config BASE64
 
 GLOBALS(
   long columns;
+
+  unsigned total;
 )
+
+static void wraputchar(int c, int *x)
+{
+  putchar(c);
+  TT.total++;
+  if (++*x == TT.columns) {
+    *x = 0;
+    xputc('\n');
+  };
+}
 
 static void do_base64(int fd, char *name)
 {
   int out = 0, bits = 0, x = 0, i, len;
   char *buf = toybuf+128;
 
+  TT.total = 0;
+
   for (;;) {
+    // If no more data, flush buffer
     if (!(len = xread(fd, buf, sizeof(toybuf)-128))) {
       if (!(toys.optflags & FLAG_d)) {
-        if (bits) {
-          putchar(toybuf[out<<(6-bits)]);
-          x++;
-        }
-        while (x++&3)  putchar('=');
-        if (x != 1) xputc('\n');
+        if (bits) wraputchar(toybuf[out<<(6-bits)], &x);
+        while (TT.total&3) wraputchar('=', &x);
+        if (x) xputc('\n');
       }
 
       return;
     }
+
     for (i=0; i<len; i++) {
       if (toys.optflags & FLAG_d) {
         if (buf[i] == '=') return;
@@ -66,12 +79,8 @@ static void do_base64(int fd, char *name)
         out = (out<<8) + buf[i];
         bits += 8;
         while (bits >= 6) {
-          putchar(toybuf[out >> (bits -= 6)]);
+          wraputchar(toybuf[out >> (bits -= 6)], &x);
           out &= (1<<bits)-1;
-          if (TT.columns == ++x) {
-            xputc('\n');
-            x = 0;
-          }
         }
       }
     }
