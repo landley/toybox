@@ -50,17 +50,6 @@ struct file_info {
   ino_t st_ino;
 };
 
-static void print_header()
-{
-  // TODO: llist_traverse to measure the columns first.
-  char* names[] = {
-    "COMMAND", "PID", "USER", "FD", "TYPE", "DEVICE", "SIZE/OFF", "NODE", "NAME"
-  };
-  printf("%-9s %5s %10.10s %4s   %7s %18s %9s %10s %s\n", names[0], names[1],
-         names[2], names[3], names[4], names[5], names[6], names[7], names[8]);
-  TT.shown_header = 1;
-}
-
 static void print_info(void *data)
 {
   struct file_info *fi = data;
@@ -80,7 +69,13 @@ static void print_info(void *data)
     if (fi->pi.pid != TT.last_shown_pid)
       printf("%d\n", TT.last_shown_pid = fi->pi.pid);
   } else {
-    if (!TT.shown_header) print_header();
+    if (!TT.shown_header) {
+      // TODO: llist_traverse to measure the columns first.
+      printf("%-9s %5s %10.10s %4s   %7s %18s %9s %10s %s\n", "COMMAND", "PID",
+        "USER", "FD", "TYPE", "DEVICE", "SIZE/OFF", "NODE", "NAME");
+      TT.shown_header = 1;
+    }
+
     printf("%-9s %5d %10.10s %4s%c%c %7s %18s %9s %10s %s\n",
            fi->pi.cmd, fi->pi.pid, fi->pi.user,
            fi->fd, fi->rw, fi->locks, fi->type, fi->device, fi->size_off,
@@ -414,7 +409,7 @@ static void lsof_pid(int pid)
   visit_fds(&pi);
 }
 
-static int scan_slash_proc(struct dirtree *node)
+static int scan_proc(struct dirtree *node)
 {
   int pid;
 
@@ -433,7 +428,7 @@ void lsof_main(void)
   TT.sought_files = xmalloc(toys.optc*sizeof(struct stat));
   for (i = 0; i<toys.optc; ++i) xstat(toys.optargs[i], TT.sought_files+i);
 
-  if (!TT.p) dirtree_read("/proc", scan_slash_proc);
+  if (!TT.p) dirtree_read("/proc", scan_proc);
   else for (pp = TT.p; pp; pp = pp->next) {
     char *start, *end, *next = pp->arg;
     int length, pid;
