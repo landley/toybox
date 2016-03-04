@@ -107,7 +107,7 @@ void ulimit_main(void)
   if (toys.optc) {
     rlim_t val;
 
-    if (tolower(**toys.optargs == 'i')) val = RLIM_INFINITY;
+    if (tolower(**toys.optargs) == 'u') val = RLIM_INFINITY;
     else val = atolx_range(*toys.optargs, 0, LONG_MAX);
 
     if (toys.optflags&FLAG_H) rr.rlim_max = val;
