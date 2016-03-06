@@ -77,6 +77,9 @@ testing "c {range}" "sed -e '2,4{c blah' -e '}'" \
         "" "one\ntwo\nthree\nfour\nfive\nsix"
 testing "c multiple continuation" \
 	"sed -e 'c\\' -e 'two\\' -e ''" "two\n\n" "" "hello"
+# NOTE: will print 'unfinished c' to stderr and exit 1
+testing "c empty continuation" \
+	"sed -e 'c\\'" "" "" "hello"
 testing "D further processing depends on whether line is blank" \
 	"sed -e '/one/,/three/{' -e 'i meep' -e'N;2D;}'" \
 	"meep\nmeep\ntwo\nthree\n" "" "one\ntwo\nthree\n"

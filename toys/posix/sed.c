@@ -764,7 +764,7 @@ static void jewel_of_judgement(char **pline, long len)
   // Append additional line to pattern argument string?
   // We temporarily repurpose "hit" to indicate line continuations
   if (corwin && corwin->prev->hit) {
-    if (!*pline) error_exit("unfinished %c", corwin->prev->c);;
+    if (!pline || !*pline) error_exit("unfinished %c", corwin->prev->c);;
     // Remove half-finished entry from list so remalloc() doesn't confuse it
     TT.pattern = TT.pattern->prev;
     corwin = dlist_pop(&TT.pattern);
