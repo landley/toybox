@@ -1,4 +1,5 @@
 /* skeleton.c - Example program to act as template for new commands.
+ *              (Although really, half the time copying hello.c is easier.)
  *
  * Copyright 2014 Rob Landley <rob@landley.net>
  *
@@ -70,7 +71,7 @@ void skeleton_main(void)
 
   // Command line options parsing is done for you by lib/args.c called
   // from main.c using the optstring in the NEWTOY macros. Display results.
-  if (toys.optflags) printf("flags=%x\n", toys.optflags);
+  if (toys.optflags) printf("flags=%llx\n", toys.optflags);
   if (toys.optflags & FLAG_a) printf("Saw a\n");
   if (toys.optflags & FLAG_b) printf("b=%s\n", TT.s.b_string);
   if (toys.optflags & FLAG_c) printf("c=%ld\n", TT.s.c_number);
@@ -95,7 +96,7 @@ void skeleton_main(void)
 void skeleton_alias_main(void)
 {
   printf("Ran %s\n", toys.which->name);
-  printf("flags=%x\n", toys.optflags);
+  printf("flags=%llx\n", toys.optflags);
 
   // Note, this FLAG_b is a different bit position than the other FLAG_b,
   // and fills out a different variable of a different type.
