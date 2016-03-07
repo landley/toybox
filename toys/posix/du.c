@@ -153,7 +153,7 @@ void du_main(void)
 
   // Loop over command line arguments, recursing through children
   for (args = toys.optc ? toys.optargs : noargs; *args; args++)
-    dirtree_handle_callback(dirtree_start(*args, toys.optflags&(FLAG_H|FLAG_L)),
+    dirtree_flagread(*args, DIRTREE_SYMFOLLOW*!!(toys.optflags&(FLAG_H|FLAG_L)),
       do_du);
   if (toys.optflags & FLAG_c) print(TT.total*512, 0);
 

@@ -556,7 +556,7 @@ void find_main(void)
 
   // Loop through paths
   for (i = 0; i < len; i++)
-    dirtree_handle_callback(dirtree_start(ss[i], toys.optflags&(FLAG_H|FLAG_L)),
+    dirtree_flagread(ss[i], DIRTREE_SYMFOLLOW*!!(toys.optflags&(FLAG_H|FLAG_L)),
       do_find);
 
   execdir(0, 1);

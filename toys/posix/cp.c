@@ -430,12 +430,11 @@ void cp_main(void)
       if (rc) rc = rename(src, TT.destname);
     }
 
-    // Skip nonexistent sources
+    // Copy if we didn't mv, skipping nonexistent sources
     if (rc) {
-      if (errno!=EXDEV ||
-        !(new = dirtree_start(src, toys.optflags&(FLAG_H|FLAG_L))))
+      if (errno!=EXDEV || dirtree_flagread(src, DIRTREE_SHUTUP+
+        DIRTREE_SYMFOLLOW*!!(toys.optflags&(FLAG_H|FLAG_L)), TT.callback))
           perror_msg("bad '%s'", src);
-      else dirtree_handle_callback(new, TT.callback);
     }
     if (destdir) free(TT.destname);
   }

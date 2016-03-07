@@ -1198,16 +1198,32 @@ of functions.</p>
 
 <p>These functions do not call chdir() or rely on PATH_MAX. Instead they
 use openat() and friends, using one filehandle per directory level to
-recurseinto subdirectories. (I.E. they can descend 1000 directories deep
+recurse into subdirectories. (I.E. they can descend 1000 directories deep
 if setrlimit(RLIMIT_NOFILE) allows enough open filehandles, and the default
 in /proc/self/limits is generally 1024.)</p>
+
+<p>There are two main ways to use dirtree: 1) assemble a tree of nodes
+representing a snapshot of directory state and traverse them using the
+->next and ->child pointers, or 2) traverse the tree calling a callback
+function on each entry, and freeing its node afterwards. (You can also
+combine the two, using the callback as a filter to determine which nodes
+to keep.)</p>
 
 <p>The basic dirtree functions are:</p>
 
 <ul>
-<li><p><b>dirtree_read(char *path, int (*callback)(struct dirtree node))</b> -
-recursively read directories, either applying callback() or returning
-a tree of struct dirtree if callback is NULL.</p></li>
+<li><p><b>struct dirtree *dirtree_read(char *path, int (*callback)(struct
+dirtree node))</b> - recursively read files and directories, calling
+callback() on each, and returning a tree of saved nodes (if any).
+If path doesn't exist, returns DIRTREE_ABORTVAL. If callback is NULL,
+returns a single node at that path.</p>
+
+<li><p><b>dirtree_notdotdot(struct dirtree *new)</b> - standard callback
+which discards "." and ".." entries and returns DIRTREE_SAVE|DIRTREE_RECURSE
+for everything else. Used directly, this assembles a snapshot tree of
+the contents of this directory and its subdirectories
+to be processed after dirtree_read() returns (by traversing the
+struct dirtree's ->next and ->child pointers from the returned root node).</p>
 
 <li><p><b>dirtree_path(struct dirtree *node, int *plen)</b> - malloc() a
 string containing the path from the root of this tree to this node. If
@@ -1215,21 +1231,21 @@ plen isn't NULL then *plen is how many extra bytes to malloc at the end
 of string.</p></li>
 
 <li><p><b>dirtree_parentfd(struct dirtree *node)</b> - return fd of
-containing directory, for use with openat() and such.</p></li>
+directory containing this node, for use with openat() and such.</p></li>
 </ul>
 
-<p>The <b>dirtree_read()</b> function takes two arguments, a starting path for
-the root of the tree, and a callback function. The callback takes a
-<b>struct dirtree *</b> (from lib/lib.h) as its argument. If the callback is
-NULL, the traversal uses a default callback (dirtree_notdotdot()) which
-recursively assembles a tree of struct dirtree nodes for all files under
-this directory and subdirectories (filtering out "." and ".." entries),
-after which dirtree_read() returns the pointer to the root node of this
-snapshot tree.</p>
+<p>The <b>dirtree_read()</b> function is the standard way to start
+directory traversal. It takes two arguments: a starting path for
+the root of the tree, and a callback function. The callback() is called
+on each directory entry, its argument is a fully populated
+<b>struct dirtree *</b> (from lib/lib.h) describing the node, and its
+return value tells the dirtree infrastructure what to do next.</p>
 
-<p>Otherwise the callback() is called on each entry in the directory,
-with struct dirtree * as its argument. This includes the initial
-node created by dirtree_read() at the top of the tree.</p>
+<p>(There's also a three argument version,
+<b>dirtree_flagread(char *path, int flags, int (*callback)(struct
+dirtree node))</b>, which lets you apply flags like DIRTREE_SYMFOLLOW and
+DIRTREE_SHUTUP to reading the top node, but this only affects the top node.
+Child nodes use the flags returned by callback().</p>
 
 <p><b>struct dirtree</b></p>
 
@@ -1237,12 +1253,13 @@ node created by dirtree_read() at the top of the tree.</p>
 st</b> entries describing a file, plus a <b>char *symlink</b>
 which is NULL for non-symlinks.</p>
 
-<p>During a callback function, the <b>int data</b> field of directory nodes
-contains a dirfd (for use with the openat() family of functions). This is
-generally used by calling dirtree_parentfd() on the callback's node argument.
-For symlinks, data contains the length of the symlink string. On the second
-callback from DIRTREE_COMEAGAIN (depth-first traversal) data = -1 for
-all nodes (that's how you can tell it's the second callback).</p>
+<p>During a callback function, the <b>int dirfd</b> field of directory nodes
+contains a directory file descriptor (for use with the openat() family of
+functions). This isn't usually used directly, intstead call dirtree_parentfd()
+on the callback's node argument. The <b>char again</a> field is 0 for the
+first callback on a node, and 1 on the second callback (triggered by returning
+DIRTREE_COMEAGAIN on a directory, made after all children have been processed).
+</p>
 
 <p>Users of this code may put anything they like into the <b>long extra</b>
 field. For example, "cp" and "mv" use this to store a dirfd for the destination
@@ -1266,15 +1283,17 @@ return DIRTREE_ABORT from parent callbacks too.)</p></li>
 <li><p><b>DIRTREE_RECURSE</b> - Examine directory contents. Ignored for
 non-directory entries. The remaining flags only take effect when
 recursing into the children of a directory.</p></li>
-<li><p><b>DIRTREE_COMEAGAIN</b> - Call the callback a second time after
-examining all directory contents, allowing depth-first traversal.
-On the second call, dirtree->data = -1.</p></li>
+<li><p><b>DIRTREE_COMEAGAIN</b> - Call the callback on this node a second time
+after examining all directory contents, allowing depth-first traversal.
+On the second call, dirtree->again is nonzero.</p></li>
 <li><p><b>DIRTREE_SYMFOLLOW</b> - follow symlinks when populating children's
 <b>struct stat st</b> (by feeding a nonzero value to the symfollow argument of
 dirtree_add_node()), which means DIRTREE_RECURSE treats symlinks to
 directories as directories. (Avoiding infinite recursion is the callback's
 problem: the non-NULL dirtree->symlink can still distinguish between
-them.)</p></li>
+them. The "find" command follows ->parent up the tree to the root node
+each time, checking to make sure that stat's dev and inode pair don't
+match any ancestors.)</p></li>
 </ul>
 
 <p>Each struct dirtree contains three pointers (next, parent, and child)
@@ -1299,15 +1318,15 @@ single malloc() (even char *symlink points to memory at the end of the node),
 so llist_free() works but its callback must descend into child nodes (freeing
 a tree, not just a linked list), plus whatever the user stored in extra.</p>
 
-<p>The <b>dirtree_read</b>() function is a simple wrapper, calling <b>dirtree_add_node</b>()
+<p>The <b>dirtree_flagread</b>() function is a simple wrapper, calling <b>dirtree_add_node</b>()
 to create a root node relative to the current directory, then calling
-<b>handle_callback</b>() on that node (which recurses as instructed by the callback
-return flags). Some commands (such as chgrp) bypass this wrapper, for example
-to control whether or not to follow symlinks to the root node; symlinks
+<b>dirtree_handle_callback</b>() on that node (which recurses as instructed by the callback
+return flags). The flags argument primarily lets you
+control whether or not to follow symlinks to the root node; symlinks
 listed on the command line are often treated differently than symlinks
-encountered during recursive directory traversal).
+encountered during recursive directory traversal.
 
-<p>The ls command not only bypasses the wrapper, but never returns
+<p>The ls command not only bypasses this wrapper, but never returns
 <b>DIRTREE_RECURSE</b> from the callback, instead calling <b>dirtree_recurse</b>() manually
 from elsewhere in the program. This gives ls -lR manual control
 of traversal order, which is neither depth first nor breadth first but

@@ -94,8 +94,8 @@ void chgrp_main(void)
     TT.group = xgetgrnamid(TT.group_name)->gr_gid;
 
   for (s=toys.optargs+1; *s; s++)
-    dirtree_handle_callback(dirtree_start(*s, toys.optflags&(FLAG_H|FLAG_L)),
-      do_chgrp);;
+    dirtree_flagread(*s, DIRTREE_SYMFOLLOW*!!(toys.optflags&(FLAG_H|FLAG_L)),
+      do_chgrp);
 
   if (CFG_TOYBOX_FREE && ischown) free(own);
 }

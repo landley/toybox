@@ -62,6 +62,8 @@ void get_optflags(void);
 #define DIRTREE_SYMFOLLOW    8
 // Don't warn about failure to stat
 #define DIRTREE_SHUTUP      16
+// Breadth first traversal, conserves filehandles at the expense of memory
+#define DIRTREE_BREADTH     32
 // Don't look at any more files in this directory.
 #define DIRTREE_ABORT      256
 
@@ -77,15 +79,14 @@ struct dirtree {
   char name[];
 };
 
-struct dirtree *dirtree_start(char *name, int symfollow);
 struct dirtree *dirtree_add_node(struct dirtree *p, char *name, int flags);
 char *dirtree_path(struct dirtree *node, int *plen);
 int dirtree_notdotdot(struct dirtree *catch);
 int dirtree_parentfd(struct dirtree *node);
-struct dirtree *dirtree_handle_callback(struct dirtree *new,
-  int (*callback)(struct dirtree *node));
 int dirtree_recurse(struct dirtree *node, int (*callback)(struct dirtree *node),
   int symfollow);
+struct dirtree *dirtree_flagread(char *path, int flags,
+  int (*callback)(struct dirtree *node));
 struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node));
 
 // help.c

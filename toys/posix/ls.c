@@ -540,12 +540,15 @@ void ls_main(void)
   if (toys.optflags & FLAG_d) toys.optflags &= ~FLAG_R;
 
   // Iterate through command line arguments, collecting directories and files.
-  // Non-absolute paths are relative to current directory.
-  TT.files = dirtree_start(0, 0);
+  // Non-absolute paths are relative to current directory. Top of tree is
+  // a dummy node to collect command line arguments into pseudo-directory.
+  TT.files = dirtree_add_node(0, 0, 0);
   TT.files->dirfd = AT_FDCWD;
   for (s = *toys.optargs ? toys.optargs : noargs; *s; s++) {
-    dt = dirtree_start(*s, !(toys.optflags&(FLAG_l|FLAG_d|FLAG_F)) ||
-                            (toys.optflags&(FLAG_L|FLAG_H)));
+    int sym = !(toys.optflags&(FLAG_l|FLAG_d|FLAG_F))
+      || (toys.optflags&(FLAG_L|FLAG_H));
+
+    dt = dirtree_add_node(0, *s, DIRTREE_SYMFOLLOW*sym);
 
     // note: double_list->prev temporarirly goes in dirtree->parent
     if (dt) dlist_add_nomalloc((void *)&TT.files->child, (void *)dt);
