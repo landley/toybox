@@ -10,6 +10,7 @@ USE_DEALLOCVT(NEWTOY(deallocvt, ">1", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_NEEDROOT))
 config OPENVT
   bool "openvt"
   default n
+  depends on TOYBOX_FORK
   help
     usage: openvt [-c N] [-sw] [command [command_options]]
 

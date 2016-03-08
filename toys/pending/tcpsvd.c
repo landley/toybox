@@ -12,6 +12,7 @@ USE_TCPSVD(OLDTOY(udpsvd, tcpsvd, TOYFLAG_USR|TOYFLAG_BIN))
 config TCPSVD
   bool "tcpsvd"
   default n
+  depends on TOYBOX_FORK
   help
     usage: tcpsvd [-hEv] [-c N] [-C N[:MSG]] [-b N] [-u User] [-l Name] IP Port Prog
     usage: udpsvd [-hEv] [-c N] [-u User] [-l Name] IP Port Prog

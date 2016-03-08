@@ -9,6 +9,7 @@ USE_CRONTAB(NEWTOY(crontab, "c:u:elr[!elr]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STA
 config CRONTAB
   bool "crontab"
   default n
+  depends on TOYBOX_FORK
   help
     usage: crontab [-u user] FILE
                    [-u user] [-e | -l | -r]

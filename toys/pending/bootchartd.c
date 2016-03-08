@@ -10,6 +10,7 @@ USE_BOOTCHARTD(NEWTOY(bootchartd, 0, TOYFLAG_STAYROOT|TOYFLAG_USR|TOYFLAG_BIN))
 config BOOTCHARTD
   bool "bootchartd"
   default n
+  depends on TOYBOX_FORK
   help
     usage: bootchartd {start [PROG ARGS]}|stop|init
 
