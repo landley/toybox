@@ -6,21 +6,24 @@
  *
  * Posix says "cp -Rf dir file" shouldn't delete file, but our -f does.
  *
+ * Deviations from posix: -adlnrsvF, --preserve... about half the
+ * functionality in this cp isn't in posix. Posix is stuck in the 1970's.
+ *
  * TODO: --preserve=links
  * TODO: what's this _CP_mode system.posix_acl_ business? We chmod()?
 
 // options shared between mv/cp must be in same order (right to left)
 // for FLAG macros to work out right in shared infrastructure.
 
-USE_CP(NEWTOY(cp, "<2"USE_CP_PRESERVE("(preserve):;")"RHLPp"USE_CP_MORE("rdaslvnF(remove-destination)")"fi[-HLP"USE_CP_MORE("d")"]"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
-USE_MV(NEWTOY(mv, "<2"USE_CP_MORE("vnF")"fi"USE_CP_MORE("[-ni]"), TOYFLAG_BIN))
+USE_CP(NEWTOY(cp, "<2"USE_CP_PRESERVE("(preserve):;")"RHLPprdaslvnF(remove-destination)fi[-HLPd][-ni]", TOYFLAG_BIN))
+USE_MV(NEWTOY(mv, "<2vnF(remove-destination)fi[-ni]", TOYFLAG_BIN))
 USE_INSTALL(NEWTOY(install, "<1cdDpsvm:o:g:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config CP
   bool "cp"
   default y
   help
-    usage: cp [-fipRHLP] SOURCE... DEST
+    usage: cp [-adlnrsvfipRHLP] SOURCE... DEST
 
     Copy files from SOURCE to DEST.  If more than one SOURCE, DEST must
     be a directory.
@@ -33,14 +36,6 @@ config CP
     -H	Follow symlinks listed on command line
     -L	Follow all symlinks
     -P	Do not follow symlinks [default]
-
-config CP_MORE
-  bool "cp -adlnrsv options"
-  default y
-  depends on CP
-  help
-    usage: cp [-adlnrsv]
-
     -a	same as -dpr
     -d	don't dereference symlinks
     -l	hard link instead of copy
@@ -52,7 +47,7 @@ config CP_MORE
 config CP_PRESERVE
   bool "cp --preserve support"
   default y
-  depends on CP_MORE
+  depends on CP
   help
     usage: cp [--preserve=motcxa]
 
@@ -69,27 +64,17 @@ config CP_PRESERVE
 config MV
   bool "mv"
   default y
-  depends on CP
   help
-    usage: mv [-fi] SOURCE... DEST"
+    usage: mv [-fivn] SOURCE... DEST"
 
     -f	force copy by deleting destination file
     -i	interactive, prompt before overwriting existing DEST
-
-config MV_MORE
-  bool
-  default y
-  depends on MV && CP_MORE
-  help
-    usage: mv [-vn]
-
     -v	verbose
     -n	no clobber (don't overwrite DEST)
 
 config INSTALL
   bool "install"
   default y
-  depends on CP && CP_MORE
   help
     usage: install [-dDpsv] [-o USER] [-g GROUP] [-m MODE] [SOURCE...] DEST
 
@@ -105,6 +90,7 @@ config INSTALL
     -v	Verbose
 */
 
+#define FORCE_FLAGS
 #define FOR_cp
 #include "toys.h"
 
@@ -169,7 +155,7 @@ int cp_node(struct dirtree *try)
       return 0;
     }
 
-    // Handle -inv
+    // Handle -invF
 
     if (!faccessat(cfd, catch, F_OK, 0) && !S_ISDIR(cst.st_mode)) {
       char *s;
