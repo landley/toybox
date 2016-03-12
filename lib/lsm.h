@@ -3,6 +3,8 @@
  * Copyright 2015 Rob Landley <rob@landley.net>
  */
 
+#include <sys/xattr.h>
+
 #if CFG_TOYBOX_SELINUX
 #include <selinux/selinux.h>
 #else
@@ -19,7 +21,6 @@
 
 #if CFG_TOYBOX_SMACK
 #include <sys/smack.h>
-#include <sys/xattr.h>
 #include <linux/xattr.h>
 #else
 #define XATTR_NAME_SMACK 0

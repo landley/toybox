@@ -107,9 +107,6 @@ config INSTALL
 
 #define FOR_cp
 #include "toys.h"
-#if CFG_CP_PRESERVE
-#include <sys/xattr.h>
-#endif
 
 GLOBALS(
   union {
@@ -404,7 +401,6 @@ void cp_main(void)
 
   // Loop through sources
   for (i=0; i<toys.optc; i++) {
-    struct dirtree *new;
     char *src = toys.optargs[i];
     int rc = 1;
 
