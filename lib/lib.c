@@ -757,11 +757,24 @@ void generic_signal(int sig)
   toys.signal = sig;
 }
 
-// Install the same handler on every signal that defaults to killing the process
+void exit_signal(int sig)
+{
+  toys.exitval = sig|128;
+  xexit();
+}
+
+// Install the same handler on every signal that defaults to killing the
+// process, and 
 void sigatexit(void *handler)
 {
+  struct arg_list *al = xmalloc(sizeof(struct arg_list));
   int i;
-  for (i=0; signames[i].num != SIGCHLD; i++) signal(signames[i].num, handler);
+
+  for (i=0; signames[i].num != SIGCHLD; i++)
+    signal(signames[i].num, exit_signal);
+  al->next = toys.xexit;
+  al->arg = handler;
+  toys.xexit = al;
 }
 
 // Convert name to signal number.  If name == NULL print names.

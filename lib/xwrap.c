@@ -28,13 +28,32 @@ void xstrncat(char *dest, char *src, size_t size)
   strcpy(dest+len, src);
 }
 
+// We replaced exit(), _exit(), and atexit() with xexit(), _xexit(), and
+// sigatexit(). This gives _xexit() the option to siglongjmp(toys.rebound, 1)
+// instead of exiting, lets xexit() report stdout flush failures to stderr
+// and change the exit code to indicate error, lets our toys.exit function
+// change happen for signal exit paths and lets us remove the functions
+// after we've called them.
+
+void _xexit(void)
+{
+  if (toys.rebound) siglongjmp(*toys.rebound, 1);
+
+  _exit(toys.exitval);
+}
+
 void xexit(void)
 {
-  if (toys.rebound) longjmp(*toys.rebound, 1);
+  // Call toys.xexit functions in reverse order added.
+  while (toys.xexit) {
+    // This is typecasting xexit->arg to a function pointer,then calling it.
+    ((void (*)(void))(toys.xexit->arg))();
+
+    free(llist_pop(&toys.xexit));
+  }
   if (fflush(NULL) || ferror(stdout))
     if (!toys.exitval) perror_msg("write");
-
-  exit(toys.exitval);
+  _xexit();
 }
 
 // Die unless we can allocate memory.

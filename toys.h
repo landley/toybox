@@ -113,6 +113,7 @@ extern struct toy_context {
 
   // This is at the end so toy_init() doesn't zero it.
   jmp_buf *rebound;        // longjmp here instead of exit when do_rebound set
+  struct arg_list *xexit;  // atexit() functions for xexit(), set by sigatexit()
   void *stacktop;          // nested toy_exec() call count, or 0 if vforked
 } toys;
 

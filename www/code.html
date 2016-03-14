@@ -632,13 +632,28 @@ itoa().</p>
 errors, to eliminate common error checking. This prints an error message
 and the strerror() string for the errno encountered.</p>
 
-<p>You can intercept this exit by assigning a setjmp/longjmp buffer to
+<p>We replaced exit(), _exit(), and atexit() with xexit(), _xexit(), and
+sigatexit(). This gives _xexit() the option to siglongjmp(toys.rebound, 1)
+instead of exiting, lets xexit() report stdout flush failures to stderr
+and change the exit code to indicate error, lets our toys.exit function
+change happen for signal exit paths and lets us remove the functions
+after we've called them.</p>
+
+<p>You can intercept our exit by assigning a setjmp/longjmp buffer to
 toys.rebound (set it back to zero to restore the default behavior).
 If you do this, cleaning up resource leaks is your problem.</p>
 
 <ul>
 <li><b>void xstrncpy(char *dest, char *src, size_t size)</b></li>
-<li><b>void xexit(void)</b></li>
+<li><p><b><p>void _xexit(void)</b></p>
+<p>Calls siglongjmp(toys.rebound, 1), or else _exit(toys.exitval). This
+lets you ignore errors with the NO_EXIT() macro wrapper, or intercept
+them with WOULD_EXIT().</p>
+<li><b><p>void xexit(void)</b></p>
+<p>Calls toys.xexit functions (if any) and flushes stdout/stderr (reporting
+failure to write to stdout both to stderr and in the exit code), then
+calls _xexit().</p>
+</li>
 <li><b>void *xmalloc(size_t size)</b></li>
 <li><b>void *xzalloc(size_t size)</b></li>
 <li><b>void *xrealloc(void *ptr, size_t size)</b></li>
