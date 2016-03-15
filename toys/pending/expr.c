@@ -45,9 +45,8 @@ config EXPR
 #define FOR_expr
 #include "toys.h"
 
-
 GLOBALS(
-  int argidx;
+  char* tok; // current token, not on the stack since recursive calls mutate it
 )
 
 // Scalar value.
@@ -87,6 +86,7 @@ static void re(struct value *lhs, struct value *rhs)
   regmatch_t rm[2];
 
   xregcomp(&rp, rhs->s, 0);
+  // BUG: lhs->s is NULL when it looks like an integer, causing a segfault.
   if (!regexec(&rp, lhs->s, 2, rm, 0) && rm[0].rm_so == 0) {
     if (rp.re_nsub > 0 && rm[1].rm_so >= 0) 
       lhs->s = xmprintf("%.*s", rm[1].rm_eo - rm[1].rm_so, lhs->s+rm[1].rm_so);
@@ -183,91 +183,102 @@ static void or(struct value *lhs, struct value *rhs)
   if (is_zero(lhs)) *lhs = *rhs;
 }
 
-static void get_value(struct value *v)
+// Converts an arg string to a value struct.  Assumes arg != NULL.
+static void parse_value(char* arg, struct value *v)
 {
-  char *endp, *arg;
-
-  if (TT.argidx == toys.optc) {
-    v->i = 0;
-    v->s = ""; // signal end of expression
-    return;
-  }
-
-//  can't happen, the increment is after the == test
-//  if (TT.argidx >= toys.optc) error_exit("syntax error");
-
-  arg = toys.optargs[TT.argidx++];
-
+  char *endp;
   v->i = strtoll(arg, &endp, 10);
+  // if non-NULL, there's still stuff left, and it's a string.  Otherwise no
+  // string.
   v->s = *endp ? arg : NULL;
 }
 
-// check if v matches a token, and consume it if so
-static int match(struct value *v, char *tok)
-{
-  if (v->s && !strcmp(v->s, tok)) {
-    get_value(v);
-    return 1;
-  }
-
-  return 0;
+void syntax_error(char *msg, ...) {
+  if (0) { // detailed message for debugging.  TODO: add CFG_ var to enable
+    va_list va;
+    va_start(va, msg);
+    verror_msg(msg, 0, va);
+    va_end(va);
+    xexit();
+  } else
+    error_exit("syntax error");
 }
 
-// operators in order of increasing precedence
+// operators grouped by precedence
 static struct op {
   char *tok;
-
+  char prec;
   // calculate "lhs op rhs" (e.g. lhs + rhs) and store result in lhs
   void (*calc)(struct value *lhs, struct value *rhs);
-} ops[] = {
-  {"|",   or  }, {"&",   and }, {"=",   eq  }, {"==",  eq  }, {">",   gt  },
-  {">=",  gte }, {"<",   lt  }, {"<=",  lte }, {"!=",  ne  }, {"+",   add },
-  {"-",   sub }, {"*",   mul }, {"/",   divi}, {"%",   mod }, {":",   re  },
-  {"(",   NULL}, // special case - must be last
+} OPS[] = {
+  {"|", 1, or  },
+  {"&", 2, and },
+  {"=", 3, eq  }, {"==", 3, eq  }, {">",  3, gt  }, {">=", 3, gte },
+  {"<", 3, lt  }, {"<=", 3, lte }, {"!=", 3, ne  },
+  {"+", 4, add }, {"-",  4, sub },
+  {"*", 5, mul }, {"/",  5, divi }, {"%", 5, mod },
+  {":", 6, re  },
+  {"",  0, NULL}, // sentinel
 };
 
-// "|,&,= ==> >=< <= !=,+-,*/%,:"
+// Point TT.tok at the next token.  It's NULL when there are no more tokens.
+void advance() {
+  TT.tok = *toys.optargs++;
+}
 
-static void parse_op(struct value *lhs, struct value *tok, struct op *op)
+// Evalute a compound expression, setting 'ret'.
+//
+// This function uses the recursive "Precedence Climbing" algorithm:
+//
+// Clarke, Keith. "The top-down parsing of expressions." University of London.
+// Queen Mary College. Department of Computer Science and Statistics, 1986.
+//
+// http://www.antlr.org/papers/Clarke-expr-parsing-1986.pdf
+//
+// Nice explanation and Python implementation:
+// http://eli.thegreenplace.net/2012/08/02/parsing-expressions-by-precedence-climbing
+static void eval_expr(struct value *ret, int min_prec)
 {
-  if (!op) op = ops;
+  if (!TT.tok) syntax_error("Unexpected end of input");
 
-  // special case parsing for parentheses
-  if (*op->tok == '(') {
-    if (match(tok, "(")) {
-      parse_op(lhs, tok, 0);
-      if (!match(tok, ")")) error_exit("syntax error"); // missing closing paren
-    } else {
-      // tok is a string or integer - return it and get the next token
-      *lhs = *tok;
-      get_value(tok);
-    }
-
-    return;
+  // Evaluate LHS atom, setting 'ret'.
+  if (!strcmp(TT.tok, "(")) { // parenthesized expression
+    advance(); // consume (
+    eval_expr(ret, 1); // We're inside ( ), so start with min_prec = 1
+    if (!TT.tok)             syntax_error("Expected )");
+    if (strcmp(TT.tok, ")")) syntax_error("Expected ) but got %s", TT.tok);
+    advance(); // consume )
+  } else { // simple literal
+    parse_value(TT.tok, ret);
+    advance();
   }
 
-  parse_op(lhs, tok, op + 1);
-  while (match(tok, op->tok)) {
-    struct value rhs;
-    parse_op(&rhs, tok, op + 1);
-    if (rhs.s && !*rhs.s) error_exit("syntax error"); // premature end of expression
-    op->calc(lhs, &rhs);
+  // Evaluate RHS and apply operator until precedence is too low.
+  struct value rhs;
+  while (TT.tok) {
+    struct op *o = OPS;
+    while (o->calc) {  // Look up the precedence of operator TT.tok
+      if (!strcmp(TT.tok, o->tok)) break;
+      o++;
+    }
+    if (!o->calc) break; // Not an operator (extra input will fail later)
+    if (o->prec < min_prec) break; // Precedence too low, pop a stack frame
+    advance();
+
+    eval_expr(&rhs, o->prec + 1); // Evaluate RHS, with higher min precedence
+    o->calc(ret, &rhs); // Apply operator, setting 'ret'.
   }
 }
 
 void expr_main(void)
 {
-  struct value tok, ret = {0};
-
+  struct value ret = {0};
   toys.exitval = 2; // if exiting early, indicate invalid expression
 
-  TT.argidx = 0;
+  advance(); // initialize global token
+  eval_expr(&ret, 1);
 
-  get_value(&tok); // warm up the parser with the initial value
-  parse_op(&ret, &tok, 0);
-
-  // final token should be end of expression
-  if (!tok.s || *tok.s) error_exit("syntax error");
+  if (TT.tok) syntax_error("Unexpected extra input '%s'\n", TT.tok);
 
   if (ret.s) printf("%s\n", ret.s);
   else printf("%lld\n", ret.i);

@@ -17,5 +17,38 @@ testing "% * same priority" "expr 3 % 2 \* 4" "4\n" "" ""
 testing "* % same priority" "expr 3 \* 2 % 4" "2\n" "" ""
 testing "= > same priority" "expr 0 = 2 \> 3" "0\n" "" ""
 testing "> = same priority" "expr 3 \> 2 = 1" "1\n" "" ""
+
+testing "/ by zero" "expr 1 / 0; echo \$?" "2\n" "" ""
+testing "% by zero" "expr 1 % 0; echo \$?" "2\n" "" ""
+
+testing "regex position" "expr ab21xx : '[^0-9]*[0-9]*'" "4\n" "" ""
+testing "regex extraction" "expr ab21xx : '[^0-9]*\([0-9]*\).*'" "21\n" "" ""
+testing "regex no match" "expr ab21xx : x" "0\n" "" ""
+
+# result of ':' regex match can subsequently be used for arithmetic
 testing "string becomes integer" "expr ab21xx : '[^0-9]*\([0-9]*\)' + 3" \
 	"24\n" "" ""
+
+testing "integer comparison" "expr -3 \< -2" "1\n" "" ""
+testing "string comparison" "expr -3 \< -2s" "0\n" "" ""
+testing "integer expr comparison" "expr 2 - 5 \< -2" "1\n" "" ""
+# result of arithmetic can subsequently be compared as a string
+testing "string expr comparison" "expr 2 - 5 \< -2s" "0\n" "" ""
+
+testing "parens around literal" "expr \( a \)" "a\n" "" ""
+
+testing "exit code when true" "expr a; echo \$?" "a\n0\n" "" ""
+testing "exit code when false" "expr 0; echo \$?" "0\n1\n" "" ""
+testing "exit code with syntax error" "expr \(; echo \$?" "2\n" "" ""
+testing "exit code when evaluating to 0" "expr -1 + 1; echo \$?" "0\n1\n" "" ""
+
+# BUG: segfaults because '3' is coerced to integer and regexc gets NULL
+testing "regex segfault" "expr 3 : '\(.\)'" "3\n" "" ""
+
+# syntax errors
+testing "no expression" "expr; echo \$?" "2\n" "" ""
+testing "empty ()" "expr \( \); echo \$?" "2\n" "" ""
+testing "missing )" "expr \( 1; echo \$?" "2\n" "" ""
+testing "missing outer )" "expr \( 1 + \( 2 \* 3 \); echo \$?" "2\n" "" ""
+testing "bad operator" "expr 1 @ 2; echo \$?" "2\n" "" ""
+testing "adjacent literals" "expr 1 2; echo \$?" "2\n" "" ""
