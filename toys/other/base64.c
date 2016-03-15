@@ -4,7 +4,7 @@
  *
  * No standard
 
-USE_BASE64(NEWTOY(base64, "diw#<1[!dw]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_BASE64(NEWTOY(base64, "diw#<0=76[!dw]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config BASE64
   bool "base64"
@@ -16,7 +16,7 @@ config BASE64
 
     -d	decode
     -i	ignore non-alphabetic characters
-    -w	wrap output at COLUMNS (default 76)
+    -w	wrap output at COLUMNS (default 76 or 0 for no wrap)
 */
 
 #define FOR_base64
@@ -32,7 +32,7 @@ static void wraputchar(int c, int *x)
 {
   putchar(c);
   TT.total++;
-  if (++*x == TT.columns) {
+  if (TT.columns && ++*x == TT.columns) {
     *x = 0;
     xputc('\n');
   };
@@ -89,8 +89,6 @@ static void do_base64(int fd, char *name)
 
 void base64_main(void)
 {
-  if (!TT.columns) TT.columns = 76;
-
   base64_init(toybuf);
   loopfiles(toys.optargs, do_base64);
 }
