@@ -5,9 +5,10 @@
 testing "integer" "expr 5" "5\n" "" ""
 testing "integer negative" "expr -5" "-5\n" "" ""
 testing "string" "expr astring" "astring\n" "" ""
-testing "1 + 3" "expr 1 + 3" "4\n" "" ""
+testing "addition" "expr 1 + 3" "4\n" "" ""
 testing "5 + 6 * 3" "expr 5 + 6 \* 3" "23\n" "" ""
 testing "( 5 + 6 ) * 3" "expr \( 5 + 6 \) \* 3" "33\n" "" ""
+testing ">" "expr 3 \> 2" "1\n" "" ""
 testing "* / same priority" "expr 4 \* 3 / 2"  "6\n" "" ""
 testing "/ * same priority" "expr 3 / 2 \* 4" "4\n" "" ""
 testing "& before |" "expr 0 \| 1 \& 0" "0\n" "" ""
@@ -24,6 +25,7 @@ testing "% by zero" "expr 1 % 0; echo \$?" "2\n" "" ""
 testing "regex position" "expr ab21xx : '[^0-9]*[0-9]*'" "4\n" "" ""
 testing "regex extraction" "expr ab21xx : '[^0-9]*\([0-9]*\).*'" "21\n" "" ""
 testing "regex no match" "expr ab21xx : x" "0\n" "" ""
+testing "long str" "expr abcdefghijklmnopqrstuvwxyz : '\(.*\)' = a" "0\n" "" ""
 
 # result of ':' regex match can subsequently be used for arithmetic
 testing "string becomes integer" "expr ab21xx : '[^0-9]*\([0-9]*\)' + 3" \
@@ -31,7 +33,7 @@ testing "string becomes integer" "expr ab21xx : '[^0-9]*\([0-9]*\)' + 3" \
 
 testing "integer comparison" "expr -3 \< -2" "1\n" "" ""
 testing "string comparison" "expr -3 \< -2s" "0\n" "" ""
-testing "integer expr comparison" "expr 2 - 5 \< -2" "1\n" "" ""
+testing "integer expression comparison" "expr 2 - 5 \< -2" "1\n" "" ""
 # result of arithmetic can subsequently be compared as a string
 testing "string expr comparison" "expr 2 - 5 \< -2s" "0\n" "" ""
 
@@ -52,3 +54,4 @@ testing "missing )" "expr \( 1; echo \$?" "2\n" "" ""
 testing "missing outer )" "expr \( 1 + \( 2 \* 3 \); echo \$?" "2\n" "" ""
 testing "bad operator" "expr 1 @ 2; echo \$?" "2\n" "" ""
 testing "adjacent literals" "expr 1 2; echo \$?" "2\n" "" ""
+testing "non-integer argument" "expr 1 + a; echo \$?" "2\n" "" ""
