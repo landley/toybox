@@ -223,11 +223,15 @@ void linestack_addstack(struct linestack **lls, struct linestack *throw,
 void linestack_insert(struct linestack **lls, long pos, char *line, long len);
 void linestack_append(struct linestack **lls, char *line);
 struct linestack *linestack_load(char *name);
-int crunch_str(char **str, int width, FILE *out,
-  int (*escout)(FILE *out, int cols, char **buf));
+int crunch_escape(FILE *out, int cols, int wc);
+int crunch_rev_escape(FILE *out, int cols, int wc);
+int crunch_str(char **str, int width, FILE *out, char *escmore,
+  int (*escout)(FILE *out, int cols, wchar_t wc));
 int draw_str(char *start, int width);
 int utf8len(char *str);
 int utf8skip(char *str, int width);
+int draw_trim_esc(char *str, int padto, int width, char *escmore,
+  int (*escout)(FILE *out, int cols,int wc));
 int draw_trim(char *str, int padto, int width);
 
 // interestingtimes.c

@@ -5,7 +5,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/ls.html
 
-USE_LS(NEWTOY(ls, USE_LS_COLOR("(color):;")"ZgoACFHLRSacdfhiklmnpqrstux1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL]", TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_LS(NEWTOY(ls, USE_LS_COLOR("(color):;")"ZgoACFHLRSabcdfhiklmnpqrstux1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][!qb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config LS
   bool "ls"
@@ -16,24 +16,24 @@ config LS
     list files
 
     what to show:
-    -a	all files including .hidden		-c  use ctime for timestamps
-    -d	directory, not contents			-i  inode number
-    -k	block sizes in kilobytes		-p  put a '/' after dir names
-    -q	unprintable chars as '?'		-s  size (in blocks)
-    -u	use access time for timestamps		-A  list all files but . and ..
-    -H	follow command line symlinks		-L  follow symlinks
-    -R	recursively list files in subdirs	-F  append /dir *exe @sym |FIFO
-    -Z	security context
+    -a  all files including .hidden    -b  escape nongraphic chars
+    -c  use ctime for timestamps       -d  directory, not contents
+    -i  inode number                   -k  block sizes in kilobytes
+    -p  put a '/' after dir names      -q  unprintable chars as '?'
+    -s  size (in blocks)               -u  use access time for timestamps
+    -A  list all files but . and ..    -H  follow command line symlinks
+    -L  follow symlinks                -R  recursively list files in subdirs
+    -F  append /dir *exe @sym |FIFO    -Z  security context
 
     output formats:
-    -1	list one file per line			-C  columns (sorted vertically)
-    -g	like -l but no owner			-h  human readable sizes
-    -l	long (show full details)		-m  comma separated
-    -n	like -l but numeric uid/gid		-o  like -l but no group
-    -x	columns (horizontal sort)
+    -1  list one file per line         -C  columns (sorted vertically)
+    -g  like -l but no owner           -h  human readable sizes
+    -l  long (show full details)       -m  comma separated
+    -n  like -l but numeric uid/gid    -o  like -l but no group
+    -x  columns (horizontal sort)
 
     sorting (default is alphabetical):
-    -f	unsorted	-r  reverse	-t  timestamp	-S  size
+    -f  unsorted    -r  reverse    -t  timestamp    -S  size
 
 config LS_COLOR
   bool "ls --color"
@@ -61,33 +61,52 @@ GLOBALS(
 
   unsigned screen_width;
   int nl_title;
-  char uid_buf[12], gid_buf[12];
+  char uid_buf[12], gid_buf[12], *escmore;
 )
 
-// Does two things: 1) Returns wcwidth(utf8) version of strlen,
-// 2) replaces unprintable characters input string with '?' wildcard char.
-int strwidth(char *s)
+// Callback from crunch_str to represent unprintable chars
+int crunch_qb(FILE *out, int cols, int wc)
 {
-  int total = 0, width, len;
-  wchar_t c;
+  unsigned len = 1;
+  char buf[32];
 
-  if (!CFG_TOYBOX_I18N) {
-    total = strlen(s);
-    if (toys.optflags & FLAG_q) for (; *s; s++) if (!isprint(*s)) *s = '?';
-  } else while (*s) {
-    len = mbrtowc(&c, s, MB_CUR_MAX, 0);
-    if (len < 1 || (width = wcwidth(c)) < 0) {
-      total++;
-      if (toys.optflags & FLAG_q) *s = '?';
-      s++;
-    } else {
-      s += len;
-      total += width;
+  if (toys.optflags&FLAG_q) *buf = '?';
+  else {
+    if (wc<256) *buf = wc;
+    // scrute the inscrutable, eff the ineffable, print the unprintable
+    else len = wcrtomb(buf, wc, 0);
+    if (toys.optflags&FLAG_b) {
+      char *to = buf, *from = buf+24;
+      int i, j;
+
+      memcpy(from, to, 8);
+      for (i = 0; i<len; i++) {
+        *to++ = '\\';
+        if (strchr(TT.escmore, from[i])) *to++ = from[i];
+        else if (-1 != (j = stridx("\\\a\b\033\f\n\r\t\v", from[i])))
+          *to++ = "\\abefnrtv"[j];
+        else to += sprintf(to, "%03o", from[i]);
+      }
+      len = to-buf;
     }
   }
 
-  return total;
+  if (cols<len) len = cols;
+  if (out) fwrite(buf, len, 1, out);
+
+  return len;
 }
+
+// Returns wcwidth(utf8) version of strlen with -qb escapes
+int strwidth(char *s)
+{
+  return crunch_str(&s, INT_MAX, 0, TT.escmore, crunch_qb);
+}
+
+void qbstr(char *s, int width)
+{
+  draw_trim_esc(s, width, abs(width), TT.escmore, crunch_qb);
+} 
 
 static char endtype(struct stat *st)
 {
@@ -292,7 +311,6 @@ static void listfiles(int dirfd, struct dirtree *indir)
   char tmp[64];
 
   if (-1 == dirfd) {
-    strwidth(indir->name);
     perror_msg_raw(indir->name);
 
     return;
@@ -395,11 +413,12 @@ static void listfiles(int dirfd, struct dirtree *indir)
   memset(toybuf, ' ', 256);
   width = 0;
   for (ul = 0; ul<dtlen; ul++) {
+    int ii;
     unsigned curcol, color = 0;
     unsigned long next = next_column(ul, dtlen, columns, &curcol);
     struct stat *st = &(sort[next]->st);
     mode_t mode = st->st_mode;
-    char et = endtype(st);
+    char et = endtype(st), *ss;
 
     // Skip directories at the top of the tree when -d isn't set
     if (S_ISDIR(mode) && !indir->parent && !(flags & FLAG_d)) continue;
@@ -428,7 +447,6 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
     if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) {
       struct tm *tm;
-      char *ss;
 
       // (long) is to coerce the st types into something we know we can print.
       mode_to_string(mode, tmp);
@@ -436,16 +454,20 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
       // print user
       if (!(flags&FLAG_g)) {
-        if (flags&FLAG_n) sprintf(ss = tmp, "%u", (unsigned)st->st_uid);
-        else strwidth(ss = getusername(st->st_uid));
-        printf(" %-*s", (int)totals[3], ss);
+        putchar(' ');
+        ii = -totals[3];
+        if (flags&FLAG_n) printf("%*u", ii, (unsigned)st->st_uid);
+        else draw_trim_esc(getusername(st->st_uid), ii, abs(ii), TT.escmore,
+                           crunch_qb);
       }
 
       // print group
       if (!(flags&FLAG_o)) {
-        if (flags&FLAG_n) sprintf(ss = tmp, "%u", (unsigned)st->st_gid);
-        else strwidth(ss = getgroupname(st->st_gid));
-        printf(" %-*s", (int)totals[4], ss);
+        putchar(' ');
+        ii = -totals[4];
+        if (flags&FLAG_n) printf("%*u", ii, (unsigned)st->st_gid);
+        else draw_trim_esc(getgroupname(st->st_gid), ii, abs(ii), TT.escmore,
+                           crunch_qb);
       }
 
       if (flags & FLAG_Z)
@@ -472,10 +494,8 @@ static void listfiles(int dirfd, struct dirtree *indir)
       if (color) printf("\033[%d;%dm", color>>8, color&255);
     }
 
-    if (flags & FLAG_q) {
-      char *p;
-      for (p=sort[next]->name; *p; p++) fputc(isprint(*p) ? *p : '?', stdout);
-    } else xprintf("%s", sort[next]->name);
+    ss = sort[next]->name;
+    crunch_str(&ss, INT_MAX, stdout, TT.escmore, crunch_qb);
     if (color) xprintf("\033[0m");
 
     if ((flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) && S_ISLNK(mode)) {
@@ -526,6 +546,7 @@ void ls_main(void)
   TT.screen_width = 80;
   terminal_size(&TT.screen_width, NULL);
   if (TT.screen_width<2) TT.screen_width = 2;
+  if (toys.optflags&FLAG_b) TT.escmore = " \\";
 
   // Do we have an implied -1
   if (!isatty(1)) {
