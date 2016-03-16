@@ -7,6 +7,16 @@
  *
  * The web standard is incomplete (precedence grouping missing), see:
  * http://permalink.gmane.org/gmane.comp.standards.posix.austin.general/10141
+ *
+ * eval_expr() uses the recursive "Precedence Climbing" algorithm:
+ *
+ * Clarke, Keith. "The top-down parsing of expressions." University of London.
+ * Queen Mary College. Department of Computer Science and Statistics, 1986.
+ *
+ * http://www.antlr.org/papers/Clarke-expr-parsing-1986.pdf
+ *
+ * Nice explanation and Python implementation:
+ * http://eli.thegreenplace.net/2012/08/02/parsing-expressions-by-precedence-climbing
 
 USE_EXPR(NEWTOY(expr, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -47,7 +57,7 @@ config EXPR
 #include "toys.h"
 
 GLOBALS(
-  char* tok; // current token, not on the stack since recursive calls mutate it
+  char *tok; // current token, not on the stack since recursive calls mutate it
 )
 
 // Scalar value.  If s != NULL, it's a string, otherwise it's an int.
@@ -56,24 +66,12 @@ struct value {
   long long i;
 };
 
-void syntax_error(char *msg, ...) {
-  if (0) { // detailed message for debugging.  TODO: add CFG_ var to enable
-    va_list va;
-    va_start(va, msg);
-    verror_msg(msg, 0, va);
-    va_end(va);
-    xexit();
-  } else
-    error_exit("syntax error");
-}
-
 #define LONG_LONG_MAX_LEN 21
 
 // Get the value as a string.
-void get_str(struct value *v, char** ret)
+void get_str(struct value *v, char **ret)
 {
-  if (v->s)
-    *ret = v->s;
+  if (v->s) *ret = v->s;
   else {
     *ret = xmalloc(LONG_LONG_MAX_LEN);
     snprintf(*ret, LONG_LONG_MAX_LEN, "%lld", v->i);
@@ -85,12 +83,13 @@ int get_int(struct value *v, long long *ret)
 {
   if (v->s) {
     char *endp;
+
     *ret = strtoll(v->s, &endp, 10);
-    return *endp ? 0 : 1; // If endp points to NUL, all chars were converted
-  } else {
-    *ret = v->i;
-    return 1;
-  }
+
+    if (*endp) return 0; // If endp points to NUL, all chars were converted
+  } else *ret = v->i;
+
+  return 1;
 }
 
 // Preserve the invariant that v.s is NULL when the value is an integer.
@@ -103,10 +102,8 @@ void assign_int(struct value *v, long long i)
 // Check if v is 0 or the empty string.
 static int is_false(struct value *v)
 {
-  if (v->s)
-    return !*v->s || !strcmp(v->s, "0");  // get_int("0") -> 0
-  else
-    return !v->i;
+  if (v->s) return !*v->s || !strcmp(v->s, "0");  // get_int("0") -> 0
+  return !v->i;
 }
 
 // 'ret' is filled with a string capture or int match position.
@@ -117,16 +114,14 @@ static void re(char *target, char *pattern, struct value *ret)
 
   xregcomp(&pat, pattern, 0);
   if (!regexec(&pat, target, 2, m, 0) && m[0].rm_so == 0) { // match at pos 0
-    regmatch_t* g1 = &m[1]; // group capture 1
+    regmatch_t *g1 = &m[1]; // group capture 1
     if (pat.re_nsub > 0 && g1->rm_so >= 0) // has capture
       ret->s = xmprintf("%.*s", g1->rm_eo - g1->rm_so, target + g1->rm_so);
-    else
-      assign_int(ret, m[0].rm_eo);
+    else assign_int(ret, m[0].rm_eo);
   } else { // no match
-    if (pat.re_nsub > 0) // has capture
-      ret->s = "";
-    else
-      assign_int(ret, 0);
+    // has capture
+    if (pat.re_nsub > 0) ret->s = "";
+    else assign_int(ret, 0);
   }
 }
 
@@ -156,7 +151,8 @@ static struct op_def {
   {NULL, 0, 0, 0}, // sentinel
 };
 
-void eval_op(struct op_def *o, struct value *ret, struct value *rhs) {
+void eval_op(struct op_def *o, struct value *ret, struct value *rhs)
+{
   long long a, b, x = 0; // x = a OP b for ints.
   char *s, *t; // string operands
   int cmp;
@@ -210,36 +206,22 @@ void eval_op(struct op_def *o, struct value *ret, struct value *rhs) {
   }
 }
 
-// Point TT.tok at the next token.  It's NULL when there are no more tokens.
-void advance() {
-  TT.tok = *toys.optargs++;
-}
-
-// Evalute a compound expression, setting 'ret'.
-//
-// This function uses the recursive "Precedence Climbing" algorithm:
-//
-// Clarke, Keith. "The top-down parsing of expressions." University of London.
-// Queen Mary College. Department of Computer Science and Statistics, 1986.
-//
-// http://www.antlr.org/papers/Clarke-expr-parsing-1986.pdf
-//
-// Nice explanation and Python implementation:
-// http://eli.thegreenplace.net/2012/08/02/parsing-expressions-by-precedence-climbing
+// Evalute a compound expression using recursive "Precedence Climbing"
+// algorithm, setting 'ret'.
 static void eval_expr(struct value *ret, int min_prec)
 {
-  if (!TT.tok) syntax_error("Unexpected end of input");
+  if (!TT.tok) error_exit("Unexpected end of input");
 
   // Evaluate LHS atom, setting 'ret'.
   if (!strcmp(TT.tok, "(")) { // parenthesized expression
-    advance();                // consume (
+    TT.tok = *toys.optargs++; // consume (
     eval_expr(ret, 1);        // We're inside ( ), so min_prec = 1
-    if (!TT.tok)             syntax_error("Expected )");
-    if (strcmp(TT.tok, ")")) syntax_error("Expected ) but got %s", TT.tok);
-    advance();                // consume )
+    if (!TT.tok) error_exit("Expected )"); // TODO: Also says that for ()
+    if (strcmp(TT.tok, ")")) error_exit("Expected ) but got %s", TT.tok);
+    TT.tok = *toys.optargs++; // consume )
   } else {                    // simple literal
     ret->s = TT.tok;          // all values start as strings
-    advance();
+    TT.tok = *toys.optargs++;
   }
 
   // Evaluate RHS and apply operator until precedence is too low.
@@ -252,7 +234,7 @@ static void eval_expr(struct value *ret, int min_prec)
     }
     if (!o->tok) break; // Not an operator (extra input will fail later)
     if (o->prec < min_prec) break; // Precedence too low, pop a stack frame
-    advance();
+    TT.tok = *toys.optargs++;
 
     eval_expr(&rhs, o->prec + 1); // Evaluate RHS, with higher min precedence
     eval_op(o, ret, &rhs); // Apply operator, setting 'ret'
@@ -263,10 +245,9 @@ void expr_main(void)
 {
   struct value ret = {0};
   toys.exitval = 2; // if exiting early, indicate error
-
-  advance(); // initialize global token
+  TT.tok = *toys.optargs++; // initialize global token
   eval_expr(&ret, 1);
-  if (TT.tok) syntax_error("Unexpected extra input '%s'\n", TT.tok);
+  if (TT.tok) error_exit("Unexpected extra input '%s'\n", TT.tok);
 
   if (ret.s) printf("%s\n", ret.s);
   else printf("%lld\n", ret.i);
