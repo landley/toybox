@@ -136,7 +136,7 @@ static void do_tail(int fd, char *name)
   int linepop = 1;
 
   if (toys.optflags & FLAG_f) {
-    int f = TT.file_no*2;
+    int f = (TT.file_no++)*2;
     char *s = name;
 
     if (!fd) sprintf(s = toybuf, "/proc/self/fd/%d", fd);
@@ -146,7 +146,7 @@ static void do_tail(int fd, char *name)
   }
 
   if (toys.optc > 1) {
-    if (TT.file_no++) xputc('\n');
+    if (TT.file_no) xputc('\n');
     xprintf("==> %s <==\n", name);
   }
 
