@@ -151,6 +151,3 @@ testing "bonus backslashes" \
   "sed -e 'a \l \x\' -e \"\$(echo -e 'ab\\\nc')\"" \
   "hello\nl x\nab\nc\n" "" "hello\n"
 # -i with $ last line test
-
-
-exit $FAILCOUNT
