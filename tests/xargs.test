@@ -24,12 +24,10 @@ testing "command -opt" "xargs -n2 ls -1" "one\ntwo\nthree\n" "" \
 	"one two three"
 rm one two three
 
-exit
-
-testing "-n exact match"
-testing "-s exact match"
-testing "-s 0"
-testing "-s impossible"
+#testing "-n exact match"
+#testing "-s exact match"
+#testing "-s 0"
+#testing "-s impossible"
 
 # xargs command_not_found - returns 127
 # xargs false - returns 1
