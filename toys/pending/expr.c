@@ -57,7 +57,7 @@ config EXPR
 #include "toys.h"
 
 GLOBALS(
-  char *tok; // current token, not on the stack since recursive calls mutate it
+  char **tok; // current token, not on the stack since recursive calls mutate it
 )
 
 // Scalar value.  If s != NULL, it's a string, otherwise it's an int.
@@ -210,31 +210,31 @@ void eval_op(struct op_def *o, struct value *ret, struct value *rhs)
 // algorithm, setting 'ret'.
 static void eval_expr(struct value *ret, int min_prec)
 {
-  if (!TT.tok) error_exit("Unexpected end of input");
+  if (!*TT.tok) error_exit("Unexpected end of input");
 
   // Evaluate LHS atom, setting 'ret'.
-  if (!strcmp(TT.tok, "(")) { // parenthesized expression
-    TT.tok = *toys.optargs++; // consume (
+  if (!strcmp(*TT.tok, "(")) { // parenthesized expression
+    TT.tok++;  // consume (
+
     eval_expr(ret, 1);        // We're inside ( ), so min_prec = 1
-    if (!TT.tok) error_exit("Expected )"); // TODO: Also says that for ()
-    if (strcmp(TT.tok, ")")) error_exit("Expected ) but got %s", TT.tok);
-    TT.tok = *toys.optargs++; // consume )
-  } else {                    // simple literal
-    ret->s = TT.tok;          // all values start as strings
-    TT.tok = *toys.optargs++;
-  }
+    if (ret->s && !strcmp(ret->s, ")")) error_exit("empty ( )");
+    if (!*TT.tok) error_exit("Expected )");
+    if (strcmp(*TT.tok, ")")) error_exit("Expected ) but got %s", *TT.tok);
+  } else ret->s = *TT.tok;  // simple literal, all values start as strings
+  TT.tok++;
 
   // Evaluate RHS and apply operator until precedence is too low.
   struct value rhs;
-  while (TT.tok) {
+  while (*TT.tok) {
     struct op_def *o = OPS;
+
     while (o->tok) { // Look up operator
-      if (!strcmp(TT.tok, o->tok)) break;
+      if (!strcmp(*TT.tok, o->tok)) break;
       o++;
     }
     if (!o->tok) break; // Not an operator (extra input will fail later)
     if (o->prec < min_prec) break; // Precedence too low, pop a stack frame
-    TT.tok = *toys.optargs++;
+    TT.tok++;
 
     eval_expr(&rhs, o->prec + 1); // Evaluate RHS, with higher min precedence
     eval_op(o, ret, &rhs); // Apply operator, setting 'ret'
@@ -244,10 +244,11 @@ static void eval_expr(struct value *ret, int min_prec)
 void expr_main(void)
 {
   struct value ret = {0};
+
   toys.exitval = 2; // if exiting early, indicate error
-  TT.tok = *toys.optargs++; // initialize global token
+  TT.tok = toys.optargs; // initialize global token
   eval_expr(&ret, 1);
-  if (TT.tok) error_exit("Unexpected extra input '%s'\n", TT.tok);
+  if (*TT.tok) error_exit("Unexpected extra input '%s'\n", *TT.tok);
 
   if (ret.s) printf("%s\n", ret.s);
   else printf("%lld\n", ret.i);
