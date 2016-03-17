@@ -66,16 +66,11 @@ struct value {
   long long i;
 };
 
-#define LONG_LONG_MAX_LEN 21
-
 // Get the value as a string.
-void get_str(struct value *v, char **ret)
+char *get_str(struct value *v)
 {
-  if (v->s) *ret = v->s;
-  else {
-    *ret = xmalloc(LONG_LONG_MAX_LEN);
-    snprintf(*ret, LONG_LONG_MAX_LEN, "%lld", v->i);
-  }
+  if (v->s) return v->s;
+  else return xmprintf("%lld", v->i);
 }
 
 // Get the value as an integer and return 1, or return 0 on error.
@@ -170,9 +165,9 @@ void eval_op(struct op_def *o, struct value *ret, struct value *rhs)
     if (get_int(ret, &a) && get_int(rhs, &b)) { // both are ints
       cmp = a - b;
     } else { // otherwise compare both as strings
-      get_str(ret, &s);
-      get_str(rhs, &t);
-      cmp = strcmp(s, t);
+      cmp = strcmp(s = get_str(ret), t = get_str(rhs));
+      if (ret->s != s) free(s);
+      if (rhs->s != t) free(t);
     }
     switch (o->op) {
     case EQ:  x = cmp == 0; break;
@@ -199,9 +194,11 @@ void eval_op(struct op_def *o, struct value *ret, struct value *rhs)
     break;
 
   case S_TO_SI: // op == RE
-    get_str(ret, &s);
-    get_str(rhs, &t);
-    re(s, t, ret);
+    s = get_str(ret);
+    cmp = ret->s!=s; // ret overwritten by re so check now
+    re(s, t = get_str(rhs), ret);
+    if (cmp) free(s);
+    if (rhs->s!=t) free(t);
     break;
   }
 }
