@@ -59,3 +59,18 @@ testing "-c 12345 -n 3 bigfile" "tail -c 12345 -n 3 bigfile | md5sum" \
   "347bbdcbad8a313f4dc7bd558c5bfcb8  -\n" "" ""
 testing "-n 3 -c 12345 bigfile" "tail -n 3 -c 12345 bigfile | md5sum" \
   "1698825a750288284ec3ba7d8a59f302  -\n" "" ""
+rm bigfile
+
+echo 111 > one
+testing "-f one" \
+  'tail -f one & sleep .25 ; echo two >> one; sleep .25; echo three >> one; sleep .25; kill $! >/dev/null' \
+  "111\ntwo\nthree\n" "" ""
+rm one
+
+echo uno > one
+echo dos > two
+echo tres > three
+testing "-f one two three" \
+  'tail -f one two three & sleep .25 ; echo more >> three ; echo also >> one; sleep .25; kill $! >/dev/null' \
+  "==> one <==\nuno\n\n==> two <==\ndos\n\n==> three <==\ntres\nmore\n\n==> one <==\nalso\n" "" ""
+rm one two three

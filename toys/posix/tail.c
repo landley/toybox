@@ -3,6 +3,8 @@
  * Copyright 2012 Timothy Elliott <tle@holymonkey.com>
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/tail.html
+ *
+ * Deviations from posix: -f waits for pipe/fifo on stdin (nonblock?).
 
 USE_TAIL(NEWTOY(tail, "?fc-n-[-cn]", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -136,7 +138,7 @@ static void do_tail(int fd, char *name)
   int linepop = 1;
 
   if (toys.optflags & FLAG_f) {
-    int f = (TT.file_no++)*2;
+    int f = TT.file_no*2;
     char *s = name;
 
     if (!fd) sprintf(s = toybuf, "/proc/self/fd/%d", fd);
@@ -145,10 +147,8 @@ static void do_tail(int fd, char *name)
       perror_msg("bad -f on '%s'", name);
   }
 
-  if (toys.optc > 1) {
-    if (TT.file_no) xputc('\n');
-    xprintf("==> %s <==\n", name);
-  }
+  if (TT.file_no++) xputc('\n');
+  if (toys.optc > 1) xprintf("==> %s <==\n", name);
 
   // Are we measuring from the end of the file?
 
