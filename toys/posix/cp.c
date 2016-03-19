@@ -395,20 +395,21 @@ void cp_main(void)
 
     errno = EXDEV;
     if (CFG_MV && toys.which->name[0] == 'm') {
-      if (!(toys.optflags & FLAG_f)) {
+      int force = toys.optflags & FLAG_f, no_clobber = toys.optflags & FLAG_n;
+      if (!force || no_clobber) {
         struct stat st;
-
-        // Technically "is writeable" is more complicated (022 is not writeable
-        // by the owner, just everybody _else_) but I don't care.
-        if (!stat(TT.destname, &st)
-          && ((toys.optflags & FLAG_i) || !(st.st_mode & 0222)))
-        {
+        int exists = !stat(TT.destname, &st);
+        // Prompt if -i or file isn't writable.  Technically "is writable" is
+        // more complicated (022 is not writeable by the owner, just everybody
+        // _else_) but I don't care.
+        if (exists && ((toys.optflags & FLAG_i) || !(st.st_mode & 0222))) {
           fprintf(stderr, "%s: overwrite '%s'", toys.which->name, TT.destname);
           if (!yesno(1)) rc = 0;
           else unlink(TT.destname);
         }
+        // if -n and dest exists, don't try to rename() or copy
+        if (exists && no_clobber) rc = 0;
       }
-
       if (rc) rc = rename(src, TT.destname);
     }
 
