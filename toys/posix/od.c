@@ -5,21 +5,22 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/od.html
 
-USE_OD(NEWTOY(od, "j#vN#xsodcbA:t*", TOYFLAG_USR|TOYFLAG_BIN))
+USE_OD(NEWTOY(od, "j#vw#<1=16N#xsodcbA:t*", TOYFLAG_USR|TOYFLAG_BIN))
 
 config OD
   bool "od"
   default y
   help
-    usage: od [-bcdosxv] [-j #] [-N #] [-A doxn] [-t acdfoux[#]]
+    usage: od [-bcdosxv] [-j #] [-N #] [-w #] [-A doxn] [-t acdfoux[#]]
 
     -A	Address base (decimal, octal, hexdecimal, none)
     -j	Skip this many bytes of input
     -N	Stop dumping after this many bytes
-    -t	output type a(scii) c(har) d(ecimal) f(loat) o(ctal) u(nsigned) (he)x
+    -t	Output type a(scii) c(har) d(ecimal) f(loat) o(ctal) u(nsigned) (he)x
     	plus optional size in bytes
     	aliases: -b=-t o1, -c=-t c, -d=-t u2, -o=-t o2, -s=-t d2, -x=-t x2
     -v	Don't collapse repeated lines together
+    -w	Total line width in bytes (default 16).
 */
 
 #define FOR_od
@@ -29,12 +30,13 @@ GLOBALS(
   struct arg_list *output_base;
   char *address_base;
   long max_count;
+  long width;
   long jump_bytes;
 
   int address_idx;
   unsigned types, leftover, star;
-  char *buf;
-  uint64_t bufs[4]; // force 64-bit alignment
+  char *buf; // Points to buffers[0] or buffers[1].
+  char *bufs[2]; // Used to detect duplicate lines.
   off_t pos;
 )
 
@@ -129,11 +131,11 @@ static void od_outline(void)
   struct odtype *types = (struct odtype *)toybuf;
   int i, j, len, pad;
 
-  if (TT.leftover<16) memset(TT.buf+TT.leftover, 0, 16-TT.leftover);
+  if (TT.leftover<TT.width) memset(TT.buf+TT.leftover, 0, TT.width-TT.leftover);
 
   // Handle duplciate lines as *
   if (!(flags&FLAG_v) && TT.jump_bytes != TT.pos && TT.leftover
-    && !memcmp(TT.bufs, TT.bufs + 2, 16))
+    && !memcmp(TT.bufs[0], TT.bufs[1], TT.width))
   {
     if (!TT.star) {
       xputs("*");
@@ -168,7 +170,6 @@ static void od_outline(void)
   }
 
   // For each output type, print one line
-
   for (i=0; i<TT.types; i++) {
     for (j = 0; j<len;) {
       int bytes = j;
@@ -181,8 +182,8 @@ static void od_outline(void)
     xputc('\n');
   }
 
-  // buffer toggle for "same as last time" check.
-  TT.buf = (char *)((TT.buf == (char *)TT.bufs) ? TT.bufs+2 : TT.bufs);
+  // Toggle buffer for "same as last time" check.
+  TT.buf = (TT.buf == TT.bufs[0]) ? TT.bufs[1] : TT.bufs[0];
 }
 
 // Loop through input files
@@ -198,7 +199,7 @@ static void do_od(int fd, char *name)
 
   for(;;) {
     char *buf = TT.buf + TT.leftover;
-    int len = 16 - TT.leftover;
+    int len = TT.width - TT.leftover;
 
     if (toys.optflags & FLAG_N) {
       if (!TT.max_count) break;
@@ -212,7 +213,7 @@ static void do_od(int fd, char *name)
     }
     if (TT.max_count) TT.max_count -= len;
     TT.leftover += len;
-    if (TT.leftover < 16) break;
+    if (TT.leftover < TT.width) break;
 
     od_outline();
   }
@@ -264,7 +265,9 @@ void od_main(void)
 {
   struct arg_list *arg;
 
-  TT.buf = (char *)TT.bufs;
+  TT.bufs[0] = xzalloc(TT.width);
+  TT.bufs[1] = xzalloc(TT.width);
+  TT.buf = TT.bufs[0];
 
   if (!TT.address_base) TT.address_idx = 2;
   else if (0>(TT.address_idx = stridx("ndox", *TT.address_base)))
@@ -285,4 +288,9 @@ void od_main(void)
 
   if (TT.leftover) od_outline();
   od_outline();
+
+  if (CFG_TOYBOX_FREE) {
+    free(TT.bufs[0]);
+    free(TT.bufs[1]);
+  }
 }
