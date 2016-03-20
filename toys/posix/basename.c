@@ -23,7 +23,7 @@ void basename_main(void)
   char *base = basename(*toys.optargs), *suffix = toys.optargs[1];
 
   // chop off the suffix if provided
-  if (suffix) {
+  if (suffix && *suffix) {
     long bl = strlen(base), sl = strlen(suffix);
     char *s = base + bl - sl;
 

@@ -21,3 +21,6 @@ testing "reappearing suffix 2" "basename a.txt.old .txt" "a.txt.old\n" "" ""
 
 # A suffix should be a real suffix, only a the end.
 testing "invalid suffix" "basename isthisasuffix? suffix" "isthisasuffix?\n" "" ""
+
+# Zero-length suffix
+testing "zero-length suffix" "basename a/b/c ''" "c\n" "" ""
