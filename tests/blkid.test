@@ -25,7 +25,7 @@ testing "f2fs" 'bzcat "$BDIR"/f2fs.bz2 | blkid -' \
   '-: LABEL="" UUID="b53d3619-c204-4c0b-8504-36363578491c" TYPE="f2fs"\n' \
   "" ""
 testing "msdos" 'bzcat "$BDIR"/msdos.bz2 | blkid -' \
-  '-: LABEL="mymsdos    " UUID="5108-1e6e" TYPE="vfat"\n' "" ""
+  '-: LABEL="mymsdos" UUID="5108-1e6e" TYPE="vfat"\n' "" ""
 testing "ntfs" 'bzcat "$BDIR"/ntfs.bz2 | blkid -' \
   '-: UUID="8585600838bfe16e" TYPE="ntfs"\n' "" ""
 testing "reiserfs" 'bzcat "$BDIR"/reiser3.bz2 | blkid -' \
@@ -34,7 +34,7 @@ testing "reiserfs" 'bzcat "$BDIR"/reiser3.bz2 | blkid -' \
 testing "squashfs" 'bzcat "$BDIR"/squashfs.bz2 | blkid -' \
   '-: TYPE="squashfs"\n' "" ""
 testing "vfat" 'bzcat "$BDIR"/vfat.bz2 | blkid -' \
-  '-: LABEL="myvfat     " UUID="1db9-5673" TYPE="vfat"\n' "" ""
+  '-: LABEL="myvfat" UUID="1db9-5673" TYPE="vfat"\n' "" ""
 testing "xfs" 'bzcat "$BDIR"/xfs.bz2 | blkid -' \
   '-: LABEL="XFS_test" UUID="d63a1dc3-27d5-4dd4-8b38-f4f97f495c6f" TYPE="xfs"\n' \
   "" ""

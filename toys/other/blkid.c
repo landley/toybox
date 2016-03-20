@@ -115,9 +115,17 @@ static void do_blkid(int fd, char *name)
   // output for blkid
   printf("%s:",name);
 
-  if (fstypes[i].label_len)
-    printf(" LABEL=\"%.*s\"", fstypes[i].label_len,
-           toybuf+fstypes[i].label_off-off);
+  if (fstypes[i].label_len) {
+    int label_len = fstypes[i].label_len, loff = fstypes[i].label_off-off;
+    if (!strcmp(fstypes[i].name, "vfat")) {
+      if (!strncmp(toybuf+loff, "NO NAME    ", label_len))
+        label_len=0;
+      else while (toybuf[loff+label_len-1] == ' ')
+        label_len--;
+    }
+    if (label_len)
+      printf(" LABEL=\"%.*s\"", label_len, toybuf+loff);
+  }
 
   if (fstypes[i].uuid_off) {
     int bits = 0x550, size = fstypes[i].uuid_off >> 24,
