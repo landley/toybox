@@ -1,0 +1,30 @@
+#!/bin/bash
+
+#testing "name" "command" "result" "infile" "stdin"
+
+seq 10 > left
+seq 11 > right
+
+expected='--- left
++++ right
+@@ -8,3 +8,4 @@
+ 8
+ 9
+ 10
++11
+'
+# Hm this only gives unified diffs?
+testing "simple" "diff left right" "$expected" "" ""
+
+
+expected='--- tree1/file
++++ tree2/file
+@@ -1 +1 @@
+-foo
++food
+'
+mkdir -p tree1 tree2
+echo foo > tree1/file
+echo food > tree2/file
+
+testing "simple" "diff -r tree1 tree2 |tee out" "$expected" "" ""

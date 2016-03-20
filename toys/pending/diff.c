@@ -59,7 +59,7 @@ struct diff {
   long a, b, c, d, prev, suff;
 };
 
-static struct dir {
+static struct dir_t {
   char **list;
   int nr_elm;
 } dir[2];
@@ -69,7 +69,7 @@ struct candidate {
   struct candidate *prev, *next;
 };
 
-static struct file {
+static struct file_t {
   FILE *fp;
   int len;
 } file[2];
@@ -797,7 +797,7 @@ void diff_main(void)
 
   if (S_ISDIR(st[0].st_mode) && S_ISDIR(st[1].st_mode)) {
     for (j = 0; j < 2; j++) {
-      memset(&dir[j], 0, sizeof(dir));
+      memset(&dir[j], 0, sizeof(struct dir_t));
       dirtree_flagread(files[j], DIRTREE_SYMFOLLOW, list_dir);
       dir[j].nr_elm = TT.size; //size updated in list_dir
       qsort(&(dir[j].list[1]), (TT.size - 1), sizeof(char*), cmp);
