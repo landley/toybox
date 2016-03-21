@@ -19,6 +19,9 @@ testing "* % same priority" "expr 3 \* 2 % 4" "2\n" "" ""
 testing "= > same priority" "expr 0 = 2 \> 3" "0\n" "" ""
 testing "> = same priority" "expr 3 \> 2 = 1" "1\n" "" ""
 
+testing "00 | 1" "expr 00 \| 1" "1\n" "" ""
+testing "-0 | 1" "expr -0 \| 2" "2\n" "" ""
+testing '"" | 1' 'expr "" \| 3' "3\n" "" ""
 testing "/ by zero" "expr 1 / 0 2>/dev/null; echo \$?" "2\n" "" ""
 testing "% by zero" "expr 1 % 0 2>/dev/null; echo \$?" "2\n" "" ""
 

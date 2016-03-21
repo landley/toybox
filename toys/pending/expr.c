@@ -58,6 +58,8 @@ config EXPR
 
 GLOBALS(
   char **tok; // current token, not on the stack since recursive calls mutate it
+
+  char *refree;
 )
 
 // Scalar value.  If s != NULL, it's a string, otherwise it's an int.
@@ -97,8 +99,7 @@ void assign_int(struct value *v, long long i)
 // Check if v is 0 or the empty string.
 static int is_false(struct value *v)
 {
-  if (v->s) return !*v->s || !strcmp(v->s, "0");  // get_int("0") -> 0
-  return !v->i;
+  return get_int(v, &v->i) && !v->i;
 }
 
 // 'ret' is filled with a string capture or int match position.
@@ -108,16 +109,19 @@ static void re(char *target, char *pattern, struct value *ret)
   regmatch_t m[2];
 
   xregcomp(&pat, pattern, 0);
-  if (!regexec(&pat, target, 2, m, 0) && m[0].rm_so == 0) { // match at pos 0
-    regmatch_t *g1 = &m[1]; // group capture 1
-    if (pat.re_nsub > 0 && g1->rm_so >= 0) // has capture
-      ret->s = xmprintf("%.*s", g1->rm_eo - g1->rm_so, target + g1->rm_so);
-    else assign_int(ret, m[0].rm_eo);
-  } else { // no match
-    // has capture
-    if (pat.re_nsub > 0) ret->s = "";
+  // must match at pos 0
+  if (!regexec(&pat, target, 2, m, 0) && !m[0].rm_so) {
+    // Return first parenthesized subexpression as string, or length of match
+    if (pat.re_nsub>0) {
+      ret->s = xmprintf("%.*s", m[1].rm_eo-m[1].rm_so, target+m[1].rm_so);
+      if (TT.refree) free(TT.refree);
+      TT.refree = ret->s;
+    } else assign_int(ret, m[0].rm_eo);
+  } else {
+    if (pat.re_nsub>0) ret->s = "";
     else assign_int(ret, 0);
   }
+  regfree(&pat);
 }
 
 // 4 different signatures of operators.  S = string, I = int, SI = string or
@@ -250,5 +254,7 @@ void expr_main(void)
   if (ret.s) printf("%s\n", ret.s);
   else printf("%lld\n", ret.i);
 
-  exit(is_false(&ret));
+  toys.exitval = is_false(&ret);
+
+  if (TT.refree) free(TT.refree);
 }
