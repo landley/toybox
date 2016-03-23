@@ -55,6 +55,13 @@ to the environment will take precedence.</p>
 I.E. "what to build", and "configure" describes the build and installation
 environment, I.E. "how to build it".)</p>
 
+<p>By default "make install" puts files in /usr/toybox. Adding this to the
+$PATH is up to you. The environment variable $PREFIX can change the
+install location, ala "PREFIX=/usr/local/bin make install".</p>
+
+<p>If you need an unstripped (debug) version of any of these binaries,
+look in generated/unstripped.</p>
+
 <p><h1><a name="running"><a href="#running">Running a command</a></h1></p>
 
 <h2>main</h2>
@@ -444,10 +451,15 @@ as specified by the options field off this command's toy_list entry.  See
 the get_optargs() description in lib/args.c for details.</p>
 </li>
 
-<li><b>char toybuf[4096]</b> - a common scratch space buffer so
-commands don't need to allocate their own.  Any command is free to use this,
-and it should never be directly referenced by functions in lib/ (although
-commands are free to pass toybuf in to a library function as an argument).</li>
+<li><b>char toybuf[4096]</b> - a common scratch space buffer guaranteed
+to start zeroed, so commands don't need to allocate/initialize their own.
+Any command is free to use this, and it should never be directly referenced
+by functions in lib/ (although commands are free to pass toybuf in to a
+library function as an argument).</li>
+
+<li><b>char libbuf[4096]</b> - like toybuf, but for use by common code in
+lib/*.c. Commands should never directly reference libbuf, and library
+could should nnever directly reference toybuf.</li>
 </ul>
 
 <p>The following functions are defined in main.c:</p>

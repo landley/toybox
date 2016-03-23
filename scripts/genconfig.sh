@@ -146,12 +146,10 @@ do
   [ "${FILE/pending//}" != "$FILE" ] &&
     PENDING="$PENDING $NAME" ||
     WORKING="$WORKING $NAME"
-done > .singlemake &&
-echo -e "clean::\n\trm -f $WORKING $PENDING" >> .singlemake &&
-echo -e "list:\n\t@echo $(echo $WORKING $PENDING | tr ' ' '\n' | sort | xargs)"\
-  >> .singlemake &&
-echo -e "list_working:\n\t@echo $(echo $WORKING | tr ' ' '\n' | sort | xargs)" \
-  >> .singlemake &&
-echo -e "list_pending:\n\t@echo $(echo $PENDING | tr ' ' '\n' | sort | xargs)" \
-  >> .singlemake
-)
+done &&
+echo -e "clean::\n\trm -f $WORKING $PENDING" &&
+echo -e "list:\n\t@echo $(echo $WORKING $PENDING | tr ' ' '\n' | sort | xargs)" &&
+echo -e "list_working:\n\t@echo $(echo $WORKING | tr ' ' '\n' | sort | xargs)" &&
+echo -e "list_pending:\n\t@echo $(echo $PENDING | tr ' ' '\n' | sort | xargs)" &&
+echo -e ".PHONY: $WORKING $PENDING" | sed 's/ \([^ ]\)/ test_\1/g'
+) > .singlemake

@@ -38,6 +38,6 @@ do
   echo "# CONFIG_TOYBOX is not set" >> "$KCONFIG_CONFIG" &&
   grep "CONFIG_TOYBOX_" .config >> "$KCONFIG_CONFIG" &&
 
-  make &&
-  mv -f toybox $PREFIX$i || exit 1
+  rm -f "$PREFIX$i" &&
+  OUTNAME="$PREFIX$i" scripts/make.sh || exit 1
 done

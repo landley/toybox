@@ -4,31 +4,24 @@
 
 source ./configure
 
-# Parse command line arguments.
+[ -z "$PREFIX" ] && PREFIX="/usr/toybox"
 
-[ -z "$PREFIX" ] && PREFIX="."
+# Parse command line arguments.
 
 LONG_PATH=""
 while [ ! -z "$1" ]
 do
   # Create symlinks instead of hardlinks?
-
   [ "$1" == "--symlink" ] && LINK_TYPE="-s"
 
   # Uninstall?
-
-  [ "$1" == "--uninstall" ] && UNINSTALL=1
+  [ "$1" == "--uninstall" ] && UNINSTALL=Uninstall
 
   # Delete destination command if it exists?
-
   [ "$1" == "--force" ] && DO_FORCE="-f"
 
   # Use {,usr}/{bin,sbin} paths instead of all files in one directory?
-
-  if [ "$1" == "--long" ]
-  then
-    LONG_PATH="bin/"
-  fi
+  [ "$1" == "--long" ] && LONG_PATH="bin/"
 
   shift
 done
@@ -38,21 +31,23 @@ echo "Compile instlist..."
 $DEBUG $HOSTCC -I . scripts/install.c -o generated/instlist || exit 1
 COMMANDS="$(generated/instlist $LONG_PATH)"
 
-echo "Install commands..."
+echo "${UNINSTALL:-Install} commands..."
 
 # Copy toybox itself
 
 if [ -z "$UNINSTALL" ]
 then
-  mkdir -p ${PREFIX}/${LONG_PATH} || exit 1
+  mkdir -p "${PREFIX}/${LONG_PATH}" &&
+  rm -f "${PREFIX}/${LONG_PATH}/toybox" &&
   cp toybox ${PREFIX}/${LONG_PATH} || exit 1
 else
-  rm "${PREFIX}/${LONG_PATH}/toybox" 2>/dev/null
-  rmdir "${PREFIX}/${LONG_PATH}" 2>/dev/null
+  rm -f "${PREFIX}/${LONG_PATH}/toybox" 2>/dev/null
 fi
-cd "${PREFIX}"
+cd "$PREFIX" || exit 1
 
 # Make links to toybox
+
+EXIT=0
 
 for i in $COMMANDS
 do
@@ -64,20 +59,19 @@ do
   else
     # Create subdirectory for command to go in (if necessary)
 
-    DOTPATH="$(echo $i | sed 's@\(.*/\).*@\1@')"
+    DOTPATH="$(dirname "$i")"/
     if [ -z "$UNINSTALL" ]
     then
       mkdir -p "$DOTPATH" || exit 1
-    else
-      rmdir "$DOTPATH" 2>/dev/null
     fi
 
     if [ -z "$LINK_TYPE" ]
     then
-      dotpath="bin/"
+      DOTPATH="bin/"
     else
       if [ "$DOTPATH" != "$LONG_PATH" ]
       then
+        # For symlinks we need ../../bin style relative paths
         DOTPATH="$(echo $DOTPATH | sed -e 's@[^/]*/@../@g')"$LONG_PATH
       else
         DOTPATH=""
@@ -86,7 +80,12 @@ do
   fi
 
   # Create link
-  [ -z "$UNINSTALL" ] &&
-    ln $DO_FORCE $LINK_TYPE ${DOTPATH}toybox $i ||
-    rm $i 2>/dev/null
+  if [ -z "$UNINSTALL" ]
+  then
+    ln $DO_FORCE $LINK_TYPE ${DOTPATH}toybox $i || EXIT=1
+  else
+    rm -f $i || EXIT=1
+  fi
 done
+
+exit $EXIT

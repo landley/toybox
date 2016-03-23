@@ -7,7 +7,9 @@ export LC_ALL=C
 set -o pipefail
 source ./configure
 
-[ -z "$KCONFIG_CONFIG" ] && KCONFIG_CONFIG=".config"
+[ -z "$KCONFIG_CONFIG" ] && KCONFIG_CONFIG=.config
+[ -z "$OUTNAME" ] && OUTNAME=toybox
+UNSTRIPPED="generated/unstripped/$(basename "$OUTNAME")"
 
 # Since each cc invocation is short, launch half again as many processes
 # as we have processors so they don't exit faster than we can start them.
@@ -30,7 +32,7 @@ isnewer()
 
 echo "Generate headers from toys/*/*.c..."
 
-mkdir -p generated
+mkdir -p generated/unstripped
 
 if isnewer generated/Config.in toys
 then
@@ -111,7 +113,7 @@ fi
 
 # LINK needs optlibs.dat, above
 
-LINK="$(echo $LDOPTIMIZE $LDFLAGS -o toybox_unstripped -Wl,--as-needed $(cat generated/optlibs.dat))"
+LINK="$(echo $LDOPTIMIZE $LDFLAGS -o "$UNSTRIPPED" -Wl,--as-needed $(cat generated/optlibs.dat))"
 genbuildsh > generated/build.sh && chmod +x generated/build.sh || exit 1
 
 echo "Make generated/config.h from $KCONFIG_CONFIG."
@@ -293,9 +295,10 @@ done
 [ $DONE -ne 0 ] && exit 1
 
 do_loudly $BUILD $LFILES $LINK || exit 1
-if [ ! -z "$NOSTRIP" ] || ! do_loudly ${CROSS_COMPILE}strip toybox_unstripped -o toybox
+if [ ! -z "$NOSTRIP" ] ||
+  ! do_loudly ${CROSS_COMPILE}strip "$UNSTRIPPED" -o "$OUTNAME"
 then
-  echo "strip failed, using unstripped" && cp toybox_unstripped toybox ||
+  echo "strip failed, using unstripped" && cp "$UNSTRIPPED" "$OUTNAME" ||
   exit 1
 fi
 
@@ -303,6 +306,6 @@ fi
 # its output the way SUSv4 suggests it do so. While we're at it, make sure
 # we don't have the "w" bit set so things like bzip2's "cp -f" install don't
 # overwrite our binary through the symlink.
-do_loudly chmod 555 toybox || exit 1
+do_loudly chmod 555 "$OUTNAME" || exit 1
 
 echo
