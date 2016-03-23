@@ -59,13 +59,13 @@ static const struct fstype fstypes[] = {
 
 static void do_blkid(int fd, char *name)
 {
-  int off, i, j;
+  int off, i, j, len;
   char *type;
 
   off = i = 0;
 
   for (;;) {
-    int pass = 0, len;
+    int pass = 0;
 
     // Read next block of data
     len = readall(fd, toybuf, sizeof(toybuf));
@@ -116,15 +116,14 @@ static void do_blkid(int fd, char *name)
   printf("%s:",name);
 
   if (fstypes[i].label_len) {
-    int label_len = fstypes[i].label_len, loff = fstypes[i].label_off-off;
-    if (!strcmp(fstypes[i].name, "vfat")) {
-      if (!strncmp(toybuf+loff, "NO NAME    ", label_len))
-        label_len=0;
-      else while (toybuf[loff+label_len-1] == ' ')
-        label_len--;
+    char *s = toybuf+fstypes[i].label_off-off;;
+
+    len = fstypes[i].label_len;
+    if (!strcmp(type, "vfat")) {
+      while (len && s[len-1]==' ') len--;
+      if (strstart(&s, "NO NAME")) len=0;
     }
-    if (label_len)
-      printf(" LABEL=\"%.*s\"", label_len, toybuf+loff);
+    if (len) printf(" LABEL=\"%.*s\"", len, s);
   }
 
   if (fstypes[i].uuid_off) {
