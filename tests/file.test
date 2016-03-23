@@ -11,11 +11,11 @@ echo "#!  /usr/bin/env python" > env.python.script
 echo "Hello, world!" > ascii
 echo "cafebabe000000310000" | xxd -r -p > java.class
 
-testing "file empty" "file empty" "empty: empty\n" "" ""
-testing "file bash.script" "file bash.script" "bash.script: /bin/bash script\n" "" ""
-testing "file bash.script with spaces" "file bash.script2" "bash.script2: /bin/bash script\n" "" ""
-testing "file env python script" "file env.python.script" "env.python.script: python script\n" "" ""
-testing "file ascii" "file ascii" "ascii: ASCII text\n" "" ""
-testing "file java class" "file java.class" "java.class: Java class file, version 49.0\n" "" ""
+testing "empty" "file empty" "empty: empty\n" "" ""
+testing "bash.script" "file bash.script" "bash.script: /bin/bash script\n" "" ""
+testing "bash.script with spaces" "file bash.script2" "bash.script2: /bin/bash script\n" "" ""
+testing "env python script" "file env.python.script" "env.python.script: python script\n" "" ""
+testing "ascii" "file ascii" "ascii: ASCII text\n" "" ""
+testing "java class" "file java.class" "java.class: Java class file, version 49.0\n" "" ""
 
 rm empty bash.script bash.script2 env.python.script ascii java.class
