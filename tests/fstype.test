@@ -4,7 +4,7 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-BDIR="$TOPDIR/tests/blkid"
+BDIR="$FILES/blkid"
 
 bzcat "$BDIR"/squashfs.bz2 > temp.img
 testing "file" "fstype temp.img" 'squashfs\n' "" ""

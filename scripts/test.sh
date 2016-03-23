@@ -1,6 +1,7 @@
 #!/bin/bash
 
-[ -z "$TOPDIR" ] && TOPDIR="$(pwd)"
+TOPDIR="$PWD"
+FILES="$PWD"/tests/files
 
 trap 'kill $(jobs -p) 2>/dev/null; exit 1' INT
 

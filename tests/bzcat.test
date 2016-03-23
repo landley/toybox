@@ -7,7 +7,7 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 testing "overflow" \
-  'bzcat "$TOPDIR/files/bzcat/overflow.bz2" >/dev/null 2>/dev/null;
+  'bzcat "$FILES/bzcat/overflow.bz2" >/dev/null 2>/dev/null ;
    [ $? -eq 1 ] && echo good' "good\n" "" ""
 
 echo "hello" > file
