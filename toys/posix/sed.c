@@ -6,6 +6,9 @@
  *
  * TODO: lines > 2G could wrap signed int length counters. Not just getline()
  * but N and s///
+ * TODO: make y// handle unicode
+ * TODO: handle error return from emit(), error_msg/exit consistently
+ *       What's the right thing to do for -i when write fails? Skip to next?
 
 USE_SED(NEWTOY(sed, "(version)e*f*inEr[+Er]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 
@@ -195,9 +198,9 @@ static int emit(char *line, long len, int eol)
   int l, old = line[len];
 
   if (TT.noeol && !writeall(TT.fdout, "\n", 1)) return 1;
+  TT.noeol = !eol;
   if (eol) line[len++] = '\n';
   if (!len) return 0;
-  TT.noeol = len && !eol;
   l = writeall(TT.fdout, line, len);
   if (eol) line[len-1] = old;
   if (l != len) {
@@ -366,7 +369,7 @@ static void walk_pattern(char **pline, long plen)
 
     if (c=='a' || c=='r') {
       struct append *a = xzalloc(sizeof(struct append));
-      a->str = logrus->arg1+(char *)logrus;
+      if (logrus->arg1) a->str = logrus->arg1+(char *)logrus;
       a->file = c=='r';
       dlist_add_nomalloc((void *)&append, (void *)a);
     } else if (c=='b' || c=='t' || c=='T') {
@@ -639,7 +642,8 @@ done:
         xsendfile(fd, TT.fdout);
         close(fd);
       }
-    } else emit(append->str, strlen(append->str), 1);
+    } else if (append->str) emit(append->str, strlen(append->str), 1);
+    else emit(line, 0, 0);
     free(append);
     append = a;
   }
@@ -764,7 +768,6 @@ static void jewel_of_judgement(char **pline, long len)
   // Append additional line to pattern argument string?
   // We temporarily repurpose "hit" to indicate line continuations
   if (corwin && corwin->prev->hit) {
-    if (!pline || !*pline) error_exit("unfinished %c", corwin->prev->c);;
     // Remove half-finished entry from list so remalloc() doesn't confuse it
     TT.pattern = TT.pattern->prev;
     corwin = dlist_pop(&TT.pattern);
@@ -958,6 +961,7 @@ writenow:
     } else if (strchr("abcirtTw:", c)) {
       int end;
 
+      // trim leading spaces
       while (isspace(*line) && *line != '\n') line++;
 
       // Resume logic differs from 's' case because we don't add a newline
@@ -965,8 +969,9 @@ writenow:
 resume_a:
       corwin->hit = 0;
 
-      // Trim whitespace from "b ;" and ": blah " but only first space in "w x "
-      if (!(end = strcspn(line, strchr("btT:", c) ? "; \t\r\n\v\f" : "\n"))) {
+      // btT: end with space or semicolon, aicrw continue to newline.
+      if (!(end = strcspn(line, strchr(":btT", c) ? "; \t\r\n\v\f" : "\n"))) {
+        // Argument's optional for btT
         if (strchr("btT", c)) continue;
         else if (!corwin->arg1) break;
       }
@@ -976,6 +981,10 @@ resume_a:
       // \n over NUL terminator because call to extend_string() adds it back.
       if (!corwin->arg1) corwin->arg1 = reg - (char*)corwin;
       else if (*(corwin->arg1+(char *)corwin)) *(reg++) = '\n';
+      else if (!pline) {
+        corwin->arg1 = 0;
+        continue;
+      }
       reg = extend_string((void *)&corwin, line, reg - (char *)corwin, end);
 
       // Recopy data to remove escape sequences and handle line continuation.

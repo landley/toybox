@@ -77,9 +77,7 @@ testing "c {range}" "sed -e '2,4{c blah' -e '}'" \
         "" "one\ntwo\nthree\nfour\nfive\nsix"
 testing "c multiple continuation" \
 	"sed -e 'c\\' -e 'two\\' -e ''" "two\n\n" "" "hello"
-# NOTE: will print 'unfinished c' to stderr and exit 1
-testing "c empty continuation" \
-	"sed -e 'c\\'" "" "" "hello"
+SKIP_HOST=1 testing "c empty continuation" "sed -e 'c\\'" "\n" "" "hello"
 testing "D further processing depends on whether line is blank" \
 	"sed -e '/one/,/three/{' -e 'i meep' -e'N;2D;}'" \
 	"meep\nmeep\ntwo\nthree\n" "" "one\ntwo\nthree\n"
@@ -137,6 +135,12 @@ testing "" "sed -e 's/a[([]*b/X/'" 'X' '' 'a[(b'
 testing "" "sed 'y/a\\bc/de\f/'" "db\f" "" "abc"
 testing "[a-a] (for perl)" "sed '"'s/\([^a-zA-Z0-9.:_\-\/]\)/\\\1/g'"'" \
   'he\ llo' "" "he llo"
+
+# Debian bug https://bugs.debian.org/635570 added code to ensure a file
+# ends with a newline via "sed -e '$a\'". Apparently all a\ with no additional
+# pattern lines after it does (other than making posix throw up) is
+# flush the pending newline as _if_ it had added another line. *shrug* Ok?
+testing "trailing a\ (for debian)" "sed 'a\\'" "hello\n" "" "hello"
 
 # You have to match the first line of a range in order to activate
 # the range, numeric and ascii work the same way
