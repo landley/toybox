@@ -226,7 +226,7 @@ struct linestack *linestack_load(char *name);
 int crunch_escape(FILE *out, int cols, int wc);
 int crunch_rev_escape(FILE *out, int cols, int wc);
 int crunch_str(char **str, int width, FILE *out, char *escmore,
-  int (*escout)(FILE *out, int cols, wchar_t wc));
+  int (*escout)(FILE *out, int cols, int wc));
 int draw_str(char *start, int width);
 int utf8len(char *str);
 int utf8skip(char *str, int width);
