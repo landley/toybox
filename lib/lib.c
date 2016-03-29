@@ -618,10 +618,9 @@ int wfchmodat(int fd, char *name, mode_t mode)
 }
 
 static char *tempfile2zap;
-static void tempfile_handler(int i)
+static void tempfile_handler(void)
 {
   if (1 < (long)tempfile2zap) unlink(tempfile2zap);
-  _exit(1);
 }
 
 // Open a temporary file to copy an existing file into.
@@ -759,12 +758,13 @@ void generic_signal(int sig)
 
 void exit_signal(int sig)
 {
-  toys.exitval = sig|128;
+  if (sig) toys.exitval = sig|128;
   xexit();
 }
 
 // Install the same handler on every signal that defaults to killing the
-// process, and 
+// process, calling the handler on the way out. Calling multiple times
+// adds the handlers to a list, to be called in order.
 void sigatexit(void *handler)
 {
   struct arg_list *al = xmalloc(sizeof(struct arg_list));
