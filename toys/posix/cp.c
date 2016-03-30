@@ -396,9 +396,11 @@ void cp_main(void)
     errno = EXDEV;
     if (CFG_MV && toys.which->name[0] == 'm') {
       int force = toys.optflags & FLAG_f, no_clobber = toys.optflags & FLAG_n;
+
       if (!force || no_clobber) {
         struct stat st;
         int exists = !stat(TT.destname, &st);
+
         // Prompt if -i or file isn't writable.  Technically "is writable" is
         // more complicated (022 is not writeable by the owner, just everybody
         // _else_) but I don't care.

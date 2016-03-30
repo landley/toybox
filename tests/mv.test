@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# TODO: needs root to mount tmpfs to test moving across filesystems.
+# check handling of chattr +i immutable bit
+# "touch two; chmod -w two; mv one two" shouldn't prompt to delete two if
+#   one doesn't exist.
+
 # Copyright 2013 Robin Mittal <robinmittal.it@gmail.com>
 # Copyright 2013 Divya Kothari <divya.s.kothari@gmail.com>
 
