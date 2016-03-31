@@ -919,7 +919,7 @@ void mode_to_string(mode_t mode, char *buf)
   *buf = c;
 }
 
-char *basename_r(char *name)
+char *basename_readonly(char *name)
 {
   char *s = strrchr(name, '/');
 
@@ -945,7 +945,7 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
 
     for (curname = names; *curname; curname++)
       if (**curname == '/' ? !strcmp(cmd, *curname)
-          : !strcmp(basename_r(cmd), basename_r(*curname)))
+          : !strcmp(basename_readonly(cmd), basename_readonly(*curname)))
         if (callback(u, *curname)) break;
     if (*curname) break;
   }

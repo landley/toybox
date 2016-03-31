@@ -157,17 +157,9 @@ int utimensat(int fd, const char *path, const struct timespec times[2], int flag
 
 #endif // glibc in general
 
-#if !defined(__GLIBC__) && !defined(__BIONIC__)
+#if !defined(__GLIBC__)
 // POSIX basename.
 #include <libgen.h>
-#endif
-
-// glibc was handled above; for 32-bit bionic we need to avoid a collision
-// with toybox's basename_r so we can't include <libgen.h> even though that
-// would give us a POSIX basename(3).
-#if defined(__BIONIC__)
-char *basename(char *path);
-char *dirname(char *path);
 #endif
 
 // Work out how to do endianness
