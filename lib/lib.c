@@ -919,11 +919,14 @@ void mode_to_string(mode_t mode, char *buf)
   *buf = c;
 }
 
-char *basename_r(char *name)
+// basename() can modify its argument or return a pointer to a constant string
+// This just gives after the last '/' or the whole stirng if no /
+char *getbasename(char *name)
 {
   char *s = strrchr(name, '/');
 
   if (s) return s+1;
+
   return name;
 }
 

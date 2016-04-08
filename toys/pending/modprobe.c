@@ -70,7 +70,7 @@ static char *path2mod(char *file, char *mod)
   if (!file) return NULL;
   if (!mod) mod = xmalloc(MODNAME_LEN);
 	
-  from = basename_r(file);
+  from = getbasename(file);
   
   for (i = 0; i < (MODNAME_LEN-1) && from[i] && from[i] != '.'; i++)
     mod[i] = (from[i] == '-') ? '_' : from[i];

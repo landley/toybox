@@ -440,7 +440,7 @@ static void scan_pid(int pid)
 
   if ((p = strchr(line, ' '))) *p = 0; // "/bin/netstat -ntp" -> "/bin/netstat"
   snprintf(TT.current_name, sizeof(TT.current_name), "%d/%s",
-           pid, basename_r(line)); // "584/netstat"
+           pid, getbasename(line)); // "584/netstat"
   free(line);
 
   fd_dir = xmprintf("/proc/%d/fd", pid);
