@@ -10,7 +10,7 @@ The special name "." indicates the current directory (just like ".." means
 the parent directory), and you can run a program that isn't in the $PATH by
 specifying a path to it, so this should work:
 
-  wget http://landley.net/bin/toybox-x86_64
+  wget http://landley.net/toybox/bin/toybox-x86_64
   chmod +x toybox-x86_64
   ./toybox-x86_64 echo hello world
 
