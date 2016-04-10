@@ -202,7 +202,7 @@ int main(int argc, char *argv[])
 
     toys.stacktop = &stack;
   }
-  *argv = basename_r(*argv);
+  *argv = getbasename(*argv);
 
   // If nommu can't fork, special reentry path.
   // Use !stacktop to signal "vfork happened", both before and after xexec()

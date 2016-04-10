@@ -948,7 +948,7 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
 
     for (curname = names; *curname; curname++)
       if (**curname == '/' ? !strcmp(cmd, *curname)
-          : !strcmp(basename_r(cmd), basename_r(*curname)))
+          : !strcmp(getbasename(cmd), getbasename(*curname)))
         if (callback(u, *curname)) break;
     if (*curname) break;
   }
