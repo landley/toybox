@@ -127,6 +127,7 @@ testing "blank pattern repeats last pattern" \
 
 testing "" "sed -e '1a\' -e 'huh'" "meep\nhuh\n" "" "meep"
 testing "" "sed -f input" "blah\nboom\n" '1a\\\nboom' 'blah'
+testing "" "sed -f - input" "blah\nboom\n" 'blah' '1a\\\nboom'
 testing "" "sed '1a\
 hello'" "merp\nhello\n" "" "merp"
 

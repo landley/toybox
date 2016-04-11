@@ -1045,7 +1045,8 @@ void sed_main(void)
   for (dworkin = TT.e; dworkin; dworkin = dworkin->next)
     jewel_of_judgement(&dworkin->arg, strlen(dworkin->arg));
   for (dworkin = TT.f; dworkin; dworkin = dworkin->next)
-    do_lines(xopen(dworkin->arg, O_RDONLY), dworkin->arg, jewel_of_judgement);
+    do_lines(strcmp(dworkin->arg, "-") ? xopen(dworkin->arg, O_RDONLY) : 0,
+      dworkin->arg, jewel_of_judgement);
   jewel_of_judgement(0, 0);
   dlist_terminate(TT.pattern);
   if (TT.nextlen) error_exit("no }");  
