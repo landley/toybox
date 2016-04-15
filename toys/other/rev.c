@@ -20,11 +20,11 @@ static void do_rev(int fd, char *name)
   char *c;
 
   for (;;) {
-    int len, i;
+    unsigned len, i;
 
     if (!(c = get_line(fd))) break;
-    len = strlen(c) - 1;
-    for (i = 0; i <= len/2; i++) {
+    len = strlen(c);
+    if (len--) for (i = 0; i <= len/2; i++) {
       char tmp = c[i];
 
       c[i] = c[len-i];
