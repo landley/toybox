@@ -1417,7 +1417,7 @@ static void top_setup(char *defo, char *defk)
   TT.top.d *= 1000;
   if (toys.optflags&FLAG_b) TT.width = TT.height = 99999;
   else {
-    xset_terminal(0, 1, 0);
+    set_terminal(0, 1, 0);
     sigatexit(tty_sigreset);
     xsignal(SIGWINCH, generic_signal);
     printf("\033[?25l\033[0m");
