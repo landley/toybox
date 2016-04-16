@@ -231,10 +231,10 @@ void tail_main(void)
     if (arg && *arg == '-' && arg[1]) {
       TT.lines = atolx(*(args++));
       toys.optc--;
+    } else {
+      // if nothing specified, default -n to -10
+      TT.lines = -10;
     }
-
-    // if nothing specified, default -n to -10
-    TT.lines = -10;
   }
 
   // Allocate 2 ints per optarg for -f

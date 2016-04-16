@@ -20,6 +20,7 @@ testing "-c out of bounds" "tail -c 999 file1" "$BIGTEST" "" ""
 testing "-c+ in bounds" "tail -c +27 file1" \
 	"x\nseven\neight\nnine\nten\neleven\n" "" ""
 testing "-c+ out of bonds" "tail -c +999 file1" "" "" ""
+testing "-N" "tail -1 file1" "eleven\n" "" ""
 rm file1
 
 testing "stdin no trailing newline" "tail -n 1 - " "c" "" "a\nb\nc"
