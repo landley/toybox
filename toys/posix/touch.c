@@ -80,10 +80,13 @@ void touch_main(void)
         if (s) break;
         toybuf[1]='y';
       }
+      tm.tm_sec = 0;
       ts->tv_nsec = 0;
       if (s && *s=='.' && sscanf(s, ".%2u%n", &(tm.tm_sec), &len) == 1) {
-        sscanf(s += len, "%lu%n", &ts->tv_nsec, &len);
-        len++;
+        if (sscanf(s += len, "%lu%n", &ts->tv_nsec, &len) == 1) {
+          s--;
+          len++;
+        } else len = 0;
       } else len = 0;
     }
     if (len) {
