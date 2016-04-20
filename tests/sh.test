@@ -1,0 +1,55 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+shellit()
+{
+  EVAL="bash -c" testing "$2" "$1 printf %s $2" "$3" "$4" "$5"
+}
+
+# $'' expands special chars but doesn't do so inside double quotes.
+
+shellit "" "\$'a\\tb'" "a\tb" "" ""
+shellit "" "\"\$'a\\tb'\"" '$'"'"'a\\tb'"'" "" "" 
+
+# $(( )) tests
+
+shellit 'x=1;' '$((-x))' '-1' '' ''
+shellit 'x=0;' '$((x++)); echo $x' '01\n' '' ''
+shellit 'x=0;' '$((++x))' '1' '' ''
+shellit 'x=0;' '$((~x))' '-1' '' ''
+shellit 'x=1;' '$((!x))' '0' '' ''
+shellit 'x=0;' '$((!x))' '1' '' ''
+shellit 'x=2;' '$((2*x))' '4' '' ''
+shellit 'x=9;' '$((x/4))' '2' '' ''
+shellit 'x=9;' '$((x%4))' '1' '' ''
+shellit 'x=4;' '$((x+2))' '6' '' ''
+shellit 'x=4;' '$((x-2))' '2' '' ''
+shellit 'x=4;' '$((1<<x))' '16' '' ''
+shellit 'x=4;' '$((x>>1))' '2' '' ''
+shellit '' '$((3**4))' '81' '' ''
+shellit '' '$((3<=4))' '1' '' ''
+shellit '' '$((3>=4))' '0' '' ''
+shellit '' '$((3<4))' '1' '' ''
+shellit '' '$((3>4))' '0' '' ''
+shellit '' '$((3==4))' '0' '' ''
+shellit '' '$((3!=4))' '1' '' ''
+shellit '' '$((6&4))' '4' '' ''
+shellit '' '$((4|2))' '6' '' ''
+shellit '' '$((6&&2))' '1' '' ''
+shellit '' '$((6||4))' '1' '' ''
+shellit '' '$((1?2:3))' '2' '' ''
+shellit 'x=2;' '$((x=3)); echo $x' '33\n' '' ''
+shellit 'x=2;' '$((x*=3)); echo $x' '66\n' '' ''
+shellit 'x=5;' '$((x/=2)); echo $x' '22\n' '' ''
+shellit 'x=9;' '$((x%=5)); echo $x' '44\n' '' ''
+shellit 'x=9;' '$((x-=3)); echo $x' '66\n' '' ''
+shellit 'x=3;' '$((x+=2)); echo $x' '55\n' '' ''
+shellit 'x=7;' '$((x&=13)); echo $x' '55\n' '' ''
+shellit 'x=5;' '$((x|=12)); echo $x' '1313\n' '' ''
+shellit 'x=5;' '$((x^=12)); echo $x' '99\n' '' ''
+shellit 'x=2;' '$((x<<=2)); echo $x' '88\n' '' ''
+shellit 'x=12;' '$((x>>=2)); echo $x' '33\n' '' ''
+shellit 'x=2;' '$((x++,5)); echo $x' '53\n' '' ''
