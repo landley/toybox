@@ -64,7 +64,8 @@ tests:
 help::
 	@echo  '  toybox          - Build toybox.'
 	@echo  '  COMMANDNAME     - Build individual toybox command as a standalone binary.'
-	@echo  '  list            - List COMMANDNAMEs (also list_working and list_pending).'
+	@echo  '  list            - List COMMANDNAMEs you can build standalone.'
+	@echo  '  list_pending    - List unfinished COMMANDNAMEs out of toys/pending.'
 	@echo  '  change          - Build each command standalone under change/.'
 	@echo  '  baseline        - Create toybox_old for use by bloatcheck.'
 	@echo  '  bloatcheck      - Report size differences between old and current versions'

@@ -148,8 +148,7 @@ do
     WORKING="$WORKING $NAME"
 done &&
 echo -e "clean::\n\trm -f $WORKING $PENDING" &&
-echo -e "list:\n\t@echo $(echo $WORKING $PENDING | tr ' ' '\n' | sort | xargs)" &&
-echo -e "list_working:\n\t@echo $(echo $WORKING | tr ' ' '\n' | sort | xargs)" &&
+echo -e "list:\n\t@echo $(echo $WORKING | tr ' ' '\n' | sort | xargs)" &&
 echo -e "list_pending:\n\t@echo $(echo $PENDING | tr ' ' '\n' | sort | xargs)" &&
 echo -e ".PHONY: $WORKING $PENDING" | sed 's/ \([^ ]\)/ test_\1/g'
 ) > .singlemake
