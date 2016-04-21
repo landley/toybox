@@ -110,12 +110,9 @@ struct dirtree *dirtree_handle_callback(struct dirtree *new,
   if (!callback) return new;
   flags = callback(new);
 
-  if (S_ISDIR(new->st.st_mode)) {
-    if (flags & (DIRTREE_RECURSE|DIRTREE_COMEAGAIN)) {
-      new->dirfd = openat(dirtree_parentfd(new), new->name, O_CLOEXEC);
-      flags = dirtree_recurse(new, callback, flags);
-    }
-  }
+  if (S_ISDIR(new->st.st_mode) && (flags & (DIRTREE_RECURSE|DIRTREE_COMEAGAIN)))
+    flags = dirtree_recurse(new, callback,
+      openat(dirtree_parentfd(new), new->name, O_CLOEXEC), flags);
 
   // If this had children, it was callback's job to free them already.
   if (!(flags & DIRTREE_SAVE)) {
@@ -130,12 +127,13 @@ struct dirtree *dirtree_handle_callback(struct dirtree *new,
 // callback(). Uses and closes supplied ->dirfd.
 
 int dirtree_recurse(struct dirtree *node,
-          int (*callback)(struct dirtree *node), int flags)
+          int (*callback)(struct dirtree *node), int dirfd, int flags)
 {
   struct dirtree *new, **ddt = &(node->child);
   struct dirent *entry;
   DIR *dir;
 
+  node->dirfd = dirfd;
   if (node->dirfd == -1 || !(dir = fdopendir(node->dirfd))) {
     if (!(flags & DIRTREE_SHUTUP)) {
       char *path = dirtree_path(node, 0);

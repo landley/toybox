@@ -84,7 +84,7 @@ char *dirtree_path(struct dirtree *node, int *plen);
 int dirtree_notdotdot(struct dirtree *catch);
 int dirtree_parentfd(struct dirtree *node);
 int dirtree_recurse(struct dirtree *node, int (*callback)(struct dirtree *node),
-  int symfollow);
+  int dirfd, int symfollow);
 struct dirtree *dirtree_flagread(char *path, int flags,
   int (*callback)(struct dirtree *node));
 struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node));
