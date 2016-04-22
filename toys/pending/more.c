@@ -63,7 +63,7 @@ static int prompt(FILE *cin, const char* fmt, ...)
 static void do_cat_operation(int fd, char *name)
 {
   if (toys.optc > 1) show_file_header(name);
-  xsendfile(0, 1);
+  xsendfile(fd, 1);
 }
 
 void more_main()
