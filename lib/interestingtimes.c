@@ -239,5 +239,5 @@ void tty_reset(void)
 void tty_sigreset(int i)
 {
   tty_reset();
-  _exit(128+i);
+  _exit(i ? 128+i : 0);
 }
