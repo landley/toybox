@@ -455,9 +455,6 @@ static void burrows_wheeler_prep(struct bunzip_data *bd, struct bwdata *bw)
   unsigned int *dbuf = bw->dbuf;
   int *byteCount = bw->byteCount;
 
-  // Technically this part is preparation for the burrows-wheeler
-  // transform, but it's quick and convenient to do here.
-
   // Turn byteCount into cumulative occurrence counts of 0 to n-1.
   jj = 0;
   for (ii=0; ii<256; ii++) {
@@ -651,7 +648,10 @@ static char *bunzipStream(int src_fd, int dst_fd)
 
   if (!(i = start_bunzip(&bd,src_fd, 0, 0))) {
     i = write_bunzip_data(bd,bd->bwdata, dst_fd, 0, 0);
-    if (i==RETVAL_LAST_BLOCK && bd->bwdata[0].headerCRC==bd->totalCRC) i = 0;
+    if (i==RETVAL_LAST_BLOCK) {
+      if (bd->bwdata[0].headerCRC==bd->totalCRC) i = 0;
+      else i = RETVAL_DATA_ERROR;
+    }
   }
   flush_bunzip_outbuf(bd, dst_fd);
 
