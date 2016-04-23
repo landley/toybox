@@ -1,0 +1,14 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+cat >file1 <<EOF
+line1
+line2
+EOF
+
+testing "non-tty" "more file1 | cat -" "line1\nline2\n" "" ""
+
+rm file1
