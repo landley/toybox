@@ -83,7 +83,7 @@ testing()
 
   echo -ne "$3" > expected
   echo -ne "$4" > input
-  echo -ne "$5" | eval "$2" > actual
+  echo -ne "$5" | ${EVAL:-eval} "$2" > actual
   RETVAL=$?
 
   # Catch segfaults
@@ -98,7 +98,7 @@ testing()
     if [ -n "$VERBOSE" ]
     then
       [ ! -z "$4" ] && echo "echo -ne \"$4\" > input"
-      echo "echo -ne '$5' | $2"
+      echo "echo -ne '$5' |$EVAL $2"
       diff -au expected actual
       [ "$VERBOSE" == fail ] && exit 1
     fi
