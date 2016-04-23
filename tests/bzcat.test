@@ -1,30 +1,16 @@
 #!/bin/bash
 
-# Copyright 2014 Divya Kothari <divya.s.kothari@gmail.com>
-# Copyright 2014 Naha Maggu <maggu.neha@gmail.com>
-
 [ -f testing.sh ] && . testing.sh
 
 #testing "name" "command" "result" "infile" "stdin"
+testing "2 known files" \
+ 'bzcat "$FILES/blkid/"{minix,ntfs}.bz2 | sha1sum | '"awk '{print \$1}'" \
+ 'c0b7469c9660d6056a988ef8a7fe73925efc9266\n' '' ''
+
 testing "overflow" \
   'bzcat "$FILES/bzcat/overflow.bz2" >/dev/null 2>/dev/null ;
-   [ $? -eq 1 ] && echo good' "good\n" "" ""
+   [ $? -ne 0 ] && echo good' "good\n" "" ""
 
-echo "hello" > file
-tar -cjf file.tar.bz2 file
-# Get system bzcat
-bzcatExe=`which bzcat`
-$bzcatExe file.tar.bz2 > bzcatOut
-testing "- decompresses a single file" "bzcat file.tar.bz2 > Tempfile && echo "yes"; diff Tempfile bzcatOut && echo "yes"; rm -rf file* bzcatOut Tempfile" "yes\nyes\n" "" ""
-
-#testing "name" "command" "result" "infile" "stdin"
-echo "hello" > file1
-echo "hi" > file2
-echo "Hi, Good morning !! I am a bzcat tester" > file3
-tar -cjf file1.tar.bz2 file1
-tar -cjf file2.tar.bz2 file2
-tar -cjf file3.tar.bz2 file3
-# Get system bzcat
-bzcatExe=`which bzcat`
-$bzcatExe file1.tar.bz2 file2.tar.bz2 file3.tar.bz2 > bzcatOut
-testing "- decompresses multiple files" "bzcat file1.tar.bz2 file2.tar.bz2 file3.tar.bz2 > Tempfile && echo "yes" ; diff Tempfile bzcatOut && echo "yes"; rm -rf file* bzcatOut Tempfile " "yes\nyes\n" "" ""
+testing "badcrc" \
+  'bzcat "$FILES/bzcat/badcrc.bz2" > /dev/null 2>/dev/null ;
+   [ $? -ne 0 ] && echo good' "good\n" "" ""
