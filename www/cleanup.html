@@ -72,6 +72,12 @@ This means the pages can be shared between instances.)</li>
 sight does not really help readability."</a> -
 <a href=http://lkml.iu.edu/hypermail/linux/kernel/1407.1/00299.html>Pavel
 Machek</a></li>
+<li>"Infrastructure in search of a user" is a bad thing, so don't put code
+in lib/ that doesn't already have at least two users. Don't preemptively
+factor stuff out, it's easy enough to rewrite it uin future if it needs
+to change. The "extreme programming" fad called this "You Ain't Gonna
+Need It" (while inexplicably screaming at cans of Mountain Dew, back in the
+90's). Here's <a href=https://lwn.net/Articles/683745/>Linus Torvalds' take</a>.</li>
 </ul>
 
 <hr>
