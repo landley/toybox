@@ -87,7 +87,11 @@ testing "-iname FILE" \
 
 
 testing "-name (no arguments)" \
-  "find dir -name 2>&1" "find: '-name' needs 1 arg\n" "" ""
+  "find dir -name 2>&1 | grep -o '[-]name'" "-name\n" "" ""
 testing "-iname (no arguments)" \
-  "find dir -iname 2>&1" "find: '-iname' needs 1 arg\n" "" ""
+  "find dir -iname 2>&1 | grep -o '[-]iname'" "-iname\n" "" ""
+
+testing "" "find dir \( -iname file -o -iname missing \) -exec echo {} \;" \
+  "dir/file\n" "" ""
+
 rm -rf dir

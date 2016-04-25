@@ -320,20 +320,16 @@ static int do_find(struct dirtree *new)
         // Handle path expansion and case flattening
         if (new && s[i] == 'p') name = path = dirtree_path(new, 0);
         if (i) {
-          if (check || !new) {
-            if (name) name = strlower(name);
-            if (!new) {
-              dlist_add(&TT.argdata, name);
-              free(path);
-            } else arg = ((struct double_list *)llist_pop(&argdata))->data;
-          }
+          if ((check || !new) && name) name = strlower(name);
+          if (!new) dlist_add(&TT.argdata, name);
+          else arg = ((struct double_list *)llist_pop(&argdata))->data;
         }
 
         if (check) {
           test = !fnmatch(arg, name, FNM_PATHNAME*(s[i] == 'p'));
-          free(path);
           if (i) free(name);
         }
+        free(path);
       } else if (!strcmp(s, "perm")) {
         if (check) {
           char *m = ss[1];
