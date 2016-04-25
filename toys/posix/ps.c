@@ -43,7 +43,7 @@
  * TODO: top: thread support and SMP
  * TODO: pgrep -f only searches the amount of cmdline that fits in toybuf.
 
-USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflMno*O*p(pid)*s*t*u*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflMno*O*p(pid)*s*t*Tu*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 // stayroot because iotop needs root to read other process' proc/$$/io
 USE_TOP(NEWTOY(top, ">0m" "k*o*p*u*s#<1=9d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 USE_IOTOP(NEWTOY(iotop, ">0AaKO" "k*o*p*u*s#<1=7d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
@@ -54,7 +54,7 @@ config PS
   bool "ps"
   default y
   help
-    usage: ps [-AadeflnwZ] [-gG GROUP,] [-k FIELD,] [-o FIELD,] [-p PID,] [-t TTY,] [-uU USER,]
+    usage: ps [-AadefLlnwZ] [-gG GROUP,] [-k FIELD,] [-o FIELD,] [-p PID,] [-t TTY,] [-uU USER,]
 
     List processes.
 
@@ -70,6 +70,7 @@ config PS
     -P	Parent PIDs (--ppid)
     -s	In session IDs
     -t	Attached to selected TTYs
+    -T	Show Threads
     -u	Owned by USERs
     -U	Owned by real USERs (before suid)
 
@@ -91,6 +92,7 @@ config PS
     Available -o FIELDs:
 
       ADDR  Instruction pointer               ARGS    Command line (argv[] -path)
+      BIT   Is this process 32 or 64 bits
       CMD   COMM without -f, ARGS with -f     CMDLINE Command line (argv[])
       COMM  Original command name             COMMAND Original command path
       CPU   Which processor running on        ETIME   Elapsed time since PID start
@@ -113,6 +115,7 @@ config PS
             s session leader         + foreground   l multithreaded
       STIME Start time of process in hh:mm (size :19 shows yyyy-mm-dd hh:mm:ss)
       SZ    Memory Size (4k pages needed to completely swap out process)
+      TCNT  Thread count                      TID     Thread ID
       TIME  CPU time consumed                 TTY     Controlling terminal
       UID   User id                           USER    User name
       VSZ   Virtual memory size (1k units)    %VSZ    VSZ as % of physical memory
@@ -300,12 +303,13 @@ enum {
  SLOT_rss2,     /*Resident Set Size*/     SLOT_shr,       // Shared memory
  SLOT_rchar,    /*All bytes read*/        SLOT_wchar,     // All bytes written
  SLOT_rbytes,   /*Disk bytes read*/       SLOT_wbytes,    // Disk bytes written
- SLOT_swap,     /*Swap pages used*/
+ SLOT_swap,     /*Swap pages used*/       SLOT_bits,      // 32 or 64
+ SLOT_tid,      /*Thread ID*/             SLOT_tcount     // Thread count
 };
 
 // Data layout in toybuf
 struct carveup {
-  long long slot[55];       // data from /proc
+  long long slot[58];       // data from /proc
   unsigned short offset[5]; // offset of fields in str[] (skip name, always 0)
   char state;
   char str[];               // name, tty, command, wchan, attr, cmdline
@@ -324,6 +328,7 @@ struct typography {
   {"VSZ", 6, SLOT_vsize}, {"MAJFL", 6, SLOT_majflt}, {"MINFL", 6, SLOT_minflt},
   {"PR", 2, SLOT_priority}, {"PSR", 3, SLOT_taskcpu},
   {"RTPRIO", 6, SLOT_rtprio}, {"SCH", 3, SLOT_policy}, {"CPU", 3, SLOT_taskcpu},
+  {"TID", 5, SLOT_tid}, {"TCNT", 4, SLOT_tcount}, {"BIT", 3, SLOT_bits},
 
   // String fields
   {"COMM", -15, -1}, {"TTY", -8, -2}, {"WCHAN", -6, -3}, {"LABEL", -30, -4},
@@ -553,6 +558,7 @@ static int get_ps(struct dirtree *new)
     char *name;
     long long bits;
   } fetch[] = {
+    // sources for carveup->offset[] data
     {"fd/", _PS_TTY}, {"wchan", _PS_WCHAN}, {"attr/current", _PS_LABEL},
     {"exe", _PS_COMMAND}, {"cmdline", _PS_CMDLINE|_PS_ARGS|_PS_NAME}
   };
@@ -567,7 +573,7 @@ static int get_ps(struct dirtree *new)
     return DIRTREE_RECURSE|DIRTREE_SHUTUP|(DIRTREE_SAVE*!TT.show_process);
 
   memset(slot, 0, sizeof(tb->slot));
-  if (!(*slot = atol(new->name))) return 0;
+  if (!(tb->slot[SLOT_tid] = *slot = atol(new->name))) return 0;
   fd = dirtree_parentfd(new);
 
   len = 2048;
@@ -654,6 +660,17 @@ static int get_ps(struct dirtree *new)
     for (s = buf, i=0; i<3; i++)
       if (!sscanf(s, " %lld%n", slot+SLOT_vsz+i, &j)) slot[SLOT_vsz+i] = 0;
       else s += j;
+  }
+
+  // Do we need to read "exe"?
+  if (TT.bits&_PS_BIT) {
+    off_t temp = 6;
+
+    sprintf(buf, "%lld/exe", *slot);
+    if (readfileat(fd, buf, buf, &temp) && !memcmp(buf, "\177ELF", 4)) {
+      if (buf[4] == 1) slot[SLOT_bits] = 32;
+      else if (buf[4] == 2) slot[SLOT_bits] = 64;
+    }
   }
 
   // Fetch string data while parentfd still available, appending to buf.
@@ -767,6 +784,47 @@ static int get_ps(struct dirtree *new)
   memcpy(s, toybuf, buf-toybuf);
 
   return DIRTREE_SAVE;
+}
+
+static int get_threads(struct dirtree *new)
+{
+  struct dirtree *threads, *dt;
+  unsigned pid, kcount;
+  void (*show_process)(void *tb) = TT.show_process;
+
+  if (!new->parent) return get_ps(new);
+
+  if (!(pid = atol(new->name))) return 0;
+
+  // Recurse down into tasks, retaining thread groups.
+  TT.show_process = 0;
+  sprintf(toybuf, "/proc/%u/task", pid);
+  kcount = TT.kcount;
+  threads = dirtree_read(toybuf, get_ps);
+  if (!threads) return 0;
+
+  // Fill out tid and thread count for each entry in group
+  for (dt = threads->child; dt; dt = dt->next) {
+    struct carveup *tb = (void *)dt->extra;
+
+    tb->slot[SLOT_tid] = tb->slot[SLOT_pid];
+    tb->slot[SLOT_pid] = pid;
+    tb->slot[SLOT_tcount] = TT.kcount - kcount;
+  }
+
+  // Save or display
+  if (!(TT.show_process = show_process)) {
+    new->child = threads;
+
+    return DIRTREE_SAVE;
+  } while (threads->child) {
+    dt = threads->child->next;
+    show_process((void *)threads->child->extra);
+    free(threads->child);
+    threads->child = dt;
+  }
+
+  return 0;
 }
 
 static char *parse_ko(void *data, char *type, int length)
@@ -950,25 +1008,25 @@ static int ksort(void *aa, void *bb)
   return ret;
 }
 
-static struct carveup **collate(int count, struct dirtree *dt,
-  int (*sort)(void *a, void *b))
+static struct carveup **collate_leaves(struct carveup **tb, struct dirtree *dt) 
 {
-  struct dirtree *temp;
-  struct carveup **tbsort = xmalloc(count*sizeof(struct carveup *));
-  int i;
+  while (dt) {
+    struct dirtree *next = dt->next;
 
-  // descend into child list
-  *tbsort = (void *)dt;
-  dt = dt->child;
-  free(*tbsort);
-
-  // populate array
-  for (i = 0; i < count; i++) {
-    temp = dt->next;
-    tbsort[i] = (void *)dt->extra;
+    if (dt->child) tb = collate_leaves(tb, dt->child);
+    else *(tb++) = (void *)dt->extra;
     free(dt);
-    dt = temp;
+    dt = next;
   }
+
+  return tb;
+}
+
+static struct carveup **collate(int count, struct dirtree *dt)
+{
+  struct carveup **tbsort = xmalloc(count*sizeof(struct carveup *));
+
+  collate_leaves(tbsort, dt);
 
   return tbsort;
 } 
@@ -1008,7 +1066,7 @@ static void shared_main(void)
 void ps_main(void)
 {
   struct dirtree *dt;
-  char *s;
+  char *pt = (toys.optflags & FLAG_T) ? "PID,TID," : "PID,";
   int i;
 
   if (toys.optflags&FLAG_w) TT.width = 99999;
@@ -1028,13 +1086,15 @@ void ps_main(void)
 
   // Parse manual field selection, or default/-f/-l, plus -Z and -O
   if (toys.optflags&FLAG_Z) default_ko("LABEL", &TT.fields, 0, 0);
-  if (toys.optflags&FLAG_f) s = "USER:8=UID,PID,PPID,C,STIME,TTY,TIME,CMD";
+  if (toys.optflags&FLAG_f)
+    sprintf(toybuf, "USER:8=UID,%sPPID,%s,STIME,TTY,TIME,CMD", pt,
+      (toys.optflags&FLAG_T) ? "TCNT" : "C");
   else if (toys.optflags&FLAG_l)
-    s = "F,S,UID,PID,PPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD";
+    sprintf( toybuf, "F,S,UID,%sPPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD", pt);
   else if (CFG_TOYBOX_ON_ANDROID)
-    s = "USER,PID,PPID,VSIZE,RSS,WCHAN:10,ADDR:10=PC,S,NAME";
-  else s = "PID,TTY,TIME,CMD";
-  default_ko(s, &TT.fields, "bad -o", TT.ps.o);
+    sprintf(toybuf, "USER,%sPPID,VSIZE,RSS,WCHAN:10,ADDR:10=PC,S,NAME", pt);
+  else sprintf(toybuf, "%sTTY,TIME,CMD", pt);
+  default_ko(toybuf, &TT.fields, "bad -o", TT.ps.o);
   if (TT.ps.O) {
     if (TT.fields) TT.fields = ((struct strawberry *)TT.fields)->prev;
     comma_args(TT.ps.O, &TT.fields, "bad -O", parse_ko);
@@ -1060,10 +1120,11 @@ void ps_main(void)
   if (!(toys.optflags&FLAG_M)) printf("%.*s\n", TT.width, toybuf);
   if (!(toys.optflags&(FLAG_k|FLAG_M))) TT.show_process = (void *)show_ps;
   TT.match_process = ps_match_process;
-  dt = dirtree_read("/proc", get_ps);
+  dt = dirtree_read("/proc",
+    (TT.bits&(_PS_TID|_PS_TCNT)) ? get_threads : get_ps);
 
   if (toys.optflags&(FLAG_k|FLAG_M)) {
-    struct carveup **tbsort = collate(TT.kcount, dt, ksort);
+    struct carveup **tbsort = collate(TT.kcount, dt);
 
     if (toys.optflags&FLAG_M) {
       for (i = 0; i<TT.kcount; i++) {
@@ -1190,8 +1251,8 @@ static void top_common(
     plold = plist+(tock++&1);
     plnew = plist+(tock&1);
     plnew->whence = militime();
-    dt= dirtree_read("/proc", get_ps);
-    plnew->tb = collate(plnew->count = TT.kcount, dt, ksort);
+    dt = dirtree_read("/proc", get_ps);
+    plnew->tb = collate(plnew->count = TT.kcount, dt);
     TT.kcount = 0;
 
     if (readfile("/proc/stat", pos = toybuf, sizeof(toybuf))) {
