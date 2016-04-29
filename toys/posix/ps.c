@@ -86,7 +86,7 @@ config PS
     -f	Full listing (-o USER:8=UID,PID,PPID,C,STIME,TTY,TIME,CMD)
     -l	Long listing (-o F,S,UID,PID,PPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD)
     -o	Output FIELDs instead of defaults, each with optional :size and =title
-    -O  Add FIELDS to defaults
+    -O	Add FIELDS to defaults
     -Z	Include LABEL
 
     Available -o FIELDs:
