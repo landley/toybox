@@ -409,7 +409,7 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
   long long *slot = tb->slot, ll = (sl >= 0) ? slot[sl&63] : 0;
 
   // numbers, mostly from /proc/$PID/stat
-  if (which <= PS_CPU) {
+  if (which <= PS_BIT) {
     char *fmt = "%lld";
 
     if (which==PS_PRI) ll = 39-ll;
@@ -418,7 +418,7 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     else if (which==PS_RSS) ll <<= 2;
     else if (which==PS_VSZ) ll >>= 10;
     else if (which==PS_PR && ll<-9) fmt="RT";
-    else if (which==PS_RTPRIO && ll == 0) fmt="-";
+    else if ((which==PS_RTPRIO || which==PS_BIT) && ll == 0) fmt="-";
     sprintf(out, fmt, ll);
 
   // String fields
