@@ -93,7 +93,7 @@ config PS
 
       ADDR  Instruction pointer               ARGS    Command line (argv[] -path)
       BIT   Is this process 32 or 64 bits
-      CMD   COMM without -f, ARGS with -f     CMDLINE Command line (argv[])
+      CMD   COMM, or ARGS with -f             CMDLINE Command line (argv[])
       COMM  Original command name             COMMAND Original command path
       CPU   Which processor running on        ETIME   Elapsed time since PID start
       F     Flags (1=FORKNOEXEC 4=SUPERPRIV)  GID     Group id
@@ -430,7 +430,8 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     if (--sl) out += tb->offset[--sl];
     if (which==PS_ARGS)
       for (s = out; *s && *s != ' '; s++) if (*s == '/') out = s+1;
-    if (which>=PS_COMMAND && !*out) sprintf(out = buf, "[%s]", tb->str);
+    if (which>=PS_COMMAND && (!*out || *slot != slot[SLOT_tid]))
+      sprintf(out = buf, "[%s]", tb->str);
 
   // user/group
   } else if (which <= PS_RGROUP) {
@@ -1066,7 +1067,7 @@ static void shared_main(void)
 void ps_main(void)
 {
   struct dirtree *dt;
-  char *pt = (toys.optflags & FLAG_T) ? "PID,TID," : "PID,";
+  char *not_o;
   int i;
 
   if (toys.optflags&FLAG_w) TT.width = 99999;
@@ -1084,17 +1085,21 @@ void ps_main(void)
   comma_args(TT.ps.k, &TT.kfields, "bad -k", parse_ko);
   dlist_terminate(TT.kfields);
 
-  // Parse manual field selection, or default/-f/-l, plus -Z and -O
-  if (toys.optflags&FLAG_Z) default_ko("LABEL", &TT.fields, 0, 0);
+  // Figure out which fields to display
+  not_o = "%sTTY,TIME,CMD";
   if (toys.optflags&FLAG_f)
-    sprintf(toybuf, "USER:8=UID,%sPPID,%s,STIME,TTY,TIME,CMD", pt,
+    sprintf(not_o = toybuf+128, "USER:8=UID,%%sPPID,%s,STIME,TTY,TIME,CMD",
       (toys.optflags&FLAG_T) ? "TCNT" : "C");
   else if (toys.optflags&FLAG_l)
-    sprintf( toybuf, "F,S,UID,%sPPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD", pt);
+    not_o = "F,S,UID,%sPPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD";
   else if (CFG_TOYBOX_ON_ANDROID)
-    sprintf(toybuf, "USER,%sPPID,VSIZE,RSS,WCHAN:10,ADDR:10=PC,S,NAME", pt);
-  else sprintf(toybuf, "%sTTY,TIME,CMD", pt);
+    not_o = "USER,%sPPID,VSIZE,RSS,WCHAN:10,ADDR:10=PC,S,NAME";
+  sprintf(toybuf, not_o, (toys.optflags & FLAG_T) ? "PID,TID," : "PID,");
+
+  // Init TT.fields. This only uses toybuf if TT.ps.o is NULL
+  if (toys.optflags&FLAG_Z) default_ko("LABEL", &TT.fields, 0, 0);
   default_ko(toybuf, &TT.fields, "bad -o", TT.ps.o);
+
   if (TT.ps.O) {
     if (TT.fields) TT.fields = ((struct strawberry *)TT.fields)->prev;
     comma_args(TT.ps.O, &TT.fields, "bad -O", parse_ko);
