@@ -100,7 +100,8 @@ config PS
       GROUP Group name                        LABEL   Security label
       MAJFL Major page faults                 MINFL   Minor page faults
       NAME  Command name (argv[0])            NI      Niceness (lower is faster)
-      PCPU  Percentage of CPU time used       PGID    Process Group ID
+      PCPU  Percentage of CPU time used       PCY     Android scheduling policy
+      PGID  Process Group ID
       PID   Process ID                        PPID    Parent Process ID
       PRI   Priority (higher is faster)       PSR     Processor last executed on
       RGID  Real (before sgid) group ID       RGROUP  Real (before sgid) group name
@@ -304,15 +305,18 @@ enum {
  SLOT_rchar,    /*All bytes read*/        SLOT_wchar,     // All bytes written
  SLOT_rbytes,   /*Disk bytes read*/       SLOT_wbytes,    // Disk bytes written
  SLOT_swap,     /*Swap pages used*/       SLOT_bits,      // 32 or 64
- SLOT_tid,      /*Thread ID*/             SLOT_tcount     // Thread count
+ SLOT_tid,      /*Thread ID*/             SLOT_tcount,    // Thread count
+ SLOT_pcy,      /*Android sched policy*/
+
+ SLOT_count
 };
 
 // Data layout in toybuf
 struct carveup {
-  long long slot[58];       // data from /proc
-  unsigned short offset[5]; // offset of fields in str[] (skip name, always 0)
+  long long slot[SLOT_count]; // data (see enum above)
+  unsigned short offset[5];   // offset of fields in str[] (skip name, always 0)
   char state;
-  char str[];               // name, tty, command, wchan, attr, cmdline
+  char str[];                 // name, tty, command, wchan, attr, cmdline
 };
 
 // TODO: Android uses -30 for LABEL, but ideally it would auto-size.
@@ -356,7 +360,7 @@ struct typography {
 
   // Misc
   {"STIME", 5, SLOT_starttime}, {"F", 1, 64|SLOT_flags}, {"S", -1, 64},
-  {"STAT", -5, 64},
+  {"STAT", -5, 64}, {"PCY", 3, 64|SLOT_pcy},
 );
 
 // Return 0 to discard, nonzero to keep
@@ -518,7 +522,8 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     out = out+strlen(out)-3-abs(field->len);
     if (out<buf) out = buf;
 
-  } else if (CFG_TOYBOX_DEBUG) error_exit("bad which %d", which);
+  } else if (which==PS_PCY) sprintf(out, "%.2s", get_sched_policy_name(ll));
+  else if (CFG_TOYBOX_DEBUG) error_exit("bad which %d", which);
 
   return out;
 }
@@ -673,6 +678,9 @@ static int get_ps(struct dirtree *new)
       else if (buf[4] == 2) slot[SLOT_bits] = 64;
     }
   }
+
+  // Do we need Android scheduling policy?
+  if (TT.bits&_PS_PCY) get_sched_policy(*slot, (SchedPolicy *)&slot[SLOT_pcy]);
 
   // Fetch string data while parentfd still available, appending to buf.
   // (There's well over 3k of toybuf left. We could dynamically malloc, but

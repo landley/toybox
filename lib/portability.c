@@ -92,3 +92,9 @@ int clearenv(void)
   return 0;
 }
 #endif
+
+#if !defined(__ANDROID__)
+// No-op implementations of <cutils/sched_policy.h>.
+int get_sched_policy(int tid, SchedPolicy *policy) { return 0; }
+const char *get_sched_policy_name(SchedPolicy policy) { return "unknown"; }
+#endif

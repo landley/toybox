@@ -270,3 +270,10 @@ pid_t xfork(void);
 //#define strncpy(...) @@strncpyisbadmmkay@@
 //#define strncat(...) @@strncatisbadmmkay@@
 
+#ifdef __ANDROID__
+#include <cutils/sched_policy.h>
+#else
+typedef int SchedPolicy;
+int get_sched_policy(int tid, SchedPolicy *policy);
+const char *get_sched_policy_name(SchedPolicy policy);
+#endif
