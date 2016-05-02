@@ -70,7 +70,9 @@ The "help" command provides information about each command (ala "help cat").
 
 It works like the Linux kernel: allnoconfig, defconfig, and menuconfig edit
 a ".config" file that selects which features to include in the resulting
-binary.
+binary. You can save and re-use your .config file, although may want to
+run "make oldconfig" to re-run the dependency resolver when migrating to
+new versions.
 
 The maximum sane configuration is "make defconfig": allyesconfig isn't
 recommended for toybox because it enables unfinished commands and debug code.
@@ -79,13 +81,14 @@ recommended for toybox because it enables unfinished commands and debug code.
 
 Toybox is not a complete operating system, it's a program that runs under
 an operating system. Booting a simple system to a shell prompt requires
-three packages: an operating system kernel (Linux) to drive the hardware,
-a program for the system to run (toybox), and a C library to tie them
-together (toybox has been tested with musl, uClibc, glibc, and bionic).
+three packages: an operating system kernel (Linux*) to drive the hardware,
+one or more programs for the system to run (toybox), and a C library ("libc")
+to tie them together (toybox has been tested with musl, uClibc, glibc,
+and bionic).
 
 The C library is part of a "toolchain", which is an integrated suite
 of compiler, assembler, and linker, plus the standard headers and libraries
-necessary to build C programs.
+necessary to build C programs. (And miscellaneous binaries like nm and objdump.)
 
 Static linking (with the --static option) copies the shared library contents
 into the program, resulting in larger but more portable programs, which
@@ -102,11 +105,14 @@ architectures (x86, x86-64, arm, mips, sparc, powerpc, sh4). Each toybox
 release is regression tested by building Linux From Scratch under this
 toybox-based system on each supported architecture, using QEMU to emulate
 big and little endian systems with different word size and alignment
-requirements.
+requirements. (The eventual goal is to replace Linux From Scratch with
+the Android Open Source Project.)
+
+* Or something providing the same API such as FreeBSD's Linux emulation layer.
 
 --- Presentations
 
-1) "Why Toybox?" 2013 talk here at CELF
+1) "Why Toybox?" talk at the Embedded Linux Conference in 2013
 
     video: http://youtu.be/SGmtP5Lg_t0
     outline: http://landley.net/talks/celf-2013.txt
@@ -131,7 +137,42 @@ requirements.
     video: http://elinux.org/ELC_2015_Presentations
     outline: http://landley.net/talks/celf-2015.txt
 
+--- Contributing
+
+The three important URLs for communicating with the toybox project are:
+
+  web page: http://landley.net/toybox
+
+  mailing list: http://lists.landley.net/listinfo.cgi/toybox-landley.net
+
+  git repo: http://github.com/landley/toybox
+
+The maintainer prefers patches be sent to the mailing list. If you use git,
+the easy thing to do is:
+
+  git format-patch -1 $HASH
+
+Then send a file attachment. The list holds messages from non-subscribers
+for moderation, but I usually get to them in a day or two.
+
+Although I do accept pull requests on github, I download the patches and
+apply them with "git am" (which avoids gratuitous merge commits). Closing
+the pull request is then the submitter's responsibility.
+
+If I haven't responded to your patch after one week, feel free to remind
+me of it.
+
+Android's policy for toybox patches is that non-build patches should go
+upstream first (into vanilla toybox, with discussion on the toybox mailing
+list) and then be pulled into android's toybox repo from there. (They
+generally resync on fridays). The exception is patches to their build scripts
+(Android.mk and the checked-in generated/* files) which go directly to AOSP.
+
 --- Code of conduct
 
 We're using twitter's https://engineering.twitter.com/opensource/code-of-conduct
 except email rob@landley.net with complaints.
+
+(Yes, I try to pay more attention to marginalized programmers, which somehow
+manages to include 51% of the population. If somebody has to be three times as
+good to get half the recognition, why WOULDN'T you adjust for that?)
