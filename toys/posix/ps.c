@@ -1134,7 +1134,8 @@ void ps_main(void)
   if (!(toys.optflags&(FLAG_k|FLAG_M))) TT.show_process = (void *)show_ps;
   TT.match_process = ps_match_process;
   dt = dirtree_read("/proc",
-    (TT.bits&(_PS_TID|_PS_TCNT)) ? get_threads : get_ps);
+    ((toys.optflags&FLAG_T) || (TT.bits&(_PS_TID|_PS_TCNT)))
+      ? get_threads : get_ps);
 
   if (toys.optflags&(FLAG_k|FLAG_M)) {
     struct carveup **tbsort = collate(TT.kcount, dt);
