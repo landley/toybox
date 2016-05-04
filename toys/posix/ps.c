@@ -680,7 +680,7 @@ static int get_ps(struct dirtree *new)
   }
 
   // Do we need Android scheduling policy?
-  if (TT.bits&_PS_PCY) get_sched_policy(*slot, (SchedPolicy *)&slot[SLOT_pcy]);
+  if (TT.bits&_PS_PCY) get_sched_policy(*slot, (void *)&slot[SLOT_pcy]);
 
   // Fetch string data while parentfd still available, appending to buf.
   // (There's well over 3k of toybuf left. We could dynamically malloc, but

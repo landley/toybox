@@ -273,7 +273,6 @@ pid_t xfork(void);
 #ifdef __ANDROID__
 #include <cutils/sched_policy.h>
 #else
-typedef int SchedPolicy;
-int get_sched_policy(int tid, SchedPolicy *policy);
-const char *get_sched_policy_name(SchedPolicy policy);
+static inline int get_sched_policy(int tid, void *policy) {return 0;}
+static inline char *get_sched_policy_name(int policy) {return "unknown";}
 #endif
