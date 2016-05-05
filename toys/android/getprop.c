@@ -52,7 +52,8 @@ static void add_property(char *name, char *value, void *unused)
 }
 
 // Needed to supress extraneous "Loaded property_contexts from" message
-int selinux_log_callback(int type, const char *fmt, ...) {
+static int selinux_log_callback_local(int type, const char *fmt, ...)
+{
   va_list ap;
 
   if (type == SELINUX_INFO) return 0;
@@ -67,7 +68,7 @@ void getprop_main(void)
   if (toys.optflags & FLAG_Z) {
     union selinux_callback cb;
 
-    cb.func_log = selinux_log_callback;
+    cb.func_log = selinux_log_callback_local;
     selinux_set_callback(SELINUX_CB_LOG, cb);
     TT.handle = selinux_android_prop_context_handle();
     if (!TT.handle) error_exit("unable to get selinux property context handle");
