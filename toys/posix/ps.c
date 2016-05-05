@@ -45,7 +45,7 @@
 
 USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflMno*O*p(pid)*s*t*Tu*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 // stayroot because iotop needs root to read other process' proc/$$/io
-USE_TOP(NEWTOY(top, ">0m" "k*o*p*u*s#<1=9d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_TOP(NEWTOY(top, ">0m" "Hk*o*p*u*s#<1=9d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 USE_IOTOP(NEWTOY(iotop, ">0AaKO" "k*o*p*u*s#<1=7d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
 USE_PGREP(NEWTOY(pgrep, "?cld:u*U*t*s*P*g*G*fnovxL:[-no]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_PKILL(NEWTOY(pkill,     "Vu*U*t*s*P*g*G*fnovxl:[-no]", TOYFLAG_USR|TOYFLAG_BIN))
@@ -70,7 +70,7 @@ config PS
     -P	Parent PIDs (--ppid)
     -s	In session IDs
     -t	Attached to selected TTYs
-    -T	Show Threads
+    -T	Show threads
     -u	Owned by USERs
     -U	Owned by real USERs (before suid)
 
@@ -126,10 +126,11 @@ config TOP
   bool "top"
   default y
   help
-    usage: top [-m] [ -d seconds ] [ -n iterations ]
+    usage: top [-H] [-k FIELD,] [-o FIELD,] [-s SORT]
 
     Show process activity in real time.
 
+    -H	Show threads
     -k	Fallback sort FIELDS (default -S,-%CPU,-ETIME,-PID)
     -o	Show FIELDS (def PID,USER,PR,NI,VIRT,RES,SHR,S,%CPU,%MEM,TIME+,CMDLINE)
     -s	Sort by field number (1-X, default 9)
@@ -155,7 +156,7 @@ config TOP_COMMON
   bool
   default y
   help
-    usage: COMMON [-bq] [-n NUMBER] [-d SECONDS] [-p PID,] [-u USER,] [-s SORT]
+    usage: COMMON [-bq] [-n NUMBER] [-d SECONDS] [-p PID,] [-u USER,]
 
     -b	Batch mode (no tty)
     -d	Delay SECONDS between each cycle (default 3)
@@ -1263,7 +1264,9 @@ static void top_common(
     plold = plist+(tock++&1);
     plnew = plist+(tock&1);
     plnew->whence = millitime();
-    dt = dirtree_read("/proc", get_ps);
+    dt = dirtree_read("/proc",
+      ((toys.optflags&FLAG_H) || (TT.bits&(_PS_TID|_PS_TCNT)))
+        ? get_threads : get_ps);
     plnew->tb = collate(plnew->count = TT.kcount, dt);
     TT.kcount = 0;
 
