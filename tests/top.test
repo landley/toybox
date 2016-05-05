@@ -1,0 +1,7 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+testing "batch termination" "top -b -n1 | tail -c 1" "\n" "" ""
