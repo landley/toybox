@@ -140,7 +140,8 @@ void toy_exec(char *argv[])
 
   // Compiler writers have decided subtracting char * is undefined behavior,
   // so convert to integers. (LP64 says sizeof(long)==sizeof(pointer).)
-  if (toys.stacktop && labs((long)toys.stacktop-(long)&which)>6000) return;
+  if (!CFG_TOYBOX_NORECURSE)
+    if (toys.stacktop && labs((long)toys.stacktop-(long)&which)>6000) return;
 
   // Return if we need to re-exec to acquire root via suid bit.
   if (toys.which && (which->flags&TOYFLAG_ROOTONLY) && toys.wasroot) return;
