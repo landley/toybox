@@ -43,9 +43,9 @@
  * TODO: top: thread support and SMP
  * TODO: pgrep -f only searches the amount of cmdline that fits in toybuf.
 
-USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflMno*O*p(pid)*s*t*Tu*U*g*G*wZ[!ol][+Ae]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflMno*O*p(pid)*s*t*Tu*U*g*G*wZ[!ol][+Ae][!oO]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 // stayroot because iotop needs root to read other process' proc/$$/io
-USE_TOP(NEWTOY(top, ">0m" "Hk*o*p*u*s#<1=9d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_TOP(NEWTOY(top, ">0m" "O*Hk*o*p*u*s#<1d#=3<1n#<1bq[!oO]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 USE_IOTOP(NEWTOY(iotop, ">0AaKO" "k*o*p*u*s#<1=7d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
 USE_PGREP(NEWTOY(pgrep, "?cld:u*U*t*s*P*g*G*fnovxL:[-no]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_PKILL(NEWTOY(pkill,     "Vu*U*t*s*P*g*G*fnovxl:[-no]", TOYFLAG_USR|TOYFLAG_BIN))
@@ -124,6 +124,7 @@ config PS
 
 config TOP
   bool "top"
+  depends on TOP_COMMON
   default y
   help
     usage: top [-H] [-k FIELD,] [-o FIELD,] [-s SORT]
@@ -133,11 +134,13 @@ config TOP
     -H	Show threads
     -k	Fallback sort FIELDS (default -S,-%CPU,-ETIME,-PID)
     -o	Show FIELDS (def PID,USER,PR,NI,VIRT,RES,SHR,S,%CPU,%MEM,TIME+,CMDLINE)
+    -O	Add FIELDS (replacing PR,NI,VIRT,RES,SHR,S from default)
     -s	Sort by field number (1-X, default 9)
 
 # Requires CONFIG_IRQ_TIME_ACCOUNTING in the kernel for /proc/$$/io
 config IOTOP
   bool "iotop"
+  depends on TOP_COMMON
   default y
   help
     usage: iotop [-AaKO]
@@ -156,7 +159,7 @@ config TOP_COMMON
   bool
   default y
   help
-    usage: COMMON [-bq] [-n NUMBER] [-d SECONDS] [-p PID,] [-u USER,]
+    usage: * [-bq] [-n NUMBER] [-d SECONDS] [-p PID,] [-u USER,]
 
     -b	Batch mode (no tty)
     -d	Delay SECONDS between each cycle (default 3)
@@ -183,11 +186,21 @@ config PGREP
     -L	Send SIGNAL instead of printing name
     -l	Show command name
 
+config PKILL
+  bool "pkill"
+  default y
+  depends on PGKILL_COMMON
+  help
+    usage: pkill [-l SIGNAL] [PATTERN]
+
+    -l	SIGNAL to send
+    -V	verbose
+
 config PGKILL_COMMON
   bool
   default y
   help
-    usage: pgrep [-fnovx] [-G GID,] [-g PGRP,] [-P PPID,] [-s SID,] [-t TERM,] [-U UID,] [-u EUID,]
+    usage: * [-fnovx] [-G GID,] [-g PGRP,] [-P PPID,] [-s SID,] [-t TERM,] [-U UID,] [-u EUID,]
 
     -f	Check full command line for PATTERN
     -G	Match real Group ID(s)
@@ -201,15 +214,6 @@ config PGKILL_COMMON
     -u	Match effective User ID(s)
     -v	Negate the match
     -x	Match whole command (not substring)
-
-config PKILL
-  bool "pkill"
-  default y
-  help
-    usage: pkill [-l SIGNAL] [PATTERN]
-
-    -l	SIGNAL to send
-    -V	verbose
 */
 
 #define FOR_ps
@@ -238,6 +242,7 @@ GLOBALS(
       struct arg_list *p;
       struct arg_list *o;
       struct arg_list *k;
+      struct arg_list *O;
     } top;
     struct{
       char *L;
@@ -378,6 +383,7 @@ static int shared_match_process(long long *slot)
   // Do we have -g -G -p -P -s -t -u -U options selecting processes?
   for (i = 0; i < ARRAY_LEN(match); i++) {
     struct ptr_len *mm = match[i].ptr;
+
     if (mm->len) {
       ll = mm->ptr;
       for (j = 0; j<mm->len; j++) if (ll[j] == slot[match[i].len]) return 1;
@@ -1342,7 +1348,6 @@ static void top_common(
           memset(run, 0, sizeof(run));
           for (i = 0; i<mix.count; i++)
             run[1+stridx("RSTZ", *string_field(mix.tb[i], &alluc))]++;
-
           sprintf(toybuf,
             "Tasks: %d total,%4ld running,%4ld sleeping,%4ld stopped,"
             "%4ld zombie", mix.count, run[1], run[2], run[3], run[4]);
@@ -1408,10 +1413,11 @@ static void top_common(
         }
 
         get_headers(TT.fields, pos = toybuf, sizeof(toybuf));
-        for (i = 0, is = *pos; *pos; pos++) {
+        for (i = 0, is = ' '; *pos; pos++) {
           was = is;
           is = *pos;
-          if (isspace(was) && !isspace(is) && i++==TT.sortpos) pos[-1] = '[';
+          if (isspace(was) && !isspace(is) && i++==TT.sortpos && pos!=toybuf)
+            pos[-1] = '[';
           if (!isspace(was) && isspace(is) && i==TT.sortpos+1) *pos = ']';
         }
         *pos = 0;
@@ -1486,8 +1492,6 @@ static void top_common(
 
 static void top_setup(char *defo, char *defk)
 {
-  int len;
-
   TT.top.d *= 1000;
   if (toys.optflags&FLAG_b) TT.width = TT.height = 99999;
   else {
@@ -1505,8 +1509,6 @@ static void top_setup(char *defo, char *defk)
 
   default_ko(defo, &TT.fields, "bad -o", TT.top.o);
   dlist_terminate(TT.fields);
-  len = strlen(toybuf);
-  if (toybuf[len-1]!=' ' && len<sizeof(toybuf)-1) strcpy(toybuf+len, " ");
 
   // First (dummy) sort field is overwritten by setsort()
   default_ko("-S", &TT.kfields, 0, 0);
@@ -1519,9 +1521,17 @@ void top_main(void)
 {
   // usage: [-h HEADER] -o OUTPUT -k SORT
 
-  top_setup(
-    "PID,USER,PR,NI,VIRT,RES,SHR,S,%CPU,%MEM,TIME+,ARGS",
-    "-%CPU,-ETIME,-PID");
+  sprintf(toybuf, "PID,USER,%s%%CPU,%%MEM,TIME+,ARGS",
+    TT.top.O ? "" : "PR,NI,VIRT,RES,SHR,S,");
+  if (!TT.top.s) TT.top.s = TT.top.O ? 3 : 9;
+  top_setup(toybuf, "-%CPU,-ETIME,-PID");
+  if (TT.top.O) {
+    struct strawberry *fields = TT.fields;
+
+    fields = fields->next->next;
+    comma_args(TT.top.O, &fields, "bad -O", parse_ko);
+  }
+
   top_common(merge_deltas);
 }
 
