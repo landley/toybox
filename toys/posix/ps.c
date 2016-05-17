@@ -453,7 +453,7 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
 
         if (gr) out = gr->gr_name;
       } else {
-        struct passwd *pw = getpwuid(ll);
+        struct passwd *pw = bufgetpwuid(ll);
 
         if (pw) out = pw->pw_name;
       }

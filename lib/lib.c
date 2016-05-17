@@ -1074,3 +1074,31 @@ int dev_makedev(int major, int minor)
 {
   return (minor&0xff)|((major&0xfff)<<8)|((minor&0xfff00)<<12);
 }
+
+// Return cached passwd entries.
+struct passwd *bufgetpwuid(uid_t uid)
+{
+  struct pwuidbuf_list {
+    struct pwuidbuf_list *next;
+    struct passwd pw;
+  } *list;
+  struct passwd *temp;
+  static struct pwuidbuf_list *pwuidbuf;
+
+  for (list = pwuidbuf; list; list = list->next)
+    if (list->pw.pw_uid == uid) return &(list->pw);
+
+  list = xmalloc(512);
+  list->next = pwuidbuf;
+
+  errno = getpwuid_r(uid, &list->pw, sizeof(*list)+(char *)list,
+    512-sizeof(*list), &temp);
+  if (!temp) {
+    free(list);
+
+    return 0;
+  }
+  pwuidbuf = list;
+
+  return &list->pw;
+}
