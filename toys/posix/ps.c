@@ -449,7 +449,7 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     sprintf(out, "%lld", ll);
     if (sl&64) {
       if (which > PS_RUSER) {
-        struct group *gr = getgrgid(ll);
+        struct group *gr = bufgetgrgid(ll);
 
         if (gr) out = gr->gr_name;
       } else {

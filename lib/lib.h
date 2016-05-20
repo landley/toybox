@@ -206,6 +206,7 @@ int dev_minor(int dev);
 int dev_major(int dev);
 int dev_makedev(int major, int minor);
 struct passwd *bufgetpwuid(uid_t uid);
+struct group *bufgetgrgid(gid_t gid);
 
 #define HR_SPACE 1 // Space between number and units
 #define HR_B     2 // Use "B" for single byte units

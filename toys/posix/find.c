@@ -303,9 +303,9 @@ static int do_find(struct dirtree *new)
       if (check) do_print(new, s[5] ? 0 : '\n');
 
     } else if (!strcmp(s, "nouser")) {
-      if (check) if (getpwuid(new->st.st_uid)) test = 0;
+      if (check) if (bufgetpwuid(new->st.st_uid)) test = 0;
     } else if (!strcmp(s, "nogroup")) {
-      if (check) if (getgrgid(new->st.st_gid)) test = 0;
+      if (check) if (bufgetgrgid(new->st.st_gid)) test = 0;
     } else if (!strcmp(s, "prune")) {
       if (check && S_ISDIR(new->st.st_mode) && !TT.depth) recurse = 0;
 

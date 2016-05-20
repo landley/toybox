@@ -123,7 +123,7 @@ static char endtype(struct stat *st)
 
 static char *getusername(uid_t uid)
 {
-  struct passwd *pw = getpwuid(uid);
+  struct passwd *pw = bufgetpwuid(uid);
 
   sprintf(TT.uid_buf, "%u", (unsigned)uid);
   return pw ? pw->pw_name : TT.uid_buf;
@@ -131,7 +131,7 @@ static char *getusername(uid_t uid)
 
 static char *getgroupname(gid_t gid)
 {
-  struct group *gr = getgrgid(gid);
+  struct group *gr = bufgetgrgid(gid);
 
   sprintf(TT.gid_buf, "%u", (unsigned)gid);
   return gr ? gr->gr_name : TT.gid_buf;
@@ -334,12 +334,10 @@ static void listfiles(int dirfd, struct dirtree *indir)
     // Do preprocessing (Dirtree didn't populate, so callback wasn't called.)
     for (;dt; dt = dt->next) filter(dt);
     if (flags == (FLAG_1|FLAG_f)) return;
-  } else {
-    // Read directory contents. We dup() the fd because this will close it.
-    // This reads/saves contents to display later, except for in "ls -1f" mode.
-    dirtree_recurse(indir, filter, dup(dirfd),
+  // Read directory contents. We dup() the fd because this will close it.
+  // This reads/saves contents to display later, except for in "ls -1f" mode.
+  } else  dirtree_recurse(indir, filter, dup(dirfd),
       DIRTREE_SYMFOLLOW*!!(flags&FLAG_L));
-  }
 
   // Copy linked list to array and sort it. Directories go in array because
   // we visit them in sorted order too. (The nested loops let us measure and

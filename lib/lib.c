@@ -1102,3 +1102,31 @@ struct passwd *bufgetpwuid(uid_t uid)
 
   return &list->pw;
 }
+
+// Return cached passwd entries.
+struct group *bufgetgrgid(gid_t gid)
+{
+  struct grgidbuf_list {
+    struct grgidbuf_list *next;
+    struct group gr;
+  } *list;
+  struct group *temp;
+  static struct grgidbuf_list *grgidbuf;
+
+  for (list = grgidbuf; list; list = list->next)
+    if (list->gr.gr_gid == gid) return &(list->gr);
+
+  list = xmalloc(512);
+  list->next = grgidbuf;
+
+  errno = getgrgid_r(gid, &list->gr, sizeof(*list)+(char *)list,
+    512-sizeof(*list), &temp);
+  if (!temp) {
+    free(list);
+
+    return 0;
+  }
+  grgidbuf = list;
+
+  return &list->gr;
+}
