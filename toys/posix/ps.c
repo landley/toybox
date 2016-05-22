@@ -89,17 +89,20 @@ config PS
     -O	Add FIELDS to defaults
     -Z	Include LABEL
 
-    Available -o FIELDs:
+    Command line -o fields:
 
-      ADDR  Instruction pointer               ARGS    Command line (argv[] -path)
-      BIT   Is this process 32 or 64 bits
-      CMD   COMM, or ARGS with -f             CMDLINE Command line (argv[])
-      COMM  Original command name             COMMAND Original command path
+      ARGS     Command line (argv[] -path)    CMD   COMM, or ARGS with -f
+      CMDLINE  Command line (argv[])          COMM  Original command name (stat[2])
+      COMMAND  Command name (argv[0])         NAME  Command name (argv[0] -path)
+
+    Process attribute -o FIELDs:
+
+      ADDR  Instruction pointer               BIT   Is this process 32 or 64 bits
       CPU   Which processor running on        ETIME   Elapsed time since PID start
       F     Flags (1=FORKNOEXEC 4=SUPERPRIV)  GID     Group id
       GROUP Group name                        LABEL   Security label
       MAJFL Major page faults                 MINFL   Minor page faults
-      NAME  Command name (argv[0])            NI      Niceness (lower is faster)
+      NI    Niceness (lower is faster)
       PCPU  Percentage of CPU time used       PCY     Android scheduling policy
       PGID  Process Group ID
       PID   Process ID                        PPID    Parent Process ID
@@ -120,7 +123,7 @@ config PS
       TIME  CPU time consumed                 TTY     Controlling terminal
       UID   User id                           USER    User name
       VSZ   Virtual memory size (1k units)    %VSZ    VSZ as % of physical memory
-      WCHAN Waiting in kernel for
+      WCHAN What are we waiting in kernel for
 
 config TOP
   bool "top"
@@ -244,7 +247,7 @@ GLOBALS(
       struct arg_list *k;
       struct arg_list *O;
     } top;
-    struct{
+    struct {
       char *L;
       struct arg_list *G;
       struct arg_list *g;
@@ -434,10 +437,12 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
 
   // String fields
   } else if (sl < 0) {
+    // If there's data after argv[0], insert null or space as appropriate
     if (slot[SLOT_argv0len])
       tb->str[tb->offset[4]+slot[SLOT_argv0len]] = (which==PS_NAME) ? 0 : ' ';
     out = tb->str;
     sl *= -1;
+    // First string slot has offset 0, others are offset[-slot-2]
     if (--sl) out += tb->offset[--sl];
     if (which==PS_ARGS)
       for (s = out; *s && *s != ' '; s++) if (*s == '/') out = s+1;
@@ -1299,7 +1304,7 @@ static void top_common(
     while (old.count || new.count) {
       struct carveup *otb = *old.tb, *ntb = *new.tb;
 
-      // If we just have old, discard it.
+      // If we just have old for this process, it exited. Discard it.
       if (old.count && (!new.count || *otb->slot < *ntb->slot)) {
         old.tb++;
         old.count--;
@@ -1322,7 +1327,7 @@ static void top_common(
       new.count--;
     }
 
-    // We will re-fetch no data before its time. - Mork calling Orson Welles
+    // Don't re-fetch data if it's not time yet, just re-display existing data.
     for (;;) {
       char was, is;
 
@@ -1338,12 +1343,14 @@ static void top_common(
         lines = TT.height;
       }
       if (recalc && !(toys.optflags&FLAG_q)) {
+        // Display "top" header.
         if (*toys.which->name == 't') {
           struct strawberry alluc;
           long long ll, up = 0;
           long run[6];
           int j;
 
+          // Count running, sleeping, stopped, zombie processes.
           alluc.which = PS_S;
           memset(run, 0, sizeof(run));
           for (i = 0; i<mix.count; i++)
