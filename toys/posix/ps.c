@@ -266,6 +266,7 @@ GLOBALS(
 
   struct sysinfo si;
   struct ptr_len gg, GG, pp, PP, ss, tt, uu, UU;
+  struct dirtree *threadparent;
   unsigned width, height;
   dev_t tty;
   void *fields, *kfields;
@@ -446,7 +447,7 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     if (--sl) out += tb->offset[--sl];
     if (which==PS_ARGS)
       for (s = out; *s && *s != ' '; s++) if (*s == '/') out = s+1;
-    if (which>=PS_COMMAND && (!*out || *slot != slot[SLOT_tid]))
+    if (which>PS_COMMAND && (!*out || *slot != slot[SLOT_tid]))
       sprintf(out = buf, "[%s]", tb->str);
 
   // user/group
@@ -588,10 +589,13 @@ static int get_ps(struct dirtree *new)
 
   // Recurse one level into /proc children, skip non-numeric entries
   if (!new->parent)
-    return DIRTREE_RECURSE|DIRTREE_SHUTUP|(DIRTREE_SAVE*!TT.show_process);
+    return DIRTREE_RECURSE|DIRTREE_SHUTUP
+      |(DIRTREE_SAVE*(TT.threadparent||!TT.show_process));
 
   memset(slot, 0, sizeof(tb->slot));
   if (!(tb->slot[SLOT_tid] = *slot = atol(new->name))) return 0;
+  if (TT.threadparent && TT.threadparent->extra)
+    if (*slot == *(((struct carveup *)TT.threadparent->extra)->slot)) return 0;
   fd = dirtree_parentfd(new);
 
   len = 2048;
@@ -699,7 +703,7 @@ static int get_ps(struct dirtree *new)
   // it'd almost never get used, querying length of a proc file is awkward,
   // fixed buffer is nommu friendly... Wait for somebody to complain. :)
   slot[SLOT_argv0len] = 0;
-  for (j = 0; j<ARRAY_LEN(fetch); j++) { 
+  for (j = 0; j<ARRAY_LEN(fetch); j++) {
     tb->offset[j] = buf-(tb->str);
     if (!(TT.bits&fetch[j].bits)) {
       *buf++ = 0;
@@ -713,8 +717,15 @@ static int get_ps(struct dirtree *new)
 
     // For exe we readlink instead of read contents
     if (j==3) {
-      if ((len = readlinkat(fd, buf, buf, len))>0) buf[len] = 0;
-      else *buf = 0;
+      // Thread doesn't have exe, so use parent's
+      if (TT.threadparent && TT.threadparent->extra) {
+        struct carveup *ptb = (void *)TT.threadparent->extra;
+        i = strlen(s = ptb->str+ptb->offset[3]);
+        if (i<len) len = i;
+        memcpy(buf, s, i);
+        buf[len] = 0;
+      } else if ((len = readlinkat(fd, buf, buf, len))>0) buf[len] = 0;
+      else *buf = len = 0;
 
     // If it's not the TTY field, data we want is in a file.
     // Last length saved in slot[] is command line (which has embedded NULs)
@@ -745,7 +756,8 @@ static int get_ps(struct dirtree *new)
             while (fscanf(fp, "%*s %256s %d %*s %*s", buf, &tty_major) == 2) {
               // TODO: we could parse the minor range too.
               if (tty_major == maj) {
-                sprintf(buf+strlen(buf), "%d", min);
+                len = strlen(buf);
+                len += sprintf(buf+len, "%d", min);
                 if (!stat(buf, &st) && S_ISCHR(st.st_mode) && st.st_rdev==rdev)
                   break;
               }
@@ -755,11 +767,11 @@ static int get_ps(struct dirtree *new)
           }
 
           // Really couldn't find it, so just show major:minor.
-          if (!tty_major) sprintf(buf, "%d:%d", maj, min);
+          if (!tty_major) len = sprintf(buf, "%d:%d", maj, min);
         }
 
         s = buf;
-        if (strstart(&s, "/dev/")) memmove(buf, s, strlen(s)+1);
+        if (strstart(&s, "/dev/")) memmove(buf, s, len -= 5);
       }
 
     // Data we want is in a file.
@@ -783,17 +795,18 @@ static int get_ps(struct dirtree *new)
           } else if (!TT.tty && c<' ') c = '?';
           buf[i] = c;
         }
-        len = temp; // position of _first_ NUL
+        // Store end of argv[0] so NAME and CMDLINE can differ.
+        // We do it for each file string slot but last is cmdline, which sticks.
+        slot[SLOT_argv0len] = temp;  // Position of _first_ NUL
       } else *buf = len = 0;
-      // Store end of argv[0] so NAME and CMDLINE can differ.
-      slot[SLOT_argv0len] = len;
     }
 
-    buf += strlen(buf)+1;
+    // Above calculated/retained len, so we don't need to re-strlen.
+    buf += len+1;
   }
 
   TT.kcount++;
-  if (TT.show_process) {
+  if (TT.show_process && !TT.threadparent) {
     TT.show_process(tb);
 
     return 0;
@@ -809,41 +822,50 @@ static int get_ps(struct dirtree *new)
 
 static int get_threads(struct dirtree *new)
 {
-  struct dirtree *threads, *dt;
+  struct dirtree *dt;
+  struct carveup *tb;
   unsigned pid, kcount;
-  void (*show_process)(void *tb) = TT.show_process;
 
   if (!new->parent) return get_ps(new);
 
   if (!(pid = atol(new->name))) return 0;
 
+  TT.threadparent = new;
+  if (!get_ps(new)) {
+    TT.threadparent = 0;
+
+    return 0;
+  }
+
   // Recurse down into tasks, retaining thread groups.
-  TT.show_process = 0;
-  sprintf(toybuf, "/proc/%u/task", pid);
+  // Disable show_process at least until we can calculate tcount
   kcount = TT.kcount;
-  threads = dirtree_read(toybuf, get_ps);
-  if (!threads) return 0;
+  sprintf(toybuf, "/proc/%u/task", pid);
+  new->child = dirtree_flagread(toybuf, DIRTREE_SHUTUP, get_ps);
+  TT.threadparent = 0;
+  kcount = TT.kcount-kcount+1;
+  tb = (void *)new->extra;
+  tb->slot[SLOT_tcount] = kcount;
 
   // Fill out tid and thread count for each entry in group
-  for (dt = threads->child; dt; dt = dt->next) {
-    struct carveup *tb = (void *)dt->extra;
-
-    tb->slot[SLOT_tid] = tb->slot[SLOT_pid];
+  if (new->child) for (dt = new->child->child; dt; dt = dt->next) {
+    tb = (void *)dt->extra;
     tb->slot[SLOT_pid] = pid;
-    tb->slot[SLOT_tcount] = TT.kcount - kcount;
+    tb->slot[SLOT_tcount] = kcount;
   }
 
   // Save or display
-  if (!(TT.show_process = show_process)) {
-    new->child = threads;
-
-    return DIRTREE_SAVE;
-  } while (threads->child) {
-    dt = threads->child->next;
-    show_process((void *)threads->child->extra);
-    free(threads->child);
-    threads->child = dt;
+  if (!TT.show_process) return DIRTREE_SAVE;
+  TT.show_process((void *)new->extra);
+  dt = new->child;
+  new->child = 0;
+  while (dt->child) {
+    new = dt->child->next;
+    TT.show_process((void *)dt->child->extra);
+    free(dt->child);
+    dt->child = new;
   }
+  free(dt);
 
   return 0;
 }
