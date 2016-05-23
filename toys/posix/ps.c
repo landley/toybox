@@ -48,7 +48,7 @@ USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflMno*O*p(pid)*s*t*Tu*U*g*G*wZ[!ol][+Ae][
 USE_TOP(NEWTOY(top, ">0m" "O*Hk*o*p*u*s#<1d#=3<1n#<1bq[!oO]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 USE_IOTOP(NEWTOY(iotop, ">0AaKO" "k*o*p*u*s#<1=7d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
 USE_PGREP(NEWTOY(pgrep, "?cld:u*U*t*s*P*g*G*fnovxL:[-no]", TOYFLAG_USR|TOYFLAG_BIN))
-USE_PKILL(NEWTOY(pkill,     "Vu*U*t*s*P*g*G*fnovxl:[-no]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PKILL(NEWTOY(pkill,    "?Vu*U*t*s*P*g*G*fnovxl:[-no]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PS
   bool "ps"
@@ -194,9 +194,9 @@ config PKILL
   default y
   depends on PGKILL_COMMON
   help
-    usage: pkill [-l SIGNAL] [PATTERN]
+    usage: pkill [-SIGNAL|-l SIGNAL] [PATTERN]
 
-    -l	SIGNAL to send
+    -l	Send SIGNAL (default SIGTERM)
     -V	verbose
 
 config PGKILL_COMMON
@@ -1725,6 +1725,9 @@ void pgrep_main(void)
 
 void pkill_main(void)
 {
+  char **args = toys.optargs;
+
+  if (!(toys.optflags&FLAG_l) && *args && **args=='-') TT.pgrep.L = *(args++)+1;
   if (!TT.pgrep.L) TT.pgrep.signal = SIGTERM;
   if (toys.optflags & FLAG_V) TT.tty = 1;
   pgrep_main();
