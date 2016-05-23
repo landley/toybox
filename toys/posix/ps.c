@@ -980,6 +980,8 @@ static char *parse_rest(void *data, char *str, int len)
   if (isdigit(*str)) {
     ll[pl->len] = xstrtol(str, &end, 10);
     if (end==(len+str)) num++;
+    // For pkill, -s 0 represents pkill's session id.
+    if (pl==&TT.ss && ll[pl->len]==0) ll[pl->len] = getsid(0);
   }
 
   if (pl==&TT.pp || pl==&TT.ss) {

@@ -63,6 +63,7 @@ killall yes >/dev/null 2>&1
 
 yes >/dev/null &
 proc1=$!
+sleep 1
 yes >/dev/null &
 proc2=$!
 sleep 1
