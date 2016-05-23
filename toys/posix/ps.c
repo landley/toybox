@@ -545,7 +545,7 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
 static void show_ps(struct carveup *tb)
 {
   struct strawberry *field;
-  int pad, len, width = TT.width;
+  int pad, len, width = TT.width, abslen, adjlen, olen, extra = 0;
 
   // Loop through fields to display
   for (field = TT.fields; field; field = field->next) {
@@ -556,10 +556,27 @@ static void show_ps(struct carveup *tb)
       putchar(' ');
       width--;
     }
+
+    // Don't truncate number fields, but try to reclaim extra offset from later
+    // fields that can naturally be shorter
+    abslen = abs(field->len);
+    adjlen = field->len;
+    if (field->which<=PS_BIT || extra) olen = strlen(out);
+    if (field->which<=PS_BIT && olen>abslen) {
+      extra += olen-abslen;
+      abslen = olen;
+      adjlen = (adjlen<0) ? -olen : olen;
+    } else if (extra && olen<abslen) {
+      olen = abslen-olen;
+      if (olen>extra) olen = extra;
+      abslen -= olen;
+      adjlen -= (adjlen<0) ? -olen : olen;
+      extra -= olen;
+    }
     len = width;
     pad = 0;
     if (field->next || field->len>0)
-      len = abs(pad = width<abs(field->len) ? width : field->len);
+      len = abs(pad = width<abslen ? width : adjlen);
 
     if (TT.tty) width -= draw_trim(out, pad, len);
     else width -= printf("%*.*s", pad, len, out);
