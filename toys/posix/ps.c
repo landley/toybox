@@ -1075,8 +1075,8 @@ static struct carveup **collate_leaves(struct carveup **tb, struct dirtree *dt)
   while (dt) {
     struct dirtree *next = dt->next;
 
+    if (dt->extra) *(tb++) = (void *)dt->extra;
     if (dt->child) tb = collate_leaves(tb, dt->child);
-    else *(tb++) = (void *)dt->extra;
     free(dt);
     dt = next;
   }
