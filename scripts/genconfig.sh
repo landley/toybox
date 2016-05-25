@@ -102,7 +102,7 @@ EOF
 genconfig()
 {
   # Reverse sort puts posix first, examples last.
-  for j in $(ls toys/*/README | sort -r)
+  for j in $(ls toys/*/README | sort -s -r)
   do
     DIR="$(dirname "$j")"
 
