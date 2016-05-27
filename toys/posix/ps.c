@@ -91,9 +91,10 @@ config PS
 
     Command line -o fields:
 
-      ARGS     Command line (argv[] -path)    CMD   COMM, or ARGS with -f
-      CMDLINE  Command line (argv[])          COMM  Original command name (stat[2])
-      COMMAND  Command name (argv[0])         NAME  Command name (argv[0] -path)
+      ARGS     Command line (argv[] -path)    CMD    COMM, or ARGS with -f
+      CMDLINE  Command line (argv[])          COMM   Original command name (stat[2])
+      COMMAND  Command name (/proc/$PID/exe)  NAME   Command name (COMMAND -path)
+      TNAME    Thread name (argv[0] of $PID)
 
     Process attribute -o FIELDs:
 
@@ -324,7 +325,7 @@ enum {
 // Data layout in toybuf
 struct carveup {
   long long slot[SLOT_count]; // data (see enum above)
-  unsigned short offset[5];   // offset of fields in str[] (skip name, always 0)
+  unsigned short offset[6];   // offset of fields in str[] (skip name, always 0)
   char state;
   char str[];                 // name, tty, command, wchan, attr, cmdline
 };
@@ -346,8 +347,8 @@ struct typography {
 
   // String fields
   {"COMM", -15, -1}, {"TTY", -8, -2}, {"WCHAN", -6, -3}, {"LABEL", -30, -4},
-  {"COMMAND", -27, -5}, {"CMDLINE", -27, -6}, {"ARGS", -27, -6},
-  {"NAME", -15, -6}, {"CMD", -27, -1},
+  {"NAME", -15, -5}, {"TNAME", -15, -7}, {"COMMAND", -27, -5},
+  {"CMDLINE", -27, -6}, {"ARGS", -27, -6}, {"CMD", -27, -1},
 
   // user/group
   {"UID", 5, SLOT_uid}, {"USER", -8, 64|SLOT_uid}, {"RUID", 4, SLOT_ruid},
@@ -438,15 +439,18 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
 
   // String fields
   } else if (sl < 0) {
-    // If there's data after argv[0], insert null or space as appropriate
-    if (slot[SLOT_argv0len])
-      tb->str[tb->offset[4]+slot[SLOT_argv0len]] = (which==PS_NAME) ? 0 : ' ';
     out = tb->str;
     sl *= -1;
     // First string slot has offset 0, others are offset[-slot-2]
     if (--sl) out += tb->offset[--sl];
-    if (which==PS_ARGS)
-      for (s = out; *s && *s != ' '; s++) if (*s == '/') out = s+1;
+    if (which==PS_ARGS || which==PS_NAME) {
+      int i;
+
+      s = out;
+      for (i = 0; (which==PS_ARGS) ? i < slot[SLOT_argv0len] : out[i]; i++)
+        if (out[i] == '/') s = out+i+1;
+      out = s;
+    }
     if (which>PS_COMMAND && (!*out || *slot != slot[SLOT_tid]))
       sprintf(out = buf, "[%s]", tb->str);
 
@@ -545,13 +549,15 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
 static void show_ps(struct carveup *tb)
 {
   struct strawberry *field;
-  int pad, len, width = TT.width, abslen, adjlen, olen, extra = 0;
+  int pad, len, width = TT.width, abslen, sign, olen, extra = 0;
 
   // Loop through fields to display
   for (field = TT.fields; field; field = field->next) {
     char *out = string_field(tb, field);
 
     // Output the field, appropriately padded
+
+    // Minimum one space between each field
     if (field != TT.fields) {
       putchar(' ');
       width--;
@@ -560,23 +566,24 @@ static void show_ps(struct carveup *tb)
     // Don't truncate number fields, but try to reclaim extra offset from later
     // fields that can naturally be shorter
     abslen = abs(field->len);
-    adjlen = field->len;
+    sign = field->len<0 ? -1 : 1;
     if (field->which<=PS_BIT || extra) olen = strlen(out);
     if (field->which<=PS_BIT && olen>abslen) {
+      // overflow but remember by how much
       extra += olen-abslen;
       abslen = olen;
-      adjlen = (adjlen<0) ? -olen : olen;
     } else if (extra && olen<abslen) {
+      // If later fields have slack space, take back overflow
       olen = abslen-olen;
       if (olen>extra) olen = extra;
       abslen -= olen;
-      adjlen -= (adjlen<0) ? -olen : olen;
       extra -= olen;
     }
-    len = width;
-    pad = 0;
-    if (field->next || field->len>0)
-      len = abs(pad = width<abslen ? width : adjlen);
+    if (abslen>width) abslen = width;
+    len = pad = abslen;
+    pad *= sign;
+    // If last field is left justified, no trailing spaces.
+    if (!field->next && sign<0) pad = 0;
 
     if (TT.tty) width -= draw_trim(out, pad, len);
     else width -= printf("%*.*s", pad, len, out);
@@ -591,12 +598,13 @@ static void show_ps(struct carveup *tb)
 static int get_ps(struct dirtree *new)
 {
   struct {
-    char *name;
-    long long bits;
+    char *name;     // Path under /proc/$PID directory
+    long long bits; // Only fetch extra data if an -o field is displaying it
   } fetch[] = {
     // sources for carveup->offset[] data
     {"fd/", _PS_TTY}, {"wchan", _PS_WCHAN}, {"attr/current", _PS_LABEL},
-    {"exe", _PS_COMMAND}, {"cmdline", _PS_CMDLINE|_PS_ARGS|_PS_NAME}
+    {"exe", _PS_COMMAND|_PS_NAME}, {"cmdline", _PS_CMDLINE|_PS_ARGS|_PS_TNAME},
+    {"", _PS_TNAME}
   };
   struct carveup *tb = (void *)toybuf;
   long long *slot = tb->slot;
@@ -733,16 +741,31 @@ static int get_ps(struct dirtree *new)
     sprintf(buf, "%lld/%s", *slot, fetch[j].name);
 
     // For exe we readlink instead of read contents
-    if (j==3) {
-      // Thread doesn't have exe, so use parent's
-      if (TT.threadparent && TT.threadparent->extra) {
-        struct carveup *ptb = (void *)TT.threadparent->extra;
-        i = strlen(s = ptb->str+ptb->offset[3]);
+    if (j==3 || j==5) {
+      struct carveup *ptb = 0;
+      int k;
+
+      // Thread doesn't have exe or argv[0], so use parent's
+      if (TT.threadparent && TT.threadparent->extra)
+        ptb = (void *)TT.threadparent->extra;
+
+      if (j==3 && !ptb) {
+        if ((len = readlinkat(fd, buf, buf, len))<1) len = 0;
+      } else {
+        if (j==3) i = strlen(s = ptb->str+ptb->offset[3]);
+        else {
+          if (!ptb || tb->slot[SLOT_argv0len]) ptb = tb;
+          i = ptb->slot[SLOT_argv0len];
+          s = ptb->str+ptb->offset[4];
+          while (-1!=(k = stridx(s, '/')) && k<i) {
+            s += k+1;
+            i -= k+1;
+          }
+        }
         if (i<len) len = i;
-        memcpy(buf, s, i);
-        buf[len] = 0;
-      } else if ((len = readlinkat(fd, buf, buf, len))>0) buf[len] = 0;
-      else *buf = len = 0;
+        memcpy(buf, s, len);
+      }
+      buf[len] = 0;
 
     // If it's not the TTY field, data we want is in a file.
     // Last length saved in slot[] is command line (which has embedded NULs)
@@ -812,9 +835,9 @@ static int get_ps(struct dirtree *new)
           } else if (!TT.tty && c<' ') c = '?';
           buf[i] = c;
         }
-        // Store end of argv[0] so NAME and CMDLINE can differ.
+        // Store end of argv[0] so ARGS and CMDLINE can differ.
         // We do it for each file string slot but last is cmdline, which sticks.
-        slot[SLOT_argv0len] = temp;  // Position of _first_ NUL
+        slot[SLOT_argv0len] = temp ? temp : len;  // Position of _first_ NUL
       } else *buf = len = 0;
     }
 
@@ -1187,7 +1210,7 @@ void ps_main(void)
   if (!(toys.optflags&(FLAG_k|FLAG_M))) TT.show_process = (void *)show_ps;
   TT.match_process = ps_match_process;
   dt = dirtree_read("/proc",
-    ((toys.optflags&FLAG_T) || (TT.bits&(_PS_TID|_PS_TCNT)))
+    ((toys.optflags&FLAG_T) || (TT.bits&(_PS_TID|_PS_TCNT|_PS_TNAME)))
       ? get_threads : get_ps);
 
   if (toys.optflags&(FLAG_k|FLAG_M)) {
