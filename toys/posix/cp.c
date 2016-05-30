@@ -345,7 +345,19 @@ int cp_node(struct dirtree *try)
         err = "%s";
   }
 
-  if (err) perror_msg(err, catch);
+  if (err) {
+    char *f = 0;
+
+    if (catch == try->name) {
+      f = dirtree_path(try, 0);
+      while (try->parent) try = try->parent;
+      catch = xmprintf("%s%s", TT.destname, f+strlen(try->name));
+      free(f);
+      f = catch;
+    }
+    perror_msg(err, catch);
+    free(f);
+  }
   return 0;
 }
 
