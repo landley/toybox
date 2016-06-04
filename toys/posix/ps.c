@@ -346,8 +346,8 @@ struct typography {
   {"TID", 5, SLOT_tid}, {"TCNT", 4, SLOT_tcount}, {"BIT", 3, SLOT_bits},
 
   // String fields
-  {"COMM", -15, -1}, {"TTY", -8, -2}, {"WCHAN", -6, -3}, {"LABEL", -30, -4},
-  {"NAME", -15, -5}, {"TNAME", -15, -7}, {"COMMAND", -27, -5},
+  {"TTY", -8, -2}, {"WCHAN", -6, -3}, {"LABEL", -30, -4}, {"COMM", -15, -1},
+  {"NAME", -15, -5}, {"TNAME", -27, -7}, {"COMMAND", -27, -5},
   {"CMDLINE", -27, -6}, {"ARGS", -27, -6}, {"CMD", -27, -1},
 
   // user/group
@@ -451,8 +451,7 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
         if (out[i] == '/') s = out+i+1;
       out = s;
     }
-    if (which>PS_COMMAND && (!*out || *slot != slot[SLOT_tid]))
-      sprintf(out = buf, "[%s]", tb->str);
+    if (which>=PS_COMM && !*out) sprintf(out = buf, "[%s]", tb->str);
 
   // user/group
   } else if (which <= PS_RGROUP) {
@@ -636,7 +635,8 @@ static int get_ps(struct dirtree *new)
 
   // Parse numeric fields (starting at 4th field in slot[SLOT_ppid])
   if (1>sscanf(s = end, ") %c%n", &tb->state, &i)) return 0;
-  for (j = 1; j<50; j++) if (1>sscanf(s += i, " %lld%n", slot+j, &i)) break;
+  for (j = 1; j<SLOT_count; j++)
+    if (1>sscanf(s += i, " %lld%n", slot+j, &i)) break;
 
   // Now we've read the data, move status and name right after slot[] array,
   // and convert low chars to ? for non-tty display while we're at it.
@@ -822,7 +822,10 @@ static int get_ps(struct dirtree *new)
       if (readfileat(fd, buf, buf, &len) && len>0) {
         int temp = 0;
 
-        if (buf[len-1]=='\n') buf[--len] = 0;
+        // Trim trailing whitespace and NUL bytes
+        while (len)
+          if (!buf[len-1] || isspace(buf[len-1])) buf[--len] = 0;
+          else break;
 
         // Turn NUL to space, other low ascii to ? (in non-tty mode)
         // cmdline has a trailing NUL that we don't want to turn to space.
