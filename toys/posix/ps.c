@@ -1685,7 +1685,10 @@ static void match_pgrep(struct carveup *tb)
     if ((toys.optflags&FLAG_v) ? !!reg : !reg) return;
   }
 
-  // Repurpose a field for -c count
+  // pgrep should return success if there's a match.
+  toys.exitval = 0;
+
+  // Repurpose a field for -c count.
   TT.sortpos++;
   if (toys.optflags&(FLAG_n|FLAG_o)) {
     long long ll = tb->slot[SLOT_starttime];
@@ -1737,6 +1740,9 @@ void pgrep_main(void)
   }
   TT.match_process = pgrep_match_process;
   TT.show_process = (void *)match_pgrep;
+
+  // pgrep should return failure if there are no matches.
+  toys.exitval = 1;
 
   dirtree_read("/proc", get_ps);
   if (toys.optflags&FLAG_c) printf("%d\n", TT.sortpos);

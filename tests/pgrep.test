@@ -29,5 +29,9 @@ testing "-o pattern" "pgrep -o yes" "$proc\n" "" ""
 testing "-s" "pgrep -s $session_id yes" "$proc\n" "" ""
 testing "-P" "pgrep -P $proc_parent yes" "$proc\n" "" ""
 
+testing "return success" "pgrep yes && echo success" "$proc\nsuccess\n" "" ""
+testing "return failure" "pgrep almost-certainly-not || echo failure" \
+    "failure\n" "" ""
+
 #Clean-up
 killall yes >/dev/null 2>&1
