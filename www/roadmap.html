@@ -269,10 +269,13 @@ system/core/toolbox/Android.mk</a> the toolbox directory builds the
 following commands:</p>
 
 <blockquote><b>
-dd getevent ioctl log
+dd getevent log
 nandread newfs_msdos
 sendevent start stop top
 </b></blockquote>
+
+<p>The toolbox makefile also builds the BSD grep right now, because toybox
+grep is missing <code>--color</code>.</p>
 
 <h3>Other Android core commands</h3>
 
@@ -297,7 +300,7 @@ implementing the full commands (fdisk, init, and sudo) come first.</p>
 <p>For reference, combining everything listed above, we get:</p>
 
 <blockquote><b>
-dd getevent init ioctl
+dd getevent init
 log logcat logwrapper nandread
 newfs_msdos reboot run-as
 sendevent start stop top
@@ -312,7 +315,7 @@ for later).</p>
 <p>This means toybox should implement (or finish implementing):</p>
 <blockquote><b>
 <span id=toolbox>
-dd getevent ioctl log logcat logwrapper
+dd getevent log logcat logwrapper
 nandread newfs_msdos sendevent start stop
 </span>
 </b></blockquote>
