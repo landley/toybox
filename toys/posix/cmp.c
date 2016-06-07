@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/cmp.html
 
-USE_CMP(NEWTOY(cmp, "<2>2ls", TOYFLAG_USR|TOYFLAG_BIN))
+USE_CMP(NEWTOY(cmp, "<2>2ls[!ls]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config CMP
   bool "cmp"
