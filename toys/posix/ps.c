@@ -1194,7 +1194,7 @@ void ps_main(void)
   else if (toys.optflags&FLAG_l)
     not_o = "F,S,UID,%sPPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD";
   else if (CFG_TOYBOX_ON_ANDROID)
-    not_o = "USER,%sPPID,VSIZE,RSS,WCHAN:10,ADDR:10=PC,S,NAME";
+    not_o = "USER,%sPPID,VSIZE,RSS,WCHAN:10,ADDR:10=PC,S,TNAME";
   sprintf(toybuf, not_o, (toys.optflags & FLAG_T) ? "PID,TID," : "PID,");
 
   // Init TT.fields. This only uses toybuf if TT.ps.o is NULL
@@ -1227,7 +1227,7 @@ void ps_main(void)
   if (!(toys.optflags&(FLAG_k|FLAG_M))) TT.show_process = (void *)show_ps;
   TT.match_process = ps_match_process;
   dt = dirtree_read("/proc",
-    ((toys.optflags&FLAG_T) || (TT.bits&(_PS_TID|_PS_TCNT|_PS_TNAME)))
+    ((toys.optflags&FLAG_T) || (TT.bits&(_PS_TID|_PS_TCNT/*|_PS_TNAME*/)))
       ? get_threads : get_ps);
 
   if (toys.optflags&(FLAG_k|FLAG_M)) {
