@@ -593,7 +593,10 @@ static void show_ps(struct carveup *tb)
     len = pad = abslen;
     pad *= sign;
     // If last field is left justified, no trailing spaces.
-    if (!field->next && sign<0) pad = 0;
+    if (!field->next && sign<0) {
+      pad = 0;
+      len = width;
+    }
 
     if (TT.tty) width -= draw_trim(out, pad, len);
     else width -= printf("%*.*s", pad, len, out);
