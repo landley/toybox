@@ -83,7 +83,7 @@ config PS
 
     Which FIELDs to show. (Default = -o PID,TTY,TIME,CMD)
 
-    -f	Full listing (-o USER:8=UID,PID,PPID,C,STIME,TTY,TIME,CMD)
+    -f	Full listing (-o USER:8=UID,PID,PPID,C,STIME,TTY,TIME,ARGS=CMD)
     -l	Long listing (-o F,S,UID,PID,PPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD)
     -o	Output FIELDs instead of defaults, each with optional :size and =title
     -O	Add FIELDS to defaults
@@ -91,10 +91,9 @@ config PS
 
     Command line -o fields:
 
-      ARGS     Command line (argv[] -path)    CMD    COMM, or ARGS with -f
-      CMDLINE  Command line (argv[])          COMM   Original command name (stat[2])
-      COMMAND  Command name (/proc/$PID/exe)  NAME   Command name (COMMAND -path)
-      TNAME    Thread name (argv[0] of $PID)
+      ARGS     CMDLINE minus initial path     CMD  Command name (stat2)
+      CMDLINE  Command line (argv[])          COMM Command filename (/proc/$PID/exe)
+      COMMAND  Command file (/proc/$PID/exe)  NAME Process name (argv[0] of $PID)
 
     Process attribute -o FIELDs:
 
@@ -346,9 +345,9 @@ struct typography {
   {"TID", 5, SLOT_tid}, {"TCNT", 4, SLOT_tcount}, {"BIT", 3, SLOT_bits},
 
   // String fields
-  {"TTY", -8, -2}, {"WCHAN", -6, -3}, {"LABEL", -30, -4}, {"COMM", -15, -1},
-  {"NAME", -15, -5}, {"TNAME", -27, -7}, {"COMMAND", -27, -5},
-  {"CMDLINE", -27, -6}, {"ARGS", -27, -6}, {"CMD", -27, -1},
+  {"TTY", -8, -2}, {"WCHAN", -6, -3}, {"LABEL", -30, -4}, {"COMM", -27, -5},
+  {"NAME", -27, -7}, {"COMMAND", -27, -5}, {"CMDLINE", -27, -6},
+  {"ARGS", -27, -6}, {"CMD", -15, -1},
 
   // user/group
   {"UID", 5, SLOT_uid}, {"USER", -8, 64|SLOT_uid}, {"RUID", 4, SLOT_ruid},
@@ -443,7 +442,7 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
     sl *= -1;
     // First string slot has offset 0, others are offset[-slot-2]
     if (--sl) out += tb->offset[--sl];
-    if (which==PS_ARGS || which==PS_NAME) {
+    if (which==PS_ARGS || which==PS_COMM) {
       int i;
 
       s = out;
@@ -605,8 +604,8 @@ static int get_ps(struct dirtree *new)
   } fetch[] = {
     // sources for carveup->offset[] data
     {"fd/", _PS_TTY}, {"wchan", _PS_WCHAN}, {"attr/current", _PS_LABEL},
-    {"exe", _PS_COMMAND|_PS_NAME}, {"cmdline", _PS_CMDLINE|_PS_ARGS|_PS_TNAME},
-    {"", _PS_TNAME}
+    {"exe", _PS_COMMAND|_PS_COMM}, {"cmdline", _PS_CMDLINE|_PS_ARGS|_PS_NAME},
+    {"", _PS_NAME}
   };
   struct carveup *tb = (void *)toybuf;
   long long *slot = tb->slot;
@@ -1178,12 +1177,12 @@ void ps_main(void)
   // Figure out which fields to display
   not_o = "%sTTY,TIME,CMD";
   if (toys.optflags&FLAG_f)
-    sprintf(not_o = toybuf+128, "USER:8=UID,%%sPPID,%s,STIME,TTY,TIME,CMD",
+    sprintf(not_o = toybuf+128, "USER:8=UID,%%sPPID,%s,STIME,TTY,TIME,ARGS=CMD",
       (toys.optflags&FLAG_T) ? "TCNT" : "C");
   else if (toys.optflags&FLAG_l)
     not_o = "F,S,UID,%sPPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD";
   else if (CFG_TOYBOX_ON_ANDROID)
-    not_o = "USER,%sPPID,VSIZE,RSS,WCHAN:10,ADDR:10=PC,S,TNAME";
+    not_o = "USER,%sPPID,VSIZE,RSS,WCHAN:10,ADDR:10=PC,S,NAME";
   sprintf(toybuf, not_o, (toys.optflags & FLAG_T) ? "PID,TID," : "PID,");
 
   // Init TT.fields. This only uses toybuf if TT.ps.o is NULL
@@ -1202,7 +1201,6 @@ void ps_main(void)
     struct strawberry *ever;
 
     for (ever = TT.fields; ever; ever = ever->next) {
-      if ((toys.optflags&FLAG_f) && ever->which==PS_CMD) ever->which = PS_ARGS;
       if ((toys.optflags&FLAG_n) && ever->which>=PS_UID
         && ever->which<=PS_RGROUP && (typos[ever->which].slot&64))
           ever->which--;
@@ -1216,7 +1214,7 @@ void ps_main(void)
   if (!(toys.optflags&(FLAG_k|FLAG_M))) TT.show_process = (void *)show_ps;
   TT.match_process = ps_match_process;
   dt = dirtree_read("/proc",
-    ((toys.optflags&FLAG_T) || (TT.bits&(_PS_TID|_PS_TCNT/*|_PS_TNAME*/)))
+    ((toys.optflags&FLAG_T) || (TT.bits&(_PS_TID|_PS_TCNT)))
       ? get_threads : get_ps);
 
   if (toys.optflags&(FLAG_k|FLAG_M)) {
