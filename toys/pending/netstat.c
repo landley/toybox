@@ -147,9 +147,9 @@ static void display_data(unsigned rport, char *label,
   xprintf("%3s   %6d %6d ", label, rxq, txq);
   xprintf((toys.optflags & FLAG_W) ? "%-51.51s %-51.51s " : "%-23.23s %-23.23s "
            , lip, rip);
-  xprintf("%-11s ", ss_state);
-  if ((toys.optflags & FLAG_e)) xprintf("%-10s %-11ld ", user, inode);
-  if ((toys.optflags & FLAG_p)) xprintf("%s", get_pid_name(inode));
+  xprintf("%-11s", ss_state);
+  if ((toys.optflags & FLAG_e)) xprintf(" %-10s %-11ld", user, inode);
+  if ((toys.optflags & FLAG_p)) xprintf(" %s", get_pid_name(inode));
   xputc('\n');
 }
 
