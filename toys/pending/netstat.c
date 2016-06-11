@@ -424,7 +424,7 @@ static void scan_pid_inodes(char *path)
 
     if (!isdigit(entry->d_name[0])) continue;
     snprintf(link_name, sizeof(link_name), "%s/%s", path, entry->d_name);
-    if ((link = xreadlink(link_name) && (inode = ss_inode(link))!=-1)
+    if ((link = xreadlink(link_name)) && (inode = ss_inode(link))!=-1)
       add2list(inode);
     free(link);
   }
