@@ -5,7 +5,7 @@
  *
  * Not in SUSv4.
  *
-USE_NETSTAT(NEWTOY(netstat, "pWrxwutneal", TOYFLAG_BIN))
+USE_NETSTAT(NEWTOY(netstat, "pWrxwutneal[-al]", TOYFLAG_BIN))
 config NETSTAT
   bool "netstat"
   default n
@@ -53,13 +53,6 @@ typedef union _iaddr6 {
 } iaddr6;
 
 #define ADDR_LEN (INET6_ADDRSTRLEN + 1 + 5 + 1)//IPv6 addr len + : + port + '\0'
-
-//For unix states
-enum {
-	SOCK_ACCEPTCON = (1 << 16),  //performed a listen.
-	SOCK_WAIT_DATA = (1 << 17),  //wait data to read.
-	SOCK_NO_SPACE = (1 << 18),  //no space to write.
-};
 
 #define SOCK_NOT_CONNECTED 1
 
@@ -273,8 +266,8 @@ static void show_ipv6(char *fname, char *label)
 {
   FILE *fp = fopen(fname, "r");
   if (!fp) {
-    perror_msg("'%s'", fname);
-    return;
+     perror_msg("'%s'", fname);
+     return;
   }
 
   if(!fgets(toybuf, sizeof(toybuf), fp)) return; //skip header.
@@ -284,6 +277,7 @@ static void show_ipv6(char *fname, char *label)
     iaddr6 laddr6, raddr6;
     unsigned lport, rport, state, txq, rxq, num, uid;
     unsigned long inode;
+
     int nitems = sscanf(toybuf, " %d: %8x%8x%8x%8x:%x %8x%8x%8x%8x:%x %x %x:%x "
                                 "%*X:%*X %*X %d %*d %ld",
                         &num, &laddr6.u.a, &laddr6.u.b, &laddr6.u.c,
@@ -299,72 +293,48 @@ static void show_ipv6(char *fname, char *label)
   fclose(fp);
 }
 
-/*
- * display unix socket info.
- */
-static void show_unix_sockets(char *fname, char *label)
+static void show_unix_sockets(void)
 {
-  FILE *fp = fopen((char *)fname, "r");
-  if (!fp) {
-    perror_msg("'%s'", fname);
-    return;
-  }
+  char *types[] = {"","STREAM","DGRAM","RAW","RDM","SEQPACKET","DCCP","PACKET"},
+       *states[] = {"","LISTENING","CONNECTING","CONNECTED","DISCONNECTING"};
+  unsigned long refcount, flags, type, state, inode;
+  FILE *fp = xfopen("/proc/net/unix", "r");
 
   if(!fgets(toybuf, sizeof(toybuf), fp)) return; //skip header.
 
   while (fgets(toybuf, sizeof(toybuf), fp)) {
-    unsigned long refcount, label, flags, inode;
-    int nitems = 0, path_offset = 0, type, state;
-    char sock_flags[32] = {0,}, *sock_type, *sock_state, *bptr = toybuf, *term;
+    unsigned offset = 0;
 
-    if (!toybuf[0]) continue;
-
-    nitems = sscanf(toybuf, "%*p: %lX %lX %lX %X %X %lu %n",
-        &refcount, &label, &flags, &type, &state, &inode, &path_offset);
-
-    //for state one less
-    if (nitems < 6) break;
-
-    if (toys.optflags & FLAG_l) {
-      if ( !((state == SOCK_NOT_CONNECTED) && (flags & SOCK_ACCEPTCON)) )
+    // count = 6 or 7 (first field ignored, sockets don't always have filenames)
+    if (6<sscanf(toybuf, "%*p: %lX %*X %lX %lX %lX %lu %n",
+      &refcount, &flags, &type, &state, &inode, &offset))
         continue;
-    } else if (!(toys.optflags & FLAG_a)) {
-      if ((state == SOCK_NOT_CONNECTED) && (flags & SOCK_ACCEPTCON)) continue;
+
+    // Linux exports only SO_ACCEPTCON since 2.3.15pre3 in 1999, but let's
+    // filter in case they add more someday.
+    flags &= 1<<16;
+
+    // Only show unconnected listening sockets with -a
+    if (state==1 && flags && !(toys.optflags&FLAG_a)) continue;
+
+    if (type==10) type = 7; // move SOCK_PACKET into line
+    if (type>ARRAY_LEN(types)) type = 0;
+    if (state>ARRAY_LEN(states)) state = 0;
+    sprintf(toybuf, "[ %s]", flags ? "ACC " : "");
+
+    printf("unix  %-6ld %-11s %-10s %-13s %8lu ",
+      refcount, toybuf, types[type], states[state], inode);
+    if (toys.optflags & FLAG_p) printf("%-20s", get_pid_name(inode));
+
+    if (offset) {
+      char *s = toybuf+offset, *ss;
+
+      if ((ss = strrchr(s, '\n'))) *ss = 0;
+      xprintf("%s", s);
     }
+    xputc('\n');
+  }
 
-    //prepare socket type, state and flags.
-    {
-      char *ss_type[] = { "", "STREAM", "DGRAM", "RAW", "RDM", "SEQPACKET",
-                          "UNKNOWN"};
-      char *ss_state[] = { "FREE", "LISTENING", "CONNECTING", "CONNECTED",
-                           "DISCONNECTING", "UNKNOWN"};
-
-      int sz = ARRAY_LEN(ss_type);//sizeof(ss_type)/sizeof(ss_type[0]);
-      if ( (type < SOCK_STREAM) || (type > SOCK_SEQPACKET) )
-        sock_type = ss_type[sz-1];
-      else sock_type = ss_type[type];
-
-      sz = ARRAY_LEN(ss_state);//sizeof(ss_state)/sizeof(ss_state[0]);
-      if ((state < 0) || (state > sz-2)) sock_state = ss_state[sz-1];
-      else if (state == SOCK_NOT_CONNECTED) {
-        if (flags & SOCK_ACCEPTCON) sock_state = ss_state[state];
-        else sock_state = " ";
-      } else sock_state = ss_state[state];
-
-      strcpy(sock_flags, "[ ");
-      if (flags & SOCK_ACCEPTCON) strcat(sock_flags, "ACC ");
-      if (flags & SOCK_WAIT_DATA) strcat(sock_flags, "W ");
-      if (flags & SOCK_NO_SPACE) strcat(sock_flags, "N ");
-      strcat(sock_flags, "]");
-    }
-    xprintf("%-5s %-6ld %-11s %-10s %-13s %8lu ", (!label ? "unix" : "??"),
-      refcount, sock_flags, sock_type, sock_state, inode);
-    if (toys.optflags & FLAG_p) xprintf("%-20s", get_pid_name(inode));
-
-    bptr += path_offset;
-    if ((term = strchr(bptr, '\n'))) *term = '\0';
-    xprintf("%s\n", bptr);
-  }//End of while
   fclose(fp);
 }
 
@@ -472,111 +442,69 @@ static void clean_pid_list(void)
 }
 
 /*
- * For TCP/UDP/RAW show the header.
- */
-static void show_header(void)
-{
-  xprintf("Proto Recv-Q Send-Q ");
-  xprintf((toys.optflags & FLAG_W) ? "%-51s %-51s" : "%-23s %-23s",
-          "Local Address", "Foreign Address");
-  xprintf(" State      ");
-  if (toys.optflags & FLAG_e) xprintf(" User       Inode      ");
-  if (toys.optflags & FLAG_p) xprintf(" PID/Program Name");
-  xputc('\n');
-}
-
-/*
- * used to get the flag values for route command.
- */
-static void get_flag_value(char *flagstr, int flags)
-{
-  int i = 0;
-  char *str = flagstr;
-  static const char flagchars[] = "GHRDMDAC";
-  static const unsigned flagarray[] = {
-    RTF_GATEWAY,
-    RTF_HOST,
-    RTF_REINSTATE,
-    RTF_DYNAMIC,
-    RTF_MODIFIED,
-    RTF_DEFAULT,
-    RTF_ADDRCONF,
-    RTF_CACHE
-  };
-  *str++ = 'U';
-
-  while ( (*str = flagchars[i]) ) {
-    if (flags & flagarray[i++]) ++str;
-  }
-}
-
-/*
  * extract inet4 route info from /proc/net/route file and display it.
  */
-static void display_routes(int is_more_info, int notresolve)
+static void display_routes(void)
 {
-#define IPV4_MASK (RTF_GATEWAY|RTF_HOST|RTF_REINSTATE|RTF_DYNAMIC|RTF_MODIFIED)
+  static const char flagchars[] = "GHRDMDAC";
+  static const unsigned flagarray[] = {
+    RTF_GATEWAY, RTF_HOST, RTF_REINSTATE, RTF_DYNAMIC, RTF_MODIFIED
+  };
   unsigned long dest, gate, mask;
   int flags, ref, use, metric, mss, win, irtt;
-  char iface[64]={0,};
-  char flag_val[10]={0,}; //there are 9 flags "UGHRDMDAC" for route.
-
+  char *out = toybuf, *flag_val;
+  char iface[64]={0};
   FILE *fp = xfopen("/proc/net/route", "r");
 
   if(!fgets(toybuf, sizeof(toybuf), fp)) return; //skip header.
 
   xprintf("Kernel IP routing table\n"
           "Destination     Gateway         Genmask         Flags %s Iface\n",
-          is_more_info ? "  MSS Window  irtt" : "Metric Ref    Use");
+          !(toys.optflags&FLAG_e) ? "  MSS Window  irtt" : "Metric Ref    Use");
 
   while (fgets(toybuf, sizeof(toybuf), fp)) {
-     int nitems = 0;
-     char *destip = NULL, *gateip = NULL, *maskip = NULL;
+     char *destip = 0, *gateip = 0, *maskip = 0;
 
-     nitems = sscanf(toybuf, "%63s%lx%lx%X%d%d%d%lx%d%d%d\n", iface, &dest,
-       &gate, &flags, &ref, &use, &metric, &mask, &mss, &win, &irtt);
-     if (nitems != 11) {//EOF with no (nonspace) chars read.
-       if ((nitems < 0) && feof(fp)) break;
-      perror_exit("sscanf");
-    }
+     if (11 != sscanf(toybuf, "%63s%lx%lx%X%d%d%d%lx%d%d%d", iface, &dest,
+       &gate, &flags, &ref, &use, &metric, &mask, &mss, &win, &irtt))
+         break;
 
-    //skip down interfaces.
+    // skip down interfaces.
     if (!(flags & RTF_UP)) continue;
 
-    if (dest) {//For Destination
-      if (inet_ntop(AF_INET, &dest, toybuf, sizeof(toybuf)) )
-        destip = xstrdup(toybuf);
-    } else {
-      if (!notresolve) destip = xstrdup("default");
-      else destip = xstrdup("0.0.0.0");
-    }
+// TODO /proc/net/ipv6_route
 
-    if (gate) {//For Gateway
-      if (inet_ntop(AF_INET, &gate, toybuf, sizeof(toybuf)) )
-        gateip = xstrdup(toybuf);
-    } else {
-      if (!notresolve) gateip = xstrdup("*");
-      else gateip = xstrdup("0.0.0.0");
-    }
+    if (dest) {
+      if (inet_ntop(AF_INET, &dest, out, 16)) destip = out;
+    } else destip = (toys.optflags&FLAG_n) ? "0.0.0.0" : "default";
+    out += 16;
 
+    if (gate) {
+      if (inet_ntop(AF_INET, &gate, out, 16)) gateip = out;
+    } else gateip = (toys.optflags&FLAG_n) ? "0.0.0.0" : "*";
+    out += 16;
+
+// TODO /24
     //For Mask
-    if (inet_ntop(AF_INET, &mask, toybuf, sizeof(toybuf)) )
-      maskip = xstrdup(toybuf);
+    if (inet_ntop(AF_INET, &mask, out, 16)) maskip = out;
+    else maskip = "?";
+    out += 16;
 
     //Get flag Values
-    get_flag_value(flag_val, flags & IPV4_MASK);
-    if (flags & RTF_REJECT) flag_val[0] = '!';
+    flag_val = out;
+    *out++ = 'U';
+    for (dest = 0; dest < ARRAY_LEN(flagarray); dest++)
+      if (flags&flagarray[dest]) *out++ = flagchars[dest];
+    *out = 0;
+    if (flags & RTF_REJECT) *flag_val = '!';
 
     xprintf("%-15.15s %-15.15s %-16s%-6s", destip, gateip, maskip, flag_val);
-    if (is_more_info) xprintf("%5d %-5d %6d %s\n", mss, win, irtt, iface);
+    if (!(toys.optflags & FLAG_e))
+      xprintf("%5d %-5d %6d %s\n", mss, win, irtt, iface);
     else xprintf("%-6d %-2d %7d %s\n", metric, ref, use, iface);
+  }
 
-    if (destip) free(destip);
-    if (gateip) free(gateip);
-    if (maskip) free(maskip);
-  }//end of while.
   fclose(fp);
-#undef IPV4_MASK
 }
 
 /*
@@ -584,29 +512,19 @@ static void display_routes(int is_more_info, int notresolve)
  */
 void netstat_main(void)
 {
-#define IS_NETSTAT_PROTO_FLAGS_UP (toys.optflags & (FLAG_t | FLAG_u | FLAG_w \
-                                                    | FLAG_x))
+  char *type = "w/o";
 
-  // For no parameter, add 't', 'u', 'w', 'x' options as default
-  if (!toys.optflags) toys.optflags = FLAG_t | FLAG_u | FLAG_w | FLAG_x;
-
-  // For both 'a' and 'l' are set, remove 'l' option
-  if (toys.optflags & FLAG_a && toys.optflags & FLAG_l)
-      toys.optflags &= ~FLAG_l;
-
-  // For each 'a', 'l', 'e', 'n', 'W', 'p' options
-  // without any 't', 'u', 'w', 'x' option, add 't', 'u', 'w', 'x' options
-  if (((toys.optflags & FLAG_a) || (toys.optflags & FLAG_l) ||
-       (toys.optflags & FLAG_e) || (toys.optflags & FLAG_n) ||
-       (toys.optflags & FLAG_W) || (toys.optflags & FLAG_p)) &&
-         (!IS_NETSTAT_PROTO_FLAGS_UP) )
-    toys.optflags |= FLAG_t | FLAG_u | FLAG_w | FLAG_x;
-
-  //Display routing table.
   if (toys.optflags & FLAG_r) {
-    display_routes(!(toys.optflags & FLAG_e), (toys.optflags & FLAG_n));
+    display_routes();
+
     return;
   }
+
+  if (!(toys.optflags&(FLAG_t|FLAG_u|FLAG_w|FLAG_x)))
+    toys.optflags |= FLAG_t|FLAG_u|FLAG_w|FLAG_x;
+
+  if (toys.optflags & FLAG_a) type = "established and";
+  else if (toys.optflags & FLAG_l) type = "only";
 
   if (toys.optflags & FLAG_p) {
     dirtree_read("/proc", scan_pids);
@@ -618,16 +536,17 @@ void netstat_main(void)
         " will not be shown, you would have to be root to see it all.)\n");
   }
 
-  //For TCP/UDP/RAW.
-  if ( (toys.optflags & FLAG_t) || (toys.optflags & FLAG_u) ||
-       (toys.optflags & FLAG_w) ) {
-    xprintf("Active Internet connections ");
+  if (toys.optflags&(FLAG_t|FLAG_u|FLAG_w)) {
+    int pad = (toys.optflags&FLAG_W) ? -51 : -23;
 
-    if (toys.optflags & FLAG_a) xprintf("(servers and established)\n");
-    else if (toys.optflags & FLAG_l) xprintf("(only servers)\n");
-    else xprintf("(w/o servers)\n");
+    printf("Active %s (%s servers)\n", "Internet connections", type);
 
-    show_header();
+    printf("Proto Recv-Q Send-Q %*s %*s State      ", pad, "Local Addres",
+      pad, "Foreign Address");
+    if (toys.optflags & FLAG_e) printf(" User       Inode      ");
+    if (toys.optflags & FLAG_p) printf(" PID/Program Name");
+    xputc('\n');
+
     if (toys.optflags & FLAG_t) {//For TCP
       show_ipv4("/proc/net/tcp",  "tcp");
       show_ipv6("/proc/net/tcp6", "tcp");
@@ -641,21 +560,15 @@ void netstat_main(void)
       show_ipv6("/proc/net/raw6", "raw");
     }
   }
-  if (toys.optflags & FLAG_x) {//For UNIX
-    xprintf("Active UNIX domain sockets ");
-    if (toys.optflags & FLAG_a) xprintf("(servers and established)\n");
-    else if (toys.optflags & FLAG_l) xprintf("(only servers)\n");
-    else xprintf("(w/o servers)\n");
 
-    if (toys.optflags & FLAG_p)
-      xprintf("Proto RefCnt Flags       Type       State           "
-              "I-Node PID/Program Name    Path\n");
-    else
-      xprintf("Proto RefCnt Flags       Type       State           "
-              "I-Node Path\n");
-    show_unix_sockets("/proc/net/unix", "unix");
+  if (toys.optflags & FLAG_x) {
+    xprintf("Active %s (%s servers)\n", "UNIX domain sockets", type);
+
+    xprintf("Proto RefCnt Flags       Type       State           I-Node %s Path\n",
+      (toys.optflags&FLAG_p) ? "PID/Program Name" : "I-Node");
+    show_unix_sockets();
   }
+
   if (toys.optflags & FLAG_p) clean_pid_list();
-  if (toys.exitval) toys.exitval = 0;
-#undef IS_NETSTAT_PROTO_FLAGS_UP
+  toys.exitval = 0;
 }
