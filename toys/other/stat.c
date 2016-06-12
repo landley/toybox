@@ -114,8 +114,8 @@ static void print_stat(char type)
         xprintf(" -> `%s'", toybuf);
   } else if (type == 'o') out('u', stat->st_blksize);
   else if (type == 's') out('u', stat->st_size);
-  else if (type == 't') out('x', major(stat->st_rdev));
-  else if (type == 'T') out('x', minor(stat->st_rdev));
+  else if (type == 't') out('x', dev_major(stat->st_rdev));
+  else if (type == 'T') out('x', dev_minor(stat->st_rdev));
   else if (type == 'u') out('u', stat->st_uid);
   else if (type == 'U') xprintf("%8s", TT.user_name->pw_name);
   else if (type == 'x') date_stat_format((void *)&stat->st_atime);

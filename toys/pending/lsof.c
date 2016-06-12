@@ -277,8 +277,8 @@ static void fill_stat(struct file_info *fi, const char *path)
   // Fill DEVICE.
   dev = (S_ISBLK(sb.st_mode) || S_ISCHR(sb.st_mode)) ? sb.st_rdev : sb.st_dev;
   if (!S_ISSOCK(sb.st_mode))
-    snprintf(fi->device, sizeof(fi->device), "%ld,%ld",
-             (long)major(dev), (long)minor(dev));
+    snprintf(fi->device, sizeof(fi->device), "%d,%d",
+             dev_major(dev), dev_minor(dev));
 
   // Fill SIZE/OFF.
   if (S_ISREG(sb.st_mode) || S_ISDIR(sb.st_mode))
