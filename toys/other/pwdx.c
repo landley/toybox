@@ -20,20 +20,14 @@ void pwdx_main(void)
   char **optargs;
 
   for (optargs = toys.optargs; *optargs; optargs++) {
-    char *path;
-    int num_bytes;
+    char *path = toybuf;
 
-    path = xmprintf("/proc/%s/cwd", *optargs);
-    num_bytes = readlink(path, toybuf, sizeof(toybuf)-1);
-    free(path);
-
-    if (num_bytes==-1) {
+    sprintf(toybuf, "/proc/%d/cwd", atoi(*optargs));
+    if (!readlink0(path, toybuf, sizeof(toybuf))) {
       path = strerror(errno);
       toys.exitval = 1;
-    } else {
-      path = toybuf;
-      toybuf[num_bytes] = 0;
     }
+
     xprintf("%s: %s\n", *optargs, path);
   }
 }

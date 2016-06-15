@@ -50,10 +50,9 @@ static int do_lspci(struct dirtree *new)
   if (-1 == (dirfd = openat(dirtree_parentfd(new), new->name, O_RDONLY)))
     return 0;
 
-  // it's ok for the driver link not to be there, whatever fortify says
   *driver = 0;
   if (toys.optflags & FLAG_k)
-    if (readlinkat(dirfd, "driver", driver, sizeof(driver))) {};
+    readlinkat0(dirfd, "driver", driver, sizeof(driver));
 
   for (fields = (char*[]){"class", "vendor", "device", 0}; *fields; fields++) {
     int fd, size = 6 + 2*((toys.optflags & FLAG_e) && p == toybuf);
@@ -122,8 +121,7 @@ void lspci_main(void)
 {
   if (CFG_LSPCI_TEXT && TT.numeric != 1) {
     if (!TT.ids) TT.ids = "/usr/share/misc/pci.ids";
-    if (!(TT.db = fopen(TT.ids, "r")))
-      perror_msg("could not open PCI ID db");
+    if (!(TT.db = fopen(TT.ids, "r"))) perror_msg("%s", TT.ids);
   }
 
   dirtree_read("/sys/bus/pci/devices", do_lspci);

@@ -207,6 +207,8 @@ int dev_major(int dev);
 int dev_makedev(int major, int minor);
 struct passwd *bufgetpwuid(uid_t uid);
 struct group *bufgetgrgid(gid_t gid);
+int readlinkat0(int dirfd, char *path, char *buf, int len);
+int readlink0(char *path, char *buf, int len);
 
 #define HR_SPACE 1 // Space between number and units
 #define HR_B     2 // Use "B" for single byte units

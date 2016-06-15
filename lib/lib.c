@@ -444,7 +444,8 @@ off_t fdlength(int fd)
 
 // Read contents of file as a single nul-terminated string.
 // measure file size if !len, allocate buffer if !buf
-// note: for existing buffers use len = size-1, will set buf[len] = 0
+// Existing buffers need len in *plen
+// Returns amount of data read in *plen
 char *readfileat(int dirfd, char *name, char *ibuf, off_t *plen)
 {
   off_t len, rlen;
@@ -1129,4 +1130,21 @@ struct group *bufgetgrgid(gid_t gid)
   grgidbuf = list;
 
   return &list->gr;
+}
+
+// Always null terminates, returns 0 for failure, len for success
+int readlinkat0(int dirfd, char *path, char *buf, int len)
+{
+  if (!len) return 0;
+
+  len = readlinkat(dirfd, path, buf, len-1);
+  if (len<1) return 0;
+  buf[len] = 0;
+
+  return len;
+}
+
+int readlink0(char *path, char *buf, int len)
+{
+  return readlinkat0(AT_FDCWD, path, buf, len);
 }

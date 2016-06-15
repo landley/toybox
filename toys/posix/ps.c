@@ -751,9 +751,8 @@ static int get_ps(struct dirtree *new)
       if (TT.threadparent && TT.threadparent->extra)
         ptb = (void *)TT.threadparent->extra;
 
-      if (j==3 && !ptb) {
-        if ((len = readlinkat(fd, buf, buf, len))<1) len = 0;
-      } else {
+      if (j==3 && !ptb) len = readlinkat0(fd, buf, buf, len);
+      else {
         if (j==3) i = strlen(s = ptb->str+ptb->offset[3]);
         else {
           if (!ptb || tb->slot[SLOT_argv0len]) ptb = tb;
@@ -766,8 +765,8 @@ static int get_ps(struct dirtree *new)
         }
         if (i<len) len = i;
         memcpy(buf, s, len);
+        buf[len] = 0;
       }
-      buf[len] = 0;
 
     // If it's not the TTY field, data we want is in a file.
     // Last length saved in slot[] is command line (which has embedded NULs)
@@ -782,11 +781,8 @@ static int get_ps(struct dirtree *new)
         for (i = 0; i<3; i++) {
           sprintf(buf, "%lld/fd/%i", *slot, i);
           if (!fstatat(fd, buf, &st, 0) && S_ISCHR(st.st_mode)
-            && st.st_rdev == rdev && 0<(len = readlinkat(fd, buf, buf, len)))
-          {
-            buf[len] = 0;
-            break;
-          }
+            && st.st_rdev == rdev && (len = readlinkat0(fd, buf, buf, len)))
+              break;
         }
 
         // Couldn't find it, try all the tty drivers.
