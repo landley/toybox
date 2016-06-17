@@ -91,7 +91,7 @@ config PS
 
     Command line -o fields:
 
-      ARGS     CMDLINE minus initial path     CMD  Command name (stat2)
+      ARGS     CMDLINE minus initial path     CMD  Command (thread) name (stat[2])
       CMDLINE  Command line (argv[])          COMM Command filename (/proc/$PID/exe)
       COMMAND  Command file (/proc/$PID/exe)  NAME Process name (argv[0] of $PID)
 
