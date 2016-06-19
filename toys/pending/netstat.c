@@ -5,7 +5,7 @@
  *
  * Not in SUSv4.
  *
-USE_NETSTAT(NEWTOY(netstat, "pWrxwutneal[-al]", TOYFLAG_BIN))
+USE_NETSTAT(NEWTOY(netstat, "pWrxwutneal", TOYFLAG_BIN))
 config NETSTAT
   bool "netstat"
   default n
@@ -14,26 +14,25 @@ config NETSTAT
 
     Display networking information.
 
-    -r  Display routing table.
-    -a  Display all sockets (Default: Connected).
-    -l  Display listening server sockets.
-    -t  Display TCP sockets.
-    -u  Display UDP sockets.
-    -w  Display Raw sockets.
-    -x  Display Unix sockets.
-    -e  Display other/more information.
-    -n  Don't resolve names.
-    -W  Wide Display.
-    -p  Display PID/Program name for sockets.
+    -r  routing table
+    -a  all sockets (not just connected)
+    -l  lay listening server sockets
+    -t  TCP sockets
+    -u  UDP sockets
+    -w  raw sockets
+    -x  unix sockets
+    -e  extended info
+    -n  don't resolve names
+    -W  wide display
+    -p  PID/Program name for sockets
 */
 
 #define FOR_netstat
 #include "toys.h"
-
 #include <net/route.h>
 
 GLOBALS(
-  char current_name[21];
+  struct num_cache *inodes;
   int some_process_unidentified;
 );
 
@@ -54,60 +53,6 @@ typedef union _iaddr6 {
 
 #define ADDR_LEN (INET6_ADDRSTRLEN + 1 + 5 + 1)//IPv6 addr len + : + port + '\0'
 
-#define SOCK_NOT_CONNECTED 1
-
-typedef struct _pidlist {
-  struct _pidlist *next;
-  long inode;
-  char name[21];
-} PID_LIST;
-
-PID_LIST *pid_list = NULL;
-
-/*
- * used to convert string into int and
- * validate the input str for invalid int value or out-of-range.
- */
-static unsigned long get_strtou(char *str, char **endp, int base)
-{
-  unsigned long uli;
-  char *endptr;
-
-  if (!isalnum(str[0])) {
-    errno = ERANGE;
-    return UINT_MAX;
-  }
-  errno = 0;
-  uli = strtoul(str, &endptr, base);
-  if (uli > UINT_MAX) {
-    errno = ERANGE;
-    return UINT_MAX;
-  }
-
-  if (endp) *endp = endptr;
-  if (endptr[0]) {
-    if (isalnum(endptr[0]) || errno) { //"123abc" or out-of-range
-      errno = ERANGE;
-      return UINT_MAX;
-    }
-    errno = EINVAL;
-  }
-  return uli;
-}
-
-/*
- * used to retrive pid name from pid list.
- */
-static const char *get_pid_name(unsigned long inode)
-{
-  PID_LIST *tmp;
-
-  for (tmp = pid_list; tmp; tmp = tmp->next)
-    if (tmp->inode == inode) return tmp->name;
-
-  return "-";
-}
-
 /*
  * For TCP/UDP/RAW display data.
  */
@@ -126,23 +71,25 @@ static void display_data(unsigned rport, char *label,
     int sz = ARRAY_LEN(state_label);
     if (!state || state >= sz) state = sz-1;
     ss_state = state_label[state];
-  }
-  else if (!strcmp(label, "udp")) {
+  } else if (!strcmp(label, "udp")) {
     if (state == 1) ss_state = state_label[state];
     else if (state == 7) ss_state = "";
-  }
-  else if (!strcmp(label, "raw")) sprintf(ss_state = buf, "%u", state);
+  } else if (!strcmp(label, "raw")) sprintf(ss_state = buf, "%u", state);
 
-  if (!(toys.optflags & FLAG_n) && (pw = getpwuid(uid))) {
+  if (!(toys.optflags & FLAG_n) && (pw = getpwuid(uid)))
     snprintf(user, sizeof(user), "%s", pw->pw_name);
-  } else snprintf(user, sizeof(user), "%d", uid);
+  else snprintf(user, sizeof(user), "%d", uid);
 
   xprintf("%3s   %6d %6d ", label, rxq, txq);
   xprintf((toys.optflags & FLAG_W) ? "%-51.51s %-51.51s " : "%-23.23s %-23.23s "
            , lip, rip);
   xprintf("%-11s", ss_state);
   if ((toys.optflags & FLAG_e)) xprintf(" %-10s %-11ld", user, inode);
-  if ((toys.optflags & FLAG_p)) xprintf(" %s", get_pid_name(inode));
+  if ((toys.optflags & FLAG_p)) {
+    struct num_cache *nc = get_num_cache(TT.inodes, inode);
+
+    printf(" %s", nc ? nc->data : "-");
+  }
   xputc('\n');
 }
 
@@ -169,6 +116,7 @@ static void show_data(unsigned rport, char *label, unsigned rxq, unsigned txq,
 static char *get_servname(int port, char *label)
 {
   int lport = htons(port);
+
   if (!lport) return xmprintf("%s", "*");
   struct servent *ser = getservbyport(lport, label);
   if (ser) return xmprintf("%s", ser->s_name);
@@ -296,7 +244,8 @@ static void show_ipv6(char *fname, char *label)
 static void show_unix_sockets(void)
 {
   char *types[] = {"","STREAM","DGRAM","RAW","RDM","SEQPACKET","DCCP","PACKET"},
-       *states[] = {"","LISTENING","CONNECTING","CONNECTED","DISCONNECTING"};
+       *states[] = {"","LISTENING","CONNECTING","CONNECTED","DISCONNECTING"},
+       *s, *ss;
   unsigned long refcount, flags, type, state, inode;
   FILE *fp = xfopen("/proc/net/unix", "r");
 
@@ -319,17 +268,19 @@ static void show_unix_sockets(void)
 
     if (type==10) type = 7; // move SOCK_PACKET into line
     if (type>ARRAY_LEN(types)) type = 0;
-    if (state>ARRAY_LEN(states)) state = 0;
+    if (state>ARRAY_LEN(states) || (state==1 && !flags)) state = 0;
     sprintf(toybuf, "[ %s]", flags ? "ACC " : "");
 
     printf("unix  %-6ld %-11s %-10s %-13s %8lu ",
       refcount, toybuf, types[type], states[state], inode);
-    if (toys.optflags & FLAG_p) printf("%-20s", get_pid_name(inode));
+    if (toys.optflags & FLAG_p) {
+      struct num_cache *nc = get_num_cache(TT.inodes, inode);
+
+      printf("%-19.19s", nc ? nc->data : "-");
+    }
 
     if (offset) {
-      char *s = toybuf+offset, *ss;
-
-      if ((ss = strrchr(s, '\n'))) *ss = 0;
+      if ((ss = strrchr(s = toybuf+offset, '\n'))) *ss = 0;
       xprintf("%s", s);
     }
     xputc('\n');
@@ -338,107 +289,41 @@ static void show_unix_sockets(void)
   fclose(fp);
 }
 
-/*
- * extract inode value from the link.
- */
-static long ss_inode(char *link)
-{
-  long inode = -1;
-  //"link = socket:[12345]", get "12345" as inode.
-  if (!strncmp(link, "socket:[", sizeof("socket:[")-1)) {
-    inode = get_strtou(link + sizeof("socket:[")-1, (char**)&link, 0);
-    if (*link != ']') inode = -1;
-  }
-  //"link = [0000]:12345", get "12345" as inode.
-  else if (!strncmp(link, "[0000]:", sizeof("[0000]:")-1)) {
-    inode = get_strtou(link + sizeof("[0000]:")-1, NULL, 0);
-    //if not NULL terminated.
-    if (errno) inode = -1;
-  }
-  return inode;
-}
-
-/*
- * add inode and progname in the pid list.
- */
-static void add2list(long inode)
-{
-  PID_LIST *node = pid_list;
-
-  for(; node; node = node->next) {
-    if(node->inode == inode)
-      return;
-  }
-
-  PID_LIST *new = (PID_LIST *)xzalloc(sizeof(PID_LIST));
-  new->inode = inode;
-  xstrncpy(new->name, TT.current_name, sizeof(new->name));
-  new->next = pid_list;
-  pid_list = new;
-}
-
-static void scan_pid_inodes(char *path)
-{
-  DIR *dp;
-  struct dirent *entry;
-
-  if (!(dp = opendir(path))) {
-    if (errno == EACCES) {
-      TT.some_process_unidentified = 1;
-      return;
-    } else perror_exit("%s", path);
-  }
-  while ((entry = readdir(dp))) {
-    char link_name[64], *link;
-    long inode;
-
-    if (!isdigit(entry->d_name[0])) continue;
-    snprintf(link_name, sizeof(link_name), "%s/%s", path, entry->d_name);
-    if ((link = xreadlink(link_name)) && (inode = ss_inode(link))!=-1)
-      add2list(inode);
-    free(link);
-  }
-  closedir(dp);
-}
-
-static void scan_pid(int pid)
-{
-  char *line, *p, *fd_dir;
-
-  snprintf(toybuf, sizeof(toybuf), "/proc/%d/cmdline", pid);
-  line = xreadfile(toybuf, 0, 0);
-
-  if ((p = strchr(line, ' '))) *p = 0; // "/bin/netstat -ntp" -> "/bin/netstat"
-  snprintf(TT.current_name, sizeof(TT.current_name), "%d/%s",
-           pid, getbasename(line)); // "584/netstat"
-  free(line);
-
-  fd_dir = xmprintf("/proc/%d/fd", pid);
-  scan_pid_inodes(fd_dir);
-  free(fd_dir);
-}
-
 static int scan_pids(struct dirtree *node)
 {
-  int pid;
+  char *s = toybuf+256;
+  struct dirent *entry;
+  DIR *dp;
+  int pid, dirfd;
 
   if (!node->parent) return DIRTREE_RECURSE;
-  if ((pid = atol(node->name))) scan_pid(pid);
+  if (!(pid = atol(node->name))) return 0;
+
+  sprintf(toybuf, "/proc/%d/cmdline", pid);
+  if (!(readfile(toybuf, toybuf, 256))) return 0;
+
+  sprintf(s, "%d/fd", pid);
+  if (-1==(dirfd = openat(dirtree_parentfd(node), s, O_RDONLY))) return 0;
+  if (!(dp = fdopendir(dirfd))) {
+    close(dirfd);
+
+    return 0;
+  }
+
+  while ((entry = readdir(dp))) {
+    s = toybuf+256;
+    if (!readlinkat0(dirfd, entry->d_name, s, sizeof(toybuf)-256)) continue;
+    // Can the "[0000]:" happen in a modern kernel?
+    if (strstart(&s, "socket:[") || strstart(&s, "[0000]:")) {
+      long long ll = atoll(s);
+
+      sprintf(s, "%d/%s", pid, getbasename(toybuf));
+      add_num_cache(&TT.inodes, ll, s, strlen(s)+1);
+    }
+  }
+  closedir(dp);
 
   return 0;
-}
-
-/*
- * Dealloc pid list.
- */
-static void clean_pid_list(void)
-{
-  PID_LIST *tmp;
-  while (pid_list) {
-    tmp = pid_list->next;
-    free(pid_list);
-    pid_list = tmp;
-  }
 }
 
 /*
@@ -507,21 +392,14 @@ static void display_routes(void)
   fclose(fp);
 }
 
-/*
- * netstat utility main function.
- */
 void netstat_main(void)
 {
+  int tuwx = FLAG_t|FLAG_u|FLAG_w|FLAG_x;
   char *type = "w/o";
 
-  if (toys.optflags & FLAG_r) {
-    display_routes();
-
-    return;
-  }
-
-  if (!(toys.optflags&(FLAG_t|FLAG_u|FLAG_w|FLAG_x)))
-    toys.optflags |= FLAG_t|FLAG_u|FLAG_w|FLAG_x;
+  if (!(toys.optflags&(FLAG_r|tuwx))) toys.optflags |= tuwx;
+  if (toys.optflags & FLAG_r) display_routes();
+  if (!(toys.optflags&tuwx)) return;
 
   if (toys.optflags & FLAG_a) type = "established and";
   else if (toys.optflags & FLAG_l) type = "only";
@@ -569,6 +447,7 @@ void netstat_main(void)
     show_unix_sockets();
   }
 
-  if (toys.optflags & FLAG_p) clean_pid_list();
+  if ((toys.optflags & FLAG_p) && CFG_TOYBOX_FREE)
+    llist_traverse(TT.inodes, free);
   toys.exitval = 0;
 }
