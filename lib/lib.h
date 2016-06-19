@@ -34,6 +34,12 @@ struct double_list {
   char *data;
 };
 
+struct num_cache {
+  struct num_cache *next;
+  long long num;
+  char data[];
+};
+
 void llist_free_arg(void *node);
 void llist_free_double(void *node);
 void llist_traverse(void *list, void (*using)(void *node));
@@ -42,6 +48,9 @@ void *dlist_pop(void *list);  // actually struct double_list **list
 void dlist_add_nomalloc(struct double_list **list, struct double_list *new);
 struct double_list *dlist_add(struct double_list **list, char *data);
 void *dlist_terminate(void *list);
+struct num_cache *get_num_cache(struct num_cache *cache, long long num);
+struct num_cache *add_num_cache(struct num_cache **cache, long long num,
+  void *data, int len);
 
 // args.c
 void get_optflags(void);
