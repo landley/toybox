@@ -14,17 +14,13 @@ config LOG
     Logs message to logcat.
 
     -p	use the given priority instead of INFO:
-    		d: DEBUG  e: ERROR    f: FATAL
-    		i: INFO   v: VERBOSE  w: WARN
+    	d: DEBUG  e: ERROR    f: FATAL  i: INFO   v: VERBOSE  w: WARN  *: DEFAULT
     -t	use the given tag instead of "log"
 */
 
 #define FOR_log
 #include "toys.h"
-
-#if defined(__ANDROID__)
 #include <android/log.h>
-#endif
 
 GLOBALS(
   char *tag;
@@ -33,31 +29,30 @@ GLOBALS(
 
 void log_main(void)
 {
-#if defined(__ANDROID__)
   android_LogPriority pri = ANDROID_LOG_INFO;
+  char *s = toybuf;
   int i;
 
   if (TT.pri) {
-    if (strlen(TT.pri) != 1) TT.pri = "?";
-    switch (tolower(*TT.pri)) {
-    case 'd': pri = ANDROID_LOG_DEBUG; break;
-    case 'e': pri = ANDROID_LOG_ERROR; break;
-    case 'f': pri = ANDROID_LOG_FATAL; break;
-    case 'i': pri = ANDROID_LOG_INFO; break;
-    case 's': pri = ANDROID_LOG_SILENT; break;
-    case 'v': pri = ANDROID_LOG_VERBOSE; break;
-    case 'w': pri = ANDROID_LOG_WARN; break;
-    case '*': pri = ANDROID_LOG_DEFAULT; break;
-    default: error_exit("bad -p '%s'", TT.pri);
-    }
+    i = stridx("defisvw*", tolower(*TT.pri));
+    if (i==-1 || strlen(TT.pri)!=1) error_exit("bad -p '%s'", TT.pri);
+    pri = (android_LogPriority []){ANDROID_LOG_DEBUG, ANDROID_LOG_ERROR,
+      ANDROID_LOG_FATAL, ANDROID_LOG_INFO, ANDROID_LOG_SILENT,
+      ANDROID_LOG_VERBOSE, ANDROID_LOG_WARN, ANDROID_LOG_DEFAULT}[i];
   }
   if (!TT.tag) TT.tag = "log";
 
   for (i = 0; toys.optargs[i]; i++) {
-    if (i > 0) xstrncat(toybuf, " ", sizeof(toybuf));
-    xstrncat(toybuf, toys.optargs[i], sizeof(toybuf));
+    if (i) *s++ = ' ';
+    if ((s-toybuf)+strlen(toys.optargs[i])>=1024) {
+      memcpy(s, toys.optargs[i], 1024-(s-toybuf));
+      toybuf[1024] = 0;
+      perror_msg("log cut at 1024 bytes");
+
+      break;
+    }
+    s = stpcpy(s, toys.optargs[i]);
   }
 
   __android_log_write(pri, TT.tag, toybuf);
-#endif
 }
