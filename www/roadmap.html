@@ -270,7 +270,7 @@ following commands:</p>
 
 <blockquote><b>
 dd getevent
-nandread newfs_msdos
+newfs_msdos
 sendevent start stop
 </b></blockquote>
 
@@ -301,7 +301,7 @@ implementing the full commands (fdisk, init, and sudo) come first.</p>
 
 <blockquote><b>
 dd getevent init
-logcat logwrapper nandread
+logcat logwrapper
 newfs_msdos reboot run-as
 sendevent start stop
 </b></blockquote>
@@ -316,7 +316,7 @@ for later).</p>
 <blockquote><b>
 <span id=toolbox>
 dd getevent logcat logwrapper
-nandread newfs_msdos sendevent start stop
+newfs_msdos sendevent start stop
 </span>
 </b></blockquote>
 
