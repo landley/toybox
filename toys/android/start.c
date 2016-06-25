@@ -29,38 +29,29 @@ config STOP
 
 #include <cutils/properties.h>
 
-static const char *services[] = {
-  "netd", "surfaceflinger", "zygote", "zygote_secondary", NULL,
-};
-
 static void start_stop(int start)
 {
-  const char* property = start ? "ctl.start" : "ctl.stop";
-  int i;
+  // null terminated in both directions
+  char *services[] = {0,"netd","surfaceflinger","zygote","zygote_secondary",0},
+       **ss = toys.optargs;
+  int direction = 1;
 
-  if (getuid() != 0) error_exit("must be root");
+  if (getuid()) error_exit("must be root");
 
-  if (*toys.optargs) {
-    for (i = 0; toys.optargs[i]; i++) property_set(property, toys.optargs[i]);
-  } else if (start) {
-    for (i = 0; i < ARRAY_LEN(services); ++i) {
-      property_set(property, services[i]);
-    }
-  } else {
-    for (i = ARRAY_LEN(services) - 1; i >= 0; --i) {
-      property_set(property, services[i]);
-    }
+  if (!*ss) {
+    // Iterate through optargs, or services forward/backward.
+    ss = services+1;
+    if (!start) ss += ARRAY_LEN(services)-1, direction = -1;
   }
+
+  for (; *ss; ss += direction)
+    property_set(start ? "ctl.start" : "ctl.stop", property, *ss);
 }
 
 void start_main(void)
 {
   start_stop(1);
 }
-
-#define CLEANUP_start
-#define FOR_stop
-#include "generated/flags.h"
 
 void stop_main(void)
 {
