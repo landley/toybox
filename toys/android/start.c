@@ -40,9 +40,9 @@ static void start_stop(int start)
   if (getuid()) error_exit("must be root");
 
   if (!*ss) {
-    // Iterate through optargs, or services forward/backward.
+    // If we don't have optargs, iterate through services forward/backward.
     ss = services+1;
-    if (!start) ss += ARRAY_LEN(services)-1, direction = -1;
+    if (!start) ss = services+ARRAY_LEN(services)-2, direction = -1;
   }
 
   for (; *ss; ss += direction)
