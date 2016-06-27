@@ -31,6 +31,7 @@ config STOP
 
 static void start_stop(int start)
 {
+  char *property = start ? "ctl.start" : "ctl.stop";
   // null terminated in both directions
   char *services[] = {0,"netd","surfaceflinger","zygote","zygote_secondary",0},
        **ss = toys.optargs;
@@ -45,7 +46,8 @@ static void start_stop(int start)
   }
 
   for (; *ss; ss += direction)
-    property_set(start ? "ctl.start" : "ctl.stop", property, *ss);
+    if (property_set(property, *ss))
+      error_exit("failed to set property '%s' to '%s'", property, *ss);
 }
 
 void start_main(void)
