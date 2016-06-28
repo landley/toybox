@@ -565,7 +565,7 @@ static void show_ps(struct carveup *tb)
     // fields that can naturally be shorter
     abslen = abs(field->len);
     sign = field->len<0 ? -1 : 1;
-    if (field->which<=PS_BIT || extra) olen = strlen(out);
+    olen = strlen(out);
     if (field->which<=PS_BIT && olen>abslen) {
       // overflow but remember by how much
       extra += olen-abslen;
