@@ -662,7 +662,7 @@ done:
 // Iterate over lines in file, calling function. Function can write 0 to
 // the line pointer if they want to keep it, or 1 to terminate processing,
 // otherwise line is freed. Passed file descriptor is closed at the end.
-static void do_lines(int fd, char *name, void (*call)(char **pline, long len))
+static void do_lines(int fd, void (*call)(char **pline, long len))
 {
   FILE *fp = fd ? xfdopen(fd, "r") : stdin;
 
@@ -699,7 +699,7 @@ static void do_sed(int fd, char *name)
     for (command = (void *)TT.pattern; command; command = command->next)
       command->hit = 0;
   }
-  do_lines(fd, name, process_line);
+  do_lines(fd, process_line);
   if (i) {
     process_line(0, 0);
     replace_tempfile(-1, TT.fdout, &tmp);
@@ -1063,8 +1063,7 @@ void sed_main(void)
 
   for (al = TT.e; al; al = al->next) parse_pattern(&al->arg, strlen(al->arg));
   for (al = TT.f; al; al = al->next)
-    do_lines(strcmp(al->arg, "-") ? xopen(al->arg, O_RDONLY) : 0,
-             al->arg, parse_pattern);
+    do_lines(strcmp(al->arg, "-") ? xopen(al->arg, O_RDONLY) : 0,parse_pattern);
   parse_pattern(0, 0);
   dlist_terminate(TT.pattern);
   if (TT.nextlen) error_exit("no }");  
