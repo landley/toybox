@@ -419,7 +419,7 @@ char *xabspath(char *path, int exact)
 {
   struct string_list *todo, *done = 0;
   int try = 9999, dirfd = open("/", 0);;
-  char buf[4096], *ret;
+  char *ret;
 
   // If this isn't an absolute path, start with cwd.
   if (*path != '/') {
@@ -450,7 +450,7 @@ char *xabspath(char *path, int exact)
       } else continue;
 
     // Is this a symlink?
-    } else len=readlinkat(dirfd, new->str, buf, 4096);
+    } else len = readlinkat(dirfd, new->str, libbuf, sizeof(libbuf));
 
     if (len>4095) goto error;
     if (len<1) {
@@ -474,8 +474,8 @@ char *xabspath(char *path, int exact)
     }
 
     // If this symlink is to an absolute path, discard existing resolved path
-    buf[len] = 0;
-    if (*buf == '/') {
+    libbuf[len] = 0;
+    if (*libbuf == '/') {
       llist_traverse(done, free);
       done=0;
       close(dirfd);
@@ -484,7 +484,7 @@ char *xabspath(char *path, int exact)
     free(new);
 
     // prepend components of new path. Note symlink to "/" will leave new NULL
-    tail = splitpath(buf, &new);
+    tail = splitpath(libbuf, &new);
 
     // symlink to "/" will return null and leave tail alone
     if (new) {
