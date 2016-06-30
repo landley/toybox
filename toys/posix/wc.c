@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/wc.html
 
-USE_WC(NEWTOY(wc, USE_TOYBOX_I18N("m")"cwl[!cm]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_WC(NEWTOY(wc, "mcwl", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config WC
   bool "wc"
@@ -28,68 +28,75 @@ config WC
 #include "toys.h"
 
 GLOBALS(
-  unsigned long totals[3];
+  unsigned long totals[4];
 )
 
 static void show_lengths(unsigned long *lengths, char *name)
 {
-  int i, nospace = 1;
-  for (i=0; i<3; i++) {
-    if (!toys.optflags || (toys.optflags&(1<<i))) {
-      xprintf(" %ld"+nospace, lengths[i]);
-      nospace = 0;
+  int i, space = 7, first = 1;
+
+  for (i = 0; i<4; i++) if (toys.optflags == (1<<i)) space = 0;
+  for (i = 0; i<4; i++) {
+    if (toys.optflags&(1<<i)) {
+      printf(" %*ld"+first, space, lengths[i]);
+      first = 0;
     }
     TT.totals[i] += lengths[i];
   }
-  if (*toys.optargs) xprintf(" %s", name);
+  if (*toys.optargs) printf(" %s", name);
   xputc('\n');
 }
 
 static void do_wc(int fd, char *name)
 {
-  int i, len, clen=1, space;
-  unsigned long word=0, lengths[]={0,0,0};
+  int len = 0, clen = 1, space = 0;
+  unsigned long word = 0, lengths[] = {0,0,0,0};
 
+  // Speed up common case: wc -c normalfile is file length.
   if (toys.optflags == FLAG_c) {
     struct stat st;
 
     // On Linux, files in /proc often report their size as 0.
-    if (!fstat(fd, &st) && S_ISREG(st.st_mode) && st.st_size > 0) {
+    if (!fstat(fd, &st) && S_ISREG(st.st_mode) && st.st_size) {
       lengths[2] = st.st_size;
       goto show;
     }
   }
 
   for (;;) {
-    len = read(fd, toybuf, sizeof(toybuf));
-    if (len<0) perror_msg_raw(name);
-    if (len<1) break;
-    if (toys.optflags == FLAG_c) {
-      lengths[2] += len;
-      continue;
-    }
-    for (i=0; i<len; i+=clen) {
-      wchar_t wchar;
+    int pos, done = 0, len2 = read(fd, toybuf+len, sizeof(toybuf)-len);
 
-      if (CFG_TOYBOX_I18N && (toys.optflags&FLAG_m)) {
-        clen = mbrtowc(&wchar, toybuf+i, len-i, 0);
-        if (clen == -1) {
-          clen = 1;
-          continue;
+    if (len2<0) perror_msg_raw(name);
+    else len += len2;
+    if (len2<1) done++;
+
+    for (pos = 0; pos<len; pos++) {
+      if (toybuf[pos]=='\n') lengths[0]++;
+      lengths[2]++;
+      if (toys.optflags&FLAG_m) {
+        // If we've consumed next wide char
+        if (--clen<1) {
+          wchar_t wchar;
+
+          // next wide size, don't count invalid, fetch more data if necessary
+          clen = mbrtowc(&wchar, toybuf+pos, len-pos, 0);
+          if (clen == -1) continue;
+          if (clen == -2 && !done) break;
+
+          lengths[3]++;
+          space = iswspace(wchar);
         }
-        if (clen == -2) break;
-        if (clen == 0) clen=1;
-        space = iswspace(wchar);
-      } else space = isspace(toybuf[i]);
+      } else space = isspace(toybuf[pos]);
 
-      if (toybuf[i]==10) lengths[0]++;
       if (space) word=0;
       else {
         if (!word) lengths[1]++;
         word=1;
       }
-      lengths[2]++;
     }
+    if (done) break;
+    if (pos != len) memmove(toybuf, toybuf+pos, len-pos);
+    len -= pos;
   }
 
 show:
@@ -98,7 +105,7 @@ show:
 
 void wc_main(void)
 {
-  toys.optflags |= (toys.optflags&8)>>1;
+  if (!toys.optflags) toys.optflags = FLAG_l|FLAG_w|FLAG_c;
   loopfiles(toys.optargs, do_wc);
   if (toys.optc>1) show_lengths(TT.totals, "total");
 }
