@@ -90,8 +90,8 @@ testing()
   [ $RETVAL -gt 128 ] && [ $RETVAL -lt 255 ] &&
     echo "exited with signal (or returned $RETVAL)" >> actual
  
-  cmp expected actual > /dev/null 2>&1
-  if [ $? -ne 0 ]
+  DIFF="$(diff -au${NOSPACE:+b} expected actual)"
+  if [ ! -z "$DIFF" ]
   then
     FAILCOUNT=$[$FAILCOUNT+1]
     echo "$SHOWFAIL: $NAME"
@@ -99,7 +99,7 @@ testing()
     then
       [ ! -z "$4" ] && echo "echo -ne \"$4\" > input"
       echo "echo -ne '$5' |$EVAL $2"
-      diff -au expected actual
+      echo "$DIFF"
       [ "$VERBOSE" == fail ] && exit 1
     fi
   else
