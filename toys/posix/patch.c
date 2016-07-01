@@ -18,21 +18,23 @@
  * -F fuzz (number, default 2)
  * [file] which file to patch
 
-USE_PATCH(NEWTOY(patch, USE_TOYBOX_DEBUG("x")"ulp#i:R", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PATCH(NEWTOY(patch, "(dry-run)"USE_TOYBOX_DEBUG("x")"d:ulp#i:R", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PATCH
   bool "patch"
   default y
   help
-    usage: patch [-i file] [-p depth] [-Ru]
+    usage: patch [-d DIR] [-i file] [-p depth] [-Rlu] [--dry-run]
 
     Apply a unified diff to one or more files.
 
+    -d	modify files in DIR
     -i	Input file (defaults=stdin)
     -l	Loose match (ignore whitespace)
     -p	Number of '/' to strip from start of file paths (default=all)
     -R	Reverse patch.
     -u	Ignored (only handles "unified" diffs)
+    --dry-run Don't change files, just confirm patch applies
 
     This version of patch only handles unified diffs, and only modifies
     a file when all all hunks to that file apply.  Patch prints failed
@@ -48,6 +50,7 @@ config PATCH
 GLOBALS(
   char *infile;
   long prefix;
+  char *dir;
 
   struct double_list *current_hunk;
   long oldline, oldlen, newline, newlen;
@@ -102,7 +105,8 @@ static void fail_hunk(void)
   TT.state = 2;
   llist_traverse(TT.current_hunk, do_line);
   TT.current_hunk = NULL;
-  delete_tempfile(TT.filein, TT.fileout, &TT.tempname);
+  if (!(toys.optflags & FLAG_dry_run))
+    delete_tempfile(TT.filein, TT.fileout, &TT.tempname);
   TT.state = 0;
 }
 
@@ -264,6 +268,8 @@ void patch_main(void)
   if (TT.infile) TT.filepatch = xopen(TT.infile, O_RDONLY);
   TT.filein = TT.fileout = -1;
 
+  if (TT.dir) xchdir(TT.dir);
+
   // Loop through the lines in the patch
   for (;;) {
     char *patchline;
@@ -398,7 +404,9 @@ void patch_main(void)
             printf("patching %s\n", name);
             TT.filein = xopen(name, O_RDONLY);
           }
-          TT.fileout = copy_tempfile(TT.filein, name, &TT.tempname);
+          if (toys.optflags & FLAG_dry_run)
+            TT.fileout = xopen("/dev/null", O_RDWR);
+          else TT.fileout = copy_tempfile(TT.filein, name, &TT.tempname);
           TT.linenum = 0;
           TT.hunknum = 0;
         }
