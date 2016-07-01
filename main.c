@@ -13,7 +13,7 @@
 
 #undef NEWTOY
 #undef OLDTOY
-#define NEWTOY(name, opts, flags) {#name, name##_main, opts, flags},
+#define NEWTOY(name, opts, flags) {#name, name##_main, OPTSTR_##name, flags},
 #define OLDTOY(name, oldname, flags) \
   {#name, oldname##_main, OPTSTR_##oldname, flags},
 

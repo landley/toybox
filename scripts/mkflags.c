@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
         }
       // Output normal flag macro
       } else if (aflist->command) {
-        if (flist && (!flist->command || *aflist->command == *flist->command)) {
+        if (flist && flist->command && *aflist->command == *flist->command) {
           if (aflist->command)
             sprintf(out, "#define FLAG_%c (1%s<<%d)\n", *aflist->command,
               llstr, bit);
