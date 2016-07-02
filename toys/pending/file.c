@@ -26,7 +26,7 @@ GLOBALS(
 
 // We don't trust elf.h to be there, and two codepaths for 32/64 is awkward
 // anyway, so calculate struct offsets manually. (It's a fixed ABI.)
-static void do_elf_file(int fd)
+static void do_elf_file(int fd, struct stat *sb)
 {
   int endian = toybuf[5], bits = toybuf[4], i, j;
   int64_t (*elf_int)(void *ptr, unsigned size) = peek_le;
@@ -45,6 +45,11 @@ static void do_elf_file(int fd)
     {191, "tilegx"}, {3, "386"}, {6, "486"}, {62, "x86-64"}, {94, "xtensa"},
     {0xabc7, "xtensa-old"}
   };
+  int dynamic = 0;
+  int stripped = 1;
+  char *map;
+  off_t phoff, shoff;
+  int phsize, phnum, shsize, shnum;
 
   printf("ELF ");
 
@@ -82,53 +87,87 @@ static void do_elf_file(int fd)
   else printf("(unknown arch %d)", j);
 
   bits--;
-  // If we know our bits and endianness and phentsize agrees show dynamic linker
-  if ((bits&1)==bits && endian &&
-      (i = elf_int(toybuf+42+12*bits, 2)) == 32+24*bits)
-  {
-    char *map, *phdr;
-    int phsize = i, phnum = elf_int(toybuf+44+12*bits, 2),
-        psz = sysconf(_SC_PAGE_SIZE), lib = 0;
-    off_t phoff = elf_int(toybuf+28+4*bits, 4+4*bits),
-          mapoff = phoff^(phoff&(psz-1));
-
-    // map e_phentsize*e_phnum bytes at e_phoff
-    map = mmap(0, phsize*phnum, PROT_READ, MAP_SHARED, fd, mapoff);
-    if (map) {
-      // Find PT_INTERP entry. (Note: fields got reordered for 64 bit)
-      for (i = 0; i<phnum; i++) {
-        long long dlpos, dllen;
-
-        // skip non-PT_INTERP entries
-        j = elf_int(phdr = map+(phoff-mapoff)+i*phsize, 4);
-        if (j==2) lib++;
-        if (j!=3) continue;
-
-        // Read p_offset and p_filesz
-        j = bits+1;
-        dlpos = elf_int(phdr+4*j, 4*j);
-        dllen = elf_int(phdr+16*j, 4*j);
-        if (dllen<0 || dllen>sizeof(toybuf)-128
-            || dlpos!=lseek(fd, dlpos, SEEK_SET)
-            || dllen!=readall(fd, toybuf+128, dllen)) break;
-        printf(", dynamic (%.*s", (int)dllen, toybuf+128);
-      }
-      if (!lib) printf(", static");
-      else printf(" loads %d lib%s)", lib, lib>1 ? "s" : "");
-      munmap(map, phsize*phnum);
-    }
+  // If what we've seen so far doesn't seem consistent, bail.
+  if (!((bits&1)==bits && endian &&
+       (i = elf_int(toybuf+42+12*bits, 2)) == 32+24*bits)) {
+    printf(", corrupt?\n");
+    return;
   }
 
-  // TODO: we'd need to actually parse the ELF file to report the rest...
-  // ", dynamically linked"
-  // " (uses shared libs)"
-  // ", for Linux 2.6.24"
-  // ", BuildID[sha1]=SHA"
-  // ", stripped"
+  // Stash what we need from the header; it's okay to reuse toybuf after this.
+  phsize = i;
+  phnum = elf_int(toybuf+44+12*bits, 2);
+  phoff = elf_int(toybuf+28+4*bits, 4+4*bits);
+  shsize = elf_int(toybuf+46+12*bits, 2);
+  shnum = elf_int(toybuf+48+12*bits, 2);
+  shoff = elf_int(toybuf+32+8*bits, 4+4*bits);
+
+  map = mmap(0, sb->st_size, PROT_READ, MAP_SHARED, fd, 0);
+  if (!map) perror_exit("mmap");
+
+  // We need to read the phdrs for dynamic vs static and any notes.
+  // (Note: fields got reordered for 64 bit)
+  for (i = 0; i<phnum; i++) {
+    char *phdr = map+phoff+i*phsize;
+    int p_type = elf_int(phdr, 4);
+    long long p_offset, p_filesz;
+
+    if (p_type==2 /*PT_DYNAMIC*/) dynamic = 1;
+    if (p_type!=3 /*PT_INTERP*/ && p_type!=4 /*PT_NOTE*/) continue;
+
+    j = bits+1;
+    p_offset = elf_int(phdr+4*j, 4*j);
+    p_filesz = elf_int(phdr+16*j, 4*j);
+
+    if (p_type==3 /*PT_INTERP*/)
+      printf(", dynamic (%.*s)", (int)p_filesz, map+p_offset);
+    else {
+      char *note = map+p_offset;
+
+      // A PT_NOTE phdr is a sequence of entries, each consisting of an
+      // ndhr followed by n_namesz+n_descsz bytes of data (each of those
+      // rounded up to the next 4 bytes, without this being reflected in
+      // the header byte counts themselves).
+      while (p_filesz >= 3*4) { // Don't try to read a truncated entry.
+        int n_namesz = elf_int(note, 4);
+        int n_descsz = elf_int(note+4, 4);
+        int n_type = elf_int(note+8, 4);
+        int notesz = 3*4 + ((n_namesz+3)&~3) + ((n_descsz+3)&~3);
+
+        if (n_namesz==4 && !memcmp(note+12, "GNU", 4)) {
+          if (n_type == 3 /*NT_GNU_BUILD_ID*/) {
+            printf(", BuildID[%s]=", (n_descsz==20)?"sha1":"md5");
+            for (j = 0; j < n_descsz; ++j) printf("%02x", note[16 + j]);
+          }
+        } else if (n_namesz==8 && !memcmp(note+12, "Android", 8)) {
+          if (n_type==1) printf(", for Android %d", (int)elf_int(note+20, 4));
+        }
+
+        note += notesz;
+        p_filesz -= notesz;
+      }
+    }
+  }
+  if (!dynamic) printf(", static");
+
+  // We need to read the shdrs for stripped/unstripped.
+  // (Note: fields got reordered for 64 bit)
+  for (i = 0; i<shnum; i++) {
+    char *shdr = map+shoff+i*shsize;
+    int sh_type = elf_int(shdr+4, 4);
+
+    if (sh_type == 2 /*SHT_SYMTAB*/) {
+      stripped = 0;
+      break;
+    }
+  }
+  printf(", %sstripped", stripped ? "" : "not ");
   xputc('\n');
+
+  munmap(map, sb->st_size);
 }
 
-static void do_regular_file(int fd, char *name)
+static void do_regular_file(int fd, char *name, struct stat *sb)
 {
   char *s;
   int len = read(fd, s = toybuf, sizeof(toybuf)-256);
@@ -136,7 +175,7 @@ static void do_regular_file(int fd, char *name)
 
   if (len<0) perror_msg("%s", name);
 
-  if (len>40 && strstart(&s, "\177ELF")) do_elf_file(fd);
+  if (len>40 && strstart(&s, "\177ELF")) do_elf_file(fd, sb);
   else if (len>28 && strstart(&s, "\x89PNG\x0d\x0a\x1a\x0a")) {
     // PNG is big-endian: https://www.w3.org/TR/PNG/#7Integers-and-byte-order
     int chunk_length = peek_be(s, 4);
@@ -252,7 +291,7 @@ void file_main(void)
 
         if (fd!=-1) {
           if (!sb.st_size) what = "empty";
-          else do_regular_file(fd, name);
+          else do_regular_file(fd, name, &sb);
           if (fd) close(fd);
           if (sb.st_size) continue;
         }
