@@ -16,7 +16,7 @@ config NETSTAT
 
     -r  routing table
     -a  all sockets (not just connected)
-    -l  lay listening server sockets
+    -l  listening server sockets
     -t  TCP sockets
     -u  UDP sockets
     -w  raw sockets
@@ -33,58 +33,40 @@ config NETSTAT
 
 GLOBALS(
   struct num_cache *inodes;
-  int some_process_unidentified;
+  int wpad;
 );
-
-typedef union _iaddr {
-  unsigned u;
-  unsigned char b[4];
-} iaddr;
-
-typedef union _iaddr6 {
-  struct {
-    unsigned a;
-    unsigned b;
-    unsigned c;
-    unsigned d;
-  } u;
-  unsigned char b[16];
-} iaddr6;
-
-#define ADDR_LEN (INET6_ADDRSTRLEN + 1 + 5 + 1)//IPv6 addr len + : + port + '\0'
 
 /*
  * For TCP/UDP/RAW display data.
  */
-static void display_data(unsigned rport, char *label,
+static void display_data(unsigned rport, char *proto,
                          unsigned rxq, unsigned txq, char *lip, char *rip,
                          unsigned state, unsigned uid, unsigned long inode)
 {
-  char *ss_state = "UNKNOWN", buf[12];
+  char *ss_state = "UNKNOWN", buf[12], *s;
   char *state_label[] = {"", "ESTABLISHED", "SYN_SENT", "SYN_RECV", "FIN_WAIT1",
                          "FIN_WAIT2", "TIME_WAIT", "CLOSE", "CLOSE_WAIT",
                          "LAST_ACK", "LISTEN", "CLOSING", "UNKNOWN"};
-  char user[11];
   struct passwd *pw;
 
-  if (!strcmp(label, "tcp")) {
+  s = proto;
+  if (strstart(&s, "tcp")) {
     int sz = ARRAY_LEN(state_label);
     if (!state || state >= sz) state = sz-1;
     ss_state = state_label[state];
-  } else if (!strcmp(label, "udp")) {
+  } else if (strstart(&s, "udp")) {
     if (state == 1) ss_state = state_label[state];
     else if (state == 7) ss_state = "";
-  } else if (!strcmp(label, "raw")) sprintf(ss_state = buf, "%u", state);
+  } else if (strstart(&s, "raw")) sprintf(ss_state = buf, "%u", state);
 
-  if (!(toys.optflags & FLAG_n) && (pw = getpwuid(uid)))
-    snprintf(user, sizeof(user), "%s", pw->pw_name);
-  else snprintf(user, sizeof(user), "%d", uid);
+  if (!(toys.optflags & FLAG_n) && (pw = bufgetpwuid(uid)))
+    snprintf(toybuf, sizeof(toybuf), "%s", pw->pw_name);
+  else snprintf(toybuf, sizeof(toybuf), "%d", uid);
 
-  xprintf("%3s   %6d %6d ", label, rxq, txq);
-  xprintf((toys.optflags & FLAG_W) ? "%-51.51s %-51.51s " : "%-23.23s %-23.23s "
-           , lip, rip);
-  xprintf("%-11s", ss_state);
-  if ((toys.optflags & FLAG_e)) xprintf(" %-10s %-11ld", user, inode);
+  printf("%-6s%6d%7d ", proto, rxq, txq);
+  printf("%*.*s %*.*s ", -TT.wpad, TT.wpad, lip, -TT.wpad, TT.wpad, rip);
+  printf("%-11s", ss_state);
+  if ((toys.optflags & FLAG_e)) printf(" %-10s %-11ld", toybuf, inode);
   if ((toys.optflags & FLAG_p)) {
     struct num_cache *nc = get_num_cache(TT.inodes, inode);
 
@@ -93,94 +75,74 @@ static void display_data(unsigned rport, char *label,
   xputc('\n');
 }
 
-/*
- * For TCP/UDP/RAW show data.
- */
-static void show_data(unsigned rport, char *label, unsigned rxq, unsigned txq,
-                      char *lip, char *rip, unsigned state, unsigned uid,
-                      unsigned long inode)
+// convert address into text format.
+static void addr2str(int af, void *addr, unsigned port, char *buf, int len,
+  char *proto)
 {
-  if (toys.optflags & FLAG_l) {
-    if (!rport && (state & 0xA))
-      display_data(rport, label, rxq, txq, lip, rip, state, uid, inode);
-  } else if (toys.optflags & FLAG_a)
-    display_data(rport, label, rxq, txq, lip, rip, state, uid, inode);
-  //rport && (TCP | UDP | RAW)
-  else if (rport & (0x10 | 0x20 | 0x40))
-    display_data(rport, label, rxq, txq, lip, rip, state, uid, inode);
-}
+  int pos, count;
+  struct servent *ser = 0;
 
-/*
- * used to get service name.
- */
-static char *get_servname(int port, char *label)
-{
-  int lport = htons(port);
+  // Convert to numeric address
+  if (!inet_ntop(af, addr, buf, 256)) {
+    *buf = 0;
 
-  if (!lport) return xmprintf("%s", "*");
-  struct servent *ser = getservbyport(lport, label);
-  if (ser) return xmprintf("%s", ser->s_name);
-  return xmprintf("%u", (unsigned)ntohs(lport));
-}
-
-/*
- * used to convert address into text format.
- */
-static void addr2str(int af, void *addr, unsigned port, char *buf, char *label)
-{
-  char ip[ADDR_LEN] = {0,};
-  if (!inet_ntop(af, addr, ip, ADDR_LEN)) {
-    *buf = '\0';
     return;
   }
-  size_t iplen = strlen(ip);
+  buf[len] = 0;
+  pos = strlen(buf);
+
+  // If there's no port number, it's a local :* binding, nothing to look up.
   if (!port) {
-    strncat(ip+iplen, ":*", ADDR_LEN-iplen-1);
-    memcpy(buf, ip, ADDR_LEN);
+    if (len-pos<2) pos = len-2;
+    strcpy(buf+pos, ":*");
+
     return;
   }
 
   if (!(toys.optflags & FLAG_n)) {
     struct addrinfo hints, *result, *rp;
+    char cut[4];
 
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = af;
 
-    if (!getaddrinfo(ip, NULL, &hints, &result)) {
-      char hbuf[NI_MAXHOST] = {0,}, sbuf[NI_MAXSERV] = {0,};
-      socklen_t sock_len;
-      char *sname = NULL;
-      int plen = 0;
+    if (!getaddrinfo(buf, NULL, &hints, &result)) {
+      socklen_t sock_len = (af == AF_INET) ? sizeof(struct sockaddr_in)
+        : sizeof(struct sockaddr_in6);
 
-      if (af == AF_INET) sock_len = sizeof(struct sockaddr_in);
-      else sock_len = sizeof(struct sockaddr_in6);
-
+      // We assume that a failing getnameinfo dosn't stomp "buf" here.
       for (rp = result; rp; rp = rp->ai_next)
-        if (!getnameinfo(rp->ai_addr, sock_len, hbuf, sizeof(hbuf), sbuf,
-            sizeof(sbuf), NI_NUMERICSERV))
-          break;
-
+        if (!getnameinfo(rp->ai_addr, sock_len, buf, 256, 0, 0, 0)) break;
       freeaddrinfo(result);
-      sname = get_servname(port, label);
-      plen = strlen(sname);
-      if (*hbuf) {
-        memset(ip, 0, ADDR_LEN);
-        memcpy(ip, hbuf, (ADDR_LEN - plen - 2));
-        iplen = strlen(ip);
-      }
-      snprintf(ip + iplen, ADDR_LEN-iplen, ":%s", sname);
-      free(sname);
+      buf[len] = 0;
+      pos = strlen(buf);
+    }
+
+    // Doesn't understand proto "tcp6", so truncate
+    memcpy(cut, proto, 3);
+    cut[3] = 0;
+    ser = getservbyport(htons(port), cut);
+  }
+
+  // Append :service
+  count = snprintf(0, 0, ":%u", port);
+  if (ser) {
+    count = snprintf(0, 0, ":%s", ser->s_name);
+    // sheer paranoia
+    if (count>=len) {
+      count = len-1;
+      ser->s_name[count] = 0;
     }
   }
-  else snprintf(ip+iplen, ADDR_LEN-iplen, ":%d", port);
-  memcpy(buf, ip, ADDR_LEN);
+  if (len-pos<count) pos = len-count;
+  if (ser) sprintf(buf+pos, ":%s", ser->s_name);
+  else sprintf(buf+pos, ":%u", port);
 }
 
-/*
- * display ipv4 info for TCP/UDP/RAW.
- */
-static void show_ipv4(char *fname, char *label)
+// Display info for tcp/udp/raw
+static void show_ip(char *fname)
 {
+  char *label = strrchr(fname, '/')+1;
   FILE *fp = fopen(fname, "r");
   if (!fp) {
      perror_msg("'%s'", fname);
@@ -190,54 +152,39 @@ static void show_ipv4(char *fname, char *label)
   if(!fgets(toybuf, sizeof(toybuf), fp)) return; //skip header.
 
   while (fgets(toybuf, sizeof(toybuf), fp)) {
-    char lip[ADDR_LEN] = {0,}, rip[ADDR_LEN] = {0,};
-    iaddr laddr, raddr;
-    unsigned lport, rport, state, txq, rxq, num, uid;
+    char lip[256], rip[256];
+    union {
+      struct {unsigned u; unsigned char b[4];} i4;
+      struct {struct {unsigned a, b, c, d;} u; unsigned char b[16];} i6;
+    } laddr, raddr;
+    unsigned lport, rport, state, txq, rxq, num, uid, nitems;
     unsigned long inode;
 
-    int nitems = sscanf(toybuf, " %d: %x:%x %x:%x %x %x:%x %*X:%*X %*X %d %*d %ld",
-                        &num, &laddr.u, &lport, &raddr.u, &rport, &state, &txq,
-                        &rxq, &uid, &inode);
-    if (nitems == 10) {
-      addr2str(AF_INET, &laddr, lport, lip, label);
-      addr2str(AF_INET, &raddr, rport, rip, label);
-      show_data(rport, label, rxq, txq, lip, rip, state, uid, inode);
-    }
-  }//End of While
-  fclose(fp);
-}
+    nitems = sscanf(toybuf,
+      " %d: %8x%8x%8x%8x:%x %8x%8x%8x%8x:%x %x %x:%x %*X:%*X %*X %d %*d %ld",
+      &num, &laddr.i6.u.a, &laddr.i6.u.b, &laddr.i6.u.c,
+      &laddr.i6.u.d, &lport, &raddr.i6.u.a, &raddr.i6.u.b,
+      &raddr.i6.u.c, &raddr.i6.u.d, &rport, &state, &txq, &rxq,
+      &uid, &inode);
 
-/*
- * display ipv6 info for TCP/UDP/RAW.
- */
-static void show_ipv6(char *fname, char *label)
-{
-  FILE *fp = fopen(fname, "r");
-  if (!fp) {
-     perror_msg("'%s'", fname);
-     return;
+    if (nitems!=16) {
+      nitems = sscanf(toybuf,
+        " %d: %x:%x %x:%x %x %x:%x %*X:%*X %*X %d %*d %ld",
+        &num, &laddr.i4.u, &lport, &raddr.i4.u, &rport, &state, &txq,
+        &rxq, &uid, &inode);
+
+      if (nitems!=10) continue;
+      nitems = AF_INET;
+    } else nitems = AF_INET6;
+
+    addr2str(nitems, &laddr, lport, lip, TT.wpad, label);
+    addr2str(nitems, &raddr, rport, rip, TT.wpad, label);
+
+    // listening or all or TCP/UDP/RAW
+    if (((toys.optflags & FLAG_l) && (!rport && (state & 0xA)))
+      || (toys.optflags & FLAG_a) || (rport & (0x10 | 0x20 | 0x40)))
+        display_data(rport, label, rxq, txq, lip, rip, state, uid, inode);
   }
-
-  if(!fgets(toybuf, sizeof(toybuf), fp)) return; //skip header.
-
-  while (fgets(toybuf, sizeof(toybuf), fp)) {
-    char lip[ADDR_LEN] = {0,}, rip[ADDR_LEN] = {0,};
-    iaddr6 laddr6, raddr6;
-    unsigned lport, rport, state, txq, rxq, num, uid;
-    unsigned long inode;
-
-    int nitems = sscanf(toybuf, " %d: %8x%8x%8x%8x:%x %8x%8x%8x%8x:%x %x %x:%x "
-                                "%*X:%*X %*X %d %*d %ld",
-                        &num, &laddr6.u.a, &laddr6.u.b, &laddr6.u.c,
-                        &laddr6.u.d, &lport, &raddr6.u.a, &raddr6.u.b,
-                        &raddr6.u.c, &raddr6.u.d, &rport, &state, &txq, &rxq,
-                        &uid, &inode);
-    if (nitems == 16) {
-      addr2str(AF_INET6, &laddr6, lport, lip, label);
-      addr2str(AF_INET6, &raddr6, rport, rip, label);
-      show_data(rport, label, rxq, txq, lip, rip, state, uid, inode);
-    }
-  }//End of While
   fclose(fp);
 }
 
@@ -281,7 +228,7 @@ static void show_unix_sockets(void)
 
     if (offset) {
       if ((ss = strrchr(s = toybuf+offset, '\n'))) *ss = 0;
-      xprintf("%s", s);
+      printf("%s", s);
     }
     xputc('\n');
   }
@@ -343,7 +290,7 @@ static void display_routes(void)
 
   if(!fgets(toybuf, sizeof(toybuf), fp)) return; //skip header.
 
-  xprintf("Kernel IP routing table\n"
+  printf("Kernel IP routing table\n"
           "Destination     Gateway         Genmask         Flags %s Iface\n",
           !(toys.optflags&FLAG_e) ? "  MSS Window  irtt" : "Metric Ref    Use");
 
@@ -383,10 +330,10 @@ static void display_routes(void)
     *out = 0;
     if (flags & RTF_REJECT) *flag_val = '!';
 
-    xprintf("%-15.15s %-15.15s %-16s%-6s", destip, gateip, maskip, flag_val);
+    printf("%-15.15s %-15.15s %-16s%-6s", destip, gateip, maskip, flag_val);
     if (!(toys.optflags & FLAG_e))
-      xprintf("%5d %-5d %6d %s\n", mss, win, irtt, iface);
-    else xprintf("%-6d %-2d %7d %s\n", metric, ref, use, iface);
+      printf("%5d %-5d %6d %s\n", mss, win, irtt, iface);
+    else printf("%-6d %-2d %7d %s\n", metric, ref, use, iface);
   }
 
   fclose(fp);
@@ -397,6 +344,7 @@ void netstat_main(void)
   int tuwx = FLAG_t|FLAG_u|FLAG_w|FLAG_x;
   char *type = "w/o";
 
+  TT.wpad = (toys.optflags&FLAG_W) ? 51 : 23;
   if (!(toys.optflags&(FLAG_r|tuwx))) toys.optflags |= tuwx;
   if (toys.optflags & FLAG_r) display_routes();
   if (!(toys.optflags&tuwx)) return;
@@ -404,45 +352,34 @@ void netstat_main(void)
   if (toys.optflags & FLAG_a) type = "established and";
   else if (toys.optflags & FLAG_l) type = "only";
 
-  if (toys.optflags & FLAG_p) {
-    dirtree_read("/proc", scan_pids);
-    // TODO: we probably shouldn't warn if all the processes we're going to
-    // list were identified.
-    if (TT.some_process_unidentified)
-      fprintf(stderr,
-        "(Not all processes could be identified, non-owned process info\n"
-        " will not be shown, you would have to be root to see it all.)\n");
-  }
+  if (toys.optflags & FLAG_p) dirtree_read("/proc", scan_pids);
 
   if (toys.optflags&(FLAG_t|FLAG_u|FLAG_w)) {
-    int pad = (toys.optflags&FLAG_W) ? -51 : -23;
-
     printf("Active %s (%s servers)\n", "Internet connections", type);
-
-    printf("Proto Recv-Q Send-Q %*s %*s State      ", pad, "Local Addres",
-      pad, "Foreign Address");
+    printf("Proto Recv-Q Send-Q %*s %*s State      ", -TT.wpad, "Local Address",
+      -TT.wpad, "Foreign Address");
     if (toys.optflags & FLAG_e) printf(" User       Inode      ");
     if (toys.optflags & FLAG_p) printf(" PID/Program Name");
     xputc('\n');
 
-    if (toys.optflags & FLAG_t) {//For TCP
-      show_ipv4("/proc/net/tcp",  "tcp");
-      show_ipv6("/proc/net/tcp6", "tcp");
+    if (toys.optflags & FLAG_t) {
+      show_ip("/proc/net/tcp");
+      show_ip("/proc/net/tcp6");
     }
-    if (toys.optflags & FLAG_u) {//For UDP
-      show_ipv4("/proc/net/udp",  "udp");
-      show_ipv6("/proc/net/udp6", "udp");
+    if (toys.optflags & FLAG_u) {
+      show_ip("/proc/net/udp");
+      show_ip("/proc/net/udp6");
     }
-    if (toys.optflags & FLAG_w) {//For raw
-      show_ipv4("/proc/net/raw",  "raw");
-      show_ipv6("/proc/net/raw6", "raw");
+    if (toys.optflags & FLAG_w) {
+      show_ip("/proc/net/raw");
+      show_ip("/proc/net/raw6");
     }
   }
 
   if (toys.optflags & FLAG_x) {
-    xprintf("Active %s (%s servers)\n", "UNIX domain sockets", type);
+    printf("Active %s (%s servers)\n", "UNIX domain sockets", type);
 
-    xprintf("Proto RefCnt Flags       Type       State           I-Node %s Path\n",
+    printf("Proto RefCnt Flags\t Type\t    State\t    %s Path\n",
       (toys.optflags&FLAG_p) ? "PID/Program Name" : "I-Node");
     show_unix_sockets();
   }
