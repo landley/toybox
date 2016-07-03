@@ -8,7 +8,7 @@
 USE_NETSTAT(NEWTOY(netstat, "pWrxwutneal", TOYFLAG_BIN))
 config NETSTAT
   bool "netstat"
-  default n
+  default y
   help
     usage: netstat [-pWrxwutneal]
 
