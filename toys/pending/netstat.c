@@ -12,7 +12,7 @@ config NETSTAT
   help
     usage: netstat [-pWrxwutneal]
 
-    Display networking information.
+    Display networking information. Default is netsat -tuwx
 
     -r  routing table
     -a  all sockets (not just connected)
@@ -24,7 +24,7 @@ config NETSTAT
     -e  extended info
     -n  don't resolve names
     -W  wide display
-    -p  PID/Program name for sockets
+    -p  PID/Program name of sockets
 */
 
 #define FOR_netstat
@@ -35,45 +35,6 @@ GLOBALS(
   struct num_cache *inodes;
   int wpad;
 );
-
-/*
- * For TCP/UDP/RAW display data.
- */
-static void display_data(unsigned rport, char *proto,
-                         unsigned rxq, unsigned txq, char *lip, char *rip,
-                         unsigned state, unsigned uid, unsigned long inode)
-{
-  char *ss_state = "UNKNOWN", buf[12], *s;
-  char *state_label[] = {"", "ESTABLISHED", "SYN_SENT", "SYN_RECV", "FIN_WAIT1",
-                         "FIN_WAIT2", "TIME_WAIT", "CLOSE", "CLOSE_WAIT",
-                         "LAST_ACK", "LISTEN", "CLOSING", "UNKNOWN"};
-  struct passwd *pw;
-
-  s = proto;
-  if (strstart(&s, "tcp")) {
-    int sz = ARRAY_LEN(state_label);
-    if (!state || state >= sz) state = sz-1;
-    ss_state = state_label[state];
-  } else if (strstart(&s, "udp")) {
-    if (state == 1) ss_state = state_label[state];
-    else if (state == 7) ss_state = "";
-  } else if (strstart(&s, "raw")) sprintf(ss_state = buf, "%u", state);
-
-  if (!(toys.optflags & FLAG_n) && (pw = bufgetpwuid(uid)))
-    snprintf(toybuf, sizeof(toybuf), "%s", pw->pw_name);
-  else snprintf(toybuf, sizeof(toybuf), "%d", uid);
-
-  printf("%-6s%6d%7d ", proto, rxq, txq);
-  printf("%*.*s %*.*s ", -TT.wpad, TT.wpad, lip, -TT.wpad, TT.wpad, rip);
-  printf("%-11s", ss_state);
-  if ((toys.optflags & FLAG_e)) printf(" %-10s %-11ld", toybuf, inode);
-  if ((toys.optflags & FLAG_p)) {
-    struct num_cache *nc = get_num_cache(TT.inodes, inode);
-
-    printf(" %s", nc ? nc->data : "-");
-  }
-  xputc('\n');
-}
 
 // convert address into text format.
 static void addr2str(int af, void *addr, unsigned port, char *buf, int len,
@@ -142,8 +103,13 @@ static void addr2str(int af, void *addr, unsigned port, char *buf, int len,
 // Display info for tcp/udp/raw
 static void show_ip(char *fname)
 {
-  char *label = strrchr(fname, '/')+1;
+  char *ss_state = "UNKNOWN", buf[12], *s, *label = strrchr(fname, '/')+1;
+  char *state_label[] = {"", "ESTABLISHED", "SYN_SENT", "SYN_RECV", "FIN_WAIT1",
+                         "FIN_WAIT2", "TIME_WAIT", "CLOSE", "CLOSE_WAIT",
+                         "LAST_ACK", "LISTEN", "CLOSING", "UNKNOWN"};
+  struct passwd *pw;
   FILE *fp = fopen(fname, "r");
+
   if (!fp) {
      perror_msg("'%s'", fname);
      return;
@@ -160,6 +126,7 @@ static void show_ip(char *fname)
     unsigned lport, rport, state, txq, rxq, num, uid, nitems;
     unsigned long inode;
 
+    // Try ipv6, then try ipv4
     nitems = sscanf(toybuf,
       " %d: %8x%8x%8x%8x:%x %8x%8x%8x%8x:%x %x %x:%x %*X:%*X %*X %d %*d %ld",
       &num, &laddr.i6.u.a, &laddr.i6.u.b, &laddr.i6.u.c,
@@ -177,13 +144,39 @@ static void show_ip(char *fname)
       nitems = AF_INET;
     } else nitems = AF_INET6;
 
+    // Should we display this? (listening or all or TCP/UDP/RAW)
+    if (!((toys.optflags & FLAG_l) && (!rport && (state & 0xA)))
+      && !(toys.optflags & FLAG_a) && !(rport & (0x10 | 0x20 | 0x40)))
+        continue;
+
     addr2str(nitems, &laddr, lport, lip, TT.wpad, label);
     addr2str(nitems, &raddr, rport, rip, TT.wpad, label);
 
-    // listening or all or TCP/UDP/RAW
-    if (((toys.optflags & FLAG_l) && (!rport && (state & 0xA)))
-      || (toys.optflags & FLAG_a) || (rport & (0x10 | 0x20 | 0x40)))
-        display_data(rport, label, rxq, txq, lip, rip, state, uid, inode);
+    // Display data
+    s = label;
+    if (strstart(&s, "tcp")) {
+      int sz = ARRAY_LEN(state_label);
+      if (!state || state >= sz) state = sz-1;
+      ss_state = state_label[state];
+    } else if (strstart(&s, "udp")) {
+      if (state == 1) ss_state = state_label[state];
+      else if (state == 7) ss_state = "";
+    } else if (strstart(&s, "raw")) sprintf(ss_state = buf, "%u", state);
+
+    if (!(toys.optflags & FLAG_n) && (pw = bufgetpwuid(uid)))
+      snprintf(toybuf, sizeof(toybuf), "%s", pw->pw_name);
+    else snprintf(toybuf, sizeof(toybuf), "%d", uid);
+
+    printf("%-6s%6d%7d ", label, rxq, txq);
+    printf("%*.*s %*.*s ", -TT.wpad, TT.wpad, lip, -TT.wpad, TT.wpad, rip);
+    printf("%-11s", ss_state);
+    if ((toys.optflags & FLAG_e)) printf(" %-10s %-11ld", toybuf, inode);
+    if ((toys.optflags & FLAG_p)) {
+      struct num_cache *nc = get_num_cache(TT.inodes, inode);
+
+      printf(" %s", nc ? nc->data : "-");
+    }
+    xputc('\n');
   }
   fclose(fp);
 }
@@ -291,7 +284,7 @@ static void display_routes(void)
   if(!fgets(toybuf, sizeof(toybuf), fp)) return; //skip header.
 
   printf("Kernel IP routing table\n"
-          "Destination     Gateway         Genmask         Flags %s Iface\n",
+          "Destination\tGateway \tGenmask \tFlags %s Iface\n",
           !(toys.optflags&FLAG_e) ? "  MSS Window  irtt" : "Metric Ref    Use");
 
   while (fgets(toybuf, sizeof(toybuf), fp)) {
