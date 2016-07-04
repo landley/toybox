@@ -59,3 +59,9 @@ testing "'%g %G' 78 79" "$PRINTF '%g %G' 78 79" "78 79" "" ""
 testing "'%s %s' 78 79" "$PRINTF '%s %s' 78 79" "78 79" "" ""
 
 testing "%.s acts like %.0s" "$PRINTF %.s_ 1 2 3 4 5" "_____" "" ""
+testing "corner case" "$PRINTF '\\8'" '\8' '' ''
+
+# The posix spec explicitly specifies inconsistent behavior,
+# so treating the \0066 in %b like the \0066 not in %b is wrong because posix.
+testing "printf posix inconsistency" "$PRINTF '\\0066-%b' '\\0066'" "\x066-6" \
+  "" ""

@@ -33,7 +33,7 @@ static int eat(char **s, char c)
 }
 
 // Parse escape sequences.
-static int handle_slash(char **esc_val)
+static int handle_slash(char **esc_val, int posix)
 {
   char *ptr = *esc_val;
   int len, base = 0;
@@ -43,7 +43,10 @@ static int handle_slash(char **esc_val)
 
   // 0x12 hex escapes have 1-2 digits, \123 octal escapes have 1-3 digits.
   if (eat(&ptr, 'x')) base = 16;
-  else if (*ptr >= '0' && *ptr <= '8') base = 8;
+  else {
+    if (posix && *ptr=='0') ptr++;
+    if (*ptr >= '0' && *ptr <= '7') base = 8;
+  }
   len = (char []){0,3,2}[base/8];
 
   // Not a hex or octal escape? (This catches trailing \)
@@ -85,7 +88,7 @@ void printf_main(void)
 
     // Loop through characters in format
     while (*f) {
-      if (eat(&f, '\\')) putchar(handle_slash(&f));
+      if (eat(&f, '\\')) putchar(handle_slash(&f, 0));
       else if (!eat(&f, '%') || *f == '%') putchar(*f++);
 
       // Handle %escape
@@ -110,7 +113,7 @@ void printf_main(void)
 
         // Output %esc using parsed format string
         if (c == 'b') {
-          while (*aa) putchar(eat(&aa, '\\') ? handle_slash(&aa) : *aa++);
+          while (*aa) putchar(eat(&aa, '\\') ? handle_slash(&aa, 1) : *aa++);
 
           continue;
         } else if (c == 'c') printf(toybuf, wp[0], wp[1], *aa);
