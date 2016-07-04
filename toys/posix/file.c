@@ -10,7 +10,7 @@ USE_FILE(NEWTOY(file, "<1", TOYFLAG_USR|TOYFLAG_BIN))
 
 config FILE
   bool "file"
-  default n
+  default y
   help
     usage: file [file...]
 
