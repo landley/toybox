@@ -360,6 +360,7 @@ void parse_optflaglist(struct getoptflagstate *gof)
           if (!opt) break;
           if (bits&(1<<i)) opt->dex[idx] |= bits&~(1<<i);
         } else {
+          if (*options==1) break;
           if (CFG_TOYBOX_DEBUG && !opt)
             error_exit("[] unknown target %c", *options);
           if (opt->c == *options) {
