@@ -136,7 +136,7 @@ static void do_elf_file(int fd, struct stat *sb)
 
         if (n_namesz==4 && !memcmp(note+12, "GNU", 4)) {
           if (n_type == 3 /*NT_GNU_BUILD_ID*/) {
-            printf(", BuildID[%s]=", (n_descsz==20)?"sha1":"md5");
+            printf(", BuildID=");
             for (j = 0; j < n_descsz; ++j) printf("%02x", note[16 + j]);
           }
         } else if (n_namesz==8 && !memcmp(note+12, "Android", 8)) {
