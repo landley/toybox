@@ -27,6 +27,8 @@ testing "-c 8 -g 3 file1" "xxd -c 8 -g 3 file1" \
 
 testing "-p" "xxd -p file1" "7468697320697320736f6d6520746578740a\n" "" ""
 
+testing "-s" "xxd -s 13 file1" "0000000d: 7465 7874 0a                             text.\n" "" ""
+
 testing "-r" "xxd file1 | xxd -r" "this is some text\n" "" ""
 testing "-r -p" "xxd -p file1 | xxd -r -p" "this is some text\n" "" ""
 

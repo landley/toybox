@@ -4,17 +4,14 @@
  *
  * No obvious standard, output looks like:
  * 0000000: 4c69 6e75 7820 7665 7273 696f 6e20 332e  Linux version 3.
- *
- * TODO: support for reversing a hexdump back into the original data.
- * TODO: -s seek
 
-USE_XXD(NEWTOY(xxd, ">1c#<1>4096=16l#g#<1=2pr", TOYFLAG_USR|TOYFLAG_BIN))
+USE_XXD(NEWTOY(xxd, ">1c#<1>4096=16l#g#<1=2prs#[!rs]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config XXD
   bool "xxd"
   default y
   help
-    usage: xxd [-c n] [-g n] [-l n] [-p] [-r] [file]
+    usage: xxd [-c n] [-g n] [-l n] [-p] [-r] [-s n] [file]
 
     Hexdump a file to stdout.  If no file is listed, copy from stdin.
     Filename "-" is a synonym for stdin.
@@ -24,12 +21,14 @@ config XXD
     -l n	Limit of n bytes before stopping (default is no limit).
     -p	Plain hexdump (30 bytes/line, no grouping).
     -r	Reverse operation: turn a hexdump into a binary file.
+    -s n	Skip to offset n.
 */
 
 #define FOR_xxd
 #include "toys.h"
 
 GLOBALS(
+  long s;
   long g;
   long l;
   long c;
@@ -38,9 +37,17 @@ GLOBALS(
 static void do_xxd(int fd, char *name)
 {
   long long pos = 0;
+  long long limit = TT.l;
   int i, len, space;
 
-  while (0<(len = readall(fd, toybuf, (TT.l && TT.l-pos<TT.c)?TT.l-pos:TT.c))) {
+  if (toys.optflags&FLAG_s) {
+    xlseek(fd, TT.s, SEEK_SET);
+    pos = TT.s;
+    if (limit) limit += TT.s;
+  }
+
+  while (0<(len = readall(fd, toybuf,
+                          (limit && limit-pos<TT.c)?limit-pos:TT.c))) {
     if (!(toys.optflags&FLAG_p)) printf("%08llx: ", pos);
     pos += len;
     space = 2*TT.c+TT.c/TT.g+1;
