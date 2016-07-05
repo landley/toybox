@@ -4,6 +4,13 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
+if [ "$(id -u)" -ne 0 ]
+then
+  echo "$SHOWSKIP: chgrp (not root)"
+  continue 2>/dev/null
+  exit
+fi
+
 # chattr - Testcases
 
 mkdir testattr

@@ -19,8 +19,8 @@ testing "-d 1110143115.30" "TZ=UTC date -d 1110143115.30 2>&1" "Sun Nov 10 14:31
 testing "-d 111014312015.30" "TZ=UTC date -d 111014312015.30 2>&1" "Sun Nov 10 14:31:30 UTC 2015\n" "" ""
 
 # Accidentally given a Unix time, we should trivially reject that.
-testing "Unix time missing @" "TZ=UTC date 1438053157 2>&1" \
-  "date: bad date '1438053157'; Wed February 38 05:31:00 UTC 2057 != Sun Mar 10 05:31:00 UTC 2058\n" "" ""
+testing "Unix time missing @" "TZ=UTC date 1438053157 2>/dev/null || echo no" \
+  "no\n" "" ""
 # But some invalid dates are more subtle, like Febuary 29th in a non-leap year.
-testing "Feb 29th" "TZ=UTC date 022900001975 2>&1" \
-  "date: bad date '022900001975'; Wed Feb 29 00:00:00 UTC 1975 != Sat Mar  1 00:00:00 UTC 1975\n" "" ""
+testing "Feb 29th" "TZ=UTC date 022900001975 2>/dev/null || echo no" \
+  "no\n" "" ""
