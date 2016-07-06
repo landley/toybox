@@ -82,11 +82,11 @@ genbuildsh()
 
   echo "#!/bin/sh"
   echo
-  echo "BUILD=\"$BUILD\""
+  echo "BUILD='$BUILD'"
   echo
-  echo "FILES=\"$LIBFILES $TOYFILES\""
+  echo "FILES='$LIBFILES $TOYFILES'"
   echo
-  echo "LINK=\"$LINK\""
+  echo "LINK='$LINK'"
   echo
   echo
   echo '$BUILD $FILES $LINK'
