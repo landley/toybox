@@ -293,6 +293,7 @@ struct mtab_list *xgetmountlist(char *path);
 // signal
 
 void generic_signal(int signal);
+void exit_signal(int signal);
 void sigatexit(void *handler);
 int sig_to_num(char *pidstr);
 char *num_to_sig(int sig);
