@@ -273,16 +273,16 @@ struct string_list *find_in_path(char *path, char *filename)
   return rlist;
 }
 
-long estrtol(char *str, char **end, int base)
+long long estrtol(char *str, char **end, int base)
 {
   errno = 0;
 
-  return strtol(str, end, base);
+  return strtoll(str, end, base);
 }
 
-long xstrtol(char *str, char **end, int base)
+long long xstrtol(char *str, char **end, int base)
 {
-  long l = estrtol(str, end, base);
+  long long l = estrtol(str, end, base);
 
   if (errno) perror_exit_raw(str);
 
@@ -291,31 +291,32 @@ long xstrtol(char *str, char **end, int base)
 
 // atol() with the kilo/mega/giga/tera/peta/exa extensions.
 // (zetta and yotta don't fit in 64 bits.)
-long atolx(char *numstr)
+long long atolx(char *numstr)
 {
-  char *c, *suffixes="cbkmgtpe", *end;
-  long val;
+  char *c = numstr, *suffixes="cbkmgtpe", *end;
+  long long val;
 
   val = xstrtol(numstr, &c, 0);
-  if (*c) {
-    if (c != numstr && (end = strchr(suffixes, tolower(*c)))) {
-      int shift = end-suffixes-2;
-      if (shift >= 0) val *= 1024L<<(shift*10);
-    } else {
-      while (isspace(*c)) c++;
-      if (*c) error_exit("not integer: %s", numstr);
+  if (c != numstr && (end = strchr(suffixes, tolower(*c)))) {
+    int shift = end-suffixes-2;
+
+    if (shift >= 0) {
+      if (toupper(*++c)=='d') do val *= 1000; while (shift--);
+      else val *= 1024LL<<(shift*10);
     }
   }
+  while (isspace(*c)) c++;
+  if (c==numstr || *c) error_exit("not integer: %s", numstr);
 
   return val;
 }
 
-long atolx_range(char *numstr, long low, long high)
+long long atolx_range(char *numstr, long long low, long long high)
 {
-  long val = atolx(numstr);
+  long long val = atolx(numstr);
 
-  if (val < low) error_exit("%ld < %ld", val, low);
-  if (val > high) error_exit("%ld > %ld", val, high);
+  if (val < low) error_exit("%lld < %lld", val, low);
+  if (val > high) error_exit("%lld > %lld", val, high);
 
   return val;
 }

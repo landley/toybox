@@ -216,6 +216,22 @@ usage), and avoiding unnecessary work makes code run faster. Smaller code
 also tends to run faster on modern hardware due to CPU cacheing: fitting your
 code into L1 cache is great, and staying in L2 cache is still pretty good.</p>
 
+<p>But a simple implementation is not always the smallest or fastest, and
+balancing simplicity vs the other goals can be difficult. For example, the
+atolx_range() function in lib/lib.c uses the always 64 bit "long long" type,
+which produces larger and slower code on 32 bit platforms and
+often assigned into smaller interger types. Although libc has parallel
+implementations for different data sizes (atoi, atol, atoll) we only
+used the largest, which can cover all cases.</p>
+
+<p>On the other hand, the "tail" command has two codepaths, one for seekable
+files and one for nonseekable files. Although the nonseekable case can handle
+all inputs (and is required when input comes from a pipe or similar, so cannot
+be removed), reading through multiple gigabytes of data to reach the end of
+seekable files was both a common case and hugely penalized by a nonseekable
+approach (half-minute wait vs instant results). This is one example
+where performance did outweigh simplicity of implementation.</p>
+
 <p><a href=http://www.joelonsoftware.com/articles/fog0000000069.html>Joel
 Spolsky argues against throwing code out and starting over</a>, and he has
 good points: an existing debugged codebase contains a huge amount of baked
@@ -242,6 +258,13 @@ the GNU tools were yet another rewrite intended for use in the stillborn
 "Hurd" project, BusyBox was still another rewrite, and more versions
 were written in Plan 9, uclinux, klibc, sash, sbase, s6, and of course
 android toolbox...) but maybe toybox can do a better job. :)</p>
+
+<p>As Antoine de St. Exupery (author of "The Little Prince" and an early
+aircraft designer) said, "Perfection is achieved, not when there
+is nothing left to add, but when there is nothing left to take away."
+And Ken Thompson (creator of Unix) said "One of my most productive
+days was throwing away 1000 lines of code." It's always possible to
+come up with a better way to do it.</p>
 
 <p>P.S.  How could I resist linking to an article about
 <a href=http://blog.outer-court.com/archive/2005-08-24-n14.html>why
