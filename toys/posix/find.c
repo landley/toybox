@@ -295,7 +295,7 @@ static int do_find(struct dirtree *new)
       if (check) not = !not;
       continue;
     // Mostly ignore NOP argument
-    } else if (!strcmp(s, "a") || !strcmp(s, "and")) {
+    } else if (!strcmp(s, "a") || !strcmp(s, "and") || !strcmp(s, "noleaf")) {
       if (not) goto error;
 
     } else if (!strcmp(s, "print") || !strcmp("print0", s)) {
