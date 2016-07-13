@@ -338,8 +338,8 @@ struct typography {
   // Numbers
   {"PID", 5, SLOT_pid}, {"PPID", 5, SLOT_ppid}, {"PRI", 3, SLOT_priority},
   {"NI", 3, SLOT_nice}, {"ADDR", 4+sizeof(long), SLOT_eip},
-  {"SZ", 5, SLOT_vsize}, {"RSS", 5, SLOT_rss}, {"PGID", 5, SLOT_pgrp},
-  {"VSZ", 6, SLOT_vsize}, {"MAJFL", 6, SLOT_majflt}, {"MINFL", 6, SLOT_minflt},
+  {"SZ", 5, SLOT_vsize}, {"RSS", 6, SLOT_rss}, {"PGID", 5, SLOT_pgrp},
+  {"VSZ", 7, SLOT_vsize}, {"MAJFL", 6, SLOT_majflt}, {"MINFL", 6, SLOT_minflt},
   {"PR", 2, SLOT_priority}, {"PSR", 3, SLOT_taskcpu},
   {"RTPRIO", 6, SLOT_rtprio}, {"SCH", 3, SLOT_policy}, {"CPU", 3, SLOT_taskcpu},
   {"TID", 5, SLOT_tid}, {"TCNT", 4, SLOT_tcount}, {"BIT", 3, SLOT_bits},
