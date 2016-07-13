@@ -297,7 +297,7 @@ long long atolx(char *numstr)
   long long val;
 
   val = xstrtol(numstr, &c, 0);
-  if (c != numstr && (end = strchr(suffixes, tolower(*c)))) {
+  if (c != numstr && *c && (end = strchr(suffixes, tolower(*c)))) {
     int shift = end-suffixes-2;
 
     if (shift >= 0) {
