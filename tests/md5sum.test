@@ -20,3 +20,11 @@ testing "5" "md5sum" "d174ab98d277d9f5a5611c2c9f419d9f  -\n" \
 testing "6" "md5sum" "57edf4a22be3c955ac49da2e2107b67a  -\n" \
   "" "12345678901234567890123456789012345678901234567890123456789012345678901234567890"
 
+echo -n "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" > "te st"
+touch empty
+testing "-c spaces" "md5sum -c input || echo ok" \
+  "te st: OK\nempty: FAILED\n-: OK\nok\n" \
+"$(printf "d174ab98d277d9f5a5611c2c9f419d9f te st\n12345678901234567890123456789012 empty\nd41d8cd98f00b204e9800998ecf8427e -\n")" ""
+rm "te st" empty
+
+testing "-c nolines" "md5sum -c input 2>/dev/null || echo ok" "ok\n" "" ""

@@ -8,38 +8,45 @@
  * They're combined this way to share infrastructure, and because md5sum is
  * and LSB standard command, sha1sum is just a good idea.
 
-USE_MD5SUM(NEWTOY(md5sum, "b", TOYFLAG_USR|TOYFLAG_BIN))
-USE_SHA1SUM(NEWTOY(sha1sum, "b", TOYFLAG_USR|TOYFLAG_BIN))
+USE_MD5SUM(NEWTOY(md5sum, "bc*[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SHA1SUM(NEWTOY(sha1sum, "bc*[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config MD5SUM
   bool "md5sum"
   default y
   help
-    usage: md5sum [FILE]...
+    usage: md5sum [-b] [-c FILE] [FILE]...
 
     Calculate md5 hash for each input file, reading from stdin if none.
     Output one hash (16 hex digits) for each input file, followed by
     filename.
 
     -b	brief (hash only, no filename)
+    -c	Check each line of FILE is the same hash+filename we'd output.
 
 config SHA1SUM
   bool "sha1sum"
   default y
   help
-    usage: sha1sum [FILE]...
+    usage: sha1sum [-b] [-c FILE] [FILE]...
 
     calculate sha1 hash for each input file, reading from stdin if none.
     Output one hash (20 hex digits) for each input file, followed by
     filename.
 
     -b	brief (hash only, no filename)
+    -c	Check each line of FILE is the same hash+filename we'd output.
 */
 
 #define FOR_md5sum
 #include "toys.h"
 
 GLOBALS(
+  struct arg_list *c;
+
+  int sawline;
+
+  // Crypto variables blanked after summing
   unsigned state[5];
   unsigned oldstate[5];
   uint64_t count;
@@ -228,18 +235,90 @@ static void do_hash(int fd, char *name)
 
   if (sha1)
     for (i = 0; i < 20; i++)
-      printf("%02x", 255&(TT.state[i>>2] >> ((3-(i & 3)) * 8)));
-  else for (i=0; i<4; i++) printf("%08x", bswap_32(TT.state[i]));
+      sprintf(toybuf+2*i, "%02x", 255&(TT.state[i>>2] >> ((3-(i & 3)) * 8)));
+  else for (i=0; i<4; i++) sprintf(toybuf+8*i, "%08x", bswap_32(TT.state[i]));
+
+  if (name)
+    printf((toys.optflags & FLAG_b) ? "%s\n" : "%s  %s\n", toybuf, name);
 
   // Wipe variables. Cryptographer paranoia.
-  memset(&TT, 0, sizeof(TT));
+  memset(TT.state, 0, sizeof(TT)-((long)TT.state-(long)&TT));
+  i = strlen(toybuf)+1;
+  memset(toybuf+i, 0, sizeof(toybuf)-i);
+}
 
-  printf((toys.optflags & FLAG_b) ? "\n" : "  %s\n", name);
+static int do_c(char *line, size_t len)
+{
+  int space = 0, fail = 0;
+  char *name;
+
+  for (name = line; *name; name++) {
+    if (isspace(*name)) {
+      space++;
+      *name = 0;
+    } else if (space) break;
+  }
+
+  if (!space || !*line || !*name) error_msg("bad line %s", line);
+  else {
+    int fd = !strcmp(name, "-") ? 0 : open(name, O_RDONLY);
+
+    TT.sawline = 1;
+    if (fd==-1) {
+      perror_msg_raw(name);
+      *toybuf = 0;
+    } else do_hash(fd, 0);
+    if (strcasecmp(line, toybuf)) toys.exitval = fail = 1;
+    printf("%s: %s\n", name, fail ? "FAILED" : "OK");
+    if (fd>0) close(fd);
+  }
+
+  return 0;
+}
+
+// Open file, read each line, and call do_line(). Returns 0 if file existed
+// and we read it to the end, 1 if interrupted by callback, 2 of didn't exist
+// do_line returns 0 to free line, 1 to keep line, 2 to end loop
+int looplines(char *name, int trim, int (*do_line)(char *line, size_t len))
+{
+  FILE *fp = !strcmp(name, "-") ? stdin : fopen(name, "r");
+  int rc = 0;
+
+  if (!fp) {
+    perror_msg_raw(name);
+
+    return 2;
+  }
+
+  for (;;) {
+    char *line = 0;
+    ssize_t len;
+
+    if ((len = getline(&line, (void *)&len, fp))<1) break;
+    if (line[len-1]=='\n') len--;
+    if (trim) line[len] = 0;
+    len = do_line(line, len);
+    if (!len) free(line);
+    if (len==2) {
+      rc = 2;
+      break;
+    }
+  }
+  if (fp!=stdin) fclose(fp);
+
+  return rc;
 }
 
 void md5sum_main(void)
 {
-  loopfiles(toys.optargs, do_hash);
+  struct arg_list *al;
+
+  if (!TT.c) loopfiles(toys.optargs, do_hash);
+  else for (al = TT.c; al; al = al->next) {
+    TT.sawline = 0;
+    looplines(al->arg, 1, do_c);
+    if (!TT.sawline) error_msg("%s: no lines", al->arg);
+  }
 }
 
 void sha1sum_main(void)
