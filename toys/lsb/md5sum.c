@@ -6,10 +6,19 @@
  * and http://www.ietf.org/rfc/rfc1321.txt
  *
  * They're combined this way to share infrastructure, and because md5sum is
- * and LSB standard command, sha1sum is just a good idea.
+ * and LSB standard command (but sha1sum and newer hashes are a good idea,
+ * see http://valerieaurora.org/hash.html).
+ *
+ * We optionally use openssl (or equivalent) to access assembly optimized
+ * versions of these functions, but provide a built-in version to reduce
+ * required dependencies.
 
 USE_MD5SUM(NEWTOY(md5sum, "bc*[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_SHA1SUM(NEWTOY(sha1sum, "bc*[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SHA224SUM(OLDTOY(sha224sum, sha1sum, TOYFLAG_USR|TOYFLAG_BIN))
+USE_SHA256SUM(OLDTOY(sha256sum, sha1sum, TOYFLAG_USR|TOYFLAG_BIN))
+USE_SHA384SUM(OLDTOY(sha384sum, sha1sum, TOYFLAG_USR|TOYFLAG_BIN))
+USE_SHA512SUM(OLDTOY(sha512sum, sha1sum, TOYFLAG_USR|TOYFLAG_BIN))
 
 config MD5SUM
   bool "md5sum"
@@ -18,8 +27,7 @@ config MD5SUM
     usage: md5sum [-b] [-c FILE] [FILE]...
 
     Calculate md5 hash for each input file, reading from stdin if none.
-    Output one hash (16 hex digits) for each input file, followed by
-    filename.
+    Output one hash (32 hex digits) for each input file, followed by filename.
 
     -b	brief (hash only, no filename)
     -c	Check each line of FILE is the same hash+filename we'd output.
@@ -28,18 +36,55 @@ config SHA1SUM
   bool "sha1sum"
   default y
   help
-    usage: sha1sum [-b] [-c FILE] [FILE]...
+    usage: sha?sum [-b] [-c FILE] [FILE]...
 
-    calculate sha1 hash for each input file, reading from stdin if none.
-    Output one hash (20 hex digits) for each input file, followed by
-    filename.
+    calculate sha hash for each input file, reading from stdin if none. Output
+    one hash (40 hex digits for sha1, 56 for sha224, 64 for sha256, 96 for sha384,
+    and 128 for sha512) for each input file, followed by filename.
 
     -b	brief (hash only, no filename)
     -c	Check each line of FILE is the same hash+filename we'd output.
+
+config SHA224SUM
+  bool "sha224sum"
+  default y
+  depends on TOYBOX_LIBCRYPTO
+  help
+    See sha1sum
+
+config SHA256SUM
+  bool "sha256sum"
+  default y
+  depends on TOYBOX_LIBCRYPTO
+  help
+    See sha1sum
+
+config SHA384SUM
+  bool "sha384sum"
+  default y
+  depends on TOYBOX_LIBCRYPTO
+  help
+    See sha1sum
+
+config SHA512SUM
+  bool "sha512sum"
+  default y
+  depends on TOYBOX_LIBCRYPTO
+  help
+    See sha1sum
 */
 
+#define FORCE_FLAGS
 #define FOR_md5sum
 #include "toys.h"
+
+#if CFG_TOYBOX_LIBCRYPTO
+#include <openssl/md5.h>
+#include <openssl/sha.h>
+#else
+typedef int MD5_CTX;
+typedef int SHA_CTX;
+#endif
 
 GLOBALS(
   struct arg_list *c;
@@ -192,12 +237,58 @@ static void hash_update(char *data, unsigned int len, void (*transform)(void))
   }
 }
 
+// Initialize array tersely
+#define HASH_INIT(name, prefix) { name, (void *)prefix##_Init, \
+  (void *)prefix##_Update, (void *)prefix##_Final, \
+  prefix##_DIGEST_LENGTH, }
+#define SHA1_DIGEST_LENGTH SHA_DIGEST_LENGTH
+
+// Call the assembly optimized library code when CFG_TOYBOX_LIBCRYPTO
+static void do_lib_hash(int fd, char *name)
+{
+  // Largest context
+  SHA512_CTX ctx;
+  struct hash {
+    char *name;
+    int (*init)(void *);
+    int (*update)(void *, void *, size_t);
+    int (*final)(void *, void *);
+    int digest_length;
+  } algorithms[] = {
+    USE_TOYBOX_LIBCRYPTO(
+      USE_MD5SUM(HASH_INIT("md5sum", MD5),)
+      USE_SHA1SUM(HASH_INIT("sha1sum", SHA1),)
+      USE_SHA224SUM(HASH_INIT("sha224sum", SHA224),)
+      USE_SHA256SUM(HASH_INIT("sha256sum", SHA256),)
+      USE_SHA384SUM(HASH_INIT("sha384sum", SHA384),)
+      USE_SHA512SUM(HASH_INIT("sha512sum", SHA512),)
+    )
+  }, * hash;
+  int i;
+
+  // This should never NOT match, so no need to check
+  for (i = 0; i<ARRAY_LEN(algorithms); i++)
+    if (!strcmp(toys.which->name, algorithms[i].name)) break;
+  hash = algorithms+i;
+
+  hash->init(&ctx);
+  for (;;) {
+      i = read(fd, toybuf, sizeof(toybuf));
+      if (i<1) break;
+      hash->update(&ctx, toybuf, i);
+  }
+  hash->final(toybuf+128, &ctx);
+
+  for (i = 0; i<hash->digest_length; i++)
+    sprintf(toybuf+2*i, "%02x", toybuf[i+128]);
+}
+
 // Callback for loopfiles()
 
-static void do_hash(int fd, char *name)
+static void do_builtin_hash(int fd, char *name)
 {
   uint64_t count;
-  int i, sha1=toys.which->name[0]=='s';;
+  int i, sha1=toys.which->name[0]=='s';
   char buf;
   void (*transform)(void);
 
@@ -238,13 +329,20 @@ static void do_hash(int fd, char *name)
       sprintf(toybuf+2*i, "%02x", 255&(TT.state[i>>2] >> ((3-(i & 3)) * 8)));
   else for (i=0; i<4; i++) sprintf(toybuf+8*i, "%08x", bswap_32(TT.state[i]));
 
-  if (name)
-    printf((toys.optflags & FLAG_b) ? "%s\n" : "%s  %s\n", toybuf, name);
-
   // Wipe variables. Cryptographer paranoia.
   memset(TT.state, 0, sizeof(TT)-((long)TT.state-(long)&TT));
   i = strlen(toybuf)+1;
   memset(toybuf+i, 0, sizeof(toybuf)-i);
+}
+
+// Call builtin or lib hash function, then display output if necessary
+static void do_hash(int fd, char *name)
+{
+  if (CFG_TOYBOX_LIBCRYPTO) do_lib_hash(fd, name);
+  else do_builtin_hash(fd,name);
+
+  if (name)
+    printf((toys.optflags & FLAG_b) ? "%s\n" : "%s  %s\n", toybuf, name);
 }
 
 static int do_c(char *line, size_t len)

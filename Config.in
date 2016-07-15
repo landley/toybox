@@ -62,6 +62,12 @@ config TOYBOX_SMACK
 
 endchoice
 
+config TOYBOX_LIBCRYPTO
+       bool "Use libcrypto (OpenSSL/BoringSSL)"
+       default n
+       help
+         Use faster hash functions out of exteral -lcrypto library.
+
 config TOYBOX_FLOAT
 	bool "Floating point support"
 	default y
