@@ -269,9 +269,7 @@ system/core/toolbox/Android.mk</a> the toolbox directory builds the
 following commands:</p>
 
 <blockquote><b>
-dd getevent
-newfs_msdos
-sendevent
+dd getevent newfs_msdos
 </b></blockquote>
 
 <p>The toolbox makefile also builds the BSD grep right now, because toybox
@@ -303,7 +301,6 @@ implementing the full commands (fdisk, init, and sudo) come first.</p>
 dd getevent init
 logcat logwrapper
 newfs_msdos reboot run-as
-sendevent
 </b></blockquote>
 
 <p>We may eventually implement all of that, but for toybox 1.0 we need to
@@ -315,8 +312,7 @@ for later).</p>
 <p>This means toybox should implement (or finish implementing):</p>
 <blockquote><b>
 <span id=toolbox>
-dd getevent logcat logwrapper
-newfs_msdos sendevent
+dd getevent logcat logwrapper newfs_msdos
 </span>
 </b></blockquote>
 
@@ -324,7 +320,7 @@ newfs_msdos sendevent
 of "pending". These should be a priority for cleanup:</p>
 
 <blockquote><b>
-dd expr lsof more netstat route tar tr traceroute
+dd expr lsof more tar tr traceroute
 </b></blockquote>
 
 <p>Android wishlist:</p>
