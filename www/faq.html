@@ -1,0 +1,42 @@
+<html><head><title>toybox news</title>
+<!--#include file="header.html" -->
+
+<h2>Q: "Why is there toybox? What was wrong with busybox?"</h2>
+
+<p>A: To answer the first part: Toybox dates back to when its maintainer
+<a href=https://lwn.net/Articles/202106/>handed off BusyBox maintainership</a>
+and <a href=http://landley.net/notes-2006.html#28-09-2006>started over from
+scratch</a> on a new codebase after a
+<a href=http://lists.busybox.net/pipermail/busybox/2006-September/058617.html>protracted licensing argument</a> took all the fun out of
+working on BusyBox. Toybox was just a personal project until it got
+<a href=https://lwn.net/Articles/478308/>relicensed years
+later</a> after its author did a lot of thinking
+<a href=http://landley.net/talks/ohio-2013.txt>about licenses</a>
+and about <a href=http://landley.net/notes-2011.html#21-03-2011>the
+transition to smartphones</a>. This led to the
+<a href=http://landley.net/talks/celf-2013.txt>2013</a>
+<a href=https://www.youtube.com/watch?v=SGmtP5Lg_t0>talk</a> laying
+out a strategy to make Android self-hosting, which helped
+<a href=https://code.google.com/p/android/issues/detail?id=76861>bring
+it to Android's attention</a>, and they
+<a href=https://lwn.net/Articles/629362/>merged it</a> into Android M.</p>
+
+<p>To answer the second part: BusyBox predates Android
+by almost a decade, but Android still doesn't ship with it because GPLv3 came
+out around the same time Android did and caused many people to throw
+out the GPLv2 baby with the GPLv3 bathwater.
+Android <a href=https://source.android.com/source/licenses.html>explicitly
+discourages</a> use of GPL and LGPL licenses in its products, and has gradually
+reimplemented historical GPL components such as its bluetooth stack under the
+Apache license. Similarly, Apple froze xcode at the last GPLv2 releases
+(GCC 4.2.1 with binutils 2.17) for over 5 years while it sponsored the
+development of new projects (clang/llvm/lld) to replace them,
+implemented its SMB server from scratch to replace samba,
+<a href=http://meta.ath0.com/2012/02/05/apples-great-gpl-purge/>and so
+on</a>. Toybox itself exists because somebody with in a legacy position
+just wouldn't shut up about GPLv3, otherwise its maintainer would probably
+still happily be maintaining BusyBox. (For more on how said maintainer wound
+up working on busybox in the first place,
+<a href=http://landley.net/aboriginal/history.html>see here</a>.)</p>
+
+<!--#include file="footer.html" -->
