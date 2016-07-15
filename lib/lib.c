@@ -570,7 +570,7 @@ void loopfiles_rw(char **argv, int flags, int permissions, int failok,
       continue;
     }
     function(fd, *argv);
-    if (flags & O_CLOEXEC) close(fd);
+    if ((flags & O_CLOEXEC) && fd) close(fd);
   } while (*++argv);
 }
 
