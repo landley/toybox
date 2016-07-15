@@ -82,8 +82,7 @@ config SHA512SUM
 #include <openssl/md5.h>
 #include <openssl/sha.h>
 #else
-typedef int MD5_CTX;
-typedef int SHA_CTX;
+typedef int SHA512_CTX;
 #endif
 
 GLOBALS(
