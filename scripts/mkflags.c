@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
 
   for (;;) {
     struct flag *flist, *aflist, *offlist;
-    char *mgaps;
+    char *mgaps = 0;
     unsigned bit;
 
     *command = *flags = *allflags = 0;
@@ -141,11 +141,13 @@ int main(int argc, char *argv[])
 
     bit = 0;
     printf("// %s %s %s\n", command, flags, allflags);
-    mgaps = mark_gaps(flags, allflags);
+    if (*flags != ' ') mgaps = mark_gaps(flags, allflags);
+    else if (*allflags != ' ') mgaps = allflags;
     // If command disabled, use allflags for OLDTOY()
-    printf("#undef OPTSTR_%s\n#define OPTSTR_%s \"%s\"\n",
-            command, command, strcmp(flags, " ") ? mgaps : allflags);
-    free(mgaps);
+    printf("#undef OPTSTR_%s\n#define OPTSTR_%s ", command, command);
+    if (mgaps) printf("\"%s\"\n", mgaps);
+    else printf("0\n");
+    if (mgaps != allflags) free(mgaps);
 
     flist = digest(flags);
     offlist = aflist = digest(allflags);
