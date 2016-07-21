@@ -2,26 +2,26 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-testing 'sed as cat' 'sed ""' "one\ntwo\nthree" "" "one\ntwo\nthree"
+testing 'as cat' 'sed ""' "one\ntwo\nthree" "" "one\ntwo\nthree"
 # This segfaults ubuntu 12.04's sed. No really.
 SKIP_HOST=1 testing 'sed - - twice' 'sed "" - -' "hello\n" "" "hello\n"
-testing 'sed -n' 'sed -n ""' "" "" "one\ntwo\nthree"
-testing 'sed -n p' 'sed -n p' "one\ntwo\nthree" "" "one\ntwo\nthree"
-testing 'sed explicit pattern' 'sed -e p -n' "one\ntwo\nthree" "" \
+testing '-n' 'sed -n ""' "" "" "one\ntwo\nthree"
+testing '-n p' 'sed -n p' "one\ntwo\nthree" "" "one\ntwo\nthree"
+testing 'explicit pattern' 'sed -e p -n' "one\ntwo\nthree" "" \
 	"one\ntwo\nthree"
 
 # Exploring the wonders of sed addressing modes
 testing '' 'sed -n 1p' "one\n" "" "one\ntwo\nthree"
 testing '' 'sed 2p' "one\ntwo\ntwo\nthree" "" "one\ntwo\nthree"
 testing '' 'sed -n 2p' "two\n" "" "one\ntwo\nthree"
-testing 'sed -n $p' 'sed -n \$p' "three" "" "one\ntwo\nthree"
-testing 'sed as cat #2' "sed -n '1,\$p'" "one\ntwo\nthree" "" "one\ntwo\nthree"
-testing 'sed no input means no last line' "sed '\$a boing'" "" "" ""
-testing 'sed -n $,$p' 'sed -n \$,\$p' 'three' '' 'one\ntwo\nthree'
+testing '-n $p' 'sed -n \$p' "three" "" "one\ntwo\nthree"
+testing 'as cat #2' "sed -n '1,\$p'" "one\ntwo\nthree" "" "one\ntwo\nthree"
+testing 'no input means no last line' "sed '\$a boing'" "" "" ""
+testing '-n $,$p' 'sed -n \$,\$p' 'three' '' 'one\ntwo\nthree'
 testing '' 'sed -n 1,2p' "one\ntwo\n" "" "one\ntwo\nthree"
 testing '' 'sed -n 2,3p' "two\nthree" "" "one\ntwo\nthree"
 testing '' 'sed -n 2,1p' "two\n" "" "one\ntwo\nthree"
-testing 'sed $ with 2 inputs' 'sed -n \$p - input' "four\n" "four\n" \
+testing '$ with 2 inputs' 'sed -n \$p - input' "four\n" "four\n" \
 	"one\ntwo\nthree"
 testing '' 'sed -n /two/p' "two\n" "" "one\ntwo\nthree"
 testing '' 'sed -n 1,/two/p' 'one\ntwo\n' '' 'one\ntwo\nthree'
@@ -33,36 +33,36 @@ testing 'sed -n /two/,$p' 'sed -n /two/,\$p' 'two\nthree' '' 'one\ntwo\nthree'
 
 # Fun with newlines!
 testing '' 'sed -n 3p' "three" "" "one\ntwo\nthree"
-testing 'sed prodigal newline' "sed -n '1,\$p' - input" \
+testing 'prodigal newline' "sed -n '1,\$p' - input" \
 	"one\ntwo\nthree\nfour\n" "four\n" "one\ntwo\nthree"
-testing 'sed Newline only added if further output' "sed -n 3p - input" "three" \
+testing 'Newline only added if further output' "sed -n 3p - input" "three" \
 	"four\n" "one\ntwo\nthree"
 
 # Fun with match delimiters and escapes
-testing 'sed match \t tab' "sed -n '/\t/p'" "\tx\n" "" "\tx\n"
-testing 'sed match t delim disables \t tab' "sed -n '\t\txtp'" "" "" "\tx\n"
-testing 'sed match t delim makes \t literal t' \
+testing 'match \t tab' "sed -n '/\t/p'" "\tx\n" "" "\tx\n"
+testing 'match t delim disables \t tab' "sed -n '\t\txtp'" "" "" "\tx\n"
+testing 'match t delim makes \t literal t' \
 	"sed -n '\t\txtp'" "tx\n" "" "tx\n"
-testing 'sed match n delim' "sed -n '\n\txnp'" "\tx\n" "" "\tx\n"
-testing 'sed match n delim disables \n newline' "sed -n '\n\nxnp'" "" "" "\nx\n"
-SKIP_HOST=1 testing 'sed match \n literal n' "sed -n '\n\nxnp'" "nx\n" "" "nx\n"
-testing 'sed end match does not check starting match line' \
+testing 'match n delim' "sed -n '\n\txnp'" "\tx\n" "" "\tx\n"
+testing 'match n delim disables \n newline' "sed -n '\n\nxnp'" "" "" "\nx\n"
+SKIP_HOST=1 testing 'match \n literal n' "sed -n '\n\nxnp'" "nx\n" "" "nx\n"
+testing 'end match does not check starting match line' \
 	"sed -n '/two/,/two/p'" "two\nthree" "" "one\ntwo\nthree"
-testing 'sed end match/start match mixing number/letter' \
+testing 'end match/start match mixing number/letter' \
 	"sed -n '2,/two/p'" "two\nthree" "" "one\ntwo\nthree"
-testing 'sed num then regex' 'sed -n 2,/d/p' 'b\nc\nd\n' '' 'a\nb\nc\nd\ne\nf\n'
-testing 'sed regex then num' 'sed -n /b/,4p' 'b\nc\nd\n' '' 'a\nb\nc\nd\ne\nf\n'
-testing 'sed multiple regex address match' 'sed -n /on/,/off/p' \
+testing 'num then regex' 'sed -n 2,/d/p' 'b\nc\nd\n' '' 'a\nb\nc\nd\ne\nf\n'
+testing 'regex then num' 'sed -n /b/,4p' 'b\nc\nd\n' '' 'a\nb\nc\nd\ne\nf\n'
+testing 'multiple regex address match' 'sed -n /on/,/off/p' \
 	'bone\nturtle\scoff\ntron\nlurid\noffer\n'  "" \
 	'zap\nbone\nturtle\scoff\nfred\ntron\nlurid\noffer\nbecause\n'
-testing 'sed regex address overlap' 'sed -n /on/,/off/p' "on\nzap\noffon\n" "" \
+testing 'regex address overlap' 'sed -n /on/,/off/p' "on\nzap\noffon\n" "" \
 	'on\nzap\noffon\nping\noff\n'
 
 # gGhHlnNpPqrstwxy:=
 # s///#comment
 # abcdDi
 
-testing 'sed prodigaler newline' 'sed -e a\\ -e woo' 'one\nwoo\n' '' 'one'
+testing 'prodigaler newline' 'sed -e a\\ -e woo' 'one\nwoo\n' '' 'one'
 testing "aci" \
 	"sed -e '3a boom' -e '/hre/i bang' -e '3a whack' -e '3c bong'" \
 	"one\ntwo\nbang\nbong\nboom\nwhack\nfour\n" "" \
@@ -81,7 +81,7 @@ SKIP_HOST=1 testing "c empty continuation" "sed -e 'c\\'" "\n" "" "hello"
 testing "D further processing depends on whether line is blank" \
 	"sed -e '/one/,/three/{' -e 'i meep' -e'N;2D;}'" \
 	"meep\nmeep\ntwo\nthree\n" "" "one\ntwo\nthree\n"
-testing 'sed newline staying away' 'sed s/o/x/' 'xne\ntwx' '' 'one\ntwo'
+testing 'newline staying away' 'sed s/o/x/' 'xne\ntwx' '' 'one\ntwo'
 
 # Why on _earth_ is this not an error? There's a \ with no continuation!
 #testing 'sed what, _really_?' 'sed -e a\\ && echo yes really' \
@@ -91,27 +91,27 @@ testing 'sed newline staying away' 'sed s/o/x/' 'xne\ntwx' '' 'one\ntwo'
 
 testing "match empty line" "sed -e 's/^\$/@/'" "@\n" "" "\n"
 
-testing 'sed \1' "sed 's/t\\(w\\)o/za\\1py/'" "one\nzawpy\nthree" "" \
+testing '\1' "sed 's/t\\(w\\)o/za\\1py/'" "one\nzawpy\nthree" "" \
 	"one\ntwo\nthree"
-testing 'sed \1 p' "sed 's/t\\(w\\)o/za\\1py/p'" "one\nzawpy\nzawpy\nthree" \
+testing '\1 p' "sed 's/t\\(w\\)o/za\\1py/p'" "one\nzawpy\nzawpy\nthree" \
 	"" "one\ntwo\nthree"
-testing 'sed \1 no newline' "sed 's/t\\(w\\)o/za\\1py/'" "one\nzawpy" "" \
+testing '\1 no newline' "sed 's/t\\(w\\)o/za\\1py/'" "one\nzawpy" "" \
 	"one\ntwo"
-testing 'sed \1 p no newline' "sed 's/t\\(w\\)o/za\\1py/p'" \
+testing '\1 p no newline' "sed 's/t\\(w\\)o/za\\1py/p'" \
 	"one\nzawpy\nzawpy" "" "one\ntwo"
-testing 'sed -n s//\1/p' "sed -n 's/t\\(w\\)o/za\\1py/p'" "zawpy" "" "one\ntwo"
-testing 'sed -n s//\1/p no newline' "sed -n 's/t\\(w\\)o/za\\1py/p'" "zawpy" \
+testing '-n s//\1/p' "sed -n 's/t\\(w\\)o/za\\1py/p'" "zawpy" "" "one\ntwo"
+testing '-n s//\1/p no newline' "sed -n 's/t\\(w\\)o/za\\1py/p'" "zawpy" \
 	"" "one\ntwo"
-testing 'sed backref error' \
+testing 'backref error' \
 	"sed 's/w/ale \2 ha/' >/dev/null 2>/dev/null || echo no" \
 	"no\n" "" "one\ntwo\nthree"
-testing 'sed empty match after nonempty match' "sed -e 's/a*/c/g'" 'cbcncgc' \
+testing 'empty match after nonempty match' "sed -e 's/a*/c/g'" 'cbcncgc' \
 	'' 'baaang'
-testing 'sed empty match' "sed -e 's/[^ac]*/A/g'" 'AaAcA' '' 'abcde'
-testing 'sed s///#comment' "sed -e 's/TWO/four/i#comment'" "one\nfour\nthree" \
+testing 'empty match' "sed -e 's/[^ac]*/A/g'" 'AaAcA' '' 'abcde'
+testing 's///#comment' "sed -e 's/TWO/four/i#comment'" "one\nfour\nthree" \
 	"" "one\ntwo\nthree"
 
-testing 'sed N flushes pending a and advances match counter' \
+testing 'N flushes pending a and advances match counter' \
 	"sed -e 'a woo' -e 'N;\$p'" 'woo\none\ntwo\none\ntwo' "" 'one\ntwo'
 testing "delimiter in regex [char range] doesn't count" "sed -e 's/[/]//'" \
 	"onetwo\n" "" 'one/two\n'
