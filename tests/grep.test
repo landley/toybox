@@ -109,3 +109,37 @@ testing "-C" "grep -C 1 yes" \
 testing "-HnC" "grep -HnC1 two" \
   "(standard input)-1-one\n(standard input):2:two\n(standard input)-3-three\n" \
   "" "one\ntwo\nthree"
+
+# Context lines weren't showing -b
+testing "-HnbB1" "grep -HnbB1 f input" \
+  "input-3-8-three\ninput:4:14:four\ninput:5:19:five\n" \
+  "one\ntwo\nthree\nfour\nfive\n" ""
+
+testing "-q match overrides error" \
+  "grep -q hello missing input 2>/dev/null && echo yes" "yes\n" "hello\n" ""
+testing "-q not found is 1" \
+  'grep -q hello input || echo $?' "1\n" "" ""
+testing "-q missing is 2" \
+  'grep -q hello missing missing 2>/dev/null || echo $?' "2\n" "" ""
+testing "-q missing survives exists but not found" \
+  'grep -q hello missing missing input 2>/dev/null || echo $?' "2\n" "" ""
+testing "not found retained past match" \
+  'grep hello missing input 2>/dev/null || echo $?' \
+  "input:hello\n2\n" "hello\n" ""
+touch empty
+testing "one match good enough for 0" \
+  'grep hello input empty && echo $?' 'input:hello\n0\n' 'hello\n' ''
+rm empty
+
+testing "-o ''" "grep -o ''" "" "" "one two three\none two\none\n"
+testing '' "grep -o -e '' -e two" "two\ntwo\n" "" \
+  "one two three\none two\none\n"
+
+echo "one\ntwo\nthree" > test
+testing "-l trumps -C" "grep -l -C1 two test input" "test\ninput\n" \
+  "three\ntwo\none\n" ""
+rm test
+
+# match after NUL byte
+testing "match after NUL byte" "grep -a two" "one\0and two three\n" \
+  "" 'one\0and two three'
