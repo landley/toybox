@@ -635,8 +635,6 @@ writenow:
   if (line && !(toys.optflags & FLAG_n)) emit(line, len, eol);
 
 done:
-  free(line);
-
   if (dlist_terminate(append)) while (append) {
     struct append *a = append->next;
 
@@ -655,6 +653,7 @@ done:
     free(append);
     append = a;
   }
+  free(line);
 }
 
 // Genericish function, can probably get moved to lib.c
