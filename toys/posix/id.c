@@ -73,7 +73,8 @@ static void s_or_u(char *s, unsigned u, int done)
   else printf("%u", u);
   if (done) {
     xputc('\n');
-    exit(0);
+    toys.exitval = 0;
+    xexit();
   }
 }
 
@@ -143,7 +144,8 @@ static void do_id(char *username)
     }
     if (toys.optflags&FLAG_G) {
       xputc('\n');
-      exit(0);
+      toys.exitval = 0;
+      xexit();
     }
   }
 
