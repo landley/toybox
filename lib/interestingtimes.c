@@ -1,6 +1,7 @@
 /* interestingtimes.c - cursor control
  *
  * Copyright 2015 Rob Landley <rob@landley.net>
+ * Copyright 2016 Toni Spets <toni.spets@iki.fi>
  */
 
 #include "toys.h"
@@ -240,4 +241,99 @@ void tty_sigreset(int i)
 {
   tty_reset();
   _exit(i ? 128+i : 0);
+}
+
+// at minimum, this allocates 16 kB of memory for buffers
+struct screen *scr_init(void)
+{
+  struct screen *scr = xzalloc(sizeof(struct screen));
+
+  scr->w = 80;
+  scr->h = 25;
+  terminal_probesize(&scr->w, &scr->h);
+  scr->l = scr->w * 4;
+
+  scr->buf[0] = xzalloc(scr->l * scr->h);
+  scr->buf[1] = xzalloc(scr->l * scr->h);
+
+  tty_esc("0m");
+  tty_esc("2J");
+  xset_terminal(1, 1, 0);
+  sigatexit(tty_sigreset);
+
+  return scr;
+}
+
+static inline char *scr_linediff(char *from, char *to, size_t len, unsigned lnum)
+{
+  unsigned i, from_len, to_len;
+  int p;
+
+  for (from_len = 0; from_len < len && from[from_len]; from_len++);
+  for (to_len = 0; to_len < len && to[to_len]; to_len++);
+
+  if (memcmp(from, to, to_len) == 0) {
+    if (from_len == to_len)
+      return NULL;
+
+    sprintf(libbuf, "\033[%u;%uH\033[K", lnum, to_len + 1);
+    return libbuf;
+  }
+
+  *libbuf = 0;
+  p = -1;
+
+  for (i = 0; i <= to_len; i++) {
+    if (i == to_len || (i < from_len && from[i] == to[i])) {
+      if (p == -1) continue;
+
+      sprintf(libbuf + strlen(libbuf), "\033[%u;%uH%.*s", lnum, p + 1, i - p, to + p);
+
+      if (i == to_len && from_len > to_len)
+        strcat(libbuf, "\033[K");
+
+      p = -1;
+    } else if (p == -1) {
+      p = i;
+    }
+  }
+
+  // handle complicated diff being larger than the actual line
+  if (strlen(libbuf) > to_len + 9)
+    sprintf(libbuf, "\033[%u;1H\033[2K%.*s", lnum, to_len, to);
+
+  return libbuf;
+}
+
+void scr_update(struct screen *scr)
+{
+  unsigned i, modified = 0;
+
+  // diff and update screen
+  for (i = 0; i < scr->h; i++) {
+    char *line = scr_linediff(scr->buf[1] + (scr->l * i),
+                              scr->buf[0] + (scr->l * i),
+                              scr->l,
+                              i + 1);
+
+    if (!line) continue; // identical
+
+    if (!modified) {
+      tty_esc("s"); // save cursor
+      modified = 1;
+    }
+
+    printf("%s", line);
+  }
+
+  if (modified) tty_esc("u"); // restore cursor
+
+  // swap buffers
+  if (modified) {
+    void *tmp = scr->buf[0];
+    scr->buf[0] = scr->buf[1];
+    scr->buf[1] = tmp;
+  }
+
+  fflush(stdout);
 }

@@ -260,6 +260,16 @@ void tty_jump(int x, int y);
 void tty_reset(void);
 void tty_sigreset(int i);
 
+struct screen {
+  unsigned w;
+  unsigned h;
+  unsigned l;
+  char *buf[2];
+};
+#define SCR_PTR(scr) (scr->buf[0])
+struct screen *scr_init(void);
+void scr_update(struct screen *scr);
+
 // net.c
 int xsocket(int domain, int type, int protocol);
 void xsetsockopt(int fd, int level, int opt, void *val, socklen_t len);
