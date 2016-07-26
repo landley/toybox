@@ -269,6 +269,7 @@ struct screen {
 #define SCR_PTR(scr) (scr->buf[0])
 struct screen *scr_init(void);
 void scr_update(struct screen *scr);
+void scr_printf(struct screen *scr, unsigned x, unsigned y, const char *fmt, ...);
 
 // net.c
 int xsocket(int domain, int type, int protocol);

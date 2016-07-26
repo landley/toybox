@@ -264,6 +264,7 @@ struct screen *scr_init(void)
   return scr;
 }
 
+// TODO: make ANSI escape and UTF-8 aware
 static inline char *scr_linediff(char *from, char *to, size_t len, unsigned lnum)
 {
   unsigned i, from_len, to_len;
@@ -336,4 +337,16 @@ void scr_update(struct screen *scr)
   }
 
   fflush(stdout);
+}
+
+// TODO: make ANSI escape and UTF-8 aware (x offset & total visible length)
+void scr_printf(struct screen *scr, unsigned x, unsigned y, const char *fmt, ...)
+{
+  va_list va;
+
+  if (x >= scr->w || y >= scr->h) return;
+
+  va_start(va, fmt);
+  vsnprintf(SCR_PTR(scr) + (scr->l * y), scr->l - x, fmt, va);
+  va_end(va);
 }

@@ -28,27 +28,23 @@ GLOBALS(
 
 static void redraw(void)
 {
-  unsigned i;
+  unsigned y;
 
-  for (i = 0; i < TT.scr->h - 1; i++) {
-    char *row = SCR_PTR(TT.scr) + (TT.scr->l * i);
-    int len = (int)TT.ls->idx[i + TT.y_off].len - TT.x_off;
-    if (len > TT.scr->l) len = TT.scr->l;
-
-    if (i + TT.y_off < TT.ls->len) {
-      if (TT.x_off < TT.ls->idx[i + TT.y_off].len) {
-        memcpy(row, (char *)TT.ls->idx[i + TT.y_off].ptr + TT.x_off, len);
-        row[len] = 0;
+  for (y = 0; y < TT.scr->h - 1; y++) {
+    if (y + TT.y_off < TT.ls->len) {
+      if (TT.x_off < TT.ls->idx[y + TT.y_off].len) {
+        scr_printf(TT.scr, 0, y, "%.*s",
+                   TT.ls->idx[y + TT.y_off].len - TT.x_off,
+                   (char *)TT.ls->idx[y + TT.y_off].ptr + TT.x_off);
       } else {
-        *row = 0;
+        scr_printf(TT.scr, 0, y, "");
       }
     } else {
-      memcpy(row, "~\0", 2);
+      scr_printf(TT.scr, 0, y, "~");
     }
   }
 
-  strncpy(SCR_PTR(TT.scr) + (TT.scr->l * (TT.scr->h - 1)), toybuf, TT.scr->l);
-
+  scr_printf(TT.scr, 0, TT.scr->h - 1, toybuf);
   scr_update(TT.scr);
 }
 
