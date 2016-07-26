@@ -219,41 +219,6 @@ static int emit(char *line, long len, int eol)
   return 0;
 }
 
-// Do regex matching handling embedded NUL bytes in string. Note that
-// neither the pattern nor the match can currently include NUL bytes
-// (even with wildcards) and string must be null terminated at string[len].
-// But this can find a match after the first NUL.
-static int regex_null(regex_t *preg, char *string, long len, int nmatch,
-  regmatch_t pmatch[], int eflags)
-{
-  char *s = string;
-
-  for (;;) {
-    long ll = 0;
-    int rc;
-
-    while (len && !*s) {
-      s++;
-      len--;
-    }
-    while (s[ll] && ll<len) ll++;
-
-    rc = regexec(preg, s, nmatch, pmatch, eflags);
-    if (!rc) {
-      for (rc = 0; rc<nmatch && pmatch[rc].rm_so!=-1; rc++) {
-        pmatch[rc].rm_so += s-string;
-        pmatch[rc].rm_eo += s-string;
-      }
-          
-      return 0;
-    }
-    if (ll==len) return rc;
-
-    s += ll;
-    len -= ll;
-  }
-}
-
 // Extend allocation to include new string, with newline between if newlen<0
 
 static char *extend_string(char **old, char *new, int oldlen, int newlen)
@@ -330,7 +295,7 @@ static void process_line(char **pline, long plen)
             void *rm = get_regex(command, command->rmatch[1]);
 
             // regex match end includes matching line, so defer deactivation
-            if (line && !regex_null(rm, line, len, 0, 0, 0)) miss = 1;
+            if (line && !regexec0(rm, line, len, 0, 0, 0)) miss = 1;
           }
         } else if (lm > 0 && lm < TT.count) command->hit = 0;
 
@@ -339,7 +304,7 @@ static void process_line(char **pline, long plen)
         if (!(lm = *command->lmatch)) {
           void *rm = get_regex(command, *command->rmatch);
 
-          if (line && !regex_null(rm, line, len, 0, 0, 0)) command->hit++;
+          if (line && !regexec0(rm, line, len, 0, 0, 0)) command->hit++;
         } else if (lm == TT.count || (lm == -1 && !pline)) command->hit++;
 
         if (!command->lmatch[1] && !command->rmatch[1]) miss = 1;
@@ -501,7 +466,7 @@ static void process_line(char **pline, long plen)
       int mflags = 0, count = 0, zmatch = 1, rlen = len, mlen, off, newlen;
 
       // Find match in remaining line (up to remaining len)
-      while (!regex_null(reg, rline, rlen, 10, match, mflags)) {
+      while (!regexec0(reg, rline, rlen, 10, match, mflags)) {
         mflags = REG_NOTBOL;
 
         // Zero length matches don't count immediately after a previous match
