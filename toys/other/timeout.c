@@ -39,7 +39,8 @@ GLOBALS(
 
 static void handler(int i)
 {
-  fprintf(stderr, "timeout pid %d signal %d\n", TT.pid, TT.nextsig);
+  if (toys.optflags & FLAG_v)
+    fprintf(stderr, "timeout pid %d signal %d\n", TT.pid, TT.nextsig);
   kill(TT.pid, TT.nextsig);
   
   if (TT.k_timeout) {
