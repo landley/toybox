@@ -97,7 +97,7 @@ void touch_main(void)
 
     errno = 0;
     ts->tv_sec = mktime(&tm);
-    if (!s || *s || errno == EOVERFLOW) perror_exit("bad '%s'", date);
+    if (!s || *s || ts->tv_sec == -1) perror_exit("bad '%s'", date);
   }
   ts[1]=ts[0];
 
