@@ -4,7 +4,7 @@
  *
  * TODO sigwinch
 
-USE_TEST_SCANKEY(NEWTOY(test_scankey, 0, 0))
+USE_TEST_SCANKEY(NEWTOY(test_scankey, 0, TOYFLAG_BIN))
 
 config TEST_SCANKEY
   bool "test_scankey"

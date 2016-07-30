@@ -2,7 +2,7 @@
  *
  * Copyright 2015 Rob Landley <rob@landley.net>
 
-USE_TEST_HUMAN_READABLE(NEWTOY(test_human_readable, "<1>1ibs", 0))
+USE_TEST_HUMAN_READABLE(NEWTOY(test_human_readable, "<1>1ibs", TOYFLAG_BIN))
 
 config TEST_HUMAN_READABLE
   bool "test_human_readable"

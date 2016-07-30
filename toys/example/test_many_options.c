@@ -2,7 +2,7 @@
  *
  * Copyright 2015 Rob Landley <rob@landley.net>
 
-USE_TEST_MANY_OPTIONS(NEWTOY(test_many_options, "ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TEST_MANY_OPTIONS(NEWTOY(test_many_options, "ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba", TOYFLAG_BIN))
 
 config TEST_MANY_OPTIONS
   bool "test_many_options"
