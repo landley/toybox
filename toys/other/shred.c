@@ -42,7 +42,7 @@ void shred_main(void)
   char **try;
 
   if (!(toys.optflags & FLAG_n)) TT.iterations++;
-  TT.ufd = xopen("/dev/urandom", O_RDONLY);
+  TT.ufd = xopenro("/dev/urandom");
 
   // We don't use loopfiles() here because "-" isn't stdin, and want to
   // respond to files we can't open via chmod.

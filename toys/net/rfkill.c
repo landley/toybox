@@ -80,7 +80,7 @@ void rfkill_main(void)
         continue;
 
       sprintf(toybuf, "/sys/class/rfkill/rfkill%u/uevent", rfevent.idx);
-      tvar = xopen(toybuf, O_RDONLY);
+      tvar = xopenro(toybuf);
       while ((line = get_line(tvar))) {
         char *s = line;
 

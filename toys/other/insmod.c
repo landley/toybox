@@ -25,7 +25,7 @@ config INSMOD
 
 void insmod_main(void)
 {
-  int fd = !strcmp(*toys.optargs, "-") ? 0 : xopen(*toys.optargs, O_RDONLY);
+  int fd = xopenro(*toys.optargs);
   int i, rc;
 
   i = 1;

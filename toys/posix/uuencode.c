@@ -26,7 +26,7 @@ void uuencode_main(void)
 
   int i, m = toys.optflags & FLAG_m, fd = 0;
 
-  if (toys.optc > 1) fd = xopen(toys.optargs[0], O_RDONLY);
+  if (toys.optc > 1) fd = xopenro(toys.optargs[0]);
 
   base64_init(toybuf);
 

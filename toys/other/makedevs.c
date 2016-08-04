@@ -47,7 +47,7 @@ void makedevs_main()
   // Open file and chdir, verbosely
   xprintf("rootdir = %s\n", *toys.optargs);
   if (toys.optflags & FLAG_d && strcmp(TT.fname, "-")) {
-    fd = xopen(TT.fname, O_RDONLY);
+    fd = xopenro(TT.fname);
     xprintf("table = %s\n", TT.fname);
   } else xprintf("table = <stdin>\n");
   xchdir(*toys.optargs);

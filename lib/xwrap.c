@@ -318,17 +318,18 @@ void xunlink(char *path)
 }
 
 // Die unless we can open/create a file, returning file descriptor.
-int xcreate(char *path, int flags, int mode)
+int xcreate_stdio(char *path, int flags, int mode)
 {
   int fd = open(path, flags^O_CLOEXEC, mode);
+
   if (fd == -1) perror_exit_raw(path);
   return fd;
 }
 
 // Die unless we can open a file, returning file descriptor.
-int xopen(char *path, int flags)
+int xopen_stdio(char *path, int flags)
 {
-  return xcreate(path, flags, 0);
+  return xcreate_stdio(path, flags, 0);
 }
 
 void xpipe(int *pp)
@@ -348,6 +349,41 @@ int xdup(int fd)
     if (fd == -1) perror_exit("xdup");
   }
   return fd;
+}
+
+// Move file descriptor above stdin/stdout/stderr, using /dev/null to consume
+// old one. (We should never be called with stdin/stdout/stderr closed, but...)
+int notstdio(int fd)
+{
+  while (fd<3) {
+    int fd2 = xdup(fd);
+
+    close(fd);
+    xopen_stdio("/dev/null", O_RDWR);
+    fd = fd2;
+  }
+
+  return fd;
+}
+
+// Create a file but don't return stdin/stdout/stderr
+int xcreate(char *path, int flags, int mode)
+{
+  return notstdio(xcreate_stdio(path, flags, mode));
+}
+
+// Open a file descriptor NOT in stdin/stdout/stderr
+int xopen(char *path, int flags)
+{
+  return notstdio(xopen_stdio(path, flags));
+}
+
+// Open read only, treating "-" as a synonym for stdin.
+int xopenro(char *path)
+{
+  if (!strcmp(path, "-")) return 0;
+
+  return xopen(path, O_RDONLY);
 }
 
 FILE *xfdopen(int fd, char *mode)

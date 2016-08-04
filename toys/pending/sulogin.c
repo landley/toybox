@@ -88,7 +88,7 @@ void sulogin_main(void)
   if (toys.optargs[0]) {
     int fd;
 
-    dup2((fd = xopen(toys.optargs[0], O_RDWR)), 0);
+    dup2((fd = xopen_stdin(toys.optargs[0], O_RDWR)), 0);
     if (!isatty(0)) error_exit("%s: it is not a tty", toys.optargs[0]);
     dup2( fd, 1);
     dup2( fd, 2);

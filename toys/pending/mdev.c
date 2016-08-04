@@ -40,8 +40,8 @@ static void make_device(char *path)
   gid_t gid = 0;
 
   if (path) {
-    // Try to read major/minor string
 
+    // Try to read major/minor string, returning if we can't
     temp = strrchr(path, '/');
     fd = open(path, O_RDONLY);
     *temp = 0;

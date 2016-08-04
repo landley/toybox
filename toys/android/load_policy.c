@@ -19,14 +19,13 @@ config LOAD_POLICY
 
 void load_policy_main(void)
 {
-  char *path = *toys.optargs;
-  int fd = xopen(path, O_RDONLY);
+  int fd = xopenro(*toys.optargs);
   off_t policy_len = fdlength(fd);
   char *policy_data = mmap(0, policy_len, PROT_READ, MAP_PRIVATE, fd, 0);
 
   close(fd);
   if (!policy_data || security_load_policy(policy_data, policy_len) < 0)
-    perror_exit("Couldn't %s %s", policy_data ? "load" : "read", path);
+    perror_exit("Couldn't %s %s", policy_data ? "load" : "read", *toys.optargs);
 
   munmap(policy_data, policy_len);
 }

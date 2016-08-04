@@ -1008,7 +1008,7 @@ int qstrcmp(const void *a, const void *b)
 void create_uuid(char *uuid)
 {
   // Read 128 random bits
-  int fd = xopen("/dev/urandom", O_RDONLY);
+  int fd = xopenro("/dev/urandom");
   xreadall(fd, uuid, 16);
   close(fd);
 

@@ -367,7 +367,9 @@ static int ins_mod(char *modules, char *flags)
 {
   char *buf = NULL;
   int len, res;
-  int fd = xopen(modules, O_RDONLY);
+  int fd = xopenro(modules);
+
+  // TODO xreadfile()
 
   len = fdlength(fd);
   buf = xmalloc(len);

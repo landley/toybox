@@ -79,10 +79,11 @@ static void loginfo(uint8_t loglevel, char *msg, ...)
 
     if (!TT.flagd && TT.logfile) {
       int fd = open(TT.logfile, O_WRONLY | O_CREAT | O_APPEND, 0666);
-      if (fd >=0 && fd != 2) {
+      if (fd==-1) perror_msg("'%s", TT.logfile);
+      else {
         dup2(fd, 2);
         close(fd);
-      } else if (fd < 0) perror_msg("'%s", TT.logfile);
+      }
     }
     used = vsnprintf(NULL, 0, msg, d);
     smsg = xzalloc(++used);

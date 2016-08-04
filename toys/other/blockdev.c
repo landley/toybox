@@ -46,7 +46,7 @@ void blockdev_main(void)
   if (!toys.optflags) help_exit("need --option");
 
   for (ss = toys.optargs;  *ss; ss++) {
-    int fd = xopen(*ss, O_RDONLY), i;
+    int fd = xopenro(*ss), i;
 
     // Command line order discarded so perform multiple operations in flag order
     for (i = 0; i < 32; i++) {

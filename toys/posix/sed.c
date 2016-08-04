@@ -1026,8 +1026,7 @@ void sed_main(void)
   // so handle all -e, then all -f. (At least the behavior's consistent.)
 
   for (al = TT.e; al; al = al->next) parse_pattern(&al->arg, strlen(al->arg));
-  for (al = TT.f; al; al = al->next)
-    do_lines(strcmp(al->arg, "-") ? xopen(al->arg, O_RDONLY) : 0,parse_pattern);
+  for (al = TT.f; al; al = al->next) do_lines(xopenro(al->arg), parse_pattern);
   parse_pattern(0, 0);
   dlist_terminate(TT.pattern);
   if (TT.nextlen) error_exit("no }");  

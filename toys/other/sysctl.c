@@ -50,7 +50,7 @@ static void key_error(char *key)
 
 static int write_key(char *path, char *key, char *value)
 {
-  int fd = open(path, O_WRONLY);;
+  int fd = open(path, O_WRONLY);
 
   if (fd < 0) {
     key_error(key);

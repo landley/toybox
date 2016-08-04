@@ -24,7 +24,7 @@ int get_salt(char *salt, char *algo)
       if (al[i].id) s += sprintf(s, "$%c$", '0'+al[i].id);
 
       // Read appropriate number of random bytes for salt
-      i = xopen("/dev/urandom", O_RDONLY);
+      i = xopenro("/dev/urandom");
       xreadall(i, libbuf, ((len*6)+7)/8);
       close(i);
 

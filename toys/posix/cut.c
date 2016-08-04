@@ -77,13 +77,13 @@ static void parse_list(char *list)
     if (!ctoken) break;
     if (!*ctoken) continue;
 
-    //Get start position.
+    // Get start position.
     if (*(dtoken = strsep(&ctoken, "-"))) {
       start = atolx_range(dtoken, 0, INT_MAX);
       start = (start?(start-1):start);
     }
 
-    //Get end position.
+    // Get end position.
     if (!ctoken) end = -1; //case e.g. 1,2,3
     else if (*ctoken) {//case e.g. N-M
       end = atolx_range(ctoken, 0, INT_MAX);
@@ -94,7 +94,7 @@ static void parse_list(char *list)
     add_to_list(start, end);
     TT.nelem++;
   }
-  //if list is missing in command line.
+  // if list is missing in command line.
   if (!TT.nelem) error_exit("missing positions list");
 }
 
@@ -112,7 +112,7 @@ static void get_data(void)
       if(strcmp(*argv, "-") == 0) TT.do_cut(0); //for stdin
       else {
         int fd = open(*argv, O_RDONLY, 0);
-        if(fd < 0) {//if file not present then continue with other files.
+        if (fd < 0) {//if file not present then continue with other files.
           perror_msg_raw(*argv);
           continue;
         }

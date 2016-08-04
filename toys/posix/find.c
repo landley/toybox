@@ -454,7 +454,7 @@ static int do_find(struct dirtree *new)
           ss += len;
           aa->arglen = len;
           aa->dir = !!strchr(s, 'd');
-          if (TT.topdir == -1) TT.topdir = xopen(".", 0);
+          if (TT.topdir == -1) TT.topdir = xopenro(".");
 
         // collect names and execute commands
         } else {

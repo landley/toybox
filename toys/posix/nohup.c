@@ -36,7 +36,7 @@ void nohup_main(void)
   }
   if (isatty(0)) {
     close(0);
-    open("/dev/null", O_RDONLY);
+    xopen_stdio("/dev/null", O_RDONLY);
   }
   xexec(toys.optargs);
 }

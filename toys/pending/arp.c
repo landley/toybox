@@ -245,7 +245,7 @@ void arp_main(void)
   if ((toys.optflags & FLAG_d) && !delete_entry()) return; 
 
   //show arp chache
-  fd = xopen("/proc/net/arp", O_RDONLY);
+  fd = xopenro("/proc/net/arp");
   buf = get_line(fd);
   free(buf); //skip first line
 

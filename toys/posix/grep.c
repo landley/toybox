@@ -359,7 +359,7 @@ void grep_main(void)
   toys.exitval = 1;
   if (toys.optflags & FLAG_s) {
     close(2);
-    xopen("/dev/null", O_RDWR);
+    xopen_stdio("/dev/null", O_RDWR);
   }
 
   if (toys.optflags & FLAG_r) {

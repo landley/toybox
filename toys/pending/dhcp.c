@@ -566,7 +566,9 @@ static void run_script(dhcpc_result_t *res,  char *name)
 static uint32_t getxid(void)
 {
   uint32_t randnum;
-  int fd = xopen("/dev/urandom", O_RDONLY);
+  int fd = xopenro("/dev/urandom");
+
+// TODO xreadfile
   xreadall(fd, &randnum, sizeof(randnum));
   xclose(fd);
   return randnum;

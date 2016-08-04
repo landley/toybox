@@ -96,7 +96,7 @@ void last_main(void)
 
   pwidth = (toys.optflags & FLAG_W) ? 46 : 16;
   *tm = time(tm+1);
-  fd = xopen(file, O_RDONLY);
+  fd = xopenro(file);
   loc = xlseek(fd, 0, SEEK_END);
 
   // Loop through file structures in reverse order.

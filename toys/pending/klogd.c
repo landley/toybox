@@ -74,7 +74,7 @@ void klogd_main(void)
     syslog(LOG_NOTICE, "KLOGD: started with Kernel ring buffer as log source\n");
     klogctl(1, NULL, 0);
   } else {
-    TT.fd = xopen("/proc/kmsg", O_RDONLY); //_PATH_KLOG in paths.h
+    TT.fd = xopenro("/proc/kmsg"); //_PATH_KLOG in paths.h
     syslog(LOG_NOTICE, "KLOGD: started with /proc/kmsg as log source\n");
   }
   openlog("Kernel", 0, LOG_KERN);    //open connection to system logger..

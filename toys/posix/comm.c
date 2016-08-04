@@ -48,8 +48,7 @@ void comm_main(void)
   if (toys.optflags == 7) return;
 
   for (i = 0; i < 2; i++) {
-    file[i] = strcmp("-", toys.optargs[i])
-      ? xopen(toys.optargs[i], O_RDONLY) : 0;
+    file[i] = xopenro(toys.optargs[i]);
     line[i] = get_line(file[i]);
   }
 

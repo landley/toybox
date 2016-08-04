@@ -152,8 +152,7 @@ void unshare_main(void)
           filename = toybuf;
         }
 
-        if (setns(fd = xopen(filename, O_RDONLY), flags[i]))
-          perror_exit("setns");
+        if (setns(fd = xopenro(filename), flags[i])) perror_exit("setns");
         close(fd);
       }
       nsnames += strlen(nsnames)+1;

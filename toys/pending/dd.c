@@ -143,16 +143,6 @@ static void status()
   }
 }
 
-static int xmove_fd(int fd)
-{
-  int newfd;
-
-  if (fd > STDERR_FILENO) return fd;
-  if ((newfd = fcntl(fd, F_DUPFD, 3) < 0)) perror_exit("dupfd IO");
-  close(fd);
-  return newfd;
-}
-
 static void setup_inout()
 {
   /* for C_BS, in/out is done as it is. so only in.sz is enough.
@@ -164,10 +154,8 @@ static void setup_inout()
   if (!TT.in.name) {
     TT.in.name = "stdin";
     TT.in.fd = STDIN_FILENO;
-  } else {
-    TT.in.fd = xopen(TT.in.name, O_RDONLY);
-    TT.in.fd = xmove_fd(TT.in.fd);
-  }
+  } else TT.in.fd = xopenro(TT.in.name);
+ 
   //setup outout
   if (!TT.out.name) {
     TT.out.name = "stdout";
@@ -176,7 +164,6 @@ static void setup_inout()
     int flags = O_WRONLY|O_CREAT;
     if (!(toys.optflags&C_NOTRUNC)) flags |= O_TRUNC;
     TT.out.fd = xcreate(TT.out.name, flags, 0666);
-    TT.out.fd = xmove_fd(TT.out.fd);
   }
 
   if (TT.in.offset) {

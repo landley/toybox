@@ -114,7 +114,7 @@ static int validate_component(int min, int max, char *src)
 static int parse_crontab(char *fname)
 {
   char *line;
-  int lno, fd = xopen(fname, O_RDONLY);
+  int lno, fd = xopenro(fname);
   long plen = 0;
 
   for (lno = 1; (line = get_rawline(fd, &plen, '\n')); lno++,free(line)) {
@@ -214,8 +214,7 @@ static void do_list(char *name)
   int fdin;
 
   snprintf(toybuf, sizeof(toybuf), "%s%s", TT.cdir, name);
-  if ((fdin = open(toybuf, O_RDONLY)) == -1)
-    error_exit("No crontab for '%s'", name);
+  fdin = xopenro(toybuf);
   xsendfile(fdin, 1);
   xclose(fdin);
 }
@@ -233,7 +232,7 @@ static void update_crontab(char *src, char *dest)
 
   snprintf(toybuf, sizeof(toybuf), "%s%s", TT.cdir, dest);
   fdout = xcreate(toybuf, O_WRONLY|O_CREAT|O_TRUNC, 0600);
-  fdin = xopen(src, O_RDONLY);
+  fdin = xopenro(src);
   xsendfile(fdin, fdout);
   xclose(fdin);
 
@@ -277,7 +276,7 @@ static void do_edit(struct passwd *pwd)
 
   if (!stat(toybuf, &sb)) { // file exists and have some content.
     if (sb.st_size) {
-      srcfd = xopen(toybuf, O_RDONLY);
+      srcfd = xopenro(toybuf);
       xsendfile(srcfd, destfd);
       xclose(srcfd);
     }

@@ -30,7 +30,7 @@ void uudecode_main(void)
   char *line = 0, mode[16],
        *class[] = {"begin%*[ ]%15s%*[ ]%n", "begin-base64%*[ ]%15s%*[ ]%n"};
 
-  if (toys.optc) ifd = xopen(*toys.optargs, O_RDONLY);
+  if (toys.optc) ifd = xopenro(*toys.optargs);
 
   while (!idx) {
     free(line);

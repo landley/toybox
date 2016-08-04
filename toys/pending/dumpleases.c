@@ -42,7 +42,7 @@ void dumpleases_main(void)
   int i, fd; 
   
   if(!(toys.optflags & FLAG_f)) TT.file = "/var/lib/misc/dhcpd.leases"; //DEF_LEASE_FILE
-  fd = xopen(TT.file, O_RDONLY);
+  fd = xopenro(TT.file);
   xprintf("Mac Address       IP Address      Host Name           Expires %s\n", (toys.optflags & FLAG_a) ? "at" : "in");
   xread(fd, &written_time, sizeof(written_time));
   current_time = time(NULL);

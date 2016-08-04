@@ -381,7 +381,7 @@ int file_put(void)
 
   sd = init_tftp(&server);
   packet = (uint8_t*)xzalloc(TFTP_IOBUFSIZE);
-  fd = xopen(TT.local_file, O_RDONLY);
+  fd = xopenro(TT.local_file);
 
   for (;;) {  //first loop for request send and confirmation from server.
     packetlen = mkpkt_request(packet, TFTP_OP_WRQ, TT.remote_file, 1);

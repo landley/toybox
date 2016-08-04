@@ -265,7 +265,7 @@ void patch_main(void)
     strip = 0;
   char *oldname = NULL, *newname = NULL;
 
-  if (TT.infile) TT.filepatch = xopen(TT.infile, O_RDONLY);
+  if (TT.infile) TT.filepatch = xopenro(TT.infile);
   TT.filein = TT.fileout = -1;
 
   if (TT.dir) xchdir(TT.dir);
@@ -402,7 +402,7 @@ void patch_main(void)
             TT.filein = xcreate(name, O_CREAT|O_EXCL|O_RDWR, 0666);
           } else {
             printf("patching %s\n", name);
-            TT.filein = xopen(name, O_RDONLY);
+            TT.filein = xopenro(name);
           }
           if (toys.optflags & FLAG_dry_run)
             TT.fileout = xopen("/dev/null", O_RDWR);
