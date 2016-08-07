@@ -49,6 +49,9 @@ unlink softlink && rm -f file
 
 testing "if=file of=file (same file)" "dd if=input of=input $opt &&
    [ -f input ] && cat input && echo 'yes'" "yes\n" "I WANT\n" ""
+testing "same file notrunc" \
+  "dd if=input of=input conv=notrunc $opt && cat input" \
+  "I WANT\n" "I WANT\n" ""
 
 testing "with ibs obs bs" "dd ibs=2 obs=5 bs=9 $opt" "I WANT\n" "" "I WANT\n"
 testing "with ibs obs bs if" "dd ibs=2 obs=5 bs=9 if=input $opt" \

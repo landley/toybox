@@ -143,50 +143,6 @@ static void status()
   }
 }
 
-static void setup_inout()
-{
-  /* for C_BS, in/out is done as it is. so only in.sz is enough.
-   * With Single buffer there will be overflow in a read following partial read
-   */
-  TT.in.buff = TT.out.buff = xmalloc(TT.in.sz + ((toys.optflags & C_BS)? 0: TT.out.sz));
-  TT.in.bp = TT.out.bp = TT.in.buff;
-  //setup input
-  if (!TT.in.name) {
-    TT.in.name = "stdin";
-    TT.in.fd = STDIN_FILENO;
-  } else TT.in.fd = xopenro(TT.in.name);
- 
-  //setup outout
-  if (!TT.out.name) {
-    TT.out.name = "stdout";
-    TT.out.fd = STDOUT_FILENO;
-  } else {
-    int flags = O_WRONLY|O_CREAT;
-    if (!(toys.optflags&C_NOTRUNC)) flags |= O_TRUNC;
-    TT.out.fd = xcreate(TT.out.name, flags, 0666);
-  }
-
-  if (TT.in.offset) {
-    if (lseek(TT.in.fd, (off_t)(TT.in.offset * TT.in.sz), SEEK_CUR) < 0) {
-      while (TT.in.offset--) {
-        ssize_t n = read(TT.in.fd, TT.in.bp, TT.in.sz);
-
-        if (n < 0) {
-          if (toys.optflags & C_NOERROR) { //warn message and status
-            error_msg("%s: read error", TT.in.name);
-            status();
-          } else perror_exit("%s: read error", TT.in.name);
-        } else if (!n) {
-          xprintf("%s: Can't skip\n", TT.in.name);
-          exit(0);
-        }
-      }
-    }
-  }
-
-  if (TT.out.offset) xlseek(TT.out.fd, (off_t)(TT.out.offset * TT.out.sz), SEEK_CUR);
-}
-
 static void write_out(int all)
 {
   TT.out.bp = TT.out.buff;
@@ -276,20 +232,57 @@ void dd_main()
 
   signal(SIGINT, generic_signal);
   signal(SIGUSR1, generic_signal);
-
-  setup_inout();
   gettimeofday(&TT.start, NULL);
 
+  /* for C_BS, in/out is done as it is. so only in.sz is enough.
+   * With Single buffer there will be overflow in a read following partial read
+   */
+  TT.in.buff = TT.out.buff = xmalloc(TT.in.sz
+    + ((toys.optflags & C_BS) ? 0 : TT.out.sz));
+  TT.in.bp = TT.out.bp = TT.in.buff;
+  //setup input
+  if (!TT.in.name) TT.in.name = "stdin";
+  else TT.in.fd = xopenro(TT.in.name);
+
+  //setup output
+  if (!TT.out.name) {
+    TT.out.name = "stdout";
+    TT.out.fd = 1;
+  } else TT.out.fd = xcreate(TT.out.name,
+      O_WRONLY|O_CREAT|(O_TRUNC*!(toys.optflags&C_NOTRUNC)), 0666);
+
+  // Implement skip=
+  if (TT.in.offset) {
+    if (lseek(TT.in.fd, (off_t)(TT.in.offset * TT.in.sz), SEEK_CUR) < 0) {
+      while (TT.in.offset--) {
+        ssize_t n = read(TT.in.fd, TT.in.bp, TT.in.sz);
+
+        if (n < 0) {
+          perror_msg("%s", TT.in.name);
+          if (toys.optflags & C_NOERROR) status();
+          else return;
+        } else if (!n) {
+          xprintf("%s: Can't skip\n", TT.in.name);
+          return;
+        }
+      }
+    }
+  }
+
+  if (TT.out.offset)
+    xlseek(TT.out.fd, TT.out.offset * (off_t)TT.out.sz, SEEK_CUR);
+
   if ((toys.optflags&C_SEEK) && !(toys.optflags & C_NOTRUNC))
-    ftruncate(TT.out.fd, TT.out.offset * TT.out.sz);
+    if (ftruncate(TT.out.fd, TT.out.offset * TT.out.sz))
+      perror_exit("ftruncate");
 
   while (!(toys.optflags & C_COUNT) || (TT.in_full + TT.in_part) < TT.c_count) {
     ssize_t n;
 
+    // Show progress and exit on SIGINT or just continue on SIGUSR1.
     if (toys.signal) {
-      // Show progress and exit on SIGINT or just continue on SIGUSR1.
       status();
-      if (toys.signal == SIGINT) exit_signal(toys.signal);
+      if (toys.signal==SIGINT) exit_signal(toys.signal);
       toys.signal = 0;
     }
 
