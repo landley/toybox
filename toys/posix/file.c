@@ -284,10 +284,13 @@ void file_main(void)
 
     xprintf("%s: %*s", name, (int)(TT.max_name_len - strlen(name)), "");
 
+    int fd;
+    if (!strcmp(name, "-")) { fd = 0; goto inside; }
     if (!lstat(name, &sb)) {
       if (S_ISFIFO(sb.st_mode)) what = "fifo";
       else if (S_ISREG(sb.st_mode)) {
-        int fd = !strcmp(name, "-") ? 0 : open(name, O_RDONLY);
+        fd = open(name, O_RDONLY);
+inside:
 
         if (fd!=-1) {
           if (!sb.st_size) what = "empty";
