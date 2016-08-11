@@ -41,7 +41,7 @@ config TEST
 
 void test_main(void)
 {
-  int id, not;
+  int id, not = 0;
   char *s, *err_fmt = "Bad flag '%s'";
 
   toys.exitval = 2;
