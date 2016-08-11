@@ -19,8 +19,8 @@ config STAT
     	      (with -f = -c "%n %i %l %t %s %S %b %f %a %c %d")
 
     The valid format escape sequences for files:
-    %a  Access bits (octal) |%A  Access bits (flags)|%b  Blocks allocated
-    %B  Bytes per block     |%d  Device ID (dec)    |%D  Device ID (hex)
+    %a  Access bits (octal) |%A  Access bits (flags)|%b  Size/512
+    %B  Bytes per %b (512)  |%d  Device ID (dec)    |%D  Device ID (hex)
     %f  All mode bits (hex) |%F  File type          |%g  Group ID
     %G  Group name          |%h  Hard links         |%i  Inode
     %m  Mount point         |%n  Filename           |%N  Long filename
@@ -81,7 +81,7 @@ static void print_stat(char type)
     mode_to_string(stat->st_mode, str);
     xprintf("%s", str);
   } else if (type == 'b') out('u', stat->st_blocks);
-  else if (type == 'B') out('u', stat->st_blksize);
+  else if (type == 'B') printf("512");
   else if (type == 'd') out('d', stat->st_dev);
   else if (type == 'D') out('x', stat->st_dev);
   else if (type == 'f') out('x', stat->st_mode);
