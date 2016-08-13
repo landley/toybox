@@ -4,8 +4,8 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/true.html
 
-USE_TRUE(NEWTOY(true, NULL, TOYFLAG_BIN))
-USE_TRUE(OLDTOY(:, true, TOYFLAG_NOFORK))
+USE_TRUE(NEWTOY(true, NULL, TOYFLAG_BIN|TOYFLAG_NOHELP))
+USE_TRUE(OLDTOY(:, true, TOYFLAG_NOFORK|TOYFLAG_NOHELP))
 
 config TRUE
   bool "true"
