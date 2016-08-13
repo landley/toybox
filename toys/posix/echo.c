@@ -3,6 +3,11 @@
  * Copyright 2007 Rob Landley <rob@landley.net>
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/echo.html
+ *
+ * Deviations from posix: we parse command line options, as Linux has
+ * consistently done since 1992. Posix defaults -e to on, we require -e.
+ * We also honor -- to _stop_ option parsing (bash doesn't, we go with
+ * consistency over compatibility here).
 
 USE_ECHO(NEWTOY(echo, "^?en", TOYFLAG_BIN))
 
