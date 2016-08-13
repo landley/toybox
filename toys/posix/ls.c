@@ -61,7 +61,7 @@ GLOBALS(
 
   unsigned screen_width;
   int nl_title;
-  char uid_buf[12], gid_buf[12], *escmore;
+  char *escmore;
 )
 
 // Callback from crunch_str to represent unprintable chars
@@ -119,22 +119,6 @@ static char endtype(struct stat *st)
     if (S_ISSOCK(mode)) return '=';
   }
   return 0;
-}
-
-static char *getusername(uid_t uid)
-{
-  struct passwd *pw = bufgetpwuid(uid);
-
-  sprintf(TT.uid_buf, "%u", (unsigned)uid);
-  return pw ? pw->pw_name : TT.uid_buf;
-}
-
-static char *getgroupname(gid_t gid)
-{
-  struct group *gr = bufgetgrgid(gid);
-
-  sprintf(TT.gid_buf, "%u", (unsigned)gid);
-  return gr ? gr->gr_name : TT.gid_buf;
 }
 
 static int numlen(long long ll)
