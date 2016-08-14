@@ -590,36 +590,34 @@ struct group *xgetgrgid(gid_t gid)
   return group;
 }
 
-struct passwd *xgetpwnamid(char *user)
+uid_t xgetpwnamid(char *user)
 {
   struct passwd *up = getpwnam(user);
   uid_t uid;
 
-  if (!up) {
+  if (up) uid = up->pw_uid;
+  else {
     char *s = 0;
-
     uid = estrtol(user, &s, 10);
-    if (!errno && s && !*s) up = getpwuid(uid);
+    if (errno) perror_exit("invalid user: %s", user);
   }
-  if (!up) perror_exit("user '%s'", user);
 
-  return up;
+  return uid;
 }
 
-struct group *xgetgrnamid(char *group)
+gid_t xgetgrnamid(char *group)
 {
   struct group *gr = getgrnam(group);
   gid_t gid;
 
-  if (!gr) {
+  if (gr) gid = gr->gr_gid;
+  else {
     char *s = 0;
-
     gid = estrtol(group, &s, 10);
-    if (!errno && s && !*s) gr = getgrgid(gid);
+    if (errno) perror_exit("invalid group: %s", group);
   }
-  if (!gr) perror_exit("group '%s'", group);
 
-  return gr;
+  return gid;
 }
 
 struct passwd *xgetpwnam(char *name)
