@@ -46,9 +46,8 @@ GLOBALS(
     struct stat st;
     struct statfs sf;
   } stat;
-  struct passwd *user_name;
-  struct group *group_name;
-  char *file;
+  char *file, *pattern;
+  int patlen;
 )
 
 
@@ -64,9 +63,17 @@ static void date_stat_format(struct timespec *ts)
 }
 
 // Force numeric output to long long instead of manually typecasting everything
+// and safely parse length prefix
 static void out(char c, long long val)
 {
-  sprintf(toybuf, "%%ll%c", c);
+  sprintf(toybuf, "%.*sll%c", TT.patlen, TT.pattern, c);
+  printf(toybuf, val);
+}
+
+// Output string with parsed length prefix
+static void strout(char *val)
+{
+  sprintf(toybuf, "%.*ss", TT.patlen, TT.pattern);
   printf(toybuf, val);
 }
 
@@ -79,9 +86,9 @@ static void print_stat(char type)
     char str[11];
 
     mode_to_string(stat->st_mode, str);
-    xprintf("%s", str);
+    strout(str);
   } else if (type == 'b') out('u', stat->st_blocks);
-  else if (type == 'B') printf("512");
+  else if (type == 'B') out('d', 512);
   else if (type == 'd') out('d', stat->st_dev);
   else if (type == 'D') out('x', stat->st_dev);
   else if (type == 'f') out('x', stat->st_mode);
@@ -92,9 +99,9 @@ static void print_stat(char type)
 
     for (i = 1; filetype != (i*8192) && i < 7; i++) t += strlen(t)+1;
     if (!stat->st_size && filetype == S_IFREG) t = "regular empty file";
-    xprintf("%s", t);
+    strout(t);
   } else if (type == 'g') out('u', stat->st_gid);
-  else if (type == 'G') xprintf("%8s", TT.group_name->gr_name);
+  else if (type == 'G') strout(getgroupname(stat->st_gid));
   else if (type == 'h') out('u', stat->st_nlink);
   else if (type == 'i') out('u', stat->st_ino);
   else if (type == 'm') {
@@ -103,7 +110,7 @@ static void print_stat(char type)
 
     // This mount point could exist multiple times, so show oldest.
     for (dlist_terminate(mt); mt; mt = mt->next) if (mt->stat.st_dev == dev) {
-      printf("%s", mt->dir);
+      strout(mt->dir);
       break;
     }
     llist_traverse(mt, free);
@@ -117,7 +124,7 @@ static void print_stat(char type)
   else if (type == 't') out('x', dev_major(stat->st_rdev));
   else if (type == 'T') out('x', dev_minor(stat->st_rdev));
   else if (type == 'u') out('u', stat->st_uid);
-  else if (type == 'U') xprintf("%8s", TT.user_name->pw_name);
+  else if (type == 'U') strout(getusername(stat->st_uid));
   else if (type == 'x') date_stat_format((void *)&stat->st_atime);
   else if (type == 'X') out('u', stat->st_atime);
   else if (type == 'y') date_stat_format((void *)&stat->st_mtime);
@@ -153,12 +160,15 @@ static void print_statfs(char type) {
 
     for (i=0; i<ARRAY_LEN(nn); i++)
       if (nn[i].num == statfs->f_type) s = nn[i].name;
-    fputs(s, stdout);
-  } else if (type == 'i')
-    xprintf("%08x%08x", statfs->f_fsid.__val[0], statfs->f_fsid.__val[1]);
-  else if (type == 's') out('d', statfs->f_frsize);
+    strout(s);
+  } else if (type == 'i') {
+    char buf[32];
+
+    sprintf(buf, "%08x%08x", statfs->f_fsid.__val[0], statfs->f_fsid.__val[1]);
+    strout(buf);
+  } else if (type == 's') out('d', statfs->f_frsize);
   else if (type == 'S') out('d', statfs->f_bsize);
-  else xprintf("?");
+  else strout("?");
 }
 
 void stat_main(void)
@@ -176,7 +186,7 @@ void stat_main(void)
       "Inodes: Total: %c\tFree: %d"
     : "  File: %N\n  Size: %s\t Blocks: %b\t IO Blocks: %B\t%F\n"
       "Device: %Dh/%dd\t Inode: %i\t Links: %h\n"
-      "Access: (%a/%A)\tUid: (%u/%U)\tGid: (%g/%G)\n"
+      "Access: (%a/%A)\tUid: (%5u/%8U)\tGid: (%5g/%8G)\n"
       "Access: %x\nModify: %y\nChange: %z";
 
   if (toys.optflags & FLAG_c) format = TT.fmt;
@@ -186,13 +196,7 @@ void stat_main(void)
 
     TT.file = toys.optargs[i];
     if (flagf && !statfs(TT.file, (void *)&TT.stat));
-    else if (!flagf && !(L ? stat : lstat)(TT.file, (void *)&TT.stat)) {
-      struct stat *stat = (struct stat*)&TT.stat;
-
-      // check user and group name
-      TT.user_name = getpwuid(stat->st_uid);
-      TT.group_name = getgrgid(stat->st_gid);
-    } else {
+    else if (flagf || (L ? stat : lstat)(TT.file, (void *)&TT.stat)) {
       perror_msg("'%s'", TT.file);
       continue;
     }
@@ -200,7 +204,9 @@ void stat_main(void)
     for (f = format; *f; f++) {
       if (*f != '%') putchar(*f);
       else {
-        if (*++f == 'n') xprintf("%s", TT.file);
+        f = next_printf(f, &TT.pattern);
+        TT.patlen = f-TT.pattern;
+        if (*f == 'n') strout(TT.file);
         else if (flagf) print_statfs(*f);
         else print_stat(*f);
       }
