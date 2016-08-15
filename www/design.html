@@ -289,12 +289,13 @@ older kernels or other implementations (ala BSD), but we don't police their
 corner cases.</p>
 
 <b><h3>32/64 bit</h3></b>
-<p>Toybox should work on both 32 bit and 64 bit systems.  By the end of 2008
-64 bit hardware will be the new desktop standard, but 32 bit hardware will
-continue to be important in embedded devices for years to come.</p>
+<p>Toybox should work on both 32 bit and 64 bit systems. 64 bit desktop
+hardware went mainstream in 2005 and was essentially ubiquitous
+by the end of the decade, but 32 bit hardware will continue to be important
+in embedded devices for several more years.</p>
 
 <p>Toybox relies on the fact that on any Unix-like platform, pointer and long
-are always the same size (on both 32 and 64 bit).  Pointer and int are _not_
+are always the same size (on both 32 and 64 bit). Pointer and int are _not_
 the same size on 64 bit systems, but pointer and long are.</p>
 
 <p>This is guaranteed by the LP64 memory model, a Unix standard (which Linux
@@ -351,6 +352,28 @@ of it.)</p>
 
 <p>Locale support isn't currently a goal; that's a presentation layer issue
 (I.E. a GUI problem).</p>
+
+<p><h3>Shared Libraries</h3></p>
+
+<p>Toybox's policy on shared libraries is that they should never be
+required, but can optionally be used to improve performance.</p>
+
+<p>Toybox should provide the command line utilities for
+<a href=roadmap.html#dev_env>self-hosting development evirionments</a>,
+and an easy way to set up "hermetic builds" (I.E. builds which provide
+their own dependencies, isolating the build logic from host command version
+skew with a simple known build environment). In both cases, external
+dependencies defeat the purpose.</p>
+
+<p>This means toybox should provide full functionality without relying
+on any external dependencies (other than libc). But toybox may optionally use
+libraries such as zlib and openssl to improve performance for things like
+deflate and sha1sum, which lets the corresponding built-in implementations
+be simple (and thus slow). But the built-in implementations need to exist and
+work.</p>
+
+<p>(This is why we use an external https wrapper program, because depending on
+openssl or similar to be linked in would change the behavior of toybox.)</p>
 
 <a name="codestyle" />
 <h2>Coding style</h2>
