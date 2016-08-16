@@ -50,18 +50,6 @@ GLOBALS(
   int patlen;
 )
 
-
-// Note: the atime, mtime, and ctime fields in struct stat are the start
-// of embedded struct timespec, but posix won't let them use that
-// struct definition for legacy/namespace reasons.
-
-static void date_stat_format(struct timespec *ts)
-{
-  strftime(toybuf, sizeof(toybuf), "%Y-%m-%d %H:%M:%S",
-    localtime(&(ts->tv_sec)));
-  xprintf("%s.%09ld", toybuf, ts->tv_nsec);
-}
-
 // Force numeric output to long long instead of manually typecasting everything
 // and safely parse length prefix
 static void out(char c, long long val)
@@ -75,6 +63,19 @@ static void strout(char *val)
 {
   sprintf(toybuf, "%.*ss", TT.patlen, TT.pattern);
   printf(toybuf, val);
+}
+
+// Note: the atime, mtime, and ctime fields in struct stat are the start
+// of embedded struct timespec, but posix won't let them use that
+// struct definition for legacy/namespace reasons.
+
+static void date_stat_format(struct timespec *ts)
+{
+  char *s = toybuf+128;
+  strftime(s, sizeof(toybuf), "%Y-%m-%d %H:%M:%S",
+    localtime(&(ts->tv_sec)));
+  sprintf(s+strlen(s), ".%09ld", ts->tv_nsec);
+  strout(s);
 }
 
 static void print_stat(char type)
@@ -206,6 +207,7 @@ void stat_main(void)
       else {
         f = next_printf(f, &TT.pattern);
         TT.patlen = f-TT.pattern;
+        if (TT.patlen>99) error_exit("bad %s", TT.pattern);
         if (*f == 'n') strout(TT.file);
         else if (flagf) print_statfs(*f);
         else print_stat(*f);
