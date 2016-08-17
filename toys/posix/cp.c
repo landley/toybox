@@ -499,8 +499,8 @@ void install_main(void)
   if (flags & FLAG_v) toys.optflags |= cp_flag_v();
   if (flags & (FLAG_p|FLAG_o|FLAG_g)) toys.optflags |= cp_flag_p();
 
-  if (TT.i.user) TT.uid = xgetpwnamid(TT.i.user)->pw_uid;
-  if (TT.i.group) TT.gid = xgetgrnamid(TT.i.group)->gr_gid;
+  if (TT.i.user) TT.uid = xgetpwnamid(TT.i.user);
+  if (TT.i.group) TT.gid = xgetgrnamid(TT.i.group);
 
   TT.callback = install_node;
   cp_main();
