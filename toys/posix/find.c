@@ -398,8 +398,8 @@ static int do_find(struct dirtree *new)
             udl = xmalloc(sizeof(*udl));
             dlist_add_nomalloc(&TT.argdata, (void *)udl);
 
-            if (*s == 'u') udl->u.uid = xgetpwnamid(ss[1])->pw_uid;
-            else if (*s == 'g') udl->u.gid = xgetgrnamid(ss[1])->gr_gid;
+            if (*s == 'u') udl->u.uid = xgetuid(ss[1]);
+            else if (*s == 'g') udl->u.gid = xgetgid(ss[1]);
             else {
               struct stat st;
 

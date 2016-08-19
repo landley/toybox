@@ -87,11 +87,11 @@ void chgrp_main(void)
       *(grp++) = 0;
       TT.group_name = grp;
     }
-    if (*own) TT.owner = xgetpwnamid(TT.owner_name = own)->pw_uid;
+    if (*own) TT.owner = xgetuid(TT.owner_name = own);
   } else TT.group_name = *toys.optargs;
 
   if (TT.group_name && *TT.group_name)
-    TT.group = xgetgrnamid(TT.group_name)->gr_gid;
+    TT.group = xgetgid(TT.group_name);
 
   for (s=toys.optargs+1; *s; s++)
     dirtree_flagread(*s, DIRTREE_SYMFOLLOW*!!(toys.optflags&(FLAG_H|FLAG_L)),

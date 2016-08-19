@@ -590,36 +590,32 @@ struct group *xgetgrgid(gid_t gid)
   return group;
 }
 
-struct passwd *xgetpwnamid(char *user)
+unsigned xgetuid(char *name)
 {
-  struct passwd *up = getpwnam(user);
-  uid_t uid;
+  struct passwd *up = getpwnam(name);
+  char *s = 0;
+  long uid;
 
-  if (!up) {
-    char *s = 0;
+  if (up) return up->pw_uid;
 
-    uid = estrtol(user, &s, 10);
-    if (!errno && s && !*s) up = getpwuid(uid);
-  }
-  if (!up) perror_exit("user '%s'", user);
+  uid = estrtol(name, &s, 10);
+  if (!errno && s && !*s && uid>=0 && uid<=UINT_MAX) return uid;
 
-  return up;
+  error_exit("bad user '%s'", name);
 }
 
-struct group *xgetgrnamid(char *group)
+unsigned xgetgid(char *name)
 {
-  struct group *gr = getgrnam(group);
-  gid_t gid;
+  struct group *gr = getgrnam(name);
+  char *s = 0;
+  long gid;
 
-  if (!gr) {
-    char *s = 0;
+  if (gr) return gr->gr_gid;
 
-    gid = estrtol(group, &s, 10);
-    if (!errno && s && !*s) gr = getgrgid(gid);
-  }
-  if (!gr) perror_exit("group '%s'", group);
+  gid = estrtol(name, &s, 10);
+  if (!errno && s && !*s && gid>=0 && gid<=UINT_MAX) return gid;
 
-  return gr;
+  error_exit("bad group '%s'", name);
 }
 
 struct passwd *xgetpwnam(char *name)

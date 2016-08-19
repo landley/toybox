@@ -78,8 +78,8 @@ void makedevs_main()
       continue;
     } else mode |= (mode_t[]){S_IFIFO, S_IFCHR, S_IFBLK, 0, 0}[i];
 
-    uid = *user ? xgetpwnamid(user)->pw_uid : getuid();
-    gid = *group ? xgetgrnamid(group)->gr_gid : getgid();
+    uid = *user ? xgetuid(user) : getuid();
+    gid = *group ? xgetgid(group) : getgid();
 
     while (*node == '/') node++; // using relative path
 
