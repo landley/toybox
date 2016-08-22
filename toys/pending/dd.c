@@ -4,6 +4,8 @@
  * Copyright 2013 Kyungwan Han <asura321@gmail.com>
  *
  * See  http://opengroup.org/onlinepubs/9699919799/utilities/dd.html
+ *
+ * todo: ctrl-c doesn't work, the read() is restarting.
 
 USE_DD(NEWTOY(dd, NULL, TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -51,20 +53,10 @@ GLOBALS(
   } in, out;
 );
 
-#define C_CONV    0x0000
-#define C_BS      0x0001
-#define C_COUNT   0x0002
-#define C_IBS     0x0004
-#define C_OBS     0x0008
-#define C_IF      0x0010
-#define C_OF      0x0020
-#define C_SEEK    0x0040
-#define C_SKIP    0x0080
 #define C_SYNC    0x0100
 #define C_FSYNC   0x0200
 #define C_NOERROR 0x0400
 #define C_NOTRUNC 0x0800
-#define C_STATUS  0x1000
 
 struct pair {
   char *name;
@@ -83,20 +75,6 @@ static struct pair clist[] = {
   { "noerror",  C_NOERROR },
   { "notrunc",  C_NOTRUNC },
   { "sync",     C_SYNC },
-};
-
-static struct pair operands[] = {
-  // keep the array sorted by name, bsearch() can be used.
-  { "bs",      C_BS    },
-  { "conv",    C_CONV  },
-  { "count",   C_COUNT },
-  { "ibs",     C_IBS   },
-  { "if",      C_IF    },
-  { "obs",     C_OBS   },
-  { "of",      C_OF    },
-  { "seek",    C_SEEK  },
-  { "skip",    C_SKIP  },
-  { "status",  C_STATUS},
 };
 
 static unsigned long long strsuftoll(char *arg, int def, unsigned long long max)
@@ -161,6 +139,17 @@ static void write_out(int all)
   if (TT.out.count) memmove(TT.out.buff, TT.out.bp, TT.out.count); //move remainder to front
 }
 
+int strstarteq(char **a, char *b)
+{
+  char *aa = *a;
+
+  if (!strstart(&aa, b)) return 0;
+  if (*aa != '=') return 0;
+  *a = ++aa;
+
+  return 1;
+}
+
 static int comp(const void *a, const void *b) //const to shut compiler up
 {
   return strcmp(((struct pair*)a)->name, ((struct pair*)b)->name);
@@ -169,87 +158,65 @@ static int comp(const void *a, const void *b) //const to shut compiler up
 void dd_main()
 {
   struct pair *res, key;
-  char *arg;
-  long sz;
+  char **args;
+  unsigned long long bs = 0;
+  int trunc = O_TRUNC;
 
   TT.show_xfer = TT.show_records = 1;
+  TT.c_count = ULLONG_MAX;
 
   TT.in.sz = TT.out.sz = 512; //default io block size
-  while (*toys.optargs) {
-    if (!(arg = strchr(*toys.optargs, '='))) error_exit("unknown arg %s", *toys.optargs);
-    *arg++ = '\0';
-    if (!*arg) help_exit(0);
-    key.name = *toys.optargs;
-    if (!(res = bsearch(&key, operands, ARRAY_LEN(operands), sizeof(struct pair),
-            comp))) error_exit("unknown arg %s", key.name);
+  for (args = toys.optargs; *args; args++) {
+    char *arg = *args;
 
-    toys.optflags |= res->val;
-    switch (res->val) {
-      case C_BS:
-        TT.in.sz = TT.out.sz = strsuftoll(arg, 1, LONG_MAX);
-        break;
-      case C_IBS:
-        sz = strsuftoll(arg, 1, LONG_MAX);
-        if (!(toys.optflags & C_BS)) TT.in.sz = sz;
-        break;
-      case C_OBS:
-        sz = strsuftoll(arg, 1, LONG_MAX);
-        if (!(toys.optflags & C_BS)) TT.out.sz = sz;
-        break;
-      case C_COUNT:
-        TT.c_count = strsuftoll(arg, 0, ULLONG_MAX);
-        break;
-      case C_IF:
-        TT.in.name = arg;
-        break;
-      case C_OF:
-        TT.out.name = arg;
-        break;
-      case C_SEEK:
-        TT.out.offset = strsuftoll(arg, 0, ULLONG_MAX);
-        break;
-      case C_SKIP:
-        TT.in.offset = strsuftoll(arg, 0, ULLONG_MAX);
-        break;
-      case C_STATUS:
-        if (!strcmp(arg, "noxfer")) TT.show_xfer = 0;
-        else if (!strcmp(arg, "none")) TT.show_xfer = TT.show_records = 0;
-        else error_exit("unknown status '%s'", arg);
-        break;
-      case C_CONV:
-        while (arg) {
-          key.name = strsep(&arg, ",");
-          if (!(res = bsearch(&key, clist, ARRAY_LEN(clist), 
-                  sizeof(struct pair), comp)))
-            error_exit("unknown conversion %s", key.name);
+    if (strstarteq(&arg, "bs")) bs = strsuftoll(arg, 1, LONG_MAX);
+    else if (strstarteq(&arg, "ibs")) TT.in.sz = strsuftoll(arg, 1, LONG_MAX);
+    else if (strstarteq(&arg, "obs")) TT.out.sz = strsuftoll(arg, 1, LONG_MAX);
+    else if (strstarteq(&arg, "count")) TT.c_count = strsuftoll(arg, 0, ULLONG_MAX-1);
+    else if (strstarteq(&arg, "if")) TT.in.name = arg;
+    else if (strstarteq(&arg, "of")) TT.out.name = arg;
+    else if (strstarteq(&arg, "seek"))
+      TT.out.offset = strsuftoll(arg, 0, ULLONG_MAX);
+    else if (strstarteq(&arg, "skip"))
+      TT.in.offset = strsuftoll(arg, 0, ULLONG_MAX);
+    else if (strstarteq(&arg, "status")) {
+      if (!strcmp(arg, "noxfer")) TT.show_xfer = 0;
+      else if (!strcmp(arg, "none")) TT.show_xfer = TT.show_records = 0;
+      else error_exit("unknown status '%s'", arg);
+    } else if (strstarteq(&arg, "conv")) {
+      while (arg) {
+        key.name = strsep(&arg, ",");
+        if (!(res = bsearch(&key, clist, ARRAY_LEN(clist), 
+                sizeof(struct pair), comp)))
+          error_exit("unknown conversion %s", key.name);
 
-          toys.optflags |= res->val;
-        }            
-        break;
-    }
-    toys.optargs++;
+        toys.optflags |= res->val;
+      }
+    } else error_exit("bad arg %s", arg);
   }
+  if (bs) TT.in.sz = TT.out.sz = bs;
 
   signal(SIGINT, generic_signal);
   signal(SIGUSR1, generic_signal);
   gettimeofday(&TT.start, NULL);
 
-  /* for C_BS, in/out is done as it is. so only in.sz is enough.
+  /* for bs=, in/out is done as it is. so only in.sz is enough.
    * With Single buffer there will be overflow in a read following partial read
    */
-  TT.in.buff = TT.out.buff = xmalloc(TT.in.sz
-    + ((toys.optflags & C_BS) ? 0 : TT.out.sz));
+  TT.in.buff = TT.out.buff = xmalloc(TT.in.sz + (bs ? 0 : TT.out.sz));
   TT.in.bp = TT.out.bp = TT.in.buff;
   //setup input
   if (!TT.in.name) TT.in.name = "stdin";
   else TT.in.fd = xopenro(TT.in.name);
+
+  if (toys.optflags&C_NOTRUNC) trunc = 0;
 
   //setup output
   if (!TT.out.name) {
     TT.out.name = "stdout";
     TT.out.fd = 1;
   } else TT.out.fd = xcreate(TT.out.name,
-      O_WRONLY|O_CREAT|(O_TRUNC*!(toys.optflags&C_NOTRUNC)), 0666);
+    O_WRONLY|O_CREAT|(trunc*!TT.out.offset), 0666);
 
   // Implement skip=
   if (TT.in.offset) {
@@ -269,14 +236,14 @@ void dd_main()
     }
   }
 
-  if (TT.out.offset)
-    xlseek(TT.out.fd, TT.out.offset * (off_t)TT.out.sz, SEEK_CUR);
+  // seek/truncate as necessary. We handled position zero truncate with
+  // O_TRUNC on open, so output to /dev/null and such doesn't error.
+  if (TT.out.fd!=1 && (bs = TT.out.offset*TT.out.sz)) {
+    xlseek(TT.out.fd, bs, SEEK_CUR);
+    if (trunc && ftruncate(TT.out.fd, bs)) perror_exit("ftruncate");
+  }
 
-  if ((toys.optflags&C_SEEK) && !(toys.optflags & C_NOTRUNC))
-    if (ftruncate(TT.out.fd, TT.out.offset * TT.out.sz))
-      perror_exit("ftruncate");
-
-  while (!(toys.optflags & C_COUNT) || (TT.in_full + TT.in_part) < TT.c_count) {
+  while (TT.c_count==ULLONG_MAX || (TT.in_full + TT.in_part) < TT.c_count) {
     ssize_t n;
 
     // Show progress and exit on SIGINT or just continue on SIGUSR1.
@@ -310,7 +277,7 @@ void dd_main()
     }
 
     TT.out.count = TT.in.count;
-    if (toys.optflags & C_BS) {
+    if (bs) {
       write_out(1);
       TT.in.count = 0;
       continue;
