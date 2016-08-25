@@ -149,12 +149,17 @@ static void entrylen(struct dirtree *dt, unsigned *len)
       // tracking another column
       len[5] = numlen(dev_major(st->st_rdev))+5;
     } else if (flags & FLAG_h) {
-        human_readable(tmp, st->st_size, 0);
-        len[5] = strwidth(tmp);
+      human_readable(tmp, st->st_size, 0);
+      len[5] = strwidth(tmp);
     } else len[5] = numlen(st->st_size);
   }
 
-  len[6] = (flags & FLAG_s) ? numlen(st->st_blocks) : 0;
+  if (flags & FLAG_s) {
+    if (flags & FLAG_h) {
+      human_readable(tmp, st->st_blocks*512, 0);
+      len[6] = strwidth(tmp);
+    } else len[6] = numlen(st->st_blocks);
+  } else len[6] = 0;
   len[7] = (flags & FLAG_Z) ? strwidth((char *)dt->extra) : 0;
 }
 
@@ -424,8 +429,13 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
     if (flags & FLAG_i)
       xprintf("%*lu ", totals[1], (unsigned long)st->st_ino);
-    if (flags & FLAG_s)
-      xprintf("%*lu ", totals[6], (unsigned long)st->st_blocks);
+
+    if (flags & FLAG_s) {
+      if (flags & FLAG_h) {
+        human_readable(tmp, st->st_blocks*512, 0);
+        xprintf("%*s ", totals[6], tmp);
+      } else xprintf("%*lu ", totals[6], (unsigned long)st->st_blocks);
+    }
 
     if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) {
       struct tm *tm;
