@@ -18,12 +18,12 @@ config LS
     what to show:
     -a  all files including .hidden    -b  escape nongraphic chars
     -c  use ctime for timestamps       -d  directory, not contents
-    -i  inode number                   -k  block sizes in kilobytes
-    -p  put a '/' after dir names      -q  unprintable chars as '?'
-    -s  storage used (512 byte units)  -u  use access time for timestamps
-    -A  list all files but . and ..    -H  follow command line symlinks
-    -L  follow symlinks                -R  recursively list files in subdirs
-    -F  append /dir *exe @sym |FIFO    -Z  security context
+    -i  inode number                   -p  put a '/' after dir names
+    -q  unprintable chars as '?'       -s  storage used (1024 byte units)
+    -u  use access time for timestamps -A  list all files but . and ..
+    -H  follow command line symlinks   -L  follow symlinks
+    -R  recursively list in subdirs    -F  append /dir *exe @sym |FIFO
+    -Z  security context
 
     output formats:
     -1  list one file per line         -C  columns (sorted vertically)
@@ -222,7 +222,7 @@ static int filter(struct dirtree *new)
 
   if (flags & FLAG_u) new->st.st_mtime = new->st.st_atime;
   if (flags & FLAG_c) new->st.st_mtime = new->st.st_ctime;
-  if (flags & FLAG_k) new->st.st_blocks = (new->st.st_blocks + 1) / 2;
+  new->st.st_blocks >>= 1;
 
   if (flags & (FLAG_a|FLAG_f)) return DIRTREE_SAVE;
   if (!(flags & FLAG_A) && new->name[0]=='.') return 0;
@@ -378,7 +378,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
       memset(colsizes, 0, columns*sizeof(unsigned));
       for (ul=0; ul<dtlen; ul++) {
         entrylen(sort[next_column(ul, dtlen, columns, &c)], len);
-        *len += totpad;
+        *len += totpad+1;
         if (c == columns) break;
         // Expand this column if necessary, break if that puts us over budget
         if (*len > colsizes[c]) {
@@ -413,12 +413,12 @@ static void listfiles(int dirfd, struct dirtree *indir)
       if (flags & FLAG_m) xputc(',');
       if (flags & (FLAG_C|FLAG_x)) {
         if (!curcol) xputc('\n');
-      } else if ((flags & FLAG_1) || width+1+*len > TT.screen_width) {
+      } else if ((flags & FLAG_1) || width+2+*len > TT.screen_width) {
         xputc('\n');
         width = 0;
       } else {
-        xputc(' ');
-        width++;
+        printf("  ");
+        width += 2;
       }
     }
     width += *len;
