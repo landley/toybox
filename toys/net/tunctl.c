@@ -3,21 +3,28 @@
  * Copyright 2016 Rob Landley <rob@landley.net>
  *
  * See http://kernel.org/doc/Documentation/networking/tuntap.txt
+ *
+ * This is useful for things like "kvm -netdev tap" and containers.
+ * See https://landley.net/lxc/02-networking.html for example usage.
+ *
+ * todo: bridge mode 
+ *  -b	bridge daemon (forwards packets between NAME and NAME2 interfaces)
 
-USE_TUNCTL(NEWTOY(tunctl, "<1>1t|d|u:[!td]", TOYFLAG_USR|TOYFLAG_BIN))
+
+USE_TUNCTL(NEWTOY(tunctl, "<1>1t|d|u:T[!td]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TUNCTL
   bool "tunctl"
   default y
   help
-    usage: tunctl [-dt] [-u USER] NAME
+    usage: tunctl [-dtT] [-u USER] NAME
 
     Create and delete tun/tap virtual ethernet devices.
-    A tap device Template for new commands. You don't need this.
 
-    -d	Delete tun device
-    -t	Create tun device
-    -u	Owner of new device
+    -T	Use tap (ethernet frames) instead of tun (ip packets)
+    -d	Delete tun/tap device
+    -t	Create tun/tap device
+    -u	Set owner (user who can read/write device without root access)
 */
 
 #define FOR_tunctl
@@ -34,9 +41,11 @@ void tunctl_main(void)
   uid_t u = TT.user ?  xgetuid(TT.user) : 0;
   int fd = xopen("/dev/net/tun", O_RDWR);
 
-  ifr->ifr_flags = IFF_TAP|IFF_NO_PI;
+  // Associate filehandle with device
+  ifr->ifr_flags = ((toys.optflags&FLAG_T) ? IFF_TUN : IFF_TAP)|IFF_NO_PI;
   strncpy(ifr->ifr_name, *toys.optargs, sizeof(ifr->ifr_name));
   xioctl(fd, TUNSETIFF, toybuf);
+
   if (toys.optflags&FLAG_t) {
     xioctl(fd, TUNSETPERSIST, (void *)1);
     xioctl(fd, TUNSETOWNER, (void *)(long)u);
