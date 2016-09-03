@@ -621,30 +621,6 @@ done:
   free(line);
 }
 
-// Genericish function, can probably get moved to lib.c
-
-// Iterate over lines in file, calling function. Function can write 0 to
-// the line pointer if they want to keep it, or 1 to terminate processing,
-// otherwise line is freed. Passed file descriptor is closed at the end.
-static void do_lines(int fd, void (*call)(char **pline, long len))
-{
-  FILE *fp = fd ? xfdopen(fd, "r") : stdin;
-
-  for (;;) {
-    char *line = 0;
-    ssize_t len;
-
-    len = getline(&line, (void *)&len, fp);
-    if (len > 0) {
-      call(&line, len);
-      if (line == (void *)1) break;
-      free(line);
-    } else break;
-  }
-
-  if (fd) fclose(fp);
-}
-
 // Callback called on each input file
 static void do_sed(int fd, char *name)
 {
