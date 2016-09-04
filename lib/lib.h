@@ -102,6 +102,11 @@ struct dirtree *dirtree_read(char *path, int (*callback)(struct dirtree *node));
 
 void show_help(FILE *out);
 
+// Tell xopen and friends to print warnings but return -1 as necessary
+// The largest O_BLAH flag so far is arch/alpha's O_PATH at 0x800000 so
+// plenty of headroom.
+#define WARN_ONLY (1<<31)
+
 // xwrap.c
 void xstrncpy(char *dest, char *src, size_t size);
 void xstrncat(char *dest, char *src, size_t size);
@@ -132,6 +137,7 @@ int xcreate(char *path, int flags, int mode);
 int xopen(char *path, int flags);
 int xcreate_stdio(char *path, int flags, int mode);
 int xopen_stdio(char *path, int flags);
+int openro(char *path, int flags);
 int xopenro(char *path);
 void xpipe(int *pp);
 void xclose(int fd);

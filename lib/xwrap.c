@@ -318,11 +318,13 @@ void xunlink(char *path)
 }
 
 // Die unless we can open/create a file, returning file descriptor.
+// The meaning of O_CLOEXEC is reversed (it defaults on, pass it to disable)
+// and WARN_ONLY tells us not to exit.
 int xcreate_stdio(char *path, int flags, int mode)
 {
-  int fd = open(path, flags^O_CLOEXEC, mode);
+  int fd = open(path, (flags^O_CLOEXEC)&~WARN_ONLY, mode);
 
-  if (fd == -1) perror_exit_raw(path);
+  if (fd == -1) ((mode&WARN_ONLY) ? perror_msg_raw : perror_exit_raw)(path);
   return fd;
 }
 
@@ -378,12 +380,18 @@ int xopen(char *path, int flags)
   return notstdio(xopen_stdio(path, flags));
 }
 
-// Open read only, treating "-" as a synonym for stdin.
-int xopenro(char *path)
+// Open read only, treating "-" as a synonym for stdin, defaulting to warn only
+int openro(char *path, int flags)
 {
   if (!strcmp(path, "-")) return 0;
 
-  return xopen(path, O_RDONLY);
+  return xopen(path, flags^WARN_ONLY);
+}
+
+// Open read only, treating "-" as a synonym for stdin.
+int xopenro(char *path)
+{
+  return openro(path, O_RDONLY|WARN_ONLY);
 }
 
 FILE *xfdopen(int fd, char *mode)
@@ -674,6 +682,8 @@ char *xreadfile(char *name, char *buf, off_t len)
   return buf;
 }
 
+// The data argument to ioctl() is actually long, but it's usually used as
+// a pointer. If you need to feed in a number, do (void *)(long) typecast.
 int xioctl(int fd, int request, void *data)
 {
   int rc;
