@@ -2,9 +2,6 @@
 
 #include "toys.h"
 
-#if !CFG_TOYBOX_HELP
-void show_help(FILE *out) {;}
-#else
 #include "generated/help.h"
 
 #undef NEWTOY
@@ -24,14 +21,15 @@ void show_help(FILE *out)
   int i = toys.which-toy_list;
   char *s;
 
-  for (;;) {
-    s = help_data;
-    while (i--) s += strlen(s) + 1;
-    // If it's an alias, restart search for real name
-    if (*s != 255) break;
-    i = toy_find(++s)-toy_list;
-  }
+  if (CFG_TOYBOX_HELP) {
+    for (;;) {
+      s = help_data;
+      while (i--) s += strlen(s) + 1;
+      // If it's an alias, restart search for real name
+      if (*s != 255) break;
+      i = toy_find(++s)-toy_list;
+    }
 
-  fprintf(out, "%s", s);
+    fprintf(out, "%s", s);
+  }
 }
-#endif
