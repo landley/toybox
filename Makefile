@@ -55,6 +55,7 @@ change:
 clean::
 	rm -rf toybox generated change .singleconfig*
 
+# If singlemake was in generated/ "make clean; make test_ls" wouldn't work.
 distclean: clean
 	rm -f toybox_old .config* .singlemake
 
