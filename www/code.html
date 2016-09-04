@@ -743,11 +743,7 @@ away in libc.</p></blockquote>
 <li><p><b>struct passwd *xgetpwuid(uid_t uid)<br />
 struct group *xgetgrgid(gid_t gid)<br />
 struct passwd *xgetpwnam(char *name)</b></p>
-
-<p></p>
 </li>
-
-
 
 <li><b>void xsetuser(struct passwd *pwd)</b></li>
 <li><b>char *xreadlink(char *name)</b></li>
@@ -760,53 +756,7 @@ struct passwd *xgetpwnam(char *name)</b></p>
 </ul>
 
 <a name="lib_lib"><h3>lib/lib.c</h3>
-<p>Eight gazillion common functions:</p>
-
-<ul>
-<li><b>void verror_msg(char *msg, int err, va_list va)</b></li>
-<li><b>void error_msg(char *msg, ...)</b></li>
-<li><b>void perror_msg(char *msg, ...)</b></li>
-<li><b>void error_exit(char *msg, ...)</b></li>
-<li><b>void perror_exit(char *msg, ...)</b></li>
-<li><b>ssize_t readall(int fd, void *buf, size_t len)</b></li>
-<li><b>ssize_t writeall(int fd, void *buf, size_t len)</b></li>
-<li><b>off_t lskip(int fd, off_t offset)</b></li>
-<li><b>int mkpathat(int atfd, char *dir, mode_t lastmode, int flags)</b></li>
-<li><b>struct string_list **splitpath(char *path, struct string_list **list)</b></li>
-<li><b>struct string_list *find_in_path(char *path, char *filename)</b></li>
-<li><b>long atolx(char *numstr)</b></li>
-<li><b>long atolx_range(char *numstr, long low, long high)</b></li>
-<li><b>int numlen(long l)</b></li>
-<li><b>int stridx(char *haystack, char needle)</b></li>
-<li><b>int strstart(char **a, char *b)</b></li>
-<li><b>off_t fdlength(int fd)</b></li>
-<li><b>char *readfile(char *name, char *ibuf, off_t len)</b></li>
-<li><b>void msleep(long miliseconds)</b></li>
-<li><b>int64_t peek_le(void *ptr, unsigned size)</b></li>
-<li><b>int64_t peek_be(void *ptr, unsigned size)</b></li>
-<li><b>int64_t peek(void *ptr, unsigned size)</b></li>
-<li><b>void poke(void *ptr, uint64_t val, int size)</b></li>
-<li><b>void loopfiles_rw(char **argv, int flags, int permissions, int failok,</b></li>
-<li><b>void loopfiles(char **argv, void (*function)(int fd, char *name))</b></li>
-<li><b>char *get_rawline(int fd, long *plen, char end)</b></li>
-<li><b>char *get_line(int fd)</b></li>
-<li><b>int wfchmodat(int fd, char *name, mode_t mode)</b></li>
-<li><b>static void tempfile_handler(int i)</b></li>
-<li><b>int copy_tempfile(int fdin, char *name, char **tempname)</b></li>
-<li><b>void delete_tempfile(int fdin, int fdout, char **tempname)</b></li>
-<li><b>void replace_tempfile(int fdin, int fdout, char **tempname)</b></li>
-<li><b>void crc_init(unsigned int *crc_table, int little_endian)</b></li>
-<li><b>int terminal_size(unsigned *xx, unsigned *yy)</b></li>
-<li><b>int yesno(char *prompt, int def)</b></li>
-<li><b>void generic_signal(int sig)</b></li>
-<li><b>void sigatexit(void *handler)</b></li>
-<li><b>int sig_to_num(char *pidstr)</b></li>
-<li><b>char *num_to_sig(int sig)</b></li>
-<li><b>mode_t string_to_mode(char *modestr, mode_t mode)</b></li>
-<li><b>void mode_to_string(mode_t mode, char *buf)</b></li>
-<li><b>void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))</b></li>
-<li><b>int human_readable(char *buf, unsigned long long num)</b></li>
-</ul>
+<p>Eight gazillion common functions, see lib/lib.h for the moment:</p>
 
 <h3>lib/portability.h</h3>
 
@@ -1086,6 +1036,15 @@ are the same size. C99 guarantees structure members will occur in memory
 in the same order they're declared, and that padding won't be inserted between
 consecutive variables of register size.  Thus the first few entries can
 be longs or pointers corresponding to the saved arguments.</p>
+
+<p>The main downside is that numeric arguments ("#" and "-" format)
+are limited to +- 2 billion on 32 bit platforms (the "truncate -s 8G"
+problem), because long is only 64 bits on 64 bit hosts, so the capabilities
+of some tools differ when built in 32 bit vs 64 bit mode. Fixing this
+kind of ugly and even embedded designs are slowly moving to 64 bits,
+so our current plan is to document the problem and wait it out. (If
+"x32 mode" and similar becomes popular enough, we may revisit this
+decision.)</p>
 
 <p>See toys/example/*.c for longer examples of parsing options into the
 GLOBALS block.</p>
