@@ -109,7 +109,7 @@ testing()
 
   [ -n "$DEBUG" ] && set +x
 
-  return $RETVAL
+  return 0
 }
 
 # Recursively grab an executable and all the libraries needed to run it.
