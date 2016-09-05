@@ -357,6 +357,8 @@ int xdup(int fd)
 // old one. (We should never be called with stdin/stdout/stderr closed, but...)
 int notstdio(int fd)
 {
+  if (fd<0) return fd;
+
   while (fd<3) {
     int fd2 = xdup(fd);
 
