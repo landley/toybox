@@ -28,6 +28,6 @@ static void do_fsync(int fd, char *name)
 
 void fsync_main(void)
 {
-  loopfiles_rw(toys.optargs, O_RDONLY|O_NOATIME|O_NOCTTY|O_CLOEXEC,
-      0, 0, do_fsync);
+  loopfiles_rw(toys.optargs, O_RDONLY|O_NOATIME|O_NOCTTY|O_CLOEXEC|WARN_ONLY,
+      0, do_fsync);
 }

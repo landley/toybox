@@ -81,16 +81,11 @@ static void outline(char *line, char dash, char *name, long lcount, long bcount,
 static void do_grep(int fd, char *name)
 {
   struct double_list *dlb = 0;
-  FILE *file = fdopen(fd, "r");
+  FILE *file = xfdopen(fd, "r");
   long lcount = 0, mcount = 0, offset = 0, after = 0, before = 0;
   char *bars = 0;
 
   if (!fd) name = "(standard input)";
-
-  if (!file) {
-    perror_msg_raw(name);
-    return;
-  }
 
   // Loop through lines of input
   for (;;) {
@@ -368,5 +363,5 @@ void grep_main(void)
       if (!strcmp(*ss, "-")) do_grep(0, *ss);
       else dirtree_read(*ss, do_grep_r);
     }
-  } else loopfiles_rw(ss, O_RDONLY, 0, 1, do_grep);
+  } else loopfiles_rw(ss, O_RDONLY|WARN_ONLY, 0, do_grep);
 }

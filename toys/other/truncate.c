@@ -53,13 +53,13 @@ static void do_truncate(int fd, char *name)
 
 void truncate_main(void)
 {
-  int cr = !(toys.optflags&1);
+  int cr = !(toys.optflags&FLAG_c);
 
   if (-1 != (TT.type = stridx("+-<>/%", *TT.s))) TT.s++;
   TT.size = atolx(TT.s);
 
   // Create files with mask rwrwrw.
   // Nonexistent files are only an error if we're supposed to create them.
-  loopfiles_rw(toys.optargs, O_WRONLY|O_CLOEXEC|(cr ? O_CREAT : 0), 0666, cr,
-    do_truncate);
+  loopfiles_rw(toys.optargs, O_WRONLY|O_CLOEXEC|(cr ? O_CREAT|WARN_ONLY : 0),
+    0666, do_truncate);
 }

@@ -547,16 +547,20 @@ void poke(void *ptr, uint64_t val, int size)
 }
 
 // Iterate through an array of files, opening each one and calling a function
-// on that filehandle and name.  The special filename "-" means stdin if
-// flags is O_RDONLY, stdout otherwise.  An empty argument list calls
+// on that filehandle and name. The special filename "-" means stdin if
+// flags is O_RDONLY, stdout otherwise. An empty argument list calls
 // function() on just stdin/stdout.
 //
 // Note: pass O_CLOEXEC to automatically close filehandles when function()
-// returns, otherwise filehandles must be closed by function()
-void loopfiles_rw(char **argv, int flags, int permissions, int failok,
+// returns, otherwise filehandles must be closed by function().
+// pass WARN_ONLY to produce warning messages about files it couldn't
+// open/create, and skip them. Otherwise function is called with fd -1.
+void loopfiles_rw(char **argv, int flags, int permissions,
   void (*function)(int fd, char *name))
 {
-  int fd;
+  int fd, failok = !(flags&WARN_ONLY);
+
+  flags &= ~WARN_ONLY;
 
   // If no arguments, read from stdin.
   if (!*argv) function((flags & O_ACCMODE) != O_RDONLY ? 1 : 0, "-");
@@ -564,8 +568,8 @@ void loopfiles_rw(char **argv, int flags, int permissions, int failok,
     // Filename "-" means read from stdin.
     // Inability to open a file prints a warning, but doesn't exit.
 
-    if (!strcmp(*argv, "-")) fd=0;
-    else if (0>(fd = open(*argv, flags, permissions)) && !failok) {
+    if (!strcmp(*argv, "-")) fd = 0;
+    else if (0>(fd = notstdio(open(*argv, flags, permissions))) && !failok) {
       perror_msg_raw(*argv);
       continue;
     }
@@ -574,10 +578,10 @@ void loopfiles_rw(char **argv, int flags, int permissions, int failok,
   } while (*++argv);
 }
 
-// Call loopfiles_rw with O_RDONLY|O_CLOEXEC and !failok (common case).
+// Call loopfiles_rw with O_RDONLY|O_CLOEXEC|WARN_ONLY (common case)
 void loopfiles(char **argv, void (*function)(int fd, char *name))
 {
-  loopfiles_rw(argv, O_RDONLY|O_CLOEXEC, 0, 0, function);
+  loopfiles_rw(argv, O_RDONLY|O_CLOEXEC|WARN_ONLY, 0, function);
 }
 
 // Slow, but small.

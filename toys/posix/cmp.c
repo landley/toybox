@@ -43,6 +43,8 @@ static void do_cmp(int fd, char *name)
     return;
   }
 
+  toys.exitval = 0;
+
   for (;;) {
     len1 = readall(TT.fd, toybuf, size);
     len2 = readall(fd, buf2, size);
@@ -54,11 +56,9 @@ static void do_cmp(int fd, char *name)
         if (toys.optflags & FLAG_l)
           printf("%ld %o %o\n", byte_no, toybuf[i], buf2[i]);
         else {
-          if (!(toys.optflags & FLAG_s)) {
+          if (!(toys.optflags & FLAG_s)) 
             printf("%s %s differ: char %ld, line %ld\n",
               TT.name, name, byte_no, line_no);
-            toys.exitval++;
-          }
           goto out;
         }
       }
@@ -79,6 +79,8 @@ out:
 
 void cmp_main(void)
 {
-  loopfiles_rw(toys.optargs, O_CLOEXEC, 0, toys.optflags&FLAG_s, do_cmp);
+  toys.exitval = 2;
+  loopfiles_rw(toys.optargs, O_CLOEXEC|(WARN_ONLY*!(toys.optflags&FLAG_s)), 0,
+    do_cmp);
 }
 

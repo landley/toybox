@@ -205,7 +205,7 @@ char *chomp(char *s);
 int unescape(char c);
 int strstart(char **a, char *b);
 off_t fdlength(int fd);
-void loopfiles_rw(char **argv, int flags, int permissions, int failok,
+void loopfiles_rw(char **argv, int flags, int permissions,
   void (*function)(int fd, char *name));
 void loopfiles(char **argv, void (*function)(int fd, char *name));
 void xsendfile(int in, int out);

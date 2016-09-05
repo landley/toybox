@@ -1010,8 +1010,8 @@ void sed_main(void)
   TT.fdout = 1;
   TT.remember = xstrdup("");
 
-  // Inflict pattern upon input files
-  loopfiles_rw(args, O_RDONLY, 0, 0, do_sed);
+  // Inflict pattern upon input files. Long version because !O_CLOEXEC
+  loopfiles_rw(args, O_RDONLY|WARN_ONLY, 0, do_sed);
 
   if (!(toys.optflags & FLAG_i)) process_line(0, 0);
 
