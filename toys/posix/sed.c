@@ -657,6 +657,7 @@ static char *unescape_delimited_string(char **pstr, char *delim)
 {
   char *to, *from, mode = 0, d;
 
+  // Grab leading delimiter (if necessary), allocate space for new string
   from = *pstr;
   if (!delim || !*delim) {
     if (!(d = *(from++))) return 0;
@@ -670,13 +671,23 @@ static char *unescape_delimited_string(char **pstr, char *delim)
     if (!*from) return 0;
 
     // delimiter in regex character range doesn't count
-    if (!mode && *from == '[') {
-      mode = '[';
-      if (from[1]=='-' || from[1]==']') *(to++) = *(from++);
-    } else if (mode && *from == ']') mode = 0;
+    if (*from == '[') {
+      if (!mode) {
+        mode = ']';
+        if (from[1]=='-' || from[1]==']') *(to++) = *(from++);
+      } else if (mode == ']' && strchr(".=:", from[1])) {
+        *(to++) = *(from++);
+        mode = *from;
+      }
+    } else if (*from == mode) {
+      if (mode == ']') mode = 0;
+      else {
+        *(to++) = *(from++);
+        mode = ']';
+      }
     // Length 1 range (X-X with same X) is "undefined" and makes regcomp err,
     // but the perl build does it, so we need to filter it out.
-    else if (mode && *from == '-' && from[-1] == from[1]) {
+    } else if (mode && *from == '-' && from[-1] == from[1]) {
       from+=2;
       continue;
     } else if (*from == '\\') {

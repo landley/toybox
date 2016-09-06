@@ -57,6 +57,8 @@ testing 'multiple regex address match' 'sed -n /on/,/off/p' \
 	'zap\nbone\nturtle\scoff\nfred\ntron\nlurid\noffer\nbecause\n'
 testing 'regex address overlap' 'sed -n /on/,/off/p' "on\nzap\noffon\n" "" \
 	'on\nzap\noffon\nping\noff\n'
+testing 'getdelim with nested [:blah:]' 'sed -n "sa\a[a[:space:]bc]*aXXagp"' \
+	"ABXXCDXXEFXXGHXXIXX" "" "ABaaCDa EFaa aGHa a Ia "
 
 # gGhHlnNpPqrstwxy:=
 # s///#comment
