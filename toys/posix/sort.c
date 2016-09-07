@@ -205,28 +205,42 @@ static int compare_values(int flags, char *x, char *y)
 
     return dx>dy ? 1 : (dx<dy ? -1 : 0);
   } else if (CFG_SORT_BIG && ff == FLAG_M) {
-    struct tm thyme;
-    int dx;
-    char *xx,*yy;
+    int dx = 0, dy = 0;
 
-    xx = strptime(x,"%b",&thyme);
-    dx = thyme.tm_mon;
-    yy = strptime(y,"%b",&thyme);
-    if (!xx) return !yy ? 0 : -1;
-    else if (!yy) return 1;
-    else return dx==thyme.tm_mon ? 0 : dx-thyme.tm_mon;
+    char *months = "jan\0feb\0mar\0apr\0may\0jun\0jul\0aug\0sep\0oct\0nov\0dec";
+    for (int i = 1; i <= 12; i++) {
+      if (strncasecmp(months, x, 3) == 0) dx = i;
+      if (strncasecmp(months, y, 3) == 0) dy = i;
+      months += strlen(months)+1;
+    }
+    return dx && dy ? dx - dy : !dx && !dy ? 0 : dx ? 1 : -1;
 
   } else if (CFG_SORT_BIG && ff == FLAG_x) {
     return strtol(x, NULL, 16)-strtol(y, NULL, 16);
   // This has to be ff == FLAG_n
   } else {
-    // Full floating point version of -n
-    if (CFG_SORT_FLOAT) {
-      double dx = atof(x), dy = atof(y);
+    // compare as strings instead of numbers to have unlimited precision
+    int negx = 1, negy = 1, cmp;
+    if (*x == '-') x++, negx = -1;
+    if (*y == '-') y++, negy = -1;
+    if (negx == 1 && negy == -1) return  1; // -x < x
+    if (negx == -1 && negy == 1) return -1;
 
-      return dx>dy ? 1 : (dx<dy ? -1 : 0);
-    // Integer version of -n for tiny systems
-    } else return atoi(x)-atoi(y);
+    while (*x == '0') x++; // skip zeros
+    while (*y == '0') y++;
+    size_t lenx = strspn(x, "1234567890"), leny = strspn(y, "1234567890");
+    if (lenx != leny) return negx * ((lenx > leny) - (lenx < leny)); // long num > short num
+    if ((cmp = strncmp(x, y, lenx))) return negx * cmp; // simple number comparison
+
+    x += lenx + (x[lenx] == '.'); y += lenx + (y[lenx] == '.'); // skip integer part and .
+    lenx = strspn(x, "1234567890"); leny = strspn(y, "1234567890");
+    lenx = lenx < leny ? lenx : leny;
+    if ((cmp = strncmp(x, y, lenx))) return negx * cmp; // different prefixes
+
+    x += lenx; y += lenx; // skip prefixes
+    while (*x == '0') x++;
+    while (*y == '0') y++; // skip zeros again
+    return !*x && !*y ? 0 : isdigit(*x) ? 1 : -1;
   }
 }
 
