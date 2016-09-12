@@ -221,24 +221,20 @@ static void do_regular_file(int fd, char *name, struct stat *sb)
     else if (toybuf[5] == '1') cpioformat = "SVR4 with no CRC";
     else if (toybuf[5] == '2') cpioformat = "SVR4 with CRC";
     xprintf("ASCII cpio archive (%s)\n", cpioformat);
-  }
-  else if (len>33 && (magic=peek(&s,2), magic==0143561 || magic==070707)) {
+  } else if (len>33 && (magic=peek(&s,2), magic==0143561 || magic==070707)) {
     if (magic == 0143561) printf("byte-swapped ");
     xprintf("cpio archive\n");
-  }
   // tar archive (ustar/pax or gnu)
-  else if (len>500 && !strncmp(s+257, "ustar", 5)) {
+  } else if (len>500 && !strncmp(s+257, "ustar", 5)) {
     xprintf("POSIX tar archive%s\n", strncmp(s+262,"  ",2)?"":" (GNU)");
-  }
   // zip/jar/apk archive, ODF/OOXML document, or such
-  else if (len>5 && strstart(&s, "PK\03\04")) {
+  } else if (len>5 && strstart(&s, "PK\03\04")) {
     int ver = (int)(char)(toybuf[4]);
     xprintf("Zip archive data");
     if (ver)
       xprintf(", requires at least v%d.%d to extract", ver/10, ver%10);
     xputc('\n');
-  }
-  else {
+  } else {
     char *what = 0;
     int i, bytes;
 
@@ -279,23 +275,22 @@ void file_main(void)
 
   // Can't use loopfiles here because it doesn't call function when can't open
   for (arg = toys.optargs; *arg; arg++) {
-    struct stat sb;
     char *name = *arg, *what = "cannot open";
+    struct stat sb;
+    int fd = !strcmp(name, "-");
 
     xprintf("%s: %*s", name, (int)(TT.max_name_len - strlen(name)), "");
 
-    if (!lstat(name, &sb)) {
-      if (S_ISFIFO(sb.st_mode)) what = "fifo";
-      else if (S_ISREG(sb.st_mode)) {
-        int fd = !strcmp(name, "-") ? 0 : open(name, O_RDONLY);
-
-        if (fd!=-1) {
-          if (!sb.st_size) what = "empty";
-          else do_regular_file(fd, name, &sb);
+    if (fd || !lstat(name, &sb)) {
+      if (fd || S_ISREG(sb.st_mode)) {
+        if (!sb.st_size) what = "empty";
+        else if ((fd = openro(name, O_RDONLY)) != -1) {
+          do_regular_file(fd, name, &sb);
           if (fd) close(fd);
-          if (sb.st_size) continue;
+          continue;
         }
-      } else if (S_ISBLK(sb.st_mode)) what = "block special";
+      } else if (S_ISFIFO(sb.st_mode)) what = "fifo";
+      else if (S_ISBLK(sb.st_mode)) what = "block special";
       else if (S_ISCHR(sb.st_mode)) what = "character special";
       else if (S_ISDIR(sb.st_mode)) what = "directory";
       else if (S_ISSOCK(sb.st_mode)) what = "socket";
