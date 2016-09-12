@@ -463,7 +463,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
         printf("% *d,% 4d", totals[5]-4, dev_major(st->st_rdev),
           dev_minor(st->st_rdev));
       else {
-        print_with_h(tmp, st->st_size, 0);
+        print_with_h(tmp, st->st_size, 1);
         printf("%*s", totals[5]+1, tmp);
       }
 
