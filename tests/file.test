@@ -10,6 +10,7 @@ echo "#!  /bin/bash" > bash.script2
 echo "#!  /usr/bin/env python" > env.python.script
 echo "Hello, world!" > ascii
 echo "cafebabe000000310000" | xxd -r -p > java.class
+ln -s java.class symlink
 
 testing "empty" "file empty" "empty: empty\n" "" ""
 testing "bash.script" "file bash.script" "bash.script: /bin/bash script\n" "" ""
@@ -17,5 +18,8 @@ testing "bash.script with spaces" "file bash.script2" "bash.script2: /bin/bash s
 testing "env python script" "file env.python.script" "env.python.script: python script\n" "" ""
 testing "ascii" "file ascii" "ascii: ASCII text\n" "" ""
 testing "java class" "file java.class" "java.class: Java class file, version 49.0\n" "" ""
+testing "symlink" "file symlink" "symlink: symbolic link\n" "" ""
+testing "symlink -h" "file -h symlink" "symlink: symbolic link\n" "" ""
+testing "symlink -L" "file -L symlink" "symlink: Java class file, version 49.0\n" "" ""
 
 rm empty bash.script bash.script2 env.python.script ascii java.class
