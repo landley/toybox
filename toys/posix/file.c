@@ -3,8 +3,6 @@
  * Copyright 2016 The Android Open Source Project
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/file.html
- *
- * TODO: ar
 
 USE_FILE(NEWTOY(file, "<1hL[!hL]", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -179,6 +177,7 @@ static void do_regular_file(int fd, char *name, struct stat *sb)
   if (len<0) perror_msg("%s", name);
 
   if (len>40 && strstart(&s, "\177ELF")) do_elf_file(fd, sb);
+  else if (len>=8 && strstart(&s, "!<arch>\n")) xprintf("ar archive\n");
   else if (len>28 && strstart(&s, "\x89PNG\x0d\x0a\x1a\x0a")) {
     // PNG is big-endian: https://www.w3.org/TR/PNG/#7Integers-and-byte-order
     int chunk_length = peek_be(s, 4);
