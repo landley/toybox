@@ -170,7 +170,7 @@ static void output_byte(char sym)
 
   TT.data[pos] = sym;
 
-  if (!pos) {
+  if (pos == 32767) {
     xwrite(TT.outfd, TT.data, 32768);
     if (TT.crcfunc) TT.crcfunc(TT.data, 32768);
   }
