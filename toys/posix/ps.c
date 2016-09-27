@@ -1178,7 +1178,9 @@ void ps_main(void)
   else if (toys.optflags&FLAG_l)
     not_o = "F,S,UID,%sPPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD";
   else if (CFG_TOYBOX_ON_ANDROID)
-    not_o = "USER,%sPPID,VSIZE,RSS,WCHAN:10,ADDR:10=PC,S,NAME";
+    sprintf(not_o = toybuf+128,
+            "USER,%%sPPID,VSIZE,RSS,WCHAN:10,ADDR:10=PC,S,%s",
+            (toys.optflags&FLAG_T) ? "CMD" : "NAME");
   sprintf(toybuf, not_o, (toys.optflags & FLAG_T) ? "PID,TID," : "PID,");
 
   // Init TT.fields. This only uses toybuf if TT.ps.o is NULL
