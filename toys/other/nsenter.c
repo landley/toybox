@@ -39,6 +39,7 @@ config UNSHARE
 
 config NSENTER
   bool "nsenter"
+  depends on TOYBOX_CONTAINER
   default y
   help
     usage: nsenter [-t pid] [-F] [-i] [-m] [-n] [-p] [-u] [-U] COMMAND...
