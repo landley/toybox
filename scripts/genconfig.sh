@@ -36,7 +36,7 @@ probeconfig()
     #include <linux/sched.h>
     int x=CLONE_NEWNS|CLONE_NEWUTS|CLONE_NEWIPC|CLONE_NEWNET;
 
-    int main(int argc, char *argv[]) { return unshare(x); }
+    int main(int argc, char *argv[]) { setns(0,0); return unshare(x); }
 EOF
 
   probesymbol TOYBOX_FIFREEZE -c << EOF
