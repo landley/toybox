@@ -1151,6 +1151,7 @@ static void shared_main(void)
 
 void ps_main(void)
 {
+  char **arg;
   struct dirtree *dt;
   char *not_o;
   int i;
@@ -1169,6 +1170,10 @@ void ps_main(void)
   comma_args(TT.ps.G, &TT.GG, "bad -G", parse_rest);
   comma_args(TT.ps.k, &TT.kfields, "bad -k", parse_ko);
   dlist_terminate(TT.kfields);
+
+  // It's undocumented, but traditionally extra arguments are extra -p args
+  for (arg = toys.optargs; *arg; arg++)
+    if (parse_rest(&TT.pp, *arg, strlen(*arg))) error_exit_raw(*arg);
 
   // Figure out which fields to display
   not_o = "%sTTY,TIME,CMD";
