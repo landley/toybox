@@ -640,10 +640,14 @@ int copy_tempfile(int fdin, char *name, char **tempname)
   if (!tempfile2zap) sigatexit(tempfile_handler);
   tempfile2zap = *tempname;
 
-  // Set permissions of output file
+  // Set permissions of output file (ignoring errors, usually due to nonroot)
 
   fstat(fdin, &statbuf);
   fchmod(fd, statbuf.st_mode);
+
+  // It's fine if this fails (generally because we're not root), but gcc no
+  // longer lets a (void) typecast silence the "unused result" warning, so...
+  if (fchown(fd, statbuf.st_uid, statbuf.st_gid));
 
   return fd;
 }
