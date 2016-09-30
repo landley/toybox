@@ -275,44 +275,54 @@ dd getevent newfs_msdos
 <p>The toolbox makefile also builds the BSD grep right now, because toybox
 grep is missing <code>--color</code>.</p>
 
-<h3>Other Android core commands</h3>
+<h3>Other Android /system/bin commands</h3>
 
-<p>Other than the toolbox directory, the currently interesting
-subdirectories in the core repository are init,
-logcat, logwrapper, reboot, and run-as.</p>
+<p>Other than the toolbox links, the currently interesting
+binaries in /system/bin are:</p>
 
 <ul>
-<li><b>init</b> - Android's PID 1</li>
-<li><b>logcat</b> - read android log format</li>
-<li><b>logwrapper</b> - redirect stdio to android log</li>
-<li><b>reboot</b> - Android's reboot(1)</li>
-<li><b>run-as</b> - subset of sudo</li>
+<li><b>arping</b> - ARP REQUEST tool (iputils)</li>
+<li><b>blkid</b> - identify block devices (e2fsprogs)</li>
+<li><b>e2fsck</b> - fsck for ext2/ext3/ext4 (e2fsprogs)</li>
+<li><b>fsck.f2fs</b> - fsck for f2fs (f2fs-tools)</li>
+<li><b>fsck_msdos</b> - fsck for FAT (BSD)</li>
+<li><b>gzip</b> - compression/decompression tool (zlib)</li>
+<li><b>ip</b> - network routing tool (iproute2)</li>
+<li><b>iptables/ip6tables</b> - IPv4/IPv6 NAT admin (iptables)</li>
+<li><b>iw</b> - wireless device config tool (iw)</li>
+<li><b>logwrapper</b> - redirect stdio to android log (Android)</li>
+<li><b>make_ext4fs</b> - make ext4 fs (Android)</li>
+<li><b>make_f2fs</b> - make f2fs fs (f2fs-tools)</li>
+<li><b>ping/ping6</b> - ICMP ECHO_REQUEST tool (iputils)</li>
+<li><b>reboot</b> - reboot (Android)</li>
+<li><b>resize2fs</b> - resize ext2/ext3/ext4 fs (e2fsprogs)</li>
+<li><b>sh</b> - mksh (BSD)</li>
+<li><b>ss</b> - socket statistics (iproute2)</li>
+<li><b>tc</b> - traffic control (iproute2)</li>
+<li><b>tracepath/tracepath6</b> - trace network path (iputils)</li>
+<li><b>traceroute/traceroute6</b> - trace network route (iputils)</li>
 </ul>
 
-<p>Almost all of these reinvent an existing wheel with less functionality and a
-different user interface. We may want to provide that interface, but
-implementing the full commands (fdisk, init, and sudo) come first.</p>
+<p>The names in parentheses are the source.</p>
 
 <h3>Analysis</h3>
 
 <p>For reference, combining everything listed above, we get:</p>
 
 <blockquote><b>
-dd getevent init
-logcat logwrapper
-newfs_msdos reboot run-as
+arping blkid e2fsck dd fsck.f2fs fsck_msdos getevent gzip ip iptables
+ip6tables iw logwrapper make_ext4fs make_f2fs newfs_msdos ping ping6
+reboot resize2fs sh ss tc tracepath tracepath6 traceroute traceroute6
 </b></blockquote>
 
 <p>We may eventually implement all of that, but for toybox 1.0 we need to
-focus a bit. For our first pass, let's grab just logcat and logwrapper
-from the "core" commands (since the rest have some full/standard version
-providing that functionality, which we can implement a shim interface
-for later).</p>
+focus a bit. For our first pass, let's just replace all the "toolbox"
+commands.</p>
 
 <p>This means toybox should implement (or finish implementing):</p>
 <blockquote><b>
 <span id=toolbox>
-dd getevent logcat logwrapper newfs_msdos
+dd getevent grep gzip newfs_msdos
 </span>
 </b></blockquote>
 
@@ -320,7 +330,7 @@ dd getevent logcat logwrapper newfs_msdos
 of "pending". These should be a priority for cleanup:</p>
 
 <blockquote><b>
-dd expr lsof more tar tr traceroute
+chrt dd expr getfattr lsof more tar tr traceroute
 </b></blockquote>
 
 <p>Android wishlist:</p>
