@@ -10,7 +10,7 @@
  * TODO: handle error return from emit(), error_msg/exit consistently
  *       What's the right thing to do for -i when write fails? Skip to next?
 
-USE_SED(NEWTOY(sed, "(version)e*f*inEr[+Er]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_SED(NEWTOY(sed, "(help)(version)e*f*inEr[+Er]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE|TOYFLAG_NOHELP))
 
 config SED
   bool "sed"
@@ -1000,6 +1000,9 @@ void sed_main(void)
     xprintf("This is not GNU sed version 9.0\n");
     return;
   }
+
+  // Handling our own --version means we handle our own --help too.
+  if (toys.optflags&FLAG_help) help_exit(0);
 
   // Parse pattern into commands.
 

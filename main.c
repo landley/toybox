@@ -67,6 +67,12 @@ static const int NEED_OPTIONS =
 #include "generated/newtoys.h"
 0;  // Ends the opts || opts || opts...
 
+static void unknown(char *name)
+{
+  toys.exitval = 127;
+  error_exit("Unknown command %s", name);
+}
+
 // Setup toybox global state for this command.
 static void toy_singleinit(struct toy_list *which, char *argv[])
 {
@@ -75,13 +81,19 @@ static void toy_singleinit(struct toy_list *which, char *argv[])
 
   if (CFG_TOYBOX_I18N) setlocale(LC_ALL, "C"+!!(which->flags & TOYFLAG_LOCALE));
 
-  if (CFG_TOYBOX_HELP_DASHDASH && !(which->flags & TOYFLAG_NOHELP)
-    && argv[1] && !strcmp(argv[1], "--help"))
-  {
-    if (CFG_TOYBOX && toys.which == toy_list && toys.argv[2])
-      if (!(toys.which = toy_find(toys.argv[2]))) return;
-    show_help(stdout);
-    xexit();
+  // Parse --help and --version for (almost) all commands
+  if (CFG_TOYBOX_HELP_DASHDASH && !(which->flags & TOYFLAG_NOHELP) && argv[1]) {
+    if (!strcmp(argv[1], "--help")) {
+      if (CFG_TOYBOX && toys.which == toy_list && toys.argv[2])
+        if (!(toys.which = toy_find(toys.argv[2]))) unknown(toys.argv[2]);
+      show_help(stdout);
+      xexit();
+    }
+
+    if (!strcmp(argv[1], "--version")) {
+      xputs("toybox "TOYBOX_VERSION);
+      xexit();
+    }
   }
 
   if (NEED_OPTIONS && which->options) get_optflags();
@@ -168,16 +180,7 @@ void toybox_main(void)
   // For early error reporting
   toys.which = toy_list;
 
-  if (toys.argv[1]) {
-    if (!strcmp("--version", toys.argv[1])) {
-      xputs(TOYBOX_VERSION);
-      xexit();
-    }
-    if (toys.argv[1][0] != '-') {
-      toys.exitval = 127;
-      error_exit("Unknown command %s", toys.argv[1]);
-    }
-  }
+  if (toys.argv[1] && toys.argv[1][0] != '-') unknown(toys.argv[1]);
 
   // Output list of command.
   for (i=1; i<ARRAY_LEN(toy_list); i++) {

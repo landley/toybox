@@ -82,12 +82,13 @@ config TOYBOX_HELP
 	  Include help text for each command.
 
 config TOYBOX_HELP_DASHDASH
-	bool "--help"
+	bool "--help and --version"
 	default y
 	depends on TOYBOX_HELP
 	help
 	  Support --help argument in all commands, even ones with a NULL
-	  optstring. Produces the same output as "help command".
+	  optstring. (Use TOYFLAG_NOHELP to disable.) Produces the same output
+	  as "help command". --version shows toybox version.
 
 config TOYBOX_I18N
 	bool "Internationalization support"
