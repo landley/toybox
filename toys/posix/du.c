@@ -39,7 +39,7 @@ config DU
 GLOBALS(
   long maxdepth;
 
-  long depth, total;
+  unsigned long depth, total;
   dev_t st_dev;
   void *inodes;
 )
@@ -103,9 +103,11 @@ static int seen_inode(void **list, struct stat *st)
   return 0;
 }
 
-// dirtree callback, comput/display size of node
+// dirtree callback, compute/display size of node
 static int do_du(struct dirtree *node)
 {
+  unsigned long blocks;
+
   if (!node->parent) TT.st_dev = node->st.st_dev;
   else if (!dirtree_notdotdot(node)) return 0;
 
@@ -134,14 +136,19 @@ static int do_du(struct dirtree *node)
     } else TT.depth--;
   }
 
-  node->extra += node->st.st_blocks;
-  if (node->parent) node->parent->extra += node->extra;
+  // Modern compilers' optimizers are insane and think signed overflow
+  // behaves differently than unsigned overflow. Sigh. Big hammer.
+  blocks = node->st.st_blocks + (unsigned long)node->extra;
+  node->extra = blocks;
+  if (node->parent)
+    node->parent->extra = (unsigned long)node->parent->extra+blocks;
   else TT.total += node->extra;
 
   if ((toys.optflags & FLAG_a) || !node->parent
       || (S_ISDIR(node->st.st_mode) && !(toys.optflags & FLAG_s)))
   {
-    print(node->extra*512, node);
+    blocks = node->extra;
+    print(blocks*512LL, node);
   }
 
   return 0;
