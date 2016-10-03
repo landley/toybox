@@ -403,7 +403,7 @@ static void display_routes6(void)
   xprintf("Kernel IPv6 routing table\n"
       "%-43s%-40s Flags Metric Ref    Use Iface\n", "Destination", "Next Hop");
 
-  while ((items = fscanf(fp, "%32s%x%*s%*x%32s%x%x%x%x%10s\n", ipv6_dest_addr+8,
+  while ((items = fscanf(fp, "%32s%x%*s%*x%32s%x%x%x%x%15s\n", ipv6_dest_addr+8,
           &prefixlen, ipv6_src_addr+8, &metric, &use, &refcount, &flag, 
           iface)) == 8)
   {
