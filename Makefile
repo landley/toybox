@@ -40,6 +40,9 @@ bloatcheck: toybox_old generated/unstripped/toybox
 install_flat:
 	scripts/install.sh --symlink --force
 
+install_airlock:
+	scripts/install.sh --symlink --force --airlock
+
 install:
 	scripts/install.sh --long --symlink --force
 
@@ -76,6 +79,7 @@ help::
 	@echo  '                    to show diff, VERBOSE=fail to stop after first failure.'
 	@echo  '  clean           - Delete temporary files.'
 	@echo  "  distclean       - Delete everything that isn't shipped."
+	@echo  '  install_airlock - Install toybox and host toolchain into $PREFIX directory.'
 	@echo  '  install_flat    - Install toybox into $$PREFIX directory.'
 	@echo  '  install         - Install toybox into subdirectories of $$PREFIX.'
 	@echo  '  uninstall_flat  - Remove toybox from $$PREFIX directory.'
