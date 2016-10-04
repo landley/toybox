@@ -861,8 +861,9 @@ won't warn you if you forget the &, but the code crashes pretty quickly in
 that case.</p></li>
 
 <li><p><b>How do I assemble a singly-linked-list in order?</b> - use
-a double_list, dlist_add() your entries, and then break the circle with
-<b>list->prev->next = NULL;</b> when done.</li>
+a double_list, dlist_add() your entries, and then call dlist_terminate(list)
+to break the circle when done (turning the last ->next and the first ->prev
+into NULLs).</p>
 </ul>
 
 <a name="lib_args"><h3>lib/args.c</h3>
