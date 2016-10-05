@@ -13,16 +13,25 @@ config TOYBOX
 	bool
 	default y
 	help
-	  usage: toybox [--long | --version | [command] [arguments...]]
+	  usage: toybox [--long | --help | --version | [command] [arguments...]]
 
 	  With no arguments, shows available commands. First argument is
 	  name of a command to run, followed by any arguments to that command.
 
 	  --long	Show path to each command
-	  --version	Show toybox version
 
 	  To install command symlinks, try:
 	    for i in $(/bin/toybox --long); do ln -s /bin/toybox $i; done
+
+	  Most toybox commands also understand the following arguments:
+
+	  --help		Show command help (only)
+	  --version	Show toybox version (only)
+
+	  The filename "-" means stdin, "--" stops argument parsing,
+	  and numerical arguments accept a single letter suffix for
+	  kilo, mega, giga, tera, peta, and exabytes, plus an additional
+	  "d" to indicate decimal 1000's instead of 1024.
 
 config TOYBOX_SUID
 	bool "SUID support"
