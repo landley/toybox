@@ -566,7 +566,7 @@ static void show_ps(struct carveup *tb)
     abslen = abs(field->len);
     sign = field->len<0 ? -1 : 1;
     olen = strlen(out);
-    if (field->which<=PS_BIT && olen>abslen) {
+    if ((field->which<=PS_BIT || (toys.optflags&FLAG_w)) && olen>abslen) {
       // overflow but remember by how much
       extra += olen-abslen;
       abslen = olen;
