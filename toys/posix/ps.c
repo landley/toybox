@@ -815,10 +815,10 @@ static int get_ps(struct dirtree *new)
     // Data we want is in a file.
     // Last length saved in slot[] is command line (which has embedded NULs)
     } else {
+      int temp = 0;
 
       // When command has no arguments, don't space over the NUL
       if (readfileat(fd, buf, buf, &len) && len>0) {
-        int temp = 0;
 
         // Trim trailing whitespace and NUL bytes
         while (len)
@@ -836,10 +836,11 @@ static int get_ps(struct dirtree *new)
           } else if (!TT.tty && c<' ') c = '?';
           buf[i] = c;
         }
-        // Store end of argv[0] so ARGS and CMDLINE can differ.
-        // We do it for each file string slot but last is cmdline, which sticks.
-        slot[SLOT_argv0len] = temp ? temp : len;  // Position of _first_ NUL
       } else *buf = len = 0;
+
+      // Store end of argv[0] so ARGS and CMDLINE can differ.
+      // We do it for each file string slot but last is cmdline, which sticks.
+      slot[SLOT_argv0len] = temp ? temp : len;  // Position of _first_ NUL
     }
 
     // Above calculated/retained len, so we don't need to re-strlen.
