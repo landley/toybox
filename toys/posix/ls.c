@@ -5,7 +5,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/ls.html
 
-USE_LS(NEWTOY(ls, USE_LS_COLOR("(color):;")"ZgoACFHLRSabcdfhiklmnpqrstux1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][!qb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_LS(NEWTOY(ls, USE_LS_COLOR("(color):;")"(show-control-chars)ZgoACFHLRSabcdfhiklmnpqrstux1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][!qb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config LS
   bool "ls"
@@ -534,12 +534,15 @@ void ls_main(void)
   if (toys.optflags&FLAG_b) TT.escmore = " \\";
 
   // Do we have an implied -1
-  if (!isatty(1)) {
+  if (isatty(1)) {
+    if (!(toys.optflags&FLAG_show_control_chars)) toys.optflags |= FLAG_q;
+    if (toys.optflags&(FLAG_l|FLAG_o|FLAG_n|FLAG_g)) toys.optflags |= FLAG_1;
+    else if (!(toys.optflags&(FLAG_1|FLAG_x|FLAG_m))) toys.optflags |= FLAG_C;
+  } else {
     if (!(toys.optflags & FLAG_m)) toys.optflags |= FLAG_1;
     if (TT.color) toys.optflags ^= FLAG_color;
-  } else if (toys.optflags&(FLAG_l|FLAG_o|FLAG_n|FLAG_g))
-    toys.optflags |= FLAG_1;
-  else if (!(toys.optflags&(FLAG_1|FLAG_x|FLAG_m))) toys.optflags |= FLAG_C;
+  }
+
   // The optflags parsing infrastructure should really do this for us,
   // but currently it has "switch off when this is set", so "-dR" and "-Rd"
   // behave differently
