@@ -281,6 +281,7 @@ void xsetsockopt(int fd, int level, int opt, void *val, socklen_t len);
 int xconnect(char *host, char *port, int family, int socktype, int protocol,
   int flags);
 int xpoll(struct pollfd *fds, int nfds, int timeout);
+int pollinate(int in1, int in2, int out1, int out2, int timeout, int shutdown_timeout);
 
 // password.c
 int get_salt(char *salt, char * algo);
