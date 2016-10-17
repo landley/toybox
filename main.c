@@ -70,6 +70,7 @@ static const int NEED_OPTIONS =
 static void unknown(char *name)
 {
   toys.exitval = 127;
+  toys.which = toy_list;
   error_exit("Unknown command %s", name);
 }
 
