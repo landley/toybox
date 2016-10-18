@@ -48,7 +48,7 @@ testing "'%c %c' 78 79" "$PRINTF '%c %c' 78 79" "7 7" "" ""
 testing "'%d %d' 78 79" "$PRINTF '%d %d' 78 79" "78 79" "" ""
 testing "'%f %f' 78 79" "$PRINTF '%f %f' 78 79" \
   "78.000000 79.000000" "" ""
-testing "'f f' 78 79" "$PRINTF 'f f' 78 79" "f f" "" ""
+testing "'f f' 78 79" "$PRINTF 'f f' 78 79 2>/dev/null" "f f" "" ""
 testing "'%i %i' 78 79" "$PRINTF '%i %i' 78 79" "78 79" "" ""
 testing "'%o %o' 78 79" "$PRINTF '%o %o' 78 79" "116 117" "" ""
 testing "'%u %u' 78 79" "$PRINTF '%u %u' 78 79" "78 79" "" ""
@@ -65,3 +65,6 @@ testing "corner case" "$PRINTF '\\8'" '\8' '' ''
 # so treating the \0066 in %b like the \0066 not in %b is wrong because posix.
 testing "printf posix inconsistency" "$PRINTF '\\0066-%b' '\\0066'" "\x066-6" \
   "" ""
+
+testing "printf \x" "$PRINTF 'A\x1b\x2B\x3Q\xa' | od -An -tx1" \
+  " 41 1b 2b 03 51 0a\n" "" ""
