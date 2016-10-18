@@ -59,6 +59,9 @@ testing 'regex address overlap' 'sed -n /on/,/off/p' "on\nzap\noffon\n" "" \
 	'on\nzap\noffon\nping\noff\n'
 testing 'getdelim with nested [:blah:]' 'sed -n "sa\a[a[:space:]bc]*aXXagp"' \
 	"ABXXCDXXEFXXGHXXIXX" "" "ABaaCDa EFaa aGHa a Ia "
+testing '[ in [[]' "sed 's@[[]@X@g'" "X" "" "["
+testing '[[] with ] as delimiter' "sed 's][[]]X]g'" "X" "" "["
+testing '[[] with [ as delimiter' "sed 's[\[\[][X['" "X" "" "["
 
 # gGhHlnNpPqrstwxy:=
 # s///#comment
