@@ -35,6 +35,11 @@ testing "-r" \
   "touch -r walrus walrus2 && date -r walrus2 +%s.%N" \
    "1234567890.123456789\n" "" ""
 
+# Yes, the year could roll over while you're running this test. I do not care.
+testing "-t MMDDhhmm" \
+  "touch -t 01231234 input && date +%Y-%m-%d:%H-%M-%S -r input" \
+  "$(date +%Y)-01-23:12-34-00\n" "" ""
+
 #testing "-a"
 #testing "-m"
 #testing "-am"
