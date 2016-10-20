@@ -106,7 +106,8 @@ int crunch_str(char **str, int width, FILE *out, char *escmore,
     }
     col = width-columns;
     if (col<1) break;
-    col = escout(out, col, wc);
+    if (escout) col = escout(out, col, wc);
+    else if (out) fwrite(end, bytes, 1, out);
   }
   *str = end;
 
