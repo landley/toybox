@@ -15,6 +15,19 @@ testing "-t" \
   "touch -t 201201231234 walrus && date -r walrus +%Y%m%d-%H%M%S.%N" \
   "20120123-123400.000000000\n" "" ""
 
+# Yes, the year could roll over while you're running this test. I do not care.
+testing "-t MMDDhhmm" \
+  "touch -t 01231234 input && date +%Y-%m-%d:%H-%M-%S -r input" \
+  "$(date +%Y)-01-23:12-34-00\n" "" ""
+
+testing "-t YYMMDDhhmm" \
+  "touch -t 2101231234 input && date +%Y-%m-%d:%H-%M-%S -r input" \
+  "$(date +%C)21-01-23:12-34-00\n" "" ""
+
+testing "-t CCYYMMDDhhmm" \
+  "touch -t 201201231234 walrus && date -r walrus +%Y%m%d-%H%M%S.%N" \
+  "20120123-123400.000000000\n" "" ""
+
 testing "-t seconds" \
   "touch -t 201201231234.56 walrus && date -r walrus +%Y%m%d-%H%M%S.%N" \
   "20120123-123456.000000000\n" "" ""
@@ -25,6 +38,10 @@ testing "-t nanoseconds" \
 
 testing "-d" \
   "touch -d 2009-02-13T23:31:30Z walrus && date -r walrus +%s" \
+  "1234567890\n" "" ""
+
+testing "-d with space" \
+  "touch -d '2009-02-13 23:31:30Z' walrus && date -r walrus +%s" \
   "1234567890\n" "" ""
 
 testing "-d nanoseconds" \
@@ -39,6 +56,11 @@ testing "-r" \
 testing "-t MMDDhhmm" \
   "touch -t 01231234 input && date +%Y-%m-%d:%H-%M-%S -r input" \
   "$(date +%Y)-01-23:12-34-00\n" "" ""
+
+testing "-t CCMMDDhhmm" \
+  "touch -t 2101231234 input && date +%Y-%m-%d:%H-%M-%S -r input" \
+  "$(date +%C)21-01-23:12-34-00\n" "" ""
+
 
 #testing "-a"
 #testing "-m"

@@ -54,7 +54,7 @@ void touch_main(void)
       format = (char *[]){"%Y-%m-%dT%T", "%Y-%m-%d %T", 0};
       date = TT.date;
     } else {
-      format = (char *[]){"%Y%m%d%H%M", "%m%d%H%M", "%y%m%d%H%M", 0};
+      format = (char *[]){"%m%d%H%M", "%y%m%d%H%M", "%C%y%m%d%H%M", 0};
       date = TT.time;
     }
 
@@ -66,6 +66,13 @@ void touch_main(void)
     }
 
     while (*format) {
+      if (toys.optflags&FLAG_t) {
+        s = strchr(date, '.');
+        if ((s ? s-date : strlen(date)) != strlen(*format)) {
+          format++;
+          continue;
+        }
+      }
       localtime_r(&(ts->tv_sec), &tm);
       // Adjusting for daylight savings time gives the wrong answer.
       tm.tm_isdst = 0;
