@@ -32,6 +32,9 @@ testing "-t seconds" \
   "touch -t 201201231234.56 walrus && date -r walrus +%Y%m%d-%H%M%S.%N" \
   "20120123-123456.000000000\n" "" ""
 
+testing "-t -" "touch -t 200109081946.40 - > walrus && date -r walrus +%s" \
+   "1000000000\n" "" ""
+
 testing "-t nanoseconds" \
   "touch -t 201201231234.56123456789 walrus && date -r walrus +%Y%m%d-%H%M%S.%N" \
   "20120123-123456.123456789\n" "" ""
