@@ -119,7 +119,8 @@ fi
 LINK="$(echo $LDOPTIMIZE $LDFLAGS -o "$UNSTRIPPED" -Wl,--as-needed $(cat generated/optlibs.dat))"
 genbuildsh > generated/build.sh && chmod +x generated/build.sh || exit 1
 
-if isnewer generated/config.h "$KCONFIG_CONFIG"
+#TODO: "make sed && make" doesn't regenerate config.h because diff .config
+if true #isnewer generated/config.h "$KCONFIG_CONFIG"
 then
   echo "Make generated/config.h from $KCONFIG_CONFIG."
 
