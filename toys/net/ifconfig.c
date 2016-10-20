@@ -125,6 +125,9 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
     xprintf("HWaddr ");
     for (i=0; i<6; i++) xprintf(":%02x"+!i, ifre.ifr_hwaddr.sa_data[i]);
   }
+  sprintf(toybuf, "/sys/class/net/%.15s/device/driver", name);
+  if (readlink0(toybuf, toybuf, sizeof(toybuf))>0 && (pp = strrchr(toybuf, '/')))
+    xprintf("  Driver %s", pp+1);
   xputc('\n');
 
   // If an address is assigned record that.
