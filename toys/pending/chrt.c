@@ -6,7 +6,7 @@ USE_CHRT(NEWTOY(chrt, "mp#bfiorR[!bfior]", TOYFLAG_USR|TOYFLAG_SBIN))
 
 config CHRT
   bool "chrt"
-  default y
+  default n
   help
     usage: chrt [-m] [-p PID] [POLICY PRIO] [COMMAND [ARGS...]]
 
