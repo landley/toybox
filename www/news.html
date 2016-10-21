@@ -8,6 +8,321 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+<a name="21-10-2016" /><a href="#21-10-2016"><hr><h2><b>October 21, 2016</b></h2></a>
+<blockquote><p>Probability factor of one to one. We have normality. I repeat,
+we have normality. Anything you still can't cope with is therefore your
+own problem.</p><p> - The Hitchhiker's Guide to the Galaxy</p></blockquote>
+
+<p><a href=downloads/toybox-0.72.tar.gz>Toybox 0.7.2</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.7.2>git commit</a>)
+is out.</p>
+
+<p>During this development cycle, Elliott Hughes <a href=http://androidbackstage.blogspot.com/2016/07/episode-53-adb-on-adb.html>got interviewed
+on the ADB podcast</a>
+and Rob Landley <a href=http://linuxluddites.com/shows/episode-88/>got interviewed on Linux Luddites</a> (<a href=http://linuxluddites.com/shows/episode-11/>again</a>).
+Both talk about toybox and many other things.
+The web page also grew a new <a href=faq.html>FAQ page</a>, currently with
+just the one.</p>
+
+<p>New comands added to defconfig are <b>tunctl</b>,
+<b>log</b>, <b>start</b>, <b>stop</b>, and <b>sendevent</b>.
+The commands <b>file</b> and <b>netstat</b> got promoted out of pending.
+Pending added <b>chrt</b>, <b>setfattr</b>, and <b>getfattr</b>, and saw
+a lot of cleanups to diffstat and dd but not enough to promote them to
+defconfig yet. A new toys/net directory was added, moving ifconfig, netcat,
+netstat, rfkill, and tunctl there so far.</p>
+
+<p><b>Upgrades</b>: All commands now parse --version when they understand
+--help, but "true" and "false" should now ignore their arguments entirely.
+We taught stat to handle "%12x" and "%.12x" printf-style escapes, which
+apparently other versions do. The ifconfig output now shows the interface's
+device driver. Added patch -d and --dry-run, wc can now do -cm together,
+find has a NOP -noleaf so scripts that use that don't break, add -c to md5sum
+and sha1sum. Elliott taught ps to treat extra aguments as additional -p
+pids, implemented xxd -s, did a number of upgrades to file (added -HL,
+support for ar files, improved ELF support to report android API level
+and stripped/not stripped and it no longer prints a guessed build ID type).
+Elliott also added optional build-time support for using openssl's
+assembly-optimized md5sum/sha1sum implementations (leading to a new
+<a href=design.html>design</a> policy on shared libraries).</p>
+
+<p><b>Bugfixes</b>: Too many fixes to "ps" and "touch" to list, from both
+Elliott and Rob. Rob taught sed to handle s/[[:space:]/]// type sequences
+properly, switched grep to a better
+workaround for <a href=https://sourceware.org/bugzilla/show_bug.cgi?id=17829>glibc bug 17829</a>, made sed -i preserve ownership when run as root,
+made du max out at 2 terabytes instead of 2 gigabytes on 32-bit systems
+(it was always designed to, but was missing a typecast),
+fixed the option parsing infrastructure (config options that remove command
+line options got the placeholders wrong), fix to printf for printing
+octal digits and handling the (posix-mandated) difference between %b and
+non-%b octal output, reading from "-" no longer closes stdin when done,
+netcat -L works with nommu (although it may need more portability work),
+and you can now "make test_scankey" if you want to. Several commands
+(stat, makedeves, chgrp, cp, find) handled user name lookup failure badly
+(stat was segfaulting if you interrogated a file belonging to a nonexistent
+user, "chown 12345 file" errored out if you didn't have that user
+in /etc/passwd... now they should all print/accept the number when
+appropriate). "LC_ALL=C ls -Cs --color" produces the same output
+as other versions (two spaces padding, -k hardwired on).<p>
+
+<p>Kyungsik Lee fixed a bug
+in cp (readlink() doesn't actually null terminate the string it reads in),
+Elliott Hughes made pgrep/pkill return success/failure, fixed trailing
+whitespace in netstat, fixed a SMACK symbol conflict due to linux/xattr.h
+changing, fixed ls -sh, and added a lot of
+stuff to the <a href=roadmap.html>roadmap page</a>.
+Izabera pointed out cmp -l and -s can't be selected at the same time,
+that timeout was never actually checking -v, that ls should default to -q
+when output is to a tty, and that "file -" would sometimes try to open "-"
+instead of stdin.
+Usischev Yury pointed out a use after free error, and that id shouldn't
+call exit() directly. Matthias Urhahn pointed out that stat(2) returns
+hardwired 512-byte units, so stat.c was wrong. David Hedges pointed out
+that route could only handle 10 character interface names when the kernel
+can do 15 (it's still in pending for a reason, but fixed). Evgenii
+Stepanov found and helped diagnose one of the more subtle ps bugs fixed
+this time around.</p>
+
+<p>Calling "make test_blah" no longer causes make to error out if the last
+test failes (and thus returns a nonzero error code).
+Building single commands and the multiplexer used to require a "make clean"
+between them (because they had different config files both of which were older
+than generated/config.h so it didn't get rebuilt; now it just always
+rebuilds it).</p>
+
+<p>The defconfig build is now slightly less broken on older centos versions
+(although <a href=http://lists.landley.net/pipermail/toybox-landley.net/2016-September/008664.html>the consensus</a> is that Centos is just generally broken).<p>
+
+<p>Several commands were over-using xprintf(), which flushes its output
+to check for error (something you only need to do maybe once per line,
+and even then maybe only in loops because xexit() flushes and checks
+ferror() for you and adjusts the exit code if we wrote stuff to stdout
+that couldn't be printed). Lots of little flushes are inefficient,
+so most things can use normal printf(). (Retransmission
+of short writes is presumably libc's problem since it's buffering the
+output and all.)</p>
+
+<p><b>Library:</b>
+New library functions readlink0() and readlinkat0() which properly null
+terminates the symlink value (which the stock libc function inexplicably
+doesn't).
+The new do_lines() function interates reading lines from a filehandle
+and calling a function on each line.
+New function pollinate() factoring out netcat's poll() loop so things
+like telnet can use it.
+New functions getusername() and getgroupname() return a
+char * given a uid/gid (and return a string representation of the number
+if the lookup fails), and xgetpwnamid/xgetgrnamid were renamed to
+xgetuid/xgetgid and now return an integer instead of a struct (also helping
+handle lookup failures, you can still return the uid/get for "12345").</p>
+
+<p>Switched atolx() to use long long internally.
+Renamed xopen() to xopen_stdio() and made a new xopen() that never returns
+stdin, stdout, or stderr (duping /dev/null into the filehandles as necessary).
+New function xopenro() opens a file read only with one less argument, and
+understands that "-" means stdin. New flag WARN_ONLY tells these functions
+to just print a warning on failure, and return -1 instead of exiting.
+Misc new functions like openro() which defaults to the WARN_ONLY behavior
+and notstdio() which dup()s a filehandle up beyond stdin/out/err backfilling
+with /dev/null as necessary. The WARN_ONLY flag let us remove the failok
+argument from loopfiles().</p>
+
+<p>New TOYFLAG_NOHELP disables --help processing (which "true" and "false"
+should not do).</b>
+
+<p>The test suite now has NOSPACE=1 to ignore whitespace (using diff -b to
+check results), which helps TEST_HOST pass the same tests as toybox.
+Fixes to chattr and date tests. It also has a new variable $C with the
+absolute path to the command being tested (bypassing shell builtins),
+and a function testcmd() which is just like testing() except it prepends
+the command name ($C) to the test command line as well as the test
+description.</p>
+
+<a name="02-06-2016" /><a href="#02-06-2016"><hr><h2><b>June 2, 2016</b></h2></a>
+<blockquote><p>When the 'Drink' button is pressed it makes an instant but
+highly detailed examination of the subject's taste buds, a spectroscopic
+analysis of the subject's metabolism, and then sends tiny experimental
+signals down the neural pathways to the taste centres of the subject's
+brain to see what is likely to be well received. However, no-one knows
+quite why it does this because it then invariably delivers a cupful of
+liquid that is almost, but not quite, entirely unlike tea.</p>
+<p> - The Hitchhiker's Guide to the Galaxy</p></blockquote>
+
+<p><a href=downloads/toybox-0.7.1.tar.gz>Toybox 0.7.1</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.7.1>git commit</a>)
+is out. (Yes, I forgot to update the --version string, but I already
+uploaded the <a href=downloads/binaries/0.7.1>binaries</a>.)</p>
+
+<p>The website has https support now, you can "make cat ps ls"
+to get standalone commands (and "make list list_pending" to see what's
+available), and a whole lot of bugfixes and new options to existing
+commands.</p>
+
+<h2>New Commands</h2>
+<p>Rob implemented <b>ulimit</b>. In pending, Elliott Hughes implemented
+file. and Lipi Lee implemented a simple wget. (Pending also had minor
+cleanups to more and lsof, but no promotions this time around.)</p>
+
+<h2>New Options</h2>
+<p>Izabera implemented env -u, suggested adding seq -w, made factor
+use full unsigned 64 bit math even on 32 bit platforms, pointed out base64
+-w0 should disable wrapping, and sped up wc -c.
+Elliott Hughes added mount -o relatime, xxd -p -r, and od -w.
+Sameer Pradhan (or possibly Bilal Qureshi) suggested adding stat -tL -c %m%t%T.
+Tom Cherry added getprop -Z. Paul Barker added hostname -b and -F.
+Rob added ls -b, made ls -q work with utf8,
+made sed -f - read from stdin, and added top -O (like ps -O).</p>
+
+<p>Elliott and Rob <b>added Thread support to ps and top</b>,
+with -o TID, TNAME. We also added -o PCY (android scheduling policy),
+-o BIT (process is 32 or 64 bit), and -o TNAME now shows the parent
+command name for threads.</p>
+
+<h2>Documentation</h2>
+
+<p>Rob added the sed invocations to convert tabs/spaces and back to
+design.html. Isaac Dunham updated hexedit's help text.
+Jakob Flierl pointed out a broken URL in the README.</p>
+
+<p>Rob also redid the naming scheme of sed's pattern manipulation code to
+remove the gratuitous references to Roger Zelazny's "Amber" series, since it
+was confusing people.</p>
+
+<h2>Bugfixes</h2>
+
+<p>Grep -H and -n should now work properly with -ABC. Andy Chu pointed out an
+out of bounds access for zero length lines in rev, fixed a buffer overflow
+in diff -r, and fixed operator precedence in expr (although Rob is rewriting
+chunks of expr so toysh can use its plumbing for $(( )) ).
+Patrick Ohly fixed the too-aggressive suid permission dropping logic.
+Josh Gao fixed a segfault when find -iname got no argument, and
+made tail -f work right with just one file argument.
+Tom Marshall cleaned up tar's long filename support and improved
+the tar tests, and reported another find bug (with -iname -o -iname not
+tracking copy lifetimes properly) that got fixed.</p>
+
+<p>Elliott Hughes fixed wc -c to not trust zero length files to actually be
+zero length (/proc does that), fixed "mount -o rw,remount /system" on
+Android, removed trailing spaces on ps -o cmdline, fixed pkill -9 and
+the corresponding tests, made "insmod -" work, fixed top -b and tail -NUM,
+pointed out that ps shouldn't trim numeric fields for display size limits,
+and added some more
+explicit "sort" calls to make pipelines so build tempfiles are easier to cache.
+Rob <a href=https://github.com/landley/toybox/commit/32b3587af261>fixed an insane sed thing</a> the perl 5.22 build was doing.
+Fixed mount -o to properly pass in leftover string data, and
+<a href=http://lists.landley.net/pipermail/toybox-landley.net/2016-March/004790.html>documented how to use toybox to mount nfs</a> (warning: kernel patch
+to fix some bitrot in the kernel NFS driver's string parsing attached
+to that message).</p>
+
+<p>George Burgess IV corrected some variable types in traceroute.
+Base64 now wraps == properly. Fixed two bzcat segfaults reported by
+John Regehr. Andy Chu found a segfault in "sed -e 'c\'" with no trailing
+line, and implemented mv -n and cp -n. The cyanogenmod guys pointed out that
+cp -a shouldn't complain if a non-root user can't chown, and we added
+the output path to cp -r error messages while we were there (before was just
+the filename).</p>
+
+<p>Samuel Holland fixed blkid's handling of vfat labels, and
+fixed a segfault when basename was passed an empty string and an empty
+suffix. Davis Mosenkovs fixed touch -t seconds parsing.
+Rob fixed a bunzip bug reported by John Regehr (the bad CRC
+error message was printing a NUL argument).</p>
+
+<p>Not all of the commands build standalone, but more of them do now;
+scripts/single.sh can now build a "mv" that isn't actually "cp".
+The dependencies are more granualr, so "make top; make ps" no longer
+produces a broken ps that ignores -A (because ps.o wasn't getting rebuilt
+even though top had the FLAG macros for -A zeroed).</p>
+
+<h2>Build</h2>
+<p>Rob added a <b>warning when building commands out of
+pending</b>. (The pending directory is full of code that hasn't been
+properly vetted. Use at your own risk.)</p>
+
+<p><b>New build targets let you build individual commands by name</b>, ala
+"make ls cat ps", and you can run the test suite for each standalone
+command with "make test_ls" and such.
+"make list" shows all such standalone commands in defconfig, and
+"make list_pending" shows unfinished commands from toys/pending
+("make list list_pending" shows both together). "make clean" now deletes
+these filenames at the top level, and the corresponding unstripped files
+live in the directory generated/unstripped.</p>
+
+<p>Nicholas Boichat suggested switching make.sh to use $! for process
+enumeration during parallel builds (which is both more efficient and more
+portable), and suggested shell builtin replacements for wc/awk/sed so the
+build loop has fewer forks now.</p>
+
+<p>Lots of work on the test suite, much of it due to Andy Chu. It now
+consistently prints the name of the command being tested at the start of each
+test (and the common infrastructure does that, not each individual test), and
+"make tests" actually runs all the available tests now.
+Seperated pgrep and pkill tests, split lsattr/chattr, added fstype and base64
+tests. The "tests/files" directory now collects files for tests to
+use, with blkid, bzcat, and utf8 subdirectories: the $FILES variable
+gives a path to it, so "$FILES/blkid/ext2.bz2" and so on.
+The testsuite now has test files with 3 different types of "not utf8 output"
+sequences that require escaping, plus some combining character torture
+tests, direction reversals, and so on.</p>
+
+<p>Added dependencies on TOYBOX_FORK to various pending commands that need
+nommu conversion (which should fix the allyesconfig build).</p>
+
+<p>Static builds with selinux should work again.</p>
+
+<h2>Library</h2>
+
+<p>New bufgetgrgid() and bufgetpwuid() functions cache previous lookup info
+rather than repeatedly traversing /etc/passwd and /etc/group (which is slow).
+Added xpipe() to lib to catch pipe creation failure.
+The HELP_ macros generated by config2help.c now use a capital prefix
+to avoid collicing with help_exit() and such.</p>
+
+<p>The dirtree infrastructure got a cleanup pass in preparation for adding
+infinite recursion depth support (needed by rm -r), updated the
+<a href=code.html#ib_dirtree>documentation</a> to describe the new
+semantics (removing dirtree_start() and adding dirtree_flagread()).
+Now dirtree_recurse() takes the new dirfd as an argument.</p>
+
+<p>Split out _xexit() from xexit() and let sigatexit() set multiple
+callbacks.</p>
+
+<p>For years the man pages have said to #include <sys/types.h> to get
+major/minor/makedev but now that glibc
+<a href=https://sourceware.org/ml/libc-alpha/2015-11/msg00253.html>has vowed
+to break existing programs</a> and replace it with another nonstandard header
+not in posix or lsb, we added our own functions to lib/ to do the transform
+ourselves (based on what the kernel actually expects).</p>
+
+<h2>Portability</h2>
+
+<p>Debian unstable started needing an extra header #include for some reason, and
+although printf("%.*s", INT_MAX, s) worked fine on Ubuntu 12.04 it
+didn't on 14.04, so added a workaround for that. Typecast a printf because
+wchar_t isn't a rigidly defined size. RLIMIT_RTTIME was
+added to the kernel in 2008 but you can't expect uClibc to have noticed yet,
+nor did it #define MS_RELATIME (added in 2006), or prlimit (2010)...
+(Given the improvements in musl and bionic, uClibc support may be dropped
+in a future release.) Given that the xattr functions were added during
+linux 2.5, we can #include its header unconditionally.</p>
+
+<p>Renamed basename_r() to something else to avoid conflicting with freebsd's
+libc, and both scripts/install.h and scripts/config2help.c no longer include
+toys.h (to make cross-compiling from systems we don't run on easier).</p>
+
+<p>Debian bug 635570 did something unspeakably nonportable, depending on
+"sed -e 'a\'" (with no next line of the pattern, so an unterminated
+continuation) to add a newline to the last line of input if and only if
+that last line of the input didn't have a newline, and to take no other
+action. This is well into "depending on a bug" territory, but we implemented
+it because otherwise Debian's install broke. (Of course this behavior
+is undocumented, non-obvious, and doesn't really make logical sense.)</p>
+
+<p>CONFIG_TOYBOX_NORECURSE now disables the stack measuring logic (which
+was giving some "security" code fits). Also we typecast pointers to (long)
+before comparing them to avoid spurious compiler "optimizations" that
+break the code.</p>
+
 <a name="02-02-2016" /><a href="#02-02-2016"><hr><h2><b>February 2, 2016</b></h2></a>
 <blockquote><p>"I checked it very thoroughly," said the computer, "and that
 quite definitely is the answer. I think the problem, to be quite honest with
