@@ -8,7 +8,7 @@ USE_GETFATTR(NEWTOY(getfattr, "dhn:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config GETFATTR
   bool "getfattr"
-  default y
+  default n
   help
     usage: getfattr [-d] [-h] [-n NAME] FILE...
 
