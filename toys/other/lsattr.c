@@ -4,6 +4,8 @@
  * Copyright 2013 Kyungwan Han <asura321@gmail.com>
  *
  * No Standard.
+ *
+ * TODO cleanup
 
 USE_LSATTR(NEWTOY(lsattr, "vldaR", TOYFLAG_BIN))
 USE_CHATTR(NEWTOY(chattr, NULL, TOYFLAG_BIN))
@@ -15,6 +17,7 @@ config LSATTR
     usage: lsattr [-Radlv] [Files...]
 
     List file attributes on a Linux second extended file system.
+    (AacDdijsStu defined in chattr --help)
 
     -R Recursively list attributes of directories and their contents.
     -a List all files in directories, including files that start with '.'.
@@ -29,6 +32,9 @@ config CHATTR
     usage: chattr [-R] [-+=AacDdijsStTu] [-v version] [File...]
 
     Change file attributes on a Linux second extended file system.
+
+    -R Recurse.
+    -v Set the file's version/generation number.
 
     Operators:
       '-' Remove attributes.
@@ -47,9 +53,6 @@ config CHATTR
       S  Write file contents synchronously.
       t  Disable tail-merging of partial blocks with other files.
       u  Allow file to be undeleted.
-      -R Recurse.
-      -v Set the file's version/generation number.
-
 */
 #define FOR_lsattr
 #include "toys.h"
