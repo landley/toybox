@@ -13,7 +13,7 @@ a development environment. See the links on the left for details.</p>
 we have normality. Anything you still can't cope with is therefore your
 own problem.</p><p> - The Hitchhiker's Guide to the Galaxy</p></blockquote>
 
-<p><a href=downloads/toybox-0.72.tar.gz>Toybox 0.7.2</a>
+<p><a href=downloads/toybox-0.7.2.tar.gz>Toybox 0.7.2</a>
 (<a href=https://github.com/landley/toybox/releases/tag/0.7.2>git commit</a>)
 is out.</p>
 
@@ -84,7 +84,7 @@ Stepanov found and helped diagnose one of the more subtle ps bugs fixed
 this time around.</p>
 
 <p>Calling "make test_blah" no longer causes make to error out if the last
-test failes (and thus returns a nonzero error code).
+test fails (and thus returns a nonzero error code).
 Building single commands and the multiplexer used to require a "make clean"
 between them (because they had different config files both of which were older
 than generated/config.h so it didn't get rebuilt; now it just always
