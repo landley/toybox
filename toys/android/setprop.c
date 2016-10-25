@@ -41,7 +41,7 @@ void setprop_main(void)
   if (strstr(name, ".."))
     error_exit("'..' is not allowed in a property name");
   for (p = name; *p; ++p)
-    if (!isalnum(*p) && !strchr("_.-", *p))
+    if (!isalnum(*p) && !strchr("@_.-", *p))
       error_exit("invalid character '%c' in name '%s'", *p, name);
 
   if (property_set(name, value))
