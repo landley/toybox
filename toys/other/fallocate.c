@@ -4,14 +4,14 @@
  *
  * No standard
 
-USE_FALLOCATE(NEWTOY(fallocate, ">1l#|", TOYFLAG_USR|TOYFLAG_BIN))
+USE_FALLOCATE(NEWTOY(fallocate, ">1l#|o#", TOYFLAG_USR|TOYFLAG_BIN))
 
 config FALLOCATE
   bool "fallocate"
   depends on TOYBOX_FALLOCATE
   default y
   help
-    usage: fallocate [-l size] file
+    usage: fallocate [-l size] [-o offset] file
 
     Tell the filesystem to allocate space for a file.
 */
@@ -20,12 +20,14 @@ config FALLOCATE
 #include "toys.h"
 
 GLOBALS(
+  long offset;
   long size;
 )
 
 void fallocate_main(void)
 {
   int fd = xcreate(*toys.optargs, O_RDWR | O_CREAT, 0644);
-  if (posix_fallocate(fd, 0, TT.size)) error_exit("Not enough space");
+  if ((errno = posix_fallocate(fd, TT.offset, TT.size)))
+    perror_exit("fallocate");
   if (CFG_TOYBOX_FREE) close(fd);
 }
