@@ -8,7 +8,7 @@
  * - should splitting an empty file produce an empty outfile? (Went with "no".)
  * - permissions on output file
 
-USE_SPLIT(NEWTOY(split, ">2a#<1=2>9b#<1l#<1", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SPLIT(NEWTOY(split, ">2a#<1=2>9b#<1l#<1[!bl]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config SPLIT
   bool "split"
