@@ -544,8 +544,9 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
 }
 
 // Display process data that get_ps() read from /proc, formatting with TT.fields
-static void show_ps(struct carveup *tb)
+static void show_ps(void *p)
 {
+  struct carveup *tb = p;
   struct strawberry *field;
   int pad, len, width = TT.width, abslen, sign, olen, extra = 0;
 
@@ -1215,7 +1216,7 @@ void ps_main(void)
   // print headers now (for low memory/nommu systems).
   TT.bits = get_headers(TT.fields, toybuf, sizeof(toybuf));
   if (!(toys.optflags&FLAG_M)) printf("%.*s\n", TT.width, toybuf);
-  if (!(toys.optflags&(FLAG_k|FLAG_M))) TT.show_process = (void *)show_ps;
+  if (!(toys.optflags&(FLAG_k|FLAG_M))) TT.show_process = show_ps;
   TT.match_process = ps_match_process;
   dt = dirtree_read("/proc",
     ((toys.optflags&FLAG_T) || (TT.bits&(_PS_TID|_PS_TCNT)))
@@ -1671,8 +1672,9 @@ static void do_pgk(struct carveup *tb)
   }
 }
 
-static void match_pgrep(struct carveup *tb)
+static void match_pgrep(void *p)
 {
+  struct carveup *tb = p;
   regmatch_t match;
   struct regex_list *reg;
   char *name = tb->str+tb->offset[4]*!!(toys.optflags&FLAG_f);;
@@ -1744,7 +1746,7 @@ void pgrep_main(void)
     TT.pgrep.regexes = reg;
   }
   TT.match_process = pgrep_match_process;
-  TT.show_process = (void *)match_pgrep;
+  TT.show_process = match_pgrep;
 
   // pgrep should return failure if there are no matches.
   toys.exitval = 1;
