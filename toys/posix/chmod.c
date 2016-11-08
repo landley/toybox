@@ -43,7 +43,7 @@ static int do_chmod(struct dirtree *try)
 {
   mode_t mode;
 
-  if (!dirtree_notdotdot(try)) return 0;
+  if (try->parent && !dirtree_notdotdot(try)) return 0;
 
   mode = string_to_mode(TT.mode, try->st.st_mode);
   if (toys.optflags & FLAG_v) {
