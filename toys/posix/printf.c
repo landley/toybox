@@ -119,7 +119,7 @@ void printf_main(void)
         } else if (c == 'c') printf(toybuf, wp[0], wp[1], *aa);
         else if (c == 's') printf(toybuf, wp[0], wp[1], aa);
         else if (strchr("diouxX", c)) {
-          long ll;
+          long long ll;
 
           if (*aa == '\'' || *aa == '"') ll = aa[1];
           else ll = strtoll(aa, &end, 0);
