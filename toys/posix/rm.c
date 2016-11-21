@@ -28,7 +28,7 @@ static int do_rm(struct dirtree *try)
   int dir = S_ISDIR(try->st.st_mode), or = 0, using = 0;
 
   // Skip . and .. (yes, even explicitly on the command line: posix says to)
-  if (!dirtree_notdotdot(try)) return 0;
+  if (isdotdot(try->name)) return 0;
 
   // Intentionally fail non-recursive attempts to remove even an empty dir
   // (via wrong flags to unlinkat) because POSIX says to.

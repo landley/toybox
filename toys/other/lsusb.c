@@ -24,7 +24,7 @@ static int list_device(struct dirtree *new)
   if (!new->parent) return DIRTREE_RECURSE;
   if (new->name[0] == '.') return 0;
   name = dirtree_path(new, 0);
-  snprintf(toybuf, sizeof(toybuf), "%s/%s", name, "/uevent");
+  sprintf(toybuf, "%s/uevent", name);
   file = fopen(toybuf, "r");
   if (file) {
     int count = 0;

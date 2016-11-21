@@ -5,19 +5,20 @@
 
 #include "toys.h"
 
-static int notdotdot(char *name)
+int isdotdot(char *name)
 {
-  if (name[0]=='.' && (!name[1] || (name[1]=='.' && !name[2]))) return 0;
+  if (name[0]=='.' && (!name[1] || (name[1]=='.' && !name[2]))) return 1;
 
-  return 1;
+  return 0;
 }
 
-// Default callback, filters out "." and "..".
+// Default callback, filters out "." and ".." except at top level.
 
 int dirtree_notdotdot(struct dirtree *catch)
 {
   // Should we skip "." and ".."?
-  return notdotdot(catch->name)*(DIRTREE_SAVE|DIRTREE_RECURSE);
+  return (!catch->parent||!isdotdot(catch->name))
+    *(DIRTREE_SAVE|DIRTREE_RECURSE);
 }
 
 // Create a dirtree node from a path, with stat and symlink info.
@@ -54,7 +55,7 @@ struct dirtree *dirtree_add_node(struct dirtree *parent, char *name, int flags)
   return dt;
 
 error:
-  if (!(flags&DIRTREE_SHUTUP) && notdotdot(name)) {
+  if (!(flags&DIRTREE_SHUTUP) && !isdotdot(name)) {
     char *path = parent ? dirtree_path(parent, 0) : "";
 
     perror_msg("%s%s%s", path, parent ? "/" : "", name);

@@ -37,14 +37,14 @@ static int rtc_find(struct dirtree* node)
 
   if (!node->parent) return DIRTREE_RECURSE;
 
-  snprintf(toybuf, sizeof(toybuf), "/sys/class/rtc/%s/hctosys", node->name);
+  sprintf(toybuf, "/sys/class/rtc/%s/hctosys", node->name);
   fp = fopen(toybuf, "r");
   if (fp) {
     int hctosys = 0, items = fscanf(fp, "%d", &hctosys);
 
     fclose(fp);
     if (items == 1 && hctosys == 1) {
-      snprintf(toybuf, sizeof(toybuf), "/dev/%s", node->name);
+      sprintf(toybuf, "/dev/%s", node->name);
       TT.fname = toybuf;
 
       return DIRTREE_ABORT;
@@ -105,7 +105,7 @@ void hwclock_main()
   }
 
   if (toys.optflags & FLAG_w) {
-    /* The value of tm_isdst will positive if daylight saving time is in effect,
+    /* The value of tm_isdst is positive if daylight saving time is in effect,
      * zero if it is not and negative if the information is not available. 
      * todo: so why isn't this negative...? */
     tm.tm_isdst = 0;

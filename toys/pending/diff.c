@@ -484,7 +484,7 @@ static int list_dir (struct dirtree *node)
 {
   int ret = 0;
 
-  if (node->parent && !dirtree_notdotdot(node)) return 0;
+  if (!dirtree_notdotdot(node)) return 0;
 
   if (S_ISDIR(node->st.st_mode) && !node->parent) { //add root dirs.
     add_to_list(node);

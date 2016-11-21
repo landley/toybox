@@ -74,6 +74,8 @@ static void modinfo_file(char *full_name)
 
 static int check_module(struct dirtree *new)
 {
+  if (!dirtree_notdotdot(new)) return 0;
+
   if (S_ISREG(new->st.st_mode)) {
     char *s;
 
@@ -88,14 +90,14 @@ static int check_module(struct dirtree *new)
       }
       if (s[len] || strcmp(new->name+len, ".ko")) break;
 
-      modinfo_file(s = dirtree_path(new, NULL));
+      modinfo_file(s = dirtree_path(new, 0));
       free(s);
 
       return DIRTREE_ABORT;
     }
   }
 
-  return dirtree_notdotdot(new);
+  return DIRTREE_RECURSE;
 }
 
 void modinfo_main(void)

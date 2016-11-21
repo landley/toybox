@@ -88,6 +88,7 @@ struct dirtree {
   char name[];
 };
 
+int isdotdot(char *name);
 struct dirtree *dirtree_add_node(struct dirtree *p, char *name, int flags);
 char *dirtree_path(struct dirtree *node, int *plen);
 int dirtree_notdotdot(struct dirtree *catch);

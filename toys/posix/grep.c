@@ -313,7 +313,7 @@ static int do_grep_r(struct dirtree *new)
 {
   char *name;
 
-  if (new->parent && !dirtree_notdotdot(new)) return 0;
+  if (!dirtree_notdotdot(new)) return 0;
   if (S_ISDIR(new->st.st_mode)) return DIRTREE_RECURSE;
 
   // "grep -r onefile" doesn't show filenames, but "grep -r onedir" should.

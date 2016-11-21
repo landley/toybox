@@ -274,7 +274,7 @@ static int add_to_tar(struct dirtree *node)
     return ((DIRTREE_RECURSE | ((toys.optflags & FLAG_h)?DIRTREE_SYMFOLLOW:0)));
   }
 
-  if (node->parent && !dirtree_notdotdot(node)) return 0;
+  if (!dirtree_notdotdot(node)) return 0;
   path = dirtree_path(node, 0);
   add_file(hdl, &path, &(node->st)); //path may be modified
   free(path);
