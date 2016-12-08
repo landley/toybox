@@ -19,12 +19,21 @@ struct flag {
   struct flag *lopt;
 };
 
+int chrtype(char c)
+{
+  if (strchr("?&^-:#|@*; ", c)) return 1;
+  if (strchr("=<>", c)) return 2;
+
+  return 0;
+}
+
 // replace chopped out USE_BLAH() sections with low-ascii characters
 // showing how many flags got skipped
 
 char *mark_gaps(char *flags, char *all)
 {
   char *n, *new, c;
+  int bare = 1;
 
   // Shell feeds in " " for blank args, leading space not meaningful.
   while (isspace(*flags)) flags++;
@@ -32,17 +41,32 @@ char *mark_gaps(char *flags, char *all)
 
   n = new = strdup(all);
   while (*all) {
-    if (*flags == *all) {
-      *(new++) = *(all++);
+    // --longopt parentheticals dealt with as a unit
+    if (*all == '(') {
+      int len = 0;
+
+      while (all[len++] != ')');
+      if (strncmp(flags, all, len)) {
+        // bare longopts need their own skip placeholders
+        if (bare) *(new++) = 1;
+      } else {
+        memcpy(new, all, len);
+        new += len;
+        flags += len;
+      }
+      all += len;
+    }
+    c = *(all++);
+    if (bare) bare = chrtype(c);
+    if (*flags == c) {
+      *(new++) = c;
       *flags++;
       continue;
     }
 
-    c = *(all++);
-    if (strchr("?&^-:#|@*; ", c));
-    else if (strchr("=<>", c)) while (isdigit(*all)) all++;
-    else if (c == '(') while(*(all++) != ')');
-    else *(new++) = 1;
+    c = chrtype(c);
+    if (!c) *(new++) = 1;
+    else if (c==2) while (isdigit(*all)) all++;
   }
   *new = 0;
 
