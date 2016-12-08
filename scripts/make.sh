@@ -16,6 +16,11 @@ UNSTRIPPED="generated/unstripped/$(basename "$OUTNAME")"
 [ -z "$CPUS" ] &&
   CPUS=$((($(echo /sys/devices/system/cpu/cpu[0-9]* | wc -w)*3)/2))
 
+if [ -z "$SED" ]
+then
+  [ ! -z "$(which gsed)" ] && SED=gsed || SED=sed
+fi
+
 # Respond to V= by echoing command lines as well as running them
 DOTPROG=
 do_loudly()
@@ -52,9 +57,9 @@ then
   echo -n "generated/newtoys.h "
 
   echo "USE_TOYBOX(NEWTOY(toybox, NULL, TOYFLAG_STAYROOT))" > generated/newtoys.h
-  sed -n -e 's/^USE_[A-Z0-9_]*(/&/p' toys/*/*.c \
-	| sed 's/\(.*TOY(\)\([^,]*\),\(.*\)/\2 \1\2,\3/' | sort -s -k 1,1 \
-	| sed 's/[^ ]* //'  >> generated/newtoys.h || exit 1
+  $SED -n -e 's/^USE_[A-Z0-9_]*(/&/p' toys/*/*.c \
+	| $SED 's/\(.*TOY(\)\([^,]*\),\(.*\)/\2 \1\2,\3/' | sort -s -k 1,1 \
+	| $SED 's/[^ ]* //'  >> generated/newtoys.h || exit 1
 fi
 
 [ ! -z "$V" ] && echo "Which C files to build..."
@@ -64,7 +69,7 @@ fi
 
 GITHASH="$(git describe --tags --abbrev=12 2>/dev/null)"
 [ ! -z "$GITHASH" ] && GITHASH="-DTOYBOX_VERSION=\"$GITHASH\""
-TOYFILES="$(sed -n 's/^CONFIG_\([^=]*\)=.*/\1/p' "$KCONFIG_CONFIG" | xargs | tr ' [A-Z]' '|[a-z]')"
+TOYFILES="$($SED -n 's/^CONFIG_\([^=]*\)=.*/\1/p' "$KCONFIG_CONFIG" | xargs | tr ' [A-Z]' '|[a-z]')"
 TOYFILES="$(egrep -l "TOY[(]($TOYFILES)[ ,]" toys/*/*.c)"
 CFLAGS="$CFLAGS $(cat generated/cflags)"
 BUILD="$(echo ${CROSS_COMPILE}${CC} $CFLAGS -I . $OPTIMIZE $GITHASH)"
@@ -119,7 +124,7 @@ fi
 LINK="$(echo $LDOPTIMIZE $LDFLAGS -o "$UNSTRIPPED" -Wl,--as-needed $(cat generated/optlibs.dat))"
 genbuildsh > generated/build.sh && chmod +x generated/build.sh || exit 1
 
-#TODO: "make sed && make" doesn't regenerate config.h because diff .config
+#TODO: "make $SED && make" doesn't regenerate config.h because diff .config
 if true #isnewer generated/config.h "$KCONFIG_CONFIG"
 then
   echo "Make generated/config.h from $KCONFIG_CONFIG."
@@ -128,7 +133,7 @@ then
   # happy. New ones have '\n' so can replace one line with two without all
   # the branches and tedious mucking about with hold space.
 
-  sed -n \
+  $SED -n \
     -e 's/^# CONFIG_\(.*\) is not set.*/\1/' \
     -e 't notset' \
     -e 's/^CONFIG_\(.*\)=y.*/\1/' \
@@ -174,7 +179,7 @@ make_flagsh()
     then
       cat generated/config.h
     else
-      sed '/USE_.*([^)]*)$/s/$/ __VA_ARGS__/' generated/config.h
+      $SED '/USE_.*([^)]*)$/s/$/ __VA_ARGS__/' generated/config.h
     fi
     cat generated/newtoys.h
 
@@ -184,7 +189,7 @@ make_flagsh()
     # handle "" with nothing in it, and mkflags uses that).
 
     ) | ${CROSS_COMPILE}${CC} -E - | \
-    sed -n -e 's/" *"//g;/^#/d;t clear;:clear;s/"/"/p;t;s/\( [AB] \).*/\1 " "/p'
+    $SED -n -e 's/" *"//g;/^#/d;t clear;:clear;s/"/"/p;t;s/\( [AB] \).*/\1 " "/p'
 
   # Sort resulting line pairs and glue them together into triplets of
   #   command "flags" "allflags"
@@ -192,7 +197,7 @@ make_flagsh()
   # If no pair (because command's disabled in config), use " " for flags
   # so allflags can define the appropriate zero macros.
 
-  done | sort -s | sed -n -e 's/ A / /;t pair;h;s/\([^ ]*\).*/\1 " "/;x' \
+  done | sort -s | $SED -n -e 's/ A / /;t pair;h;s/\([^ ]*\).*/\1 " "/;x' \
     -e 'b single;:pair;h;n;:single;s/[^ ]* B //;H;g;s/\n/ /;p' | \
     tee generated/flags.raw | generated/mkflags > generated/flags.h || exit 1
 }
@@ -209,8 +214,8 @@ function getglobals()
 {
   for i in toys/*/*.c
   do
-    NAME="$(echo $i | sed 's@.*/\(.*\)\.c@\1@')"
-    DATA="$(sed -n -e '/^GLOBALS(/,/^)/b got;b;:got' \
+    NAME="$(echo $i | $SED 's@.*/\(.*\)\.c@\1@')"
+    DATA="$($SED -n -e '/^GLOBALS(/,/^)/b got;b;:got' \
             -e 's/^GLOBALS(/struct '"$NAME"'_data {/' \
             -e 's/^)/};/' -e 'p' $i)"
 
@@ -227,7 +232,7 @@ then
     echo
     echo "extern union global_union {"
     echo "$GLOBSTRUCT" | \
-      sed -n 's/struct \(.*\)_data {/	struct \1_data \1;/p'
+      $SED -n 's/struct \(.*\)_data {/	struct \1_data \1;/p'
     echo "} this;"
   ) > generated/globals.h
 fi
@@ -241,7 +246,7 @@ if isnewer generated/tags.h toys
 then
   echo -n "generated/tags.h "
 
-  sed -n '/TAGGED_ARRAY(/,/^)/{s/.*TAGGED_ARRAY[(]\([^,]*\),/\1/;p}' \
+  $SED -n '/TAGGED_ARRAY(/,/^)/{s/.*TAGGED_ARRAY[(]\([^,]*\),/\1/;p}' \
     toys/*/*.c lib/*.c | generated/mktags > generated/tags.h
 fi
 
