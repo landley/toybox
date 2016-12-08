@@ -1,37 +1,46 @@
 <html><head><title>The design of toybox</title></head>
 <!--#include file="header.html" -->
 
-<b><h2>Design goals</h2></b>
+<a name="goals"><b><h2><a href="#goals">Design goals</a></h2></b>
 
-<p>Toybox should be simple, small, fast, and full featured.  Often, these
-things need to be balanced off against each other.  In general, keeping the
-code simple the most important (and hardest) goal, and small is slightly more
-important than fast. Features are the reason we write code in the first
-place but this has all been implemented before so if we can't do a better
-job why bother?  It should be possible to get 80% of the way to each goal
-before they really start to fight.</p>
+<p>Toybox should be simple, small, fast, and full featured. In that order.</p>
 
-<p>Here they are in reverse order of importance:</p>
+<p>When these goals need to be balanced off against each other, keeping the code
+as simple as it can be to do what it does is the most important (and hardest)
+goal. Then keeping it small is slightly more important than making it fast.
+Features are the reason we write code in the first place but this has all
+been implemented before so if we can't do a better job why bother?</p>
+
+<p>It should be possible to get 80% of the way to each goal
+before they really start to fight. Here they are in reverse order
+of importance:</p>
 
 <b><h3>Features</h3></b>
 
-<p>The <a href=roadmap.html>roadmap</a> has the list of features we're
-trying to implement, and the reasons for them. After the 1.0 release
-some of that material may get moved here.</p>
+<p>The hard part is deciding what NOT to include.
+A project without boundaries will bloat itself
+to death. One of the hardest but most important things a project must
+do is draw a line and say "no, this is somebody else's problem, not
+something we should do."</p>
 
 <p>Some things are simply outside the scope of the project: even though
 posix defines commands for compiling and linking, we're not going to include
 a compiler or linker (and support for a potentially infinite number of hardware
-targets). And until somebody comes up with a ~30k ssh implementation, we're
-going to point you at dropbear or polarssl.</p>
+targets). And until somebody comes up with a ~30k ssh implementation (with
+a crypto algorithm that won't need replacing every 5 years), we're
+going to point you at dropbear or bearssl.</p>
 
-<p>Environmental dependencies are a type of complexity, so needing other
-packages to build or run is a big downside.  For example, we don't use curses
-when we can simply output ansi escape sequences and trust all terminal
-programs written in the past 30 years to be able to support them. (A common
-use case is to download a statically linked toybox binary to an arbitrary
-Linux system, and use it in an otherwise unknown environment; being
-self-contained helps support this.)</p>
+<p>The <a href=roadmap.html>roadmap</a> has the list of features we're
+trying to implement, and the reasons why we decided to include those
+features. After the 1.0 release some of that material may get moved here,
+but for now it needs its own page.</p>
+
+<p>There are potential features (such as a screen/tmux implementation)
+that might be worth adding after 1.0, in part because they could share
+infrastructure with things like "less" and "vi" so might be less work for
+us to do than an external from-scratch implementation. But for now, major
+new features outside posix, android's existing commands, and the needs of
+development systems, are a distraction from the 1.0 release.</p>
 
 <b><h3>Speed</h3></b>
 
@@ -144,7 +153,7 @@ applies to toybox.  Do the simple thing first, do as little of it as possible,
 and make sure it's right.  You can always speed it up later.</p>
 
 <b><h3>Size</h3></b>
-<p>Again, simple gives you most of this.  An algorithm that does less work
+<p>Again, being simple gives you most of this. An algorithm that does less work
 is generally smaller.  Understand the problem, treat size as a cost, and
 get a good bang for the byte.</p>
 
@@ -184,7 +193,7 @@ although using char (or a bitfield) to store a value in a structure that's
 repeated hundreds of times can be a good tradeoff of binary size for heap
 space.</p>
 
-<b><h3>Simple</h3></b>
+<b><h3>Simplicity</h3></b>
 
 <p>Complexity is a cost, just like code size or runtime speed. Treat it as
 a cost, and spend your complexity budget wisely. (Sometimes this means you
@@ -210,6 +219,15 @@ can actually detract from the program's readability. If you need to describe
 what the code is doing (rather than _why_ it's doing it), that means the
 code itself isn't very clear.</p>
 
+<p>Environmental dependencies are another type of complexity, so needing other
+packages to build or run is a big downside. For example, we don't use curses
+when we can simply output ansi escape sequences and trust all terminal
+programs written in the past 30 years to be able to support them. Regularly
+testing that we work with C libraries which support static linking (musl does,
+glibc doesn't) is another way to be self-contained with known boundaries:
+it doesn't have to be the only way to build the project, but should be regularly
+tested and supported.</p>
+
 <p>Prioritizing simplicity tends to serve our other goals: simplifying code
 generally reduces its size (both in terms of binary size and runtime memory
 usage), and avoiding unnecessary work makes code run faster. Smaller code
@@ -218,11 +236,13 @@ code into L1 cache is great, and staying in L2 cache is still pretty good.</p>
 
 <p>But a simple implementation is not always the smallest or fastest, and
 balancing simplicity vs the other goals can be difficult. For example, the
-atolx_range() function in lib/lib.c uses the always 64 bit "long long" type,
+atolx_range() function in lib/lib.c always uses the 64 bit "long long" type,
 which produces larger and slower code on 32 bit platforms and
 often assigned into smaller interger types. Although libc has parallel
-implementations for different data sizes (atoi, atol, atoll) we only
-used the largest, which can cover all cases.</p>
+implementations for different data sizes (atoi, atol, atoll) we chose a
+common codepath which can cover all cases (every user goes through the
+same codepath, with the maximum amount of testing and minimum and avoids
+surprising variations in behavior).</p>
 
 <p>On the other hand, the "tail" command has two codepaths, one for seekable
 files and one for nonseekable files. Although the nonseekable case can handle
@@ -257,7 +277,7 @@ Minix was another clone which Linux was inspired by and developed under,
 the GNU tools were yet another rewrite intended for use in the stillborn
 "Hurd" project, BusyBox was still another rewrite, and more versions
 were written in Plan 9, uclinux, klibc, sash, sbase, s6, and of course
-android toolbox...) but maybe toybox can do a better job. :)</p>
+android toolbox...). But maybe toybox can do a better job. :)</p>
 
 <p>As Antoine de St. Exupery (author of "The Little Prince" and an early
 aircraft designer) said, "Perfection is achieved, not when there
@@ -266,11 +286,11 @@ And Ken Thompson (creator of Unix) said "One of my most productive
 days was throwing away 1000 lines of code." It's always possible to
 come up with a better way to do it.</p>
 
-<p>P.S.  How could I resist linking to an article about
+<p>P.S. How could I resist linking to an article about
 <a href=http://blog.outer-court.com/archive/2005-08-24-n14.html>why
 programmers should strive to be lazy and dumb</a>?</p>
 
-<b><h2>Portability issues</h2></b>
+<a name="portability"><b><h2><a href="#portability">Portability issues</a></h2></b>
 
 <b><h3>Platforms</h3></b>
 <p>Toybox should run on Android (all commands with musl-libc, as large a subset
@@ -359,7 +379,7 @@ of it.)</p>
 required, but can optionally be used to improve performance.</p>
 
 <p>Toybox should provide the command line utilities for
-<a href=roadmap.html#dev_env>self-hosting development evirionments</a>,
+<a href=roadmap.html#dev_env>self-hosting development envirionments</a>,
 and an easy way to set up "hermetic builds" (I.E. builds which provide
 their own dependencies, isolating the build logic from host command version
 skew with a simple known build environment). In both cases, external
