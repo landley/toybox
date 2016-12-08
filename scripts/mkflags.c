@@ -55,6 +55,7 @@ char *mark_gaps(char *flags, char *all)
         flags += len;
       }
       all += len;
+      continue;
     }
     c = *(all++);
     if (bare) bare = chrtype(c);
