@@ -59,7 +59,8 @@ then
   echo "USE_TOYBOX(NEWTOY(toybox, NULL, TOYFLAG_STAYROOT))" > generated/newtoys.h
   $SED -n -e 's/^USE_[A-Z0-9_]*(/&/p' toys/*/*.c \
 	| $SED 's/\(.*TOY(\)\([^,]*\),\(.*\)/\2 \1\2,\3/' | sort -s -k 1,1 \
-	| $SED 's/[^ ]* //'  >> generated/newtoys.h || exit 1
+	| $SED 's/[^ ]* //'  >> generated/newtoys.h
+  [ $? -ne 0 ] && exit 1
 fi
 
 [ ! -z "$V" ] && echo "Which C files to build..."
