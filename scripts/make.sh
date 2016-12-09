@@ -18,7 +18,7 @@ UNSTRIPPED="generated/unstripped/$(basename "$OUTNAME")"
 
 if [ -z "$SED" ]
 then
-  [ ! -z "$(which gsed)" ] && SED=gsed || SED=sed
+  [ ! -z "$(which gsed 2>/dev/null)" ] && SED=gsed || SED=sed
 fi
 
 # Respond to V= by echoing command lines as well as running them
