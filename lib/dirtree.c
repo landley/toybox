@@ -151,6 +151,7 @@ int dirtree_recurse(struct dirtree *node,
 
   // The extra parentheses are to shut the stupid compiler up.
   while ((entry = readdir(dir))) {
+    if ((flags&DIRTREE_PROC) && !isdigit(*entry->d_name)) continue;
     if (!(new = dirtree_add_node(node, entry->d_name, flags))) continue;
     new = dirtree_handle_callback(new, callback);
     if (new == DIRTREE_ABORTVAL) break;

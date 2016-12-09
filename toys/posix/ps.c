@@ -620,7 +620,7 @@ static int get_ps(struct dirtree *new)
       |(DIRTREE_SAVE*(TT.threadparent||!TT.show_process));
 
   memset(slot, 0, sizeof(tb->slot));
-  if (!(tb->slot[SLOT_tid] = *slot = atol(new->name))) return 0;
+  tb->slot[SLOT_tid] = *slot = atol(new->name);
   if (TT.threadparent && TT.threadparent->extra)
     if (*slot == *(((struct carveup *)TT.threadparent->extra)->slot)) return 0;
   fd = dirtree_parentfd(new);
@@ -870,8 +870,7 @@ static int get_threads(struct dirtree *new)
   unsigned pid, kcount;
 
   if (!new->parent) return get_ps(new);
-
-  if (!(pid = atol(new->name))) return 0;
+  pid = atol(new->name);
 
   TT.threadparent = new;
   if (!get_ps(new)) {
@@ -884,7 +883,7 @@ static int get_threads(struct dirtree *new)
   // Disable show_process at least until we can calculate tcount
   kcount = TT.kcount;
   sprintf(toybuf, "/proc/%u/task", pid);
-  new->child = dirtree_flagread(toybuf, DIRTREE_SHUTUP, get_ps);
+  new->child = dirtree_flagread(toybuf, DIRTREE_SHUTUP|DIRTREE_PROC, get_ps);
   TT.threadparent = 0;
   kcount = TT.kcount-kcount+1;
   tb = (void *)new->extra;
@@ -1218,7 +1217,7 @@ void ps_main(void)
   if (!(toys.optflags&FLAG_M)) printf("%.*s\n", TT.width, toybuf);
   if (!(toys.optflags&(FLAG_k|FLAG_M))) TT.show_process = show_ps;
   TT.match_process = ps_match_process;
-  dt = dirtree_read("/proc",
+  dt = dirtree_flagread("/proc", DIRTREE_SHUTUP|DIRTREE_PROC,
     ((toys.optflags&FLAG_T) || (TT.bits&(_PS_TID|_PS_TCNT)))
       ? get_threads : get_ps);
 
@@ -1348,7 +1347,7 @@ static void top_common(
     plold = plist+(tock++&1);
     plnew = plist+(tock&1);
     plnew->whence = millitime();
-    dt = dirtree_read("/proc",
+    dt = dirtree_flagread("/proc", DIRTREE_SHUTUP|DIRTREE_PROC,
       ((toys.optflags&FLAG_H) || (TT.bits&(_PS_TID|_PS_TCNT)))
         ? get_threads : get_ps);
     plnew->tb = collate(plnew->count = TT.kcount, dt);
@@ -1751,7 +1750,7 @@ void pgrep_main(void)
   // pgrep should return failure if there are no matches.
   toys.exitval = 1;
 
-  dirtree_read("/proc", get_ps);
+  dirtree_flagread("/proc", DIRTREE_SHUTUP|DIRTREE_PROC, get_ps);
   if (toys.optflags&FLAG_c) printf("%d\n", TT.sortpos);
   if (TT.pgrep.snapshot) {
     do_pgk(TT.pgrep.snapshot);

@@ -73,6 +73,8 @@ void get_optflags(void);
 #define DIRTREE_SHUTUP      16
 // Breadth first traversal, conserves filehandles at the expense of memory
 #define DIRTREE_BREADTH     32
+// skip non-numeric entries
+#define DIRTREE_PROC        64
 // Don't look at any more files in this directory.
 #define DIRTREE_ABORT      256
 
