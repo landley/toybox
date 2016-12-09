@@ -616,7 +616,7 @@ static int get_ps(struct dirtree *new)
 
   // Recurse one level into /proc children, skip non-numeric entries
   if (!new->parent)
-    return DIRTREE_RECURSE|DIRTREE_SHUTUP
+    return DIRTREE_RECURSE|DIRTREE_SHUTUP|DIRTREE_PROC
       |(DIRTREE_SAVE*(TT.threadparent||!TT.show_process));
 
   memset(slot, 0, sizeof(tb->slot));
