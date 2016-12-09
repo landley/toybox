@@ -140,7 +140,7 @@ then
     if [ ! -f "$PREFIX/$i" ]
     then
       echo "Toolchain component missing: $i" >&2
-      EXIT=1
+      [ -z "$PEDANTIC" ] || EXIT=1
     fi
   fi
 done
