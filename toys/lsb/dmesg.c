@@ -15,8 +15,8 @@ config DMESG
 
     Print or control the kernel ring buffer.
 
-    -C	Clear the ring buffer
-    -c	Clear the ring buffer after printing
+    -C	Clear ring buffer without printing
+    -c	Clear ring buffer after printing
     -n	Set kernel logging LEVEL (1-9)
     -r	Raw output (with <level markers>)
     -s	Show the last SIZE many bytes
@@ -35,18 +35,24 @@ GLOBALS(
   int color;
 )
 
+static int xklogctl(int type, char *buf, int len)
+{
+  int rc = klogctl(type, buf, len);
+
+  if (rc<0) perror_exit("klogctl");
+
+  return rc;
+}
+
 // Use klogctl for reading if we're on a pre-3.5 kernel.
 static void legacy_mode() {
   char *data, *to, *from;
   int size;
 
   // Figure out how much data we need, and fetch it.
-  size = TT.size;
-  if (!size && 1>(size = klogctl(10, 0, 0))) perror_exit("klogctl");;
+  if (!(size = TT.size)) size = xklogctl(10, 0, 0);
   data = to = from = xmalloc(size+1);
-  size = klogctl(3 + (toys.optflags & FLAG_c), data, size);
-  if (size < 0) perror_exit("klogctl");
-  data[size] = 0;
+  data[size = xklogctl(3 + (toys.optflags & FLAG_c), data, size)] = 0;
 
   // Filter out level markers and optionally time markers
   if (!(toys.optflags & FLAG_r)) while ((from - data) < size) {
@@ -75,21 +81,23 @@ static void color(int c) {
 
 void dmesg_main(void)
 {
-  // For -n just tell kernel to which messages to keep.
+  // For -n just tell kernel which messages to keep.
   if (toys.optflags & FLAG_n) {
-    if (klogctl(8, NULL, TT.level)) perror_exit("klogctl");
+    xklogctl(8, 0, TT.level);
+
     return;
   }
 
   // For -C just tell kernel to throw everything out.
   if (toys.optflags & FLAG_C) {
-    if (klogctl(5, NULL, 0)) perror_exit("klogctl");
+    xklogctl(5, 0, 0);
+
     return;
   }
 
   TT.color = isatty(1);
 
-  // http://lxr.free-electrons.com/source/Documentation/ABI/testing/dev-kmsg
+  // http://kernel.org/doc/Documentation/ABI/testing/dev-kmsg
 
   // Each read returns one message. By default, we block when there are no
   // more messages (--follow); O_NONBLOCK is needed for for usual behavior.
@@ -143,7 +151,7 @@ void dmesg_main(void)
       text += subsystem;
       color(0);
     }
-    if (!((facpri&7) <= 3)) puts(text);
+    if (!((facpri&7) <= 3)) xputs(text);
     else {
       color(31);
       printf("%s", text);
