@@ -5,20 +5,45 @@
  *
  * No Standard
  *
+ * TODO: autodetect -net -host target dev -A (but complain)
+ * route add -net target 10.0.0.0 netmask 255.0.0.0 dev eth0
+ * route del delete
+ * delete net route, must match netmask, informative error message
+ *
+ * mod dyn reinstate metric netmask gw mss window irtt dev
+
 USE_ROUTE(NEWTOY(route, "?neA:", TOYFLAG_BIN))
 config ROUTE
   bool "route"
   default n
   help
-    usage: route [-ne] [-A inet[6]] / [add|del]
+    usage: route [-ne] [-A [46]] [add|del TARGET [OPTIONS]]
 
-    Display/Edit kernel routing tables.
+    Display, add or delete network routes in the "Forwarding Information Base".
 
-    -n	no name lookups
-    -e	display other/more information
-    -A	inet{6} Select Address Family
+    -n	Show numerical addresses (no DNS lookups)
+    -e	display netstat fields
 
-    reject mod dyn reinstate metric netmask gw mss window irtt dev
+    Routing means sending packets out a network interface to an address.
+    The kernel can tell where to send packets one hop away by examining each
+    interface's address and netmask, so the most common use of this command
+    is to identify a "gateway" that forwards other traffic.
+
+    Assigning an address to an interface automatically creates an appropriate
+    network route ("ifconfig eth0 10.0.2.15/8" does "route add 10.0.0.0/8 eth0"
+    for you), although some devices (such as loopback) won't show it in the
+    table. For machines more than one hop away, you need to specify a gateway
+    (ala "route add default gw 10.0.2.2").
+
+    The address "default" is a wildcard address (0.0.0.0/0) matching all
+    packets without a more specific route.
+
+    Available OPTIONS include:
+    reject   - blocking route (force match failure)
+    dev NAME - force packets out this interface (ala "eth0")
+    netmask  - old way of saying things like ADDR/24
+    gw ADDR  - forward packets to gateway ADDR
+
 */
 
 #define FOR_route
@@ -63,8 +88,9 @@ static int get_hostname(char *ipstr, struct sockaddr_in *sockin)
   }
 
   if (inet_aton(ipstr, &sockin->sin_addr)) return 0;
-  if (!(host = gethostbyname(ipstr))) return -1;
+  if (!(host = gethostbyname(ipstr))) perror_exit("resolving '%s'", ipstr);
   memcpy(&sockin->sin_addr, host->h_addr_list[0], sizeof(struct in_addr));
+
   return 0;
 }
 
@@ -160,24 +186,6 @@ static int get_action(char ***argv, struct _arglist *list)
 }
 
 /*
- * get prefix len (if any) and remove the prefix from target ip.
- * if no prefix then set netmask as default.
- */
-static void is_prefix(char **tip, char **netmask, struct rtentry *rt)
-{
-  char *prefix = strchr(*tip, '/');
-  if (prefix) {
-    unsigned long plen;
-    plen = atolx_range(prefix + 1, 0, 32);
-    //used to verify the netmask and route conflict.
-    (((struct sockaddr_in *)&((rt)->rt_genmask))->sin_addr.s_addr)
-      = htonl( ~(INVALID_ADDR >> plen));
-    *prefix = '\0';
-    rt->rt_genmask.sa_family = AF_INET;
-  } else *netmask = "default"; //default netmask.
-}
-
-/*
  * used to get the params like: metric, netmask, gw, mss, window, irtt, dev and their values.
  * additionally set the flag values for reject, mod, dyn and reinstate.
  */
@@ -201,22 +209,18 @@ static void get_next_params(char **argv, struct rtentry *rt, char **netmask)
 
         if (addr_mask) help_exit("dup netmask");
         *netmask = *argv;
-        if (get_hostname(*netmask, (struct sockaddr_in *) &sock) < 0)
-          perror_exit("resolving '%s'", *netmask);
+        get_hostname(*netmask, (struct sockaddr_in *) &sock);
         rt->rt_genmask = sock;
       } else if (!strcmp(*argv, "gw")) { 
         //route packets via a gateway.
         if (!(rt->rt_flags & RTF_GATEWAY)) {
-          int ishost;
-
-          if ((ishost = get_hostname(*argv, (struct sockaddr_in *) &rt->rt_gateway)) == 0) {
+          if (!get_hostname(*argv, (struct sockaddr_in *) &rt->rt_gateway))
             rt->rt_flags |= RTF_GATEWAY;
-          } else if (ishost < 0) perror_exit("resolving '%s'", *argv);
           else perror_exit("gateway '%s' is a NETWORK", *argv);
         } else help_exit("dup gw");
       } else if (!strcmp(*argv, "mss")) {
         //set the TCP Maximum Segment Size for connections over this route.
-        rt->rt_mss = atolx_range(*argv, 64, 32768); //MSS low and max
+        rt->rt_mtu = atolx_range(*argv, 64, 65536);
         rt->rt_flags |= RTF_MSS;
       } else if (!strcmp(*argv, "window")) {
         //set the TCP window size for connections over this route to W bytes.
@@ -253,7 +257,7 @@ static void verify_netmask(struct rtentry *rt, char *netmask)
 static void setroute(char **argv)
 {
   struct rtentry rt;
-  char *netmask = NULL, *targetip;
+  char *netmask, *targetip;
   int is_net_or_host = 0, sokfd, arg2_action;
   int action = get_action(&argv, arglist1); //verify the arg for add/del.
 
@@ -265,10 +269,17 @@ static void setroute(char **argv)
   memset(&rt, 0, sizeof(struct rtentry));
   targetip = *argv++;
 
-  is_prefix((char **)&targetip, (char **)&netmask, &rt);
-  if ((is_net_or_host = get_hostname(targetip, 
-          (struct sockaddr_in *) &rt.rt_dst)) < 0)
-    perror_exit("resolving '%s'", targetip);
+  netmask = strchr(targetip, '/');
+  if (netmask) {
+    *netmask++ = 0;
+    //used to verify the netmask and route conflict.
+    (((struct sockaddr_in *)&rt.rt_genmask)->sin_addr.s_addr)
+      = htonl((1<<(32-atolx_range(netmask, 0, 32)))-1);
+    rt.rt_genmask.sa_family = AF_INET;
+    netmask = 0;
+  } else netmask = "default";
+
+  is_net_or_host = get_hostname(targetip, (void *)&rt.rt_dst);
 
   if (arg2_action) is_net_or_host = arg2_action & 1;
   rt.rt_flags = ((is_net_or_host) ? RTF_UP : (RTF_UP | RTF_HOST));
