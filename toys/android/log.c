@@ -47,7 +47,7 @@ void log_main(void)
     if ((s-toybuf)+strlen(toys.optargs[i])>=1024) {
       memcpy(s, toys.optargs[i], 1024-(s-toybuf));
       toybuf[1024] = 0;
-      perror_msg("log cut at 1024 bytes");
+      error_msg("log cut at 1024 bytes");
 
       break;
     }
