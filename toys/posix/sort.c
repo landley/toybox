@@ -115,7 +115,10 @@ static char *get_key_data(char *str, struct sort_key *key, int flags)
         // Skip body of key
         for (; str[end]; end++) {
           if (TT.key_separator) {
-            if (str[end]==*TT.key_separator) break;
+            if (str[end]==*TT.key_separator) {
+              end++;
+              break;
+            }
           } else if (isspace(str[end])) break;
         }
       }
