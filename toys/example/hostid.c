@@ -8,7 +8,7 @@ USE_HOSTID(NEWTOY(hostid, ">0", TOYFLAG_USR|TOYFLAG_BIN))
 
 config HOSTID
   bool "hostid"
-  default y
+  default n
   help
     usage: hostid
 
