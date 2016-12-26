@@ -96,6 +96,9 @@ testing "" "sort -k2,2f" "A b b\na B C\na B a\n" "" "a B a\nA b b\na B C\n"
 testing "" "sort -k2,2" "a B C\na B a\nA b b\n" "" "a B a\nA b b\na B C\n"
 testing "" "sort -f -k2,2" "A b b\na B C\na B a\n" "" "a B a\nA b b\na B C\n" 
 
+testing "" "sort -t, -k3n" "3,4,1,2\n4,1,2,3\n1,2,3,4\n2,3,4,1\n" "" \
+  "1,2,3,4\n2,3,4,1\n4,1,2,3\n3,4,1,2\n"
+
 optional SORT_FLOAT
 
 # not numbers < NaN < -infinity < numbers < +infinity
