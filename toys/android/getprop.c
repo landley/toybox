@@ -7,7 +7,7 @@ USE_GETPROP(NEWTOY(getprop, ">2Z", TOYFLAG_USR|TOYFLAG_SBIN))
 config GETPROP
   bool "getprop"
   default y
-  depends on TOYBOX_ON_ANDROID
+  depends on TOYBOX_ON_ANDROID && TOYBOX_SELINUX
   help
     usage: getprop [NAME [DEFAULT]]
 
