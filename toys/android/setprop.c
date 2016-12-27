@@ -17,7 +17,7 @@ config SETPROP
 #define FOR_setprop
 #include "toys.h"
 
-#include <cutils/properties.h>
+#include <sys/system_properties.h>
 
 void setprop_main(void)
 {
@@ -44,6 +44,6 @@ void setprop_main(void)
     if (!isalnum(*p) && !strchr("@_.-", *p))
       error_exit("invalid character '%c' in name '%s'", *p, name);
 
-  if (property_set(name, value))
+  if (__system_property_set(name, value))
     error_msg("failed to set property '%s' to '%s'", name, value);
 }

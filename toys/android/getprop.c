@@ -17,7 +17,7 @@ config GETPROP
 #define FOR_getprop
 #include "toys.h"
 
-#include <cutils/properties.h>
+#include <sys/system_properties.h>
 
 #include <selinux/android.h>
 #include <selinux/label.h>
@@ -39,8 +39,13 @@ static char *get_property_context(char *property)
   return context;
 }
 
-static void add_property(char *name, char *value, void *unused)
+static void add_property(const prop_info *pi, void *unused)
 {
+  char name[PROP_NAME_MAX];
+  char value[PROP_VALUE_MAX];
+
+  __system_property_read(pi, name, value);
+
   if (!(TT.size&31)) TT.nv = xrealloc(TT.nv, (TT.size+32)*2*sizeof(char *));
 
   TT.nv[2*TT.size] = xstrdup(name);
@@ -58,7 +63,7 @@ static int selinux_log_callback_local(int type, const char *fmt, ...)
 
   if (type == SELINUX_INFO) return 0;
   va_start(ap, fmt);
-  verror_msg(fmt, 0, ap);
+  verror_msg((char *)fmt, 0, ap);
   va_end(ap);
   return 0;
 }
@@ -81,13 +86,15 @@ void getprop_main(void)
       puts(context);
       if (CFG_TOYBOX_FREE) free(context);
     } else {
-      property_get(*toys.optargs, toybuf, toys.optargs[1] ? toys.optargs[1] : "");
+      if (__system_property_get(*toys.optargs, toybuf) <= 0)
+        strcpy(toybuf, toys.optargs[1] ? toys.optargs[1] : "");
       puts(toybuf);
     }
   } else {
     size_t i;
 
-    if (property_list((void *)add_property, 0)) error_exit("property_list");
+    if (__system_property_foreach(add_property, NULL))
+      error_exit("property_list");
     qsort(TT.nv, TT.size, 2*sizeof(char *), qstrcmp);
     for (i = 0; i<TT.size; i++) printf("[%s]: [%s]\n", TT.nv[i*2],TT.nv[1+i*2]);
     if (CFG_TOYBOX_FREE) {

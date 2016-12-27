@@ -27,7 +27,7 @@ config STOP
 #define FOR_start
 #include "toys.h"
 
-#include <cutils/properties.h>
+#include <sys/system_properties.h>
 
 static void start_stop(int start)
 {
@@ -46,7 +46,7 @@ static void start_stop(int start)
   }
 
   for (; *ss; ss += direction)
-    if (property_set(property, *ss))
+    if (__system_property_set(property, *ss))
       error_exit("failed to set property '%s' to '%s'", property, *ss);
 }
 
