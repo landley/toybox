@@ -170,12 +170,13 @@ static struct module_s *get_mod(char *mod, uint8_t add)
 static int read_line(FILE *fl, char **li)
 {
   char *nxtline = NULL, *line;
-  int len, nxtlen, linelen, nxtlinelen;
+  ssize_t len, nxtlen;
+  size_t linelen, nxtlinelen;
 
   while (1) {
     line = NULL;
     linelen = nxtlinelen = 0;
-    len = getline(&line, (size_t*)&linelen, fl);
+    len = getline(&line, &linelen, fl);
     if (len <= 0) {
       free(line);
       return len;
@@ -192,7 +193,7 @@ static int read_line(FILE *fl, char **li)
     } else if (line[len - 1] != '\\') break;
     
     len--;
-    nxtlen = getline(&nxtline, (size_t*)&nxtlinelen, fl);
+    nxtlen = getline(&nxtline, &nxtlinelen, fl);
     if (nxtlen <= 0) break;
     if (linelen < len + nxtlen + 1) {
       linelen = len + nxtlen + 1;
