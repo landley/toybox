@@ -65,14 +65,10 @@ static void strout(char *val)
   printf(toybuf, val);
 }
 
-// Note: the atime, mtime, and ctime fields in struct stat are the start
-// of embedded struct timespec, but posix won't let them use that
-// struct definition for legacy/namespace reasons.
-
 static void date_stat_format(struct timespec *ts)
 {
   char *s = toybuf+128;
-  strftime(s, sizeof(toybuf), "%Y-%m-%d %H:%M:%S",
+  strftime(s, sizeof(toybuf)-128, "%Y-%m-%d %H:%M:%S",
     localtime(&(ts->tv_sec)));
   sprintf(s+strlen(s), ".%09ld", ts->tv_nsec);
   strout(s);
@@ -126,11 +122,11 @@ static void print_stat(char type)
   else if (type == 'T') out('x', dev_minor(stat->st_rdev));
   else if (type == 'u') out('u', stat->st_uid);
   else if (type == 'U') strout(getusername(stat->st_uid));
-  else if (type == 'x') date_stat_format((void *)&stat->st_atime);
+  else if (type == 'x') date_stat_format(&stat->st_atim);
   else if (type == 'X') out('u', stat->st_atime);
-  else if (type == 'y') date_stat_format((void *)&stat->st_mtime);
+  else if (type == 'y') date_stat_format(&stat->st_mtim);
   else if (type == 'Y') out('u', stat->st_mtime);
-  else if (type == 'z') date_stat_format((void *)&stat->st_ctime);
+  else if (type == 'z') date_stat_format(&stat->st_ctim);
   else if (type == 'Z') out('u', stat->st_ctime);
   else xprintf("?");
 }
