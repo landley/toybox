@@ -163,7 +163,7 @@ void xflush(void)
 // share a stack, so child returning from a function would stomp the return
 // address parent would need. Solution: make vfork() an argument so processes
 // diverge before function gets called.
-pid_t xvforkwrap(pid_t pid)
+pid_t __attribute__((noinline)) xvforkwrap(pid_t pid)
 {
   if (pid == -1) perror_exit("vfork");
 
@@ -732,16 +732,20 @@ void xpidfile(char *name)
 
 // Copy the rest of in to out and close both files.
 
-void xsendfile(int in, int out)
+long long xsendfile(int in, int out)
 {
+  long long total = 0;
   long len;
 
-  if (in<0) return;
+  if (in<0) return 0;
   for (;;) {
     len = xread(in, libbuf, sizeof(libbuf));
     if (len<1) break;
     xwrite(out, libbuf, len);
+    total += len;
   }
+
+  return total;
 }
 
 // parse fractional seconds with optional s/m/h/d suffix
