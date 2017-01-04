@@ -5,7 +5,7 @@
  * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/dmesg.html
 
 // We care that FLAG_c is 1, so keep c at the end.
-USE_DMESG(NEWTOY(dmesg, "w(follow)Ctrs#<1n#c[!tr]", TOYFLAG_BIN))
+USE_DMESG(NEWTOY(dmesg, "w(follow)Ctrs#<1n#c[!tr][!Cc]", TOYFLAG_BIN))
 
 config DMESG
   bool "dmesg"
@@ -45,7 +45,8 @@ static int xklogctl(int type, char *buf, int len)
 }
 
 // Use klogctl for reading if we're on a pre-3.5 kernel.
-static void legacy_mode() {
+static void legacy_mode()
+{
   char *data, *to, *from;
   int size;
 
@@ -75,33 +76,23 @@ static void legacy_mode() {
   if (CFG_TOYBOX_FREE) free(data);
 }
 
-static void color(int c) {
+static void color(int c)
+{
   if (TT.color) printf("\033[%dm", c);
 }
 
-void dmesg_main(void)
+static void print_all(void)
 {
-  // For -n just tell kernel which messages to keep.
-  if (toys.optflags & FLAG_n) {
-    xklogctl(8, 0, TT.level);
-
-    return;
-  }
-
-  // For -C just tell kernel to throw everything out.
-  if (toys.optflags & FLAG_C) {
-    xklogctl(5, 0, 0);
-
-    return;
-  }
-
-  TT.color = isatty(1);
-
   // http://kernel.org/doc/Documentation/ABI/testing/dev-kmsg
 
   // Each read returns one message. By default, we block when there are no
   // more messages (--follow); O_NONBLOCK is needed for for usual behavior.
   int fd = xopen("/dev/kmsg", O_RDONLY | ((toys.optflags&FLAG_w)?0:O_NONBLOCK));
+
+  // With /dev/kmsg, SYSLOG_ACTION_CLEAR (5) doesn't actually remove anything;
+  // you need to seek to the last clear point.
+  lseek(fd, 0, SEEK_DATA);
+
   while (1) {
     char msg[8192]; // CONSOLE_EXT_LOG_MAX.
     unsigned long long time_us;
@@ -160,4 +151,17 @@ void dmesg_main(void)
     }
   }
   close(fd);
+}
+
+void dmesg_main(void)
+{
+  TT.color = isatty(1);
+
+  if (!(toys.optflags & (FLAG_C|FLAG_n))) print_all();
+
+  // Set the log level?
+  if (toys.optflags & FLAG_n) xklogctl(8, 0, TT.level);
+
+  // Clear the buffer?
+  if (toys.optflags & (FLAG_C|FLAG_c)) xklogctl(5, 0, 0);
 }
