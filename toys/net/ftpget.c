@@ -7,7 +7,7 @@
  * TEST: -g -s (when local and remote exist) -gc, -sc
  * zero length file
 
-USE_FTPGET(NEWTOY(ftpget, "<2>3P:cp:u:vgslLmMdD[-gs][!gslLmMdD]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_FTPGET(NEWTOY(ftpget, "<2>3P:cp:u:vgslLmMdD[-gs][!gslLmMdD][!clL]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_FTPPUT(OLDTOY(ftpput, ftpget, TOYFLAG_USR|TOYFLAG_BIN))
 
 config FTPGET
@@ -49,6 +49,8 @@ GLOBALS(
   char *user;
   char *port;
   char *password;
+
+  int fd;
 )
 
 // we should get one line of data, but it may be in multiple chunks
@@ -70,12 +72,20 @@ int xread2line(int fd, char *buf, int len)
   return total+1;
 }
 
-static int ftp_check(int fd)
+static int ftp_line(char *cmd, char *arg, int must)
 {
-  int rc;
+  int rc = 0;
 
-  xread2line(fd, toybuf, sizeof(toybuf));
-  if (!sscanf(toybuf, "%d", &rc)) error_exit_raw(toybuf);
+  if (cmd) {
+    char *s = "%s %s\r\n"+3*(!arg);
+    if (toys.optflags & FLAG_v) fprintf(stderr, s, cmd, arg);
+    dprintf(TT.fd, s, cmd, arg);
+  }
+  if (must>=0) {
+    xread2line(TT.fd, toybuf, sizeof(toybuf));
+    if (!sscanf(toybuf, "%d", &rc) || (must && rc != must))
+      error_exit_raw(toybuf);
+  }
 
   return rc;
 }
@@ -83,10 +93,10 @@ static int ftp_check(int fd)
 void ftpget_main(void)
 {
   struct sockaddr_in6 si6;
-  int fd, rc, i, port;
+  int rc, ii = 1, port;
   socklen_t sl = sizeof(si6);
   char *s, *remote = toys.optargs[2];
-  unsigned long long lenl, lenr;
+  unsigned long long lenl = 0, lenr;
 
   if (!(toys.optflags&(FLAG_v-1)))
     toys.optflags |= (toys.which->name[3]=='g') ? FLAG_g : FLAG_s;
@@ -97,100 +107,99 @@ void ftpget_main(void)
   if (!remote) remote = toys.optargs[1];
 
   // connect
-  fd = xconnect(*toys.optargs, TT.port, 0, SOCK_STREAM, 0, AI_ADDRCONFIG);
-  if (getpeername(fd, (void *)&si6, &sl)) perror_exit("getpeername");
+  TT.fd = xconnect(*toys.optargs, TT.port, 0, SOCK_STREAM, 0, AI_ADDRCONFIG);
+  if (getpeername(TT.fd, (void *)&si6, &sl)) perror_exit("getpeername");
 
   // Login
-  if (ftp_check(fd) != 220) error_exit_raw(toybuf);
-  dprintf(fd, "USER %s\r\n", TT.user);
-  rc = ftp_check(fd);
-  if (rc == 331) {
-    dprintf(fd, "PASS %s\r\n", TT.password);
-    rc = ftp_check(fd);
-  }
+  ftp_line(0, 0, 220);
+  rc = ftp_line("USER", TT.user, 0);
+  if (rc == 331) rc = ftp_line("PASS", TT.password, 0);
   if (rc != 230) error_exit_raw(toybuf);
 
-  // Only do passive binary transfers
-  dprintf(fd, "TYPE I\r\n");
-  ftp_check(fd);
-  dprintf(fd, "PASV\r\n");
+  if (toys.optflags & FLAG_m) {
+    if (toys.optc != 3) error_exit("-m FROM TO");
+    ftp_line("RNFR", toys.optargs[1], 350);
+    ftp_line("RNTO", toys.optargs[2], 250);
+  } else if (toys.optflags & FLAG_M) ftp_line("MKD", toys.optargs[1], 257);
+  else if (toys.optflags & FLAG_d) ftp_line("DELE", toys.optargs[1], 250);
+  else if (toys.optflags & FLAG_D) ftp_line("RMD", toys.optargs[1], 250);
+  else {
+    int get = !(toys.optflags&FLAG_s), cnt = toys.optflags&FLAG_c;
+    char *cmd;
 
-  // PASV means the server opens a port you connect to instead of the server
-  // dialing back to the client. (Still insane, but less so.) So we need port #
+    // Only do passive binary transfers
+    ftp_line("TYPE", "I", 0);
+    rc = ftp_line("PASV", 0, 0);
 
-  // PASV output is "227 PASV ok (x,x,x,x,p1,p2)" where x,x,x,x is the IP addr
-  // (must match the server you're talking to???) and port is (256*p1)+p2
-  s = 0;
-  if (ftp_check(fd) == 227) for (s = toybuf; (s = strchr(s, ',')); s++) {
-    int p1, got = 0;
+    // PASV means the server opens a port you connect to instead of the server
+    // dialing back to the client. (Still insane, but less so.) So need port #
 
-    sscanf(s, ",%u,%u)%n", &p1, &port, &got);
-    if (!got) continue;
-    port += 256*p1;
-    break;
-  }
-  if (!s || port<1 || port>65535) error_exit_raw(toybuf);
-  si6.sin6_port = SWAP_BE16(port); // same field size/offset for v4 and v6
-  port = xsocket(si6.sin6_family, SOCK_STREAM, 0);
-  if (connect(port, (void *)&si6, sizeof(si6))) perror_exit("connect");
+    // PASV output is "227 PASV ok (x,x,x,x,p1,p2)" where x,x,x,x is the IP addr
+    // (must match the server you're talking to???) and port is (256*p1)+p2
+    s = 0;
+    if (rc==227) for (s = toybuf; (s = strchr(s, ',')); s++) {
+      int p1, got = 0;
 
-  if (toys.optflags & (FLAG_s|FLAG_g)) {
-    int get = toys.optflags&FLAG_g, cnt = toys.optflags&FLAG_c;
+      sscanf(s, ",%u,%u)%n", &p1, &port, &got);
+      if (!got) continue;
+      port += 256*p1;
+      break;
+    }
+    if (!s || port<1 || port>65535) error_exit_raw(toybuf);
+    si6.sin6_port = SWAP_BE16(port); // same field size/offset for v4 and v6
+    port = xsocket(si6.sin6_family, SOCK_STREAM, 0);
+    if (connect(port, (void *)&si6, sizeof(si6))) perror_exit("connect");
 
     // RETR blocks until file data read from data port, so use SIZE to check
     // if file exists before creating local copy
     lenr = 0;
-    dprintf(fd, "SIZE %s\r\n", remote);
-    if (ftp_check(fd) == 213) sscanf(toybuf, "%*u %llu", &lenr);
-    else if (get) error_exit("no %s", remote);
+    if (toys.optflags&(FLAG_s|FLAG_g)) {
+      if (ftp_line("SIZE", remote, 0) == 213)
+        sscanf(toybuf, "%*u %llu", &lenr);
+      else if (get) error_exit("no %s", remote);
+    }
 
     // Open file for reading or writing
-    i = xcreate(toys.optargs[1],
-      get ? (cnt ? O_APPEND : O_TRUNC)|O_CREAT|O_WRONLY : O_RDONLY, 0666);
-    lenl = fdlength(i);
+    if (toys.optflags & (FLAG_g|FLAG_s)) {
+      if (strcmp(toys.optargs[1], "-"))
+        ii = xcreate(toys.optargs[1],
+          get ? (cnt ? O_APPEND : O_TRUNC)|O_CREAT|O_WRONLY : O_RDONLY, 0666);
+      lenl = fdlength(ii);
+    }
     if (get) {
+      cmd = "REST";
+      if (toys.optflags&FLAG_l) cmd = "LIST";
+      if (toys.optflags&FLAG_L) cmd = "NLST";
       if (cnt) {
+        char buf[32];
+
         if (lenl>=lenr) goto done;
-        dprintf(fd, "REST %llu\r\n", lenl);
-        if (ftp_check(fd) != 350) error_exit_raw(toybuf);
+        sprintf(buf, "%llu", lenl);
+        ftp_line("REST", buf, 350);
       } else lenl = 0;
 
-      dprintf(fd, "RETR %s\r\n", remote);
-      lenl += xsendfile(port, i);
-      if (ftp_check(fd) != 226) error_exit_raw(toybuf);
-      if (lenl != lenr) error_exit("short read");
+      ftp_line(cmd, remote, -1);
+      lenl += xsendfile(port, ii);
+      ftp_line(0, 0, (toys.optflags&FLAG_g) ? 226 : 150);
     } else if (toys.optflags & FLAG_s) {
-      char *send = "STOR";
-
+      cmd = "STOR";
       if (cnt && lenr) {
-        send = "APPE";
-        xlseek(i, lenl, SEEK_SET);
+        cmd = "APPE";
+        xlseek(ii, lenl, SEEK_SET);
       } else lenr = 0;
-      dprintf(fd, "%s %s\r\n", send, remote);
-      if (ftp_check(fd) != 150) error_exit_raw(toybuf);
-      lenr += xsendfile(i, port);
-      if (lenl != lenr) error_exit("short write %lld %lld", lenl, lenr);
+      ftp_line(cmd, remote, 150);
+      lenr += xsendfile(ii, port);
       close(port);
     }
+    if (toys.optflags&(FLAG_g|FLAG_s))
+      if (lenl != lenr) error_exit("short %lld/%lld", lenl, lenr);
   }
-  dprintf(fd, "QUIT\r\n");
-  ftp_check(fd);
-
-  // gslLmMdD
-  // STOR - upload
-  // APPE - append
-  // REST - must immediately precede RETR or STOR
-  // LIST - list directory contents
-  // NLST - just list names, one per line
-  // RNFR RNTO - rename from, rename to
-  // DELE - delete
-  // RMD - rmdir
-  // MKD - mkdir
+  ftp_line("QUIT", 0, 0);
 
 done:
   if (CFG_TOYBOX_FREE) {
-    xclose(i);
+    if (ii!=1) xclose(ii);
     xclose(port);
-    xclose(fd);
+    xclose(TT.fd);
   }
 }
