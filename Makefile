@@ -79,7 +79,8 @@ help::
 	@echo  '                    to show diff, VERBOSE=fail to stop after first failure.'
 	@echo  '  clean           - Delete temporary files.'
 	@echo  "  distclean       - Delete everything that isn't shipped."
-	@echo  '  install_airlock - Install toybox and host toolchain into $PREFIX directory.'
+	@echo  '  install_airlock - Install toybox and host toolchain into $$PREFIX directory'
+	@echo  '                    (providing $$PATH for hermetic builds).'
 	@echo  '  install_flat    - Install toybox into $$PREFIX directory.'
 	@echo  '  install         - Install toybox into subdirectories of $$PREFIX.'
 	@echo  '  uninstall_flat  - Remove toybox from $$PREFIX directory.'
