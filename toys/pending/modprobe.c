@@ -5,17 +5,18 @@
  *
  * No Standard.
 
-USE_MODPROBE(NEWTOY(modprobe, "alrqvsDb", TOYFLAG_SBIN))
+USE_MODPROBE(NEWTOY(modprobe, "alrqvsDbd*", TOYFLAG_SBIN))
 
 config MODPROBE
   bool "modprobe"
   default n
   help
-    usage: modprobe [-alrqvsDb] MODULE [symbol=value][...]
+    usage: modprobe [-alrqvsDb] [-d DIR] MODULE [symbol=value][...]
 
     modprobe utility - inserts modules and dependencies.
 
     -a  Load multiple MODULEs
+    -d  Load modules from DIR, option may be used multiple times
     -l  List (MODULE is a pattern)
     -r  Remove MODULE (stacks) or do autoclean
     -q  Quiet
@@ -29,6 +30,7 @@ config MODPROBE
 #include <sys/syscall.h>
 
 GLOBALS(
+  struct arg_list *dirs;
   struct arg_list *probes;
   struct arg_list *dbase[256];
   char *cmdopts;
@@ -42,6 +44,7 @@ GLOBALS(
  */
 #define DBASE_SIZE  256
 #define MODNAME_LEN 256
+#define MODULE_BASE_DIR "/lib/modules/"
 
 // Modules flag definations
 #define MOD_ALOADED   0x0001
@@ -492,6 +495,7 @@ void modprobe_main(void)
   FILE *fs;
   struct module_s *module;
   unsigned flags = toys.optflags;
+  struct arg_list *dirs;
 
   TT.dbg = (flags & FLAG_v) ? xprintf : dummy;
 
@@ -506,16 +510,24 @@ void modprobe_main(void)
     return;
   }
 
-  // change directory to /lib/modules/<release>/ 
-  xchdir("/lib/modules");
-  uname(&uts);
-  xchdir(uts.release);
+  if (!TT.dirs) {
+    uname(&uts);
+    TT.dirs = xzalloc(sizeof(struct arg_list));
+    TT.dirs->arg = xmalloc(strlen(MODULE_BASE_DIR) + strlen(uts.release) + 1);
+    strcpy(TT.dirs->arg, MODULE_BASE_DIR);
+    strcat(TT.dirs->arg, uts.release);
+  }
 
   // modules.dep processing for dependency check.
   if (flags & FLAG_l) {
-    if (depmode_read_entry(toys.optargs[0])) error_exit("no module found.");
-    return;
+    for (dirs = TT.dirs; dirs; dirs = dirs->next) {
+      xchdir(dirs->arg);
+      if (!depmode_read_entry(toys.optargs[0]))
+	      return;
+    }
+    error_exit("no module found.");
   }
+
   // Read /proc/modules to get loaded modules.
   fs = xfopen("/proc/modules", "r");
   
@@ -540,9 +552,18 @@ void modprobe_main(void)
   }
   dirtree_read("/etc/modprobe.conf", config_action);
   dirtree_read("/etc/modprobe.d", config_action);
-  if (TT.symreq) dirtree_read("modules.symbols", config_action);
-  if (TT.nudeps) dirtree_read("modules.alias", config_action);
-  find_dep();
+
+  for (dirs = TT.dirs; dirs; dirs = dirs->next) {
+    xchdir(dirs->arg);
+    if (TT.symreq) dirtree_read("modules.symbols", config_action);
+    if (TT.nudeps) dirtree_read("modules.alias", config_action);
+  }
+
+  for (dirs = TT.dirs; dirs; dirs = dirs->next) {
+	  xchdir(dirs->arg);
+	  find_dep();
+  }
+
   while ((module = llist_popme(&TT.probes))) {
     if (!module->rnames) {
       TT.dbg("probing by module name\n");
