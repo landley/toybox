@@ -53,3 +53,17 @@ shellit 'x=5;' '$((x^=12)); echo $x' '99\n' '' ''
 shellit 'x=2;' '$((x<<=2)); echo $x' '88\n' '' ''
 shellit 'x=12;' '$((x>>=2)); echo $x' '33\n' '' ''
 shellit 'x=2;' '$((x++,5)); echo $x' '53\n' '' ''
+
+# echo $(ls -l #comment)
+# cat -</dev/null
+# cat -|xargs echo
+# cat -(ls)
+# echo -!
+# echo -{
+# echo -(
+# (echo -)
+# echo $
+# "echo \$(echo \"hello\nworld\")"
+# "echo \"one ;\ntwo\""
+# echo $(ls -l &)
+# echo one < /dev/null two
