@@ -365,8 +365,16 @@ static void extract_to_disk(struct archive_handler *tar)
   struct stat ex;
   struct file_header *file_hdr = &tar->file_hdr;
 
-  if (file_hdr->name[strlen(file_hdr->name)-1] == '/')
-    file_hdr->name[strlen(file_hdr->name)-1] = 0;
+  flags = strlen(file_hdr->name);
+  if (flags>2) {
+    if (strstr(file_hdr->name, "/../") || !strcmp(file_hdr->name, "../") ||
+        !strcmp(file_hdr->name+flags-3, "/.."))
+    {
+      error_msg("drop %s", file_hdr->name);
+    }
+  }
+
+  if (file_hdr->name[flags-1] == '/') file_hdr->name[flags-1] = 0;
   //Regular file with preceding path
   if ((s = strrchr(file_hdr->name, '/'))) {
     if (mkpathat(AT_FDCWD, file_hdr->name, 00, 2) && errno !=EEXIST) {
