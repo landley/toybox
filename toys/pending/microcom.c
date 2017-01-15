@@ -8,7 +8,7 @@ config MICROCOM
   bool "microcom"
   default n
   help
-    usage: microcom [-s SPEED] [-X]
+    usage: microcom [-s SPEED] [-X] DEVICE
 
     Simple serial console.
 
@@ -94,11 +94,14 @@ void microcom_main(void)
 
     // Read from stdin, write to connection.
     if (fds[1].revents) {
-      if (read(0, buf, 1) == 1) {
-        if (buf[0] == 0) tcsendbreak(TT.fd, 0);
-        else if (buf[0] == ('X'-'@')) break;
-        else xwrite(TT.fd, buf, 1);
-      } else break;
+      if (read(0, buf, 1) != 1) break;
+      if (!(toys.optflags & FLAG_X)) {
+        if (buf[0] == 0) {
+          tcsendbreak(TT.fd, 0);
+          continue;
+        } else if (buf[0] == ('X'-'@')) break;
+      }
+      xwrite(TT.fd, buf, 1);
     }
   }
 }
