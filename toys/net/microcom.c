@@ -6,7 +6,7 @@ USE_MICROCOM(NEWTOY(microcom, "<1>1s:X", TOYFLAG_BIN))
 
 config MICROCOM
   bool "microcom"
-  default n
+  default y
   help
     usage: microcom [-s SPEED] [-X] DEVICE
 
