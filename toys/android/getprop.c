@@ -39,13 +39,8 @@ static char *get_property_context(char *property)
   return context;
 }
 
-static void add_property(const prop_info *pi, void *unused)
+static void read_callback(void *unused, const char *name, const char *value)
 {
-  char name[PROP_NAME_MAX];
-  char value[PROP_VALUE_MAX];
-
-  __system_property_read(pi, name, value);
-
   if (!(TT.size&31)) TT.nv = xrealloc(TT.nv, (TT.size+32)*2*sizeof(char *));
 
   TT.nv[2*TT.size] = xstrdup(name);
@@ -54,6 +49,11 @@ static void add_property(const prop_info *pi, void *unused)
   } else {
     TT.nv[1+2*TT.size++] = xstrdup(value);
   }
+}
+
+static void add_property(const prop_info *pi, void *unused)
+{
+  __system_property_read_callback(pi, read_callback, NULL);
 }
 
 // Needed to supress extraneous "Loaded property_contexts from" message

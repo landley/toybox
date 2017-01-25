@@ -29,9 +29,6 @@ void setprop_main(void)
   // recognize most failures (because it doesn't wait for init), so
   // we duplicate all of init's checks here to help the user.
 
-  if (name_len >= PROP_NAME_MAX)
-    error_exit("name '%s' too long; try '%.*s'",
-               name, PROP_NAME_MAX - 1, name);
   if (value_len >= PROP_VALUE_MAX)
     error_exit("value '%s' too long; try '%.*s'",
                value, PROP_VALUE_MAX - 1, value);
