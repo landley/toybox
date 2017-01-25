@@ -13,14 +13,14 @@ config MICROCOM
     Simple serial console.
 
     -s  Set baud rate to SPEED
-    -X  Ignore ^@ (send break) and ^X (exit).
+    -X  Ignore ^@ (send break) and ^] (exit).
 */
 
 #define FOR_microcom
 #include "toys.h"
 
 GLOBALS(
-  char *speed;
+  char *s;
 
   int fd;
   struct termios original_stdin_state, original_fd_state;
@@ -37,7 +37,7 @@ static void xraw(int fd, const char *name, speed_t speed,
   *original = t;
 
   cfmakeraw(&t);
-  if (speed && cfsetspeed(&t, speed)) perror_exit("cfsetspeed");
+  if (speed) cfsetspeed(&t, speed);
 
   if (tcsetattr(fd, TCSAFLUSH, &t)) perror_exit("tcsetattr %s", name);
 }
@@ -50,26 +50,25 @@ static void restore_states(int i)
 
 void microcom_main(void)
 {
-  speed_t speed = B115200;
+  int speeds[] = {50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800, 2400,
+                  4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800,
+                  500000, 576000, 921600, 1000000, 1152000, 1500000, 2000000,
+                  2500000, 3000000, 3500000, 4000000};
   struct pollfd fds[2];
-  int flags;
+  int i, speed;
 
-  // TODO: move this into lib and support all known baud rates?
-  if (TT.speed) {
-    switch (atolx(TT.speed)) {
-    case 9600: speed = B9600; break;
-    case 19200: speed = B19200; break;
-    case 38400: speed = B38400; break;
-    case 115200: speed = B115200; break;
-    default: error_exit("unknown speed: %s", TT.speed);
-    }
-  }
+  if (!TT.s) speed = 115200;
+  else speed = atoi(TT.s);
+
+  // Find speed in table, adjust to constant
+  for (i = 0; i < ARRAY_LEN(speeds); i++) if (speeds[i] == speed) break;
+  if (i == ARRAY_LEN(speeds)) error_exit("unknown speed: %s", TT.s);
+  speed = i+1+4081*(i>15);
 
   // Open with O_NDELAY, but switch back to blocking for reads.
   TT.fd = xopen(*toys.optargs, O_RDWR | O_NOCTTY | O_NDELAY);
-  flags = fcntl(TT.fd, F_GETFL, 0);
-  if (flags == -1) perror_exit("fcntl F_GETFL");
-  if (fcntl(TT.fd, F_SETFL, flags & ~O_NDELAY)) perror_exit("fcntl F_SETFL");
+  if (-1==(i = fcntl(TT.fd, F_GETFL, 0)) || fcntl(TT.fd, F_SETFL, i&~O_NDELAY))
+    perror_exit_raw(*toys.optargs);
 
   // Set both input and output to raw mode.
   xraw(TT.fd, "fd", speed, &TT.original_fd_state);
@@ -96,10 +95,10 @@ void microcom_main(void)
     if (fds[1].revents) {
       if (read(0, buf, 1) != 1) break;
       if (!(toys.optflags & FLAG_X)) {
-        if (buf[0] == 0) {
+        if (!*buf) {
           tcsendbreak(TT.fd, 0);
           continue;
-        } else if (buf[0] == ('X'-'@')) break;
+        } else if (*buf == (']'-'@')) break;
       }
       xwrite(TT.fd, buf, 1);
     }
