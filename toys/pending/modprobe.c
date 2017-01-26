@@ -373,6 +373,19 @@ static int ins_mod(char *modules, char *flags)
   int len, res;
   int fd = xopenro(modules);
 
+  while (flags && strlen(toybuf) + strlen(flags) + 2 < sizeof(toybuf)) {
+    strcat(toybuf, flags);
+    strcat(toybuf, " ");
+  }
+
+#ifdef __NR_finit_module
+  res = syscall(__NR_finit_module, fd, toybuf, 0);
+  if (!res || errno != ENOSYS) {
+	  xclose(fd);
+	  return res;
+  }
+#endif
+
   // TODO xreadfile()
 
   len = fdlength(fd);
@@ -380,10 +393,6 @@ static int ins_mod(char *modules, char *flags)
   xreadall(fd, buf, len);
   xclose(fd);
 
-  while (flags && strlen(toybuf) + strlen(flags) + 2 < sizeof(toybuf)) {
-    strcat(toybuf, flags);
-    strcat(toybuf, " ");
-  }
   res = syscall(__NR_init_module, buf, len, toybuf);
   if (CFG_TOYBOX_FREE && buf != toybuf) free(buf);
   return res;
