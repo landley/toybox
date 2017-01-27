@@ -327,10 +327,11 @@ dd getevent grep gzip newfs_msdos
 </b></blockquote>
 
 <p>Update: Android.mk is currently building the following toybox files out
-of "pending". These should be a priority for cleanup:</p>
+of "pending". These should be a priority for cleanup (ones marked with *
+don't have a symlink, so they're a lot less visible):</p>
 
 <blockquote><b>
-chrt dd expr getfattr lsof more tar tr traceroute
+chrt dd expr getfattr* lsof modprobe more setfattr* tar tr traceroute
 </b></blockquote>
 
 <p>Android wishlist:</p>
