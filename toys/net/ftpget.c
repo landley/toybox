@@ -54,7 +54,7 @@ GLOBALS(
 )
 
 // we should get one line of data, but it may be in multiple chunks
-int xread2line(int fd, char *buf, int len)
+static int xread2line(int fd, char *buf, int len)
 {
   int i, total = 0;
 

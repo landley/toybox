@@ -61,7 +61,7 @@ static char *strpad(int fd, unsigned len, unsigned align)
 }
 
 //convert hex to uint; mostly to allow using bits of non-terminated strings
-unsigned x8u(char *hex)
+static unsigned x8u(char *hex)
 {
   unsigned val, inpos = 8, outpos;
   char pattern[6];

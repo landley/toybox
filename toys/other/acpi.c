@@ -29,7 +29,7 @@ GLOBALS(
   char *cpath;
 )
 
-int read_int_at(int dirfd, char *name)
+static int read_int_at(int dirfd, char *name)
 {
   int fd, ret=0;
   FILE *fil;

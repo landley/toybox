@@ -58,7 +58,7 @@ GLOBALS(
 
 // Convert hostname to binary address for AF_INET or AF_INET6
 // return /prefix (or range max if none)
-int get_addrinfo(char *host, sa_family_t af, void *addr)
+static int get_addrinfo(char *host, sa_family_t af, void *addr)
 {
   struct addrinfo hints, *result, *rp = 0;
   int status, len;

@@ -975,7 +975,7 @@ static char *parse_ko(void *data, char *type, int length)
   return 0;
 }
 
-long long get_headers(struct strawberry *fields, char *buf, int blen)
+static long long get_headers(struct strawberry *fields, char *buf, int blen)
 {
   long long bits = 0;
   int len = 0;

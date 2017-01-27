@@ -123,7 +123,7 @@ struct cp_preserve {
 
 // Callback from dirtree_read() for each file/directory under a source dir.
 
-int cp_node(struct dirtree *try)
+static int cp_node(struct dirtree *try)
 {
   int fdout = -1, cfd = try->parent ? try->parent->extra : AT_FDCWD,
       tfd = dirtree_parentfd(try);
