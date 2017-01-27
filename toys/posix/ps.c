@@ -1598,10 +1598,9 @@ static void top_setup(char *defo, char *defk)
 
 void top_main(void)
 {
-  // usage: [-h HEADER] -o OUTPUT -k SORT
-
-  sprintf(toybuf, "PID,USER,%s%%CPU,%%MEM,TIME+,ARGS",
-    TT.top.O ? "" : "PR,NI,VIRT,RES,SHR,S,");
+  sprintf(toybuf, "PID,USER,%s%%CPU,%%MEM,TIME+,%s",
+    TT.top.O ? "" : "PR,NI,VIRT,RES,SHR,S,",
+    toys.optflags&FLAG_H ? "CMD:15=THREAD,NAME=PROCESS" : "ARGS");
   if (!TT.top.s) TT.top.s = TT.top.O ? 3 : 9;
   top_setup(toybuf, "-%CPU,-ETIME,-PID");
   if (TT.top.O) {
