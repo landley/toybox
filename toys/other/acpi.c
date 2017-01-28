@@ -140,5 +140,4 @@ void acpi_main(void)
     dirtree_read("/sys/class/power_supply", acpi_callback);
   if (toys.optflags & FLAG_t) dirtree_read("/sys/class", temp_callback);
   if (toys.optflags & FLAG_c) dirtree_read("/sys/class/thermal", cool_callback);
-
 }
