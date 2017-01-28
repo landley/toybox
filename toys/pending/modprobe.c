@@ -31,12 +31,12 @@ config MODPROBE
 
 GLOBALS(
   struct arg_list *dirs;
+
   struct arg_list *probes;
   struct arg_list *dbase[256];
   char *cmdopts;
   int nudeps;
   uint8_t symreq;
-  void (*dbg)(char *format, ...);
 )
 
 /* Note: if "#define DBASE_SIZE" modified, 
@@ -44,18 +44,12 @@ GLOBALS(
  */
 #define DBASE_SIZE  256
 #define MODNAME_LEN 256
-#define MODULE_BASE_DIR "/lib/modules/"
 
 // Modules flag definations
 #define MOD_ALOADED   0x0001
 #define MOD_BLACKLIST 0x0002
 #define MOD_FNDDEPMOD 0x0004
 #define MOD_NDDEPS    0x0008
-
-// dummy interface for debugging.
-static void dummy(char *format, ...)
-{
-}
 
 // Current probing modules info
 struct module_s {
@@ -305,7 +299,7 @@ static int depmode_read_entry(char *cmdname)
       if (tmp) *tmp = '\0';
       if (!cmdname || !fnmatch(cmdname, name, 0)) {
         if (tmp) *tmp = '.';
-        TT.dbg("%s\n", line);
+        if (toys.optflags&FLAG_v) puts(line);
         ret = 0;
       }
     }
@@ -404,10 +398,10 @@ static void add_mod(char *name)
   struct module_s *mod = get_mod(name, 1);
 
   if (!(toys.optflags & (FLAG_r | FLAG_D)) && (mod->flags & MOD_ALOADED)) {
-    TT.dbg("skipping %s, it is already loaded\n", name);
+    if (toys.optflags&FLAG_v) printf("skipping %s, already loaded\n", name);
     return;
   }
-  TT.dbg("queuing %s\n", name);
+  if (toys.optflags&FLAG_v) printf("queuing %s\n", name);
   mod->cmdname = name;
   mod->flags |= MOD_NDDEPS;
   llist_add_tail(&TT.probes, mod);
@@ -445,7 +439,7 @@ static int go_probe(struct module_s *m)
       error_msg("module %s not found in modules.dep", m->name);
     return -ENOENT;
   }
-  TT.dbg("go_prob'ing %s\n", m->name);
+  if (toys.optflags & FLAG_v) printf("go_prob'ing %s\n", m->name);
   if (!(toys.optflags & FLAG_r)) m->dep = llist_rev(m->dep);
   
   while (m->dep) {
@@ -474,18 +468,21 @@ static int go_probe(struct module_s *m)
 
     // are we only checking dependencies ?
     if (toys.optflags & FLAG_D) {
-      TT.dbg(options ? "insmod %s %s\n" : "insmod %s\n", fn, options);
+      if (toys.optflags & FLAG_v)
+        printf(options ? "insmod %s %s\n" : "insmod %s\n", fn, options);
       if (options) free(options);
       continue;
     }
     if (m2->flags & MOD_ALOADED) {
-      TT.dbg("%s is already loaded, skipping\n", fn);
+      if (toys.optflags&FLAG_v)
+        printf("%s is already loaded, skipping\n", fn);
       if (options) free(options);
       continue;
     }
     // none of above is true insert the module.
     rc = ins_mod(fn, options);
-    TT.dbg("loaded %s '%s', rc:%d\n", fn, options, rc);
+    if (toys.optflags&FLAG_v)
+      printf("loaded %s '%s', rc:%d\n", fn, options, rc);
     if (rc == EEXIST) rc = 0;
     if (options) free(options);
     if (rc) {
@@ -506,8 +503,6 @@ void modprobe_main(void)
   unsigned flags = toys.optflags;
   struct arg_list *dirs;
 
-  TT.dbg = (flags & FLAG_v) ? xprintf : dummy;
-
   if ((toys.optc < 1) && (((flags & FLAG_r) && (flags & FLAG_l))
         ||(!((flags & FLAG_r)||(flags & FLAG_l)))))
   {
@@ -522,9 +517,7 @@ void modprobe_main(void)
   if (!TT.dirs) {
     uname(&uts);
     TT.dirs = xzalloc(sizeof(struct arg_list));
-    TT.dirs->arg = xmalloc(strlen(MODULE_BASE_DIR) + strlen(uts.release) + 1);
-    strcpy(TT.dirs->arg, MODULE_BASE_DIR);
-    strcat(TT.dirs->arg, uts.release);
+    TT.dirs->arg = xmprintf("/lib/modules/%s", uts.release);
   }
 
   // modules.dep processing for dependency check.
@@ -556,7 +549,7 @@ void modprobe_main(void)
     TT.cmdopts = add_cmdopt(argv);
   }
   if (!TT.probes) {
-    TT.dbg("All modules loaded\n");
+    if (toys.optflags&FLAG_v) puts("All modules loaded");
     return;
   }
   dirtree_read("/etc/modprobe.conf", config_action);
@@ -575,7 +568,7 @@ void modprobe_main(void)
 
   while ((module = llist_popme(&TT.probes))) {
     if (!module->rnames) {
-      TT.dbg("probing by module name\n");
+      if (toys.optflags&FLAG_v) puts("probing by module name");
       /* This is not an alias. Literal names are blacklisted
        * only if '-b' is given.
        */
@@ -587,7 +580,8 @@ void modprobe_main(void)
       char *real = ((struct arg_list*)llist_pop(&module->rnames))->arg;
       struct module_s *m2 = get_mod(real, 0);
       
-      TT.dbg("probing alias %s by realname %s\n", module->name, real);
+      if (toys.optflags&FLAG_v)
+        printf("probing alias %s by realname %s\n", module->name, real);
       if (!m2) continue;
       if (!(m2->flags & MOD_BLACKLIST) 
           && (!(m2->flags & MOD_ALOADED) || (flags & (FLAG_r | FLAG_D))))
