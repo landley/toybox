@@ -15,7 +15,7 @@ build itself using the result to build Linux From Scratch (version 6.8).
 We also aim to replace Android's Toolbox.</p>
 
 <p>At a secondary level we'd like to meet other use cases. We've analyzed
-the commands provided by similar projects (klibc, sash, sbase, s6, embutils,
+the commands provided by similar projects (klibc, sash, sbase, embutils,
 nash, and beastiebox), along with various vendor configurations of busybox,
 and some end user requests.</p>
 
@@ -35,7 +35,7 @@ and progress towards implementing it.</p>
 <li><a href=#android>Android Toolbox</a></li>
 <li><a href=#tizen>Tizen Core</a></li>
 <li>Miscelaneous: <a href=#klibc>klibc</a>, <a href=#glibc>glibc</a>,
-<a href=#sash>sash</a>, <a href=#sbase>sbase</a>, <a href=#s6>s6</a>,
+<a href=#sash>sash</a>, <a href=#sbase>sbase</a>,
 <a href=#uclinux>uclinux</a>...</li>
 </ul>
 
@@ -581,56 +581,6 @@ passwd pidof ps stat su truncate unshare uptime watch
 who
 </span>
 </p></blockquote>
-
-<hr />
-<a name=s6 />
-<h2>s6</h2>
-
-<p>The website <a href=http://skarnet.org/software/>skarnet</a> has a bunch
-of small utilities as part of something called "s6". This includes the
-<a href=http://skarnet.org/software/s6-portable-utils>s6-portabile-utils</a>
-and the <a href=http://skarnet.org/software/s6-linux-utils>s6-linux-utils</a>.
-</p>
-
-<p>Both packages rely on multiple bespoke external libraries without which
-they can't compile. The source is completely uncommented and doesn't wrap at
-80 characters. Doing a find for *.c files brings up the following commands:</p>
-
-<blockquote><b>
-<span id=s6>
-basename cat chmod chown chroot clock cut devd dirname echo env expr false
-format-filter freeramdisk grep halt head hiercopy hostname linkname ln
-logwatch ls maximumtime memoryhog mkdir mkfifo mount nice nuke pause
-pivotchroot poweroff printenv quote quote-filter reboot rename rmrf sleep
-sort swapoff swapon sync tail test touch true umount uniquename unquote
-unquote-filter update-symlinks
-</span>
-</b></blockquote>
-
-<p>Triage: memoryhog isn't even listed on the website nor does it have
-a documentation file, clock seems like a subset
-of date, devd is some sort of netlink wrapper that spawns its command line
-every time it gets a message (maybe this is meant to implement part of
-udev/mdev?), format-filter is sort of awk's '{print $2}' function split out
-into its own command, hiercopy a subset of "cp -r", maximumtime is something
-I implemented as a shell script (more/timeout.sh in Aboriginal Linux),
-nuke isn't the same as klibc (this one's "kill SIG -1" only with hardwared
-SIG options), pause is a program that literally waits to be killed (I
-generally sleep 999999999 which is a little over 30 years),
-pivotchroot is a subset of switch_root, rmrf is rm -rf...</p>
-
-<p>I see "nuke" resurface, and if "rmrf" wasn't also here I might think
-klibc had a point.</b>
-
-<blockquote>
-basename cat chmod chown chroot cut dirname echo env expr false
-freeramdisk grep halt head hostname linkname ln
-logwatch ls mkdir mkfifo mount nice
-pivotchroot poweroff printenv quote quote-filter reboot rename sleep
-sort swapoff swapon sync tail test touch true umount uniquename unquote
-unquote-filter update-symlinks
-</blockquote>
-
 
 <hr />
 <a name=nash />
