@@ -1,5 +1,7 @@
 #include "toys.h"
 
+// A linestack is an array of struct ptr_len.
+
 // Insert one stack into another before position in old stack.
 // (Does not copy contents of strings, just shuffles index array contents.)
 void linestack_addstack(struct linestack **lls, struct linestack *throw,
@@ -29,15 +31,17 @@ void linestack_addstack(struct linestack **lls, struct linestack *throw,
     catch = *lls;
   }
 
+  // Copy new chunk we made space for
   memcpy(catch->idx+pos, throw->idx, throw->len*sizeof(struct ptr_len));
   catch->len += throw->len;
 }
 
+// Insert one line/len into a linestack at pos
 void linestack_insert(struct linestack **lls, long pos, char *line, long len)
 {
   // alloca() was in 32V and Turbo C for DOS, but isn't in posix or c99.
-  // I'm not thrashing the heap for this, but this should work even if
-  // a broken compiler adds gratuitous padding.
+  // This allocates enough memory for the linestack to have one ptr_len.
+  // (Even if a compiler adds gratuitous padidng that just makes it bigger.)
   struct {
     struct linestack ls;
     struct ptr_len pl;
@@ -76,10 +80,8 @@ struct linestack *linestack_load(char *name)
   return ls;
 }
 
-// Show width many columns, negative means from right edge.
-// If out=0 just measure
-// if escout, send it unprintable chars, returns columns output or -1 for
-// standard escape: ^X if <32, <XX> if invliad UTF8, U+XXXX if UTF8 !iswprint()
+// Show width many columns, negative means from right edge, out=0 just measure
+// if escout, send it unprintable chars, otherwise pass through raw data.
 // Returns width in columns, moves *str to end of data consumed.
 int crunch_str(char **str, int width, FILE *out, char *escmore,
   int (*escout)(FILE *out, int cols, int wc))
@@ -114,6 +116,8 @@ int crunch_str(char **str, int width, FILE *out, char *escmore,
   return columns;
 }
 
+
+// standard escapes: ^X if <32, <XX> if invliad UTF8, U+XXXX if UTF8 !iswprint()
 int crunch_escape(FILE *out, int cols, int wc)
 {
   char buf[8];
@@ -129,6 +133,7 @@ int crunch_escape(FILE *out, int cols, int wc)
   return rc;
 }
 
+// Display "standard" escapes in reverse video.
 int crunch_rev_escape(FILE *out, int cols, int wc)
 {
   int rc;
@@ -170,7 +175,7 @@ int draw_trim_esc(char *str, int padto, int width, char *escmore,
 {
   int apad = abs(padto), len = utf8len(str);
 
-  if (padto<0 && len>width) str += utf8skip(str, len-width);
+  if (padto>=0 && len>width) str += utf8skip(str, len-width);
   if (len>width) len = width;
 
   // Left pad if right justified 
