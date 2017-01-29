@@ -46,7 +46,7 @@ void seq_main(void)
 {
   double first, increment, last, dd;
   char *sep_str = "\n", *fmt_str = "%g";
-  int output = 0;
+  int i;
 
   // Parse command line arguments, with appropriate defaults.
   // Note that any non-numeric arguments are treated as zero.
@@ -60,7 +60,7 @@ void seq_main(void)
   // Pad to largest width
   if (toys.optflags & FLAG_w) {
     char *s;
-    int i, len, dot, left = 0, right = 0;
+    int len, dot, left = 0, right = 0;
 
     for (i=0; i<3; i++) {
       dd = (double []){first, increment, last}[i];
@@ -79,15 +79,15 @@ void seq_main(void)
   if (toys.optflags & FLAG_f) insanitize(fmt_str = TT.fmt);
   if (toys.optflags & FLAG_s) sep_str = TT.sep;
 
-  // Yes, we're looping on a double.  Yes rounding errors can accumulate if
-  // you use a non-integer increment.  Deal with it.
-  for (dd=first; (increment>0 && dd<=last) || (increment<0 && dd>=last);
-    dd+=increment)
-  {
-    if (dd != first) printf("%s", sep_str);
+  i = 0;
+  dd = first;
+  if (increment) for (; ; i) {
+    // avoid accumulating rounding errors from increment
+    dd = first+i*increment;
+    if ((increment<0 && dd<last) || (increment>0 && dd>last)) break;
+    if (i++) printf("%s", sep_str);
     printf(fmt_str, dd);
-    output = 1;
   }
 
-  if (output) printf("\n");
+  if (i) printf("\n");
 }
