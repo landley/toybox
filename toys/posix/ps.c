@@ -79,7 +79,7 @@ config PS
     -k	Sort FIELDs in +increasing or -decreasting order (--sort)
     -M	Measure field widths (expanding as necessary)
     -n	Show numeric USER and GROUP
-    -w	Wide output (don't truncate at terminal width)
+    -w	Wide output (don't truncate fields)
 
     Which FIELDs to show. (Default = -o PID,TTY,TIME,CMD)
 
