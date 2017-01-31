@@ -81,7 +81,7 @@ void seq_main(void)
 
   i = 0;
   dd = first;
-  if (increment) for (; ; i) {
+  if (increment) for (;;) {
     // avoid accumulating rounding errors from increment
     dd = first+i*increment;
     if ((increment<0 && dd<last) || (increment>0 && dd>last)) break;
