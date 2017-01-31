@@ -810,7 +810,7 @@ static int get_ps(struct dirtree *new)
         }
 
         s = buf;
-        if (strstart(&s, "/dev/")) memmove(buf, s, len -= 5);
+        if (strstart(&s, "/dev/")) memmove(buf, s, len -= 4);
       }
 
     // Data we want is in a file.
