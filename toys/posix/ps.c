@@ -13,7 +13,8 @@
  * Similarly -f outputs USER but calls it UID (we call it USER).
  * It also says that -o "args" and "comm" should behave differently but use
  * the same title, which is not the same title as the default output. (No.)
- * Select by session id is -s not -g.
+ * Select by session id is -s not -g. Posix doesn't say truncated fields
+ * should end with "+" but it's pretty common behavior.
  *
  * Posix defines -o ADDR as "The address of the process" but the process
  * start address is a constant on any elf system with mmu. The procps ADDR
@@ -83,7 +84,7 @@ config PS
 
     Which FIELDs to show. (Default = -o PID,TTY,TIME,CMD)
 
-    -f	Full listing (-o USER:8=UID,PID,PPID,C,STIME,TTY,TIME,ARGS=CMD)
+    -f	Full listing (-o USER:12=UID,PID,PPID,C,STIME,TTY,TIME,ARGS=CMD)
     -l	Long listing (-o F,S,UID,PID,PPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD)
     -o	Output FIELDs instead of defaults, each with optional :size and =title
     -O	Add FIELDS to defaults
@@ -350,7 +351,7 @@ struct typography {
   {"ARGS", -27, -6}, {"CMD", -15, -1},
 
   // user/group
-  {"UID", 5, SLOT_uid}, {"USER", -8, 64|SLOT_uid}, {"RUID", 4, SLOT_ruid},
+  {"UID", 5, SLOT_uid}, {"USER", -12, 64|SLOT_uid}, {"RUID", 4, SLOT_ruid},
   {"RUSER", -8, 64|SLOT_ruid}, {"GID", 8, SLOT_gid}, {"GROUP", -8, 64|SLOT_gid},
   {"RGID", 4, SLOT_rgid}, {"RGROUP", -8, 64|SLOT_rgid},
 
@@ -566,29 +567,37 @@ static void show_ps(void *p)
     // fields that can naturally be shorter
     abslen = abs(field->len);
     sign = field->len<0 ? -1 : 1;
-    olen = strlen(out);
+    olen = (TT.tty) ? utf8len(out) : strlen(out);
     if ((field->which<=PS_BIT || (toys.optflags&FLAG_w)) && olen>abslen) {
       // overflow but remember by how much
       extra += olen-abslen;
       abslen = olen;
     } else if (extra && olen<abslen) {
+      int unused = abslen-olen;
+
       // If later fields have slack space, take back overflow
-      olen = abslen-olen;
-      if (olen>extra) olen = extra;
-      abslen -= olen;
-      extra -= olen;
+      if (unused>extra) unused = extra;
+      abslen -= unused;
+      extra -= unused;
     }
     if (abslen>width) abslen = width;
     len = pad = abslen;
     pad *= sign;
+
     // If last field is left justified, no trailing spaces.
-    if (!field->next && sign<0) {
-      pad = 0;
-      len = width;
+    if (!field->next && sign<0) pad = -(len = width);
+
+    // If we truncated a left-justified field, show + instead of last char
+    if (olen>len && len>1 && sign<0) {
+      width--;
+      len--;
+      pad++;
+      abslen = 0;
     }
 
     if (TT.tty) width -= draw_trim(out, pad, len);
     else width -= printf("%*.*s", pad, len, out);
+    if (!abslen) putchar('+');
     if (!width) break;
   }
   xputc(TT.time ? '\r' : '\n');
@@ -1179,7 +1188,8 @@ void ps_main(void)
   // Figure out which fields to display
   not_o = "%sTTY,TIME,CMD";
   if (toys.optflags&FLAG_f)
-    sprintf(not_o = toybuf+128, "USER:8=UID,%%sPPID,%s,STIME,TTY,TIME,ARGS=CMD",
+    sprintf(not_o = toybuf+128,
+      "USER:12=UID,%%sPPID,%s,STIME,TTY,TIME,ARGS=CMD",
       (toys.optflags&FLAG_T) ? "TCNT" : "C");
   else if (toys.optflags&FLAG_l)
     not_o = "F,S,UID,%sPPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD";
