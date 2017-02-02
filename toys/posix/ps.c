@@ -180,7 +180,7 @@ config PGREP
   default y
   depends on PGKILL_COMMON
   help
-    usage: pgrep [-cL] [-d DELIM] [-L SIGNAL] [PATTERN]
+    usage: pgrep [-cl] [-d DELIM] [-L SIGNAL] [PATTERN]
 
     Search for process(es). PATTERN is an extended regular expression checked
     against command names.
