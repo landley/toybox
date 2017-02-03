@@ -202,7 +202,7 @@ void df_main(void)
         if (mt->stat.st_dev == mt2->stat.st_dev) {
           // For --bind mounts, show earliest mount
           if (!strcmp(mt->device, mt2->device)) {
-            if (!toys.optflags & FLAG_a) mt3->stat.st_dev = 0;
+            if (!(toys.optflags & FLAG_a)) mt3->stat.st_dev = 0;
             mt3 = mt2;
           } else mt2->stat.st_dev = 0;
         }
