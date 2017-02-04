@@ -163,7 +163,7 @@ void xflush(void)
 // share a stack, so child returning from a function would stomp the return
 // address parent would need. Solution: make vfork() an argument so processes
 // diverge before function gets called.
-pid_t __attribute__((noinline)) xvforkwrap(pid_t pid)
+pid_t __attribute__((returns_twice)) xvforkwrap(pid_t pid)
 {
   if (pid == -1) perror_exit("vfork");
 

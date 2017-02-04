@@ -79,7 +79,7 @@ void oneit_main(void)
   while (!toys.signal) {
 
     // Create a new child process.
-    pid = vfork();
+    pid = XVFORK();
     if (pid) {
 
       // pid 1 reaps zombies until it gets its child, then halts system.
@@ -96,7 +96,7 @@ void oneit_main(void)
       for (i=0; i<3; i++) {
         close(i);
         // Remember, O_CLOEXEC is backwards for xopen()
-        xopen(TT.console ? TT.console : "/dev/tty0", O_RDWR|O_CLOEXEC);
+        xopen_stdio(TT.console ? TT.console : "/dev/tty0", O_RDWR|O_CLOEXEC);
       }
 
       // Can't xexec() here, we vforked so we don't want to error_exit().
