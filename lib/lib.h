@@ -130,7 +130,7 @@ void xexec(char **argv);
 pid_t xpopen_both(char **argv, int *pipes);
 int xwaitpid(pid_t pid);
 int xpclose_both(pid_t pid, int *pipes);
-pid_t xpopen(char **argv, int *pipe, int stdout);
+pid_t xpopen(char **argv, int *pipe, int isstdout);
 pid_t xpclose(pid_t pid, int pipe);
 int xrun(char **argv);
 int xpspawn(char **argv, int*pipes);
