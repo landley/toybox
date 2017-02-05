@@ -29,7 +29,7 @@ GLOBALS(
   struct selabel_handle *handle;
 )
 
-static char *get_property_context(char *property)
+static char *get_property_context(const char *property)
 {
   char *context = NULL;
 
@@ -43,11 +43,11 @@ static void read_callback(void *unused, const char *name, const char *value)
 {
   if (!(TT.size&31)) TT.nv = xrealloc(TT.nv, (TT.size+32)*2*sizeof(char *));
 
-  TT.nv[2*TT.size] = xstrdup(name);
+  TT.nv[2*TT.size] = xstrdup((char *)name);
   if (toys.optflags & FLAG_Z) {
     TT.nv[1+2*TT.size++] = get_property_context(name);
   } else {
-    TT.nv[1+2*TT.size++] = xstrdup(value);
+    TT.nv[1+2*TT.size++] = xstrdup((char *)value);
   }
 }
 
