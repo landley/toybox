@@ -645,9 +645,12 @@ int copy_tempfile(int fdin, char *name, char **tempname)
   fstat(fdin, &statbuf);
   fchmod(fd, statbuf.st_mode);
 
-  // It's fine if this fails (generally because we're not root), but gcc no
-  // longer lets a (void) typecast silence the "unused result" warning, so...
-  if (fchown(fd, statbuf.st_uid, statbuf.st_gid));
+  // We chmod before chown, which strips the suid bit. Caller has to explicitly
+  // switch it back on if they want to keep suid.
+
+  // I said IGNORING ERRORS. Both gcc and clang clutch their pearls about this
+  // but it's _supposed_ to fail when we're not root.
+  if (fchown(fd, statbuf.st_uid, statbuf.st_gid)) fd = fd;
 
   return fd;
 }
