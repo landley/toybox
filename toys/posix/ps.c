@@ -1142,7 +1142,7 @@ static void shared_main(void)
 
   TT.ticks = sysconf(_SC_CLK_TCK);
   if (!TT.width) {
-    TT.width = (toys.which->name[1] == 's') ? 99999 : 80;
+    TT.width = 80;
     TT.height = 25;
     terminal_size(&TT.width, &TT.height);
   }
