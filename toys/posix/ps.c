@@ -585,7 +585,7 @@ static void show_ps(void *p)
     pad *= sign;
 
     // If last field is left justified, no trailing spaces.
-    if (!field->next && sign<0) pad = -(len = width);
+    if (!field->next && sign<0) pad = 0;
 
     // If we truncated a left-justified field, show + instead of last char
     if (olen>len && len>1 && sign<0) {
@@ -1144,7 +1144,9 @@ static void shared_main(void)
   if (!TT.width) {
     TT.width = 80;
     TT.height = 25;
-    terminal_size(&TT.width, &TT.height);
+    // If ps can't query terminal size pad to 80 but do -w
+    if (!terminal_size(&TT.width, &TT.height) && toys.which->name[2] == 's')
+      toys.optflags |= FLAG_w;
   }
 
   // find controlling tty, falling back to /dev/tty if none
