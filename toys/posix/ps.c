@@ -1546,6 +1546,7 @@ static void top_common(
         break;
       }
       if (i==-2) break;
+      if (i==-3) continue;
 
       // Flush unknown escape sequences.
       if (i==27) while (0<scan_key_getsize(scratch, 0, &TT.width, &TT.height));

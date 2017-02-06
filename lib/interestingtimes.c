@@ -71,7 +71,6 @@ int scan_key_getsize(char *scratch, int miliwait, unsigned *xx, unsigned *yy)
     if (key>0) {
       if (xx) *xx = (key>>10)&1023;
       if (yy) *yy = (key>>20)&1023;
-      toys.signal = SIGWINCH;
 
       return -3;
     }
@@ -141,7 +140,7 @@ struct scan_key_list {
 
 // Scan stdin for a keypress, parsing known escape sequences
 // Blocks for miliwait miliseconds, none 0, forever if -1
-// Returns: 0-255=literal, -1=EOF, -2=NONE, 256-...=index into scan_key_list
+// Returns: 0-255=literal, -1=EOF, -2=TIMEOUT, 256-...=index into scan_key_list
 // >512 is x<<9+y<<21
 // scratch space is necessary because last char of !seq could start new seq
 // Zero out first byte of scratch before first call to scan_key
