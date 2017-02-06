@@ -585,13 +585,13 @@ static void show_ps(void *p)
     pad *= sign;
 
     // If last field is left justified, no trailing spaces.
-    if (!field->next && sign<0) pad = 0;
+    if (!field->next && sign<0) pad = -1;
 
     // If we truncated a left-justified field, show + instead of last char
     if (olen>len && len>1 && sign<0) {
       width--;
       len--;
-      pad++;
+      if (field->next) pad++;
       abslen = 0;
     }
 
@@ -1145,7 +1145,7 @@ static void shared_main(void)
     TT.width = 80;
     TT.height = 25;
     // If ps can't query terminal size pad to 80 but do -w
-    if (!terminal_size(&TT.width, &TT.height) && toys.which->name[2] == 's')
+    if (!terminal_size(&TT.width, &TT.height) && toys.which->name[1] == 's')
       toys.optflags |= FLAG_w;
   }
 
@@ -1168,8 +1168,8 @@ void ps_main(void)
   char *not_o;
   int i;
 
-  if (toys.optflags&FLAG_w) TT.width = 99999;
   shared_main();
+  if (toys.optflags&FLAG_w) TT.width = 99999;
 
   // parse command line options other than -o
   comma_args(TT.ps.P, &TT.PP, "bad -P", parse_rest);
