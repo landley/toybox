@@ -1194,7 +1194,7 @@ void ps_main(void)
       "USER:12=UID,%%sPPID,%s,STIME,TTY,TIME,ARGS=CMD",
       (toys.optflags&FLAG_T) ? "TCNT" : "C");
   else if (toys.optflags&FLAG_l)
-    not_o = "F,S,UID,%sPPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD";
+    not_o = "F,S,UID,%sPPID,C,PRI,NI,BIT,SZ,WCHAN,TTY,TIME,CMD";
   else if (CFG_TOYBOX_ON_ANDROID)
     sprintf(not_o = toybuf+128,
             "USER,%%sPPID,VSIZE,RSS,WCHAN:10,ADDR:10,S,%s",
