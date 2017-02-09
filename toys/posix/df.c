@@ -16,6 +16,7 @@ config DF
     each filesystem listed on the command line, or all currently mounted
     filesystems.
 
+    -a	Show all (including /proc and friends)
     -P	The SUSv3 "Pedantic" option
     -k	Sets units back to 1024 bytes (the default without -P)
     -h	Human readable output (K=1024)
