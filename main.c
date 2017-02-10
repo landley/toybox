@@ -213,6 +213,10 @@ int main(int argc, char *argv[])
   }
   *argv = getbasename(*argv);
 
+  // Bionic's dynamic linker adds a handler to report SIGPIPE as an error,
+  // then doesn't want that behavior for toybox. So disable it for bionic.
+  if (CFG_TOYBOX_ON_ANDROID) signal(SIGPIPE, SIG_DFL);
+
   // If nommu can't fork, special reentry path.
   // Use !stacktop to signal "vfork happened", both before and after xexec()
   if (!CFG_TOYBOX_FORK) {
