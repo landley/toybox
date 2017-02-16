@@ -249,6 +249,8 @@ static void do_regular_file(int fd, char *name, struct stat *sb)
     if (ver)
       xprintf(", requires at least v%d.%d to extract", ver/10, ver%10);
     xputc('\n');
+  } else if (len>4 && strstart(&s, "BZh") && isdigit(*s)) {
+    xprintf("bzip2 compressed data, block size = %c00k\n", *s);
   } else {
     char *what = 0;
     int i, bytes;
