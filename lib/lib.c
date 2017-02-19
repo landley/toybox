@@ -634,6 +634,7 @@ int copy_tempfile(int fdin, char *name, char **tempname)
 {
   struct stat statbuf;
   int fd;
+  int ignored __attribute__((__unused__));
 
   *tempname = xmprintf("%s%s", name, "XXXXXX");
   if(-1 == (fd = mkstemp(*tempname))) error_exit("no temp file");
@@ -648,9 +649,9 @@ int copy_tempfile(int fdin, char *name, char **tempname)
   // We chmod before chown, which strips the suid bit. Caller has to explicitly
   // switch it back on if they want to keep suid.
 
-  // I said IGNORING ERRORS. Both gcc and clang clutch their pearls about this
-  // but it's _supposed_ to fail when we're not root.
-  if (fchown(fd, statbuf.st_uid, statbuf.st_gid)) fd = fd;
+  // Suppress warn-unused-result. Both gcc and clang clutch their pearls about
+  // this but it's _supposed_ to fail when we're not root.
+  ignored = fchown(fd, statbuf.st_uid, statbuf.st_gid);
 
   return fd;
 }
