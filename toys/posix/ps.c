@@ -585,7 +585,10 @@ static void show_ps(void *p)
     pad *= sign;
 
     // If last field is left justified, no trailing spaces.
-    if (!field->next && sign<0) pad = -1;
+    if (!field->next && sign<0) {
+      pad = -1;
+      len = width;
+    }
 
     // If we truncated a left-justified field, show + instead of last char
     if (olen>len && len>1 && sign<0) {
