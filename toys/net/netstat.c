@@ -115,7 +115,10 @@ static void show_ip(char *fname)
      return;
   }
 
-  if(!fgets(toybuf, sizeof(toybuf), fp)) return; //skip header.
+  if(!fgets(toybuf, sizeof(toybuf), fp)) { //skip header.
+     fclose(fp);
+     return;
+  }
 
   while (fgets(toybuf, sizeof(toybuf), fp)) {
     char lip[256], rip[256];
