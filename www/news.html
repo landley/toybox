@@ -8,6 +8,117 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+<a name="21-02-2017" /><a href="#21-02-2017"><hr><h2><b>February 21, 2017</b></h2></a>
+<blockquote><p>Only six people in the Galaxy knew that the job of the
+Galactic President was not to wield power but to attract attention
+away from it. Zaphod Beeblebrox was amazingly good at his job.</p>
+<p>- The Hitchhiker's Guide to the Galaxy</p></blockquote>
+
+<p>Despite everything, <a href=downloads/toybox-0.7.3.tar.gz>Toybox 0.7.3</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.7.3>git commit</a>)
+is out. The <u>new commands</u> this time are <b>ftpget</b>, <b>ftpput</b>, <b>microcom</b>, and <b>ascii</b>.<p>
+
+<p>We also had two command _demotions_ out of defconfig:
+<b>hostid</b> got moved to toys/example and
+switched to "default n" because despite <a href=http://pubs.opengroup.org/onlinepubs/9699919799/functions/gethostid.html>still being in posix</a>
+the concept of a unique 32 bit number identifying a system is something
+Linux outgrew about the time Pauline Middelink wrote the first IP
+Masquerading code. And Elliott did a complete rewrite of <b>dmesg</b> introducing
+two codepaths that I didn't get a chance to unify and didn't want to
+hold up the release for, so that's back in pending.</p>
+
+<p><u>New features</u>: Rob added units to <b>find</b> -atime and friends
+(with the legacy -amin alias). Elliott added color and -w to dmesg, fallocate
+-o, and improved file's ELF parsing. Steve Muckle added -d and finit_module
+support to modprobe. Rob and Elliott tweaked the
+ps/top display format a bit more (extending the USER field from 8 to 18 chars
+and putting + at the end of string fields that got truncated).
+df -a isn't entirely new, but wasn't documented and needed a bugfix.</p>
+
+<p><u>Bugfixes</u>:
+Last release broke oneit because -c didn't get moved to xopen_stdio() (oops).
+Rob and Elliott simultaneously spotted ps padding each line to 99999
+chars when there's no tty (serial console or adb); now it pads to 80 in
+that case but also switches on -w to avoid field truncation. The "tty"
+field also sometimes had trailing debris (that's fixed now). And "top" was
+endlessly redrawing with out tty because receipt of the ANSI size probe
+results would set SIGWINCH, and handling that sent another ansi probe. (Sigh.)
+And while we're there, replace "ADDR" with "BIT" in ps -l so there are
+more than 4 chars left for the "CMD" field on 64 bit systems.</p>
+
+<p>Izabera pointed out that split -b and -l can't mix, and suggested seq should
+multiply to avoid accumulating rounding errors from repeated fractional
+increments. Wang Xiao Jian fixed a bug in sort -k.
+Elliott let getprop use the @ character in property names, and
+Dimitry Invaov removed the name length limit for system properties.
+Elliott also improved some error reporting and improved top -H's display
+of thread names.
+
+<p>Josh Gao pointed out that recursive operations on . and .. could be ignored
+in chmod -R (and the resulting generic fix to dirtree_notdotdot() fixed
+it in several other places).</p>
+
+<p>Justin Cormack caught tar producing a warning to stdout that screwed up
+"tar c" to stdout.
+Rob fixed an option parsing bug (where switching off a --longopt in menuconfig
+confused the parser), and another one where an option excluding itself
+(ala "abc[-ab][!abc]" with "command -a -b") would segfault.</p>
+
+<p>There's some sort of gcc stack over-optimization bug where musl-libc's
+version of vfork() doesn't get marked with attribute(returns_twice) so
+stack varabiles in the same function after that get semi-randomly overwritten
+when the optimizer decides to reclaim the space. So add the attribute
+to the function the XVFORK() wrapper macro calls. (It's a nommu thing.)</p>
+
+<p>Fixed a couple variable size mismatch bugs that were only tested on 64 bit
+(printf %x 64) or only tested on 32 bit (modprobe), removed some
+unnecessary casts in stat.</p>
+
+<p>Continuing attempts to build under Android NDK brought up that posix
+defines the global 'stdout' as a macro, which bionic turns into an array
+member, but a function was using it as an argument name. (How that ever
+worked in the AOSP build, I couldn't tell you, but the argument got
+renamed anyway.)</p>
+
+<p>Several commits argued with clang's warning generation, eventually
+settling on a variant of __attribute__((__shut_up__)).</p>
+
+<p>Android should no longer give spurious error messages
+when you "ps -A | head" about EPIPE on output. (Older versions of bionic
+set an error handler on SIGPIPE, but it shouldn't do that now. More recent
+versions of adb set the SIGPIPE handler to SIGIGN instead of SIGDFL,
+leading to write returning an error message instead of silently killing
+the program. So we set it back to the default.)</p>
+
+<p><u>Docs</u>:
+Removed website link to the gmane archive (which didn't survive gmane's
+change of ownership). The FAQ now answers a _second_ question. (Woo!)
+Some roadmap updates.</p>
+
+<p><u>Build tweaks</u>:
+Upgraded "make install_airlock" target to only warn about missing
+commands (unless $PEDANTIC is set) when it sets up the hermetic build
+path. (The plan is still to implement everything but the toolchain
+binaries in toybox, but in the meantime we're symlinking other stuff from
+the $HOST that isn't ready yet. See
+<a href=https://github.com/landley/mkroot>mkroot</a> for an example using
+this.)</p>
+
+<p>Elliott and Rob continue to poke at building toybox with Android's NDK,
+but it's a work in progress (<a href=http://lists.landley.net/pipermail/toybox-landley.net/2016-December/008767.html>thread</a>). Various changes
+removing libcutils dependencies and adding an selinux dependency to getprop
+are fallout from this.</p>
+
+<p>Cross-compiling from Macs needs to use "gsed" instead of apple's
+version, so teach the build to use that name if it exists in the $PATH.
+If you try to build without running config first, you should get better
+error reporting now. Added a workaround for Centos' broken "which" command
+producing output when it _can't_ find a name in the $PATH.</p>
+
+<p><u>Library</u>:
+The new dirtree flag DIRTREE_PROC skips non-numeric entries so things
+like ps and top can scan /proc more efficiently.</p>
+
 <a name="21-10-2016" /><a href="#21-10-2016"><hr><h2><b>October 21, 2016</b></h2></a>
 <blockquote><p>Probability factor of one to one. We have normality. I repeat,
 we have normality. Anything you still can't cope with is therefore your
