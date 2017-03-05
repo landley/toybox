@@ -3,7 +3,8 @@
 
 <ul>
 <li><h2><a href="#capitalize">Do you capitalize toybox?</a></h2></li>
-<li><h2><a href="#why_toybox">Why is there toybox? What was wrong with busybox?
+<li><h2><a href="#why_toybox">Why toybox? (What was wrong with busybox?)</a></h2></li>
+<li><h2><a href="#support_horizon">Why a 7 year support horizon?</a></h2></li>
 </ul>
 
 <a name="capitalize" />
@@ -16,31 +17,31 @@ start of sentences is awkward, so... compromise. (It is _not_ "ToyBox".)</p>
 <a name="why_toybox" />
 <h2>Q: "Why is there toybox? What was wrong with busybox?"</h2>
 
-<p>A: The current incarnation of toybox dates back to a
-<a href=http://landley.net/notes-2011.html#13-11-2011>project relaunch</a>
-in November 2011. That link explains the reasoning at the time, with
-links to earlier information.</p>
-
-<p>Toybox first started back when its maintainer
+<p>A: Toybox started back in 2006 when I
 <a href=https://lwn.net/Articles/202106/>handed off BusyBox maintainership</a>
 and <a href=http://landley.net/notes-2006.html#28-09-2006>started over from
 scratch</a> on a new codebase after a
-<a href=http://lists.busybox.net/pipermail/busybox/2006-September/058617.html>protracted licensing argument</a> took all the fun out of
-working on BusyBox. Toybox was just a personal project until it got
-<a href=https://lwn.net/Articles/478308/>relicensed years
-later</a> after its author did a lot of thinking
-<a href=http://landley.net/talks/ohio-2013.txt>about licenses</a>
-and about <a href=http://landley.net/notes-2011.html#21-03-2011>the
-transition to smartphones</a>. This led to the
+<a href=http://lists.busybox.net/pipermail/busybox/2006-September/058617.html>protracted licensing argument</a> took all the fun out of working on BusyBox.</p>
+
+<p>Toybox was just a personal project until it got
+<a href=http://landley.net/notes-2011.html#13-11-2011>relaunched
+in November 2011</a> with a new goal to
+<a href=http://landley.net/aboriginal/about.html#selfhost>make Android
+self-hosting</a>. This involved me relicensing my own
+code, which <a href=https://lwn.net/Articles/478308/>made people who had
+never used or participated in the project loudly angry</a>. The switch came
+after a lot of thinking <a href=http://landley.net/talks/ohio-2013.txt>about
+licenses</a> and <a href=http://landley.net/notes-2011.html#21-03-2011>the
+transition to smartphones</a>, which led to a
 <a href=http://landley.net/talks/celf-2013.txt>2013</a>
 <a href=https://www.youtube.com/watch?v=SGmtP5Lg_t0>talk</a> laying
-out a strategy to make Android self-hosting, which helped
+out a strategy to make Android self-hosting using toybox. This helped
 <a href=https://code.google.com/p/android/issues/detail?id=76861>bring
 it to Android's attention</a>, and they
 <a href=https://lwn.net/Articles/629362/>merged it</a> into Android M.</p>
 
-<p>To answer the second question: BusyBox predates Android
-by almost a decade, but Android still doesn't ship with it because GPLv3 came
+<p>The answer to the second question is "licensing". BusyBox predates Android
+by almost a decade but Android still doesn't ship with it because GPLv3 came
 out around the same time Android did and caused many people to throw
 out the GPLv2 baby with the GPLv3 bathwater.
 Android <a href=https://source.android.com/source/licenses.html>explicitly
@@ -52,9 +53,50 @@ development of new projects (clang/llvm/lld) to replace them,
 implemented its SMB server from scratch to replace samba,
 <a href=http://meta.ath0.com/2012/02/05/apples-great-gpl-purge/>and so
 on</a>. Toybox itself exists because somebody with in a legacy position
-just wouldn't shut up about GPLv3, otherwise its maintainer would probably
-still happily be maintaining BusyBox. (For more on how said maintainer wound
+just wouldn't shut up about GPLv3, otherwise I would probably
+still happily be maintaining BusyBox. (For more on how I wound
 up working on busybox in the first place,
 <a href=http://landley.net/aboriginal/history.html>see here</a>.)</p>
+
+<h2><a name="support_horizon">Q: Why a 7 year support horizon?</a></h2>
+
+<p>A: Our <a href=http://lists.busybox.net/pipermail/busybox/2006-September/058440.html>longstanding rule of thumb</a> is to try to run and build on
+hardware and distributions released up to 7 years ago, and feel ok dropping
+support for stuff older than that. (This is a little longer than Ubuntu's
+Long Term Support, but not by much.)</p>
+
+<p>If a kernel or libc feature is less than 7 years old, I try to have a
+build-time configure test for it and let the functionality cleanly drop out.
+I also keep old Ubuntu images around in VMs and perform the occasional
+defconfig build there to see what breaks. (I'm not perfect about this,
+but I accept bug reports.)</p>
+
+<p>My original theory was "4 to 5 18-month cycles of moore's law should cover
+the vast majority of the installed base of PC hardware", loosely based on some
+research I did <a href=http://www.catb.org/esr/halloween/halloween9.html#id2867629>back in 2003</a>
+and <a href=http://catb.org/esr/writings/world-domination/world-domination-201.html#id248066>updated in 2006</a>
+which said that low end systems were 2 iterations of moore's
+law below the high end systems, and that another 2-3 iterations should cover
+the useful lifetime of most systems no longer being sold but still in use and
+potentially being upgraded to new software releases.</p>
+
+<p>It turns out I missed industry changes in the 1990's that stretched the gap
+from low end to high end from 2 cycles to 4 cycles (<a href=http://landley.net/notes-2011.html#26-06-2011>here's my writeup on that</a>; and _that_ analysis
+ignored the switch from PC to smartphone cutting off the R&D air supply of the
+laptop market.  Meanwhile the Moore's Law s-curve started bending
+down in 2000 and these days is pretty flat: the drive for faster clock speeds
+<a href=http://www.anandtech.com/show/613>stumbled</a>
+then <a href=http://www.pcworld.com/article/118603/article.html>died</a>,
+the subsequent drive to go wide maxed out around 4x SMP with ~2 megabyte
+caches for most applications. These days the switch from exponential to
+linear growth in hardware capabilities is
+<a href=https://www.cnet.com/news/end-of-moores-law-its-not-just-about-physics/>common</a>
+<a href=http://www.acm.org/articles/people-of-acm/2016/david-patterson>knowledge</a>.)</p>
+
+<p>But the 7 year rule of thumb stuck around anyway: if a kernel or libc
+feature is less than 7 years old, I try to have a build-time configure test
+for it and let the functionality cleanly drop out. I also keep old Ubuntu
+images around in VMs and perform the occasional defconfig build there to
+see what breaks.</p>
 
 <!--#include file="footer.html" -->
