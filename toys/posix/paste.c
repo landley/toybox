@@ -83,7 +83,6 @@ static void paste_files(void)
               dpos++;
             }
           }
-          dpos++;
         } else {
           while (0<(dlen = mbtowc(&wc, dpos, 99))) {
             dpos += dlen;
