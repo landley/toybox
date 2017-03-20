@@ -1,0 +1,18 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+UTFTEST="$(echo -e '\xcc\xb4\xcc\x97\xcc\x9e\xcc\xa0\x65')"
+echo -e "one1\none2\none3" > one
+echo -e "two1\ntwo2\ntwo3" > two
+touch three four
+echo five > five
+testing "" "paste one two" "one1\ttwo1\none2\ttwo2\none3\ttwo3\n" "" ""
+testing "" "paste -s one two" "one1\tone2\tone3\ntwo1\ttwo2\ttwo3\n" "" ""
+testing "" "paste -s three four" "\n\n" "" ""
+testing "" "paste three four" "" "" ""
+testing "" "paste - - -" "uno\tdos\tdesqview\nunix\t\t\n" "" "uno\ndos\ndesqview\nunix\n"
+testing "" "paste - - - -d ''" "unodosdesqview\nunix\n" "" "uno\ndos\ndesqview\nunix\n"
+rm -f one two three four

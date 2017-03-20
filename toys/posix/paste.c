@@ -1,99 +1,132 @@
-/* paste.c - Replace newlines
+/* paste.c - Merge corresponding lines
  *
  * Copyright 2012 Felix Janda <felix.janda@posteo.de>
  *
  * http://pubs.opengroup.org/onlinepubs/9699919799/utilities/paste.html 
  *
-USE_PASTE(NEWTOY(paste, "d:s", TOYFLAG_BIN))
+ * Deviations from posix: the FILE argument isn't mandatory, none == '-'
+
+USE_PASTE(NEWTOY(paste, "d:s", TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config PASTE
   bool "paste"
   default y
   help
-    usage: paste [-s] [-d list] [file...]
+    usage: paste [-s] [-d DELIMITERS] [FILE...]
 
-    Replace newlines in files.
+    Merge corresponding lines from each input file.
 
-    -d list    list of delimiters to separate lines
-    -s         process files sequentially instead of in parallel
-
-    By default print corresponding lines separated by <tab>.
+    -d	list of delimiter characters to separate fields with (default is \t)
+    -s	sequential mode: turn each input file into one line of output
 */
+
 #define FOR_paste
 #include "toys.h"
 
 GLOBALS(
-  char *delim;
+  char *d;
+
+  int files;
 )
+
+// \0 is weird, and -d "" is also weird.
+
+static void paste_files(void)
+{
+  FILE **fps = (void *)toybuf;
+  char *dpos, *dstr, *buf, c;
+  int i, any, dcount, dlen, len, seq = toys.optflags&FLAG_s;
+
+  // Loop through lines until no input left
+  for (;;) {
+
+    // Start of each line/file resets delimiter cycle
+    dpos = TT.d;
+    mbtowc(0, 0, 0);
+
+    for (i = any = dcount = dlen = 0; seq || i<TT.files; i++) {
+      size_t blen;
+      wchar_t wc;
+      FILE *ff = seq ? *fps : fps[i];
+
+      // Read and output line, preserving embedded NUL bytes.
+
+      buf = 0;
+      len = 0;
+      if (!ff || 0>=(len = getline(&buf, &blen, ff))) {
+        if (ff && ff!=stdin) fclose(ff);
+        if (seq) return;
+        fps[i] = 0;
+        if (!any) continue;
+      }
+      dcount = any ? 1 : i;
+      any = 1;
+
+      // Output delimiters as necessary: not at beginning/end of line,
+      // catch up if first few files had no input but a later one did.
+      // Entire line with no input means no output.
+
+      while (dcount) {
+
+        // Find next delimiter, which can be "", \n, or UTF8 w/combining chars
+        dstr = dpos;
+        dlen = 0;
+        dcount--;
+
+        if (!*TT.d) {;}
+        else if (*dpos == '\\') {
+          if (*++dpos=='0') dpos++;
+          else {
+            dlen = 1;
+            if ((c = unescape(*dpos))) {
+              dstr = &c;
+              dpos++;
+            }
+          }
+          dpos++;
+        } else {
+          while (0<(dlen = mbtowc(&wc, dpos, 99))) {
+            dpos += dlen;
+            if (!(dlen = wcwidth(wc))) continue;
+            if (dlen<0) dpos = dstr+1;
+            break;
+          }
+          dlen = dpos-dstr;
+        }
+        if (!*dpos) dpos = TT.d;
+
+        if (dlen) fwrite(dstr, dlen, 1, stdout);
+      }
+
+      if (0<len) {
+        fwrite(buf, len-(buf[len-1]=='\n'), 1, stdout);
+        free(buf);
+      }
+    }
+
+    // Only need a newline if we output something
+    if (any) xputc('\n');
+    else break;
+  }
+}
+
+static void do_paste(int fd, char *name)
+{
+  FILE **fps = (void *)toybuf;
+
+  if (!(fps[TT.files++] = (fd ? fdopen(fd, "r") : stdin))) perror_exit(0);
+  if (TT.files >= sizeof(toybuf)/sizeof(FILE *)) perror_exit("tilt");
+  if (toys.optflags&FLAG_s) {
+    paste_files();
+    xputc('\n');
+    TT.files = 0;
+  }
+}
 
 void paste_main(void)
 {
-  char *p, *buf = toybuf, **args = toys.optargs;
-  size_t ndelim = 0;
-  int i, j, c;
+  if (!(toys.optflags&FLAG_d)) TT.d = "\t";
 
-  // Process delimiter list
-  // TODO: Handle multibyte characters
-  if (!(toys.optflags & FLAG_d)) TT.delim = "\t";
-  for (p = TT.delim; *p; p++, buf++, ndelim++) {
-    if (*p == '\\') {
-      p++;
-      if (-1 == (i = stridx("nt\\0", *p)))
-        error_exit("bad delimiter: \\%c", *p);
-      *buf = "\n\t\\\0"[i];
-    } else *buf = *p;
-  }
-  *buf = 0;
-
-  if (toys.optflags & FLAG_s) { // Sequential
-    FILE *f;
-
-    for (; *args; args++) {
-      if ((*args)[0] == '-' && !(*args)[1]) f = stdin;
-      else if (!(f = fopen(*args, "r"))) perror_exit_raw(*args);
-      for (i = 0, c = 0; c != EOF;) {
-        switch(c = getc(f)) {
-        case '\n':
-          putchar(toybuf[i++ % ndelim]);
-        case EOF:
-          break;
-        default:
-          putchar(c);
-        }
-      }
-      if (f != stdin) fclose(f);
-      putchar('\n');
-    }
-  } else { // Parallel
-    // Need to be careful not to print an extra line at the end
-    FILE **files;
-    int anyopen = 1;
-
-    files = (FILE**)(buf + 1);
-    for (; *args; args++, files++) {
-      if ((*args)[0] == '-' && !(*args)[1]) *files = stdin;
-      else if (!(*files = fopen(*args, "r"))) perror_exit_raw(*args);
-    }
-    while (anyopen) {
-      anyopen = 0;
-      for (i = 0; i < toys.optc; i++) {
-        FILE **f = (FILE**)(buf + 1) + i;
-
-        if (*f) for (;;) {
-          c = getc(*f);
-          if (c != EOF) {
-            if (!anyopen++) for (j = 0; j < i; j++) putchar(toybuf[j % ndelim]);
-            if (c != '\n') putchar(c);
-            else break;
-          }
-          else {
-            if (*f != stdin) fclose(*f);
-            *f = 0;
-            break;
-          }
-        }
-        if (anyopen) putchar((i + 1 == toys.optc) ? toybuf[i % ndelim] : '\n');
-      }
-    }
-  }
+  loopfiles_rw(toys.optargs, O_RDONLY, 0, do_paste);
+  if (!(toys.optflags&FLAG_s)) paste_files();
 }
