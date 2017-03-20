@@ -182,6 +182,7 @@ make_flagsh()
     else
       $SED '/USE_.*([^)]*)$/s/$/ __VA_ARGS__/' generated/config.h
     fi
+    echo '#include "lib/toyflags.h"'
     cat generated/newtoys.h
 
     # Run result through preprocessor, glue together " " gaps leftover from USE

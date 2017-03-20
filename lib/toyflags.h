@@ -28,3 +28,9 @@
 
 // Suppress default --help processing
 #define TOYFLAG_NOHELP   (1<<9)
+
+#if CFG_TOYBOX_PEDANTIC_ARGS
+#define NO_ARGS ">0"
+#else
+#define NO_ARGS 0
+#endif

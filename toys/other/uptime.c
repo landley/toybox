@@ -5,7 +5,7 @@
  * Copyright 2013 Jeroen van Rijn <jvrnix@gmail.com>
 
 
-USE_UPTIME(NEWTOY(uptime, NULL, TOYFLAG_USR|TOYFLAG_BIN))
+USE_UPTIME(NEWTOY(uptime, NO_ARGS, TOYFLAG_USR|TOYFLAG_BIN))
 
 config UPTIME
   bool "uptime"
