@@ -4,43 +4,54 @@
  * Copyright 2012 Luis Felipe Strano Moraes <lfelipe@profusion.mobi>
  * Copyright 2013 Jeroen van Rijn <jvrnix@gmail.com>
 
-
-USE_UPTIME(NEWTOY(uptime, NO_ARGS, TOYFLAG_USR|TOYFLAG_BIN))
+USE_UPTIME(NEWTOY(uptime, ">0s", TOYFLAG_USR|TOYFLAG_BIN))
 
 config UPTIME
   bool "uptime"
   default y
   depends on TOYBOX_UTMPX
   help
-    usage: uptime
+    usage: uptime [-s]
 
-    Tell how long the system has been running and the system load
-    averages for the past 1, 5 and 15 minutes.
+    Tell the current time, how long the system has been running, the number
+    of users, and the system load averages for the past 1, 5 and 15 minutes.
+
+    -s	Since when has the system been up?
 */
 
+#define FOR_uptime
 #include "toys.h"
 
 void uptime_main(void)
 {
   struct sysinfo info;
-  time_t tmptime;
-  struct tm * now;
+  time_t t;
+  struct tm *tm;
   unsigned int days, hours, minutes;
   struct utmpx *entry;
   int users = 0;
 
   // Obtain the data we need.
   sysinfo(&info);
-  time(&tmptime);
-  now = localtime(&tmptime);
+  time(&t);
+
+  // Just show the time of boot?
+  if (toys.optflags & FLAG_s) {
+    t -= info.uptime;
+    tm = localtime(&t);
+    strftime(toybuf, sizeof(toybuf), "%F %T", tm);
+    xputs(toybuf);
+    return;
+  }
 
   // Obtain info about logged on users
   setutxent();
   while ((entry = getutxent())) if (entry->ut_type == USER_PROCESS) users++;
   endutxent();
 
-  // Time
-  xprintf(" %02d:%02d:%02d up ", now->tm_hour, now->tm_min, now->tm_sec);
+  // Current time
+  tm = localtime(&t);
+  xprintf(" %02d:%02d:%02d up ", tm->tm_hour, tm->tm_min, tm->tm_sec);
   // Uptime
   info.uptime /= 60;
   minutes = info.uptime%60;
