@@ -896,6 +896,7 @@ static int get_threads(struct dirtree *new)
   kcount = TT.kcount;
   sprintf(toybuf, "/proc/%u/task", pid);
   new->child = dirtree_flagread(toybuf, DIRTREE_SHUTUP|DIRTREE_PROC, get_ps);
+  if (new->child == DIRTREE_ABORTVAL) new->child = 0;
   TT.threadparent = 0;
   kcount = TT.kcount-kcount+1;
   tb = (void *)new->extra;
@@ -1236,7 +1237,7 @@ void ps_main(void)
     ((toys.optflags&FLAG_T) || (TT.bits&(_PS_TID|_PS_TCNT)))
       ? get_threads : get_ps);
 
-  if (toys.optflags&(FLAG_k|FLAG_M)) {
+  if ((dt != DIRTREE_ABORTVAL) && toys.optflags&(FLAG_k|FLAG_M)) {
     struct carveup **tbsort = collate(TT.kcount, dt);
 
     if (toys.optflags&FLAG_M) {
@@ -1365,6 +1366,7 @@ static void top_common(
     dt = dirtree_flagread("/proc", DIRTREE_SHUTUP|DIRTREE_PROC,
       ((toys.optflags&FLAG_H) || (TT.bits&(_PS_TID|_PS_TCNT)))
         ? get_threads : get_ps);
+    if (dt == DIRTREE_ABORTVAL) error_exit("no /proc");
     plnew->tb = collate(plnew->count = TT.kcount, dt);
     TT.kcount = 0;
 
