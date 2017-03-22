@@ -39,7 +39,8 @@ static char *get_property_context(const char *property)
   return context;
 }
 
-static void read_callback(void *unused, const char *name, const char *value)
+static void read_callback(void *unused, const char *name, const char *value,
+                          unsigned serial)
 {
   if (!(TT.size&31)) TT.nv = xrealloc(TT.nv, (TT.size+32)*2*sizeof(char *));
 
