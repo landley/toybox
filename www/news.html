@@ -50,7 +50,7 @@ more than 4 chars left for the "CMD" field on 64 bit systems.</p>
 multiply to avoid accumulating rounding errors from repeated fractional
 increments. Wang Xiao Jian fixed a bug in sort -k.
 Elliott let getprop use the @ character in property names, and
-Dimitry Invaov removed the name length limit for system properties.
+Dimitry Ivanov removed the name length limit for system properties.
 Elliott also improved some error reporting and improved top -H's display
 of thread names.
 
@@ -75,10 +75,10 @@ to the function the XVFORK() wrapper macro calls. (It's a nommu thing.)</p>
 unnecessary casts in stat.</p>
 
 <p>Continuing attempts to build under Android NDK brought up that posix
-defines the global 'stdout' as a macro, which bionic turns into an array
-member, but a function was using it as an argument name. (How that ever
-worked in the AOSP build, I couldn't tell you, but the argument got
-renamed anyway.)</p>
+defines the global 'stdout' as a macro, which older versions of bionic
+turned into an array member, but a function was using it as an argument
+name. (This worked in the AOSP build because it only builds against current
+bionic, where there's a global 'stdout'.)</p>
 
 <p>Several commits argued with clang's warning generation, eventually
 settling on a variant of __attribute__((__shut_up__)).</p>
