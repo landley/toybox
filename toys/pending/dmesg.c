@@ -5,13 +5,13 @@
  * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/dmesg.html
 
 // We care that FLAG_c is 1, so keep c at the end.
-USE_DMESG(NEWTOY(dmesg, "w(follow)Ctrs#<1n#c[!tr][!Cc]", TOYFLAG_BIN))
+USE_DMESG(NEWTOY(dmesg, "w(follow)CSTtrs#<1n#c[!Ttr][!Cc]", TOYFLAG_BIN))
 
 config DMESG
   bool "dmesg"
   default n
   help
-    usage: dmesg [-Cc] [-r|-t] [-n LEVEL] [-s SIZE] [-w]
+    usage: dmesg [-Cc] [-r|-t|-T] [-n LEVEL] [-s SIZE] [-w]
 
     Print or control the kernel ring buffer.
 
@@ -19,8 +19,10 @@ config DMESG
     -c	Clear ring buffer after printing
     -n	Set kernel logging LEVEL (1-9)
     -r	Raw output (with <level markers>)
+    -S	Use syslog(2) rather than /dev/kmsg
     -s	Show the last SIZE many bytes
-    -t	Don't print kernel's timestamps
+    -T	Show human-readable timestamps
+    -t	Don't print timestamps
     -w	Keep waiting for more output (aka --follow)
 */
 
@@ -32,8 +34,76 @@ GLOBALS(
   long level;
   long size;
 
-  int color;
+  int use_color;
+  struct sysinfo info;
 )
+
+static void color(int c)
+{
+  if (TT.use_color) printf("\033[%dm", c);
+}
+
+static void format_message(char *msg, int new) {
+  unsigned long long time_s;
+  unsigned long long time_us;
+  int facpri, subsystem, pos;
+  char *p, *text;
+
+  // The new /dev/kmsg and the old syslog(2) formats differ slightly.
+  if (new) {
+    if (sscanf(msg, "%u,%*u,%llu,%*[^;];%n", &facpri, &time_us, &pos) != 2)
+      return;
+
+    time_s = time_us/1000000;
+    time_us %= 1000000;
+  } else {
+    if (sscanf(msg, "<%u>[%llu.%llu] %n",
+               &facpri, &time_s, &time_us, &pos) != 3)
+      return;
+  }
+
+  // Drop extras after end of message text.
+  text = msg + pos;
+  if ((p = strchr(text, '\n'))) *p = 0;
+
+  // Is there a subsystem? (The ": " is just a convention.)
+  p = strstr(text, ": ");
+  subsystem = p ? (p - text) : 0;
+
+  // "Raw" is a lie for /dev/kmsg. In practice, it just means we show the
+  // syslog facility/priority at the start of each line to emulate the
+  // historical syslog(2) format.
+  if (toys.optflags&FLAG_r) printf("<%d>", facpri);
+
+  // Format the time.
+  if (!(toys.optflags&FLAG_t)) {
+    color(32);
+    if (toys.optflags&FLAG_T) {
+      time_t t = (time(NULL) - TT.info.uptime) + time_s;
+      char *ts = ctime(&t);
+
+      printf("[%.*s] ", (int)(strlen(ts) - 1), ts);
+    } else {
+      printf("[%5lld.%06lld] ", time_s, time_us);
+    }
+    color(0);
+  }
+
+  // Errors (or worse) are shown in red, subsystems are shown in yellow.
+  if (subsystem) {
+    color(33);
+    printf("%.*s", subsystem, text);
+    text += subsystem;
+    color(0);
+  }
+  if (!((facpri&7) <= 3)) xputs(text);
+  else {
+    color(31);
+    printf("%s", text);
+    color(0);
+    xputc('\n');
+  }
+}
 
 static int xklogctl(int type, char *buf, int len)
 {
@@ -55,34 +125,25 @@ static void legacy_mode()
   data = to = from = xmalloc(size+1);
   data[size = xklogctl(3 + (toys.optflags & FLAG_c), data, size)] = 0;
 
-  // Filter out level markers and optionally time markers
-  if (!(toys.optflags & FLAG_r)) while ((from - data) < size) {
-    if (from == data || from[-1] == '\n') {
-      char *to;
+  // Break into messages (one per line) and send each one to format_message.
+  to = data + size;
+  while (from < to) {
+    char *msg_end = memchr(from, '\n', (to-from));
 
-      if (*from == '<' && (to = strchr(from, '>'))) from = ++to;
-      if ((toys.optflags&FLAG_t) && *from == '[' && (to = strchr(from, ']')))
-        from = to+1+(to[1]==' ');
-    }
-    *(to++) = *(from++);
-  } else to = data+size;
-
-  // Write result. The odds of somebody requesting a buffer of size 3 and
-  // getting "<1>" are remote, but don't segfault if they do.
-  if (to != data) {
-    xwrite(1, data, to-data);
-    if (to[-1] != '\n') xputc('\n');
+    if (!msg_end) break;
+    *msg_end = '\0';
+    format_message(from, 0);
+    from = msg_end + 1;
   }
-  if (CFG_TOYBOX_FREE) free(data);
-}
 
-static void color(int c)
-{
-  if (TT.color) printf("\033[%dm", c);
+  if (CFG_TOYBOX_FREE) free(data);
 }
 
 static void print_all(void)
 {
+  if (toys.optflags&FLAG_T) sysinfo(&TT.info);
+  if (toys.optflags&FLAG_S) return legacy_mode();
+
   // http://kernel.org/doc/Documentation/ABI/testing/dev-kmsg
 
   // Each read returns one message. By default, we block when there are no
@@ -95,9 +156,6 @@ static void print_all(void)
 
   while (1) {
     char msg[8192]; // CONSOLE_EXT_LOG_MAX.
-    unsigned long long time_us;
-    int facpri, subsystem, pos;
-    char *p, *text;
     ssize_t len;
 
     // kmsg fails with EPIPE if we try to read while the buffer moves under
@@ -113,49 +171,14 @@ static void print_all(void)
     if (len <= 0) break;
 
     msg[len] = 0;
-
-    if (sscanf(msg, "%u,%*u,%llu,%*[^;];%n", &facpri, &time_us, &pos) != 2)
-      continue;
-
-    // Drop extras after end of message text.
-    text = msg + pos;
-    if ((p = strchr(text, '\n'))) *p = 0;
-
-    // Is there a subsystem? (The ": " is just a convention.)
-    p = strstr(text, ": ");
-    subsystem = p ? (p - text) : 0;
-
-    // "Raw" is a lie for /dev/kmsg. In practice, it just means we show the
-    // syslog facility/priority at the start of each line.
-    if (toys.optflags&FLAG_r) printf("<%d>", facpri);
-
-    if (!(toys.optflags&FLAG_t)) {
-      color(32);
-      printf("[%5lld.%06lld] ", time_us/1000000, time_us%1000000);
-      color(0);
-    }
-
-    // Errors (or worse) are shown in red, subsystems are shown in yellow.
-    if (subsystem) {
-      color(33);
-      printf("%.*s", subsystem, text);
-      text += subsystem;
-      color(0);
-    }
-    if (!((facpri&7) <= 3)) xputs(text);
-    else {
-      color(31);
-      printf("%s", text);
-      color(0);
-      xputc('\n');
-    }
+    format_message(msg, 1);
   }
   close(fd);
 }
 
 void dmesg_main(void)
 {
-  TT.color = isatty(1);
+  TT.use_color = isatty(1);
 
   if (!(toys.optflags & (FLAG_C|FLAG_n))) print_all();
 
