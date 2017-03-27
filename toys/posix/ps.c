@@ -1149,8 +1149,10 @@ static void shared_main(void)
     TT.width = 80;
     TT.height = 25;
     // If ps can't query terminal size pad to 80 but do -w
-    if (!terminal_size(&TT.width, &TT.height) && toys.which->name[1] == 's')
-      toys.optflags |= FLAG_w;
+    if (toys.which->name[1] == 's') {
+      if (!isatty(1) || !terminal_size(&TT.width, &TT.height))
+        toys.optflags |= FLAG_w;
+    }
   }
 
   // find controlling tty, falling back to /dev/tty if none
