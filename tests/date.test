@@ -21,6 +21,3 @@ testing "-d 111014312015.30" "TZ=UTC date -d 111014312015.30 2>&1" "Sun Nov 10 1
 # Accidentally given a Unix time, we should trivially reject that.
 testing "Unix time missing @" "TZ=UTC date 1438053157 2>/dev/null || echo no" \
   "no\n" "" ""
-# But some invalid dates are more subtle, like Febuary 29th in a non-leap year.
-testing "Feb 29th" "TZ=UTC date 022900001975 2>/dev/null || echo no" \
-  "no\n" "" ""
