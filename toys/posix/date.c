@@ -52,46 +52,8 @@ GLOBALS(
   char *setfmt;
   char *showdate;
 
-  char *tz;
   unsigned nano;
 )
-
-// mktime(3) normalizes the struct tm fields, but date(1) shouldn't.
-static time_t chkmktime(struct tm *tm, const char *str, const char* fmt)
-{
-  struct tm tm0 = *tm;
-  struct tm tm1;
-  time_t t = mktime(tm);
-
-  if (t == -1 || !localtime_r(&t, &tm1) ||
-      tm0.tm_sec != tm1.tm_sec || tm0.tm_min != tm1.tm_min ||
-      tm0.tm_hour != tm1.tm_hour || tm0.tm_mday != tm1.tm_mday ||
-      tm0.tm_mon != tm1.tm_mon) {
-    int len;
-
-    strftime(toybuf, sizeof(toybuf), fmt, &tm0);
-    len = strlen(toybuf) + 1;
-    strftime(toybuf + len, sizeof(toybuf) - len, fmt, &tm1);
-    error_exit("bad date '%s'; %s != %s", str, toybuf, toybuf + len);
-  }
-  return t;
-}
-
-static void utzset(void)
-{
-  if (!(TT.tz = getenv("TZ"))) TT.tz = (char *)1;
-  setenv("TZ", "UTC", 1);
-  tzset();
-}
-
-static void utzreset(void)
-{
-  if (TT.tz) {
-    if (TT.tz != (char *)1) setenv("TZ", TT.tz, 1);
-    else unsetenv("TZ");
-    tzset();
-  }
-}
 
 // Handle default posix date format (mmddhhmm[[cc]yy]) or @UNIX[.FRAC]
 // returns 0 success, nonzero for error
@@ -162,15 +124,18 @@ static int parse_default(char *str, struct tm *tm)
   return *str;
 }
 
+void check_range(int a, int low, int high)
+{
+  if (a<low) error_exit("%d<%d", a, low);
+  if (a>high) error_exit("%d>%d", a, high);
+}
+
 void date_main(void)
 {
   char *setdate = *toys.optargs, *format_string = "%a %b %e %H:%M:%S %Z %Y";
   struct tm tm;
 
   memset(&tm, 0, sizeof(struct tm));
-
-  // We can't just pass a timezone to mktime because posix.
-  if (toys.optflags & FLAG_u) utzset();
 
   if (TT.showdate) {
     if (TT.setfmt) {
@@ -200,22 +165,36 @@ void date_main(void)
 
   // Set the date
   } else if (setdate) {
+    char *tz;
     struct timeval tv;
+    int u = toys.optflags & FLAG_u;
 
-    if (parse_default(setdate, &tm)) error_exit("bad date '%s'", setdate);
+    if (parse_default(setdate, &tm)) goto bad_setdate;
 
-    if (toys.optflags & FLAG_u) {
-      // We can't just pass a timezone to mktime because posix.
-      utzset();
-      tv.tv_sec = chkmktime(&tm, setdate, format_string);
-      utzreset();
-    } else tv.tv_sec = chkmktime(&tm, setdate, format_string);
+    check_range(tm.tm_sec, 0, 60);
+    check_range(tm.tm_min, 0, 59);
+    check_range(tm.tm_hour, 0, 23);
+    check_range(tm.tm_mday, 1, 31);
+    check_range(tm.tm_mon, 0, 11);
+
+    if (u) {
+      tz = getenv("TZ");
+      setenv("TZ", "UTC", 1);
+      tzset();
+    }
+    errno = 0;
+    tv.tv_sec = mktime(&tm);
+    if (errno) goto bad_setdate;
+    if (u) {
+      if (tz) setenv("TZ", tz, 1);
+      else unsetenv("TZ");
+      tzset();
+    }
 
     tv.tv_usec = TT.nano/1000;
     if (settimeofday(&tv, NULL) < 0) perror_msg("cannot set date");
   }
 
-  utzreset();
   if (!strftime(toybuf, sizeof(toybuf), format_string, &tm))
     perror_exit("bad format '%s'", format_string);
   puts(toybuf);
@@ -223,5 +202,7 @@ void date_main(void)
   return;
 
 bad_showdate:
-  error_exit("bad date '%s'", TT.showdate);
+  setdate = TT.showdate;
+bad_setdate:
+  perror_exit("bad date '%s'", setdate);
 }
