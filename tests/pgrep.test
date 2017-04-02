@@ -16,7 +16,7 @@ proc=$!
 #echo "# Process created with id: $proc"
 sleep .1
 session_id=0
-proc_parent=`cat /proc/${proc}/stat | awk '{ print $4 }'`
+proc_parent=`cat /proc/${proc}/stat | cut -d' ' -f4`
 #echo "# Parent Process id of $proc is $proc_parent"
 
 # Testcases for pgrep command
@@ -34,4 +34,4 @@ testing "return failure" "pgrep almost-certainly-not || echo failure" \
     "failure\n" "" ""
 
 #Clean-up
-killall yes >/dev/null 2>&1
+kill -9 $proc
