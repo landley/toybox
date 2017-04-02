@@ -46,10 +46,10 @@ testing "-f pattern (multiple)" "pkill -f yes && sleep 1 &&
    (pgrep yes || echo 'yes')" "yes\n" "" ""
 killall yes >/dev/null 2>&1
 
-yes >/dev/null &
+yes this-is-unlikely-to-appear-otherwise >/dev/null &
 sleep 1
-testing "-s 0 -f pattern (regexp)" "pkill -s 0 -f ye* && sleep 1 &&
-   (pgrep yes || echo 'yes')" "yes\n" "" ""
+testing "-s 0 -f pattern (regexp)" "pkill -s 0 -f .*-unlikely-.*-otherwise &&
+   sleep 1 && (pgrep yes || echo 'yes')" "yes\n" "" ""
 killall yes >/dev/null 2>&1
 
 yes >/dev/null &
@@ -85,7 +85,7 @@ killall yes >/dev/null 2>&1
 
 yes >/dev/null &
 proc=$!
-proc_p=`cat /proc/${proc}/stat | awk '{ print $4 }'`
+proc_p=`cat /proc/${proc}/stat | cut -d' ' -f4`
 sleep 1
 testing "-P parent_prodId pattern" "pkill -P $proc_p yes && sleep 1 &&
    (pgrep yes || echo 'yes')" "yes\n" "" ""
