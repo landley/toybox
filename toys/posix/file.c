@@ -251,7 +251,8 @@ static void do_regular_file(int fd, char *name, struct stat *sb)
     xputc('\n');
   } else if (len>4 && strstart(&s, "BZh") && isdigit(*s)) {
     xprintf("bzip2 compressed data, block size = %c00k\n", *s);
-  } else {
+  } else if (len>10 && strstart(&s, "\x1f\x8b")) xputs("gzip compressed data");
+  else {
     char *what = 0;
     int i, bytes;
 
