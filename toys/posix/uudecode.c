@@ -41,7 +41,8 @@ void uudecode_main(void)
     }
   }
 
-  ofd = xcreate(TT.o ? TT.o : line+idx, O_WRONLY|O_CREAT|O_TRUNC,
+  if (TT.o && !strcmp(TT.o, "-")) ofd = 1;
+  else ofd = xcreate(TT.o ? TT.o : line+idx, O_WRONLY|O_CREAT|O_TRUNC,
     string_to_mode(mode, 0777^toys.old_umask));
 
   for(;;) {
