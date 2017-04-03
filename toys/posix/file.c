@@ -219,8 +219,7 @@ static void do_regular_file(int fd, char *name, struct stat *sb)
       (int)peek_le(s, 2), (int)peek_le(s+8, 2));
 
   // TODO: parsing JPEG for width/height is harder than GIF or PNG.
-  else if (len>32 && memcmp(toybuf, "\xff\xd8", 2) == 0)
-    xprintf("JPEG image data\n");
+  else if (len>32 && !memcmp(toybuf, "\xff\xd8", 2)) xputs("JPEG image data");
 
   // https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html
   else if (len>8 && strstart(&s, "\xca\xfe\xba\xbe"))
@@ -232,6 +231,7 @@ static void do_regular_file(int fd, char *name, struct stat *sb)
   // cpio archive ends with a record for "TARGET!!!"
   else if (len>85 && strstart(&s, "07070")) {
     char *cpioformat = "unknown type";
+
     if (toybuf[5] == '7') cpioformat = "pre-SVR4 or odc";
     else if (toybuf[5] == '1') cpioformat = "SVR4 with no CRC";
     else if (toybuf[5] == '2') cpioformat = "SVR4 with CRC";
@@ -240,18 +240,18 @@ static void do_regular_file(int fd, char *name, struct stat *sb)
     if (magic == 0143561) printf("byte-swapped ");
     xprintf("cpio archive\n");
   // tar archive (ustar/pax or gnu)
-  } else if (len>500 && !strncmp(s+257, "ustar", 5)) {
+  } else if (len>500 && !strncmp(s+257, "ustar", 5))
     xprintf("POSIX tar archive%s\n", strncmp(s+262,"  ",2)?"":" (GNU)");
   // zip/jar/apk archive, ODF/OOXML document, or such
-  } else if (len>5 && strstart(&s, "PK\03\04")) {
-    int ver = (int)(char)(toybuf[4]);
+  else if (len>5 && strstart(&s, "PK\03\04")) {
+    int ver = toybuf[4];
+
     xprintf("Zip archive data");
-    if (ver)
-      xprintf(", requires at least v%d.%d to extract", ver/10, ver%10);
+    if (ver) xprintf(", requires at least v%d.%d to extract", ver/10, ver%10);
     xputc('\n');
-  } else if (len>4 && strstart(&s, "BZh") && isdigit(*s)) {
+  } else if (len>4 && strstart(&s, "BZh") && isdigit(*s))
     xprintf("bzip2 compressed data, block size = %c00k\n", *s);
-  } else if (len>10 && strstart(&s, "\x1f\x8b")) xputs("gzip compressed data");
+  else if (len>10 && strstart(&s, "\x1f\x8b")) xputs("gzip compressed data");
   else {
     char *what = 0;
     int i, bytes;
