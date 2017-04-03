@@ -11,7 +11,7 @@ fun_nice_val()
 {
   for each_proc in $@
   do
-    echo `awk '{ print $18 }' /proc/${each_proc}/stat`
+    echo `cut -d' ' -f18 /proc/${each_proc}/stat`
   done
 }
 
@@ -107,4 +107,4 @@ do
 done
 # Boundary test End
 
-killall yes >/dev/null 2>&1
+kill -9 $proc1 $proc2 $proc3 $proc4 $proc5
