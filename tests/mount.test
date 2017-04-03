@@ -7,8 +7,8 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-root_fs=`df | grep "\/$" | awk '{print $1}'`
-root_fs_type=`file -sL $root_fs | awk '{print $5}'`
+root_fs=`df | grep "\/$" | cut -d' ' -f1`
+root_fs_type=`blkid -o value $root_fs | tail -1`
 
 tmp_b_fs="tmp_b_fs"
 tmp_b_fs_type="ext3"
@@ -19,6 +19,8 @@ reCreateTmpFs() {
   mkfs.ext3 $tmp_b_fs >/dev/null 2>&1
 }
 reCreateTmpFs
+
+# TODO: replace /mnt with a directory we know exists. (Android has no /mnt.)
 
 testing "$root_fs /mnt" \
   "mount $root_fs /mnt >/dev/null 2>&1 && mkdir /mnt/testDir &&
