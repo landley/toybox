@@ -2,28 +2,34 @@
 #
 # Copyright 2005 by Rob Landley
 
-# This file defines two functions, "testing" and "optionflag"
+# This file defines two main functions, "testcmd" and "optional". The
+# first performs a test, the second enables/disables tests based on
+# configuration options.
 
 # The following environment variables enable optional behavior in "testing":
 #    DEBUG - Show every command run by test script.
 #    VERBOSE - Print the diff -u of each failed test case.
 #              If equal to "fail", stop after first failed test.
-#    SKIP - do not perform this test (this is set by "optionflag")
 #
-# The "testing" function takes five arguments:
+# The "testcmd" function takes five arguments:
 #	$1) Description to display when running command
 #	$2) Command line arguments to command
 #	$3) Expected result (on stdout)
 #	$4) Data written to file "input"
 #	$5) Data written to stdin
 #
-# The exit value of testing is the exit value of the command it ran.
+# The "testing" function is like testcmd but takes a complete command line
+# (I.E. you have to include the command name.) The variable $C is an absolute
+# path to the command being tested, which can bypass shell builtins.
+#
+# The exit value of testcmd is the exit value of the command it ran.
 #
 # The environment variable "FAILCOUNT" contains a cumulative total of the
 # number of failed tests.
-
-# The "optional" function is used to skip certain tests, ala:
-#   optionflag CFG_THINGY
+#
+# The "optional" function is used to skip certain tests (by setting the
+# environment variable SKIP), ala:
+#   optional CFG_THINGY
 #
 # The "optional" function checks the environment variable "OPTIONFLAGS",
 # which is either empty (in which case it always clears SKIP) or
@@ -60,18 +66,23 @@ optional()
   SKIP=1
 }
 
-# The testing function
-
-testing()
+wrong_args()
 {
-  NAME="$CMDNAME $1"
-  [ -z "$1" ] && NAME=$2
-
   if [ $# -ne 5 ]
   then
     echo "Test $NAME has the wrong number of arguments ($# $*)" >&2
     exit
   fi
+}
+
+# The testing function
+
+testing()
+{
+  wrong_args "$@"
+
+  NAME="$CMDNAME $1"
+  [ -z "$1" ] && NAME=$2
 
   [ -n "$DEBUG" ] && set -x
 
@@ -89,7 +100,7 @@ testing()
   # Catch segfaults
   [ $RETVAL -gt 128 ] && [ $RETVAL -lt 255 ] &&
     echo "exited with signal (or returned $RETVAL)" >> actual
- 
+
   DIFF="$(diff -au${NOSPACE:+b} expected actual)"
   if [ ! -z "$DIFF" ]
   then
@@ -110,6 +121,13 @@ testing()
   [ -n "$DEBUG" ] && set +x
 
   return 0
+}
+
+testcmd()
+{
+  wrong_args "$@"
+
+  testing "$1" "$C $2" "$3" "$4" "$5"
 }
 
 # Recursively grab an executable and all the libraries needed to run it.
