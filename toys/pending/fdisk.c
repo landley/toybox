@@ -1486,7 +1486,7 @@ void fdisk_main(void)
     toys.exitval = 0;
     return;
   } else {
-    if (toys.optc != 1) help_exit(stdout);
+    if (toys.optc != 1) help_exit(0);
     if (read_mbr(toys.optargs[0], 1)) return;
     while (1) {
       xputc('\n');
