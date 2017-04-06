@@ -64,9 +64,15 @@ testing "-t CCMMDDhhmm" \
   "touch -t 2101231234 input && date +%Y-%m-%d:%H-%M-%S -r input" \
   "$(date +%C)21-01-23:12-34-00\n" "" ""
 
+testing "-a" "touch -t 197101020304 walrus &&
+    touch -t 197203040506 -a walrus && stat -c '%X %Y' walrus" \
+    "68562360 31662240\n" "" ""
+testing "-m" "touch -t 197101020304  walrus &&
+    touch -t 197203040506 -m walrus && stat -c '%X %Y' walrus" \
+    "31662240 68562360\n" "" ""
+testing "-am" "touch -t 197101020304 walrus &&
+    touch -t 197203040506 -am walrus && stat -c '%X %Y' walrus" \
+    "68562360 68562360\n" "" ""
 
-#testing "-a"
-#testing "-m"
-#testing "-am"
 #testing "-t"
 rm walrus walrus2

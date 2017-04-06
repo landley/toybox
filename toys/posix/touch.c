@@ -111,7 +111,7 @@ void touch_main(void)
 
   // Which time(s) should we actually change?
   i = toys.optflags & (FLAG_a|FLAG_m);
-  if (i && i!=(FLAG_a|FLAG_m)) ts[i==FLAG_m].tv_nsec = UTIME_OMIT;
+  if (i && i!=(FLAG_a|FLAG_m)) ts[i!=FLAG_m].tv_nsec = UTIME_OMIT;
 
   // Loop through files on command line
   for (ss = toys.optargs; *ss;) {
