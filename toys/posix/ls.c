@@ -388,7 +388,6 @@ static void listfiles(int dirfd, struct dirtree *indir)
   }
 
   // Loop through again to produce output.
-  memset(toybuf, ' ', 256);
   width = 0;
   for (ul = 0; ul<dtlen; ul++) {
     int ii;
@@ -405,15 +404,17 @@ static void listfiles(int dirfd, struct dirtree *indir)
     // Handle padding and wrapping for display purposes
     entrylen(sort[next], len);
     if (ul) {
-      if (flags & FLAG_m) xputc(',');
+      int mm = !!(flags & FLAG_m);
+
+      if (mm) xputc(',');
       if (flags & (FLAG_C|FLAG_x)) {
         if (!curcol) xputc('\n');
-      } else if ((flags & FLAG_1) || width+2+*len > TT.screen_width) {
+      } else if ((flags & FLAG_1) || width+1+*len > TT.screen_width) {
         xputc('\n');
         width = 0;
       } else {
-        printf("  ");
-        width += 2;
+        printf("  "+mm);
+        width += 2-mm;
       }
     }
     width += *len;
@@ -498,7 +499,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
     // Pad columns
     if (flags & (FLAG_C|FLAG_x)) {
       curcol = colsizes[curcol]-(*len)-totpad;
-      if (curcol < 255) printf("%s", toybuf+255-curcol);
+      if (curcol < 255) printf("%*c", curcol, ' ');
     }
   }
 
