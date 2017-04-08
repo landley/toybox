@@ -43,13 +43,12 @@ testing "noseek -c+ out of bonds" "tail -c +999" "" "" "$BIGTEST"
 
 makebigfile()
 {
-
   for j in $(seq 1 100)
   do
-    printf "%s " $j
+    echo -n "$j "
     for i in $(seq 1 100)
     do
-      printf %s 123456789abcefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+      echo -n 123456789abcefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
     done
     echo
   done
