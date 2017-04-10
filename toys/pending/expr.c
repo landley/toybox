@@ -113,7 +113,8 @@ static void re(char *target, char *pattern, struct value *ret)
   if (!regexec(&pat, target, 2, m, 0) && !m[0].rm_so) {
     // Return first parenthesized subexpression as string, or length of match
     if (pat.re_nsub>0) {
-      ret->s = xmprintf("%.*s", m[1].rm_eo-m[1].rm_so, target+m[1].rm_so);
+      ret->s = xmprintf("%.*s", (int)(m[1].rm_eo-m[1].rm_so),
+          target+m[1].rm_so);
       if (TT.refree) free(TT.refree);
       TT.refree = ret->s;
     } else assign_int(ret, m[0].rm_eo);
@@ -141,7 +142,7 @@ static struct op_def {
   // comparison ops, precedence 3, signature SI_TO_I
   {"=", 3, SI_TO_I, EQ }, {"==", 3, SI_TO_I, EQ  }, {"!=", 3, SI_TO_I, NE },
   {">", 3, SI_TO_I, GT }, {">=", 3, SI_TO_I, GTE },
-  {"<", 3, SI_TO_I, LT }, {"<=", 3, SI_TO_I, LTE }, 
+  {"<", 3, SI_TO_I, LT }, {"<=", 3, SI_TO_I, LTE },
   // arithmetic ops, precedence 4 and 5, signature I_TO_I
   {"+", 4, I_TO_I, ADD }, {"-",  4, I_TO_I, SUB },
   {"*", 5, I_TO_I, MUL }, {"/",  5, I_TO_I, DIVI }, {"%", 5, I_TO_I, MOD },
@@ -163,7 +164,7 @@ void eval_op(struct op_def *o, struct value *ret, struct value *rhs)
     case OR:  if (is_false(ret)) *ret = *rhs; break;
     case AND: if (is_false(ret) || is_false(rhs)) assign_int(ret, 0); break;
     }
-    break;  
+    break;
 
   case SI_TO_I:
     if (get_int(ret, &a) && get_int(rhs, &b)) { // both are ints
@@ -244,7 +245,7 @@ static void eval_expr(struct value *ret, int min_prec)
 
 void expr_main(void)
 {
-  struct value ret = {0};
+  struct value ret = {0, 0LL};
 
   toys.exitval = 2; // if exiting early, indicate error
   TT.tok = toys.optargs; // initialize global token
