@@ -413,7 +413,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
         xputc('\n');
         width = 0;
       } else {
-        printf("  "+mm);
+        printf("  "+mm, 0); // shut up the stupid compiler
         width += 2-mm;
       }
     }
