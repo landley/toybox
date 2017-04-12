@@ -524,20 +524,20 @@ void ls_main(void)
   char **s, *noargs[] = {".", 0};
   struct dirtree *dt;
 
-  TT.screen_width = 80;
-  terminal_size(&TT.screen_width, NULL);
-  if (TT.screen_width<2) TT.screen_width = 2;
-  if (toys.optflags&FLAG_b) TT.escmore = " \\";
-
   // Do we have an implied -1
   if (isatty(1)) {
-    if (!(toys.optflags&FLAG_show_control_chars)) toys.optflags |= FLAG_q;
+    if (!(toys.optflags&FLAG_show_control_chars)) toys.optflags |= FLAG_b;
     if (toys.optflags&(FLAG_l|FLAG_o|FLAG_n|FLAG_g)) toys.optflags |= FLAG_1;
     else if (!(toys.optflags&(FLAG_1|FLAG_x|FLAG_m))) toys.optflags |= FLAG_C;
   } else {
     if (!(toys.optflags & FLAG_m)) toys.optflags |= FLAG_1;
     if (TT.color) toys.optflags ^= FLAG_color;
   }
+
+  TT.screen_width = 80;
+  terminal_size(&TT.screen_width, NULL);
+  if (TT.screen_width<2) TT.screen_width = 2;
+  if (toys.optflags&FLAG_b) TT.escmore = " \\";
 
   // The optflags parsing infrastructure should really do this for us,
   // but currently it has "switch off when this is set", so "-dR" and "-Rd"
