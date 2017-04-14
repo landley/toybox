@@ -33,8 +33,9 @@ testing "with -F" "$IN && ls -F; $OUT" "dir1/\ndir2/\nfile1.txt\nfile2.txt\n" ""
 testing "with -dk *" "$IN && ls -dk *; $OUT" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
 
 ln -s file1.txt lstest/slink
-testing "softlink - long listing" "$IN && ls -l slink | awk '{ print \$NF }' ; $OUT" \
-          "file1.txt\n" "" ""
+testing "-l symlink" \
+    "$IN && ls -l slink | grep -q -- ' slink -> file1.txt' && echo ok ; $OUT" \
+    "ok\n" "" ""
 rm -f lstest/slink
 
 ln -s /dev/null/nosuchfile lstest/nosuchfile
