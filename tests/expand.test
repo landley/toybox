@@ -20,10 +20,10 @@ TABSTOP=1
 BIGTAB=" "
 for i in $(seq $POW); do
     BIGTAB=$BIGTAB$BIGTAB
-    TABSTOP=$[$TABSTOP*2]
+    TABSTOP=$(($TABSTOP*2))
 done
 testing "long tab single" "expand -t $TABSTOP input" "${BIGTAB}foo\n" "\tfoo\n" ""
-testing "long tab tablist" "expand -t $TABSTOP,$[TABSTOP+5] input" \
+testing "long tab tablist" "expand -t $TABSTOP,$((TABSTOP+5)) input" \
         "${BIGTAB}foo  bar\n" "\tfoo\tbar\n" ""
 
 testing "multiline single" "expand -t 4 input" "foo \n    bar\n" "foo\t\n\tbar\n" ""
