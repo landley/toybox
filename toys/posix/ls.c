@@ -5,7 +5,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/ls.html
 
-USE_LS(NEWTOY(ls, USE_LS_COLOR("(color):;")"(show-control-chars)ZgoACFHLRSabcdfhiklmnpqrstux1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][!qb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_LS(NEWTOY(ls, USE_LS_COLOR("(color):;")"(full-time)(show-control-chars)ZgoACFHLRSabcdfhikl@mnpqrstux1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][!qb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config LS
   bool "ls"
@@ -30,7 +30,7 @@ config LS
     -g  like -l but no owner           -h  human readable sizes
     -l  long (show full details)       -m  comma separated
     -n  like -l but numeric uid/gid    -o  like -l but no group
-    -x  columns (horizontal sort)
+    -x  columns (horizontal sort)      -ll long with nanoseconds (--full-time)
 
     sorting (default is alphabetical):
     -f  unsorted    -r  reverse    -t  timestamp    -S  size
@@ -55,6 +55,7 @@ config LS_COLOR
 // ls -lR starts .: then ./subdir:
 
 GLOBALS(
+  long ll;
   char *color;
 
   struct dirtree *files, *singledir;
@@ -142,6 +143,7 @@ static void entrylen(struct dirtree *dt, unsigned *len)
   len[1] = (flags & FLAG_i) ? numlen(st->st_ino) : 0;
   if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) {
     unsigned fn = flags & FLAG_n;
+
     len[2] = numlen(st->st_nlink);
     len[3] = fn ? numlen(st->st_uid) : strwidth(getusername(st->st_uid));
     len[4] = fn ? numlen(st->st_gid) : strwidth(getgroupname(st->st_gid));
@@ -289,7 +291,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
   struct dirtree *dt, **sort;
   unsigned long dtlen, ul = 0;
   unsigned width, flags = toys.optflags, totals[8], len[8], totpad = 0,
-    *colsizes = (unsigned *)(toybuf+260), columns = (sizeof(toybuf)-260)/4;
+    *colsizes = (unsigned *)toybuf, columns = sizeof(toybuf)/4;
   char tmp[64];
 
   if (-1 == dirfd) {
@@ -466,6 +468,12 @@ static void listfiles(int dirfd, struct dirtree *indir)
       // print time, always in --time-style=long-iso
       tm = localtime(&(st->st_mtime));
       strftime(tmp, sizeof(tmp), "%F %H:%M", tm);
+      if (TT.ll>1) {
+        char *s = tmp+strlen(tmp);
+
+        s += sprintf(s, ":%02d.%09d ", tm->tm_sec, (int)st->st_mtim.tv_nsec);
+        strftime(s, sizeof(tmp)-(s-tmp), "%z", tm);
+      }
       printf(" %s ", tmp);
     } else if (flags & FLAG_Z)
       printf("%-*s ", (int)totals[7], (char *)sort[next]->extra);
@@ -523,6 +531,11 @@ void ls_main(void)
 {
   char **s, *noargs[] = {".", 0};
   struct dirtree *dt;
+
+  if (toys.optflags&FLAG_full_time) {
+    toys.optflags |= FLAG_l;
+    TT.ll = 2;
+  }
 
   // Do we have an implied -1
   if (isatty(1)) {
