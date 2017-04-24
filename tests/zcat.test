@@ -1,26 +1,20 @@
 #!/bin/bash
 
-# Copyright 2014 Divya Kothari <divya.s.kothari@gmail.com>
-# Copyright 2014 Naha Maggu <maggu.neha@gmail.com>
-
 [ -f testing.sh ] && . testing.sh
 
 #testing "name" "command" "result" "infile" "stdin"
-echo "hello" > file
-tar -czf file.gz file
-# Get system zcat
-zcatExe=`which zcat`
-$zcatExe file.gz > zcatOut
-testing "- decompresses a single file" "zcat file.gz > Tempfile && echo "yes"; diff Tempfile zcatOut && echo "yes"; rm -rf file* zcatOut Tempfile" "yes\nyes\n" "" ""
 
-#testing "name" "command" "result" "infile" "stdin"
-echo "hello" > file1
-echo "hi" > file2
-echo "Hi, Good morning !! I am a bzcat tester" > file3
-tar -czf file1.gz file1
-tar -czf file2.gz file2
-tar -czf file3.gz file3
-# Get system zcat
-zcatExe=`which zcat`
-$zcatExe file1.gz file2.gz file3.gz > zcatOut
-testing "- decompresses multiple files" "zcat file1.gz file2.gz file3.gz > Tempfile && echo "yes" ; diff Tempfile zcatOut && echo "yes"; rm -rf file* zcatOut Tempfile " "yes\nyes\n" "" ""
+echo -n "foo " | gzip > f1.gz
+echo "bar" | gzip > f2.gz
+
+# zcat is basically just `gzip -dc`...
+testing "files" "zcat f1.gz f2.gz && test -f f1.gz && test -f f2.gz" \
+    "foo bar\n" "" ""
+
+# zcat -c is allowed, but the -c changes nothing.
+testing "-c" "zcat -c f1.gz f2.gz && test -f f1.gz && test -f f2.gz" \
+    "foo bar\n" "" ""
+
+# TODO: how to test "zcat -f"?
+
+rm -f f1 f2 f1.gz f2.gz
