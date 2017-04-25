@@ -5,6 +5,7 @@
 <li><h2><a href="#capitalize">Do you capitalize toybox?</a></h2></li>
 <li><h2><a href="#why_toybox">Why toybox? (What was wrong with busybox?)</a></h2></li>
 <li><h2><a href="#support_horizon">Why a 7 year support horizon?</a></h2></li>
+<li><h2><a href="#code">Where do I start understanding the toybox source code?</a></h2></li>
 </ul>
 
 <a name="capitalize" />
@@ -80,23 +81,96 @@ law below the high end systems, and that another 2-3 iterations should cover
 the useful lifetime of most systems no longer being sold but still in use and
 potentially being upgraded to new software releases.</p>
 
-<p>It turns out I missed industry changes in the 1990's that stretched the gap
-from low end to high end from 2 cycles to 4 cycles (<a href=http://landley.net/notes-2011.html#26-06-2011>here's my writeup on that</a>; and _that_ analysis
+<p>It turns out <a href=http://landley.net/notes-2011.html#26-06-2011>I missed
+industry changes</a> in the 1990's that stretched the gap
+from low end to high end from 2 cycles to 4 cycles, and _that_ analysis
 ignored the switch from PC to smartphone cutting off the R&D air supply of the
 laptop market.  Meanwhile the Moore's Law s-curve started bending
-down in 2000 and these days is pretty flat: the drive for faster clock speeds
-<a href=http://www.anandtech.com/show/613>stumbled</a>
-then <a href=http://www.pcworld.com/article/118603/article.html>died</a>,
+down in 2000 and these days is pretty flat because the drive for faster clock
+speeds <a href=http://www.anandtech.com/show/613>stumbled</a>
+then <a href=http://www.pcworld.com/article/118603/article.html>died</a>, and
 the subsequent drive to go wide maxed out around 4x SMP with ~2 megabyte
 caches for most applications. These days the switch from exponential to
 linear growth in hardware capabilities is
 <a href=https://www.cnet.com/news/end-of-moores-law-its-not-just-about-physics/>common</a>
-<a href=http://www.acm.org/articles/people-of-acm/2016/david-patterson>knowledge</a>.)</p>
+<a href=http://www.acm.org/articles/people-of-acm/2016/david-patterson>knowledge</a>.</p>
 
 <p>But the 7 year rule of thumb stuck around anyway: if a kernel or libc
 feature is less than 7 years old, I try to have a build-time configure test
 for it and let the functionality cleanly drop out. I also keep old Ubuntu
 images around in VMs and perform the occasional defconfig build there to
 see what breaks.</p>
+
+<h2><a name="code" />Where do I start understanding the source code?</h2>
+
+<p>Toybox is written in C. There are longer writeups of the
+<a href=design.html>design ideas</a> and a <a href=code.html>code walkthrough</a>,
+and the <a href=about.html>about page</a> summarizes what we're trying to
+accomplish, but here's a quick start:</p>
+
+<p>Toybox uses the standard three stage configure/make/install
+<a href=code.html#building>build</a>, in this case "<b>make defconfig;
+make; make install</b>". Type "<b>make help</b>" to
+see available make targets.</p>
+
+<p><b>The configure stage is copied from the Linux kernel</b> (in the "kconfig"
+directory), and saves your selections in the file ".config" at the top
+level. The "defconfig" target selects the
+maximum sane configuration (enabling all the commands and features that
+aren't unfinished, only intended as examples, debug code, etc) and is
+probably what you want. You can use "make menuconfig" to manually select
+specific commands to include, through an interactive menu (cursor up and
+down, enter to descend into a sub-menu, space to select an entry, ? to see
+an entry's help text, esc to exit). The menuconfig help text is the
+same as the command's --help output.</p>
+
+<p><b>The "make" stage creates a toybox binary</b> (which is stripped, look in
+generated/unstripped for the debug versions), and "install" adds a bunch of
+symlinks to toybox under the various command names. Toybox determines which
+command to run based on the filename, or you can use the "toybox" name in which case the first
+argument is the command to run (ala "toybox ls -l"). <b>You can also build
+individual commands as standalone executables</b>, ala "make sed cat ls".</p>
+
+<p><b>The main() function is in main.c at the top level</b>,
+along with setup plumbing and selecting which command to run this time.
+The function toybox_main() implements the "toybox" multiplexer command.</p>
+
+<p><b>The individual command implementations are under "toys"</b>, and are grouped
+into categories (mostly based on which standard they come from, posix, lsb,
+android...) The "pending" directory contains unfinished commands, and the
+"examples" directory contains examples. Commands in those two directories
+are _not_ selected by defconfig. (These days pending directory is mostly
+third party submissions that have not yet undergone proper code review.)</p>
+
+<p><b>Common infrastructure shared between commands is under "lib"</b>. Most
+commands call lib/args.c to parse their command line arguments before calling
+the command's own main() function, which uses the option string in
+the command's NEWTOY() macro. This is similar to the libc function getopt(),
+but more powerful, and is documented at the top of lib/args.c.</p>
+
+<p>Most of the actual <b>build/install infrastructure is shell scripts under
+"scripts"</b>. <b>These populate the "generated" directory</b> with headers
+created from other files, which are <a href=code.html#generated>described</a>
+in the code walkthrough. All the
+build's temporary files live under generated, including the .o files built
+from the .c files (in generated/obj). The "make clean" target deletes that
+directory. ("make distclean" also deletes your .config and deletes the
+kconfig binaries that process .config.)</p>
+
+<p>Each command's file contains all the information for that command, so
+<b>adding a command to toybox means adding a single file under "toys"</b>.
+Usually you <a href=code.html#adding>start a new command</a> by copying an
+existing command file to a new filename
+(toys/examples/hello.c, toys/examples/skeleton.c, toys/posix/cat.c,
+and toys/posix/true.c have all been used for this purpose) and then replacing
+all instances of its old name with the new name (which should match the
+new filename), and modifying the help text, argument string, and what the
+code does. You might have to "make distclean" before you new command
+shows up in defconfig or menuconfig.</p>
+
+<p><b>The toybox test suite lives in the "tests" directory</b>. From the top
+level you can "make tests" to test everything, or "make test_sed" test a
+single command's standalone version (which should behave identically)
+but that's why we test.</p>
 
 <!--#include file="footer.html" -->

@@ -303,8 +303,8 @@ effort on them.</p>
 
 <p>We depend on C99 and posix-2008 libc features such as the openat() family of
 functions. We also assume certain "modern" linux kernel behavior such
-as large environment sizes (linux commit b6a2fea39318, went into 2.6.22
-released July 2007). In theory this shouldn't prevent us from working on
+as large environment sizes (<a href=https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=b6a2fea39318>linux commit b6a2fea39318</a>, went into 2.6.22
+released <a href=faq.html#support_horizon>July 2007</a>). In theory this shouldn't prevent us from working on
 older kernels or other implementations (ala BSD), but we don't police their
 corner cases.</p>
 
@@ -316,9 +316,8 @@ in embedded devices for several more years.</p>
 
 <p>Toybox relies on the fact that on any Unix-like platform, pointer and long
 are always the same size (on both 32 and 64 bit). Pointer and int are _not_
-the same size on 64 bit systems, but pointer and long are.</p>
-
-<p>This is guaranteed by the LP64 memory model, a Unix standard (which Linux
+the same size on 64 bit systems, but pointer and long are.
+This is guaranteed by the LP64 memory model, a Unix standard (which Linux
 and MacOS X both implement, and which modern 64 bit processors such as
 x86-64 were <a href=http://www.pagetable.com/?p=6>designed for</a>).  See
 <a href=http://www.unix.org/whitepapers/64bit.html>the LP64 standard</a> and
@@ -335,7 +334,8 @@ platforms like arm, char defaults to signed.  This difference can lead to
 subtle portability bugs, and to avoid them we specify which one we want by
 feeding the compiler -funsigned-char.</p>
 
-<p>The reason to pick "unsigned" is that way we're 8-bit clean by default.</p>
+<p>The reason to pick "unsigned" is that way char strings are 8-bit clean by
+default, which makes UTF-8 support easier.</p>
 
 <p><h3>Error messages and internationalization:</h3></p>
 
@@ -372,6 +372,9 @@ of it.)</p>
 
 <p>Locale support isn't currently a goal; that's a presentation layer issue
 (I.E. a GUI problem).</p>
+
+<p>Someday we should probably have translated --help text, but that's a
+post-1.0 issue.</p>
 
 <p><h3>Shared Libraries</h3></p>
 
@@ -486,7 +489,7 @@ varargs), "if (function() != NULL)" is the same as "if (function())",
 <p>The goal is to be
 concise, not cryptic: if you're worried about the code being hard to
 understand, splitting it to multiple steps on multiple lines is
-better than a NOP operation like "!= NULL". A common sign of trying to
+better than a NOP operation like "!= NULL". A common sign of trying too
 hard is nesting ? : three levels deep, sometimes if/else and a temporary
 variable is just plain easier to read. If you think you need a comment,
 you may be right.</p>
