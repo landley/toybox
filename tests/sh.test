@@ -4,6 +4,13 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
+if [ -z "$(which bash)" ]
+then
+  echo "$SHOWSKIP: no bash alias"
+  continue 2>/dev/null
+  exit
+fi
+
 shellit()
 {
   EVAL="bash -c" testing "$2" "$1 printf %s $2" "$3" "$4" "$5"
