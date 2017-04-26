@@ -77,6 +77,12 @@ config TOYBOX_LIBCRYPTO
        help
          Use faster hash functions out of exteral -lcrypto library.
 
+config TOYBOX_LIBZ
+       bool "Use libz (zlib)"
+       default n
+       help
+         Use libz for gz support.
+
 config TOYBOX_FLOAT
 	bool "Floating point support"
 	default y

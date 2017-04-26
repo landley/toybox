@@ -16,9 +16,6 @@
 // Leave Lrg at end so flag values line up.
 
 USE_COMPRESS(NEWTOY(compress, "zcd9lrg[-cd][!zgLr]", TOYFLAG_USR|TOYFLAG_BIN))
-USE_GZIP(NEWTOY(gzip, USE_GZIP_D("d")"19dcflqStvgLRz[!gLRz]", TOYFLAG_USR|TOYFLAG_BIN))
-USE_ZCAT(NEWTOY(zcat, 0, TOYFLAG_USR|TOYFLAG_BIN))
-USE_GUNZIP(NEWTOY(gunzip, "cflqStv", TOYFLAG_USR|TOYFLAG_BIN))
 
 //zip unzip gzip gunzip zcat
 
@@ -37,40 +34,6 @@ config COMPRESS
     -R	raw
     -z	zip
 
-config GZIP
-  bool "gzip"
-  default y
-  depends on COMPRESS
-  help
-    usage: gzip [-19cfqStvzgLR] [FILE...]
-
-    Compess (deflate) file(s). With no files, compress stdin to stdout.
-
-    On successful decompression, compressed files are replaced with the
-    uncompressed version. The input file is removed and replaced with
-    a new file without the .gz extension (with same ownership/permissions).
-
-    -1	Minimal compression (fastest)
-    -9	Max compression (default)
-    -c	cat to stdout (act as zcat)
-    -f	force (if output file exists, input is tty, unrecognized extension)
-    -q	quiet (no warnings)
-    -S	specify exension (default .*)
-    -t	test compressed file(s)
-    -v	verbose (like -l, but compress files)
-
-    Compression type:
-    -g gzip (default)    -L zlib    -R raw    -z zip
-
-config GZIP_D
-  bool
-  default y
-  depends on GZIP && DECOMPRESS
-  help
-    usage: gzip [-d]
-
-    -d	decompress (act as gunzip)
-
 config DECOMPRESS
   bool "decompress"
   default n
@@ -81,37 +44,6 @@ config DECOMPRESS
 
     -c	compress with -g gzip (default)  -l zlib  -r raw  -z zip
     -d	decompress (autodetects type)
-
-
-config ZCAT
-  bool "zcat"
-  default y
-  depends on DECOMPRESS
-  help
-    usage: zcat [FILE...]
-
-    Decompress deflated file(s) to stdout
-
-config GUNZIP
-  bool "gunzip"
-  default y
-  depends on DECOMPRESS
-  help
-    usage: gunzip [-cflqStv] [FILE...]
-
-    Decompess (deflate) file(s). With no files, compress stdin to stdout.
-
-    On successful decompression, compressed files are replaced with the
-    uncompressed version. The input file is removed and replaced with
-    a new file without the .gz extension (with same ownership/permissions).
-
-    -c	cat to stdout (act as zcat)
-    -f	force (output file exists, input is tty, unrecognized extension)
-    -l	list compressed/uncompressed/ratio/name for each input file.
-    -q	quiet (no warnings)
-    -S	specify exension (default .*)
-    -t	test compressed file(s)
-    -v	verbose (like -l, but decompress files)
 */
 
 #define FOR_compress
@@ -578,29 +510,4 @@ void compress_main(void)
 {
   // todo: this
   printf("hello world");
-}
-
-//#define CLEANUP_compress
-//#define FOR_zcat
-//#include "generated/flags.h"
-
-void zcat_main(void)
-{
-  init_deflate(0);
-
-  loopfiles(toys.optargs, do_zcat);
-}
-
-void gunzip_main(void)
-{
-  init_deflate(0);
-
-  loopfiles(toys.optargs, do_zcat);
-}
-
-void gzip_main(void)
-{
-  init_deflate(1);
-
-  loopfiles(toys.optargs, do_gzip);
 }
