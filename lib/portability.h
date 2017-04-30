@@ -274,7 +274,7 @@ pid_t xfork(void);
 //#define strncpy(...) @@strncpyisbadmmkay@@
 //#define strncat(...) @@strncatisbadmmkay@@
 
-#ifdef __ANDROID__
+#if CFG_TOYBOX_ANDROID_SCHEDPOLICY
 #include <cutils/sched_policy.h>
 #else
 static inline int get_sched_policy(int tid, void *policy) {return 0;}
