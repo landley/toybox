@@ -630,7 +630,7 @@ static void do_sed(int fd, char *name)
   if (i) {
     struct sedcmd *command;
 
-    if (!fd && !strcmp(name, "-")) {
+    if (!fd) {
       error_msg("-i on stdin");
       return;
     }
