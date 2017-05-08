@@ -179,7 +179,10 @@ static void mount_filesystem(char *dev, char *dir, char *type,
     if (fp && !buf) {
       size_t i;
 
-      if (getline(&buf, &i, fp)<0) break;
+      if (getline(&buf, &i, fp)<0) {
+        error_msg("%s: need -t", dev);
+        break;
+      }
       type = buf;
       // skip nodev devices
       if (!isspace(*type)) {
