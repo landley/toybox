@@ -169,19 +169,12 @@ config TOYBOX_MUSL_NOMMU_IS_BROKEN
 	  daemon() at compile time, musl intentionally includes broken versions
 	  that always return -ENOSYS on nommu systems, and goes out of its way
 	  to prevent any cross-compile compatible compile-time probes for a
-	  nommu system.
+	  nommu system. (It doesn't even #define __MUSL__ in features.h.)
 
 	  Musl does this despite the fact that a nommu system can't even run
 	  standard ELF binaries, and requires specially packaged executables.
-	  (You can't even check a #define to see that you're building against
-	  musl, due to its maintainer's policy that musl never has bugs that
-	  require workarounds.)
-
 	  So our only choice is to manually provide a musl nommu bug workaround
 	  you can manually select to enable (larger, slower) nommu support with
 	  musl.
-
-	  You don't need this for uClibc, we have a compile time probe that
-	  autodetects nommu support there.
 
 endmenu
