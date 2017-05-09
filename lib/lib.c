@@ -392,6 +392,15 @@ int unescape(char c)
   return (idx == -1) ? 0 : to[idx];
 }
 
+char *strend(char *str, char *suffix)
+{
+  long a = strlen(str), b = strlen(suffix);
+
+  if (a>b && !strcmp(str += a-b, suffix)) return str;
+
+  return 0;
+}
+
 // If *a starts with b, advance *a past it and return 1, else return 0;
 int strstart(char **a, char *b)
 {

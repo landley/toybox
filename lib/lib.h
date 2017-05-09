@@ -206,6 +206,7 @@ char *strlower(char *s);
 char *strafter(char *haystack, char *needle);
 char *chomp(char *s);
 int unescape(char c);
+char *strend(char *str, char *suffix);
 int strstart(char **a, char *b);
 off_t fdlength(int fd);
 void loopfiles_rw(char **argv, int flags, int permissions,
