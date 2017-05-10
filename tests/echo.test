@@ -20,8 +20,7 @@ testing "-n one" "$CMD -n one" "one" "" ""
 testing "one -n" "$CMD one -n" "one -n\n" "" ""
 testing "-en" "$CMD -en 'one\ntwo'" "one\ntwo" "" ""
 testing "--hello" "$CMD --hello" "--hello\n" "" ""
-testing "-e all" "$CMD -e '\a\b\c\f\n\r\t\v\\\0123'" \
-	"\a\b\c\f\n\r\t\v\\\0123\n" "" ""
+testing "-e all" "$CMD -e '\a\b\c\f\n\r\t\v\\\0123' | xxd -p" "0708\n" "" ""
 testing "-nex hello" "$CMD -nex hello" "-nex hello\n" "" ""
 
 # Octal formatting tests
