@@ -7,30 +7,30 @@
 # To make it work, "$CMD" is an explicit path to the command being tested,
 # so "result" keeps using the shell builtin but we test the one in toybox.
 
-CMD="$(which echo)"
-
 #testing "name" "command" "result" "infile" "stdin"
 
-testing "echo" "$CMD && echo yes" "\nyes\n" "" ""
-testing "1 2 3" "$CMD one  two	three" "one two three\n" "" ""
-testing "with spaces" "$CMD 'one  two	three'" \
+testcmd "echo" "&& echo yes" "\nyes\n" "" ""
+testcmd "1 2 3" "one  two	three" "one two three\n" "" ""
+testcmd "with spaces" "'one  two	three'" \
 	"one  two	three\n" "" ""
-testing "-n" "$CMD -n" "" "" ""
-testing "-n one" "$CMD -n one" "one" "" ""
-testing "one -n" "$CMD one -n" "one -n\n" "" ""
-testing "-en" "$CMD -en 'one\ntwo'" "one\ntwo" "" ""
-testing "--hello" "$CMD --hello" "--hello\n" "" ""
-testing "-e all" "$CMD -e '\a\b\c\f\n\r\t\v\\\0123' | xxd -p" "0708\n" "" ""
-testing "-nex hello" "$CMD -nex hello" "-nex hello\n" "" ""
+testcmd "" "-n" "" "" ""
+testcmd "" "-n one" "one" "" ""
+testcmd "" "one -n" "one -n\n" "" ""
+testcmd "-en" "-en 'one\ntwo'" "one\ntwo" "" ""
+testcmd "" "--hello" "--hello\n" "" ""
+testcmd "-e all" "-e '\a\b\c\f\n\r\t\v\\\0123' | xxd -p" "0708\n" "" ""
+testcmd "-e all but \\c" "-e '"'\a\b\f\n\r\t\v\\\0123'"' | xxd -p" \
+	"07080c0a0d090b5c530a\n" "" ""
+testcmd "-nex hello" "-nex hello" "-nex hello\n" "" ""
 
 # Octal formatting tests
-testing "-e octal values" \
-	"$CMD -ne '\01234 \0060 \060 \0130\0131\0132 \077\012'" \
+testcmd "-e octal values" \
+	"-ne '\01234 \0060 \060 \0130\0131\0132 \077\012'" \
 	"S4 0 0 XYZ ?\n" "" ""
 
 # Hexadecimal value tests
-testing "-e hexadecimal values" \
-	"$CMD -ne '\x534 \x30 \x58\x59\x5a \x3F\x0A'"\
+testcmd "-e hexadecimal values" \
+	"-ne '\x534 \x30 \x58\x59\x5a \x3F\x0A'"\
 	"S4 0 XYZ ?\n" "" ""
 
-testing "-e \p" "$CMD -e '\\p'" "\\p\n" "" ""
+testcmd "-e \p" "-e '\\p'" "\\p\n" "" ""
