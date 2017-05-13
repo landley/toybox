@@ -29,8 +29,9 @@ static void factor(char *s)
     if (*s=='-') dash = *s++;
     if (!*s) return;
 
+    errno = 0;
     l = strtoull(s, &s, 0);
-    if (*s && !isspace(*s)) {
+    if (errno || (*s && !isspace(*s))) {
       error_msg("%s: not integer", err);
       while (*s && !isspace(*s)) s++;
       continue;
