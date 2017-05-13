@@ -88,3 +88,17 @@ f="filename_with_50_chars_xxxxxxxxxxxxxxxxxxxxxxxxxxx"
 mkdir $d
 echo "This is testdata" > $d/$f
 testing "longname pathname" "tar -cf testFile.tar $d/$f && [ -e testFile.tar ] && echo 'yes'; rm -rf $d; tar -xf testFile.tar && [ -f $d/$f ] && cat $d/$f && strings testFile.tar | grep -o LongLink; rm -f testFile.tar; rm -rf $d" "yes\nThis is testdata\nLongLink\n" "" ""
+
+# gzip
+rm -rf d
+mkdir d
+echo "hello world" > d/f
+testing "gzip compression" "tar zcf f d && file f | grep -q gzip && echo y ; rm -rf d ; tar xf f && cat d/f" "y\nhello world\n" "" ""
+testing "gzip decompression" "tar xf $FILES/tar/tar.tgz && cat dir/file" "hello world\n" "" ""
+
+# bzip2
+rm -rf d
+mkdir d
+echo "hello world" > d/f
+testing "bzip2 compression" "tar jcf f d && file f | grep -q bzip2 && echo y ; rm -rf d ; tar xf f && cat d/f" "y\nhello world\n" "" ""
+testing "bzip2 decompression" "tar xf $FILES/tar/tar.tbz2 && cat dir/file" "hello world\n" "" ""

@@ -7,13 +7,13 @@
  * For writing to external program
  * http://www.gnu.org/software/tar/manual/html_node/Writing-to-an-External-Program.html
 
-USE_TAR(NEWTOY(tar, "&(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)z(gzip)O(to-stdout)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):[!txc]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TAR(NEWTOY(tar, "&(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)j(bzip2)z(gzip)O(to-stdout)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):[!txc][!jz]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TAR
   bool "tar"
   default n
   help
-    usage: tar -[cxtzhmvO] [-X FILE] [-T FILE] [-f TARFILE] [-C DIR]
+    usage: tar -[cxtjzhmvO] [-X FILE] [-T FILE] [-f TARFILE] [-C DIR]
 
     Create, extract, or list files from a tar file
 
@@ -21,6 +21,7 @@ config TAR
     c Create
     f Name of TARFILE ('-' for stdin/out)
     h Follow symlinks
+    j (De)compress using bzip2
     m Don't restore mtime
     t List
     v Verbose
@@ -294,7 +295,7 @@ static void compress_stream(struct archive_handler *tar_hdl)
   if (cpid == -1) perror_exit("fork");
 
   if (!cpid) {    /* Child reads from pipe */
-    char *argv[] = {"gzip", "-f", NULL};
+    char *argv[] = {(toys.optflags&FLAG_z)?"gzip":"bzip2", "-f", NULL};
     xclose(pipefd[1]); /* Close unused write*/
     dup2(pipefd[0], 0);
     dup2(tar_hdl->src_fd, 1); //write to tar fd
@@ -319,7 +320,7 @@ static void extract_to_command(struct archive_handler *tar)
   pid_t cpid;
   struct file_header *file_hdr = &tar->file_hdr;
 
-  if (pipe(pipefd) == -1) error_exit("pipe");
+  xpipe(pipefd);
   if (!S_ISREG(file_hdr->mode)) return; //only regular files are supported.
 
   cpid = fork();
@@ -510,13 +511,14 @@ static void extract_stream(struct archive_handler *tar_hdl)
   int pipefd[2];              
   pid_t cpid;                 
 
-  if (pipe(pipefd) == -1) error_exit("pipe");
+  xpipe(pipefd);
 
   cpid = fork();
   if (cpid == -1) perror_exit("fork");
 
   if (!cpid) {    /* Child reads from pipe */
-    char *argv[] = {"gunzip", "-cf", "-", NULL};
+    char *argv[] =
+      {(toys.optflags&FLAG_z)?"gunzip":"bunzip2", "-cf", "-", NULL};
     xclose(pipefd[0]); /* Close unused read*/
     dup2(tar_hdl->src_fd, 0);
     dup2(pipefd[1], 1); //write to pipe
@@ -579,7 +581,6 @@ static void unpack_tar(struct archive_handler *tar_hdl)
   struct file_header *file_hdr;
   int i, j, maj, min, sz, e = 0;
   unsigned int cksum;
-  unsigned char *gzMagic;
   char *longname = NULL, *longlink = NULL;
 
   while (1) {
@@ -601,11 +602,11 @@ static void unpack_tar(struct archive_handler *tar_hdl)
       continue;
     }
     if (strncmp(tar.magic, "ustar", 5)) {
-      //try detecting by reading magic
+      // Try detecting .gz or .bz2 by looking for their magic.
 CHECK_MAGIC:
-      gzMagic = (unsigned char*)&tar;
-      if ((gzMagic[0] == 0x1f) && (gzMagic[1] == 0x8b) 
+      if ((!strncmp(tar.name, "\x1f\x8b", 2) || !strncmp(tar.name, "BZh", 3))
           && !lseek(tar_hdl->src_fd, -i, SEEK_CUR)) {
+        toys.optflags |= (*tar.name == 'B') ? FLAG_j : FLAG_z;
         tar_hdl->offset -= i;
         extract_stream(tar_hdl);
         continue;
@@ -792,7 +793,7 @@ void tar_main(void)
         error_msg("'%s' not in archive", tmp->arg);
   } else if (toys.optflags & FLAG_c) {
     //create the tar here.
-    if (toys.optflags & FLAG_z) compress_stream(tar_hdl);
+    if (toys.optflags & (FLAG_j|FLAG_z)) compress_stream(tar_hdl);
     for (tmp = TT.inc; tmp; tmp = tmp->next) {
       TT.handle = tar_hdl;
       //recurse thru dir and add files to archive
