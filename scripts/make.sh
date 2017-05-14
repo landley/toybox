@@ -13,8 +13,7 @@ UNSTRIPPED="generated/unstripped/$(basename "$OUTNAME")"
 
 # Since each cc invocation is short, launch half again as many processes
 # as we have processors so they don't exit faster than we can start them.
-[ -z "$CPUS" ] &&
-  CPUS=$((($(echo /sys/devices/system/cpu/cpu[0-9]* | wc -w)*3)/2))
+[ -z "$CPUS" ] && CPUS=$(($(nproc)+1))
 
 if [ -z "$SED" ]
 then

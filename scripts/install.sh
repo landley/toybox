@@ -115,7 +115,7 @@ if [ ! -z "$AIRLOCK" ]
 then
 
   # Tools needed to build packages
-  for i in ar as nm cc make ld gcc objdump $PENDING $HOST_EXTRA
+  for i in $TOOLCHAIN $PENDING $HOST_EXTRA
   do
     if [ ! -f "$i" ]
   then
