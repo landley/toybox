@@ -26,7 +26,7 @@ config DATE
     -r	Use modification time of FILE instead of current date
     -u	Use UTC instead of current timezone
 
-    +FORMAT specifies display format string using these escapes:
+    +FORMAT specifies display format string using strftime(3) syntax:
 
     %% literal %             %n newline              %t tab
     %S seconds (00-60)       %M minute (00-59)       %m month (01-12)
@@ -35,6 +35,7 @@ config DATE
     %a short weekday name    %A weekday name         %u day of week (1-7, 1=mon)
     %b short month name      %B month name           %Z timezone name
     %j day of year (001-366) %d day of month (01-31) %e day of month ( 1-31)
+    %N nanosec (output only)
 
     %U Week of year (0-53 start sunday)   %W Week of year (0-53 start monday)
     %V Week of year (1-53 start monday, week < 4 days not part of this year) 
@@ -123,10 +124,39 @@ static int parse_default(char *str, struct tm *tm)
   return *str;
 }
 
-void check_range(int a, int low, int high)
+static void check_range(int a, int low, int high)
 {
   if (a<low) error_exit("%d<%d", a, low);
   if (a>high) error_exit("%d>%d", a, high);
+}
+
+// Print strftime plus %N escape(s). note: modifies fmt for %N
+static void puts_time(char *fmt, struct tm *tm)
+{
+  char *s, *snap;
+  long width = width;
+
+  for (s = fmt;;s++) {
+
+    // Find next %N or end
+    if (*(snap = s) == '%') {
+      width = isdigit(*++s) ? *(s++)-'0' : 9;
+      if (*s && *s != 'N') continue;
+    } else if (*s) continue;
+
+    // Don't modify input string if no %N (default format is constant string).
+    if (*s) *snap = 0;
+    if (!strftime(toybuf, sizeof(toybuf)-10, fmt, tm))
+      perror_exit("bad format '%s'", fmt);
+    if (*s) {
+      snap = toybuf+strlen(toybuf);
+      sprintf(snap, "%09u", TT.nano);
+      snap[width] = 0;
+    }
+    fputs(toybuf, stdout);
+    if (!*s || !*(fmt = s+1)) break;
+  }
+  xputc('\n');
 }
 
 void date_main(void)
@@ -143,16 +173,16 @@ void date_main(void)
       if (!s || *s) goto bad_showdate;
     } else if (parse_default(TT.showdate, &tm)) goto bad_showdate;
   } else {
-    time_t now;
+    struct timespec ts;
+    struct stat st;
 
     if (TT.file) {
-      struct stat st;
-
       xstat(TT.file, &st);
-      now = st.st_mtim.tv_sec;
-    } else now = time(0);
+      ts = st.st_mtim;
+    } else clock_gettime(CLOCK_REALTIME, &ts);
 
-    ((toys.optflags & FLAG_u) ? gmtime_r : localtime_r)(&now, &tm);
+    ((toys.optflags & FLAG_u) ? gmtime_r : localtime_r)(&ts.tv_sec, &tm);
+    TT.nano = ts.tv_nsec;
   }
 
   // Fall through if no arguments
@@ -194,10 +224,7 @@ void date_main(void)
     if (settimeofday(&tv, NULL) < 0) perror_msg("cannot set date");
   }
 
-  if (!strftime(toybuf, sizeof(toybuf), format_string, &tm))
-    perror_exit("bad format '%s'", format_string);
-  puts(toybuf);
-
+  puts_time(format_string, &tm);
   return;
 
 bad_showdate:

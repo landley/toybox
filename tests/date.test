@@ -21,3 +21,14 @@ testing "-d 111014312015.30" "TZ=UTC date -d 111014312015.30 2>&1" "Sun Nov 10 1
 # Accidentally given a Unix time, we should trivially reject that.
 testing "Unix time missing @" "TZ=UTC date 1438053157 2>/dev/null || echo no" \
   "no\n" "" ""
+
+# Test the %N extension to srtftime(3) format strings.
+testing "%N" "touch -d 2012-01-23T12:34:56.123456789 f && date -r f +%Y%m%d-%H%M%S.%N" "20120123-123456.123456789\n" "" ""
+testing "%1N" "touch -d 2012-01-23T12:34:56.123456789 f && date -r f +%Y%m%d-%H%M%S.%1N" "20120123-123456.1\n" "" ""
+testing "%2N" "touch -d 2012-01-23T12:34:56.123456789 f && date -r f +%Y%m%d-%H%M%S.%2N" "20120123-123456.12\n" "" ""
+testing "%8N" "touch -d 2012-01-23T12:34:56.123456789 f && date -r f +%Y%m%d-%H%M%S.%8N" "20120123-123456.12345678\n" "" ""
+testing "%9N" "touch -d 2012-01-23T12:34:56.123456789 f && date -r f +%Y%m%d-%H%M%S.%9N" "20120123-123456.123456789\n" "" ""
+testing "%%N" "touch -d 2012-01-23T12:34:56.123456789 f && date -r f +%Y%m%d-%H%M%S.%%N" "20120123-123456.%N\n" "" ""
+testing "trailing %" "touch -d 2012-01-23T12:34:56.123456789 f && date -r f +%Y%m%d-%H%M%S.%" "20120123-123456.%\n" "" ""
+testing "just %" "touch -d 2012-01-23T12:34:56.123456789 f && date -r f +%" "%\n" "" ""
+rm -f f
