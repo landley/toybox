@@ -8,7 +8,7 @@ USE_CHRT(NEWTOY(chrt, "^mp#<0iRbrfo[!ibrfo]", TOYFLAG_USR|TOYFLAG_SBIN))
 
 config CHRT
   bool "chrt"
-  default n
+  default y
   help
     usage: chrt [-Rmofrbi] {-p PID [PRIORITY] | [PRIORITY COMMAND...]}
 
@@ -77,5 +77,5 @@ void chrt_main(void)
   if (sched_setscheduler(TT.pid, pol, (void *)&pri))
     perror_exit("sched_setscheduler");
 
-  if (*(toys.optargs+1)) xexec(++toys.optargs);
+  if (*(toys.optargs+1)) xexec(toys.optargs+1);
 }
