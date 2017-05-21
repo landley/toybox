@@ -45,8 +45,12 @@
 #define RLIMIT_RTTIME 15
 #endif
 
+// Introduced in Linux 3.1
 #ifndef SEEK_DATA
 #define SEEK_DATA 3
+#endif
+#ifndef SEEK_HOLE
+#define SEEK_HOLE 4
 #endif
 
 // We don't define GNU_dammit because we're not part of the gnu project, and
@@ -199,17 +203,17 @@ static inline void endutxent(void) {;}
 #ifndef O_NOFOLLOW
 #define O_NOFOLLOW 0
 #endif
-
 #ifndef O_NOATIME
 #define O_NOATIME 01000000
 #endif
-
 #ifndef O_CLOEXEC
 #define O_CLOEXEC 02000000
 #endif
-
 #ifndef O_PATH
 #define O_PATH   010000000
+#endif
+#ifndef SCHED_RESET_ON_FORK
+#define SCHED_RESET_ON_FORK (1<<30)
 #endif
 
 // Glibc won't give you linux-kernel constants unless you say "no, a BUD lite"

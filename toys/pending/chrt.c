@@ -1,92 +1,81 @@
 /* chrt.c - Get/set real-time (scheduling) attributes
  *
  * Copyright 2016 The Android Open Source Project
+ *
+ * Note: -ibrfo flags sorted to match SCHED positions for highest_bit()
 
-USE_CHRT(NEWTOY(chrt, "mp#bfiorR[!bfior]", TOYFLAG_USR|TOYFLAG_SBIN))
+USE_CHRT(NEWTOY(chrt, "^mp#<0iRbrfo[!ibrfo]", TOYFLAG_USR|TOYFLAG_SBIN))
 
 config CHRT
   bool "chrt"
   default n
   help
-    usage: chrt [-m] [-p PID] [POLICY PRIO] [COMMAND [ARGS...]]
+    usage: chrt [-Rmofrbi] {-p PID [PRIORITY] | [PRIORITY COMMAND...]}
 
-    Get/set a process' real-time (scheduling) attributes.
+    Get/set a process' real-time scheduling policy and priority.
 
-    -p	Apply to given pid
+    -p	Set/query given pid (instead of running COMMAND)
     -R	Set SCHED_RESET_ON_FORK
     -m	Show min/max priorities available
 
-    Policies:
-      -b  SCHED_BATCH    -f  SCHED_FIFO    -i  SCHED_IDLE
-      -o  SCHED_OTHER    -r  SCHED_RR
+    Set policy (default -r):
+
+      -o  SCHED_OTHER    -f  SCHED_FIFO    -r  SCHED_RR
+      -b  SCHED_BATCH    -i  SCHED_IDLE
 */
 
 #define FOR_chrt
 #include "toys.h"
 
-#include <linux/sched.h>
-
 GLOBALS(
   long pid;
 )
 
-static char *policy_name(int policy) {
-  char *policy_names[] = { "SCHED_OTHER", "SCHED_FIFO", "SCHED_RR",
-    "SCHED_BATCH", "4", "SCHED_IDLE", "SCHED_DEADLINE" };
-
-  return policy < ARRAY_LEN(policy_names) ? policy_names[policy] : "???";
-}
+char *polnames[] = {
+  "SCHED_OTHER", "SCHED_FIFO", "SCHED_RR", "SCHED_BATCH", 0, "SCHED_IDLE",
+  "SCHED_DEADLINE"
+};
 
 void chrt_main(void)
 {
-  int policy = SCHED_RR;
-  struct sched_param p;
+  int pol, pri;
 
   // Show min/maxes?
   if (toys.optflags&FLAG_m) {
-    for (policy = SCHED_OTHER; policy <= SCHED_IDLE; ++policy)
-      if (policy != 4) // There's an unused hole in the priorities.
-        printf("%s min/max priority\t: %d/%d\n", policy_name(policy),
-               sched_get_priority_min(policy), sched_get_priority_max(policy));
-    return;
-  }
-
-  // If we have a pid but no command or policy, we're just querying.
-  if (TT.pid && !*(toys.optargs+1) &&
-      !(toys.optflags&(FLAG_b|FLAG_f|FLAG_i|FLAG_o|FLAG_r))) {
-    policy = sched_getscheduler(TT.pid);
-    if (policy == -1) perror_exit("sched_getscheduler");
-    policy &= ~SCHED_RESET_ON_FORK;
-    printf("pid %ld's current scheduling policy: %s\n",
-           TT.pid, policy_name(policy));
-
-    if (sched_getparam(TT.pid, &p)) perror_exit("sched_getparam");
-    printf("pid %ld's current scheduling priority: %d\n",
-           TT.pid, p.sched_priority);
+    for (pol = 0; pol<ARRAY_LEN(polnames); pol++) if (polnames[pol])
+      printf("%s min/max priority\t: %d/%d\n", polnames[pol],
+        sched_get_priority_min(pol), sched_get_priority_max(pol));
 
     return;
   }
 
-  // Did we get a meaningful combination of arguments?
-  if (!*toys.optargs) help_exit("missing priority");
-  if (TT.pid && *(toys.optargs+1)) help_exit("-p and command");
-  if (!TT.pid && !*(toys.optargs+1)) help_exit("missing command");
+  // Query when -p without priority.
+  if (toys.optflags==FLAG_p && !*toys.optargs) {
+    char *s = "???", *R = "";
 
-  // Translate into policy and priority.
-  if (toys.optflags&FLAG_b) policy = SCHED_BATCH;
-  else if (toys.optflags&FLAG_f) policy = SCHED_FIFO;
-  else if (toys.optflags&FLAG_i) policy = SCHED_IDLE;
-  else if (toys.optflags&FLAG_o) policy = SCHED_OTHER;
+    if (-1==(pol = sched_getscheduler(TT.pid))) perror_exit("pid %ld", TT.pid);
+    if (pol & SCHED_RESET_ON_FORK) R = "|SCHED_RESET_ON_FORK";
+    if ((pol &= ~SCHED_RESET_ON_FORK)<ARRAY_LEN(polnames)) s = polnames[pol];
+    printf("pid %ld's current scheduling policy: %s%s\n", TT.pid, s, R);
 
-  if (toys.optflags&FLAG_R) policy |= SCHED_RESET_ON_FORK;
+    if (sched_getparam(TT.pid, (void *)&pri)) perror_exit("sched_getparam");
+    printf("pid %ld's current scheduling priority: %d\n", TT.pid, pri);
 
-  p.sched_priority = atolx_range(*toys.optargs, sched_get_priority_min(policy),
-                                 sched_get_priority_max(policy));
-
-  if (sched_setscheduler(TT.pid, policy, &p)) perror_exit("sched_setscheduler");
-
-  if (*(toys.optargs+1)) {
-    toys.stacktop = 0;
-    xexec(++toys.optargs);
+    return;
   }
+
+  if (!*toys.optargs) help_exit("no PRIORITY");
+  if (!toys.optargs[1] == !(toys.optflags&FLAG_p))
+    help_exit("need 1 of -p or COMMAND");
+
+  // Set policy and priority
+  if (-1==(pol = highest_bit(toys.optflags&0x2f))) pol = SCHED_RR;
+  pri = atolx_range(*toys.optargs, sched_get_priority_min(pol),
+    sched_get_priority_max(pol));
+  if (toys.optflags&FLAG_R) pol |= SCHED_RESET_ON_FORK;
+
+  if (sched_setscheduler(TT.pid, pol, (void *)&pri))
+    perror_exit("sched_setscheduler");
+
+  if (*(toys.optargs+1)) xexec(++toys.optargs);
 }

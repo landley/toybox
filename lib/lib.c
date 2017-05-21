@@ -512,6 +512,16 @@ void msleep(long miliseconds)
   nanosleep(&ts, &ts);
 }
 
+// return 1<<x of highest bit set
+int highest_bit(unsigned long l)
+{
+  int i;
+
+  for (i = 0; l; i++) l >>= 1;
+
+  return i-1;
+}
+
 // Inefficient, but deals with unaligned access
 int64_t peek_le(void *ptr, unsigned size)
 {
