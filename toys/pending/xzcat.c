@@ -319,12 +319,6 @@ void xzcat_main(void)
 
 #define memeq(a, b, size) (memcmp(a, b, size) == 0)
 
-#ifndef min
-#	define min(x, y) ((x) < (y) ? (x) : (y))
-#endif
-#define min_t(type, x, y) min(x, y)
-
-
 /* Inline functions to access unaligned unsigned 32-bit integers */
 #ifndef get_unaligned_le32
 static inline uint32_t get_unaligned_le32(const uint8_t *buf)
@@ -817,7 +811,7 @@ static void bcj_flush(struct xz_dec_bcj *s, struct xz_buf *b)
 {
   size_t copy_size;
 
-  copy_size = min_t(size_t, s->temp.filtered, b->out_size - b->out_pos);
+  copy_size = minof(s->temp.filtered, b->out_size - b->out_pos);
   memcpy(b->out + b->out_pos, s->temp.buf, copy_size);
   b->out_pos += copy_size;
 
@@ -1504,7 +1498,7 @@ static int dict_repeat(struct dictionary *dict, uint32_t *len, uint32_t dist)
 
   if (dist >= dict->full || dist >= dict->size) return 0;
 
-  left = min_t(size_t, dict->limit - dict->pos, *len);
+  left = minof(dict->limit - dict->pos, *len);
   *len -= left;
 
   back = dict->pos - dist - 1;
@@ -1531,7 +1525,7 @@ static void dict_uncompressed(struct dictionary *dict, struct xz_buf *b,
 
   while (*left > 0 && b->in_pos < b->in_size
       && b->out_pos < b->out_size) {
-    copy_size = min(b->in_size - b->in_pos,
+    copy_size = minof(b->in_size - b->in_pos,
         b->out_size - b->out_pos);
     if (copy_size > dict->end - dict->pos)
       copy_size = dict->end - dict->pos;
@@ -2210,8 +2204,7 @@ enum xz_ret xz_dec_lzma2_run(struct xz_dec_lzma2 *s,
        * the output buffer yet, we may run this loop
        * multiple times without changing s->lzma2.sequence.
        */
-      dict_limit(&s->dict, min_t(size_t,
-          b->out_size - b->out_pos,
+      dict_limit(&s->dict, minof(b->out_size - b->out_pos,
           s->lzma2.uncompressed));
       if (!lzma2_lzma(s, b))
         return XZ_DATA_ERROR;
@@ -2490,8 +2483,7 @@ static const uint8_t check_sizes[16] = {
  */
 static int fill_temp(struct xz_dec *s, struct xz_buf *b)
 {
-  size_t copy_size = min_t(size_t,
-      b->in_size - b->in_pos, s->temp.size - s->temp.pos);
+  size_t copy_size = minof(b->in_size - b->in_pos, s->temp.size - s->temp.pos);
 
   memcpy(s->temp.buf + s->temp.pos, b->in + b->in_pos, copy_size);
   b->in_pos += copy_size;
