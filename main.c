@@ -49,7 +49,7 @@ struct toy_list *toy_find(char *name)
     if (middle<bottom || middle>top) return NULL;
     result = strcmp(name,toy_list[middle].name);
     if (!result) return toy_list+middle;
-    if (result<0) top=--middle;
+    if (result<0) top = --middle;
     else bottom = ++middle;
   }
 }
