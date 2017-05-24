@@ -109,8 +109,7 @@ static void do_elf_file(int fd, struct stat *sb)
     return;
   }
 
-  map = mmap(0, sb->st_size, PROT_READ, MAP_SHARED, fd, 0);
-  if (!map) perror_exit("mmap");
+  map = xmmap(0, sb->st_size, PROT_READ, MAP_SHARED, fd, 0);
 
   // We need to read the phdrs for dynamic vs static.
   // (Note: fields got reordered for 64 bit)

@@ -140,7 +140,7 @@ void hexedit_main(void)
   for (pos = TT.len, TT.numlen = 0; pos; pos >>= 4, TT.numlen++);
   TT.numlen += (4-TT.numlen)&3;
 
-  TT.data = mmap(0, TT.len, PROT_READ|(PROT_WRITE*!ro), MAP_SHARED, fd, 0);
+  TT.data = xmmap(0, TT.len, PROT_READ|(PROT_WRITE*!ro), MAP_SHARED, fd, 0);
   draw_page();
 
   for (;;) {

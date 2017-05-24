@@ -46,7 +46,8 @@ static void modinfo_file(char *full_name)
 
   if (-1 != (fd = open(full_name, O_RDONLY))) {
     len = fdlength(fd);
-    if (!(buf = mmap(0, len, PROT_READ, MAP_SHARED, fd, 0))) close(fd);
+    buf = xmmap(0, len, PROT_READ, MAP_SHARED, fd, 0);
+    close(fd);
   }
 
   if (!buf) {
@@ -69,7 +70,6 @@ static void modinfo_file(char *full_name)
   }
 
   munmap(buf, len);
-  close(fd);
 }
 
 static int check_module(struct dirtree *new)

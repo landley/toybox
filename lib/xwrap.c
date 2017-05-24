@@ -58,6 +58,13 @@ void xexit(void)
   _xexit();
 }
 
+void *xmmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
+{
+  void *ret = mmap(addr, length, prot, flags, fd, off);
+  if (ret == MAP_FAILED) perror_exit("mmap");
+  return ret;
+}
+
 // Die unless we can allocate memory.
 void *xmalloc(size_t size)
 {

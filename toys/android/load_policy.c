@@ -21,11 +21,11 @@ void load_policy_main(void)
 {
   int fd = xopenro(*toys.optargs);
   off_t policy_len = fdlength(fd);
-  char *policy_data = mmap(0, policy_len, PROT_READ, MAP_PRIVATE, fd, 0);
+  char *policy_data = xmmap(0, policy_len, PROT_READ, MAP_PRIVATE, fd, 0);
 
   close(fd);
-  if (!policy_data || security_load_policy(policy_data, policy_len) < 0)
-    perror_exit("Couldn't %s %s", policy_data ? "load" : "read", *toys.optargs);
+  if (security_load_policy(policy_data, policy_len) < 0)
+    perror_exit("security_load_policy %s", *toys.optargs);
 
   munmap(policy_data, policy_len);
 }
