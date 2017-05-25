@@ -3,8 +3,10 @@
  * Copyright 2012 Tryn Mirell <tryn@mirell.org>
  *
  * http://opengroup.org/onlinepubs/9699919799/utilities/env.html
+ *
+ * Deviations from posix: "-" argument and -0
 
-USE_ENV(NEWTOY(env, "^iu*", TOYFLAG_USR|TOYFLAG_BIN))
+USE_ENV(NEWTOY(env, "^0iu*", TOYFLAG_USR|TOYFLAG_BIN))
 
 config ENV
   bool "env"
@@ -12,10 +14,11 @@ config ENV
   help
     usage: env [-i] [-u NAME] [NAME=VALUE...] [command [option...]]
 
-    Set the environment for command invocation.
+    Set the environment for command invocation, or list environment variables.
 
-    -i	Clear existing environment.
+    -i	Clear existing environment
     -u NAME	Remove NAME from the environment
+    -0	Use null instead of newline in output
 */
 
 #define FOR_env
@@ -52,5 +55,6 @@ void env_main(void)
     } else xexec(ev);
   }
 
-  if (environ) for (ev = environ; *ev; ev++) xputs(*ev);
+  if (environ) for (ev = environ; *ev; ev++)
+    xprintf("%s%c", *ev, '\n'*!(toys.optflags*FLAG_0));
 }
