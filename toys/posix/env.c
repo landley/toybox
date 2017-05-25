@@ -29,7 +29,13 @@ extern char **environ;
 
 void env_main(void)
 {
-  char **ev;
+  char **ev = toys.optargs;
+
+  // If first nonoption argument is "-" treat it as -i
+  if (*ev && **ev == '-' && !(*ev)[1]) {
+    toys.optflags |= FLAG_i;
+    ev++;
+  }
 
   if (toys.optflags & FLAG_i) clearenv();
   while (TT.u) {
@@ -37,7 +43,7 @@ void env_main(void)
     TT.u = TT.u->next;
   }
 
-  for (ev = toys.optargs; *ev; ev++) {
+  for (; *ev; ev++) {
     char *name = *ev, *val = strchr(name, '=');
 
     if (val) {
