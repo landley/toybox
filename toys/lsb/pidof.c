@@ -15,7 +15,7 @@ config PIDOF
 
     Print the PIDs of all processes with the given names.
 
-    -s	single shot, only return one pid.
+    -s	single shot, only return one pid
     -o	omit PID(s)
 */
 

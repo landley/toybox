@@ -14,7 +14,7 @@ config FSYNC
 
     Synchronize a file's in-core state with storage device.
 
-    -d	Avoid syncing metadata.
+    -d	Avoid syncing metadata
 */
 
 #define FOR_fsync

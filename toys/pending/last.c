@@ -15,8 +15,8 @@ config LAST
 
     Show listing of last logged in users.
 
-    -W      Display the information without host-column truncation.
-    -f FILE Read from file FILE instead of /var/log/wtmp.
+    -W      Display the information without host-column truncation
+    -f FILE Read from file FILE instead of /var/log/wtmp
 */
 
 #define FOR_last

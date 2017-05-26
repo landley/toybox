@@ -20,7 +20,7 @@ config TIMEOUT
     (minutes), "h" (hours), "d" (days), or "s" (seconds, the default).
 
     -s	Send specified signal (default TERM)
-    -k	Send KILL signal if child still running this long after first signal.
+    -k	Send KILL signal if child still running this long after first signal
     -v	Verbose
 */
 

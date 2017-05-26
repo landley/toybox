@@ -13,7 +13,7 @@ config NPROC
 
     Print number of processors.
 
-    --all	Show all processors, not just ones this task can run on.
+    --all	Show all processors, not just ones this task can run on
 
 config TASKSET
   bool "taskset"
@@ -27,8 +27,8 @@ config TASKSET
     Mask is a hex string where each bit represents a processor the process
     is allowed to run on. PID without a mask displays existing affinity.
 
-    -p	Set/get the affinity of given PID instead of a new command.
-    -a	Set/get the affinity of all threads of the PID.
+    -p	Set/get the affinity of given PID instead of a new command
+    -a	Set/get the affinity of all threads of the PID
 */
 
 #define FOR_taskset

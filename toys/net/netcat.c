@@ -15,7 +15,7 @@ config NETCAT
 
     -f	use FILENAME (ala /dev/ttyS0) instead of network
     -p	local port number
-    -q	quit SECONDS after EOF on stdin, even if stdout hasn't closed yet.
+    -q	quit SECONDS after EOF on stdin, even if stdout hasn't closed yet
     -s	local source address
     -w	SECONDS timeout to establish connection
     -W	SECONDS timeout for idle connection

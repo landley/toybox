@@ -12,7 +12,7 @@ config TRUNCATE
 
     Set length of file(s), extending sparsely if necessary.
 
-    -c	Don't create file if it doesn't exist.
+    -c	Don't create file if it doesn't exist
     -s	New size (with optional prefix and suffix)
 
     SIZE prefix: + add, - subtract, < shrink to, > expand to,

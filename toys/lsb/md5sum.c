@@ -30,7 +30,7 @@ config MD5SUM
     Output one hash (32 hex digits) for each input file, followed by filename.
 
     -b	brief (hash only, no filename)
-    -c	Check each line of FILE is the same hash+filename we'd output.
+    -c	Check each line of FILE is the same hash+filename we'd output
 
 config SHA1SUM
   bool "sha1sum"
@@ -43,7 +43,7 @@ config SHA1SUM
     and 128 for sha512) for each input file, followed by filename.
 
     -b	brief (hash only, no filename)
-    -c	Check each line of FILE is the same hash+filename we'd output.
+    -c	Check each line of FILE is the same hash+filename we'd output
 
 config SHA224SUM
   bool "sha224sum"

@@ -17,7 +17,7 @@ config TAIL
     Copy last lines from files to stdout. If no files listed, copy from
     stdin. Filename "-" is a synonym for stdin.
 
-    -n	output the last NUMBER lines (default 10), +X counts from start.
+    -n	output the last NUMBER lines (default 10), +X counts from start
     -c	output the last NUMBER bytes, +NUMBER counts from start
     -f	follow FILE(s), waiting for more data to be appended
 

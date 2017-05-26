@@ -13,9 +13,9 @@ config CHCON
 
     Change the SELinux security context of listed file[s].
 
-    -h change symlinks instead of what they point to.
-    -R recurse into subdirectories.
-    -v verbose output.
+    -h change symlinks instead of what they point to
+    -R recurse into subdirectories
+    -v verbose output
 */
 
 #define FOR_chcon

@@ -21,7 +21,7 @@ config DF
     -k	Sets units back to 1024 bytes (the default without -P)
     -h	Human readable output (K=1024)
     -H	Human readable output (k=1000)
-    -t type	Display only filesystems of this type.
+    -t type	Display only filesystems of this type
 
     Pedantic provides a slightly less useful output format dictated by Posix,
     and sets the units to 512 bytes instead of the default 1024 bytes.

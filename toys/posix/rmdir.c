@@ -14,7 +14,7 @@ config RMDIR
 
     Remove one or more directories.
 
-    -p	Remove path.
+    -p	Remove path
 */
 
 #include "toys.h"

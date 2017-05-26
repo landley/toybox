@@ -20,7 +20,7 @@ config OD
     	plus optional size in bytes
     	aliases: -b=-t o1, -c=-t c, -d=-t u2, -o=-t o2, -s=-t d2, -x=-t x2
     -v	Don't collapse repeated lines together
-    -w	Total line width in bytes (default 16).
+    -w	Total line width in bytes (default 16)
 */
 
 #define FOR_od

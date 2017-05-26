@@ -12,10 +12,10 @@ config FLOCK
 
     Manage advisory file locks.
 
-    -s	Shared lock.
-    -x	Exclusive lock (default).
-    -u	Unlock.
-    -n	Non-blocking: fail rather than wait for the lock.
+    -s	Shared lock
+    -x	Exclusive lock (default)
+    -u	Unlock
+    -n	Non-blocking: fail rather than wait for the lock
 */
 
 #define FOR_flock

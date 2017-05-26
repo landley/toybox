@@ -19,11 +19,11 @@ config UMOUNT
     Unmount the listed filesystems.
 
     -a	Unmount all mounts in /proc/mounts instead of command line list
-    -D  Don't free loopback device(s).
-    -f  Force unmount.
-    -l  Lazy unmount (detach from filesystem now, close when last user does).
+    -D  Don't free loopback device(s)
+    -f  Force unmount
+    -l  Lazy unmount (detach from filesystem now, close when last user does)
     -n	Don't use /proc/mounts
-    -r  Remount read only if unmounting fails.
+    -r  Remount read only if unmounting fails
     -t	Restrict "all" to mounts of TYPE (or use "noTYPE" to skip)
     -v	Verbose
 */

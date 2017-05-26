@@ -67,8 +67,8 @@ config CD
 
     Change current directory.  With no arguments, go $HOME.
 
-    -P	Physical path: resolve symlinks in path.
-    -L	Local path: .. trims directories off $PWD (default).
+    -P	Physical path: resolve symlinks in path
+    -L	Local path: .. trims directories off $PWD (default)
 
 config EXIT
   bool

@@ -23,10 +23,10 @@ config SED
 
     -e	add SCRIPT to list
     -f	add contents of SCRIPT_FILE to list
-    -i	Edit each file in place.
-    -n	No default output. (Use the p command to output matched lines.)
-    -r	Use extended regular expression syntax.
-    -E	Alias for -r.
+    -i	Edit each file in place
+    -n	No default output (use the p command to output matched lines)
+    -r	Use extended regular expression syntax
+    -E	Alias for -r
     -s	Treat input files separately (implied by -i)
 
     A SCRIPT is a series of one or more COMMANDs separated by newlines or

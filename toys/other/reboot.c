@@ -15,7 +15,7 @@ config REBOOT
     Restart, halt or powerdown the system.
 
     -f	Don't signal init
-    -n	Don't sync before stopping the system.
+    -n	Don't sync before stopping the system
 */
 
 #define FOR_reboot

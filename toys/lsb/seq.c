@@ -19,7 +19,7 @@ config SEQ
 
     -f	Use fmt_str as a printf-style floating point format string
     -s	Use sep_str as separator, default is a newline character
-    -w	Pad to equal width with leading zeroes.
+    -w	Pad to equal width with leading zeroes
 */
 
 #define FOR_seq

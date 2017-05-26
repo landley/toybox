@@ -14,10 +14,10 @@ config SETFATTR
 
     Write POSIX extended attributes.
 
-    -h	Do not dereference symlink.
-    -n	Set given attribute.
-    -x	Remove given attribute.
-    -v	Set value for attribute -n (default is empty).
+    -h	Do not dereference symlink
+    -n	Set given attribute
+    -x	Remove given attribute
+    -v	Set value for attribute -n (default is empty)
 */
 
 #define FOR_setfattr

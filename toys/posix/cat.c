@@ -19,7 +19,7 @@ config CAT
     Copy (concatenate) files to stdout.  If no files listed, copy from stdin.
     Filename "-" is a synonym for stdin.
 
-    -u	Copy one byte at a time (slow).
+    -u	Copy one byte at a time (slow)
 
 config CAT_V
   bool "cat -etv"
@@ -30,8 +30,8 @@ config CAT_V
 
     -e	Mark each newline with $
     -t	Show tabs as ^I
-    -v	Display nonprinting characters as escape sequences. Use M-x for
-    	high ascii characters (>127), and ^x for other nonprinting chars.
+    -v	Display nonprinting characters as escape sequences with M-x for
+    	high ascii characters (>127), and ^x for other nonprinting chars
 
 config CATV
   bool "catv"
@@ -44,7 +44,7 @@ config CATV
 
     -e  Mark each newline with $
     -t  Show tabs as ^I
-    -v  Don't use ^x or M-x escapes.
+    -v  Don't use ^x or M-x escapes
 */
 
 #define FOR_cat

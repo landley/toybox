@@ -15,8 +15,8 @@ config PMAP
 
     Reports the memory map of a process or processes.
 
-    -x Show the extended format.
-    -q Do not display some header/footer lines.
+    -x Show the extended format
+    -q Do not display some header/footer lines
 */
 
 #define FOR_pmap

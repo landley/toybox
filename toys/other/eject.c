@@ -17,7 +17,7 @@ config EJECT
 
     -s	SCSI device
     -t	Close tray
-    -T	Open/close tray (toggle).
+    -T	Open/close tray (toggle)
 */
 
 #define FOR_eject

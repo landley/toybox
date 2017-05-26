@@ -12,7 +12,7 @@ config RMMOD
 
     Unload the module named MODULE from the Linux kernel.
     -f	Force unload of a module
-    -w	Wait until the module is no longer used.
+    -w	Wait until the module is no longer used
 
 */
 

@@ -13,10 +13,10 @@ config ONEIT
     Simple init program that runs a single supplied command line with a
     controlling tty (so CTRL-C can kill it).
 
-    -c	Which console device to use (/dev/console doesn't do CTRL-C, etc).
-    -p	Power off instead of rebooting when command exits.
-    -r	Restart child when it exits.
-    -3	Write 32 bit PID of each exiting reparented process to fd 3 of child.
+    -c	Which console device to use (/dev/console doesn't do CTRL-C, etc)
+    -p	Power off instead of rebooting when command exits
+    -r	Restart child when it exits
+    -3	Write 32 bit PID of each exiting reparented process to fd 3 of child
     	(Blocking writes, child must read to avoid eventual deadlock.)
 
     Spawns a single child process (because PID 1 has signals blocked)

@@ -18,11 +18,11 @@ config CHGRP
 
     -f	suppress most error messages.
     -h	change symlinks instead of what they point to
-    -R	recurse into subdirectories (implies -h).
+    -R	recurse into subdirectories (implies -h)
     -H	with -R change target of symlink, follow command line symlinks
     -L	with -R change target of symlink, follow all symlinks
     -P	with -R change symlink, do not follow symlinks (default)
-    -v	verbose output.
+    -v	verbose output
 
 config CHOWN
   bool "chown"

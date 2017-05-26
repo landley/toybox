@@ -16,12 +16,12 @@ config XXD
     Hexdump a file to stdout.  If no file is listed, copy from stdin.
     Filename "-" is a synonym for stdin.
 
-    -c n	Show n bytes per line (default 16).
-    -g n	Group bytes by adding a ' ' every n bytes (default 2).
-    -l n	Limit of n bytes before stopping (default is no limit).
-    -p	Plain hexdump (30 bytes/line, no grouping).
-    -r	Reverse operation: turn a hexdump into a binary file.
-    -s n	Skip to offset n.
+    -c n	Show n bytes per line (default 16)
+    -g n	Group bytes by adding a ' ' every n bytes (default 2)
+    -l n	Limit of n bytes before stopping (default is no limit)
+    -p	Plain hexdump (30 bytes/line, no grouping)
+    -r	Reverse operation: turn a hexdump into a binary file
+    -s n	Skip to offset n
 */
 
 #define FOR_xxd

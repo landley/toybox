@@ -14,7 +14,7 @@ config KLOGD
     usage: klogd [-n] [-c N]
 
     -c  N   Print to console messages more urgent than prio N (1-8)"
-    -n    Run in foreground.
+    -n    Run in foreground
 
 config KLOGD_SOURCE_RING_BUFFER
     bool "enable kernel ring buffer as log source."

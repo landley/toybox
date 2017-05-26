@@ -20,7 +20,7 @@ config SYSLOGD
   -O FILE Default log file <DEFAULT: /var/log/messages>
   -f FILE Config file <DEFAULT: /etc/syslog.conf>
   -p      Alternative unix domain socket <DEFAULT : /dev/log>
-  -n      Avoid auto-backgrounding.
+  -n      Avoid auto-backgrounding
   -S      Smaller output
   -m MARK interval <DEFAULT: 20 minutes> (RANGE: 0 to 71582787)
   -R HOST Log to IP or hostname on PORT (default PORT=514/UDP)"

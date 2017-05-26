@@ -13,7 +13,7 @@ config MDEV
 
     Create devices in /dev using information from /sys.
 
-    -s	Scan all entries in /sys to populate /dev.
+    -s	Scan all entries in /sys to populate /dev
 
 config MDEV_CONF
   bool "Configuration file for mdev"

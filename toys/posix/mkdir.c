@@ -14,8 +14,8 @@ config MKDIR
 
     Create one or more directories.
 
-    -m	set permissions of directory to mode.
-    -p	make parent directories as needed.
+    -m	set permissions of directory to mode
+    -p	make parent directories as needed
     -v	verbose
 
 config MKDIR_Z

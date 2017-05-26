@@ -15,8 +15,8 @@ config TEE
     Copy stdin to each listed file, and also to stdout.
     Filename "-" is a synonym for stdout.
 
-    -a	append to files.
-    -i	ignore SIGINT.
+    -a	append to files
+    -i	ignore SIGINT
 */
 
 #define FOR_tee

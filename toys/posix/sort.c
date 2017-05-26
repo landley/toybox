@@ -33,7 +33,7 @@ config SORT_BIG
     -d	dictionary order (use alphanumeric and whitespace chars only)
     -f	force uppercase (case insensitive sort)
     -i	ignore nonprinting characters
-    -M	month sort (jan, feb, etc).
+    -M	month sort (jan, feb, etc)
     -x	Hexadecimal numerical sort
     -s	skip fallback sort (only sort with keys)
     -z	zero (null) terminated lines

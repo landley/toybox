@@ -14,9 +14,9 @@ config GETFATTR
 
     Read POSIX extended attributes.
 
-    -d	Show values as well as names.
-    -h	Do not dereference symbolic links.
-    -n	Show only attributes with the given name.
+    -d	Show values as well as names
+    -h	Do not dereference symbolic links
+    -n	Show only attributes with the given name
 */
 
 #define FOR_getfattr

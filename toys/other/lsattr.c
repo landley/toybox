@@ -19,11 +19,11 @@ config LSATTR
     List file attributes on a Linux second extended file system.
     (AacDdijsStu defined in chattr --help)
 
-    -R Recursively list attributes of directories and their contents.
-    -a List all files in directories, including files that start with '.'.
-    -d List directories like other files, rather than listing their contents.
-    -l List long flag names.
-    -v List the file's version/generation number.
+    -R Recursively list attributes of directories and their contents
+    -a List all files in directories, including files that start with '.'
+    -d List directories like other files, rather than listing their contents
+    -l List long flag names
+    -v List the file's version/generation number
 
 config CHATTR
   bool "chattr"
@@ -33,26 +33,26 @@ config CHATTR
 
     Change file attributes on a Linux second extended file system.
 
-    -R Recurse.
-    -v Set the file's version/generation number.
+    -R Recurse
+    -v Set the file's version/generation number
 
     Operators:
-      '-' Remove attributes.
-      '+' Add attributes.
-      '=' Set attributes.
+      '-' Remove attributes
+      '+' Add attributes
+      '=' Set attributes
 
     Attributes:
-      A  Don't track atime.
-      a  Append mode only.
-      c  Enable compress.
-      D  Write dir contents synchronously.
-      d  Don't backup with dump.
-      i  Cannot be modified (immutable).
-      j  Write all data to journal first.
-      s  Zero disk storage when deleted.
-      S  Write file contents synchronously.
-      t  Disable tail-merging of partial blocks with other files.
-      u  Allow file to be undeleted.
+      A  Don't track atime
+      a  Append mode only
+      c  Enable compress
+      D  Write dir contents synchronously
+      d  Don't backup with dump
+      i  Cannot be modified (immutable)
+      j  Write all data to journal first
+      s  Zero disk storage when deleted
+      S  Write file contents synchronously
+      t  Disable tail-merging of partial blocks with other files
+      u  Allow file to be undeleted
 */
 #define FOR_lsattr
 #include "toys.h"

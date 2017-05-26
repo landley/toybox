@@ -20,7 +20,7 @@ config ECHO
     Write each argument to stdout, with one space between each, followed
     by a newline.
 
-    -n	No trailing newline.
+    -n	No trailing newline
     -e	Process the following escape sequences:
     	\\	backslash
     	\0NNN	octal values (1 to 3 digits)

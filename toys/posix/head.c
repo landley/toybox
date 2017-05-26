@@ -15,7 +15,7 @@ config HEAD
     Copy first lines from files to stdout. If no files listed, copy from
     stdin. Filename "-" is a synonym for stdin.
 
-    -n	Number of lines to copy.
+    -n	Number of lines to copy
 */
 
 #define FOR_head
