@@ -68,6 +68,11 @@ void help_main(void)
 
   for (i = 0; i < toys.toycount; i++) {
     if (toys.optflags & FLAG_h) xprintf("<hr>\n<pre>\n");
+    else {
+      memset(toybuf, '-', 78);
+      memcpy(toybuf+3, toy_list[i].name, strlen(toy_list[i].name));
+      printf("%s\n\n", toybuf);
+    }
     do_help(toy_list+i);
     if (toys.optflags & FLAG_h) xprintf("</pre>\n");
   }
