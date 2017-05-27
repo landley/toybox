@@ -42,9 +42,9 @@ config CATV
     Display nonprinting characters as escape sequences. Use M-x for
     high ascii characters (>127), and ^x for other nonprinting chars.
 
-    -e  Mark each newline with $
-    -t  Show tabs as ^I
-    -v  Don't use ^x or M-x escapes
+    -e	Mark each newline with $
+    -t	Show tabs as ^I
+    -v	Don't use ^x or M-x escapes
 */
 
 #define FOR_cat

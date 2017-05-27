@@ -14,8 +14,8 @@ config HOSTNAME
 
     Get/Set the current hostname
 
-    -b  Set hostname to 'localhost' if otherwise unset
-    -F  Set hostname to contents of FILENAME
+    -b	Set hostname to 'localhost' if otherwise unset
+    -F	Set hostname to contents of FILENAME
 */
 
 #define FOR_hostname

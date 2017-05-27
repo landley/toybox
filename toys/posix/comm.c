@@ -17,9 +17,9 @@ config COMM
     columns as output: lines only in FILE1; lines only in FILE2; and lines
     in both files. Filename "-" is a synonym for stdin.
 
-    -1 suppress the output column of lines unique to FILE1
-    -2 suppress the output column of lines unique to FILE2
-    -3 suppress the output column of lines duplicated in FILE1 and FILE2
+    -1	suppress the output column of lines unique to FILE1
+    -2	suppress the output column of lines unique to FILE2
+    -3	suppress the output column of lines duplicated in FILE1 and FILE2
 */
 
 #define FOR_comm

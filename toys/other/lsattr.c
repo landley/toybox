@@ -19,11 +19,11 @@ config LSATTR
     List file attributes on a Linux second extended file system.
     (AacDdijsStu defined in chattr --help)
 
-    -R Recursively list attributes of directories and their contents
-    -a List all files in directories, including files that start with '.'
-    -d List directories like other files, rather than listing their contents
-    -l List long flag names
-    -v List the file's version/generation number
+    -R	Recursively list attributes of directories and their contents
+    -a	List all files in directories, including files that start with '.'
+    -d	List directories like other files, rather than listing their contents
+    -l	List long flag names
+    -v	List the file's version/generation number
 
 config CHATTR
   bool "chattr"
@@ -33,8 +33,8 @@ config CHATTR
 
     Change file attributes on a Linux second extended file system.
 
-    -R Recurse
-    -v Set the file's version/generation number
+    -R	Recurse
+    -v	Set the file's version/generation number
 
     Operators:
       '-' Remove attributes

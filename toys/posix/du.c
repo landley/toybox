@@ -17,20 +17,20 @@ config DU
     Show disk usage, space consumed by files and directories.
 
     Size in:
-    -k    1024 byte blocks (default)
-    -K    512 byte blocks (posix)
-    -m    megabytes
-    -h    human readable format (e.g., 1K 243M 2G )
+    -k	1024 byte blocks (default)
+    -K	512 byte blocks (posix)
+    -m	megabytes
+    -h	human readable format (e.g., 1K 243M 2G )
 
     What to show:
-    -a    all files, not just directories
-    -H    follow symlinks on cmdline
-    -L    follow all symlinks
-    -s    only total size of each argument
-    -x    don't leave this filesystem
-    -c    cumulative total
-    -d N  only depth < N
-    -l    disable hardlink filter
+    -a	all files, not just directories
+    -H	follow symlinks on cmdline
+    -L	follow all symlinks
+    -s	only total size of each argument
+    -x	don't leave this filesystem
+    -c	cumulative total
+    -d N	only depth < N
+    -l	disable hardlink filter
 */
 
 #define FOR_du
