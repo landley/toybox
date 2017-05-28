@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/head.html
 
-USE_HEAD(NEWTOY(head, "?n#<0=10", TOYFLAG_USR|TOYFLAG_BIN))
+USE_HEAD(NEWTOY(head, "?n#<0=10qv", TOYFLAG_USR|TOYFLAG_BIN))
 
 config HEAD
   bool "head"
@@ -16,6 +16,8 @@ config HEAD
     stdin. Filename "-" is a synonym for stdin.
 
     -n	Number of lines to copy
+    -q	Never print headers
+    -v	Always print headers
 */
 
 #define FOR_head
@@ -30,9 +32,9 @@ static void do_head(int fd, char *name)
 {
   int i, len, lines=TT.lines, size=sizeof(toybuf);
 
-  if (toys.optc > 1) {
+  if ((toys.optc > 1 && !(toys.optflags & FLAG_q)) || toys.optflags & FLAG_v) {
     // Print an extra newline for all but the first file
-    if (TT.file_no++) xprintf("\n");
+    if (TT.file_no) xprintf("\n");
     xprintf("==> %s <==\n", name);
     xflush();
   }
@@ -46,6 +48,8 @@ static void do_head(int fd, char *name)
 
     xwrite(1, toybuf, i);
   }
+
+  TT.file_no++;
 }
 
 void head_main(void)
