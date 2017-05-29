@@ -38,7 +38,10 @@ static void do_strings(int fd, char *filename)
   for (;;) {
     nread = read(fd, toybuf, sizeof(toybuf));
     if (nread < 0) perror_msg_raw(filename);
-    if (nread < 1) break;
+    if (nread < 1) {
+      if (count == wlen) xputc('\n');
+      break;
+    }
     for (i = 0; i < nread; i++, offset++) {
       if (((toybuf[i] >= 32) && (toybuf[i] <= 126)) || (toybuf[i] == '\t')) {
         if (count == wlen) fputc(toybuf[i], stdout);
@@ -47,7 +50,7 @@ static void do_strings(int fd, char *filename)
           if (count == wlen) {
             if (toys.optflags & FLAG_f) printf("%s: ", filename);
             if (toys.optflags & FLAG_o)
-              printf("%7lld ",(long long)(offset - wlen));
+              printf("%7lld ",(long long)(offset + 1 - wlen));
             printf("%s", string);
           }
         }
