@@ -18,3 +18,8 @@ testing "-o, multiple strings" "strings -n3 -o input | sed 's/^ *//'" \
 	"1 foo\n7 bar\n" "\0foo\0b\0bar\n" ""
 testing "-fo" "strings -fo input | sed 's/: */: /'" "input: 6 foobar\n" \
 	"\0\0\0\0\0\0foobar\n" ""
+
+OFFSET_10="\0\0\0\0\0\0\0\0\0\0foobar"
+testing "-t o" "strings -t o | sed 's/^ *//'" "12 foobar\n" "" $OFFSET_10
+testing "-t d" "strings -t d | sed 's/^ *//'" "10 foobar\n" "" $OFFSET_10
+testing "-t x" "strings -t x | sed 's/^ *//'" "a foobar\n" "" $OFFSET_10
