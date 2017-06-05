@@ -1397,7 +1397,7 @@ static int ipaddr_print( struct linkdata *link, int flag_l)
         }
 
         for (; NLMSG_OK(addr_ptr, len); addr_ptr = NLMSG_NEXT(addr_ptr, len)) {
-          if ((addr_ptr->nlmsg_type == RTM_NEWADDR))
+          if (addr_ptr->nlmsg_type == RTM_NEWADDR)
             print_addrinfo(addr_ptr, flag_l);
           if ((addr_ptr->nlmsg_type == NLMSG_DONE) ||
               (addr_ptr->nlmsg_type == NLMSG_ERROR) ||
