@@ -41,7 +41,7 @@ config TEST
 
 void test_main(void)
 {
-  int id, not;
+  int id, not = 0;
   char *s, *err_fmt = "Bad flag '%s'";
 
   toys.exitval = 2;
@@ -60,7 +60,7 @@ void test_main(void)
       struct stat st;
       int nolink;
 
-      toys.exitval = 1;
+      toys.exitval = !not;
       if (lstat(toys.optargs[1], &st) == -1) return;
       nolink = !S_ISLNK(st.st_mode);
       if (!nolink && (stat(toys.optargs[1], &st) == -1)) return;
