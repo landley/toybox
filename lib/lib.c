@@ -66,7 +66,8 @@ void help_exit(char *msg, ...)
 {
   va_list va;
 
-  if (CFG_TOYBOX_HELP) show_help(stderr);
+  if (CFG_TOYBOX_HELP)
+    fprintf(stderr, "See %s --help\n", toys.which->name);
 
   if (msg) {
     va_start(va, msg);

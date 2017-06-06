@@ -136,7 +136,7 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt)
   // Did we recognize this option?
   if (!opt) {
     if (gof->noerror) return 1;
-    error_exit("Unknown option %s", gof->arg);
+    help_exit("Unknown option %s", gof->arg);
   }
 
   // Might enabling this switch off something else?
@@ -163,7 +163,7 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt)
       if (opt == bad || !(i & toys.optflags)) continue;
       if (toys.optflags & bad->dex[2]) break;
     }
-    if (bad) error_exit("No '%c' with '%c'", opt->c, bad->c);
+    if (bad) help_exit("No '%c' with '%c'", opt->c, bad->c);
   }
 
   // Does this option take an argument?
@@ -187,10 +187,10 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt)
       char *s = "Missing argument to ";
       struct longopts *lo;
 
-      if (opt->c != -1) error_exit("%s-%c", s, opt->c);
+      if (opt->c != -1) help_exit("%s-%c", s, opt->c);
 
       for (lo = gof->longopts; lo->opt != opt; lo = lo->next);
-      error_exit("%s--%.*s", s, lo->len, lo->str);
+      help_exit("%s--%.*s", s, lo->len, lo->str);
     }
 
     if (type == ':') *(opt->arg) = (long)arg;
@@ -204,8 +204,8 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt)
     } else if (type == '#' || type == '-') {
       long l = atolx(arg);
       if (type == '-' && !ispunct(*arg)) l*=-1;
-      if (l < opt->val[0].l) error_exit("-%c < %ld", opt->c, opt->val[0].l);
-      if (l > opt->val[1].l) error_exit("-%c > %ld", opt->c, opt->val[1].l);
+      if (l < opt->val[0].l) help_exit("-%c < %ld", opt->c, opt->val[0].l);
+      if (l > opt->val[1].l) help_exit("-%c > %ld", opt->c, opt->val[1].l);
 
       *(opt->arg) = l;
     } else if (CFG_TOYBOX_FLOAT && type == '.') {
@@ -213,9 +213,9 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt)
 
       *f = strtod(arg, &arg);
       if (opt->val[0].l != LONG_MIN && *f < opt->val[0].f)
-        error_exit("-%c < %lf", opt->c, (double)opt->val[0].f);
+        help_exit("-%c < %lf", opt->c, (double)opt->val[0].f);
       if (opt->val[1].l != LONG_MAX && *f > opt->val[1].f)
-        error_exit("-%c > %lf", opt->c, (double)opt->val[1].f);
+        help_exit("-%c > %lf", opt->c, (double)opt->val[1].f);
     }
 
     if (!gof->nodash_now) gof->arg = "";
@@ -475,10 +475,10 @@ notflag:
 
   // Sanity check
   if (toys.optc<gof.minargs)
-    error_exit("Need%s %d argument%s", letters[!!(gof.minargs-1)],
+    help_exit("Need%s %d argument%s", letters[!!(gof.minargs-1)],
       gof.minargs, letters[!(gof.minargs-1)]);
   if (toys.optc>gof.maxargs)
-    error_exit("Max %d argument%s", gof.maxargs, letters[!(gof.maxargs-1)]);
+    help_exit("Max %d argument%s", gof.maxargs, letters[!(gof.maxargs-1)]);
   if (gof.requires && !(gof.requires & toys.optflags)) {
     struct opts *req;
     char needs[32], *s = needs;
@@ -487,7 +487,7 @@ notflag:
       if (req->flags & 1) *(s++) = req->c;
     *s = 0;
 
-    error_exit("Needs %s-%s", s[1] ? "one of " : "", needs);
+    help_exit("Needs %s-%s", s[1] ? "one of " : "", needs);
   }
 
   if (CFG_TOYBOX_FREE) {
