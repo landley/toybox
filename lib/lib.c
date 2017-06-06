@@ -393,6 +393,8 @@ int unescape(char c)
   return (idx == -1) ? 0 : to[idx];
 }
 
+// If string ends with suffix return pointer to start of suffix in string,
+// else NULL
 char *strend(char *str, char *suffix)
 {
   long a = strlen(str), b = strlen(suffix);
