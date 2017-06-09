@@ -12,7 +12,7 @@ USE_DMESG(NEWTOY(dmesg, "w(follow)CSTtrs#<1n#c[!Ttr][!Cc][!Sw]", TOYFLAG_BIN))
 
 config DMESG
   bool "dmesg"
-  default n
+  default y
   help
     usage: dmesg [-Cc] [-r|-t|-T] [-n LEVEL] [-s SIZE] [-w]
 
