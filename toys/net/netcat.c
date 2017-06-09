@@ -126,11 +126,15 @@ void netcat_main(void)
 // TODO xconnect
       if (connect(sockfd, (struct sockaddr *)address, sizeof(*address))<0)
         perror_exit("connect");
+
+      // We have a connection. Disarm timeout.
+      set_alarm(0);
+
       in1 = out2 = sockfd;
 
-    // Listen for incoming connections
-
+      pollinate(in1, in2, out1, out2, TT.idle, TT.quit_delay);
     } else {
+      // Listen for incoming connections
       socklen_t len = sizeof(*address);
 
       if (listen(sockfd, 5)) error_exit("listen");
@@ -143,7 +147,7 @@ void netcat_main(void)
         if (CFG_TOYBOX_FORK && toys.optc && xfork()) goto cleanup;
       }
 
-      for (;;) {
+      do {
         child = 0;
         len = sizeof(*address); // gcc's insane optimizer can overwrite this
         in1 = out2 = accept(sockfd, (struct sockaddr *)address, &len);
@@ -189,14 +193,9 @@ void netcat_main(void)
 
         pollinate(in1, in2, out1, out2, TT.idle, TT.quit_delay);
         close(in1);
-      }
+      } while (!(toys.optflags&FLAG_l));
     }
   }
-
-  // We have a connection. Disarm timeout.
-  set_alarm(0);
-
-  pollinate(in1, in2, out1, out2, TT.idle, TT.quit_delay);
 
 cleanup:
   if (CFG_TOYBOX_FREE) {
