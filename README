@@ -167,12 +167,3 @@ upstream first (into vanilla toybox, with discussion on the toybox mailing
 list) and then be pulled into android's toybox repo from there. (They
 generally resync on fridays). The exception is patches to their build scripts
 (Android.mk and the checked-in generated/* files) which go directly to AOSP.
-
---- Code of conduct
-
-We're using twitter's https://engineering.twitter.com/opensource/code-of-conduct
-except email rob@landley.net with complaints.
-
-(Yes, I try to pay more attention to marginalized programmers, which somehow
-manages to include 51% of the population. If somebody has to be three times as
-good to get half the recognition, why WOULDN'T you adjust for that?)
