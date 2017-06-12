@@ -4,9 +4,11 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/grep.html
  *
- * TODO: -ABC
+ * TODO: --color, "Binary file %s matches"
+ *
+ * Posix doesn't even specify -r, documenting deviations from it is silly.
 
-USE_GREP(NEWTOY(grep, "C#B#A#ZzEFHabhinorsvwclqe*f*m#x[!wx][!EFw]", TOYFLAG_BIN))
+USE_GREP(NEWTOY(grep, "S(exclude)*M(include)*C#B#A#ZzEFHabhinorsvwclqe*f*m#x[!wx][!EFw]", TOYFLAG_BIN))
 USE_EGREP(OLDTOY(egrep, grep, TOYFLAG_BIN))
 USE_FGREP(OLDTOY(fgrep, grep, TOYFLAG_BIN))
 
@@ -14,22 +16,27 @@ config GREP
   bool "grep"
   default y
   help
-    usage: grep [-EFivwcloqsHbhn] [-A NUM] [-m MAX] [-e REGEX]... [-f REGFILE] [FILE]...
+    usage: grep [-EFrivwcloqsHbhn] [-ABC NUM] [-m MAX] [-e REGEX]... [-MS PATTERN]... [-f REGFILE] [FILE]...
 
     Show lines matching regular expressions. If no -e, first argument is
     regular expression to match. With no files (or "-" filename) read stdin.
     Returns 0 if matched, 1 if no match found.
 
     -e  Regex to match. (May be repeated.)
-    -f  File containing regular expressions to match.
+    -f  File listing regular expressions to match.
+
+    file search:
+    -r  Recurse into subdirectories (defaults FILE to ".")
+    -M  Match filename pattern (--include)
+    -S  Skip filename pattern (--exclude)
 
     match type:
     -A  Show NUM lines after     -B  Show NUM lines before match
     -C  NUM lines context (A+B)  -E  extended regex syntax
     -F  fixed (literal match)    -i  case insensitive
-    -m  match MAX many lines     -r  recursive (on dir)
-    -v  invert match             -w  whole word (implies -E)
-    -x  whole line               -z  input NUL terminated
+    -m  match MAX many lines     -v  invert match
+    -w  whole word (implies -E)  -x  whole line
+    -z  input NUL terminated
 
     display modes: (default: matched line)
     -c  count of matching lines  -l  show matching filenames
@@ -62,6 +69,8 @@ GLOBALS(
   long a;
   long b;
   long c;
+  struct arg_list *M;
+  struct arg_list *S;
 
   char indelim, outdelim;
 )
@@ -324,6 +333,19 @@ static int do_grep_r(struct dirtree *new)
 
   if (!dirtree_notdotdot(new)) return 0;
   if (S_ISDIR(new->st.st_mode)) return DIRTREE_RECURSE;
+  if (TT.S || TT.M) {
+    struct arg_list *al;
+
+    for (al = TT.S; al; al = al->next)
+      if (!fnmatch(al->arg, new->name, 0)) return 0;
+
+    if (TT.M) {
+      for (al = TT.M; al; al = al->next)
+        if (!fnmatch(al->arg, new->name, 0)) break;
+
+      if (!al) return 0;
+    }
+  }
 
   // "grep -r onefile" doesn't show filenames, but "grep -r onedir" should.
   if (new->parent && !(toys.optflags & FLAG_h)) toys.optflags |= FLAG_H;
