@@ -73,6 +73,7 @@ GLOBALS(
   struct arg_list *S;
 
   char indelim, outdelim;
+  int found;
 )
 
 // Emit line with various potential prefixes and delimiter
@@ -194,8 +195,11 @@ static void do_grep(int fd, char *name)
         bars = 0;
       }
       mmatch++;
-      toys.exitval = 0;
-      if (toys.optflags & FLAG_q) xexit();
+      TT.found = 1;
+      if (toys.optflags & FLAG_q) {
+        toys.exitval = 0;
+        xexit();
+      }
       if (toys.optflags & FLAG_l) {
         xprintf("%s%c", name, TT.outdelim);
         free(line);
@@ -361,6 +365,9 @@ void grep_main(void)
 {
   char **ss = toys.optargs;
 
+  // Grep exits with 2 for errors
+  toys.exitval = 2;
+
   if (!TT.a) TT.a = TT.c;
   if (!TT.b) TT.b = TT.c;
 
@@ -382,7 +389,6 @@ void grep_main(void)
 
   if (!(toys.optflags & FLAG_h) && toys.optc>1) toys.optflags |= FLAG_H;
 
-  toys.exitval = 1;
   if (toys.optflags & FLAG_s) {
     close(2);
     xopen_stdio("/dev/null", O_RDWR);
@@ -395,4 +401,5 @@ void grep_main(void)
       else dirtree_read(*ss, do_grep_r);
     }
   } else loopfiles_rw(ss, O_RDONLY|WARN_ONLY, 0, do_grep);
+  toys.exitval = !TT.found;
 }
