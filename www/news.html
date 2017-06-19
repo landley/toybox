@@ -8,6 +8,93 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+<a name="19-06-2017" /><a href="#19-06-2017"><hr><h2><b>June 19, 2017</b></h2></a>
+<blockquote><p>It is a well-known fact that those people who most want to rule people are, ipso facto, those least suited to do it.
+To summarize the summary: anyone who is capable of getting themselves made President should on no account be allowed to do the job.</p>
+<p>- The Hitchhiker's Guide to the Galaxy</p>
+</blockquote>
+
+<p><a href=downloads/toybox-0.7.4.tar.gz>Toybox 0.7.4</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.7.4>git commit</a>)
+is out. No new commands this time, but
+<b>chrt</b> and <b>dmesg</b> got promoted out of pending.</p>
+
+<p><u>New features</u>:
+Rob rewrote paste, which should work much better now, and added grep
+-M and -S to match and skip wildcards respectively (useful with -r).
+Elliott's updated dmesg has -T and --color. The file
+command can recognize gzip now, uptime grew -s, date grew %N, env knows - as a first argument
+means -i (posix!) and grew -0, ls defaults to -b
+instead of -q now when there's a tty, and ls has a new -ll option (with
+--full-time as a compatibility synonym) showing nanoseconds and (for some
+reason) timezone. (Why do individual files have timezones?) Elliott added
+"uudecode -o -" support. Illya Kuzmich taught head -v and -q. The cpio
+code no longer adds the "TRAILER!!!" entry by default (initramfs extractor
+doesn't care) without which you can concatenate cpio archives with "cat".
+(Use the new --trailer option if you want the legacy behavior.)
+In pending, fdisk compiles now and tar understands bzip2.</p>
+
+<p><u>Build</u>:
+The "make install_airlock" target now symlinks bc from the host because
+the kernel <a href=https://landley.net/notes-2013.html#28-03-2013>inexplicably</a>
+needs that to build. This was motivated by
+<a href=https://github.com/landley/mkroot>mkroot</a>, which builds under
+a toybox airlock directory.</p>
+
+<p>Lots of work on the test suite, mostly from the Android guys who are now
+running it under Android. This fixed several existing tests that didn't
+pass, made more tests run on a toybox-only system, and so on. The test suite
+infrastructure now has a second testing function,
+"testcmd", which supplies the command name being tested (bypassing
+shell builtins).</p>
+
+<p>Various android build and config fixes, getting closer to being able
+to let android someday use scripts/make.sh instead of generated/* snapshots.
+Also more work into building under android's NDK; not quite there yet
+but much closer.
+Use nproc in scripts/make.sh detect available processors (so you can control the SMP level with taskset).
+Removed the old uClibc compatibility glue, it's been 5 years since their
+<a href=http://lists.busybox.net/pipermail/buildroot/2016-December/180102.html>last release</a>.</p>
+
+<p>The new config option TOYBOX_PEDANTIC_ARGS checks arguments when there
+are no arguments, so things like "uptime" no longer silently ignore arguments
+you pass but instead refuse to run.</p>
+
+<p><u>Docs</u>:
+The FAQ now has more than one entry. Commands no longer output the full
+help text for argument errors but instead just say "See %s --help" with the
+command name (in addition to the actual error message).
+Elliott did a big period-ectomy on all the --help text, and
+we cleaned up some tab/space inconsistency. The
+non-html help -a output now has separators with the command name.
+The top/iotop and pkill/pgrep help text now describe a lot more of what
+the commands can do. Twitter's code of conduct page went down so we
+mirrored the text locally.</p>
+
+<p><u>Bugfixes</u>:
+Fixed a race condition in ps/top where a process that exited right as we
+read its data returned a different error value than we were expecting (which
+was causing long-running top instances to occasionally exit),
+mount now gives an error if it can't autodetect the filesystem
+type, ps no longer queries the terminal size when output isn't to a tty
+(so "ps -A | cat" doesn't vary), date's chkmktime() was replaced with
+simple range checks for fields (to avoid false positives from things like
+timezones and daylight savings time), removed %s from date's help (we
+didn't implement it, we have @seconds[.nanoseconds] instead), fixed
+zcat's buffer flush logic (which was always failing on files larger
+than 32k), and factor now detects requests for numbers >64 bits and fails
+loudly instead of producing incorrect answers.
+Elliott fixed touch -a/-m (they were backwards), and allowed ':' in
+setprop's property names. Grep now exits with 2 for errors (so -q can
+distinguish "didn't find" from "didn't work"), doesn't stop on symlinks
+that point nowhere (there was an error_exit() that should just be a warning),
+and provides error messages for files we could open but not read.</p>
+
+<p><u>Library</u>:
+New library functions: strend() complements strstart(), minof()/maxof()
+are min/max macros that evalute arguments once and autodetect type (why
+isn't this in libc?), xmmap() checks MAP_FAILED (which is not NULL).</p>
+
 <a name="21-02-2017" /><a href="#21-02-2017"><hr><h2><b>February 21, 2017</b></h2></a>
 <blockquote><p>Only six people in the Galaxy knew that the job of the
 Galactic President was not to wield power but to attract attention
