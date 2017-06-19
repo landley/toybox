@@ -128,10 +128,9 @@ config PS
 
 config TOP
   bool "top"
-  depends on TOP_COMMON
   default y
   help
-    usage: top [-H] [-k FIELD,] [-o FIELD,] [-s SORT]
+    usage: top [-Hbq] [-k FIELD,] [-o FIELD,] [-s SORT] [-n NUMBER] [-d SECONDS] [-p PID,] [-u USER,]
 
     Show process activity in real time.
 
@@ -140,14 +139,22 @@ config TOP
     -o	Show FIELDS (def PID,USER,PR,NI,VIRT,RES,SHR,S,%CPU,%MEM,TIME+,CMDLINE)
     -O	Add FIELDS (replacing PR,NI,VIRT,RES,SHR,S from default)
     -s	Sort by field number (1-X, default 9)
+    -b	Batch mode (no tty)
+    -d	Delay SECONDS between each cycle (default 3)
+    -n	Exit after NUMBER iterations
+    -p	Show these PIDs
+    -u	Show these USERs
+    -q	Quiet (no header lines)
+
+    Cursor LEFT/RIGHT to change sort, UP/DOWN move list, space to force
+    update, R to reverse sort, Q to exit.
 
 # Requires CONFIG_IRQ_TIME_ACCOUNTING in the kernel for /proc/$$/io
 config IOTOP
   bool "iotop"
-  depends on TOP_COMMON
   default y
   help
-    usage: iotop [-AaKO]
+    usage: iotop [-AaKObq] [-n NUMBER] [-d SECONDS] [-p PID,] [-u USER,]
 
     Rank processes by I/O.
 
@@ -158,13 +165,6 @@ config IOTOP
     -O	Only show processes doing I/O
     -o	Show FIELDS (default PID,PR,USER,[D]READ,[D]WRITE,SWAP,[D]IO,COMM)
     -s	Sort by field number (0-X, default 6)
-
-config TOP_COMMON
-  bool
-  default y
-  help
-    usage: * [-bq] [-n NUMBER] [-d SECONDS] [-p PID,] [-u USER,]
-
     -b	Batch mode (no tty)
     -d	Delay SECONDS between each cycle (default 3)
     -n	Exit after NUMBER iterations
@@ -178,9 +178,8 @@ config TOP_COMMON
 config PGREP
   bool "pgrep"
   default y
-  depends on PGKILL_COMMON
   help
-    usage: pgrep [-cl] [-d DELIM] [-L SIGNAL] [PATTERN]
+    usage: pgrep [-clfnovx] [-d DELIM] [-L SIGNAL] [PATTERN] [-G GID,] [-g PGRP,] [-P PPID,] [-s SID,] [-t TERM,] [-U UID,] [-u EUID,]
 
     Search for process(es). PATTERN is an extended regular expression checked
     against command names.
@@ -189,23 +188,27 @@ config PGREP
     -d	Use DELIM instead of newline
     -L	Send SIGNAL instead of printing name
     -l	Show command name
+    -f	Check full command line for PATTERN
+    -G	Match real Group ID(s)
+    -g	Match Process Group(s) (0 is current user)
+    -n	Newest match only
+    -o	Oldest match only
+    -P	Match Parent Process ID(s)
+    -s	Match Session ID(s) (0 for current)
+    -t	Match Terminal(s)
+    -U	Match real User ID(s)
+    -u	Match effective User ID(s)
+    -v	Negate the match
+    -x	Match whole command (not substring)
 
 config PKILL
   bool "pkill"
   default y
-  depends on PGKILL_COMMON
   help
-    usage: pkill [-SIGNAL|-l SIGNAL] [PATTERN]
+    usage: pkill [-fnovx] [-SIGNAL|-l SIGNAL] [PATTERN] [-G GID,] [-g PGRP,] [-P PPID,] [-s SID,] [-t TERM,] [-U UID,] [-u EUID,]
 
     -l	Send SIGNAL (default SIGTERM)
     -V	verbose
-
-config PGKILL_COMMON
-  bool
-  default y
-  help
-    usage: * [-fnovx] [-G GID,] [-g PGRP,] [-P PPID,] [-s SID,] [-t TERM,] [-U UID,] [-u EUID,]
-
     -f	Check full command line for PATTERN
     -G	Match real Group ID(s)
     -g	Match Process Group(s) (0 is current user)
