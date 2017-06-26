@@ -299,11 +299,12 @@ long long atolx(char *numstr)
 
   val = xstrtol(numstr, &c, 0);
   if (c != numstr && *c && (end = strchr(suffixes, tolower(*c)))) {
-    int shift = end-suffixes-2;
+    int shift = end-suffixes-1;
 
-    if (shift >= 0) {
-      if (toupper(*++c)=='d') do val *= 1000; while (shift--);
-      else val *= 1024LL<<(shift*10);
+    if (!shift) val *= 512;
+    else if (shift>0) {
+      if (toupper(*++c)=='d') while (shift--) val *= 1000;
+      else val *= 1LL<<(shift*10);
     }
   }
   while (isspace(*c)) c++;
