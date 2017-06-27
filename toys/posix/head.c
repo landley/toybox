@@ -3,7 +3,8 @@
  * Copyright 2006 Timothy Elliott <tle@holymonkey.com>
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/head.html
- * See http://man7.org/linux/man-pages/man1/head.1.html
+ *
+ * Deviations from posix: -c
 
 USE_HEAD(NEWTOY(head, "?n#<0=10c#<0qv[-nc]", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -42,7 +43,7 @@ static void do_head(int fd, char *name)
     xflush();
   }
 
-  while (toys.optflags & FLAG_c ? bytes : lines) {
+  while ((toys.optflags&FLAG_c) ? bytes : lines) {
     len = read(fd, toybuf, sizeof(toybuf));
     if (len<0) perror_msg_raw(name);
     if (len<1) break;
@@ -50,8 +51,7 @@ static void do_head(int fd, char *name)
     if (bytes) {
       i = bytes >= len ? len : bytes;
       bytes -= i;
-    } else
-      for(i=0; i<len;) if (toybuf[i++] == '\n' && !--lines) break;
+    } else for(i=0; i<len;) if (toybuf[i++] == '\n' && !--lines) break;
 
     xwrite(1, toybuf, i);
   }
