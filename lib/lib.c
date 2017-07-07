@@ -290,17 +290,18 @@ long long xstrtol(char *str, char **end, int base)
   return l;
 }
 
-// atol() with the kilo/mega/giga/tera/peta/exa extensions.
+// atol() with the kilo/mega/giga/tera/peta/exa extensions, plus word and block.
 // (zetta and yotta don't fit in 64 bits.)
 long long atolx(char *numstr)
 {
-  char *c = numstr, *suffixes="cbkmgtpe", *end;
+  char *c = numstr, *suffixes="cwbkmgtpe", *end;
   long long val;
 
   val = xstrtol(numstr, &c, 0);
   if (c != numstr && *c && (end = strchr(suffixes, tolower(*c)))) {
-    int shift = end-suffixes-1;
+    int shift = end-suffixes-2;
 
+    if (shift==-1) val *= 2;
     if (!shift) val *= 512;
     else if (shift>0) {
       if (toupper(*++c)=='d') while (shift--) val *= 1000;

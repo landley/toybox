@@ -40,8 +40,7 @@ config DD
 #include "toys.h"
 
 GLOBALS(
-  int show_xfer;
-  int show_records;
+  int show_xfer, show_records;
   unsigned long long bytes, c_count, in_full, in_part, out_full, out_part;
   struct timeval start;
   struct {
@@ -63,42 +62,12 @@ struct pair {
   unsigned val;
 };
 
-static struct pair suffixes[] = {
-  { "c", 1 }, { "w", 2 }, { "b", 512 },
-  { "kD", 1000 }, { "k", 1024 }, { "K", 1024 },
-  { "MD", 1000000 }, { "M", 1048576 },
-  { "GD", 1000000000 }, { "G", 1073741824 }
-};
-
 static struct pair clist[] = {
   { "fsync",    C_FSYNC },
   { "noerror",  C_NOERROR },
   { "notrunc",  C_NOTRUNC },
   { "sync",     C_SYNC },
 };
-
-static unsigned long long strsuftoll(char *arg, int def, unsigned long long max)
-{
-  unsigned long long result;
-  char *p = arg;
-  int i, idx = -1;
-
-  while (isspace(*p)) p++;
-  if (*p == '-') error_exit("invalid number '%s'", arg);
-
-  errno = 0;
-  result = strtoull(p, &p, 0);
-  if (errno == ERANGE || result > max || result < def)
-    perror_exit("invalid number '%s'", arg);
-  if (*p != '\0') {
-    for (i = 0; i < ARRAY_LEN(suffixes); i++)
-      if (!strcmp(p, suffixes[i].name)) idx = i;
-    if (idx == -1 || (max/suffixes[idx].val < result)) 
-      error_exit("invalid number '%s'", arg);
-    result *= suffixes[idx].val;
-  }
-  return result;
-}
 
 static void status()
 {
@@ -169,16 +138,17 @@ void dd_main()
   for (args = toys.optargs; *args; args++) {
     char *arg = *args;
 
-    if (strstarteq(&arg, "bs")) bs = strsuftoll(arg, 1, LONG_MAX);
-    else if (strstarteq(&arg, "ibs")) TT.in.sz = strsuftoll(arg, 1, LONG_MAX);
-    else if (strstarteq(&arg, "obs")) TT.out.sz = strsuftoll(arg, 1, LONG_MAX);
-    else if (strstarteq(&arg, "count")) TT.c_count = strsuftoll(arg, 0, ULLONG_MAX-1);
+    if (strstarteq(&arg, "bs")) bs = atolx_range(arg, 1, LONG_MAX);
+    else if (strstarteq(&arg, "ibs")) TT.in.sz = atolx_range(arg, 1, LONG_MAX);
+    else if (strstarteq(&arg, "obs")) TT.out.sz = atolx_range(arg, 1, LONG_MAX);
+    else if (strstarteq(&arg, "count"))
+      TT.c_count = atolx_range(arg, 0, LLONG_MAX);
     else if (strstarteq(&arg, "if")) TT.in.name = arg;
     else if (strstarteq(&arg, "of")) TT.out.name = arg;
     else if (strstarteq(&arg, "seek"))
-      TT.out.offset = strsuftoll(arg, 0, ULLONG_MAX);
+      TT.out.offset = atolx_range(arg, 0, LLONG_MAX);
     else if (strstarteq(&arg, "skip"))
-      TT.in.offset = strsuftoll(arg, 0, ULLONG_MAX);
+      TT.in.offset = atolx_range(arg, 0, LLONG_MAX);
     else if (strstarteq(&arg, "status")) {
       if (!strcmp(arg, "noxfer")) TT.show_xfer = 0;
       else if (!strcmp(arg, "none")) TT.show_xfer = TT.show_records = 0;
