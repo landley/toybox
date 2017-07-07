@@ -113,7 +113,8 @@ static void re(char *target, char *pattern, struct value *ret)
   if (!regexec(&pat, target, 2, m, 0) && !m[0].rm_so) {
     // Return first parenthesized subexpression as string, or length of match
     if (pat.re_nsub>0) {
-      ret->s = xmprintf("%.*s", m[1].rm_eo-m[1].rm_so, target+m[1].rm_so);
+      ret->s = xmprintf("%.*s", (int)(m[1].rm_eo-m[1].rm_so),
+          target+m[1].rm_so);
       if (TT.refree) free(TT.refree);
       TT.refree = ret->s;
     } else assign_int(ret, m[0].rm_eo);
