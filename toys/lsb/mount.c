@@ -300,7 +300,7 @@ void mount_main(void)
   // For remount we need _last_ match (in case of overmounts), so traverse
   // in reverse order. (Yes I'm using remount as a boolean for a bit here,
   // the double cast is to get gcc to shut up about it.)
-  remount = (void *)(long)comma_scan(opts, "remount", 1);
+  remount = (void *)(long)comma_scan(opts, "remount", 0);
   if (((toys.optflags & FLAG_a) && !access("/proc/mounts", R_OK)) || remount) {
     mm = dlist_terminate(mtl = mtl2 = xgetmountlist(0));
     if (remount) remount = mm;
