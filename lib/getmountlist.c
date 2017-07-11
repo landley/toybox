@@ -97,7 +97,10 @@ int comma_scan(char *optlist, char *opt, int clean)
     no = 2*(*s == 'n' && s[1] == 'o');
     if (optlen == len-no && !strncmp(opt, s+no, optlen)) {
       got = !no;
-      if (clean && optlist) memmove(s, optlist, strlen(optlist)+1);
+      if (clean) {
+        if (optlist) memmove(s, optlist, strlen(optlist)+1);
+        else *s = 0;
+      }
     }
   }
 
