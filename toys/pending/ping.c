@@ -45,66 +45,79 @@ GLOBALS(
   int sock;
 )
 
+void *sock2addr(struct sockaddr *sa)
+{
+  if (sa->sa_family == AF_INET)
+    return &((struct sockaddr_in *)sa)->sin_addr;
+  return &((struct sockaddr_in6 *)sa)->sin6_addr;
+}
+
 void ping_main(void)
 {
-  int family, protocol;
+  struct addrinfo *ai, *ai2;
+  struct ifaddrs *ifa, *ifa2 = 0;
   union {
-    struct in_addr in;
-    struct in6_addr in6;
+    struct sockaddr_in in;
+    struct sockaddr_in6 in6;
   } src_addr;
-  char *host = 0;
+  struct sockaddr *sa = (void *)&src_addr;
+  int family = 0;
 
-  // Determine IPv4 vs IPv6 type
+  // no 4/6 specified: -I has only one, arg must match
+  // no 4/6 specified: arg is one, -I must match
+  // 4/6 specified, both must match
 
-  if(!(toys.optflags & (FLAG_4|FLAG_6))) {
-// todo getaddrinfo instead?
-    if (inet_pton(AF_INET6, toys.optargs[0], (void*)&src_addr))
-      toys.optflags |= FLAG_6;
-  }
+  if (!(toys.optflags&FLAG_s)) TT.size = 56; // 64-PHDR_LEN
+  if (toys.optflags&FLAG_6) family = AF_INET6;
+  else if (toys.optflags&FLAG_4) family = AF_INET;
+  else family = 0;
 
-  if (toys.optflags & FLAG_6) {
-    family = AF_INET6;
-    protocol = IPPROTO_ICMPV6;
-  } else {
-    family = AF_INET;
-    protocol = IPPROTO_ICMP;
-  }
-
-  if (!(toys.optflags & FLAG_s)) TT.size = 56; // 64-PHDR_LEN
-
+  // If -I src_addr look it up. Allow numeric address of correct type.
+  memset(&src_addr, 0, sizeof(src_addr));
   if (TT.iface) {
-    memset(&src_addr, 0, sizeof(src_addr));
-
-    // IP address?
-    if (!inet_pton(family, TT.iface, &src_addr)) {
-      struct ifaddrs *ifsave, *ifa = 0;
-
-      // Interface name?
-      if (!getifaddrs(&ifsave)) {
-        for (ifa = ifsave; ifa; ifa = ifa->ifa_next) {
-          if (!ifa->ifa_addr || ifa->ifa_addr->sa_family != family) continue;
-          if (!strcmp(ifa->ifa_name, TT.iface)) {
-            if (family == AF_INET)
-              memcpy(&src_addr,
-                &((struct sockaddr_in *)ifa->ifa_addr)->sin_addr,
-                sizeof(struct in_addr));
-            else memcpy(&src_addr,
-                &((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr,
-                sizeof(struct in6_addr));
-            break;
-          }
-        }
-        freeifaddrs(ifsave);
-      }
-      if (!ifa)
-        error_exit("no v%d addr for -I %s", 4+2*(family==AF_INET6), TT.iface);
-    }
-    inet_ntop(family, &src_addr, toybuf, sizeof(toybuf));
-    host = xstrdup(toybuf);
+    if (!(toys.optflags&FLAG_6) && inet_pton(AF_INET, TT.iface,
+      (void *)&src_addr.in.sin_addr))
+        family = sa->sa_family = AF_INET;
+    else if (!(toys.optflags&FLAG_4) && inet_pton(AF_INET6, TT.iface,
+      (void *)&src_addr.in6.sin6_addr))
+        family = sa->sa_family = AF_INET6;
+    else if (getifaddrs(&ifa2)) perror_exit("getifaddrs");
   }
 
-printf("host=%s\n", host);
+  // Look up HOST address, filtering for correct type.
+  // If -I but no -46 then find compatible type between -I and HOST
+  ai2 = xgetaddrinfo(toys.optargs[0], 0, family, 0, 0, 0);
+  for (ai = ai2; ai; ai = ai->ai_next) {
+    if (family && family!=ai->ai_family) continue;
+    if (ai->ai_family!=AF_INET && ai->ai_family!=AF_INET6) continue;
+    if (!TT.iface || !ifa2) break;
+    for (ifa = ifa2; ifa; ifa = ifa->ifa_next) {
+      if (!ifa->ifa_addr || ifa->ifa_addr->sa_family!=ai->ai_family
+          || strcmp(ifa->ifa_name, TT.iface)) continue;
+      sa = (void *)ifa->ifa_addr;
+
+      break;
+    }
+    if (ifa) break;
+  }
+
+  if (!ai)
+    error_exit("no v%d addr for -I %s", 4+2*(family==AF_INET6), TT.iface);
+
+  inet_ntop(family, sock2addr(sa), toybuf, sizeof(toybuf));
+  printf("host=%s\n", toybuf);
+  *toybuf = 0;
+  inet_ntop(ai->ai_family, sock2addr(ai->ai_addr), toybuf, sizeof(toybuf));
+  printf("targ=%s\n", toybuf);
 
   // Open raw socket
-  TT.sock = xsocket(family, SOCK_RAW, protocol);
+  TT.sock = xsocket(ai->ai_family, SOCK_DGRAM, (ifa->ifa_addr->sa_family == AF_INET) ?
+    IPPROTO_ICMP : IPPROTO_ICMPV6);
+  if (TT.iface && bind(TT.sock, ifa->ifa_addr, sizeof(src_addr)))
+    perror_exit("bind");
+
+  if (CFG_TOYBOX_FREE) {
+    freeaddrinfo(ai2);
+    if (ifa2) freeifaddrs(ifa2);
+  }
 }
