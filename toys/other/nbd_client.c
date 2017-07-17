@@ -52,7 +52,7 @@ void nbd_client_main(void)
 
     // Find and connect to server
 
-    sock = xconnect(host, port, AF_UNSPEC, SOCK_STREAM, 0, 0);
+    sock = xconnect(xgetaddrinfo(host, port, AF_UNSPEC, SOCK_STREAM, 0, 0));
     temp = 1;
     setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &temp, sizeof(int));
 

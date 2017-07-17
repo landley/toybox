@@ -107,7 +107,8 @@ void ftpget_main(void)
   if (!remote) remote = toys.optargs[1];
 
   // connect
-  TT.fd = xconnect(*toys.optargs, TT.port, 0, SOCK_STREAM, 0, AI_ADDRCONFIG);
+  TT.fd = xconnect(xgetaddrifo(*toys.optargs, TT.port, 0, SOCK_STREAM, 0,
+    AI_ADDRCONFIG));
   if (getpeername(TT.fd, (void *)&si6, &sl)) perror_exit("getpeername");
 
   // Login
