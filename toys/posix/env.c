@@ -56,5 +56,5 @@ void env_main(void)
   }
 
   if (environ) for (ev = environ; *ev; ev++)
-    xprintf("%s%c", *ev, '\n'*!(toys.optflags*FLAG_0));
+    xprintf("%s%c", *ev, '\n'*!(toys.optflags&FLAG_0));
 }
