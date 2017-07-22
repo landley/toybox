@@ -30,7 +30,12 @@ do_test()
 {
   CMDNAME="${1##*/}"
   CMDNAME="${CMDNAME%.test}"
-  [ -z "$2" ] && C="$(readlink -f ../$CMDNAME)" || C="$(which $CMDNAME)"
+  if [ -z "$TEST_HOST" ]
+  then
+    [ -z "$2" ] && C="$(readlink -f ../$CMDNAME)" || C="$(which $CMDNAME)"
+  else
+    C="$CMDNAME"
+  fi
   if [ ! -z "$C" ]
   then
     . "$1"
