@@ -44,3 +44,7 @@ testing "-r nested_dir" "rm -r dir1/dir2/ 2>/dev/null &&
   "yes\n" "" ""
 rm -rf dir*
 
+mkdir -p one && touch one/two && chmod 000 one
+SKIP_HOST=1 testing "-rf 000 dir" \
+  "rm -rf one 2>/dev/null && [ ! -e one ] && echo yes" "yes\n" "" ""
+chmod 777 one 2>/dev/null ; rm -rf one
