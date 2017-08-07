@@ -67,7 +67,7 @@ fi
 # Extract a list of toys/*/*.c files to compile from the data in $KCONFIG_CONFIG
 # (First command names, then filenames with relevant {NEW,OLD}TOY() macro.)
 
-[ -z "$GITHASH" ] && GITHASH="$(git describe --tags --abbrev=12 2>/dev/null)"
+[ -d ".git" ] && GITHASH="$(git describe --tags --abbrev=12 2>/dev/null)"
 [ ! -z "$GITHASH" ] && GITHASH="-DTOYBOX_VERSION=\"$GITHASH\""
 TOYFILES="$($SED -n 's/^CONFIG_\([^=]*\)=.*/\1/p' "$KCONFIG_CONFIG" | xargs | tr ' [A-Z]' '|[a-z]')"
 TOYFILES="$(egrep -l "TOY[(]($TOYFILES)[ ,]" toys/*/*.c)"
