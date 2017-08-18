@@ -8,10 +8,10 @@ config LSOF
   bool "lsof"
   default n
   help
-    usage: lsof [-lt] [-p PID1,PID2,...] [NAME]...
+    usage: lsof [-lt] [-p PID1,PID2,...] [FILE...]
 
-    Lists open files. If names are given on the command line, only
-    those files will be shown.
+    List all open files belonging to all active processes, or processes using
+    listed FILE(s).
 
     -l	list uids numerically
     -p	for given comma-separated pids only (default all pids)
@@ -25,17 +25,13 @@ GLOBALS(
   struct arg_list *p;
 
   struct stat *sought_files;
-
-  struct double_list *all_sockets;
-  struct double_list *files;
-  int last_shown_pid;
-  int shown_header;
+  struct double_list *all_sockets, *files;
+  int last_shown_pid, shown_header;
 )
 
 struct proc_info {
-  char cmd[10];
-  int pid;
-  char user[12];
+  char cmd[17];
+  int pid, uid;
 };
 
 struct file_info {
@@ -43,8 +39,7 @@ struct file_info {
 
   // For output.
   struct proc_info pi;
-  char* name;
-  char fd[8], rw, locks, type[10], device[32], size_off[32], node[32];
+  char *name, fd[8], rw, locks, type[10], device[32], size_off[32], node[32];
 
   // For filtering.
   dev_t st_dev;
@@ -78,7 +73,7 @@ static void print_info(void *data)
     }
 
     printf("%-9s %5d %10.10s %4s%c%c %7s %18s %9s %10s %s\n",
-           fi->pi.cmd, fi->pi.pid, fi->pi.user,
+           fi->pi.cmd, fi->pi.pid, getusername(fi->pi.uid),
            fi->fd, fi->rw, fi->locks, fi->type, fi->device, fi->size_off,
            fi->node, fi->name);
   }
@@ -164,10 +159,8 @@ static void scan_netlink(char *line, int af, char type)
     "ENCRYPTFS", "RDMA", "CRYPTO"
   };
 
-  if (sscanf(line, "%*p %u %*u %*x %*u %*u %*u %*u %*u %lu", &state, &inode)
-      < 2) {
+  if (sscanf(line, "%*p %u %*u %*x %*u %*u %*u %*u %*u %lu", &state, &inode)<2)
     return;
-  }
 
   struct file_info *fi = add_socket(inode, "netlink");
   fi->name =
@@ -388,40 +381,28 @@ static void visit_fds(struct proc_info *pi)
   closedir(dir);
 }
 
-static void lsof_pid(int pid)
+static void lsof_pid(int pid, struct stat *st)
 {
   struct proc_info pi;
-  char *line;
   struct stat sb;
+  char *s;
+
+  pi.pid = pid;
 
   // Skip nonexistent pids
   sprintf(toybuf, "/proc/%d/stat", pid);
-  if (!(line = readfile(toybuf, toybuf, sizeof(toybuf)))) return;
-
-  // Get COMMAND.
-  strcpy(pi.cmd, "?");
-  if (line) {
-    char *open_paren = strchr(toybuf, '(');
-    char *close_paren = strrchr(toybuf, ')');
-
-    if (open_paren && close_paren) {
-      *close_paren = 0;
-      snprintf(pi.cmd, sizeof(pi.cmd), "%s", open_paren + 1);
-    }
-  }
-
-  // We already know PID.
-  pi.pid = pid;
+  if (!readfile(toybuf, toybuf, sizeof(toybuf)-1) || !(s = strchr(toybuf, '(')))
+    return;
+  memcpy(pi.cmd, s+1, sizeof(pi.cmd)-1);
+  pi.cmd[sizeof(pi.cmd)-1] = 0;
+  if ((s = strrchr(pi.cmd, ')'))) *s = 0;
 
   // Get USER.
-  snprintf(toybuf, sizeof(toybuf), "/proc/%d", pid);
-  if (!stat(toybuf, &sb)) {
-    struct passwd *pw;
-
-    if (!(toys.optflags&FLAG_l) && (pw = getpwuid(sb.st_uid))) {
-      snprintf(pi.user, sizeof(pi.user), "%s", pw->pw_name);
-    } else snprintf(pi.user, sizeof(pi.user), "%u", (unsigned)sb.st_uid);
+  if (!st) {
+    snprintf(toybuf, sizeof(toybuf), "/proc/%d", pid);
+    if (stat(toybuf, st = &sb)) return;
   }
+  pi.uid = st->st_uid;
 
   visit_symlink(&pi, "cwd", "cwd");
   visit_symlink(&pi, "rtd", "root");
@@ -435,7 +416,7 @@ static int scan_proc(struct dirtree *node)
   int pid;
 
   if (!node->parent) return DIRTREE_RECURSE|DIRTREE_SHUTUP;
-  if ((pid = atol(node->name))) lsof_pid(pid);
+  if ((pid = atol(node->name))) lsof_pid(pid, &node->st);
 
   return 0;
 }
@@ -443,22 +424,22 @@ static int scan_proc(struct dirtree *node)
 void lsof_main(void)
 {
   struct arg_list *pp;
-  int i;
+  int i, pid;
 
   // lsof will only filter on paths it can stat (because it filters by inode).
-  TT.sought_files = xmalloc(toys.optc*sizeof(struct stat));
-  for (i = 0; i<toys.optc; ++i) xstat(toys.optargs[i], TT.sought_files+i);
+  if (toys.optc) {
+    TT.sought_files = xmalloc(toys.optc*sizeof(struct stat));
+    for (i = 0; i<toys.optc; ++i) xstat(toys.optargs[i], TT.sought_files+i);
+  }
 
   if (!TT.p) dirtree_read("/proc", scan_proc);
   else for (pp = TT.p; pp; pp = pp->next) {
     char *start, *end, *next = pp->arg;
-    int length, pid;
 
-    while ((start = comma_iterate(&next, &length))) {
-      pid = strtol(start, &end, 10);
-      if (pid<1 || (*end && *end!=','))
-        error_exit("bad -p '%.*s'", (int)(end-start), start);
-      lsof_pid(pid);
+    while ((start = comma_iterate(&next, &i))) {
+      if ((pid = strtol(start, &end, 10))<1 || (*end && *end!=','))
+        error_msg("bad -p '%.*s'", (int)(end-start), start);
+      lsof_pid(pid, 0);
     }
   }
 
