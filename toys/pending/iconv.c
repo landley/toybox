@@ -43,7 +43,7 @@ static void do_iconv(int fd, char *name)
     len = read(fd, in, 2048-inleft);
 
     if (len < 0) {
-      perror_msg("read '%s'");
+      perror_msg("read '%s'", name);
       return;
     }
     inleft += len;

@@ -1,0 +1,15 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+# Example characters from https://en.wikipedia.org/wiki/UTF-16:
+# $:U+0024  €:U+20ac  𐐷:U+10437[==U+d801,U+dc37]
+echo -n "$€𐐷" > chars
+
+#testing "name" "command" "result" "infile" "stdin"
+
+testing "" "iconv chars | xxd -p" "24e282acf09090b7\n" "" ""
+testing "-t UTF-16BE" "iconv -t utf16be chars | xxd -p" "002420acd801dc37\n" "" ""
+testing "-t UTF-16LE" "iconv -t utf16le chars | xxd -p" "2400ac2001d837dc\n" "" ""
+testing "-t UTF-32BE" "iconv -t utf32be chars | xxd -p" "00000024000020ac00010437\n" "" ""
+testing "-t UTF-32BE" "iconv -t utf32le chars | xxd -p" "24000000ac20000037040100\n" "" ""
