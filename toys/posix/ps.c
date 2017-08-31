@@ -915,15 +915,16 @@ static int get_threads(struct dirtree *new)
   // Save or display
   if (!TT.show_process) return DIRTREE_SAVE;
   TT.show_process((void *)new->extra);
-  dt = new->child;
-  new->child = 0;
-  while (dt->child) {
-    new = dt->child->next;
-    TT.show_process((void *)dt->child->extra);
-    free(dt->child);
-    dt->child = new;
+  if ((dt = new->child)) {
+    new->child = 0;
+    while (dt->child) {
+      new = dt->child->next;
+      TT.show_process((void *)dt->child->extra);
+      free(dt->child);
+      dt->child = new;
+    }
+    free(dt);
   }
-  free(dt);
 
   return 0;
 }
