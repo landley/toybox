@@ -80,6 +80,7 @@ static void do_wc(int fd, char *name)
 
           // next wide size, don't count invalid, fetch more data if necessary
           clen = mbrtowc(&wchar, toybuf+pos, len-pos, 0);
+          clen = utf8towc(&wchar, toybuf+pos, len-pos);
           if (clen == -1) continue;
           if (clen == -2 && !done) break;
 
