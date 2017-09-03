@@ -204,6 +204,7 @@ long long xstrtol(char *str, char **end, int base);
 long long atolx(char *c);
 long long atolx_range(char *numstr, long long low, long long high);
 int stridx(char *haystack, char needle);
+int utf8towc(wchar_t *wc, char *str, unsigned len);
 char *strlower(char *s);
 char *strafter(char *haystack, char *needle);
 char *chomp(char *s);
@@ -257,7 +258,6 @@ void linestack_addstack(struct linestack **lls, struct linestack *throw,
 void linestack_insert(struct linestack **lls, long pos, char *line, long len);
 void linestack_append(struct linestack **lls, char *line);
 struct linestack *linestack_load(char *name);
-int utf8towc(wchar_t *wc, char *str, unsigned len);
 int crunch_escape(FILE *out, int cols, int wc);
 int crunch_rev_escape(FILE *out, int cols, int wc);
 int crunch_str(char **str, int width, FILE *out, char *escmore,

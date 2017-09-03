@@ -335,6 +335,38 @@ int stridx(char *haystack, char needle)
   return off-haystack;
 }
 
+// Convert utf8 sequence to a unicode wide character
+int utf8towc(wchar_t *wc, char *str, unsigned len)
+{
+  unsigned result, mask, first;
+  char *s, c;
+
+  // fast path ASCII
+  if (len && *str<128) return !!(*wc = *str);
+
+  result = first = *(s = str++);
+  for (mask = 6; (first&0xc0)==0xc0; mask += 5, first <<= 1) {
+    if (mask>21) return -1;
+    if (!--len) return -2;
+    c = *(str++);
+    if ((c&0xc0) != 0x80) return -1;
+    result = (result<<6)|(c&0x3f);
+  }
+  result &= (1<<mask)-1;
+  c = str-s;
+  if (mask==6) return -1;
+
+  // Avoid overlong encodings
+  if (mask==6 || mask>21 || result<(unsigned []){0x80,0x800,0x10000}[c-2])
+    return -1;
+
+  // Limit unicode so it can't encode anything UTF-16 can't.
+  if (result>0x10ffff || (result>=0xd800 && result<=0xdfff)) return -1;
+  *wc = result;
+
+  return str-s;
+}
+
 char *strlower(char *s)
 {
   char *try, *new;
@@ -348,7 +380,7 @@ char *strlower(char *s)
 
     while (*s) {
       wchar_t c;
-      int len = mbrtowc(&c, s, MB_CUR_MAX, 0);
+      int len = utf8towc(&c, s, MB_CUR_MAX);
 
       if (len < 1) *(new++) = *(s++);
       else {
