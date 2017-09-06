@@ -49,7 +49,7 @@ static void do_expand(int fd, char *name)
       if (CFG_TOYBOX_I18N) {
         wchar_t blah;
 
-        width = mbrtowc(&blah, toybuf+i, len-i, 0);
+        width = utf8towc(&blah, toybuf+i, len-i);
         if (width > 1) {
           if (width != fwrite(toybuf+i, width, 1, stdout))
             perror_exit("stdout");

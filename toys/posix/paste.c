@@ -42,7 +42,6 @@ static void paste_files(void)
 
     // Start of each line/file resets delimiter cycle
     dpos = TT.d;
-    mbtowc(0, 0, 0);
 
     for (i = any = dcount = dlen = 0; seq || i<TT.files; i++) {
       size_t blen;
@@ -84,7 +83,7 @@ static void paste_files(void)
             }
           }
         } else {
-          while (0<(dlen = mbtowc(&wc, dpos, 99))) {
+          while (0<(dlen = utf8towc(&wc, dpos, 99))) {
             dpos += dlen;
             if (!(dlen = wcwidth(wc))) continue;
             if (dlen<0) dpos = dstr+1;

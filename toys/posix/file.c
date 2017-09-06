@@ -267,7 +267,7 @@ static void do_regular_file(int fd, char *name, struct stat *sb)
     } else for (i = 0; i<len; ++i) {
       if (!(isprint(toybuf[i]) || isspace(toybuf[i]))) {
         wchar_t wc;
-        if ((bytes = mbrtowc(&wc, s+i, len-i, 0))>0 && wcwidth(wc)>=0) {
+        if ((bytes = utf8towc(&wc, s+i, len-i))>0 && wcwidth(wc)>=0) {
           i += bytes-1;
           if (!what) what = "UTF-8 text";
         } else {
