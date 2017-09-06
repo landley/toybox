@@ -22,26 +22,10 @@ testing "multiple files" "wc input - file1" \
         "      1       2       3 input\n      0       2       3 -\n      4       5      26 file1\n      5       9      32 total\n" "a\nb" "a b"
 
 #Tests for wc -m
-if printf "%s" "$LANG" | grep -q UTF-8
-then
-
-  echo -n " " > file1
-  for i in $(seq 1 8192)
-  do
-    echo -n "ü" >> file1
-  done
-  testing "-m" "wc -m file1" "8193 file1\n" "" ""
-  testing "-m 2" 'cat "$FILES/utf8/test2.txt" | wc -m' "169\n" "" ""
-  echo -n " " > file1
-  for i in $(seq 1 8192)
-  do
-    echo -n "ü" >> file1
-  done
-  testing "-m (invalid chars)" "wc -m file1" "8193 file1\n" "" ""
-  NOSPACE=1 testing "-mlw" "wc -mlw input" " 1 2 11 input\n" "hello, 世界!\n" ""
-
-else
-  echo "skipping tests for wc -m"
-fi
-
+echo -n " " > file1
+for i in $(seq 1 512); do echo -n "üüüüüüüüüüüüüüüü" >> file1; done
+testing "-m" "wc -m file1" "8193 file1\n" "" ""
+testing "-m 2" 'cat "$FILES/utf8/test2.txt" | wc -m' "169\n" "" ""
+echo -n " " > file1
+NOSPACE=1 testing "-mlw" "wc -mlw input" " 1 2 11 input\n" "hello, 世界!\n" ""
 rm file1
