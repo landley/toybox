@@ -19,9 +19,14 @@ testing "count up by 2" "seq 4 2 8" "4\n6\n8\n" "" ""
 testing "count down by 2" "seq 8 -2 4" "8\n6\n4\n" "" ""
 testing "count wrong way #1" "seq 4 -2 8" "" "" ""
 testing "count wrong way #2" "seq 8 2 4" "" "" ""
-testing "count by .3" "seq 3 .3 4" "3\n3.3\n3.6\n3.9\n" "" ""
-testing "count by -.9" "seq .7 -.9 -2.2" "0.7\n-0.2\n-1.1\n-2\n" "" ""
-testing "count by zero" "seq 4 0 8 | head -n 10" "" "" ""
+testing "count by .3" "seq 3 .3 4" "3.0\n3.3\n3.6\n3.9\n" "" ""
+testing "count by -.9" "seq .7 -.9 -2.2" "0.7\n-0.2\n-1.1\n-2.0\n" "" ""
+
+# Ubuntu does this, for no obvious reason. (The "yes" command exists.)
+#testing "count up by zero" "seq 4 0 8 | head -n 4" "4\n4\n4\n4\n" "" ""
+#testing "count nowhere by zero" "seq 4 0 4 | head -n 4" "4\n4\n4\n4\n" "" ""
+
+testing "count down by zero" "seq 8 0 4 | head -n 4" "" "" ""
 testing "separator -" "seq -s - 1 3" "1-2-3\n" "" ""
 testing "format string" 'seq -f %+01g -10 5 10' "-10\n-5\n+0\n+5\n+10\n" \
   "" ""
@@ -46,3 +51,21 @@ do
   testing "filter reject -f '$i'" \
     "seq -f '$i' 1 3 2>/dev/null || echo no" "no\n" "" ""
 done
+
+testing "precision inc" "seq -s, 1.0 2.00 4" "1.00,3.00\n" "" ""
+testing "precision first" "seq -s, 1.000 2.0 4" "1.000,3.000\n" "" ""
+
+# In ubuntu inc and first set precision, but last doesn't. (Why?)
+#testing "precision last" "seq -s, 1.0 2.0 4.00" "1.0,3.0\n" "" ""
+
+testing "precision int" "seq -s, 9007199254740991 1 9007199254740991" \
+  "9007199254740991\n" "" ""
+testing "precision e" "seq -s, 1.0e0 2" "1.0,2.0\n" "" ""
+testing "precision E" "seq -s, 1.0E0 2" "1.0,2.0\n" "" ""
+
+testing "invalid last" "seq 1 1 1f 2>/dev/null || echo y" "y\n" "" ""
+testing "invalid first" "seq 1f 1 1 2>/dev/null || echo y" "y\n" "" ""
+testing "invalid increment" "seq 1 1f 1 2>/dev/null || echo y" "y\n" "" ""
+
+# TODO: busybox fails this too, but GNU seems to not use double for large ints.
+#testing "too large for double" "seq -s, 9007199254740991 1 9007199254740992" "9007199254740992\n" "" ""

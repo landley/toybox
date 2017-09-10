@@ -28,6 +28,8 @@ config SEQ
 GLOBALS(
   char *sep;
   char *fmt;
+
+  int precision;
 )
 
 // Ensure there's one %f escape with correct attributes
@@ -42,51 +44,56 @@ static void insanitize(char *f)
   }
 }
 
+// Parse a numeric argument setting *prec to the precision of this argument.
+// This reproduces the "1.234e5" precision bug from upstream.
+static double parsef(char *s)
+{
+  char *dp = strchr(s, '.');
+
+  if (dp++) TT.precision = maxof(TT.precision, strcspn(dp, "eE"));
+
+  return xstrtod(s);
+}
+
 void seq_main(void)
 {
-  double first, increment, last, dd;
-  char *sep_str = "\n", *fmt_str = "%g";
+  double first = 1, increment = 1, last, dd;
   int i;
 
-  // Parse command line arguments, with appropriate defaults.
-  // Note that any non-numeric arguments are treated as zero.
-  first = increment = 1;
+  if (!TT.sep) TT.sep = "\n";
   switch (toys.optc) {
-    case 3: increment = atof(toys.optargs[1]);
-    case 2: first = atof(*toys.optargs);
-    default: last = atof(toys.optargs[toys.optc-1]);
+    case 3: increment = parsef(toys.optargs[1]);
+    case 2: first = parsef(*toys.optargs);
+    default: last = parsef(toys.optargs[toys.optc-1]);
   }
+
+  // Prepare format string with appropriate precision. Can't use %g because 1e6
+  if (toys.optflags & FLAG_f) insanitize(TT.fmt);
+  else sprintf(TT.fmt = toybuf, "%%.%df", TT.precision);
 
   // Pad to largest width
   if (toys.optflags & FLAG_w) {
-    char *s;
-    int len, dot, left = 0, right = 0;
+    int len = 0;
 
     for (i=0; i<3; i++) {
       dd = (double []){first, increment, last}[i];
-
-      len = sprintf(toybuf, "%g", dd);
-      if ((s = strchr(toybuf, '.'))) {
-        dot = s-toybuf;
-        if (left<dot) left = dot;
-        dot = len-dot-1;
-        if (right<dot) right = dot;
-      } else if (len>left) left = len;
+      len = maxof(len, snprintf(0, 0, TT.fmt, dd));
     }
-
-    sprintf(fmt_str = toybuf, "%%0%d.%df", left+right+!!right, right);
+    sprintf(TT.fmt = toybuf, "%%0%d.%df", len, TT.precision);
   }
-  if (toys.optflags & FLAG_f) insanitize(fmt_str = TT.fmt);
-  if (toys.optflags & FLAG_s) sep_str = TT.sep;
+
+  // Other implementations output nothing if increment is 0 and first > last,
+  // but loop forever if first < last or even first == last. We output
+  // nothing for all three, if you want endless output use "yes".
+  if (!increment) return;
 
   i = 0;
-  dd = first;
-  if (increment) for (;;) {
-    // avoid accumulating rounding errors from increment
+  for (;;) {
+    // Multiply to avoid accumulating rounding errors from increment.
     dd = first+i*increment;
     if ((increment<0 && dd<last) || (increment>0 && dd>last)) break;
-    if (i++) printf("%s", sep_str);
-    printf(fmt_str, dd);
+    if (i++) printf("%s", TT.sep);
+    printf(TT.fmt, dd);
   }
 
   if (i) printf("\n");
