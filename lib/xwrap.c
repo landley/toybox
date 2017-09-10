@@ -755,6 +755,19 @@ long long xsendfile(int in, int out)
   return total;
 }
 
+double xstrtod(char *s)
+{
+  char *end;
+  double d;
+
+  errno = 0;
+  d = strtod(s, &end);
+  if (!errno && *end) errno = E2BIG;
+  if (errno) perror_exit("strtod %s", s);
+
+  return d;
+}
+
 // parse fractional seconds with optional s/m/h/d suffix
 long xparsetime(char *arg, long units, long *fraction)
 {

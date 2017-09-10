@@ -168,6 +168,7 @@ unsigned xgetuid(char *name);
 unsigned xgetgid(char *name);
 void xsetuser(struct passwd *pwd);
 char *xreadlink(char *name);
+double xstrtod(char *s);
 long xparsetime(char *arg, long units, long *fraction);
 void xpidfile(char *name);
 void xregcomp(regex_t *preg, char *rexec, int cflags);
