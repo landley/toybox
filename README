@@ -38,7 +38,7 @@ The CROSS_COMPILE argument above is optional, the default builds a version of
 toybox to run on the current machine. Cross compiling requires an appropriately
 prefixed cross compiler toolchain, several example toolchains are available at:
 
-  http;//landley.net/aboriginal/bin
+  http://landley.net/aboriginal/bin
 
 For the "CROSS_COMPILE=armv5l-" example above, download
 cross-compiler-armv5l.tar.bz2, extract it, and add its "bin" subdirectory to
