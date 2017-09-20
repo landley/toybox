@@ -1293,3 +1293,16 @@ void do_lines(int fd, void (*call)(char **pline, long len))
 
   if (fd) fclose(fp);
 }
+
+// Returns the number of bytes taken by the environment variables. For use
+// when calculating the maximum bytes of environment+argument data that can
+// be passed to exec for find(1) and xargs(1).
+long environ_bytes()
+{
+  long bytes = sizeof(char *);
+  char **ev;
+
+  for (ev = environ; *ev; ev++)
+    bytes += sizeof(char *) + strlen(*ev) + 1;
+  return bytes;
+}

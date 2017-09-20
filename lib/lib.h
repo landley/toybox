@@ -241,6 +241,7 @@ int regexec0(regex_t *preg, char *string, long len, int nmatch,
 char *getusername(uid_t uid);
 char *getgroupname(gid_t gid);
 void do_lines(int fd, void (*call)(char **pline, long len));
+long environ_bytes();
 
 #define HR_SPACE 1 // Space between number and units
 #define HR_B     2 // Use "B" for single byte units

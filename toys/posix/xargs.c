@@ -79,6 +79,8 @@ static char *handle_entries(char *data, char **entry)
       if (!*s) break;
       save = s;
 
+      TT.bytes += sizeof(char *);
+
       for (;;) {
         if (++TT.bytes >= TT.max_bytes && TT.max_bytes) return save;
         if (!*s || isspace(*s)) break;
@@ -95,7 +97,7 @@ static char *handle_entries(char *data, char **entry)
 
   // -0 support
   } else {
-    TT.bytes += strlen(data)+1;
+    TT.bytes += sizeof(char *)+strlen(data)+1;
     if (TT.max_bytes && TT.bytes >= TT.max_bytes) return data;
     if (TT.max_entries && TT.entries >= TT.max_entries)
       return (char *)1;
@@ -112,6 +114,16 @@ void xargs_main(void)
   int entries, bytes, done = 0, status;
   char *data = NULL, **out;
   pid_t pid;
+  long posix_max_bytes;
+
+  // POSIX requires that we never hit the ARG_MAX limit, even if we try to
+  // with -s. POSIX also says we have to reserve 2048 bytes "to guarantee
+  // that the invoked utility has room to modify its environment variables
+  // and command line arguments and still be able to invoke another utility",
+  // though obviously that's not really something you can guarantee.
+  posix_max_bytes = sysconf(_SC_ARG_MAX) - environ_bytes() - 2048;
+  if (TT.max_bytes == 0 || TT.max_bytes > posix_max_bytes)
+    TT.max_bytes = posix_max_bytes;
 
   if (!(toys.optflags & FLAG_0)) TT.delim = '\n';
 
