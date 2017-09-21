@@ -31,6 +31,10 @@ GLOBALS(
   long pid;
 )
 
+#ifndef _POSIX_PRIORITY_SCHEDULING
+#warning "musl-libc intentionally broke sched_get_priority_min() and friends in commit 1e21e78bf7a5 because its maintainer didn't like those Linux system calls"
+#endif
+
 char *polnames[] = {
   "SCHED_OTHER", "SCHED_FIFO", "SCHED_RR", "SCHED_BATCH", 0, "SCHED_IDLE",
   "SCHED_DEADLINE"
