@@ -251,7 +251,26 @@ static void do_regular_file(int fd, char *name, struct stat *sb)
   } else if (len>4 && strstart(&s, "BZh") && isdigit(*s))
     xprintf("bzip2 compressed data, block size = %c00k\n", *s);
   else if (len>10 && strstart(&s, "\x1f\x8b")) xputs("gzip compressed data");
-  else {
+  else if (len>32 && !memcmp(s+1, "\xfa\xed\xfe", 3)) {
+    int bit = s[0]=='\xce'?32:64;
+    char *what;
+
+    xprintf("Mach-O %d-bit ", bit);
+
+    if (s[4] == 7) what = (bit==32)?"x86":"x86-";
+    else if (s[4] == 12) what = "arm";
+    else if (s[4] == 18) what = "ppc";
+    else what = NULL;
+    if (what) xprintf("%s%s ", what, (bit==32)?"":"64");
+    else xprintf("(bad arch %d) ", s[4]);
+
+    if (s[12] == 1) what = "object";
+    else if (s[12] == 2) what = "executable";
+    else if (s[12] == 6) what = "shared library";
+    else what = NULL;
+    if (what) xprintf("%s\n", what);
+    else xprintf("(bad type %d)\n", s[9]);
+  } else {
     char *what = 0;
     int i, bytes;
 
