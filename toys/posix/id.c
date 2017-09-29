@@ -107,7 +107,7 @@ static void do_id(char *username)
   grp = xgetgrgid(i ? gid : egid);
   if (flags & FLAG_g) s_or_u(grp->gr_name, grp->gr_gid, 1);
 
-  if (!(toys.optflags&(FLAG_g|FLAG_Z))) {
+  if (!(toys.optflags&(FLAG_G|FLAG_g|FLAG_Z))) {
     showid("uid=", pw->pw_uid, pw->pw_name);
     showid(" gid=", grp->gr_gid, grp->gr_name);
 
