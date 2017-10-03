@@ -262,7 +262,7 @@ int main(int argc, char *argv[])
   // entry until we run out of matching pairs.
   for (;;) {
     struct symbol *throw = 0, *catch;
-    char *this, *that, *cusage, *tusage, *name;
+    char *this, *that, *cusage, *tusage, *name = 0;
     int len;
 
     // find a usage: name and collate all enabled entries with that name
@@ -270,16 +270,18 @@ int main(int argc, char *argv[])
       if (catch->enabled != 1) continue;
       if (catch->help && (that = keyword("usage:", catch->help->data))) {
         struct double_list *cfrom, *tfrom, *anchor;
-        char *try, **cdashlines, **tdashlines;
+        char *try, **cdashlines, **tdashlines, *usage;
         int clen, tlen;
 
         // Align usage: lines, finding a matching pair so we can suck help
         // text out of throw into catch, copying from this to that
-        if (!throw) name = that;
+        if (!throw) usage = that;
         else if (strncmp(name, that, len) || !isspace(that[len])) continue;
         catch->enabled++;
         while (!isspace(*that) && *that) that++;
-        if (!throw) len = that-name;
+        if (!throw) len = that-usage;
+        free(name);
+        name = strndup(usage, len);
         that = skip_spaces(that);
         if (!throw) {
           throw = catch;
