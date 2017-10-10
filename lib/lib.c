@@ -12,7 +12,9 @@ void verror_msg(char *msg, int err, va_list va)
   fprintf(stderr, "%s: ", toys.which->name);
   if (msg) vfprintf(stderr, msg, va);
   else s+=2;
-  if (err) fprintf(stderr, s, strerror(err));
+  if (err>0) fprintf(stderr, s, strerror(err));
+  if (err<0 && CFG_TOYBOX_HELP)
+    fprintf(stderr, " (See \"%s --help\")", toys.which->name);
   if (msg || err) putc('\n', stderr);
   if (!toys.exitval) toys.exitval++;
 }
@@ -66,12 +68,10 @@ void help_exit(char *msg, ...)
 {
   va_list va;
 
-  if (CFG_TOYBOX_HELP)
-    fprintf(stderr, "See %s --help\n", toys.which->name);
-
-  if (msg) {
+  if (!msg) show_help(stdout);
+  else {
     va_start(va, msg);
-    verror_msg(msg, 0, va);
+    verror_msg(msg, -1, va);
     va_end(va);
   }
 

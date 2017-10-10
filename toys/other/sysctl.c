@@ -149,7 +149,7 @@ void sysctl_main()
 
   // Loop through arguments, displaying or assigning as appropriate
   } else {
-    if (!*toys.optargs) help_exit(0);
+    if (!*toys.optargs) help_exit("Needs 1 arg");
     for (args = toys.optargs; *args; args++) process_key(*args, 0);
   }
 }
