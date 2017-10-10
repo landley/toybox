@@ -637,6 +637,19 @@ void loopfiles(char **argv, void (*function)(int fd, char *name))
   loopfiles_rw(argv, O_RDONLY|O_CLOEXEC|WARN_ONLY, 0, function);
 }
 
+// call loopfiles with do_lines()
+static void (*do_lines_bridge)(char **pline, long len);
+static void loopfile_lines_bridge(int fd, char *name)
+{
+  do_lines(fd, do_lines_bridge);
+}
+
+void loopfiles_lines(char **argv, void (*function)(char **pline, long len))
+{
+  do_lines_bridge = function;
+  loopfiles(argv, loopfile_lines_bridge);
+}
+
 // Slow, but small.
 
 char *get_rawline(int fd, long *plen, char end)

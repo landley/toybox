@@ -1,276 +1,188 @@
-/* cut.c - Cut from a file.
+/* cut.c - print selected ranges from a file
  *
- * Copyright 2012 Ranjan Kumar <ranjankumar.bth@gmail.com>
- * Copyright 2012 Kyungwan Han <asura321@gmail.com>
+ * Copyright 2016 Rob Landley <rob@landley.net>
  *
  * http://pubs.opengroup.org/onlinepubs/9699919799/utilities/cut.html
  *
- * TODO: cleanup
+ * Deviations from posix: added -DF. We can only accept 512 selections, and
+ * "-" counts as start to end. Using spaces to separate a comma-separated list
+ * is silly and inconsistent with dd, ps, cp, and mount.
+ *
+ * todo: -n, -s with -c
 
-USE_CUT(NEWTOY(cut, "b:|c:|f:|d:sn[!cbf]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_CUT(NEWTOY(cut, "b*|c*|f*|F*|O(output-delimiter):d:sDn[!cbf]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config CUT
   bool "cut"
   default y
   help
-    usage: cut OPTION... [FILE]...
+    usage: cut [-Ds] [-bcfF LIST] [-dO DELIM] [FILE...]
 
     Print selected parts of lines from each FILE to standard output.
 
-    -b LIST	select only these bytes from LIST
-    -c LIST	select only these characters from LIST
-    -f LIST	select only these fields
-    -d DELIM	use DELIM instead of TAB for field delimiter
-    -s	do not print lines not containing delimiters
-    -n	don't split multibyte characters (ignored)
+    Each selection LIST is comma separated, either numbers (counting from 1)
+    or dash separated ranges (inclusive, with X- meaning to end of line and -X
+    from start). By default selection ranges are sorted and collated, use -D
+    to prevent that.
+
+    -b	select bytes
+    -c	select UTF-8 characters
+    -d	use DELIM (default is TAB for -f, run of whitespace for -F)
+    -D	Don't sort/collate selections
+    -f	select fields (words) separated by single DELIM character
+    -F	select fields separated by DELIM regex
+    -O	output delimiter (default one space for -F, input delim for -f)
+    -s	skip lines without delimiters
 */
 #define FOR_cut
 #include "toys.h"
 
 GLOBALS(
-  char *delim;
-  char *flist;
-  char *clist;
-  char *blist;
+  char *d;
+  char *O;
+  struct arg_list *select[4]; // we treat them the same, so loop through
 
-  void *slist_head;
-  unsigned nelem;
-  void (*do_cut)(int fd);
+  int pairs;
+  regex_t reg;
 )
 
-struct slist {
-  struct slist *next;
-  int start, end;
-};
-
-static void add_to_list(int start, int end)
+// Apply selections to an input line, producing output
+static void cut_line(char **pline, long len)
 {
-  struct slist *current, *head_ref, *temp1_node;
+  unsigned *pairs = (void *)toybuf;
+  char *line = *pline;
+  int i, j;
 
-  head_ref = TT.slist_head;
-  temp1_node = xzalloc(sizeof(struct slist));
-  temp1_node->start = start;
-  temp1_node->end = end;
+  if (len && line[len-1]=='\n') line[--len] = 0;
 
-  /* Special case for the head end */
-  if (!head_ref || head_ref->start >= start) { 
-      temp1_node->next = head_ref; 
-      head_ref = temp1_node;
-  } else { 
-    /* Locate the node before the point of insertion */   
-    current = head_ref;   
-    while (current->next && current->next->start < temp1_node->start)
-        current = current->next;
-    temp1_node->next = current->next;   
-    current->next = temp1_node;
-  }
-  TT.slist_head = head_ref;
-}
+  // Loop through selections
+  for (i=0; i<TT.pairs; i++) {
+    unsigned start = pairs[2*i], end = pairs[(2*i)+1], count;
+    char *s = line, *ss;
 
-// parse list and add to slist.
-static void parse_list(char *list)
-{
-  for (;;) {
-    char *ctoken = strsep(&list, ","), *dtoken;
-    int start = 0, end = INT_MAX;
+    if (start) start--;
+    if (start>=len) continue;
+    if (!end || end>len) end = len;
+    count = end-start;
 
-    if (!ctoken) break;
-    if (!*ctoken) continue;
+    // Find start and end of output string for the relevant selection type
+    if (toys.optflags&FLAG_b) s += start;
+    else if (toys.optflags&FLAG_c) {
+      if (start) crunch_str(&s, start, 0, 0, 0);
+      if (!*s) continue;
+      start = s-line;
+      ss = s;
+      crunch_str(&ss, count, 0, 0, 0);
+      count = ss-s;
+    } else {
+      regmatch_t match;
 
-    // Get start position.
-    if (*(dtoken = strsep(&ctoken, "-"))) {
-      start = atolx_range(dtoken, 0, INT_MAX);
-      start = (start?(start-1):start);
-    }
-
-    // Get end position.
-    if (!ctoken) end = -1; //case e.g. 1,2,3
-    else if (*ctoken) {//case e.g. N-M
-      end = atolx_range(ctoken, 0, INT_MAX);
-      if (!end) end = INT_MAX;
-      end--;
-      if(end == start) end = -1;
-    }
-    add_to_list(start, end);
-    TT.nelem++;
-  }
-  // if list is missing in command line.
-  if (!TT.nelem) error_exit("missing positions list");
-}
-
-/*
- * retrive data from the file/s.
- */
-static void get_data(void)
-{
-  char **argv = toys.optargs; //file name.
-  toys.exitval = EXIT_SUCCESS;
-
-  if(!*argv) TT.do_cut(0); //for stdin
-  else {
-    for(; *argv; ++argv) {
-      if(strcmp(*argv, "-") == 0) TT.do_cut(0); //for stdin
-      else {
-        int fd = open(*argv, O_RDONLY, 0);
-        if (fd < 0) {//if file not present then continue with other files.
-          perror_msg_raw(*argv);
-          continue;
-        }
-        TT.do_cut(fd);
-        xclose(fd);
-      }
-    }
-  }
-}
-
-// perform cut operation on the given delimiter.
-static void do_fcut(int fd)
-{
-  char *buff, *pfield = 0, *delimiter = TT.delim;
-
-  for (;;) {
-    unsigned cpos = 0;
-    int start, ndelimiters = -1;
-    int  nprinted_fields = 0;
-    struct slist *temp_node = TT.slist_head;
-
-    free(pfield);
-    pfield = 0;
-
-    if (!(buff = get_line(fd))) break;
-
-    //does line have any delimiter?.
-    if (strrchr(buff, (int)delimiter[0]) == NULL) {
-      //if not then print whole line and move to next line.
-      if (!(toys.optflags & FLAG_s)) xputs(buff);
-      continue;
-    }
-
-    pfield = xzalloc(strlen(buff) + 1);
-
-    if (temp_node) {
-      //process list on each line.
-      while (cpos < TT.nelem && buff) {
-        if (!temp_node) break;
-        start = temp_node->start;
-        do {
-          char *field = 0;
-
-          //count number of delimeters per line.
-          while (buff) {
-            if (ndelimiters < start) {
-              ndelimiters++;
-              field = strsep(&buff, delimiter);
-            } else break;
-          }
-          //print field (if not yet printed).
-          if (!pfield[ndelimiters]) {
-            if (ndelimiters == start) {
-              //put delimiter.
-              if (nprinted_fields++ > 0) xputc(delimiter[0]);
-              if (field) fputs(field, stdout);
-              //make sure this field won't print again.
-              pfield[ndelimiters] = (char) 0x23; //put some char at this position.
-            }
-          }
-          start++;
-          if ((temp_node->end < 0) || !buff) break;          
-        } while(start <= temp_node->end);
-        temp_node = temp_node->next;
-        cpos++;
-      }
-    }
-    xputc('\n');
-  }
-}
-
-// perform cut operation char or byte.
-static void do_bccut(int fd)
-{
-  char *buff;
-
-  while ((buff = get_line(fd)) != NULL) {
-    unsigned cpos = 0;
-    int buffln = strlen(buff);
-    char *pfield = xzalloc(buffln + 1);
-    struct slist *temp_node = TT.slist_head;
-
-    if (temp_node != NULL) {
-      while (cpos < TT.nelem) {
-        int start;
-
-        if (!temp_node) break;
-        start = temp_node->start;
-        while (start < buffln) {
-          //to avoid duplicate field printing.
-          if (pfield[start]) {
-              if (++start <= temp_node->end) continue;
-              temp_node = temp_node->next;
-              break;
+      // Loop through skipping appropriate number of fields
+      for (j = 0; j<2; j++) {
+        ss = s;
+        if (j) start = count;
+        while (*ss && start) {
+          if (toys.optflags&FLAG_f) {
+            if (strchr(TT.d, *ss++)) start--;
           } else {
-            //make sure this field won't print again.
-            pfield[start] = (char) 0x23; //put some char at this position.
-            xputc(buff[start]);
-          }
-          if (++start > temp_node->end) {
-            temp_node = temp_node->next;
-            break;
+            if (regexec(&TT.reg, ss, 1, &match, REG_NOTBOL|REG_NOTEOL)) {
+              ss = line+len;
+              continue;
+            }
+            if (!match.rm_eo) return;
+            ss += (!--start && j) ? match.rm_so : match.rm_eo;
           }
         }
-        cpos++;
+        // did start run us off the end, so nothing to print?
+        if (!j) if (!*(s = ss)) break;
       }
-      xputc('\n');
+      if (!*s) continue;
+      count = ss-s;
     }
-    free(pfield);
-    pfield = NULL;
+    if (i && TT.O) fputs(TT.O, stdout);
+    fwrite(s, count, 1, stdout);
   }
+  xputc('\n');
+}
+
+static int compar(unsigned *a, unsigned *b)
+{
+  if (*a<*b) return -1;
+  if (*a>*b) return 1;
+  if (a[1]<b[1]) return -1;
+  if (a[1]>b[1]) return 1;
+
+  return 0;
+}
+
+// parse A or A-B or A- or -B
+static char *get_range(void *data, char *str, int len)
+{
+  char *end = str;
+  unsigned *pairs = (void *)toybuf, i;
+
+  // Using toybuf[] to store ranges means we can have 512 selections max.
+  if (TT.pairs == sizeof(toybuf)/sizeof(int)) perror_exit("select limit");
+  pairs += 2*TT.pairs++;
+
+  pairs[1] = UINT_MAX;
+  for (i = 0; ;i++) {
+    if (i==2) return end;
+    if (isdigit(*end)) {
+      long long ll = estrtol(end, &end, 10);
+
+      if (ll<1 || ll>UINT_MAX || errno) return end;
+      pairs[i] = ll;
+    }
+    if (*end++ != '-') break;
+  }
+  if (!i) pairs[1] = pairs[0];
+  if ((end-str)<len) return end;
+  if (pairs[0]>pairs[1]) return str;
+
+  // No error
+  return 0;
 }
 
 void cut_main(void)
 {
-  char delimiter = '\t'; //default delimiter.
-  char *list;
+  int i;
+  char buf[8];
 
-  TT.nelem = 0;
-  TT.slist_head = NULL;
-
-  //Get list and assign the function.
-  if (toys.optflags & FLAG_f) {
-    list = TT.flist;
-    TT.do_cut = do_fcut;
-  } else if (toys.optflags & FLAG_c) {
-    list = TT.clist;
-    TT.do_cut = do_bccut;
-  } else {
-    list = TT.blist;
-    TT.do_cut = do_bccut;
+  // Parse command line arguments
+  if ((toys.optflags&(FLAG_s|FLAG_f|FLAG_F))==FLAG_s)
+    error_exit("-s needs -Ff");
+  if ((toys.optflags&(FLAG_d|FLAG_f|FLAG_F))==FLAG_d)
+    error_exit("-d needs -Ff");
+  if (!TT.d) TT.d = (toys.optflags&FLAG_F) ? "[[:space:]][[:space:]]*" : "\t";
+  if (toys.optflags&FLAG_F) xregcomp(&TT.reg, TT.d, REG_EXTENDED);
+  if (!TT.O) {
+    if (toys.optflags&FLAG_F) TT.O = " ";
+    else if (toys.optflags&FLAG_f) TT.O = TT.d;
   }
 
-  if (toys.optflags & FLAG_d) {
-    //delimiter must be 1 char.
-    if(TT.delim[0] && TT.delim[1])
-      perror_exit("the delimiter must be a single character");
-    delimiter = TT.delim[0];
+  // Parse ranges, which are attached to a selection type (only one can be set)
+  for (i = 0; i<ARRAY_LEN(TT.select); i++) {
+    sprintf(buf, "bad -%c", "Ffcb"[i]);
+    if (TT.select[i]) comma_args(TT.select[i], 0, buf, get_range);
+  }
+  if (!TT.pairs) error_exit("no selections");
+
+  // Sort and collate selections
+  if (!(toys.optflags&FLAG_D)) {
+    int from, to;
+    unsigned *pairs = (void *)toybuf;
+
+    qsort(toybuf, TT.pairs, 8, (void *)compar);
+    for (to = 0, from = 2; from/2 < TT.pairs; from += 2) {
+      if (pairs[from] > pairs[to+1]) {
+        to += 2;
+        memcpy(pairs+to, pairs+from, 2*sizeof(unsigned));
+      } else if (pairs[from+1] > pairs[to+1]) pairs[to+1] = pairs[from+1];
+    }
+    TT.pairs = (to/2)+1;
   }
 
-  if(!(toys.optflags & FLAG_d) && (toys.optflags & FLAG_f)) {
-    TT.delim = xzalloc(2);
-    TT.delim[0] = delimiter;
-  }
-  
-  //when field is not specified, cutting has some special handling.
-  if (!(toys.optflags & FLAG_f)) {
-    if (toys.optflags & FLAG_s)
-      perror_exit("suppressing non-delimited lines operating on fields");
-    if (delimiter != '\t')
-      perror_exit("an input delimiter may be specified only when operating on fields");
-  }
-
-  parse_list(list);
-  get_data();
-  if (!(toys.optflags & FLAG_d) && (toys.optflags & FLAG_f)) {
-    free(TT.delim);
-    TT.delim = NULL;
-  }
-  llist_traverse(TT.slist_head, free);
+  // For each argument, loop through lines of file and call cut_line() on each
+  loopfiles_lines(toys.optargs, cut_line);
 }
