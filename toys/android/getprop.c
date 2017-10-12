@@ -57,6 +57,12 @@ static void add_property(const prop_info *pi, void *unused)
   __system_property_read_callback(pi, read_callback, NULL);
 }
 
+static void print_callback(void *unused, const char *unused_name, const char *value,
+                           unsigned unused_serial)
+{
+  puts(value);
+}
+
 // Needed to supress extraneous "Loaded property_contexts from" message
 static int selinux_log_callback_local(int type, const char *fmt, ...)
 {
@@ -87,9 +93,12 @@ void getprop_main(void)
       puts(context);
       if (CFG_TOYBOX_FREE) free(context);
     } else {
-      if (__system_property_get(*toys.optargs, toybuf) <= 0)
-        strcpy(toybuf, toys.optargs[1] ? toys.optargs[1] : "");
-      puts(toybuf);
+      const prop_info* pi = __system_property_find(*toys.optargs);
+      if (pi == NULL) {
+        puts(toys.optargs[1] ? toys.optargs[1] : "");
+      } else {
+        __system_property_read_callback(pi, print_callback, NULL);
+      }
     }
   } else {
     size_t i;
