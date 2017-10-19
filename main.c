@@ -6,7 +6,10 @@
 #include "toys.h"
 
 #ifndef TOYBOX_VERSION
-#define TOYBOX_VERSION "0.7.4"
+#ifndef TOYBOX_VENDOR
+#define TOYBOX_VENDOR ""
+#endif
+#define TOYBOX_VERSION "0.7.5"TOYBOX_VENDOR
 #endif
 
 // Populate toy_list[].
