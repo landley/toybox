@@ -103,13 +103,13 @@ extern struct toy_context {
   char **argv;             // Original command line arguments
   char **optargs;          // Arguments left over from get_optflags()
   unsigned long long optflags; // Command line option flags from get_optflags()
-  int exitval;             // Value error_exit feeds to exit()
   int optc;                // Count of optargs
   int old_umask;           // Old umask preserved by TOYFLAG_UMASK
   short toycount;          // Total number of commands in this build
   short signal;            // generic_signal() records what signal it saw here
   int signalfd;            // and writes signal to this fd, if set
-  int wasroot;             // dropped setuid
+  char exitval;            // Value error_exit feeds to exit()
+  char wasroot;            // dropped setuid
 
   // This is at the end so toy_init() doesn't zero it.
   jmp_buf *rebound;        // longjmp here instead of exit when do_rebound set
