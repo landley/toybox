@@ -31,12 +31,16 @@ fi
 #testing "name" "command" "result" "infile" "stdin"
 
 # Add a dummy interface to test with
-ifconfig dummy0 up
+modprobe dummy 2>/dev/null
+if ! ifconfig dummy0 up 2>/dev/null
+then
+  echo "$SHOWSKIP: ifconfig dummy0 up failed"
+fi
 
 # Test Description: Disable the dummy0 interface
 # Results Expected: After calling ifconfig, no lines with dummy0 are displayed
 testing "dummy0 down and if config /-only" \
-"ifconfig dummy0 down && ifconfig dummy0 | grep dummy | wc -l" \
+"ifconfig dummy0 down && ifconfig | grep dummy | wc -l" \
 "0\n" "" ""
 
 # Test Description: Enable the dummy0 interface
@@ -116,18 +120,18 @@ testing "dummy0 arp down" \
 "ifconfig dummy0 arp down && ifconfig dummy0 | grep -i NOARP | wc -l" \
 "0\n" "" ""
 
-# Test Description: Call the pointtopoint option with no argument
+# Test Description: Call the pointopoint option with no argument
 # Results Expected: After calling ifconfig dummy0, there is one line with the
 #                   NOARP and UP flags
-testing "dummy0 pointtopoint" \
-"ifconfig dummy0 pointtopoint && ifconfig dummy0 | grep -i NOARP | grep -i UP | wc -l" \
+testing "dummy0 pointopoint" \
+"ifconfig dummy0 pointopoint && ifconfig dummy0 | grep -i NOARP | grep -i UP | wc -l" \
 "1\n" "" ""
 
-# Test Description: Test the pointtopoint option and set the ipaddress
+# Test Description: Test the pointopoint option and set the ipaddress
 # Results Expected: After calling ifconfig dummy0, there is one line with the
 #                   word inet and the selected ip address
-testing "dummy0 pointtopoint 127.0.0.2" \
-"ifconfig dummy0 pointtopoint 127.0.0.2 && ifconfig dummy0 | grep -i inet | grep -i 127\.0\.0\.2 | wc -l" \
+testing "dummy0 pointopoint 127.0.0.2" \
+"ifconfig dummy0 pointopoint 127.0.0.2 && ifconfig dummy0 | grep -i inet | grep -i 127\.0\.0\.2 | wc -l" \
 "1\n" "" ""
 
 ####### Flags you can set on an interface (or -remove by prefixing with -): ###############
