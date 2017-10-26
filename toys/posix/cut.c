@@ -10,7 +10,7 @@
  *
  * todo: -n, -s with -c
 
-USE_CUT(NEWTOY(cut, "b*|c*|f*|F*|O(output-delimiter):d:sDn[!cbf]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_CUT(NEWTOY(cut, "b*|c*|f*|F*|C*|O(output-delimiter):d:sDn[!cbf]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config CUT
   bool "cut"
@@ -27,6 +27,7 @@ config CUT
 
     -b	select bytes
     -c	select UTF-8 characters
+    -C	select unicode columns
     -d	use DELIM (default is TAB for -f, run of whitespace for -F)
     -D	Don't sort/collate selections
     -f	select fields (words) separated by single DELIM character
@@ -40,11 +41,35 @@ config CUT
 GLOBALS(
   char *d;
   char *O;
-  struct arg_list *select[4]; // we treat them the same, so loop through
+  struct arg_list *select[5]; // we treat them the same, so loop through
 
   int pairs;
   regex_t reg;
 )
+
+// Return number of bytes to start of first column fitting in columns
+// invalid sequences are skipped/ignored
+int unicolumns(char *start, unsigned columns)
+{
+  int i, j = 0;
+  wchar_t wc;
+  char *s = start, *ss = start;
+
+  // Skip start, rounding down if we hit a multicolumn char
+  while (j<columns && (i = utf8towc(&wc, s, 4))) {
+    if (i<0) s++;
+    else {
+      s += i;
+      if (0<(i = wcwidth(wc))) {
+        if ((j += i)>columns) break;
+        ss = s;
+      }
+    }
+  }
+
+  return ss-start;
+}
+
 
 // Apply selections to an input line, producing output
 static void cut_line(char **pline, long len)
@@ -67,13 +92,39 @@ static void cut_line(char **pline, long len)
 
     // Find start and end of output string for the relevant selection type
     if (toys.optflags&FLAG_b) s += start;
-    else if (toys.optflags&FLAG_c) {
-      if (start) crunch_str(&s, start, 0, 0, 0);
-      if (!*s) continue;
-      start = s-line;
-      ss = s;
-      crunch_str(&ss, count, 0, 0, 0);
-      count = ss-s;
+    else if (toys.optflags&FLAG_C) {
+      // crunch_str() currently assumes that combining characters get
+      // escaped, to provide an unambiguous visual representation.
+      // This assumes the input string is null terminated.
+      //if (start) crunch_str(&s, start, 0, 0, 0);
+      //if (!*s) continue;
+      //start = s-line;
+      //ss = s;
+      //crunch_str(&ss, count, 0, 0, 0);
+      //count = ss-s;
+
+      s += unicolumns(s, start);
+      count = unicolumns(s, end-start);
+    } else if (toys.optflags&FLAG_c) {
+      wchar_t wc;
+      char *sss;
+
+      // Find start
+      ss = line+len;
+      while (start && s<ss) {
+        if (0<=(j = utf8towc(&wc, s, len))) start--;
+        s += (j<1) ? 1 : j;
+      }
+      if (s == ss) continue;
+
+      // Find end
+      end = count;
+      sss = s;
+      while (end && sss<ss) {
+        if (0<=(j = utf8towc(&wc, sss, len))) end--;
+        sss += (j<1) ? 1 : j;
+      }
+      count = sss-s;
     } else {
       regmatch_t match;
 
@@ -163,7 +214,7 @@ void cut_main(void)
 
   // Parse ranges, which are attached to a selection type (only one can be set)
   for (i = 0; i<ARRAY_LEN(TT.select); i++) {
-    sprintf(buf, "bad -%c", "Ffcb"[i]);
+    sprintf(buf, "bad -%c", "CFfcb"[i]); // reverse order from newtoy optstr
     if (TT.select[i]) comma_args(TT.select[i], 0, buf, get_range);
   }
   if (!TT.pairs) error_exit("no selections");
