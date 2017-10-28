@@ -133,6 +133,8 @@ test infrastructure.</li>
 infrastructure implementing menuconfig (copied from the Linux kernel).</li>
 <li>The <a href="#generated">generated directory</a> contains intermediate
 files generated from other parts of the source code.</li>
+<li>The <a href="#tests">tests directory</a> contains the test suite.
+NOSPACE=1 to allow tests to pass with diff -b</li>
 </ul>
 
 <a name="adding" />
@@ -1243,7 +1245,7 @@ which is NULL for non-symlinks.</p>
 <p>During a callback function, the <b>int dirfd</b> field of directory nodes
 contains a directory file descriptor (for use with the openat() family of
 functions). This isn't usually used directly, intstead call dirtree_parentfd()
-on the callback's node argument. The <b>char again</a> field is 0 for the
+on the callback's node argument. The <b>char again</b> field is 0 for the
 first callback on a node, and 1 on the second callback (triggered by returning
 DIRTREE_COMEAGAIN on a directory, made after all children have been processed).
 </p>
@@ -1348,6 +1350,7 @@ Config.in.</p>
 <p>See <a href="#adding">adding a new command</a> for details on the
 layout of a command file.</p>
 
+<a name="scripts">
 <h2>Directory scripts/</h2>
 
 <p>Build infrastructure. The makefile calls scripts/make.sh for "make"

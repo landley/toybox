@@ -8,6 +8,66 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+<a name="12-10-2017" /><a href="#03-10-2017"><hr><h2><b>October 12, 2017</b></h2></a>
+<blockquote><p>Would it save you a lot of time if I just gave up and went
+mad now?</p>
+<p> - The Hitchhiker's Guide to the Galaxy</p>
+</blockquote>
+
+<p><a href=downloads/toybox-0.7.5.tar.gz>Toybox 0.7.5</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.7.5>git commit</a>)
+is out.</p>
+
+<p>This is another <b>mostly bugfix release</b>. I delayed it a bit trying to get some
+of the many half-finished projects (dd, ping, lsof, iconv, cut, sysconf,
+the cp --parents option...) finished/promoted/tested, but decided adding big
+things at the end of the dev cycle would be too destabilizing.</p>
+
+<p>A couple <b>new features</b> slipped in anyway. Ilya Kuzmich added head -c
+and strings -t (and corrected strings' output in a couple places). Elliott
+Hughes taught file to recognize Macintosh (Mach-O) binaries.</p>
+
+<p><b>NOTE</b>: the chrt command is broken when built against musl-libc
+because that project's maintainer decided he didn't like the system calls
+it depends on, so he
+<a href=https://git.musl-libc.org/cgit/musl/commit/?id=1e21e78bf7a5>removed
+them from his libc</a>. The prebuilt binaries are built against musl,
+so the chrt command there will always say -ENOSYS. (It works fine built against
+glibc, and presumably bionic or uClibc.)</p>
+
+<p><b>Bugfixes</b>: Remounting (mount -o remount,rw) should work properly now,
+and we fixed another place ps was segfaulting when /proc
+entries vanished out from under us (a hard to hit race condition
+mostly noticeable in long-running "top" exiting; error value was treated
+as a pointer). Elliott Hughes fixed a -Wformat warning in expr.c,
+and made xargs split the command
+line at ARG_MAX (which is 1/4 the stack size ulimit, which normal users
+can arbitrarily increase but execve() will complain if they don't).
+Josh Gao made netcat -l exit after handling a request, and reported a
+seq bug (seq "1000000 10000001" output 1e+06, fixed now). Zach Riggle fixed a
+broken URL in the README. Rob fixed env -0 checking the flag wrong so
+it didn't work in combination with other flags (typo).</p>
+
+<p><b>Plumbing</b>:
+Replaced mbrtowc() with a new utf8towc() that doesn't have a context
+struct or care about locale. A bugfix in comma_scan() (wasn't removing an entry at the end
+of the list) is why remount _sometimes_ worked (depending on argument
+order), xgetaddrinfo() is now separate from xconnect(),
+atolx_range() learned the w (word=2) suffix, and b is now (block=512) instead
+of (byte=1).</p>
+
+<p><b>Build</b>: Patrick Oppenlander added a workaround for a bug in config2help.c
+that resulted in segfaults on newer toolchains. (It was actually a use
+after free error; the build infrastructure isn't nearly as heavily audited as
+code that gets installed on the target; oops.) A new GITHASH
+environment variable can force the build version from
+the command line, and the build checks for .git in the top directory
+before asking git what our version is (so it isn't confused by ../../.git
+in an enclosing directory). Added a build #warning about musl intentionally
+breaking chrt (as with nommu fork() musl now provides a broken
+stub function so compile-time probes for its existence think it's there, and
+you can't run the result to test behavior when cross compiling).</p>
+
 <a name="19-06-2017" /><a href="#19-06-2017"><hr><h2><b>June 19, 2017</b></h2></a>
 <blockquote><p>It is a well-known fact that those people who most want to rule people are, ipso facto, those least suited to do it.
 To summarize the summary: anyone who is capable of getting themselves made President should on no account be allowed to do the job.</p>
