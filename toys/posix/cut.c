@@ -85,6 +85,9 @@ static void cut_line(char **pline, long len)
     unsigned start = pairs[2*i], end = pairs[(2*i)+1], count;
     char *s = line, *ss;
 
+    // input: start/end position, count=difference between them
+    // output: s = start of string, len = bytes to output
+
     if (start) start--;
     if (start>=len) continue;
     if (!end || end>len) end = len;
@@ -132,22 +135,29 @@ static void cut_line(char **pline, long len)
       for (j = 0; j<2; j++) {
         ss = s;
         if (j) start = count;
+        else end = start;
         while (*ss && start) {
           if (toys.optflags&FLAG_f) {
-            if (strchr(TT.d, *ss++)) start--;
+            if (!strchr(TT.d, *ss++)) continue;
+            if (!--start && j) ss--;
           } else {
             if (regexec(&TT.reg, ss, 1, &match, REG_NOTBOL|REG_NOTEOL)) {
               ss = line+len;
               continue;
             }
-            if (!match.rm_eo) return;
+            if (!match.rm_eo) break; // zero length match == no delimiter
             ss += (!--start && j) ? match.rm_so : match.rm_eo;
           }
         }
-        // did start run us off the end, so nothing to print?
-        if (!j) if (!*(s = ss)) break;
+        if (!j && !*(s = ss)) break;
       }
-      if (!*s) continue;
+
+      // If we never encountered even one separator, print whole line (posix!)
+      if (!j && end == start) {
+        if (toys.optflags&FLAG_s) return;
+        fwrite(line, len, 1, stdout);
+        break;
+      } else if (!*s) continue;
       count = ss-s;
     }
     if (i && TT.O) fputs(TT.O, stdout);
