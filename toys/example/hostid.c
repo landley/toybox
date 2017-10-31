@@ -3,6 +3,9 @@
  * Copyright 2015 Ranjan Kumar <ranjankumar.bth@gmail.com>
  *
  * No Standard.
+ *
+ * This is still in coreutils and gethostid() in posix, but a "globally unique
+ * 32 bit identifier" is a concept the Linux world has outgrown.
 
 USE_HOSTID(NEWTOY(hostid, ">0", TOYFLAG_USR|TOYFLAG_BIN))
 
