@@ -22,7 +22,7 @@ testing "ext4" 'bzcat "$BDIR"/ext4.bz2 | blkid -' \
   '-: LABEL="myext4" UUID="dc4b7c00-c0c0-4600-af7e-0335f09770fa" TYPE="ext4"\n' \
   "" ""
 testing "f2fs" 'bzcat "$BDIR"/f2fs.bz2 | blkid -' \
-  '-: LABEL="" UUID="b53d3619-c204-4c0b-8504-36363578491c" TYPE="f2fs"\n' \
+  '-: UUID="b53d3619-c204-4c0b-8504-36363578491c" TYPE="f2fs"\n' \
   "" ""
 testing "msdos" 'bzcat "$BDIR"/msdos.bz2 | blkid -' \
   '-: LABEL="mymsdos" UUID="5108-1e6e" TYPE="vfat"\n' "" ""
