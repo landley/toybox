@@ -270,6 +270,49 @@ static void do_regular_file(int fd, char *name, struct stat *sb)
     else what = NULL;
     if (what) xprintf("%s\n", what);
     else xprintf("(bad type %d)\n", s[9]);
+  } else if (len>36 && !memcmp(s, "OggS\x00\x02", 6)) {
+    xprintf("Ogg data");
+    // https://wiki.xiph.org/MIMETypesCodecs
+    if (!memcmp(s+28, "CELT    ", 8)) xprintf(", celt audio");
+    if (!memcmp(s+28, "CMML    ", 8)) xprintf(", cmml text");
+    if (!memcmp(s+28, "BBCD\0", 5)) xprintf(", dirac video");
+    if (!memcmp(s+28, "\177FLAC", 5)) xprintf(", flac audio");
+    if (!memcmp(s+28, "\x8bJNG\r\n\x1a\n", 8)) xprintf(", jng video");
+    if (!memcmp(s+28, "\x80kate\0\0\0", 8)) xprintf(", kate text");
+    if (!memcmp(s+28, "OggMIDI\0", 8)) xprintf(", midi text");
+    if (!memcmp(s+28, "\x8aMNG\r\n\x1a\n", 8)) xprintf(", mng video");
+    if (!memcmp(s+28, "OpusHead", 8)) xprintf(", opus audio");
+    if (!memcmp(s+28, "PCM     ", 8)) xprintf(", pcm audio");
+    if (!memcmp(s+28, "\x89PNG\r\n\x1a\n", 8)) xprintf(", png video");
+    if (!memcmp(s+28, "Speex   ", 8)) xprintf(", speex audio");
+    if (!memcmp(s+28, "\x80theora", 7)) xprintf(", theora video");
+    if (!memcmp(s+28, "\x01vorbis", 7)) xprintf(", vorbis audio");
+    if (!memcmp(s+28, "YUV4MPEG", 8)) xprintf(", yuv4mpeg video");
+    xputc('\n');
+  } else if (len>12 && !memcmp(s, "\x00\x01\x00\x00", 4)) {
+    xputs("TrueType font");
+  } else if (len>12 && !memcmp(s, "ttcf\x00", 5)) {
+    xprintf("TrueType font collection, version %d, %d fonts\n",
+            (int)peek_be(s+4, 2), (int)peek_be(s+8, 4));
+  } else if (len>4 && !memcmp(s, "BC\xc0\xde", 4)) {
+    xputs("LLVM IR bitcode");
+  } else if (strstart(&s, "-----BEGIN CERTIFICATE-----")) {
+    xputs("PEM certificate");
+
+  // https://msdn.microsoft.com/en-us/library/windows/desktop/ms680547(v=vs.85).aspx
+  } else if (len>0x70 && !memcmp(s, "MZ", 2) &&
+      (magic=peek_le(s+0x3c,4))<len-4 && !memcmp(s+magic, "\x50\x45\0\0", 4)) {
+    xprintf("MS PE32%s executable %s", (peek_le(s+magic+24, 2)==0x20b)?"+":"",
+        (peek_le(s+magic+22, 2)&0x2000)?"(DLL) ":"");
+    if (peek_le(s+magic+20, 2)>70) {
+      char *types[] = {0, "native", "GUI", "console", "OS/2", "driver", "CE",
+          "EFI", "EFI boot", "EFI runtime", "EFI ROM", "XBOX", 0, "boot"};
+      int type = peek_le(s+magic+92, 2);
+      char *name = (type>0 && type<ARRAY_LEN(types))?types[type]:0;
+
+      xprintf("(%s) ", name?name:"unknown");
+    }
+    xprintf("%s\n", (peek_le(s+magic+4, 2)==0x14c)?"x86":"x86-64");
   } else {
     char *what = 0;
     int i, bytes;
