@@ -46,8 +46,10 @@
 
 USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflMno*O*p(pid)*s*t*Tu*U*g*G*wZ[!ol][+Ae][!oO]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 // stayroot because iotop needs root to read other process' proc/$$/io
-USE_TOP(NEWTOY(top, ">0m" "O*Hk*o*p*u*s#<1d#=3<1n#<1bq[!oO]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
-USE_IOTOP(NEWTOY(iotop, ">0AaKO" "k*o*p*u*s#<1=7d#=3<1n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
+// TOP and IOTOP have a large common option block used for common processing,
+// the default values are different but the flags are in the same order.
+USE_TOP(NEWTOY(top, ">0O*" "Hk*o*p*u*s#<1d#=3<1m#n#<1bq[!oO]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_IOTOP(NEWTOY(iotop, ">0AaKO" "Hk*o*p*u*s#<1=7d#=3<1m#n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
 USE_PGREP(NEWTOY(pgrep, "?cld:u*U*t*s*P*g*G*fnovxL:[-no]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_PKILL(NEWTOY(pkill,    "?Vu*U*t*s*P*g*G*fnovxl:[-no]", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -130,7 +132,7 @@ config TOP
   bool "top"
   default y
   help
-    usage: top [-Hbq] [-k FIELD,] [-o FIELD,] [-s SORT] [-n NUMBER] [-d SECONDS] [-p PID,] [-u USER,]
+    usage: top [-Hbq] [-k FIELD,] [-o FIELD,] [-s SORT] [-n NUMBER] [-m LINES] [-d SECONDS] [-p PID,] [-u USER,]
 
     Show process activity in real time.
 
@@ -141,6 +143,7 @@ config TOP
     -s	Sort by field number (1-X, default 9)
     -b	Batch mode (no tty)
     -d	Delay SECONDS between each cycle (default 3)
+    -m	Maximum number of tasks to show
     -n	Exit after NUMBER iterations
     -p	Show these PIDs
     -u	Show these USERs
@@ -160,8 +163,10 @@ config IOTOP
 
     -A	All I/O, not just disk
     -a	Accumulated I/O (not percentage)
+    -H	Show threads
     -K	Kilobytes
     -k	Fallback sort FIELDS (default -[D]IO,-ETIME,-PID)
+    -m	Maximum number of tasks to show
     -O	Only show processes doing I/O
     -o	Show FIELDS (default PID,PR,USER,[D]READ,[D]WRITE,SWAP,[D]IO,COMM)
     -s	Sort by field number (0-X, default 6)
@@ -243,6 +248,7 @@ GLOBALS(
     } ps;
     struct {
       long n;
+      long m;
       long d;
       long s;
       struct arg_list *u;
@@ -561,6 +567,7 @@ static void show_ps(void *p)
     // Output the field, appropriately padded
 
     // Minimum one space between each field
+    if (width<2) break;
     if (field != TT.fields) {
       putchar(' ');
       width--;
@@ -1435,6 +1442,7 @@ static void top_common(
             terminal_probesize(&TT.width, &TT.height);
           }
         }
+        if (TT.top.m) TT.height = TT.top.m+5;
         lines = TT.height;
       }
       if (recalc && !(toys.optflags&FLAG_q)) {
