@@ -4,13 +4,13 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/df.html
 
-USE_DF(NEWTOY(df, "HPkht*a[-HPkh]", TOYFLAG_SBIN))
+USE_DF(NEWTOY(df, "HPkhit*a[-HPkh]", TOYFLAG_SBIN))
 
 config DF
   bool "df"
   default y
   help
-    usage: df [-HPkh] [-t type] [FILESYSTEM ...]
+    usage: df [-HPkh] [-i] [-t type] [FILESYSTEM ...]
 
     The "disk free" command shows total/used/available disk space for
     each filesystem listed on the command line, or all currently mounted
@@ -21,6 +21,7 @@ config DF
     -k	Sets units back to 1024 bytes (the default without -P)
     -h	Human readable output (K=1024)
     -H	Human readable output (k=1000)
+    -i	Show inodes instead of blocks
     -t type	Display only filesystems of this type
 
     Pedantic provides a slightly less useful output format dictated by Posix,
@@ -47,7 +48,7 @@ static void measure_column(int col, const char *s)
 
 static void measure_numeric_column(int col, long long n)
 {
-  snprintf(toybuf, sizeof(toybuf), "%lld", n);
+  snprintf(toybuf, sizeof(toybuf), "%llu", n);
   return measure_column(col, toybuf);
 }
 
@@ -58,22 +59,38 @@ static void show_header()
   // The filesystem column is always at least this wide.
   if (TT.column_widths[0] < 14) TT.column_widths[0] = 14;
 
-  if (toys.optflags & (FLAG_H|FLAG_h)) {
-    xprintf("%-*s Size  Used Avail Use%% Mounted on\n",
-            TT.column_widths[0], "Filesystem");
+  if ((toys.optflags & (FLAG_H|FLAG_h))) {
+    if (toys.optflags & FLAG_i) {
+      xprintf("%-*sInodes  IUsed  IFree IUse%% Mounted on\n",
+              TT.column_widths[0], "Filesystem");
+    } else {
+      xprintf("%-*s Size  Used Avail Use%% Mounted on\n",
+              TT.column_widths[0], "Filesystem");
+    }
   } else {
-    const char *blocks_label = TT.units == 512 ? "512-blocks" : "1K-blocks";
-    const char *use_label = toys.optflags & FLAG_P ? "Capacity" : "Use%";
+    const char *item_label, *used_label, *free_label, *use_label;
 
-    measure_column(1, blocks_label);
-    measure_column(2, "Used");
-    measure_column(3, "Available");
+    if (toys.optflags & FLAG_i) {
+      item_label = "Inodes";
+      used_label = "IUsed";
+      free_label = "IFree";
+      use_label = "IUse%";
+    } else {
+      item_label = TT.units == 512 ? "512-blocks" : "1K-blocks";
+      used_label = "Used";
+      free_label = "Available";
+      use_label = toys.optflags & FLAG_P ? "Capacity" : "Use%";
+    }
+
+    measure_column(1, item_label);
+    measure_column(2, used_label);
+    measure_column(3, free_label);
     measure_column(4, use_label);
     xprintf("%-*s %*s %*s %*s %*s Mounted on\n",
             TT.column_widths[0], "Filesystem",
-            TT.column_widths[1], blocks_label,
-            TT.column_widths[2], "Used",
-            TT.column_widths[3], "Available",
+            TT.column_widths[1], item_label,
+            TT.column_widths[2], used_label,
+            TT.column_widths[3], free_label,
             TT.column_widths[4], use_label);
 
     // For the "Use%" column, the trailing % should be inside the column.
@@ -83,7 +100,7 @@ static void show_header()
 
 static void show_mt(struct mtab_list *mt, int measuring)
 {
-  long long size, used, avail, percent, block;
+  unsigned long long size, used, avail, percent;
   char *device;
 
   // Return if it wasn't found (should never happen, but with /etc/mtab...)
@@ -104,10 +121,17 @@ static void show_mt(struct mtab_list *mt, int measuring)
 
   // Figure out how much total/used/free space this filesystem has,
   // forcing 64-bit math because filesystems are big now.
-  block = mt->statvfs.f_bsize ? mt->statvfs.f_bsize : 1;
-  size = (block * mt->statvfs.f_blocks) / TT.units;
-  used = (block * (mt->statvfs.f_blocks-mt->statvfs.f_bfree)) / TT.units;
-  avail = (block*(getuid()?mt->statvfs.f_bavail:mt->statvfs.f_bfree))/TT.units;
+  if (toys.optflags & FLAG_i) {
+    size = mt->statvfs.f_files;
+    used = mt->statvfs.f_files - mt->statvfs.f_ffree;
+    avail = getuid() ? mt->statvfs.f_favail : mt->statvfs.f_ffree;
+  } else {
+    long long block = mt->statvfs.f_bsize ? mt->statvfs.f_bsize : 1;
+
+    size = (block * mt->statvfs.f_blocks) / TT.units;
+    used = (block * (mt->statvfs.f_blocks-mt->statvfs.f_bfree)) / TT.units;
+    avail= (block*(getuid()?mt->statvfs.f_bavail:mt->statvfs.f_bfree))/TT.units;
+  }
   if (!(used+avail)) percent = 0;
   else {
     percent = (used*100)/(used+avail);
@@ -128,14 +152,15 @@ static void show_mt(struct mtab_list *mt, int measuring)
     if (toys.optflags & (FLAG_H|FLAG_h)) {
       char *size_str = toybuf, *used_str = toybuf+64, *avail_str = toybuf+128;
       int hr_flags = (toys.optflags & FLAG_H) ? HR_1000 : 0;
+      int w = 4 + !!(toys.optflags & FLAG_i);
 
       human_readable(size_str, size, hr_flags);
       human_readable(used_str, used, hr_flags);
       human_readable(avail_str, avail, hr_flags);
-      xprintf("%-*s %4s  %4s  %4s % 3lld%% %s\n",
+      xprintf("%-*s %*s  %*s  %*s % *lld%% %s\n",
         TT.column_widths[0], device,
-        size_str, used_str, avail_str, percent, mt->dir);
-    } else xprintf("%-*s %*lld %*lld %*lld %*lld%% %s\n",
+        w, size_str, w, used_str, w, avail_str, w-1, percent, mt->dir);
+    } else xprintf("%-*s %*llu %*llu %*llu %*lld%% %s\n",
         TT.column_widths[0], device,
         TT.column_widths[1], size,
         TT.column_widths[2], used,
