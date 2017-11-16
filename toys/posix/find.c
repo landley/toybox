@@ -61,6 +61,7 @@ GLOBALS(
   struct double_list *argdata;
   int topdir, xdev, depth;
   time_t now;
+  long max_bytes;
 )
 
 struct execdir_data {
@@ -498,10 +499,10 @@ static int do_find(struct dirtree *new)
             // Done here vs argument parsing pass so it's after dlist_terminate
             aa->prev = (void *)1;
 
-            // Flush if we pass 16 megs of environment space.
+            // Flush if the child's environment space gets too large.
             // An insanely long path (>2 gigs) could wrap the counter and
             // defeat this test, which could potentially trigger OOM killer.
-            if ((aa->plus += sizeof(char *)+strlen(name)+1) > 1<<24) {
+            if ((aa->plus += sizeof(char *)+strlen(name)+1) > TT.max_bytes) {
               aa->plus = 1;
               toys.exitval |= flush_exec(new, aa);
             }
@@ -543,6 +544,7 @@ void find_main(void)
   char **ss = toys.optargs;
 
   TT.topdir = -1;
+  TT.max_bytes = sysconf(_SC_ARG_MAX) - environ_bytes();
 
   // Distinguish paths from filters
   for (len = 0; toys.optargs[len]; len++)
