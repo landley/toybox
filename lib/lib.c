@@ -14,7 +14,7 @@ void verror_msg(char *msg, int err, va_list va)
   else s+=2;
   if (err>0) fprintf(stderr, s, strerror(err));
   if (err<0 && CFG_TOYBOX_HELP)
-    fprintf(stderr, " (See \"%s --help\")", toys.which->name);
+    fprintf(stderr, " (see \"%s --help\")", toys.which->name);
   if (msg || err) putc('\n', stderr);
   if (!toys.exitval) toys.exitval++;
 }
