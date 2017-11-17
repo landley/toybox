@@ -10,7 +10,7 @@ config DF
   bool "df"
   default y
   help
-    usage: df [-HPkh] [-i] [-t type] [FILESYSTEM ...]
+    usage: df [-HPkhi] [-t type] [FILESYSTEM ...]
 
     The "disk free" command shows total/used/available disk space for
     each filesystem listed on the command line, or all currently mounted
@@ -60,13 +60,10 @@ static void show_header()
   if (TT.column_widths[0] < 14) TT.column_widths[0] = 14;
 
   if ((toys.optflags & (FLAG_H|FLAG_h))) {
-    if (toys.optflags & FLAG_i) {
-      xprintf("%-*sInodes  IUsed  IFree IUse%% Mounted on\n",
-              TT.column_widths[0], "Filesystem");
-    } else {
-      xprintf("%-*s Size  Used Avail Use%% Mounted on\n",
-              TT.column_widths[0], "Filesystem");
-    }
+    xprintf((toys.optflags&FLAG_i) ?
+            "%-*sInodes  IUsed  IFree IUse%% Mounted on\n" :
+            "%-*s Size  Used Avail Use%% Mounted on\n",
+            TT.column_widths[0], "Filesystem");
   } else {
     const char *item_label, *used_label, *free_label, *use_label;
 
@@ -100,7 +97,7 @@ static void show_header()
 
 static void show_mt(struct mtab_list *mt, int measuring)
 {
-  unsigned long long size, used, avail, percent;
+  unsigned long long size, used, avail, percent, block;
   char *device;
 
   // Return if it wasn't found (should never happen, but with /etc/mtab...)
@@ -126,8 +123,7 @@ static void show_mt(struct mtab_list *mt, int measuring)
     used = mt->statvfs.f_files - mt->statvfs.f_ffree;
     avail = getuid() ? mt->statvfs.f_favail : mt->statvfs.f_ffree;
   } else {
-    long long block = mt->statvfs.f_bsize ? mt->statvfs.f_bsize : 1;
-
+    block = mt->statvfs.f_bsize ? mt->statvfs.f_bsize : 1;
     size = (block * mt->statvfs.f_blocks) / TT.units;
     used = (block * (mt->statvfs.f_blocks-mt->statvfs.f_bfree)) / TT.units;
     avail= (block*(getuid()?mt->statvfs.f_bavail:mt->statvfs.f_bfree))/TT.units;
@@ -157,10 +153,10 @@ static void show_mt(struct mtab_list *mt, int measuring)
       human_readable(size_str, size, hr_flags);
       human_readable(used_str, used, hr_flags);
       human_readable(avail_str, avail, hr_flags);
-      xprintf("%-*s %*s  %*s  %*s % *lld%% %s\n",
+      xprintf("%-*s %*s  %*s  %*s %*llu%% %s\n",
         TT.column_widths[0], device,
         w, size_str, w, used_str, w, avail_str, w-1, percent, mt->dir);
-    } else xprintf("%-*s %*llu %*llu %*llu %*lld%% %s\n",
+    } else xprintf("%-*s %*llu %*llu %*llu %*llu%% %s\n",
         TT.column_widths[0], device,
         TT.column_widths[1], size,
         TT.column_widths[2], used,
