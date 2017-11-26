@@ -30,7 +30,7 @@ GLOBALS(
 static void do_elf_file(int fd, struct stat *sb)
 {
   int endian = toybuf[5], bits = toybuf[4], i, j;
-  int64_t (*elf_int)(void *ptr, unsigned size) = peek_le;
+  int64_t (*elf_int)(void *ptr, unsigned size);
   // Values from include/linux/elf-em.h (plus arch/*/include/asm/elf.h)
   // Names are linux/arch/ directory (sometimes before 32/64 bit merges)
   struct {int val; char *name;} type[] = {{0x9026, "alpha"}, {93, "arc"},
@@ -53,9 +53,10 @@ static void do_elf_file(int fd, struct stat *sb)
   int phentsize, phnum, shsize, shnum;
 
   printf("ELF ");
+  elf_int = (endian==2) ? peek_be : peek_le;
 
-  // executable (ELF says this is short but reality says byte, not MSB swapped)
-  i = toybuf[16];
+  // executable type
+  i = elf_int(toybuf+16, 2);
   if (i == 1) printf("relocatable");
   else if (i == 2) printf("executable");
   else if (i == 3) printf("shared object");
@@ -73,10 +74,8 @@ static void do_elf_file(int fd, struct stat *sb)
 
   // "LSB"
   if (endian == 1) printf("LSB ");
-  else if (endian == 2) {
-    printf("MSB ");
-    elf_int = peek_be;
-  } else {
+  else if (endian == 2) printf("MSB ");
+  else {
     printf("(bad endian %d) \n", endian);
     endian = 0;
   }
