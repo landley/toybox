@@ -8,7 +8,7 @@ USE_STTY(NEWTOY(stty, "?aF:g[!ag]", TOYFLAG_BIN))
 
 config STTY
   bool "stty"
-  default y
+  default n
   help
     usage: stty [-ag] [-F device] SETTING...
 
