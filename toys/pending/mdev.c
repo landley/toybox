@@ -226,7 +226,7 @@ void mdev_main(void)
 
   if (toys.optflags) {
     dirtree_read("/sys/class", callback);
-    dirtree_read("/sys/block", callback);
+    if (!access("/sys/block", R_OK)) dirtree_read("/sys/block", callback);
   } else { // hotplug support
     make_device(NULL);
   }
