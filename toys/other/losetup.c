@@ -45,16 +45,6 @@ GLOBALS(
   ino_t jino;
 )
 
-/*
-todo: basic /dev file association
-  associate DEV FILE
-  #-a
-  cdfjosS
-  allocate new loop device:
-    /dev/loop-control
-    https://lkml.org/lkml/2011/7/26/148
-*/
-
 // -f: *device is NULL
 
 // Perform requested operation on one device. Returns 1 if handled, 0 if error
@@ -75,8 +65,11 @@ static void loopback_setup(char *device, char *file)
 
     // mount -o loop depends on found device being at the start of toybuf.
     if (cfd != -1) {
-      if (0 <= (i = ioctl(cfd, 0x4C82))) // LOOP_CTL_GET_FREE
+      if (0 <= (i = ioctl(cfd, 0x4C82))) { // LOOP_CTL_GET_FREE
         sprintf(device = toybuf, "/dev/loop%d", i);
+        // Fallback for Android
+        if (access(toybuf, F_OK)) sprintf(toybuf, "/dev/block/loop%d", i);
+      }
       close(cfd);
     }
   }
@@ -119,8 +112,8 @@ static void loopback_setup(char *device, char *file)
     free(s);
   } else if (flags & FLAG_f) printf("%s", device);
   else {
-    xprintf("%s: [%04llx]:%llu (%s)", device, loop->lo_device, loop->lo_inode,
-      loop->lo_file_name);
+    xprintf("%s: [%04llx]:%llu (%s)", device, (long long)loop->lo_device,
+      (long long)loop->lo_inode, loop->lo_file_name);
     if (loop->lo_offset) xprintf(", offset %llu", loop->lo_offset);
     if (loop->lo_sizelimit) xprintf(", sizelimit %llu", loop->lo_sizelimit);
     xputc('\n');
@@ -137,7 +130,7 @@ static int dash_a(struct dirtree *node)
   char *s = node->name;
 
   // Initial /dev node needs to recurse down one level, then only loop[0-9]*
-  if (*s == '/') return DIRTREE_RECURSE;
+  if (!node->parent) return DIRTREE_RECURSE;
   if (strncmp(s, "loop", 4) || !isdigit(s[4])) return 0;
 
   s = dirtree_path(node, 0);
