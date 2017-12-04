@@ -357,7 +357,7 @@ static void make_sane(struct termios *t)
     "-ixoff", "-iutf8", "-iuclc", "-ixany", "imaxbel", "-xcase", "-olcuc",
     "-ocrnl", "opost", "-ofill", "onlcr", "-onocr", "-onlret", "nl0", "cr0",
     "tab0", "bs0", "vt0", "ff0", "isig", "-tostop", "-ofdel", "-echoprt",
-    "echoctl", "echoke", "-extproc", "-flusho", "cs8", 0);
+    "echoctl", "echoke", "-extproc", "-flusho", "cs8", NULL);
   memset(t->c_cc, 0, NCCS);
   t->c_cc[VINTR] = 0x3;
   t->c_cc[VQUIT] = 0x1c;
@@ -423,25 +423,25 @@ static void do_stty()
         // Already done as a side effect.
       } else if (!strcmp(arg, "cooked")) {
         set_options(&new, "brkint", "ignpar", "istrip", "icrnl", "ixon",
-          "opost", "isig", "icanon", 0);
+          "opost", "isig", "icanon", NULL);
       } else if (!strcmp(arg, "evenp") || !strcmp(arg, "parity")) {
-        set_options(&new, "parenb", "cs7", "-parodd", 0);
+        set_options(&new, "parenb", "cs7", "-parodd", NULL);
       } else if (!strcmp(arg, "oddp")) {
-        set_options(&new, "parenb", "cs7", "parodd", 0);
+        set_options(&new, "parenb", "cs7", "parodd", NULL);
       } else if (!strcmp(arg, "-parity") || !strcmp(arg, "-evenp") ||
                  !strcmp(arg, "-oddp")) {
-        set_options(&new, "-parenb", "cs8", 0);
+        set_options(&new, "-parenb", "cs8", NULL);
       } else if (!strcmp(arg, "raw")) {
         // POSIX and "man stty" differ wildly. This is "man stty".
         set_options(&new, "-ignbrk", "-brkint", "-ignpar", "-parmrk", "-inpck",
           "-istrip", "-inlcr", "-igncr", "-icrnl", "-ixon", "-ixoff", "-iuclc",
-          "-ixany", "-imaxbel", "-opost", "-isig", "-icanon", "-xcase", 0);
+          "-ixany", "-imaxbel", "-opost", "-isig", "-icanon", "-xcase", NULL);
         new.c_cc[VMIN] = 1;
         new.c_cc[VTIME] = 0;
       } else if (!strcmp(arg, "nl")) {
-        set_options(&new, "-icrnl", "-ocrnl", 0);
+        set_options(&new, "-icrnl", "-ocrnl", NULL);
       } else if (!strcmp(arg, "-nl")) {
-        set_options(&new, "icrnl", "ocrnl", "-inlcr", "-igncr", 0);
+        set_options(&new, "icrnl", "ocrnl", "-inlcr", "-igncr", NULL);
       } else if (!strcmp(arg, "ek")) {
         new.c_cc[VERASE] = 0x7f;
         new.c_cc[VKILL] = 0x15;
