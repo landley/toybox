@@ -14,6 +14,7 @@ config STTY
 
     Get/set terminal configuration.
 
+    -F	Open device instead of stdin
     -a	Show all current settings (default differences from "sane").
     -g	Show all current settings usable as input to stty.
 
@@ -74,125 +75,57 @@ struct flag {
 };
 
 static const struct flag chars[] = {
-  { "intr", VINTR },
-  { "quit", VQUIT },
-  { "erase", VERASE },
-  { "kill", VKILL },
-  { "eof", VEOF },
-  { "eol", VEOL },
-  { "eol2", VEOL2 },
-  { "swtch", VSWTC },
-  { "start", VSTART },
-  { "stop", VSTOP },
-  { "susp", VSUSP },
-  { "rprnt", VREPRINT },
-  { "werase", VWERASE },
-  { "lnext", VLNEXT },
-  { "discard", VDISCARD },
-  { "min", VMIN },
-  { "time", VTIME },
+  { "intr", VINTR }, { "quit", VQUIT }, { "erase", VERASE }, { "kill", VKILL },
+  { "eof", VEOF }, { "eol", VEOL }, { "eol2", VEOL2 }, { "swtch", VSWTC },
+  { "start", VSTART }, { "stop", VSTOP }, { "susp", VSUSP },
+  { "rprnt", VREPRINT }, { "werase", VWERASE }, { "lnext", VLNEXT },
+  { "discard", VDISCARD }, { "min", VMIN }, { "time", VTIME },
 };
 
 static const struct flag cflags[] = {
-  { "parenb", PARENB },
-  { "parodd", PARODD },
-  { "cmspar", CMSPAR },
-  { "cs5", CS5, CSIZE },
-  { "cs6", CS6, CSIZE },
-  { "cs7", CS7, CSIZE },
-  { "cs8", CS8, CSIZE },
-  { "hupcl", HUPCL },
-  { "cstopb", CSTOPB },
-  { "cread", CREAD },
-  { "clocal", CLOCAL },
-  { "crtscts", CRTSCTS },
+  { "parenb", PARENB }, { "parodd", PARODD }, { "cmspar", CMSPAR },
+  { "cs5", CS5, CSIZE }, { "cs6", CS6, CSIZE }, { "cs7", CS7, CSIZE },
+  { "cs8", CS8, CSIZE }, { "hupcl", HUPCL }, { "cstopb", CSTOPB },
+  { "cread", CREAD }, { "clocal", CLOCAL }, { "crtscts", CRTSCTS },
 };
 
 static const struct flag iflags[] = {
-  { "ignbrk", IGNBRK },
-  { "brkint", BRKINT },
-  { "ignpar", IGNPAR },
-  { "parmrk", PARMRK },
-  { "inpck", INPCK },
-  { "istrip", ISTRIP },
-  { "inlcr", INLCR },
-  { "igncr", IGNCR },
-  { "icrnl", ICRNL },
-  { "ixon", IXON },
-  { "ixoff", IXOFF },
-  { "iuclc", IUCLC },
-  { "ixany", IXANY },
-  { "imaxbel", IMAXBEL },
-  { "iutf8", IUTF8 },
+  { "ignbrk", IGNBRK }, { "brkint", BRKINT }, { "ignpar", IGNPAR },
+  { "parmrk", PARMRK }, { "inpck", INPCK }, { "istrip", ISTRIP },
+  { "inlcr", INLCR }, { "igncr", IGNCR }, { "icrnl", ICRNL }, { "ixon", IXON },
+  { "ixoff", IXOFF }, { "iuclc", IUCLC }, { "ixany", IXANY },
+  { "imaxbel", IMAXBEL }, { "iutf8", IUTF8 },
 };
 
 static const struct flag oflags[] = {
-  { "opost", OPOST },
-  { "olcuc", OLCUC },
-  { "ocrnl", OCRNL },
-  { "onlcr", ONLCR },
-  { "onocr", ONOCR },
-  { "onlret", ONLRET },
-  { "ofill", OFILL },
-  { "ofdel", OFDEL },
-  { "nl0", NL0, NLDLY },
-  { "nl1", NL1, NLDLY },
-  { "cr0", CR0, CRDLY },
-  { "cr1", CR1, CRDLY },
-  { "cr2", CR2, CRDLY },
-  { "cr3", CR3, CRDLY },
-  { "tab0", TAB0, TABDLY },
-  { "tab1", TAB1, TABDLY },
-  { "tab2", TAB2, TABDLY },
-  { "tab3", TAB3, TABDLY },
-  { "bs0", BS0, BSDLY },
-  { "bs1", BS1, BSDLY },
-  { "vt0", VT0, VTDLY },
-  { "vt1", VT1, VTDLY },
-  { "ff0", FF0, FFDLY },
-  { "ff1", FF1, FFDLY },
+  { "opost", OPOST }, { "olcuc", OLCUC }, { "ocrnl", OCRNL },
+  { "onlcr", ONLCR }, { "onocr", ONOCR }, { "onlret", ONLRET },
+  { "ofill", OFILL }, { "ofdel", OFDEL }, { "nl0", NL0, NLDLY },
+  { "nl1", NL1, NLDLY }, { "cr0", CR0, CRDLY }, { "cr1", CR1, CRDLY },
+  { "cr2", CR2, CRDLY }, { "cr3", CR3, CRDLY }, { "tab0", TAB0, TABDLY },
+  { "tab1", TAB1, TABDLY }, { "tab2", TAB2, TABDLY }, { "tab3", TAB3, TABDLY },
+  { "bs0", BS0, BSDLY }, { "bs1", BS1, BSDLY }, { "vt0", VT0, VTDLY },
+  { "vt1", VT1, VTDLY }, { "ff0", FF0, FFDLY }, { "ff1", FF1, FFDLY },
 };
 
 static const struct flag lflags[] = {
-  { "isig", ISIG },
-  { "icanon", ICANON },
-  { "iexten", IEXTEN },
-  { "echo", ECHO },
-  { "echoe", ECHOE },
-  { "echok", ECHOK },
-  { "echonl", ECHONL },
-  { "noflsh", NOFLSH },
-  { "xcase", XCASE },
-  { "tostop", TOSTOP },
-  { "echoprt", ECHOPRT },
-  { "echoctl", ECHOCTL },
-  { "echoke", ECHOKE },
-  { "flusho", FLUSHO },
-  { "extproc", EXTPROC },
+  { "isig", ISIG }, { "icanon", ICANON }, { "iexten", IEXTEN },
+  { "echo", ECHO }, { "echoe", ECHOE }, { "echok", ECHOK },
+  { "echonl", ECHONL }, { "noflsh", NOFLSH }, { "xcase", XCASE },
+  { "tostop", TOSTOP }, { "echoprt", ECHOPRT }, { "echoctl", ECHOCTL },
+  { "echoke", ECHOKE }, { "flusho", FLUSHO }, { "extproc", EXTPROC },
 };
 
 static const struct synonym {
   char *from;
   char *to;
 } synonyms[] = {
-  { "cbreak", "-icanon" },
-  { "-cbreak", "icanon" },
-  { "-cooked", "raw" },
-  { "crterase", "echoe" },
-  { "-crterase", "-echoe" },
-  { "crtkill", "echoke" },
-  { "-crtkill", "-echoke" },
-  { "ctlecho", "echoctl" },
-  { "-ctlecho", "-echoctl" },
-  { "hup", "hupcl" },
-  { "-hup", "-hupcl" },
-  { "prterase", "echoprt" },
-  { "-prterase", "-echoprt" },
-  { "-raw", "cooked" },
-  { "tabs", "tab0" },
-  { "-tabs", "tab3" },
-  { "tandem", "ixoff" },
-  { "-tandem", "-ixoff" },
+  { "cbreak", "-icanon" }, { "-cbreak", "icanon" }, { "-cooked", "raw" },
+  { "crterase", "echoe" }, { "-crterase", "-echoe" }, { "crtkill", "echoke" },
+  { "-crtkill", "-echoke" }, { "ctlecho", "echoctl" }, { "-tandem", "-ixoff" },
+  { "-ctlecho", "-echoctl" }, { "hup", "hupcl" }, { "-hup", "-hupcl" },
+  { "prterase", "echoprt" }, { "-prterase", "-echoprt" }, { "-raw", "cooked" },
+  { "tabs", "tab0" }, { "-tabs", "tab3" }, { "tandem", "ixoff" },
 };
 
 static void out(const char *fmt, ...)
@@ -308,9 +241,7 @@ static void set_options(struct termios* new, ...)
   char *option;
 
   va_start(va, new);
-  while ((option = va_arg(va, char *))) {
-    set_option(new, option);
-  }
+  while ((option = va_arg(va, char *))) set_option(new, option);
   va_end(va);
 }
 
@@ -378,12 +309,17 @@ static void make_sane(struct termios *t)
   t->c_cc[VEOL2] = 0;
 }
 
+static void xtcgetattr(struct termios *t)
+{
+  if (tcgetattr(TT.fd, t)) perror_exit("tcgetattr %s", TT.device);
+}
+
 static void do_stty()
 {
   struct termios old, sane;
   int i, j, n;
 
-  if (tcgetattr(TT.fd, &old)) perror_exit("tcgetattr %s", TT.device);
+  xtcgetattr(&old);
 
   if (*toys.optargs) {
     struct termios new = old;
@@ -401,16 +337,16 @@ static void do_stty()
 
         cfsetispeed(&new, new_speed);
         cfsetospeed(&new, new_speed);
-      } else if (!strcmp(arg, "ispeed")) {
+      } else if (!strcmp(arg, "ispeed"))
         cfsetispeed(&new, speed(get_arg(&i, 0, 4000000)));
-      } else if (!strcmp(arg, "ospeed")) {
+      else if (!strcmp(arg, "ospeed"))
         cfsetospeed(&new, speed(get_arg(&i, 0, 4000000)));
-      } else if (!strcmp(arg, "rows")) {
-        set_size(1, get_arg(&i, 0, USHRT_MAX));
-      } else if (!strcmp(arg, "cols") || !strcmp(arg, "columns")) {
+      else if (!strcmp(arg, "rows")) set_size(1, get_arg(&i, 0, USHRT_MAX));
+      else if (!strcmp(arg, "cols") || !strcmp(arg, "columns"))
         set_size(0, get_arg(&i, 0, USHRT_MAX));
-      } else if (sscanf(arg, "%x:%x:%x:%x:%n", &new.c_iflag, &new.c_oflag,
-                        &new.c_cflag, &new.c_lflag, &n) == 4) {
+      else if (sscanf(arg, "%x:%x:%x:%x:%n", &new.c_iflag, &new.c_oflag,
+                        &new.c_cflag, &new.c_lflag, &n) == 4)
+      {
         int value;
 
         arg += n;
@@ -419,16 +355,16 @@ static void do_stty()
           new.c_cc[j] = value;
           arg += n+1;
         }
-      } else if (set_special_character(&new, &i, arg)) {
+      } else if (set_special_character(&new, &i, arg));
         // Already done as a side effect.
-      } else if (!strcmp(arg, "cooked")) {
+      else if (!strcmp(arg, "cooked"))
         set_options(&new, "brkint", "ignpar", "istrip", "icrnl", "ixon",
           "opost", "isig", "icanon", NULL);
-      } else if (!strcmp(arg, "evenp") || !strcmp(arg, "parity")) {
+      else if (!strcmp(arg, "evenp") || !strcmp(arg, "parity"))
         set_options(&new, "parenb", "cs7", "-parodd", NULL);
-      } else if (!strcmp(arg, "oddp")) {
+      else if (!strcmp(arg, "oddp"))
         set_options(&new, "parenb", "cs7", "parodd", NULL);
-      } else if (!strcmp(arg, "-parity") || !strcmp(arg, "-evenp") ||
+      else if (!strcmp(arg, "-parity") || !strcmp(arg, "-evenp") ||
                  !strcmp(arg, "-oddp")) {
         set_options(&new, "-parenb", "cs8", NULL);
       } else if (!strcmp(arg, "raw")) {
@@ -438,16 +374,15 @@ static void do_stty()
           "-ixany", "-imaxbel", "-opost", "-isig", "-icanon", "-xcase", NULL);
         new.c_cc[VMIN] = 1;
         new.c_cc[VTIME] = 0;
-      } else if (!strcmp(arg, "nl")) {
+      } else if (!strcmp(arg, "nl"))
         set_options(&new, "-icrnl", "-ocrnl", NULL);
-      } else if (!strcmp(arg, "-nl")) {
+      else if (!strcmp(arg, "-nl"))
         set_options(&new, "icrnl", "ocrnl", "-inlcr", "-igncr", NULL);
-      } else if (!strcmp(arg, "ek")) {
+      else if (!strcmp(arg, "ek")) {
         new.c_cc[VERASE] = 0x7f;
         new.c_cc[VKILL] = 0x15;
-      } else if (!strcmp(arg, "sane")) {
-        make_sane(&new);
-      } else {
+      } else if (!strcmp(arg, "sane")) make_sane(&new);
+      else {
         // Translate historical cruft into canonical forms.
         for (j=0;j<ARRAY_LEN(synonyms);j++) {
           if (!strcmp(synonyms[j].from, arg)) {
@@ -458,13 +393,11 @@ static void do_stty()
         set_option(&new, arg);
       }
     }
-    if (tcsetattr(TT.fd,TCSAFLUSH,&new)) perror_exit("tcsetattr %s",TT.device);
-
-    // tcsetattr returns success if *any* change is made, so double-check...
-    old = new;
-    if (tcgetattr(TT.fd,&new)) perror_exit("tcgetattr %s",TT.device);
+    tcsetattr(TT.fd, TCSAFLUSH, &new);
+    xtcgetattr(&old);
     if (memcmp(&old, &new, sizeof(old)))
       error_exit("unable to perform all requested operations on %s", TT.device);
+
     return;
   }
 
@@ -517,12 +450,10 @@ void stty_main(void)
   if (toys.optflags&(FLAG_a|FLAG_g) && *toys.optargs)
     error_exit("can't make settings with -a/-g");
 
-  if (TT.device) {
-    TT.fd=xopen(TT.device,(*toys.optargs?O_RDWR:O_RDONLY)|O_NOCTTY|O_NONBLOCK);
-    do_stty();
-    close(TT.fd);
-  } else {
-    TT.device = "standard input";
-    do_stty();
-  }
+  if (!TT.device) TT.device = "standard input";
+  else TT.fd=xopen(TT.device, (O_RDWR*!!*toys.optargs)|O_NOCTTY|O_NONBLOCK);
+
+  do_stty();
+
+  if (CFG_TOYBOX_FREE && TT.device) close(TT.fd);
 }
