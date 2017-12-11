@@ -4,6 +4,13 @@
  * Copyright 2012 Rob Landley <rob@landley.net>
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/ls.html
+ *
+ * Deviations from posix:
+ *   add -b (and default to it instead of -q for an unambiguous representation
+ *   that doesn't cause collisions)
+ *   add -Z -ll --color
+ *   Posix says the -l date format should vary based on how recent it is
+ *   and we do --time-style=long-iso instead
 
 USE_LS(NEWTOY(ls, USE_LS_COLOR("(color):;")"(full-time)(show-control-chars)ZgoACFHLRSabcdfhikl@mnpqrstux1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][!qb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
 
