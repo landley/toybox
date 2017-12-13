@@ -1010,6 +1010,12 @@ char *getbasename(char *name)
   return name;
 }
 
+static int argv0_match(char *cmd, char *name)
+{
+  return (*name == '/' ? !strcmp(cmd, name)
+      : !strcmp(getbasename(cmd), getbasename(name)));
+}
+
 // Execute a callback for each PID that matches a process name from a list.
 void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
 {
@@ -1020,17 +1026,21 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
 
   while ((entry = readdir(dp))) {
     unsigned u;
-    char *cmd, **curname;
+    char *cmd, *comm, **cur;
 
     if (!(u = atoi(entry->d_name))) continue;
-    sprintf(libbuf, "/proc/%u/cmdline", u);
-    if (!(cmd = readfile(libbuf, libbuf, sizeof(libbuf)))) continue;
 
-    for (curname = names; *curname; curname++)
-      if (**curname == '/' ? !strcmp(cmd, *curname)
-          : !strcmp(getbasename(cmd), getbasename(*curname)))
-        if (callback(u, *curname)) break;
-    if (*curname) break;
+    // For a script, comm and argv[1] will match (argv[0] will be the interp).
+    sprintf(libbuf, "/proc/%u/comm", u);
+    if (!(comm = readfile(libbuf, libbuf, sizeof(libbuf)))) continue;
+    sprintf(libbuf+16, "/proc/%u/cmdline", u);
+    if (!(cmd = readfile(libbuf+16, libbuf+16, sizeof(libbuf)-16))) continue;
+
+    for (cur = names; *cur; cur++)
+      if (argv0_match(cmd, *cur) ||
+          (!strncmp(comm, *cur, 15) && argv0_match(cmd+strlen(cmd)+1, *cur)))
+        if (callback(u, *cur)) break;
+    if (*cur) break;
   }
   closedir(dp);
 }

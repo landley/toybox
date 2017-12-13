@@ -1,0 +1,14 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+echo "#!/bin/sh
+yes > /dev/null" > toybox.killall.test.script
+chmod a+x toybox.killall.test.script
+
+./toybox.killall.test.script &
+testing "script" "killall toybox.killall.test.script && echo killed ; pgrep -l toybox.killall.test.script || echo really" "killed\nreally\n" "" ""
+
+rm -f toybox.killall.test.script
