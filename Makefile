@@ -34,7 +34,7 @@ generated/Config.in: toys/*/*.c scripts/genconfig.sh
 baseline: generated/unstripped/toybox
 	@cp generated/unstripped/toybox generated/unstripped/toybox_old
 
-bloatcheck: toybox_old generated/unstripped/toybox
+bloatcheck: generated/unstripped/toybox_old generated/unstripped/toybox
 	@scripts/bloatcheck generated/unstripped/toybox_old generated/unstripped/toybox
 
 install_flat:
