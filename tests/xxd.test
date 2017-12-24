@@ -25,12 +25,15 @@ testing "-c 8 -g 4 file1" "xxd -c 8 -g 4 file1" \
 testing "-c 8 -g 3 file1" "xxd -c 8 -g 3 file1" \
     "00000000: 746869 732069 7320 this is \n00000008: 736f6d 652074 6578 some tex\n00000010: 740a               t.\n" "" ""
 
+testing "-i" "cat file1 | xxd -i -" "  0x74, 0x68, 0x69, 0x73, 0x20, 0x69, 0x73, 0x20, 0x73, 0x6f, 0x6d, 0x65,\n  0x20, 0x74, 0x65, 0x78, 0x74, 0x0a\n" "" ""
+
 testing "-p" "xxd -p file1" "7468697320697320736f6d6520746578740a\n" "" ""
 
 testing "-s" "xxd -s 13 file1" "0000000d: 7465 7874 0a                             text.\n" "" ""
 
-testing "-r" "xxd file1 | xxd -r" "this is some text\n" "" ""
-testing "-r -p" "xxd -p file1 | xxd -r -p" "this is some text\n" "" ""
+testing "-r" "echo -e '    00000000: 7468 6973 2069 7320 736f 6d65 2074 6578  this is some tex\n00000010: 740a                                     t.' | xxd -r" "this is some text\n" "" ""
+SKIP_HOST=1 testing "-r -i" "echo -e '0x74, 0x68, 0x69, 0x73, 0x20, 0x69, 0x73, 0x20, 0x73, 0x6f, 0x6d, 0x65,\n  0x20, 0x74, 0x65, 0x78, 0x74, 0x0a' | xxd -ri" "this is some text\n" "" ""
+testing "-r -p" "echo 7468697320697320736f6d6520746578740a | xxd -r -p" "this is some text\n" "" ""
 
 testing "-r garbage" "echo '0000: 68 65 6c6c 6fxxxx' | xxd -r -" "hello" "" ""
 
