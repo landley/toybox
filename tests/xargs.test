@@ -24,6 +24,9 @@ testing "command -opt" "xargs -n2 ls -1" "one\ntwo\nthree\n" "" \
 	"one two three"
 rm one two three
 
+testing "-0 -n1" "printf 'a\0b\0c\0d\0e\0f' | xargs -0 -n1 echo _" "_ a\n_ b\n_ c\n_ d\n_ e\n_ f\n" "" ""
+testing "-0 -n2" "printf 'a\0b\0c\0d\0e\0f' | xargs -0 -n2 echo _" "_ a b\n_ c d\n_ e f\n" "" ""
+
 #testing "-n exact match"
 #testing "-s exact match"
 #testing "-s 0"

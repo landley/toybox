@@ -6,7 +6,7 @@
  *
  * TODO: Rich's whitespace objection, env size isn't fixed anymore.
 
-USE_XARGS(NEWTOY(xargs, "^I:E:L#ptxrn#<1s#0", TOYFLAG_USR|TOYFLAG_BIN))
+USE_XARGS(NEWTOY(xargs, "^I:E:L#ptxrn#<1s#0[!0E]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config XARGS
   bool "xargs"
@@ -99,8 +99,7 @@ static char *handle_entries(char *data, char **entry)
   } else {
     TT.bytes += sizeof(char *)+strlen(data)+1;
     if (TT.max_bytes && TT.bytes >= TT.max_bytes) return data;
-    if (TT.max_entries && TT.entries >= TT.max_entries)
-      return (char *)1;
+    if (TT.max_entries && TT.entries >= TT.max_entries) return data;
     if (entry) entry[TT.entries] = data;
     TT.entries++;
   }
