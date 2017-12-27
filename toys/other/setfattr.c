@@ -8,7 +8,7 @@ USE_SETFATTR(NEWTOY(setfattr, "hn:|v:x:|[!xv]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config SETFATTR
   bool "setfattr"
-  default n
+  default y
   help
     usage: setfattr [-h] [-x|-n NAME] [-v VALUE] FILE...
 
