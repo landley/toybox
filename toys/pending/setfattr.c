@@ -27,21 +27,15 @@ GLOBALS(
   char *x, *v, *n;
 )
 
-static void do_setfattr(char *file)
-{
-  int h = toys.optflags & FLAG_h;
-
-  if (toys.optflags&FLAG_x) {
-    if ((h ? lremovexattr : removexattr)(file, TT.x))
-      perror_msg("removexattr failed");
-  } else 
-    if ((h ? lsetxattr : setxattr)(file, TT.n, TT.v, TT.v?strlen(TT.v):0, 0))
-      perror_msg("setxattr failed");
-}
-
 void setfattr_main(void)
 {
+  int h = toys.optflags & FLAG_h, rc;
   char **s;
 
-  for (s=toys.optargs; *s; s++) do_setfattr(*s);
+  for (s=toys.optargs; *s; s++) {
+    if (TT.x) rc = (h?lremovexattr:removexattr)(*s, TT.x);
+    else rc = (h?lsetxattr:setxattr)(*s, TT.n, TT.v, TT.v?strlen(TT.v):0, 0);
+
+    if (rc) perror_msg("%s", *s);
+  }
 }
