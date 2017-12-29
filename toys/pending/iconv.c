@@ -15,8 +15,9 @@ config ICONV
 
     Convert character encoding of files.
 
-    -f  convert from (default utf8)
-    -t  convert to   (default utf8)
+    -c	Omit invalid chars
+    -f	convert from (default utf8)
+    -t	convert to   (default utf8)
 */
 
 #define FOR_iconv
@@ -33,42 +34,39 @@ GLOBALS(
 static void do_iconv(int fd, char *name)
 {
   char *outstart = toybuf+2048;
-  size_t inleft = 0;
-  int len = 1;
+  size_t outlen, inlen = 0;
+  int readlen = 1;
 
-  do {
-    size_t outleft = 2048;
-    char *in = toybuf+inleft, *out = outstart;
+  for (;;) {
+    char *in = toybuf, *out = outstart;
 
-    len = read(fd, in, 2048-inleft);
-
-    if (len < 0) {
+    if (readlen && 0>(readlen = read(fd, in+inlen, 2048-inlen))) {
       perror_msg("read '%s'", name);
       return;
     }
-    inleft += len;
+    inlen += readlen;
+    if (!inlen) break;
 
-    do {
-      if (iconv(TT.ic, &in, &inleft, &out, &outleft) == -1
-          && (errno == EILSEQ || (in == toybuf+inleft-len && errno == EINVAL)))
-      {
-        if (outleft) {
-          // Skip first byte of illegal sequence to avoid endless loops
-          *(out++) = *(in++);
-          inleft--;
-        }
-      }
-      xwrite(1, outstart, out-outstart);
-      // Top off input buffer
-      memmove(in, toybuf, inleft);
-    } while (len < 1 && inleft);
-  } while (len > 0);
+    outlen = 2048;
+    iconv(TT.ic, &in, &inlen, &out, &outlen);
+    if (in == toybuf) {
+      // Skip first byte of illegal sequence to avoid endless loops
+      if (toys.optflags & FLAG_c) in++;
+      else *(out++) = *(in++);
+      inlen--;
+    }
+    if (out != outstart) xwrite(1, outstart, out-outstart);
+    memmove(toybuf, in, inlen);
+  }
 }
 
 void iconv_main(void)
 {
-  TT.ic = iconv_open(TT.to ? TT.to : "utf8", TT.from ? TT.from : "utf8");
-  if (TT.ic == (iconv_t)-1) error_exit("bad encoding");
+  if (!TT.to) TT.to = "utf8";
+  if (!TT.from) TT.from = "utf8";
+
+  if ((iconv_t)-1 == (TT.ic = iconv_open(TT.to, TT.from)))
+    perror_exit("%s/%s", TT.to, TT.from);
   loopfiles(toys.optargs, do_iconv);
   if (CFG_TOYBOX_FREE) iconv_close(TT.ic);
 }
