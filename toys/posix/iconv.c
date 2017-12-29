@@ -3,12 +3,14 @@
  * Copyright 2014 Felix Janda <felix.janda@posteo.de>
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/iconv.html
+ *
+ * Deviations from posix: no idea how to implement -l
 
 USE_ICONV(NEWTOY(iconv, "cst:f:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config ICONV
   bool "iconv"
-  default n
+  default y
   depends on TOYBOX_ICONV
   help
     usage: iconv [-f FROM] [-t TO] [FILE...]
