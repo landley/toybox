@@ -8,7 +8,6 @@ USE_LOGGER(NEWTOY(logger, "st:p:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config LOGGER
   bool "logger"
-  depends on SYSLOGD
   default n
   help
     usage: logger [-s] [-t tag] [-p [facility.]priority] [message]
@@ -20,54 +19,46 @@ config LOGGER
 #include "toys.h"
 
 GLOBALS(
-  char *priority_arg;
+  char *priority;
   char *ident;
 )
 
-extern int logger_lookup(int where, char *key);
-
 void logger_main(void)
 {
-  int facility = LOG_USER, priority = LOG_NOTICE;
-  char *message = NULL;
+  int facility = LOG_USER, priority = LOG_NOTICE, len;
+  char *s1, *s2, **arg;
+  CODE *code;
 
+  if (!TT.ident) TT.ident = xstrdup(xgetpwuid(geteuid())->pw_name);
   if (toys.optflags & FLAG_p) {
-    char *sep = strchr(TT.priority_arg, '.');
-
-    if (sep) {
-      *sep = '\0';
-      if ((facility = logger_lookup(0, TT.priority_arg)) == -1)
-        error_exit("bad facility: %s", TT.priority_arg);
-      TT.priority_arg = sep+1;
+    if (!(s1 = strchr(TT.priority, '.'))) s1 = TT.priority;
+    else {
+      *s1++ = 0;
+      for (code = facilitynames; code->c_name; code++)
+        if (!strcasecmp(TT.priority, code->c_name)) break;
+      if (!code->c_name) error_exit("bad facility: %s", TT.priority);
+      facility = code->c_val;
     }
 
-    if ((priority = logger_lookup(1, TT.priority_arg)) == -1)
-      error_exit("bad priority: %s", TT.priority_arg);
+    for (code = prioritynames; code->c_name; code++)
+      if (!strcasecmp(s1, code->c_name)) break;
+    if (!code->c_name) error_exit("bad priority: %s", s1);
   }
 
-  if (!(toys.optflags & FLAG_t)) {
-    struct passwd *pw = getpwuid(geteuid());
-
-    if (!pw) perror_exit("getpwuid");
-    TT.ident = xstrdup(pw->pw_name);
-  }
 
   if (toys.optc) {
-    int length = 0, pos = 0;
-
-    for (;*toys.optargs; toys.optargs++) {
-      length += strlen(*(toys.optargs)) + 1; // plus one for the args spacing
-      message = xrealloc(message, length + 1); // another one for the null byte
-
-      sprintf(message + pos, "%s ", *toys.optargs);
-      pos = length;
+    for (len = 0, arg = toys.optargs; *arg; arg++) len += strlen(*arg)+1;
+    s1 = s2 = xmalloc(len);
+    for (arg = toys.optargs; *arg; arg++) {
+      if (arg != toys.optargs) *s2++ = ' ';
+      s2 = stpcpy(s2, *arg);
     }
   } else {
-    toybuf[readall(0, toybuf, 4096-1)] = '\0';
-    message = toybuf;
+    toybuf[readall(0, toybuf, sizeof(toybuf)-1)] = 0;
+    s1 = toybuf;
   }
 
-  openlog(TT.ident, (toys.optflags & FLAG_s ? LOG_PERROR : 0) , facility);
-  syslog(priority, "%s", message);
+  openlog(TT.ident, LOG_PERROR*!!(toys.optflags&FLAG_s), facility);
+  syslog(priority, "%s", s1);
   closelog();
 }

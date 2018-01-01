@@ -33,7 +33,6 @@ config SYSLOGD
 */
 
 #define FOR_syslogd
-#define SYSLOG_NAMES
 #include "toys.h"
 
 // UNIX Sockets for listening

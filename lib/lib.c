@@ -3,6 +3,7 @@
  * Copyright 2006 Rob Landley <rob@landley.net>
  */
 
+#define SYSLOG_NAMES
 #include "toys.h"
 
 void verror_msg(char *msg, int err, va_list va)

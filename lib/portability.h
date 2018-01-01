@@ -246,3 +246,8 @@ pid_t xfork(void);
 static inline int get_sched_policy(int tid, void *policy) {return 0;}
 static inline char *get_sched_policy_name(int policy) {return "unknown";}
 #endif
+
+#ifndef SYSLOG_NAMES
+typedef struct {char *c_name; int c_val;} CODE;
+extern CODE prioritynames[], facilitynames[];
+#endif
