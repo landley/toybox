@@ -61,9 +61,8 @@ ssize_t getdelim(char **linep, size_t *np, int delim, FILE *stream)
       line = *linep = new_line;
     }
 
-    line[i] = ch;
+    line[i++] = ch;
     if (ch == delim) break;
-    i += 1;
   }
 
   if (i > *np) {
@@ -74,7 +73,7 @@ ssize_t getdelim(char **linep, size_t *np, int delim, FILE *stream)
     *np = new_len;
     line = *linep = new_line;
   }
-  line[i + 1] = '\0';
+  line[i] = '\0';
 
   return i > 0 ? i : -1;
 }
