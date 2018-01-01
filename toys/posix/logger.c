@@ -3,16 +3,22 @@
  * Copyright 2013 Ilya Kuzmich <ilya.kuzmich@gmail.com>
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/logger.html
+ *
+ * Deviations from posix: specified manner and format, defined implementation.
 
 USE_LOGGER(NEWTOY(logger, "st:p:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config LOGGER
   bool "logger"
-  default n
+  default y
   help
-    usage: logger [-s] [-t tag] [-p [facility.]priority] [message]
+    usage: logger [-s] [-t TAG] [-p [FACILITY.]PRIORITY] [message...]
 
     Log message (or stdin) to syslog.
+
+    -s	Also write message to stderr
+    -t	Use TAG instead of username to identify message source
+    -p	Specify PRIORITY with optional FACILITY. Default is "user.notice"
 */
 
 #define FOR_logger
