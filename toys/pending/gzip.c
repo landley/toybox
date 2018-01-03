@@ -5,9 +5,9 @@
  * GZIP RFC: http://www.ietf.org/rfc/rfc1952.txt
 
 // Existing implementations allow all options for all commands.
-USE_GZIP(NEWTOY(gzip,     "cdfk123456789", TOYFLAG_USR|TOYFLAG_BIN))
-USE_GUNZIP(NEWTOY(gunzip, "cdfk123456789", TOYFLAG_USR|TOYFLAG_BIN))
-USE_ZCAT(NEWTOY(zcat,     "cdfk123456789", TOYFLAG_USR|TOYFLAG_BIN))
+USE_GZIP(NEWTOY(gzip,     "cdfk123456789[-123456789]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_GUNZIP(NEWTOY(gunzip, "cdfk123456789[-123456789]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_ZCAT(NEWTOY(zcat,     "cdfk123456789[-123456789]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config GZIP
   bool "gzip"
@@ -54,11 +54,11 @@ config ZCAT
     -f	Force: allow read from tty
 */
 
-#include <zlib.h>
-
 #define FORCE_FLAGS
 #define FOR_gzip
 #include "toys.h"
+
+#include <zlib.h>
 
 GLOBALS(
   int level;
@@ -71,65 +71,74 @@ static void fix_time(const char *path, struct stat *sb)
   if (utimensat(AT_FDCWD, path, times, 0)) perror_exit("utimensat");
 }
 
-static void gzerror_exit(gzFile f, char *what)
+static void gzerror_msg(gzFile f, char *what)
 {
   int err;
   const char *msg = gzerror(f, &err);
 
-  ((err == Z_ERRNO) ? perror_exit : error_exit)("%s: %s", what, msg);
+  ((err == Z_ERRNO) ? perror_msg : error_msg)("%s: %s", what, msg);
+}
+
+
+static int zlib_inflate(int in_fd, int out_fd)
+{
+  int len, err = 0;
+  gzFile in;
+
+  if (!(in = gzdopen(in_fd, "r"))) perror_exit("gzdopen");
+  while ((len = gzread(in, toybuf, sizeof(toybuf))) > 0)
+    if (len != writeall(out_fd, toybuf, len)) break;
+  if (len) err = 1;
+  if (len>0) perror_msg("write");
+  if (len<0) gzerror_msg(in, "gzread");
+  if (gzclose(in) != Z_OK) perror_msg("gzclose"), err++;
+
+  return err;
 }
 
 static void do_gunzip(int in_fd, char *arg)
 {
   struct stat sb;
-  int len, both_files;
-  char *in_name, *out_name;
-  gzFile in;
-  FILE *out;
+  int len, out_fd = 0;
+  char *out_name = 0;
 
-  // "gunzip x.gz" will decompress "x.gz" to "x".
-  len = strlen(arg);
-  if (len > 3 && !strcmp(arg+len-3, ".gz")) {
-    in_name = strdup(arg);
-    out_name = strdup(arg);
-    out_name[len-3] = '\0';
-  } else if (!strcmp(arg, "-")) {
-    // "-" means stdin; assume output to stdout.
-    // TODO: require -f to read compressed data from tty?
-    in_name = strdup("-");
-    out_name = strdup("-");
-  } else error_exit("unknown suffix: %s", arg);
+  // Are we writing to stderr?
+  if (!in_fd || (toys.optflags&FLAG_c)) out_fd = 1;
+  if (isatty(in_fd)) {
+    if (!(toys.optflags&FLAG_f)) {
+      error_msg("%s:need -f to read TTY"+3*!!in_fd, arg);
+      return;
+    } else out_fd = 1;
+  }
 
-  if (toys.optflags&FLAG_c) {
+  // Are we reading file.gz to write to file?
+  if (!out_fd) {
+    // "gunzip x.gz" will decompress "x.gz" to "x".
+    if ((len = strlen(arg))<4 || strcmp(arg+len-3, ".gz")) {
+      error_msg("no .gz: %s", arg);
+      return;
+    }
+    if (!stat(arg, &sb)) {
+      perror_msg("%s", arg);
+      return;
+    }
+
+    out_name = xstrdup(arg);
+    out_name[len-3] = 0;
+    out_fd = xcreate(out_name,
+      O_CREAT|O_WRONLY|WARN_ONLY|(O_EXCL*!(toys.optflags&FLAG_f)), sb.st_mode);
+    if (out_fd == -1) return;
+  }
+
+  if (CFG_TOYBOX_LIBZ)
+    if (zlib_inflate(in_fd, out_fd) && out_name) arg = out_name;
+  close(out_fd);
+
+  if (out_name) {
+    fix_time(out_name, &sb);
+    if (!(toys.optflags&FLAG_k)) if (unlink(arg)) perror_msg("unlink %s", arg);
     free(out_name);
-    out_name = strdup("-");
   }
-
-  both_files = strcmp(in_name, "-") && strcmp(out_name, "-");
-  if (both_files) xstat(in_name, &sb);
-
-  in = gzdopen(in_fd, "r");
-  if (in == NULL) perror_exit("gzdopen");
-  if (!strcmp(out_name, "-")) out = stdout;
-  else {
-    int out_fd = xcreate(out_name,
-      O_CREAT|O_WRONLY|((toys.optflags&FLAG_f)?0:O_EXCL),
-      both_files?sb.st_mode:0666);
-
-    out = xfdopen(out_fd, "w");
-  }
-
-  while ((len = gzread(in, toybuf, sizeof(toybuf))) > 0) {
-    if (fwrite(toybuf, 1, len, out) != (size_t) len) perror_exit("writing");
-  }
-  if (len < 0) gzerror_exit(in, "gzread");
-  if (out != stdout && fclose(out)) perror_exit("writing");
-  if (gzclose(in) != Z_OK) error_exit("gzclose");
-
-  if (both_files) fix_time(out_name, &sb);
-  if (!(toys.optflags&(FLAG_c|FLAG_k))) unlink(in_name);
-  free(in_name);
-  free(out_name);
 }
 
 static void do_gzip(int in_fd, char *in_name)
@@ -157,7 +166,10 @@ static void do_gzip(int in_fd, char *in_name)
   if (out == NULL) perror_exit("gzdopen %s", out_name);
 
   while ((len = fread(toybuf, 1, sizeof(toybuf), in)) > 0) {
-    if (gzwrite(out, toybuf, len) != (int) len) gzerror_exit(out, "gzwrite");
+    if (gzwrite(out, toybuf, len) != (int) len) {
+      gzerror_msg(out, "gzwrite");
+      return;
+    }
   }
   if (ferror(in)) perror_exit("fread");
   if (fclose(in)) perror_exit("fclose");
@@ -168,22 +180,13 @@ static void do_gzip(int in_fd, char *in_name)
   free(out_name);
 }
 
-static void do_gz(int fd, char *name)
-{
-  if (toys.optflags&FLAG_d) do_gunzip(fd, name);
-  else do_gzip(fd, name);
-}
-
 void gzip_main(void)
 {
-  int i = (toys.optflags&0x1ff);
+  for (TT.level = 0; TT.level<9; TT.level++)
+    if ((toys.optflags>>TT.level)&1) break;
+  if (!(TT.level = 9-TT.level)) TT.level = 6;
 
-  for (TT.level = (i == 0) ? 6 : 10; i; i >>= 1) --TT.level;
-
-  // With no arguments, go from stdin to stdout.
-  if (!*toys.optargs) toys.optflags |= FLAG_c;
-
-  loopfiles(toys.optargs, do_gz);
+  loopfiles(toys.optargs, (toys.optflags&FLAG_d) ? do_gunzip : do_gzip);
 }
 
 void gunzip_main(void)
