@@ -1353,7 +1353,16 @@ long environ_bytes()
   long bytes = sizeof(char *);
   char **ev;
 
-  for (ev = environ; *ev; ev++)
-    bytes += sizeof(char *) + strlen(*ev) + 1;
+  for (ev = environ; *ev; ev++) bytes += sizeof(char *) + strlen(*ev) + 1;
+
   return bytes;
+}
+
+// Return unix time in milliseconds
+long long millitime(void)
+{
+  struct timespec ts;
+
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return ts.tv_sec*1000+ts.tv_nsec/1000000;
 }

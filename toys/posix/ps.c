@@ -1341,14 +1341,6 @@ static int header_line(int line, int rev)
   return line-1;
 }
 
-static long long millitime(void)
-{
-  struct timespec ts;
-
-  clock_gettime(CLOCK_MONOTONIC, &ts);
-  return ts.tv_sec*1000+ts.tv_nsec/1000000;
-}
-
 static void top_common(
   int (*filter)(long long *oslot, long long *nslot, int milis))
 {
