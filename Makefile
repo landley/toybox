@@ -66,25 +66,4 @@ tests:
 	scripts/test.sh
 
 help::
-	@echo  '  toybox          - Build toybox.'
-	@echo  '  COMMANDNAME     - Build individual toybox command as a standalone binary.'
-	@echo  '  list            - List COMMANDNAMEs you can build standalone.'
-	@echo  '  list_pending    - List unfinished COMMANDNAMEs out of toys/pending.'
-	@echo  '  change          - Build each command standalone under change/.'
-	@echo  '  baseline        - Create toybox_old for use by bloatcheck.'
-	@echo  '  bloatcheck      - Report size differences between old and current versions'
-	@echo  '  test_COMMAND    - Run tests for COMMAND (test_ps, test_cat, etc.)'
-	@echo  '  tests           - Run test suite against all compiled commands.'
-	@echo  '                    export TEST_HOST=1 to test host command, VERBOSE=1'
-	@echo  '                    to show diff, VERBOSE=fail to stop after first failure.'
-	@echo  '  clean           - Delete temporary files.'
-	@echo  "  distclean       - Delete everything that isn't shipped."
-	@echo  '  install_airlock - Install toybox and host toolchain into $$PREFIX directory'
-	@echo  '                    (providing $$PATH for hermetic builds).'
-	@echo  '  install_flat    - Install toybox into $$PREFIX directory.'
-	@echo  '  install         - Install toybox into subdirectories of $$PREFIX.'
-	@echo  '  uninstall_flat  - Remove toybox from $$PREFIX directory.'
-	@echo  '  uninstall       - Remove toybox from subdirectories of $$PREFIX.'
-	@echo  ''
-	@echo  'example: CFLAGS="--static" CROSS_COMPILE=armv5l- make defconfig toybox install'
-	@echo  ''
+	@cat scripts/help.txt
