@@ -286,6 +286,8 @@ GLOBALS(
   void (*show_process)(void *tb);
 )
 
+/* Linked list of fields selected for display, in order, with :len and =title */
+
 struct strawberry {
   struct strawberry *next, *prev;
   short which, len, reverse;
@@ -293,8 +295,15 @@ struct strawberry {
   char forever[];
 };
 
-/* The slot[] array is mostly populated from /proc/$PID/stat (kernel proc.txt
- * table 1-4) but we shift and repurpose fields, with the result being: */
+/* The function get_ps() reads all the data about one process, saving it in
+ * toybox as a struct carveup. Simple ps calls then pass toybuf directly to
+ * show_ps(), but features like sorting instead append a copy to a linked list
+ * for further processing once all processes have been read.
+ *
+ * struct carveup contains a slot[] array of 64 bit values, with the following
+ * data at each position in the array. Most is read from /proc/$PID/stat (see
+ * https://kernel.org/doc/Documentation/filesystems/proc.txt table 1-4) but
+ * we we replace several fields with don't use with other data. */
 
 enum {
  SLOT_pid,      /*process id*/            SLOT_ppid,      // parent process id
@@ -303,7 +312,7 @@ enum {
  SLOT_flags,    /*task flags*/            SLOT_minflt,    // minor faults
  SLOT_cminflt,  /*minor faults+child*/    SLOT_majflt,    // major faults
  SLOT_cmajflt,  /*major faults+child*/    SLOT_utime,     // user+kernel jiffies
- SLOT_stime,    /*kernel mode jiffies*/   SLOT_cutime,    // utime+child
+ SLOT_stime,    /*kernel mode jiffies*/   SLOT_cutime,    // utime+child utime
  SLOT_cstime,   /*stime+child*/           SLOT_priority,  // priority level
  SLOT_nice,     /*nice level*/            SLOT_numthreads,// thread count
  SLOT_vmlck,    /*locked memory*/         SLOT_starttime, // jiffies after boot
@@ -319,7 +328,7 @@ enum {
  SLOT_policy,   /*man sched_setscheduler*/SLOT_blkioticks,// IO wait time
  SLOT_gtime,    /*guest jiffies of task*/ SLOT_cgtime,    // gtime+child
  SLOT_startbss, /*data/bss address*/      SLOT_endbss,    // end addr data+bss
- SLOT_upticks,  /*46-19 (divisor for %)*/ SLOT_argv0len,  // argv[0] length
+ SLOT_upticks,  /*uptime-starttime*/      SLOT_argv0len,  // argv[0] length
  SLOT_uptime,   /*si.uptime @read time*/  SLOT_vsz,       // Virtual mem Size
  SLOT_rss2,     /*Resident Set Size*/     SLOT_shr,       // Shared memory
  SLOT_rchar,    /*All bytes read*/        SLOT_wchar,     // All bytes written
@@ -328,16 +337,44 @@ enum {
  SLOT_tid,      /*Thread ID*/             SLOT_tcount,    // Thread count
  SLOT_pcy,      /*Android sched policy*/
 
- SLOT_count
+ SLOT_count /* Size of array */
 };
+
+/* In addition to slot[], carevup contains 6 string fields to display
+   command name, tty device, selinux label... They're stored one after the
+   other in str[] (separated by null terminators), and offset[] contains the
+   starting position of each string after the first (which is always 0). */
 
 // Data layout in toybuf
 struct carveup {
   long long slot[SLOT_count]; // data (see enum above)
-  unsigned short offset[6];   // offset of fields in str[] (skip name, always 0)
+  unsigned short offset[6];   // offset of fields in str[] (skip CMD, always 0)
   char state;
-  char str[];                 // name, tty, command, wchan, attr, cmdline
+  char str[];                 // CMD, TTY, WCHAN, LABEL, COMM, ARGS, NAME
 };
+
+/* The typos[] array lists all the types understood by "ps -o", I.E all the
+ * columns ps and top know how to display. Each entry has:
+ *
+ * name: the column name, displayed at top and used to select column with -o
+ *
+ * width: the display width. Fields are padded to this width when displaying
+ *        to a terminal (negative means right justified). Strings are truncated
+ *        to fit, numerical fields are padded but not truncated (although
+ *        the display code reclaims unused padding from later fields to try to
+ *        get the overflow back).
+ *
+ * slot: which slot[] out of carveup. Negative means it's a string field.
+ *       Setting bit |64 requests extra display/sort processing.
+ *
+ * The TAGGED_ARRAY plumbing produces an enum of indexes, the "tag" is the
+ * first string argument and the prefix is the first argument to TAGGED_ARRAY
+ * so in this case "NAME" becomes PS_NAME which is the offset into typos[]
+ * for that entry, and also _PS_NAME (the bit position, 1<<PS_NAME).
+ * We record active columns in TT.bits, ala:
+ *
+ *   if (TT.bits & _PS_NAME) printf("-o included PS_NAME");
+ */
 
 // TODO: Android uses -30 for LABEL, but ideally it would auto-size.
 // 64|slot means compare as string when sorting
@@ -345,7 +382,7 @@ struct typography {
   char *name;
   signed char width, slot;
 } static const typos[] = TAGGED_ARRAY(PS,
-  // Numbers
+  // Numbers. (What's in slot[] is what's displayed, sorted numerically.)
   {"PID", 5, SLOT_pid}, {"PPID", 5, SLOT_ppid}, {"PRI", 3, SLOT_priority},
   {"NI", 3, SLOT_nice}, {"ADDR", 4+sizeof(long), SLOT_eip},
   {"SZ", 5, SLOT_vsize}, {"RSS", 6, SLOT_rss}, {"PGID", 5, SLOT_pgrp},
@@ -354,31 +391,31 @@ struct typography {
   {"RTPRIO", 6, SLOT_rtprio}, {"SCH", 3, SLOT_policy}, {"CPU", 3, SLOT_taskcpu},
   {"TID", 5, SLOT_tid}, {"TCNT", 4, SLOT_tcount}, {"BIT", 3, SLOT_bits},
 
-  // String fields
+  // String fields (-1 is carveup->str, rest are str+offset[1-slot])
   {"TTY", -8, -2}, {"WCHAN", -6, -3}, {"LABEL", -30, -4}, {"COMM", -27, -5},
   {"NAME", -27, -7}, {"COMMAND", -27, -5}, {"CMDLINE", -27, -6},
   {"ARGS", -27, -6}, {"CMD", -15, -1},
 
-  // user/group
+  // user/group (may call getpwuid() or similar)
   {"UID", 5, SLOT_uid}, {"USER", -12, 64|SLOT_uid}, {"RUID", 4, SLOT_ruid},
   {"RUSER", -8, 64|SLOT_ruid}, {"GID", 8, SLOT_gid}, {"GROUP", -8, 64|SLOT_gid},
   {"RGID", 4, SLOT_rgid}, {"RGROUP", -8, 64|SLOT_rgid},
 
-  // clock displays
+  // clock displays (00:00:00)
   {"TIME", 8, SLOT_utime}, {"ELAPSED", 11, SLOT_starttime},
   {"TIME+", 9, SLOT_utime},
 
-  // Percentage displays
+  // Percentage displays (fixed point, one decimal digit. 123 -> 12.3)
   {"C", 1, SLOT_utime2}, {"%VSZ", 5, SLOT_vsize}, {"%MEM", 5, SLOT_rss},
   {"%CPU", 4, SLOT_utime2},
 
-  // human_readable
+  // human_readable (function human_readable() in lib, 1.23M, 1.4G, etc)
   {"VIRT", 4, SLOT_vsz}, {"RES", 4, SLOT_rss2},
   {"SHR", 4, SLOT_shr}, {"READ", 6, SLOT_rchar}, {"WRITE", 6, SLOT_wchar},
   {"IO", 6, SLOT_iobytes}, {"DREAD", 6, SLOT_rbytes},
   {"DWRITE", 6, SLOT_wbytes}, {"SWAP", 6, SLOT_swap}, {"DIO", 6, SLOT_diobytes},
 
-  // Misc
+  // Misc (special cases)
   {"STIME", 5, SLOT_starttime}, {"F", 1, 64|SLOT_flags}, {"S", -1, 64},
   {"STAT", -5, 64}, {"PCY", 3, 64|SLOT_pcy},
 );
@@ -1744,7 +1781,7 @@ void pgrep_main(void)
 
   TT.pgrep.self = getpid();
 
-  // No signal names start with "L", so no need for "L: " parsing.
+  // No signal names start with "L", so no need for "L: " in optstr.
   if (TT.pgrep.L && 1>(TT.pgrep.signal = sig_to_num(TT.pgrep.L)))
     error_exit("bad -L '%s'", TT.pgrep.L);
 
