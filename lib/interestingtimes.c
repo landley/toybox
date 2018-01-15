@@ -5,13 +5,13 @@
 
 #include "toys.h"
 
-int xgettty(void)
+int tty_fd(void)
 {
   int i, j;
 
   for (i = 0; i<3; i++) if (isatty(j = (i+1)%3)) return j;
 
-  return xopen("/dev/tty", O_RDWR);
+  return notstdio(open("/dev/tty", O_RDWR));
 }
 
 // Quick and dirty query size of terminal, doesn't do ANSI probe fallback.

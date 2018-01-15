@@ -274,7 +274,7 @@ int draw_trim_esc(char *str, int padto, int width, char *escmore,
 int draw_trim(char *str, int padto, int width);
 
 // interestingtimes.c
-int xgettty(void);
+int tty_fd(void);
 int terminal_size(unsigned *xx, unsigned *yy);
 int terminal_probesize(unsigned *xx, unsigned *yy);
 int scan_key_getsize(char *scratch, int miliwait, unsigned *xx, unsigned *yy);

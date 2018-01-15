@@ -18,6 +18,8 @@ config RESET
 
 void reset_main(void)
 {
-  // man 4 console codes: reset terminal is ESC (no left bracket) c
-  xwrite(xgettty(), "\033c", 2);
+  int fd = tty_fd();
+
+  // man 4 console_codes: reset terminal is ESC (no left bracket) c
+  xwrite(fd<0 ? 1 : fd, "\033c", 2);
 }
