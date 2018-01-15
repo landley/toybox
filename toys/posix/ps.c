@@ -1188,33 +1188,6 @@ static void default_ko(char *s, void *fields, char *err, struct arg_list *arg)
   comma_args(arg ? arg : &def, fields, err, parse_ko);
 }
 
-static void shared_main(void)
-{
-  int i;
-
-  TT.ticks = sysconf(_SC_CLK_TCK);
-  if (!TT.width) {
-    TT.width = 80;
-    TT.height = 25;
-    // If ps can't query terminal size pad to 80 but do -w
-    if (toys.which->name[1] == 's') {
-      if (!isatty(1) || !terminal_size(&TT.width, &TT.height))
-        toys.optflags |= FLAG_w;
-    }
-  }
-
-  // find controlling tty, falling back to /dev/tty if none
-  for (i = 0; !TT.tty && i<4; i++) {
-    struct stat st;
-    int fd = i;
-
-    if (i==3 && -1==(fd = open("/dev/tty", O_RDONLY))) break;
-
-    if (isatty(fd) && !fstat(fd, &st)) TT.tty = st.st_rdev;
-    if (i==3) close(fd);
-  }
-}
-
 void ps_main(void)
 {
   char **arg;
@@ -1222,7 +1195,18 @@ void ps_main(void)
   char *not_o;
   int i;
 
-  shared_main();
+  TT.ticks = sysconf(_SC_CLK_TCK); // units for starttime/uptime
+
+  if (-1 != (i = tty_fd())) {
+    struct stat st;
+
+    if (!fstat(i, &st)) TT.tty = st.st_rdev;
+  }
+
+  // If we can't query terminal size pad to 80 but do -w
+  TT.width = 80;
+  if (!isatty(1) || !terminal_size(&TT.width, 0))
+    toys.optflags |= FLAG_w;
   if (toys.optflags&FLAG_w) TT.width = 99999;
 
   // parse command line options other than -o
@@ -1633,15 +1617,23 @@ static void top_common(
 static void top_setup(char *defo, char *defk)
 {
   TT.top.d *= 1000;
+
+  TT.ticks = sysconf(_SC_CLK_TCK); // units for starttime/uptime
+  TT.tty = tty_fd() != -1;
+
+  // Are we doing "batch" output or interactive?
   if (toys.optflags&FLAG_b) TT.width = TT.height = 99999;
   else {
+    // Grab starting time, make terminal raw, switch off cursor,
+    // set signal handler to put terminal/cursor back to normal at exit.
     TT.time = millitime();
     set_terminal(0, 1, 0);
     sigatexit(tty_sigreset);
     xsignal(SIGWINCH, generic_signal);
     printf("\033[?25l\033[0m");
+    TT.width = 80;
+    TT.height = 25;
   }
-  shared_main();
 
   comma_args(TT.top.u, &TT.uu, "bad -u", parse_rest);
   comma_args(TT.top.p, &TT.pp, "bad -p", parse_rest);
