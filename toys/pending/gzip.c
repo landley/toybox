@@ -102,7 +102,7 @@ static void do_gunzip(int in_fd, char *arg)
   int len, out_fd = 0;
   char *out_name = 0;
 
-  // Are we writing to stderr?
+  // Are we writing to stdout?
   if (!in_fd || (toys.optflags&FLAG_c)) out_fd = 1;
   if (isatty(in_fd)) {
     if (!(toys.optflags&FLAG_f)) {
@@ -118,7 +118,7 @@ static void do_gunzip(int in_fd, char *arg)
       error_msg("no .gz: %s", arg);
       return;
     }
-    if (!stat(arg, &sb)) {
+    if (fstat(in_fd, &sb)) {
       perror_msg("%s", arg);
       return;
     }
@@ -130,9 +130,9 @@ static void do_gunzip(int in_fd, char *arg)
     if (out_fd == -1) return;
   }
 
-  if (CFG_TOYBOX_LIBZ)
+//  if (CFG_TOYBOX_LIBZ)
     if (zlib_inflate(in_fd, out_fd) && out_name) arg = out_name;
-  close(out_fd);
+  if (out_fd != 1) close(out_fd);
 
   if (out_name) {
     fix_time(out_name, &sb);
