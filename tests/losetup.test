@@ -13,8 +13,8 @@ fi
 
 truncate -s 1M blah.img &&
 FILE="$(readlink -f blah.img)"
-DEV="$(printf '%04d' $(stat -t blah.img | awk '{print $7}'))"
-NODE="$(awk '{print $7}')"
+DEV="$(printf '%04s' $(stat -t blah.img | awk '{print $7}'))"
+NODE="$(stat -t blah.img | awk '{print $8}')"
 
 losetup -f 
 losetup -f -s
