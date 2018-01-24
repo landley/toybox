@@ -680,11 +680,8 @@ static int get_ps(struct dirtree *new)
 
   memset(slot, 0, sizeof(tb->slot));
   tb->slot[SLOT_tid] = *slot = atol(new->name);
-  if (TT.threadparent && TT.threadparent->extra) {
-    *slot = *(((struct carveup *)TT.threadparent->extra)->slot);
-    // Parent also shows up as a thread, discard duplicate
-    if (*slot == tb->slot[SLOT_tid]) return 0;
-  }
+  if (TT.threadparent && TT.threadparent->extra)
+    if (*slot == *(((struct carveup *)TT.threadparent->extra)->slot)) return 0;
   fd = dirtree_parentfd(new);
 
   len = 2048;
