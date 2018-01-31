@@ -294,6 +294,7 @@ struct addrinfo *xgetaddrinfo(char *host, char *port, int family, int socktype,
 int xconnect(struct addrinfo *ai_arg);
 int xpoll(struct pollfd *fds, int nfds, int timeout);
 int pollinate(int in1, int in2, int out1, int out2, int timeout, int shutdown_timeout);
+char *ntop(struct sockaddr *sa);
 
 // password.c
 int get_salt(char *salt, char * algo);

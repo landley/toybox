@@ -102,3 +102,16 @@ int pollinate(int in1, int in2, int out1, int out2, int timeout, int shutdown_ti
     }
   }
 }
+
+// Return converted numeric address in libbuf
+char *ntop(struct sockaddr *sa)
+{
+  void *addr;
+
+  if (sa->sa_family == AF_INET) addr = &((struct sockaddr_in *)sa)->sin_addr;
+  else addr = &((struct sockaddr_in6 *)sa)->sin6_addr;
+
+  inet_ntop(sa->sa_family, addr, libbuf, sizeof(libbuf));
+
+  return libbuf;
+}
