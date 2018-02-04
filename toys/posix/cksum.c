@@ -5,6 +5,7 @@
  * See http://opengroup.org/onlinepubs/9699919799/utilities/cksum.html
 
 USE_CKSUM(NEWTOY(cksum, "HIPLN", TOYFLAG_BIN))
+USE_CRC32(NEWTOY(crc32, 0, TOYFLAG_BIN))
 
 config CKSUM
   bool "cksum"
@@ -19,10 +20,19 @@ config CKSUM
     -L	Little endian (defaults to big endian)
     -P	Pre-inversion
     -I	Skip post-inversion
-    -N	Do not include length in CRC calculation
+    -N	Do not include length in CRC calculation (or output)
+
+config CRC32
+  bool "crc32"
+  default y
+  help
+    usage: crc32 [file...]
+
+    Output crc32 checksum for each file.
 */
 
 #define FOR_cksum
+#define FORCE_FLAGS
 #include "toys.h"
 
 GLOBALS(
@@ -44,13 +54,12 @@ static void do_cksum(int fd, char *name)
   unsigned crc = (toys.optflags & FLAG_P) ? 0xffffffff : 0;
   uint64_t llen = 0, llen2;
   unsigned (*cksum)(unsigned crc, unsigned char c);
+  int len, i;
 
   cksum = (toys.optflags & FLAG_L) ? cksum_le : cksum_be;
   // CRC the data
 
   for (;;) {
-    int len, i;
-
     len = read(fd, toybuf, sizeof(toybuf));
     if (len<0) perror_msg_raw(name);
     if (len<1) break;
@@ -69,10 +78,10 @@ static void do_cksum(int fd, char *name)
     }
   }
 
-  printf((toys.optflags & FLAG_H) ? "%x" : "%u",
+  printf((toys.optflags & FLAG_H) ? "%08x" : "%u",
     (toys.optflags & FLAG_I) ? crc : ~crc);
-  printf(" %"PRIu64, llen2);
-  if (strcmp("-", name)) printf(" %s", name);
+  if (!(toys.optflags&FLAG_N)) printf(" %"PRIu64, llen2);
+  if (toys.optc) printf(" %s", name);
   xputc('\n');
 }
 
@@ -80,4 +89,11 @@ void cksum_main(void)
 {
   crc_init(TT.crc_table, toys.optflags & FLAG_L);
   loopfiles(toys.optargs, do_cksum);
+}
+
+void crc32_main(void)
+{
+  toys.optflags |= FLAG_H|FLAG_N|FLAG_P|FLAG_L;
+  if (toys.optc) toys.optc--;
+  cksum_main();
 }
