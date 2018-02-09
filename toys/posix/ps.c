@@ -1417,7 +1417,8 @@ static void top_common(
     mix.count = 0;
 
     while (old.count || new.count) {
-      struct carveup *otb = old.tb ? *old.tb : 0, *ntb = new.tb ? *new.tb : 0;
+      struct carveup *otb = old.count ? *old.tb : 0,
+                     *ntb = new.count ? *new.tb : 0;
 
       // If we just have old for this process, it exited. Discard it.
       if (old.count && (!new.count || *otb->slot < *ntb->slot)) {
