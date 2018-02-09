@@ -1036,13 +1036,13 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
 
     for (cur = names; *cur; cur++) {
       struct stat st1, st2;
-      char *bb = basename(*cur);
-      off_t len;
+      char *bb = getbasename(*cur);
+      off_t len = strlen(bb);
 
-      // fast path: only matching a filename (no path) that fits in comm
-      if (strncmp(comm, bb, 15)) continue;
-      len = strlen(bb);
-      if (bb==*cur && len<16) goto match;
+      // Fast path: only matching a filename (no path) that fits in comm.
+      // `len` must be 14 or less because with a full 15 bytes we don't
+      // know whether the name fit or was truncated.
+      if (len<=14 && bb==*cur && !strcmp(comm, bb)) goto match;
 
       // If we have a path to existing file only match if same inode
       if (bb!=*cur && !stat(*cur, &st1)) {
@@ -1059,12 +1059,12 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
         sprintf(cmd = libbuf+16, "/proc/%u/cmdline", u);
         len = sizeof(libbuf)-17;
         if (!(cmd = readfileat(AT_FDCWD, cmd, cmd, &len))) continue;
-        // readfile only guarnatees one null terminator and we need two
+        // readfile only guarantees one null terminator and we need two
         // (yes the kernel should do this for us, don't care)
         cmd[len] = 0;
       }
-      if (!strcmp(bb, basename(cmd))) goto match;
-      if (bb!=*cur && !strcmp(bb, basename(cmd+strlen(cmd)+1))) goto match;
+      if (!strcmp(bb, getbasename(cmd))) goto match;
+      if (bb!=*cur && !strcmp(bb, getbasename(cmd+strlen(cmd)+1))) goto match;
       continue;
 match:
       if (callback(u, *cur)) break;
