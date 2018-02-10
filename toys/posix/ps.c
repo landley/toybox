@@ -286,21 +286,20 @@ GLOBALS(
   void (*show_process)(void *tb);
 )
 
-/* Linked list of fields selected for display, in order, with :len and =title */
+// Linked list of -o fields selected for display, in order, with :len and =title
 
-struct strawberry {
-  struct strawberry *next, *prev;
+struct ofields {
+  struct ofields *next, *prev;
   short which, len, reverse;
   char *title;
-  char forever[];
 };
 
 /* The function get_ps() reads all the data about one process, saving it in
- * toybox as a struct carveup. Simple ps calls then pass toybuf directly to
- * show_ps(), but features like sorting instead append a copy to a linked list
+ * toybox as a struct procpid. Simple ps calls then pass toybuf directly to
+ * show_ps(), but features like sorting append a copy to a linked list
  * for further processing once all processes have been read.
  *
- * struct carveup contains a slot[] array of 64 bit values, with the following
+ * struct procpid contains a slot[] array of 64 bit values, with the following
  * data at each position in the array. Most is read from /proc/$PID/stat (see
  * https://kernel.org/doc/Documentation/filesystems/proc.txt table 1-4) but
  * we we replace several fields with don't use with other data. */
@@ -346,7 +345,7 @@ enum {
    starting position of each string after the first (which is always 0). */
 
 // Data layout in toybuf
-struct carveup {
+struct procpid {
   long long slot[SLOT_count]; // data (see enum above)
   unsigned short offset[6];   // offset of fields in str[] (skip CMD, always 0)
   char state;
@@ -364,7 +363,7 @@ struct carveup {
  *        the display code reclaims unused padding from later fields to try to
  *        get the overflow back).
  *
- * slot: which slot[] out of carveup. Negative means it's a string field.
+ * slot: which slot[] out of procpid. Negative means it's a string field.
  *       Setting bit |64 requests extra display/sort processing.
  *
  * The TAGGED_ARRAY plumbing produces an enum of indexes, the "tag" is the
@@ -391,7 +390,7 @@ struct typography {
   {"RTPRIO", 6, SLOT_rtprio}, {"SCH", 3, SLOT_policy}, {"CPU", 3, SLOT_taskcpu},
   {"TID", 5, SLOT_tid}, {"TCNT", 4, SLOT_tcount}, {"BIT", 3, SLOT_bits},
 
-  // String fields (-1 is carveup->str, rest are str+offset[1-slot])
+  // String fields (-1 is procpid->str, rest are str+offset[1-slot])
   {"TTY", -8, -2}, {"WCHAN", -6, -3}, {"LABEL", -30, -4}, {"COMM", -27, -5},
   {"NAME", -27, -7}, {"COMMAND", -27, -5}, {"CMDLINE", -27, -6},
   {"ARGS", -27, -6}, {"CMD", -15, -1},
@@ -464,7 +463,7 @@ static int ps_match_process(long long *slot)
 }
 
 // Convert field to string representation
-static char *string_field(struct carveup *tb, struct strawberry *field)
+static char *string_field(struct procpid *tb, struct ofields *field)
 {
   char *buf = toybuf+sizeof(toybuf)-260, *out = buf, *s;
   int which = field->which, sl = typos[which].slot;
@@ -593,8 +592,8 @@ static char *string_field(struct carveup *tb, struct strawberry *field)
 // Display process data that get_ps() read from /proc, formatting with TT.fields
 static void show_ps(void *p)
 {
-  struct carveup *tb = p;
-  struct strawberry *field;
+  struct procpid *tb = p;
+  struct ofields *field;
   int pad, len, width = TT.width, abslen, sign, olen, extra = 0;
 
   // Loop through fields to display
@@ -654,7 +653,7 @@ static void show_ps(void *p)
 }
 
 // dirtree callback: read data about process to display, store, or discard it.
-// Fills toybuf with struct carveup and either DIRTREE_SAVEs a copy to ->extra
+// Fills toybuf with struct procpid and either DIRTREE_SAVEs a copy to ->extra
 // (in -k mode) or calls show_ps on toybuf (no malloc/copy/free there).
 static int get_ps(struct dirtree *new)
 {
@@ -662,12 +661,12 @@ static int get_ps(struct dirtree *new)
     char *name;     // Path under /proc/$PID directory
     long long bits; // Only fetch extra data if an -o field is displaying it
   } fetch[] = {
-    // sources for carveup->offset[] data
+    // sources for procpid->offset[] data
     {"fd/", _PS_TTY}, {"wchan", _PS_WCHAN}, {"attr/current", _PS_LABEL},
     {"exe", _PS_COMMAND|_PS_COMM}, {"cmdline", _PS_CMDLINE|_PS_ARGS|_PS_NAME},
     {"", _PS_NAME}
   };
-  struct carveup *tb = (void *)toybuf;
+  struct procpid *tb = (void *)toybuf;
   long long *slot = tb->slot;
   char *name, *s, *buf = tb->str, *end = 0;
   int i, j, fd;
@@ -681,7 +680,7 @@ static int get_ps(struct dirtree *new)
   memset(slot, 0, sizeof(tb->slot));
   tb->slot[SLOT_tid] = *slot = atol(new->name);
   if (TT.threadparent && TT.threadparent->extra)
-    if (*slot == *(((struct carveup *)TT.threadparent->extra)->slot)) return 0;
+    if (*slot == *(((struct procpid *)TT.threadparent->extra)->slot)) return 0;
   fd = dirtree_parentfd(new);
 
   len = 2048;
@@ -804,7 +803,7 @@ static int get_ps(struct dirtree *new)
 
     // For exe we readlink instead of read contents
     if (j==3 || j==5) {
-      struct carveup *ptb = 0;
+      struct procpid *ptb = 0;
       int k;
 
       // Thread doesn't have exe or argv[0], so use parent's
@@ -925,7 +924,7 @@ static int get_ps(struct dirtree *new)
 static int get_threads(struct dirtree *new)
 {
   struct dirtree *dt;
-  struct carveup *tb;
+  struct procpid *tb;
   unsigned pid, kcount;
 
   if (!new->parent) return get_ps(new);
@@ -975,7 +974,7 @@ static int get_threads(struct dirtree *new)
 
 static char *parse_ko(void *data, char *type, int length)
 {
-  struct strawberry *field;
+  struct ofields *field;
   char *width, *title, *end, *s;
   int i, j, k;
 
@@ -995,10 +994,11 @@ static char *parse_ko(void *data, char *type, int length)
     if (!title) length = width-type;
   } else width = 0;
 
-  // Allocate structure, copy title
-  field = xzalloc(sizeof(struct strawberry)+(length+1)*!!title);
+  // Allocate structure plus extra space to append a copy of title data
+  // (this way it's same lifetime, freeing struct automatically frees title)
+  field = xzalloc(sizeof(struct ofields)+(length+1)*!!title);
   if (title) {
-    memcpy(field->title = field->forever, title, length);
+    memcpy(field->title = (char *)(field+1), title, length);
     field->title[field->len = length] = 0;
   }
 
@@ -1036,15 +1036,15 @@ static char *parse_ko(void *data, char *type, int length)
   return 0;
 }
 
-static long long get_headers(struct strawberry *fields, char *buf, int blen)
+static long long get_headers(struct ofields *field, char *buf, int blen)
 {
   long long bits = 0;
   int len = 0;
 
-  for (; fields; fields = fields->next) {
-    len += snprintf(buf+len, blen-len, " %*s"+!bits, fields->len,
-      fields->title);
-    bits |= 1LL<<fields->which;
+  for (; field; field = field->next) {
+    len += snprintf(buf+len, blen-len, " %*s"+!bits, field->len,
+      field->title);
+    bits |= 1LL<<field->which;
   }
 
   return bits;
@@ -1131,8 +1131,8 @@ static char *parse_rest(void *data, char *str, int len)
 // sort for -k
 static int ksort(void *aa, void *bb)
 {
-  struct strawberry *field;
-  struct carveup *ta = *(struct carveup **)aa, *tb = *(struct carveup **)bb;
+  struct ofields *field;
+  struct procpid *ta = *(struct procpid **)aa, *tb = *(struct procpid **)bb;
   int ret = 0, slot;
 
   for (field = TT.kfields; field && !ret; field = field->next) {
@@ -1156,7 +1156,7 @@ static int ksort(void *aa, void *bb)
   return ret;
 }
 
-static struct carveup **collate_leaves(struct carveup **tb, struct dirtree *dt) 
+static struct procpid **collate_leaves(struct procpid **tb, struct dirtree *dt) 
 {
   while (dt) {
     struct dirtree *next = dt->next;
@@ -1170,9 +1170,9 @@ static struct carveup **collate_leaves(struct carveup **tb, struct dirtree *dt)
   return tb;
 }
 
-static struct carveup **collate(int count, struct dirtree *dt)
+static struct procpid **collate(int count, struct dirtree *dt)
 {
-  struct carveup **tbsort = xmalloc(count*sizeof(struct carveup *));
+  struct procpid **tbsort = xmalloc(count*sizeof(struct procpid *));
 
   collate_leaves(tbsort, dt);
 
@@ -1244,20 +1244,20 @@ void ps_main(void)
   default_ko(toybuf, &TT.fields, "bad -o", TT.ps.o);
 
   if (TT.ps.O) {
-    if (TT.fields) TT.fields = ((struct strawberry *)TT.fields)->prev;
+    if (TT.fields) TT.fields = ((struct ofields *)TT.fields)->prev;
     comma_args(TT.ps.O, &TT.fields, "bad -O", parse_ko);
-    if (TT.fields) TT.fields = ((struct strawberry *)TT.fields)->next;
+    if (TT.fields) TT.fields = ((struct ofields *)TT.fields)->next;
   }
   dlist_terminate(TT.fields);
 
   // -f and -n change the meaning of some fields
   if (toys.optflags&(FLAG_f|FLAG_n)) {
-    struct strawberry *ever;
+    struct ofields *field;
 
-    for (ever = TT.fields; ever; ever = ever->next) {
-      if ((toys.optflags&FLAG_n) && ever->which>=PS_UID
-        && ever->which<=PS_RGROUP && (typos[ever->which].slot&64))
-          ever->which--;
+    for (field = TT.fields; field; field = field->next) {
+      if ((toys.optflags&FLAG_n) && field->which>=PS_UID
+        && field->which<=PS_RGROUP && (typos[field->which].slot&64))
+          field->which--;
     }
   }
 
@@ -1272,11 +1272,11 @@ void ps_main(void)
       ? get_threads : get_ps);
 
   if ((dt != DIRTREE_ABORTVAL) && toys.optflags&(FLAG_k|FLAG_M)) {
-    struct carveup **tbsort = collate(TT.kcount, dt);
+    struct procpid **tbsort = collate(TT.kcount, dt);
 
     if (toys.optflags&FLAG_M) {
       for (i = 0; i<TT.kcount; i++) {
-        struct strawberry *field;
+        struct ofields *field;
 
         for (field = TT.fields; field; field = field->next) {
           int len = strlen(string_field(tbsort[i], field));
@@ -1291,7 +1291,7 @@ void ps_main(void)
     }
 
     if (toys.optflags&FLAG_k)
-      qsort(tbsort, TT.kcount, sizeof(struct carveup *), (void *)ksort);
+      qsort(tbsort, TT.kcount, sizeof(struct procpid *), (void *)ksort);
     for (i = 0; i<TT.kcount; i++) {
       show_ps(tbsort[i]);
       free(tbsort[i]);
@@ -1319,16 +1319,16 @@ void ps_main(void)
 // select which of the -o fields to sort by
 static void setsort(int pos)
 {
-  struct strawberry *field, *going2;
+  struct ofields *field, *field2;
   int i = 0;
 
   if (pos<0) pos = 0;
 
   for (field = TT.fields; field; field = field->next) {
     if ((TT.sortpos = i++)<pos && field->next) continue;
-    going2 = TT.kfields;
-    going2->which = field->which;
-    going2->len = field->len;
+    field2 = TT.kfields;
+    field2->which = field->which;
+    field2->len = field->len;
     break;
   }
 }
@@ -1367,7 +1367,7 @@ static void top_common(
 {
   long long timeout = 0, now, stats[16];
   struct proclist {
-    struct carveup **tb;
+    struct procpid **tb;
     int count;
     long long whence;
   } plist[2], *plold, *plnew, old, new, mix;
@@ -1413,11 +1413,11 @@ static void top_common(
     // Collate old and new into "mix", depends on /proc read in pid sort order
     old = *plold;
     new = *plnew;
-    mix.tb = xmalloc((old.count+new.count)*sizeof(struct carveup));
+    mix.tb = xmalloc((old.count+new.count)*sizeof(struct procpid));
     mix.count = 0;
 
     while (old.count || new.count) {
-      struct carveup *otb = old.count ? *old.tb : 0,
+      struct procpid *otb = old.count ? *old.tb : 0,
                      *ntb = new.count ? *new.tb : 0;
 
       // If we just have old for this process, it exited. Discard it.
@@ -1448,7 +1448,7 @@ static void top_common(
       char was, is;
 
       if (recalc) {
-        qsort(mix.tb, mix.count, sizeof(struct carveup *), (void *)ksort);
+        qsort(mix.tb, mix.count, sizeof(struct procpid *), (void *)ksort);
         if (!(toys.optflags&FLAG_b)) {
           printf("\033[H\033[J");
           if (toys.signal) {
@@ -1462,16 +1462,16 @@ static void top_common(
       if (recalc && !(toys.optflags&FLAG_q)) {
         // Display "top" header.
         if (*toys.which->name == 't') {
-          struct strawberry alluc;
+          struct ofields field;
           long long ll, up = 0;
           long run[6];
           int j;
 
           // Count running, sleeping, stopped, zombie processes.
-          alluc.which = PS_S;
+          field.which = PS_S;
           memset(run, 0, sizeof(run));
           for (i = 0; i<mix.count; i++)
-            run[1+stridx("RSTZ", *string_field(mix.tb[i], &alluc))]++;
+            run[1+stridx("RSTZ", *string_field(mix.tb[i], &field))]++;
           sprintf(toybuf,
             "Tasks: %d total,%4ld running,%4ld sleeping,%4ld stopped,"
             "%4ld zombie", mix.count, run[1], run[2], run[3], run[4]);
@@ -1513,24 +1513,24 @@ static void top_common(
           }
           lines = header_line(lines, 0);
         } else {
-          struct strawberry *fields;
-          struct carveup tb;
+          struct ofields *field;
+          struct procpid tb;
 
-          memset(&tb, 0, sizeof(struct carveup));
+          memset(&tb, 0, sizeof(struct procpid));
           pos = stpcpy(toybuf, "Totals:");
-          for (fields = TT.fields; fields; fields = fields->next) {
+          for (field = TT.fields; field; field = field->next) {
             long long ll, bits = 0;
-            int slot = typos[fields->which].slot&63;
+            int slot = typos[field->which].slot&63;
 
-            if (fields->which<PS_C || fields->which>PS_DIO) continue;
-            ll = 1LL<<fields->which;
+            if (field->which<PS_C || field->which>PS_DIO) continue;
+            ll = 1LL<<field->which;
             if (bits&ll) continue;
             bits |= ll;
             for (i=0; i<mix.count; i++)
               tb.slot[slot] += mix.tb[i]->slot[slot];
             pos += snprintf(pos, sizeof(toybuf)/2-(pos-toybuf),
-              " %s: %*s,", typos[fields->which].name,
-              fields->len, string_field(&tb, fields));
+              " %s: %*s,", typos[field->which].name,
+              field->len, string_field(&tb, field));
           }
           *--pos = 0;
           lines = header_line(lines, 0);
@@ -1587,7 +1587,7 @@ static void top_common(
         timeout = 0;
         break;
       } else if (toupper(i)=='R')
-        ((struct strawberry *)TT.kfields)->reverse *= -1;
+        ((struct ofields *)TT.kfields)->reverse *= -1;
       else {
         i -= 256;
         if (i == KEY_LEFT) setsort(TT.sortpos-1);
@@ -1658,10 +1658,10 @@ void top_main(void)
   if (!TT.top.s) TT.top.s = TT.top.O ? 3 : 9;
   top_setup(toybuf, "-%CPU,-ETIME,-PID");
   if (TT.top.O) {
-    struct strawberry *fields = TT.fields;
+    struct ofields *field = TT.fields;
 
-    fields = fields->next->next;
-    comma_args(TT.top.O, &fields, "bad -O", parse_ko);
+    field = field->next->next;
+    comma_args(TT.top.O, &field, "bad -O", parse_ko);
   }
 
   top_common(merge_deltas);
@@ -1705,7 +1705,7 @@ struct regex_list {
   regex_t reg;
 };
 
-static void do_pgk(struct carveup *tb)
+static void do_pgk(struct procpid *tb)
 {
   if (TT.pgrep.signal) {
     if (kill(*tb->slot, TT.pgrep.signal)) {
@@ -1726,7 +1726,7 @@ static void do_pgk(struct carveup *tb)
 
 static void match_pgrep(void *p)
 {
-  struct carveup *tb = p;
+  struct procpid *tb = p;
   regmatch_t match;
   struct regex_list *reg;
   char *name = tb->str+tb->offset[4]*!!(toys.optflags&FLAG_f);;
