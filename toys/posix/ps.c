@@ -678,13 +678,16 @@ static int get_ps(struct dirtree *new)
       |(DIRTREE_SAVE*(TT.threadparent||!TT.show_process));
 
   memset(slot, 0, sizeof(tb->slot));
-  tb->slot[SLOT_tid] = *slot = atol(new->name);
-  if (TT.threadparent && TT.threadparent->extra)
-    if (*slot == *(((struct procpid *)TT.threadparent->extra)->slot)) return 0;
+  slot[SLOT_tid] = *slot = atol(new->name);
+  if (TT.threadparent && TT.threadparent->extra) {
+    *slot = *(((struct procpid *)TT.threadparent->extra)->slot);
+    // Parent also shows up as a thread, discard duplicate
+    if (*slot == slot[SLOT_tid]) return 0;
+  }
   fd = dirtree_parentfd(new);
 
   len = 2048;
-  sprintf(buf, "%lld/stat", *slot);
+  sprintf(buf, "%lld/stat", slot[SLOT_tid]);
   if (!readfileat(fd, buf, buf, &len)) return 0;
 
   // parse oddball fields (name and state). Name can have embedded ')' so match
@@ -725,7 +728,7 @@ static int get_ps(struct dirtree *new)
   {
     off_t temp = len;
 
-    sprintf(buf, "%lld/status", *slot);
+    sprintf(buf, "%lld/status", slot[SLOT_tid]);
     if (!readfileat(fd, buf, buf, &temp)) *buf = 0;
     s = strafter(buf, "\nUid:");
     slot[SLOT_ruid] = s ? atol(s) : new->st.st_uid;
@@ -739,7 +742,7 @@ static int get_ps(struct dirtree *new)
   if (TT.bits&(_PS_READ|_PS_WRITE|_PS_DREAD|_PS_DWRITE|_PS_IO|_PS_DIO)) {
     off_t temp = len;
 
-    sprintf(buf, "%lld/io", *slot);
+    sprintf(buf, "%lld/io", slot[SLOT_tid]);
     if (!readfileat(fd, buf, buf, &temp)) *buf = 0;
     if ((s = strafter(buf, "rchar:"))) slot[SLOT_rchar] = atoll(s);
     if ((s = strafter(buf, "wchar:"))) slot[SLOT_wchar] = atoll(s);
@@ -762,7 +765,7 @@ static int get_ps(struct dirtree *new)
   if (TT.bits&(_PS_VIRT|_PS_RES|_PS_SHR)) {
     off_t temp = len;
 
-    sprintf(buf, "%lld/statm", *slot);
+    sprintf(buf, "%lld/statm", slot[SLOT_tid]);
     if (!readfileat(fd, buf, buf, &temp)) *buf = 0;
     
     for (s = buf, i=0; i<3; i++)
@@ -774,7 +777,7 @@ static int get_ps(struct dirtree *new)
   if (TT.bits&_PS_BIT) {
     off_t temp = 6;
 
-    sprintf(buf, "%lld/exe", *slot);
+    sprintf(buf, "%lld/exe", slot[SLOT_tid]);
     if (readfileat(fd, buf, buf, &temp) && !memcmp(buf, "\177ELF", 4)) {
       if (buf[4] == 1) slot[SLOT_bits] = 32;
       else if (buf[4] == 2) slot[SLOT_bits] = 64;
@@ -782,7 +785,8 @@ static int get_ps(struct dirtree *new)
   }
 
   // Do we need Android scheduling policy?
-  if (TT.bits&_PS_PCY) get_sched_policy(*slot, (void *)&slot[SLOT_pcy]);
+  if (TT.bits&_PS_PCY)
+    get_sched_policy(slot[SLOT_tid], (void *)&slot[SLOT_pcy]);
 
   // Fetch string data while parentfd still available, appending to buf.
   // (There's well over 3k of toybuf left. We could dynamically malloc, but
@@ -799,7 +803,7 @@ static int get_ps(struct dirtree *new)
     // Determine remaining space, reserving minimum of 256 bytes/field and
     // 260 bytes scratch space at the end (for output conversion later).
     len = sizeof(toybuf)-(buf-toybuf)-260-256*(ARRAY_LEN(fetch)-j);
-    sprintf(buf, "%lld/%s", *slot, fetch[j].name);
+    sprintf(buf, "%lld/%s", slot[SLOT_tid], fetch[j].name);
 
     // For exe we readlink instead of read contents
     if (j==3 || j==5) {
@@ -814,7 +818,7 @@ static int get_ps(struct dirtree *new)
       else {
         if (j==3) i = strlen(s = ptb->str+ptb->offset[3]);
         else {
-          if (!ptb || tb->slot[SLOT_argv0len]) ptb = tb;
+          if (!ptb || slot[SLOT_argv0len]) ptb = tb;
           i = ptb->slot[SLOT_argv0len];
           s = ptb->str+ptb->offset[4];
           while (-1!=(k = stridx(s, '/')) && k<i) {
@@ -838,7 +842,7 @@ static int get_ps(struct dirtree *new)
       if (rdev) {
         // Can we readlink() our way to a name?
         for (i = 0; i<3; i++) {
-          sprintf(buf, "%lld/fd/%i", *slot, i);
+          sprintf(buf, "%lld/fd/%i", slot[SLOT_tid], i);
           if (!fstatat(fd, buf, &st, 0) && S_ISCHR(st.st_mode)
             && st.st_rdev == rdev && (len = readlinkat0(fd, buf, buf, len)))
               break;
