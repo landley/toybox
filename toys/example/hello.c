@@ -4,6 +4,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html
+ * See https://www.ietf.org/rfc/rfc3.txt
 
 USE_HELLO(NEWTOY(hello, 0, TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -11,9 +12,9 @@ config HELLO
   bool "hello"
   default n
   help
-    usage: hello [-s]
+    usage: hello
 
-    A hello world program.  You don't need this.
+    A hello world program.
 
     Mostly used as a simple template for adding new commands.
     Occasionally nice to smoketest kernel booting via "init=/usr/bin/hello".

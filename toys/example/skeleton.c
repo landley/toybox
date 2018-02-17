@@ -5,6 +5,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html
+ * See https://www.ietf.org/rfc/rfc3.txt
 
 // Accept many different kinds of command line argument (see top of lib/args.c)
 // Demonstrate two commands in the same file (see www/documentation.html)
