@@ -71,6 +71,7 @@ void logger_main(void)
         if (facility>=0) facility += 16;
       }
       if (facility<0) error_exit("bad facility: %s", TT.priority);
+      facility *= 8;
     }
 
     priority = arrayfind(s1, priorities, ARRAY_LEN(priorities));
