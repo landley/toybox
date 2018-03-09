@@ -4,7 +4,7 @@
  *
  * No Standard.
 
-USE_BLOCKDEV(NEWTOY(blockdev, "<1>1(setro)(setrw)(getro)(getss)(getbsz)(setbsz)#<0(getsz)(getsize)(getsize64)(flushbufs)(rereadpt)",TOYFLAG_USR|TOYFLAG_BIN))
+USE_BLOCKDEV(NEWTOY(blockdev, "<1>1(setro)(setrw)(getro)(getss)(getbsz)(setbsz)#<0(getsz)(getsize)(getsize64)(getra)(setra)#<0(flushbufs)(rereadpt)",TOYFLAG_USR|TOYFLAG_BIN))
 
 config BLOCKDEV
   bool "blockdev"
@@ -24,6 +24,8 @@ config BLOCKDEV
     --getsz		Get device size in 512-byte sectors
     --getsize	Get device size in sectors (deprecated)
     --getsize64	Get device size in bytes
+    --getra		Get readahead in 512-byte sectors
+    --setra		<sectors>	Set readahead
     --flushbufs	Flush buffers
     --rereadpt	Reread partition table
 */
@@ -34,11 +36,12 @@ config BLOCKDEV
 
 GLOBALS(
   long bsz;
+  long ra;
 )
 
 void blockdev_main(void)
 {
-  int cmds[] = {BLKRRPART, BLKFLSBUF, BLKGETSIZE64, BLKGETSIZE, BLKGETSIZE64,
+  int cmds[] = {BLKRRPART, BLKFLSBUF, BLKRASET, BLKRAGET, BLKGETSIZE64, BLKGETSIZE, BLKGETSIZE64,
                 BLKBSZSET, BLKBSZGET, BLKSSZGET, BLKROGET, BLKROSET, BLKROSET};
   char **ss;
   long long val = 0;
@@ -57,10 +60,12 @@ void blockdev_main(void)
       if (flag & FLAG_setbsz) val = TT.bsz;
       else val = !!(flag & FLAG_setro);
 
+      if (flag & FLAG_setra) val = TT.ra;
+
       xioctl(fd, cmds[i], &val);
 
-      flag &= FLAG_setbsz|FLAG_setro|FLAG_flushbufs|FLAG_rereadpt|FLAG_setrw;
-      if (!flag) printf("%lld\n", (toys.optflags & FLAG_getsz) ? val >> 9: val);
+      flag &= FLAG_setbsz|FLAG_setro|FLAG_flushbufs|FLAG_rereadpt|FLAG_setrw|FLAG_setbsz;
+      if (!flag) printf("%lld\n", (toys.optflags & (FLAG_getsz|FLAG_getra)) ? val >> 9: val);
     }
     xclose(fd);
   }
