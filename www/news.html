@@ -8,7 +8,75 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
-<a name="12-10-2017" /><a href="#03-10-2017"><hr><h2><b>October 12, 2017</b></h2></a>
+<a name="24-02-2018" /><a href="#24-02-2018"><hr><h2><b>February 24, 2018</b></h2></a>
+<blockquote><p>
+"Arthur," said Ford.<br />
+"Hello? Yes?" said Arthur.<br />
+"Just believe everything I tell you, and it will all be very, very simple."<br />
+"Ah, well, I'm not sure I believe that."<br />
+</p>
+<p> - The Hitchhiker's Guide to the Galaxy</p>
+</blockquote>
+
+<p><a href=downloads/toybox-0.7.6.tar.gz>Toybox 0.7.6</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.7.6>git commit</a>)
+is out, a month and change late.</p>
+
+<p>This release adds a <b>crc32</b> command and
+cleans up and promotes <b>iconv</b>, <b>logger</b>, and <b>setfattr</b>.
+Pending added <b>stty</b> and <b>fmt</b>, the other half of <b>ping</b>,
+and got a lot of cleanup on <b>gzip</b>/<b>gunzip</b>/<b>zcat</b>.</p>
+
+<p>The <b>cut</b> command got a complete rewrite adding support for multiple
+ranges, utf8/unicode characters, and new -CDFO options. Use -C to measure
+columns rather than characters (for double width chars), and "cut -DF 3-5"
+selects words (like "awk '{print $3 $4 $5}'").</p>
+
+<p>This release adds <b>top -m</b> and <b>iotop -H</b> (and fixed top width truncating for narrow terminal windows),
+added <b>iconv -c</b>, fixed <b>ps -T 1234</b> to show threads belonging to
+that PID, improved <b>file</b>'s executable identification (properly recognizing
+both endiannesses and adding sh/frv fdpic, bpf, and new microblaze
+identifiers), and <b>blkid</b> now only shows LABEL= when it isn't blank.</p>
+
+<p>Running ./configure now does "make defconfig", help_exit() now shows the
+"See %s --help" message on the same line, and several web pages
+(about, code, roadmap, cleanup) got updates.</p>
+
+<p>Elliott and the Android devs added <b>df -i</b>, <b>uptime -p</b>,
+<b>time -v</b>, and <b>xxd -i -ri</b>,
+fixed <b>id -G</b> to only output the group IDs, fixed the <b>xargs -0 -n</b>
+combination, made <b>find -exec +</b> obey ARG_MAX (just like xargs), made
+<b>killall</b> kill scripts too, fixed an off by one error in <b>pidof</b>
+that could cause false positive matches in 15 character names, added
+gzip/gunzip/zcat tests, and taught <b>file</b> to identify more stuff
+(ogg, TrueType font, LLVM bitcode, PEM certs, and PE executables), and
+for some reason needed TOYBOX_VENDOR in the version stuff.
+Android <b>getprop</b>/<b>setprop</b> now allows ro. properties to have
+arbitrary lengths, <b>losetup</b> can now find loop devices under /dev/block (where android puts
+them for historical reasons), and Andreas Gampe pointed out a thinko in
+<b>top</b> that triggered llvm's address sanitizer checks.</p>
+
+<p>Gael PORTAY asked for mdev to work when Linux has the
+block layer configured out, Patrick Oppenlander pointed out a problem
+with make bloatcheck's build dependencies, and
+xuphung on github fixed config2help building on MacOS X.</p>
+
+<p>Commands with locale support now setlocale(LC_TYPE, "C.UTF-8") for more
+targeted locale support (enable character parsing with
+utf8 support, use "C" semantics otherwise). The toys/example/test_*.c
+commands got renamed demo_*.c.</p>
+
+<p>In lib.c the millitime() function returns current unix time in milliseconds
+(which as a 64 bit number is good for + or - 292 million years from
+midnight Jan 1 1970), and the old xgetty() function became tty_fd() returning
+-1 instead of erroring out.</p>
+
+<p>The "make help" text moved from the Makefile to scripts/help.txt,
+ls.c now lists some of its deviations from posix, and work is underway
+to make ps.c more intelligible (and figure out how to break it up into
+multiple files).</p>
+
+<a name="12-10-2017" /><a href="#12-10-2017"><hr><h2><b>October 12, 2017</b></h2></a>
 <blockquote><p>Would it save you a lot of time if I just gave up and went
 mad now?</p>
 <p> - The Hitchhiker's Guide to the Galaxy</p>
