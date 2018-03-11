@@ -300,6 +300,14 @@ char *ntop(struct sockaddr *sa);
 // password.c
 int get_salt(char *salt, char * algo);
 
+// commas.c
+void comma_args(struct arg_list *al, void *data, char *err,
+  char *(*callback)(void *data, char *str, int len));
+void comma_collate(char **old, char *new);
+char *comma_iterate(char **list, int *len);
+int comma_scan(char *optlist, char *opt, int clean);
+int comma_scanall(char *optlist, char *scanlist);
+
 // getmountlist.c
 struct mtab_list {
   struct mtab_list *next, *prev;
@@ -311,12 +319,6 @@ struct mtab_list {
   char type[0];
 };
 
-void comma_args(struct arg_list *al, void *data, char *err,
-  char *(*callback)(void *data, char *str, int len));
-void comma_collate(char **old, char *new);
-char *comma_iterate(char **list, int *len);
-int comma_scan(char *optlist, char *opt, int clean);
-int comma_scanall(char *optlist, char *scanlist);
 int mountlist_istype(struct mtab_list  *ml, char *typelist);
 struct mtab_list *xgetmountlist(char *path);
 
