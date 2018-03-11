@@ -76,8 +76,7 @@
 //     <0 die if less than # leftover arguments (default 0)
 //     >9 die if > # leftover arguments (default MAX_INT)
 //     ? Allow unknown arguments (pass them through to command).
-//     & first argument has imaginary dash (ala tar/ps)
-//       If given twice, all arguments have imaginary dash
+//     & first arg has imaginary dash (ala tar/ps/ar) which sets FLAGS_NODASH
 //
 //   At the end: [groups] of previously seen options
 //     - Only one in group (switch off)    [-abc] means -ab=-b, -ba=-a, -abc=-c
@@ -120,7 +119,7 @@ struct longopts {
 // State during argument parsing.
 struct getoptflagstate
 {
-  int argc, minargs, maxargs, nodash;
+  int argc, minargs, maxargs;
   char *arg;
   struct opts *opts;
   struct longopts *longopts;
@@ -244,7 +243,7 @@ void parse_optflaglist(struct getoptflagstate *gof)
     else if (*options == '<') gof->minargs=*(++options)-'0';
     else if (*options == '>') gof->maxargs=*(++options)-'0';
     else if (*options == '?') gof->noerror++;
-    else if (*options == '&') gof->nodash++;
+    else if (*options == '&') toys.optflags |= FLAGS_NODASH;
     else break;
     options++;
   }
@@ -444,7 +443,7 @@ void get_optflags(void)
 
     // Handle things that don't start with a dash.
     } else {
-      if (gof.nodash && (gof.nodash>1 || gof.argc == 1)) gof.nodash_now = 1;
+      if ((toys.optflags & FLAGS_NODASH) && gof.argc == 1) gof.nodash_now = 1;
       else goto notflag;
     }
 
