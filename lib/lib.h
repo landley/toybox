@@ -53,6 +53,7 @@ struct num_cache *add_num_cache(struct num_cache **cache, long long num,
   void *data, int len);
 
 // args.c
+#define FLAGS_NODASH (1LL<<63)
 void get_optflags(void);
 
 // dirtree.c
