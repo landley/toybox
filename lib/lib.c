@@ -1049,7 +1049,7 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
         char buf[32];
 
         sprintf(buf, "/proc/%u/exe", u);
-        if (stat(buf, &st1)) continue;
+        if (stat(buf, &st2)) continue;
         if (st1.st_dev != st2.st_dev || st1.st_ino != st2.st_ino) continue;
         goto match;
       }
