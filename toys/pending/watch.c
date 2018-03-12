@@ -3,7 +3,7 @@
  * Copyright 2013 Sandeep Sharma <sandeep.jack2756@gmail.com>
  * Copyright 2013 Kyungwan Han <asura321@gmail.com>
  *
-USE_WATCH(NEWTOY(watch, "^<1n#<0=2te", TOYFLAG_USR|TOYFLAG_BIN))
+USE_WATCH(NEWTOY(watch, "^<1n#<0=2teb", TOYFLAG_USR|TOYFLAG_BIN))
 
 config WATCH
   bool "watch"
@@ -16,6 +16,7 @@ config WATCH
     -n  Loop period in seconds (default 2)
     -t  Don't print header
     -e  Freeze updates on command error, and exit after enter.
+    -b  Beep on command error
 */
 #define FOR_watch
 #include "toys.h"
@@ -32,7 +33,7 @@ void watch_main(void)
   char *header, *cmd = *toys.optargs;
   int retval;
 
-  while(toys.optargs[++i])
+  while (toys.optargs[++i])
   {
     char * oldcmd = cmd;
     cmd = xmprintf("%s %s", oldcmd, toys.optargs[i]);
@@ -43,19 +44,21 @@ void watch_main(void)
 
   while(1) {
     xprintf("\033[H\033[J");
-    if(!(toys.optflags & FLAG_t)) {
+    if (!(toys.optflags & FLAG_t)) {
       terminal_size(&width, NULL);
       if (!width) width = 80; //on serial it may return 0.
       time(&t);
       if (width > (hlen + len)) xprintf("%s", header);
-      if(width >= len)
+      if (width >= len)
         xprintf("%*s\n",width + ((width > (hlen + len))?-hlen:0) + 1, ctime(&t));
       else
         xprintf("\n\n");
     }
     fflush(NULL); //making sure the screen is clear
     retval = system(cmd);
-    if ((toys.optflags & FLAG_e) && retval){
+    if ((toys.optflags & FLAG_b) && retval)
+      xprintf("\007"); 
+    if ((toys.optflags & FLAG_e) && retval) {
       xprintf("command exit with non-zero status, press enter to exit\n");
       getchar();
       break;
