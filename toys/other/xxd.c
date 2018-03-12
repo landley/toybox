@@ -10,13 +10,13 @@
  * xxd -p "plain" output:
  *   "4c696e75782076657273696f6e20342e392e302d342d616d643634202864"
 
-USE_XXD(NEWTOY(xxd, ">1c#l#g#<1=2iprs#[!rs]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_XXD(NEWTOY(xxd, ">1c#l#o#g#<1=2iprs#[!rs]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config XXD
   bool "xxd"
   default y
   help
-    usage: xxd [-c n] [-g n] [-i] [-l n] [-p] [-r] [-s n] [file]
+    usage: xxd [-c n] [-g n] [-i] [-l n] [-o n] [-p] [-r] [-s n] [file]
 
     Hexdump a file to stdout.  If no file is listed, copy from stdin.
     Filename "-" is a synonym for stdin.
@@ -25,6 +25,7 @@ config XXD
     -g n	Group bytes by adding a ' ' every n bytes (default 2)
     -i	Include file output format (comma-separated hex byte literals)
     -l n	Limit of n bytes before stopping (default is no limit)
+    -o n	Add n to display offset
     -p	Plain hexdump (30 bytes/line, no grouping)
     -r	Reverse operation: turn a hexdump into a binary file
     -s n	Skip to offset n
@@ -36,6 +37,7 @@ config XXD
 GLOBALS(
   long s;
   long g;
+  long o;
   long l;
   long c;
 )
@@ -54,7 +56,7 @@ static void do_xxd(int fd, char *name)
 
   while (0<(len = readall(fd, toybuf,
                           (limit && limit-pos<TT.c)?limit-pos:TT.c))) {
-    if (!(toys.optflags&FLAG_p)) printf("%08llx: ", pos);
+    if (!(toys.optflags&FLAG_p)) printf("%08llx: ", TT.o + pos);
     pos += len;
     space = 2*TT.c+TT.c/TT.g+1;
 

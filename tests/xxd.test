@@ -15,7 +15,6 @@ testing "file1" "xxd file1" \
 testing "file1 -l" "xxd -l 2 file1" \
     "00000000: 7468                                     th\n" \
     "" ""
-testing "file2" "xxd file2" "" "" ""
 testing "-" "xxd -" \
     "00000000: 6865 6c6c 6f                             hello\n" "" "hello"
 testing "xxd" "xxd" \
@@ -26,6 +25,8 @@ testing "-c 8 -g 3 file1" "xxd -c 8 -g 3 file1" \
     "00000000: 746869 732069 7320 this is \n00000008: 736f6d 652074 6578 some tex\n00000010: 740a               t.\n" "" ""
 
 testing "-i" "cat file1 | xxd -i -" "  0x74, 0x68, 0x69, 0x73, 0x20, 0x69, 0x73, 0x20, 0x73, 0x6f, 0x6d, 0x65,\n  0x20, 0x74, 0x65, 0x78, 0x74, 0x0a\n" "" ""
+
+testing "-o 0x8000" "xxd -o 0x8000 file1" "00008000: 7468 6973 2069 7320 736f 6d65 2074 6578  this is some tex\n00008010: 740a                                     t.\n" "" ""
 
 testing "-p" "xxd -p file1" "7468697320697320736f6d6520746578740a\n" "" ""
 
