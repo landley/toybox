@@ -779,7 +779,9 @@ typedef struct BcVm {
 
 const char *bc_version = "0.1";
 
-const char *bc_copyright = "bc copyright (c) 2018 Gavin D. Howard";
+const char *bc_copyright =
+  "bc copyright (c) 2018 Gavin D. Howard and contributors\n"
+  "https://github.com/gavinhoward/bc";
 
 const char *bc_warranty_short =
   "This is free software with ABSOLUTELY NO WARRANTY.";
