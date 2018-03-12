@@ -1438,12 +1438,13 @@ void bc_vec_free(void *vec) {
   sfree = s->dtor;
 
   if (sfree) {
+    size_t i;
 
     len = s->len;
     array = s->array;
     esize = s->size;
 
-    for (size_t i = 0; i < len; ++i) sfree(array + (i * esize));
+    for (i = 0; i < len; ++i) sfree(array + (i * esize));
   }
 
   free(s->array);
@@ -3830,7 +3831,7 @@ BcStatus bc_lex_string(BcLex *lex, BcLexToken *token) {
   const char *start;
   uint32_t newlines;
   size_t len;
-  size_t i;
+  size_t i, j;
   char c;
 
   newlines = 0;
@@ -3858,7 +3859,7 @@ BcStatus bc_lex_string(BcLex *lex, BcLexToken *token) {
 
   start = lex->buffer + lex->idx;
 
-  for (size_t j = 0; j < len; ++j) token->string[j] = start[j];
+  for (j = 0; j < len; ++j) token->string[j] = start[j];
 
   token->string[len] = '\0';
 
@@ -4519,12 +4520,12 @@ BcStatus bc_parse_stmt(BcParse *parse, BcVec *code);
 BcStatus bc_parse_pushName(BcVec *code, char *name) {
 
   BcStatus status;
-  size_t len;
+  size_t len, i;
 
   status = BC_STATUS_SUCCESS;
   len = strlen(name);
 
-  for (size_t i = 0; !status && i < len; ++i)
+  for (i = 0; !status && i < len; ++i)
     status = bc_vec_pushByte(code, (uint8_t) name[i]);
 
   if (status) return status;
@@ -7104,7 +7105,7 @@ io_err:
 size_t bc_program_index(uint8_t *code, size_t *start) {
 
   uint8_t bytes;
-  uint8_t byte;
+  uint8_t byte, i;
   size_t result;
 
   bytes = code[(*start)++];
@@ -7112,7 +7113,7 @@ size_t bc_program_index(uint8_t *code, size_t *start) {
 
   result = 0;
 
-  for (uint8_t i = 0; byte && i < bytes; ++i) {
+  for (i = 0; byte && i < bytes; ++i) {
     byte = code[(*start)++];
     result |= (((size_t) byte) << (i * 8));
   }
@@ -7156,14 +7157,14 @@ char* bc_program_name(uint8_t *code, size_t *start) {
 BcStatus bc_program_printIndex(uint8_t *code, size_t *start) {
 
   uint8_t bytes;
-  uint8_t byte;
+  uint8_t byte, i;
 
   bytes = code[(*start)++];
   byte = 1;
 
   if (printf(bc_program_byte_fmt, bytes) < 0) return BC_STATUS_IO_ERR;
 
-  for (uint8_t i = 0; byte && i < bytes; ++i) {
+  for (i = 0; byte && i < bytes; ++i) {
     byte = code[(*start)++];
     if (printf(bc_program_byte_fmt, byte) < 0) return BC_STATUS_IO_ERR;
   }
@@ -7196,14 +7197,14 @@ BcStatus bc_program_printString(const char *str) {
 
   char c;
   char c2;
-  size_t len;
+  size_t len, i;
   int err;
 
   err = 0;
 
   len = strlen(str);
 
-  for (size_t i = 0; i < len; ++i) {
+  for (i = 0; i < len; ++i) {
 
     c = str[i];
 
@@ -8941,8 +8942,9 @@ BcStatus bc_vm_execStdin(BcVm *vm) {
 
     if (len == 1 && buf[0] == '"') string = !string;
     else if (len > 1 || comment) {
+      uint32_t i;
 
-      for (uint32_t i = 0; i < len; ++i) {
+      for (i = 0; i < len; ++i) {
 
         char c;
         bool notend;
@@ -9169,13 +9171,13 @@ void bc_vm_free(BcVm *vm) {
 BcStatus bc_vm_exec(BcVm *vm) {
 
   BcStatus status;
-  int num_files;
+  int num_files, i;
 
   status = BC_STATUS_SUCCESS;
 
   num_files = vm->filec;
 
-  for (int i = 0; !status && i < num_files; ++i) status = bc_vm_execFile(vm, i);
+  for (i = 0; !status && i < num_files; ++i) status = bc_vm_execFile(vm, i);
 
   if (status != BC_STATUS_SUCCESS &&
       status != BC_STATUS_PARSE_QUIT &&
