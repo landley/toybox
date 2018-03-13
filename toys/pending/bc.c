@@ -138,11 +138,11 @@ typedef enum BcStatus {
 typedef void (*BcFreeFunc)(void*);
 typedef BcStatus (*BcCopyFunc)(void*, void*);
 
-void bc_error(BcStatus status);
-void bc_error_file(BcStatus status, const char *file, uint32_t line);
+void bc_error(BcStatus st);
+void bc_error_file(BcStatus st, const char *file, size_t line);
 
-BcStatus bc_posix_error(BcStatus status, const char *file,
-                        uint32_t line, const char *msg);
+BcStatus bc_posix_error(BcStatus st, const char *file,
+                        size_t line, const char *msg);
 
 #define BC_VEC_INITIAL_CAP (32)
 
@@ -9103,36 +9103,36 @@ BcStatus bc_vm_exec(BcVm *vm) {
   return status;
 }
 
-void bc_error(BcStatus status) {
+void bc_error(BcStatus st) {
 
-  if (!status || status == BC_STATUS_PARSE_QUIT ||
-      status == BC_STATUS_EXEC_HALT ||
-      status >= BC_STATUS_POSIX_NAME_LEN)
+  if (!st || st == BC_STATUS_PARSE_QUIT ||
+      st == BC_STATUS_EXEC_HALT ||
+      st >= BC_STATUS_POSIX_NAME_LEN)
   {
     return;
   }
 
   fprintf(stderr, "\n%s error: %s\n\n",
-          bc_err_types[status], bc_err_descs[status]);
+          bc_err_types[st], bc_err_descs[st]);
 }
 
-void bc_error_file(BcStatus status, const char *file, uint32_t line) {
+void bc_error_file(BcStatus st, const char *file, size_t line) {
 
-  if (!status || status == BC_STATUS_PARSE_QUIT ||
-      !file || status >= BC_STATUS_POSIX_NAME_LEN)
+  if (!st || st == BC_STATUS_PARSE_QUIT ||
+      !file || st >= BC_STATUS_POSIX_NAME_LEN)
   {
     return;
   }
 
-  fprintf(stderr, "\n%s error: %s\n", bc_err_types[status],
-          bc_err_descs[status]);
+  fprintf(stderr, "\n%s error: %s\n", bc_err_types[st],
+          bc_err_descs[st]);
 
   fprintf(stderr, "    %s", file);
   fprintf(stderr, &":%d\n\n"[3 * !line], line);
 }
 
-BcStatus bc_posix_error(BcStatus status, const char *file,
-                        uint32_t line, const char *msg)
+BcStatus bc_posix_error(BcStatus st, const char *file,
+                        size_t line, const char *msg)
 {
   int s = (toys.optflags & FLAG_s), w = (toys.optflags & FLAG_w);
 
