@@ -9234,7 +9234,7 @@ BcStatus bc_exec(unsigned int flags, unsigned int filec, const char *filev[]) {
   BcStatus status;
   BcVm vm;
 
-  if (flags & FLAG_i || (isatty(STDIN_FILENO) && isatty(STDOUT_FILENO))) {
+  if ((flags & FLAG_i) || (isatty(STDIN_FILENO) && isatty(STDOUT_FILENO))) {
     TT.bc_interactive = 1;
   } else TT.bc_interactive = 0;
 
