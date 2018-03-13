@@ -40,19 +40,13 @@ config BC
 #include "toys.h"
 
 GLOBALS(
-    long bc_code;
-    long bc_interactive;
-    long bc_std;
-    long bc_warn;
+  long bc_code;
+  long bc_interactive;
+  long bc_std;
+  long bc_warn;
 
-    long bc_signal;
+  long bc_signal;
 )
-
-#define BC_MAX(a, b) ((a) > (b) ? (a) : (b))
-
-#define BC_MIN(a, b) ((a) < (b) ? (a) : (b))
-
-#define BC_INVALID_IDX ((size_t) -1)
 
 #define BC_BASE_MAX_DEF (99)
 #define BC_DIM_MAX_DEF (2048)
@@ -1430,7 +1424,6 @@ void bc_vec_free(void *vec) {
   sfree = s->dtor;
 
   if (sfree) {
-    size_t i;
 
     len = s->len;
     array = s->array;
@@ -8922,7 +8915,6 @@ BcStatus bc_vm_execStdin(BcVm *vm) {
 
     if (len == 1 && buf[0] == '"') string = !string;
     else if (len > 1 || comment) {
-      uint32_t i;
 
       for (i = 0; i < len; ++i) {
 
