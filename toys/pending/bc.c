@@ -87,7 +87,6 @@ typedef enum BcStatus {
   BC_STATUS_PARSE_QUIT,
   BC_STATUS_PARSE_MISMATCH_NUM_FUNCS,
   BC_STATUS_PARSE_DUPLICATE_LOCAL,
-  BC_STATUS_PARSE_EOF,
   BC_STATUS_PARSE_BUG,
 
   BC_STATUS_MATH_NEGATIVE,
@@ -791,7 +790,6 @@ const char *bc_err_types[] = {
   "Parse",
   "Parse",
   "Parse",
-  "Parse",
 
   "Math",
   "Math",
@@ -884,7 +882,6 @@ const char *bc_err_descs[] = {
   "number of functions does not match the number of entries "
     "in the function map; this is most likely a bug in bc",
   "function parameter or auto var has the same name as another",
-  "end of file",
   "bug in parser",
 
   "negative number",
@@ -5958,7 +5955,7 @@ BcStatus bc_parse_semicolonList(BcParse *parse, BcVec *code) {
 
     case BC_LEX_EOF:
     {
-      if (parse->flags.len > 0) status = BC_STATUS_PARSE_EOF;
+      if (parse->flags.len > 0) status = BC_STATUS_LEX_INVALID_TOKEN;
       break;
     }
 
@@ -6273,7 +6270,7 @@ BcStatus bc_parse_parse(BcParse *parse) {
 
     case BC_LEX_EOF:
     {
-      status = BC_STATUS_PARSE_EOF;
+      status = BC_STATUS_LEX_EOF;
       break;
     }
 
@@ -7027,10 +7024,7 @@ BcStatus bc_program_read(BcProgram *p) {
 
   status = bc_parse_expr(&parse, &func->code, BC_PARSE_EXPR_NO_READ);
 
-  if (status != BC_STATUS_LEX_EOF &&
-      status != BC_STATUS_PARSE_EOF &&
-      parse.token.type != BC_LEX_NEWLINE)
-  {
+  if (status != BC_STATUS_LEX_EOF && parse.token.type != BC_LEX_NEWLINE) {
     status = status ? status : BC_STATUS_EXEC_INVALID_READ_EXPR;
     goto exec_err;
   }
@@ -8759,8 +8753,7 @@ BcStatus bc_vm_execFile(BcVm *vm, int idx) {
 
     status = bc_parse_parse(&vm->parse);
 
-    if (status && status != BC_STATUS_LEX_EOF && status != BC_STATUS_PARSE_EOF)
-    {
+    if (status && status != BC_STATUS_LEX_EOF) {
       bc_error_file(status, vm->parse.lex.file, vm->parse.lex.line);
       goto err;
     }
@@ -8776,7 +8769,6 @@ BcStatus bc_vm_execFile(BcVm *vm, int idx) {
     if (status) {
 
       if (status != BC_STATUS_LEX_EOF &&
-          status != BC_STATUS_PARSE_EOF &&
           status != BC_STATUS_PARSE_QUIT &&
           status != BC_STATUS_PARSE_LIMITS)
       {
@@ -8801,12 +8793,8 @@ BcStatus bc_vm_execFile(BcVm *vm, int idx) {
 
   } while (!status);
 
-  if (status != BC_STATUS_PARSE_EOF &&
-      status != BC_STATUS_LEX_EOF &&
-      status != BC_STATUS_PARSE_QUIT)
-  {
+  if (status != BC_STATUS_LEX_EOF && status != BC_STATUS_PARSE_QUIT)
     goto read_err;
-  }
 
   if (BC_PARSE_CAN_EXEC(&vm->parse)) {
 
@@ -8960,10 +8948,7 @@ BcStatus bc_vm_execStdin(BcVm *vm) {
 
       if (status) {
 
-        if (status == BC_STATUS_PARSE_QUIT ||
-            status == BC_STATUS_LEX_EOF ||
-            status == BC_STATUS_PARSE_EOF)
-        {
+        if (status == BC_STATUS_PARSE_QUIT || status == BC_STATUS_LEX_EOF) {
           break;
         }
         else if (status == BC_STATUS_PARSE_LIMITS) {
@@ -8991,7 +8976,7 @@ BcStatus bc_vm_execStdin(BcVm *vm) {
       bc_program_limits(&vm->program);
       status = BC_STATUS_SUCCESS;
     }
-    else if (status != BC_STATUS_LEX_EOF && status != BC_STATUS_PARSE_EOF) {
+    else if (status != BC_STATUS_LEX_EOF) {
 
       BcFunc *func;
       BcInstPtr *ip;
@@ -9076,8 +9061,7 @@ BcStatus bc_vm_execStdin(BcVm *vm) {
 
   status = !status || status == BC_STATUS_PARSE_QUIT ||
            status == BC_STATUS_EXEC_HALT ||
-           status == BC_STATUS_LEX_EOF ||
-           status == BC_STATUS_PARSE_EOF ?
+           status == BC_STATUS_LEX_EOF ?
                BC_STATUS_SUCCESS : status;
 
 exit_err:
@@ -9244,7 +9228,7 @@ BcStatus bc_exec(unsigned int flags, unsigned int filec, char *filev[]) {
 
     while (!status) status = bc_parse_parse(&vm.parse);
 
-    if (status != BC_STATUS_LEX_EOF && status != BC_STATUS_PARSE_EOF) goto err;
+    if (status != BC_STATUS_LEX_EOF) goto err;
 
     // Make sure to execute the math library.
     status = bc_program_exec(&vm.program);
