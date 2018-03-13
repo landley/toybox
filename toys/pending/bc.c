@@ -40,7 +40,6 @@ config BC
 #include "toys.h"
 
 GLOBALS(
-  long bc_code;
   long bc_interactive;
   long bc_std;
   long bc_warn;
@@ -745,16 +744,11 @@ typedef struct BcVm {
 
 } BcVm;
 
-const char *bc_version = "0.1";
-
-const char *bc_copyright =
+const char *bc_header =
+  "bc 0.1\n"
   "bc copyright (c) 2018 Gavin D. Howard and contributors\n"
-  "Report bugs at: https://github.com/gavinhoward/bc";
-
-const char *bc_warranty_short =
-  "This is free software with ABSOLUTELY NO WARRANTY.";
-
-const char *bc_version_fmt = "bc %s\n%s\n\n%s\n\n";
+  "Report bugs at: https://github.com/gavinhoward/bc\n\n"
+  "This is free software with ABSOLUTELY NO WARRANTY.\n\n";
 
 const char *bc_err_types[] = {
 
@@ -9052,8 +9046,8 @@ buf_err:
   return status;
 }
 
-BcStatus bc_vm_init(BcVm *vm, int filec, char *filev[]) {
-
+BcStatus bc_vm_init(BcVm *vm, BcProgramExecFunc exec, int filec, char *filev[])
+{
   BcStatus status;
   struct sigaction act;
 
@@ -9073,7 +9067,7 @@ BcStatus bc_vm_init(BcVm *vm, int filec, char *filev[]) {
     return status;
   }
 
-  vm->exec = TT.bc_code ? bc_program_print : bc_program_exec;
+  vm->exec = exec;
   vm->filec = filec;
   vm->filev = filev;
 
@@ -9110,15 +9104,6 @@ BcStatus bc_vm_exec(BcVm *vm) {
                BC_STATUS_SUCCESS : status;
 
   return status;
-}
-
-BcStatus bc_print_version() {
-
-  int err;
-
-  err = printf(bc_version_fmt, bc_version, bc_copyright, bc_warranty_short);
-
-  return err < 0 ? BC_STATUS_IO_ERR : BC_STATUS_SUCCESS;
 }
 
 void bc_error(BcStatus status) {
@@ -9170,27 +9155,24 @@ BcStatus bc_posix_error(BcStatus status, const char *file,
   return TT.bc_std ? status : BC_STATUS_SUCCESS;
 }
 
-BcStatus bc_exec(unsigned int flags, unsigned int filec, char *filev[]) {
+BcStatus bc_exec(unsigned long long flags, unsigned int filec, char *filev[]) {
 
   BcStatus status;
   BcVm vm;
+  BcProgramExecFunc exec;
 
   if ((flags & FLAG_i) || (isatty(0) && isatty(1))) {
     TT.bc_interactive = 1;
   } else TT.bc_interactive = 0;
 
-  TT.bc_code = flags & FLAG_c;
   TT.bc_std = flags & FLAG_s;
   TT.bc_warn = flags & FLAG_w;
 
-  if (!(flags & FLAG_q)) {
+  if (!(flags & FLAG_q) && (printf("%s", bc_header) < 0))
+    return BC_STATUS_IO_ERR;
 
-    status = bc_print_version();
-
-    if (status) return status;
-  }
-
-  status = bc_vm_init(&vm, filec, filev);
+  exec = (flags & FLAG_c) ? bc_program_print : bc_program_exec;
+  status = bc_vm_init(&vm, exec, filec, filev);
 
   if (status) return status;
 
@@ -9209,7 +9191,7 @@ BcStatus bc_exec(unsigned int flags, unsigned int filec, char *filev[]) {
     if (status != BC_STATUS_LEX_EOF) goto err;
 
     // Make sure to execute the math library.
-    status = bc_program_exec(&vm.program);
+    status = vm.exec(&vm.program);
 
     if (status) goto err;
   }
@@ -9224,10 +9206,5 @@ err:
 }
 
 void bc_main(void) {
-
-  unsigned int flags;
-
-  flags = (unsigned int) toys.optflags;
-
-  toys.exitval = (char) bc_exec(flags, toys.optc, (const char**) toys.optargs);
+  toys.exitval = (char) bc_exec(toys.optflags, toys.optc, toys.optargs);
 }
