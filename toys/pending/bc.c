@@ -48,21 +48,6 @@ GLOBALS(
     long bc_signal;
 )
 
-#define bcg (TT)
-
-#define BC_FLAG_WARN (1<<0)
-#define BC_FLAG_STANDARD (1<<1)
-#define BC_FLAG_QUIET (1<<2)
-#define BC_FLAG_MATHLIB (1<<3)
-#define BC_FLAG_INTERACTIVE (1<<4)
-#define BC_FLAG_CODE (1<<5)
-
-#define BC_MAX(a, b) ((a) > (b) ? (a) : (b))
-
-#define BC_MIN(a, b) ((a) < (b) ? (a) : (b))
-
-#define BC_INVALID_IDX ((size_t) -1)
-
 #define BC_BASE_MAX_DEF (99)
 #define BC_DIM_MAX_DEF (2048)
 #define BC_SCALE_MAX_DEF (99)
@@ -1527,7 +1512,7 @@ size_t bc_veco_index(const BcVecO* vec, void *data) {
   idx = bc_veco_find(vec, data);
 
   if (idx >= vec->vec.len || vec->cmp(data, bc_vec_item(&vec->vec, idx)))
-    return BC_INVALID_IDX;
+    return -1;
 
   return idx;
 }
@@ -1724,9 +1709,9 @@ BcStatus bc_num_alg_a(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
 
   memset(c->num, 0, c->cap * sizeof(BcDigit));
 
-  c->rdx = BC_MAX(a->rdx, b->rdx);
+  c->rdx = maxof(a->rdx, b->rdx);
 
-  min = BC_MIN(a->rdx, b->rdx);
+  min = minof(a->rdx, b->rdx);
 
   c->len = 0;
 
@@ -1775,7 +1760,7 @@ BcStatus bc_num_alg_a(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
   a_whole = a->len - a->rdx;
   b_whole = b->len - b->rdx;
 
-  min = BC_MIN(a_whole, b_whole);
+  min = minof(a_whole, b_whole);
 
   ptr_a = a->num + a->rdx;
   ptr_b = b->num + b->rdx;
@@ -1924,8 +1909,8 @@ BcStatus bc_num_alg_m(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
     return status;
   }
 
-  scale = BC_MAX(scale, a->rdx);
-  scale = BC_MAX(scale, b->rdx);
+  scale = maxof(scale, a->rdx);
+  scale = maxof(scale, b->rdx);
   c->rdx = a->rdx + b->rdx;
 
   memset(c->num, 0, sizeof(BcDigit) * c->cap);
@@ -1947,12 +1932,12 @@ BcStatus bc_num_alg_m(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
     if (carry) {
       c->num[i + j] += carry;
       carry = 0;
-      len = BC_MAX(len, i + j + 1);
+      len = maxof(len, i + j + 1);
     }
-    else len = BC_MAX(len, i + j);
+    else len = maxof(len, i + j);
   }
 
-  c->len = BC_MAX(len, c->rdx);
+  c->len = maxof(len, c->rdx);
 
   c->neg = !a->neg != !b->neg;
 
@@ -2124,7 +2109,7 @@ BcStatus bc_num_alg_mod(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
 
   if (status) goto err;
 
-  c->rdx = BC_MAX(scale + b->rdx, a->rdx);
+  c->rdx = maxof(scale + b->rdx, a->rdx);
 
   status = bc_num_mul(&c1, b, &c2, scale);
 
@@ -2194,7 +2179,7 @@ BcStatus bc_num_alg_p(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
   else {
     neg = false;
     upow = pow;
-    scale = BC_MIN(a->rdx * upow, BC_MAX(scale, a->rdx));
+    scale = minof(a->rdx * upow, maxof(scale, a->rdx));
   }
 
   status = bc_num_init(&copy, a->len);
@@ -2301,7 +2286,7 @@ BcStatus bc_num_sqrt_newton(BcNum *a, BcNum *b, size_t scale) {
 
   memset(b->num, 0, b->cap * sizeof(BcDigit));
 
-  scale = BC_MAX(scale, a->rdx) + 1;
+  scale = maxof(scale, a->rdx) + 1;
 
   len = a->len;
 
@@ -3401,14 +3386,6 @@ param_err:
   bc_vec_free(&func->code);
 
   return status;
-}
-
-BcStatus bc_func_insertParam(BcFunc *func, char *name, bool var) {
-  return bc_func_insert(func, name, var, &func->params);
-}
-
-BcStatus bc_func_insertAuto(BcFunc *func, char *name, bool var) {
-  return bc_func_insert(func, name, var, &func->autos);
 }
 
 void bc_func_free(void *func) {
@@ -4737,7 +4714,7 @@ BcStatus bc_parse_call(BcParse *parse, BcVec *code,
 
   idx = bc_veco_index(&parse->program->func_map, &entry);
 
-  if (idx == BC_INVALID_IDX) {
+  if (idx == -1) {
 
     status = bc_program_func_add(parse->program, name, &idx);
 
@@ -5790,7 +5767,7 @@ BcStatus bc_parse_func(BcParse *parse) {
     }
     else comma = false;
 
-    status = bc_func_insertParam(fptr, name, var);
+    status = bc_func_insert(fptr, name, var, &fptr->params);
 
     if (status) goto err;
 
@@ -5886,7 +5863,7 @@ BcStatus bc_parse_auto(BcParse *parse) {
     }
     else comma = false;
 
-    status = bc_func_insertAuto(func, name, var);
+    status = bc_func_insert(func, name, var, &func->autos);
 
     if (status) goto err;
 
@@ -8743,7 +8720,7 @@ void bc_vm_sigint(int sig) {
   if (sig == SIGINT) {
     err = write(STDERR_FILENO, bc_program_sigint_msg,
                 strlen(bc_program_sigint_msg));
-    if (err >= 0) bcg.bc_signal = 1;
+    if (err >= 0) TT.bc_signal = 1;
   }
 }
 
@@ -8753,7 +8730,7 @@ BcStatus bc_vm_signal(BcVm *vm) {
   BcFunc *func;
   BcInstPtr *ip;
 
-  bcg.bc_signal = 0;
+  TT.bc_signal = 0;
 
   while (vm->program.stack.len > 1) {
 
@@ -8782,7 +8759,7 @@ BcStatus bc_vm_execFile(BcVm *vm, int idx) {
   char *data;
   BcProgramExecFunc exec;
 
-  exec = bcg.bc_code ? bc_program_print : bc_program_exec;
+  exec = TT.bc_code ? bc_program_print : bc_program_exec;
 
   file = vm->filev[idx];
   vm->program.file = file;
@@ -8809,8 +8786,8 @@ BcStatus bc_vm_execFile(BcVm *vm, int idx) {
       goto err;
     }
 
-    if (bcg.bc_signal) {
-      if (!bcg.bc_interactive) goto read_err;
+    if (TT.bc_signal) {
+      if (!TT.bc_interactive) goto read_err;
       else {
         status = bc_vm_signal(vm);
         if (status) goto read_err;
@@ -8858,11 +8835,11 @@ BcStatus bc_vm_execFile(BcVm *vm, int idx) {
 
     if (status) goto read_err;
 
-    if (bcg.bc_interactive) {
+    if (TT.bc_interactive) {
 
       fflush(stdout);
 
-      if (bcg.bc_signal) {
+      if (TT.bc_signal) {
 
         status = bc_vm_signal(vm);
 
@@ -8870,7 +8847,7 @@ BcStatus bc_vm_execFile(BcVm *vm, int idx) {
         fflush(stderr);
       }
     }
-    else if (bcg.bc_signal) {
+    else if (TT.bc_signal) {
       status = bc_vm_signal(vm);
       goto read_err;
     }
@@ -9001,7 +8978,7 @@ BcStatus bc_vm_execStdin(BcVm *vm) {
 
     status = bc_parse_text(&vm->parse, buffer);
 
-    if (!bcg.bc_signal) {
+    if (!TT.bc_signal) {
 
       if (status) {
 
@@ -9073,7 +9050,7 @@ BcStatus bc_vm_execStdin(BcVm *vm) {
 
     if (BC_PARSE_CAN_EXEC(&vm->parse)) {
 
-      if (!bcg.bc_code) {
+      if (!TT.bc_code) {
 
         status = bc_program_exec(&vm->program);
 
@@ -9082,16 +9059,16 @@ BcStatus bc_vm_execStdin(BcVm *vm) {
           goto exit_err;
         }
 
-        if (bcg.bc_interactive) {
+        if (TT.bc_interactive) {
 
           fflush(stdout);
 
-          if (bcg.bc_signal) {
+          if (TT.bc_signal) {
             status = bc_vm_signal(vm);
             fprintf(stderr, "%s", bc_program_ready_prompt);
           }
         }
-        else if (bcg.bc_signal) {
+        else if (TT.bc_signal) {
           status = bc_vm_signal(vm);
           goto exit_err;
         }
@@ -9100,16 +9077,16 @@ BcStatus bc_vm_execStdin(BcVm *vm) {
 
         bc_program_print(&vm->program);
 
-        if (bcg.bc_interactive) {
+        if (TT.bc_interactive) {
 
           fflush(stdout);
 
-          if (bcg.bc_signal) {
+          if (TT.bc_signal) {
             status = bc_vm_signal(vm);
             fprintf(stderr, "%s", bc_program_ready_prompt);
           }
         }
-        else if (bcg.bc_signal) {
+        else if (TT.bc_signal) {
           status = bc_vm_signal(vm);
           goto exit_err;
         }
@@ -9237,7 +9214,7 @@ void bc_error_file(BcStatus status, const char *file, uint32_t line) {
 BcStatus bc_posix_error(BcStatus status, const char *file,
                         uint32_t line, const char *msg)
 {
-  if (!(bcg.bc_std || bcg.bc_warn) ||
+  if (!(TT.bc_std || TT.bc_warn) ||
       status < BC_STATUS_POSIX_NAME_LEN ||
       !file)
   {
@@ -9245,7 +9222,7 @@ BcStatus bc_posix_error(BcStatus status, const char *file,
   }
 
   fprintf(stderr, "\n%s %s: %s\n", bc_err_types[status],
-          bcg.bc_std ? "error" : "warning", bc_err_descs[status]);
+          TT.bc_std ? "error" : "warning", bc_err_descs[status]);
 
   if (msg) fprintf(stderr, "    %s\n", msg);
 
@@ -9254,7 +9231,7 @@ BcStatus bc_posix_error(BcStatus status, const char *file,
   if (line) fprintf(stderr, ":%d\n\n", line);
   else fprintf(stderr, "\n\n");
 
-  return bcg.bc_std ? status : BC_STATUS_SUCCESS;
+  return TT.bc_std ? status : BC_STATUS_SUCCESS;
 }
 
 BcStatus bc_exec(unsigned int flags, unsigned int filec, const char *filev[]) {
@@ -9262,18 +9239,15 @@ BcStatus bc_exec(unsigned int flags, unsigned int filec, const char *filev[]) {
   BcStatus status;
   BcVm vm;
 
-  if (flags & BC_FLAG_INTERACTIVE ||
-      (isatty(STDIN_FILENO) && isatty(STDOUT_FILENO)))
-  {
-    bcg.bc_interactive = 1;
-  }
-  else bcg.bc_interactive = 0;
+  if ((flags & FLAG_i) || (isatty(STDIN_FILENO) && isatty(STDOUT_FILENO))) {
+    TT.bc_interactive = 1;
+  } else TT.bc_interactive = 0;
 
-  bcg.bc_code = flags & BC_FLAG_CODE;
-  bcg.bc_std = flags & BC_FLAG_STANDARD;
-  bcg.bc_warn = flags & BC_FLAG_WARN;
+  TT.bc_code = flags & FLAG_i;
+  TT.bc_std = flags & FLAG_s;
+  TT.bc_warn = flags & FLAG_w;
 
-  if (!(flags & BC_FLAG_QUIET)) {
+  if (!(flags & FLAG_q)) {
 
     status = bc_print_version();
 
@@ -9284,7 +9258,7 @@ BcStatus bc_exec(unsigned int flags, unsigned int filec, const char *filev[]) {
 
   if (status) return status;
 
-  if (flags & BC_FLAG_MATHLIB) {
+  if (flags & FLAG_l) {
 
     status = bc_parse_file(&vm.parse, bc_lib_name);
 
