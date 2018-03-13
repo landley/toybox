@@ -143,18 +143,6 @@ typedef enum BcStatus {
 typedef void (*BcFreeFunc)(void*);
 typedef BcStatus (*BcCopyFunc)(void*, void*);
 
-// ** Exclude start.
-typedef struct BcGlobals {
-
-  long bc_code;
-  long bc_interactive;
-  long bc_std;
-  long bc_warn;
-
-  long bc_signal;
-
-} BcGlobals;
-
 void bc_error(BcStatus status);
 void bc_error_file(BcStatus status, const char *file, uint32_t line);
 
@@ -209,12 +197,7 @@ typedef struct BcNum {
 
 #define BC_NUM_PRINT_WIDTH (69)
 
-#define BC_NUM_ZERO(n) (!(n)->len)
-
 #define BC_NUM_ONE(n) ((n)->len == 1 && (n)->rdx == 0 && (n)->num[0] == 1)
-
-#define BC_NUM_POS_ONE(n) (BC_NUM_ONE(n) && !(n)->neg)
-#define BC_NUM_NEG_ONE(n) (BC_NUM_ONE(n) && (n)->neg)
 
 typedef BcStatus (*BcNumUnaryFunc)(BcNum*, BcNum*, size_t);
 typedef BcStatus (*BcNumBinaryFunc)(BcNum*, BcNum*, BcNum*, size_t);
@@ -579,7 +562,7 @@ typedef struct BcLex {
 typedef struct BcLexKeyword {
 
   const char name[9];
-  const unsigned char len;
+  const char len;
   const bool posix;
 
 } BcLexKeyword;
@@ -758,7 +741,7 @@ typedef struct BcVm {
   BcParse parse;
 
   int filec;
-  const char** filev;
+  char** filev;
 
 } BcVm;
 
@@ -1171,7 +1154,7 @@ const char *bc_program_ready_prompt = "ready for more input\n\n";
 const char *bc_program_sigint_msg = "\n\ninterrupt (type \"quit\" to exit)\n\n";
 const char *bc_lib_name = "lib.bc";
 
-const unsigned char bc_lib[] = {
+const char bc_lib[] = {
   115,99,97,108,101,61,50,48,10,100,101,102,105,110,101,32,101,40,120,41,123,
   10,9,97,117,116,111,32,98,44,115,44,110,44,114,44,100,44,105,44,112,44,102,
   44,118,10,9,98,61,105,98,97,115,101,10,9,105,98,97,115,101,61,65,10,9,105,102,
@@ -1559,11 +1542,11 @@ int bc_num_compareDigits(BcNum *a, BcNum *b, size_t *digits) {
   }
   else if (b->neg) return 1;
 
-  if (BC_NUM_ZERO(a)) {
+  if (!a->len) {
     cmp = b->neg ? 1 : -1;
-    return BC_NUM_ZERO(b) ? 0 : cmp;
+    return !b->len ? 0 : cmp;
   }
-  else if (BC_NUM_ZERO(b)) return a->neg ? -1 : 1;
+  else if (!b->len) return a->neg ? -1 : 1;
 
   a_int = a->len - a->rdx;
   b_int = b->len - b->rdx;
@@ -1820,12 +1803,12 @@ BcStatus bc_num_alg_s(BcNum *a, BcNum *b, BcNum *c, size_t sub) {
   // I am hijacking it to tell this function whether it is doing an add
   // or a subtract.
 
-  if (BC_NUM_ZERO(a)) {
+  if (!a->len) {
     status = bc_num_copy(c, b);
     c->neg = !b->neg;
     return status;
   }
-  else if (BC_NUM_ZERO(b)) return bc_num_copy(c, a);
+  else if (!b->len) return bc_num_copy(c, a);
 
   aneg = a->neg;
   bneg = b->neg;
@@ -1894,7 +1877,7 @@ BcStatus bc_num_alg_m(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
   size_t j;
   size_t len;
 
-  if (BC_NUM_ZERO(a) || BC_NUM_ZERO(b)) {
+  if (!a->len || !b->len) {
     bc_num_zero(c);
     return BC_STATUS_SUCCESS;
   }
@@ -1960,8 +1943,8 @@ BcStatus bc_num_alg_d(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
   size_t i;
   BcNum copy;
 
-  if (BC_NUM_ZERO(b)) return BC_STATUS_MATH_DIVIDE_BY_ZERO;
-  else if (BC_NUM_ZERO(a)) {
+  if (!b->len) return BC_STATUS_MATH_DIVIDE_BY_ZERO;
+  else if (!a->len) {
     bc_num_zero(c);
     return BC_STATUS_SUCCESS;
   }
@@ -2151,7 +2134,7 @@ BcStatus bc_num_alg_p(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
     bc_num_one(c);
     return BC_STATUS_SUCCESS;
   }
-  else if (BC_NUM_ZERO(a)) {
+  else if (!a->len) {
     bc_num_zero(c);
     return BC_STATUS_SUCCESS;
   }
@@ -2274,11 +2257,11 @@ BcStatus bc_num_sqrt_newton(BcNum *a, BcNum *b, size_t scale) {
   size_t resrdx;
   int cmp;
 
-  if (BC_NUM_ZERO(a)) {
+  if (!a->len) {
     bc_num_zero(b);
     return BC_STATUS_SUCCESS;
   }
-  else if (BC_NUM_POS_ONE(a)) {
+  else if (BC_NUM_ONE(a) && !(a)->neg) {
     bc_num_one(b);
     return bc_num_extend(b, scale);
   }
@@ -2864,7 +2847,7 @@ BcStatus bc_num_printBase(BcNum *n, BcNum *base, size_t base_t, FILE* f) {
 
   if (status) goto frac_len_err;
 
-  while (!BC_NUM_ZERO(&intp)) {
+  while (!intp.len) {
 
     unsigned long dig;
 
@@ -3066,7 +3049,7 @@ BcStatus bc_num_fprint(BcNum *n, BcNum *base, size_t base_t,
   if (base_t < BC_NUM_MIN_BASE || base_t > BC_NUM_MAX_OUTPUT_BASE)
     return BC_STATUS_EXEC_INVALID_OBASE;
 
-  if (BC_NUM_ZERO(n)) {
+  if (!n->len) {
     if (fputc('0', f) == EOF) return BC_STATUS_IO_ERR;
     status = BC_STATUS_SUCCESS;
   }
@@ -9108,7 +9091,7 @@ buf_err:
   return status;
 }
 
-BcStatus bc_vm_init(BcVm *vm, int filec, const char *filev[]) {
+BcStatus bc_vm_init(BcVm *vm, int filec, char *filev[]) {
 
   BcStatus status;
   struct sigaction act;
@@ -9201,9 +9184,7 @@ void bc_error_file(BcStatus status, const char *file, uint32_t line) {
           bc_err_descs[status]);
 
   fprintf(stderr, "    %s", file);
-
-  if (line) fprintf(stderr, ":%d\n\n", line);
-  else fprintf(stderr, "\n\n");
+  fprintf(stderr, ":%d\n\n" + 3 * !line, line);
 }
 
 BcStatus bc_posix_error(BcStatus status, const char *file,
@@ -9222,19 +9203,17 @@ BcStatus bc_posix_error(BcStatus status, const char *file,
   if (msg) fprintf(stderr, "    %s\n", msg);
 
   fprintf(stderr, "    %s", file);
-
-  if (line) fprintf(stderr, ":%d\n\n", line);
-  else fprintf(stderr, "\n\n");
+  fprintf(stderr, ":%d\n\n" + 3 * !line, line);
 
   return TT.bc_std ? status : BC_STATUS_SUCCESS;
 }
 
-BcStatus bc_exec(unsigned int flags, unsigned int filec, const char *filev[]) {
+BcStatus bc_exec(unsigned int flags, unsigned int filec, char *filev[]) {
 
   BcStatus status;
   BcVm vm;
 
-  if ((flags & FLAG_i) || (isatty(STDIN_FILENO) && isatty(STDOUT_FILENO))) {
+  if ((flags & FLAG_i) || (isatty(0) && isatty(1))) {
     TT.bc_interactive = 1;
   } else TT.bc_interactive = 0;
 
