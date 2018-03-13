@@ -1430,6 +1430,7 @@ void bc_vec_free(void *vec) {
   sfree = s->dtor;
 
   if (sfree) {
+    size_t i;
 
     len = s->len;
     array = s->array;
@@ -1518,7 +1519,7 @@ size_t bc_veco_index(const BcVecO* vec, void *data) {
   idx = bc_veco_find(vec, data);
 
   if (idx >= vec->vec.len || vec->cmp(data, bc_vec_item(&vec->vec, idx)))
-    return BC_INVALID_IDX;
+    return -1;
 
   return idx;
 }
@@ -1715,9 +1716,9 @@ BcStatus bc_num_alg_a(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
 
   memset(c->num, 0, c->cap * sizeof(BcDigit));
 
-  c->rdx = BC_MAX(a->rdx, b->rdx);
+  c->rdx = maxof(a->rdx, b->rdx);
 
-  min = BC_MIN(a->rdx, b->rdx);
+  min = minof(a->rdx, b->rdx);
 
   c->len = 0;
 
@@ -1766,7 +1767,7 @@ BcStatus bc_num_alg_a(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
   a_whole = a->len - a->rdx;
   b_whole = b->len - b->rdx;
 
-  min = BC_MIN(a_whole, b_whole);
+  min = minof(a_whole, b_whole);
 
   ptr_a = a->num + a->rdx;
   ptr_b = b->num + b->rdx;
@@ -1915,8 +1916,8 @@ BcStatus bc_num_alg_m(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
     return status;
   }
 
-  scale = BC_MAX(scale, a->rdx);
-  scale = BC_MAX(scale, b->rdx);
+  scale = maxof(scale, a->rdx);
+  scale = maxof(scale, b->rdx);
   c->rdx = a->rdx + b->rdx;
 
   memset(c->num, 0, sizeof(BcDigit) * c->cap);
@@ -1938,12 +1939,12 @@ BcStatus bc_num_alg_m(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
     if (carry) {
       c->num[i + j] += carry;
       carry = 0;
-      len = BC_MAX(len, i + j + 1);
+      len = maxof(len, i + j + 1);
     }
-    else len = BC_MAX(len, i + j);
+    else len = maxof(len, i + j);
   }
 
-  c->len = BC_MAX(len, c->rdx);
+  c->len = maxof(len, c->rdx);
 
   c->neg = !a->neg != !b->neg;
 
@@ -2115,7 +2116,7 @@ BcStatus bc_num_alg_mod(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
 
   if (status) goto err;
 
-  c->rdx = BC_MAX(scale + b->rdx, a->rdx);
+  c->rdx = maxof(scale + b->rdx, a->rdx);
 
   status = bc_num_mul(&c1, b, &c2, scale);
 
@@ -2185,7 +2186,7 @@ BcStatus bc_num_alg_p(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
   else {
     neg = false;
     upow = pow;
-    scale = BC_MIN(a->rdx * upow, BC_MAX(scale, a->rdx));
+    scale = minof(a->rdx * upow, maxof(scale, a->rdx));
   }
 
   status = bc_num_init(&copy, a->len);
@@ -2292,7 +2293,7 @@ BcStatus bc_num_sqrt_newton(BcNum *a, BcNum *b, size_t scale) {
 
   memset(b->num, 0, b->cap * sizeof(BcDigit));
 
-  scale = BC_MAX(scale, a->rdx) + 1;
+  scale = maxof(scale, a->rdx) + 1;
 
   len = a->len;
 
@@ -3392,14 +3393,6 @@ param_err:
   bc_vec_free(&func->code);
 
   return status;
-}
-
-BcStatus bc_func_insertParam(BcFunc *func, char *name, bool var) {
-  return bc_func_insert(func, name, var, &func->params);
-}
-
-BcStatus bc_func_insertAuto(BcFunc *func, char *name, bool var) {
-  return bc_func_insert(func, name, var, &func->autos);
 }
 
 void bc_func_free(void *func) {
@@ -4726,7 +4719,7 @@ BcStatus bc_parse_call(BcParse *parse, BcVec *code,
 
   idx = bc_veco_index(&parse->program->func_map, &entry);
 
-  if (idx == BC_INVALID_IDX) {
+  if (idx == -1) {
 
     status = bc_program_func_add(parse->program, name, &idx);
 
@@ -5779,7 +5772,7 @@ BcStatus bc_parse_func(BcParse *parse) {
     }
     else comma = false;
 
-    status = bc_func_insertParam(fptr, name, var);
+    status = bc_func_insert(fptr, name, var, &fptr->params);
 
     if (status) goto err;
 
@@ -5875,7 +5868,7 @@ BcStatus bc_parse_auto(BcParse *parse) {
     }
     else comma = false;
 
-    status = bc_func_insertAuto(func, name, var);
+    status = bc_func_insert(func, name, var, &func->autos);
 
     if (status) goto err;
 
@@ -8929,6 +8922,7 @@ BcStatus bc_vm_execStdin(BcVm *vm) {
 
     if (len == 1 && buf[0] == '"') string = !string;
     else if (len > 1 || comment) {
+      uint32_t i;
 
       for (i = 0; i < len; ++i) {
 
