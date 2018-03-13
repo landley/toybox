@@ -41,9 +41,6 @@ config BC
 
 GLOBALS(
   long bc_interactive;
-  long bc_std;
-  long bc_warn;
-
   long bc_signal;
 )
 
@@ -9137,22 +9134,20 @@ void bc_error_file(BcStatus status, const char *file, uint32_t line) {
 BcStatus bc_posix_error(BcStatus status, const char *file,
                         uint32_t line, const char *msg)
 {
-  if (!(TT.bc_std || TT.bc_warn) ||
-      status < BC_STATUS_POSIX_NAME_LEN ||
-      !file)
-  {
-    return BC_STATUS_SUCCESS;
-  }
+  int s = (toys.optflags & FLAG_s), w = (toys.optflags & FLAG_w);
 
-  fprintf(stderr, "\n%s %s: %s\n", bc_err_types[status],
-          TT.bc_std ? "error" : "warning", bc_err_descs[status]);
+  if (!(s || w) || st < BC_STATUS_POSIX_NAME_LEN || !file)
+    return BC_STATUS_SUCCESS;
+
+  fprintf(stderr, "\n%s %s: %s\n", bc_err_types[st],
+          s ? "error" : "warning", bc_err_descs[st]);
 
   if (msg) fprintf(stderr, "    %s\n", msg);
 
   fprintf(stderr, "    %s", file);
   fprintf(stderr, &":%d\n\n"[3 * !line], line);
 
-  return TT.bc_std ? status : BC_STATUS_SUCCESS;
+  return st * !!s;
 }
 
 BcStatus bc_exec(unsigned long long flags, unsigned int filec, char *filev[]) {
@@ -9164,9 +9159,6 @@ BcStatus bc_exec(unsigned long long flags, unsigned int filec, char *filev[]) {
   if ((flags & FLAG_i) || (isatty(0) && isatty(1))) {
     TT.bc_interactive = 1;
   } else TT.bc_interactive = 0;
-
-  TT.bc_std = flags & FLAG_s;
-  TT.bc_warn = flags & FLAG_w;
 
   if (!(flags & FLAG_q) && (printf("%s", bc_header) < 0))
     return BC_STATUS_IO_ERR;
