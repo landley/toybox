@@ -9150,53 +9150,29 @@ BcStatus bc_posix_error(BcStatus st, const char *file,
   return st * !!s;
 }
 
-BcStatus bc_exec(unsigned long long flags, unsigned int filec, char *filev[]) {
+void bc_main(void) {
 
-  BcStatus status;
   BcVm vm;
   BcProgramExecFunc exec;
 
-  if ((flags & FLAG_i) || (isatty(0) && isatty(1))) {
-    TT.bc_interactive = 1;
-  } else TT.bc_interactive = 0;
+  TT.bc_interactive = (toys.optflags & FLAG_i) || (isatty(0) && isatty(1));
 
-  if (!(flags & FLAG_q) && (printf("%s", bc_header) < 0))
-    return BC_STATUS_IO_ERR;
+  if (!(toys.optflags & FLAG_q) && (printf("%s", bc_header) < 0)) return;
 
-  exec = (flags & FLAG_c) ? bc_program_print : bc_program_exec;
-  status = bc_vm_init(&vm, exec, filec, filev);
+  exec = (toys.optflags & FLAG_c) ? bc_program_print : bc_program_exec;
+  if ((toys.exitval = bc_vm_init(&vm, exec, toys.optc, toys.optargs))) return;
 
-  if (status) return status;
+  if (toys.optflags & FLAG_l) {
 
-  if (flags & FLAG_l) {
+    if ((toys.exitval = bc_parse_file(&vm.parse, bc_lib_name))) return;
+    if ((toys.exitval = bc_parse_text(&vm.parse, bc_lib))) return;
 
-    status = bc_parse_file(&vm.parse, bc_lib_name);
-
-    if (status) goto err;
-
-    status = bc_parse_text(&vm.parse, (const char*) bc_lib);
-
-    if (status) goto err;
-
-    while (!status) status = bc_parse_parse(&vm.parse);
-
-    if (status != BC_STATUS_LEX_EOF) goto err;
+    while (!toys.exitval) toys.exitval = bc_parse_parse(&vm.parse);
+    if (toys.exitval != BC_STATUS_LEX_EOF) return;
 
     // Make sure to execute the math library.
-    status = vm.exec(&vm.program);
-
-    if (status) goto err;
+    if ((toys.exitval = vm.exec(&vm.program))) return;
   }
 
-  status = bc_vm_exec(&vm);
-
-err:
-
-  bc_vm_free(&vm);
-
-  return status;
-}
-
-void bc_main(void) {
-  toys.exitval = (char) bc_exec(toys.optflags, toys.optc, toys.optargs);
+  toys.exitval = bc_vm_exec(&vm);
 }
