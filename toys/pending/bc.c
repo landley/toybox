@@ -8430,8 +8430,6 @@ BcStatus bc_program_exec(BcProgram *p) {
         status = bc_num_print(num, &p->obase, p->obase_t,
                               inst == BC_INST_PRINT);
 
-        fflush(stdout);
-
         if (status) return status;
 
         status = bc_num_copy(&p->last, num);
