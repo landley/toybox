@@ -3904,7 +3904,7 @@ BcStatus bc_lex_number(BcLex *lex, BcLexToken *token, char start) {
 
   len = i + 1;
 
-  token->string = malloc(len - backslashes + 1);
+  token->string = malloc(len - backslashes * 2 + 1);
 
   if (!token->string) return BC_STATUS_MALLOC_FAIL;
 
@@ -3929,7 +3929,7 @@ BcStatus bc_lex_number(BcLex *lex, BcLexToken *token, char start) {
     token->string[j - (hits * 2)] = c;
   }
 
-  token->string[len] = '\0';
+  token->string[j - (hits * 2)] = '\0';
 
   lex->idx += i;
 
