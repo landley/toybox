@@ -1931,6 +1931,7 @@ BcStatus bc_num_alg_d(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
   size_t end;
   size_t i;
   BcNum copy;
+  bool zero;
 
   if (!b->len) return BC_STATUS_MATH_DIVIDE_BY_ZERO;
   else if (!a->len) {
@@ -2053,6 +2054,9 @@ BcStatus bc_num_alg_d(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
 
   if (c->rdx > scale) status = bc_num_trunc(c, c->rdx - scale);
 
+  for (i = 0, zero = true; zero && i < c->len; ++i) zero = !c->num[i];
+  if (zero) bc_num_zero(c);
+
 err:
 
   bc_num_free(&copy);
@@ -2066,6 +2070,13 @@ BcStatus bc_num_alg_mod(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
   BcNum c1;
   BcNum c2;
   size_t len;
+
+  if (!b->len) return BC_STATUS_MATH_DIVIDE_BY_ZERO;
+
+  if (!a->len) {
+    bc_num_zero(c);
+    return BC_STATUS_SUCCESS;
+  }
 
   len = a->len + b->len + scale;
 
