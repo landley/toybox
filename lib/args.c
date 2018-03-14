@@ -304,7 +304,7 @@ void parse_optflaglist(struct getoptflagstate *gof)
       } else if (CFG_TOYBOX_FLOAT && new->type == '.') {
         FLOAT f = strtod(++options, &temp);
         if (temp != options) new->val[idx].f = f;
-      } else if (CFG_TOYBOX_DEBUG) error_exit("<>= only after .#");
+      } else error_exit("<>= only after .#");
       options = --temp;
 
     // At this point, we've hit the end of the previous option.  The
