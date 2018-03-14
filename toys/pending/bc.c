@@ -44,10 +44,10 @@ GLOBALS(
   long bc_signal;
 )
 
-#define BC_BASE_MAX_DEF (99)
-#define BC_DIM_MAX_DEF (2048)
-#define BC_SCALE_MAX_DEF (99)
-#define BC_STRING_MAX_DEF (1024)
+#define BC_BASE_MAX_DEF (999)
+#define BC_DIM_MAX_DEF (INT_MAX)
+#define BC_SCALE_MAX_DEF (LONG_MAX)
+#define BC_STRING_MAX_DEF (INT_MAX)
 
 typedef enum BcStatus {
 
@@ -181,8 +181,6 @@ typedef struct BcNum {
 #define BC_NUM_MIN_BASE (2)
 
 #define BC_NUM_MAX_INPUT_BASE (16)
-
-#define BC_NUM_MAX_OUTPUT_BASE (99)
 
 #define BC_NUM_DEF_SIZE (16)
 
@@ -7896,6 +7894,7 @@ BcStatus bc_program_init(BcProgram *p) {
     p->base_max = BC_BASE_MAX_DEF;
   }
   else if (p->base_max > BC_BASE_MAX_DEF) return BC_STATUS_INVALID_LIMIT;
+  else p->base_max = BC_BASE_MAX_DEF;
 #endif
 
 #ifdef _POSIX_BC_DIM_MAX
@@ -7911,6 +7910,7 @@ BcStatus bc_program_init(BcProgram *p) {
     p->dim_max = BC_DIM_MAX_DEF;
   }
   else if (p->dim_max > BC_DIM_MAX_DEF) return BC_STATUS_INVALID_LIMIT;
+  else p->dim_max = BC_DIM_MAX_DEF;
 #endif
 
 #ifdef _POSIX_BC_SCALE_MAX
@@ -7926,6 +7926,7 @@ BcStatus bc_program_init(BcProgram *p) {
     p->scale_max = BC_SCALE_MAX_DEF;
   }
   else if (p->scale_max > BC_SCALE_MAX_DEF) return BC_STATUS_INVALID_LIMIT;
+  else p->scale_max = BC_SCALE_MAX_DEF;
 #endif
 
 #ifdef _POSIX_BC_STRING_MAX
@@ -7941,6 +7942,7 @@ BcStatus bc_program_init(BcProgram *p) {
     p->string_max = BC_STRING_MAX_DEF;
   }
   else if (p->string_max > BC_STRING_MAX_DEF) return BC_STATUS_INVALID_LIMIT;
+  else p->string_max = BC_STRING_MAX_DEF;
 #endif
 
   p->scale = 0;
@@ -8150,7 +8152,7 @@ void bc_program_limits(BcProgram *p) {
   printf("BC_SCALE_MAX    = %ld\n", p->scale_max);
   printf("BC_STRING_MAX   = %ld\n", p->string_max);
   printf("Max Exponent    = %ld\n", LONG_MAX);
-  printf("Number of Vars  = %u\n", UINT32_MAX);
+  printf("Number of Vars  = %zu\n", SIZE_MAX);
 
   putchar('\n');
 }
