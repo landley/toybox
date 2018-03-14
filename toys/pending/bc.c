@@ -197,7 +197,7 @@ typedef struct BcNum {
 typedef BcStatus (*BcNumUnaryFunc)(BcNum*, BcNum*, size_t);
 typedef BcStatus (*BcNumBinaryFunc)(BcNum*, BcNum*, BcNum*, size_t);
 
-typedef BcStatus (*BcNumDigitFunc)(unsigned long, size_t, size_t*, FILE*);
+typedef BcStatus (*BcNumDigitFunc)(unsigned long, size_t, bool, size_t*, FILE*);
 
 BcStatus bc_num_init(BcNum *n, size_t request);
 
@@ -2607,6 +2607,7 @@ BcStatus bc_num_parseBase(BcNum *n, const char *val, BcNum *base) {
   size_t digits;
   BcDigit c;
   bool zero;
+  unsigned long v;
 
   len = strlen(val);
 
@@ -2634,16 +2635,13 @@ BcStatus bc_num_parseBase(BcNum *n, const char *val, BcNum *base) {
 
   for (i = 0; i < len && (c = val[i]) != '.'; ++i) {
 
-    long v;
-
     status = bc_num_mul(n, base, &mult, 0);
 
     if (status) goto int_err;
 
-    if (c <= '9') v = c - '0';
-    else v = c - 'A' + 10;
+    v = c <= '9' ? c - '0' : c - 'A' + 10;
 
-    status = bc_num_long2num(&temp, v);
+    status = bc_num_ulong2num(&temp, v);
 
     if (status) goto int_err;
 
@@ -2666,15 +2664,15 @@ BcStatus bc_num_parseBase(BcNum *n, const char *val, BcNum *base) {
   bc_num_zero(&result);
   bc_num_one(&mult);
 
-  for (digits = 0; i < len; ++i, ++digits) {
+  for (digits = 0; i < len && (c = val[i]); ++i, ++digits) {
 
-    c = val[i];
+    v = c <= '9' ? c - '0' : c - 'A' + 10;
 
     status = bc_num_mul(&result, base, &result, 0);
 
     if (status) goto err;
 
-    status = bc_num_long2num(&temp, (long) c);
+    status = bc_num_ulong2num(&temp, v);
 
     if (status) goto err;
 
@@ -2691,7 +2689,15 @@ BcStatus bc_num_parseBase(BcNum *n, const char *val, BcNum *base) {
 
   if (status) goto err;
 
-  status = bc_num_add(n, &result, n, 0);
+  status = bc_num_add(n, &result, n, digits);
+
+  if (status) goto err;
+
+  if (n->len) {
+    if (n->rdx < digits && n->len)
+      status = bc_num_extend(n, digits - n->rdx);
+  }
+  else bc_num_zero(n);
 
 err:
 
@@ -2708,50 +2714,49 @@ mult_err:
   return status;
 }
 
-BcStatus bc_num_printRadix(size_t *nchars, FILE *f) {
-
-  if (*nchars + 1 >= BC_NUM_PRINT_WIDTH) {
-    if (fputc('\\', f) == EOF) return BC_STATUS_IO_ERR;
-    if (fputc('\n', f) == EOF) return BC_STATUS_IO_ERR;
-    *nchars = 0;
-  }
-
-  if (fputc('.', f) == EOF) return BC_STATUS_IO_ERR;
-
-  *nchars = *nchars + 1;
-
-  return BC_STATUS_SUCCESS;
-}
-
-BcStatus bc_num_printDigits(unsigned long num, size_t width,
+BcStatus bc_num_printDigits(unsigned long num, size_t width, bool radix,
                                    size_t *nchars, FILE *f)
 {
-  if (*nchars + width + 1 >= BC_NUM_PRINT_WIDTH) {
+  size_t exp, pow, div;
+
+  if (*nchars == BC_NUM_PRINT_WIDTH - 1) {
     if (fputc('\\', f) == EOF) return BC_STATUS_IO_ERR;
     if (fputc('\n', f) == EOF) return BC_STATUS_IO_ERR;
     *nchars = 0;
   }
-  else {
-    if (fputc(' ', f) == EOF) return BC_STATUS_IO_ERR;
-    ++(*nchars);
+
+  if (fputc(radix ? '.' : ' ', f) == EOF) return BC_STATUS_IO_ERR;
+  ++(*nchars);
+
+  for (exp = 0, pow = 1; exp < width - 1; ++exp, pow *= 10);
+
+  for (; pow; pow /= 10, ++(*nchars)) {
+
+    if (*nchars == BC_NUM_PRINT_WIDTH - 1) {
+      if (fputc('\\', f) == EOF) return BC_STATUS_IO_ERR;
+      if (fputc('\n', f) == EOF) return BC_STATUS_IO_ERR;
+      *nchars = 0;
+    }
+
+    div = num / pow;
+    if (fputc(((char) div) + '0', f) == EOF) return BC_STATUS_IO_ERR;
+    num -= div * pow;
   }
-
-  if (fprintf(f, "%0*lu", (unsigned int) width, num) < 0)
-    return BC_STATUS_IO_ERR;
-
-  *nchars = *nchars + width;
 
   return BC_STATUS_SUCCESS;
 }
 
-BcStatus bc_num_printHex(unsigned long num, size_t width,
+BcStatus bc_num_printHex(unsigned long num, size_t width, bool radix,
                                 size_t *nchars, FILE *f)
 {
-  if (*nchars + width >= BC_NUM_PRINT_WIDTH) {
+  width += !!radix;
+  if (*nchars + width  >= BC_NUM_PRINT_WIDTH) {
     if (fputc('\\', f) == EOF) return BC_STATUS_IO_ERR;
     if (fputc('\n', f) == EOF) return BC_STATUS_IO_ERR;
     *nchars = 0;
   }
+
+  if (radix && fputc('.', f) == EOF) return BC_STATUS_IO_ERR;
 
   if (fputc(bc_num_hex_digits[num], f) == EOF) return BC_STATUS_IO_ERR;
 
@@ -2765,6 +2770,7 @@ BcStatus bc_num_printDecimal(BcNum *n, FILE *f) {
   BcStatus status;
   size_t i;
   size_t nchars;
+  bool radix;
 
   nchars = 0;
 
@@ -2776,16 +2782,12 @@ BcStatus bc_num_printDecimal(BcNum *n, FILE *f) {
   status = BC_STATUS_SUCCESS;
 
   for (i = n->len - 1; !status && i >= n->rdx && i < n->len; --i)
-    status = bc_num_printHex(n->num[i], 1, &nchars, f);
+    status = bc_num_printHex(n->num[i], 1, false, &nchars, f);
 
   if (status || !n->rdx) return status;
 
-  status = bc_num_printRadix(&nchars, f);
-
-  if (status) return status;
-
-  for (; !status && i < n->len; --i)
-    status = bc_num_printHex(n->num[i], 1, &nchars, f);
+  for (radix = true; !status && i < n->len; --i, radix = false)
+    status = bc_num_printHex(n->num[i], 1, radix, &nchars, f);
 
   return status;
 }
@@ -2801,11 +2803,15 @@ BcStatus bc_num_printBase(BcNum *n, BcNum *base, size_t base_t, FILE* f) {
   size_t nchars;
   size_t width;
   BcNumDigitFunc print;
+  unsigned long dig;
   size_t i;
+  bool neg, radix;
 
   nchars = 0;
+  neg = n->neg;
+  n->neg = false;
 
-  if (n->neg) {
+  if (neg) {
     if (fputc('-', f) == EOF) return BC_STATUS_IO_ERR;
     ++nchars;
   }
@@ -2847,9 +2853,7 @@ BcStatus bc_num_printBase(BcNum *n, BcNum *base, size_t base_t, FILE* f) {
 
   if (status) goto frac_len_err;
 
-  while (!intp.len) {
-
-    unsigned long dig;
+  while (intp.len) {
 
     status = bc_num_mod(&intp, base, &digit, 0);
 
@@ -2874,16 +2878,12 @@ BcStatus bc_num_printBase(BcNum *n, BcNum *base, size_t base_t, FILE* f) {
 
     ptr = bc_vec_item_rev(&stack, i);
 
-    status = print(*ptr, width, &nchars, f);
+    status = print(*ptr, width, false, &nchars, f);
 
     if (status) goto frac_len_err;
   }
 
   if (!n->rdx) goto frac_len_err;
-
-  status = bc_num_printRadix(&nchars, f);
-
-  if (status) goto frac_len_err;
 
   status = bc_num_init(&frac_len, n->len - n->rdx);
 
@@ -2891,19 +2891,17 @@ BcStatus bc_num_printBase(BcNum *n, BcNum *base, size_t base_t, FILE* f) {
 
   bc_num_one(&frac_len);
 
-  while (frac_len.len <= n->len) {
-
-    unsigned long fdigit;
+  for (radix = true; frac_len.len <= n->rdx; radix = false) {
 
     status = bc_num_mul(&fracp, base, &fracp, n->rdx);
 
     if (status) goto err;
 
-    status = bc_num_ulong(&fracp, &fdigit);
+    status = bc_num_ulong(&fracp, &dig);
 
     if (status) goto err;
 
-    status = bc_num_ulong2num(&intp, fdigit);
+    status = bc_num_ulong2num(&intp, dig);
 
     if (status) goto err;
 
@@ -2911,7 +2909,7 @@ BcStatus bc_num_printBase(BcNum *n, BcNum *base, size_t base_t, FILE* f) {
 
     if (status) goto err;
 
-    status = print(fdigit, width, &nchars, f);
+    status = print(dig, width, radix, &nchars, f);
 
     if (status) goto err;
 
@@ -2921,6 +2919,8 @@ BcStatus bc_num_printBase(BcNum *n, BcNum *base, size_t base_t, FILE* f) {
   }
 
 err:
+
+  n->neg = neg;
 
   bc_num_free(&frac_len);
 
@@ -3046,7 +3046,7 @@ BcStatus bc_num_fprint(BcNum *n, BcNum *base, size_t base_t,
 
   if (!n || !f) return BC_STATUS_INVALID_PARAM;
 
-  if (base_t < BC_NUM_MIN_BASE || base_t > BC_NUM_MAX_OUTPUT_BASE)
+  if (base_t < BC_NUM_MIN_BASE || base_t > BC_BASE_MAX_DEF)
     return BC_STATUS_EXEC_INVALID_OBASE;
 
   if (!n->len) {
