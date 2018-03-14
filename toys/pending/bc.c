@@ -6799,7 +6799,10 @@ BcStatus bc_program_num(BcProgram *p, BcResult *result,
 
       status = bc_num_parse(&result->data.num, *s, &p->ibase, base);
 
-      if (status) return status;
+      if (status) {
+        bc_num_free(&result->data.num);
+        return status;
+      }
 
       *num = &result->data.num;
 
