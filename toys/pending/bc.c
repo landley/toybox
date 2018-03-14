@@ -9180,15 +9180,19 @@ void bc_main(void) {
 
   if (toys.optflags & FLAG_l) {
 
-    if ((toys.exitval = bc_parse_file(&vm.parse, bc_lib_name))) return;
-    if ((toys.exitval = bc_parse_text(&vm.parse, bc_lib))) return;
+    if ((toys.exitval = bc_parse_file(&vm.parse, bc_lib_name))) goto err;
+    if ((toys.exitval = bc_parse_text(&vm.parse, bc_lib))) goto err;
 
     while (!toys.exitval) toys.exitval = bc_parse_parse(&vm.parse);
-    if (toys.exitval != BC_STATUS_LEX_EOF) return;
+    if (toys.exitval != BC_STATUS_LEX_EOF) goto err;
 
     // Make sure to execute the math library.
-    if ((toys.exitval = vm.exec(&vm.program))) return;
+    if ((toys.exitval = vm.exec(&vm.program))) goto err;
   }
 
   toys.exitval = bc_vm_exec(&vm);
+
+err:
+
+  if (CFG_TOYBOX_FREE) bc_vm_free(&vm);
 }
