@@ -6723,12 +6723,8 @@ BcStatus bc_program_num(BcProgram *p, BcResult *result,
     case BC_RESULT_VAR:
     case BC_RESULT_ARRAY:
     {
-      uint8_t flags;
-
-      flags = result->type == BC_RESULT_VAR ? BC_PROGRAM_SEARCH_VAR : 0;
-
+      uint8_t flags = result->type == BC_RESULT_VAR ? BC_PROGRAM_SEARCH_VAR : 0;
       status = bc_program_search(p, result, num, flags);
-
       break;
     }
 
