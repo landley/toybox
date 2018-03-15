@@ -1671,6 +1671,9 @@ BcStatus bc_num_alg_a(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
 
   (void) scale;
 
+  if (!a->len) return bc_num_copy(c, b);
+  else if (!b->len) return bc_num_copy(c, a);
+
   c->neg = a->neg;
 
   memset(c->num, 0, c->cap * sizeof(BcDigit));
@@ -1808,12 +1811,12 @@ BcStatus bc_num_alg_s(BcNum *a, BcNum *b, BcNum *c, size_t sub) {
     return BC_STATUS_SUCCESS;
   }
   else if (cmp > 0) {
-    neg = sub ? a->neg : !a->neg;
+    neg = sub && a->neg;
     minuend = a;
     subtrahend = b;
   }
   else {
-    neg = sub ? !b->neg : b->neg;
+    neg = sub && !b->neg;
     minuend = b;
     subtrahend = a;
   }
@@ -1933,9 +1936,16 @@ BcStatus bc_num_alg_d(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
     return BC_STATUS_SUCCESS;
   }
   else if (BC_NUM_ONE(b)) {
+
     status = bc_num_copy(c, a);
+
+    if (status) return status;
+
     if (b->neg) c->neg = !c->neg;
-    status = bc_num_extend(c, scale);
+
+    if (c->rdx < scale) status = bc_num_extend(c, scale - c->rdx);
+    else status = bc_num_trunc(c, c->rdx - scale);
+
     return status;
   }
 
@@ -3214,27 +3224,14 @@ BcStatus bc_num_truncate(BcNum *n) {
 }
 
 BcStatus bc_num_add(BcNum *a, BcNum *b, BcNum *result, size_t scale) {
-
-  BcNumBinaryFunc op;
-
   (void) scale;
-
-  if ((a->neg && b->neg) || (!a->neg && !b->neg)) op = bc_num_alg_a;
-  else op = bc_num_alg_s;
-
+  BcNumBinaryFunc op = (!!a->neg == !!b->neg) ? bc_num_alg_a : bc_num_alg_s;
   return bc_num_binary(a, b, result, false, op, a->len + b->len + 1);
 }
 
 BcStatus bc_num_sub(BcNum *a, BcNum *b, BcNum *result, size_t scale) {
-
-  BcNumBinaryFunc op;
-
   (void) scale;
-
-  if (a->neg && b->neg) op = bc_num_alg_s;
-  else if (a->neg || b->neg) op = bc_num_alg_a;
-  else op = bc_num_alg_s;
-
+  BcNumBinaryFunc op = (!!a->neg == !!b->neg) ? bc_num_alg_s : bc_num_alg_a;
   return bc_num_binary(a, b, result, true, op, a->len + b->len + 1);
 }
 
