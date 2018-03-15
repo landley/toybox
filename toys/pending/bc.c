@@ -365,7 +365,7 @@ typedef struct BcInstPtr {
 
 typedef BcStatus (*BcDataInitFunc)(void*);
 
-void bc_auto_init(void *auto1, char *name, bool var);
+void bc_auto_init(BcAuto *a, char *name, bool var);
 void bc_auto_free(void *auto1);
 
 BcStatus bc_local_init(BcLocal *l, bool var);
@@ -3439,7 +3439,7 @@ BcStatus bc_array_expand(BcVec *a, size_t len) {
 }
 
 void bc_string_free(void *string) {
-  char **s = (char**) string;
+  char **s = string;
   if (s) free(*s);
 }
 
@@ -3468,12 +3468,11 @@ int bc_entry_cmp(void *entry1, void *entry2) {
 }
 
 void bc_entry_free(void *entry) {
-  BcEntry *e = (BcEntry*) entry;
+  BcEntry *e = entry;
   if (e) free(e->name);
 }
 
-void bc_auto_init(void *auto1, char *name, bool var) {
-  BcAuto *a = (BcAuto*) auto1;
+void bc_auto_init(BcAuto *a, char *name, bool var) {
   if (!a) return;
   a->var = var;
   a->name = name;
@@ -3516,7 +3515,7 @@ void bc_result_free(void *result) {
 }
 
 void bc_constant_free(void *constant) {
-  char **c = (char**) constant;
+  char **c = constant;
   if (c) free(*c);
 }
 
@@ -3528,7 +3527,7 @@ BcStatus bc_local_init(BcLocal *l, bool var) {
 }
 
 void bc_local_free(void *local) {
-  BcLocal *l = (BcLocal*) local;
+  BcLocal *l = local;
   if (!l) return;
   if (l->var) bc_num_free(&l->data.num);
   else bc_vec_free(&l->data.array);
