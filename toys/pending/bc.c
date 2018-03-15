@@ -106,7 +106,6 @@ typedef enum BcStatus {
   BC_STATUS_EXEC_ARRAY_LEN,
   BC_STATUS_EXEC_BAD_READ_EXPR,
   BC_STATUS_EXEC_RECURSIVE_READ,
-  BC_STATUS_EXEC_PRINT_ERR,
   BC_STATUS_EXEC_BAD_CONSTANT,
   BC_STATUS_EXEC_BAD_RETURN,
   BC_STATUS_EXEC_BAD_LABEL,
@@ -807,7 +806,6 @@ const char *bc_err_types[] = {
   "Runtime",
   "Runtime",
   "Runtime",
-  "Runtime",
 
   "POSIX",
   "POSIX",
@@ -885,7 +883,6 @@ const char *bc_err_descs[] = {
   "array too long; must be [1, BC_DIM_MAX]",
   "bad read() expression",
   "read() call inside of a read() call",
-  "print error",
   "bad constant",
   "cannot return from function; no function to return from",
   "bad label; this is probably a bug in bc",
@@ -7108,7 +7105,7 @@ BcStatus bc_program_printString(const char *str, size_t *nchars) {
       }
     }
 
-    if (err == EOF) return BC_STATUS_EXEC_PRINT_ERR;
+    if (err == EOF) return BC_STATUS_IO_ERR;
   }
 
   return BC_STATUS_SUCCESS;
