@@ -4431,7 +4431,7 @@ BcStatus bc_parse_operator(BcParse *parse, BcVec *code, BcVec *ops,
   rp = bc_parse_ops[t].prec;
   rleft = bc_parse_ops[t].left;
 
-  if (ops->len != 0) {
+  if (ops->len) {
 
     ptr = bc_vec_top(ops);
     top = *ptr;
@@ -4453,7 +4453,7 @@ BcStatus bc_parse_operator(BcParse *parse, BcVec *code, BcVec *ops,
         *num_exprs -= top != BC_LEX_OP_BOOL_NOT &&
                       top != BC_LEX_OP_NEGATE ? 1 : 0;
 
-        if (ops->len == 0) break;
+        if (!ops->len) break;
 
         ptr = bc_vec_top(ops);
         top = *ptr;
@@ -4487,7 +4487,7 @@ BcStatus bc_parse_rightParen(BcParse *parse, BcVec *code,
   BcLexTokenType top;
   BcLexTokenType *ptr;
 
-  if (ops->len == 0) return BC_STATUS_PARSE_BAD_EXPR;
+  if (!ops->len) return BC_STATUS_PARSE_BAD_EXPR;
 
   ptr = bc_vec_top(ops);
   top = *ptr;
@@ -4505,7 +4505,7 @@ BcStatus bc_parse_rightParen(BcParse *parse, BcVec *code,
     *nexs -= top != BC_LEX_OP_BOOL_NOT &&
              top != BC_LEX_OP_NEGATE ? 1 : 0;
 
-    if (ops->len == 0) return BC_STATUS_PARSE_BAD_EXPR;
+    if (!ops->len) return BC_STATUS_PARSE_BAD_EXPR;
 
     ptr = bc_vec_top(ops);
     top = *ptr;
