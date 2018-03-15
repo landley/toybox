@@ -320,10 +320,6 @@ typedef struct BcFunc {
 
 } BcFunc;
 
-typedef BcNum BcVar;
-
-typedef BcVec BcArray;
-
 typedef enum BcResultType {
 
   BC_RESULT_INTERMEDIATE,
@@ -3413,11 +3409,11 @@ BcStatus bc_array_copy(void *dest, void *src) {
   BcNum *dnum;
   BcNum *snum;
 
-  BcArray *d;
-  BcArray *s;
+  BcVec *d;
+  BcVec *s;
 
-  d = (BcArray*) dest;
-  s = (BcArray*) src;
+  d = (BcVec*) dest;
+  s = (BcVec*) src;
 
   if (!d || !s || d == s || d->size != s->size || d->dtor != s->dtor)
     return BC_STATUS_INVALID_PARAM;
@@ -3455,18 +3451,7 @@ BcStatus bc_array_copy(void *dest, void *src) {
   return status;
 }
 
-BcStatus bc_array_zero(BcArray *a) {
-
-  BcStatus status;
-
-  status = BC_STATUS_SUCCESS;
-
-  while (!status && a->len) status = bc_vec_pop(a);
-
-  return status;
-}
-
-BcStatus bc_array_expand(BcArray *a, size_t len) {
+BcStatus bc_array_expand(BcVec *a, size_t len) {
 
   BcStatus status;
 
@@ -6736,7 +6721,7 @@ BcStatus bc_program_search(BcProgram *p, BcResult *result,
   }
   else {
 
-    BcArray *aptr;
+    BcVec *aptr;
 
     aptr = bc_vec_item(vec, entry_ptr->idx);
 
@@ -8023,7 +8008,7 @@ BcStatus bc_program_init(BcProgram *p) {
 
   if (s || idx != BC_PROGRAM_READ_FUNC) goto var_err;
 
-  s = bc_vec_init(&p->vars, sizeof(BcVar), bc_var_free);
+  s = bc_vec_init(&p->vars, sizeof(BcNum), bc_num_free);
 
   if (s) goto var_err;
 
@@ -8031,7 +8016,7 @@ BcStatus bc_program_init(BcProgram *p) {
 
   if (s) goto var_map_err;
 
-  s = bc_vec_init(&p->arrays, sizeof(BcArray), bc_array_free);
+  s = bc_vec_init(&p->arrays, sizeof(BcVec), bc_vec_free);
 
   if (s) goto array_err;
 
@@ -8209,7 +8194,7 @@ BcStatus bc_program_var_add(BcProgram *p, char *name, size_t *idx) {
 
   BcStatus status;
   BcEntry entry;
-  BcVar v;
+  BcNum v;
 
   if (!p || !name || !idx) return BC_STATUS_INVALID_PARAM;
 
@@ -8221,7 +8206,7 @@ BcStatus bc_program_var_add(BcProgram *p, char *name, size_t *idx) {
   if (status) return status == BC_STATUS_VECO_ITEM_EXISTS ?
                                BC_STATUS_SUCCESS : status;
 
-  status = bc_var_init(&v);
+  status = bc_num_init(&v, BC_NUM_DEF_SIZE);
 
   if (status) return status;
 
@@ -8232,7 +8217,7 @@ BcStatus bc_program_array_add(BcProgram *p, char *name, size_t *idx) {
 
   BcStatus status;
   BcEntry entry;
-  BcArray a;
+  BcVec a;
 
   if (!p || !name || !idx) return BC_STATUS_INVALID_PARAM;
 
@@ -8244,7 +8229,7 @@ BcStatus bc_program_array_add(BcProgram *p, char *name, size_t *idx) {
   if (status) return status == BC_STATUS_VECO_ITEM_EXISTS ?
                                BC_STATUS_SUCCESS : status;
 
-  status = bc_array_init(&a);
+  status = bc_vec_init(&a, sizeof(BcNum), bc_num_free);
 
   if (status) return status;
 
