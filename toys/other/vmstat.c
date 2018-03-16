@@ -48,7 +48,7 @@ static void get_vmstat_proc(struct vmstat_proc *vmstat_proc)
     "MemFree: ", "Buffers: ", "Cached: ", "SwapFree: ", "SwapTotal: ",
     "/proc/vmstat", "pgpgin ", "pgpgout ", "pswpin ", "pswpout " };
   uint64_t *new = (uint64_t *)vmstat_proc;
-  char *p = p, *name = name;
+  char *p = p, *name = name, *file = NULL;
   int i, j;
 
   // We use vmstuff to fill out vmstat_proc as an array of uint64_t:
@@ -56,21 +56,23 @@ static void get_vmstat_proc(struct vmstat_proc *vmstat_proc)
   //   Any other string is a key to search for, with decimal value right after
   //   0 means parse another value on same line as last key
 
-  for (i = 0; i<sizeof(vmstuff)/sizeof(char *); i++) {
+  for (i = 0; i<ARRAY_LEN(vmstuff); i++) {
     if (!vmstuff[i]) p++;
     else if (*vmstuff[i] == '/') {
-      xreadfile(name = vmstuff[i], toybuf, sizeof(toybuf));
+      // /proc/stat for a 48-core machine doesn't fit in toybuf.
+      free(file);
+      file = xreadfile(name = vmstuff[i], 0, 0);
 
       continue;
-    } else if (!(p = strafter(toybuf, vmstuff[i]))) goto error;
-    if (1 != sscanf(p, "%"PRIu64"%n", new++, &j)) goto error;
+    } else if (!(p = strafter(file, vmstuff[i]))) {
+      error_exit("No %sin %s", vmstuff[i], name);
+    }
+    if (1 != sscanf(p, "%"PRIu64"%n", new++, &j)) {
+      error_exit("Bad %sin %s: %s", vmstuff[i], name, p);
+    }
     p += j;
   }
-
-  return;
-
-error:
-  error_exit("No %sin %s\n", vmstuff[i], name);
+  free(file);
 }
 
 void vmstat_main(void)
