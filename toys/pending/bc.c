@@ -49,6 +49,14 @@ GLOBALS(
 #define BC_SCALE_MAX_DEF (LONG_MAX)
 #define BC_STRING_MAX_DEF (INT_MAX)
 
+#define BC_ERR_IDX_BC (0)
+#define BC_ERR_IDX_VEC (1)
+#define BC_ERR_IDX_LEX (2)
+#define BC_ERR_IDX_PARSE (3)
+#define BC_ERR_IDX_MATH (4)
+#define BC_ERR_IDX_EXEC (5)
+#define BC_ERR_IDX_POSIX (6)
+
 typedef enum BcStatus {
 
   BC_STATUS_SUCCESS,
@@ -745,80 +753,92 @@ const char *bc_header =
 
 const char *bc_err_types[] = {
 
-  NULL,
-
   "bc",
-  "bc",
-
-  "bc",
-
-  "bc",
-  "bc",
-
   "vector",
-  "vector",
-
   "Lex",
-  "Lex",
-  "Lex",
-  "Lex",
+  "Parse",
+  "Math",
+  "Runtime",
+  "POSIX",
 
-  "Parse",
-  "Parse",
-  "Parse",
-  "Parse",
-  "Parse",
-  "Parse",
-  "Parse",
-  "Parse",
-  "Parse",
-  "Parse",
-  "Parse",
+};
 
-  "Math",
-  "Math",
-  "Math",
-  "Math",
-  "Math",
-  "Math",
-  "Math",
+const char bc_err_type_indices[] = {
 
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
+  BC_ERR_IDX_BC,
 
-  "POSIX",
-  "POSIX",
-  "POSIX",
-  "POSIX",
-  "POSIX",
-  "POSIX",
-  "POSIX",
-  "POSIX",
-  "POSIX",
-  "POSIX",
-  "POSIX",
-  "POSIX",
+  BC_ERR_IDX_BC,
+  BC_ERR_IDX_BC,
+
+  BC_ERR_IDX_BC,
+
+  BC_ERR_IDX_BC,
+  BC_ERR_IDX_BC,
+
+  BC_ERR_IDX_VEC,
+  BC_ERR_IDX_VEC,
+
+  BC_ERR_IDX_LEX,
+  BC_ERR_IDX_LEX,
+  BC_ERR_IDX_LEX,
+  BC_ERR_IDX_LEX,
+
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+
+  BC_ERR_IDX_MATH,
+  BC_ERR_IDX_MATH,
+  BC_ERR_IDX_MATH,
+  BC_ERR_IDX_MATH,
+  BC_ERR_IDX_MATH,
+  BC_ERR_IDX_MATH,
+  BC_ERR_IDX_MATH,
+
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
 
 };
 
@@ -9060,7 +9080,7 @@ void bc_error(BcStatus st) {
   }
 
   fprintf(stderr, "\n%s error: %s\n\n",
-          bc_err_types[st], bc_err_descs[st]);
+          bc_err_types[bc_err_type_indices[st]], bc_err_descs[st]);
 }
 
 void bc_error_file(BcStatus st, const char *file, size_t line) {
@@ -9071,7 +9091,7 @@ void bc_error_file(BcStatus st, const char *file, size_t line) {
     return;
   }
 
-  fprintf(stderr, "\n%s error: %s\n", bc_err_types[st],
+  fprintf(stderr, "\n%s error: %s\n", bc_err_types[bc_err_type_indices[st]],
           bc_err_descs[st]);
 
   fprintf(stderr, "    %s", file);
@@ -9086,7 +9106,7 @@ BcStatus bc_posix_error(BcStatus st, const char *file,
   if (!(s || w) || st < BC_STATUS_POSIX_NAME_LEN || !file)
     return BC_STATUS_SUCCESS;
 
-  fprintf(stderr, "\n%s %s: %s\n", bc_err_types[st],
+  fprintf(stderr, "\n%s %s: %s\n", bc_err_types[bc_err_type_indices[st]],
           s ? "error" : "warning", bc_err_descs[st]);
 
   if (msg) fprintf(stderr, "    %s\n", msg);
