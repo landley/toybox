@@ -40,18 +40,22 @@ config BC
 #include "toys.h"
 
 GLOBALS(
-    long bc_code;
-    long bc_interactive;
-    long bc_std;
-    long bc_warn;
-
-    long bc_signal;
+  long bc_interactive;
+  long bc_signal;
 )
 
-#define BC_BASE_MAX_DEF (99)
-#define BC_DIM_MAX_DEF (2048)
-#define BC_SCALE_MAX_DEF (99)
-#define BC_STRING_MAX_DEF (1024)
+#define BC_BASE_MAX_DEF (999)
+#define BC_DIM_MAX_DEF (INT_MAX)
+#define BC_SCALE_MAX_DEF (LONG_MAX)
+#define BC_STRING_MAX_DEF (INT_MAX)
+
+#define BC_ERR_IDX_BC (0)
+#define BC_ERR_IDX_VEC (1)
+#define BC_ERR_IDX_LEX (2)
+#define BC_ERR_IDX_PARSE (3)
+#define BC_ERR_IDX_MATH (4)
+#define BC_ERR_IDX_EXEC (5)
+#define BC_ERR_IDX_POSIX (6)
 
 typedef enum BcStatus {
 
@@ -62,32 +66,27 @@ typedef enum BcStatus {
 
   BC_STATUS_INVALID_PARAM,
 
-  BC_STATUS_INVALID_OPTION,
-
   BC_STATUS_NO_LIMIT,
-  BC_STATUS_INVALID_LIMIT,
+  BC_STATUS_BAD_LIMIT,
 
   BC_STATUS_VEC_OUT_OF_BOUNDS,
+  BC_STATUS_VEC_ITEM_EXISTS,
 
-  BC_STATUS_VECO_OUT_OF_BOUNDS,
-  BC_STATUS_VECO_ITEM_EXISTS,
-
-  BC_STATUS_LEX_INVALID_TOKEN,
+  BC_STATUS_LEX_BAD_CHARACTER,
   BC_STATUS_LEX_NO_STRING_END,
   BC_STATUS_LEX_NO_COMMENT_END,
   BC_STATUS_LEX_EOF,
 
-  BC_STATUS_PARSE_INVALID_TOKEN,
-  BC_STATUS_PARSE_INVALID_EXPR,
-  BC_STATUS_PARSE_INVALID_PRINT,
-  BC_STATUS_PARSE_INVALID_FUNC,
-  BC_STATUS_PARSE_INVALID_ASSIGN,
+  BC_STATUS_PARSE_BAD_TOKEN,
+  BC_STATUS_PARSE_BAD_EXPR,
+  BC_STATUS_PARSE_BAD_PRINT,
+  BC_STATUS_PARSE_BAD_FUNC,
+  BC_STATUS_PARSE_BAD_ASSIGN,
   BC_STATUS_PARSE_NO_AUTO,
   BC_STATUS_PARSE_LIMITS,
   BC_STATUS_PARSE_QUIT,
   BC_STATUS_PARSE_MISMATCH_NUM_FUNCS,
   BC_STATUS_PARSE_DUPLICATE_LOCAL,
-  BC_STATUS_PARSE_EOF,
   BC_STATUS_PARSE_BUG,
 
   BC_STATUS_MATH_NEGATIVE,
@@ -95,8 +94,8 @@ typedef enum BcStatus {
   BC_STATUS_MATH_OVERFLOW,
   BC_STATUS_MATH_DIVIDE_BY_ZERO,
   BC_STATUS_MATH_NEG_SQRT,
-  BC_STATUS_MATH_INVALID_STRING,
-  BC_STATUS_MATH_INVALID_TRUNCATE,
+  BC_STATUS_MATH_BAD_STRING,
+  BC_STATUS_MATH_BAD_TRUNCATE,
 
   BC_STATUS_EXEC_FILE_ERR,
   BC_STATUS_EXEC_MISMATCHED_PARAMS,
@@ -105,29 +104,26 @@ typedef enum BcStatus {
   BC_STATUS_EXEC_UNDEFINED_ARRAY,
   BC_STATUS_EXEC_FILE_NOT_EXECUTABLE,
   BC_STATUS_EXEC_SIGACTION_FAIL,
-  BC_STATUS_EXEC_INVALID_SCALE,
-  BC_STATUS_EXEC_INVALID_IBASE,
-  BC_STATUS_EXEC_INVALID_OBASE,
-  BC_STATUS_EXEC_INVALID_STMT,
-  BC_STATUS_EXEC_INVALID_EXPR,
-  BC_STATUS_EXEC_INVALID_STRING,
+  BC_STATUS_EXEC_BAD_SCALE,
+  BC_STATUS_EXEC_BAD_IBASE,
+  BC_STATUS_EXEC_BAD_OBASE,
+  BC_STATUS_EXEC_BAD_STMT,
+  BC_STATUS_EXEC_BAD_EXPR,
+  BC_STATUS_EXEC_BAD_STRING,
   BC_STATUS_EXEC_STRING_LEN,
-  BC_STATUS_EXEC_INVALID_NAME,
-  BC_STATUS_EXEC_ARRAY_LENGTH,
-  BC_STATUS_EXEC_INVALID_READ_EXPR,
+  BC_STATUS_EXEC_ARRAY_LEN,
+  BC_STATUS_EXEC_BAD_READ_EXPR,
   BC_STATUS_EXEC_RECURSIVE_READ,
-  BC_STATUS_EXEC_PRINT_ERR,
-  BC_STATUS_EXEC_INVALID_CONSTANT,
-  BC_STATUS_EXEC_INVALID_LVALUE,
-  BC_STATUS_EXEC_INVALID_RETURN,
-  BC_STATUS_EXEC_INVALID_LABEL,
-  BC_STATUS_EXEC_INVALID_TYPE,
-  BC_STATUS_EXEC_INVALID_STACK,
+  BC_STATUS_EXEC_BAD_CONSTANT,
+  BC_STATUS_EXEC_BAD_RETURN,
+  BC_STATUS_EXEC_BAD_LABEL,
+  BC_STATUS_EXEC_BAD_TYPE,
+  BC_STATUS_EXEC_BAD_STACK,
   BC_STATUS_EXEC_HALT,
 
   BC_STATUS_POSIX_NAME_LEN,
   BC_STATUS_POSIX_SCRIPT_COMMENT,
-  BC_STATUS_POSIX_INVALID_KEYWORD,
+  BC_STATUS_POSIX_BAD_KEYWORD,
   BC_STATUS_POSIX_DOT_LAST,
   BC_STATUS_POSIX_RETURN_PARENS,
   BC_STATUS_POSIX_BOOL_OPS,
@@ -143,23 +139,11 @@ typedef enum BcStatus {
 typedef void (*BcFreeFunc)(void*);
 typedef BcStatus (*BcCopyFunc)(void*, void*);
 
-// ** Exclude start.
-typedef struct BcGlobals {
+void bc_error(BcStatus st);
+void bc_error_file(BcStatus st, const char *file, size_t line);
 
-  long bc_code;
-  long bc_interactive;
-  long bc_std;
-  long bc_warn;
-
-  long bc_signal;
-
-} BcGlobals;
-
-void bc_error(BcStatus status);
-void bc_error_file(BcStatus status, const char *file, uint32_t line);
-
-BcStatus bc_posix_error(BcStatus status, const char *file,
-                        uint32_t line, const char *msg);
+BcStatus bc_posix_error(BcStatus st, const char *file,
+                        size_t line, const char *msg);
 
 #define BC_VEC_INITIAL_CAP (32)
 
@@ -199,8 +183,6 @@ typedef struct BcNum {
 
 #define BC_NUM_MAX_INPUT_BASE (16)
 
-#define BC_NUM_MAX_OUTPUT_BASE (99)
-
 #define BC_NUM_DEF_SIZE (16)
 
 #define BC_NUM_FROM_CHAR(c) ((c) -'0')
@@ -209,17 +191,12 @@ typedef struct BcNum {
 
 #define BC_NUM_PRINT_WIDTH (69)
 
-#define BC_NUM_ZERO(n) (!(n)->len)
-
 #define BC_NUM_ONE(n) ((n)->len == 1 && (n)->rdx == 0 && (n)->num[0] == 1)
-
-#define BC_NUM_POS_ONE(n) (BC_NUM_ONE(n) && !(n)->neg)
-#define BC_NUM_NEG_ONE(n) (BC_NUM_ONE(n) && (n)->neg)
 
 typedef BcStatus (*BcNumUnaryFunc)(BcNum*, BcNum*, size_t);
 typedef BcStatus (*BcNumBinaryFunc)(BcNum*, BcNum*, BcNum*, size_t);
 
-typedef BcStatus (*BcNumDigitFunc)(unsigned long, size_t, size_t*, FILE*);
+typedef BcStatus (*BcNumDigitFunc)(unsigned long, size_t, bool, size_t*, FILE*);
 
 BcStatus bc_num_init(BcNum *n, size_t request);
 
@@ -323,6 +300,12 @@ typedef struct BcAuto {
   char *name;
   bool var;
 
+} BcAuto;
+
+typedef struct BcLocal {
+
+  bool var;
+
   union {
 
     BcNum num;
@@ -330,7 +313,7 @@ typedef struct BcAuto {
 
   } data;
 
-} BcAuto;
+} BcLocal;
 
 typedef struct BcFunc {
 
@@ -338,15 +321,12 @@ typedef struct BcFunc {
 
   BcVec labels;
 
-  BcVec params;
+  size_t num_params;
 
   BcVec autos;
+  BcVec auto_stack;
 
 } BcFunc;
-
-typedef BcNum BcVar;
-
-typedef BcVec BcArray;
 
 typedef enum BcResultType {
 
@@ -374,12 +354,9 @@ typedef struct BcResult {
 
     BcNum num;
 
-    struct {
+    BcVec array;
 
-      char *name;
-      size_t idx;
-
-    } id;
+    BcEntry id;
 
   } data;
 
@@ -395,8 +372,11 @@ typedef struct BcInstPtr {
 
 typedef BcStatus (*BcDataInitFunc)(void*);
 
-BcStatus bc_auto_init(void *auto1, char *name, bool var);
+void bc_auto_init(BcAuto *a, char *name, bool var);
 void bc_auto_free(void *auto1);
+
+BcStatus bc_local_init(BcLocal *l, bool var);
+void bc_local_free(void *local);
 
 #define BC_INST_CALL ((uint8_t) 'C')
 #define BC_INST_RETURN ((uint8_t) 'R')
@@ -569,7 +549,7 @@ typedef struct BcLex {
 
   const char *buffer;
   size_t idx;
-  uint32_t line;
+  size_t line;
   bool newline;
   const char *file;
   size_t len;
@@ -579,7 +559,7 @@ typedef struct BcLex {
 typedef struct BcLexKeyword {
 
   const char name[9];
-  const unsigned char len;
+  const char len;
   const bool posix;
 
 } BcLexKeyword;
@@ -633,6 +613,8 @@ typedef struct BcProgram {
 
   char *num_buf;
   size_t buf_size;
+
+  size_t nchars;
 
 } BcProgram;
 
@@ -756,105 +738,107 @@ typedef struct BcVm {
 
   BcProgram program;
   BcParse parse;
+  BcProgramExecFunc exec;
 
   int filec;
-  const char** filev;
+  char** filev;
 
 } BcVm;
 
-const char *bc_version = "0.1";
-
-const char *bc_copyright = "bc copyright (c) 2018 Gavin D. Howard";
-
-const char *bc_warranty_short =
-  "This is free software with ABSOLUTELY NO WARRANTY.";
-
-const char *bc_version_fmt = "bc %s\n%s\n\n%s\n\n";
+const char *bc_header =
+  "bc 0.1\n"
+  "bc copyright (c) 2018 Gavin D. Howard and contributors\n"
+  "Report bugs at: https://github.com/gavinhoward/bc\n\n"
+  "This is free software with ABSOLUTELY NO WARRANTY.\n\n";
 
 const char *bc_err_types[] = {
 
-  NULL,
-
   "bc",
-  "bc",
-
-  "bc",
-
-  "bc",
-
-  "bc",
-  "bc",
-
   "vector",
-
-  "ordered vector",
-  "ordered vector",
-
   "Lex",
-  "Lex",
-  "Lex",
-  "Lex",
+  "Parse",
+  "Math",
+  "Runtime",
+  "POSIX",
 
-  "Parse",
-  "Parse",
-  "Parse",
-  "Parse",
-  "Parse",
-  "Parse",
-  "Parse",
-  "Parse",
-  "Parse",
-  "Parse",
-  "Parse",
-  "Parse",
+};
 
-  "Math",
-  "Math",
-  "Math",
-  "Math",
-  "Math",
-  "Math",
-  "Math",
+const char bc_err_type_indices[] = {
 
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
-  "Runtime",
+  BC_ERR_IDX_BC,
 
-  "POSIX",
-  "POSIX",
-  "POSIX",
-  "POSIX",
-  "POSIX",
-  "POSIX",
-  "POSIX",
-  "POSIX",
-  "POSIX",
-  "POSIX",
-  "POSIX",
-  "POSIX",
+  BC_ERR_IDX_BC,
+  BC_ERR_IDX_BC,
+
+  BC_ERR_IDX_BC,
+
+  BC_ERR_IDX_BC,
+  BC_ERR_IDX_BC,
+
+  BC_ERR_IDX_VEC,
+  BC_ERR_IDX_VEC,
+
+  BC_ERR_IDX_LEX,
+  BC_ERR_IDX_LEX,
+  BC_ERR_IDX_LEX,
+  BC_ERR_IDX_LEX,
+
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+  BC_ERR_IDX_PARSE,
+
+  BC_ERR_IDX_MATH,
+  BC_ERR_IDX_MATH,
+  BC_ERR_IDX_MATH,
+  BC_ERR_IDX_MATH,
+  BC_ERR_IDX_MATH,
+  BC_ERR_IDX_MATH,
+  BC_ERR_IDX_MATH,
+
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+  BC_ERR_IDX_EXEC,
+
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
+  BC_ERR_IDX_POSIX,
 
 };
 
@@ -865,32 +849,25 @@ const char *bc_err_descs[] = {
   "memory allocation error",
   "I/O error",
 
-  "invalid parameter",
-
-  "invalid option",
+  "bad parameter",
 
   "one or more limits not specified",
-  "invalid limit; this is a bug in bc",
+  "bad limit; this is a bug in bc",
 
-  "index is out of bounds for the vector and error was not caught; "
-    "this is probably a bug in bc",
+  "index is out of bounds; this is probably a bug in bc",
+  "item already exists; this is a bug in bc",
 
-  "index is out of bounds for the ordered vector and error was not caught; "
-    "this is probably a bug in bc",
-  "item already exists in ordered vector and error was not caught; "
-    "this is probably a bug in bc",
-
-  "invalid token",
+  "bad character",
   "string end could not be found",
   "comment end could not be found",
   "end of file",
 
-  "invalid token",
-  "invalid expression",
-  "invalid print statement",
-  "invalid function definition",
-  "invalid assignment: must assign to scale, "
-    "ibase, obase, last, a variable, or an array element",
+  "bad token",
+  "bad expression",
+  "bad print statement",
+  "bad function definition",
+  "bad assignment: left must be scale, ibase, "
+    "obase, last, var, or array element",
   "no auto variable found",
   "limits statement in file not handled correctly; "
     "this is most likely a bug in bc",
@@ -899,7 +876,6 @@ const char *bc_err_descs[] = {
   "number of functions does not match the number of entries "
     "in the function map; this is most likely a bug in bc",
   "function parameter or auto var has the same name as another",
-  "end of file",
   "bug in parser",
 
   "negative number",
@@ -907,7 +883,7 @@ const char *bc_err_descs[] = {
   "overflow",
   "divide by zero",
   "negative square root",
-  "invalid number string",
+  "bad number string",
   "cannot truncate more places than exist after the decimal point",
 
   "couldn't open file",
@@ -917,32 +893,29 @@ const char *bc_err_descs[] = {
   "undefined array",
   "file is not executable",
   "could not install signal handler",
-  "invalid value for scale; must be an integer in the range [0, BC_SCALE_MAX]",
-  "invalid value for ibase; must be an integer in the range [2, 16]",
-  "invalid value for obase; must be an integer in the range [2, BC_BASE_MAX]",
-  "invalid statement; this is most likely a bug in bc",
-  "invalid expression; this is most likely a bug in bc",
-  "invalid string",
-  "string too long: length must be in the range [0, BC_STRING_MAX]",
-  "invalid name/identifier",
-  "invalid array length; must be an integer in the range [1, BC_DIM_MAX]",
-  "invalid read() expression",
+  "bad scale; must be [0, BC_SCALE_MAX]",
+  "bad ibase; must be [2, 16]",
+  "bad obase; must be [2, BC_BASE_MAX]",
+  "bad statement; this is a bug in bc",
+  "bad expression; this is a bug in bc",
+  "bad string",
+  "string too long: must be [1, BC_STRING_MAX]",
+  "array too long; must be [1, BC_DIM_MAX]",
+  "bad read() expression",
   "read() call inside of a read() call",
-  "print error",
-  "invalid constant",
-  "invalid lvalue; cannot assign to constants or intermediate values",
+  "bad constant",
   "cannot return from function; no function to return from",
-  "invalid label; this is probably a bug in bc",
+  "bad label; this is probably a bug in bc",
   "variable is wrong type",
-  "invalid stack; this is probably a bug in bc",
-  "bc was not halted correctly; this is a bug in bc",
+  "bad stack; this is a bug in bc",
+  "bc stopped; this is a bug in bc",
 
-  "POSIX only allows one character names; the following is invalid:",
+  "POSIX only allows one character names; the following is bad:",
   "POSIX does not allow '#' script comments",
   "POSIX does not allow the following keyword:",
   "POSIX does not allow a period ('.') as a shortcut for the last result",
   "POSIX requires parentheses around return expressions",
-  "POSIX does not allow boolean operators; the following is invalid:",
+  "POSIX does not allow boolean operators; the following is bad:",
   "POSIX does not allow comparison operators outside if or loops",
   "POSIX does not allow more than one comparison operator per condition",
   "POSIX does not allow an empty init expression in a for loop",
@@ -1169,7 +1142,7 @@ const char *bc_program_ready_prompt = "ready for more input\n\n";
 const char *bc_program_sigint_msg = "\n\ninterrupt (type \"quit\" to exit)\n\n";
 const char *bc_lib_name = "lib.bc";
 
-const unsigned char bc_lib[] = {
+const char bc_lib[] = {
   115,99,97,108,101,61,50,48,10,100,101,102,105,110,101,32,101,40,120,41,123,
   10,9,97,117,116,111,32,98,44,115,44,110,44,114,44,100,44,105,44,112,44,102,
   44,118,10,9,98,61,105,98,97,115,101,10,9,105,98,97,115,101,61,65,10,9,105,102,
@@ -1178,24 +1151,23 @@ const unsigned char bc_lib[] = {
   97,108,101,61,115,99,97,108,101,40,120,41,43,49,10,9,119,104,105,108,101,40,
   120,62,49,41,123,10,9,9,100,43,61,49,10,9,9,120,47,61,50,10,9,9,115,99,97,108,
   101,43,61,49,10,9,125,10,9,115,99,97,108,101,61,114,10,9,114,61,120,43,49,10,
-  9,112,61,120,10,9,102,61,49,10,9,102,111,114,40,105,61,50,59,49,59,43,43,105,
-  41,123,10,9,9,112,42,61,120,59,10,9,9,102,42,61,105,10,9,9,118,61,112,47,102,
-  10,9,9,105,102,40,101,61,61,48,41,98,114,101,97,107,10,9,9,114,43,61,118,10,
-  9,125,10,9,119,104,105,108,101,40,102,45,45,41,114,42,61,114,10,9,115,99,97,
-  108,101,61,115,10,9,105,98,97,115,101,61,98,10,9,105,102,40,109,41,114,101,
-  116,117,114,110,40,49,47,114,41,10,9,114,101,116,117,114,110,40,114,47,49,41,
-  10,125,10,100,101,102,105,110,101,32,108,40,120,41,123,10,9,97,117,116,111,
-  32,98,44,115,44,114,44,112,44,97,44,113,44,105,44,118,10,9,98,61,105,98,97,
-  115,101,10,9,105,98,97,115,101,61,65,10,9,105,102,40,120,60,61,48,41,123,10,
-  9,9,114,61,40,49,45,49,48,94,115,99,97,108,101,41,47,49,10,9,9,105,98,97,115,
-  101,61,98,10,9,9,114,101,116,117,114,110,40,114,41,10,9,125,10,9,115,61,115,
-  99,97,108,101,10,9,115,99,97,108,101,43,61,55,10,9,112,61,50,10,9,119,104,105,
-  108,101,40,120,62,61,50,41,123,10,9,9,112,42,61,50,10,9,9,120,61,115,113,114,
-  116,40,120,41,10,9,125,10,9,119,104,105,108,101,40,120,60,61,48,46,53,41,123,
-  10,9,9,112,42,61,50,10,9,9,120,61,115,113,114,116,40,120,41,10,9,125,10,9,114,
-  61,97,61,40,120,45,49,41,47,40,120,43,49,41,10,9,113,61,97,42,97,10,9,102,111,
-  114,40,105,61,51,59,49,59,105,43,61,50,41,123,10,9,9,110,42,61,109,10,9,9,118,
-  61,110,47,105,10,9,9,105,102,40,101,61,61,48,41,98,114,101,97,107,10,9,9,114,
+  9,112,61,120,10,9,102,61,118,61,49,10,9,102,111,114,40,105,61,50,59,118,59,
+  43,43,105,41,123,10,9,9,112,42,61,120,59,10,9,9,102,42,61,105,10,9,9,118,61,
+  112,47,102,10,9,9,114,43,61,118,10,9,125,10,9,119,104,105,108,101,40,102,45,
+  45,41,114,42,61,114,10,9,115,99,97,108,101,61,115,10,9,105,98,97,115,101,61,
+  98,10,9,105,102,40,109,41,114,101,116,117,114,110,40,49,47,114,41,10,9,114,
+  101,116,117,114,110,40,114,47,49,41,10,125,10,100,101,102,105,110,101,32,108,
+  40,120,41,123,10,9,97,117,116,111,32,98,44,115,44,114,44,112,44,97,44,113,44,
+  105,44,118,10,9,98,61,105,98,97,115,101,10,9,105,98,97,115,101,61,65,10,9,105,
+  102,40,120,60,61,48,41,123,10,9,9,114,61,40,49,45,49,48,94,115,99,97,108,101,
+  41,47,49,10,9,9,105,98,97,115,101,61,98,10,9,9,114,101,116,117,114,110,40,114,
+  41,10,9,125,10,9,115,61,115,99,97,108,101,10,9,115,99,97,108,101,43,61,55,10,
+  9,112,61,50,10,9,119,104,105,108,101,40,120,62,61,50,41,123,10,9,9,112,42,61,
+  50,10,9,9,120,61,115,113,114,116,40,120,41,10,9,125,10,9,119,104,105,108,101,
+  40,120,60,61,48,46,53,41,123,10,9,9,112,42,61,50,10,9,9,120,61,115,113,114,
+  116,40,120,41,10,9,125,10,9,114,61,97,61,40,120,45,49,41,47,40,120,43,49,41,
+  10,9,113,61,97,42,97,10,9,118,61,49,10,9,102,111,114,40,105,61,51,59,118,59,
+  105,43,61,50,41,123,10,9,9,110,42,61,109,10,9,9,118,61,110,47,105,10,9,9,114,
   43,61,118,10,9,125,10,9,114,42,61,112,10,9,115,99,97,108,101,61,115,10,9,105,
   98,97,115,101,61,98,10,9,114,101,116,117,114,110,40,114,47,49,41,10,125,10,
   100,101,102,105,110,101,32,115,40,120,41,123,10,9,97,117,116,111,32,98,44,115,
@@ -1206,36 +1178,35 @@ const unsigned char bc_lib[] = {
   10,9,113,61,40,120,47,97,43,50,41,47,52,10,9,120,45,61,52,42,113,42,97,10,9,
   105,102,40,113,37,50,41,120,61,45,120,10,9,115,99,97,108,101,61,115,43,50,10,
   9,114,61,97,61,120,10,9,113,61,45,120,42,120,10,9,102,111,114,40,105,61,51,
-  59,49,59,105,43,61,50,41,123,10,9,9,97,42,61,113,47,40,105,42,40,105,45,49,
-  41,41,10,9,9,105,102,40,97,61,61,48,41,98,114,101,97,107,10,9,9,114,43,61,97,
-  10,9,125,10,9,115,99,97,108,101,61,115,10,9,105,98,97,115,101,61,98,10,9,105,
-  102,40,110,41,114,101,116,117,114,110,40,45,114,47,49,41,10,9,114,101,116,117,
-  114,110,40,114,47,49,41,10,125,10,100,101,102,105,110,101,32,99,40,120,41,123,
-  10,9,97,117,116,111,32,98,44,115,10,9,98,61,105,98,97,115,101,10,9,105,98,97,
-  115,101,61,65,10,9,115,61,115,99,97,108,101,10,9,115,99,97,108,101,43,61,49,
-  10,9,120,61,115,40,50,42,97,40,49,41,43,120,41,10,9,115,99,97,108,101,61,115,
-  10,9,105,98,97,115,101,61,98,10,9,114,101,116,117,114,110,40,120,47,49,41,10,
-  125,10,100,101,102,105,110,101,32,97,40,120,41,123,10,9,97,117,116,111,32,98,
-  44,115,44,114,44,110,44,97,44,109,44,116,44,102,44,105,44,117,10,9,98,61,105,
-  98,97,115,101,10,9,105,98,97,115,101,61,65,10,9,110,61,49,10,9,105,102,40,120,
-  60,48,41,123,10,9,9,110,61,45,49,10,9,9,120,61,45,120,10,9,125,10,9,105,102,
-  40,120,61,61,49,41,123,10,9,9,105,102,40,115,99,97,108,101,60,61,54,52,41,123,
-  10,9,9,9,114,101,116,117,114,110,40,46,55,56,53,51,57,56,49,54,51,51,57,55,
-  52,52,56,51,48,57,54,49,53,54,54,48,56,52,53,56,49,57,56,55,53,55,50,49,48,
-  52,57,50,57,50,51,52,57,56,52,51,55,55,54,52,53,53,50,52,51,55,51,54,49,52,
-  56,48,47,110,41,10,9,9,125,10,9,125,10,9,105,102,40,120,61,61,46,50,54,55,41,
-  123,10,9,9,105,102,40,115,99,97,108,101,60,61,54,52,41,123,10,9,9,9,114,101,
-  116,117,114,110,40,46,50,54,48,57,49,51,53,54,57,50,51,50,57,52,48,53,55,57,
-  53,57,54,55,56,53,50,54,55,55,55,55,57,56,54,53,54,51,57,55,55,52,55,52,48,
-  50,51,57,56,56,50,52,52,53,56,50,50,51,50,57,56,56,50,57,49,55,47,110,41,10,
-  9,9,125,10,9,125,10,9,115,61,115,99,97,108,101,10,9,105,102,40,120,62,46,50,
-  54,55,41,123,10,9,9,115,99,97,108,101,43,61,53,10,9,9,97,61,97,40,46,50,54,
-  55,41,10,9,125,10,9,115,99,97,108,101,61,115,43,51,10,9,119,104,105,108,101,
-  40,120,62,46,50,54,55,41,123,10,9,9,109,43,61,49,10,9,9,120,61,40,120,45,46,
-  50,54,55,41,47,40,49,43,46,50,54,55,42,120,41,10,9,125,10,9,114,61,117,61,120,
-  10,9,102,61,45,120,42,120,10,9,102,111,114,40,105,61,51,59,49,59,105,43,61,
-  50,41,123,10,9,9,117,42,61,102,10,9,9,116,61,117,47,105,10,9,9,105,102,40,116,
-  61,61,48,41,98,114,101,97,107,10,9,9,114,43,61,116,10,9,125,10,9,115,99,97,
+  59,97,59,105,43,61,50,41,123,10,9,9,97,42,61,113,47,40,105,42,40,105,45,49,
+  41,41,10,9,9,114,43,61,97,10,9,125,10,9,115,99,97,108,101,61,115,10,9,105,98,
+  97,115,101,61,98,10,9,105,102,40,110,41,114,101,116,117,114,110,40,45,114,47,
+  49,41,10,9,114,101,116,117,114,110,40,114,47,49,41,10,125,10,100,101,102,105,
+  110,101,32,99,40,120,41,123,10,9,97,117,116,111,32,98,44,115,10,9,98,61,105,
+  98,97,115,101,10,9,105,98,97,115,101,61,65,10,9,115,61,115,99,97,108,101,10,
+  9,115,99,97,108,101,43,61,49,10,9,120,61,115,40,50,42,97,40,49,41,43,120,41,
+  10,9,115,99,97,108,101,61,115,10,9,105,98,97,115,101,61,98,10,9,114,101,116,
+  117,114,110,40,120,47,49,41,10,125,10,100,101,102,105,110,101,32,97,40,120,
+  41,123,10,9,97,117,116,111,32,98,44,115,44,114,44,110,44,97,44,109,44,116,44,
+  102,44,105,44,117,10,9,98,61,105,98,97,115,101,10,9,105,98,97,115,101,61,65,
+  10,9,110,61,49,10,9,105,102,40,120,60,48,41,123,10,9,9,110,61,45,49,10,9,9,
+  120,61,45,120,10,9,125,10,9,105,102,40,120,61,61,49,41,123,10,9,9,105,102,40,
+  115,99,97,108,101,60,61,54,52,41,123,10,9,9,9,114,101,116,117,114,110,40,46,
+  55,56,53,51,57,56,49,54,51,51,57,55,52,52,56,51,48,57,54,49,53,54,54,48,56,
+  52,53,56,49,57,56,55,53,55,50,49,48,52,57,50,57,50,51,52,57,56,52,51,55,55,
+  54,52,53,53,50,52,51,55,51,54,49,52,56,48,47,110,41,10,9,9,125,10,9,125,10,
+  9,105,102,40,120,61,61,46,50,54,55,41,123,10,9,9,105,102,40,115,99,97,108,101,
+  60,61,54,52,41,123,10,9,9,9,114,101,116,117,114,110,40,46,50,54,48,57,49,51,
+  53,54,57,50,51,50,57,52,48,53,55,57,53,57,54,55,56,53,50,54,55,55,55,55,57,
+  56,54,53,54,51,57,55,55,52,55,52,48,50,51,57,56,56,50,52,52,53,56,50,50,51,
+  50,57,56,56,50,57,49,55,47,110,41,10,9,9,125,10,9,125,10,9,115,61,115,99,97,
+  108,101,10,9,105,102,40,120,62,46,50,54,55,41,123,10,9,9,115,99,97,108,101,
+  43,61,53,10,9,9,97,61,97,40,46,50,54,55,41,10,9,125,10,9,115,99,97,108,101,
+  61,115,43,51,10,9,119,104,105,108,101,40,120,62,46,50,54,55,41,123,10,9,9,109,
+  43,61,49,10,9,9,120,61,40,120,45,46,50,54,55,41,47,40,49,43,46,50,54,55,42,
+  120,41,10,9,125,10,9,114,61,117,61,120,10,9,102,61,45,120,42,120,10,9,116,61,
+  49,10,9,102,111,114,40,105,61,51,59,116,59,105,43,61,50,41,123,10,9,9,117,42,
+  61,102,10,9,9,116,61,117,47,105,10,9,9,114,43,61,116,10,9,125,10,9,115,99,97,
   108,101,61,115,10,9,105,98,97,115,101,61,98,10,9,114,101,116,117,114,110,40,
   40,109,42,97,43,114,41,47,110,41,10,125,10,100,101,102,105,110,101,32,106,40,
   110,44,120,41,123,10,9,97,117,116,111,32,98,44,115,44,111,44,97,44,105,44,118,
@@ -1247,11 +1218,11 @@ const unsigned char bc_lib[] = {
   42,115,10,9,97,61,40,120,94,110,41,47,40,50,94,110,42,97,41,10,9,114,61,118,
   61,49,10,9,102,61,45,120,42,120,47,52,10,9,115,99,97,108,101,43,61,108,101,
   110,103,116,104,40,97,41,45,115,99,97,108,101,40,97,41,10,9,102,111,114,40,
-  105,61,49,59,49,59,43,43,105,41,123,10,9,9,118,61,118,42,115,47,105,47,40,110,
-  43,105,41,10,9,9,105,102,40,118,61,61,48,41,98,114,101,97,107,10,9,9,114,43,
-  61,118,10,9,125,10,9,115,99,97,108,101,61,115,10,9,105,98,97,115,101,61,98,
-  10,9,105,102,40,111,41,114,101,116,117,114,110,40,45,97,42,114,47,49,41,10,
-  9,114,101,116,117,114,110,40,97,42,114,47,49,41,10,125,10,0
+  105,61,49,59,118,59,43,43,105,41,123,10,9,9,118,61,118,42,115,47,105,47,40,
+  110,43,105,41,10,9,9,114,43,61,118,10,9,125,10,9,115,99,97,108,101,61,115,10,
+  9,105,98,97,115,101,61,98,10,9,105,102,40,111,41,114,101,116,117,114,110,40,
+  45,97,42,114,47,49,41,10,9,114,101,116,117,114,110,40,97,42,114,47,49,41,10,
+  125,10,0
 };
 
 BcStatus bc_vec_double(BcVec *vec) {
@@ -1411,8 +1382,7 @@ BcStatus bc_vec_pop(BcVec *vec) {
 void bc_vec_free(void *vec) {
 
   BcVec *s;
-  size_t len;
-  size_t esize;
+  size_t esize, len, i;
   BcFreeFunc sfree;
   uint8_t *array;
 
@@ -1423,7 +1393,6 @@ void bc_vec_free(void *vec) {
   sfree = s->dtor;
 
   if (sfree) {
-    size_t i;
 
     len = s->len;
     array = s->array;
@@ -1489,10 +1458,10 @@ BcStatus bc_veco_insert(BcVecO* vec, void *data, size_t *idx) {
 
   *idx = bc_veco_find(vec, data);
 
-  if (*idx > vec->vec.len) return BC_STATUS_VECO_OUT_OF_BOUNDS;
+  if (*idx > vec->vec.len) return BC_STATUS_VEC_OUT_OF_BOUNDS;
 
   if (*idx != vec->vec.len && !vec->cmp(data, bc_vec_item(&vec->vec, *idx)))
-    return BC_STATUS_VECO_ITEM_EXISTS;
+    return BC_STATUS_VEC_ITEM_EXISTS;
 
   if (*idx >= vec->vec.len) {
     *idx = vec->vec.len;
@@ -1559,11 +1528,11 @@ int bc_num_compareDigits(BcNum *a, BcNum *b, size_t *digits) {
   }
   else if (b->neg) return 1;
 
-  if (BC_NUM_ZERO(a)) {
+  if (!a->len) {
     cmp = b->neg ? 1 : -1;
-    return BC_NUM_ZERO(b) ? 0 : cmp;
+    return !b->len ? 0 : cmp;
   }
-  else if (BC_NUM_ZERO(b)) return a->neg ? -1 : 1;
+  else if (!b->len) return a->neg ? -1 : 1;
 
   a_int = a->len - a->rdx;
   b_int = b->len - b->rdx;
@@ -1644,7 +1613,7 @@ BcStatus bc_num_trunc(BcNum *n, size_t places) {
 
   BcDigit *ptr;
 
-  if (places > n->rdx) return BC_STATUS_MATH_INVALID_TRUNCATE;
+  if (places > n->rdx) return BC_STATUS_MATH_BAD_TRUNCATE;
 
   if (places == 0) return BC_STATUS_SUCCESS;
 
@@ -1704,6 +1673,9 @@ BcStatus bc_num_alg_a(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
   BcDigit carry;
 
   (void) scale;
+
+  if (!a->len) return bc_num_copy(c, b);
+  else if (!b->len) return bc_num_copy(c, a);
 
   c->neg = a->neg;
 
@@ -1820,12 +1792,12 @@ BcStatus bc_num_alg_s(BcNum *a, BcNum *b, BcNum *c, size_t sub) {
   // I am hijacking it to tell this function whether it is doing an add
   // or a subtract.
 
-  if (BC_NUM_ZERO(a)) {
+  if (!a->len) {
     status = bc_num_copy(c, b);
     c->neg = !b->neg;
     return status;
   }
-  else if (BC_NUM_ZERO(b)) return bc_num_copy(c, a);
+  else if (!b->len) return bc_num_copy(c, a);
 
   aneg = a->neg;
   bneg = b->neg;
@@ -1842,12 +1814,12 @@ BcStatus bc_num_alg_s(BcNum *a, BcNum *b, BcNum *c, size_t sub) {
     return BC_STATUS_SUCCESS;
   }
   else if (cmp > 0) {
-    neg = sub ? a->neg : !a->neg;
+    neg = sub && a->neg;
     minuend = a;
     subtrahend = b;
   }
   else {
-    neg = sub ? !b->neg : b->neg;
+    neg = sub && !b->neg;
     minuend = b;
     subtrahend = a;
   }
@@ -1894,7 +1866,7 @@ BcStatus bc_num_alg_m(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
   size_t j;
   size_t len;
 
-  if (BC_NUM_ZERO(a) || BC_NUM_ZERO(b)) {
+  if (!a->len || !b->len) {
     bc_num_zero(c);
     return BC_STATUS_SUCCESS;
   }
@@ -1959,16 +1931,24 @@ BcStatus bc_num_alg_d(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
   size_t end;
   size_t i;
   BcNum copy;
+  bool zero;
 
-  if (BC_NUM_ZERO(b)) return BC_STATUS_MATH_DIVIDE_BY_ZERO;
-  else if (BC_NUM_ZERO(a)) {
+  if (!b->len) return BC_STATUS_MATH_DIVIDE_BY_ZERO;
+  else if (!a->len) {
     bc_num_zero(c);
     return BC_STATUS_SUCCESS;
   }
   else if (BC_NUM_ONE(b)) {
+
     status = bc_num_copy(c, a);
+
+    if (status) return status;
+
     if (b->neg) c->neg = !c->neg;
-    status = bc_num_extend(c, scale);
+
+    if (c->rdx < scale) status = bc_num_extend(c, scale - c->rdx);
+    else status = bc_num_trunc(c, c->rdx - scale);
+
     return status;
   }
 
@@ -2081,6 +2061,9 @@ BcStatus bc_num_alg_d(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
 
   if (c->rdx > scale) status = bc_num_trunc(c, c->rdx - scale);
 
+  for (i = 0, zero = true; zero && i < c->len; ++i) zero = !c->num[i];
+  if (zero) bc_num_zero(c);
+
 err:
 
   bc_num_free(&copy);
@@ -2094,6 +2077,13 @@ BcStatus bc_num_alg_mod(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
   BcNum c1;
   BcNum c2;
   size_t len;
+
+  if (!b->len) return BC_STATUS_MATH_DIVIDE_BY_ZERO;
+
+  if (!a->len) {
+    bc_num_zero(c);
+    return BC_STATUS_SUCCESS;
+  }
 
   len = a->len + b->len + scale;
 
@@ -2151,7 +2141,7 @@ BcStatus bc_num_alg_p(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
     bc_num_one(c);
     return BC_STATUS_SUCCESS;
   }
-  else if (BC_NUM_ZERO(a)) {
+  else if (!a->len) {
     bc_num_zero(c);
     return BC_STATUS_SUCCESS;
   }
@@ -2274,11 +2264,11 @@ BcStatus bc_num_sqrt_newton(BcNum *a, BcNum *b, size_t scale) {
   size_t resrdx;
   int cmp;
 
-  if (BC_NUM_ZERO(a)) {
+  if (!a->len) {
     bc_num_zero(b);
     return BC_STATUS_SUCCESS;
   }
-  else if (BC_NUM_POS_ONE(a)) {
+  else if (BC_NUM_ONE(a) && !(a)->neg) {
     bc_num_one(b);
     return bc_num_extend(b, scale);
   }
@@ -2624,6 +2614,7 @@ BcStatus bc_num_parseBase(BcNum *n, const char *val, BcNum *base) {
   size_t digits;
   BcDigit c;
   bool zero;
+  unsigned long v;
 
   len = strlen(val);
 
@@ -2651,16 +2642,13 @@ BcStatus bc_num_parseBase(BcNum *n, const char *val, BcNum *base) {
 
   for (i = 0; i < len && (c = val[i]) != '.'; ++i) {
 
-    long v;
-
     status = bc_num_mul(n, base, &mult, 0);
 
     if (status) goto int_err;
 
-    if (c <= '9') v = c - '0';
-    else v = c - 'A' + 10;
+    v = c <= '9' ? c - '0' : c - 'A' + 10;
 
-    status = bc_num_long2num(&temp, v);
+    status = bc_num_ulong2num(&temp, v);
 
     if (status) goto int_err;
 
@@ -2683,15 +2671,15 @@ BcStatus bc_num_parseBase(BcNum *n, const char *val, BcNum *base) {
   bc_num_zero(&result);
   bc_num_one(&mult);
 
-  for (digits = 0; i < len; ++i, ++digits) {
+  for (digits = 0; i < len && (c = val[i]); ++i, ++digits) {
 
-    c = val[i];
+    v = c <= '9' ? c - '0' : c - 'A' + 10;
 
     status = bc_num_mul(&result, base, &result, 0);
 
     if (status) goto err;
 
-    status = bc_num_long2num(&temp, (long) c);
+    status = bc_num_ulong2num(&temp, v);
 
     if (status) goto err;
 
@@ -2708,7 +2696,15 @@ BcStatus bc_num_parseBase(BcNum *n, const char *val, BcNum *base) {
 
   if (status) goto err;
 
-  status = bc_num_add(n, &result, n, 0);
+  status = bc_num_add(n, &result, n, digits);
+
+  if (status) goto err;
+
+  if (n->len) {
+    if (n->rdx < digits && n->len)
+      status = bc_num_extend(n, digits - n->rdx);
+  }
+  else bc_num_zero(n);
 
 err:
 
@@ -2725,50 +2721,49 @@ mult_err:
   return status;
 }
 
-BcStatus bc_num_printRadix(size_t *nchars, FILE *f) {
-
-  if (*nchars + 1 >= BC_NUM_PRINT_WIDTH) {
-    if (fputc('\\', f) == EOF) return BC_STATUS_IO_ERR;
-    if (fputc('\n', f) == EOF) return BC_STATUS_IO_ERR;
-    *nchars = 0;
-  }
-
-  if (fputc('.', f) == EOF) return BC_STATUS_IO_ERR;
-
-  *nchars = *nchars + 1;
-
-  return BC_STATUS_SUCCESS;
-}
-
-BcStatus bc_num_printDigits(unsigned long num, size_t width,
+BcStatus bc_num_printDigits(unsigned long num, size_t width, bool radix,
                                    size_t *nchars, FILE *f)
 {
-  if (*nchars + width + 1 >= BC_NUM_PRINT_WIDTH) {
+  size_t exp, pow, div;
+
+  if (*nchars == BC_NUM_PRINT_WIDTH - 1) {
     if (fputc('\\', f) == EOF) return BC_STATUS_IO_ERR;
     if (fputc('\n', f) == EOF) return BC_STATUS_IO_ERR;
     *nchars = 0;
   }
-  else {
-    if (fputc(' ', f) == EOF) return BC_STATUS_IO_ERR;
-    ++(*nchars);
+
+  if (fputc(radix ? '.' : ' ', f) == EOF) return BC_STATUS_IO_ERR;
+  ++(*nchars);
+
+  for (exp = 0, pow = 1; exp < width - 1; ++exp, pow *= 10);
+
+  for (; pow; pow /= 10, ++(*nchars)) {
+
+    if (*nchars == BC_NUM_PRINT_WIDTH - 1) {
+      if (fputc('\\', f) == EOF) return BC_STATUS_IO_ERR;
+      if (fputc('\n', f) == EOF) return BC_STATUS_IO_ERR;
+      *nchars = 0;
+    }
+
+    div = num / pow;
+    if (fputc(((char) div) + '0', f) == EOF) return BC_STATUS_IO_ERR;
+    num -= div * pow;
   }
-
-  if (fprintf(f, "%0*lu", (unsigned int) width, num) < 0)
-    return BC_STATUS_IO_ERR;
-
-  *nchars = *nchars + width;
 
   return BC_STATUS_SUCCESS;
 }
 
-BcStatus bc_num_printHex(unsigned long num, size_t width,
+BcStatus bc_num_printHex(unsigned long num, size_t width, bool radix,
                                 size_t *nchars, FILE *f)
 {
-  if (*nchars + width >= BC_NUM_PRINT_WIDTH) {
+  width += !!radix;
+  if (*nchars + width  >= BC_NUM_PRINT_WIDTH) {
     if (fputc('\\', f) == EOF) return BC_STATUS_IO_ERR;
     if (fputc('\n', f) == EOF) return BC_STATUS_IO_ERR;
     *nchars = 0;
   }
+
+  if (radix && fputc('.', f) == EOF) return BC_STATUS_IO_ERR;
 
   if (fputc(bc_num_hex_digits[num], f) == EOF) return BC_STATUS_IO_ERR;
 
@@ -2777,52 +2772,49 @@ BcStatus bc_num_printHex(unsigned long num, size_t width,
   return BC_STATUS_SUCCESS;
 }
 
-BcStatus bc_num_printDecimal(BcNum *n, FILE *f) {
+BcStatus bc_num_printDecimal(BcNum *n, size_t *nchars, FILE *f) {
 
   BcStatus status;
   size_t i;
-  size_t nchars;
-
-  nchars = 0;
+  bool radix;
 
   if (n->neg) {
     if (fputc('-', f) == EOF) return BC_STATUS_IO_ERR;
-    ++nchars;
+    ++(*nchars);
   }
 
   status = BC_STATUS_SUCCESS;
 
   for (i = n->len - 1; !status && i >= n->rdx && i < n->len; --i)
-    status = bc_num_printHex(n->num[i], 1, &nchars, f);
+    status = bc_num_printHex(n->num[i], 1, false, nchars, f);
 
   if (status || !n->rdx) return status;
 
-  status = bc_num_printRadix(&nchars, f);
-
-  if (status) return status;
-
-  for (; !status && i < n->len; --i)
-    status = bc_num_printHex(n->num[i], 1, &nchars, f);
+  for (radix = true; !status && i < n->len; --i, radix = false)
+    status = bc_num_printHex(n->num[i], 1, radix, nchars, f);
 
   return status;
 }
 
-BcStatus bc_num_printBase(BcNum *n, BcNum *base, size_t base_t, FILE* f) {
-
+BcStatus bc_num_printBase(BcNum *n, BcNum *base, size_t base_t,
+                                 size_t *nchars, FILE* f)
+{
   BcStatus status;
   BcVec stack;
   BcNum intp;
   BcNum fracp;
   BcNum digit;
   BcNum frac_len;
-  size_t nchars;
   size_t width;
   BcNumDigitFunc print;
+  unsigned long dig;
   size_t i;
+  bool neg, radix;
 
-  nchars = 0;
+  neg = n->neg;
+  n->neg = false;
 
-  if (n->neg) {
+  if (neg) {
     if (fputc('-', f) == EOF) return BC_STATUS_IO_ERR;
     ++nchars;
   }
@@ -2864,9 +2856,7 @@ BcStatus bc_num_printBase(BcNum *n, BcNum *base, size_t base_t, FILE* f) {
 
   if (status) goto frac_len_err;
 
-  while (!BC_NUM_ZERO(&intp)) {
-
-    unsigned long dig;
+  while (intp.len) {
 
     status = bc_num_mod(&intp, base, &digit, 0);
 
@@ -2891,16 +2881,12 @@ BcStatus bc_num_printBase(BcNum *n, BcNum *base, size_t base_t, FILE* f) {
 
     ptr = bc_vec_item_rev(&stack, i);
 
-    status = print(*ptr, width, &nchars, f);
+    status = print(*ptr, width, false, nchars, f);
 
     if (status) goto frac_len_err;
   }
 
   if (!n->rdx) goto frac_len_err;
-
-  status = bc_num_printRadix(&nchars, f);
-
-  if (status) goto frac_len_err;
 
   status = bc_num_init(&frac_len, n->len - n->rdx);
 
@@ -2908,19 +2894,17 @@ BcStatus bc_num_printBase(BcNum *n, BcNum *base, size_t base_t, FILE* f) {
 
   bc_num_one(&frac_len);
 
-  while (frac_len.len <= n->len) {
-
-    unsigned long fdigit;
+  for (radix = true; frac_len.len <= n->rdx; radix = false) {
 
     status = bc_num_mul(&fracp, base, &fracp, n->rdx);
 
     if (status) goto err;
 
-    status = bc_num_ulong(&fracp, &fdigit);
+    status = bc_num_ulong(&fracp, &dig);
 
     if (status) goto err;
 
-    status = bc_num_ulong2num(&intp, fdigit);
+    status = bc_num_ulong2num(&intp, dig);
 
     if (status) goto err;
 
@@ -2928,7 +2912,7 @@ BcStatus bc_num_printBase(BcNum *n, BcNum *base, size_t base_t, FILE* f) {
 
     if (status) goto err;
 
-    status = print(fdigit, width, &nchars, f);
+    status = print(dig, width, radix, nchars, f);
 
     if (status) goto err;
 
@@ -2938,6 +2922,8 @@ BcStatus bc_num_printBase(BcNum *n, BcNum *base, size_t base_t, FILE* f) {
   }
 
 err:
+
+  n->neg = neg;
 
   bc_num_free(&frac_len);
 
@@ -3046,9 +3032,9 @@ BcStatus bc_num_parse(BcNum *n, const char *val, BcNum *base, size_t base_t) {
   if (!n || !val) return BC_STATUS_INVALID_PARAM;
 
   if (base_t < BC_NUM_MIN_BASE || base_t > BC_NUM_MAX_INPUT_BASE)
-    return BC_STATUS_EXEC_INVALID_IBASE;
+    return BC_STATUS_EXEC_BAD_IBASE;
 
-  if (!bc_num_strValid(val, base_t)) return BC_STATUS_MATH_INVALID_STRING;
+  if (!bc_num_strValid(val, base_t)) return BC_STATUS_MATH_BAD_STRING;
 
   if (base_t == 10) status = bc_num_parseDecimal(n, val);
   else status = bc_num_parseBase(n, val, base);
@@ -3057,33 +3043,43 @@ BcStatus bc_num_parse(BcNum *n, const char *val, BcNum *base, size_t base_t) {
 }
 
 BcStatus bc_num_fprint(BcNum *n, BcNum *base, size_t base_t,
-                       bool newline, FILE *f)
+                       bool newline, size_t *nchars, FILE *f)
 {
   BcStatus status;
 
   if (!n || !f) return BC_STATUS_INVALID_PARAM;
 
-  if (base_t < BC_NUM_MIN_BASE || base_t > BC_NUM_MAX_OUTPUT_BASE)
-    return BC_STATUS_EXEC_INVALID_OBASE;
+  if (base_t < BC_NUM_MIN_BASE || base_t > BC_BASE_MAX_DEF)
+    return BC_STATUS_EXEC_BAD_OBASE;
 
-  if (BC_NUM_ZERO(n)) {
+  if (*nchars  >= BC_NUM_PRINT_WIDTH) {
+    if (fputc('\\', f) == EOF) return BC_STATUS_IO_ERR;
+    if (fputc('\n', f) == EOF) return BC_STATUS_IO_ERR;
+    *nchars = 0;
+  }
+
+  if (!n->len) {
     if (fputc('0', f) == EOF) return BC_STATUS_IO_ERR;
+    ++(*nchars);
     status = BC_STATUS_SUCCESS;
   }
-  else if (base_t == 10) status = bc_num_printDecimal(n, f);
-  else status = bc_num_printBase(n, base, base_t, f);
+  else if (base_t == 10) status = bc_num_printDecimal(n, nchars, f);
+  else status = bc_num_printBase(n, base, base_t, nchars, f);
 
   if (status) return status;
 
   if (newline) {
     if (fputc('\n', f) == EOF) return BC_STATUS_IO_ERR;
+    *nchars = 0;
   }
 
   return status;
 }
 
-BcStatus bc_num_print(BcNum *n, BcNum *base, size_t base_t, bool newline) {
-  return bc_num_fprint(n, base, base_t, newline, stdout);
+BcStatus bc_num_print(BcNum *n, BcNum *base, size_t base_t,
+                      bool newline, size_t *nchars)
+{
+  return bc_num_fprint(n, base, base_t, newline, nchars, stdout);
 }
 
 BcStatus bc_num_long(BcNum *n, long *result) {
@@ -3231,27 +3227,14 @@ BcStatus bc_num_truncate(BcNum *n) {
 }
 
 BcStatus bc_num_add(BcNum *a, BcNum *b, BcNum *result, size_t scale) {
-
-  BcNumBinaryFunc op;
-
   (void) scale;
-
-  if ((a->neg && b->neg) || (!a->neg && !b->neg)) op = bc_num_alg_a;
-  else op = bc_num_alg_s;
-
+  BcNumBinaryFunc op = (!!a->neg == !!b->neg) ? bc_num_alg_a : bc_num_alg_s;
   return bc_num_binary(a, b, result, false, op, a->len + b->len + 1);
 }
 
 BcStatus bc_num_sub(BcNum *a, BcNum *b, BcNum *result, size_t scale) {
-
-  BcNumBinaryFunc op;
-
   (void) scale;
-
-  if (a->neg && b->neg) op = bc_num_alg_s;
-  else if (a->neg || b->neg) op = bc_num_alg_a;
-  else op = bc_num_alg_s;
-
+  BcNumBinaryFunc op = (!!a->neg == !!b->neg) ? bc_num_alg_s : bc_num_alg_a;
   return bc_num_binary(a, b, result, true, op, a->len + b->len + 1);
 }
 
@@ -3317,20 +3300,14 @@ void bc_num_ten(BcNum *n) {
   n->num[1] = 1;
 }
 
-BcStatus bc_func_insert(BcFunc *func, char *name, bool var, BcVec *vec) {
+BcStatus bc_func_insert(BcFunc *func, char *name, bool var) {
 
   BcStatus status;
   BcAuto a;
   size_t i;
   BcAuto *ptr;
 
-  if (!func || !name || !vec) return BC_STATUS_INVALID_PARAM;
-
-  for (i = 0; i < func->params.len; ++i) {
-    ptr = bc_vec_item(&func->params, i);
-    if (!strcmp(name, ptr->name))
-      return BC_STATUS_PARSE_DUPLICATE_LOCAL;
-  }
+  if (!func || !name) return BC_STATUS_INVALID_PARAM;
 
   for (i = 0; i < func->autos.len; ++i) {
     ptr = bc_vec_item(&func->autos, i);
@@ -3338,11 +3315,9 @@ BcStatus bc_func_insert(BcFunc *func, char *name, bool var, BcVec *vec) {
       return BC_STATUS_PARSE_DUPLICATE_LOCAL;
   }
 
-  status = bc_auto_init(&a, name, var);
+  bc_auto_init(&a, name, var);
 
-  if (status) return status;
-
-  status = bc_vec_push(vec, &a);
+  status = bc_vec_push(&func->autos, &a);
 
   if (status) return status;
 
@@ -3359,29 +3334,31 @@ BcStatus bc_func_init(BcFunc *func) {
 
   if (status) return status;
 
-  status = bc_vec_init(&func->params, sizeof(BcAuto), bc_auto_free);
-
-  if (status) goto param_err;
-
   status = bc_vec_init(&func->autos, sizeof(BcAuto), bc_auto_free);
 
   if (status) goto auto_err;
+
+  status = bc_vec_init(&func->auto_stack, sizeof(BcLocal), bc_local_free);
+
+  if (status) goto auto_stack_err;
 
   status = bc_vec_init(&func->labels, sizeof(size_t), NULL);
 
   if (status) goto label_err;
 
+  func->num_params = 0;
+
   return BC_STATUS_SUCCESS;
 
 label_err:
 
+  bc_vec_free(&func->auto_stack);
+
+auto_stack_err:
+
   bc_vec_free(&func->autos);
 
 auto_err:
-
-  bc_vec_free(&func->params);
-
-param_err:
 
   bc_vec_free(&func->code);
 
@@ -3397,34 +3374,9 @@ void bc_func_free(void *func) {
   if (f == NULL) return;
 
   bc_vec_free(&f->code);
-  bc_vec_free(&f->params);
   bc_vec_free(&f->autos);
+  bc_vec_free(&f->auto_stack);
   bc_vec_free(&f->labels);
-}
-
-BcStatus bc_var_init(void *var) {
-
-  if (!var) return BC_STATUS_INVALID_PARAM;
-
-  return bc_num_init((BcVar*) var, BC_NUM_DEF_SIZE);
-}
-
-void bc_var_free(void *var) {
-
-  BcVar *v;
-
-  v = (BcVar*) var;
-
-  if (v == NULL) return;
-
-  bc_num_free(v);
-}
-
-BcStatus bc_array_init(void *array) {
-
-  if (!array) return BC_STATUS_INVALID_PARAM;
-
-  return bc_vec_init((BcArray*) array, sizeof(BcNum), bc_num_free);
 }
 
 BcStatus bc_array_copy(void *dest, void *src) {
@@ -3434,11 +3386,11 @@ BcStatus bc_array_copy(void *dest, void *src) {
   BcNum *dnum;
   BcNum *snum;
 
-  BcArray *d;
-  BcArray *s;
+  BcVec *d;
+  BcVec *s;
 
-  d = (BcArray*) dest;
-  s = (BcArray*) src;
+  d = (BcVec*) dest;
+  s = (BcVec*) src;
 
   if (!d || !s || d == s || d->size != s->size || d->dtor != s->dtor)
     return BC_STATUS_INVALID_PARAM;
@@ -3476,18 +3428,7 @@ BcStatus bc_array_copy(void *dest, void *src) {
   return status;
 }
 
-BcStatus bc_array_zero(BcArray *a) {
-
-  BcStatus status;
-
-  status = BC_STATUS_SUCCESS;
-
-  while (!status && a->len) status = bc_vec_pop(a);
-
-  return status;
-}
-
-BcStatus bc_array_expand(BcArray *a, size_t len) {
+BcStatus bc_array_expand(BcVec *a, size_t len) {
 
   BcStatus status;
 
@@ -3514,24 +3455,9 @@ BcStatus bc_array_expand(BcArray *a, size_t len) {
   return status;
 }
 
-void bc_array_free(void *array) {
-
-  BcArray *a;
-
-  a = (BcArray*) array;
-
-  if (a == NULL) return;
-
-  bc_vec_free(a);
-}
-
 void bc_string_free(void *string) {
-
-  char *s;
-
-  s = *((char**) string);
-
-  free(s);
+  char **s = string;
+  if (s) free(*s);
 }
 
 int bc_entry_cmp(void *entry1, void *entry2) {
@@ -3559,55 +3485,27 @@ int bc_entry_cmp(void *entry1, void *entry2) {
 }
 
 void bc_entry_free(void *entry) {
-
-  BcEntry *e;
-
-  if (!entry) return;
-
-  e = (BcEntry*) entry;
-
-  free(e->name);
+  BcEntry *e = entry;
+  if (e) free(e->name);
 }
 
-BcStatus bc_auto_init(void *auto1, char *name, bool var) {
-
-  BcStatus status;
-  BcAuto *a;
-
-  if (!auto1) return BC_STATUS_INVALID_PARAM;
-
-  a = (BcAuto*) auto1;
-
+void bc_auto_init(BcAuto *a, char *name, bool var) {
+  if (!a) return;
   a->var = var;
   a->name = name;
-
-  if (var) status = bc_num_init(&a->data.num, BC_NUM_DEF_SIZE);
-  else status = bc_vec_init(&a->data.array, sizeof(BcNum), bc_num_free);
-
-  return status;
 }
 
 void bc_auto_free(void *auto1) {
-
-  BcAuto *a;
-
-  if (!auto1) return;
-
-  a = (BcAuto*) auto1;
-
+  BcAuto *a = (BcAuto*) auto1;
+  if (!a) return;
   if (a->name) free(a->name);
-
-  if (a->var) bc_num_free(&a->data.num);
-  else bc_vec_free(&a->data.array);
 }
 
 void bc_result_free(void *result) {
 
-  BcResult *r;
+  BcResult *r = (BcResult*) result;
 
-  if (!result) return;
-
-  r = (BcResult*) result;
+  if (!r) return;
 
   switch (r->type) {
 
@@ -3634,26 +3532,34 @@ void bc_result_free(void *result) {
 }
 
 void bc_constant_free(void *constant) {
-
-  char *c;
-
-  if (!constant) return;
-
-  c = *((char**) constant);
-
-  free(c);
+  char **c = constant;
+  if (c) free(*c);
 }
 
-long bc_io_frag(char *buf, long len, int term, BcIoGetc bcgetc, void *ctx) {
+BcStatus bc_local_init(BcLocal *l, bool var) {
+  if (!l) return BC_STATUS_INVALID_PARAM;
+  l->var = var;
+  if (var) return bc_num_init(&l->data.num, BC_NUM_DEF_SIZE);
+  else return bc_vec_init(&l->data.array, sizeof(BcNum), bc_num_free);
+}
+
+void bc_local_free(void *local) {
+  BcLocal *l = local;
+  if (!l) return;
+  if (l->var) bc_num_free(&l->data.num);
+  else bc_vec_free(&l->data.array);
+}
+
+long bc_io_frag(char *buf, long len, int term, BcIoGetc bc_getc, void *ctx) {
 
   long i;
   int c;
 
-  if (!buf || len < 0 || !bcgetc) return -1;
+  if (!buf || len < 0 || !bc_getc) return -1;
 
   for (c = (~term) | 1, i = 0; i < len; i++) {
 
-    if (c == (int) '\0' || c == term || (c = bcgetc(ctx)) == EOF) {
+    if (c == (int) '\0' || c == term || (c = bc_getc(ctx)) == EOF) {
       buf[i] = '\0';
       break;
     }
@@ -3806,9 +3712,7 @@ BcStatus bc_lex_whitespace(BcLex *lex, BcLexToken *token) {
 BcStatus bc_lex_string(BcLex *lex, BcLexToken *token) {
 
   const char *start;
-  uint32_t newlines;
-  size_t len;
-  size_t i, j;
+  size_t newlines, len, i, j;
   char c;
 
   newlines = 0;
@@ -3923,7 +3827,7 @@ BcStatus bc_lex_number(BcLex *lex, BcLexToken *token, char start) {
 
   len = i + 1;
 
-  token->string = malloc(len - backslashes + 1);
+  token->string = malloc(len - backslashes * 2 + 1);
 
   if (!token->string) return BC_STATUS_MALLOC_FAIL;
 
@@ -3948,7 +3852,7 @@ BcStatus bc_lex_number(BcLex *lex, BcLexToken *token, char start) {
     token->string[j - (hits * 2)] = c;
   }
 
-  token->string[len] = '\0';
+  token->string[j - (hits * 2)] = '\0';
 
   lex->idx += i;
 
@@ -3971,7 +3875,7 @@ BcStatus bc_lex_name(BcLex *lex, BcLexToken *token) {
       token->type = BC_LEX_KEY_AUTO + i;
 
       if (!bc_lex_keywords[i].posix &&
-          (status = bc_posix_error(BC_STATUS_POSIX_INVALID_KEYWORD,
+          (status = bc_posix_error(BC_STATUS_POSIX_BAD_KEYWORD,
                                    lex->file, lex->line,
                                    bc_lex_keywords[i].name)))
       {
@@ -4133,7 +4037,7 @@ BcStatus bc_lex_token(BcLex *lex, BcLexToken *token) {
       }
       else {
         token->type = BC_LEX_INVALID;
-        status = BC_STATUS_LEX_INVALID_TOKEN;
+        status = BC_STATUS_LEX_BAD_CHARACTER;
       }
 
       break;
@@ -4392,7 +4296,7 @@ BcStatus bc_lex_token(BcLex *lex, BcLexToken *token) {
       }
       else {
         token->type = BC_LEX_INVALID;
-        status = BC_STATUS_LEX_INVALID_TOKEN;
+        status = BC_STATUS_LEX_BAD_CHARACTER;
       }
 
       break;
@@ -4407,7 +4311,7 @@ BcStatus bc_lex_token(BcLex *lex, BcLexToken *token) {
     default:
     {
       token->type = BC_LEX_INVALID;
-      status = BC_STATUS_LEX_INVALID_TOKEN;
+      status = BC_STATUS_LEX_BAD_CHARACTER;
       break;
     }
   }
@@ -4515,28 +4419,20 @@ BcStatus bc_parse_pushName(BcVec *code, char *name) {
 BcStatus bc_parse_pushIndex(BcVec *code, size_t idx) {
 
   BcStatus status;
-  uint8_t amt;
+  uint8_t amt, i;
   uint8_t nums[sizeof(size_t)];
-  uint32_t i;
 
-  amt = 0;
-  i = 0;
-
-  while (idx) {
+  for (amt = 0; idx; ++amt) {
     nums[amt] = (uint8_t) idx;
-    idx &= ~(0xFF);
+    idx &= ~(UINT8_MAX);
     idx >>= sizeof(uint8_t) * CHAR_BIT;
-    ++amt;
   }
 
   status = bc_vec_pushByte(code, amt);
 
   if (status) return status;
 
-  while (!status && i < amt) {
-    status = bc_vec_pushByte(code, nums[i]);
-    ++i;
-  }
+  for (i = 0; !status && i < amt; ++i) status = bc_vec_pushByte(code, nums[i]);
 
   return status;
 }
@@ -4555,7 +4451,7 @@ BcStatus bc_parse_operator(BcParse *parse, BcVec *code, BcVec *ops,
   rp = bc_parse_ops[t].prec;
   rleft = bc_parse_ops[t].left;
 
-  if (ops->len != 0) {
+  if (ops->len) {
 
     ptr = bc_vec_top(ops);
     top = *ptr;
@@ -4577,7 +4473,7 @@ BcStatus bc_parse_operator(BcParse *parse, BcVec *code, BcVec *ops,
         *num_exprs -= top != BC_LEX_OP_BOOL_NOT &&
                       top != BC_LEX_OP_NEGATE ? 1 : 0;
 
-        if (ops->len == 0) break;
+        if (!ops->len) break;
 
         ptr = bc_vec_top(ops);
         top = *ptr;
@@ -4611,7 +4507,7 @@ BcStatus bc_parse_rightParen(BcParse *parse, BcVec *code,
   BcLexTokenType top;
   BcLexTokenType *ptr;
 
-  if (ops->len == 0) return BC_STATUS_PARSE_INVALID_EXPR;
+  if (!ops->len) return BC_STATUS_PARSE_BAD_EXPR;
 
   ptr = bc_vec_top(ops);
   top = *ptr;
@@ -4629,7 +4525,7 @@ BcStatus bc_parse_rightParen(BcParse *parse, BcVec *code,
     *nexs -= top != BC_LEX_OP_BOOL_NOT &&
              top != BC_LEX_OP_NEGATE ? 1 : 0;
 
-    if (ops->len == 0) return BC_STATUS_PARSE_INVALID_EXPR;
+    if (!ops->len) return BC_STATUS_PARSE_BAD_EXPR;
 
     ptr = bc_vec_top(ops);
     top = *ptr;
@@ -4684,7 +4580,7 @@ BcStatus bc_parse_params(BcParse *parse, BcVec *code, uint8_t flags) {
 
   if (status) return status;
 
-  if (comma) return BC_STATUS_PARSE_INVALID_TOKEN;
+  if (comma) return BC_STATUS_PARSE_BAD_TOKEN;
 
   status = bc_vec_pushByte(code, BC_INST_CALL);
 
@@ -4708,7 +4604,7 @@ BcStatus bc_parse_call(BcParse *parse, BcVec *code,
   if (status) goto err;
 
   if (parse->token.type != BC_LEX_RIGHT_PAREN) {
-    status = BC_STATUS_PARSE_INVALID_TOKEN;
+    status = BC_STATUS_PARSE_BAD_TOKEN;
     goto err;
   }
 
@@ -4766,7 +4662,7 @@ BcStatus bc_parse_expr_name(BcParse *parse, BcVec *code,
     if (status) goto err;
 
     if (parse->token.type != BC_LEX_RIGHT_BRACKET) {
-      status = BC_STATUS_PARSE_INVALID_TOKEN;
+      status = BC_STATUS_PARSE_BAD_TOKEN;
       goto err;
     }
 
@@ -4779,7 +4675,7 @@ BcStatus bc_parse_expr_name(BcParse *parse, BcVec *code,
   else if (parse->token.type == BC_LEX_LEFT_PAREN) {
 
     if (flags & BC_PARSE_EXPR_NO_CALL) {
-      status = BC_STATUS_PARSE_INVALID_TOKEN;
+      status = BC_STATUS_PARSE_BAD_TOKEN;
       goto err;
     }
 
@@ -4816,14 +4712,14 @@ BcStatus bc_parse_read(BcParse *parse, BcVec *code) {
   if (status) return status;
 
   if (parse->token.type != BC_LEX_LEFT_PAREN)
-    return BC_STATUS_PARSE_INVALID_TOKEN;
+    return BC_STATUS_PARSE_BAD_TOKEN;
 
   status = bc_lex_next(&parse->lex, &parse->token);
 
   if (status) return status;
 
   if (parse->token.type != BC_LEX_RIGHT_PAREN)
-    return BC_STATUS_PARSE_INVALID_TOKEN;
+    return BC_STATUS_PARSE_BAD_TOKEN;
 
   status = bc_vec_pushByte(code, BC_INST_READ);
 
@@ -4843,7 +4739,7 @@ BcStatus bc_parse_builtin(BcParse *parse, BcVec *code,
   if (status) return status;
 
   if (parse->token.type != BC_LEX_LEFT_PAREN)
-    return BC_STATUS_PARSE_INVALID_TOKEN;
+    return BC_STATUS_PARSE_BAD_TOKEN;
 
   status = bc_lex_next(&parse->lex, &parse->token);
 
@@ -4854,7 +4750,7 @@ BcStatus bc_parse_builtin(BcParse *parse, BcVec *code,
   if (status) return status;
 
   if (parse->token.type != BC_LEX_RIGHT_PAREN)
-    return BC_STATUS_PARSE_INVALID_TOKEN;
+    return BC_STATUS_PARSE_BAD_TOKEN;
 
   inst = type == BC_LEX_KEY_LENGTH ? BC_INST_LENGTH : BC_INST_SQRT;
 
@@ -4892,7 +4788,7 @@ BcStatus bc_parse_scale(BcParse *parse, BcVec *code,
   if (status) return status;
 
   if (parse->token.type != BC_LEX_RIGHT_PAREN)
-    return BC_STATUS_PARSE_INVALID_TOKEN;
+    return BC_STATUS_PARSE_BAD_TOKEN;
 
   status = bc_vec_pushByte(code, BC_INST_SCALE_FUNC);
 
@@ -4993,7 +4889,7 @@ BcStatus bc_parse_incdec(BcParse *parse, BcVec *code, BcExprType *prev,
         if (status) return status;
 
         if (parse->token.type == BC_LEX_LEFT_PAREN)
-          return BC_STATUS_PARSE_INVALID_TOKEN;
+          return BC_STATUS_PARSE_BAD_TOKEN;
 
         status = bc_vec_pushByte(code, BC_INST_PUSH_SCALE);
 
@@ -5002,7 +4898,7 @@ BcStatus bc_parse_incdec(BcParse *parse, BcVec *code, BcExprType *prev,
 
       default:
       {
-        return BC_STATUS_PARSE_INVALID_TOKEN;
+        return BC_STATUS_PARSE_BAD_TOKEN;
       }
     }
 
@@ -5036,7 +4932,7 @@ BcStatus bc_parse_minus(BcParse *parse, BcVec *exs, BcVec *ops,
       type != BC_LEX_OP_INC && type != BC_LEX_OP_DEC &&
       type != BC_LEX_OP_BOOL_NOT)
   {
-    return BC_STATUS_PARSE_INVALID_TOKEN;
+    return BC_STATUS_PARSE_BAD_TOKEN;
   }
 
   type = rparen || etype == BC_EXPR_INC_POST || etype == BC_EXPR_DEC_POST ||
@@ -5059,6 +4955,9 @@ BcStatus bc_parse_string(BcParse *parse, BcVec *code) {
 
   BcStatus status;
   size_t len;
+
+  if (strlen(parse->token.string) > (unsigned long) parse->program->string_max)
+    return BC_STATUS_EXEC_STRING_LEN;
 
   len = parse->program->strings.len;
 
@@ -5094,7 +4993,7 @@ BcStatus bc_parse_print(BcParse *parse, BcVec *code) {
   type = parse->token.type;
 
   if (type == BC_LEX_SEMICOLON || type == BC_LEX_NEWLINE)
-    return BC_STATUS_PARSE_INVALID_PRINT;
+    return BC_STATUS_PARSE_BAD_PRINT;
 
   comma = false;
 
@@ -5142,7 +5041,7 @@ BcStatus bc_parse_print(BcParse *parse, BcVec *code) {
 
   if (status) return status;
 
-  if (comma) return BC_STATUS_PARSE_INVALID_TOKEN;
+  if (comma) return BC_STATUS_PARSE_BAD_TOKEN;
 
   return bc_lex_next(&parse->lex, &parse->token);
 }
@@ -5151,7 +5050,7 @@ BcStatus bc_parse_return(BcParse *parse, BcVec *code) {
 
   BcStatus status;
 
-  if (!BC_PARSE_FUNC(parse)) return BC_STATUS_PARSE_INVALID_TOKEN;
+  if (!BC_PARSE_FUNC(parse)) return BC_STATUS_PARSE_BAD_TOKEN;
 
   status = bc_lex_next(&parse->lex, &parse->token);
 
@@ -5189,7 +5088,7 @@ BcStatus bc_parse_endBody(BcParse *parse, BcVec *code, bool brace) {
   uint8_t *flag_ptr;
 
   if (parse->flags.len <= 1 || parse->num_braces == 0)
-    return BC_STATUS_PARSE_INVALID_TOKEN;
+    return BC_STATUS_PARSE_BAD_TOKEN;
 
   flag_ptr = bc_vec_top(&parse->flags);
 
@@ -5199,7 +5098,7 @@ BcStatus bc_parse_endBody(BcParse *parse, BcVec *code, bool brace) {
 
     if (parse->token.type == BC_LEX_RIGHT_BRACE) {
 
-      if (!parse->num_braces) return BC_STATUS_PARSE_INVALID_TOKEN;
+      if (!parse->num_braces) return BC_STATUS_PARSE_BAD_TOKEN;
 
       --parse->num_braces;
 
@@ -5207,7 +5106,7 @@ BcStatus bc_parse_endBody(BcParse *parse, BcVec *code, bool brace) {
 
       if (status) return status;
     }
-    else return BC_STATUS_PARSE_INVALID_TOKEN;
+    else return BC_STATUS_PARSE_BAD_TOKEN;
   }
 
   if (BC_PARSE_IF(parse)) {
@@ -5327,7 +5226,7 @@ BcStatus bc_parse_if(BcParse *parse, BcVec *code) {
   if (status) return status;
 
   if (parse->token.type != BC_LEX_LEFT_PAREN)
-    return BC_STATUS_PARSE_INVALID_TOKEN;
+    return BC_STATUS_PARSE_BAD_TOKEN;
 
   status = bc_lex_next(&parse->lex, &parse->token);
 
@@ -5338,7 +5237,7 @@ BcStatus bc_parse_if(BcParse *parse, BcVec *code) {
   if (status) return status;
 
   if (parse->token.type != BC_LEX_RIGHT_PAREN)
-    return BC_STATUS_PARSE_INVALID_TOKEN;
+    return BC_STATUS_PARSE_BAD_TOKEN;
 
   status = bc_lex_next(&parse->lex, &parse->token);
 
@@ -5377,7 +5276,7 @@ BcStatus bc_parse_else(BcParse *parse, BcVec *code) {
   BcInstPtr ip;
   BcFunc *func;
 
-  if (!BC_PARSE_IF_END(parse)) return BC_STATUS_PARSE_INVALID_TOKEN;
+  if (!BC_PARSE_IF_END(parse)) return BC_STATUS_PARSE_BAD_TOKEN;
 
   func = bc_vec_item(&parse->program->funcs, parse->func);
 
@@ -5426,7 +5325,7 @@ BcStatus bc_parse_while(BcParse *parse, BcVec *code) {
   if (status) return status;
 
   if (parse->token.type != BC_LEX_LEFT_PAREN)
-    return BC_STATUS_PARSE_INVALID_TOKEN;
+    return BC_STATUS_PARSE_BAD_TOKEN;
 
   status = bc_lex_next(&parse->lex, &parse->token);
 
@@ -5463,7 +5362,7 @@ BcStatus bc_parse_while(BcParse *parse, BcVec *code) {
   if (status) return status;
 
   if (parse->token.type != BC_LEX_RIGHT_PAREN)
-    return BC_STATUS_PARSE_INVALID_TOKEN;
+    return BC_STATUS_PARSE_BAD_TOKEN;
 
   status = bc_lex_next(&parse->lex, &parse->token);
 
@@ -5495,7 +5394,7 @@ BcStatus bc_parse_for(BcParse *parse, BcVec *code) {
   if (status) return status;
 
   if (parse->token.type != BC_LEX_LEFT_PAREN)
-    return BC_STATUS_PARSE_INVALID_TOKEN;
+    return BC_STATUS_PARSE_BAD_TOKEN;
 
   status = bc_lex_next(&parse->lex, &parse->token);
 
@@ -5510,7 +5409,7 @@ BcStatus bc_parse_for(BcParse *parse, BcVec *code) {
   if (status) return status;
 
   if (parse->token.type != BC_LEX_SEMICOLON)
-    return BC_STATUS_PARSE_INVALID_TOKEN;
+    return BC_STATUS_PARSE_BAD_TOKEN;
 
   status = bc_lex_next(&parse->lex, &parse->token);
 
@@ -5537,7 +5436,7 @@ BcStatus bc_parse_for(BcParse *parse, BcVec *code) {
   if (status) return status;
 
   if (parse->token.type != BC_LEX_SEMICOLON)
-    return BC_STATUS_PARSE_INVALID_TOKEN;
+    return BC_STATUS_PARSE_BAD_TOKEN;
 
   status = bc_lex_next(&parse->lex, &parse->token);
 
@@ -5583,7 +5482,7 @@ BcStatus bc_parse_for(BcParse *parse, BcVec *code) {
   }
 
   if (parse->token.type != BC_LEX_RIGHT_PAREN)
-    return BC_STATUS_PARSE_INVALID_TOKEN;
+    return BC_STATUS_PARSE_BAD_TOKEN;
 
   status = bc_vec_pushByte(code, BC_INST_JUMP);
 
@@ -5625,7 +5524,7 @@ BcStatus bc_parse_loopExit(BcParse *parse, BcVec *code,
   size_t idx;
 
   if (!BC_PARSE_LOOP(parse))
-    return BC_STATUS_PARSE_INVALID_TOKEN;
+    return BC_STATUS_PARSE_BAD_TOKEN;
 
   if (type == BC_LEX_KEY_BREAK) {
 
@@ -5670,7 +5569,7 @@ BcStatus bc_parse_loopExit(BcParse *parse, BcVec *code,
   if (parse->token.type != BC_LEX_SEMICOLON &&
       parse->token.type != BC_LEX_NEWLINE)
   {
-    return BC_STATUS_PARSE_INVALID_TOKEN;
+    return BC_STATUS_PARSE_BAD_TOKEN;
   }
 
   return bc_lex_next(&parse->lex, &parse->token);
@@ -5693,7 +5592,7 @@ BcStatus bc_parse_func(BcParse *parse) {
   name = parse->token.string;
 
   if (parse->token.type != BC_LEX_NAME) {
-    status = BC_STATUS_PARSE_INVALID_FUNC;
+    status = BC_STATUS_PARSE_BAD_FUNC;
     goto err;
   }
 
@@ -5717,7 +5616,7 @@ BcStatus bc_parse_func(BcParse *parse) {
   if (status) return status;
 
   if (parse->token.type != BC_LEX_LEFT_PAREN)
-    return BC_STATUS_PARSE_INVALID_FUNC;
+    return BC_STATUS_PARSE_BAD_FUNC;
 
   status = bc_lex_next(&parse->lex, &parse->token);
 
@@ -5731,9 +5630,11 @@ BcStatus bc_parse_func(BcParse *parse) {
   while (!status && type != BC_LEX_RIGHT_PAREN) {
 
     if (type != BC_LEX_NAME) {
-      status = BC_STATUS_PARSE_INVALID_FUNC;
+      status = BC_STATUS_PARSE_BAD_FUNC;
       goto err;
     }
+
+    ++fptr->num_params;
 
     status = bc_lex_next(&parse->lex, &parse->token);
 
@@ -5746,7 +5647,7 @@ BcStatus bc_parse_func(BcParse *parse) {
       if (status) goto err;
 
       if (parse->token.type != BC_LEX_RIGHT_BRACKET)
-        return BC_STATUS_PARSE_INVALID_FUNC;
+        return BC_STATUS_PARSE_BAD_FUNC;
 
       status = bc_lex_next(&parse->lex, &parse->token);
 
@@ -5767,7 +5668,7 @@ BcStatus bc_parse_func(BcParse *parse) {
     }
     else comma = false;
 
-    status = bc_func_insert(fptr, name, var, &fptr->params);
+    status = bc_func_insert(fptr, name, var);
 
     if (status) goto err;
 
@@ -5775,7 +5676,7 @@ BcStatus bc_parse_func(BcParse *parse) {
     name = parse->token.string;
   }
 
-  if (comma) return BC_STATUS_PARSE_INVALID_FUNC;
+  if (comma) return BC_STATUS_PARSE_BAD_FUNC;
 
   flags = BC_PARSE_FLAG_FUNC | BC_PARSE_FLAG_FUNC_INNER | BC_PARSE_FLAG_BODY;
 
@@ -5810,7 +5711,7 @@ BcStatus bc_parse_auto(BcParse *parse) {
   bool one;
   BcFunc *func;
 
-  if (!parse->auto_part) return BC_STATUS_PARSE_INVALID_TOKEN;
+  if (!parse->auto_part) return BC_STATUS_PARSE_BAD_TOKEN;
 
   parse->auto_part = false;
 
@@ -5844,7 +5745,7 @@ BcStatus bc_parse_auto(BcParse *parse) {
       if (status) goto err;
 
       if (parse->token.type != BC_LEX_RIGHT_BRACKET)
-        return BC_STATUS_PARSE_INVALID_FUNC;
+        return BC_STATUS_PARSE_BAD_FUNC;
 
       status = bc_lex_next(&parse->lex, &parse->token);
 
@@ -5863,7 +5764,7 @@ BcStatus bc_parse_auto(BcParse *parse) {
     }
     else comma = false;
 
-    status = bc_func_insert(func, name, var, &func->autos);
+    status = bc_func_insert(func, name, var);
 
     if (status) goto err;
 
@@ -5872,12 +5773,12 @@ BcStatus bc_parse_auto(BcParse *parse) {
 
   if (status) return status;
 
-  if (comma) return BC_STATUS_PARSE_INVALID_FUNC;
+  if (comma) return BC_STATUS_PARSE_BAD_FUNC;
 
   if (!one) return BC_STATUS_PARSE_NO_AUTO;
 
   if (type != BC_LEX_NEWLINE && type != BC_LEX_SEMICOLON)
-    return BC_STATUS_PARSE_INVALID_TOKEN;
+    return BC_STATUS_PARSE_BAD_TOKEN;
 
   return bc_lex_next(&parse->lex, &parse->token);
 
@@ -5905,7 +5806,7 @@ BcStatus bc_parse_body(BcParse *parse, BcVec *code, bool brace) {
   flags = *flag_ptr;
 
   if (flags & BC_PARSE_FLAG_FUNC_INNER) {
-    if (!brace) return BC_STATUS_PARSE_INVALID_TOKEN;
+    if (!brace) return BC_STATUS_PARSE_BAD_TOKEN;
     parse->auto_part = true;
     status = bc_lex_next(&parse->lex, &parse->token);
   }
@@ -5977,13 +5878,13 @@ BcStatus bc_parse_semicolonList(BcParse *parse, BcVec *code) {
 
     case BC_LEX_EOF:
     {
-      if (parse->flags.len > 0) status = BC_STATUS_PARSE_EOF;
+      if (parse->flags.len > 0) status = BC_STATUS_LEX_BAD_CHARACTER;
       break;
     }
 
     default:
     {
-      status = BC_STATUS_PARSE_INVALID_TOKEN;
+      status = BC_STATUS_PARSE_BAD_TOKEN;
       break;
     }
   }
@@ -6008,7 +5909,7 @@ BcStatus bc_parse_semicolonListEnd(BcParse *parse, BcVec *code) {
   else if (parse->token.type == BC_LEX_EOF)
     status = BC_STATUS_SUCCESS;
   else
-    status = BC_STATUS_PARSE_INVALID_TOKEN;
+    status = BC_STATUS_PARSE_BAD_TOKEN;
 
   return status;
 }
@@ -6035,7 +5936,7 @@ BcStatus bc_parse_stmt(BcParse *parse, BcVec *code) {
     {
       ++parse->num_braces;
 
-      if (!BC_PARSE_BODY(parse)) return BC_STATUS_PARSE_INVALID_TOKEN;
+      if (!BC_PARSE_BODY(parse)) return BC_STATUS_PARSE_BAD_TOKEN;
 
       status = bc_lex_next(&parse->lex, &parse->token);
 
@@ -6188,7 +6089,7 @@ BcStatus bc_parse_stmt(BcParse *parse, BcVec *code) {
 
     default:
     {
-      status = BC_STATUS_PARSE_INVALID_TOKEN;
+      status = BC_STATUS_PARSE_BAD_TOKEN;
       break;
     }
   }
@@ -6283,7 +6184,7 @@ BcStatus bc_parse_parse(BcParse *parse) {
     case BC_LEX_KEY_DEFINE:
     {
       if (!BC_PARSE_CAN_EXEC(parse))
-        return BC_STATUS_PARSE_INVALID_TOKEN;
+        return BC_STATUS_PARSE_BAD_TOKEN;
 
       status = bc_parse_func(parse);
 
@@ -6292,7 +6193,7 @@ BcStatus bc_parse_parse(BcParse *parse) {
 
     case BC_LEX_EOF:
     {
-      status = BC_STATUS_PARSE_EOF;
+      status = BC_STATUS_LEX_EOF;
       break;
     }
 
@@ -6406,7 +6307,7 @@ BcStatus bc_parse_expr(BcParse *parse, BcVec *code, uint8_t flags) {
             prev != BC_EXPR_SCALE && prev != BC_EXPR_IBASE &&
             prev != BC_EXPR_OBASE && prev != BC_EXPR_LAST)
         {
-          status = BC_STATUS_PARSE_INVALID_ASSIGN;
+          status = BC_STATUS_PARSE_BAD_ASSIGN;
           break;
         }
         // Fallthrough.
@@ -6456,7 +6357,7 @@ BcStatus bc_parse_expr(BcParse *parse, BcVec *code, uint8_t flags) {
           break;
         }
         else if (!paren_expr) {
-          status = BC_STATUS_PARSE_INVALID_EXPR;
+          status = BC_STATUS_PARSE_BAD_EXPR;
           goto err;
         }
 
@@ -6574,7 +6475,7 @@ BcStatus bc_parse_expr(BcParse *parse, BcVec *code, uint8_t flags) {
 
       default:
       {
-        status = BC_STATUS_PARSE_INVALID_TOKEN;
+        status = BC_STATUS_PARSE_BAD_TOKEN;
         break;
       }
     }
@@ -6598,7 +6499,7 @@ BcStatus bc_parse_expr(BcParse *parse, BcVec *code, uint8_t flags) {
     assign = top >= BC_LEX_OP_ASSIGN_POWER && top <= BC_LEX_OP_ASSIGN;
 
     if (top == BC_LEX_LEFT_PAREN || top == BC_LEX_RIGHT_PAREN) {
-      status = BC_STATUS_PARSE_INVALID_EXPR;
+      status = BC_STATUS_PARSE_BAD_EXPR;
       goto err;
     }
 
@@ -6614,7 +6515,7 @@ BcStatus bc_parse_expr(BcParse *parse, BcVec *code, uint8_t flags) {
   }
 
   if (nexprs != 1) {
-    status = BC_STATUS_PARSE_INVALID_EXPR;
+    status = BC_STATUS_PARSE_BAD_EXPR;
     goto err;
   }
 
@@ -6625,7 +6526,7 @@ BcStatus bc_parse_expr(BcParse *parse, BcVec *code, uint8_t flags) {
     goto err;
   }
   else if (nrelops > 1 &&
-           (status = bc_posix_error(BC_STATUS_POSIX_REL_OUTSIDE,
+           (status = bc_posix_error(BC_STATUS_POSIX_MULTIPLE_REL,
                                     parse->lex.file, parse->lex.line, NULL)))
   {
     goto err;
@@ -6645,47 +6546,6 @@ err:
   return status;
 }
 
-BcStatus bc_program_searchVec(const BcVec *vec, const BcResult *result,
-                                     BcNum **ret, uint8_t flags)
-{
-  BcStatus status;
-  BcAuto *a;
-  size_t i;
-
-  for (i = 0; i < vec->len; ++i) {
-
-    a = bc_vec_item(vec, i);
-
-    if (!a) return BC_STATUS_EXEC_UNDEFINED_VAR;
-
-    if (!strcmp(a->name, result->data.id.name)) {
-
-      uint8_t cond;
-
-      cond = flags & BC_PROGRAM_SEARCH_VAR;
-
-      if (!a->var != !cond)
-        return BC_STATUS_EXEC_INVALID_TYPE;
-
-      if (cond) *ret = &a->data.num;
-      else if (flags & BC_PROGRAM_SEARCH_ARRAY_ONLY)
-        *ret = (BcNum*) &a->data.array;
-      else {
-
-        status = bc_array_expand(&a->data.array, result->data.id.idx + 1);
-
-        if (status) return status;
-
-        *ret = bc_vec_item(&a->data.array, result->data.id.idx);
-      }
-
-      return BC_STATUS_SUCCESS;
-    }
-  }
-
-  return BC_STATUS_EXEC_UNDEFINED_VAR;
-}
-
 BcStatus bc_program_search(BcProgram *p, BcResult *result,
                                   BcNum **ret, uint8_t flags)
 {
@@ -6697,33 +6557,50 @@ BcStatus bc_program_search(BcProgram *p, BcResult *result,
   BcVecO *veco;
   size_t idx;
   BcEntry *entry_ptr;
-
-  // We use this as either a number or an array, since
-  // a BcAuto has a union inside that has both.
-  BcAuto a;
+  BcAuto *a;
 
   ip = bc_vec_top(&p->stack);
 
-  if (!ip) return BC_STATUS_EXEC_INVALID_STACK;
+  if (!ip) return BC_STATUS_EXEC_BAD_STACK;
 
   if (ip->func == BC_PROGRAM_READ_FUNC) {
     ip = bc_vec_item_rev(&p->stack, 1);
-    if (!ip) return BC_STATUS_EXEC_INVALID_STACK;
+    if (!ip) return BC_STATUS_EXEC_BAD_STACK;
   }
 
   if (ip->func != BC_PROGRAM_MAIN_FUNC) {
 
     func = bc_vec_item(&p->funcs, ip->func);
 
-    if (!func) return BC_STATUS_EXEC_INVALID_STACK;
+    if (!func) return BC_STATUS_EXEC_BAD_STACK;
 
-    status = bc_program_searchVec(&func->params, result, ret, flags);
+    for (idx = 0; idx < func->autos.len; ++idx) {
+      a = bc_vec_item(&func->autos, idx);
+      if (!a) return BC_STATUS_EXEC_UNDEFINED_VAR;
+      if (!strcmp(a->name, result->data.id.name)) {
 
-    if (status != BC_STATUS_EXEC_UNDEFINED_VAR) return status;
+        BcLocal *l;
+        uint8_t cond;
 
-    status = bc_program_searchVec(&func->autos, result, ret, flags);
+        cond = flags & BC_PROGRAM_SEARCH_VAR;
 
-    if (status != BC_STATUS_EXEC_UNDEFINED_VAR) return status;
+        if (!a->var != !cond) return BC_STATUS_EXEC_BAD_TYPE;
+
+        l = bc_vec_item_rev(&func->auto_stack, idx);
+
+        if (!l) return cond ? BC_STATUS_EXEC_UNDEFINED_VAR :
+                              BC_STATUS_EXEC_UNDEFINED_ARRAY;
+
+        if (cond || flags & BC_PROGRAM_SEARCH_ARRAY_ONLY) *ret = &l->data.num;
+        else {
+          status = bc_array_expand(&l->data.array, result->data.id.idx + 1);
+          if (status) return status;
+          *ret = bc_vec_item(&l->data.array, result->data.id.idx);
+        }
+
+        return BC_STATUS_SUCCESS;
+      }
+    }
   }
 
   vec = (flags & BC_PROGRAM_SEARCH_VAR) ? &p->vars : &p->arrays;
@@ -6734,8 +6611,9 @@ BcStatus bc_program_search(BcProgram *p, BcResult *result,
 
   status = bc_veco_insert(veco, &entry, &idx);
 
-  if (status != BC_STATUS_VECO_ITEM_EXISTS) {
+  if (status != BC_STATUS_VEC_ITEM_EXISTS) {
 
+    BcLocal local;
     size_t len;
 
     if (status) return status;
@@ -6748,18 +6626,18 @@ BcStatus bc_program_search(BcProgram *p, BcResult *result,
 
     strcpy(result->data.id.name, entry.name);
 
-    status = bc_auto_init(&a, NULL, flags & BC_PROGRAM_SEARCH_VAR);
+    status = bc_local_init(&local, flags & BC_PROGRAM_SEARCH_VAR);
 
     if (status) return status;
 
-    status = bc_vec_push(vec, &a.data);
+    status = bc_vec_push(vec, &local.data);
 
     if (status) return status;
   }
 
   entry_ptr = bc_veco_item(veco, idx);
 
-  if (!entry_ptr) return BC_STATUS_VECO_OUT_OF_BOUNDS;
+  if (!entry_ptr) return BC_STATUS_VEC_OUT_OF_BOUNDS;
 
   if (flags & BC_PROGRAM_SEARCH_VAR) {
     *ret = bc_vec_item(vec, entry_ptr->idx);
@@ -6767,7 +6645,7 @@ BcStatus bc_program_search(BcProgram *p, BcResult *result,
   }
   else {
 
-    BcArray *aptr;
+    BcVec *aptr;
 
     aptr = bc_vec_item(vec, entry_ptr->idx);
 
@@ -6816,7 +6694,7 @@ BcStatus bc_program_num(BcProgram *p, BcResult *result,
 
       s = bc_vec_item(&p->constants, idx);
 
-      if (!s) return BC_STATUS_EXEC_INVALID_CONSTANT;
+      if (!s) return BC_STATUS_EXEC_BAD_CONSTANT;
 
       len = strlen(*s);
 
@@ -6828,7 +6706,10 @@ BcStatus bc_program_num(BcProgram *p, BcResult *result,
 
       status = bc_num_parse(&result->data.num, *s, &p->ibase, base);
 
-      if (status) return status;
+      if (status) {
+        bc_num_free(&result->data.num);
+        return status;
+      }
 
       *num = &result->data.num;
 
@@ -6840,12 +6721,8 @@ BcStatus bc_program_num(BcProgram *p, BcResult *result,
     case BC_RESULT_VAR:
     case BC_RESULT_ARRAY:
     {
-      uint8_t flags;
-
-      flags = result->type == BC_RESULT_VAR ? BC_PROGRAM_SEARCH_VAR : 0;
-
+      uint8_t flags = result->type == BC_RESULT_VAR ? BC_PROGRAM_SEARCH_VAR : 0;
       status = bc_program_search(p, result, num, flags);
-
       break;
     }
 
@@ -6875,7 +6752,7 @@ BcStatus bc_program_num(BcProgram *p, BcResult *result,
 
     default:
     {
-      status = BC_STATUS_EXEC_INVALID_EXPR;
+      status = BC_STATUS_EXEC_BAD_EXPR;
       break;
     }
   }
@@ -6891,12 +6768,12 @@ BcStatus bc_program_binaryOpPrep(BcProgram *p, BcResult **left,
   BcResult *l;
   BcResult *r;
 
-  if (!BC_PROGRAM_CHECK_EXPR_STACK(p, 2)) return BC_STATUS_EXEC_INVALID_EXPR;
+  if (!BC_PROGRAM_CHECK_EXPR_STACK(p, 2)) return BC_STATUS_EXEC_BAD_EXPR;
 
   r = bc_vec_item_rev(&p->expr_stack, 0);
   l = bc_vec_item_rev(&p->expr_stack, 1);
 
-  if (!r || !l) return BC_STATUS_EXEC_INVALID_EXPR;
+  if (!r || !l) return BC_STATUS_EXEC_BAD_EXPR;
 
   status = bc_program_num(p, l, lval, false);
 
@@ -6936,11 +6813,11 @@ BcStatus bc_program_unaryOpPrep(BcProgram *p, BcResult **result,
   BcStatus status;
   BcResult *r;
 
-  if (!BC_PROGRAM_CHECK_EXPR_STACK(p, 1)) return BC_STATUS_EXEC_INVALID_EXPR;
+  if (!BC_PROGRAM_CHECK_EXPR_STACK(p, 1)) return BC_STATUS_EXEC_BAD_EXPR;
 
   r = bc_vec_item_rev(&p->expr_stack, 0);
 
-  if (!r) return BC_STATUS_EXEC_INVALID_EXPR;
+  if (!r) return BC_STATUS_EXEC_BAD_EXPR;
 
   status = bc_program_num(p, r, val, false);
 
@@ -7046,11 +6923,8 @@ BcStatus bc_program_read(BcProgram *p) {
 
   status = bc_parse_expr(&parse, &func->code, BC_PARSE_EXPR_NO_READ);
 
-  if (status != BC_STATUS_LEX_EOF &&
-      status != BC_STATUS_PARSE_EOF &&
-      parse.token.type != BC_LEX_NEWLINE)
-  {
-    status = status ? status : BC_STATUS_EXEC_INVALID_READ_EXPR;
+  if (status != BC_STATUS_LEX_EOF && parse.token.type != BC_LEX_NEWLINE) {
+    status = status ? status : BC_STATUS_EXEC_BAD_READ_EXPR;
     goto exec_err;
   }
 
@@ -7081,18 +6955,16 @@ io_err:
 
 size_t bc_program_index(uint8_t *code, size_t *start) {
 
-  uint8_t bytes;
-  uint8_t byte, i;
+  uint8_t bytes, byte, i;
   size_t result;
 
   bytes = code[(*start)++];
-  byte = 1;
 
   result = 0;
 
-  for (i = 0; byte && i < bytes; ++i) {
+  for (i = 0; i < bytes; ++i) {
     byte = code[(*start)++];
-    result |= (((size_t) byte) << (i * 8));
+    result |= (((size_t) byte) << (i * CHAR_BIT));
   }
 
   return result;
@@ -7133,8 +7005,7 @@ char* bc_program_name(uint8_t *code, size_t *start) {
 
 BcStatus bc_program_printIndex(uint8_t *code, size_t *start) {
 
-  uint8_t bytes;
-  uint8_t byte, i;
+  uint8_t bytes, byte, i;
 
   bytes = code[(*start)++];
   byte = 1;
@@ -7170,7 +7041,7 @@ BcStatus bc_program_printName(uint8_t *code, size_t *start) {
   return status;
 }
 
-BcStatus bc_program_printString(const char *str) {
+BcStatus bc_program_printString(const char *str, size_t *nchars) {
 
   char c;
   char c2;
@@ -7181,7 +7052,7 @@ BcStatus bc_program_printString(const char *str) {
 
   len = strlen(str);
 
-  for (i = 0; i < len; ++i) {
+  for (i = 0; i < len; ++i,  ++(*nchars)) {
 
     c = str[i];
 
@@ -7190,7 +7061,7 @@ BcStatus bc_program_printString(const char *str) {
 
       ++i;
 
-      if (i >= len) return BC_STATUS_EXEC_INVALID_STRING;
+      if (i >= len) return BC_STATUS_EXEC_BAD_STRING;
 
       c2 = str[i];
 
@@ -7223,6 +7094,7 @@ BcStatus bc_program_printString(const char *str) {
         case 'n':
         {
           err = fputc('\n', stdout);
+          *nchars = SIZE_MAX;
           break;
         }
 
@@ -7253,7 +7125,7 @@ BcStatus bc_program_printString(const char *str) {
       }
     }
 
-    if (err == EOF) return BC_STATUS_EXEC_PRINT_ERR;
+    if (err == EOF) return BC_STATUS_IO_ERR;
   }
 
   return BC_STATUS_SUCCESS;
@@ -7289,6 +7161,11 @@ BcStatus bc_program_push(BcProgram *p, uint8_t *code,
     status = bc_num_ulong(num, &temp);
 
     if (status) goto err;
+
+    if (temp > (unsigned long) p->dim_max) {
+      status = BC_STATUS_EXEC_ARRAY_LEN;
+      goto err;
+    }
 
     result.data.id.idx = (size_t) temp;
 
@@ -7407,7 +7284,7 @@ BcStatus bc_program_logical(BcProgram *p, uint8_t inst) {
 
       default:
       {
-        return BC_STATUS_EXEC_INVALID_EXPR;
+        return BC_STATUS_EXEC_BAD_EXPR;
       }
     }
   }
@@ -7504,13 +7381,16 @@ BcStatus bc_program_assignScale(BcProgram *p, BcNum *scale,
 
     default:
     {
-      return BC_STATUS_EXEC_INVALID_EXPR;
+      return BC_STATUS_EXEC_BAD_EXPR;
     }
   }
 
   status = bc_num_ulong(scale, &result);
 
   if (status) return status;
+
+  if (result > (unsigned long) p->scale_max)
+    return BC_STATUS_EXEC_BAD_SCALE;
 
   p->scale = (size_t) result;
 
@@ -7531,7 +7411,7 @@ BcStatus bc_program_assign(BcProgram *p, uint8_t inst) {
   if (status) return status;
 
   if (left->type == BC_RESULT_CONSTANT || left->type == BC_RESULT_INTERMEDIATE)
-    return BC_STATUS_EXEC_INVALID_LVALUE;
+    return BC_STATUS_PARSE_BAD_ASSIGN;
 
   if (inst == BC_EXPR_ASSIGN_DIVIDE && !bc_num_compare(rval, &p->zero))
     return BC_STATUS_MATH_DIVIDE_BY_ZERO;
@@ -7565,7 +7445,7 @@ BcStatus bc_program_assign(BcProgram *p, uint8_t inst) {
 
       default:
       {
-        status = BC_STATUS_EXEC_INVALID_EXPR;
+        status = BC_STATUS_EXEC_BAD_EXPR;
         break;
       }
     }
@@ -7574,14 +7454,19 @@ BcStatus bc_program_assign(BcProgram *p, uint8_t inst) {
 
     if (left->type == BC_RESULT_IBASE || left->type == BC_RESULT_OBASE) {
 
-      unsigned long base;
+      long base, max;
       size_t *ptr;
 
       ptr = left->type == BC_RESULT_IBASE ? &p->ibase_t : &p->obase_t;
 
-      status = bc_num_ulong(lval, &base);
+      status = bc_num_long(lval, &base);
 
       if (status) return status;
+
+      max = left->type == BC_RESULT_IBASE ? BC_NUM_MAX_INPUT_BASE : p->base_max;
+
+      if (base < BC_NUM_MIN_BASE || base > max)
+        return left->type - BC_RESULT_IBASE + BC_STATUS_EXEC_BAD_IBASE;
 
       *ptr = (size_t) base;
     }
@@ -7616,11 +7501,11 @@ BcStatus bc_program_call(BcProgram *p, uint8_t *code, size_t *idx) {
 
   BcStatus status;
   BcInstPtr ip;
-  size_t nparams;
+  size_t nparams, i, diff;
   BcFunc *func;
   BcAuto *auto_ptr;
   BcResult *param;
-  size_t i;
+  BcLocal local;
 
   nparams = bc_program_index(code, idx);
 
@@ -7631,29 +7516,37 @@ BcStatus bc_program_call(BcProgram *p, uint8_t *code, size_t *idx) {
 
   func = bc_vec_item(&p->funcs, ip.func);
 
-  if (!func) return BC_STATUS_EXEC_UNDEFINED_FUNC;
+  if (!func || !func->code.len) return BC_STATUS_EXEC_UNDEFINED_FUNC;
 
-  if (func->params.len != nparams) return BC_STATUS_EXEC_MISMATCHED_PARAMS;
+  if (nparams != func->num_params) return BC_STATUS_EXEC_MISMATCHED_PARAMS;
 
-  for (i = 0; i < func->autos.len; ++i) {
+  for (i = 0; i < func->autos.len - func->num_params; ++i) {
 
-    auto_ptr = bc_vec_item(&func->autos, i);
+    auto_ptr = bc_vec_item_rev(&func->autos, i);
 
     if (!auto_ptr) return BC_STATUS_EXEC_UNDEFINED_VAR;
 
-    if (auto_ptr->var) bc_num_zero(&auto_ptr->data.num);
-    else {
-      status = bc_array_zero(&auto_ptr->data.array);
-      if (status) return status;
-    }
+    status = bc_local_init(&local, auto_ptr->var);
+
+    if (status) return status;
+
+    status = bc_vec_push(&func->auto_stack, &local);
+
+    if (status) goto err;
   }
 
-  for (i = 0; i < func->params.len; ++i) {
+  diff = func->autos.len - func->num_params;
 
-    auto_ptr = bc_vec_item_rev(&func->params, i);
-    param = bc_vec_item_rev(&p->expr_stack, i);
+  for (; i < func->autos.len; ++i) {
+
+    auto_ptr = bc_vec_item_rev(&func->autos, i);
+    param = bc_vec_item_rev(&p->expr_stack, i - diff);
 
     if (!auto_ptr || !param) return BC_STATUS_EXEC_UNDEFINED_VAR;
+
+    status = bc_local_init(&local, auto_ptr->var);
+
+    if (status) return status;
 
     if (auto_ptr->var) {
 
@@ -7661,29 +7554,43 @@ BcStatus bc_program_call(BcProgram *p, uint8_t *code, size_t *idx) {
 
       status = bc_program_num(p, param, &num, false);
 
-      if (status) return status;
+      if (status) goto err;
 
-      status = bc_num_copy(&auto_ptr->data.num, num);
+      status = bc_num_copy(&local.data.num, num);
+
+      if (status) goto err;
     }
     else {
 
-      BcArray *array;
+      BcVec *array;
 
-      if (param->type != BC_RESULT_VAR || param->type != BC_RESULT_ARRAY)
-        return BC_STATUS_EXEC_INVALID_TYPE;
+      if (param->type != BC_RESULT_VAR || param->type != BC_RESULT_ARRAY) {
+        status = BC_STATUS_EXEC_BAD_TYPE;
+        goto err;
+      }
 
       status = bc_program_search(p, param, (BcNum**) &array,
                                  BC_PROGRAM_SEARCH_ARRAY_ONLY);
 
-      if (status) return status;
+      if (status) goto err;
 
-      status = bc_array_copy(&auto_ptr->data.array, array);
+      status = bc_array_copy(&local.data.array, array);
+
+      if (status) goto err;
     }
 
-    if (status) return status;
+    status = bc_vec_push(&func->auto_stack, &local);
+
+    if (status) goto err;
   }
 
   return bc_vec_push(&p->stack, &ip);
+
+err:
+
+  bc_local_free(&local);
+
+  return status;
 }
 
 BcStatus bc_program_return(BcProgram *p, uint8_t inst) {
@@ -7691,25 +7598,24 @@ BcStatus bc_program_return(BcProgram *p, uint8_t inst) {
   BcStatus status;
   BcResult result;
   BcResult *operand;
-  size_t req;
+  size_t req, len, i;
   BcInstPtr *ip;
   BcFunc *func;
-  size_t len;
 
-  if (!BC_PROGRAM_CHECK_STACK(p)) return BC_STATUS_EXEC_INVALID_RETURN;
+  if (!BC_PROGRAM_CHECK_STACK(p)) return BC_STATUS_EXEC_BAD_RETURN;
 
   ip = bc_vec_top(&p->stack);
 
-  if (!ip) return BC_STATUS_EXEC_INVALID_STACK;
+  if (!ip) return BC_STATUS_EXEC_BAD_STACK;
 
   req = ip->len + (inst == BC_INST_RETURN ? 1 : 0);
 
   if (!BC_PROGRAM_CHECK_EXPR_STACK(p, req))
-    return BC_STATUS_EXEC_INVALID_EXPR;
+    return BC_STATUS_EXEC_BAD_EXPR;
 
   func = bc_vec_item(&p->funcs, ip->func);
 
-  if (!func) return BC_STATUS_EXEC_INVALID_STMT;
+  if (!func) return BC_STATUS_EXEC_BAD_STMT;
 
   result.type = BC_RESULT_INTERMEDIATE;
 
@@ -7719,7 +7625,7 @@ BcStatus bc_program_return(BcProgram *p, uint8_t inst) {
 
     operand = bc_vec_top(&p->expr_stack);
 
-    if (!operand) return BC_STATUS_EXEC_INVALID_EXPR;
+    if (!operand) return BC_STATUS_EXEC_BAD_EXPR;
 
     status = bc_program_num(p, operand, &num, false);
 
@@ -7743,7 +7649,7 @@ BcStatus bc_program_return(BcProgram *p, uint8_t inst) {
   }
 
   // We need to pop arguments as well, so this takes that into account.
-  len = ip->len - func->params.len;
+  len = ip->len - func->num_params;
   while (p->expr_stack.len > len) {
     status = bc_vec_pop(&p->expr_stack);
     if (status) goto err;
@@ -7753,7 +7659,14 @@ BcStatus bc_program_return(BcProgram *p, uint8_t inst) {
 
   if (status) goto err;
 
-  return bc_vec_pop(&p->stack);
+  status = bc_vec_pop(&p->stack);
+
+  if (status) return status;
+
+  for (i = 0; !status && i < func->autos.len; ++i)
+    status = bc_vec_pop(&func->auto_stack);
+
+  return status;
 
 err:
 
@@ -7907,6 +7820,8 @@ BcStatus bc_program_init(BcProgram *p) {
 
   name = NULL;
 
+  p->nchars = 0;
+
 #ifdef _POSIX_BC_BASE_MAX
   p->base_max = _POSIX_BC_BASE_MAX;
 #elif defined(_BC_BASE_MAX)
@@ -7919,7 +7834,8 @@ BcStatus bc_program_init(BcProgram *p) {
     if (errno) return BC_STATUS_NO_LIMIT;
     p->base_max = BC_BASE_MAX_DEF;
   }
-  else if (p->base_max > BC_BASE_MAX_DEF) return BC_STATUS_INVALID_LIMIT;
+  else if (p->base_max > BC_BASE_MAX_DEF) return BC_STATUS_BAD_LIMIT;
+  else p->base_max = BC_BASE_MAX_DEF;
 #endif
 
 #ifdef _POSIX_BC_DIM_MAX
@@ -7934,7 +7850,8 @@ BcStatus bc_program_init(BcProgram *p) {
     if (errno) return BC_STATUS_NO_LIMIT;
     p->dim_max = BC_DIM_MAX_DEF;
   }
-  else if (p->dim_max > BC_DIM_MAX_DEF) return BC_STATUS_INVALID_LIMIT;
+  else if (p->dim_max > BC_DIM_MAX_DEF) return BC_STATUS_BAD_LIMIT;
+  else p->dim_max = BC_DIM_MAX_DEF;
 #endif
 
 #ifdef _POSIX_BC_SCALE_MAX
@@ -7949,7 +7866,8 @@ BcStatus bc_program_init(BcProgram *p) {
     if (errno) return BC_STATUS_NO_LIMIT;
     p->scale_max = BC_SCALE_MAX_DEF;
   }
-  else if (p->scale_max > BC_SCALE_MAX_DEF) return BC_STATUS_INVALID_LIMIT;
+  else if (p->scale_max > BC_SCALE_MAX_DEF) return BC_STATUS_BAD_LIMIT;
+  else p->scale_max = BC_SCALE_MAX_DEF;
 #endif
 
 #ifdef _POSIX_BC_STRING_MAX
@@ -7964,7 +7882,8 @@ BcStatus bc_program_init(BcProgram *p) {
     if (errno) return BC_STATUS_NO_LIMIT;
     p->string_max = BC_STRING_MAX_DEF;
   }
-  else if (p->string_max > BC_STRING_MAX_DEF) return BC_STATUS_INVALID_LIMIT;
+  else if (p->string_max > BC_STRING_MAX_DEF) return BC_STATUS_BAD_LIMIT;
+  else p->string_max = BC_STRING_MAX_DEF;
 #endif
 
   p->scale = 0;
@@ -8048,7 +7967,7 @@ BcStatus bc_program_init(BcProgram *p) {
 
   if (s || idx != BC_PROGRAM_READ_FUNC) goto var_err;
 
-  s = bc_vec_init(&p->vars, sizeof(BcVar), bc_var_free);
+  s = bc_vec_init(&p->vars, sizeof(BcNum), bc_num_free);
 
   if (s) goto var_err;
 
@@ -8056,7 +7975,7 @@ BcStatus bc_program_init(BcProgram *p) {
 
   if (s) goto var_map_err;
 
-  s = bc_vec_init(&p->arrays, sizeof(BcArray), bc_array_free);
+  s = bc_vec_init(&p->arrays, sizeof(BcVec), bc_vec_free);
 
   if (s) goto array_err;
 
@@ -8174,7 +8093,7 @@ void bc_program_limits(BcProgram *p) {
   printf("BC_SCALE_MAX    = %ld\n", p->scale_max);
   printf("BC_STRING_MAX   = %ld\n", p->string_max);
   printf("Max Exponent    = %ld\n", LONG_MAX);
-  printf("Number of Vars  = %u\n", UINT32_MAX);
+  printf("Number of Vars  = %zu\n", SIZE_MAX);
 
   putchar('\n');
 }
@@ -8195,7 +8114,7 @@ BcStatus bc_program_func_add(BcProgram *p, char *name, size_t *idx) {
 
   if (status) {
     free(name);
-    if (status != BC_STATUS_VECO_ITEM_EXISTS) return status;
+    if (status != BC_STATUS_VEC_ITEM_EXISTS) return status;
   }
 
   entry_ptr = bc_veco_item(&p->func_map, *idx);
@@ -8204,7 +8123,7 @@ BcStatus bc_program_func_add(BcProgram *p, char *name, size_t *idx) {
 
   *idx = entry_ptr->idx;
 
-  if (status == BC_STATUS_VECO_ITEM_EXISTS) {
+  if (status == BC_STATUS_VEC_ITEM_EXISTS) {
 
     BcFunc *func;
 
@@ -8216,7 +8135,8 @@ BcStatus bc_program_func_add(BcProgram *p, char *name, size_t *idx) {
 
     // We need to reset these so the function can be repopulated.
     while (!status && func->autos.len) status = bc_vec_pop(&func->autos);
-    while (!status && func->params.len) status = bc_vec_pop(&func->params);
+    while (!status && func->auto_stack.len)
+      status = bc_vec_pop(&func->auto_stack);
   }
   else {
 
@@ -8234,7 +8154,7 @@ BcStatus bc_program_var_add(BcProgram *p, char *name, size_t *idx) {
 
   BcStatus status;
   BcEntry entry;
-  BcVar v;
+  BcNum v;
 
   if (!p || !name || !idx) return BC_STATUS_INVALID_PARAM;
 
@@ -8243,10 +8163,10 @@ BcStatus bc_program_var_add(BcProgram *p, char *name, size_t *idx) {
 
   status = bc_veco_insert(&p->var_map, &entry, idx);
 
-  if (status) return status == BC_STATUS_VECO_ITEM_EXISTS ?
+  if (status) return status == BC_STATUS_VEC_ITEM_EXISTS ?
                                BC_STATUS_SUCCESS : status;
 
-  status = bc_var_init(&v);
+  status = bc_num_init(&v, BC_NUM_DEF_SIZE);
 
   if (status) return status;
 
@@ -8257,7 +8177,7 @@ BcStatus bc_program_array_add(BcProgram *p, char *name, size_t *idx) {
 
   BcStatus status;
   BcEntry entry;
-  BcArray a;
+  BcVec a;
 
   if (!p || !name || !idx) return BC_STATUS_INVALID_PARAM;
 
@@ -8266,10 +8186,10 @@ BcStatus bc_program_array_add(BcProgram *p, char *name, size_t *idx) {
 
   status = bc_veco_insert(&p->array_map, &entry, idx);
 
-  if (status) return status == BC_STATUS_VECO_ITEM_EXISTS ?
+  if (status) return status == BC_STATUS_VEC_ITEM_EXISTS ?
                                BC_STATUS_SUCCESS : status;
 
-  status = bc_array_init(&a);
+  status = bc_vec_init(&a, sizeof(BcNum), bc_num_free);
 
   if (status) return status;
 
@@ -8281,7 +8201,6 @@ BcStatus bc_program_exec(BcProgram *p) {
   BcStatus status;
   uint8_t *code;
   size_t idx;
-  int pchars;
   BcResult result;
   BcFunc *func;
   BcInstPtr *ip;
@@ -8289,11 +8208,11 @@ BcStatus bc_program_exec(BcProgram *p) {
 
   ip = bc_vec_top(&p->stack);
 
-  if (!ip) return BC_STATUS_EXEC_INVALID_STACK;
+  if (!ip) return BC_STATUS_EXEC_BAD_STACK;
 
   func = bc_vec_item(&p->funcs, ip->func);
 
-  if (!func) return BC_STATUS_EXEC_INVALID_STACK;
+  if (!func) return BC_STATUS_EXEC_BAD_STACK;
 
   status = BC_STATUS_SUCCESS;
 
@@ -8353,7 +8272,7 @@ BcStatus bc_program_exec(BcProgram *p) {
         idx = bc_program_index(code, &ip->idx);
         addr = bc_vec_item(&func->labels, idx);
 
-        if (!addr) return BC_STATUS_EXEC_INVALID_LABEL;
+        if (!addr) return BC_STATUS_EXEC_BAD_LABEL;
 
         if (inst == BC_INST_JUMP ||
             (inst == BC_INST_JUMP_ZERO && cond) ||
@@ -8451,9 +8370,7 @@ BcStatus bc_program_exec(BcProgram *p) {
         if (status) return status;
 
         status = bc_num_print(num, &p->obase, p->obase_t,
-                              inst == BC_INST_PRINT);
-
-        fflush(stdout);
+                              inst == BC_INST_PRINT, &p->nchars);
 
         if (status) return status;
 
@@ -8468,17 +8385,27 @@ BcStatus bc_program_exec(BcProgram *p) {
 
       case BC_INST_STR:
       {
-        const char *string;
+        const char **string;
+        const char *s;
+        size_t len;
 
         idx = bc_program_index(code, &ip->idx);
 
-        if (idx >= p->strings.len) return BC_STATUS_EXEC_INVALID_STRING;
+        if (idx >= p->strings.len) return BC_STATUS_EXEC_BAD_STRING;
 
         string = bc_vec_item(&p->strings, idx);
 
-        pchars = fprintf(stdout, "%s", string);
-        status = pchars > 0 ? BC_STATUS_SUCCESS :
-                              BC_STATUS_EXEC_PRINT_ERR;
+        if (!string) return BC_STATUS_EXEC_BAD_STRING;
+
+        s = *string;
+        len = strlen(s);
+
+        for (idx = 0; idx < len; ++idx) {
+          char c = s[idx];
+          if (fputc(c, stdout) == EOF) return BC_STATUS_IO_ERR;
+          if (c == '\n') p->nchars = SIZE_MAX;
+          ++p->nchars;
+        }
 
         break;
       }
@@ -8489,13 +8416,13 @@ BcStatus bc_program_exec(BcProgram *p) {
 
         idx = bc_program_index(code, &ip->idx);
 
-        if (idx >= p->strings.len) return BC_STATUS_EXEC_INVALID_STRING;
+        if (idx >= p->strings.len) return BC_STATUS_EXEC_BAD_STRING;
 
         string = bc_vec_item(&p->strings, idx);
 
-        if (!string) return BC_STATUS_EXEC_INVALID_STRING;
+        if (!string) return BC_STATUS_EXEC_BAD_STRING;
 
-        status = bc_program_printString(*string);
+        status = bc_program_printString(*string, &p->nchars);
 
         break;
       }
@@ -8572,7 +8499,7 @@ BcStatus bc_program_exec(BcProgram *p) {
 
       default:
       {
-        status = BC_STATUS_EXEC_INVALID_STMT;
+        status = BC_STATUS_EXEC_BAD_STMT;
         break;
       }
     }
@@ -8583,11 +8510,11 @@ BcStatus bc_program_exec(BcProgram *p) {
     // stack changes, pointers may end up being invalid.
     ip = bc_vec_top(&p->stack);
 
-    if (!ip) return BC_STATUS_EXEC_INVALID_STACK;
+    if (!ip) return BC_STATUS_EXEC_BAD_STACK;
 
     func = bc_vec_item(&p->funcs, ip->func);
 
-    if (!func) return BC_STATUS_EXEC_INVALID_STACK;
+    if (!func) return BC_STATUS_EXEC_BAD_STACK;
 
     code = func->code.array;
   }
@@ -8613,7 +8540,7 @@ BcStatus bc_program_print(BcProgram *p) {
 
     func = bc_vec_item(&p->funcs, ip.func);
 
-    if (!func) return BC_STATUS_EXEC_INVALID_STACK;
+    if (!func) return BC_STATUS_EXEC_BAD_STACK;
 
     code = func->code.array;
 
@@ -8745,7 +8672,7 @@ BcStatus bc_vm_signal(BcVm *vm) {
 
   ip = bc_vec_top(&vm->program.stack);
 
-  if (!ip) return BC_STATUS_EXEC_INVALID_STMT;
+  if (!ip) return BC_STATUS_EXEC_BAD_STMT;
 
   ip->idx = func->code.len;
 
@@ -8757,9 +8684,6 @@ BcStatus bc_vm_execFile(BcVm *vm, int idx) {
   BcStatus status;
   const char *file;
   char *data;
-  BcProgramExecFunc exec;
-
-  exec = TT.bc_code ? bc_program_print : bc_program_exec;
 
   file = vm->filev[idx];
   vm->program.file = file;
@@ -8774,14 +8698,13 @@ BcStatus bc_vm_execFile(BcVm *vm, int idx) {
 
   status = bc_parse_text(&vm->parse, data);
 
-  if (status) goto read_err;
+  if (status && status != BC_STATUS_LEX_EOF) goto read_err;
 
   do {
 
     status = bc_parse_parse(&vm->parse);
 
-    if (status && status != BC_STATUS_LEX_EOF && status != BC_STATUS_PARSE_EOF)
-    {
+    if (status && status != BC_STATUS_LEX_EOF) {
       bc_error_file(status, vm->parse.lex.file, vm->parse.lex.line);
       goto err;
     }
@@ -8797,7 +8720,6 @@ BcStatus bc_vm_execFile(BcVm *vm, int idx) {
     if (status) {
 
       if (status != BC_STATUS_LEX_EOF &&
-          status != BC_STATUS_PARSE_EOF &&
           status != BC_STATUS_PARSE_QUIT &&
           status != BC_STATUS_PARSE_LIMITS)
       {
@@ -8812,6 +8734,7 @@ BcStatus bc_vm_execFile(BcVm *vm, int idx) {
         status = BC_STATUS_SUCCESS;
         continue;
       }
+      else status = BC_STATUS_SUCCESS;
 
       while (!status && vm->parse.token.type != BC_LEX_NEWLINE &&
              vm->parse.token.type != BC_LEX_SEMICOLON)
@@ -8822,22 +8745,18 @@ BcStatus bc_vm_execFile(BcVm *vm, int idx) {
 
   } while (!status);
 
-  if (status != BC_STATUS_PARSE_EOF &&
-      status != BC_STATUS_LEX_EOF &&
-      status != BC_STATUS_PARSE_QUIT)
-  {
+  if (status != BC_STATUS_LEX_EOF && status != BC_STATUS_PARSE_QUIT)
     goto read_err;
-  }
 
   if (BC_PARSE_CAN_EXEC(&vm->parse)) {
 
-    status = exec(&vm->program);
-
-    if (status) goto read_err;
+    status = vm->exec(&vm->program);
 
     if (TT.bc_interactive) {
 
       fflush(stdout);
+
+      if (status) goto read_err;
 
       if (TT.bc_signal) {
 
@@ -8847,9 +8766,14 @@ BcStatus bc_vm_execFile(BcVm *vm, int idx) {
         fflush(stderr);
       }
     }
-    else if (TT.bc_signal) {
-      status = bc_vm_signal(vm);
-      goto read_err;
+    else {
+
+      if (status) goto read_err;
+
+      if (TT.bc_signal) {
+        status = bc_vm_signal(vm);
+        goto read_err;
+      }
     }
   }
   else status = BC_STATUS_EXEC_FILE_NOT_EXECUTABLE;
@@ -8911,7 +8835,7 @@ BcStatus bc_vm_execStdin(BcVm *vm) {
   while ((!status || status != BC_STATUS_PARSE_QUIT) &&
          !(status = bc_io_getline(&buf, &bufn)))
   {
-    size_t len;
+    size_t len, i;
 
     len = strlen(buf);
     slen = strlen(buffer);
@@ -8919,7 +8843,6 @@ BcStatus bc_vm_execStdin(BcVm *vm) {
 
     if (len == 1 && buf[0] == '"') string = !string;
     else if (len > 1 || comment) {
-      uint32_t i;
 
       for (i = 0; i < len; ++i) {
 
@@ -8982,20 +8905,14 @@ BcStatus bc_vm_execStdin(BcVm *vm) {
 
       if (status) {
 
-        if (status == BC_STATUS_PARSE_QUIT ||
-            status == BC_STATUS_LEX_EOF ||
-            status == BC_STATUS_PARSE_EOF)
-        {
+        if (status == BC_STATUS_PARSE_QUIT || status == BC_STATUS_LEX_EOF) {
           break;
         }
         else if (status == BC_STATUS_PARSE_LIMITS) {
           bc_program_limits(&vm->program);
           status = BC_STATUS_SUCCESS;
         }
-        else {
-          bc_error(status);
-          goto exit_err;
-        }
+        else goto exit_err;
       }
     }
     else if (status == BC_STATUS_PARSE_QUIT) {
@@ -9013,7 +8930,7 @@ BcStatus bc_vm_execStdin(BcVm *vm) {
       bc_program_limits(&vm->program);
       status = BC_STATUS_SUCCESS;
     }
-    else if (status != BC_STATUS_LEX_EOF && status != BC_STATUS_PARSE_EOF) {
+    else if (status != BC_STATUS_LEX_EOF) {
 
       BcFunc *func;
       BcInstPtr *ip;
@@ -9047,46 +8964,28 @@ BcStatus bc_vm_execStdin(BcVm *vm) {
         }
       }
     }
+    else status = BC_STATUS_SUCCESS;
 
     if (BC_PARSE_CAN_EXEC(&vm->parse)) {
 
-      if (!TT.bc_code) {
+      status = vm->exec(&vm->program);
 
-        status = bc_program_exec(&vm->program);
+      if (TT.bc_interactive) {
 
-        if (status) {
-          bc_error(status);
-          goto exit_err;
-        }
+        fflush(stdout);
 
-        if (TT.bc_interactive) {
+        if (status) goto exit_err;
 
-          fflush(stdout);
-
-          if (TT.bc_signal) {
-            status = bc_vm_signal(vm);
-            fprintf(stderr, "%s", bc_program_ready_prompt);
-          }
-        }
-        else if (TT.bc_signal) {
-          status = bc_vm_signal(vm);
-          goto exit_err;
+        if (TT.bc_signal) {
+          if ((status = bc_vm_signal(vm))) bc_error(status);
+          fprintf(stderr, "%s", bc_program_ready_prompt);
         }
       }
       else {
 
-        bc_program_print(&vm->program);
+        if (status) goto exit_err;
 
-        if (TT.bc_interactive) {
-
-          fflush(stdout);
-
-          if (TT.bc_signal) {
-            status = bc_vm_signal(vm);
-            fprintf(stderr, "%s", bc_program_ready_prompt);
-          }
-        }
-        else if (TT.bc_signal) {
+        if (TT.bc_signal) {
           status = bc_vm_signal(vm);
           goto exit_err;
         }
@@ -9098,11 +8997,12 @@ BcStatus bc_vm_execStdin(BcVm *vm) {
 
   status = !status || status == BC_STATUS_PARSE_QUIT ||
            status == BC_STATUS_EXEC_HALT ||
-           status == BC_STATUS_LEX_EOF ||
-           status == BC_STATUS_PARSE_EOF ?
+           status == BC_STATUS_LEX_EOF ?
                BC_STATUS_SUCCESS : status;
 
 exit_err:
+
+  bc_error(status);
 
   free(buf);
 
@@ -9113,8 +9013,8 @@ buf_err:
   return status;
 }
 
-BcStatus bc_vm_init(BcVm *vm, int filec, const char *filev[]) {
-
+BcStatus bc_vm_init(BcVm *vm, BcProgramExecFunc exec, int filec, char *filev[])
+{
   BcStatus status;
   struct sigaction act;
 
@@ -9134,6 +9034,7 @@ BcStatus bc_vm_init(BcVm *vm, int filec, const char *filev[]) {
     return status;
   }
 
+  vm->exec = exec;
   vm->filec = filec;
   vm->filev = filev;
 
@@ -9156,12 +9057,9 @@ BcStatus bc_vm_exec(BcVm *vm) {
 
   for (i = 0; !status && i < num_files; ++i) status = bc_vm_execFile(vm, i);
 
-  if (status != BC_STATUS_SUCCESS &&
-      status != BC_STATUS_PARSE_QUIT &&
-      status != BC_STATUS_EXEC_HALT)
-  {
-    return status;
-  }
+  if (status)
+    return status == BC_STATUS_PARSE_QUIT || status == BC_STATUS_EXEC_HALT ?
+          BC_STATUS_SUCCESS : status;
 
   status = bc_vm_execStdin(vm);
 
@@ -9172,126 +9070,80 @@ BcStatus bc_vm_exec(BcVm *vm) {
   return status;
 }
 
-BcStatus bc_print_version() {
+void bc_error(BcStatus st) {
 
-  int err;
-
-  err = printf(bc_version_fmt, bc_version, bc_copyright, bc_warranty_short);
-
-  return err < 0 ? BC_STATUS_IO_ERR : BC_STATUS_SUCCESS;
-}
-
-void bc_error(BcStatus status) {
-
-  if (!status || status == BC_STATUS_PARSE_QUIT ||
-      status == BC_STATUS_EXEC_HALT ||
-      status >= BC_STATUS_POSIX_NAME_LEN)
+  if (!st || st == BC_STATUS_PARSE_QUIT ||
+      st == BC_STATUS_EXEC_HALT ||
+      st >= BC_STATUS_POSIX_NAME_LEN)
   {
     return;
   }
 
   fprintf(stderr, "\n%s error: %s\n\n",
-          bc_err_types[status], bc_err_descs[status]);
+          bc_err_types[bc_err_type_indices[st]], bc_err_descs[st]);
 }
 
-void bc_error_file(BcStatus status, const char *file, uint32_t line) {
+void bc_error_file(BcStatus st, const char *file, size_t line) {
 
-  if (!status || status == BC_STATUS_PARSE_QUIT ||
-      !file || status >= BC_STATUS_POSIX_NAME_LEN)
+  if (!st || st == BC_STATUS_PARSE_QUIT ||
+      !file || st >= BC_STATUS_POSIX_NAME_LEN)
   {
     return;
   }
 
-  fprintf(stderr, "\n%s error: %s\n", bc_err_types[status],
-          bc_err_descs[status]);
+  fprintf(stderr, "\n%s error: %s\n", bc_err_types[bc_err_type_indices[st]],
+          bc_err_descs[st]);
 
   fprintf(stderr, "    %s", file);
-
-  if (line) fprintf(stderr, ":%d\n\n", line);
-  else fprintf(stderr, "\n\n");
+  fprintf(stderr, &":%d\n\n"[3 * !line], line);
 }
 
-BcStatus bc_posix_error(BcStatus status, const char *file,
-                        uint32_t line, const char *msg)
+BcStatus bc_posix_error(BcStatus st, const char *file,
+                        size_t line, const char *msg)
 {
-  if (!(TT.bc_std || TT.bc_warn) ||
-      status < BC_STATUS_POSIX_NAME_LEN ||
-      !file)
-  {
-    return BC_STATUS_SUCCESS;
-  }
+  int s = (toys.optflags & FLAG_s), w = (toys.optflags & FLAG_w);
 
-  fprintf(stderr, "\n%s %s: %s\n", bc_err_types[status],
-          TT.bc_std ? "error" : "warning", bc_err_descs[status]);
+  if (!(s || w) || st < BC_STATUS_POSIX_NAME_LEN || !file)
+    return BC_STATUS_SUCCESS;
+
+  fprintf(stderr, "\n%s %s: %s\n", bc_err_types[bc_err_type_indices[st]],
+          s ? "error" : "warning", bc_err_descs[st]);
 
   if (msg) fprintf(stderr, "    %s\n", msg);
 
   fprintf(stderr, "    %s", file);
+  fprintf(stderr, &":%d\n\n"[3 * !line], line);
 
-  if (line) fprintf(stderr, ":%d\n\n", line);
-  else fprintf(stderr, "\n\n");
-
-  return TT.bc_std ? status : BC_STATUS_SUCCESS;
-}
-
-BcStatus bc_exec(unsigned int flags, unsigned int filec, const char *filev[]) {
-
-  BcStatus status;
-  BcVm vm;
-
-  if ((flags & FLAG_i) || (isatty(STDIN_FILENO) && isatty(STDOUT_FILENO))) {
-    TT.bc_interactive = 1;
-  } else TT.bc_interactive = 0;
-
-  TT.bc_code = flags & FLAG_i;
-  TT.bc_std = flags & FLAG_s;
-  TT.bc_warn = flags & FLAG_w;
-
-  if (!(flags & FLAG_q)) {
-
-    status = bc_print_version();
-
-    if (status) return status;
-  }
-
-  status = bc_vm_init(&vm, filec, filev);
-
-  if (status) return status;
-
-  if (flags & FLAG_l) {
-
-    status = bc_parse_file(&vm.parse, bc_lib_name);
-
-    if (status) goto err;
-
-    status = bc_parse_text(&vm.parse, (const char*) bc_lib);
-
-    if (status) goto err;
-
-    while (!status) status = bc_parse_parse(&vm.parse);
-
-    if (status != BC_STATUS_LEX_EOF && status != BC_STATUS_PARSE_EOF) goto err;
-
-    // Make sure to execute the math library.
-    status = bc_program_exec(&vm.program);
-
-    if (status) goto err;
-  }
-
-  status = bc_vm_exec(&vm);
-
-err:
-
-  bc_vm_free(&vm);
-
-  return status;
+  return st * !!s;
 }
 
 void bc_main(void) {
 
-  unsigned int flags;
+  BcVm vm;
+  BcProgramExecFunc exec;
 
-  flags = (unsigned int) toys.optflags;
+  TT.bc_interactive = (toys.optflags & FLAG_i) || (isatty(0) && isatty(1));
 
-  toys.exitval = (char) bc_exec(flags, toys.optc, (const char**) toys.optargs);
+  if (!(toys.optflags & FLAG_q) && (printf("%s", bc_header) < 0)) return;
+
+  exec = (toys.optflags & FLAG_c) ? bc_program_print : bc_program_exec;
+  if ((toys.exitval = bc_vm_init(&vm, exec, toys.optc, toys.optargs))) return;
+
+  if (toys.optflags & FLAG_l) {
+
+    if ((toys.exitval = bc_parse_file(&vm.parse, bc_lib_name))) goto err;
+    if ((toys.exitval = bc_parse_text(&vm.parse, bc_lib))) goto err;
+
+    while (!toys.exitval) toys.exitval = bc_parse_parse(&vm.parse);
+    if (toys.exitval != BC_STATUS_LEX_EOF) goto err;
+
+    // Make sure to execute the math library.
+    if ((toys.exitval = vm.exec(&vm.program))) goto err;
+  }
+
+  toys.exitval = bc_vm_exec(&vm);
+
+err:
+
+  if (CFG_TOYBOX_FREE) bc_vm_free(&vm);
 }
