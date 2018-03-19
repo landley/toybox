@@ -6,7 +6,7 @@
  *
  * TODO: cleanup
 
-USE_DU(NEWTOY(du, "d#<0hmlcaHkKLsx[-HL][-kKmh]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_DU(NEWTOY(du, "d#<0=-1hmlcaHkKLsx[-HL][-kKmh]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config DU
   bool "du"
@@ -54,7 +54,7 @@ static void print(long long size, struct dirtree *node)
 {
   char *name = "total";
 
-  if (TT.maxdepth && TT.depth > TT.maxdepth) return;
+  if (TT.depth > TT.maxdepth) return;
 
   if (toys.optflags & FLAG_h) {
     human_readable(toybuf, size, 0);

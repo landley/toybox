@@ -110,6 +110,7 @@ struct flag *digest(char *string)
 
     if (strchr("?&^-:#|@*; ", *string)) string++;
     else if (strchr("=<>", *string)) {
+      if (string[1]=='-') string++;
       if (!isdigit(string[1])) {
         fprintf(stderr, "%c without number in '%s'", *string, err);
         exit(1);
