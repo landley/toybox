@@ -301,12 +301,11 @@ long long atolx(char *numstr)
   val = xstrtol(numstr, &c, 0);
   if (c != numstr && *c && (end = strchr(suffixes, tolower(*c)))) {
     int shift = end-suffixes-2;
-
     ++c;
     if (shift==-1) val *= 2;
     else if (!shift) val *= 512;
     else if (shift>0) {
-      if (toupper(*c)=='d') while (shift--) val *= 1000;
+      if (*c && toupper(*c++)=='d') while (shift--) val *= 1000;
       else val *= 1LL<<(shift*10);
     }
   }
