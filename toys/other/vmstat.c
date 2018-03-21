@@ -64,12 +64,9 @@ static void get_vmstat_proc(struct vmstat_proc *vmstat_proc)
       file = xreadfile(name = vmstuff[i], 0, 0);
 
       continue;
-    } else if (!(p = strafter(file, vmstuff[i]))) {
-      error_exit("No %sin %s", vmstuff[i], name);
-    }
-    if (1 != sscanf(p, "%"PRIu64"%n", new++, &j)) {
-      error_exit("Bad %sin %s: %s", vmstuff[i], name, p);
-    }
+    } else p = strafter(file, vmstuff[i]);
+    if (!p || 1!=sscanf(p, "%"PRIu64"%n", new++, &j))
+      error_exit("Bad %sin %s", vmstuff[i], name);
     p += j;
   }
   free(file);
