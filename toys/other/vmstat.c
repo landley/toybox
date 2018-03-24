@@ -66,7 +66,7 @@ static void get_vmstat_proc(struct vmstat_proc *vmstat_proc)
       continue;
     } else p = strafter(file, vmstuff[i]);
     if (!p || 1!=sscanf(p, "%"PRIu64"%n", new++, &j))
-      error_exit("Bad %sin %s", vmstuff[i], name);
+      error_exit("Bad %sin %s: %s", vmstuff[i], name, p ? p : "");
     p += j;
   }
   free(file);
