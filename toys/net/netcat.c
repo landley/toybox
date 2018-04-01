@@ -3,9 +3,11 @@
  * Copyright 2007 Rob Landley <rob@landley.net>
  *
  * TODO: udp, ipv6, genericize for telnet/microcom/tail-f
+ * fix -t, xconnect
+ * netcat -L zombies
 
 USE_NETCAT(OLDTOY(nc, netcat, TOYFLAG_USR|TOYFLAG_BIN))
-USE_NETCAT(NEWTOY(netcat, USE_NETCAT_LISTEN("^tlL")"w#W#p#s:q#f:"USE_NETCAT_LISTEN("[!tlL][!Lw]"), TOYFLAG_BIN))
+USE_NETCAT(NEWTOY(netcat, USE_NETCAT_LISTEN("^tlL")"w#<1W#<1p#<1>65535s:q#<1f:"USE_NETCAT_LISTEN("[!tlL][!Lw]"), TOYFLAG_BIN))
 
 config NETCAT
   bool "netcat"
@@ -79,9 +81,18 @@ static void lookup_name(char *name, uint32_t *result)
 }
 
 // Worry about a fancy lookup later.
-static void lookup_port(char *str, uint16_t *port)
+static unsigned short lookup_port(char *str)
 {
-  *port = SWAP_BE16(atoi(str));
+  struct servent *se;
+  int i = atoi(str);
+
+  if (i>0 && i<65536) return SWAP_BE16(i);
+
+  se = getservbyname(str, "tcp");
+  i = se ? se->s_port : 0;
+  endservent();
+
+  return i;
 }
 
 void netcat_main(void)
@@ -106,8 +117,8 @@ void netcat_main(void)
   else {
     // Setup socket
     sockfd = xsocket(AF_INET, SOCK_STREAM, 0);
-    fcntl(sockfd, F_SETFD, FD_CLOEXEC);
     setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &out1, sizeof(out1));
+
     address->sin_family = AF_INET;
     if (TT.source_address || TT.port) {
       address->sin_port = SWAP_BE16(TT.port);
@@ -119,10 +130,10 @@ void netcat_main(void)
 
     // Dial out
 
-    if (!CFG_NETCAT_LISTEN || !(toys.optflags&(FLAG_L|FLAG_l))) {
+    if (!(toys.optflags&(FLAG_L|FLAG_l))) {
       // Figure out where to dial out to.
       lookup_name(*toys.optargs, (uint32_t *)&(address->sin_addr));
-      lookup_port(toys.optargs[1], &(address->sin_port));
+      address->sin_port = lookup_port(toys.optargs[1]);
 // TODO xconnect
       if (connect(sockfd, (struct sockaddr *)address, sizeof(*address))<0)
         perror_exit("connect");
@@ -149,16 +160,8 @@ void netcat_main(void)
 
       do {
         child = 0;
-        len = sizeof(*address); // gcc's insane optimizer can overwrite this
         in1 = out2 = accept(sockfd, (struct sockaddr *)address, &len);
-
         if (in1<0) perror_exit("accept");
-
-        // We can't exit this loop or the optimizer's "liveness analysis"
-        // combines badly with vfork() to corrupt or local variables
-        // (the child's call stack gets trimmed and the next function call
-        // stops the variables the parent tries to re-use next loop)
-        // So there's a bit of redundancy here
 
         // We have a connection. Disarm timeout.
         set_alarm(0);
@@ -173,22 +176,16 @@ void netcat_main(void)
 
           // Do we need to fork and/or redirect for exec?
 
-          if (toys.optflags&FLAG_L) {
-            toys.stacktop = 0;
-            child = vfork();
+          if (toys.optflags&FLAG_L) NOEXIT(child = XVFORK());
+          if (child) {
+            close(in1);
+            continue;
           }
-          if (child<0) error_msg("vfork failed\n");
-          else {
-            if (child) {
-              close(in1);
-              continue;
-            }
-            dup2(in1, 0);
-            dup2(in1, 1);
-            if (toys.optflags&FLAG_L) dup2(in1, 2);
-            if (in1>2) close(in1);
-            xexec(toys.optargs);
-          }
+          dup2(in1, 0);
+          dup2(in1, 1);
+          if (toys.optflags&FLAG_L) dup2(in1, 2);
+          if (in1>2) close(in1);
+          xexec(toys.optargs);
         }
 
         pollinate(in1, in2, out1, out2, TT.idle, TT.quit_delay);
