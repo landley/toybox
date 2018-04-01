@@ -347,7 +347,7 @@ pid_t __attribute__((returns_twice)) xvforkwrap(pid_t pid);
   if (!_noexit_res) do {x;} while(0); \
   toys.rebound = 0; \
   y = _noexit_res; \
-} while(0);
+} while(0)
 
 // Wrapper that discards true/false "did it exit" value.
 #define NOEXIT(x) WOULD_EXIT(_noexit_res, x)
