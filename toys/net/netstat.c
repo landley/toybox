@@ -275,7 +275,7 @@ static void display_routes(void)
   static const unsigned flagarray[] = {
     RTF_GATEWAY, RTF_HOST, RTF_REINSTATE, RTF_DYNAMIC, RTF_MODIFIED
   };
-  unsigned long dest, gate, mask;
+  unsigned dest, gate, mask;
   int flags, ref, use, metric, mss, win, irtt;
   char *out = toybuf, *flag_val;
   char iface[64]={0};
@@ -290,7 +290,7 @@ static void display_routes(void)
   while (fgets(toybuf, sizeof(toybuf), fp)) {
      char *destip = 0, *gateip = 0, *maskip = 0;
 
-     if (11 != sscanf(toybuf, "%63s%lx%lx%X%d%d%d%lx%d%d%d", iface, &dest,
+     if (11 != sscanf(toybuf, "%63s%x%x%X%d%d%d%x%d%d%d", iface, &dest,
        &gate, &flags, &ref, &use, &metric, &mask, &mss, &win, &irtt))
          break;
 
