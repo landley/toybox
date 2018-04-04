@@ -95,7 +95,7 @@ void vmstat_main(void)
     if (rows>3 && !(loop % (rows-3))) {
       char *header = headers;
 
-      if ((!toys.optflags&FLAG_n) && isatty(1)) terminal_size(0, &rows);
+      if (!(toys.optflags&FLAG_n) && isatty(1)) terminal_size(0, &rows);
       else rows = 0;
 
       printf("procs -----------memory---------- ---swap-- -----io---- -system-- ----cpu----\n");
