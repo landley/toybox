@@ -1,21 +1,21 @@
-/* test_utf8towc() against libc mbrtowc()
+/* demo_utf8towc() against libc mbrtowc()
  *
  * Copyright 2017 Rob Landley <rob@landley.net>
 
-USE_TEST_UTF8TOWC(NEWTOY(test_utf8towc, 0, TOYFLAG_USR|TOYFLAG_BIN))
+USE_DEMO_UTF8TOWC(NEWTOY(demo_utf8towc, 0, TOYFLAG_USR|TOYFLAG_BIN))
 
-config TEST_UTF8TOWC
-  bool "test_utf8towc"
+config DEMO_UTF8TOWC
+  bool "demo_utf8towc"
   default n
   help
-    usage: test_utf8towc
+    usage: demo_utf8towc
 
     Print differences between toybox's utf8 conversion routines vs libc du jour.
 */
 
 #include "toys.h"
 
-void test_utf8towc_main(void)
+void demo_utf8towc_main(void)
 {
   mbstate_t mb;
   int len1, len2;

@@ -1,14 +1,14 @@
 Example commands
 
-You probably don't want to deploy this, but it shows how to use the
-toybox infrastructure and provides templates for new commands.
+You probably don't want to deploy any of this.
 
-The hello.c and skeleton.c commands provide templates: hello.c is clean and
-simple, skeleton.c demonstrates the option parsing infrastructure and having
-multiple commands per file. When writing a new command, copying hello.c or
-skeleton.c to the new name may provide a good starting point.
+The hello.c and skeleton.c commands provide templates for new commands:
+hello.c is clean and simple, skeleton.c demonstrates the option parsing
+infrastructure and having multiple commands per file. When writing a new
+command, copying hello.c or skeleton.c to the new name may provide a good
+starting point. (The minimal staring point is toys/posix/false.c)
 
-The demo_* commands demonstrate infrastructure.
+The demo_* commands demonstrate infrastructure, and do regression testing.
 
 Other commands in here are obsolete versions still in some recent Linux systems
 (and often still in posix), but not really useful on modern systems.

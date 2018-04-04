@@ -1,24 +1,24 @@
-/* test_scankey.c - collate incoming ansi escape sequences.
+/* demo_scankey.c - collate incoming ansi escape sequences.
  *
  * Copyright 2015 Rob Landley <rob@landley.net>
  *
  * TODO sigwinch
 
-USE_TEST_SCANKEY(NEWTOY(test_scankey, 0, TOYFLAG_BIN))
+USE_DEMO_SCANKEY(NEWTOY(demo_scankey, 0, TOYFLAG_BIN))
 
-config TEST_SCANKEY
-  bool "test_scankey"
+config DEMO_SCANKEY
+  bool "demo_scankey"
   default n
   help
-    usage: test_scankey
+    usage: demo_scankey
 
     Move a letter around the screen. Hit ESC to exit.
 */
 
-#define FOR_test_scankey
+#define FOR_demo_scankey
 #include "toys.h"
 
-void test_scankey_main(void)
+void demo_scankey_main(void)
 {
   time_t t[2];
   unsigned width, height, tick;
