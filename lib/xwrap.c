@@ -377,6 +377,16 @@ int notstdio(int fd)
   return fd;
 }
 
+int xtempfile(char *name, char **tempname)
+{
+  int fd;
+
+   *tempname = xmprintf("%s%s", name, "XXXXXX");
+  if(-1 == (fd = mkstemp(*tempname))) error_exit("no temp file");
+
+  return fd;
+}
+
 // Create a file but don't return stdin/stdout/stderr
 int xcreate(char *path, int flags, int mode)
 {
