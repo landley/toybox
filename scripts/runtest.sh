@@ -79,9 +79,9 @@ wrong_args()
 
 testing()
 {
+  NAME="$CMDNAME $1"
   wrong_args "$@"
 
-  NAME="$CMDNAME $1"
   [ -z "$1" ] && NAME=$2
 
   [ -n "$DEBUG" ] && set -x
