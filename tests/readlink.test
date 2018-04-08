@@ -48,6 +48,7 @@ testing "-f link/missing" "readlink -f dir/boing" \
   "$APWD/sub/boing\n" "" ""
 testing "-f /dev/null/file" \
   "readlink -f /dev/null/file 2>/dev/null || echo yes" "yes\n" "" ""
+rm link
 ln -sf / link || exit 1
 testing "-f link->/" "readlink -e link/dev" "/dev\n" "" ""
 testing "-f /dev/null/.." \
