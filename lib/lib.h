@@ -191,7 +191,11 @@ void perror_exit_raw(char *msg);
 ssize_t readall(int fd, void *buf, size_t len);
 ssize_t writeall(int fd, void *buf, size_t len);
 off_t lskip(int fd, off_t offset);
+#define MKPATHAT_MKLAST  1
+#define MKPATHAT_MAKE    2
+#define MKPATHAT_VERBOSE 4
 int mkpathat(int atfd, char *dir, mode_t lastmode, int flags);
+int mkpath(char *dir);
 struct string_list **splitpath(char *path, struct string_list **list);
 char *readfileat(int dirfd, char *name, char *buf, off_t *len);
 char *readfile(char *name, char *buf, off_t len);

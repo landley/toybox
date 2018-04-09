@@ -204,6 +204,12 @@ int mkpathat(int atfd, char *dir, mode_t lastmode, int flags)
   return 0;
 }
 
+// The common case
+int mkpath(char *dir)
+{
+  return mkpathat(AT_FDCWD, dir, 0, MKPATHAT_MAKE);
+}
+
 // Split a path into linked list of components, tracking head and tail of list.
 // Filters out // entries with no contents.
 struct string_list **splitpath(char *path, struct string_list **list)

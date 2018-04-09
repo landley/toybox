@@ -397,8 +397,7 @@ void patch_main(void)
           if ((!strcmp(oldname, "/dev/null") || !oldsum) && access(name, F_OK))
           {
             printf("creating %s\n", name);
-            if (mkpathat(AT_FDCWD, name, 0, 2))
-              perror_exit("mkpath %s", name);
+            if (mkpath(name)) perror_exit("mkpath %s", name);
             TT.filein = xcreate(name, O_CREAT|O_EXCL|O_RDWR, 0666);
           } else {
             printf("patching %s\n", name);

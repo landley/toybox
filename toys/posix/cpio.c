@@ -134,7 +134,7 @@ void cpio_main(void)
 
     if (toys.optflags & (FLAG_t|FLAG_v)) puts(name);
 
-    if (!test && strrchr(name, '/') && mkpathat(AT_FDCWD, name, 0, 2)) {
+    if (!test && strrchr(name, '/') && mkpath(name)) {
       perror_msg("mkpath '%s'", name);
       test++;
     }

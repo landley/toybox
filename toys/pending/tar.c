@@ -378,7 +378,7 @@ static void extract_to_disk(struct archive_handler *tar)
   if (file_hdr->name[flags-1] == '/') file_hdr->name[flags-1] = 0;
   //Regular file with preceding path
   if ((s = strrchr(file_hdr->name, '/'))) {
-    if (mkpathat(AT_FDCWD, file_hdr->name, 00, 2) && errno !=EEXIST) {
+    if (mkpath(file_hdr->name) && errno !=EEXIST) {
       error_msg(":%s: not created", file_hdr->name);
       return;
     }

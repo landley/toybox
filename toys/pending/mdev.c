@@ -187,8 +187,7 @@ found_device:
     return;
   }
 
-  if (strchr(device_name, '/'))
-    mkpathat(AT_FDCWD, toybuf, 0, 2);
+  if (strchr(device_name, '/')) mkpath(toybuf);
   if (mknod(toybuf, mode | type, dev_makedev(major, minor)) && errno != EEXIST)
     perror_exit("mknod %s failed", toybuf);
 
