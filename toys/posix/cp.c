@@ -15,7 +15,7 @@
 // options shared between mv/cp must be in same order (right to left)
 // for FLAG macros to work out right in shared infrastructure.
 
-USE_CP(NEWTOY(cp, "<2"USE_CP_PRESERVE("(preserve):;")"RHLPprdaslvnF(remove-destination)fi[-HLPd][-ni]", TOYFLAG_BIN))
+USE_CP(NEWTOY(cp, "<2"USE_CP_PRESERVE("(preserve):;")"D(parents)RHLPprdaslvnF(remove-destination)fi[-HLPd][-ni]", TOYFLAG_BIN))
 USE_MV(NEWTOY(mv, "<2vnF(remove-destination)fi[-ni]", TOYFLAG_BIN))
 USE_INSTALL(NEWTOY(install, "<1cdDpsvm:o:g:", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -28,6 +28,7 @@ config CP
     Copy files from SOURCE to DEST.  If more than one SOURCE, DEST must
     be a directory.
 
+    -D	create leading dirs under DEST (--parents)
     -f	delete destination files we can't write to
     -F	delete any existing destination file first (--remove-destination)
     -i	interactive, prompt before overwriting existing DEST
@@ -366,7 +367,8 @@ void cp_main(void)
   char *destname = toys.optargs[--toys.optc];
   int i, destdir = !stat(destname, &TT.top) && S_ISDIR(TT.top.st_mode);
 
-  if (toys.optc>1 && !destdir) error_exit("'%s' not directory", destname);
+  if ((toys.optc>1 || (toys.optflags&FLAG_D)) && !destdir)
+    error_exit("'%s' not directory", destname);
 
   if (toys.optflags & (FLAG_a|FLAG_p)) {
     TT.pflags = CP_mode|CP_ownership|CP_timestamps;
@@ -402,8 +404,18 @@ void cp_main(void)
     char *src = toys.optargs[i];
     int rc = 1;
 
-    if (destdir) TT.destname = xmprintf("%s/%s", destname, basename(src));
-    else TT.destname = destname;
+    if (destdir) {
+      char *s = (toys.optflags&FLAG_D) ? getdirname(src) : getbasename(src);
+
+      TT.destname = xmprintf("%s/%s", destname, s);
+      if (toys.optflags&FLAG_D) {
+        free(s);
+        if (!fileunderdir(TT.destname, destname)) {
+          error_msg("%s not under %s", TT.destname, destname);
+          continue;
+        } else mkpath(TT.destname);
+      }
+    } else TT.destname = destname;
 
     errno = EXDEV;
     if (CFG_MV && toys.which->name[0] == 'm') {

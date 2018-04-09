@@ -1002,6 +1002,17 @@ void mode_to_string(mode_t mode, char *buf)
   *buf = c;
 }
 
+// dirname() can modify its argument or return a pointer to a constant string
+// This always returns a malloc() copy of everyting before last (run of ) '/'.
+char *getdirname(char *name)
+{
+  char *s = xstrdup(name), *ss = strrchr(s, '/');
+
+  while (*ss && *ss == '/' && s != ss) *ss-- = 0;
+
+  return s;
+}
+
 // basename() can modify its argument or return a pointer to a constant string
 // This just gives after the last '/' or the whole stirng if no /
 char *getbasename(char *name)
@@ -1011,6 +1022,18 @@ char *getbasename(char *name)
   if (s) return s+1;
 
   return name;
+}
+
+// Is this file under this directory?
+int fileunderdir(char *file, char *dir)
+{
+  char *s1 = xabspath(dir, 1), *s2 = xabspath(file, -1), *ss = s2;
+  int rc = s1 && s2 && strstart(&ss, s1) && (!s1[1] || s2[strlen(s1)] == '/');
+
+  free(s1);
+  free(s2);
+
+  return rc;
 }
 
 // Execute a callback for each PID that matches a process name from a list.
