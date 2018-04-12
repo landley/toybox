@@ -371,7 +371,7 @@ void cp_main(void)
     error_exit("'%s' not directory", destname);
 
   if (toys.optflags & (FLAG_a|FLAG_p)) {
-    TT.pflags = CP_mode|CP_ownership|CP_timestamps;
+    TT.pflags = _CP_mode|_CP_ownership|_CP_timestamps;
     umask(0);
   }
   // Not using comma_args() (yet?) because interpeting as letters.
