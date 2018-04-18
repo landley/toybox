@@ -107,15 +107,20 @@ char *limit_names[] = {
   "_POSIX2_RE_DUP_MAX"
 };
 
+// Names that default to blank
+char *other_names[] = {
+  "LFS_CFLAGS", "LFS_LDFLAGS", "LFS_LIBS"
+};
+
 void getconf_main(void)
 {
-  char **names[] = {sysconf_names, confstr_names, limit_names},
+  char **names[] = {sysconf_names, confstr_names, limit_names, other_names},
     **args;
-  int i, j, lens[] = {ARRAY_LEN(sysconf_names),
-    ARRAY_LEN(confstr_names), ARRAY_LEN(limit_names)};
+  int i, j, lens[] = {ARRAY_LEN(sysconf_names), ARRAY_LEN(confstr_names),
+    ARRAY_LEN(limit_names), ARRAY_LEN(other_names)};
 
   if (toys.optflags&FLAG_l) {
-    for (i = 0; i<3; i++) for (j = 0; j<lens[i]; j++) puts(names[i][j]);
+    for (i = 0; i<4; i++) for (j = 0; j<lens[i]; j++) puts(names[i][j]);
 
     return;
   }
@@ -126,14 +131,17 @@ void getconf_main(void)
     // Workaround for autogen using CS_PATH instead of PATH
     if (!strcmp("CS_PATH", name)) name += 3;
 
-    for (i = 0; i<3; i++) for (j = 0; j<lens[i]; j++) {
+    for (i = 0; i<4; i++) for (j = 0; j<lens[i]; j++) {
       if (strcmp(names[i][j], name)) continue;
 
       if (!i) printf("%ld\n", sysconf(sysconf_vals[j]));
       else if (i==1) {
         confstr(confstr_vals[j], toybuf, sizeof(toybuf));
         puts(toybuf);
-      } else printf("%d\n", limit_vals[j]);
+      } else if (i==2) printf("%d\n", limit_vals[j]);
+      // For legacy kernel build
+      else if (sizeof(long)==4 && !j)
+        puts("-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64");
 
       goto cont;
     }
