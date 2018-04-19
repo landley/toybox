@@ -330,7 +330,15 @@ static int file_get(void)
             if (rblockno && (rblockno < 9)) message = arr[rblockno - 1];
             error_msg(message);
         }
-        if (opcode > 5) {
+        else if (blockno == 1 && opcode == TFTP_OP_OACK) {
+          len = mkpkt_ack(packet, 0);
+          ret = write_server(sd, packet, len, &from);
+          if (ret != len){
+            unlink(TT.local_file);
+            goto errout_with_sd;
+          }
+        }
+        else if (opcode > 5) {
           len = mkpkt_err(packet, TFTP_ER_ILLEGALOP, TFTP_ES_ILLEGALOP);
           ret = write_server(sd, packet, len, &from);
         }
