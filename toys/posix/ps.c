@@ -1359,9 +1359,9 @@ static int header_line(int line, int rev)
 
   if (toys.optflags&FLAG_b) rev = 0;
 
-  printf("%s%*.*s%s\r\n", rev ? "\033[7m" : "",
+  printf("%s%*.*s%s\n", rev ? "\033[7m" : "",
     (toys.optflags&FLAG_b) ? 0 : -TT.width, TT.width, toybuf,
-    rev ? "\033[0m" : "");
+    rev ? "\033[0m\r" : "");
 
   return line-1;
 }
