@@ -1138,29 +1138,22 @@ int qstrcmp(const void *a, const void *b)
   return strcmp(*(char **)a, *(char **)b);
 }
 
-// According to http://www.opengroup.org/onlinepubs/9629399/apdxa.htm
-// we should generate a uuid structure by reading a clock with 100 nanosecond
-// precision, normalizing it to the start of the gregorian calendar in 1582,
-// and looking up our eth0 mac address.
-//
-// On the other hand, we have 128 bits to come up with a unique identifier, of
-// which 6 have a defined value.  /dev/urandom it is.
-
+// See https://tools.ietf.org/html/rfc4122, specifically section 4.4
+// "Algorithms for Creating a UUID from Truly Random or Pseudo-Random
+// Numbers".
 void create_uuid(char *uuid)
 {
-  // Read 128 random bits
+  // "Set all the ... bits to randomly (or pseudo-randomly) chosen values".
   int fd = xopenro("/dev/urandom");
   xreadall(fd, uuid, 16);
   close(fd);
 
-  // Claim to be a DCE format UUID.
+  // "Set the four most significant bits ... of the time_hi_and_version
+  // field to the 4-bit version number [4]".
   uuid[6] = (uuid[6] & 0x0F) | 0x40;
+  // "Set the two most significant bits (bits 6 and 7) of
+  // clock_seq_hi_and_reserved to zero and one, respectively".
   uuid[8] = (uuid[8] & 0x3F) | 0x80;
-
-  // rfc2518 section 6.4.1 suggests if we're not using a macaddr, we should
-  // set bit 1 of the node ID, which is the mac multicast bit.  This means we
-  // should never collide with anybody actually using a macaddr.
-  uuid[11] |= 128;
 }
 
 char *show_uuid(char *uuid)
