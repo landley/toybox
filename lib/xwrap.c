@@ -792,15 +792,19 @@ long xparsetime(char *arg, long units, long *fraction)
 {
   double d;
   long l;
+  char *end;
 
-  if (CFG_TOYBOX_FLOAT) d = strtod(arg, &arg);
-  else l = strtoul(arg, &arg, 10);
+  if (CFG_TOYBOX_FLOAT) d = strtod(arg, &end);
+  else l = strtoul(arg, &end, 10);
+
+  if (end == arg) error_exit("Not a number '%s'", arg);
+  arg = end;
 
   // Parse suffix
   if (*arg) {
     int ismhd[]={1,60,3600,86400}, i = stridx("smhd", *arg);
 
-    if (i == -1) error_exit("Unknown suffix '%c'", *arg);
+    if (i == -1 || *(arg+1)) error_exit("Unknown suffix '%s'", arg);
     if (CFG_TOYBOX_FLOAT) d *= ismhd[i];
     else l *= ismhd[i];
   }
