@@ -8,7 +8,7 @@ USE_UUIDGEN(NEWTOY(uuidgen, ">0r(random)", TOYFLAG_USR|TOYFLAG_BIN))
 
 config UUIDGEN
   bool "uuidgen"
-  default n
+  default y
   help
     usage: uuidgen
 
