@@ -23,13 +23,16 @@ config FILE
 
 GLOBALS(
   int max_name_len;
+
+  off_t len;
 )
 
 // We don't trust elf.h to be there, and two codepaths for 32/64 is awkward
 // anyway, so calculate struct offsets manually. (It's a fixed ABI.)
-static void do_elf_file(int fd, struct stat *sb)
+static void do_elf_file(int fd)
 {
-  int endian = toybuf[5], bits = toybuf[4], i, j;
+  int endian = toybuf[5], bits = toybuf[4], i, j, dynamic = 0, stripped = 1,
+      phentsize, phnum, shsize, shnum;
   int64_t (*elf_int)(void *ptr, unsigned size);
   // Values from include/linux/elf-em.h (plus arch/*/include/asm/elf.h)
   // Names are linux/arch/ directory (sometimes before 32/64 bit merges)
@@ -46,11 +49,8 @@ static void do_elf_file(int fd, struct stat *sb)
     {191, "tilegx"}, {3, "386"}, {6, "486"}, {62, "x86-64"}, {94, "xtensa"},
     {0xabc7, "xtensa-old"}
   };
-  int dynamic = 0;
-  int stripped = 1;
-  char *map;
+  char *map = 0;
   off_t phoff, shoff;
-  int phentsize, phnum, shsize, shnum;
 
   printf("ELF ");
   elf_int = (endian==2) ? peek_be : peek_le;
@@ -94,6 +94,12 @@ static void do_elf_file(int fd, struct stat *sb)
     return;
   }
 
+  // Parsing ELF means following tables that may point to data earlier in
+  // the file, so sequential reading involves buffering unknown amounts of
+  // data. Just skip it if we can't mmap.
+  if (MAP_FAILED == (map = mmap(0, TT.len, PROT_READ, MAP_SHARED, fd, 0)))
+    goto bad;
+
   // Stash what we need from the header; it's okay to reuse toybuf after this.
   phentsize = elf_int(toybuf+42+12*bits, 2);
   phnum = elf_int(toybuf+44+12*bits, 2);
@@ -105,14 +111,19 @@ static void do_elf_file(int fd, struct stat *sb)
   // With binutils, phentsize seems to only be non-zero if phnum is non-zero.
   // Such ELF files are rare, but do exist. (Android's crtbegin files, say.)
   if (phnum && (phentsize != 32+24*bits)) {
-    printf(", corrupt phentsize %d?\n", phentsize);
-    return;
+    printf(", corrupt phentsize %d?", phentsize);
+    goto bad;
   }
 
-  map = xmmap(0, sb->st_size, PROT_READ, MAP_SHARED, fd, 0);
+  // Parsing ELF means following tables that may point to data earlier in
+  // the file, so sequential reading involves buffering unknown amounts of
+  // data. Just skip it if we can't mmap.
+  if (MAP_FAILED == (map = mmap(0, TT.len, PROT_READ, MAP_SHARED, fd, 0)))
+    goto bad;
 
   // We need to read the phdrs for dynamic vs static.
   // (Note: fields got reordered for 64 bit)
+  if (phoff+phnum*phentsize>TT.len) goto bad;
   for (i = 0; i<phnum; i++) {
     char *phdr = map+phoff+i*phentsize;
     int p_type = elf_int(phdr, 4);
@@ -125,8 +136,10 @@ static void do_elf_file(int fd, struct stat *sb)
     p_offset = elf_int(phdr+4*j, 4*j);
     p_filesz = elf_int(phdr+16*j, 4*j);
 
-    if (p_type==3 /*PT_INTERP*/)
+    if (p_type==3 /*PT_INTERP*/) {
+      if (p_offset+p_filesz>TT.len) goto bad;
       printf(", dynamic (%.*s)", (int)p_filesz, map+p_offset);
+    }
   }
   if (!dynamic) printf(", static");
 
@@ -134,6 +147,7 @@ static void do_elf_file(int fd, struct stat *sb)
   // Notes are in program headers *and* section headers, but some files don't
   // contain program headers, so we prefer to check here.
   // (Note: fields got reordered for 64 bit)
+  if (shoff+i*shnum>TT.len) goto bad;
   for (i = 0; i<shnum; i++) {
     char *shdr = map+shoff+i*shsize;
     int sh_type = elf_int(shdr+4, 4);
@@ -145,6 +159,8 @@ static void do_elf_file(int fd, struct stat *sb)
       break;
     } else if (sh_type == 7 /*SHT_NOTE*/) {
       char *note = map+sh_offset;
+
+      if (sh_offset+sh_size>TT.len) goto bad;
 
       // An ELF note is a sequence of entries, each consisting of an
       // ndhr followed by n_namesz+n_descsz bytes of data (each of those
@@ -158,11 +174,13 @@ static void do_elf_file(int fd, struct stat *sb)
 
         if (n_namesz==4 && !memcmp(note+12, "GNU", 4)) {
           if (n_type==3 /*NT_GNU_BUILD_ID*/) {
+            if (n_descsz+16>sh_size) goto bad;
             printf(", BuildID=");
             for (j = 0; j < n_descsz; ++j) printf("%02x", note[16 + j]);
           }
         } else if (n_namesz==8 && !memcmp(note+12, "Android", 8)) {
           if (n_type==1 /*.android.note.ident*/) {
+            if (n_descsz+24+64>sh_size) goto bad;
             printf(", for Android %d", (int)elf_int(note+20, 4));
             if (n_descsz > 24)
               printf(", built by NDK %.64s (%.64s)", note+24, note+24+64);
@@ -175,20 +193,24 @@ static void do_elf_file(int fd, struct stat *sb)
     }
   }
   printf(", %sstripped", stripped ? "" : "not ");
+bad:
   xputc('\n');
 
-  munmap(map, sb->st_size);
+  if (map && map != MAP_FAILED) munmap(map, TT.len);
 }
 
-static void do_regular_file(int fd, char *name, struct stat *sb)
+static void do_regular_file(int fd, char *name)
 {
   char *s;
-  int len = read(fd, s = toybuf, sizeof(toybuf)-256);
-  int magic;
+  int len, magic;
 
-  if (len<0) perror_msg("%s", name);
+  // zero through elf shnum, just in case
+  memset(toybuf, 0, 80);
+  if ((len = readall(fd, s = toybuf, sizeof(toybuf)))<0) perror_msg("%s", name);
 
-  if (len>40 && strstart(&s, "\177ELF")) do_elf_file(fd, sb);
+  if (!len) xputs("empty");
+  // 45 bytes: https://www.muppetlabs.com/~breadbox/software/tiny/teensy.html
+  else if (len>=45 && strstart(&s, "\177ELF")) do_elf_file(fd);
   else if (len>=8 && strstart(&s, "!<arch>\n")) xprintf("ar archive\n");
   else if (len>28 && strstart(&s, "\x89PNG\x0d\x0a\x1a\x0a")) {
     // PNG is big-endian: https://www.w3.org/TR/PNG/#7Integers-and-byte-order
@@ -360,11 +382,14 @@ void file_main(void)
 
     xprintf("%s: %*s", name, (int)(TT.max_name_len - strlen(name)), "");
 
+    sb.st_size = 0;
     if (fd || !((toys.optflags & FLAG_L) ? stat : lstat)(name, &sb)) {
       if (fd || S_ISREG(sb.st_mode)) {
-        if (!sb.st_size) what = "empty";
+        TT.len = sb.st_size;
+        // This test identifies an empty file we don't have permission to read
+        if (!fd && !sb.st_size) what = "empty";
         else if ((fd = openro(name, O_RDONLY)) != -1) {
-          do_regular_file(fd, name, &sb);
+          do_regular_file(fd, name);
           if (fd) close(fd);
           continue;
         }
