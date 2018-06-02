@@ -368,7 +368,7 @@ done
 
 do_loudly $BUILD $LNKFILES $LINK || exit 1
 if [ ! -z "$NOSTRIP" ] ||
-  ! do_loudly ${CROSS_COMPILE}strip "$UNSTRIPPED" -o "$OUTNAME"
+  ! do_loudly ${CROSS_COMPILE}${STRIP} "$UNSTRIPPED" -o "$OUTNAME"
 then
   echo "strip failed, using unstripped" && cp "$UNSTRIPPED" "$OUTNAME" ||
   exit 1
