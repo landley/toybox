@@ -61,36 +61,28 @@ config PS
 
     List processes.
 
-    Which processes to show (selections may be comma separated lists):
+    Which processes to show (-gGuUpPt selections may be comma separated lists):
 
-    -A	All processes
-    -a	Processes with terminals that aren't session leaders
-    -d	All processes that aren't session leaders
-    -e	Same as -A
-    -g	Belonging to GROUPs
-    -G	Belonging to real GROUPs (before sgid)
-    -p	PIDs (--pid)
-    -P	Parent PIDs (--ppid)
-    -s	In session IDs
-    -t	Attached to selected TTYs
-    -T	Show threads
-    -u	Owned by USERs
-    -U	Owned by real USERs (before suid)
+    -A  all					-a  has terminal not session leader
+    -d  All but session leaders		-e  synonym for -A
+    -g  in GROUPs				-G  in real GROUPs (before sgid)
+    -p  PIDs (--pid)			-P  Parent PIDs (--ppid)
+    -s  In session IDs			-t  Attached to selected TTYs
+    -T  Show threads also			-u  Owned by selected USERs
+    -U  real USERs (before suid)
 
     Output modifiers:
 
-    -k	Sort FIELDs in +increasing or -decreasting order (--sort)
-    -M	Measure field widths (expanding as necessary)
-    -n	Show numeric USER and GROUP
-    -w	Wide output (don't truncate fields)
+    -k  Sort FIELDs (-FIELD to reverse)	-M  Measure/pad future field widths
+    -n  Show numeric USER and GROUP		-w  Wide output (don't truncate fields)
 
     Which FIELDs to show. (Default = -o PID,TTY,TIME,CMD)
 
-    -f	Full listing (-o USER:12=UID,PID,PPID,C,STIME,TTY,TIME,ARGS=CMD)
-    -l	Long listing (-o F,S,UID,PID,PPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD)
-    -o	Output FIELDs instead of defaults, each with optional :size and =title
-    -O	Add FIELDS to defaults
-    -Z	Include LABEL
+    -f  Full listing (-o USER:12=UID,PID,PPID,C,STIME,TTY,TIME,ARGS=CMD)
+    -l  Long listing (-o F,S,UID,PID,PPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD)
+    -o  Output FIELDs instead of defaults, each with optional :size and =title
+    -O  Add FIELDS to defaults
+    -Z  Include LABEL
 
     Command line -o fields:
 
@@ -126,7 +118,7 @@ config PS
       TIME  CPU time consumed                 TTY     Controlling terminal
       UID   User id                           USER    User name
       VSZ   Virtual memory size (1k units)    %VSZ    VSZ as % of physical memory
-      WCHAN What are we waiting in kernel for
+      WCHAN Wait location in kernel
 
 config TOP
   bool "top"
