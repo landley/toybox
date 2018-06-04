@@ -28,7 +28,7 @@ CFLAGS="$CFLAGS -funsigned-char"
 # you call scripts/make.sh and friends directly.
 
 [ -z "$CC" ] && CC=cc
-[ -z "$STRIP" ] & STRIP=strip
+[ -z "$STRIP" ] && STRIP=strip
 
 # If HOSTCC needs CFLAGS or LDFLAGS, just add them to the variable
 # ala HOSTCC="blah-cc --static"
