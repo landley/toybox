@@ -149,8 +149,16 @@ void ping_main(void)
 
   // Open DGRAM socket
   sa->sa_family = ai->ai_family;
-  TT.sock = xsocket(ai->ai_family, SOCK_DGRAM,
-    (ai->ai_family == AF_INET) ? IPPROTO_ICMP : IPPROTO_ICMPV6);
+  TT.sock = socket(ai->ai_family, SOCK_DGRAM,
+    len = (ai->ai_family == AF_INET) ? IPPROTO_ICMP : IPPROTO_ICMPV6);
+  if (TT.sock == -1) {
+    perror_msg("socket SOCK_DGRAM %x", len);
+    if (errno == EACCES) {
+      fprintf(stderr, "Kernel bug workaround (as root):\n");
+      fprintf(stderr, "echo 0 9999999 > /proc/sys/net/ipv4/ping_group_range\n");
+    }
+    xexit();
+  }
   if (TT.I && bind(TT.sock, sa, sizeof(src_addr))) perror_exit("bind");
 
   if (TT.t) {
