@@ -38,6 +38,7 @@
  * TODO: test exit from "trap EXIT" doesn't recurse
 
 USE_SH(NEWTOY(cd, NULL, TOYFLAG_NOFORK))
+USE_SH(NEWTOY(exec, NULL, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(exit, NULL, TOYFLAG_NOFORK))
 
 USE_SH(NEWTOY(sh, "c:i", TOYFLAG_BIN))
@@ -69,6 +70,15 @@ config CD
 
     -P	Physical path: resolve symlinks in path
     -L	Local path: .. trims directories off $PWD (default)
+
+config EXEC
+  bool
+  default n
+  depends on SH
+  help
+    usage: exec command [arguments]
+
+    Replace the shell process with command.
 
 config EXIT
   bool
@@ -113,6 +123,12 @@ void cd_main(void)
   char *dest = *toys.optargs ? *toys.optargs : getenv("HOME");
 
   xchdir(dest ? dest : "/");
+}
+
+void exec_main(void)
+{
+  if (*toys.optargs)
+    xexec(toys.optargs);
 }
 
 void exit_main(void)
