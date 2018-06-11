@@ -22,4 +22,10 @@ testing "symlink" "file symlink" "symlink: symbolic link\n" "" ""
 testing "symlink -h" "file -h symlink" "symlink: symbolic link\n" "" ""
 testing "symlink -L" "file -L symlink" "symlink: Java class file, version 49.0\n" "" ""
 
-rm empty bash.script bash.script2 env.python.script ascii java.class symlink
+testing "- pipe" "cat java.class | file -" "-: Java class file, version 49.0\n" "" ""
+testing "- redirect" "file - <java.class" "-: Java class file, version 49.0\n" "" ""
+
+testing "/dev/zero" "file /dev/zero" "/dev/zero: character special\n" "" ""
+testing "- </dev/zero" "file - </dev/zero" "-: data\n" "" ""
+
+rm empty bash.script bash.script2 env.python.script ascii java.class
