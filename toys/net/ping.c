@@ -15,7 +15,7 @@ USE_PING(NEWTOY(ping, "<1>1t#<0>255=64c#<0=3s#<0>4088=56I:i:W#<0=10w#<0qf46[-46]
  
 config PING
   bool "ping"
-  default n
+  default y
   help
     usage: ping [OPTIONS] HOST
 
