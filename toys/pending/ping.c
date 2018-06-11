@@ -9,8 +9,9 @@
  * (Android does this by default in its init script.)
  *
  * Yes, I wimped out and capped -s at sizeof(toybuf), waiting for a complaint...
- 
-USE_PING(NEWTOY(ping, "<1>1t#<0>255=64c#<0=3s#<0>4088=56I:i:W#<0=10w#<0qf46[-46]", TOYFLAG_ROOTONLY|TOYFLAG_USR|TOYFLAG_BIN))
+
+// -s > 4088 = sizeof(toybuf)-sizeof(struct icmphdr), then kernel adds 20 bytes
+USE_PING(NEWTOY(ping, "<1>1t#<0>255=64c#<0=3s#<0>4088=56I:i:W#<0=10w#<0qf46[-46]", TOYFLAG_USR|TOYFLAG_BIN))
  
 config PING
   bool "ping"
@@ -27,7 +28,7 @@ config PING
     Options:
     -4, -6      Force IPv4 or IPv6
     -c CNT      Send CNT many packets (default 3, 0 = infinite)
-    -f          Flood (. on send, backspace on receive, to show packet drops)
+    -f          Flood (print . and \b to show drops, default -c 15 -i 0.2)
     -i TIME     Interval between packets (default 1, need root for < .2)
     -I IFACE/IP Source interface or address
     -q          Quiet (stops after one returns true if host is alive)
@@ -52,8 +53,10 @@ GLOBALS(
   long c;
   long t;
 
+  struct sockaddr *sa;
   int sock;
   long i_ms;
+  unsigned long sent, recv, fugit, min, max;
 )
 
 static void xsendto(int sockfd, void *buf, size_t len, struct sockaddr *dest)
@@ -63,6 +66,18 @@ static void xsendto(int sockfd, void *buf, size_t len, struct sockaddr *dest)
       sizeof(struct sockaddr_in6));
 
   if (rc != len) perror_exit("sendto");
+}
+
+static void summary(int sig)
+{
+  if (!(toys.optflags&FLAG_q) && TT.sent && TT.sa) {
+    printf("\n--- %s ping statistics ---\n", ntop(TT.sa));
+    printf("%lu packets transmitted, %lu received, %ld%% packet loss\n",
+      TT.sent, TT.recv, ((TT.sent-TT.recv)*100)/TT.sent);
+    printf("round-trip min/avg/max = %lu/%lu/%lu ms\n",
+      TT.min, TT.max, TT.fugit/TT.recv);
+  }
+  TT.sa = 0;
 }
 
 // assumes aligned and can read even number of bytes
@@ -91,9 +106,9 @@ void ping_main(void)
   } src_addr, src_addr2;
   struct sockaddr *sa = (void *)&src_addr, *sa2 = (void *)&src_addr2;
   struct pollfd pfd;
-  int family = 0, sent = 0, len;
+  int family = 0, len;
   long long tnext, tW, tnow, tw;
-  unsigned short seq = 0;
+  unsigned short seq = 0, pkttime;
   struct icmphdr *ih = (void *)toybuf;
 
   // Interval
@@ -103,13 +118,16 @@ void ping_main(void)
     TT.i_ms = xparsetime(TT.i, 1000, &frac) * 1000;
     TT.i_ms += frac;
     if (TT.i_ms<200 && getuid()) error_exit("need root for -i <200");
-  } else TT.i_ms = 1000;
+  } else TT.i_ms = (toys.optflags&FLAG_f) ? 200 : 1000;
   if (!(toys.optflags&FLAG_s)) TT.s = 56; // 64-PHDR_LEN
+  if ((toys.optflags&(FLAG_f|FLAG_c)) == FLAG_f) TT.c = 15;
 
   // ipv4 or ipv6? (0 = autodetect if -I or arg have only one address type.)
   if (toys.optflags&FLAG_6) family = AF_INET6;
   else if (toys.optflags&FLAG_4) family = AF_INET;
   else family = 0;
+
+  sigatexit(summary);
 
   // If -I src_addr look it up. Allow numeric address of correct type.
   memset(&src_addr, 0, sizeof(src_addr));
@@ -146,6 +164,7 @@ void ping_main(void)
 
   if (!ai)
     error_exit("no v%d addr for -I %s", 4+2*(family==AF_INET6), TT.I);
+  TT.sa = ai->ai_addr;
 
   // Open DGRAM socket
   sa->sa_family = ai->ai_family;
@@ -170,7 +189,7 @@ void ping_main(void)
   }
 
   if (!(toys.optflags&FLAG_q)) {
-    printf("Ping %s (%s)", *toys.optargs, ntop(ai->ai_addr));
+    printf("Ping %s (%s)", *toys.optargs, ntop(TT.sa));
     if (TT.I) {
       *toybuf = 0;
       printf(" from %s (%s)", TT.I, ntop(sa));
@@ -191,7 +210,7 @@ void ping_main(void)
     // Exit due to timeout? (TODO: timeout is after last packet, waiting if
     // any packets ever dropped. Not timeout since packet was dropped.)
     tnow = millitime();
-    if (tW) if (0>=(waitms = tW-tnow) || !sent) break;
+    if (tW) if (0>=(waitms = tW-tnow) || !(TT.sent-TT.recv)) break;
     if (tw) {
       if (tnow>tw) break;
       else if (waitms>tw-tnow) waitms = tw-tnow;
@@ -207,9 +226,9 @@ void ping_main(void)
 
       ih->checksum = 0;
       ih->checksum = pingchksum((void *)toybuf, TT.s+sizeof(*ih));
-      xsendto(TT.sock, toybuf, TT.s+sizeof(*ih), ai->ai_addr);
-      sent++;
-      if (toys.optflags&FLAG_f) printf(".");
+      xsendto(TT.sock, toybuf, TT.s+sizeof(*ih), TT.sa);
+      TT.sent++;
+      if ((toys.optflags&(FLAG_f|FLAG_q)) == FLAG_f) xputc('.');
 
       // last packet?
       if (TT.c) if (!--TT.c) {
@@ -231,23 +250,26 @@ void ping_main(void)
 
     len = sizeof(src_addr2);
     len = recvfrom(TT.sock, toybuf, sizeof(toybuf), 0, sa2, (void *)&len);
-    sent--;
+    TT.recv++;
+    TT.fugit += (pkttime = millitime()-*(unsigned *)(ih+1));
 
     // reply id == 0 for ipv4, 129 for ipv6
 
     if (!(toys.optflags&FLAG_q)) {
-      printf("%d bytes from %s: icmp_seq=%d ttl=%d", len, ntop(sa2),
-             ih->un.echo.sequence, 0);
-      if (len >= sizeof(*ih)+4) {
-        unsigned lunchtime = millitime()-*(unsigned *)(ih+1);
-
-        printf(" time=%u.%03u", lunchtime/1000, lunchtime%1000);
+      if (toys.optflags&FLAG_f) xputc('\b');
+      else {
+        printf("%d bytes from %s: icmp_seq=%d ttl=%d", len, ntop(sa2),
+               ih->un.echo.sequence, 0);
+        if (len >= sizeof(*ih)+4)
+          printf(" time=%u ms", pkttime);
+        xputc('\n');
       }
-      xputc('\n');
     }
 
     toys.exitval = 0;
   }
+
+  summary(0);
 
   if (CFG_TOYBOX_FREE) {
     freeaddrinfo(ai2);
