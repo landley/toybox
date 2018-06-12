@@ -1550,8 +1550,13 @@ static void top_common(
       recalc = 1;
 
       for (i = 0; i<lines && i+topoff<mix.count; i++) {
+        // Running processes are shown in bold.
+        int bold = !(toys.optflags&FLAG_b) && mix.tb[i+topoff]->state == 'R';
+
         if (!(toys.optflags&FLAG_b) && i) xputc('\n');
+        if (bold) printf("\033[1m");
         show_ps(mix.tb[i+topoff]);
+        if (bold) printf("\033[m");
       }
 
       if (TT.top.n && !--TT.top.n) {
