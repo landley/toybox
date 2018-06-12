@@ -643,7 +643,7 @@ static void show_ps(void *p)
     if (!abslen) putchar('+');
     if (!width) break;
   }
-  xputc(TT.time ? '\r' : '\n');
+  putchar(TT.time ? '\r' : '\n');
 }
 
 // dirtree callback: read data about process to display, store, or discard it.
@@ -1374,6 +1374,10 @@ static void top_common(
  
   unsigned tock = 0;
   int i, lines, topoff = 0, done = 0;
+  char stdout_buf[BUFSIZ];
+
+  // Avoid flicker in interactive mode.
+  if (!(toys.optflags&FLAG_b)) setbuf(stdout, stdout_buf);
 
   toys.signal = SIGWINCH;
   TT.bits = get_headers(TT.fields, toybuf, sizeof(toybuf));
@@ -1553,7 +1557,7 @@ static void top_common(
         // Running processes are shown in bold.
         int bold = !(toys.optflags&FLAG_b) && mix.tb[i+topoff]->state == 'R';
 
-        if (!(toys.optflags&FLAG_b) && i) xputc('\n');
+        if (!(toys.optflags&FLAG_b) && i) putchar('\n');
         if (bold) printf("\033[1m");
         show_ps(mix.tb[i+topoff]);
         if (bold) printf("\033[m");
@@ -1574,7 +1578,7 @@ static void top_common(
         // Make an obvious gap between datasets.
         xputs("\n\n");
         continue;
-      }
+      } else fflush(stdout);
 
       i = scan_key_getsize(scratch, timeout-now, &TT.width, &TT.height);
       if (i==-1 || i==3 || toupper(i)=='Q') {
