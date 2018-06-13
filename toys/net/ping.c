@@ -11,7 +11,7 @@
  * Yes, I wimped out and capped -s at sizeof(toybuf), waiting for a complaint...
 
 // -s > 4088 = sizeof(toybuf)-sizeof(struct icmphdr), then kernel adds 20 bytes
-USE_PING(NEWTOY(ping, "<1>1t#<0>255=64c#<0=3s#<0>4088=56I:i:W#<0=10w#<0qf46[-46]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PING(NEWTOY(ping, "<1>1m#t#<0>255=64c#<0=3s#<0>4088=56I:i:W#<0=10w#<0qf46[-46]", TOYFLAG_USR|TOYFLAG_BIN))
  
 config PING
   bool "ping"
@@ -31,6 +31,7 @@ config PING
     -f          Flood (print . and \b to show drops, default -c 15 -i 0.2)
     -i TIME     Interval between packets (default 1, need root for < .2)
     -I IFACE/IP Source interface or address
+    -m MARK     Tag outgoing packets using SO_MARK
     -q          Quiet (stops after one returns true if host is alive)
     -s SIZE     Data SIZE in bytes (default 56)
     -t TTL      Set Time To Live (number of hops)
@@ -52,6 +53,7 @@ GLOBALS(
   long s;
   long c;
   long t;
+  long m;
 
   struct sockaddr *sa;
   int sock;
@@ -180,12 +182,18 @@ void ping_main(void)
   }
   if (TT.I && bind(TT.sock, sa, sizeof(src_addr))) perror_exit("bind");
 
+  if (toys.optflags&FLAG_m) {
+      int mark = TT.m;
+
+      xsetsockopt(TT.sock, SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
+  }
+
   if (TT.t) {
     len = TT.t;
 
     if (ai->ai_family == AF_INET)
-      setsockopt(TT.sock, IPPROTO_IP, IP_TTL, &len, 4);
-    else setsockopt(TT.sock, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &len, 4);
+      xsetsockopt(TT.sock, IPPROTO_IP, IP_TTL, &len, 4);
+    else xsetsockopt(TT.sock, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &len, 4);
   }
 
   if (!(toys.optflags&FLAG_q)) {
