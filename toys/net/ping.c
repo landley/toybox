@@ -12,6 +12,7 @@
 
 // -s > 4088 = sizeof(toybuf)-sizeof(struct icmphdr), then kernel adds 20 bytes
 USE_PING(NEWTOY(ping, "<1>1m#t#<0>255=64c#<0=3s#<0>4088=56I:i:W#<0=10w#<0qf46[-46]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PING(OLDTOY(ping6, ping, TOYFLAG_USR|TOYFLAG_BIN))
  
 config PING
   bool "ping"
@@ -125,7 +126,7 @@ void ping_main(void)
   if ((toys.optflags&(FLAG_f|FLAG_c)) == FLAG_f) TT.c = 15;
 
   // ipv4 or ipv6? (0 = autodetect if -I or arg have only one address type.)
-  if (toys.optflags&FLAG_6) family = AF_INET6;
+  if (toys.optflags&FLAG_6 || toys.which->name[4] == '6') family = AF_INET6;
   else if (toys.optflags&FLAG_4) family = AF_INET;
   else family = 0;
 
