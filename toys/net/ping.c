@@ -126,7 +126,7 @@ void ping_main(void)
   if ((toys.optflags&(FLAG_f|FLAG_c)) == FLAG_f) TT.c = 15;
 
   // ipv4 or ipv6? (0 = autodetect if -I or arg have only one address type.)
-  if (toys.optflags&FLAG_6 || toys.which->name[4] == '6') family = AF_INET6;
+  if ((toys.optflags&FLAG_6) || toys.which->name[4] == '6') family = AF_INET6;
   else if (toys.optflags&FLAG_4) family = AF_INET;
   else family = 0;
 
