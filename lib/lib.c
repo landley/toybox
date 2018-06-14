@@ -644,7 +644,7 @@ void loopfiles(char **argv, void (*function)(int fd, char *name))
   loopfiles_rw(argv, O_RDONLY|O_CLOEXEC|WARN_ONLY, 0, function);
 }
 
-// call loopfiles with do_lines()
+// glue to call dl_lines() from loopfiles
 static void (*do_lines_bridge)(char **pline, long len);
 static void loopfile_lines_bridge(int fd, char *name)
 {
@@ -1344,6 +1344,7 @@ char *getgroupname(gid_t gid)
 // Iterate over lines in file, calling function. Function can write 0 to
 // the line pointer if they want to keep it, or 1 to terminate processing,
 // otherwise line is freed. Passed file descriptor is closed at the end.
+// At EOF calls function(0, 0)
 void do_lines(int fd, void (*call)(char **pline, long len))
 {
   FILE *fp = fd ? xfdopen(fd, "r") : stdin;
@@ -1359,6 +1360,7 @@ void do_lines(int fd, void (*call)(char **pline, long len))
       free(line);
     } else break;
   }
+  call(0, 0);
 
   if (fd) fclose(fp);
 }

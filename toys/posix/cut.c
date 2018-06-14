@@ -70,14 +70,15 @@ int unicolumns(char *start, unsigned columns)
   return ss-start;
 }
 
-
 // Apply selections to an input line, producing output
 static void cut_line(char **pline, long len)
 {
   unsigned *pairs = (void *)toybuf;
-  char *line = *pline;
+  char *line;
   int i, j;
 
+  if (!pline) return;
+  line = *pline;
   if (len && line[len-1]=='\n') line[--len] = 0;
 
   // Loop through selections

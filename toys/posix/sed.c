@@ -6,9 +6,10 @@
  *
  * TODO: lines > 2G could wrap signed int length counters. Not just getline()
  * but N and s///
- * TODO: make y// handle unicode
+ * TODO: make y// handle unicode, unicode delimiters
  * TODO: handle error return from emit(), error_msg/exit consistently
  *       What's the right thing to do for -i when write fails? Skip to next?
+ * test '//q' with no previous regex, also repeat previous regex?
 
 USE_SED(NEWTOY(sed, "(help)(version)e*f*inEr[+Er]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE|TOYFLAG_NOHELP))
 
@@ -247,7 +248,7 @@ static void *get_regex(void *trump, int offset)
 }
 
 // Apply pattern to line from input file
-static void process_line(char **pline, long plen)
+static void sed_line(char **pline, long plen)
 {
   struct append {
     struct append *next, *prev;
@@ -258,6 +259,9 @@ static void process_line(char **pline, long plen)
   long len = TT.nextlen;
   struct sedcmd *command;
   int eol = 0, tea = 0;
+
+  // Ignore EOF for all files before last unless -i
+  if (!pline && !(toys.optflags&FLAG_i)) return;
 
   // Grab next line for deferred processing (EOF detection: we get a NULL
   // pline at EOF to flush last line). Note that only end of _last_ input
@@ -622,7 +626,7 @@ done:
 }
 
 // Callback called on each input file
-static void do_sed(int fd, char *name)
+static void do_sed_file(int fd, char *name)
 {
   int i = toys.optflags & FLAG_i;
   char *tmp;
@@ -630,18 +634,14 @@ static void do_sed(int fd, char *name)
   if (i) {
     struct sedcmd *command;
 
-    if (!fd) {
-      error_msg("-i on stdin");
-      return;
-    }
+    if (!fd) return error_msg("-i on stdin");
     TT.fdout = copy_tempfile(fd, name, &tmp);
     TT.count = 0;
     for (command = (void *)TT.pattern; command; command = command->next)
       command->hit = 0;
   }
-  do_lines(fd, process_line);
+  do_lines(fd, sed_line);
   if (i) {
-    process_line(0, 0);
     replace_tempfile(-1, TT.fdout, &tmp);
     TT.fdout = 1;
     TT.nextline = 0;
@@ -727,7 +727,7 @@ static void parse_pattern(char **pline, long len)
 
   // Append this line to previous multiline command? (hit indicates type.)
   // During parsing "hit" stores data about line continuations, but in
-  // process_line() it means the match range attached to this command
+  // sed_line() it means the match range attached to this command
   // is active, so processing the continuation must zero it again.
   if (command && command->prev->hit) {
     // Remove half-finished entry from list so remalloc() doesn't confuse it
@@ -1016,8 +1016,8 @@ void sed_main(void)
   // so handle all -e, then all -f. (At least the behavior's consistent.)
 
   for (al = TT.e; al; al = al->next) parse_pattern(&al->arg, strlen(al->arg));
-  for (al = TT.f; al; al = al->next) do_lines(xopenro(al->arg), parse_pattern);
   parse_pattern(0, 0);
+  for (al = TT.f; al; al = al->next) do_lines(xopenro(al->arg), parse_pattern);
   dlist_terminate(TT.pattern);
   if (TT.nextlen) error_exit("no }");  
 
@@ -1025,9 +1025,13 @@ void sed_main(void)
   TT.remember = xstrdup("");
 
   // Inflict pattern upon input files. Long version because !O_CLOEXEC
-  loopfiles_rw(args, O_RDONLY|WARN_ONLY, 0, do_sed);
+  loopfiles_rw(args, O_RDONLY|WARN_ONLY, 0, do_sed_file);
 
-  if (!(toys.optflags & FLAG_i)) process_line(0, 0);
+  // Provide EOF flush at end of cumulative input for non-i mode.
+  if (!(toys.optflags & FLAG_i)) {
+    toys.optflags |= FLAG_i;
+    sed_line(0, 0);
+  }
 
   // todo: need to close fd when done for TOYBOX_FREE?
 }
