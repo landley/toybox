@@ -29,7 +29,7 @@ config CUT
     -c	select UTF-8 characters
     -C	select unicode columns
     -d	use DELIM (default is TAB for -f, run of whitespace for -F)
-    -D	Don't sort/collate selections
+    -D	Don't sort/collate selections or match -fF lines without delimiter
     -f	select fields (words) separated by single DELIM character
     -F	select fields separated by DELIM regex
     -O	output delimiter (default one space for -F, input delim for -f)
@@ -155,6 +155,7 @@ static void cut_line(char **pline, long len)
 
       // If we never encountered even one separator, print whole line (posix!)
       if (!j && end == start) {
+        if (toys.optflags&FLAG_D) break;
         if (toys.optflags&FLAG_s) return;
         fwrite(line, len, 1, stdout);
         break;
