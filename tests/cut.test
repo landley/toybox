@@ -7,17 +7,51 @@
 [ -f testing.sh ] && . testing.sh
 
 #testing "name" "command" "result" "infile" "stdin"
-#set -x
 
 # Creating test file for testing cut
 echo "one:two:three:four:five:six:seven
-alpha:beta:gamma:delta:epsilon:zeta:eta:teta:iota:kappa:lambda:mu
+alpha:beta:gamma:delta:epsilon:zeta:eta:theta:iota:kappa:lambda:mu
 the quick brown fox jumps over the lazy dog" >abc.txt
 
-testing "with -c (a-b)" "cut -c 4-10 abc.txt" ":two:th\nha:beta\n quick \n" "" ""
-testing "with -f (a-)" "cut -d ':' -f 5- abc.txt" "five:six:seven\nepsilon:zeta:eta:teta:iota:kappa:lambda:mu\nthe quick brown fox jumps over the lazy dog\n" "" ""
+testing "-b a,a,a" "cut -b 3,3,3 abc.txt" "e\np\ne\n" "" ""
+testing "-b overlaps" "cut -b 1-3,2-5,7-9,9-10 abc.txt" \
+  "one:to:th\nalphabeta\nthe qick \n" "" ""
+testing "-b encapsulated" "cut -b 3-8,4-6 abc.txt" "e:two:\npha:be\ne quic\n" \
+  "" ""
+testing "-bO overlaps" \
+  "cut --output-delimiter ' ' -b 1-3,2-5,7-9,9-10 abc.txt" \
+  "one:t o:th\nalpha beta\nthe q ick \n" "" ""
+testing "high-low error" "cut -b 8-3 abc.txt 2>/dev/null || echo err" "err\n" \
+  "" ""
 
-testing "with -f (a)" "cut -d ' ' -f 3 abc.txt" "one:two:three:four:five:six:seven\nalpha:beta:gamma:delta:epsilon:zeta:eta:teta:iota:kappa:lambda:mu\nbrown\n" "" ""
+testing "-c a-b" "cut -c 4-10 abc.txt" ":two:th\nha:beta\n quick \n" "" ""
+testing "-c a-" "cut -c 41- abc.txt" "\ntheta:iota:kappa:lambda:mu\ndog\n" "" ""
+testing "-c -b" "cut -c -39 abc.txt" \
+  "one:two:three:four:five:six:seven\nalpha:beta:gamma:delta:epsilon:zeta:eta\nthe quick brown fox jumps over the lazy\n" \
+  "" ""
+testing "-c a" "cut -c 40 abc.txt" "\n:\n \n" "" ""
+testing "-c a,b-c,d" "cut -c 3,5-7,10 abc.txt" "etwoh\npa:ba\nequi \n" "" ""
+SKIP_HOST=1 testing "-c japan.txt" 'cut -c 3-6,9-12 "$FILES/utf8/japan.txt"' \
+  "ガラスをられます\n" "" ""
+
+# substitute for awk
+SKIP_HOST=1 testcmd "-DF" "-DF 2,7,5" \
+  "said and your\nare\nis demand. supply\nforecast :\nyou you better,\n\nEm: Took hate\n" "" \
+"Bother, said Pooh. It's your husband, and he has a gun.
+Cheerios are donut seeds.
+Talk is cheap because supply exceeds demand.
+Weather forecast for tonight : dark.
+Apple: you can buy better, but you can't pay more.
+Subcalifragilisticexpialidocious.
+Auntie Em: Hate you, hate Kansas. Took the dog. Dorothy."
+
+testcmd "empty field" "-d ':' -f 1-3" "a::b\n" "" "a::b\n"
+testcmd "empty field 2" "-d ':' -f 3-5" "b::c\n" "" "a::b::c:d\n"
+
+testing "-f a-" "cut -d ':' -f 5- abc.txt" "five:six:seven\nepsilon:zeta:eta:theta:iota:kappa:lambda:mu\nthe quick brown fox jumps over the lazy dog\n" "" ""
+
+testing "show whole line with no delim" "cut -d ' ' -f 3 abc.txt" \
+	"one:two:three:four:five:six:seven\nalpha:beta:gamma:delta:epsilon:zeta:eta:theta:iota:kappa:lambda:mu\nbrown\n" "" ""
 
 testing "with echo, -c (a-b)" "echo 'ref_categorie=test' | cut -c 1-15 " "ref_categorie=t\n" "" ""
 testing "with echo, -c (a)" "echo 'ref_categorie=test' | cut -c 14" "=\n" "" ""
