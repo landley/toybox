@@ -106,7 +106,7 @@ done
 # The following are commands toybox should provide, but doesn't yet.
 # For now symlink the host version. This list must go away by 1.0.
 
-PENDING="bunzip2 bzcat dd diff expr ftpd ftpget ftpput gunzip less ping route tar test tr vi wget zcat awk bzip2 fdisk gzip sh sha512sum unxz xzcat bc"
+PENDING="bunzip2 bzcat dd diff expr ftpd ftpget ftpput gunzip less ping route tar test tr vi wget zcat awk bzip2 fdisk gzip sh sha512sum unxz xzcat bc bison flex"
 
 # "gcc" should go away for llvm, but some things still hardwire it
 TOOLCHAIN="ar as nm cc make ld gcc objdump"
