@@ -74,15 +74,15 @@ static void fmt_line(char **pline, long len)
     while (idx<len && !isspace(line[idx])) idx++;
     line[idx++] = 0;
     count = utf8len(word);
-    if (TT.pos+count>=TT.width) newline();
+    if (TT.pos+count+!!TT.pos>=TT.width) newline();
 
     // When indenting a new line, preserve tab/space mixture of input
     if (!TT.pos) {
-      TT.pos = TT.level-1;
+      TT.pos = TT.level;
       if (indent) printf("%.*s", indent, line);
-    }
-    printf(" %s"+!(TT.pos!=TT.level-1), word);
-    TT.pos += count+1;
+    } else count++;
+    printf(" %s"+!(TT.pos!=TT.level), word);
+    TT.pos += count;
     while (isspace(line[idx])) idx++;
   }
 }
