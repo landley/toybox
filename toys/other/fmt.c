@@ -13,7 +13,7 @@ USE_FMT(NEWTOY(fmt, "w#<0=75", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config FMT
   bool "fmt"
-  default n
+  default y
   help
     usage: fmt [-w WIDTH] [FILE...]
 
