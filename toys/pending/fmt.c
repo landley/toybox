@@ -2,11 +2,14 @@
  *
  * Copyright 2017 The Android Open Source Project
  *
- * Deviations from original:
- *   we treat all whitespace as equal (no tab expansion, no runs of spaces)
- *   we don't try to recognize ends of sentences to double-space after ./?/!
+ * No standard.
+ *
+ * Only counts space and tab for indent level (eats other low ascii chars,
+ * treats all UTF8 chars as non-whitespace), preserves indentation but squashes
+ * together runs of whitespace. No header/footer logic, no end-of-sentence
+ * double-space, preserves initial tab/space mix when indenting new lines.
 
-USE_FMT(NEWTOY(fmt, "w#", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_FMT(NEWTOY(fmt, "w#<0=75", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config FMT
   bool "fmt"
@@ -14,7 +17,8 @@ config FMT
   help
     usage: fmt [-w WIDTH] [FILE...]
 
-    Reformat input to not exceed a maximum line length.
+    Reformat input to wordwrap at a given line length, preserving existing
+    indentation level, writing to stdout.
 
     -w WIDTH	maximum characters per line (default 75)
 */
@@ -24,55 +28,66 @@ config FMT
 
 GLOBALS(
   int width;
+
+  int level, pos;
 )
 
-static void do_fmt(int fd, char *name)
+static void newline(void)
 {
-  FILE *fp = xfdopen(fd, "re");
-  char *line = NULL;
-  size_t allocated_length = 0;
-  int cols = 0, is_first = 1, indent_end = 0, line_length;
+  if (TT.pos) xputc('\n');
+  TT.pos = 0;
+}
 
-  while ((line_length = getline(&line, &allocated_length, fp)) > 0) {
-    int b = 0, e, w;
+// Process lines of input, with (0,0) flush between files
+static void fmt_line(char **pline, long len)
+{
+  char *line;
+  int idx, indent, count;
 
-    while (b < line_length && isspace(line[b])) b++;
-    if (b == line_length) {
-      if (cols > 0) xputc('\n');
-      xputc('\n');
-      is_first = 1;
-      cols = 0;
-      continue;
-    }
-    if (is_first) indent_end = b;
+  // Flush line on EOF
+  if (!pline) return newline();
 
-    for (; b < line_length; b = e + 1) {
-      while (isspace(line[b])) b++;
-      for (e = b + 1; e < line_length && !isspace(line[e]);) e++;
-      if (e >= line_length) break;
-
-      line[e] = 0;
-      w = utf8len(line + b);
-
-      if (!is_first && (cols + (is_first?indent_end:1) + w) >= TT.width) {
-        xputc('\n');
-        is_first = 1;
-        cols = 0;
-      }
-      xprintf("%.*s%.*s",is_first?indent_end:1,is_first?line:" ",(e-b),line+b);
-      cols += (is_first?indent_end:1) + w;
-      b = e + 1;
-      is_first = 0;
-    }
+  // Measure indentation
+  for (line = *pline, idx = count = 0; isspace(line[idx]); idx++) {
+    if (line[idx]=='\t') count += 8-(count&7);
+    else if (line[idx]==' ') count++;
   }
-  if (cols > 0) xputc('\n');
-  fclose(fp);
+  indent = idx;
+
+  // Blank lines (even with same indentation) flush line
+  if (idx==len) {
+    xputc('\n');
+    TT.level = 0;
+
+    return newline();
+  }
+
+  // Did indentation change?
+  if (count!=TT.level) newline();
+  TT.level = count;
+
+  // Loop through words
+  while (idx<len) {
+    char *word = line+idx;
+
+    // Measure this word (unicode width) and end
+    while (idx<len && !isspace(line[idx])) idx++;
+    line[idx++] = 0;
+    count = utf8len(word);
+    if (TT.pos+count>=TT.width) newline();
+
+    // When indenting a new line, preserve tab/space mixture of input
+    if (!TT.pos) {
+      TT.pos = TT.level-1;
+      if (indent) printf("%.*s", indent, line);
+    }
+    printf(" %s"+!(TT.pos!=TT.level-1), word);
+    TT.pos += count+1;
+    while (isspace(line[idx])) idx++;
+  }
 }
 
 void fmt_main(void)
 {
-  if (TT.width < 0) error_exit("negative width: %d", TT.width);
-  if (!TT.width) TT.width = 75;
-
-  loopfiles(toys.optargs, do_fmt);
+  loopfiles_lines(toys.optargs, fmt_line);
 }
