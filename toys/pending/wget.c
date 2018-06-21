@@ -135,7 +135,7 @@ void wget_main(void)
 
   // TODO extract filename to be saved from URL
   if (!(toys.optflags & FLAG_f)) help_exit("no filename");
-  if (fopen(TT.filename, "r")) perror_exit("file already exists");
+  if (fopen(TT.filename, "r")) error_exit("file already exists");
 
   if(!toys.optargs[0]) help_exit("no URL");
   get_info(toys.optargs[0], hostname, port, path);
