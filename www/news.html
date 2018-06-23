@@ -8,6 +8,94 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+<a name="23-06-2018" /><a href="#23-06-2018"><hr><h2><b>June 23, 2018</b></h2></a>
+<blockquote><p>
+<p>There is a theory which states that if ever anyone discovers exactly what
+the Universe is for and why it is here, it will instantly disappear and be
+replaced by something even more bizarre and inexplicable. There is another
+theory which states that this has already happened.</p>
+<p> - The Hitchhiker's Guide to the Galaxy</p>
+</blockquote>
+
+<p><a href=downloads/toybox-0.7.7.tar.gz>Toybox 0.7.7</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.7.7>git commit</a>)
+is out.</p>
+
+<p><u>New commands</u>: Rob Landley added <b>getconf</b>, Elliott Hughes added
+<b>uuidgen</b>, and <b>ping</b> and <b>fmt</b> were promoted out of pending.</p>
+
+<p><u>New options</u>: The <b>cp</b> command added the --parents option,
+<b>readlink</b> now has -m to show where a missing path would be,
+<b>netstat</b> got some updates (better nommu support, it can use /etc/services
+names, more command line options are bounds checked),
+Ng Zhi An added --getra and --setra (get/set readahead) to <b>blockdev</b>,
+Elliott Hughes added <b>xxd</b> -o and made <b>top</b> -d understand fractional
+sections (because the Linux Test Project uses that), and
+Minghui Liu added <b>watch</b> -b.</p>
+
+<p><u>Bugfixes</u>: Several fixes to <b>vmstat</b>: Elliott Hughes made it work on a
+48-core machine
+and fixed a glitch with -n, Haroon Maqsood pointed out "vmstat 1 1" didn't
+stop and "vmstat -n" didn't print the first theader line.
+Minghui Liu fixed a bug where <b>cp</b> -p didn't preserve
+timestamps, and pointed out the b, c, and d suffixes on numbers weren't
+working. Ryan Pritchard pointed out that <b>du</b> -d0 should act like du -s.
+Filip Perich made an RFC2347 OACK compliance fix to <b>tftp</b> in pending.
+Zach van Rijn fixed a bug in <b>xxd</b> causing incorrect translation of
+uppercase characters.
+Elliott fixed several things in <b>top</b> (removed spurious '\r' characters from -b
+output, removed interactive flicker, made running processes bold), and
+pushed Rob to make <b>file</b> work better recognizing things on stdin
+("cat /bin/ls | file -" still won't work but "file - < /bin/ls" should).
+Rob fixed a bug in <b>netstat</b> on 64 bit big endian systems,
+and fixed <b>cut</b> -DF
+(a posix compliance fix broke its ability to act as a decent awk replacment
+because outputting all delimiterless lines isn't what you want there, -D
+now disables that too).</p>
+</u></p>
+
+<p><u>Documentation</u>: Rob added a buildroot section to the roadmap with the
+prequisites that needs to run, and reformatted more of the ps --help text
+to two columns.</p>
+
+<p><u>Library</u>:
+FLAGS_NODASH is now set in toys.optargs when an optstring starting
+with & has no dash in its first argument. (This lets "ps -ax" and "ps ax"
+behave differently.) Factored out xtestfile() into lib/.
+The comma-separated-list parsing infrastructure moved to lib/commas.c.
+Added mkpath() for the common case of mkpathat() and #defined MKPATHAT_*
+constants for the uncommon cases. Elliott added better error checking
+to xparsetime() and fixed a bug in names_to_pid() (used in <b>pidof</b>
+and <b>killall</b> and such).
+Rob inlined the old toys/e2fs.h into pending's mke2fs,
+and removed a rogue semicolon from the WOULD_EXIT() macro that screwed
+up if() statement levels. The do_lines() semantics changed adding a
+callback(0,0) at the end of each file.</p>
+
+<p><u>Tests</u>:
+The test_* commands under toys/example were all renamed demo_* so
+they don't share a namespace with running a standalone command
+through the test suite (ala "make test_sed"), then
+demo_human_readable became demo_number so it can also test atolx()
+suffixes. The readlink.test was getting confused by a
+behavior difference between toybox and ubuntu (Ubuntu's ln -sf wouldn't
+replace a symlink that pointed to itself, toybox's would), now there's
+an explicit rm so it works on ubuntu too. The test suite plumbing's
+error message for a test with the wrong number of arguments now
+correctly identifies which test it's complaining about, and it can now
+run a test on a command name beginning with "-" (none yet but it
+comes up in toysh).</p>
+
+<p><u>Building</u>: You can now override strip with $STRIP. The set of
+"make install_airlock" commands got tweaked for the 4.17 kernel (which
+needs bison and flex because the new kconfig plumbing doesn't have _shipped
+versions of those generated files like the old kconfig did), and for
+the new release (remove ping, toybox provides it now).
+$LDFLAGS now applies to library probing (the android NDK provides
+dynamic libraries without corresponding --static versions).
+Elliott took a CFG_TOYBOX_DEBUG check out of an error_exit() to make
+clang stop complaining about an error that should never happen.</p>
+
 <a name="24-02-2018" /><a href="#24-02-2018"><hr><h2><b>February 24, 2018</b></h2></a>
 <blockquote><p>
 "Arthur," said Ford.<br />
