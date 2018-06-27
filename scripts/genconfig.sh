@@ -98,9 +98,11 @@ EOF
   echo -e '\tdepends on !TOYBOX_MUSL_NOMMU_IS_BROKEN'
 
   probesymbol TOYBOX_PRLIMIT << EOF
+    #include <sys/types.h>
     #include <sys/time.h>
     #include <sys/resource.h>
-
+    int prlimit(pid_t pid, int resource, const struct rlimit *new_limit,
+      struct rlimit *old_limit);
     int main(int argc, char *argv[]) { prlimit(0, 0, 0, 0); }
 EOF
 }
