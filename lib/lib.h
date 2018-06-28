@@ -250,6 +250,7 @@ char *getgroupname(gid_t gid);
 void do_lines(int fd, void (*call)(char **pline, long len));
 long environ_bytes();
 long long millitime(void);
+char *format_iso_time(char *buf, size_t len, struct timespec *ts);
 
 #define HR_SPACE 1 // Space between number and units
 #define HR_B     2 // Use "B" for single byte units

@@ -5,7 +5,7 @@
  *
  * See: http://cm.bell-labs.com/cm/cs/cstr/41.pdf
 
-USE_DIFF(NEWTOY(diff, "<2>2B(ignore-blank-lines)d(minimal)b(ignore-space-change)ut(expand-tabs)w(ignore-all-space)i(ignore-case)T(initial-tab)s(report-identical-files)q(brief)a(text)L(label)*S(starting-file):N(new-file)r(recursive)U(unified)#<0=3", TOYFLAG_USR|TOYFLAG_BIN))
+USE_DIFF(NEWTOY(diff, "<2>2(color)B(ignore-blank-lines)d(minimal)b(ignore-space-change)ut(expand-tabs)w(ignore-all-space)i(ignore-case)T(initial-tab)s(report-identical-files)q(brief)a(text)L(label)*S(starting-file):N(new-file)r(recursive)U(unified)#<0=3", TOYFLAG_USR|TOYFLAG_BIN))
 
 config DIFF
   bool "diff"
@@ -28,6 +28,8 @@ config DIFF
   -t  Expand tabs to spaces in output
   -U  Output LINES lines of context
   -w  Ignore all whitespace
+
+  --color  Colored output
 */
 
 #define FOR_diff
@@ -40,6 +42,7 @@ GLOBALS(
 
   int dir_num, size, is_binary, status, change, len[2];
   int *offset[2];
+  struct stat st[2];
 )
 
 #define MIN(x,y) ((x) < (y) ? (x) : (y))
@@ -416,6 +419,12 @@ static int *diff(char **files)
 static void print_diff(int a, int b, char c, int *off_set, FILE *fp)
 {
   int i, j, cc, cl;
+  char *reset = NULL;
+
+  if (c != ' ' && (toys.optflags & FLAG_color)) {
+    printf("\033[%dm", c == '+' ? 32 : 31);
+    reset = "\033[0m";
+  }
 
   for (i = a; i <= b; i++) {
     fseek(fp, off_set[i - 1], SEEK_SET);
@@ -424,7 +433,7 @@ static void print_diff(int a, int b, char c, int *off_set, FILE *fp)
     for (j = 0, cl = 0; j <  (off_set[i] - off_set[i - 1]); j++) {
       cc = fgetc(fp);
       if (cc == EOF) {
-        printf("\n\\ No newline at end of file\n");
+        printf("%s\n\\ No newline at end of file\n", reset ? reset : "");
         return;
       }
       if ((cc == '\t') && (toys.optflags & FLAG_t))
@@ -435,6 +444,7 @@ static void print_diff(int a, int b, char c, int *off_set, FILE *fp)
       }
     }
   }
+  if (reset) printf(reset);
 }
 
 static char *concat_file_path(char *path, char *default_path)
@@ -509,6 +519,14 @@ static int cmp(const void *p1, const void *p2)
    return strcmp(* (char * const *)p1, * (char * const *)p2);
 }
 
+static void show_label(char *prefix, char *filename, struct stat *sb)
+{
+  char date[36];
+
+  printf("%s %s\t%s\n", prefix, filename,
+    format_iso_time(date, sizeof(date), &sb->st_mtim));
+}
+
 static void do_diff(char **files)
 {
 
@@ -564,14 +582,16 @@ static void do_diff(char **files)
   TT.status = change; //update status, may change bcoz of -w etc.
 
   if (!(toys.optflags & FLAG_q) && change) {  //start of !FLAG_q
-
-      xprintf("--- %s\n", (toys.optflags & FLAG_L) ? llist->arg : files[0]);
-      if (((toys.optflags & FLAG_L) && !llist->next) || !(toys.optflags & FLAG_L))
-        xprintf("+++ %s\n", files[1]);
-      else {
-        while (llist->next) llist = llist->next;
-        xprintf("+++ %s\n", llist->arg);
-      }
+    if (toys.optflags & FLAG_color) printf("\033[1m");
+    if (toys.optflags & FLAG_L) printf("--- %s\n", llist->arg);
+    else show_label("---", files[0], &(TT).st[0]);
+    if (((toys.optflags & FLAG_L) && !llist->next) || !(toys.optflags & FLAG_L))
+      show_label("+++", files[1], &(TT).st[1]);
+    else {
+      while (llist->next) llist = llist->next;
+      printf("+++ %s\n", llist->arg);
+    }
+    if (toys.optflags & FLAG_color) printf("\033[0m");
 
     struct diff *t, *ptr1 = d, *ptr2 = d;
     while (i) {
@@ -606,6 +626,7 @@ calc_ct:
       start2 = MAX(1, ptr1->c - (ptr1->a - ptr1->suff));
       end2 = ptr2->prev - ptr2->b + ptr2->d;
 
+      if (toys.optflags & FLAG_color) printf("\033[36m");
       printf("@@ -%ld", start1 ? ptr1->suff: (ptr1->suff -1));
       if (end1 != -1) printf(",%ld ", ptr2->prev-ptr1->suff + 1);
       else putchar(' ');
@@ -613,7 +634,9 @@ calc_ct:
       printf("+%ld", (end2 - start2 + 1) ? start2: (start2 -1));
       if ((end2 - start2 +1) != 1) printf(",%ld ", (end2 - start2 +1));
       else putchar(' ');
-      printf("@@\n");
+      printf("@@");
+      if (toys.optflags & FLAG_color) printf("\033[0m");
+      putchar('\n');
 
       for (t = ptr1; t <= ptr2; t++) {
         if (t== ptr1) print_diff(t->suff, t->a-1, ' ', TT.offset[0], file[0].fp);
@@ -765,17 +788,18 @@ static void diff_dir(int *start)
 
 void diff_main(void)
 {
-  struct stat st[2];
   int j = 0, k = 1, start[2] = {1, 1};
   char *files[2];
+
+  if ((toys.optflags & FLAG_color) && !isatty(1)) toys.optflags ^= FLAG_color;
 
   for (j = 0; j < 2; j++) {
     files[j] = toys.optargs[j];
     if (IS_STDIN(files[j])) {
-      if (fstat(0, &st[j]) == -1)
+      if (fstat(0, &TT.st[j]) == -1)
         perror_exit("can fstat %s", files[j]);
     } else {
-      if (stat(files[j], &st[j]) == -1)
+      if (stat(files[j], &TT.st[j]) == -1)
         perror_exit("can't stat %s", files[j]);
     }
   }
@@ -786,16 +810,16 @@ void diff_main(void)
   }
 
   if ((IS_STDIN(files[0]) || IS_STDIN(files[1]))
-      && (S_ISDIR(st[0].st_mode) || S_ISDIR(st[1].st_mode)))
+      && (S_ISDIR(TT.st[0].st_mode) || S_ISDIR(TT.st[1].st_mode)))
     error_exit("can't compare stdin to directory");
 
-  if ((st[0].st_ino == st[1].st_ino) //physicaly same device
-      &&(st[0].st_dev == st[1].st_dev)) {
+  if ((TT.st[0].st_ino == TT.st[1].st_ino) //physicaly same device
+      && (TT.st[0].st_dev == TT.st[1].st_dev)) {
     show_status(files);
     return ;
   }
 
-  if (S_ISDIR(st[0].st_mode) && S_ISDIR(st[1].st_mode)) {
+  if (S_ISDIR(TT.st[0].st_mode) && S_ISDIR(TT.st[1].st_mode)) {
     for (j = 0; j < 2; j++) {
       memset(&dir[j], 0, sizeof(struct dir_t));
       dirtree_flagread(files[j], DIRTREE_SYMFOLLOW, list_dir);
@@ -820,12 +844,12 @@ void diff_main(void)
     free(dir[0].list); //free array
     free(dir[1].list);
   } else {
-    if (S_ISDIR(st[0].st_mode) || S_ISDIR(st[1].st_mode)) {
-      int d = S_ISDIR(st[0].st_mode);
+    if (S_ISDIR(TT.st[0].st_mode) || S_ISDIR(TT.st[1].st_mode)) {
+      int d = S_ISDIR(TT.st[0].st_mode);
       char *slash = strrchr(files[d], '/');
 
       files[1 - d] = concat_file_path(files[1 - d], slash ? slash + 1 : files[d]);
-      if ((stat(files[1 - d], &st[1 - d])) == -1)
+      if ((stat(files[1 - d], &TT.st[1 - d])) == -1)
         perror_exit("%s", files[1 - d]);
     }
     do_diff(files);

@@ -67,11 +67,7 @@ static void strout(char *val)
 
 static void date_stat_format(struct timespec *ts)
 {
-  char *s = toybuf+128;
-  strftime(s, sizeof(toybuf)-128, "%Y-%m-%d %H:%M:%S",
-    localtime(&(ts->tv_sec)));
-  sprintf(s+strlen(s), ".%09ld", ts->tv_nsec);
-  strout(s);
+  strout(format_iso_time(toybuf+128, sizeof(toybuf)-128, ts));
 }
 
 static void print_stat(char type)

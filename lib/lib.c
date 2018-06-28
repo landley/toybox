@@ -1394,3 +1394,12 @@ long long millitime(void)
   clock_gettime(CLOCK_MONOTONIC, &ts);
   return ts.tv_sec*1000+ts.tv_nsec/1000000;
 }
+
+// Formats `ts` in ISO format ("2018-06-28 15:08:58.846386216 -0700").
+char *format_iso_time(char *buf, size_t len, struct timespec *ts)
+{
+  strftime(buf, len, "%F %T", localtime(&(ts->tv_sec)));
+  sprintf(buf+strlen(buf), ".%09ld ", ts->tv_nsec);
+  strftime(buf+strlen(buf), len-strlen(buf), "%z", localtime(&(ts->tv_sec)));
+  return buf;
+}
