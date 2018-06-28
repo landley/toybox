@@ -177,7 +177,7 @@ void stat_main(void)
     format = flagf ? "%n %i %l %t %s %S %b %f %a %c %d" :
                      "%n %s %b %f %u %g %D %i %h %t %T %X %Y %Z %o";
   } else format = flagf
-    ? "  File: \"%n\"\n    ID: %i Namelen: %l    Type: %t\n"
+    ? "  File: \"%n\"\n    ID: %i Namelen: %l    Type: %T\n"
       "Block Size: %s    Fundamental block size: %S\n"
       "Blocks: Total: %b\tFree: %f\tAvailable: %a\n"
       "Inodes: Total: %c\tFree: %d"
