@@ -112,7 +112,7 @@ static void print_stat(char type)
     }
     llist_traverse(mt, free);
   } else if (type == 'N') {
-    xprintf("`%s'", TT.file);
+    xprintf("%s", TT.file);
     if (S_ISLNK(stat->st_mode))
       if (readlink0(TT.file, toybuf, sizeof(toybuf)))
         xprintf(" -> `%s'", toybuf);
