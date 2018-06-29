@@ -26,8 +26,8 @@ config STAT
     %m  Mount point         |%n  Filename           |%N  Long filename
     %o  I/O block size      |%s  Size (bytes)       |%t  Devtype major (hex)
     %T  Devtype minor (hex) |%u  User ID            |%U  User name
-    %x  Access time         |%X  Access unix time   |%y  File write time
-    %Y  File write unix time|%z  Dir change time    |%Z  Dir change unix time
+    %x  Access time         |%X  Access unix time   |%y  Modification time
+    %Y  Mod unix time       |%z  Creation time      |%Z  Creation unix time
 
     The valid format escape sequences for filesystems:
     %a  Available blocks    |%b  Total blocks       |%c  Total inodes
