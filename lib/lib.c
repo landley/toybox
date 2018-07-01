@@ -1217,23 +1217,28 @@ struct passwd *bufgetpwuid(uid_t uid)
   struct pwuidbuf_list {
     struct pwuidbuf_list *next;
     struct passwd pw;
-  } *list;
+  } *list = 0;
   struct passwd *temp;
   static struct pwuidbuf_list *pwuidbuf;
+  int size = 0;
 
+  // If we already have this one, return it.
   for (list = pwuidbuf; list; list = list->next)
     if (list->pw.pw_uid == uid) return &(list->pw);
 
-  list = xmalloc(512);
-  list->next = pwuidbuf;
+  for (;;) {
+    list = xrealloc(list, size += 512);
+    errno = getpwuid_r(uid, &list->pw, sizeof(*list)+(char *)list,
+      size-sizeof(*list), &temp);
+    if (errno != ERANGE) break;
+  }
 
-  errno = getpwuid_r(uid, &list->pw, sizeof(*list)+(char *)list,
-    512-sizeof(*list), &temp);
   if (!temp) {
     free(list);
 
     return 0;
   }
+  list->next = pwuidbuf;
   pwuidbuf = list;
 
   return &list->pw;
@@ -1245,23 +1250,26 @@ struct group *bufgetgrgid(gid_t gid)
   struct grgidbuf_list {
     struct grgidbuf_list *next;
     struct group gr;
-  } *list;
+  } *list = 0;
   struct group *temp;
   static struct grgidbuf_list *grgidbuf;
+  int size = 0;
 
   for (list = grgidbuf; list; list = list->next)
     if (list->gr.gr_gid == gid) return &(list->gr);
 
-  list = xmalloc(512);
-  list->next = grgidbuf;
-
-  errno = getgrgid_r(gid, &list->gr, sizeof(*list)+(char *)list,
-    512-sizeof(*list), &temp);
+  for (;;) {
+    list = xrealloc(temp, size += 512);
+    errno = getgrgid_r(gid, &list->gr, sizeof(*list)+(char *)list,
+      4096-sizeof(*list), &temp);
+    if (errno != ERANGE) break;
+  }
   if (!temp) {
     free(list);
 
     return 0;
   }
+  list->next = grgidbuf;
   grgidbuf = list;
 
   return &list->gr;
