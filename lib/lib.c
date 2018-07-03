@@ -1220,14 +1220,14 @@ struct passwd *bufgetpwuid(uid_t uid)
   } *list = 0;
   struct passwd *temp;
   static struct pwuidbuf_list *pwuidbuf;
-  int size = 0;
+  unsigned size = 256;
 
   // If we already have this one, return it.
   for (list = pwuidbuf; list; list = list->next)
     if (list->pw.pw_uid == uid) return &(list->pw);
 
   for (;;) {
-    list = xrealloc(list, size += 512);
+    list = xrealloc(list, size *= 2);
     errno = getpwuid_r(uid, &list->pw, sizeof(*list)+(char *)list,
       size-sizeof(*list), &temp);
     if (errno != ERANGE) break;
@@ -1244,7 +1244,7 @@ struct passwd *bufgetpwuid(uid_t uid)
   return &list->pw;
 }
 
-// Return cached passwd entries.
+// Return cached group entries.
 struct group *bufgetgrgid(gid_t gid)
 {
   struct grgidbuf_list {
@@ -1253,15 +1253,15 @@ struct group *bufgetgrgid(gid_t gid)
   } *list = 0;
   struct group *temp;
   static struct grgidbuf_list *grgidbuf;
-  int size = 0;
+  unsigned size = 256;
 
   for (list = grgidbuf; list; list = list->next)
     if (list->gr.gr_gid == gid) return &(list->gr);
 
   for (;;) {
-    list = xrealloc(temp, size += 512);
+    list = xrealloc(list, size *= 2);
     errno = getgrgid_r(gid, &list->gr, sizeof(*list)+(char *)list,
-      4096-sizeof(*list), &temp);
+      size-sizeof(*list), &temp);
     if (errno != ERANGE) break;
   }
   if (!temp) {
