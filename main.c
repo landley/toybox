@@ -34,7 +34,7 @@ struct toy_list *toy_find(char *name)
 {
   int top, bottom, middle;
 
-  if (!CFG_TOYBOX) return 0;
+  if (!CFG_TOYBOX || strchr(name, '/')) return 0;
 
   // If the name starts with "toybox" accept that as a match.  Otherwise
   // skip the first entry, which is out of order.
@@ -145,14 +145,12 @@ void toy_init(struct toy_list *which, char *argv[])
   toy_singleinit(which, argv);
 }
 
-// Like exec() but runs an internal toybox command instead of another file.
-// Only returns if it can't run command internally, otherwise exit() when done.
-void toy_exec(char *argv[])
+// Run an internal toybox command.
+// Only returns if it can't run command internally, otherwise xexit() when done.
+void toy_exec_which(struct toy_list *which, char *argv[])
 {
-  struct toy_list *which;
-
   // Return if we can't find it (which includes no multiplexer case),
-  if (!(which = toy_find(*argv))) return;
+  if (!which) return;
 
   // Return if stack depth getting noticeable (proxy for leaked heap, etc).
 
@@ -170,6 +168,12 @@ void toy_exec(char *argv[])
   xexit();
 }
 
+// Lookup internal toybox command to run via argv[0]
+void toy_exec(char *argv[])
+{
+  toy_exec_which(toy_find(basename(*argv)), argv);
+}
+
 // Multiplexer command, first argument is command to run, rest are args to that.
 // If first argument starts with - output list of command install paths.
 void toybox_main(void)
@@ -179,7 +183,12 @@ void toybox_main(void)
 
   // fast path: try to exec immediately.
   // (Leave toys.which null to disable suid return logic.)
-  if (toys.argv[1]) toy_exec(toys.argv+1);
+  // Try dereferencing one layer of symlink
+  if (toys.argv[1]) {
+    toy_exec(toys.argv+1);
+    if (0<readlink(toys.argv[1], libbuf, sizeof(libbuf)))
+      toy_exec_which(toy_find(basename(libbuf)), toys.argv);
+  }
 
   // For early error reporting
   toys.which = toy_list;
@@ -214,7 +223,6 @@ int main(int argc, char *argv[])
 
     toys.stacktop = &stack;
   }
-  *argv = getbasename(*argv);
 
   // Up to and including Android M, bionic's dynamic linker added a handler to
   // cause a crash dump on SIGPIPE. That was removed in Android N, but adbd
