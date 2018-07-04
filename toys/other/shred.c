@@ -33,8 +33,6 @@ GLOBALS(
   long offset;
   long iterations;
   long size;
-
-  int ufd;
 )
 
 void shred_main(void)
@@ -42,7 +40,6 @@ void shred_main(void)
   char **try;
 
   if (!(toys.optflags & FLAG_n)) TT.iterations++;
-  TT.ufd = xopenro("/dev/urandom");
 
   // We don't use loopfiles() here because "-" isn't stdin, and want to
   // respond to files we can't open via chmod.
@@ -96,7 +93,7 @@ void shred_main(void)
       if (toys.optflags & FLAG_x)
         if (len-pos < throw) throw = len-pos;
 
-      if (iter != TT.iterations) xread(TT.ufd, toybuf, throw);
+      if (iter != TT.iterations) xgetrandom(toybuf, throw, 0);
       if (throw != writeall(fd, toybuf, throw)) perror_msg_raw(*try);
       pos += throw;
     }

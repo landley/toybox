@@ -1144,9 +1144,7 @@ int qstrcmp(const void *a, const void *b)
 void create_uuid(char *uuid)
 {
   // "Set all the ... bits to randomly (or pseudo-randomly) chosen values".
-  int fd = xopenro("/dev/urandom");
-  xreadall(fd, uuid, 16);
-  close(fd);
+  xgetrandom(uuid, 16, 0);
 
   // "Set the four most significant bits ... of the time_hi_and_version
   // field to the 4-bit version number [4]".

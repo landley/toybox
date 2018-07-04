@@ -251,3 +251,8 @@ static inline char *get_sched_policy_name(int policy) {return "unknown";}
 typedef struct {char *c_name; int c_val;} CODE;
 extern CODE prioritynames[], facilitynames[];
 #endif
+
+#if CFG_TOYBOX_GETRANDOM
+#include <sys/random.h>
+#endif
+void xgetrandom(void *buf, unsigned len, unsigned flags);

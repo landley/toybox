@@ -105,6 +105,11 @@ EOF
       struct rlimit *old_limit);
     int main(int argc, char *argv[]) { prlimit(0, 0, 0, 0); }
 EOF
+
+  probesymbol TOYBOX_GETRANDOM << EOF
+    #include <sys/random.h>
+    int main(void) { char buf[100]; getrandom(buf, 100, 0); }
+EOF
 }
 
 genconfig()

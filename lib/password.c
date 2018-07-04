@@ -8,7 +8,7 @@
 #include "toys.h"
 #include <time.h>
 
-// generate appropriate random salt string for given encryption algorithm.
+// generate ID prefix and random salt for given encryption algorithm.
 int get_salt(char *salt, char *algo)
 {
   struct {
@@ -24,9 +24,7 @@ int get_salt(char *salt, char *algo)
       if (al[i].id) s += sprintf(s, "$%c$", '0'+al[i].id);
 
       // Read appropriate number of random bytes for salt
-      i = xopenro("/dev/urandom");
-      xreadall(i, libbuf, ((len*6)+7)/8);
-      close(i);
+      xgetrandom(libbuf, ((len*6)+7)/8, 0);
 
       // Grab 6 bit chunks and convert to characters in ./0-9a-zA-Z
       for (i=0; i<len; i++) {
