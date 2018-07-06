@@ -33,9 +33,13 @@ GLOBALS(
 
 static void show_lengths(unsigned long *lengths, char *name)
 {
-  int i, space = 7, first = 1;
+  int i, space, first = 1;
 
-  for (i = 0; i<4; i++) if (toys.optflags == (1<<i)) space = 0;
+  // POSIX says there should never be leading spaces, but accepts that
+  // traditional implementations use 7 spaces, unless only one file
+  // is being counted, when there should be no leading spaces.
+  space = (toys.optc != 1) ? 7 : 0;
+
   for (i = 0; i<4; i++) {
     if (toys.optflags&(1<<i)) {
       printf(" %*ld"+first, space, lengths[i]);
