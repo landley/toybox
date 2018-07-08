@@ -850,14 +850,20 @@ void exit_signal(int sig)
 // adds the handlers to a list, to be called in order.
 void sigatexit(void *handler)
 {
-  struct arg_list *al = xmalloc(sizeof(struct arg_list));
+  struct arg_list *al;
   int i;
 
   for (i=0; signames[i].num != SIGCHLD; i++)
-    signal(signames[i].num, exit_signal);
-  al->next = toys.xexit;
-  al->arg = handler;
-  toys.xexit = al;
+    signal(signames[i].num, handler ? exit_signal : SIG_DFL);
+  if (handler) {
+    al = xmalloc(sizeof(struct arg_list));
+    al->next = toys.xexit;
+    al->arg = handler;
+    toys.xexit = al;
+  } else {
+    llist_traverse(toys.xexit, free);
+    toys.xexit = 0;
+  }
 }
 
 // Convert name to signal number.  If name == NULL print names.

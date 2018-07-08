@@ -46,12 +46,13 @@ void xexit(void)
 {
   // Call toys.xexit functions in reverse order added.
   while (toys.xexit) {
-    // This is typecasting xexit->arg to a function pointer,then calling it.
-    // Using the invalid signal number 0 lets the signal handlers distinguish
-    // an actual signal from a regular exit.
-    ((void (*)(int))(toys.xexit->arg))(0);
+    struct arg_list *al = llist_pop(&toys.xexit);
 
-    free(llist_pop(&toys.xexit));
+    // typecast xexit->arg to a function pointer, then call it using invalid
+    // signal 0 to let signal handlers tell actual signal from regular exit.
+    ((void (*)(int))(al->arg))(0);
+
+    free(al);
   }
   if (fflush(NULL) || ferror(stdout))
     if (!toys.exitval) perror_msg("write");

@@ -76,9 +76,9 @@ static void summary(int sig)
   if (!(toys.optflags&FLAG_q) && TT.sent && TT.sa) {
     printf("\n--- %s ping statistics ---\n", ntop(TT.sa));
     printf("%lu packets transmitted, %lu received, %ld%% packet loss\n",
-      TT.sent, TT.recv, ((TT.sent-TT.recv)*100)/TT.sent);
+      TT.sent, TT.recv, ((TT.sent-TT.recv)*100)/(TT.sent?TT.sent:1));
     printf("round-trip min/avg/max = %lu/%lu/%lu ms\n",
-      TT.min, TT.max, TT.fugit/TT.recv);
+      TT.min, TT.max, TT.fugit/(TT.recv?TT.recv:1));
   }
   TT.sa = 0;
 }
@@ -278,6 +278,7 @@ void ping_main(void)
     toys.exitval = 0;
   }
 
+  sigatexit(0);
   summary(0);
 
   if (CFG_TOYBOX_FREE) {
