@@ -11,7 +11,7 @@
  * Yes, I wimped out and capped -s at sizeof(toybuf), waiting for a complaint...
 
 // -s > 4088 = sizeof(toybuf)-sizeof(struct icmphdr), then kernel adds 20 bytes
-USE_PING(NEWTOY(ping, "<1>1m#t#<0>255=64c#<0=3s#<0>4088=56I:i:W#<0=10w#<0qf46[-46]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PING(NEWTOY(ping, "<1>1m#t#<0>255=64c#<0=3s#<0>4088=56I:i:W#<0=3w#<0qf46[-46]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_PING(OLDTOY(ping6, ping, TOYFLAG_USR|TOYFLAG_BIN))
  
 config PING
@@ -36,7 +36,7 @@ config PING
     -q          Quiet (stops after one returns true if host is alive)
     -s SIZE     Data SIZE in bytes (default 56)
     -t TTL      Set Time To Live (number of hops)
-    -W SEC      Seconds to wait for response after -c (default 10)
+    -W SEC      Seconds to wait for response after last -c packet (default 3)
     -w SEC      Exit after this many seconds
 */
 
@@ -219,12 +219,17 @@ void ping_main(void)
     // Exit due to timeout? (TODO: timeout is after last packet, waiting if
     // any packets ever dropped. Not timeout since packet was dropped.)
     tnow = millitime();
-    if (tW) if (0>=(waitms = tW-tnow) || !(TT.sent-TT.recv)) break;
+    if (tW) {
+      if (0>=(waitms = tW-tnow) || !(TT.sent-TT.recv)) break;
+      waitms = tW-tnow;
+    }
     if (tw) {
       if (tnow>tw) break;
       else if (waitms>tw-tnow) waitms = tw-tnow;
+    }
+
     // Time to send the next packet?
-    } else if (tnext-tnow <= 0) {
+    if (!tW && tnext-tnow <= 0) {
       tnext += TT.i_ms;
 
       memset(ih, 0, sizeof(*ih));
@@ -241,13 +246,13 @@ void ping_main(void)
 
       // last packet?
       if (TT.c) if (!--TT.c) {
-        if (!TT.W) break;
         tW = tnow + TT.W*1000;
+        waitms = 1; // check for immediate return even when W=0
       }
     }
 
     // This is down here so it's against new period if we just sent a packet
-    if (!tw && waitms>tnext-tnow) waitms = tnext-tnow;
+    if (!tW && waitms>tnext-tnow) waitms = tnext-tnow;
 
     // wait for next packet or timeout
 
