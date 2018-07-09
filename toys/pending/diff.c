@@ -444,7 +444,7 @@ static void print_diff(int a, int b, char c, int *off_set, FILE *fp)
       }
     }
   }
-  if (reset) printf(reset);
+  if (reset) printf("%s", reset);
 }
 
 static char *concat_file_path(char *path, char *default_path)
