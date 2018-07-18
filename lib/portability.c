@@ -35,8 +35,8 @@ void xgetrandom(void *buf, unsigned buflen, unsigned flags)
   int fd;
 
 #if CFG_TOYBOX_GETRANDOM
-  if (buflen != getrandom(buf, buflen, flags))
-    if (!CFG_TOYBOX_ON_ANDROID || errno!=ENOSYS) perror_exit("getrandom");
+  if (buflen == getrandom(buf, buflen, flags)) return;
+  if (!CFG_TOYBOX_ON_ANDROID || errno!=ENOSYS) perror_exit("getrandom");
 #endif
 
   fd = xopen(flags ? "/dev/random" : "/dev/urandom", O_RDONLY);
