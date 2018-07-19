@@ -76,49 +76,13 @@ config PS
     -k  Sort FIELDs (-FIELD to reverse)	-M  Measure/pad future field widths
     -n  Show numeric USER and GROUP		-w  Wide output (don't truncate fields)
 
-    Which FIELDs to show. (Default = -o PID,TTY,TIME,CMD)
+    Which FIELDs to show. (-o HELP for list, default = -o PID,TTY,TIME,CMD)
 
     -f  Full listing (-o USER:12=UID,PID,PPID,C,STIME,TTY,TIME,ARGS=CMD)
     -l  Long listing (-o F,S,UID,PID,PPID,C,PRI,NI,ADDR,SZ,WCHAN,TTY,TIME,CMD)
     -o  Output FIELDs instead of defaults, each with optional :size and =title
     -O  Add FIELDS to defaults
     -Z  Include LABEL
-
-    Command line -o fields:
-
-      ARGS     CMDLINE minus initial path     CMD  Command (thread) name (stat[2])
-      CMDLINE  Command line (argv[])          COMM Command filename (/proc/$PID/exe)
-      COMMAND  Command file (/proc/$PID/exe)  NAME Process name (argv[0] of $PID)
-
-    Process attribute -o FIELDs:
-
-      ADDR  Instruction pointer               BIT   Is this process 32 or 64 bits
-      CPU   Which processor running on        ETIME   Elapsed time since PID start
-      F     Flags (1=FORKNOEXEC 4=SUPERPRIV)  GID     Group id
-      GROUP Group name                        LABEL   Security label
-      MAJFL Major page faults                 MINFL   Minor page faults
-      NI    Niceness (lower is faster)
-      PCPU  Percentage of CPU time used       PCY     Android scheduling policy
-      PGID  Process Group ID
-      PID   Process ID                        PPID    Parent Process ID
-      PRI   Priority (higher is faster)       PSR     Processor last executed on
-      RGID  Real (before sgid) group ID       RGROUP  Real (before sgid) group name
-      RSS   Resident Set Size (pages in use)  RTPRIO  Realtime priority
-      RUID  Real (before suid) user ID        RUSER   Real (before suid) user name
-      S     Process state:
-            R (running) S (sleeping) D (device I/O) T (stopped)  t (traced)
-            Z (zombie)  X (deader)   x (dead)       K (wakekill) W (waking)
-      SCHED Scheduling policy (0=other, 1=fifo, 2=rr, 3=batch, 4=iso, 5=idle)
-      STAT  Process state (S) plus:
-            < high priority          N low priority L locked memory
-            s session leader         + foreground   l multithreaded
-      STIME Start time of process in hh:mm (size :19 shows yyyy-mm-dd hh:mm:ss)
-      SZ    Memory Size (4k pages needed to completely swap out process)
-      TCNT  Thread count                      TID     Thread ID
-      TIME  CPU time consumed                 TTY     Controlling terminal
-      UID   User id                           USER    User name
-      VSZ   Virtual memory size (1k units)    %VSZ    VSZ as % of physical memory
-      WCHAN Wait location in kernel
 
 config TOP
   bool "top"
@@ -323,7 +287,7 @@ enum {
  SLOT_startbss, /*data/bss address*/      SLOT_endbss,    // end addr data+bss
  SLOT_upticks,  /*uptime-starttime*/      SLOT_argv0len,  // argv[0] length
  SLOT_uptime,   /*si.uptime @read time*/  SLOT_vsz,       // Virtual mem Size
- SLOT_rss2,     /*Resident Set Size*/     SLOT_shr,       // Shared memory
+ SLOT_rss2,     /*rss from "statm"*/      SLOT_shr,       // Shared memory
  SLOT_rchar,    /*All bytes read*/        SLOT_wchar,     // All bytes written
  SLOT_rbytes,   /*Disk bytes read*/       SLOT_wbytes,    // Disk bytes written
  SLOT_swap,     /*Swap pages used*/       SLOT_bits,      // 32 or 64
@@ -372,46 +336,148 @@ struct procpid {
 // TODO: Android uses -30 for LABEL, but ideally it would auto-size.
 // 64|slot means compare as string when sorting
 struct typography {
-  char *name;
+  char *name, *help;
   signed char width, slot;
 } static const typos[] = TAGGED_ARRAY(PS,
   // Numbers. (What's in slot[] is what's displayed, sorted numerically.)
-  {"PID", 5, SLOT_pid}, {"PPID", 5, SLOT_ppid}, {"PRI", 3, SLOT_priority},
-  {"NI", 3, SLOT_nice}, {"ADDR", 4+sizeof(long), SLOT_eip},
-  {"SZ", 5, SLOT_vsize}, {"RSS", 6, SLOT_rss}, {"PGID", 5, SLOT_pgrp},
-  {"VSZ", 7, SLOT_vsize}, {"MAJFL", 6, SLOT_majflt}, {"MINFL", 6, SLOT_minflt},
-  {"PR", 2, SLOT_priority}, {"PSR", 3, SLOT_taskcpu},
-  {"RTPRIO", 6, SLOT_rtprio}, {"SCH", 3, SLOT_policy}, {"CPU", 3, SLOT_taskcpu},
-  {"TID", 5, SLOT_tid}, {"TCNT", 4, SLOT_tcount}, {"BIT", 3, SLOT_bits},
+  {"PID", "Process ID", 5, SLOT_pid},
+  {"PPID", "Parent Process ID", 5, SLOT_ppid},
+  {"PRI", "Priority (dynamic 0 to 139)", 3, SLOT_priority},
+  {"NI", "Niceness (static 19 to -20)", 3, SLOT_nice},
+  {"ADDR", "Instruction pointer", 4+sizeof(long), SLOT_eip},
+  {"SZ", "4k pages to swap out", 5, SLOT_vsize},
+  {"RSS", "Resident Set Size (DRAM pages)", 6, SLOT_rss},
+  {"PGID", "Process Group ID", 5, SLOT_pgrp},
+  {"VSZ", "Virtual memory size (1k units)", 7, SLOT_vsize},
+  {"MAJFL", "Major page faults", 6, SLOT_majflt},
+  {"MINFL", "Minor page faults", 6, SLOT_minflt},
+  {"PR", "Prio Reversed (dyn 39-0, RT)", 2, SLOT_priority},
+  {"PSR", "Processor last executed on", 3, SLOT_taskcpu},
+  {"RTPRIO", "Realtime priority", 6, SLOT_rtprio},
+  {"SCH", "Scheduling policy (0=other, 1=fifo, 2=rr, 3=batch, 4=iso, 5=idle)",
+   3, SLOT_policy},
+  {"CPU", "Which processor running on", 3, SLOT_taskcpu},
+  {"TID", "Thread ID", 5, SLOT_tid},
+  {"TCNT", "Thread count", 4, SLOT_tcount},
+  {"BIT", "32 or 64", 3, SLOT_bits},
 
   // String fields (-1 is procpid->str, rest are str+offset[1-slot])
-  {"TTY", -8, -2}, {"WCHAN", -6, -3}, {"LABEL", -30, -4}, {"COMM", -27, -5},
-  {"NAME", -27, -7}, {"COMMAND", -27, -5}, {"CMDLINE", -27, -6},
-  {"ARGS", -27, -6}, {"CMD", -15, -1},
+  {"TTY", "Controlling terminal", -8, -2},
+  {"WCHAN", "Wait location in kernel", -6, -3},
+  {"LABEL", "Security label", -30, -4},
+  {"COMM", "EXE filename (/proc/PID/exe)", -27, -5},
+  {"NAME", "Process name (PID's argv[0])", -27, -7},
+  {"COMMAND", "EXE path (/proc/PID/exe)", -27, -5},
+  {"CMDLINE", "Command line (argv[])", -27, -6},
+  {"ARGS", "CMDLINE minus initial path", -27, -6},
+  {"CMD", "Thread name (/proc/TID/stat:2)", -15, -1},
 
   // user/group (may call getpwuid() or similar)
-  {"UID", 5, SLOT_uid}, {"USER", -12, 64|SLOT_uid}, {"RUID", 4, SLOT_ruid},
-  {"RUSER", -8, 64|SLOT_ruid}, {"GID", 8, SLOT_gid}, {"GROUP", -8, 64|SLOT_gid},
-  {"RGID", 4, SLOT_rgid}, {"RGROUP", -8, 64|SLOT_rgid},
+  {"UID", "User id", 5, SLOT_uid},
+  {"USER", "User name", -12, 64|SLOT_uid},
+  {"RUID", "Real (before suid) user ID", 4, SLOT_ruid},
+  {"RUSER", "Real (before suid) user name", -8, 64|SLOT_ruid},
+  {"GID", "Group ID", 8, SLOT_gid},
+  {"GROUP", "Group name", -8, 64|SLOT_gid},
+  {"RGID", "Real (before sgid) Group ID", 4, SLOT_rgid},
+  {"RGROUP", "Real (before sgid) group name", -8, 64|SLOT_rgid},
 
   // clock displays (00:00:00)
-  {"TIME", 8, SLOT_utime}, {"ELAPSED", 11, SLOT_starttime},
-  {"TIME+", 9, SLOT_utime},
+  {"TIME", "CPU time consumed", 8, SLOT_utime},
+  {"ELAPSED", "Elapsed time since PID start", 11, SLOT_starttime},
+  {"TIME+", "CPU time (high precision)", 9, SLOT_utime},
 
   // Percentage displays (fixed point, one decimal digit. 123 -> 12.3)
-  {"C", 1, SLOT_utime2}, {"%VSZ", 5, SLOT_vsize}, {"%MEM", 5, SLOT_rss},
-  {"%CPU", 4, SLOT_utime2},
+  {"C", "Total %CPU used since start", 1, SLOT_utime2},
+  {"%VSZ", "VSZ as % of physical memory", 5, SLOT_vsize},
+  {"%MEM", "RSS as % of physical memory", 5, SLOT_rss},
+  {"%CPU", "Percentage of CPU time used", 4, SLOT_utime2},
 
   // human_readable (function human_readable() in lib, 1.23M, 1.4G, etc)
-  {"VIRT", 4, SLOT_vsz}, {"RES", 4, SLOT_rss2},
-  {"SHR", 4, SLOT_shr}, {"READ", 6, SLOT_rchar}, {"WRITE", 6, SLOT_wchar},
-  {"IO", 6, SLOT_iobytes}, {"DREAD", 6, SLOT_rbytes},
-  {"DWRITE", 6, SLOT_wbytes}, {"SWAP", 6, SLOT_swap}, {"DIO", 6, SLOT_diobytes},
+  {"VIRT", "Virtual memory size", 4, SLOT_vsz},
+  {"RES", "Short RSS", 4, SLOT_rss2},
+  {"SHR", "Shared memory", 4, SLOT_shr},
+  {"READ", "Data read", 6, SLOT_rchar},
+  {"WRITE", "Data written", 6, SLOT_wchar},
+  {"IO", "Data I/O", 6, SLOT_iobytes},
+  {"DREAD", "Pirate Roberts", 6, SLOT_rbytes},
+  {"DWRITE", "Disk write", 6, SLOT_wbytes},
+  {"SWAP", "Swap I/O", 6, SLOT_swap},
+  {"DIO", "Disk I/O", 6, SLOT_diobytes},
 
   // Misc (special cases)
-  {"STIME", 5, SLOT_starttime}, {"F", 1, 64|SLOT_flags}, {"S", -1, 64},
-  {"STAT", -5, 64}, {"PCY", 3, 64|SLOT_pcy},
+  {"STIME", "Start time (ISO 8601)", 5, SLOT_starttime},
+  {"F", "Flags 1=FORKNOEXEC 4=SUPERPRIV", 1, 64|SLOT_flags},
+  {"S", "Process state:\n"
+   "\t  R (running) S (sleeping) D (device I/O) T (stopped)  t (traced)\n"
+   "\t  Z (zombie)  X (deader)   x (dead)       K (wakekill) W (waking)",
+   -1, 64},
+  {"STAT", "Process state (S) plus:\n"
+   "\t  < high priority          N low priority L locked memory\n"
+   "\t  s session leader         + foreground   l multithreaded",
+   -5, 64},
+  {"PCY", "Android scheduling policy", 3, 64|SLOT_pcy},
 );
+
+// Show "-o help" text
+
+void inherent_in_the_system(int len, int multi)
+{
+  int i, j, k, left = 0;
+  struct typography *t;
+
+  // Quick and dirty sort of toybuf[] entries (see TODO below)
+  for (j = len; j--; ) {
+    k = -1;
+
+    for (i=0; i<j; i++) {
+      if (strcmp(typos[toybuf[i]].name, typos[toybuf[i+1]].name)>0) {
+        k = toybuf[i];
+        toybuf[i] = toybuf[i+1];
+        toybuf[i+1] = k;
+      }
+    }
+    if (k == -1) break;
+  }
+
+  // Display loop
+  for (i = j = 0; i<len; i++, j++) {
+    t = (void *)(typos+toybuf[i]);
+    if (strlen(t->help)>30) {
+      if (multi) printf("  %-8s%s\n", t->name, t->help);
+      else j--;
+    } else if (!multi) {
+      left = !(j&1);
+      printf("  %-8s%*s%c"+2*!left, t->name, -30*left, t->help, 10+22*left);
+    }
+  }
+  if (!multi && left) xputc('\n');
+}
+
+// Print help text for unknown -o field.
+void being_repressed(void)
+{
+  int i, jump = PS_CMD+1-PS_COMM;
+
+  // TODO: sort the array of -o types so they're already alphabetical and
+  // don't need sorting here. A regex to find everything that currently cares
+  // about symbol order might be: "which *[><]=* *PS"
+
+  // Collate variants of command line display.
+
+  printf("Command line -o fields:\n\n");
+  for (i = 0; i<jump; i++) toybuf[i] = PS_COMM+i;
+  inherent_in_the_system(jump, 0);
+
+  // Show the rest of the commands.
+
+  printf("\nProcess attribute -o FIELDs:\n\n");
+  for (i = 0; i<ARRAY_LEN(typos)-jump; i++) toybuf[i] = i+(i>=PS_COMM)*jump;
+  inherent_in_the_system(ARRAY_LEN(typos)-jump, 1);
+  inherent_in_the_system(ARRAY_LEN(typos)-jump, 0);
+
+  xexit();
+}
 
 // Return 0 to discard, nonzero to keep
 static int shared_match_process(long long *slot)
@@ -646,9 +712,9 @@ static void show_ps(void *p)
   putchar(TT.time ? '\r' : '\n');
 }
 
-// dirtree callback: read data about process to display, store, or discard it.
+// dirtree callback: read data about process, then display or store it.
 // Fills toybuf with struct procpid and either DIRTREE_SAVEs a copy to ->extra
-// (in -k mode) or calls show_ps on toybuf (no malloc/copy/free there).
+// (in -k mode) or calls show_ps directly on toybuf (for low memory systems).
 static int get_ps(struct dirtree *new)
 {
   struct {
@@ -671,6 +737,7 @@ static int get_ps(struct dirtree *new)
     return DIRTREE_RECURSE|DIRTREE_SHUTUP|DIRTREE_PROC
       |(DIRTREE_SAVE*(TT.threadparent||!TT.show_process));
 
+  // Grab PID and figure out if we're a thread or a process
   memset(slot, 0, sizeof(tb->slot));
   slot[SLOT_tid] = *slot = atol(new->name);
   if (TT.threadparent && TT.threadparent->extra) {
@@ -680,20 +747,25 @@ static int get_ps(struct dirtree *new)
   }
   fd = dirtree_parentfd(new);
 
+  // Read /proc/$PID/stat into half of toybuf.
   len = 2048;
   sprintf(buf, "%lld/stat", slot[SLOT_tid]);
   if (!readfileat(fd, buf, buf, &len)) return 0;
 
-  // parse oddball fields (name and state). Name can have embedded ')' so match
-  // _last_ ')' in stat (although VFS limits filenames to 255 bytes max).
-  // All remaining fields should be numeric.
+  // parse oddball fields: the first field is same as new->name (skip it)
+  // and the second and third (name and state) are the only non-numeric fields.
+  // Name has (parentheses) around it, and can have embedded ')' so match
+  // _last_ ')' (VFS limits filenames to 255 bytes max, sanity check that).
+  // TODO: kernel task struct actually limits name to 16 chars?
   if (!(name = strchr(buf, '('))) return 0;
   for (s = ++name; *s; s++) if (*s == ')') end = s;
   if (!end || end-name>255) return 0;
-
-  // Parse numeric fields (starting at 4th field in slot[SLOT_ppid])
   if (1>sscanf(s = end, ") %c%n", &tb->state, &i)) return 0;
-  for (j = 1; j<SLOT_count; j++)
+
+  // All remaining fields should be numeric, parse them into slot[] array
+  // (skipping first 3 stat fields and first slot[], both were handled above)
+  // yes this means the alignment's off: stat[4] becomes slot[1]
+  for (j = SLOT_ppid; j<SLOT_count; j++)
     if (1>sscanf(s += i, " %lld%n", slot+j, &i)) break;
 
   // Now we've read the data, move status and name right after slot[] array,
@@ -705,6 +777,8 @@ static int get_ps(struct dirtree *new)
   *buf++ = 0;
   len = sizeof(toybuf)-(buf-toybuf);
 
+  // Overwrite useless/obsolete stat fields with more interesting data.
+
   // save uid, ruid, gid, gid, and rgid int slots 31-34 (we don't use sigcatch
   // or numeric wchan, and the remaining two are always zero), and vmlck into
   // 18 (which is "obsolete, always 0" from stat)
@@ -715,8 +789,7 @@ static int get_ps(struct dirtree *new)
   slot[SLOT_utime] += slot[SLOT_stime];
   slot[SLOT_utime2] = slot[SLOT_utime];
 
-  // If RGROUP RUSER STAT RUID RGID SWAP happening, or -G or -U, parse "status"
-  // and save ruid, rgid, and vmlck.
+  // Do we need to read "status"?
   if ((TT.bits&(_PS_RGROUP|_PS_RUSER|_PS_STAT|_PS_RUID|_PS_RGID|_PS_SWAP
                |_PS_IO|_PS_DIO)) || TT.GG.len || TT.UU.len)
   {
@@ -782,10 +855,18 @@ static int get_ps(struct dirtree *new)
   if (TT.bits&_PS_PCY)
     get_sched_policy(slot[SLOT_tid], (void *)&slot[SLOT_pcy]);
 
+  // Done using buf[] (tb->str) as scratch space, now read string data,
+  // saving consective null terminated strings. (Save starting offsets into
+  // str->offset to avoid strlen() loop to find relevant string.)
+
   // Fetch string data while parentfd still available, appending to buf.
   // (There's well over 3k of toybuf left. We could dynamically malloc, but
   // it'd almost never get used, querying length of a proc file is awkward,
   // fixed buffer is nommu friendly... Wait for somebody to complain. :)
+
+  // The fetch[] array at the start of the function says what file to read
+  // and what -o display field outputs it (to skip the ones we don't need).
+
   slot[SLOT_argv0len] = 0;
   for (j = 0; j<ARRAY_LEN(fetch); j++) {
     tb->offset[j] = buf-(tb->str);
@@ -794,12 +875,17 @@ static int get_ps(struct dirtree *new)
       continue;
     }
 
-    // Determine remaining space, reserving minimum of 256 bytes/field and
-    // 260 bytes scratch space at the end (for output conversion later).
-    len = sizeof(toybuf)-(buf-toybuf)-260-256*(ARRAY_LEN(fetch)-j);
+    // Determine available space: reserve 256 bytes (guaranteed minimum) for
+    // each string we haven't checked yet, tb->str starts after the numeric
+    // arrays in struct procpid, and we reserve 260 bytes scratch space at the
+    // end of toybuf for output conversion in string_field(). Other than that,
+    // each use all available space, and future strings that don't use their
+    // guaranteed minimum add to the pool.
+    len = sizeof(toybuf)-256*(ARRAY_LEN(fetch)-j)-(buf-toybuf)-260;
     sprintf(buf, "%lld/%s", slot[SLOT_tid], fetch[j].name);
 
-    // For exe we readlink instead of read contents
+    // For exe (j==3) readlink() instead of reading file's contents
+    // for -o NAME (j==5) copy data from threadparent (PID) into thread (TID).
     if (j==3 || j==5) {
       struct procpid *ptb = 0;
       int k;
@@ -825,8 +911,7 @@ static int get_ps(struct dirtree *new)
         buf[len] = 0;
       }
 
-    // If it's not the TTY field, data we want is in a file.
-    // Last length saved in slot[] is command line (which has embedded NULs)
+    // Turning stat's SLOT_ttynr into a string is an outright heuristic ordeal.
     } else if (!j) {
       int rdev = slot[SLOT_ttynr];
       struct stat st;
@@ -869,8 +954,7 @@ static int get_ps(struct dirtree *new)
         if (strstart(&s, "/dev/")) memmove(buf, s, len -= 4);
       }
 
-    // Data we want is in a file.
-    // Last length saved in slot[] is command line (which has embedded NULs)
+    // For the rest, the data we want is in a file we can just read.
     } else {
       int temp = 0;
 
@@ -882,7 +966,7 @@ static int get_ps(struct dirtree *new)
           if (!buf[len-1] || isspace(buf[len-1])) buf[--len] = 0;
           else break;
 
-        // Turn NUL to space, other low ascii to ? (in non-tty mode)
+        // Turn NUL to space, other low ascii to ? (in non-tty mode), except
         // cmdline has a trailing NUL that we don't want to turn to space.
         for (i=0; i<len-1; i++) {
           char c = buf[i];
@@ -900,10 +984,11 @@ static int get_ps(struct dirtree *new)
       slot[SLOT_argv0len] = temp ? temp : len;  // Position of _first_ NUL
     }
 
-    // Above calculated/retained len, so we don't need to re-strlen.
+    // Each case above calculated/retained len, so we don't need to re-strlen.
     buf += len+1;
   }
 
+  // Record that we saw another process, and display/return now if appropriate
   TT.kcount++;
   if (TT.show_process && !TT.threadparent) {
     TT.show_process(tb);
@@ -911,7 +996,7 @@ static int get_ps(struct dirtree *new)
     return 0;
   }
 
-  // If we need to sort the output, add it to the list and return.
+  // We're retaining data (probably to sort it), save copy in list.
   s = xmalloc(buf-toybuf);
   new->extra = (long)s;
   memcpy(s, toybuf, buf-toybuf);
@@ -975,6 +1060,9 @@ static char *parse_ko(void *data, char *type, int length)
   struct ofields *field;
   char *width, *title, *end, *s;
   int i, j, k;
+
+  // Caller's WOULD_EXIT catches -o help and prints help
+  if (length==4 && !strncasecmp(type, "HELP", length)) xexit();
 
   // Get title, length of title, type, end of type, and display width
 
@@ -1180,10 +1268,12 @@ static struct procpid **collate(int count, struct dirtree *dt)
 static void default_ko(char *s, void *fields, char *err, struct arg_list *arg)
 {
   struct arg_list def;
+  int x;
 
   memset(&def, 0, sizeof(struct arg_list));
   def.arg = s;
-  comma_args(arg ? arg : &def, fields, err, parse_ko);
+  WOULD_EXIT(x, comma_args(arg ? arg : &def, fields, err, parse_ko));
+  if (x) being_repressed();
 }
 
 void ps_main(void)
