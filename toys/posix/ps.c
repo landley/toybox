@@ -287,12 +287,11 @@ enum {
  SLOT_startbss, /*data/bss address*/      SLOT_endbss,    // end addr data+bss
  SLOT_upticks,  /*uptime-starttime*/      SLOT_argv0len,  // argv[0] length
  SLOT_uptime,   /*si.uptime @read time*/  SLOT_vsz,       // Virtual mem Size
- SLOT_rss2,     /*rss from "statm"*/      SLOT_shr,       // Shared memory
+ SLOT_shr,      /*Shared memory*/         SLOT_pcy,       // Android sched pol
  SLOT_rchar,    /*All bytes read*/        SLOT_wchar,     // All bytes written
  SLOT_rbytes,   /*Disk bytes read*/       SLOT_wbytes,    // Disk bytes written
  SLOT_swap,     /*Swap pages used*/       SLOT_bits,      // 32 or 64
  SLOT_tid,      /*Thread ID*/             SLOT_tcount,    // Thread count
- SLOT_pcy,      /*Android sched policy*/
 
  SLOT_count /* Size of array */
 };
@@ -395,12 +394,12 @@ struct typography {
 
   // human_readable (function human_readable() in lib, 1.23M, 1.4G, etc)
   {"VIRT", "Virtual memory size", 4, SLOT_vsz},
-  {"RES", "Short RSS", 4, SLOT_rss2},
+  {"RES", "Short RSS", 4, SLOT_rss},
   {"SHR", "Shared memory", 4, SLOT_shr},
   {"READ", "Data read", 6, SLOT_rchar},
   {"WRITE", "Data written", 6, SLOT_wchar},
   {"IO", "Data I/O", 6, SLOT_iobytes},
-  {"DREAD", "Pirate Roberts", 6, SLOT_rbytes},
+  {"DREAD", "Disk Read", 6, SLOT_rbytes},
   {"DWRITE", "Disk write", 6, SLOT_wbytes},
   {"SWAP", "Swap I/O", 6, SLOT_swap},
   {"DIO", "Disk I/O", 6, SLOT_diobytes},
@@ -419,9 +418,9 @@ struct typography {
   {"PCY", "Android scheduling policy", 3, 64|SLOT_pcy},
 );
 
-// Show "-o help" text
+// Show sorted "-o help" text for fields listed in toybuf[len]
 
-void inherent_in_the_system(int len, int multi)
+static void help_fields(int len, int multi)
 {
   int i, j, k, left = 0;
   struct typography *t;
@@ -454,8 +453,8 @@ void inherent_in_the_system(int len, int multi)
   if (!multi && left) xputc('\n');
 }
 
-// Print help text for unknown -o field.
-void being_repressed(void)
+// Print help text for all -o field, with categories.
+static void help_help(void)
 {
   int i, jump = PS_CMD+1-PS_COMM;
 
@@ -463,18 +462,18 @@ void being_repressed(void)
   // don't need sorting here. A regex to find everything that currently cares
   // about symbol order might be: "which *[><]=* *PS"
 
-  // Collate variants of command line display.
+  // First show the half-dozen variants of command line display.
 
-  printf("Command line -o fields:\n\n");
+  printf("Command line field types:\n\n");
   for (i = 0; i<jump; i++) toybuf[i] = PS_COMM+i;
-  inherent_in_the_system(jump, 0);
+  help_fields(jump, 0);
 
-  // Show the rest of the commands.
+  // Show the rest of the -o types, starting with the ones that don't columnize
 
-  printf("\nProcess attribute -o FIELDs:\n\n");
+  printf("\nProcess attribute field types:\n\n");
   for (i = 0; i<ARRAY_LEN(typos)-jump; i++) toybuf[i] = i+(i>=PS_COMM)*jump;
-  inherent_in_the_system(ARRAY_LEN(typos)-jump, 1);
-  inherent_in_the_system(ARRAY_LEN(typos)-jump, 0);
+  help_fields(ARRAY_LEN(typos)-jump, 1);
+  help_fields(ARRAY_LEN(typos)-jump, 0);
 
   xexit();
 }
@@ -829,14 +828,15 @@ static int get_ps(struct dirtree *new)
   slot[SLOT_upticks] = slot[SLOT_uptime]*TT.ticks - slot[SLOT_starttime];
 
   // Do we need to read "statm"?
-  if (TT.bits&(_PS_VIRT|_PS_RES|_PS_SHR)) {
+  if (TT.bits&(_PS_VIRT|_PS_SHR)) {
     off_t temp = len;
 
     sprintf(buf, "%lld/statm", slot[SLOT_tid]);
     if (!readfileat(fd, buf, buf, &temp)) *buf = 0;
-    
+
+    // Skip redundant RSS field, we got it from stat
     for (s = buf, i=0; i<3; i++)
-      if (!sscanf(s, " %lld%n", slot+SLOT_vsz+i, &j)) slot[SLOT_vsz+i] = 0;
+      if (!sscanf(s, " %lld%n", slot+SLOT_vsz+i/2, &j)) slot[SLOT_vsz+i/2] = 0;
       else s += j;
   }
 
@@ -1273,7 +1273,7 @@ static void default_ko(char *s, void *fields, char *err, struct arg_list *arg)
   memset(&def, 0, sizeof(struct arg_list));
   def.arg = s;
   WOULD_EXIT(x, comma_args(arg ? arg : &def, fields, err, parse_ko));
-  if (x) being_repressed();
+  if (x) help_help();
 }
 
 void ps_main(void)
