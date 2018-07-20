@@ -117,7 +117,7 @@ int crunch_str(char **str, int width, FILE *out, char *escmore,
 }
 
 
-// standard escapes: ^X if <32, <XX> if invliad UTF8, U+XXXX if UTF8 !iswprint()
+// standard escapes: ^X if <32, <XX> if invalid UTF8, U+XXXX if UTF8 !iswprint()
 int crunch_escape(FILE *out, int cols, int wc)
 {
   char buf[8];

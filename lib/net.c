@@ -103,7 +103,7 @@ int pollinate(int in1, int in2, int out1, int out2, int timeout, int shutdown_ti
   }
 }
 
-// Return converted numeric address in libbuf
+// Return converted ipv4/ipv6 numeric address in libbuf
 char *ntop(struct sockaddr *sa)
 {
   void *addr;

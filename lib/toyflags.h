@@ -6,6 +6,8 @@
 
 // Flags describing command behavior.
 
+// Where to install (toybox --long outputs absolute paths to commands)
+// If no location bits set, command not listed in "toybox" command's output.
 #define TOYFLAG_USR      (1<<0)
 #define TOYFLAG_BIN      (1<<1)
 #define TOYFLAG_SBIN     (1<<2)
@@ -18,8 +20,8 @@
 #define TOYFLAG_UMASK    (1<<5)
 
 // This command runs as root.
-#define TOYFLAG_STAYROOT (1<<6)
-#define TOYFLAG_NEEDROOT (1<<7)
+#define TOYFLAG_STAYROOT (1<<6) // Don't drop suid root before running cmd_main
+#define TOYFLAG_NEEDROOT (1<<7) // Refuse to run if real uid != 0
 #define TOYFLAG_ROOTONLY (TOYFLAG_STAYROOT|TOYFLAG_NEEDROOT)
 
 // Call setlocale to listen to environment variables.
