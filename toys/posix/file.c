@@ -244,10 +244,14 @@ static void do_regular_file(int fd, char *name)
   // TODO: parsing JPEG for width/height is harder than GIF or PNG.
   else if (len>32 && !memcmp(toybuf, "\xff\xd8", 2)) xputs("JPEG image data");
 
-  // https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html
+  // https://en.wikipedia.org/wiki/Java_class_file#General_layout
   else if (len>8 && strstart(&s, "\xca\xfe\xba\xbe"))
-    xprintf("Java class file, version %d.%d\n",
-      (int)peek_be(s+2, 2), (int)peek_be(s, 2));
+    xprintf("Java class file, version %d.%d (Java 1.%d)\n",
+      (int)peek_be(s+2, 2), (int)peek_be(s, 2), (int)peek_be(s+2, 2)-44);
+
+  // https://source.android.com/devices/tech/dalvik/dex-format#dex-file-magic
+  else if (len>8 && strstart(&s, "dex\n") && s[3] == 0)
+    xprintf("Android dex file, version %s\n", s);
 
   // https://people.freebsd.org/~kientzle/libarchive/man/cpio.5.txt
   // the lengths for cpio are size of header + 9 bytes, since any valid

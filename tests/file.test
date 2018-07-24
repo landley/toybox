@@ -10,6 +10,7 @@ echo "#!  /bin/bash" > bash.script2
 echo "#!  /usr/bin/env python" > env.python.script
 echo "Hello, world!" > ascii
 echo "cafebabe000000310000" | xxd -r -p > java.class
+echo "6465780a3033350038ca8f6ce910f94e" | xxd -r -p > android.dex
 ln -s java.class symlink
 
 testing "empty" "file empty" "empty: empty\n" "" ""
@@ -17,15 +18,16 @@ testing "bash.script" "file bash.script" "bash.script: /bin/bash script\n" "" ""
 testing "bash.script with spaces" "file bash.script2" "bash.script2: /bin/bash script\n" "" ""
 testing "env python script" "file env.python.script" "env.python.script: python script\n" "" ""
 testing "ascii" "file ascii" "ascii: ASCII text\n" "" ""
-testing "java class" "file java.class" "java.class: Java class file, version 49.0\n" "" ""
+testing "java class" "file java.class" "java.class: Java class file, version 49.0 (Java 1.5)\n" "" ""
+testing "Android .dex" "file android.dex" "android.dex: Android dex file, version 035\n" "" ""
 testing "symlink" "file symlink" "symlink: symbolic link\n" "" ""
 testing "symlink -h" "file -h symlink" "symlink: symbolic link\n" "" ""
-testing "symlink -L" "file -L symlink" "symlink: Java class file, version 49.0\n" "" ""
+testing "symlink -L" "file -L symlink" "symlink: Java class file, version 49.0 (Java 1.5)\n" "" ""
 
-testing "- pipe" "cat java.class | file -" "-: Java class file, version 49.0\n" "" ""
-testing "- redirect" "file - <java.class" "-: Java class file, version 49.0\n" "" ""
+testing "- pipe" "cat java.class | file -" "-: Java class file, version 49.0 (Java 1.5)\n" "" ""
+testing "- redirect" "file - <java.class" "-: Java class file, version 49.0 (Java 1.5)\n" "" ""
 
 testing "/dev/zero" "file /dev/zero" "/dev/zero: character special\n" "" ""
 testing "- </dev/zero" "file - </dev/zero" "-: data\n" "" ""
 
-rm empty bash.script bash.script2 env.python.script ascii java.class
+rm empty bash.script bash.script2 env.python.script ascii java.class android.dex
