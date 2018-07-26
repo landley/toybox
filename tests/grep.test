@@ -143,3 +143,11 @@ rm test
 # match after NUL byte
 testing "match after NUL byte" "grep -a two" "one\0and two three\n" \
   "" 'one\0and two three'
+
+# BREs versus EREs
+testing "implicit BRE |" "grep 'uno|dos'" "uno|dos\n" \
+  "" "uno\ndos\nuno|dos\n"
+testing "explicit BRE |" "grep -e 'uno|dos'" "uno|dos\n" \
+  "" "uno\ndos\nuno|dos\n"
+testing "explicit ERE |" "grep -E 'uno|dos'" "uno\ndos\nuno|dos\n" \
+  "" "uno\ndos\nuno|dos\n"
