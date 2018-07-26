@@ -14,10 +14,12 @@ EOF
 testing "wc" "wc >/dev/null && echo yes" "yes\n" "" ""
 testing "empty file" "wc" "      0       0       0\n" "" ""
 testing "standard input" "wc" "      1       3       5\n" "" "a b\nc"
+testing "standard input -c" "wc -c" "5\n" "" "a b\nc"
+testing "standard input -cl" "wc -cl" "      1       5\n" "" "a b\nc"
 testing "-c" "wc -c file1" "26 file1\n" "" ""
 testing "-l" "wc -l file1" "4 file1\n" "" ""
 testing "-w" "wc -w file1" "5 file1\n" "" ""
-testing "format" "wc file1" "4 5 26 file1\n" "" ""
+testing "one file" "wc file1" "4 5 26 file1\n" "" ""
 testing "multiple files" "wc input - file1" \
         "      1       2       3 input\n      0       2       3 -\n      4       5      26 file1\n      5       9      32 total\n" "a\nb" "a b"
 
@@ -25,7 +27,7 @@ testing "multiple files" "wc input - file1" \
 echo -n " " > file1
 for i in $(seq 1 512); do echo -n "üüüüüüüüüüüüüüüü" >> file1; done
 testing "-m" "wc -m file1" "8193 file1\n" "" ""
-testing "-m 2" 'cat "$FILES/utf8/test2.txt" | wc -m' "    169\n" "" ""
+testing "-m 2" 'cat "$FILES/utf8/test2.txt" | wc -m' "169\n" "" ""
 echo -n " " > file1
 testing "-mlw" "wc -mlw input" "1 2 11 input\n" "hello, 世界!\n" ""
 rm file1

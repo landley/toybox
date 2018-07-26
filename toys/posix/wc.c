@@ -33,12 +33,17 @@ GLOBALS(
 
 static void show_lengths(unsigned long *lengths, char *name)
 {
-  int i, space, first = 1;
+  int i, space = 0, first = 1;
 
   // POSIX says there should never be leading spaces, but accepts that
-  // traditional implementations use 7 spaces, unless only one file
-  // is being counted, when there should be no leading spaces.
-  space = (toys.optc != 1) ? 7 : 0;
+  // traditional implementations use 7 spaces, unless only one file (or
+  // just stdin) is being counted, when there should be no leading spaces,
+  // *except* for the case where we're going to output multiple numbers.
+  // And, yes, folks have test scripts that rely on all this nonsense :-(
+  // Note: sufficiently modern versions of coreutils wc will use the smallest
+  // column width necessary to have all columns be equal width rather than 0.
+  if (!(toys.optc==0 && (toys.optflags & (toys.optflags-1))==0) && toys.optc!=1)
+    space = 7;
 
   for (i = 0; i<4; i++) {
     if (toys.optflags&(1<<i)) {
