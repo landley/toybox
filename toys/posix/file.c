@@ -160,17 +160,19 @@ static void do_elf_file(int fd)
     } else if (sh_type == 7 /*SHT_NOTE*/) {
       char *note = map+sh_offset;
 
-      if (sh_offset+sh_size>TT.len) goto bad;
-
       // An ELF note is a sequence of entries, each consisting of an
       // ndhr followed by n_namesz+n_descsz bytes of data (each of those
       // rounded up to the next 4 bytes, without this being reflected in
       // the header byte counts themselves).
       while (sh_size >= 3*4) { // Don't try to read a truncated entry.
-        int n_namesz = elf_int(note, 4);
-        int n_descsz = elf_int(note+4, 4);
-        int n_type = elf_int(note+8, 4);
-        int notesz = 3*4 + ((n_namesz+3)&~3) + ((n_descsz+3)&~3);
+        unsigned n_namesz, n_descsz, n_type, notesz;
+
+        if (sh_offset+sh_size>TT.len) goto bad;
+
+        n_namesz = elf_int(note, 4);
+        n_descsz = elf_int(note+4, 4);
+        n_type = elf_int(note+8, 4);
+        notesz = 3*4 + ((n_namesz+3)&~3) + ((n_descsz+3)&~3);
 
         if (n_namesz==4 && !memcmp(note+12, "GNU", 4)) {
           if (n_type==3 /*NT_GNU_BUILD_ID*/) {
