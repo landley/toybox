@@ -482,9 +482,9 @@ static int go_probe(struct module_s *m)
     // none of above is true insert the module.
     rc = ins_mod(fn, options);
     if (toys.optflags&FLAG_v)
-      printf("loaded %s '%s', rc:%d\n", fn, options, rc);
-    if (rc == EEXIST) rc = 0;
-    if (options) free(options);
+      printf("loaded %s '%s': %s\n", fn, options, strerror(errno));
+    if (errno == EEXIST) rc = 0;
+    free(options);
     if (rc) {
       perror_msg("can't load module %s (%s)", m2->name, fn);
       break;
