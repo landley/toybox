@@ -253,8 +253,7 @@ fi
 
 if [ generated/config2help -ot scripts/config2help.c ]
 then
-  do_loudly $HOSTCC scripts/config2help.c -I . lib/xwrap.c lib/llist.c \
-    lib/lib.c lib/portability.c -o generated/config2help || exit 1
+  do_loudly $HOSTCC scripts/config2help.c -o generated/config2help || exit 1
 fi
 if isnewer generated/help.h generated/Config.in
 then

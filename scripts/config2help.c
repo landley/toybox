@@ -8,6 +8,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -18,15 +19,95 @@
 #include <poll.h>
 #include <sys/socket.h>
 
-struct statvfs {int i;};
-#include "lib/portability.h"
-#include "lib/lib.h"
+/****************** functions copied from lib/*.c ********************/
 
-// Humor toys.h (lie through our teeth, C's linker doesn't care).
-char toys[4096], libbuf[4096], toybuf[4096];
-void show_help(FILE *out) {;}
-void toy_exec(char *argv[]) {;}
-void toy_init(void *which, char *argv[]) {;}
+struct double_list {
+  struct double_list *next, *prev;
+  char *data;
+};
+
+// Die unless we can allocate memory.
+void *xmalloc(size_t size)
+{
+  void *ret = malloc(size);
+  if (!ret) {
+    fprintf(stderr, "xmalloc(%ld)", (long)size);
+    exit(1);
+  }
+
+  return ret;
+}
+
+// Die unless we can allocate enough space to sprintf() into.
+char *xmprintf(char *format, ...)
+{
+  va_list va, va2;
+  int len;
+  char *ret;
+
+  va_start(va, format);
+  va_copy(va2, va);
+
+  // How long is it?
+  len = vsnprintf(0, 0, format, va);
+  len++;
+  va_end(va);
+
+  // Allocate and do the sprintf()
+  ret = xmalloc(len);
+  vsnprintf(ret, len, format, va2);
+  va_end(va2);
+
+  return ret;
+}
+
+// Die unless we can open/create a file, returning FILE *.
+FILE *xfopen(char *path, char *mode)
+{
+  FILE *f = fopen(path, mode);
+  if (!f) {
+    fprintf(stderr, "No file %s", path);
+    exit(1);
+  }
+  return f;
+}
+
+void *dlist_pop(void *list)
+{
+  struct double_list **pdlist = (struct double_list **)list, *dlist = *pdlist;
+
+  if (dlist->next == dlist) *pdlist = 0;
+  else {
+    dlist->next->prev = dlist->prev;
+    dlist->prev->next = *pdlist = dlist->next;
+  }
+
+  return dlist;
+}
+
+void dlist_add_nomalloc(struct double_list **list, struct double_list *new)
+{
+  if (*list) {
+    new->next = *list;
+    new->prev = (*list)->prev;
+    (*list)->prev->next = new;
+    (*list)->prev = new;
+  } else *list = new->next = new->prev = new;
+}
+
+
+// Add an entry to the end of a doubly linked list
+struct double_list *dlist_add(struct double_list **list, char *data)
+{
+  struct double_list *new = xmalloc(sizeof(struct double_list));
+
+  new->data = data;
+  dlist_add_nomalloc(list, new);
+
+  return new;
+}
+
+/****************** end copies of lib/*.c *************/
 
 // Parse config files into data structures.
 
@@ -167,7 +248,7 @@ void parse(char *filename)
     // source or config keyword at left edge?
     if (*line && !isspace(*line)) {
       if ((s = keyword("config", line))) {
-        new = xzalloc(sizeof(struct symbol));
+        memset(new = xmalloc(sizeof(struct symbol)), 0, sizeof(struct symbol));
         new->next = sym;
         new->name = s;
         sym = new;
@@ -399,7 +480,9 @@ int main(int argc, char *argv[])
 
     if (sym->help) {
       int i;
-      char *s = xstrdup(sym->name);
+      char *s;
+
+      strcpy(s = xmalloc(strlen(sym->name)+1), sym->name);
 
       for (i = 0; s[i]; i++) s[i] = tolower(s[i]);
       printf("#define HELP_%s \"", s);
