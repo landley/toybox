@@ -5,6 +5,11 @@
  * Reviewed by Kyungsu Kim <kaspyx@gmail.com>
  *
  * Not in SUSv4.
+ *
+ * Obsolete fields included for historical purposes:
+ * irq|io_addr|mem_start ADDR - micromanage obsolete hardware
+ * outfill|keepalive INTEGER - SLIP analog dialup line quality monitoring
+ * metric INTEGER - added to Linux 0.9.10 with comment "never used", still true
 
 USE_IFCONFIG(NEWTOY(ifconfig, "^?a", TOYFLAG_SBIN))
 
@@ -21,29 +26,28 @@ config IFCONFIG
 
     -a	Show all interfaces, not just active ones
 
-    Additional arguments are actions to perform on the interface:
+    Standard ACTIONs to perform on an INTERFACE:
 
-    ADDRESS[/NETMASK] - set IPv4 address (1.2.3.4/5)
-    default - unset ipv4 address
-    add|del ADDRESS[/PREFIXLEN] - add/remove IPv6 address (1111::8888/128)
-    up - enable interface
-    down - disable interface
+    ADDR[/MASK]        - set IPv4 address (1.2.3.4/5) and activate interface
+    add|del ADDR[/LEN] - add/remove IPv6 address (1111::8888/128)
+    up|down            - activate or deactivate interface
 
-    netmask|broadcast|pointopoint ADDRESS - set more IPv4 characteristics
-    hw ether|infiniband ADDRESS - set LAN hardware address (AA:BB:CC...)
-    txqueuelen LEN - number of buffered packets before output blocks
-    mtu LEN - size of outgoing packets (Maximum Transmission Unit)
+    Advanced ACTIONs (default values usually suffice):
+
+    default          - remove IPv4 address
+    netmask ADDR     - set IPv4 netmask via 255.255.255.0 instead of /24
+    txqueuelen LEN   - number of buffered packets before output blocks
+    mtu LEN          - size of outgoing packets (Maximum Transmission Unit)
+    broadcast ADDR   - Set broadcast address
+    pointopoint ADDR - PPP and PPPOE use this instead of "route add default gw"
+    hw TYPE ADDR     - set hardware (mac) address (type = ether|infiniband)
 
     Flags you can set on an interface (or -remove by prefixing with -):
-    arp - don't use Address Resolution Protocol to map LAN routes
-    promisc - don't discard packets that aren't to this LAN hardware address
-    multicast - force interface into multicast mode if the driver doesn't
-    allmulti - promisc for multicast packets
 
-    Obsolete fields included for historical purposes:
-    irq|io_addr|mem_start ADDR - micromanage obsolete hardware
-    outfill|keepalive INTEGER - SLIP analog dialup line quality monitoring
-    metric INTEGER - added to Linux 0.9.10 with comment "never used", still true
+    arp       - don't use Address Resolution Protocol to map LAN routes
+    promisc   - don't discard packets that aren't to this LAN hardware address
+    multicast - force interface into multicast mode if the driver doesn't
+    allmulti  - promisc for multicast packets
 */
 
 #define FOR_ifconfig
@@ -115,7 +119,7 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
   if (!always && !(flags & IFF_UP)) return;
 
   // query hardware type and hardware address
-  i = ioctl(TT.sockfd, SIOCGIFHWADDR, &ifre);
+  xioctl(TT.sockfd, SIOCGIFHWADDR, &ifre);
 
   for (i=0; i < (sizeof(types)/sizeof(*types))-1; i++)
     if (ifre.ifr_hwaddr.sa_family == types[i].type) break;
@@ -150,6 +154,7 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
       {"Mask", 0, SIOCGIFNETMASK}
     };
 
+    // TODO: can this be ipv6? Why are we checking here when ipv6 source later?
     xprintf("%10c%s", ' ', (si->sin_family == AF_INET) ? "inet" :
         (si->sin_family == AF_INET6) ? "inet6" : "unspec");
 
