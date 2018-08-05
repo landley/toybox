@@ -11,20 +11,21 @@
  * outfill|keepalive INTEGER - SLIP analog dialup line quality monitoring
  * metric INTEGER - added to Linux 0.9.10 with comment "never used", still true
 
-USE_IFCONFIG(NEWTOY(ifconfig, "^?a", TOYFLAG_SBIN))
+USE_IFCONFIG(NEWTOY(ifconfig, "^?aS", TOYFLAG_SBIN))
 
 config IFCONFIG
   bool "ifconfig"
   default y
   help
-    usage: ifconfig [-a] [INTERFACE [ACTION...]]
+    usage: ifconfig [-aS] [INTERFACE [ACTION...]]
 
     Display or configure network interface.
 
     With no arguments, display active interfaces. First argument is interface
     to operate on, one argument by itself displays that interface.
 
-    -a	Show all interfaces, not just active ones
+    -a	All interfaces displayed, not just active ones
+    -S	Short view, one line per interface
 
     Standard ACTIONs to perform on an INTERFACE:
 
@@ -100,6 +101,7 @@ static int get_addrinfo(char *host, sa_family_t af, void *addr)
 static void display_ifconfig(char *name, int always, unsigned long long val[])
 {
   struct ifreq ifre;
+  struct sockaddr_in *si = (void *)&ifre.ifr_addr;
   struct {
     int type;
     char *title;
@@ -118,21 +120,37 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
   flags = ifre.ifr_flags;
   if (!always && !(flags & IFF_UP)) return;
 
+  if (toys.optflags&FLAG_S) {
+    unsigned uu = 0;
+    int len;
+
+    ioctl(TT.sockfd, SIOCGIFADDR, &ifre);
+    len = printf("%*s %s", -9, name, inet_ntoa(si->sin_addr));
+    if (!ioctl(TT.sockfd, SIOCGIFNETMASK, &ifre))
+      uu = htonl(*(unsigned *)&(si->sin_addr));
+    for (i = 0; uu; i++) uu <<= 1;
+    len += printf("/%d", i);
+    printf("%*c", 26-len, ' ');
+  }
+
   // query hardware type and hardware address
   xioctl(TT.sockfd, SIOCGIFHWADDR, &ifre);
 
-  for (i=0; i < (sizeof(types)/sizeof(*types))-1; i++)
-    if (ifre.ifr_hwaddr.sa_family == types[i].type) break;
-
-  xprintf("%-9s Link encap:%s  ", name, types[i].title);
-  if(i >= 0 && ifre.ifr_hwaddr.sa_family == ARPHRD_ETHER) {
-    xprintf("HWaddr ");
-    for (i=0; i<6; i++) xprintf(":%02x"+!i, ifre.ifr_hwaddr.sa_data[i]);
+  if (toys.optflags&FLAG_S)
+    for (i=0; i<6; i++) printf(":%02x"+!i, ifre.ifr_hwaddr.sa_data[i]);
+  else {
+    for (i=0; i < ARRAY_LEN(types)-1; i++)
+      if (ifre.ifr_hwaddr.sa_family == types[i].type) break;
+    xprintf("%-9s Link encap:%s  ", name, types[i].title);
+    if(ifre.ifr_hwaddr.sa_family == ARPHRD_ETHER) {
+      xprintf("HWaddr ");
+      for (i=0; i<6; i++) xprintf(":%02x"+!i, ifre.ifr_hwaddr.sa_data[i]);
+    }
+    sprintf(toybuf, "/sys/class/net/%.15s/device/driver", name);
+    if (readlink0(toybuf, toybuf, sizeof(toybuf))>0)
+      if ((pp = strrchr(toybuf, '/'))) xprintf("  Driver %s", pp+1);
+    xputc('\n');
   }
-  sprintf(toybuf, "/sys/class/net/%.15s/device/driver", name);
-  if (readlink0(toybuf, toybuf, sizeof(toybuf))>0 && (pp = strrchr(toybuf, '/')))
-    xprintf("  Driver %s", pp+1);
-  xputc('\n');
 
   // If an address is assigned record that.
 
@@ -142,7 +160,7 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
   pp = (char *)&ifre.ifr_addr;
   for (i = 0; i<sizeof(ifre.ifr_addr); i++) if (pp[i]) break;
 
-  if (i != sizeof(ifre.ifr_addr)) {
+  if (!(toys.optflags&FLAG_S) && i != sizeof(ifre.ifr_addr)) {
     struct sockaddr_in *si = (struct sockaddr_in *)&ifre.ifr_addr;
     struct {
       char *name;
@@ -158,7 +176,7 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
     xprintf("%10c%s", ' ', (si->sin_family == AF_INET) ? "inet" :
         (si->sin_family == AF_INET6) ? "inet6" : "unspec");
 
-    for (i=0; i < sizeof(addr)/sizeof(*addr); i++) {
+    for (i=0; i<ARRAY_LEN(addr); i++) {
       if (!addr[i].flag || (flags & addr[i].flag)) {
         if (addr[i].ioctl && ioctl(TT.sockfd, addr[i].ioctl, &ifre))
           si->sin_family = 0;
@@ -200,15 +218,21 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
             char *scopes[] = {"Global","Host","Link","Site","Compat"},
                  *scope = "Unknown";
 
-            for (i=0; i < sizeof(scopes)/sizeof(*scopes); i++)
+            for (i=0; i<ARRAY_LEN(scopes); i++)
               if (iscope == (!!i)<<(i+3)) scope = scopes[i];
-            xprintf("%10cinet6 addr: %s/%d Scope: %s\n",
-                    ' ', toybuf, plen, scope);
+            if (toys.optflags&FLAG_S) xprintf(" %s/%d@%c", toybuf, plen,*scope);
+            else xprintf("%10cinet6 addr: %s/%d Scope: %s\n",
+                         ' ', toybuf, plen, scope);
           }
         }
       }
     }
     fclose(fp);
+  }
+
+  if (toys.optflags&FLAG_S) {
+    xputc('\n');
+    return;
   }
 
   xprintf("%10c", ' ');
@@ -247,7 +271,7 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
     if (ioctl(TT.sockfd, SIOCGIFTXQLEN, &ifre) >= 0) val[16] = ifre.ifr_qlen;
     else val[16] = -1;
 
-    for (i = 0; i < sizeof(order); i++) {
+    for (i = 0; i<sizeof(order); i++) {
       int j = order[i];
 
       if (j < 0) xprintf("\n%10c", ' ');
@@ -464,7 +488,7 @@ void ifconfig_main(void)
       close(fd6);
       continue;
     // Iterate through table to find/perform operation
-    } else for (i = 0; i < ARRAY_LEN(try); i++) {
+    } else for (i = 0; i<ARRAY_LEN(try); i++) {
       struct argh *t = try+i;
       int on = t->on, off = t->off;
 
@@ -519,7 +543,7 @@ void ifconfig_main(void)
 
       break;
     }
-    if (i == sizeof(try)/sizeof(*try)) help_exit("bad argument '%s'", *argv);
+    if (i == ARRAY_LEN(try)) help_exit("bad argument '%s'", *argv);
   }
   close(TT.sockfd);
 }
