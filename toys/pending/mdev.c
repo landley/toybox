@@ -22,19 +22,24 @@ config MDEV_CONF
   help
     The mdev config file (/etc/mdev.conf) contains lines that look like:
     hd[a-z][0-9]* 0:3 660
+    (sd[a-z]) root:disk 660 =usb_storage
 
     Each line must contain three whitespace separated fields. The first
     field is a regular expression matching one or more device names,
     the second and third fields are uid:gid and file permissions for
-    matching devies.
+    matching devices. Fourth field is optional. It could be used to change
+    device name (prefix '='), path (prefix '=' and postfix '/') or create a
+    symlink (prefix '>').
 */
 
 #include "toys.h"
+#include <stdbool.h>
 
 // mknod in /dev based on a path like "/sys/block/hda/hda1"
 static void make_device(char *path)
 {
-  char *device_name = 0, *s, *temp;
+  char *device_name = 0, *custom_name = 0, *s, *temp;
+  bool create_symlink = false;
   int major = 0, minor = 0, type, len, fd, mode = 0660;
   uid_t uid = 0;
   gid_t gid = 0;
@@ -79,6 +84,7 @@ static void make_device(char *path)
 
   if (CFG_MDEV_CONF) {
     char *conf, *pos, *end;
+    bool optional_field_valid = false;
 
     // mmap the config file
     if (-1!=(fd = open("/etc/mdev.conf", O_RDONLY))) {
@@ -96,8 +102,9 @@ static void make_device(char *path)
         // find end of this line
         for(end = pos; end-conf<len && *end!='\n'; end++);
 
-        // Three fields: regex, uid:gid, mode
-        for (field = 3; field; field--) {
+        // Four fields (last is optional): regex, uid:gid, mode [, name|path ]
+	// For example: (sd[a-z])1  root:disk 660 =usb_storage_p1
+        for (field = 4; field; field--) {
           // Skip whitespace
           while (pos<end && isspace(*pos)) pos++;
           if (pos==end || *pos=='#') break;
@@ -105,7 +112,7 @@ static void make_device(char *path)
             end2<end && !isspace(*end2) && *end2!='#'; end2++);
           switch(field) {
             // Regex to match this device
-            case 3:
+            case 4:
             {
               char *regex = strndup(pos, end2-pos);
               regex_t match;
@@ -126,7 +133,7 @@ static void make_device(char *path)
               break;
             }
             // uid:gid
-            case 2:
+            case 3:
             {
               char *s2;
 
@@ -158,10 +165,43 @@ static void make_device(char *path)
               break;
             }
             // mode
+            case 2:
+            {
+              char *beg_pos = pos;
+              mode = strtoul(pos, &pos, 8);
+	      if(pos == beg_pos) {
+                // The line is bad because mode setting could not be
+                // converted to numeric value.
+                goto end_line;
+	      }
+              break;
+            }
+            // Try to look for name or path (optional field)
             case 1:
             {
-              mode = strtoul(pos, &pos, 8);
-              if (pos!=end2) goto end_line;
+              if(pos < end2){
+                //char *name = strndup(pos, end2-pos);
+                char *name = malloc(end2-pos+1);
+                if(name){
+                  strncpy(name, pos, end2-pos+1);
+                  name[end2-pos] = '\0';
+                  switch(name[0]){
+                    case '>':
+                      create_symlink = true;
+                    case '=':
+                      custom_name = strdup(&name[1]);
+                      break;
+                    case '!':
+                      device_name = NULL;
+                      break;
+                    default:
+                      free(name);
+                      goto end_line;
+                  }
+                  free(name);
+                  optional_field_valid = true;
+                }
+              }
               goto found_device;
             }
           }
@@ -169,8 +209,9 @@ static void make_device(char *path)
         }
 end_line:
         // Did everything parse happily?
-        if (field && field!=3) error_exit("Bad line %d", line);
-
+        // Note: Last field is optional.
+        if ((field>1 || (field==1 && !optional_field_valid)) && field!=4)
+          error_exit("Bad line %d", line);
         // Next line
         pos = ++end;
       }
@@ -180,21 +221,44 @@ found_device:
     close(fd);
   }
 
-  sprintf(toybuf, "/dev/%s", device_name);
+  if(device_name) {
+    if(custom_name) {
+      sprintf(toybuf, "/dev/%s", custom_name);
+      if(custom_name[strlen(custom_name) - 1] == '/') {
+        DIR *dir;
+        dir = opendir(toybuf);
+        if(dir) closedir(dir);
+        else mkdir(toybuf, 0755);
+      }
+    }
+    else
+      sprintf(toybuf, "/dev/%s", device_name);
 
-  if ((temp=getenv("ACTION")) && !strcmp(temp, "remove")) {
-    unlink(toybuf);
-    return;
+      if ((temp=getenv("ACTION")) && !strcmp(temp, "remove")) {
+        unlink(toybuf);
+        return;
+      }
+
+      if (strchr(device_name, '/')) mkpath(toybuf);
+      if (mknod(toybuf, mode | type, dev_makedev(major, minor)) &&
+          errno != EEXIST)
+        perror_exit("mknod %s failed", toybuf);
+      if(create_symlink){
+        char *symlink_name = malloc(sizeof("/dev/") + strlen(device_name) + 1);
+        if(symlink_name == NULL)
+          perror_exit("malloc failed while creating symlink to %s", toybuf);
+        sprintf(symlink_name, "/dev/%s", device_name);
+        if(symlink(toybuf, symlink_name)){
+          free(symlink_name);
+          perror_exit("symlink creation failed for %s", toybuf);
+        }
+        free(symlink_name);
+      }
+
+      if (type == S_IFBLK) close(open(toybuf, O_RDONLY)); // scan for partitions
+
+      if (CFG_MDEV_CONF) mode=chown(toybuf, uid, gid);
   }
-
-  if (strchr(device_name, '/')) mkpath(toybuf);
-  if (mknod(toybuf, mode | type, dev_makedev(major, minor)) && errno != EEXIST)
-    perror_exit("mknod %s failed", toybuf);
-
- 
-  if (type == S_IFBLK) close(open(toybuf, O_RDONLY)); // scan for partitions
-
-  if (CFG_MDEV_CONF) mode=chown(toybuf, uid, gid);
 }
 
 static int callback(struct dirtree *node)
