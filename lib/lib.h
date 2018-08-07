@@ -314,6 +314,11 @@ char *comma_iterate(char **list, int *len);
 int comma_scan(char *optlist, char *opt, int clean);
 int comma_scanall(char *optlist, char *scanlist);
 
+// deflate.c
+
+long long gzip_fd(int infd, int outfd);
+long long gunzip_fd(int infd, int outfd);
+
 // getmountlist.c
 struct mtab_list {
   struct mtab_list *next, *prev;

@@ -13,7 +13,7 @@ USE_ZCAT(NEWTOY(zcat,     "cdfk123456789[-123456789]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config GZIP
   bool "gzip"
-  default y
+  default n
   help
     usage: gzip [-19cdfk] [FILE...]
 
@@ -29,7 +29,7 @@ config GZIP
 
 config GUNZIP
   bool "gunzip"
-  default y
+  default n
   help
     usage: gunzip [-cfk] [FILE...]
 
@@ -43,7 +43,7 @@ config GUNZIP
 
 config ZCAT
   bool "zcat"
-  default y
+  default n
   help
     usage: zcat [FILE...]
 
