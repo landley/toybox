@@ -80,12 +80,14 @@ int scan_key_getsize(char *scratch, int miliwait, unsigned *xx, unsigned *yy)
 }
 
 // Reset terminal to known state, saving copy of old state if old != NULL.
-int set_terminal(int fd, int raw, struct termios *old)
+int set_terminal(int fd, int raw, int speed, struct termios *old)
 {
   struct termios termio;
+  int i = tcgetattr(fd, &termio);
 
   // Fetch local copy of old terminfo, and copy struct contents to *old if set
-  if (!tcgetattr(fd, &termio) && old) *old = termio;
+  if (i) return i;
+  if (old) *old = termio;
 
   // the following are the bits set for an xterm. Linux text mode TTYs by
   // default add two additional bits that only matter for serial processing
@@ -110,12 +112,28 @@ int set_terminal(int fd, int raw, struct termios *old)
 
   if (raw) cfmakeraw(&termio);
 
-  return tcsetattr(fd, TCSANOW, &termio);
+  if (speed) {
+    int i, speeds[] = {50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800, 2400,
+                    4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800,
+                    500000, 576000, 921600, 1000000, 1152000, 1500000, 2000000,
+                    2500000, 3000000, 3500000, 4000000};
+
+    // Find speed in table, adjust to constant
+    for (i = 0; i < ARRAY_LEN(speeds); i++) if (speeds[i] == speed) break;
+    if (i == ARRAY_LEN(speeds)) error_exit("unknown speed: %d", speed);
+    cfsetspeed(&termio, i+1+4081*(i>15));
+  }
+
+  return tcsetattr(fd, TCSAFLUSH, &termio);
 }
 
-void xset_terminal(int fd, int raw, struct termios *old)
+void xset_terminal(int fd, int raw, int speed, struct termios *old)
 {
-  if (-1 == set_terminal(fd, raw, old)) perror_exit("bad tty fd#%d", fd);
+  if (-1 != set_terminal(fd, raw, speed, old)) return;
+
+  sprintf(libbuf, "/proc/self/fd/%d", fd);
+  libbuf[readlink0(libbuf, libbuf, sizeof(libbuf))] = 0;
+  perror_exit("tcsetattr %s", libbuf);
 }
 
 struct scan_key_list {
@@ -226,7 +244,7 @@ void tty_jump(int x, int y)
 
 void tty_reset(void)
 {
-  set_terminal(0, 0, 0);
+  set_terminal(0, 0, 0, 0);
   tty_esc("?25h");
   tty_esc("0m");
   tty_jump(0, 999);

@@ -26,22 +26,7 @@ GLOBALS(
   struct termios original_stdin_state, original_fd_state;
 )
 
-// Puts `fd` into raw mode, setting the baud rate if `speed` != 0,
-// and saving the original terminal state.
-static void xraw(int fd, const char *name, speed_t speed,
-                 struct termios *original)
-{
-  struct termios t;
-
-  if (tcgetattr(fd, &t)) perror_exit("tcgetattr %s", name);
-  *original = t;
-
-  cfmakeraw(&t);
-  if (speed) cfsetspeed(&t, speed);
-
-  if (tcsetattr(fd, TCSAFLUSH, &t)) perror_exit("tcsetattr %s", name);
-}
-
+// TODO: tty_sigreset outputs ansi escape sequences, how to disable?
 static void restore_states(int i)
 {
   tcsetattr(0, TCSAFLUSH, &TT.original_stdin_state);
@@ -50,20 +35,11 @@ static void restore_states(int i)
 
 void microcom_main(void)
 {
-  int speeds[] = {50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800, 2400,
-                  4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800,
-                  500000, 576000, 921600, 1000000, 1152000, 1500000, 2000000,
-                  2500000, 3000000, 3500000, 4000000};
   struct pollfd fds[2];
   int i, speed;
 
   if (!TT.s) speed = 115200;
   else speed = atoi(TT.s);
-
-  // Find speed in table, adjust to constant
-  for (i = 0; i < ARRAY_LEN(speeds); i++) if (speeds[i] == speed) break;
-  if (i == ARRAY_LEN(speeds)) error_exit("unknown speed: %s", TT.s);
-  speed = i+1+4081*(i>15);
 
   // Open with O_NDELAY, but switch back to blocking for reads.
   TT.fd = xopen(*toys.optargs, O_RDWR | O_NOCTTY | O_NDELAY);
@@ -71,8 +47,8 @@ void microcom_main(void)
     perror_exit_raw(*toys.optargs);
 
   // Set both input and output to raw mode.
-  xraw(TT.fd, "fd", speed, &TT.original_fd_state);
-  xraw(0, "stdin", 0, &TT.original_stdin_state);
+  xset_terminal(TT.fd, 1, speed, &TT.original_fd_state);
+  set_terminal(0, 1, 0, &TT.original_stdin_state);
   // ...and arrange to restore things, however we may exit.
   sigatexit(restore_states);
 

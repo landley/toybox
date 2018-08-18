@@ -59,7 +59,7 @@ int read_password(char *buf, int buflen, char *mesg)
   sigaction(SIGINT, &sa, &oldsa);
 
   tcflush(0, TCIFLUSH);
-  set_terminal(0, 1, &oldtermio);
+  xset_terminal(0, 1, 0, &oldtermio);
 
   xprintf("%s", mesg);
 

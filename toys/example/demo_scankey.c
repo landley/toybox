@@ -33,7 +33,7 @@ void demo_scankey_main(void)
   tty_esc("?25l");          // hide cursor
   tty_esc("0m");            // reset color to default
   tty_esc("2J");            // Clear screen
-  xset_terminal(1, 1, 0);    // Raw mode
+  xset_terminal(1, 1, 0, 0); // Raw mode
 
   for (;;) {
     tty_jump(x, y);
