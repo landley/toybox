@@ -130,7 +130,7 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
       uu = htonl(*(unsigned *)&(si->sin_addr));
     for (i = 0; uu; i++) uu <<= 1;
     len += printf("/%d", i);
-    printf("%*c", 26-len, ' ');
+    printf("%*c", 29-len, ' ');
   }
 
   // query hardware type and hardware address
