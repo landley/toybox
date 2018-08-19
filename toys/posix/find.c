@@ -500,8 +500,8 @@ static int do_find(struct dirtree *new)
             aa->prev = (void *)1;
 
             // Flush if the child's environment space gets too large.
-            // An insanely long path (>2 gigs) could wrap the counter and
-            // defeat this test, which could potentially trigger OOM killer.
+            // Linux caps individual arguments/variables at 131072 bytes,
+            // so this counter can't wrap.
             if ((aa->plus += sizeof(char *)+strlen(name)+1) > TT.max_bytes) {
               aa->plus = 1;
               toys.exitval |= flush_exec(new, aa);
