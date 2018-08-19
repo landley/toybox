@@ -57,6 +57,7 @@ static void oneit_signaled(int signal)
   // PID 1 can't call reboot() because it kills the task that calls it,
   // which causes the kernel to panic before the actual reboot happens.
   sync();
+  if (getpid()!=1) _exit(0);
   if (!vfork()) reboot(action);
 }
 
