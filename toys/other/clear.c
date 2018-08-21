@@ -15,5 +15,5 @@ config CLEAR
 
 void clear_main(void)
 {
-  xwrite(1, "\e[2J\e[H", 7);
+  printf("\033[2J\033[H");
 }

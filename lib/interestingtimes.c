@@ -56,7 +56,7 @@ int terminal_probesize(unsigned *xx, unsigned *yy)
 
   // Send probe: bookmark cursor position, jump to bottom right,
   // query position, return cursor to bookmarked position.
-  xprintf("\e[s\e[999C\e[999B\e[6n\e[u");
+  xprintf("\033[s\033[999C\033[999B\033[6n\033[u");
 
   return 0;
 }
