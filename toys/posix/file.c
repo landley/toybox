@@ -317,6 +317,33 @@ static void do_regular_file(int fd, char *name)
     if (!memcmp(s+28, "\x01vorbis", 7)) xprintf(", vorbis audio");
     if (!memcmp(s+28, "YUV4MPEG", 8)) xprintf(", yuv4mpeg video");
     xputc('\n');
+  } else if (len>32 && !memcmp(s, "RIF", 3) && !memcmp(s+8, "WAVEfmt ", 8)) {
+    // https://en.wikipedia.org/wiki/WAV
+    int le = (s[3] == 'F');
+    int format = le ? peek_le(s+20,2) : peek_be(s+20,2);
+    int channels = le ? peek_le(s+22,2) : peek_be(s+22,2);
+    int hz = le ? peek_le(s+24,4) : peek_be(s+24,4);
+    int bits = le ? peek_le(s+34,2) : peek_be(s+34,2);
+
+    xprintf("WAV audio, %s, ", le ? "LE" : "BE");
+    if (bits != 0) xprintf("%d-bit, ", bits);
+    if (channels==1||channels==2) xprintf("%s, ", channels==1?"mono":"stereo");
+    else xprintf("%d-channel, ", channels);
+    xprintf("%d Hz, ", hz);
+    // See https://tools.ietf.org/html/rfc2361, though there appear to be bugs
+    // in the RFC. This assumes wikipedia's example files are more correct.
+    if (format == 0x01) xprintf("PCM");
+    else if (format == 0x03) xprintf("IEEE float");
+    else if (format == 0x06) xprintf("A-law");
+    else if (format == 0x07) xprintf("µ-law");
+    else if (format == 0x11) xprintf("ADPCM");
+    else if (format == 0x22) xprintf("Truespeech");
+    else if (format == 0x31) xprintf("GSM");
+    else if (format == 0x55) xprintf("MP3");
+    else if (format == 0x70) xprintf("CELP");
+    else if (format == 0xfffe) xprintf("extensible");
+    else xprintf("unknown format %d", format);
+    xputc('\n');
   } else if (len>12 && !memcmp(s, "\x00\x01\x00\x00", 4)) {
     xputs("TrueType font");
   } else if (len>12 && !memcmp(s, "ttcf\x00", 5)) {
