@@ -170,8 +170,7 @@ config SED
 #include "toys.h"
 
 GLOBALS(
-  struct arg_list *f;
-  struct arg_list *e;
+  struct arg_list *f, *e;
 
   // processed pattern list
   struct double_list *pattern;

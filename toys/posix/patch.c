@@ -18,7 +18,7 @@
  * -F fuzz (number, default 2)
  * [file] which file to patch
 
-USE_PATCH(NEWTOY(patch, "(dry-run)"USE_TOYBOX_DEBUG("x")"d:ulp#i:R", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PATCH(NEWTOY(patch, "(dry-run)"USE_TOYBOX_DEBUG("x")"ulp#d:i:R", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PATCH
   bool "patch"
@@ -48,9 +48,8 @@ config PATCH
 #include "toys.h"
 
 GLOBALS(
-  char *infile;
-  long prefix;
-  char *dir;
+  char *i, *d;
+  long p;
 
   struct double_list *current_hunk;
   long oldline, oldlen, newline, newlen;
@@ -265,10 +264,10 @@ void patch_main(void)
     strip = 0;
   char *oldname = NULL, *newname = NULL;
 
-  if (TT.infile) TT.filepatch = xopenro(TT.infile);
+  if (TT.i) TT.filepatch = xopenro(TT.i);
   TT.filein = TT.fileout = -1;
 
-  if (TT.dir) xchdir(TT.dir);
+  if (TT.d) xchdir(TT.d);
 
   // Loop through the lines in the patch
   for (;;) {
@@ -380,7 +379,7 @@ void patch_main(void)
 
         // handle -p path truncation.
         for (i = 0, s = name; *s;) {
-          if ((toys.optflags & FLAG_p) && TT.prefix == i) break;
+          if ((toys.optflags & FLAG_p) && TT.p == i) break;
           if (*s++ != '/') continue;
           while (*s == '/') s++;
           name = s;
@@ -392,7 +391,7 @@ void patch_main(void)
           xunlink(name);
           state = 0;
         // If we've got a file to open, do so.
-        } else if (!(toys.optflags & FLAG_p) || i <= TT.prefix) {
+        } else if (!(toys.optflags & FLAG_p) || i <= TT.p) {
           // If the old file was null, we're creating a new one.
           if ((!strcmp(oldname, "/dev/null") || !oldsum) && access(name, F_OK))
           {

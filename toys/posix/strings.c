@@ -32,13 +32,13 @@ config STRINGS
 #include "toys.h"
 
 GLOBALS(
-  long num;
+  long n;
   char *t;
 )
 
 static void do_strings(int fd, char *filename)
 {
-  int nread, i, wlen = TT.num, count = 0;
+  int nread, i, wlen = TT.n, count = 0;
   off_t offset = 0;
   char *string = 0, pattern[8];
 

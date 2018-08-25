@@ -17,7 +17,7 @@ config RENICE
 #include "toys.h"
 
 GLOBALS(
-  long nArgu;
+  long n;
 )
 
 void renice_main(void) {
@@ -42,7 +42,7 @@ void renice_main(void) {
       continue;
     }
 
-    if (setpriority(which, id, getpriority(which, id)+TT.nArgu) < 0)
+    if (setpriority(which, id, getpriority(which, id)+TT.n) < 0)
       perror_msg("setpriority %d", id);
   }
 }

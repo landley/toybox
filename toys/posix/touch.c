@@ -27,9 +27,7 @@ config TOUCH
 #include "toys.h"
 
 GLOBALS(
-  char *time;
-  char *file;
-  char *date;
+  char *t, *r, *d;
 )
 
 void touch_main(void)
@@ -52,10 +50,10 @@ void touch_main(void)
     // List of search types
     if (toys.optflags & FLAG_d) {
       format = (char *[]){"%Y-%m-%dT%T", "%Y-%m-%d %T", 0};
-      date = TT.date;
+      date = TT.d;
     } else {
       format = (char *[]){"%m%d%H%M", "%y%m%d%H%M", "%C%y%m%d%H%M", 0};
-      date = TT.time;
+      date = TT.t;
     }
 
     // Trailing Z means UTC timezone, don't expect libc to know this.
@@ -101,10 +99,10 @@ void touch_main(void)
 
   // Set time from -r?
 
-  if (TT.file) {
+  if (TT.r) {
     struct stat st;
 
-    xstat(TT.file, &st);
+    xstat(TT.r, &st);
     ts[0] = st.st_atim;
     ts[1] = st.st_mtim;
   }

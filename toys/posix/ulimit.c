@@ -17,6 +17,7 @@
  * runtime). We support -P to affect processes other than us.
 
 USE_ULIMIT(NEWTOY(ulimit, ">1P#<1SHavutsrRqpnmlifedc[-SH][!apvutsrRqnmlifedc]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_ULIMIT(OLDTOY(prlimit, ulimit, TOYFLAG_USR|TOYFLAG_BIN))
 
 config ULIMIT
   bool "ulimit"
@@ -45,7 +46,7 @@ config ULIMIT
 #include "toys.h"
 
 GLOBALS(
-  long pid;
+  long P;
 )
 
 // This is a linux kernel syscall added in 2.6.36 (git c022a0acad53) which
@@ -70,14 +71,14 @@ void ulimit_main(void)
   if ((toys.optflags&(FLAG_a|FLAG_p)) && toys.optc) error_exit("can't set -ap");
 
   // Fetch data
-  if (!(toys.optflags&FLAG_P)) TT.pid = getppid();
+  if (!(toys.optflags&FLAG_P)) TT.P = getppid();
 
   for (i=0; i<sizeof(map); i++) {
     char *flags="cdefilmnpqRrstuv";
 
     int get = toys.optflags&(FLAG_a|(1<<i));
 
-    if (get && prlimit(TT.pid, map[i], 0, &rr)) perror_exit("-%c", flags[i]);
+    if (get && prlimit(TT.P, map[i], 0, &rr)) perror_exit("-%c", flags[i]);
     if (!toys.optc) {
       if (toys.optflags&FLAG_a) printf("-%c: ", flags[i]);
       if (get) {
@@ -112,6 +113,6 @@ void ulimit_main(void)
 
     if (toys.optflags&FLAG_H) rr.rlim_max = val;
     else rr.rlim_cur = val;
-    if (prlimit(TT.pid, map[i], &rr, 0)) perror_exit(0);
+    if (prlimit(TT.P, map[i], &rr, 0)) perror_exit(0);
   }
 }

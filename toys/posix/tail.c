@@ -34,8 +34,7 @@ config TAIL_SEEK
 #include <sys/inotify.h>
 
 GLOBALS(
-  long lines;
-  long bytes;
+  long n, c;
 
   int file_no, ffd, *files;
 )
@@ -134,7 +133,7 @@ static int try_lseek(int fd, long bytes, long lines)
 // Called for each file listed on command line, and/or stdin
 static void do_tail(int fd, char *name)
 {
-  long bytes = TT.bytes, lines = TT.lines;
+  long bytes = TT.c, lines = TT.n;
   int linepop = 1;
 
   if (toys.optflags & FLAG_f) {
@@ -166,7 +165,7 @@ static void do_tail(int fd, char *name)
       dlist_add_nomalloc((void *)&list, (void *)new);
 
       // If tracing bytes, add until we have enough, discarding overflow.
-      if (TT.bytes) {
+      if (TT.c) {
         bytes += new->len;
         if (bytes > 0) {
           while (list->len <= bytes) {
@@ -229,11 +228,11 @@ void tail_main(void)
 
     // handle old "-42" style arguments
     if (arg && *arg == '-' && arg[1]) {
-      TT.lines = atolx(*(args++));
+      TT.n = atolx(*(args++));
       toys.optc--;
     } else {
       // if nothing specified, default -n to -10
-      TT.lines = -10;
+      TT.n = -10;
     }
   }
 

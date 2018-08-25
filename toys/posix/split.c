@@ -28,9 +28,7 @@ config SPLIT
 #include "toys.h"
 
 GLOBALS(
-  long lines;
-  long bytes;
-  long suflen;
+  long l, b, a;
 
   char *outfile;
 )
@@ -56,23 +54,23 @@ static void do_split(int infd, char *in)
     }
 
     // Start new output file?
-    if ((TT.bytes && !bytesleft) || (TT.lines && !linesleft)) {
+    if ((TT.b && !bytesleft) || (TT.l && !linesleft)) {
       char *s = TT.outfile + strlen(TT.outfile);
 
       j = filenum++;
-      for (i = 0; i<TT.suflen; i++) {
+      for (i = 0; i<TT.a; i++) {
         *(--s) = 'a'+(j%26);
         j /= 26;
       }
       if (j) error_exit("bad suffix");
-      bytesleft = TT.bytes;
-      linesleft = TT.lines;
+      bytesleft = TT.b;
+      linesleft = TT.l;
       if (outfd != -1) close(outfd);
       outfd = xcreate(TT.outfile, O_RDWR|O_CREAT|O_TRUNC, st.st_mode & 0777);
     }
 
     // Write next chunk of output.
-    if (TT.lines) {
+    if (TT.l) {
       for (i = pos; i < len; ) {
         if (toybuf[i++] == '\n' && !--linesleft) break;
         if (!--bytesleft) break;
@@ -97,11 +95,11 @@ static void do_split(int infd, char *in)
 
 void split_main(void)
 {
-  if (!TT.bytes && !TT.lines) TT.lines = 1000;
+  if (!TT.b && !TT.l) TT.l = 1000;
 
   // Allocate template for output filenames
   TT.outfile = xmprintf("%s%*c", (toys.optc == 2) ? toys.optargs[1] : "x",
-    (int)TT.suflen, ' ');
+    (int)TT.a, ' ');
 
   // We only ever use one input, but this handles '-' or no input for us.
   loopfiles(toys.optargs, do_split);

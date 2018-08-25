@@ -190,40 +190,19 @@ config PKILL
 GLOBALS(
   union {
     struct {
-      struct arg_list *G;
-      struct arg_list *g;
-      struct arg_list *U;
-      struct arg_list *u;
-      struct arg_list *t;
-      struct arg_list *s;
-      struct arg_list *p;
-      struct arg_list *O;
-      struct arg_list *o;
-      struct arg_list *P;
-      struct arg_list *k;
+      struct arg_list *G, *g, *U, *u, *t, *s, *p, *O, *o, *P, *k;
     } ps;
     struct {
-      long n;
-      long m;
+      long n, m;
       char *d;
       long s;
-      struct arg_list *u;
-      struct arg_list *p;
-      struct arg_list *o;
-      struct arg_list *k;
-      struct arg_list *O;
+      struct arg_list *u, *p, *o, *k, *O;
 
       long d_ms;
     } top;
     struct {
       char *L;
-      struct arg_list *G;
-      struct arg_list *g;
-      struct arg_list *P;
-      struct arg_list *s;
-      struct arg_list *t;
-      struct arg_list *U;
-      struct arg_list *u;
+      struct arg_list *G, *g, *P, *s, *t, *U, *u;
       char *d;
 
       void *regexes, *snapshot;
@@ -399,8 +378,8 @@ struct typography {
   {"READ", "Data read", 6, SLOT_rchar},
   {"WRITE", "Data written", 6, SLOT_wchar},
   {"IO", "Data I/O", 6, SLOT_iobytes},
-  {"DREAD", "Disk Read", 6, SLOT_rbytes},
-  {"DWRITE", "Disk write", 6, SLOT_wbytes},
+  {"DREAD", "Data read from disk", 6, SLOT_rbytes},
+  {"DWRITE", "Data written to disk", 6, SLOT_wbytes},
   {"SWAP", "Swap I/O", 6, SLOT_swap},
   {"DIO", "Disk I/O", 6, SLOT_diobytes},
 
