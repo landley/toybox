@@ -62,10 +62,9 @@ config SORT_FLOAT
 #include "toys.h"
 
 GLOBALS(
-  char *key_separator;
-  struct arg_list *raw_keys;
-  char *outfile;
-  char *ignore1, ignore2;   // GNU compatability NOPs for -S and -T.
+  char *t;
+  struct arg_list *k;
+  char *o, *T, S;
 
   void *key_list;
   int linecount;
@@ -109,13 +108,12 @@ static char *get_key_data(char *str, struct sort_key *key, int flags)
       for (i=1; i < key->range[2*j]+j; i++) {
 
         // Skip leading blanks
-        if (str[end] && !TT.key_separator)
-          while (isspace(str[end])) end++;
+        if (str[end] && !TT.t) while (isspace(str[end])) end++;
 
         // Skip body of key
         for (; str[end]; end++) {
-          if (TT.key_separator) {
-            if (str[end]==*TT.key_separator) {
+          if (TT.t) {
+            if (str[end]==*TT.t) {
               end++;
               break;
             }
@@ -127,7 +125,7 @@ static char *get_key_data(char *str, struct sort_key *key, int flags)
   }
 
   // Key with explicit separator starts after the separator
-  if (TT.key_separator && str[start]==*TT.key_separator) start++;
+  if (TT.t && str[start]==*TT.t) start++;
 
   // Strip leading and trailing whitespace if necessary
   if (flags&FLAG_b) while (isspace(str[start])) start++;
@@ -305,14 +303,14 @@ void sort_main(void)
   int idx, fd = 1;
 
   // Open output file if necessary.
-  if (CFG_SORT_BIG && TT.outfile)
-    fd = xcreate(TT.outfile, O_CREAT|O_TRUNC|O_WRONLY, 0666);
+  if (CFG_SORT_BIG && TT.o)
+    fd = xcreate(TT.o, O_CREAT|O_TRUNC|O_WRONLY, 0666);
 
   // Parse -k sort keys.
-  if (CFG_SORT_BIG && TT.raw_keys) {
+  if (CFG_SORT_BIG && TT.k) {
     struct arg_list *arg;
 
-    for (arg = TT.raw_keys; arg; arg = arg->next) {
+    for (arg = TT.k; arg; arg = arg->next) {
       struct sort_key *key = add_key();
       char *temp;
       int flag;

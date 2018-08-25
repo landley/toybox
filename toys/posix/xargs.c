@@ -41,11 +41,8 @@ config XARGS_PEDANTIC
 #include "toys.h"
 
 GLOBALS(
-  long max_bytes;
-  long max_entries;
-  long L;
-  char *eofstr;
-  char *I;
+  long s, n, L;
+  char *E, *I;
 
   long entries, bytes;
   char delim;
@@ -57,7 +54,7 @@ GLOBALS(
 // Returning NULL means need more data.
 // Returning char * means hit data limits, start of data left over
 // Returning 1 means hit data limits, but consumed all data
-// Returning 2 means hit -E eofstr
+// Returning 2 means hit -E STR
 
 static char *handle_entries(char *data, char **entry)
 {
@@ -73,7 +70,7 @@ static char *handle_entries(char *data, char **entry)
         s++;
       }
 
-      if (TT.max_entries && TT.entries >= TT.max_entries)
+      if (TT.n && TT.entries >= TT.n)
         return *s ? s : (char *)1;
 
       if (!*s) break;
@@ -82,13 +79,13 @@ static char *handle_entries(char *data, char **entry)
       TT.bytes += sizeof(char *);
 
       for (;;) {
-        if (++TT.bytes >= TT.max_bytes && TT.max_bytes) return save;
+        if (++TT.bytes >= TT.s && TT.s) return save;
         if (!*s || isspace(*s)) break;
         s++;
       }
-      if (TT.eofstr) {
+      if (TT.E) {
         int len = s-save;
-        if (len == strlen(TT.eofstr) && !strncmp(save, TT.eofstr, len))
+        if (len == strlen(TT.E) && !strncmp(save, TT.E, len))
           return (char *)2;
       }
       if (entry) entry[TT.entries] = save;
@@ -98,8 +95,8 @@ static char *handle_entries(char *data, char **entry)
   // -0 support
   } else {
     TT.bytes += sizeof(char *)+strlen(data)+1;
-    if (TT.max_bytes && TT.bytes >= TT.max_bytes) return data;
-    if (TT.max_entries && TT.entries >= TT.max_entries) return data;
+    if (TT.s && TT.bytes >= TT.s) return data;
+    if (TT.n && TT.entries >= TT.n) return data;
     if (entry) entry[TT.entries] = data;
     TT.entries++;
   }
@@ -121,8 +118,7 @@ void xargs_main(void)
   // and command line arguments and still be able to invoke another utility",
   // though obviously that's not really something you can guarantee.
   posix_max_bytes = sysconf(_SC_ARG_MAX) - environ_bytes() - 2048;
-  if (TT.max_bytes == 0 || TT.max_bytes > posix_max_bytes)
-    TT.max_bytes = posix_max_bytes;
+  if (!TT.s || TT.s > posix_max_bytes) TT.s = posix_max_bytes;
 
   if (!(toys.optflags & FLAG_0)) TT.delim = '\n';
 
