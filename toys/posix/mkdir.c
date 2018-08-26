@@ -32,8 +32,7 @@ config MKDIR_Z
 #include "toys.h"
 
 GLOBALS(
-  char *arg_mode;
-  char *arg_context;
+  char *m, *Z;
 )
 
 void mkdir_main(void)
@@ -42,10 +41,10 @@ void mkdir_main(void)
   mode_t mode = (0777&~toys.old_umask);
 
   if (CFG_MKDIR_Z && (toys.optflags&FLAG_Z))
-    if (0>lsm_set_create(TT.arg_context))
-      perror_exit("-Z '%s' failed", TT.arg_context);
+    if (0>lsm_set_create(TT.Z))
+      perror_exit("-Z '%s' failed", TT.Z);
 
-  if (TT.arg_mode) mode = string_to_mode(TT.arg_mode, 0777);
+  if (TT.m) mode = string_to_mode(TT.m, 0777);
 
   // Note, -p and -v flags line up with mkpathat() flags
   for (s=toys.optargs; *s; s++) {

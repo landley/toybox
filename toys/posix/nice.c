@@ -24,15 +24,15 @@ config NICE
 #include "toys.h"
 
 GLOBALS(
-  long priority;
+  long n;
 )
 
 void nice_main(void)
 {
-  if (!toys.optflags) TT.priority = 10;
+  if (!toys.optflags) TT.n = 10;
 
   errno = 0;
-  if (nice(TT.priority)==-1 && errno) perror_exit("Can't set priority");
+  if (nice(TT.n)==-1 && errno) perror_exit("Can't set priority");
 
   xexec(toys.optargs);
 }

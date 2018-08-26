@@ -25,8 +25,7 @@ config LOGGER
 #include "toys.h"
 
 GLOBALS(
-  char *priority;
-  char *ident;
+  char *p, *t;
 )
 
 // find str in names[], accepting unambiguous short matches
@@ -59,18 +58,18 @@ void logger_main(void)
     *facilities[] = {"kern", "user", "mail", "daemon", "auth", "syslog",
                      "lpr", "news", "uucp", "cron", "authpriv", "ftp"};
 
-  if (!TT.ident) TT.ident = xstrdup(xgetpwuid(geteuid())->pw_name);
+  if (!TT.t) TT.t = xstrdup(xgetpwuid(geteuid())->pw_name);
   if (toys.optflags & FLAG_p) {
-    if (!(s1 = strchr(TT.priority, '.'))) s1 = TT.priority;
+    if (!(s1 = strchr(TT.p, '.'))) s1 = TT.p;
     else {
       *s1++ = len = 0;
-      facility = arrayfind(TT.priority, facilities, ARRAY_LEN(facilities));
-      if (facility == -1 && strncasecmp(TT.priority, "local", 5)) {
+      facility = arrayfind(TT.p, facilities, ARRAY_LEN(facilities));
+      if (facility == -1 && strncasecmp(TT.p, "local", 5)) {
         facility = s1[5]-'0';
         if (facility>7 || s1[6]) facility = -1;
         if (facility>=0) facility += 16;
       }
-      if (facility<0) error_exit("bad facility: %s", TT.priority);
+      if (facility<0) error_exit("bad facility: %s", TT.p);
       facility *= 8;
     }
 
@@ -90,7 +89,7 @@ void logger_main(void)
     s1 = toybuf;
   }
 
-  openlog(TT.ident, LOG_PERROR*!!(toys.optflags&FLAG_s), facility);
+  openlog(TT.t, LOG_PERROR*!!(toys.optflags&FLAG_s), facility);
   syslog(priority, "%s", s1);
   closelog();
 }

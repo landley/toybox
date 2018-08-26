@@ -27,11 +27,9 @@ config OD
 #include "toys.h"
 
 GLOBALS(
-  struct arg_list *output_base;
-  char *address_base;
-  long max_count;
-  long width;
-  long jump_bytes;
+  struct arg_list *t;
+  char *A;
+  long N, w, j;
 
   int address_idx;
   unsigned types, leftover, star;
@@ -131,11 +129,11 @@ static void od_outline(void)
   struct odtype *types = (struct odtype *)toybuf;
   int i, j, len, pad;
 
-  if (TT.leftover<TT.width) memset(TT.buf+TT.leftover, 0, TT.width-TT.leftover);
+  if (TT.leftover<TT.w) memset(TT.buf+TT.leftover, 0, TT.w-TT.leftover);
 
   // Handle duplciate lines as *
-  if (!(flags&FLAG_v) && TT.jump_bytes != TT.pos && TT.leftover
-    && !memcmp(TT.bufs[0], TT.bufs[1], TT.width))
+  if (!(flags&FLAG_v) && TT.j != TT.pos && TT.leftover
+    && !memcmp(TT.bufs[0], TT.bufs[1], TT.w))
   {
     if (!TT.star) {
       xputs("*");
@@ -190,20 +188,20 @@ static void od_outline(void)
 static void do_od(int fd, char *name)
 {
   // Skip input, possibly more than one entire file.
-  if (TT.jump_bytes > TT.pos) {
-    off_t pos = TT.jump_bytes-TT.pos, off = lskip(fd, pos);
+  if (TT.j > TT.pos) {
+    off_t pos = TT.j-TT.pos, off = lskip(fd, pos);
 
     if (off >= 0) TT.pos += pos-off;
-    if (TT.jump_bytes > TT.pos) return;
+    if (TT.j > TT.pos) return;
   }
 
   for(;;) {
     char *buf = TT.buf + TT.leftover;
-    int len = TT.width - TT.leftover;
+    int len = TT.w - TT.leftover;
 
     if (toys.optflags & FLAG_N) {
-      if (!TT.max_count) break;
-      if (TT.max_count < len) len = TT.max_count;
+      if (!TT.N) break;
+      if (TT.N < len) len = TT.N;
     }
 
     len = readall(fd, buf, len);
@@ -211,9 +209,9 @@ static void do_od(int fd, char *name)
       perror_msg_raw(name);
       break;
     }
-    if (TT.max_count) TT.max_count -= len;
+    if (TT.N) TT.N -= len;
     TT.leftover += len;
-    if (TT.leftover < TT.width) break;
+    if (TT.leftover < TT.w) break;
 
     od_outline();
   }
@@ -265,17 +263,17 @@ void od_main(void)
 {
   struct arg_list *arg;
 
-  TT.bufs[0] = xzalloc(TT.width);
-  TT.bufs[1] = xzalloc(TT.width);
+  TT.bufs[0] = xzalloc(TT.w);
+  TT.bufs[1] = xzalloc(TT.w);
   TT.buf = TT.bufs[0];
 
-  if (!TT.address_base) TT.address_idx = 2;
-  else if (0>(TT.address_idx = stridx("ndox", *TT.address_base)))
-    error_exit("bad -A '%c'", *TT.address_base);
+  if (!TT.A) TT.address_idx = 2;
+  else if (0>(TT.address_idx = stridx("ndox", *TT.A)))
+    error_exit("bad -A '%c'", *TT.A);
 
   // Collect -t entries
 
-  for (arg = TT.output_base; arg; arg = arg->next) append_base(arg->arg);
+  for (arg = TT.t; arg; arg = arg->next) append_base(arg->arg);
   if (toys.optflags & FLAG_b) append_base("o1");
   if (toys.optflags & FLAG_c) append_base("c");
   if (toys.optflags & FLAG_d) append_base("u2");

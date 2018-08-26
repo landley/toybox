@@ -28,7 +28,7 @@ config MKFIFO_Z
 #include "toys.h"
 
 GLOBALS(
-  char *m_string;
+  char *m;
   char *Z;
 
   mode_t mode;
@@ -39,7 +39,7 @@ void mkfifo_main(void)
   char **s;
 
   TT.mode = 0666;
-  if (toys.optflags & FLAG_m) TT.mode = string_to_mode(TT.m_string, 0);
+  if (toys.optflags & FLAG_m) TT.mode = string_to_mode(TT.m, 0);
 
   if (CFG_MKFIFO_Z && (toys.optflags&FLAG_Z))
     if (0>lsm_set_create(TT.Z))

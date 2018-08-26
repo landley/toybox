@@ -27,14 +27,14 @@ config HEAD
 #include "toys.h"
 
 GLOBALS(
-  long bytes;
-  long lines;
+  long c, n;
+
   int file_no;
 )
 
 static void do_head(int fd, char *name)
 {
-  int i, len, lines=TT.lines, bytes=TT.bytes;
+  int i, len, lines=TT.n, bytes=TT.c;
 
   if ((toys.optc > 1 && !(toys.optflags & FLAG_q)) || toys.optflags & FLAG_v) {
     // Print an extra newline for all but the first file
@@ -65,7 +65,7 @@ void head_main(void)
 
   // handle old "-42" style arguments
   if (arg && *arg == '-' && arg[1]) {
-    TT.lines = atolx(arg+1);
+    TT.n = atolx(arg+1);
     toys.optc--;
   } else arg = 0;
   loopfiles(toys.optargs+!!arg, do_head);

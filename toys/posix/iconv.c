@@ -27,8 +27,7 @@ config ICONV
 #include <iconv.h>
 
 GLOBALS(
-  char *from;
-  char *to;
+  char *f, *t;
 
   void *ic;
 )
@@ -64,11 +63,11 @@ static void do_iconv(int fd, char *name)
 
 void iconv_main(void)
 {
-  if (!TT.to) TT.to = "utf8";
-  if (!TT.from) TT.from = "utf8";
+  if (!TT.t) TT.t = "utf8";
+  if (!TT.f) TT.f = "utf8";
 
-  if ((iconv_t)-1 == (TT.ic = iconv_open(TT.to, TT.from)))
-    perror_exit("%s/%s", TT.to, TT.from);
+  if ((iconv_t)-1 == (TT.ic = iconv_open(TT.t, TT.f)))
+    perror_exit("%s/%s", TT.t, TT.f);
   loopfiles(toys.optargs, do_iconv);
   if (CFG_TOYBOX_FREE) iconv_close(TT.ic);
 }

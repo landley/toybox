@@ -44,8 +44,8 @@ config KILLALL5
 #include "toys.h"
 
 GLOBALS(
-  char *signame;
-  struct arg_list *olist;
+  char *s;
+  struct arg_list *o;
 )
 
 // But kill's flags are a subset of killall5's
@@ -74,12 +74,12 @@ void kill_main(void)
 
   // signal must come before pids, so "kill -9 -1" isn't confusing.
 
-  if (!TT.signame && *args && **args=='-') TT.signame=*(args++)+1;
-  if (TT.signame) {
+  if (!TT.s && *args && **args=='-') TT.s = *(args++)+1;
+  if (TT.s) {
     char *arg;
-    int i = strtol(TT.signame, &arg, 10);
+    int i = strtol(TT.s, &arg, 10);
     if (!*arg) arg = num_to_sig(i);
-    else arg = TT.signame;
+    else arg = TT.s;
 
     if (!arg || -1 == (signum = sig_to_num(arg)))
       error_exit("Unknown signal '%s'", arg);
@@ -96,11 +96,10 @@ void kill_main(void)
     if (toys.optflags & FLAG_o) {
       struct arg_list *ptr;
 
-      for (ptr = TT.olist; ptr; ptr = ptr->next) ocount++;
+      for (ptr = TT.o; ptr; ptr = ptr->next) ocount++;
       olist = xmalloc(ocount*sizeof(long));
       ocount = 0;
-      for (ptr = TT.olist; ptr; ptr=ptr->next)
-        olist[ocount++] = atolx(ptr->arg);
+      for (ptr = TT.o; ptr; ptr=ptr->next) olist[ocount++] = atolx(ptr->arg);
     }
 
     sid = getsid(pid = getpid());

@@ -7,7 +7,7 @@
  * This implements a subset: only one logical page (-ip), no sections (-dfh).
  * todo: -lv
 
-USE_NL(NEWTOY(nl, "v#<1=1l#b:n:s:w#<0=6E", TOYFLAG_BIN))
+USE_NL(NEWTOY(nl, "v#<1=1l#w#<0=6Eb:n:s:", TOYFLAG_BIN))
 
 config NL
   bool "nl"
@@ -29,12 +29,8 @@ config NL
 #include "toys.h"
 
 GLOBALS(
-  long w;
-  char *s;
-  char *n;
-  char *b;
-  long l;
-  long v;
+  char *s, *n, *b;
+  long w, l, v;
 
   // Count of consecutive blank lines for -l has to persist between files
   long lcount;
