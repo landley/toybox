@@ -12,13 +12,13 @@
  *   Posix says the -l date format should vary based on how recent it is
  *   and we do --time-style=long-iso instead
 
-USE_LS(NEWTOY(ls, USE_LS_COLOR("(color):;")"(full-time)(show-control-chars)ZgoACFHLRSabcdfhikl@mnpqrstux1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][!qb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_LS(NEWTOY(ls, "(color):;(full-time)(show-control-chars)ZgoACFHLRSabcdfhikl@mnpqrstux1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][!qb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config LS
   bool "ls"
   default y
   help
-    usage: ls [-ACFHLRSZacdfhiklmnpqrstux1] [directory...]
+    usage: ls [-ACFHLRSZacdfhiklmnpqrstux1] [--color[=auto]] [directory...]
 
     list files
 
@@ -38,20 +38,12 @@ config LS
     -l  long (show full details)       -m  comma separated
     -n  like -l but numeric uid/gid    -o  like -l but no group
     -x  columns (horizontal sort)      -ll long with nanoseconds (--full-time)
-
-    sorting (default is alphabetical):
-    -f  unsorted    -r  reverse    -t  timestamp    -S  size
-
-config LS_COLOR
-  bool "ls --color"
-  default y
-  depends on LS
-  help
-    usage: ls --color[=auto]
-
     --color  device=yellow  symlink=turquoise/red  dir=blue  socket=purple
              files: exe=green  suid=red  suidfile=redback  stickydir=greenback
              =auto means detect if output is a tty.
+
+    sorting (default is alphabetical):
+    -f  unsorted    -r  reverse    -t  timestamp    -S  size
 */
 
 #define FOR_ls
