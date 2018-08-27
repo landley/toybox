@@ -4,11 +4,11 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/grep.html
  *
- * TODO: --color, "Binary file %s matches"
+ * TODO: --color
  *
  * Posix doesn't even specify -r, documenting deviations from it is silly.
 
-USE_GREP(NEWTOY(grep, "S(exclude)*M(include)*C#B#A#ZzEFHabhinorsvwclqe*f*m#x[!wx][!EFw]", TOYFLAG_BIN))
+USE_GREP(NEWTOY(grep, "S(exclude)*M(include)*C#B#A#ZzEFHIabhinorsvwclqe*f*m#x[!wx][!EFw]", TOYFLAG_BIN))
 USE_EGREP(OLDTOY(egrep, grep, TOYFLAG_BIN))
 USE_FGREP(OLDTOY(fgrep, grep, TOYFLAG_BIN))
 
@@ -29,14 +29,15 @@ config GREP
     -r  Recurse into subdirectories (defaults FILE to ".")
     -M  Match filename pattern (--include)
     -S  Skip filename pattern (--exclude)
+    -I	Ignore binary files
 
     match type:
     -A  Show NUM lines after     -B  Show NUM lines before match
     -C  NUM lines context (A+B)  -E  extended regex syntax
-    -F  fixed (literal match)    -i  case insensitive
-    -m  match MAX many lines     -v  invert match
-    -w  whole word (implies -E)  -x  whole line
-    -z  input NUL terminated
+    -F  fixed (literal match)    -a  always text (not binary)
+    -i  case insensitive         -m  match MAX many lines
+    -v  invert match             -w  whole word (implies -E)
+    -x  whole line               -z  input NUL terminated
 
     display modes: (default: matched line)
     -c  count of matching lines  -l  show matching filenames
@@ -90,41 +91,58 @@ static void outline(char *line, char dash, char *name, long lcount, long bcount,
 // Show matches in one file
 static void do_grep(int fd, char *name)
 {
-  struct double_list *dlb = 0;
-  FILE *file = fdopen(fd, "r");
   long lcount = 0, mcount = 0, offset = 0, after = 0, before = 0;
+  struct double_list *dlb = 0;
   char *bars = 0;
+  FILE *file;
+  int bin = 0;
 
   if (!fd) name = "(standard input)";
 
-  if (!file) {
-    perror_msg("%s", name);
+  // Only run binary file check on lseekable files.
+  if (!(toys.optflags&FLAG_a) && !lseek(fd, 0, SEEK_CUR)) {
+    char buf[256];
+    int len, i = 0;
+    wchar_t wc;
 
-    return;
+    // If the first 256 bytes don't parse as utf8, call it binary.
+    if (0<(len = read(fd, buf, 256))) {
+      lseek(fd, -len, SEEK_CUR);
+      while (i<len) {
+        bin = utf8towc(&wc, buf+i, len-i);
+        if (bin == -2) i = len;
+        if (bin<1) break;
+        i += bin;
+      }
+      bin = i!=len;
+    }
+    if (bin && (toys.optflags&FLAG_I)) return;
   }
+
+  if (!(file = fdopen(fd, "r"))) return perror_msg("%s", name);
 
   // Loop through lines of input
   for (;;) {
     char *line = 0, *start;
     regmatch_t matches;
-    size_t unused;
+    size_t ulen;
     long len;
     int mmatch = 0;
 
     lcount++;
     errno = 0;
-    len = getdelim(&line, &unused, TT.indelim, file);
+    ulen = len = getdelim(&line, &ulen, TT.indelim, file);
     if (errno) perror_msg("%s", name);
     if (len<1) break;
-    if (line[len-1] == TT.indelim) line[len-1] = 0;
+    if (line[ulen-1] == TT.indelim) line[--ulen] = 0;
 
     start = line;
 
-    // Loop through matches in this line
+    // Loop to handle multiple matches in same line
     do {
       int rc = 0, skip = 0;
 
-      // Handle non-regex matches
+      // Handle "fixed" (literal) matches
       if (toys.optflags & FLAG_F) {
         struct arg_list *seek, fseek;
         char *s = 0;
@@ -148,8 +166,10 @@ static void do_grep(int fd, char *name)
           matches.rm_so = (s-line);
           skip = matches.rm_eo = (s-line)+strlen(seek->arg);
         } else rc = 1;
+
+      // Handle regex matches
       } else {
-        rc = regexec((regex_t *)toybuf, start, 1, &matches,
+        rc = regexec0((void *)toybuf, start, ulen-(start-line), 1, &matches,
                      start==line ? 0 : REG_NOTBOL);
         skip = matches.rm_eo;
       }
@@ -214,7 +234,8 @@ static void do_grep(int fd, char *name)
         long bcount = 1 + offset + (start-line) +
           ((toys.optflags & FLAG_o) ? matches.rm_so : 0);
  
-        if (!(toys.optflags & FLAG_o)) {
+        if (bin) printf("Binary file %s matches\n", name);
+        else if (!(toys.optflags & FLAG_o)) {
           while (dlb) {
             struct double_list *dl = dlist_pop(&dlb);
 
