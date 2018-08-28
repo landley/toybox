@@ -94,10 +94,10 @@ void test_main(void)
       s = toys.optargs[1] + 1;
       if (!strcmp("eq", s)) toys.exitval = a != b;
       else if (!strcmp("ne", s)) toys.exitval = a == b;
-      else if (!strcmp("gt", s)) toys.exitval = a < b;
-      else if (!strcmp("ge", s)) toys.exitval = a <= b;
-      else if (!strcmp("lt", s)) toys.exitval = a > b;
-      else if (!strcmp("le", s)) toys.exitval = a >= b;
+      else if (!strcmp("gt", s)) toys.exitval = a <= b;
+      else if (!strcmp("ge", s)) toys.exitval = a < b;
+      else if (!strcmp("lt", s)) toys.exitval = a >= b;
+      else if (!strcmp("le", s)) toys.exitval = a > b;
       else error_exit(err_fmt, toys.optargs[1]);
     }
     else {
