@@ -1,0 +1,15 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+#copied from gnu, but according to what i understand the output should be.
+
+testing "fold_test_1" "fold -w2 -s" "a\t\n" "" "a\t"
+testing "fold_test_2" "fold -w4 -s" "abcd\nef \nd\n" "" "abcdef d\n"
+testing "fold_test_3" "fold -w4 -s" "a \ncd \nfgh\n" "" "a cd fgh\n"
+testing "fold_test_4" "fold -w4 -s" "abc \nef\n" "" "abc ef\n"
+
+#the question i posted
+testing "fold_test_5" "fold -w1" "a\nb\nc\nd\n" "" "abcd"
