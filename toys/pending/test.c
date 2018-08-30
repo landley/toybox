@@ -41,26 +41,28 @@ config TEST
 
 void test_main(void)
 {
-  int id, not;
+  int id, not = 0;
   char *s, *err_fmt = "Bad flag '%s'";
 
   toys.exitval = 2;
   if (!strcmp("[", toys.which->name))
-    if (!strcmp("]", toys.optargs[--toys.optc])) error_exit("Missing ']'");
-  if (!strcmp("!", toys.optargs[0])) {
+    if (!toys.optc || !strcmp("]", toys.optargs[--toys.optc]))
+      error_exit("Missing ']'");
+  if (toys.optc && !strcmp("!", toys.optargs[0])) {
     not = 1;
     toys.optargs++;
     toys.optc--;
   }
-  if (!toys.optc) toys.exitval = 0;
-  else if (toys.optargs[0][0] == '-') {
+  if (!toys.optc) toys.exitval = 1;
+  else if (toys.optc == 1) toys.exitval = !*toys.optargs[0];
+  else if (toys.optc == 2 && toys.optargs[0][0] == '-') {
     id = stridx("bcdefghLpSsurwxznt", toys.optargs[0][1]);
     if (id == -1 || toys.optargs[0][2]) error_exit(err_fmt, toys.optargs[0]);
     if (id < 12) {
       struct stat st;
       int nolink;
 
-      toys.exitval = 1;
+      toys.exitval = !not;
       if (lstat(toys.optargs[1], &st) == -1) return;
       nolink = !S_ISLNK(st.st_mode);
       if (!nolink && (stat(toys.optargs[1], &st) == -1)) return;
@@ -80,24 +82,23 @@ void test_main(void)
     else if (id < 15) // rwx
       toys.exitval = access(toys.optargs[1], 1 << (id - 12)) == -1;
     else if (id < 17) // zn
-      toys.exitval = toys.optargs[1] && !*toys.optargs[1] ^ (id - 15);
+      toys.exitval = !*toys.optargs[1] ^ (16 - id);
     else { // t
       struct termios termios;
       toys.exitval = tcgetattr(atoi(toys.optargs[1]), &termios) == -1;
     }
   }
-  else if (toys.optc == 1) toys.exitval = *toys.optargs[0] == 0;
   else if (toys.optc == 3) {
     if (*toys.optargs[1] == '-') {
       long a = atol(toys.optargs[0]), b = atol(toys.optargs[2]);
-      
+
       s = toys.optargs[1] + 1;
       if (!strcmp("eq", s)) toys.exitval = a != b;
       else if (!strcmp("ne", s)) toys.exitval = a == b;
-      else if (!strcmp("gt", s)) toys.exitval = a < b;
-      else if (!strcmp("ge", s)) toys.exitval = a <= b;
-      else if (!strcmp("lt", s)) toys.exitval = a > b;
-      else if (!strcmp("le", s)) toys.exitval = a >= b;
+      else if (!strcmp("gt", s)) toys.exitval = a <= b;
+      else if (!strcmp("ge", s)) toys.exitval = a < b;
+      else if (!strcmp("lt", s)) toys.exitval = a >= b;
+      else if (!strcmp("le", s)) toys.exitval = a > b;
       else error_exit(err_fmt, toys.optargs[1]);
     }
     else {
@@ -109,6 +110,7 @@ void test_main(void)
       else error_exit(err_fmt, toys.optargs[1]);
     }
   }
+  else error_exit("Bad arguments");
   toys.exitval ^= not;
   return;
 }
