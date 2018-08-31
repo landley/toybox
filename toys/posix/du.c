@@ -37,7 +37,7 @@ config DU
 #include "toys.h"
 
 GLOBALS(
-  long maxdepth;
+  long d;
 
   unsigned long depth, total;
   dev_t st_dev;
@@ -54,7 +54,7 @@ static void print(long long size, struct dirtree *node)
 {
   char *name = "total";
 
-  if (TT.depth > TT.maxdepth) return;
+  if (TT.depth > TT.d) return;
 
   if (toys.optflags & FLAG_h) {
     human_readable(toybuf, size, 0);

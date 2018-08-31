@@ -48,9 +48,7 @@ config DATE
 #include "toys.h"
 
 GLOBALS(
-  char *file;
-  char *setfmt;
-  char *showdate;
+  char *r, *D, *d;
 
   unsigned nano;
 )
@@ -166,18 +164,18 @@ void date_main(void)
 
   memset(&tm, 0, sizeof(struct tm));
 
-  if (TT.showdate) {
-    if (TT.setfmt) {
-      char *s = strptime(TT.showdate, TT.setfmt+(*TT.setfmt=='+'), &tm);
+  if (TT.d) {
+    if (TT.D) {
+      char *s = strptime(TT.d, TT.D+(*TT.D=='+'), &tm);
 
       if (!s || *s) goto bad_showdate;
-    } else if (parse_default(TT.showdate, &tm)) goto bad_showdate;
+    } else if (parse_default(TT.d, &tm)) goto bad_showdate;
   } else {
     struct timespec ts;
     struct stat st;
 
-    if (TT.file) {
-      xstat(TT.file, &st);
+    if (TT.r) {
+      xstat(TT.r, &st);
       ts = st.st_mtim;
     } else clock_gettime(CLOCK_REALTIME, &ts);
 
@@ -228,7 +226,7 @@ void date_main(void)
   return;
 
 bad_showdate:
-  setdate = TT.showdate;
+  setdate = TT.d;
 bad_setdate:
   perror_exit("bad date '%s'", setdate);
 }

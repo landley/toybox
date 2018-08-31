@@ -32,7 +32,7 @@ config DF
 #include "toys.h"
 
 GLOBALS(
-  struct arg_list *fstype;
+  struct arg_list *t;
 
   long units;
   int column_widths[5];
@@ -104,10 +104,10 @@ static void show_mt(struct mtab_list *mt, int measuring)
   if (!mt) return;
 
   // If we have -t, skip other filesystem types
-  if (TT.fstype) {
+  if (TT.t) {
     struct arg_list *al;
 
-    for (al = TT.fstype; al; al = al->next) 
+    for (al = TT.t; al; al = al->next) 
       if (!strcmp(mt->type, al->arg)) break;
 
     if (!al) return;

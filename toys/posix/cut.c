@@ -39,8 +39,7 @@ config CUT
 #include "toys.h"
 
 GLOBALS(
-  char *d;
-  char *O;
+  char *d, *O;
   struct arg_list *select[5]; // we treat them the same, so loop through
 
   int pairs;

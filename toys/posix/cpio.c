@@ -41,9 +41,7 @@ config CPIO
 #include "toys.h"
 
 GLOBALS(
-  char *archive;
-  char *pass;
-  char *fmt;
+  char *F, *p, *H;
 )
 
 // Read strings, tail padded to 4 byte alignment. Argument "align" is amount
@@ -87,7 +85,7 @@ void cpio_main(void)
 
   // In passthrough mode, parent stays in original dir and generates archive
   // to pipe, child does chdir to new dir and reads archive from stdin (pipe).
-  if (TT.pass) {
+  if (TT.p) {
     if (toys.stacktop) {
       // xpopen() doesn't return from child due to vfork(), instead restarts
       // with !toys.stacktop
@@ -96,14 +94,14 @@ void cpio_main(void)
     } else {
       // child
       toys.optflags |= FLAG_i;
-      xchdir(TT.pass);
+      xchdir(TT.p);
     }
   }
 
-  if (TT.archive) {
+  if (TT.F) {
     int perm = (toys.optflags & FLAG_o) ? O_CREAT|O_WRONLY|O_TRUNC : O_RDONLY;
 
-    afd = xcreate(TT.archive, perm, 0644);
+    afd = xcreate(TT.F, perm, 0644);
   }
 
   // read cpio archive
@@ -282,7 +280,7 @@ void cpio_main(void)
         sprintf(toybuf, "070701%040X%056X%08XTRAILER!!!", 1, 0x0b, 0)+4);
     }
   }
-  if (TT.archive) xclose(afd);
+  if (TT.F) xclose(afd);
 
-  if (TT.pass) toys.exitval |= xpclose(pid, pipe);
+  if (TT.p) toys.exitval |= xpclose(pid, pipe);
 }

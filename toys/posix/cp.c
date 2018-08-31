@@ -97,12 +97,11 @@ config INSTALL
 
 GLOBALS(
   union {
+    // install's options
     struct {
-      // install's options
-      char *group;
-      char *user;
-      char *mode;
+      char *g, *o, *m;
     } i;
+    // cp's options
     struct {
       char *preserve;
     } c;
@@ -469,10 +468,9 @@ static inline int cp_flag_v(void) { return FLAG_v; };
 
 static int install_node(struct dirtree *try)
 {
-  try->st.st_mode = (TT.i.mode)
-    ? string_to_mode(TT.i.mode, try->st.st_mode) : 0755;
-  if (TT.i.group) try->st.st_gid = TT.gid;
-  if (TT.i.user) try->st.st_uid = TT.uid;
+  try->st.st_mode = TT.i.m ? string_to_mode(TT.i.m, try->st.st_mode) : 0755;
+  if (TT.i.g) try->st.st_gid = TT.gid;
+  if (TT.i.o) try->st.st_uid = TT.uid;
 
   // Always returns 0 because no -r
   cp_node(try);
@@ -511,8 +509,8 @@ void install_main(void)
   if (flags & FLAG_v) toys.optflags |= cp_flag_v();
   if (flags & (FLAG_p|FLAG_o|FLAG_g)) toys.optflags |= cp_flag_p();
 
-  if (TT.i.user) TT.uid = xgetuid(TT.i.user);
-  if (TT.i.group) TT.gid = xgetgid(TT.i.group);
+  if (TT.i.o) TT.uid = xgetuid(TT.i.o);
+  if (TT.i.g) TT.gid = xgetgid(TT.i.g);
 
   TT.callback = install_node;
   cp_main();
