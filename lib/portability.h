@@ -256,3 +256,11 @@ extern CODE prioritynames[], facilitynames[];
 #include <sys/random.h>
 #endif
 void xgetrandom(void *buf, unsigned len, unsigned flags);
+
+// android NDK doesn't have confstr
+#ifndef _CS_PATH
+#define _CS_PATH	0
+#define _CS_V7_ENV	1
+#include <string.h>
+static inline void confstr(int a, char *b, int c) {strcpy(b, a ? "POSIXLY_CORRECT=1" : "/bin:/usr/bin");}
+#endif

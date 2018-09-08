@@ -93,7 +93,7 @@ static int ftp_line(char *cmd, char *arg, int must)
 void ftpget_main(void)
 {
   struct sockaddr_in6 si6;
-  int rc, ii = 1, port;
+  int rc, ii = 1, port = 0;
   socklen_t sl = sizeof(si6);
   char *s, *remote = toys.optargs[2];
   unsigned long long lenl = 0, lenr;
