@@ -43,8 +43,8 @@ void linestack_insert(struct linestack **lls, long pos, char *line, long len)
   // This allocates enough memory for the linestack to have one ptr_len.
   // (Even if a compiler adds gratuitous padidng that just makes it bigger.)
   struct {
-    struct linestack ls;
     struct ptr_len pl;
+    struct linestack ls;
   } ls;
 
   ls.ls.len = ls.ls.max = 1;
