@@ -257,8 +257,8 @@ extern CODE prioritynames[], facilitynames[];
 #endif
 void xgetrandom(void *buf, unsigned len, unsigned flags);
 
-// android NDK doesn't have confstr
-#ifndef _CS_PATH
+// Android's bionic libc doesn't have confstr.
+#ifdef __BIONIC__
 #define _CS_PATH	0
 #define _CS_V7_ENV	1
 #include <string.h>
