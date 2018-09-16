@@ -373,7 +373,7 @@ static void do_regular_file(int fd, char *name)
   } else if (len > 0x32 && !memcmp(s, "BM", 2) && !memcmp(s+6, "\0\0\0\0", 4)) {
     int w = peek_le(s+0x12,4), h = peek_le(s+0x16,4), bpp = peek_le(s+0x1c,2);
 
-    xprintf("BMP image, %d x %d, %d bpp, %s\n", w, h, bpp);
+    xprintf("BMP image, %d x %d, %d bpp\n", w, h, bpp);
   } else {
     char *what = 0;
     int i, bytes;
