@@ -141,15 +141,19 @@ ignored.</p>
 
 <p>The community perception seems to be that the Linux Standard Base is
 the best standard money can buy, I.E. the Linux Foundation is supported by
-financial donations form large companies and the LSB represents the interests
-of those donors more than technical merit. Debian officially
+financial donations from large companies and the LSB
+<a href=https://www.softwarefreedom.org/blog/2016/apr/11/lf/>represents the interests
+of those donors</a> more than technical merit. (The Linux Foundation, which
+maintains the LSB, isn't a 501c3. It's a 501c6, the
+same kind of legal entity as the Tobacco Institute and Microsoft's old
+"Don't Copy That Floppy" program.) Debian officially
 <a href=http://lwn.net/Articles/658809>washed its hands of LSB</a> when 5.0
 came out in 2015, and no longer even pretends to support it (which may affect
 Debian derivatives like Ubuntu and Knoppix). Toybox hasn't moved to 5.0 for
 similar reasons.</p>
 
 <p>That said, Posix by itself isn't enough, and this is the next most
-comprehensive standards effort for Linux so far.</p>
+comprehensive standards effort for Linux so far, so we salvage what we can.</p>
 
 <p>The LSB specifies a <a href=http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html>list of command line
 utilities</a>:</p>
@@ -174,10 +178,8 @@ various legacy tool implementations "compliant", this means we're mostly
 interested in the set of tools that aren't specified in posix at all.</p>
 
 <p>Of these, gettext and msgfmt are internationalization, install_initd and
-remove_initd aren't present on ubuntu 10.04, lpr is out of scope, and
-lsb_release is a distro issue (it's a nice command, but the output of
-lsb_release -a is the name and version number of the linux distro you're
-running, which toybox doesn't know).</p>
+remove_initd weren't present in Ubuntu 10.04, lpr is out of scope,
+and lsb_release just reports information in /etc/os-release.</p>
 
 <p>This leaves:</p>
 
@@ -195,11 +197,7 @@ su sync tar umount useradd userdel usermod zcat
 <h2><a href="#dev_env">Use case: provide a self-hosting development environment</a></h2>
 
 <p>The following commands are enough to build the <a href=http://landley.net/aboriginal/about.html>Aboriginal Linux</a> development
-environment, boot it to a shell prompt, and build <a href=http://www.linuxfromscratch.org/lfs/view/6.8/>Linux From Scratch 6.8</a> under
-it. (Aboriginal Linux <a href=http://landley.net/aboriginal/history.html>currently uses</a> BusyBox for this, thus providing a
-drop-in test environment for toybox. We install both implementations side
-by side, redirecting the symlinks a command at a time until the older
-package is no longer used, and can be removed.)</p>
+environment, boot it to a shell prompt, and build <a href=http://www.linuxfromscratch.org/lfs/view/6.8/>Linux From Scratch 6.8</a> under it.</p>
 
 <p>This use case includes running init scripts and other shell scripts, running
 configure, make, and install in each package, and providing basic command line
@@ -222,7 +220,7 @@ resize2fs tune2fs fsck.ext2 genext2fs mke2fs xzcat
 </span>
 </b></blockquote>
 
-<p>Note: Aboriginal Linux installs bash 2.05b as #!/bin/sh and its scripts
+<p>Aboriginal Linux also installs bash 2.05b as #!/bin/sh and its scripts
 require bash extensions not present in shells such as busybox ash.
 This means that toysh needs to supply several bash extensions _and_ work
 when called under the name "bash".</p>
@@ -248,6 +246,21 @@ a read-only git utility so repo can download the build's source code,
 but that's actually <a href=https://www.youtube.com/watch?v=P7n6G2IL6eo>not
 that hard</a>. We'll probably also need our own "make" at some point after
 1.0.)</p>
+
+<p>Note: Aboriginal Linux was
+<a href=https://landley.net/aboriginal/news.html>restarted</a> (I.E. <a href=https://github.com/landley/mkroot>replaced</a>) due to toolchain licensing issues, but the new project is a simpler implementation of the same goals,
+and when finished should provide the same test environment for toybox.
+This section needs to be rewritten whem mkroot is complete enough to build
+Linux From Scratch.</p>
+
+<p>The development methodology used a <a href=http://landley.net/aboriginal/FAQ.html#debug_logging>command logging wrapper</a>
+that intercepted each command called out of the $PATH and append the
+command line to a log file, then <a href=https://github.com/landley/aboriginal/blob/master/more/report-recorded-commands.sh>analyze</a> the result to create a
+<a href=https://landley.net/notes-2008.html#23-01-2008>list of commands</a>,
+then <a href=https://github.com/landley/aboriginal/blob/master/host-tools.sh>create a directory of symlinks</a> pointing to those commands out of the
+host $PATH. Then the new implementation can replace these commands one
+at a time, checking the results and the log output to spot any behavior
+changes.</p>
 
 <hr />
 <h2><a name=android /><a href="#android">Use case: Replacing Android Toolbox</a></h2>
