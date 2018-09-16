@@ -191,7 +191,7 @@ void xexec(char **argv)
 
   perror_msg("exec %s", argv[0]);
   toys.exitval = 127;
-  if (!CFG_TOYBOX_FORK) _exit(toys.exitval);
+  if (!toys.stacktop) _exit(toys.exitval);
   xexit();
 }
 
