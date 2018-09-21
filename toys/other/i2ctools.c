@@ -18,7 +18,7 @@ USE_I2CSET(NEWTOY(i2cset, "<4fy", TOYFLAG_USR|TOYFLAG_BIN))
 
 config I2CDETECT
   bool "i2cdetect"
-  default n
+  default y
   help
     usage: i2cdetect [-ary] BUS [FIRST LAST]
     usage: i2cdetect -F BUS
@@ -34,7 +34,7 @@ config I2CDETECT
 
 config I2CDUMP
   bool "i2cdump"
-  default n
+  default y
   help
     usage: i2cdump [-fy] BUS CHIP
 
@@ -45,7 +45,7 @@ config I2CDUMP
 
 config I2CGET
   bool "i2cget"
-  default n
+  default y
   help
     usage: i2cget [-fy] BUS CHIP ADDR [MODE]
 
@@ -56,7 +56,7 @@ config I2CGET
 
 config I2CSET
   bool "i2cset"
-  default n
+  default y
   help
     usage: i2cset [-fy] BUS CHIP ADDR VALUE... MODE
 
@@ -121,6 +121,8 @@ static int i2c_read_byte(int fd, int addr, int *byte)
 
 static void i2cdetect_dash_F(int bus)
 {
+  size_t i;
+
   struct { int mask; const char *name; } funcs[] = {
     {I2C_FUNC_I2C, "I2C"},
     {I2C_FUNC_SMBUS_QUICK, "SMBus Quick Command"},
@@ -141,7 +143,7 @@ static void i2cdetect_dash_F(int bus)
   unsigned long supported = i2c_get_funcs(bus);
 
   printf("Functionalities implemented by %s:\n", toybuf);
-  for (size_t i = 0; i < ARRAY_LEN(funcs); ++i) {
+  for (i = 0; i < ARRAY_LEN(funcs); ++i) {
     printf("%-32s %s\n", funcs[i].name,
            (supported & funcs[i].mask) ? "yes" : "no");
   }
