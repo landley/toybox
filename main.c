@@ -156,8 +156,10 @@ void toy_exec_which(struct toy_list *which, char *argv[])
 
   // Compiler writers have decided subtracting char * is undefined behavior,
   // so convert to integers. (LP64 says sizeof(long)==sizeof(pointer).)
+  // Signed typecast so stack growth direction is irrelevant: we're measuring
+  // the distance between two pointers on the same stack, hence the labs().
   if (!CFG_TOYBOX_NORECURSE && toys.stacktop)
-    if (labs((unsigned long)toys.stacktop-(unsigned long)&which)>6000) return;
+    if (labs((long)toys.stacktop-(long)&which)>6000) return;
 
   // Return if we need to re-exec to acquire root via suid bit.
   if (toys.which && (which->flags&TOYFLAG_ROOTONLY) && toys.wasroot) return;
