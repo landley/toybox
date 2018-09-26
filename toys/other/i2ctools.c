@@ -47,7 +47,7 @@ config I2CGET
   bool "i2cget"
   default y
   help
-    usage: i2cget [-fy] BUS CHIP ADDR [MODE]
+    usage: i2cget [-fy] BUS CHIP ADDR
 
     Reads an i2c register.
 
