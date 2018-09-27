@@ -17,8 +17,6 @@ config SETPROP
 #define FOR_setprop
 #include "toys.h"
 
-#include <sys/system_properties.h>
-
 void setprop_main(void)
 {
   char *name = toys.optargs[0], *value = toys.optargs[1];

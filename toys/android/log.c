@@ -20,7 +20,6 @@ config LOG
 
 #define FOR_log
 #include "toys.h"
-#include <android/log.h>
 
 GLOBALS(
   char *tag;

@@ -240,11 +240,35 @@ pid_t xfork(void);
 //#define strncpy(...) @@strncpyisbadmmkay@@
 //#define strncat(...) @@strncatisbadmmkay@@
 
-#if CFG_TOYBOX_ANDROID_SCHEDPOLICY
+// Support building the Android tools on glibc, so hermetic AOSP builds can
+// use toybox before they're ready to switch to host bionic.
+#ifdef __BIONIC__
+#include <android/log.h>
 #include <cutils/sched_policy.h>
+#include <sys/system_properties.h>
 #else
+typedef enum android_LogPriority {
+  ANDROID_LOG_UNKNOWN = 0,
+  ANDROID_LOG_DEFAULT,
+  ANDROID_LOG_VERBOSE,
+  ANDROID_LOG_DEBUG,
+  ANDROID_LOG_INFO,
+  ANDROID_LOG_WARN,
+  ANDROID_LOG_ERROR,
+  ANDROID_LOG_FATAL,
+  ANDROID_LOG_SILENT,
+} android_LogPriority;
+static inline int __android_log_write(int pri, const char *tag, const char *msg)
+{
+  return -1;
+}
 static inline int get_sched_policy(int tid, void *policy) {return 0;}
 static inline char *get_sched_policy_name(int policy) {return "unknown";}
+#define PROP_VALUE_MAX 92
+static inline int __system_property_set(const char *key, const char *value)
+{
+  return -1;
+}
 #endif
 
 #ifndef SYSLOG_NAMES

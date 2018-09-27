@@ -27,8 +27,6 @@ config STOP
 #define FOR_start
 #include "toys.h"
 
-#include <sys/system_properties.h>
-
 static void start_stop(int start)
 {
   char *property = start ? "ctl.start" : "ctl.stop";
