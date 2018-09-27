@@ -65,7 +65,7 @@ void blockdev_main(void)
       xioctl(fd, cmds[i], &val);
 
       flag &= FLAG_setbsz|FLAG_setro|FLAG_flushbufs|FLAG_rereadpt|FLAG_setrw|FLAG_setbsz;
-      if (!flag) printf("%lld\n", (toys.optflags & (FLAG_getsz|FLAG_getra)) ? val >> 9: val);
+      if (!flag) printf("%lld\n", (toys.optflags & FLAG_getsz) ? val >> 9: val);
     }
     xclose(fd);
   }
