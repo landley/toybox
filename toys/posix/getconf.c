@@ -6,17 +6,19 @@
  *
  * Deviations from posix: no -v because nothing says what it should DO.
 
-USE_GETCONF(NEWTOY(getconf, "l", TOYFLAG_USR|TOYFLAG_BIN))
+USE_GETCONF(NEWTOY(getconf, ">2l", TOYFLAG_USR|TOYFLAG_BIN))
 
 config GETCONF
   bool "getconf"
   default y
   help
-    usage: getconf [-l] [NAME...]
+    usage: getconf -l
+    usage: getconf NAME
+    usage: getconf NAME PATH
 
-    Get system configuration values.
+    Get system configuration values. Values from pathconf(3) require a path.
 
-    -l	List available value names
+    -l	List available value names (grouped by source)
 */
 
 #define FOR_getconf
@@ -94,6 +96,16 @@ struct config sysconfs[] = {
   CONF(NPROCESSORS_ONLN)
 };
 
+// Probe the live system with a path
+struct config pathconfs[] = {
+#undef CONF
+#define CONF(n) {#n,_PC_ ## n}
+  CONF(ASYNC_IO), CONF(CHOWN_RESTRICTED), CONF(FILESIZEBITS), CONF(LINK_MAX),
+  CONF(MAX_CANON), CONF(MAX_INPUT), CONF(NAME_MAX), CONF(NO_TRUNC),
+  CONF(PATH_MAX), CONF(PIPE_BUF), CONF(PRIO_IO), CONF(SYMLINK_MAX),
+  CONF(SYNC_IO), CONF(VDISABLE),
+};
+
 // Strings out of a header
 struct config confstrs[] = {
 #undef CONF
@@ -130,41 +142,50 @@ struct config others[] = {
 
 void getconf_main(void)
 {
-  struct config *configs[] = {sysconfs, confstrs, limits, others};
-  char **args;
-  int i, j, lens[] = {ARRAY_LEN(sysconfs), ARRAY_LEN(confstrs),
-    ARRAY_LEN(limits), ARRAY_LEN(others)};
+  struct config *configs[] = {sysconfs, pathconfs, confstrs, limits, others},
+    *c = NULL;
+  int i, j, lens[] = {ARRAY_LEN(sysconfs), ARRAY_LEN(pathconfs),
+    ARRAY_LEN(confstrs), ARRAY_LEN(limits), ARRAY_LEN(others)};
+  char *name, *config_names[] = {"sysconf(3)", "pathconf(3)", "confstr(3)",
+    "<limits.h>", "Misc"};
 
   if (toys.optflags&FLAG_l) {
-    for (i = 0; i<4; i++) for (j = 0; j<lens[i]; j++) puts(configs[i][j].name);
-
+    for (i = 0; i<5; i++) {
+      printf("%s\n", config_names[i]);
+      for (j = 0; j<lens[i]; j++) {
+        printf("  %s\n", configs[i][j].name);
+      }
+    }
     return;
   }
 
-  for (args = toys.optargs; *args; args++) {
-    char *name = *args;
+  if (toys.optc<1) help_exit(0);
+  name = *toys.optargs;
 
-    // Workaround for autogen using CS_PATH instead of PATH
-    if (!strcmp("CS_PATH", name)) name += 3;
+  // Workaround for autogen using CS_PATH instead of PATH
+  if (!strcmp("CS_PATH", name)) name += 3;
 
-    for (i = 0; i<4; i++) for (j = 0; j<lens[i]; j++) {
-      struct config *c = &configs[i][j];
+  // Find the config.
+  for (i = 0; i<5; i++) for (j = 0; j<lens[i]; j++) {
+    c = &configs[i][j];
+    if (!strcmp(c->name, name)) goto found;
+  }
+  error_msg("bad '%s'", name);
 
-      if (strcmp(c->name, name)) continue;
+  found:
+  // Check that we do/don't have the extra path argument.
+  if (i==1) {
+    if (toys.optc!=2) help_exit("%s needs a path", name);
+  } else if (toys.optc!=1) help_exit("%s does not take a path", name);
 
-      if (!i) printf("%ld\n", sysconf(c->value));
-      else if (i==1) {
-        confstr(c->value, toybuf, sizeof(toybuf));
-        puts(toybuf);
-      } else if (i==2) printf("%d\n", c->value);
-      // For legacy kernel build
-      else if (sizeof(long)==4 && !j)
-        puts("-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64");
-
-      goto cont;
-    }
-    error_msg("bad '%s'", name);
-cont:
-    ;
+  if (!i) printf("%ld\n", sysconf(c->value));
+  else if (i==1) printf("%ld\n", pathconf(toys.optargs[1], c->value));
+  else if (i==2) {
+    confstr(c->value, toybuf, sizeof(toybuf));
+    puts(toybuf);
+  } else if (i==3) printf("%d\n", c->value);
+  // For legacy kernel build
+  else if (sizeof(long)==4 && !j) {
+    puts("-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64");
   }
 }
