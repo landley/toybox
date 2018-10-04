@@ -33,6 +33,7 @@ and progress towards implementing it.</p>
 <li><a href=#sigh>Linux "Standard" Base</a></li>
 <li><a href=#dev_env>Development Environment</a></li>
 <li><a href=#android>Android Toolbox</a></li>
+<li><a href=#aosp>Building AOSP</a></li>
 <li><a href=#tizen>Tizen Core</a></li>
 <li><a href=#buildroot>buildroot</a></li>
 <li>Miscelaneous: <a href=#klibc>klibc</a>, <a href=#glibc>glibc</a>,
@@ -357,6 +358,49 @@ chrt dd expr getfattr* lsof modprobe more setfattr* tar tr traceroute
 <blockquote><b>
 mtools genvfatfs mke2fs gene2fs
 </b></blockquote>
+
+<hr />
+<h2><a name=aosp /><a href="#aosp">Use case: Building AOSP</a></h2>
+
+<p>The list of external tools used to build AOSP is
+<a href="https://android.googlesource.com/platform/build/soong/+/master/ui/build/paths/config.go">here</a>.</p>
+
+<blockquote><b>
+awk basename bash bc bzip2 cat chmod cmp comm cp cut date dd diff dirname du
+echo egrep env expr find fuser getconf getopt git grep gzip head hexdump
+hostname id jar java javap ln ls lsof m4 make md5sum mkdir mktemp mv od openssl
+paste patch perl pgrep pkill ps pstree pwd python python2.7 python3 readlink
+realpath rm rmdir rsync runalarm sed setsid sh sha1sum sha256sum sha512sum
+sleep sort stat tar tail tee todos touch tr true uname uniq unix2dos unzip
+wc which whoami xargs xmllint xxd xz zip zipinfo
+</b></blockquote>
+
+<p>The following are already in the tree and will be used directly:</p>
+
+<blockquote><b>
+awk bzip2 jar java javap m4 make python python2.7 python3 xz
+</b></blockquote>
+
+<p>Subtracting what's already in toybox (including the following toybox toys
+that are still in pending: <code>bc dd diff expr gzip lsof tar tr</code>),
+that leaves:</p>
+
+<blockquote><b>
+bash fuser getopt git hexdump openssl perl pstree rsync runalarm sh todos
+unzip xmllint zip zipinfo
+</b></blockquote>
+
+<p>For AOSP, zip/zipinfo/unzip are likely to be libziparchive based. The only
+use of perl is building the kernel, runalarm is just for the Mac, all todos
+callers will use unix2dos instead if it's available. git/openssl/xmllint seem
+like they should just be brought in to the tree. That leaves:</p>
+
+<blockquote><b>
+bash fuser getopt hexdump pstree rsync
+</b></blockquote>
+
+<p>(Why are fuser and pstree used during the AOSP build? They're used for
+diagnostics if something goes wrong.)</p>
 
 <hr />
 <h2><a name=tizen /><a href="#tizen">Use case: Tizen Core</a></h2>
