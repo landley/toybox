@@ -13,6 +13,7 @@ testing "-d @0x123" "TZ=UTC date -d @0x123 2>&1" "date: bad date '@0x123'\n" "" 
 testing "-d 06021234" "TZ=UTC date -d 06021234 2>&1" "Sun Jun  2 12:34:00 UTC 1900\n" "" ""
 testing "-d 060212341982" "TZ=UTC date -d 060212341982 2>&1" "Sun Jun  2 12:34:00 UTC 1982\n" "" ""
 testing "-d 123" "TZ=UTC date -d 123 2>&1" "date: bad date '123'\n" "" ""
+testing "-d 2018-10-04" "TZ=UTC date -d 2018-10-04 2>&1" "Thu Oct  4 00:00:00 UTC 2018\n" "" ""
 
 # Test parsing 2- and 4-digit years.
 testing "-d 1110143115.30" "TZ=UTC date -d 1110143115.30 2>&1" "Sun Nov 10 14:31:30 UTC 1915\n" "" ""
@@ -32,3 +33,7 @@ testing "%%N" "touch -d 2012-01-23T12:34:56.123456789 f && date -r f +%Y%m%d-%H%
 testing "trailing %" "touch -d 2012-01-23T12:34:56.123456789 f && date -r f +%Y%m%d-%H%M%S.%" "20120123-123456.%\n" "" ""
 testing "just %" "touch -d 2012-01-23T12:34:56.123456789 f && date -r f +%" "%\n" "" ""
 rm -f f
+
+# Test embedded TZ to take a date in one time zone and display it in another.
+testing "TZ=" "TZ='America/Los_Angeles' date -d 'TZ=\"Europe/London\" 2018-10-04 08:00'" "Thu Oct  4 00:00:00 PDT 2018\n" "" ""
+testing "TZ= @" "TZ='America/Los_Angeles' date -d 'TZ=\"GMT\" @1533427200'" "Sat Aug  4 17:00:00 PDT 2018\n" "" ""
