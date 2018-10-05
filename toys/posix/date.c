@@ -228,5 +228,5 @@ void date_main(void)
 bad_showdate:
   setdate = TT.d;
 bad_setdate:
-  perror_exit("bad date '%s'", setdate);
+  error_exit("bad date '%s'", setdate);
 }
