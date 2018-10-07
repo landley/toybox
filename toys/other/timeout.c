@@ -52,13 +52,22 @@ static void handler(int i)
   }
 }
 
+// timeval inexplicably makes up a new type for microseconds, despite timespec's
+// nanoseconds field (needing to store 1000* the range) using "long". Bravo.
+void xparsetimeval(char *s, struct timeval *tv)
+{
+  long ll;
+
+  tv->tv_sec = xparsetime(s, 1000000, &ll);
+  tv->tv_usec = ll;
+}
+
 void timeout_main(void)
 {
   // Parse early to get any errors out of the way.
-  TT.itv.it_value.tv_sec = xparsetime(*toys.optargs, 1000000, &TT.itv.it_value.tv_usec);
+  xparsetimeval(*toys.optargs, &TT.itv.it_value);
+  if (TT.k_timeout) xparsetimeval(TT.k_timeout, &TT.ktv);
 
-  if (TT.k_timeout)
-    TT.ktv.tv_sec = xparsetime(TT.k_timeout, 1000000, &TT.ktv.tv_usec);
   TT.nextsig = SIGTERM;
   if (TT.s_signal && -1 == (TT.nextsig = sig_to_num(TT.s_signal)))
     error_exit("bad -s: '%s'", TT.s_signal);
