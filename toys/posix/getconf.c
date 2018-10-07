@@ -5,6 +5,7 @@
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/getconf.c
  *
  * Deviations from posix: no -v because nothing says what it should DO.
+ * Added -l, what symbols should be included is a bit unclear
 
 USE_GETCONF(NEWTOY(getconf, ">2l", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -12,9 +13,7 @@ config GETCONF
   bool "getconf"
   default y
   help
-    usage: getconf -l
-    usage: getconf NAME
-    usage: getconf NAME PATH
+    usage: getconf -l | NAME [PATH]
 
     Get system configuration values. Values from pathconf(3) require a path.
 
@@ -135,7 +134,7 @@ struct config limits[] = {
   CONF(_POSIX2_EXPR_NEST_MAX), CONF(_POSIX2_LINE_MAX), CONF(_POSIX2_RE_DUP_MAX)
 };
 
-// Names that default to blank
+// Names we need to handle ourselves (default to blank but shouldn't error)
 struct config others[] = {
   {"LFS_CFLAGS", 0}, {"LFS_LDFLAGS", 0}, {"LFS_LIBS", 0}
 };
@@ -152,9 +151,7 @@ void getconf_main(void)
   if (toys.optflags&FLAG_l) {
     for (i = 0; i<5; i++) {
       printf("%s\n", config_names[i]);
-      for (j = 0; j<lens[i]; j++) {
-        printf("  %s\n", configs[i][j].name);
-      }
+      for (j = 0; j<lens[i]; j++) printf("  %s\n", configs[i][j].name);
     }
     return;
   }
@@ -166,26 +163,29 @@ void getconf_main(void)
   if (!strcmp("CS_PATH", name)) name += 3;
 
   // Find the config.
-  for (i = 0; i<5; i++) for (j = 0; j<lens[i]; j++) {
+  for (i = j = 0; ; j++) {
+    if (j==lens[i]) j = 0, i++;
+    if (i==5) error_exit("bad '%s'", name);
     c = &configs[i][j];
-    if (!strcmp(c->name, name)) goto found;
+    if (!strcmp(c->name, name)) break;
   }
-  error_msg("bad '%s'", name);
 
-  found:
   // Check that we do/don't have the extra path argument.
   if (i==1) {
     if (toys.optc!=2) help_exit("%s needs a path", name);
   } else if (toys.optc!=1) help_exit("%s does not take a path", name);
 
-  if (!i) printf("%ld\n", sysconf(c->value));
-  else if (i==1) printf("%ld\n", pathconf(toys.optargs[1], c->value));
+  if (i<2) {
+    long l = i ? pathconf(toys.optargs[1], c->value) : sysconf(c->value);
+
+    if (l == -1) puts("undefined");
+    else printf("%ld\n", l);
+  } else if (i==1) printf("%ld\n", pathconf(toys.optargs[1], c->value));
   else if (i==2) {
     confstr(c->value, toybuf, sizeof(toybuf));
     puts(toybuf);
   } else if (i==3) printf("%d\n", c->value);
-  // For legacy kernel build
-  else if (sizeof(long)==4 && !j) {
+  // LFS_CFLAGS on 32 bit should enable Large File Support (kernel build cares)
+  else if (sizeof(long)==4 && !j)
     puts("-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64");
-  }
 }
