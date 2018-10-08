@@ -28,6 +28,10 @@ config GETCONF
 #ifndef _SC_XOPEN_UUCP
 #define _SC_XOPEN_UUCP -1
 #endif
+// This is missing on musl 1.1.20
+#ifndef UIO_MAXIOV
+#define UIO_MAXIOV 1024
+#endif
 
 struct config {
   char *name;
