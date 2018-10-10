@@ -854,7 +854,9 @@ void sigatexit(void *handler)
   int i;
 
   for (i=0; signames[i].num != SIGCHLD; i++)
-    signal(signames[i].num, handler ? exit_signal : SIG_DFL);
+    if (signames[i].num != SIGKILL)
+      xsignal(signames[i].num, handler ? exit_signal : SIG_DFL);
+
   if (handler) {
     al = xmalloc(sizeof(struct arg_list));
     al->next = toys.xexit;

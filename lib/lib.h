@@ -175,6 +175,7 @@ long xparsetime(char *arg, long units, long *fraction);
 void xpidfile(char *name);
 void xregcomp(regex_t *preg, char *rexec, int cflags);
 char *xtzset(char *new);
+void xsignal_flags(int signal, void *handler, int flags);
 void xsignal(int signal, void *handler);
 
 // lib.c
