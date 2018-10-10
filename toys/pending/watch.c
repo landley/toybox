@@ -3,71 +3,202 @@
  * Copyright 2013 Sandeep Sharma <sandeep.jack2756@gmail.com>
  * Copyright 2013 Kyungwan Han <asura321@gmail.com>
  *
-USE_WATCH(NEWTOY(watch, "^<1n#<0=2teb", TOYFLAG_USR|TOYFLAG_BIN))
+ * No standard. See http://man7.org/linux/man-pages/man1/watch.1.html
+ *
+ * TODO: add 
+USE_WATCH(NEWTOY(watch, "^<1n#<100=2000tebx", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config WATCH
   bool "watch"
   default n
   help
-    usage: watch [-n SEC] [-t] PROG ARGS
+    usage: watch [-teb] [-n SEC] PROG ARGS
 
-    Run PROG periodically
+    Run PROG every -n seconds, showing output. Hit q to quit.
 
     -n  Loop period in seconds (default 2)
     -t  Don't print header
-    -e  Freeze updates on command error, and exit after enter.
+    -e  Exit on error
     -b  Beep on command error
+    -x	Exec command directly (vs "sh -c")
 */
+
 #define FOR_watch
 #include "toys.h"
 
 GLOBALS(
-  int interval;
+  int n;
+
+  pid_t pid, oldpid;
 )
+
+void start_redraw(unsigned *width, unsigned *height)
+{
+  // If never signaled, do raw mode setup.
+  if (!toys.signal) {
+    *width = 80;
+    *height = 25;
+    set_terminal(0, 1, 0, 0);
+    sigatexit(tty_sigreset);
+    xsignal(SIGWINCH, generic_signal);
+  }
+  if (toys.signal != -1) {
+    toys.signal = -1;
+    terminal_probesize(width, height);
+  }
+  xprintf("\033[H\033[J");
+}
+
+// When a child process exits, stop tracking them. Handle errors for -be
+void watch_child(int sig)
+{
+  int status;
+  pid_t pid = wait(&status);
+
+  status = WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status)+127;
+  if (status) {
+    // TODO should this be beep()?
+    if (toys.optflags&FLAG_b) putchar('\b');
+    if (toys.optflags&FLAG_e) {
+      printf("Exit status %d\r\n", status);
+      tty_reset();
+      _exit(status);
+    }
+  }
+
+  if (pid == TT.oldpid) TT.oldpid = 0;
+  else if (pid == TT.pid) TT.pid = 0;
+}
+
+// Return early for low-ascii characters with special behavior,
+// discard remaining low ascii, escape other unprintable chars normally
+int watch_escape(FILE *out, int cols, int wc)
+{
+  if (wc==27 || (wc>=7 && wc<=13)) return -1;
+  if (wc < 32) return 0;
+
+  return crunch_escape(out, cols, wc);
+}
 
 void watch_main(void)
 {
-  int i = 0, hlen;
-  time_t t;
-  unsigned width = 80, len = sizeof("Www Mmm dd hh:mm:ss yyyy") - 1 ;
-  char *header, *cmd = *toys.optargs;
-  int retval;
+  char *cmdv[] = {"/bin/sh", "-c", 0, 0}, *cmd, *ss;
+  long long now, then = millitime();
+  unsigned width, height, xx, yy, i, cmdlen, len, active;
+  struct pollfd pfd[2];
+  pid_t pid = 0;
+  int fds[2], cc;
 
-  while (toys.optargs[++i])
-  {
-    char * oldcmd = cmd;
-    cmd = xmprintf("%s %s", oldcmd, toys.optargs[i]);
-    if (CFG_TOYBOX_FREE) free(oldcmd);
-  }
-  header = xmprintf("Every %us: %s", TT.interval, cmd);
-  hlen = strlen(header);
+  // Assemble header line in cmd, cmdlen, and cmdv
+  for (i = TT.n%1000, len = i ? 3 : 1; i && !(i%10); i /= 10) len--;
+  len = sprintf(toybuf, "Every %u.%0*us:", TT.n/1000, len, i)+1;
+  cmdlen = len;
+  for (i = 0; toys.optargs[i]; i++) len += strlen(toys.optargs[i])+1;
+  ss = stpcpy(cmd = xmalloc(len), toybuf);
+  cmdv[2] = cmd+cmdlen;
+  for (i = 0; toys.optargs[i]; i++) ss += sprintf(ss, " %s",toys.optargs[i]);
+  cmdlen = ss-cmd;
 
-  while(1) {
-    xprintf("\033[H\033[J");
-    if (!(toys.optflags & FLAG_t)) {
-      terminal_size(&width, NULL);
-      if (!width) width = 80; //on serial it may return 0.
-      time(&t);
-      if (width > (hlen + len)) xprintf("%s", header);
-      if (width >= len)
-        xprintf("%*s\n",width + ((width > (hlen + len))?-hlen:0) + 1, ctime(&t));
-      else
-        xprintf("\n\n");
+  // Need to poll on process output and stdin
+  memset(pfd, 0, sizeof(pfd));
+  pfd[0].events = pfd[1].events = POLLIN;
+
+  xsignal_flags(SIGCHLD, watch_child, SA_RESTART|SA_NOCLDSTOP);
+
+  for (;;) {
+
+    // Time for a new period?
+    if ((now = millitime())>=then) {
+
+      // Incrementing then instead of adding offset to now avoids drift,
+      // loop is in case we got suspend/resumed and need to skip periods
+      while ((then += TT.n)<=now);
+      start_redraw(&width, &height);
+
+      // redraw the header
+      if (!(toys.optflags&FLAG_t)) {
+        time_t t = time(0);
+        int pad, ctimelen;
+
+        // Get and measure time string, trimming gratuitous \n
+        ctimelen = strlen(ss = ctime(&t));
+        if (ss[ctimelen-1]=='\n') ss[--ctimelen] = 0;
+ 
+        // print cmdline, then * or ' ' (showing truncation), then ctime 
+        pad = width-++ctimelen;
+        if (pad>0) draw_trim(cmd, -pad, pad);
+        printf("%c", pad<cmdlen ? '*' : ' ');
+        if (width) xputs(ss+(width>ctimelen ? 0 : width-1));
+        if (yy>=3) xprintf("\r\n");
+        xx = 0;
+        yy = 2;
+      }
+
+      // If child didn't exit, send TERM signal to current and KILL to previous
+      if (TT.oldpid>0) kill(TT.oldpid, SIGKILL);
+      if (TT.pid>0) kill(TT.pid, SIGTERM);
+      TT.oldpid = pid;
+      if (fds[0]>0) close(fds[0]);
+      if (fds[1]>0) close(fds[1]);
+
+      // Spawn child process
+      memset(fds, 0, sizeof(fds));
+      TT.pid = xpopen_both((toys.optflags&FLAG_x) ? toys.optargs : cmdv, fds);
+      pfd[1].fd = fds[1];
+      active = 1;
     }
-    fflush(NULL); //making sure the screen is clear
-    retval = system(cmd);
-    if ((toys.optflags & FLAG_b) && retval)
-      xprintf("\007"); 
-    if ((toys.optflags & FLAG_e) && retval) {
-      xprintf("command exit with non-zero status, press enter to exit\n");
-      getchar();
-      break;
+
+    // Fetch data from child process or keyboard, with timeout
+    len = 0;
+    xpoll(pfd, 1+(active && yy<height), then-now);
+    if (pfd[0].revents&POLLIN) {
+      memset(toybuf, 0, 16);
+      cc = scan_key_getsize(toybuf, 0, &width, &height);
+      // TODO: ctrl-Z suspend
+      // TODO if (cc == -3) redraw();
+      if (cc == 3 || tolower(cc) == 'q') xexit();
     }
-    sleep(TT.interval);
+    if (pfd[0].revents&POLLHUP) xexit();
+    if (active) {
+      if (pfd[1].revents&POLLIN) len = read(fds[1], toybuf, sizeof(toybuf)-1);
+      if (pfd[1].revents&POLLHUP) active = 0;
+    }
+
+    // Measure output, trim to available display area. Escape low ascii so
+    // we don't have to try to parse ansi escapes. TODO: parse ansi escapes.
+    if (len<1) continue;
+    ss = toybuf;
+    toybuf[len] = 0;
+    while (yy<height) {
+      if (xx==width) {
+        xx = 0;
+        if (++yy>=height) break;
+      }
+      xx += crunch_str(&ss, width-xx, stdout, 0, watch_escape);
+      if (xx==width) {
+        xx = 0;
+        if (++yy>=height) break;
+        continue;
+      }
+
+      if (ss-toybuf==len || *ss>27) break;
+      cc = *ss++;
+      if (cc==27) continue; // TODO
+
+      // Handle BEL BS HT LF VT FF CR 
+      if (cc>=10 && cc<=12) {
+        if (++yy>=height) break;
+
+        if (cc=='\n') putchar('\r'), xx = 0;
+      }
+      putchar(cc);
+      if (cc=='\b' && xx) xx--;
+      else if (cc=='\t') {
+        xx = (xx|7)+1;
+        if (xx>width-1) xx = width-1;
+      }
+    }
   }
 
-  if (CFG_TOYBOX_FREE){
-    free(header);
-    if (cmd != *toys.optargs) free(cmd);
-  }
+  if (CFG_TOYBOX_FREE) free(cmd);
 }

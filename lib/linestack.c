@@ -1,6 +1,11 @@
 #include "toys.h"
 
-// A linestack is an array of struct ptr_len.
+// The design idea here is indexing a big blob of (potentially mmaped) data
+// instead of copying the data into a zillion seperate malloc()s.
+
+// A linestack is an array of struct ptr_len, with a currently used len
+// and max tracking the memory allocation. This indexes existing string data,
+// the lifetime of which is tracked externally.
 
 // Insert one stack into another before position in old stack.
 // (Does not copy contents of strings, just shuffles index array contents.)
@@ -92,8 +97,7 @@ int crunch_str(char **str, int width, FILE *out, char *escmore,
   for (end = start = *str; *end; columns += col, end += bytes) {
     wchar_t wc;
 
-    if ((bytes = utf8towc(&wc, end, 4))>0 && (col = wcwidth(wc))>=0)
-    {
+    if ((bytes = utf8towc(&wc, end, 4))>0 && (col = wcwidth(wc))>=0) {
       if (!escmore || wc>255 || !strchr(escmore, wc)) {
         if (width-columns<col) break;
         if (out) fwrite(end, bytes, 1, out);
@@ -108,8 +112,9 @@ int crunch_str(char **str, int width, FILE *out, char *escmore,
     }
     col = width-columns;
     if (col<1) break;
-    if (escout) col = escout(out, col, wc);
-    else if (out) fwrite(end, bytes, 1, out);
+    if (escout) {
+      if ((col = escout(out, col, wc))<0) break;
+    } else if (out) fwrite(end, 1, bytes, out);
   }
   *str = end;
 

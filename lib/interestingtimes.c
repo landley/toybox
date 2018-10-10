@@ -216,8 +216,8 @@ int scan_key(char *scratch, int miliwait)
 
     // Read 1 byte so we don't overshoot sequence match. (We can deviate
     // and fail to match, but match consumes entire buffer.)
-    if (toys.signal || 1 != read(0, scratch+1+*scratch, 1))
-      return toys.signal ? -3 : -1;
+    if (toys.signal>0 || 1 != read(0, scratch+1+*scratch, 1))
+      return (toys.signal>0) ? -3 : -1;
     ++*scratch;
   }
 
