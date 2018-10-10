@@ -795,6 +795,7 @@ long xparsetime(char *arg, long units, long *fraction)
   long l;
   char *end;
 
+  if (*arg != '.' && !isdigit(*arg)) error_exit("bad %s", arg);
   if (CFG_TOYBOX_FLOAT) d = strtod(arg, &end);
   else l = strtoul(arg, &end, 10);
 

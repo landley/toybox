@@ -1404,8 +1404,11 @@ long long millitime(void)
 // Formats `ts` in ISO format ("2018-06-28 15:08:58.846386216 -0700").
 char *format_iso_time(char *buf, size_t len, struct timespec *ts)
 {
-  strftime(buf, len, "%F %T", localtime(&(ts->tv_sec)));
-  sprintf(buf+strlen(buf), ".%09ld ", ts->tv_nsec);
-  strftime(buf+strlen(buf), len-strlen(buf), "%z", localtime(&(ts->tv_sec)));
+  char *s = buf;
+
+  s += strftime(s, len, "%F %T", localtime(&(ts->tv_sec)));
+  s += sprintf(s, ".%09ld ", ts->tv_nsec);
+  s += strftime(s, len-strlen(buf), "%z", localtime(&(ts->tv_sec)));
+
   return buf;
 }
