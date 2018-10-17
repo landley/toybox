@@ -16,21 +16,22 @@ config DD
     usage: dd [if=FILE] [of=FILE] [ibs=N] [obs=N] [bs=N] [count=N] [skip=N]
             [seek=N] [conv=notrunc|noerror|sync|fsync] [status=noxfer|none]
 
-    Options:
-    if=FILE   Read from FILE instead of stdin
-    of=FILE   Write to FILE instead of stdout
-    bs=N      Read and write N bytes at a time
-    ibs=N     Read N bytes at a time
-    obs=N     Write N bytes at a time
-    count=N   Copy only N input blocks
-    skip=N    Skip N input blocks
-    seek=N    Skip N output blocks
-    conv=notrunc  Don't truncate output file
-    conv=noerror  Continue after read errors
-    conv=sync     Pad blocks with zeros
-    conv=fsync    Physically write data out before finishing
-    status=noxfer Don't show transfer rate
-    status=none   Don't show transfer rate or records in/out
+    Copy/convert files.
+
+    if=FILE		Read from FILE instead of stdin
+    of=FILE		Write to FILE instead of stdout
+    bs=N		Read and write N bytes at a time
+    ibs=N		Read N bytes at a time
+    obs=N		Write N bytes at a time
+    count=N		Copy only N input blocks
+    skip=N		Skip N input blocks
+    seek=N		Skip N output blocks
+    conv=notrunc	Don't truncate output file
+    conv=noerror	Continue after read errors
+    conv=sync	Pad blocks with zeros
+    conv=fsync	Physically write data out before finishing
+    status=noxfer	Don't show transfer rate
+    status=none	Don't show transfer rate or records in/out
 
     Numbers may be suffixed by c (*1), w (*2), b (*512), kD (*1000), k (*1024),
     MD (*1000*1000), M (*1024*1024), GD (*1000*1000*1000) or G (*1024*1024*1024).

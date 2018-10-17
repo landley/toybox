@@ -12,8 +12,8 @@ config MICROCOM
 
     Simple serial console.
 
-    -s  Set baud rate to SPEED
-    -X  Ignore ^@ (send break) and ^] (exit).
+    -s	Set baud rate to SPEED
+    -X	Ignore ^@ (send break) and ^] (exit).
 */
 
 #define FOR_microcom

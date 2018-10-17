@@ -14,13 +14,13 @@ config SHRED
 
     Securely delete a file by overwriting its contents with random data.
 
-    -f        Force (chmod if necessary)
-    -n COUNT  Random overwrite iterations (default 1)
-    -o OFFSET Start at OFFSET
-    -s SIZE   Use SIZE instead of detecting file size
-    -u        unlink (actually delete file when done)
-    -x        Use exact size (default without -s rounds up to next 4k)
-    -z        zero at end
+    -f		Force (chmod if necessary)
+    -n COUNT	Random overwrite iterations (default 1)
+    -o OFFSET	Start at OFFSET
+    -s SIZE		Use SIZE instead of detecting file size
+    -u		Unlink (actually delete file when done)
+    -x		Use exact size (default without -s rounds up to next 4k)
+    -z		Zero at end
 
     Note: data journaling filesystems render this command useless, you must
     overwrite all free space (fill up disk) to erase old data on those.

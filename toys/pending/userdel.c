@@ -14,9 +14,9 @@ config USERDEL
     usage: userdel [-r] USER
     usage: deluser [-r] USER
   
-    Options:
-    -r remove home directory
     Delete USER from the SYSTEM
+
+    -r	remove home directory
 */
 
 #define FOR_userdel

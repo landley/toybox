@@ -34,9 +34,9 @@ config KILLALL5
 
     Send a signal to all processes outside current session.
 
-    -l     List signal name(s) and number(s)
-    -o PID Omit PID
-    -s     send SIGNAL (default SIGTERM)
+    -l	List signal name(s) and number(s)
+    -o PID	Omit PID
+    -s	send SIGNAL (default SIGTERM)
 */
 
 // This has to match the filename:

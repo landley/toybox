@@ -27,17 +27,17 @@ config PING
     echo it receives back, with round trip time. Returns true if host alive.
 
     Options:
-    -4, -6      Force IPv4 or IPv6
-    -c CNT      Send CNT many packets (default 3, 0 = infinite)
-    -f          Flood (print . and \b to show drops, default -c 15 -i 0.2)
-    -i TIME     Interval between packets (default 1, need root for < .2)
-    -I IFACE/IP Source interface or address
-    -m MARK     Tag outgoing packets using SO_MARK
-    -q          Quiet (stops after one returns true if host is alive)
-    -s SIZE     Data SIZE in bytes (default 56)
-    -t TTL      Set Time To Live (number of hops)
-    -W SEC      Seconds to wait for response after last -c packet (default 3)
-    -w SEC      Exit after this many seconds
+    -4, -6		Force IPv4 or IPv6
+    -c CNT		Send CNT many packets (default 3, 0 = infinite)
+    -f		Flood (print . and \b to show drops, default -c 15 -i 0.2)
+    -i TIME		Interval between packets (default 1, need root for < .2)
+    -I IFACE/IP	Source interface or address
+    -m MARK		Tag outgoing packets using SO_MARK
+    -q		Quiet (stops after one returns true if host is alive)
+    -s SIZE		Data SIZE in bytes (default 56)
+    -t TTL		Set Time To Live (number of hops)
+    -W SEC		Seconds to wait for response after last -c packet (default 3)
+    -w SEC		Exit after this many seconds
 */
 
 #define FOR_ping 

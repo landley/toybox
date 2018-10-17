@@ -14,18 +14,17 @@ config BLOCKDEV
 
     Call ioctl(s) on each listed block device
 
-    OPTIONs:
     --setro		Set read only
     --setrw		Set read write
     --getro		Get read only
     --getss		Get sector size
     --getbsz	Get block size
-    --setbsz	BYTES	Set block size
+    --setbsz BYTES	Set block size
     --getsz		Get device size in 512-byte sectors
     --getsize	Get device size in sectors (deprecated)
     --getsize64	Get device size in bytes
     --getra		Get readahead in 512-byte sectors
-    --setra		<sectors>	Set readahead
+    --setra SECTORS	Set readahead
     --flushbufs	Flush buffers
     --rereadpt	Reread partition table
 */

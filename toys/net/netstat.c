@@ -14,17 +14,17 @@ config NETSTAT
 
     Display networking information. Default is netsat -tuwx
 
-    -r  routing table
-    -a  all sockets (not just connected)
-    -l  listening server sockets
-    -t  TCP sockets
-    -u  UDP sockets
-    -w  raw sockets
-    -x  unix sockets
-    -e  extended info
-    -n  don't resolve names
-    -W  wide display
-    -p  PID/Program name of sockets
+    -r	routing table
+    -a	all sockets (not just connected)
+    -l	listening server sockets
+    -t	TCP sockets
+    -u	UDP sockets
+    -w	raw sockets
+    -x	unix sockets
+    -e	extended info
+    -n	don't resolve names
+    -W	wide display
+    -p	show PID/program name of sockets
 */
 
 #define FOR_netstat
