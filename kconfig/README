@@ -1,6 +1,9 @@
 This is a snapshot of linux 2.6.12 kconfig as washed through busybox and
 further modified by Rob Landley.
 
+Note: The build infrastructure in this directory is still GPLv2. Cleaning
+that out is a TODO item, but it doesn't affect the resulting binary.
+
 Way back when I tried to push my local changes to kconfig upstream
 in 2005 https://lwn.net/Articles/161086/
 and 2006 http://lkml.iu.edu/hypermail/linux/kernel/0607.0/1805.html

@@ -1,4 +1,6 @@
-Copyright (C) 2006, 2013 by Rob Landley <rob@landley.net>
+Toybox is released under the Zero Clause BSD license (SPDX: 0BSD)
+
+Copyright (C) 2006, 2018 by Rob Landley <rob@landley.net>
 
 Permission to use, copy, modify, and/or distribute this software for any
 purpose with or without fee is hereby granted.
@@ -10,7 +12,3 @@ ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
 WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-
-(Note: some build infrastructure in the kconfig directory is still GPLv2,
-cleaning that out is a TODO item, but it doesn't affect the resulting
-binary.)
