@@ -276,10 +276,10 @@ static inline int get_sched_policy(int tid, void *policy) {return 0;}
 static inline char *get_sched_policy_name(int policy) {return "unknown";}
 #endif
 
-// The NDK has liblog.so but not liblog.c for static builds, and it's
-// just a stub version anyway.
+// Android NDKv18 has liblog.so but not liblog.c for static builds,
+// stub it out for now.
 #ifdef __ANDROID_NDK__
-int __android_log_write(int prio, const char* tag, const char* text) {return 0;}
+#define __android_log_write(a, b, c) (0)
 #endif
 
 #ifndef SYSLOG_NAMES
