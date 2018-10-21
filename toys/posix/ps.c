@@ -1709,12 +1709,7 @@ static void top_setup(char *defo, char *defk)
     // Grab starting time, make terminal raw, switch off cursor,
     // set signal handler to put terminal/cursor back to normal at exit.
     TT.time = millitime();
-    set_terminal(0, 1, 0, 0);
-    sigatexit(tty_sigreset);
-    xsignal(SIGWINCH, generic_signal);
-    printf("\033[?25l\033[0m");
-    TT.width = 80;
-    TT.height = 25;
+    start_redraw(&TT.width, &TT.height);
   }
 
   comma_args(TT.top.u, &TT.uu, "bad -u", parse_rest);

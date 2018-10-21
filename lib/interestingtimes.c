@@ -258,3 +258,20 @@ void tty_sigreset(int i)
   tty_reset();
   _exit(i ? 128+i : 0);
 }
+
+void start_redraw(unsigned *width, unsigned *height)
+{
+  // If never signaled, do raw mode setup.
+  if (!toys.signal) {
+    *width = 80;
+    *height = 25;
+    set_terminal(0, 1, 0, 0);
+    sigatexit(tty_sigreset);
+    xsignal(SIGWINCH, generic_signal);
+  }
+  if (toys.signal != -1) {
+    toys.signal = -1;
+    terminal_probesize(width, height);
+  }
+  xprintf("\033[H\033[J");
+}

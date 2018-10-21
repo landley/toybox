@@ -32,23 +32,6 @@ GLOBALS(
   pid_t pid, oldpid;
 )
 
-void start_redraw(unsigned *width, unsigned *height)
-{
-  // If never signaled, do raw mode setup.
-  if (!toys.signal) {
-    *width = 80;
-    *height = 25;
-    set_terminal(0, 1, 0, 0);
-    sigatexit(tty_sigreset);
-    xsignal(SIGWINCH, generic_signal);
-  }
-  if (toys.signal != -1) {
-    toys.signal = -1;
-    terminal_probesize(width, height);
-  }
-  xprintf("\033[H\033[J");
-}
-
 // When a child process exits, stop tracking them. Handle errors for -be
 void watch_child(int sig)
 {
