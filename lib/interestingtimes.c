@@ -27,7 +27,7 @@ int terminal_size(unsigned *xx, unsigned *yy)
   // stdin, stdout, stderr
   for (i=0; i<3; i++) {
     memset(&ws, 0, sizeof(ws));
-    if (!ioctl(i, TIOCGWINSZ, &ws)) {
+    if (isatty(i) && !ioctl(i, TIOCGWINSZ, &ws)) {
       if (ws.ws_col) x = ws.ws_col;
       if (ws.ws_row) y = ws.ws_row;
 
