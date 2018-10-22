@@ -791,20 +791,20 @@ double xstrtod(char *s)
 // parse fractional seconds with optional s/m/h/d suffix
 long xparsetime(char *arg, long zeroes, long *fraction)
 {
-  long l, fr;
+  long l, fr = 0, mask = 1;
   char *end;
 
   if (*arg != '.' && !isdigit(*arg)) error_exit("Not a number '%s'", arg);
   l = strtoul(arg, &end, 10);
-  fr = 0;
   if (*end == '.') {
     end++;
     while (zeroes--) {
       fr *= 10;
+      mask *= 10;
       if (isdigit(*end)) fr += *end++-'0';
     }
+    while (isdigit(*end)) end++;
   }
-  if (fraction) *fraction = fr;
 
   // Parse suffix
   if (*end) {
@@ -812,7 +812,11 @@ long xparsetime(char *arg, long zeroes, long *fraction)
 
     if (i == -1 || *(end+1)) error_exit("Unknown suffix '%s'", end);
     l *= ismhd[i];
+    fr *= ismhd[i];
+    l += fr/mask;
+    fr %= mask;
   }
+  if (fraction) *fraction = fr;
 
   return l;
 }
