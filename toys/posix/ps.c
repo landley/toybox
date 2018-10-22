@@ -48,8 +48,8 @@ USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflMno*O*p(pid)*s*t*Tu*U*g*G*wZ[!ol][+Ae][
 // stayroot because iotop needs root to read other process' proc/$$/io
 // TOP and IOTOP have a large common option block used for common processing,
 // the default values are different but the flags are in the same order.
-USE_TOP(NEWTOY(top, ">0O*" "Hk*o*p*u*s#<1d:m#n#<1bq[!oO]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
-USE_IOTOP(NEWTOY(iotop, ">0AaKO" "Hk*o*p*u*s#<1=7d:m#n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
+USE_TOP(NEWTOY(top, ">0O*" "Hk*o*p*u*s#<1d%<100=3000m#n#<1bq[!oO]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_IOTOP(NEWTOY(iotop, ">0AaKO" "Hk*o*p*u*s#<1=7d%<100=3000m#n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
 USE_PGREP(NEWTOY(pgrep, "?cld:u*U*t*s*P*g*G*fnovxL:[-no]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_PKILL(NEWTOY(pkill,    "?Vu*U*t*s*P*g*G*fnovxl:[-no]", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -193,12 +193,8 @@ GLOBALS(
       struct arg_list *G, *g, *U, *u, *t, *s, *p, *O, *o, *P, *k;
     } ps;
     struct {
-      long n, m;
-      char *d;
-      long s;
+      long n, m, d, s;
       struct arg_list *u, *p, *o, *k, *O;
-
-      long d_ms;
     } top;
     struct {
       char *L;
@@ -1638,8 +1634,8 @@ static void top_common(
       }
 
       now = millitime();
-      if (timeout<=now) timeout = new.whence+TT.top.d_ms;
-      if (timeout<=now || timeout>now+TT.top.d_ms) timeout = now+TT.top.d_ms;
+      if (timeout<=now) timeout = new.whence+TT.top.d;
+      if (timeout<=now || timeout>now+TT.top.d) timeout = now+TT.top.d;
 
       // In batch mode, we ignore the keyboard.
       if (toys.optflags&FLAG_b) {
@@ -1693,13 +1689,6 @@ static void top_common(
 
 static void top_setup(char *defo, char *defk)
 {
-  if (TT.top.d) {
-    long frac;
-
-    TT.top.d_ms = xparsetime(TT.top.d, 1000, &frac) * 1000;
-    TT.top.d_ms += frac;
-  } else TT.top.d_ms = 3000;
-
   TT.ticks = sysconf(_SC_CLK_TCK); // units for starttime/uptime
   TT.tty = tty_fd() != -1;
 

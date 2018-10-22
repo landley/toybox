@@ -58,7 +58,7 @@ void xparsetimeval(char *s, struct timeval *tv)
 {
   long ll;
 
-  tv->tv_sec = xparsetime(s, 1000000, &ll);
+  tv->tv_sec = xparsetime(s, 6, &ll);
   tv->tv_usec = ll;
 }
 

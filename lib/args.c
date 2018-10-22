@@ -53,17 +53,18 @@
 //
 //   Suffixes specify that this option takes an argument (stored in GLOBALS):
 //       Note that pointer and long are always the same size, even on 64 bit.
-//     : plus a string argument, keep most recent if more than one
-//     * plus a string argument, appended to a list
-//     # plus a signed long argument
+//     : string argument, keep most recent if more than one
+//     * string argument, appended to a struct arg_list linked list.
+//     # signed long argument
 //       <LOW     - die if less than LOW
 //       >HIGH    - die if greater than HIGH
 //       =DEFAULT - value if not specified
-//     - plus a signed long argument defaulting to negative (say + for positive)
-//     . plus a double precision floating point argument (with CFG_TOYBOX_FLOAT)
+//     - signed long argument defaulting to negative (say + for positive)
+//     . double precision floating point argument (with CFG_TOYBOX_FLOAT)
 //       Chop this option out with USE_TOYBOX_FLOAT() in option string
 //       Same <LOW>HIGH=DEFAULT as #
-//     @ plus an occurrence counter (which is a long)
+//     @ occurrence counter (which is a long)
+//     % time offset in milliseconds with optional s/m/h/d suffix
 //     (longopt)
 //     | this is required. If more than one marked, only one required.
 //     ; long option's argument is optional (can only be supplied with --opt=)
@@ -215,7 +216,7 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt)
         help_exit("-%c < %lf", opt->c, (double)opt->val[0].f);
       if (opt->val[1].l != LONG_MAX && *f > opt->val[1].f)
         help_exit("-%c > %lf", opt->c, (double)opt->val[1].f);
-    }
+    } else if (type=='%') *(opt->arg) = xparsemillitime(arg);
 
     if (!gof->nodash_now) gof->arg = "";
   }
@@ -291,20 +292,20 @@ void parse_optflaglist(struct getoptflagstate *gof)
 
     // If this is the start of a new option that wasn't a longopt,
 
-    } else if (strchr(":*#@.-", *options)) {
+    } else if (strchr(":*#@.-%", *options)) {
       if (CFG_TOYBOX_DEBUG && new->type)
         error_exit("multiple types %c:%c%c", new->c, new->type, *options);
       new->type = *options;
     } else if (-1 != (idx = stridx("|^ ;", *options))) new->flags |= 1<<idx;
     // bounds checking
     else if (-1 != (idx = stridx("<>=", *options))) {
-      if (new->type == '#') {
+      if (new->type == '#' || new->type == '%') {
         long l = strtol(++options, &temp, 10);
         if (temp != options) new->val[idx].l = l;
       } else if (CFG_TOYBOX_FLOAT && new->type == '.') {
         FLOAT f = strtod(++options, &temp);
         if (temp != options) new->val[idx].f = f;
-      } else error_exit("<>= only after .#");
+      } else error_exit("<>= only after .#%%");
       options = --temp;
 
     // At this point, we've hit the end of the previous option.  The

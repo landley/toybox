@@ -1,7 +1,7 @@
-// Take three word input lines on stdin (the three space separated words are
-// command name, option string with current config, option string from
-// allyesconfig; space separated, the last two are and double quotes)
-// and produce flag #defines to stdout.
+// Take three word input lines on stdin and produce flag #defines to stdout.
+// The three words on each input lnie are command name, option string with
+// current config, option string from allyesconfig. The three are space
+// separated and the last two are in double quotes.
 
 // This is intentionally crappy code because we control the inputs. It leaks
 // memory like a sieve and segfaults if malloc returns null, but does the job.
@@ -21,7 +21,10 @@ struct flag {
 
 int chrtype(char c)
 {
-  if (strchr("?&^-:#|@*; ", c)) return 1;
+  // Does this populate a GLOBALS() variable?
+  if (strchr("?&^-:#|@*; %", c)) return 1;
+
+  // Is this followed by a numeric argument in optstr?
   if (strchr("=<>", c)) return 2;
 
   return 0;
@@ -74,12 +77,12 @@ char *mark_gaps(char *flags, char *all)
   return n;
 }
 
-// Break down a command string into struct flag list.
+// Break down a command string into linked list of "struct flag".
 
 struct flag *digest(char *string)
 {
   struct flag *list = NULL;
-  char *err = string;
+  char *err = string, c;
 
   while (*string) {
     // Groups must be at end.
@@ -108,8 +111,9 @@ struct flag *digest(char *string)
       continue;
     }
 
-    if (strchr("?&^-:#|@*; ", *string)) string++;
-    else if (strchr("=<>", *string)) {
+    c = chrtype(*string);
+    if (c == 1) string++;
+    else if (c == 2) {
       if (string[1]=='-') string++;
       if (!isdigit(string[1])) {
         fprintf(stderr, "%c without number in '%s'", *string, err);

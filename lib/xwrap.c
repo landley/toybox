@@ -789,35 +789,44 @@ double xstrtod(char *s)
 }
 
 // parse fractional seconds with optional s/m/h/d suffix
-long xparsetime(char *arg, long units, long *fraction)
+long xparsetime(char *arg, long zeroes, long *fraction)
 {
-  double d;
-  long l;
+  long l, fr;
   char *end;
 
-  if (*arg != '.' && !isdigit(*arg)) error_exit("bad %s", arg);
-  if (CFG_TOYBOX_FLOAT) d = strtod(arg, &end);
-  else l = strtoul(arg, &end, 10);
-
-  if (end == arg) error_exit("Not a number '%s'", arg);
-  arg = end;
+  if (*arg != '.' && !isdigit(*arg)) error_exit("Not a number '%s'", arg);
+  l = strtoul(arg, &end, 10);
+  fr = 0;
+  if (*end == '.') {
+    end++;
+    while (zeroes--) {
+      fr *= 10;
+      if (isdigit(*end)) fr += *end++-'0';
+    }
+  }
+  if (fraction) *fraction = fr;
 
   // Parse suffix
-  if (*arg) {
-    int ismhd[]={1,60,3600,86400}, i = stridx("smhd", *arg);
+  if (*end) {
+    int ismhd[]={1,60,3600,86400}, i = stridx("smhd", *end);
 
-    if (i == -1 || *(arg+1)) error_exit("Unknown suffix '%s'", arg);
-    if (CFG_TOYBOX_FLOAT) d *= ismhd[i];
-    else l *= ismhd[i];
+    if (i == -1 || *(end+1)) error_exit("Unknown suffix '%s'", end);
+    l *= ismhd[i];
   }
-
-  if (CFG_TOYBOX_FLOAT) {
-    l = (long)d;
-    if (fraction) *fraction = units*(d-l);
-  } else if (fraction) *fraction = 0;
 
   return l;
 }
+
+long long xparsemillitime(char *arg)
+{
+  long l, ll;
+
+  l = xparsetime(arg, 3, &ll);
+
+  return (l*1000LL)+ll;
+}
+
+
 
 // Compile a regular expression into a regex_t
 void xregcomp(regex_t *preg, char *regex, int cflags)

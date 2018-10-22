@@ -31,6 +31,6 @@ void sleep_main(void)
 {
   struct timespec tv;
 
-  tv.tv_sec = xparsetime(*toys.optargs, 1000000000, &tv.tv_nsec);
+  tv.tv_sec = xparsetime(*toys.optargs, 9, &tv.tv_nsec);
   toys.exitval = !!nanosleep(&tv, NULL);
 }
