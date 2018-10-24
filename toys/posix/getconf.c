@@ -5,18 +5,20 @@
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/getconf.c
  *
  * Deviations from posix: no -v because nothing says what it should DO.
- * Added -l, what symbols should be included is a bit unclear
+ * Added -l, what symbols should be included is a bit unclear.
+ * Added -a, copied FSF behavior of assuming "/" if no path supplied.
 
-USE_GETCONF(NEWTOY(getconf, ">2l", TOYFLAG_USR|TOYFLAG_BIN))
+USE_GETCONF(NEWTOY(getconf, ">2al", TOYFLAG_USR|TOYFLAG_BIN))
 
 config GETCONF
   bool "getconf"
   default y
   help
-    usage: getconf -l | NAME [PATH]
+    usage: getconf -a [PATH] | -l | NAME [PATH]
 
     Get system configuration values. Values from pathconf(3) require a path.
 
+    -a	Show all (defaults to "/" if no path given)
     -l	List available value names (grouped by source)
 */
 
@@ -28,7 +30,9 @@ config GETCONF
 #ifndef _SC_XOPEN_UUCP
 #define _SC_XOPEN_UUCP -1
 #endif
-// This is missing on musl 1.1.20
+
+// When NDK r19 ships in 2018Q4, switch to _SC_UIO_MAXIOV.
+// (Until then use this workaround for musl.)
 #ifndef UIO_MAXIOV
 #define UIO_MAXIOV 1024
 #endif
@@ -158,14 +162,42 @@ struct config others[] = {
   {"LFS_CFLAGS", 0}, {"LFS_LDFLAGS", 0}, {"LFS_LIBS", 0}
 };
 
+static void show_conf(int i, struct config *c, const char *path)
+{
+  if (i<2) {
+    long l = i ? pathconf(path, c->value) : sysconf(c->value);
+
+    if (l == -1) puts("undefined");
+    else printf("%ld\n", l);
+  } else if (i==2) {
+    confstr(c->value, toybuf, sizeof(toybuf));
+    puts(toybuf);
+  } else if (i==3) printf("%lld\n", c->value);
+  // LFS_CFLAGS on 32 bit should enable Large File Support for kernel builds
+  else puts(sizeof(long)==4 && !strcmp(c->name, "LFS_CFLAGS") ?
+    "-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64" : "");
+}
+
 void getconf_main(void)
 {
   struct config *configs[] = {sysconfs, pathconfs, confstrs, limits, others},
     *c = NULL;
   int i, j, lens[] = {ARRAY_LEN(sysconfs), ARRAY_LEN(pathconfs),
     ARRAY_LEN(confstrs), ARRAY_LEN(limits), ARRAY_LEN(others)};
-  char *name, *config_names[] = {"sysconf(3)", "pathconf(3)", "confstr(3)",
+  char *name, *path = (toys.optc==2) ? toys.optargs[1] : "/",
+    *config_names[] = {"sysconf(3)", "pathconf(3)", "confstr(3)",
     "<limits.h>", "Misc"};
+
+  if (toys.optflags&FLAG_a) {
+    for (i = 0; i<5; i++) {
+      for (j = 0; j<lens[i]; j++) {
+        c = &configs[i][j];
+        printf("%-34s ", c->name);
+        show_conf(i, c, path);
+      }
+    }
+    return;
+  }
 
   if (toys.optflags&FLAG_l) {
     for (i = 0; i<5; i++) {
@@ -194,17 +226,5 @@ void getconf_main(void)
     if (toys.optc!=2) help_exit("%s needs a path", name);
   } else if (toys.optc!=1) help_exit("%s does not take a path", name);
 
-  if (i<2) {
-    long l = i ? pathconf(toys.optargs[1], c->value) : sysconf(c->value);
-
-    if (l == -1) puts("undefined");
-    else printf("%ld\n", l);
-  } else if (i==1) printf("%ld\n", pathconf(toys.optargs[1], c->value));
-  else if (i==2) {
-    confstr(c->value, toybuf, sizeof(toybuf));
-    puts(toybuf);
-  } else if (i==3) printf("%lld\n", c->value);
-  // LFS_CFLAGS on 32 bit should enable Large File Support (kernel build cares)
-  else if (sizeof(long)==4 && !j)
-    puts("-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64");
+  show_conf(i, c, path);
 }
