@@ -7,8 +7,6 @@
  * Our "unspecified" behavior for no paths is to use "."
  * Parentheses can only stack 4096 deep
  * Not treating two {} as an error, but only using last
- *
- * TODO: -empty (dirs too!)
 
 USE_FIND(NEWTOY(find, "?^HL[-HL]", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -304,6 +302,22 @@ static int do_find(struct dirtree *new)
       print++;
       if (check) do_print(new, s[5] ? 0 : '\n');
 
+    } else if (!strcmp(s, "empty")) {
+      if (check) {
+        // Alas neither st_size nor st_blocks reliably show an empty directory
+        if (S_ISDIR(new->st.st_mode)) {
+          int fd = openat(dirtree_parentfd(new), new->name, O_RDONLY);
+          DIR *dfd = fdopendir(fd);
+          struct dirent *de = (void *)1;
+          if (dfd) {
+            while ((de = readdir(dfd)) && isdotdot(de->d_name));
+            closedir(dfd);
+          }
+          if (de) test = 0;
+        } else if (S_ISREG(new->st.st_mode)) {
+          if (new->st.st_size) test = 0;
+        } else test = 0;
+      }
     } else if (!strcmp(s, "nouser")) {
       if (check) if (bufgetpwuid(new->st.st_uid)) test = 0;
     } else if (!strcmp(s, "nogroup")) {
