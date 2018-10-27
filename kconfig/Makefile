@@ -18,7 +18,7 @@ oldconfig: $(obj)/conf $(KCONFIG_TOP)
 	$< -o $(KCONFIG_TOP)
 
 silentoldconfig: $(obj)/conf $(KCONFIG_TOP)
-	$< -s $(KCONFIG_TOP)
+	yes | $< -o $(KCONFIG_TOP) > /dev/null
 
 randconfig: $(obj)/conf $(KCONFIG_TOP)
 	$< -r $(KCONFIG_TOP) > /dev/null

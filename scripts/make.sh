@@ -14,8 +14,7 @@ source ./configure
 [ -z "$OUTNAME" ] && OUTNAME=toybox
 UNSTRIPPED="generated/unstripped/$(basename "$OUTNAME")"
 
-# Since each cc invocation is short, launch half again as many processes
-# as we have processors so they don't exit faster than we can start them.
+# Try to keep one more cc invocation going than we have processors
 [ -z "$CPUS" ] && CPUS=$(($(nproc)+1))
 
 if [ -z "$SED" ]
@@ -90,18 +89,20 @@ genbuildsh()
 
   echo "#!/bin/sh"
   echo
+  echo "PATH='$PATH'"
+  echo
   echo "BUILD='$BUILD'"
   echo
-  echo "FILES='$LIBFILES $TOYFILES'"
-  echo
   echo "LINK='$LINK'"
+  echo
+  echo "FILES='$LIBFILES $TOYFILES'"
   echo
   echo
   echo '$BUILD $FILES $LINK'
 }
 
-if ! cmp -s <(genbuildsh | head -n 3) \
-          <(head -n 3 generated/build.sh 2>/dev/null)
+if ! cmp -s <(genbuildsh | head -n 7) \
+          <(head -n 7 generated/build.sh 2>/dev/null)
 then
   echo -n "Library probe"
 

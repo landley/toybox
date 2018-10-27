@@ -26,7 +26,11 @@ include kconfig/Makefile
 -include .singlemake
 
 $(KCONFIG_CONFIG): $(KCONFIG_TOP)
-$(KCONFIG_TOP): generated/Config.in
+	@if [ -e "$(KCONFG_CONFIG)" ]; then make silentoldconfig; \
+	else echo "Not configured (run 'make defconfig' or 'make menuconfig')";\
+	exit 1; fi
+
+$(KCONFIG_TOP): generated/Config.in generated/Config.probed
 generated/Config.in: toys/*/*.c scripts/genconfig.sh
 	scripts/genconfig.sh
 
