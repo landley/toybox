@@ -336,8 +336,10 @@ do_loudly $BUILD $LNKFILES $LINK || exit 1
 if [ ! -z "$NOSTRIP" ] ||
   ! do_loudly ${CROSS_COMPILE}${STRIP} "$UNSTRIPPED" -o "$OUTNAME"
 then
-  echo "strip failed, using unstripped" && cp "$UNSTRIPPED" "$OUTNAME" ||
-  exit 1
+  echo "strip failed, using unstripped" &&
+  rm -f "$OUTNAME" &&
+  cp "$UNSTRIPPED" "$OUTNAME" ||
+    exit 1
 fi
 
 # gcc 4.4's strip command is buggy, and doesn't set the executable bit on
