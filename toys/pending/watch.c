@@ -6,7 +6,7 @@
  * No standard. See http://man7.org/linux/man-pages/man1/watch.1.html
  *
  * TODO: add 
-USE_WATCH(NEWTOY(watch, "^<1n#<100=2000tebx", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_WATCH(NEWTOY(watch, "^<1n%<100=2000tebx", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config WATCH
   bool "watch"
@@ -67,7 +67,7 @@ void watch_main(void)
 {
   char *cmdv[] = {"/bin/sh", "-c", 0, 0}, *cmd, *ss;
   long long now, then = millitime();
-  unsigned width, height, xx, yy, i, cmdlen, len, active;
+  unsigned width, height, i, cmdlen, len, xx = xx, yy = yy, active = active;
   struct pollfd pfd[2];
   pid_t pid = 0;
   int fds[2], cc;
@@ -168,10 +168,9 @@ void watch_main(void)
       cc = *ss++;
       if (cc==27) continue; // TODO
 
-      // Handle BEL BS HT LF VT FF CR 
+      // Handle BEL BS HT LF VT FF CR
       if (cc>=10 && cc<=12) {
         if (++yy>=height) break;
-
         if (cc=='\n') putchar('\r'), xx = 0;
       }
       putchar(cc);
