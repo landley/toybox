@@ -5,12 +5,12 @@
  *
  * No standard. See http://man7.org/linux/man-pages/man1/watch.1.html
  *
- * TODO: add 
+ * TODO: trailing combining characters
 USE_WATCH(NEWTOY(watch, "^<1n%<100=2000tebx", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config WATCH
   bool "watch"
-  default n
+  default y
   help
     usage: watch [-teb] [-n SEC] PROG ARGS
 
