@@ -8,8 +8,136 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
-<a name="23-06-2018" /><a href="#23-06-2018"><hr><h2><b>June 23, 2018</b></h2></a>
+<a name="31-10-2018" /><a href="#31-10-2018"><hr><h2><b>October 31, 2018</b></h2></a>
 <blockquote><p>
+"In the beginning the Universe was created.
+This has made a lot of people very angry and been widely regarded as a bad move." - The Hitchhiker's Guide to the Galaxy.
+</p>
+</blockquote>
+
+<p><a href=downloads/toybox-0.7.8.tar.gz>Toybox 0.7.8</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.7.8>git commit</a>)
+is out (a month late).</p>
+
+<p>Toybox <a href=http://lists.landley.net/pipermail/toybox-landley.net/2018-October/009769.html>now builds</a> with the Android NDK (r18 release), almost out of the box.
+You have to add an "llvm-cc" symlink to "clang", then use CROSS_COMPILE=llvm-
+with the appropriate $PATH (or absolute path in CROSS_COMPILE) for the
+target you want to build for. (To run it on a non-android host, you probably
+want "LDFLAGS=--static" too.)</p>
+
+<p><u>New commands</u>: <b>i2cdetect</b>, <b>i2cdump</b>, <b>i2cget</b>, and <b>i2cset</b>
+courtesy of Elliott/Android. The <b>watch</b> command got a complete (tty-aware)
+rewrite, and was promoted out of pending. The <b>prlimit</b> command is back
+(a configuration bug was always disabling it), and <b>ascii</b> now defaults y
+in defconfig (an oversight).</p>
+
+<p><u>New options</u>: 
+The <b>ifconfig</b> command added -S (short view) giving one line of
+information per interface, in "name ipv4/mask macaddr [ipv6/mask@type...]"
+format. <b>grep</b> grew binary file detection, with -I and -a options to
+ignore them or force treating them as ascii (really utf8).
+Zach Van Rijn asked for <b>find -empty</b>.
+In the <b>file</b> command, Elliott improved java
+.class support and added .wav, .bmp, and android .dex.
+Elliott also added "getconf -a" and a lot of missing getconf symbols the
+AOSP build uses, including support for pathconf(3) symbols requiring two
+arguments. This means getconf's arguments work more like ubuntu's
+now (one or two arguments, not iterating through the supplied list and
+processing each like last release), and -l grew section identifiers (so
+the "getconf -l" output is no longer a directly consumable list of symbols
+it takes).
+Command line options specifying durations (like top -d or ping -i) can
+now use fractions and units, like "1.5" and ".1m". See "toybox --help" for
+details.
+Toybox now dereferences one layer of symlinks if it doesn't recognize the
+name it's called under (so if you "ln -s $(which sleep) blah" and then
+"./blah 30", it should figure out you mean sleep 30).</p>
+
+<p><u>Pending</u>:
+Gavin Howard contributed a large new <b>bc</b> implementation to pending,
+which covers everything the kernel build needs (and more) but is going to
+take a while to review.
+In <b>diff</b> the android guys added --color and timestamps on the
++++/--- lines. In <b>mdev</b> Faustas Azuolas Bagdonas added support
+for mdev.conf's fourth field. Reverend Homer suggested an error message
+improvement in <b>wget</b>, Kevin Spiteri did a cleanup pass on test.c,
+and there was a cleanup pass on the passwd command.</p>
+
+<p><u>Bugfixes</u>:
+Elliott responded to a bug in <b>getconf</b>'s sed-based header generation by
+replacing it with a more conventional array of #defined symbols, with #ifdefs
+for missing symbols on the three libc implementations (glibc, bionic, musl)
+we've tested so far. (This requires portability.h work to add new supported
+build environments, but at least it works on bionic now.)
+The <b>file</b> command now fails gracefully when reading pathologically
+broken ELF files (the tests for integer overflow missed one), and
+<b>date</b> no longer shows a meaningless errno when it can't parse the
+date format.
+Several fixes in <b>ping</b> (-w and -W didn't work, -c kept sending packets
+while waiting for replies, and when no reply packets were received the summary
+data was printed twice).
+Elliott fixed <b>wc</b> column widths (traditional reality doesn't match
+posix), fixed <b>modprobe</b>'s error handling (reported by Wen Xie), and
+also fixed the units on blockdev --blkraget (reported by Martijn Coenen).
+Several small fixes to the <b>stat</b> command's output (help text, quoting
+style, leading zeroes, switch -f from %t to %T), <b>oneit</b> no longer
+reboots the system when it's not called as PID 1.
+Last release's commit letting $STRIP be redefined had a typo.
+Nick Kralevich added an istty() check before calling TIOCGWINSZ (which
+triggered Android's strict ioctl filtering on non-filesystem fifos).
+An unstripped build (where the "strip" command fails for a given
+CROSS_COMPILE) will now overwrite the (read-only) output file instead of
+failing a rebuild. The dirtree plumbing no longer prints a "No" on front
+of the filename in error messages (such as "permission denied").</p>
+
+<p><u>Docmentation</u>
+Elliott updated the roadmap with Android AOSP status, towards turning that
+into a hermetic build (hopefully with an eventual self-hosting option, work
+is <a href=b33d37d6f735>already underway</a> on the airlock step).
+Rob added a little more context for LSB and described the move from Aboriginal
+Linux to mkroot.
+The <b>ps</b> help text changed: now "ps -o help" shows the fields and the normal
+--help is much more manageable. Ifconfig's --help text also got tidied up.
+Our LICENSE file has the SPDX identifier (0BSD) now, and the note about
+the kconfig/ subdirectory still having (build only, non-shipping) GPL code
+in it moved into the kconfig subdirectory.</p>
+
+<p><u>Coding style change:</u>
+GLOBALS() now uses the argument letter as the variable
+name for variables automatically set by command line arguments via lib/args.c,
+and no longer requires they be one per line.
+Removed use of the gcc
+\e extension in string constants, replacing it with \033.</p>
+
+<p><u>Library code:</u>
+lib/interestingtimes.c was renamed to lib/tty.c.
+The deflate code from toys/pending/compress.c moved to lib/deflate.c,
+which gunzip.c now uses when it's not configured to use zlib. (This reduces
+the bootstrap dependencies for the "airlock" step of a hermetic build.)
+The compression side remains a todo item.
+Added "%" to lib/args.c reading seconds (including fractions/units) into a
+long milliseconds argument. Redid xparsetime() to not need floating point,
+added xparsemillitime() for milliseconds common case, and
+parsetime() now treats leading garbage as an error instead of returning zero.
+The bufgetpwuid()/pufgetgrgid() functons can now handle more than 4k of group
+data. The set_terminal() function can now set serial speed, and microcom.c
+uses it. Added xsignal_flags(), and more consistently use xsignal() (which wraps
+sigaction()) instead of signal().
+A new xgetrandom() function calls the new getrandom() system call, falling
+back to /dev/urandom on older kernel/libc (made to actually _work_ by
+Patrick Oppenlander).</p>
+
+<p><u>Build infrastructure:</u>
+Updated dependency detection so "make distclean defconfig toybox" now works
+all on the same command line. (This is nice when $CROSS_COMPILE changes).
+scripts/config2help.c no longer includes parts of lib/ and just copies what
+it needs into itself, improving build portability.
+The build now checks the specified cross compiler exists, hopefully providing
+a more informative error message when it doesn't. Similarly, when .config is
+missing the error message suggests running make defconfig.</p>
+
+<a name="23-06-2018" /><a href="#23-06-2018"><hr><h2><b>June 23, 2018</b></h2></a>
+<blockquote>
 <p>There is a theory which states that if ever anyone discovers exactly what
 the Universe is for and why it is here, it will instantly disappear and be
 replaced by something even more bizarre and inexplicable. There is another
