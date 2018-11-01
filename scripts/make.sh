@@ -101,7 +101,7 @@ genbuildsh()
   echo '$BUILD $FILES $LINK'
 }
 
-if ! cmp -s <(genbuildsh | head -n 6 ; echo LINK="'"$LDOPTIMIZE $LDFLAGS) \
+if ! cmp -s <(genbuildsh 2>/dev/null | head -n 6 ; echo LINK="'"$LDOPTIMIZE $LDFLAGS) \
           <(head -n 7 generated/build.sh 2>/dev/null | sed '7s/ -o .*//')
 then
   echo -n "Library probe"
