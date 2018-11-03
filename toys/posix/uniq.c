@@ -31,18 +31,18 @@ GLOBALS(
   long maxchars;
   long nchars;
   long nfields;
+
   long repeats;
 )
 
 static char *skip(char *str)
 {
-  long nchars = TT.nchars, nfields;
+  long nchars = TT.nchars, nfields = TT.nfields;
 
   // Skip fields first
-  for (nfields = TT.nfields; nfields; str++) {
+  while (nfields--) {
     while (*str && isspace(*str)) str++;
     while (*str && !isspace(*str)) str++;
-    nfields--;
   }
   // Skip chars
   while (*str && nchars--) str++;
@@ -61,7 +61,7 @@ static void print_line(FILE *f, char *line)
 void uniq_main(void)
 {
   FILE *infile = stdin, *outfile = stdout;
-  char *thisline = NULL, *prevline = NULL, *tmpline, eol = '\n';
+  char *thisline = 0, *prevline = 0, *tmpline, eol = '\n';
   size_t thissize, prevsize = 0, tmpsize;
 
   if (toys.optc >= 1) infile = xfopen(toys.optargs[0], "r");
@@ -70,8 +70,7 @@ void uniq_main(void)
   if (toys.optflags & FLAG_z) eol = 0;
 
   // If first line can't be read
-  if (getdelim(&prevline, &prevsize, eol, infile) < 0)
-    return;
+  if (getdelim(&prevline, &prevsize, eol, infile) < 0) return;
 
   while (getdelim(&thisline, &thissize, eol, infile) > 0) {
     int diff;
@@ -86,16 +85,13 @@ void uniq_main(void)
       t2 = prevline;
     }
 
-    if (TT.maxchars == 0) {
+    if (TT.maxchars == 0)
       diff = !(toys.optflags & FLAG_i) ? strcmp(t1, t2) : strcasecmp(t1, t2);
-    } else {
-      diff = !(toys.optflags & FLAG_i) ? strncmp(t1, t2, TT.maxchars)
-              : strncasecmp(t1, t2, TT.maxchars);
-    }
+    else diff = !(toys.optflags & FLAG_i) ? strncmp(t1, t2, TT.maxchars)
+                  : strncasecmp(t1, t2, TT.maxchars);
 
-    if (diff == 0) { // same
-      TT.repeats++;
-    } else {
+    if (!diff) TT.repeats++;
+    else {
       print_line(outfile, prevline);
 
       TT.repeats = 0;
