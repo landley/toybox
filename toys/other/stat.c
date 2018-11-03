@@ -40,7 +40,7 @@ config STAT
 #include "toys.h"
 
 GLOBALS(
-  char *fmt;
+  char *c;
 
   union {
     struct stat st;
@@ -182,7 +182,7 @@ void stat_main(void)
       "Access: (0%a/%A)\tUid: (%5u/%8U)\tGid: (%5g/%8G)\n"
       "Access: %x\nModify: %y\nChange: %z";
 
-  if (toys.optflags & FLAG_c) format = TT.fmt;
+  if (toys.optflags & FLAG_c) format = TT.c;
 
   for (i = 0; toys.optargs[i]; i++) {
     int L = toys.optflags & FLAG_L;

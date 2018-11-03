@@ -28,8 +28,7 @@ config TIMEOUT
 #include "toys.h"
 
 GLOBALS(
-  char *s_signal;
-  char *k_timeout;
+  char *s, *k;
 
   int nextsig;
   pid_t pid;
@@ -43,8 +42,8 @@ static void handler(int i)
     fprintf(stderr, "timeout pid %d signal %d\n", TT.pid, TT.nextsig);
   kill(TT.pid, TT.nextsig);
   
-  if (TT.k_timeout) {
-    TT.k_timeout = 0;
+  if (TT.k) {
+    TT.k = 0;
     TT.nextsig = SIGKILL;
     xsignal(SIGALRM, handler);
     TT.itv.it_value = TT.ktv;
@@ -66,11 +65,11 @@ void timeout_main(void)
 {
   // Parse early to get any errors out of the way.
   xparsetimeval(*toys.optargs, &TT.itv.it_value);
-  if (TT.k_timeout) xparsetimeval(TT.k_timeout, &TT.ktv);
+  if (TT.k) xparsetimeval(TT.k, &TT.ktv);
 
   TT.nextsig = SIGTERM;
-  if (TT.s_signal && -1 == (TT.nextsig = sig_to_num(TT.s_signal)))
-    error_exit("bad -s: '%s'", TT.s_signal);
+  if (TT.s && -1 == (TT.nextsig = sig_to_num(TT.s)))
+    error_exit("bad -s: '%s'", TT.s);
 
   if (!(TT.pid = XVFORK())) xexec(toys.optargs+1);
   else {

@@ -4,11 +4,11 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/grep.html
  *
- * TODO: --color
+ * TODO:  --color
  *
  * Posix doesn't even specify -r, documenting deviations from it is silly.
 
-USE_GREP(NEWTOY(grep, "S(exclude)*M(include)*C#B#A#ZzEFHIabhinorsvwclqe*f*m#x[!wx][!EFw]", TOYFLAG_BIN))
+USE_GREP(NEWTOY(grep, "S(exclude)*M(include)*ZzEFHIabhinorsvwclqe*f*C#B#A#m#x[!wx][!EFw]", TOYFLAG_BIN))
 USE_EGREP(OLDTOY(egrep, grep, TOYFLAG_BIN))
 USE_FGREP(OLDTOY(fgrep, grep, TOYFLAG_BIN))
 
@@ -64,14 +64,8 @@ config FGREP
 #include <regex.h>
 
 GLOBALS(
-  long m;
-  struct arg_list *f;
-  struct arg_list *e;
-  long a;
-  long b;
-  long c;
-  struct arg_list *M;
-  struct arg_list *S;
+  long m, A, B, C;
+  struct arg_list *f, *e, *M, *S;
 
   char indelim, outdelim;
   int found;
@@ -85,6 +79,7 @@ static void outline(char *line, char dash, char *name, long lcount, long bcount,
   if (!line || (lcount && (toys.optflags&FLAG_n)))
     printf("%ld%c", lcount, line ? dash : TT.outdelim);
   if (bcount && (toys.optflags&FLAG_b)) printf("%ld%c", bcount-1, dash);
+// Support embedded NUL bytes in output
   if (line) xprintf("%.*s%c", trim, line, TT.outdelim);
 }
 
@@ -246,7 +241,7 @@ static void do_grep(int fd, char *name)
           }
 
           outline(line, ':', name, lcount, bcount, -1);
-          if (TT.a) after = TT.a+1;
+          if (TT.A) after = TT.A+1;
         } else outline(start+matches.rm_so, ':', name, lcount, bcount,
                        matches.rm_eo-matches.rm_so);
       }
@@ -258,16 +253,16 @@ static void do_grep(int fd, char *name)
 
     if (mmatch) mcount++;
     else {
-      int discard = (after || TT.b);
+      int discard = (after || TT.B);
 
       if (after && --after) {
         outline(line, '-', name, lcount, 0, -1);
         discard = 0;
       }
-      if (discard && TT.b) {
+      if (discard && TT.B) {
         dlist_add(&dlb, line);
         line = 0;
-        if (++before>TT.b) {
+        if (++before>TT.B) {
           struct double_list *dl;
 
           dl = dlist_pop(&dlb);
@@ -389,8 +384,8 @@ void grep_main(void)
   // Grep exits with 2 for errors
   toys.exitval = 2;
 
-  if (!TT.a) TT.a = TT.c;
-  if (!TT.b) TT.b = TT.c;
+  if (!TT.A) TT.A = TT.C;
+  if (!TT.B) TT.B = TT.C;
 
   TT.indelim = '\n' * !(toys.optflags&FLAG_z);
   TT.outdelim = '\n' * !(toys.optflags&FLAG_Z);

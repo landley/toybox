@@ -25,9 +25,8 @@ config MKPASSWD
 #include "toys.h"
 
 GLOBALS(
-  long pfd;
-  char *method;
-  char *salt;
+  long P;
+  char *m, *S;
 )
 
 void mkpasswd_main(void)
@@ -35,27 +34,27 @@ void mkpasswd_main(void)
   char salt[MAX_SALT_LEN] = {0,};
   int i;
 
-  if (!TT.method) TT.method = "des";
+  if (!TT.m) TT.m = "des";
   if (toys.optc == 2) {
-    if (TT.salt) error_exit("duplicate salt");
-    TT.salt = toys.optargs[1];
+    if (TT.S) error_exit("duplicate salt");
+    TT.S = toys.optargs[1];
   }
 
-  if (-1 == (i = get_salt(salt, TT.method))) error_exit("bad -m");
-  if (TT.salt) {
-    char *s = TT.salt;
+  if (-1 == (i = get_salt(salt, TT.m))) error_exit("bad -m");
+  if (TT.S) {
+    char *s = TT.S;
 
     // In C locale, isalnum() means [A-Za-Z0-0]
     while (isalnum(*s) || *s == '.' || *s == '/') s++;
     if (*s) error_exit("salt not in [./A-Za-z0-9]");
 
-    snprintf(salt+i, sizeof(salt)-i, "%s", TT.salt);
+    snprintf(salt+i, sizeof(salt)-i, "%s", TT.S);
   }
 
   // Because read_password() doesn't have an fd argument
-  if (TT.pfd) {
-    if (dup2(TT.pfd, 0) == -1) perror_exit("fd");
-    close(TT.pfd);
+  if (TT.P) {
+    if (dup2(TT.P, 0) == -1) perror_exit("fd");
+    close(TT.P);
   }
 
   // If we haven't got a password on the command line, read it from tty or FD

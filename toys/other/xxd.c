@@ -35,11 +35,7 @@ config XXD
 #include "toys.h"
 
 GLOBALS(
-  long s;
-  long g;
-  long o;
-  long l;
-  long c;
+  long s, g, o, l, c;
 )
 
 static void do_xxd(int fd, char *name)

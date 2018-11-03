@@ -22,7 +22,7 @@ config SWITCH_ROOT
 #include <sys/vfs.h>
 
 GLOBALS(
-  char *console;
+  char *c;
 
   dev_t rootdev;
 )
@@ -78,8 +78,8 @@ void switch_root_main(void)
     goto panic;
   }
 
-  if (TT.console && -1 == (console = open(TT.console, O_RDWR))) {
-    perror_msg("bad console '%s'", TT.console);
+  if (TT.c && -1 == (console = open(TT.c, O_RDWR))) {
+    perror_msg("bad console '%s'", TT.c);
     goto panic;
   }
  
@@ -104,7 +104,7 @@ void switch_root_main(void)
     goto panic;
   }
 
-  if (TT.console) {
+  if (TT.c) {
     int i;
     for (i=0; i<3; i++) if (console != i) dup2(console, i);
     if (console>2) close(console);

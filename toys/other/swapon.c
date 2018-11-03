@@ -13,13 +13,14 @@ config SWAPON
     Enable swapping on a given device/file.
 
     -d	Discard freed SSD pages
+    -p	Priority (highest priority areas allocated first)
 */
 
 #define FOR_swapon
 #include "toys.h"
 
 GLOBALS(
-  long priority;
+  long p;
 )
 
 void swapon_main(void)
@@ -28,7 +29,7 @@ void swapon_main(void)
   int flags = (toys.optflags&FLAG_d)*0x70000;
 
   if (toys.optflags)
-    flags |= SWAP_FLAG_PREFER | (TT.priority << SWAP_FLAG_PRIO_SHIFT);
+    flags |= SWAP_FLAG_PREFER | (TT.p << SWAP_FLAG_PRIO_SHIFT);
 
   if (swapon(*toys.optargs, flags))
     perror_exit("Couldn't swapon '%s'", *toys.optargs);

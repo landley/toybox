@@ -24,10 +24,8 @@ config MIX
 #include <linux/soundcard.h>
 
 GLOBALS(
-   long right;
-   long level;
-   char *dev;
-   char *chan;
+   long r, l;
+   char *d, *c;
 )
 
 void mix_main(void)
@@ -35,31 +33,31 @@ void mix_main(void)
   const char *channels[SOUND_MIXER_NRDEVICES] = SOUND_DEVICE_NAMES;
   int mask, channel = -1, level, fd;
 
-  if (!TT.dev) TT.dev = "/dev/mixer";
-  fd = xopen(TT.dev, O_RDWR|O_NONBLOCK);
+  if (!TT.d) TT.d = "/dev/mixer";
+  fd = xopen(TT.d, O_RDWR|O_NONBLOCK);
   xioctl(fd, SOUND_MIXER_READ_DEVMASK, &mask);
 
   for (channel = 0; channel < SOUND_MIXER_NRDEVICES; channel++) {
     if ((1<<channel) & mask) {
-      if (TT.chan) {
-        if (!strcmp(channels[channel], TT.chan)) break;
+      if (TT.c) {
+        if (!strcmp(channels[channel], TT.c)) break;
       } else if (toys.optflags & FLAG_l) break;
       else printf("%s\n", channels[channel]);
     }
   }
 
   if (!(toys.optflags & (FLAG_c|FLAG_l))) return;
-  else if (channel == SOUND_MIXER_NRDEVICES) error_exit("bad -c '%s'", TT.chan);
+  else if (channel == SOUND_MIXER_NRDEVICES) error_exit("bad -c '%s'", TT.c);
 
   if (!(toys.optflags & FLAG_l)) {
     xioctl(fd, MIXER_READ(channel), &level);
     if (level > 0xFF)
       xprintf("%s:%s = left:%d\t right:%d\n",
-              TT.dev, channels[channel], level>>8, level & 0xFF);
-    else xprintf("%s:%s = %d\n", TT.dev, channels[channel], level);
+              TT.d, channels[channel], level>>8, level & 0xFF);
+    else xprintf("%s:%s = %d\n", TT.d, channels[channel], level);
   } else {
-    level = TT.level;
-    if (!(toys.optflags & FLAG_r)) level = TT.right | (level<<8);
+    level = TT.l;
+    if (!(toys.optflags & FLAG_r)) level = TT.r | (level<<8);
 
     xioctl(fd, MIXER_WRITE(channel), &level);
   }

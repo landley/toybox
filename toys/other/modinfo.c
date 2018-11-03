@@ -20,17 +20,15 @@ config MODINFO
 #include "toys.h"
 
 GLOBALS(
-  char *field;
-  char *knam;
-  char *base;
+  char *F, *k, *b;
 
   long mod;
 )
 
 static void output_field(char *field, char *value)
 {
-  if (!TT.field) xprintf("%s:%*c", field, 15-(int)strlen(field), ' ');
-  else if (strcmp(TT.field, field)) return;
+  if (!TT.F) xprintf("%s:%*c", field, 15-(int)strlen(field), ' ');
+  else if (strcmp(TT.F, field)) return;
   xprintf("%s", value);
   xputc((toys.optflags & FLAG_0) ? 0 : '\n');
 }
@@ -111,8 +109,8 @@ void modinfo_main(void)
 
       if (uname(&uts) < 0) perror_exit("bad uname");
       if (snprintf(toybuf, sizeof(toybuf), "%s/lib/modules/%s",
-          (toys.optflags & FLAG_b) ? TT.base : "",
-          (toys.optflags & FLAG_k) ? TT.knam : uts.release) >= sizeof(toybuf))
+          (toys.optflags & FLAG_b) ? TT.b : "",
+          (toys.optflags & FLAG_k) ? TT.k : uts.release) >= sizeof(toybuf))
             perror_exit("basedir/kernrelease too long");
       dirtree_read(toybuf, check_module);
     }

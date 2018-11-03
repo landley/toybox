@@ -28,16 +28,14 @@ config UNIQ
 #include "toys.h"
 
 GLOBALS(
-  long maxchars;
-  long nchars;
-  long nfields;
+  long w, s, f;
 
   long repeats;
 )
 
 static char *skip(char *str)
 {
-  long nchars = TT.nchars, nfields = TT.nfields;
+  long nchars = TT.s, nfields = TT.f;
 
   // Skip fields first
   while (nfields--) {
@@ -77,7 +75,7 @@ void uniq_main(void)
     char *t1, *t2;
 
     // If requested get the chosen fields + character offsets.
-    if (TT.nfields || TT.nchars) {
+    if (TT.f || TT.s) {
       t1 = skip(thisline);
       t2 = skip(prevline);
     } else {
@@ -85,10 +83,10 @@ void uniq_main(void)
       t2 = prevline;
     }
 
-    if (TT.maxchars == 0)
+    if (!TT.w)
       diff = !(toys.optflags & FLAG_i) ? strcmp(t1, t2) : strcasecmp(t1, t2);
-    else diff = !(toys.optflags & FLAG_i) ? strncmp(t1, t2, TT.maxchars)
-                  : strncasecmp(t1, t2, TT.maxchars);
+    else diff = !(toys.optflags & FLAG_i) ? strncmp(t1, t2, TT.w)
+                  : strncasecmp(t1, t2, TT.w);
 
     if (!diff) TT.repeats++;
     else {
