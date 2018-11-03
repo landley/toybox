@@ -7,66 +7,33 @@
 BDIR="$FILES/bc"
 TESTDIR="./"
 
-results=$(cat "$BDIR/decimal_results.txt")
-testcmd "decimal" "-l $BDIR/decimal.txt" "$results\n" "$BDIR/decimal.txt" ""
+run_bc_test() {
+	tst="$1"
+	results=$(cat "$BDIR/${tst}_results.txt")
+	testcmd "$tst" "-l $BDIR/$tst.txt" "$results\n" "$BDIR/$tst.txt" ""
+}
 
-results=$(cat "$BDIR/add_results.txt")
-testcmd "add" "-l $BDIR/add.txt" "$results\n" "$BDIR/add.txt" ""
-
-results=$(cat "$BDIR/subtract_results.txt")
-testcmd "subtract" "-l $BDIR/subtract.txt" "$results\n" "$BDIR/subtract.txt" ""
-
-results=$(cat "$BDIR/multiply_results.txt")
-testcmd "multiply" "-l $BDIR/multiply.txt" "$results\n" "$BDIR/multiply.txt" ""
-
-results=$(cat "$BDIR/divide_results.txt")
-testcmd "divide" "-l $BDIR/divide.txt" "$results\n" "$BDIR/divide.txt" ""
-
-results=$(cat "$BDIR/modulus_results.txt")
-testcmd "modulus" "-l $BDIR/modulus.txt" "$results\n" "$BDIR/modulus.txt" ""
-
-results=$(cat "$BDIR/power_results.txt")
-testcmd "power" "-l $BDIR/power.txt" "$results\n" "$BDIR/power.txt" ""
-
-results=$(cat "$BDIR/sqrt_results.txt")
-testcmd "sqrt" "-l $BDIR/sqrt.txt" "$results\n" "$BDIR/sqrt.txt" ""
-
-results=$(cat "$BDIR/basic_results.txt")
-testcmd "basic" "-l $BDIR/basic.txt" "$results\n" "$BDIR/basic.txt" ""
-
-if [ ! -f "$TESTDIR/parse.txt" ]; then
-  echo "Generating bc parse..."
-  cat "$BDIR/parse.bc" | bc -l > "$TESTDIR/parse.txt"
-fi
-results=$(cat "$TESTDIR/parse.txt" | bc -l)
-testcmd "parse" "-l $TESTDIR/parse.txt" "$results\n" "$TESTDIR/parse.txt" ""
-
-if [ ! -f "$TESTDIR/print.txt" ]; then
-  echo "Generating bc print..."
-  cat "$BDIR/print.bc" | bc -l > "$TESTDIR/print.txt"
-fi
-results=$(cat "$TESTDIR/print.txt" | bc -l)
-testcmd "print" "-l $TESTDIR/print.txt" "$results\n" "$TESTDIR/print.txt" ""
-
-results=$(cat "$BDIR/pi.txt" | bc -l)
-testcmd "pi" "-l $BDIR/pi.txt" "$results\n" "$BDIR/pi.txt" ""
-
-if [ ! -f "$TESTDIR/arctan.txt" ]; then
-  echo "Generating bc arctan..."
-  cat "$BDIR/arctan.bc" | bc -l > "$TESTDIR/arctan.txt"
-fi
-results=$(cat "$TESTDIR/arctan.txt" | bc -l)
-testcmd "arctan" "-l $TESTDIR/arctan.txt" "$results\n" "$TESTDIR/arctan.txt" ""
-
-results=$(cat "$TESTDIR/arctan.txt")
-testcmd "arctan script" "-l $BDIR/arctan.bc" "$results" "$BDIR/arctan.bc" ""
-
-results=$(cat "$TESTDIR/parse.txt")
-testcmd "parse script" "-l $BDIR/parse.bc" "$results\n" "$BDIR/parse.bc" ""
-
-results=$(cat "$TESTDIR/print.txt")
-testcmd "print script" "-l $BDIR/print.bc" "$results\n" "$BDIR/print.bc" ""
-
-results=$(cat "$BDIR/screen.bc" | bc -l)
-testcmd "screen script" "-l $BDIR/screen.bc" "$results\n" "$BDIR/screen.bc" ""
+run_bc_test decimal
+run_bc_test add
+run_bc_test subtract
+run_bc_test multiply
+run_bc_test divide
+run_bc_test modulus
+run_bc_test power
+run_bc_test sqrt
+run_bc_test vars
+run_bc_test boolean
+run_bc_test parse
+run_bc_test print
+run_bc_test exponent
+run_bc_test log
+run_bc_test pi
+run_bc_test arctan
+run_bc_test sine
+run_bc_test cosine
+run_bc_test bessel
+run_bc_test arrays
+run_bc_test misc
+run_bc_test misc1
+run_bc_test misc2
 
