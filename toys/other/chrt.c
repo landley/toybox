@@ -28,11 +28,24 @@ config CHRT
 #include "toys.h"
 
 GLOBALS(
-  long pid;
+  long p;
 )
 
 #ifndef _POSIX_PRIORITY_SCHEDULING
-#warning "musl-libc intentionally broke sched_get_priority_min() and friends in commit 1e21e78bf7a5 because its maintainer didn't like those Linux system calls"
+// musl-libc intentionally broke sched_get_priority_min() and friends in
+// commit 1e21e78bf7a5 because its maintainer didn't like those Linux
+// system calls, so work around it here.
+#include <sys/syscall.h>
+#define sched_get_priority_min(policy) \
+  (int)syscall(SYS_sched_get_priority_min, (int)policy)
+#define sched_get_priority_max(policy) \
+  (int)syscall(SYS_sched_get_priority_max, (int)policy)
+#define sched_getparam(pid, param) \
+  syscall(SYS_sched_getparam, (pid_t)pid, (void *)param)
+#define sched_getscheduler(pid) \
+  syscall(SYS_sched_getscheduler, (pid_t)pid)
+#define sched_setscheduler(pid, scheduler, param) \
+  syscall(SYS_sched_setscheduler, (pid_t)pid, (int)scheduler, (void *)param)
 #endif
 
 char *polnames[] = {
@@ -57,13 +70,13 @@ void chrt_main(void)
   if (toys.optflags==FLAG_p && !*toys.optargs) {
     char *s = "???", *R = "";
 
-    if (-1==(pol = sched_getscheduler(TT.pid))) perror_exit("pid %ld", TT.pid);
+    if (-1==(pol = sched_getscheduler(TT.p))) perror_exit("pid %ld", TT.p);
     if (pol & SCHED_RESET_ON_FORK) R = "|SCHED_RESET_ON_FORK";
     if ((pol &= ~SCHED_RESET_ON_FORK)<ARRAY_LEN(polnames)) s = polnames[pol];
-    printf("pid %ld's current scheduling policy: %s%s\n", TT.pid, s, R);
+    printf("pid %ld's current scheduling policy: %s%s\n", TT.p, s, R);
 
-    if (sched_getparam(TT.pid, (void *)&pri)) perror_exit("sched_getparam");
-    printf("pid %ld's current scheduling priority: %d\n", TT.pid, pri);
+    if (sched_getparam(TT.p, (void *)&pri)) perror_exit("sched_getparam");
+    printf("pid %ld's current scheduling priority: %d\n", TT.p, pri);
 
     return;
   }
@@ -78,7 +91,7 @@ void chrt_main(void)
     sched_get_priority_max(pol));
   if (toys.optflags&FLAG_R) pol |= SCHED_RESET_ON_FORK;
 
-  if (sched_setscheduler(TT.pid, pol, (void *)&pri))
+  if (sched_setscheduler(TT.p, pol, (void *)&pri))
     perror_exit("sched_setscheduler");
 
   if (*(toys.optargs+1)) xexec(toys.optargs+1);
