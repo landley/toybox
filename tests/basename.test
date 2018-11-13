@@ -24,3 +24,8 @@ testcmd "invalid suffix" "isthisasuffix? suffix" "isthisasuffix?\n" "" ""
 
 # Zero-length suffix
 testcmd "zero-length suffix" "a/b/c ''" "c\n" "" ""
+
+# -s.
+testcmd "-s" "-s .txt /a/b/c.txt" "c\n" "" ""
+testcmd "-s implies -a" "-s .txt /a/b/c.txt /a/b/d.txt" "c\nd\n" "" ""
+testcmd "-a" "-a /a/b/f1 /c/d/f2" "f1\nf2\n" "" ""
