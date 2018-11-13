@@ -10,7 +10,7 @@ config DIRNAME
   bool "dirname"
   default y
   help
-    usage: dirname PATH
+    usage: dirname PATH...
 
     Show directory portion of path.
 */
@@ -19,5 +19,7 @@ config DIRNAME
 
 void dirname_main(void)
 {
-  puts(dirname(*toys.optargs));
+  char **arg;
+
+  for (arg = toys.optargs; *arg; ++arg) puts(dirname(*arg));
 }
