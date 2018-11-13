@@ -3,8 +3,11 @@
  * Copyright 2012 Choubey Ji <warior.linux@gmail.com>
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/touch.html
+ *
+ * -f is ignored for BSD/macOS compatibility. busybox/coreutils also support
+ * this, but only coreutils documents it in --help output.
 
-USE_TOUCH(NEWTOY(touch, "<1acd:mr:t:h[!dtr]", TOYFLAG_BIN))
+USE_TOUCH(NEWTOY(touch, "<1acd:fmr:t:h[!dtr]", TOYFLAG_BIN))
 
 config TOUCH
   bool "touch"
