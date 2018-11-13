@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/mkdir.html
 
-USE_MKDIR(NEWTOY(mkdir, "<1"USE_MKDIR_Z("Z:")"vpm:", TOYFLAG_BIN|TOYFLAG_UMASK))
+USE_MKDIR(NEWTOY(mkdir, "<1"USE_MKDIR_Z("Z:")"vp(parent)(parents)m:", TOYFLAG_BIN|TOYFLAG_UMASK))
 
 config MKDIR
   bool "mkdir"
