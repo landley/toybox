@@ -124,7 +124,7 @@ typedef enum BcStatus {
 #define BC_VEC_START_CAP (1<<5)
 
 typedef void (*BcVecFree)(void*);
-typedef int (*BcVecCmp)(const void*, const void*);
+typedef int (*BcVecCmp)(void*, void*);
 
 typedef struct BcVec {
   char *v;
@@ -144,7 +144,7 @@ typedef struct BcVec {
 typedef signed char BcDig;
 
 typedef struct BcNum {
-  BcDig *restrict num;
+  BcDig *num;
   size_t rdx;
   size_t len;
   size_t cap;
@@ -307,7 +307,7 @@ typedef struct BcInstPtr {
 } BcInstPtr;
 
 void bc_array_expand(BcVec *a, size_t len);
-int bc_id_cmp(const void *e1, const void *e2);
+int bc_id_cmp(void *e1, void *e2);
 
 // BC_LEX_NEG is not used in lexing; it is only for parsing.
 typedef enum BcLexType {
@@ -389,10 +389,10 @@ typedef enum BcLexType {
 
 typedef struct BcLex {
 
-  const char *buf;
+  char *buf;
   size_t i;
   size_t line;
-  const char *f;
+  char *f;
   size_t len;
   int newline;
 
@@ -497,9 +497,9 @@ typedef struct BcParse {
 } BcParse;
 
 typedef struct BcLexKeyword {
-  const char name[9];
-  const char len;
-  const int posix;
+  char name[9];
+  char len;
+  int posix;
 } BcLexKeyword;
 
 #define BC_LEX_KW_ENTRY(a, b, c) { .name = a, .len = (b), .posix = (c) }
@@ -546,7 +546,7 @@ typedef struct BcProgram {
   BcVec strs;
   BcVec consts;
 
-  const char *file;
+  char *file;
 
   BcNum last;
   BcNum zero;
@@ -587,29 +587,28 @@ typedef struct BcVm {
 
 } BcVm;
 
-BcStatus bc_vm_posixError(BcStatus s, const char *file,
-                          size_t line, const char *msg);
+BcStatus bc_vm_posixError(BcStatus s, char *file, size_t line, char *msg);
 
 void bc_vm_exit(BcStatus s);
-void bc_vm_printf(FILE *restrict f, const char *fmt, ...);
-void bc_vm_puts(const char *str, FILE *restrict f);
+void bc_vm_printf(FILE *f, char *fmt, ...);
+void bc_vm_puts(char *str, FILE *f);
 void bc_vm_putchar(int c);
-void bc_vm_fflush(FILE *restrict f);
+void bc_vm_fflush(FILE *f);
 
 // clang-format off
 
-const char bc_sig_msg[] = "\ninterrupt (type \"quit\" to exit)\n";
+char bc_sig_msg[] = "\ninterrupt (type \"quit\" to exit)\n";
 
-const char bc_copyright[] =
+char bc_copyright[] =
   "Copyright (c) 2018 Gavin D. Howard and contributors\n"
   "Report bugs at: https://github.com/gavinhoward/bc\n\n"
   "This is free software with ABSOLUTELY NO WARRANTY.\n";
 
-const char bc_err_fmt[] = "\n%s error: %s\n";
-const char bc_warn_fmt[] = "\n%s warning: %s\n";
-const char bc_err_line[] = ":%zu\n\n";
+char bc_err_fmt[] = "\n%s error: %s\n";
+char bc_warn_fmt[] = "\n%s warning: %s\n";
+char bc_err_line[] = ":%zu\n\n";
 
-const char *bc_errs[] = {
+char *bc_errs[] = {
   "VM",
   "Lex",
   "Parse",
@@ -619,7 +618,7 @@ const char *bc_errs[] = {
   "POSIX",
 };
 
-const uint8_t bc_err_ids[] = {
+uint8_t bc_err_ids[] = {
   BC_ERR_IDX_VM, BC_ERR_IDX_VM, BC_ERR_IDX_VM, BC_ERR_IDX_VM, BC_ERR_IDX_VM,
   BC_ERR_IDX_LEX, BC_ERR_IDX_LEX, BC_ERR_IDX_LEX, BC_ERR_IDX_LEX,
   BC_ERR_IDX_PARSE, BC_ERR_IDX_PARSE, BC_ERR_IDX_PARSE, BC_ERR_IDX_PARSE,
@@ -638,7 +637,7 @@ const uint8_t bc_err_ids[] = {
   BC_ERR_IDX_VM, BC_ERR_IDX_VM, BC_ERR_IDX_VM,
 };
 
-const char *bc_err_msgs[] = {
+char *bc_err_msgs[] = {
 
   NULL,
   "memory allocation error",
@@ -703,10 +702,10 @@ const char *bc_err_msgs[] = {
 
 };
 
-const char bc_func_main[] = "(main)";
-const char bc_func_read[] = "(read)";
+char bc_func_main[] = "(main)";
+char bc_func_read[] = "(read)";
 
-const BcLexKeyword bc_lex_kws[20] = {
+BcLexKeyword bc_lex_kws[20] = {
   BC_LEX_KW_ENTRY("auto", 4, 1),
   BC_LEX_KW_ENTRY("break", 5, 1),
   BC_LEX_KW_ENTRY("continue", 8, 0),
@@ -731,7 +730,7 @@ const BcLexKeyword bc_lex_kws[20] = {
 
 // This is an array that corresponds to token types. An entry is
 // 1 if the token is valid in an expression, 0 otherwise.
-const int bc_parse_exprs[] = {
+int bc_parse_exprs[] = {
   0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
   1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0,
@@ -741,7 +740,7 @@ const int bc_parse_exprs[] = {
 };
 
 // This is an array of data for operators that correspond to token types.
-const BcOp bc_parse_ops[] = {
+BcOp bc_parse_ops[] = {
   { 0, 0 }, { 0, 0 },
   { 1, 0 },
   { 2, 0 },
@@ -755,31 +754,31 @@ const BcOp bc_parse_ops[] = {
 };
 
 // These identify what tokens can come after expressions in certain cases.
-const BcParseNext bc_parse_next_expr =
+BcParseNext bc_parse_next_expr =
   BC_PARSE_NEXT(4, BC_LEX_NLINE, BC_LEX_SCOLON, BC_LEX_RBRACE, BC_LEX_EOF);
-const BcParseNext bc_parse_next_param =
+BcParseNext bc_parse_next_param =
   BC_PARSE_NEXT(2, BC_LEX_RPAREN, BC_LEX_COMMA);
-const BcParseNext bc_parse_next_print =
+BcParseNext bc_parse_next_print =
   BC_PARSE_NEXT(4, BC_LEX_COMMA, BC_LEX_NLINE, BC_LEX_SCOLON, BC_LEX_EOF);
-const BcParseNext bc_parse_next_rel = BC_PARSE_NEXT(1, BC_LEX_RPAREN);
-const BcParseNext bc_parse_next_elem = BC_PARSE_NEXT(1, BC_LEX_RBRACKET);
-const BcParseNext bc_parse_next_for = BC_PARSE_NEXT(1, BC_LEX_SCOLON);
-const BcParseNext bc_parse_next_read =
+BcParseNext bc_parse_next_rel = BC_PARSE_NEXT(1, BC_LEX_RPAREN);
+BcParseNext bc_parse_next_elem = BC_PARSE_NEXT(1, BC_LEX_RBRACKET);
+BcParseNext bc_parse_next_for = BC_PARSE_NEXT(1, BC_LEX_SCOLON);
+BcParseNext bc_parse_next_read =
   BC_PARSE_NEXT(2, BC_LEX_NLINE, BC_LEX_EOF);
 
-const char bc_num_hex_digits[] = "0123456789ABCDEF";
+char bc_num_hex_digits[] = "0123456789ABCDEF";
 
-const BcNumBinaryOp bc_program_ops[] = {
+BcNumBinaryOp bc_program_ops[] = {
   bc_num_pow, bc_num_mul, bc_num_div, bc_num_mod, bc_num_add, bc_num_sub,
 };
 
-const char bc_program_stdin_name[] = "<stdin>";
-const char bc_program_ready_msg[] = "ready for more input\n";
+char bc_program_stdin_name[] = "<stdin>";
+char bc_program_ready_msg[] = "ready for more input\n";
 
 // clang-format on
-const char *bc_lib_name = "gen/lib.bc";
+char *bc_lib_name = "gen/lib.bc";
 
-const char bc_lib[] = {
+char bc_lib[] = {
   115,99,97,108,101,61,50,48,10,100,101,102,105,110,101,32,101,40,120,41,123,
   10,9,97,117,116,111,32,98,44,115,44,110,44,114,44,100,44,105,44,112,44,102,
   44,118,10,9,98,61,105,98,97,115,101,10,9,105,98,97,115,101,61,65,10,9,105,102,
@@ -892,7 +891,7 @@ void bc_vec_npop(BcVec *v, size_t n) {
   }
 }
 
-void bc_vec_push(BcVec *v, const void *data) {
+void bc_vec_push(BcVec *v, void *data) {
   if (v->len + 1 > v->cap) bc_vec_grow(v, 1);
   memmove(v->v + (v->size * v->len), data, v->size);
   v->len += 1;
@@ -902,7 +901,7 @@ void bc_vec_pushByte(BcVec *v, char data) {
   bc_vec_push(v, &data);
 }
 
-void bc_vec_pushAt(BcVec *v, const void *data, size_t idx) {
+void bc_vec_pushAt(BcVec *v, void *data, size_t idx) {
 
   if (idx == v->len) bc_vec_push(v, data);
   else {
@@ -918,7 +917,7 @@ void bc_vec_pushAt(BcVec *v, const void *data, size_t idx) {
   }
 }
 
-void bc_vec_string(BcVec *v, size_t len, const char *str) {
+void bc_vec_string(BcVec *v, size_t len, char *str) {
 
   bc_vec_npop(v, v->len);
   bc_vec_expand(v, len + 1);
@@ -928,7 +927,7 @@ void bc_vec_string(BcVec *v, size_t len, const char *str) {
   bc_vec_pushByte(v, '\0');
 }
 
-void bc_vec_concat(BcVec *v, const char *str) {
+void bc_vec_concat(BcVec *v, char *str) {
 
   size_t len;
 
@@ -942,11 +941,11 @@ void bc_vec_concat(BcVec *v, const char *str) {
   v->len = len;
 }
 
-void* bc_vec_item(const BcVec *v, size_t idx) {
+void* bc_vec_item(BcVec *v, size_t idx) {
   return v->v + v->size * idx;
 }
 
-void* bc_vec_item_rev(const BcVec *v, size_t idx) {
+void* bc_vec_item_rev(BcVec *v, size_t idx) {
   return v->v + v->size * (v->len - idx - 1);
 }
 
@@ -956,7 +955,7 @@ void bc_vec_free(void *vec) {
   free(v->v);
 }
 
-size_t bc_map_find(const BcVec *v, const void *ptr) {
+size_t bc_map_find(BcVec *v, void *ptr) {
 
   size_t low = 0, high = v->len;
 
@@ -974,7 +973,7 @@ size_t bc_map_find(const BcVec *v, const void *ptr) {
   return low;
 }
 
-BcStatus bc_map_insert(BcVec *v, const void *ptr, size_t *i) {
+BcStatus bc_map_insert(BcVec *v, void *ptr, size_t *i) {
 
   BcStatus s = BC_STATUS_SUCCESS;
 
@@ -987,13 +986,13 @@ BcStatus bc_map_insert(BcVec *v, const void *ptr, size_t *i) {
   return s;
 }
 
-size_t bc_map_index(const BcVec* v, const void *ptr) {
+size_t bc_map_index(BcVec* v, void *ptr) {
   size_t i = bc_map_find(v, ptr);
   if (i >= v->len) return ((size_t) -1);
   return bc_id_cmp(ptr, bc_vec_item(v, i)) ? ((size_t) -1) : i;
 }
 
-BcStatus bc_read_line(BcVec *vec, const char* prompt) {
+BcStatus bc_read_line(BcVec *vec, char* prompt) {
 
   int i;
   signed char c = 0;
@@ -1038,7 +1037,7 @@ BcStatus bc_read_line(BcVec *vec, const char* prompt) {
   return BC_STATUS_SUCCESS;
 }
 
-BcStatus bc_read_file(const char *path, char **buf) {
+BcStatus bc_read_file(char *path, char **buf) {
 
   BcStatus s = BC_STATUS_IO_ERR;
   FILE *f;
@@ -1107,7 +1106,7 @@ void bc_num_ten(BcNum *n) {
   n->num[1] = 1;
 }
 
-BcStatus bc_num_subArrays(BcDig *restrict a, BcDig *restrict b,size_t len) {
+BcStatus bc_num_subArrays(BcDig *a, BcDig *b, size_t len) {
   size_t i, j;
   for (i = 0; !TT.signe && i < len; ++i) {
     for (a[i] -= b[i], j = 0; !TT.signe && a[i + j] < 0;) {
@@ -1118,7 +1117,7 @@ BcStatus bc_num_subArrays(BcDig *restrict a, BcDig *restrict b,size_t len) {
   return TT.signe ? BC_STATUS_EXEC_SIGNAL : BC_STATUS_SUCCESS;
 }
 
-ssize_t bc_num_compare(BcDig *restrict a, BcDig *restrict b, size_t len) {
+ssize_t bc_num_compare(BcDig *a, BcDig *b, size_t len) {
   size_t i;
   int c = 0;
   for (i = len - 1; !TT.signe && i < len && !(c = a[i] - b[i]); --i);
@@ -1214,8 +1213,7 @@ void bc_num_retireMul(BcNum *n, size_t scale, int neg1, int neg2) {
   if (n->len) n->neg = !neg1 != !neg2;
 }
 
-void bc_num_split(BcNum *restrict n, size_t idx, BcNum *restrict a,
-                  BcNum *restrict b)
+void bc_num_split(BcNum *n, size_t idx, BcNum *a, BcNum *b)
 {
   if (idx < n->len) {
 
@@ -1263,7 +1261,7 @@ BcStatus bc_num_inv(BcNum *a, BcNum *b, size_t scale) {
   return bc_num_div(&one, a, b, scale);
 }
 
-BcStatus bc_num_a(BcNum *a, BcNum *b, BcNum *restrict c, size_t sub) {
+BcStatus bc_num_a(BcNum *a, BcNum *b, BcNum *c, size_t sub) {
 
   BcDig *ptr, *ptr_a, *ptr_b, *ptr_c;
   size_t i, max, min_rdx, min_int, diff, a_int, b_int;
@@ -1334,7 +1332,7 @@ BcStatus bc_num_a(BcNum *a, BcNum *b, BcNum *restrict c, size_t sub) {
   return TT.signe ? BC_STATUS_EXEC_SIGNAL : BC_STATUS_SUCCESS;
 }
 
-BcStatus bc_num_s(BcNum *a, BcNum *b, BcNum *restrict c, size_t sub) {
+BcStatus bc_num_s(BcNum *a, BcNum *b, BcNum *c, size_t sub) {
 
   BcStatus s;
   ssize_t cmp;
@@ -1396,7 +1394,7 @@ BcStatus bc_num_s(BcNum *a, BcNum *b, BcNum *restrict c, size_t sub) {
   return s;
 }
 
-BcStatus bc_num_k(BcNum *restrict a, BcNum *restrict b, BcNum *restrict c) {
+BcStatus bc_num_k(BcNum *a, BcNum *b, BcNum *c) {
 
   BcStatus s;
   int carry;
@@ -1494,7 +1492,7 @@ err:
   return s;
 }
 
-BcStatus bc_num_m(BcNum *a, BcNum *b, BcNum *restrict c, size_t scale) {
+BcStatus bc_num_m(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
 
   BcStatus s;
   BcNum cpa, cpb;
@@ -1536,7 +1534,7 @@ err:
   return s;
 }
 
-BcStatus bc_num_d(BcNum *a, BcNum *b, BcNum *restrict c, size_t scale) {
+BcStatus bc_num_d(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
 
   BcStatus s = BC_STATUS_SUCCESS;
   BcDig *n, *p, q;
@@ -1600,8 +1598,8 @@ BcStatus bc_num_d(BcNum *a, BcNum *b, BcNum *restrict c, size_t scale) {
   return s;
 }
 
-BcStatus bc_num_r(BcNum *a, BcNum *b, BcNum *restrict c,
-                  BcNum *restrict d, size_t scale, size_t ts)
+BcStatus bc_num_r(BcNum *a, BcNum *b, BcNum *c, BcNum *d, size_t scale,
+                  size_t ts)
 {
   BcStatus s;
   BcNum temp;
@@ -1635,7 +1633,7 @@ err:
   return s;
 }
 
-BcStatus bc_num_rem(BcNum *a, BcNum *b, BcNum *restrict c, size_t scale) {
+BcStatus bc_num_rem(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
 
   BcStatus s;
   BcNum c1;
@@ -1648,7 +1646,7 @@ BcStatus bc_num_rem(BcNum *a, BcNum *b, BcNum *restrict c, size_t scale) {
   return s;
 }
 
-BcStatus bc_num_p(BcNum *a, BcNum *b, BcNum *restrict c, size_t scale) {
+BcStatus bc_num_p(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
 
   BcStatus s = BC_STATUS_SUCCESS;
   BcNum copy;
@@ -1765,7 +1763,7 @@ BcStatus bc_num_binary(BcNum *a, BcNum *b, BcNum *c, size_t scale,
   return s;
 }
 
-int bc_num_strValid(const char *val, size_t base) {
+int bc_num_strValid(char *val, size_t base) {
 
   BcDig b;
   int small, radix = 0;
@@ -1795,10 +1793,10 @@ int bc_num_strValid(const char *val, size_t base) {
   return 1;
 }
 
-void bc_num_parseDecimal(BcNum *n, const char *val) {
+void bc_num_parseDecimal(BcNum *n, char *val) {
 
   size_t len, i;
-  const char *ptr;
+  char *ptr;
   int zero = 1;
 
   for (i = 0; val[i] == '0'; ++i);
@@ -1823,7 +1821,7 @@ void bc_num_parseDecimal(BcNum *n, const char *val) {
   }
 }
 
-void bc_num_parseBase(BcNum *n, const char *val, BcNum *base) {
+void bc_num_parseBase(BcNum *n, char *val, BcNum *base) {
 
   BcStatus s;
   BcNum temp, mult, result;
@@ -2075,7 +2073,7 @@ void bc_num_copy(BcNum *d, BcNum *s) {
   }
 }
 
-BcStatus bc_num_parse(BcNum *n, const char *val, BcNum *base, size_t base_t) {
+BcStatus bc_num_parse(BcNum *n, char *val, BcNum *base, size_t base_t) {
 
   if (!bc_num_strValid(val, base_t)) return BC_STATUS_MATH_BAD_STRING;
 
@@ -2175,7 +2173,7 @@ BcStatus bc_num_pow(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
   return bc_num_binary(a, b, c, scale, bc_num_p, a->len * b->len + 1);
 }
 
-BcStatus bc_num_sqrt(BcNum *a, BcNum *restrict b, size_t scale) {
+BcStatus bc_num_sqrt(BcNum *a, BcNum *b, size_t scale) {
 
   BcStatus s;
   BcNum num1, num2, half, f, fprime, *x0, *x1, *temp;
@@ -2302,8 +2300,8 @@ BcStatus bc_num_divmod(BcNum *a, BcNum *b, BcNum *c, BcNum *d, size_t scale) {
   return s;
 }
 
-int bc_id_cmp(const void *e1, const void *e2) {
-  return strcmp(((const BcId*) e1)->name, ((const BcId*) e2)->name);
+int bc_id_cmp(void *e1, void *e2) {
+  return strcmp(((BcId*) e1)->name, ((BcId*) e2)->name);
 }
 
 void bc_id_free(void *id) {
@@ -2348,7 +2346,7 @@ void bc_array_init(BcVec *a, int nums) {
   bc_array_expand(a, 1);
 }
 
-void bc_array_copy(BcVec *d, const BcVec *s) {
+void bc_array_copy(BcVec *d, BcVec *s) {
 
   size_t i;
 
@@ -2430,7 +2428,7 @@ void bc_lex_whitespace(BcLex *l) {
 
 BcStatus bc_lex_number(BcLex *l, char start) {
 
-  const char *buf = l->buf + l->i;
+  char *buf = l->buf + l->i;
   size_t len, hits = 0, bslashes = 0, i = 0, j;
   char c = buf[i];
   int last_pt, pt = start == '.';
@@ -2484,7 +2482,7 @@ BcStatus bc_lex_number(BcLex *l, char start) {
 BcStatus bc_lex_name(BcLex *l) {
 
   size_t i = 0;
-  const char *buf = l->buf + l->i - 1;
+  char *buf = l->buf + l->i - 1;
   char c = buf[i];
 
   l->t.t = BC_LEX_NAME;
@@ -2509,7 +2507,7 @@ void bc_lex_free(BcLex *l) {
   bc_vec_free(&l->t.v);
 }
 
-void bc_lex_file(BcLex *l, const char *file) {
+void bc_lex_file(BcLex *l, char *file) {
   l->line = 1;
   l->newline = 0;
   l->f = file;
@@ -2537,7 +2535,7 @@ BcStatus bc_lex_next(BcLex *l) {
   return s;
 }
 
-BcStatus bc_lex_text(BcLex *l, const char *text) {
+BcStatus bc_lex_text(BcLex *l, char *text) {
   l->buf = text;
   l->i = 0;
   l->len = strlen(text);
@@ -2549,7 +2547,7 @@ BcStatus bc_lex_identifier(BcLex *l) {
 
   BcStatus s;
   size_t i;
-  const char *buf = l->buf + l->i - 1;
+  char *buf = l->buf + l->i - 1;
 
   for (i = 0; i < sizeof(bc_lex_kws) / sizeof(bc_lex_kws[0]); ++i) {
 
@@ -2615,7 +2613,7 @@ void bc_lex_assign(BcLex *l, BcLexType with, BcLexType without) {
 BcStatus bc_lex_comment(BcLex *l) {
 
   size_t i, nls = 0;
-  const char *buf = l->buf;
+  char *buf = l->buf;
   int end = 0;
   char c;
 
@@ -2956,7 +2954,7 @@ void bc_parse_number(BcParse *p, BcInst *prev, size_t *nexs) {
   (*prev) = BC_INST_NUM;
 }
 
-BcStatus bc_parse_text(BcParse *p, const char *text) {
+BcStatus bc_parse_text(BcParse *p, char *text) {
 
   BcStatus s;
 
@@ -4569,7 +4567,7 @@ char* bc_program_name(char *code, size_t *bgn) {
   return s;
 }
 
-void bc_program_printString(const char *str, size_t *nchars) {
+void bc_program_printString(char *str, size_t *nchars) {
 
   size_t i, len = strlen(str);
 
@@ -5470,7 +5468,7 @@ void bc_vm_info(void) {
   bc_vm_puts(bc_copyright, stdout);
 }
 
-BcStatus bc_vm_error(BcStatus s, const char *file, size_t line) {
+BcStatus bc_vm_error(BcStatus s, char *file, size_t line) {
 
   if (!s || s > BC_STATUS_VEC_ITEM_EXISTS) return s;
 
@@ -5481,11 +5479,10 @@ BcStatus bc_vm_error(BcStatus s, const char *file, size_t line) {
   return s * (!TT.ttyin || !!strcmp(file, bc_program_stdin_name));
 }
 
-BcStatus bc_vm_posixError(BcStatus s, const char *file,
-                          size_t line, const char *msg)
+BcStatus bc_vm_posixError(BcStatus s, char *file, size_t line, char *msg)
 {
   int p = (int) (toys.optflags & FLAG_s), w = (int) (toys.optflags & FLAG_w);
-  const char* const fmt = p ? bc_err_fmt : bc_warn_fmt;
+  char* fmt = p ? bc_err_fmt : bc_warn_fmt;
 
   if (!(p || w) || s < BC_STATUS_POSIX_NAME_LEN) return BC_STATUS_SUCCESS;
 
@@ -5497,7 +5494,7 @@ BcStatus bc_vm_posixError(BcStatus s, const char *file,
   return s * (!TT.ttyin && !!p);
 }
 
-size_t bc_vm_envLen(const char *var) {
+size_t bc_vm_envLen(char *var) {
 
   char *lenv = getenv(var);
   size_t i, len = BC_NUM_PRINT_WIDTH;
@@ -5522,7 +5519,7 @@ void bc_vm_exit(BcStatus s) {
   exit((int) s);
 }
 
-void bc_vm_printf(FILE *restrict f, const char *fmt, ...) {
+void bc_vm_printf(FILE *f, char *fmt, ...) {
 
   va_list args;
   int bad;
@@ -5534,7 +5531,7 @@ void bc_vm_printf(FILE *restrict f, const char *fmt, ...) {
   if (bad) bc_vm_exit(BC_STATUS_IO_ERR);
 }
 
-void bc_vm_puts(const char *str, FILE *restrict f) {
+void bc_vm_puts(char *str, FILE *f) {
   if (fputs(str, f) == EOF) bc_vm_exit(BC_STATUS_IO_ERR);
 }
 
@@ -5542,11 +5539,11 @@ void bc_vm_putchar(int c) {
   if (putchar(c) == EOF) bc_vm_exit(BC_STATUS_IO_ERR);
 }
 
-void bc_vm_fflush(FILE *restrict f) {
+void bc_vm_fflush(FILE *f) {
   if (fflush(f) == EOF) bc_vm_exit(BC_STATUS_IO_ERR);
 }
 
-BcStatus bc_vm_process(BcVm *vm, const char *text) {
+BcStatus bc_vm_process(BcVm *vm, char *text) {
 
   BcStatus s = bc_parse_text(&vm->prs, text);
 
@@ -5589,7 +5586,7 @@ BcStatus bc_vm_process(BcVm *vm, const char *text) {
   return s;
 }
 
-BcStatus bc_vm_file(BcVm *vm, const char *file) {
+BcStatus bc_vm_file(BcVm *vm, char *file) {
 
   BcStatus s;
   char *data;
