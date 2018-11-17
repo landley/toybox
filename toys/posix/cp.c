@@ -487,9 +487,14 @@ void install_main(void)
   char **ss;
   int flags = toys.optflags;
 
+  TT.uid = TT.i.o ? xgetuid(TT.i.o) : -1;
+  TT.gid = TT.i.g ? xgetgid(TT.i.g) : -1;
+
   if (flags & FLAG_d) {
     for (ss = toys.optargs; *ss; ss++) {
       if (mkpathat(AT_FDCWD, *ss, 0777, 3)) perror_msg_raw(*ss);
+      if (flags & (FLAG_g|FLAG_o))
+        if (lchown(*ss, TT.uid, TT.gid)) perror_msg("chown '%s'", *ss);
       if (flags & FLAG_v) printf("%s\n", *ss);
     }
 
@@ -508,9 +513,6 @@ void install_main(void)
   toys.optflags = cp_flag_F();
   if (flags & FLAG_v) toys.optflags |= cp_flag_v();
   if (flags & (FLAG_p|FLAG_o|FLAG_g)) toys.optflags |= cp_flag_p();
-
-  if (TT.i.o) TT.uid = xgetuid(TT.i.o);
-  if (TT.i.g) TT.gid = xgetgid(TT.i.g);
 
   TT.callback = install_node;
   cp_main();
