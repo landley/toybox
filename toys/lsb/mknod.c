@@ -31,8 +31,7 @@ config MKNOD_Z
 #include "toys.h"
 
 GLOBALS(
-  char *arg_context;
-  char *m;
+  char *Z, *m;
 )
 
 void mknod_main(void)
@@ -51,8 +50,8 @@ void mknod_main(void)
   }
 
   if (toys.optflags & FLAG_Z)
-    if (-1 == lsm_set_create(TT.arg_context))
-      perror_exit("-Z '%s' failed", TT.arg_context);
+    if (-1 == lsm_set_create(TT.Z))
+      perror_exit("-Z '%s' failed", TT.Z);
   if (mknod(*toys.optargs, mode|modes[type], dev_makedev(major, minor)))
     perror_exit_raw(*toys.optargs);
 }

@@ -22,8 +22,7 @@ config LOG
 #include "toys.h"
 
 GLOBALS(
-  char *tag;
-  char *pri;
+  char *t, *p;
 )
 
 void log_main(void)
@@ -32,14 +31,14 @@ void log_main(void)
   char *s = toybuf;
   int i;
 
-  if (TT.pri) {
-    i = stridx("defisvw", tolower(*TT.pri));
-    if (i==-1 || strlen(TT.pri)!=1) error_exit("bad -p '%s'", TT.pri);
+  if (TT.p) {
+    i = stridx("defisvw", tolower(*TT.p));
+    if (i==-1 || strlen(TT.p)!=1) error_exit("bad -p '%s'", TT.p);
     pri = (android_LogPriority []){ANDROID_LOG_DEBUG, ANDROID_LOG_ERROR,
       ANDROID_LOG_FATAL, ANDROID_LOG_INFO, ANDROID_LOG_SILENT,
       ANDROID_LOG_VERBOSE, ANDROID_LOG_WARN}[i];
   }
-  if (!TT.tag) TT.tag = "log";
+  if (!TT.t) TT.t = "log";
 
   for (i = 0; toys.optargs[i]; i++) {
     if (i) *s++ = ' ';
@@ -53,5 +52,5 @@ void log_main(void)
     s = stpcpy(s, toys.optargs[i]);
   }
 
-  __android_log_write(pri, TT.tag, toybuf);
+  __android_log_write(pri, TT.t, toybuf);
 }

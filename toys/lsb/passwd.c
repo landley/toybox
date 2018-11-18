@@ -36,7 +36,7 @@ config PASSWD_SAD
 #include "toys.h"
 
 GLOBALS(
-  char *algo;
+  char *a;
 )
 
 // Sad advisory heuristic, won't find password1 password2 password3...
@@ -84,8 +84,7 @@ void passwd_main(void)
     printf("Deleting password for '%s'\n", name);
     encrypted = "";
   } else {
-    if (get_salt(salt, TT.algo ? TT.algo : "des")<0)
-      error_exit("bad -a '%s'", TT.algo);
+    if (get_salt(salt, TT.a ? TT.a : "des")<0) error_exit("bad -a '%s'", TT.a);
 
     printf("Changing password for %s\n", name);
     if (myuid) {

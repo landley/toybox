@@ -45,15 +45,14 @@ config SKELETON_ALIAS
 GLOBALS(
   union {
     struct {
-      char *b_string;
-      long c_number;
-      struct arg_list *d_list;
-      long e_count;
-      char *also_string;
-      char *blubber_string;
+      char *b;
+      long c;
+      struct arg_list *d;
+      long e;
+      char *also, *blubber;
     } s;
     struct {
-      long b_number;
+      long b;
     } a;
   };
 
@@ -74,17 +73,17 @@ void skeleton_main(void)
   // from main.c using the optstring in the NEWTOY macros. Display results.
   if (toys.optflags) printf("flags=%llx\n", toys.optflags);
   if (toys.optflags & FLAG_a) printf("Saw a\n");
-  if (toys.optflags & FLAG_b) printf("b=%s\n", TT.s.b_string);
-  if (toys.optflags & FLAG_c) printf("c=%ld\n", TT.s.c_number);
-  while (TT.s.d_list) {
-    printf("d=%s\n", TT.s.d_list->arg);
-    TT.s.d_list = TT.s.d_list->next;
+  if (toys.optflags & FLAG_b) printf("b=%s\n", TT.s.b);
+  if (toys.optflags & FLAG_c) printf("c=%ld\n", TT.s.c);
+  while (TT.s.d) {
+    printf("d=%s\n", TT.s.d->arg);
+    TT.s.d = TT.s.d->next;
   }
-  if (TT.s.e_count) printf("e was seen %ld times\n", TT.s.e_count);
+  if (TT.s.e) printf("e was seen %ld times\n", TT.s.e);
   for (optargs = toys.optargs; *optargs; optargs++)
     printf("optarg=%s\n", *optargs);
   if (toys.optflags & FLAG_walrus) printf("Saw --walrus\n");
-  if (TT.s.blubber_string) printf("--blubber=%s\n", TT.s.blubber_string);
+  if (TT.s.blubber) printf("--blubber=%s\n", TT.s.blubber);
 
   printf("Other globals should start zeroed: %d\n", TT.more_globals);
 }
@@ -101,5 +100,5 @@ void skeleton_alias_main(void)
 
   // Note, this FLAG_b is a different bit position than the other FLAG_b,
   // and fills out a different variable of a different type.
-  if (toys.optflags & FLAG_b) printf("b=%ld", TT.a.b_number);
+  if (toys.optflags & FLAG_b) printf("b=%ld", TT.a.b);
 }

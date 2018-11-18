@@ -7,7 +7,7 @@
  * netcat -L zombies
 
 USE_NETCAT(OLDTOY(nc, netcat, TOYFLAG_USR|TOYFLAG_BIN))
-USE_NETCAT(NEWTOY(netcat, USE_NETCAT_LISTEN("^tlL")"w#<1W#<1p#<1>65535s:q#<1f:"USE_NETCAT_LISTEN("[!tlL][!Lw]"), TOYFLAG_BIN))
+USE_NETCAT(NEWTOY(netcat, USE_NETCAT_LISTEN("^tlL")"w#<1W#<1p#<1>65535q#<1s:f:"USE_NETCAT_LISTEN("[!tlL][!Lw]"), TOYFLAG_BIN))
 
 config NETCAT
   bool "netcat"
@@ -20,7 +20,7 @@ config NETCAT
     -q	quit SECONDS after EOF on stdin, even if stdout hasn't closed yet
     -s	local source address
     -w	SECONDS timeout to establish connection
-    -W	SECONDS timeout for idle connection
+    -W	SECONDS timeout for more data on an idle connection
 
     Use "stty 115200 -F /dev/ttyS0 && stty raw -echo -ctlecho" with
     netcat -f to connect to a serial port.
@@ -49,18 +49,14 @@ config NETCAT_LISTEN
 #include "toys.h"
 
 GLOBALS(
-  char *filename;        // -f read from filename instead of network
-  long quit_delay;       // -q Exit after EOF from stdin after # seconds.
-  char *source_address;  // -s Bind to a specific source address.
-  long port;             // -p Bind to a specific source port.
-  long idle;             // -W Wait # seconds for more data
-  long wait;             // -w Wait # seconds for a connection.
+  char *f, *s;
+  long q, p, W, w;
 )
 
 static void timeout(int signum)
 {
-  if (TT.wait) error_exit("Timeout");
-  // This should be xexit() but would need siglongjmp()...
+  if (TT.w) error_exit("Timeout");
+  // TODO This should be xexit() but would need siglongjmp()...
   exit(0);
 }
 
@@ -102,10 +98,10 @@ void netcat_main(void)
   pid_t child;
 
   // Addjust idle and quit_delay to miliseconds or -1 for no timeout
-  TT.idle = TT.idle ? TT.idle*1000 : -1;
-  TT.quit_delay = TT.quit_delay ? TT.quit_delay*1000 : -1;
+  TT.W = TT.W ? TT.W*1000 : -1;
+  TT.q = TT.q ? TT.q*1000 : -1;
 
-  set_alarm(TT.wait);
+  set_alarm(TT.w);
 
   // The argument parsing logic can't make "<2" conditional on other
   // arguments like -f and -l, so do it by hand here.
@@ -113,17 +109,17 @@ void netcat_main(void)
       (!(toys.optflags&(FLAG_l|FLAG_L)) && toys.optc!=2))
         help_exit("bad argument count");
 
-  if (TT.filename) in1 = out2 = xopen(TT.filename, O_RDWR);
+  if (TT.f) in1 = out2 = xopen(TT.f, O_RDWR);
   else {
     // Setup socket
     sockfd = xsocket(AF_INET, SOCK_STREAM, 0);
     setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &out1, sizeof(out1));
 
     address->sin_family = AF_INET;
-    if (TT.source_address || TT.port) {
-      address->sin_port = SWAP_BE16(TT.port);
-      if (TT.source_address)
-        lookup_name(TT.source_address, (uint32_t *)&(address->sin_addr));
+    if (TT.s || TT.p) {
+      address->sin_port = SWAP_BE16(TT.p);
+      if (TT.s)
+        lookup_name(TT.s, (uint32_t *)&(address->sin_addr));
       if (bind(sockfd, (struct sockaddr *)address, sizeof(*address)))
         perror_exit("bind");
     }
@@ -143,13 +139,13 @@ void netcat_main(void)
 
       in1 = out2 = sockfd;
 
-      pollinate(in1, in2, out1, out2, TT.idle, TT.quit_delay);
+      pollinate(in1, in2, out1, out2, TT.W, TT.q);
     } else {
       // Listen for incoming connections
       socklen_t len = sizeof(*address);
 
       if (listen(sockfd, 5)) error_exit("listen");
-      if (!TT.port) {
+      if (!TT.p) {
         getsockname(sockfd, (struct sockaddr *)address, &len);
         printf("%d\n", SWAP_BE16(address->sin_port));
         fflush(stdout);
@@ -188,7 +184,7 @@ void netcat_main(void)
           xexec(toys.optargs);
         }
 
-        pollinate(in1, in2, out1, out2, TT.idle, TT.quit_delay);
+        pollinate(in1, in2, out1, out2, TT.W, TT.q);
         close(in1);
       } while (!(toys.optflags&FLAG_l));
     }

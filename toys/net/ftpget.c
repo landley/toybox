@@ -46,9 +46,7 @@ config FTPPUT
 #include "toys.h"
 
 GLOBALS(
-  char *user;
-  char *port;
-  char *password;
+  char *u, *p, *P;
 
   int fd;
 )
@@ -101,20 +99,20 @@ void ftpget_main(void)
   if (!(toys.optflags&(FLAG_v-1)))
     toys.optflags |= (toys.which->name[3]=='g') ? FLAG_g : FLAG_s;
 
-  if (!TT.user) TT.user = "anonymous";
-  if (!TT.password) TT.password = "ftpget@";
-  if (!TT.port) TT.port = "21";
+  if (!TT.u) TT.u = "anonymous";
+  if (!TT.P) TT.P = "ftpget@";
+  if (!TT.p) TT.p = "21";
   if (!remote) remote = toys.optargs[1];
 
   // connect
-  TT.fd = xconnect(xgetaddrinfo(*toys.optargs, TT.port, 0, SOCK_STREAM, 0,
+  TT.fd = xconnect(xgetaddrinfo(*toys.optargs, TT.p, 0, SOCK_STREAM, 0,
     AI_ADDRCONFIG));
   if (getpeername(TT.fd, (void *)&si6, &sl)) perror_exit("getpeername");
 
   // Login
   ftp_line(0, 0, 220);
-  rc = ftp_line("USER", TT.user, 0);
-  if (rc == 331) rc = ftp_line("PASS", TT.password, 0);
+  rc = ftp_line("USER", TT.u, 0);
+  if (rc == 331) rc = ftp_line("PASS", TT.P, 0);
   if (rc != 230) error_exit_raw(toybuf);
 
   if (toys.optflags & FLAG_m) {

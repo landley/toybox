@@ -23,7 +23,7 @@ config BASE64
 #include "toys.h"
 
 GLOBALS(
-  long columns;
+  long w;
 
   unsigned total;
 )
@@ -32,7 +32,7 @@ static void wraputchar(int c, int *x)
 {
   putchar(c);
   TT.total++;
-  if (TT.columns && ++*x == TT.columns) {
+  if (TT.w && ++*x == TT.w) {
     *x = 0;
     xputc('\n');
   };

@@ -28,7 +28,7 @@ config MKTEMP
 #include "toys.h"
 
 GLOBALS(
-  char *tmpdir;
+  char *p;
 )
 
 void mktemp_main(void)
@@ -38,16 +38,16 @@ void mktemp_main(void)
 
   if (!template) template = "tmp.XXXXXX";
 
-  if (!TT.tmpdir) TT.tmpdir = getenv("TMPDIR");
-  if (!TT.tmpdir || !*TT.tmpdir) TT.tmpdir = "/tmp";
+  if (!TT.p) TT.p = getenv("TMPDIR");
+  if (!TT.p || !*TT.p) TT.p = "/tmp";
 
   template = strchr(template, '/') ? xstrdup(template)
-             : xmprintf("%s/%s", TT.tmpdir, template);
+             : xmprintf("%s/%s", TT.p, template);
 
   if (d_flag ? !mkdtemp(template) : mkstemp(template) == -1) {
     if (toys.optflags & FLAG_q) toys.exitval = 1;
     else perror_exit("Failed to create %s %s/%s",
-                     d_flag ? "directory" : "file", TT.tmpdir, template);
+                     d_flag ? "directory" : "file", TT.p, template);
   } else {
     if (toys.optflags & FLAG_u) unlink(template);
     xputs(template);

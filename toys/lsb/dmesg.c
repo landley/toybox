@@ -34,8 +34,7 @@ config DMESG
 #include <sys/klog.h>
 
 GLOBALS(
-  long level;
-  long size;
+  long n, s;
 
   int use_color;
   time_t tea;
@@ -157,7 +156,7 @@ void dmesg_main(void)
 
 klogctl_mode:
     // Figure out how much data we need, and fetch it.
-    if (!(size = TT.size)) size = xklogctl(10, 0, 0);
+    if (!(size = TT.s)) size = xklogctl(10, 0, 0);
     data = from = xmalloc(size+1);
     data[size = xklogctl(3+(toys.optflags&FLAG_c), data, size)] = 0;
 
@@ -175,7 +174,7 @@ klogctl_mode:
 
 no_output:
   // Set the log level?
-  if (toys.optflags & FLAG_n) xklogctl(8, 0, TT.level);
+  if (toys.optflags & FLAG_n) xklogctl(8, 0, TT.n);
 
   // Clear the buffer?
   if (toys.optflags & (FLAG_C|FLAG_c)) xklogctl(5, 0, 0);

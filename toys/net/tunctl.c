@@ -32,13 +32,13 @@ config TUNCTL
 #include <linux/if_tun.h>
 
 GLOBALS(
-  char *user;
+  char *u;
 )
 
 void tunctl_main(void)
 {
   struct ifreq *ifr = (void *)toybuf;
-  uid_t u = TT.user ?  xgetuid(TT.user) : 0;
+  uid_t u = TT.u ?  xgetuid(TT.u) : 0;
   int fd = xopen("/dev/net/tun", O_RDWR);
 
   // Associate filehandle with device
