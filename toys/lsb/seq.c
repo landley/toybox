@@ -26,8 +26,7 @@ config SEQ
 #include "toys.h"
 
 GLOBALS(
-  char *sep;
-  char *fmt;
+  char *s, *f;
 
   int precision;
 )
@@ -60,7 +59,7 @@ void seq_main(void)
   double first = 1, increment = 1, last, dd;
   int i;
 
-  if (!TT.sep) TT.sep = "\n";
+  if (!TT.s) TT.s = "\n";
   switch (toys.optc) {
     case 3: increment = parsef(toys.optargs[1]);
     case 2: first = parsef(*toys.optargs);
@@ -68,8 +67,8 @@ void seq_main(void)
   }
 
   // Prepare format string with appropriate precision. Can't use %g because 1e6
-  if (toys.optflags & FLAG_f) insanitize(TT.fmt);
-  else sprintf(TT.fmt = toybuf, "%%.%df", TT.precision);
+  if (toys.optflags & FLAG_f) insanitize(TT.f);
+  else sprintf(TT.f = toybuf, "%%.%df", TT.precision);
 
   // Pad to largest width
   if (toys.optflags & FLAG_w) {
@@ -77,9 +76,9 @@ void seq_main(void)
 
     for (i=0; i<3; i++) {
       dd = (double []){first, increment, last}[i];
-      len = maxof(len, snprintf(0, 0, TT.fmt, dd));
+      len = maxof(len, snprintf(0, 0, TT.f, dd));
     }
-    sprintf(TT.fmt = toybuf, "%%0%d.%df", len, TT.precision);
+    sprintf(TT.f = toybuf, "%%0%d.%df", len, TT.precision);
   }
 
   // Other implementations output nothing if increment is 0 and first > last,
@@ -92,8 +91,8 @@ void seq_main(void)
     // Multiply to avoid accumulating rounding errors from increment.
     dd = first+i*increment;
     if ((increment<0 && dd<last) || (increment>0 && dd>last)) break;
-    if (i++) printf("%s", TT.sep);
-    printf(TT.fmt, dd);
+    if (i++) printf("%s", TT.s);
+    printf(TT.f, dd);
   }
 
   if (i) printf("\n");

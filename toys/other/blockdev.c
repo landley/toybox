@@ -34,8 +34,7 @@ config BLOCKDEV
 #include <linux/fs.h>
 
 GLOBALS(
-  long bsz;
-  long ra;
+  long setbsz, setra;
 )
 
 void blockdev_main(void)
@@ -56,10 +55,10 @@ void blockdev_main(void)
 
       if (!flag) continue;
 
-      if (flag & FLAG_setbsz) val = TT.bsz;
+      if (flag & FLAG_setbsz) val = TT.setbsz;
       else val = !!(flag & FLAG_setro);
 
-      if (flag & FLAG_setra) val = TT.ra;
+      if (flag & FLAG_setra) val = TT.setra;
 
       xioctl(fd, cmds[i], &val);
 

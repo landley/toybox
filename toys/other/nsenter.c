@@ -64,13 +64,15 @@ config NSENTER
 
 #define FOR_nsenter
 #include "toys.h"
+#include <sys/syscall.h>
 #include <linux/sched.h>
-int unshare(int flags);
-int setns(int fd, int nstype); 
+
+#define unshare(flags) syscall(SYS_unshare, flags)
+#define setns(fd, nstype) syscall(SYS_setns, fd, nstype)
 
 GLOBALS(
-  char *nsnames[6];
-  long targetpid;
+  char *Uupnmi[6];
+  long t;
 )
 
 // Code that must run in unshare's flag context
@@ -144,12 +146,12 @@ void unshare_main(void)
     char *nsnames = "user\0uts\0pid\0net\0mnt\0ipc";
 
     for (i = 0; i<ARRAY_LEN(flags); i++) {
-      char *filename = TT.nsnames[i];
+      char *filename = TT.Uupnmi[i];
 
       if (toys.optflags & (1<<i)) {
         if (!filename || !*filename) {
           if (!(toys.optflags & FLAG_t)) error_exit("need -t or =filename");
-          sprintf(toybuf, "/proc/%ld/ns/%s", TT.targetpid, nsnames);
+          sprintf(toybuf, "/proc/%ld/ns/%s", TT.t, nsnames);
           filename = toybuf;
         }
 

@@ -31,8 +31,8 @@ config LSPCI_TEXT
 #include "toys.h"
 
 GLOBALS(
-  char *ids;
-  long numeric;
+  char *i;
+  long n;
 
   FILE *db;
 )
@@ -74,7 +74,7 @@ static int do_lspci(struct dirtree *new)
   // Lookup/display data from pci.ids?
 
   if (CFG_LSPCI_TEXT && TT.db) {
-    if (TT.numeric != 1) {
+    if (TT.n != 1) {
       char *s;
 
       fseek(TT.db, 0, SEEK_SET);
@@ -94,7 +94,7 @@ static int do_lspci(struct dirtree *new)
       }
     }
 
-    if (TT.numeric > 1) {
+    if (TT.n > 1) {
       printf((toys.optflags & FLAG_m)
         ? "%s, \"%s\" \"%s [%s]\" \"%s [%s]\""
         : "%s Class %s: %s [%s] %s [%s]",
@@ -119,9 +119,9 @@ driver:
 
 void lspci_main(void)
 {
-  if (CFG_LSPCI_TEXT && TT.numeric != 1) {
-    if (!TT.ids) TT.ids = "/usr/share/misc/pci.ids";
-    if (!(TT.db = fopen(TT.ids, "r"))) perror_msg("%s", TT.ids);
+  if (CFG_LSPCI_TEXT && TT.n != 1) {
+    if (!TT.i) TT.i = "/usr/share/misc/pci.ids";
+    if (!(TT.db = fopen(TT.i, "r"))) perror_msg("%s", TT.i);
   }
 
   dirtree_read("/sys/bus/pci/devices", do_lspci);
