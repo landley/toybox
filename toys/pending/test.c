@@ -149,7 +149,7 @@ int test_sub(int optb, int opte)
         if (optb + i == opte || !strcmp("-a", toys.optargs[optb + i])
             || !strcmp("-o", toys.optargs[optb + i])) break;
       }
-      if (i == 4) error_exit(err_syntax);
+      if (i == 4) error_exit_raw(err_syntax);
       expr = not ^ test_basic(optb, optb + i);
       optb += i;
     }
@@ -166,7 +166,7 @@ int test_sub(int optb, int opte)
       and = and && expr;
       optb++;
     }
-    else error_exit(err_syntax);
+    else error_exit_raw(err_syntax);
   }
 }
 

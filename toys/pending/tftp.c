@@ -328,7 +328,7 @@ static int file_get(void)
               TFTP_ES_UNKID, TFTP_ES_EXISTS,
               TFTP_ES_UNKUSER, TFTP_ES_NEGOTIATE};
             if (rblockno && (rblockno < 9)) message = arr[rblockno - 1];
-            error_msg(message);
+            error_msg_raw(message);
         }
         else if (blockno == 1 && opcode == TFTP_OP_OACK) {
           len = mkpkt_ack(packet, 0);

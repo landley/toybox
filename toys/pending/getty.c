@@ -278,8 +278,7 @@ static void utmp_entry(void)
         strlen("/dev/"), UT_LINESIZE);
     time((time_t *)&entry.ut_time);
     xstrncpy(entry.ut_user, "LOGIN", UT_NAMESIZE);
-    if (strlen(TT.host_str) > UT_HOSTSIZE) 
-      perror_msg(utmperr);
+    if (strlen(TT.host_str) > UT_HOSTSIZE) perror_msg_raw(utmperr);
     else xstrncpy(entry.ut_host, TT.host_str, UT_HOSTSIZE);
     setutent();
     pututline(&entry);
@@ -287,8 +286,7 @@ static void utmp_entry(void)
   }
   xstrncpy(entry.ut_line, ttyname(STDIN_FILENO) + strlen("/dev/"), UT_LINESIZE);
   xstrncpy(entry.ut_user, "LOGIN", UT_NAMESIZE);
-  if (strlen(TT.host_str) > UT_HOSTSIZE) 
-    perror_msg(utmperr);
+  if (strlen(TT.host_str) > UT_HOSTSIZE) perror_msg_raw(utmperr);
   else xstrncpy(entry.ut_host, TT.host_str, UT_HOSTSIZE);
   time((time_t *)&entry.ut_time);
   setutent();

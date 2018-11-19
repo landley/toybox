@@ -77,7 +77,7 @@ static char *g_errpkt = toybuf + TFTPD_BLKSIZE;
 static void send_errpkt(struct sockaddr *dstaddr,
     socklen_t socklen, char *errmsg)
 {
-  error_msg(errmsg);
+  error_msg_raw(errmsg);
   g_errpkt[1] = TFTPD_OP_ERR;
   strcpy(g_errpkt + 4, errmsg);
   if (sendto(TT.sfd, g_errpkt, strlen(errmsg)+5, 0, dstaddr, socklen) < 0)
@@ -196,7 +196,7 @@ POLL_INPUT:
         "No such user", "Terminate transfer due to option negotiation"};
 
       if (rblockno && (rblockno < 9)) message = arr[rblockno - 1];
-      error_msg(message);
+      error_msg_raw(message);
       break; // Break the for loop.
     }
 
