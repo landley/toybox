@@ -5,6 +5,13 @@
 
 [ -f testing.sh ] && . testing.sh
 
+if [ "$(id -u)" -ne 0 ]
+then
+  echo "$SHOWSKIP: groupdel (not root)"
+  continue 2>/dev/null
+  exit
+fi
+
 # Redirecting all output to /dev/null for grep and delgroup
 arg="&>/dev/null"
 

@@ -1,18 +1,17 @@
 #!/bin/bash
 
-# Copyright 2014 Divya Kothari <divya.s.kothari@gmail.com>
-# Copyright 2014 Naha Maggu <maggu.neha@gmail.com>
-
 [ -f testing.sh ] && . testing.sh
 
 #testing "name" "command" "result" "infile" "stdin"
 
-# Get system hostname
-hostnameExe=`which hostname`
-hostnameOut=`$hostnameExe`
+HOST="$(cat /proc/sys/kernel/hostname)"
+testing "get" "hostname" "$HOST\n" "" ""
 
-# New hostname
-NewHostname="NewHostName.system"
+if [ "$(id -u)" -ne 0 ]
+then
+  echo "$SHOWSKIP: groupdel (not root)"
+  continue 2>/dev/null
+  exit
+fi
 
-testing "get" "hostname" "$hostnameOut\n" "" ""
-testing "set, Get and then Reset" "hostname $NewHostname; hostname; hostname $hostnameOut; hostname" "$NewHostname\n$hostnameOut\n" "" ""
+testing "set" 'hostname "2>&1 | tee"; hostname; hostname "$HOST"' "2>&1 | tee\n" "" ""

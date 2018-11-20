@@ -4,6 +4,13 @@
 
 [ -f testing.sh ] && . testing.sh
 
+if [ "$(id -u)" -ne 0 ]
+then
+  echo "$SHOWSKIP: groupadd (not root)"
+  continue 2>/dev/null
+  exit
+fi
+
 # 70 characters long string; hereafter, we will use it as per our need.
 _s70="abcdefghijklmnopqrstuvwxyz123456789abcdefghijklmnopqrstuvwxyz123456789"
 

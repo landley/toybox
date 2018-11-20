@@ -16,8 +16,8 @@ rm -f one two
 
 # Check the length suppression, both calculate the CRC on 'abc' but the second
 # option has length suppression on and has the length concatenated to 'abc'.
-testing "on abc including length" "echo -n 'abc' | cksum" "1219131554 3\n" "" ""
-testing "on abc excluding length" "echo -ne 'abc\x3' | cksum -N" "1219131554 4\n" "" ""
+testing "on abc including length" "cksum" "1219131554 3\n" "" 'abc'
+testing "on abc excluding length" "cksum -N" "1219131554\n" "" 'abc\x3'
 
 # cksum on no contents gives 0xffffffff (=4294967295)
 testing "on no data post-inversion" "echo -n "" | cksum" "4294967295 0\n" "" ""
