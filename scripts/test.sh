@@ -53,6 +53,7 @@ then
 else
   for i in "$TOPDIR"/tests/*.test
   do
+    [ -z "$TEST_ALL" ] && [ ! -x "$i" ] && continue
     if [ -z "$TEST_HOST" ]
     then
       do_test "$i" 1
