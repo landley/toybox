@@ -8,7 +8,7 @@
  * nor per-process mount namespaces can work sanely with mtab. The kernel
  * tracks mount points now, a userspace application can't do so anymore.
 
-USE_UMOUNT(NEWTOY(umount, "ndDflrat*v[!na]", TOYFLAG_BIN|TOYFLAG_STAYROOT))
+USE_UMOUNT(NEWTOY(umount, "cndDflrat*v[!na]", TOYFLAG_BIN|TOYFLAG_STAYROOT))
 
 config UMOUNT
   bool "umount"
