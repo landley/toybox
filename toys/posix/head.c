@@ -6,7 +6,7 @@
  *
  * Deviations from posix: -c
 
-USE_HEAD(NEWTOY(head, "?n#<0=10c#<0qv[-nc]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_HEAD(NEWTOY(head, "?n(lines)#<0=10c(bytes)#<0qv[-nc]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config HEAD
   bool "head"
