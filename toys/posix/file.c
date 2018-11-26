@@ -302,20 +302,20 @@ static void do_regular_file(int fd, char *name)
     xprintf("Ogg data");
     // https://wiki.xiph.org/MIMETypesCodecs
     if (!memcmp(s+28, "CELT    ", 8)) xprintf(", celt audio");
-    if (!memcmp(s+28, "CMML    ", 8)) xprintf(", cmml text");
-    if (!memcmp(s+28, "BBCD\0", 5)) xprintf(", dirac video");
-    if (!memcmp(s+28, "\177FLAC", 5)) xprintf(", flac audio");
-    if (!memcmp(s+28, "\x8bJNG\r\n\x1a\n", 8)) xprintf(", jng video");
-    if (!memcmp(s+28, "\x80kate\0\0\0", 8)) xprintf(", kate text");
-    if (!memcmp(s+28, "OggMIDI\0", 8)) xprintf(", midi text");
-    if (!memcmp(s+28, "\x8aMNG\r\n\x1a\n", 8)) xprintf(", mng video");
-    if (!memcmp(s+28, "OpusHead", 8)) xprintf(", opus audio");
-    if (!memcmp(s+28, "PCM     ", 8)) xprintf(", pcm audio");
-    if (!memcmp(s+28, "\x89PNG\r\n\x1a\n", 8)) xprintf(", png video");
-    if (!memcmp(s+28, "Speex   ", 8)) xprintf(", speex audio");
-    if (!memcmp(s+28, "\x80theora", 7)) xprintf(", theora video");
-    if (!memcmp(s+28, "\x01vorbis", 7)) xprintf(", vorbis audio");
-    if (!memcmp(s+28, "YUV4MPEG", 8)) xprintf(", yuv4mpeg video");
+    else if (!memcmp(s+28, "CMML    ", 8)) xprintf(", cmml text");
+    else if (!memcmp(s+28, "BBCD\0", 5)) xprintf(", dirac video");
+    else if (!memcmp(s+28, "\177FLAC", 5)) xprintf(", flac audio");
+    else if (!memcmp(s+28, "\x8bJNG\r\n\x1a\n", 8)) xprintf(", jng video");
+    else if (!memcmp(s+28, "\x80kate\0\0\0", 8)) xprintf(", kate text");
+    else if (!memcmp(s+28, "OggMIDI\0", 8)) xprintf(", midi text");
+    else if (!memcmp(s+28, "\x8aMNG\r\n\x1a\n", 8)) xprintf(", mng video");
+    else if (!memcmp(s+28, "OpusHead", 8)) xprintf(", opus audio");
+    else if (!memcmp(s+28, "PCM     ", 8)) xprintf(", pcm audio");
+    else if (!memcmp(s+28, "\x89PNG\r\n\x1a\n", 8)) xprintf(", png video");
+    else if (!memcmp(s+28, "Speex   ", 8)) xprintf(", speex audio");
+    else if (!memcmp(s+28, "\x80theora", 7)) xprintf(", theora video");
+    else if (!memcmp(s+28, "\x01vorbis", 7)) xprintf(", vorbis audio");
+    else if (!memcmp(s+28, "YUV4MPEG", 8)) xprintf(", yuv4mpeg video");
     xputc('\n');
   } else if (len>32 && !memcmp(s, "RIF", 3) && !memcmp(s+8, "WAVEfmt ", 8)) {
     // https://en.wikipedia.org/wiki/WAV
