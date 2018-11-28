@@ -46,8 +46,8 @@ static void weak_check(char *new, char *old, char *user)
 
   if (strlen(new) < 6) msg = "too short";
   if (*new) {
-    if (strnstr(new, user) || strnstr(user, new)) msg = "user";
-    if (*old && (strnstr(new, old) || strnstr(old, new))) msg = "old";
+    if (strcasestr(new, user) || strcasestr(user, new)) msg = "user";
+    if (*old && (strcasestr(new, old) || strcasestr(old, new))) msg = "old";
   }
   if (msg) xprintf("BAD PASSWORD: %s\n",msg);
 }

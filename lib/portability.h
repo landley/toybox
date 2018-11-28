@@ -88,6 +88,9 @@ char *dirname(char *path);
 char *__xpg_basename(char *path);
 static inline char *basename(char *path) { return __xpg_basename(path); }
 
+#include <string.h>
+char *strcasestr(const char *haystack, const char *needle);
+
 // When building under obsolete glibc (Ubuntu 8.04-ish), hold its hand a bit.
 #if __GLIBC__ == 2 && __GLIBC_MINOR__ < 10
 #define fstatat fstatat64

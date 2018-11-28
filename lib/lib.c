@@ -1191,17 +1191,6 @@ char *next_printf(char *s, char **start)
   return 0;
 }
 
-// Posix inexplicably hasn't got this, so find str in line.
-char *strnstr(char *line, char *str)
-{
-  long len = strlen(str);
-  char *s;
-
-  for (s = line; *s; s++) if (!strncasecmp(s, str, len)) break;
-
-  return *s ? s : 0;
-}
-
 int dev_minor(int dev)
 {
   return ((dev&0xfff00000)>>12)|(dev&0xff);

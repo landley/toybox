@@ -152,7 +152,7 @@ static void do_grep(int fd, char *name)
             fseek.arg = s = line;
             break;
           }
-          if (toys.optflags & FLAG_i) s = strnstr(line, seek->arg);
+          if (toys.optflags & FLAG_i) s = strcasestr(line, seek->arg);
           else s = strstr(line, seek->arg);
           if (s) break;
         }

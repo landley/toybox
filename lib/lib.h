@@ -237,7 +237,6 @@ int qstrcmp(const void *a, const void *b);
 void create_uuid(char *uuid);
 char *show_uuid(char *uuid);
 char *next_printf(char *s, char **start);
-char *strnstr(char *line, char *str);
 int dev_minor(int dev);
 int dev_major(int dev);
 int dev_makedev(int major, int minor);
