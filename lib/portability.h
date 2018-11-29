@@ -91,43 +91,7 @@ static inline char *basename(char *path) { return __xpg_basename(path); }
 
 #include <string.h>
 char *strcasestr(const char *haystack, const char *needle);
-
-// When building under obsolete glibc (Ubuntu 8.04-ish), hold its hand a bit.
-#if __GLIBC__ == 2 && __GLIBC_MINOR__ < 10
-#define fstatat fstatat64
-int fstatat64(int dirfd, const char *pathname, void *buf, int flags);
-int readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz);
-char *stpcpy(char *dest, const char *src);
-#include <sys/stat.h>
-int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags);
-int openat(int dirfd, const char *pathname, int flags, ...);
-#include <dirent.h>
-DIR *fdopendir(int fd);
-#include <unistd.h>
-int fchownat(int dirfd, const char *pathname,
-                    uid_t owner, gid_t group, int flags);
-int isblank(int c);
-int unlinkat(int dirfd, const char *pathname, int flags);
-#include <stdio.h>
-ssize_t getdelim(char **lineptr, size_t *n, int delim, FILE *stream);
-
-// Straight from posix-2008, things old glibc had but didn't prototype
-
-int faccessat(int fd, const char *path, int amode, int flag);
-int linkat(int fd1, const char *path1, int fd2, const char *path2, int flag);
-int mkdirat(int fd, const char *path, mode_t mode);
-int symlinkat(const char *path1, int fd, const char *path2);
-int mknodat(int fd, const char *path, mode_t mode, dev_t dev);
-#include <sys/time.h>
-int futimens(int fd, const struct timespec times[2]);
-int utimensat(int fd, const char *path, const struct timespec times[2], int flag);
-
-#ifndef MNT_DETACH
-#define MNT_DETACH 2
-#endif
-#endif // Old glibc
-
-#endif // glibc in general
+#endif // defined(glibc)
 
 #if !defined(__GLIBC__)
 // POSIX basename.
@@ -173,12 +137,6 @@ int clearenv(void);
 #define SWAP_LE16(x) (x)
 #define SWAP_LE32(x) (x)
 #define SWAP_LE64(x) (x)
-#endif
-
-#if defined(__APPLE__) \
-    || (defined(__GLIBC__) && __GLIBC__ == 2 && __GLIBC_MINOR__ < 10)
-ssize_t getdelim(char **lineptr, size_t *n, int delim, FILE *stream);
-ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 #endif
 
 // Linux headers not listed by POSIX or LSB
