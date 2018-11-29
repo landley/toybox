@@ -20,9 +20,10 @@
 
 // This isn't in the spec, but it's how we determine what libc we're using.
 
-#include <features.h>
-
-// Types various replacement prototypes need
+// Types various replacement prototypes need.
+// This also lets us determine what libc we're using. Systems that
+// have <features.h> will transitively include it, and ones that don't --
+// macOS -- won't break.
 #include <sys/types.h>
 
 // Various constants old build environments might not have even if kernel does
