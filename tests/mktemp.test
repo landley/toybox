@@ -1,0 +1,21 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+# mktemp by default should use tmp.XXXXXXXXXX as the template,
+# and $TMPDIR as the directory.
+testing "mktemp" "TMPDIR=/t mktemp -u | grep -q '^/t/tmp\...........$' && echo yes" "yes\n" "" ""
+
+# mktemp with a template should *not* use $TMPDIR.
+testing "mktemp TEMPLATE" "TMPDIR=/t mktemp -u hello.XXXXXXXX | grep -q '^hello\.........$' && echo yes" "yes\n" "" ""
+
+# mktemp with -t and a template should use $TMPDIR.
+testing "mktemp -t TEMPLATE" "TMPDIR=/t mktemp -u -t hello.XXXXXXXX | grep -q '^/t/hello\.........$' && echo yes" "yes\n" "" ""
+
+# mktemp with -p DIR and a template should use DIR.
+testing "mktemp -p DIR TEMPLATE" "TMPDIR=/t mktemp -u -p DIR hello.XXXXXXXX | grep -q '^DIR/hello\.........$' && echo yes" "yes\n" "" ""
+
+# mktemp -p DIR and -t: -t wins.
+testing "mktemp -p DIR -t TEMPLATE" "TMPDIR=/t mktemp -u -p DIR -t hello.XXXXXXXX | grep -q '^/t/hello\.........$' && echo yes" "yes\n" "" ""
