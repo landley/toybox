@@ -98,20 +98,28 @@ char *strcasestr(const char *haystack, const char *needle);
 
 // Work out how to do endianness
 
-#ifndef __APPLE__
-#include <byteswap.h>
-#include <endian.h>
+#ifdef __APPLE__
 
-#if __BYTE_ORDER == __BIG_ENDIAN
+#include <libkern/OSByteOrder.h>
+
+#ifdef __BIG_ENDIAN__
 #define IS_BIG_ENDIAN 1
 #else
 #define IS_BIG_ENDIAN 0
 #endif
 
+#define bswap_16(x) OSSwapInt16(x)
+#define bswap_32(x) OSSwapInt32(x)
+#define bswap_64(x) OSSwapInt64(x)
+
 int clearenv(void);
+
 #else
 
-#ifdef __BIG_ENDIAN__
+#include <byteswap.h>
+#include <endian.h>
+
+#if __BYTE_ORDER == __BIG_ENDIAN
 #define IS_BIG_ENDIAN 1
 #else
 #define IS_BIG_ENDIAN 0
