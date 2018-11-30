@@ -280,7 +280,8 @@ static int callback(struct dirtree *node)
   // Circa 2.6.25 the entries more than 2 deep are all either redundant
   // (mouse#, event#) or unnamed (every usb_* entry is called "device").
 
-  return (node->parent && node->parent->parent) ? 0 : DIRTREE_RECURSE;
+  if (node->parent && node->parent->parent) return 0;
+  return DIRTREE_RECURSE|DIRTREE_SYMFOLLOW;
 }
 
 void mdev_main(void)
