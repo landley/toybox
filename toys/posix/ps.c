@@ -259,8 +259,9 @@ enum {
  SLOT_policy,   /*man sched_setscheduler*/SLOT_blkioticks,// IO wait time
  SLOT_gtime,    /*guest jiffies of task*/ SLOT_cgtime,    // gtime+child
  SLOT_startbss, /*data/bss address*/      SLOT_endbss,    // end addr data+bss
+// end of /proc/$PID/stat fields
  SLOT_upticks,  /*uptime-starttime*/      SLOT_argv0len,  // argv[0] length
- SLOT_uptime,   /*si.uptime @read time*/  SLOT_totalram,  // si.totalram @read time
+ SLOT_uptime,   /*sysinfo.uptime*/        SLOT_totalram,  // sysinfo.totalram
  SLOT_vsz,      /*Virtual mem Size*/      SLOT_shr,       // Shared memory
  SLOT_pcy,      /*Android sched pol*/     SLOT_rchar,     // All bytes read
  SLOT_wchar,    /*All bytes written*/     SLOT_rbytes,    // Disk bytes read
