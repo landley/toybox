@@ -207,7 +207,6 @@ GLOBALS(
     } pgrep;
   };
 
-  struct sysinfo si;
   struct ptr_len gg, GG, pp, PP, ss, tt, uu, UU;
   struct dirtree *threadparent;
   unsigned width, height;
@@ -261,12 +260,13 @@ enum {
  SLOT_gtime,    /*guest jiffies of task*/ SLOT_cgtime,    // gtime+child
  SLOT_startbss, /*data/bss address*/      SLOT_endbss,    // end addr data+bss
  SLOT_upticks,  /*uptime-starttime*/      SLOT_argv0len,  // argv[0] length
- SLOT_uptime,   /*si.uptime @read time*/  SLOT_vsz,       // Virtual mem Size
- SLOT_shr,      /*Shared memory*/         SLOT_pcy,       // Android sched pol
- SLOT_rchar,    /*All bytes read*/        SLOT_wchar,     // All bytes written
- SLOT_rbytes,   /*Disk bytes read*/       SLOT_wbytes,    // Disk bytes written
- SLOT_swap,     /*Swap pages used*/       SLOT_bits,      // 32 or 64
- SLOT_tid,      /*Thread ID*/             SLOT_tcount,    // Thread count
+ SLOT_uptime,   /*si.uptime @read time*/  SLOT_totalram,  // si.totalram @read time
+ SLOT_vsz,      /*Virtual mem Size*/      SLOT_shr,       // Shared memory
+ SLOT_pcy,      /*Android sched pol*/     SLOT_rchar,     // All bytes read
+ SLOT_wchar,    /*All bytes written*/     SLOT_rbytes,    // Disk bytes read
+ SLOT_wbytes,   /*Disk bytes written*/    SLOT_swap,      // Swap pages used
+ SLOT_bits,     /*32 or 64*/              SLOT_tid,       // Thread ID
+ SLOT_tcount,   /*Thread count*/
 
  SLOT_count /* Size of array */
 };
@@ -577,7 +577,7 @@ static char *string_field(struct procpid *tb, struct ofields *field)
   } else if (which <= PS__CPU) {
     ll = slot[sl&63]*1000;
     if (which==PS__VSZ || which==PS__MEM)
-      ll /= TT.si.totalram/((which==PS__VSZ) ? 1024 : 4096);
+      ll /= slot[SLOT_totalram]/((which==PS__VSZ) ? 1024 : 4096);
     else if (slot[SLOT_upticks]) ll /= slot[SLOT_upticks];
     sl = ll;
     if (which==PS_C) sl += 5;
@@ -703,6 +703,7 @@ static int get_ps(struct dirtree *new)
   struct procpid *tb = (void *)toybuf;
   long long *slot = tb->slot;
   char *name, *s, *buf = tb->str, *end = 0;
+  struct sysinfo si;
   int i, j, fd;
   off_t len;
 
@@ -798,8 +799,9 @@ static int get_ps(struct dirtree *new)
 
   // /proc data is generated as it's read, so for maximum accuracy on slow
   // systems (or ps | more) we re-fetch uptime as we fetch each /proc line.
-  sysinfo(&TT.si);
-  slot[SLOT_uptime] = TT.si.uptime;
+  sysinfo(&si);
+  slot[SLOT_uptime] = si.uptime;
+  slot[SLOT_totalram] = si.totalram;
   slot[SLOT_upticks] = slot[SLOT_uptime]*TT.ticks - slot[SLOT_starttime];
 
   // Do we need to read "statm"?
