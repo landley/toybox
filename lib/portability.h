@@ -147,7 +147,17 @@ int clearenv(void);
 
 // Linux headers not listed by POSIX or LSB
 #include <sys/mount.h>
+#ifdef __linux__
+#include <sys/statfs.h>
 #include <sys/swap.h>
+#include <sys/sysinfo.h>
+#endif
+
+#ifdef __APPLE__
+#include <util.h>
+#else
+#include <pty.h>
+#endif
 
 // Android is missing some headers and functions
 // "generated/config.h" is included first
