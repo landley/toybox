@@ -41,12 +41,13 @@ config UNAME
 void uname_main(void)
 {
   int i, flags = toys.optflags, needspace=0;
+  struct utsname u;
 
-  uname((void *)toybuf);
+  uname(&u);
 
   if (!flags) flags = FLAG_s;
   for (i=0; i<5; i++) {
-    char *c = toybuf+(65*i);
+    char *c = ((char *) &u)+(sizeof(u.sysname)*i);
 
     if (flags & ((1<<i)|FLAG_a)) {
       int len = strlen(c);
