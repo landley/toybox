@@ -22,7 +22,11 @@ CFLAGS="$CFLAGS -funsigned-char"
 [ -z "$OPTIMIZE" ] && OPTIMIZE="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-strict-aliasing"
 
 # We accept LDFLAGS, but by default don't have anything in it
-[ -z "$LDOPTIMIZE" ] && LDOPTIMIZE="-Wl,--gc-sections"
+if [ "$(uname)" != "Darwin" ]
+then
+  [ -z "$LDOPTIMIZE" ] && LDOPTIMIZE="-Wl,--gc-sections"
+  LDASNEEDED="-Wl,--as-needed"
+fi
 
 # The makefile provides defaults for these, so this only gets used if
 # you call scripts/make.sh and friends directly.
