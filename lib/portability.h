@@ -88,8 +88,6 @@ char *strptime(const char *buf, const char *format, struct tm *tm);
 char *dirname(char *path);
 char *__xpg_basename(char *path);
 static inline char *basename(char *path) { return __xpg_basename(path); }
-
-#include <string.h>
 char *strcasestr(const char *haystack, const char *needle);
 #endif // defined(glibc)
 
