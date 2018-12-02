@@ -44,16 +44,16 @@ rmdir d
 
 # TODO: Test rwx gu t
 
-testing "" "$C '' || echo yes" "yes\n" "" ""
-testing "" "$C a && echo yes" "yes\n" "" ""
-testing "-n" "$C -n '' || echo yes" "yes\n" "" ""
-testing "-n2" "$C -n a && echo yes" "yes\n" "" ""
-testing "-z" "$C -z '' && echo yes" "yes\n" "" ""
-testing "-z2" "$C -z a || echo yes" "yes\n" "" ""
-testing "" "$C a = b || echo yes" "yes\n" "" ""
-testing "" "$C '' = '' && echo yes" "yes\n" "" ""
-testing "a != b" "$C a != b && echo yes" "yes\n" "" ""
-testing "a != b" "$C a != a || echo yes" "yes\n" "" ""
+testcmd "" "'' || echo yes" "yes\n" "" ""
+testcmd "" "a && echo yes" "yes\n" "" ""
+testcmd "-n" "-n '' || echo yes" "yes\n" "" ""
+testcmd "-n2" "-n a && echo yes" "yes\n" "" ""
+testcmd "-z" "-z '' && echo yes" "yes\n" "" ""
+testcmd "-z2" "-z a || echo yes" "yes\n" "" ""
+testcmd "" "a = b || echo yes" "yes\n" "" ""
+testcmd "" "'' = '' && echo yes" "yes\n" "" ""
+testcmd "a != b" "a != b && echo yes" "yes\n" "" ""
+testcmd "a != b" "a != a || echo yes" "yes\n" "" ""
 
 arith_test()
 {
@@ -80,3 +80,9 @@ testing "-le" "arith_test -le" "le" "" ""
 # -e == -a -o -d != -o
 # \( "x" \) -a \) == \)
 # \( ! ! ! -e \) \)
+
+#  // () -a (() -a () -o ()) -o ()
+#  // x -a ( x -o x ) -a x
+#  // x -o ( x -a x ) -a x -o x
+
+# trailing ! and (
