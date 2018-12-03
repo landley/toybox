@@ -48,8 +48,7 @@ void mktemp_main(void)
       ? xstrdup(template) : xmprintf("%s/%s", TT.p, template);
 
   if (toys.optflags & FLAG_u) {
-    mktemp(template);
-    xputs(template);
+    xputs(mktemp(template));
   } else if (toys.optflags & FLAG_d ? !mkdtemp(template) : mkstemp(template) == -1) {
     if (toys.optflags & FLAG_q) toys.exitval = 1;
     else perror_exit("Failed to create %s %s/%s",
