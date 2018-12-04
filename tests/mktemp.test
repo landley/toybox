@@ -6,16 +6,25 @@
 
 # mktemp by default should use tmp.XXXXXXXXXX as the template,
 # and $TMPDIR as the directory.
-testing "mktemp" "TMPDIR=/t mktemp -u | grep -q '^/t/tmp\...........$' && echo yes" "yes\n" "" ""
+testing "default" "TMPDIR=/t mktemp -u | grep -q '^/t/tmp\...........$' && echo yes" "yes\n" "" ""
 
 # mktemp with a template should *not* use $TMPDIR.
-testing "mktemp TEMPLATE" "TMPDIR=/t mktemp -u hello.XXXXXXXX | grep -q '^hello\.........$' && echo yes" "yes\n" "" ""
+testing "TEMPLATE" "TMPDIR=/t mktemp -u hello.XXXXXXXX | grep -q '^hello\.........$' && echo yes" "yes\n" "" ""
 
 # mktemp with -t and a template should use $TMPDIR.
-testing "mktemp -t TEMPLATE" "TMPDIR=/t mktemp -u -t hello.XXXXXXXX | grep -q '^/t/hello\.........$' && echo yes" "yes\n" "" ""
+testing "-t TEMPLATE" "TMPDIR=/t mktemp -u -t hello.XXXXXXXX | grep -q '^/t/hello\.........$' && echo yes" "yes\n" "" ""
+
+# mktemp with -t and a template should use $TMPDIR ... or /tmp if no $TMPDIR.
+testing "-t TEMPLATE but no TMPDIR" "TMPDIR= mktemp -u -t hello.XXXXXXXX | grep -q '^/tmp/hello\.........$' && echo yes" "yes\n" "" ""
 
 # mktemp with -p DIR and a template should use DIR.
-testing "mktemp -p DIR TEMPLATE" "TMPDIR=/t mktemp -u -p DIR hello.XXXXXXXX | grep -q '^DIR/hello\.........$' && echo yes" "yes\n" "" ""
+testing "-p DIR TEMPLATE" "TMPDIR=/t mktemp -u -p DIR hello.XXXXXXXX | grep -q '^DIR/hello\.........$' && echo yes" "yes\n" "" ""
 
 # mktemp -p DIR and -t: -t wins.
-testing "mktemp -p DIR -t TEMPLATE" "TMPDIR=/t mktemp -u -p DIR -t hello.XXXXXXXX | grep -q '^/t/hello\.........$' && echo yes" "yes\n" "" ""
+testing "-p DIR -t TEMPLATE" "TMPDIR=/t mktemp -u -p DIR -t hello.XXXXXXXX | grep -q '^/t/hello\.........$' && echo yes" "yes\n" "" ""
+
+# mktemp -p DIR and -t but no $TMPDIR: DIR wins.
+testing "-p DIR -t TEMPLATE but no TMPDIR" "TMPDIR= mktemp -u -p DIR -t hello.XXXXXXXX | grep -q '^DIR/hello\.........$' && echo yes" "yes\n" "" ""
+
+# mktemp -u doesn't need to be able to write to the directory.
+testing "-u" "mktemp -u -p /proc | grep -q '^/proc/tmp\...........$' && echo yes" "yes\n" "" ""

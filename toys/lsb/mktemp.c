@@ -17,7 +17,7 @@ config MKTEMP
     -d	Create directory instead of file (--directory)
     -p	Put new file in DIR (--tmpdir)
     -q	Quiet, no error messages
-    -t	Prepend $TMPDIR or /tmp if unset
+    -t	Prefer $TMPDIR > DIR > /tmp (default DIR > $TMPDIR > /tmp)
     -u	Don't create anything, just print what would be created
 
     Each X in TEMPLATE is replaced with a random printable character. The
@@ -34,18 +34,28 @@ GLOBALS(
 void mktemp_main(void)
 {
   char *template = *toys.optargs;
+  int use_dir = (toys.optflags & (FLAG_p|FLAG_t));
 
   if (!template) {
-    toys.optflags |= FLAG_t;
     template = "tmp.XXXXXXXXXX";
+    use_dir = 1;
   }
 
-  if (!TT.p || (toys.optflags & FLAG_t)) TT.p = getenv("TMPDIR");
-  if (!TT.p || !*TT.p) TT.p = "/tmp";
+  // Normally, the precedence is DIR (if set), $TMPDIR (if set), /tmp.
+  // With -t it's $TMPDIR, DIR, /tmp.
+  if (use_dir) {
+    char *tmpdir = getenv("TMPDIR");
+
+    if (toys.optflags & FLAG_t) {
+      if (tmpdir && *tmpdir) TT.p = tmpdir;
+    } else {
+      if (!TT.p || !*TT.p) TT.p = tmpdir;
+    }
+    if (!TT.p || !*TT.p) TT.p = "/tmp";
+  }
 
   // TODO: coreutils cleans paths, so -p /t/// would result in /t/xxx...
-  template = (strchr(template, '/') || !(toys.optflags & (FLAG_p|FLAG_t)))
-      ? xstrdup(template) : xmprintf("%s/%s", TT.p, template);
+  template = use_dir ? xmprintf("%s/%s", TT.p, template) : xstrdup(template);
 
   if (toys.optflags & FLAG_u) {
     xputs(mktemp(template));
