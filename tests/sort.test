@@ -14,9 +14,6 @@ testing "numeric" "sort -n input" "1\n3\n010\n" "3\n1\n010\n" ""
 testing "reverse" "sort -r input" "wook\nwalrus\npoint\npabst\naargh\n" \
 	"point\nwook\npabst\naargh\nwalrus\n" ""
 
-# These tests require the full option set.
-
-optional SORT_BIG
 # Longish chunk of data re-used by the next few tests.  The expected output
 # varies, but the input (this) is the same.
 
