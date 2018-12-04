@@ -13,11 +13,11 @@ config RESTORECON
 
     Restores the default security contexts for the given files.
 
-    -D	apply to /data/data too
-    -F	force reset
-    -R	recurse into directories
-    -n	don't make any changes; useful with -v to see what would change
-    -v	verbose: show any changes
+    -D	Apply to /data/data too
+    -F	Force reset
+    -R	Recurse into directories
+    -n	Don't make any changes; useful with -v to see what would change
+    -v	Verbose
 */
 
 #define FOR_restorecon

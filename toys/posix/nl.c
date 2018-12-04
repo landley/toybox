@@ -18,9 +18,9 @@ config NL
     Number lines of input.
 
     -E	Use extended regex syntax (when doing -b pREGEX)
-    -b	which lines to number: a (all) t (non-empty, default) pREGEX (pattern)
+    -b	Which lines to number: a (all) t (non-empty, default) pREGEX (pattern)
     -l	Only count last of this many consecutive blank lines
-    -n	number STYLE: ln (left justified) rn (right justified) rz (zero pad)
+    -n	Number STYLE: ln (left justified) rn (right justified) rz (zero pad)
     -s	Separator to use between number and line (instead of TAB)
     -w	Width of line numbers (default 6)
 */

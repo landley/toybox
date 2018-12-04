@@ -14,8 +14,8 @@ config FILE
 
     Examine the given files and describe their content types.
 
-    -h	don't follow symlinks (default)
-    -L	follow symlinks
+    -h	Don't follow symlinks (default)
+    -L	Follow symlinks
 */
 
 #define FOR_file

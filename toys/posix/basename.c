@@ -15,8 +15,8 @@ config BASENAME
 
     Return non-directory portion of a pathname removing suffix.
 
-    -a		All arguments are names.
-    -s SUFFIX	Remove suffix (implies -a).
+    -a		All arguments are names
+    -s SUFFIX	Remove suffix (implies -a)
 */
 
 #define FOR_basename

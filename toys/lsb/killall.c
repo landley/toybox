@@ -14,11 +14,11 @@ config KILLALL
 
     Send a signal (default: TERM) to all processes with the given names.
 
-    -i	ask for confirmation before killing
-    -l	print list of all available signals
-    -q	don't print any warnings or error messages
-    -s	send SIGNAL instead of SIGTERM
-    -v	report if the signal was successfully sent
+    -i	Ask for confirmation before killing
+    -l	Print list of all available signals
+    -q	Don't print any warnings or error messages
+    -s	Send SIGNAL instead of SIGTERM
+    -v	Report if the signal was successfully sent
 */
 
 #define FOR_killall

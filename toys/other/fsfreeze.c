@@ -13,8 +13,8 @@ config FSFREEZE
 
     Freeze or unfreeze a filesystem.
 
-    -f	freeze
-    -u	unfreeze
+    -f	Freeze
+    -u	Unfreeze
 */
 
 #define FOR_fsfreeze

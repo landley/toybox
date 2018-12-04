@@ -14,14 +14,14 @@ config UNIQ
 
     Report or filter out repeated lines in a file
 
-    -c	show counts before each line
-    -d	show only lines that are repeated
-    -u	show only lines that are unique
-    -i	ignore case when comparing lines
-    -z	lines end with \0 not \n
-    -w	compare maximum X chars per line
-    -f	ignore first X fields
-    -s	ignore first X chars
+    -c	Show counts before each line
+    -d	Show only lines that are repeated
+    -u	Show only lines that are unique
+    -i	Ignore case when comparing lines
+    -z	Lines end with \0 not \n
+    -w	Compare maximum X chars per line
+    -f	Ignore first X fields
+    -s	Ignore first X chars
 */
 
 #define FOR_uniq

@@ -14,8 +14,8 @@ config CMP
 
     Compare the contents of two files.
 
-    -l	show all differing bytes
-    -s	silent
+    -l	Show all differing bytes
+    -s	Silent
 */
 
 #define FOR_cmp

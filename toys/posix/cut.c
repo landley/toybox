@@ -25,15 +25,15 @@ config CUT
     from start). By default selection ranges are sorted and collated, use -D
     to prevent that.
 
-    -b	select bytes
-    -c	select UTF-8 characters
-    -C	select unicode columns
-    -d	use DELIM (default is TAB for -f, run of whitespace for -F)
+    -b	Select bytes
+    -c	Select UTF-8 characters
+    -C	Select unicode columns
+    -d	Use DELIM (default is TAB for -f, run of whitespace for -F)
     -D	Don't sort/collate selections or match -fF lines without delimiter
-    -f	select fields (words) separated by single DELIM character
-    -F	select fields separated by DELIM regex
-    -O	output delimiter (default one space for -F, input delim for -f)
-    -s	skip lines without delimiters
+    -f	Select fields (words) separated by single DELIM character
+    -F	Select fields separated by DELIM regex
+    -O	Output delimiter (default one space for -F, input delim for -f)
+    -s	Skip lines without delimiters
 */
 #define FOR_cut
 #include "toys.h"

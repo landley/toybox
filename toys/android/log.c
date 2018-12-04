@@ -13,9 +13,9 @@ config LOG
 
     Logs message to logcat.
 
-    -p	use the given priority instead of INFO:
+    -p	Use the given priority instead of INFO:
     	d: DEBUG  e: ERROR  f: FATAL  i: INFO  v: VERBOSE  w: WARN  s: SILENT
-    -t	use the given tag instead of "log"
+    -t	Use the given tag instead of "log"
 */
 
 #define FOR_log

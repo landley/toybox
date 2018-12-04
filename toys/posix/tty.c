@@ -17,7 +17,7 @@ config TTY
     Prints "not a tty" and exits with nonzero status if no terminal
     is connected to stdin.
 
-    -s	silent, exit code only
+    -s	Silent, exit code only
 */
 
 #include "toys.h"

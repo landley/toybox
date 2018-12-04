@@ -23,11 +23,11 @@ config BUNZIP2
     Decompress listed files (file.bz becomes file) deleting archive file(s).
     Read from stdin if no files listed.
 
-    -c	force output to stdout
-    -f	force decompression (if FILE doesn't end in .bz, replace original)
-    -k	keep input files (-c and -t imply this)
-    -t	test integrity
-    -v	verbose
+    -c	Force output to stdout
+    -f	Force decompression (if FILE doesn't end in .bz, replace original)
+    -k	Keep input files (-c and -t imply this)
+    -t	Test integrity
+    -v	Verbose
 
 config BZCAT
   bool "bzcat"

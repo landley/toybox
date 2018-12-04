@@ -16,7 +16,7 @@ config UPTIME
     Tell the current time, how long the system has been running, the number
     of users, and the system load averages for the past 1, 5 and 15 minutes.
 
-    -p	Pretty (human-readable) uptime
+    -p	Pretty (human readable) uptime
     -s	Since when has the system been up?
 */
 

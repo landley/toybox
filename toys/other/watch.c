@@ -16,10 +16,10 @@ config WATCH
 
     Run PROG every -n seconds, showing output. Hit q to quit.
 
-    -n  Loop period in seconds (default 2)
-    -t  Don't print header
-    -e  Exit on error
-    -b  Beep on command error
+    -n	Loop period in seconds (default 2)
+    -t	Don't print header
+    -e	Exit on error
+    -b	Beep on command error
     -x	Exec command directly (vs "sh -c")
 */
 

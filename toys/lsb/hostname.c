@@ -14,11 +14,11 @@ config HOSTNAME
 
     Get/set the current hostname.
 
-    -b	set hostname to 'localhost' if otherwise unset
-    -d	show DNS domain name (no host)
-    -f	show fully-qualified name (host+domain, FQDN)
-    -F	set hostname to contents of FILENAME
-    -s	show short host name (no domain)
+    -b	Set hostname to 'localhost' if otherwise unset
+    -d	Show DNS domain name (no host)
+    -f	Show fully-qualified name (host+domain, FQDN)
+    -F	Set hostname to contents of FILENAME
+    -s	Show short host name (no domain)
 */
 
 #define FOR_hostname

@@ -15,7 +15,7 @@ config MAKEDEVS
 
     Create a range of special files as specified in a device table.
 
-    -d	file containing device table (default reads from stdin)
+    -d	File containing device table (default reads from stdin)
 
     Each line of of the device table has the fields:
     <name> <type> <mode> <uid> <gid> <major> <minor> <start> <increment> <count>

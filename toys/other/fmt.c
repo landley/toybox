@@ -20,7 +20,7 @@ config FMT
     Reformat input to wordwrap at a given line length, preserving existing
     indentation level, writing to stdout.
 
-    -w WIDTH	maximum characters per line (default 75)
+    -w WIDTH	Maximum characters per line (default 75)
 */
 
 #define FOR_fmt

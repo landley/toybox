@@ -12,7 +12,7 @@ config DEMO_NUMBER
 
     -b	Use "B" for single byte units (HR_B)
     -d	Decimal units
-    -h	human readable
+    -h	Human readable
     -s	Space between number and units (HR_SPACE)
 */
 

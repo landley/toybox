@@ -14,7 +14,7 @@ config FREE
     Display the total, free and used amount of physical memory and swap space.
 
     -bkmgt	Output units (default is bytes)
-    -h	Human readable
+    -h	Human readable (K=1024)
 */
 
 #define FOR_free

@@ -14,9 +14,9 @@ config MKDIR
 
     Create one or more directories.
 
-    -m	set permissions of directory to mode
-    -p	make parent directories as needed
-    -v	verbose
+    -m	Set permissions of directory to mode
+    -p	Make parent directories as needed
+    -v	Verbose
 
 config MKDIR_Z
   bool
@@ -25,7 +25,7 @@ config MKDIR_Z
   help
     usage: [-Z context]
 
-    -Z	set security context
+    -Z	Set security context
 */
 
 #define FOR_mkdir

@@ -17,13 +17,13 @@ config TOUCH
 
     Update the access and modification times of each FILE to the current time.
 
-    -a	change access time
-    -m	change modification time
-    -c	don't create file
-    -h	change symlink
-    -d	set time to DATE (in YYYY-MM-DDThh:mm:SS[.frac][tz] format)
-    -t	set time to TIME (in [[CC]YY]MMDDhhmm[.ss][frac] format)
-    -r	set time same as reference FILE
+    -a	Change access time
+    -m	Change modification time
+    -c	Don't create file
+    -h	Change symlink
+    -d	Set time to DATE (in YYYY-MM-DDThh:mm:SS[.frac][tz] format)
+    -t	Set time to TIME (in [[CC]YY]MMDDhhmm[.ss][frac] format)
+    -r	Set time same as reference FILE
 */
 
 #define FOR_touch

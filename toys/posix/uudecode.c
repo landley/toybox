@@ -14,7 +14,7 @@ config UUDECODE
 
     Decode file from stdin (or INFILE).
 
-    -o	write to OUTFILE instead of filename in header
+    -o	Write to OUTFILE instead of filename in header
 */
 
 #define FOR_uudecode

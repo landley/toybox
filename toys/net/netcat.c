@@ -15,10 +15,10 @@ config NETCAT
   help
     usage: netcat [-u] [-wpq #] [-s addr] {IPADDR PORTNUM|-f FILENAME}
 
-    -f	use FILENAME (ala /dev/ttyS0) instead of network
-    -p	local port number
-    -q	quit SECONDS after EOF on stdin, even if stdout hasn't closed yet
-    -s	local source address
+    -f	Use FILENAME (ala /dev/ttyS0) instead of network
+    -p	Local port number
+    -q	Quit SECONDS after EOF on stdin, even if stdout hasn't closed yet
+    -s	Local source address
     -w	SECONDS timeout to establish connection
     -W	SECONDS timeout for more data on an idle connection
 
@@ -32,9 +32,9 @@ config NETCAT_LISTEN
   help
     usage: netcat [-t] [-lL COMMAND...]
 
-    -l	listen for one incoming connection
-    -L	listen for multiple incoming connections (server mode)
-    -t	allocate tty (must come before -l or -L)
+    -l	Listen for one incoming connection
+    -L	Listen for multiple incoming connections (server mode)
+    -t	Allocate tty (must come before -l or -L)
 
     The command line after -l or -L is executed (as a child process) to handle
     each incoming connection. If blank -l waits for a connection and forwards

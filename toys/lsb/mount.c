@@ -19,13 +19,13 @@ config MOUNT
     Mount new filesystem(s) on directories. With no arguments, display existing
     mounts.
 
-    -a	mount all entries in /etc/fstab (with -t, only entries of that TYPE)
-    -O	only mount -a entries that have this option
-    -f	fake it (don't actually mount)
-    -r	read only (same as -o ro)
-    -w	read/write (default, same as -o rw)
-    -t	specify filesystem type
-    -v	verbose
+    -a	Mount all entries in /etc/fstab (with -t, only entries of that TYPE)
+    -O	Only mount -a entries that have this option
+    -f	Fake it (don't actually mount)
+    -r	Read only (same as -o ro)
+    -w	Read/write (default, same as -o rw)
+    -t	Specify filesystem type
+    -v	Verbose
 
     OPTIONS is a comma separated list of options, which can also be supplied
     as --longopts.

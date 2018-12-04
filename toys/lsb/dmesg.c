@@ -24,7 +24,7 @@ config DMESG
     -r	Raw output (with <level markers>)
     -S	Use syslog(2) rather than /dev/kmsg
     -s	Show the last SIZE many bytes
-    -T	Show human-readable timestamps
+    -T	Human readable timestamps
     -t	Don't print timestamps
     -w	Keep waiting for more output (aka --follow)
 */

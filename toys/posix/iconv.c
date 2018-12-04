@@ -18,8 +18,8 @@ config ICONV
     Convert character encoding of files.
 
     -c	Omit invalid chars
-    -f	convert from (default utf8)
-    -t	convert to   (default utf8)
+    -f	Convert from (default utf8)
+    -t	Convert to   (default utf8)
 */
 
 #define FOR_iconv

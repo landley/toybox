@@ -14,7 +14,7 @@ config UUENCODE
 
     Uuencode stdin (or file) to stdout, with encode-filename in the output.
 
-    -m	base64-encode
+    -m	Base64
 */
 
 #define FOR_uuencode

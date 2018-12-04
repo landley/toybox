@@ -29,7 +29,7 @@ config GREP
     -r  Recurse into subdirectories (defaults FILE to ".")
     -M  Match filename pattern (--include)
     -S  Skip filename pattern (--exclude)
-    -I	Ignore binary files
+    -I  Ignore binary files
 
     match type:
     -A  Show NUM lines after     -B  Show NUM lines before match

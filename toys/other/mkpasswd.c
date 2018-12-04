@@ -16,8 +16,8 @@ config MKPASSWD
 
     Crypt PASSWORD using crypt(3)
 
-    -P FD   Read password from file descriptor FD
-    -m TYPE Encryption method (des, md5, sha256, or sha512; default is des)
+    -P FD	Read password from file descriptor FD
+    -m TYPE	Encryption method (des, md5, sha256, or sha512; default is des)
     -S SALT
 */
 

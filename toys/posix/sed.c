@@ -22,8 +22,8 @@ config SED
     Stream editor. Apply one or more editing SCRIPTs to each line of input
     (from FILE or stdin) producing output (by default to stdout).
 
-    -e	add SCRIPT to list
-    -f	add contents of SCRIPT_FILE to list
+    -e	Add SCRIPT to list
+    -f	Add contents of SCRIPT_FILE to list
     -i	Edit each file in place
     -n	No default output (use the p command to output matched lines)
     -r	Use extended regular expression syntax

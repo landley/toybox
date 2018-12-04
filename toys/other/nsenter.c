@@ -25,7 +25,7 @@ config UNSHARE
     Create new container namespace(s) for this process and its children, so
     some attribute is not shared with the parent process.
 
-    -f  Fork command in the background (--fork)
+    -f	Fork command in the background (--fork)
     -i	SysV IPC (message queues, semaphores, shared memory) (--ipc)
     -m	Mount/unmount tree (--mount)
     -n	Network address, sockets, routing, iptables (--net)
@@ -46,8 +46,8 @@ config NSENTER
 
     Run COMMAND in an existing (set of) namespace(s).
 
-    -t  PID to take namespaces from    (--target)
-    -F  don't fork, even if -p is used (--no-fork)
+    -t	PID to take namespaces from    (--target)
+    -F	don't fork, even if -p is used (--no-fork)
 
     The namespaces to switch are:
 

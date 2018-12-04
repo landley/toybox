@@ -15,8 +15,8 @@ config STTY
     Get/set terminal configuration.
 
     -F	Open device instead of stdin
-    -a	Show all current settings (default differences from "sane").
-    -g	Show all current settings usable as input to stty.
+    -a	Show all current settings (default differences from "sane")
+    -g	Show all current settings usable as input to stty
 
     Special characters (syntax ^c or undef): intr quit erase kill eof eol eol2
     swtch start stop susp rprnt werase lnext discard

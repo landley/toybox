@@ -14,9 +14,9 @@ config BASE64
 
     Encode or decode in base64.
 
-    -d	decode
-    -i	ignore non-alphabetic characters
-    -w	wrap output at COLUMNS (default 76 or 0 for no wrap)
+    -d	Decode
+    -i	Ignore non-alphabetic characters
+    -w	Wrap output at COLUMNS (default 76 or 0 for no wrap)
 */
 
 #define FOR_base64

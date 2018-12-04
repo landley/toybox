@@ -22,17 +22,17 @@ config ECHO
 
     -n	No trailing newline
     -e	Process the following escape sequences:
-    	\\	backslash
-    	\0NNN	octal values (1 to 3 digits)
-    	\a	alert (beep/flash)
-    	\b	backspace
-    	\c	stop output here (avoids trailing newline)
-    	\f	form feed
-    	\n	newline
-    	\r	carriage return
-    	\t	horizontal tab
-    	\v	vertical tab
-    	\xHH	hexadecimal values (1 to 2 digits)
+    	\\	Backslash
+    	\0NNN	Octal values (1 to 3 digits)
+    	\a	Alert (beep/flash)
+    	\b	Backspace
+    	\c	Stop output here (avoids trailing newline)
+    	\f	Form feed
+    	\n	Newline
+    	\r	Carriage return
+    	\t	Horizontal tab
+    	\v	Vertical tab
+    	\xHH	Hexadecimal values (1 to 2 digits)
 */
 
 #define FOR_echo

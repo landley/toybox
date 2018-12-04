@@ -28,11 +28,11 @@ config PATCH
 
     Apply a unified diff to one or more files.
 
-    -d	modify files in DIR
+    -d	Modify files in DIR
     -i	Input file (defaults=stdin)
     -l	Loose match (ignore whitespace)
     -p	Number of '/' to strip from start of file paths (default=all)
-    -R	Reverse patch.
+    -R	Reverse patch
     -u	Ignored (only handles "unified" diffs)
     --dry-run Don't change files, just confirm patch applies
 

@@ -17,8 +17,8 @@ config TIME
     (real = clock on the wall, user = cpu used by command's code,
     system = cpu used by OS on behalf of command.)
 
-    -p	posix mode (default)
-    -v	verbose mode
+    -p	POSIX format output (default)
+    -v	Verbose
 */
 
 #define FOR_time

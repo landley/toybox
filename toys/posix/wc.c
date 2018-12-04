@@ -14,10 +14,10 @@ config WC
 
     Count lines, words, and characters in input.
 
-    -l	show lines
-    -w	show words
-    -c	show bytes
-    -m	show characters
+    -l	Show lines
+    -w	Show words
+    -c	Show bytes
+    -m	Show characters
 
     By default outputs lines, words, bytes, and filename for each
     argument (or from stdin if none). Displays only either bytes

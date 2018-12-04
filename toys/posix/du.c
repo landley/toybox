@@ -19,18 +19,18 @@ config DU
     Size in:
     -k	1024 byte blocks (default)
     -K	512 byte blocks (posix)
-    -m	megabytes
-    -h	human readable format (e.g., 1K 243M 2G )
+    -m	Megabytes
+    -h	Human readable (K=1024)
 
     What to show:
-    -a	all files, not just directories
-    -H	follow symlinks on cmdline
-    -L	follow all symlinks
-    -s	only total size of each argument
-    -x	don't leave this filesystem
-    -c	cumulative total
-    -d N	only depth < N
-    -l	disable hardlink filter
+    -a	All files, not just directories
+    -H	Follow symlinks on cmdline
+    -L	Follow all symlinks
+    -s	Only total size of each argument
+    -x	Don't leave this filesystem
+    -c	Cumulative total
+    -d N	Only depth < N
+    -l	Disable hardlink filter
 */
 
 #define FOR_du

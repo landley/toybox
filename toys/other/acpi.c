@@ -14,11 +14,11 @@ config ACPI
     
     Show status of power sources and thermal devices.
 
-    -a	show power adapters
-    -b	show batteries
-    -c	show cooling device state
-    -t	show temperatures
-    -V	show everything
+    -a	Show power adapters
+    -b	Show batteries
+    -c	Show cooling device state
+    -t	Show temperatures
+    -V	Show everything
 */
 
 #define FOR_acpi

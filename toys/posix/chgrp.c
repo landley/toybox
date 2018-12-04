@@ -16,13 +16,13 @@ config CHGRP
 
     Change group of one or more files.
 
-    -f	suppress most error messages.
-    -h	change symlinks instead of what they point to
-    -R	recurse into subdirectories (implies -h)
-    -H	with -R change target of symlink, follow command line symlinks
-    -L	with -R change target of symlink, follow all symlinks
-    -P	with -R change symlink, do not follow symlinks (default)
-    -v	verbose output
+    -f	Suppress most error messages
+    -h	Change symlinks instead of what they point to
+    -R	Recurse into subdirectories (implies -h)
+    -H	With -R change target of symlink, follow command line symlinks
+    -L	With -R change target of symlink, follow all symlinks
+    -P	With -R change symlink, do not follow symlinks (default)
+    -v	Verbose
 
 config CHOWN
   bool "chown"

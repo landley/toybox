@@ -36,7 +36,7 @@ config KILLALL5
 
     -l	List signal name(s) and number(s)
     -o PID	Omit PID
-    -s	send SIGNAL (default SIGTERM)
+    -s	Send SIGNAL (default SIGTERM)
 */
 
 // This has to match the filename:

@@ -16,10 +16,10 @@ config SU
 
     Switch to user (or root) and run shell (with optional command line).
 
-    -s	shell to use
-    -c	command to pass to shell with -c
-    -l	login shell
-    -(m|p)	preserve environment
+    -s	Shell to use
+    -c	Command to pass to shell with -c
+    -l	Login shell
+    -(m|p)	Preserve environment
 */
 
 #define FOR_su

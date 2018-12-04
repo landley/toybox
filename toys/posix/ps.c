@@ -63,13 +63,13 @@ config PS
 
     Which processes to show (-gGuUpPt selections may be comma separated lists):
 
-    -A  all					-a  has terminal not session leader
-    -d  All but session leaders		-e  synonym for -A
-    -g  in GROUPs				-G  in real GROUPs (before sgid)
+    -A  All					-a  Has terminal not session leader
+    -d  All but session leaders		-e  Synonym for -A
+    -g  In GROUPs				-G  In real GROUPs (before sgid)
     -p  PIDs (--pid)			-P  Parent PIDs (--ppid)
     -s  In session IDs			-t  Attached to selected TTYs
     -T  Show threads also			-u  Owned by selected USERs
-    -U  real USERs (before suid)
+    -U  Real USERs (before suid)
 
     Output modifiers:
 
@@ -169,7 +169,7 @@ config PKILL
     usage: pkill [-fnovx] [-SIGNAL|-l SIGNAL] [PATTERN] [-G GID,] [-g PGRP,] [-P PPID,] [-s SID,] [-t TERM,] [-U UID,] [-u EUID,]
 
     -l	Send SIGNAL (default SIGTERM)
-    -V	verbose
+    -V	Verbose
     -f	Check full command line for PATTERN
     -G	Match real Group ID(s)
     -g	Match Process Group(s) (0 is current user)

@@ -19,8 +19,8 @@ config DF
     -a	Show all (including /proc and friends)
     -P	The SUSv3 "Pedantic" option
     -k	Sets units back to 1024 bytes (the default without -P)
-    -h	Human readable output (K=1024)
-    -H	Human readable output (k=1000)
+    -h	Human readable (K=1024)
+    -H	Human readable (k=1000)
     -i	Show inodes instead of blocks
     -t type	Display only filesystems of this type
 

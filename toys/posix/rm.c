@@ -14,9 +14,9 @@ config RM
 
     Remove each argument from the filesystem.
 
-    -f	force: remove without confirmation, no error if it doesn't exist
-    -i	interactive: prompt for confirmation
-    -rR	recursive: remove directory contents
+    -f	Force: remove without confirmation, no error if it doesn't exist
+    -i	Interactive: prompt for confirmation
+    -rR	Recursive: remove directory contents
 */
 
 #define FOR_rm

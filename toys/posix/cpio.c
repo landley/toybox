@@ -27,14 +27,14 @@ config CPIO
 
     copy files into and out of a "newc" format cpio archive
 
-    -F FILE	use archive FILE instead of stdin/stdout
-    -p DEST	copy-pass mode, copy stdin file list to directory DEST
-    -i	extract from archive into file system (stdin=archive)
-    -o	create archive (stdin=list of files, stdout=archive)
-    -t	test files (list only, stdin=archive, stdout=list of files)
-    -v	verbose (list files during create/extract)
+    -F FILE	Use archive FILE instead of stdin/stdout
+    -p DEST	Copy-pass mode, copy stdin file list to directory DEST
+    -i	Extract from archive into file system (stdin=archive)
+    -o	Create archive (stdin=list of files, stdout=archive)
+    -t	Test files (list only, stdin=archive, stdout=list of files)
+    -v	Verbose
     --no-preserve-owner (don't set ownership during extract)
-    --trailer Add legacy trailer (prevents concatenation).
+    --trailer Add legacy trailer (prevents concatenation)
 */
 
 #define FOR_cpio
