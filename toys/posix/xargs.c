@@ -120,7 +120,7 @@ void xargs_main(void)
   posix_max_bytes = sysconf(_SC_ARG_MAX) - environ_bytes() - 2048;
   if (!TT.s || TT.s > posix_max_bytes) TT.s = posix_max_bytes;
 
-  if (!(toys.optflags & FLAG_0)) TT.delim = '\n';
+  if (!FLAG(0)) TT.delim = '\n';
 
   // If no optargs, call echo.
   if (!toys.optc) {

@@ -136,7 +136,7 @@ static void do_tail(int fd, char *name)
   long bytes = TT.c, lines = TT.n;
   int linepop = 1;
 
-  if (toys.optflags & FLAG_f) {
+  if (FLAG(f)) {
     int f = TT.file_no*2;
     char *s = name;
 
@@ -223,7 +223,7 @@ void tail_main(void)
 {
   char **args = toys.optargs;
 
-  if (!(toys.optflags&(FLAG_n|FLAG_c))) {
+  if (!FLAG(n) && !FLAG(c)) {
     char *arg = *args;
 
     // handle old "-42" style arguments
@@ -237,14 +237,13 @@ void tail_main(void)
   }
 
   // Allocate 2 ints per optarg for -f
-  if (toys.optflags&FLAG_f) {
+  if (FLAG(f)) {
     if ((TT.ffd = inotify_init()) < 0) perror_exit("inotify_init");
     TT.files = xmalloc(toys.optc*8);
   }
-  loopfiles_rw(args, O_RDONLY|WARN_ONLY|(O_CLOEXEC*!(toys.optflags&FLAG_f)),
-    0, do_tail);
+  loopfiles_rw(args, O_RDONLY|WARN_ONLY|(O_CLOEXEC*!FLAG(f)), 0, do_tail);
 
-  if ((toys.optflags & FLAG_f) && TT.file_no) {
+  if (FLAG(f) && TT.file_no) {
     int len, last_fd = TT.files[(TT.file_no-1)*2], i, fd;
     struct inotify_event ev;
 

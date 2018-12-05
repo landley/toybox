@@ -45,7 +45,7 @@ void time_main(void)
     r = (tv2.tv_sec-tv.tv_sec)+((tv2.tv_usec-tv.tv_usec)/1000000.0);
     u = ru.ru_utime.tv_sec+(ru.ru_utime.tv_usec/1000000.0);
     s = ru.ru_stime.tv_sec+(ru.ru_stime.tv_usec/1000000.0);
-    if (toys.optflags&FLAG_v) {
+    if (FLAG(v)) {
       fprintf(stderr, "Real time (s): %f\n"
                       "System time (s): %f\n"
                       "User time (s): %f\n"

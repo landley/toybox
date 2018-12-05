@@ -50,10 +50,10 @@ static char *skip(char *str)
 
 static void print_line(FILE *f, char *line)
 {
-  if (toys.optflags & (TT.repeats ? FLAG_u : FLAG_d)) return;
-  if (toys.optflags & FLAG_c) fprintf(f, "%7lu ", TT.repeats + 1);
+  if (TT.repeats ? FLAG(u) : FLAG(d)) return;
+  if (FLAG(c)) fprintf(f, "%7lu ", TT.repeats + 1);
   fputs(line, f);
-  if (toys.optflags & FLAG_z) fputc(0, f);
+  if (FLAG(z)) fputc(0, f);
 }
 
 void uniq_main(void)
@@ -65,7 +65,7 @@ void uniq_main(void)
   if (toys.optc >= 1) infile = xfopen(toys.optargs[0], "r");
   if (toys.optc >= 2) outfile = xfopen(toys.optargs[1], "w");
 
-  if (toys.optflags & FLAG_z) eol = 0;
+  if (FLAG(z)) eol = 0;
 
   // If first line can't be read
   if (getdelim(&prevline, &prevsize, eol, infile) < 0) return;
@@ -84,9 +84,8 @@ void uniq_main(void)
     }
 
     if (!TT.w)
-      diff = !(toys.optflags & FLAG_i) ? strcmp(t1, t2) : strcasecmp(t1, t2);
-    else diff = !(toys.optflags & FLAG_i) ? strncmp(t1, t2, TT.w)
-                  : strncasecmp(t1, t2, TT.w);
+      diff = !FLAG(i) ? strcmp(t1, t2) : strcasecmp(t1, t2);
+    else diff = !FLAG(i) ? strncmp(t1, t2, TT.w) : strncasecmp(t1, t2, TT.w);
 
     if (!diff) TT.repeats++;
     else {

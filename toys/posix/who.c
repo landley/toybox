@@ -31,7 +31,7 @@ void who_main(void)
   setutxent();
 
   while ((entry = getutxent())) {
-    if ((toys.optflags & FLAG_a) || entry->ut_type == USER_PROCESS) {
+    if (FLAG(a) || entry->ut_type == USER_PROCESS) {
       time_t time;
       int time_size;
       char *times;

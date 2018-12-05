@@ -42,7 +42,7 @@ static void show_lengths(unsigned long *lengths, char *name)
   // And, yes, folks have test scripts that rely on all this nonsense :-(
   // Note: sufficiently modern versions of coreutils wc will use the smallest
   // column width necessary to have all columns be equal width rather than 0.
-  if (!(toys.optc==0 && (toys.optflags & (toys.optflags-1))==0) && toys.optc!=1)
+  if (!(!toys.optc && !(toys.optflags & (toys.optflags-1))) && toys.optc!=1)
     space = 7;
 
   for (i = 0; i<4; i++) {
@@ -82,7 +82,7 @@ static void do_wc(int fd, char *name)
     for (pos = 0; pos<len; pos++) {
       if (toybuf[pos]=='\n') lengths[0]++;
       lengths[2]++;
-      if (toys.optflags&FLAG_m) {
+      if (FLAG(m)) {
         // If we've consumed next wide char
         if (--clen<1) {
           wchar_t wchar;

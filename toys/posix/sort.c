@@ -250,7 +250,7 @@ static int compare_keys(const void *xarg, const void *yarg)
 
   // Perform fallback sort if necessary (always case insensitive, no -f,
   // the point is to get a stable order even for -f sorts)
-  if (!retval && !(toys.optflags&FLAG_s)) {
+  if (!retval && !FLAG(s)) {
     flags = toys.optflags;
     retval = strcmp(xx, yy);
   }
@@ -264,14 +264,13 @@ static void sort_read(int fd, char *name)
   // Read each line from file, appending to a big array.
 
   for (;;) {
-    char * line = (toys.optflags&FLAG_z)
-             ? get_rawline(fd, NULL, 0) : get_line(fd);
+    char * line = FLAG(z) ? get_rawline(fd, NULL, 0) : get_line(fd);
 
     if (!line) break;
 
     // handle -c here so we don't allocate more memory than necessary.
-    if (toys.optflags&FLAG_c) {
-      int j = (toys.optflags&FLAG_u) ? -1 : 0;
+    if (FLAG(c)) {
+      int j = FLAG(u) ? -1 : 0;
 
       if (TT.lines && compare_keys((void *)&TT.lines, &line)>j)
         error_exit("%s: Check line %d\n", name, TT.linecount);
@@ -343,7 +342,7 @@ void sort_main(void)
   }
 
   // global b flag strips both leading and trailing spaces
-  if (toys.optflags&FLAG_b) toys.optflags |= FLAG_bb;
+  if (FLAG(b)) toys.optflags |= FLAG_bb;
 
   // If no keys, perform alphabetic sort over the whole line.
   if (!TT.key_list) add_key()->range[0] = 1;
@@ -353,13 +352,13 @@ void sort_main(void)
 
   // The compare (-c) logic was handled in sort_read(),
   // so if we got here, we're done.
-  if (toys.optflags&FLAG_c) goto exit_now;
+  if (FLAG(c)) goto exit_now;
 
   // Perform the actual sort
   qsort(TT.lines, TT.linecount, sizeof(char *), compare_keys);
 
   // handle unique (-u)
-  if (toys.optflags&FLAG_u) {
+  if (FLAG(u)) {
     int jdx;
 
     for (jdx=0, idx=1; idx<TT.linecount; idx++) {
@@ -375,7 +374,7 @@ void sort_main(void)
     char *s = TT.lines[idx];
     unsigned i = strlen(s);
 
-    if (!(toys.optflags&FLAG_z)) s[i] = '\n';
+    if (!FLAG(z)) s[i] = '\n';
     xwrite(fd, s, i+1);
     if (CFG_TOYBOX_FREE) free(s);
   }

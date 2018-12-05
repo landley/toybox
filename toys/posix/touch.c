@@ -41,7 +41,7 @@ void touch_main(void)
 
   // use current time if no -t or -d
   ts[0].tv_nsec = UTIME_NOW;
-  if (toys.optflags & (FLAG_t|FLAG_d)) {
+  if (FLAG(t) || FLAG(d)) {
     char *s, *date, **format;
     struct tm tm;
     int len = 0;
@@ -51,7 +51,7 @@ void touch_main(void)
     ts->tv_nsec = 0;
 
     // List of search types
-    if (toys.optflags & FLAG_d) {
+    if (FLAG(d)) {
       format = (char *[]){"%Y-%m-%dT%T", "%Y-%m-%d %T", 0};
       date = TT.d;
     } else {
@@ -67,7 +67,7 @@ void touch_main(void)
     }
 
     while (*format) {
-      if (toys.optflags&FLAG_t) {
+      if (FLAG(t)) {
         s = strchr(date, '.');
         if ((s ? s-date : strlen(date)) != strlen(*format)) {
           format++;
@@ -83,7 +83,7 @@ void touch_main(void)
       // parse nanoseconds
       if (s && *s=='.' && isdigit(s[1])) {
         s++;
-        if (toys.optflags&FLAG_t)
+        if (FLAG(t))
           if (1 == sscanf(s, "%2u%n", &(tm.tm_sec), &len)) s += len;
         if (1 == sscanf(s, "%lu%n", &ts->tv_nsec, &len)) {
           s += len;
@@ -122,9 +122,8 @@ void touch_main(void)
       if (!futimens(1, ts)) continue;
     } else {
       // cheat: FLAG_h is rightmost flag, so its value is 1
-      if (!utimensat(AT_FDCWD, s, ts,
-          (toys.optflags & FLAG_h)*AT_SYMLINK_NOFOLLOW)) continue;
-      if (toys.optflags & FLAG_c) continue;
+      if (!utimensat(AT_FDCWD, s, ts, FLAG(h)*AT_SYMLINK_NOFOLLOW)) continue;
+      if (FLAG(c)) continue;
       if (access(s, F_OK) && (-1!=(fd = open(s, O_CREAT, 0666)))) {
         close(fd);
         if (toys.optflags) ss--;

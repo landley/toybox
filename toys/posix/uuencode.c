@@ -24,7 +24,7 @@ void uuencode_main(void)
 {
   char *name = toys.optargs[toys.optc-1], buf[(76/4)*3];
 
-  int i, m = toys.optflags & FLAG_m, fd = 0;
+  int i, m = FLAG(m), fd = 0;
 
   if (toys.optc > 1) fd = xopenro(toys.optargs[0]);
 
