@@ -266,7 +266,7 @@ extern CODE prioritynames[], facilitynames[];
 #if CFG_TOYBOX_GETRANDOM
 #include <sys/random.h>
 #endif
-void xgetrandom(void *buf, unsigned len, unsigned flags);
+int xgetrandom(void *buf, unsigned len, unsigned flags);
 
 // Android's bionic libc doesn't have confstr.
 #ifdef __BIONIC__
