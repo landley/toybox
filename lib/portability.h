@@ -7,6 +7,17 @@
 // For musl
 #define _ALL_SOURCE
 
+#ifdef __APPLE__
+// macOS 10.13 doesn't have the POSIX 2008 direct access to timespec in
+// struct stat, but we can ask it to give us something equivalent...
+// (This must come before any #include!)
+#define _DARWIN_C_SOURCE
+// ...and then use macros to paper over the difference.
+#define st_atim st_atimespec
+#define st_ctim st_ctimespec
+#define st_mtim st_mtimespec
+#endif
+
 // Test for gcc (using compiler builtin #define)
 
 #ifdef __GNUC__
