@@ -20,7 +20,7 @@ config DU
     -k	1024 byte blocks (default)
     -K	512 byte blocks (posix)
     -m	Megabytes
-    -h	Human readable (K=1024)
+    -h	Human readable (e.g., 1K 243M 2G)
 
     What to show:
     -a	All files, not just directories
