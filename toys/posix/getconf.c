@@ -37,6 +37,20 @@ config GETCONF
 #define UIO_MAXIOV 1024
 #endif
 
+#ifdef __APPLE__
+// macOS doesn't have a bunch of stuff. The actual macOS getconf says
+// "no such parameter", but -- unless proven otherwise -- it seems more useful
+// for portability if we act like we understood but say "undefined"?
+#define _SC_AVPHYS_PAGES -1
+#define _SC_THREAD_ROBUST_PRIO_INHERIT -1
+#define _SC_THREAD_ROBUST_PRIO_PROTECT -1
+#define _SC_V7_ILP32_OFF32 -1
+#define _SC_V7_ILP32_OFFBIG -1
+#define _SC_V7_LP64_OFF64 -1
+#define _SC_V7_LPBIG_OFFBIG -1
+#define _CS_V7_ENV -1
+#endif
+
 struct config {
   char *name;
   long long value;
