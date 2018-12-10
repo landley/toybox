@@ -234,7 +234,8 @@ static void do_grep(int fd, char *name)
           while (dlb) {
             struct double_list *dl = dlist_pop(&dlb);
 
-            outline(dl->data, '-', name, lcount-before, 0, -1);
+            outline(dl->data, '-', name, lcount-before,
+              *(unsigned *)(dl->data+((strlen(dl->data)+1)|3)+1)+1, -1);
             free(dl->data);
             free(dl);
             before--;
@@ -260,6 +261,10 @@ static void do_grep(int fd, char *name)
         discard = 0;
       }
       if (discard && TT.B) {
+        if (FLAG(b)) {
+          line = xrealloc(line, (ulen|3)+4);
+          *(unsigned *)(line+(ulen|3)+1) = offset-len;
+        }
         dlist_add(&dlb, line);
         line = 0;
         if (++before>TT.B) {
