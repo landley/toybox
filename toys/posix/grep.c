@@ -68,7 +68,7 @@ GLOBALS(
   struct arg_list *f, *e, *M, *S;
 
   char indelim, outdelim;
-  int found;
+  int found, tried;
 )
 
 // Emit line with various potential prefixes and delimiter
@@ -92,6 +92,7 @@ static void do_grep(int fd, char *name)
   FILE *file;
   int bin = 0;
 
+  TT.tried++;
   if (!fd) name = "(standard input)";
 
   // Only run binary file check on lseekable files.
@@ -248,7 +249,7 @@ static void do_grep(int fd, char *name)
       }
 
       start += skip;
-      if (!(toys.optflags & FLAG_o)) break;
+      if (!FLAG(o)) break;
     } while (*start);
     offset += len;
 
@@ -422,5 +423,5 @@ void grep_main(void)
       else dirtree_read(*ss, do_grep_r);
     }
   } else loopfiles_rw(ss, O_RDONLY|WARN_ONLY, 0, do_grep);
-  toys.exitval = !TT.found;
+  if (TT.tried == toys.optc || (FLAG(q)&&TT.found)) toys.exitval = !TT.found;
 }
