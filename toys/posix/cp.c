@@ -375,6 +375,10 @@ void cp_main(void)
   }
   // Not using comma_args() (yet?) because interpeting as letters.
   if (CFG_CP_PRESERVE && (toys.optflags & FLAG_preserve)) {
+    // TT.c.preserve is NULL when using `cp --preserve foo bar`
+    if (!TT.c.preserve)
+      error_exit("bad syntax: --preserve without equal sign");
+
     char *pre = xstrdup(TT.c.preserve), *s;
 
     if (comma_scan(pre, "all", 1)) TT.pflags = ~0;
