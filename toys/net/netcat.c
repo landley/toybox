@@ -7,7 +7,7 @@
  * netcat -L zombies
 
 USE_NETCAT(OLDTOY(nc, netcat, TOYFLAG_USR|TOYFLAG_BIN))
-USE_NETCAT(NEWTOY(netcat, USE_NETCAT_LISTEN("^tlL")"w#<1W#<1p#<1>65535q#<1s:f:46"USE_NETCAT_LISTEN("[!tlL][!Lw]")"[!46]", TOYFLAG_BIN))
+USE_NETCAT(NEWTOY(netcat, USE_NETCAT_LISTEN("^tlL")"w#<1W#<1p#<1>65535q#<1s:f:46u"USE_NETCAT_LISTEN("[!tlL][!Lw]")"[!46]", TOYFLAG_BIN))
 
 config NETCAT
   bool "netcat"
@@ -21,6 +21,7 @@ config NETCAT
     -p	Local port number
     -q	Quit SECONDS after EOF on stdin, even if stdout hasn't closed yet
     -s	Local source address
+    -u	Use UDP
     -w	SECONDS timeout to establish connection
     -W	SECONDS timeout for more data on an idle connection
 
@@ -72,6 +73,7 @@ void netcat_main(void)
 {
   int sockfd = -1, in1 = 0, in2 = 0, out1 = 1, out2 = 1;
   int family = AF_UNSPEC;
+  int type = SOCK_STREAM;
   pid_t child;
 
   // Addjust idle and quit_delay to miliseconds or -1 for no timeout
@@ -91,12 +93,15 @@ void netcat_main(void)
   else if (toys.optflags&FLAG_6)
     family = AF_INET6;
 
+  if (toys.optflags&FLAG_u)
+    type = SOCK_DGRAM;
+
   if (TT.f) in1 = out2 = xopen(TT.f, O_RDWR);
   else {
     // Setup socket
     if (!(toys.optflags&(FLAG_L|FLAG_l))) {
       struct addrinfo *addr = xgetaddrinfo(toys.optargs[0], toys.optargs[1],
-                                           family, SOCK_STREAM, 0, 0);
+                                           family, type, 0, 0);
       sockfd = xconnect(addr);
 
       // We have a connection. Disarm timeout.
@@ -115,7 +120,7 @@ void netcat_main(void)
         struct addrinfo* bind_addr;
 
         sprintf(port, "%ld", TT.p);
-        bind_addr = xgetaddrinfo(TT.s, port, family, SOCK_STREAM, 0, 0);
+        bind_addr = xgetaddrinfo(TT.s, port, family, type, 0, 0);
         sockfd = xbind(bind_addr);
       } else {
         size_t bind_addrlen;
@@ -134,7 +139,7 @@ void netcat_main(void)
           addr_in->sin_addr.s_addr = INADDR_ANY;
         }
 
-        sockfd = xsocket(family, SOCK_STREAM, 0);
+        sockfd = xsocket(family, type, 0);
         if (bind(sockfd, address, bind_addrlen))
           perror_exit("bind");
       }
