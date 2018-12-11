@@ -369,13 +369,12 @@ void cp_main(void)
   if ((toys.optc>1 || (toys.optflags&FLAG_D)) && !destdir)
     error_exit("'%s' not directory", destname);
 
-  if (toys.optflags & (FLAG_a|FLAG_p)) {
+  if (toys.optflags & (FLAG_a|FLAG_p))
     TT.pflags = _CP_mode|_CP_ownership|_CP_timestamps;
-    umask(0);
-  }
+
   // Not using comma_args() (yet?) because interpeting as letters.
   if (CFG_CP_PRESERVE && (toys.optflags & FLAG_preserve)) {
-    char *pre = xstrdup(TT.c.preserve), *s;
+    char *pre = xstrdup(TT.c.preserve ? TT.c.preserve : "mot"), *s;
 
     if (comma_scan(pre, "all", 1)) TT.pflags = ~0;
     for (i=0; i<ARRAY_LEN(cp_preserve); i++)
@@ -383,7 +382,7 @@ void cp_main(void)
     if (*pre) {
 
       // Try to interpret as letters, commas won't set anything this doesn't.
-      for (s = TT.c.preserve; *s; s++) {
+      for (s = pre; *s; s++) {
         for (i=0; i<ARRAY_LEN(cp_preserve); i++)
           if (*s == *cp_preserve[i].name) break;
         if (i == ARRAY_LEN(cp_preserve)) {
@@ -396,6 +395,7 @@ void cp_main(void)
     }
     free(pre);
   }
+  if (TT.pflags & _CP_mode) umask(0);
   if (!TT.callback) TT.callback = cp_node;
 
   // Loop through sources
