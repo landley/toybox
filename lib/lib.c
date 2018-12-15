@@ -747,7 +747,7 @@ void replace_tempfile(int fdin, int fdout, char **tempname)
     xclose(fdin);
   }
   xclose(fdout);
-  rename(*tempname, temp);
+  xrename(*tempname, temp);
   tempfile2zap = (char *)1;
   free(*tempname);
   free(temp);

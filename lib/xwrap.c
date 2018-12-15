@@ -378,6 +378,11 @@ int notstdio(int fd)
   return fd;
 }
 
+void xrename(char *from, char *to)
+{
+  if (rename(from, to)) perror_exit("rename %s -> %s", from, to);
+}
+
 int xtempfile(char *name, char **tempname)
 {
   int fd;

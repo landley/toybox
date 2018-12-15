@@ -138,6 +138,7 @@ int xrun(char **argv);
 int xpspawn(char **argv, int*pipes);
 void xaccess(char *path, int flags);
 void xunlink(char *path);
+void xrename(char *from, char *to);
 int xtempfile(char *name, char **tempname);
 int xcreate(char *path, int flags, int mode);
 int xopen(char *path, int flags);
