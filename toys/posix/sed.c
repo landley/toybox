@@ -11,7 +11,7 @@
  *       What's the right thing to do for -i when write fails? Skip to next?
  * test '//q' with no previous regex, also repeat previous regex?
 
-USE_SED(NEWTOY(sed, "(help)(version)e*f*inEr[+Er]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE|TOYFLAG_NOHELP))
+USE_SED(NEWTOY(sed, "(help)(version)e*f*i:;nEr[+Er]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE|TOYFLAG_NOHELP))
 
 config SED
   bool "sed"
@@ -24,7 +24,7 @@ config SED
 
     -e	Add SCRIPT to list
     -f	Add contents of SCRIPT_FILE to list
-    -i	Edit each file in place
+    -i	Edit each file in place (-iEXT keeps backup file with extension EXT)
     -n	No default output (use the p command to output matched lines)
     -r	Use extended regular expression syntax
     -E	Alias for -r
@@ -170,6 +170,7 @@ config SED
 #include "toys.h"
 
 GLOBALS(
+  char *i;
   struct arg_list *f, *e;
 
   // processed pattern list
@@ -640,6 +641,12 @@ static void do_sed_file(int fd, char *name)
   }
   do_lines(fd, sed_line);
   if (FLAG(i)) {
+    if (TT.i && *TT.i) {
+      char *s = xmprintf("%s%s", name, TT.i);
+
+      xrename(name, s);
+      free(s);
+    }
     replace_tempfile(-1, TT.fdout, &tmp);
     TT.fdout = 1;
     TT.nextline = 0;
