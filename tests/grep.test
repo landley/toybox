@@ -151,3 +151,6 @@ testing "explicit BRE |" "grep -e 'uno|dos'" "uno|dos\n" \
   "" "uno\ndos\nuno|dos\n"
 testing "explicit ERE |" "grep -E 'uno|dos'" "uno\ndos\nuno|dos\n" \
   "" "uno\ndos\nuno|dos\n"
+
+testing "" "grep -o -e iss -e ipp" "iss\niss\nipp\n" "" "mississippi"
+testing "" "grep -o -e gum -e rgu" "rgu\n" "" "argument"

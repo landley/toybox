@@ -131,7 +131,6 @@ static void do_grep(int fd, char *name)
   // Loop through lines of input
   for (;;) {
     char *line = 0, *start;
-    regmatch_t *mm = (void *)toybuf;
     struct reg *shoe;
     size_t ulen;
     long len;
@@ -147,13 +146,12 @@ static void do_grep(int fd, char *name)
 
     // Prepare for next line
     start = line;
-    if (TT.reg) for (shoe = (void *)TT.reg;;) {
+    if (TT.reg) for (shoe = (void *)TT.reg; shoe; shoe = shoe->next)
       shoe->rc = 0;
-      if ((shoe = shoe->next) == (void *)TT.reg) break;
-    }
 
     // Loop to handle multiple matches in same line
     do {
+      regmatch_t *mm = (void *)toybuf;
       int rc, skip = 0;
 
       // Handle "fixed" (literal) matches
@@ -184,24 +182,27 @@ static void do_grep(int fd, char *name)
 
       // Handle regex matches
       } else {
-        mm->rm_so = mm->rm_eo = 0;
+        mm->rm_so = INT_MAX;
         rc = 1;
-        for (shoe = (void *)TT.reg;;) {
+        for (shoe = (void *)TT.reg; shoe; shoe = shoe->next) {
 
           // Do we need to re-check this regex?
-          if (!shoe->rc && (!matched || (shoe->m.rm_so -= baseline)<0))
-            shoe->rc = regexec0(&shoe->r, start, ulen-(start-line), 1,
-                                &shoe->m, start==line ? 0 : REG_NOTBOL);
+          if (!shoe->rc) {
+            shoe->m.rm_so -= baseline;
+            shoe->m.rm_eo -= baseline;
+            if (!matched || shoe->m.rm_so<0)
+              shoe->rc = regexec0(&shoe->r, start, ulen-(start-line), 1,
+                                  &shoe->m, start==line ? 0 : REG_NOTBOL);
+          }
 
           // If we got a match, is it a _better_ match?
-          if (!shoe->rc && (mm->rm_so < shoe->m.rm_so ||
-              (mm->rm_so == shoe->m.rm_so && shoe->m.rm_eo >= skip)))
+          if (!shoe->rc && (shoe->m.rm_so < mm->rm_so ||
+              (shoe->m.rm_so == mm->rm_so && shoe->m.rm_eo >= skip)))
           {
             mm = &shoe->m;
             skip = mm->rm_eo;
             rc = 0;
           }
-          if ((shoe = shoe->next) == (void *)TT.reg) break;
         }
         baseline = skip;
       }
@@ -373,9 +374,10 @@ static void parse_regex(void)
 
     // Convert regex list
     for (al = TT.e; al; al = al->next) {
-      struct reg *shoe = xmalloc(sizeof(struct reg));
+      struct reg *shoe;
 
-      dlist_add_nomalloc(&TT.reg, (void *)shoe);
+      if (FLAG(o) && !*al->arg) continue;
+      dlist_add_nomalloc(&TT.reg, (void *)(shoe = xmalloc(sizeof(struct reg))));
       i = regcomp(&shoe->r, al->arg,
                   (REG_EXTENDED*!!FLAG(E)) | (REG_ICASE*!!FLAG(i)));
       if (i) {
@@ -383,6 +385,7 @@ static void parse_regex(void)
         error_exit("bad REGEX '%s': %s", al->arg, toybuf);
       }
     }
+    dlist_terminate(TT.reg);
   }
 }
 
