@@ -4,7 +4,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/grep.html
  *
- * TODO:  --color
+ * TODO: --color
  *
  * Posix doesn't even specify -r, documenting deviations from it is silly.
 
@@ -67,9 +67,17 @@ GLOBALS(
   long m, A, B, C;
   struct arg_list *f, *e, *M, *S;
 
+  struct double_list *reg;
   char indelim, outdelim;
   int found, tried;
 )
+
+struct reg {
+  struct reg *next, *prev;
+  regex_t r;
+  int rc;
+  regmatch_t m;
+};
 
 // Emit line with various potential prefixes and delimiter
 static void outline(char *line, char dash, char *name, long lcount, long bcount,
@@ -123,11 +131,13 @@ static void do_grep(int fd, char *name)
   // Loop through lines of input
   for (;;) {
     char *line = 0, *start;
-    regmatch_t matches;
+    regmatch_t *mm = (void *)toybuf;
+    struct reg *shoe;
     size_t ulen;
     long len;
-    int mmatch = 0;
+    int matched = 0, baseline = 0;
 
+    // get next line, check and trim delimiter
     lcount++;
     errno = 0;
     ulen = len = getdelim(&line, &ulen, TT.indelim, file);
@@ -135,14 +145,19 @@ static void do_grep(int fd, char *name)
     if (len<1) break;
     if (line[ulen-1] == TT.indelim) line[--ulen] = 0;
 
+    // Prepare for next line
     start = line;
+    if (TT.reg) for (shoe = (void *)TT.reg;;) {
+      shoe->rc = 0;
+      if ((shoe = shoe->next) == (void *)TT.reg) break;
+    }
 
     // Loop to handle multiple matches in same line
     do {
-      int rc = 0, skip = 0;
+      int rc, skip = 0;
 
       // Handle "fixed" (literal) matches
-      if (toys.optflags & FLAG_F) {
+      if (FLAG(F)) {
         struct arg_list *seek, fseek;
         char *s = 0;
 
@@ -162,33 +177,51 @@ static void do_grep(int fd, char *name)
         }
 
         if (s) {
-          matches.rm_so = (s-line);
-          skip = matches.rm_eo = (s-line)+strlen(seek->arg);
+          rc = 0;
+          mm->rm_so = (s-line);
+          skip = mm->rm_eo = (s-line)+strlen(seek->arg);
         } else rc = 1;
 
       // Handle regex matches
       } else {
-        rc = regexec0((void *)toybuf, start, ulen-(start-line), 1, &matches,
-                     start==line ? 0 : REG_NOTBOL);
-        skip = matches.rm_eo;
+        mm->rm_so = mm->rm_eo = 0;
+        rc = 1;
+        for (shoe = (void *)TT.reg;;) {
+
+          // Do we need to re-check this regex?
+          if (!shoe->rc && (!matched || (shoe->m.rm_so -= baseline)<0))
+            shoe->rc = regexec0(&shoe->r, start, ulen-(start-line), 1,
+                                &shoe->m, start==line ? 0 : REG_NOTBOL);
+
+          // If we got a match, is it a _better_ match?
+          if (!shoe->rc && (mm->rm_so < shoe->m.rm_so ||
+              (mm->rm_so == shoe->m.rm_so && shoe->m.rm_eo >= skip)))
+          {
+            mm = &shoe->m;
+            skip = mm->rm_eo;
+            rc = 0;
+          }
+          if ((shoe = shoe->next) == (void *)TT.reg) break;
+        }
+        baseline = skip;
       }
 
-      if (toys.optflags & FLAG_x)
-        if (matches.rm_so || line[matches.rm_eo]) rc = 1;
+      if (!rc && FLAG(x))
+        if (mm->rm_so || line[mm->rm_eo]) rc = 1;
 
-      if (!rc && (toys.optflags & FLAG_w)) {
+      if (!rc && FLAG(w)) {
         char c = 0;
 
-        if ((start+matches.rm_so)!=line) {
-          c = start[matches.rm_so-1];
+        if ((start+mm->rm_so)!=line) {
+          c = start[mm->rm_so-1];
           if (!isalnum(c) && c != '_') c = 0;
         }
         if (!c) {
-          c = start[matches.rm_eo];
+          c = start[mm->rm_eo];
           if (!isalnum(c) && c != '_') c = 0;
         }
         if (c) {
-          start += matches.rm_so+1;
+          start += mm->rm_so+1;
 
           continue;
         }
@@ -196,16 +229,16 @@ static void do_grep(int fd, char *name)
 
       if (toys.optflags & FLAG_v) {
         if (toys.optflags & FLAG_o) {
-          if (rc) skip = matches.rm_eo = strlen(start);
-          else if (!matches.rm_so) {
+          if (rc) skip = mm->rm_eo = strlen(start);
+          else if (!mm->rm_so) {
             start += skip;
             continue;
-          } else matches.rm_eo = matches.rm_so;
+          } else mm->rm_eo = mm->rm_so;
         } else {
           if (!rc) break;
-          matches.rm_eo = strlen(start);
+          mm->rm_eo = strlen(start);
         }
-        matches.rm_so = 0;
+        mm->rm_so = 0;
       } else if (rc) break;
 
       // At least one line we didn't print since match while -ABC active
@@ -213,7 +246,7 @@ static void do_grep(int fd, char *name)
         xputs(bars);
         bars = 0;
       }
-      mmatch++;
+      matched++;
       TT.found = 1;
       if (toys.optflags & FLAG_q) {
         toys.exitval = 0;
@@ -226,12 +259,12 @@ static void do_grep(int fd, char *name)
         return;
       }
       if (toys.optflags & FLAG_o)
-        if (matches.rm_eo == matches.rm_so)
+        if (mm->rm_eo == mm->rm_so)
           break;
 
       if (!(toys.optflags & FLAG_c)) {
         long bcount = 1 + offset + (start-line) +
-          ((toys.optflags & FLAG_o) ? matches.rm_so : 0);
+          ((toys.optflags & FLAG_o) ? mm->rm_so : 0);
  
         if (bin) printf("Binary file %s matches\n", name);
         else if (!(toys.optflags & FLAG_o)) {
@@ -247,8 +280,8 @@ static void do_grep(int fd, char *name)
 
           outline(line, ':', name, lcount, bcount, ulen);
           if (TT.A) after = TT.A+1;
-        } else outline(start+matches.rm_so, ':', name, lcount, bcount,
-                       matches.rm_eo-matches.rm_so);
+        } else outline(start+mm->rm_so, ':', name, lcount, bcount,
+                       mm->rm_eo-mm->rm_so);
       }
 
       start += skip;
@@ -256,7 +289,7 @@ static void do_grep(int fd, char *name)
     } while (*start);
     offset += len;
 
-    if (mmatch) mcount++;
+    if (matched) mcount++;
     else {
       int discard = (after || TT.B);
 
@@ -306,7 +339,6 @@ static void do_grep(int fd, char *name)
 static void parse_regex(void)
 {
   struct arg_list *al, *new, *list = NULL;
-  long len = 0;
   char *s, *ss;
 
   // Add all -f lines to -e list. (Yes, this is leaking allocation context for
@@ -337,29 +369,19 @@ static void parse_regex(void)
   TT.e = list;
 
   if (!(toys.optflags & FLAG_F)) {
-    char *regstr;
     int i;
 
-    // Convert strings to one big regex
-    for (al = TT.e; al; al = al->next)
-      len += strlen(al->arg)+1+!(toys.optflags & FLAG_E);
-
-    regstr = s = xmalloc(len);
+    // Convert regex list
     for (al = TT.e; al; al = al->next) {
-      s = stpcpy(s, al->arg);
-      if (!(toys.optflags & FLAG_E)) *(s++) = '\\';
-      *(s++) = '|';
-    }
-    *(s-=(1+!(toys.optflags & FLAG_E))) = 0;
+      struct reg *shoe = xmalloc(sizeof(struct reg));
 
-    i = regcomp((regex_t *)toybuf, regstr,
-                ((toys.optflags & FLAG_E) ? REG_EXTENDED : 0) |
-                ((toys.optflags & FLAG_i) ? REG_ICASE    : 0));
-
-    if (i) {
-      regerror(i, (regex_t *)toybuf, toybuf+sizeof(regex_t),
-               sizeof(toybuf)-sizeof(regex_t));
-      error_exit("bad REGEX: %s", toybuf);
+      dlist_add_nomalloc(&TT.reg, (void *)shoe);
+      i = regcomp(&shoe->r, al->arg,
+                  (REG_EXTENDED*!!FLAG(E)) | (REG_ICASE*!!FLAG(i)));
+      if (i) {
+        regerror(i, &shoe->r, toybuf, sizeof(toybuf));
+        error_exit("bad REGEX '%s': %s", al->arg, toybuf);
+      }
     }
   }
 }
