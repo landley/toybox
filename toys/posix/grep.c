@@ -83,10 +83,10 @@ struct reg {
 static void outline(char *line, char dash, char *name, long lcount, long bcount,
   int trim)
 {
-  if (name && (toys.optflags&FLAG_H)) printf("%s%c", name, dash);
-  if (!line || (lcount && (toys.optflags&FLAG_n)))
+  if (name && FLAG(H)) printf("%s%c", name, dash);
+  if (!line || (lcount && FLAG(n)))
     printf("%ld%c", lcount, line ? dash : TT.outdelim);
-  if (bcount && (toys.optflags&FLAG_b)) printf("%ld%c", bcount-1, dash);
+  if (bcount && FLAG(b)) printf("%ld%c", bcount-1, dash);
   if (line) {
     // support embedded NUL bytes in output
     fwrite(line, 1, trim, stdout);
@@ -107,7 +107,7 @@ static void do_grep(int fd, char *name)
   if (!fd) name = "(standard input)";
 
   // Only run binary file check on lseekable files.
-  if (!(toys.optflags&FLAG_a) && !lseek(fd, 0, SEEK_CUR)) {
+  if (!FLAG(a) && !lseek(fd, 0, SEEK_CUR)) {
     char buf[256];
     int len, i = 0;
     wchar_t wc;
@@ -123,7 +123,7 @@ static void do_grep(int fd, char *name)
       }
       bin = i!=len;
     }
-    if (bin && (toys.optflags&FLAG_I)) return;
+    if (bin && FLAG(I)) return;
   }
 
   if (!(file = fdopen(fd, "r"))) return perror_msg("%s", name);
@@ -160,16 +160,14 @@ static void do_grep(int fd, char *name)
         char *s = 0;
 
         for (seek = TT.e; seek; seek = seek->next) {
-          if (toys.optflags & FLAG_x) {
-            int i = (toys.optflags & FLAG_i);
-
-            if ((i ? strcasecmp : strcmp)(seek->arg, line)) s = line;
+          if (FLAG(x)) {
+            if ((FLAG(i) ? strcasecmp : strcmp)(seek->arg, line)) s = line;
           } else if (!*seek->arg) {
             seek = &fseek;
             fseek.arg = s = line;
             break;
           }
-          if (toys.optflags & FLAG_i) s = strcasestr(line, seek->arg);
+          if (FLAG(i)) s = strcasestr(line, seek->arg);
           else s = strstr(line, seek->arg);
           if (s) break;
         }
@@ -228,8 +226,8 @@ static void do_grep(int fd, char *name)
         }
       }
 
-      if (toys.optflags & FLAG_v) {
-        if (toys.optflags & FLAG_o) {
+      if (FLAG(v)) {
+        if (FLAG(o)) {
           if (rc) skip = mm->rm_eo = strlen(start);
           else if (!mm->rm_so) {
             start += skip;
@@ -249,26 +247,25 @@ static void do_grep(int fd, char *name)
       }
       matched++;
       TT.found = 1;
-      if (toys.optflags & FLAG_q) {
+      if (FLAG(q)) {
         toys.exitval = 0;
         xexit();
       }
-      if (toys.optflags & FLAG_l) {
+      if (FLAG(l)) {
         xprintf("%s%c", name, TT.outdelim);
         free(line);
         fclose(file);
         return;
       }
-      if (toys.optflags & FLAG_o)
+      if (FLAG(o))
         if (mm->rm_eo == mm->rm_so)
           break;
 
-      if (!(toys.optflags & FLAG_c)) {
-        long bcount = 1 + offset + (start-line) +
-          ((toys.optflags & FLAG_o) ? mm->rm_so : 0);
+      if (!FLAG(c)) {
+        long bcount = 1 + offset + (start-line) + (FLAG(o) ? mm->rm_so : 0);
  
         if (bin) printf("Binary file %s matches\n", name);
-        else if (!(toys.optflags & FLAG_o)) {
+        else if (!FLAG(o)) {
           while (dlb) {
             struct double_list *dl = dlist_pop(&dlb);
             unsigned *uu = (void *)(dl->data+((strlen(dl->data)+1)|3)+1);
@@ -322,10 +319,10 @@ static void do_grep(int fd, char *name)
     }
     free(line);
 
-    if ((toys.optflags & FLAG_m) && mcount >= TT.m) break;
+    if (FLAG(m) && mcount >= TT.m) break;
   }
 
-  if (toys.optflags & FLAG_c) outline(0, ':', name, mcount, 0, -1);
+  if (FLAG(c)) outline(0, ':', name, mcount, 0, -1);
 
   // loopfiles will also close the fd, but this frees an (opaque) struct.
   fclose(file);
@@ -369,7 +366,7 @@ static void parse_regex(void)
   }
   TT.e = list;
 
-  if (!(toys.optflags & FLAG_F)) {
+  if (!FLAG(F)) {
     int i;
 
     // Convert regex list
@@ -410,7 +407,7 @@ static int do_grep_r(struct dirtree *new)
   }
 
   // "grep -r onefile" doesn't show filenames, but "grep -r onedir" should.
-  if (new->parent && !(toys.optflags & FLAG_h)) toys.optflags |= FLAG_H;
+  if (new->parent && !FLAG(h)) toys.optflags |= FLAG_H;
 
   name = dirtree_path(new, 0);
   do_grep(openat(dirtree_parentfd(new), new->name, 0), name);
@@ -429,8 +426,8 @@ void grep_main(void)
   if (!TT.A) TT.A = TT.C;
   if (!TT.B) TT.B = TT.C;
 
-  TT.indelim = '\n' * !(toys.optflags&FLAG_z);
-  TT.outdelim = '\n' * !(toys.optflags&FLAG_Z);
+  TT.indelim = '\n' * !FLAG(z);
+  TT.outdelim = '\n' * !FLAG(Z);
 
   // Handle egrep and fgrep
   if (*toys.which->name == 'e') toys.optflags |= FLAG_E;
@@ -445,14 +442,14 @@ void grep_main(void)
 
   parse_regex();
 
-  if (!(toys.optflags & FLAG_h) && toys.optc>1) toys.optflags |= FLAG_H;
+  if (!FLAG(h) && toys.optc>1) toys.optflags |= FLAG_H;
 
-  if (toys.optflags & FLAG_s) {
+  if (FLAG(s)) {
     close(2);
     xopen_stdio("/dev/null", O_RDWR);
   }
 
-  if (toys.optflags & FLAG_r) {
+  if (FLAG(r)) {
     // Iterate through -r arguments. Use "." as default if none provided.
     for (ss = *ss ? ss : (char *[]){".", 0}; *ss; ss++) {
       if (!strcmp(*ss, "-")) do_grep(0, *ss);
