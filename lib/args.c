@@ -244,7 +244,7 @@ void parse_optflaglist(struct getoptflagstate *gof)
     else if (*options == '<') gof->minargs=*(++options)-'0';
     else if (*options == '>') gof->maxargs=*(++options)-'0';
     else if (*options == '?') gof->noerror++;
-    else if (*options == '&') toys.optflags |= FLAGS_NODASH;
+    else if (*options == '&') gof->nodash_now = 1;
     else break;
     options++;
   }
@@ -392,6 +392,8 @@ void get_optflags(void)
 
   parse_optflaglist(&gof);
 
+  if (toys.argv[1] && toys.argv[1][0] == '-') gof.nodash_now = 0;
+
   // Iterate through command line arguments, skipping argv[0]
   for (gof.argc=1; toys.argv[gof.argc]; gof.argc++) {
     gof.arg = toys.argv[gof.argc];
@@ -400,7 +402,7 @@ void get_optflags(void)
     // Parse this argument
     if (gof.stopearly>1) goto notflag;
 
-    gof.nodash_now = 0;
+    if (gof.argc>1 || *gof.arg=='-') gof.nodash_now = 0;
 
     // Various things with dashes
     if (*gof.arg == '-') {
@@ -444,7 +446,7 @@ void get_optflags(void)
 
     // Handle things that don't start with a dash.
     } else {
-      if ((toys.optflags & FLAGS_NODASH) && gof.argc == 1) gof.nodash_now = 1;
+      if (gof.nodash_now) toys.optflags |= FLAGS_NODASH;
       else goto notflag;
     }
 
