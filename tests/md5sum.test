@@ -28,3 +28,12 @@ testing "-c spaces" "md5sum -c input || echo ok" \
 rm "te st" empty
 
 testing "-c nolines" "md5sum -c input 2>/dev/null || echo ok" "ok\n" "" ""
+
+touch empty
+echo "d41d8cd98f00b204e9800998ecf8427e  empty" > list
+echo "041d8cd98f00b204e9800998ecf8427e  empty" > badlist
+testing "--status okay" "md5sum --status -c list ; echo \$?" "0\n" "" ""
+testing "--status fail" "md5sum --status -c badlist ; echo \$?" "1\n" "" ""
+testing "-c multiple" "md5sum -c list badlist --status ; echo \$?" "1\n" "" ""
+
+rm empty list badlist

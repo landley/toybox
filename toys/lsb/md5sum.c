@@ -12,9 +12,11 @@
  * We optionally use openssl (or equivalent) to access assembly optimized
  * versions of these functions, but provide a built-in version to reduce
  * required dependencies.
+ *
+ * coreutils supports --status but not -s, busybox supports -s but not --status
 
-USE_MD5SUM(NEWTOY(md5sum, "bc*[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
-USE_SHA1SUM(NEWTOY(sha1sum, "bc*[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_MD5SUM(NEWTOY(md5sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SHA1SUM(NEWTOY(sha1sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_SHA224SUM(OLDTOY(sha224sum, sha1sum, TOYFLAG_USR|TOYFLAG_BIN))
 USE_SHA256SUM(OLDTOY(sha256sum, sha1sum, TOYFLAG_USR|TOYFLAG_BIN))
 USE_SHA384SUM(OLDTOY(sha384sum, sha1sum, TOYFLAG_USR|TOYFLAG_BIN))
@@ -24,26 +26,28 @@ config MD5SUM
   bool "md5sum"
   default y
   help
-    usage: md5sum [-b] [-c FILE] [FILE]...
+    usage: md5sum [-bcs] [FILE]...
 
     Calculate md5 hash for each input file, reading from stdin if none.
     Output one hash (32 hex digits) for each input file, followed by filename.
 
     -b	Brief (hash only, no filename)
-    -c	Check each line of FILE is the same hash+filename we'd output
+    -c	Check each line of each FILE is the same hash+filename we'd output
+    -s	No output, exit status 0 if all hashes match, 1 otherwise
 
 config SHA1SUM
   bool "sha1sum"
   default y
   help
-    usage: sha?sum [-b] [-c FILE] [FILE]...
+    usage: sha?sum [-bcs] [FILE]...
 
-    calculate sha hash for each input file, reading from stdin if none. Output
+    Calculate sha hash for each input file, reading from stdin if none. Output
     one hash (40 hex digits for sha1, 56 for sha224, 64 for sha256, 96 for sha384,
     and 128 for sha512) for each input file, followed by filename.
 
     -b	Brief (hash only, no filename)
-    -c	Check each line of FILE is the same hash+filename we'd output
+    -c	Check each line of each FILE is the same hash+filename we'd output
+    -s	No output, exit status 0 if all hashes match, 1 otherwise
 
 config SHA224SUM
   bool "sha224sum"
@@ -86,8 +90,6 @@ typedef int SHA512_CTX;
 #endif
 
 GLOBALS(
-  struct arg_list *c;
-
   int sawline;
 
   // Crypto variables blanked after summing
@@ -338,13 +340,13 @@ static void do_builtin_hash(int fd, char *name)
 static void do_hash(int fd, char *name)
 {
   if (CFG_TOYBOX_LIBCRYPTO) do_lib_hash(fd, name);
-  else do_builtin_hash(fd,name);
+  else do_builtin_hash(fd, name);
 
   if (name)
     printf((toys.optflags & FLAG_b) ? "%s\n" : "%s  %s\n", toybuf, name);
 }
 
-static int do_c(char *line, size_t len)
+static int do_c_line(char *line)
 {
   int space = 0, fail = 0;
   char *name;
@@ -366,55 +368,47 @@ static int do_c(char *line, size_t len)
       *toybuf = 0;
     } else do_hash(fd, 0);
     if (strcasecmp(line, toybuf)) toys.exitval = fail = 1;
-    printf("%s: %s\n", name, fail ? "FAILED" : "OK");
+    if (!FLAG(s)) printf("%s: %s\n", name, fail ? "FAILED" : "OK");
     if (fd>0) close(fd);
   }
 
   return 0;
 }
 
-// Open file, read each line, and call do_line(). Returns 0 if file existed
-// and we read it to the end, 1 if interrupted by callback, 2 of didn't exist
-// do_line returns 0 to free line, 1 to keep line, 2 to end loop
-int looplines(char *name, int trim, int (*do_line)(char *line, size_t len))
+// Used instead of loopfiles_line to report error on files containing no hashes.
+static void do_c_file(char *name)
 {
   FILE *fp = !strcmp(name, "-") ? stdin : fopen(name, "r");
-  int rc = 0;
 
   if (!fp) {
     perror_msg_raw(name);
-
-    return 2;
+    return;
   }
+
+  TT.sawline = 0;
 
   for (;;) {
     char *line = 0;
     ssize_t len;
 
     if ((len = getline(&line, (void *)&len, fp))<1) break;
-    if (line[len-1]=='\n') len--;
-    if (trim) line[len] = 0;
-    len = do_line(line, len);
-    if (!len) free(line);
-    if (len==2) {
-      rc = 2;
-      break;
-    }
+    if (line[len-1]=='\n') line[len-1] = 0;
+    do_c_line(line);
+    free(line);
   }
   if (fp!=stdin) fclose(fp);
 
-  return rc;
+  if (!TT.sawline) error_msg("%s: no lines", name);
 }
 
 void md5sum_main(void)
 {
-  struct arg_list *al;
+  char **arg;
 
-  if (!TT.c) loopfiles(toys.optargs, do_hash);
-  else for (al = TT.c; al; al = al->next) {
-    TT.sawline = 0;
-    looplines(al->arg, 1, do_c);
-    if (!TT.sawline) error_msg("%s: no lines", al->arg);
+  if (FLAG(c)) for (arg = toys.optargs; *arg; arg++) do_c_file(*arg);
+  else {
+    if (FLAG(s)) error_exit("-s only with -c");
+    loopfiles(toys.optargs, do_hash);
   }
 }
 
