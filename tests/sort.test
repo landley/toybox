@@ -96,6 +96,9 @@ testing "" "sort -t, -k3n" "3,4,1,2\n4,1,2,3\n1,2,3,4\n2,3,4,1\n" "" \
   "1,2,3,4\n2,3,4,1\n4,1,2,3\n3,4,1,2\n"
 testing "-kx" "sort -k1,1x" "3\na\n0c\n" "" "0c\na\n3\n"
 
+testing "" "sort -V" "toy-2.37.tar.gz\ntoy-3.4.tar.gz\ntoy-3.12.tar.gz\ntoy-4.16-rc2.tar.gz\ntoy-4.16.tar.gz\n" "" \
+  "toy-3.12.tar.gz\ntoy-2.37.tar.gz\ntoy-3.4.tar.gz\ntoy-4.16-rc2.tar.gz\ntoy-4.16.tar.gz"
+
 optional SORT_FLOAT
 
 # not numbers < NaN < -infinity < numbers < +infinity

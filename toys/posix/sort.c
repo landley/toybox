@@ -7,7 +7,7 @@
  * Deviations from POSIX: Lots.
  * We invented -x
 
-USE_SORT(NEWTOY(sort, USE_SORT_FLOAT("g")"S:T:m" "o:k*t:xbMcszdfirun", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SORT(NEWTOY(sort, USE_SORT_FLOAT("g")"S:T:m" "o:k*t:" "xVbMcszdfirun", TOYFLAG_USR|TOYFLAG_BIN))
 
 config SORT
   bool "sort"
@@ -32,6 +32,7 @@ config SORT
     -k	Sort by "key" (see below)
     -t	Use a key separator other than whitespace
     -o	Output to FILE instead of stdout
+    -V	Version numbers (name-1.234-rc6.5b.tgz)
 
     Sorting by key looks at a subset of the words on each line.  -k2
     uses the second word to the end of the line, -k2,2 looks at only
@@ -168,12 +169,7 @@ static struct sort_key *add_key(void)
 // Perform actual comparison
 static int compare_values(int flags, char *x, char *y)
 {
-  int ff = flags & (FLAG_n|FLAG_g|FLAG_M|FLAG_x);
-
-  // Ascii sort
-  if (!ff) return ((flags&FLAG_f) ? strcasecmp : strcmp)(x, y);
-
-  if (CFG_SORT_FLOAT && ff == FLAG_g) {
+  if (CFG_SORT_FLOAT && (flags & FLAG_g)) {
     char *xx,*yy;
     double dx = strtod(x,&xx), dy = strtod(y,&yy);
     int xinf, yinf;
@@ -197,7 +193,7 @@ static int compare_values(int flags, char *x, char *y)
     if (yinf) return dy<0 ? 1 : -1;
 
     return dx>dy ? 1 : (dx<dy ? -1 : 0);
-  } else if (ff == FLAG_M) {
+  } else if (flags & FLAG_M) {
     struct tm thyme;
     int dx;
     char *xx,*yy;
@@ -209,10 +205,27 @@ static int compare_values(int flags, char *x, char *y)
     else if (!yy) return 1;
     else return dx==thyme.tm_mon ? 0 : dx-thyme.tm_mon;
 
-  } else if (ff == FLAG_x) {
-    return strtol(x, NULL, 16)-strtol(y, NULL, 16);
-  // This has to be ff == FLAG_n
-  } else {
+  } else if (flags & FLAG_x) return strtol(x, NULL, 16)-strtol(y, NULL, 16);
+  else if (flags & FLAG_V) {
+    while (*x && *y) {
+      while (*x && *x == *y) x++, y++;
+      if (isdigit(*x) && isdigit(*y)) {
+        long long xx = strtoll(x, &x, 10), yy = strtoll(y, &y, 10);
+
+        if (xx<yy) return -1;
+        if (xx>yy) return 1;
+      } else {
+        char xx = *x ? *x : x[-1], yy = *y ? *y : y[-1];
+
+        // -rc/-pre hack so abc-123 > abc-123-rc1 (other way already - < 0-9)
+        if (xx != yy) {
+          if (xx<yy && !strstart(&y, "-rc") && !strstart(&y, "-pre")) return -1;
+          else return 1;
+        }
+      }
+    }
+    return *x ? !!*y : -1;
+  } else if (flags & FLAG_n) {
     // Full floating point version of -n
     if (CFG_SORT_FLOAT) {
       double dx = atof(x), dy = atof(y);
@@ -220,7 +233,9 @@ static int compare_values(int flags, char *x, char *y)
       return dx>dy ? 1 : (dx<dy ? -1 : 0);
     // Integer version of -n for tiny systems
     } else return atoi(x)-atoi(y);
-  }
+
+  // Ascii sort
+  } else return ((flags&FLAG_f) ? strcasecmp : strcmp)(x, y);
 }
 
 // Callback from qsort(): Iterate through key_list and perform comparisons.
