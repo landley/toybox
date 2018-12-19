@@ -328,7 +328,7 @@ void sort_main(void)
 
           // Was it a flag that can apply to a key?
 
-          if (!temp2 || flag>FLAG_b
+          if (!temp2 || flag>FLAG_x
             || (flag&(FLAG_u|FLAG_c|FLAG_s|FLAG_z)))
           {
             error_exit("Unknown key option.");

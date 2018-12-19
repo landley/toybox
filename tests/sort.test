@@ -92,9 +92,9 @@ testing "-x" "sort -x" "010\na0\n 0c0\n" "" "a0\n010\n 0c0\n"
 testing "" "sort -k2,2f" "A b b\na B C\na B a\n" "" "a B a\nA b b\na B C\n"
 testing "" "sort -k2,2" "a B C\na B a\nA b b\n" "" "a B a\nA b b\na B C\n"
 testing "" "sort -f -k2,2" "A b b\na B C\na B a\n" "" "a B a\nA b b\na B C\n" 
-
 testing "" "sort -t, -k3n" "3,4,1,2\n4,1,2,3\n1,2,3,4\n2,3,4,1\n" "" \
   "1,2,3,4\n2,3,4,1\n4,1,2,3\n3,4,1,2\n"
+testing "-kx" "sort -k1,1x" "3\na\n0c\n" "" "0c\na\n3\n"
 
 optional SORT_FLOAT
 
@@ -102,5 +102,3 @@ optional SORT_FLOAT
 testing "-g" "sort -g" \
   "bork\nNaN\n-inf\n0.4\n1.222\n01.37\n2.1\n+infinity\n" "" \
   "01.37\n1.222\n2.1\n0.4\nNaN\nbork\n-inf\n+infinity\n"
-
-
