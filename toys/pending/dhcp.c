@@ -650,7 +650,6 @@ static int mode_app(void)
 static int read_raw(void)
 {
   dhcp_raw_t packet;
-  uint16_t check;
   int bytes = 0;
 
   memset(&packet, 0, sizeof(packet));
@@ -676,18 +675,19 @@ static int read_raw(void)
     dbg("\tUnrelated/bogus packet, ignoring\n");
     return -2;
   }
-  // verify IP checksum
-  check = packet.iph.check;
-  packet.iph.check = 0;
-  if (check != dhcp_checksum(&packet.iph, sizeof(packet.iph))) {
+  // Verify IP checksum.
+  if (dhcp_checksum(&packet.iph, sizeof(packet.iph)) != 0) {
     dbg("\tBad IP header checksum, ignoring\n");
     return -2;
   }
+  // Verify UDP checksum. From RFC 768, the UDP checksum is done over the IPv4
+  // pseudo header, the UDP header and the UDP data. The IPv4 pseudo header
+  // includes saddr, daddr, protocol, and UDP length. The IP header has to be
+  // modified for this.
   memset(&packet.iph, 0, ((size_t) &((struct iphdr *)0)->protocol));
+  packet.iph.check = 0;
   packet.iph.tot_len = packet.udph.len;
-  check = packet.udph.check;
-  packet.udph.check = 0;
-  if (check && check != dhcp_checksum(&packet, bytes)) {
+  if (packet.udph.check != 0 && dhcp_checksum(&packet, bytes) != 0) {
     dbg("\tPacket with bad UDP checksum received, ignoring\n");
     return -2;
   }
