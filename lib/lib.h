@@ -125,6 +125,8 @@ char *xstrdup(char *s);
 void *xmemdup(void *s, long len);
 char *xmprintf(char *format, ...) printf_format;
 void xprintf(char *format, ...) printf_format;
+void xputsl(char *s, int len);
+void xputsn(char *s);
 void xputs(char *s);
 void xputc(char c);
 void xflush(void);

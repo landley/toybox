@@ -4,11 +4,13 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/grep.html
  *
- * TODO: --color
- *
  * Posix doesn't even specify -r, documenting deviations from it is silly.
+* echo hello | grep -w ''
+* echo '' | grep -w ''
+* echo hello | grep -f </dev/null
+*
 
-USE_GREP(NEWTOY(grep, "S(exclude)*M(include)*ZzEFHIabhinorsvwclqe*f*C#B#A#m#x[!wx][!EFw]", TOYFLAG_BIN))
+USE_GREP(NEWTOY(grep, "(color):;S(exclude)*M(include)*ZzEFHIabhinorsvwclqe*f*C#B#A#m#x[!wx][!EFw]", TOYFLAG_BIN))
 USE_EGREP(OLDTOY(egrep, grep, TOYFLAG_BIN))
 USE_FGREP(OLDTOY(fgrep, grep, TOYFLAG_BIN))
 
@@ -66,7 +68,9 @@ config FGREP
 GLOBALS(
   long m, A, B, C;
   struct arg_list *f, *e, *M, *S;
+  char *color;
 
+  char *purple, *cyan, *red, *green, *grey;
   struct double_list *reg;
   char indelim, outdelim;
   int found, tried;
@@ -74,22 +78,30 @@ GLOBALS(
 
 struct reg {
   struct reg *next, *prev;
-  regex_t r;
   int rc;
+  regex_t r;
   regmatch_t m;
 };
+
+static void numdash(long num, char dash)
+{
+  printf("%s%ld%s%c", TT.green, num, TT.cyan, dash);
+}
 
 // Emit line with various potential prefixes and delimiter
 static void outline(char *line, char dash, char *name, long lcount, long bcount,
   int trim)
 {
-  if (name && FLAG(H)) printf("%s%c", name, dash);
-  if (!line || (lcount && FLAG(n)))
-    printf("%ld%c", lcount, line ? dash : TT.outdelim);
-  if (bcount && FLAG(b)) printf("%ld%c", bcount-1, dash);
+  if (name && FLAG(H)) printf("%s%s%s%c", TT.purple, name, TT.cyan, dash);
+  if (FLAG(c)) {
+    printf("%s%ld", TT.grey, lcount);
+    xputc(TT.outdelim);
+  } else if (lcount && FLAG(n)) numdash(lcount, dash);
+  if (bcount && FLAG(b)) numdash(bcount-1, dash);
   if (line) {
+    if (FLAG(color)) xputsn(FLAG(o) ? TT.red : TT.grey);
     // support embedded NUL bytes in output
-    fwrite(line, 1, trim, stdout);
+    xputsl(line, trim);
     xputc(TT.outdelim);
   }
 }
@@ -134,7 +146,7 @@ static void do_grep(int fd, char *name)
     struct reg *shoe;
     size_t ulen;
     long len;
-    int matched = 0, baseline = 0;
+    int matched = 0, rc = 1;
 
     // get next line, check and trim delimiter
     lcount++;
@@ -152,7 +164,6 @@ static void do_grep(int fd, char *name)
     // Loop to handle multiple matches in same line
     do {
       regmatch_t *mm = (void *)toybuf;
-      int rc, skip = 0;
 
       // Handle "fixed" (literal) matches
       if (FLAG(F)) {
@@ -175,12 +186,14 @@ static void do_grep(int fd, char *name)
         if (s) {
           rc = 0;
           mm->rm_so = (s-line);
-          skip = mm->rm_eo = (s-line)+strlen(seek->arg);
+          mm->rm_eo = (s-line)+strlen(seek->arg);
         } else rc = 1;
 
       // Handle regex matches
       } else {
-        mm->rm_so = INT_MAX;
+        int baseline = mm->rm_eo;
+
+        mm->rm_so = mm->rm_eo = INT_MAX;
         rc = 1;
         for (shoe = (void *)TT.reg; shoe; shoe = shoe->next) {
 
@@ -195,14 +208,12 @@ static void do_grep(int fd, char *name)
 
           // If we got a match, is it a _better_ match?
           if (!shoe->rc && (shoe->m.rm_so < mm->rm_so ||
-              (shoe->m.rm_so == mm->rm_so && shoe->m.rm_eo >= skip)))
+              (shoe->m.rm_so == mm->rm_so && shoe->m.rm_eo >= mm->rm_eo)))
           {
             mm = &shoe->m;
-            skip = mm->rm_eo;
             rc = 0;
           }
         }
-        baseline = skip;
       }
 
       if (!rc && FLAG(x))
@@ -221,21 +232,22 @@ static void do_grep(int fd, char *name)
         }
         if (c) {
           start += mm->rm_so+1;
-
           continue;
         }
       }
 
       if (FLAG(v)) {
         if (FLAG(o)) {
-          if (rc) skip = mm->rm_eo = strlen(start);
-          else if (!mm->rm_so) {
-            start += skip;
+          if (rc) {
+            mm->rm_so = 0;
+            mm->rm_eo = ulen-(start-line);
+          } else if (!mm->rm_so) {
+            start += mm->rm_eo;
             continue;
           } else mm->rm_eo = mm->rm_so;
         } else {
           if (!rc) break;
-          mm->rm_eo = strlen(start);
+          mm->rm_eo = ulen-(start-line);
         }
         mm->rm_so = 0;
       } else if (rc) break;
@@ -260,12 +272,16 @@ static void do_grep(int fd, char *name)
       if (FLAG(o))
         if (mm->rm_eo == mm->rm_so)
           break;
+// TODO checking this twice
 
       if (!FLAG(c)) {
         long bcount = 1 + offset + (start-line) + (FLAG(o) ? mm->rm_so : 0);
  
         if (bin) printf("Binary file %s matches\n", name);
-        else if (!FLAG(o)) {
+        else if (FLAG(o))
+          outline(start+mm->rm_so, ':', name, lcount, bcount,
+                  mm->rm_eo-mm->rm_so);
+        else {
           while (dlb) {
             struct double_list *dl = dlist_pop(&dlb);
             unsigned *uu = (void *)(dl->data+((strlen(dl->data)+1)|3)+1);
@@ -276,19 +292,34 @@ static void do_grep(int fd, char *name)
             before--;
           }
 
-          outline(line, ':', name, lcount, bcount, ulen);
+          if (matched==1)
+            outline(FLAG(color) ? 0 : line, ':', name, lcount, bcount, ulen);
+          if (FLAG(color)) {
+            xputsn(TT.grey);
+            if (mm->rm_so) xputsl(line, mm->rm_so);
+            xputsn(TT.red);
+            xputsl(line+mm->rm_so, mm->rm_eo-mm->rm_so);
+          }
+
           if (TT.A) after = TT.A+1;
-        } else outline(start+mm->rm_so, ':', name, lcount, bcount,
-                       mm->rm_eo-mm->rm_so);
+        }
       }
 
-      start += skip;
-      if (!FLAG(o)) break;
+      start += mm->rm_eo;
+      if (mm->rm_so == mm->rm_eo) break;
+      if (!FLAG(o) && FLAG(color)) break;
     } while (*start);
     offset += len;
 
-    if (matched) mcount++;
-    else {
+    if (matched) {
+      // Finish off pending line color fragment.
+      if (FLAG(color) && !FLAG(o)) {
+        xputsn(TT.grey);
+        if (ulen > start-line) xputsl(start, ulen-(start-line));
+        xputc(TT.outdelim);
+      }
+      mcount++;
+    } else {
       int discard = (after || TT.B);
 
       if (after && --after) {
@@ -348,6 +379,7 @@ static void parse_regex(void)
 
     // Split lines at \n, add individual lines to new list.
     do {
+// TODO: NUL terminated input shouldn't split -e at \n
       ss = strchr(s, '\n');
       if (ss) *(ss++) = 0;
       new = xmalloc(sizeof(struct arg_list));
@@ -419,6 +451,17 @@ static int do_grep_r(struct dirtree *new)
 void grep_main(void)
 {
   char **ss = toys.optargs;
+
+  if (FLAG(color) && (!TT.color || !strcmp(TT.color, "auto")) && !isatty(1))
+    toys.optflags &= ~FLAG_color;
+
+  if (FLAG(color)) {
+    TT.purple = "\033[35m";
+    TT.cyan = "\033[36m";
+    TT.red = "\033[1;31m";
+    TT.green = "\033[32m";
+    TT.grey = "\033[0m";
+  } else TT.purple = TT.cyan = TT.red = TT.green = TT.grey = "";
 
   // Grep exits with 2 for errors
   toys.exitval = 2;
