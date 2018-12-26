@@ -84,6 +84,9 @@
 //     + Synonyms (switch on all)          [+abc] means -ab=-abc, -c=-abc
 //     ! More than one in group is error   [!abc] means -ab calls error_exit()
 //       primarily useful if you can switch things back off again.
+//
+//   You may use octal escapes with the high bit (127) set to use a control
+//   character as an option flag. For example, \300 would be the option -@
 
 // Notes from getopt man page
 //   - and -- cannot be arguments.
@@ -128,7 +131,7 @@ struct getoptflagstate
   unsigned excludes, requires;
 };
 
-// Use getoptflagstate to parse parse one command line option from argv
+// Use getoptflagstate to parse one command line option from argv
 static int gotflag(struct getoptflagstate *gof, struct opts *opt)
 {
   int type;
@@ -317,7 +320,7 @@ void parse_optflaglist(struct getoptflagstate *gof)
       continue;
 
     // Claim this option, loop to see what's after it.
-    } else new->c = *options;
+    } else new->c = 127&*options;
 
     options++;
   }

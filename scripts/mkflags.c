@@ -137,6 +137,21 @@ struct flag *digest(char *string)
   return list;
 }
 
+// Parse C-style octal escape
+void octane(char *from)
+{
+  unsigned char *to = (void *)from;
+
+  while (*from) {
+    if (*from == '\\') {
+      *to = 0;
+      while (isdigit(*++from)) *to = (8**to)+*from-'0';
+      to++;
+    } else *to++ = *from++;
+  }
+  *to = 0;
+}
+
 int main(int argc, char *argv[])
 {
   char command[256], flags[1023], allflags[1024];
@@ -158,6 +173,8 @@ int main(int argc, char *argv[])
     *command = *flags = *allflags = 0;
     bit = fscanf(stdin, "%255s \"%1023[^\"]\" \"%1023[^\"]\"\n",
                     command, flags, allflags);
+    octane(flags);
+    octane(allflags);
 
     if (getenv("DEBUG"))
       fprintf(stderr, "command=%s, flags=%s, allflags=%s\n",
@@ -186,12 +203,14 @@ int main(int argc, char *argv[])
            command, command, command);
 
     while (offlist) {
-      struct flag *f = offlist->lopt;
-      while (f) {
-        printf("#undef FLAG_%s\n", f->command);
-        f = f->next;
+      char *s = (char []){0, 0, 0, 0};
+
+      if (!offlist->command) s = offlist->lopt->command;
+      else {
+        *s = *offlist->command;
+        if (127 < (unsigned char)*s) sprintf(s, "X%02X", 127&*s);
       }
-      if (offlist->command) printf("#undef FLAG_%c\n", *offlist->command);
+      printf("#undef FLAG_%s\n", s);
       offlist = offlist->next;
     }
     printf("#endif\n\n");
@@ -201,7 +220,7 @@ int main(int argc, char *argv[])
     out += strlen(out);
 
     while (aflist) {
-      char *llstr = bit>31 ? "LL" : "", *s = (char []){0, 0};
+      char *llstr = bit>31 ? "LL" : "", *s = (char []){0, 0, 0, 0};
       int enabled = 0;
 
       // Output flag macro for bare longopts
@@ -212,6 +231,7 @@ int main(int argc, char *argv[])
       // Output normal flag macro
       } else {
         *s = *aflist->command;
+        if (127 < (unsigned char)*s) sprintf(s, "X%02X", 127&*s);
         if (flist && flist->command && *aflist->command == *flist->command)
           enabled++;
       }
