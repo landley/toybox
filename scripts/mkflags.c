@@ -201,37 +201,24 @@ int main(int argc, char *argv[])
     out += strlen(out);
 
     while (aflist) {
-      char *llstr = bit>31 ? "LL" : "";
+      char *llstr = bit>31 ? "LL" : "", *s = (char []){0, 0};
+      int enabled = 0;
 
       // Output flag macro for bare longopts
-      if (aflist->lopt) {
+      if (!aflist->command) {
+        s = aflist->lopt->command;
         if (flist && flist->lopt &&
-            !strcmp(flist->lopt->command, aflist->lopt->command))
-        {
-          sprintf(out, "#define FLAG_%s (1%s<<%d)\n", flist->lopt->command,
-            llstr, bit);
-          flist->lopt = flist->lopt->next;
-        } else sprintf(out, "#define FLAG_%s (FORCED_FLAG%s<<%d)\n",
-                       aflist->lopt->command, llstr, bit);
-        aflist->lopt = aflist->lopt->next;
-        if (!aflist->command) {
-          aflist = aflist->next;
-          bit++;
-          if (flist) flist = flist->next;
-        }
+            !strcmp(flist->lopt->command, aflist->lopt->command)) enabled++;
       // Output normal flag macro
-      } else if (aflist->command) {
-        if (flist && flist->command && *aflist->command == *flist->command) {
-          if (aflist->command)
-            sprintf(out, "#define FLAG_%c (1%s<<%d)\n", *aflist->command,
-              llstr, bit);
-          flist = flist->next;
-        } else sprintf(out, "#define FLAG_%c (FORCED_FLAG%s<<%d)\n",
-                       *aflist->command, llstr, bit);
-        bit++;
-        aflist = aflist->next;
+      } else {
+        *s = *aflist->command;
+        if (flist && flist->command && *aflist->command == *flist->command)
+          enabled++;
       }
-      out += strlen(out);
+      out += sprintf(out, "#define FLAG_%s (%s%s<<%d)\n",
+                       s, enabled ? "1" : "FORCED_FLAG", llstr, bit++);
+      aflist = aflist->next;
+      if (enabled) flist = flist->next;
     }
     out = stpcpy(out, "#endif\n\n");
   }
