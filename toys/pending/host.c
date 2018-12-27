@@ -71,7 +71,7 @@ void host_main(void)
       i, j, ret, sec, count, rcode, qlen, alen, pllen = 0;
   unsigned ttl, pri, v[5];
   unsigned char qbuf[280], abuf[512], *p;
-  char *name, *nsname, rrname[256], plname[640], ptrbuf[64];
+  char *name, *nsname, rrname[256], plname[640], ptrbuf[128];
   struct addrinfo *ai, iplit_hints = { .ai_flags = AI_NUMERICHOST };
 
   name = *toys.optargs;
