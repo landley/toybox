@@ -586,24 +586,32 @@ int64_t peek_be(void *ptr, unsigned size)
 
 int64_t peek(void *ptr, unsigned size)
 {
-  return IS_BIG_ENDIAN ? peek_be(ptr, size) : peek_le(ptr, size);
+  return (IS_BIG_ENDIAN ? peek_be : peek_le)(ptr, size);
 }
 
-void poke(void *ptr, uint64_t val, int size)
+void poke_le(void *ptr, long long val, unsigned size)
 {
-  if (size & 8) {
-    volatile uint64_t *p = (uint64_t *)ptr;
-    *p = val;
-  } else if (size & 4) {
-    volatile int *p = (int *)ptr;
-    *p = val;
-  } else if (size & 2) {
-    volatile short *p = (short *)ptr;
-    *p = val;
-  } else {
-    volatile char *p = (char *)ptr;
-    *p = val;
+  char *c = ptr;
+
+  while (size--) {
+    *c++ = val&255;
+    val >>= 8;
   }
+}
+
+void poke_be(void *ptr, long long val, unsigned size)
+{
+  char *c = ptr + size;
+
+  while (size--) {
+    *--c = val&255;
+    val >>=8;
+  }
+}
+
+void poke(void *ptr, long long val, unsigned size)
+{
+  (IS_BIG_ENDIAN ? poke_be : poke_le)(ptr, val, size);
 }
 
 // Iterate through an array of files, opening each one and calling a function
