@@ -125,6 +125,10 @@ void netcat_main(void)
       } else {
         size_t bind_addrlen;
 
+        // If we weren't given an address with which to resolve which family to
+        // use, we have to choose.
+        if (family == AF_UNSPEC) family = AF_INET;
+
         address->sa_family = family;
 
         if (family == AF_INET6) {
