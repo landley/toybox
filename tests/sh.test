@@ -7,7 +7,7 @@
 if [ -z "$(which bash)" ]
 then
   echo "$SHOWSKIP: no bash alias"
-  continue 2>/dev/null
+  return 2>/dev/null
   exit
 fi
 

@@ -7,7 +7,7 @@
 if [ "$(id -u)" -ne 0 ]
 then
   echo "$SHOWSKIP: groupadd (not root)"
-  continue 2>/dev/null
+  return 2>/dev/null
   exit
 fi
 
