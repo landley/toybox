@@ -169,6 +169,8 @@ static int compare(void *a, void *b)
   if (toys.optflags & FLAG_t) {
     if (dta->st.st_mtime > dtb->st.st_mtime) ret = -1;
     else if (dta->st.st_mtime < dtb->st.st_mtime) ret = 1;
+    else if (dta->st.st_mtim.tv_nsec > dtb->st.st_mtim.tv_nsec) ret = -1;
+    else if (dta->st.st_mtim.tv_nsec < dtb->st.st_mtim.tv_nsec) ret = 1;
   }
   if (!ret) ret = strcmp(dta->name, dtb->name);
   return ret * reverse;
