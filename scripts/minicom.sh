@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # If you want to use toybox netcat to talk to a serial port, use this.
 

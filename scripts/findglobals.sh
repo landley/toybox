@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Quick and dirty check to see if anybody's leaked global variables.
 # We should have this, toy_list, toybuf, and toys.
