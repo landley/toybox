@@ -57,7 +57,7 @@ int clearenv(void)
 #endif
 
 // Get a linked list of mount points, with stat information.
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__FreeBSD__)
 
 // Not implemented for macOS.
 // See <sys/mount.h>'s getmntinfo(3) for the BSD API.
