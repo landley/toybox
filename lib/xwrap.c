@@ -629,7 +629,7 @@ error:
 
 void xchdir(char *path)
 {
-  if (chdir(path)) error_exit("chdir '%s'", path);
+  if (chdir(path)) perror_exit("chdir '%s'", path);
 }
 
 void xchroot(char *path)
