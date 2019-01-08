@@ -125,6 +125,16 @@ char *strcasestr(const char *haystack, const char *needle);
 
 int clearenv(void);
 
+#elif defined(__FreeBSD__)
+
+#include <sys/endian.h>
+
+#if _BYTE_ORDER == _BIG_ENDIAN
+#define IS_BIG_ENDIAN 1
+#else
+#define IS_BIG_ENDIAN 0
+#endif
+
 #else
 
 #include <byteswap.h>
@@ -166,7 +176,7 @@ int clearenv(void);
 
 #ifdef __APPLE__
 #include <util.h>
-#else
+#elif !defined(__FreeBSD__)
 #include <pty.h>
 #endif
 
