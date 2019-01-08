@@ -44,10 +44,10 @@ static void do_elf_file(int fd)
     {189, "microblaze"}, {0xbaab, "microblaze-old"}, {8, "mips"},
     {10, "mips-old"}, {89, "mn10300"}, {0xbeef, "mn10300-old"}, {113, "nios2"},
     {92, "openrisc"}, {0x8472, "openrisc-old"}, {15, "parisc"}, {20, "ppc"},
-    {21, "ppc64"}, {22, "s390"}, {0xa390, "s390-old"}, {135, "score"},
-    {42, "sh"}, {2, "sparc"}, {18, "sparc8+"}, {43, "sparc9"}, {188, "tile"},
-    {191, "tilegx"}, {3, "386"}, {6, "486"}, {62, "x86-64"}, {94, "xtensa"},
-    {0xabc7, "xtensa-old"}
+    {21, "ppc64"}, {243, "riscv"}, {22, "s390"}, {0xa390, "s390-old"},
+    {135, "score"}, {42, "sh"}, {2, "sparc"}, {18, "sparc8+"}, {43, "sparc9"},
+    {188, "tile"}, {191, "tilegx"}, {3, "386"}, {6, "486"}, {62, "x86-64"},
+    {94, "xtensa"}, {0xabc7, "xtensa-old"}
   };
   char *map = 0;
   off_t phoff, shoff;
