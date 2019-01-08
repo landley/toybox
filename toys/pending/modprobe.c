@@ -480,6 +480,7 @@ static int go_probe(struct module_s *m)
       continue;
     }
     // none of above is true insert the module.
+    errno = 0;
     rc = ins_mod(fn, options);
     if (toys.optflags&FLAG_v)
       printf("loaded %s '%s': %s\n", fn, options, strerror(errno));
