@@ -3,8 +3,6 @@
  * Copyright 2015 Rob Landley <rob@landley.net>
  */
 
-#include <sys/xattr.h>
-
 #if CFG_TOYBOX_SELINUX
 #include <selinux/selinux.h>
 #else

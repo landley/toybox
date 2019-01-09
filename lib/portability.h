@@ -180,6 +180,10 @@ int clearenv(void);
 #include <pty.h>
 #endif
 
+#ifndef __FreeBSD__
+#include <sys/xattr.h>
+#endif
+
 // Android is missing some headers and functions
 // "generated/config.h" is included first
 #if CFG_TOYBOX_SHADOW
