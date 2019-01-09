@@ -16,7 +16,7 @@ then
   then
     PREFIX=generated/testdir/ scripts/single.sh "$@" || exit 1
   else
-    make install_flat PREFIX=generated/testdir || exit 1
+    gmake install_flat PREFIX=generated/testdir || exit 1
   fi
 fi
 
