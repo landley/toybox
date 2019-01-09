@@ -178,6 +178,11 @@ int clearenv(void);
 #include <util.h>
 #elif !defined(__FreeBSD__)
 #include <pty.h>
+#else
+#include <termios.h>
+#ifndef IUTF8
+#define IUTF8 0
+#endif
 #endif
 
 #ifndef __FreeBSD__
