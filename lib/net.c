@@ -35,7 +35,7 @@ struct addrinfo *xgetaddrinfo(char *host, char *port, int family, int socktype,
   return ai;
 }
 
-int xconnect(struct addrinfo *ai_arg)
+int xconnbind(struct addrinfo *ai_arg, int dobind)
 {
   struct addrinfo *ai;
   int fd = -1;
@@ -44,8 +44,8 @@ int xconnect(struct addrinfo *ai_arg)
   for (ai = ai_arg; ai; ai = ai->ai_next) {
     fd = (ai->ai_next ? socket : xsocket)(ai->ai_family, ai->ai_socktype,
       ai->ai_protocol);
-    if (!connect(fd, ai->ai_addr, ai->ai_addrlen)) break;
-    else if (!ai->ai_next) perror_exit("connect");
+    if (!(dobind ? bind : connect)(fd, ai->ai_addr, ai->ai_addrlen)) break;
+    else if (!ai->ai_next) perror_exit_raw(dobind ? "bind" : "connect");
     close(fd);
   }
   freeaddrinfo(ai_arg);
@@ -53,22 +53,15 @@ int xconnect(struct addrinfo *ai_arg)
   return fd;
 }
 
-int xbind(struct addrinfo *ai_arg)
+int xconnect(struct addrinfo *ai)
 {
-  struct addrinfo *ai;
-  int fd = -1;
+  return xconnbind(ai, 0);
+}
 
-  // Try all the returned addresses. Report errors if last entry can't connect.
-  for (ai = ai_arg; ai; ai = ai->ai_next) {
-    fd = (ai->ai_next ? socket : xsocket)(ai->ai_family, ai->ai_socktype,
-      ai->ai_protocol);
-    if (!bind(fd, ai->ai_addr, ai->ai_addrlen)) break;
-    else if (!ai->ai_next) perror_exit("connect");
-    close(fd);
-  }
-  freeaddrinfo(ai_arg);
 
-  return fd;
+int xbind(struct addrinfo *ai)
+{
+  return xconnbind(ai, 1);
 }
 
 int xpoll(struct pollfd *fds, int nfds, int timeout)
