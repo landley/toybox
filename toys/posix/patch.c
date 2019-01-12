@@ -24,12 +24,12 @@ config PATCH
   bool "patch"
   default y
   help
-    usage: patch [-d DIR] [-i file] [-p depth] [-Rlu] [--dry-run]
+    usage: patch [-d DIR] [-i file] [-p depth] [-Rlsu] [--dry-run]
 
     Apply a unified diff to one or more files.
 
     -d	Modify files in DIR
-    -i	Input file (defaults=stdin)
+    -i	Input file (default=stdin)
     -l	Loose match (ignore whitespace)
     -p	Number of '/' to strip from start of file paths (default=all)
     -R	Reverse patch
@@ -38,8 +38,8 @@ config PATCH
     --dry-run Don't change files, just confirm patch applies
 
     This version of patch only handles unified diffs, and only modifies
-    a file when all all hunks to that file apply.  Patch prints failed
-    hunks to stderr, and exits with nonzero status if any hunks fail.
+    a file when all hunks to that file apply.  Patch prints failed hunks
+    to stderr, and exits with nonzero status if any hunks fail.
 
     A file compared against /dev/null (or with a date <= the epoch) is
     created/deleted as appropriate.
