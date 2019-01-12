@@ -944,7 +944,7 @@ resume_a:
       command->hit = 0;
 
       // btT: end with space or semicolon, aicrw continue to newline.
-      if (!(end = strcspn(line, strchr(":btT", c) ? "; \t\r\n\v\f" : "\n"))) {
+      if (!(end = strcspn(line, strchr(":btT", c) ? "}; \t\r\n\v\f" : "\n"))) {
         // Argument's optional for btT
         if (strchr("btT", c)) continue;
         else if (!command->arg1) break;
