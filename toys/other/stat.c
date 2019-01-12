@@ -2,7 +2,7 @@
  * Copyright 2012 <warior.linux@gmail.com>
  * Copyright 2013 <anand.sinha85@gmail.com>
 
-USE_STAT(NEWTOY(stat, "<1c:fLt", TOYFLAG_BIN)) 
+USE_STAT(NEWTOY(stat, "<1c:(format)fLt", TOYFLAG_BIN))
 
 config STAT
   bool stat
