@@ -11,13 +11,13 @@
  *       What's the right thing to do for -i when write fails? Skip to next?
  * test '//q' with no previous regex, also repeat previous regex?
 
-USE_SED(NEWTOY(sed, "(help)(version)e*f*i:;nEr[+Er]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE|TOYFLAG_NOHELP))
+USE_SED(NEWTOY(sed, "(help)(version)e*f*i:;nErz(null-data)[+Er]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE|TOYFLAG_NOHELP))
 
 config SED
   bool "sed"
   default y
   help
-    usage: sed [-inrE] [-e SCRIPT]...|SCRIPT [-f SCRIPT_FILE]... [FILE...]
+    usage: sed [-inrzE] [-e SCRIPT]...|SCRIPT [-f SCRIPT_FILE]... [FILE...]
 
     Stream editor. Apply one or more editing SCRIPTs to each line of input
     (from FILE or stdin) producing output (by default to stdout).
@@ -27,8 +27,9 @@ config SED
     -i	Edit each file in place (-iEXT keeps backup file with extension EXT)
     -n	No default output (use the p command to output matched lines)
     -r	Use extended regular expression syntax
-    -E	Alias for -r
+    -E	POSIX alias for -r
     -s	Treat input files separately (implied by -i)
+    -z	Use \0 rather than \n as the input line separator
 
     A SCRIPT is a series of one or more COMMANDs separated by newlines or
     semicolons. All -e SCRIPTs are concatenated together as if separated
@@ -159,11 +160,11 @@ config SED
 
       #  Comment, ignore rest of this line of SCRIPT
 
-    Deviations from posix: allow extended regular expressions with -r,
-    editing in place with -i, separate with -s, printf escapes in text, line
-    continuations, semicolons after all commands, 2-address anywhere an
-    address is allowed, "T" command, multiline continuations for [abc],
-    \; to end [abc] argument before end of line.
+    Deviations from POSIX: allow extended regular expressions with -r,
+    editing in place with -i, separate with -s, NUL-separated input with -z,
+    printf escapes in text, line continuations, semicolons after all commands,
+    2-address anywhere an address is allowed, "T" command, multiline
+    continuations for [abc], \; to end [abc] argument before end of line.
 */
 
 #define FOR_sed
@@ -181,6 +182,7 @@ GLOBALS(
   long nextlen, rememberlen, count;
   int fdout, noeol;
   unsigned xx;
+  char delim;
 )
 
 // Linked list of parsed sed commands. Offset fields indicate location where
@@ -639,7 +641,7 @@ static void do_sed_file(int fd, char *name)
     for (command = (void *)TT.pattern; command; command = command->next)
       command->hit = 0;
   }
-  do_lines(fd, sed_line);
+  do_lines(fd, TT.delim, sed_line);
   if (FLAG(i)) {
     if (TT.i && *TT.i) {
       char *s = xmprintf("%s%s", name, TT.i);
@@ -998,6 +1000,8 @@ void sed_main(void)
   struct arg_list *al;
   char **args = toys.optargs;
 
+  if (!FLAG(z)) TT.delim = '\n';
+
   // Lie to autoconf when it asks stupid questions, so configure regexes
   // that look for "GNU sed version %f" greater than some old buggy number
   // don't fail us for not matching their narrow expectations.
@@ -1022,7 +1026,8 @@ void sed_main(void)
 
   for (al = TT.e; al; al = al->next) parse_pattern(&al->arg, strlen(al->arg));
   parse_pattern(0, 0);
-  for (al = TT.f; al; al = al->next) do_lines(xopenro(al->arg), parse_pattern);
+  for (al = TT.f; al; al = al->next)
+    do_lines(xopenro(al->arg), TT.delim, parse_pattern);
   dlist_terminate(TT.pattern);
   if (TT.nextlen) error_exit("no }");  
 

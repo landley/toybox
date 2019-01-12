@@ -165,4 +165,6 @@ testing "bonus backslashes" \
 testing "end b with }" "sed -n '/START/{:a;n;/END/q;p;ba}'" "b\nc\n" \
   "" "a\nSTART\nb\nc\nEND\nd"
 
+testing '-z' 'sed -z "s/\n/-/g"' "a-b-c" "" "a\nb\nc"
+
 # -i with $ last line test
