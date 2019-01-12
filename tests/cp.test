@@ -89,6 +89,13 @@ testing "-r dir1/* dir2" \
 	"cp -r one/* dir2 && diff -r one dir2 && echo yes" "yes\n" "" ""
 rm -rf one dir dir2
 
+touch walrus
+chmod 644 walrus
+ln -s walrus woot
+
+testing "symlink dest permissions" "cp woot carpenter && stat -c %A carpenter" \
+  "-rw-r--r--\n" "" ""
+
 # cp -r ../source destdir
 # cp -r one/two/three missing
 # cp -r one/two/three two

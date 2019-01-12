@@ -268,6 +268,8 @@ static int cp_node(struct dirtree *try)
           catch = try->name;
           break;
         }
+        // When copying contents use symlink target's attributes
+        if (S_ISLNK(try->st.st_mode)) fstat(fdin, &try->st);
         fdout = openat(cfd, catch, O_RDWR|O_CREAT|O_TRUNC, try->st.st_mode);
         if (fdout >= 0) {
           xsendfile(fdin, fdout);
