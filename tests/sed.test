@@ -2,6 +2,9 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
+# toybox saying "no }" here broke the AOSP build.
+testing "Braces" "sed -n '/START/{:a;n;/END/q;p;ba}'" "b\nc\n" "" "a\nSTART\nb\nc\nEND\nd"
+
 testing 'as cat' 'sed ""' "one\ntwo\nthree" "" "one\ntwo\nthree"
 # This segfaults ubuntu 12.04's sed. No really.
 SKIP_HOST=1 testing 'sed - - twice' 'sed "" - -' "hello\n" "" "hello\n"
