@@ -71,7 +71,7 @@ static void do_line(void *data)
   struct double_list *dlist = (struct double_list *)data;
 
   if (TT.state>1 && *dlist->data != TT.state) {
-    char *s = dlist->data+(TT.state>3 ? 1 : 0);
+    char *s = dlist->data+(TT.state>3);
     int i = TT.state == 2 ? 2 : TT.fileout;
 
     xwrite(i, s, strlen(s));
@@ -104,8 +104,7 @@ static void fail_hunk(void)
   TT.state = 2;
   llist_traverse(TT.current_hunk, do_line);
   TT.current_hunk = NULL;
-  if (!FLAG(dry_run))
-    delete_tempfile(TT.filein, TT.fileout, &TT.tempname);
+  if (!FLAG(dry_run)) delete_tempfile(TT.filein, TT.fileout, &TT.tempname);
   TT.state = 0;
 }
 
@@ -147,10 +146,9 @@ static int apply_one_hunk(void)
   }
   matcheof = !trailing || trailing < TT.context;
 
-  if (FLAG(x))
-    fprintf(stderr,"MATCHEOF=%c\n", matcheof ? 'Y' : 'N');
+  if (FLAG(x)) fprintf(stderr,"MATCHEOF=%c\n", matcheof ? 'Y' : 'N');
 
-  // Loop through input data searching for this hunk.  Match all context
+  // Loop through input data searching for this hunk. Match all context
   // lines and all lines to be removed until we've found the end of a
   // complete hunk.
   plist = TT.current_hunk;
@@ -160,12 +158,11 @@ static int apply_one_hunk(void)
     char *data = get_line(TT.filein);
 
     TT.linenum++;
-    // Figure out which line of hunk to compare with next.  (Skip lines
+    // Figure out which line of hunk to compare with next. (Skip lines
     // of the hunk we'd be adding.)
     while (plist && *plist->data == "+-"[reverse]) {
-      if (data && !lcmp(data, plist->data+1)) {
+      if (data && !lcmp(data, plist->data+1))
         if (!backwarn) backwarn = TT.linenum;
-      }
       plist = plist->next;
     }
 
@@ -227,7 +224,7 @@ static int apply_one_hunk(void)
         check = buf;
       } else {
         if (FLAG(x)) fprintf(stderr, "MAYBE: %s\n", plist->data);
-        // This line matches.  Advance plist, detect successful match.
+        // This line matches. Advance plist, detect successful match.
         plist = plist->next;
         if (!plist && !matcheof) goto out;
         check = check->next;
@@ -275,8 +272,7 @@ void patch_main(void)
     patchline = get_line(TT.filepatch);
     if (!patchline) break;
 
-    // Other versions of patch accept damaged patches,
-    // so we need to also.
+    // Other versions of patch accept damaged patches, so we need to also.
     if (strip || !patchlinenum++) {
       int len = strlen(patchline);
       if (patchline[len-1] == '\r') {
@@ -303,7 +299,6 @@ void patch_main(void)
         else state=3;
 
         // If we've consumed all expected hunk lines, apply the hunk.
-
         if (!TT.oldlen && !TT.newlen) state = apply_one_hunk();
         continue;
       }
@@ -401,8 +396,7 @@ void patch_main(void)
             if (!FLAG(s)) printf("patching %s\n", name);
             TT.filein = xopenro(name);
           }
-          if (FLAG(dry_run))
-            TT.fileout = xopen("/dev/null", O_RDWR);
+          if (FLAG(dry_run)) TT.fileout = xopen("/dev/null", O_RDWR);
           else TT.fileout = copy_tempfile(TT.filein, name, &TT.tempname);
           TT.linenum = 0;
           TT.hunknum = 0;
