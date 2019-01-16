@@ -55,15 +55,6 @@ GLOBALS(
   unsigned long sent, recv, fugit, min, max;
 )
 
-static void xsendto(int sockfd, void *buf, size_t len, struct sockaddr *dest)
-{
-  int rc = sendto(TT.sock, buf, len, 0, dest,
-    dest->sa_family == AF_INET ? sizeof(struct sockaddr_in) :
-      sizeof(struct sockaddr_in6));
-
-  if (rc != len) perror_exit("sendto");
-}
-
 static void summary(int sig)
 {
   if (!(toys.optflags&FLAG_q) && TT.sent && TT.sa) {

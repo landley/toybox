@@ -126,3 +126,12 @@ char *ntop(struct sockaddr *sa)
 
   return libbuf;
 }
+
+void xsendto(int sockfd, void *buf, size_t len, struct sockaddr *dest)
+{
+  int rc = sendto(sockfd, buf, len, 0, dest,
+    dest->sa_family == AF_INET ? sizeof(struct sockaddr_in) :
+      sizeof(struct sockaddr_in6));
+
+  if (rc != len) perror_exit("sendto");
+}

@@ -310,6 +310,7 @@ int xbind(struct addrinfo *ai);
 int xpoll(struct pollfd *fds, int nfds, int timeout);
 int pollinate(int in1, int in2, int out1, int out2, int timeout, int shutdown_timeout);
 char *ntop(struct sockaddr *sa);
+void xsendto(int sockfd, void *buf, size_t len, struct sockaddr *dest);
 
 // password.c
 int get_salt(char *salt, char * algo);
