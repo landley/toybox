@@ -15,7 +15,7 @@ source ./configure
 UNSTRIPPED="generated/unstripped/$(basename "$OUTNAME")"
 
 # Try to keep one more cc invocation going than we have processors
-[ -z "$CPUS" ] && CPUS=$(($(nproc)+1))
+[ -z "$CPUS" ] && CPUS=$(($(nproc 2>/dev/null)+1))
 
 if [ -z "$SED" ]
 then
