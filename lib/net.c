@@ -67,13 +67,16 @@ int xbind(struct addrinfo *ai)
 int xpoll(struct pollfd *fds, int nfds, int timeout)
 {
   int i;
+  long long now, then = timeout>0 ? millitime() : 0;
 
   for (;;) {
-    if (0>(i = poll(fds, nfds, timeout))) {
-      if (toys.signal) return i;
-      if (errno != EINTR && errno != ENOMEM) perror_exit("xpoll");
-      else if (timeout>0) timeout--;
-    } else return i;
+    if (0<=(i = poll(fds, nfds, timeout)) || toys.signal) return i;
+    if (errno != EINTR && errno != ENOMEM) perror_exit("xpoll");
+    else {
+      now = millitime();
+      timeout -= now-then;
+      then = now;
+    }
   }
 }
 
