@@ -1,0 +1,8 @@
+freebsd12_task:
+        freebsd_instance:
+                image: freebsd-12-0-release-amd64
+        install_script: pkg install -y bash gmake
+        script:
+                - gmake allnoconfig KCONFIG_ALLCONFIG=freebsd_miniconfig
+                - gmake
+        check_script: gmake tests
