@@ -27,6 +27,17 @@ rm one two three
 testing "-0 -n1" "printf 'a\0b\0c\0d\0e\0f' | xargs -0 -n1 echo _" "_ a\n_ b\n_ c\n_ d\n_ e\n_ f\n" "" ""
 testing "-0 -n2" "printf 'a\0b\0c\0d\0e\0f' | xargs -0 -n2 echo _" "_ a b\n_ c d\n_ e f\n" "" ""
 
+testing "-t" "xargs -t 2>stderr ; cat stderr ; rm stderr" "one two\necho one two \n" "" "one\ntwo\n"
+
+testing "-E END" "xargs -E END" "a b\n" "" "a\nb\nEND\nc\nd\n"
+
+testing "-r" "xargs -r echo x" "" "" ""
+
+# TODO: what exactly is -x supposed to do? why does coreutils output "one"?
+#testing "-x" "xargs -x -s 9 || echo expected" "one\nexpected\n" "" "one\ntwo\nthree"
+
+# TODO: test for -L? what exactly is the difference between -n and -L?
+
 #testing "-n exact match"
 #testing "-s exact match"
 #testing "-s 0"
