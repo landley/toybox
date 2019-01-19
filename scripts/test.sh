@@ -1,6 +1,7 @@
 #!/bin/bash
 
-. scripts/runtest.sh
+source scripts/runtest.sh
+source scripts/portability.sh
 
 TOPDIR="$PWD"
 FILES="$PWD"/tests/files
@@ -26,7 +27,7 @@ cd testdir
 export LC_COLLATE=C
 
 [ -f "$TOPDIR/generated/config.h" ] &&
-  export OPTIONFLAGS=:$(echo $(sed -nr 's/^#define CFG_(.*) 1/\1/p' "$TOPDIR/generated/config.h") | sed 's/ /:/g')
+  export OPTIONFLAGS=:$(echo $($SED -nr 's/^#define CFG_(.*) 1/\1/p' "$TOPDIR/generated/config.h") | $SED 's/ /:/g')
 
 do_test()
 {
