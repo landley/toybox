@@ -14,7 +14,7 @@ int main(int argc, char *argv[])
     char *line = 0, *s;
     ssize_t len;
 
-    len = getline(&line, &len, stdin);
+    len = getline(&line, (void *)&len, stdin);
     if (len<0) break;
     while (len && isspace(line[len-1])) line[--len]=0;
 

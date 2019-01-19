@@ -19,7 +19,7 @@
 #include <poll.h>
 #include <sys/socket.h>
 
-/****************** functions copied from lib/*.c ********************/
+//****************** functions copied from lib/*.c ********************
 
 struct double_list {
   struct double_list *next, *prev;
@@ -107,7 +107,7 @@ struct double_list *dlist_add(struct double_list **list, char *data)
   return new;
 }
 
-/****************** end copies of lib/*.c *************/
+//****************** end copies of lib/*.c *************
 
 // Parse config files into data structures.
 

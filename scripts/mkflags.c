@@ -64,7 +64,7 @@ char *mark_gaps(char *flags, char *all)
     if (bare) bare = chrtype(c);
     if (*flags == c) {
       *(new++) = c;
-      *flags++;
+      flags++;
       continue;
     }
 
