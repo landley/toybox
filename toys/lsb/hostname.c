@@ -10,7 +10,7 @@ config HOSTNAME
   bool "hostname"
   default y
   help
-    usage: hostname [-bsf] [-F FILENAME] [newname]
+    usage: hostname [-bdsf] [-F FILENAME] [newname]
 
     Get/set the current hostname.
 
@@ -36,13 +36,13 @@ void hostname_main(void)
   if (TT.F && (hostname = xreadfile(TT.F, 0, 0))) {
     if (!*chomp(hostname)) {
       if (CFG_TOYBOX_FREE) free(hostname);
-      if (!(toys.optflags&FLAG_b)) error_exit("empty '%s'", TT.F);
+      if (!FLAG(b)) error_exit("empty '%s'", TT.F);
       hostname = 0;
     }
   }
 
   // Implement -b.
-  if (!hostname && (toys.optflags&FLAG_b))
+  if (!hostname && FLAG(b))
     if (gethostname(toybuf, sizeof(toybuf)-1) || !*toybuf)
       hostname = "localhost";
 
@@ -55,9 +55,12 @@ void hostname_main(void)
 
   // Get the hostname.
   if (gethostname(toybuf, sizeof(toybuf)-1)) perror_exit("gethostname");
-  if (!(h = gethostbyname(toybuf))) perror_exit("gethostbyname");
-  snprintf(toybuf, sizeof(toybuf), "%s", h->h_name);
+  // We only do the DNS lookup for -d and -f.
+  if (FLAG(d) || FLAG(f)) {
+    if (!(h = gethostbyname(toybuf))) perror_exit("gethostbyname");
+    snprintf(toybuf, sizeof(toybuf), "%s", h->h_name);
+  }
   dot = strchr(toybuf, '.');
-  if (toys.optflags&FLAG_s) *dot = '\0';
-  xputs(toys.optflags&FLAG_d ? dot+1 : toybuf);
+  if (FLAG(s) && dot) *dot = '\0';
+  xputs(FLAG(d) ? dot+1 : toybuf);
 }
