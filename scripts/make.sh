@@ -6,6 +6,7 @@ export LANG=c
 export LC_ALL=C
 set -o pipefail
 source ./configure
+source scripts/portability.sh
 
 [ ! -z "$CROSS_COMPILE" ] && [ ! -e "$CROSS_COMPILE"cc ] &&
   echo "missing ${CROSS_COMPILE}cc" && exit 1
@@ -15,12 +16,7 @@ source ./configure
 UNSTRIPPED="generated/unstripped/$(basename "$OUTNAME")"
 
 # Try to keep one more cc invocation going than we have processors
-[ -z "$CPUS" ] && CPUS=$(($(nproc)+1))
-
-if [ -z "$SED" ]
-then
-  [ ! -z "$(which gsed 2>/dev/null)" ] && SED=gsed || SED=sed
-fi
+[ -z "$CPUS" ] && CPUS=$(($(nproc 2>/dev/null)+1))
 
 # Respond to V= by echoing command lines as well as running them
 DOTPROG=
@@ -102,7 +98,7 @@ genbuildsh()
 }
 
 if ! cmp -s <(genbuildsh 2>/dev/null | head -n 6 ; echo LINK="'"$LDOPTIMIZE $LDFLAGS) \
-          <(head -n 7 generated/build.sh 2>/dev/null | sed '7s/ -o .*//')
+          <(head -n 7 generated/build.sh 2>/dev/null | $SED '7s/ -o .*//')
 then
   echo -n "Library probe"
 
@@ -135,7 +131,8 @@ then
 
   # This long and roundabout sed invocation is to make old versions of sed
   # happy. New ones have '\n' so can replace one line with two without all
-  # the branches and tedious mucking about with hold space.
+  # the branches and tedious mucking about with hyperspace.
+  # TODO: clean this up to use modern stuff.
 
   $SED -n \
     -e 's/^# CONFIG_\(.*\) is not set.*/\1/' \

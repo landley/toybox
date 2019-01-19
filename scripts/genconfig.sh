@@ -6,6 +6,7 @@
 mkdir -p generated
 
 source configure
+source scripts/portability.sh
 
 probecc()
 {
@@ -129,7 +130,7 @@ genconfig()
     do
       # Grab the config block for Config.in
       echo "# $i"
-      sed -n '/^\*\//q;/^config [A-Z]/,$p' $i || return 1
+      $SED -n '/^\*\//q;/^config [A-Z]/,$p' $i || return 1
       echo
     done
 
@@ -144,7 +145,7 @@ genconfig > generated/Config.in || rm generated/Config.in
 toys()
 {
   grep 'TOY(.*)' "$@" | grep -v TOYFLAG_NOFORK | grep -v "0))" | \
-    sed -En 's/([^:]*):.*(OLD|NEW)TOY\( *([a-zA-Z][^,]*) *,.*/\1:\3/p'
+    $SED -En 's/([^:]*):.*(OLD|NEW)TOY\( *([a-zA-Z][^,]*) *,.*/\1:\3/p'
 }
 
 WORKING=
@@ -163,5 +164,5 @@ done &&
 echo -e "clean::\n\trm -f $WORKING $PENDING" &&
 echo -e "list:\n\t@echo $(echo $WORKING | tr ' ' '\n' | sort | xargs)" &&
 echo -e "list_pending:\n\t@echo $(echo $PENDING | tr ' ' '\n' | sort | xargs)" &&
-echo -e ".PHONY: $WORKING $PENDING" | sed 's/ \([^ ]\)/ test_\1/g'
+echo -e ".PHONY: $WORKING $PENDING" | $SED 's/ \([^ ]\)/ test_\1/g'
 ) > .singlemake
