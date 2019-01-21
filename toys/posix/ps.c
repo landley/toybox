@@ -234,7 +234,7 @@ struct ofields {
  * struct procpid contains a slot[] array of 64 bit values, with the following
  * data at each position in the array. Most is read from /proc/$PID/stat (see
  * https://kernel.org/doc/Documentation/filesystems/proc.txt table 1-4) but
- * we we replace several fields with don't use with other data. */
+ * we replace several fields with don't use with other data. */
 
 enum {
  SLOT_pid,      /*process id*/            SLOT_ppid,      // parent process id
@@ -297,7 +297,7 @@ struct procpid {
  *        get the overflow back).
  *
  * slot: which slot[] out of procpid. Negative means it's a string field.
- *       Setting bit |64 requests extra display/sort processing.
+ *       value|XX requests extra display/sort processing.
  *
  * The TAGGED_ARRAY plumbing produces an enum of indexes, the "tag" is the
  * first string argument and the prefix is the first argument to TAGGED_ARRAY
@@ -308,8 +308,9 @@ struct procpid {
  *   if (TT.bits & _PS_NAME) printf("-o included PS_NAME");
  */
 
+#define XX 64 // force string representation for sorting, etc
+
 // TODO: Android uses -30 for LABEL, but ideally it would auto-size.
-// 64|slot means compare as string when sorting
 struct typography {
   char *name, *help;
   signed char width, slot;
@@ -349,13 +350,13 @@ struct typography {
 
   // user/group (may call getpwuid() or similar)
   {"UID", "User id", 5, SLOT_uid},
-  {"USER", "User name", -12, 64|SLOT_uid},
+  {"USER", "User name", -12, XX|SLOT_uid},
   {"RUID", "Real (before suid) user ID", 4, SLOT_ruid},
-  {"RUSER", "Real (before suid) user name", -8, 64|SLOT_ruid},
+  {"RUSER", "Real (before suid) user name", -8, XX|SLOT_ruid},
   {"GID", "Group ID", 8, SLOT_gid},
-  {"GROUP", "Group name", -8, 64|SLOT_gid},
+  {"GROUP", "Group name", -8, XX|SLOT_gid},
   {"RGID", "Real (before sgid) Group ID", 4, SLOT_rgid},
-  {"RGROUP", "Real (before sgid) group name", -8, 64|SLOT_rgid},
+  {"RGROUP", "Real (before sgid) group name", -8, XX|SLOT_rgid},
 
   // clock displays (00:00:00)
   {"TIME", "CPU time consumed", 8, SLOT_utime},
@@ -382,20 +383,19 @@ struct typography {
 
   // Misc (special cases)
   {"STIME", "Start time (ISO 8601)", 5, SLOT_starttime},
-  {"F", "Flags 1=FORKNOEXEC 4=SUPERPRIV", 1, 64|SLOT_flags},
+  {"F", "Flags 1=FORKNOEXEC 4=SUPERPRIV", 1, XX|SLOT_flags},
   {"S", "Process state:\n"
    "\t  R (running) S (sleeping) D (device I/O) T (stopped)  t (traced)\n"
    "\t  Z (zombie)  X (deader)   x (dead)       K (wakekill) W (waking)",
-   -1, 64},
+   -1, XX},
   {"STAT", "Process state (S) plus:\n"
    "\t  < high priority          N low priority L locked memory\n"
    "\t  s session leader         + foreground   l multithreaded",
-   -5, 64},
-  {"PCY", "Android scheduling policy", 3, 64|SLOT_pcy},
+   -5, XX},
+  {"PCY", "Android scheduling policy", 3, XX|SLOT_pcy},
 );
 
 // Show sorted "-o help" text for fields listed in toybuf[len]
-
 static void help_fields(int len, int multi)
 {
   int i, j, k, left = 0;
@@ -429,7 +429,7 @@ static void help_fields(int len, int multi)
   if (!multi && left) xputc('\n');
 }
 
-// Print help text for all -o field, with categories.
+// Print help text for each -o field, with categories.
 static void help_help(void)
 {
   int i, jump = PS_CMD+1-PS_COMM;
@@ -454,7 +454,7 @@ static void help_help(void)
   xexit();
 }
 
-// Return 0 to discard, nonzero to keep
+// process match filter for top/ps/pgrep: Return 0 to discard, nonzero to keep
 static int shared_match_process(long long *slot)
 {
   struct ptr_len match[] = {
@@ -478,8 +478,7 @@ static int shared_match_process(long long *slot)
   return ll ? 0 : -1;
 }
 
-
-// Return 0 to discard, nonzero to keep
+// process match filter for ps: Return 0 to discard, nonzero to keep
 static int ps_match_process(long long *slot)
 {
   int i = shared_match_process(slot);
@@ -497,12 +496,12 @@ static int ps_match_process(long long *slot)
   return 1;
 }
 
-// Convert field to string representation
+// Generate display string (260 bytes at end of toybuf) from struct ofield
 static char *string_field(struct procpid *tb, struct ofields *field)
 {
   char *buf = toybuf+sizeof(toybuf)-260, *out = buf, *s;
   int which = field->which, sl = typos[which].slot;
-  long long *slot = tb->slot, ll = (sl >= 0) ? slot[sl&63] : 0;
+  long long *slot = tb->slot, ll = (sl >= 0) ? slot[sl&(XX-1)] : 0;
 
   // numbers, mostly from /proc/$PID/stat
   if (which <= PS_BIT) {
@@ -536,7 +535,7 @@ static char *string_field(struct procpid *tb, struct ofields *field)
   // user/group
   } else if (which <= PS_RGROUP) {
     sprintf(out, "%lld", ll);
-    if (sl&64) {
+    if (sl&XX) {
       if (which > PS_RUSER) {
         struct group *gr = bufgetgrgid(ll);
 
@@ -576,7 +575,7 @@ static char *string_field(struct procpid *tb, struct ofields *field)
 
   // Percentage displays
   } else if (which <= PS__CPU) {
-    ll = slot[sl&63]*1000;
+    ll = slot[sl&(XX-1)]*1000;
     if (which==PS__VSZ || which==PS__MEM)
       ll /= slot[SLOT_totalram]/((which==PS__VSZ) ? 1024 : 4096);
     else if (slot[SLOT_upticks]) ll /= slot[SLOT_upticks];
@@ -624,7 +623,7 @@ static char *string_field(struct procpid *tb, struct ofields *field)
   return out;
 }
 
-// Display process data that get_ps() read from /proc, formatting with TT.fields
+// Display process data that get_ps() read from /proc, formatting via TT.fields
 static void show_ps(void *p)
 {
   struct procpid *tb = p;
@@ -687,7 +686,7 @@ static void show_ps(void *p)
   putchar(TT.time ? '\r' : '\n');
 }
 
-// dirtree callback: read data about process, then display or store it.
+// dirtree callback: read data about a process, then display or store it.
 // Fills toybuf with struct procpid and either DIRTREE_SAVEs a copy to ->extra
 // (in -k mode) or calls show_ps directly on toybuf (for low memory systems).
 static int get_ps(struct dirtree *new)
@@ -982,6 +981,7 @@ static int get_ps(struct dirtree *new)
   return DIRTREE_SAVE;
 }
 
+// wrapper for get_ps() that also collects threads under each processes
 static int get_threads(struct dirtree *new)
 {
   struct dirtree *dt;
@@ -1033,6 +1033,7 @@ static int get_threads(struct dirtree *new)
   return 0;
 }
 
+// Parse one FIELD argument (with optional =name :width) into struct ofields
 static char *parse_ko(void *data, char *type, int length)
 {
   struct ofields *field;
@@ -1100,6 +1101,8 @@ static char *parse_ko(void *data, char *type, int length)
   return 0;
 }
 
+// Write FIELD list into display header string (truncating at blen),
+// and return bitfield of which FIELDs are used.
 static long long get_headers(struct ofields *field, char *buf, int blen)
 {
   long long bits = 0;
@@ -1114,7 +1117,7 @@ static long long get_headers(struct ofields *field, char *buf, int blen)
   return bits;
 }
 
-// Parse -p -s -t -u -U -g -G
+// Parse command line options -p -s -t -u -U -g -G
 static char *parse_rest(void *data, char *str, int len)
 {
   struct ptr_len *pl = (struct ptr_len *)data;
@@ -1192,7 +1195,7 @@ static char *parse_rest(void *data, char *str, int len)
   return str;
 }
 
-// sort for -k
+// sort processes by FIELD(s) listed in option -k
 static int ksort(void *aa, void *bb)
 {
   struct ofields *field;
@@ -1203,7 +1206,7 @@ static int ksort(void *aa, void *bb)
     slot = typos[field->which].slot;
 
     // Can we do numeric sort?
-    if (!(slot&64)) {
+    if (!(slot&XX)) {
       if (ta->slot[slot]<tb->slot[slot]) ret = -1;
       if (ta->slot[slot]>tb->slot[slot]) ret = 1;
     }
@@ -1220,6 +1223,8 @@ static int ksort(void *aa, void *bb)
   return ret;
 }
 
+// Collect ->extra field from leaf nodes DIRTREE_SAVEd by get_ps() into array
+// (recursion because tree from get_thread() isn't flat list of siblings)
 static struct procpid **collate_leaves(struct procpid **tb, struct dirtree *dt) 
 {
   while (dt) {
@@ -1234,6 +1239,8 @@ static struct procpid **collate_leaves(struct procpid **tb, struct dirtree *dt)
   return tb;
 }
 
+// Allocate struct procpid array of length count and populate it with ->extra
+// fields from dirtree leaf nodes. (top diffs old & new array to show changes)
 static struct procpid **collate(int count, struct dirtree *dt)
 {
   struct procpid **tbsort = xmalloc(count*sizeof(struct procpid *));
@@ -1243,6 +1250,7 @@ static struct procpid **collate(int count, struct dirtree *dt)
   return tbsort;
 } 
 
+// parse command line arguments (ala -k -o) with a comma separated FIELD list
 static void default_ko(char *s, void *fields, char *err, struct arg_list *arg)
 {
   struct arg_list def;
@@ -1320,7 +1328,7 @@ void ps_main(void)
 
     for (field = TT.fields; field; field = field->next) {
       if (FLAG(n) && field->which>=PS_UID
-        && field->which<=PS_RGROUP && (typos[field->which].slot&64))
+        && field->which<=PS_RGROUP && (typos[field->which].slot&XX))
           field->which--;
     }
   }
@@ -1585,7 +1593,7 @@ static void top_common(
           pos = stpcpy(toybuf, "Totals:");
           for (field = TT.fields; field; field = field->next) {
             long long ll, bits = 0;
-            int slot = typos[field->which].slot&63;
+            int slot = typos[field->which].slot&(XX-1);
 
             if (field->which<PS_C || field->which>PS_DIO) continue;
             ll = 1LL<<field->which;
