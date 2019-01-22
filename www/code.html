@@ -653,7 +653,7 @@ and change the exit code to indicate error, lets our toys.exit function
 change happen for signal exit paths and lets us remove the functions
 after we've called them.</p>
 
-<p>You can intercept our exit by assigning a setjmp/longjmp buffer to
+<p>You can intercept our exit by assigning a sigsetjmp/siglongjmp buffer to
 toys.rebound (set it back to zero to restore the default behavior).
 If you do this, cleaning up resource leaks is your problem.</p>
 
