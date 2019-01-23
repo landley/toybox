@@ -186,7 +186,7 @@ void xargs_main(void)
       for (i = 0; out[i]; ++i) fprintf(stderr, "%s ", out[i]);
       if (FLAG(p)) {
         fprintf(stderr, "?");
-	doit = yesno(0);
+        doit = yesno(0);
       } else fprintf(stderr, "\n");
     }
 

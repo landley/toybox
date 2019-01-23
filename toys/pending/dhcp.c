@@ -134,7 +134,7 @@ GLOBALS(
 
 static void (*dbg)(char *format, ...);
 static void dummy(char *format, ...){
-	return;
+  return;
 }
 
 typedef struct dhcpc_result_s {

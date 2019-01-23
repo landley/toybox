@@ -254,8 +254,8 @@ static void mode_raw()
     error_exit("MODE RAW : Bind fail.\n");
   } 
   if (setsockopt(TT.sock, SOL_PACKET, PACKET_HOST,&constone, sizeof(int)) < 0) {
-		if (errno != ENOPROTOOPT) error_exit("MODE RAW : Bind fail.\n");
-	}
+    if (errno != ENOPROTOOPT) error_exit("MODE RAW : Bind fail.\n");
+  }
 }
 
 static void generate_transection_id() 

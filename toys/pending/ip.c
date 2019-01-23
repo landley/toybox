@@ -1964,7 +1964,7 @@ static int route_update(char **argv, unsigned int route_flags)
       char* ptr;
       if (!*++argv) show_iproute_help();
       metric = strtoul(*argv, &ptr, 0);
-		  if (!(!*ptr && metric <= 0xFFFFFFFFUL)) 
+      if (!(!*ptr && metric <= 0xFFFFFFFFUL)) 
         error_exit("Invalid argument metric %s.",*argv);
       else
         res = metric;
