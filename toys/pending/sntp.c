@@ -4,18 +4,33 @@
  *
  * See https://www.ietf.org/rfc/rfc4330.txt
 
-USE_SNTP(NEWTOY(sntp, "sp:", TOYFLAG_USR|TOYFLAG_BIN))
+  modes: oneshot display, oneshot set, persist, serve, multi
+
+  verify source addr
+  serve time
+    - precision -6
+    - source LOCL
+    - copy source packet transmit to originate (5->3), 2=4=5
+  wait for multicast updates
+  uniclient: retry at poll interval
+
+USE_SNTP(NEWTOY(sntp, "m:Sp:asdD[!as]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config SNTP
   bool "sntp"
   default n
   help
-    usage: sntp [-sm] [-p PORT] SERVER...
+    usage: sntp [-saS] [-dD[-m ADDRESS] [-p PORT] [SERVER]
 
-    Simple Network Time Protocol client, set system clock from a server.
+    Simple Network Time Protocol client. Query SERVER and display time.
 
     -p	Use PORT (default 123)
-    -s	Serer
+    -s	Set system clock suddenly
+    -a	Adjust system clock gradually
+    -S	Serve time instead of querying (bind to SERVER address if specified)
+    -m	Wait for updates from multicast ADDRESS (RFC 4330 says use 224.0.1.1)
+    -d	Daemonize (run in background re-querying )
+    -D	Daemonize but stay in foreground: re-query time every 1000 seconds
 */
 
 #define FOR_sntp
@@ -52,12 +67,6 @@ int xrecvwait(int fd, char *buf, int len, union socksaddr *sa, int timeout)
   return len;
 }
 
-/// hardwired getaddrinfo() variant for what we want here.
-static struct addrinfo *gai(char *server)
-{
-  return xgetaddrinfo(server, TT.p, AF_UNSPEC, SOCK_DGRAM, IPPROTO_UDP, 0);
-}
-
 // Get time and return ntptime (saving timespec in pointer if not null)
 // NTP time is high 32 bits = seconds since 1970 (blame RFC 868), low 32 bits
 // fraction of a second.
@@ -69,7 +78,7 @@ static unsigned long long lunchtime(struct timespec *television)
 
   if (television) *television = tv;
 
-  // Unix time is 1970 but RFCs 868 and 958 said 1900, so add seconds 1900->1970
+  // Unix time is 1970 but RFCs 868 and 958 said 1900 so add seconds 1900->1970
   // If they'd done a 34/30 bit split the Y2036 problem would be centuries
   // from now and still give us nanosecond accuracy, but no...
   return ((tv.tv_sec+SEVENTIES)<<32)+(((long long)tv.tv_nsec)<<32)/1000000000;
@@ -79,9 +88,9 @@ static unsigned long long lunchtime(struct timespec *television)
 static void doublyso(unsigned long long now, struct timespec *tv)
 {
   // Y2036 fixup: if time wrapped, it's in the future
-  tv->tv_sec = (now>>32) + (1L<<32)*!(now&(1L<<63));
+  tv->tv_sec = (now>>32) + (1LL<<32)*!(now&(1LL<<63));
   tv->tv_sec -= SEVENTIES; // Force signed math for Y2038 fixup
-  tv->tv_nsec = ((now&((1L<<32)-1))*1000000000)>>32;
+  tv->tv_nsec = ((now&0xFFFFFFFF)*1000000000)>>32;
 }
 
 // return difference between two timespecs in nanosecs
@@ -104,28 +113,63 @@ static void nanomove(struct timespec *ts, long long offset)
   ts->tv_nsec = nano;
 }
 
-int multicast = 0;
+static void server_packet(char *buf, unsigned long long ref)
+{
+  *buf = 0x24;
+  buf[1] = 3;
+  buf[2] = 10;
+  buf[3] = 253;
+  strcpy(buf+12, "LOCL");
+  pktime[3] = ref;
+  pktime[2] = pktime[4] = pktime[5] = newtime;
+}
 
 void sntp_main(void)
 {
   struct timespec tv, tv2;
   unsigned long long *pktime = (void *)toybuf, now, then, before;
   long long diff;
+  long diffsecs, diffnano;
   struct addrinfo *ai;
   union socksaddr sa;
-  int fd, attempts;
+  int fd, tries = 0;
 
-  if (!FLAG(s) && !*toys.optargs) error_exit("Need -s or SERVER");
+  if (!(FLAG(S)||FLAG(m)) && !*toys.optargs)
+    error_exit("Need -Sm or SERVER address");
 
   // Lookup address and open server or client UDP socket
   if (!TT.p || !*TT.p) TT.p = "123";
-  ai = gai(*toys.optargs);
-  // When root, bind to local server address
-  if (!getuid()) fd = xbind(gai(""));
-  else fd = xsocket(ai->ai_family, SOCK_DGRAM, IPPROTO_UDP);
+  ai = xgetaddrinfo(*toys.optargs, TT.p, AF_UNSPEC, SOCK_DGRAM, IPPROTO_UDP,
+    AI_PASSIVE*!*toys.optargs);
 
-  // Try 3 times
-  for (attempts = 0; attempts < 3; attempts++) {
+  if (FLAG(d)) daemon(0,0);
+
+  // Act as server if necessary
+  if (FLAG(S)|FLAG(m)) {
+    fd = xbind(ai);
+    if (TT.m) {
+      struct ip_mreq group;
+
+      // subscribe to multicast group
+      memset(&group, 0, sizeof(group));
+      group.imr_multiaddr.s_addr = inet_addr(addr);
+      xsetsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (void *)&group,
+        sizeof(group));
+    }
+  } else fd = xsocket(ai->ai_family, SOCK_DGRAM, IPPROTO_UDP);
+
+// Sm - loop waiting for input
+// Dd - loop polling with probe
+// else poll 3 times
+// if SmDd loop
+
+  for (;;) {
+
+    // Daemon mode isn't limited to 3 tries
+    if (FLAG(d) || FLAG(D)) {
+      then = retry_timeout;
+    } else if (++tries>3) break;
+
     // Prepare outgoing NTP packet
     memset(toybuf, 0, 48);
     *toybuf = 0xe3; // li = 3 (unsynchronized), version = 4, mode = 3 (client)
@@ -138,7 +182,7 @@ void sntp_main(void)
     while (now<then) {
       // TODO: confirm sa matches
       if (48 == xrecvwait(fd, toybuf, sizeof(toybuf), &sa, then-now)) {
-        if (multicast || pktime[3] == SWAP_BE64(before)) break;
+        if (TT.m || pktime[3] == SWAP_BE64(before)) break;
       }
       now = millitime();
     }
@@ -146,29 +190,27 @@ void sntp_main(void)
   }
   lunchtime(&tv2);
 
-//printf("before) %ld %ld\n", (long)tv.tv_sec, (long)tv.tv_nsec);
-//printf("after) %ld %ld\n", (long)tv2.tv_sec, (long)tv2.tv_nsec);
-
   // determine midpoint of packet transit time according to local clock
   // (simple calculation: assume each direction took same time so midpoint
   // is time reported by other clock)
   diff = nanodiff(&tv, &tv2)/2;
-//printf("halfoff = %lld %llx\n", diff, diff);
   nanomove(&tv, diff);
-//printf("midpoint) %ld %ld\n", (long)tv.tv_sec, (long)tv.tv_nsec);
 
   doublyso(SWAP_BE64(pktime[5]), &tv2);
-  diff = nanodiff(&tv2, &tv);
-//printf("server) %ld %ld\n", (long)tv2.tv_sec, (long)tv2.tv_nsec);
-//printf("offby = %lld\n", diff);
+  diff = nanodiff(&tv, &tv2);
+  diffsecs = diff/1000000000;
+  diffnano = diff%1000000000;
+  if (FLAG(s)) {
+    clock_gettime(CLOCK_REALTIME, &tv);
+    nanomove(&tv, diff);
+    if (clock_settime(CLOCK_REALTIME, &tv)) perror_exit("clock_settime");
+  } else if (FLAG(a)) {
+    struct timeval tv = {diffsecs, diffnano/1000};
 
-//int i;
-//for (i=0; i<48; ) {
-//  printf("%02x", toybuf[i]);
-//  if (!(++i&15)) printf("\n");
-//}
-
-  format_iso_time(toybuf, sizeof(toybuf)-1, &tv);
-  printf("%s offset %c%d.%09d secs\n", toybuf, (diff<0) ? '-' : '+',
-    abs(diff/1000000000), abs(diff%1000000000));
+    if (adjtime(&tv, 0)) perror_exit("adjtime");
+  } else {
+    format_iso_time(toybuf, sizeof(toybuf)-1, &tv2);
+    printf("%s offset %c%d.%09d secs\n", toybuf, (diff<0) ? '-' : '+',
+      abs(diffsecs), abs(diffnano));
+  }
 }
