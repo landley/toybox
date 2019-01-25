@@ -90,8 +90,9 @@ static void numdash(long num, char dash)
 
 // Emit line with various potential prefixes and delimiter
 static void outline(char *line, char dash, char *name, long lcount, long bcount,
-  int trim)
+  unsigned trim)
 {
+  if (!trim && FLAG(o)) return;
   if (name && FLAG(H)) printf("%s%s%s%c", TT.purple, name, TT.cyan, dash);
   if (FLAG(c)) {
     printf("%s%ld", TT.grey, lcount);
@@ -115,7 +116,7 @@ static void do_grep(int fd, char *name)
   FILE *file;
   int bin = 0;
 
-  TT.tried++;
+  if (!FLAG(r)) TT.tried++;
   if (!fd) name = "(standard input)";
 
   // Only run binary file check on lseekable files.
@@ -269,10 +270,6 @@ static void do_grep(int fd, char *name)
         fclose(file);
         return;
       }
-      if (FLAG(o))
-        if (mm->rm_eo == mm->rm_so)
-          break;
-// TODO checking this twice
 
       if (!FLAG(c)) {
         long bcount = 1 + offset + (start-line) + (FLAG(o) ? mm->rm_so : 0);
@@ -353,7 +350,7 @@ static void do_grep(int fd, char *name)
     if (FLAG(m) && mcount >= TT.m) break;
   }
 
-  if (FLAG(c)) outline(0, ':', name, mcount, 0, -1);
+  if (FLAG(c)) outline(0, ':', name, mcount, 0, 1);
 
   // loopfiles will also close the fd, but this frees an (opaque) struct.
   fclose(file);
@@ -422,6 +419,7 @@ static int do_grep_r(struct dirtree *new)
 {
   char *name;
 
+  if (!new->parent) TT.tried++;
   if (!dirtree_notdotdot(new)) return 0;
   if (S_ISDIR(new->st.st_mode)) return DIRTREE_RECURSE;
   if (TT.S || TT.M) {
@@ -499,5 +497,5 @@ void grep_main(void)
       else dirtree_read(*ss, do_grep_r);
     }
   } else loopfiles_rw(ss, O_RDONLY|WARN_ONLY, 0, do_grep);
-  if (TT.tried == toys.optc || (FLAG(q)&&TT.found)) toys.exitval = !TT.found;
+  if (TT.tried >= toys.optc || (FLAG(q)&&TT.found)) toys.exitval = !TT.found;
 }
