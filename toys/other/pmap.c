@@ -5,7 +5,7 @@
  *
  * No Standard.
 
-USE_PMAP(NEWTOY(pmap, "<1xq", TOYFLAG_BIN))
+USE_PMAP(NEWTOY(pmap, "<1xq", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PMAP
   bool "pmap"

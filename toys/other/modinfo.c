@@ -4,7 +4,7 @@
  *
  * TODO: cleanup
 
-USE_MODINFO(NEWTOY(modinfo, "<1b:k:F:0", TOYFLAG_BIN))
+USE_MODINFO(NEWTOY(modinfo, "<1b:k:F:0", TOYFLAG_SBIN))
 
 config MODINFO
   bool "modinfo"

@@ -4,7 +4,7 @@
  *
  * Note: -ibrfo flags sorted to match SCHED positions for highest_bit()
 
-USE_CHRT(NEWTOY(chrt, "^mp#<0iRbrfo[!ibrfo]", TOYFLAG_USR|TOYFLAG_SBIN))
+USE_CHRT(NEWTOY(chrt, "^mp#<0iRbrfo[!ibrfo]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config CHRT
   bool "chrt"

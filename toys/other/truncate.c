@@ -2,7 +2,7 @@
  *
  * Copyright 2011 Rob Landley <rob@landley.net>
 
-USE_TRUNCATE(NEWTOY(truncate, "<1s:|c", TOYFLAG_BIN))
+USE_TRUNCATE(NEWTOY(truncate, "<1s:|c", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TRUNCATE
   bool "truncate"

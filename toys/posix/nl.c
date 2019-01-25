@@ -7,7 +7,7 @@
  * This implements a subset: only one logical page (-ip), no sections (-dfh).
  * todo: -lv
 
-USE_NL(NEWTOY(nl, "v#<1=1l#w#<0=6Eb:n:s:", TOYFLAG_BIN))
+USE_NL(NEWTOY(nl, "v#<1=1l#w#<0=6Eb:n:s:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config NL
   bool "nl"

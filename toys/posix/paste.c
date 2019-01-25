@@ -6,7 +6,7 @@
  *
  * Deviations from posix: the FILE argument isn't mandatory, none == '-'
 
-USE_PASTE(NEWTOY(paste, "d:s", TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_PASTE(NEWTOY(paste, "d:s", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config PASTE
   bool "paste"

@@ -2,7 +2,7 @@
  *
  * Copyright 2017 The Android Open Source Project.
 
-USE_MICROCOM(NEWTOY(microcom, "<1>1s:X", TOYFLAG_BIN))
+USE_MICROCOM(NEWTOY(microcom, "<1>1s:X", TOYFLAG_USR|TOYFLAG_BIN))
 
 config MICROCOM
   bool "microcom"

@@ -4,7 +4,7 @@
  *
  * No standard, but see Documentation/rtc.txt in the linux kernel source..
  *
-USE_HWCLOCK(NEWTOY(hwclock, ">0(fast)f(rtc):u(utc)l(localtime)t(systz)s(hctosys)r(show)w(systohc)[-ul][!rtsw]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_HWCLOCK(NEWTOY(hwclock, ">0(fast)f(rtc):u(utc)l(localtime)t(systz)s(hctosys)r(show)w(systohc)[-ul][!rtsw]", TOYFLAG_SBIN))
 
 config HWCLOCK
   bool "hwclock"
@@ -26,7 +26,7 @@ config HWCLOCK
 #include <linux/rtc.h>
 
 GLOBALS(
-  char *fname;
+  char *f;
 
   int utc;
 )
@@ -45,7 +45,7 @@ static int rtc_find(struct dirtree* node)
     fclose(fp);
     if (items == 1 && hctosys == 1) {
       sprintf(toybuf, "/dev/%s", node->name);
-      TT.fname = toybuf;
+      TT.f = toybuf;
 
       return DIRTREE_ABORT;
     }
@@ -78,11 +78,11 @@ void hwclock_main()
     int w = toys.optflags & FLAG_w, flag = O_WRONLY*w;
 
     // Open /dev/rtc (if your system has no /dev/rtc symlink, search for it).
-    if (!TT.fname && (fd = open("/dev/rtc", flag)) == -1) {
+    if (!TT.f && (fd = open("/dev/rtc", flag)) == -1) {
       dirtree_read("/sys/class/rtc", rtc_find);
-      if (!TT.fname) TT.fname = "/dev/misc/rtc";
+      if (!TT.f) TT.f = "/dev/misc/rtc";
     }
-    if (fd == -1) fd = xopen(TT.fname, flag);
+    if (fd == -1) fd = xopen(TT.f, flag);
 
     // Get current time in seconds from rtc device. todo: get subsecond time
     if (!w) {

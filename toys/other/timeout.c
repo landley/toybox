@@ -4,7 +4,7 @@
  *
  * No standard
 
-USE_TIMEOUT(NEWTOY(timeout, "<2^vk:s: ", TOYFLAG_BIN))
+USE_TIMEOUT(NEWTOY(timeout, "<2^vk:s: ", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TIMEOUT
   bool "timeout"
