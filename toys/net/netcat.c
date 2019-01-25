@@ -116,12 +116,8 @@ void netcat_main(void)
       socklen_t len = sizeof(struct sockaddr_storage);
 
       if (TT.s) {
-        char* port = toybuf;
-        struct addrinfo* bind_addr;
-
-        sprintf(port, "%ld", TT.p);
-        bind_addr = xgetaddrinfo(TT.s, port, family, type, 0, 0);
-        sockfd = xbind(bind_addr);
+        sprintf(toybuf, "%ld", TT.p);
+        sockfd = xbind(xgetaddrinfo(TT.s, toybuf, family, type, 0, 0));
       } else {
         size_t bind_addrlen;
 
