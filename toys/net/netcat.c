@@ -140,6 +140,12 @@ void netcat_main(void)
         }
 
         sockfd = xsocket(family, type, 0);
+
+        {
+          int val = 1;
+          xsetsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
+        }
+
         if (bind(sockfd, address, bind_addrlen))
           perror_exit("bind");
       }
