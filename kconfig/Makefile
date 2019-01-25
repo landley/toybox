@@ -32,6 +32,12 @@ allnoconfig: $(obj)/conf $(KCONFIG_TOP)
 defconfig: $(obj)/conf $(KCONFIG_TOP)
 	$< -D /dev/null $(KCONFIG_TOP) > /dev/null
 
+macos_defconfig: $(obj)/conf $(KCONFIG_TOP)
+	KCONFIG_ALLCONFIG=$(obj)/macos_miniconfig $< -n $(KCONFIG_TOP) > /dev/null
+
+bsd_defconfig: $(obj)/conf $(KCONFIG_TOP)
+	KCONFIG_ALLCONFIG=$(obj)/freebsd_miniconfig $< -n $(KCONFIG_TOP) > /dev/null
+
 # Help text used by make help
 help::
 	@echo  '  config	  - Update current config utilising a line-oriented program'
@@ -46,6 +52,8 @@ help::
 	@echo  '                    for further configuration (probably with menuconfig)'
 	@echo  '  allnoconfig	  - New config where all options are answered with no'
 	@echo  '                    (NOP binary, starting point for further configuration)'
+	@echo  '  macos_defconfig - Select commands known to build on macosx'
+	@echo  '  bsd_defconfig   - Select commands known to build on freebsd'
 
 # Cheesy build
 
