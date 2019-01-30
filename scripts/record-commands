@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Set up command recording wrapper
+
+[ -z "$WRAPDIR" ] && WRAPDIR="$PWD"/record-commands
+[ -z "$WRAPLOG" ] && export WRAPLOG="$PWD"/log.txt && CLEANUP=1
+
+if [ $# -eq 0 ]
+then
+  echo "Usage: WRAPDIR=dir WRAPLOG=log.txt record-commands command..."
+  echo "Then examine log.txt"
+  exit 1
+fi
+
+if [ ! -x "$WRAPDIR/logwrapper" ]
+then
+  make logwrapper
+  mkdir -p "$WRAPDIR" && mv logwrapper "$WRAPDIR" || exit 1
+
+  echo "$PATH" | tr : '\n' | while read DIR
+  do
+    ls "$DIR/" | while read FILE
+    do
+      ln -s logwrapper "$WRAPDIR/$FILE" 2>/dev/null
+    done
+  done
+fi
+
+PATH="$WRAPDIR:$PATH" "$@"
+X=$?
+[ ! -z "$CLEANUP" ] && rm -rf "$WRAPDIR"
+
+exit $X
