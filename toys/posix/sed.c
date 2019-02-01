@@ -788,7 +788,7 @@ static void parse_pattern(char **pline, long len)
         if (!(s = unescape_delimited_string(&line, 0))) goto error;
         if (!*s) command->rmatch[i] = 0;
         else {
-          xregcomp((void *)reg, s, FLAG(r)*REG_EXTENDED);
+          xregcomp((void *)reg, s, REG_EXTENDED*!!FLAG(r));
           command->rmatch[i] = reg-toybuf;
           reg += sizeof(regex_t);
         }
@@ -882,7 +882,7 @@ resume_s:
       // allocating the space was done by extend_string() above
       if (!*TT.remember) command->arg1 = 0;
       else xregcomp((void *)(command->arg1 + (char *)command), TT.remember,
-        (FLAG(r)*REG_EXTENDED)|((command->sflags&1)*REG_ICASE));
+        (REG_EXTENDED*!!FLAG(r))|((command->sflags&1)*REG_ICASE));
       free(TT.remember);
       TT.remember = 0;
       if (*line == 'w') {
