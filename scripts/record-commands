@@ -2,13 +2,13 @@
 
 # Set up command recording wrapper
 
-[ -z "$WRAPDIR" ] && WRAPDIR="$PWD"/record-commands
-[ -z "$WRAPLOG" ] && export WRAPLOG="$PWD"/log.txt && CLEANUP=1
+[ -z "$WRAPDIR" ] && WRAPDIR="$PWD"/record-commands && RM=$(which rm)
+[ -z "$WRAPLOG" ] && export WRAPLOG="$PWD"/log.txt
 
 if [ $# -eq 0 ]
 then
-  echo "Usage: WRAPDIR=dir WRAPLOG=log.txt record-commands command..."
-  echo "Then examine log.txt"
+  echo "Usage: WRAPDIR=dir WRAPLOG=log.txt record-commands COMMAND..."
+  echo 'Then examine log.txt. "record-commands echo" to just setup $WRAPDIR'
   exit 1
 fi
 
@@ -26,8 +26,15 @@ then
   done
 fi
 
-PATH="$WRAPDIR:$PATH" "$@"
+# Delete old log (if any)
+rm -f "$WRAPLOG"
+
+X=0
+if [ ! -z "$1" ]
+then
+  PATH="$WRAPDIR:$PATH" "$@"
+fi
 X=$?
-[ ! -z "$CLEANUP" ] && rm -rf "$WRAPDIR"
+[ ! -z "$RM" ] && "$RM" -rf "$WRAPDIR"
 
 exit $X

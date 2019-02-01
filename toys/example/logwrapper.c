@@ -29,7 +29,7 @@ void logwrapper_main(void)
   // Log the command line
   if (!log) error_exit("no $WRAPLOG");
   len = strlen(omnom)+2;
-  for (i = 1; i<toys.optc; i++) len += 2*strlen(toys.argv[i])+3;
+  for (i = 0; i<toys.optc; i++) len += 2*strlen(toys.optargs[i])+3;
   ss = stpcpy(s = xmalloc(len), omnom);
 
   // Copy arguments surrounded by quotes with \ escapes for " \ or \n
@@ -57,11 +57,8 @@ void logwrapper_main(void)
   // path search for this instance, otherwise assume we're first instance
   list = find_in_path(getenv("PATH"), omnom);
   if (**toys.argv == '/') {
-    if (!readlink0("/proc/self/exe", s = toybuf, sizeof(toybuf)))
-      perror_exit("/proc/self/exe");
-
     while (list) {
-      if (!strcmp(list->str, s)) break;
+      if (!strcmp(list->str, *toys.argv)) break;
       free(llist_pop(&list));
     }
   }
@@ -69,7 +66,9 @@ void logwrapper_main(void)
   // Skip first instance and try to run next one, until out of instances.
   for (;;) {
     if (list) free(llist_pop(&list));
-    if (!list) error_exit("no %s after logwrapper in $PATH", omnom);
+    if (!list)
+      error_exit("no %s after %s in $PATH=%s", omnom,
+        **toys.argv == '/' ? *toys.argv : "logwrapper", getenv("PATH"));
     *toys.argv = list->str;
     execve(list->str, toys.argv, environ);
   }
