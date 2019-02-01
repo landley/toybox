@@ -297,9 +297,10 @@ do
   OUT="generated/obj/${X%%.c}.o"
   LNKFILES="$LNKFILES $OUT"
 
-  # $LIBFILES doesn't need to be rebuilt if newer than .config, $TOYFILES does
+  # $LIBFILES doesn't need to be rebuilt if older than .config, $TOYFILES does
+  # ($TOYFILES contents can depend on CONFIG symbols, lib/*.c never should.)
 
-  [ "$OUT" -nt "$i" ] && [ -z "$CLICK" -o "$OUT" -nt "$KCONFIG_CONFIG" ] &&
+  [ "$OUT" -nt "$i" ] && [ -z "$CLICK" -o "$OUT" -ot "$KCONFIG_CONFIG" ] &&
     continue
 
   do_loudly $BUILD -c $i -o $OUT &
