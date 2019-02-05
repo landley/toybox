@@ -257,8 +257,8 @@ void sntp_main(void)
         // Display the time and offset
         if (!FLAG(q)) {
           format_iso_time(toybuf, sizeof(toybuf)-1, &tv2);
-          printf("%s offset %c%d.%09d secs\n", toybuf, (diff<0) ? '-' : '+',
-            abs(diff/1000000000), abs(diff%1000000000));
+          printf("%s offset %c%lld.%09lld secs\n", toybuf, (diff<0) ? '-' : '+',
+            llabs(diff/1000000000), llabs(diff%1000000000));
         }
 
         // If we're not in daemon mode, we're done. (Can't get here for -S.)
