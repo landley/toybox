@@ -113,7 +113,7 @@ static long long nanodiff(struct timespec *old, struct timespec *new)
 void sntp_main(void)
 {
   struct timespec tv, tv2;
-  unsigned long long *pktime = (void *)toybuf, now, then, before;
+  unsigned long long *pktime = (void *)toybuf, now, then, before = before;
   long long diff = 0;
   struct addrinfo *ai;
   union socksaddr sa;
@@ -189,12 +189,12 @@ void sntp_main(void)
         // Is source address what we expect?
         xstrncpy(buf, ntop(ai->ai_addr), 128);
         strike = strcmp(buf, ntop((void *)&sa));
-        // Does this reply's orignate timestamp match the packet we sent?
+        // Does this reply's originate timestamp match the packet we sent?
         if (!FLAG(S) && !FLAG(m) && before != SWAP_BE64(pktime[3])) continue;
         // Ignore packets from wrong address or with wrong mode
         if (strike && !FLAG(S)) continue;
-        if (!(FLAG(m) && mode==5 || FLAG(S) && mode==3 ||
-            !FLAG(m) && !FLAG(S) && mode==4)) continue;
+        if (!((FLAG(m) && mode==5) || (FLAG(S) && mode==3) ||
+            (!FLAG(m) && !FLAG(S) && mode==4))) continue;
       }
 
       // If received a -S request packet, send server packet
