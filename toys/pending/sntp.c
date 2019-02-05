@@ -148,32 +148,31 @@ void sntp_main(void)
 
   // loop sending/receiving packets
   for (;;) {
+    now = millitime();
+
     // Figure out if we're in server and multicast modes don't poll
     if (FLAG(m) || FLAG(S)) then = -1;
 
     // daemon and oneshot modes send a packet each time through outer loop
     else {
-      then = (now = millitime()) + 3000;
-
+      then = now + 3000;
       if (FLAG(d) || FLAG(D)) then = now + (1<<TT.r)*1000;
 
-      // Prepare outgoing NTP packet
+      // Send NTP query packet
       memset(toybuf, 0, 48);
       *toybuf = 0xe3; // li = 3 (unsynchronized), version = 4, mode = 3 (client)
       toybuf[2] = 8;  // poll frequency 1<<8 = 256 seconds
       pktime[5] = SWAP_BE64(before = lunchtime(&tv, diff));
-
-      // Send packet
       xsendto(fd, toybuf, 48, ai->ai_addr);
     }
 
     // Loop receiving packets until it's time to send the next one.
-    while (then>0 && now<then) {
+    for (;;) {
       int strike;
 
       // Wait to receive a packet
 
-      now = millitime();
+      if (then>0 && then<(now = millitime())) break;;
       strike = xrecvwait(fd, toybuf, sizeof(toybuf), &sa, then-now);
       if (strike<1) {
         if (!(FLAG(S)||FLAG(m)||FLAG(D)||FLAG(d)) && ++tries == 3)
