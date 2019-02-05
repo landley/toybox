@@ -304,9 +304,6 @@ void sort_main(void)
 {
   int idx, fd = 1;
 
-  // Open output file if necessary.
-  if (TT.o) fd = xcreate(TT.o, O_CREAT|O_TRUNC|O_WRONLY, 0666);
-
   // Parse -k sort keys.
   if (TT.k) {
     struct arg_list *arg;
@@ -383,6 +380,10 @@ void sort_main(void)
     }
     if (TT.linecount) TT.linecount = jdx+1;
   }
+
+  // Open output file if necessary. We can't do this until we've finished
+  // reading in case the output file is one of the input files.
+  if (TT.o) fd = xcreate(TT.o, O_CREAT|O_TRUNC|O_WRONLY, 0666);
 
   // Output result
   for (idx = 0; idx<TT.linecount; idx++) {

@@ -13,6 +13,8 @@ testing "stdin" "sort" "a\nb\nc\n" "" "b\na\nc\n"
 testing "numeric" "sort -n input" "1\n3\n010\n" "3\n1\n010\n" ""
 testing "reverse" "sort -r input" "wook\nwalrus\npoint\npabst\naargh\n" \
 	"point\nwook\npabst\naargh\nwalrus\n" ""
+testing "sort -o" "sort input -o output && cat output" "a\nb\nc\n" "c\na\nb\n" ""
+testing "sort -o same" "sort input -o input && cat input" "a\nb\nc\n" "c\na\nb\n" ""
 
 # Longish chunk of data re-used by the next few tests.  The expected output
 # varies, but the input (this) is the same.
