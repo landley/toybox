@@ -21,5 +21,6 @@ void reset_main(void)
   int fd = tty_fd();
 
   // man 4 console_codes: reset terminal is ESC (no left bracket) c
-  xwrite(fd<0 ? 1 : fd, "\033c", 2);
+  // DEC private mode set enable wraparound sequence.
+  xwrite(fd<0 ? 1 : fd, "\033c\033[?7h", 2);
 }
