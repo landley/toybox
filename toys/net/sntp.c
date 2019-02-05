@@ -10,7 +10,7 @@ USE_SNTP(NEWTOY(sntp, "m:Sp:asdDqr#<4>17=10[!as]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config SNTP
   bool "sntp"
-  default n
+  default y
   help
     usage: sntp [-saSdDqm] [-r SHIFT] [-m ADDRESS] [-p PORT] [SERVER]
 
