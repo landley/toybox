@@ -153,7 +153,7 @@ void sntp_main(void)
 
     // daemon and oneshot modes send a packet each time through outer loop
     else {
-      then = (now = millitime()) + 4000;
+      then = (now = millitime()) + 3000;
 
       if (FLAG(d) || FLAG(D)) then = now + (1<<TT.r)*1000;
 
@@ -176,7 +176,7 @@ void sntp_main(void)
       now = millitime();
       strike = xrecvwait(fd, toybuf, sizeof(toybuf), &sa, then-now);
       if (strike<1) {
-        if (!(FLAG(S)||FLAG(m)||FLAG(D)||FLAG(d)) && ++tries>3)
+        if (!(FLAG(S)||FLAG(m)||FLAG(D)||FLAG(d)) && ++tries == 3)
           error_exit("no reply from %s", *toys.optargs);
         break;
       }
@@ -209,8 +209,8 @@ void sntp_main(void)
         strcpy(buf+12, "LOCL");
         pktime[6+3] = pktime[5]; // send back reference time they sent us
         // everything else is current time
-        pktime[6+2] = pktime[6+4] = pktime[6+5] = lunchtime(0, 0);
-        xsendto(fd, toybuf, 48, (void *)&sa);
+        pktime[6+2] = pktime[6+4] = pktime[6+5] = SWAP_BE64(lunchtime(0, 0));
+        xsendto(fd, buf, 48, (void *)&sa);
 
       // Got a time packet from a recognized server
       } else {
