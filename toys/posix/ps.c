@@ -811,10 +811,9 @@ static int get_ps(struct dirtree *new)
     sprintf(buf, "%lld/statm", slot[SLOT_tid]);
     if (!readfileat(fd, buf, buf, &temp)) *buf = 0;
 
-    // Skip redundant RSS field, we got it from stat
-    for (s = buf, i=0; i<3; i++)
-      if (!sscanf(s, " %lld%n", slot+SLOT_vsz+i/2, &j)) slot[SLOT_vsz+i/2] = 0;
-      else s += j;
+    // Skip redundant RSS field, we got it from stat.
+    slot[SLOT_vsz] = slot[SLOT_shr] = 0;
+    sscanf(buf, "%lld %*d %lld", &slot[SLOT_vsz], &slot[SLOT_shr]);
   }
 
   // Do we need to read "exe"?
