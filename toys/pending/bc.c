@@ -39,6 +39,10 @@ GLOBALS(
   // This actually needs to be a BcVm*, but the toybox build
   // system complains if I make it so. Instead, we'll just cast.
   char *vm;
+
+  size_t nchars;
+  char *file, sig, max_ibase;
+  uint16_t line_len;
 )
 
 #define BC_VM ((BcVm*) TT.vm)
@@ -647,32 +651,12 @@ void bc_program_not(BcResult *r, BcNum *n);
 #define BC_MAX_EXP ((unsigned long) ULONG_MAX)
 #define BC_MAX_VARS ((unsigned long) SIZE_MAX - 1)
 
-#define BC_SIGNAL (BC_VM->sig)
-#define BC_SIGINT (BC_VM->sig == SIGINT)
-
-#ifdef SIGQUIT
-#define BC_SIGTERM (BC_VM->sig == SIGTERM || BC_VM->sig == SIGQUIT)
-#else // SIGQUIT
-#define BC_SIGTERM (BC_VM->sig == SIGTERM)
-#endif // SIGQUIT
-
 #define bc_vm_err(e) (bc_vm_error((e), 0))
 #define bc_vm_verr(e, ...) (bc_vm_error((e), 0, __VA_ARGS__))
 
 typedef struct BcVm {
-
   BcParse prs;
   BcProgram prog;
-
-  size_t nchars;
-
-  char *file;
-
-  uchar sig;
-
-  uint16_t line_len;
-  uchar max_ibase;
-
 } BcVm;
 
 BcStatus bc_vm_posixError(BcError e, size_t line, ...);
@@ -1118,7 +1102,7 @@ BcStatus bc_read_chars(BcVec *vec, char *prompt) {
     fflush(stderr);
   }
 
-  while (!BC_SIGNAL && c != '\n') {
+  while (!TT.sig && c != '\n') {
 
     i = fgetc(stdin);
 
@@ -1126,9 +1110,9 @@ BcStatus bc_read_chars(BcVec *vec, char *prompt) {
 
       if (errno == EINTR) {
 
-        if (BC_SIGTERM) return BC_STATUS_SIGNAL;
+        if (TT.sig == SIGTERM || TT.sig == SIGQUIT) return BC_STATUS_SIGNAL;
 
-        BC_VM->sig = 0;
+        TT.sig = 0;
 
         if (BC_TTYIN) {
           fputs(bc_program_ready_msg, stderr);
@@ -1150,7 +1134,7 @@ BcStatus bc_read_chars(BcVec *vec, char *prompt) {
 
   bc_vec_pushByte(vec, '\0');
 
-  return BC_SIGNAL ? BC_STATUS_SIGNAL : BC_STATUS_SUCCESS;
+  return TT.sig ? BC_STATUS_SIGNAL : BC_STATUS_SUCCESS;
 }
 
 BcStatus bc_read_line(BcVec *vec, char *prompt) {
@@ -1247,20 +1231,20 @@ static size_t bc_num_log10(size_t i) {
 static BcStatus bc_num_subArrays(BcDig *a, BcDig *b, size_t len)
 {
   size_t i, j;
-  for (i = 0; !BC_SIGNAL && i < len; ++i) {
-    for (a[i] -= b[i], j = 0; !BC_SIGNAL && a[i + j] < 0;) {
+  for (i = 0; !TT.sig && i < len; ++i) {
+    for (a[i] -= b[i], j = 0; !TT.sig && a[i + j] < 0;) {
       a[i + j++] += 10;
       a[i + j] -= 1;
     }
   }
-  return BC_SIGNAL ? BC_STATUS_SIGNAL : BC_STATUS_SUCCESS;
+  return TT.sig ? BC_STATUS_SIGNAL : BC_STATUS_SUCCESS;
 }
 
 static ssize_t bc_num_compare(BcDig *a, BcDig *b, size_t len)
 {
   size_t i;
   int c = 0;
-  for (i = len - 1; !BC_SIGNAL && i < len && !(c = a[i] - b[i]); --i);
+  for (i = len - 1; !TT.sig && i < len && !(c = a[i] - b[i]); --i);
   return BC_NUM_NEG(i + 1, c < 0);
 }
 
@@ -1303,7 +1287,7 @@ ssize_t bc_num_cmp(BcNum *a, BcNum *b) {
   cmp = bc_num_compare(max_num, min_num, b_int + min);
   if (cmp) return BC_NUM_NEG(cmp, (!a_max) != neg);
 
-  for (max_num -= diff, i = diff - 1; !BC_SIGNAL && i < diff; --i) {
+  for (max_num -= diff, i = diff - 1; !TT.sig && i < diff; --i) {
     if (max_num[i]) return BC_NUM_NEG(1, (!a_max) != neg);
   }
 
@@ -1462,19 +1446,19 @@ static BcStatus bc_num_a(BcNum *a, BcNum *b, BcNum *c, size_t sub) {
     ptr = ptr_b;
   }
 
-  for (carry = 0, i = 0; !BC_SIGNAL && i < min_rdx + min_int; ++i) {
+  for (carry = 0, i = 0; !TT.sig && i < min_rdx + min_int; ++i) {
     unsigned int in = (unsigned int) (ptr_a[i] + ptr_b[i]);
     carry = bc_num_addDigit(ptr_c + i, in, carry);
   }
 
-  for (; !BC_SIGNAL && i < max + min_rdx; ++i)
+  for (; !TT.sig && i < max + min_rdx; ++i)
     carry = bc_num_addDigit(ptr_c + i, (unsigned int) ptr[i], carry);
 
   c->len += i;
 
   if (carry) c->num[c->len++] = (BcDig) carry;
 
-  return BC_SIGNAL ? BC_STATUS_SIGNAL : BC_STATUS_SUCCESS;
+  return TT.sig ? BC_STATUS_SIGNAL : BC_STATUS_SUCCESS;
 }
 
 static BcStatus bc_num_s(BcNum *a, BcNum *b, BcNum *c, size_t sub) {
@@ -1548,7 +1532,7 @@ static BcStatus bc_num_k(BcNum *a, BcNum *b, BcNum *c) {
   int aone = BC_NUM_ONE(a);
 
   // This is here because the function is recursive.
-  if (BC_SIGNAL) return BC_STATUS_SIGNAL;
+  if (TT.sig) return BC_STATUS_SIGNAL;
   if (!a->len || !b->len) {
     bc_num_zero(c);
     return BC_STATUS_SUCCESS;
@@ -1571,13 +1555,13 @@ static BcStatus bc_num_k(BcNum *a, BcNum *b, BcNum *c) {
     memset(ptr_c, 0, sizeof(BcDig) * c->cap);
     c->len = len = 0;
 
-    for (i = 0; !BC_SIGNAL && i < b->len; ++i) {
+    for (i = 0; !TT.sig && i < b->len; ++i) {
 
       BcDig *ptr = ptr_c + i;
 
       carry = 0;
 
-      for (j = 0; !BC_SIGNAL && j < a->len; ++j) {
+      for (j = 0; !TT.sig && j < a->len; ++j) {
         unsigned int in = (uchar) ptr[j];
         in += ((unsigned int) a->num[j]) * ((unsigned int) b->num[i]);
         carry = bc_num_addDigit(ptr + j, in, carry);
@@ -1589,7 +1573,7 @@ static BcStatus bc_num_k(BcNum *a, BcNum *b, BcNum *c) {
 
     c->len = len;
 
-    return BC_SIGNAL ? BC_STATUS_SIGNAL : BC_STATUS_SUCCESS;
+    return TT.sig ? BC_STATUS_SIGNAL : BC_STATUS_SUCCESS;
   }
 
   bc_num_init(&l1, max);
@@ -1735,7 +1719,7 @@ static BcStatus bc_num_d(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
   c->len = cp.len;
   p = b->num;
 
-  for (i = end - 1; !BC_SIGNAL && !s && i < end; --i) {
+  for (i = end - 1; !TT.sig && !s && i < end; --i) {
     n = cp.num + i;
     for (q = 0; !s && (n[len] || bc_num_compare(n, p, len) >= 0); ++q)
       s = bc_num_subArrays(n, p, len);
@@ -1830,13 +1814,13 @@ static BcStatus bc_num_p(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
 
   if (!neg) scale = minof(a->rdx * pow, maxof(scale, a->rdx));
 
-  for (powrdx = a->rdx; !BC_SIGNAL && !(pow & 1); pow >>= 1) {
+  for (powrdx = a->rdx; !TT.sig && !(pow & 1); pow >>= 1) {
     powrdx <<= 1;
     s = bc_num_mul(&copy, &copy, &copy, powrdx);
     if (s) goto err;
   }
 
-  if (BC_SIGNAL) {
+  if (TT.sig) {
     s = BC_STATUS_SIGNAL;
     goto err;
   }
@@ -1844,7 +1828,7 @@ static BcStatus bc_num_p(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
   bc_num_copy(c, &copy);
   resrdx = powrdx;
 
-  while (!BC_SIGNAL && (pow >>= 1)) {
+  while (!TT.sig && (pow >>= 1)) {
 
     powrdx <<= 1;
     s = bc_num_mul(&copy, &copy, &copy, powrdx);
@@ -1862,7 +1846,7 @@ static BcStatus bc_num_p(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
     if (s) goto err;
   }
 
-  if (BC_SIGNAL) {
+  if (TT.sig) {
     s = BC_STATUS_SIGNAL;
     goto err;
   }
@@ -2021,10 +2005,10 @@ int_err:
 }
 
 static void bc_num_printNewline() {
-  if (BC_VM->nchars >= (size_t) (BC_VM->line_len - 1)) {
+  if (TT.nchars >= TT.line_len - 1) {
     putchar('\\');
     putchar('\n');
-    BC_VM->nchars = 0;
+    TT.nchars = 0;
   }
 }
 
@@ -2034,12 +2018,12 @@ static void bc_num_printDigits(size_t n, size_t len, int rdx) {
 
   bc_num_printNewline();
   putchar(rdx ? '.' : ' ');
-  ++BC_VM->nchars;
+  ++TT.nchars;
 
   bc_num_printNewline();
   for (exp = 0, pow = 1; exp < len - 1; ++exp, pow *= 10);
 
-  for (exp = 0; exp < len; pow /= 10, ++BC_VM->nchars, ++exp) {
+  for (exp = 0; exp < len; pow /= 10, ++TT.nchars, ++exp) {
     size_t dig;
     bc_num_printNewline();
     dig = n / pow;
@@ -2053,12 +2037,12 @@ static void bc_num_printHex(size_t n, size_t len, int rdx) {
   if (rdx) {
     bc_num_printNewline();
     putchar('.');
-    BC_VM->nchars += 1;
+    TT.nchars += 1;
   }
 
   bc_num_printNewline();
   putchar(bc_num_hex_digits[n]);
-  BC_VM->nchars += len;
+  TT.nchars += len;
 }
 
 static void bc_num_printDecimal(BcNum *n) {
@@ -2066,7 +2050,7 @@ static void bc_num_printDecimal(BcNum *n) {
   size_t i, rdx = n->rdx - 1;
 
   if (n->neg) putchar('-');
-  BC_VM->nchars += n->neg;
+  TT.nchars += n->neg;
 
   for (i = n->len - 1; i < n->len; --i)
     bc_num_printHex((size_t) n->num[i], 1, i == rdx);
@@ -2143,7 +2127,7 @@ static BcStatus bc_num_printBase(BcNum *n, BcNum *base, size_t base_t) {
   int neg = n->neg;
 
   if (neg) putchar('-');
-  BC_VM->nchars += neg;
+  TT.nchars += neg;
 
   n->neg = 0;
 
@@ -2230,7 +2214,7 @@ BcStatus bc_num_print(BcNum *n, BcNum *base,
 
   if (!s && newline) {
     putchar('\n');
-    BC_VM->nchars = 0;
+    TT.nchars = 0;
   }
 
   return s;
@@ -2376,7 +2360,7 @@ BcStatus bc_num_sqrt(BcNum *a, BcNum *b, size_t scale) {
   resrdx = scale + 2;
   len = BC_NUM_INT(x0) + resrdx - 1;
 
-  while (!BC_SIGNAL && (cmp || digs < len)) {
+  while (!TT.sig && (cmp || digs < len)) {
 
     s = bc_num_div(a, x0, &f, resrdx);
     if (s) goto err;
@@ -2402,7 +2386,7 @@ BcStatus bc_num_sqrt(BcNum *a, BcNum *b, size_t scale) {
     x1 = temp;
   }
 
-  if (BC_SIGNAL) {
+  if (TT.sig) {
     s = BC_STATUS_SIGNAL;
     goto err;
   }
@@ -2700,7 +2684,7 @@ void bc_lex_free(BcLex *l) {
 
 void bc_lex_file(BcLex *l, char *file) {
   l->line = 1;
-  BC_VM->file = file;
+  TT.file = file;
 }
 
 BcStatus bc_lex_next(BcLex *l) {
@@ -4287,7 +4271,7 @@ BcStatus bc_parse_parse(BcParse *p) {
   }
   else s = bc_parse_stmt(p);
 
-  if ((s && s != BC_STATUS_QUIT) || BC_SIGNAL) s = bc_parse_reset(p, s);
+  if ((s && s != BC_STATUS_QUIT) || TT.sig) s = bc_parse_reset(p, s);
 
   return s;
 }
@@ -4310,7 +4294,7 @@ static BcStatus bc_parse_expr_err(BcParse *p, uint8_t flags, BcParseNext next) {
   // This is for spacing in things like for loop headers.
   while (!s && (t = p->l.t) == BC_LEX_NLINE) s = bc_lex_next(&p->l);
 
-  for (; !BC_SIGNAL && !s && !done && BC_PARSE_EXPR(t); t = p->l.t) {
+  for (; !TT.sig && !s && !done && BC_PARSE_EXPR(t); t = p->l.t) {
 
     switch (t) {
 
@@ -4513,7 +4497,7 @@ static BcStatus bc_parse_expr_err(BcParse *p, uint8_t flags, BcParseNext next) {
   }
 
   if (s) return s;
-  if (BC_SIGNAL) return BC_STATUS_SIGNAL;
+  if (TT.sig) return BC_STATUS_SIGNAL;
 
   while (p->ops.len > ops_bgn) {
 
@@ -4862,7 +4846,7 @@ static BcStatus bc_program_read(BcProgram *p) {
       return bc_vm_err(BC_ERROR_EXEC_REC_READ);
   }
 
-  file = BC_VM->file;
+  file = TT.file;
   bc_lex_file(&parse.l, bc_program_stdin_name);
   bc_vec_npop(&f->code, f->code.len);
   bc_vec_init(&buf, sizeof(char), NULL);
@@ -4899,22 +4883,22 @@ exec_err:
   bc_parse_free(&parse);
 io_err:
   bc_vec_free(&buf);
-  BC_VM->file = file;
+  TT.file = file;
   return s;
 }
 
 static void bc_program_printChars(char *str) {
   char *nl;
-  BC_VM->nchars += printf("%s", str);
+  TT.nchars += printf("%s", str);
   nl = strrchr(str, '\n');
-  if (nl) BC_VM->nchars = strlen(nl + 1);
+  if (nl) TT.nchars = strlen(nl + 1);
 }
 
 static void bc_program_printString(char *str) {
 
   size_t i, len = strlen(str);
 
-  for (i = 0; i < len; ++i, ++BC_VM->nchars) {
+  for (i = 0; i < len; ++i, ++TT.nchars) {
 
     int c = str[i];
 
@@ -4926,14 +4910,14 @@ static void bc_program_printString(char *str) {
       ptr = strchr(bc_program_esc_chars, c);
 
       if (ptr) {
-        if (c == 'n') BC_VM->nchars = SIZE_MAX;
+        if (c == 'n') TT.nchars = SIZE_MAX;
         c = bc_program_esc_seqs[(size_t) (ptr - bc_program_esc_chars)];
       }
       else {
         // Just print the backslash. The following
         // character will be printed later.
         putchar('\\');
-        ++BC_VM->nchars;
+        ++TT.nchars;
       }
     }
 
@@ -4974,7 +4958,7 @@ static BcStatus bc_program_print(BcProgram *p, uchar inst, size_t idx) {
       bc_program_printString(str);
       if (inst == BC_INST_PRINT) {
         putchar('\n');
-        BC_VM->nchars = 0;
+        TT.nchars = 0;
       }
     }
   }
@@ -5158,7 +5142,7 @@ static BcStatus bc_program_assign(BcProgram *p, uchar inst) {
       ptr = &p->scale;
     }
     else {
-      max = ib ? BC_VM->max_ibase : BC_MAX_OBASE;
+      max = ib ? TT.max_ibase : BC_MAX_OBASE;
       min = BC_NUM_MIN_BASE;
       ptr = ib ? &p->ib_t : &p->ob_t;
     }
@@ -5512,8 +5496,9 @@ BcStatus bc_program_reset(BcProgram *p, BcStatus s) {
   ip = bc_vec_top(&p->stack);
   ip->idx = f->code.len;
 
-  if (BC_SIGTERM || (!s && BC_SIGINT && BC_I)) return BC_STATUS_QUIT;
-  BC_VM->sig = 0;
+  if (TT.sig == SIGTERM || TT.sig == SIGQUIT ||
+      (!s && TT.sig == SIGINT && BC_I)) return BC_STATUS_QUIT;
+  TT.sig = 0;
 
   if (!s || s == BC_STATUS_SIGNAL) {
     if (BC_TTYIN) {
@@ -5707,7 +5692,7 @@ BcStatus bc_program_exec(BcProgram *p) {
       }
     }
 
-    if ((s && s != BC_STATUS_QUIT) || BC_SIGNAL) s = bc_program_reset(p, s);
+    if ((s && s != BC_STATUS_QUIT) || TT.sig) s = bc_program_reset(p, s);
 
     // If the stack has changed, pointers may be invalid.
     ip = bc_vec_top(&p->stack);
@@ -5720,11 +5705,13 @@ BcStatus bc_program_exec(BcProgram *p) {
 
 static void bc_vm_sig(int sig) {
   int err = errno;
+
+  // If you run bc 2>/dev/full ctrl-C is ignored. Why? No idea.
   if (sig == SIGINT) {
     size_t len = strlen(bc_sig_msg);
-    if (write(2, bc_sig_msg, len) != (ssize_t) len) sig = 0;
+    if (write(2, bc_sig_msg, len) != len) sig = 0;
   }
-  BC_VM->sig = (uchar) sig;
+  TT.sig = sig;
   errno = err;
 }
 
@@ -5745,7 +5732,7 @@ static void bc_vm_printError(BcError e, char *fmt,
   // This is the condition for parsing vs runtime.
   // If line is not 0, it is parsing.
   if (line) {
-    fprintf(stderr, "\n    %s", BC_VM->file);
+    fprintf(stderr, "\n    %s", TT.file);
     fprintf(stderr, bc_err_line, line);
   }
   else {
@@ -5848,7 +5835,7 @@ static BcStatus bc_vm_process(char *text, int is_stdin) {
   if (BC_I) fflush(stdout);
 
 err:
-  if (s || BC_SIGNAL) s = bc_program_reset(&BC_VM->prog, s);
+  if (s || TT.sig) s = bc_program_reset(&BC_VM->prog, s);
   bc_vm_clean();
   return s == BC_STATUS_QUIT || !BC_I || !is_stdin ? s : BC_STATUS_SUCCESS;
 }
@@ -5891,7 +5878,7 @@ static BcStatus bc_vm_stdin(void) {
   // treats a backslash+newline combo as whitespace, per the bc spec. In that
   // case, and for strings and comments, the parser will expect more stuff.
   while (!done && (s = bc_read_line(&buf, ">>> ")) != BC_STATUS_ERROR &&
-         buf.len > 1 && !BC_SIGNAL && s != BC_STATUS_SIGNAL)
+         buf.len > 1 && !TT.sig && s != BC_STATUS_SIGNAL)
   {
     char c2, *str = buf.v;
     size_t i, len = buf.len - 1;
@@ -5937,7 +5924,7 @@ static BcStatus bc_vm_stdin(void) {
   }
 
   if (s && s != BC_STATUS_EOF) goto err;
-  else if (BC_SIGNAL && !s) s = BC_STATUS_SIGNAL;
+  else if (TT.sig && !s) s = BC_STATUS_SIGNAL;
   else if (s != BC_STATUS_ERROR) {
     if (comment) s = bc_parse_err(&BC_VM->prs, BC_ERROR_PARSE_COMMENT);
     else if (string) s = bc_parse_err(&BC_VM->prs, BC_ERROR_PARSE_STRING);
@@ -5992,7 +5979,7 @@ void bc_main(void) {
   sigaction(SIGQUIT, &sa, NULL);
 
   TT.vm = xzalloc(sizeof(BcVm));
-  BC_VM->line_len = (uint16_t) bc_vm_envLen("BC_LINE_LENGTH");
+  TT.line_len = bc_vm_envLen("BC_LINE_LENGTH");
 
   bc_program_init(&BC_VM->prog);
   bc_parse_init(&BC_VM->prs, &BC_VM->prog, BC_PROG_MAIN);
@@ -6001,7 +5988,7 @@ void bc_main(void) {
   toys.optflags |= isatty(0) ? BC_FLAG_TTYIN : 0;
   toys.optflags |= BC_TTYIN && isatty(1) ? FLAG_i : 0;
 
-  BC_VM->max_ibase = !BC_S && !BC_W ? BC_NUM_MAX_POSIX_IBASE : BC_NUM_MAX_IBASE;
+  TT.max_ibase = !BC_S && !BC_W ? BC_NUM_MAX_POSIX_IBASE : BC_NUM_MAX_IBASE;
 
   if (BC_I && !(toys.optflags & FLAG_q)) bc_vm_info();
 
