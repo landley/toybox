@@ -9,7 +9,7 @@
 #ifndef TOYBOX_VENDOR
 #define TOYBOX_VENDOR ""
 #endif
-#define TOYBOX_VERSION "0.7.8"TOYBOX_VENDOR
+#define TOYBOX_VERSION "0.8.0"TOYBOX_VENDOR
 #endif
 
 // Populate toy_list[].
