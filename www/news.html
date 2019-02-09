@@ -8,6 +8,129 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+<a name="08-02-2019" /><a href="#08-02-2019"><hr><h2><b>February 8, 2019</b></h2></a>
+<blockquote>
+<p>"Most readers get as far as the Future Semiconditionally Modified
+Subinverted Plagal Past Subjunctive Intentional before giving up; and
+in fact in later editions of the book all pages beyond this point have
+been left blank to save on printing costs."</p>
+<p>- The Hitchhiker's Guide to the Galaxy</p>
+</blockquote>
+
+<p><a href=downloads/toybox-0.8.0.tar.gz>Toybox 0.8.0</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.8.0>git commit</a>)
+is out.</p>
+
+<p>Toybox now builds on MacOS and FreeBSD, thanks to the efforts of Elliott
+Hughes and Ed Maste respectively. Use the "make macos_defconfig" and "make
+freebsd_defconfig" targets to enable the set of commands that compile on
+each so far.</p>
+
+<p><u>New commands</u>: Added an <b>sntp</b> client/server (RFC 4330 Simple Network Time
+Protocol, a compatible subset of ntp). The <b>test</b> command was rewritten
+and promoted out of pending.</p>
+
+<p><u>New options</u>: <b>grep</b> now has --color, supports embedded NUL bytes in its input,
+recognizes binary files, and passes all of grep.test (in case you
+needed the middle numerical field of -bB, etc).
+Josh Gao added ipv6 and UDP support to <b>netcat</b>.
+Volodymyr Medvid reported that install -d doesn't honor -o or -g.
+Elliott Hughes did a lot of work to support hermetic Android/AOSP builds:
+<b>mkdir</b> accepts both --parent and --parents as synonyms for -p, <b>touch</b> ignores -f,
+<b>basename</b> added -s to remove a trailing suffix, <b>dirname</b> now supports multiple
+arguments, <b>cmp</b> accepts --quiet and --silent as synonyms for -s, <b>hostname</b>
+added -sfd, <b>head</b> added --bytes as a synonym for -c and --lines as a synonym
+for -n, <b>mktemp</b> added -t and fixed -u, <b>sed</b> added -z and -iEXT to keep backup files,
+<b>md5sum</b> and sha1sum added --status and --check as synonyms -s and -c,
+<b>readlink</b> added --cannonicalize as a synonym for -f, <b>sort</b> grew -V,
+<b>patch</b> added -s its synonym --quiet, <b>stat</b> added --format as
+a synonym for -c, <b>xargs</b> added -p -t -r,
+Eduardas Meile asked
+that <b>umount</b> ignore -c. Reverend Homer added a small optimization to file.c,
+and Elliott taught <b>file</b> to recognize riscv ELF binaries. Peter Collingbourne
+taught <b>ls</b> -t to use the nanoseconds field.
+<b>patch</b> has better support for patching a file with a tab in the name.</p>
+
+<p><u>Bugfixes</u>:
+<b>cp</b> --preserve was segfaulting when you didn't specify _what_ to
+preserve (it now correctly defaults to "mot") and didn't get the permissions
+right when copying a symlink's contents as a regular file,
+<b>sort</b> -x didn't work when
+attached to a key, <b>host</b> didn't allocate a big enough buffer for worst
+case ipv6 address size, <b>sed</b> needed a ; between b and } when other
+implementations don't (we're already well past what posix says but a script
+out in the field broke...),
+and several fixes to <b>hostname</b> in a container, <b>ps</b>/<b>top</b> were
+misreading the VIRT and SHM fields.</p>
+
+<p><u>Pending</u>: Gavin Howard updated <b>bc</b> and added more tests,
+Marius Adaskevicius pointed out <b>mdev</b> -s should follow symlinks,
+Yangchun Fu reported a <b>dhcp</b> checksum bug, <b>modprobe</b> needed errno reset
+to avoid reporting spurious errors in verbose mode and no longer
+exits with status 1 if it can't find /etc/modprobe.conf, the <b>more</b> command
+wasn't always flushing stdout when it exited.</p>
+
+<p><u>Build</u>:
+<b>chrt</b> no longer #warns about the musl sched_get_priority_min() bug, but
+instead works around it.
+We were mixing setjmp/siglongjmp (harmless in some contexts but it kind
+of annoyed FreeBSD), and
+make install_airlock now adds sha256sum (because the Linux 4.20 build now
+needs that for the s390x target).</p>
+
+<p><u>Coding style</u>:
+Rob converted the rest of the option GLOBALS() to the new single letter
+coding style, and the new FLAG(x) macro is a slightly tidier way to say
+"toys.optflags&FLAG_x".
+Removed CFG_SORT_BIG (the sort command always
+has the full functionality now. The general future direction or toybox
+is to either have a command or not have it; multiple versions of the
+same command aren't worth the complexity in testing, documentation,
+or system adminstration).</p>
+
+<p><u>Library code</u>:
+The mkflags plumbing can now support arbitrary punctuation as option
+names via an escape syntax (because mkfs.vfat specifies an offset with -@),
+and lib/args.c now only sets FLAGS_NODASH when the first argument
+didn't have a dash (allowing "ps ax" and "ps -ax" to behave differently).</p>
+
+<p>Added an xrename() function,
+xchdir() has better error reporting, xconnect()/xbind() had their
+implementations merged, xsendto() moved from ping to lib, xpoll() now
+measures elapsed time and only waits for the remaining period when restarted,
+and Eduardas Meile converted several error_exit() to error_exit_raw() (because
+yocto 2.6 buils with -Werror=format-security by default).</p>
+
+<p>There's a scripts/portability.sh now which lets the build use gsed and gmake
+(when available) in more places to avoid broken host versions on MacOS and FreeBSD.
+The syntax of the "noreturn" attribute
+changed slightly, some calls to strnstr() were replaced with strcasestr(),
+we work around MacOS' lack of features.h, portability.h can now do Apple's
+endianness macros, and so on.</p>
+
+<p>Following the <a href=faq.html#support_horizon>seven year rule</a>
+Elliott removed support or glibc 2.10, and also
+reformatted a lot of --help text for consistency (removing trailing
+periods and such).</p>
+
+<p><u>Test suite</u>:
+The test suite now has its own version of "pending", specifically "make tests"
+skips test files without the executable bit set (unless you export $TEST_ALL).
+This eliminates "expected failures" (I.E. files with unresolved todo items)
+from the global regression test. Additional tests can be added to the global
+regression test with chmod +x as the todo items they document get resolved.</p>
+
+<p>Several places the test suite got fluffed out, including guards to skip
+root-only tests when run as a normal user. The testcmd function prints the
+short name instead of the full path to the command.
+The tests for the test command
+("test.test") no longer test the shell builtin but correctly test the
+toybox command. (Now say that ten times fast.)</p>
+
+<p>Bash version skew required replacing "continue" with "return" to stop
+tests early in bash 4.4 (for VERBOSE=fail).</p>
+
+
 <a name="31-10-2018" /><a href="#31-10-2018"><hr><h2><b>October 31, 2018</b></h2></a>
 <blockquote><p>
 "In the beginning the Universe was created.
