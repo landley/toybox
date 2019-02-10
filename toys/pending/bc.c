@@ -544,13 +544,6 @@ BcStatus bc_lex_token(BcLex *l);
 #define BC_PARSE_OP_LEFT(op) (BC_PARSE_OP_DATA(op) & BC_LEX_CHAR_MSB(1))
 #define BC_PARSE_OP_PREC(op) (BC_PARSE_OP_DATA(op) & ~(BC_LEX_CHAR_MSB(1)))
 
-#define BC_PARSE_EXPR_ENTRY(e1, e2, e3, e4, e5, e6, e7, e8)  \
-  (((e1) << 7) | ((e2) << 6) | ((e3) << 5) | ((e4) << 4) | \
-   ((e5) << 3) | ((e6) << 2) | ((e7) << 1) | ((e8) << 0))
-
-#define BC_PARSE_EXPR(i) \
-  (bc_parse_exprs[(((i) & (uchar) ~(0x07)) >> 3)] & (1 << (7 - ((i) & 0x07))))
-
 #define BC_PARSE_TOP_OP(p) (*((BcLexType*) bc_vec_top(&(p)->ops)))
 #define BC_PARSE_LEAF(prev, bin_last, rparen) \
   (!(bin_last) && ((rparen) || bc_parse_inst_isLeaf(prev)))
@@ -627,11 +620,6 @@ void bc_program_not(BcResult *r, BcNum *n);
 
 #define BC_FLAG_TTYIN (1<<7)
 #define BC_TTYIN (toys.optflags & BC_FLAG_TTYIN)
-
-#define BC_S (toys.optflags & FLAG_s)
-#define BC_W (toys.optflags & FLAG_w)
-#define BC_L (toys.optflags & FLAG_l)
-#define BC_I (toys.optflags & FLAG_i)
 
 #define BC_MAX_OBASE ((unsigned long) INT_MAX)
 #define BC_MAX_DIM ((unsigned long) INT_MAX)
@@ -780,19 +768,6 @@ size_t bc_lex_kws_len = sizeof(bc_lex_kws) / sizeof(BcLexKeyword);
 
 char *bc_parse_const1 = "1";
 
-// This is an array that corresponds to token types. An entry is
-// 1 if the token is valid in an expression, 0 otherwise.
-uint8_t bc_parse_exprs[] = {
-  BC_PARSE_EXPR_ENTRY(0, 0, 1, 1, 1, 1, 1, 1),
-  BC_PARSE_EXPR_ENTRY(1, 1, 1, 1, 1, 1, 1, 1),
-  BC_PARSE_EXPR_ENTRY(1, 1, 1, 1, 1, 1, 1, 1),
-  BC_PARSE_EXPR_ENTRY(1, 1, 1, 0, 0, 1, 1, 0),
-  BC_PARSE_EXPR_ENTRY(0, 0, 0, 0, 0, 0, 1, 1),
-  BC_PARSE_EXPR_ENTRY(0, 0, 0, 0, 0, 0, 0, 0),
-  BC_PARSE_EXPR_ENTRY(0, 0, 1, 1, 1, 1, 1, 0),
-  BC_PARSE_EXPR_ENTRY(1, 1, 0, 1, 0, 0, 0, 0)
-};
-
 // This is an array of data for operators that correspond to token types.
 uchar bc_parse_ops[] = {
   BC_PARSE_OP(0, 0), BC_PARSE_OP(0, 0),
@@ -838,8 +813,6 @@ BcProgramUnary bc_program_unarys[] = {
 
 char bc_program_stdin_name[] = "<stdin>";
 char bc_program_ready_msg[] = "ready for more input\n";
-char bc_program_esc_chars[] = "ab\\efnqrt";
-char bc_program_esc_seqs[] = "\a\b\\\\\f\n\"\r\t";
 
 char *bc_lib_name = "gen/lib.bc";
 
@@ -1087,7 +1060,7 @@ BcStatus bc_read_chars(BcVec *vec, char *prompt) {
 
   bc_vec_npop(vec, vec->len);
 
-  if (BC_TTYIN && !BC_S) {
+  if (BC_TTYIN && !FLAG(s)) {
     fputs(prompt, stderr);
     fflush(stderr);
   }
@@ -1106,7 +1079,7 @@ BcStatus bc_read_chars(BcVec *vec, char *prompt) {
 
         if (BC_TTYIN) {
           fputs(bc_program_ready_msg, stderr);
-          if (!BC_S) fputs(prompt, stderr);
+          if (!FLAG(s)) fputs(prompt, stderr);
           fflush(stderr);
         }
         else return BC_STATUS_SIGNAL;
@@ -3905,7 +3878,7 @@ static BcStatus bc_parse_func(BcParse *p) {
 
   if (p->l.t != BC_LEX_NAME) return bc_parse_err(p, BC_ERROR_PARSE_FUNC);
 
-  voidfn = (!BC_S && !BC_W && p->l.t == BC_LEX_NAME &&
+  voidfn = (!FLAG(s) && !FLAG(w) && p->l.t == BC_LEX_NAME &&
             !strcmp(p->l.str.v, "void"));
 
   s = bc_lex_next(&p->l);
@@ -4263,13 +4236,13 @@ BcStatus bc_parse_parse(BcParse *p) {
 }
 
 static BcStatus bc_parse_expr_err(BcParse *p, uint8_t flags, BcParseNext next) {
-
   BcStatus s = BC_STATUS_SUCCESS;
   BcInst prev = BC_INST_PRINT;
   BcLexType top, t = p->l.t;
   size_t nexprs = 0, ops_bgn = p->ops.len;
   uint32_t i, nparens, nrelops;
   int pfirst, rprn, done, get_token, assign, bin_last, incdec;
+  char valid[] = {0xfc, 0xff, 0xff, 0x67, 0xc0, 0x00, 0x7c, 0x0b};
 
   pfirst = p->l.t == BC_LEX_LPAREN;
   nparens = nrelops = 0;
@@ -4280,7 +4253,8 @@ static BcStatus bc_parse_expr_err(BcParse *p, uint8_t flags, BcParseNext next) {
   // This is for spacing in things like for loop headers.
   while (!s && (t = p->l.t) == BC_LEX_NLINE) s = bc_lex_next(&p->l);
 
-  for (; !TT.sig && !s && !done && BC_PARSE_EXPR(t); t = p->l.t) {
+  // Loop checking if token is valid in this expression
+  for (; !TT.sig && !s && !done && (valid[t>>3] & (1<<(t&7))); t = p->l.t) {
 
     switch (t) {
 
@@ -4537,10 +4511,6 @@ BcStatus bc_parse_expr_status(BcParse *p, uint8_t flags, BcParseNext next) {
   if (s == BC_STATUS_EMPTY_EXPR) s = bc_parse_err(p, BC_ERROR_PARSE_EMPTY_EXPR);
 
   return s;
-}
-
-BcStatus bc_parse_expr(BcParse *p, uint8_t flags) {
-  return bc_parse_expr_status(p, flags, bc_parse_next_read);
 }
 
 static BcStatus bc_program_type_num(BcResult *r, BcNum *n) {
@@ -4847,7 +4817,7 @@ static BcStatus bc_program_read(BcProgram *p) {
 
   s = bc_parse_text(&parse, buf.v);
   if (s) goto exec_err;
-  s = bc_parse_expr(&parse, BC_PARSE_NOREAD);
+  s = bc_parse_expr_status(&parse, BC_PARSE_NOREAD, bc_parse_next_read);
   if (s) goto exec_err;
 
   if (parse.l.t != BC_LEX_NLINE && parse.l.t != BC_LEX_EOF) {
@@ -4880,30 +4850,17 @@ static void bc_program_printChars(char *str) {
   if (nl) TT.nchars = strlen(nl + 1);
 }
 
-static void bc_program_printString(char *str) {
+// Output, substituting escape sequences, see also unescape() in lib/
+static void bc_program_printString(char *str)
+{
+  int i, c, idx;
 
-  size_t i, len = strlen(str);
-
-  for (i = 0; i < len; ++i, ++TT.nchars) {
-
-    int c = str[i];
-
-    if (c == '\\' && i != len - 1) {
-
-      char *ptr;
-
-      c = str[++i];
-      ptr = strchr(bc_program_esc_chars, c);
-
-      if (ptr) {
+  for (i = 0; str[i]; ++i, ++TT.nchars) {
+    if ((c = str[i]) == '\\' && str[i+1]) {
+      if ((idx = stridx("ab\\efnqrt", c = str[i+1])) >= 0) {
         if (c == 'n') TT.nchars = SIZE_MAX;
-        c = bc_program_esc_seqs[(size_t) (ptr - bc_program_esc_chars)];
-      }
-      else {
-        // Just print the backslash. The following
-        // character will be printed later.
-        putchar('\\');
-        ++TT.nchars;
+        c = "\a\b\\\\\f\n\"\r\t"[idx];
+        i++;
       }
     }
 
@@ -5483,7 +5440,7 @@ BcStatus bc_program_reset(BcProgram *p, BcStatus s) {
   ip->idx = f->code.len;
 
   if (TT.sig == SIGTERM || TT.sig == SIGQUIT ||
-      (!s && TT.sig == SIGINT && BC_I)) return BC_STATUS_QUIT;
+      (!s && TT.sig == SIGINT && FLAG(i))) return BC_STATUS_QUIT;
   TT.sig = 0;
 
   if (!s || s == BC_STATUS_SIGNAL) {
@@ -5745,15 +5702,14 @@ BcStatus bc_vm_error(BcError e, size_t line, ...) {
 BcStatus bc_vm_posixError(BcError e, size_t line, ...) {
 
   va_list args;
-  int p = (int) BC_S, w = (int) BC_W;
 
-  if (!(p || w)) return BC_STATUS_SUCCESS;
+  if (!(FLAG(s) || FLAG(w))) return BC_STATUS_SUCCESS;
 
   va_start(args, line);
-  bc_vm_printError(e, p ? bc_err_fmt : bc_warn_fmt, line, args);
+  bc_vm_printError(e, FLAG(s) ? bc_err_fmt : bc_warn_fmt, line, args);
   va_end(args);
 
-  return p ? BC_STATUS_ERROR : BC_STATUS_SUCCESS;
+  return FLAG(s) ? BC_STATUS_ERROR : BC_STATUS_SUCCESS;
 }
 
 static size_t bc_vm_envLen(char *var) {
@@ -5810,12 +5766,12 @@ static BcStatus bc_vm_process(char *text, int is_stdin) {
   if (BC_PARSE_NO_EXEC(&BC_VM->prs)) goto err;
 
   s = bc_program_exec(&BC_VM->prog);
-  if (BC_I) fflush(stdout);
+  if (FLAG(i)) fflush(stdout);
 
 err:
   if (s || TT.sig) s = bc_program_reset(&BC_VM->prog, s);
   bc_vm_clean();
-  return s == BC_STATUS_QUIT || !BC_I || !is_stdin ? s : BC_STATUS_SUCCESS;
+  return s == BC_STATUS_QUIT || !FLAG(i) || !is_stdin ? s : BC_STATUS_SUCCESS;
 }
 
 static BcStatus bc_vm_file(char *file) {
@@ -5962,13 +5918,13 @@ void bc_main(void)
   bc_program_init(&BC_VM->prog);
   bc_parse_init(&BC_VM->prs, &BC_VM->prog, BC_PROG_MAIN);
 
-  toys.optflags |= FLAG_s * (getenv("POSIXLY_CORRECT") != NULL);
+  if (getenv("POSIXLY_CORRECT")) toys.optflags |= FLAG_s;
   toys.optflags |= isatty(0) ? BC_FLAG_TTYIN : 0;
   toys.optflags |= BC_TTYIN && isatty(1) ? FLAG_i : 0;
 
-  TT.max_ibase = !BC_S && !BC_W ? BC_NUM_MAX_POSIX_IBASE : BC_NUM_MAX_IBASE;
+  TT.max_ibase = !FLAG(s) && !FLAG(w) ? BC_NUM_MAX_POSIX_IBASE : BC_NUM_MAX_IBASE;
 
-  if (BC_I && !(toys.optflags & FLAG_q)) bc_vm_info();
+  if (FLAG(i) && !(toys.optflags & FLAG_q)) bc_vm_info();
 
   s = bc_vm_exec();
 
