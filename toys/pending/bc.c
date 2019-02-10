@@ -124,8 +124,6 @@ typedef enum BcError {
 #define BC_ERR_IDX_EXEC (3)
 #define BC_ERR_IDX_POSIX (4)
 
-#define BC_UNUSED(e) ((void) (e))
-
 #define BC_VEC_START_CAP (1<<5)
 
 typedef unsigned char uchar;
@@ -147,8 +145,6 @@ typedef struct BcVec {
 #define bc_vec_top(v) (bc_vec_item_rev((v), 0))
 
 #define bc_map_init(v) (bc_vec_init((v), sizeof(BcId), bc_id_free))
-
-#define BC_READ_BIN_CHAR(c) (((c) < ' ' && !isspace((c))) || ((uchar) c) > '~')
 
 typedef signed char BcDig;
 
@@ -447,15 +443,13 @@ typedef struct BcLex {
 
 } BcLex;
 
-#define BC_PARSE_STREND ((uchar) UCHAR_MAX)
-
 #define BC_PARSE_REL (1<<0)
 #define BC_PARSE_PRINT (1<<1)
 #define BC_PARSE_NOCALL (1<<2)
 #define BC_PARSE_NOREAD (1<<3)
 #define BC_PARSE_ARRAY (1<<4)
 
-#define bc_parse_push(p, i) (bc_vec_pushByte(&(p)->func->code, (uchar) (i)))
+#define bc_parse_push(p, i) (bc_vec_pushByte(&(p)->func->code, i))
 #define bc_parse_number(p)(bc_parse_addId((p), BC_INST_NUM))
 #define bc_parse_string(p)(bc_parse_addId((p), BC_INST_STR))
 
@@ -463,13 +457,11 @@ typedef struct BcLex {
 #define bc_parse_verr(p, e, ...) (bc_vm_error((e), (p)->l.line, __VA_ARGS__))
 
 typedef struct BcParseNext {
-  uchar len;
-  uchar tokens[4];
+  char len, tokens[4];
 } BcParseNext;
 
 #define BC_PARSE_NEXT_TOKENS(...) .tokens = { __VA_ARGS__ }
-#define BC_PARSE_NEXT(a, ...) \
-  { .len = (uchar) (a), BC_PARSE_NEXT_TOKENS(__VA_ARGS__) }
+#define BC_PARSE_NEXT(a, ...) { .len = a, BC_PARSE_NEXT_TOKENS(__VA_ARGS__) }
 
 struct BcProgram;
 
@@ -491,8 +483,7 @@ typedef struct BcParse {
 } BcParse;
 
 typedef struct BcLexKeyword {
-  uchar data;
-  char name[9];
+  char data, name[9];
 } BcLexKeyword;
 
 #define BC_LEX_CHAR_MSB(bit) ((bit) << (CHAR_BIT - 1))
@@ -1083,9 +1074,8 @@ static int bc_read_binary(char *buf, size_t size) {
 
   size_t i;
 
-  for (i = 0; i < size; ++i) {
-    if (BC_READ_BIN_CHAR(buf[i])) return 1;
-  }
+  for (i = 0; i < size; ++i)
+    if ((buf[i]<' ' && !isspace(buf[i])) || buf[i]>'~') return 1;
 
   return 0;
 }
@@ -2261,7 +2251,6 @@ void bc_num_ulong2num(BcNum *n, unsigned long val) {
 }
 
 size_t bc_num_addReq(BcNum *a, BcNum *b, size_t scale) {
-  BC_UNUSED(scale);
   return maxof(a->rdx, b->rdx) + maxof(BC_NUM_INT(a), BC_NUM_INT(b)) + 1;
 }
 
@@ -2270,19 +2259,16 @@ size_t bc_num_mulReq(BcNum *a, BcNum *b, size_t scale) {
 }
 
 size_t bc_num_powReq(BcNum *a, BcNum *b, size_t scale) {
-  BC_UNUSED(scale);
   return BC_NUM_PREQ(a, b);
 }
 
 BcStatus bc_num_add(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
   BcNumBinaryOp op = (!a->neg == !b->neg) ? bc_num_a : bc_num_s;
-  BC_UNUSED(scale);
   return bc_num_binary(a, b, c, 0, op, bc_num_addReq(a, b, scale));
 }
 
 BcStatus bc_num_sub(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
   BcNumBinaryOp op = (!a->neg == !b->neg) ? bc_num_s : bc_num_a;
-  BC_UNUSED(scale);
   return bc_num_binary(a, b, c, 1, op, bc_num_addReq(a, b, scale));
 }
 
@@ -3085,7 +3071,7 @@ void bc_parse_updateFunc(BcParse *p, size_t fidx) {
 
 void bc_parse_pushName(BcParse *p, char *name) {
   bc_vec_npush(&p->func->code, strlen(name), name);
-  bc_parse_push(p, BC_PARSE_STREND);
+  bc_parse_push(p, UCHAR_MAX);
 }
 
 void bc_parse_pushIndex(BcParse *p, size_t idx) {
@@ -4600,11 +4586,11 @@ static char *bc_program_name(char *code, size_t *bgn) {
   size_t i;
   uchar c;
   char *s;
-  char *str = code + *bgn, *ptr = strchr(str, BC_PARSE_STREND);
+  char *str = code + *bgn, *ptr = strchr(str, UCHAR_MAX);
 
   s = xmalloc(((unsigned long) ptr) - ((unsigned long) str) + 1);
 
-  for (i = 0; (c = (uchar) code[(*bgn)++]) && c != BC_PARSE_STREND; ++i)
+  for (i = 0; (c = (uchar) code[(*bgn)++]) && c != UCHAR_MAX; ++i)
     s[i] = (char) c;
 
   s[i] = '\0';
@@ -5790,24 +5776,16 @@ static size_t bc_vm_envLen(char *var) {
   return len;
 }
 
-void bc_vm_shutdown(void) {
-  bc_program_free(&BC_VM->prog);
-  bc_parse_free(&BC_VM->prs);
-  free(BC_VM);
-}
-
-static void bc_vm_clean() {
-
+static void bc_vm_clean()
+{
   BcProgram *prog = &BC_VM->prog;
-  BcVec *fns = &prog->fns;
-  BcFunc *f = bc_vec_item(fns, BC_PROG_MAIN);
+  BcFunc *f = bc_vec_item(&prog->fns, BC_PROG_MAIN);
   BcInstPtr *ip = bc_vec_item(&prog->stack, 0);
-  int good = !BC_PARSE_NO_EXEC(&BC_VM->prs);
 
   // If this condition is 1, we can get rid of strings,
   // constants, and code. This is an idea from busybox.
-  if (good && prog->stack.len == 1 && !prog->results.len &&
-      ip->idx == f->code.len)
+  if (!BC_PARSE_NO_EXEC(&BC_VM->prs) && prog->stack.len == 1 &&
+      !prog->results.len && ip->idx == f->code.len)
   {
     bc_vec_npop(&f->labels, f->labels.len);
     bc_vec_npop(&f->strs, f->strs.len);
@@ -5966,8 +5944,8 @@ static BcStatus bc_vm_exec(void) {
   return bc_vm_stdin();
 }
 
-void bc_main(void) {
-
+void bc_main(void)
+{
   BcStatus s;
   struct sigaction sa;
 
@@ -5994,6 +5972,11 @@ void bc_main(void) {
 
   s = bc_vm_exec();
 
-  if (CFG_TOYBOX_FREE) bc_vm_shutdown();
+  if (CFG_TOYBOX_FREE) {
+    bc_program_free(&BC_VM->prog);
+    bc_parse_free(&BC_VM->prs);
+    free(BC_VM);
+  }
+
   toys.exitval = (int) (s != BC_STATUS_ERROR ? BC_STATUS_SUCCESS : s);
 }
