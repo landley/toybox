@@ -141,20 +141,15 @@ typedef struct BcVec {
 #define bc_vec_pop(v) (bc_vec_npop((v), 1))
 #define bc_vec_top(v) (bc_vec_item_rev((v), 0))
 
-#define bc_map_init(v) (bc_vec_init((v), sizeof(struct str_len), bc_id_free))
-
 typedef signed char BcDig;
 
 typedef struct BcNum {
-  BcDig *num;
-  size_t rdx;
-  size_t len;
-  size_t cap;
+  signed char *num;
+  unsigned long rdx, len, cap;
   int neg;
 } BcNum;
 
 #define BC_NUM_DEF_SIZE (16)
-#define BC_NUM_PRINT_WIDTH (69)
 
 #define BC_NUM_KARATSUBA_LEN (32)
 
@@ -175,7 +170,6 @@ typedef size_t (*BcNumBinaryOpReq)(BcNum*, BcNum*, size_t);
 typedef void (*BcNumDigitOp)(size_t, size_t, int);
 
 void bc_num_init(BcNum *n, size_t req);
-void bc_num_setup(BcNum *n, BcDig *num, size_t cap);
 void bc_num_expand(BcNum *n, size_t req);
 void bc_num_copy(BcNum *d, BcNum *s);
 void bc_num_createCopy(BcNum *d, BcNum *s);
@@ -575,10 +569,8 @@ typedef struct BcProgram {
   BcNum one;
   BcNum last;
 
-  BcDig ib_num[BC_NUM_LONG_LOG10];
-  BcDig ob_num[BC_NUM_LONG_LOG10];
-  BcDig one_num[BC_PROG_ONE_CAP];
-
+  signed char ib_num[BC_NUM_LONG_LOG10], ob_num[BC_NUM_LONG_LOG10],
+         one_num[BC_PROG_ONE_CAP];
 } BcProgram;
 
 #define BC_PROG_STACK(s, n) ((s)->len >= ((size_t) (n)))
@@ -1153,10 +1145,6 @@ static void bc_num_setToZero(BcNum *n, size_t scale) {
   n->rdx = scale;
 }
 
-static void bc_num_zero(BcNum *n) {
-  bc_num_setToZero(n, 0);
-}
-
 void bc_num_one(BcNum *n) {
   bc_num_setToZero(n, 0);
   n->len = 1;
@@ -1176,7 +1164,7 @@ static size_t bc_num_log10(size_t i) {
   return len;
 }
 
-static BcStatus bc_num_subArrays(BcDig *a, BcDig *b, size_t len)
+static BcStatus bc_num_subArrays(signed char *a, signed char *b, size_t len)
 {
   size_t i, j;
   for (i = 0; !TT.sig && i < len; ++i) {
@@ -1188,10 +1176,11 @@ static BcStatus bc_num_subArrays(BcDig *a, BcDig *b, size_t len)
   return TT.sig ? BC_STATUS_SIGNAL : BC_STATUS_SUCCESS;
 }
 
-static ssize_t bc_num_compare(BcDig *a, BcDig *b, size_t len)
+static ssize_t bc_num_compare(signed char *a, signed char *b, size_t len)
 {
   size_t i;
   int c = 0;
+
   for (i = len - 1; !TT.sig && i < len && !(c = a[i] - b[i]); --i);
   return BC_NUM_NEG(i + 1, c < 0);
 }
@@ -1199,7 +1188,7 @@ static ssize_t bc_num_compare(BcDig *a, BcDig *b, size_t len)
 ssize_t bc_num_cmp(BcNum *a, BcNum *b) {
 
   size_t i, min, a_int, b_int, diff;
-  BcDig *max_num, *min_num;
+  signed char *max_num, *min_num;
   int a_max, neg = 0;
   ssize_t cmp;
 
@@ -1224,8 +1213,7 @@ ssize_t bc_num_cmp(BcNum *a, BcNum *b) {
     diff = a->rdx - b->rdx;
     max_num = a->num + diff;
     min_num = b->num;
-  }
-  else {
+  } else {
     min = a->rdx;
     diff = b->rdx - a->rdx;
     max_num = b->num + diff;
@@ -1256,7 +1244,7 @@ void bc_num_truncate(BcNum *n, size_t places) {
 
   if (n->len) {
     n->len -= places;
-    memmove(n->num, n->num + places, n->len * sizeof(BcDig));
+    memmove(n->num, n->num + places, n->len);
     bc_num_clean(n);
   }
 }
@@ -1269,8 +1257,8 @@ static void bc_num_extend(BcNum *n, size_t places) {
 
   if (n->cap < len) bc_num_expand(n, len);
 
-  memmove(n->num + places, n->num, sizeof(BcDig) * n->len);
-  memset(n->num, 0, sizeof(BcDig) * places);
+  memmove(n->num + places, n->num, n->len);
+  memset(n->num, 0, places);
 
   if (n->len) n->len += places;
 
@@ -1294,8 +1282,8 @@ static void bc_num_split(BcNum *n, size_t idx, BcNum *a, BcNum *b) {
     a->len = idx;
     a->rdx = b->rdx = 0;
 
-    memcpy(b->num, n->num + idx, b->len * sizeof(BcDig));
-    memcpy(a->num, n->num, idx * sizeof(BcDig));
+    memcpy(b->num, n->num + idx, b->len);
+    memcpy(a->num, n->num, idx);
 
     bc_num_clean(b);
   }
@@ -1324,7 +1312,7 @@ static BcStatus bc_num_shift(BcNum *n, size_t places) {
 static BcStatus bc_num_inv(BcNum *a, BcNum *b, size_t scale) {
 
   BcNum one;
-  BcDig num[2];
+  signed char num[2];
 
   one.cap = 2;
   one.num = num;
@@ -1333,16 +1321,16 @@ static BcStatus bc_num_inv(BcNum *a, BcNum *b, size_t scale) {
   return bc_num_div(&one, a, b, scale);
 }
 
-static unsigned int bc_num_addDigit(BcDig *num, unsigned int d, unsigned int c)
+static unsigned int bc_num_addDigit(signed char *num, unsigned int d, unsigned int c)
 {
   d += c;
-  *num = (BcDig) (d % 10);
+  *num = d % 10;
   return d / 10;
 }
 
 static BcStatus bc_num_a(BcNum *a, BcNum *b, BcNum *c, size_t sub) {
 
-  BcDig *ptr, *ptr_a, *ptr_b, *ptr_c;
+  signed char *ptr, *ptr_a, *ptr_b, *ptr_c;
   size_t i, max, min_rdx, min_int, diff, a_int, b_int;
   unsigned int carry;
 
@@ -1404,7 +1392,7 @@ static BcStatus bc_num_a(BcNum *a, BcNum *b, BcNum *c, size_t sub) {
 
   c->len += i;
 
-  if (carry) c->num[c->len++] = (BcDig) carry;
+  if (carry) c->num[c->len++] = carry;
 
   return TT.sig ? BC_STATUS_SIGNAL : BC_STATUS_SUCCESS;
 }
@@ -1482,7 +1470,7 @@ static BcStatus bc_num_k(BcNum *a, BcNum *b, BcNum *c) {
   // This is here because the function is recursive.
   if (TT.sig) return BC_STATUS_SIGNAL;
   if (!a->len || !b->len) {
-    bc_num_zero(c);
+    bc_num_setToZero(c, 0);
     return BC_STATUS_SUCCESS;
   }
   if (aone || BC_NUM_ONE(b)) {
@@ -1495,17 +1483,17 @@ static BcStatus bc_num_k(BcNum *a, BcNum *b, BcNum *c) {
   {
     size_t i, j, len;
     unsigned int carry;
-    BcDig *ptr_c;
+    signed char *ptr_c;
 
     bc_num_expand(c, a->len + b->len + 1);
 
     ptr_c = c->num;
-    memset(ptr_c, 0, sizeof(BcDig) * c->cap);
+    memset(ptr_c, 0, c->cap);
     c->len = len = 0;
 
     for (i = 0; !TT.sig && i < b->len; ++i) {
 
-      BcDig *ptr = ptr_c + i;
+      signed char *ptr = ptr_c + i;
 
       carry = 0;
 
@@ -1514,8 +1502,8 @@ static BcStatus bc_num_k(BcNum *a, BcNum *b, BcNum *c) {
         in += ((unsigned int) a->num[j]) * ((unsigned int) b->num[i]);
         carry = bc_num_addDigit(ptr + j, in, carry);
       }
-
-      ptr[j] += (BcDig) carry;
+// todo: is this typecast useless?
+      ptr[j] += (signed) carry;
       len = maxof(len, i + j + (carry != 0));
     }
 
@@ -1604,7 +1592,7 @@ static BcStatus bc_num_m(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
   bc_num_expand(c, c->len + maxrdx);
 
   if (c->len < maxrdx) {
-    memset(c->num + c->len, 0, (c->cap - c->len) * sizeof(BcDig));
+    memset(c->num + c->len, 0, c->cap - c->len);
     c->len += maxrdx;
   }
 
@@ -1620,7 +1608,7 @@ err:
 static BcStatus bc_num_d(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
 
   BcStatus s = BC_STATUS_SUCCESS;
-  BcDig *n, *p, q;
+  signed char *n, *p, q;
   size_t len, end, i;
   BcNum cp;
   int zero = 1;
@@ -1662,7 +1650,7 @@ static BcStatus bc_num_d(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
 
   bc_num_expand(c, cp.len);
 
-  memset(c->num + end, 0, (c->cap - end) * sizeof(BcDig));
+  memset(c->num + end, 0, c->cap - end);
   c->rdx = cp.rdx;
   c->len = cp.len;
   p = b->num;
@@ -1893,7 +1881,7 @@ static BcStatus bc_num_parseBase(BcNum *n, char *val,
 {
   BcStatus s = BC_STATUS_SUCCESS;
   BcNum temp, mult, result;
-  BcDig c = 0;
+  signed char c = 0;
   int zero = 1;
   unsigned long v;
   size_t i, digits, len = strlen(val);
@@ -1941,7 +1929,8 @@ static BcStatus bc_num_parseBase(BcNum *n, char *val,
   if (n->len) {
     if (n->rdx < digits) bc_num_extend(n, digits - n->rdx);
   }
-  else bc_num_zero(n);
+  else bc_num_setToZero(n, 0);
+
 
 err:
   bc_num_free(&result);
@@ -2092,7 +2081,7 @@ static BcStatus bc_num_printBase(BcNum *n, BcNum *base, size_t base_t) {
   return s;
 }
 
-void bc_num_setup(BcNum *n, BcDig *num, size_t cap) {
+void bc_num_setup(BcNum *n, signed char *num, size_t cap) {
   n->num = num;
   n->cap = cap;
   n->rdx = n->len = 0;
@@ -2122,7 +2111,7 @@ void bc_num_copy(BcNum *d, BcNum *s) {
   d->len = s->len;
   d->neg = s->neg;
   d->rdx = s->rdx;
-  memcpy(d->num, s->num, sizeof(BcDig) * d->len);
+  memcpy(d->num, s->num, d->len);
 }
 
 void bc_num_createCopy(BcNum *d, BcNum *s) {
@@ -2194,10 +2183,10 @@ BcStatus bc_num_ulong(BcNum *n, unsigned long *result) {
 void bc_num_ulong2num(BcNum *n, unsigned long val) {
 
   size_t len;
-  BcDig *ptr;
+  signed char *ptr;
   unsigned long i;
 
-  bc_num_zero(n);
+  bc_num_setToZero(n, 0);
 
   if (!val) return;
 
@@ -2250,7 +2239,7 @@ BcStatus bc_num_sqrt(BcNum *a, BcNum *b, size_t scale) {
   BcNum num1, num2, half, f, fprime, *x0, *x1, *temp;
   size_t pow, len, digs, digs1, resrdx, times = 0;
   ssize_t cmp = 1, cmp1 = SSIZE_MAX, cmp2 = SSIZE_MAX;
-  BcDig half_digs[2];
+  signed char half_digs[2];
 
   bc_num_init(b, maxof(scale, a->rdx) + ((BC_NUM_INT(a) + 1) >> 1) + 1);
 
@@ -2270,7 +2259,7 @@ BcStatus bc_num_sqrt(BcNum *a, BcNum *b, size_t scale) {
 
   bc_num_init(&num1, len);
   bc_num_init(&num2, len);
-  bc_num_setup(&half, half_digs, sizeof(half_digs) / sizeof(BcDig));
+  bc_num_setup(&half, half_digs, sizeof(half_digs));
 
   bc_num_one(&half);
   half.num[0] = 5;
@@ -5365,15 +5354,15 @@ void bc_program_init(BcProgram *p) {
   bc_num_init(&p->last, BC_NUM_DEF_SIZE);
 
   bc_vec_init(&p->fns, sizeof(BcFunc), bc_func_free);
-  bc_map_init(&p->fn_map);
+  bc_vec_init(&p->fn_map, sizeof(struct str_len), bc_id_free);
   bc_program_insertFunc(p, xstrdup(bc_func_main));
   bc_program_insertFunc(p, xstrdup(bc_func_read));
 
   bc_vec_init(&p->vars, sizeof(BcVec), bc_vec_free);
-  bc_map_init(&p->var_map);
+  bc_vec_init(&p->var_map, sizeof(struct str_len), bc_id_free);
 
   bc_vec_init(&p->arrs, sizeof(BcVec), bc_vec_free);
-  bc_map_init(&p->arr_map);
+  bc_vec_init(&p->arr_map, sizeof(struct str_len), bc_id_free);
 
   bc_vec_init(&p->results, sizeof(BcResult), bc_result_free);
   bc_vec_init(&p->stack, sizeof(BcInstPtr), NULL);
@@ -5692,26 +5681,6 @@ BcStatus bc_vm_posixError(BcError e, size_t line, ...) {
   return FLAG(s) ? BC_STATUS_ERROR : BC_STATUS_SUCCESS;
 }
 
-static size_t bc_vm_envLen(char *var) {
-
-  char *lenv = getenv(var);
-  size_t i, len = BC_NUM_PRINT_WIDTH;
-  int num;
-
-  if (!lenv) return len;
-
-  len = strlen(lenv);
-
-  for (num = 1, i = 0; num && i < len; ++i) num = isdigit(lenv[i]);
-  if (num) {
-    len = (size_t) atoi(lenv) - 1;
-    if (len < 2 || len >= UINT16_MAX) len = BC_NUM_PRINT_WIDTH;
-  }
-  else len = BC_NUM_PRINT_WIDTH;
-
-  return len;
-}
-
 static void bc_vm_clean()
 {
   BcProgram *prog = &BC_VM->prog;
@@ -5883,6 +5852,8 @@ static BcStatus bc_vm_exec(void) {
 void bc_main(void)
 {
   BcStatus s;
+  char *ss;
+
   struct sigaction sa;
 
   sigemptyset(&sa.sa_mask);
@@ -5892,9 +5863,14 @@ void bc_main(void)
   sigaction(SIGTERM, &sa, NULL);
   sigaction(SIGQUIT, &sa, NULL);
 
-  TT.vm = xzalloc(sizeof(BcVm));
-  TT.line_len = bc_vm_envLen("BC_LINE_LENGTH");
+  TT.line_len = 69;
+  ss = getenv("BC_LINE_LENGTH");
+  if (ss) {
+    int len = atoi(ss);
+    if (len>=2 && len <= UINT16_MAX) TT.line_len = len;
+  }
 
+  TT.vm = xzalloc(sizeof(BcVm));
   bc_program_init(&BC_VM->prog);
   bc_parse_init(&BC_VM->prs, &BC_VM->prog, BC_PROG_MAIN);
 
@@ -5911,7 +5887,7 @@ void bc_main(void)
   if (CFG_TOYBOX_FREE) {
     bc_program_free(&BC_VM->prog);
     bc_parse_free(&BC_VM->prs);
-    free(BC_VM);
+    free(TT.vm);
   }
 
   toys.exitval = (int) (s != BC_STATUS_ERROR ? BC_STATUS_SUCCESS : s);
