@@ -132,9 +132,7 @@ typedef void (*BcVecFree)(void*);
 
 typedef struct BcVec {
   char *v;
-  size_t len;
-  size_t cap;
-  size_t size;
+  size_t len, cap, size;
   BcVecFree dtor;
 } BcVec;
 
@@ -151,8 +149,6 @@ typedef struct BcNum {
 
 #define BC_NUM_DEF_SIZE (16)
 
-#define BC_NUM_KARATSUBA_LEN (32)
-
 // A crude, but always big enough, calculation of
 // the size required for ibase and obase BcNum's.
 #define BC_NUM_LONG_LOG10 ((CHAR_BIT * sizeof(unsigned long) + 1) / 2 + 1)
@@ -162,8 +158,6 @@ typedef struct BcNum {
 #define BC_NUM_ONE(n) ((n)->len == 1 && (n)->rdx == 0 && (n)->num[0] == 1)
 #define BC_NUM_INT(n) ((n)->len - (n)->rdx)
 #define BC_NUM_CMP_ZERO(a) (BC_NUM_NEG((a)->len != 0, (a)->neg))
-#define BC_NUM_PREQ(a, b) ((a)->len + (b)->len + 1)
-#define BC_NUM_SHREQ(a) ((a)->len)
 
 typedef BcStatus (*BcNumBinaryOp)(BcNum*, BcNum*, BcNum*, size_t);
 typedef size_t (*BcNumBinaryOpReq)(BcNum*, BcNum*, size_t);
@@ -868,11 +862,11 @@ char bc_lib[] = {
   61,45,97,10,114,101,116,117,114,110,40,97,42,114,47,49,41,10,125,10,0
 };
 
-static void bc_vec_grow(BcVec *v, size_t n) {
-  size_t cap = v->cap * 2;
-  while (cap < v->len + n) cap *= 2;
-  v->v = xrealloc(v->v, v->size * cap);
-  v->cap = cap;
+static void bc_vec_grow(BcVec *v, unsigned long n) {
+  unsigned long old = v->cap;
+
+  while (v->cap < v->len + n) v->cap *= 2;
+  if (old != v->cap) v->v = xrealloc(v->v, v->size * v->cap);
 }
 
 void bc_vec_init(BcVec *v, size_t esize, BcVecFree dtor) {
@@ -899,7 +893,7 @@ void bc_vec_npop(BcVec *v, size_t n) {
 }
 
 void bc_vec_npush(BcVec *v, size_t n, void *data) {
-  if (v->len + n > v->cap) bc_vec_grow(v, n);
+  bc_vec_grow(v, n);
   memcpy(v->v + (v->size * v->len), data, v->size * n);
   v->len += n;
 }
@@ -933,7 +927,7 @@ static void bc_vec_pushAt(BcVec *v, void *data, size_t idx) {
 
     char *ptr;
 
-    if (v->len == v->cap) bc_vec_grow(v, 1);
+    bc_vec_grow(v, 1);
 
     ptr = v->v + v->size * idx;
 
@@ -953,17 +947,14 @@ void bc_vec_string(BcVec *v, size_t len, char *str) {
 }
 
 void bc_vec_concat(BcVec *v, char *str) {
-
-  size_t len;
+  unsigned long len;
 
   if (!v->len) bc_vec_pushByte(v, '\0');
 
-  len = v->len + strlen(str);
-
-  if (v->cap < len) bc_vec_grow(v, len - v->len);
-  strcat(v->v, str);
-
-  v->len = len;
+  len = strlen(str);
+  bc_vec_grow(v, len+1);
+  strcpy(v->v+v->len, str);
+  v->len += len;
 }
 
 void bc_vec_empty(BcVec *v) {
@@ -1198,8 +1189,7 @@ ssize_t bc_num_cmp(BcNum *a, BcNum *b) {
   if (a->neg) {
     if (b->neg) neg = 1;
     else return -1;
-  }
-  else if (b->neg) return 1;
+  } else if (b->neg) return 1;
 
   a_int = BC_NUM_INT(a);
   b_int = BC_NUM_INT(b);
@@ -1478,8 +1468,8 @@ static BcStatus bc_num_k(BcNum *a, BcNum *b, BcNum *c) {
     return BC_STATUS_SUCCESS;
   }
 
-  if (a->len + b->len < BC_NUM_KARATSUBA_LEN ||
-      a->len < BC_NUM_KARATSUBA_LEN || b->len < BC_NUM_KARATSUBA_LEN)
+  // check karatsuba length
+  if (a->len + b->len < 32 || a->len < 32 || b->len < 32)
   {
     size_t i, j, len;
     unsigned int carry;
@@ -1841,41 +1831,6 @@ static unsigned long bc_num_parseChar(char c, size_t base_t) {
   return c;
 }
 
-static void bc_num_parseDecimal(BcNum *n, char *val) {
-
-  size_t len, i;
-  char *ptr;
-  int zero = 1;
-
-  for (i = 0; val[i] == '0'; ++i);
-
-  val += i;
-  len = strlen(val);
-
-  if (len) {
-    for (i = 0; zero && i < len; ++i) zero = (val[i] == '0') || val[i] == '.';
-    bc_num_expand(n, len);
-  }
-
-  ptr = strchr(val, '.');
-
-  // Explicitly test for NULL here to produce either a 0 or 1.
-  n->rdx = (size_t) ((ptr != NULL) * ((val + len) - (ptr + 1)));
-
-  if (!zero) {
-    for (i = len - 1; i < len; ++n->len, --i) {
-
-      char c = val[i];
-
-      if (c == '.') n->len -= 1;
-      else {
-        if (isupper(c)) c = '9';
-        n->num[n->len] = c - '0';
-      }
-    }
-  }
-}
-
 static BcStatus bc_num_parseBase(BcNum *n, char *val,
                                  BcNum *base, size_t base_t)
 {
@@ -2130,27 +2085,34 @@ BcStatus bc_num_parse(BcNum *n, char *val,
   BcStatus s = BC_STATUS_SUCCESS;
 
   if (letter) bc_num_ulong2num(n, bc_num_parseChar(val[0], 'Z'+11));
-  else if (base_t == 10) bc_num_parseDecimal(n, val);
-  else s = bc_num_parseBase(n, val, base, base_t);
+  else if (base_t == 10) {
+    size_t len, i;
+    char *ptr;
+    int zero = 1;
 
-  return s;
-}
+    while (*val == '0') val++;
 
-BcStatus bc_num_print(BcNum *n, BcNum *base,
-                      size_t base_t, int newline)
-{
-  BcStatus s = BC_STATUS_SUCCESS;
+    len = strlen(val);
+    if (len) {
+      for (i = 0; zero && i < len; ++i) zero = (val[i] == '0') || val[i] == '.';
+      bc_num_expand(n, len);
+    }
+    ptr = strchr(val, '.');
+    n->rdx = ptr ? (val + len) - (ptr + 1) : 0;
 
-  bc_num_printNewline();
+    if (!zero) {
+      for (i = len - 1; i < len; ++n->len, --i) {
 
-  if (!n->len) bc_num_printHex(0, 1, 0);
-  else if (base_t == 10) bc_num_printDecimal(n);
-  else s = bc_num_printBase(n, base, base_t);
+        char c = val[i];
 
-  if (!s && newline) {
-    putchar('\n');
-    TT.nchars = 0;
-  }
+        if (c == '.') n->len -= 1;
+        else {
+          if (isupper(c)) c = '9';
+          n->num[n->len] = c - '0';
+        }
+      }
+    }
+  } else s = bc_num_parseBase(n, val, base, base_t);
 
   return s;
 }
@@ -2204,7 +2166,7 @@ size_t bc_num_mulReq(BcNum *a, BcNum *b, size_t scale) {
 }
 
 size_t bc_num_powReq(BcNum *a, BcNum *b, size_t scale) {
-  return BC_NUM_PREQ(a, b);
+  return a->len + b->len + 1;
 }
 
 BcStatus bc_num_add(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
@@ -2230,7 +2192,7 @@ BcStatus bc_num_mod(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
 }
 
 BcStatus bc_num_pow(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
-  return bc_num_binary(a, b, c, scale, bc_num_p, BC_NUM_PREQ(a, b));
+  return bc_num_binary(a, b, c, scale, bc_num_p, a->len + b->len + 1);
 }
 
 BcStatus bc_num_sqrt(BcNum *a, BcNum *b, size_t scale) {
@@ -2607,10 +2569,6 @@ BcStatus bc_lex_name(BcLex *l) {
 
 void bc_lex_init(BcLex *l) {
   bc_vec_init(&l->str, sizeof(char), NULL);
-}
-
-void bc_lex_free(BcLex *l) {
-  bc_vec_free(&l->str);
 }
 
 void bc_lex_file(BcLex *l, char *file) {
@@ -3066,7 +3024,7 @@ void bc_parse_free(BcParse *p) {
   bc_vec_free(&p->exits);
   bc_vec_free(&p->conds);
   bc_vec_free(&p->ops);
-  bc_lex_free(&p->l);
+  bc_vec_free(&p->l.str);
 }
 
 void bc_parse_init(BcParse *p, BcProgram *prog, size_t func)
@@ -4858,10 +4816,18 @@ static BcStatus bc_program_print(BcProgram *p, uchar inst, size_t idx) {
   if (s) return s;
 
   if (BC_PROG_NUM(r, n)) {
-    s = bc_num_print(n, &p->ob, p->ob_t, !pop);
+    bc_num_printNewline();
+
+    if (!n->len) bc_num_printHex(0, 1, 0);
+    else if (p->ob_t == 10) bc_num_printDecimal(n);
+    else s = bc_num_printBase(n, &p->ob, p->ob_t);
+
+    if (!s && !pop) {
+      putchar('\n');
+      TT.nchars = 0;
+    }
     if (!s) bc_num_copy(&p->last, n);
-  }
-  else {
+  } else {
 
     size_t i = (r->t == BC_RESULT_STR) ? r->d.id.len : n->rdx;
 
@@ -5008,11 +4974,8 @@ static BcStatus bc_program_copyToVar(BcProgram *p, char *name,
 
   if (var) bc_num_createCopy(&r.d.n, n);
   else {
-
-    BcVec *v = (BcVec*) n, *rv = &r.d.v;
-
-    bc_array_init(rv, 1);
-    bc_array_copy(rv, v);
+    bc_array_init(&r.d.v, 1);
+    bc_array_copy(&r.d.v, (BcVec *)n);
   }
 
   bc_vec_push(vec, &r.d);
@@ -5757,8 +5720,8 @@ static BcStatus bc_vm_stdin(void) {
   bc_vec_pushByte(&buffer, '\0');
 
   // This loop is complex because the vm tries not to send any lines that end
-  // with a backslash to the parser. The reason for that is because the parser
-  // treats a backslash+newline combo as whitespace, per the bc spec. In that
+  // with a backslash to the parser, which
+  // treats a backslash+newline combo as whitespace per the bc spec. In that
   // case, and for strings and comments, the parser will expect more stuff.
   while (!done && (s = bc_read_line(&buf, ">>> ")) != BC_STATUS_ERROR &&
          buf.len > 1 && !TT.sig && s != BC_STATUS_SIGNAL)
@@ -5821,37 +5784,9 @@ err:
   return s;
 }
 
-static BcStatus bc_vm_load(char *name, char *text) {
-
-  BcStatus s;
-
-  bc_lex_file(&BC_VM->prs.l, name);
-  s = bc_parse_text(&BC_VM->prs, text);
-
-  while (!s && BC_VM->prs.l.t != BC_LEX_EOF) s = bc_parse_parse(&BC_VM->prs);
-
-  return s;
-}
-
-static BcStatus bc_vm_exec(void) {
-
-  BcStatus s = BC_STATUS_SUCCESS;
-  size_t i;
-
-  if (toys.optflags & FLAG_l) {
-    s = bc_vm_load(bc_lib_name, bc_lib);
-    if (s) return s;
-  }
-
-  for (i = 0; !s && i < toys.optc; ++i) s = bc_vm_file(toys.optargs[i]);
-  if (s && s != BC_STATUS_QUIT) return s;
-
-  return bc_vm_stdin();
-}
-
 void bc_main(void)
 {
-  BcStatus s;
+  BcStatus s = 0;
   char *ss;
 
   struct sigaction sa;
@@ -5882,7 +5817,21 @@ void bc_main(void)
 
   if (FLAG(i) && !(toys.optflags & FLAG_q)) bc_vm_info();
 
-  s = bc_vm_exec();
+  // load -l library (if any)
+  if (FLAG(l)) {
+    bc_lex_file(&BC_VM->prs.l, bc_lib_name);
+    s = bc_parse_text(&BC_VM->prs, bc_lib);
+
+    while (!s && BC_VM->prs.l.t != BC_LEX_EOF) s = bc_parse_parse(&BC_VM->prs);
+  }
+
+  // parse command line argument files, then stdin
+  if (!s) {
+    int i;
+
+    for (i = 0; !s && i < toys.optc; ++i) s = bc_vm_file(toys.optargs[i]);
+    if (!s || s != BC_STATUS_QUIT) s = bc_vm_stdin();
+  }
 
   if (CFG_TOYBOX_FREE) {
     bc_program_free(&BC_VM->prog);
@@ -5890,5 +5839,5 @@ void bc_main(void)
     free(TT.vm);
   }
 
-  toys.exitval = (int) (s != BC_STATUS_ERROR ? BC_STATUS_SUCCESS : s);
+  toys.exitval = s == BC_STATUS_ERROR;
 }
