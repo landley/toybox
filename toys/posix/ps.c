@@ -1544,6 +1544,8 @@ static void top_common(
         // Display "top" header.
         if (*toys.which->name == 't') {
           struct ofields field;
+          char *hr0 = toybuf+sizeof(toybuf)-32, *hr1 = hr0-32, *hr2 = hr1-32,
+            *hr3 = hr2-32;
           long long ll, up = 0;
           long run[6];
           int j;
@@ -1564,13 +1566,21 @@ static void top_common(
                     "\nBuffers:","\nCached:","\nSwapTotal:","\nSwapFree:"}[i]);
               run[i] = pos ? atol(pos) : 0;
             }
-            sprintf(toybuf,
-             "Mem:%10ldk total,%9ldk used,%9ldk free,%9ldk buffers",
-              run[0], run[0]-run[1], run[1], run[2]);
+
+            human_readable(hr0, 1024*run[0], 0);
+            human_readable(hr1, 1024*(run[0]-run[1]), 0);
+            human_readable(hr2, 1024*run[1], 0);
+            human_readable(hr3, 1024*run[2], 0);
+            sprintf(toybuf, "  Mem: %9s total, %9s used, %9s free, %9s buffers",
+              hr0, hr1, hr2, hr3);
             lines = header_line(lines, 0);
-            sprintf(toybuf,
-              "Swap:%9ldk total,%9ldk used,%9ldk free,%9ldk cached",
-              run[4], run[4]-run[5], run[5], run[3]);
+
+            human_readable(hr0, 1024*run[4], 0);
+            human_readable(hr1, 1024*(run[4]-run[5]), 0);
+            human_readable(hr2, 1024*run[5], 0);
+            human_readable(hr3, 1024*run[3], 0);
+            sprintf(toybuf, " Swap: %9s total, %9s used, %9s free, %9s cached",
+              hr0, hr1, hr2, hr3);
             lines = header_line(lines, 0);
           }
 
