@@ -1431,6 +1431,11 @@ static int header_line(int line, int rev)
   return line-1;
 }
 
+static void top_cursor_cleanup(void)
+{
+  tty_esc("?25h");
+}
+
 static void top_common(
   int (*filter)(long long *oslot, long long *nslot, int milis))
 {
@@ -1447,8 +1452,12 @@ static void top_common(
   int i, lines, topoff = 0, done = 0;
   char stdout_buf[BUFSIZ];
 
-  // Avoid flicker in interactive mode.
-  if (!FLAG(b)) setbuf(stdout, stdout_buf);
+  // Avoid flicker and hide the cursor in interactive mode.
+  if (!FLAG(b)) {
+    setbuf(stdout, stdout_buf);
+    tty_esc("?25l");
+    sigatexit(top_cursor_cleanup);
+  }
 
   toys.signal = SIGWINCH;
   TT.bits = get_headers(TT.fields, toybuf, sizeof(toybuf));
