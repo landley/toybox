@@ -528,15 +528,18 @@ static void sed_line(char **pline, long plen)
                 rswap[mlen-1] = new[off];
 
               continue;
-            } else if (match[cc].rm_so == -1) error_exit("no s//\\%d/", cc);
+            } else if (cc > reg->re_nsub) error_exit("no s//\\%d/", cc);
           } else if (new[off] != '&') {
             rswap[mlen++] = new[off];
 
             continue;
           }
 
-          ll = match[cc].rm_eo-match[cc].rm_so;
-          memcpy(rswap+mlen, rline+match[cc].rm_so, ll);
+          if (match[cc].rm_so == -1) ll = 0; // Empty match.
+          else {
+            ll = match[cc].rm_eo-match[cc].rm_so;
+            memcpy(rswap+mlen, rline+match[cc].rm_so, ll);
+          }
           mlen += ll;
         }
 

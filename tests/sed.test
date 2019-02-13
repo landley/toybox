@@ -72,6 +72,8 @@ testing "aci" \
 	"sed -e '3a boom' -e '/hre/i bang' -e '3a whack' -e '3c bong'" \
 	"one\ntwo\nbang\nbong\nboom\nwhack\nfour\n" "" \
 	"one\ntwo\nthree\nfour\n"
+# TODO: next test is broken on new-ish debian/bash with never-ending
+# output of `sed: short write: Broken pipe`.
 testing "b loop" "sed ':woo;=;b woo' | head -n 5" '1\n1\n1\n1\n1\n' "" "X"
 testing "b skip" "sed -n '2b zap;d;:zap;p'" "two\n" "" "one\ntwo\nthree"
 testing "b end" "sed -n '2b;p'" "one\nthree" "" "one\ntwo\nthree"
@@ -166,5 +168,14 @@ testing "end b with }" "sed -n '/START/{:a;n;/END/q;p;ba}'" "b\nc\n" \
   "" "a\nSTART\nb\nc\nEND\nd"
 
 testing '-z' 'sed -z "s/\n/-/g"' "a-b-c" "" "a\nb\nc"
+
+# toybox handling of empty capturing groups broke minjail. Check that we
+# correctly replace an empty capturing group with the empty string:
+testing '\n with empty capture' \
+    'sed -E "s/(ARM_)?(NR_)([a-z]*) (.*)/\1\2\3/"' "NR_read" "" "NR_read foo"
+# ...but also that we report an error for a backreference to a group that
+# isn't in the pattern:
+testing '\n too high' \
+    'sed -E "s/(.*)/\2/p" 2>/dev/null || echo OK' "OK\n" "" "foo"
 
 # -i with $ last line test
