@@ -94,4 +94,13 @@ testing "-iname (no arguments)" \
 testing "" "find dir \( -iname file -o -iname missing \) -exec echo {} \;" \
   "dir/file\n" "" ""
 
+testing "-path glob" \
+  "find dir -path 'dir*e'" "dir/file\n" "" ""
+testing "-wholename glob" \
+  "find dir -wholename 'dir*e'" "dir/file\n" "" ""
+testing "-ipath glob" \
+  "find dir -ipath 'dIr*E'" "dir/file\n" "" ""
+testing "-iwholename glob" \
+  "find dir -iwholename 'dIr*E'" "dir/file\n" "" ""
+
 rm -rf dir

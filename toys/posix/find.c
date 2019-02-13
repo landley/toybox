@@ -328,13 +328,14 @@ static int do_find(struct dirtree *new)
     // Remaining filters take an argument
     } else {
       if (!strcmp(s, "name") || !strcmp(s, "iname")
+        || !strcmp(s, "wholename") || !strcmp(s, "iwholename")
         || !strcmp(s, "path") || !strcmp(s, "ipath"))
       {
-        int i = (*s == 'i');
+        int i = (*s == 'i'), is_path = (s[i] != 'n');
         char *arg = ss[1], *path = 0, *name = new ? new->name : arg;
 
         // Handle path expansion and case flattening
-        if (new && s[i] == 'p') name = path = dirtree_path(new, 0);
+        if (new && is_path) name = path = dirtree_path(new, 0);
         if (i) {
           if ((check || !new) && name) name = strlower(name);
           if (!new) dlist_add(&TT.argdata, name);
@@ -342,7 +343,7 @@ static int do_find(struct dirtree *new)
         }
 
         if (check) {
-          test = !fnmatch(arg, name, FNM_PATHNAME*(s[i] == 'p'));
+          test = !fnmatch(arg, name, FNM_PATHNAME*(!is_path));
           if (i) free(name);
         }
         free(path);
