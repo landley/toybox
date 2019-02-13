@@ -1679,7 +1679,7 @@ static void top_common(
 
       // Flush unknown escape sequences.
       if (i==27) while (0<scan_key_getsize(scratch, 0, &TT.width, &TT.height));
-      else if (i==' ') {
+      else if (i=='\r' || i==' ') {
         timeout = 0;
         break;
       } else if (toupper(i)=='R')
