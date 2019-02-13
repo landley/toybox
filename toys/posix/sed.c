@@ -600,7 +600,7 @@ writenow:
       }
     } else if (c=='=') {
       sprintf(toybuf, "%ld", TT.count);
-      emit(toybuf, strlen(toybuf), 1);
+      if (emit(toybuf, strlen(toybuf), 1)) break;
     }
 
     command = command->next;

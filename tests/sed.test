@@ -72,8 +72,6 @@ testing "aci" \
 	"sed -e '3a boom' -e '/hre/i bang' -e '3a whack' -e '3c bong'" \
 	"one\ntwo\nbang\nbong\nboom\nwhack\nfour\n" "" \
 	"one\ntwo\nthree\nfour\n"
-# TODO: next test is broken on new-ish debian/bash with never-ending
-# output of `sed: short write: Broken pipe`.
 testing "b loop" "sed ':woo;=;b woo' | head -n 5" '1\n1\n1\n1\n1\n' "" "X"
 testing "b skip" "sed -n '2b zap;d;:zap;p'" "two\n" "" "one\ntwo\nthree"
 testing "b end" "sed -n '2b;p'" "one\nthree" "" "one\ntwo\nthree"
