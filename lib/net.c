@@ -138,3 +138,22 @@ void xsendto(int sockfd, void *buf, size_t len, struct sockaddr *dest)
 
   if (rc != len) perror_exit("sendto");
 }
+
+// xrecvfrom with timeout in milliseconds
+int xrecvwait(int fd, char *buf, int len, union socksaddr *sa, int timeout)
+{
+  socklen_t sl = sizeof(*sa);
+
+  if (timeout >= 0) {
+    struct pollfd pfd;
+
+    pfd.fd = fd;
+    pfd.events = POLLIN;
+    if (!xpoll(&pfd, 1, timeout)) return 0;
+  }
+
+  len = recvfrom(fd, buf, len, 0, (void *)sa, &sl);
+  if (len<0) perror_exit("recvfrom");
+
+  return len;
+}

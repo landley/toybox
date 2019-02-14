@@ -205,6 +205,8 @@ struct string_list **splitpath(char *path, struct string_list **list);
 char *readfileat(int dirfd, char *name, char *buf, off_t *len);
 char *readfile(char *name, char *buf, off_t len);
 void msleep(long miliseconds);
+void nanomove(struct timespec *ts, long long offset);
+long long nanodiff(struct timespec *old, struct timespec *new);
 int highest_bit(unsigned long l);
 int64_t peek_le(void *ptr, unsigned size);
 int64_t peek_be(void *ptr, unsigned size);
@@ -301,6 +303,13 @@ void tty_sigreset(int i);
 void start_redraw(unsigned *width, unsigned *height);
 
 // net.c
+
+union socksaddr {
+  struct sockaddr s;
+  struct sockaddr_in in;
+  struct sockaddr_in6 in6;
+};
+
 int xsocket(int domain, int type, int protocol);
 void xsetsockopt(int fd, int level, int opt, void *val, socklen_t len);
 struct addrinfo *xgetaddrinfo(char *host, char *port, int family, int socktype,
@@ -311,6 +320,7 @@ int xpoll(struct pollfd *fds, int nfds, int timeout);
 int pollinate(int in1, int in2, int out1, int out2, int timeout, int shutdown_timeout);
 char *ntop(struct sockaddr *sa);
 void xsendto(int sockfd, void *buf, size_t len, struct sockaddr *dest);
+int xrecvwait(int fd, char *buf, int len, union socksaddr *sa, int timeout);
 
 // password.c
 int get_salt(char *salt, char * algo);
