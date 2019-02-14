@@ -55,6 +55,7 @@ GLOBALS(
   unsigned long sent, recv, fugit, min, max;
 )
 
+// Print a summary. Called as a single handler or at exit.
 static void summary(int sig)
 {
   if (!(toys.optflags&FLAG_q) && TT.sent && TT.sa) {
@@ -87,38 +88,32 @@ void ping_main(void)
 {
   struct addrinfo *ai, *ai2;
   struct ifaddrs *ifa, *ifa2 = 0;
-  union {
-    struct sockaddr_in in;
-    struct sockaddr_in6 in6;
-  } src_addr, src_addr2;
-  struct sockaddr *sa = (void *)&src_addr, *sa2 = (void *)&src_addr2;
-  struct pollfd pfd;
+  struct icmphdr *ih = (void *)toybuf;
+  union socksaddr srcaddr, srcaddr2;
+  struct sockaddr *sa = (void *)&srcaddr;
   int family = 0, len;
   long long tnext, tW, tnow, tw;
   unsigned short seq = 0, pkttime;
-  struct icmphdr *ih = (void *)toybuf;
 
-  // Interval
+  // Set nonstatic default values
   if (!(toys.optflags&FLAG_i)) TT.i = (toys.optflags&FLAG_f) ? 200 : 1000;
   else if (TT.i<200 && getuid()) error_exit("need root for -i <200");
   if (!(toys.optflags&FLAG_s)) TT.s = 56; // 64-PHDR_LEN
   if ((toys.optflags&(FLAG_f|FLAG_c)) == FLAG_f) TT.c = 15;
 
   // ipv4 or ipv6? (0 = autodetect if -I or arg have only one address type.)
-  if ((toys.optflags&FLAG_6) || toys.which->name[4] == '6') family = AF_INET6;
-  else if (toys.optflags&FLAG_4) family = AF_INET;
+  if (FLAG(6) || strchr(toys.which->name, '6')) family = AF_INET6;
+  else if (FLAG(4)) family = AF_INET;
   else family = 0;
 
-  sigatexit(summary);
-
-  // If -I src_addr look it up. Allow numeric address of correct type.
-  memset(&src_addr, 0, sizeof(src_addr));
+  // If -I srcaddr look it up. Allow numeric address of correct type.
+  memset(&srcaddr, 0, sizeof(srcaddr));
   if (TT.I) {
     if (!(toys.optflags&FLAG_6) && inet_pton(AF_INET, TT.I,
-      (void *)&src_addr.in.sin_addr))
+      (void *)&srcaddr.in.sin_addr))
         family = AF_INET;
     else if (!(toys.optflags&FLAG_4) && inet_pton(AF_INET6, TT.I,
-      (void *)&src_addr.in6.sin6_addr))
+      (void *)&srcaddr.in6.sin6_addr))
         family = AF_INET6;
     else if (getifaddrs(&ifa2)) perror_exit("getifaddrs");
   }
@@ -160,7 +155,7 @@ void ping_main(void)
     }
     xexit();
   }
-  if (TT.I && bind(TT.sock, sa, sizeof(src_addr))) perror_exit("bind");
+  if (TT.I && bind(TT.sock, sa, sizeof(srcaddr))) perror_exit("bind");
 
   if (toys.optflags&FLAG_m) {
       int mark = TT.m;
@@ -190,6 +185,8 @@ void ping_main(void)
   tW = tw = 0;
   tnext = millitime();
   if (TT.w) tw = TT.w*1000+tnext;
+
+  sigatexit(summary);
 
   // Send/receive packets
   for (;;) {
@@ -236,13 +233,9 @@ void ping_main(void)
     // wait for next packet or timeout
 
     if (waitms<0) waitms = 0;
-    pfd.fd = TT.sock;
-    pfd.events = POLLIN;
-    if (0>(len = poll(&pfd, 1, waitms))) break;
-    if (!len) continue;
+    if (!(len = xrecvwait(TT.sock, toybuf, sizeof(toybuf), &srcaddr2, waitms)))
+      continue;
 
-    len = sizeof(src_addr2);
-    len = recvfrom(TT.sock, toybuf, sizeof(toybuf), 0, sa2, (void *)&len);
     TT.recv++;
     TT.fugit += (pkttime = millitime()-*(unsigned *)(ih+1));
 
@@ -251,7 +244,7 @@ void ping_main(void)
     if (!(toys.optflags&FLAG_q)) {
       if (toys.optflags&FLAG_f) xputc('\b');
       else {
-        printf("%d bytes from %s: icmp_seq=%d ttl=%d", len, ntop(sa2),
+        printf("%d bytes from %s: icmp_seq=%d ttl=%d", len, ntop(&srcaddr2.s),
                ih->un.echo.sequence, 0);
         if (len >= sizeof(*ih)+4)
           printf(" time=%u ms", pkttime);
