@@ -56,17 +56,17 @@ GLOBALS(
   unsigned nano;
 )
 
-static const char *formats[] = {
-  // Formats with years must come first.
-  "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d",
-  "%H:%M:%S", "%H:%M", 0
-};
-
 // Handle default posix date format (mmddhhmm[[cc]yy]) or @UNIX[.FRAC]
 // returns 0 success, nonzero for error
 static int parse_default(char *str, struct tm *tm)
 {
+  time_t now;
   int len = 0, i;
+  char *formats[] = {
+    // Formats with years must come first.
+    "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d",
+    "%H:%M:%S", "%H:%M"
+  };
 
   // Parse @UNIXTIME[.FRACTION]
   if (*str == '@') {
@@ -87,23 +87,20 @@ static int parse_default(char *str, struct tm *tm)
     }
     if (str[len]) return 1;
     tt = ll;
-    gmtime_r(&tt, tm);
+    localtime_r(&tt, tm);
 
     return 0;
   }
 
   // Is it one of the fancy formats?
-  for (i = 0; formats[i]; ++i) {
-    time_t now = time(NULL);
+  for (i = 0; i<ARRAY_LEN(formats); i++) {
     char *p;
 
-    if (!strchr(formats[i], 'Y')) {
-      localtime_r(&now, tm);
-      tm->tm_hour = tm->tm_min = tm->tm_sec = 0;
-    }
+    now = time(0);
+    localtime_r(&now, tm);
+    tm->tm_hour = tm->tm_min = tm->tm_sec = 0;
     if ((p = strptime(str, formats[i], tm)) && !*p) return 0;
   }
-  memset(tm, 0, sizeof(struct tm));
 
   // Posix format?
   sscanf(str, "%2u%2u%2u%2u%n", &tm->tm_mon, &tm->tm_mday, &tm->tm_hour,
@@ -141,6 +138,11 @@ static int parse_default(char *str, struct tm *tm)
     str += len;
   } else tm->tm_sec = 0;
 
+  // Fix up weekday
+  now = mktime(tm);
+  localtime_r(&now, tm);
+
+  // shouldn't be any trailing garbage
   return *str;
 }
 
