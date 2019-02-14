@@ -67,12 +67,6 @@ static void doublyso(unsigned long long now, struct timespec *tv)
   tv->tv_nsec = ((now&0xFFFFFFFF)*1000000000)>>32;
 }
 
-// return difference between two timespecs in nanosecs
-static long long nanodiff(struct timespec *old, struct timespec *new)
-{
-  return (new->tv_sec - old->tv_sec)*1000000000LL+(new->tv_nsec - old->tv_nsec);
-}
-
 void sntp_main(void)
 {
   struct timespec tv, tv2;
