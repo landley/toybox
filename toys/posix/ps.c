@@ -1423,10 +1423,11 @@ static int header_line(int line, int rev)
 {
   if (!line) return 0;
 
-  if (FLAG(b)) rev = 0;
-
-  printf("%s%*.*s%s%s\n", rev ? "\033[7m" : "", -TT.width*!!FLAG(b), TT.width,
-    toybuf, rev ? "\033[0m" : "", FLAG(b) ? "" : "\r");
+  if (FLAG(b)) puts(toybuf);
+  else {
+    printf("%s%-*.*s%s\r\n", rev?"\033[7m":"", rev?TT.width:0, TT.width, toybuf,
+      rev?"\033[0m":"");
+  }
 
   return line-1;
 }
@@ -1635,6 +1636,7 @@ static void top_common(
             pos[-1] = '[';
           if (!isspace(was) && isspace(is) && i==TT.sortpos+1) *pos = ']';
         }
+        if (FLAG(b)) while (isspace(*(pos-1))) --pos;
         *pos = 0;
         lines = header_line(lines, 1);
       }
