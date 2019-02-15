@@ -8,8 +8,10 @@ config MOUNTPOINT
   bool "mountpoint"
   default y
   help
-    usage: mountpoint [-q] [-d] directory
-           mountpoint [-q] [-x] device
+    usage: mountpoint [-qd] DIR
+           mountpoint [-qx] DEVICE
+
+    Check whether the directory or device is a mountpoint.
 
     -q	Be quiet, return zero if directory is a mountpoint
     -d	Print major/minor device number of the directory
