@@ -504,7 +504,7 @@ void xstat(char *path, struct stat *st)
   if(stat(path, st)) perror_exit("Can't stat %s", path);
 }
 
-// Cannonicalize path, even to file with one or more missing components at end.
+// Canonicalize path, even to file with one or more missing components at end.
 // if exact, require last path component to exist
 char *xabspath(char *path, int exact)
 {
