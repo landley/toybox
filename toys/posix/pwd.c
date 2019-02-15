@@ -15,7 +15,7 @@ config PWD
     Print working (current) directory.
 
     -L	Use shell's path from $PWD (when applicable)
-    -P	Print cannonical absolute path
+    -P	Print canonical absolute path
 */
 
 #define FOR_pwd

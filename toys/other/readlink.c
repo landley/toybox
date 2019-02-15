@@ -12,7 +12,7 @@ config READLINK
 
     With no options, show what symlink points to, return error if not symlink.
 
-    Options for producing cannonical paths (all symlinks/./.. resolved):
+    Options for producing canonical paths (all symlinks/./.. resolved):
 
     -e	Canonical path to existing entry (fail if missing)
     -f	Full path (fail if directory missing)
@@ -28,7 +28,7 @@ void readlink_main(void)
 {
   char *s;
 
-  // Calculating full cannonical path?
+  // Calculating full canonical path?
   // Take advantage of flag positions to calculate m = -1, f = 0, e = 1
   if (toys.optflags & (FLAG_f|FLAG_e|FLAG_m))
     s = xabspath(*toys.optargs, (toys.optflags&(FLAG_f|FLAG_e))-1);
