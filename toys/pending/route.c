@@ -201,36 +201,37 @@ static void get_next_params(char **argv, struct rtentry *rt, char **netmask)
 
       //set the metric field in the routing table.
       if (!strcmp(*argv, "metric"))
-        rt->rt_metric = atolx_range(*argv, 0, ULONG_MAX) + 1;
+        rt->rt_metric = atolx_range(argv[1], 0, ULONG_MAX) + 1;
       else if (!strcmp(*argv, "netmask")) {
         //when adding a network route, the netmask to be used.
         struct sockaddr sock;
         unsigned int addr_mask = (((struct sockaddr_in *)&((rt)->rt_genmask))->sin_addr.s_addr);
 
         if (addr_mask) help_exit("dup netmask");
-        *netmask = *argv;
+        *netmask = argv[1];
         get_hostname(*netmask, (struct sockaddr_in *) &sock);
         rt->rt_genmask = sock;
       } else if (!strcmp(*argv, "gw")) { 
         //route packets via a gateway.
         if (!(rt->rt_flags & RTF_GATEWAY)) {
-          if (!get_hostname(*argv, (struct sockaddr_in *) &rt->rt_gateway))
+          if (!get_hostname(argv[1], (struct sockaddr_in *) &rt->rt_gateway))
             rt->rt_flags |= RTF_GATEWAY;
-          else perror_exit("gateway '%s' is a NETWORK", *argv);
+          else perror_exit("gateway '%s' is a NETWORK", argv[1]);
         } else help_exit("dup gw");
       } else if (!strcmp(*argv, "mss")) {
         //set the TCP Maximum Segment Size for connections over this route.
-        rt->rt_mtu = atolx_range(*argv, 64, 65536);
+        rt->rt_mtu = atolx_range(argv[1], 64, 65536);
         rt->rt_flags |= RTF_MSS;
       } else if (!strcmp(*argv, "window")) {
         //set the TCP window size for connections over this route to W bytes.
-        rt->rt_window = atolx_range(*argv, 128, INT_MAX); //win low
+        rt->rt_window = atolx_range(argv[1], 128, INT_MAX); //win low
         rt->rt_flags |= RTF_WINDOW;
       } else if (!strcmp(*argv, "irtt")) {
-        rt->rt_irtt = atolx_range(*argv, 0, INT_MAX);
+        rt->rt_irtt = atolx_range(argv[1], 0, INT_MAX);
         rt->rt_flags |= RTF_IRTT;
-      } else if (!strcmp(*argv, "dev") && !rt->rt_dev) rt->rt_dev = *argv;
+      } else if (!strcmp(*argv, "dev") && !rt->rt_dev) rt->rt_dev = argv[1];
       else help_exit("no '%s'", *argv);
+      argv++;
     }
   }
 
@@ -327,18 +328,19 @@ static void get_next_params_inet6(char **argv, struct sockaddr_in6 *sock_in6, st
       if (!argv[1]) help_exit(0);
 
       if (!strcmp(*argv, "metric")) 
-        rt->rtmsg_metric = atolx_range(*argv, 0, ULONG_MAX);
+        rt->rtmsg_metric = atolx_range(argv[1], 0, ULONG_MAX);
       else if (!strcmp(*argv, "gw")) {
         //route packets via a gateway.
         if (!(rt->rtmsg_flags & RTF_GATEWAY)) {
-          if (!get_addrinfo(*argv, (struct sockaddr_in6 *) &sock_in6)) {
+          if (!get_addrinfo(argv[1], (struct sockaddr_in6 *) &sock_in6)) {
             memcpy(&rt->rtmsg_gateway, sock_in6->sin6_addr.s6_addr, sizeof(struct in6_addr));
             rt->rtmsg_flags |= RTF_GATEWAY;
-          } else perror_exit("resolving '%s'", *argv);
+          } else perror_exit("resolving '%s'", argv[1]);
         } else help_exit(0);
       } else if (!strcmp(*argv, "dev")) {
-        if (!*dev_name) *dev_name = *argv;
+        if (!*dev_name) *dev_name = argv[1];
       } else help_exit(0);
+      argv++;
     }
   }
 }
