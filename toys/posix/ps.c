@@ -1557,8 +1557,8 @@ static void top_common(
           for (i = 0; i<mix.count; i++)
             run[1+stridx("RSTZ", *string_field(mix.tb[i], &field))]++;
           sprintf(toybuf,
-            "Tasks: %d total,%4ld running,%4ld sleeping,%4ld stopped,"
-            "%4ld zombie", mix.count, run[1], run[2], run[3], run[4]);
+            "%ss: %d total,%4ld running,%4ld sleeping,%4ld stopped,%4ld zombie",
+            FLAG(H)?"Thread":"Task", mix.count, run[1], run[2], run[3], run[4]);
           lines = header_line(lines, 0);
 
           if (readfile("/proc/meminfo", toybuf, sizeof(toybuf))) {
