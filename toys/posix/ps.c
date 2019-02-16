@@ -1448,10 +1448,11 @@ static void top_common(
   } plist[2], *plold, *plnew, old, new, mix;
   char scratch[16], *pos, *cpufields[] = {"user", "nice", "sys", "idle",
     "iow", "irq", "sirq", "host"};
- 
   unsigned tock = 0;
   int i, lines, topoff = 0, done = 0;
   char stdout_buf[BUFSIZ];
+
+  if (!TT.fields) perror_exit("no -o");
 
   // Avoid flicker and hide the cursor in interactive mode.
   if (!FLAG(b)) {
