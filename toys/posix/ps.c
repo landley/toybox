@@ -385,8 +385,10 @@ struct typography {
   {"STIME", "Start time (ISO 8601)", 5, SLOT_starttime},
   {"F", "Flags 1=FORKNOEXEC 4=SUPERPRIV", 1, XX|SLOT_flags},
   {"S", "Process state:\n"
-   "\t  R (running) S (sleeping) D (device I/O) T (stopped)  t (traced)\n"
-   "\t  Z (zombie)  X (deader)   x (dead)       K (wakekill) W (waking)",
+   "\t  R (running) S (sleeping) D (device I/O) T (stopped)  t (trace stop)\n"
+   "\t  X (dead)    Z (zombie)   P (parked)     I (idle)\n"
+   "\t  Also between Linux 2.6.33 and 3.13:\n"
+   "\t  x (dead)    K (wakekill) W (waking)\n",
    -1, XX},
   {"STAT", "Process state (S) plus:\n"
    "\t  < high priority          N low priority L locked memory\n"
@@ -1553,13 +1555,18 @@ static void top_common(
           int j;
 
           // Count running, sleeping, stopped, zombie processes.
+          // The kernel has more states (and different sets in different
+          // versions), so we need to map them. (R)unning and (Z)ombie are
+          // easy enough, and since "stopped" is rare (just T and t as of
+          // Linux 4.20), we assume everything else is "sleeping".
           field.which = PS_S;
           memset(run, 0, sizeof(run));
           for (i = 0; i<mix.count; i++)
-            run[1+stridx("RSTZ", *string_field(mix.tb[i], &field))]++;
+            run[1+stridx("RTtZ", *string_field(mix.tb[i], &field))]++;
           sprintf(toybuf,
-            "%ss: %d total,%4ld running,%4ld sleeping,%4ld stopped,%4ld zombie",
-            FLAG(H)?"Thread":"Task", mix.count, run[1], run[2], run[3], run[4]);
+            "%ss: %d total, %3ld running, %3ld sleeping, %3ld stopped, "
+            "%3ld zombie", FLAG(H)?"Thread":"Task", mix.count, run[1], run[0],
+            run[2]+run[3], run[4]);
           lines = header_line(lines, 0);
 
           if (readfile("/proc/meminfo", toybuf, sizeof(toybuf))) {
