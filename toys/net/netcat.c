@@ -59,8 +59,7 @@ GLOBALS(
 static void timeout(int signum)
 {
   if (TT.w) error_exit("Timeout");
-  // TODO This should be xexit() but would need siglongjmp()...
-  exit(0);
+  xexit();
 }
 
 static void set_alarm(int seconds)
@@ -72,8 +71,7 @@ static void set_alarm(int seconds)
 void netcat_main(void)
 {
   int sockfd = -1, in1 = 0, in2 = 0, out1 = 1, out2 = 1;
-  int family = AF_UNSPEC;
-  int type = SOCK_STREAM;
+  int family = AF_UNSPEC, type = SOCK_STREAM;
   pid_t child;
 
   // Addjust idle and quit_delay to miliseconds or -1 for no timeout
@@ -88,13 +86,10 @@ void netcat_main(void)
       (!(toys.optflags&(FLAG_l|FLAG_L)) && toys.optc!=2))
         help_exit("bad argument count");
 
-  if (toys.optflags&FLAG_4)
-    family = AF_INET;
-  else if (toys.optflags&FLAG_6)
-    family = AF_INET6;
+  if (toys.optflags&FLAG_4) family = AF_INET;
+  else if (toys.optflags&FLAG_6) family = AF_INET6;
 
-  if (toys.optflags&FLAG_u)
-    type = SOCK_DGRAM;
+  if (toys.optflags&FLAG_u) type = SOCK_DGRAM;
 
   if (TT.f) in1 = out2 = xopen(TT.f, O_RDWR);
   else {
@@ -140,14 +135,9 @@ void netcat_main(void)
         }
 
         sockfd = xsocket(family, type, 0);
-
-        {
-          int val = 1;
-          xsetsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
-        }
-
-        if (bind(sockfd, address, bind_addrlen))
-          perror_exit("bind");
+        type = 1;
+        xsetsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &type, sizeof(type));
+        if (bind(sockfd, address, bind_addrlen)) perror_exit("bind");
       }
 
       if (listen(sockfd, 5)) error_exit("listen");
