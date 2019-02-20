@@ -15,6 +15,7 @@ void xsetsockopt(int fd, int level, int opt, void *val, socklen_t len)
   if (-1 == setsockopt(fd, level, opt, val, len)) perror_exit("setsockopt");
 }
 
+// if !host bind to all local interfaces
 struct addrinfo *xgetaddrinfo(char *host, char *port, int family, int socktype,
   int protocol, int flags)
 {
@@ -26,11 +27,12 @@ struct addrinfo *xgetaddrinfo(char *host, char *port, int family, int socktype,
   info.ai_socktype = socktype;
   info.ai_protocol = protocol;
   info.ai_flags = flags;
+  if (!host) info.ai_flags |= AI_PASSIVE;
 
   rc = getaddrinfo(host, port, &info, &ai);
   if (rc || !ai)
-    error_exit("%s%s%s: %s", host, port ? ":" : "", port ? port : "",
-      rc ? gai_strerror(rc) : "not found");
+    error_exit("%s%s%s: %s", host ? host : "*", port ? ":" : "",
+      port ? port : "", rc ? gai_strerror(rc) : "not found");
 
   return ai;
 }
@@ -38,12 +40,13 @@ struct addrinfo *xgetaddrinfo(char *host, char *port, int family, int socktype,
 int xconnbind(struct addrinfo *ai_arg, int dobind)
 {
   struct addrinfo *ai;
-  int fd = -1;
+  int fd = -1, one = 1;
 
   // Try all the returned addresses. Report errors if last entry can't connect.
   for (ai = ai_arg; ai; ai = ai->ai_next) {
     fd = (ai->ai_next ? socket : xsocket)(ai->ai_family, ai->ai_socktype,
       ai->ai_protocol);
+    xsetsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
     if (!(dobind ? bind : connect)(fd, ai->ai_addr, ai->ai_addrlen)) break;
     else if (!ai->ai_next) perror_exit_raw(dobind ? "bind" : "connect");
     close(fd);
