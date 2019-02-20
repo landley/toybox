@@ -4,7 +4,7 @@
  *
  * No standard
 
-USE_GETFATTR(NEWTOY(getfattr, "dhn:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_GETFATTR(NEWTOY(getfattr, "(only-values)dhn:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config GETFATTR
   bool "getfattr"
@@ -17,6 +17,7 @@ config GETFATTR
     -d	Show values as well as names
     -h	Do not dereference symbolic links
     -n	Show only attributes with the given name
+    --only-values	Don't show names
 */
 
 #define FOR_getfattr
@@ -36,7 +37,7 @@ static void do_getfattr(char *file)
   char *keys, *key;
   int i, key_count;
 
-  if (toys.optflags&FLAG_h) {
+  if (FLAG(h)) {
     getter = lgetxattr;
     lister = llistxattr;
   }
@@ -59,14 +60,14 @@ static void do_getfattr(char *file)
     sorted_keys[i++] = key;
   qsort(sorted_keys, key_count, sizeof(char *), qstrcmp);
 
-  printf("# file: %s\n", file);
+  if (!FLAG(only_values)) printf("# file: %s\n", file);
 
   for (i = 0; i < key_count; i++) {
     key = sorted_keys[i];
 
     if (TT.n && strcmp(TT.n, key)) continue;
 
-    if (toys.optflags&FLAG_d) {
+    if (FLAG(d) || FLAG(only_values)) {
       ssize_t value_len;
       char *value = NULL;
 
@@ -77,13 +78,15 @@ static void do_getfattr(char *file)
         free(value);
       }
 
-      if (!value) puts(key);
+      if (FLAG(only_values)) {
+        if (value) printf("%s", value);
+      } else if (!value) puts(key);
       else printf("%s=\"%s\"\n", key, value);
       free(value);
     } else puts(key); // Just list names.
   }
 
-  xputc('\n');
+  if (!FLAG(only_values)) xputc('\n');
   free(sorted_keys);
 }
 
