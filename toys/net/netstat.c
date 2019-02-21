@@ -12,7 +12,7 @@ config NETSTAT
   help
     usage: netstat [-pWrxwutneal]
 
-    Display networking information. Default is netsat -tuwx
+    Display networking information. Default is netstat -tuwx
 
     -r	Routing table
     -a	All sockets (not just connected)
