@@ -11,11 +11,11 @@ config DHCP6
   help
   usage: dhcp6 [-fbnqvR] [-i IFACE] [-r IP] [-s PROG] [-p PIDFILE]
 
-        Configure network dynamicaly using DHCP.
+        Configure network dynamically using DHCP.
 
       -i Interface to use (default eth0)
       -p Create pidfile
-      -s Run PROG at DHCP events 
+      -s Run PROG at DHCP events
       -t Send up to N Solicit packets
       -T Pause between packets (default 3 seconds)
       -A Wait N seconds after failure (default 20)

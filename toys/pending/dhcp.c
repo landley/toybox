@@ -13,7 +13,7 @@ config DHCP
    usage: dhcp [-fbnqvoCRB] [-i IFACE] [-r IP] [-s PROG] [-p PIDFILE]
                [-H HOSTNAME] [-V VENDOR] [-x OPT:VAL] [-O OPT]
 
-        Configure network dynamicaly using DHCP.
+        Configure network dynamically using DHCP.
 
       -i Interface to use (default eth0)
       -p Create pidfile

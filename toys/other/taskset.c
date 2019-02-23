@@ -22,7 +22,7 @@ config TASKSET
     usage: taskset [-ap] [mask] [PID | cmd [args...]]
 
     Launch a new task which may only run on certain processors, or change
-    the processor affinity of an exisitng PID.
+    the processor affinity of an existing PID.
 
     Mask is a hex string where each bit represents a processor the process
     is allowed to run on. PID without a mask displays existing affinity.

@@ -56,7 +56,7 @@ config SED
     Backslashes may be used to escape the delimiter if it occurs in the
     regex, and for the usual printf escapes (\abcefnrtv and octal, hex,
     and unicode). An empty regex repeats the previous one. ADDRESS regexes
-    (above) require the first delimeter to be escaped with a backslash when
+    (above) require the first delimiter to be escaped with a backslash when
     it isn't a forward slash (to distinguish it from the COMMANDs below).
 
     Sed mostly operates on individual lines one at a time. It reads each line,

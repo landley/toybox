@@ -1,4 +1,4 @@
-/* more.c - View FILE (or stdin) one screenful at a time.
+/* more.c - View FILE (or stdin) one screenfull at a time.
  *
  * Copyright 2013 Bilal Qureshi <bilal.jmi@gmail.com>
  *
@@ -12,7 +12,7 @@ config MORE
   help
     usage: more [FILE...]
 
-    View FILE(s) (or stdin) one screenful at a time.
+    View FILE(s) (or stdin) one screenfull at a time.
 */
 
 #define FOR_more

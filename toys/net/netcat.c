@@ -74,7 +74,7 @@ void netcat_main(void)
   int family = AF_UNSPEC, type = SOCK_STREAM;
   pid_t child;
 
-  // Addjust idle and quit_delay to miliseconds or -1 for no timeout
+  // Addjust idle and quit_delay to ms or -1 for no timeout
   TT.W = TT.W ? TT.W*1000 : -1;
   TT.q = TT.q ? TT.q*1000 : -1;
 

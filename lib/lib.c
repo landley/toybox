@@ -542,12 +542,12 @@ char *readfile(char *name, char *ibuf, off_t len)
 }
 
 // Sleep for this many thousandths of a second
-void msleep(long miliseconds)
+void msleep(long milliseconds)
 {
   struct timespec ts;
 
-  ts.tv_sec = miliseconds/1000;
-  ts.tv_nsec = (miliseconds%1000)*1000000;
+  ts.tv_sec = milliseconds/1000;
+  ts.tv_nsec = (milliseconds%1000)*1000000;
   nanosleep(&ts, &ts);
 }
 

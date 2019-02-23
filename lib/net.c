@@ -84,7 +84,7 @@ int xpoll(struct pollfd *fds, int nfds, int timeout)
 }
 
 // Loop forwarding data from in1 to out1 and in2 to out2, handling
-// half-connection shutdown. timeouts return if no data for X miliseconds.
+// half-connection shutdown. timeouts return if no data for X ms.
 // Returns 0: both closed, 1 shutdown_timeout, 2 timeout
 int pollinate(int in1, int in2, int out1, int out2, int timeout, int shutdown_timeout)
 {

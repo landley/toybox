@@ -18,7 +18,7 @@ config EXPAND
 
     Specify tab stops, either a single number instead of the default 8,
     or a comma separated list of increasing numbers representing tabstop
-    positions (absolute, not increments) with each additional tab beyound
+    positions (absolute, not increments) with each additional tab beyond
     that becoming one space.
 */
 

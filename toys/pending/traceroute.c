@@ -15,13 +15,13 @@ config TRACEROUTE
   help
     usage: traceroute [-46FUIldnvr] [-f 1ST_TTL] [-m MAXTTL] [-p PORT] [-q PROBES]
     [-s SRC_IP] [-t TOS] [-w WAIT_SEC] [-g GATEWAY] [-i IFACE] [-z PAUSE_MSEC] HOST [BYTES]
-    
-    traceroute6 [-dnrv] [-m MAXTTL] [-p PORT] [-q PROBES][-s SRC_IP] [-t TOS] [-w WAIT_SEC] 
+
+    traceroute6 [-dnrv] [-m MAXTTL] [-p PORT] [-q PROBES][-s SRC_IP] [-t TOS] [-w WAIT_SEC]
       [-i IFACE] HOST [BYTES]
 
     Trace the route to HOST
 
-    -4,-6 Force IP or IPv6 name resolution 
+    -4,-6 Force IP or IPv6 name resolution
     -F    Set the don't fragment bit (supports IPV4 only)
     -U    Use UDP datagrams instead of ICMP ECHO (supports IPV4 only)
     -I    Use ICMP ECHO instead of UDP datagrams (supports IPV4 only)
@@ -37,7 +37,7 @@ config TRACEROUTE
     -t    Type-of-service in probe packets (default 0)(RANGE 0 to 255)
     -w    Time in seconds to wait for a response (default 3)(RANGE 0 to 86400)
     -g    Loose source route gateway (8 max) (supports IPV4 only)
-    -z    Pause Time in milisec (default 0)(RANGE 0 to 86400) (supports IPV4 only)
+    -z    Pause Time in ms (default 0)(RANGE 0 to 86400) (supports IPV4 only)
     -f    Start from the 1ST_TTL hop (instead from 1)(RANGE 1 to 255) (supports IPV4 only)
     -i    Specify a network interface to operate with
 */

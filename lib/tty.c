@@ -63,11 +63,11 @@ int terminal_probesize(unsigned *xx, unsigned *yy)
 
 // Wrapper that parses results from ANSI probe to update screensize.
 // Otherwise acts like scan_key()
-int scan_key_getsize(char *scratch, int miliwait, unsigned *xx, unsigned *yy)
+int scan_key_getsize(char *scratch, int timeout_ms, unsigned *xx, unsigned *yy)
 {
   int key;
 
-  if (512&(key = scan_key(scratch, miliwait))) {
+  if (512&(key = scan_key(scratch, timeout_ms))) {
     if (key>0) {
       if (xx) *xx = (key>>10)&1023;
       if (yy) *yy = (key>>20)&1023;
@@ -157,13 +157,13 @@ struct scan_key_list {
 );
 
 // Scan stdin for a keypress, parsing known escape sequences
-// Blocks for miliwait miliseconds, none 0, forever if -1
+// Blocks for timeout_ms milliseconds, none 0, forever if -1
 // Returns: 0-255=literal, -1=EOF, -2=TIMEOUT, 256-...=index into scan_key_list
 // >512 is x<<9+y<<21
 // scratch space is necessary because last char of !seq could start new seq
 // Zero out first byte of scratch before first call to scan_key
 // block=0 allows fetching multiple characters before updating display
-int scan_key(char *scratch, int miliwait)
+int scan_key(char *scratch, int timeout_ms)
 {
   struct pollfd pfd;
   int maybe, i, j;
@@ -210,9 +210,9 @@ int scan_key(char *scratch, int miliwait)
 
     // Need more data to decide
 
-    // 30 miliseconds is about the gap between characters at 300 baud 
-    if (maybe || miliwait != -1)
-      if (!xpoll(&pfd, 1, maybe ? 30 : miliwait)) break;
+    // 30ms is about the gap between characters at 300 baud
+    if (maybe || timeout_ms != -1)
+      if (!xpoll(&pfd, 1, maybe ? 30 : timeout_ms)) break;
 
     // Read 1 byte so we don't overshoot sequence match. (We can deviate
     // and fail to match, but match consumes entire buffer.)

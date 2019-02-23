@@ -26,7 +26,7 @@ config LOSETUP
 
     new:
     -s	Show device name (alias --show)
-    -o	Start assocation at OFFSET into FILE
+    -o	Start association at OFFSET into FILE
     -r	Read only
     -S	Limit SIZE of loopback association (alias --sizelimit)
 */

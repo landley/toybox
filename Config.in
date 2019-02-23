@@ -76,7 +76,7 @@ config TOYBOX_LIBCRYPTO
        bool "Use libcrypto (OpenSSL/BoringSSL)"
        default n
        help
-         Use faster hash functions out of exteral -lcrypto library.
+         Use faster hash functions out of external -lcrypto library.
 
 config TOYBOX_LIBZ
        bool "Use libz (zlib)"
