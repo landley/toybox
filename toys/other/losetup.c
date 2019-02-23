@@ -36,9 +36,8 @@ config LOSETUP
 #include <linux/loop.h>
 
 GLOBALS(
-  char *jfile;
-  long offset;
-  long size;
+  char *j;
+  long o, S;
 
   int openflags;
   dev_t jdev;
@@ -87,7 +86,7 @@ static void loopback_setup(char *device, char *file)
   }
 
   // Skip -j filtered devices
-  if (TT.jfile && (loop->lo_device != TT.jdev || loop->lo_inode != TT.jino))
+  if (TT.j && (loop->lo_device != TT.jdev || loop->lo_inode != TT.jino))
     goto done;
 
   // Check size of file or delete existing association
@@ -103,8 +102,8 @@ static void loopback_setup(char *device, char *file)
 
     if (!s) perror_exit("file"); // already opened, but if deleted since...
     if (ioctl(lfd, LOOP_SET_FD, ffd)) perror_exit("%s=%s", device, file);
-    loop->lo_offset = TT.offset;
-    loop->lo_sizelimit = TT.size;
+    loop->lo_offset = TT.o;
+    loop->lo_sizelimit = TT.S;
     xstrncpy((char *)loop->lo_file_name, s, LO_NAME_SIZE);
     s[LO_NAME_SIZE-1] = 0;
     if (ioctl(lfd, LOOP_SET_STATUS64, loop)) perror_exit("%s=%s", device, file);
@@ -114,8 +113,10 @@ static void loopback_setup(char *device, char *file)
   else {
     xprintf("%s: [%04llx]:%llu (%s)", device, (long long)loop->lo_device,
       (long long)loop->lo_inode, loop->lo_file_name);
-    if (loop->lo_offset) xprintf(", offset %llu", loop->lo_offset);
-    if (loop->lo_sizelimit) xprintf(", sizelimit %llu", loop->lo_sizelimit);
+    if (loop->lo_offset) xprintf(", offset %llu",
+      (unsigned long long)loop->lo_offset);
+    if (loop->lo_sizelimit) xprintf(", sizelimit %llu",
+      (unsigned long long)loop->lo_sizelimit);
     xputc('\n');
   }
 
@@ -146,10 +147,10 @@ void losetup_main(void)
 
   TT.openflags = (toys.optflags & FLAG_r) ? O_RDONLY : O_RDWR;
 
-  if (TT.jfile) {
+  if (TT.j) {
     struct stat st;
 
-    xstat(TT.jfile, &st);
+    xstat(TT.j, &st);
     TT.jdev = st.st_dev;
     TT.jino = st.st_ino;
   }
