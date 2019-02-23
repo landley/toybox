@@ -142,7 +142,7 @@ static void mount_filesystem(char *dev, char *dir, char *type,
   int rc = EINVAL;
   char *buf = 0;
 
-  if (toys.optflags & FLAG_f) return;
+  if (FLAG(f)) return;
 
   if (getuid()) {
     if (TT.okuser) TT.okuser = 0;
@@ -196,7 +196,7 @@ static void mount_filesystem(char *dev, char *dir, char *type,
       i = strlen(type);
       if (i) type[i-1] = 0;
     }
-    if (toys.optflags & FLAG_v)
+    if (FLAG(v))
       printf("try '%s' type '%s' on '%s'\n", dev, type, dir);
     for (;;) {
       rc = mount(dev, dir, type, flags, opts);
@@ -206,7 +206,7 @@ static void mount_filesystem(char *dev, char *dir, char *type,
       // If we haven't already tried it, use the BLKROSET ioctl to ensure
       // that the underlying device isn't read-only.
       if (fd == -1) {
-        if (toys.optflags & FLAG_v)
+        if (FLAG(v))
           printf("trying BLKROSET ioctl on '%s'\n", dev);
         if (-1 != (fd = open(dev, O_RDONLY))) {
           rc = ioctl(fd, BLKROSET, &ro);
@@ -222,7 +222,7 @@ static void mount_filesystem(char *dev, char *dir, char *type,
     // isn't good enough because "mount -t ext2 fs.img dir" is valid, but if
     // you _do_ accept loop mounts with -t how do you tell "-t cifs" isn't
     // looking for a block device if it's not in /proc/filesystems yet
-    // because the module that won't be loaded until you try the mount, and
+    // because the fs module won't be loaded until you try the mount, and
     // if you can't then DEVICE existing as a file would cause a false
     // positive loopback mount (so "touch servername" becomes a potential
     // denial of service attack...)
@@ -280,8 +280,8 @@ void mount_main(void)
   // First pass; just accumulate string, don't parse flags yet. (This is so
   // we can modify fstab entries with -a, or mtab with remount.)
   for (o = TT.optlist; o; o = o->next) comma_collate(&opts, o->arg);
-  if (toys.optflags & FLAG_r) comma_collate(&opts, "ro");
-  if (toys.optflags & FLAG_w) comma_collate(&opts, "rw");
+  if (FLAG(r)) comma_collate(&opts, "ro");
+  if (FLAG(w)) comma_collate(&opts, "rw");
 
   // Treat each --option as -o option
   for (ss = toys.optargs; *ss; ss++) {
@@ -295,20 +295,20 @@ void mount_main(void)
     else error_exit("Max 2 arguments\n");
   }
 
-  if ((toys.optflags & FLAG_a) && dir) error_exit("-a with >1 arg");
+  if (FLAG(a) && dir) error_exit("-a with >1 arg");
 
   // For remount we need _last_ match (in case of overmounts), so traverse
   // in reverse order. (Yes I'm using remount as a boolean for a bit here,
   // the double cast is to get gcc to shut up about it.)
   remount = (void *)(long)comma_scan(opts, "remount", 0);
-  if (((toys.optflags & FLAG_a) && !access("/proc/mounts", R_OK)) || remount) {
+  if ((FLAG(a) && !access("/proc/mounts", R_OK)) || remount) {
     mm = dlist_terminate(mtl = mtl2 = xgetmountlist(0));
     if (remount) remount = mm;
   }
 
   // Do we need to do an /etc/fstab trawl?
   // This covers -a, -o remount, one argument, all user mounts
-  if ((toys.optflags & FLAG_a) || (dev && (!dir || getuid() || remount))) {
+  if (FLAG(a) || (dev && (!dir || getuid() || remount))) {
     if (!remount) dlist_terminate(mtl = xgetmountlist("/etc/fstab"));
 
     for (mm = remount ? remount : mtl; mm; mm = (remount ? mm->prev : mm->next))
@@ -321,7 +321,7 @@ void mount_main(void)
       // that make it to the kernel give filesystem drivers indigestion.)
       noauto = comma_scan(mm->opts, "noauto", 1);
 
-      if (toys.optflags & FLAG_a) {
+      if (FLAG(a)) {
         // "mount -a /path" to mount all entries under /path
         if (dev) {
            len = strlen(dev);
@@ -353,13 +353,13 @@ void mount_main(void)
       } // TODO else if (getuid()) error_msg("already there") ?
       free(aopts);
 
-      if (!(toys.optflags & FLAG_a)) break;
+      if (!FLAG(a)) break;
     }
     if (CFG_TOYBOX_FREE) {
       llist_traverse(mtl, free);
       llist_traverse(mtl2, free);
     }
-    if (!mm && !(toys.optflags & FLAG_a))
+    if (!mm && !FLAG(a))
       error_exit("'%s' not in %s", dir ? dir : dev,
                  remount ? "/proc/mounts" : "fstab");
 
