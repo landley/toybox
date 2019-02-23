@@ -11,7 +11,7 @@ USE_MCOOKIE(NEWTOY(mcookie, "v(verbose)V(version)", TOYFLAG_USR|TOYFLAG_BIN))
 
 config MCOOKIE
   bool "mcookie"
-  default n
+  default y
   help
     usage: mcookie [-vV]
 
