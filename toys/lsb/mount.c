@@ -3,6 +3,7 @@
  * Copyright 2014 Rob Landley <rob@landley.net>
  *
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/mount.html
+ *
  * Note: -hV is bad spec, haven't implemented -FsLU yet
  * no mtab (/proc/mounts does it) so -n is NOP.
  * TODO mount -o loop,autoclear (linux git 96c5865559ce)
@@ -30,11 +31,19 @@ config MOUNT
     OPTIONS is a comma separated list of options, which can also be supplied
     as --longopts.
 
-    This mount autodetects loopback mounts (a file on a directory) and
-    bind mounts (file on file, directory on directory), so you don't need
-    to say --bind or --loop. You can also "mount -a /path" to mount everything
-    in /etc/fstab under /path, even if it's noauto.
+    Autodetects loopback mounts (a file on a directory) and bind mounts (file
+    on file, directory on directory), so you don't need to say --bind or --loop.
+    You can also "mount -a /path" to mount everything in /etc/fstab under /path,
+    even if it's noauto. DEVICE starting with UUID= is identified by blkid -U.
 
+#config SMBMOUNT
+#  bool "smbmount"
+#  deault n
+#  helo
+#    usage: smbmount SHARE DIR
+#
+#    Mount smb share with user/pasword prompt as necessary.
+#
 #config NFSMOUNT
 #  bool "nfsmount"
 #  default n
@@ -75,6 +84,7 @@ GLOBALS(
 // TODO "touch servername; mount -t cifs servername path"
 // TODO mount -o remount a user mount
 // TODO mount image.img sub (auto-loopback) then umount image.img
+// TODO mount UUID=blah
 
 // Strip flags out of comma separated list of options, return flags,.
 static long flag_opts(char *new, long flags, char **more)
@@ -135,6 +145,25 @@ static long flag_opts(char *new, long flags, char **more)
   return flags;
 }
 
+// Shell out to a program, returning the output string or NULL on error
+static char *tortoise(int loud, char **cmd)
+{
+  int rc, pipe, len;
+  pid_t pid;
+
+  pid = xpopen(cmd, &pipe, 1);
+  len = readall(pipe, toybuf, sizeof(toybuf)-1);
+  rc = xpclose(pid, pipe);
+  if (!rc && len > 1) {
+    if (toybuf[len-1] == '\n') --len;
+    toybuf[len] = 0;
+    return toybuf;
+  }
+  if (loud) error_msg("%s failed %d", *cmd, rc);
+
+  return 0;
+}
+
 static void mount_filesystem(char *dev, char *dir, char *type,
   unsigned long flags, char *opts)
 {
@@ -151,6 +180,13 @@ static void mount_filesystem(char *dev, char *dir, char *type,
 
       return;
     }
+  }
+
+  if (strstart(&dev, "UUID=")) {
+    char *s = tortoise(0, (char *[]){"blkid", "-U", dev, 0});
+
+    if (!dev) return error_msg("No uuid %s", dev);
+    dev = s;
   }
 
   // Autodetect bind mount or filesystem type
@@ -231,24 +267,9 @@ static void mount_filesystem(char *dev, char *dir, char *type,
     // device, then do the loopback setup and retry the mount.
 
     if (rc && errno == ENOTBLK) {
-      char *losetup[] = {"losetup", "-fs", dev, 0};
-      int pipe, len;
-      pid_t pid;
-
-      if (flags & MS_RDONLY) losetup[1] = "-fsr";
-      pid = xpopen(losetup, &pipe, 1);
-      len = readall(pipe, toybuf, sizeof(toybuf)-1);
-      rc = xpclose(pid, pipe);
-      if (!rc && len > 1) {
-        if (toybuf[len-1] == '\n') --len;
-        toybuf[len] = 0;
-        dev = toybuf;
-
-        continue;
-      }
-      error_msg("losetup failed %d", rc);
-
-      break;
+      dev = tortoise(1, (char *[]){"losetup",
+        (flags&MS_RDONLY) ? "-fsr" : "-fs", dev, 0});
+      if (!dev) break;
     }
 
     free(buf);
