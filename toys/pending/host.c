@@ -13,7 +13,7 @@ config HOST
     usage: host [-av] [-t TYPE] NAME [SERVER]
 
     Perform DNS lookup on NAME, which can be a domain name to lookup,
-    or an IPv4 dotted or IPv6 colon-seperated address to reverse lookup.
+    or an IPv4 dotted or IPv6 colon-separated address to reverse lookup.
     SERVER (if present) is the DNS server to use.
 
     -a	no idea

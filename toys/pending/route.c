@@ -394,7 +394,7 @@ static void ipv6_addr_formating(char *ptr, char *addr)
   while (i <= IPV6_ADDR_LEN) {
     if (!*ptr) {
       if (i == IPV6_ADDR_LEN) {
-        addr[IPV6_ADDR_LEN - 1] = 0; //NULL terminating the ':' seperated address.
+        addr[IPV6_ADDR_LEN - 1] = 0; //NULL terminating the ':' separated address.
         break;
       }
       error_exit("IPv6 ip format error");
