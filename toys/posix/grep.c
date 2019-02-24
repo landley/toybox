@@ -10,7 +10,7 @@
 * echo hello | grep -f </dev/null
 *
 
-USE_GREP(NEWTOY(grep, "(color):;S(exclude)*M(include)*ZzEFHIabhinorsvwclq(quiet)(silent)e*f*C#B#A#m#x[!wx][!EFw]", TOYFLAG_BIN))
+USE_GREP(NEWTOY(grep, "(color):;S(exclude)*M(include)*ZzEFHIab(byte-offset)h(no-filename)ino(only-matching)rsvwcl(files-with-matches)q(quiet)(silent)e*f*C#B#A#m#x[!wx][!EFw]", TOYFLAG_BIN))
 USE_EGREP(OLDTOY(egrep, grep, TOYFLAG_BIN))
 USE_FGREP(OLDTOY(fgrep, grep, TOYFLAG_BIN))
 
@@ -42,7 +42,7 @@ config GREP
     -x  whole line               -z  input NUL terminated
 
     display modes: (default: matched line)
-    -c  count of matching lines  -l  show matching filenames
+    -c  count of matching lines  -l  show only matching filenames
     -o  only matching part       -q  quiet (errors only)
     -s  silent (no error msg)    -Z  output NUL terminated
 
