@@ -4,16 +4,19 @@
  *
  * See ftp://ftp.kernel.org/pub/linux/utils/util-linux/v2.24/libblkid-docs/api-index-full.html
 
-USE_BLKID(NEWTOY(blkid, 0, TOYFLAG_BIN))
+USE_BLKID(NEWTOY(blkid, "UL[!LU]", TOYFLAG_BIN))
 USE_FSTYPE(NEWTOY(fstype, "<1", TOYFLAG_BIN))
 
 config BLKID
   bool "blkid"
   default y
   help
-    usage: blkid DEV...
+    usage: blkid [-UL] DEV...
 
     Prints type, label and UUID of filesystem on a block device or image.
+
+    -U	Show UUID only (or device with that UUID)
+    -L	Show LABEL only (or device with that LABEL)
 
 config FSTYPE
   bool "fstype"
@@ -31,9 +34,7 @@ struct fstype {
   char *name;
   uint64_t magic;
   int magic_len, magic_offset, uuid_off, label_len, label_off;
-};
-
-static const struct fstype fstypes[] = {
+} static const fstypes[] = {
   {"ext2", 0xEF53, 2, 1080, 1128, 16, 1144}, // keep this first for ext3/4 check
   {"swap", 0x4341505350415753LL, 8, 4086, 1036, 15, 1052},
   // NTFS label actually 8/16 0x4d80 but horrible: 16 bit wide characters via
@@ -57,10 +58,17 @@ static const struct fstype fstypes[] = {
   {"vfat", 0x31544146, 4, 54, 39+(4<<24), 11, 43}     // fat1
 };
 
+static void flagshow(char *s, char *name)
+{
+  if (*toys.optargs && strcmp(s, *toys.optargs)) return;
+  printf("%s\n", *toys.optargs ? name : s);
+  if (*toys.optargs) xexit();
+}
+
 static void do_blkid(int fd, char *name)
 {
   int off, i, j, len;
-  char *type;
+  char buf[128], *type, *s;
 
   off = i = 0;
 
@@ -113,37 +121,44 @@ static void do_blkid(int fd, char *name)
   }
 
   // output for blkid
-  printf("%s:",name);
+  if (!toys.optflags) printf("%s:",name);
 
-  if (fstypes[i].label_len) {
-    char *s = toybuf+fstypes[i].label_off-off;
-
-    len = fstypes[i].label_len;
+  len = fstypes[i].label_len;
+  if (!FLAG(U) && len) {
+    s = toybuf+fstypes[i].label_off-off;
     if (!strcmp(type, "vfat")) {
       while (len && s[len-1]==' ') len--;
       if (strstart(&s, "NO NAME")) len=0;
     }
-    if (len && *s) printf(" LABEL=\"%.*s\"", len, s);
+    if (len && *s) {
+      sprintf(buf, "%.*s", len, s);
+      if (FLAG(L)) return flagshow(buf, name);
+      printf(" LABEL=\"%s\"", buf);
+    }
   }
 
-  if (fstypes[i].uuid_off) {
-    int bits = 0x550, size = fstypes[i].uuid_off >> 24,
-        uoff = (fstypes[i].uuid_off & ((1<<24)-1))-off;
+  len = fstypes[i].uuid_off;
+  if (!FLAG(L) && len) {
+    int bits = 0x550, size = len >> 24, uoff = (len&((1<<24)-1))-off;
 
+    // Assemble UUID with whatever size and set of dashes this filesystem uses
     if (size) bits = 4*(size == 4);
     else size = 16;
+    for (j = 0, s = buf; j < size; j++)
+      s += sprintf(s, "-%02x"+!(bits & (1<<j)), toybuf[uoff+j]);
 
-    printf(" UUID=\"");
-    for (j = 0; j < size; j++) printf("-%02x"+!(bits & (1<<j)), toybuf[uoff+j]);
-    printf("\"");
+    if (FLAG(U)) return flagshow(buf, name);
+    printf(" UUID=\"%s\"", buf);
   }
+
+  if (toys.optflags) return;
 
   printf(" TYPE=\"%s\"\n", type);
 }
 
 void blkid_main(void)
 {
-  if (*toys.optargs) loopfiles(toys.optargs, do_blkid);
+  if (*toys.optargs && !FLAG(L) && !FLAG(U)) loopfiles(toys.optargs, do_blkid);
   else {
     unsigned int ma, mi, sz, fd;
     char *name = toybuf, *buffer = toybuf+1024, device[32];
@@ -164,6 +179,8 @@ void blkid_main(void)
     }
     if (CFG_TOYBOX_FREE) fclose(fp);
   }
+
+  if (FLAG(L) || FLAG(U)) toys.exitval = 2;
 }
 
 void fstype_main(void)
