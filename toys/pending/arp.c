@@ -84,25 +84,6 @@ static int get_index(struct type arr[], char *name)
   return arr[i].val;
 }
 
-
-void get_hw_add(char *hw_addr, char *ptr) 
-{
-  char *p = ptr, *hw = hw_addr;
-
-  while (*hw_addr && (p-ptr) < 6) {
-    int val, len = 0;
-
-    if (*hw_addr == ':') hw_addr++;
-    sscanf(hw_addr, "%2x%n", &val, &len);
-    if (!len || len > 2) break;
-    hw_addr += len;
-    *p++ = val;
-  }
-
-  if ((p-ptr) != 6 || *hw_addr)
-    error_exit("bad hw addr '%s'", hw);
-}
-
 static void resolve_host(char *host, struct sockaddr *sa)
 {
   struct addrinfo hints, *res = NULL;
@@ -161,8 +142,22 @@ static int set_entry(void)
   
   if (!toys.optargs[1]) error_exit("bad syntax");
 
-  if (!(toys.optflags & FLAG_D)) get_hw_add(toys.optargs[1], (char*)&req.arp_ha.sa_data);
-  else {
+  if (!(toys.optflags & FLAG_D)) {
+    char *ptr = toys.optargs[1];
+    char *p = ptr, *hw_addr = req.arp_ha.sa_data;
+
+    while (*hw_addr && (p-ptr) < 6) {
+      int val, len;
+
+      if (*hw_addr == ':') hw_addr++;
+      if (!sscanf(hw_addr, "%2x%n", &val, &len)) break;
+      hw_addr += len;
+      *p++ = val;
+    }
+
+    if ((p-ptr) != 6 || *hw_addr)
+      error_exit("bad hw addr '%s'", req.arp_ha.sa_data);
+  } else {
     struct ifreq ifre;
 
     xstrncpy(ifre.ifr_name, toys.optargs[1], IFNAMSIZ);
