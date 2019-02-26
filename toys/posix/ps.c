@@ -1676,7 +1676,7 @@ static void top_common(
         msleep(timeout-now);
         // Make an obvious gap between datasets.
         xputs("\n\n");
-        continue;
+        break;
       } else fflush(stdout);
 
       i = scan_key_getsize(scratch, timeout-now, &TT.width, &TT.height);
