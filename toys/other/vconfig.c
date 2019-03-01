@@ -4,8 +4,6 @@
  * Copyright 2012 Kyungwan Han <asura321@gmail.com>
  *
  * No standard
- *
- * TODO: cleanup
 
 USE_VCONFIG(NEWTOY(vconfig, "<2>4", TOYFLAG_NEEDROOT|TOYFLAG_SBIN))
 
@@ -32,17 +30,15 @@ config VCONFIG
 void vconfig_main(void)
 {
   struct vlan_ioctl_args request;
-  char *cmd;
-  int fd;
+  char *cmd = *toys.optargs;
+  int fd = xsocket(AF_INET, SOCK_STREAM, 0);
 
-  fd = xsocket(AF_INET, SOCK_STREAM, 0);
   memset(&request, 0, sizeof(struct vlan_ioctl_args));
-  cmd = toys.optargs[0];
 
   if (!strcmp(cmd, "set_name_type")) {
     char *types[] = {"VLAN_PLUS_VID", "DEV_PLUS_VID", "VLAN_PLUS_VID_NO_PAD",
                      "DEV_PLUS_VID_NO_PAD"};
-    int i, j = sizeof(types)/sizeof(*types);
+    int i, j = ARRAY_LEN(types);
 
     for (i=0; i<j; i++) if (!strcmp(toys.optargs[1], types[i])) break;
     if (i == j) {
@@ -53,11 +49,12 @@ void vconfig_main(void)
     request.u.name_type = i;
     request.cmd = SET_VLAN_NAME_TYPE_CMD;
     xioctl(fd, SIOCSIFVLAN, &request);
+
     return;
   }
 
   // Store interface name
-  xstrncpy(request.device1, toys.optargs[1], 16);
+  xstrncpy(request.device1, toys.optargs[1], sizeof(request.device1));
 
   if (!strcmp(cmd, "add")) {
     request.cmd = ADD_VLAN_CMD;
