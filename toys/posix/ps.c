@@ -1459,8 +1459,8 @@ static void top_common(
   // Avoid flicker and hide the cursor in interactive mode.
   if (!FLAG(b)) {
     setbuf(stdout, stdout_buf);
-    tty_esc("?25l");
     sigatexit(top_cursor_cleanup);
+    tty_esc("?25l");
   }
 
   toys.signal = SIGWINCH;
