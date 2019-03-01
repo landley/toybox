@@ -28,8 +28,7 @@ config LOGIN
 #include "toys.h"
 
 GLOBALS(
-  char *hostname;
-  char *username;
+  char *h, *f;
 
   int login_timeout, login_fail_timeout;
 )
@@ -47,7 +46,7 @@ void login_main(void)
     "LD_TRACE_LOADED_OBJECTS", "LD_BIND_NOW", "LD_AOUT_LIBRARY_PATH",
     "LD_AOUT_PRELOAD", "LD_NOWARN", "LD_KEEPDIR", "SHELL"
   };
-  int hh = toys.optflags&FLAG_h, count, tty;
+  int hh = FLAG(h), count, tty;
   char uu[33], *username, *pass = 0, *ss;
   struct passwd *pwd = 0;
 
@@ -59,7 +58,7 @@ void login_main(void)
   openlog("login", LOG_PID | LOG_CONS, LOG_AUTH);
   xsignal(SIGALRM, login_timeout_handler);
 
-  if (TT.username) username = TT.username;
+  if (TT.f) username = TT.f;
   else username = *toys.optargs;
   for (count = 0; count < 3; count++) {
     alarm(TT.login_timeout = 60);
@@ -88,7 +87,7 @@ void login_main(void)
     if (pwd && *pwd->pw_passwd != '!' && *pwd->pw_passwd != '*') {
 
       // Pre-authenticated or passwordless
-      if (TT.username || !*pwd->pw_passwd) break;
+      if (TT.f || !*pwd->pw_passwd) break;
 
       // fetch shadow password if necessary
       if (*(pass = pwd->pw_passwd) == 'x') {
@@ -96,7 +95,7 @@ void login_main(void)
 
         if (spwd) pass = spwd->sp_pwdp;
       }
-    } else if (TT.username) error_exit("bad -f '%s'", TT.username);
+    } else if (TT.f) error_exit("bad -f '%s'", TT.f);
 
     // Verify password. (Prompt for password _before_ checking disable state.)
     if (!read_password(toybuf, sizeof(toybuf), "Password: ")) {
@@ -108,7 +107,7 @@ void login_main(void)
     }
 
     syslog(LOG_WARNING, "invalid password for '%s' on %s %s%s", pwd->pw_name,
-      ttyname(tty), hh ? "from " : "", hh ? TT.hostname : "");
+      ttyname(tty), hh ? "from " : "", hh ? TT.h : "");
 
     sleep(3);
     puts("Login incorrect");
@@ -134,11 +133,13 @@ void login_main(void)
     return;
   }
 
+  if (fchown(tty, pwd->pw_uid, pwd->pw_gid) || fchmod(tty, 0600))
+    printf("can't claim tty");
   xsetuser(pwd);
 
   if (chdir(pwd->pw_dir)) printf("bad $HOME: %s\n", pwd->pw_dir);
 
-  if (!(toys.optflags&FLAG_p)) {
+  if (!FLAG(p)) {
     char *term = getenv("TERM");
 
     clearenv();
@@ -157,7 +158,7 @@ void login_main(void)
   }
 
   syslog(LOG_INFO, "%s logged in on %s %s %s", pwd->pw_name,
-    ttyname(tty), hh ? "from" : "", hh ? TT.hostname : "");
+    ttyname(tty), hh ? "from" : "", hh ? TT.h : "");
 
   // not using xexec(), login calls absolute path from filesystem so must exec()
   execl(pwd->pw_shell, xmprintf("-%s", pwd->pw_shell), (char *)0);
