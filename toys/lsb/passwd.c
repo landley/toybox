@@ -12,9 +12,9 @@ config PASSWD
   default y
   depends on TOYBOX_SHADOW
   help
-    usage: passwd [-a ALGO] [-dlu] <account name>
+    usage: passwd [-a ALGO] [-dlu] [USER]
 
-    update user's authentication tokens. Default : current user
+    Update user's authentication tokens. Defaults to current user.
 
     -a ALGO	Encryption method (des, md5, sha256, sha512) default: des
     -d		Set password to ''

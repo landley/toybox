@@ -24,7 +24,7 @@ config I2CDETECT
     usage: i2cdetect -F BUS
     usage: i2cdetect -l
 
-    Detects i2c devices.
+    Detect i2c devices.
 
     -a	All addresses (0x00-0x7f rather than 0x03-0x77)
     -F	Show functionality
@@ -38,7 +38,7 @@ config I2CDUMP
   help
     usage: i2cdump [-fy] BUS CHIP
 
-    Dumps i2c registers.
+    Dump i2c registers.
 
     -f	Force access to busy devices
     -y	Answer "yes" to confirmation prompts (for script use)
@@ -49,7 +49,7 @@ config I2CGET
   help
     usage: i2cget [-fy] BUS CHIP ADDR
 
-    Reads an i2c register.
+    Read an i2c register.
 
     -f	Force access to busy devices
     -y	Answer "yes" to confirmation prompts (for script use)
@@ -60,7 +60,7 @@ config I2CSET
   help
     usage: i2cset [-fy] BUS CHIP ADDR VALUE... MODE
 
-    Writes an i2c register. MODE is b for byte, w for 16-bit word, i for I2C block.
+    Write an i2c register. MODE is b for byte, w for 16-bit word, i for I2C block.
 
     -f	Force access to busy devices
     -y	Answer "yes" to confirmation prompts (for script use)

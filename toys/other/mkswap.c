@@ -10,7 +10,7 @@ config MKSWAP
   help
     usage: mkswap [-L LABEL] DEVICE
 
-    Sets up a Linux swap area on a device or file.
+    Set up a Linux swap area on a device or file.
 */
 
 #define FOR_mkswap

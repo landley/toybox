@@ -66,7 +66,7 @@ config MV
   bool "mv"
   default y
   help
-    usage: mv [-fivn] SOURCE... DEST"
+    usage: mv [-fivn] SOURCE... DEST
 
     -f	Force copy by deleting destination file
     -i	Interactive, prompt before overwriting existing DEST

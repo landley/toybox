@@ -13,6 +13,8 @@ config OD
   help
     usage: od [-bcdosxv] [-j #] [-N #] [-w #] [-A doxn] [-t acdfoux[#]]
 
+    Dump data in octal/hex.
+
     -A	Address base (decimal, octal, hexadecimal, none)
     -j	Skip this many bytes of input
     -N	Stop dumping after this many bytes

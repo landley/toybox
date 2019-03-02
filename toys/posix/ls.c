@@ -20,7 +20,7 @@ config LS
   help
     usage: ls [-ACFHLRSZacdfhiklmnpqrstux1] [--color[=auto]] [directory...]
 
-    list files
+    List files.
 
     what to show:
     -a  all files including .hidden    -b  escape nongraphic chars

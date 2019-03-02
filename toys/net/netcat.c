@@ -15,6 +15,8 @@ config NETCAT
   help
     usage: netcat [-46] [-u] [-wpq #] [-s addr] {IPADDR PORTNUM|-f FILENAME}
 
+    Forward stdin/stdout to a file or network connection.
+
     -4	Force IPv4
     -6	Force IPv6
     -f	Use FILENAME (ala /dev/ttyS0) instead of network

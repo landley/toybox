@@ -12,7 +12,7 @@ config RESET
   help
     usage: reset
 
-    reset the terminal
+    Reset the terminal.
 */
 #include "toys.h"
 

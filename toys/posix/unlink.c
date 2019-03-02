@@ -12,7 +12,7 @@ config UNLINK
   help
     usage: unlink FILE
 
-    Deletes one file.
+    Delete one file.
 */
 
 #include "toys.h"

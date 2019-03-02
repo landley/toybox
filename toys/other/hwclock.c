@@ -12,6 +12,8 @@ config HWCLOCK
   help
     usage: hwclock [-rswtluf]
 
+    Get/set the hardware clock.
+
     -f FILE	Use specified device file instead of /dev/rtc (--rtc)
     -l	Hardware clock uses localtime (--localtime)
     -r	Show hardware clock time (--show)

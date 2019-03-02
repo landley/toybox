@@ -25,7 +25,7 @@ config CPIO
     usage: cpio -{o|t|i|p DEST} [-v] [--verbose] [-F FILE] [--no-preserve-owner]
            [ignored: -mdu -H newc]
 
-    copy files into and out of a "newc" format cpio archive
+    Copy files into and out of a "newc" format cpio archive.
 
     -F FILE	Use archive FILE instead of stdin/stdout
     -p DEST	Copy-pass mode, copy stdin file list to directory DEST
