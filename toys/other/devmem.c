@@ -6,7 +6,7 @@ USE_DEVMEM(NEWTOY(devmem, "<1>3", TOYFLAG_USR|TOYFLAG_BIN))
 
 config DEVMEM
   bool "devmem"
-  default n
+  default y
   help
     usage: devmem ADDR [WIDTH [DATA]]
 
@@ -45,6 +45,7 @@ void devmem_main(void)
   p = map + (addr & (page_size - 1));
   close(fd);
 
+  // Not using peek()/poke() because registers care about size of read/write
   if (writing) {
     if (bytes == 1) *(char *)p = data;
     else if (bytes == 2) *(short *)p = data;
