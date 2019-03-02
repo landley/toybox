@@ -2063,7 +2063,7 @@ static int iproute(char **argv)
 // ===========================================================================
 static void show_iprule_help(void)
 {
-  char *errmsg = "Usage: ip rule [ list | add | del ] SELECTOR ACTION\n"
+  char *errmsg = "usage: ip rule [ list | add | del ] SELECTOR ACTION\n"
     "SELECTOR := [ from PREFIX ] [ to PREFIX ] [pref NUMBER] [ tos TOS ]\n"
     "            [ fwmark FWMARK] [ dev/iif STRING ] [type TYPE]\n"
     "ACTION := [ table TABLE_ID ] [ realms [SRCREALM/]DSTREALM ]";
@@ -2312,7 +2312,7 @@ static int iprule(char **argv)
 //============================================================================
 static void show_iptunnel_help(void)
 {
-  char *errmsg = "Usage: iptunnel { add | change | del | show } [NAME]\n"
+  char *errmsg = "usage: iptunnel { add | change | del | show } [NAME]\n"
     "           [mode { ipip | gre | sit }] [remote ADDR] [local ADDR]\n"
     "           [[i|o]seq] [[i|o]key KEY] [[i|o]csum] [ttl TTL]\n"
     "           [tos TOS] [[no]pmtudisc] [dev PHYS_DEV]";

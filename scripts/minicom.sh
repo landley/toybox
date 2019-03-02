@@ -4,7 +4,7 @@
 
 if [ ! -c "$1" ]
 then
-  echo "Usage: minicom.sh /dev/ttyS0"
+  echo "usage: minicom.sh /dev/ttyS0"
   exit 1
 fi
 

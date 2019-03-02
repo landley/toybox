@@ -10,7 +10,7 @@ config ARP
   bool "arp"
   default n
   help
-    Usage: arp 
+    usage: arp
     [-vn] [-H HWTYPE] [-i IF] -a [HOSTNAME]
     [-v]              [-i IF] -d HOSTNAME [pub]
     [-v]  [-H HWTYPE] [-i IF] -s HOSTNAME HWADDR [temp]

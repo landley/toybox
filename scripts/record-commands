@@ -7,7 +7,7 @@
 
 if [ $# -eq 0 ]
 then
-  echo "Usage: WRAPDIR=dir WRAPLOG=log.txt record-commands COMMAND..."
+  echo "usage: WRAPDIR=dir WRAPLOG=log.txt record-commands COMMAND..."
   echo 'Then examine log.txt. "record-commands echo" to just setup $WRAPDIR'
   exit 1
 fi

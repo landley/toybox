@@ -11,7 +11,7 @@ config RFKILL
   bool "rfkill"
   default y
   help
-    Usage: rfkill COMMAND [DEVICE]
+    usage: rfkill COMMAND [DEVICE]
 
     Enable/disable wireless devices.
 
