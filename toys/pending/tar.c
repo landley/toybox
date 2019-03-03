@@ -38,11 +38,9 @@ config TAR
 #include "toys.h"
 
 GLOBALS(
-  char *fname;
-  char *dir;
-  struct arg_list *inc_file;
-  struct arg_list *exc_file;
-  char *tocmd;
+  char *f, *C;
+  struct arg_list *T, *X;
+  char *to_command;
   struct arg_list *exc;
 
   struct arg_list *inc, *pass;
@@ -96,7 +94,7 @@ static void copy_in_out(int src, int dst, off_t size)
 static void itoo(char *str, int len, off_t val)
 {
   char *t, tmp[sizeof(off_t)*3+1];
-  int cnt  = sprintf(tmp, "%0*llo", len, (unsigned long long)val);
+  int cnt = sprintf(tmp, "%0*llo", len, (unsigned long long)val);
 
   t = tmp + cnt - len;
   if (*t == '0') t++;
@@ -132,16 +130,16 @@ static void write_longname(struct archive_handler *tar, char *name, char type)
 
   memset(&tmp, 0, sizeof(tmp));
   strcpy(tmp.name, "././@LongLink");
-  sprintf(tmp.mode, "%0*d", (int)sizeof(tmp.mode)-1, 0);
-  sprintf(tmp.uid, "%0*d", (int)sizeof(tmp.uid)-1, 0);
-  sprintf(tmp.gid, "%0*d", (int)sizeof(tmp.gid)-1, 0);
-  sprintf(tmp.size, "%0*d", (int)sizeof(tmp.size)-1, 0);
-  sprintf(tmp.mtime, "%0*d", (int)sizeof(tmp.mtime)-1, 0);
+  memset(tmp.mode, '0', sizeof(tmp.mode)-1);
+  memset(tmp.uid, '0', sizeof(tmp.uid)-1);
+  memset(tmp.gid, '0', sizeof(tmp.gid)-1);
+  memset(tmp.size, '0', sizeof(tmp.size)-1);
+  memset(tmp.mtime, '0', sizeof(tmp.mtime)-1);
   itoo(tmp.size, sizeof(tmp.size), sz);
   tmp.type = type;
   memset(tmp.chksum, ' ', 8);
   strcpy(tmp.magic, "ustar  ");
-  for (i= 0; i < 512; i++) sum += (unsigned int)((char*)&tmp)[i];
+  for (i = 0; i < 512; i++) sum += (unsigned int)((char*)&tmp)[i];
   itoo(tmp.chksum, sizeof(tmp.chksum)-1, sum);
 
   writeall(tar->src_fd, (void*) &tmp, sizeof(tmp));
@@ -171,8 +169,7 @@ static void add_file(struct archive_handler *tar, char **nam, struct stat *st)
   static int warn = 1;
 
   for (p = name; *p; p++)
-    if ((p == name || p[-1] == '/') && *p != '/'
-        && filter(TT.exc, p)) return;
+    if ((p == name || p[-1] == '/') && *p != '/' && filter(TT.exc, p)) return;
 
   if (S_ISDIR(st->st_mode) && name[strlen(name)-1] != '/') {
     lnk = xmprintf("%s/",name);
@@ -185,8 +182,8 @@ static void add_file(struct archive_handler *tar, char **nam, struct stat *st)
   if (!*hname) return;
   while ((c = strstr(hname, "../"))) hname = c + 3;
   if (warn && hname != name) {
-    fprintf(stderr, "removing leading '%.*s' "
-        "from member names\n", (int)(hname-name), name);
+    fprintf(stderr, "removing leading '%.*s' from member names\n",
+           (int)(hname-name), name);
     warn = 0;
   }
 
@@ -207,14 +204,16 @@ static void add_file(struct archive_handler *tar, char **nam, struct stat *st)
     xstrncpy(hdr.link, node->arg, sizeof(hdr.link));
   } else if (S_ISREG(st->st_mode)) {
     hdr.type = '0';
-    if (st->st_size <= (off_t)0777777777777LL)
+    if (st->st_size <= (off_t)077777777777LL)
       itoo(hdr.size, sizeof(hdr.size), st->st_size);
     else {
-      error_msg("can't store file '%s' of size '%lld'\n",
+// TODO: test accept 12 7's but don't emit without terminator
+      error_msg("TODO: need base-256 encoding for '%s' '%lld'\n",
                 hname, (unsigned long long)st->st_size);
       return;
     }
   } else if (S_ISLNK(st->st_mode)) {
+// TODO: test preserve symlink ownership
     hdr.type = '2'; //'K' long link
     if (!(lnk = xreadlink(name))) {
       perror_msg("readlink");
@@ -247,9 +246,9 @@ static void add_file(struct archive_handler *tar, char **nam, struct stat *st)
   else snprintf(hdr.gname, sizeof(hdr.gname), "%d", st->st_gid);
 
   //calculate chksum.
-  for (i= 0; i < 512; i++) sum += (unsigned int)((char*)&hdr)[i];
+  for (i = 0; i < 512; i++) sum += ((char*)&hdr)[i];
   itoo(hdr.chksum, sizeof(hdr.chksum)-1, sum);
-  if (toys.optflags & FLAG_v) printf("%s\n",hname);
+  if (FLAG(v)) printf("%s\n",hname);
   writeall(tar->src_fd, (void*)&hdr, 512);
 
   //write actual data to archive
@@ -269,18 +268,18 @@ static int add_to_tar(struct dirtree *node)
   char *path;
   struct archive_handler *hdl = (struct archive_handler*)TT.handle;
 
+  if (!dirtree_notdotdot(node)) return 0;
   if (!fstat(hdl->src_fd, &st) && st.st_dev == node->st.st_dev
       && st.st_ino == node->st.st_ino) {
-    error_msg("'%s' file is the archive; not dumped", TT.fname);
-    return ((DIRTREE_RECURSE | ((toys.optflags & FLAG_h)?DIRTREE_SYMFOLLOW:0)));
+    error_msg("'%s' file is the archive; not dumped", TT.f);
+    return 0;
   }
 
-  if (!dirtree_notdotdot(node)) return 0;
   path = dirtree_path(node, 0);
   add_file(hdl, &path, &(node->st)); //path may be modified
   free(path);
-  if (toys.optflags & FLAG_no_recursion) return 0;
-  return ((DIRTREE_RECURSE | ((toys.optflags & FLAG_h)?DIRTREE_SYMFOLLOW:0)));
+  if (FLAG(no_recursion)) return 0;
+  return ((DIRTREE_RECURSE | (FLAG(h)?DIRTREE_SYMFOLLOW:0)));
 }
 
 static void compress_stream(struct archive_handler *tar_hdl)
@@ -295,7 +294,7 @@ static void compress_stream(struct archive_handler *tar_hdl)
   if (cpid == -1) perror_exit("fork");
 
   if (!cpid) {    /* Child reads from pipe */
-    char *argv[] = {(toys.optflags&FLAG_z)?"gzip":"bzip2", "-f", NULL};
+    char *argv[] = {FLAG(z)?"gzip":"bzip2", "-f", NULL};
     xclose(pipefd[1]); /* Close unused write*/
     dup2(pipefd[0], 0);
     dup2(tar_hdl->src_fd, 1); //write to tar fd
@@ -327,7 +326,7 @@ static void extract_to_command(struct archive_handler *tar)
   if (cpid == -1) perror_exit("fork");
 
   if (!cpid) {    // Child reads from pipe
-    char buf[64], *argv[4] = {"sh", "-c", TT.tocmd, NULL};
+    char buf[64], *argv[4] = {"sh", "-c", TT.to_command, NULL};
 
     setenv("TAR_FILETYPE", "f", 1);
     sprintf(buf, "%0o", file_hdr->mode);
@@ -385,12 +384,9 @@ static void extract_to_disk(struct archive_handler *tar)
   }
 
   //remove old file, if exists
-  if (!(toys.optflags & FLAG_k) && !S_ISDIR(file_hdr->mode)
-      && !lstat( file_hdr->name, &ex)) {
-    if (unlink(file_hdr->name)) {
-      perror_msg("can't remove: %s",file_hdr->name);
-    }
-  }
+  if (!FLAG(k) && !S_ISDIR(file_hdr->mode) && !lstat(file_hdr->name, &ex))
+    if (unlink(file_hdr->name))
+      perror_msg("can't remove: %s", file_hdr->name);
 
   //hard link
   if (S_ISREG(file_hdr->mode) && file_hdr->link_target) {
@@ -402,7 +398,7 @@ static void extract_to_disk(struct archive_handler *tar)
   switch (file_hdr->mode & S_IFMT) {
     case S_IFREG:
       flags = O_WRONLY|O_CREAT|O_EXCL;
-      if (toys.optflags & FLAG_overwrite) flags = O_WRONLY|O_CREAT|O_TRUNC;
+      if (FLAG(overwrite)) flags = O_WRONLY|O_CREAT|O_TRUNC;
       dst_fd = open(file_hdr->name, flags, file_hdr->mode & 07777);
       if (dst_fd == -1) perror_msg("%s: can't open", file_hdr->name);
       break;
@@ -432,12 +428,12 @@ COPY:
   close(dst_fd);
 
   if (S_ISLNK(file_hdr->mode)) return;
-  if (!(toys.optflags & FLAG_o)) {
+  if (!FLAG(o)) {
     //set ownership..., --no-same-owner, --numeric-owner
     uid_t u = file_hdr->uid;
     gid_t g = file_hdr->gid;
 
-    if (!(toys.optflags & FLAG_numeric_owner)) {
+    if (!FLAG(numeric_owner)) {
       struct group *gr = getgrnam(file_hdr->gname);
       struct passwd *pw = getpwnam(file_hdr->uname);
       if (pw) u = pw->pw_uid;
@@ -447,11 +443,11 @@ COPY:
       perror_msg("chown %d:%d '%s'", u, g, file_hdr->name);;
   }
 
-  if (toys.optflags & FLAG_p) // || !(toys.optflags & FLAG_no_same_permissions))
+  if (FLAG(p)) // || !FLAG(no_same_permissions))
     chmod(file_hdr->name, file_hdr->mode);
 
   //apply mtime
-  if (!(toys.optflags & FLAG_m)) {
+  if (!FLAG(m)) {
     struct timeval times[2] = {{file_hdr->mtime, 0},{file_hdr->mtime, 0}};
     utimes(file_hdr->name, times);
   }
@@ -518,7 +514,7 @@ static void extract_stream(struct archive_handler *tar_hdl)
 
   if (!cpid) {    /* Child reads from pipe */
     char *argv[] =
-      {(toys.optflags&FLAG_z)?"gunzip":"bunzip2", "-cf", "-", NULL};
+      {FLAG(z)?"gunzip":"bunzip2", "-cf", "-", NULL};
     xclose(pipefd[0]); /* Close unused read*/
     dup2(tar_hdl->src_fd, 0);
     dup2(pipefd[1], 1); //write to pipe
@@ -727,8 +723,8 @@ CHECK_MAGIC:
         (TT.inc && !filter(TT.inc, file_hdr->name))) goto SKIP;
     add_to_list(&TT.pass, xstrdup(file_hdr->name));
 
-    if (toys.optflags & FLAG_t) {
-      if (toys.optflags & FLAG_v) {
+    if (FLAG(t)) {
+      if (FLAG(v)) {
         char perm[11];
         struct tm *lc = localtime((const time_t*)&(file_hdr->mtime));
 
@@ -743,7 +739,7 @@ CHECK_MAGIC:
 SKIP:
       tar_skip(tar_hdl, file_hdr->size);
     } else {
-      if (toys.optflags & FLAG_v) printf("%s\n",file_hdr->name);
+      if (FLAG(v)) printf("%s\n",file_hdr->name);
       tar_hdl->extract_handler(tar_hdl);
     }
     free(file_hdr->name);
@@ -765,40 +761,39 @@ void tar_main(void)
   for (tmp = TT.exc; tmp; tmp = tmp->next)
     tmp->arg = xstrdup(tmp->arg); //freeing at the end fails otherwise
 
-  while(*args) add_to_list(&TT.inc, xstrdup(*args++));
-  if (toys.optflags & FLAG_X) add_from_file(&TT.exc, TT.exc_file);
-  if (toys.optflags & FLAG_T) add_from_file(&TT.inc, TT.inc_file);
+  while (*args) add_to_list(&TT.inc, xstrdup(*args++));
+  if (TT.X) add_from_file(&TT.exc, TT.X);
+  if (TT.T) add_from_file(&TT.inc, TT.T);
 
-  if (toys.optflags & FLAG_c) {
+  if (FLAG(c)) {
     if (!TT.inc) error_exit("empty archive");
     fd = 1;
   }
-  if ((toys.optflags & FLAG_f) && strcmp(TT.fname, "-")) 
-    fd = xcreate(TT.fname, fd*(O_WRONLY|O_CREAT|O_TRUNC), 0666);
-  if (toys.optflags & FLAG_C) xchdir(TT.dir);
+  if (TT.f && strcmp(TT.f, "-"))
+    fd = xcreate(TT.f, fd*(O_WRONLY|O_CREAT|O_TRUNC), 0666);
+  if (TT.C) xchdir(TT.C);
 
   tar_hdl = init_handler();
   tar_hdl->src_fd = fd;
 
-  if ((toys.optflags & FLAG_x) || (toys.optflags & FLAG_t)) {
-    if (toys.optflags & FLAG_O) tar_hdl->extract_handler = extract_to_stdout;
-    if (toys.optflags & FLAG_to_command) {
+  if (FLAG(x) || FLAG(t)) {
+    if (FLAG(O)) tar_hdl->extract_handler = extract_to_stdout;
+    if (FLAG(to_command)) {
       signal(SIGPIPE, SIG_IGN); //will be using pipe between child & parent
       tar_hdl->extract_handler = extract_to_command;
     }
-    if (toys.optflags & FLAG_z) extract_stream(tar_hdl);
+    if (FLAG(z)) extract_stream(tar_hdl);
     unpack_tar(tar_hdl);
     for (tmp = TT.inc; tmp; tmp = tmp->next)
       if (!filter(TT.exc, tmp->arg) && !filter(TT.pass, tmp->arg))
         error_msg("'%s' not in archive", tmp->arg);
-  } else if (toys.optflags & FLAG_c) {
+  } else if (FLAG(c)) {
     //create the tar here.
-    if (toys.optflags & (FLAG_j|FLAG_z)) compress_stream(tar_hdl);
+    if (FLAG(j)||FLAG(z)) compress_stream(tar_hdl);
     for (tmp = TT.inc; tmp; tmp = tmp->next) {
       TT.handle = tar_hdl;
       //recurse thru dir and add files to archive
-      dirtree_flagread(tmp->arg, DIRTREE_SYMFOLLOW*!!(toys.optflags&FLAG_h),
-        add_to_tar);
+      dirtree_flagread(tmp->arg, FLAG(h)?DIRTREE_SYMFOLLOW:0, add_to_tar);
     }
     memset(toybuf, 0, 1024);
     writeall(tar_hdl->src_fd, toybuf, 1024);
