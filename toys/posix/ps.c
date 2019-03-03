@@ -718,9 +718,12 @@ static int get_ps(struct dirtree *new)
   memset(slot, 0, sizeof(tb->slot));
   slot[SLOT_tid] = *slot = atol(new->name);
   if (TT.threadparent && TT.threadparent->extra) {
-    *slot = *(((struct procpid *)TT.threadparent->extra)->slot);
-    // Parent also shows up as a thread, discard duplicate
-    if (*slot == slot[SLOT_tid]) return 0;
+    struct procpid *tb2 = (struct procpid *)TT.threadparent->extra;
+
+    *slot = *tb2->slot;
+    // Parent also shows up as a thread, but we need to reread task/stat fields
+    // to get non-collated info for just parent thread (vs whole process).
+    if (*slot == slot[SLOT_tid]) slot = tb2->slot;
   }
   fd = dirtree_parentfd(new);
 
@@ -742,7 +745,7 @@ static int get_ps(struct dirtree *new)
   // All remaining fields should be numeric, parse them into slot[] array
   // (skipping first 3 stat fields and first slot[], both were handled above)
   // yes this means the alignment's off: stat[4] becomes slot[1]
-  for (j = SLOT_ppid; j<SLOT_count; j++)
+  for (j = SLOT_ppid; j<SLOT_upticks; j++)
     if (1>sscanf(s += i, " %lld%n", slot+j, &i)) break;
 
   // Now we've read the data, move status and name right after slot[] array,
@@ -795,6 +798,9 @@ static int get_ps(struct dirtree *new)
     slot[SLOT_iobytes] = slot[SLOT_rchar]+slot[SLOT_wchar]+slot[SLOT_swap];
     slot[SLOT_diobytes] = slot[SLOT_rbytes]+slot[SLOT_wbytes]+slot[SLOT_swap];
   }
+
+  // If we were updating thread parent with its own task info, we're done.
+  if (slot != tb->slot) return 0;
 
   // We now know enough to skip processes we don't care about.
   if (TT.match_process && !TT.match_process(slot)) return 0;
@@ -994,6 +1000,7 @@ static int get_threads(struct dirtree *new)
 
   TT.threadparent = new;
   if (!get_ps(new)) {
+    // it exited out from under us
     TT.threadparent = 0;
 
     return 0;
@@ -1010,7 +1017,8 @@ static int get_threads(struct dirtree *new)
   tb = (void *)new->extra;
   tb->slot[SLOT_tcount] = kcount;
 
-  // Fill out tid and thread count for each entry in group
+  // Fill out tid and thread count for each entry in group (if it didn't exit
+  // out from under us again; asynchronous reads of unlocked data are fun!)
   if (new->child) for (dt = new->child->child; dt; dt = dt->next) {
     tb = (void *)dt->extra;
     tb->slot[SLOT_pid] = pid;
@@ -1751,7 +1759,7 @@ static void top_setup(char *defo, char *defk)
 
 void top_main(void)
 {
-  sprintf(toybuf, "PID,USER,%s%%CPU,%%MEM,TIME+,%s",
+  sprintf(toybuf, "%cID,USER,%s%%CPU,%%MEM,TIME+,%s", FLAG(H) ? 'T' : 'P',
     TT.top.O ? "" : "PR,NI,VIRT,RES,SHR,S,",
     FLAG(H) ? "CMD:15=THREAD,NAME=PROCESS" : "ARGS");
   if (!TT.top.s) TT.top.s = TT.top.O ? 3 : 9;
