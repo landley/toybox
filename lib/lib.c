@@ -907,7 +907,7 @@ int sig_to_num(char *pidstr)
 
     if (!strncasecmp(pidstr, "sig", 3)) pidstr+=3;
   }
-  for (i = 0; i < sizeof(signames)/sizeof(struct signame); i++)
+  for (i=0; i<ARRAY_LEN(signames); i++)
     if (!pidstr) xputs(signames[i].name);
     else if (!strcasecmp(pidstr, signames[i].name)) return signames[i].num;
 
@@ -918,7 +918,7 @@ char *num_to_sig(int sig)
 {
   int i;
 
-  for (i=0; i<sizeof(signames)/sizeof(struct signame); i++)
+  for (i=0; i<ARRAY_LEN(signames); i++)
     if (signames[i].num == sig) return signames[i].name;
   return NULL;
 }

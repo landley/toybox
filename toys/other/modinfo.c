@@ -51,18 +51,18 @@ static void modinfo_file(char *full_name)
   if (!buf) {
     perror_msg_raw(full_name);
     return;
-  } 
+  }
 
   output_field("filename", full_name);
 
   for (pos = buf; pos < buf+len; pos++) {
     if (*pos) continue;
 
-    for (i = 0; i < sizeof(modinfo_tags) / sizeof(*modinfo_tags); i++) {
+    for (i=0; i<ARRAY_LEN(modinfo_tags); i++) {
       char *str = modinfo_tags[i];
       int len = strlen(str);
 
-      if (!strncmp(pos+1, str, len) && pos[len+1] == '=') 
+      if (!strncmp(pos+1, str, len) && pos[len+1] == '=')
         output_field(str, pos+len+2);
     }
   }

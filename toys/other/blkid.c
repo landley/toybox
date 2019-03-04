@@ -80,7 +80,7 @@ static void do_blkid(int fd, char *name)
     if (len != sizeof(toybuf)) return;
 
     // Iterate through types in range
-    for (i=0; i < sizeof(fstypes)/sizeof(struct fstype); i++) {
+    for (i=0; i<ARRAY_LEN(fstypes); i++) {
       uint64_t test;
 
       // Skip tests not in this 4k block

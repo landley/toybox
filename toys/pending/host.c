@@ -103,7 +103,7 @@ void host_main(void)
   if (TT.type_str[0]-'0' < 10u) type = atoi(TT.type_str);
   else {
     type = -1;
-    for (i=0; i < sizeof rrt / sizeof *rrt; i++) {
+    for (i=0; i<ARRAY_LEN(rrt); i++) {
       if (rrt[i].name && !strcasecmp(TT.type_str, rrt[i].name)) {
         type = i;
         break;

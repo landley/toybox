@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
   int i, len = 0;
 
   // Output list of applets.
-  for (i=1; i<sizeof(toy_list)/sizeof(*toy_list); i++) {
+  for (i=1; i<ARRAY_LEN(toy_list); i++) {
     int fl = toy_list[i].flags;
     if (fl & TOYMASK_LOCATION) {
       if (argc>1) {
