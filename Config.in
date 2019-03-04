@@ -28,7 +28,7 @@ config TOYBOX
 	  --help		Show command help (only)
 	  --version	Show toybox version (only)
 
-	  The filename "-" means stdin, "--" stops argument parsing,
+	  The filename "-" means stdin/stdout, "--" stops argument parsing,
 	  and numerical arguments accept a single letter suffix for
 	  kilo, mega, giga, tera, peta, and exabytes, plus an additional
 	  "d" to indicate decimal 1000's instead of 1024. Durations take
