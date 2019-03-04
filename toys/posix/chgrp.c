@@ -58,10 +58,9 @@ static int do_chgrp(struct dirtree *node)
   if (ret || (flags & FLAG_v)) {
     char *path = dirtree_path(node, 0);
     if (flags & FLAG_v)
-      xprintf("%s %s%s%s %s\n", toys.which->name,
-        TT.owner_name ? TT.owner_name : "",
-        toys.which->name[2]=='o' && TT.group_name ? ":" : "",
-        TT.group_name ? TT.group_name : "", path);
+      xprintf("%s %s%s%s %s\n", toys.which->name, TT.owner_name,
+        (toys.which->name[2]=='o' && *TT.group_name) ? ":" : "",
+        TT.group_name, path);
     if (ret == -1 && !(toys.optflags & FLAG_f))
       perror_msg("'%s' to '%s:%s'", path, TT.owner_name, TT.group_name);
     free(path);
@@ -77,6 +76,7 @@ void chgrp_main(void)
   char **s, *own;
 
   TT.owner = TT.group = -1;
+  TT.owner_name = TT.group_name = "";
 
   // Distinguish chown from chgrp
   if (ischown) {
