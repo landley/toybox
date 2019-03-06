@@ -66,6 +66,7 @@ struct tar_hdr {
        prefix[155], padd[12];
 };
 
+// Parsed information about a tar header.
 struct file_header {
   char *name, *link_target, *uname, *gname;
   off_t size;
@@ -112,10 +113,10 @@ static void itoo(char *str, int len, off_t val)
   memcpy(str, t, len);
 }
 
+// This really needs a hash table
 static struct inode_list *seen_inode(void **list, struct stat *st, char *name)
 {
-  if (!st) llist_traverse(*list, llist_free_arg);
-  else if (!S_ISDIR(st->st_mode) && st->st_nlink > 1) {
+  if (!S_ISDIR(st->st_mode) && st->st_nlink > 1) {
     struct inode_list *new;
 
     for (new = *list; new; new = new->next)
@@ -151,6 +152,7 @@ static void write_longname(struct archive_handler *tar, char *name, char type)
   // Calculate checksum
   memset(tmp->chksum, ' ', 8);
   for (i = 0; i < 512; i++) sum += ((char *)tmp)[i];
+// TODO: why is this -1 when the rest aren't?
   itoo(tmp->chksum, sizeof(tmp->chksum)-1, sum);
 
   // write header and name, padded with NUL to block size
@@ -205,46 +207,37 @@ static void add_file(struct archive_handler *tar, char **nam, struct stat *st)
   itoo(hdr.gid, sizeof(hdr.gid), st->st_gid);
   itoo(hdr.size, sizeof(hdr.size), 0); //set size later
   itoo(hdr.mtime, sizeof(hdr.mtime), st->st_mtime);
-  for (i=0; i<sizeof(hdr.chksum); i++) hdr.chksum[i] = ' ';
+  memset(hdr.chksum, ' ', sizeof(hdr.chksum));
 
-  if ((node = seen_inode(&TT.inodes, st, hname))) {
-    //this is a hard link
-    hdr.type = '1';
-    if (strlen(node->arg) > sizeof(hdr.link))
-      write_longname(tar, hname, 'K'); //write longname LINK
-    xstrncpy(hdr.link, node->arg, sizeof(hdr.link));
+  // Hard link or symlink?
+  i = !!S_ISLNK(st->st_mode);
+  if (i || (node = seen_inode(&TT.inodes, st, hname))) {
+// TODO: test preserve symlink ownership
+    hdr.type = '1'+i;
+    if (!(lnk = i?xreadlink(name):node->arg)) return perror_msg("readlink");
+// TODO: does this need NUL terminator?
+    if (strlen(lnk) > sizeof(hdr.link))
+      write_longname(tar, lnk, 'K'); //write longname LINK
+// TODO: this will error_exit() if too long, not truncate.
+    xstrncpy(hdr.link, lnk, sizeof(hdr.link));
+    if (i) free(lnk);
   } else if (S_ISREG(st->st_mode)) {
     hdr.type = '0';
     if (st->st_size <= (off_t)077777777777LL)
       itoo(hdr.size, sizeof(hdr.size), st->st_size);
     else {
 // TODO: test accept 12 7's but don't emit without terminator
-      error_msg("TODO: need base-256 encoding for '%s' '%lld'\n",
+      return error_msg("TODO: need base-256 encoding for '%s' '%lld'\n",
                 hname, (unsigned long long)st->st_size);
-      return;
     }
-  } else if (S_ISLNK(st->st_mode)) {
-// TODO: test preserve symlink ownership
-    hdr.type = '2'; //'K' long link
-    if (!(lnk = xreadlink(name))) {
-      perror_msg("readlink");
-      return;
-    }
-    if (strlen(lnk) > sizeof(hdr.link))
-      write_longname(tar, hname, 'K'); //write longname LINK
-    xstrncpy(hdr.link, lnk, sizeof(hdr.link));
-    free(lnk);
-  }
-  else if (S_ISDIR(st->st_mode)) hdr.type = '5';
+  } else if (S_ISDIR(st->st_mode)) hdr.type = '5';
   else if (S_ISFIFO(st->st_mode)) hdr.type = '6';
   else if (S_ISBLK(st->st_mode) || S_ISCHR(st->st_mode)) {
     hdr.type = (S_ISCHR(st->st_mode))?'3':'4';
     itoo(hdr.major, sizeof(hdr.major), dev_major(st->st_rdev));
     itoo(hdr.minor, sizeof(hdr.minor), dev_minor(st->st_rdev));
-  } else {
-    error_msg("unknown file type '%o'", st->st_mode & S_IFMT);
-    return;
-  }
+  } else return error_msg("unknown file type '%o'", st->st_mode & S_IFMT);
+
   if (strlen(hname) > sizeof(hdr.name))
           write_longname(tar, hname, 'L'); //write longname NAME
   strcpy(hdr.magic, "ustar  ");
@@ -762,24 +755,30 @@ void tar_main(void)
   TT.cwd = xabspath(s = xgetcwd(), 1);
   free(s);
 
+// TODO: zap
   tar_hdl = xzalloc(sizeof(struct archive_handler));
   tar_hdl->extract_handler = extract_to_disk;
 
   // Are we reading?
-  if (FLAG(x) || FLAG(t)) {
+  if (FLAG(x)||FLAG(t)) {
     if (FLAG(O)) tar_hdl->extract_handler = extract_to_stdout;
     if (FLAG(to_command)) {
-      signal(SIGPIPE, SIG_IGN); //will be using pipe between child & parent
+      signal(SIGPIPE, SIG_IGN);
       tar_hdl->extract_handler = extract_to_command;
     }
+// no j?
+// TODO: autodtect
     if (FLAG(z)) extract_stream(tar_hdl);
     unpack_tar(tar_hdl);
     for (tmp = TT.inc; tmp; tmp = tmp->next)
       if (!filter(TT.exc, tmp->arg) && !filter(TT.pass, tmp->arg))
         error_msg("'%s' not in archive", tmp->arg);
-  } else if (FLAG(c)) {
-    //create the tar here.
+
+  // are we writing? (Don't have to test flag here one of 3 must be set)
+  } else {
+// TODO: autodetect
     if (FLAG(j)||FLAG(z)) compress_stream(tar_hdl);
+
     for (tmp = TT.inc; tmp; tmp = tmp->next) {
       TT.handle = tar_hdl;
       //recurse thru dir and add files to archive
@@ -787,6 +786,5 @@ void tar_main(void)
     }
     memset(toybuf, 0, 1024);
     writeall(TT.fd, toybuf, 1024);
-    seen_inode(&TT.inodes, 0, 0);
   }
 }
