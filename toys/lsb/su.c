@@ -4,22 +4,34 @@
  *
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/su.html
  * TODO: log su attempts
+ * TODO: suid support
+ * Supports undocumented compatibility options: -m synonym for -p, - for -l
 
-USE_SU(NEWTOY(su, "lmpc:s:", TOYFLAG_BIN|TOYFLAG_ROOTONLY))
+USE_SU(NEWTOY(su, "^lmpu:g:c:s:[!lmp]", TOYFLAG_BIN|TOYFLAG_ROOTONLY))
 
 config SU
   bool "su"
   default y
   depends on TOYBOX_SHADOW
   help
-    usage: su [-lmp] [-c CMD] [-s SHELL] [USER [ARGS...]]
+    usage: su [-lp] [-u UID] [-g GID,...] [-s SHELL] [-c CMD] [USER [COMMAND...]]
 
-    Switch to user (or root) and run shell (with optional command line).
+    Switch user, prompting for password of new user when not run as root.
 
-    -s	Shell to use
-    -c	Command to pass to shell with -c
-    -l	Login shell
-    -(m|p)	Preserve environment
+    With one argument, switch to USER and run user's shell from /etc/passwd.
+    With no arguments, USER is root. If COMMAND line provided after USER,
+    exec() it as new USER (bypasing shell). If -u or -g specified, first
+    argument (if any) isn't USER (it's COMMAND).
+
+    first argument is USER name to switch to (which must exist).
+    Non-root users are prompted for new user's password.
+
+    -s	Shell to use (default is user's shell from /etc/passwd)
+    -c	Command line to pass to -s shell (ala sh -c "CMD")
+    -l	Reset environment as if new login.
+    -u	Switch to UID instead of USER
+    -g	Switch to GID (only root allowed, can be comma separated list)
+    -p	Preserve environment (except for $PATH and $IFS)
 */
 
 #define FOR_su
@@ -53,6 +65,8 @@ void su_main()
   if (*toys.optargs) name = *(toys.optargs++);
   else name = "root";
 
+  loggit(name, 0);
+
   if (!(shp = getspnam(name))) perror_exit("no '%s'", name);
   if (getuid()) {
     if (*shp->sp_pwdp != '$') goto deny;
@@ -61,32 +75,26 @@ void su_main()
     memset(toybuf, 0, sizeof(toybuf));
     if (!passhash || strcmp(passhash, shp->sp_pwdp)) goto deny;
   }
+  closelog();
 
-  up = xgetpwnam(name);
-  xsetuser(up);
+  xsetuser(up = xgetpwnam(name));
+
+  if (FLAG(m)||FLAG(p)) {
+    unsetenv("IFS");
+    setenv("PATH", _PATH_DEFPATHS, 1);
+  } else reset_env(up, FLAG(l));
 
   argv = argu = xmalloc(sizeof(char *)*(toys.optc + 4));
   *(argv++) = TT.s ? TT.s : up->pw_shell;
+  loggit(name, *argu);
 
-  if (toys.optflags & FLAG_l) {
-    int i;
-    char *stuff[] = {snapshot_env("TERM"), snapshot_env("DISPLAY"),
-      snapshot_env("COLORTERM"), snapshot_env("XAUTHORITY")};
+  if (FLAG(m)||FLAG(p)) {
+    unsetenv("IFS");
+    setenv("PATH", _PATH_DEFPATHS, 1);
+  } else reset_env(up, FLAG(l));
 
-    clearenv();
-    for (i=0; i < ARRAY_LEN(stuff); i++) if (stuff[i]) putenv(stuff[i]);
-    *(argv++) = "-l";
-    xchdir(up->pw_dir);
-  } else unsetenv("IFS");
-  setenv("PATH", "/sbin:/bin:/usr/sbin:/usr/bin", 1);
-  if (!(toys.optflags & (FLAG_m|FLAG_p))) {
-    setenv("HOME", up->pw_dir, 1);
-    setenv("SHELL", up->pw_shell, 1);
-    setenv("USER", up->pw_name, 1);
-    setenv("LOGNAME", up->pw_name, 1);
-  } else unsetenv("IFS");
-
-  if (toys.optflags & FLAG_c) {
+  if (FLAG(l)) *(argv++) = "-l";
+  if (FLAG(c)) {
     *(argv++) = "-c";
     *(argv++) = TT.c;
   }
@@ -94,6 +102,7 @@ void su_main()
   xexec(argu);
 
 deny:
+  syslog(LOG_NOTICE, "No.", getusername(getuid()), name);
   puts("No.");
   toys.exitval = 1;
 }

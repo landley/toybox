@@ -122,6 +122,7 @@ ssize_t readall(int fd, void *buf, size_t len)
 ssize_t writeall(int fd, void *buf, size_t len)
 {
   size_t count = 0;
+
   while (count<len) {
     int i = write(fd, count+(char *)buf, len-count);
     if (i<1) return i;
@@ -1426,4 +1427,38 @@ char *format_iso_time(char *buf, size_t len, struct timespec *ts)
   s += strftime(s, len-strlen(buf), "%z", localtime(&(ts->tv_sec)));
 
   return buf;
+}
+
+// reset environment for a user, optionally clearing most of it
+void reset_env(struct passwd *p, int clear)
+{
+  int i;
+
+  if (clear) {
+    char *s, *stuff[] = {"TERM", "DISPLAY", "COLORTERM", "XAUTHORITY"};
+
+    for (i=0; i<ARRAY_LEN(stuff); i++)
+      stuff[i] = (s = getenv(stuff[i])) ? xmprintf("%s=%s", stuff[i], s) : 0;
+    clearenv();
+    for (i=0; i < ARRAY_LEN(stuff); i++) if (stuff[i]) putenv(stuff[i]);
+    if (chdir(p->pw_dir)) {
+      perror_msg("chdir %s", p->pw_dir);
+      xchdir("/");
+    }
+  } else {
+    char **ev1, **ev2;
+
+    // remove LD_*, IFS, ENV, and BASH_ENV from environment
+    for (ev1 = ev2 = environ;;) {
+      while (*ev2 && (strstart(ev2, "LD_") || strstart(ev2, "IFS=") ||
+        strstart(ev2, "ENV=") || strstart(ev2, "BASH_ENV="))) ev2++;
+      if (!(*ev1++ = *ev2++)) break;
+    }
+  }
+
+  setenv("PATH", _PATH_DEFPATH, 1);
+  setenv("HOME", p->pw_dir, 1);
+  setenv("SHELL", p->pw_shell, 1);
+  setenv("USER", p->pw_name, 1);
+  setenv("LOGNAME", p->pw_name, 1);
 }

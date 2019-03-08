@@ -4,9 +4,6 @@
  *
  * No support for PAM/securetty/selinux/login script/issue/utmp
  * Relies on libcrypt for hash calculation.
- *
- * TODO: this command predates "pending" but needs cleanup. It #defines
- * random stuff, calls exit() form a signal handler... yeah.
 
 USE_LOGIN(NEWTOY(login, ">1f:ph:", TOYFLAG_BIN|TOYFLAG_NEEDROOT))
 
@@ -36,24 +33,17 @@ GLOBALS(
 static void login_timeout_handler(int sig __attribute__((unused)))
 {
   printf("\nLogin timed out after %d seconds.\n", TT.login_timeout);
-  exit(0);
+  xexit();
 }
 
 void login_main(void)
 {
-  char *forbid[] = {
-    "BASH_ENV", "ENV", "HOME", "IFS", "LD_LIBRARY_PATH", "LD_PRELOAD",
-    "LD_TRACE_LOADED_OBJECTS", "LD_BIND_NOW", "LD_AOUT_LIBRARY_PATH",
-    "LD_AOUT_PRELOAD", "LD_NOWARN", "LD_KEEPDIR", "SHELL"
-  };
-  int hh = FLAG(h), count, tty;
-  char uu[33], *username, *pass = 0, *ss;
+  int hh = FLAG(h), count, tty = tty_fd();
+  char *username, *pass = 0, *ss;
   struct passwd *pwd = 0;
 
-  for (tty=0; tty<3; tty++) if (isatty(tty)) break;
-  if (tty == 3) error_exit("no tty");
-
-  for (count = 0; count < ARRAY_LEN(forbid); count++) unsetenv(forbid[count]);
+  // we read user/password from stdin, but tty can be stderr?
+  if (tty == -1) error_exit("no tty");
 
   openlog("login", LOG_PID | LOG_CONS, LOG_AUTH);
   xsignal(SIGALRM, login_timeout_handler);
@@ -65,27 +55,23 @@ void login_main(void)
     tcflush(0, TCIFLUSH);
 
     if (!username) {
-      int i;
-
-      memset(username = uu, 0, sizeof(uu));
-      gethostname(uu, sizeof(uu)-1);
-      printf("%s%slogin: ", *uu ? uu : "", *uu ? " " : "");
+      if (gethostname(toybuf, sizeof(toybuf)-1)) *toybuf = 0;
+      printf("%s%slogin: ", *toybuf ? toybuf : "", *toybuf ? " " : "");
       fflush(stdout);
 
-      if(!fgets(uu, sizeof(uu)-1, stdin)) _exit(1);
+      if(!fgets(toybuf, sizeof(toybuf)-1, stdin)) xexit();
 
       // Remove trailing \n and so on
-      for (i = 0; i<sizeof(uu); i++) if (uu[i]<=' ' || uu[i]==':') uu[i]=0;
-      if (!*uu) {
+      for (ss = toybuf; *ss; ss++) if (*ss<=' ' || *ss==':') break;
+      *ss = 0;
+      if (!*(username = toybuf)) {
         username = 0;
         continue;
       }
     }
 
     // If user exists and isn't locked
-    pwd = getpwnam(username);
-    if (pwd && *pwd->pw_passwd != '!' && *pwd->pw_passwd != '*') {
-
+    if ((pwd = getpwnam(username))) {
       // Pre-authenticated or passwordless
       if (TT.f || !*pwd->pw_passwd) break;
 
@@ -117,9 +103,6 @@ void login_main(void)
   }
 
   alarm(0);
-  // This had password data in it, and we reuse for motd below
-  memset(toybuf, 0, sizeof(toybuf));
-
   if (!pwd) error_exit("max retries (3)");
 
   // Check twice because "this file exists" is a security test, and in
@@ -136,26 +119,10 @@ void login_main(void)
   if (fchown(tty, pwd->pw_uid, pwd->pw_gid) || fchmod(tty, 0600))
     printf("can't claim tty");
   xsetuser(pwd);
-
-  if (chdir(pwd->pw_dir)) printf("bad $HOME: %s\n", pwd->pw_dir);
-
-  if (!FLAG(p)) {
-    char *term = getenv("TERM");
-
-    clearenv();
-    if (term) setenv("TERM", term, 1);
-  }
-
-  setenv("USER", pwd->pw_name, 1);
-  setenv("LOGNAME", pwd->pw_name, 1);
-  setenv("HOME", pwd->pw_dir, 1);
-  setenv("SHELL", pwd->pw_shell, 1);
+  reset_env(pwd, FLAG(p));
 
   // Message of the day
-  if ((ss = readfile("/etc/motd", 0, 0))) {
-    puts(ss);
-    free(ss);
-  }
+  if ((ss = readfile("/etc/motd", 0, 0))) puts(ss);
 
   syslog(LOG_INFO, "%s logged in on %s %s %s", pwd->pw_name,
     ttyname(tty), hh ? "from" : "", hh ? TT.h : "");
