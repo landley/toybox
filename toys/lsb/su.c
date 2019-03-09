@@ -42,15 +42,6 @@ GLOBALS(
   char *c;
 )
 
-static char *snapshot_env(char *name)
-{
-  char *s = getenv(name);
-
-  if (s) return xmprintf("%s=%s", name, s);
-
-  return 0;
-}
-
 void su_main()
 {
   char *name, *passhash = 0, **argu, **argv;
@@ -65,7 +56,7 @@ void su_main()
   if (*toys.optargs) name = *(toys.optargs++);
   else name = "root";
 
-  loggit(name, 0);
+  loggit(LOG_NOTICE, "%s->%s", getusername(getuid()), name);
 
   if (!(shp = getspnam(name))) perror_exit("no '%s'", name);
   if (getuid()) {
@@ -81,17 +72,12 @@ void su_main()
 
   if (FLAG(m)||FLAG(p)) {
     unsetenv("IFS");
-    setenv("PATH", _PATH_DEFPATHS, 1);
+    setenv("PATH", _PATH_DEFPATH, 1);
   } else reset_env(up, FLAG(l));
 
   argv = argu = xmalloc(sizeof(char *)*(toys.optc + 4));
   *(argv++) = TT.s ? TT.s : up->pw_shell;
-  loggit(name, *argu);
-
-  if (FLAG(m)||FLAG(p)) {
-    unsetenv("IFS");
-    setenv("PATH", _PATH_DEFPATHS, 1);
-  } else reset_env(up, FLAG(l));
+  loggit(LOG_NOTICE, "run %s", *argu);
 
   if (FLAG(l)) *(argv++) = "-l";
   if (FLAG(c)) {
@@ -102,7 +88,7 @@ void su_main()
   xexec(argu);
 
 deny:
-  syslog(LOG_NOTICE, "No.", getusername(getuid()), name);
+  syslog(LOG_NOTICE, "No.");
   puts("No.");
   toys.exitval = 1;
 }

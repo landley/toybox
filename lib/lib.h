@@ -260,6 +260,7 @@ long environ_bytes();
 long long millitime(void);
 char *format_iso_time(char *buf, size_t len, struct timespec *ts);
 void reset_env(struct passwd *p, int clear);
+void loggit(int priority, char *format, ...);
 
 #define HR_SPACE 1 // Space between number and units
 #define HR_B     2 // Use "B" for single byte units
