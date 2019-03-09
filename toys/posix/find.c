@@ -396,13 +396,11 @@ static int do_find(struct dirtree *new)
           if (copy != ss[1]) free(copy);
         }
       } else if (!strcmp(s, "size")) {
-        if (check)
-          test = compare_numsign(new->st.st_size, 512, ss[1]);
+        if (check) test = compare_numsign(new->st.st_size, 512, ss[1]);
       } else if (!strcmp(s, "links")) {
         if (check) test = compare_numsign(new->st.st_nlink, 0, ss[1]);
       } else if (!strcmp(s, "inum")) {
-        if (check)
-          test = compare_numsign(new->st.st_ino, 0, ss[1]);
+        if (check) test = compare_numsign(new->st.st_ino, 0, ss[1]);
       } else if (!strcmp(s, "mindepth") || !strcmp(s, "maxdepth")) {
         if (check) {
           struct dirtree *dt = new;
