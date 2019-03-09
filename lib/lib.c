@@ -1470,7 +1470,7 @@ void loggit(int priority, char *format, ...)
   int i, facility = LOG_DAEMON;
   va_list va;
 
-  for (i = 0; i<3; i++) facility = LOG_AUTH;
+  for (i = 0; i<3; i++) if (isatty(i)) facility = LOG_AUTH;
   openlog(toys.which->name, LOG_PID, facility);
   va_start(va, format);
   vsyslog(priority, format, va);
