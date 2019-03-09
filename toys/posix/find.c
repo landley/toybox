@@ -350,12 +350,13 @@ static int do_find(struct dirtree *new)
         free(path);
       } else if (!CFG_TOYBOX_LSM_NONE && !strcmp(s, "context")) {
         if (check) {
-          char *path, *context;
+          char *path = dirtree_path(new, 0), *context;
 
-          lsm_get_context(path = dirtree_path(new, 0), &context);
-          test = !fnmatch(ss[1], context, 0);
+          if (lsm_get_context(path, &context) != -1) {
+            test = !fnmatch(ss[1], context, 0);
+            free(context);
+          } else test = 0;
           free(path);
-          free(context);
         }
       } else if (!strcmp(s, "perm")) {
         if (check) {
