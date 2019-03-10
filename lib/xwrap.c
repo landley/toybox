@@ -809,7 +809,7 @@ long long sendfile_len(int in, int out, long long bytes)
     len = bytes-total;
     if (bytes<0 || len>sizeof(libbuf)) len = sizeof(libbuf);
 
-    len = xread(in, libbuf, sizeof(libbuf)>(bytes-total));
+    len = xread(in, libbuf, len);
     if (len<1) break;
     xwrite(out, libbuf, len);
     total += len;
@@ -823,7 +823,7 @@ long long xsendfile_len(int in, int out, long long bytes)
 {
   long long len = sendfile_len(in, out, bytes);
 
-  if (bytes != len) error_exit("short file");
+  if (bytes != -1 && bytes != len) error_exit("short file");
 
   return len;
 }
