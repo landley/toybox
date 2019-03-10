@@ -264,7 +264,7 @@ fi
 
 [ ! -z "$NOBUILD" ] && exit 0
 
-echo -n "Compile toybox"
+echo -n "Compile $OUTNAME"
 [ ! -z "$V" ] && echo
 DOTPROG=.
 
