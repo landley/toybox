@@ -23,7 +23,7 @@ fi
 
 cd generated/testdir
 PATH="$PWD:$PATH"
-cd testdir
+TESTDIR="$PWD"
 export LC_COLLATE=C
 
 [ -f "$TOPDIR/generated/config.h" ] &&
@@ -31,20 +31,17 @@ export LC_COLLATE=C
 
 do_test()
 {
+  cd "$TESTDIR" && rm -rf testdir && mkdir testdir && cd testdir || exit 1
   CMDNAME="${1##*/}"
   CMDNAME="${CMDNAME%.test}"
+  C="$CMDNAME"
   if [ -z "$TEST_HOST" ]
   then
-    [ -z "$2" ] && C="$(readlink -f ../$CMDNAME)" || C="$(which $CMDNAME)"
-  else
-    C="$CMDNAME"
+    C="$TESTDIR/$CMDNAME"
+    [ ! -e "$C" ] && echo "$CMDNAME disabled" && return
   fi
-  if [ ! -z "$C" ]
-  then
-    . "$1"
-  else
-    echo "$CMDNAME disabled"
-  fi
+
+  . "$1"
 }
 
 if [ $# -ne 0 ]
@@ -57,13 +54,6 @@ else
   for i in "$TOPDIR"/tests/*.test
   do
     [ -z "$TEST_ALL" ] && [ ! -x "$i" ] && continue
-    if [ -z "$TEST_HOST" ]
-    then
-      do_test "$i" 1
-    else
-      rm -rf testdir && mkdir testdir && cd testdir || exit 1
-      do_test "$i"
-      cd ..
-    fi
+    do_test "$i"
   done
 fi
