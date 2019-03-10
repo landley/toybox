@@ -28,11 +28,14 @@ config TOYBOX
 	  --help		Show command help (only)
 	  --version	Show toybox version (only)
 
-	  The filename "-" means stdin/stdout, "--" stops argument parsing,
-	  and numerical arguments accept a single letter suffix for
+	  The filename "-" means stdin/stdout, and "--" stops argument parsing.
+
+	  Numerical arguments accept a single letter suffix for
 	  kilo, mega, giga, tera, peta, and exabytes, plus an additional
-	  "d" to indicate decimal 1000's instead of 1024. Durations take
-          minute, hour, or day suffixes (ala 0.1m = 6s).
+	  "d" to indicate decimal 1000's instead of 1024.
+
+	  Durations can be decimal fractions and accept minute ("m"), hour ("h"),
+	  or day ("d") suffixes (so 0.1m = 6s).
 
 config TOYBOX_SUID
 	bool "SUID support"

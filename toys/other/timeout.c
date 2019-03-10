@@ -4,24 +4,26 @@
  *
  * No standard
 
-USE_TIMEOUT(NEWTOY(timeout, "<2^vk:s: ", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TIMEOUT(NEWTOY(timeout, "<2^(foreground)(preserve-status)vk:s(signal):", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TIMEOUT
   bool "timeout"
   default y
   depends on TOYBOX_FLOAT
   help
-    usage: timeout [-k LENGTH] [-s SIGNAL] LENGTH COMMAND...
+    usage: timeout [-k DURATION] [-s SIGNAL] DURATION COMMAND...
 
     Run command line as a child process, sending child a signal if the
     command doesn't exit soon enough.
 
-    Length can be a decimal fraction. An optional suffix can be "m"
+    DURATION can be a decimal fraction. An optional suffix can be "m"
     (minutes), "h" (hours), "d" (days), or "s" (seconds, the default).
 
     -s	Send specified signal (default TERM)
     -k	Send KILL signal if child still running this long after first signal
     -v	Verbose
+    --foreground       Don't create new process group
+    --preserve-status  Exit with the child's exit status
 */
 
 #define FOR_timeout
@@ -38,10 +40,11 @@ GLOBALS(
 
 static void handler(int i)
 {
-  if (toys.optflags & FLAG_v)
+  if (FLAG(v))
     fprintf(stderr, "timeout pid %d signal %d\n", TT.pid, TT.nextsig);
+
   kill(TT.pid, TT.nextsig);
-  
+
   if (TT.k) {
     TT.k = 0;
     TT.nextsig = SIGKILL;
@@ -63,6 +66,11 @@ void xparsetimeval(char *s, struct timeval *tv)
 
 void timeout_main(void)
 {
+  // If timeout fails to parse its arguments, it exits with 125.
+  // TODO: this and grep both have a bug where built-in error checking like
+  // "too few arguments" will exit 1 instead of the custom value.
+  toys.exitval = 125;
+
   // Parse early to get any errors out of the way.
   xparsetimeval(*toys.optargs, &TT.itv.it_value);
   if (TT.k) xparsetimeval(TT.k, &TT.ktv);
@@ -71,10 +79,24 @@ void timeout_main(void)
   if (TT.s && -1 == (TT.nextsig = sig_to_num(TT.s)))
     error_exit("bad -s: '%s'", TT.s);
 
-  if (!(TT.pid = XVFORK())) xexec(toys.optargs+1);
-  else {
+  if (!FLAG(foreground)) setpgid(0, 0);
+
+  if (!(TT.pid = XVFORK())) {
+    char **argv = toys.optargs+1;
+
+    execvp(argv[0], argv);
+    perror_msg("failed to run '%s'", argv[0]);
+    toys.exitval = (errno == ENOENT) ? 127 : 126;
+    _xexit();
+  } else {
+    int status;
+
     xsignal(SIGALRM, handler);
     setitimer(ITIMER_REAL, &TT.itv, (void *)toybuf);
-    toys.exitval = xwaitpid(TT.pid);
+
+    while (-1 == waitpid(TT.pid, &status, 0) && errno == EINTR);
+    if (WIFEXITED(status)) toys.exitval = WEXITSTATUS(status);
+    else if (WTERMSIG(status)==SIGKILL) toys.exitval = 137;
+    else toys.exitval = FLAG(preserve_status) ? 128+WTERMSIG(status) : 124;
   }
 }

@@ -1,0 +1,19 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+# timeout's exit value is complicated!
+testcmd "times out" '.1 sleep 100 ; echo $?'  '124\n' '' ''
+testcmd "failure" '-s MONKEY .1 sleep 100 2>/dev/null ; echo $?' '125\n' '' ''
+testcmd "can't execute" '.1 / 2>/dev/null ; echo $?' '126\n' '' ''
+testcmd "can't find" '.1 /does/not/exist 2>/dev/null ; echo $?' '127\n' '' ''
+testcmd "custom signal" '-s 3 .1 sleep 100; echo $?' '124\n' '' ''
+testcmd "killed" '-s 9 .1 sleep 100; echo $?' '137\n' '' ''
+testcmd "TERM" '-s TERM .1 sleep 100; echo $?' '124\n' '' ''
+testcmd "exit 0" '.1 true ; echo $?' '0\n' '' ''
+testcmd "exit 1" '.1 false ; echo $?' '1\n' '' ''
+
+testcmd "--preserve-status" '--preserve-status .1 sleep 100 ; echo $?' '143\n' '' ''
+testcmd "--preserve-status killed" '--preserve-status -s 9 .1 sleep 100 ; echo $?' '137\n' '' ''
