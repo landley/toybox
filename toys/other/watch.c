@@ -125,8 +125,8 @@ void watch_main(void)
       if (fds[1]>0) close(fds[1]);
 
       // Spawn child process
-      memset(fds, 0, sizeof(fds));
-      TT.pid = xpopen_both((toys.optflags&FLAG_x) ? toys.optargs : cmdv, fds);
+      fds[0] = fds[1] = -1;
+      TT.pid = xpopen_both(FLAG(x) ? toys.optargs : cmdv, fds);
       pfd[1].fd = fds[1];
       active = 1;
     }

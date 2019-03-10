@@ -54,8 +54,7 @@ void xexit(void)
 
     free(al);
   }
-  if (fflush(NULL) || ferror(stdout))
-    if (!toys.exitval) perror_msg("write");
+  if (fflush(0) || ferror(stdout)) if (!toys.exitval) perror_msg("write");
   _xexit();
 }
 
@@ -220,41 +219,49 @@ void xexec(char **argv)
 // Spawn child process, capturing stdin/stdout.
 // argv[]: command to exec. If null, child re-runs original program with
 //         toys.stacktop zeroed.
-// pipes[2]: stdin, stdout of new process, only allocated if zero on way in,
-//           pass NULL to skip pipe allocation entirely.
+// pipes[2]: Filehandle to move to stdin/stdout of new process.
+//           If -1, replace with pipe handle connected to stdin/stdout.
+//           NULL treated as {0, 1}, I.E. leave stdin/stdout as is
 // return: pid of child process
 pid_t xpopen_both(char **argv, int *pipes)
 {
   int cestnepasun[4], pid;
 
-  // Make the pipes? Note this won't set either pipe to 0 because if fds are
-  // allocated in order and if fd0 was free it would go to cestnepasun[0]
-  if (pipes) {
-    for (pid = 0; pid < 2; pid++) {
-      if (pipes[pid] != 0) continue;
-      if (pipe(cestnepasun+(2*pid))) perror_exit("pipe");
-      pipes[pid] = cestnepasun[pid+1];
-    }
+  // Make the pipes?
+  memset(cestnepasun, 0, sizeof(cestnepasun));
+  if (pipes) for (pid = 0; pid < 2; pid++) {
+    if (pipes[pid] != -1) continue;
+    if (pipe(cestnepasun+(2*pid))) perror_exit("pipe");
   }
 
-  // Child process.
   if (!(pid = CFG_TOYBOX_FORK ? xfork() : XVFORK())) {
-    // Dance of the stdin/stdout redirection.
+    // Child process: Dance of the stdin/stdout redirection.
     if (pipes) {
       // if we had no stdin/out, pipe handles could overlap, so test for it
       // and free up potentially overlapping pipe handles before reuse
-      if (pipes[1] != -1) close(cestnepasun[2]);
-      if (pipes[0] != -1) {
-        close(cestnepasun[1]);
-        if (cestnepasun[0]) {
-          dup2(cestnepasun[0], 0);
-          close(cestnepasun[0]);
-        }
+      if (cestnepasun[2]) {
+        close(cestnepasun[2]);
+        pipes[1] = cestnepasun[3];
       }
-      if (pipes[1] != -1) {
-        dup2(cestnepasun[3], 1);
-        dup2(cestnepasun[3], 2);
-        if (cestnepasun[3] > 2 || !cestnepasun[3]) close(cestnepasun[3]);
+      if (cestnepasun[1]) {
+        close(cestnepasun[1]);
+        pipes[0] = cestnepasun[0];
+      }
+
+      // If swapping stdin/stdout
+      if (!pipes[1]) pipes[1] = dup(pipes[1]);
+
+      // Are we redirecting stdin?
+      if (pipes[0]) {
+        dup2(pipes[0], 0);
+        close(pipes[0]);
+      }
+
+      // Are we redirecting stdout? (If so, direct stderr to same place.)
+      if (pipes[1] != 1) {
+        dup2(pipes[1], 1);
+        dup2(pipes[1], 2);
+        if (cestnepasun[2]) close(cestnepasun[2]);
       }
     }
     if (argv) xexec(argv);
@@ -280,11 +287,18 @@ pid_t xpopen_both(char **argv, int *pipes)
     }
   }
 
-  // Parent process
+  // Parent process: vfork had a shared environment, clean up.
   if (!CFG_TOYBOX_FORK) **toys.argv &= 0x7f;
+
   if (pipes) {
-    if (pipes[0] != -1) close(cestnepasun[0]);
-    if (pipes[1] != -1) close(cestnepasun[3]);
+    if (cestnepasun[1]) {
+      pipes[0] = cestnepasun[1];
+      close(cestnepasun[0]);
+    }
+    if (cestnepasun[2]) {
+      pipes[1] = cestnepasun[2];
+      close(cestnepasun[3]);
+    }
   }
 
   return pid;
@@ -315,8 +329,8 @@ pid_t xpopen(char **argv, int *pipe, int isstdout)
 {
   int pipes[2], pid;
 
-  pipes[!isstdout] = -1;
-  pipes[!!isstdout] = 0;
+  pipes[0] = isstdout ? 0 : -1;
+  pipes[1] = isstdout ? -1 : 1;
   pid = xpopen_both(argv, pipes);
   *pipe = pid ? pipes[!!isstdout] : -1;
 
@@ -784,22 +798,57 @@ void xpidfile(char *name)
   close(fd);
 }
 
-// Copy the rest of in to out and close both files.
-
-long long xsendfile(int in, int out)
+// Return bytes copied from in to out. If bytes <0 copy all of in to out.
+long long sendfile_len(int in, int out, long long bytes)
 {
   long long total = 0;
   long len;
 
   if (in<0) return 0;
   for (;;) {
-    len = xread(in, libbuf, sizeof(libbuf));
+    if (bytes == total) break;
+    len = bytes-total;
+    if (bytes<0 || len>sizeof(libbuf)) len = sizeof(libbuf);
+
+    len = xread(in, libbuf, sizeof(libbuf)>(bytes-total));
     if (len<1) break;
     xwrite(out, libbuf, len);
     total += len;
   }
 
   return total;
+}
+
+// error_exit if we couldn't copy all bytes
+long long xsendfile_len(int in, int out, long long bytes)
+{
+  long long len = sendfile_len(in, out, bytes);
+
+  if (bytes != len) error_exit("short file");
+
+  return len;
+}
+
+// warn and pad with zeroes if we couldn't copy all bytes
+void xsendfile_pad(int in, int out, long long len)
+{
+  len -= xsendfile_len(in, out, len);
+  if (len) {
+    perror_msg("short read");
+    memset(libbuf, 0, sizeof(libbuf));
+    while (len) {
+      int i = len>sizeof(libbuf) ? sizeof(libbuf) : len;
+
+      xwrite(out, libbuf, i);
+      len -= i;
+    }
+  }
+}
+
+// copy all of in to out
+long long xsendfile(int in, int out)
+{
+  return xsendfile_len(in, out, -1);
 }
 
 double xstrtod(char *s)
