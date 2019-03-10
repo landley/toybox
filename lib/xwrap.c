@@ -257,10 +257,9 @@ pid_t xpopen_both(char **argv, int *pipes)
         close(pipes[0]);
       }
 
-      // Are we redirecting stdout? (If so, direct stderr to same place.)
+      // Are we redirecting stdout?
       if (pipes[1] != 1) {
         dup2(pipes[1], 1);
-        dup2(pipes[1], 2);
         if (cestnepasun[2]) close(cestnepasun[2]);
       }
     }
