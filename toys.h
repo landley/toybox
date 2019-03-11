@@ -89,7 +89,7 @@ extern struct toy_list {
   char *name;
   void (*toy_main)(void);
   char *options;
-  int flags;
+  unsigned flags;
 } toy_list[];
 
 // Global context shared by all commands.

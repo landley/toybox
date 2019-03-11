@@ -210,8 +210,8 @@ void xexec(char **argv)
     toy_exec(argv);
   execvp(argv[0], argv);
 
+  toys.exitval = 126+(errno == ENOENT);
   perror_msg("exec %s", argv[0]);
-  toys.exitval = 127;
   if (!toys.stacktop) _exit(toys.exitval);
   xexit();
 }

@@ -31,6 +31,9 @@
 // Suppress default --help processing
 #define TOYFLAG_NOHELP   (1<<9)
 
+// Error code to return if argument parsing fails (default 1)
+#define TOYFLAG_ARGFAIL(x) (x<<24)
+
 #if CFG_TOYBOX_PEDANTIC_ARGS
 #define NO_ARGS ">0"
 #else

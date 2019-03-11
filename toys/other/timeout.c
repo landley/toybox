@@ -4,7 +4,7 @@
  *
  * No standard
 
-USE_TIMEOUT(NEWTOY(timeout, "<2^(foreground)(preserve-status)vk:s(signal):", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TIMEOUT(NEWTOY(timeout, "<2^(foreground)(preserve-status)vk:s(signal):", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(125)))
 
 config TIMEOUT
   bool "timeout"
@@ -66,9 +66,6 @@ void xparsetimeval(char *s, struct timeval *tv)
 
 void timeout_main(void)
 {
-  // If timeout fails to parse its arguments, it exits with 125.
-  // TODO: this and grep both have a bug where built-in error checking like
-  // "too few arguments" will exit 1 instead of the custom value.
   toys.exitval = 125;
 
   // Parse early to get any errors out of the way.
@@ -81,14 +78,8 @@ void timeout_main(void)
 
   if (!FLAG(foreground)) setpgid(0, 0);
 
-  if (!(TT.pid = XVFORK())) {
-    char **argv = toys.optargs+1;
-
-    execvp(argv[0], argv);
-    perror_msg("failed to run '%s'", argv[0]);
-    toys.exitval = (errno == ENOENT) ? 127 : 126;
-    _xexit();
-  } else {
+  if (!(TT.pid = XVFORK())) xexec(toys.optargs+1);
+  else {
     int status;
 
     xsignal(SIGALRM, handler);

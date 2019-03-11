@@ -388,6 +388,8 @@ void get_optflags(void)
   // Option parsing is a two stage process: parse the option string into
   // a struct opts list, then use that list to process argv[];
 
+  toys.exitval = toys.which->flags >> 24;
+
   // Allocate memory for optargs
   saveflags = 0;
   while (toys.argv[saveflags++]);
@@ -494,6 +496,8 @@ notflag:
 
     help_exit("Needs %s-%s", s[1] ? "one of " : "", needs);
   }
+
+  toys.exitval = 0;
 
   if (CFG_TOYBOX_FREE) {
     llist_traverse(gof.opts, free);
