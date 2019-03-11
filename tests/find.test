@@ -6,6 +6,8 @@ mkdir dir
 cd dir
 touch file
 mkfifo fifo
+# fs timestamp granularity isn't always enough for -newer to tell, so wait
+sleep .1
 ln -s fifo link
 cd ..
 touch b
