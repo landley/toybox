@@ -442,6 +442,10 @@ the declaration and the code using it to make you uncomfortable, maybe the
 function's too big, or is there an if statement or something you can
 use as an excuse to start a new closer block?</p>
 
+<p>An * binds to a variable name not a type name, so space it that way.
+(In C "char *a, b;" and "char* a, b;" mean the same thing: "a" is a pointer
+but "b" is not. Spacing it the second way is not how C works.)</p>
+
 <p>If statments with a single line body go on the same line if the result
 fits in 80 columns, on a second line if it doesn't. We usually only use
 curly brackets if we need to, either because the body is multiple lines or
