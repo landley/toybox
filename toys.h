@@ -18,6 +18,7 @@
 #include <inttypes.h>
 #include <limits.h>
 #include <math.h>
+#include <paths.h>
 #include <pwd.h>
 #include <regex.h>
 #include <sched.h>
