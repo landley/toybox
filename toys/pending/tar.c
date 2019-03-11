@@ -89,28 +89,10 @@ struct inode_list {
   dev_t dev;
 };
 
-static void copy_in_out(int src, int dst, off_t size)
-{
-  int i, rd, rem = size%512, cnt;
-  
-  cnt = size/512 + (rem?1:0);
-
-  for (i = 0; i < cnt; i++) {
-    rd = (i == cnt-1 && rem) ? rem : 512;
-    xreadall(src, toybuf, rd);
-    writeall(dst, toybuf, rd);
-  }
-}
-
 //convert to octal
 static void itoo(char *str, int len, off_t val)
 {
-  char *t, tmp[sizeof(off_t)*3+1];
-  int cnt = sprintf(tmp, "%0*llo", len, (unsigned long long)val);
-
-  t = tmp + cnt - len;
-  if (*t == '0') t++;
-  memcpy(str, t, len);
+  sprintf(str, "%0*llo", len-1, (unsigned long long)val);
 }
 
 // This really needs a hash table
@@ -175,7 +157,7 @@ static void add_file(struct archive_handler *tar, char **nam, struct stat *st)
   struct tar_hdr hdr;
   struct passwd *pw;
   struct group *gr;
-  struct inode_list *node;
+  struct inode_list *node = node;
   int i, fd =-1;
   char *c, *p, *name = *nam, *lnk, *hname, buf[512] = {0,};
   unsigned int sum = 0;
@@ -214,7 +196,7 @@ static void add_file(struct archive_handler *tar, char **nam, struct stat *st)
   if (i || (node = seen_inode(&TT.inodes, st, hname))) {
 // TODO: test preserve symlink ownership
     hdr.type = '1'+i;
-    if (!(lnk = i?xreadlink(name):node->arg)) return perror_msg("readlink");
+    if (!(lnk = i ? xreadlink(name) : node->arg)) return perror_msg("readlink");
 // TODO: does this need NUL terminator?
     if (strlen(lnk) > sizeof(hdr.link))
       write_longname(tar, lnk, 'K'); //write longname LINK
@@ -241,13 +223,13 @@ static void add_file(struct archive_handler *tar, char **nam, struct stat *st)
   if (strlen(hname) > sizeof(hdr.name))
           write_longname(tar, hname, 'L'); //write longname NAME
   strcpy(hdr.magic, "ustar  ");
-  if ((pw = getpwuid(st->st_uid)))
+  if ((pw = bufgetpwuid(st->st_uid)))
     snprintf(hdr.uname, sizeof(hdr.uname), "%s", pw->pw_name);
-  else snprintf(hdr.uname, sizeof(hdr.uname), "%d", st->st_uid);
+  else sprintf(hdr.uname, "%d", st->st_uid);
 
-  if ((gr = getgrgid(st->st_gid)))
+  if ((gr = bufgetgrgid(st->st_gid)))
     snprintf(hdr.gname, sizeof(hdr.gname), "%s", gr->gr_name);
-  else snprintf(hdr.gname, sizeof(hdr.gname), "%d", st->st_gid);
+  else sprintf(hdr.gname, "%d", st->st_gid);
 
   //calculate chksum.
   for (i = 0; i < 512; i++) sum += ((char*)&hdr)[i];
@@ -261,7 +243,7 @@ static void add_file(struct archive_handler *tar, char **nam, struct stat *st)
     perror_msg("can't open '%s'", name);
     return;
   }
-  copy_in_out(fd, TT.fd, st->st_size);
+  xsendfile_pad(fd, TT.fd, st->st_size);
   if (st->st_size%512) writeall(TT.fd, buf, (512-(st->st_size%512)));
   close(fd);
 }
@@ -288,33 +270,27 @@ static int add_to_tar(struct dirtree *node)
 
 static void compress_stream(struct archive_handler *tar_hdl)
 {
-  int pipefd[2];
-  pid_t cpid;
+  int pipefd[2] = {-1, TT.fd};
 
-  xpipe(pipefd);
+  xpopen_both((char *[]){FLAG(z)?"gzip":"bzip2", "-f", NULL}, pipefd);
+  close(TT.fd);
+  TT.fd = pipefd[0];
+}
 
-  signal(SIGPIPE, SIG_IGN);
-  cpid = fork();
-  if (cpid == -1) perror_exit("fork");
+static void extract_stream(struct archive_handler *tar_hdl)
+{
+  int pipefd[2] = {TT.fd, -1};
 
-  if (!cpid) {    /* Child reads from pipe */
-    char *argv[] = {FLAG(z)?"gzip":"bzip2", "-f", NULL};
-    xclose(pipefd[1]); /* Close unused write*/
-    dup2(pipefd[0], 0);
-    dup2(TT.fd, 1); //write to tar fd
-    xexec(argv);
-  } else {
-    xclose(pipefd[0]);          /* Close unused read end */
-// TODO doesn't this leak pipefd[1]?
-    dup2(pipefd[1], TT.fd); //write to pipe
-  }
+  xpopen_both((char *[]){FLAG(z)?"gunzip":"bunzip2", "-cf", "-", NULL}, pipefd);
+  close(TT.fd);
+  TT.fd = pipefd[1];
 }
 
 static void extract_to_stdout(struct archive_handler *tar)
 {
   struct file_header *file_hdr = &tar->file_hdr;
 
-  copy_in_out(TT.fd, 0, file_hdr->size);
+  xsendfile_len(TT.fd, 0, file_hdr->size);
   TT.offset += file_hdr->size;
 }
 
@@ -354,7 +330,7 @@ static void extract_to_command(struct archive_handler *tar)
     xexec(argv);
   } else {
     xclose(pipefd[0]);  // Close unused read end
-    copy_in_out(TT.fd, pipefd[1], file_hdr->size);
+    xsendfile_len(TT.fd, pipefd[1], file_hdr->size);
     TT.offset += file_hdr->size;
     xclose(pipefd[1]);
     waitpid(cpid, &status, 0);
@@ -426,7 +402,7 @@ static void extract_to_disk(struct archive_handler *tar)
 
   //copy file....
 COPY:
-  copy_in_out(TT.fd, dst_fd, file_hdr->size);
+  xsendfile_len(TT.fd, dst_fd, file_hdr->size);
   TT.offset += file_hdr->size;
   close(dst_fd);
 
@@ -488,29 +464,6 @@ static int otoi(char *str, int len)
   val = strtol(inp, &endp, 8);
   if (*endp && *endp != ' ') error_exit("invalid param");
   return (int)val;
-}
-
-static void extract_stream(struct archive_handler *tar_hdl)
-{
-  int pipefd[2];              
-  pid_t cpid;                 
-
-  xpipe(pipefd);
-
-  cpid = fork();
-  if (cpid == -1) perror_exit("fork");
-
-  if (!cpid) {    /* Child reads from pipe */
-    char *argv[] =
-      {FLAG(z)?"gunzip":"bunzip2", "-cf", "-", NULL};
-    xclose(pipefd[0]); /* Close unused read*/
-    dup2(TT.fd, 0);
-    dup2(pipefd[1], 1); //write to pipe
-    xexec(argv);
-  } else {
-    xclose(pipefd[1]);          /* Close unused read end */
-    dup2(pipefd[0], TT.fd); //read from pipe
-  }
 }
 
 static char *process_extended_hdr(struct archive_handler *tar, int size)
