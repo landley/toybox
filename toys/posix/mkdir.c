@@ -48,7 +48,7 @@ void mkdir_main(void)
 
   // Note, -p and -v flags line up with mkpathat() flags
   for (s=toys.optargs; *s; s++) {
-    if (mkpathat(AT_FDCWD, *s, mode, toys.optflags|1))
+    if (mkpathat(AT_FDCWD, *s, mode, toys.optflags|MKPATHAT_MKLAST))
       perror_msg("'%s'", *s);
   }
 }

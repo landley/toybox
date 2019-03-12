@@ -494,7 +494,7 @@ void install_main(void)
 
   if (flags & FLAG_d) {
     for (ss = toys.optargs; *ss; ss++) {
-      if (mkpathat(AT_FDCWD, *ss, 0777, 3)) perror_msg_raw(*ss);
+      if (mkpathat(AT_FDCWD, *ss, 0777, MKPATHAT_MKLAST | MKPATHAT_MAKE)) perror_msg_raw(*ss);
       if (flags & (FLAG_g|FLAG_o))
         if (lchown(*ss, TT.uid, TT.gid)) perror_msg("chown '%s'", *ss);
       if (flags & FLAG_v) printf("%s\n", *ss);
@@ -505,7 +505,7 @@ void install_main(void)
 
   if (toys.optflags & FLAG_D) {
     TT.destname = toys.optargs[toys.optc-1];
-    if (mkpathat(AT_FDCWD, TT.destname, 0, 2))
+    if (mkpathat(AT_FDCWD, TT.destname, 0, MKPATHAT_MAKE))
       perror_exit("-D '%s'", TT.destname);
     if (toys.optc == 1) return;
   }

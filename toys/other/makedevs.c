@@ -90,7 +90,7 @@ void makedevs_main()
       } else ptr = node;
 
       if (type == 'd') {
-        if (mkpathat(AT_FDCWD, ptr, mode, 3))  {
+        if (mkpathat(AT_FDCWD, ptr, mode, MKPATHAT_MKLAST | MKPATHAT_MAKE))  {
           perror_msg("can't create directory '%s'", ptr);
           continue;
         }
