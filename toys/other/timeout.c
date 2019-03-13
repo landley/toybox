@@ -9,7 +9,6 @@ USE_TIMEOUT(NEWTOY(timeout, "<2^(foreground)(preserve-status)vk:s(signal):", TOY
 config TIMEOUT
   bool "timeout"
   default y
-  depends on TOYBOX_FLOAT
   help
     usage: timeout [-k DURATION] [-s SIGNAL] DURATION COMMAND...
 
