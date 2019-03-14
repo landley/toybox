@@ -16,7 +16,7 @@ testing "-d @0x123 invalid" "TZ=$tz date -d @0x123 2>/dev/null || echo expected 
 # All SKIP_HOST=1 because coreutils rejects POSIX format dates supplied to -d.
 # These expected values are from running on the host without -d (not as root!).
 SKIP_HOST=1 testing "-d MMDDhhmm" \
-        "TZ=$tz date -d 06021234 2>&1" "Sun Jun  2 12:34:00 CEST 2019\n" "" ""
+        "TZ=$tz date -d 06021234 2>&1" "Sun Jun  2 12:34:00 CEST $(date +%Y)\n" "" ""
 SKIP_HOST=1 testing "-d MMDDhhmmYY.SS" \
         "TZ=$tz date -d 1110143115.30 2>&1" "Tue Nov 10 14:31:30 CET 2015\n" "" ""
 # busybox thinks this is the year 603 (ISO time 0602-12-34 19:82 with out of range fields normalized).
