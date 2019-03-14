@@ -154,3 +154,5 @@ testing "explicit ERE |" "grep -E 'uno|dos'" "uno\ndos\nuno|dos\n" \
 
 testing "" "grep -o -e iss -e ipp" "iss\niss\nipp\n" "" "mississippi"
 testing "" "grep -o -e gum -e rgu" "rgu\n" "" "argument"
+
+testing "early failure" 'grep --what 2>/dev/null || echo $?' "2\n" "" ""

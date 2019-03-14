@@ -10,9 +10,9 @@
 * echo hello | grep -f </dev/null
 *
 
-USE_GREP(NEWTOY(grep, "(color):;S(exclude)*M(include)*ZzEFHIab(byte-offset)h(no-filename)ino(only-matching)rsvwcl(files-with-matches)q(quiet)(silent)e*f*C#B#A#m#x[!wx][!EFw]", TOYFLAG_BIN))
-USE_EGREP(OLDTOY(egrep, grep, TOYFLAG_BIN))
-USE_FGREP(OLDTOY(fgrep, grep, TOYFLAG_BIN))
+USE_GREP(NEWTOY(grep, "(color):;S(exclude)*M(include)*ZzEFHIab(byte-offset)h(no-filename)ino(only-matching)rsvwcl(files-with-matches)q(quiet)(silent)e*f*C#B#A#m#x[!wx][!EFw]", TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
+USE_EGREP(OLDTOY(egrep, grep, TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
+USE_FGREP(OLDTOY(fgrep, grep, TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 
 config GREP
   bool "grep"
@@ -22,7 +22,7 @@ config GREP
 
     Show lines matching regular expressions. If no -e, first argument is
     regular expression to match. With no files (or "-" filename) read stdin.
-    Returns 0 if matched, 1 if no match found.
+    Returns 0 if matched, 1 if no match found, 2 for command errors.
 
     -e  Regex to match. (May be repeated.)
     -f  File listing regular expressions to match.
