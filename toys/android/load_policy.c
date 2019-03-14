@@ -1,4 +1,4 @@
-/* load_policy.c - Load a policy file
+/* load_policy.c - Load an SELinux policy file
  *
  * Copyright 2015 The Android Open Source Project
 
@@ -11,7 +11,7 @@ config LOAD_POLICY
   help
     usage: load_policy FILE
 
-    Load the specified policy file.
+    Load the specified SELinux policy file.
 */
 
 #define FOR_load_policy
