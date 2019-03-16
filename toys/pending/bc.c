@@ -2120,21 +2120,22 @@ BcStatus bc_num_parse(BcNum *n, char *val,
 BcStatus bc_num_ulong(BcNum *n, unsigned long *result) {
 
   size_t i;
-  unsigned long pow, r;
+  unsigned long r;
 
   *result = 0;
 
   if (n->neg) return bc_vm_err(BC_ERROR_MATH_NEGATIVE);
 
-  for (r = 0, pow = 1, i = n->rdx; i < n->len; ++i) {
+  for (r = 0, i = n->len; i > n->rdx;) {
 
-    unsigned long prev = r, powprev = pow;
+    unsigned long prev = r * 10;
 
-    r += ((unsigned long) n->num[i]) * pow;
-    pow *= 10;
+    if (prev == SIZE_MAX || prev / 10 != r)
+      return bc_vm_err(BC_ERROR_MATH_OVERFLOW);
 
-    if (r < prev || pow < powprev)
-      return bc_vm_verr(BC_ERROR_MATH_OVERFLOW, "number cannot fit");
+    r = prev + ((uchar) n->num[--i]);
+
+    if (r == SIZE_MAX || r < prev) return bc_vm_err(BC_ERROR_MATH_OVERFLOW);
   }
 
   *result = r;
