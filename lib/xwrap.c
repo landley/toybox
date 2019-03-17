@@ -95,10 +95,9 @@ void *xrealloc(void *ptr, size_t size)
 // Die unless we can allocate a copy of this many bytes of string.
 char *xstrndup(char *s, size_t n)
 {
-  char *ret = strndup(s, ++n);
+  char *ret = strndup(s, n);
 
   if (!ret) error_exit("xstrndup");
-  ret[--n] = 0;
 
   return ret;
 }
