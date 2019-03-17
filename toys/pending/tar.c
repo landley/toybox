@@ -77,11 +77,6 @@ struct file_header {
   dev_t device;
 };
 
-struct archive_handler {
-  struct file_header file_hdr;
-  void (*extract_handler)(struct archive_handler*);
-};
-
 struct inode_list {
   struct inode_list *next;
   char *arg;
@@ -291,25 +286,11 @@ static int add_to_tar(struct dirtree *node)
   return ((DIRTREE_RECURSE | (FLAG(h)?DIRTREE_SYMFOLLOW:0)));
 }
 
-static void extract_stream(struct archive_handler *tar_hdl)
-{
-  int pipefd[2] = {TT.fd, -1};
-
-  xpopen_both((char *[]){FLAG(z)?"gunzip":"bunzip2", "-cf", "-", NULL}, pipefd);
-  close(TT.fd);
-  TT.fd = pipefd[1];
-}
-
-static void extract_to_stdout(struct archive_handler *tar)
-{
-  sendlen(0, tar->file_hdr.size);
-}
-
-static void extract_to_command(struct archive_handler *tar)
+// Does anybody actually use this?
+static void extract_to_command(struct file_header *hdr)
 {
   int pipefd[2], status = 0;
   pid_t cpid;
-  struct file_header *hdr = &tar->file_hdr;
 
   xpipe(pipefd);
   if (!S_ISREG(hdr->mode)) return; //only regular files are supported.
@@ -349,12 +330,11 @@ static void extract_to_command(struct archive_handler *tar)
   }
 }
 
-static void extract_to_disk(struct archive_handler *tar)
+static void extract_to_disk(struct file_header *hdr)
 {
   int flags, dst_fd = -1;
   char *s;
   struct stat ex;
-  struct file_header *hdr = &tar->file_hdr;
 
 // while not if
   flags = strlen(hdr->name);
@@ -477,8 +457,7 @@ static unsigned long long otoi(char *str, int len)
 
 static void unpack_tar(void)
 {
-  struct archive_handler *tar_hdl = TT.handle;
-  struct file_header *hdr = &tar_hdl->file_hdr;
+  struct file_header *hdr = TT.handle;
   struct tar_hdr tar;
   int i;
   char *s;
@@ -596,7 +575,9 @@ static void unpack_tar(void)
       skippy(hdr->size);
     } else {
       if (FLAG(v)) printf("%s\n", hdr->name);
-      tar_hdl->extract_handler(tar_hdl);
+      if (FLAG(O)) sendlen(0, hdr->size);
+      else if (FLAG(to_command)) extract_to_command(hdr);
+      else extract_to_disk(hdr);
     }
 FREE:
     free(hdr->name);
@@ -609,13 +590,12 @@ FREE:
 
 void tar_main(void)
 {
-  struct archive_handler *tar_hdl;
+  struct file_header *hdr;
   struct arg_list *tmp;
   char *s, **args = toys.optargs;
 
 // TODO: zap
-  TT.handle = tar_hdl = xzalloc(sizeof(struct archive_handler));
-  tar_hdl->extract_handler = extract_to_disk;
+  TT.handle = hdr = xzalloc(sizeof(struct file_header));
 
   // When extracting to command
   signal(SIGPIPE, SIG_IGN);
@@ -642,9 +622,6 @@ void tar_main(void)
 
   // Are we reading?
   if (FLAG(x)||FLAG(t)) {
-    if (FLAG(O)) tar_hdl->extract_handler = extract_to_stdout;
-    if (FLAG(to_command)) tar_hdl->extract_handler = extract_to_command;
-
 // TODO: autodtect
 
 // Try detecting .gz or .bz2 by looking for their magic.
@@ -654,7 +631,14 @@ void tar_main(void)
 //        extract_stream(tar_hdl);
 //        continue;
 //      }
-    if (FLAG(j)||FLAG(z)) extract_stream(tar_hdl);
+    if (FLAG(j)||FLAG(z)) {
+      int pipefd[2] = {TT.fd, -1};
+
+      xpopen_both((char *[]){FLAG(z)?"gunzip":"bunzip2", "-cf", "-", NULL},
+        pipefd);
+      close(TT.fd);
+      TT.fd = pipefd[1];
+    }
 
     unpack_tar();
     for (tmp = TT.inc; tmp; tmp = tmp->next)
