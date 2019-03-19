@@ -34,12 +34,13 @@ config SORT
     -o	Output to FILE instead of stdout
     -V	Version numbers (name-1.234-rc6.5b.tgz)
 
-    Sorting by key looks at a subset of the words on each line.  -k2
-    uses the second word to the end of the line, -k2,2 looks at only
-    the second word, -k2,4 looks from the start of the second to the end
-    of the fourth word.  Specifying multiple keys uses the later keys as
-    tie breakers, in order.  A type specifier appended to a sort key
-    (such as -2,2n) applies only to sorting that key.
+    Sorting by key looks at a subset of the words on each line. -k2 uses the
+    second word to the end of the line, -k2,2 looks at only the second word,
+    -k2,4 looks from the start of the second to the end of the fourth word.
+    -k2.4,5 starts from the fourth character of the second word, to the end
+    of the fifth word. Specifying multiple keys uses the later keys as tie
+    breakers, in order. A type specifier appended to a sort key (such as -2,2n)
+    applies only to sorting that key.
 
 config SORT_FLOAT
   bool
@@ -121,7 +122,8 @@ static char *get_key_data(char *str, struct sort_key *key, int flags)
   if (TT.t && str[start]==*TT.t) start++;
 
   // Strip leading and trailing whitespace if necessary
-  if (flags&FLAG_b) while (isspace(str[start])) start++;
+  if ((flags&FLAG_b) || (!TT.t && !key->range[3]))
+    while (isspace(str[start])) start++;
   if (flags&FLAG_bb) while (end>start && isspace(str[end-1])) end--;
 
   // Handle offsets on start and end
