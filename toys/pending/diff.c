@@ -5,7 +5,7 @@
  *
  * See: http://cm.bell-labs.com/cm/cs/cstr/41.pdf
 
-USE_DIFF(NEWTOY(diff, "<2>2(color)B(ignore-blank-lines)d(minimal)b(ignore-space-change)ut(expand-tabs)w(ignore-all-space)i(ignore-case)T(initial-tab)s(report-identical-files)q(brief)a(text)L(label)*S(starting-file):N(new-file)r(recursive)U(unified)#<0=3", TOYFLAG_USR|TOYFLAG_BIN))
+USE_DIFF(NEWTOY(diff, "<2>2(color)B(ignore-blank-lines)d(minimal)b(ignore-space-change)ut(expand-tabs)w(ignore-all-space)i(ignore-case)T(initial-tab)s(report-identical-files)q(brief)a(text)L(label)*S(starting-file):N(new-file)r(recursive)U(unified)#<0=3", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 
 config DIFF
   bool "diff"
@@ -791,22 +791,18 @@ void diff_main(void)
   int j = 0, k = 1, start[2] = {1, 1};
   char *files[2];
 
+  toys.exitval = 2;
+
   if ((toys.optflags & FLAG_color) && !isatty(1)) toys.optflags ^= FLAG_color;
 
   for (j = 0; j < 2; j++) {
     files[j] = toys.optargs[j];
     if (IS_STDIN(files[j])) {
       if (fstat(0, &TT.st[j]) == -1)
-        perror_exit("can fstat %s", files[j]);
+        perror_exit("can't fstat %s", files[j]);
     } else {
-      if (stat(files[j], &TT.st[j]) == -1)
-        perror_exit("can't stat %s", files[j]);
+      xstat(files[j], &TT.st[j]);
     }
-  }
-
-  if (IS_STDIN(files[0]) && IS_STDIN(files[1])) { //compat :(
-    show_status(files);  //check ASAP
-    return;
   }
 
   if ((IS_STDIN(files[0]) || IS_STDIN(files[1]))
@@ -815,8 +811,8 @@ void diff_main(void)
 
   if ((TT.st[0].st_ino == TT.st[1].st_ino) //physicaly same device
       && (TT.st[0].st_dev == TT.st[1].st_dev)) {
-    show_status(files);
-    return ;
+    toys.exitval = 0;
+    return show_status(files);
   }
 
   if (S_ISDIR(TT.st[0].st_mode) && S_ISDIR(TT.st[1].st_mode)) {

@@ -5,6 +5,11 @@
 seq 10 > left
 seq 11 > right
 
+testing "unknown argument" 'diff --oops left right 2>/dev/null ; echo $?' "2\n" "" ""
+testing "missing" 'diff missing1 missing2 2>/dev/null ; echo $?' "2\n" "" ""
+
+testing "- -" 'diff - - ; echo $?' "0\n" "" "whatever"
+
 expected='--- lll
 +++ rrr
 @@ -8,3 +8,4 @@
@@ -27,4 +32,4 @@ mkdir -p tree1 tree2
 echo foo > tree1/file
 echo food > tree2/file
 
-testing "simple" "diff -r -L tree1/file -L tree2/file tree1 tree2 |tee out" "$expected" "" ""
+testing "-r" "diff -r -L tree1/file -L tree2/file tree1 tree2 |tee out" "$expected" "" ""
