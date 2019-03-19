@@ -10,7 +10,7 @@ config NICE
   bool "nice"
   default y
   help
-    usage: nice [-n PRIORITY] command [args...]
+    usage: nice [-n PRIORITY] COMMAND [ARG...]
 
     Run a command line at an increased or decreased scheduling priority.
 
@@ -32,7 +32,9 @@ void nice_main(void)
   if (!toys.optflags) TT.n = 10;
 
   errno = 0;
-  if (nice(TT.n)==-1 && errno) perror_exit("Can't set priority");
-
+  if (nice(TT.n)==-1 && errno) {
+    toys.exitval = 125;
+    perror_exit("Can't set priority");
+  }
   xexec(toys.optargs);
 }

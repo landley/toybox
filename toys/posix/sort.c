@@ -7,7 +7,7 @@
  * Deviations from POSIX: Lots.
  * We invented -x
 
-USE_SORT(NEWTOY(sort, USE_SORT_FLOAT("g")"S:T:m" "o:k*t:" "xVbMcszdfirun", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SORT(NEWTOY(sort, USE_SORT_FLOAT("g")"S:T:m" "o:k*t:" "xVbMcszdfirun", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 
 config SORT
   bool "sort"
@@ -345,6 +345,7 @@ void sort_main(void)
           if (!temp2 || flag>FLAG_x
             || (flag&(FLAG_u|FLAG_c|FLAG_s|FLAG_z)))
           {
+            toys.exitval = 2;
             error_exit("Unknown key option.");
           }
           // b after , means strip _trailing_ space, not leading.

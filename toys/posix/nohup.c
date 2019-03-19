@@ -4,13 +4,13 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/nohup.html
 
-USE_NOHUP(NEWTOY(nohup, "<1^", TOYFLAG_USR|TOYFLAG_BIN))
+USE_NOHUP(NEWTOY(nohup, "<1^", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(125)))
 
 config NOHUP
   bool "nohup"
   default y
   help
-    usage: nohup COMMAND [ARGS...]
+    usage: nohup COMMAND [ARG...]
 
     Run a command that survives the end of its terminal.
 
@@ -21,6 +21,7 @@ config NOHUP
 
 void nohup_main(void)
 {
+  toys.exitval = 125;
   xsignal(SIGHUP, SIG_IGN);
   if (isatty(1)) {
     close(1);
@@ -38,5 +39,6 @@ void nohup_main(void)
     close(0);
     xopen_stdio("/dev/null", O_RDONLY);
   }
+  toys.exitval = 0;
   xexec(toys.optargs);
 }

@@ -6,13 +6,13 @@
  *
  * Deviations from posix: "-" argument and -0
 
-USE_ENV(NEWTOY(env, "^0iu*", TOYFLAG_USR|TOYFLAG_BIN))
+USE_ENV(NEWTOY(env, "^0iu*", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(125)))
 
 config ENV
   bool "env"
   default y
   help
-    usage: env [-i] [-u NAME] [NAME=VALUE...] [command [option...]]
+    usage: env [-i] [-u NAME] [NAME=VALUE...] [COMMAND [ARG...]]
 
     Set the environment for command invocation, or list environment variables.
 

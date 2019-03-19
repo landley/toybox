@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/cmp.html
 
-USE_CMP(NEWTOY(cmp, "<2>2ls(silent)(quiet)[!ls]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_CMP(NEWTOY(cmp, "<2>2ls(silent)(quiet)[!ls]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 
 config CMP
   bool "cmp"
@@ -81,4 +81,3 @@ void cmp_main(void)
   loopfiles_rw(toys.optargs, O_CLOEXEC|(WARN_ONLY*!(toys.optflags&FLAG_s)), 0,
     do_cmp);
 }
-

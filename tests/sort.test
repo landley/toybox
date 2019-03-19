@@ -7,6 +7,7 @@
 
 # The basic tests.  These should work even with the small config.
 
+testing "unknown argument" 'sort --oops 2>/dev/null ; echo $?' "2\n" "" ""
 testing "sort" "sort input" "a\nb\nc\n" "c\na\nb\n" ""
 testing "#2" "sort input" "010\n1\n3\n" "3\n1\n010\n" ""
 testing "stdin" "sort" "a\nb\nc\n" "" "b\na\nc\n"
