@@ -5,7 +5,6 @@
 
 mkdir -p generated
 
-source configure
 source scripts/portability.sh
 
 probecc()
