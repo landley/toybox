@@ -20,10 +20,6 @@
 
 USE_TAR(NEWTOY(tar, "&(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(group):(owner):(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)j(bzip2)z(gzip)O(to-stdout)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):[!txc][!jz]", TOYFLAG_USR|TOYFLAG_BIN))
 
-todo: support .txz
-todo: directory timestamps not set on extract
-todo: extract into chmod 000 directory
-
 config TAR
   bool "tar"
   default n
@@ -50,7 +46,6 @@ GLOBALS(
   char *to_command, *owner, *group;
   struct arg_list *exclude;
 
-// exc is an argument but inc isn't?
   struct double_list *incl, *excl, *seen;
   void *inodes;
   char *cwd;
@@ -109,7 +104,6 @@ struct inode_list {
   dev_t dev;
 };
 
-// TODO This really needs a hash table
 static struct inode_list *seen_inode(void **list, struct stat *st, char *name)
 {
   if (!S_ISDIR(st->st_mode) && st->st_nlink > 1) {
@@ -169,7 +163,6 @@ static struct double_list *filter(struct double_list *lst, char *name)
 {
   struct double_list *end = lst;
 
-// TODO 1<<3 = FNM_LEADING_DIR ... Why?
   if (lst)
     do if (!fnmatch(lst->data, name, 1<<3)) return lst;
     while (end != (lst = lst->next));
@@ -193,7 +186,6 @@ static void alloread(void *buf, int len)
   b[len] = 0;
 }
 
-// TODO inline
 static void add_file(char **nam, struct stat *st)
 {
   struct tar_hdr hdr;
@@ -204,7 +196,6 @@ static void add_file(char **nam, struct stat *st)
   char *c, *p, *name = *nam, *lnk, *hname;
   static int warn = 1;
 
-// TODO TT.incl defaults to --anchored TT.excl defaults to --no-anchored
   for (p = name; *p; p++)
     if ((p == name || p[-1] == '/') && *p != '/' && filter(TT.excl, p)) return;
 
@@ -237,19 +228,15 @@ static void add_file(char **nam, struct stat *st)
 
   // Hard link or symlink?
   i = !!S_ISLNK(st->st_mode);
-// TODO: hardlink to symlink?
   if (i || (node = seen_inode(&TT.inodes, st, hname))) {
-// TODO: test preserve symlink ownership
     hdr.type = '1'+i;
     if (!(lnk = i ? xreadlink(name) : node->arg)) return perror_msg("readlink");
-// TODO: does this need NUL terminator?
     if (strlen(lnk) > sizeof(hdr.link)) write_longname(lnk, 'K');
     strncpy(hdr.link, lnk, sizeof(hdr.link));
     if (i) free(lnk);
   } else if (S_ISREG(st->st_mode)) {
     hdr.type = '0';
     ITOO(hdr.size, st->st_size);
-// TODO: test accept 12 7's but don't emit without terminator
   } else if (S_ISDIR(st->st_mode)) hdr.type = '5';
   else if (S_ISFIFO(st->st_mode)) hdr.type = '6';
   else if (S_ISBLK(st->st_mode) || S_ISCHR(st->st_mode)) {
@@ -294,7 +281,6 @@ static int add_to_tar(struct dirtree *node)
   char *path;
 
   if (!dirtree_notdotdot(node)) return 0;
-// TODO repeated stat?
   if (!fstat(TT.fd, &st) && st.st_dev == node->st.st_dev
       && st.st_ino == node->st.st_ino) {
     error_msg("'%s' file is the archive; not dumped", TT.f);
@@ -309,8 +295,6 @@ static int add_to_tar(struct dirtree *node)
 }
 
 // Does anybody actually use this?
-// TODO xpopen_both()
-// TODO one caller, inline
 static void extract_to_command(void)
 {
   int pipefd[2], status = 0;
@@ -351,15 +335,12 @@ static void extract_to_command(void)
   }
 }
 
-// TODO one caller, inline
 static void extract_to_disk(void)
 {
   int flags, dst_fd = -1;
   char *s;
   struct stat ex;
 
-// while not if
-// TODO readlink -f prefix check
   flags = strlen(TT.hdr.name);
   if (flags>2)
     if (strstr(TT.hdr.name, "/../") || !strcmp(TT.hdr.name, "../") ||
@@ -437,7 +418,6 @@ COPY:
   // || !FLAG(no_same_permissions))
   if (FLAG(p) && !S_ISLNK(TT.hdr.mode)) chmod(TT.hdr.name, TT.hdr.mode);
 
-// TODO: defer directory mtime until we've finished with contents
   //apply mtime
   if (!FLAG(m)) {
     struct timeval times[2] = {{TT.hdr.mtime, 0},{TT.hdr.mtime, 0}};
@@ -628,15 +608,6 @@ void tar_main(void)
 
   // Are we reading?
   if (FLAG(x)||FLAG(t)) {
-// TODO: autodtect
-
-// Try detecting .gz or .bz2 by looking for their magic.
-//      if ((!memcmp(tar.name, "\x1f\x8b", 2) || !memcmp(tar.name, "BZh", 3))
-//          && !lseek(TT.fd, -i, SEEK_CUR)) {
-//        toys.optflags |= (*tar.name == 'B') ? FLAG_j : FLAG_z;
-//        extract_stream(tar_hdl);
-//        continue;
-//      }
     if (FLAG(j)||FLAG(z)) {
       int pipefd[2] = {TT.fd, -1};
 
@@ -659,7 +630,6 @@ void tar_main(void)
   } else {
     struct double_list *dl = TT.incl;
 
-// TODO: autodetect
     if (FLAG(j)||FLAG(z)) {
       int pipefd[2] = {-1, TT.fd};
 
