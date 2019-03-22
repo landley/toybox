@@ -18,7 +18,7 @@
  * Extract into dir same as filename, --restrict? "Tarball is splodey"
  *
 
-USE_TAR(NEWTOY(tar, "&(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)j(bzip2)z(gzip)O(to-stdout)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):[!txc][!jz]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TAR(NEWTOY(tar, "&(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(group):(owner):(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)j(bzip2)z(gzip)O(to-stdout)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):[!txc][!jz]", TOYFLAG_USR|TOYFLAG_BIN))
 
 todo: support .txz
 todo: directory timestamps not set on extract
@@ -47,14 +47,14 @@ config TAR
 GLOBALS(
   char *f, *C;
   struct arg_list *T, *X;
-  char *to_command;
+  char *to_command, *owner, *group;
   struct arg_list *exclude;
 
 // exc is an argument but inc isn't?
   struct double_list *incl, *excl, *seen;
   void *inodes;
   char *cwd;
-  int fd;
+  int fd, ouid, ggid;
 
   // Parsed information about a tar header.
   struct {
@@ -204,7 +204,7 @@ static void add_file(char **nam, struct stat *st)
   char *c, *p, *name = *nam, *lnk, *hname;
   static int warn = 1;
 
-// TODO what/why? fnmatch()?
+// TODO TT.incl defaults to --anchored TT.excl defaults to --no-anchored
   for (p = name; *p; p++)
     if ((p == name || p[-1] == '/') && *p != '/' && filter(TT.excl, p)) return;
 
@@ -224,6 +224,9 @@ static void add_file(char **nam, struct stat *st)
     warn = 0;
   }
 
+  if (TT.owner) st->st_uid = TT.ouid;
+  if (TT.group) st->st_gid = TT.ggid;
+
   memset(&hdr, 0, sizeof(hdr));
   strncpy(hdr.name, hname, sizeof(hdr.name));
   ITOO(hdr.mode, st->st_mode &07777);
@@ -234,13 +237,13 @@ static void add_file(char **nam, struct stat *st)
 
   // Hard link or symlink?
   i = !!S_ISLNK(st->st_mode);
+// TODO: hardlink to symlink?
   if (i || (node = seen_inode(&TT.inodes, st, hname))) {
 // TODO: test preserve symlink ownership
     hdr.type = '1'+i;
     if (!(lnk = i ? xreadlink(name) : node->arg)) return perror_msg("readlink");
 // TODO: does this need NUL terminator?
-    if (strlen(lnk) > sizeof(hdr.link))
-      write_longname(lnk, 'K'); //write longname LINK
+    if (strlen(lnk) > sizeof(hdr.link)) write_longname(lnk, 'K');
     strncpy(hdr.link, lnk, sizeof(hdr.link));
     if (i) free(lnk);
   } else if (S_ISREG(st->st_mode)) {
@@ -255,16 +258,18 @@ static void add_file(char **nam, struct stat *st)
     ITOO(hdr.minor, dev_minor(st->st_rdev));
   } else return error_msg("unknown file type '%o'", st->st_mode & S_IFMT);
 
-  if (strlen(hname) > sizeof(hdr.name))
-          write_longname(hname, 'L'); //write longname NAME
+  if (strlen(hname) > sizeof(hdr.name)) write_longname(hname, 'L');
   strcpy(hdr.magic, "ustar  ");
-  if ((pw = bufgetpwuid(st->st_uid)))
-    snprintf(hdr.uname, sizeof(hdr.uname), "%s", pw->pw_name);
-  else sprintf(hdr.uname, "%d", st->st_uid);
-
-  if ((gr = bufgetgrgid(st->st_gid)))
-    snprintf(hdr.gname, sizeof(hdr.gname), "%s", gr->gr_name);
-  else sprintf(hdr.gname, "%d", st->st_gid);
+  if (!FLAG(numeric_owner)) {
+    if (!TT.owner && !(pw = bufgetpwuid(st->st_uid)))
+      sprintf(hdr.uname, "%d", st->st_uid);
+    else snprintf(hdr.uname, sizeof(hdr.uname), "%s",
+      TT.owner ? TT.owner : pw->pw_name);
+    if (!TT.group && !(gr = bufgetgrgid(st->st_gid)))
+      sprintf(hdr.gname, "%d", st->st_gid);
+    else snprintf(hdr.gname, sizeof(hdr.gname), "%s",
+      TT.group ? TT.group : gr->gr_name);
+  }
 
   itoo(hdr.chksum, sizeof(hdr.chksum)-1, cksum(&hdr));
   hdr.chksum[7] = ' ';
@@ -311,13 +316,10 @@ static void extract_to_command(void)
   int pipefd[2], status = 0;
   pid_t cpid;
 
-  xpipe(pipefd);
   if (!S_ISREG(TT.hdr.mode)) return; //only regular files are supported.
 
-  cpid = fork();
-  if (cpid == -1) perror_exit("fork");
-
-  if (!cpid) {    // Child reads from pipe
+  xpipe(pipefd);
+  if (!(cpid = xfork())) {    // Child reads from pipe
     char buf[64], *argv[4] = {"sh", "-c", TT.to_command, NULL};
 
     setenv("TAR_FILETYPE", "f", 1);
@@ -411,18 +413,24 @@ COPY:
   xsendfile_len(TT.fd, dst_fd, TT.hdr.size);
   close(dst_fd);
 
-  if (!FLAG(o)) {
+  if (!FLAG(o) && !geteuid()) {
     //set ownership..., --no-same-owner, --numeric-owner
     uid_t u = TT.hdr.uid;
     gid_t g = TT.hdr.gid;
 
-    if (!FLAG(numeric_owner)) {
-      struct group *gr = getgrnam(TT.hdr.gname);
+    if (TT.owner) u = TT.ouid;
+    else if (!FLAG(numeric_owner)) {
       struct passwd *pw = getpwnam(TT.hdr.uname);
-      if (pw) u = pw->pw_uid;
+      if (pw && (TT.owner || !FLAG(numeric_owner))) u = pw->pw_uid;
+    }
+
+    if (TT.group) g = TT.ggid;
+    else if (!FLAG(numeric_owner)) {
+      struct group *gr = getgrnam(TT.hdr.gname);
       if (gr) g = gr->gr_gid;
     }
-    if (!geteuid() && lchown(TT.hdr.name, u, g))
+
+    if (lchown(TT.hdr.name, u, g))
       perror_msg("chown %d:%d '%s'", u, g, TT.hdr.name);;
   }
 
@@ -499,7 +507,7 @@ static void unpack_tar(void)
       continue;
     }
 
-    // At this point, we're writing to the filesystem.
+    // At this point, we have something to output. Convert metadata.
     TT.hdr.mode = otoi(tar.mode, sizeof(tar.mode));
     TT.hdr.mode |= (char []){8,8,10,2,6,4,1,8}[tar.type-'0']<<12;
     TT.hdr.uid = otoi(tar.uid, sizeof(tar.uid));
@@ -508,8 +516,8 @@ static void unpack_tar(void)
     TT.hdr.device = dev_makedev(otoi(tar.major, sizeof(tar.major)),
       otoi(tar.minor, sizeof(tar.minor)));
 
-    TT.hdr.uname = xstrndup(tar.uname, sizeof(tar.uname));
-    TT.hdr.gname = xstrndup(tar.gname, sizeof(tar.gname));
+    TT.hdr.uname = xstrndup(TT.owner ? TT.owner : tar.uname,sizeof(tar.uname));
+    TT.hdr.gname = xstrndup(TT.group ? TT.group : tar.gname,sizeof(tar.gname));
     if (!TT.hdr.link_target && *tar.link)
       TT.hdr.link_target = xstrndup(tar.link, sizeof(tar.link));
     if (!TT.hdr.name) {
@@ -597,6 +605,8 @@ void tar_main(void)
   signal(SIGPIPE, SIG_IGN);
 
   if (!geteuid()) toys.optflags |= FLAG_p;
+  if (TT.owner) TT.ouid = xgetuid(TT.owner);
+  if (TT.group) TT.ggid = xgetgid(TT.group);
 
   // Collect file list. Note: trim_list appends to TT.incl when !TT.X
   for (;TT.X; TT.X = TT.X->next) do_lines(xopenro(TT.X->arg), '\n', trim_list);
