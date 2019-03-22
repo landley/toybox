@@ -189,8 +189,8 @@ static void alloread(void *buf, int len)
 static void add_file(char **nam, struct stat *st)
 {
   struct tar_hdr hdr;
-  struct passwd *pw;
-  struct group *gr;
+  struct passwd *pw = pw;
+  struct group *gr = gr;
   struct inode_list *node = node;
   int i, fd =-1;
   char *c, *p, *name = *nam, *lnk, *hname;
@@ -534,7 +534,8 @@ static void unpack_tar(void)
     }
 
     // Skip excluded files
-    if (filter(TT.excl, TT.hdr.name) || TT.incl && !delete) skippy(TT.hdr.size);
+    if (filter(TT.excl, TT.hdr.name) || (TT.incl && !delete))
+      skippy(TT.hdr.size);
     else if (FLAG(t)) {
       if (FLAG(v)) {
         struct tm *lc = localtime(&TT.hdr.mtime);
