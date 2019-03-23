@@ -119,7 +119,7 @@ void login_main(void)
   if (fchown(tty, pwd->pw_uid, pwd->pw_gid) || fchmod(tty, 0600))
     printf("can't claim tty");
   xsetuser(pwd);
-  reset_env(pwd, FLAG(p));
+  reset_env(pwd, !FLAG(p));
 
   // Message of the day
   if ((ss = readfile("/etc/motd", 0, 0))) puts(ss);
