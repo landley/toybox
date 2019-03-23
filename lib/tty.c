@@ -61,24 +61,6 @@ int terminal_probesize(unsigned *xx, unsigned *yy)
   return 0;
 }
 
-// Wrapper that parses results from ANSI probe to update screensize.
-// Otherwise acts like scan_key()
-int scan_key_getsize(char *scratch, int timeout_ms, unsigned *xx, unsigned *yy)
-{
-  int key;
-
-  if (512&(key = scan_key(scratch, timeout_ms))) {
-    if (key>0) {
-      if (xx) *xx = (key>>10)&1023;
-      if (yy) *yy = (key>>20)&1023;
-
-      return -3;
-    }
-  }
-
-  return key;
-}
-
 // Reset terminal to known state, saving copy of old state if old != NULL.
 int set_terminal(int fd, int raw, int speed, struct termios *old)
 {
@@ -137,33 +119,47 @@ void xset_terminal(int fd, int raw, int speed, struct termios *old)
 }
 
 struct scan_key_list {
-  char *name, *seq;
-} static const scan_key_list[] = TAGGED_ARRAY(KEY,
-  // up down right left pgup pgdn home end ins
-  {"UP", "\033[A"}, {"DOWN", "\033[B"}, {"RIGHT", "\033[C"}, {"LEFT", "\033[D"},
-  {"PGUP", "\033[5~"}, {"PGDN", "\033[6~"}, {"HOME", "\033OH"},
-  {"END", "\033OF"}, {"INSERT", "\033[2~"},
+  int key;
+  char *seq;
+} static const scan_key_list[] = {
+  {KEY_UP, "\033[A"}, {KEY_DOWN, "\033[B"},
+  {KEY_RIGHT, "\033[C"}, {KEY_LEFT, "\033[D"},
 
-  {"F1", "\033OP"}, {"F2", "\033OQ"}, {"F3", "\033OR"}, {"F4", "\033OS"},
-  {"F5", "\033[15~"}, {"F6", "\033[17~"}, {"F7", "\033[18~"},
-  {"F8", "\033[19~"}, {"F9", "\033[20~"},
+  {KEY_UP|KEY_SHIFT, "\033[1;2A"}, {KEY_DOWN|KEY_SHIFT, "\033[1;2B"},
+  {KEY_RIGHT|KEY_SHIFT, "\033[1;2C"}, {KEY_LEFT|KEY_SHIFT, "\033[1;2D"},
 
-  {"SUP", "\033[1;2A"}, {"AUP", "\033[1;3A"}, {"CUP", "\033[1;5A"},
-  {"SDOWN", "\033[1;2B"}, {"ADOWN", "\033[1;3B"}, {"CDOWN", "\033[1;5B"},
-  {"SRIGHT", "\033[1;2C"}, {"ARIGHT", "\033[1;3C"}, {"CRIGHT", "\033[1;5C"},
-  {"SLEFT", "\033[1;2D"}, {"ALEFT", "\033[1;3D"}, {"CLEFT", "\033[1;5D"},
+  {KEY_UP|KEY_ALT, "\033[1;3A"}, {KEY_DOWN|KEY_ALT, "\033[1;3B"},
+  {KEY_RIGHT|KEY_ALT, "\033[1;3C"}, {KEY_LEFT|KEY_ALT, "\033[1;3D"},
 
-  {"SF1", "\033O1;2P"}, {"AF1", "\033O1;3P"}, {"CF1", "\033[1;5P"}
-);
+  {KEY_UP|KEY_CTRL, "\033[1;5A"}, {KEY_DOWN|KEY_CTRL, "\033[1;5B"},
+  {KEY_RIGHT|KEY_CTRL, "\033[1;5C"}, {KEY_LEFT|KEY_CTRL, "\033[1;5D"},
 
-// Scan stdin for a keypress, parsing known escape sequences
-// Blocks for timeout_ms milliseconds, none 0, forever if -1
-// Returns: 0-255=literal, -1=EOF, -2=TIMEOUT, 256-...=index into scan_key_list
-// >512 is x<<9+y<<21
-// scratch space is necessary because last char of !seq could start new seq
-// Zero out first byte of scratch before first call to scan_key
-// block=0 allows fetching multiple characters before updating display
-int scan_key(char *scratch, int timeout_ms)
+  // VT102/VT220 escapes.
+  {KEY_HOME, "\033[1~"},
+  {KEY_INSERT, "\033[2~"},
+  {KEY_DELETE, "\033[3~"},
+  {KEY_END, "\033[4~"},
+  {KEY_PGUP, "\033[5~"},
+  {KEY_PGDN, "\033[6~"},
+  // "Normal" "PC" escapes (xterm).
+  {KEY_HOME, "\033OH"},
+  {KEY_END, "\033OF"},
+  // "Application" "PC" escapes (gnome-terminal).
+  {KEY_HOME, "\033[H"},
+  {KEY_END, "\033[F"},
+
+  {KEY_FN+1, "\033OP"}, {KEY_FN+2, "\033OQ"}, {KEY_FN+3, "\033OR"},
+  {KEY_FN+4, "\033OS"}, {KEY_FN+5, "\033[15~"}, {KEY_FN+6, "\033[17~"},
+  {KEY_FN+7, "\033[18~"}, {KEY_FN+8, "\033[19~"}, {KEY_FN+9, "\033[20~"},
+};
+
+// Scan stdin for a keypress, parsing known escape sequences, including
+// responses to screen size queries.
+// Blocks for timeout_ms milliseconds, 0=return immediately, -1=wait forever.
+// Returns 0-255=literal, -1=EOF, -2=TIMEOUT, -3=RESIZE, 256+= a KEY_ constant.
+// Scratch space is necessary because last char of !seq could start new seq.
+// Zero out first byte of scratch before first call to scan_key.
+int scan_key_getsize(char *scratch, int timeout_ms, unsigned *xx, unsigned *yy)
 {
   struct pollfd pfd;
   int maybe, i, j;
@@ -187,7 +183,9 @@ int scan_key(char *scratch, int timeout_ms)
       if (pos[5]) {
         // Recognized X/Y position, consume and return
         *scratch = 0;
-        return 512+(x<<10)+(y<<20);
+        if (xx) *xx = x;
+        if (yy) *yy = y;
+        return -3;
       } else for (i=0; i<6; i++) if (pos[i]==*scratch) maybe = 1;
 
       // Check sequences
@@ -199,7 +197,7 @@ int scan_key(char *scratch, int timeout_ms)
           if (!test[j]) {
             // We recognized current sequence: consume and return
             *scratch = 0;
-            return 256+i;
+            return 256+scan_key_list[i].key;
           }
         }
       }
@@ -227,6 +225,13 @@ int scan_key(char *scratch, int timeout_ms)
   if (--*scratch) memmove(scratch+1, scratch+2, *scratch);
 
   return i;
+}
+
+// Wrapper that ignores results from ANSI probe to update screensize.
+// Otherwise acts like scan_key_getsize().
+int scan_key(char *scratch, int timeout_ms)
+{
+  return scan_key_getsize(scratch, timeout_ms, NULL, NULL);
 }
 
 void tty_esc(char *s)

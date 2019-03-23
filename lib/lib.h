@@ -295,14 +295,28 @@ int draw_trim_esc(char *str, int padto, int width, char *escmore,
   int (*escout)(FILE *out, int cols,int wc));
 int draw_trim(char *str, int padto, int width);
 
-// interestingtimes.c
+// tty.c
 int tty_fd(void);
 int terminal_size(unsigned *xx, unsigned *yy);
 int terminal_probesize(unsigned *xx, unsigned *yy);
+#define KEY_UP 0
+#define KEY_DOWN 1
+#define KEY_RIGHT 2
+#define KEY_LEFT 3
+#define KEY_PGUP 4
+#define KEY_PGDN 5
+#define KEY_HOME 6
+#define KEY_END 7
+#define KEY_INSERT 8
+#define KEY_DELETE 9
+#define KEY_FN 10 // F1 = KEY_FN+1, F2 = KEY_FN+2, ...
+#define KEY_SHIFT (1<<16)
+#define KEY_CTRL (1<<17)
+#define KEY_ALT (1<<18)
+int scan_key(char *scratch, int timeout_ms);
 int scan_key_getsize(char *scratch, int timeout_ms, unsigned *xx, unsigned *yy);
 int set_terminal(int fd, int raw, int speed, struct termios *old);
 void xset_terminal(int fd, int raw, int speed, struct termios *old);
-int scan_key(char *scratch, int timeout_ms);
 void tty_esc(char *s);
 void tty_jump(int x, int y);
 void tty_reset(void);
