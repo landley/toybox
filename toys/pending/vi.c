@@ -4,7 +4,9 @@
  * Copyright 2019 Jarno Mäkipää <jmakip87@gmail.com>
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/vi.html
+
 USE_VI(NEWTOY(vi, "<1>1", TOYFLAG_USR|TOYFLAG_BIN))
+
 config VI
   bool "vi"
   default n
@@ -18,9 +20,6 @@ config VI
 #include "toys.h"
 
 GLOBALS(
-    struct termios default_opts;
-    struct linestack *ls;
-    char *statline;
     int cur_col;
     int cur_row;
     unsigned screen_height;
@@ -406,7 +405,8 @@ int run_vi_cmd(char* cmd)
   else {
     cmd = cmd_e;
   }
-  for(int i=0;i<7;i++) {
+  int i = 0;
+  for(;i<7;i++) {
     if (strstr(cmd,vi_cmds[i].cmd)) {
       return vi_cmds[i].vi_cmd_ptr(val);
     }
@@ -654,7 +654,8 @@ static void draw_page()
   tty_jump(0,0);
   for(; y < TT.screen_height; ) {
     if (scr_buf && scr_buf->line->str_data && scr_buf->line->str_len) {
-      for(int p = 0; p < scr_buf->line->str_len;y++) {
+      int p = 0;
+      for(; p < scr_buf->line->str_len;y++) {
         unsigned x = 0;
         for(;x<TT.screen_width;x++) {
           if (p < scr_buf->line->str_len) {
@@ -842,7 +843,8 @@ static void adjust_screen_buffer()
 //4	11110xxx	10xxxxxx	10xxxxxx	10xxxxxx
 static int utf8_len(char* str)
 {
-  int len=0;
+  int len = 0;
+  int i = 0;
   uint8_t *c = (uint8_t*)str; 
   if (!c || !(*c)) return 0; 
   if (*c < 0x7F) return 1; 
@@ -851,7 +853,7 @@ static int utf8_len(char* str)
   else if ((*c & 0xF8) == 0xF0 ) len = 4;
   else return 0;
   c++;
-  for(int i = len-1;i>0;i--) {
+  for(i = len-1;i>0;i--) {
     if ((*c++ & 0xc0)!=0x80) return 0;
   }
   return len;
