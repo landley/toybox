@@ -944,3 +944,111 @@ void xsignal(int signal, void *handler)
 {
   xsignal_flags(signal, handler, 0);
 }
+
+
+time_t xvali_date(struct tm *tm, char *str)
+{
+  time_t t;
+
+  if (tm && (unsigned)tm->tm_sec<=60 && (unsigned)tm->tm_min<=59
+     && (unsigned)tm->tm_hour<=23 && tm->tm_mday && (unsigned)tm->tm_mday<=31
+     && (unsigned)tm->tm_mon<=11 && (t = mktime(tm)) != -1) return t;
+
+  error_exit("bad date %s", str);
+}
+
+// Parse date string (relative to current *t). Sets time_t and nanoseconds.
+void xparsedate(char *str, time_t *t, unsigned *nano)
+{
+  struct tm tm;
+  time_t now = *t;
+  int len = 0, i;
+  // Formats with years must come first.
+  char *s = str, *p, *formats[] = {"%F %T", "%FT%T", "%F %H:%M", "%F",
+    "%H:%M:%S", "%H:%M"};
+
+  *nano = 0;
+
+  // Parse @UNIXTIME[.FRACTION]
+  if (*str == '@') {
+    long long ll;
+
+    // Collect seconds and nanoseconds.
+    // &ll is not just t because we can't guarantee time_t is 64 bit (yet).
+    sscanf(s, "@%lld%n", &ll, &len);
+    if (s[len]=='.') {
+      s += len+1;
+      for (len = 0; len<9; len++) {
+        *nano *= 10;
+        if (isdigit(*s)) *nano += *s++-'0';
+      }
+    }
+    if (s[len]) goto bad_dates;
+    *t = ll;
+
+    return;
+  }
+
+  // Is it one of the fancy formats?
+  for (i = 0; i<ARRAY_LEN(formats); i++) {
+    localtime_r(&now, &tm);
+    tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
+    tm.tm_isdst = -1;
+    if ((p = strptime(s, formats[i], &tm)) && !*p) {
+      *t = xvali_date(&tm, str);
+
+      return;
+    }
+  }
+
+  // Posix format?
+  sscanf(s, "%2u%2u%2u%2u%n", &tm.tm_mon, &tm.tm_mday, &tm.tm_hour,
+    &tm.tm_min, &len);
+  if (len != 8) goto bad_dates;
+  s += len;
+  tm.tm_mon--;
+
+  // If year specified, overwrite one we fetched earlier.
+  if (*s && *s != '.') {
+    unsigned year;
+
+    len = 0;
+    sscanf(s, "%u%n", &year, &len);
+    if (len == 4) tm.tm_year = year - 1900;
+    else if (len != 2) goto bad_dates;
+    s += len;
+
+    // 2 digit years, next 50 years are "future", last 50 years are "past".
+    // A "future" date in past is a century ahead.
+    // A non-future date in the future is a century behind.
+    if (len == 2) {
+      unsigned r1 = tm.tm_year % 100, r2 = (tm.tm_year + 50) % 100,
+        century = tm.tm_year - r1;
+
+      if ((r1 < r2) ? (r1 < year && year < r2) : (year < r1 || year > r2)) {
+        if (year < r1) year += 100;
+      } else if (year > r1) year -= 100;
+      tm.tm_year = year + century;
+    }
+  }
+  // Fractional part?
+  if (*s == '.') {
+    len = 0;
+    sscanf(s, ".%2u%n", &tm.tm_sec, &len);
+    s += len;
+    for (len = 0; len<9; len++) {
+      *nano *= 10;
+      if (isdigit(*s)) *nano += *s++-'0';
+    }
+  } else tm.tm_sec = 0;
+
+  // Sanity check field ranges
+  *t = xvali_date(&tm, str);
+
+  // Shouldn't be any trailing garbage.
+  if (!*s) return;
+
+bad_dates:
+  // monkey died
+  xvali_date(0, str);
+}
