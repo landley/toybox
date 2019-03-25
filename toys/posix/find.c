@@ -530,7 +530,7 @@ static int do_find(struct dirtree *new)
               aa->plus = 1;
               toys.exitval |= flush_exec(new, aa);
             }
-          } else test = flush_exec(new, aa);
+          } else test = !flush_exec(new, aa);
         }
 
         // Argument consumed, skip the check.
