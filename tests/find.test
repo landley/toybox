@@ -56,6 +56,10 @@ testing "-type f -user -exec" \
   "find dir -type f -user $USER -exec ls {} \\;" "dir/file\n" "" ""
 testing "-type l -newer -exec" \
   "find dir -type l -newer dir/file -exec ls {} \\;" "dir/link\n" "" ""
+testing "-exec true \\; -print" \
+  "find dir/file -exec true \\; -print" "dir/file\n" "" ""
+testing "-exec false \\; -print" \
+  "find dir/file -exec false \\; -print" "" "" ""
 testing "-perm (exact success)" \
   "find perm -type f -perm 0444" "perm/all-read-only\n" "" ""
 testing "-perm (exact failure)" \
