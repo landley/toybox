@@ -952,8 +952,8 @@ void bc_vec_concat(BcVec *v, char *str) {
   if (!v->len) bc_vec_pushByte(v, '\0');
 
   len = strlen(str);
-  bc_vec_grow(v, len+1);
-  strcpy(v->v+v->len, str);
+  bc_vec_grow(v, len);
+  strcpy(v->v+v->len-1, str);
   v->len += len;
 }
 
