@@ -521,7 +521,7 @@ void xstat(char *path, struct stat *st)
 char *xabspath(char *path, int exact)
 {
   struct string_list *todo, *done = 0;
-  int try = 9999, dirfd = open("/", 0), missing = 0;
+  int try = 9999, dirfd = open("/", O_PATH), missing = 0;
   char *ret;
 
   // If this isn't an absolute path, start with cwd.
