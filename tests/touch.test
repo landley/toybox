@@ -32,10 +32,10 @@ testing "-t seconds" \
   "touch -t 201201231234.56 walrus && date -r walrus +%Y%m%d-%H%M%S.%N" \
   "20120123-123456.000000000\n" "" ""
 
-testing "-t -" "touch -t 200109081946.40 - > walrus && date -r walrus +%s" \
-   "1000000000\n" "" ""
+testing "-t -" "TZ=utc touch -t 200109090146.40 - > walrus && TZ=utc date -r walrus +%s" \
+  "1000000000\n" "" ""
 
-testing "-t nanoseconds" \
+SKIP_HOST=1 testing "-t nanoseconds" \
   "touch -t 201201231234.56123456789 walrus && date -r walrus +%Y%m%d-%H%M%S.%N" \
   "20120123-123456.123456789\n" "" ""
 
@@ -66,13 +66,12 @@ testing "-t CCMMDDhhmm" \
 
 testing "-a" "touch -t 197101020304 walrus &&
     touch -t 197203040506 -a walrus && stat -c '%X %Y' walrus" \
-    "68562360 31662240\n" "" ""
-testing "-m" "touch -t 197101020304  walrus &&
-    touch -t 197203040506 -m walrus && stat -c '%X %Y' walrus" \
-    "31662240 68562360\n" "" ""
-testing "-am" "touch -t 197101020304 walrus &&
-    touch -t 197203040506 -am walrus && stat -c '%X %Y' walrus" \
-    "68562360 68562360\n" "" ""
+    "68555160 31655040\n" "" ""
+testing "-m" "TZ=utc touch -t 197101020304  walrus &&
+    TZ=utc touch -t 197203040506 -m walrus && TZ=utc stat -c '%X %Y' walrus" \
+    "31633440 68533560\n" "" ""
+testing "-am" "TZ=utc touch -t 197101020304 walrus &&
+    TZ=utc touch -t 197203040506 -am walrus && TZ=utc stat -c '%X %Y' walrus" \
+    "68533560 68533560\n" "" ""
 
-#testing "-t"
 rm walrus walrus2

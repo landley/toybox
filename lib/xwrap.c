@@ -958,14 +958,17 @@ time_t xvali_date(struct tm *tm, char *str)
 }
 
 // Parse date string (relative to current *t). Sets time_t and nanoseconds.
-void xparsedate(char *str, time_t *t, unsigned *nano)
+void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
 {
   struct tm tm;
   time_t now = *t;
-  int len = 0, i;
-  // Formats with years must come first.
-  char *s = str, *p, *formats[] = {"%F %T", "%FT%T", "%F %H:%M", "%F",
-    "%H:%M:%S", "%H:%M"};
+  int len = 0, i = 0;
+  // Formats with years must come first. Posix can't agree on whether 12 digits
+  // has year before (touch -t) or year after (date), so support both.
+  char *s = str, *p, *oldtz = 0, *formats[] = {"%Y-%m-%d %T", "%Y-%m-%dT%T",
+    "%H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d", "%H:%M", "%m%d%H%M",
+    endian ? "%m%d%H%M%y" : "%y%m%d%H%M",
+    endian ? "%m%d%H%M%C%y" : "%C%y%m%d%H%M"};
 
   *nano = 0;
 
@@ -983,72 +986,49 @@ void xparsedate(char *str, time_t *t, unsigned *nano)
         if (isdigit(*s)) *nano += *s++-'0';
       }
     }
-    if (s[len]) goto bad_dates;
     *t = ll;
-
-    return;
+    if (!s[len]) return;
+    xvali_date(0, str);
   }
 
-  // Is it one of the fancy formats?
+  // Trailing Z means UTC timezone, don't expect libc to know this.
+  // (Trimming it off here means it won't show up in error messages.)
+  if ((i = strlen(str)) && toupper(str[i-1])=='Z') {
+    str[--i] = 0;
+    oldtz = getenv("TZ");
+    if (oldtz) oldtz = xstrdup(oldtz);
+    setenv("TZ", "UTC0", 1);
+  }
+
+  // Try each format
   for (i = 0; i<ARRAY_LEN(formats); i++) {
     localtime_r(&now, &tm);
     tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
-    tm.tm_isdst = -1;
-    if ((p = strptime(s, formats[i], &tm)) && !*p) {
-      *t = xvali_date(&tm, str);
+    tm.tm_isdst = -endian;
 
-      return;
+    if ((p = strptime(s, formats[i], &tm))) {
+      if (*p == '.') {
+        p++;
+        // If format didn't already specify seconds, grab seconds
+        if (i>2) {
+          len = 0;
+          sscanf(p, "%2u%n", &tm.tm_sec, &len);
+          p += len;
+        }
+        // nanoseconds
+        for (len = 0; len<9; len++) {
+          *nano *= 10;
+          if (isdigit(*p)) *nano += *p++-'0';
+        }
+      }
+
+      if (!*p) break;
     }
   }
-
-  // Posix format?
-  sscanf(s, "%2u%2u%2u%2u%n", &tm.tm_mon, &tm.tm_mday, &tm.tm_hour,
-    &tm.tm_min, &len);
-  if (len != 8) goto bad_dates;
-  s += len;
-  tm.tm_mon--;
-
-  // If year specified, overwrite one we fetched earlier.
-  if (*s && *s != '.') {
-    unsigned year;
-
-    len = 0;
-    sscanf(s, "%u%n", &year, &len);
-    if (len == 4) tm.tm_year = year - 1900;
-    else if (len != 2) goto bad_dates;
-    s += len;
-
-    // 2 digit years, next 50 years are "future", last 50 years are "past".
-    // A "future" date in past is a century ahead.
-    // A non-future date in the future is a century behind.
-    if (len == 2) {
-      unsigned r1 = tm.tm_year % 100, r2 = (tm.tm_year + 50) % 100,
-        century = tm.tm_year - r1;
-
-      if ((r1 < r2) ? (r1 < year && year < r2) : (year < r1 || year > r2)) {
-        if (year < r1) year += 100;
-      } else if (year > r1) year -= 100;
-      tm.tm_year = year + century;
-    }
-  }
-  // Fractional part?
-  if (*s == '.') {
-    len = 0;
-    sscanf(s, ".%2u%n", &tm.tm_sec, &len);
-    s += len;
-    for (len = 0; len<9; len++) {
-      *nano *= 10;
-      if (isdigit(*s)) *nano += *s++-'0';
-    }
-  } else tm.tm_sec = 0;
 
   // Sanity check field ranges
-  *t = xvali_date(&tm, str);
+  *t = xvali_date((i!=ARRAY_LEN(formats)) ? &tm : 0, str);
 
-  // Shouldn't be any trailing garbage.
-  if (!*s) return;
-
-bad_dates:
-  // monkey died
-  xvali_date(0, str);
+  if (oldtz) setenv("TZ", oldtz, 1);
+  free(oldtz);
 }

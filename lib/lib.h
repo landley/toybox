@@ -182,7 +182,7 @@ char *xtzset(char *new);
 void xsignal_flags(int signal, void *handler, int flags);
 void xsignal(int signal, void *handler);
 time_t xvali_date(struct tm *tm, char *str);
-void xparsedate(char *str, time_t *t, unsigned *nano);
+void xparsedate(char *str, time_t *t, unsigned *nano, int endian);
 
 // lib.c
 void verror_msg(char *msg, int err, va_list va);

@@ -77,7 +77,7 @@ static void parse_date(char *str, time_t *t)
     tzset();
   }
   time(t);
-  xparsedate(str, t, &TT.nano);
+  xparsedate(str, t, &TT.nano, 1);
   if (new_tz) {
     if (old_tz) setenv("TZ", old_tz, 1);
     else unsetenv("TZ");

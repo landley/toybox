@@ -41,66 +41,16 @@ void touch_main(void)
 
   // use current time if no -t or -d
   ts[0].tv_nsec = UTIME_NOW;
+
   if (FLAG(t) || FLAG(d)) {
-    char *s, *date, **format;
-    struct tm tm;
-    int len = 0;
+    time_t t = time(0);
+    unsigned nano;
 
-    // Initialize default values for time fields
-    ts->tv_sec = time(0);
-    ts->tv_nsec = 0;
-
-    // List of search types
-    if (FLAG(d)) {
-      format = (char *[]){"%Y-%m-%dT%T", "%Y-%m-%d %T", 0};
-      date = TT.d;
-    } else {
-      format = (char *[]){"%m%d%H%M", "%y%m%d%H%M", "%C%y%m%d%H%M", 0};
-      date = TT.t;
-    }
-
-    // Trailing Z means UTC timezone, don't expect libc to know this.
-    i = strlen(s = date);
-    if (i && toupper(date[i-1])=='Z') {
-      date[i-1] = 0;
-      setenv("TZ", "UTC0", 1);
-    }
-
-    while (*format) {
-      if (FLAG(t)) {
-        s = strchr(date, '.');
-        if ((s ? s-date : strlen(date)) != strlen(*format)) {
-          format++;
-          continue;
-        }
-      }
-      localtime_r(&(ts->tv_sec), &tm);
-      // Adjusting for daylight savings time gives the wrong answer.
-      tm.tm_isdst = 0;
-      tm.tm_sec = 0;
-      s = strptime(date, *format++, &tm);
-
-      // parse nanoseconds
-      if (s && *s=='.' && isdigit(s[1])) {
-        s++;
-        if (FLAG(t))
-          if (1 == sscanf(s, "%2u%n", &(tm.tm_sec), &len)) s += len;
-        if (1 == sscanf(s, "%lu%n", &ts->tv_nsec, &len)) {
-          s += len;
-          if (ts->tv_nsec > 999999999) s = 0;
-          else while (len++ < 9) ts->tv_nsec *= 10;
-        }
-      }
-      if (s && !*s) break;
-    }
-
-    errno = 0;
-    ts->tv_sec = mktime(&tm);
-    if (!s || *s || ts->tv_sec == -1) perror_exit("bad '%s'", date);
+    xparsedate(TT.t ? TT.t : TT.d, &t, &nano, 0);
+    ts->tv_sec = t;
+    ts->tv_nsec = nano;
   }
   ts[1]=ts[0];
-
-  // Set time from -r?
 
   if (TT.r) {
     struct stat st;
