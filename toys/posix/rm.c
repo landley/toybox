@@ -4,19 +4,20 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/rm.html
 
-USE_RM(NEWTOY(rm, "fiRr[-fi]", TOYFLAG_BIN))
+USE_RM(NEWTOY(rm, "fiRrv[-fi]", TOYFLAG_BIN))
 
 config RM
   bool "rm"
   default y
   help
-    usage: rm [-fiRr] FILE...
+    usage: rm [-fiRrv] FILE...
 
     Remove each argument from the filesystem.
 
     -f	Force: remove without confirmation, no error if it doesn't exist
     -i	Interactive: prompt for confirmation
     -rR	Recursive: remove directory contents
+    -v	Verbose
 */
 
 #define FOR_rm
@@ -68,7 +69,13 @@ static int do_rm(struct dirtree *try)
   }
 
 skip:
-  if (unlinkat(fd, try->name, using)) {
+  if (!unlinkat(fd, try->name, using)) {
+    if (flags & FLAG_v) {
+      char *s = dirtree_path(try, 0);
+      printf("%s%s '%s'\n", toys.which->name, dir ? "dir" : "", s);
+      free(s);
+    }
+  } else {
     if (!dir || try->symlink != (char *)2) perror_msg_raw(try->name);
 nodelete:
     if (try->parent) try->parent->symlink = (char *)2;

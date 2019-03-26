@@ -48,3 +48,13 @@ mkdir -p one && touch one/two && chmod 000 one
 SKIP_HOST=1 testing "-rf 000 dir" \
   "rm -rf one 2>/dev/null && [ ! -e one ] && echo yes" "yes\n" "" ""
 chmod 777 one 2>/dev/null ; rm -rf one
+
+mkdir -p d1
+touch d1/f1.txt d1/f2.txt
+testing "-rv dir" \
+  "rm -rv d1" "rm 'd1/f1.txt'\nrm 'd1/f2.txt'\nrmdir 'd1'\n" "" ""
+rm -rf d1
+
+touch "'"
+testing "-v \\'" "rm -v \\'" "rm '''\n" "" "" # TODO: coreutils escapes quote
+rm -f \'
