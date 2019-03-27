@@ -554,7 +554,7 @@ char *xabspath(char *path, int exact)
 
       if (missing) missing--;
       else {
-        if (-1 == (x = openat(dirfd, "..", 0))) goto error;
+        if (-1 == (x = openat(dirfd, "..", O_PATH))) goto error;
         close(dirfd);
         dirfd = x;
       }
@@ -578,7 +578,7 @@ char *xabspath(char *path, int exact)
       }
       if (errno != EINVAL && (exact || todo)) goto error;
 
-      fd = openat(dirfd, new->str, 0);
+      fd = openat(dirfd, new->str, O_PATH);
       if (fd == -1 && (exact || todo || errno != ENOENT)) goto error;
       close(dirfd);
       dirfd = fd;
@@ -591,7 +591,7 @@ char *xabspath(char *path, int exact)
       llist_traverse(done, free);
       done=0;
       close(dirfd);
-      dirfd = open("/", 0);
+      dirfd = open("/", O_PATH);
     }
     free(new);
 
@@ -611,7 +611,7 @@ char *xabspath(char *path, int exact)
 
   try = 2;
   while (done) {
-    struct string_list *temp = llist_pop(&done);;
+    struct string_list *temp = llist_pop(&done);
 
     if (todo) try++;
     try += strlen(temp->str);
