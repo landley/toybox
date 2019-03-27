@@ -409,12 +409,15 @@ void cp_main(void)
       char *s = (toys.optflags&FLAG_D) ? getdirname(src) : getbasename(src);
 
       TT.destname = xmprintf("%s/%s", destname, s);
-      if (toys.optflags&FLAG_D) {
+      if (FLAG(D)) {
         free(s);
-        if (!fileunderdir(TT.destname, destname)) {
+        if (!(s = fileunderdir(TT.destname, destname))) {
           error_msg("%s not under %s", TT.destname, destname);
           continue;
-        } else mkpath(TT.destname);
+        }
+        // TODO: .. follows abspath, not links...
+        free(s);
+        mkpath(TT.destname);
       }
     } else TT.destname = destname;
 

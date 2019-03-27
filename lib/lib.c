@@ -1059,16 +1059,16 @@ char *getbasename(char *name)
   return name;
 }
 
-// Is this file under this directory?
-int fileunderdir(char *file, char *dir)
+// Return pointer to xabspath(file) if file is under dir, else 0
+char *fileunderdir(char *file, char *dir)
 {
   char *s1 = xabspath(dir, 1), *s2 = xabspath(file, -1), *ss = s2;
   int rc = s1 && s2 && strstart(&ss, s1) && (!s1[1] || s2[strlen(s1)] == '/');
 
   free(s1);
-  free(s2);
+  if (!rc) free(s2);
 
-  return rc;
+  return rc ? s2 : 0;
 }
 
 // Execute a callback for each PID that matches a process name from a list.
