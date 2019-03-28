@@ -373,7 +373,11 @@ static void extract_to_disk(void)
   char *name = TT.hdr.name;
   int ala = TT.hdr.mode;
 
-  if (dirflush(name)) return;
+  if (dirflush(name)) {
+    if (S_ISREG(ala) && !TT.hdr.link_target) skippy(TT.hdr.size);
+ 
+    return;
+  }
 
   // create path before file if necessary
   if (strrchr(name, '/') && mkpath(name) && errno !=EEXIST)
