@@ -47,6 +47,7 @@ GLOBALS(
   struct arg_list *exclude;
 
   struct double_list *incl, *excl, *seen;
+  struct string_list *dirs;
   void *inodes;
   char *cwd;
   int fd, ouid, ggid;
@@ -335,69 +336,80 @@ static void extract_to_command(void)
   }
 }
 
+
+// Do pending directory utimes(), NULL to flush all.
+static int dirflush(char *name)
+{
+  char *s, *ss;
+
+  // Barf if name not in TT.cwd
+  if (name) {
+    ss = s = xabspath(name, -1);
+    if (TT.cwd && (!strstart(&ss, TT.cwd) || (*ss && *ss!='/'))) {
+      error_msg("'%s' not under '%s'", ss, TT.cwd);
+      free(s);
+
+      return 1;
+    }
+  }
+
+  // Set deferred utimes() for directories this file isn't under.
+  // (Files must be depth-first ordered in tarball for this to matter.)
+  while (TT.dirs) {
+    long long ll = *(long long *)TT.dirs->str;
+    struct timeval times[2] = {{ll, 0},{ll, 0}};
+
+    if (name && strstart(&ss, ss = s) && (!*ss || *ss=='/')) break;
+    if (utimes(TT.dirs->str+sizeof(long long), times)) perror_msg("utimes %lld %s", *(long long *)TT.dirs->str, TT.dirs->str+sizeof(long long));
+    free(llist_pop(&TT.dirs));
+  }
+
+  // name was under TT.cwd
+  return 0;
+}
+
 static void extract_to_disk(void)
 {
-  int flags, dst_fd = -1;
-  char *s;
-  struct stat ex;
+  char *name = TT.hdr.name;
+  int ala = TT.hdr.mode;
 
-  flags = strlen(TT.hdr.name);
-  if (flags>2)
-    if (strstr(TT.hdr.name, "/../") || !strcmp(TT.hdr.name, "../") ||
-        !strcmp(TT.hdr.name+flags-3, "/.."))
-      error_msg("drop %s", TT.hdr.name);
+  if (dirflush(name)) return;
 
-  if (TT.hdr.name[flags-1] == '/') TT.hdr.name[flags-1] = 0;
-  //Regular file with preceding path
-  if ((s = strrchr(TT.hdr.name, '/')) && mkpath(TT.hdr.name) && errno !=EEXIST)
-      return error_msg(":%s: not created", TT.hdr.name);
+  // create path before file if necessary
+  if (strrchr(name, '/') && mkpath(name) && errno !=EEXIST)
+      return perror_msg(":%s: can't mkdir", name);
 
-  //remove old file, if exists
-  if (!FLAG(k) && !S_ISDIR(TT.hdr.mode) && !lstat(TT.hdr.name, &ex))
-    if (unlink(TT.hdr.name)) perror_msg("can't remove: %s", TT.hdr.name);
+  // remove old file, if exists
+  if (!FLAG(k) && !S_ISDIR(ala) && unlink(name) && errno!=ENOENT)
+    return perror_msg("can't remove: %s", name);
 
-  //hard link
-  if (S_ISREG(TT.hdr.mode) && TT.hdr.link_target) {
-    if (link(TT.hdr.link_target, TT.hdr.name))
-      perror_msg("can't link '%s' -> '%s'", TT.hdr.name, TT.hdr.link_target);
-    goto COPY;
-  }
+  if (S_ISREG(ala)) {
+    // hardlink?
+    if (TT.hdr.link_target) {
+      if (link(TT.hdr.link_target, name))
+        return perror_msg("can't link '%s' -> '%s'", name, TT.hdr.link_target);
+    // write contents
+    } else {
+      int fd = xcreate(name, O_WRONLY|O_CREAT|(FLAG(overwrite)?O_TRUNC:O_EXCL),
+        WARN_ONLY|(ala & 07777));
+      if (fd != -1) {
+        xsendfile_len(TT.fd, fd, TT.hdr.size);
+        close(fd);
+      }
+    }
+  } else if (S_ISDIR(ala)) {
+    if ((mkdir(name, 0700) == -1) && errno != EEXIST)
+      return perror_msg("%s: can't create", TT.hdr.name);
+  } else if (S_ISLNK(ala)) {
+    if (symlink(TT.hdr.link_target, TT.hdr.name))
+      return perror_msg("can't link '%s' -> '%s'", name, TT.hdr.link_target);
+  } else if (mknod(name, ala, TT.hdr.device))
+    return perror_msg("can't create '%s'", name);
 
-  switch (TT.hdr.mode & S_IFMT) {
-    case S_IFREG:
-      flags = O_WRONLY|O_CREAT|O_EXCL;
-      if (FLAG(overwrite)) flags = O_WRONLY|O_CREAT|O_TRUNC;
-      dst_fd = open(TT.hdr.name, flags, TT.hdr.mode & 07777);
-      if (dst_fd == -1) perror_msg("%s: can't open", TT.hdr.name);
-      break;
-    case S_IFDIR:
-      if ((mkdir(TT.hdr.name, TT.hdr.mode) == -1) && errno != EEXIST)
-        perror_msg("%s: can't create", TT.hdr.name);
-      break;
-    case S_IFLNK:
-      if (symlink(TT.hdr.link_target, TT.hdr.name))
-        perror_msg("can't link '%s' -> '%s'", TT.hdr.name, TT.hdr.link_target);
-      break;
-    case S_IFBLK:
-    case S_IFCHR:
-    case S_IFIFO:
-      if (mknod(TT.hdr.name, TT.hdr.mode, TT.hdr.device))
-        perror_msg("can't create '%s'", TT.hdr.name);
-      break;
-    default:
-      printf("type %o not supported\n", TT.hdr.mode);
-      break;
-  }
-
-  //copy file....
-COPY:
-  xsendfile_len(TT.fd, dst_fd, TT.hdr.size);
-  close(dst_fd);
 
   if (!FLAG(o) && !geteuid()) {
     //set ownership..., --no-same-owner, --numeric-owner
-    uid_t u = TT.hdr.uid;
-    gid_t g = TT.hdr.gid;
+    int u = TT.hdr.uid, g = TT.hdr.gid;
 
     if (TT.owner) u = TT.ouid;
     else if (!FLAG(numeric_owner)) {
@@ -411,17 +423,29 @@ COPY:
       if (gr) g = gr->gr_gid;
     }
 
-    if (lchown(TT.hdr.name, u, g))
-      perror_msg("chown %d:%d '%s'", u, g, TT.hdr.name);;
+    if (lchown(name, u, g)) perror_msg("chown %d:%d '%s'", u, g, name);;
   }
 
   // || !FLAG(no_same_permissions))
-  if (FLAG(p) && !S_ISLNK(TT.hdr.mode)) chmod(TT.hdr.name, TT.hdr.mode);
+  if (FLAG(p) && !S_ISLNK(ala)) chmod(TT.hdr.name, ala);
 
-  //apply mtime
+  // Apply mtime.
   if (!FLAG(m)) {
-    struct timeval times[2] = {{TT.hdr.mtime, 0},{TT.hdr.mtime, 0}};
-    utimes(TT.hdr.name, times);
+    if (S_ISDIR(ala)) {
+      struct string_list *sl;
+
+      // Writing files into a directory changes directory timestamps, so
+      // defer mtime updates until contents written.
+
+      sl = xmalloc(sizeof(struct string_list)+sizeof(long long)+strlen(name)+1);
+      *(long long *)sl->str = TT.hdr.mtime;
+      strcpy(sl->str+sizeof(long long), name);
+      sl->next = TT.dirs;
+      TT.dirs = sl;
+    } else {
+      struct timeval times[2] = {{TT.hdr.mtime, 0},{TT.hdr.mtime, 0}};
+      utimes(TT.hdr.name, times);
+    }
   }
 }
 
@@ -435,13 +459,16 @@ static void unpack_tar(void)
   for (;;) {
     // align to next block and read it
     if (TT.hdr.size%512) skippy(512-TT.hdr.size%512);
-    if (!(i = readall(TT.fd, &tar, 512))) return;
+    i = readall(TT.fd, &tar, 512);
 
-    if (i != 512) error_exit("read error");
+    if (i && i != 512) error_exit("read error");
 
     // Two consecutive empty headers ends tar even if there's more data
-    if (!*tar.name) {
-      if (and++) return;
+    if (!i || !*tar.name) {
+      if (!i || and++) {
+        dirflush(0);
+        return;
+      }
       TT.hdr.size = 0;
       continue;
     }
@@ -604,7 +631,8 @@ void tar_main(void)
 
   // Get destination directory
   if (TT.C) xchdir(TT.C);
-  TT.cwd = xabspath(s = xgetcwd(), 1);
+  s = xgetcwd();
+  TT.cwd = (strcmp(s, "/")) ? xabspath(s = xgetcwd(), 1) : 0;
   free(s);
 
   // Are we reading?
