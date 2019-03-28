@@ -2,7 +2,7 @@
 
 [ -f testing.sh ] && . testing.sh
 
-#testing "name" "command" "result" "infile" "stdin"
+#testcmd "name "args" "result" "infile" "stdin"
 
 BDIR="$FILES/bc"
 TESTDIR="./"
@@ -37,3 +37,4 @@ run_bc_test misc
 run_bc_test misc1
 run_bc_test misc2
 
+testcmd "stdin" "" "2\n" "" "1+1\n"
