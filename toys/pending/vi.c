@@ -31,8 +31,6 @@ GLOBALS(
  *
  * TODO:
  * BUGS:  screen pos adjust does not cover "widelines"
- *        utf8 problems with some files. perhaps use lib utf8 functions instead
- *        append to EOL does not show input but works when ESC out
  *        
  *
  * REFACTOR:  use dllist functions where possible.
@@ -57,10 +55,13 @@ struct linestack_show {
 };
 
 static void draw_page();
+static int draw_str_until(int *drawn, char *str, int width, int bytes);
 static void draw_char(char c, int x, int y, int highlight);
 //utf8 support
+static int utf8_lnw(int* width, char* str, int bytes);
 static int utf8_dec(char key, char *utf8_scratch, int *sta_p) ;
 static int utf8_len(char *str);
+static int utf8_width(char *str, int bytes);
 static int draw_rune(char *c, int x, int y, int highlight);
 
 
@@ -644,79 +645,110 @@ static void draw_page()
   int cy_scr = 0;
   int cx_scr = 0;
   int utf_l = 0;
+
+  char* line = 0;
+  int bytes = 0;
+  int drawn = 0;
   struct linelist *scr_buf= scr_r;
   //clear screen
   tty_esc("2J");
   tty_esc("H");
 
-
   tty_jump(0, 0);
+
+  //draw lines until cursor row
   for (; y < TT.screen_height; ) {
-    if (scr_buf && scr_buf->line->str_data && scr_buf->line->str_len) {
-      int p = 0;
-      for (; p < scr_buf->line->str_len; y++) {
-        unsigned x = 0;
-        for (; x < TT.screen_width; x++) {
-          if (p < scr_buf->line->str_len) {
-            int hi = 0;
-            if (scr_buf == c_r && p == TT.cur_col) {
-              if (TT.vi_mode == 2) {
-                tty_jump(x, y);
-                
-                tty_esc("1m"); //bold
-                printf("%s", il->str_data);
-                x += il->str_len;
-                tty_esc("0m"); 
-              } 
-              cy_scr = y;
-              cx_scr = x;
-            }
-            utf_l = draw_rune(&scr_buf->line->str_data[p], x, y, hi);
-            if (!utf_l)
-              break;
-            p += utf_l;
-            if (utf_l > 2) x++;//traditional chinese is somehow 2 width in tty???
-          }
-          else {
-            if (scr_buf == c_r && p == TT.cur_col) {
-              if (TT.vi_mode == 2) {
-                tty_jump(x, y);
-                
-                tty_esc("1m"); //bold
-                printf("%s", il->str_data);
-                x += il->str_len;
-                tty_esc("0m"); 
-              } 
-              cy_scr = y;
-              cx_scr = x;
-            }
-            break; 
-          }
-        }
-        printf("\r\n"); 
-      }
+    if (line && bytes) {
+      draw_str_until(&drawn, line, TT.screen_width, bytes);
+      bytes = drawn ? (bytes-drawn) : 0;
+      line = bytes ? (line+drawn) : 0;
+      y++;
+      tty_jump(0, y);
+    } else if (scr_buf && scr_buf->line->str_data && scr_buf->line->str_len) {
+      if (scr_buf == c_r) 
+        break;
+      line = scr_buf->line->str_data;
+      bytes = scr_buf->line->str_len;
+      scr_buf = scr_buf->down;
+    } else {
+      y++;
+      tty_jump(0, y);
+      //printf(" \n");
+      if (scr_buf) scr_buf = scr_buf->down;
     }
-    else {
-      if (scr_buf == c_r){
-              cy_scr = y;
-              cx_scr = 0;
-              if (TT.vi_mode == 2) {
-                tty_jump(0, y);
-                tty_esc("1m"); //bold
-                printf("%s", il->str_data);
-                cx_scr += il->str_len;
-                tty_esc("0m"); 
-              } else draw_char(' ', 0, y, 1);
-      }
-      y++; 
-    }
-    printf("\n");
-    if (scr_buf->down)
-      scr_buf=scr_buf->down;
-    else break;
+
   }
-  for (; y < TT.screen_height; y++) {
-    printf("\n");
+  //draw cursor row until cursor
+  //this is to calculate cursor position on screen and possible insert
+  if (TT.cur_col) {
+    int x = 0;
+    line = scr_buf->line->str_data;
+    bytes = TT.cur_col;
+    for (; y < TT.screen_height; ) {
+      if (bytes) {
+        x = draw_str_until(&drawn, line, TT.screen_width, bytes);
+        bytes = drawn ? (bytes-drawn) : 0;
+        line = bytes ? (line+drawn) : 0;
+      }
+      if (!bytes) break;
+      y++;
+      tty_jump(0, y);
+    }
+    if (TT.vi_mode == 2 && il->str_len) {
+      line = il->str_data;
+      bytes = il->str_len;
+      cx_scr = x;
+      cy_scr = y;
+      x = draw_str_until(&drawn, line, TT.screen_width-x, bytes);
+      bytes = drawn ? (bytes-drawn) : 0;
+      line = bytes ? (line+drawn) : 0;
+      cx_scr += x;
+      for (; y < TT.screen_height; ) {
+        if (bytes) {
+          x = draw_str_until(&drawn, line, TT.screen_width, bytes);
+          bytes = drawn ? (bytes-drawn) : 0;
+          line = bytes ? (line+drawn) : 0;
+          cx_scr = x;
+        }
+        if (!bytes) break;
+        y++;
+        cy_scr = y;
+        tty_jump(0, y);
+      }
+    } else {
+      cy_scr = y;
+      cx_scr = x;
+    }
+    line = scr_buf->line->str_data+TT.cur_col;
+    bytes = scr_buf->line->str_len-TT.cur_col;
+    scr_buf = scr_buf->down;
+    x = draw_str_until(&drawn,line, TT.screen_width-x, bytes);
+    bytes = drawn ? (bytes-drawn) : 0;
+    line = bytes ? (line+drawn) : 0;
+    y++; 
+    tty_jump(0, y);
+  } else {
+    cy_scr = y;
+    cx_scr = 0;
+  }
+//draw until end
+  for (; y < TT.screen_height; ) {
+    if (line && bytes) {
+      draw_str_until(&drawn, line, TT.screen_width, bytes);
+      bytes = drawn ? (bytes-drawn) : 0;
+      line = bytes ? (line+drawn) : 0;
+      y++; 
+      tty_jump(0, y);
+    } else if (scr_buf && scr_buf->line->str_data && scr_buf->line->str_len) {
+      line = scr_buf->line->str_data;
+      bytes = scr_buf->line->str_len;
+      scr_buf = scr_buf->down;
+    } else {
+      y++;
+      tty_jump(0, y);
+      if (scr_buf) scr_buf = scr_buf->down;
+    }
+
   }
 
   tty_jump(0, TT.screen_height);
@@ -754,7 +786,9 @@ static void draw_page()
     tty_esc("1m");
     tty_jump(0, TT.screen_height+1);
     printf("%s", il->str_data);
+    tty_esc("0m");
   } else tty_jump(cx_scr, cy_scr);
+  
   xflush();
 
 }
@@ -839,9 +873,9 @@ static void adjust_screen_buffer()
 //naive implementation with branches
 //there is better branchless lookup table versions out there
 //1 0xxxxxxx
-//2 110xxxxx  10xxxxxx 
-//3 1110xxxx	10xxxxxx	10xxxxxx
-//4	11110xxx	10xxxxxx	10xxxxxx	10xxxxxx
+//2 110xxxxx  10xxxxxx
+//3 1110xxxx  10xxxxxx  10xxxxxx
+//4 11110xxx  10xxxxxx  10xxxxxx  10xxxxxx
 static int utf8_len(char *str)
 {
   int len = 0;
@@ -858,6 +892,43 @@ static int utf8_len(char *str)
     if ((*c++ & 0xc0) != 0x80) return 0;
   }
   return len;
+}
+
+//get utf8 length and width at same time
+static int utf8_lnw(int* width, char* str, int bytes)
+{
+  wchar_t wc;
+  int length = 1;
+  *width = 1;
+//  if (str < 0x7F) return length;
+  length = mbtowc(&wc, str, bytes);
+  switch (length) {
+  case -1:
+    mbtowc(0,0,4);
+  case 0:
+    *width = 0;
+    length = 0;
+    break;
+  default:
+  *width = wcwidth(wc);
+  }
+  return length;
+}
+
+//try to estimate width of next "glyph" in terminal buffer
+//combining chars 0x300-0x36F shall be zero width
+static int utf8_width(char *str, int bytes)
+{
+  wchar_t wc;
+  switch (mbtowc(&wc, str, bytes)) {
+  case -1:
+    mbtowc(0,0,4);
+  case 0:
+    return -1;
+  default:
+  return wcwidth(wc);
+  }
+  return 0;
 }
 
 static int utf8_dec(char key, char *utf8_scratch, int *sta_p) 
@@ -880,6 +951,34 @@ static int utf8_dec(char key, char *utf8_scratch, int *sta_p)
   if (*sta_p == len) { c[(*sta_p)] = 0; return 1; }
   
   return 0;
+}
+
+static int draw_str_until(int *drawn, char *str, int width, int bytes)
+{
+  int rune_width = 0;
+  int rune_bytes = 0;
+  int max_bytes = bytes;
+  int max_width = width;
+  char* end = str;
+  for (;width && bytes;) {
+    rune_bytes = utf8_lnw(&rune_width, end, 4);
+    if (!rune_bytes) break;
+    if (width - rune_width < 0) goto write_bytes; 
+    width -= rune_width;
+    bytes -= rune_bytes;
+    end += rune_bytes;
+  }
+  for (;bytes;) {
+    rune_bytes = utf8_lnw(&rune_width, end, 4);
+    if (!rune_bytes) break;
+    if (rune_width) break;
+    bytes -= rune_bytes;
+    end += rune_bytes;
+  }
+write_bytes:
+  fwrite(str, max_bytes-bytes, 1, stdout);
+  *drawn = max_bytes-bytes;
+  return max_width-width;
 }
 
 static void cur_left()
