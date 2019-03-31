@@ -66,6 +66,17 @@ optional()
   SKIP=1
 }
 
+skipnot()
+{
+  if [ -z "$VERBOSE" ]
+  then
+    eval "$@" 2>/dev/null
+  else
+    eval "$@"
+  fi
+  [ $? -eq 0 ] || SKIPNOT=1
+}
+
 wrong_args()
 {
   if [ $# -ne 5 ]
@@ -86,9 +97,10 @@ testing()
 
   [ -n "$DEBUG" ] && set -x
 
-  if [ -n "$SKIP" ] || ( [ -n "$SKIP_HOST" ] && [ -n "$TEST_HOST" ])
+  if [ -n "$SKIP" -o -n "$SKIP_HOST" -a -n "$TEST_HOST" -o -n "$SKIPNOT" ]
   then
     [ ! -z "$VERBOSE" ] && echo "$SHOWSKIP: $NAME"
+    unset SKIPNOT
     return 0
   fi
 
