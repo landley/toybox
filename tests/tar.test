@@ -4,11 +4,56 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-TARSUM='--owner root --group root | head -c $((3*512)) | sha1sum | sed "s/ .*//"'
-touch -t 198001010101 file
-testing "create file" "tar c file $TARSUM" \
-  "d551292408833aa5e9db32c0d14d7f32e7e96882\n" "" ""
-mkdir walrus
-touch -t 198001010101 dir
-testing "create dir" "tar c dir $TARSUM" \
-  "c4e630d9c89f4f20d603a6f71ff4410ab56fe965\n" "" ""
+# assumes umask 0002
+
+LONG=abcdefghijklmnopqrstuvwxyz0123456789
+LONG=$LONG$LONG$LONG$LONG$LONG$LONG$LONG$LONG$LONG$LONG
+OLDTZ="$TZ"
+TZ=utc
+OLDUMASK=$(umask)
+umask 0002
+
+# Reproducible tarballs: override ownership and timestamp. Also amount of
+# trailing NUL padding varies (1024 bytes is minimum, gnu/dammit does more)
+# so look at first 3 512-byte frames when analyzing header content.
+
+TAR='tar c --owner root --group root --mtime @1234567890'
+SUM='head -c $((3*512)) | sha1sum | sed "s/ .*//"'
+[ -n "$TARHD" ] && SUM="tee >(hd >&2) | $SUM"
+SPC='sed "s/[ \t][ \t]*/ /g"'
+
+touch file
+testing "create file" "$TAR file | $SUM" \
+  "fecaecba936e604bb115627a6ef4db7c7a3a8f81\n" "" ""
+
+mkdir dir
+testing "create dir" "$TAR dir | $SUM" \
+  "05739c423d7d4a7f12b3dbb7c94149acb2bb4f8d\n" "" ""
+
+# note: does _not_ include dir entry in archive, just file
+touch dir/file
+testing "create dir and file" "$TAR dir/file | $SUM" \
+  "2d7b96c7025987215f5a41f10eaa84311160afdb\n" "" ""
+
+# Tests recursion without worrying about content order
+testing "create dir/file 2" "$TAR dir | $SUM" \
+  "0bcc8005a3e07eb63c9b735267aecc5b774795d7\n" "" ""
+
+# / and .. only stripped from name, not symlink target.
+ln -s ../name.././.. dir/link
+testing "create symlink" "$TAR dir/link | $SUM" \
+  "7324cafbd9aeec5036b6efc54d741f11528aeb10\n" "" ""
+
+# Also two explicit targets
+ln dir/file dir/hardlink
+testing "create hardlink" "$TAR dir/file dir/hardlink | $SUM" \
+  "c5383651f8c03ec0fe15e8a9e28a4e8e5273990d\n" "" ""
+
+ln dir/link dir/hlink
+testing "create hardlink to symlink" "$TAR dir/link dir/hlink | $SUM" \
+  "3bc16f8fb6fc8b05f691da8caf989a70ee99284a\n" "" ""
+
+skipnot mkfifo dir/fifo
+testing "create dir/fifo" "$TAR dir/fifo | $SUM" \
+  "bd1365db6e8ead4c813333f9666994c1899924d9\n" "" ""
+

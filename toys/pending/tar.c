@@ -104,14 +104,6 @@ static unsigned long long otoi(char *str, unsigned len)
   return val;
 }
 
-
-struct inode_list {
-  struct inode_list *next;
-  char *arg;
-  ino_t ino;
-  dev_t dev;
-};
-
 // Calculate packet checksum, with cksum field treated as 8 spaces
 static unsigned cksum(void *data)
 {
@@ -181,7 +173,6 @@ static void add_file(char **nam, struct stat *st)
   struct tar_hdr hdr;
   struct passwd *pw = pw;
   struct group *gr = gr;
-  struct inode_list *node = node;
   int i, fd =-1;
   char *c, *p, *name = *nam, *lnk, *hname;
 
@@ -190,7 +181,7 @@ static void add_file(char **nam, struct stat *st)
     if ((p == name || p[-1] == '/') && *p != '/' && filter(TT.excl, p)) return;
 
   if (S_ISDIR(st->st_mode) && name[strlen(name)-1] != '/') {
-    lnk = xmprintf("%s/",name);
+    lnk = xmprintf("%s/", name);
     free(name);
     *nam = name = lnk;
   }
@@ -225,26 +216,38 @@ static void add_file(char **nam, struct stat *st)
   ITOO(hdr.mtime, st->st_mtime);
 
   // Hard link or symlink? i=0 neither, i=1 hardlink, i=2 symlink
-  if (S_ISLNK(st->st_mode)) i = 2;
-  else if (st->st_nlink>1 && !S_ISDIR(st->st_mode)) {
-    for (i = 0; i<TT.hlc; i++)
+
+  // Are there hardlinks to a non-directory entry?
+  if (st->st_nlink>1 && !S_ISDIR(st->st_mode)) {
+    // Have we seen this dev&ino before?
+    for (i = 0; i<TT.hlc; i++) {
       if (st->st_ino == TT.hlx[i].ino && st->st_dev == TT.hlx[i].dev)
         break;
-    if (i != TT.hlc) i = 1;
-    else {
-      i = 0;
+    }
+    if (i != TT.hlc) {
+      lnk = TT.hlx[i].arg;
+      i = 1;
+    } else {
+      // first time we've seen it, store as normal file.
       if (!(TT.hlc&255)) TT.hlx = xrealloc(TT.hlx, TT.hlc+256);
       TT.hlx[TT.hlc].arg = xstrdup(hname);
       TT.hlx[TT.hlc].ino = st->st_ino;
       TT.hlx[TT.hlc].dev = st->st_dev;
       TT.hlc++;
+      i = 0;
     }
   } else i = 0;
+
+  // !i because hardlink to a symlink is a thing.
+  if (!i && S_ISLNK(st->st_mode)) {
+    i = 2;
+    lnk = xreadlink(name);
+  }
 
   // Handle file types
   if (i) {
     hdr.type = '0'+i;
-    if (!(lnk = i ? xreadlink(name) : node->arg)) return perror_msg("readlink");
+    if (i==2 && !(lnk = xreadlink(name))) return perror_msg("readlink");
     if (strlen(lnk) > sizeof(hdr.link)) write_longname(lnk, 'K');
     strncpy(hdr.link, lnk, sizeof(hdr.link));
     if (i) free(lnk);
@@ -262,14 +265,10 @@ static void add_file(char **nam, struct stat *st)
   if (strlen(hname) > sizeof(hdr.name)) write_longname(hname, 'L');
   strcpy(hdr.magic, "ustar  ");
   if (!FLAG(numeric_owner)) {
-    if (!TT.owner && !(pw = bufgetpwuid(st->st_uid)))
-      sprintf(hdr.uname, "%d", st->st_uid);
-    else snprintf(hdr.uname, sizeof(hdr.uname), "%s",
-      TT.owner ? TT.owner : pw->pw_name);
-    if (!TT.group && !(gr = bufgetgrgid(st->st_gid)))
-      sprintf(hdr.gname, "%d", st->st_gid);
-    else snprintf(hdr.gname, sizeof(hdr.gname), "%s",
-      TT.group ? TT.group : gr->gr_name);
+    if (TT.owner || (pw = bufgetpwuid(st->st_uid)))
+      strncpy(hdr.uname, TT.owner ? TT.owner : pw->pw_name, sizeof(hdr.uname));
+    if (TT.group || (gr = bufgetgrgid(st->st_gid)))
+      strncpy(hdr.gname, TT.group ? TT.group : gr->gr_name, sizeof(hdr.gname));
   }
 
   itoo(hdr.chksum, sizeof(hdr.chksum)-1, cksum(&hdr));
@@ -430,16 +429,16 @@ static void extract_to_disk(void)
     //set ownership..., --no-same-owner, --numeric-owner
     int u = TT.hdr.uid, g = TT.hdr.gid;
 
-    if (TT.owner) u = TT.ouid;
+    if (TT.owner) TT.hdr.uid = TT.ouid;
     else if (!FLAG(numeric_owner)) {
       struct passwd *pw = getpwnam(TT.hdr.uname);
-      if (pw && (TT.owner || !FLAG(numeric_owner))) u = pw->pw_uid;
+      if (pw && (TT.owner || !FLAG(numeric_owner))) TT.hdr.uid = pw->pw_uid;
     }
 
-    if (TT.group) g = TT.ggid;
+    if (TT.group) TT.hdr.gid = TT.ggid;
     else if (!FLAG(numeric_owner)) {
       struct group *gr = getgrnam(TT.hdr.gname);
-      if (gr) g = gr->gr_gid;
+      if (gr) TT.hdr.gid = gr->gr_gid;
     }
 
     if (lchown(name, u, g)) perror_msg("chown %d:%d '%s'", u, g, name);;
@@ -514,9 +513,8 @@ static void unpack_tar(void)
         // Posix extended record "LEN NAME=VALUE\n" format
         alloread(&buf, TT.hdr.size);
         for (p = buf; (p-buf)<TT.hdr.size; p += len) {
-          if ((i = sscanf(p, "%u path=%n", &len, &n))<1 || len<4 ||
-              len>TT.hdr.size)
-          {
+          i = sscanf(p, "%u path=%n", &len, &n);
+          if (i<1 || len<4 || len>TT.hdr.size) {
             error_msg("bad header");
             break;
           }
@@ -544,8 +542,21 @@ static void unpack_tar(void)
     min = otoi(tar.minor, sizeof(tar.minor));
     TT.hdr.device = dev_makedev(maj, min);
 
-    TT.hdr.uname = xstrndup(TT.owner ? TT.owner : tar.uname,sizeof(tar.uname));
-    TT.hdr.gname = xstrndup(TT.group ? TT.group : tar.gname,sizeof(tar.gname));
+    TT.hdr.uname = xstrndup(TT.owner ? TT.owner : tar.uname, sizeof(tar.uname));
+    TT.hdr.gname = xstrndup(TT.group ? TT.group : tar.gname, sizeof(tar.gname));
+
+    if (TT.owner) TT.hdr.uid = TT.ouid;
+    else if (!FLAG(numeric_owner)) {
+      struct passwd *pw = getpwnam(TT.hdr.uname);
+      if (pw && (TT.owner || !FLAG(numeric_owner))) TT.hdr.uid = pw->pw_uid;
+    }
+
+    if (TT.group) TT.hdr.gid = TT.ggid;
+    else if (!FLAG(numeric_owner)) {
+      struct group *gr = getgrnam(TT.hdr.gname);
+      if (gr) TT.hdr.gid = gr->gr_gid;
+    }
+
     if (!TT.hdr.link_target && *tar.link)
       TT.hdr.link_target = xstrndup(tar.link, sizeof(tar.link));
     if (!TT.hdr.name) {
@@ -590,8 +601,7 @@ static void unpack_tar(void)
         char perm[11];
 
         mode_to_string(TT.hdr.mode, perm);
-        printf("%s %s/%s ", perm, TT.owner ? TT.owner : TT.hdr.uname,
-          TT.group ? TT.group : TT.hdr.gname);
+        printf("%s %s/%s ", perm, TT.hdr.uname, TT.hdr.gname);
         if (tar.type=='3' || tar.type=='4') printf("%u,%u", maj, min);
         else printf("%9lld", (long long)TT.hdr.size);
         printf("  %d-%02d-%02d %02d:%02d:%02d ", 1900+lc->tm_year, 1+lc->tm_mon,
@@ -698,7 +708,8 @@ void tar_main(void)
   }
 
   if (CFG_TOYBOX_FREE) {
-    free (TT.hlx);
+    while(TT.hlc) free(TT.hlx[--TT.hlc].arg);
+    free(TT.hlx);
     close(TT.fd);
   }
 }
