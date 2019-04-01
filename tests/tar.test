@@ -4,10 +4,8 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-# assumes umask 0002
+# For reproducibility: UTC and umask 0002
 
-LONG=abcdefghijklmnopqrstuvwxyz0123456789
-LONG=$LONG$LONG$LONG$LONG$LONG$LONG$LONG$LONG$LONG$LONG
 OLDTZ="$TZ"
 TZ=utc
 OLDUMASK=$(umask)
@@ -57,3 +55,26 @@ skipnot mkfifo dir/fifo
 testing "create dir/fifo" "$TAR dir/fifo | $SUM" \
   "bd1365db6e8ead4c813333f9666994c1899924d9\n" "" ""
 
+# this expects devtmpfs values
+
+TZ=utc testing "pass /dev/null" \
+  "tar c --mtime @0 /dev/null 2>/dev/null | tar tv | $SPC" \
+  "crw-rw-rw- root/root 1,3 1970-01-01 00:00 dev/null\n" "" ""
+
+TZ=utc testing "pass /dev/loop0" \
+  "tar c --numeric-owner --mtime @0 /dev/loop0 2>/dev/null | tar tv | $SPC" \
+  "brw-rw---- 0/6 7,0 1970-01-01 00:00 dev/loop0\n" "" ""
+
+skipnot mknod dir/char c 12 34
+testing "create char2" "$TAR /dev/null | $SUM" \
+  "" "" ""
+
+#testing "create block" "$TAR /dev/
+
+skipnot mknod dir/block b 56 78
+testing "create dir/block" "$TAR dir/block | $SUM" \
+  "" "" ""
+
+skipnot chown nobody dir/file
+testing "ownership" "$TAR dir/block | $SUM" \
+  "blat" "" ""

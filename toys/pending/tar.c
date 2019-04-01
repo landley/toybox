@@ -18,7 +18,7 @@
  * Extract into dir same as filename, --restrict? "Tarball is splodey"
  *
 
-USE_TAR(NEWTOY(tar, "&(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mtime):(group):(owner):(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)j(bzip2)z(gzip)O(to-stdout)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):[!txc][!jz]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TAR(NEWTOY(tar, "&(full-time)(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mtime):(group):(owner):(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)j(bzip2)z(gzip)O(to-stdout)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):[!txc][!jz]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TAR
   bool "tar"
@@ -49,7 +49,7 @@ GLOBALS(
   struct double_list *incl, *excl, *seen;
   struct string_list *dirs;
   char *cwd;
-  int fd, ouid, ggid, hlc, warn;
+  int fd, ouid, ggid, hlc, warn, adev, aino;
   time_t mtt;
 
   // hardlinks seen so far (hlc many)
@@ -60,7 +60,7 @@ GLOBALS(
   } *hlx;
 
   // Parsed information about a tar header.
-  struct {
+  struct tar_header {
     char *name, *link_target, *uname, *gname;
     long long size;
     uid_t uid;
@@ -129,8 +129,8 @@ static void write_longname(char *name, char type)
   tmp.type = type;
   strcpy(tmp.magic, "ustar  ");
 
-  // Calculate checksum. Since 0777777 is twice 512*255 it can never use more
-  // than 6 digits, last byte is ' ' or historical reasons.
+  // Calculate checksum. Since 512*255 = 0377000 in octal, this can never
+  // use more than 6 digits. The last byte is ' ' or historical reasons.
   itoo(tmp.chksum, sizeof(tmp.chksum)-1, cksum(&tmp));
   tmp.chksum[7] = ' ';
 
@@ -168,34 +168,42 @@ static void alloread(void *buf, int len)
   b[len] = 0;
 }
 
-static void add_file(char **nam, struct stat *st)
+static int add_to_tar(struct dirtree *node)
 {
+  struct stat *st = &(node->st);
   struct tar_hdr hdr;
   struct passwd *pw = pw;
   struct group *gr = gr;
   int i, fd =-1;
-  char *c, *p, *name = *nam, *lnk, *hname;
+  char *c, *p, *name, *lnk, *hname;
+
+  if (!dirtree_notdotdot(node)) return 0;
+  if (TT.adev == st->st_dev && TT.aino == st->st_ino) {
+    error_msg("'%s' file is the archive; not dumped", node->name);
+    return 0;
+  }
+
+  i = 1;
+  name = dirtree_path(node, &i);
 
   // exclusion defaults to --no-anchored and --wildcards-match-slash
   for (p = name; *p; p++)
-    if ((p == name || p[-1] == '/') && *p != '/' && filter(TT.excl, p)) return;
+    if ((p == name || p[-1] == '/') && *p != '/' && filter(TT.excl, p))
+      goto done;
 
-  if (S_ISDIR(st->st_mode) && name[strlen(name)-1] != '/') {
-    lnk = xmprintf("%s/", name);
-    free(name);
-    *nam = name = lnk;
-  }
+  // The 1 extra byte from dirtree_path()
+  if (S_ISDIR(st->st_mode) && name[i-1] != '/') strcat(name, "/");
 
   // remove leading / and any .. entries from saved name
   for (hname = name; *hname == '/'; hname++);
   for (c = hname;;) {
     if (!(c = strstr(c, ".."))) break;
     if (c == hname || c[-1] == '/') {
-      if (!c[2]) return;
+      if (!c[2]) goto done;
       if (c[2]=='/') c = hname = c+3;
     } else c+= 2;
   }
-  if (!*hname) return;
+  if (!*hname) goto done;
 
   if (TT.warn && hname != name) {
     fprintf(stderr, "removing leading '%.*s' from member names\n",
@@ -214,6 +222,7 @@ static void add_file(char **nam, struct stat *st)
   ITOO(hdr.gid, st->st_gid);
   ITOO(hdr.size, 0); //set size later
   ITOO(hdr.mtime, st->st_mtime);
+  strcpy(hdr.magic, "ustar  ");
 
   // Hard link or symlink? i=0 neither, i=1 hardlink, i=2 symlink
 
@@ -228,7 +237,7 @@ static void add_file(char **nam, struct stat *st)
       lnk = TT.hlx[i].arg;
       i = 1;
     } else {
-      // first time we've seen it, store as normal file.
+      // first time we've seen it. Store as normal file, but remember it.
       if (!(TT.hlc&255)) TT.hlx = xrealloc(TT.hlx, TT.hlc+256);
       TT.hlx[TT.hlc].arg = xstrdup(hname);
       TT.hlx[TT.hlc].ino = st->st_ino;
@@ -247,7 +256,10 @@ static void add_file(char **nam, struct stat *st)
   // Handle file types
   if (i) {
     hdr.type = '0'+i;
-    if (i==2 && !(lnk = xreadlink(name))) return perror_msg("readlink");
+    if (i==2 && !(lnk = xreadlink(name))) {
+      perror_msg("readlink");
+      goto done;
+    }
     if (strlen(lnk) > sizeof(hdr.link)) write_longname(lnk, 'K');
     strncpy(hdr.link, lnk, sizeof(hdr.link));
     if (i) free(lnk);
@@ -260,10 +272,12 @@ static void add_file(char **nam, struct stat *st)
     hdr.type = (S_ISCHR(st->st_mode))?'3':'4';
     ITOO(hdr.major, dev_major(st->st_rdev));
     ITOO(hdr.minor, dev_minor(st->st_rdev));
-  } else return error_msg("unknown file type '%o'", st->st_mode & S_IFMT);
+  } else {
+    error_msg("unknown file type '%o'", st->st_mode & S_IFMT);
+    goto done;
+  }
 
   if (strlen(hname) > sizeof(hdr.name)) write_longname(hname, 'L');
-  strcpy(hdr.magic, "ustar  ");
   if (!FLAG(numeric_owner)) {
     if (TT.owner || (pw = bufgetpwuid(st->st_uid)))
       strncpy(hdr.uname, TT.owner ? TT.owner : pw->pw_name, sizeof(hdr.uname));
@@ -278,29 +292,16 @@ static void add_file(char **nam, struct stat *st)
 
   // Write header and data to archive
   xwrite(TT.fd, &hdr, 512);
-  if (hdr.type != '0') return; //nothing to write
-  if ((fd = open(name, O_RDONLY)) < 0)
-    return perror_msg("can't open '%s'", name);
-  xsendfile_pad(fd, TT.fd, st->st_size);
-  if (st->st_size%512) writeall(TT.fd, toybuf, (512-(st->st_size%512)));
-  close(fd);
-}
-
-static int add_to_tar(struct dirtree *node)
-{
-  struct stat st;
-  char *path;
-
-  if (!dirtree_notdotdot(node)) return 0;
-  if (!fstat(TT.fd, &st) && st.st_dev == node->st.st_dev
-      && st.st_ino == node->st.st_ino) {
-    error_msg("'%s' file is the archive; not dumped", TT.f);
-    return 0;
+  if (hdr.type == '0') {
+    if ((fd = open(name, O_RDONLY)) < 0) perror_msg("can't open '%s'", name);
+    else {
+      xsendfile_pad(fd, TT.fd, st->st_size);
+      if (st->st_size%512) writeall(TT.fd, toybuf, (512-(st->st_size%512)));
+      close(fd);
+    }
   }
-
-  path = dirtree_path(node, 0);
-  add_file(&path, &(node->st)); //path may be modified
-  free(path);
+done:
+  free(name);
 
   return (DIRTREE_RECURSE|(FLAG(h)?DIRTREE_SYMFOLLOW:0))*!FLAG(no_recursion);
 }
@@ -425,18 +426,18 @@ static void extract_to_disk(void)
     return perror_msg("can't create '%s'", name);
 
 
+  // Set ownership
   if (!FLAG(o) && !geteuid()) {
-    //set ownership..., --no-same-owner, --numeric-owner
     int u = TT.hdr.uid, g = TT.hdr.gid;
 
     if (TT.owner) TT.hdr.uid = TT.ouid;
-    else if (!FLAG(numeric_owner)) {
+    else if (!FLAG(numeric_owner) && *TT.hdr.uname) {
       struct passwd *pw = getpwnam(TT.hdr.uname);
       if (pw && (TT.owner || !FLAG(numeric_owner))) TT.hdr.uid = pw->pw_uid;
     }
 
     if (TT.group) TT.hdr.gid = TT.ggid;
-    else if (!FLAG(numeric_owner)) {
+    else if (!FLAG(numeric_owner) && *TT.hdr.uname) {
       struct group *gr = getgrnam(TT.hdr.gname);
       if (gr) TT.hdr.gid = gr->gr_gid;
     }
@@ -598,16 +599,21 @@ static void unpack_tar(void)
     else if (FLAG(t)) {
       if (FLAG(v)) {
         struct tm *lc = localtime(TT.mtime ? &TT.mtt : &TT.hdr.mtime);
-        char perm[11];
+        char perm[12], gname[12];
 
         mode_to_string(TT.hdr.mode, perm);
-        printf("%s %s/%s ", perm, TT.hdr.uname, TT.hdr.gname);
+        printf("%s", perm);
+        sprintf(perm, "%u", TT.hdr.uid);
+        sprintf(gname, "%u", TT.hdr.gid);
+        printf(" %s/%s ", *TT.hdr.uname ? TT.hdr.uname : perm,
+          *TT.hdr.gname ? TT.hdr.gname : gname);
         if (tar.type=='3' || tar.type=='4') printf("%u,%u", maj, min);
         else printf("%9lld", (long long)TT.hdr.size);
-        printf("  %d-%02d-%02d %02d:%02d:%02d ", 1900+lc->tm_year, 1+lc->tm_mon,
-          lc->tm_mday, lc->tm_hour, lc->tm_min, lc->tm_sec);
+        sprintf(perm, ":%02d", lc->tm_sec);
+        printf("  %d-%02d-%02d %02d:%02d%s ", 1900+lc->tm_year, 1+lc->tm_mon,
+          lc->tm_mday, lc->tm_hour, lc->tm_min, FLAG(full_time) ? perm : "");
       }
-      printf("%s", TT.hdr.name);
+      printf(" %s", TT.hdr.name);
       if (TT.hdr.link_target) printf(" -> %s", TT.hdr.link_target);
       xputc('\n');
       skippy(TT.hdr.size);
@@ -662,6 +668,16 @@ void tar_main(void)
   }
   if (TT.f && strcmp(TT.f, "-"))
     TT.fd = xcreate(TT.f, TT.fd*(O_WRONLY|O_CREAT|O_TRUNC), 0666);
+
+  // grab archive inode
+  {
+    struct stat st;
+
+    if (!fstat(TT.fd, &st)) {
+      TT.aino = st.st_ino;
+      TT.adev = st.st_dev;
+    }
+  }
 
   // Get destination directory
   if (TT.C) xchdir(TT.C);
