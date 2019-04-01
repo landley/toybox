@@ -175,7 +175,7 @@ static int add_to_tar(struct dirtree *node)
   struct passwd *pw = pw;
   struct group *gr = gr;
   int i, fd =-1;
-  char *c, *p, *name, *lnk, *hname;
+  char *c, *p, *name, *lnk = lnk, *hname;
 
   if (!dirtree_notdotdot(node)) return 0;
   if (TT.adev == st->st_dev && TT.aino == st->st_ino) {
