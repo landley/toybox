@@ -115,26 +115,6 @@ skipnot chown nobody dir/file
 testing "ownership" "$TAR dir/block | $SUM" \
   "blat" "" ""
 
-# merge add_to_tar and write_longname, 
-
-# add dir with no trailing slash
-# don't allow hardlink target outside cwd
-# extract dir/file without dir in tarball
-# create with and without each flag
-# --owner --group --numeric-owner
-# extract with and without each flag
-# --owner 0 --group 0
-# symlink
-# set symlink owner
-# hardlink
-# /abspath
-# >256 hardlink inodes
-#   // remove leading / and any .. entries from saved name
-#  // exclusion defaults to --no-anchored and --wildcards-match-slash
-# //bork blah../thing blah/../thing blah/../and/../that blah/.. ../blah
-# tar tv --owner --group --mtime
-# extract file within dir date correct
-
 TZ="$OLDTZ"
 umask $OLDUMASK
 unset LONG TAR SUM OLDUMASK OLDTZ LST
