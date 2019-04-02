@@ -141,7 +141,7 @@ char *xmprintf(char *format, ...)
 
 void xflush(void)
 {
-  if (fflush(0) || ferror(stdout)) perror_exit("write");
+  if (fflush(stdout) || ferror(stdout)) perror_exit("write");
 }
 
 void xprintf(char *format, ...)
@@ -517,7 +517,8 @@ void xstat(char *path, struct stat *st)
 }
 
 // Canonicalize path, even to file with one or more missing components at end.
-// if exact, require last path component to exist
+// Returns allocated string for pathname or NULL if doesn't exist
+// exact = 1 file must exist, 0 dir must exist, -1 show theoretical location
 char *xabspath(char *path, int exact)
 {
   struct string_list *todo, *done = 0;
@@ -963,7 +964,7 @@ void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
   struct tm tm;
   time_t now = *t;
   int len = 0, i = 0;
-  // Formats with years must come first. Posix can't agree on whether 12 digits
+  // Formats with seconds come first. Posix can't agree on whether 12 digits
   // has year before (touch -t) or year after (date), so support both.
   char *s = str, *p, *oldtz = 0, *formats[] = {"%Y-%m-%d %T", "%Y-%m-%dT%T",
     "%H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d", "%H:%M", "%m%d%H%M",
