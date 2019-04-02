@@ -11,18 +11,18 @@ export TZ=utc
 OLDUMASK=$(umask)
 umask 0002
 
-# 3888 bytes, most of PATH_MAX
-LONG=abcdefghijklmnopqrstuvwxyz0123456789
-LONG=$LONG$LONG$LONG$LONG$LONG$LONG$LONG$LONG$LONG
-LONG=$LONG$LONG$LONG$LONG$LONG$LONG
-LONG=$LONG$LONG
+# 255 bytes, longest VFS name
+LONG=0123456789abcdef0123456789abcdef
+LONG=$LONG$LONG$LONG$LONG$LONG$LONG$LONG$LONG
+LONG=${LONG:1:255}
 
 # Reproducible tarballs: override ownership and timestamp. Also amount of
 # trailing NUL padding varies (1024 bytes is minimum, gnu/dammit does more)
 # so look at first 3 512-byte frames when analyzing header content.
 
 TAR='tar c --owner root --group root --mtime @1234567890'
-SUM='head -c $((3*512)) | sha1sum | sed "s/ .*//"'
+export BLOCKS=3
+SUM='head -c $(($BLOCKS*512)) | sha1sum | sed "s/ .*//"'
 [ -n "$TARHD" ] && SUM="tee >(hd >&2) | $SUM"
 LST='tar tv | sed "s/[ \t][ \t]*/ /g"'
 
@@ -88,8 +88,35 @@ testing "create dir/fifo" "$TAR dir/fifo | $SUM" \
 
 # 4+96=100 (biggest short name), 4+97=101 (shortest long name)
 touch dir/${LONG:1:96} dir/${LONG:1:97}
-testing "create longfilename" "$TAR dir/${LONG:1:97} dir/${LONG:1:96} | $SUM" \
-  "08af4f9d8b7f4b2f6c264689efe42a4159314708\n" "" ""
+testing "create long fname" "$TAR dir/${LONG:1:97} dir/${LONG:1:96} | $SUM" \
+  "99348686fe9c9bf80f5740f1fc0c6f32f2021e3d\n" "" ""
+
+ln -s dir/${LONG:1:96} dir/lshort
+ln -s dir/${LONG:1:97} dir/llong
+testing "create long symlnk" "$TAR dir/lshort dir/llong | $SUM" \
+  "8a5d652dc85f252a2e3b3f47d1ecd699e98a5f4b\n" "" ""
+
+ln -s $LONG dir/${LONG:5}
+BLOCKS=7 testing "create long->long" "$TAR dir/${LONG:5} | $SUM" \
+  "543116b8e690a116a559ab5b673f9b6d6601c925\n" "" ""
+# absolute and relative link names, broken and not
+
+ln -s file dir/linkok
+testing "create symlink" "$TAR dir/linkok | $SUM" \
+  "55652846506cf0a9d43b3ef03ccf9e98123befaf\n" "" ""
+
+ln -s /dev/null dir/linknull
+testing "pass absolute symlink" "$TAR dir/linknull | $LST" \
+  "lrwxrwxrwx root/root 0 2009-02-13 23:31 dir/linknull -> /dev/null\n" "" ""
+
+ln -s rel/broken dir/relbrok
+testing "pass broken symlink" "$TAR dir/relbrok | $LST" \
+  "lrwxrwxrwx root/root 0 2009-02-13 23:31 dir/relbrok -> rel/broken\n" "" ""
+
+ln -s /does/not/exist dir/linkabsbrok
+testing "pass broken absolute symlink" "$TAR dir/linkabsbrok | $LST" \
+  "lrwxrwxrwx root/root 0 2009-02-13 23:31 dir/linkabsbrok -> /does/not/exist\n" \
+  "" ""
 
 # this expects devtmpfs values
 

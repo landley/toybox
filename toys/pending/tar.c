@@ -77,7 +77,7 @@ struct tar_hdr {
        prefix[155], padd[12];
 };
 
-// convert to int to octal (or base-256)
+// convert from int to octal (or base-256)
 static void itoo(char *str, int len, unsigned long long val)
 {
   // Do we need binary encoding?
@@ -103,6 +103,7 @@ static unsigned long long otoi(char *str, unsigned len)
 
   return val;
 }
+#define OTOI(x) otoi(x, sizeof(x))
 
 // Calculate packet checksum, with cksum field treated as 8 spaces
 static unsigned cksum(void *data)
@@ -172,6 +173,7 @@ static void alloread(void *buf, int len)
   b[len] = 0;
 }
 
+// callback from dirtree to create archive
 static int add_to_tar(struct dirtree *node)
 {
   struct stat *st = &(node->st);
@@ -195,7 +197,7 @@ static int add_to_tar(struct dirtree *node)
     if ((p == name || p[-1] == '/') && *p != '/' && filter(TT.excl, p))
       goto done;
 
-  // The 1 extra byte from dirtree_path()
+  // Consume the 1 extra byte alocated in dirtree_path()
   if (S_ISDIR(st->st_mode) && name[i-1] != '/') strcat(name, "/");
 
   // remove leading / and any .. entries from saved name
@@ -282,6 +284,7 @@ static int add_to_tar(struct dirtree *node)
   }
 
   if (strlen(hname) > sizeof(hdr.name)) write_longname(hname, 'L');
+
   if (!FLAG(numeric_owner)) {
     if (TT.owner || (pw = bufgetpwuid(st->st_uid)))
       strncpy(hdr.uname, TT.owner ? TT.owner : pw->pw_name, sizeof(hdr.uname));
@@ -501,9 +504,8 @@ static void unpack_tar(void)
 
     // Is this a valid Unix Standard TAR header?
     if (memcmp(tar.magic, "ustar", 5)) error_exit("bad header");
-    if (cksum(&tar) != otoi(tar.chksum, sizeof(tar.chksum)))
-      error_exit("bad cksum");
-    TT.hdr.size = otoi(tar.size, sizeof(tar.size));
+    if (cksum(&tar) != OTOI(tar.chksum)) error_exit("bad cksum");
+    TT.hdr.size = OTOI(tar.size);
 
     // If this header isn't writing something to the filesystem
     if (tar.type<'0' || tar.type>'7') {
@@ -538,13 +540,13 @@ static void unpack_tar(void)
     }
 
     // At this point, we have something to output. Convert metadata.
-    TT.hdr.mode = otoi(tar.mode, sizeof(tar.mode));
+    TT.hdr.mode = OTOI(tar.mode);
     TT.hdr.mode |= (char []){8,8,10,2,6,4,1,8}[tar.type-'0']<<12;
-    TT.hdr.uid = otoi(tar.uid, sizeof(tar.uid));
-    TT.hdr.gid = otoi(tar.gid, sizeof(tar.gid));
-    TT.hdr.mtime = otoi(tar.mtime, sizeof(tar.mtime));
-    maj = otoi(tar.major, sizeof(tar.major));
-    min = otoi(tar.minor, sizeof(tar.minor));
+    TT.hdr.uid = OTOI(tar.uid);
+    TT.hdr.gid = OTOI(tar.gid);
+    TT.hdr.mtime = OTOI(tar.mtime);
+    maj = OTOI(tar.major);
+    min = OTOI(tar.minor);
     TT.hdr.device = dev_makedev(maj, min);
 
     TT.hdr.uname = xstrndup(TT.owner ? TT.owner : tar.uname, sizeof(tar.uname));
