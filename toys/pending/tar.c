@@ -121,13 +121,17 @@ static void write_longname(char *name, char type)
 
   memset(&tmp, 0, sizeof(tmp));
   strcpy(tmp.name, "././@LongLink");
-  ITOO(tmp.mode, 0);
   ITOO(tmp.uid, 0);
   ITOO(tmp.gid, 0);
   ITOO(tmp.size, sz);
   ITOO(tmp.mtime, 0);
   tmp.type = type;
   strcpy(tmp.magic, "ustar  ");
+
+  // Historical nonsense to match other implementations. Never used.
+  ITOO(tmp.mode, 0644);
+  strcpy(tmp.uname, "root");
+  strcpy(tmp.gname, "root");
 
   // Calculate checksum. Since 512*255 = 0377000 in octal, this can never
   // use more than 6 digits. The last byte is ' ' or historical reasons.

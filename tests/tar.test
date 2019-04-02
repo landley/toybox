@@ -7,9 +7,15 @@
 # For reproducibility: UTC and umask 0002
 
 OLDTZ="$TZ"
-TZ=utc
+export TZ=utc
 OLDUMASK=$(umask)
 umask 0002
+
+# 3888 bytes, most of PATH_MAX
+LONG=abcdefghijklmnopqrstuvwxyz0123456789
+LONG=$LONG$LONG$LONG$LONG$LONG$LONG$LONG$LONG$LONG
+LONG=$LONG$LONG$LONG$LONG$LONG$LONG
+LONG=$LONG$LONG
 
 # Reproducible tarballs: override ownership and timestamp. Also amount of
 # trailing NUL padding varies (1024 bytes is minimum, gnu/dammit does more)
@@ -18,24 +24,47 @@ umask 0002
 TAR='tar c --owner root --group root --mtime @1234567890'
 SUM='head -c $((3*512)) | sha1sum | sed "s/ .*//"'
 [ -n "$TARHD" ] && SUM="tee >(hd >&2) | $SUM"
-SPC='sed "s/[ \t][ \t]*/ /g"'
+LST='tar tv | sed "s/[ \t][ \t]*/ /g"'
 
 touch file
 testing "create file" "$TAR file | $SUM" \
   "fecaecba936e604bb115627a6ef4db7c7a3a8f81\n" "" ""
 
+testing "pass file" "$TAR file | $LST" \
+  "-rw-rw-r-- root/root 0 2009-02-13 23:31 file\n" "" ""
+
+# The kernel has two hardwired meaningful UIDs: 0 (root) and 65534 (nobody).
+# (Technically changeable via /proc/sys/*/overflowuid but nobody ever does)
+skipnot id nobody >/dev/null
+testing "pass user" "tar -c --owner nobody --group root --mtime @0 file | $LST" \
+  "-rw-rw-r-- nobody/root 0 1970-01-01 00:00 file\n" "" ""
+skipnot grep nobody /etc/group >/dev/null
+testing "pass group" "tar c --owner root --group nobody --mtime @0 file | $LST" \
+  "-rw-rw-r-- root/nobody 0 1970-01-01 00:00 file\n" "" ""
+
+touch -t 198701231234.56 file
+testing "pass mtime" \
+  "tar c --owner root --group root file | tar tv --full-time | sed 's/[ \t][ \t]*/ /g'" \
+  "-rw-rw-r-- root/root 0 1987-01-23 12:34:56 file\n" "" ""
+
 mkdir dir
 testing "create dir" "$TAR dir | $SUM" \
   "05739c423d7d4a7f12b3dbb7c94149acb2bb4f8d\n" "" ""
 
+testing "pass dir" "$TAR dir | $LST" \
+  "drwxrwxr-x root/root 0 2009-02-13 23:31 dir/\n" "" ""
+
 # note: does _not_ include dir entry in archive, just file
 touch dir/file
-testing "create dir and file" "$TAR dir/file | $SUM" \
+testing "create file in dir" "$TAR dir/file | $SUM" \
   "2d7b96c7025987215f5a41f10eaa84311160afdb\n" "" ""
 
 # Tests recursion without worrying about content order
-testing "create dir/file 2" "$TAR dir | $SUM" \
+testing "create dir and dir/file" "$TAR dir | $SUM" \
   "0bcc8005a3e07eb63c9b735267aecc5b774795d7\n" "" ""
+
+testing "pass dir/file" "$TAR dir | $LST" \
+  "drwxrwxr-x root/root 0 2009-02-13 23:31 dir/\n-rw-rw-r-- root/root 0 2009-02-13 23:31 dir/file\n" "" ""
 
 # / and .. only stripped from name, not symlink target.
 ln -s ../name.././.. dir/link
@@ -55,14 +84,21 @@ skipnot mkfifo dir/fifo
 testing "create dir/fifo" "$TAR dir/fifo | $SUM" \
   "bd1365db6e8ead4c813333f9666994c1899924d9\n" "" ""
 
+# test L and K records
+
+# 4+96=100 (biggest short name), 4+97=101 (shortest long name)
+touch dir/${LONG:1:96} dir/${LONG:1:97}
+testing "create longfilename" "$TAR dir/${LONG:1:97} dir/${LONG:1:96} | $SUM" \
+  "08af4f9d8b7f4b2f6c264689efe42a4159314708\n" "" ""
+
 # this expects devtmpfs values
 
-TZ=utc testing "pass /dev/null" \
-  "tar c --mtime @0 /dev/null 2>/dev/null | tar tv | $SPC" \
+testing "pass /dev/null" \
+  "tar c --mtime @0 /dev/null 2>/dev/null | $LST" \
   "crw-rw-rw- root/root 1,3 1970-01-01 00:00 dev/null\n" "" ""
 
-TZ=utc testing "pass /dev/loop0" \
-  "tar c --numeric-owner --mtime @0 /dev/loop0 2>/dev/null | tar tv | $SPC" \
+testing "pass /dev/loop0" \
+  "tar c --numeric-owner --mtime @0 /dev/loop0 2>/dev/null | $LST" \
   "brw-rw---- 0/6 7,0 1970-01-01 00:00 dev/loop0\n" "" ""
 
 skipnot mknod dir/char c 12 34
@@ -78,3 +114,27 @@ testing "create dir/block" "$TAR dir/block | $SUM" \
 skipnot chown nobody dir/file
 testing "ownership" "$TAR dir/block | $SUM" \
   "blat" "" ""
+
+# merge add_to_tar and write_longname, 
+
+# add dir with no trailing slash
+# don't allow hardlink target outside cwd
+# extract dir/file without dir in tarball
+# create with and without each flag
+# --owner --group --numeric-owner
+# extract with and without each flag
+# --owner 0 --group 0
+# symlink
+# set symlink owner
+# hardlink
+# /abspath
+# >256 hardlink inodes
+#   // remove leading / and any .. entries from saved name
+#  // exclusion defaults to --no-anchored and --wildcards-match-slash
+# //bork blah../thing blah/../thing blah/../and/../that blah/.. ../blah
+# tar tv --owner --group --mtime
+# extract file within dir date correct
+
+TZ="$OLDTZ"
+umask $OLDUMASK
+unset LONG TAR SUM OLDUMASK OLDTZ LST
