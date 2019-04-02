@@ -55,11 +55,14 @@ void error_exit(char *msg, ...)
 // Die with an error message and strerror(errno)
 void perror_exit(char *msg, ...)
 {
-  va_list va;
+  // Die silently if our pipeline exited.
+  if (errno != EPIPE) {
+    va_list va;
 
-  va_start(va, msg);
-  verror_msg(msg, errno, va);
-  va_end(va);
+    va_start(va, msg);
+    verror_msg(msg, errno, va);
+    va_end(va);
+  }
 
   xexit();
 }
