@@ -235,20 +235,25 @@ pid_t xpopen_both(char **argv, int *pipes)
 
   if (!(pid = CFG_TOYBOX_FORK ? xfork() : XVFORK())) {
     // Child process: Dance of the stdin/stdout redirection.
+    // cestnepasun[1]->cestnepasun[0] and cestnepasun[2]->cestnepasun[1]
     if (pipes) {
       // if we had no stdin/out, pipe handles could overlap, so test for it
       // and free up potentially overlapping pipe handles before reuse
+
+      // in child, close read end of output pipe, and return write end as out
       if (cestnepasun[2]) {
         close(cestnepasun[2]);
         pipes[1] = cestnepasun[3];
       }
+
+      // in child, close write end of input pipe, and return input end as out.
       if (cestnepasun[1]) {
         close(cestnepasun[1]);
         pipes[0] = cestnepasun[0];
       }
 
-      // If swapping stdin/stdout
-      if (!pipes[1]) pipes[1] = dup(pipes[1]);
+      // If swapping stdin/stdout, need to move a filehandle to temp
+      if (!pipes[1]) pipes[1] = dup(0);
 
       // Are we redirecting stdin?
       if (pipes[0]) {
@@ -259,7 +264,7 @@ pid_t xpopen_both(char **argv, int *pipes)
       // Are we redirecting stdout?
       if (pipes[1] != 1) {
         dup2(pipes[1], 1);
-        if (cestnepasun[2]) close(cestnepasun[2]);
+        close(pipes[1]);
       }
     }
     if (argv) xexec(argv);
