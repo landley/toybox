@@ -357,7 +357,7 @@ static void extract_to_command(void)
 // Do pending directory utimes(), NULL to flush all.
 static int dirflush(char *name)
 {
-  char *s = s, *ss;
+  char *s = 0, *ss;
 
   // Barf if name not in TT.cwd
   if (name) {
