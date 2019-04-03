@@ -63,12 +63,13 @@ static int utf8_dec(char key, char *utf8_scratch, int *sta_p) ;
 static int utf8_len(char *str);
 static int utf8_width(char *str, int bytes);
 static int draw_rune(char *c, int x, int y, int highlight);
+static char* utf8_last(char* str, int size);
 
 
-static void cur_left();
-static void cur_right();
-static void cur_up();
-static void cur_down();
+static int cur_left(int count);
+static int cur_right(int count);
+static int cur_up(int count);
+static int cur_down(int count);
 static void check_cursor_bounds();
 static void adjust_screen_buffer();
 
@@ -252,29 +253,57 @@ int ex_deol(int count)
   return 1;
 }
 
-//does not work with utf8 yet
 int vi_x(int count)
 {
   char *s;
+  char *last;
   int *l;
-  int *p;
+  int length = 0;
+  int width = 0;
+  int remaining = 0;
+  char *end;
+  char *start;
   if (!c_r)
     return 0;
   s = c_r->line->str_data;
   l = &c_r->line->str_len;
-  p = &TT.cur_col;
-  if (!(*l)) return 0;
-  if ((*p) == (*l)-1) {
-    s[*p] = 0;
-    if (*p) (*p)--;
-    (*l)--;
-  } else {
-    memmove(s+(*p), s+(*p)+1, (*l)-(*p));
-    s[*l] = 0;
-    (*l)--;
+
+  last = utf8_last(s,*l);
+  if (last == s+TT.cur_col) {
+    memset(last, 0, (*l)-TT.cur_col);
+    *l = TT.cur_col;
+    if (!TT.cur_col) return 1;
+    last = utf8_last(s, TT.cur_col);
+    TT.cur_col = last-s;
+    return 1;
   }
-  count--;
-  return (count) ? vi_x(count) : 1;
+
+  start = s+TT.cur_col;
+  end = start;
+  remaining = (*l)-TT.cur_col;
+  for (;remaining;) {
+    int next = utf8_lnw(&width, end, remaining);
+    if (next && width) {
+      if (!count) break;
+      count--;
+    } if (!next) break;
+    length += next;
+    end += next;
+    remaining -= next;
+  }
+  if (remaining) {
+    memmove(start, end, remaining);
+    memset(end+remaining,0,end-start);
+  } else {
+    memset(start,0,(*l)-TT.cur_col);
+  }
+  *l -= end-start;
+  if (!TT.cur_col) return 1;
+  if (TT.cur_col == (*l)) {
+    last = utf8_last(s, TT.cur_col);
+    TT.cur_col = last-s;
+  }
+  return 1;
 }
 
 //move commands does not behave correct way yet.
@@ -402,7 +431,7 @@ struct vi_cmd_param {
   int (*vi_cmd_ptr)(int);
 };
 
-struct vi_cmd_param vi_cmds[7] =
+struct vi_cmd_param vi_cmds[11] =
 {
   {"dd", &ex_dd},
   {"dw", &ex_dw},
@@ -411,6 +440,10 @@ struct vi_cmd_param vi_cmds[7] =
   {"b", &vi_movb},
   {"e", &vi_move},
   {"x", &vi_x},
+  {"h", &cur_left},
+  {"j", &cur_down},
+  {"k", &cur_up},
+  {"l", &cur_right},
 };
 
 int run_vi_cmd(char *cmd)
@@ -426,7 +459,7 @@ int run_vi_cmd(char *cmd)
   else {
     cmd = cmd_e;
   }
-  for (; i<7; i++) {
+  for (; i < 11; i++) {
     if (strstr(cmd, vi_cmds[i].cmd)) {
       return vi_cmds[i].vi_cmd_ptr(val);
     }
@@ -440,7 +473,7 @@ int search_str(char *s)
   struct linelist *lst = c_r;
   char *c = strstr(&c_r->line->str_data[TT.cur_col], s);
   if (c) {
-    TT.cur_col = c_r->line->str_data-c;
+    TT.cur_col = c_r->line->str_data-c; //TODO ??
   TT.cur_col = c-c_r->line->str_data;
   }
   else for (; !c;) {
@@ -523,18 +556,6 @@ void vi_main(void)
     }
     if (TT.vi_mode == 1) { //NORMAL
       switch (key) {
-        case 'h':
-          cur_left();
-          break;
-        case 'j':
-          cur_down();
-          break;
-        case 'k':
-          cur_up();
-          break;
-        case 'l':
-          cur_right();
-          break;
         case '/':
         case '?':
         case ':':
@@ -554,7 +575,7 @@ void vi_main(void)
           break;
         default:
           if (key > 0x20 && key < 0x7B) {
-            vi_buf[vi_buf_pos] = key;
+            vi_buf[vi_buf_pos] = key;//TODO handle input better
             vi_buf_pos++;
             if (run_vi_cmd(vi_buf)) {
               memset(vi_buf, 0, 16);
@@ -562,6 +583,7 @@ void vi_main(void)
             }
             else if (vi_buf_pos == 16) {
               vi_buf_pos = 0;
+              memset(vi_buf, 0, 16);
             }
 
           }
@@ -834,12 +856,10 @@ static int draw_rune(char *c, int x, int y, int highlight)
 
 static void check_cursor_bounds()
 {
-  if (c_r->line->str_len-1 < TT.cur_col) {
-    if (c_r->line->str_len == 0)
-      TT.cur_col = 0;
-    else
-      TT.cur_col = c_r->line->str_len-1;
-  }
+  if (c_r->line->str_len == 0) TT.cur_col = 0;
+  else if (c_r->line->str_len-1 < TT.cur_col) TT.cur_col = c_r->line->str_len-1;
+  if(utf8_width(&c_r->line->str_data[TT.cur_col], c_r->line->str_len-TT.cur_col) <= 0)
+    cur_left(1);
 }
 
 static void adjust_screen_buffer()
@@ -963,6 +983,20 @@ static int utf8_dec(char key, char *utf8_scratch, int *sta_p)
   return 0;
 }
 
+static char* utf8_last(char* str, int size)
+{
+  char* end = str+size;
+  int pos = size;
+  int len = 0;
+  int width = 0;
+  while (pos >= 0) {
+    len = utf8_lnw(&width, end, size-pos);
+    if (len && width) return end;
+    end--; pos--;
+  }
+  return 0;
+}
+
 static int draw_str_until(int *drawn, char *str, int width, int bytes)
 {
   int rune_width = 0;
@@ -991,38 +1025,50 @@ write_bytes:
   return max_width-width;
 }
 
-static void cur_left()
+static int cur_left(int count)
 {
-  if (!TT.cur_col) return;
-  TT.cur_col--;
+  for (;count--;) {
+    if (!TT.cur_col) return 1;
 
-  if (!utf8_len(&c_r->line->str_data[TT.cur_col])) cur_left();
+    TT.cur_col--;
+    check_cursor_bounds();//has bit ugly recursion hidden here
+  }
+  return 1;
 }
 
-static void cur_right()
+static int cur_right(int count)
 {
-  if (c_r->line->str_len <= 1) return;
-  if (TT.cur_col == c_r->line->str_len-1) return;
-  TT.cur_col++;
-  if (!utf8_len(&c_r->line->str_data[TT.cur_col])) cur_right();
+  for (;count--;) {
+    if (c_r->line->str_len <= 1) return 1;
+    if (TT.cur_col >= c_r->line->str_len-1) {
+      TT.cur_col = utf8_last(c_r->line->str_data, c_r->line->str_len)
+        - c_r->line->str_data;
+      return 1;
+    }
+    TT.cur_col++;
+    if (utf8_width(&c_r->line->str_data[TT.cur_col],
+          c_r->line->str_len-TT.cur_col) <= 0)
+      cur_right(1);
+  }
+  return 1;
 }
 
-static void cur_up()
+static int cur_up(int count)
 {
-  if (c_r->up != 0)
+  for (;count-- && c_r->up;)
     c_r = c_r->up;
 
-  if (!utf8_len(&c_r->line->str_data[TT.cur_col])) cur_left();
   check_cursor_bounds();
   adjust_screen_buffer();
+  return 1;
 }
 
-static void cur_down()
+static int cur_down(int count)
 {
-  if (c_r->down != 0)
+  for (;count-- && c_r->down;)
     c_r = c_r->down;
 
-  if (!utf8_len(&c_r->line->str_data[TT.cur_col])) cur_left();
   check_cursor_bounds();
   adjust_screen_buffer();
+  return 1;
 }
