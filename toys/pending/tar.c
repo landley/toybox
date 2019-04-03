@@ -475,7 +475,7 @@ static void extract_to_disk(void)
   }
 }
 
-static void unpack_tar(void)
+static void unpack_tar(struct tar_hdr *first)
 {
   struct double_list *walk, *delete;
   struct tar_hdr tar;
@@ -484,9 +484,14 @@ static void unpack_tar(void)
   char *s;
 
   for (;;) {
-    // align to next block and read it
-    if (TT.hdr.size%512) skippy(512-TT.hdr.size%512);
-    i = readall(TT.fd, &tar, 512);
+    if (first) {
+      memcpy(&tar, first, i = 512);
+      first = 0;
+    } else {
+      // align to next block and read it
+      if (TT.hdr.size%512) skippy(512-TT.hdr.size%512);
+      i = readall(TT.fd, &tar, 512);
+    }
 
     if (i && i != 512) error_exit("read error");
 
@@ -619,7 +624,7 @@ static void unpack_tar(void)
         printf("  %d-%02d-%02d %02d:%02d%s ", 1900+lc->tm_year, 1+lc->tm_mon,
           lc->tm_mday, lc->tm_hour, lc->tm_min, FLAG(full_time) ? perm : "");
       }
-      printf(" %s", TT.hdr.name);
+      printf("%s", TT.hdr.name);
       if (TT.hdr.link_target) printf(" -> %s", TT.hdr.link_target);
       xputc('\n');
       skippy(TT.hdr.size);
@@ -653,10 +658,12 @@ static void trim_list(char **pline, long len)
 void tar_main(void)
 {
   char *s, **args = toys.optargs;
+  int len = 0;
 
-  // When extracting to command
+  // Needed when extracting to command
   signal(SIGPIPE, SIG_IGN);
 
+  // Get possible early errors out of the way
   if (!geteuid()) toys.optflags |= FLAG_p;
   if (TT.owner) TT.ouid = xgetuid(TT.owner);
   if (TT.group) TT.ggid = xgetgid(TT.group);
@@ -667,15 +674,25 @@ void tar_main(void)
   for (args = toys.optargs; *args; args++) trim_list(args, strlen(*args));
   for (;TT.T; TT.T = TT.T->next) do_lines(xopenro(TT.T->arg), '\n', trim_list);
 
-  // Open archive file
+  // If include file list empty, don't create empty archive
   if (FLAG(c)) {
     if (!TT.incl) error_exit("empty archive");
     TT.fd = 1;
   }
-  if (TT.f && strcmp(TT.f, "-"))
-    TT.fd = xcreate(TT.f, TT.fd*(O_WRONLY|O_CREAT|O_TRUNC), 0666);
 
-  // grab archive inode
+  // nommu reentry for nonseekable input skips this, parent did it for us
+  if (toys.stacktop) {
+    if (TT.f && strcmp(TT.f, "-"))
+      TT.fd = xcreate(TT.f, TT.fd*(O_WRONLY|O_CREAT|O_TRUNC), 0666);
+    // Get destination directory
+    if (TT.C) xchdir(TT.C);
+  }
+
+  // Get destination directory
+  TT.cwd = xabspath(s = xgetcwd(), 1);
+  free(s);
+
+  // Remember archive inode
   {
     struct stat st;
 
@@ -685,23 +702,54 @@ void tar_main(void)
     }
   }
 
-  // Get destination directory
-  if (TT.C) xchdir(TT.C);
-  TT.cwd = xabspath(s = xgetcwd(), 1);
-  free(s);
-
   // Are we reading?
   if (FLAG(x)||FLAG(t)) {
+    struct tar_hdr *hdr = (void *)(toybuf+sizeof(toybuf)-512);
+
+    // autodetect compression type when not specified
+    if (!FLAG(j)&&!FLAG(z)) {
+      len = xread(TT.fd, hdr, 512);
+      if (len!=512 || strncmp("ustar", hdr->magic, 5)) {
+        // detect gzip and bzip signatures
+        if (SWAP_BE16(*(short *)hdr)==0x1f8b) toys.optflags |= FLAG_z;
+        else if (!memcmp(hdr->name, "BZh", 3)) toys.optflags |= FLAG_j;
+        else error_exit("Not tar");
+
+        // if we can seek back we don't need to loop and copy data
+        if (!lseek(TT.fd, -len, SEEK_CUR)) hdr = 0;
+      }
+    }
+
     if (FLAG(j)||FLAG(z)) {
-      int pipefd[2] = {TT.fd, -1};
+      int pipefd[2] = {hdr ? -1 : TT.fd, -1}, i;
 
       xpopen_both((char *[]){FLAG(z)?"gunzip":"bunzip2", "-cf", "-", NULL},
         pipefd);
       close(TT.fd);
       TT.fd = pipefd[1];
+
+      // If we autodetected type but then couldn't lseek to put the data back
+      if (hdr) {
+        // dirty trick: move pipefd[0] to 0 so child closes spare copy
+        dup2(pipefd[0], 0);
+        if (pipefd[0]) close(pipefd[0]);
+
+        // Fork a copy of ourselves to handle extraction (reads from zip proc)
+        pipefd[0] = TT.fd;
+        pipefd[1] = 1;
+        xpopen_both(0, pipefd);
+        close(TT.fd);
+
+        // loop writing collated data to zip proc
+        xwrite(0, hdr, len);
+        for (;;) {
+          if ((i = read(0, toybuf, sizeof(toybuf)))<1) return;
+          xwrite(0, toybuf, i);
+        }
+      } else hdr = 0;
     }
 
-    unpack_tar();
+    unpack_tar(hdr);
     if (TT.seen != TT.incl) {
       if (!TT.seen) TT.seen = TT.incl;
       while (TT.incl != TT.seen) {
@@ -713,6 +761,15 @@ void tar_main(void)
   // are we writing? (Don't have to test flag here, one of 3 must be set)
   } else {
     struct double_list *dl = TT.incl;
+
+    // autodetect compression type based on -f name. (Use > to avoid.)
+    if (TT.f && !FLAG(j) && !FLAG(z)) {
+      char *tbz[] = {".tbz", ".tbz2", ".tar.bz", ".tar.bz2"};
+      if (strend(TT.f, ".tgz") || strend(TT.f, ".tar.gz"))
+        toys.optflags |= FLAG_z;
+      else for (len = 0; len<ARRAY_LEN(tbz); len++)
+        if (strend(TT.f, tbz[len])) toys.optflags |= FLAG_j;
+    }
 
     if (FLAG(j)||FLAG(z)) {
       int pipefd[2] = {-1, TT.fd};
