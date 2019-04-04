@@ -24,34 +24,38 @@ TAR='tar c --owner root --group root --mtime @1234567890'
 export BLOCKS=3
 SUM='head -c $(($BLOCKS*512)) | sha1sum | sed "s/ .*//"'
 [ -n "$TARHD" ] && SUM="tee >(hd >&2) | $SUM"
-LST='tar tv | sed "s/[ \t][ \t]*/ /g"'
+
+function LST()
+{
+  tar tv $LSTARG | sed "s/[ \t][ \t]*/ /g"
+}
 
 touch file
 testing "create file" "$TAR file | $SUM" \
   "fecaecba936e604bb115627a6ef4db7c7a3a8f81\n" "" ""
 
-testing "pass file" "$TAR file | $LST" \
+testing "pass file" "$TAR file | LST" \
   "-rw-rw-r-- root/root 0 2009-02-13 23:31 file\n" "" ""
 
 # The kernel has two hardwired meaningful UIDs: 0 (root) and 65534 (nobody).
 # (Technically changeable via /proc/sys/*/overflowuid but nobody ever does)
 skipnot id nobody >/dev/null
-testing "pass user" "tar -c --owner nobody --group root --mtime @0 file | $LST" \
+testing "pass user" "tar -c --owner nobody --group root --mtime @0 file | LST" \
   "-rw-rw-r-- nobody/root 0 1970-01-01 00:00 file\n" "" ""
 skipnot grep nobody /etc/group >/dev/null
-testing "pass group" "tar c --owner root --group nobody --mtime @0 file | $LST" \
+testing "pass group" "tar c --owner root --group nobody --mtime @0 file | LST" \
   "-rw-rw-r-- root/nobody 0 1970-01-01 00:00 file\n" "" ""
 
 touch -t 198701231234.56 file
-testing "pass mtime" \
-  "tar c --owner root --group root file | tar tv --full-time | sed 's/[ \t][ \t]*/ /g'" \
+LSTARG=--full-time testing "pass mtime" \
+  "tar c --owner root --group root file | LST" \
   "-rw-rw-r-- root/root 0 1987-01-23 12:34:56 file\n" "" ""
 
 mkdir dir
 testing "create dir" "$TAR dir | $SUM" \
   "05739c423d7d4a7f12b3dbb7c94149acb2bb4f8d\n" "" ""
 
-testing "pass dir" "$TAR dir | $LST" \
+testing "pass dir" "$TAR dir | LST" \
   "drwxrwxr-x root/root 0 2009-02-13 23:31 dir/\n" "" ""
 
 # note: does _not_ include dir entry in archive, just file
@@ -63,8 +67,12 @@ testing "create file in dir" "$TAR dir/file | $SUM" \
 testing "create dir and dir/file" "$TAR dir | $SUM" \
   "0bcc8005a3e07eb63c9b735267aecc5b774795d7\n" "" ""
 
-testing "pass dir/file" "$TAR dir | $LST" \
+testing "pass dir/file" "$TAR dir | LST" \
   "drwxrwxr-x root/root 0 2009-02-13 23:31 dir/\n-rw-rw-r-- root/root 0 2009-02-13 23:31 dir/file\n" "" ""
+
+echo boing > dir/that
+testing "tar C" "$TAR -C dir that | $SUM" \
+  "f0deff71bf4858eb0c5f49d99d052f12f1831feb\n" "" ""
 
 # / and .. only stripped from name, not symlink target.
 ln -s ../name.././.. dir/link
@@ -106,27 +114,33 @@ testing "create symlink" "$TAR dir/linkok | $SUM" \
   "55652846506cf0a9d43b3ef03ccf9e98123befaf\n" "" ""
 
 ln -s /dev/null dir/linknull
-testing "pass absolute symlink" "$TAR dir/linknull | $LST" \
+testing "pass absolute symlink" "$TAR dir/linknull | LST" \
   "lrwxrwxrwx root/root 0 2009-02-13 23:31 dir/linknull -> /dev/null\n" "" ""
 
 ln -s rel/broken dir/relbrok
-testing "pass broken symlink" "$TAR dir/relbrok | $LST" \
+testing "pass broken symlink" "$TAR dir/relbrok | LST" \
   "lrwxrwxrwx root/root 0 2009-02-13 23:31 dir/relbrok -> rel/broken\n" "" ""
 
 ln -s /does/not/exist dir/linkabsbrok
-testing "pass broken absolute symlink" "$TAR dir/linkabsbrok | $LST" \
+testing "pass broken absolute symlink" "$TAR dir/linkabsbrok | LST" \
   "lrwxrwxrwx root/root 0 2009-02-13 23:31 dir/linkabsbrok -> /does/not/exist\n" \
   "" ""
 
 # this expects devtmpfs values
 
 testing "pass /dev/null" \
-  "tar c --mtime @0 /dev/null 2>/dev/null | $LST" \
+  "tar c --mtime @0 /dev/null 2>/dev/null | LST" \
   "crw-rw-rw- root/root 1,3 1970-01-01 00:00 dev/null\n" "" ""
 
 testing "pass /dev/loop0" \
-  "tar c --numeric-owner --mtime @0 /dev/loop0 2>/dev/null | $LST" \
+  "tar c --numeric-owner --mtime @0 /dev/loop0 2>/dev/null | LST" \
   "brw-rw---- 0/6 7,0 1970-01-01 00:00 dev/loop0\n" "" ""
+
+# compression types
+testing "autodetect gzip" \
+  'tar tvf $FILES/tar/tar.tgz | sed "s/[ \t][ \t]*/ /g"' \
+  "drwxr-x--- enh/eng 0 2017-05-13 01:05 dir/\n-rw-r----- enh/eng 12 2017-05-13 01:05 dir/file\n" \
+  "" ""
 
 skipnot mknod dir/char c 12 34
 testing "create char2" "$TAR /dev/null | $SUM" \
@@ -142,6 +156,42 @@ skipnot chown nobody dir/file
 testing "ownership" "$TAR dir/block | $SUM" \
   "blat" "" ""
 
+mkdir -p dd/sub/blah &&
+tar cf test.tar dd/sub/blah &&
+rm -rf dd/sub &&
+ln -s ../.. dd/sub || SKIPNEXT=1
+toyonly testing "symlink out of cwd" \
+  "tar xf test.tar 2> /dev/null || echo yes ; [ ! -e dd/sub/blah ] && echo yes" \
+  "yes\nyes\n" "" ""
+
+# If not root can't preserve ownership, so don't try yet.
+
+testing "extract dir/file from tar" \
+  "tar xvCf dd $FILES/tar/tar.tar && stat -c '%A %Y %n' dd/dir dd/dir/file" \
+  "dir/\ndir/file\ndrwxr-x--- 1494637555 dd/dir\n-rw-r----- 1494637555 dd/dir/file\n" \
+  "" ""
+
+testing "extract dir/file from tgz (autodetect)" \
+  "tar xvCf dd $FILES/tar/tar.tgz && stat -c '%A %Y %n' dd/dir dd/dir/file" \
+  "dir/\ndir/file\ndrwxr-x--- 1494637555 dd/dir\n-rw-r----- 1494637555 dd/dir/file\n" \
+  "" ""
+
+toyonly testing "cat tgz | extract dir/file (autodetect)" \
+  "cat $FILES/tar/tar.tgz | tar xvC dd && stat -c '%A %Y %n' dd/dir dd/dir/file" \
+  "dir/\ndir/file\ndrwxr-x--- 1494637555 dd/dir\n-rw-r----- 1494637555 dd/dir/file\n" \
+  "" ""
+
+testing "extract dir/file from tbz2 (autodetect)" \
+  "tar xvCf dd $FILES/tar/tar.tbz2 && stat -c '%A %Y %n' dd/dir dd/dir/file" \
+  "dir/\ndir/file\ndrwxr-x--- 1494637555 dd/dir\n-rw-r----- 1494637555 dd/dir/file\n" \
+  "" ""
+
+toyonly testing "cat tbz | extract dir/file (autodetect)" \
+  "cat $FILES/tar/tar.tbz2 | tar xvC dd && stat -c '%A %Y %n' dd/dir dd/dir/file" \
+  "dir/\ndir/file\ndrwxr-x--- 1494637555 dd/dir\n-rw-r----- 1494637555 dd/dir/file\n" \
+  "" ""
+
 TZ="$OLDTZ"
 umask $OLDUMASK
-unset LONG TAR SUM OLDUMASK OLDTZ LST
+unset LONG TAR SUM OLDUMASK OLDTZ
+unset -f LST

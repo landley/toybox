@@ -453,7 +453,7 @@ static void extract_to_disk(void)
   }
 
   // || !FLAG(no_same_permissions))
-  if (FLAG(p) && !S_ISLNK(ala)) chmod(TT.hdr.name, ala);
+  if (!S_ISLNK(ala)) chmod(TT.hdr.name, FLAG(p) ? ala : ala&0777);
 
   // Apply mtime.
   if (!FLAG(m)) {
@@ -493,14 +493,11 @@ static void unpack_tar(struct tar_hdr *first)
       i = readall(TT.fd, &tar, 512);
     }
 
-    if (i && i != 512) error_exit("read error");
+    if (i && i!=512) error_exit("short header");
 
     // Two consecutive empty headers ends tar even if there's more data
     if (!i || !*tar.name) {
-      if (!i || and++) {
-        dirflush(0);
-        return;
-      }
+      if (!i || and++) return;
       TT.hdr.size = 0;
       continue;
     }
@@ -721,35 +718,48 @@ void tar_main(void)
     }
 
     if (FLAG(j)||FLAG(z)) {
-      int pipefd[2] = {hdr ? -1 : TT.fd, -1}, i;
+      int pipefd[2] = {hdr ? -1 : TT.fd, -1}, i, pid;
 
       xpopen_both((char *[]){FLAG(z)?"gunzip":"bunzip2", "-cf", "-", NULL},
         pipefd);
-      close(TT.fd);
-      TT.fd = pipefd[1];
 
-      // If we autodetected type but then couldn't lseek to put the data back
-      if (hdr) {
-        // dirty trick: move pipefd[0] to 0 so child closes spare copy
+      if (!hdr) {
+        // If we could seek, child gzip inherited fd and we read its output
+        close(TT.fd);
+        TT.fd = pipefd[1];
+
+      } else {
+
+        // If we autodetected type but then couldn't lseek to put the data back
+        // we have to loop reading data from TT.fd and pass it to gzip ourselves
+        // (starting with the block of data we read to autodetect).
+
+        // dirty trick: move gzip input pipe to stdin so child closes spare copy
         dup2(pipefd[0], 0);
         if (pipefd[0]) close(pipefd[0]);
 
-        // Fork a copy of ourselves to handle extraction (reads from zip proc)
-        pipefd[0] = TT.fd;
+        // Fork a copy of ourselves to handle extraction (reads from zip output
+        // pipe, writes to stdout).
+        pipefd[0] = pipefd[1];
         pipefd[1] = 1;
-        xpopen_both(0, pipefd);
-        close(TT.fd);
+        pid = xpopen_both(0, pipefd);
+        close(pipefd[1]);
 
         // loop writing collated data to zip proc
         xwrite(0, hdr, len);
         for (;;) {
-          if ((i = read(0, toybuf, sizeof(toybuf)))<1) return;
+          if ((i = read(TT.fd, toybuf, sizeof(toybuf)))<1) {
+            close(0);
+            xwaitpid(pid);
+            return;
+          }
           xwrite(0, toybuf, i);
         }
-      } else hdr = 0;
+      }
     }
 
     unpack_tar(hdr);
+    dirflush(0);
     if (TT.seen != TT.incl) {
       if (!TT.seen) TT.seen = TT.incl;
       while (TT.incl != TT.seen) {
