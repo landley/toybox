@@ -198,6 +198,7 @@ void stat_main(void)
       if (*f != '%') putchar(*f);
       else {
         f = next_printf(f, &TT.pattern);
+        if (!f) error_exit("bad -c \"%s\"", format);
         TT.patlen = f-TT.pattern;
         if (TT.patlen>99) error_exit("bad %s", TT.pattern);
         if (*f == 'n') strout(TT.file);
