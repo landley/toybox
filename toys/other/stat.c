@@ -108,10 +108,10 @@ static void print_stat(char type)
     }
     llist_traverse(mt, free);
   } else if (type == 'N') {
-    xprintf("%s", TT.file);
+    printf("%s", TT.file);
     if (S_ISLNK(stat->st_mode))
       if (readlink0(TT.file, toybuf, sizeof(toybuf)))
-        xprintf(" -> `%s'", toybuf);
+        printf(" -> `%s'", toybuf);
   } else if (type == 'o') out('u', stat->st_blksize);
   else if (type == 's') out('u', stat->st_size);
   else if (type == 't') out('x', dev_major(stat->st_rdev));
@@ -124,7 +124,7 @@ static void print_stat(char type)
   else if (type == 'Y') out('u', stat->st_mtime);
   else if (type == 'z') date_stat_format(&stat->st_ctim);
   else if (type == 'Z') out('u', stat->st_ctime);
-  else xprintf("?");
+  else putchar('?');
 }
 
 static void print_statfs(char type) {
@@ -166,13 +166,13 @@ static void print_statfs(char type) {
 
 void stat_main(void)
 {
-  int flagf = toys.optflags & FLAG_f, i;
+  int flagf = FLAG(f), i;
   char *format, *f;
 
-  if (toys.optflags&FLAG_t) {
-    format = flagf ? "%n %i %l %t %s %S %b %f %a %c %d" :
-                     "%n %s %b %f %u %g %D %i %h %t %T %X %Y %Z %o";
-  } else format = flagf
+  if (FLAG(t)) format = flagf
+    ? "%n %i %l %t %s %S %b %f %a %c %d"
+    : "%n %s %b %f %u %g %D %i %h %t %T %X %Y %Z %o";
+  else format = flagf
     ? "  File: \"%n\"\n    ID: %i Namelen: %l    Type: %T\n"
       "Block Size: %s    Fundamental block size: %S\n"
       "Blocks: Total: %b\tFree: %f\tAvailable: %a\n"
@@ -182,25 +182,27 @@ void stat_main(void)
       "Access: (0%a/%A)\tUid: (%5u/%8U)\tGid: (%5g/%8G)\n"
       "Access: %x\nModify: %y\nChange: %z";
 
-  if (toys.optflags & FLAG_c) format = TT.c;
+  if (FLAG(c)) format = TT.c;
 
+  // loop through files listed on command line
   for (i = 0; toys.optargs[i]; i++) {
-    int L = toys.optflags & FLAG_L;
 
+    // stat the file or filesystem
     TT.file = toys.optargs[i];
     if (flagf && !statfs(TT.file, (void *)&TT.stat));
-    else if (flagf || (L ? stat : lstat)(TT.file, (void *)&TT.stat)) {
+    else if (flagf || (FLAG(L) ? stat : lstat)(TT.file, (void *)&TT.stat)) {
       perror_msg("'%s'", TT.file);
       continue;
     }
 
+    // parse format and print what it says
     for (f = format; *f; f++) {
-      if (*f != '%') putchar(*f);
+      if (*f != '%' || !f[1]) putchar(*f);
+      else if (f[1]=='%') putchar(*f++);
       else {
         f = next_printf(f, &TT.pattern);
-        if (!f) error_exit("bad -c \"%s\"", format);
         TT.patlen = f-TT.pattern;
-        if (TT.patlen>99) error_exit("bad %s", TT.pattern);
+        if (!*f || TT.patlen>99) error_exit("bad %s", TT.pattern);
         if (*f == 'n') strout(TT.file);
         else if (flagf) print_statfs(*f);
         else print_stat(*f);
