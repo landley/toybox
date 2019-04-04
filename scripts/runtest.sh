@@ -74,7 +74,15 @@ skipnot()
   else
     eval "$@"
   fi
-  [ $? -eq 0 ] || SKIPNOT=1
+  [ $? -eq 0 ] || SKIPNEXT=1
+}
+
+toyonly()
+{
+  IS_TOYBOX="$("$C" --version 2>/dev/null)"
+  [ "${IS_TOYBOX/toybox/}" == "$IS_TOYBOX" ] && SKIPNEXT=1
+
+  "$@"
 }
 
 wrong_args()
@@ -97,10 +105,10 @@ testing()
 
   [ -n "$DEBUG" ] && set -x
 
-  if [ -n "$SKIP" -o -n "$SKIP_HOST" -a -n "$TEST_HOST" -o -n "$SKIPNOT" ]
+  if [ -n "$SKIP" -o -n "$SKIP_HOST" -a -n "$TEST_HOST" -o -n "$SKIPNEXT" ]
   then
     [ ! -z "$VERBOSE" ] && echo "$SHOWSKIP: $NAME"
-    unset SKIPNOT
+    unset SKIPNEXT
     return 0
   fi
 
