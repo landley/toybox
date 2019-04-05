@@ -193,9 +193,11 @@ static int add_to_tar(struct dirtree *node)
   name = dirtree_path(node, &i);
 
   // exclusion defaults to --no-anchored and --wildcards-match-slash
-  for (p = name; *p; p++)
-    if ((p == name || p[-1] == '/') && *p != '/' && filter(TT.excl, p))
-      goto done;
+  for (p = name; *p;) {
+    if (filter(TT.excl, p)) goto done;
+    while (*p && *p!='/') p++;
+    while (*p=='/') p++;
+  }
 
   // Consume the 1 extra byte alocated in dirtree_path()
   if (S_ISDIR(st->st_mode) && name[i-1] != '/') strcat(name, "/");
@@ -588,6 +590,7 @@ static void unpack_tar(struct tar_hdr *first)
 
     // Files are seen even if excluded, so check them here.
     // TT.seen points to first seen entry in TT.incl, or NULL if none yet.
+
     if ((delete = filter(TT.incl, TT.hdr.name)) && TT.incl != TT.seen) {
       if (!TT.seen) TT.seen = delete;
 
@@ -640,16 +643,22 @@ static void unpack_tar(struct tar_hdr *first)
   }
 }
 
-// Add copy of filename to TT.incl or TT.excl, minus trailing \n and /
-static void trim_list(char **pline, long len)
+// Add copy of filename (minus trailing \n and /) to dlist **
+static void trim2list(void *list, char *pline)
 {
-  char *n = strdup(*pline);
+  char *n = xstrdup(pline);
   int i = strlen(n);
 
-  dlist_add(TT.X ? &TT.excl : &TT.incl, n);
+  dlist_add(list, n);
   if (i && n[i-1]=='\n') i--;
   while (i && n[i-1] == '/') i--;
   n[i] = 0;
+}
+
+// do_lines callback, selects TT.incl or TT.excl based on call order
+static void do_XT(char **pline, long len)
+{
+  if (pline) trim2list(TT.X ? &TT.excl : &TT.incl, *pline);
 }
 
 void tar_main(void)
@@ -666,10 +675,12 @@ void tar_main(void)
   if (TT.group) TT.ggid = xgetgid(TT.group);
   if (TT.mtime) xparsedate(TT.mtime, &TT.mtt, (void *)&s, 1); 
 
-  // Collect file list. Note: trim_list appends to TT.incl when !TT.X
-  for (;TT.X; TT.X = TT.X->next) do_lines(xopenro(TT.X->arg), '\n', trim_list);
-  for (args = toys.optargs; *args; args++) trim_list(args, strlen(*args));
-  for (;TT.T; TT.T = TT.T->next) do_lines(xopenro(TT.T->arg), '\n', trim_list);
+  // Collect file list.
+  for (; TT.exclude; TT.exclude = TT.exclude->next)
+    trim2list(&TT.excl, TT.exclude->arg);
+  for (;TT.X; TT.X = TT.X->next) do_lines(xopenro(TT.X->arg), '\n', do_XT);
+  for (args = toys.optargs; *args; args++) trim2list(&TT.incl, *args);
+  for (;TT.T; TT.T = TT.T->next) do_lines(xopenro(TT.T->arg), '\n', do_XT);
 
   // If include file list empty, don't create empty archive
   if (FLAG(c)) {
@@ -797,6 +808,8 @@ void tar_main(void)
   }
 
   if (CFG_TOYBOX_FREE) {
+    llist_traverse(TT.excl, llist_free_double);
+    llist_traverse(TT.incl, llist_free_double);
     while(TT.hlc) free(TT.hlx[--TT.hlc].arg);
     free(TT.hlx);
     close(TT.fd);
