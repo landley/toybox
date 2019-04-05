@@ -630,7 +630,7 @@ static void unpack_tar(struct tar_hdr *first)
       skippy(TT.hdr.size);
     } else {
       if (FLAG(v)) printf("%s\n", TT.hdr.name);
-      if (FLAG(O)) xsendfile_len(TT.fd, 0, TT.hdr.size);
+      if (FLAG(O)) xsendfile_len(TT.fd, 1, TT.hdr.size);
       else if (FLAG(to_command)) extract_to_command();
       else extract_to_disk();
     }
