@@ -18,13 +18,13 @@
  * Extract into dir same as filename, --restrict? "Tarball is splodey"
  *
 
-USE_TAR(NEWTOY(tar, "&(full-time)(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mtime):(group):(owner):(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)j(bzip2)z(gzip)O(to-stdout)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):[!txc][!jz]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TAR(NEWTOY(tar, "&(restrict)(full-time)(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mtime):(group):(owner):(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)j(bzip2)z(gzip)O(to-stdout)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):[!txc][!jz]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TAR
   bool "tar"
   default n
   help
-    usage: tar [-cxtjzhmvO] [-X FILE] [-T FILE] [-f TARFILE] [-C DIR]
+    usage: tar [-cxtfvohmjkO] [-XT FILE] [-f TARFILE] [-C DIR]
 
     Create, extract, or list files in a .tar (or compressed t?z) file. 
 
@@ -35,6 +35,7 @@ config TAR
     j  bzip2 compression     z  gzip compression
     O  Extract to stdout     X  exclude names in FILE T  include names in FILE
     --exclude=FILE File pattern(s) to exclude
+    --restrict  All archive contents must extract under a single subdirctory.
 */
 
 #define FOR_tar
@@ -357,6 +358,14 @@ static void extract_to_command(void)
   }
 }
 
+static void wsettime(char *s, long long sec)
+{
+  struct timespec times[2] = {{sec, 0},{sec, 0}};
+
+  if (utimensat(AT_FDCWD, s, times, AT_SYMLINK_NOFOLLOW))
+    perror_msg("settime %lld %s", sec, s);
+}
+
 // Do pending directory utimes(), NULL to flush all.
 static int dirflush(char *name)
 {
@@ -371,20 +380,22 @@ static int dirflush(char *name)
 
       return 1;
     }
+
+    if (FLAG(restrict)) {
+      free(TT.cwd);
+      TT.cwd = strdup(s);
+      toys.optflags ^= FLAG_restrict;
+    }
   }
 
   // Set deferred utimes() for directories this file isn't under.
   // (Files must be depth-first ordered in tarball for this to matter.)
   while (TT.dirs) {
-    long long ll = *(long long *)TT.dirs->str;
-    struct timeval times[2] = {{ll, 0},{ll, 0}};
 
     // If next file is under (or equal to) this dir, keep waiting
     if (name && strstart(&ss, ss = s) && (!*ss || *ss=='/')) break;
 
-    if (utimes(TT.dirs->str+sizeof(long long), times))
-      perror_msg("utimes %lld %s", ll,
-        TT.dirs->str+sizeof(long long));
+    wsettime(TT.dirs->str+sizeof(long long), *(long long *)TT.dirs->str);
     free(llist_pop(&TT.dirs));
   }
   free(s);
@@ -471,10 +482,7 @@ static void extract_to_disk(void)
       strcpy(sl->str+sizeof(long long), name);
       sl->next = TT.dirs;
       TT.dirs = sl;
-    } else {
-      struct timeval times[2] = {{TT.hdr.mtime, 0},{TT.hdr.mtime, 0}};
-      utimes(TT.hdr.name, times);
-    }
+    } else wsettime(TT.hdr.name, TT.hdr.mtime);
   }
 }
 
