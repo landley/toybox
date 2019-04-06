@@ -150,6 +150,7 @@ static struct double_list *filter(struct double_list *lst, char *name)
   struct double_list *end = lst;
 
   if (lst)
+    // constant is FNM_LEADING_DIR
     do if (!fnmatch(lst->data, name, 1<<3)) return lst;
     while (end != (lst = lst->next));
 
@@ -330,7 +331,7 @@ static void extract_to_command(void)
     setenv("TAR_FILETYPE", "f", 1);
     sprintf(buf, "%0o", TT.hdr.mode);
     setenv("TAR_MODE", buf, 1);
-    sprintf(buf, "%ld", (long)TT.hdr.size);
+    sprintf(buf, "%lld", (long long)TT.hdr.size);
     setenv("TAR_SIZE", buf, 1);
     setenv("TAR_FILENAME", TT.hdr.name, 1);
     setenv("TAR_UNAME", TT.hdr.uname, 1);
@@ -712,11 +713,11 @@ void tar_main(void)
 
   // Are we reading?
   if (FLAG(x)||FLAG(t)) {
-    struct tar_hdr *hdr = (void *)(toybuf+sizeof(toybuf)-512);
+    struct tar_hdr *hdr = 0;
 
     // autodetect compression type when not specified
     if (!FLAG(j)&&!FLAG(z)) {
-      len = xread(TT.fd, hdr, 512);
+      len = xread(TT.fd, hdr = (void *)(toybuf+sizeof(toybuf)-512), 512);
       if (len!=512 || strncmp("ustar", hdr->magic, 5)) {
         // detect gzip and bzip signatures
         if (SWAP_BE16(*(short *)hdr)==0x1f8b) toys.optflags |= FLAG_z;
@@ -812,6 +813,7 @@ void tar_main(void)
     llist_traverse(TT.incl, llist_free_double);
     while(TT.hlc) free(TT.hlx[--TT.hlc].arg);
     free(TT.hlx);
+    free(TT.cwd);
     close(TT.fd);
   }
 }
