@@ -30,6 +30,6 @@ void show_help(FILE *out)
       i = toy_find(++s)-toy_list;
     }
 
-    fprintf(out, "%s", s);
+    fprintf(out, "%s\n", s);
   }
 }

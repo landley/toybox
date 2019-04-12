@@ -479,7 +479,7 @@ int main(int argc, char *argv[])
     struct double_list *dd;
 
     if (sym->help) {
-      int i;
+      int i, blank;
       char *s;
 
       strcpy(s = xmalloc(strlen(sym->name)+1), sym->name);
@@ -489,21 +489,28 @@ int main(int argc, char *argv[])
       free(s);
 
       dd = sym->help;
+      blank = 0;
       for (;;) {
-        i = sym->help_indent;
 
         // Trim leading whitespace
         s = dd->data;
-        while (isspace(*s) && i) {
-          s++;
-          i--;
+        i = sym->help_indent;
+        while (isspace(*s) && i--) s++;
+
+        // Only one blank line between nonblank lines, not at start or end.
+        if (!*s) blank = 2;
+        else {
+          while (blank--) {
+            putchar('\\');
+            putchar('n');
+          }
+          blank = 1;
         }
+
         for (i=0; s[i]; i++) {
           if (s[i] == '"' || s[i] == '\\') putchar('\\');
           putchar(s[i]);
         }
-        putchar('\\');
-        putchar('n');
         dd = dd->next;
         if (dd == sym->help) break;
       }

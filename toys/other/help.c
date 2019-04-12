@@ -61,7 +61,7 @@ void help_main(void)
   if (toys.optflags & FLAG_h) {
     xprintf("<html>\n<title>Toybox command list</title>\n<body>\n<p>\n");
     for (i=0; i < toys.toycount; i++)
-      xprintf("<a href=\"#%s\">%s</a>\n", toy_list[i].name,
+      xprintf("<a href=\"#%s\">%s\n</a>\n", toy_list[i].name,
               toy_list[i].name);
     xprintf("</p>\n");
   }
@@ -71,7 +71,7 @@ void help_main(void)
     else {
       memset(toybuf, '-', 78);
       memcpy(toybuf+3, toy_list[i].name, strlen(toy_list[i].name));
-      printf("%s\n\n", toybuf);
+      printf("\n%s\n\n", toybuf);
     }
     do_help(toy_list+i);
     if (toys.optflags & FLAG_h) xprintf("</pre>\n");
