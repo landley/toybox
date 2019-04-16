@@ -84,6 +84,7 @@ static void toy_singleinit(struct toy_list *which, char *argv[])
   toys.argv = argv;
 
   if (CFG_TOYBOX_I18N) setlocale(LC_CTYPE, "C.UTF-8");
+  setlinebuf(stdout);
 
   // Parse --help and --version for (almost) all commands
   if (CFG_TOYBOX_HELP_DASHDASH && !(which->flags & TOYFLAG_NOHELP) && argv[1]) {
