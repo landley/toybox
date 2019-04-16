@@ -40,7 +40,6 @@ static void do_head(int fd, char *name)
     // Print an extra newline for all but the first file
     if (TT.file_no) xprintf("\n");
     xprintf("==> %s <==\n", name);
-    xflush();
   }
 
   while ((toys.optflags&FLAG_c) ? bytes : lines) {

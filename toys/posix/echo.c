@@ -65,7 +65,7 @@ void echo_main(void)
         int slash = *(c++), n = unescape(slash);
 
         if (n) out = n;
-        else if (slash=='c') goto done;
+        else if (slash=='c') return;
         else if (slash=='0') {
           out = 0;
           while (*c>='0' && *c<='7' && n++<3) out = (out*8)+*(c++)-'0';
@@ -90,6 +90,4 @@ void echo_main(void)
 
   // Output "\n" if no -n
   if (!(toys.optflags&FLAG_n)) putchar('\n');
-done:
-  xflush();
 }

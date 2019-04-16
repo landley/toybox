@@ -166,7 +166,6 @@ static void recv_from(struct sockaddr_ll *from, int *recv_len)
       gettimeofday(&tval, NULL);
       delta = (tval.tv_sec * 1000000ULL + (tval.tv_usec)) - TT.sent_at;
       xprintf(" %u.%03ums\n", delta / 1000, delta % 1000);
-      xflush();
     }
   }
   TT.rcvd_nr++;

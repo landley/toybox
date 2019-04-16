@@ -543,7 +543,7 @@ void vi_main(void)
   //we dont get scroll log full of junk
   tty_esc("?1049h");
   tty_esc("H");
-  xflush();
+  xflush(1);
   draw_page();
   while(1) {
     key = scan_key(keybuf, -1);
@@ -821,7 +821,7 @@ static void draw_page()
     tty_esc("0m");
   } else tty_jump(cx_scr, cy_scr);
 
-  xflush();
+  xflush(1);
 
 }
 

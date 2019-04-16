@@ -129,7 +129,7 @@ void xputsl(char *s, int len);
 void xputsn(char *s);
 void xputs(char *s);
 void xputc(char c);
-void xflush(void);
+void xflush(int flush);
 void xexec(char **argv);
 pid_t xpopen_both(char **argv, int *pipes);
 int xwaitpid(pid_t pid);

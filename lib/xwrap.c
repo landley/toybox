@@ -54,7 +54,7 @@ void xexit(void)
 
     free(al);
   }
-  if (fflush(0) || ferror(stdout)) if (!toys.exitval) perror_msg("write");
+  xflush(1);
   _xexit();
 }
 
@@ -139,9 +139,11 @@ char *xmprintf(char *format, ...)
   return ret;
 }
 
-void xflush(void)
+// if !flush just check for error on stdout without flushing 
+void xflush(int flush)
 {
-  if (fflush(stdout) || ferror(stdout)) perror_exit("write");
+  if ((flush && fflush(0)) || ferror(stdout))
+    if (!toys.exitval) perror_msg("write");
 }
 
 void xprintf(char *format, ...)
@@ -151,7 +153,7 @@ void xprintf(char *format, ...)
 
   vprintf(format, va);
   va_end(va);
-  xflush();
+  xflush(0);
 }
 
 // Put string with length (does not append newline)
@@ -164,7 +166,7 @@ void xputsl(char *s, int len)
     len -= out;
     s += out;
   }
-  xflush();
+  xflush(0);
 }
 
 // xputs with no newline
@@ -177,13 +179,13 @@ void xputsn(char *s)
 void xputs(char *s)
 {
   puts(s);
-  xflush();
+  xflush(0);
 }
 
 void xputc(char c)
 {
   if (EOF == fputc(c, stdout)) perror_exit("write");
-  xflush();
+  xflush(0);
 }
 
 // This is called through the XVFORK macro because parent/child of vfork
