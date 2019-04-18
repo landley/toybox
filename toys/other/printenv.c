@@ -17,8 +17,6 @@ config PRINTENV
 
 #include "toys.h"
 
-extern char **environ;
-
 void printenv_main(void)
 {
   char **env, **var = toys.optargs;
