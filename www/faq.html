@@ -5,6 +5,7 @@
 <li><h2><a href="#capitalize">Do you capitalize toybox?</a></h2></li>
 <li><h2><a href="#why_toybox">Why toybox? (What was wrong with busybox?)</a></h2></li>
 <li><h2><a href="#support_horizon">Why a 7 year support horizon?</a></h2></li>
+<li><h2><a href="#releases">Why time based releases?</a></h2></li>
 <li><h2><a href="#code">Where do I start understanding the toybox source code?</a></h2></li>
 </ul>
 
@@ -101,9 +102,52 @@ for it and let the functionality cleanly drop out. I also keep old Ubuntu
 images around in VMs and perform the occasional defconfig build there to
 see what breaks.</p>
 
-<h2><a name="code" />Where do I start understanding the source code?</h2>
+<h2><a name="releases" />Q: Why time based releases?</h2>
+<p>A: Toybox targets quarterly releases (a similar schedule to the Linux
+kernel) because Martin Michlmayr's
+<a href=http://www.youtube.com/watch?v=IKsQsxubuAA>talk</a> on the
+subject was convincing.</p>
 
-<p>Toybox is written in C. There are longer writeups of the
+<p>Releases provide synchronization points where the developers certify
+"it worked for me". Each release is a known version with predictable behavior,
+and right or wrong at least everyone should be seeing
+similar results where you might be able to google an unexpected outcome.
+Releases focus end-user testing on specific versions
+where issues can be reproduced, diagnosed, and fixed.
+Releases also force the developers to do periodic tidying, packaging,
+documentation review, finish up partially implemented features languishing
+in their private trees, and give regular checkpoints to measure progress.</p>
+
+<p>Over time feature sets change, data formats change, control knobs change...
+For example toybox's switch from "ls -q" to "ls -b" as the default output
+format wasn't exactly a bug, it was a design improvement... but the
+difference is academic if the change breaks somebody's script.
+Releases give you the option to schedule upgrades later, and not to rock
+the boat just now: just use a known working release version.</p>
+
+<p>The counter-argument is that "continuous integration"
+can be made robust with sufficient automated testing. But like the
+<a href=http://www.shirky.com/weblog/2013/11/healthcare-gov-and-the-gulf-between-planning-and-reality/>waterfall method</a>, this places insufficent
+emphasis on end-user feedback and learning from real world experience.
+Developer testing is either testing that the code does what the developers
+expect given expected inputs running in an expected environment, or it's
+regression testing against bugs previously found in the field. No plan
+survives contact with the enemy, and technology always breaks once it
+leaves the lab and encounters real world data and use cases, not just
+at runtime but in different build environments.</p>
+
+<p>The best way to give new users a reasonable first experience is to point
+them at specific stable versions where development quiesced and
+extra testing occurred. There will still be teething troubles, but multiple
+people experiencing the _same_ teething troubles can potentially
+help each other out.</p>
+
+<p>As for why releases on a schedule are better than releases "when it's
+ready", watch the video.</p>
+
+<h2><a name="code" />Q: Where do I start understanding the source code?</h2>
+
+<p>A: Toybox is written in C. There are longer writeups of the
 <a href=design.html>design ideas</a> and a <a href=code.html>code walkthrough</a>,
 and the <a href=about.html>about page</a> summarizes what we're trying to
 accomplish, but here's a quick start:</p>
