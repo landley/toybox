@@ -275,6 +275,7 @@ int human_readable(char *buf, unsigned long long num, int style);
 
 long environ_bytes();
 void xsetenv(char *name, char *val);
+void xunsetenv(char *name);
 void xclearenv(void);
 
 // linestack.c

@@ -40,18 +40,11 @@ void env_main(void)
   }
 
   if (FLAG(i)) xclearenv();
-  else for (u = TT.u; u; u = u->next)
-    if (strchr(u->arg, '=')) error_msg("bad -u %s", u->arg);
-    else xsetenv(u->arg, 0);
+  else for (u = TT.u; u; u = u->next) xunsetenv(u->arg);
 
-  for (; *ev; ev++) {
-    char *val = strchr(*ev, '=');
-
-    if (val) {
-      *(val++) = 0;
-      xsetenv(*ev, val);
-    } else xexec(ev);
-  }
+  for (; *ev; ev++)
+    if (strchr(*ev, '=')) xsetenv(xstrdup(*ev), 0);
+    else xexec(ev);
 
   for (ev = environ; *ev; ev++) xprintf("%s%c", *ev, '\n'*!FLAG(0));
 }

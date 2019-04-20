@@ -80,6 +80,12 @@ void xsetenv(char *name, char *val)
   environ[i] = new;
 }
 
+void xunsetenv(char *name)
+{
+  if (strchr(name, '=')) error_exit("xunsetenv %s name has =", name);
+  xsetenv(name, 0);
+}
+
 // reset environment for a user, optionally clearing most of it
 void reset_env(struct passwd *p, int clear)
 {
