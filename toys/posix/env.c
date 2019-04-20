@@ -28,11 +28,10 @@ GLOBALS(
   struct arg_list *u;
 );
 
-extern char **environ;
-
 void env_main(void)
 {
   char **ev = toys.optargs;
+  struct arg_list *u;
 
   // If first nonoption argument is "-" treat it as -i
   if (*ev && **ev == '-' && !(*ev)[1]) {
@@ -40,21 +39,19 @@ void env_main(void)
     ev++;
   }
 
-  if (toys.optflags & FLAG_i) clearenv();
-  while (TT.u) {
-    unsetenv(TT.u->arg);
-    TT.u = TT.u->next;
-  }
+  if (FLAG(i)) xclearenv();
+  else for (u = TT.u; u; u = u->next)
+    if (strchr(u->arg, '=')) error_msg("bad -u %s", u->arg);
+    else xsetenv(u->arg, 0);
 
   for (; *ev; ev++) {
-    char *name = *ev, *val = strchr(name, '=');
+    char *val = strchr(*ev, '=');
 
     if (val) {
       *(val++) = 0;
-      setenv(name, val, 1);
+      xsetenv(*ev, val);
     } else xexec(ev);
   }
 
-  if (environ) for (ev = environ; *ev; ev++)
-    xprintf("%s%c", *ev, '\n'*!(toys.optflags&FLAG_0));
+  for (ev = environ; *ev; ev++) xprintf("%s%c", *ev, '\n'*!FLAG(0));
 }

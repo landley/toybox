@@ -261,7 +261,6 @@ int regexec0(regex_t *preg, char *string, long len, int nmatch,
 char *getusername(uid_t uid);
 char *getgroupname(gid_t gid);
 void do_lines(int fd, char delim, void (*call)(char **pline, long len));
-long environ_bytes();
 long long millitime(void);
 char *format_iso_time(char *buf, size_t len, struct timespec *ts);
 void reset_env(struct passwd *p, int clear);
@@ -271,6 +270,12 @@ void loggit(int priority, char *format, ...);
 #define HR_B     2 // Use "B" for single byte units
 #define HR_1000  4 // Use decimal instead of binary units
 int human_readable(char *buf, unsigned long long num, int style);
+
+// env.c
+
+long environ_bytes();
+void xsetenv(char *name, char *val);
+void xclearenv(void);
 
 // linestack.c
 

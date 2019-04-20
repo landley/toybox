@@ -1398,19 +1398,6 @@ void do_lines(int fd, char delim, void (*call)(char **pline, long len))
   if (fd) fclose(fp);
 }
 
-// Returns the number of bytes taken by the environment variables. For use
-// when calculating the maximum bytes of environment+argument data that can
-// be passed to exec for find(1) and xargs(1).
-long environ_bytes()
-{
-  long bytes = sizeof(char *);
-  char **ev;
-
-  for (ev = environ; *ev; ev++) bytes += sizeof(char *) + strlen(*ev) + 1;
-
-  return bytes;
-}
-
 // Return unix time in milliseconds
 long long millitime(void)
 {
@@ -1430,40 +1417,6 @@ char *format_iso_time(char *buf, size_t len, struct timespec *ts)
   s += strftime(s, len-strlen(buf), "%z", localtime(&(ts->tv_sec)));
 
   return buf;
-}
-
-// reset environment for a user, optionally clearing most of it
-void reset_env(struct passwd *p, int clear)
-{
-  int i;
-
-  if (clear) {
-    char *s, *stuff[] = {"TERM", "DISPLAY", "COLORTERM", "XAUTHORITY"};
-
-    for (i=0; i<ARRAY_LEN(stuff); i++)
-      stuff[i] = (s = getenv(stuff[i])) ? xmprintf("%s=%s", stuff[i], s) : 0;
-    clearenv();
-    for (i=0; i < ARRAY_LEN(stuff); i++) if (stuff[i]) putenv(stuff[i]);
-    if (chdir(p->pw_dir)) {
-      perror_msg("chdir %s", p->pw_dir);
-      xchdir("/");
-    }
-  } else {
-    char **ev1, **ev2;
-
-    // remove LD_*, IFS, ENV, and BASH_ENV from environment
-    for (ev1 = ev2 = environ;;) {
-      while (*ev2 && (strstart(ev2, "LD_") || strstart(ev2, "IFS=") ||
-        strstart(ev2, "ENV=") || strstart(ev2, "BASH_ENV="))) ev2++;
-      if (!(*ev1++ = *ev2++)) break;
-    }
-  }
-
-  setenv("PATH", _PATH_DEFPATH, 1);
-  setenv("HOME", p->pw_dir, 1);
-  setenv("SHELL", p->pw_shell, 1);
-  setenv("USER", p->pw_name, 1);
-  setenv("LOGNAME", p->pw_name, 1);
 }
 
 // Syslog with the openlog/closelog, autodetecting daemon status via no tty
