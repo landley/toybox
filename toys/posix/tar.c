@@ -22,7 +22,7 @@ USE_TAR(NEWTOY(tar, "&(restrict)(full-time)(no-recursion)(numeric-owner)(no-same
 
 config TAR
   bool "tar"
-  default n
+  default y
   help
     usage: tar [-cxtfvohmjkO] [-XT FILE] [-f TARFILE] [-C DIR]
 
