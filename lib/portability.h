@@ -123,8 +123,6 @@ char *strcasestr(const char *haystack, const char *needle);
 #define bswap_32(x) OSSwapInt32(x)
 #define bswap_64(x) OSSwapInt64(x)
 
-int clearenv(void);
-
 #elif defined(__FreeBSD__)
 
 #include <sys/endian.h>

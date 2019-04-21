@@ -46,16 +46,6 @@ int xgetrandom(void *buf, unsigned buflen, unsigned flags)
   return 1;
 }
 
-#if defined(__APPLE__)
-extern char **environ;
-
-int clearenv(void)
-{
-  *environ = NULL;
-  return 0;
-}
-#endif
-
 // Get a linked list of mount points, with stat information.
 #if defined(__APPLE__) || defined(__FreeBSD__)
 
