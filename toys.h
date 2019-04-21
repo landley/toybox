@@ -101,6 +101,7 @@ extern struct toy_context {
   char **optargs;          // Arguments left over from get_optflags()
   unsigned long long optflags; // Command line option flags from get_optflags()
   int optc;                // Count of optargs
+  int envc;                // Count of original environ entries
   int old_umask;           // Old umask preserved by TOYFLAG_UMASK
   short toycount;          // Total number of commands in this build
   short signal;            // generic_signal() records what signal it saw here
