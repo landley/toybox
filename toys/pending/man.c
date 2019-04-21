@@ -29,18 +29,31 @@ static void newln()
   if (TT.any && TT.cell != 2) putchar('\n'); // gawk alias
   TT.any = TT.cell = 0;
 }
-static void put(char *x) { while (*x && *x != '\n') TT.any = putchar(*x++); }
+static void put(char *x)
+{
+  while (*x && *x != '\n') TT.any = putchar(*x++);
+}
 
-static void s(char *x, char *y) { // Substitute with same length or shorter.
+// Substitute with same length or shorter.
+static void s(char *x, char *y)
+{
   int i = strlen(x), j = strlen(y), k, l;
+
   for (k = 0; TT.line[k]; k++) if (!strncmp(x, &TT.line[k], i)) {
     memmove(&TT.line[k], y, j);
     for (l = k += j; TT.line[l]; l++) TT.line[l] = TT.line[l + i - j];
   }
 }
 
-static char start(char *x) { return !strncmp(x, TT.line, strlen(x)); }
-static void trim(char *x) { if (start(x)) while (*x++) TT.line++; }
+static char start(char *x)
+{
+  return !strncmp(x, TT.line, strlen(x));
+}
+
+static void trim(char *x)
+{
+  if (start(x)) while (*x++) TT.line++;
+}
 
 static void do_man(FILE *fp)
 {
