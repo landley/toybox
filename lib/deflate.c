@@ -232,7 +232,7 @@ static void inflate(struct deflate *dd, struct bitbuf *bb)
 
       // Dynamic huffman codes?
       if (type == 2) {
-        struct huff *h2 = ((struct huff *)toybuf)+1;
+        struct huff *h2 = ((struct huff *)libbuf)+1;
         int i, litlen, distlen, hufflen;
         char *hufflen_order = "\x10\x11\x12\0\x08\x07\x09\x06\x0a\x05\x0b"
                               "\x04\x0c\x03\x0d\x02\x0e\x01\x0f", *bits;
@@ -246,7 +246,7 @@ static void inflate(struct deflate *dd, struct bitbuf *bb)
         // a complicated way: an array of bit lengths (hufflen many
         // entries, each 3 bits) is used to fill out an array of 19 entries
         // in a magic order, leaving the rest 0. Then make a tree out of it:
-        memset(bits = toybuf+1, 0, 19);
+        memset(bits = libbuf+1, 0, 19);
         for (i=0; i<hufflen; i++) bits[hufflen_order[i]] = bitbuf_get(bb, 3);
         len2huff(h2, bits, 19);
 
@@ -268,7 +268,7 @@ static void inflate(struct deflate *dd, struct bitbuf *bb)
         if (i > litlen+distlen) error_exit("bad tree");
 
         len2huff(lithuff = h2, bits, litlen);
-        len2huff(disthuff = ((struct huff *)toybuf)+2, bits+litlen, distlen);
+        len2huff(disthuff = ((struct huff *)libbuf)+2, bits+litlen, distlen);
 
       // Static huffman codes
       } else {
@@ -354,7 +354,7 @@ static struct deflate *init_deflate(int compress)
   int i, n = 1;
   struct deflate *dd = xmalloc(sizeof(struct deflate)+32768*(compress ? 4 : 1));
 
-// TODO sizeof and order of these?
+  memset(dd, 0, sizeof(struct deflate));
   // decompress needs 32k history, compress adds 64k hashhead and 32k hashchain
   if (compress) {
     dd->hashhead = (unsigned short *)(dd->data+65536);
@@ -384,10 +384,10 @@ static struct deflate *init_deflate(int compress)
 
 // TODO layout and lifetime of this?
   // Init fixed huffman tables
-  for (i=0; i<288; i++) toybuf[i] = 8 + (i>143) - ((i>255)<<1) + (i>279);
-  len2huff(dd->fixlithuff = ((struct huff *)toybuf)+3, toybuf, 288);
-  memset(toybuf, 5, 30);
-  len2huff(dd->fixdisthuff = ((struct huff *)toybuf)+4, toybuf, 30);
+  for (i=0; i<288; i++) libbuf[i] = 8 + (i>143) - ((i>255)<<1) + (i>279);
+  len2huff(dd->fixlithuff = ((struct huff *)libbuf)+3, libbuf, 288);
+  memset(libbuf, 5, 30);
+  len2huff(dd->fixdisthuff = ((struct huff *)libbuf)+4, libbuf, 30);
 
   return dd;
 }
