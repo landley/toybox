@@ -13,7 +13,7 @@ opt="2>/dev/null"
 # Test suffixed number parsing; `count` is representative.
 testing "count=2" "dd if=input count=2 ibs=1 $opt" "hi" "high\n" ""
 testing "count= 2" "dd if=input 'count= 2' ibs=1 $opt" "hi" "high\n" ""
-SKIP_HOST=1 testing "count=0x2" "dd if=input 'count=0x2' ibs=1 $opt" "hi" \
+toyonly testing "count=0x2" "dd if=input 'count=0x2' ibs=1 $opt" "hi" \
   "high\n" ""
 testing "count=-2" "dd if=input 'count=-2' ibs=1 2>/dev/null || echo errored" "errored\n" "" ""
 

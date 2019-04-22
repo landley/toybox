@@ -31,11 +31,11 @@ testing "-c -b" "cut -c -39 abc.txt" \
   "" ""
 testing "-c a" "cut -c 40 abc.txt" "\n:\n \n" "" ""
 testing "-c a,b-c,d" "cut -c 3,5-7,10 abc.txt" "etwoh\npa:ba\nequi \n" "" ""
-SKIP_HOST=1 testing "-c japan.txt" 'cut -c 3-6,9-12 "$FILES/utf8/japan.txt"' \
+toyonly testing "-c japan.txt" 'cut -c 3-6,9-12 "$FILES/utf8/japan.txt"' \
   "ガラスをられます\n" "" ""
 
 # substitute for awk
-SKIP_HOST=1 testcmd "-DF" "-DF 2,7,5" \
+toyonly testcmd "-DF" "-DF 2,7,5" \
   "said and your\nare\nis demand. supply\nforecast :\nyou you better,\n\nEm: Took hate\n" "" \
 "Bother, said Pooh. It's your husband, and he has a gun.
 Cheerios are donut seeds.
