@@ -2,6 +2,7 @@
  *
  * Copyright 2017 The Android Open Source Project
  *
+ * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/gzip.html
  * GZIP RFC: http://www.ietf.org/rfc/rfc1952.txt
  *
  * todo: qtv --rsyncable
@@ -13,7 +14,7 @@ USE_ZCAT(NEWTOY(zcat,     "cdfk123456789[-123456789]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config GZIP
   bool "gzip"
-  default n
+  default y
   help
     usage: gzip [-19cdfk] [FILE...]
 
@@ -43,7 +44,7 @@ config GUNZIP
 
 config ZCAT
   bool "zcat"
-  default n
+  default y
   help
     usage: zcat [FILE...]
 
