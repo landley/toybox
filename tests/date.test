@@ -13,17 +13,17 @@ testing "-d @0" "TZ=$tz date -d @0" "Thu Jan  1 01:00:00 CET 1970\n" "" ""
 testing "-d @0x123 invalid" "TZ=$tz date -d @0x123 2>/dev/null || echo expected error" "expected error\n" "" ""
 
 # POSIX format with 2- and 4-digit years.
-# All SKIP_HOST=1 because coreutils rejects POSIX format dates supplied to -d.
+# All toyonly because coreutils rejects POSIX format dates supplied to -d.
 # These expected values are from running on the host without -d (not as root!).
-SKIP_HOST=1 testing "-d MMDDhhmm" \
-        "TZ=$tz date -d 06021234" "Sun Jun  2 12:34:00 CEST $(date +%Y)\n" "" ""
-SKIP_HOST=1 testing "-d MMDDhhmmYY.SS" \
-        "TZ=$tz date -d 1110143115.30" "Tue Nov 10 14:31:30 CET 2015\n" "" ""
+toyonly testing "-d MMDDhhmm" \
+  "TZ=$tz date -d 06021234" "Sun Jun  2 12:34:00 CEST $(date +%Y)\n" "" ""
+toyonly testing "-d MMDDhhmmYY.SS" \
+  "TZ=$tz date -d 1110143115.30" "Tue Nov 10 14:31:30 CET 2015\n" "" ""
 # busybox thinks this is the year 603 (ISO time 0602-12-34 19:82 with out of range fields normalized).
-SKIP_HOST=1 testing "-d MMDDhhmmCCYY" \
-        "TZ=$tz date -d 060212341982" "Wed Jun  2 12:34:00 CEST 1982\n" "" ""
-SKIP_HOST=1 testing "-d MMDDhhmmCCYY.SS" \
-        "TZ=$tz date -d 111014312015.30" "Tue Nov 10 14:31:30 CET 2015\n" "" ""
+toyonly testing "-d MMDDhhmmCCYY" \
+  "TZ=$tz date -d 060212341982" "Wed Jun  2 12:34:00 CEST 1982\n" "" ""
+toyonly testing "-d MMDDhhmmCCYY.SS" \
+  "TZ=$tz date -d 111014312015.30" "Tue Nov 10 14:31:30 CET 2015\n" "" ""
 
 # ISO date format.
 testing "-d 1980-01-02" "TZ=$tz date -d 1980-01-02" "Wed Jan  2 00:00:00 CET 1980\n" "" ""
