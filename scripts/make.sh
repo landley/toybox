@@ -104,7 +104,7 @@ then
   # for it.
 
   > generated/optlibs.dat
-  for i in util crypt m resolv selinux smack attr rt crypto z log iconv
+  for i in util crypt m resolv selinux smack attr crypto z log iconv
   do
     echo "int main(int argc, char *argv[]) {return 0;}" | \
     ${CROSS_COMPILE}${CC} $CFLAGS $LDFLAGS -xc - -o generated/libprobe $LDASNEEDED -l$i > /dev/null 2>/dev/null &&
