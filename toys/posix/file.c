@@ -174,17 +174,20 @@ static void do_elf_file(int fd)
         n_type = elf_int(note+8, 4);
         notesz = 3*4 + ((n_namesz+3)&~3) + ((n_descsz+3)&~3);
 
+        // Does the claimed size of this note actually fit in the section?
+        if (notesz > sh_size) goto bad;
+
         if (n_namesz==4 && !memcmp(note+12, "GNU", 4)) {
           if (n_type==3 /*NT_GNU_BUILD_ID*/) {
-            if (n_descsz+16>sh_size) goto bad;
             printf(", BuildID=");
             for (j = 0; j < n_descsz; ++j) printf("%02x", note[16 + j]);
           }
         } else if (n_namesz==8 && !memcmp(note+12, "Android", 8)) {
-          if (n_type==1 /*.android.note.ident*/) {
-            if (n_descsz+24+64>sh_size) goto bad;
+          if (n_type==1 /*.android.note.ident*/ && n_descsz >= 4) {
             printf(", for Android %d", (int)elf_int(note+20, 4));
-            if (n_descsz > 24)
+            // NDK r14 and later also include NDK version info. OS binaries
+            // and binaries built by older NDKs don't have this.
+            if (n_descsz >= 4+64+64)
               printf(", built by NDK %.64s (%.64s)", note+24, note+24+64);
           }
         }
