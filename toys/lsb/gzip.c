@@ -130,7 +130,7 @@ static void do_gzip(int ifd, char *in)
 
     // Add or remove .gz suffix as necessary
     if (!FLAG(d)) out = xmprintf("%s%s", in, ".gz");
-    else if ((out = strend(out, ".gz"))>in) out = xstrndup(out, out-in);
+    else if ((out = strend(in, ".gz"))>in) out = xstrndup(in, out-in);
     else return error_msg("no .gz: %s", in);
 
     ofd = xcreate(out, O_CREAT|O_WRONLY|WARN_ONLY|(O_EXCL*!FLAG(f)),sb.st_mode);
@@ -142,7 +142,7 @@ static void do_gzip(int ifd, char *in)
   if (out) {
     struct timespec times[] = {sb.st_atim, sb.st_mtim};
 
-    if (futimens(ofd, times)) perror_exit("utimensat");
+    if (utimensat(AT_FDCWD, out, times, 0)) perror_exit("utimensat");
     close(ofd);
     if (!FLAG(k) && in && unlink(in)) perror_msg("unlink %s", in);
     free(out);
