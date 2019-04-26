@@ -39,7 +39,7 @@ static void signal_handler(int sig)
 
 static void show_file_header(const char *name)
 {
-  printf(":::::::::::::::::::::::\n%s\n:::::::::::::::::::::::\n", name);
+  printf("::::::::::::::\n%s\n::::::::::::::\n", name);
 }
 
 static int prompt(FILE *cin, const char* fmt, ...)
@@ -65,17 +65,31 @@ static int prompt(FILE *cin, const char* fmt, ...)
   }
 }
 
+static int more_directory(char *path, struct stat *st)
+{
+  if (!stat(path, st) && S_ISDIR(st->st_mode)) {
+    printf("\n*** %s: directory ***\n\n", path);
+    return 1;
+  }
+  return 0;
+}
+
 static void do_cat_operation(int fd, char *name)
 {
-  if (toys.optc > 1) show_file_header(name);
-  xsendfile(fd, 1);
+  struct stat st;
+
+  if (!more_directory(name, &st)) {
+    show_file_header(name);
+    fflush(stdout);
+    xsendfile(fd, 1);
+  }
 }
 
 void more_main()
 {
   int ch, input_key = 0, show_prompt;
   unsigned rows = 24, cols = 80, row = 0, col = 0;
-  struct stat st;  
+  struct stat st;
   struct termios newf;
   FILE *fp, *cin;
 
@@ -97,18 +111,23 @@ void more_main()
   sigatexit(signal_handler);
 
   do {
-    fp = stdin;
-    if (*toys.optargs && !(fp = fopen(*toys.optargs, "r"))) {
-        perror_msg("%s", *toys.optargs);
-        goto next_file;
-    }
+    char *filename = *toys.optargs;
+
     st.st_size = show_prompt = col = row = 0;
-    fstat(fileno(fp), &st);
+    if (!filename) fp = stdin;
+    else {
+      if (more_directory(filename, &st)) goto next_file;
+      if (!(fp = fopen(filename, "r"))) {
+        perror_msg("%s", filename);
+        goto next_file;
+      }
+    }
+
     terminal_size(&cols, &rows);
     rows--;
 
     if (toys.optc > 1) {
-      show_file_header(*toys.optargs);
+      show_file_header(filename);
       row += 3;
     }
 
@@ -120,7 +139,7 @@ void more_main()
               (long long)st.st_size);
         else
           input_key = prompt(cin, "--More--");
-        if (input_key == 'q') goto stop; 
+        if (input_key == 'q') goto stop;
 
         col = row = show_prompt = 0;
         terminal_size(&cols, &rows);

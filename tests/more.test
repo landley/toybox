@@ -9,6 +9,9 @@ line1
 line2
 EOF
 
-testing "non-tty" "more file1 | cat -" "line1\nline2\n" "" ""
+# For non-tty output, headers are shown even if there's only one file.
+testing "non-tty" "more file1 | cat -" "::::::::::::::\nfile1\n::::::::::::::\nline1\nline2\n" "" ""
+
+testing "directory" "more ." "\n*** .: directory ***\n\n" "" ""
 
 rm file1
