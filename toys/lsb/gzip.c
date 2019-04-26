@@ -143,6 +143,7 @@ static void do_gzip(int ifd, char *in)
     struct timespec times[] = {sb.st_atim, sb.st_mtim};
 
     if (utimensat(AT_FDCWD, out, times, 0)) perror_exit("utimensat");
+    if (chmod(out, sb.st_mode)) perror_exit("chmod");
     close(ofd);
     if (!FLAG(k) && in && unlink(in)) perror_msg("unlink %s", in);
     free(out);
