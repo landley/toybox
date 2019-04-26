@@ -4,15 +4,26 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/man.html
 
-USE_MAN(NEWTOY(man, "<1>1", TOYFLAG_USR|TOYFLAG_BIN))
+USE_MAN(NEWTOY(man, "<1>2k:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config MAN
   bool "man"
   default n
   help
-    usage: man COMMAND
+    usage: man [-k STRING] | [SECTION] COMMAND
 
-    Read manual for system command.
+    Read manual page for system command.
+
+    -k	Search short 
+
+    Man pages are divided into 8 sections, each with an info page (man 8 info).
+    1) executables, 2) syscalls, 3) library functions, 4) /dev files,
+    5) file formats (ala /etc/hosts), 6) games, 7) miscelanous, 8) sysadmin
+
+    If you don't specify a section it'll show the lowest numbered one,
+    but "man 1 mkdir" and "man 2 mkdir" are different things.
+
+    The shell builtins don't have section 1 man pages, see the "help" command.
 */
 
 #define FOR_man
@@ -20,6 +31,8 @@ config MAN
 #include <glob.h>
 
 GLOBALS(
+  char *k;
+
   char any, cell, *f, *line;
 )
 
@@ -29,6 +42,7 @@ static void newln()
   if (TT.any && TT.cell != 2) putchar('\n'); // gawk alias
   TT.any = TT.cell = 0;
 }
+
 static void put(char *x)
 {
   while (*x && *x != '\n') TT.any = putchar(*x++);
@@ -59,6 +73,7 @@ static void do_man(FILE *fp)
 {
   size_t len = 0;
   char *line = 0;
+
   while (getline(&line, &len, fp) > 0) {
     TT.line = line;
     s("\\fB", ""), s("\\fI", ""), s("\\fP", ""), s("\\fR", ""); // bash bold,ita
@@ -68,9 +83,11 @@ static void do_man(FILE *fp)
     s("\\&", ""), s("\\f(CW", ""); // gawk,rsync fancy
     s("\\-", "-"), s("\\(", ""), s("\\^", ""), s("\\e", "\\"); // bash escape
     s("\\*(", "#"); // gawk var
+
     if (start(".BR")) trim(".BR "), s(" ", ""); // bash boldpunct
     if (start(".IP")) newln(), trim(".IP "); // bash list
     if (start(".IR")) trim(".IR "), s(" ", ""); // bash itapunct
+
     trim(".B "); // bash bold
     trim(".BI "); // gawk boldita
     trim(".FN "); // bash filename
@@ -84,42 +101,65 @@ static void do_man(FILE *fp)
     else if (start(".TP")) newln(), TT.cell = 1; // bash table
     else if (start(".") || start("\'")); // bash,git garbage
     else if (!*TT.line); // emerge
-    else ((TT.cell != 0) && TT.cell++), put(" "), put(TT.line);
+    else {
+      if (TT.cell) TT.cell++;
+      put(" ");
+      put(TT.line);
+    }
   }
   newln();
   free(line);
   fclose(fp);
 }
 
-static FILE *bzcat()
+// Try opening all the possible file extensions.
+int tryfile(char *section, char *name)
 {
-  char cmd[FILENAME_MAX];
-  snprintf(cmd, sizeof(cmd), "bzcat %s", TT.f);
-  return popen(cmd, "r");
-}
+  char *suf[] = {".gz", ".bz2", ".xz", ""}, *end,
+    *s = xmprintf("/usr/share/man/man%s/%s.%s.bz2", section, name, section);
+  int fd, i, and = 1;
 
-static char *find(char *path, int suf)
-{
-  glob_t g;
-  int i;
-  size_t len = strlen(*toys.optargs);
-  char *name;
-  glob(path, 0, 0, &g);
-  for (i = 0; !TT.f && i < g.gl_pathc; i++) {
-    name = basename(g.gl_pathv[i]);
-    if (strlen(name) == len + suf && !strncmp(name, *toys.optargs, len))
-      TT.f = strdup(g.gl_pathv[i]);
-  }
-  globfree(&g);
-  return TT.f;
+  end = s+strlen(s);
+  do {
+    for (i = 0; i<ARRAY_LEN(suf); i++) {
+      strcpy(end-4, suf[i]);
+      if ((fd = open(s, O_RDONLY))!= -1) {
+        if (*suf[i]) {
+          int fds[] = {fd, -1};
+
+          sprintf(toybuf, "%czcat"+(2*!i), suf[i][1]);
+          xpopen_both((char *[]){toybuf, s, 0}, fds);
+          fd = fds[1];
+        }
+        goto done;
+      }
+    }
+    end -= strlen(section)+1;
+  } while (and--);
+
+done:
+  free(s);
+  return fd;
 }
 
 void man_main(void)
 {
-  chdir("/usr/share/man");
-  if (find("man?/*.?.bz2", 6)) do_man(bzcat()); // curl_strequal
-  else if (find("man?/*.bz2", 4)) do_man(bzcat()); // curl_strequal.3
-  else if (find("man?/*.?", 2)) do_man(fopen(TT.f, "r")); // curl_strnequal
-  else if (find("man?/*", 0)) do_man(fopen(TT.f, "r")); // curl_strnequal.3
-  if (TT.f) free(TT.f);
+  char *order = "18325467";
+  int fd;
+
+  if (!toys.optc || FLAG(k)) error_exit("not yet");
+
+  if (toys.optc == 1) {
+    if (strchr(*toys.optargs, '/')) fd = xopen(*toys.optargs, O_RDONLY);
+    else for (order = "18325467"; *order; order++) {
+      *toybuf = *order;
+      if (-1 != (fd = tryfile(toybuf, *toys.optargs))) break;
+    }
+    if (!*order) error_exit("no %s", *toys.optargs);
+
+  // If they specified a section, look for file in that section
+  } else if (-1 == (fd = tryfile(toys.optargs[0], toys.optargs[1])))
+    error_exit("section %s no %s", toys.optargs[0], toys.optargs[1]);
+
+  do_man(fdopen(fd, "r"));
 }
