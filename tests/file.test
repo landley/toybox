@@ -9,16 +9,29 @@ echo "#!/bin/bash" > bash.script
 echo "#!  /bin/bash" > bash.script2
 echo "#!  /usr/bin/env python" > env.python.script
 echo "Hello, world!" > ascii
-echo "cafebabe000000310000" | xxd -r -p > java.class
 echo "6465780a3033350038ca8f6ce910f94e" | xxd -r -p > android.dex
-ln -s java.class symlink
+ln -s $FILES/java.class symlink
 
+testing "directory" "file ." ".: directory\n" "" ""
 testing "empty" "file empty" "empty: empty\n" "" ""
 testing "bash.script" "file bash.script" "bash.script: /bin/bash script\n" "" ""
 testing "bash.script with spaces" "file bash.script2" "bash.script2: /bin/bash script\n" "" ""
 testing "env python script" "file env.python.script" "env.python.script: python script\n" "" ""
 testing "ascii" "file ascii" "ascii: ASCII text\n" "" ""
-testing "java class" "file java.class" "java.class: Java class file, version 49.0 (Java 1.5)\n" "" ""
+testing "utf-8" "file $FILES/utf8/japan.txt | sed 's|$FILES/||'" \
+    "utf8/japan.txt: UTF-8 text\n" "" ""
+testing "java class" "file $FILES/java.class | sed 's|$FILES/||'" \
+    "java.class: Java class file, version 53.0 (Java 1.9)\n" "" ""
+testing "tar file" "file $FILES/tar/tar.tar | sed 's|$FILES/||'" \
+    "tar/tar.tar: POSIX tar archive (GNU)\n" "" ""
+testing "gzip data" "file $FILES/tar/tar.tgz | sed 's|$FILES/||'" \
+    "tar/tar.tgz: gzip compressed data\n" "" ""
+testing "bzip2 data" "file $FILES/tar/tar.tbz2 | sed 's|$FILES/||'" \
+    "tar/tar.tbz2: bzip2 compressed data, block size = 900k\n" "" ""
+testing "zip file" "file $FILES/zip/example.zip | sed 's|$FILES/||'" \
+    "zip/example.zip: Zip archive data, requires at least v1.0 to extract\n" "" ""
+
+# TODO: check in a genuine minimal .dex
 testing "Android .dex" "file android.dex" "android.dex: Android dex file, version 035\n" "" ""
 
 # These actually test a lot of the ELF code: 32-/64-bit, arm/arm64, PT_INTERP,
@@ -32,12 +45,12 @@ toyonly testing "Android NDK short ELF note" \
 
 testing "symlink" "file symlink" "symlink: symbolic link\n" "" ""
 testing "symlink -h" "file -h symlink" "symlink: symbolic link\n" "" ""
-testing "symlink -L" "file -L symlink" "symlink: Java class file, version 49.0 (Java 1.5)\n" "" ""
+testing "symlink -L" "file -L symlink" "symlink: Java class file, version 53.0 (Java 1.9)\n" "" ""
 
-testing "- pipe" "cat java.class | file -" "-: Java class file, version 49.0 (Java 1.5)\n" "" ""
-testing "- redirect" "file - <java.class" "-: Java class file, version 49.0 (Java 1.5)\n" "" ""
+testing "- pipe" "cat $FILES/java.class | file -" "-: Java class file, version 53.0 (Java 1.9)\n" "" ""
+testing "- redirect" "file - <$FILES/java.class" "-: Java class file, version 53.0 (Java 1.9)\n" "" ""
 
 testing "/dev/zero" "file /dev/zero" "/dev/zero: character special\n" "" ""
 testing "- </dev/zero" "file - </dev/zero" "-: data\n" "" ""
 
-rm empty bash.script bash.script2 env.python.script ascii java.class android.dex
+rm empty bash.script bash.script2 env.python.script ascii android.dex
