@@ -4,7 +4,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/man.html
 
-USE_MAN(NEWTOY(man, "<1>2k:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_MAN(NEWTOY(man, "<1>2k:M:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config MAN
   bool "man"
@@ -31,7 +31,7 @@ config MAN
 #include <glob.h>
 
 GLOBALS(
-  char *k;
+  char *M, *k;
 
   char any, cell, *f, *line;
 )
@@ -69,12 +69,16 @@ static void trim(char *x)
   if (start(x)) while (*x++) TT.line++;
 }
 
-static void do_man(FILE *fp)
+static void do_man(char **pline, long len)
 {
-  size_t len = 0;
-  char *line = 0;
+  char *line;
 
-  while (getline(&line, &len, fp) > 0) {
+  if (!pline) {
+    newln();
+    return;
+  }
+  line = *pline;
+
     TT.line = line;
     s("\\fB", ""), s("\\fI", ""), s("\\fP", ""), s("\\fR", ""); // bash bold,ita
     s("\\(aq", "'"), s("\\(cq", "'"), s("\\(dq", "\""); // bash,rsync quote
@@ -106,17 +110,13 @@ static void do_man(FILE *fp)
       put(" ");
       put(TT.line);
     }
-  }
-  newln();
-  free(line);
-  fclose(fp);
 }
 
 // Try opening all the possible file extensions.
 int tryfile(char *section, char *name)
 {
   char *suf[] = {".gz", ".bz2", ".xz", ""}, *end,
-    *s = xmprintf("/usr/share/man/man%s/%s.%s.bz2", section, name, section);
+    *s = xmprintf("%s/man%s/%s.%s.bz2", TT.M, section, name, section);
   int fd, i, and = 1;
 
   end = s+strlen(s);
@@ -147,6 +147,8 @@ void man_main(void)
   char *order = "18325467";
   int fd;
 
+  if (!TT.M) TT.M = "/usr/share/man";
+
   if (!toys.optc || FLAG(k)) error_exit("not yet");
 
   if (toys.optc == 1) {
@@ -161,5 +163,5 @@ void man_main(void)
   } else if (-1 == (fd = tryfile(toys.optargs[0], toys.optargs[1])))
     error_exit("section %s no %s", toys.optargs[0], toys.optargs[1]);
 
-  do_man(fdopen(fd, "r"));
+  do_lines(fd, '\n', do_man);
 }

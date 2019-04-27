@@ -5,25 +5,19 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-x=$((RANDOM))
-echo $x | bzip2 >/usr/share/man/man1/toybox.1.bz2
-testing "curl_strequal" "man toybox" " $x\n\n" "" ""
+mkdir -p banana/man{1,3,5}
 
-x=$((RANDOM))
-echo $x | bzip2 >/usr/share/man/man1/toybox.1.bz2
-testing "curl_strequal.3" "man toybox.1" " $x\n\n" "" ""
+# Can't/shouldn't write to /usr/share/man so use -M to change path
+MAN="man -M banana"
+echo one | bzip2 >banana/man1/numbers.1.bz2
+echo three | gzip >banana/man3/numbers.3.gz
+echo five > banana/man5/numbers.5
 
-rm /usr/share/man/man1/toybox.1.bz2
+testing "man" "$MAN numbers" " one\n\n" "" ""
+testing "man.section" "$MAN numbers.3" " three\n\n" "" ""
+testing "section man" "$MAN 5 numbers" " five\n\n" "" ""
 
-x=$((RANDOM))
-echo $x >/usr/share/man/man1/toybox.1
-testing "curl_strnequal" "man toybox" " $x\n\n" "" ""
-
-x=$((RANDOM))
-echo $x >/usr/share/man/man1/toybox.1
-testing "curl_strnequal.3" "man toybox.1" " $x\n\n" "" ""
-
-cat >/usr/share/man/man1/toybox.1 <<EOF
+cat >banana/man1/toybox.1 <<EOF
 .TP
 .PD 0
 .B \\-F
@@ -36,139 +30,140 @@ Does something.
 .B \\-\\^\\-no\\-alias
 Has no alias.
 EOF
-testing "gawk alias" "man toybox" " -F\n --foo-bar Does something.\n\n --no-alias Has no alias.\n\n" "" ""
 
-cat >/usr/share/man/man1/toybox.1 <<EOF
+testing "gawk alias" "$MAN toybox" " -F\n --foo-bar Does something.\n\n --no-alias Has no alias.\n\n" "" ""
+
+cat >banana/man1/toybox.1 <<EOF
 \\fBsh\\fR-compatible
 \\fIKorn\\fP
 EOF
-testing "bash bold,ita" "man toybox" " sh-compatible Korn\n\n" "" ""
+testing "bash bold,ita" "$MAN toybox" " sh-compatible Korn\n\n" "" ""
 
-cat >/usr/share/man/man1/toybox.1 <<EOF
+cat >banana/man1/toybox.1 <<EOF
 quoted \\(aqstring\\(aq
 \\(dqserver\\(dq
 Don\\(cq\\&t
 EOF
-testing "bash,rsync quote" "man toybox" " quoted 'string' \"server\" Don't\n\n" "" ""
+testing "bash,rsync quote" "$MAN toybox" " quoted 'string' \"server\" Don't\n\n" "" ""
 
-echo "\\*(lq\\-\\^\\-\\*(rq" >/usr/share/man/man1/toybox.1
-testing "gawk quote" "man toybox" " \"--\"\n\n" "" ""
+echo "\\*(lq\\-\\^\\-\\*(rq" >banana/man1/toybox.1
+testing "gawk quote" "$MAN toybox" " \"--\"\n\n" "" ""
 
-cat >/usr/share/man/man1/toybox.1 <<EOF
+cat >banana/man1/toybox.1 <<EOF
 .IP \\(bu
 [\\fB|\\fP\\(bv\\fB|&\\fP]
 EOF
-testing "bash symbol" "man toybox" " * [|||&]\n\n" "" ""
+testing "bash symbol" "$MAN toybox" " * [|||&]\n\n" "" ""
 
-cat >/usr/share/man/man1/toybox.1 <<EOF
+cat >banana/man1/toybox.1 <<EOF
 \\&\\fBfflush(...)\\fR
 \\f(CW$ ssh ...\\fP
 EOF
-testing "gawk,rsync fancy" "man toybox" " fflush(...) $ ssh ...\n\n" "" ""
+testing "gawk,rsync fancy" "$MAN toybox" " fflush(...) $ ssh ...\n\n" "" ""
 
-cat >/usr/share/man/man1/toybox.1 <<EOF
+cat >banana/man1/toybox.1 <<EOF
 "\\eC\\-x\\eC\\-r": re\\-read
 must be \\(>= 1
 EOF
-testing "bash escape" "man toybox" " \"\C-x\C-r\": re-read must be >= 1\n\n" "" ""
+testing "bash escape" "$MAN toybox" " \"\C-x\C-r\": re-read must be >= 1\n\n" "" ""
 
-echo "\\*(AK language.  The \\*(PX standard" >/usr/share/man/man1/toybox.1
-testing "gawk var" "man toybox" " #AK language.  The #PX standard\n\n" "" ""
+echo "\\*(AK language.  The \\*(PX standard" >banana/man1/toybox.1
+testing "gawk var" "$MAN toybox" " #AK language.  The #PX standard\n\n" "" ""
 
-cat >/usr/share/man/man1/toybox.1 <<EOF
+cat >banana/man1/toybox.1 <<EOF
 If set to
 .BR On ,
 (...)
 EOF
-testing "bash boldpunct" "man toybox" " If set to On, (...)\n\n" "" ""
+testing "bash boldpunct" "$MAN toybox" " If set to On, (...)\n\n" "" ""
 
-cat >/usr/share/man/man1/toybox.1 <<EOF
+cat >banana/man1/toybox.1 <<EOF
 .IP \\fB\$endif\\fP
 (...)
 .IP \\fB\$else\\fP
 (...)
 .IP \\fB\$include\\fP
 EOF
-testing "bash list" "man toybox" " \$endif (...)\n\n \$else (...)\n\n \$include\n\n" "" ""
+testing "bash list" "$MAN toybox" " \$endif (...)\n\n \$else (...)\n\n \$include\n\n" "" ""
 
-cat >/usr/share/man/man1/toybox.1 <<EOF
+cat >banana/man1/toybox.1 <<EOF
 asynchronously (in the
 .IR background ),
 it prints
 EOF
-testing "bash itapunct" "man toybox" " asynchronously (in the background), it prints\n\n" "" ""
+testing "bash itapunct" "$MAN toybox" " asynchronously (in the background), it prints\n\n" "" ""
 
-cat >/usr/share/man/man1/toybox.1 <<EOF
+cat >banana/man1/toybox.1 <<EOF
 (...)
 .B Bash
 is
 EOF
-testing "bash bold" "man toybox" " (...) Bash is\n\n" "" ""
+testing "bash bold" "$MAN toybox" " (...) Bash is\n\n" "" ""
 
 # TODO: Unquote.
-cat >/usr/share/man/man1/toybox.1 <<EOF
+cat >banana/man1/toybox.1 <<EOF
 .PD 0
 .BI \\-f " program-file"
 .TP
 EOF
-testing "gawk boldita" "man toybox" " -f \" program-file\"\n\n" "" ""
+testing "gawk boldita" "$MAN toybox" " -f \" program-file\"\n\n" "" ""
 
-cat >/usr/share/man/man1/toybox.1 <<EOF
+cat >banana/man1/toybox.1 <<EOF
 same format as
 .FN /etc/hosts
 (...)
 EOF
-testing "bash filename" "man toybox" " same format as /etc/hosts (...)\n\n" "" ""
+testing "bash filename" "$MAN toybox" " same format as /etc/hosts (...)\n\n" "" ""
 
-cat >/usr/share/man/man1/toybox.1 <<EOF
+cat >banana/man1/toybox.1 <<EOF
 The
 .I Internal Field Separator
 that is used
 EOF
-testing "bash ita" "man toybox" " The Internal Field Separator that is used\n\n" "" ""
+testing "bash ita" "$MAN toybox" " The Internal Field Separator that is used\n\n" "" ""
 
-cat >/usr/share/man/man1/toybox.1 <<EOF
+cat >banana/man1/toybox.1 <<EOF
 .if n Copyright (C) 2019
 .if t Copyright \\(co 2019
 EOF
-testing "bash nroff" "man toybox" " Copyright (C) 2019\n\n" "" ""
+testing "bash nroff" "$MAN toybox" " Copyright (C) 2019\n\n" "" ""
 
-cat >/usr/share/man/man1/toybox.1 <<EOF
+cat >banana/man1/toybox.1 <<EOF
 (...)
 .PP
 (...)
 EOF
-testing "bash paragraph" "man toybox" " (...)\n\n (...)\n\n" "" ""
+testing "bash paragraph" "$MAN toybox" " (...)\n\n (...)\n\n" "" ""
 
 # TODO: Find some command I saw that has a different see below.
-cat >/usr/share/man/man1/toybox.1 <<EOF
+cat >banana/man1/toybox.1 <<EOF
 (see
 .SM
 .B INVOCATION
 below)
 EOF
-testing "bash small" "man toybox" " (see INVOCATION below)\n\n" "" ""
+testing "bash small" "$MAN toybox" " (see INVOCATION below)\n\n" "" ""
 
-cat >/usr/share/man/man1/toybox.1 <<EOF
+cat >banana/man1/toybox.1 <<EOF
 (...)
 .SH "SHELL GRAMMAR"
 .SS Simple Commands
 .PP
 (...)
 EOF
-testing "bash section" "man toybox" " (...)\n\n\"SHELL GRAMMAR\"\n\nSimple Commands\n\n (...)\n\n" "" ""
+testing "bash section" "$MAN toybox" " (...)\n\n\"SHELL GRAMMAR\"\n\nSimple Commands\n\n (...)\n\n" "" ""
 
-echo ".so man1/last.1" >/usr/share/man/man1/toybox.1
-testing "lastb" "man toybox" "See last.1\n\n" "" ""
+echo ".so man1/last.1" >banana/man1/toybox.1
+testing "lastb" "$MAN toybox" "See last.1\n\n" "" ""
 
-cat >/usr/share/man/man1/toybox.1 <<EOF
+cat >banana/man1/toybox.1 <<EOF
 .TH TOYBOX 1 "Apr 13 2019" "Project Organization" "Document Name"
 .PP
 .TH "TOYBOX" "1" "04/13/2019" "Toybox 0\\&.8\\&.0" "Toybox Manual"
 EOF
-testing "gawk,git head" "man toybox" "TOYBOX 1  Apr 13 2019   Project Organization   Document Name \n\n TOYBOX   1   04/13/2019   Toybox 0.8.0   Toybox Manual \n\n" "" ""
+testing "gawk,git head" "$MAN toybox" "TOYBOX 1  Apr 13 2019   Project Organization   Document Name \n\n TOYBOX   1   04/13/2019   Toybox 0.8.0   Toybox Manual \n\n" "" ""
 
-cat >/usr/share/man/man1/toybox.1 <<EOF
+cat >banana/man1/toybox.1 <<EOF
 (...)
 .PP
 .PD 0
@@ -178,19 +173,19 @@ If the
 .B \\-c
 option is present
 EOF
-testing "bash table" "man toybox" " (...)\n\n -c If the -c option is present\n\n" "" ""
+testing "bash table" "$MAN toybox" " (...)\n\n -c If the -c option is present\n\n" "" ""
 
-cat >/usr/share/man/man1/toybox.1 <<EOF
+cat >banana/man1/toybox.1 <<EOF
 .de FN
 .sp
 .RE
 '\" t
 EOF
-testing "bash,git garbage" "man toybox" "" "" ""
+testing "bash,git garbage" "$MAN toybox" "" "" ""
 
 # TODO: -k
 # TODO: emerge section header newline
 # TODO: fdm not roff
 # TODO: git-pull consecutive escaped slashes
 
-rm /usr/share/man/man1/toybox.1 
+rm -rf banana
