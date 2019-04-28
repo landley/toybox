@@ -16,6 +16,7 @@ echo five > banana/man5/numbers.5
 testing "man" "$MAN numbers" " one\n\n" "" ""
 testing "man.section" "$MAN numbers.3" " three\n\n" "" ""
 testing "section man" "$MAN 5 numbers" " five\n\n" "" ""
+testing "/" "$MAN /" "" "" "" # Regression guard for !suf in zopen
 
 cat >banana/man1/toybox.1 <<EOF
 .TP
@@ -27,7 +28,7 @@ cat >banana/man1/toybox.1 <<EOF
 Does something.
 .TP
 .PD 0
-.B \\-\\^\\-no\\-alias
+.B \\-\\-no\\-alias
 Has no alias.
 EOF
 
@@ -129,6 +130,14 @@ EOF
 testing "bash nroff" "$MAN toybox" " Copyright (C) 2019\n\n" "" ""
 
 cat >banana/man1/toybox.1 <<EOF
+.EX
+#include <stdio.h>
+#include <stdlib.h>
+.EE
+EOF
+testing "stat example" "$MAN toybox" "#include <stdio.h>\n#include <stdlib.h>\n\n\n" "" ""
+
+cat >banana/man1/toybox.1 <<EOF
 (...)
 .PP
 (...)
@@ -183,9 +192,23 @@ cat >banana/man1/toybox.1 <<EOF
 EOF
 testing "bash,git garbage" "$MAN toybox" "" "" ""
 
-# TODO: -k
+# "bash,git garbage" from above has no content, -k skips it.
+bzip2 >banana/man1/numbers.1.bz2 <<EOF
+.TH NUMBERS 1 "2019 Apr 28" "Toybox Manual"
+.SH NAME
+man \- test -k
+.SH ANOTHER SECTION
+.so noop.1
+Skip this text.
+EOF
+echo "No dash." | gzip >banana/man3/numbers.3.gz
+echo .so man1/numbers.1 >banana/man5/numbers.5
+testing "-k ." "$MAN -k ." "numbers.1.bz2 - test -k\nnumbers.3.gz - No dash.\nnumbers.5 - See numbers.1\n" "" ""
+testing "-k -k" "$MAN -k -k" "numbers.1.bz2 - test -k\n" "" ""
+testing "-k d.*h" "$MAN -k 'd.*h'" "numbers.3.gz - No dash.\n" "" ""
+testing "-k ers.1" "$MAN -k ers.1" "numbers.1.bz2 - test -k\nnumbers.5 - See numbers.1\n" "" ""
+
 # TODO: emerge section header newline
-# TODO: fdm not roff
-# TODO: git-pull consecutive escaped slashes
+# TODO: fdm,man-pages man1p/, .nf, rare tags
 
 rm -rf banana
