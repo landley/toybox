@@ -646,6 +646,11 @@ static void do_XT(char **pline, long len)
   if (pline) trim2list(TT.X ? &TT.excl : &TT.incl, *pline);
 }
 
+static char *compression_tool()
+{
+  return FLAG(z) ? "gzip" : (FLAG(J) ? "xz" : "bzip2");
+}
+
 void tar_main(void)
 {
   char *s, **args = toys.optargs;
@@ -658,7 +663,7 @@ void tar_main(void)
   if (!geteuid()) toys.optflags |= FLAG_p;
   if (TT.owner) TT.ouid = xgetuid(TT.owner);
   if (TT.group) TT.ggid = xgetgid(TT.group);
-  if (TT.mtime) xparsedate(TT.mtime, &TT.mtt, (void *)&s, 1); 
+  if (TT.mtime) xparsedate(TT.mtime, &TT.mtt, (void *)&s, 1);
 
   // Collect file list.
   for (; TT.exclude; TT.exclude = TT.exclude->next)
@@ -717,11 +722,8 @@ void tar_main(void)
 
     if (FLAG(j)||FLAG(z)||FLAG(J)) {
       int pipefd[2] = {hdr ? -1 : TT.fd, -1}, i, pid;
-      char *cmd[] = {"bzcat", 0};
 
-      if (FLAG(J)) cmd[0] = "xzcat";
-      else if FLAG(z) cmd[0]++;
-      xpopen_both(cmd, pipefd);
+      xpopen_both((char *[]){compression_tool(), "-dc", NULL}, pipefd);
 
       if (!hdr) {
         // If we could seek, child gzip inherited fd and we read its output
@@ -790,8 +792,7 @@ void tar_main(void)
     if (FLAG(j)||FLAG(z)||FLAG(J)) {
       int pipefd[2] = {-1, TT.fd};
 
-      xpopen_both((char *[]){FLAG(z)?"gzip":FLAG(J)?"xz":"bzip2", "-f", NULL},
-        pipefd);
+      xpopen_both((char *[]){compression_tool(), "-f", NULL}, pipefd);
       close(TT.fd);
       TT.fd = pipefd[0];
     }
