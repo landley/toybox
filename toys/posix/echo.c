@@ -9,13 +9,13 @@
  * We also honor -- to _stop_ option parsing (bash doesn't, we go with
  * consistency over compatibility here).
 
-USE_ECHO(NEWTOY(echo, "^?en", TOYFLAG_BIN))
+USE_ECHO(NEWTOY(echo, "^?Een", TOYFLAG_BIN))
 
 config ECHO
   bool "echo"
   default y
   help
-    usage: echo [-ne] [args...]
+    usage: echo [-neE] [args...]
 
     Write each argument to stdout, with one space between each, followed
     by a newline.
@@ -33,6 +33,7 @@ config ECHO
     	\t	Horizontal tab
     	\v	Vertical tab
     	\xHH	Hexadecimal values (1 to 2 digits)
+    -E	Print escape sequences literally (default)
 */
 
 #define FOR_echo
