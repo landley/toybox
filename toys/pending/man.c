@@ -159,6 +159,7 @@ void man_main(void)
   char **order = (char *[]) {"1", "8", "3", "2", "5", "4", "6", "7", 0};
   TT.sufs = (char *[]) {".bz2", ".gz", ".xz", "", 0};
 
+  if (!TT.M) TT.M = getenv("MANPATH");
   if (!TT.M) TT.M = "/usr/share/man";
 
   if (FLAG(k)) {
