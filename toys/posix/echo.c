@@ -9,7 +9,7 @@
  * We also honor -- to _stop_ option parsing (bash doesn't, we go with
  * consistency over compatibility here).
 
-USE_ECHO(NEWTOY(echo, "^?Een", TOYFLAG_BIN))
+USE_ECHO(NEWTOY(echo, "^?Een[-eE]", TOYFLAG_BIN))
 
 config ECHO
   bool "echo"
@@ -21,6 +21,7 @@ config ECHO
     by a newline.
 
     -n	No trailing newline
+    -E	Print escape sequences literally (default)
     -e	Process the following escape sequences:
     	\\	Backslash
     	\0NNN	Octal values (1 to 3 digits)
@@ -33,7 +34,6 @@ config ECHO
     	\t	Horizontal tab
     	\v	Vertical tab
     	\xHH	Hexadecimal values (1 to 2 digits)
-    -E	Print escape sequences literally (default)
 */
 
 #define FOR_echo

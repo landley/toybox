@@ -37,3 +37,4 @@ testcmd "-e \p" "-e '\\p'" "\\p\n" "" ""
 
 # http://austingroupbugs.net/view.php?id=1222 added -E
 testcmd "-En" "-En 'one\ntwo'" 'one\\ntwo' "" ""
+testcmd "-eE" "-eE '\e'" '\\e\n' "" ""
