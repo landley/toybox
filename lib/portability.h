@@ -272,9 +272,9 @@ static inline int __system_property_set(const char *key, const char *value)
 }
 #endif
 
-// libcutils is in AOSP but not Android NDK r18
+// libprocessgroup is an Android platform library not included in the NDK.
 #if defined(__BIONIC__) && !defined(__ANDROID_NDK__)
-#include <cutils/sched_policy.h>
+#include <processgroup/sched_policy.h>
 #else
 static inline int get_sched_policy(int tid, void *policy) {return 0;}
 static inline char *get_sched_policy_name(int policy) {return "unknown";}

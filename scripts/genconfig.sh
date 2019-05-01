@@ -85,7 +85,7 @@ EOF
 EOF
 
   probesymbol TOYBOX_ANDROID_SCHEDPOLICY << EOF
-    #include <cutils/sched_policy.h>
+    #include <processgroup/sched_policy.h>
 
     int main(int argc,char *argv[]) { get_sched_policy_name(0); }
 EOF
