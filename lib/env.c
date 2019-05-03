@@ -58,11 +58,9 @@ void xsetenv(char *name, char *val)
     if (!memcmp(name, environ[i], len) && environ[i][len]=='=') {
       if (i>=envc) free(environ[i]);
       else {
-        char **delete = environ+i;
-
         // move old entries down, add at end of old data
         toys.envc = envc--;
-        for (i=0; new ? i<envc : !!delete[i]; i++) delete[i] = delete[i+1];
+        for (; new ? i<envc : !!environ[i]; i++) environ[i] = environ[i+1];
         i = envc;
       }
       break;
