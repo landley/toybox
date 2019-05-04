@@ -466,20 +466,21 @@ static void sed_line(char **pline, long plen)
 
       break;
     } else if (c=='s') {
-      char *rline = line, *new = command->arg2 + (char *)command, *swap, *rswap;
+      char *rline = line, *new = command->arg2 + (char *)command, *l2 = 0;
       regmatch_t *match = (void *)toybuf;
       regex_t *reg = get_regex(command, command->arg1);
-      int mflags = 0, count = 0, zmatch = 1, rlen = len, mlen, off, newlen;
+      int mflags = 0, count = 0, l2used = 0, zmatch = 1, l2l = len,
+        mlen, off, newlen;
 
-      // Find match in remaining line (up to remaining len)
-      while (!regexec0(reg, rline, rlen, 10, match, mflags)) {
+      // Loop finding match in remaining line (up to remaining len)
+      while (!regexec0(reg, rline, len-(rline-line), 10, match, mflags)) {
         mflags = REG_NOTBOL;
 
         // Zero length matches don't count immediately after a previous match
         mlen = match[0].rm_eo-match[0].rm_so;
         if (!mlen && !zmatch) {
-          if (!rlen--) break;
-          rline++;
+          if (rline-line == len) break;
+          l2[l2used++] = *rline++;
           zmatch++;
           continue;
         } else zmatch = 0;
@@ -487,8 +488,9 @@ static void sed_line(char **pline, long plen)
         // If we're replacing only a specific match, skip if this isn't it
         off = command->sflags>>3;
         if (off && off != ++count) {
+          memcpy(l2+l2used, rline, match[0].rm_eo);
+          l2used += match[0].rm_eo;
           rline += match[0].rm_eo;
-          rlen -= match[0].rm_eo;
 
           continue;
         }
@@ -509,13 +511,15 @@ static void sed_line(char **pline, long plen)
           newlen += match[cc].rm_eo-match[cc].rm_so;
         }
 
-        // Allocate new size, copy start/end around match. (Can't extend in
-        // place because backrefs may refer to text after it's overwritten.)
-        len += newlen-mlen;
-        swap = xmalloc(len+1);
-        rswap = swap+(rline-line)+match[0].rm_so;
-        memcpy(swap, line, (rline-line)+match[0].rm_so);
-        memcpy(rswap+newlen, rline+match[0].rm_eo, (rlen -= match[0].rm_eo)+1);
+        // Copy changed data to new string
+
+        // Adjust allocation size of new string, copy data we know we'll keep
+        l2l += newlen-mlen;
+        if (newlen>mlen || !l2) l2 = xrealloc(l2, l2l+1);
+        if (match[0].rm_so) {
+          memcpy(l2+l2used, rline, match[0].rm_so);
+          l2used += match[0].rm_so;
+        }
 
         // copy in new replacement text
         for (off = mlen = 0; new[off]; off++) {
@@ -524,31 +528,38 @@ static void sed_line(char **pline, long plen)
           if (new[off] == '\\') {
             cc = new[++off] - '0';
             if (cc<0 || cc>9) {
-              if (!(rswap[mlen++] = unescape(new[off])))
-                rswap[mlen-1] = new[off];
+              if (!(l2[l2used+mlen++] = unescape(new[off])))
+                l2[l2used+mlen-1] = new[off];
 
               continue;
             } else if (cc > reg->re_nsub) error_exit("no s//\\%d/", cc);
           } else if (new[off] != '&') {
-            rswap[mlen++] = new[off];
+            l2[l2used+mlen++] = new[off];
 
             continue;
           }
 
-          if (match[cc].rm_so == -1) ll = 0; // Empty match.
-          else {
+          if (match[cc].rm_so != -1) {
             ll = match[cc].rm_eo-match[cc].rm_so;
-            memcpy(rswap+mlen, rline+match[cc].rm_so, ll);
+            memcpy(l2+l2used+mlen, rline+match[cc].rm_so, ll);
+            mlen += ll;
           }
-          mlen += ll;
         }
-
-        rline = rswap+newlen;
-        free(line);
-        line = swap;
+        l2used += newlen;
+        rline += match[0].rm_eo;
 
         // Stop after first substitution unless we have flag g
         if (!(command->sflags & 2)) break;
+      }
+
+      // If we made any changes, finish off l2 and swap it for line
+      if (l2) {
+        // grab trailing unmatched data and null terminator, swap with original
+        mlen = len-(rline-line);
+        memcpy(l2+l2used, rline, mlen+1);
+        len = l2used + mlen;
+        free(line);
+        line = l2;
       }
 
       if (mflags) {
