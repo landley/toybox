@@ -1327,16 +1327,9 @@ int regexec0(regex_t *preg, char *string, long len, int nmatch,
   char *s = string;
 
   for (;;) {
-    long ll = 0;
-    int rc;
+    int rc = regexec(preg, s, nmatch, pmatch, eflags);
 
-    while (len && !*s) {
-      s++;
-      len--;
-    }
-    while (s[ll] && ll<len) ll++;
-
-    rc = regexec(preg, s, nmatch, pmatch, eflags);
+    // check for match
     if (!rc) {
       for (rc = 0; rc<nmatch && pmatch[rc].rm_so!=-1; rc++) {
         pmatch[rc].rm_so += s-string;
@@ -1345,10 +1338,17 @@ int regexec0(regex_t *preg, char *string, long len, int nmatch,
 
       return 0;
     }
-    if (ll==len) return rc;
 
-    s += ll;
-    len -= ll;
+    // advance past NUL bytes and try again
+    while (len && *s) {
+      s++;
+      len--;
+    }
+    while (len && !*s) {
+      s++;
+      len--;
+    }
+    if (!len) return REG_NOMATCH;
   }
 }
 
