@@ -6,6 +6,9 @@
 
 // For musl
 #define _ALL_SOURCE
+#ifndef REG_STARTEND
+#define REG_STARTEND 0
+#endif
 
 #ifdef __APPLE__
 // macOS 10.13 doesn't have the POSIX 2008 direct access to timespec in

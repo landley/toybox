@@ -1317,39 +1317,16 @@ int readlink0(char *path, char *buf, int len)
   return readlinkat0(AT_FDCWD, path, buf, len);
 }
 
-// Do regex matching handling embedded NUL bytes in string (hence extra len
-// argument). Note that neither the pattern nor the match can currently include
-// NUL bytes (even with wildcards) and string must be null terminated at
-// string[len]. But this can find a match after the first NUL.
+// Do regex matching with len argument to handle embedded NUL bytes in string
 int regexec0(regex_t *preg, char *string, long len, int nmatch,
-  regmatch_t pmatch[], int eflags)
+  regmatch_t *pmatch, int eflags)
 {
-  char *s = string;
+  regmatch_t backup;
 
-  for (;;) {
-    int rc = regexec(preg, s, nmatch, pmatch, eflags);
-
-    // check for match
-    if (!rc) {
-      for (rc = 0; rc<nmatch && pmatch[rc].rm_so!=-1; rc++) {
-        pmatch[rc].rm_so += s-string;
-        pmatch[rc].rm_eo += s-string;
-      }
-
-      return 0;
-    }
-
-    // advance past NUL bytes and try again
-    while (len && *s) {
-      s++;
-      len--;
-    }
-    while (len && !*s) {
-      s++;
-      len--;
-    }
-    if (!len) return REG_NOMATCH;
-  }
+  if (!nmatch) pmatch = &backup;
+  pmatch->rm_so = 0;
+  pmatch->rm_eo = len;
+  return regexec(preg, string, nmatch, pmatch, eflags|REG_STARTEND);
 }
 
 // Return user name or string representation of number, returned buffer
