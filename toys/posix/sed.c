@@ -239,14 +239,14 @@ static char *extend_string(char **old, char *new, int oldlen, int newlen)
 }
 
 // An empty regex repeats the previous one
-static void *get_regex(void *trump, int offset)
+static void *get_regex(void *command, int offset)
 {
   if (!offset) {
     if (!TT.lastregex) error_exit("no previous regex");
     return TT.lastregex;
   }
 
-  return TT.lastregex = offset+(char *)trump;
+  return TT.lastregex = offset+(char *)command;
 }
 
 // Apply pattern to line from input file
@@ -469,7 +469,7 @@ static void sed_line(char **pline, long plen)
       char *rline = line, *new = command->arg2 + (char *)command, *l2 = 0;
       regmatch_t *match = (void *)toybuf;
       regex_t *reg = get_regex(command, command->arg1);
-      int mflags = 0, count = 0, l2used = 0, zmatch = 1, l2l = len,
+      int mflags = 0, count = 0, l2used = 0, zmatch = 1, l2l = len, l2old = 0,
         mlen, off, newlen;
 
       // Loop finding match in remaining line (up to remaining len)
@@ -515,7 +515,7 @@ static void sed_line(char **pline, long plen)
 
         // Adjust allocation size of new string, copy data we know we'll keep
         l2l += newlen-mlen;
-        if (newlen>mlen || !l2) l2 = xrealloc(l2, l2l+1);
+        if ((l2l|0xfff) > l2old) l2 = xrealloc(l2, l2old = (l2l|0xfff)+1);
         if (match[0].rm_so) {
           memcpy(l2+l2used, rline, match[0].rm_so);
           l2used += match[0].rm_so;
