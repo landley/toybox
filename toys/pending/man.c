@@ -32,7 +32,7 @@ config MAN
 GLOBALS(
   char *M, *k;
 
-  char any, cell, ex, *f, k_done, *line, **sufs;
+  char any, cell, ex, *f, k_done, *line, *m, **sct, **scts, **sufs;
   regex_t reg;
 )
 
@@ -137,11 +137,19 @@ static int zopen(char *s)
   return fds[1];
 }
 
-// Try opening all the possible file extensions.
-int tryfile(char *section, char *name)
+static char manpath()
 {
-  char *s = xmprintf("%s/man%s/%s.%s.bz2", TT.M, section, name, section), **suf;
+  if (*++TT.sct) return 0;
+  if (!(TT.m = strsep(&TT.M, ":"))) return 1;
+  TT.sct = TT.scts;
+  return 0;
+}
+
+// Try opening all the possible file extensions.
+static int tryfile(char *name)
+{
   int dotnum, fd = -1;
+  char *s = xmprintf("%s/man%s/%s.%s.bz2", TT.m, *TT.sct, name, *TT.sct), **suf;
   size_t len = strlen(s) - 4;
 
   for (dotnum = 0; dotnum <= 2; dotnum += 2) {
@@ -156,7 +164,8 @@ int tryfile(char *section, char *name)
 void man_main(void)
 {
   int fd = -1;
-  char **order = (char *[]) {"1", "8", "3", "2", "5", "4", "6", "7", 0};
+  TT.scts = (char *[]) {"1", "8", "3", "2", "5", "4", "6", "7", 0};
+  TT.sct = TT.scts - 1; // First manpath() read increments.
   TT.sufs = (char *[]) {".bz2", ".gz", ".xz", "", 0};
 
   if (!TT.M) TT.M = getenv("MANPATH");
@@ -167,8 +176,8 @@ void man_main(void)
     DIR *dp;
     struct dirent *entry;
     if (regcomp(&TT.reg, TT.k, REG_ICASE|REG_NOSUB)) error_exit("bad regex");
-    while (*order) {
-      d = xmprintf("%s/man%s", TT.M, *order++);
+    while (!manpath()) {
+      d = xmprintf("%s/man%s", TT.m, *TT.sct);
       if (!(dp = opendir(d))) continue;
       while ((entry = readdir(dp))) {
         if (entry->d_name[0] == '.') continue;
@@ -190,12 +199,15 @@ void man_main(void)
 
   if (toys.optc == 1) {
     if (strchr(*toys.optargs, '/')) fd = zopen(*toys.optargs);
-    else while ((fd == -1) && *order) fd = tryfile(*order++, *toys.optargs);
-    if (!*order) error_exit("no %s", *toys.optargs);
+    else while ((fd == -1) && !manpath()) fd = tryfile(*toys.optargs);
+    if (fd == -1) error_exit("no %s", *toys.optargs);
 
   // If they specified a section, look for file in that section
-  } else if (-1 == (fd = tryfile(toys.optargs[0], toys.optargs[1])))
-    error_exit("section %s no %s", toys.optargs[0], toys.optargs[1]);
+  } else {
+    TT.scts = (char *[]){*toys.optargs, 0}, TT.sct = TT.scts - 1;
+    while ((fd == -1) && !manpath()) fd = tryfile(toys.optargs[1]);
+    if (fd == -1) error_exit("section %s no %s", *--TT.sct, toys.optargs[1]);
+  }
 
   do_lines(fd, '\n', do_man);
 }

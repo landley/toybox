@@ -208,7 +208,15 @@ testing "-k -k" "$MAN -k -k" "numbers.1.bz2 - test -k\n" "" ""
 testing "-k d.*h" "$MAN -k 'd.*h'" "numbers.3.gz - No dash.\n" "" ""
 testing "-k ers.1" "$MAN -k ers.1" "numbers.1.bz2 - test -k\nnumbers.5 - See numbers.1\n" "" ""
 
+mkdir -p walrus/man1
+echo Local development override. | bzip2 >walrus/man1/numbers.1.bz2
+testing "-M /dir:/dir0" "man -M walrus:banana numbers" " Local development override.\n\n" "" ""
+testing "-M /dir:/dir0 -k ." "man -M walrus:banana -k ." "numbers.1.bz2 - Local development override.\nnumbers.1.bz2 - test -k\nnumbers.3.gz - No dash.\nnumbers.5 - See numbers.1\n" "" ""
+testing "-M '' x" "man -M '' numbers 2>&1" "man: no numbers\n" "" ""
+testing "-M '' 1 x" "man -M '' 1 numbers 2>&1" "man: section 1 no numbers\n" "" ""
+testing "-M '' -k ." "man -M '' -k ." "" "" ""
+
 # TODO: emerge section header newline
 # TODO: fdm,man-pages man1p/, .nf, rare tags
 
-rm -rf banana
+rm -rf banana walrus
