@@ -234,7 +234,7 @@ void loopfiles_rw(char **argv, int flags, int permissions,
   void (*function)(int fd, char *name));
 void loopfiles(char **argv, void (*function)(int fd, char *name));
 void loopfiles_lines(char **argv, void (*function)(char **pline, long len));
-long long sendfile_len(int in, int out, long long len);
+long long sendfile_len(int in, int out, long long len, long long *consumed);
 long long xsendfile_len(int in, int out, long long len);
 void xsendfile_pad(int in, int out, long long len);
 long long xsendfile(int in, int out);
