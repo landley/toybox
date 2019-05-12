@@ -1306,7 +1306,7 @@ int readlinkat0(int dirfd, char *path, char *buf, int len)
   if (!len) return 0;
 
   len = readlinkat(dirfd, path, buf, len-1);
-  if (len<1) return 0;
+  if (len<0) len = 0;
   buf[len] = 0;
 
   return len;
