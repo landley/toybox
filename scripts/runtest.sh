@@ -10,6 +10,7 @@
 #    DEBUG - Show every command run by test script.
 #    VERBOSE - Print the diff -u of each failed test case.
 #              If equal to "fail", stop after first failed test.
+#              "nopass" to not show successful tests
 #
 # The "testcmd" function takes five arguments:
 #	$1) Description to display when running command
@@ -134,7 +135,7 @@ testing()
       [ "$VERBOSE" == fail ] && exit 1
     fi
   else
-    printf "%s\n" "$SHOWPASS: $NAME"
+    [ "$VERBOSE" != "nopass" ] && printf "%s\n" "$SHOWPASS: $NAME"
   fi
   rm -f input expected actual
 
