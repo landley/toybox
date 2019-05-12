@@ -3,11 +3,9 @@
  * Copyright 2006 Rob Landley <rob@landley.net>
  */
 
-// NOTE: If option parsing segfaults, switch on TOYBOX_DEBUG in menuconfig.
-
-// Enabling TOYBOX_DEBUG in .config adds syntax checks to option string parsing
-// which aren't needed in the final code (your option string is hardwired and
-// should be correct when you ship), but are useful for development.
+// NOTE: If option parsing segfaults, switch on TOYBOX_DEBUG in menuconfig to
+// add syntax checks to option string parsing which aren't needed in the final
+// code (since get_opt string is hardwired and should be correct when you ship)
 
 #include "toys.h"
 
