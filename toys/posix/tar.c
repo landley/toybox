@@ -297,6 +297,16 @@ static int add_to_tar(struct dirtree *node)
       strncpy(hdr.gname, TT.group ? TT.group : gr->gr_name, sizeof(hdr.gname));
   }
 
+  TT.sparselen = 0;
+  if (hdr.type == '0') {
+    // Before we write the header, make sure we can read the file
+    if ((fd = open(name, O_RDONLY)) < 0) {
+      perror_msg("can't open '%s'", name);
+
+      return 0;
+    }
+  }
+
   itoo(hdr.chksum, sizeof(hdr.chksum)-1, cksum(&hdr));
   hdr.chksum[7] = ' ';
 
@@ -305,12 +315,9 @@ static int add_to_tar(struct dirtree *node)
   // Write header and data to archive
   xwrite(TT.fd, &hdr, 512);
   if (hdr.type == '0') {
-    if ((fd = open(name, O_RDONLY)) < 0) perror_msg("can't open '%s'", name);
-    else {
-      xsendfile_pad(fd, TT.fd, st->st_size);
-      if (st->st_size%512) writeall(TT.fd, toybuf, (512-(st->st_size%512)));
-      close(fd);
-    }
+    xsendfile_pad(fd, TT.fd, st->st_size);
+    if (st->st_size%512) writeall(TT.fd, toybuf, (512-(st->st_size%512)));
+    close(fd);
   }
 done:
   free(name);
@@ -379,7 +386,7 @@ static void sendfile_sparse(int fd)
         while (len) {
           // first/last 512 bytes used, rest left zeroes
           j = (len>3072) ? 3072 : len;
-          if (len != writeall(fd, toybuf+512, len)) goto error;
+          if (j != writeall(fd, toybuf+512, j)) goto error;
           len -= j;
         }
       }
