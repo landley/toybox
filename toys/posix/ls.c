@@ -69,12 +69,12 @@ static int crunch_qb(FILE *out, int cols, int wc)
   unsigned len = 1;
   char buf[32];
 
-  if (toys.optflags&FLAG_q) *buf = '?';
+  if (FLAG(q)) *buf = '?';
   else {
     if (wc<256) *buf = wc;
     // scrute the inscrutable, eff the ineffable, print the unprintable
     else len = wcrtomb(buf, wc, 0);
-    if (toys.optflags&FLAG_b) {
+    if (FLAG(b)) {
       char *to = buf, *from = buf+24;
       int i, j;
 
@@ -105,8 +105,8 @@ static int strwidth(char *s)
 static char endtype(struct stat *st)
 {
   mode_t mode = st->st_mode;
-  if ((toys.optflags&(FLAG_F|FLAG_p)) && S_ISDIR(mode)) return '/';
-  if (toys.optflags & FLAG_F) {
+  if ((FLAG(F)||FLAG(p)) && S_ISDIR(mode)) return '/';
+  if (FLAG(F)) {
     if (S_ISLNK(mode)) return '@';
     if (S_ISREG(mode) && (mode&0111)) return '*';
     if (S_ISFIFO(mode)) return '|';
@@ -122,7 +122,7 @@ static int numlen(long long ll)
 
 static int print_with_h(char *s, long long value, int units)
 {
-  if (toys.optflags&FLAG_h) return human_readable(s, value*units, 0);
+  if (FLAG(h)) return human_readable(s, value*units, 0);
   else return sprintf(s, "%lld", value);
 }
 
@@ -160,13 +160,13 @@ static int compare(void *a, void *b)
 {
   struct dirtree *dta = *(struct dirtree **)a;
   struct dirtree *dtb = *(struct dirtree **)b;
-  int ret = 0, reverse = (toys.optflags & FLAG_r) ? -1 : 1;
+  int ret = 0, reverse = FLAG(r) ? -1 : 1;
 
-  if (toys.optflags & FLAG_S) {
+  if (FLAG(S)) {
     if (dta->st.st_size > dtb->st.st_size) ret = -1;
     else if (dta->st.st_size < dtb->st.st_size) ret = 1;
   }
-  if (toys.optflags & FLAG_t) {
+  if (FLAG(t)) {
     if (dta->st.st_mtime > dtb->st.st_mtime) ret = -1;
     else if (dta->st.st_mtime < dtb->st.st_mtime) ret = 1;
     else if (dta->st.st_mtim.tv_nsec > dtb->st.st_mtim.tv_nsec) ret = -1;
@@ -195,7 +195,7 @@ static int filter(struct dirtree *new)
       // fchmodat(), mknodat(), readlinkat() so we could do this without
       // even O_PATH? But no, this is 1990's tech.)
       int fd = openat(dirtree_parentfd(new), new->name,
-        O_PATH|(O_NOFOLLOW*!(toys.optflags&FLAG_L)));
+        O_PATH|(O_NOFOLLOW*!FLAG(L)));
 
       if (fd != -1) {
         if (-1 == lsm_fget_context(fd, (char **)&new->extra) && errno == EBADF)
@@ -237,7 +237,7 @@ static unsigned long next_column(unsigned long ul, unsigned long dtlen,
   unsigned height, widecols;
 
   // Horizontal sort is easy
-  if (!(toys.optflags & FLAG_C)) {
+  if (!FLAG(C)) {
     *xpos = ul % columns;
     return ul;
   }
@@ -532,30 +532,30 @@ void ls_main(void)
   char **s, *noargs[] = {".", 0};
   struct dirtree *dt;
 
-  if (toys.optflags&FLAG_full_time) {
+  if (FLAG(full_time)) {
     toys.optflags |= FLAG_l;
     TT.l = 2;
   }
 
   // Do we have an implied -1
   if (isatty(1)) {
-    if (!(toys.optflags&FLAG_show_control_chars)) toys.optflags |= FLAG_b;
+    if (!FLAG(show_control_chars)) toys.optflags |= FLAG_b;
     if (toys.optflags&(FLAG_l|FLAG_o|FLAG_n|FLAG_g)) toys.optflags |= FLAG_1;
     else if (!(toys.optflags&(FLAG_1|FLAG_x|FLAG_m))) toys.optflags |= FLAG_C;
   } else {
-    if (!(toys.optflags & FLAG_m)) toys.optflags |= FLAG_1;
+    if (!FLAG(m)) toys.optflags |= FLAG_1;
     if (TT.color) toys.optflags ^= FLAG_color;
   }
 
   TT.screen_width = 80;
   terminal_size(&TT.screen_width, NULL);
   if (TT.screen_width<2) TT.screen_width = 2;
-  if (toys.optflags&FLAG_b) TT.escmore = " \\";
+  if (FLAG(b)) TT.escmore = " \\";
 
   // The optflags parsing infrastructure should really do this for us,
   // but currently it has "switch off when this is set", so "-dR" and "-Rd"
   // behave differently
-  if (toys.optflags & FLAG_d) toys.optflags &= ~FLAG_R;
+  if (FLAG(d)) toys.optflags &= ~FLAG_R;
 
   // Iterate through command line arguments, collecting directories and files.
   // Non-absolute paths are relative to current directory. Top of tree is
