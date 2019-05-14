@@ -596,7 +596,6 @@ static void unpack_tar(struct tar_hdr *first)
     maj = OTOI(tar.major);
     min = OTOI(tar.minor);
     TT.hdr.device = dev_makedev(maj, min);
-dprintf(2, "here\n");
     TT.hdr.uname = xstrndup(TT.owner ? TT.owner : tar.uname, sizeof(tar.uname));
     TT.hdr.gname = xstrndup(TT.group ? TT.group : tar.gname, sizeof(tar.gname));
 
