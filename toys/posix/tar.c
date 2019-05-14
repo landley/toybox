@@ -137,7 +137,7 @@ static void write_longname(char *name, char type)
   strcpy(tmp.gname, "root");
 
   // Calculate checksum. Since 512*255 = 0377000 in octal, this can never
-  // use more than 6 digits. The last byte is ' ' or historical reasons.
+  // use more than 6 digits. The last byte is ' ' for historical reasons.
   itoo(tmp.chksum, sizeof(tmp.chksum)-1, cksum(&tmp));
   tmp.chksum[7] = ' ';
 
@@ -567,7 +567,7 @@ static void unpack_tar(struct tar_hdr *first)
 
       for (;;) {
         if (!(TT.sparselen&511))
-          TT.sparse = xrealloc(TT.sparse, (TT.sparselen*512)*sizeof(long));
+          TT.sparse = xrealloc(TT.sparse, (TT.sparselen+512)*sizeof(long));
 
         // If out of data in block check continue flag, stop or load next block
         if (++i>max || !*s) {
@@ -596,7 +596,7 @@ static void unpack_tar(struct tar_hdr *first)
     maj = OTOI(tar.major);
     min = OTOI(tar.minor);
     TT.hdr.device = dev_makedev(maj, min);
-
+dprintf(2, "here\n");
     TT.hdr.uname = xstrndup(TT.owner ? TT.owner : tar.uname, sizeof(tar.uname));
     TT.hdr.gname = xstrndup(TT.group ? TT.group : tar.gname, sizeof(tar.gname));
 
