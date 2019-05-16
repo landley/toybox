@@ -1581,8 +1581,9 @@ static void top_common(
               j = i%3;
               pos = strafter(toybuf+256, (char *[]){"MemTotal:","\nMemFree:",
                     "\nBuffers:","\nSwapTotal:","\nSwapFree:","\nCached:"}[i]);
-              human_readable(hr[j+!!j], 1024*(run[i] = pos ? atol(pos) : 0), 0);
-              if (j==1) human_readable(hr[1], 1024*(run[i-1]-run[i]), 0);
+              human_readable_long(hr[j+!!j], 1024*(run[i] = pos?atol(pos):0),
+                8, 0);
+              if (j==1) human_readable_long(hr[1], 1024*(run[i-1]-run[i]), 8,0);
               else if (j==2) {
                 sprintf(toybuf, (i<3)
                   ? "  Mem: %9s total, %9s used, %9s free, %9s buffers"
