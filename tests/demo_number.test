@@ -25,3 +25,5 @@ testcmd "units" "-b 1c 1b 1k 1kd 1m 1md 1g 1gd 1t 1td 1e 1ed" \
 testcmd "decimal units" "-d 1c 1b 1k 1kd 1m 1md 1g 1gd 1t 1td 1e 1ed" \
   "1\n512\n1.0k\n1.0k\n1.0M\n1.0M\n1.0G\n1.0G\n1.1T\n1.0T\n1.1E\n1.0E\n" \
   "" ""
+
+testcmd "longer output" "-D6 123 1234567 1234567890" "123\n1206K\n1177M\n" "" ""

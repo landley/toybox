@@ -2,7 +2,7 @@
  *
  * Copyright 2015 Rob Landley <rob@landley.net>
 
-USE_DEMO_NUMBER(NEWTOY(demo_number, "hdbs", TOYFLAG_BIN))
+USE_DEMO_NUMBER(NEWTOY(demo_number, "D#=3<3hdbs", TOYFLAG_BIN))
 
 config DEMO_NUMBER
   bool "demo_number"
@@ -16,7 +16,12 @@ config DEMO_NUMBER
     -s	Space between number and units (HR_SPACE)
 */
 
+#define FOR_demo_number
 #include "toys.h"
+
+GLOBALS(
+  long D;
+)
 
 void demo_number_main(void)
 {
@@ -26,7 +31,7 @@ void demo_number_main(void)
     long long ll = atolx(*arg);
 
     if (toys.optflags) {
-      human_readable(toybuf, ll, toys.optflags);
+      human_readable_long(toybuf, ll, TT.D, toys.optflags);
       xputs(toybuf);
     } else printf("%lld\n", ll);
   }

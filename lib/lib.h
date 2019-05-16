@@ -269,6 +269,7 @@ void loggit(int priority, char *format, ...);
 #define HR_SPACE 1 // Space between number and units
 #define HR_B     2 // Use "B" for single byte units
 #define HR_1000  4 // Use decimal instead of binary units
+int human_readable_long(char *buf, unsigned long long num, int dgt, int style);
 int human_readable(char *buf, unsigned long long num, int style);
 
 // env.c

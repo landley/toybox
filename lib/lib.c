@@ -1136,17 +1136,17 @@ match:
   closedir(dp);
 }
 
-// display first few digits of number with power of two units
-int human_readable(char *buf, unsigned long long num, int style)
+// display first "dgt" many digits of number plus unit (kilo-exabytes)
+int human_readable_long(char *buf, unsigned long long num, int dgt, int style)
 {
   unsigned long long snap = 0;
   int len, unit, divisor = (style&HR_1000) ? 1000 : 1024;
 
   // Divide rounding up until we have 3 or fewer digits. Since the part we
   // print is decimal, the test is 999 even when we divide by 1024.
-  // We can't run out of units because 2<<64 is 18 exabytes.
-  // test 5675 is 5.5k not 5.6k.
-  for (unit = 0; num > 999; unit++) num = ((snap = num)+(divisor/2))/divisor;
+  // We can't run out of units because 1<<64 is 18 exabytes.
+  for (unit = 0; snprintf(0, 0, "%llu", num)>dgt; unit++)
+    num = ((snap = num)+(divisor/2))/divisor;
   len = sprintf(buf, "%llu", num);
   if (unit && len == 1) {
     // Redo rounding for 1.2M case, this works with and without HR_1000.
@@ -1166,6 +1166,12 @@ int human_readable(char *buf, unsigned long long num, int style)
   buf[len] = 0;
 
   return len;
+}
+
+// Give 3 digit estimate + units ala 999M or 1.7T
+int human_readable(char *buf, unsigned long long num, int style)
+{
+  return human_readable_long(buf, num, 3, style);
 }
 
 // The qsort man page says you can use alphasort, the posix committee
