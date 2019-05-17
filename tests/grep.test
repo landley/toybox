@@ -90,6 +90,8 @@ testing "-Fx ''" "grep -Fx '' input" "" "one one one\n" ""
 testing "-F ''" "grep -F '' input" "one one one\n" "one one one\n" ""
 testing "-F -e blah -e ''" "grep -F -e blah -e '' input" "one one one\n" \
   "one one one\n" ""
+testing "-Fxv -e subset" "grep -Fxv -e bbswitch-dkms -e dkms" "" "" \
+  "bbswitch-dkms\n"
 testing "-e blah -e ''" "grep -e blah -e '' input" "one one one\n" \
   "one one one\n" ""
 testing "-w ''" "grep -w '' input" "" "one one one\n" ""

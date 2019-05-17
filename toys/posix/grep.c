@@ -173,14 +173,13 @@ static void do_grep(int fd, char *name)
 
         for (seek = TT.e; seek; seek = seek->next) {
           if (FLAG(x)) {
-            if ((FLAG(i) ? strcasecmp : strcmp)(seek->arg, line)) s = line;
+            if (!(FLAG(i) ? strcasecmp : strcmp)(seek->arg, line)) s = line;
           } else if (!*seek->arg) {
             seek = &fseek;
             fseek.arg = s = line;
-            break;
-          }
-          if (FLAG(i)) s = strcasestr(line, seek->arg);
+          } else if (FLAG(i)) s = strcasestr(line, seek->arg);
           else s = strstr(line, seek->arg);
+
           if (s) break;
         }
 
