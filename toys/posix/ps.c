@@ -588,10 +588,18 @@ static char *string_field(struct procpid *tb, struct ofields *field)
 
   // Human readable
   } else if (which <= PS_DIO) {
-    ll = slot[typos[which].slot];
+    int i = abs(field->len);
+
+    if (i<4) i = 4;
+    s = out;
+    if ((ll = slot[typos[which].slot])<0) {
+      ll = -ll;
+      *s++ = '-';
+      if (i>4) i--;
+    }
     if (which <= PS_SHR) ll *= sysconf(_SC_PAGESIZE);
     if (TT.forcek) sprintf(out, "%lldk", ll/1024);
-    else human_readable(out, ll, 0);
+    else human_readable_long(s, ll, i-1, 0);
 
   // Posix doesn't specify what flags should say. Man page says
   // 1 for PF_FORKNOEXEC and 4 for PF_SUPERPRIV from linux/sched.h
@@ -781,8 +789,8 @@ static int get_ps(struct dirtree *new)
     slot[SLOT_ruid] = s ? atol(s) : new->st.st_uid;
     s = strafter(buf, "\nGid:");
     slot[SLOT_rgid] = s ? atol(s) : new->st.st_gid;
-    if ((s = strafter(buf, "\nVmLck:"))) slot[SLOT_vmlck] = atoll(s);
-    if ((s = strafter(buf, "\nVmSwap:"))) slot[SLOT_swap] = atoll(s);
+    if ((s = strafter(buf, "\nVmLck:"))) slot[SLOT_vmlck] = atoll(s)*1024;
+    if ((s = strafter(buf, "\nVmSwap:"))) slot[SLOT_swap] = atoll(s)*1024;
   }
 
   // Do we need to read "io"?
