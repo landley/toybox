@@ -184,7 +184,7 @@ static int add_to_tar(struct dirtree *node)
   struct passwd *pw = pw;
   struct group *gr = gr;
   int i, fd =-1;
-  char *c, *p, *name, *lnk = lnk, *hname;
+  char *name, *lnk, *hname;
 
   if (!dirtree_notdotdot(node)) return 0;
   if (TT.adev == st->st_dev && TT.aino == st->st_ino) {
@@ -196,10 +196,10 @@ static int add_to_tar(struct dirtree *node)
   name = dirtree_path(node, &i);
 
   // exclusion defaults to --no-anchored and --wildcards-match-slash
-  for (p = name; *p;) {
-    if (filter(TT.excl, p)) goto done;
-    while (*p && *p!='/') p++;
-    while (*p=='/') p++;
+  for (lnk = name; *lnk;) {
+    if (filter(TT.excl, lnk)) goto done;
+    while (*lnk && *lnk!='/') lnk++;
+    while (*lnk=='/') lnk++;
   }
 
   // Consume the 1 extra byte alocated in dirtree_path()
@@ -207,12 +207,12 @@ static int add_to_tar(struct dirtree *node)
 
   // remove leading / and any .. entries from saved name
   for (hname = name; *hname == '/'; hname++);
-  for (c = hname;;) {
-    if (!(c = strstr(c, ".."))) break;
-    if (c == hname || c[-1] == '/') {
-      if (!c[2]) goto done;
-      if (c[2]=='/') c = hname = c+3;
-    } else c+= 2;
+  for (lnk = hname;;) {
+    if (!(lnk = strstr(lnk, ".."))) break;
+    if (lnk == hname || lnk[-1] == '/') {
+      if (!lnk[2]) goto done;
+      if (lnk[2]=='/') lnk = hname = lnk+3;
+    } else lnk+= 2;
   }
   if (!*hname) goto done;
 
@@ -305,17 +305,66 @@ static int add_to_tar(struct dirtree *node)
 
       return 0;
     }
+    if (FLAG(sparse)) {
+      long long lo, ld = 0, len = 0;
+
+      // Enumerate the extents
+      while ((lo = lseek(fd, ld, SEEK_HOLE)) != -1) {
+        if (!(TT.sparselen&511))
+          TT.sparse = xrealloc(TT.sparse, (TT.sparselen+512)*sizeof(long long));
+        TT.sparse[TT.sparselen++] = ld;
+        len += TT.sparse[TT.sparselen++] = lo-ld;
+        if (lo == st->st_size) break;
+        if ((ld = lseek(fd, lo, SEEK_DATA)) < lo) ld = st->st_size;
+      }
+
+      // If there were extents, change type to S record
+      if (TT.sparselen>2) {
+        hdr.type = 'S';
+        lnk = (char *)&hdr;
+        for (i = 0; i<TT.sparselen && i<8; i++)
+          itoo(lnk+386+12*i, 12, TT.sparse[i]);
+
+        // Record if there's overflow records, change length to sparse length,
+        // record apparent length
+        if (TT.sparselen>8) lnk[482] = 1;
+        itoo(lnk+483, 12, st->st_size);
+        ITOO(hdr.size, len);
+      }
+      lseek(fd, 0, SEEK_SET);
+    }
   }
 
   itoo(hdr.chksum, sizeof(hdr.chksum)-1, cksum(&hdr));
   hdr.chksum[7] = ' ';
 
-  if (FLAG(v)) printf("%s\n", hname);
+  if (FLAG(v)) dprintf(TT.fd ? 2 : 1, "%s\n", hname);
 
   // Write header and data to archive
   xwrite(TT.fd, &hdr, 512);
-  if (hdr.type == '0') {
-    xsendfile_pad(fd, TT.fd, st->st_size);
+  if (TT.sparselen>8) {
+    char buf[512];
+
+    // write extent overflow blocks
+    for (i=8;;i++) {
+      int j = (i-8)%42;
+
+      if (!j || i==TT.sparselen) {
+        if (i!=8) xwrite(TT.fd, buf, 512);
+        if (i==TT.sparselen) break;
+        memset(buf, 0, sizeof(buf));
+      }
+      itoo(buf+12*j, 12, TT.sparse[i]);
+    }
+  }
+  TT.sparselen >>= 1;
+  if (hdr.type == '0' || hdr.type == 'S') {
+    if (hdr.type == '0') xsendfile_pad(fd, TT.fd, st->st_size);
+    else for (i = 0; i<TT.sparselen; i++) {
+      if (TT.sparse[i*2] != lseek(fd, TT.sparse[i*2], SEEK_SET))
+        perror_msg("%s: seek %lld", name, TT.sparse[i*2]);
+      xsendfile_pad(fd, TT.fd, TT.sparse[i*2+1]);
+    }
     if (st->st_size%512) writeall(TT.fd, toybuf, (512-(st->st_size%512)));
     close(fd);
   }
@@ -567,7 +616,7 @@ static void unpack_tar(struct tar_hdr *first)
 
       for (;;) {
         if (!(TT.sparselen&511))
-          TT.sparse = xrealloc(TT.sparse, (TT.sparselen+512)*sizeof(long));
+          TT.sparse = xrealloc(TT.sparse, (TT.sparselen+512)*sizeof(long long));
 
         // If out of data in block check continue flag, stop or load next block
         if (++i>max || !*s) {
