@@ -312,10 +312,12 @@ static int add_to_tar(struct dirtree *node)
       while ((lo = lseek(fd, ld, SEEK_HOLE)) != -1) {
         if (!(TT.sparselen&511))
           TT.sparse = xrealloc(TT.sparse, (TT.sparselen+514)*sizeof(long long));
-        TT.sparse[TT.sparselen++] = ld;
-        len += TT.sparse[TT.sparselen++] = lo-ld;
+        if (ld != lo) {
+          TT.sparse[TT.sparselen++] = ld;
+          len += TT.sparse[TT.sparselen++] = lo-ld;
+        }
         if (lo == st->st_size) {
-          if (TT.sparselen == 2) TT.sparselen = 0;
+          if (TT.sparselen<=2) TT.sparselen = 0;
           else {
             // Gratuitous extra entry for compatibility with other versions
             TT.sparse[TT.sparselen++] = lo;
@@ -358,7 +360,10 @@ static int add_to_tar(struct dirtree *node)
       int j = (i-8)%42;
 
       if (!j || i==TT.sparselen) {
-        if (i!=8) xwrite(TT.fd, buf, 512);
+        if (i!=8) {
+          if (i!=TT.sparselen) buf[504] = 1;
+          xwrite(TT.fd, buf, 512);
+        }
         if (i==TT.sparselen) break;
         memset(buf, 0, sizeof(buf));
       }
@@ -455,7 +460,7 @@ static void sendfile_sparse(int fd)
     used += sent;
     if (len) {
 error:
-      perror_msg(0);
+      if (fd!=1) perror_msg(0);
       skippy(TT.hdr.size-used);
 
       break;
