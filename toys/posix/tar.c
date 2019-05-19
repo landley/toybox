@@ -311,15 +311,23 @@ static int add_to_tar(struct dirtree *node)
       // Enumerate the extents
       while ((lo = lseek(fd, ld, SEEK_HOLE)) != -1) {
         if (!(TT.sparselen&511))
-          TT.sparse = xrealloc(TT.sparse, (TT.sparselen+512)*sizeof(long long));
+          TT.sparse = xrealloc(TT.sparse, (TT.sparselen+514)*sizeof(long long));
         TT.sparse[TT.sparselen++] = ld;
         len += TT.sparse[TT.sparselen++] = lo-ld;
-        if (lo == st->st_size) break;
+        if (lo == st->st_size) {
+          if (TT.sparselen == 2) TT.sparselen = 0;
+          else {
+            // Gratuitous extra entry for compatibility with other versions
+            TT.sparse[TT.sparselen++] = lo;
+            TT.sparse[TT.sparselen++] = 0;
+          }
+          break;
+        }
         if ((ld = lseek(fd, lo, SEEK_DATA)) < lo) ld = st->st_size;
       }
 
       // If there were extents, change type to S record
-      if (TT.sparselen>2) {
+      if (TT.sparselen) {
         hdr.type = 'S';
         lnk = (char *)&hdr;
         for (i = 0; i<TT.sparselen && i<8; i++)
