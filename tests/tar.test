@@ -27,7 +27,7 @@ SUM='head -c $(($BLOCKS*512)) | sha1sum | sed "s/ .*//"'
 
 function LST()
 {
-  tar tv $LSTARG | sed "s/[ \t][ \t]*/ /g"
+  tar tv $LSTARG | sed 's/[ \t][ \t]*/ /g'
 }
 
 touch file
@@ -137,16 +137,21 @@ testing "pass /dev/loop0" \
   "brw-rw---- 0/6 7,0 1970-01-01 00:00 dev/loop0\n" "" ""
 
 # compression types
-testing "autodetect gzip" \
-  'tar tvf $FILES/tar/tar.tgz | sed "s/[ \t][ \t]*/ /g"' \
+LSTARG="-f $FILES/tar/tar.tgz" testing "autodetect gzip" 'LST' \
+  "drwxr-x--- enh/eng 0 2017-05-13 01:05 dir/\n-rw-r----- enh/eng 12 2017-05-13 01:05 dir/file\n" \
+  "" ""
+
+LSTARG="-jf $FILES/tar/tar.tbz2" testing "manually specify bz2" "LST" \
   "drwxr-x--- enh/eng 0 2017-05-13 01:05 dir/\n-rw-r----- enh/eng 12 2017-05-13 01:05 dir/file\n" \
   "" ""
 
 skipnot mknod dir/char c 12 34
-testing "create char2" "$TAR /dev/null | $SUM" \
-  "" "" ""
+testing "create dir/char" "tar c dir/char > test.tar && rm -f dir/char && tar xv test.tar && ls -l dir/char" \
+  "a" "" ""
 
-#testing "create block" "$TAR /dev/
+skipnot mknod dir/block c 23 45
+testing "create block" "tar c dir/block > test.tar && rm -f dir/block && tar xv test.tar && ls -l dir/block" \
+  "a" "" ""
 
 skipnot mknod dir/block b 56 78
 testing "create dir/block" "$TAR dir/block | $SUM" \
@@ -190,6 +195,73 @@ toyonly testing "cat tbz | extract dir/file (autodetect)" \
   "cat $FILES/tar/tar.tbz2 | tar xvC dd && stat -c '%A %Y %n' dd/dir dd/dir/file" \
   "dir/\ndir/file\ndrwxr-x--- 1494637555 dd/dir\n-rw-r----- 1494637555 dd/dir/file\n" \
   "" ""
+
+yes | (dd bs=$((1<<16)) count=1; dd bs=8192 seek=14 count=1; dd bs=4096 seek=64 count=5) 2>/dev/null > fweep
+testing "sparse without overflow" "$TAR --sparse fweep | $SUM" \
+  "e1560110293247934493626d564c8f03c357cec5\n" "" ""
+
+rm fweep
+for i in 1 3 5 7 9 14 27 36 128 256 300 304
+do
+  dd if=/dev/zero of=fweep bs=65536 seek=$i count=1 2>/dev/null
+done
+
+BLOCKS=6 testing "sparse single overflow" "$TAR --sparse fweep | $SUM" \
+  "063fc6519ea2607763bc591cc90dd15ac2b43eb8\n" "" ""
+
+rm fweep
+for i in $(seq 8 3 200)
+do
+  dd if=/dev/zero of=fweep bs=65536 seek=$i count=1 2>/dev/null
+done
+
+BLOCKS=7 testing "sparse double overflow" "$TAR --sparse fweep | $SUM" \
+  "f1fe57f8313a9d682ec9013a80f3798910b6ff51\n" "" ""
+
+tar c --sparse fweep > fweep.tar
+FWEEP=$(du fweep)
+exit 1
+rm fweep
+testing "sparse extract" "tar xf fweep.tar && du fweep" "$FWEEP\n" "" ""
+rm fweep fweep.tar
+
+if false
+then
+
+chmod 700 dir
+tar cpf tar.tgz dir/file
+#chmod 700 dir
+#tar xpf file
+#ls -ld dir/file
+
+# restore ownership of file, dir, and symlink
+
+# merge add_to_tar and write_longname,
+# filter, incl or excl and anchored/wildcards
+
+# extract file not under cwd
+# exclusion defaults to --no-anchored and --wildcards-match-slash
+#  both incl and excl
+
+# catch symlink overwrite
+# add dir with no trailing slash
+# don't allow hardlink target outside cwd
+# extract dir/file without dir in tarball
+# create with and without each flag
+# --owner --group --numeric-owner
+# extract with and without each flag
+# --owner 0 --group 0
+# set symlink owner
+# >256 hardlink inodes
+#   // remove leading / and any .. entries from saved name
+#  // exclusion defaults to --no-anchored and --wildcards-match-slash
+# //bork blah../thing blah/../thing blah/../and/../that blah/.. ../blah
+# tar tv --owner --group --mtime
+# extract file within dir date correct
+# name ending in /.. or just ".." as a name
+
+
+fi
 
 TZ="$OLDTZ"
 umask $OLDUMASK
