@@ -832,8 +832,10 @@ long long xsendfile_len(int in, int out, long long bytes)
 {
   long long len = sendfile_len(in, out, bytes, 0);
 
-  if (bytes != -1 && bytes != len)
+  if (bytes != -1 && bytes != len) {
+    if (out == 1 && len<0) xexit();
     error_exit("short %s", (len<0) ? "write" : "read");
+  }
 
   return len;
 }
