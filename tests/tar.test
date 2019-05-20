@@ -220,7 +220,6 @@ BLOCKS=7 testing "sparse double overflow" "$TAR --sparse fweep | $SUM" \
 
 tar c --sparse fweep > fweep.tar
 FWEEP=$(du fweep)
-exit 1
 rm fweep
 testing "sparse extract" "tar xf fweep.tar && du fweep" "$FWEEP\n" "" ""
 rm fweep fweep.tar

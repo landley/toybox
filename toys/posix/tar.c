@@ -439,7 +439,7 @@ static void sendfile_sparse(int fd)
   long long len, used = 0, sent;
   int i = 0, j;
 
-  for (;;) {
+  do {
     if (TT.sparselen) {
       if (!TT.sparse[i*2+1]) continue;
       // Seek past holes or fill output with zeroes.
@@ -465,9 +465,7 @@ error:
 
       break;
     }
-
-    if (++i >= TT.sparselen) break;
-  }
+  } while (++i<TT.sparselen);
 
   close(fd);
 }
@@ -635,10 +633,9 @@ static void unpack_tar(struct tar_hdr *first)
         if (++i>max || !*s) {
           if (!(*sparse ? sparse[504] : ((char *)&tar)[482])) break;
           xreadall(TT.fd, s = sparse, 512);
-          max = 42;
+          max = 41;
           i = 0;
         }
-
         // Load next entry
         TT.sparse[TT.sparselen++] = otoi(s, 12);
         s += 12;
