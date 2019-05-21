@@ -24,18 +24,22 @@ config TAR
   bool "tar"
   default y
   help
-    usage: tar [-cxtfvohmjkO] [-XT FILE] [-f TARFILE] [-C DIR]
+    usage: tar [-cxt] [-fvohmjkO] [-XTCf NAME] [FILES]
 
-    Create, extract, or list files in a .tar (or compressed t?z) file. 
+    Create, extract, or list files in a .tar (or compressed t?z) file.
 
     Options:
-    c  Create                x  Extract               t  Test
-    f  Name of TARFILE       C  Change to DIR first   v  Verbose: show filenames
+    c  Create                x  Extract               t  Test (list)
+    f  tar FILE (default -)  C  Change to DIR first   v  Verbose display
     o  Ignore owner          h  Follow symlinks       m  Ignore mtime
-    j  bzip2 compression     z  gzip compression
+    J  xz compression        j  bzip2 compression     z  gzip compression
     O  Extract to stdout     X  exclude names in FILE T  include names in FILE
-    --exclude=FILE File pattern(s) to exclude
-    --restrict  All archive contents must extract under a single subdirctory.
+    --exclude   FILENAME to exclude           --full-time show seconds with -tv
+    --mtime     Use TIME for file timestamps  --sparse  Record sparse files
+    --owner     Set file owner to NAME        --group   Set file group to NAME
+    --restrict       All archive contents must extract under one subdirctory
+    --numeric-owner  Save/use/display uid and gid, not user/group name
+    --no-recursion   Don't store directory contents
 */
 
 #define FOR_tar
