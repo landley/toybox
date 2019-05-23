@@ -18,13 +18,13 @@
  * Extract into dir same as filename, --restrict? "Tarball is splodey"
  *
 
-USE_TAR(NEWTOY(tar, "&(sparse)(restrict)(full-time)(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mtime):(group):(owner):(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)J(xz)j(bzip2)z(gzip)O(to-stdout)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):a[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TAR(NEWTOY(tar, "&(restrict)(full-time)(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mtime):(group):(owner):(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):a[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TAR
   bool "tar"
   default y
   help
-    usage: tar [-cxt] [-fvohmjkO] [-XTCf NAME] [FILES]
+    usage: tar [-cxt] [-fvohmjkOS] [-XTCf NAME] [FILES]
 
     Create, extract, or list files in a .tar (or compressed t?z) file.
 
@@ -309,7 +309,7 @@ static int add_to_tar(struct dirtree *node)
 
       return 0;
     }
-    if (FLAG(sparse)) {
+    if (FLAG(S)) {
       long long lo, ld = 0, len = 0;
 
       // Enumerate the extents
