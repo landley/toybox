@@ -307,3 +307,8 @@ int xgetrandom(void *buf, unsigned len, unsigned flags);
 #include <string.h>
 static inline void confstr(int a, char *b, int c) {strcpy(b, a ? "POSIXLY_CORRECT=1" : "/bin:/usr/bin");}
 #endif
+
+// Paper over the differences between BSD kqueue and Linux inotify for tail.
+void notify_init(int max);
+int notify_add(int fd, char *path);
+int notify_wait(char **path);
