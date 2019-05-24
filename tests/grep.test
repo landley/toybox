@@ -167,3 +167,11 @@ ln -s nope sub/link
 testing "" 'grep -r walrus sub 2>/dev/null; echo $?' "1\n" "" ""
 rm -rf sub
 
+# --exclude-dir
+mkdir sub
+mkdir sub/yes
+echo "hello world" > sub/yes/test
+mkdir sub/no
+echo "hello world" > sub/no/test
+testing "--exclude-dir" 'grep --exclude-dir=no -r world sub' "sub/yes/test:hello world\n" "" ""
+rm -rf sub

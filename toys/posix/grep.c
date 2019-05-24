@@ -1,4 +1,4 @@
-/* grep.c - print lines what match given regular expression
+/* grep.c - show lines matching regular expressions
  *
  * Copyright 2013 CE Strake <strake888 at gmail.com>
  *
@@ -10,7 +10,7 @@
 * echo hello | grep -f </dev/null
 *
 
-USE_GREP(NEWTOY(grep, "(line-buffered)(color):;S(exclude)*M(include)*ZzEFHIab(byte-offset)h(no-filename)ino(only-matching)rsvwcl(files-with-matches)q(quiet)(silent)e*f*C#B#A#m#x[!wx][!EFw]", TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
+USE_GREP(NEWTOY(grep, "(line-buffered)(color):;(exclude-dir)*S(exclude)*M(include)*ZzEFHIab(byte-offset)h(no-filename)ino(only-matching)rsvwcl(files-with-matches)q(quiet)(silent)e*f*C#B#A#m#x[!wx][!EFw]", TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 USE_EGREP(OLDTOY(egrep, grep, TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 USE_FGREP(OLDTOY(fgrep, grep, TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 
@@ -31,6 +31,7 @@ config GREP
     -r  Recurse into subdirectories (defaults FILE to ".")
     -M  Match filename pattern (--include)
     -S  Skip filename pattern (--exclude)
+    --exclude-dir=PATTERN  Skip directory pattern
     -I  Ignore binary files
 
     match type:
@@ -67,7 +68,7 @@ config FGREP
 
 GLOBALS(
   long m, A, B, C;
-  struct arg_list *f, *e, *M, *S;
+  struct arg_list *f, *e, *M, *S, *exclude_dir;
   char *color;
 
   char *purple, *cyan, *red, *green, *grey;
@@ -416,14 +417,17 @@ static void parse_regex(void)
 
 static int do_grep_r(struct dirtree *new)
 {
+  struct arg_list *al;
   char *name;
 
   if (!new->parent) TT.tried++;
   if (!dirtree_notdotdot(new)) return 0;
-  if (S_ISDIR(new->st.st_mode)) return DIRTREE_RECURSE;
+  if (S_ISDIR(new->st.st_mode)) {
+    for (al = TT.exclude_dir; al; al = al->next)
+      if (!fnmatch(al->arg, new->name, 0)) return 0;
+    return DIRTREE_RECURSE;
+  }
   if (TT.S || TT.M) {
-    struct arg_list *al;
-
     for (al = TT.S; al; al = al->next)
       if (!fnmatch(al->arg, new->name, 0)) return 0;
 
