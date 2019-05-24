@@ -55,7 +55,7 @@ void time_main(void)
                       "File system inputs: %ld\n"
                       "File system outputs: %ld\n"
                       "Voluntary context switches: %ld\n"
-                      "Involuntary context switches: %ld\n", r, u, s,
+                      "Involuntary context switches: %ld\n", r, s, u,
               ru.ru_maxrss, ru.ru_majflt, ru.ru_minflt, ru.ru_inblock,
               ru.ru_oublock, ru.ru_nvcsw, ru.ru_nivcsw);
     } else fprintf(stderr, "real %f\nuser %f\nsys %f\n", r, u, s);
