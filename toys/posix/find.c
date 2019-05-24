@@ -46,10 +46,23 @@ config FIND
     -print   Print match with newline  -print0    Print match with null
     -exec    Run command with path     -execdir   Run command in file's dir
     -ok      Ask before exec           -okdir     Ask before execdir
-    -delete  Remove matching file/dir
+    -delete         Remove matching file/dir
+    -printf FORMAT  Print using format string
 
     Commands substitute "{}" with matched file. End with ";" to run each file,
     or "+" (next argument after "{}") to collect and run with multiple files.
+
+    FORMAT characters are \ escapes and:
+    %f  basename
+    %g  textual gid                    %G  numeric gid
+    %i  decimal inode
+    %l  target of symlink (or empty)
+    %m  octal mode, no leading 0       %M  type and mode in ls format
+    %p  filename                       %P  filename without root
+    %s  size in bytes
+    %T@ last modification unix time with fraction
+    %u  textual uid                    %U  numeric uid
+    %Z  security context
 */
 
 #define FOR_find
@@ -61,6 +74,7 @@ GLOBALS(
   int topdir, xdev, depth;
   time_t now;
   long max_bytes;
+  char *start;
 )
 
 struct execdir_data {
@@ -535,6 +549,65 @@ static int do_find(struct dirtree *new)
 
         // Argument consumed, skip the check.
         goto cont;
+      } else if (!strcmp(s, "printf")) {
+        char *fmt = ss[1], *path, *lnk, *start, mode_str[11], ch;
+
+        print++;
+        if (check) {
+          for (; *fmt; fmt++) {
+            if (*fmt == '\\') {
+              if (!(ch = unescape(fmt[1])))
+                error_exit("bad \\ escape: %c", fmt[1]);
+              fmt++;
+              putchar(ch);
+            } else if (*fmt == '%') {
+              switch (*++fmt) {
+                case '%': putchar('%'); break;
+                case 'f': printf("%s", new->name); break;
+                case 'G': printf("%d", new->st.st_gid); break;
+                case 'g': printf("%s", getgroupname(new->st.st_gid)); break;
+                case 'i': printf("%lld", (long long) new->st.st_ino); break;
+                case 'l':
+                  path = dirtree_path(new, 0);
+                  lnk = xreadlink(path);
+                  printf("%s", lnk ? lnk : "");
+                  free(lnk);
+                  free(path);
+                  break;
+                case 'M':
+                  mode_to_string(new->st.st_mode, mode_str);
+                  printf("%s", mode_str);
+                  break;
+                case 'm': printf("%o", new->st.st_mode & ~S_IFMT); break;
+                case 'P':
+                  start = getdirname(TT.start);
+                  path = dirtree_path(new, 0);
+                  printf("%s", path + 1+strlen(start));
+                  free(path);
+                  free(start);
+                  break;
+                case 'p':
+                  path = dirtree_path(new, 0);
+                  printf("%s", path);
+                  free(path);
+                  break;
+                case 's': printf("%lld", (long long) new->st.st_size); break;
+                case 'T':
+                  switch (*++fmt) {
+                    case '@':
+                      printf("%ld.%ld", new->st.st_mtim.tv_sec,
+                             new->st.st_mtim.tv_nsec);
+                      break;
+                    default: error_exit("bad %%T variant: %%T%c", *fmt);
+                  }
+                  break;
+                case 'U': printf("%d", new->st.st_uid); break;
+                case 'u': printf("%s", getusername(new->st.st_uid)); break;
+                default: error_exit("bad %% specifier: %c", *fmt);
+              }
+            } else putchar(*fmt);
+          }
+        }
       } else goto error;
 
       // This test can go at the end because we do a syntax checking
@@ -586,9 +659,11 @@ void find_main(void)
   do_find(0);
 
   // Loop through paths
-  for (i = 0; i < len; i++)
-    dirtree_flagread(ss[i], DIRTREE_SYMFOLLOW*!!(toys.optflags&(FLAG_H|FLAG_L)),
-      do_find);
+  for (i = 0; i < len; i++) {
+    TT.start = ss[i];
+    dirtree_flagread(TT.start,
+      DIRTREE_SYMFOLLOW*!!(toys.optflags&(FLAG_H|FLAG_L)), do_find);
+  }
 
   execdir(0, 1);
 

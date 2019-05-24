@@ -1046,7 +1046,7 @@ char *getdirname(char *name)
 {
   char *s = xstrdup(name), *ss = strrchr(s, '/');
 
-  while (*ss && *ss == '/' && s != ss) *ss-- = 0;
+  while (ss && *ss && *ss == '/' && s != ss) *ss-- = 0;
 
   return s;
 }
