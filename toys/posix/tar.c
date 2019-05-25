@@ -786,14 +786,10 @@ static void do_XT(char **pline, long len)
   if (pline) trim2list(TT.X ? &TT.excl : &TT.incl, *pline);
 }
 
-static char *compression_tool()
-{
-  return FLAG(z) ? "gzip" : (FLAG(J) ? "xz" : "bzip2");
-}
-
 void tar_main(void)
 {
-  char *s, **args = toys.optargs;
+  char *s, **args = toys.optargs,
+    *archiver = FLAG(z) ? "gzip" : (FLAG(J) ? "xz" : "bzip2");
   int len = 0;
 
   // Needed when extracting to command
@@ -830,7 +826,7 @@ void tar_main(void)
   TT.cwd = xabspath(s = xgetcwd(), 1);
   free(s);
 
-  // Remember archive inode
+  // Remember archive inode so we don't overwrite it or add it to itself
   {
     struct stat st;
 
@@ -862,8 +858,13 @@ void tar_main(void)
 
     if (FLAG(j)||FLAG(z)||FLAG(J)) {
       int pipefd[2] = {hdr ? -1 : TT.fd, -1}, i, pid;
+      struct string_list *zcat = find_in_path(getenv("PATH"),
+        FLAG(j) ? "bzcat" : FLAG(J) ? "xz" : "zcat");
 
-      xpopen_both((char *[]){compression_tool(), "-dc", NULL}, pipefd);
+      // Toybox provides more decompressors than compressors, so try them first
+      xpopen_both(zcat ? (char *[]){zcat->str, 0} :
+        (char *[]){archiver, "-dc", 0}, pipefd);
+      if (CFG_TOYBOX_FREE) llist_traverse(zcat, free);
 
       if (!hdr) {
         // If we could seek, child gzip inherited fd and we read its output
@@ -932,7 +933,7 @@ void tar_main(void)
     if (FLAG(j)||FLAG(z)||FLAG(J)) {
       int pipefd[2] = {-1, TT.fd};
 
-      xpopen_both((char *[]){compression_tool(), "-f", NULL}, pipefd);
+      xpopen_both((char *[]){archiver, "-f", 0}, pipefd);
       close(TT.fd);
       TT.fd = pipefd[0];
     }
