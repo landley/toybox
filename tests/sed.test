@@ -151,6 +151,12 @@ testing "trailing a\ (for debian)" "sed 'a\\'" "hello\n" "" "hello"
 # You have to match the first line of a range in order to activate
 # the range, numeric and ascii work the same way
 testing "skip start of range" "sed -e n -e '1,2s/b/c/'" "a\nb\n" "" "a\nb\n"
+testing "range +1" "sed -ne '/blah/,+1p'" "blah\n6\n" "" \
+  "1\n2\n3\n4\n5\nblah\n6\n7\n8\n9\n"
+testing "range +0" "sed -ne '/blah/,+0p'" "blah\n" "" \
+  "1\n2\n3\n4\n5\nblah\n6\n7\n8\n9\n"
+testing "range +3" "sed -ne '2,+3p'" "2\n3\n4\n5\n" "" \
+  "1\n2\n3\n4\n5\nblah\n6\n7\n8\n9\n"
 
 #echo meep | sed/sed -e '1a\' -e 'huh'
 #echo blah | sed/sed -f <(echo -e "1a\\\\\nboom")

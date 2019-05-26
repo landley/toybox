@@ -49,7 +49,7 @@ config SED
     address matches one line, a pair of comma separated addresses match
     everything from the first address to the second address (inclusive). If
     both addresses are regular expressions, more than one range of lines in
-    each file can match.
+    each file can match. The second address can be +N to end N lines later.
 
     REGULAR EXPRESSIONS in sed are started and ended by the same character
     (traditionally / but anything except a backslash or a newline works).
@@ -214,7 +214,7 @@ static int emit(char *line, long len, int eol)
   l = writeall(TT.fdout, line, len);
   if (eol) line[len-1] = old;
   if (l != len) {
-    perror_msg("short write");
+    if (TT.fdout != 1) perror_msg("short write");
 
     return 1;
   }
@@ -304,20 +304,23 @@ static void sed_line(char **pline, long plen)
             if (line && !regexec0(rm, line, len, 0, 0, 0)) miss = 1;
           }
         } else if (lm > 0 && lm < TT.count) command->hit = 0;
+        else if (lm < -1 && TT.count == command->hit+(-lm-1)) command->hit = 0;
 
       // Start a new match?
       } else {
         if (!(lm = *command->lmatch)) {
           void *rm = get_regex(command, *command->rmatch);
 
-          if (line && !regexec0(rm, line, len, 0, 0, 0)) command->hit++;
-        } else if (lm == TT.count || (lm == -1 && !pline)) command->hit++;
+          if (line && !regexec0(rm, line, len, 0, 0, 0))
+            command->hit = TT.count;
+        } else if (lm == TT.count || (lm == -1 && !pline))
+          command->hit = TT.count;
 
         if (!command->lmatch[1] && !command->rmatch[1]) miss = 1;
       } 
 
       // Didn't match?
-      lm = !(command->hit ^ command->not);
+      lm = !(command->not^!!command->hit);
 
       // Deferred disable from regex end match
       if (miss || command->lmatch[1] == TT.count) command->hit = 0;
@@ -779,8 +782,7 @@ static void parse_pattern(char **pline, long len)
     }
     if (!*line) return;
 
-    // We start by writing data into toybuf. Later we'll allocate the
-    // ex
+    // Start by writing data into toybuf.
 
     errstart = line;
     memset(toybuf, 0, sizeof(struct sedcmd));
@@ -792,7 +794,10 @@ static void parse_pattern(char **pline, long len)
       if (*line == ',') line++;
       else if (i) break;
 
-      if (isdigit(*line)) command->lmatch[i] = strtol(line, &line, 0);
+      if (i && *line == '+' && isdigit(line[1])) {
+        line++;
+        command->lmatch[i] = -2-strtol(line, &line, 0);
+      } else if (isdigit(*line)) command->lmatch[i] = strtol(line, &line, 0);
       else if (*line == '$') {
         command->lmatch[i] = -1;
         line++;
@@ -823,7 +828,7 @@ static void parse_pattern(char **pline, long len)
     if (strchr("}:", c) && i) break;
     if (strchr("aiqr=", c) && i>1) break;
 
-    // Add step to pattern
+    // Allocate memory and copy out of toybuf now that we know how big it is
     command = xmemdup(toybuf, reg-toybuf);
     reg = (reg-toybuf) + (char *)command;
 
