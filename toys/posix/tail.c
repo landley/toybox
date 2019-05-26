@@ -36,6 +36,7 @@ GLOBALS(
   long n, c;
 
   int file_no, last_fd;
+  struct xnotify *not;
 )
 
 struct line_list {
@@ -139,7 +140,7 @@ static void do_tail(int fd, char *name)
     char *s = name;
 
     if (!fd) sprintf(s = toybuf, "/proc/self/fd/%d", fd);
-    if (notify_add(fd, s) == -1) perror_exit("-f on '%s' failed", s);
+    if (xnotify_add(TT.not, fd, s)) perror_exit("-f on '%s' failed", s);
   }
 
   if (TT.file_no++) xputc('\n');
@@ -233,13 +234,13 @@ void tail_main(void)
     }
   }
 
-  if (FLAG(f)) notify_init(toys.optc);
+  if (FLAG(f)) TT.not = xnotify_init(toys.optc);
   loopfiles_rw(args, O_RDONLY|WARN_ONLY|(O_CLOEXEC*!FLAG(f)), 0, do_tail);
 
   if (FLAG(f) && TT.file_no) {
     for (;;) {
       char *path;
-      int fd = notify_wait(&path), len;
+      int fd = xnotify_wait(TT.not, &path), len;
 
       // Read new data.
       while ((len = read(fd, toybuf, sizeof(toybuf)))>0) {

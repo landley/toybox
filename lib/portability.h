@@ -309,6 +309,12 @@ static inline void confstr(int a, char *b, int c) {strcpy(b, a ? "POSIXLY_CORREC
 #endif
 
 // Paper over the differences between BSD kqueue and Linux inotify for tail.
-void notify_init(int max);
-int notify_add(int fd, char *path);
-int notify_wait(char **path);
+
+struct xnotify {
+  char **paths;
+  int max, *fds, count, kq;
+};
+
+struct xnotify *xnotify_init(int max);
+int xnotify_add(struct xnotify *not, int fd, char *path);
+int xnotify_wait(struct xnotify *not, char **path);

@@ -153,3 +153,97 @@ struct mtab_list *xgetmountlist(char *path)
 }
 
 #endif
+
+#ifdef __APPLE__
+
+#include <sys/event.h>
+
+struct xnotify *xnotify_init(int max)
+{
+  struct xnotify *not = xzalloc(sizeof(struct xnotify));
+
+  not->max = max;
+  if ((not->kq = kqueue()) == -1) perror_exit("kqueue");
+  not->paths = xmalloc(max * sizeof(char *));
+  not->fds = xmalloc(max * sizeof(int));
+
+  return not;
+}
+
+int xnotify_add(struct xnotify *not, int fd, char *path)
+{
+  struct kevent event;
+
+  if (not->count == not->max) error_exit("xnotify_add overflow");
+  EV_SET(&event, fd, EVFILT_VNODE, EV_ADD|EV_CLEAR, NOTE_WRITE, 0, NULL);
+  if (kevent(not->kq, &event, 1, NULL, 0, NULL) == -1 || event.flags & EV_ERROR)
+    return -1;
+  not->paths[not->count] = path;
+  not->fds[not->count++] = fd;
+
+  return 0;
+}
+
+int xnotify_wait(struct xnotify *not, char **path)
+{
+  struct kevent event;
+  int i;
+
+  for (;;) {
+    if (kevent(not->kq, NULL, 0, &event, 1, NULL) != -1) {
+      // We get the fd for free, but still have to search for the path.
+      for (i = 0; i<not->count; i++) if (not->fds[i]==event.ident) {
+        *path = paths[i];
+
+        return event.ident;
+      }
+    }
+  }
+}
+
+#else
+
+#include <sys/inotify.h>
+
+struct xnotify *xnotify_init(int max)
+{
+  struct xnotify *not = xzalloc(sizeof(struct xnotify));
+
+  not->max = max;
+  if ((not->kq = inotify_init()) < 0) perror_exit("inotify_init");
+  not->paths = xmalloc(max * sizeof(char *));
+  not->fds = xmalloc(max * 2 * sizeof(int));
+
+  return not;
+}
+
+int xnotify_add(struct xnotify *not, int fd, char *path)
+{
+  int i = 2*not->count;
+
+  if (not->max == not->count) error_exit("xnotify_add overflow");
+  if ((not->fds[i] = inotify_add_watch(not->kq, path, IN_MODIFY))==-1)
+    return -1;
+  not->fds[i+1] = fd;
+  not->paths[not->count++] = path;
+
+  return 0;
+}
+
+int xnotify_wait(struct xnotify *not, char **path)
+{
+  struct inotify_event ev;
+  int i;
+
+  for (;;) {
+    if (sizeof(ev)!=read(not->kq, &ev, sizeof(ev))) perror_exit("inotify");
+
+    for (i = 0; i<not->count; i++) if (ev.wd==not->fds[2*i]) {
+      *path = not->paths[i];
+
+      return not->fds[2*i+1];
+    }
+  }
+}
+
+#endif
