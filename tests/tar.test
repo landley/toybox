@@ -27,7 +27,7 @@ SUM='head -c $(($BLOCKS*512)) | sha1sum | sed "s/ .*//"'
 
 function LST()
 {
-  tar tv $LSTARG | sed 's/[ \t][ \t]*/ /g'
+  tar tv "$@" | sed 's/[ \t][ \t]*/ /g'
 }
 
 touch file
@@ -47,8 +47,8 @@ testing "pass group" "tar c --owner root --group nobody --mtime @0 file | LST" \
   "-rw-rw-r-- root/nobody 0 1970-01-01 00:00 file\n" "" ""
 
 touch -t 198701231234.56 file
-LSTARG=--full-time testing "pass mtime" \
-  "tar c --owner root --group root file | LST" \
+testing "pass mtime" \
+  "tar c --owner root --group root file | LST --full-time" \
   "-rw-rw-r-- root/root 0 1987-01-23 12:34:56 file\n" "" ""
 
 mkdir dir
@@ -137,11 +137,11 @@ testing "pass /dev/loop0" \
   "brw-rw---- 0/6 7,0 1970-01-01 00:00 dev/loop0\n" "" ""
 
 # compression types
-LSTARG="-f $FILES/tar/tar.tgz" testing "autodetect gzip" 'LST' \
+testing "autodetect gzip" 'LST -f "$FILES"/tar/tar.tgz' \
   "drwxr-x--- enh/eng 0 2017-05-13 01:05 dir/\n-rw-r----- enh/eng 12 2017-05-13 01:05 dir/file\n" \
   "" ""
 
-LSTARG="-jf $FILES/tar/tar.tbz2" testing "manually specify bz2" "LST" \
+testing "manually specify bz2" 'LST -jf "$FILES"/tar/tar.tbz2' \
   "drwxr-x--- enh/eng 0 2017-05-13 01:05 dir/\n-rw-r----- enh/eng 12 2017-05-13 01:05 dir/file\n" \
   "" ""
 
