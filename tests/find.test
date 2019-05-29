@@ -81,15 +81,11 @@ testing "-exec {} +" \
   "find dir -type f -exec ls {} +" "dir/file\n" "" ""
 
 # `find . -iname` was segfaulting
-testing "-name file" \
-  "find dir -name file" "dir/file\n" "" ""
-testing "-name FILE" \
-  "find dir -name FILE" "" "" ""
+testing "-name file" "find dir -name file" "dir/file\n" "" ""
+testing "-name FILE" "find dir -name FILE" "" "" ""
 
-testing "-iname file" \
-  "find dir -iname FILE" "dir/file\n" "" ""
-testing "-iname FILE" \
-  "find dir -iname FILE" "dir/file\n" "" ""
+testing "-iname file" "find dir -iname FILE" "dir/file\n" "" ""
+testing "-iname FILE" "find dir -iname FILE" "dir/file\n" "" ""
 
 
 testing "-name (no arguments)" \
@@ -100,13 +96,13 @@ testing "-iname (no arguments)" \
 testing "" "find dir \( -iname file -o -iname missing \) -exec echo {} \;" \
   "dir/file\n" "" ""
 
-testing "-path glob" \
-  "find dir -path 'dir*e'" "dir/file\n" "" ""
-testing "-wholename glob" \
-  "find dir -wholename 'dir*e'" "dir/file\n" "" ""
-testing "-ipath glob" \
-  "find dir -ipath 'dIr*E'" "dir/file\n" "" ""
-testing "-iwholename glob" \
-  "find dir -iwholename 'dIr*E'" "dir/file\n" "" ""
+testing "-path glob" "find dir -path 'dir*e'" "dir/file\n" "" ""
+testing "-wholename glob" "find dir -wholename 'dir*e'" "dir/file\n" "" ""
+testing "-ipath glob" "find dir -ipath 'dIr*E'" "dir/file\n" "" ""
+testing "-iwholename glob" "find dir -iwholename 'dIr*E'" "dir/file\n" "" ""
+testing "-printf" "find dir -name file -printf '%f %p %P %s'" \
+  "file dir/file file 0" "" ""
+testing "-printf .N" "find dir -name file -printf %.2f" "fi" "" ""
+
 
 rm -rf dir

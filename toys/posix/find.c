@@ -52,17 +52,13 @@ config FIND
     Commands substitute "{}" with matched file. End with ";" to run each file,
     or "+" (next argument after "{}") to collect and run with multiple files.
 
-    FORMAT characters are \ escapes and:
-    %f  basename
-    %g  textual gid                    %G  numeric gid
-    %i  decimal inode
-    %l  target of symlink (or empty)
-    %m  octal mode, no leading 0       %M  type and mode in ls format
-    %p  filename                       %P  filename without root
-    %s  size in bytes
-    %T@ last modification unix time with fraction
-    %u  textual uid                    %U  numeric uid
-    %Z  security context
+    -printf FORMAT characters are \ escapes and:
+    %b 512 byte blocks used
+    %f  basename            %g  textual gid          %G  numeric gid
+    %i  decimal inode       %l  target of symlink    %m  octal mode
+    %M  ls format type/mode %p  path to file         %P  path to file minus DIR
+    %s  size in bytes       %T@ mod time as unixtime
+    %u  username            %U  numeric uid          %Z  security context
 */
 
 #define FOR_find
@@ -222,7 +218,7 @@ static int do_find(struct dirtree *new)
     if (new->parent) {
       if (!dirtree_notdotdot(new)) return 0;
       if (TT.xdev && new->st.st_dev != new->parent->st.st_dev) recurse = 0;
-    }
+    } else TT.start = new->name;
 
     if (S_ISDIR(new->st.st_mode)) {
       // Descending into new directory
@@ -550,62 +546,65 @@ static int do_find(struct dirtree *new)
         // Argument consumed, skip the check.
         goto cont;
       } else if (!strcmp(s, "printf")) {
-        char *fmt = ss[1], *path, *lnk, *start, mode_str[11], ch;
+        char *fmt, *ff, next[32], buf[64], ch;
+        long ll;
+        int len;
 
         print++;
-        if (check) {
-          for (; *fmt; fmt++) {
-            if (*fmt == '\\') {
-              if (!(ch = unescape(fmt[1])))
-                error_exit("bad \\ escape: %c", fmt[1]);
-              fmt++;
-              putchar(ch);
-            } else if (*fmt == '%') {
-              switch (*++fmt) {
-                case '%': putchar('%'); break;
-                case 'f': printf("%s", new->name); break;
-                case 'G': printf("%d", new->st.st_gid); break;
-                case 'g': printf("%s", getgroupname(new->st.st_gid)); break;
-                case 'i': printf("%lld", (long long) new->st.st_ino); break;
-                case 'l':
-                  path = dirtree_path(new, 0);
-                  lnk = xreadlink(path);
-                  printf("%s", lnk ? lnk : "");
-                  free(lnk);
-                  free(path);
-                  break;
-                case 'M':
-                  mode_to_string(new->st.st_mode, mode_str);
-                  printf("%s", mode_str);
-                  break;
-                case 'm': printf("%o", new->st.st_mode & ~S_IFMT); break;
-                case 'P':
-                  start = getdirname(TT.start);
-                  path = dirtree_path(new, 0);
-                  printf("%s", path + 1+strlen(start));
-                  free(path);
-                  free(start);
-                  break;
-                case 'p':
-                  path = dirtree_path(new, 0);
-                  printf("%s", path);
-                  free(path);
-                  break;
-                case 's': printf("%lld", (long long) new->st.st_size); break;
-                case 'T':
-                  switch (*++fmt) {
-                    case '@':
-                      printf("%ld.%ld", new->st.st_mtim.tv_sec,
+        if (check) for (fmt = ss[1]; *fmt; fmt++) {
+          // Print the parts that aren't escapes
+          if (*fmt == '\\') {
+            if (!(ch = unescape(*++fmt))) error_exit("bad \\%c", *fmt);
+            putchar(ch);
+          } else if (*fmt != '%') putchar(*fmt);
+          else if (*++fmt == '%') putchar('%');
+          else {
+            fmt = next_printf(ff = fmt-1, 0);
+            if ((len = fmt-ff)>28) error_exit("bad %.*s", len+1, ff);
+            memcpy(next, ff, len);
+            ff = 0;
+            ch = *fmt;
+
+            // long long is its own stack size on LP64, so handle seperately
+            if (ch == 'i' || ch == 's') {
+              strcpy(next+len, "lld");
+              printf(next, (ch == 'i') ? (long long)new->st.st_ino
+                : (long long)new->st.st_size);
+            } else {
+
+              // LP64 says these are all a single "long" argument to printf
+              strcpy(next+len, "s");
+              if (ch == 'G') next[len] = 'd', ll = new->st.st_gid;
+              else if (ch == 'm') next[len] = 'o', ll = new->st.st_mode&~S_IFMT;
+              else if (ch == 'U') next[len] = 'd', ll = new->st.st_uid;
+              else if (ch == 'f') ll = (long)new->name;
+              else if (ch == 'g') ll = (long)getgroupname(new->st.st_gid);
+              else if (ch == 'u') ll = (long)getusername(new->st.st_uid);
+              else if (ch == 'l') {
+                char *path = dirtree_path(new, 0);
+
+                ll = (long)(ff = xreadlink(path));
+                free(path);
+                if (!ll) ll = (long)"";
+              } else if (ch == 'M') {
+                mode_to_string(new->st.st_mode, buf);
+                ll = (long)buf;
+              } else if (ch == 'P') {
+                ch = *TT.start;
+                *TT.start = 0;
+                ll = (long)(ff = dirtree_path(new, 0));
+                *TT.start = ch;
+              } else if (ch == 'p') ll = (long)(ff = dirtree_path(new, 0));
+              else if (ch == 'T') {
+                if (*++fmt!='@') error_exit("bad -printf %%T: %%T%c", *fmt);
+                sprintf(buf, "%ld.%ld", new->st.st_mtim.tv_sec,
                              new->st.st_mtim.tv_nsec);
-                      break;
-                    default: error_exit("bad %%T variant: %%T%c", *fmt);
-                  }
-                  break;
-                case 'U': printf("%d", new->st.st_uid); break;
-                case 'u': printf("%s", getusername(new->st.st_uid)); break;
-                default: error_exit("bad %% specifier: %c", *fmt);
-              }
-            } else putchar(*fmt);
+                ll = (long)buf;
+              } else error_exit("bad -printf %%%c", ch);
+
+              printf(next, ll);
+              free(ff);
+            }
           }
         }
       } else goto error;
@@ -659,11 +658,9 @@ void find_main(void)
   do_find(0);
 
   // Loop through paths
-  for (i = 0; i < len; i++) {
-    TT.start = ss[i];
-    dirtree_flagread(TT.start,
-      DIRTREE_SYMFOLLOW*!!(toys.optflags&(FLAG_H|FLAG_L)), do_find);
-  }
+  for (i = 0; i < len; i++)
+    dirtree_flagread(ss[i], DIRTREE_SYMFOLLOW*!!(toys.optflags&(FLAG_H|FLAG_L)),
+      do_find);
 
   execdir(0, 1);
 
