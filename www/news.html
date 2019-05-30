@@ -8,6 +8,182 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+<a name="21-05-2019" /><a href="#21-05-2019"><hr><h2><b>May 21, 2019</b></h2></a>
+<blockquote>
+<p>"I like the cover," he said. "'Don't Panic.' It's the first helpful or intelligible thing anybody's said to me all day."</p> <p>- The Hitchhiker's Guide to the Galaxy</p>
+</blockquote>
+
+<p><a href=downloads/toybox-0.8.1.tar.gz>Toybox 0.8.1</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.8.1>git commit</a>)
+is out.</p>
+
+<p>Android is now using toybox as part of a <a href=http://lists.landley.net/pipermail/toybox-landley.net/2018-November/009824.html>"hermetic" build</a>
+(meaning Android is building under toybox, which is halfway to Android
+building under Android). See Android's <a href=https://android.googlesource.com/platform/prebuilts/build-tools/+log>build-tools</a> and <a href=https://android.googlesource.com/platform/build/soong/+log>soong</a> repositories to follow along with development, or check the list for the <a href=http://lists.landley.net/pipermail/toybox-landley.net/2019-May/010485.html>current status</a>.</p>
+
+<p><u>New commands</u>: Isaac Dunham added <b>mcookie</b>, which is used by
+X11. Elliott Hughes added <b>devmem</b>, which replaces toolbox's "r".</p>
+
+<p><u>Promoted</u>: <b>tar</b>, <b>gunzip</b>, and <b>zcat</b> were cleaned
+up and moved out of pending.
+Tar is a near-rewrite with support for --owner --group and --sparse,
+capable of autodetecting "wget blah.tar.bz2 -O - | tar xv", a --restrict option
+that only allows files to extract into a single subdirectory, and so on.</p>
+
+<p><u>Added to pending</u>:
+Jarno Mäkipää contributed a new <b>vi</b> implementation. Makepost added
+<b>man</b>.</p>
+
+<p><u>Updates</u>: Elliott added <b>find</b> -wholename/-iwholename, -printf,
+and -context, <b>grep</b> --exclude-dir, and <b>echo</b> -E.
+Rob added <b>blkid</b> -U and -L, <b>mount</b> now has UUID= support via blkid -U,
+you can now specify TZ="blah" in the <b>date</b> -d input string (although
+why the double quotes are required is an open question), and <b>sed</b> now
+understands ,+N relative ranges. Makepost added <b>rm</b> -v.
+The human_readable fields in <b>ps</b>/<b>top</b>/<b>iotop</b> now use all
+available space to show more precision, <b>iotop</b> displays swap bandwidth
+properly (it was showing a signed field as unsigned), and
+<b>touch</b> -t and -d autodetect the time format.</p>
+
+<p><u>Cleanups</u>: In pending Rob did some bc cleanup,
+Colin Davidson did some arp cleanup, 
+Uros Prestor fixed route argument parsing, and
+in bc Daniel Rosenberg fixed bc_vec_concat()'s allocation and
+Gavin Howard fixed an overflow bug in bc_num_ulong().</p>
+
+<p>Elliott made scan_key() detect cursor keys and such with several more
+terminal types, made more better about directories and non-tty output,
+cleaned up inconsistent uses of ARRAY_LEN(), taught file
+to recognize a c-sky ELF machine, and fixed timezone and daylight
+savings time issues in date and its tests.
+Rob simplified netcat and ping using new lib/net.c infrastructure.
+When run as non-PID 1 (for a chroot) oneit's exit code now indicates
+which signal it's exiting due to.
+Hadrian Węgrzynowski #defined constants for mkpathat.
+Date now uses the current time for unspecified fields (instead of zeroing
+them), and should set the weekday properly.
+Sort's -k2.3,4.5 syntax is now documented and behaves more closely to
+other implementations (silly as that behavior is).
+Significant speedup to sed s/a/b/g on a megabyte long line (it was
+O(n^2) and now it's quite snappy).</p>
+
+<p>Several cases of warning about stdout failing to write were silenced
+because things like piping the output to head means stdout is a special
+case: its output is often discarded and that's fine. And xprintf()
+and friends only checks stdout for errors so it can exit early ("yes | head"
+should not spin endlessly) without actually flushing anything.
+There's an ongoing design debate about line buffering stdin and stdout
+that'll have to be resolved next dev cycle.</p>
+
+<p><u>Bugs</u>:
+Elliott sent in a lot of fixes for building AOSP with toybox:
+support for more date formats, sed substitution of empty capture groups
+and an endless loop with -EPIPE, fixed find -path/-ipath, made loggit()
+only feed LOG_AUTH to syslog when we have a tty, gave grep a bunch
+of --longname synonyms for short options, added getfattr --only-values,
+and timeout --foreground --preserve-status and --signal.</p>
+
+<p>Top got a lot of tweaks: it no longer collates thread's CPU usage into the
+parent thread (in -H mode), hides the cursor in interactive mode, updates the
+display properly in batch mode, and accepts ENTER
+as a synonym for SPACE when refreshing the display. The header lines
+now abbreviate long numbers with units (via human_readable()),
+more reliably spans the terminal width, and says "Thread" instead
+of "Task" when it's showing threads. The task/thread count now adds up
+(understanding more kernel states and treating unknown ones as "sleeping").
+Top now treats -o "" as an error (previously it displayed an empty screen).</p>
+
+<p>William Djupström pointed out login needs to chown() the tty, and made it
+clear the environment when -p is absent.
+Vidar Holen fixed inverted find -exec exit status.
+Rob made chgrp() stop relying on libc's printf("%s", NULL) printing "(null)"
+because a <a href=https://github.com/varnishcache/varnish-cache/issues/2879>newly added gcc bug</a> turns that into a build break, and
+fixed an outright embarassing xstrndup() bug.
+Liwugang fixed a segfault when stat's format string had a trailing %.
+A missing else in grep meant -x was sometimes ignored.</p>
+
+<p><u>Infrastructure</u>:
+in the build scripts/portability.sh now tests that the compiler it's trying
+to use exists up front. We no longer link against librt because on glibc that's
+pulling in libpthread for some unknown reason.</p>
+
+<p>TOYFLAG_ARGFAIL() lets commands return custom exit values when option parsing
+fails (because AOSP build scripts cared), so timeout --unknown returns 125
+and so on: chroot, diff, cmp, env, grep, nohup, and sort also use it now with
+various values.</p>
+
+<p>New FLAG() macros: FLAG(x) expands to (toys.optflags&FLAG_x) and returns
+zero if the command line argument's bit isn't set and nonzero if it is
+(meaning -x was or wasn't encountered on the command line this time by
+lib/args.c). Lots of commands got converted to use them.</p>
+
+<p>New lib/env.c with reset_env(), xsetenv(), and xunsetenv() which frees
+the old environment variable when it wasn't inherited from exec(). This
+lets long-running loops reset environment variables without memory leaks.</p>
+
+<p>New xnotify() plumbing in lib/portability.c with Linux and BSD versions
+(which should also work on MacOS X).</p>
+
+<p>New xparsedate() and xvali_date() functions allow date, tar --mtime, and
+touch to understand the same date formats,
+xpopen_both() now knows how to use existing filehandles for the child's
+stdin/stdout, and no longer redirects stderr (which hides errors),
+new nanomove(), nanodiff(), union socksaddr, xrecvwait(),
+and human_readable_long() to show more than 3 digits of output.</p>
+
+<p>Taught xgetaddrinfo() to return a wildcard address for a NULL host,
+xconnbind() sets SO_REUSEADDR by default,
+fileunderdir() returns the abspath to the file now (since we had to work
+it out anyway), and
+xabspath() uses O_PATH now (because Android's SELinux rules got more aggressive).</p>
+
+<p>Several new xsendfile() variants, including sendfile_len() to copy
+a specific amount of data and xsendfile_pad() to append zeroes to the
+output when there isn't enough input.</p>
+
+<p>regexec0() is now using libc's REG_STARTEND supported by every libc out
+there _except_ musl. (It originated in BSD and was adopted by glibc, bionic,
+and uClibc 15 years ago, and is also supported in macosx. Musl's maintainer
+<a href=https://www.openwall.com/lists/musl/2013/01/15/26>turned down</a>
+the feature request as an invalid use case he didn't think they should
+be trying to do.)</p>
+
+<p><u>Docs</u>:
+the <a href=license.html>license page</a> now has an SPDX identifier, and links to more
+history/context. The actual LICENSE file had its title line removed
+so <a href=https://github.com/github/choosealicense.com/pull/643#issuecomment-463746027>github could recognize it</a> as 0BSD. (We're still waiting for
+"<a href=https://github.com/github/choosealicense.com/pull/643#issuecomment-464380789>a while</a>" to pass before github actually does, though.)</p>
+
+<p>A new www/doc/mount.txt file describes how mount works under the covers.</p>
+
+<p.Rob consistently misspelled "canonical" and "millisecond", mountpoint
+has a synopsis now,
+Kevin van der Kamp fixed a typo in netstat's help text, and Elliott
+Hughes fixed typos everywhere and made the tense, capitalization, and
+punctuation of help text more consistent.</p>
+
+<p>New paragraph in the code style part of design.html explaining that
+"char* a, b;" is not how C works, and since you wind up with "char *a, b;"
+anyway you might as well say that.</p>
+
+<p>Given dreamhost's tendency to repeatedly delete the mailing list
+archive, the nav bar on the left links to a backup web archive now too.</p>
+
+<p>The FAQ now says why we do time based releases.</p>
+
+<p><u>Testing</u>: Added VERBOSE=nopass to not show passing tests.
+The test suite now does an rm -rf on testdir between each command so
+debris files don't accumulate.
+New skipnot function skips the next test if a command line fails, and
+toyonly function only runs command when we're testing the toybox version
+of command. (This isn't the same as TEST_HOST, the host version could be
+toybox.)
+The find -newer test calls "sleep .1" to avoid intermittently failing with an
+identical timestamp.
+Elliott added the start of a file.test rogues gallery.
+No longer call lsattr in "make tests" because the behavior differs by
+filesystem and it needs fixing somehow.</p>
+
 <a name="08-02-2019" /><a href="#08-02-2019"><hr><h2><b>February 8, 2019</b></h2></a>
 <blockquote>
 <p>"Most readers get as far as the Future Semiconditionally Modified
