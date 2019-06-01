@@ -269,9 +269,10 @@ static void do_regular_file(int fd, char *name)
   } else if (len>33 && (magic=peek(&s,2), magic==0143561 || magic==070707)) {
     if (magic == 0143561) printf("byte-swapped ");
     xprintf("cpio archive\n");
-  // tar archive (ustar/pax or gnu)
-  } else if (len>500 && !strncmp(s+257, "ustar", 5))
-    xprintf("POSIX tar archive%s\n", strncmp(s+262,"  ",2)?"":" (GNU)");
+  // tar archive (old, ustar/pax, or gnu)
+  } else if (len>500 && is_tar_header(s))
+    xprintf("%s tar archive%s\n", s[257] ? "POSIX" : "old",
+      strncmp(s+262,"  ",2)?"":" (GNU)");
   // zip/jar/apk archive, ODF/OOXML document, or such
   else if (len>5 && strstart(&s, "PK\03\04")) {
     int ver = toybuf[4];
@@ -281,6 +282,8 @@ static void do_regular_file(int fd, char *name)
     xputc('\n');
   } else if (len>4 && strstart(&s, "BZh") && isdigit(*s))
     xprintf("bzip2 compressed data, block size = %c00k\n", *s);
+  else if (len > 31 && peek_be(s, 7) == 0xfd377a585a0000)
+    xprintf("xz compressed data");
   else if (len>10 && strstart(&s, "\x1f\x8b")) xputs("gzip compressed data");
   else if (len>32 && !memcmp(s+1, "\xfa\xed\xfe", 3)) {
     int bit = s[0]=='\xce'?32:64;

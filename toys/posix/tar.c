@@ -83,28 +83,6 @@ struct tar_hdr {
        prefix[155], padd[12];
 };
 
-// Calculate packet checksum, with cksum field treated as 8 spaces
-unsigned tar_cksum(void *data)
-{
-  unsigned i, cksum = 8*' ';
-
-  for (i = 0; i<500; i += (i==147) ? 9 : 1) cksum += ((char *)data)[i];
-
-  return cksum;
-}
-
-static int is_tar(void *pkt)
-{
-  char *p = pkt;
-  int i = 0;
-
-  if (p[257] && memcmp("ustar", p+257, 5)) return 0;
-  if (p[148] != '0') return 0;
-  sscanf(p+148, "%8o", &i);
-
-  return i && tar_cksum(pkt) == i;
-}
-
 // convert from int to octal (or base-256)
 static void itoo(char *str, int len, unsigned long long val)
 {
@@ -594,7 +572,7 @@ static void unpack_tar(char *first)
     tar.padd[0] = and = 0;
 
     // Is this a valid TAR header?
-    if (!is_tar(&tar)) error_exit("bad header");
+    if (!is_tar_header(&tar)) error_exit("bad header");
     TT.hdr.size = OTOI(tar.size);
 
     // If this header isn't writing something to the filesystem
@@ -856,7 +834,7 @@ void tar_main(void)
     // autodetect compression type when not specified
     if (!(FLAG(j)||FLAG(z)||FLAG(J))) {
       len = xread(TT.fd, hdr = toybuf+sizeof(toybuf)-512, 512);
-      if (len!=512 || !is_tar(hdr)) {
+      if (len!=512 || !is_tar_header(hdr)) {
         // detect gzip and bzip signatures
         if (SWAP_BE16(*(short *)hdr)==0x1f8b) toys.optflags |= FLAG_z;
         else if (!memcmp(hdr, "BZh", 3)) toys.optflags |= FLAG_j;
