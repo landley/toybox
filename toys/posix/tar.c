@@ -83,6 +83,28 @@ struct tar_hdr {
        prefix[155], padd[12];
 };
 
+// Calculate packet checksum, with cksum field treated as 8 spaces
+unsigned tar_cksum(void *data)
+{
+  unsigned i, cksum = 8*' ';
+
+  for (i = 0; i<500; i += (i==147) ? 9 : 1) cksum += ((char *)data)[i];
+
+  return cksum;
+}
+
+static int is_tar(void *pkt)
+{
+  char *p = pkt;
+  int i = 0;
+
+  if (p[257] && memcmp("ustar", p+257, 5)) return 0;
+  if (p[148] != '0') return 0;
+  sscanf(p+148, "%8o", &i);
+
+  return i && tar_cksum(pkt) == i;
+}
+
 // convert from int to octal (or base-256)
 static void itoo(char *str, int len, unsigned long long val)
 {
@@ -111,16 +133,6 @@ static unsigned long long otoi(char *str, unsigned len)
 }
 #define OTOI(x) otoi(x, sizeof(x))
 
-// Calculate packet checksum, with cksum field treated as 8 spaces
-static unsigned cksum(void *data)
-{
-  unsigned i, cksum = 8*' ';
-
-  for (i = 0; i<500; i += (i==147) ? 9 : 1) cksum += ((char *)data)[i];
-
-  return cksum;
-}
-
 static void write_longname(char *name, char type)
 {
   struct tar_hdr tmp;
@@ -142,7 +154,7 @@ static void write_longname(char *name, char type)
 
   // Calculate checksum. Since 512*255 = 0377000 in octal, this can never
   // use more than 6 digits. The last byte is ' ' for historical reasons.
-  itoo(tmp.chksum, sizeof(tmp.chksum)-1, cksum(&tmp));
+  itoo(tmp.chksum, sizeof(tmp.chksum)-1, tar_cksum(&tmp));
   tmp.chksum[7] = ' ';
 
   // write header and name, padded with NUL to block size
@@ -349,7 +361,7 @@ static int add_to_tar(struct dirtree *node)
     }
   }
 
-  itoo(hdr.chksum, sizeof(hdr.chksum)-1, cksum(&hdr));
+  itoo(hdr.chksum, sizeof(hdr.chksum)-1, tar_cksum(&hdr));
   hdr.chksum[7] = ' ';
 
   if (FLAG(v)) dprintf(TT.fd ? 2 : 1, "%s\n", hname);
@@ -552,7 +564,7 @@ static void extract_to_disk(void)
   }
 }
 
-static void unpack_tar(struct tar_hdr *first)
+static void unpack_tar(char *first)
 {
   struct double_list *walk, *delete;
   struct tar_hdr tar;
@@ -581,14 +593,14 @@ static void unpack_tar(struct tar_hdr *first)
     // ensure null temination even of pathological packets
     tar.padd[0] = and = 0;
 
-    // Is this a valid Unix Standard TAR header?
-    if (memcmp(tar.magic, "ustar", 5)) error_exit("bad header");
-    if (cksum(&tar) != OTOI(tar.chksum)) error_exit("bad cksum");
+    // Is this a valid TAR header?
+    if (!is_tar(&tar)) error_exit("bad header");
     TT.hdr.size = OTOI(tar.size);
 
     // If this header isn't writing something to the filesystem
-    if ((tar.type<'0' || tar.type>'7') && tar.type!='S') {
-
+    if ((tar.type<'0' || tar.type>'7') && tar.type!='S'
+        && (*tar.magic && tar.type))
+    {
       // Long name extension header?
       if (tar.type == 'K') alloread(&TT.hdr.link_target, TT.hdr.size);
       else if (tar.type == 'L') alloread(&TT.hdr.name, TT.hdr.size);
@@ -652,6 +664,7 @@ static void unpack_tar(struct tar_hdr *first)
     // At this point, we have something to output. Convert metadata.
     TT.hdr.mode = OTOI(tar.mode);
     if (tar.type == 'S') TT.hdr.mode |= 0x8000;
+    else if (!tar.type) TT.hdr.mode = 8<<12;
     else TT.hdr.mode |= (char []){8,8,10,2,6,4,1,8}[tar.type-'0']<<12;
     TT.hdr.uid = OTOI(tar.uid);
     TT.hdr.gid = OTOI(tar.gid);
@@ -838,17 +851,16 @@ void tar_main(void)
 
   // Are we reading?
   if (FLAG(x)||FLAG(t)) {
-    struct tar_hdr *hdr = 0;
+    char *hdr = 0;
 
     // autodetect compression type when not specified
     if (!(FLAG(j)||FLAG(z)||FLAG(J))) {
-      len = xread(TT.fd, hdr = (void *)(toybuf+sizeof(toybuf)-512), 512);
-      if (len!=512 || strncmp("ustar", hdr->magic, 5)) {
+      len = xread(TT.fd, hdr = toybuf+sizeof(toybuf)-512, 512);
+      if (len!=512 || !is_tar(hdr)) {
         // detect gzip and bzip signatures
         if (SWAP_BE16(*(short *)hdr)==0x1f8b) toys.optflags |= FLAG_z;
-        else if (!memcmp(hdr->name, "BZh", 3)) toys.optflags |= FLAG_j;
-        else if (peek_be(hdr->name, 7) == 0xfd377a585a0000)
-          toys.optflags |= FLAG_J;
+        else if (!memcmp(hdr, "BZh", 3)) toys.optflags |= FLAG_j;
+        else if (peek_be(hdr, 7) == 0xfd377a585a0000) toys.optflags |= FLAG_J;
         else error_exit("Not tar");
 
         // if we can seek back we don't need to loop and copy data
