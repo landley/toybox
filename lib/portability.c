@@ -193,7 +193,7 @@ int xnotify_wait(struct xnotify *not, char **path)
     if (kevent(not->kq, NULL, 0, &event, 1, NULL) != -1) {
       // We get the fd for free, but still have to search for the path.
       for (i = 0; i<not->count; i++) if (not->fds[i]==event.ident) {
-        *path = paths[i];
+        *path = not->paths[i];
 
         return event.ident;
       }
