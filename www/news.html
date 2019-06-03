@@ -121,8 +121,8 @@ lib/args.c). Lots of commands got converted to use them.</p>
 the old environment variable when it wasn't inherited from exec(). This
 lets long-running loops reset environment variables without memory leaks.</p>
 
-<p>New xnotify() plumbing in lib/portability.c with Linux and BSD versions
-(which should also work on MacOS X).</p>
+<p>New xnotify() plumbing in lib/portability.c with Linux and Mac versions
+(which should also work on BSD).</p>
 
 <p>New xparsedate() and xvali_date() functions allow date, tar --mtime, and
 touch to understand the same date formats,
@@ -156,7 +156,7 @@ so <a href=https://github.com/github/choosealicense.com/pull/643#issuecomment-46
 
 <p>A new www/doc/mount.txt file describes how mount works under the covers.</p>
 
-<p.Rob consistently misspelled "canonical" and "millisecond", mountpoint
+<p>Rob consistently misspelled "canonical" and "millisecond", mountpoint
 has a synopsis now,
 Kevin van der Kamp fixed a typo in netstat's help text, and Elliott
 Hughes fixed typos everywhere and made the tense, capitalization, and
