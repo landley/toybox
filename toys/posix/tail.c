@@ -20,13 +20,6 @@ config TAIL
     -n	Output the last NUMBER lines (default 10), +X counts from start
     -c	Output the last NUMBER bytes, +NUMBER counts from start
     -f	Follow FILE(s), waiting for more data to be appended
-
-config TAIL_SEEK
-  bool "tail seek support"
-  default y
-  depends on TAIL
-  help
-    This version uses lseek, which is faster on large files.
 */
 
 #define FOR_tail
@@ -154,7 +147,7 @@ static void do_tail(int fd, char *name)
 
     // The slow codepath is always needed, and can handle all input,
     // so make lseek support optional.
-    if (CFG_TAIL_SEEK && try_lseek(fd, bytes, lines)) return;
+    if (try_lseek(fd, bytes, lines)) return;
 
     // Read data until we run out, keep a trailing buffer
     for (;;) {
