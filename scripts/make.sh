@@ -12,7 +12,8 @@ source scripts/portability.sh
 UNSTRIPPED="generated/unstripped/$(basename "$OUTNAME")"
 
 # Try to keep one more cc invocation going than we have processors
-[ -z "$CPUS" ] && CPUS=$(($(nproc 2>/dev/null)+1))
+[ -z "$CPUS" ] && \
+  CPUS=$(($(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null)+1))
 
 # Respond to V= by echoing command lines as well as running them
 DOTPROG=
