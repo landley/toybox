@@ -26,7 +26,6 @@ rm file1
 testing "stdin no trailing newline" "tail -n 1 - " "c" "" "a\nb\nc"
 testing "file no trailing newline" "tail -n 1 input" "c" "a\nb\nc" ""
 
-optional TAIL_SEEK
 testing "noseek -n in bounds" "tail -n 3" "nine\nten\neleven\n" \
 	"" "$BIGTEST"
 testing "noseek -n out of bounds" "tail -n 999" "$BIGTEST" "" "$BIGTEST"
