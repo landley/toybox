@@ -20,14 +20,15 @@ config STAT
 
     The valid format escape sequences for files:
     %a  Access bits (octal) |%A  Access bits (flags)|%b  Size/512
-    %B  Bytes per %b (512)  |%d  Device ID (dec)    |%D  Device ID (hex)
-    %f  All mode bits (hex) |%F  File type          |%g  Group ID
-    %G  Group name          |%h  Hard links         |%i  Inode
-    %m  Mount point         |%n  Filename           |%N  Long filename
-    %o  I/O block size      |%s  Size (bytes)       |%t  Devtype major (hex)
-    %T  Devtype minor (hex) |%u  User ID            |%U  User name
-    %x  Access time         |%X  Access unix time   |%y  Modification time
-    %Y  Mod unix time       |%z  Creation time      |%Z  Creation unix time
+    %B  Bytes per %b (512)  |%C  Security context   |%d  Device ID (dec)
+    %D  Device ID (hex)     |%f  All mode bits (hex)|%F  File type
+    %g  Group ID            |%G  Group name         |%h  Hard links
+    %i  Inode               |%m  Mount point        |%n  Filename
+    %N  Long filename       |%o  I/O block size     |%s  Size (bytes)
+    %t  Devtype major (hex) |%T  Devtype minor (hex)|%u  User ID
+    %U  User name           |%x  Access time        |%X  Access unix time
+    %y  Modification time   |%Y  Mod unix time      |%z  Creation time
+    %Z  Creation unix time
 
     The valid format escape sequences for filesystems:
     %a  Available blocks    |%b  Total blocks       |%c  Total inodes
@@ -82,7 +83,12 @@ static void print_stat(char type)
     strout(str);
   } else if (type == 'b') out('u', stat->st_blocks);
   else if (type == 'B') out('d', 512);
-  else if (type == 'd') out('d', stat->st_dev);
+  else if (type == 'C') {
+    char *context = NULL;
+
+    strout(lsm_get_context(TT.file, &context) != -1 ? context : "?");
+    free(context);
+  } else if (type == 'd') out('d', stat->st_dev);
   else if (type == 'D') out('x', stat->st_dev);
   else if (type == 'f') out('x', stat->st_mode);
   else if (type == 'F') {

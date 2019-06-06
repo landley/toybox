@@ -53,7 +53,7 @@ config FIND
     or "+" (next argument after "{}") to collect and run with multiple files.
 
     -printf FORMAT characters are \ escapes and:
-    %b 512 byte blocks used
+    %b  512 byte blocks used
     %f  basename            %g  textual gid          %G  numeric gid
     %i  decimal inode       %l  target of symlink    %m  octal mode
     %M  ls format type/mode %p  path to file         %P  path to file minus DIR
@@ -600,6 +600,11 @@ static int do_find(struct dirtree *new)
                 sprintf(buf, "%ld.%ld", new->st.st_mtim.tv_sec,
                              new->st.st_mtim.tv_nsec);
                 ll = (long)buf;
+              } else if (ch == 'Z') {
+                char *path = dirtree_path(new, 0);
+
+                ll = (lsm_get_context(path, &ff) != -1) ? (long)ff : (long)"?";
+                free(path);
               } else error_exit("bad -printf %%%c", ch);
 
               printf(next, ll);
