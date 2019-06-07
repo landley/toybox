@@ -251,7 +251,6 @@ pid_t xfork(void);
 // use toybox before they're ready to switch to host bionic.
 #ifdef __BIONIC__
 #include <android/log.h>
-#include <sys/system_properties.h>
 #else
 typedef enum android_LogPriority {
   ANDROID_LOG_UNKNOWN = 0,
@@ -265,11 +264,6 @@ typedef enum android_LogPriority {
   ANDROID_LOG_SILENT,
 } android_LogPriority;
 static inline int __android_log_write(int pri, const char *tag, const char *msg)
-{
-  return -1;
-}
-#define PROP_VALUE_MAX 92
-static inline int __system_property_set(const char *key, const char *value)
 {
   return -1;
 }
