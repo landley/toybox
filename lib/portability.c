@@ -46,11 +46,47 @@ int xgetrandom(void *buf, unsigned buflen, unsigned flags)
   return 1;
 }
 
-// Get a linked list of mount points, with stat information.
+// Get list of mounted filesystems, including stat and statvfs info.
+// Returns a reversed list, which is good for finding overmounts and such.
+
 #if defined(__APPLE__) || defined(__FreeBSD__)
 
-// Not implemented for macOS.
-// See <sys/mount.h>'s getmntinfo(3) for the BSD API.
+#include <sys/mount.h>
+
+struct mtab_list *xgetmountlist(char *path)
+{
+  struct mtab_list *mtlist = 0, *mt;
+  struct statfs *entries;
+  int i, count;
+
+  if (path) error_exit("xgetmountlist");
+  if ((count = getmntinfo(&entries, 0)) == 0) perror_exit("getmntinfo");
+
+  // The "test" part of the loop is done before the first time through and
+  // again after each "increment", so putting the actual load there avoids
+  // duplicating it. If the load was NULL, the loop stops.
+
+  for (i = 0; i < count; ++i) {
+    struct statfs *me = &entries[i];
+
+    mt = xzalloc(sizeof(struct mtab_list) + strlen(me->f_fstypename) +
+      strlen(me->f_mntonname) + strlen(me->f_mntfromname) + strlen("") + 4);
+    dlist_add_nomalloc((void *)&mtlist, (void *)mt);
+
+    // Collect details about mounted filesystem.
+    // Don't report errors, just leave data zeroed.
+    stat(me->f_mntonname, &(mt->stat));
+    statvfs(me->f_mntonname, &(mt->statvfs));
+
+    // Remember information from struct statfs.
+    mt->dir = stpcpy(mt->type, me->f_fstypename)+1;
+    mt->device = stpcpy(mt->dir, me->f_mntonname)+1;
+    mt->opts = stpcpy(mt->device, me->f_mntfromname)+1;
+    strcpy(mt->opts, ""); /* TODO: reverse from f_flags? */
+  }
+
+  return mtlist;
+}
 
 #else
 
@@ -109,9 +145,6 @@ int mountlist_istype(struct mtab_list *ml, char *typelist)
 
   return !skip;
 }
-
-// Get list of mounted filesystems, including stat and statvfs info.
-// Returns a reversed list, which is good for finding overmounts and such.
 
 struct mtab_list *xgetmountlist(char *path)
 {
@@ -246,4 +279,121 @@ int xnotify_wait(struct xnotify *not, char **path)
   }
 }
 
+#endif
+
+#ifdef __APPLE__
+
+ssize_t xattr_get(const char *path, const char *name, void *value, size_t size)
+{
+  return getxattr(path, name, value, size, 0, 0);
+}
+
+ssize_t xattr_lget(const char *path, const char *name, void *value, size_t size)
+{
+  return getxattr(path, name, value, size, 0, XATTR_NOFOLLOW);
+}
+
+ssize_t xattr_fget(int fd, const char *name, void *value, size_t size)
+{
+  return fgetxattr(fd, name, value, size, 0, 0);
+}
+
+ssize_t xattr_list(const char *path, char *list, size_t size)
+{
+  return listxattr(path, list, size, 0);
+}
+
+ssize_t xattr_llist(const char *path, char *list, size_t size)
+{
+  return listxattr(path, list, size, XATTR_NOFOLLOW);
+}
+
+ssize_t xattr_flist(int fd, char *list, size_t size)
+{
+  return flistxattr(fd, list, size, 0);
+}
+
+ssize_t xattr_set(const char* path, const char* name,
+                  const void* value, size_t size, int flags)
+{
+  return setxattr(path, name, value, size, 0, flags);
+}
+
+ssize_t xattr_lset(const char* path, const char* name,
+                   const void* value, size_t size, int flags)
+{
+  return setxattr(path, name, value, size, 0, flags | XATTR_NOFOLLOW);
+}
+
+ssize_t xattr_fset(int fd, const char* name,
+                   const void* value, size_t size, int flags)
+{
+  return fsetxattr(fd, name, value, size, 0, flags);
+}
+
+#else
+
+ssize_t xattr_get(const char *path, const char *name, void *value, size_t size)
+{
+  return getxattr(path, name, value, size);
+}
+
+ssize_t xattr_lget(const char *path, const char *name, void *value, size_t size)
+{
+  return lgetxattr(path, name, value, size);
+}
+
+ssize_t xattr_fget(int fd, const char *name, void *value, size_t size)
+{
+  return fgetxattr(fd, name, value, size);
+}
+
+ssize_t xattr_list(const char *path, char *list, size_t size)
+{
+  return listxattr(path, list, size);
+}
+
+ssize_t xattr_llist(const char *path, char *list, size_t size)
+{
+  return llistxattr(path, list, size);
+}
+
+ssize_t xattr_flist(int fd, char *list, size_t size)
+{
+  return flistxattr(fd, list, size);
+}
+
+ssize_t xattr_set(const char* path, const char* name,
+                  const void* value, size_t size, int flags)
+{
+  return setxattr(path, name, value, size, flags);
+}
+
+ssize_t xattr_lset(const char* path, const char* name,
+                   const void* value, size_t size, int flags)
+{
+  return lsetxattr(path, name, value, size, flags);
+}
+
+ssize_t xattr_fset(int fd, const char* name,
+                   const void* value, size_t size, int flags)
+{
+  return fsetxattr(fd, name, value, size, flags);
+}
+
+
+#endif
+
+#ifdef __APPLE__
+// In the absence of a mknodat system call, fchdir to dirfd and back
+// around a regular mknod call...
+int mknodat(int dirfd, const char *path, mode_t mode, dev_t dev)
+{
+  int old_dirfd = open(".", O_RDONLY), result;
+
+  if (old_dirfd == -1 || fchdir(dirfd) == -1) return -1;
+  result = mknod(path, mode, dev);
+  if (fchdir(old_dirfd) == -1) perror_exit("mknodat couldn't return");
+  return result;
+}
 #endif

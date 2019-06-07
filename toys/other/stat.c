@@ -141,8 +141,15 @@ static void print_statfs(char type) {
   else if (type == 'c') out('u', statfs->f_files);
   else if (type == 'd') out('u', statfs->f_ffree);
   else if (type == 'f') out('u', statfs->f_bfree);
-  else if (type == 'l') out('d', statfs->f_namelen);
-  else if (type == 't') out('x', statfs->f_type);
+  else if (type == 'l') {
+#ifdef __APPLE__
+    // TODO: move this into portability.c somehow, or just use this everywhere?
+    // (glibc and bionic will just re-do the statfs and return f_namelen.)
+    out('d', pathconf(TT.file, _PC_NAME_MAX));
+#else
+    out('d', statfs->f_namelen);
+#endif
+  } else if (type == 't') out('x', statfs->f_type);
   else if (type == 'T') {
     char *s = "unknown";
     struct {unsigned num; char *name;} nn[] = {
@@ -161,9 +168,10 @@ static void print_statfs(char type) {
       if (nn[i].num == statfs->f_type) s = nn[i].name;
     strout(s);
   } else if (type == 'i') {
+    int *val = (int *) &statfs->f_fsid;
     char buf[32];
 
-    sprintf(buf, "%08x%08x", statfs->f_fsid.__val[0], statfs->f_fsid.__val[1]);
+    sprintf(buf, "%08x%08x", val[0], val[1]);
     strout(buf);
   } else if (type == 's') out('d', statfs->f_frsize);
   else if (type == 'S') out('d', statfs->f_bsize);

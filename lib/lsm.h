@@ -24,7 +24,6 @@
 #ifndef XATTR_NAME_SMACK
 #define XATTR_NAME_SMACK 0
 #endif
-//ssize_t fgetxattr (int fd, char *name, void *value, size_t size);
 #define smack_smackfs_path(...) (-1)
 #define smack_new_label_from_self(...) (-1)
 #define smack_new_label_from_path(...) (-1)

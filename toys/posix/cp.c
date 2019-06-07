@@ -278,20 +278,20 @@ static int cp_node(struct dirtree *try)
 
         // We only copy xattrs for files because there's no flistxattrat()
         if (TT.pflags&(_CP_xattr|_CP_context)) {
-          ssize_t listlen = flistxattr(fdin, 0, 0), len;
+          ssize_t listlen = xattr_flist(fdin, 0, 0), len;
           char *name, *value, *list;
 
           if (listlen>0) {
             list = xmalloc(listlen);
-            flistxattr(fdin, list, listlen);
+            xattr_flist(fdin, list, listlen);
             list[listlen-1] = 0; // I do not trust this API.
             for (name = list; name-list < listlen; name += strlen(name)+1) {
               if (!(TT.pflags&_CP_xattr) && strncmp(name, "security.", 9))
                 continue;
-              if ((len = fgetxattr(fdin, name, 0, 0))>0) {
+              if ((len = xattr_fget(fdin, name, 0, 0))>0) {
                 value = xmalloc(len);
-                if (len == fgetxattr(fdin, name, value, len))
-                  if (fsetxattr(fdout, name, value, len, 0))
+                if (len == xattr_fget(fdin, name, value, len))
+                  if (xattr_fset(fdout, name, value, len, 0))
                     perror_msg("%s setxattr(%s=%s)", catch, name, value);
                 free(value);
               }
