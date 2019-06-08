@@ -67,8 +67,9 @@ void kill_main(void)
       char *s = NULL;
 
       if (signum>=0) s = num_to_sig(signum&127);
-      puts(s ? s : "UNKNOWN");
-    } else sig_to_num(NULL);
+      if (isdigit(**args)) puts(s ? s : "UNKNOWN");
+      else printf("%d\n", signum);
+    } else list_signals();
     return;
   }
 

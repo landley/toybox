@@ -68,7 +68,7 @@ void killall_main(void)
   TT.signum = SIGTERM;
 
   if (toys.optflags & FLAG_l) {
-    sig_to_num(NULL);
+    list_signals();
     return;
   }
 

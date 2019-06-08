@@ -229,6 +229,7 @@ char *chomp(char *s);
 int unescape(char c);
 char *strend(char *str, char *suffix);
 int strstart(char **a, char *b);
+int strcasestart(char **a, char *b);
 off_t fdlength(int fd);
 void loopfiles_rw(char **argv, int flags, int permissions,
   void (*function)(int fd, char *name));
@@ -388,6 +389,7 @@ void generic_signal(int signal);
 void exit_signal(int signal);
 void sigatexit(void *handler);
 int sig_to_num(char *pidstr);
+void list_signals();
 char *num_to_sig(int sig);
 
 mode_t string_to_mode(char *mode_str, mode_t base);
