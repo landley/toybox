@@ -89,6 +89,15 @@ testing "-r dir1/* dir2" \
 	"cp -r one/* dir2 && diff -r one dir2 && echo yes" "yes\n" "" ""
 rm -rf one dir dir2
 
+mkdir one; touch one/two; cp one/two one/three
+cp -r one/ one_ # Succeeds twice in a row
+testing "-r dir/." "cp -r one/. one_ && echo yes" "yes\n" "" ""
+rm -rf one one_
+mkdir one; touch one/two; ln -s two one/three
+cp -r one/ one_ # First time ok, but second will fail with "File exists"
+testing "-r dir/. symlink child" "cp -r one/. one_ && echo yes" "yes\n" "" ""
+rm -rf one one_
+
 touch walrus
 chmod 644 walrus
 ln -s walrus woot
@@ -99,7 +108,6 @@ testing "symlink dest permissions" "cp woot carpenter && stat -c %A carpenter" \
 # cp -r ../source destdir
 # cp -r one/two/three missing
 # cp -r one/two/three two
-# mkdir one; touch one/two; ln -s two one/three
 # cp file1 file2 dir
 # cp file1 missing file2 -> dir
 
