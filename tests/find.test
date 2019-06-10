@@ -105,4 +105,7 @@ testing "-printf" "find dir -name file -printf '%f %p %P %s'" \
 testing "-printf .N" "find dir -name file -printf %.2f" "fi" "" ""
 
 
+testing "-false" "find dir -false" "" "" ""
+testing "-true" "find dir/file -true" "dir/file\n" "" ""
+
 rm -rf dir

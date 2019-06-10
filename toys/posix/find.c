@@ -17,24 +17,25 @@ config FIND
     usage: find [-HL] [DIR...] [<options>]
 
     Search directories for matching files.
-    Default: search "." match all -print all matches.
+    Default: search ".", match all, -print matches.
 
     -H  Follow command line symlinks         -L  Follow all symlinks
 
     Match filters:
-    -name  PATTERN  filename with wildcards   -iname      case insensitive -name
-    -path  PATTERN  path name with wildcards  -ipath      case insensitive -path
-    -user  UNAME    belongs to user UNAME     -nouser     user ID not known
-    -group GROUP    belongs to group GROUP    -nogroup    group ID not known
-    -perm  [-/]MODE permissions (-=min /=any) -prune      ignore contents of dir
-    -size  N[c]     512 byte blocks (c=bytes) -xdev       only this filesystem
-    -links N        hardlink count            -atime N[u] accessed N units ago
-    -ctime N[u]     created N units ago       -mtime N[u] modified N units ago
-    -newer FILE     newer mtime than FILE     -mindepth # at least # dirs down
-    -depth          ignore contents of dir    -maxdepth # at most # dirs down
-    -inum  N        inode number N            -empty      empty files and dirs
-    -type [bcdflps]   (block, char, dir, file, symlink, pipe, socket)
-    -context PATTERN  security context
+    -name  PATTERN   filename with wildcards  (-iname case insensitive)
+    -path  PATTERN   path name with wildcards (-ipath case insensitive)
+    -user  UNAME     belongs to user UNAME     -nouser     user ID not known
+    -group GROUP     belongs to group GROUP    -nogroup    group ID not known
+    -perm  [-/]MODE  permissions (-=min /=any) -prune      ignore dir contents
+    -size  N[c]      512 byte blocks (c=bytes) -xdev       only this filesystem
+    -links N         hardlink count            -atime N[u] accessed N units ago
+    -ctime N[u]      created N units ago       -mtime N[u] modified N units ago
+    -newer FILE      newer mtime than FILE     -mindepth N at least N dirs down
+    -depth           ignore contents of dir    -maxdepth N at most N dirs down
+    -inum N          inode number N            -empty      empty files and dirs
+    -type [bcdflps]  type is (block, char, dir, file, symlink, pipe, socket)
+    -true            always true               -false      always false
+    -context PATTERN security context
 
     Numbers N may be prefixed by a - (less than) or + (greater than). Units for
     -Xtime are d (days, default), h (hours), m (minutes), or s (seconds).
@@ -43,11 +44,10 @@ config FIND
     !, -a, -o, ( )    not, and, or, group expressions
 
     Actions:
-    -print   Print match with newline  -print0    Print match with null
-    -exec    Run command with path     -execdir   Run command in file's dir
-    -ok      Ask before exec           -okdir     Ask before execdir
-    -delete         Remove matching file/dir
-    -printf FORMAT  Print using format string
+    -print  Print match with newline  -print0        Print match with null
+    -exec   Run command with path     -execdir       Run command in file's dir
+    -ok     Ask before exec           -okdir         Ask before execdir
+    -delete Remove matching file/dir  -printf FORMAT Print using format string
 
     Commands substitute "{}" with matched file. End with ";" to run each file,
     or "+" (next argument after "{}") to collect and run with multiple files.
@@ -305,6 +305,11 @@ static int do_find(struct dirtree *new)
     } else if (!strcmp(s, "not")) {
       if (check) not = !not;
       continue;
+    } else if (!strcmp(s, "true")) {
+      if (check) test = 1;
+    } else if (!strcmp(s, "false")) {
+      if (check) test = 0;
+
     // Mostly ignore NOP argument
     } else if (!strcmp(s, "a") || !strcmp(s, "and") || !strcmp(s, "noleaf")) {
       if (not) goto error;
