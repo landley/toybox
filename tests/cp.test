@@ -90,12 +90,12 @@ testing "-r dir1/* dir2" \
 rm -rf one dir dir2
 
 mkdir one; touch one/two; cp one/two one/three
-cp -r one/ one_ # Succeeds twice in a row
-testing "-r dir/." "cp -r one/. one_ && echo yes" "yes\n" "" ""
+cp -pr one/ one_ # Succeeds twice in a row
+testing "-pr dir/." "cp -pr one/. one_ && echo yes" "yes\n" "" ""
 rm -rf one one_
 mkdir one; touch one/two; ln -s two one/three
-cp -r one/ one_ # First time ok, but second will fail with "File exists"
-testing "-r dir/. symlink child" "cp -r one/. one_ && echo yes" "yes\n" "" ""
+cp -pr one/ one_ # First time ok, second mustn't fail with "File exists"
+testing "-pr dir/. symlink child" "cp -pr one/. one_ && echo yes" "yes\n" "" ""
 rm -rf one one_
 
 touch walrus
