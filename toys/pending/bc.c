@@ -1717,6 +1717,7 @@ static BcStatus bc_num_p(BcNum *a, BcNum *b, BcNum *c, size_t scale) {
   if (b->rdx) return bc_vm_err(BC_ERROR_MATH_NON_INTEGER);
 
   if (!b->len) {
+    if (b->neg) return bc_vm_err(BC_ERROR_MATH_DIVIDE_BY_ZERO);
     bc_num_one(c);
     return BC_STATUS_SUCCESS;
   }
