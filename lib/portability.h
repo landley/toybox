@@ -332,3 +332,12 @@ int xnotify_wait(struct xnotify *not, char **path);
 #ifdef __APPLE__
 #define f_frsize f_iosize
 #endif
+
+int sig_to_num(char *s);
+char *num_to_sig(int sig);
+
+struct signame {
+  int num;
+  char *name;
+};
+void xsignal_all_killers(void *handler);

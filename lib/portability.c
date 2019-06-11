@@ -397,3 +397,104 @@ int mknodat(int dirfd, const char *path, mode_t mode, dev_t dev)
   return result;
 }
 #endif
+
+// Signals required by POSIX 2008:
+// http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/signal.h.html
+
+#define SIGNIFY(x) {SIG##x, #x}
+
+static const struct signame signames[] = {
+  // POSIX
+  SIGNIFY(ABRT), SIGNIFY(ALRM), SIGNIFY(BUS),
+  SIGNIFY(FPE), SIGNIFY(HUP), SIGNIFY(ILL), SIGNIFY(INT), SIGNIFY(KILL),
+  SIGNIFY(PIPE), SIGNIFY(QUIT), SIGNIFY(SEGV), SIGNIFY(TERM),
+  SIGNIFY(USR1), SIGNIFY(USR2), SIGNIFY(SYS), SIGNIFY(TRAP),
+  SIGNIFY(VTALRM), SIGNIFY(XCPU), SIGNIFY(XFSZ),
+  // Non-POSIX signals that cause termination
+  SIGNIFY(PROF), SIGNIFY(IO),
+#ifdef __linux__
+  SIGNIFY(STKFLT), SIGNIFY(POLL), SIGNIFY(PWR),
+#elif defined(__APPLE__)
+  SIGNIFY(EMT), SIGNIFY(INFO),
+#endif
+
+  // Note: sigatexit relies on all the signals with a default disposition that
+  // terminates the process coming *before* SIGCHLD.
+
+  // POSIX signals that don't cause termination
+  SIGNIFY(CHLD), SIGNIFY(CONT), SIGNIFY(STOP), SIGNIFY(TSTP),
+  SIGNIFY(TTIN), SIGNIFY(TTOU), SIGNIFY(URG),
+  // Non-POSIX signals that don't cause termination
+  SIGNIFY(WINCH),
+};
+int signames_len = ARRAY_LEN(signames);
+
+#undef SIGNIFY
+
+void xsignal_all_killers(void *handler)
+{
+  int i;
+
+  for (i=0; signames[i].num != SIGCHLD; i++)
+    if (signames[i].num != SIGKILL)
+      xsignal(signames[i].num, handler ? exit_signal : SIG_DFL);
+}
+
+// Convert a string like "9", "KILL", "SIGHUP", or "SIGRTMIN+2" to a number.
+int sig_to_num(char *sigstr)
+{
+  int i, offset;
+  char *s;
+
+  // Numeric?
+  i = estrtol(sigstr, &s, 10);
+  if (!errno && !*s) return i;
+
+  // Skip leading "SIG".
+  strcasestart(&sigstr, "sig");
+
+  // Named signal?
+  for (i=0; i<ARRAY_LEN(signames); i++)
+    if (!strcasecmp(sigstr, signames[i].name)) return signames[i].num;
+
+  // Real-time signal?
+#ifdef SIGRTMIN
+  if (strcasestart(&sigstr, "rtmin")) i = SIGRTMIN;
+  else if (strcasestart(&sigstr, "rtmax")) i = SIGRTMAX;
+  else return -1;
+
+  // No offset?
+  if (!*sigstr) return i;
+
+  // We allow any offset that's still a real-time signal: SIGRTMIN+20 is fine.
+  // Others are more restrictive, only accepting what they show with -l.
+  offset = estrtol(sigstr, &s, 10);
+  if (errno || *s) return -1;
+  i += offset;
+  if (i >= SIGRTMIN && i <= SIGRTMAX) return i;
+#endif
+
+  return -1;
+}
+
+char *num_to_sig(int sig)
+{
+  int i;
+
+  // A named signal?
+  for (i=0; i<signames_len; i++)
+    if (signames[i].num == sig) return signames[i].name;
+
+  // A real-time signal?
+#ifdef SIGRTMIN
+  if (sig == SIGRTMIN) return "RTMIN";
+  if (sig == SIGRTMAX) return "RTMAX";
+  if (sig > SIGRTMIN && sig < SIGRTMAX) {
+    if (sig-SIGRTMIN <= SIGRTMAX-sig) sprintf(libbuf, "RTMIN+%d", sig-SIGRTMIN);
+    else sprintf(libbuf, "RTMAX-%d", SIGRTMAX-sig);
+    return libbuf;
+  }
+#endif
+
+  return NULL;
+}

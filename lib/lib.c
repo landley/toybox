@@ -842,33 +842,6 @@ int yesno(int def)
   return def;
 }
 
-struct signame {
-  int num;
-  char *name;
-};
-
-// Signals required by POSIX 2008:
-// http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/signal.h.html
-
-#define SIGNIFY(x) {SIG##x, #x}
-
-static struct signame signames[] = {
-  // POSIX
-  SIGNIFY(ABRT), SIGNIFY(ALRM), SIGNIFY(BUS),
-  SIGNIFY(FPE), SIGNIFY(HUP), SIGNIFY(ILL), SIGNIFY(INT), SIGNIFY(KILL),
-  SIGNIFY(PIPE), SIGNIFY(QUIT), SIGNIFY(SEGV), SIGNIFY(TERM),
-  SIGNIFY(USR1), SIGNIFY(USR2), SIGNIFY(SYS), SIGNIFY(TRAP),
-  SIGNIFY(VTALRM), SIGNIFY(XCPU), SIGNIFY(XFSZ),
-  // Non-POSIX terminal signals
-  SIGNIFY(STKFLT), SIGNIFY(PROF), SIGNIFY(POLL), SIGNIFY(IO), SIGNIFY(PWR),
-
-  // POSIX non-terminal signals
-  SIGNIFY(CHLD), SIGNIFY(CONT), SIGNIFY(STOP), SIGNIFY(TSTP),
-  SIGNIFY(TTIN), SIGNIFY(TTOU), SIGNIFY(URG),
-  // Non-POSIX non-terminal signals
-  SIGNIFY(WINCH),
-};
-
 // Handler that sets toys.signal, and writes to toys.signalfd if set
 void generic_signal(int sig)
 {
@@ -891,15 +864,11 @@ void exit_signal(int sig)
 // adds the handlers to a list, to be called in order.
 void sigatexit(void *handler)
 {
-  struct arg_list *al;
-  int i;
-
-  for (i=0; signames[i].num != SIGCHLD; i++)
-    if (signames[i].num != SIGKILL)
-      xsignal(signames[i].num, handler ? exit_signal : SIG_DFL);
+  xsignal_all_killers(handler ? exit_signal : SIG_DFL);
 
   if (handler) {
-    al = xmalloc(sizeof(struct arg_list));
+    struct arg_list *al = xmalloc(sizeof(struct arg_list));
+
     al->next = toys.xexit;
     al->arg = handler;
     toys.xexit = al;
@@ -909,65 +878,13 @@ void sigatexit(void *handler)
   }
 }
 
-// Convert a string like "9", "KILL", "SIGHUP", or "SIGRTMIN+2" to a number.
-int sig_to_num(char *pidstr)
-{
-  int i, offset;
-  char *s;
-
-  // Numeric?
-  i = estrtol(pidstr, &s, 10);
-  if (!errno && !*s) return i;
-
-  // Skip leading "SIG".
-  strcasestart(&pidstr, "sig");
-
-  // Named signal?
-  for (i=0; i<ARRAY_LEN(signames); i++)
-    if (!strcasecmp(pidstr, signames[i].name)) return signames[i].num;
-
-  // Real-time signal?
-  if (strcasestart(&pidstr, "rtmin")) i = SIGRTMIN;
-  else if (strcasestart(&pidstr, "rtmax")) i = SIGRTMAX;
-  else return -1;
-  // No offset?
-  if (!*pidstr) return i;
-  // We allow any offset that's still a real-time signal: SIGRTMIN+20 is fine.
-  // Others are more restrictive, only accepting what they show with -l.
-  offset = estrtol(pidstr, &s, 10);
-  if (errno || *s) return -1;
-  i += offset;
-  if (i >= SIGRTMIN && i <= SIGRTMAX) return i;
-
-  return -1;
-}
-
-char *num_to_sig(int sig)
-{
-  int i;
-
-  // A named signal?
-  for (i=0; i<ARRAY_LEN(signames); i++)
-    if (signames[i].num == sig) return signames[i].name;
-
-  // A real-time signal?
-  if (sig == SIGRTMIN) return "RTMIN";
-  if (sig == SIGRTMAX) return "RTMAX";
-  if (sig > SIGRTMIN && sig < SIGRTMAX) {
-    if (sig-SIGRTMIN <= SIGRTMAX-sig) sprintf(libbuf, "RTMIN+%d", sig-SIGRTMIN);
-    else sprintf(libbuf, "RTMAX-%d", SIGRTMAX-sig);
-    return libbuf;
-  }
-  return NULL;
-}
-
 // Output a nicely formatted 80-column table of all the signals.
 void list_signals()
 {
   int i = 0, count = 0;
   char *name;
 
-  for (; i<=SIGRTMAX; i++) {
+  for (; i<=NSIG; i++) {
     if ((name = num_to_sig(i))) {
       printf("%2d) SIG%-9s", i, name);
       if (++count % 5 == 0) putchar('\n');

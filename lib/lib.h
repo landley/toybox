@@ -388,9 +388,7 @@ struct mtab_list *xgetmountlist(char *path);
 void generic_signal(int signal);
 void exit_signal(int signal);
 void sigatexit(void *handler);
-int sig_to_num(char *pidstr);
 void list_signals();
-char *num_to_sig(int sig);
 
 mode_t string_to_mode(char *mode_str, mode_t base);
 void mode_to_string(mode_t mode, char *buf);
