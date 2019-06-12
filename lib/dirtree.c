@@ -29,28 +29,32 @@ struct dirtree *dirtree_add_node(struct dirtree *parent, char *name, int flags)
 {
   struct dirtree *dt = NULL;
   struct stat st;
-  int len = 0, linklen = 0;
+  int len = 0, linklen = 0, statless = 0;
 
   if (name) {
     // open code this because haven't got node to call dirtree_parentfd() on yet
     int fd = parent ? parent->dirfd : AT_FDCWD;
 
-    if (fstatat(fd, name, &st, AT_SYMLINK_NOFOLLOW*!(flags&DIRTREE_SYMFOLLOW)))
-      goto error;
+    if (fstatat(fd, name, &st,AT_SYMLINK_NOFOLLOW*!(flags&DIRTREE_SYMFOLLOW))) {
+      if (flags&DIRTREE_STATLESS) statless++;
+      else goto error;
+    }
     if (S_ISLNK(st.st_mode)) {
       if (0>(linklen = readlinkat(fd, name, libbuf, 4095))) goto error;
       libbuf[linklen++]=0;
     }
     len = strlen(name);
   }
-  dt = xzalloc((len = sizeof(struct dirtree)+len+1)+linklen);
-  dt->parent = parent;
-  if (name) {
-    memcpy(&(dt->st), &st, sizeof(struct stat));
-    strcpy(dt->name, name);
 
-    if (linklen) dt->symlink = memcpy(len+(char *)dt, libbuf, linklen);
-  }
+  // Allocate/populate return structure
+  dt = xmalloc((len = sizeof(struct dirtree)+len+1)+linklen);
+  memset(dt, 0, statless ? offsetof(struct dirtree, again)
+    : offsetof(struct dirtree, st));
+  dt->parent = parent;
+  dt->again = statless ? 2 : 0;
+  if (!statless) memcpy(&dt->st, &st, sizeof(struct stat));
+  strcpy(dt->name, name ? name : "");
+  if (linklen) dt->symlink = memcpy(len+(char *)dt, libbuf, linklen);
 
   return dt;
 
@@ -86,7 +90,7 @@ char *dirtree_path(struct dirtree *node, int *plen)
   len = (plen ? *plen : 0)+strlen(node->name)+1;
   path = dirtree_path(node->parent, &len);
   if (len && path[len-1] != '/') path[len++]='/';
-  len = (stpcpy(path+len, node->name) - path);
+  len = stpcpy(path+len, node->name) - path;
   if (plen) *plen = len;
 
   return path;
@@ -113,7 +117,7 @@ struct dirtree *dirtree_handle_callback(struct dirtree *new,
 
   if (S_ISDIR(new->st.st_mode) && (flags & (DIRTREE_RECURSE|DIRTREE_COMEAGAIN)))
     flags = dirtree_recurse(new, callback,
-      openat(dirtree_parentfd(new), new->name, O_CLOEXEC), flags);
+      openat(dirtree_parentfd(new), new->name, O_PATH|O_CLOEXEC), flags);
 
   // If this had children, it was callback's job to free them already.
   if (!(flags & DIRTREE_SAVE)) {
@@ -162,7 +166,7 @@ int dirtree_recurse(struct dirtree *node,
   }
 
   if (flags & DIRTREE_COMEAGAIN) {
-    node->again++;
+    node->again |= 1;
     flags = callback(node);
   }
 

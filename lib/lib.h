@@ -76,6 +76,8 @@ void get_optflags(void);
 #define DIRTREE_BREADTH     32
 // skip non-numeric entries
 #define DIRTREE_PROC        64
+// Return files we can't stat
+#define DIRTREE_STATLESS    128
 // Don't look at any more files in this directory.
 #define DIRTREE_ABORT      256
 
@@ -84,9 +86,9 @@ void get_optflags(void);
 struct dirtree {
   struct dirtree *next, *parent, *child;
   long extra; // place for user to store their stuff (can be pointer)
-  struct stat st;
   char *symlink;
   int dirfd;
+  struct stat st;
   char again;
   char name[];
 };
