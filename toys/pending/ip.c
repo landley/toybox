@@ -34,8 +34,11 @@ config IP
 #include <net/if_arp.h>
 #include <ifaddrs.h>
 #include <fnmatch.h>
-#include <netinet/ip.h>
 #include <linux/if_tunnel.h>
+
+#ifndef IP_DF
+#define IP_DF 0x4000  /* don't fragment flag. */
+#endif
 
 GLOBALS(
   char stats, singleline, flush, *filter_dev, gbuf[8192];
