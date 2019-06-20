@@ -55,10 +55,12 @@ void *dlist_pop(void *list)
 {
   struct double_list **pdlist = (struct double_list **)list, *dlist = *pdlist;
 
+  if (!dlist) return 0;
   if (dlist->next == dlist) *pdlist = 0;
   else {
-    dlist->next->prev = dlist->prev;
-    dlist->prev->next = *pdlist = dlist->next;
+    if (dlist->next) dlist->next->prev = dlist->prev;
+    if (dlist->prev) dlist->prev->next = dlist->next;
+    *pdlist = dlist->next;
   }
 
   return dlist;
