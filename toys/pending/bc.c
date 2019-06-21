@@ -536,6 +536,7 @@ BcStatus bc_lex_token(BcLex *l);
 
 BcStatus bc_parse_parse(BcParse *p);
 BcStatus bc_parse_expr_status(BcParse *p, uint8_t flags, BcParseNext next);
+void bc_parse_noElse(BcParse *p);
 
 #define BC_PROG_ONE_CAP (1)
 
@@ -677,7 +678,7 @@ char *bc_err_msgs[] = {
 
   "negative number",
   "non integer number",
-  "overflow; %s",
+  "overflow",
   "divide by zero",
 
   "could not open file: %s",
@@ -3593,6 +3594,8 @@ static BcStatus bc_parse_endBody(BcParse *p, int brace) {
 
       new_else = (p->l.t == BC_LEX_KEY_ELSE);
       if (new_else) s = bc_parse_else(p);
+      else if (!has_brace && (!BC_PARSE_IF_END(p) || brace))
+        bc_parse_noElse(p);
     }
 
     if (brace && has_brace) brace = 0;
@@ -3602,6 +3605,15 @@ static BcStatus bc_parse_endBody(BcParse *p, int brace) {
 
   if (!s && p->flags.len == 1 && brace)
     s = bc_parse_err(p, BC_ERROR_PARSE_TOKEN);
+  else if (brace && BC_PARSE_BRACE(p)) {
+    uint16_t flags = BC_PARSE_TOP_FLAG(p);
+    if (!(flags & (BC_PARSE_FLAG_FUNC_INNER | BC_PARSE_FLAG_LOOP_INNER)) &&
+        !(flags & (BC_PARSE_FLAG_IF | BC_PARSE_FLAG_ELSE)) &&
+        !(flags & (BC_PARSE_FLAG_IF_END)))
+    {
+      bc_vec_pop(&p->flags);
+    }
+  }
 
   return s;
 }
@@ -3612,7 +3624,7 @@ static void bc_parse_startBody(BcParse *p, uint16_t flags) {
   bc_vec_push(&p->flags, &flags);
 }
 
-static void bc_parse_noElse(BcParse *p) {
+void bc_parse_noElse(BcParse *p) {
   uint16_t *flag_ptr = BC_PARSE_TOP_FLAG_PTR(p);
   *flag_ptr = (*flag_ptr & ~(BC_PARSE_FLAG_IF_END));
   bc_parse_setLabel(p);
@@ -3971,8 +3983,10 @@ static BcStatus bc_parse_body(BcParse *p, int brace) {
     if (p->l.t == BC_LEX_NLINE) s = bc_lex_next(&p->l);
   }
   else {
+    size_t len = p->flags.len;
     s = bc_parse_stmt(p);
-    if (!s && !brace && !BC_PARSE_BODY(p)) s = bc_parse_endBody(p, 0);
+    if (!s && !brace && !BC_PARSE_BODY(p) && len <= p->flags.len)
+      s = bc_parse_endBody(p, 0);
   }
 
   return s;
@@ -4791,8 +4805,9 @@ static void bc_program_printString(char *str)
       if ((idx = stridx("ab\\efnqrt", c = str[i+1])) >= 0) {
         if (c == 'n') TT.nchars = SIZE_MAX;
         c = "\a\b\\\\\f\n\"\r\t"[idx];
-        i++;
       }
+      else putchar('\\');
+      i++;
     }
 
     putchar(c);
@@ -5668,6 +5683,7 @@ static void bc_vm_clean()
 static BcStatus bc_vm_process(char *text, int is_stdin) {
 
   BcStatus s;
+  uint16_t *flags;
 
   s = bc_parse_text(&BC_VM->prs, text);
   if (s) goto err;
@@ -5676,6 +5692,11 @@ static BcStatus bc_vm_process(char *text, int is_stdin) {
     s = bc_parse_parse(&BC_VM->prs);
     if (s) goto err;
   }
+
+  flags = BC_PARSE_TOP_FLAG_PTR(&BC_VM->prs);
+
+  if (!is_stdin && BC_VM->prs.flags.len == 1 && *flags == BC_PARSE_FLAG_IF_END)
+    bc_parse_noElse(&BC_VM->prs);
 
   if (BC_PARSE_NO_EXEC(&BC_VM->prs)) goto err;
 
@@ -5832,7 +5853,7 @@ void bc_main(void)
     int i;
 
     for (i = 0; !s && i < toys.optc; ++i) s = bc_vm_file(toys.optargs[i]);
-    if (!s || s != BC_STATUS_QUIT) s = bc_vm_stdin();
+    if (!s) s = bc_vm_stdin();
   }
 
   if (CFG_TOYBOX_FREE) {
