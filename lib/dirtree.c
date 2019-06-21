@@ -117,7 +117,7 @@ struct dirtree *dirtree_handle_callback(struct dirtree *new,
 
   if (S_ISDIR(new->st.st_mode) && (flags & (DIRTREE_RECURSE|DIRTREE_COMEAGAIN)))
     flags = dirtree_recurse(new, callback,
-      openat(dirtree_parentfd(new), new->name, O_PATH|O_CLOEXEC), flags);
+      openat(dirtree_parentfd(new), new->name, O_CLOEXEC), flags);
 
   // If this had children, it was callback's job to free them already.
   if (!(flags & DIRTREE_SAVE)) {
