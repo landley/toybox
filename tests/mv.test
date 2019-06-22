@@ -96,6 +96,26 @@ testing "dir to existing dir" \
   "yes\n" "" ""
 rm -rf dir*
 
+# Trailing slash was once throwing: bad 'dir1/dir2/': Resource busy
+mkdir -p dir1/dir2
+testing "dir1/dir2 to ." \
+  "mv dir1/dir2 . && [ ! -e dir1/dir2 -a -d dir2 ] && echo yes" \
+  "yes\n" "" ""
+rm -rf dir*
+mkdir -p dir1/dir2
+testing "dir1/dir2/ to ." \
+  "mv dir1/dir2/ . && [ ! -e dir1/dir2 -a -d dir2 ] && echo yes" \
+  "yes\n" "" ""
+rm -rf dir*
+mkdir -p dir1/dir2
+testing "dir1/dir2/ to ./" \
+  "mv dir1/dir2/ ./ && [ ! -e dir1/dir2 -a -d dir2 ] && echo yes" \
+  "yes\n" "" ""
+rm -rf dir*
+testing "not/exists/ to ./" \
+  "mv not/exists/ ./ 2>&1 | grep -o not/exists/" \
+  "not/exists/\n" "" ""
+
 touch file1 file2
 chmod 400 file1 file2
 testing "force over unwritable" \

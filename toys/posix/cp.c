@@ -403,8 +403,13 @@ void cp_main(void)
 
   // Loop through sources
   for (i=0; i<toys.optc; i++) {
-    char *src = toys.optargs[i];
+    char *src = toys.optargs[i], *trail = src;
     int rc = 1;
+
+    if (CFG_MV && toys.which->name[0] == 'm') {
+      while (*++trail);
+      if (*--trail == '/') *trail = 0;
+    }
 
     if (destdir) {
       char *s = (toys.optflags&FLAG_D) ? getdirname(src) : getbasename(src);
@@ -442,6 +447,7 @@ void cp_main(void)
         if (exists && no_clobber) rc = 0;
       }
       if (rc) rc = rename(src, TT.destname);
+      if (errno && !*trail) *trail = '/';
     }
 
     // Copy if we didn't mv, skipping nonexistent sources
