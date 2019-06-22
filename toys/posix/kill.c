@@ -41,6 +41,7 @@ config KILLALL5
 
 // This has to match the filename:
 #define FOR_kill
+#define FORCE_FLAGS
 #include "toys.h"
 
 GLOBALS(
@@ -61,7 +62,7 @@ void kill_main(void)
   pid_t pid;
 
   // list signal(s)
-  if (toys.optflags & FLAG_l) {
+  if (FLAG(l)) {
     if (*args) {
       int signum = sig_to_num(*args);
       char *s = NULL;
@@ -94,7 +95,7 @@ void kill_main(void)
     long *olist = 0, ocount = 0;
 
     // parse omit list
-    if (toys.optflags & FLAG_o) {
+    if (FLAG(o)) {
       struct arg_list *ptr;
 
       for (ptr = TT.o; ptr; ptr = ptr->next) ocount++;
