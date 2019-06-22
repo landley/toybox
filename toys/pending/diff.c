@@ -180,20 +180,13 @@ static void  do_merge(struct candidate **K, int *k, int i,
 
 static FILE* read_stdin()
 {
-  char tmp_name[] = "/tmp/diffXXXXXX";
-  int rd, wr, tmpfd = mkstemp(tmp_name);
+  char *tmp_name;
+  int tmpfd = xtempfile("stdin", &tmp_name);
 
-  if (tmpfd == -1) perror_exit("mkstemp");
   unlink(tmp_name);
+  free(tmp_name);
 
-  while (1) {
-    rd = xread(STDIN_FILENO, toybuf, sizeof(toybuf));
-
-    if (!rd) break;
-    if (rd < 0) perror_exit("read error");
-    wr = writeall(tmpfd, toybuf, rd);
-    if (wr < 0) perror_exit("write");
-  }
+  xsendfile(0, tmpfd);
   return fdopen(tmpfd, "r");
 }
 
