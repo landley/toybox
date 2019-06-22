@@ -125,7 +125,7 @@ testing()
   DIFF="$(diff -au${NOSPACE:+b} expected actual)"
   if [ ! -z "$DIFF" ]
   then
-    FAILCOUNT=$[$FAILCOUNT+1]
+    FAILCOUNT=$(($FAILCOUNT+1))
     printf "%s\n" "$SHOWFAIL: $NAME"
     if [ -n "$VERBOSE" ]
     then
