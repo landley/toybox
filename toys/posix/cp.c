@@ -208,8 +208,7 @@ static int cp_node(struct dirtree *try)
         if (!mkdirat(cfd, catch, try->st.st_mode | 0200) || errno == EEXIST)
           if (-1 != (try->extra = openat(cfd, catch, O_NOFOLLOW)))
             if (!fstat(try->extra, &st2) && S_ISDIR(st2.st_mode))
-              return DIRTREE_COMEAGAIN
-                     | (DIRTREE_SYMFOLLOW*!!(toys.optflags&FLAG_L));
+              return DIRTREE_COMEAGAIN | (DIRTREE_SYMFOLLOW*!!FLAG(L));
 
       // Hardlink
 
@@ -369,14 +368,13 @@ void cp_main(void)
   char *destname = toys.optargs[--toys.optc];
   int i, destdir = !stat(destname, &TT.top) && S_ISDIR(TT.top.st_mode);
 
-  if ((toys.optc>1 || (toys.optflags&FLAG_D)) && !destdir)
+  if ((toys.optc>1 || FLAG(D)) && !destdir)
     error_exit("'%s' not directory", destname);
 
-  if (toys.optflags & (FLAG_a|FLAG_p))
-    TT.pflags = _CP_mode|_CP_ownership|_CP_timestamps;
+  if (FLAG(a)||FLAG(p)) TT.pflags = _CP_mode|_CP_ownership|_CP_timestamps;
 
   // Not using comma_args() (yet?) because interpeting as letters.
-  if (CFG_CP_PRESERVE && (toys.optflags & FLAG_preserve)) {
+  if (CFG_CP_PRESERVE && FLAG(preserve)) {
     char *pre = xstrdup(TT.c.preserve ? TT.c.preserve : "mot"), *s;
 
     if (comma_scan(pre, "all", 1)) TT.pflags = ~0;
@@ -412,7 +410,7 @@ void cp_main(void)
     }
 
     if (destdir) {
-      char *s = (toys.optflags&FLAG_D) ? getdirname(src) : getbasename(src);
+      char *s = FLAG(D) ? getdirname(src) : getbasename(src);
 
       TT.destname = xmprintf("%s/%s", destname, s);
       if (FLAG(D)) {
@@ -429,7 +427,7 @@ void cp_main(void)
 
     errno = EXDEV;
     if (CFG_MV && toys.which->name[0] == 'm') {
-      int force = toys.optflags & FLAG_f, no_clobber = toys.optflags & FLAG_n;
+      int force = FLAG(f), no_clobber = FLAG(n);
 
       if (!force || no_clobber) {
         struct stat st;
@@ -438,7 +436,7 @@ void cp_main(void)
         // Prompt if -i or file isn't writable.  Technically "is writable" is
         // more complicated (022 is not writeable by the owner, just everybody
         // _else_) but I don't care.
-        if (exists && ((toys.optflags & FLAG_i) || !(st.st_mode & 0222))) {
+        if (exists && (FLAG(i) || !(st.st_mode & 0222))) {
           fprintf(stderr, "%s: overwrite '%s'", toys.which->name, TT.destname);
           if (!yesno(1)) rc = 0;
           else unlink(TT.destname);
@@ -453,7 +451,7 @@ void cp_main(void)
     // Copy if we didn't mv, skipping nonexistent sources
     if (rc) {
       if (errno!=EXDEV || dirtree_flagread(src, DIRTREE_SHUTUP+
-        DIRTREE_SYMFOLLOW*!!(toys.optflags&(FLAG_H|FLAG_L)), TT.callback))
+        DIRTREE_SYMFOLLOW*!!(FLAG(H)||FLAG(L)), TT.callback))
           perror_msg("bad '%s'", src);
     }
     if (destdir) free(TT.destname);
@@ -488,8 +486,8 @@ static int install_node(struct dirtree *try)
   cp_node(try);
 
   // No -r so always one level deep, so destname as set by cp_node() is correct
-  if (toys.optflags & FLAG_s)
-    if (xrun((char *[]){"strip", "-p", TT.destname, 0})) toys.exitval = 1;
+  if (FLAG(s) && xrun((char *[]){"strip", "-p", TT.destname, 0}))
+    toys.exitval = 1;
 
   return 0;
 }
@@ -513,7 +511,7 @@ void install_main(void)
     return;
   }
 
-  if (toys.optflags & FLAG_D) {
+  if (FLAG(D)) {
     TT.destname = toys.optargs[toys.optc-1];
     if (mkpathat(AT_FDCWD, TT.destname, 0, MKPATHAT_MAKE))
       perror_exit("-D '%s'", TT.destname);
