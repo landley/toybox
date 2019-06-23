@@ -4,5 +4,5 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-testing "-l HUP" "kill -l HUP" "1\n" "" ""
-testing "-l 1" "kill -l 1" "HUP\n" "" ""
+testcmd "-l HUP" "-l HUP" "1\n" "" ""
+testcmd "-l 1" "-l 1" "HUP\n" "" ""
