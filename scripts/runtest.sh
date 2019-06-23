@@ -150,7 +150,7 @@ testcmd()
 
   X="$1"
   [ -z "$X" ] && X="$CMDNAME $2"
-  testing "$X" "$C $2" "$3" "$4" "$5"
+  testing "$X" "\"$C\" $2" "$3" "$4" "$5"
 }
 
 # Recursively grab an executable and all the libraries needed to run it.
