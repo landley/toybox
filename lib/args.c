@@ -137,7 +137,7 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt)
   // Did we recognize this option?
   if (!opt) {
     if (gof->noerror) return 1;
-    help_exit("Unknown option %s", gof->arg);
+    help_exit("Unknown option '%s'", gof->arg);
   }
 
   // Might enabling this switch off something else?
