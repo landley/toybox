@@ -18,7 +18,7 @@
  * Extract into dir same as filename, --restrict? "Tarball is splodey"
  *
 
-USE_TAR(NEWTOY(tar, "&(restrict)(full-time)(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mtime):(group):(owner):(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):a[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TAR(NEWTOY(tar, "&(restrict)(full-time)(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mode):(mtime):(group):(owner):(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):a[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TAR
   bool "tar"
@@ -34,9 +34,11 @@ config TAR
     o  Ignore owner          h  Follow symlinks       m  Ignore mtime
     J  xz compression        j  bzip2 compression     z  gzip compression
     O  Extract to stdout     X  exclude names in FILE T  include names in FILE
-    --exclude   FILENAME to exclude           --full-time show seconds with -tv
-    --mtime     Use TIME for file timestamps  --sparse  Record sparse files
-    --owner     Set file owner to NAME        --group   Set file group to NAME
+
+    --exclude        FILENAME to exclude    --full-time   Show seconds with -tv
+    --mode MODE      Adjust modes           --mtime TIME  Override timestamps
+    --owner NAME     Set file owner to NAME --group NAME  Set file group to NAME
+    --sparse         Record sparse files
     --restrict       All archive contents must extract under one subdirctory
     --numeric-owner  Save/use/display uid and gid, not user/group name
     --no-recursion   Don't store directory contents
@@ -48,7 +50,7 @@ config TAR
 GLOBALS(
   char *f, *C;
   struct arg_list *T, *X;
-  char *to_command, *owner, *group, *mtime;
+  char *to_command, *owner, *group, *mtime, *mode;
   struct arg_list *exclude;
 
   struct double_list *incl, *excl, *seen;
@@ -218,6 +220,7 @@ static int add_to_tar(struct dirtree *node)
 
   if (TT.owner) st->st_uid = TT.ouid;
   if (TT.group) st->st_gid = TT.ggid;
+  if (TT.mode) st->st_mode = string_to_mode(TT.mode, st->st_mode);
   if (TT.mtime) st->st_mtime = TT.mtt;
 
   memset(&hdr, 0, sizeof(hdr));

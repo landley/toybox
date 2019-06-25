@@ -51,6 +51,10 @@ testing "pass mtime" \
   "tar c --owner root --group root file | LST --full-time" \
   "-rw-rw-r-- root/root 0 1987-01-23 12:34:56 file\n" "" ""
 
+testing "adjust mode" \
+  "tar c --owner root --group root --mode a+x file | LST --full-time" \
+  "-rwxrwxr-x root/root 0 1987-01-23 12:34:56 file\n" "" ""
+
 mkdir dir
 testing "create dir" "$TAR dir | $SUM" \
   "05739c423d7d4a7f12b3dbb7c94149acb2bb4f8d\n" "" ""
