@@ -4,7 +4,7 @@
  *
  * No standard. (Sigh.)
 
-USE_LOSETUP(NEWTOY(losetup, ">2S(sizelimit)#s(show)ro#j:fdca[!afj]", TOYFLAG_SBIN))
+USE_LOSETUP(NEWTOY(losetup, ">2S(sizelimit)#s(show)ro#j:fdcaD[!afj]", TOYFLAG_SBIN))
 
 config LOSETUP
   bool "losetup"
@@ -18,17 +18,18 @@ config LOSETUP
     Instead of a device:
     -a	Iterate through all loopback devices
     -f	Find first unused loop device (may create one)
-    -j	Iterate through all loopback devices associated with FILE
+    -j FILE	Iterate through all loopback devices associated with FILE
 
     existing:
     -c	Check capacity (file size changed)
-    -d	Detach loopback device
+    -d DEV	Detach loopback device
+    -D	Detach all loopback devices
 
     new:
     -s	Show device name (alias --show)
-    -o	Start association at OFFSET into FILE
+    -o OFF	Start association at offset OFF into FILE
     -r	Read only
-    -S	Limit SIZE of loopback association (alias --sizelimit)
+    -S SIZE	Limit SIZE of loopback association (alias --sizelimit)
 */
 
 #define FOR_losetup
@@ -51,7 +52,6 @@ static void loopback_setup(char *device, char *file)
 {
   struct loop_info64 *loop = (void *)(toybuf+32);
   int lfd = -1, ffd = ffd;
-  unsigned flags = toys.optflags;
 
   // Open file (ffd) and loop device (lfd)
 
@@ -78,7 +78,12 @@ static void loopback_setup(char *device, char *file)
   // Stat the loop device to see if there's a current association.
   memset(loop, 0, sizeof(struct loop_info64));
   if (-1 == lfd || ioctl(lfd, LOOP_GET_STATUS64, loop)) {
-    if (errno == ENXIO && (flags & (FLAG_a|FLAG_j))) goto done;
+    if (errno == ENXIO && (FLAG(a) || FLAG(j))) goto done;
+    // ENXIO expected if we're just trying to print the first unused device.
+    if (errno == ENXIO && FLAG(f) && !file) {
+      puts(device);
+      goto done;
+    }
     if (errno != ENXIO || !file) {
       perror_msg_raw(device ? device : "-f");
       goto done;
@@ -90,9 +95,9 @@ static void loopback_setup(char *device, char *file)
     goto done;
 
   // Check size of file or delete existing association
-  if (flags & (FLAG_c|FLAG_d)) {
+  if (FLAG(c) || FLAG(d)) {
     // The constant is LOOP_SET_CAPACITY
-    if (ioctl(lfd, (flags & FLAG_c) ? 0x4C07 : LOOP_CLR_FD, 0)) {
+    if (ioctl(lfd, FLAG(c) ? 0x4C07 : LOOP_CLR_FD, 0)) {
       perror_msg_raw(device);
       goto done;
     }
@@ -107,11 +112,11 @@ static void loopback_setup(char *device, char *file)
     xstrncpy((char *)loop->lo_file_name, s, LO_NAME_SIZE);
     s[LO_NAME_SIZE-1] = 0;
     if (ioctl(lfd, LOOP_SET_STATUS64, loop)) perror_exit("%s=%s", device, file);
-    if (flags & FLAG_s) printf("%s", device);
+    if (FLAG(s)) puts(device);
     free(s);
-  } else if (flags & FLAG_f) printf("%s", device);
+  }
   else {
-    xprintf("%s: [%04llx]:%llu (%s)", device, (long long)loop->lo_device,
+    xprintf("%s: [%lld]:%llu (%s)", device, (long long)loop->lo_device,
       (long long)loop->lo_inode, loop->lo_file_name);
     if (loop->lo_offset) xprintf(", offset %llu",
       (unsigned long long)loop->lo_offset);
@@ -145,7 +150,7 @@ void losetup_main(void)
 {
   char **s;
 
-  TT.openflags = (toys.optflags & FLAG_r) ? O_RDONLY : O_RDWR;
+  TT.openflags = FLAG(r) ? O_RDONLY : O_RDWR;
 
   if (TT.j) {
     struct stat st;
@@ -164,17 +169,19 @@ void losetup_main(void)
 
   // -f(dc FILE)
 
-  if (toys.optflags & FLAG_f) {
+  if (FLAG(D)) toys.optflags |= FLAG_a | FLAG_d;
+
+  if (FLAG(f)) {
     if (toys.optc > 1) perror_exit("max 1 arg");
     loopback_setup(NULL, *toys.optargs);
-  } else if (toys.optflags & (FLAG_a|FLAG_j)) {
+  } else if (FLAG(a) || FLAG(j)) {
     if (toys.optc) error_exit("bad args");
     dirtree_read("/dev", dash_a);
   // Do we need one DEVICE argument?
   } else {
-    char *file = (toys.optflags & (FLAG_d|FLAG_c)) ? NULL : toys.optargs[1];
+    char *file = (FLAG(c) || FLAG(d)) ? NULL : toys.optargs[1];
 
-    if (!toys.optc || (file && toys.optc != 2)) 
+    if (!toys.optc || (file && toys.optc != 2))
       help_exit("needs %d arg%s", 1+!!file, file ? "s" : "");
     for (s = toys.optargs; *s; s++) {
       loopback_setup(*s, file);

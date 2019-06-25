@@ -13,13 +13,17 @@ fi
 
 truncate -s 1M blah.img &&
 FILE="$(readlink -f blah.img)"
-DEV="$(printf '%04s' $(stat -t blah.img | awk '{print $7}'))"
-NODE="$(stat -t blah.img | awk '{print $8}')"
+DEV="$(stat --format %d blah.img)"
+NODE="$(stat --format %i blah.img)"
 
-losetup -f 
-losetup -f -s
-losetup -f file
-
-losetup -d
+# TODO: assumes there are no loopback devices!
+testcmd "-f" "-f" "/dev/loop0\n" "" ""
+testcmd "-f blah.img" "-f blah.img" "" "" ""
+testcmd "-f --show" "-f --show blah.img" "/dev/loop1\n" "" ""
+testcmd "-a" "-a | sort" \
+  "/dev/loop0: [$DEV]:$NODE ($FILE)\n/dev/loop1: [$DEV]:$NODE ($FILE)\n" "" ""
+testcmd "-d /dev/loop0" "-d /dev/loop0 && losetup -a" \
+  "/dev/loop1: [$DEV]:$NODE ($FILE)\n" "" ""
+testcmd "-D" "-D && losetup -a" "" "" ""
 
 rm blah.img
