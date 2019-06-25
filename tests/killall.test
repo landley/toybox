@@ -4,7 +4,7 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-echo "#!/bin/sh
+echo "#!$(which sh)
 yes > /dev/null" > toybox.killall.test.script
 chmod a+x toybox.killall.test.script
 
