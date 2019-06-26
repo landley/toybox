@@ -25,7 +25,7 @@ testing "bytes" \
   "seq 1 20000 | split -b 100 -a 3 - whang && ls whang* | wc -l && wc -c whangbpw" "1089\n94 whangbpw\n" "" ""
 
 testing "reassembly" \
-  'diff -u <(ls whang* | sort | xargs cat) <(seq 1 20000) && echo yes' \
+  'ls whang* | sort | xargs cat > reassembled && seq 1 20000 | diff -u reassembled - && echo yes' \
   "yes\n" "" ""
 
-rm file whang*
+rm file whang* reassembled
