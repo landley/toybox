@@ -17,24 +17,26 @@ testing "ext2" "BLKID ext2" \
   'temp.img: LABEL="myext2" UUID="e59093ba-4135-4fdb-bcc4-f20beae4dfaf" TYPE="ext2"\n' \
   "" "" 
 testing "ext3" "BLKID ext3" \
-  'temp.img: LABEL="myext3" UUID="79d1c877-1a0f-4e7d-b21d-fc32ae3ef101" TYPE="ext3"\n' \
+  'temp.img: LABEL="myext3" UUID="79d1c877-1a0f-4e7d-b21d-fc32ae3ef101" SEC_TYPE="ext2" TYPE="ext3"\n' \
   "" "" 
 testing "ext4" "BLKID ext4" \
   'temp.img: LABEL="myext4" UUID="dc4b7c00-c0c0-4600-af7e-0335f09770fa" TYPE="ext4"\n' \
   "" ""
 testing "f2fs" "BLKID f2fs" \
-  'temp.img: UUID="b53d3619-c204-4c0b-8504-36363578491c" TYPE="f2fs"\n' \
+  'temp.img: LABEL="myf2fs" UUID="b53d3619-c204-4c0b-8504-36363578491c" TYPE="f2fs"\n' \
   "" ""
 testing "msdos" "BLKID msdos" \
-  'temp.img: LABEL="mymsdos" UUID="5108-1e6e" TYPE="vfat"\n' "" ""
+  'temp.img: SEC_TYPE="msdos" LABEL="mymsdos" UUID="6E1E-0851" TYPE="vfat"\n' \
+  "" ""
 testing "ntfs" "BLKID ntfs" \
-  'temp.img: UUID="8585600838bfe16e" TYPE="ntfs"\n' "" ""
+  'temp.img: LABEL="myntfs" UUID="6EE1BF3808608585" TYPE="ntfs"\n' "" ""
 testing "reiserfs" "BLKID reiser3" \
   'temp.img: LABEL="myreiser" UUID="a5b99bec-45cc-41d7-986e-32f4b6fc28f2" TYPE="reiserfs"\n' \
   "" ""
 testing "squashfs" "BLKID squashfs" 'temp.img: TYPE="squashfs"\n' "" ""
 testing "vfat" "BLKID vfat" \
-  'temp.img: LABEL="myvfat" UUID="1db9-5673" TYPE="vfat"\n' "" ""
+  'temp.img: SEC_TYPE="msdos" LABEL="myvfat" UUID="7356-B91D" TYPE="vfat"\n' \
+  "" ""
 testing "xfs" "BLKID xfs" \
   'temp.img: LABEL="XFS_test" UUID="d63a1dc3-27d5-4dd4-8b38-f4f97f495c6f" TYPE="xfs"\n' \
   "" ""
