@@ -43,6 +43,7 @@ GLOBALS(
   int openflags;
   dev_t jdev;
   ino_t jino;
+  char *dir;
 )
 
 // -f: *device is NULL
@@ -65,9 +66,7 @@ static void loopback_setup(char *device, char *file)
     // mount -o loop depends on found device being at the start of toybuf.
     if (cfd != -1) {
       if (0 <= (i = ioctl(cfd, 0x4C82))) { // LOOP_CTL_GET_FREE
-        sprintf(device = toybuf, "/dev/loop%d", i);
-        // Fallback for Android
-        if (access(toybuf, F_OK)) sprintf(toybuf, "/dev/block/loop%d", i);
+        sprintf(device = toybuf, "%s/loop%d", TT.dir, i);
       }
       close(cfd);
     }
@@ -150,6 +149,7 @@ void losetup_main(void)
 {
   char **s;
 
+  TT.dir = CFG_TOYBOX_ON_ANDROID ? "/dev/block" : "/dev";
   TT.openflags = FLAG(r) ? O_RDONLY : O_RDWR;
 
   if (TT.j) {
@@ -176,7 +176,7 @@ void losetup_main(void)
     loopback_setup(NULL, *toys.optargs);
   } else if (FLAG(a) || FLAG(j)) {
     if (toys.optc) error_exit("bad args");
-    dirtree_read("/dev", dash_a);
+    dirtree_read(TT.dir, dash_a);
   // Do we need one DEVICE argument?
   } else {
     char *file = (FLAG(c) || FLAG(d)) ? NULL : toys.optargs[1];
