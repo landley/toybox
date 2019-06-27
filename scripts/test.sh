@@ -34,11 +34,13 @@ do_test()
   cd "$TESTDIR" && rm -rf testdir && mkdir testdir && cd testdir || exit 1
   CMDNAME="${1##*/}"
   CMDNAME="${CMDNAME%.test}"
-  C="$CMDNAME"
   if [ -z "$TEST_HOST" ]
   then
     C="$TESTDIR/$CMDNAME"
     [ ! -e "$C" ] && echo "$CMDNAME disabled" && return
+  else
+    C="$(which $CMDNAME 2>/dev/null)"
+    [ -z "$C" ] && "C=$CMDNAME"
   fi
 
   . "$1"
