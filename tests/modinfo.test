@@ -4,7 +4,23 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-[ -e /proc/modules ] || { echo "Skipping test because modules are not supported"; exit 1; }
+testcmd "missing" "missing 2>&1" "modinfo: missing: not found\n" "" ""
+
+[ -e /proc/modules ] || { echo "Skipping: no /proc/modules"; exit 1; }
+
+# Android keeps its modules on the vendor partition.
+MODULE_ROOT=""
+[ -d /vendor/lib/modules ] && MODULE_ROOT="/vendor"
+
+# Find some modules to work with.
+MODULE_PATH1=$(find $MODULE_ROOT/lib/modules -name *.ko | head -1 2>/dev/null)
+MODULE1=$(basename -s .ko $MODULE_PATH1)
+MODULE_PATH2=$(find $MODULE_ROOT/lib/modules -name *.ko | tail -1 2>/dev/null)
+MODULE2=$(basename -s .ko $MODULE_PATH2)
+DASH_MODULE=$(basename -s .ko \
+  $(find $MODULE_ROOT/lib/modules -name *-*.ko | tail -1 2>/dev/null))
+BAR_MODULE=$(basename -s .ko \
+  $(find $MODULE_ROOT/lib/modules -name *_*.ko | tail -1 2>/dev/null))
 
 # modinfo does not need to output fields in a specified order.
 # Instead, there are labelled fields.  We can use sort to make up for this.
@@ -12,19 +28,19 @@
 # which change from kernel to kernel and can be disabled. 
 # We grep to remove these.
 
-#We expect they have ne2k-pci as a module.
-
-testing "gets right number of fields" "modinfo ne2k-pci |cut -d: -f1 |grep -v ver|sort" "alias\nalias\nalias\nalias\nalias\nalias\nalias\nalias\nalias\nalias\nalias\nauthor\ndepends\ndescription\nfilename\nlicense\nparm\nparm\nparm\n" "" ""
-testing "treats - and _ as equivalent" "modinfo ne2k_pci |cut -d: -f1 |grep -v ver|sort" "alias\nalias\nalias\nalias\nalias\nalias\nalias\nalias\nalias\nalias\nalias\nauthor\ndepends\ndescription\nfilename\nlicense\nparm\nparm\nparm\n" "" ""
+skipnot [ -n "$DASH_MODULE" ]
+testing "treats - and _ as equivalent" "modinfo $DASH_MODULE > dash-dash &&
+  modinfo ${DASH_MODULE/-/_} > dash-bar && diff -u dash-dash dash-bar" "" "" ""
+skipnot [ -n "$BAR_MODULE" ]
+testing "treats _ and - as equivalent" "modinfo $BAR_MODULE > bar-bar &&
+  modinfo ${BAR_MODULE/_/-} > bar-dash && diff -u bar-bar bar-dash" "" "" ""
 
 # Output of -F filename should be an absolute path to the module.
 # Otherwise, initrd generating scripts will break.
 
-testing "-F filename gets absolute path" "[ -e `modinfo -F filename ne2k-pci` ] && echo ne2k-pci " "ne2k-pci\n" "" ""
+testing "-F filename gets absolute path" "modinfo -F filename $MODULE1" \
+  "$MODULE_PATH1\n" "" ""
 
-testing "supports multiple modules" "modinfo -F filename ne2k-pci 8390 | wc -l" "2\n" "" ""
-
-testing "does not output filename for bad module" "modinfo -F filename zxcvbnm__9753" "" "" ""
-
-
-
+skipnot [ "$MODULE1" != "$MODULE2" ]
+testing "supports multiple modules" "modinfo -F filename $MODULE1 $MODULE2" \
+  "$MODULE_PATH1\n$MODULE_PATH2\n" "" ""
