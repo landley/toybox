@@ -421,7 +421,7 @@ void file_main(void)
 
   // Can't use loopfiles here because it doesn't call function when can't open
   for (arg = toys.optargs; *arg; arg++) {
-    char *name = *arg, *what = "cannot open";
+    char *name = *arg, *what = "unknown";
     struct stat sb;
     int fd = !strcmp(name, "-");
 
@@ -439,14 +439,20 @@ void file_main(void)
           continue;
         }
       } else if (S_ISFIFO(sb.st_mode)) what = "fifo";
-      else if (S_ISBLK(sb.st_mode)) what = "block special";
-      else if (S_ISCHR(sb.st_mode)) what = "character special";
+      else if (S_ISBLK(sb.st_mode) || S_ISCHR(sb.st_mode))
+        sprintf(what = toybuf, "%s special (%u/%u)",
+            S_ISBLK(sb.st_mode) ? "block" : "character",
+            dev_major(sb.st_rdev), dev_minor(sb.st_rdev));
       else if (S_ISDIR(sb.st_mode)) what = "directory";
       else if (S_ISSOCK(sb.st_mode)) what = "socket";
-      else if (S_ISLNK(sb.st_mode)) what = "symbolic link";
-      else what = "unknown";
-    }
+      else if (S_ISLNK(sb.st_mode)) {
+        char *lnk = xreadlink(name);
 
-    xputs(what);
+        sprintf(what = toybuf, "%ssymbolic link to %s",
+            stat(lnk, &sb) ? "broken " : "", lnk);
+        free(lnk);
+      }
+      xputs(what);
+    } else xprintf("cannot open: %s\n", strerror(errno));
   }
 }

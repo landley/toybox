@@ -11,6 +11,9 @@ echo "#!  /usr/bin/env python" > env.python.script
 echo "Hello, world!" > ascii
 echo "6465780a3033350038ca8f6ce910f94e" | xxd -r -p > android.dex
 ln -s $FILES/java.class symlink
+LINK=$(readlink symlink)
+ln -s $FILES/java.klass dangler
+BROKEN=$(readlink dangler)
 
 testing "directory" "file ." ".: directory\n" "" ""
 testing "empty" "file empty" "empty: empty\n" "" ""
@@ -43,14 +46,15 @@ toyonly testing "Android NDK short ELF note" \
     "file $FILES/elf/ndk-elf-note-short | sed 's/^.*: //'" \
     "ELF shared object, 32-bit LSB arm, dynamic (/system/bin/linker), for Android 28, BuildID=da6a5f4ca8da163b9339326e626d8a3c, stripped\n" "" ""
 
-testing "symlink" "file symlink" "symlink: symbolic link\n" "" ""
-testing "symlink -h" "file -h symlink" "symlink: symbolic link\n" "" ""
+testing "broken symlink" "file dangler" "dangler: broken symbolic link to $BROKEN\n" "" ""
+testing "symlink" "file symlink" "symlink: symbolic link to $LINK\n" "" ""
+testing "symlink -h" "file -h symlink" "symlink: symbolic link to $LINK\n" "" ""
 testing "symlink -L" "file -L symlink" "symlink: Java class file, version 53.0 (Java 1.9)\n" "" ""
 
 testing "- pipe" "cat $FILES/java.class | file -" "-: Java class file, version 53.0 (Java 1.9)\n" "" ""
 testing "- redirect" "file - <$FILES/java.class" "-: Java class file, version 53.0 (Java 1.9)\n" "" ""
 
-testing "/dev/zero" "file /dev/zero" "/dev/zero: character special\n" "" ""
+testing "/dev/zero" "file /dev/zero" "/dev/zero: character special (1/5)\n" "" ""
 testing "- </dev/zero" "file - </dev/zero" "-: data\n" "" ""
 
 rm empty bash.script bash.script2 env.python.script ascii android.dex
