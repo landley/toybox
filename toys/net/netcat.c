@@ -7,13 +7,13 @@
  * netcat -L zombies
 
 USE_NETCAT(OLDTOY(nc, netcat, TOYFLAG_USR|TOYFLAG_BIN))
-USE_NETCAT(NEWTOY(netcat, USE_NETCAT_LISTEN("^tlL")"w#<1W#<1p#<1>65535q#<1s:f:46u"USE_NETCAT_LISTEN("[!tlL][!Lw]")"[!46]", TOYFLAG_BIN))
+USE_NETCAT(NEWTOY(netcat, USE_NETCAT_LISTEN("^tlL")"w#<1W#<1p#<1>65535q#<1s:f:46uU"USE_NETCAT_LISTEN("[!tlL][!Lw]")"[!46U]", TOYFLAG_BIN))
 
 config NETCAT
   bool "netcat"
   default y
   help
-    usage: netcat [-46] [-u] [-wpq #] [-s addr] {IPADDR PORTNUM|-f FILENAME}
+    usage: netcat [-46U] [-u] [-wpq #] [-s addr] {IPADDR PORTNUM|-f FILENAME}
 
     Forward stdin/stdout to a file or network connection.
 
@@ -24,6 +24,7 @@ config NETCAT
     -q	Quit SECONDS after EOF on stdin, even if stdout hasn't closed yet
     -s	Local source address
     -u	Use UDP
+    -U	Use a UNIX domain socket
     -w	SECONDS timeout to establish connection
     -W	SECONDS timeout for more data on an idle connection
 
@@ -85,11 +86,13 @@ void netcat_main(void)
   // The argument parsing logic can't make "<2" conditional on other
   // arguments like -f and -l, so do it by hand here.
   if ((toys.optflags&FLAG_f) ? toys.optc :
-      (!(toys.optflags&(FLAG_l|FLAG_L)) && toys.optc!=2))
+      (!(toys.optflags&(FLAG_l|FLAG_L)) &&
+       toys.optc!=(toys.optflags&FLAG_U?1:2)))
         help_exit("bad argument count");
 
   if (toys.optflags&FLAG_4) family = AF_INET;
   else if (toys.optflags&FLAG_6) family = AF_INET6;
+  else if (toys.optflags&FLAG_U) family = AF_UNIX;
 
   if (toys.optflags&FLAG_u) type = SOCK_DGRAM;
 
@@ -97,9 +100,28 @@ void netcat_main(void)
   else {
     // Setup socket
     if (!(toys.optflags&(FLAG_L|FLAG_l))) {
-      struct addrinfo *addr = xgetaddrinfo(toys.optargs[0], toys.optargs[1],
-                                           family, type, 0, 0);
-      sockfd = xconnect(addr);
+      if (toys.optflags&FLAG_U) {
+        struct sockaddr_un sockaddr;
+
+        memset(&sockaddr, 0, sizeof(struct sockaddr_un));
+
+        if (strlen(toys.optargs[0]) + 1 > sizeof(sockaddr.sun_path))
+          error_exit("socket path too long %s", toys.optargs[0]);
+        strcpy(sockaddr.sun_path, toys.optargs[0]);
+        sockaddr.sun_family = AF_UNIX;
+
+        sockfd = xsocket(AF_UNIX, type | SOCK_CLOEXEC, 0);
+        if (connect(sockfd, (struct sockaddr*)&sockaddr,
+                    sizeof(sockaddr)) != 0) {
+          perror_exit("could not bind to unix domain socket");
+        }
+
+      } else {
+        struct addrinfo *addr = xgetaddrinfo(toys.optargs[0], toys.optargs[1],
+                                             family, type, 0, 0);
+
+        sockfd = xconnect(addr);
+      }
 
       // We have a connection. Disarm timeout.
       set_alarm(0);
@@ -109,14 +131,33 @@ void netcat_main(void)
       pollinate(in1, in2, out1, out2, TT.W, TT.q);
     } else {
       // Listen for incoming connections
-      struct sockaddr* address = (void*)toybuf;
-      socklen_t len = sizeof(struct sockaddr_storage);
+      if (toys.optflags&FLAG_U) {
+        struct sockaddr_un sockaddr;
 
-      sprintf(toybuf, "%ld", TT.p);
-      sockfd = xbind(xgetaddrinfo(TT.s, toybuf, family, type, 0, 0));
+        memset(&sockaddr, 0, sizeof(struct sockaddr_un));
+
+        if (!(toys.optflags&FLAG_s))
+          error_exit("-s must be provided if using -U with -L/-l");
+
+        if (strlen(TT.s) + 1 > sizeof(sockaddr.sun_path))
+          error_exit("socket path too long %s", TT.s);
+        strcpy(sockaddr.sun_path, TT.s);
+        sockaddr.sun_family = AF_UNIX;
+
+        sockfd = xsocket(AF_UNIX, type | SOCK_CLOEXEC, 0);
+        if (bind(sockfd, (struct sockaddr*)&sockaddr,
+                 sizeof(struct sockaddr_un)) != 0) {
+          perror_exit("unable to bind to UNIX domain socket");
+        }
+      } else {
+        sprintf(toybuf, "%ld", TT.p);
+        sockfd = xbind(xgetaddrinfo(TT.s, toybuf, family, type, 0, 0));
+      }
 
       if (listen(sockfd, 5)) error_exit("listen");
-      if (!TT.p) {
+      if (!TT.p && !(toys.optflags&FLAG_U)) {
+        struct sockaddr* address = (void*)toybuf;
+        socklen_t len = sizeof(struct sockaddr_storage);
         short port_be;
 
         getsockname(sockfd, address, &len);
@@ -136,7 +177,7 @@ void netcat_main(void)
 
       do {
         child = 0;
-        in1 = out2 = accept(sockfd, (struct sockaddr *)address, &len);
+        in1 = out2 = accept(sockfd, NULL, NULL);
         if (in1<0) perror_exit("accept");
 
         // We have a connection. Disarm timeout.
