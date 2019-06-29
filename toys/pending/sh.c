@@ -184,7 +184,7 @@ static void run_command(struct sh_process *pp)
     pipe[0] = 0;
     pipe[1] = 1;
     if (-1 == (pp->pid = xpopen_both(pp->arg.v, pipe)))
-      perror_msg("%s: not found", *pp->arg.v);
+      perror_msg("%s: vfork", *pp->arg.v);
     else pp->exit = xpclose_both(pp->pid, 0);
   }
 
@@ -290,7 +290,7 @@ static char *parse_word(char *start)
 // pointer to start of unused part of line if it needs another line of input.
 static char *parse_line(char *line, struct double_list **pipeline)
 {
-  char *start = line, *end, *s;
+  char *start = line, *end, *s, *ex, *add;
   struct sh_arg *arg = 0;
   struct double_list *pl, *expect = 0;
   unsigned i, paren = 0;
@@ -350,40 +350,81 @@ static char *parse_line(char *line, struct double_list **pipeline)
   for (pl = *pipeline; pl ; pl = (pl->next == *pipeline) ? 0 : pl->next) {
     arg = (void *)pl->data;
     if (!arg->c) continue;
+    add = 0;
 
     // parse flow control statements in this command line
-    for (i = 0; i<arg->c; i++) {
-      char *ex = expect ? expect->prev->data : 0;
-
+    for (i = 0; ; i++) {
+      ex = expect ? expect->prev->data : 0;
       s = arg->v[i];
-      if (!strcmp(s, "if")) ex = "then";
-      else if (!strcmp(s, "for") || !strcmp(s, "select")
-          || !strcmp(s, "while") || !strcmp(s, "until")) ex = "do";
-      else if (!strcmp(s, "case")) ex = "esac";
-      else if (!strcmp(s, "{")) ex = "}";
-      else if (!strcmp(s, "[[")) ex = "]]";
 
-      // If we expect a non-flow-control command, eat rest of line
-      else if (expect && !ex) {
+      // push word to expect to end this block, and expect a command first
+      if (add) {
+        dlist_add(&expect, add);
+        dlist_add(&expect, add = 0);
+      }
+
+      // end of statement?
+      if (i == arg->c) break;
+
+      // When waiting for { it must be next symbol, but can be on a new line.
+      if (ex && !strcmp(ex, "{") && (strcmp(s, "{") || (!i && end))) {
+        syntax_err("need {");
+        goto flush;
+      }
+
+      if (!strcmp(s, "if")) add = "then";
+      else if (!strcmp(s, "for") || !strcmp(s, "select")
+          || !strcmp(s, "while") || !strcmp(s, "until")) add = "do";
+      else if (!strcmp(s, "case")) add = "esac";
+      else if (!strcmp(s, "{")) add = "}";
+      else if (!strcmp(s, "[[")) add = "]]";
+
+      // function NAME () [nl] { [nl] body ; }
+      // Why can you to declare functions inside other functions?
+      else if (arg->c>i+1 && !strcmp(arg->v[i+1], "(")) goto funky;
+      else if (!strcmp(s, "function")) {
+        i++;
+funky:
+        // At this point we can only have a function: barf if it's invalid
+        if (arg->c<i+3 || !strcmp(arg->v[i+1], "(")
+            || !strcmp(arg->v[i+2], ")"))
+        {
+          syntax_err("bad function ()");
+          goto flush;
+        }
+        dlist_add(&expect, "}");
+        dlist_add(&expect, 0);
+        dlist_add(&expect, "{");
+
+      // Expecting NULL will take any otherwise unrecognized word
+      } else if (expect && !ex) {
         free(dlist_pop(&expect));
         continue;
 
-      // Did we find a specific word we were waiting for?
-      } else if (ex && !strcmp(arg->v[i], ex)) {
+      // If we expect nothing and didn't just start a new flow control block,
+      // rest of statement is a command and arguments, so stop now
+      } else if (!ex) break;
+
+      if (add) continue;
+
+      // If we got here we expect a word to end this block: is this it?
+      if (!strcmp(arg->v[i], ex)) {
         free(dlist_pop(&expect));
+
+        // can't "if | then" or "while && do", only ; or newline works
         if (end && !strcmp(end, ";")) {
-          // can't if | then or while && do, only ; or newline counts
           syntax_err("bad %s", end);
           goto flush;
         }
-        if (!strcmp(s, "do")) dlist_add(&expect, "done");
-        else if (!strcmp(s, "then")) dlist_add(&expect, "fi\0A");
-        break;
+
+        // if it's a multipart block, what comes next?
+        if (!strcmp(s, "do")) ex = "done";
+        else if (!strcmp(s, "then")) add = "fi\0A";
       // fi could have elif, which queues a then.
-      } else if (ex && !strcmp(ex, "fi")) {
+      } else if (!strcmp(ex, "fi")) {
         if (!strcmp(s, "elif")) {
           free(dlist_pop(&expect));
-          dlist_add(&expect, "then");
+          add = "then";
         // catch duplicate else while we're here
         } else if (!strcmp(s, "else")) {
           if (ex[3] != 'A') {
@@ -391,23 +432,21 @@ static char *parse_line(char *line, struct double_list **pipeline)
             goto flush;
           }
           free(dlist_pop(&expect));
-          dlist_add(&expect, "fi\0B");
+          add = "fi\0B";
         }
-      } else break;
-
-      dlist_add(&expect, ex);
+      }
     }
-    // Record how the previous stanza ended
+    // Record how the previous stanza ended: ; | & ;; || && ;& ;;& |& NULL
     end = arg->v[arg->c];
   }
 
-  // If we need more lines to finish flow control...
-  // TODO: functions
-  if (expect) {
+  // Do we need more lines to finish a flow control statement?
+  if (expect || paren) {
     llist_traverse(expect, free);
     return start;
   }
 
+  // iterate through the commands running each one
   for (pl = *pipeline; pl ; pl = (pl->next == *pipeline) ? 0 : pl->next) {
     struct sh_process *pp = xzalloc(sizeof(struct sh_process));
 
@@ -445,7 +484,12 @@ void sh_main(void)
     size_t linelen = 0;
 
     // Prompt and read line
-    if (!f) do_prompt(getenv(command ? "PS2" : "PS1"));
+    if (!f) {
+      char *s = getenv(command ? "PS2" : "PS1");
+
+      if (!s) s = command ? "> " : (getpid() ? "\\$ " : "# ");
+      do_prompt(s);
+    }
     if (1 > getline(&new, &linelen, f ? f : stdin)) break;
     if (f) TT.lineno++;
 
