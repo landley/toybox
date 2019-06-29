@@ -10,5 +10,5 @@ fi
 
 if [ -z "$SED" ]
 then
-  [ ! -z "$(which gsed 2>/dev/null)" ] && SED=gsed || SED=sed
+  [ ! -z "$(command -v gsed 2>/dev/null)" ] && SED=gsed || SED=sed
 fi

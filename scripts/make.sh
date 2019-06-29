@@ -152,7 +152,7 @@ then
     $KCONFIG_CONFIG > generated/config.h || exit 1
 fi
 
-if [ generated/mkflags -ot scripts/mkflags.c ]
+if [ ! -f generated/mkflags ] || [ generated/mkflags -ot scripts/mkflags.c ]
 then
   do_loudly $HOSTCC scripts/mkflags.c -o generated/mkflags || exit 1
 fi
@@ -236,7 +236,7 @@ then
   ) > generated/globals.h
 fi
 
-if [ generated/mktags -ot scripts/mktags.c ]
+if [ ! -f generated/mktags ] || [ generated/mktags -ot scripts/mktags.c ]
 then
   do_loudly $HOSTCC scripts/mktags.c -o generated/mktags || exit 1
 fi
@@ -249,7 +249,7 @@ then
     toys/*/*.c lib/*.c | generated/mktags > generated/tags.h
 fi
 
-if [ generated/config2help -ot scripts/config2help.c ]
+if [ ! -f generated/config2help ] || [ generated/config2help -ot scripts/config2help.c ]
 then
   do_loudly $HOSTCC scripts/config2help.c -o generated/config2help || exit 1
 fi
