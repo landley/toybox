@@ -1093,7 +1093,7 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
         cmd[len] = 0;
       }
       if (!strcmp(bb, getbasename(cmd))) goto match;
-      if (bb!=*cur && !strcmp(bb, getbasename(cmd+strlen(cmd)+1))) goto match;
+      if (!strcmp(bb, getbasename(cmd+strlen(cmd)+1))) goto match;
       continue;
 match:
       if (callback(u, *cur)) break;

@@ -39,7 +39,7 @@ static int kill_process(pid_t pid, char *name)
 
   if (pid == TT.cur_pid) return 0;
 
-  if (toys.optflags & FLAG_i) {
+  if (FLAG(i)) {
     fprintf(stderr, "Signal %s(%d)", name, (int)pid);
     if (!yesno(0)) return 0;
   }
@@ -53,8 +53,8 @@ static int kill_process(pid_t pid, char *name)
     } else offset++;
   }
   if (errno) {
-    if (!(toys.optflags & FLAG_q)) perror_msg("pid %d", (int)pid);
-  } else if (toys.optflags & FLAG_v)
+    if (!FLAG(q)) perror_msg("pid %d", (int)pid);
+  } else if (FLAG(v))
     printf("Killed %s(%d) with signal %d\n", name, pid, TT.signum);
 
   return 0;
@@ -67,14 +67,14 @@ void killall_main(void)
   TT.names = toys.optargs;
   TT.signum = SIGTERM;
 
-  if (toys.optflags & FLAG_l) {
+  if (FLAG(l)) {
     list_signals();
     return;
   }
 
   if (TT.s || (*TT.names && **TT.names == '-')) {
     if (0 > (TT.signum = sig_to_num(TT.s ? TT.s : (*TT.names)+1))) {
-      if (toys.optflags & FLAG_q) exit(1);
+      if (FLAG(q)) exit(1);
       error_exit("Invalid signal");
     }
     if (!TT.s) {
@@ -83,7 +83,7 @@ void killall_main(void)
     }
   }
 
-  if (!(toys.optflags & FLAG_l) && !toys.optc) help_exit("no name");
+  if (!toys.optc) help_exit("no name");
 
   TT.cur_pid = getpid();
 
