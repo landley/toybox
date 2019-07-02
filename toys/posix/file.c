@@ -216,7 +216,7 @@ static void do_regular_file(int fd, char *name)
   if (!len) xputs("empty");
   // 45 bytes: https://www.muppetlabs.com/~breadbox/software/tiny/teensy.html
   else if (len>=45 && strstart(&s, "\177ELF")) do_elf_file(fd);
-  else if (len>=8 && strstart(&s, "!<arch>\n")) xprintf("ar archive\n");
+  else if (len>=8 && strstart(&s, "!<arch>\n")) xputs("ar archive");
   else if (len>28 && strstart(&s, "\x89PNG\x0d\x0a\x1a\x0a")) {
     // PNG is big-endian: https://www.w3.org/TR/PNG/#7Integers-and-byte-order
     int chunk_length = peek_be(s, 4);
@@ -268,7 +268,7 @@ static void do_regular_file(int fd, char *name)
     xprintf("ASCII cpio archive (%s)\n", cpioformat);
   } else if (len>33 && (magic=peek(&s,2), magic==0143561 || magic==070707)) {
     if (magic == 0143561) printf("byte-swapped ");
-    xprintf("cpio archive\n");
+    xputs("cpio archive");
   // tar archive (old, ustar/pax, or gnu)
   } else if (len>500 && is_tar_header(s))
     xprintf("%s tar archive%s\n", s[257] ? "POSIX" : "old",
@@ -283,7 +283,7 @@ static void do_regular_file(int fd, char *name)
   } else if (len>4 && strstart(&s, "BZh") && isdigit(*s))
     xprintf("bzip2 compressed data, block size = %c00k\n", *s);
   else if (len > 31 && peek_be(s, 7) == 0xfd377a585a0000)
-    xprintf("xz compressed data");
+    xputs("xz compressed data");
   else if (len>10 && strstart(&s, "\x1f\x8b")) xputs("gzip compressed data");
   else if (len>32 && !memcmp(s+1, "\xfa\xed\xfe", 3)) {
     int bit = s[0]=='\xce'?32:64;
@@ -355,6 +355,10 @@ static void do_regular_file(int fd, char *name)
   } else if (len>12 && !memcmp(s, "ttcf\x00", 5)) {
     xprintf("TrueType font collection, version %d, %d fonts\n",
             (int)peek_be(s+4, 2), (int)peek_be(s+8, 4));
+
+  // https://docs.microsoft.com/en-us/typography/opentype/spec/otff
+  } else if (len>12 && !memcmp(s, "OTTO", 4)) {
+    xputs("OpenType font");
   } else if (len>4 && !memcmp(s, "BC\xc0\xde", 4)) {
     xputs("LLVM IR bitcode");
   } else if (strstart(&s, "-----BEGIN CERTIFICATE-----")) {
@@ -380,6 +384,26 @@ static void do_regular_file(int fd, char *name)
     int w = peek_le(s+0x12,4), h = peek_le(s+0x16,4), bpp = peek_le(s+0x1c,2);
 
     xprintf("BMP image, %d x %d, %d bpp\n", w, h, bpp);
+
+    // https://github.com/torvalds/linux/blob/master/tools/perf/Documentation/perf.data-file-format.txt
+  } else if (len>=104 && !memcmp(s, "PERFILE2", 8)) {
+    xputs("Linux perf data");
+
+    // https://android.googlesource.com/platform/system/core/+/master/libsparse/sparse_format.h
+  } else if (len>28 && peek_le(s, 4) == 0xed26ff3a) {
+    xprintf("Android sparse image v%d.%d, %d %d-byte blocks (%d chunks)\n",
+        (int) peek_le(s+4, 2), (int) peek_le(s+6, 2), (int) peek_le(s+16, 4),
+        (int) peek_le(s+12, 4), (int) peek_le(s+20, 4));
+
+    // https://android.googlesource.com/platform/system/tools/mkbootimg/+/refs/heads/master/include/bootimg/bootimg.h
+  } else if (len>1632 && !memcmp(s, "ANDROID!", 8)) {
+    xprintf("Android boot image v%d\n", (int) peek_le(s+40, 4));
+
+    // https://source.android.com/devices/architecture/dto/partitions
+  } else if (len>32 && peek_be(s, 4) == 0xd7b7ab1e) {
+    xprintf("Android DTB/DTBO v%d, %d entries\n", (int) peek_be(s+28, 4),
+        (int) peek_be(s+16, 4));
+
   } else {
     char *what = 0;
     int i, bytes;
