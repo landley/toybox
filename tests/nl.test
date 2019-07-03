@@ -39,8 +39,13 @@ testing "-sook -b p" "nl -sook -bpoing" \
   "         one\n     1ookboing\n     2ooksproingy\n" \
   "" "one\nboing\nsproingy\n"
 
-testing "-v" "nl -v 42" "    42\tone\n    43\ttwo\n    44\tthree\n" \
+testing "-v42" "nl -v 42" "    42\tone\n    43\ttwo\n    44\tthree\n" \
   "" "one\ntwo\nthree\n"
+testing "-v-1" "nl -v -1" "    -1\tone\n     0\ttwo\n     1\tthree\n" \
+  "" "one\ntwo\nthree\n"
+testing "-v0" "nl -v 0" "     0\tone\n     1\ttwo\n     2\tthree\n" \
+  "" "one\ntwo\nthree\n"
+
 testing "-l" "nl -ba -l2 -w2 - input" \
   " 1\tone\n   \n 2\t\n 3\ttwo\n   \n 4\t\n   \n 5\tthree\n 6\tfour\n   \n 7\t\n   \n 8\tbang\n   \n" \
   "\n\nbang\n\n" "one\n\n\ntwo\n\n\n\nthree\nfour\n\n"

@@ -5,15 +5,15 @@
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/nl.html
  *
  * This implements a subset: only one logical page (-ip), no sections (-dfh).
- * todo: -lv
+ * todo: -l
 
-USE_NL(NEWTOY(nl, "v#<1=1l#w#<0=6Eb:n:s:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_NL(NEWTOY(nl, "v#=1l#w#<0=6Eb:n:s:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config NL
   bool "nl"
   default y
   help
-    usage: nl [-E] [-l #] [-b MODE] [-n STYLE] [-s SEPARATOR] [-w WIDTH] [FILE...]
+    usage: nl [-E] [-l #] [-b MODE] [-n STYLE] [-s SEPARATOR] [-v #] [-w WIDTH] [FILE...]
 
     Number lines of input.
 
@@ -22,6 +22,7 @@ config NL
     -l	Only count last of this many consecutive blank lines
     -n	Number STYLE: ln (left justified) rn (right justified) rz (zero pad)
     -s	Separator to use between number and line (instead of TAB)
+    -v	Starting line number for each section (default 1)
     -w	Width of line numbers (default 6)
 */
 
