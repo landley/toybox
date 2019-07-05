@@ -44,7 +44,7 @@ void env_main(void)
 
   for (; *ev; ev++)
     if (strchr(*ev, '=')) xsetenv(xstrdup(*ev), 0);
-    else xexec(ev);
+    else toys.stacktop = 0, xexec(ev);
 
   for (ev = environ; *ev; ev++) xprintf("%s%c", *ev, '\n'*!FLAG(0));
 }
