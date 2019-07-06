@@ -44,7 +44,11 @@ void env_main(void)
 
   for (; *ev; ev++)
     if (strchr(*ev, '=')) xsetenv(xstrdup(*ev), 0);
-    else toys.stacktop = 0, xexec(ev);
+    else {
+      // a common use of env is to bypass shell builtins
+      toys.stacktop = 0;
+      xexec(ev);
+    }
 
   for (ev = environ; *ev; ev++) xprintf("%s%c", *ev, '\n'*!FLAG(0));
 }
