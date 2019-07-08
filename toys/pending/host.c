@@ -121,9 +121,8 @@ void host_main(void)
 
     if ((ret = getaddrinfo(nsname, "53", &ns_hints, &ai)) < 0)
       error_exit("Error looking up server name: %s", gai_strerror(ret));
-    int s = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-    if (s < 0 || connect(s, ai->ai_addr, ai->ai_addrlen) < 0)
-      perror_exit("Socket error");
+    int s = xsocket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+    xconnect(s, ai->ai_addr, ai->ai_addrlen);
     setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &(struct timeval){ .tv_sec = 5 },
       sizeof(struct timeval));
     printf("Using domain server %s:\n", nsname);

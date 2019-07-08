@@ -88,7 +88,7 @@ void sntp_main(void)
 
   // Act as server if necessary
   if (FLAG(S)|FLAG(m)) {
-    fd = xbind(ai);
+    fd = xbindany(ai);
     if (TT.m) {
       struct ip_mreq group;
 

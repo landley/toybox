@@ -252,9 +252,8 @@ void tftpd_main(void)
   TT.sfd = xsocket(dstaddr.ss_family, SOCK_DGRAM, 0);
   if (setsockopt(TT.sfd, SOL_SOCKET, SO_REUSEADDR, (const void *)&set,
         sizeof(set)) < 0) perror_exit("setsockopt failed");
-  if (bind(TT.sfd, (void *)&srcaddr, socklen)) perror_exit("bind");
-  if (connect(TT.sfd, (void *)&dstaddr, socklen) < 0)
-    perror_exit("can't connect to remote host");
+  xbind(TT.sfd, (void *)&srcaddr, socklen);
+  xconnect(TT.sfd, (void *)&dstaddr, socklen);
   // Error condition.
   if (recvmsg_len<4 || recvmsg_len>TFTPD_BLKSIZE || toybuf[recvmsg_len-1]) {
     send_errpkt((struct sockaddr*)&dstaddr, socklen, "packet format error");

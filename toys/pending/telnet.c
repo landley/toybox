@@ -306,7 +306,7 @@ void telnet_main(void)
   }
   terminal_size(&TT.win_width, &TT.win_height);
 
-  TT.sfd = xconnect(xgetaddrinfo(*toys.optargs, port, 0, SOCK_STREAM,
+  TT.sfd = xconnectany(xgetaddrinfo(*toys.optargs, port, 0, SOCK_STREAM,
     IPPROTO_TCP, 0));
   setsockopt(TT.sfd, SOL_SOCKET, SO_REUSEADDR, &set, sizeof(set));
   setsockopt(TT.sfd, SOL_SOCKET, SO_KEEPALIVE, &set, sizeof(set));

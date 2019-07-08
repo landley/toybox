@@ -348,8 +348,10 @@ int xsocket(int domain, int type, int protocol);
 void xsetsockopt(int fd, int level, int opt, void *val, socklen_t len);
 struct addrinfo *xgetaddrinfo(char *host, char *port, int family, int socktype,
   int protocol, int flags);
-int xconnect(struct addrinfo *ai);
-int xbind(struct addrinfo *ai);
+void xbind(int fd, const struct sockaddr *sa, socklen_t len);
+void xconnect(int fd, const struct sockaddr *sa, socklen_t len);
+int xconnectany(struct addrinfo *ai);
+int xbindany(struct addrinfo *ai);
 int xpoll(struct pollfd *fds, int nfds, int timeout);
 int pollinate(int in1, int in2, int out1, int out2, int timeout, int shutdown_timeout);
 char *ntop(struct sockaddr *sa);

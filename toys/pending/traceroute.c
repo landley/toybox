@@ -587,8 +587,7 @@ void traceroute_main(void)
       if (setsockopt(TT.snd_sock, IPPROTO_IP, IP_MULTICAST_IF,
             (struct sockaddr*)&source, sizeof(struct sockaddr_in)))
         perror_exit("can't set multicast source interface");
-      if (bind(TT.snd_sock,(struct sockaddr*)&source, 
-            sizeof(struct sockaddr_in)) < 0) perror_exit("bind");
+      xbind(TT.snd_sock,(struct sockaddr*)&source, sizeof(struct sockaddr_in));
     }
 
     if(TT.first_ttl > TT.max_ttl) 
@@ -607,9 +606,7 @@ void traceroute_main(void)
       if(inet_pton(AF_INET6, TT.src_ip, &(source.sin6_addr)) <= 0)
         error_exit("bad address: %s", TT.src_ip);
 
-      if (bind(TT.snd_sock,(struct sockaddr*)&source, 
-            sizeof(struct sockaddr_in6)) < 0)
-        error_exit("bind: Cannot assign requested address");
+      xbind(TT.snd_sock,(struct sockaddr*)&source, sizeof(struct sockaddr_in6));
     } else {
       struct sockaddr_in6 prb;
       socklen_t len = sizeof(prb);
@@ -617,16 +614,13 @@ void traceroute_main(void)
       if (toys.optflags & FLAG_i) bind_to_interface(p_fd);
 
       ((struct sockaddr_in6 *)&dest)->sin6_port = htons(1025);
-      if (connect(p_fd, (struct sockaddr *)&dest, sizeof(struct sockaddr_in6)) < 0)
-        perror_exit("can't connect to remote host");
+      xconnect(p_fd, (struct sockaddr *)&dest, sizeof(struct sockaddr_in6));
       if(getsockname(p_fd, (struct sockaddr *)&prb, &len)) 
         error_exit("probe addr failed");
       close(p_fd);
       prb.sin6_port = 0;
-      if (bind(TT.snd_sock, (struct sockaddr*)&prb, 
-            sizeof(struct sockaddr_in6))) perror_exit("bind");
-      if (bind(TT.recv_sock, (struct sockaddr*)&prb, 
-            sizeof(struct sockaddr_in6))) perror_exit("bind");
+      xbind(TT.snd_sock, (struct sockaddr*)&prb, sizeof(struct sockaddr_in6));
+      xbind(TT.recv_sock, (struct sockaddr*)&prb, sizeof(struct sockaddr_in6));
     }
 
     inet_ntop(AF_INET6, &((struct sockaddr_in6 *)&dest)->sin6_addr, 

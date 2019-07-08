@@ -105,7 +105,7 @@ void ftpget_main(void)
   if (!remote) remote = toys.optargs[1];
 
   // connect
-  TT.fd = xconnect(xgetaddrinfo(*toys.optargs, TT.p, 0, SOCK_STREAM, 0,
+  TT.fd = xconnectany(xgetaddrinfo(*toys.optargs, TT.p, 0, SOCK_STREAM, 0,
     AI_ADDRCONFIG));
   if (getpeername(TT.fd, (void *)&si6, &sl)) perror_exit("getpeername");
 
@@ -147,7 +147,7 @@ void ftpget_main(void)
     if (!s || port<1 || port>65535) error_exit_raw(toybuf);
     si6.sin6_port = SWAP_BE16(port); // same field size/offset for v4 and v6
     port = xsocket(si6.sin6_family, SOCK_STREAM, 0);
-    if (connect(port, (void *)&si6, sizeof(si6))) perror_exit("connect");
+    xconnect(port, (void *)&si6, sizeof(si6));
 
     // RETR blocks until file data read from data port, so use SIZE to check
     // if file exists before creating local copy

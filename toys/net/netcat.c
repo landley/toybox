@@ -111,16 +111,10 @@ void netcat_main(void)
         sockaddr.sun_family = AF_UNIX;
 
         sockfd = xsocket(AF_UNIX, type | SOCK_CLOEXEC, 0);
-        if (connect(sockfd, (struct sockaddr*)&sockaddr,
-                    sizeof(sockaddr)) != 0) {
-          perror_exit("could not bind to unix domain socket");
-        }
-
+        xconnect(sockfd, (struct sockaddr*)&sockaddr, sizeof(sockaddr));
       } else {
-        struct addrinfo *addr = xgetaddrinfo(toys.optargs[0], toys.optargs[1],
-                                             family, type, 0, 0);
-
-        sockfd = xconnect(addr);
+        sockfd = xconnectany(xgetaddrinfo(toys.optargs[0], toys.optargs[1],
+                                          family, type, 0, 0));
       }
 
       // We have a connection. Disarm timeout.
@@ -145,13 +139,10 @@ void netcat_main(void)
         sockaddr.sun_family = AF_UNIX;
 
         sockfd = xsocket(AF_UNIX, type | SOCK_CLOEXEC, 0);
-        if (bind(sockfd, (struct sockaddr*)&sockaddr,
-                 sizeof(struct sockaddr_un)) != 0) {
-          perror_exit("unable to bind to UNIX domain socket");
-        }
+        xbind(sockfd, (struct sockaddr*)&sockaddr, sizeof(sockaddr));
       } else {
         sprintf(toybuf, "%ld", TT.p);
-        sockfd = xbind(xgetaddrinfo(TT.s, toybuf, family, type, 0, 0));
+        sockfd = xbindany(xgetaddrinfo(TT.s, toybuf, family, type, 0, 0));
       }
 
       if (listen(sockfd, 5)) error_exit("listen");
