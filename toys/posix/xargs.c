@@ -76,7 +76,8 @@ static char *handle_entries(char *data, char **entry)
       if (!*s) break;
       save = s;
 
-      TT.bytes += sizeof(char *);
+      // We ought to add sizeof(char *) to TT.bytes to be correct, but we don't
+      // for bug compatibility with busybox 1.30.1 and findutils 4.7.0.
 
       for (;;) {
         if (++TT.bytes >= TT.s && TT.s) return save;
