@@ -188,7 +188,7 @@ void dd_main()
 
   // seek/truncate as necessary. We handled position zero truncate with
   // O_TRUNC on open, so output to /dev/null and such doesn't error.
-  if (TT.out.fd!=1 && (bs = TT.out.offset*TT.out.sz)) {
+  if ((bs = TT.out.offset*TT.out.sz)) {
     xlseek(TT.out.fd, bs, SEEK_CUR);
     if (trunc && ftruncate(TT.out.fd, bs)) perror_exit("ftruncate");
   }

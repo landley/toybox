@@ -92,3 +92,6 @@ testing "conv=sync with IF" "dd conv=sync if=input $opt | head -n 1" "I WANT\n" 
 # status=noxfer|none
 testing "status=noxfer" "dd if=input status=noxfer ibs=1 2>&1" "input\n6+0 records in\n0+1 records out\n" "input\n" ""
 testing "status=none" "dd if=input status=none ibs=1 2>&1" "input\n" "input\n" ""
+
+testing "seek stdout" "yes 2> /dev/null | dd bs=8 seek=2 count=1 > out 2> /dev/null && xxd -p out" \
+  "00000000000000000000000000000000790a790a790a790a\n" "" ""
