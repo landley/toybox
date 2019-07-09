@@ -111,6 +111,9 @@ testing "symlink dest permissions" "cp woot carpenter && stat -c %A carpenter" \
   "-rw-r--r--\n" "" ""
 rm -rf walrus woot carpenter
 
+# duplicated --preserve= options are fine.
+testing "--preserve=mode,mode" "cp --preserve=mode,mode walrus walrus2" "" "" ""
+
 # cp -r ../source destdir
 # cp -r one/two/three missing
 # cp -r one/two/three two

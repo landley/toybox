@@ -366,6 +366,7 @@ void comma_collate(char **old, char *new);
 char *comma_iterate(char **list, int *len);
 int comma_scan(char *optlist, char *opt, int clean);
 int comma_scanall(char *optlist, char *scanlist);
+int comma_remove(char *optlist, char *opt);
 
 // deflate.c
 

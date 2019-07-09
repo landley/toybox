@@ -59,7 +59,7 @@ char *comma_iterate(char **list, int *len)
   return start;
 }
 
-// check all instances of opt and "no"opt in optlist, return true if opt
+// Check all instances of opt and "no"opt in optlist, return true if opt
 // found and last instance wasn't no. If clean, remove each instance from list.
 int comma_scan(char *optlist, char *opt, int clean)
 {
@@ -96,4 +96,24 @@ int comma_scanall(char *optlist, char *scanlist)
   }
 
   return i;
+}
+
+// Returns true and removes `opt` from `optlist` if present, false otherwise.
+// Doesn't have the magic "no" behavior of comma_scan.
+int comma_remove(char *optlist, char *opt)
+{
+  int optlen = strlen(opt), len, got = 0;
+
+  if (optlist) for (;;) {
+    char *s = comma_iterate(&optlist, &len);
+
+    if (!s) break;
+    if (optlen == len && !strncmp(opt, s, optlen)) {
+      got = 1;
+      if (optlist) memmove(s, optlist, strlen(optlist)+1);
+      else *s = 0;
+    }
+  }
+
+  return got;
 }

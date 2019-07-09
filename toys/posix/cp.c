@@ -377,9 +377,9 @@ void cp_main(void)
   if (CFG_CP_PRESERVE && FLAG(preserve)) {
     char *pre = xstrdup(TT.c.preserve ? TT.c.preserve : "mot"), *s;
 
-    if (comma_scan(pre, "all", 1)) TT.pflags = ~0;
+    if (comma_remove(pre, "all")) TT.pflags = ~0;
     for (i=0; i<ARRAY_LEN(cp_preserve); i++)
-      if (comma_scan(pre, cp_preserve[i].name, 1)) TT.pflags |= 1<<i;
+      while (comma_remove(pre, cp_preserve[i].name)) TT.pflags |= 1<<i;
     if (*pre) {
 
       // Try to interpret as letters, commas won't set anything this doesn't.
