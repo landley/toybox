@@ -51,6 +51,7 @@ void *llist_pop(void *list)
   return (void *)next;
 }
 
+// Remove first item from &list and return it
 void *dlist_pop(void *list)
 {
   struct double_list **pdlist = (struct double_list **)list, *dlist = *pdlist;
@@ -64,6 +65,21 @@ void *dlist_pop(void *list)
   }
 
   return dlist;
+}
+
+// remove last item from &list and return it (stack pop)
+void *dlist_lpop(void *list)
+{
+  struct double_list *dl = *(struct double_list **)list;
+  void *v = 0;
+
+  if (dl) {
+    dl = dl->prev;
+    v = dlist_pop(&dl);
+    if (!dl) *(void **)list = 0;
+  }
+
+  return v;
 }
 
 void dlist_add_nomalloc(struct double_list **list, struct double_list *new)
