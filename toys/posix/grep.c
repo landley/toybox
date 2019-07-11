@@ -10,7 +10,7 @@
 * echo hello | grep -f </dev/null
 *
 
-USE_GREP(NEWTOY(grep, "(line-buffered)(color):;(exclude-dir)*S(exclude)*M(include)*ZzEFHIab(byte-offset)h(no-filename)ino(only-matching)rsvwcl(files-with-matches)q(quiet)(silent)e*f*C#B#A#m#x[!wx][!EFw]", TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
+USE_GREP(NEWTOY(grep, "(line-buffered)(color):;(exclude-dir)*S(exclude)*M(include)*ZzEFHIab(byte-offset)h(no-filename)ino(only-matching)rRsvwcl(files-with-matches)q(quiet)(silent)e*f*C#B#A#m#x[!wx][!EFw]", TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 USE_EGREP(OLDTOY(egrep, grep, TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 USE_FGREP(OLDTOY(fgrep, grep, TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 
@@ -29,6 +29,7 @@ config GREP
 
     file search:
     -r  Recurse into subdirectories (defaults FILE to ".")
+    -R  Recurse into subdirectories and symlinks to directories
     -M  Match filename pattern (--include)
     -S  Skip filename pattern (--exclude)
     --exclude-dir=PATTERN  Skip directory pattern
@@ -425,7 +426,7 @@ static int do_grep_r(struct dirtree *new)
   if (S_ISDIR(new->st.st_mode)) {
     for (al = TT.exclude_dir; al; al = al->next)
       if (!fnmatch(al->arg, new->name, 0)) return 0;
-    return DIRTREE_RECURSE;
+    return DIRTREE_RECURSE|(FLAG(R)?DIRTREE_SYMFOLLOW:0);
   }
   if (TT.S || TT.M) {
     for (al = TT.S; al; al = al->next)
@@ -463,6 +464,8 @@ void grep_main(void)
     TT.green = "\033[32m";
     TT.grey = "\033[0m";
   } else TT.purple = TT.cyan = TT.red = TT.green = TT.grey = "";
+
+  if (FLAG(R)) toys.optflags |= FLAG_r;
 
   // Grep exits with 2 for errors
   toys.exitval = 2;

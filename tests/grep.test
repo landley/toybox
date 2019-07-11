@@ -175,3 +175,12 @@ mkdir sub/no
 echo "hello world" > sub/no/test
 testing "--exclude-dir" 'grep --exclude-dir=no -r world sub' "sub/yes/test:hello world\n" "" ""
 rm -rf sub
+
+# -r and -R differ in that -R will dereference symlinks to directories.
+mkdir dir
+echo "hello" > dir/f
+mkdir sub
+ln -s ../dir sub/link
+testing "" "grep -rh hello sub" "" "" ""
+testing "" "grep -Rh hello sub" "hello\n" "" ""
+rm -rf sub real
