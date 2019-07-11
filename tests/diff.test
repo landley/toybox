@@ -33,3 +33,8 @@ echo foo > tree1/file
 echo food > tree2/file
 
 testing "-r" "diff -r -L tree1/file -L tree2/file tree1 tree2 |tee out" "$expected" "" ""
+
+echo -e "hello\r\nworld\r\n"> a
+echo -e "hello\nworld\n"> b
+testing "--strip-trailing-cr off" "diff -q a b" "Files a and b differ\n" "" ""
+testing "--strip-trailing-cr on" "diff -u --strip-trailing-cr a b" "" "" ""

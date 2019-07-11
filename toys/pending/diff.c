@@ -5,7 +5,7 @@
  *
  * See: http://cm.bell-labs.com/cm/cs/cstr/41.pdf
 
-USE_DIFF(NEWTOY(diff, "<2>2(color)B(ignore-blank-lines)d(minimal)b(ignore-space-change)ut(expand-tabs)w(ignore-all-space)i(ignore-case)T(initial-tab)s(report-identical-files)q(brief)a(text)L(label)*S(starting-file):N(new-file)r(recursive)U(unified)#<0=3", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
+USE_DIFF(NEWTOY(diff, "<2>2(color)(strip-trailing-cr)B(ignore-blank-lines)d(minimal)b(ignore-space-change)ut(expand-tabs)w(ignore-all-space)i(ignore-case)T(initial-tab)s(report-identical-files)q(brief)a(text)L(label)*S(starting-file):N(new-file)r(recursive)U(unified)#<0=3", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 
 config DIFF
   bool "diff"
@@ -13,23 +13,25 @@ config DIFF
   help
   usage: diff [-abBdiNqrTstw] [-L LABEL] [-S FILE] [-U LINES] FILE1 FILE2
 
-  -a  Treat all files as text
-  -b  Ignore changes in the amount of whitespace
-  -B  Ignore changes whose lines are all blank
-  -d  Try hard to find a smaller set of changes
-  -i  Ignore case differences
-  -L  Use LABEL instead of the filename in the unified header
-  -N  Treat absent files as empty
-  -q  Output only whether files differ
-  -r  Recurse
-  -S  Start with FILE when comparing directories
-  -T  Make tabs line up by prefixing a tab when necessary
-  -s  Report when two files are the same
-  -t  Expand tabs to spaces in output
-  -U  Output LINES lines of context
-  -w  Ignore all whitespace
+  -a	Treat all files as text
+  -b	Ignore changes in the amount of whitespace
+  -B	Ignore changes whose lines are all blank
+  -d	Try hard to find a smaller set of changes
+  -i	Ignore case differences
+  -L	Use LABEL instead of the filename in the unified header
+  -N	Treat absent files as empty
+  -q	Output only whether files differ
+  -r	Recurse
+  -S	Start with FILE when comparing directories
+  -T	Make tabs line up by prefixing a tab when necessary
+  -s	Report when two files are the same
+  -t	Expand tabs to spaces in output
+  -u	Unified diff
+  -U	Output LINES lines of context
+  -w	Ignore all whitespace
 
-  --color  Colored output
+  --color              Colored output
+  --strip-trailing-cr  Strip trailing '\r's from input lines
 */
 
 #define FOR_diff
@@ -196,8 +198,18 @@ static int read_tok(FILE *fp, off_t *off, int tok)
 
   tok |= empty;
   while (!(tok & eol)) {
-
     t = fgetc(fp);
+
+    if (FLAG(strip_trailing_cr) && t == '\r') {
+      int t2 = fgetc(fp);
+      if (t2 == '\n') {
+        t = t2;
+        if (off) (*off)++;
+      } else {
+        ungetc(t2, fp);
+      }
+    }
+
     if (off && t != EOF) *off += 1;
     is_space = isspace(t) || (t == EOF);
     tok |= (t & (eof + eol)); //set tok eof+eol when t is eof
