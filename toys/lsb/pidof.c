@@ -5,7 +5,7 @@
  *
  * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/pidof.html
 
-USE_PIDOF(NEWTOY(pidof, "<1so:", TOYFLAG_BIN))
+USE_PIDOF(NEWTOY(pidof, "<1so:x", TOYFLAG_BIN))
 
 config PIDOF
   bool "pidof"
@@ -17,6 +17,7 @@ config PIDOF
 
     -s	Single shot, only return one pid
     -o	Omit PID(s)
+    -x	Match shell scripts too
 */
 
 #define FOR_pidof
@@ -39,6 +40,6 @@ static int print_pid(pid_t pid, char *name)
 void pidof_main(void)
 {
   toys.exitval = 1;
-  names_to_pid(toys.optargs, print_pid);
+  names_to_pid(toys.optargs, print_pid, FLAG(x));
   if (!toys.exitval) xputc('\n');
 }

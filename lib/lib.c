@@ -1041,7 +1041,8 @@ char *fileunderdir(char *file, char *dir)
 }
 
 // Execute a callback for each PID that matches a process name from a list.
-void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
+void names_to_pid(char **names, int (*callback)(pid_t pid, char *name),
+    int scripts)
 {
   DIR *dp;
   struct dirent *entry;
@@ -1050,18 +1051,20 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
 
   while ((entry = readdir(dp))) {
     unsigned u = atoi(entry->d_name);
-    char *cmd = 0, *comm, **cur;
+    char *cmd = 0, *comm = 0, **cur;
     off_t len;
 
     if (!u) continue;
 
     // Comm is original name of executable (argv[0] could be #! interpreter)
     // but it's limited to 15 characters
-    sprintf(libbuf, "/proc/%u/comm", u);
-    len = sizeof(libbuf);
-    if (!(comm = readfileat(AT_FDCWD, libbuf, libbuf, &len)) || !len)
-      continue;
-    if (libbuf[len-1] == '\n') libbuf[--len] = 0;
+    if (scripts) {
+      sprintf(libbuf, "/proc/%u/comm", u);
+      len = sizeof(libbuf);
+      if (!(comm = readfileat(AT_FDCWD, libbuf, libbuf, &len)) || !len)
+        continue;
+      if (libbuf[len-1] == '\n') libbuf[--len] = 0;
+    }
 
     for (cur = names; *cur; cur++) {
       struct stat st1, st2;
@@ -1071,7 +1074,7 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
       // Fast path: only matching a filename (no path) that fits in comm.
       // `len` must be 14 or less because with a full 15 bytes we don't
       // know whether the name fit or was truncated.
-      if (len<=14 && bb==*cur && !strcmp(comm, bb)) goto match;
+      if (scripts && len<=14 && bb==*cur && !strcmp(comm, bb)) goto match;
 
       // If we have a path to existing file only match if same inode
       if (bb!=*cur && !stat(*cur, &st1)) {
@@ -1093,7 +1096,7 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name))
         cmd[len] = 0;
       }
       if (!strcmp(bb, getbasename(cmd))) goto match;
-      if (!strcmp(bb, getbasename(cmd+strlen(cmd)+1))) goto match;
+      if (scripts && !strcmp(bb, getbasename(cmd+strlen(cmd)+1))) goto match;
       continue;
 match:
       if (callback(u, *cur)) break;

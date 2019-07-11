@@ -34,23 +34,8 @@ GLOBALS(
   int proc_accounting;
   int is_login;
 
-  void *head;
+  pid_t cur_pid;
 )
-
-struct pid_list {
-  struct pid_list *next, *prev;
-  int pid;
-};
-
-static int push_pids_in_list(pid_t pid, char *name)
-{
-  struct pid_list *new = xzalloc(sizeof(struct pid_list));
-
-  new->pid = pid;
-  dlist_add_nomalloc((void *)&TT.head, (void *)new);
-
-  return 0;
-}
 
 static void dump_data_in_file(char *fname, int wfd)
 {
@@ -253,13 +238,21 @@ static void stop_logging(char *tmp_dir, char *prog)
   }
 }
 
+static int signal_pid(pid_t pid, char *name)
+{
+  if (pid != TT.cur_pid) kill(pid, SIGUSR1);
+  return 0;
+}
+
 void bootchartd_main()
 {
-  pid_t lgr_pid, self_pid = getpid();
+  pid_t lgr_pid;
   int bchartd_opt = 0; // 0=PID1, 1=start, 2=stop, 3=init
+
+  TT.cur_pid = getpid();
   TT.smpl_period_usec = 200 * 1000;
 
-  TT.is_login = (self_pid == 1);
+  TT.is_login = (TT.cur_pid == 1);
   if (*toys.optargs) {
     if (!strcmp("start", *toys.optargs)) bchartd_opt = 1;
     else if (!strcmp("stop", *toys.optargs)) bchartd_opt = 2;
@@ -267,16 +260,9 @@ void bootchartd_main()
     else error_exit("Unknown option '%s'", *toys.optargs);
 
     if (bchartd_opt == 2) {
-      struct pid_list *temp;
       char *process_name[] = {"bootchartd", NULL};
 
-      names_to_pid(process_name, push_pids_in_list);
-      temp = TT.head;
-      if (temp) temp->prev->next = 0;
-      for (; temp; temp = temp->next) 
-        if (temp->pid != self_pid) kill(temp->pid, SIGUSR1);
-      llist_traverse(TT.head, free);
-
+      names_to_pid(process_name, signal_pid, 0);
       return;
     }
   } else if (!TT.is_login) error_exit("not PID 1");

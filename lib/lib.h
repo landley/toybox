@@ -401,7 +401,8 @@ void mode_to_string(mode_t mode, char *buf);
 char *getdirname(char *name);
 char *getbasename(char *name);
 char *fileunderdir(char *file, char *dir);
-void names_to_pid(char **names, int (*callback)(pid_t pid, char *name));
+void names_to_pid(char **names, int (*callback)(pid_t pid, char *name),
+    int scripts);
 
 pid_t __attribute__((returns_twice)) xvforkwrap(pid_t pid);
 #define XVFORK() xvforkwrap(vfork())

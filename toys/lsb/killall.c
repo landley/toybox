@@ -89,7 +89,7 @@ void killall_main(void)
 
   TT.err = xmalloc(2*toys.optc);
   for (i=0; i<toys.optc; i++) TT.err[i] = ESRCH;
-  names_to_pid(TT.names, kill_process);
+  names_to_pid(TT.names, kill_process, 1);
   for (i=0; i<toys.optc; i++) {
     if (TT.err[i]) {
       toys.exitval = 1;
