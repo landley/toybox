@@ -37,7 +37,7 @@ struct addrinfo *xgetaddrinfo(char *host, char *port, int family, int socktype,
   return ai;
 }
 
-int xconnbind(struct addrinfo *ai_arg, int dobind)
+static int xconnbind(struct addrinfo *ai_arg, int dobind)
 {
   struct addrinfo *ai;
   int fd = -1, one = 1;
