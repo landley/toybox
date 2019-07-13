@@ -103,6 +103,23 @@ static struct arglist rtmtypes[] = { {"none", RTN_UNSPEC},
 static int filter_nlmesg(int (*fun)(struct nlmsghdr *mhdr, char **), char **);
 static int  ipaddr_print(struct linkdata *, int flg);
 
+// extended route attribute metrics.
+static const char *mx_names[RTAX_MAX + 1] = {
+    [RTAX_MTU] = "mtu",
+    [RTAX_WINDOW] = "window",
+    [RTAX_RTT] = "rtt",
+    [RTAX_RTTVAR] = "rttvar",
+    [RTAX_SSTHRESH] = "ssthresh",
+    [RTAX_CWND] = "cwnd",
+    [RTAX_ADVMSS] = "advmss",
+    [RTAX_REORDERING] = "reordering",
+    [RTAX_HOPLIMIT] = "hoplimit",
+    [RTAX_INITCWND] = "initcwnd",
+    [RTAX_FEATURES] = "features",
+    [RTAX_RTO_MIN] = "rto_min",
+    [RTAX_INITRWND] = "initrwnd",
+    [RTAX_QUICKACK] = "quickack",
+    [RTAX_CC_ALGO] = "congctl"};
 
 // ===========================================================================
 // Common Code for IP Options (like: addr, link, route etc.)
@@ -427,6 +444,35 @@ static void parse_prefix(uint32_t *addr, uint32_t *netmask, uint8_t *len,
   else *len = (af == AF_INET6) ? 16 : 4;
 }
 
+/*
+ * Add a route attribute to a buffer; this is primarily used for extended
+ * attributes which get collected in a separate buffer from the normal route
+ * attributes and later get added to the main rtm message.
+ */
+static void add_varlen_rtattr_to_buffer(struct rtattr *rta, int maxlen,
+                                        int type, void *data, int alen) {
+  struct rtattr *subrta;
+  int len = RTA_LENGTH(alen);
+  if (RTA_ALIGN(rta->rta_len) + RTA_ALIGN(len) > maxlen) {
+      error_exit("RTA exceeds max length %d", maxlen);
+  }
+  subrta = (struct rtattr*)(((char*)rta) + RTA_ALIGN(rta->rta_len));
+  subrta->rta_type = type;
+  subrta->rta_len = len;
+  if (alen) {
+    memcpy(RTA_DATA(subrta), data, alen);
+  }
+  rta->rta_len = NLMSG_ALIGN(rta->rta_len) + RTA_ALIGN(len);
+}
+
+static void add_uint32_rtattr_to_buffer(struct rtattr *rta, int maxlen,
+                                        int type, uint32_t attr) {
+  add_varlen_rtattr_to_buffer(rta, maxlen, type, (char*)&attr, sizeof(attr));
+}
+
+/*
+ * Add a route attribute to a RTM message.
+ */
 static void add_string_to_rtattr(struct nlmsghdr *n, int maxlen,
     int type, void *data, int alen)
 {
@@ -1463,6 +1509,65 @@ static void show_iproute_help(void)
   error_exit(errmsg);
 }
 
+static void print_rta_metrics(char* out, const struct rtattr *mxattr)
+{
+  int32_t tvar = RTA_PAYLOAD(mxattr);
+  struct rtattr *rta, *mxrta[RTAX_MAX+1] = {0,};
+  unsigned int mxlock = 0;
+  int i;
+
+  for (rta = RTA_DATA(mxattr); RTA_OK(rta, tvar); rta=RTA_NEXT(rta, tvar))
+    if (rta->rta_type <= RTA_MAX) mxrta[rta->rta_type] = rta;
+
+  if (mxrta[RTAX_LOCK])
+    mxlock = *(u_int32_t *)RTA_DATA(mxrta[RTAX_LOCK]);
+
+  for (i = 2; i <= RTAX_MAX; i++) {
+    uint32_t val = 0;
+
+    if (mxrta[i] == NULL && !(mxlock & (1 << i)))
+      continue;
+
+    if (mxrta[i] != NULL && i != RTAX_CC_ALGO)
+      val = *(u_int32_t *)RTA_DATA(mxrta[i]);
+
+    if (i == RTAX_HOPLIMIT && (int)val == -1)
+      continue;
+
+    if (i < sizeof(mx_names)/sizeof(char *) && mx_names[i])
+      sprintf(out, "%s%s ", out, mx_names[i]);
+    else
+      sprintf(out, "%smetric %d ", out, i);
+
+    if (mxlock & (1<<i))
+      sprintf(out, "%slock ", out);
+
+    switch (i) {
+      case RTAX_RTT:
+      case RTAX_RTTVAR:
+      case RTAX_RTO_MIN:
+        if (i == RTAX_RTT)
+          val /= 8;
+        else if (i == RTAX_RTTVAR)
+          val /= 4;
+
+        if (val >= 1000)
+          sprintf(out, "%s%gs ", out, val / 1e3);
+        else
+          sprintf(out, "%s%ums ", out, val);
+        break;
+
+      case RTAX_CC_ALGO:
+        sprintf(out, "%scongestion %s ", out, (const char*)RTA_DATA(mxrta[i]));
+        break;
+
+      default:
+        sprintf(out, "%s%u ", out, val);
+        break;
+    }
+  }
+}
+
 static int display_route_info(struct nlmsghdr *mhdr, char **argv)
 {
   char *inetval = NULL, out[1024] = {0};
@@ -1592,6 +1697,10 @@ static int display_route_info(struct nlmsghdr *mhdr, char **argv)
   if (attr[RTA_IIF] && !gfilter.idev)
     sprintf(out, "%s iif %s", out, 
         if_indextoname(*(int*)RTA_DATA(attr[RTA_IIF]), toybuf));
+
+  if (attr[RTA_METRICS])
+    print_rta_metrics(out, attr[RTA_METRICS]);
+
   if (TT.flush || (TT.connected && !TT.from_ok)) 
     memcpy(toybuf, (void*)mhdr,mhdr->nlmsg_len);
 
@@ -1947,8 +2056,7 @@ static int route_update(char **argv, unsigned int route_flags)
         if (!*++argv) show_iproute_help();
       }
       idx = atolx(*argv);
-      add_string_to_rtattr(&req.hdr, sizeof(req),
-          RTAX_MTU, (char*)&idx, sizeof(idx));
+      add_uint32_rtattr_to_buffer(mxrta, sizeof(mxbuf), RTAX_MTU, idx);
     } else if (idx == 4) {
       if (!*++argv) show_iproute_help();
       if ((idx = idxfromRPDB(*argv,RPDB_rtprotos)) < 0)
@@ -1998,8 +2106,7 @@ static int route_update(char **argv, unsigned int route_flags)
   }
   if (mxrta->rta_len > RTA_LENGTH(0)) {
     if (mxlock)
-      add_string_to_rtattr(&req.hdr, sizeof(req),
-          RTAX_LOCK, (char*)&mxlock, sizeof(mxlock));
+      add_uint32_rtattr_to_buffer(mxrta, sizeof(mxbuf), RTAX_LOCK, mxlock);
     add_string_to_rtattr(&req.hdr, sizeof(req),
         RTA_METRICS, RTA_DATA(mxrta), RTA_PAYLOAD(mxrta));
   }
