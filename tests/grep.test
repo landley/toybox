@@ -184,3 +184,16 @@ ln -s ../dir sub/link
 testing "" "grep -rh hello sub" "" "" ""
 testing "" "grep -Rh hello sub" "hello\n" "" ""
 rm -rf sub real
+
+# -F multiple matches
+testing "-F multiple" "grep -F h input" "this is hello\nthis is world\n" \
+  "missing\nthis is hello\nthis is world\nmissing" ""
+testing "-Fi multiple" "grep -Fi h input" "this is HELLO\nthis is WORLD\n" \
+  "missing\nthis is HELLO\nthis is WORLD\nmissing" ""
+testing "-F empty multiple" "grep -Fi '' input" \
+  "missing\nthis is HELLO\nthis is WORLD\nmissing\n" \
+  "missing\nthis is HELLO\nthis is WORLD\nmissing" ""
+testing "-Fx" "grep -Fx h input" "h\n" \
+  "missing\nH\nthis is hello\nthis is world\nh\nmissing" ""
+testing "-Fix" "grep -Fix h input" "H\nh\n" \
+  "missing\nH\nthis is HELLO\nthis is WORLD\nh\nmissing" ""

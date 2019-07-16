@@ -177,18 +177,19 @@ static void do_grep(int fd, char *name)
           if (FLAG(x)) {
             if (!(FLAG(i) ? strcasecmp : strcmp)(seek->arg, line)) s = line;
           } else if (!*seek->arg) {
+            // No need to set fseek.next because this will match every line.
             seek = &fseek;
             fseek.arg = s = line;
-          } else if (FLAG(i)) s = strcasestr(line, seek->arg);
-          else s = strstr(line, seek->arg);
+          } else if (FLAG(i)) s = strcasestr(start, seek->arg);
+          else s = strstr(start, seek->arg);
 
           if (s) break;
         }
 
         if (s) {
           rc = 0;
-          mm->rm_so = (s-line);
-          mm->rm_eo = (s-line)+strlen(seek->arg);
+          mm->rm_so = (s-start);
+          mm->rm_eo = (s-start)+strlen(seek->arg);
         } else rc = 1;
 
       // Handle regex matches
@@ -274,7 +275,7 @@ static void do_grep(int fd, char *name)
 
       if (!FLAG(c)) {
         long bcount = 1 + offset + (start-line) + (FLAG(o) ? mm->rm_so : 0);
- 
+
         if (bin) printf("Binary file %s matches\n", name);
         else if (FLAG(o))
           outline(start+mm->rm_so, ':', name, lcount, bcount,
@@ -282,7 +283,7 @@ static void do_grep(int fd, char *name)
         else {
           while (dlb) {
             struct double_list *dl = dlist_pop(&dlb);
-            unsigned *uu = (void *)(dl->data+((strlen(dl->data)+1)|3)+1);
+            unsigned *uu = (void *)(dl->data+((strlen(dl->data)+1)|3));
 
             outline(dl->data, '-', name, lcount-before, uu[0]+1, uu[1]);
             free(dl->data);
@@ -328,7 +329,7 @@ static void do_grep(int fd, char *name)
         unsigned *uu, ul = (ulen+1)|3;
 
         line = xrealloc(line, ul+8);
-        uu = (void *)(line+ul+1);
+        uu = (void *)(line+ul);
         uu[0] = offset-len;
         uu[1] = ulen;
         dlist_add(&dlb, line);
