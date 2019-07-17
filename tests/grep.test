@@ -69,7 +69,7 @@ testing "-o overlap" "grep -bo aaa" "1:aaa\n" "" "baaaa\n"
 testing "-co" "grep -co one input" "1\n" "one one one\n" ""
 testing "-nom" "grep -nom 2 one" "1:one\n1:one\n1:one\n2:one\n2:one\n" \
   "" "one one one\none one\none"
-testing "-vo" "grep -vo one input" "two\nthree\n" "onetwoonethreeone\n" ""
+toyonly testing "-vo" "grep -vo one input" "two\nthree\n" "onetwoonethreeone\n" ""
 testing "no newline" "grep -h one input -" \
   "hello one\nthere one\n" "hello one" "there one"
 
@@ -181,7 +181,7 @@ mkdir dir
 echo "hello" > dir/f
 mkdir sub
 ln -s ../dir sub/link
-testing "" "grep -rh hello sub" "" "" ""
+testing "" "grep -rh hello sub 2>/dev/null || echo err" "err\n" "" ""
 testing "" "grep -Rh hello sub" "hello\n" "" ""
 rm -rf sub real
 
