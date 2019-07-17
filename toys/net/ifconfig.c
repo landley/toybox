@@ -133,8 +133,9 @@ static void display_ifconfig(char *name, int always, unsigned long long val[])
     printf("%*c", 29-len, ' ');
   }
 
-  // query hardware type and hardware address
-  xioctl(TT.sockfd, SIOCGIFHWADDR, &ifre);
+  // Query hardware type and hardware address.
+  // Not xioctl because you don't have permission for this on Android.
+  ioctl(TT.sockfd, SIOCGIFHWADDR, &ifre);
 
   if (toys.optflags&FLAG_S)
     for (i=0; i<6; i++) printf(":%02x"+!i, ifre.ifr_hwaddr.sa_data[i]);
