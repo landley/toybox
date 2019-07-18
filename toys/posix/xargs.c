@@ -5,10 +5,11 @@
  * See http://opengroup.org/onlinepubs/9699919799/utilities/xargs.html
  *
  * TODO: Rich's whitespace objection, env size isn't fixed anymore.
- * TODO: -x	Exit if can't fit everything in one command
+ * TODO: -I	Insert mode
  * TODO: -L	Max number of lines of input per command
+ * TODO: -x	Exit if can't fit everything in one command
 
-USE_XARGS(NEWTOY(xargs, "^I:E:ptrn#<1s#0[!0E]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_XARGS(NEWTOY(xargs, "^E:ptrn#<1s#0[!0E]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config XARGS
   bool "xargs"
@@ -42,7 +43,7 @@ config XARGS_PEDANTIC
 
 GLOBALS(
   long s, n;
-  char *E, *I;
+  char *E;
 
   long entries, bytes;
   char delim;
