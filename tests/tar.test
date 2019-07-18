@@ -16,14 +16,25 @@ LONG=0123456789abcdef0123456789abcdef
 LONG=$LONG$LONG$LONG$LONG$LONG$LONG$LONG$LONG
 LONG=${LONG:1:255}
 
-# Reproducible tarballs: override ownership and timestamp. Also amount of
-# trailing NUL padding varies (1024 bytes is minimum, gnu/dammit does more)
-# so look at first 3 512-byte frames when analyzing header content.
-
+# Reproducible tarballs: override ownership and timestamp.
 TAR='tar c --owner root --group root --mtime @1234567890'
-export BLOCKS=3
-SUM='head -c $(($BLOCKS*512)) | sha1sum | sed "s/ .*//"'
-[ -n "$TARHD" ] && SUM="tee >(hd >&2) | $SUM"
+
+# Also amount of trailing NUL padding varies (1024 bytes is minimum,
+# gnu/dammit does more) so look at first N 512-byte frames when
+# analyzing header content.
+function SUM()
+{
+  if [ -n "$TARHD" ]; then
+    # (Android's shell doesn't support process substitution.)
+    mkfifo xxd-pipe
+    xxd <xxd-pipe & pid=$!
+    tee xxd-pipe | head -c $(($1*512)) | sha1sum | sed "s/ .*//"
+    rm xxd-pipe
+    wait $pid
+  else
+    head -c $(($1*512)) | sha1sum | sed "s/ .*//"
+  fi
+}
 
 function LST()
 {
@@ -31,7 +42,7 @@ function LST()
 }
 
 touch file
-testing "create file" "$TAR file | $SUM" \
+testing "create file" "$TAR file | SUM 3" \
   "fecaecba936e604bb115627a6ef4db7c7a3a8f81\n" "" ""
 
 testing "pass file" "$TAR file | LST" \
@@ -42,7 +53,9 @@ testing "pass file" "$TAR file | LST" \
 skipnot id nobody >/dev/null
 testing "pass user" "tar -c --owner nobody --group root --mtime @0 file | LST" \
   "-rw-rw-r-- nobody/root 0 1970-01-01 00:00 file\n" "" ""
-skipnot grep nobody /etc/group >/dev/null
+# (We assume that if we have the nobody user, we also have the group, in the
+# absence of a good portable way to test for the existence of a named group.)
+skipnot id nobody >/dev/null
 testing "pass group" "tar c --owner root --group nobody --mtime @0 file | LST" \
   "-rw-rw-r-- root/nobody 0 1970-01-01 00:00 file\n" "" ""
 
@@ -56,7 +69,7 @@ testing "adjust mode" \
   "-rwxrwxr-x root/root 0 1987-01-23 12:34:56 file\n" "" ""
 
 mkdir dir
-testing "create dir" "$TAR dir | $SUM" \
+testing "create dir" "$TAR dir | SUM 3" \
   "05739c423d7d4a7f12b3dbb7c94149acb2bb4f8d\n" "" ""
 
 testing "pass dir" "$TAR dir | LST" \
@@ -64,57 +77,57 @@ testing "pass dir" "$TAR dir | LST" \
 
 # note: does _not_ include dir entry in archive, just file
 touch dir/file
-testing "create file in dir" "$TAR dir/file | $SUM" \
+testing "create file in dir" "$TAR dir/file | SUM 3" \
   "2d7b96c7025987215f5a41f10eaa84311160afdb\n" "" ""
 
 # Tests recursion without worrying about content order
-testing "create dir and dir/file" "$TAR dir | $SUM" \
+testing "create dir and dir/file" "$TAR dir | SUM 3" \
   "0bcc8005a3e07eb63c9b735267aecc5b774795d7\n" "" ""
 
 testing "pass dir/file" "$TAR dir | LST" \
   "drwxrwxr-x root/root 0 2009-02-13 23:31 dir/\n-rw-rw-r-- root/root 0 2009-02-13 23:31 dir/file\n" "" ""
 
 echo boing > dir/that
-testing "tar C" "$TAR -C dir that | $SUM" \
+testing "tar C" "$TAR -C dir that | SUM 3" \
   "f0deff71bf4858eb0c5f49d99d052f12f1831feb\n" "" ""
 
 # / and .. only stripped from name, not symlink target.
 ln -s ../name.././.. dir/link
-testing "create symlink" "$TAR dir/link | $SUM" \
+testing "create symlink" "$TAR dir/link | SUM 3" \
   "7324cafbd9aeec5036b6efc54d741f11528aeb10\n" "" ""
 
 # Also two explicit targets
 ln dir/file dir/hardlink
-testing "create hardlink" "$TAR dir/file dir/hardlink | $SUM" \
+testing "create hardlink" "$TAR dir/file dir/hardlink | SUM 3" \
   "c5383651f8c03ec0fe15e8a9e28a4e8e5273990d\n" "" ""
 
 ln dir/link dir/hlink
-testing "create hardlink to symlink" "$TAR dir/link dir/hlink | $SUM" \
+testing "create hardlink to symlink" "$TAR dir/link dir/hlink | SUM 3" \
   "3bc16f8fb6fc8b05f691da8caf989a70ee99284a\n" "" ""
 
 skipnot mkfifo dir/fifo
-testing "create dir/fifo" "$TAR dir/fifo | $SUM" \
+testing "create dir/fifo" "$TAR dir/fifo | SUM 3" \
   "bd1365db6e8ead4c813333f9666994c1899924d9\n" "" ""
 
 # test L and K records
 
 # 4+96=100 (biggest short name), 4+97=101 (shortest long name)
 touch dir/${LONG:1:96} dir/${LONG:1:97}
-testing "create long fname" "$TAR dir/${LONG:1:97} dir/${LONG:1:96} | $SUM" \
+testing "create long fname" "$TAR dir/${LONG:1:97} dir/${LONG:1:96} | SUM 3" \
   "99348686fe9c9bf80f5740f1fc0c6f32f2021e3d\n" "" ""
 
 ln -s dir/${LONG:1:96} dir/lshort
 ln -s dir/${LONG:1:97} dir/llong
-testing "create long symlnk" "$TAR dir/lshort dir/llong | $SUM" \
+testing "create long symlnk" "$TAR dir/lshort dir/llong | SUM 3" \
   "8a5d652dc85f252a2e3b3f47d1ecd699e98a5f4b\n" "" ""
 
 ln -s $LONG dir/${LONG:5}
-BLOCKS=7 testing "create long->long" "$TAR dir/${LONG:5} | $SUM" \
+testing "create long->long" "$TAR dir/${LONG:5} | SUM 7" \
   "543116b8e690a116a559ab5b673f9b6d6601c925\n" "" ""
 # absolute and relative link names, broken and not
 
 ln -s file dir/linkok
-testing "create symlink" "$TAR dir/linkok | $SUM" \
+testing "create symlink" "$TAR dir/linkok | SUM 3" \
   "55652846506cf0a9d43b3ef03ccf9e98123befaf\n" "" ""
 
 ln -s /dev/null dir/linknull
@@ -136,10 +149,6 @@ testing "pass /dev/null" \
   "tar c --mtime @0 /dev/null 2>/dev/null | LST" \
   "crw-rw-rw- root/root 1,3 1970-01-01 00:00 dev/null\n" "" ""
 
-testing "pass /dev/loop0" \
-  "tar c --numeric-owner --mtime @0 /dev/loop0 2>/dev/null | LST" \
-  "brw-rw---- 0/6 7,0 1970-01-01 00:00 dev/loop0\n" "" ""
-
 # compression types
 testing "autodetect gzip" 'LST -f "$FILES"/tar/tar.tgz' \
   "drwxr-x--- enh/eng 0 2017-05-13 01:05 dir/\n-rw-r----- enh/eng 12 2017-05-13 01:05 dir/file\n" \
@@ -150,20 +159,16 @@ testing "manually specify bz2" 'LST -jf "$FILES"/tar/tar.tbz2' \
   "" ""
 
 skipnot mknod dir/char c 12 34
-testing "create dir/char" "tar c dir/char > test.tar && rm -f dir/char && tar xv test.tar && ls -l dir/char" \
-  "a" "" ""
+testing "character special" "tar --mtime @0 -cf test.tar dir/char && rm -f dir/char && tar xf test.tar && ls -l dir/char" \
+  "crw-rw---- 1 root root 12,  34 1970-01-01 00:00 dir/char\n" "" ""
 
-skipnot mknod dir/block c 23 45
-testing "create block" "tar c dir/block > test.tar && rm -f dir/block && tar xv test.tar && ls -l dir/block" \
-  "a" "" ""
-
-skipnot mknod dir/block b 56 78
-testing "create dir/block" "$TAR dir/block | $SUM" \
-  "" "" ""
+skipnot mknod dir/block b 23 45
+testing "block special" "tar --mtime @0 -cf test.tar dir/block && rm -f dir/block && tar xf test.tar && ls -l dir/block" \
+  "brw-rw---- 1 root root 23,  45 1970-01-01 00:00 dir/block\n" "" ""
 
 skipnot chown nobody dir/file
-testing "ownership" "$TAR dir/block | $SUM" \
-  "blat" "" ""
+testing "ownership" "$TAR dir/file | SUM 3" \
+  "2d7b96c7025987215f5a41f10eaa84311160afdb\n" "" ""
 
 mkdir -p dd/sub/blah &&
 tar cf test.tar dd/sub/blah &&
@@ -201,7 +206,7 @@ toyonly testing "cat tbz | extract dir/file (autodetect)" \
   "" ""
 
 yes | (dd bs=$((1<<16)) count=1; dd bs=8192 seek=14 count=1; dd bs=4096 seek=64 count=5) 2>/dev/null > fweep
-testing "sparse without overflow" "$TAR --sparse fweep | $SUM" \
+testing "sparse without overflow" "$TAR --sparse fweep | SUM 3" \
   "e1560110293247934493626d564c8f03c357cec5\n" "" ""
 
 rm fweep
@@ -210,7 +215,7 @@ do
   dd if=/dev/zero of=fweep bs=65536 seek=$i count=1 2>/dev/null
 done
 
-BLOCKS=6 testing "sparse single overflow" "$TAR --sparse fweep | $SUM" \
+testing "sparse single overflow" "$TAR --sparse fweep | SUM 6" \
   "063fc6519ea2607763bc591cc90dd15ac2b43eb8\n" "" ""
 
 rm fweep
@@ -219,7 +224,7 @@ do
   dd if=/dev/zero of=fweep bs=65536 seek=$i count=1 2>/dev/null
 done
 
-BLOCKS=7 testing "sparse double overflow" "$TAR --sparse fweep | $SUM" \
+testing "sparse double overflow" "$TAR --sparse fweep | SUM 7" \
   "f1fe57f8313a9d682ec9013a80f3798910b6ff51\n" "" ""
 
 tar c --sparse fweep > fweep.tar
