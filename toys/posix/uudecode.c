@@ -26,15 +26,19 @@ GLOBALS(
 
 void uudecode_main(void)
 {
-  int ifd = 0, ofd, idx = 0, m = m;
+  FILE *ifp = stdin;
+  int ofd, idx = 0, m = m, n;
+  size_t allocated_length;
   char *line = 0, mode[16],
        *class[] = {"begin%*[ ]%15s%*[ ]%n", "begin-base64%*[ ]%15s%*[ ]%n"};
 
-  if (toys.optc) ifd = xopenro(*toys.optargs);
+  if (toys.optc) ifp = xfopen(*toys.optargs, "r");
 
   while (!idx) {
-    free(line);
-    if (!(line = get_line(ifd))) error_exit("bad EOF");
+    if ((n = getline(&line, &allocated_length, ifp)) == -1)
+      error_exit("no begin line");
+    if (!n) continue;
+    line[n-1] = 0;
     for (m=0; m < 2; m++) {
       sscanf(line, class[m], mode, &idx);
       if (idx) break;
@@ -45,12 +49,12 @@ void uudecode_main(void)
   else ofd = xcreate(TT.o ? TT.o : line+idx, O_WRONLY|O_CREAT|O_TRUNC,
     string_to_mode(mode, 0777^toys.old_umask));
 
-  for(;;) {
+  for (;;) {
     char *in, *out;
     int olen;
 
-    free(line);
-    if (m == 2 || !(line = get_line(ifd))) break;
+    if (m == 2 || (n = getline(&line, &allocated_length, ifp)) == -1) break;
+    if (n) line[n-1] = 0;
     if (!strcmp(line, m ? "====" : "end")) {
       m = 2;
       continue;
@@ -102,7 +106,8 @@ line_done:
   }
 
   if (CFG_TOYBOX_FREE) {
-    if (ifd) close(ifd);
+    if (ifp != stdin) fclose(ifp);
     close(ofd);
+    free(line);
   }
 }
