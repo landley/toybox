@@ -17,13 +17,36 @@ of importance:</p>
 
 <b><h3>Features</h3></b>
 
+<p>These days toybox is the command line of Android, so anything they android
+guys say to do gets at the very least closely listened to.</p>
+
+<p>Toybox should provide the command line utilities of a build
+environment capable of recompiling itself under itself from source code.
+This minimal build system conceptually consists of 4 parts: toybox,
+a C library, a compiler, and a kernel. Toybox needs to provide all the
+commands (with all the behavior) necessary to run the configure/make/install
+of each package and boot the resulting system into a usable state.</p>
+
+<p>In addition, it should be possible to bootstrap up to arbitrary complexity
+under the result by compiling and installing additional packages into this
+minimal system, as measured by building both Linux From Scratch and the
+Android Open Source Project under the result. Any "circular dependencies"
+should be solved by toybox including the missing dependencies itself
+(see "Shared Libraries" below).</p>
+
+<p>Finally, toybox may provide some "convenience" utilties
+like top and vi that aren't necessarily used in a build but which turn
+the minimal build environment into a minimal development environment
+(supporting edit/compile/test cycles in a text console), configure
+network infrastructure for communication with other systems (in a build
+cluster), and so on.</p>
+
 <p>The hard part is deciding what NOT to include.
 A project without boundaries will bloat itself
 to death. One of the hardest but most important things a project must
 do is draw a line and say "no, this is somebody else's problem, not
-something we should do."</p>
-
-<p>Some things are simply outside the scope of the project: even though
+something we should do."
+Some things are simply outside the scope of the project: even though
 posix defines commands for compiling and linking, we're not going to include
 a compiler or linker (and support for a potentially infinite number of hardware
 targets). And until somebody comes up with a ~30k ssh implementation (with
@@ -33,12 +56,13 @@ going to point you at dropbear or bearssl.</p>
 <p>The <a href=roadmap.html>roadmap</a> has the list of features we're
 trying to implement, and the reasons why we decided to include those
 features. After the 1.0 release some of that material may get moved here,
-but for now it needs its own page.</p>
+but for now it needs its own page. The <a href=status.html>status</a>
+page shows the project's progress against the roadmap.</p>
 
 <p>There are potential features (such as a screen/tmux implementation)
 that might be worth adding after 1.0, in part because they could share
 infrastructure with things like "less" and "vi" so might be less work for
-us to do than an external from-scratch implementation. But for now, major
+us to do than for an external from scratch implementation. But for now, major
 new features outside posix, android's existing commands, and the needs of
 development systems, are a distraction from the 1.0 release.</p>
 
@@ -398,6 +422,26 @@ work.</p>
 <p>(This is why we use an external https wrapper program, because depending on
 openssl or similar to be linked in would change the behavior of toybox.)</p>
 
+<a name="license" />
+<h2>License</h2>
+
+<p>Toybox is licensed <a href=license.html>0BSD</a>, which is a public domain
+equivalent license approved by <a href=https://spdx.org/licenses/0BSD.html>SPDX</a>. This works like other BSD licenses except that it doesn't
+require copying specific license text into the resulting project when
+you copy code. (We care about attribution, not ownership, and the internet's
+really good at pointing out plagiarism.)</p>
+
+<p>This means toybox usually can't use external code contributions, and must
+implement new versions of everything unless the external code's original
+author (and any additional contributors) grants permission to relicense.
+Just as a GPLv2 project can't incorporate GPLv3 code and a BSD-licensed
+project can't incorporate either kind of GPL code, we can't incorporate
+most BSD or Apache licensed code without changing our license terms.</p>
+
+<p>The exception to this is code under an existing public domain equivalent
+license, such as the xz decompressor or
+<a href=https://github.com/mkj/dropbear/blob/master/libtommath/LICENSE>libtommath</a> and <a href=https://github.com/mkj/dropbear/blob/master/libtomcrypt/LICENSE>libtomcrypt</a>.</p>
+
 <a name="codestyle" />
 <h2>Coding style</h2>
 
@@ -440,13 +484,14 @@ them and other code. Yes, c99 allows you to put them anywhere, but they're
 harder to find if you do that. If there's a large enough distance between
 the declaration and the code using it to make you uncomfortable, maybe the
 function's too big, or is there an if statement or something you can
-use as an excuse to start a new closer block?</p>
+use as an excuse to start a new closer block? Use a longer variable name
+that's easier to search for perhaps?</p>
 
 <p>An * binds to a variable name not a type name, so space it that way.
 (In C "char *a, b;" and "char* a, b;" mean the same thing: "a" is a pointer
 but "b" is not. Spacing it the second way is not how C works.)</p>
 
-<p>If statments with a single line body go on the same line if the result
+<p>If statements with a single line body go on the same line if the result
 fits in 80 columns, on a second line if it doesn't. We usually only use
 curly brackets if we need to, either because the body is multiple lines or
 because we need to distinguish which if an else binds to. Curly brackets go
