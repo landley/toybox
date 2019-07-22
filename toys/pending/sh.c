@@ -18,6 +18,33 @@
  *   umask unalias wait
  *
  * Things like the bash man page are good to read too.
+ *
+ * TODO: "make sh" doesn't work (nofork builtins need to be included)
+ * TODO: test that $PS1 color changes work without stupid \[ \] hack
+ * TODO: make fake pty wrapper for test infrastructure
+ * TODO: // Handle embedded NUL bytes in the command line.
+ * TODO: var=val command
+ * existing but considered builtins: false kill pwd true
+ * buitins: alias bg command fc fg getopts jobs newgrp read umask unalias wait
+ * "special" builtins: break continue : . eval exec export readonly return set
+ *   shift times trap unset
+ * | & ; < > ( ) $ ` \ " ' <space> <tab> <newline>
+ * * ? [ # ~ = %
+ * ! { } case do done elif else esac fi for if in then until while
+ * [[ ]] function select
+ * $@ $* $# $? $- $$ $! $0
+ * ENV HOME IFS LANG LC_ALL LINENO PATH PPID PS1 PS2 PS4 PWD
+ * label:
+ * TODO: test exit from "trap EXIT" doesn't recurse
+ * TODO: ! history expansion
+ *
+ * bash man page:
+ * control operators || & && ; ;; ;& ;;& ( ) | |& <newline>
+ * reserved words
+ *   ! case  coproc  do done elif else esac fi for  function  if  in  select
+ *   then until while { } time [[ ]]
+
+
 
 USE_SH(NEWTOY(cd, NULL, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(exit, NULL, TOYFLAG_NOFORK))
@@ -72,8 +99,7 @@ GLOBALS(
 
   long lineno;
 
-  // parse scratch space
-  struct double_list *parse;
+  struct double_list functions;
 
   // Running jobs.
   struct sh_job {
@@ -83,14 +109,13 @@ GLOBALS(
     // Every pipeline has at least one set of arguments or it's Not A Thing
     struct sh_arg {
       char **v;
-      unsigned long c;
+      int c;
     } pipeline;
 
     // null terminated array of running processes in pipeline
     struct sh_process {
       struct string_list *delete; // expanded strings
       int pid, exit;   // status? Stopped? Exited?
-      char *end;
       struct sh_arg arg;
     } *procs, *proc;
   } *jobs, *job;
@@ -155,10 +180,69 @@ down:
   fflush(stdout);
 }
 
-// Execute the commands in a pipeline
-static void run_command(struct sh_process *pp)
+// Assign one variable
+// s: key=val
+// type: 0 = whatever it was before, local otherwise
+void setvar(char *s, int type)
 {
-  struct toy_list *tl = toy_find(*pp->arg.v);
+// todo: expand_arg: tilde, parameter+variable expansion, command substitution, arith expansion, quote removal. No wildcards, "$@" treated like "$@".
+  // local, export, readonly, integer...
+  xsetenv(xstrdup(s), 0);
+}
+
+// todo: ${name:?error} causes an error/abort here (syntax_err longjmp?)
+static void expand_arg(struct sh_arg *arg, char *new)
+{
+  if (!(arg->c&32)) arg->v = xrealloc(arg->v, sizeof(void *)*(arg->c+33));
+
+  arg->v[arg->c++] = new;
+  arg->v[arg->c] = 0;
+
+/*
+  char *s = word, *new = 0;
+
+  // replacement
+  while (*s) {
+    if (*s == '$') {
+      s++;
+    } else if (*strchr("*?[{", *s)) {
+      s++;
+    } else if (*s == '<' || *s == '>') {
+      s++;
+    } else s++;
+  }
+
+  return new;
+*/
+}
+
+// Execute the commands in a pipeline
+static void run_command(struct sh_arg *arg)
+{
+  struct sh_process *pp = xzalloc(sizeof(struct sh_process));
+  struct toy_list *tl;
+  unsigned envlen, j;
+
+  // Grab variable assignments
+  for (envlen = 0; envlen<arg->c; envlen++) {
+    char *s = arg->v[envlen];
+    for (j=0; s[j] && s[j]!='=' && s[j]!='\\'; j++);
+    if (s[j]!='=') break;
+  }
+  if (envlen == arg->c) {
+    for (j = 0; j<envlen; j++) setvar(arg->v[j], 0);
+    return;
+  }
+
+// todo: from i to envlen, need either start/end or to save a chunk
+// how to set without duplicates and n^2 loop?
+
+  for (j = envlen; j<arg->c; j++) expand_arg(&pp->arg, arg->v[j]);
+
+  tl = toy_find(*pp->arg.v);
+
+// todo use envlen
+// todo: check for functions
 
   // Is this command a builtin that should run in this process?
   if (tl && (tl->flags & TOYFLAG_NOFORK)) {
@@ -169,8 +253,10 @@ static void run_command(struct sh_process *pp)
     memcpy(&temp, &toys, sizeof(struct toy_context));
     memset(&toys, 0, sizeof(struct toy_context));
 
+// todo: redirect stdin/out
     if (!sigsetjmp(rebound, 1)) {
       toys.rebound = &rebound;
+// must be null terminated
       toy_init(tl, pp->arg.v);
       tl->toy_main();
     }
@@ -183,21 +269,16 @@ static void run_command(struct sh_process *pp)
 
     pipe[0] = 0;
     pipe[1] = 1;
+// todo: redirect and pipe
+// todo: redirecting stderr needs xpopen3() or rethink
     if (-1 == (pp->pid = xpopen_both(pp->arg.v, pipe)))
       perror_msg("%s: vfork", *pp->arg.v);
+// todo: don't close stdin/stdout!
     else pp->exit = xpclose_both(pp->pid, 0);
   }
 
+  llist_traverse(pp->delete, free);
   return;
-}
-
-// todo: ${name:?error} causes an error/abort here (syntax_err longjmp?)
-static void expand_arg(struct sh_arg *arg, char *new)
-{
-  if (!(arg->c&32)) arg->v = xrealloc(arg->v, sizeof(void *)*(arg->c+33));
-
-  arg->v[arg->c++] = new;
-  arg->v[arg->c] = 0;
 }
 
 // like error_msg() but exit from shell scripts
@@ -229,13 +310,6 @@ static char *parse_word(char *start)
 {
   int i, quote = 0;
   char *end = start, *s;
-
-  // Skip leading whitespace/comment
-  for (;;) {
-    if (isspace(*start)) ++start;
-    else if (*start=='#') while (*start && *start != '\n') ++start;
-    else break;
-  }
 
   // find end of this word
   while (*end) {
@@ -305,192 +379,74 @@ static char *parse_word(char *start)
   return quote ? 0 : end;
 }
 
-// Parse flow control statement(s), returns index of first statement to execute,
-// pp->arg->c if none, -1 if we need to flush due to syntax error
-int flow_control(int why, struct sh_arg *arg, struct double_list **expect,
-  char **end)
+// if then fi for while until select done done case esac break continue return
+
+// Allocate more space for arg, and possibly terminator
+void argxtend(struct sh_arg *arg)
 {
-  char *add = 0;
-  int i, pend = 0;
-
-  // Blank line shouldn't change end, but two ends in a row are an error
-  if (!arg->c) {
-    if (arg->v[0]) {
-      syntax_err("bad %s", arg->v[0]);
-      return -1;
-    }
-    return 0;
-  }
-
-  // parse flow control statements in this command line
-  for (i = 0; ; i++) {
-    char *ex = *expect ? (*expect)->prev->data : 0, *s = arg->v[i];
-
-    // push word to expect at end of block, and expect a command first
-    if (add) {
-      dlist_add(expect, add);                  // end of context
-      if (why) dlist_add(expect, arg->v[i-1]); // context for command
-      dlist_add(expect, add = 0);              // expect a command
-    }
-
-    // end of argument list?
-    if (i == arg->c) break;
-
-    // When waiting for { it must be next symbol, but can be on a new line.
-    if (ex && !strcmp(ex, "{")) {
-      if (strcmp(s, "{") || (!i && *end && strcmp(*end, ";"))) {
-        syntax_err("need {");
-        return -1;
-      }
-    }
-
-    if (!strcmp(s, "if")) add = "then";
-    else if (!strcmp(s, "for") || !strcmp(s, "select")
-        || !strcmp(s, "while") || !strcmp(s, "until")) add = "do";
-    else if (!strcmp(s, "case")) add = "esac";
-    else if (!strcmp(s, "{")) add = "}";
-    else if (!strcmp(s, "[[")) add = "]]";
-    else if (!strcmp(s, "(")) add = ")";
-
-    // function NAME () [nl] { [nl] body ; }
-    // Why can you to declare functions inside other functions?
-    else if (arg->c>i+1 && !strcmp(arg->v[i+1], "(")) goto funky;
-    else if (!strcmp(s, "function")) {
-      i++;
-funky:
-      // At this point we can only have a function: barf if it's invalid
-      if (arg->c<i+3 || !strcmp(arg->v[i+1], "(") || !strcmp(arg->v[i+2], ")")){
-        syntax_err("bad function ()");
-        return -1;
-      }
-      // perform abnormal add (one extra piece of info) manually.
-      dlist_add(expect, "}");
-      dlist_add(expect, "function");
-      dlist_add(expect, 0);
-      dlist_add(expect, "{");
-
-      continue;
-
-    // Expecting NULL means a statement: any otherwise unrecognized word
-    } else if (expect && !ex) {
-      free(dlist_pop(expect));
-
-      // if (why) context in which statement executes now at top of expect stack
-
-      // Does this statement end with a close parentheses?
-      if (!strcmp(")", arg->v[arg->c-1])) {
-
-        // Did we expect one?
-        if (!*expect || !strcmp(")", (*expect)->prev->data)) {
-          syntax_err("bad %s", ")");
-          return -1;
-        }
-
-        free(dlist_pop(expect));
-        // only need one statement in ( ( ( echo ) ) )
-        if (*expect && !(*expect)->prev->data) free(dlist_pop(expect));
-
-        pend++;
-        goto gotparen;
-      }
-      break;
-
-    // If we aren't expecting and didn't just start a new flow control block,
-    // rest of statement is a command and arguments, so stop now
-    } else if (!ex) break;
-
-    if (add) continue;
-
-    // If we got here we expect a specific word to end this block: is this it?
-    if (!strcmp(arg->v[i], ex)
-      || (!strcmp(ex, ")") && !strcmp(ex, arg->v[arg->c-1])))
-    {
-      // can't "if | then" or "while && do", only ; & or newline works
-      if (*end && strcmp(*end, ";") && strcmp(*end, "&")) {
-        syntax_err("bad %s", *end);
-        return -1;
-      }
-
-gotparen:
-      free(dlist_pop(expect));
-      // Only innermost statement needed in { { { echo ;} ;} ;} and such
-      if (*expect && !(*expect)->prev->data) free(dlist_pop(expect));
-
-      // If this was a command ending in parentheses
-      if (pend) break;
-
-      // if it's a multipart block, what comes next?
-      if (!strcmp(s, "do")) ex = "done";
-      else if (!strcmp(s, "then")) add = "fi\0A";
-    // fi could have elif, which queues a then.
-    } else if (!strcmp(ex, "fi")) {
-      if (!strcmp(s, "elif")) {
-        free(dlist_pop(expect));
-        add = "then";
-      // catch duplicate else while we're here
-      } else if (!strcmp(s, "else")) {
-        if (ex[3] != 'A') {
-          syntax_err("2 else");
-          return -1;
-        }
-        free(dlist_pop(expect));
-        add = "fi\0B";
-      }
-    }
-  }
-
-  // Record how the previous stanza ended: ; | & ;; || && ;& ;;& |& NULL
-  *end = arg->v[arg->c];
-
-  return i;
+  if (!(arg->c&31)) arg->v = xrealloc(arg->v, (33+arg->c)*sizeof(void *));
 }
 
-// Consume a line of shell script and do what it says. Returns 0 if finished,
-// 1 to request another line of input.
+// Pipeline segments
+struct sh_pipeline {
+  struct sh_pipeline *next, *prev;
+  char count, here, type;
+  struct sh_arg arg[1];
+};
 
+// scratch space (state held between calls). Don't want to make it global yet
+// because this could be reentrant.
 struct sh_parse {
-  struct double_list *pipeline, *plstart, *expect, *here;
+  struct sh_pipeline *pipeline;
+  struct double_list *expect;
   char *end;
 };
 
-// pipeline and expect are scratch space, state held between calls which
-// I don't want to make global yet because this could be reentrant.
-// returns 1 to request another line (> prompt), 0 if line consumed.
+// Free one pipeline segment.
+void free_pipeline(void *pipeline)
+{
+  struct sh_pipeline *pl = pipeline;
+  int i, j;
+
+  if (pl) for (j=0; j<=pl->count; j++) {
+    for (i = 0; i<=pl->arg->c; i++)  free(pl->arg[j].v[i]);
+    free(pl->arg[j].v);
+  }
+  free(pl);
+}
+
+// Consume a line of shell script and do what it says. Returns 0 if finished,
+// 1 to request another line of input (> prompt).
 static int parse_line(char *line, struct sh_parse *sp)
 {
-  char *start = line, *delete = 0, *end, *s;
+  char *start = line, *delete = 0, *end, *last = 0, *s, *ex;
+  struct sh_pipeline *pl = sp->pipeline ? sp->pipeline->prev : 0;
   struct sh_arg *arg = 0;
-  struct double_list *pl;
   long i;
 
   // Resume appending to last statement?
-  if (sp->pipeline) {
-    arg = (void *)sp->pipeline->prev->data;
+  if (pl) {
+    arg = pl->arg;
 
     // Extend/resume quoted block
     if (arg->c<0) {
-      start = delete = xmprintf("%s%s", arg->v[arg->c = (-arg->c)-1], start);
+      delete = start = xmprintf("%s%s", arg->v[arg->c = (-arg->c)-1], start);
       free(arg->v[arg->c]);
       arg->v[arg->c] = 0;
 
     // is a HERE document in progress?
-    } else if (sp->here && ((struct sh_arg *)sp->here->data)->c<0) {
-      unsigned long c;
+    } else if (pl->count != pl->here) {
+      arg += 1+pl->here;
 
-      arg = (void *)sp->here->data;
-      c = -arg->c - 1;
-
-      // HERE's arg->c < 0 means still adding to it, EOF string is last entry
-      if (!(31&c)) arg->v = xrealloc(arg->v, (32+c)*sizeof(void *));
-      if (strcmp(line, arg->v[c])) {
+      argxtend(arg);
+      if (strcmp(line, arg->v[arg->c])) {
         // Add this line
-        arg->v[c+1] = arg->v[c];
-        arg->v[c] = xstrdup(line);
-        arg->c--;
+        arg->v[arg->c+1] = arg->v[arg->c];
+        arg->v[arg->c++] = xstrdup(line);
+      // EOF hit, end HERE document
       } else {
-        // EOF hit, end HERE document
-        arg->v[arg->c = c] = 0;
-        sp->here = sp->here->next;
+        arg->v[arg->c] = 0;
+        pl->here++;
       }
       start = 0;
     }
@@ -500,13 +456,23 @@ static int parse_line(char *line, struct sh_parse *sp)
   if (start) for (;;) {
     s = 0;
 
+    // skip leading whitespace/comment here to know where next word starts
+    for (;;) {
+      if (isspace(*start)) ++start;
+      else if (*start=='#') while (*start && *start != '\n') ++start;
+      else break;
+    }
+
     // Parse next word and detect overflow (too many nested quotes).
     if ((end = parse_word(start)) == (void *)1) goto flush;
 
     // Extend pipeline and argv[] to store result
-    if (!arg)
-      dlist_add(&sp->pipeline, (void *)(arg = xzalloc(sizeof(struct sh_arg))));
-    if (!(31&arg->c)) arg->v = xrealloc(arg->v, (32+arg->c)*sizeof(void *));
+    if (!arg) {
+      pl = xzalloc(sizeof(struct sh_pipeline));
+      arg = pl->arg;
+      dlist_add_nomalloc((void *)&sp->pipeline, (void *)pl);
+    }
+    argxtend(arg);
 
     // Do we need to request another line to finish word (find ending quote)?
     if (!end) {
@@ -518,68 +484,195 @@ static int parse_line(char *line, struct sh_parse *sp)
       return 1;
     }
 
-    // Did we hit the end of this line of input?
-    if (end == start) {
+    // Ok, we have a word. What does it _mean_?
+
+    // Did we hit end of line or ) outside a function declaration?
+    // ) is only saved at start of a statement, ends current statement
+    if (end == start || (arg->c && *start == ')' && pl->type!='f')) {
       arg->v[arg->c] = 0;
 
-      // Parse flow control data from last statement
-      if (-1 == flow_control(0, arg, &sp->expect, &sp->end)) goto flush;
-
-      // Grab HERE document(s)
-      for (pl = sp->plstart ? sp->plstart : sp->pipeline; pl;
-           pl = (pl->next == sp->pipeline) ? 0 : pl->next)
-      {
-        struct sh_arg *here;
-
-        arg = (void *)pl->data;
-
-        for (i = 0; i<arg->c; i++) {
-          // find [n]<<[-] with an argument after it
-          s = arg->v[i];
-          if (*s == '{') s++;
-          while (isdigit(*s)) s++;
-          if (*arg->v[i] == '{' && *s == '}') s++;
-          if (strcmp(s, "<<") && strcmp(s, "<<-")) continue;
-          if (i+1 == arg->c) goto flush;
-
-          here = xzalloc(sizeof(struct sh_arg));
-          here->v = xzalloc(32*sizeof(void *));
-          *here->v = arg->v[++i];
-          here->c = -1;
-        }
+      if (pl->type == 'f' && arg->c<3) {
+        s = "function()";
+        goto flush;
       }
 
-      // Stop reading.
-      break;
-    }
+      // don't save blank pipeline segments
+      if (!arg->c) free_pipeline(dlist_lpop(&sp->pipeline));
 
-    // ) only saved at start of a statement, else ends statement with NULL
-    if (arg->c && *start == ')') {
-      arg->v[arg->c] = 0;
-      end--;
-      if (-1 == flow_control(0, arg, &sp->expect, &sp->end)) goto flush;
+      // stop at EOL, else continue with new pipeline segment for )
+      if (end == start) break;
       arg = 0;
+      last = 0;
+
+      continue;
     } else {
-      // Save argument (strdup) and check if it's special
+
+      // Save argument (strdup) and check for flow control
       s = arg->v[arg->c] = xstrndup(start, end-start);
-      if (!strchr(");|&", *start)) arg->c++;
+      start = end;
+      if (!strchr(";|&", *s)) arg->v[++arg->c] = 0;
       else {
-        // end of statement due to flow control character.
-        s = 0;
+
+        // flow control without a statement is an error
         if (!arg->c) goto flush;
-        if (-1 == flow_control(0, arg, &sp->expect, &sp->end)) goto flush;
+
+        // treat ; as newline so we don't have to check both elsewhere.
+        if (!strcmp(s, ";")) {
+          arg->v[arg->c] = 0;
+          free(s);
+          s = 0;
+        }
+        last = s;
         arg = 0;
+
+        continue;
       }
     }
-    start = end;
+
+    // We just ended a pipeline segment.
+
+    // Grab HERE document(s)
+    for (i = 0; i<arg->c; i++) {
+
+      // find an argument of the form [{n}]<<[-] with another one after it
+      s = arg->v[i];
+      if (*s == '{') s++;
+      while (isdigit(*s)) s++;
+      if (*arg->v[i] == '{' && *s == '}') s++;
+      if (strcmp(s, "<<") && strcmp(s, "<<-")) continue;
+      if (i+1 == arg->c) goto flush;
+
+      // Got one, queue it up so input loop asks for more lines.
+      dlist_lpop(&sp->pipeline);
+      pl = xrealloc(pl, sizeof(*pl) + ++pl->count*sizeof(struct sh_arg));
+      dlist_add_nomalloc((void *)&sp->pipeline, (void *)pl);
+
+      arg[pl->count].v = xzalloc(sizeof(void *));
+      *arg[pl->count].v = arg->v[++i];
+      arg[pl->count].c = 0;
+    }
+
+    // function in progress?
+    if (arg->c>1 && !strcmp(s, "(")) pl->type = 'f';
+    if (pl->type=='f') {
+      if (arg->c == 2 && strcmp(s, "(")) goto flush;
+      if (arg->c == 3) {
+        if (strcmp(s, ")")) goto flush;
+
+        // end function segment, expect function body
+        arg = 0;
+        last = 0;
+        dlist_add(&sp->expect, "}");
+        dlist_add(&sp->expect, 0);
+        dlist_add(&sp->expect, "{");
+
+        continue;
+      }
+
+    // flow control is the first word of a pipeline segment
+    } else if (arg->c>1) continue;
+    ex = sp->expect ? sp->expect->prev->data : 0;
+
+    // When waiting for { it must be next symbol, but can be on a new line.
+    if (ex && !strcmp(ex, "{")) {
+      if (strcmp(s, "{") || (!i && *end)) goto flush;
+      free(arg->v[--arg->c]);
+
+      continue;
+    }
+
+    end = 0;
+    if (!strcmp(s, "if")) end = "then";
+    else if (!strcmp(s, "for") || !strcmp(s, "select")
+         || !strcmp(s, "while") || !strcmp(s, "until")) end = "do";
+    else if (!strcmp(s, "case")) end = "esac";
+    else if (!strcmp(s, "{")) end = "}";
+    else if (!strcmp(s, "[[")) end = "]]";
+    else if (!strcmp(s, "(")) end = ")";
+
+    // Expecting NULL means a statement: any otherwise unrecognized word
+    else if (sp->expect && !ex) {
+      free(dlist_pop(&sp->expect));
+      continue;
+    } else if (!ex) goto check;
+
+    if (end) {
+      pl->type = 1;
+
+      // Only innermost statement needed in { { { echo ;} ;} ;} and such
+      if (sp->expect && !sp->expect->prev->data) free(dlist_pop(&sp->expect));
+
+    // If we got here we expect a specific word to end this block: is this it?
+    } else if (!strcmp(s, ex)) {
+      // can't "if | then" or "while && do", only ; & or newline works
+      if (*last && strcmp(end, "&")) {
+        s = end;
+        goto flush;
+      }
+
+      free(dlist_pop(&sp->expect));
+      pl->type = anyof(s, (char *[]){"fi", "done", "esac", "}", "]]", ")"})
+        ? 3 : 2;
+
+      // if it's a multipart block, what comes next?
+      if (!strcmp(s, "do")) end = "done";
+      else if (!strcmp(s, "then")) end = "fi\0A";
+
+    // fi could have elif, which queues a then.
+    } else if (!strcmp(ex, "fi")) {
+      if (!strcmp(s, "elif")) {
+        free(dlist_pop(&sp->expect));
+        end = "then";
+      // catch duplicate else while we're here
+      } else if (!strcmp(s, "else")) {
+        if (ex[3] != 'A') {
+          s = "2 else";
+          goto flush;
+        }
+        free(dlist_pop(&sp->expect));
+        end = "fi\0B";
+      }
+    }
+
+    // Do we need to queue up the next thing to expect?
+    if (end) {
+      if (!pl->type) pl->type = 2;
+      dlist_add(&sp->expect, end);
+      dlist_add(&sp->expect, 0);    // they're all preceded by a statement
+    }
+
+check:
+    // syntax error check: these can't be the first word in an unexpected place
+    if (!pl->type && anyof(s, (char *[]){"then", "do", "esac", "}", "]]", ")",
+        "done", "then", "fi", "elif", "else"})) goto flush;
   }
   free(delete);
 
+if (0) if (sp->expect) {
+dprintf(2, "expectorate\n");
+struct double_list *dl;
+for (dl = sp->expect; dl; dl = (dl->next == sp->expect) ? 0 : dl->next)
+  dprintf(2, "expecting %s\n", dl->data);
+if (sp->pipeline) dprintf(2, "count=%d here=%d\n", sp->pipeline->prev->count, sp->pipeline->prev->here);
+}
+
   // return if HERE document or more flow control
-  if (sp->expect || (sp->pipeline && sp->pipeline->prev->data==(void *)1))
+  if (sp->expect) return 1;
+  if (sp->pipeline && sp->pipeline->prev->count != sp->pipeline->prev->here)
     return 1;
 
   // At this point, we've don't need more input and can start executing.
+
+if (0) {
+dprintf(2, "pipeline now\n");
+struct sh_pipeline *ppl = pl;
+int q = 0;
+for (pl = sp->pipeline; pl ; pl = (pl->next == sp->pipeline) ? 0 : pl->next) {
+  for (i = 0; i<pl->arg->c; i++) printf("arg[%d][%ld]=%s\n", q, i, pl->arg->v[i]);
+  printf("term[%d]=%s\n", q++, pl->arg->v[pl->arg->c]);
+}
+pl = ppl;
+}
 
   // **************************** do the thing *******************************
 
@@ -588,36 +681,30 @@ static int parse_line(char *line, struct sh_parse *sp)
   // iterate through the commands running each one
 
   // run a pipeline of commands
-
   for (pl = sp->pipeline; pl ; pl = (pl->next == sp->pipeline) ? 0 : pl->next) {
-    struct sh_process *pp = xzalloc(sizeof(struct sh_process));
+    arg = pl->arg;
 
-    for (i = 0; i<arg->c; i++) expand_arg(&pp->arg, arg->v[i]);
-    run_command(pp);
-    llist_traverse(pp->delete, free);
+/*
+  function () { commands ; }
+    local variables in functions
+
+if/then/elif/else/fi
+for select while until/do/done
+case/esac
+{/}
+[[/]]
+(/)
+function/}
+
+*/
+
+    run_command(arg);
   }
 
   s = 0;
 flush:
-
   if (s) syntax_err("bad %s", s);
-  while ((pl = dlist_pop(&sp->pipeline))) {
-    arg = (void *)pl->data;
-    free(pl);
-    for (i = 0; i<arg->c; i++) free(arg->v[i]);
-    free(arg->v);
-    free(arg);
-  }
-
-  while ((pl = dlist_pop(&sp->here))) {
-    arg = (void *)pl->data;
-    free(pl);
-    if (arg->c<0) arg->c = -arg->c - 1;
-    for (i = 0; i<arg->c; i++) free(arg->v[i]);
-    free(arg->v);
-    free(arg);
-  }
-
+  while ((pl = dlist_pop(&sp->pipeline))) free_pipeline(pl);
   llist_traverse(sp->expect, free);
 
   return 0;
@@ -652,6 +739,8 @@ void sh_main(void)
     } else TT.lineno++;
     if (1>(linelen = getline(&new, &linelen, f ? f : stdin))) break;
     if (new[linelen-1] == '\n') new[--linelen] = 0;
+
+// TODO if (!isspace(*new)) add_to_history(line);
 
     // returns 0 if line consumed, command if it needs more data
     prompt = parse_line(new, &scratch);
