@@ -35,36 +35,25 @@ GLOBALS(
 
   // Count of consecutive blank lines for -l has to persist between files
   long lcount;
+  long slen;
 )
 
-static void do_nl(int fd, char *name)
+static void do_nl(char **pline, long len)
 {
-  FILE *f = xfdopen(fd, "r");
-  int w = TT.w, slen = strlen(TT.s);
+  char *line;
+  int match = *TT.b != 'n';
 
-  for (;;) {
-    char *line = 0;
-    size_t temp;
-    int match = *TT.b != 'n';
+  if (!pline) return;
+  line = *pline;
 
-    if (getline(&line, &temp, f) < 1) {
-      if (ferror(f)) perror_msg_raw(name);
-      break;
-    }
-
-    if (*TT.b == 'p') match = !regexec((void *)(toybuf+16), line, 0, 0, 0);
-    if (TT.l || *TT.b == 't')
-      if (*line == '\n') match = TT.l && ++TT.lcount >= TT.l;
-    if (match) {
-      TT.lcount = 0;
-      printf(toybuf, w, TT.v++, TT.s);
-    } else printf("%*c", (int)w+slen, ' ');
-    xprintf("%s", line);
-
-    free(line);
-  }
-
-  fclose(f);
+  if (*TT.b == 'p') match = !regexec((void *)(toybuf+16), line, 0, 0, 0);
+  if (TT.l || *TT.b == 't')
+    if (*line == '\n') match = TT.l && ++TT.lcount >= TT.l;
+  if (match) {
+    TT.lcount = 0;
+    printf(toybuf, TT.w, TT.v++, TT.s);
+  } else printf("%*c", (int)(TT.w+TT.slen), ' ');
+  xprintf("%s", line);
 }
 
 void nl_main(void)
@@ -72,6 +61,7 @@ void nl_main(void)
   char *clip = "";
 
   if (!TT.s) TT.s = "\t";
+  TT.slen = strlen(TT.s);
 
   if (!TT.n || !strcmp(TT.n, "rn")); // default
   else if (!strcmp(TT.n, "ln")) clip = "-";
@@ -86,5 +76,5 @@ void nl_main(void)
       REG_NOSUB | (toys.optflags&FLAG_E)*REG_EXTENDED);
   else if (!strchr("atn", *TT.b)) error_exit("bad -b '%s'", TT.b);
 
-  loopfiles (toys.optargs, do_nl);
+  loopfiles_lines(toys.optargs, do_nl);
 }
