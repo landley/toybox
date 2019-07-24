@@ -694,7 +694,8 @@ static void loopfile_lines_bridge(int fd, char *name)
 void loopfiles_lines(char **argv, void (*function)(char **pline, long len))
 {
   do_lines_bridge = function;
-  loopfiles(argv, loopfile_lines_bridge);
+  // No O_CLOEXEC because we need to call fclose.
+  loopfiles_rw(argv, O_RDONLY|WARN_ONLY, 0, loopfile_lines_bridge);
 }
 
 // Slow, but small.
