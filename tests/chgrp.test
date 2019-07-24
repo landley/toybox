@@ -9,13 +9,10 @@ then
   exit
 fi
 
-if [ -f /etc/group ]; then
-  # We chgrp between "root" and the last group in /etc/group.
-  GRP="$(sed -n '$s/:.*//p' /etc/group)"
-else
-  # Or assume we're on Android and pick a well-known group.
-  GRP=shell
-fi
+# We chgrp between "root" and the last group in /etc/group.
+GRP="$(sed -n '$s/:.*//p' /etc/group)"
+# Or if that fails, assume we're on Android and pick a well-known group.
+: "${GRP:=shell}"
 
 # Set up a little testing hierarchy
 
