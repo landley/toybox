@@ -398,20 +398,15 @@ static void parse_regex(void)
   TT.e = list;
 
   if (!FLAG(F)) {
-    int i;
-
     // Convert regex list
     for (al = TT.e; al; al = al->next) {
       struct reg *shoe;
 
       if (FLAG(o) && !*al->arg) continue;
       dlist_add_nomalloc(&TT.reg, (void *)(shoe = xmalloc(sizeof(struct reg))));
-      i = regcomp(&shoe->r, al->arg,
-                  (REG_EXTENDED*!!FLAG(E)) | (REG_ICASE*!!FLAG(i)));
-      if (i) {
-        regerror(i, &shoe->r, toybuf, sizeof(toybuf));
-        error_exit("bad REGEX '%s': %s", al->arg, toybuf);
-      }
+      // BSD regcomp doesn't support empty regex, so we fake that.
+      xregcomp(&shoe->r, *al->arg ? al->arg : "()",
+               (REG_EXTENDED*(!!FLAG(E)|!*al->arg))|(REG_ICASE*!!FLAG(i)));
     }
     dlist_terminate(TT.reg);
   }
