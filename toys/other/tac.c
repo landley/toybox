@@ -18,20 +18,27 @@ config TAC
 static void do_tac(int fd, char *name)
 {
   struct arg_list *list = NULL;
-  char *c;
+  FILE *fp;
 
-  // Read in lines
+  if (fd == -1) {
+    perror_msg_raw(name);
+    return;
+  }
+
+  // Read in lines.
+  fp = xfdopen(fd, "r");
   for (;;) {
-    struct arg_list *temp;
-    long len;
+    char *line = NULL;
+    size_t allocated_length;
 
-    if (!(c = get_rawline(fd, &len, '\n'))) break;
+    if (getline(&line, &allocated_length, fp) <= 0) break;
 
-    temp = xmalloc(sizeof(struct arg_list));
+    struct arg_list *temp = xmalloc(sizeof(struct arg_list));
     temp->next = list;
-    temp->arg = c;
+    temp->arg = line;
     list = temp;
   }
+  fclose(fp);
 
   // Play them back.
   while (list) {
@@ -45,5 +52,5 @@ static void do_tac(int fd, char *name)
 
 void tac_main(void)
 {
-  loopfiles(toys.optargs, do_tac);
+  loopfiles_rw(toys.optargs, O_RDONLY, 0, do_tac);
 }
