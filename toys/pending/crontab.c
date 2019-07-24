@@ -113,15 +113,17 @@ static int validate_component(int min, int max, char *src)
 
 static int parse_crontab(char *fname)
 {
-  char *line;
-  int lno, fd = xopenro(fname);
-  long plen = 0;
+  FILE *fp = xfopen(fname, "r");
+  long len = 0;
+  char *line = NULL;
+  size_t allocated_length;
+  int lno;
 
-  for (lno = 1; (line = get_rawline(fd, &plen, '\n')); lno++,free(line)) {
+  for (lno = 1; (len = getline(&line, &allocated_length, fp)) > 0; lno++) {
     char *name, *val, *tokens[5] = {0,}, *ptr = line;
     int count = 0;
 
-    if (line[plen - 1] == '\n') line[--plen] = '\0';
+    if (line[len - 1] == '\n') line[--len] = '\0';
     else {
       snprintf(toybuf, sizeof(toybuf), "'%d': premature EOF\n", lno);
       goto OUT;
@@ -200,12 +202,13 @@ static int parse_crontab(char *fname)
         break;
     }
   }
-  xclose(fd);
+  free(line);
+  fclose(fp);
   return 0;
 OUT:
   free(line);
   printf("Error at line no %s", toybuf);
-  xclose(fd);
+  fclose(fp);
   return 1;
 }
 
