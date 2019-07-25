@@ -13,12 +13,12 @@ cp toybox.killall.test.script toybox.test
 
 tst=toybox.test
 ./$tst &
-testing "short name" "killall $tst && echo killed ; sleep 0.1 ; \
+testing "short name" "killall -w $tst && echo killed ; \
   pgrep -l $tst || echo really" "killed\nreally\n" "" ""
 
 tst=toybox.killall.test.script
 ./$tst &
-testing "long name" "killall $tst && echo killed ; sleep 0.1 ; \
+testing "long name" "killall -w $tst && echo killed ; \
   pgrep -l $tst || echo really" "killed\nreally\n" "" ""
 
 rm -f toybox.killall.test.script toybox.test
