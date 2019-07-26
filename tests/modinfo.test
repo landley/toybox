@@ -4,13 +4,17 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-testcmd "missing" "missing 2>&1" "modinfo: missing: not found\n" "" ""
-
-[ -e /proc/modules ] || { echo "Skipping: no /proc/modules"; exit 1; }
-
-# Android keeps its modules on the vendor partition.
+# Android keeps its modules (if any) on the vendor partition.
 MODULE_ROOT=""
 [ -d /vendor/lib/modules ] && MODULE_ROOT="/vendor"
+
+if [[ ! -e /proc/modules || ! -d $MODULE_ROOT/lib/modules ]]; then
+  echo "$SHOWSKIP: modinfo (no modules)"
+  return 2>/dev/null
+  exit
+fi
+
+testcmd "missing" "missing 2>&1" "modinfo: missing: not found\n" "" ""
 
 # Find some modules to work with.
 MODULE_PATH1=$(find $MODULE_ROOT/lib/modules -name *.ko | head -1 2>/dev/null)
