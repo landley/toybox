@@ -35,6 +35,8 @@ modprobe dummy 2>/dev/null
 if ! ifconfig dummy0 up 2>/dev/null
 then
   echo "$SHOWSKIP: ifconfig dummy0 up failed"
+  return 2>/dev/null
+  exit
 fi
 
 # Test Description: Disable the dummy0 interface
