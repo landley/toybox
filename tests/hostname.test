@@ -4,14 +4,9 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-HOST="$(cat /proc/sys/kernel/hostname)"
+HOST="$(cat /proc/sys/kernel/hostname 2>/dev/null)"
+skipnot [ $? -eq 0 ]
 testing "get" "hostname" "$HOST\n" "" ""
 
-if [ "$(id -u)" -ne 0 ]
-then
-  echo "$SHOWSKIP: groupdel (not root)"
-  return 2>/dev/null
-  exit
-fi
-
+skipnot [ $(id -u) -eq 0 ]
 testing "set" 'hostname "2>&1 | tee"; hostname; hostname "$HOST"' "2>&1 | tee\n" "" ""
