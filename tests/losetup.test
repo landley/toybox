@@ -2,9 +2,14 @@
 
 [ -f testing.sh ] && . testing.sh
 
-if [ "$(id -u)" -ne 0 ]
-then
+if [ "$(id -u)" -ne 0 ]; then
   echo "$SHOWSKIP: losetup (not root)"
+  return 2>/dev/null
+  exit
+fi
+
+if [ "$(losetup -a | wc -l)" -ne 0 ]; then
+  echo "$SHOWSKIP: losetup (devices already in use)"
   return 2>/dev/null
   exit
 fi
