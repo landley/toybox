@@ -2,6 +2,13 @@
 
 # Grab default values for $CFLAGS and such.
 
+if [ ! -z "$ASAN" ]; then
+  # Turn ASan on.
+  CFLAGS="-fsanitize=address $CFLAGS"
+  # Optional, but effectively necessary if you want useful backtraces.
+  CFLAGS="-O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls $CFLAGS"
+fi
+
 export LANG=c
 export LC_ALL=C
 set -o pipefail
