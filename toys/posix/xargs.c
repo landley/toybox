@@ -161,7 +161,7 @@ void xargs_main(void)
       data = handle_entries(data, NULL);
       if (!data) continue;
       if (data == (char *)2) done++;
-      if ((long)data <= 2) data = 0;
+      if ((unsigned long)data <= 2) data = 0;
       else data = xstrdup(data);
 
       break;
