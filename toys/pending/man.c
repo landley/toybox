@@ -175,7 +175,8 @@ void man_main(void)
     char *d, *f;
     DIR *dp;
     struct dirent *entry;
-    if (regcomp(&TT.reg, TT.k, REG_ICASE|REG_NOSUB)) error_exit("bad regex");
+
+    xregcomp(&TT.reg, TT.k, REG_ICASE|REG_NOSUB);
     while (!manpath()) {
       d = xmprintf("%s/man%s", TT.m, *TT.sct);
       if (!(dp = opendir(d))) continue;
