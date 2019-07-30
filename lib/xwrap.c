@@ -922,11 +922,18 @@ long long xparsemillitime(char *arg)
 // Compile a regular expression into a regex_t
 void xregcomp(regex_t *preg, char *regex, int cflags)
 {
-  int rc = regcomp(preg, regex, cflags);
+  int rc;
 
-  if (rc) {
+  // BSD regex implementations don't support the empty regex (which isn't
+  // allowed in the POSIX grammar), but glibc does. Fake it for BSD.
+  if (!*regex) {
+    regex = "()";
+    cflags |= REG_EXTENDED;
+  }
+
+  if ((rc = regcomp(preg, regex, cflags))) {
     regerror(rc, preg, libbuf, sizeof(libbuf));
-    error_exit("xregcomp: %s", libbuf);
+    error_exit("bad regex: %s", libbuf);
   }
 }
 

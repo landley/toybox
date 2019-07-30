@@ -404,9 +404,8 @@ static void parse_regex(void)
 
       if (FLAG(o) && !*al->arg) continue;
       dlist_add_nomalloc(&TT.reg, (void *)(shoe = xmalloc(sizeof(struct reg))));
-      // BSD regcomp doesn't support empty regex, so we fake that.
-      xregcomp(&shoe->r, *al->arg ? al->arg : "()",
-               (REG_EXTENDED*(!!FLAG(E)|!*al->arg))|(REG_ICASE*!!FLAG(i)));
+      xregcomp(&shoe->r, al->arg,
+               (REG_EXTENDED*!!FLAG(E))|(REG_ICASE*!!FLAG(i)));
     }
     dlist_terminate(TT.reg);
   }
