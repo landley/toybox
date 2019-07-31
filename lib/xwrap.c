@@ -197,7 +197,7 @@ pid_t __attribute__((returns_twice)) xvforkwrap(pid_t pid)
   if (pid == -1) perror_exit("vfork");
 
   // Signal to xexec() and friends that we vforked so can't recurse
-  toys.stacktop = 0;
+  if (!pid) toys.stacktop = 0;
 
   return pid;
 }
@@ -237,24 +237,24 @@ pid_t xpopen_both(char **argv, int *pipes)
 
   if (!(pid = CFG_TOYBOX_FORK ? xfork() : XVFORK())) {
     // Child process: Dance of the stdin/stdout redirection.
-    // cestnepasun[1]->cestnepasun[0] and cestnepasun[2]->cestnepasun[1]
+    // cestnepasun[1]->cestnepasun[0] and cestnepasun[3]->cestnepasun[2]
     if (pipes) {
       // if we had no stdin/out, pipe handles could overlap, so test for it
       // and free up potentially overlapping pipe handles before reuse
 
-      // in child, close read end of output pipe, and return write end as out
+      // in child, close read end of output pipe, use write end as new stdout
       if (cestnepasun[2]) {
         close(cestnepasun[2]);
         pipes[1] = cestnepasun[3];
       }
 
-      // in child, close write end of input pipe, and return input end as out.
+      // in child, close write end of input pipe, use read end as new stdin
       if (cestnepasun[1]) {
         close(cestnepasun[1]);
         pipes[0] = cestnepasun[0];
       }
 
-      // If swapping stdin/stdout, need to move a filehandle to temp
+      // If swapping stdin/stdout, dup a filehandle that gets closed before use
       if (!pipes[1]) pipes[1] = dup(0);
 
       // Are we redirecting stdin?
