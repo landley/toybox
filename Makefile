@@ -31,6 +31,7 @@ $(KCONFIG_CONFIG): $(KCONFIG_TOP)
 	exit 1; fi
 
 $(KCONFIG_TOP): generated/Config.in generated/Config.probed
+generated/Config.probed: generated/Config.in
 generated/Config.in: toys/*/*.c scripts/genconfig.sh
 	scripts/genconfig.sh
 
