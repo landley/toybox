@@ -15,21 +15,22 @@
 
 // This is a shell built-in function, running in the same process context.
 #define TOYFLAG_NOFORK   (1<<4)
+#define TOYFLAG_MAYFORK  (1<<5)
 
 // Start command with a umask of 0 (saves old umask in this.old_umask)
-#define TOYFLAG_UMASK    (1<<5)
+#define TOYFLAG_UMASK    (1<<6)
 
 // This command runs as root.
-#define TOYFLAG_STAYROOT (1<<6) // Don't drop suid root before running cmd_main
-#define TOYFLAG_NEEDROOT (1<<7) // Refuse to run if real uid != 0
+#define TOYFLAG_STAYROOT (1<<7) // Don't drop suid root before running cmd_main
+#define TOYFLAG_NEEDROOT (1<<8) // Refuse to run if real uid != 0
 #define TOYFLAG_ROOTONLY (TOYFLAG_STAYROOT|TOYFLAG_NEEDROOT)
 
 // Call setlocale to listen to environment variables.
 // This invalidates sprintf("%.*s", size, string) as a valid length constraint.
-#define TOYFLAG_LOCALE   (1<<8)
+#define TOYFLAG_LOCALE   (1<<9)
 
 // Suppress default --help processing
-#define TOYFLAG_NOHELP   (1<<9)
+#define TOYFLAG_NOHELP   (1<<10)
 
 // Error code to return if argument parsing fails (default 1)
 #define TOYFLAG_ARGFAIL(x) (x<<24)

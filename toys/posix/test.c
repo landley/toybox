@@ -4,7 +4,8 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/test.html
 
-USE_TEST(NEWTOY(test, 0, TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_NOHELP))
+USE_TEST(NEWTOY(test, 0, TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_NOHELP|TOYFLAG_MAYFORK))
+USE_TEST(OLDTOY([, test, TOYFLAG_NOFORK|TOYFLAG_NOHELP))
 
 config TEST
   bool "test"

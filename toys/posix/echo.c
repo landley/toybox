@@ -9,7 +9,7 @@
  * We also honor -- to _stop_ option parsing (bash doesn't, we go with
  * consistency over compatibility here).
 
-USE_ECHO(NEWTOY(echo, "^?Een[-eE]", TOYFLAG_BIN))
+USE_ECHO(NEWTOY(echo, "^?Een[-eE]", TOYFLAG_BIN|TOYFLAG_MAYFORK))
 
 config ECHO
   bool "echo"
