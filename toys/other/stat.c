@@ -193,7 +193,7 @@ void stat_main(void)
       "Inodes: Total: %c\tFree: %d"
     : "  File: %N\n  Size: %s\t Blocks: %b\t IO Blocks: %B\t %F\n"
       "Device: %Dh/%dd\t Inode: %i\t Links: %h\t Device type: %t,%T\n"
-      "Access: (0%a/%A)\tUid: (%5u/%8U)\tGid: (%5g/%8G)\n"
+      "Access: (%04a/%A)\tUid: (%5u/%8U)\tGid: (%5g/%8G)\n"
       "Access: %x\nModify: %y\nChange: %z";
 
   if (FLAG(c)) format = TT.c;
