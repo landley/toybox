@@ -271,14 +271,15 @@ int redir_prefix(char *word)
 
 // todo |&
 
+// rd[0] = next, 1 = prev, 2 = len, 3-x = to/from redirection pairs.
 // Execute the commands in a pipeline segment
-struct sh_process *run_command(struct sh_arg *arg, int in_rdcount, int *in_rd)
+struct sh_process *run_command(struct sh_arg *arg, int **rdlist)
 {
   struct sh_process *pp = xzalloc(sizeof(struct sh_process));
   struct toy_list *tl;
   char *s, *ss, *sss;
   unsigned envlen, j;
-  int fd, here = 0, rdcount = 0, *rd = 0, hfd = 0;
+  int fd, here = 0, rdcount = 0, *rd = 0, *rr, hfd = 0;
 
   // Grab variable assignments
   for (envlen = 0; envlen<arg->c; envlen++) {
@@ -313,39 +314,35 @@ struct sh_process *run_command(struct sh_arg *arg, int in_rdcount, int *in_rd)
   for (j = envlen; j<arg->c; j++) {
 
     // Is this a redirect?
-    s = arg->v[j];
-    ss = s + redir_prefix(arg->v[j]);
+    ss = (s = arg->v[j]) + redir_prefix(arg->v[j]);
     fd = anyof(ss, (char *[]){"<<<", "<<-", "<<", "<&", "<>", "<", ">>", ">&",
       ">|", ">", "&>>", "&>", 0});
     if (!fd) {
+
       // Nope: save/expand argument and loop
       expand_arg(&pp->arg, s, 0);
+
       continue;
     }
 
     // Yes. Expand rd[] and find first unused filehandle >10
-    if (!(rdcount&31)) rd = xrealloc(rd, (2*rdcount+64)*sizeof(int *));
+    if (!(rdcount&31)) {
+      if (rd) dlist_lpop((void *)rdlist);
+      rd = xrealloc(rd, (2*rdcount+3+2*32)*sizeof(int *));
+      dlist_add_nomalloc((void *)rdlist, (void *)rd);
+    }
+    rr = rd+3+rdcount;
     if (!hfd)
       for (hfd = 10; hfd<99999; hfd++) if (-1 == fcntl(hfd, F_GETFL)) break;
 
     // error check: premature EOF, target fd too high, or redirect file splits
-    if (++j == arg->c || (isdigit(*s) && ss-s>5)) {
-      syntax_err("bad %s", s);
-      pp->exit = 1;
-
-      return pp;
-    }
+    if (++j == arg->c || (isdigit(*s) && ss-s>5)) goto flush;
     fd = pp->arg.c;
 
     // expand arguments for everything but << and <<-
     if (strncmp(ss, "<<", 2) || ss[2] == '<') {
       expand_arg(&pp->arg, arg->v[j], NO_PATH|(NO_SPLIT*!strcmp(ss, "<<<")));
-      if (fd+1 != pp->arg.c) {
-        syntax_err("bad %s", s);
-        pp->exit = 1;
-
-        return pp;
-      }
+      if (fd+1 != pp->arg.c) goto flush;
       sss = pp->arg.v[--pp->arg.c];
     } else dlist_add((void *)&pp->delete, sss = xstrdup(arg->v[j]));
 
@@ -362,33 +359,30 @@ struct sh_process *run_command(struct sh_arg *arg, int in_rdcount, int *in_rd)
         free(ss);
         fd = -1;
         if (sss) fd = atoi(sss);
-        if (fd<0) {
-          syntax_err("ambiguous %s", s);
-          pp->exit = 1;
-
-          return pp;
-        }
+        if (fd<0) goto flush;
         if (fd>2) {
-          rd[2*rdcount] = fd;
-          rd[2*rdcount++ +1] = fd<<1; // close it
+          rr[0] = fd;
+          rr[1] = fd<<1; // close it
+          rdcount++;
         }
         continue;
       } else setvar(xmprintf("%.*s=%d", (int)(s-ss), ss, hfd),  TAKE_MEM); 
     } else fd = *ss != '<';
-    rd[2*rdcount] = fd;
+    *rr = fd;
 
     // at this point for [n]<word s = start of [n], ss = start of <, sss = word
 
     // second entry in this rd[] pair is new fd to dup2() after vfork(),
     // I.E. for [n]<word the fd if you open("word"). It's stored <<1 and the
-    // low bit set means don't close(rd[1]) after dup2(rd[1], rd[0]);
+    // low bit set means don't close(rr[1]) after dup2(rr[1]>>1, rr[0]);
 
     // fd<0 means HERE document. Canned input stored earlier, becomes pipe later
     if (!strcmp(s, "<<<") || !strcmp(s, "<<-") || !strcmp(s, "<<")) {
       fd = --here<<2;
       if (s[2] == '-') fd += 1;          // zap tabs
       if (s[strcspn(s, "\"'")]) fd += 2; // it was quoted so no expansion
-      rd[2*rdcount++ +1] = fd;
+      rr[1] = fd;
+      rdcount++;
 
       continue;
     }
@@ -400,16 +394,13 @@ struct sh_process *run_command(struct sh_arg *arg, int in_rdcount, int *in_rd)
       // These redirect existing fd so nothing to open()
       while (isdigit(dig)) dig++;
       if (dig-sss>5) {
-        syntax_err("bad %s", sss);
-        pp->exit = 1;
-
-        return pp;
+        s = sss;
+        goto flush;
       }
 
 // TODO can't check if fd is open here, must do it when actual redirects happen
       if (!*dig || (*dig=='-' && !dig[1])) {
-        rd[2*rdcount +1] = (((dig==sss) ? rd[rdcount*2] : atoi(sss))<<1)
-          +(*dig != '-');
+        rr[1] = (((dig==sss) ? *rr : atoi(sss))<<1)+(*dig != '-');
         rdcount++;
 
         continue;
@@ -433,19 +424,24 @@ struct sh_process *run_command(struct sh_arg *arg, int in_rdcount, int *in_rd)
 // TODO: /dev/fd/# /dev/{stdin,stdout,stderr} /dev/{tcp,udp}/host/port
     if (-1 == (fd = xcreate(sss, fd|WARN_ONLY, 777)) || hfd != dup2(fd, hfd)) {
       pp->exit = 1;
+      s = 0;
 
-      return pp;
+      goto flush;
     }
     if (fd != hfd) close(fd);
-    rd[2*rdcount++ +1] = hfd<<1;
+    rr[1] = hfd<<1;
+    rdcount++;
 
     // queue up a 2>&1 ?
     if (strchr(ss, '&')) {
       if (!(31&++rdcount)) rd = xrealloc(rd, (2*rdcount+66)*sizeof(int *));
-      rd[2*rdcount] = 2;
-      rd[2*rdcount++ +1] = 1+(1<<1);
+      rr = rd+3+rdcount;
+      rr[0] = 2;
+      rr[1] = 1+(1<<1);
+      rdcount++;
     }
   }
+  if (rd) rd[2] = rdcount;
 
 // todo: ok, now _use_ in_rd[in_rdcount] and rd[rdcount]. :)
 
@@ -454,7 +450,9 @@ struct sh_process *run_command(struct sh_arg *arg, int in_rdcount, int *in_rd)
 // todo: check for functions
 
   // Is this command a builtin that should run in this process?
-  if ((tl = toy_find(*pp->arg.v)) && (tl->flags & TOYFLAG_NOFORK)) {
+  if ((tl = toy_find(*pp->arg.v))
+    && (tl->flags & (TOYFLAG_NOFORK|TOYFLAG_MAYFORK)))
+  {
     struct toy_context temp;
     sigjmp_buf rebound;
 
@@ -485,6 +483,15 @@ struct sh_process *run_command(struct sh_arg *arg, int in_rdcount, int *in_rd)
 // todo: don't close stdin/stdout!
     else pp->exit = xpclose_both(pp->pid, 0);
   }
+
+  s = 0;
+flush:
+  if (s) {
+    syntax_err("bad %s", s);
+    if (!pp->exit) pp->exit = 1;
+  }
+  for (j = 0; j<rdcount; j++) if (rd[4+2*j]>6) close(rd[4+2*j]>>1);
+  if (rdcount) free(dlist_lpop((void *)rdlist));
 
   return pp;
 }
@@ -577,19 +584,21 @@ struct sh_pipeline {
 };
 
 // run a series of "command | command && command" with redirects.
-struct sh_pipeline *run_pipeline(struct sh_pipeline *pl, int rdcount, int *rd)
+int run_pipeline(struct sh_pipeline **pl, int *rd)
 {
   struct sh_process *pp;
+  int rc = 0;
 
   for (;;) {
 // todo job control
-    pp = run_command(pl->arg, rdcount, rd);
+    pp = run_command((*pl)->arg, &rd);
 //wait4(pp);
     llist_traverse(pp->delete, free);
+    rc = pp->exit;
     free(pp);
 
-    if (pl->next && !pl->next->type) pl = pl->next;
-    else return pl;
+    if ((*pl)->next && !(*pl)->next->type) *pl = (*pl)->next;
+    else return rc;
   }
 }
 
@@ -902,7 +911,7 @@ pl = ppl;
   struct blockstack {
     struct blockstack *next;
     struct sh_pipeline *start, *now, *end;
-    int run, val, rdcount, redir[0];
+    int run, val, *redir;
   } *blk = 0, *new;
 
   // iterate through the commands
@@ -915,8 +924,8 @@ pl = ppl;
 
 // inherit redirects?
 // returns last statement of pipeline
-      if (!blk) pl = run_pipeline(pl, 0, 0);
-      else if (blk->run) pl = run_pipeline(pl, blk->rdcount, blk->redir);
+      if (!blk) toys.exitval = run_pipeline(&pl, 0);
+      else if (blk->run) toys.exitval = run_pipeline(&pl, blk->redir);
       else do pl = pl->next; while (!pl->type);
 
     // Starting a new block?
