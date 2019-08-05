@@ -49,10 +49,11 @@ GLOBALS(
 // -f: *device is NULL
 
 // Perform requested operation on one device. Returns 1 if handled, 0 if error
-static void loopback_setup(char *device, char *file)
+static int loopback_setup(char *device, char *file)
 {
   struct loop_info64 *loop = (void *)(toybuf+32);
   int lfd = -1, ffd = ffd;
+  int racy = !device;
 
   // Open file (ffd) and loop device (lfd)
 
@@ -65,7 +66,7 @@ static void loopback_setup(char *device, char *file)
 
     // mount -o loop depends on found device being at the start of toybuf.
     if (cfd != -1) {
-      if (0 <= (i = ioctl(cfd, 0x4C82))) { // LOOP_CTL_GET_FREE
+      if (0 <= (i = ioctl(cfd, LOOP_CTL_GET_FREE))) {
         sprintf(device = toybuf, "%s/loop%d", TT.dir, i);
       }
       close(cfd);
@@ -105,7 +106,10 @@ static void loopback_setup(char *device, char *file)
     char *s = xabspath(file, 1);
 
     if (!s) perror_exit("file"); // already opened, but if deleted since...
-    if (ioctl(lfd, LOOP_SET_FD, ffd)) perror_exit("%s=%s", device, file);
+    if (ioctl(lfd, LOOP_SET_FD, ffd)) {
+      if (racy && errno == EBUSY) return 1;
+      perror_exit("%s=%s", device, file);
+    }
     loop->lo_offset = TT.o;
     loop->lo_sizelimit = TT.S;
     xstrncpy((char *)loop->lo_file_name, s, LO_NAME_SIZE);
@@ -127,6 +131,7 @@ static void loopback_setup(char *device, char *file)
 done:
   if (file) close(ffd);
   if (lfd != -1) close(lfd);
+  return 0;
 }
 
 // Perform an action on all currently existing loop devices
@@ -173,7 +178,7 @@ void losetup_main(void)
 
   if (FLAG(f)) {
     if (toys.optc > 1) perror_exit("max 1 arg");
-    loopback_setup(NULL, *toys.optargs);
+    while (loopback_setup(NULL, *toys.optargs));
   } else if (FLAG(a) || FLAG(j)) {
     if (toys.optc) error_exit("bad args");
     dirtree_read(TT.dir, dash_a);
