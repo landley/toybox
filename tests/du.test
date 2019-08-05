@@ -2,6 +2,15 @@
 
 [ -f testing.sh ] && . testing.sh
 
+# ext stores extended attributes in a way that makes all the numbers in the
+# tests below incorrect.
+# TODO: include a read-only ext file system that we can mount for the tests?
+if [ "$(stat --format %C . 2>/dev/null)" != "?" ]; then
+  echo "$SHOWSKIP: du (SELinux extended attributes present)"
+  return 2>/dev/null
+  exit
+fi
+
 #testing "name" "command" "result" "infile" "stdin"
 
 # we only test with -k since getting POSIX version is variable
