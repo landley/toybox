@@ -104,6 +104,10 @@ testing "-printf" "find dir -name file -printf '%f %p %P %s'" \
   "file dir/file file 0" "" ""
 testing "-printf .N" "find dir -name file -printf %.2f" "fi" "" ""
 
+ln -s does-not-exist dir/dangler
+ln -s looper dir/looper
+testing "-L dangling link" "LANG=C find -L dir -name file 2>&1 | sed s/\'//g" \
+  "dir/file\nfind: dir/looper: Too many levels of symbolic links\n" "" ""
 
 testing "-false" "find dir -false" "" "" ""
 testing "-true" "find dir/file -true" "dir/file\n" "" ""

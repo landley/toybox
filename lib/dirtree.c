@@ -36,7 +36,7 @@ struct dirtree *dirtree_add_node(struct dirtree *parent, char *name, int flags)
     int fd = parent ? parent->dirfd : AT_FDCWD;
 
     if (fstatat(fd, name, &st,AT_SYMLINK_NOFOLLOW*!(flags&DIRTREE_SYMFOLLOW))) {
-      if (flags&DIRTREE_STATLESS) statless++;
+      if ((flags&DIRTREE_STATLESS) && errno == ENOENT) statless++;
       else goto error;
     }
     if (S_ISLNK(st.st_mode)) {
