@@ -261,7 +261,7 @@ static void fill_stat(struct file_info *fi, const char *path)
     case S_IFREG: strcpy(fi->type, "REG"); break;
     case S_IFSOCK: strcpy(fi->type, "sock"); break;
     default:
-      snprintf(fi->type, sizeof(fi->type), "0%03o", sb.st_mode & S_IFMT);
+      snprintf(fi->type, sizeof(fi->type), "%04o", sb.st_mode & S_IFMT);
       break;
   }
 
