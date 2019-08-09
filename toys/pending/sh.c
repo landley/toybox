@@ -229,6 +229,8 @@ static void expand_arg(struct sh_arg *arg, char *new, unsigned flags)
 // s: key=val
 // type: 0 = whatever it was before, local otherwise
 #define TAKE_MEM 0x80000000
+// declare -aAilnrux
+// ft
 void setvar(char *s, unsigned type)
 {
   if (type&TAKE_MEM) type ^= TAKE_MEM;
@@ -591,11 +593,13 @@ int run_pipeline(struct sh_pipeline **pl, int *rd)
 
   for (;;) {
 // todo job control
-    pp = run_command((*pl)->arg, &rd);
+    if (!(pp = run_command((*pl)->arg, &rd))) rc = 0;
+    else {
 //wait4(pp);
-    llist_traverse(pp->delete, free);
-    rc = pp->exit;
-    free(pp);
+      llist_traverse(pp->delete, free);
+      rc = pp->exit;
+      free(pp);
+    }
 
     if ((*pl)->next && !(*pl)->next->type) *pl = (*pl)->next;
     else return rc;
@@ -606,7 +610,7 @@ int run_pipeline(struct sh_pipeline **pl, int *rd)
 
 // scratch space (state held between calls). Don't want to make it global yet
 // because this could be reentrant.
-struct sh_parse {
+struct sh_function {
   struct sh_pipeline *pipeline;
   struct double_list *expect;
   char *end;
@@ -638,9 +642,16 @@ struct sh_pipeline *block_end(struct sh_pipeline *pl)
   return pl;
 }
 
+void free_function(struct sh_function *sp)
+{
+  llist_traverse(sp->pipeline, free_pipeline);
+  llist_traverse(sp->expect, free);
+  memset(sp, 0, sizeof(struct sh_function));
+}
+
 // Consume a line of shell script and do what it says. Returns 0 if finished,
 // 1 to request another line of input (> prompt).
-static int parse_line(char *line, struct sh_parse *sp)
+static int parse_line(char *line, struct sh_function *sp)
 {
   char *start = line, *delete = 0, *end, *last = 0, *s, *ex, done = 0;
   struct sh_pipeline *pl = sp->pipeline ? sp->pipeline->prev : 0;
@@ -870,16 +881,17 @@ check:
     if (!pl->type && anyof(s, (char *[]){"then", "do", "esac", "}", "]]", ")",
         "done", "then", "fi", "elif", "else"})) goto flush;
   }
-
-
   free(delete);
 
 if (0) if (sp->expect) {
-dprintf(2, "expectorate\n");
-struct double_list *dl;
-for (dl = sp->expect; dl; dl = (dl->next == sp->expect) ? 0 : dl->next)
-  dprintf(2, "expecting %s\n", dl->data);
-if (sp->pipeline) dprintf(2, "count=%d here=%d\n", sp->pipeline->prev->count, sp->pipeline->prev->here);
+  struct double_list *dl;
+
+  dprintf(2, "expectorate\n");
+  for (dl = sp->expect; dl; dl = (dl->next == sp->expect) ? 0 : dl->next)
+    dprintf(2, "expecting %s\n", dl->data);
+  if (sp->pipeline)
+    dprintf(2, "count=%d here=%d\n", sp->pipeline->prev->count,
+      sp->pipeline->prev->here);
 }
 
   // advance past <<< arguments (stored as here documents, but no new input)
@@ -890,24 +902,35 @@ if (sp->pipeline) dprintf(2, "count=%d here=%d\n", sp->pipeline->prev->count, sp
   // return if HERE document pending or more flow control needed to complete
   if (sp->expect) return 1;
   if (sp->pipeline && pl->count != pl->here) return 1;
+  dlist_terminate(sp->pipeline);
 
   // At this point, we've don't need more input and can start executing.
 
 if (0) {
-dprintf(2, "pipeline now\n");
-struct sh_pipeline *ppl = pl;
-int q = 0;
-for (pl = sp->pipeline; pl ; pl = (pl->next == sp->pipeline) ? 0 : pl->next) {
-  for (i = 0; i<pl->arg->c; i++) printf("arg[%d][%ld]=%s\n", q, i, pl->arg->v[i]);
-  printf("type=%d term[%d]=%s\n", pl->type, q++, pl->arg->v[pl->arg->c]);
-}
-pl = ppl;
-}
+  int q = 0;
 
-  // **************************** do the thing *******************************
+  dprintf(2, "pipeline now\n");
+  for (pl = sp->pipeline; pl ; pl = pl->next) {
+    for (i = 0; i<pl->arg->c; i++)
+      printf("arg[%d][%ld]=%s\n", q, i, pl->arg->v[i]);
+    printf("type=%d term[%d]=%s\n", pl->type, q++, pl->arg->v[pl->arg->c]);
+  }
+}
 
   // Now we have a complete thought and can start running stuff.
 
+  return 0;
+
+flush:
+  if (s) syntax_err("bad %s", s);
+  free_function(sp);
+
+  return 0;
+}
+
+static int run_function(struct sh_function *sp)
+{
+  struct sh_pipeline *pl = sp->pipeline, *end;
   struct blockstack {
     struct blockstack *next;
     struct sh_pipeline *start, *now, *end;
@@ -915,9 +938,8 @@ pl = ppl;
   } *blk = 0, *new;
 
   // iterate through the commands
-  dlist_terminate(pl = sp->pipeline);
   while (pl) {
-    s = *pl->arg->v;
+    char *s = *pl->arg->v;
 
     // Normal executable statement?
     if (!pl->type) {
@@ -930,9 +952,9 @@ pl = ppl;
 
     // Starting a new block?
     } else if (pl->type == 1) {
-      struct sh_pipeline *end = block_end(pl);
 
       // If we're not running this, skip ahead.
+      end = block_end(pl);
       if (blk && !blk->run) {
         pl = end;
         continue;
@@ -981,22 +1003,61 @@ function/}
     pl = pl->next;
   }
 
-  s = 0;
-flush:
-  if (s) syntax_err("bad %s", s);
-  while ((pl = dlist_pop(&sp->pipeline))) free_pipeline(pl);
-  llist_traverse(sp->expect, free);
-
   return 0;
+}
+
+int add_function(char *name, char *body)
+{
+dprintf(2, "stub add_function");
+return 0;
 }
 
 void sh_main(void)
 {
   FILE *f;
-  struct sh_parse scratch;
+  char *s;
+  struct sh_function scratch;
   int prompt = 0;
 
   // Set up signal handlers and grab control of this tty.
+
+  // TODO cull local variables because 'env "()=42" env | grep 42' works.
+
+  // vfork() means subshells have to export and then re-import locals/functions
+  s = getenv("_TOYSH_LOCALS");
+  if (s) {
+    char *from, *to, *ss;
+
+    unsetenv("_TOYSH_LOCALS");
+    ss = s;
+
+    // Loop through packing \\ until \0
+    for (from = to = s; *from; from++, to++) {
+      *to = *from;
+      if (*from != '\\') continue;
+      if (from[1] == '\\' || from[1] == '0') from++;
+      if (from[1] != '0') continue;
+      *to = 0;
+
+      // save chunk
+      for (ss = s; ss<to; ss++) {
+        if (*ss == '=') {
+          // first char of name is variable type ala declare
+          if (s+1<ss && strchr("aAilnru", *s)) {
+            setvar(ss, *s);
+
+            break;
+          }
+        } else if (*ss == '(' && s[1]==')') {
+          *ss = 0;
+          if (add_function(s, ss+2)) break;
+        } else if (!isspace(*s) && !ispunct(*s)) continue;
+
+        error_exit("bad locals");
+      }
+      s = from+1;
+    }
+  }
 
   memset(&scratch, 0, sizeof(scratch));
   if (TT.command) f = fmemopen(TT.command, strlen(TT.command), "r");
@@ -1024,6 +1085,10 @@ void sh_main(void)
 
     // returns 0 if line consumed, command if it needs more data
     prompt = parse_line(new, &scratch);
+    if (!prompt) {
+      run_function(&scratch);
+      free_function(&scratch);
+    }
     free(new);
   }
 
