@@ -6,8 +6,10 @@
 
 function BLKID()
 {
-  bzcat $FILES/blkid/$1.bz2 > temp.img
-  blkid temp.img
+  file=$1
+  shift
+  bzcat $FILES/blkid/$file.bz2 > temp.img
+  blkid "$@" temp.img
   rm temp.img
 }
 
@@ -28,8 +30,10 @@ testing "f2fs" "BLKID f2fs" \
 testing "msdos" "BLKID msdos" \
   'temp.img: SEC_TYPE="msdos" LABEL="mymsdos" UUID="6E1E-0851" TYPE="vfat"\n' \
   "" ""
-testing "ntfs" "BLKID ntfs" \
-  'temp.img: LABEL="myntfs" UUID="6EE1BF3808608585" TYPE="ntfs"\n' "" ""
+
+# We use -s here because toybox blkid can't do ntfs volume labels yet.
+testing "ntfs" "BLKID ntfs -s UUID -s TYPE" \
+  'temp.img: UUID="6EE1BF3808608585" TYPE="ntfs"\n' "" ""
 testing "reiserfs" "BLKID reiser3" \
   'temp.img: LABEL="myreiser" UUID="a5b99bec-45cc-41d7-986e-32f4b6fc28f2" TYPE="reiserfs"\n' \
   "" ""
