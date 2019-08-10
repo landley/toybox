@@ -6,8 +6,7 @@ int read_password(char * buff, int buflen, char* mesg);
 int update_password(char *filename, char* username, char* encrypted);
 
 // lib.c
-// These should be switched to posix-2008 getline() and getdelim()
-char *get_rawline(int fd, long *plen, char end);
+// This should be switched to posix-2008 getline()
 char *get_line(int fd);
 
 

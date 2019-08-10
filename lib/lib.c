@@ -699,8 +699,7 @@ void loopfiles_lines(char **argv, void (*function)(char **pline, long len))
 }
 
 // Slow, but small.
-
-char *get_rawline(int fd, long *plen, char end)
+char *get_line(int fd)
 {
   char c, *buf = NULL;
   long len = 0;
@@ -708,20 +707,12 @@ char *get_rawline(int fd, long *plen, char end)
   for (;;) {
     if (1>read(fd, &c, 1)) break;
     if (!(len & 63)) buf=xrealloc(buf, len+65);
-    if ((buf[len++]=c) == end) break;
+    if ((buf[len++]=c) == '\n') break;
   }
-  if (buf) buf[len]=0;
-  if (plen) *plen = len;
-
-  return buf;
-}
-
-char *get_line(int fd)
-{
-  long len;
-  char *buf = get_rawline(fd, &len, '\n');
-
-  if (buf && buf[--len]=='\n') buf[len]=0;
+  if (buf) {
+    buf[len]=0;
+    if (buf[--len]=='\n') buf[len]=0;
+  }
 
   return buf;
 }
