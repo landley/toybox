@@ -73,8 +73,6 @@ testing "-perm (any success)" \
 testing "-perm (any failure)" \
   "find perm -type f -perm -0222" "" "" ""
 
-# Still fails
-
 testing "unterminated -exec {}" \
   "find dir -type f -exec ls {} 2>/dev/null || echo bad" "bad\n" "" ""
 testing "-exec {} +" \
@@ -105,10 +103,15 @@ testing "-printf" "find dir -name file -printf '%f %p %P %s'" \
 testing "-printf .N" "find dir -name file -printf %.2f" "fi" "" ""
 
 ln -s does-not-exist dir/dangler
+testing "-L dangling symlink silent" \
+  "LANG=C find -L dir -name file 2>&1" "dir/file\n" "" ""
+rm -f dir/dangler
+
 ln -s looper dir/looper
-testing "-L dangling link" \
-  "LANG=C find -L dir -name file 2>&1 | sort | sed s/\'//g" \
-  "dir/file\nfind: dir/looper: Too many levels of symbolic links\n" "" ""
+testing "-L symlink loop noisy" \
+  "LANG=C find -L dir -name file 2>err | sed s/\'//g ; grep -q dir/looper err || echo missing error" \
+  "dir/file\n" "" ""
+rm -f dir/looper err
 
 testing "-false" "find dir -false" "" "" ""
 testing "-true" "find dir/file -true" "dir/file\n" "" ""
