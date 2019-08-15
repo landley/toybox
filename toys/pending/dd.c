@@ -212,7 +212,7 @@ void dd_main()
           xprintf("%s: Can't skip\n", TT.in.name);
           return;
         }
-        off -= chunk;
+        off -= n;
       }
     }
   }
