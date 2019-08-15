@@ -30,7 +30,7 @@ config XARGS
     -t	Trace, print command line to stderr
 
 config XARGS_PEDANTIC
-  bool "TODO xargs pedantic posix compatability"
+  bool "TODO xargs pedantic posix compatibility"
   default n
   depends on XARGS
   help

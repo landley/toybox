@@ -17,7 +17,7 @@ config MAKEDEVS
 
     -d	File containing device table (default reads from stdin)
 
-    Each line of of the device table has the fields:
+    Each line of the device table has the fields:
     <name> <type> <mode> <uid> <gid> <major> <minor> <start> <increment> <count>
     Where name is the file name, and type is one of the following:
 
