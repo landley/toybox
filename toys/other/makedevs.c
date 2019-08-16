@@ -36,7 +36,7 @@ config MAKEDEVS
 #include "toys.h"
 
 GLOBALS(
-  char *fname;
+  char *d;
 )
 
 void makedevs_main()
@@ -46,9 +46,9 @@ void makedevs_main()
 
   // Open file and chdir, verbosely
   xprintf("rootdir = %s\n", *toys.optargs);
-  if (toys.optflags & FLAG_d && strcmp(TT.fname, "-")) {
-    fd = xopenro(TT.fname);
-    xprintf("table = %s\n", TT.fname);
+  if ((toys.optflags & FLAG_d) && strcmp(TT.d, "-")) {
+    fd = xopenro(TT.d);
+    xprintf("table = %s\n", TT.d);
   } else xprintf("table = <stdin>\n");
   xchdir(*toys.optargs);
 
