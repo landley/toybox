@@ -819,11 +819,16 @@ void base64_init(char *p)
 
 int yesno(int def)
 {
+  return fyesno(stdin, def);
+}
+
+int fyesno(FILE *in, int def)
+{
   char buf;
 
   fprintf(stderr, " (%c/%c):", def ? 'Y' : 'y', def ? 'n' : 'N');
   fflush(stderr);
-  while (fread(&buf, 1, 1, stdin)) {
+  while (fread(&buf, 1, 1, in)) {
     int new;
 
     // The letter changes the value, the newline (or space) returns it.

@@ -250,6 +250,7 @@ void replace_tempfile(int fdin, int fdout, char **tempname);
 void crc_init(unsigned int *crc_table, int little_endian);
 void base64_init(char *p);
 int yesno(int def);
+int fyesno(FILE *fp, int def);
 int qstrcmp(const void *a, const void *b);
 void create_uuid(char *uuid);
 char *show_uuid(char *uuid);

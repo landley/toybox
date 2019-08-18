@@ -8,8 +8,9 @@
  * TODO: -I	Insert mode
  * TODO: -L	Max number of lines of input per command
  * TODO: -x	Exit if can't fit everything in one command
+ * TODO: -P NUM	Run up to NUM processes at once
 
-USE_XARGS(NEWTOY(xargs, "^E:ptrn#<1s#0[!0E]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_XARGS(NEWTOY(xargs, "^E:optrn#<1(max-args)s#0[!0E]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config XARGS
   bool "xargs"
@@ -24,18 +25,11 @@ config XARGS
     -0	Each argument is NULL terminated, no whitespace or quote processing
     -E	Stop at line matching string
     -n	Max number of arguments per command
+    -o	Open tty for COMMAND's stdin (default /dev/null)
     -p	Prompt for y/n from tty before running each command
     -r	Don't run command with empty input
     -s	Size in bytes per command line
     -t	Trace, print command line to stderr
-
-config XARGS_PEDANTIC
-  bool "TODO xargs pedantic posix compatibility"
-  default n
-  depends on XARGS
-  help
-    This version supports insane posix whitespace handling rendered obsolete
-    by -0 mode.
 */
 
 #define FOR_xargs
@@ -47,6 +41,7 @@ GLOBALS(
 
   long entries, bytes;
   char delim;
+  FILE *tty;
 )
 
 // If out==NULL count TT.bytes and TT.entries, stopping at max.
@@ -188,14 +183,16 @@ void xargs_main(void)
       for (i = 0; out[i]; ++i) fprintf(stderr, "%s ", out[i]);
       if (FLAG(p)) {
         fprintf(stderr, "?");
-        doit = yesno(0);
+        if (!TT.tty) TT.tty = xfopen("/dev/tty", "re");
+        doit = fyesno(TT.tty, 0);
       } else fprintf(stderr, "\n");
     }
 
     if (doit) {
       if (!(pid = XVFORK())) {
         xclose(0);
-        open("/dev/null", O_RDONLY);
+        if (open(FLAG(o) ? "/dev/tty" : "/dev/null", O_RDONLY) != 0)
+          perror_exit("child stdin open");
         xexec(out);
       }
       waitpid(pid, &status, 0);
@@ -212,4 +209,5 @@ void xargs_main(void)
     }
     free(out);
   }
+  if (TT.tty) fclose(TT.tty);
 }
