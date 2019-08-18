@@ -200,7 +200,14 @@ down:
 #define NO_PATH  (1<<0)
 #define NO_SPLIT (1<<1)
 // todo: ${name:?error} causes an error/abort here (syntax_err longjmp?)
-static void expand_arg(struct sh_arg *arg, char *new, unsigned flags)
+// todo: $1 $@ $* need args marshalled down here: function+structure?
+// arg = append to this
+// new = string to expand
+// flags = type of expansions (not) to do
+// delete = append new allocations to this so they can be freed later
+// TODO: at_args: $1 $2 $3 $* $@
+static void expand_arg(struct sh_arg *arg, char *new, unsigned flags,
+  struct string_list **delete)
 {
   if (!(arg->c&32)) arg->v = xrealloc(arg->v, sizeof(void *)*(arg->c+33));
 
@@ -246,7 +253,7 @@ char *getvar(char *s)
 }
 
 // return length of match found at this point
-static int anyof(char *s, char **try)
+static int anystart(char *s, char **try)
 {
   while (*try) {
     if (strstart(&s, *try)) return strlen(*try);
@@ -256,6 +263,12 @@ static int anyof(char *s, char **try)
   return 0;
 }
 
+static int anystr(char *s, char **try)
+{
+  while (*try) if (!strcmp(s, *try++)) return 1;
+
+  return 0;
+}
 
 // return length of valid prefix that could go before redirect
 int redir_prefix(char *word)
@@ -286,8 +299,8 @@ struct sh_process *run_command(struct sh_arg *arg, int **rdlist)
   // Grab variable assignments
   for (envlen = 0; envlen<arg->c; envlen++) {
     s = arg->v[envlen];
-    for (j=0; s[j] && s[j] != '=' && s[j] != '\\'; j++);
-    if (s[j] != '=') break;
+    for (j=0; s[j] && (s[j]=='_' || !ispunct(s[j])); j++);
+    if (!j || s[j] != '=') break;
   }
 
   // perform assignments locally if there's no command
@@ -296,7 +309,7 @@ struct sh_process *run_command(struct sh_arg *arg, int **rdlist)
       struct sh_arg aa;
 
       aa.c = 0;
-      expand_arg(&aa, arg->v[j], NO_PATH|NO_SPLIT);
+      expand_arg(&aa, arg->v[j], NO_PATH|NO_SPLIT, 0);
       setvar(*aa.v, TAKE_MEM);
       free(aa.v);
     }
@@ -317,12 +330,11 @@ struct sh_process *run_command(struct sh_arg *arg, int **rdlist)
 
     // Is this a redirect?
     ss = (s = arg->v[j]) + redir_prefix(arg->v[j]);
-    fd = anyof(ss, (char *[]){"<<<", "<<-", "<<", "<&", "<>", "<", ">>", ">&",
-      ">|", ">", "&>>", "&>", 0});
-    if (!fd) {
-
+    if (!anystr(ss, (char *[]){"<<<", "<<-", "<<", "<&", "<>", "<", ">>", ">&",
+      ">|", ">", "&>>", "&>", 0}))
+    {
       // Nope: save/expand argument and loop
-      expand_arg(&pp->arg, s, 0);
+      expand_arg(&pp->arg, s, 0, 0);
 
       continue;
     }
@@ -343,7 +355,7 @@ struct sh_process *run_command(struct sh_arg *arg, int **rdlist)
 
     // expand arguments for everything but << and <<-
     if (strncmp(ss, "<<", 2) || ss[2] == '<') {
-      expand_arg(&pp->arg, arg->v[j], NO_PATH|(NO_SPLIT*!strcmp(ss, "<<<")));
+      expand_arg(&pp->arg, arg->v[j], NO_PATH|(NO_SPLIT*!strcmp(ss, "<<<")), 0);
       if (fd+1 != pp->arg.c) goto flush;
       sss = pp->arg.v[--pp->arg.c];
     } else dlist_add((void *)&pp->delete, sss = xstrdup(arg->v[j]));
@@ -447,6 +459,7 @@ struct sh_process *run_command(struct sh_arg *arg, int **rdlist)
 
 // todo: ok, now _use_ in_rd[in_rdcount] and rd[rdcount]. :)
 
+// todo: handle ((math)) here
 
 // todo use envlen
 // todo: check for functions
@@ -502,69 +515,84 @@ flush:
 // caller eats leading spaces
 static char *parse_word(char *start)
 {
-  int i, j, quote = 0;
+  int i, j, quote = 0, q, qc = 0;
   char *end = start, *s;
+
+  // (( is a special quote at the start of a word
+  if (strstart(&end, "((")) toybuf[quote++] = 255;
 
   // find end of this word
   while (*end) {
     i = 0;
 
-    // Handle quote contexts
-    if (quote) {
-      // end quote, skip quoted chars
-      if (*end == toybuf[quote-1]) quote--, end++;
-      else if (toybuf[quote-1] == '"' && *end == '`') toybuf[quote++] = *end++;
-      else if (toybuf[quote-1] == '\'' || isspace(*end)) end++;
-      else i++;
-    } else {
-      if (isspace(*end)) break;
-      // start quote
-      if (strchr("\"'`", *end)) toybuf[quote++] = *end++;
-      else if (strstart(&end, "<(") || strstart(&end,">(")) toybuf[quote++]=')';
-      else {
-        // control chars.
-        // 123<<file- parses as 2 args: "123<<" "file-".
-        // note: >&; becomes ">&" ";" because first loop, then second loop.
-        s = end + redir_prefix(end);
-        j = anyof(s, (char *[]){"<<<", "<<-", "<<", "<&", "<>", "<", ">>",
-          ">&", ">|", ">", 0});
-        if (j) s += j;
-        else s = end + anyof(s, (char *[]){";;&", ";;", ";&", ";", "||", "|&",
-            "|", "&&", "&>>", "&>", "&", "(", ")", 0});
-        if (s != end) return (end == start) ? s : end;
-        i++;
-      }
+    // barf if we're near overloading quote stack (nesting ridiculously deep)
+    if (quote>4000) {
+      syntax_err("tilt");
+      return (void *)1;
     }
 
-    // loop if we already handled a symbol
-    if (!i) continue;
+    q = quote ? toybuf[quote-1] : 0;
+    // Handle quote contexts
+    if (q) {
 
-    // Things the same unquoted or in double quotes
+      // when waiting for parentheses, they nest
+      if ((q == ')' || q == '\xff') && (*end == '(' || *end == ')')) {
+        if (*end == '(') qc++;
+        else if (qc) qc--;
+        else if (q == '\xff') {
+          // (( can end with )) or retroactively become two (( if we hit one )
+          if (strstart(&end, "))")) quote--;
+          else return start+1;
+        }
+        end++;
+
+      // end quote?
+      } else if (*end == q) quote--, end++;
+
+      // single quote claims everything
+      else if (q == '\'') end++;
+      else i++;
+
+      // loop if we already handled a symbol
+      if (!i) continue;
+    } else {
+      // Things that only matter when unquoted
+
+      if (isspace(*end)) break;
+
+      // Things we should only return at the _start_ of a word
+
+      // Redirections. 123<<file- parses as 2 args: "123<<" "file-".
+      // Greedy matching: >&; becomes >& ; not > &;
+      s = end + redir_prefix(end);
+      j = anystart(s, (char *[]){"<<<", "<<-", "<<", "<&", "<>", "<", ">>",
+        ">&", ">|", ">", 0});
+      if (j) s += j;
+
+      // Control characters
+      else s = end + anystart(end, (char *[]){";;&", ";;", ";&", ";", "||",
+          "|&", "|", "&&", "&>>", "&>", "&", "(", ")", 0});
+      if (s != end) return (end == start) ? s : end;
+      i++;
+    }
+
+    // Things the same unquoted or in most non-single-quote contexts
+
+    // start new quote context?
+    if (strchr("\"'`", *end)) toybuf[quote++] = *end++;
+    else if (q != '"' && (strstart(&end, "<(") || strstart(&end,">(")))
+      toybuf[quote++]=')';
 
     // backslash escapes
-    if (*end == '\\') {
+    else if (*end == '\\') {
       if (!end[1] || (end[1]=='\n' && !end[2])) return 0;
       end += 2;
-    } else if (*end == '$') {
-      // barf if we're near overloading quote stack (nesting ridiculously deep)
-      if (quote>4000) {
-        syntax_err("tilt");
-        return (void *)1;
-      }
-      end++;
-      if (strstart(&end, "((")) {
-        // all we care about here are parentheses matching and then ending ))
-        for (i = 0;;) {
-          if (!*end) return 0;
-          if (!i && strstart(&end, "))")) break;
-          if (*end == '(') i++;
-          else if (*end == ')') i--;
-        }
-      } else if (-1 != (i = stridx("({[", *end))) {
+    } else if (*end++ == '$') {
+      if (-1 != (i = stridx("({[", *end))) {
         toybuf[quote++] = ")}]"[i];
         end++;
       }
-    } else end++;
+    }
   }
 
   return quote ? 0 : end;
@@ -611,8 +639,11 @@ int run_pipeline(struct sh_pipeline **pl, int *rd)
 // scratch space (state held between calls). Don't want to make it global yet
 // because this could be reentrant.
 struct sh_function {
+  char *name;
   struct sh_pipeline *pipeline;
   struct double_list *expect;
+// TODO: lifetime rules for arg? remember "shift" command.
+  struct sh_arg *arg; // arguments to function call
   char *end;
 };
 
@@ -629,17 +660,18 @@ void free_pipeline(void *pipeline)
   free(pl);
 }
 
-// Return end of block corresponding to start of block
+// Return end of current block, or NULL if we weren't in block and fell off end.
 struct sh_pipeline *block_end(struct sh_pipeline *pl)
 {
   int i = 0;
-  do {
-    if (pl->type == 1 || pl->type == 'f') i++;
-    else if (pl->type == 3) i--;
-    pl = pl->next;
-  } while (i);
 
-  return pl;
+  while (pl) {
+    if (pl->type == 1 || pl->type == 'f') i++;
+    else if (pl->type == 3) if (--i<1) break;
+    pl = pl->next;
+  }
+
+  return 0;
 }
 
 void free_function(struct sh_function *sp)
@@ -649,8 +681,16 @@ void free_function(struct sh_function *sp)
   memset(sp, 0, sizeof(struct sh_function));
 }
 
-// Consume a line of shell script and do what it says. Returns 0 if finished,
-// 1 to request another line of input (> prompt).
+// TODO this has to add to a namespace context. Functions within functions...
+struct sh_pipeline *add_function(char *name, struct sh_pipeline *pl)
+{
+dprintf(2, "stub add_function");
+
+  return block_end(pl->next);
+}
+
+// Add a line of shell script to a shell function. Returns 0 if finished,
+// 1 to request another line of input (> prompt), -1 for syntax err
 static int parse_line(char *line, struct sh_function *sp)
 {
   char *start = line, *delete = 0, *end, *last = 0, *s, *ex, done = 0;
@@ -683,13 +723,16 @@ static int parse_line(char *line, struct sh_function *sp)
         pl->here++;
       }
       start = 0;
-    }
+
+    // Nope, new segment
+    } else pl = 0;
   }
 
   // Parse words, assemble argv[] pipelines, check flow control and HERE docs
   if (start) for (;;) {
+    ex = sp->expect ? sp->expect->prev->data : 0;
 
-    // Grab HERE document(s) from completed pipeline segment
+    // Look for << HERE redirections in completed pipeline segment
     if (pl && pl->count == -1) {
       pl->count = 0;
       arg = pl->arg;
@@ -700,11 +743,13 @@ static int parse_line(char *line, struct sh_function *sp)
         if (strcmp(s, "<<") && strcmp(s, "<<-") && strcmp(s, "<<<")) continue;
         if (i+1 == arg->c) goto flush;
 
-        // queue up HERE EOF so input loop asks for more lines.
+        // Add another arg[] to the pipeline segment (removing/readding to list
+        // because realloc can move pointer)
         dlist_lpop(&sp->pipeline);
         pl = xrealloc(pl, sizeof(*pl) + ++pl->count*sizeof(struct sh_arg));
         dlist_add_nomalloc((void *)&sp->pipeline, (void *)pl);
 
+        // queue up HERE EOF so input loop asks for more lines.
         arg[pl->count].v = xzalloc(2*sizeof(void *));
         *arg[pl->count].v = arg->v[++i];
         arg[pl->count].c = -(s[2] == '<'); // note <<< as c = -1
@@ -722,9 +767,10 @@ static int parse_line(char *line, struct sh_function *sp)
     }
 
     // Parse next word and detect overflow (too many nested quotes).
-    if ((end = parse_word(start)) == (void *)1) goto flush;
+    if ((end = parse_word(start)) == (void *)1)
+      goto flush;
 
-    // Extend pipeline and argv[] to store result
+    // Is this a new pipeline segment?
     if (!pl) {
       pl = xzalloc(sizeof(struct sh_pipeline));
       arg = pl->arg;
@@ -751,6 +797,12 @@ static int parse_line(char *line, struct sh_function *sp)
 
       if (pl->type == 'f' && arg->c<3) {
         s = "function()";
+        goto flush;
+      }
+
+      // "for" on its own line is an error.
+      if (arg->c == 1 && ex && !memcmp(ex, "do\0A", 4)) {
+        s = "newline";
         goto flush;
       }
 
@@ -802,34 +854,68 @@ static int parse_line(char *line, struct sh_function *sp)
         continue;
       }
 
+    // a for/select must have at least one additional argument on same line
+    } else if (ex && !memcmp(ex, "do\0A", 4)) {
+
+      // Sanity check and break the segment
+      if (strncmp(s, "((", 2) && strchr(s, '=')) goto flush;
+      pl->count = -1;
+      sp->expect->prev->data = "do\0C";
+
+      continue;
+
     // flow control is the first word of a pipeline segment
     } else if (arg->c>1) continue;
-    ex = sp->expect ? sp->expect->prev->data : 0;
 
-    // When waiting for { it must be next symbol, but can be on a new line.
-    if (ex && !strcmp(ex, "{")) {
-      if (strcmp(s, "{") || *end) goto flush;
-      free(arg->v[--arg->c]);
-      free(dlist_lpop(&sp->expect));
+    // Do we expect something that _must_ come next? (no multiple statements)
+    if (ex) {
+      // When waiting for { it must be next symbol, but can be on a new line.
+      if (!strcmp(ex, "{")) {
+        if (strcmp(s, "{")) goto flush;
+        free(arg->v[--arg->c]);  // don't save the {, function starts the block
+        free(dlist_lpop(&sp->expect));
+
+        continue;
+
+      // The "test" part of for/select loops can have (at most) one "in" line,
+      // for {((;;))|name [in...]} do
+      } else if (!memcmp(ex, "do\0C", 4)) {
+        if (strcmp(s, "do")) {
+          // can only have one "in" line between for/do, but not with for(())
+          if (!pl->prev->type) goto flush;
+          if (!strncmp(pl->prev->arg->v[1], "((", 2)) goto flush;
+          else if (!strcmp(s, "in")) goto flush;
+
+          continue;
+        }
+      }
+    }
+
+    // start of a new block?
+
+    // for/select requires variable name on same line, can't break segment yet
+    if (!strcmp(s, "for") || !strcmp(s, "select")) {
+      if (!pl->type) pl->type = 1;
+      dlist_add(&sp->expect, "do\0A");
 
       continue;
     }
 
     end = 0;
     if (!strcmp(s, "if")) end = "then";
-    else if (!strcmp(s, "for") || !strcmp(s, "select")
-         || !strcmp(s, "while") || !strcmp(s, "until")) end = "do";
+    else if (!strcmp(s, "while") || !strcmp(s, "until")) end = "do\0B";
     else if (!strcmp(s, "case")) end = "esac";
     else if (!strcmp(s, "{")) end = "}";
     else if (!strcmp(s, "[[")) end = "]]";
     else if (!strcmp(s, "(")) end = ")";
 
-    // Expecting NULL means a statement: any otherwise unrecognized word
+    // Expecting NULL means a statement: I.E. any otherwise unrecognized word
     else if (sp->expect && !ex) {
       free(dlist_lpop(&sp->expect));
       continue;
     } else if (!ex) goto check;
 
+    // Did we start a new statement?
     if (end) {
       pl->type = 1;
 
@@ -839,13 +925,13 @@ static int parse_line(char *line, struct sh_function *sp)
     // If we got here we expect a specific word to end this block: is this it?
     } else if (!strcmp(s, ex)) {
       // can't "if | then" or "while && do", only ; & or newline works
-      if (last && strcmp(last, "&")) {
+      if (last && (strcmp(ex, "then") || strcmp(last, "&"))) {
         s = end;
         goto flush;
       }
 
       free(dlist_lpop(&sp->expect));
-      pl->type = anyof(s, (char *[]){"fi", "done", "esac", "}", "]]", ")"})
+      pl->type = anystr(s, (char *[]){"fi", "done", "esac", "}", "]]", ")", 0})
         ? 3 : 2;
 
       // if it's a multipart block, what comes next?
@@ -878,21 +964,10 @@ static int parse_line(char *line, struct sh_function *sp)
 
 check:
     // syntax error check: these can't be the first word in an unexpected place
-    if (!pl->type && anyof(s, (char *[]){"then", "do", "esac", "}", "]]", ")",
-        "done", "then", "fi", "elif", "else"})) goto flush;
+    if (!pl->type && anystr(s, (char *[]){"then", "do", "esac", "}", "]]", ")",
+        "done", "fi", "elif", "else", 0})) goto flush;
   }
   free(delete);
-
-if (0) if (sp->expect) {
-  struct double_list *dl;
-
-  dprintf(2, "expectorate\n");
-  for (dl = sp->expect; dl; dl = (dl->next == sp->expect) ? 0 : dl->next)
-    dprintf(2, "expecting %s\n", dl->data);
-  if (sp->pipeline)
-    dprintf(2, "count=%d here=%d\n", sp->pipeline->prev->count,
-      sp->pipeline->prev->here);
-}
 
   // advance past <<< arguments (stored as here documents, but no new input)
   pl = sp->pipeline->prev;
@@ -904,20 +979,7 @@ if (0) if (sp->expect) {
   if (sp->pipeline && pl->count != pl->here) return 1;
   dlist_terminate(sp->pipeline);
 
-  // At this point, we've don't need more input and can start executing.
-
-if (0) {
-  int q = 0;
-
-  dprintf(2, "pipeline now\n");
-  for (pl = sp->pipeline; pl ; pl = pl->next) {
-    for (i = 0; i<pl->arg->c; i++)
-      printf("arg[%d][%ld]=%s\n", q, i, pl->arg->v[i]);
-    printf("type=%d term[%d]=%s\n", pl->type, q++, pl->arg->v[pl->arg->c]);
-  }
-}
-
-  // Now we have a complete thought and can start running stuff.
+  // Don't need more input, can start executing.
 
   return 0;
 
@@ -925,24 +987,76 @@ flush:
   if (s) syntax_err("bad %s", s);
   free_function(sp);
 
-  return 0;
+  return 0-!!s;
 }
 
-static int run_function(struct sh_function *sp)
+static void dump_state(struct sh_function *sp)
+{
+  struct sh_pipeline *pl;
+  int q = 0;
+  long i;
+
+  if (sp->expect) {
+    struct double_list *dl;
+
+    for (dl = sp->expect; dl; dl = (dl->next == sp->expect) ? 0 : dl->next)
+      dprintf(2, "expecting %s\n", dl->data);
+    if (sp->pipeline)
+      dprintf(2, "pipeline count=%d here=%d\n", sp->pipeline->prev->count,
+        sp->pipeline->prev->here);
+  }
+
+  for (pl = sp->pipeline; pl ; pl = (pl->next == sp->pipeline) ? 0 : pl->next) {
+    for (i = 0; i<pl->arg->c; i++)
+      printf("arg[%d][%ld]=%s\n", q, i, pl->arg->v[i]);
+    printf("type=%d term[%d]=%s\n", pl->type, q++, pl->arg->v[pl->arg->c]);
+  }
+}
+
+// run a shell function, handling flow control statements
+static void run_function(struct sh_function *sp)
 {
   struct sh_pipeline *pl = sp->pipeline, *end;
   struct blockstack {
     struct blockstack *next;
-    struct sh_pipeline *start, *now, *end;
-    int run, val, *redir;
+    struct sh_pipeline *start, *end;
+    int run, loop, *redir;
+
+    struct sh_arg farg;          // for/select arg stack
+    struct string_list *fdelete; // farg's cleanup list
+    char *fvar;                  // for/select's iteration variable name
   } *blk = 0, *new;
+  long i;
 
   // iterate through the commands
   while (pl) {
-    char *s = *pl->arg->v;
+    char *s = *pl->arg->v, *ss = pl->arg->v[1];
 
     // Normal executable statement?
     if (!pl->type) {
+// TODO: break & is supported? Seriously? Also break > potato
+      if (!strcmp(s, "break") || !strcmp(s, "continue")) {
+        i = ss ? atol(ss) : 0;
+        if (i<1) i = 1;
+        if (!blk || pl->arg->c>2 || ss[strspn(ss, "0123456789")]) {
+          syntax_err("bad %s", s);
+          break;
+        }
+        i = atol(ss);
+        if (!i) i++;
+        while (i && blk) {
+          if (--i && *s == 'c') {
+            pl = blk->start;
+            break;
+          }
+          pl = blk->end;
+          llist_traverse(blk->fdelete, free);
+          free(llist_pop(&blk));
+        }
+        pl = pl->next;
+
+        continue;
+      }
 
 // inherit redirects?
 // returns last statement of pipeline
@@ -953,44 +1067,6 @@ static int run_function(struct sh_function *sp)
     // Starting a new block?
     } else if (pl->type == 1) {
 
-      // If we're not running this, skip ahead.
-      end = block_end(pl);
-      if (blk && !blk->run) {
-        pl = end;
-        continue;
-      }
-
-      // If we are, save context and add it to the stack.
-      new = xzalloc(sizeof(*blk));
-      new->next = blk;
-      blk = new;
-      blk->start = blk->now = pl;
-      blk->end = end;
-      blk->run = 1;
-
-// todo perform block end redirects
-
-    } else if (pl->type == 2) {
-
-      // Handle if statement
-      if (!strcmp(s, "then")) blk->run = blk->run && !toys.exitval;
-      else if (!strcmp(s, "else") || !strcmp(s, "elif")) blk->run = !blk->run;
-
-    // If ending a block, pop stack.
-    } else if (pl->type == 3) {
-      new = blk->next;
-      free(blk);
-      blk = new;
-
-// todo unwind redirects
-
-    } else if (pl->type == 'f') {
-dprintf(2, "skipped function definition %s\n", *pl->arg->v);
-pl = block_end(pl);
-    }
-
-
-
 /*
 if/then/elif/else/fi
 for select while until/do/done
@@ -998,37 +1074,104 @@ case/esac
 {/}
 [[/]]
 (/)
+((/))
 function/}
 */
+
+      // Is this new, or did we just loop?
+      if (!blk || blk->start != pl) {
+
+        // If it's a nested block we're not running, skip ahead.
+        end = block_end(pl->next);
+        if (blk && !blk->run) {
+          pl = end;
+          if (pl) pl = pl->next;
+          continue;
+        }
+
+        // If new block we're running, save context and add it to the stack.
+        new = xzalloc(sizeof(*blk));
+        new->next = blk;
+        blk = new;
+        blk->start = pl;
+        blk->end = end;
+        blk->run = 1;
+// todo perform block end redirects to blk->redir
+      }
+
+      // What flow control statement is this?
+      if (!strcmp(s, "for") || !strcmp(s, "select")) {
+        if (!strncmp(blk->fvar = ss, "((", 2)) {
+dprintf(2, "skipped init for((;;)), need math parser\n");
+        } else {
+          // populate blk->farg with expanded arguments
+          if (pl->next->type) {
+            for (i = 1; i<pl->next->arg->c; i++)
+              expand_arg(&blk->farg, pl->next->arg->v[i], 0, &blk->fdelete);
+            pl = pl->next;
+          } else expand_arg(&blk->farg, "\"$@\"", 0, &blk->fdelete);
+        }
+      } 
+
+    // gearshift from block start to block body
+    } else if (pl->type == 2) {
+
+      // Handle if statement
+      if (!strcmp(s, "then")) blk->run = blk->run && !toys.exitval;
+      else if (!strcmp(s, "else") || !strcmp(s, "elif")) blk->run = !blk->run;
+      else if (!strcmp(s, "do")) {
+        if (!strcmp(*blk->start->arg->v, "while"))
+          blk->run = blk->run && !toys.exitval;
+        else if (blk->loop >= blk->farg.c) {
+          blk->run = 0;
+          pl = block_end(pl);
+          continue;
+        } else if (!strncmp(blk->fvar, "((", 2)) {
+dprintf(2, "skipped running for((;;)), need math parser\n");
+        } else setvar(xmprintf("%s=%s", blk->fvar, blk->farg.v[blk->loop]),
+          TAKE_MEM);
+      }
+
+    // end of block
+    } else if (pl->type == 3) {
+
+      // repeating block?
+      if (blk->run && !strcmp(s, "done")) {
+        pl = blk->start;
+        continue;
+      }
+
+      // if ending a block, pop stack.
+      llist_traverse(blk->fdelete, free);
+      free(llist_pop(&blk));
+
+// todo unwind redirects (cleanup blk->redir)
+
+    } else if (pl->type == 'f') pl = add_function(s, pl);
+
     pl = pl->next;
   }
 
-  return 0;
+  // Cleanup from syntax_err();
+  while (blk) {
+    llist_traverse(blk->fdelete, free);
+    free(llist_pop(&blk));
+  }
+
+  return;
 }
 
-int add_function(char *name, char *body)
+void subshell_imports(void)
 {
-dprintf(2, "stub add_function");
-return 0;
-}
-
-void sh_main(void)
-{
-  FILE *f;
-  char *s;
-  struct sh_function scratch;
-  int prompt = 0;
-
-  // Set up signal handlers and grab control of this tty.
-
+/*
   // TODO cull local variables because 'env "()=42" env | grep 42' works.
 
   // vfork() means subshells have to export and then re-import locals/functions
-  s = getenv("_TOYSH_LOCALS");
-  if (s) {
+  sprintf(toybuf, "(%d#%d)", getpid(), getppid());
+  if ((s = getenv(toybuf))) {
     char *from, *to, *ss;
 
-    unsetenv("_TOYSH_LOCALS");
+    unsetenv(toybuf);
     ss = s;
 
     // Loop through packing \\ until \0
@@ -1048,9 +1191,19 @@ void sh_main(void)
 
             break;
           }
-        } else if (*ss == '(' && s[1]==')') {
-          *ss = 0;
-          if (add_function(s, ss+2)) break;
+        } else if (!strncmp(ss, "(){", 3)) {
+          FILE *ff = fmemopen(s, to-s, "r");
+
+          while ((new = xgetline(ff, 0))) {
+            if ((prompt = parse_line(new, &scratch))<0) break;
+            free(new);
+          }
+          if (!prompt) {
+            add_function(s, scratch.pipeline);
+            free_function(&scratch);
+            break;
+          }
+          fclose(ff);
         } else if (!isspace(*s) && !ispunct(*s)) continue;
 
         error_exit("bad locals");
@@ -1058,6 +1211,20 @@ void sh_main(void)
       s = from+1;
     }
   }
+*/
+}
+
+void sh_main(void)
+{
+  FILE *f;
+  char *new;
+  struct sh_function scratch;
+  int prompt = 0;
+
+  // Set up signal handlers and grab control of this tty.
+
+  // Read environment for exports from parent shell
+  subshell_imports();
 
   memset(&scratch, 0, sizeof(scratch));
   if (TT.command) f = fmemopen(TT.command, strlen(TT.command), "r");
@@ -1068,8 +1235,6 @@ void sh_main(void)
   }
 
   for (;;) {
-    char *new = 0;
-    size_t linelen = 0;
 
     // Prompt and read line
     if (f == stdin) {
@@ -1078,16 +1243,18 @@ void sh_main(void)
       if (!s) s = prompt ? "> " : (getpid() ? "\\$ " : "# ");
       do_prompt(s);
     } else TT.lineno++;
-    if (1>(linelen = getline(&new, &linelen, f ? f : stdin))) break;
-    if (new[linelen-1] == '\n') new[--linelen] = 0;
+    if (!(new = xgetline(f ? f : stdin, 0))) break;
 
 // TODO if (!isspace(*new)) add_to_history(line);
 
     // returns 0 if line consumed, command if it needs more data
     prompt = parse_line(new, &scratch);
-    if (!prompt) {
-      run_function(&scratch);
+//dump_state(&scratch);
+    if (prompt != 1) {
+// TODO: ./blah.sh one two three: put one two three in scratch.arg
+      if (!prompt) run_function(&scratch);
       free_function(&scratch);
+      prompt = 0;
     }
     free(new);
   }
