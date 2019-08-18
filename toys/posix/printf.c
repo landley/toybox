@@ -9,12 +9,12 @@
 
 USE_PRINTF(NEWTOY(printf, "<1?^", TOYFLAG_USR|TOYFLAG_BIN))
 
-config PRINTF 
+config PRINTF
   bool "printf"
   default y
   help
     usage: printf FORMAT [ARGUMENT...]
-    
+
     Format and print ARGUMENT(s) according to FORMAT, using C printf syntax
     (% escapes for cdeEfgGiosuxX, \ escapes for abefnrtv0 or \OCTAL or \xHEX).
 */
@@ -61,11 +61,8 @@ static int handle_slash(char **esc_val, int posix)
     num = tolower(*ptr) - '0';
     if (num >= 'a'-'0') num += '0'-'a'+10;
     if (num >= base) {
-      // Don't parse invalid hex value ala "\xvd", print it verbatim
-      if (base == 16 && len == 2) {
-        ptr--;
-        result = '\\';
-      }
+      // "\xav" is "\xa"+"v", but "\xva" is an error.
+      if (base == 16 && len == 2) error_exit("bad \\x");
       break;
     }
     result = (result*base)+num;

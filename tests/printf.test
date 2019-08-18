@@ -68,3 +68,19 @@ testing "printf posix inconsistency" "$PRINTF '\\0066-%b' '\\0066'" "\x066-6" \
 
 testing "printf \x" "$PRINTF 'A\x1b\x2B\x3Q\xa' | od -An -tx1" \
   " 41 1b 2b 03 51 0a\n" "" ""
+
+testing "printf \c" "$PRINTF 'one\ctwo'" "one" "" ""
+
+# An extra leading 0 is fine for %b, but not as a direct escape, for some
+# reason...
+testing "printf octal %b" "$PRINTF '\0007%b' '\0007' | xxd -p" "003707\n" "" ""
+
+# Unlike echo, printf errors out on bad hex.
+testcmd "invalid hex 1" "'one\xvdtwo' 2>/dev/null || echo err" "oneerr\n" "" ""
+testcmd "invalid hex 2" "'one\xavtwo'" "one\nvtwo" "" ""
+# But bad octal is shown as text.
+testcmd "invalid oct" "'one\079two'" "one\a9two" "" ""
+
+# extension for ESC
+testcmd "%b \e" "'%b' '\\e' | xxd -p" "1b\n" "" ""
+testcmd "\e" "'\\e' | xxd -p" "1b\n" "" ""

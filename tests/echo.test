@@ -27,11 +27,18 @@ testcmd "-nex hello" "-nex hello" "-nex hello\n" "" ""
 testcmd "-e octal values" \
 	"-ne '\01234 \0060 \060 \0130\0131\0132 \077\012'" \
 	"S4 0 0 XYZ ?\n" "" ""
+testcmd "-e invalid oct" "-ne 'one\\079two'" "one\a9two" "" ""
+testcmd "-e \\0040" "-ne '\0040'" " " "" ""
 
 # Hexadecimal value tests
 testcmd "-e hexadecimal values" \
 	"-ne '\x534 \x30 \x58\x59\x5a \x3F\x0A'"\
 	"S4 0 XYZ ?\n" "" ""
+testcmd "-e invalid hex 1" "-e 'one\xvdtwo'" "one\\xvdtwo\n" "" ""
+testcmd "-e invalid hex 2" "-e 'one\xavtwo'" "one\nvtwo\n" "" ""
+
+# GNU extension for ESC
+testcmd "-e \e" "-ne '\\e' | xxd -p" "1b\n" "" ""
 
 testcmd "-e \p" "-e '\\p'" "\\p\n" "" ""
 

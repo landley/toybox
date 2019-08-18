@@ -51,7 +51,7 @@ void echo_main(void)
 
     // Should we output arg verbatim?
 
-    if (!(toys.optflags & FLAG_e)) {
+    if (!FLAG(e)) {
       xprintf("%s", arg);
       continue;
     }
@@ -79,7 +79,13 @@ void echo_main(void)
               if (temp>='a' && temp<='f') {
                 out = (out*16)+temp-'a'+10;
                 c++;
-              } else break;
+              } else {
+                if (n==1) {
+                  --c;
+                  out = '\\';
+                }
+                break;
+              }
             }
           }
         // Slash in front of unknown character, print literal.
@@ -90,5 +96,5 @@ void echo_main(void)
   }
 
   // Output "\n" if no -n
-  if (!(toys.optflags&FLAG_n)) putchar('\n');
+  if (!FLAG(n)) putchar('\n');
 }
