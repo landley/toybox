@@ -10,20 +10,20 @@ config MAN
   bool "man"
   default n
   help
-    usage: man [-k STRING] | [SECTION] COMMAND
+    usage: man [-M PATH] [-k STRING] | [SECTION] COMMAND
 
     Read manual page for system command.
 
-    -k	Search short 
+    -k	List pages with STRING in their short description
+    -M	Override $MANPATH
 
-    Man pages are divided into 8 sections, each with an info page (man 8 info).
-    1) executables, 2) syscalls, 3) library functions, 4) /dev files,
-    5) file formats (ala /etc/hosts), 6) games, 7) miscelanous, 8) sysadmin
+    Man pages are divided into 8 sections:
+    1 commands      2 system calls  3 library functions  4 /dev files
+    5 file formats  6 games         7 miscellaneous      8 system management
 
-    If you don't specify a section it'll show the lowest numbered one,
-    but "man 1 mkdir" and "man 2 mkdir" are different things.
-
-    The shell builtins don't have section 1 man pages, see the "help" command.
+    Sections are searched in the order 1 8 3 2 5 4 6 7 unless you specify a
+    section. Each section has a page called "intro", and there's a global
+    introduction under "man-pages".
 */
 
 #define FOR_man
@@ -84,7 +84,7 @@ static void do_man(char **pline, long len)
 
   if (FLAG(k)) {
     if (!TT.k_done && !start(".") && !start("'") && k(strstr(*pline, "- ")))
-      printf("%s %s%s", TT.k, "- "+2*(TT.line!=*pline), TT.line);
+      printf("%-20s %s%s", TT.k, "- "+2*(TT.line!=*pline), TT.line);
     else if (!TT.k_done && start(".so") && k(basename(*pline + 4)))
       printf("%s - See %s", TT.k, TT.line);
   } else {
@@ -186,7 +186,6 @@ void man_main(void)
         if (-1 != (fd = zopen(f))) {
           TT.k_done = 0;
           do_lines(fd, '\n', do_man);
-          close(fd);
         }
         free(f);
       }
@@ -196,7 +195,7 @@ void man_main(void)
     return regfree(&TT.reg);
   }
 
-  if (!toys.optc) error_exit("not yet");
+  if (!toys.optc) help_exit("which page?");
 
   if (toys.optc == 1) {
     if (strchr(*toys.optargs, '/')) fd = zopen(*toys.optargs);
