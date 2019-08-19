@@ -109,10 +109,9 @@ chmod 644 walrus
 ln -s walrus woot
 testing "symlink dest permissions" "cp woot carpenter && stat -c %A carpenter" \
   "-rw-r--r--\n" "" ""
+testing "duplicated --preserve options" \
+  "cp --preserve=mode,mode walrus walrus2 2>&1 || echo bad" "" "" ""
 rm -rf walrus woot carpenter
-
-# duplicated --preserve= options are fine.
-testing "--preserve=mode,mode" "cp --preserve=mode,mode walrus walrus2" "" "" ""
 
 # cp -r ../source destdir
 # cp -r one/two/three missing
