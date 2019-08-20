@@ -288,15 +288,13 @@ static int update_attr(struct dirtree *root)
     if (ext2_setflag(fd, &(root->st), fval) < 0)
       perror_msg("setting flags '%s'", fpath);
   }
-  if (chattr.vflag) { // set file version
-    if (ioctl(fd, FS_IOC_SETVERSION, (void*)&chattr.version) < 0)
-      perror_msg("while setting version on '%s'", fpath);
-  }
+  // set file version
+  if (chattr.vflag && (ioctl(fd, FS_IOC_SETVERSION, &chattr.version)<0))
+    perror_msg("while setting version on '%s'", fpath);
   free(fpath);
   xclose(fd);
 
-  if (S_ISDIR(root->st.st_mode) && chattr.recursive) return DIRTREE_RECURSE;
-  return 0;
+  return (S_ISDIR(root->st.st_mode) && chattr.recursive) ? DIRTREE_RECURSE : 0;
 }
 
 void chattr_main(void)
