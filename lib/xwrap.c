@@ -1052,3 +1052,18 @@ void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
   if (oldtz) setenv("TZ", oldtz, 1);
   free(oldtz);
 }
+
+char *xgetline(FILE *fp, int *len)
+{
+  char *new = 0;
+  size_t linelen = 0;
+
+  errno = 0;
+  if (1>(linelen = getline(&new, &linelen, fp))) {
+    if (errno) perror_msg("getline");
+    new = 0;
+  } else if (new[linelen-1] == '\n') new[--linelen] = 0;
+  if (len) *len = linelen;
+
+  return new;
+}
