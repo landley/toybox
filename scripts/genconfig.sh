@@ -33,10 +33,12 @@ probeconfig()
 
   # Probe for container support on target
   probesymbol TOYBOX_CONTAINER << EOF
+    #include <stdio.h>
+    #include <sys/syscall.h>
     #include <linux/sched.h>
     int x=CLONE_NEWNS|CLONE_NEWUTS|CLONE_NEWIPC|CLONE_NEWNET;
 
-    int main(int argc, char *argv[]) { setns(0,0); return unshare(x); }
+    int main(int argc, char *argv[]){printf("%d", x+SYS_unshare+ SYS_setns);}
 EOF
 
   probesymbol TOYBOX_FIFREEZE -c << EOF
