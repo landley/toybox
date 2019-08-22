@@ -162,7 +162,7 @@ do
     PENDING="$PENDING $NAME" ||
     WORKING="$WORKING $NAME"
 done &&
-echo -e "clean::\n\trm -f $WORKING $PENDING" &&
+echo -e "clean::\n\t@rm -f $WORKING $PENDING" &&
 echo -e "list:\n\t@echo $(echo $WORKING | tr ' ' '\n' | sort | xargs)" &&
 echo -e "list_pending:\n\t@echo $(echo $PENDING | tr ' ' '\n' | sort | xargs)" &&
 echo -e ".PHONY: $WORKING $PENDING" | $SED 's/ \([^ ]\)/ test_\1/g'

@@ -74,4 +74,4 @@ kconfig/conf: $(SHIPPED)
 		-DPROJECT_NAME=\"$(KCONFIG_PROJECT)\"
 
 clean::
-	rm -f $(wildcard kconfig/*zconf*.c) kconfig/conf kconfig/mconf
+	@rm -f $(wildcard kconfig/*zconf*.c) kconfig/conf kconfig/mconf
