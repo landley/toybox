@@ -89,7 +89,7 @@ void rm_main(void)
   char **s;
 
   // Can't use <1 in optstring because zero arguments with -f isn't an error
-  if (!toys.optc && !(toys.optflags & FLAG_f)) error_exit("Needs 1 argument");
+  if (!toys.optc && !(toys.optflags & FLAG_f)) help_exit("Needs 1 argument");
 
   for (s = toys.optargs; *s; s++) {
     if (!strcmp(*s, "/")) {
