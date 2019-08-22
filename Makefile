@@ -20,7 +20,7 @@ toybox generated/unstripped/toybox: toybox_stuff
 
 .PHONY: clean distclean baseline bloatcheck install install_flat \
 	uinstall uninstall_flat tests help toybox_stuff change \
-	list list_working list_pending
+	list list_working list_pending root run_root
 
 include kconfig/Makefile
 -include .singlemake
@@ -60,17 +60,27 @@ uninstall:
 change:
 	scripts/change.sh
 
-clean::
-	@echo cleaning
+noroot_clean:
 	@rm -rf toybox generated change .singleconfig*
+
+clean:: noroot_clean
+	@rm -rf root
+	@echo cleaned
 
 # If singlemake was in generated/ "make clean; make test_ls" wouldn't work.
 distclean: clean
-	@echo removing .config
 	@rm -f toybox_old .config* .singlemake
+	@echo removed .config
 
 tests:
 	scripts/test.sh
+
+root:
+	scripts/mkroot.sh $(MAKEFLAGS)
+
+run_root:
+	C=$$(basename "$$CROSS_COMPILE" | sed 's/-.*//'); \
+        cd root/"$${C:-host}" && ./qemu-*.sh || exit 1
 
 help::
 	@cat scripts/help.txt
