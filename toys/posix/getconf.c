@@ -31,12 +31,6 @@ config GETCONF
 #define _SC_XOPEN_UUCP -1
 #endif
 
-// When NDK r19 ships in 2018Q4, switch to _SC_UIO_MAXIOV.
-// (Until then use this workaround for musl.)
-#ifndef UIO_MAXIOV
-#define UIO_MAXIOV 1024
-#endif
-
 #ifdef __APPLE__
 // macOS doesn't have a bunch of stuff. The actual macOS getconf says
 // "no such parameter", but -- unless proven otherwise -- it seems more useful
@@ -44,6 +38,7 @@ config GETCONF
 #define _SC_AVPHYS_PAGES -1
 #define _SC_THREAD_ROBUST_PRIO_INHERIT -1
 #define _SC_THREAD_ROBUST_PRIO_PROTECT -1
+#define _SC_UIO_MAXIOV -1
 #define _SC_V7_ILP32_OFF32 -1
 #define _SC_V7_ILP32_OFFBIG -1
 #define _SC_V7_LP64_OFF64 -1
@@ -108,7 +103,7 @@ struct config sysconfs[] = {
   CONF(PAGESIZE), CONF(RAW_SOCKETS), CONF(RE_DUP_MAX), CONF(RTSIG_MAX),
   CONF(SEM_NSEMS_MAX), CONF(SEM_VALUE_MAX), CONF(SIGQUEUE_MAX),
   CONF(STREAM_MAX), CONF(SYMLOOP_MAX), CONF(TIMER_MAX), CONF(TTY_NAME_MAX),
-  CONF(TZNAME_MAX),
+  CONF(TZNAME_MAX), CONF(UIO_MAXIOV),
 
   /* Names that just don't match the symbol, do it by hand */
   {"_AVPHYS_PAGES", _SC_AVPHYS_PAGES}, {"_PHYS_PAGES", _SC_PHYS_PAGES},
@@ -159,7 +154,7 @@ struct config limits[] = {
   CONF(CHAR_MAX), CONF(CHAR_MIN), CONF(INT_MAX), CONF(INT_MIN), CONF(SCHAR_MAX),
   CONF(SCHAR_MIN), CONF(SHRT_MAX), CONF(SHRT_MIN), CONF(SSIZE_MAX),
   CONF(UCHAR_MAX), CONF(UINT_MAX), CONF(ULONG_MAX), CONF(USHRT_MAX),
-  CONF(UIO_MAXIOV), CONF(CHAR_BIT),
+  CONF(CHAR_BIT),
   /* Not available in glibc without _GNU_SOURCE. */
   {"LONG_BIT", 8*sizeof(long)},
   {"WORD_BIT", 8*sizeof(int)},
