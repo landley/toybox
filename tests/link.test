@@ -8,7 +8,7 @@
 #testing "name" "command" "result" "infile" "stdin"
 
 echo "" >foo
-testing "fails on non-existent file" "link foo/foo baz || echo GOOD" "GOOD\n" "" ""
+testing "fails on non-existent file" "link foo/foo baz 2>/dev/null || echo GOOD" "GOOD\n" "" ""
 rm -f foo bar
 
 echo file1 > file
