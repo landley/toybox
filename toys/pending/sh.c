@@ -57,7 +57,7 @@ USE_SH(OLDTOY(-toysh, sh, 0))
 
 config SH
   bool "sh (toysh)"
-  default n
+  default y
   help
     usage: sh [-c command] [script]
 
@@ -70,7 +70,7 @@ config SH
 # These are here for the help text, they're not selectable and control nothing
 config CD
   bool
-  default n
+  default y
   depends on SH
   help
     usage: cd [-PL] [path]
@@ -82,7 +82,7 @@ config CD
 
 config EXIT
   bool
-  default n
+  default y
   depends on SH
   help
     usage: exit [status]
@@ -493,10 +493,12 @@ struct sh_process *run_command(struct sh_arg *arg, int **rdlist)
     pipe[1] = 1;
 // todo: redirect and pipe
 // todo: redirecting stderr needs xpopen3() or rethink
-    if (-1 == (pp->pid = xpopen_both(pp->arg.v, pipe)))
+    if (-1 == (pp->pid = xpopen_both(pp->arg.v, pipe))){
       perror_msg("%s: vfork", *pp->arg.v);
 // todo: don't close stdin/stdout!
-    else pp->exit = xpclose_both(pp->pid, 0);
+    } else {
+	    pp->exit = xpclose_both(pp->pid, 0);
+    }
   }
 
   s = 0;
@@ -1214,19 +1216,60 @@ void subshell_imports(void)
 */
 }
 
-void sh_main(void)
+int sh_run( char* line_iterator( void * iterator_data, int prev_consumed ), void * iterator_data )
 {
-  FILE *f;
-  char *new;
   struct sh_function scratch;
-  int prompt = 0;
-
-  // Set up signal handlers and grab control of this tty.
+  int prev_consumed = 0;
+  static int first_time = 1;
 
   // Read environment for exports from parent shell
-  subshell_imports();
-
+  if (first_time) {
+    subshell_imports();
+    first_time = 0;
+  }
+  
   memset(&scratch, 0, sizeof(scratch));
+
+  for (;;) {
+
+    char * new = line_iterator( iterator_data, prev_consumed );
+    if (new == NULL) break;
+
+// TODO if (!isspace(*new)) add_to_history(line);
+
+    // returns 0 if line consumed, command if it needs more data
+    prev_consumed = parse_line(new, &scratch);
+//dump_state(&scratch);
+    if (prev_consumed != 1) {
+// TODO: ./blah.sh one two three: put one two three in scratch.arg
+      if (!prev_consumed) run_function(&scratch);
+      free_function(&scratch);
+      prev_consumed = 0;
+    }
+    free(new);
+  }
+
+  return prev_consumed;
+}
+
+char* file_line_iterator( void * iterator_data, int prev_consumed ) {
+  
+    FILE * f = (FILE *) iterator_data;
+    // Prompt and read line
+    if (f == stdin) {
+      char *s = getenv(prev_consumed ? "PS2" : "PS1");
+
+      if (!s) s = prev_consumed ? "> " : (getpid() ? "\\$ " : "# ");
+      do_prompt(s);
+    } else TT.lineno++;
+    return xgetline(f ? f : stdin, 0);
+}
+
+void sh_main(void)
+{
+  FILE * f;
+  int prompt;
+  
   if (TT.command) f = fmemopen(TT.command, strlen(TT.command), "r");
   else if (*toys.optargs) f = xfopen(*toys.optargs, "r");
   else {
@@ -1234,31 +1277,9 @@ void sh_main(void)
     if (isatty(0)) toys.optflags |= FLAG_i;
   }
 
-  for (;;) {
-
-    // Prompt and read line
-    if (f == stdin) {
-      char *s = getenv(prompt ? "PS2" : "PS1");
-
-      if (!s) s = prompt ? "> " : (getpid() ? "\\$ " : "# ");
-      do_prompt(s);
-    } else TT.lineno++;
-    if (!(new = xgetline(f ? f : stdin, 0))) break;
-
-// TODO if (!isspace(*new)) add_to_history(line);
-
-    // returns 0 if line consumed, command if it needs more data
-    prompt = parse_line(new, &scratch);
-//dump_state(&scratch);
-    if (prompt != 1) {
-// TODO: ./blah.sh one two three: put one two three in scratch.arg
-      if (!prompt) run_function(&scratch);
-      free_function(&scratch);
-      prompt = 0;
-    }
-    free(new);
-  }
+  prompt = sh_run( file_line_iterator, f );
 
   if (prompt) error_exit("%ld:unfinished line"+4*!TT.lineno, TT.lineno);
   toys.exitval = f && ferror(f);
 }
+
