@@ -189,8 +189,12 @@ void toybox_main(void)
   // Try dereferencing one layer of symlink
   if (toys.argv[1]) {
     toy_exec(toys.argv+1);
-    if (0<readlink(toys.argv[1], libbuf, sizeof(libbuf)))
-      toy_exec_which(toy_find(basename(libbuf)), toys.argv);
+    if (0<readlink(toys.argv[1], libbuf, sizeof(libbuf))) {
+      struct toy_list *tl= toy_find(basename(libbuf));
+
+      if (tl == toy_list) unknown(basename(toys.argv[1]));
+      else toy_exec_which(tl, toys.argv);
+    }
   }
 
   // For early error reporting
