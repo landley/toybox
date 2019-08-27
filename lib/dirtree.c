@@ -27,7 +27,7 @@ int dirtree_notdotdot(struct dirtree *catch)
 
 struct dirtree *dirtree_add_node(struct dirtree *parent, char *name, int flags)
 {
-  struct dirtree *dt = NULL;
+  struct dirtree *dt = 0;
   struct stat st;
   int len = 0, linklen = 0, statless = 0;
 
@@ -36,7 +36,7 @@ struct dirtree *dirtree_add_node(struct dirtree *parent, char *name, int flags)
     int fd = parent ? parent->dirfd : AT_FDCWD;
 
     if (fstatat(fd, name, &st,AT_SYMLINK_NOFOLLOW*!(flags&DIRTREE_SYMFOLLOW))) {
-      if ((flags&DIRTREE_STATLESS) && errno == ENOENT) statless++;
+      if (flags&DIRTREE_STATLESS) statless++;
       else goto error;
     }
     if (S_ISLNK(st.st_mode)) {
@@ -122,7 +122,7 @@ struct dirtree *dirtree_handle_callback(struct dirtree *new,
   // If this had children, it was callback's job to free them already.
   if (!(flags & DIRTREE_SAVE)) {
     free(new);
-    new = NULL;
+    new = 0;
   }
 
   return (flags & DIRTREE_ABORT)==DIRTREE_ABORT ? DIRTREE_ABORTVAL : new;
@@ -157,6 +157,8 @@ int dirtree_recurse(struct dirtree *node,
   while ((entry = readdir(dir))) {
     if ((flags&DIRTREE_PROC) && !isdigit(*entry->d_name)) continue;
     if (!(new = dirtree_add_node(node, entry->d_name, flags))) continue;
+    if (!new->st.st_blksize && !new->st.st_mode)
+      new->st.st_mode = entry->d_type<<12;
     new = dirtree_handle_callback(new, callback);
     if (new == DIRTREE_ABORTVAL) break;
     if (new) {
