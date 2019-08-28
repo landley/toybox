@@ -248,7 +248,7 @@ struct string_list *find_in_path(char *path, char *filename)
   struct string_list *rlist = NULL, **prlist=&rlist;
   char *cwd;
 
-  if (!path) return 0;
+  if (!path || !filename) return 0;
 
   cwd = xgetcwd();
   for (;;) {

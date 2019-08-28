@@ -783,7 +783,9 @@ static void do_XT(char **pline, long len)
 void tar_main(void)
 {
   char *s, **args = toys.optargs,
-    *archiver = FLAG(z) ? "gzip" : (FLAG(J) ? "xz" : "bzip2");
+    *archiver =
+      FLAG(z) ? "gzip" : (FLAG(J) ? "xz" : (FLAG(j) ? "bzip2" : NULL));
+
   int len = 0;
 
   // Needed when extracting to command
@@ -852,8 +854,8 @@ void tar_main(void)
     if (FLAG(j)||FLAG(z)||FLAG(J)) {
       int pipefd[2] = {hdr ? -1 : TT.fd, -1}, i, pid;
       struct string_list *zcat = find_in_path(getenv("PATH"),
-        FLAG(j) ? "bzcat" : FLAG(J) ? "xz" : "zcat");
-
+        FLAG(j) ? "bzcat" : FLAG(z) ? "zcat" : NULL);
+      archiver = FLAG(J) ? "xz" : NULL;
       // Toybox provides more decompressors than compressors, so try them first
       xpopen_both(zcat ? (char *[]){zcat->str, 0} :
         (char *[]){archiver, "-dc", 0}, pipefd);
