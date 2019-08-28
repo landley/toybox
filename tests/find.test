@@ -102,18 +102,24 @@ testing "-printf" "find dir -name file -printf '%f %p %P %s'" \
   "file dir/file file 0" "" ""
 testing "-printf .N" "find dir -name file -printf %.2f" "fi" "" ""
 
+# No error message for a dangling link.
 ln -s does-not-exist dir/dangler
 testing "-L dangling symlink silent" \
   "LANG=C find -L dir -name file 2>&1" "dir/file\n" "" ""
 rm -f dir/dangler
 
+# An error for a symlink loop.
 ln -s looper dir/looper
 testing "-L symlink loop noisy" \
-  "LANG=C find -L dir -name file 2>err | sed s/\'//g ; grep -q dir/looper err || echo missing error" \
+  "LANG=C find -L dir -name file 2>err ; grep -q dir/looper err || echo missing error" \
   "dir/file\n" "" ""
 rm -f dir/looper err
 
 testing "-false" "find dir -false" "" "" ""
 testing "-true" "find dir/file -true" "dir/file\n" "" ""
+
+testing "missing root error" \
+  "LANG=C find -L dir/missing-root 2>err ; grep -q dir/missing-root err || echo missing error" \
+  "" "" ""
 
 rm -rf dir
