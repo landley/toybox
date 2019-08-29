@@ -9,7 +9,8 @@ function BLKID()
   file=$1
   shift
   bzcat $FILES/blkid/$file.bz2 > temp.img
-  blkid "$@" temp.img
+  # e2fsprogs' blkid outputs trailing spaces; no other blkid does.
+  blkid "$@" temp.img | sed 's/ $//'
   rm temp.img
 }
 
