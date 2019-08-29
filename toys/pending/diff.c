@@ -524,12 +524,64 @@ static int cmp(const void *p1, const void *p2)
    return strcmp(* (char * const *)p1, * (char * const *)p2);
 }
 
+// quote and escape filenames that have awkward characters
+char *quote_filename(char *filename)
+{
+  char *to = "abfnrtv\"\\", *from = "\a\b\f\n\r\t\v\"\\";
+  char *result, *s, *t;
+  size_t len = 0;
+  int quote = 0;
+
+  // calculate memory usage and presence of quotes
+  for (s = filename; *s; s++) {
+    if (*s == '\a' || *s == '\b' || *s == '\f' || *s == '\r' || *s == '\v'
+      || *s == '\n' || *s == '\t' || *s == '"' || *s == '\\')
+    {
+      quote = 1;
+      len += 2;
+    } else if (*s == ' ') {
+      quote = 1;
+      len++;
+    } else if (*s < 0x20 || *s >= 0x80) {
+      quote = 1;
+      len += 4;
+    } else {
+      len++;
+    }
+  }
+
+  // construct the new string
+  result = xmalloc(len + (quote ? 2 : 0) + 1);
+  t = result;
+  if (quote) *t++ = '"';
+  for (s = filename; *s; s++) {
+    if (*s == '\a' || *s == '\b' || *s == '\f' || *s == '\r' || *s == '\v'
+      || *s == '\n' || *s == '\t' || *s == '"' || *s == '\\')
+    {
+      *t = '\\';
+      t[1] = to[strchr(from, *s) - from];
+      t += 2;
+    } else if (*s < 0x20 || *s >= 0x80) {
+      sprintf(t, "\\%.3o", *s);
+      t += 4;
+    } else {
+      *t++ = *s;
+    }
+  }
+  if (quote) *t++ = '"';
+  *t = 0;
+  return result;
+}
+
 static void show_label(char *prefix, char *filename, struct stat *sb)
 {
   char date[36];
+  char *quoted_file;
 
-  printf("%s %s\t%s\n", prefix, filename,
+  quoted_file = quote_filename(filename);
+  printf("%s %s\t%s\n", prefix, quoted_file,
     format_iso_time(date, sizeof(date), &sb->st_mtim));
+  free(quoted_file);
 }
 
 static void do_diff(char **files)

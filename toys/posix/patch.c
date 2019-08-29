@@ -247,6 +247,35 @@ done:
   return TT.state;
 }
 
+// read a filename that has been quoted or escaped
+char *unquote_file(char *filename) {
+  char *s = filename, *result, *t, *u;
+  int quote = 0, ch;
+
+  // quoted and escaped filenames are larger than the original
+  result = xmalloc(strlen(filename) + 1);
+  t = result;
+  if (*s == '"') {
+    s++;
+    quote = 1;
+  }
+  for (; *s && !(quote && *s == '"' && !s[1]); s++) {
+    // don't accept escape sequences unless the filename is quoted
+    if (quote && *s == '\\' && s[1]) {
+      if (s[1] >= '0' && s[1] < '8') {
+        *t++ = strtoul(s + 1, &u, 8);
+        s = u - 1;
+      } else {
+        ch = unescape(s[1]);
+        *t++ = ch ? ch : s[1];
+		s++;
+      }
+    } else *t++ = *s;
+  }
+  *t = 0;
+  return result;
+}
+
 // Read a patch file and find hunks, opening/creating/deleting files.
 // Call apply_one_hunk() on each hunk.
 
@@ -322,13 +351,12 @@ void patch_main(void)
       finish_oldfile();
 
       // Trim date from end of filename (if any).  We don't care.
-      for (s = patchline+4; *s && (*s!='\t' || !isdigit(s[1])); s++)
-        if (*s=='\\' && s[1]) s++;
+      for (s = patchline+4; *s && *s!='\t'; s++);
       i = atoi(s);
       if (i>1900 && i<=1970) *name = xstrdup("/dev/null");
       else {
         *s = 0;
-        *name = xstrdup(patchline+4);
+        *name = unquote_file(patchline+4);
       }
 
       // We defer actually opening the file because svn produces broken
