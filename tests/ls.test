@@ -50,5 +50,8 @@ rm -rf lstest/* && touch lstest/file1.txt && INODE=`stat -c %i lstest/file1.txt`
 testing "with -i" "$IN && ls -i 2>/dev/null; $OUT" "$INODE file1.txt\n" "" ""
 unset INODE
 
+testing "missing" "$IN && ls does-not-exist 2>err ; grep -q 'ls:.*missing.*: No
+such file' err || echo missing error; $OUT" "" "" ""
+
 # Removing test dir for cleanup purpose
 rm -rf lstest
