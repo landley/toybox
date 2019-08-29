@@ -368,7 +368,8 @@ static int do_find(struct dirtree *new)
         }
 
         if (check) {
-          test = !fnmatch(arg, name, FNM_PATHNAME*(!is_path));
+          test = !fnmatch(arg, is_path ? name : basename(name),
+            FNM_PATHNAME*(!is_path));
           if (i) free(name);
         }
         free(path);

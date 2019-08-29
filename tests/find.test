@@ -122,4 +122,7 @@ testing "missing root error" \
   "LANG=C find -L dir/missing-root 2>err ; grep -q dir/missing-root err || echo missing error" \
   "" "" ""
 
+testing "-path match root" "find dir/f* -path dir/file" "dir/file\n" "" ""
+testing "-name match root" "find dir/f* -name file" "dir/file\n" "" ""
+
 rm -rf dir
