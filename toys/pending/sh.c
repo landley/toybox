@@ -24,7 +24,7 @@
  * TODO: make fake pty wrapper for test infrastructure
  * TODO: // Handle embedded NUL bytes in the command line.
  * TODO: var=val command
- * existing but considered builtins: false kill pwd true
+ * existing but considered builtins: false kill pwd true time
  * buitins: alias bg command fc fg getopts jobs newgrp read umask unalias wait
  * "special" builtins: break continue : . eval exec export readonly return set
  *   shift times trap unset
@@ -51,9 +51,11 @@ USE_SH(NEWTOY(exit, NULL, TOYFLAG_NOFORK))
 
 USE_SH(NEWTOY(sh, "c:i", TOYFLAG_BIN))
 USE_SH(OLDTOY(toysh, sh, TOYFLAG_BIN))
+USE_SH(OLDTOY(bash, sh, TOYFLAG_BIN))
 // Login lies in argv[0], so add some aliases to catch that
 USE_SH(OLDTOY(-sh, sh, 0))
 USE_SH(OLDTOY(-toysh, sh, 0))
+USE_SH(OLDTOY(-bash, sh, 0))
 
 config SH
   bool "sh (toysh)"
@@ -129,6 +131,8 @@ void cd_main(void)
 {
   char *dest = *toys.optargs ? *toys.optargs : getenv("HOME");
 
+// TODO: -LPE@
+// TODO: cd .. goes up $PWD path we used to get here, not ./..
   xchdir(dest ? dest : "/");
 }
 
@@ -884,7 +888,7 @@ static int parse_line(char *line, struct sh_function *sp)
           // can only have one "in" line between for/do, but not with for(())
           if (!pl->prev->type) goto flush;
           if (!strncmp(pl->prev->arg->v[1], "((", 2)) goto flush;
-          else if (!strcmp(s, "in")) goto flush;
+          else if (strcmp(s, "in")) goto flush;
 
           continue;
         }
@@ -1013,6 +1017,14 @@ static void dump_state(struct sh_function *sp)
   }
 }
 
+/* Flow control statements:
+
+  if/then/elif/else/fi, for select while until/do/done, case/esac,
+  {/}, [[/]], (/), function assignment
+*/
+
+
+
 // run a shell function, handling flow control statements
 static void run_function(struct sh_function *sp)
 {
@@ -1035,7 +1047,10 @@ static void run_function(struct sh_function *sp)
     // Normal executable statement?
     if (!pl->type) {
 // TODO: break & is supported? Seriously? Also break > potato
+// TODO: break multiple aguments
       if (!strcmp(s, "break") || !strcmp(s, "continue")) {
+
+        // How many layers to peel off?
         i = ss ? atol(ss) : 0;
         if (i<1) i = 1;
         if (!blk || pl->arg->c>2 || ss[strspn(ss, "0123456789")]) {
@@ -1062,7 +1077,7 @@ static void run_function(struct sh_function *sp)
 // returns last statement of pipeline
       if (!blk) toys.exitval = run_pipeline(&pl, 0);
       else if (blk->run) toys.exitval = run_pipeline(&pl, blk->redir);
-      else do pl = pl->next; while (!pl->type);
+      else while (pl->next && !pl->next->type) pl = pl->next;
 
     // Starting a new block?
     } else if (pl->type == 1) {
@@ -1099,6 +1114,8 @@ function/}
 // todo perform block end redirects to blk->redir
       }
 
+      // no special handling needed
+
       // What flow control statement is this?
       if (!strcmp(s, "for") || !strcmp(s, "select")) {
         if (!strncmp(blk->fvar = ss, "((", 2)) {
@@ -1120,8 +1137,9 @@ dprintf(2, "skipped init for((;;)), need math parser\n");
       if (!strcmp(s, "then")) blk->run = blk->run && !toys.exitval;
       else if (!strcmp(s, "else") || !strcmp(s, "elif")) blk->run = !blk->run;
       else if (!strcmp(s, "do")) {
-        if (!strcmp(*blk->start->arg->v, "while"))
-          blk->run = blk->run && !toys.exitval;
+        ss = *blk->start->arg->v;
+        if (!strcmp(ss, "while")) blk->run = blk->run && !toys.exitval;
+        else if (!strcmp(ss, "until")) blk->run = blk->run && toys.exitval;
         else if (blk->loop >= blk->farg.c) {
           blk->run = 0;
           pl = block_end(pl);
