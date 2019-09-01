@@ -101,6 +101,13 @@ testing "-iwholename glob" "find dir -iwholename 'dIr*E'" "dir/file\n" "" ""
 testing "-printf" "find dir -name file -printf '%f %p %P %s'" \
   "file dir/file file 0" "" ""
 testing "-printf .N" "find dir -name file -printf %.2f" "fi" "" ""
+# findutils find supports C letter escapes and \0 octal, but not \x or \u.
+testing "-printf escapes" \
+  "find dir -name file -printf '\0 \007 \t \079' | xxd -p" \
+  "0020072009200739\n" "" ""
+# findutils find treats \c as "no more output from this -printf", not "no more
+# output from find".
+testing "-printf \\c escape" "find dir -name f* -printf 'x\cy'" "xx" "" ""
 
 # No error message for a dangling link.
 ln -s does-not-exist dir/dangler
