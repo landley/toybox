@@ -20,8 +20,10 @@ config TOYBOX
 
 	  --long	Show path to each command
 
-	  To install command symlinks, try:
+	  To install command symlinks with paths, try:
 	    for i in $(/bin/toybox --long); do ln -s /bin/toybox $i; done
+	  or all in one directory:
+	    for i in $(./toybox); do ln -s toybox $i; done; PATH=$PWD:$PATH
 
 	  Most toybox commands also understand the following arguments:
 
