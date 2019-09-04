@@ -71,10 +71,30 @@ static void set_alarm(int seconds)
   alarm(seconds);
 }
 
+// open AF_UNIX socket
+static int usock(char *name, int type, int out)
+{
+  int sockfd;
+  struct sockaddr_un sockaddr;
+
+  memset(&sockaddr, 0, sizeof(struct sockaddr_un));
+
+  if (strlen(name) + 1 > sizeof(sockaddr.sun_path))
+    error_exit("socket path too long %s", name);
+  strcpy(sockaddr.sun_path, name);
+  sockaddr.sun_family = AF_UNIX;
+
+  sockfd = xsocket(AF_UNIX, type, 0);
+  (out?xconnect:xbind)(sockfd, (struct sockaddr*)&sockaddr, sizeof(sockaddr));
+
+  return sockfd;
+}
+ 
+
 void netcat_main(void)
 {
-  int sockfd = -1, in1 = 0, in2 = 0, out1 = 1, out2 = 1;
-  int family = AF_UNSPEC, type = SOCK_STREAM;
+  int sockfd = -1, in1 = 0, in2 = 0, out1 = 1, out2 = 1, family = AF_UNSPEC,
+    ll = FLAG(L)|FLAG(l), type = FLAG(u) ? SOCK_DGRAM : SOCK_STREAM;
   pid_t child;
 
   // Addjust idle and quit_delay to ms or -1 for no timeout
@@ -85,68 +105,37 @@ void netcat_main(void)
 
   // The argument parsing logic can't make "<2" conditional on other
   // arguments like -f and -l, so do it by hand here.
-  if ((toys.optflags&FLAG_f) ? toys.optc :
-      (!(toys.optflags&(FLAG_l|FLAG_L)) &&
-       toys.optc!=(toys.optflags&FLAG_U?1:2)))
-        help_exit("bad argument count");
+  if (FLAG(f) ? toys.optc : (!ll && toys.optc!=(FLAG(U)?1:2)))
+    help_exit("bad argument count");
 
-  if (toys.optflags&FLAG_4) family = AF_INET;
-  else if (toys.optflags&FLAG_6) family = AF_INET6;
-  else if (toys.optflags&FLAG_U) family = AF_UNIX;
-
-  if (toys.optflags&FLAG_u) type = SOCK_DGRAM;
+  if (FLAG(4)) family = AF_INET;
+  else if (FLAG(6)) family = AF_INET6;
+  else if (FLAG(U)) family = AF_UNIX;
 
   if (TT.f) in1 = out2 = xopen(TT.f, O_RDWR);
   else {
     // Setup socket
-    if (!(toys.optflags&(FLAG_L|FLAG_l))) {
-      if (toys.optflags&FLAG_U) {
-        struct sockaddr_un sockaddr;
-
-        memset(&sockaddr, 0, sizeof(struct sockaddr_un));
-
-        if (strlen(toys.optargs[0]) + 1 > sizeof(sockaddr.sun_path))
-          error_exit("socket path too long %s", toys.optargs[0]);
-        strcpy(sockaddr.sun_path, toys.optargs[0]);
-        sockaddr.sun_family = AF_UNIX;
-
-        sockfd = xsocket(AF_UNIX, type | SOCK_CLOEXEC, 0);
-        xconnect(sockfd, (struct sockaddr*)&sockaddr, sizeof(sockaddr));
-      } else {
-        sockfd = xconnectany(xgetaddrinfo(toys.optargs[0], toys.optargs[1],
+    if (!ll) {
+      if (FLAG(U)) sockfd = usock(toys.optargs[0], type, 1);
+      else sockfd = xconnectany(xgetaddrinfo(toys.optargs[0], toys.optargs[1],
                                           family, type, 0, 0));
-      }
 
-      // We have a connection. Disarm timeout.
+      // We have a connection. Disarm timeout and start poll/send loop.
       set_alarm(0);
-
       in1 = out2 = sockfd;
-
       pollinate(in1, in2, out1, out2, TT.W, TT.q);
     } else {
       // Listen for incoming connections
-      if (toys.optflags&FLAG_U) {
-        struct sockaddr_un sockaddr;
-
-        memset(&sockaddr, 0, sizeof(struct sockaddr_un));
-
-        if (!(toys.optflags&FLAG_s))
-          error_exit("-s must be provided if using -U with -L/-l");
-
-        if (strlen(TT.s) + 1 > sizeof(sockaddr.sun_path))
-          error_exit("socket path too long %s", TT.s);
-        strcpy(sockaddr.sun_path, TT.s);
-        sockaddr.sun_family = AF_UNIX;
-
-        sockfd = xsocket(AF_UNIX, type | SOCK_CLOEXEC, 0);
-        xbind(sockfd, (struct sockaddr*)&sockaddr, sizeof(sockaddr));
+      if (FLAG(U)) {
+        if (!FLAG(s)) error_exit("-s must be provided if using -U with -L/-l");
+        sockfd = usock(TT.s, type, 0);
       } else {
         sprintf(toybuf, "%ld", TT.p);
         sockfd = xbindany(xgetaddrinfo(TT.s, toybuf, family, type, 0, 0));
       }
 
       if (listen(sockfd, 5)) error_exit("listen");
-      if (!TT.p && !(toys.optflags&FLAG_U)) {
+      if (!TT.p && !FLAG(U)) {
         struct sockaddr* address = (void*)toybuf;
         socklen_t len = sizeof(struct sockaddr_storage);
         short port_be;
@@ -156,11 +145,9 @@ void netcat_main(void)
           port_be = ((struct sockaddr_in*)address)->sin_port;
         else if (address->sa_family == AF_INET6)
           port_be = ((struct sockaddr_in6*)address)->sin6_port;
-        else
-          perror_exit("getsockname: bad family");
+        else perror_exit("getsockname: bad family");
 
-        printf("%d\n", SWAP_BE16(port_be));
-        fflush(stdout);
+        dprintf(1, "%d\n", SWAP_BE16(port_be));
         // Return immediately if no -p and -Ll has arguments, so wrapper
         // script can use port number.
         if (CFG_TOYBOX_FORK && toys.optc && xfork()) goto cleanup;
@@ -168,7 +155,7 @@ void netcat_main(void)
 
       do {
         child = 0;
-        in1 = out2 = accept(sockfd, NULL, NULL);
+        in1 = out2 = accept(sockfd, 0, 0);
         if (in1<0) perror_exit("accept");
 
         // We have a connection. Disarm timeout.
@@ -184,21 +171,23 @@ void netcat_main(void)
 
           // Do we need to fork and/or redirect for exec?
 
-          if (toys.optflags&FLAG_L) NOEXIT(child = XVFORK());
+// TODO xpopen_both() here?
+
+          if (FLAG(L)) NOEXIT(child = XVFORK());
           if (child) {
             close(in1);
             continue;
           }
           dup2(in1, 0);
           dup2(in1, 1);
-          if (toys.optflags&FLAG_L) dup2(in1, 2);
+          if (FLAG(L)) dup2(in1, 2);
           if (in1>2) close(in1);
           xexec(toys.optargs);
         }
 
         pollinate(in1, in2, out1, out2, TT.W, TT.q);
         close(in1);
-      } while (!(toys.optflags&FLAG_l));
+      } while (!FLAG(l));
     }
   }
 
