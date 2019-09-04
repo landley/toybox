@@ -467,7 +467,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
       }
     }
     if (flags & FLAG_Z)
-      printf(" %-*s", -(int)totals[7], (char *)sort[next]->extra);
+      printf("%-*s ", -(int)totals[7], (char *)sort[next]->extra);
 
     if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) {
       struct tm *tm;
