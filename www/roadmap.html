@@ -283,16 +283,19 @@ notes</a>.</p>
 
 <h3>Toolbox commands:</h3>
 
-<p>According to <a href=https://android.googlesource.com/platform/system/core/+/master/toolbox/Android.mk>
-system/core/toolbox/Android.mk</a> the toolbox directory builds the
+<p>According to <a href=https://android.googlesource.com/platform/system/core/+/master/toolbox/Android.bp>
+system/core/toolbox/Android.bp</a> the toolbox directory builds the
 following commands:</p>
 
 <blockquote><b>
-dd getevent newfs_msdos
+getevent getprop modprobe setprop start
 </b></blockquote>
 
-<p>The toolbox makefile also builds the BSD grep right now, because toybox
-grep is missing <code>--color</code>.</p>
+<p>getprop/setprop/start were in toybox and moved back because they're so
+tied to non-public system interfaces. modprobe shares the implementation
+used in init. getevent probably does make sense as a toybox command, but at the
+moment it's built with a python script that pulls all the constants from the
+latest kernel headers, which is very convenient.</p>
 
 <h3>Other Android /system/bin commands</h3>
 
@@ -341,15 +344,19 @@ commands.</p>
 <p>This means toybox should implement (or finish implementing):</p>
 <blockquote><b>
 <span id=toolbox>
-dd getevent grep gzip newfs_msdos
+dd getevent gzip newfs_msdos
 </span>
 </b></blockquote>
 
-<p>Update: Android.mk is currently building the following toybox files out
-of "pending". These should be a priority for cleanup:</p>
+<p>Update: <a href=https://android.googlesource.com/platform/system/core/+/master/system/core/Android.bp>
+external/toybox/Android.bp</a> has symlinks for the following toys out
+of "pending". (The toybox modprobe is also built for the device, but
+it isn't actually used and is only there for sanity checking against
+the libmodprobe-based implementation.) These should be a priority for
+cleanup:</p>
 
 <blockquote><b>
-bc dd diff expr lsof tr getfattr modprobe more traceroute
+bc dd diff expr getfattr lsof more stty tr traceroute
 </b></blockquote>
 
 <p>Android wishlist:</p>
@@ -361,8 +368,10 @@ mtools genvfatfs mke2fs gene2fs
 <hr />
 <h2><a name=aosp /><a href="#aosp">Use case: Building AOSP</a></h2>
 
-<p>The list of external tools used to build AOSP is
-<a href="https://android.googlesource.com/platform/build/soong/+/master/ui/build/paths/config.go">here</a>.</p>
+<p>The list of external tools used to build AOSP was
+<a href="https://android.googlesource.com/platform/build/soong/+/master/ui/build/paths/config.go">here</a>,
+but as they're switched over to toybox they disappear and reappear
+<a href="https://android.googlesource.com/platform/prebuilts/build-tools/+/refs/heads/master/path/linux-x86/">here</a>.</p>
 
 <blockquote><b>
 awk basename bash bc bzip2 cat chmod cmp comm cp cut date dd diff dirname du
