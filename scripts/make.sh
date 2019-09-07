@@ -15,7 +15,7 @@ set -o pipefail
 source scripts/portability.sh
 
 [ -z "$KCONFIG_CONFIG" ] && KCONFIG_CONFIG=.config
-[ -z "$OUTNAME" ] && OUTNAME=toybox
+[ -z "$OUTNAME" ] && OUTNAME=toybox"${TARGET:+-$TARGET}"
 UNSTRIPPED="generated/unstripped/$(basename "$OUTNAME")"
 
 # Try to keep one more cc invocation going than we have processors
