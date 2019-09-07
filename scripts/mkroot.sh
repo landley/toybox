@@ -24,10 +24,10 @@ then
     sleep 3
   fi
 else
-  echo "Cross compiling"
   CROSS_PATH="$(dirname "$(which "${CROSS_COMPILE}cc")")"
   CROSS_BASE="$(basename "$CROSS_COMPILE")"
   [ -z "$CROSS_SHORT" ] && CROSS_SHORT="${CROSS_BASE/-*/}"
+  echo "Cross compiling to $CROSS_SHORT"
   if [ -z "$CROSS_PATH" ]
   then
     echo "no ${CROSS_COMPILE}cc in path" >&2
@@ -44,7 +44,7 @@ TOP="$PWD/root"
 MYBUILD="$BUILD/${CROSS_BASE:-host-}tmp"
 rm -rf "$MYBUILD" && mkdir -p "$MYBUILD" || exit 1
 
-# Stabilize cross compiling with known $PATH contents
+# Stabilize cross compiling by providing known $PATH contents
 if [ ! -z "$CROSS_COMPILE" ]
 then
   if [ ! -e "$AIRLOCK/toybox" ]
@@ -52,7 +52,7 @@ then
     echo === Create airlock dir
 
     PREFIX="$AIRLOCK" KCONFIG_CONFIG="$TOP"/.airlock CROSS_COMPILE= \
-      make noroot_clean defconfig toybox install_airlock &&
+      make clean defconfig toybox install_airlock &&
     rm "$TOP"/.airlock || exit 1
   fi
   export PATH="$CROSS_PATH:$AIRLOCK"
@@ -60,10 +60,7 @@ fi
 
 ### Create files and directories
 mkdir -p "$ROOT"/{etc,tmp,proc,sys,dev,home,mnt,root,usr/{bin,sbin,lib},var} &&
-chmod a+rwxt "$ROOT"/tmp &&
-ln -s usr/bin "$ROOT/bin" &&
-ln -s usr/sbin "$ROOT/sbin" &&
-ln -s usr/lib "$ROOT/lib" &&
+chmod a+rwxt "$ROOT"/tmp && ln -s usr/{bin,sbin,lib} "$ROOT" || exit 1
 
 # init script. Runs as pid 1 from initramfs to set up and hand off system.
 cat > "$ROOT"/init << 'EOF' &&
@@ -102,7 +99,7 @@ fi
 EOF
 chmod +x "$ROOT"/init &&
 
-# /etc/passwd with two kernel special accounts (root and nobody), and guest user
+# /etc/passwd with both kernel special accounts (root and nobody) + guest user
 cat > "$ROOT"/etc/passwd << 'EOF' &&
 root::0:0:root:/home/root:/bin/sh
 guest:x:500:500:guest:/home/guest:/bin/sh
@@ -113,22 +110,24 @@ EOF
 cat > "$ROOT"/etc/group << 'EOF' &&
 root:x:0:
 guest:x:500:
-nobody:x:nobody:
+nobody:x:65534:
 EOF
 
-# /etc/resolv.conf using Google's public nameserver.
+# /etc/resolv.conf using Google's public nameserver. (We could use QEMU's
+# 10.0.2.2 forwarder here, but this way works in both chroot and QEMU.)
 echo "nameserver 8.8.8.8" > "$ROOT"/etc/resolv.conf || exit 1
 
 # Build toybox
 
-make noroot_clean >/dev/null
+make clean
 if [ -z .config ]
 then
-  echo "Building defconfig"
   make defconfig
-  # Work around musl-libc design flaw
+  # Work around musl-libc design flaw.
   [ "${CROSS_BASE/fdpic//}" != "$CROSS_BASE" ] &&
     sed -i 's/.*\(CONFIG_TOYBOX_MUSL_NOMMU_IS_BROKEN\).*/\1=y/' .config
+else
+  make silentoldconfig
 fi
 LDFLAGS=--static PREFIX="$ROOT" make toybox install || exit 1
 
@@ -434,6 +433,9 @@ fi
   echo "# boot $VMLINUX"
   echo
   echo "$KERNEL_CONFIG"
+
+  # Generic options for all targets
+
   echo "
 # CONFIG_EMBEDDED is not set
 CONFIG_EARLY_PRINTK=y
