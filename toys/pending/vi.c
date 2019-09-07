@@ -30,6 +30,7 @@ GLOBALS(
     int vi_mov_flag;
     int modified;
     char vi_reg;
+    char *last_search;
 )
 
 /*
@@ -74,7 +75,7 @@ static int cur_up(int count0, int count1, char* unused);
 static int cur_down(int count0, int count1, char* unused);
 static void check_cursor_bounds();
 static void adjust_screen_buffer();
-
+static int search_str(char *s);
 
 struct str_line {
   int alloc_len;
@@ -573,6 +574,12 @@ static int vi_join(char reg, int count0, int count1)
   return 1;
 }
 
+static int vi_find_next(char reg, int count0, int count1)
+{
+  if (TT.last_search) search_str(TT.last_search);
+  return 1;
+}
+
 static int vi_change(char reg, struct linelist *row, int col, int flags)
 {
   vi_delete(reg, row, col, flags);
@@ -610,23 +617,24 @@ struct vi_mov_param {
   unsigned flags;
   int (*vi_mov)(int, int, char*);//COUNT0,COUNT1,params
 };
-//spesial cases without MOV and such
-struct vi_spesial_param {
+//special cases without MOV and such
+struct vi_special_param {
   const char *cmd;
-  int (*vi_spesial)(char, int, int);//REG,COUNT0,COUNT1 
+  int (*vi_special)(char, int, int);//REG,COUNT0,COUNT1
 };
-struct vi_spesial_param vi_spesial[5] =
+struct vi_special_param vi_special[] =
 {
   {"dd", &vi_dd},
   {"yy", &vi_yy},
   {"D", &vi_D},
   {"J", &vi_join},
+  {"n", &vi_find_next},
   {"x", &vi_x},
 };
 //there is around ~47 vi moves
 //some of them need extra params
 //such as f and '
-struct vi_mov_param vi_movs[12] =
+struct vi_mov_param vi_movs[] =
 {
   {"0", 0, &vi_zero},
   {"b", 0, &vi_movb},
@@ -646,7 +654,7 @@ struct vi_mov_param vi_movs[12] =
 //also dw stops at w position and cw seem to stop at e pos+1...
 //so after movement we need to possibly set up some flags before executing
 //command, and command needs to adjust...
-struct vi_cmd_param vi_cmds[3] =
+struct vi_cmd_param vi_cmds[] =
 {
   {"c", 1, &vi_change},
   {"d", 1, &vi_delete},
@@ -674,13 +682,13 @@ int run_vi_cmd(char *cmd)
   else cmd = cmd_e;
   TT.count0 = val;
 
-  for (i = 0; i < 5; i++) {
-    if (strstr(cmd, vi_spesial[i].cmd)) {
-      return vi_spesial[i].vi_spesial(TT.vi_reg, TT.count0, TT.count1);
+  for (i = 0; i < ARRAY_LEN(vi_special); i++) {
+    if (strstr(cmd, vi_special[i].cmd)) {
+      return vi_special[i].vi_special(TT.vi_reg, TT.count0, TT.count1);
     }
   }
 
-  for (i = 0; i < 3; i++) {
+  for (i = 0; i < ARRAY_LEN(vi_cmds); i++) {
     if (!strncmp(cmd, vi_cmds[i].cmd, strlen(vi_cmds[i].cmd))) {
       vi_cmd = vi_cmds[i].vi_cmd;
       cmd += strlen(vi_cmds[i].cmd);
@@ -692,7 +700,7 @@ int run_vi_cmd(char *cmd)
   else cmd = cmd_e;
   TT.count1 = val;
 
-  for (i = 0; i < 12; i++) {
+  for (i = 0; i < ARRAY_LEN(vi_movs); i++) {
     if (!strncmp(cmd, vi_movs[i].mov, strlen(vi_movs[i].mov))) {
       vi_mov = vi_movs[i].vi_mov;
       TT.vi_mov_flag = vi_movs[i].flags;
@@ -712,36 +720,40 @@ int run_vi_cmd(char *cmd)
   return 0;
 }
 
-int search_str(char *s)
+static int search_str(char *s)
 {
   struct linelist *lst = c_r;
-  char *c = strstr(&c_r->line->str_data[TT.cur_col], s);
+  char *c = strstr(&c_r->line->str_data[TT.cur_col+1], s);
+
+  if (TT.last_search != s) {
+    free(TT.last_search);
+    TT.last_search = xstrdup(s);
+  }
+
   if (c) {
     TT.cur_col = c_r->line->str_data-c; //TODO ??
-  TT.cur_col = c-c_r->line->str_data;
-  }
-  else for (; !c;) {
+    TT.cur_col = c-c_r->line->str_data;
+  } else for (; !c;) {
     lst = lst->down;
     if (!lst) return 1;
     c = strstr(&lst->line->str_data[TT.cur_col], s);
   }
   c_r = lst;
   TT.cur_col = c-c_r->line->str_data;
+  check_cursor_bounds();
+  adjust_screen_buffer();
   return 0;
 }
 
 int run_ex_cmd(char *cmd)
 {
   if (cmd[0] == '/') {
-    //search pattern
-    if (!search_str(&cmd[1]) ) {
-      check_cursor_bounds();
-      adjust_screen_buffer();
-    }
+    search_str(&cmd[1]);
   } else if (cmd[0] == '?') {
-
+    // TODO: backwards search.
   } else if (cmd[0] == ':') {
-    if (strstr(&cmd[1], "q!")) {
+    if (!strcmp(&cmd[1], "q") || !strcmp(&cmd[1], "q!")) {
+      // TODO: if no !, check whether file modified.
       //exit_application;
       return -1;
     }
@@ -763,7 +775,6 @@ void vi_main(void)
   char keybuf[16];
   char utf8_code[8];
   int utf8_dec_p = 0;
-  int key = 0;
   char vi_buf[16];
   int vi_buf_pos = 0;
   il = xzalloc(sizeof(struct str_line));
@@ -790,8 +801,19 @@ void vi_main(void)
   xflush(1);
   draw_page();
   while(1) {
-    key = scan_key(keybuf, -1);
-    printf("key %d\n", key);
+    int key = scan_key(keybuf, -1);
+
+    // TODO: support cursor keys in ex mode too.
+    if (TT.vi_mode && key>=256) {
+      key -= 256;
+      if (key==KEY_UP) cur_up(1, 1, 0);
+      else if (key==KEY_DOWN) cur_down(1, 1, 0);
+      else if (key==KEY_LEFT) cur_left(1, 1, 0);
+      else if (key==KEY_RIGHT) cur_right(1, 1, 0);
+      draw_page();
+      continue;
+    }
+
     switch (key) {
       case -1:
       case 3:
@@ -807,9 +829,12 @@ void vi_main(void)
           il->str_data[0]=key;
           il->str_len++;
           break;
+        case 'A':
+          vi_eol(1, 1, 0);
+          // FALLTHROUGH
         case 'a':
-          if (c_r && c_r->line->str_len)
-            TT.cur_col++;
+          if (c_r && c_r->line->str_len) TT.cur_col++;
+          // FALLTHROUGH
         case 'i':
           TT.vi_mode = 2;
           break;
@@ -836,21 +861,21 @@ void vi_main(void)
       }
     } else if (TT.vi_mode == 0) { //EX MODE
       switch (key) {
+        case 0x7F:
+        case 0x08:
+          if (il->str_len > 1) {
+            il->str_data[--il->str_len] = 0;
+            break;
+          }
+          // FALLTHROUGH
         case 27:
           TT.vi_mode = 1;
           il->str_len = 0;
           memset(il->str_data, 0, il->alloc_len);
           break;
-        case 0x7F:
-        case 0x08:
-          if (il->str_len) {
-            il->str_data[il->str_len] = 0;
-            if (il->str_len > 1) il->str_len--;
-          }
-          break;
         case 0x0D:
-            if (run_ex_cmd(il->str_data) == -1)
-              goto cleanup_vi;
+          if (run_ex_cmd(il->str_data) == -1)
+            goto cleanup_vi;
           TT.vi_mode = 1;
           il->str_len = 0;
           memset(il->str_data, 0, il->alloc_len);
@@ -1045,8 +1070,7 @@ static void draw_page()
 
   }
   //DEBUG
-  tty_esc("47m");
-  tty_esc("30m");
+  tty_esc("m");
   utf_l = utf8_len(&c_r->line->str_data[TT.cur_col]);
   if (utf_l) {
     char t[5] = {0, 0, 0, 0, 0};
@@ -1057,13 +1081,12 @@ static void draw_page()
 
   tty_jump(TT.screen_width-12, TT.screen_height);
   printf("| %d, %d\n", TT.cur_row, TT.cur_col);
-  tty_esc("37m");
-  tty_esc("40m");
+  tty_esc("m");
   if (!TT.vi_mode) {
     tty_esc("1m");
     tty_jump(0, TT.screen_height+1);
     printf("%s", il->str_data);
-    tty_esc("0m");
+    tty_esc("m");
   } else tty_jump(cx_scr, cy_scr);
 
   xflush(1);
