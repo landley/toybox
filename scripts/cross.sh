@@ -4,11 +4,11 @@
 # symlink (Cross C Compiler) to a directory of cross compilers named
 # $TARGET-*-cross. Tested with scripts/mcm-buildall.sh output.
 
-# Usage: ./cross.sh $TARGET make distclean defconfig toybox
+# Usage: scripts/cross.sh $TARGET make distclean defconfig toybox
 # With no arguments, lists available targets. Use target "all" to iterate
 # through each $TARGET from the list.
 
-CCC="$(dirname "$(readlink -f "$0")")"/ccc
+CCC="$(dirname "$(readlink -f "$0")")"/../ccc
 if [ ! -d "$CCC" ]
 then
   echo "Create symlink 'ccc' to cross compiler directory"
