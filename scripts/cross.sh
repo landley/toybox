@@ -32,11 +32,10 @@ if [ "$X" == all ]
 then
   for TARGET in $(list)
   do
-    mkdir -p output/$TARGET
     {
       export TARGET
-      "$0" $TARGET "$@" 2>&1 || mv output/$TARGET{,.failed}
-    } | tee output/$TARGET/log.txt
+      "$0" $TARGET "$@" 2>&1 || mv cross-log-$TARGET.{txt,failed}
+    } | tee cross-log-$TARGET.txt
   done
 
   exit
