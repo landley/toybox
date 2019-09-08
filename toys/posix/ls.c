@@ -466,8 +466,8 @@ static void listfiles(int dirfd, struct dirtree *indir)
                            crunch_qb);
       }
     }
-    if (flags & FLAG_Z)
-      printf("%-*s ", -(int)totals[7], (char *)sort[next]->extra);
+    if (FLAG(Z))
+      printf(" %-*s "+!FLAG(l), -(int)totals[7], (char *)sort[next]->extra);
 
     if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) {
       struct tm *tm;
@@ -483,7 +483,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
       // print time, always in --time-style=long-iso
       tm = localtime(&(st->st_mtime));
-      strftime(tmp, sizeof(tmp), "%F %H:%M", tm);
+      strftime(tmp, sizeof(tmp), " %F %H:%M", tm);
       if (TT.l>1) {
         char *s = tmp+strlen(tmp);
 

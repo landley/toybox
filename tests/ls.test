@@ -32,6 +32,7 @@ testing "with -m" "$IN && ls -m; $OUT" "dir1, dir2, file1.txt, file2.txt\n" "" "
 testing "with -F" "$IN && ls -F; $OUT" "dir1/\ndir2/\nfile1.txt\nfile2.txt\n" "" ""
 testing "with -dk *" "$IN && ls -dk *; $OUT" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
 testing "with -Z" "$IN && ls -Z file1.txt | egrep -q '^[^ ]+ file1.txt' || echo fail; $OUT" "" "" ""
+testing "with -lZ" "$IN && ls --full-time -lZ file1.txt | egrep -q '^-[rwx-]+ +[0-9]+ +[^ ]+ +[^ ]+ +[^ ]+ +[0-9]+ [0-9][0-9][0-9][0-9]-[0-9][0-9]-.* file1.txt' || echo fail; $OUT" "" "" ""
 
 ln -s file1.txt lstest/slink
 testing "-l symlink" \
