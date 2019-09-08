@@ -203,8 +203,8 @@ down:
 // $((arithmetic)), split, path 
 #define NO_PATH  (1<<0)
 #define NO_SPLIT (1<<1)
-// todo: ${name:?error} causes an error/abort here (syntax_err longjmp?)
-// todo: $1 $@ $* need args marshalled down here: function+structure?
+// TODO: ${name:?error} causes an error/abort here (syntax_err longjmp?)
+// TODO: $1 $@ $* need args marshalled down here: function+structure?
 // arg = append to this
 // new = string to expand
 // flags = type of expansions (not) to do
@@ -288,7 +288,7 @@ int redir_prefix(char *word)
   return s-word;
 }
 
-// todo |&
+// TODO |&
 
 // rd[0] = next, 1 = prev, 2 = len, 3-x = to/from redirection pairs.
 // Execute the commands in a pipeline segment
@@ -461,12 +461,12 @@ struct sh_process *run_command(struct sh_arg *arg, int **rdlist)
   }
   if (rd) rd[2] = rdcount;
 
-// todo: ok, now _use_ in_rd[in_rdcount] and rd[rdcount]. :)
+// TODO: ok, now _use_ in_rd[in_rdcount] and rd[rdcount]. :)
 
-// todo: handle ((math)) here
+// TODO: handle ((math)) here
 
-// todo use envlen
-// todo: check for functions
+// TODO use envlen
+// TODO: check for functions
 
   // Is this command a builtin that should run in this process?
   if ((tl = toy_find(*pp->arg.v))
@@ -479,7 +479,7 @@ struct sh_process *run_command(struct sh_arg *arg, int **rdlist)
     memcpy(&temp, &toys, sizeof(struct toy_context));
     memset(&toys, 0, sizeof(struct toy_context));
 
-// todo: redirect stdin/out
+// TODO: redirect stdin/out
     if (!sigsetjmp(rebound, 1)) {
       toys.rebound = &rebound;
 // must be null terminated
@@ -495,11 +495,11 @@ struct sh_process *run_command(struct sh_arg *arg, int **rdlist)
 
     pipe[0] = 0;
     pipe[1] = 1;
-// todo: redirect and pipe
-// todo: redirecting stderr needs xpopen3() or rethink
+// TODO: redirect and pipe
+// TODO: redirecting stderr needs xpopen3() or rethink
     if (-1 == (pp->pid = xpopen_both(pp->arg.v, pipe)))
       perror_msg("%s: vfork", *pp->arg.v);
-// todo: don't close stdin/stdout!
+// TODO: don't close stdin/stdout!
     else pp->exit = xpclose_both(pp->pid, 0);
   }
 
@@ -624,7 +624,7 @@ int run_pipeline(struct sh_pipeline **pl, int *rd)
   int rc = 0;
 
   for (;;) {
-// todo job control
+// TODO job control
     if (!(pp = run_command((*pl)->arg, &rd))) rc = 0;
     else {
 //wait4(pp);
@@ -1043,7 +1043,7 @@ static void run_function(struct sh_function *sp)
   // iterate through the commands
   while (pl) {
     char *s = *pl->arg->v, *ss = pl->arg->v[1];
-
+//dprintf(2, "s=%s %s %d %s %d\n", s, ss, pl->type, blk ? blk->start->arg->v[0] : "X", blk ? blk->run : 0);
     // Normal executable statement?
     if (!pl->type) {
 // TODO: break & is supported? Seriously? Also break > potato
@@ -1082,18 +1082,7 @@ static void run_function(struct sh_function *sp)
     // Starting a new block?
     } else if (pl->type == 1) {
 
-/*
-if/then/elif/else/fi
-for select while until/do/done
-case/esac
-{/}
-[[/]]
-(/)
-((/))
-function/}
-*/
-
-      // Is this new, or did we just loop?
+      // are we entering this block (rather than looping back to it)?
       if (!blk || blk->start != pl) {
 
         // If it's a nested block we're not running, skip ahead.
@@ -1104,31 +1093,45 @@ function/}
           continue;
         }
 
-        // If new block we're running, save context and add it to the stack.
+        // It's a new block we're running, save context and add it to the stack.
         new = xzalloc(sizeof(*blk));
         new->next = blk;
         blk = new;
         blk->start = pl;
         blk->end = end;
         blk->run = 1;
-// todo perform block end redirects to blk->redir
+// TODO perform block end redirects to blk->redir
       }
 
-      // no special handling needed
-
       // What flow control statement is this?
+
+      // if/then/elif/else/fi, while until/do/done - no special handling needed
+
+      // for select/do/done
       if (!strcmp(s, "for") || !strcmp(s, "select")) {
-        if (!strncmp(blk->fvar = ss, "((", 2)) {
-dprintf(2, "skipped init for((;;)), need math parser\n");
+        if (blk->loop);
+        else if (!strncmp(blk->fvar = ss, "((", 2)) {
+          blk->loop = 1;
+dprintf(2, "TODO skipped init for((;;)), need math parser\n");
         } else {
+
           // populate blk->farg with expanded arguments
-          if (pl->next->type) {
+          if (!pl->next->type) {
             for (i = 1; i<pl->next->arg->c; i++)
               expand_arg(&blk->farg, pl->next->arg->v[i], 0, &blk->fdelete);
-            pl = pl->next;
           } else expand_arg(&blk->farg, "\"$@\"", 0, &blk->fdelete);
         }
-      } 
+        pl = pl->next;
+      }
+
+/* TODO
+case/esac
+{/}
+[[/]]
+(/)
+((/))
+function/}
+*/
 
     // gearshift from block start to block body
     } else if (pl->type == 2) {
@@ -1145,8 +1148,8 @@ dprintf(2, "skipped init for((;;)), need math parser\n");
           pl = block_end(pl);
           continue;
         } else if (!strncmp(blk->fvar, "((", 2)) {
-dprintf(2, "skipped running for((;;)), need math parser\n");
-        } else setvar(xmprintf("%s=%s", blk->fvar, blk->farg.v[blk->loop]),
+dprintf(2, "TODO skipped running for((;;)), need math parser\n");
+        } else setvar(xmprintf("%s=%s", blk->fvar, blk->farg.v[blk->loop++]),
           TAKE_MEM);
       }
 
@@ -1163,7 +1166,7 @@ dprintf(2, "skipped running for((;;)), need math parser\n");
       llist_traverse(blk->fdelete, free);
       free(llist_pop(&blk));
 
-// todo unwind redirects (cleanup blk->redir)
+// TODO unwind redirects (cleanup blk->redir)
 
     } else if (pl->type == 'f') pl = add_function(s, pl);
 
@@ -1267,7 +1270,7 @@ void sh_main(void)
 
     // returns 0 if line consumed, command if it needs more data
     prompt = parse_line(new, &scratch);
-//dump_state(&scratch);
+if (0) dump_state(&scratch);
     if (prompt != 1) {
 // TODO: ./blah.sh one two three: put one two three in scratch.arg
       if (!prompt) run_function(&scratch);
