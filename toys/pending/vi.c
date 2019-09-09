@@ -31,6 +31,7 @@ GLOBALS(
     int modified;
     char vi_reg;
     char *last_search;
+    int tabstop;
 )
 
 /*
@@ -731,12 +732,11 @@ static int search_str(char *s)
   }
 
   if (c) {
-    TT.cur_col = c_r->line->str_data-c; //TODO ??
     TT.cur_col = c-c_r->line->str_data;
   } else for (; !c;) {
     lst = lst->down;
     if (!lst) return 1;
-    c = strstr(&lst->line->str_data[TT.cur_col], s);
+    c = strstr(lst->line->str_data, s);
   }
   c_r = lst;
   TT.cur_col = c-c_r->line->str_data;
@@ -791,6 +791,7 @@ void vi_main(void)
   TT.screen_width = 80;
   TT.screen_height = 24;
   TT.vi_mode = 1;
+  TT.tabstop = 8;
   terminal_size(&TT.screen_width, &TT.screen_height);
   TT.screen_height -= 2; //TODO this is hack fix visual alignment
   set_terminal(0, 1, 0, 0);
@@ -905,9 +906,7 @@ void vi_main(void)
             il->str_data[il->str_len--] = 0;
           break;
         case 0x09:
-          //TODO implement real tabs
-          il->str_data[il->str_len++] = ' ';
-          il->str_data[il->str_len++] = ' ';
+          il->str_data[il->str_len++] = '\t';
           break;
 
         case 0x0D:
@@ -1198,7 +1197,10 @@ static int utf8_lnw(int* width, char* str, int bytes)
   wchar_t wc;
   int length = 1;
   *width = 1;
-//  if (str < 0x7F) return length;
+  if (*str == 0x09) {
+    *width = TT.tabstop;
+    return 1;
+  }
   length = mbtowc(&wc, str, bytes);
   switch (length) {
   case -1:
@@ -1218,6 +1220,7 @@ static int utf8_lnw(int* width, char* str, int bytes)
 static int utf8_width(char *str, int bytes)
 {
   wchar_t wc;
+  if (*str == 0x09) return TT.tabstop;
   switch (mbtowc(&wc, str, bytes)) {
   case -1:
     mbtowc(0,0,4);
@@ -1267,13 +1270,18 @@ static char* utf8_last(char* str, int size)
 
 static int draw_str_until(int *drawn, char *str, int width, int bytes)
 {
+  int len = 0;
   int rune_width = 0;
   int rune_bytes = 0;
   int max_bytes = bytes;
   int max_width = width;
   char* end = str;
   for (;width && bytes;) {
-    rune_bytes = utf8_lnw(&rune_width, end, 4);
+    if (*end == 0x09) {
+      rune_bytes = 1;
+      rune_width = TT.tabstop;
+    } else rune_bytes = utf8_lnw(&rune_width, end, 4);
+
     if (!rune_bytes) break;
     if (width - rune_width < 0) goto write_bytes;
     width -= rune_width;
@@ -1281,14 +1289,24 @@ static int draw_str_until(int *drawn, char *str, int width, int bytes)
     end += rune_bytes;
   }
   for (;bytes;) {
-    rune_bytes = utf8_lnw(&rune_width, end, 4);
+    if (*end == 0x09) {
+      rune_bytes = 1;
+      rune_width = TT.tabstop;
+    } else rune_bytes = utf8_lnw(&rune_width, end, 4);
+
     if (!rune_bytes) break;
     if (rune_width) break;
     bytes -= rune_bytes;
     end += rune_bytes;
   }
 write_bytes:
-  fwrite(str, max_bytes-bytes, 1, stdout);
+  len = max_bytes-bytes;
+  for (;len--; str++) {
+    if (*str == 0x09) {
+      int i = 8;
+      for (;i--;) fwrite(" ", 1, 1, stdout);
+    } else fwrite(str, 1, 1, stdout);
+  }
   *drawn = max_bytes-bytes;
   return max_width-width;
 }
