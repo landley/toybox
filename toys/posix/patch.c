@@ -14,11 +14,10 @@
  * -r rejectfile write rejected hunks to this file
  *
  * -E remove empty files --remove-empty-files
- * -f force (no questions asked)
  * -F fuzz (number, default 2)
  * [file] which file to patch
 
-USE_PATCH(NEWTOY(patch, "(dry-run)"USE_TOYBOX_DEBUG("x")"ulp#d:i:Rs(quiet)", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PATCH(NEWTOY(patch, "(no-backup-if-mismatch)(dry-run)"USE_TOYBOX_DEBUG("x")"g#fulp#d:i:Rs(quiet)", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PATCH
   bool "patch"
@@ -50,7 +49,7 @@ config PATCH
 
 GLOBALS(
   char *i, *d;
-  long p;
+  long p, g;
 
   struct double_list *current_hunk;
   long oldline, oldlen, newline, newlen;
