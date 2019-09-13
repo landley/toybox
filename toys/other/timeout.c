@@ -35,6 +35,7 @@ GLOBALS(
   pid_t pid;
   struct timeval ktv;
   struct itimerval itv;
+  int signaled;
 )
 
 static void handler(int i)
@@ -43,6 +44,7 @@ static void handler(int i)
     fprintf(stderr, "timeout pid %d signal %d\n", TT.pid, TT.nextsig);
 
   kill(TT.pid, TT.nextsig);
+  if (TT.nextsig != SIGKILL) TT.signaled++;
 
   if (TT.k) {
     TT.k = 0;
@@ -88,5 +90,8 @@ void timeout_main(void)
     if (WIFEXITED(status)) toys.exitval = WEXITSTATUS(status);
     else if (WTERMSIG(status)==SIGKILL) toys.exitval = 137;
     else toys.exitval = FLAG(preserve_status) ? 128+WTERMSIG(status) : 124;
+
+    // This is visible if the subprocess catches our timeout signal and exits.
+    if (TT.signaled && !FLAG(preserve_status)) toys.exitval = 124;
   }
 }
