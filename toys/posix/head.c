@@ -34,15 +34,15 @@ GLOBALS(
 
 static void do_head(int fd, char *name)
 {
-  int i, len, lines=TT.n, bytes=TT.c;
+  long i, len, lines=TT.n, bytes=TT.c;
 
-  if ((toys.optc > 1 && !(toys.optflags & FLAG_q)) || toys.optflags & FLAG_v) {
+  if ((toys.optc > 1 && !FLAG(q)) || FLAG(v)) {
     // Print an extra newline for all but the first file
     if (TT.file_no) xprintf("\n");
     xprintf("==> %s <==\n", name);
   }
 
-  while ((toys.optflags&FLAG_c) ? bytes : lines) {
+  while (FLAG(c) ? bytes : lines) {
     len = read(fd, toybuf, sizeof(toybuf));
     if (len<0) perror_msg_raw(name);
     if (len<1) break;
