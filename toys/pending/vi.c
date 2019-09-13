@@ -32,6 +32,7 @@ GLOBALS(
     char vi_reg;
     char *last_search;
     int tabstop;
+    int list;
 )
 
 /*
@@ -59,14 +60,11 @@ struct linestack_show {
 };
 
 static void draw_page();
-static int draw_str_until(int *drawn, char *str, int width, int bytes);
-static void draw_char(char c, int x, int y, int highlight);
 //utf8 support
 static int utf8_lnw(int* width, char* str, int bytes);
 static int utf8_dec(char key, char *utf8_scratch, int *sta_p);
 static int utf8_len(char *str);
 static int utf8_width(char *str, int bytes);
-static int draw_rune(char *c, int x, int y, int highlight);
 static char* utf8_last(char* str, int size);
 
 
@@ -437,13 +435,15 @@ void i_split()
 {
   struct str_line *l = xmalloc(sizeof(struct str_line));
   int l_a = c_r->line->alloc_len;
-  int l_len = c_r->line->str_len-TT.cur_col;
+  int l_len = c_r->line->str_len-TT.cur_col-1;
+  l_len = (l_len >= 0) ? l_len : 0;
   l->str_data = xzalloc(l_a);
   l->alloc_len = l_a;
   l->str_len = l_len;
-  strncpy(l->str_data, &c_r->line->str_data[TT.cur_col], l_len);
+  strncpy(l->str_data, &c_r->line->str_data[TT.cur_col+1], l_len);
   l->str_data[l_len] = 0;
   c_r->line->str_len -= l_len;
+  if (c_r->line->str_len <= 0) c_r->line->str_len = 0;
   c_r->line->str_data[c_r->line->str_len] = 0;
   c_r = (struct linelist*)dlist_insert((struct double_list**)&c_r, (char*)l);
   c_r->line = l;
@@ -517,7 +517,7 @@ static int vi_delete(char reg, struct linelist *row, int col, int flags)
       int distance = col - TT.cur_col;
       if (distance > 0) vi_x(reg, distance, 1);
     }
-    if (TT.vi_mov_flag&2) 
+    if (TT.vi_mov_flag&2)
       vi_x(reg, 1, 1);
   }
   return 1;
@@ -765,6 +765,14 @@ int run_ex_cmd(char *cmd)
       write_file(0);
       return 1;
     }
+    else if (strstr(&cmd[1], "set list")) {
+      TT.list = 1;
+      return 1;
+    }
+    else if (strstr(&cmd[1], "set nolist")) {
+      TT.list = 0;
+      return 1;
+    }
   }
   return 0;
 
@@ -804,6 +812,8 @@ void vi_main(void)
   while(1) {
     int key = scan_key(keybuf, -1);
 
+  terminal_size(&TT.screen_width, &TT.screen_height);
+  TT.screen_height -= 2; //TODO this is hack fix visual alignment
     // TODO: support cursor keys in ex mode too.
     if (TT.vi_mode && key>=256) {
       key -= 256;
@@ -942,6 +952,58 @@ cleanup_vi:
   tty_esc("?1049l");
 }
 
+int vi_crunch(FILE* out, int cols, int wc)
+{
+  int ret = 0;
+  if (wc < 32 && TT.list) {
+    tty_esc("1m");
+    ret = crunch_escape(out,cols,wc);
+    tty_esc("m");
+  } else if (wc == 0x09) {
+    if (out) {
+      int i = TT.tabstop;
+      for (;i--;) fputs(" ", out);
+    }
+    ret = TT.tabstop;
+  }
+  return ret;
+}
+
+//crunch_str with n bytes restriction for printing substrings or
+//non null terminated strings
+int crunch_nstr(char **str, int width, int n, FILE *out, char *escmore,
+  int (*escout)(FILE *out, int cols, int wc))
+{
+  int columns = 0, col, bytes;
+  char *start, *end;
+
+  for (end = start = *str; *end && n>0; columns += col, end += bytes, n -= bytes) {
+    wchar_t wc;
+
+    if ((bytes = utf8towc(&wc, end, 4))>0 && (col = wcwidth(wc))>=0) {
+      if (!escmore || wc>255 || !strchr(escmore, wc)) {
+        if (width-columns<col) break;
+        if (out) fwrite(end, bytes, 1, out);
+
+        continue;
+      }
+    }
+
+    if (bytes<1) {
+      bytes = 1;
+      wc = *end;
+    }
+    col = width-columns;
+    if (col<1) break;
+    if (escout) {
+      if ((col = escout(out, col, wc))<0) break;
+    } else if (out) fwrite(end, 1, bytes, out);
+  }
+  *str = end;
+
+  return columns;
+}
+
 static void draw_page()
 {
   unsigned y = 0;
@@ -951,105 +1013,107 @@ static void draw_page()
 
   char* line = 0;
   int bytes = 0;
-  int drawn = 0;
   int x = 0;
   struct linelist *scr_buf= scr_r;
+
+  //variables used only for cursor handling
+  int aw = 0;
+  int iw = 0;
+  int clip = 0;
+  char *end = 0;
+  int margin = 8;
+
   //clear screen
   tty_esc("2J");
   tty_esc("H");
 
-  tty_jump(0, 0);
-
   //draw lines until cursor row
-  for (; y < TT.screen_height; ) {
-    if (line && bytes) {
-      draw_str_until(&drawn, line, TT.screen_width, bytes);
-      bytes = drawn ? (bytes-drawn) : 0;
-      line = bytes ? (line+drawn) : 0;
-      y++;
-      tty_jump(0, y);
-    } else if (scr_buf && scr_buf->line->str_data && scr_buf->line->str_len) {
-      if (scr_buf == c_r)
-        break;
-      line = scr_buf->line->str_data;
-      bytes = scr_buf->line->str_len;
-      scr_buf = scr_buf->down;
-    } else {
-      if (scr_buf == c_r)
-        break;
-      y++;
-      tty_jump(0, y);
-      //printf(" \n");
-      if (scr_buf) scr_buf = scr_buf->down;
+  for (; y < TT.screen_height; y++ ) {
+    tty_jump(0, y);
+    if (scr_buf == c_r)
+      break;
+    if (scr_buf) {
+      if (scr_buf->line->str_data && scr_buf->line->str_len) {
+        line = scr_buf->line->str_data;
+        bytes = scr_buf->line->str_len;
+        scr_buf = scr_buf->down;
+        crunch_str(&line, TT.screen_width-1, stdout, "\t", vi_crunch);
+        if ( *line ) printf("@");
+      } else scr_buf = scr_buf->down;
     }
-
   }
-  //draw cursor row until cursor
-  //this is to calculate cursor position on screen and possible insert
+
+  //draw cursor row
+  /////////////////////////////////////////////////////////////
+  //for long lines line starts to scroll when cursor hits margin
   line = scr_buf->line->str_data;
   bytes = TT.cur_col;
-  for (; y < TT.screen_height; ) {
-    if (bytes) {
-      x = draw_str_until(&drawn, line, TT.screen_width, bytes);
-      bytes = drawn ? (bytes-drawn) : 0;
-      line = bytes ? (line+drawn) : 0;
-    }
-    if (!bytes) break;
-    y++;
-    tty_jump(0, y);
-  }
+  end = line;
+
+  //find cursor position
+  aw = crunch_nstr(&end, 1024, bytes, 0, "\t", vi_crunch);
+
+
+  //if we need to render text that is not inserted to buffer yet
   if (TT.vi_mode == 2 && il->str_len) {
-    line = il->str_data;
-    bytes = il->str_len;
-    cx_scr = x;
-    cy_scr = y;
-    x = draw_str_until(&drawn, line, TT.screen_width-x, bytes);
-    bytes = drawn ? (bytes-drawn) : 0;
-    line = bytes ? (line+drawn) : 0;
-    cx_scr += x;
-    for (; y < TT.screen_height; ) {
-      if (bytes) {
-        x = draw_str_until(&drawn, line, TT.screen_width, bytes);
-        bytes = drawn ? (bytes-drawn) : 0;
-        line = bytes ? (line+drawn) : 0;
-        cx_scr = x;
-      }
-      if (!bytes) break;
-      y++;
-      cy_scr = y;
-      tty_jump(0, y);
+    char* iend = il->str_data; //input end
+    x = 0;
+    //find insert end position
+    iw = crunch_str(&iend, 1024, 0, "\t", vi_crunch);
+    clip = (aw+iw) - TT.screen_width+margin;
+
+    //if clipped area is bigger than text before insert
+    if (clip > aw) {
+      clip -= aw;
+      iend = il->str_data;
+
+      iw -= crunch_str(&iend, clip, 0, "\t", vi_crunch);
+      x = crunch_str(&iend, iw, stdout, "\t", vi_crunch);
+    } else {
+      iend = il->str_data;
+      end = line;
+
+      //if clipped area is substring from cursor row start
+      aw -= crunch_nstr(&end, clip, bytes, 0, "\t", vi_crunch);
+      x = crunch_str(&end, aw,  stdout, "\t", vi_crunch);
+      x += crunch_str(&iend, iw, stdout, "\t", vi_crunch);
     }
-  } else {
-    cy_scr = y;
-    cx_scr = x;
   }
-  line = scr_buf->line->str_data+TT.cur_col;
-  bytes = scr_buf->line->str_len-TT.cur_col;
-  scr_buf = scr_buf->down;
-  x = draw_str_until(&drawn,line, TT.screen_width-x, bytes);
-  bytes = drawn ? (bytes-drawn) : 0;
-  line = bytes ? (line+drawn) : 0;
-  y++;
-  tty_jump(0, y);
+  //when not inserting but still need to keep cursor inside screen
+  //margin area
+  else if ( aw+margin > TT.screen_width) {
+    clip = aw-TT.screen_width+margin;
+    end = line;
+    aw -= crunch_nstr(&end, clip, bytes, 0, "\t", vi_crunch);
+    x = crunch_str(&end, aw,  stdout, "\t", vi_crunch);
+  }
+  else {
+    end = line;
+    x = crunch_nstr(&end, aw, bytes, stdout, "\t", vi_crunch);
+  }
+  cx_scr = x;
+  cy_scr = y;
+  if (scr_buf->line->str_len > bytes) {
+    x += crunch_str(&end, TT.screen_width-x,  stdout, "\t", vi_crunch);
+  }
+
+  tty_jump(0, ++y);
+  if (scr_buf) scr_buf = scr_buf->down;
+  // drawing cursor row ends
+  ///////////////////////////////////////////////////////////////////
 
 //draw until end
-  for (; y < TT.screen_height; ) {
-    if (line && bytes) {
-      draw_str_until(&drawn, line, TT.screen_width, bytes);
-      bytes = drawn ? (bytes-drawn) : 0;
-      line = bytes ? (line+drawn) : 0;
-      y++;
-      tty_jump(0, y);
-    } else if (scr_buf && scr_buf->line->str_data && scr_buf->line->str_len) {
-      line = scr_buf->line->str_data;
-      bytes = scr_buf->line->str_len;
-      scr_buf = scr_buf->down;
-    } else {
-      y++;
-      tty_jump(0, y);
-      if (scr_buf) scr_buf = scr_buf->down;
-    }
-
+  for (; y < TT.screen_height; y++ ) {
+    tty_jump(0, y);
+    if (scr_buf) {
+      if (scr_buf->line->str_data && scr_buf->line->str_len) {
+        line = scr_buf->line->str_data;
+        bytes = scr_buf->line->str_len;
+        scr_buf = scr_buf->down;
+        crunch_str(&line, TT.screen_width-1, stdout, "\t", vi_crunch);
+        if ( *line ) printf("@");
+      } else scr_buf = scr_buf->down;
+    } else printf("~");
   }
 
   tty_jump(0, TT.screen_height);
@@ -1090,35 +1154,6 @@ static void draw_page()
 
   xflush(1);
 
-}
-
-static void draw_char(char c, int x, int y, int highlight)
-{
-  tty_jump(x, y);
-  if (highlight) {
-    tty_esc("30m"); //foreground black
-    tty_esc("47m"); //background white
-  }
-  printf("%c", c);
-}
-
-//utf rune draw
-//printf and useless copy could be replaced by direct write() to stdout
-static int draw_rune(char *c, int x, int y, int highlight)
-{
-  int l = utf8_len(c);
-  char t[5] = {0, 0, 0, 0, 0};
-  if (!l) return 0;
-  tty_jump(x, y);
-  tty_esc("0m");
-  if (highlight) {
-    tty_esc("30m"); //foreground black
-    tty_esc("47m"); //background white
-  }
-  strncpy(t, c, 5);
-  printf("%s", t);
-  tty_esc("0m");
-  return l;
 }
 
 static void check_cursor_bounds()
@@ -1266,49 +1301,6 @@ static char* utf8_last(char* str, int size)
     end--; pos--;
   }
   return 0;
-}
-
-static int draw_str_until(int *drawn, char *str, int width, int bytes)
-{
-  int len = 0;
-  int rune_width = 0;
-  int rune_bytes = 0;
-  int max_bytes = bytes;
-  int max_width = width;
-  char* end = str;
-  for (;width && bytes;) {
-    if (*end == 0x09) {
-      rune_bytes = 1;
-      rune_width = TT.tabstop;
-    } else rune_bytes = utf8_lnw(&rune_width, end, 4);
-
-    if (!rune_bytes) break;
-    if (width - rune_width < 0) goto write_bytes;
-    width -= rune_width;
-    bytes -= rune_bytes;
-    end += rune_bytes;
-  }
-  for (;bytes;) {
-    if (*end == 0x09) {
-      rune_bytes = 1;
-      rune_width = TT.tabstop;
-    } else rune_bytes = utf8_lnw(&rune_width, end, 4);
-
-    if (!rune_bytes) break;
-    if (rune_width) break;
-    bytes -= rune_bytes;
-    end += rune_bytes;
-  }
-write_bytes:
-  len = max_bytes-bytes;
-  for (;len--; str++) {
-    if (*str == 0x09) {
-      int i = 8;
-      for (;i--;) fwrite(" ", 1, 1, stdout);
-    } else fwrite(str, 1, 1, stdout);
-  }
-  *drawn = max_bytes-bytes;
-  return max_width-width;
 }
 
 static int cur_left(int count0, int count1, char* unused)
