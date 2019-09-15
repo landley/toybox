@@ -4,18 +4,20 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/file.html
 
-USE_FILE(NEWTOY(file, "<1hL[!hL]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_FILE(NEWTOY(file, "<1bhLs[!hL]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config FILE
   bool "file"
   default y
   help
-    usage: file [-hL] [file...]
+    usage: file [-bhL] [file...]
 
     Examine the given files and describe their content types.
 
+    -b	Brief (no filename)
     -h	Don't follow symlinks (default)
     -L	Follow symlinks
+    -s	show block/char device contents
 */
 
 #define FOR_file
@@ -449,7 +451,8 @@ void file_main(void)
     struct stat sb;
     int fd = !strcmp(name, "-");
 
-    xprintf("%s: %*s", name, (int)(TT.max_name_len - strlen(name)), "");
+    if (!FLAG(b))
+      xprintf("%s: %*s", name, (int)(TT.max_name_len - strlen(name)), "");
 
     sb.st_size = 0;
     if (fd || !((toys.optflags & FLAG_L) ? stat : lstat)(name, &sb)) {
