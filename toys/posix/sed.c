@@ -973,7 +973,7 @@ resume_a:
       // btTqQ: end with space or semicolon, aicrw continue to newline.
       if (!(end = strcspn(line, strchr(":btTqQ", c) ? "}; \t\r\n\v\f" : "\n"))){
         // Argument's optional for btTqQ
-        if (strchr("btT", c)) continue;
+        if (strchr("btTqQ", c)) continue;
         else if (!command->arg1) break;
       }
       // Error checking: qQ can only have digits after them
