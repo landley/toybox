@@ -231,6 +231,8 @@ tar c --sparse fweep > fweep.tar
 FWEEP=$(du fweep)
 rm fweep
 testing "sparse extract" "tar xf fweep.tar && du fweep" "$FWEEP\n" "" ""
+testing "sparse tvf" "tar tvf fweep.tar | grep -wq 13172736 && echo right size"\
+  "right size\n" "" ""
 rm fweep fweep.tar
 
 if false
