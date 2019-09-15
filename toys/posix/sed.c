@@ -40,7 +40,7 @@ config SED
     apply only to the specified line(s). Commands without an address apply to
     every line. Addresses are of the form:
 
-      [ADDRESS[,ADDRESS]]COMMAND
+      [ADDRESS[,ADDRESS]][!]COMMAND
 
     The ADDRESS may be a decimal line number (starting at 1), a /regular
     expression/ within a pair of forward slashes, or the character "$" which
@@ -68,6 +68,8 @@ config SED
 
     Each COMMAND starts with a single character. The following commands take
     no arguments:
+
+      !  Run this command when the test _didn't_ match.
 
       {  Start a new command block, continuing until a corresponding "}".
          Command blocks may nest. If the block has an address, commands within
@@ -821,11 +823,12 @@ static void parse_pattern(char **pline, long len)
     while (isspace(*line)) line++;
     if (!*line) break;
 
-    while (*line == '!') {
+    if (*line == '!') {
       command->not = 1;
       line++;
     }
     while (isspace(*line)) line++;
+    if (!*line) break;
 
     c = command->c = *(line++);
     if (strchr("}:", c) && i) break;
