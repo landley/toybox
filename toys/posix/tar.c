@@ -70,7 +70,7 @@ GLOBALS(
   // Parsed information about a tar header.
   struct tar_header {
     char *name, *link_target, *uname, *gname;
-    long long size;
+    long long size, ssize;
     uid_t uid;
     gid_t gid;
     mode_t mode;
@@ -438,7 +438,6 @@ static void sendfile_sparse(int fd)
 
   do {
     if (TT.sparselen) {
-      if (!TT.sparse[i*2+1]) continue;
       // Seek past holes or fill output with zeroes.
       if (-1 == lseek(fd, len = TT.sparse[i*2], SEEK_SET)) {
         sent = 0;
@@ -448,8 +447,11 @@ static void sendfile_sparse(int fd)
           if (j != writeall(fd, toybuf+512, j)) goto error;
           len -= j;
         }
+      } else {
+        sent = len;
+        if (!(len = TT.sparse[i*2+1]) && ftruncate(fd, sent+len))
+          perror_msg("ftruncate");
       }
-      len = TT.sparse[i*2+1];
       if (len+used>TT.hdr.size) error_exit("sparse overflow");
     } else len = TT.hdr.size;
 
@@ -640,7 +642,12 @@ static void unpack_tar(char *first)
 
       // Odd number of entries (from corrupted tar) would be dropped here
       TT.sparselen /= 2;
-    } else TT.sparselen = 0;
+      if (TT.sparselen)
+        TT.hdr.ssize = TT.sparse[2*TT.sparselen-1]+TT.sparse[2*TT.sparselen-2];
+    } else {
+      TT.sparselen = 0;
+      TT.hdr.ssize = TT.hdr.size;
+    }
 
     // At this point, we have something to output. Convert metadata.
     TT.hdr.mode = OTOI(tar.mode);
@@ -719,7 +726,7 @@ static void unpack_tar(char *first)
         printf(" %s/%s ", *TT.hdr.uname ? TT.hdr.uname : perm,
           *TT.hdr.gname ? TT.hdr.gname : gname);
         if (tar.type=='3' || tar.type=='4') printf("%u,%u", maj, min);
-        else printf("%9lld", (long long)TT.hdr.size);
+        else printf("%9lld", TT.hdr.ssize);
         sprintf(perm, ":%02d", lc->tm_sec);
         printf("  %d-%02d-%02d %02d:%02d%s ", 1900+lc->tm_year, 1+lc->tm_mon,
           lc->tm_mday, lc->tm_hour, lc->tm_min, FLAG(full_time) ? perm : "");
@@ -737,7 +744,7 @@ static void unpack_tar(char *first)
 
           xsetenv("TAR_FILETYPE", "f");
           xsetenv(xmprintf("TAR_MODE=%o", TT.hdr.mode), 0);
-          xsetenv(xmprintf("TAR_SIZE=%lld", TT.hdr.size), 0);
+          xsetenv(xmprintf("TAR_SIZE=%lld", TT.hdr.ssize), 0);
           xsetenv("TAR_FILENAME", TT.hdr.name);
           xsetenv("TAR_UNAME", TT.hdr.uname);
           xsetenv("TAR_GNAME", TT.hdr.gname);
