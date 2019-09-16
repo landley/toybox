@@ -222,18 +222,28 @@ rm fweep
 for i in $(seq 8 3 200)
 do
   dd if=/dev/zero of=fweep bs=65536 seek=$i count=1 2>/dev/null
+  dd if=/dev/zero of=fweep2 bs=65536 seek=$i count=1 2>/dev/null
 done
+truncate -s 20m fweep2
 
 testing "sparse double overflow" "$TAR --sparse fweep | SUM 7" \
   "f1fe57f8313a9d682ec9013a80f3798910b6ff51\n" "" ""
 
 tar c --sparse fweep > fweep.tar
-FWEEP=$(du fweep)
+FWEEP=$(stat -c "%b %s" fweep)
 rm fweep
-testing "sparse extract" "tar xf fweep.tar && du fweep" "$FWEEP\n" "" ""
+testing "sparse extract" "tar xf fweep.tar && stat -c '%b %s' fweep" \
+  "$FWEEP\n" "" ""
 testing "sparse tvf" "tar tvf fweep.tar | grep -wq 13172736 && echo right size"\
   "right size\n" "" ""
 rm fweep fweep.tar
+
+tar c --sparse fweep2 > fweep2.tar
+FWEEP=$(stat -c "%b %s" fweep2)
+rm fweep2
+testing "sparse extract hole at end" \
+  "tar xf fweep2.tar && stat -c '%b %s' fweep2" "$FWEEP\n" "" ""
+rm fweep2 fweep2.tar
 
 if false
 then
