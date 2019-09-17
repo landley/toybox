@@ -36,6 +36,7 @@ config FIND
     -type [bcdflps]  type is (block, char, dir, file, symlink, pipe, socket)
     -true            always true               -false      always false
     -context PATTERN security context
+    -newerXY FILE    X=acm time > FILE's Y=acm time (Y=t: FILE is literal time)
 
     Numbers N may be prefixed by a - (less than) or + (greater than). Units for
     -Xtime are d (days, default), h (hours), m (minutes), or s (seconds).
@@ -441,8 +442,10 @@ static int do_find(struct dirtree *new)
           }
         }
       } else if (!strcmp(s, "user") || !strcmp(s, "group")
-              || !strcmp(s, "newer"))
+              || strstart(&s, "newer"))
       {
+        int macoff[] = {offsetof(struct stat, st_mtim),
+          offsetof(struct stat, st_atim), offsetof(struct stat, st_ctim)};
         struct {
           void *next, *prev;
           union {
@@ -457,14 +460,23 @@ static int do_find(struct dirtree *new)
             udl = xmalloc(sizeof(*udl));
             dlist_add_nomalloc(&TT.argdata, (void *)udl);
 
-            if (*s == 'u') udl->u.uid = xgetuid(ss[1]);
-            else if (*s == 'g') udl->u.gid = xgetgid(ss[1]);
-            else {
-              struct stat st;
+            if (s != 1+*ss) {
+              if (*s && (s[2] || !strchr("Bmac", *s) || !strchr("tBmac", s[1])))
+                goto error;
+              if (!*s || s[1]!='t') {
+                struct stat st;
 
-              xstat(ss[1], &st);
-              udl->u.tm = st.st_mtim;
-            }
+                xstat(ss[1], &st);
+                udl->u.tm = *(struct timespec *)(((char *)&st)
+                  + macoff[!*s ? 0 : stridx("ac", s[1])+1]);
+              } else if (s[1] == 't') {
+                unsigned nano;
+
+                xparsedate(ss[1], &(udl->u.tm.tv_sec), &nano, 1);
+                udl->u.tm.tv_nsec = nano;
+              }
+            } else if (*s == 'u') udl->u.uid = xgetuid(ss[1]);
+            else udl->u.gid = xgetgid(ss[1]);
           }
         } else {
           udl = (void *)llist_pop(&argdata);
@@ -472,9 +484,13 @@ static int do_find(struct dirtree *new)
             if (*s == 'u') test = new->st.st_uid == udl->u.uid;
             else if (*s == 'g') test = new->st.st_gid == udl->u.gid;
             else {
-              test = new->st.st_mtim.tv_sec > udl->u.tm.tv_sec;
-              if (new->st.st_mtim.tv_sec == udl->u.tm.tv_sec)
-                test = new->st.st_mtim.tv_nsec > udl->u.tm.tv_nsec;
+              struct timespec *tm = (void *)(((char *)&new->st)
+                + macoff[!s[5] ? 0 : stridx("ac", s[5])+1]);
+
+              if (s[5] == 'B') test = 0;
+              else test = (tm->tv_sec == udl->u.tm.tv_sec)
+                ? tm->tv_nsec > udl->u.tm.tv_nsec
+                : tm->tv_sec > udl->u.tm.tv_sec;
             }
           }
         }
