@@ -859,7 +859,7 @@ void tar_main(void)
     if (FLAG(j)||FLAG(z)||FLAG(J)) {
       int pipefd[2] = {hdr ? -1 : TT.fd, -1}, i, pid;
       struct string_list *zcat = find_in_path(getenv("PATH"),
-        FLAG(j) ? "bzcat" : FLAG(J) ? "xz" : "zcat");
+        FLAG(j) ? "bzcat" : FLAG(J) ? "xzcat" : "zcat");
 
       // Toybox provides more decompressors than compressors, so try them first
       xpopen_both(zcat ? (char *[]){zcat->str, 0} :
