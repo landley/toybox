@@ -4,7 +4,7 @@
  *
  * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/mktemp.html
 
-USE_MKTEMP(NEWTOY(mktemp, ">1uqd(directory)p(tmpdir):t", TOYFLAG_BIN))
+USE_MKTEMP(NEWTOY(mktemp, ">1(tmpdir);:uqd(directory)p:t", TOYFLAG_BIN))
 
 config MKTEMP
   bool "mktemp"
@@ -28,14 +28,20 @@ config MKTEMP
 #include "toys.h"
 
 GLOBALS(
-  char *p;
+  char *p, *tmpdir;
 )
 
 void mktemp_main(void)
 {
-  char *template = *toys.optargs, *dir = TT.p, *te = getenv("TMPDIR");
+  char *template = *toys.optargs, *dir, *te = getenv("TMPDIR");
   int len;
 
+  // --tmpdir's argument is optional's but -p is mandatory, so can't combine
+  if (!TT.p && FLAG(tmpdir)) {
+    TT.p = TT.tmpdir ? TT.tmpdir : "";
+    toys.optflags |= FLAG_p;
+  }
+  dir = TT.p;
   // if template, no prefix unless -pt. if !template, always prefix
   if (!dir || !*dir || (FLAG(t) && te && *te)) dir = te;
   if (!dir || !*dir) dir = "/tmp";
@@ -52,7 +58,7 @@ void mktemp_main(void)
 
   // In theory you just xputs(mktemp(template)) for -u, in practice there's
   // link-time deprecation warnings if you do that. So we fake up our own:
-  if (toys.optflags & FLAG_u) {
+  if (FLAG(u)) {
     long long rr;
     char *s = template+len;
 
@@ -72,12 +78,12 @@ void mktemp_main(void)
       if (*s>'Z') (*s) += 6;
       rr>>=6;
     }
-  } else if ((toys.optflags & FLAG_d) ? !mkdtemp(template) : mkstemp(template) == -1) {
-    if (toys.optflags & FLAG_q) {
+  } else if (FLAG(d) ? !mkdtemp(template) : mkstemp(template) == -1) {
+    if (FLAG(q)) {
       toys.exitval = 1;
       return;
-    } else perror_exit("Failed to create %s %s/%s",
-        (toys.optflags & FLAG_d) ? "directory" : "file", TT.p, template);
+    } else perror_exit("Failed to create %s %s",
+        FLAG(d) ? "directory" : "file", template);
   }
 
   xputs(template);
