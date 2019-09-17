@@ -455,8 +455,12 @@ void file_main(void)
       xprintf("%s: %*s", name, (int)(TT.max_name_len - strlen(name)), "");
 
     sb.st_size = 0;
-    if (fd || !((toys.optflags & FLAG_L) ? stat : lstat)(name, &sb)) {
-      if (fd || S_ISREG(sb.st_mode)) {
+    if (fd || !(FLAG(L) ? stat : lstat)(name, &sb)) {
+      if (!fd && !FLAG(s) && (S_ISBLK(sb.st_mode) || S_ISCHR(sb.st_mode))) {
+        sprintf(what = toybuf, "%s special (%u/%u)",
+            S_ISBLK(sb.st_mode) ? "block" : "character",
+            dev_major(sb.st_rdev), dev_minor(sb.st_rdev));
+      } else if (fd || S_ISREG(sb.st_mode)) {
         TT.len = sb.st_size;
         // This test identifies an empty file we don't have permission to read
         if (!fd && !sb.st_size) what = "empty";
@@ -466,10 +470,6 @@ void file_main(void)
           continue;
         }
       } else if (S_ISFIFO(sb.st_mode)) what = "fifo";
-      else if (S_ISBLK(sb.st_mode) || S_ISCHR(sb.st_mode))
-        sprintf(what = toybuf, "%s special (%u/%u)",
-            S_ISBLK(sb.st_mode) ? "block" : "character",
-            dev_major(sb.st_rdev), dev_minor(sb.st_rdev));
       else if (S_ISDIR(sb.st_mode)) what = "directory";
       else if (S_ISSOCK(sb.st_mode)) what = "socket";
       else if (S_ISLNK(sb.st_mode)) {
