@@ -313,20 +313,13 @@ static int add_to_tar(struct dirtree *node)
           TT.sparse[TT.sparselen++] = ld;
           len += TT.sparse[TT.sparselen++] = lo-ld;
         }
-        if (lo == st->st_size) {
-          if (TT.sparselen<=2) TT.sparselen = 0;
-          else {
-            // Gratuitous extra entry for compatibility with other versions
-            TT.sparse[TT.sparselen++] = lo;
-            TT.sparse[TT.sparselen++] = 0;
-          }
-          break;
-        }
-        if ((ld = lseek(fd, lo, SEEK_DATA)) < lo) ld = st->st_size;
+        if (lo == st->st_size || (ld = lseek(fd, lo, SEEK_DATA)) < lo) break;
       }
 
       // If there were extents, change type to S record
-      if (TT.sparselen) {
+      if (TT.sparselen>2) {
+        TT.sparse[TT.sparselen++] = st->st_size;
+        TT.sparse[TT.sparselen++] = 0;
         hdr.type = 'S';
         lnk = (char *)&hdr;
         for (i = 0; i<TT.sparselen && i<8; i++)
@@ -337,7 +330,7 @@ static int add_to_tar(struct dirtree *node)
         if (TT.sparselen>8) lnk[482] = 1;
         itoo(lnk+483, 12, st->st_size);
         ITOO(hdr.size, len);
-      }
+      } else TT.sparselen = 0;
       lseek(fd, 0, SEEK_SET);
     }
   }
