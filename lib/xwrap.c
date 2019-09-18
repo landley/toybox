@@ -316,7 +316,7 @@ int xwaitpid(pid_t pid)
 
   while (-1 == waitpid(pid, &status, 0) && errno == EINTR);
 
-  return WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status)+127;
+  return WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status)+128;
 }
 
 int xpclose_both(pid_t pid, int *pipes)

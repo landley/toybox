@@ -35,7 +35,6 @@ GLOBALS(
   pid_t pid;
   struct timeval ktv;
   struct itimerval itv;
-  int signaled;
 )
 
 static void handler(int i)
@@ -43,9 +42,8 @@ static void handler(int i)
   if (FLAG(v))
     fprintf(stderr, "timeout pid %d signal %d\n", TT.pid, TT.nextsig);
 
+  toys.exitval = (TT.nextsig==9) ? 137 : 124;
   kill(TT.pid, TT.nextsig);
-  if (TT.nextsig != SIGKILL) TT.signaled++;
-
   if (TT.k) {
     TT.k = 0;
     TT.nextsig = SIGKILL;
@@ -67,9 +65,8 @@ void xparsetimeval(char *s, struct timeval *tv)
 
 void timeout_main(void)
 {
+  // Use same ARGFAIL value for any remaining parsing errors
   toys.exitval = 125;
-
-  // Parse early to get any errors out of the way.
   xparsetimeval(*toys.optargs, &TT.itv.it_value);
   if (TT.k) xparsetimeval(TT.k, &TT.ktv);
 
@@ -79,6 +76,7 @@ void timeout_main(void)
 
   if (!FLAG(foreground)) setpgid(0, 0);
 
+  toys.exitval = 0;
   if (!(TT.pid = XVFORK())) xexec(toys.optargs+1);
   else {
     int status;
@@ -86,12 +84,7 @@ void timeout_main(void)
     xsignal(SIGALRM, handler);
     setitimer(ITIMER_REAL, &TT.itv, (void *)toybuf);
 
-    while (-1 == waitpid(TT.pid, &status, 0) && errno == EINTR);
-    if (WIFEXITED(status)) toys.exitval = WEXITSTATUS(status);
-    else if (WTERMSIG(status)==SIGKILL) toys.exitval = 137;
-    else toys.exitval = FLAG(preserve_status) ? 128+WTERMSIG(status) : 124;
-
-    // This is visible if the subprocess catches our timeout signal and exits.
-    if (TT.signaled && !FLAG(preserve_status)) toys.exitval = 124;
+    status = xwaitpid(TT.pid);
+    if (FLAG(preserve_status) || !toys.exitval) toys.exitval = status;
   }
 }
