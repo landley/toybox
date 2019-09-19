@@ -5,7 +5,7 @@
  * See http://opengroup.org/onlinepubs/9699919799/utilities/basename.html
 
 
-USE_BASENAME(NEWTOY(basename, "<1as:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_BASENAME(NEWTOY(basename, "^<1as:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config BASENAME
   bool "basename"
