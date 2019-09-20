@@ -21,7 +21,7 @@ fi
 CFLAGS="$CFLAGS -funsigned-char"
 [ -z "$OPTIMIZE" ] && OPTIMIZE="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-strict-aliasing"
 # set ASAN=1 to enable "address sanitizer" and debuggable backtraces
-[ -z "$ASAN" ] || CFLAGS="$CFLAGS -O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize=address"
+[ -z "$ASAN" ] || { CFLAGS="$CFLAGS -O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize=address"; NOSTRIP=1; }
 
 # We accept LDFLAGS, but by default don't have anything in it
 if [ "$(uname)" != "Darwin" ]
@@ -39,3 +39,5 @@ fi
 # If HOSTCC needs CFLAGS or LDFLAGS, just add them to the variable
 # ala HOSTCC="blah-cc --static"
 [ -z "$HOSTCC" ] && HOSTCC=cc
+
+[ -z "$GENERATED" ] && GENERATED=generated
