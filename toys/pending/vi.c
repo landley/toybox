@@ -35,31 +35,29 @@ GLOBALS(
     int list;
 )
 
-/*
- *
- * TODO:
- * BUGS:  screen pos adjust does not cover "widelines"
- *
- *
- * REFACTOR:  use dllist functions where possible.
- *            draw_page dont draw full page at time if nothing changed...
- *            ex callbacks
- *
- * FEATURE:   ex: / ? %   //atleast easy cases
- *            ex: r
- *            ex: !external programs
- *            ex: w filename //only writes to same file now
- *            big file support?
- */
+struct str_line {
+  int alloc_len;
+  int str_len;
+  char *str_data;
+};
+//yank buffer
+struct yank_buf {
+  char reg;
+  int alloc;
+  char* data;
+};
 
 
-struct linestack_show {
-  struct linestack_show *next;
-  long top, left;
-  int x, width, y, height;
+//lib dllist uses next and prev kinda opposite what im used to so I just
+//renamed both ends to up and down
+struct linelist {
+  struct linelist *up;//next
+  struct linelist *down;//prev
+  struct str_line *line;
 };
 
 static void draw_page();
+
 //utf8 support
 static int utf8_lnw(int* width, char* str, int bytes);
 static int utf8_dec(char key, char *utf8_scratch, int *sta_p);
@@ -76,25 +74,25 @@ static void check_cursor_bounds();
 static void adjust_screen_buffer();
 static int search_str(char *s);
 
-struct str_line {
-  int alloc_len;
-  int str_len;
-  char *str_data;
-};
+static int vi_yank(char reg, struct linelist *row, int col, int flags);
+static int vi_delete(char reg, struct linelist *row, int col, int flags);
 
-//lib dllist uses next and prev kinda opposite what im used to so I just
-//renamed both ends to up and down
-struct linelist {
-  struct linelist *up;//next
-  struct linelist *down;//prev
-  struct str_line *line;
-};
 //inserted line not yet pushed to buffer
 struct str_line *il;
 struct linelist *text; //file loaded into buffer
 struct linelist *scr_r;//current screen coord 0 row
 struct linelist *c_r;//cursor position row
 
+struct yank_buf yank; //single yank
+
+// TT.vi_mov_flag is used for special cases when certain move
+// acts differently depending is there DELETE/YANK or NOP
+// Also commands such as G does not default to count0=1
+// 0x1 = Command needs argument (f,F,r...)
+// 0x2 = Move 1 right on yank/delete/insert (e, $...)
+// 0x4 = yank/delete last line fully
+// 0x40000000 = count0 not given
+// 0x80000000 = move was reverse
 
 void dlist_insert_nomalloc(struct double_list **list, struct double_list *new)
 {
@@ -179,14 +177,11 @@ int linelist_load(char *filename)
       lst->line->str_data[len-1] = 0;
       lst->line->str_len--;
     }
-    if (text == 0) {
-      text = lst;
-    }
+    if (text == 0) text = lst;
+  }
 
-  }
-  if (text) {
-    dlist_terminate(text->up);
-  }
+  if (text) dlist_terminate(text->up);
+
   fclose(fp);
   return 1;
 
@@ -194,116 +189,58 @@ int linelist_load(char *filename)
 
 int vi_yy(char reg, int count0, int count1)
 {
+  struct linelist *pos = c_r;
+  int col = TT.cur_col;
+  TT.cur_col = 0;
+  TT.vi_mov_flag |= 0x4;
+
+  if (count0>1) cur_down(count0-1, 1, 0);
+
+  vi_yank(reg, pos, 0, 0);
+
+  TT.cur_col = col, c_r = pos;
   return 1;
 }
 
-//TODO this is overly complicated refactor with lib dllist
 int vi_dd(char reg, int count0, int count1)
 {
-  int count = count0*count1;
-  struct linelist *lst = c_r;
-  if (c_r == text && text == scr_r) {
-    if (!text->down && !text->up && text->line) {
-      text->line->str_len = 1;
-      sprintf(text->line->str_data, " ");
-      goto success_exit;
-    }
-    if (text->down) {
-      text = text->down;
-      text->up = 0;
-      c_r = text;
-      scr_r = text;
-      free(lst->line->str_data);
-      free(lst->line);
-      free(lst);
-    }
-    goto recursion_exit;
-  }
-  //TODO use lib dllist stuff
-  if (lst)
-  {
-    if (lst->down) {
-      lst->down->up = lst->up;
-    }
-    if (lst->up) {
-      lst->up->down = lst->down;
-    }
-    if (scr_r == c_r) {
-      scr_r = c_r->down ? c_r->down : c_r->up;
-    }
-    if (c_r->down)
-      c_r = c_r->down;
-    else {
-      c_r = c_r->up;
-      count = 1;
-    }
-    free(lst->line->str_data);
-    free(lst->line);
-    free(lst);
-  }
+  struct linelist *pos = c_r;
+  TT.cur_col = 0;
+  TT.vi_mov_flag |= 0x4;
+  if (count0>1) cur_down(count0-1, 1, 0);
 
-recursion_exit:
-  count--;
-  //make this recursive
-  if (count>0)
-    return vi_dd(reg, count, 1);
-success_exit:
+  vi_delete(reg, pos, 0, 0);
   check_cursor_bounds();
   adjust_screen_buffer();
   return 1;
 }
-//TODO i think this thing has bug when removing >40 chars from 80 wide line
+
 static int vi_x(char reg, int count0, int count1)
 {
-  int count = count0;
-  char *s;
-  char *last;
-  int *l;
-  int length = 0;
-  int width = 0;
-  int remaining = 0;
-  char *end;
-  char *start;
-  if (!c_r)
-    return 0;
-  s = c_r->line->str_data;
-  l = &c_r->line->str_len;
+  char *last = 0, *cpos = 0, *start = 0;
+  int len = 0;
+  struct linelist *pos = c_r;
+  int col = TT.cur_col;
+  if (!c_r) return 0;
 
-  last = utf8_last(s,*l);
-  if (last == s+TT.cur_col) {
-    memset(last, 0, (*l)-TT.cur_col);
-    *l = TT.cur_col;
-    if (!TT.cur_col) return 1;
-    last = utf8_last(s, TT.cur_col);
-    TT.cur_col = last-s;
-    return 1;
+  start = c_r->line->str_data;
+  len = c_r->line->str_len;
+
+  last = utf8_last(start, len);
+  cpos = start+TT.cur_col;
+  if (cpos == last) {
+    cur_left(count0-1, 1, 0);
+    col = strlen(start);
+  }
+  else {
+    cur_right(count0-1, 1, 0);
+    cpos = start+TT.cur_col;
+    if (cpos == last) TT.vi_mov_flag |= 2;
+    else cur_right(1, 1, 0);
   }
 
-  start = s+TT.cur_col;
-  end = start;
-  remaining = (*l)-TT.cur_col;
-  for (;remaining;) {
-    int next = utf8_lnw(&width, end, remaining);
-    if (next && width) {
-      if (!count) break;
-      count--;
-    } if (!next) break;
-    length += next;
-    end += next;
-    remaining -= next;
-  }
-  if (remaining) {
-    memmove(start, end, remaining);
-    memset(start+remaining,0,end-start);
-  } else {
-    memset(start,0,(*l)-TT.cur_col);
-  }
-  *l -= end-start;
-  if (!TT.cur_col) return 1;
-  if (TT.cur_col == (*l)) {
-    last = utf8_last(s, TT.cur_col);
-    TT.cur_col = last-s;
-  }
+  vi_delete(reg, pos, col, 0);
+  check_cursor_bounds();
   return 1;
 }
 
@@ -380,6 +317,7 @@ exit_function:
   count--;
   if (count>1)
     return vi_movb(count, 1, 0);
+  TT.vi_mov_flag |= 0x80000000;
   check_cursor_bounds();
   adjust_screen_buffer();
   return 1;
@@ -404,28 +342,29 @@ static int vi_move(int count0, int count1, char *unused)
   return 1;
 }
 
-void i_insert()
+
+static void i_insert(char* str, int len)
 {
   char *t = xzalloc(c_r->line->alloc_len);
   char *s = c_r->line->str_data;
   int sel = c_r->line->str_len-TT.cur_col;
   strncpy(t, &s[TT.cur_col], sel);
   t[sel+1] = 0;
-  if (c_r->line->alloc_len < c_r->line->str_len+il->str_len+5) {
+  if (c_r->line->alloc_len < c_r->line->str_len+len+5) {
     c_r->line->str_data = xrealloc(c_r->line->str_data,
-      c_r->line->alloc_len*2+il->alloc_len*2);
+      (c_r->line->alloc_len+len)<<1);
 
-    c_r->line->alloc_len = c_r->line->alloc_len*2+2*il->alloc_len;
+    c_r->line->alloc_len = (c_r->line->alloc_len+len)<<1;
     memset(&c_r->line->str_data[c_r->line->str_len], 0,
         c_r->line->alloc_len-c_r->line->str_len);
 
     s = c_r->line->str_data;
   }
-  strcpy(&s[TT.cur_col], il->str_data);
-  strcpy(&s[TT.cur_col+il->str_len], t);
-  TT.cur_col += il->str_len;
+  strncpy(&s[TT.cur_col], str, len);
+  strcpy(&s[TT.cur_col+len], t);
+  TT.cur_col += len;
   if (TT.cur_col) TT.cur_col--;
-  c_r->line->str_len += il->str_len;
+  c_r->line->str_len += len;
   free(t);
 
 }
@@ -452,9 +391,11 @@ void i_split()
   adjust_screen_buffer();
 }
 
+
 static int vi_zero(int count0, int count1, char *unused)
 {
   TT.cur_col = 0;
+  TT.vi_mov_flag |= 0x80000000;
   return 1;
 }
 
@@ -468,6 +409,37 @@ static int vi_eol(int count0, int count1, char *unused)
     TT.cur_col = c_r->line->str_len-1;
   TT.vi_mov_flag |= 2;
   check_cursor_bounds();
+  return 1;
+}
+
+//TODO check register where to push from
+static int vi_push(char reg, int count0, int count1)
+{
+  char *start = yank.data;
+  char *end = yank.data+strlen(yank.data);
+  //insert into new lines
+  if (*(end-1) == '\n') for (;start != end;) {
+    char *next = strchr(start, '\n');
+    vi_eol(1, 1, 0);
+    i_split();
+    if (next) {
+      i_insert(start, next-start);
+      start = next+1;
+    } else start = end; //??
+  }
+
+  //insert into cursor
+  else for (;start != end;) {
+    char *next = strchr(start, '\n');
+    if (next) {
+      i_insert(start, next-start);
+      i_split();
+      start = next+1;
+    } else {
+      i_insert(start, strlen(start));
+      start = end;
+    }
+  }
   return 1;
 }
 
@@ -495,31 +467,83 @@ static int vi_find_cb(int count0, int count1, char *symbol)
 //if count is not spesified should go to last line
 static int vi_go(int count0, int count1, char *symbol)
 {
+  int prev_row = TT.cur_row;
   c_r = text;
-  while(--count0) {
-    if (c_r && c_r->down) c_r = c_r->down;
-  }
+
+  if (TT.vi_mov_flag&0x40000000) for (;c_r && c_r->down; c_r = c_r->down);
+  else for (;c_r && c_r->down && --count0; c_r = c_r->down);
+
   TT.cur_col = 0;
-  check_cursor_bounds();
-  adjust_screen_buffer();
+  check_cursor_bounds();  //adjusts cursor column
+  adjust_screen_buffer(); //adjusts screen buffer
+  if (prev_row>TT.cur_row) TT.vi_mov_flag |= 0x80000000;
+
   return 1;
 }
 
 //need to refactor when implementing yank buffers
 static int vi_delete(char reg, struct linelist *row, int col, int flags)
 {
-  if (row == c_r) {
-    if (col < TT.cur_col) {
-      int distance = TT.cur_col - col;
-      TT.cur_col = col;
-      vi_x(reg, distance, 1);
-    } else {
-      int distance = col - TT.cur_col;
-      if (distance > 0) vi_x(reg, distance, 1);
-    }
-    if (TT.vi_mov_flag&2)
-      vi_x(reg, 1, 1);
+  struct linelist *start = 0, *end = 0;
+  int col_s = 0, col_e = 0, bytes = 0;
+
+  vi_yank(reg, row, col, flags);
+
+  if (TT.vi_mov_flag&0x80000000) {
+    start = c_r, end = row;
+    col_s = TT.cur_col, col_e = col;
+  } else {
+    start = row, end = c_r;
+    col_s = col, col_e = TT.cur_col;
   }
+  if (start == end) goto last_line_delete;
+  if (!col_s) goto full_line_delete;
+
+  memset(start->line->str_data+col_s, 0, start->line->str_len-col_s);
+  row->line->str_len = col_s;
+  col_s = 0;
+  start = start->down;
+
+full_line_delete:
+  for (;start != end;) {
+    struct linelist* lst = start;
+    //struct linelist *lst = dlist_pop(&start);
+    start = start->down;
+    if (lst->down) lst->down->up = lst->up;
+    if (lst->up) lst->up->down = lst->down;
+    if (scr_r == lst) scr_r = lst->down ? lst->down : lst->up;
+    if (text == lst) text = lst->down;
+    free(lst->line->str_data);
+    free(lst->line);
+    free(lst);
+  }
+last_line_delete:
+  if (TT.vi_mov_flag&2) col_e = start->line->str_len;
+  if (TT.vi_mov_flag&4) {
+    if (!end->down && !end->up)
+      col_e = start->line->str_len;
+    else {
+      col_e = 0, col_s = 0;
+      if (end->down) end->down->up = end->up;
+      if (end->up) end->up->down = end->down;
+      if (scr_r == end) scr_r = end->down ? end->down : end->up;
+      //if (text == end) text = end->down;
+      start = end->down ? end->down : end->up;
+      free(end->line->str_data);
+      free(end->line);
+      free(end);
+
+    }
+  }
+  if (col_s < col_e) {
+    bytes = col_s + start->line->str_len - col_e;
+    memmove(start->line->str_data+col_s, start->line->str_data+col_e,
+        start->line->str_len-col_e);
+    memset(start->line->str_data+bytes, 0, start->line->str_len-bytes);
+    start->line->str_len = bytes;
+  }
+  c_r = start;
+  TT.cur_col = col_s;
   return 1;
 }
 
@@ -535,6 +559,7 @@ static int vi_D(char reg, int count0, int count1)
     c_r = c_r->down;
     vi_dd(reg, count0, 1);
   }
+  check_cursor_bounds();
   return 1;
 }
 
@@ -588,8 +613,53 @@ static int vi_change(char reg, struct linelist *row, int col, int flags)
   return 1;
 }
 
+//TODO search yank buffer by register
+//now only supports default register
 static int vi_yank(char reg, struct linelist *row, int col, int flags)
 {
+  struct linelist *start = 0, *end = 0;
+  int col_s = 0, col_e = 0, bytes = 0;
+
+  memset(yank.data, 0, yank.alloc);
+  if (TT.vi_mov_flag&0x80000000) {
+    start = c_r, end = row;
+    col_s = TT.cur_col, col_e = col;
+  } else {
+    start = row, end = c_r;
+    col_s = col, col_e = TT.cur_col;
+  }
+  if (start == end) goto last_line_yank;
+  if (!col_s) goto full_line_yank;
+
+  if (yank.alloc < start->line->alloc_len) {
+    yank.data = xrealloc(yank.data, start->line->alloc_len*2);
+    yank.alloc = start->line->alloc_len*2;
+  }
+
+  sprintf(yank.data, "%s\n", start->line->str_data+col_s);
+  col_s = 0;
+  start = start->down;
+
+full_line_yank:
+  for (;start != end;) {
+    while (yank.alloc-1 < strlen(yank.data)+start->line->str_len)
+      yank.data = xrealloc(yank.data, yank.alloc*2), yank.alloc *= 2;
+
+
+    sprintf(yank.data+strlen(yank.data), "%s\n", start->line->str_data);
+    start = start->down;
+  }
+last_line_yank:
+  while (yank.alloc-1 < strlen(yank.data)+end->line->str_len)
+    yank.data = xrealloc(yank.data, yank.alloc*2), yank.alloc *= 2;
+
+  if (TT.vi_mov_flag & 0x4)
+    sprintf(yank.data+strlen(yank.data), "%s\n", start->line->str_data);
+  else {
+    bytes = strlen(yank.data)+col_e-col_s;
+    strncpy(yank.data+strlen(yank.data), end->line->str_data+col_s, col_e-col_s);
+    yank.data[bytes] = 0;
+  }
   return 1;
 }
 
@@ -631,6 +701,7 @@ struct vi_special_param vi_special[] =
   {"J", &vi_join},
   {"n", &vi_find_next},
   {"x", &vi_x},
+  {"p", &vi_push}
 };
 //there is around ~47 vi moves
 //some of them need extra params
@@ -664,22 +735,22 @@ struct vi_cmd_param vi_cmds[] =
 
 int run_vi_cmd(char *cmd)
 {
-  int i = 0;
-  int val = 0;
+  int i = 0, val = 0;
   char *cmd_e;
   int (*vi_cmd)(char, struct linelist*, int, int) = 0;
   int (*vi_mov)(int, int, char*) = 0;
-  TT.count0 = 0;
-  TT.count1 = 0;
+
+  TT.count0 = 0, TT.count1 = 0, TT.vi_mov_flag = 0;
   TT.vi_reg = '"';
-  TT.vi_mov_flag = 0;
+
   if (*cmd == '"') {
     cmd++;
     TT.vi_reg = *cmd; //TODO check validity
     cmd++;
   }
+  errno = 0;
   val = strtol(cmd, &cmd_e, 10);
-  if (errno || val == 0) val = 1;
+  if (errno || val == 0) val = 1, TT.vi_mov_flag |= 0x40000000;
   else cmd = cmd_e;
   TT.count0 = val;
 
@@ -696,6 +767,7 @@ int run_vi_cmd(char *cmd)
       break;
     }
   }
+  errno = 0;
   val = strtol(cmd, &cmd_e, 10);
   if (errno || val == 0) val = 1;
   else cmd = cmd_e;
@@ -704,7 +776,7 @@ int run_vi_cmd(char *cmd)
   for (i = 0; i < ARRAY_LEN(vi_movs); i++) {
     if (!strncmp(cmd, vi_movs[i].mov, strlen(vi_movs[i].mov))) {
       vi_mov = vi_movs[i].vi_mov;
-      TT.vi_mov_flag = vi_movs[i].flags;
+      TT.vi_mov_flag |= vi_movs[i].flags;
       cmd++;
       if (TT.vi_mov_flag&1 && !(*cmd)) return 0;
       break;
@@ -800,6 +872,8 @@ void vi_main(void)
   TT.screen_height = 24;
   TT.vi_mode = 1;
   TT.tabstop = 8;
+  yank.data = xzalloc(128);
+  yank.alloc = 128;
   terminal_size(&TT.screen_width, &TT.screen_height);
   TT.screen_height -= 2; //TODO this is hack fix visual alignment
   set_terminal(0, 1, 0, 0);
@@ -905,7 +979,7 @@ void vi_main(void)
     } else if (TT.vi_mode == 2) {//INSERT MODE
       switch (key) {
         case 27:
-          i_insert();
+          i_insert(il->str_data, il->str_len);
           TT.vi_mode = 1;
           il->str_len = 0;
           memset(il->str_data, 0, il->alloc_len);
@@ -922,7 +996,7 @@ void vi_main(void)
         case 0x0D:
           //insert newline
           //
-          i_insert();
+          i_insert(il->str_data, il->str_len);
           il->str_len = 0;
           memset(il->str_data, 0, il->alloc_len);
           i_split();
@@ -1006,22 +1080,18 @@ int crunch_nstr(char **str, int width, int n, FILE *out, char *escmore,
 
 static void draw_page()
 {
+  struct linelist *scr_buf = scr_r;
   unsigned y = 0;
-  int cy_scr = 0;
-  int cx_scr = 0;
-  int utf_l = 0;
-
-  char* line = 0;
-  int bytes = 0;
   int x = 0;
-  struct linelist *scr_buf= scr_r;
+
+  char *line = 0, *end = 0;
+  int utf_l = 0,  bytes = 0;
+
+  //screen coordinates for cursor
+  int cy_scr = 0, cx_scr = 0;
 
   //variables used only for cursor handling
-  int aw = 0;
-  int iw = 0;
-  int clip = 0;
-  char *end = 0;
-  int margin = 8;
+  int aw = 0, iw = 0, clip = 0, margin = 8;
 
   //clear screen
   tty_esc("2J");
@@ -1158,42 +1228,40 @@ static void draw_page()
 
 static void check_cursor_bounds()
 {
-  if (c_r->line->str_len == 0) TT.cur_col = 0;
-  else if (c_r->line->str_len-1 < TT.cur_col) TT.cur_col = c_r->line->str_len-1;
+  if (c_r->line->str_len == 0) {
+    TT.cur_col = 0;
+    return;
+  } else if (c_r->line->str_len-1 < TT.cur_col) TT.cur_col = c_r->line->str_len-1;
+
   if (utf8_width(&c_r->line->str_data[TT.cur_col], c_r->line->str_len-TT.cur_col) <= 0)
-    cur_left(1, 1, 0);
+    TT.cur_col--, check_cursor_bounds();
 }
 
 static void adjust_screen_buffer()
 {
-  //search cursor and screen TODO move this perhaps
+  //search cursor and screen
   struct linelist *t = text;
-  int c = -1;
-  int s = -1;
-  int i = 0;
+  int c = -1, s = -1, i = 0;
+  //searching cursor and screen line numbers
   for (;;) {
     i++;
-    if (t == c_r)
-      c = i;
-    if (t == scr_r)
-      s = i;
+    if (t == c_r) c = i;
+    if (t == scr_r) s = i;
+
     t = t->down;
     if ( ((c != -1) && (s != -1)) || t == 0)
       break;
   }
-  if (c <= s) {
-    scr_r = c_r;
-  }
-  else if ( c > s ) {
-    //should count multiline long strings!
+  //adjust screen buffer so cursor is on drawing area
+  if (c <= s) scr_r = c_r; //scroll up
+  else if (c > s) {
+    //drawing does not have wrapping so no need to check width
     int distance = c - s + 1;
-    //TODO instead iterate scr_r up and check strlen%screen_width
-    //for each iteration
+
     if (distance >= (int)TT.screen_height) {
       int adj = distance - TT.screen_height;
-      while (adj--) {
-        scr_r = scr_r->down;
-      }
+      while (adj--) scr_r = scr_r->down; //scroll down
+
     }
   }
   TT.cur_row = c;
@@ -1306,11 +1374,12 @@ static char* utf8_last(char* str, int size)
 static int cur_left(int count0, int count1, char* unused)
 {
   int count = count0*count1;
+  TT.vi_mov_flag |= 0x80000000;
   for (;count--;) {
     if (!TT.cur_col) return 1;
 
     TT.cur_col--;
-    check_cursor_bounds();//has bit ugly recursion hidden here
+    check_cursor_bounds();
   }
   return 1;
 }
@@ -1339,6 +1408,7 @@ static int cur_up(int count0, int count1, char* unused)
   for (;count-- && c_r->up;)
     c_r = c_r->up;
 
+  TT.vi_mov_flag |= 0x80000000;
   check_cursor_bounds();
   adjust_screen_buffer();
   return 1;
