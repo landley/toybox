@@ -4,21 +4,18 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-echo "#!$(which sh)
-while true; do
-  sleep 0.1
-done" > toybox.killall.test.script
-chmod a+x toybox.killall.test.script
-cp toybox.killall.test.script toybox.test
+echo -e "#!$(which sh)\nwhile true; do sleep 0.1; done" > toybox.test
+chmod a+x toybox.test
+cp toybox.test toybox.killall.test.script
 
 tst=toybox.test
-./$tst &
-testing "short name" "killall -w $tst && echo killed ; \
+(./$tst 2>/dev/null &)
+testing "short name" "killall -w $tst && echo killed ; sleep 0.1; \
   pgrep -l $tst || echo really" "killed\nreally\n" "" ""
 
 tst=toybox.killall.test.script
-./$tst &
-testing "long name" "killall -w $tst && echo killed ; \
+(./$tst 2>/dev/null &)
+testing "long name" "killall -w $tst && echo killed ; sleep 0.1; \
   pgrep -l $tst || echo really" "killed\nreally\n" "" ""
 
 rm -f toybox.killall.test.script toybox.test
