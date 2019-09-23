@@ -166,7 +166,7 @@ void ftpget_main(void)
       lenl = fdlength(ii);
     }
     if (get) {
-      cmd = "REST";
+      cmd = "RETR";
       if (toys.optflags&FLAG_l) cmd = "LIST";
       if (toys.optflags&FLAG_L) cmd = "NLST";
       if (cnt) {
