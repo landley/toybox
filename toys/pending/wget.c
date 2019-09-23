@@ -3,19 +3,19 @@
  * Copyright 2016 Lipi C.H. Lee <lipisoft@gmail.com>
  *
 
-USE_WGET(NEWTOY(wget, "f:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_WGET(NEWTOY(wget, "(no-check-certificate)O:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config WGET
   bool "wget"
   default n
   help
-    usage: wget -f filename URL
-    -f filename: specify the filename to be saved
-    URL: HTTP uniform resource location and only HTTP, not HTTPS
+    usage: wget -O filename URL
+    -O filename: specify output filename
+    URL: uniform resource location, FTP/HTTP only, not HTTPS
 
     examples:
-      wget -f index.html http://www.example.com
-      wget -f sample.jpg http://www.example.com:8080/sample.jpg
+      wget -O index.html http://www.example.com
+      wget -O sample.jpg ftp://ftp.example.com:21/sample.jpg
 */
 
 #define FOR_wget
@@ -55,8 +55,10 @@ static unsigned get_port(const char *url, char *port, unsigned url_i) {
 // get http infos in URL
 static void get_info(const char *url, char* hostname, char *port, char *path) {
   unsigned i = 7, len;
+  char ftp = !strncmp(url, "ftp://", 6);
 
-  if (strncmp(url, "http://", i)) error_exit("only HTTP support");
+  if (ftp) i--;
+  else if (strncmp(url, "http://", i)) error_exit("only FTP/HTTP support");
   len = get_hn(url+i, hostname);
   i += len;
 
@@ -72,6 +74,8 @@ static void get_info(const char *url, char* hostname, char *port, char *path) {
     if (strlen(url+i) < 1024) strcpy(path, url+i);
     else error_exit("too long path in URL");
   } else error_exit("wrong URL");
+
+  if (ftp) xexec((char *[]){"ftpget", hostname, TT.filename, path, 0});
 }
 
 // connect to any IPv4 or IPv6 server
@@ -131,10 +135,10 @@ void wget_main(void)
   FILE *fp;
   ssize_t len, body_len;
   char *body, *result, *rc, *r_str;
-  char ua[18] = "toybox wget/", ver[6], hostname[1024], port[6], path[1024];
+  char ua[18] = "toybox wget", ver[6], hostname[1024], port[6], path[1024];
 
   // TODO extract filename to be saved from URL
-  if (!(toys.optflags & FLAG_f)) help_exit("no filename");
+  if (!(toys.optflags & FLAG_O)) help_exit("no filename");
   if (fopen(TT.filename, "r")) error_exit("'%s' already exists", TT.filename);
 
   if(!toys.optargs[0]) help_exit("no URL");
@@ -145,8 +149,9 @@ void wget_main(void)
   // compose HTTP request
   sprintf(toybuf, "GET %s HTTP/1.1\r\n", path);
   mk_fld("Host", hostname);
-  strncpy(ver, TOYBOX_VERSION, 5);
-  strcat(ua, ver);
+#ifdef TOYBOX_VERSION
+  strcat(ua, "/"), strncpy(ver, TOYBOX_VERSION, 5), strcat(ua, ver);
+#endif
   mk_fld("User-Agent", ua); 
   mk_fld("Connection", "close");
   strcat(toybuf, "\r\n");
