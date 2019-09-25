@@ -37,8 +37,7 @@ void ln_main(void)
   }
 
   // Is destination a directory?
-  if (((toys.optflags&FLAG_n) ? lstat : stat)(dest, &buf)
-    || !S_ISDIR(buf.st_mode))
+  if ((FLAG(n) ? lstat : stat)(dest, &buf) || !S_ISDIR(buf.st_mode))
   {
     if (toys.optc>1) error_exit("'%s' not a directory", dest);
     buf.st_mode = 0;
@@ -55,7 +54,7 @@ void ln_main(void)
     // a temp version and renaming it over the old one, so we can retain the
     // old file in cases we can't replace it (such as hardlink between mounts).
     oldnew = new;
-    if (toys.optflags & FLAG_f) {
+    if (FLAG(f)) {
       new = xmprintf("%s_XXXXXX", new);
       rc = mkstemp(new);
       if (rc >= 0) {
@@ -64,8 +63,8 @@ void ln_main(void)
       }
     }
 
-    rc = (toys.optflags & FLAG_s) ? symlink(try, new) : link(try, new);
-    if (toys.optflags & FLAG_f) {
+    rc = FLAG(s) ? symlink(try, new) : link(try, new);
+    if (FLAG(f)) {
       if (!rc) {
         int temp;
 
@@ -77,11 +76,9 @@ void ln_main(void)
       free(new);
       new = oldnew;
     }
-    if (rc)
-      perror_msg("cannot create %s link from '%s' to '%s'",
-        (toys.optflags & FLAG_s) ? "symbolic" : "hard", try, new);
-    else
-      if (toys.optflags & FLAG_v) fprintf(stderr, "'%s' -> '%s'\n", new, try);
+    if (rc) perror_msg("cannot create %s link from '%s' to '%s'",
+                       FLAG(s) ? "symbolic" : "hard", try, new);
+    else if (FLAG(v)) fprintf(stderr, "'%s' -> '%s'\n", new, try);
 
     if (new != dest) free(new);
   }
