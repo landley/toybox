@@ -44,6 +44,14 @@ rm slink
 testing "no_dereference" "ln -s dir slink &&
           ln -n -s file slink 2>/dev/null || [ -L slink ] && readlink slink" \
           "dir\n" "" ""
+rm slink
+
+testing "-T acts like -n" "ln -s dir slink &&
+          ln -Tsf file slink || [ -L slink ] && readlink slink" "file\n" "" ""
+rm slink
+
+testing "-T with dir" "ln -Ts file dir 2>/dev/null || echo yes" "yes\n" "" ""
+
 rm -rf file dir slink
 
 touch file1 file2 && mkdir dir

@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/ln.html
 
-USE_LN(NEWTOY(ln, "<1vnfs", TOYFLAG_BIN))
+USE_LN(NEWTOY(ln, "<1Tvnfs", TOYFLAG_BIN))
 
 config LN
   bool "ln"
@@ -13,11 +13,12 @@ config LN
     usage: ln [-sfnv] [FROM...] TO
 
     Create a link between FROM and TO.
-    With only one argument, create link in current directory.
+    One/two/many arguments work like "mv" or "cp".
 
     -s	Create a symbolic link
     -f	Force the creation of the link, even if TO already exists
-    -n	Symlink at destination treated as file
+    -n	Symlink at TO treated as file
+    -T	TO always treated as file
     -v	Verbose
 */
 
@@ -37,11 +38,12 @@ void ln_main(void)
   }
 
   // Is destination a directory?
-  if ((FLAG(n) ? lstat : stat)(dest, &buf) || !S_ISDIR(buf.st_mode))
-  {
-    if (toys.optc>1) error_exit("'%s' not a directory", dest);
-    buf.st_mode = 0;
-  }
+  if (!((FLAG(n)||FLAG(T)) ? lstat : stat)(dest, &buf)) {
+    i = S_ISDIR(buf.st_mode);
+
+    if ((FLAG(T) && i) || (!i && toys.optc>1))
+      error_exit("'%s' %s a directory", dest, i ? "is" : "not");
+  } else buf.st_mode = 0;
 
   for (i=0; i<toys.optc; i++) {
     int rc;
