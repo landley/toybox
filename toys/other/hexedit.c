@@ -158,8 +158,8 @@ void hexedit_main(void)
       } else {
         TT.base--;
         i++;
-        tty_esc("1T");
         tty_jump(0, 0);
+        tty_esc("1L");
         draw_line(0);
       }
     }
@@ -170,7 +170,8 @@ void hexedit_main(void)
       } else {
         TT.base++;
         i++;
-        tty_esc("1S");
+        tty_jump(0, 0);
+        tty_esc("1M");
         tty_jump(0, TT.height-1);
         draw_line(TT.height-1);
       }
