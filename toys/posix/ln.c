@@ -18,7 +18,7 @@ config LN
     -s	Create a symbolic link
     -f	Force the creation of the link, even if TO already exists
     -n	Symlink at TO treated as file
-    -T	TO always treated as file
+    -T	TO always treated as file, max 2 arguments
     -v	Verbose
 */
 
@@ -37,6 +37,7 @@ void ln_main(void)
     dest=".";
   }
 
+  if (FLAG(T) && toys.optc>1) help_exit("Max 2 arguments");
   // Is destination a directory?
   if (!((FLAG(n)||FLAG(T)) ? lstat : stat)(dest, &buf)) {
     i = S_ISDIR(buf.st_mode);
