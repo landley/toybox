@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/rmdir.html
 
-USE_RMDIR(NEWTOY(rmdir, "<1p", TOYFLAG_BIN))
+USE_RMDIR(NEWTOY(rmdir, "<1(ignore-fail-on-non-empty)p", TOYFLAG_BIN))
 
 config RMDIR
   bool "rmdir"
@@ -15,8 +15,11 @@ config RMDIR
     Remove one or more directories.
 
     -p	Remove path
+    --ignore-fail-on-non-empty	Ignore failures caused by non-empty directories
+
 */
 
+#define FOR_rmdir
 #include "toys.h"
 
 static void do_rmdir(char *name)
@@ -25,7 +28,7 @@ static void do_rmdir(char *name)
 
   for (;;) {
     if (rmdir(name)) {
-      perror_msg_raw(name);
+      if (!FLAG(ignore-fail-on-non-empty) || errno != ENOTEMPTY) perror_msg_raw(name);
       return;
     }
 
