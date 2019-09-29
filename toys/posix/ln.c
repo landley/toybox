@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/ln.html
 
-USE_LN(NEWTOY(ln, "<1Tvnfs", TOYFLAG_BIN))
+USE_LN(NEWTOY(ln, "<1t:Tvnfs", TOYFLAG_BIN))
 
 config LN
   bool "ln"
@@ -18,6 +18,7 @@ config LN
     -s	Create a symbolic link
     -f	Force the creation of the link, even if TO already exists
     -n	Symlink at TO treated as file
+    -t	Create links in DIR
     -T	TO always treated as file, max 2 arguments
     -v	Verbose
 */
@@ -25,9 +26,13 @@ config LN
 #define FOR_ln
 #include "toys.h"
 
+GLOBALS(
+  char *t;
+)
+
 void ln_main(void)
 {
-  char *dest = toys.optargs[--toys.optc], *new;
+  char *dest = TT.t ? TT.t : toys.optargs[--toys.optc], *new;
   struct stat buf;
   int i;
 
@@ -42,7 +47,7 @@ void ln_main(void)
   if (!((FLAG(n)||FLAG(T)) ? lstat : stat)(dest, &buf)) {
     i = S_ISDIR(buf.st_mode);
 
-    if ((FLAG(T) && i) || (!i && toys.optc>1))
+    if ((FLAG(T) && i) || (!i && (toys.optc>1 || TT.t)))
       error_exit("'%s' %s a directory", dest, i ? "is" : "not");
   } else buf.st_mode = 0;
 
