@@ -22,6 +22,9 @@ config VI
 GLOBALS(
     int cur_col;
     int cur_row;
+    int scr_row;
+    int drawn_row;
+    int drawn_col;
     unsigned screen_height;
     unsigned screen_width;
     int vi_mode;
@@ -91,6 +94,8 @@ struct yank_buf yank; //single yank
 // 0x1 = Command needs argument (f,F,r...)
 // 0x2 = Move 1 right on yank/delete/insert (e, $...)
 // 0x4 = yank/delete last line fully
+// 0x10000000 = redraw after cursor needed
+// 0x20000000 = full redraw needed
 // 0x40000000 = count0 not given
 // 0x80000000 = move was reverse
 
@@ -211,7 +216,6 @@ int vi_dd(char reg, int count0, int count1)
 
   vi_delete(reg, pos, 0, 0);
   check_cursor_bounds();
-  adjust_screen_buffer();
   return 1;
 }
 
@@ -287,7 +291,6 @@ next_line:
     return vi_movw(count, 1, 0);
 
   check_cursor_bounds();
-  adjust_screen_buffer();
   return 1;
 }
 
@@ -319,7 +322,6 @@ exit_function:
     return vi_movb(count, 1, 0);
   TT.vi_mov_flag |= 0x80000000;
   check_cursor_bounds();
-  adjust_screen_buffer();
   return 1;
 }
 
@@ -338,7 +340,6 @@ static int vi_move(int count0, int count1, char *unused)
 
   TT.vi_mov_flag |= 2;
   check_cursor_bounds();
-  adjust_screen_buffer();
   return 1;
 }
 
@@ -388,7 +389,6 @@ void i_split()
   c_r->line = l;
   TT.cur_col = 0;
   check_cursor_bounds();
-  adjust_screen_buffer();
 }
 
 
@@ -415,10 +415,12 @@ static int vi_eol(int count0, int count1, char *unused)
 //TODO check register where to push from
 static int vi_push(char reg, int count0, int count1)
 {
-  char *start = yank.data;
-  char *end = yank.data+strlen(yank.data);
+  char *start = yank.data, *end = yank.data+strlen(yank.data);
+  struct linelist *cursor = c_r;
+  int col = TT.cur_col;
   //insert into new lines
   if (*(end-1) == '\n') for (;start != end;) {
+    TT.vi_mov_flag |= 0x10000000;
     char *next = strchr(start, '\n');
     vi_eol(1, 1, 0);
     i_split();
@@ -432,6 +434,7 @@ static int vi_push(char reg, int count0, int count1)
   else for (;start != end;) {
     char *next = strchr(start, '\n');
     if (next) {
+      TT.vi_mov_flag |= 0x10000000;
       i_insert(start, next-start);
       i_split();
       start = next+1;
@@ -440,6 +443,10 @@ static int vi_push(char reg, int count0, int count1)
       start = end;
     }
   }
+  //if row changes during push original cursor position is kept
+  //vi inconsistancy
+  if (c_r != cursor) c_r = cursor, TT.cur_col = col;
+
   return 1;
 }
 
@@ -475,7 +482,6 @@ static int vi_go(int count0, int count1, char *symbol)
 
   TT.cur_col = 0;
   check_cursor_bounds();  //adjusts cursor column
-  adjust_screen_buffer(); //adjusts screen buffer
   if (prev_row>TT.cur_row) TT.vi_mov_flag |= 0x80000000;
 
   return 1;
@@ -505,6 +511,7 @@ static int vi_delete(char reg, struct linelist *row, int col, int flags)
   start = start->down;
 
 full_line_delete:
+  TT.vi_mov_flag |= 0x10000000;
   for (;start != end;) {
     struct linelist* lst = start;
     //struct linelist *lst = dlist_pop(&start);
@@ -518,6 +525,7 @@ full_line_delete:
     free(lst);
   }
 last_line_delete:
+  TT.vi_mov_flag |= 0x10000000;
   if (TT.vi_mov_flag&2) col_e = start->line->str_len;
   if (TT.vi_mov_flag&4) {
     if (!end->down && !end->up)
@@ -813,7 +821,6 @@ static int search_str(char *s)
   c_r = lst;
   TT.cur_col = c-c_r->line->str_data;
   check_cursor_bounds();
-  adjust_screen_buffer();
   return 0;
 }
 
@@ -882,6 +889,7 @@ void vi_main(void)
   tty_esc("?1049h");
   tty_esc("H");
   xflush(1);
+  TT.vi_mov_flag = 0x20000000;
   draw_page();
   while(1) {
     int key = scan_key(keybuf, -1);
@@ -1080,7 +1088,7 @@ int crunch_nstr(char **str, int width, int n, FILE *out, char *escmore,
 
 static void draw_page()
 {
-  struct linelist *scr_buf = scr_r;
+  struct linelist *scr_buf = 0;
   unsigned y = 0;
   int x = 0;
 
@@ -1093,26 +1101,26 @@ static void draw_page()
   //variables used only for cursor handling
   int aw = 0, iw = 0, clip = 0, margin = 8;
 
-  //clear screen
-  tty_esc("2J");
-  tty_esc("H");
+  int scroll = 0, redraw = 0;
 
-  //draw lines until cursor row
+  adjust_screen_buffer();
+  scr_buf = scr_r;
+  redraw = (TT.vi_mov_flag & 0x30000000)>>28;
+
+  scroll = TT.drawn_row-TT.scr_row;
+  if (TT.drawn_row<0 || TT.cur_row<0 || TT.scr_row<0) redraw = 3;
+  else if (abs(scroll)>TT.screen_height/2) redraw = 3;
+
+  tty_jump(0, 0);
+  if (redraw&2) tty_esc("2J"), tty_esc("H");   //clear screen
+  else if (scroll>0) printf("\033[%dL", scroll);  //scroll up
+  else if (scroll<0) printf("\033[%dM", -scroll); //scroll down
+
+  //jump until cursor
   for (; y < TT.screen_height; y++ ) {
-    tty_jump(0, y);
-    if (scr_buf == c_r)
-      break;
-    if (scr_buf) {
-      if (scr_buf->line->str_data && scr_buf->line->str_len) {
-        line = scr_buf->line->str_data;
-        bytes = scr_buf->line->str_len;
-        scr_buf = scr_buf->down;
-        crunch_str(&line, TT.screen_width-1, stdout, "\t", vi_crunch);
-        if ( *line ) printf("@");
-      } else scr_buf = scr_buf->down;
-    }
+    if (scr_buf == c_r) break;
+    scr_buf = scr_buf->down;
   }
-
   //draw cursor row
   /////////////////////////////////////////////////////////////
   //for long lines line starts to scroll when cursor hits margin
@@ -1120,9 +1128,11 @@ static void draw_page()
   bytes = TT.cur_col;
   end = line;
 
+
+  tty_jump(0, y);
+  tty_esc("2K");
   //find cursor position
   aw = crunch_nstr(&end, 1024, bytes, 0, "\t", vi_crunch);
-
 
   //if we need to render text that is not inserted to buffer yet
   if (TT.vi_mode == 2 && il->str_len) {
@@ -1167,26 +1177,52 @@ static void draw_page()
     x += crunch_str(&end, TT.screen_width-x,  stdout, "\t", vi_crunch);
   }
 
-  tty_jump(0, ++y);
   if (scr_buf) scr_buf = scr_buf->down;
   // drawing cursor row ends
   ///////////////////////////////////////////////////////////////////
 
-//draw until end
+  //start drawing all other rows that needs update
+  ///////////////////////////////////////////////////////////////////
+  y = 0, scr_buf = scr_r;
+
+  //if we moved around in long line might need to redraw everything
+  if (clip != TT.drawn_col) redraw = 3;
+
   for (; y < TT.screen_height; y++ ) {
+    int draw_line = 0;
+    if (scr_buf == c_r) {
+      scr_buf = scr_buf->down;
+      continue;
+    } else if (redraw) draw_line++;
+    else if (scroll<0 && TT.screen_height-y-1<-scroll)
+      scroll++, draw_line++;
+    else if (scroll>0) scroll--, draw_line++;
+
     tty_jump(0, y);
-    if (scr_buf) {
-      if (scr_buf->line->str_data && scr_buf->line->str_len) {
-        line = scr_buf->line->str_data;
-        bytes = scr_buf->line->str_len;
-        scr_buf = scr_buf->down;
-        crunch_str(&line, TT.screen_width-1, stdout, "\t", vi_crunch);
-        if ( *line ) printf("@");
-      } else scr_buf = scr_buf->down;
-    } else printf("~");
+    if (draw_line) {
+
+      tty_esc("2K");
+      if (scr_buf) {
+        if (draw_line && scr_buf->line->str_data && scr_buf->line->str_len) {
+          line = scr_buf->line->str_data;
+          bytes = scr_buf->line->str_len;
+
+          aw = crunch_nstr(&line, clip, bytes, 0, "\t", vi_crunch);
+          crunch_str(&line, TT.screen_width-1, stdout, "\t", vi_crunch);
+          if ( *line ) printf("@");
+
+        }
+      } else if (draw_line) printf("~");
+    }
+    if (scr_buf) scr_buf = scr_buf->down;
   }
 
+  TT.drawn_row = TT.scr_row, TT.drawn_col = clip;
+
+  //finished updating visual area
+
   tty_jump(0, TT.screen_height);
+  tty_esc("2K");
   switch (TT.vi_mode) {
     case 0:
     tty_esc("30;44m");
@@ -1214,10 +1250,12 @@ static void draw_page()
 
   tty_jump(TT.screen_width-12, TT.screen_height);
   printf("| %d, %d\n", TT.cur_row, TT.cur_col);
+
   tty_esc("m");
+  tty_jump(0, TT.screen_height+1);
+  tty_esc("2K");
   if (!TT.vi_mode) {
     tty_esc("1m");
-    tty_jump(0, TT.screen_height+1);
     printf("%s", il->str_data);
     tty_esc("m");
   } else tty_jump(cx_scr, cy_scr);
@@ -1243,28 +1281,23 @@ static void adjust_screen_buffer()
   struct linelist *t = text;
   int c = -1, s = -1, i = 0;
   //searching cursor and screen line numbers
-  for (;;) {
-    i++;
+  for (;((c == -1) || (s == -1)) && t != 0; i++, t = t->down) {
     if (t == c_r) c = i;
     if (t == scr_r) s = i;
-
-    t = t->down;
-    if ( ((c != -1) && (s != -1)) || t == 0)
-      break;
   }
   //adjust screen buffer so cursor is on drawing area
-  if (c <= s) scr_r = c_r; //scroll up
-  else if (c > s) {
+  if (c <= s) scr_r = c_r, s = c; //scroll up
+  else {
     //drawing does not have wrapping so no need to check width
-    int distance = c - s + 1;
+    int distance = c-s+1;
 
-    if (distance >= (int)TT.screen_height) {
-      int adj = distance - TT.screen_height;
-      while (adj--) scr_r = scr_r->down; //scroll down
+    if (distance > (int)TT.screen_height) {
+      int adj = distance-TT.screen_height;
+      for (;adj; adj--) scr_r = scr_r->down, s++; //scroll down
 
     }
   }
-  TT.cur_row = c;
+  TT.cur_row = c, TT.scr_row = s;
 
 }
 
@@ -1410,7 +1443,6 @@ static int cur_up(int count0, int count1, char* unused)
 
   TT.vi_mov_flag |= 0x80000000;
   check_cursor_bounds();
-  adjust_screen_buffer();
   return 1;
 }
 
@@ -1421,7 +1453,6 @@ static int cur_down(int count0, int count1, char* unused)
     c_r = c_r->down;
 
   check_cursor_bounds();
-  adjust_screen_buffer();
   return 1;
 }
 
