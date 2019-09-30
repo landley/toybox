@@ -28,7 +28,7 @@ static void do_rmdir(char *name)
 
   for (;;) {
     if (rmdir(name)) {
-      if (!FLAG(ignore-fail-on-non-empty) || errno != ENOTEMPTY) perror_msg_raw(name);
+      if (!FLAG(ignore_fail_on_non_empty) || errno != ENOTEMPTY) perror_msg_raw(name);
       return;
     }
 
