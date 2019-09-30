@@ -20,7 +20,7 @@ testing "force_create_hardlink" "ln -f file hlink &&
           [ file -ef hlink ] && cat hlink 2>/dev/null" "file1\n" "" ""
 
 echo slink1 > slink
-testing "force_create_softlink" "ln -f -s file slink &&
+testing "force_create_symlink" "ln -f -s file slink &&
           [ -L slink ] && readlink slink" "file\n" "" ""
 rm slink hlink
 
@@ -31,7 +31,7 @@ testing "preserves_hardlinks" "ln file hlink 2>/dev/null || echo 'yes'" \
 
 echo slink1 > slink
 set +e
-testing "preserves_softlinks" "ln -s file slink 2>/dev/null || echo 'yes'" \
+testing "preserves_symlinks" "ln -s file slink 2>/dev/null || echo 'yes'" \
           "yes\n" "" ""
 rm slink hlink
 
@@ -51,8 +51,10 @@ testing "-T acts like -n" "ln -s dir slink &&
 rm slink
 
 testing "-T with dir" "ln -Ts file dir 2>/dev/null || echo yes" "yes\n" "" ""
-
 rm -rf file dir slink
+
+testing "-t" "ln -st . one/two three && readlink two three" "one/two\nthree\n" \
+  "" ""
 
 touch file1 file2 && mkdir dir
 testing "create_multiple_hardlinks" "ln file* dir/ &&
