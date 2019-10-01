@@ -8,7 +8,7 @@ config READLINK
   bool "readlink"
   default y
   help
-    usage: readlink FILE
+    usage: readlink FILE...
 
     With no options, show what symlink points to, return error if not symlink.
 
@@ -26,17 +26,18 @@ config READLINK
 
 void readlink_main(void)
 {
-  char *s;
+  char **arg, *s;
 
-  // Calculating full canonical path?
-  // Take advantage of flag positions to calculate m = -1, f = 0, e = 1
-  if (toys.optflags & (FLAG_f|FLAG_e|FLAG_m))
-    s = xabspath(*toys.optargs, (toys.optflags&(FLAG_f|FLAG_e))-1);
-  else s = xreadlink(*toys.optargs);
+  for (arg = toys.optargs; *arg; arg++) {
+    // Calculating full canonical path?
+    // Take advantage of flag positions to calculate m = -1, f = 0, e = 1
+    if (toys.optflags & (FLAG_f|FLAG_e|FLAG_m))
+      s = xabspath(*arg, (toys.optflags&(FLAG_f|FLAG_e))-1);
+    else s = xreadlink(*arg);
 
-  if (s) {
-    if (!(toys.optflags & FLAG_q))
-      xprintf((toys.optflags & FLAG_n) ? "%s" : "%s\n", s);
-    if (CFG_TOYBOX_FREE) free(s);
-  } else toys.exitval = 1;
+    if (s) {
+      if (!FLAG(q)) xprintf(FLAG(n) ? "%s" : "%s\n", s);
+      if (CFG_TOYBOX_FREE) free(s);
+    } else toys.exitval = 1;
+  }
 }
