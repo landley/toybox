@@ -1400,7 +1400,7 @@ int is_tar_header(void *pkt)
   int i = 0;
 
   if (p[257] && memcmp("ustar", p+257, 5)) return 0;
-  if (p[148] != '0') return 0;
+  if (p[148] != '0' && p[148] != ' ') return 0;
   sscanf(p+148, "%8o", &i);
 
   return i && tar_cksum(pkt) == i;
