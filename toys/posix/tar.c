@@ -15,7 +15,6 @@
  * Toybox will never implement the "pax" command as a matter of policy.
  *
  * Why --exclude pattern but no --include? tar cvzf a.tgz dir --include '*.txt'
- * Extract into dir same as filename, --restrict? "Tarball is splodey"
  *
 
 USE_TAR(NEWTOY(tar, "&(restrict)(full-time)(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mode):(mtime):(group):(owner):(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):a[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
@@ -105,6 +104,7 @@ static unsigned long long otoi(char *str, unsigned len)
   // When tar value too big or octal, use binary encoding with high bit set
   if (128&*str) while (--len) val = (val<<8)+*++str;
   else {
+    while (len && *str == ' ') str++;
     while (len && *str>='0' && *str<='7') val = val*8+*str++-'0', len--;
     if (len && *str && *str != ' ') error_exit("bad header");
   }
@@ -645,8 +645,8 @@ static void unpack_tar(char *first)
     // At this point, we have something to output. Convert metadata.
     TT.hdr.mode = OTOI(tar.mode);
     if (tar.type == 'S') TT.hdr.mode |= 0x8000;
-    else if (!tar.type) TT.hdr.mode = 8<<12;
-    else TT.hdr.mode |= (char []){8,8,10,2,6,4,1,8}[tar.type-'0']<<12;
+    else if (tar.type)
+      TT.hdr.mode |= (char []){8,8,10,2,6,4,1,8}[tar.type-'0']<<12;
     TT.hdr.uid = OTOI(tar.uid);
     TT.hdr.gid = OTOI(tar.gid);
     TT.hdr.mtime = OTOI(tar.mtime);
@@ -685,8 +685,9 @@ static void unpack_tar(char *first)
     }
 
     // Non-regular files don't have contents stored in archive.
-    if ((TT.hdr.link_target && *TT.hdr.link_target) || !S_ISREG(TT.hdr.mode))
-      TT.hdr.size = 0;
+    if ((TT.hdr.link_target && *TT.hdr.link_target)
+      || (tar.type && !S_ISREG(TT.hdr.mode)))
+        TT.hdr.size = 0;
 
     // Files are seen even if excluded, so check them here.
     // TT.seen points to first seen entry in TT.incl, or NULL if none yet.
