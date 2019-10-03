@@ -10,7 +10,7 @@ config LN
   bool "ln"
   default y
   help
-    usage: ln [-sfnv] [FROM...] TO
+    usage: ln [-sfnv] [-t DIR] [FROM...] TO
 
     Create a link between FROM and TO.
     One/two/many arguments work like "mv" or "cp".
