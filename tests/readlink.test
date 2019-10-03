@@ -17,6 +17,7 @@ testing "-f missing" "readlink -f notfound" "$APWD/notfound\n" "" ""
 
 ln -sf notfound link
 testing "link" "readlink link" "notfound\n" "" ""
+testing "links" "readlink link link" "notfound\nnotfound\n" "" ""
 testing "link->missing" "readlink -f link" "$APWD/notfound\n" "" ""
 ln -sf ../../ link
 testing "stays relative" "readlink link" "../../\n" "" ""
