@@ -4,13 +4,13 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/ln.html
 
-USE_LN(NEWTOY(ln, "<1t:Tvnfs", TOYFLAG_BIN))
+USE_LN(NEWTOY(ln, "<1t:Tvnfrs", TOYFLAG_BIN))
 
 config LN
   bool "ln"
   default y
   help
-    usage: ln [-sfnv] [-t DIR] [FROM...] TO
+    usage: ln [-sfnrv] [-t DIR] [FROM...] TO
 
     Create a link between FROM and TO.
     One/two/many arguments work like "mv" or "cp".
@@ -18,6 +18,7 @@ config LN
     -s	Create a symbolic link
     -f	Force the creation of the link, even if TO already exists
     -n	Symlink at TO treated as file
+    -r	Create symbolic links relative to link location
     -t	Create links in DIR
     -T	TO always treated as file, max 2 arguments
     -v	Verbose
@@ -29,6 +30,14 @@ config LN
 GLOBALS(
   char *t;
 )
+
+static int common_path(char *path1, char *path2)
+{
+  int i = 0;
+
+  while (*path1++ == *path2++) i++;
+  return i;
+}
 
 void ln_main(void)
 {
@@ -57,6 +66,22 @@ void ln_main(void)
 
     if (S_ISDIR(buf.st_mode)) new = xmprintf("%s/%s", dest, basename(try));
     else new = dest;
+
+    if (FLAG(r)) {
+      char *abs, *s;
+
+      if (!FLAG(s)) error_exit("-r only with -s");
+
+      // common_path needs absolute paths for comparison
+      try = xabspath(try, -1);
+      s = getdirname(new);
+      abs = xmprintf("%s/%s", xabspath(s, -1), getbasename(new));
+      free(s);
+      rc = common_path(try, abs);
+      try += rc;
+      abs += rc;
+      for (;*abs; abs++) if (*abs == '/') try = xmprintf("../%s", try);
+    }
 
     // Force needs to unlink the existing target (if any). Do that by creating
     // a temp version and renaming it over the old one, so we can retain the
