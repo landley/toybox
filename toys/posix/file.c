@@ -10,14 +10,14 @@ config FILE
   bool "file"
   default y
   help
-    usage: file [-bhL] [file...]
+    usage: file [-bhLs] [file...]
 
     Examine the given files and describe their content types.
 
     -b	Brief (no filename)
     -h	Don't follow symlinks (default)
     -L	Follow symlinks
-    -s	show block/char device contents
+    -s	Show block/char device contents
 */
 
 #define FOR_file
