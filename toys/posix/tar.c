@@ -643,10 +643,9 @@ static void unpack_tar(char *first)
     }
 
     // At this point, we have something to output. Convert metadata.
-    TT.hdr.mode = OTOI(tar.mode);
-    if (tar.type == 'S') TT.hdr.mode |= 0x8000;
-    else if (tar.type)
-      TT.hdr.mode |= (char []){8,8,10,2,6,4,1,8}[tar.type-'0']<<12;
+    TT.hdr.mode = OTOI(tar.mode)&0xfff;
+    if (tar.type == 'S' || !tar.type) TT.hdr.mode |= 0x8000;
+    else TT.hdr.mode |= (char []){8,8,10,2,6,4,1,8}[tar.type-'0']<<12;
     TT.hdr.uid = OTOI(tar.uid);
     TT.hdr.gid = OTOI(tar.gid);
     TT.hdr.mtime = OTOI(tar.mtime);
