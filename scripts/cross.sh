@@ -11,7 +11,8 @@
 CCC="$(dirname "$(readlink -f "$0")")"/../ccc
 if [ ! -d "$CCC" ]
 then
-  echo "Create symlink 'ccc' to cross compiler directory"
+  echo "Create symlink 'ccc' to cross compiler directory, ala:"
+  echo "  ln -s ~/musl-cross-make/ccc ccc"
   exit 1
 fi
 
