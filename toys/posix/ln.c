@@ -77,10 +77,14 @@ void ln_main(void)
       s = getdirname(new);
       abs = xmprintf("%s/%s", xabspath(s, -1), getbasename(new));
       free(s);
-      rc = common_path(try, abs);
-      try += rc;
-      abs += rc;
-      for (;*abs; abs++) if (*abs == '/') try = xmprintf("../%s", try);
+
+      // avoid stripping common path if source and target are the same file
+      if (strcmp(try, abs)) {
+        rc = common_path(try, abs);
+        try += rc;
+        abs += rc;
+        for (;*abs; abs++) if (*abs == '/') try = xmprintf("../%s", try);
+      }
     }
 
     // Force needs to unlink the existing target (if any). Do that by creating
