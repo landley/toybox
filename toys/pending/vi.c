@@ -365,30 +365,41 @@ static void i_insert(char* str, int len)
   strcpy(&s[TT.cur_col+len], t);
   TT.cur_col += len;
   if (TT.cur_col) TT.cur_col--;
+
   c_r->line->str_len += len;
   free(t);
 
+  TT.vi_mov_flag |= 0x30000000;
 }
 
 //new line at split pos;
 void i_split()
 {
+  int alloc = 0, len = 0, idx = 0;
   struct str_line *l = xmalloc(sizeof(struct str_line));
-  int l_a = c_r->line->alloc_len;
-  int l_len = c_r->line->str_len-TT.cur_col-1;
-  l_len = (l_len >= 0) ? l_len : 0;
-  l->str_data = xzalloc(l_a);
-  l->alloc_len = l_a;
-  l->str_len = l_len;
-  strncpy(l->str_data, &c_r->line->str_data[TT.cur_col+1], l_len);
-  l->str_data[l_len] = 0;
-  c_r->line->str_len -= l_len;
+  alloc = c_r->line->alloc_len;
+
+  if (TT.cur_col) len = c_r->line->str_len-TT.cur_col-1;
+  else len = c_r->line->str_len;
+  if (len < 0) len = 0;
+
+  l->str_data = xzalloc(alloc);
+  l->alloc_len = alloc;
+  l->str_len = len;
+  idx = c_r->line->str_len - len;
+
+  strncpy(l->str_data, &c_r->line->str_data[idx], len);
+  memset(&l->str_data[len], 0, alloc-len);
+
+  c_r->line->str_len -= len;
   if (c_r->line->str_len <= 0) c_r->line->str_len = 0;
-  c_r->line->str_data[c_r->line->str_len] = 0;
+
+  len = c_r->line->str_len;
+
+  memset(&c_r->line->str_data[len], 0, alloc-len);
   c_r = (struct linelist*)dlist_insert((struct double_list**)&c_r, (char*)l);
   c_r->line = l;
   TT.cur_col = 0;
-  check_cursor_bounds();
 }
 
 
@@ -422,7 +433,7 @@ static int vi_push(char reg, int count0, int count1)
   if (*(end-1) == '\n') for (;start != end;) {
     TT.vi_mov_flag |= 0x10000000;
     char *next = strchr(start, '\n');
-    vi_eol(1, 1, 0);
+    TT.cur_col = (c_r->line->str_len) ? c_r->line->str_len-1: 0;
     i_split();
     if (next) {
       i_insert(start, next-start);
@@ -846,10 +857,12 @@ int run_ex_cmd(char *cmd)
     }
     else if (strstr(&cmd[1], "set list")) {
       TT.list = 1;
+      TT.vi_mov_flag |= 0x30000000;
       return 1;
     }
     else if (strstr(&cmd[1], "set nolist")) {
       TT.list = 0;
+      TT.vi_mov_flag |= 0x30000000;
       return 1;
     }
   }
@@ -1271,7 +1284,8 @@ static void check_cursor_bounds()
     return;
   } else if (c_r->line->str_len-1 < TT.cur_col) TT.cur_col = c_r->line->str_len-1;
 
-  if (utf8_width(&c_r->line->str_data[TT.cur_col], c_r->line->str_len-TT.cur_col) <= 0)
+  if (TT.cur_col && utf8_width(&c_r->line->str_data[TT.cur_col],
+        c_r->line->str_len-TT.cur_col) <= 0)
     TT.cur_col--, check_cursor_bounds();
 }
 
