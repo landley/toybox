@@ -1,10 +1,17 @@
 #!/bin/bash
 
-# Script to build all supported cross and native compilers using
-# https://github.com/richfelker/musl-cross-make
-# (Check that out and run this script in that directory.)
-
+# Script to build all cross and native compilers supported by musl-libc.
 # This isn't directly used by toybox, but is useful for testing.
+
+if [ ! -d litecross ]
+then
+  echo Run this script in musl-cross-make directory to make "ccc" directory.
+  echo
+  echo "  "git clone https://github.com/richfelker/musl-cross-make
+  echo "  "cd musl-cross-make
+  echo '  ~/toybox/scripts/mcm-buildall.sh'
+  exit 1
+fi
 
 # All toolchains after the first are themselves cross compiled (so they
 # can be statically linked against musl on the host, for binary portability.)
@@ -135,8 +142,10 @@ then
     make_tuple "$i"
   done
 else
+  # Here's the list of cross compilers supported by this build script.
+
   # First target builds a proper version of the $BOOTSTRAP compiler above,
-  # used to build the rest (which are in alphabetical order)
+  # which is used to build the rest (in alphabetical order)
   for i in i686:: \
          aarch64:eabi: armv4l:eabihf:"--with-arch=armv5t --with-float=soft" \
          armv5l:eabihf:--with-arch=armv5t armv7l:eabihf:--with-arch=armv7-a \
