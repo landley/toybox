@@ -5,6 +5,15 @@
  * See http://opengroup.org/onlinepubs/9699919799/utilities/uname.html
 
 USE_UNAME(NEWTOY(uname, "oamvrns[+os]", TOYFLAG_BIN))
+USE_ARCH(NEWTOY(arch, 0, TOYFLAG_USR|TOYFLAG_BIN))
+
+config ARCH 
+  bool "arch"
+  default y
+  help
+    usage: arch
+
+    Print machine (hardware) name, same as uname -m.
 
 config UNAME
   bool "uname"
@@ -23,6 +32,7 @@ config UNAME
 */
 
 #define FOR_uname
+#define FORCE_FLAGS
 #include "toys.h"
 
 // If a 32 bit x86 build environment working in a chroot under an x86-64
@@ -71,4 +81,10 @@ void uname_main(void)
     }
   }
   putchar('\n');
+}
+
+void arch_main(void)
+{
+  toys.optflags = FLAG_m;
+  uname_main();
 }
