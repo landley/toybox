@@ -55,12 +55,14 @@ void sym_init(void)
 
 	uname(&uts);
 
+/*
 	sym = sym_lookup("ARCH", 0);
 	sym->type = S_STRING;
 	sym->flags |= SYMBOL_AUTO;
 	p = getenv("ARCH");
 	if (p)
 		sym_add_default(sym, p);
+*/
 
 	sym = sym_lookup("KERNELVERSION", 0);
 	sym->type = S_STRING;
