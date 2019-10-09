@@ -66,14 +66,14 @@ GLOBALS(
 // Callback from crunch_str to represent unprintable chars
 static int crunch_qb(FILE *out, int cols, int wc)
 {
-  unsigned len = 1;
+  int len = 1;
   char buf[32];
 
   if (FLAG(q)) *buf = '?';
   else {
     if (wc<256) *buf = wc;
     // scrute the inscrutable, eff the ineffable, print the unprintable
-    else len = wcrtomb(buf, wc, 0);
+    else if ((len = wcrtomb(buf, wc, 0) ) == -1) len = 1;
     if (FLAG(b)) {
       char *to = buf, *from = buf+24;
       int i, j;
