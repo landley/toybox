@@ -10,14 +10,22 @@ testing "spaces" "xargs" \
 
 testing "-n 0" "xargs -n 0 2>/dev/null || echo ok" "ok\n" \
 	"" "one \ntwo\n three"
+testing "-n 1" "xargs -n 1" "one\n" "" "one\n"
 testing "-n 2" "xargs -n 2" "one two\nthree\n" "" "one \ntwo\n three"
 testing "-n exact match" "xargs -n 3" "one two three\n" "" "one two three"
 testing "xargs2" "xargs -n2" "one two\nthree four\nfive\n" "" \
 	"one two three four five"
-testing "-s too long" "xargs -s 9 echo 2>/dev/null || echo ok" \
-	"one\ntwo\nok\n" "" "one two three"
+testing "-s too long" "xargs -s 9 echo 2>/dev/null; echo \$?" \
+	"one\ntwo\n1\n" "" "one two three"
 testing "-s 13" "xargs -s 13 echo" "one two\nthree\n" "" "one \ntwo\n three"
 testing "-s 12" "xargs -s 12 echo" "one\ntwo\nthree\n" "" "one \ntwo\n three"
+# Check that we're accounting for the command *and* its arguments correctly.
+testing "-s counts args" "xargs -s 13 echo ' ' ' '" "    one\n" "" "one\n"
+# 5 is the minimum allowed for the default "echo".
+testing "-s 4 fails" "xargs -s 4 2>/dev/null || echo bad" "bad\n" "" ""
+testing "-s 5 no input okay" "xargs -s 5" "\n" "" ""
+testing "-s 5 with input bad" "xargs -s 5 2>/dev/null || echo bad" "bad\n" \
+  "" "a\n"
 
 touch one two three
 testing "command -opt" "xargs -n2 ls -1" "one\ntwo\nthree\n" "" \
@@ -32,6 +40,17 @@ testing "-t" "xargs -t 2>stderr ; cat stderr ; rm stderr" "one two\necho one two
 testing "-E END" "xargs -E END" "a b\n" "" "a\nb\nEND\nc\nd\n"
 
 testing "-r" "xargs -r echo x" "" "" ""
+testing "no -r" "xargs echo x" "x\n" "" ""
+
+# Exit value madness. 0 and 126/127 are normal.
+testing "true" "xargs true; echo \$?" "0\n" "" ""
+testing "command not found" "xargs does-not-exist 2>/dev/null; echo \$?" \
+  "127\n" "" ""
+# But 1-125 are flattened to 123.
+testing "false" "xargs false; echo \$?" "123\n" "" ""
+# 255 is special "abort early" magic.
+testing "exit 255" "xargs sh -c 'exit 255' 2>&1; echo \$?" \
+  "xargs: sh: exited with status 255; aborting\n124\n" "" ""
 
 # TODO: what exactly is -x supposed to do? why does coreutils output "one"?
 #testing "-x" "xargs -x -s 9 || echo expected" "one\nexpected\n" "" "one\ntwo\nthree"
@@ -40,8 +59,4 @@ testing "-r" "xargs -r echo x" "" "" ""
 
 #testing "-n exact match"
 #testing "-s exact match"
-#testing "-s 0"
 #testing "-s impossible"
-
-# xargs command_not_found - returns 127
-# xargs false - returns 1

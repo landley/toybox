@@ -20,14 +20,14 @@ config XARGS
 
     Run command line one or more times, appending arguments from stdin.
 
-    If command exits with 255, don't launch another even if arguments remain.
+    If COMMAND exits with 255, don't launch another even if arguments remain.
 
     -0	Each argument is NULL terminated, no whitespace or quote processing
     -E	Stop at line matching string
     -n	Max number of arguments per command
     -o	Open tty for COMMAND's stdin (default /dev/null)
     -p	Prompt for y/n from tty before running each command
-    -r	Don't run command with empty input
+    -r	Don't run command with empty input (otherwise always run command once)
     -s	Size in bytes per command line
     -t	Trace, print command line to stderr
 */
@@ -44,8 +44,8 @@ GLOBALS(
   FILE *tty;
 )
 
-// If out==NULL count TT.bytes and TT.entries, stopping at max.
-// Otherwise, fill out out[]
+// If entry==NULL count TT.bytes and TT.entries, stopping at max.
+// Otherwise, fill out entry[].
 
 // Returning NULL means need more data.
 // Returning char * means hit data limits, start of data left over
@@ -104,7 +104,7 @@ static char *handle_entries(char *data, char **entry)
 void xargs_main(void)
 {
   struct double_list *dlist = NULL, *dtemp;
-  int entries, bytes, done = 0, status;
+  int entries, bytes, done = 0, ran_once = 0, status;
   char *data = NULL, **out;
   pid_t pid;
   long posix_max_bytes;
@@ -128,6 +128,8 @@ void xargs_main(void)
 
   for (entries = 0, bytes = -1; entries < toys.optc; entries++, bytes++)
     bytes += strlen(toys.optargs[entries]);
+
+  if (bytes >= TT.s) error_exit("can't fit single argument");
 
   // Loop through exec chunks.
   while (data || !done) {
@@ -162,14 +164,14 @@ void xargs_main(void)
       break;
     }
 
-    if (TT.entries == 0 && FLAG(r)) continue;
-
-    // Accumulate cally thing
-
-    if (data && !TT.entries) error_exit("argument too long");
-    out = xzalloc((entries+TT.entries+1)*sizeof(char *));
+    if (TT.entries == 0) {
+      if (data) error_exit("argument too long");
+      else if (ran_once) xexit();
+      else if (FLAG(r)) continue;
+    }
 
     // Fill out command line to exec
+    out = xzalloc((entries+TT.entries+1)*sizeof(char *));
     memcpy(out, toys.optargs, entries*sizeof(char *));
     TT.entries = 0;
     TT.bytes = bytes;
@@ -196,8 +198,23 @@ void xargs_main(void)
         xexec(out);
       }
       waitpid(pid, &status, 0);
-      status = WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status)+127;
+
+      // xargs is yet another weird collection of exit value special cases,
+      // different to all the others.
+      if (WIFEXITED(status)) {
+        if (WEXITSTATUS(status) == 126 || WEXITSTATUS(status) == 127) {
+          toys.exitval = WEXITSTATUS(status);
+          xexit();
+        } else if (WEXITSTATUS(status) >= 1 && WEXITSTATUS(status) <= 125) {
+          toys.exitval = 123;
+        } else if (WEXITSTATUS(status) == 255) {
+          error_msg("%s: exited with status 255; aborting", out[0]);
+          toys.exitval = 124;
+          xexit();
+        }
+      } else toys.exitval = 127;
     }
+    ran_once = 1;
 
     // Abritrary number of execs, can't just leak memory each time...
     while (dlist) {
