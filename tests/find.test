@@ -52,6 +52,7 @@ testing "-print -o -print" \
 
 # Testing previous failures
 
+testing " " "cd perm; find" ".\n./all-read-only\n" "" ""
 testing "-type f -user -exec" \
   "find dir -type f -user $USER -exec ls {} \\;" "dir/file\n" "" ""
 testing "-type l -newer -exec" \
