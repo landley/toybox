@@ -449,9 +449,10 @@ int strstart(char **a, char *b)
 {
   char *c = *a;
 
-  if (*b) while (*b++ == *c++) if (!*b) return c-*a;
+  while (*b && *c == *b) b++, c++;
+  if (!*b) *a = c;
 
-  return 0;
+  return !*b;
 }
 
 // If *a starts with b, advance *a past it and return 1, else return 0;
