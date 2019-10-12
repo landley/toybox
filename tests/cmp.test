@@ -3,7 +3,11 @@
 [ -f testing.sh ] && . testing.sh
 
 # TODO: coreutils cmp uses stdin if only one file is given
-SKIP_HOST=1 testing "not enough arguments [fail]" 'cmp input 2>/dev/null || echo $?' "2\n" "foo" ""
+testing "one argument match" 'cmp input && echo yes' "yes\n" \
+  "one\ntwo\nthree" "one\ntwo\nthree"
+# posix says ""%s %s differ: char %d, line %d\n" but diffutils says "byte"
+testing "one argument diff" 'cmp input | sed s/byte/char/' \
+  "input - differ: char 5, line 2\n" "one\ntwo\nthree" "one\nboing\nthree"
 
 testing "missing file1 [fail]" 'cmp file1 input 2>/dev/null || echo $?' "2\n" "foo" ""
 
@@ -21,7 +25,8 @@ testing "identical files, return code" "cmp input input2 && echo yes" "yes\n" "a
 testing "EOF, stderr" "cmp input input2 2>&1" "cmp: EOF on input2\n" "ab\nc\nx" ""
 testing "EOF, return code" "cmp input input2 2>/dev/null || echo yes" "yes\n" "ab\nc\nx" ""
 # The gnu/dammit version fails this because posix says "char" and they don't.
-testing "diff, stdout" "cmp input input2" "input input2 differ: char 4, line 2\n" "ab\nx\nx" ""
+testing "diff, stdout" "cmp input input2 | sed s/byte/char/" \
+  "input input2 differ: char 4, line 2\n" "ab\nx\nx" ""
 testing "diff, return code" "cmp input input2 > /dev/null || echo yes" "yes\n" "ab\nx\nx" ""
 
 testing "-s EOF, return code" "cmp -s input input2 2>&1 || echo yes"  "yes\n" "ab\nc\nx" ""
@@ -34,6 +39,7 @@ testing "-s not exist" "cmp -s input doesnotexist 2>&1 || echo yes" "yes\n" "" "
 
 rm input2
 
-testing "stdin and file" "cmp input -" "input - differ: char 4, line 2\n" "ab\nc\n" "ab\nx\n"
+testing "stdin and file" "cmp input - | sed s/byte/char/" \
+  "input - differ: char 4, line 2\n" "ab\nc\n" "ab\nx\n"
 #testing "stdin and stdin" "cmp input -" "" "" "ab\nc\n"
 
