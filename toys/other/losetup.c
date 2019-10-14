@@ -113,7 +113,6 @@ static int loopback_setup(char *device, char *file)
     loop->lo_offset = TT.o;
     loop->lo_sizelimit = TT.S;
     xstrncpy((char *)loop->lo_file_name, s, LO_NAME_SIZE);
-    s[LO_NAME_SIZE-1] = 0;
     if (ioctl(lfd, LOOP_SET_STATUS64, loop)) perror_exit("%s=%s", device, file);
     if (FLAG(s)) puts(device);
     free(s);
