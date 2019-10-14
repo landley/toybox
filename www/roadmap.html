@@ -6,12 +6,14 @@
 
 <p>We have several potential use cases for a new set of command line
 utilities, and are using those to determine which commands to implement
-for Toybox's 1.0 release.</p>
+for Toybox's 1.0 release. (Most of these have their own section in the
+<a href=status.html>status page</a>.)</p>
 
-<p>The most interesting standards are POSIX-2008 (also known as the Single
+<p>The most interesting publicly available standards are POSIX-2008
+(also known as the Single
 Unix Specification version 4) and the Linux Standard Base (version 4.1).
-The main test harness including toybox in Aboriginal Linux and if that can
-build itself using the result to build Linux From Scratch (version 6.8).
+The main test harness is including toybox in <a href=https://landley.net/aboriginal/about.html>Aboriginal Linux</a> and if that can
+build itself using the result to <a href=https://github.com/landley/control-images>build Linux From Scratch</a> (version 6.8).
 We also aim to replace Android's Toolbox.</p>
 
 <p>At a secondary level we'd like to meet other use cases. We've analyzed
@@ -22,7 +24,7 @@ and some end user requests.</p>
 <p>Finally, we'd like to provide a good replacement for the Bash shell,
 which was the first program Linux ever ran and remains the standard shell
 of Linux no matter what Ubuntu says. This doesn't mean including the full
-set of Bash 4.x functionality, but does involve {various,features} beyond
+set of Bash 4.x functionality, but does involve {various,features} &lt(beyond)
 posix.</p>
 
 <p>See the <a href=status.html>status page</a> for the combined list
@@ -46,34 +48,33 @@ and progress towards implementing it.</p>
 <h2>Use case: standards compliance.</h2>
 
 <h3><a name=susv4 /><a href="#susv4">POSIX-2008/SUSv4</a></h3>
-<p>The best standards are the kind that describe reality, rather than
-attempting to impose a new one. (I.E. a good standard should document, not
-legislate.)</p>
-
-<p>The kind of standards which describe existing reality tend to be approved by
-more than one standards body, such ANSI and ISO both approving C.  That's why
+<p>The best standards describe reality rather than attempting to impose a
+new one. A good standard should document, not legislate.
+Standards which document existing reality tend to be approved by
+more than one standards body, such ANSI and ISO both approving C. That's why
 the IEEE POSIX committee's 2008 standard, the Single Unix Specification version
 4, and the Open Group Base Specification edition 7 are all the same standard
-from three sources.</p>
-
-<p>The <a href="http://pubs.opengroup.org/onlinepubs/9699919799/idx/utilities.html">"utilities"
-section</a>
-of these standards is devoted to the unix command line, and are the best such
-standard for our purposes.  (My earlier work on BusyBox was implemented with
-regard to SUSv3, an earlier version of this standard.)</p>
+from three sources, but most people just call it "posix" (portable operating
+system derived from unix). It's available <a href=https://pubs.opengroup.org/onlinepubs/9699919799>online in full</a>, and may be downloaded as a tarball.</p>
 
 <h3>Problems with the standard</h3>
 
-<p>Unfortunately, these standards describe a subset of reality, lacking any
-mention of commands such as init, login, or mount required to actually boot a
-system. It provides ipcrm and ipcs, but not ipcmk, so you can use System V IPC
-resources but not create them.</p>
+<p>Unfortunately posix describes an incomplete subset of reality,
+lacking any mention of commands such as init or mount required to
+actually boot a system. It describes logname but not login. It provides ipcrm
+and ipcs, but not ipcmk, so you can use System V IPC resources but not create
+them. And widely used real-world commands such as tar and cpio (the basis
+of initramfs and RPM) which were present in earlier
+versions of the standard have been removed, while obsolete commands like
+cksum, sccs and uucp remain with no mention of modern counterparts like
+crc32/sha1sum, svn/git or scp/rsync. Meanwhile the commands themselves
+are missing dozens of features and specify silly things like ebcdic
+support in dd or that wc should use %d (not %ld) for byte counts. So
+we have to extensively filter posix to get a useful set of recommendations.</p>
 
-<p>These standards also contain a large number of commands that are
-inappropriate for toybox to implement in its 1.0 release.  (Perhaps some of
-these could be reintroduced in later releases, but not now.)</p>
-
-<p>Starting with the full "utilities" list, we first remove generally obsolete
+<p>Starting with the
+<a href="http://pubs.opengroup.org/onlinepubs/9699919799/idx/utilities.html">full "utilities" list</a>,
+we first remove generally obsolete
 commands (compess ed ex pr uncompress uccp uustat uux), commands for the
 pre-CVS "SCCS" source control system (admin delta get prs rmdel sact sccs unget
 val what), fortran support (asa fort77), and batch processing support (batch
@@ -88,22 +89,16 @@ revisited later, but not for toybox 1.0.)</p>
 separate executables (alias bg cd command fc fg getopts hash jobs kill read
 type ulimit umask unalias wait).  These may be revisited as part of a built-in
 toybox shell, but are not exported into $PATH via symlinks.  (If you fork a
-child process and have it "cd" then exit, you've accomplished nothing.
-This is not a complete list, a shell also needs exit, if, while, for, case,
-export, set, unset, trap, exec... And for bash compatability, function and
-source.)</p>
-
-<blockquote><b>
-<span id=shell>
-alias bg cd command fc fg getopts hash jobs kill read type ulimit umask
-unalias wait exit if while for case export set unset trap exec function source
-</span>
-</b></blockquote>
+child process and have it "cd" then exit, you've accomplished nothing.)
+Again, what posix provides is incomplete: a shell also needs exit, if, while,
+for, case, export, set, unset, trap, exec... (And for bash compatibility
+function, source...)</p>
 
 <p>A few other commands are judgement calls, providing command-line
 internationalization support (iconv locale localedef), System V inter-process
 communication (ipcrm ipcs), and cross-tty communication from the minicomputer
-days (talk mesg write).  The "pax" utility was supplanted by tar, "mailx" is
+days (talk mesg write).  The "pax" utility <a href=https://slashdot.org/story/06/09/04/1335226/debian-kicks-jrg-schilling>failed</a> to replace tar,
+"mailx" is
 a command line email client, and "lp" submits files for printing to... what
 exactly?  (cups?)  The standard defines crontab but not crond.</p>
 
@@ -134,9 +129,10 @@ a truck through the holes and declare themselves compilant. But it means what
 they DID standardize tends to be respected (if sometimes obsolete).</p>
 
 <p>The Linux Standard Base's failure mode is different, they respond to
-pressure by including special-case crap, such as allowing Red Hat to shoehorn
+pressure by including anything their members pay them enough to promote,
+such as allowing Red Hat to push
 RPM into the standard even though all sorts of distros (Debian, Slackware, Arch,
-Gentoo) don't use it and probably never will. This means anything in the LSB is
+Gentoo) don't use it and never will. This means anything in the LSB is
 at best a suggestion: arbitrary portions of this standard are widely
 ignored.</p>
 
@@ -176,7 +172,7 @@ for examples.)</p>
 <p>Since we've already committed to using our own judgement to skip bits of
 POSIX, and LSB's "judgement" in this regard is purely bug workarounds to declare
 various legacy tool implementations "compliant", this means we're mostly
-interested in the set of tools that aren't specified in posix at all.</p>
+interested in the set of LSB tools that aren't mentioned in posix.</p>
 
 <p>Of these, gettext and msgfmt are internationalization, install_initd and
 remove_initd weren't present in Ubuntu 10.04, lpr is out of scope,
@@ -197,13 +193,8 @@ su sync tar umount useradd userdel usermod zcat
 <a name="dev_env">
 <h2><a href="#dev_env">Use case: provide a self-hosting development environment</a></h2>
 
-<p>The following commands are enough to build the <a href=http://landley.net/aboriginal/about.html>Aboriginal Linux</a> development
+<p>The following commands were enough to build the <a href=http://landley.net/aboriginal/about.html>Aboriginal Linux</a> development
 environment, boot it to a shell prompt, and build <a href=http://www.linuxfromscratch.org/lfs/view/6.8/>Linux From Scratch 6.8</a> under it.</p>
-
-<p>This use case includes running init scripts and other shell scripts, running
-configure, make, and install in each package, and providing basic command line
-facilities such as a text editor. (It does not include a compiler toolchain or
-C library, those are outside the scope of this project.)</p>
 
 <blockquote><b>
 <span id=development>
@@ -221,38 +212,18 @@ resize2fs tune2fs fsck.ext2 genext2fs mke2fs xzcat
 </span>
 </b></blockquote>
 
-<p>Aboriginal Linux also installs bash 2.05b as #!/bin/sh and its scripts
-require bash extensions not present in shells such as busybox ash.
-This means that toysh needs to supply several bash extensions _and_ work
+<p>This use case includes running init scripts and other shell scripts, running
+configure, make, and install in each package, and providing basic command line
+facilities such as a text editor. (It does not include a compiler toolchain or
+C library, those are outside the scope of the toybox project, although mkroot
+has a <a href=https://landley.net/code/qcc>potentialy follow-up project</a>.
+For now we use distro toolchains,
+<a href=https://github.com/richfelker/musl-cross-make>musl-cross-make</a>,
+and the Android NDK for build testing.)
+That build system also instaled bash 2.05b as #!/bin/sh and its scripts
+required bash extensions not present in shells such as busybox ash.
+To replace that toysh needs to supply several bash extensions _and_ work
 when called under the name "bash".</p>
-
-<p>The <a href=http://landley.net/aboriginal>Aboriginal Linux</a>
-self-bootstrapping build still uses the following busybox commands,
-not yet supplied by toybox:</p>
-
-<blockquote><p>
-awk bunzip2 bzcat dd diff expr fdisk ftpd ftpget
-ftpput gunzip gzip less ping route sh
-sha512sum tar test tr unxz vi wget xzcat zcat
-</p></blockquote>
-
-<p>Many of those are in "pending". The remaining "difficult"
-commands are vi, awk, and sh.</p>
-
-<p>Building Linux From Scratch is not the same as building the
-<a href=https://source.android.com>Android Open Source Project</a>,
-but after toybox 1.0 focus may shift to <a href=http://landley.net/aboriginal/about.html#hairball>modifying the AOSP build</a>
-to reduce dependencies. (It's fairly likely we'll have to add at least
-a read-only git utility so repo can download the build's source code,
-but that's actually <a href=https://www.youtube.com/watch?v=P7n6G2IL6eo>not
-that hard</a>. We'll probably also need our own "make" at some point after
-1.0.)</p>
-
-<p>Note: Aboriginal Linux was
-<a href=https://landley.net/aboriginal/news.html>restarted</a> (I.E. <a href=https://github.com/landley/mkroot>replaced</a>) due to toolchain licensing issues, but the new project is a simpler implementation of the same goals,
-and when finished should provide the same test environment for toybox.
-This section needs to be rewritten whem mkroot is complete enough to build
-Linux From Scratch.</p>
 
 <p>The development methodology used a <a href=http://landley.net/aboriginal/FAQ.html#debug_logging>command logging wrapper</a>
 that intercepted each command called out of the $PATH and append the
@@ -263,15 +234,55 @@ host $PATH. Then the new implementation can replace these commands one
 at a time, checking the results and the log output to spot any behavior
 changes.</p>
 
+<h3>Stages and moving targets</h3>
+
+<p>This use case has two stages: 1) building a bootable system that can
+rebuild itself from source, and 2) a build environment capable
+of bootstrapping up to arbitrary complexity (as exemplified by building
+Linux From Scratch and Beyond Linux From Scratch under the resulting
+system). To accomplish just the first goal, the old build
+still needs the following busybox commands for which toybox does not yet
+supply adequate replacements:</p>
+
+<blockquote><b>
+awk dd diff expr fdisk ftpd gzip less route sh sha512sum tr unxz vi wget xzcat
+</b></blockquote>
+
+<p>All of those except awk, ftpd, and less have partial implementations
+in "pending".</p>
+
+<p>In 2017 Aboriginal Linux development ended, replaced by the
+<a href=https://github.com/landley/mkroot>mkroot</a> project
+designed to use an existing cross+native toolchain (such as
+<a href=https://github.com/richfelker/musl-cross-make>musl-cross-make</a>
+or the Android NDK) instead of building its own. In 2019 the still-incomplete
+mkroot was merged into toybox as the "make root" target. This is intended
+as a simpler way of providing essentially the same build environment, and doesn't
+significantly affect the rest of this analysis (although the "rebuild itself
+from source" test now includes building musl-cross-make under either mkroot
+or toybox's "make airlock" host environment).</p>
+
+<p>Building Linux From Scratch is not the same as building the
+<a href=https://source.android.com>Android Open Source Project</a>,
+but after toybox 1.0 we plan to try
+<a href=http://landley.net/aboriginal/about.html#hairball>modifying the AOSP build</a>
+to reduce dependencies. (It's fairly likely we'll have to add at least
+a read-only git utility so repo can download the build's source code,
+but that's actually <a href=https://www.youtube.com/watch?v=P7n6G2IL6eo>not
+that hard</a>. We'll probably also need our own "make" at some point after
+1.0, which is its own moving target thanks to cmake and ninja and so on.)
+The ongoing Android <a href=http://lists.landley.net/pipermail/toybox-landley.net/2018-January/009330.html>hermetic build</a> work is already advancing
+this goal.</p>
+
 <hr />
 <h2><a name=android /><a href="#android">Use case: Replacing Android Toolbox</a></h2>
 
 <p>Android has a policy against GPL in userspace, so even though BusyBox
 predates Android by many years, they couldn't use it. Instead they grabbed
-an old version of ash and implemented their own command line utility set
-called "toolbox". ash was later replaced by
-<a href="https://www.mirbsd.org/mksh.htm">mksh</a>; toolbox is being
-replaced by toybox.</p>
+an old version of ash (later replaced by
+<a href="https://www.mirbsd.org/mksh.htm">mksh</a>)
+and implemented their own command line utility set
+called "toolbox" (which toybox has already mostly replaced).</p>
 
 <p>Toolbox doesn't have its own repository, instead it's part of Android's
 <a href=https://android.googlesource.com/platform/system/core>system/core
@@ -325,26 +336,30 @@ binaries in /system/bin are:</p>
 <li><b>traceroute/traceroute6</b> - trace network route (iputils)</li>
 </ul>
 
-<p>The names in parentheses are the source.</p>
+<p>The names in parentheses are the upstream source of the command.</p>
 
 <h3>Analysis</h3>
 
-<p>For reference, combining everything listed above, we get:</p>
+<p>For reference, combining everything listed above that's still "fair game"
+for toybox, we get:</p>
 
 <blockquote><b>
 arping blkid e2fsck dd fsck.f2fs fsck_msdos getevent gzip ip iptables
-ip6tables iw logwrapper make_ext4fs make_f2fs newfs_msdos ping ping6
+ip6tables iw logwrapper make_ext4fs make_f2fs modpobe newfs_msdos ping ping6
 reboot resize2fs sh ss tc tracepath tracepath6 traceroute traceroute6
 </b></blockquote>
 
 <p>We may eventually implement all of that, but for toybox 1.0 we need to
-focus a bit. For our first pass, let's just replace all the "toolbox"
-commands.</p>
+focus a bit. If Android has an acceptable external package, and the command
+isn't needed for system bootstrapping, replacing the external package is
+not a priority.</p>
 
-<p>This means toybox should implement (or finish implementing):</p>
+<p>However, several commands toybox plans to implement anyway could potentially
+replace existing Android versions, so we should take into account Android's use
+cases when doing so. This includes:</p>
 <blockquote><b>
 <span id=toolbox>
-dd getevent gzip newfs_msdos
+dd getevent gzip modprobe newfs_msdos sh
 </span>
 </b></blockquote>
 
