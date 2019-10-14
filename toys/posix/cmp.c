@@ -4,15 +4,15 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/cmp.html
 
-USE_CMP(NEWTOY(cmp, "<2>2ls(silent)(quiet)[!ls]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
+USE_CMP(NEWTOY(cmp, "<1>2ls(silent)(quiet)[!ls]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 
 config CMP
   bool "cmp"
   default y
   help
-    usage: cmp [-l] [-s] FILE1 FILE2
+    usage: cmp [-l] [-s] FILE1 [FILE2 [SKIP1 [SKIP2]]]
 
-    Compare the contents of two files.
+    Compare the contents of two files. (Or stdin and file if only one given.)
 
     -l	Show all differing bytes
     -s	Silent
@@ -80,4 +80,5 @@ void cmp_main(void)
   toys.exitval = 2;
   loopfiles_rw(toys.optargs, O_CLOEXEC|(WARN_ONLY*!(toys.optflags&FLAG_s)), 0,
     do_cmp);
+  if (toys.optc == 1) do_cmp(0, "-");
 }
