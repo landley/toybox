@@ -39,9 +39,9 @@ GLOBALS(
 )
 
 struct str_line {
-  int alloc_len;
-  int str_len;
-  char *str_data;
+  int alloc;
+  int len;
+  char *data;
 };
 //yank buffer
 struct yank_buf {
@@ -83,7 +83,7 @@ static int vi_delete(char reg, struct linelist *row, int col, int flags);
 //inserted line not yet pushed to buffer
 struct str_line *il;
 struct linelist *text; //file loaded into buffer
-struct linelist *scr_r;//current screen coord 0 row
+struct linelist *screen;//current screen coord 0 row
 struct linelist *c_r;//cursor position row
 
 struct yank_buf yank; //single yank
@@ -119,24 +119,32 @@ struct double_list *dlist_insert(struct double_list **list, char *data)
 
   return new;
 }
-//TODO implement
+
+void linelist_free(void *node)
+{
+  struct linelist *lst = (struct linelist *)node;
+  free(lst->line->data), free(lst->line), free(lst);
+}
+
 void linelist_unload()
 {
-
+  void* list = 0;
+  for (;text->down; text = text->down);
+  list = (void*)text;
+  text = screen = c_r = 0;
+  llist_traverse(list, linelist_free);
 }
 
 void write_file(char *filename)
 {
   struct linelist *lst = text;
   FILE *fp = 0;
-  if (!filename)
-    filename = (char*)*toys.optargs;
-  fp = fopen(filename, "w");
-  if (!fp) return;
-  while (lst) {
-    fprintf(fp, "%s\n", lst->line->str_data);
-    lst = lst->down;
-  }
+  if (!filename) filename = (char*)*toys.optargs;
+  if (!(fp = fopen(filename, "w")) ) return;
+
+  for (;lst; lst = lst->down)
+    fprintf(fp, "%s\n", lst->line->data);
+
   fclose(fp);
 }
 
@@ -153,9 +161,9 @@ int linelist_load(char *filename)
     ssize_t alc = 80;
     lst = (struct linelist*)dlist_add((struct double_list**)&lst,
         xzalloc(sizeof(struct str_line)));
-    lst->line->alloc_len = alc;
-    lst->line->str_len = 0;
-    lst->line->str_data = line;
+    lst->line->alloc = alc;
+    lst->line->len = 0;
+    lst->line->data = line;
     text = lst;
     dlist_terminate(text->up);
     return 1;
@@ -174,13 +182,13 @@ int linelist_load(char *filename)
     }
     lst = (struct linelist*)dlist_add((struct double_list**)&lst,
         xzalloc(sizeof(struct str_line)));
-    lst->line->alloc_len = alc;
-    lst->line->str_len = len;
-    lst->line->str_data = line;
+    lst->line->alloc = alc;
+    lst->line->len = len;
+    lst->line->data = line;
 
-    if (lst->line->str_data[len-1] == '\n') {
-      lst->line->str_data[len-1] = 0;
-      lst->line->str_len--;
+    if (lst->line->data[len-1] == '\n') {
+      lst->line->data[len-1] = 0;
+      lst->line->len--;
     }
     if (text == 0) text = lst;
   }
@@ -227,8 +235,8 @@ static int vi_x(char reg, int count0, int count1)
   int col = TT.cur_col;
   if (!c_r) return 0;
 
-  start = c_r->line->str_data;
-  len = c_r->line->str_len;
+  start = c_r->line->data;
+  len = c_r->line->len;
 
   last = utf8_last(start, len);
   cpos = start+TT.cur_col;
@@ -257,33 +265,33 @@ int vi_movw(int count0, int count1, char* unused)
 //  char *current = 0;
   if (!c_r)
     return 0;
-  if (TT.cur_col == c_r->line->str_len-1 || !c_r->line->str_len)
+  if (TT.cur_col == c_r->line->len-1 || !c_r->line->len)
     goto next_line;
-  if (strchr(empties, c_r->line->str_data[TT.cur_col]))
+  if (strchr(empties, c_r->line->data[TT.cur_col]))
     goto find_non_empty;
-  if (strchr(specials, c_r->line->str_data[TT.cur_col])) {
-    for (;strchr(specials, c_r->line->str_data[TT.cur_col]); ) {
+  if (strchr(specials, c_r->line->data[TT.cur_col])) {
+    for (;strchr(specials, c_r->line->data[TT.cur_col]); ) {
       TT.cur_col++;
-      if (TT.cur_col == c_r->line->str_len-1)
+      if (TT.cur_col == c_r->line->len-1)
         goto next_line;
     }
-  } else for (;!strchr(specials, c_r->line->str_data[TT.cur_col]) &&
-      !strchr(empties, c_r->line->str_data[TT.cur_col]);) {
+  } else for (;!strchr(specials, c_r->line->data[TT.cur_col]) &&
+      !strchr(empties, c_r->line->data[TT.cur_col]);) {
       TT.cur_col++;
-      if (TT.cur_col == c_r->line->str_len-1)
+      if (TT.cur_col == c_r->line->len-1)
         goto next_line;
   }
 
-  for (;strchr(empties, c_r->line->str_data[TT.cur_col]); ) {
+  for (;strchr(empties, c_r->line->data[TT.cur_col]); ) {
     TT.cur_col++;
 find_non_empty:
-    if (TT.cur_col == c_r->line->str_len-1) {
+    if (TT.cur_col == c_r->line->len-1) {
 next_line:
       //we could call j and g0
       if (!c_r->down) return 0;
       c_r = c_r->down;
       TT.cur_col = 0;
-      if (!c_r->line->str_len) break;
+      if (!c_r->line->len) break;
     }
   }
   count--;
@@ -302,16 +310,16 @@ static int vi_movb(int count0, int count1, char* unused)
   if (!TT.cur_col) {
       if (!c_r->up) return 0;
       c_r = c_r->up;
-      TT.cur_col = (c_r->line->str_len) ? c_r->line->str_len-1 : 0;
+      TT.cur_col = (c_r->line->len) ? c_r->line->len-1 : 0;
       goto exit_function;
   }
   if (TT.cur_col)
       TT.cur_col--;
-  while (c_r->line->str_data[TT.cur_col] <= ' ') {
+  while (c_r->line->data[TT.cur_col] <= ' ') {
     if (TT.cur_col) TT.cur_col--;
     else goto exit_function;
   }
-  while (c_r->line->str_data[TT.cur_col] > ' ') {
+  while (c_r->line->data[TT.cur_col] > ' ') {
     if (TT.cur_col)TT.cur_col--;
     else goto exit_function;
   }
@@ -330,11 +338,11 @@ static int vi_move(int count0, int count1, char *unused)
   int count = count0*count1;
   if (!c_r)
     return 0;
-  if (TT.cur_col < c_r->line->str_len)
+  if (TT.cur_col < c_r->line->len)
     TT.cur_col++;
-  if (c_r->line->str_data[TT.cur_col] <= ' ' || count > 1)
+  if (c_r->line->data[TT.cur_col] <= ' ' || count > 1)
     vi_movw(count, 1, 0); //find next word;
-  while (c_r->line->str_data[TT.cur_col] > ' ')
+  while (c_r->line->data[TT.cur_col] > ' ')
     TT.cur_col++;
   if (TT.cur_col) TT.cur_col--;
 
@@ -346,27 +354,27 @@ static int vi_move(int count0, int count1, char *unused)
 
 static void i_insert(char* str, int len)
 {
-  char *t = xzalloc(c_r->line->alloc_len);
-  char *s = c_r->line->str_data;
-  int sel = c_r->line->str_len-TT.cur_col;
+  char *t = xzalloc(c_r->line->alloc);
+  char *s = c_r->line->data;
+  int sel = c_r->line->len-TT.cur_col;
   strncpy(t, &s[TT.cur_col], sel);
   t[sel+1] = 0;
-  if (c_r->line->alloc_len < c_r->line->str_len+len+5) {
-    c_r->line->str_data = xrealloc(c_r->line->str_data,
-      (c_r->line->alloc_len+len)<<1);
+  if (c_r->line->alloc < c_r->line->len+len+5) {
+    c_r->line->data = xrealloc(c_r->line->data,
+      (c_r->line->alloc+len)<<1);
 
-    c_r->line->alloc_len = (c_r->line->alloc_len+len)<<1;
-    memset(&c_r->line->str_data[c_r->line->str_len], 0,
-        c_r->line->alloc_len-c_r->line->str_len);
+    c_r->line->alloc = (c_r->line->alloc+len)<<1;
+    memset(&c_r->line->data[c_r->line->len], 0,
+        c_r->line->alloc-c_r->line->len);
 
-    s = c_r->line->str_data;
+    s = c_r->line->data;
   }
   strncpy(&s[TT.cur_col], str, len);
   strcpy(&s[TT.cur_col+len], t);
   TT.cur_col += len;
   if (TT.cur_col) TT.cur_col--;
 
-  c_r->line->str_len += len;
+  c_r->line->len += len;
   free(t);
 
   TT.vi_mov_flag |= 0x30000000;
@@ -377,26 +385,26 @@ void i_split()
 {
   int alloc = 0, len = 0, idx = 0;
   struct str_line *l = xmalloc(sizeof(struct str_line));
-  alloc = c_r->line->alloc_len;
+  alloc = c_r->line->alloc;
 
-  if (TT.cur_col) len = c_r->line->str_len-TT.cur_col-1;
-  else len = c_r->line->str_len;
+  if (TT.cur_col) len = c_r->line->len-TT.cur_col-1;
+  else len = c_r->line->len;
   if (len < 0) len = 0;
 
-  l->str_data = xzalloc(alloc);
-  l->alloc_len = alloc;
-  l->str_len = len;
-  idx = c_r->line->str_len - len;
+  l->data = xzalloc(alloc);
+  l->alloc = alloc;
+  l->len = len;
+  idx = c_r->line->len - len;
 
-  strncpy(l->str_data, &c_r->line->str_data[idx], len);
-  memset(&l->str_data[len], 0, alloc-len);
+  strncpy(l->data, &c_r->line->data[idx], len);
+  memset(&l->data[len], 0, alloc-len);
 
-  c_r->line->str_len -= len;
-  if (c_r->line->str_len <= 0) c_r->line->str_len = 0;
+  c_r->line->len -= len;
+  if (c_r->line->len <= 0) c_r->line->len = 0;
 
-  len = c_r->line->str_len;
+  len = c_r->line->len;
 
-  memset(&c_r->line->str_data[len], 0, alloc-len);
+  memset(&c_r->line->data[len], 0, alloc-len);
   c_r = (struct linelist*)dlist_insert((struct double_list**)&c_r, (char*)l);
   c_r->line = l;
   TT.cur_col = 0;
@@ -416,8 +424,8 @@ static int vi_eol(int count0, int count1, char *unused)
   for (;count > 1 && c_r->down; count--)
     c_r = c_r->down;
 
-  if (c_r && c_r->line->str_len)
-    TT.cur_col = c_r->line->str_len-1;
+  if (c_r && c_r->line->len)
+    TT.cur_col = c_r->line->len-1;
   TT.vi_mov_flag |= 2;
   check_cursor_bounds();
   return 1;
@@ -433,7 +441,7 @@ static int vi_push(char reg, int count0, int count1)
   if (*(end-1) == '\n') for (;start != end;) {
     TT.vi_mov_flag |= 0x10000000;
     char *next = strchr(start, '\n');
-    TT.cur_col = (c_r->line->str_len) ? c_r->line->str_len-1: 0;
+    TT.cur_col = (c_r->line->len) ? c_r->line->len-1: 0;
     i_split();
     if (next) {
       i_insert(start, next-start);
@@ -464,11 +472,11 @@ static int vi_push(char reg, int count0, int count1)
 static int vi_find_c(int count0, int count1, char *symbol)
 {
   int count = count0*count1;
-  if (c_r && c_r->line->str_len) {
+  if (c_r && c_r->line->len) {
     while (count--) {
-        char* pos = strstr(&c_r->line->str_data[TT.cur_col], symbol);
+        char* pos = strstr(&c_r->line->data[TT.cur_col], symbol);
         if (pos) {
-          TT.cur_col = pos-c_r->line->str_data;
+          TT.cur_col = pos-c_r->line->data;
           return 1;
         }
     }
@@ -516,8 +524,8 @@ static int vi_delete(char reg, struct linelist *row, int col, int flags)
   if (start == end) goto last_line_delete;
   if (!col_s) goto full_line_delete;
 
-  memset(start->line->str_data+col_s, 0, start->line->str_len-col_s);
-  row->line->str_len = col_s;
+  memset(start->line->data+col_s, 0, start->line->len-col_s);
+  row->line->len = col_s;
   col_s = 0;
   start = start->down;
 
@@ -529,37 +537,37 @@ full_line_delete:
     start = start->down;
     if (lst->down) lst->down->up = lst->up;
     if (lst->up) lst->up->down = lst->down;
-    if (scr_r == lst) scr_r = lst->down ? lst->down : lst->up;
+    if (screen == lst) screen = lst->down ? lst->down : lst->up;
     if (text == lst) text = lst->down;
-    free(lst->line->str_data);
+    free(lst->line->data);
     free(lst->line);
     free(lst);
   }
 last_line_delete:
   TT.vi_mov_flag |= 0x10000000;
-  if (TT.vi_mov_flag&2) col_e = start->line->str_len;
+  if (TT.vi_mov_flag&2) col_e = start->line->len;
   if (TT.vi_mov_flag&4) {
     if (!end->down && !end->up)
-      col_e = start->line->str_len;
+      col_e = start->line->len;
     else {
       col_e = 0, col_s = 0;
       if (end->down) end->down->up = end->up;
       if (end->up) end->up->down = end->down;
-      if (scr_r == end) scr_r = end->down ? end->down : end->up;
+      if (screen == end) screen = end->down ? end->down : end->up;
       //if (text == end) text = end->down;
       start = end->down ? end->down : end->up;
-      free(end->line->str_data);
+      free(end->line->data);
       free(end->line);
       free(end);
 
     }
   }
   if (col_s < col_e) {
-    bytes = col_s + start->line->str_len - col_e;
-    memmove(start->line->str_data+col_s, start->line->str_data+col_e,
-        start->line->str_len-col_e);
-    memset(start->line->str_data+bytes, 0, start->line->str_len-bytes);
-    start->line->str_len = bytes;
+    bytes = col_s + start->line->len - col_e;
+    memmove(start->line->data+col_s, start->line->data+col_e,
+        start->line->len-col_e);
+    memset(start->line->data+bytes, 0, start->line->len-bytes);
+    start->line->len = bytes;
   }
   c_r = start;
   TT.cur_col = col_s;
@@ -586,29 +594,29 @@ static int vi_join(char reg, int count0, int count1)
 {
   while (count0--) {
     if (c_r && c_r->down) {
-      int size = c_r->line->str_len+c_r->down->line->str_len;
-      if (size > c_r->line->alloc_len) {
-        if (size > c_r->down->line->alloc_len) {
-          c_r->line->str_data = xrealloc(c_r->line->str_data,
-            c_r->line->alloc_len*2+il->alloc_len*2);
-          memmove(&c_r->line->str_data[c_r->line->str_len],
-              c_r->down->line->str_data,c_r->down->line->str_len);
-          c_r->line->str_len = size;
+      int size = c_r->line->len+c_r->down->line->len;
+      if (size > c_r->line->alloc) {
+        if (size > c_r->down->line->alloc) {
+          c_r->line->data = xrealloc(c_r->line->data,
+            c_r->line->alloc*2+il->alloc*2);
+          memmove(&c_r->line->data[c_r->line->len],
+              c_r->down->line->data,c_r->down->line->len);
+          c_r->line->len = size;
           c_r = c_r->down;
-          c_r->line->alloc_len = c_r->line->alloc_len*2+2*il->alloc_len;
+          c_r->line->alloc = c_r->line->alloc*2+2*il->alloc;
           vi_dd(0,1,1);
         } else {
-          memmove(&c_r->down->line->str_data[c_r->line->str_len],
-              c_r->down->line->str_data,c_r->down->line->str_len);
-          memmove(c_r->down->line->str_data,c_r->line->str_data,
-              c_r->line->str_len);
-          c_r->down->line->str_len = size;
+          memmove(&c_r->down->line->data[c_r->line->len],
+              c_r->down->line->data,c_r->down->line->len);
+          memmove(c_r->down->line->data,c_r->line->data,
+              c_r->line->len);
+          c_r->down->line->len = size;
           vi_dd(0,1,1);
         }
       } else {
-          memmove(&c_r->line->str_data[c_r->line->str_len],
-              c_r->down->line->str_data,c_r->down->line->str_len);
-          c_r->line->str_len = size;
+          memmove(&c_r->line->data[c_r->line->len],
+              c_r->down->line->data,c_r->down->line->len);
+          c_r->line->len = size;
           c_r = c_r->down;
           vi_dd(0,1,1);
       }
@@ -650,33 +658,33 @@ static int vi_yank(char reg, struct linelist *row, int col, int flags)
   if (start == end) goto last_line_yank;
   if (!col_s) goto full_line_yank;
 
-  if (yank.alloc < start->line->alloc_len) {
-    yank.data = xrealloc(yank.data, start->line->alloc_len*2);
-    yank.alloc = start->line->alloc_len*2;
+  if (yank.alloc < start->line->alloc) {
+    yank.data = xrealloc(yank.data, start->line->alloc*2);
+    yank.alloc = start->line->alloc*2;
   }
 
-  sprintf(yank.data, "%s\n", start->line->str_data+col_s);
+  sprintf(yank.data, "%s\n", start->line->data+col_s);
   col_s = 0;
   start = start->down;
 
 full_line_yank:
   for (;start != end;) {
-    while (yank.alloc-1 < strlen(yank.data)+start->line->str_len)
+    while (yank.alloc-1 < strlen(yank.data)+start->line->len)
       yank.data = xrealloc(yank.data, yank.alloc*2), yank.alloc *= 2;
 
 
-    sprintf(yank.data+strlen(yank.data), "%s\n", start->line->str_data);
+    sprintf(yank.data+strlen(yank.data), "%s\n", start->line->data);
     start = start->down;
   }
 last_line_yank:
-  while (yank.alloc-1 < strlen(yank.data)+end->line->str_len)
+  while (yank.alloc-1 < strlen(yank.data)+end->line->len)
     yank.data = xrealloc(yank.data, yank.alloc*2), yank.alloc *= 2;
 
   if (TT.vi_mov_flag & 0x4)
-    sprintf(yank.data+strlen(yank.data), "%s\n", start->line->str_data);
+    sprintf(yank.data+strlen(yank.data), "%s\n", start->line->data);
   else {
     bytes = strlen(yank.data)+col_e-col_s;
-    strncpy(yank.data+strlen(yank.data), end->line->str_data+col_s, col_e-col_s);
+    strncpy(yank.data+strlen(yank.data), end->line->data+col_s, col_e-col_s);
     yank.data[bytes] = 0;
   }
   return 1;
@@ -815,7 +823,7 @@ int run_vi_cmd(char *cmd)
 static int search_str(char *s)
 {
   struct linelist *lst = c_r;
-  char *c = strstr(&c_r->line->str_data[TT.cur_col+1], s);
+  char *c = strstr(&c_r->line->data[TT.cur_col+1], s);
 
   if (TT.last_search != s) {
     free(TT.last_search);
@@ -823,14 +831,14 @@ static int search_str(char *s)
   }
 
   if (c) {
-    TT.cur_col = c-c_r->line->str_data;
+    TT.cur_col = c-c_r->line->data;
   } else for (; !c;) {
     lst = lst->down;
     if (!lst) return 1;
-    c = strstr(lst->line->str_data, s);
+    c = strstr(lst->line->data, s);
   }
   c_r = lst;
-  TT.cur_col = c-c_r->line->str_data;
+  TT.cur_col = c-c_r->line->data;
   check_cursor_bounds();
   return 0;
 }
@@ -872,43 +880,42 @@ int run_ex_cmd(char *cmd)
 
 void vi_main(void)
 {
-  char keybuf[16];
-  char utf8_code[8];
-  int utf8_dec_p = 0;
-  char vi_buf[16];
-  int vi_buf_pos = 0;
+  char keybuf[16] = {0};
+  char vi_buf[16] = {0};
+  char utf8_code[8] = {0};
+  int utf8_dec_p = 0, vi_buf_pos = 0;
+
   il = xzalloc(sizeof(struct str_line));
-  il->str_data = xzalloc(80);
-  il->alloc_len = 80;
-  keybuf[0] = 0;
-  memset(vi_buf, 0, 16);
-  memset(utf8_code, 0, 8);
-  linelist_load(0);
-  scr_r = text;
-  c_r = text;
-  TT.cur_row = 0;
-  TT.cur_col = 0;
-  TT.screen_width = 80;
-  TT.screen_height = 24;
-  TT.vi_mode = 1;
-  TT.tabstop = 8;
+  il->data = xzalloc(80);
   yank.data = xzalloc(128);
-  yank.alloc = 128;
+
+  il->alloc = 80, yank.alloc = 128;
+
+  linelist_load(0);
+  screen = c_r = text;
+
+  TT.vi_mov_flag = 0x20000000;
+  TT.vi_mode = 1, TT.tabstop = 8;
+  TT.screen_width = 80, TT.screen_height = 24;
+
   terminal_size(&TT.screen_width, &TT.screen_height);
   TT.screen_height -= 2; //TODO this is hack fix visual alignment
+
   set_terminal(0, 1, 0, 0);
   //writes stdout into different xterm buffer so when we exit
   //we dont get scroll log full of junk
   tty_esc("?1049h");
   tty_esc("H");
   xflush(1);
-  TT.vi_mov_flag = 0x20000000;
+
+
   draw_page();
   while(1) {
     int key = scan_key(keybuf, -1);
 
-  terminal_size(&TT.screen_width, &TT.screen_height);
-  TT.screen_height -= 2; //TODO this is hack fix visual alignment
+    terminal_size(&TT.screen_width, &TT.screen_height);
+    TT.screen_height -= 2; //TODO this is hack fix visual alignment
+
     // TODO: support cursor keys in ex mode too.
     if (TT.vi_mode && key>=256) {
       key -= 256;
@@ -932,14 +939,14 @@ void vi_main(void)
         case '?':
         case ':':
           TT.vi_mode = 0;
-          il->str_data[0]=key;
-          il->str_len++;
+          il->data[0]=key;
+          il->len++;
           break;
         case 'A':
           vi_eol(1, 1, 0);
           // FALLTHROUGH
         case 'a':
-          if (c_r && c_r->line->str_len) TT.cur_col++;
+          if (c_r && c_r->line->len) TT.cur_col++;
           // FALLTHROUGH
         case 'i':
           TT.vi_mode = 2;
@@ -969,67 +976,69 @@ void vi_main(void)
       switch (key) {
         case 0x7F:
         case 0x08:
-          if (il->str_len > 1) {
-            il->str_data[--il->str_len] = 0;
+          if (il->len > 1) {
+            il->data[--il->len] = 0;
             break;
           }
           // FALLTHROUGH
         case 27:
           TT.vi_mode = 1;
-          il->str_len = 0;
-          memset(il->str_data, 0, il->alloc_len);
+          il->len = 0;
+          memset(il->data, 0, il->alloc);
           break;
         case 0x0D:
-          if (run_ex_cmd(il->str_data) == -1)
+          if (run_ex_cmd(il->data) == -1)
             goto cleanup_vi;
           TT.vi_mode = 1;
-          il->str_len = 0;
-          memset(il->str_data, 0, il->alloc_len);
+          il->len = 0;
+          memset(il->data, 0, il->alloc);
           break;
         default: //add chars to ex command until ENTER
           if (key >= 0x20 && key < 0x7F) { //might be utf?
-            if (il->str_len == il->alloc_len) {
-              il->str_data = realloc(il->str_data, il->alloc_len*2);
-              il->alloc_len *= 2;
+            if (il->len == il->alloc) {
+              il->data = realloc(il->data, il->alloc*2);
+              il->alloc *= 2;
             }
-            il->str_data[il->str_len] = key;
-            il->str_len++;
+            il->data[il->len] = key;
+            il->len++;
           }
           break;
       }
     } else if (TT.vi_mode == 2) {//INSERT MODE
       switch (key) {
         case 27:
-          i_insert(il->str_data, il->str_len);
+          i_insert(il->data, il->len);
           TT.vi_mode = 1;
-          il->str_len = 0;
-          memset(il->str_data, 0, il->alloc_len);
+          il->len = 0;
+          memset(il->data, 0, il->alloc);
           break;
         case 0x7F:
         case 0x08:
-          if (il->str_len)
-            il->str_data[il->str_len--] = 0;
+          if (il->len) {
+            char *last = utf8_last(il->data, il->len);
+            int shrink = strlen(last);
+            memset(last, 0, shrink);
+            il->len -= shrink;
+          }
           break;
-        case 0x09:
-          il->str_data[il->str_len++] = '\t';
-          break;
-
         case 0x0D:
           //insert newline
           //
-          i_insert(il->str_data, il->str_len);
-          il->str_len = 0;
-          memset(il->str_data, 0, il->alloc_len);
+          i_insert(il->data, il->len);
+          il->len = 0;
+          memset(il->data, 0, il->alloc);
           i_split();
           break;
         default:
-          if (key >= 0x20 && utf8_dec(key, utf8_code, &utf8_dec_p)) {
-            if (il->str_len+utf8_dec_p+1 >= il->alloc_len) {
-              il->str_data = realloc(il->str_data, il->alloc_len*2);
-              il->alloc_len *= 2;
+          if ((key >= 0x20 || key == 0x09) &&
+              utf8_dec(key, utf8_code, &utf8_dec_p)) {
+
+            if (il->len+utf8_dec_p+1 >= il->alloc) {
+              il->data = realloc(il->data, il->alloc*2);
+              il->alloc *= 2;
             }
-            strcpy(il->str_data+il->str_len, utf8_code);
-            il->str_len += utf8_dec_p;
+            strcpy(il->data+il->len, utf8_code);
+            il->len += utf8_dec_p;
             utf8_dec_p = 0;
             *utf8_code = 0;
 
@@ -1043,6 +1052,7 @@ void vi_main(void)
   }
 cleanup_vi:
   linelist_unload();
+  free(il->data), free(il), free(yank.data);
   tty_reset();
   tty_esc("?1049l");
 }
@@ -1117,7 +1127,7 @@ static void draw_page()
   int scroll = 0, redraw = 0;
 
   adjust_screen_buffer();
-  scr_buf = scr_r;
+  scr_buf = screen;
   redraw = (TT.vi_mov_flag & 0x30000000)>>28;
 
   scroll = TT.drawn_row-TT.scr_row;
@@ -1137,7 +1147,7 @@ static void draw_page()
   //draw cursor row
   /////////////////////////////////////////////////////////////
   //for long lines line starts to scroll when cursor hits margin
-  line = scr_buf->line->str_data;
+  line = scr_buf->line->data;
   bytes = TT.cur_col;
   end = line;
 
@@ -1148,8 +1158,8 @@ static void draw_page()
   aw = crunch_nstr(&end, 1024, bytes, 0, "\t", vi_crunch);
 
   //if we need to render text that is not inserted to buffer yet
-  if (TT.vi_mode == 2 && il->str_len) {
-    char* iend = il->str_data; //input end
+  if (TT.vi_mode == 2 && il->len) {
+    char* iend = il->data; //input end
     x = 0;
     //find insert end position
     iw = crunch_str(&iend, 1024, 0, "\t", vi_crunch);
@@ -1158,12 +1168,12 @@ static void draw_page()
     //if clipped area is bigger than text before insert
     if (clip > aw) {
       clip -= aw;
-      iend = il->str_data;
+      iend = il->data;
 
       iw -= crunch_str(&iend, clip, 0, "\t", vi_crunch);
       x = crunch_str(&iend, iw, stdout, "\t", vi_crunch);
     } else {
-      iend = il->str_data;
+      iend = il->data;
       end = line;
 
       //if clipped area is substring from cursor row start
@@ -1186,7 +1196,7 @@ static void draw_page()
   }
   cx_scr = x;
   cy_scr = y;
-  if (scr_buf->line->str_len > bytes) {
+  if (scr_buf->line->len > bytes) {
     x += crunch_str(&end, TT.screen_width-x,  stdout, "\t", vi_crunch);
   }
 
@@ -1196,7 +1206,7 @@ static void draw_page()
 
   //start drawing all other rows that needs update
   ///////////////////////////////////////////////////////////////////
-  y = 0, scr_buf = scr_r;
+  y = 0, scr_buf = screen;
 
   //if we moved around in long line might need to redraw everything
   if (clip != TT.drawn_col) redraw = 3;
@@ -1216,9 +1226,9 @@ static void draw_page()
 
       tty_esc("2K");
       if (scr_buf) {
-        if (draw_line && scr_buf->line->str_data && scr_buf->line->str_len) {
-          line = scr_buf->line->str_data;
-          bytes = scr_buf->line->str_len;
+        if (draw_line && scr_buf->line->data && scr_buf->line->len) {
+          line = scr_buf->line->data;
+          bytes = scr_buf->line->len;
 
           aw = crunch_nstr(&line, clip, bytes, 0, "\t", vi_crunch);
           crunch_str(&line, TT.screen_width-1, stdout, "\t", vi_crunch);
@@ -1253,10 +1263,10 @@ static void draw_page()
   }
   //DEBUG
   tty_esc("m");
-  utf_l = utf8_len(&c_r->line->str_data[TT.cur_col]);
+  utf_l = utf8_len(&c_r->line->data[TT.cur_col]);
   if (utf_l) {
     char t[5] = {0, 0, 0, 0, 0};
-    strncpy(t, &c_r->line->str_data[TT.cur_col], utf_l);
+    strncpy(t, &c_r->line->data[TT.cur_col], utf_l);
     printf("utf: %d %s", utf_l, t);
   }
   printf("| %d, %d\n", cx_scr, cy_scr); //screen coord
@@ -1269,7 +1279,7 @@ static void draw_page()
   tty_esc("2K");
   if (!TT.vi_mode) {
     tty_esc("1m");
-    printf("%s", il->str_data);
+    printf("%s", il->data);
     tty_esc("m");
   } else tty_jump(cx_scr, cy_scr);
 
@@ -1279,13 +1289,13 @@ static void draw_page()
 
 static void check_cursor_bounds()
 {
-  if (c_r->line->str_len == 0) {
+  if (c_r->line->len == 0) {
     TT.cur_col = 0;
     return;
-  } else if (c_r->line->str_len-1 < TT.cur_col) TT.cur_col = c_r->line->str_len-1;
+  } else if (c_r->line->len-1 < TT.cur_col) TT.cur_col = c_r->line->len-1;
 
-  if (TT.cur_col && utf8_width(&c_r->line->str_data[TT.cur_col],
-        c_r->line->str_len-TT.cur_col) <= 0)
+  if (TT.cur_col && utf8_width(&c_r->line->data[TT.cur_col],
+        c_r->line->len-TT.cur_col) <= 0)
     TT.cur_col--, check_cursor_bounds();
 }
 
@@ -1297,17 +1307,17 @@ static void adjust_screen_buffer()
   //searching cursor and screen line numbers
   for (;((c == -1) || (s == -1)) && t != 0; i++, t = t->down) {
     if (t == c_r) c = i;
-    if (t == scr_r) s = i;
+    if (t == screen) s = i;
   }
   //adjust screen buffer so cursor is on drawing area
-  if (c <= s) scr_r = c_r, s = c; //scroll up
+  if (c <= s) screen = c_r, s = c; //scroll up
   else {
     //drawing does not have wrapping so no need to check width
     int distance = c-s+1;
 
     if (distance > (int)TT.screen_height) {
       int adj = distance-TT.screen_height;
-      for (;adj; adj--) scr_r = scr_r->down, s++; //scroll down
+      for (;adj; adj--) screen = screen->down, s++; //scroll down
 
     }
   }
@@ -1435,15 +1445,15 @@ static int cur_right(int count0, int count1, char* unused)
 {
   int count = count0*count1;
   for (;count--;) {
-    if (c_r->line->str_len <= 1) return 1;
-    if (TT.cur_col >= c_r->line->str_len-1) {
-      TT.cur_col = utf8_last(c_r->line->str_data, c_r->line->str_len)
-        - c_r->line->str_data;
+    if (c_r->line->len <= 1) return 1;
+    if (TT.cur_col >= c_r->line->len-1) {
+      TT.cur_col = utf8_last(c_r->line->data, c_r->line->len)
+        - c_r->line->data;
       return 1;
     }
     TT.cur_col++;
-    if (utf8_width(&c_r->line->str_data[TT.cur_col],
-          c_r->line->str_len-TT.cur_col) <= 0)
+    if (utf8_width(&c_r->line->data[TT.cur_col],
+          c_r->line->len-TT.cur_col) <= 0)
       cur_right(1, 1, 0);
   }
   return 1;
