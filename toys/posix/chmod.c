@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/chmod.html
 
-USE_CHMOD(NEWTOY(chmod, "<2?vRf[-vf]", TOYFLAG_BIN))
+USE_CHMOD(NEWTOY(chmod, "<2?vRcf[-vf]", TOYFLAG_BIN))
 
 config CHMOD
   bool "chmod"
@@ -46,14 +46,15 @@ static int do_chmod(struct dirtree *try)
   if (!dirtree_notdotdot(try)) return 0;
 
   mode = string_to_mode(TT.mode, try->st.st_mode);
-  if (toys.optflags & FLAG_v) {
+  if ((FLAG(v) && !FLAG(c)) || (FLAG(c) && try->st.st_mode != mode)) {
     char *s = dirtree_path(try, 0);
-    printf("chmod '%s' to %04o\n", s, mode);
+    printf("chmod '%s' from %04o to %04o\n",
+      s, try->st.st_mode&~S_IFMT, mode&~S_IFMT);
     free(s);
   }
   wfchmodat(dirtree_parentfd(try), try->name, mode);
 
-  return (toys.optflags & FLAG_R) ? DIRTREE_RECURSE : 0;
+  return FLAG(R) ? DIRTREE_RECURSE : 0;
 }
 
 void chmod_main(void)
