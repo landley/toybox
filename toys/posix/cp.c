@@ -15,15 +15,15 @@
 // options shared between mv/cp must be in same order (right to left)
 // for FLAG macros to work out right in shared infrastructure.
 
-USE_CP(NEWTOY(cp, "<2"USE_CP_PRESERVE("(preserve):;")"D(parents)RHLPprdaslvnF(remove-destination)fi[-HLPd][-ni]", TOYFLAG_BIN))
-USE_MV(NEWTOY(mv, "<2vnF(remove-destination)fi[-ni]", TOYFLAG_BIN))
-USE_INSTALL(NEWTOY(install, "<1cdDpsvm:o:g:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_CP(NEWTOY(cp, "<1"USE_CP_PRESERVE("(preserve):;")"D(parents)RHLPprdaslvnF(remove-destination)fit:[-HLPd][-ni]", TOYFLAG_BIN))
+USE_MV(NEWTOY(mv, "<1t:vnF(remove-destination)fit:[-ni]", TOYFLAG_BIN))
+USE_INSTALL(NEWTOY(install, "<1cdDpsvm:o:g:t:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config CP
   bool "cp"
   default y
   help
-    usage: cp [-adlnrsvfipRHLP] SOURCE... DEST
+    usage: cp [-adlnrsvfipRHLP] [-t DIR] SOURCE... DEST
 
     Copy files from SOURCE to DEST.  If more than one SOURCE, DEST must
     be a directory.
@@ -43,6 +43,7 @@ config CP
     -n	No clobber (don't overwrite DEST)
     -r	Synonym for -R
     -s	Symlink instead of copy
+    -t	Copy files to DIR
     -v	Verbose
 
 config CP_PRESERVE
@@ -66,18 +67,19 @@ config MV
   bool "mv"
   default y
   help
-    usage: mv [-fivn] SOURCE... DEST
+    usage: mv [-fivn] [-t DIR] SOURCE... DEST
 
     -f	Force copy by deleting destination file
     -i	Interactive, prompt before overwriting existing DEST
     -v	Verbose
     -n	No clobber (don't overwrite DEST)
+    -t	Move files to DIR
 
 config INSTALL
   bool "install"
   default y
   help
-    usage: install [-dDpsv] [-o USER] [-g GROUP] [-m MODE] [SOURCE...] DEST
+    usage: install [-dDpsv] [-o USER] [-g GROUP] [-m MODE] [-t DIR] [SOURCE...] DEST
 
     Copy files and set attributes.
 
@@ -88,6 +90,7 @@ config INSTALL
     -o	Make copy belong to USER
     -p	Preserve timestamps
     -s	Call "strip -p"
+    -t	Install files to DIR
     -v	Verbose
 */
 
@@ -96,6 +99,8 @@ config INSTALL
 #include "toys.h"
 
 GLOBALS(
+  char *t;
+
   union {
     // install's options
     struct {
@@ -365,8 +370,11 @@ static int cp_node(struct dirtree *try)
 
 void cp_main(void)
 {
-  char *destname = toys.optargs[--toys.optc];
-  int i, destdir = !stat(destname, &TT.top) && S_ISDIR(TT.top.st_mode);
+  char *destname = TT.t ? TT.t : toys.optargs[--toys.optc];
+  int i, destdir = TT.t ||
+    (!stat(destname, &TT.top) && S_ISDIR(TT.top.st_mode));
+
+  if (!toys.optc && !TT.t) error_exit("needs 2 args");
 
   if ((toys.optc>1 || FLAG(D)) && !destdir)
     error_exit("'%s' not directory", destname);
@@ -512,12 +520,12 @@ void install_main(void)
   }
 
   if (FLAG(D)) {
-    TT.destname = toys.optargs[toys.optc-1];
+    TT.destname = TT.t ? xmprintf("%s/%s", TT.t, toys.optargs[toys.optc-1]) :
+      toys.optargs[toys.optc-1];
     if (mkpathat(AT_FDCWD, TT.destname, 0, MKPATHAT_MAKE))
       perror_exit("-D '%s'", TT.destname);
-    if (toys.optc == 1) return;
+    if (toys.optc == 1 && !TT.t) return;
   }
-  if (toys.optc < 2) error_exit("needs 2 args");
 
   // Translate flags from install to cp
   toys.optflags = cp_flag_F();
