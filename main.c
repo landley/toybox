@@ -193,7 +193,7 @@ void toybox_main(void)
       struct toy_list *tl= toy_find(basename(libbuf));
 
       if (tl == toy_list) unknown(basename(toys.argv[1]));
-      else toy_exec_which(tl, toys.argv);
+      else toy_exec_which(tl, toys.argv+1);
     }
   }
 
