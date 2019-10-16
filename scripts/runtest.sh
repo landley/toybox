@@ -121,8 +121,7 @@ testing()
   # Catch segfaults
   [ $RETVAL -gt 128 ] && [ $RETVAL -lt 255 ] &&
     echo "exited with signal (or returned $RETVAL)" >> actual
-
-  DIFF="$(diff -au${NOSPACE:+b} expected actual)"
+  DIFF="$(diff -au${NOSPACE:+w} expected actual)"
   if [ ! -z "$DIFF" ]
   then
     FAILCOUNT=$(($FAILCOUNT+1))
