@@ -10,7 +10,7 @@
  * TODO: -x	Exit if can't fit everything in one command
  * TODO: -P NUM	Run up to NUM processes at once
 
-USE_XARGS(NEWTOY(xargs, "^E:optrn#<1(max-args)s#0[!0E]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_XARGS(NEWTOY(xargs, "^E:P#optrn#<1(max-args)s#0[!0E]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config XARGS
   bool "xargs"
@@ -36,7 +36,7 @@ config XARGS
 #include "toys.h"
 
 GLOBALS(
-  long s, n;
+  long s, n, P;
   char *E;
 
   long entries, bytes;
@@ -44,7 +44,7 @@ GLOBALS(
   FILE *tty;
 )
 
-// If entry==NULL count TT.bytes and TT.entries, stopping at max.
+// If !entry count TT.bytes and TT.entries, stopping at max.
 // Otherwise, fill out entry[].
 
 // Returning NULL means need more data.
@@ -55,12 +55,10 @@ GLOBALS(
 static char *handle_entries(char *data, char **entry)
 {
   if (TT.delim) {
-    char *s = data;
+    char *save, *s = data;
 
     // Chop up whitespace delimited string into args
     while (*s) {
-      char *save;
-
       while (isspace(*s)) {
         if (entry) *s = 0;
         s++;
@@ -80,11 +78,7 @@ static char *handle_entries(char *data, char **entry)
         if (!*s || isspace(*s)) break;
         s++;
       }
-      if (TT.E) {
-        int len = s-save;
-        if (len == strlen(TT.E) && !strncmp(save, TT.E, len))
-          return (char *)2;
-      }
+      if (TT.E && strstart(&save, TT.E)) return (char *)2;
       if (entry) entry[TT.entries] = save;
       ++TT.entries;
     }
@@ -92,32 +86,30 @@ static char *handle_entries(char *data, char **entry)
   // -0 support
   } else {
     TT.bytes += sizeof(char *)+strlen(data)+1;
-    if (TT.s && TT.bytes >= TT.s) return data;
-    if (TT.n && TT.entries >= TT.n) return data;
+    if ((TT.s && TT.bytes >= TT.s) || (TT.n && TT.entries >= TT.n)) return data;
     if (entry) entry[TT.entries] = data;
     TT.entries++;
   }
 
-  return NULL;
+  return 0;
 }
 
 void xargs_main(void)
 {
-  struct double_list *dlist = NULL, *dtemp;
+  struct double_list *dlist = 0, *dtemp;
   int entries, bytes, done = 0, ran_once = 0, status;
-  char *data = NULL, **out;
+  char *data = 0, **out;
   pid_t pid;
-  long posix_max_bytes;
 
   // POSIX requires that we never hit the ARG_MAX limit, even if we try to
   // with -s. POSIX also says we have to reserve 2048 bytes "to guarantee
   // that the invoked utility has room to modify its environment variables
   // and command line arguments and still be able to invoke another utility",
   // though obviously that's not really something you can guarantee.
-  posix_max_bytes = sysconf(_SC_ARG_MAX) - environ_bytes() - 2048;
-  if (!TT.s || TT.s > posix_max_bytes) TT.s = posix_max_bytes;
+  bytes = sysconf(_SC_ARG_MAX) - environ_bytes() - 2048;
+  if (!TT.s || TT.s > bytes) TT.s = bytes;
 
-  if (!FLAG(0)) TT.delim = '\n';
+  TT.delim = '\n'*!FLAG(0);
 
   // If no optargs, call echo.
   if (!toys.optc) {
@@ -126,15 +118,13 @@ void xargs_main(void)
     toys.optc = 1;
   }
 
+  // count entries
   for (entries = 0, bytes = -1; entries < toys.optc; entries++, bytes++)
     bytes += strlen(toys.optargs[entries]);
-
-  if (bytes >= TT.s) error_exit("can't fit single argument");
+  if (bytes >= TT.s) error_exit("argument too long");
 
   // Loop through exec chunks.
   while (data || !done) {
-    int doit = 1;
-
     TT.entries = 0;
     TT.bytes = bytes;
 
@@ -144,19 +134,17 @@ void xargs_main(void)
       // Read line
       if (!data) {
         ssize_t l = 0;
-        l = getdelim(&data, (size_t *)&l, TT.delim, stdin);
-
-        if (l<0) {
+        if (getdelim(&data, (size_t *)&l, TT.delim, stdin)<0) {
           data = 0;
           done++;
+
           break;
         }
       }
       dlist_add(&dlist, data);
 
       // Count data used
-      data = handle_entries(data, NULL);
-      if (!data) continue;
+      if (!(data = handle_entries(data, 0))) continue;
       if (data == (char *)2) done++;
       if ((unsigned long)data <= 2) data = 0;
       else data = xstrdup(data);
@@ -164,9 +152,9 @@ void xargs_main(void)
       break;
     }
 
-    if (TT.entries == 0) {
+    if (!TT.entries) {
       if (data) error_exit("argument too long");
-      else if (ran_once) xexit();
+      else if (ran_once) return;
       else if (FLAG(r)) continue;
     }
 
@@ -186,37 +174,35 @@ void xargs_main(void)
       if (FLAG(p)) {
         fprintf(stderr, "?");
         if (!TT.tty) TT.tty = xfopen("/dev/tty", "re");
-        doit = fyesno(TT.tty, 0);
+        if (!fyesno(TT.tty, 0)) goto skip;
       } else fprintf(stderr, "\n");
     }
 
-    if (doit) {
-      if (!(pid = XVFORK())) {
-        xclose(0);
-        if (open(FLAG(o) ? "/dev/tty" : "/dev/null", O_RDONLY) != 0)
-          perror_exit("child stdin open");
-        xexec(out);
-      }
-      waitpid(pid, &status, 0);
-
-      // xargs is yet another weird collection of exit value special cases,
-      // different to all the others.
-      if (WIFEXITED(status)) {
-        if (WEXITSTATUS(status) == 126 || WEXITSTATUS(status) == 127) {
-          toys.exitval = WEXITSTATUS(status);
-          xexit();
-        } else if (WEXITSTATUS(status) >= 1 && WEXITSTATUS(status) <= 125) {
-          toys.exitval = 123;
-        } else if (WEXITSTATUS(status) == 255) {
-          error_msg("%s: exited with status 255; aborting", out[0]);
-          toys.exitval = 124;
-          xexit();
-        }
-      } else toys.exitval = 127;
+    if (!(pid = XVFORK())) {
+      close(0);
+      xopen_stdio(FLAG(o) ? "/dev/tty" : "/dev/null", O_RDONLY);
+      xexec(out);
     }
-    ran_once = 1;
+    waitpid(pid, &status, 0);
+
+    // xargs is yet another weird collection of exit value special cases,
+    // different from all the others.
+    if (WIFEXITED(status)) {
+      if (WEXITSTATUS(status) == 126 || WEXITSTATUS(status) == 127) {
+        toys.exitval = WEXITSTATUS(status);
+        return;
+      } else if (WEXITSTATUS(status) >= 1 && WEXITSTATUS(status) <= 125) {
+        toys.exitval = 123;
+      } else if (WEXITSTATUS(status) == 255) {
+        error_msg("%s: exited with status 255; aborting", out[0]);
+        toys.exitval = 124;
+        return;
+      }
+    } else toys.exitval = 127;
 
     // Abritrary number of execs, can't just leak memory each time...
+skip:
+    ran_once = 1;
     while (dlist) {
       struct double_list *dtemp = dlist->next;
 
