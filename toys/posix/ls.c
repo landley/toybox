@@ -384,7 +384,8 @@ static void listfiles(int dirfd, struct dirtree *indir)
       memset(colsizes, 0, columns*sizeof(unsigned));
       for (ul=0; ul<dtlen; ul++) {
         entrylen(sort[next_column(ul, dtlen, columns, &c)], len);
-        *len += totpad+1;
+        // Add `2` to `totpad` to ensure two spaces between filenames
+        *len += totpad+2;
         if (c == columns) break;
         // Expand this column if necessary, break if that puts us over budget
         if (*len > colsizes[c]) {
