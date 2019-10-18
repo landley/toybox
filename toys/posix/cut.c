@@ -46,28 +46,6 @@ GLOBALS(
   regex_t reg;
 )
 
-// Return number of bytes to start of first column fitting in columns
-// invalid sequences are skipped/ignored
-int unicolumns(char *start, unsigned columns)
-{
-  int i, j = 0;
-  wchar_t wc;
-  char *s = start, *ss = start;
-
-  // Skip start, rounding down if we hit a multicolumn char
-  while (j<columns && (i = utf8towc(&wc, s, 4))) {
-    if (i<0) s++;
-    else {
-      s += i;
-      if (0<(i = wcwidth(wc))) {
-        if ((j += i)>columns) break;
-        ss = s;
-      }
-    }
-  }
-
-  return ss-start;
-}
 
 // Apply selections to an input line, producing output
 static void cut_line(char **pline, long len)
@@ -99,15 +77,13 @@ static void cut_line(char **pline, long len)
       // crunch_str() currently assumes that combining characters get
       // escaped, to provide an unambiguous visual representation.
       // This assumes the input string is null terminated.
-      //if (start) crunch_str(&s, start, 0, 0, 0);
-      //if (!*s) continue;
-      //start = s-line;
-      //ss = s;
-      //crunch_str(&ss, count, 0, 0, 0);
-      //count = ss-s;
+      if (start) crunch_str(&s, start, 0, 0, 0);
+      if (!*s) continue;
+      start = s-line;
+      ss = s;
+      crunch_str(&ss, count, 0, 0, 0);
+      count = ss-s;
 
-      s += unicolumns(s, start);
-      count = unicolumns(s, end-start);
     } else if (toys.optflags&FLAG_c) {
       wchar_t wc;
       char *sss;

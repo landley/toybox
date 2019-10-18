@@ -34,6 +34,9 @@ testing "-c a,b-c,d" "cut -c 3,5-7,10 abc.txt" "etwoh\npa:ba\nequi \n" "" ""
 toyonly testing "-c japan.txt" 'cut -c 3-6,9-12 "$FILES/utf8/japan.txt"' \
   "ガラスをられます\n" "" ""
 
+toyonly testing "-C test1.txt" 'cut -C -1 "$FILES/utf8/test1.txt"' \
+  "l̴̗̞̠\n" "" ""
+
 # substitute for awk
 toyonly testcmd "-DF" "-DF 2,7,5" \
   "said and your\nare\nis demand. supply\nforecast :\nyou you better,\n\nEm: Took hate\n" "" \
