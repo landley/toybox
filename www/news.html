@@ -8,6 +8,256 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+<a name="18-10-2019" /><a href="#18-10-2019"><hr><h2><b>October 18, 2019</b></h2></a>
+<blockquote>
+<p>"In those days spirits were brave, the stakes were high, men were real
+men, women were real women and small furry creatures from Alpha Centauri
+were real small furry creatures from Alpha Centauri."
+</p> <p>- The Hitchhiker's Guide to the Galaxy</p>
+</blockquote>
+
+<p><a href=downloads/toybox-0.8.2.tar.gz>Toybox 0.8.2</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.8.2>git commit</a>)
+is finally out (only two months late).</p>
+
+<p>The new commands this time are minor variants of existing ones
+(<b>dnsdomainname</b> is hostname -d, <b>arch</b> is uname -m), but about
+1/3 of toysh got implemented in pending, <a href=https://github.com/landley/mkroot>mkroot</a> got merged as a "make root" target (see Build),
+and Android's <a href=http://lists.landley.net/pipermail/toybox-landley.net/2019-August/010845.html>hermetic build</a>
+work continued resulting in a lot of fixes.</p>
+
+<p>The android-specific <b>getprop</b>, <b>setprop</b>, <b>start</b>, and <b>stop</b>
+commands were removed from toybox because they grew dependencies on android
+libraries, and since toybox tries to avoid mandatory external dependencies
+they moved to another package.</p>
+
+<p><u>Build</u>:
+The new "make root" target builds a simple toybox root filesystem,
+using scripts/mkroot.sh which is a stripped
+down version of the external <a href=https://github.com/landley/mkroot>mkroot</a>
+project merged into toybox. (Alas, at the moment it wants sh and route out
+of pending, which aren't quite load bearing yet.)</p>
+
+<p>The new "scripts/mcm-buildall.sh" convenience script builds cross
+compilers based on gcc+musl multiple targets (arm, x86, mips, m68k, s390,
+microblaze...)
+using <a href=https://github.com/richfelker/musl-cross-make>musl-cross-make</a>,
+and a new scripts/cross.sh to easily cross compile for one or more targets
+using the resulting compilers. (This works with "make root", "make
+toybox", and other builds understanding the CROSS_COMPILE environment variable.)</p>
+
+<p>Setting the environment variable ASAN=1 enables the
+llvm address sanitizer. (You may need to
+export ASAN_SYMBOLIZER_PATH on debian to use it, they add the version number to
+the filename in /usr/bin which confuses llvm.)</p>
+
+<p>Patrick Oppenlander fixed make -j (our make is a wrapper around
+scripts/make.sh which was already doing a parallel build, but if you called
+make with -j it wouldn't wait for make.sh to finish and the build broke).</b>
+
+<p>Lots of fixes for the MacOS build.</p>
+
+<p><u>New options</u>:
+We upgraded <b>tar</b> to extract some older tarballs, <b>file</b> added -b and -s
+options and can also recognize older tarballs,
+some xz archives, .otf fonts, perf/simpleperf data files,
+android boot images, and dtb files. Upgraded <b>file</b> to show the device type
+for block and char devices, the target for symlinks, and it says _why_ it can't
+open a file.</p>
+
+<p>Several commands ignore some options rather than erroring on them:
+<b>patch</b> ignores the -f -g# and --no-backup-if-mismatch options
+(all of which we were already doing by default anyway), and <b>xargs</b>
+ignores -P# (which requests parallel execution, maybe add it later but
+single threading works), and Denys Nykula made <b>wget</b> ignore
+--no-check-ceritificate and <b>gzip</b> ignore -n (again, we weren't doing
+either anyway) to satisfy pkgsrc.</p>
+
+<p>William Haddon taught <b>diff</b> and <b>patch</b> to support special characters in path
+names (via quoting) and more timestamp formats.
+Eric Molitor implemented <b>nl</b> -v (with negative and zero starting values),
+and fixed a MacOS compatibility issue in the build scripts.
+Tom Cherry added <b>netcat</b> -U (UNIX domain socket support).
+Denys Nykula taught <b>wget</b> to call ftpget for ftp:// URLs.
+Ethan Sommer added ln -t and rmdir --ignore-fail-on-non-empty.
+Elliott Hughes added <b>grep</b> -R, <b>killall</b> -w, tar --mode,
+ fixed <b>ls</b> -Z and spacing in -lZ and --full-time,
+added <b>xargs</b> --max-args and removed xargs -I (which we never actually
+supported) and tweaked the size calculation to more closely match other
+versions,
+added xargs -o and made -p read from /dev/tty, added <b>blkid</b> -s, SEC_TYPE for ext3,
+msdos, and ntfs, f2fs and ntfs LABEL, fixed vfat/ntfs UUID, and switched
+the endianness for UUID of msdos/ntfs/vfat, simplified the octal mode
+display in <b>lsof</b>, added <b>pidof</b> -x (thus making the default behavior _not_
+be -x).</p>
+
+<p>When readdir() succeeds but stat() fails, <b>ls</b> now prints "??? ? ? filename"
+entries instead of "cannot access" errors. (Still trying to make ls / on
+android work more gracefully with the SELinux weirdness they added in 9.)</p>
+
+<p>Added %C to <b>stat</b> and made it show device type in its default output,
+<b>cmp</b> now works
+with 1 argument (implicit - as second argument reading from stdin).
+<b>sed</b> added exit codes to the q command (q123), added Q, and fixed a
+bad error message with "!".
+Removed TAIL_SEEK config option (it just always does that now),
+<b>find</b> grew several new options (%Z, -true, -false, and -newerXY), <b>ln</b> added -T.
+The argument to <b>mktmp</b> --tmpdir is now optional.</p>
+
+<p><u>Bugfixes</u>:
+The unshare probe bit-rotted so it was impossible to build <b>unshare</b>
+and <b>nsenter</b> on some distros.
+Commit 771e94e2a08 broke toybox's ability to say "unknown command" when
+you pointed a symlink at it that it that didn't correspond to a command,
+pointing a symlink at another symlink
+to make toybox run a command under a name it doesn't recognize
+(ln -s toybox sh; ln -s sh ash) had an off by one error,
+<b>ifconfig</b> no longer error_exits if the "read mac address" ioctl fails (Android N
+and later block that for non-root users to prevent device tracking).
+When the libcrypto library was disabled, md5sum was building commands it
+hasn't got built-in support for yet (like sha3sum) which acted like redundant
+copies of md5sum,
+<b>tar</b> wasn't correctly reading or writing sparse files with a hole at
+the end, and tar tzf blah.tar.xz was calling xz when it meant xzcat,
+<b>xargs</b> would spuriously fail on large memory systems (due to a missing
+"unsigned" in a typecast),
+<b>basename</b> can now remove suffixes starting with a dash,
+<b>cp</b> -r unlinks() an existing symlink before trying to
+recreate the symlink (otherwise cp -r into an existing directory will
+try to follow the existing symlink and create another symlink at its
+destination, failing if a file already exists there, which
+was confusing gentoo's package manager), <b>timeout</b> now produces the
+right exit code when the timed command intercepts the exit signal,
+and <b>hostname</b> -d no longer segfaults on machines with no domain name.</p>
+
+<p>Denys Nykula fixed the <b>ftpget</b> freeze (it was sending REST instead
+of RETR), made <b>mv</b> work with a trailing slash in the source,
+fixed a <b>find</b> segfault,
+and made <b>env</b> always exec rather than recursing to a builtin
+(on the theory #!/usr/bin/env is expected to search the $PATH).</p>
+
+<p>Elliott improved <b>killall</b>'s handling of long filenames, made <b>kill</b> work
+when killall5 is disabled (missing FORCE_FLAGS), fixed error reporting in
+<b>hostname</b>, fixed several things in <b>xargs</b>,
+made <b>printf</b> \c and \0 octal escapes work, fixed a <b>find</b> -name corner
+case (find src/*.c -name file.c) and find dangling symlink behavior,
+made some <b>rm</b> error messages consistent, fixed \x behavior in echo and
+printf, fixed linestack.c's buffer length for utf8 U+XXXX escape printing,
+fixed a race in <b>losetup</b>, fixed <b>grep</b> -F with multiple matches on the same
+line and an -I failure in the existing grep tests, made <b>readlink</b> notice
+when it has more than one argument, and made various
+fixes to <b>modinfo</b>.</p>
+
+<p>Ethan Sommer reported that <b>stat</b> of an suid/sticky file output 5 digits of
+octal stat date instead of 4.
+Rob fixed an unaligned access in <b>grep</b>. Alessio Balsini removed an incorrect
+null termination in <b>losetup</b>.
+Jarno Mäkipää fixed <b>hexedit</b>
+scrolling up and down on older terminals, and fixed <b>ls</b> segfaulting with a broken
+(non-UTF8) locale (didn't expect wcrtomb to return -1).
+Andrew Ilijic made ls put 2 spaces between columns like other implementations
+(which helps when terminals get confused and apply UTF8 combining characters
+to the space after a filename).
+</p>
+
+<p><u>Library</u>:
+Added dlist_lpop() to use a dlist as a stack (it removes the last entry
+instead of the first), and dlist_pop() now works on a dlist_terminate()d list.
+DIRTREE_STATLESS returns entries we couldn't stat() (with a zeroed ->st
+field, and ->again |= 2), but filling in the file type from readdir().
+Coversions between signal names and numbers now include all the Linux signals,
+not just posix ones. The functions sig_to_num() and num_to_sig() moved into
+lib/portability.h, because MacOS has different signals.
+TOYFLAG_MAYFORK allows commands to run in toysh's process without forking,
+but also makes them accessable from the toybox multiplexer or standalone.
+A MAYFORK command has to clean up after itself (even in error paths) and
+can't discard anything we need to keep (such as closing stdout).</p>
+
+<p>Elliott did a big xbind/xconnect cleanup (adding xbindany and xconnectany),
+taught xregcomp that an empty regex matches the whole line
+(because FreeBSD, and thus MacOS, doesn't already do that), and
+replaced several uses of get_line() (which does single byte reads)
+with getline() (which doesn't).</p>
+
+<p><u>Plumbing</u>:
+"make clean" doesn't produce a screenful of unnecessary output now,
+rm, ln, cp, kill, and netcat use the FLAG() macros now, makedevs uses the new
+GLOBALS naming format, timeout now uses xwaitpid(), and we fixed an
+off by one error in xwaitpid().</p>
+
+<p>Elliott removed a workaround for old NDK versions from getconf and
+moved sort off of get_rawline() (which let us remove it).
+Rob undid some loop unrolling in md5sum/sha1sum (we have libcrypto if you want
+an assembly optimized version instead of an understandable version).</p>
+
+<p>Android ndk-r20 doesn't define the __ANDROID_NDK__ symbol, so we switched
+to using clang's __has_include() (which is an undefined macro and thus a NOP
+resolving to false on gcc).</p>
+
+<p><u>Pending</u>:
+Rob did a lot of work on toysh: continuation support works (it knows when to ask
+for another line of text and when to run what it's got), as do
+nested if/else/elif statements, and while and for loops (supporting "for i"
+and "for i in", but not for ((;;)) yet).
+It parses pipes and redirections but doesn't perform them yet.
+The next big todo chunk is environment variable resolution.
+</p>
+
+<p>Gavin Howard fixed some bugs in bc, such as not returning error when raising
+zero to a negative power.
+Jarno Mäkipää continues to extend vi, adding yank and push, support for tabs,
+rewriting delete, changing the drawing code, etc. Elliott also added several
+fixes and features to vi,
+fixed host to cope with large DNS responses, switched crontab to
+use getline(), did work on man, fixed fixed several things in dd,
+implemented diff --strip-trailing-cr and made diff not need /tmp.
+Mike Bennett added extended attribute support to ip.c's route change.</p>
+
+<p><u>Test suite</u>: The killall and pgrep tests were having occasional
+spurious failures due to a race condition (the test script would fork()
+to call sleep and for just a moment there were two instances of the test
+script, reporting an extra process if killall or pgrep ran then).
+
+<p>Elliott Hughes did a lot of work on the test suite: add kill -l tests,
+make losetup.test notice (and skip) if loopback
+devices area already in use, blkid.test can TEST_HOST e2fsprogs blkid now,
+modinfo.test notices (and skips) if there's no /proc/modules or modules
+directory, ifconfig.test skips if "dummy0 up" fails and disabled the
+pointtopoint tests entirely (the kernel never supported it?),
+truncate.test is less
+confused by SELinux, hostname.test can run some tests as non-root,
+addressed a race condition in killall.test on slow systems,
+made chgrp.test, chown.test, and tar.test handle an empty /etc/passwd or /etc/group
+(we were checking whether they were _there_ but some android devics have
+empty ones),
+fixed a couple things in env.test, extended killall.test to explicitly cover
+long and short names (and not assume the shell is /bin/sh), taught split.test not to rely on bash process substitution,
+added missing TZ=utc to touch.test,  fixed cp.test to pass for root
+or with a restrictive umask, and fixed the FAILCOUNT arithmetic to use more portable
+$(()). Elliott also made some tests more flexible (find.test can handle any
+error message about symlink loops, etc), and disabled others (such as du)
+when SELinux is enabled.</p>
+
+<p>Rob taught testcmd not to use the shell builtin for TEST_HOST unless there
+isn't one in the $PATH, work if $PWD has a space in it,
+and make kill.test stop testing the shell builtin
+insead of the command, quieted tests that were producing output
+other than their PASS/FAIL line, and made NOSPACE tests ignore the
+presence/absence of leading/trailing whitespace as well as differences
+in the amount of space.</p>
+
+<p><u>Documentation</u>:
+The <a href=roadmap.html>roadmap</a> got freshened up a bit, with updates
+for android from Elliott.
+In <a href=design.html>the design page</a> the Features section starts with
+4 new paragraphs about the scope of toybox, and a new License section talks
+about 0BSD.
+The "./toybox --help" output now explains how to do install_flat by hand.</p>
+
+<p><u>Sheer pedantry</u>:
+Elliott fixed a double close in loopfiles_lines() so strace doesn't
+have an EBADF in it, and added a missing "static" in lib/net.c.</p>
+
 <a name="21-05-2019" /><a href="#21-05-2019"><hr><h2><b>May 21, 2019</b></h2></a>
 <blockquote>
 <p>"I like the cover," he said. "'Don't Panic.' It's the first helpful or intelligible thing anybody's said to me all day."</p> <p>- The Hitchhiker's Guide to the Galaxy</p>
