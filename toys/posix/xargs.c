@@ -133,11 +133,11 @@ void xargs_main(void)
 
       // Read line
       if (!data) {
-        ssize_t l = 0;
-        if (getdelim(&data, (size_t *)&l, TT.delim, stdin)<0) {
+        size_t l = 0;
+
+        if (getdelim(&data, &l, TT.delim, stdin)<0) {
           data = 0;
           done++;
-
           break;
         }
       }
