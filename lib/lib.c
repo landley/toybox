@@ -1013,7 +1013,7 @@ char *getdirname(char *name)
   char *s, *ss, *keep;
 
   for (s = name, ss = keep = 0; ; s++) {
-    if (!*s) return keep ? xstrndup(name, keep-name) : xstrdup(".");
+    if (!s || !*s) return keep ? xstrndup(name, keep-name) : xstrdup(".");
     if (*s != '/') keep = ss;
     else if (s == name) keep = ss = s+1;
     else if (s[-1] != '/') ss = s;
