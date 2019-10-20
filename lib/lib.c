@@ -162,9 +162,10 @@ off_t lskip(int fd, off_t offset)
   return offset;
 }
 
-// flags: 1=make last dir (with mode lastmode, otherwise skips last component)
-//        2=make path (already exists is ok)
-//        4=verbose
+// flags:
+// MKPATHAT_MKLAST  make last dir (with mode lastmode, else skips last part)
+// MKPATHAT_MAKE    make leading dirs (it's ok if they already exist)
+// MKPATHAT_VERBOSE Print what got created to stderr
 // returns 0 = path ok, 1 = error
 int mkpathat(int atfd, char *dir, mode_t lastmode, int flags)
 {
@@ -186,20 +187,20 @@ int mkpathat(int atfd, char *dir, mode_t lastmode, int flags)
     mode_t mode = (0777&~toys.old_umask)|0300;
 
     // find next '/', but don't try to mkdir "" at start of absolute path
-    if (*s == '/' && (flags&2) && s != dir) {
+    if (*s == '/' && (flags&MKPATHAT_MAKE) && s != dir) {
       save = *s;
       *s = 0;
     } else if (*s) continue;
 
     // Use the mode from the -m option only for the last directory.
     if (!save) {
-      if (flags&1) mode = lastmode;
+      if (flags&MKPATHAT_MKLAST) mode = lastmode;
       else break;
     }
 
     if (mkdirat(atfd, dir, mode)) {
-      if (!(flags&2) || errno != EEXIST) return 1;
-    } else if (flags&4)
+      if (!(flags&MKPATHAT_MAKE) || errno != EEXIST) return 1;
+    } else if (flags&MKPATHAT_VERBOSE)
       fprintf(stderr, "%s: created directory '%s'\n", toys.which->name, dir);
 
     if (!(*s = save)) break;
