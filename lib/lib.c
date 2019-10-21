@@ -1005,21 +1005,6 @@ void mode_to_string(mode_t mode, char *buf)
   *buf = c;
 }
 
-// dirname() can modify its argument or return a pointer to a constant string
-// This returns a malloc() copy of everyting before last (run of ) '/',
-// or "." if no path.
-char *getdirname(char *name)
-{
-  char *s, *ss, *keep;
-
-  for (s = name, ss = keep = 0; ; s++) {
-    if (!s || !*s) return keep ? xstrndup(name, keep-name) : xstrdup(".");
-    if (*s != '/') keep = ss;
-    else if (s == name) keep = ss = s+1;
-    else if (s[-1] != '/') ss = s;
-  }
-}
-
 // basename() can modify its argument or return a pointer to a constant string
 // This just gives after the last '/' or the whole stirng if no /
 char *getbasename(char *name)

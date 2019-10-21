@@ -400,7 +400,6 @@ void list_signals();
 
 mode_t string_to_mode(char *mode_str, mode_t base);
 void mode_to_string(mode_t mode, char *buf);
-char *getdirname(char *name);
 char *getbasename(char *name);
 char *fileunderdir(char *file, char *dir);
 void names_to_pid(char **names, int (*callback)(pid_t pid, char *name),

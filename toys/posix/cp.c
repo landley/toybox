@@ -410,11 +410,10 @@ void cp_main(void)
     }
 
     if (destdir) {
-      char *s = FLAG(D) ? getdirname(src) : getbasename(src);
+      char *s = FLAG(D) ? dirname(src) : getbasename(src);
 
       TT.destname = xmprintf("%s/%s", destname, s);
       if (FLAG(D)) {
-        free(s);
         if (!(s = fileunderdir(TT.destname, destname))) {
           error_msg("%s not under %s", TT.destname, destname);
           continue;
