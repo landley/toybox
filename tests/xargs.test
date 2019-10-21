@@ -37,7 +37,7 @@ testing "-0 -n2" "printf 'a\0b\0c\0d\0e\0f' | xargs -0 -n2 echo _" "_ a b\n_ c d
 
 testing "-t" "xargs -t 2>stderr ; cat stderr ; rm stderr" "one two\necho one two \n" "" "one\ntwo\n"
 
-testing "-E END" "xargs -E END" "a b\n" "" "a\nb\nEND\nc\nd\n"
+testing "-E END" "xargs -E END" "a b ENDE\n" "" "a\nb\nENDE\nEND\nc\nd\n"
 
 testing "-r" "xargs -r echo x" "" "" ""
 testing "no -r" "xargs echo x" "x\n" "" ""
