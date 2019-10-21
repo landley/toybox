@@ -107,15 +107,16 @@ static int loopback_setup(char *device, char *file)
 
     if (!s) perror_exit("file"); // already opened, but if deleted since...
     if (ioctl(lfd, LOOP_SET_FD, ffd)) {
+      free(s);
       if (racy && errno == EBUSY) return 1;
       perror_exit("%s=%s", device, file);
     }
+    xstrncpy((char *)loop->lo_file_name, s, LO_NAME_SIZE);
+    free(s);
     loop->lo_offset = TT.o;
     loop->lo_sizelimit = TT.S;
-    xstrncpy((char *)loop->lo_file_name, s, LO_NAME_SIZE);
     if (ioctl(lfd, LOOP_SET_STATUS64, loop)) perror_exit("%s=%s", device, file);
     if (FLAG(s)) puts(device);
-    free(s);
   }
   else {
     xprintf("%s: [%lld]:%llu (%s)", device, (long long)loop->lo_device,
