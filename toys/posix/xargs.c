@@ -55,20 +55,14 @@ GLOBALS(
 static char *handle_entries(char *data, char **entry)
 {
   if (TT.delim) {
-    char *save, *s = data;
+    char *save, *ss, *s;
 
     // Chop up whitespace delimited string into args
-    while (*s) {
-      while (isspace(*s)) {
-        if (entry) *s = 0;
-        s++;
-      }
-
-      if (TT.n && TT.entries >= TT.n)
-        return *s ? s : (char *)1;
-
+    for (s = data; *s; TT.entries++) {
+      while (isspace(*s)) s++;
+      if (TT.n && TT.entries >= TT.n) return *s ? s : (char *)1;
       if (!*s) break;
-      save = s;
+      save = ss = s;
 
       // We ought to add sizeof(char *) to TT.bytes to be correct, but we don't
       // for bug compatibility with busybox 1.30.1 and findutils 4.7.0.
@@ -78,9 +72,11 @@ static char *handle_entries(char *data, char **entry)
         if (!*s || isspace(*s)) break;
         s++;
       }
-      if (TT.E && strstart(&save, TT.E)) return (char *)2;
-      if (entry) entry[TT.entries] = save;
-      ++TT.entries;
+      if (TT.E && strstart(&ss, TT.E) && ss == s) return (char *)2;
+      if (entry) {
+        entry[TT.entries] = save;
+        if (*s) *s++ = 0;
+      }
     }
 
   // -0 support
@@ -97,9 +93,9 @@ static char *handle_entries(char *data, char **entry)
 void xargs_main(void)
 {
   struct double_list *dlist = 0, *dtemp;
-  int entries, bytes, done = 0, ran_once = 0, status;
+  int entries, bytes, done = 0, status;
   char *data = 0, **out;
-  pid_t pid;
+  pid_t pid = 0;
 
   // POSIX requires that we never hit the ARG_MAX limit, even if we try to
   // with -s. POSIX also says we have to reserve 2048 bytes "to guarantee
@@ -154,7 +150,7 @@ void xargs_main(void)
 
     if (!TT.entries) {
       if (data) error_exit("argument too long");
-      else if (ran_once) return;
+      else if (pid) return;
       else if (FLAG(r)) continue;
     }
 
@@ -202,7 +198,6 @@ void xargs_main(void)
 
     // Abritrary number of execs, can't just leak memory each time...
 skip:
-    ran_once = 1;
     while (dlist) {
       struct double_list *dtemp = dlist->next;
 
