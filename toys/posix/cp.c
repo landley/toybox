@@ -494,17 +494,17 @@ static int install_node(struct dirtree *try)
 void install_main(void)
 {
   char **ss;
-  int flags = toys.optflags;
 
   TT.uid = TT.i.o ? xgetuid(TT.i.o) : -1;
   TT.gid = TT.i.g ? xgetgid(TT.i.g) : -1;
 
-  if (flags & FLAG_d) {
+  if (FLAG(d)) {
     for (ss = toys.optargs; *ss; ss++) {
-      if (mkpathat(AT_FDCWD, *ss, 0777, MKPATHAT_MKLAST | MKPATHAT_MAKE)) perror_msg_raw(*ss);
-      if (flags & (FLAG_g|FLAG_o))
+      if (FLAG(v)) printf("%s\n", *ss);
+      if (mkpathat(AT_FDCWD, *ss, 0777, MKPATHAT_MKLAST | MKPATHAT_MAKE))
+        perror_msg_raw(*ss);
+      if (FLAG(g)||FLAG(o))
         if (lchown(*ss, TT.uid, TT.gid)) perror_msg("chown '%s'", *ss);
-      if (flags & FLAG_v) printf("%s\n", *ss);
     }
 
     return;
@@ -519,9 +519,8 @@ void install_main(void)
   if (toys.optc < 2) error_exit("needs 2 args");
 
   // Translate flags from install to cp
-  toys.optflags = cp_flag_F();
-  if (flags & FLAG_v) toys.optflags |= cp_flag_v();
-  if (flags & (FLAG_p|FLAG_o|FLAG_g)) toys.optflags |= cp_flag_p();
+  toys.optflags = cp_flag_F() + cp_flag_v()*!!FLAG(v)
+    + cp_flag_p()*!!(FLAG(p)|FLAG(o)|FLAG(g));
 
   TT.callback = install_node;
   cp_main();
