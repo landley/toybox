@@ -63,8 +63,9 @@ void ln_main(void)
       if (FLAG(s)) {
         int j = 0, k;
         // absolute paths needed for comparison
-        char *s = getdirname(new), *ss, *try2 = xabspath(try, -1)
-          *abs = xmprintf("%s/%s", ss = xabspath(s, -1), getbasename(new));
+        char *s = xstrdup(new), *ss = xabspath(dirname(s), -1),
+          *try2 = xabspath(try, -1),
+          *abs = xmprintf("%s/%s", ss, getbasename(new));
 
         free(s);
         free(ss);
