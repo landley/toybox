@@ -31,14 +31,6 @@ GLOBALS(
   char *t;
 )
 
-static int common_path(char *path1, char *path2)
-{
-  int i = 0;
-
-  while (*path1++ == *path2++) i++;
-  return i;
-}
-
 void ln_main(void)
 {
   char *dest = TT.t ? TT.t : toys.optargs[--toys.optc], *new;
@@ -68,23 +60,24 @@ void ln_main(void)
     else new = dest;
 
     if (FLAG(r)) {
-      char *abs, *s;
+      if (FLAG(s)) {
+        int j = 0, k;
+        // absolute paths needed for comparison
+        char *s = getdirname(new), *ss, *try2 = xabspath(try, -1)
+          *abs = xmprintf("%s/%s", ss = xabspath(s, -1), getbasename(new));
 
-      if (!FLAG(s)) error_exit("-r only with -s");
+        free(s);
+        free(ss);
 
-      // common_path needs absolute paths for comparison
-      try = xabspath(try, -1);
-      s = getdirname(new);
-      abs = xmprintf("%s/%s", xabspath(s, -1), getbasename(new));
-      free(s);
+        while (try2[j] == abs[j] && strchr(try2 + j, '/')) j++;
+        for(k = j, rc = 0; abs[k]; k++) if(abs[k] == '/') rc++;
+        free(abs);
 
-      // avoid stripping common path if source and target are the same file
-      if (strcmp(try, abs)) {
-        rc = common_path(try, abs);
-        try += rc;
-        abs += rc;
-        for (;*abs; abs++) if (*abs == '/') try = xmprintf("../%s", try);
-      }
+        try = xzalloc(strlen(try2) - j + rc * 3 + 1);
+        while (rc--) strcat(try, "../");
+        strcat(try, try2 + j);
+        free(try2);
+      } else error_exit("-r only with -s");
     }
 
     // Force needs to unlink the existing target (if any). Do that by creating
@@ -117,6 +110,7 @@ void ln_main(void)
                        FLAG(s) ? "symbolic" : "hard", try, new);
     else if (FLAG(v)) fprintf(stderr, "'%s' -> '%s'\n", new, try);
 
+    if (FLAG(r)) free(try);
     if (new != dest) free(new);
   }
 }
