@@ -396,6 +396,23 @@ int mknodat(int dirfd, const char *path, mode_t mode, dev_t dev)
   if (fchdir(old_dirfd) == -1) perror_exit("mknodat couldn't return");
   return result;
 }
+
+// As of 10.15, macOS offers an fcntl F_PREALLOCATE rather than fallocate()
+// or posix_fallocate() calls.
+int posix_fallocate(int fd, off_t offset, off_t length)
+{
+  int e = errno, result;
+  fstore_t f;
+
+  f.fst_flags = F_ALLOCATEALL;
+  f.fst_posmode = F_PEOFPOSMODE;
+  f.fst_offset = offset;
+  f.fst_length = length;
+  if (fcntl(fd, F_PREALLOCATE, &f) == -1) result = errno;
+  else result = ftruncate(fd, length);
+  errno = e;
+  return result;
+}
 #endif
 
 // Signals required by POSIX 2008:
