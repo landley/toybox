@@ -476,7 +476,7 @@ void file_main(void)
         char *lnk = xreadlink(name);
 
         sprintf(what = toybuf, "%ssymbolic link to %s",
-            stat(lnk, &sb) ? "broken " : "", lnk);
+            stat(name, &sb) ? "broken " : "", lnk);
         free(lnk);
       }
       xputs(what);
