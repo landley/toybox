@@ -52,11 +52,6 @@ EOF
   probesymbol TOYBOX_ICONV -c << EOF
     #include "iconv.h"
 EOF
-  probesymbol TOYBOX_FALLOCATE << EOF
-    #include <fcntl.h>
-
-    int main(int argc, char *argv[]) { return posix_fallocate(0,0,0); }
-EOF
   
   # Android and some other platforms miss utmpx
   probesymbol TOYBOX_UTMPX -c << EOF

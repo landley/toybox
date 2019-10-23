@@ -8,7 +8,6 @@ USE_FALLOCATE(NEWTOY(fallocate, ">1l#|o#", TOYFLAG_USR|TOYFLAG_BIN))
 
 config FALLOCATE
   bool "fallocate"
-  depends on TOYBOX_FALLOCATE
   default y
   help
     usage: fallocate [-l size] [-o offset] file
