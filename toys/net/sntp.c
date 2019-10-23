@@ -6,13 +6,13 @@
 
   modes: oneshot display, oneshot set, persist, serve, multi
 
-USE_SNTP(NEWTOY(sntp, "M:m:Sp:asdDqr#<4>17=10[!as]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SNTP(NEWTOY(sntp, ">1M :m :Sp:t#<0=1>16asdDqr#<4>17=10[!as]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config SNTP
   bool "sntp"
   default y
   help
-    usage: sntp [-saSdDqm] [-r SHIFT] [-m ADDRESS] [-p PORT] [SERVER]
+    usage: sntp [-saSdDq] [-r SHIFT] [-mM[ADDRESS]] [-p PORT] [SERVER]
 
     Simple Network Time Protocol client. Query SERVER and display time.
 
@@ -20,8 +20,9 @@ config SNTP
     -s	Set system clock suddenly
     -a	Adjust system clock gradually
     -S	Serve time instead of querying (bind to SERVER address if specified)
-    -m	Wait for updates from multicast ADDRESS (RFC 4330 says use 224.0.1.1)
-    -M	Multicast server on ADDRESS
+    -m	Wait for updates from multicast ADDRESS (RFC 4330 default 224.0.1.1)
+    -M	Multicast server on ADDRESS (deault 224.0.0.1)
+    -t	TTL (multicast only, default 1)
     -d	Daemonize (run in background re-querying )
     -D	Daemonize but stay in foreground: re-query time every 1000 seconds
     -r	Retry shift (every 1<<SHIFT seconds)
@@ -30,9 +31,10 @@ config SNTP
 
 #define FOR_sntp
 #include "toys.h"
+#include <sys/timex.h>
 
 GLOBALS(
-  long r;
+  long r, t;
   char *p, *m, *M;
 )
 
@@ -76,8 +78,9 @@ void sntp_main(void)
   union socksaddr sa;
   int fd, tries = 0;
 
+  if (FLAG(M)) toys.optflags |= FLAG_S;
   if (!(FLAG(S)||FLAG(m)) && !*toys.optargs)
-    error_exit("Need -Sm or SERVER address");
+    error_exit("Need -SMm or SERVER address");
 
   // Lookup address and open server or client UDP socket
   if (!TT.p || !*TT.p) TT.p = "123";
@@ -87,15 +90,19 @@ void sntp_main(void)
   if (FLAG(d) && daemon(0, 0)) perror_exit("daemonize");
 
   // Act as server if necessary
-  if (FLAG(S)|FLAG(m)) {
+  if (FLAG(S)||FLAG(m)) {
     fd = xbindany(ai);
-    if (TT.m) {
+    if (TT.m || TT.M) {
       struct ip_mreq group;
+      int t = 0;
 
       // subscribe to multicast group
       memset(&group, 0, sizeof(group));
-      group.imr_multiaddr.s_addr = inet_addr(TT.m);
+      group.imr_multiaddr.s_addr = inet_addr(TT.m ? TT.m : TT.M);
       xsetsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &group, sizeof(group));
+      xsetsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP, &t, 4);
+      t = TT.t;
+      xsetsockopt(fd, IPPROTO_IP, IP_MULTICAST_TTL, &t, 4);
     }
   } else fd = xsocket(ai->ai_family, SOCK_DGRAM, IPPROTO_UDP);
 
@@ -107,13 +114,13 @@ void sntp_main(void)
   for (;;) {
     now = millitime();
 
-    // Figure out if we're in server and multicast modes don't poll
+    // If we're in server or multicast client mode, don't poll
     if (FLAG(m) || FLAG(S)) then = -1;
 
     // daemon and oneshot modes send a packet each time through outer loop
     else {
       then = now + 3000;
-      if (FLAG(d) || FLAG(D)) then = now + (1<<TT.r)*1000;
+      if (FLAG(d)||FLAG(D)||FLAG(M)) then = now + (1<<TT.r)*1000;
 
       // Send NTP query packet
       memset(toybuf, 0, 48);
@@ -174,7 +181,7 @@ void sntp_main(void)
 
         // First packet: figure out how far off our clock is from what server
         // said and try again. Don't set clock, just record offset to use
-        // generating second reuest. (We know this time is in the past
+        // generating second request. (We know this time is in the past
         // because transmission took time, but it's a start. And if time is
         // miraculously exact, don't loop.)
  
@@ -184,7 +191,7 @@ void sntp_main(void)
 
         // Second packet: determine midpoint of packet transit time according
         // to local clock, assuming each direction took same time so midpoint
-        // is time server reported. The first television was the adjusted time
+        // is time server reported. The first tv was the adjusted time
         // we sent the packet at, tv2 is what server replied, so now diff
         // is round trip time.
 
@@ -200,15 +207,14 @@ void sntp_main(void)
           if (clock_settime(CLOCK_REALTIME, &tv2))
             perror_exit("clock_settime");
         } else if (FLAG(a)) {
-          struct timeval why;
+          struct timex tx;
 
-          // call adjtime() to move the clock gradually, copying nanoseconds
-          // into gratuitous microseconds structure for sad historical reasons
-          memset(&tv2, 0, sizeof(tv2));
+          // call adjtimex() to move the clock gradually
           nanomove(&tv2, diff);
-          why.tv_sec = tv2.tv_sec;
-          why.tv_usec = tv2.tv_nsec/1000;
-          if (adjtime(&why, 0)) perror_exit("adjtime");
+          memset(&tx, 0, sizeof(struct timex));
+          tx.offset = tv2.tv_sec*1000000+tv2.tv_nsec/1000;
+          tx.modes = ADJ_OFFSET_SINGLESHOT;
+          if (adjtimex(&tx) == -1) perror_exit("adjtime");
         }
 
         // Display the time and offset

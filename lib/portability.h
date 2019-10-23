@@ -297,7 +297,6 @@ static inline char *get_sched_policy_name(int policy) {return "unknown";}
 // stub it out for now.
 #ifdef __ANDROID_NDK__
 #define __android_log_write(a, b, c) (0)
-#define adjtime(x, y) (0)
 #endif
 
 #ifndef SYSLOG_NAMES
