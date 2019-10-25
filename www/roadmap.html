@@ -55,9 +55,26 @@ more than one standards body, such ANSI and ISO both approving C. That's why
 the IEEE POSIX committee's 2008 standard, the Single Unix Specification version
 4, and the Open Group Base Specification edition 7 are all the same standard
 from three sources, but most people just call it "posix" (portable operating
-system derived from unix). It's available <a href=https://pubs.opengroup.org/onlinepubs/9699919799>online in full</a>, and may be downloaded as a tarball.</p>
+system derived from unix). It's available <a href=https://pubs.opengroup.org/onlinepubs/9699919799>online in full</a>, and may be downloaded as a tarball...
+with a caveat.</p>
 
-<h3>Problems with the standard</h3>
+<p>Although previous versions of Posix have their own
+stable URLs (where you can still find
+<a href=https://pubs.opengroup.org/onlinepubs/009695399/>SUSv3</a> and
+<a href=https://pubs.opengroup.org/onlinepubs/7990989775/>SUSv2</a>),
+the 2008 release of SUSv4 was replaced by a 2013 release also claiming
+to be SUSv4, then again by a 2018 release still at the same URL. Similarly,
+the other version numbers claim not to have changed, but instead adopted some
+sort of "Windows 95" naming scheme ("The Open Group Base Specifications Issue
+7, 2018 edition"). Since a moving target isn't a standard, we've stuck
+with the 2008 version and ignored whatever changes they make
+until they stop this forced-upgrade-behind-your back nonsense.
+Luckily you can still find the original content
+<a href=https://pubs.opengroup.org/onlinepubs/9699919799.2008edition/>here</a>.
+(We haven't changed the URLs in each command to the longer version yet,
+but can if conflicts arise.)</p>
+
+<h3>Why not just use posix for everything?</h3>
 
 <p>Unfortunately posix describes an incomplete subset of reality,
 lacking any mention of commands such as init or mount required to
@@ -66,14 +83,14 @@ and ipcs, but not ipcmk, so you can use System V IPC resources but not create
 them. And widely used real-world commands such as tar and cpio (the basis
 of initramfs and RPM) which were present in earlier
 versions of the standard have been removed, while obsolete commands like
-cksum, sccs and uucp remain with no mention of modern counterparts like
-crc32/sha1sum, svn/git or scp/rsync. Meanwhile the commands themselves
-are missing dozens of features and specify silly things like ebcdic
-support in dd or that wc should use %d (not %ld) for byte counts. So
+cksum, compress, sccs and uucp remain with no mention of modern counterparts
+like crc32/sha1sum, gzip/xz, svn/git or scp/rsync. Meanwhile the commands
+themselves are missing dozens of features and specify silly things like ebcdic
+support in dd or that wc should use %d (not %lld) for byte counts. So
 we have to extensively filter posix to get a useful set of recommendations.</p>
 
 <p>Starting with the
-<a href="http://pubs.opengroup.org/onlinepubs/9699919799/idx/utilities.html">full "utilities" list</a>,
+<a href="http://pubs.opengroup.org/onlinepubs/9699919799.2008edition/idx/utilities.html">full "utilities" list</a>,
 we first remove generally obsolete
 commands (compess ed ex pr uncompress uccp uustat uux), commands for the
 pre-CVS "SCCS" source control system (admin delta get prs rmdel sact sccs unget
@@ -82,13 +99,13 @@ qalter qdel qhold qmove qmsg qrerun qrls qselect qsig qstat qsub).</p>
 
 <p>Some commands are for a compiler toolchain (ar c99 cflow ctags cxref gencat
 iconv lex m4 make nm strings strip tsort yacc), which is outside of toybox's
-mandate and should be supplied externally.  (Again, some of these may be
+mandate and should be supplied externally. (Again, some of these may be
 revisited later, but not for toybox 1.0.)</p>
 
-<p>Some commands are part of a command shell, and cannot be implemented as
+<p>Some commands are part of a command shell, and can't be implemented as
 separate executables (alias bg cd command fc fg getopts hash jobs kill read
-type ulimit umask unalias wait).  These may be revisited as part of a built-in
-toybox shell, but are not exported into $PATH via symlinks.  (If you fork a
+type ulimit umask unalias wait). These may be revisited as part of a built-in
+toybox shell, but are not exported into $PATH via symlinks. (If you fork a
 child process and have it "cd" then exit, you've accomplished nothing.)
 Again, what posix provides is incomplete: a shell also needs exit, if, while,
 for, case, export, set, unset, trap, exec... (And for bash compatibility
@@ -188,6 +205,27 @@ mknod mktemp mount passwd pidof sendmail seq shutdown
 su sync tar umount useradd userdel usermod zcat
 </span>
 </b></blockquote>
+
+<h3><a name=rfc /><a href="#rfc">IETF RFCs</a></h3>
+
+<p>Discussion of standards wouldn't be complete without the Internet
+Engineering Task Force's "<a href=https://www.rfc-editor.org/in-notes/rfc-index.txt>Request For Comments</a>" collection.</p>
+
+<p>These are more about protocols than commands. The noise level is
+extremely high: there's thousands of RFCs, many describing a proposed idea
+that never took off, and less than 1% of the resulting documents are
+currently relevant to toybox. And the documents are numbered based on the
+order they were received, with no real attempt at coherently indexing
+the result. As with man pages they can be <a href=https://www.ietf.org/rfc/rfc0610.txt>long and complicated</a> or
+<a href=https://www.ietf.org/rfc/rfc1951.txt>terse and impenetrable</a>,
+have developed a certain amount of <a href=https://www.ietf.org/rfc/rfc8179.txt>bureaucracy</a> over the years, and often the easiest way to understand what
+they <a href=https://www.ietf.org/rfc/rfc4330.txt>document</a> is to find an <a href=https://www.ietf.org/rfc/rfc1769.txt>earlier version</a> to read first.</p>
+
+<p>That said, RFC documents can be useful (especially for networking protocols)
+and the three URL templates the recommended starting files
+for new commands (toys/example/skeleton.c or toys/example/hello.c depending on how much
+plumbing you want to start with) provide point to are posix, lsb, and
+rfc pages.</p>
 
 <hr />
 <a name="dev_env">
@@ -1059,6 +1097,7 @@ deallocvt iorenice
 udpsvd adduser
 microcom tunctl chrt getfattr setfattr
 kexec
+ascii crc32 devmem fmt i2cdetect i2cdump i2cget i2cset mcookie prlimit sntp ulimit uuidgen dhcp6 ipaddr iplink iproute iprule iptunnel cd exit toysh bash traceroute6
 </span>
 </b></blockquote>
 
