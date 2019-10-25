@@ -52,6 +52,15 @@ testing "false" "xargs false; echo \$?" "123\n" "" ""
 testing "exit 255" "xargs sh -c 'exit 255' 2>&1; echo \$?" \
   "xargs: sh: exited with status 255; aborting\n124\n" "" ""
 
+# findutils maxes out at 131066 (they do the math wrong), kernel takes 131071.
+toyonly testing "max argument size" \
+  "head -c 131071 /dev/zero | tr '\0' x | xargs | wc -c" "131072\n" "" ""
+X=$(head -c 131066 /dev/zero | tr '\0' x)
+# This goes over the kernel's 10 meg limit
+testing "big input forces split" \
+  'for i in $(seq 1 100);do echo $X;done|{ xargs >/dev/null && echo yes;}' \
+  "yes\n" "" ""
+
 # TODO: what exactly is -x supposed to do? why does coreutils output "one"?
 #testing "-x" "xargs -x -s 9 || echo expected" "one\nexpected\n" "" "one\ntwo\nthree"
 
