@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/ln.html
 
-USE_LN(NEWTOY(ln, "<1t:Tvnfs", TOYFLAG_BIN))
+USE_LN(NEWTOY(ln, "<1rt:Tvnfs", TOYFLAG_BIN))
 
 config LN
   bool "ln"
@@ -18,6 +18,7 @@ config LN
     -s	Create a symbolic link
     -f	Force the creation of the link, even if TO already exists
     -n	Symlink at TO treated as file
+    -r	Create relative symlink from -> to
     -t	Create links in DIR
     -T	TO always treated as file, max 2 arguments
     -v	Verbose
@@ -34,29 +35,36 @@ void ln_main(void)
 {
   char *dest = TT.t ? TT.t : toys.optargs[--toys.optc], *new;
   struct stat buf;
-  int i;
+  int i, rc;
+
+  if (FLAG(T) && toys.optc>1) help_exit("Max 2 arguments");
 
   // With one argument, create link in current directory.
   if (!toys.optc) {
     toys.optc++;
-    dest=".";
+    dest = ".";
   }
 
-  if (FLAG(T) && toys.optc>1) help_exit("Max 2 arguments");
   // Is destination a directory?
   if (!((FLAG(n)||FLAG(T)) ? lstat : stat)(dest, &buf)) {
-    i = S_ISDIR(buf.st_mode);
-
-    if ((FLAG(T) && i) || (!i && (toys.optc>1 || TT.t)))
+    if ((i = S_ISDIR(buf.st_mode)) ? FLAG(T) : (toys.optc>1 || TT.t))
       error_exit("'%s' %s a directory", dest, i ? "is" : "not");
   } else buf.st_mode = 0;
 
   for (i=0; i<toys.optc; i++) {
-    int rc;
-    char *oldnew, *try = toys.optargs[i];
+    char *oldnew = 0, *try = toys.optargs[i];
 
     if (S_ISDIR(buf.st_mode)) new = xmprintf("%s/%s", dest, basename(try));
     else new = dest;
+
+    if (FLAG(r)) {
+      try = relative_path(new, try);
+      if (!try) {
+        if (new != dest) free(new);
+        continue;
+      }
+      toys.optflags |= FLAG_s;
+    }
 
     // Force needs to unlink the existing target (if any). Do that by creating
     // a temp version and renaming it over the old one, so we can retain the
@@ -88,6 +96,7 @@ void ln_main(void)
                        FLAG(s) ? "symbolic" : "hard", try, new);
     else if (FLAG(v)) fprintf(stderr, "'%s' -> '%s'\n", new, try);
 
+    if (try != toys.optargs[i]) free(try);
     if (new != dest) free(new);
   }
 }

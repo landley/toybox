@@ -216,6 +216,7 @@ int mkpath(char *dir)
 }
 
 // Split a path into linked list of components, tracking head and tail of list.
+// Assigns head of list to *list, returns address of ->next entry to extend list
 // Filters out // entries with no contents.
 struct string_list **splitpath(char *path, struct string_list **list)
 {
@@ -1026,6 +1027,34 @@ char *fileunderdir(char *file, char *dir)
   if (!rc) free(s2);
 
   return rc ? s2 : 0;
+}
+
+// return (malloced) relative path to get from "from" to "to"
+char *relative_path(char *from, char *to)
+{
+  char *s, *ret = 0;
+  int i, j, k;
+
+  if (!(from = xabspath(from, -1))) return 0;
+  if (!(to = xabspath(to, -1))) goto error;
+
+  // skip common directories from root
+  for (i = j = 0; from[i] && from[i] == to[i]; i++) if (to[i] == '/') j = i+1;
+
+  // count remaining destination directories
+  for (i = j, k = 0; from[i]; i++) if (from[i] == '/') k++;
+
+  if (!k) ret = xstrdup(to+j);
+  else {
+    s = ret = xmprintf("%*c%s", 3*k, ' ', to+j);
+    while (k--) memcpy(s+3*k, "../", 3);
+  }
+
+error:
+  free(from);
+  free(to);
+
+  return ret;
 }
 
 // Execute a callback for each PID that matches a process name from a list.

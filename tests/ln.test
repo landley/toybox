@@ -55,6 +55,7 @@ rm -rf file dir slink
 
 testing "-t" "ln -st . one/two three && readlink two three" "one/two\nthree\n" \
   "" ""
+rm -f two three
 
 touch file1 file2 && mkdir dir
 testing "create_multiple_hardlinks" "ln file* dir/ &&
@@ -78,3 +79,12 @@ testing "create_hardlink_and_remove_sourcefile" "ln file hlink &&
           [ file -ef hlink ] && rm file && [ -f hlink ] && echo 'yes'" \
           "yes\n" "" ""
 rm -f file hlink
+
+mkdir -p one/two
+ln -s . circular
+mkdir -p three
+echo hello > three/four
+testing "ln -r" \
+  "ln -sr circular/three/../three/four one/two/five && cat one/two/five" \
+  "hello\n" "" ""
+rm -rf one three circular
