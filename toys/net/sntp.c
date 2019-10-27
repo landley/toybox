@@ -214,7 +214,7 @@ void sntp_main(void)
           memset(&tx, 0, sizeof(struct timex));
           tx.offset = tv2.tv_sec*1000000+tv2.tv_nsec/1000;
           tx.modes = ADJ_OFFSET_SINGLESHOT;
-          if (adjtimex(&tx) == -1) perror_exit("adjtime");
+          if (adjtimex(&tx) == -1) perror_exit("adjtimex");
         }
 
         // Display the time and offset
