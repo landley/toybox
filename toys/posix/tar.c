@@ -386,25 +386,32 @@ static void wsettime(char *s, long long sec)
 }
 
 // Do pending directory utimes(), NULL to flush all.
-static int dirflush(char *name)
+static int dirflush(char *name, int isdir)
 {
   char *s = 0, *ss;
 
   // Barf if name not in TT.cwd
   if (name) {
-    ss = s = xabspath(name, -1);
-    if (TT.cwd[1] && (!strstart(&ss, TT.cwd) || *ss!='/')) {
-      error_msg("'%s' not under '%s'", name, TT.cwd);
+    if (!(ss = s = xabspath(name, -1-isdir))) {
+      error_msg("'%s' bad symlink", name);
+
+      return 1;
+    }
+    if (TT.cwd[1] && (!strstart(&ss, TT.cwd) || (*ss && *ss!='/'))) {
+      error_msg("'%s' %s not under '%s'", name, s, TT.cwd);
       free(s);
 
       return 1;
     }
 
+    // --restrict means first entry extracted is what everything must be under
     if (FLAG(restrict)) {
       free(TT.cwd);
       TT.cwd = strdup(s);
       toys.optflags ^= FLAG_restrict;
     }
+    // use resolved name so trailing / is stripped
+    if (isdir) unlink(s);
   }
 
   // Set deferred utimes() for directories this file isn't under.
@@ -467,14 +474,14 @@ static void extract_to_disk(void)
   char *name = TT.hdr.name;
   int ala = TT.hdr.mode;
 
-  if (dirflush(name)) {
+  if (dirflush(name, S_ISDIR(ala))) {
     if (S_ISREG(ala) && !TT.hdr.link_target) skippy(TT.hdr.size);
  
     return;
   }
 
   // create path before file if necessary
-  if (strrchr(name, '/') && mkpath(name) && errno !=EEXIST)
+  if (strrchr(name, '/') && mkpath(name) && errno!=EEXIST)
       return perror_msg(":%s: can't mkdir", name);
 
   // remove old file, if exists
@@ -895,7 +902,7 @@ void tar_main(void)
     }
 
     unpack_tar(hdr);
-    dirflush(0);
+    dirflush(0, 0);
 
     // Each time a TT.incl entry is seen it's moved to the end of the list,
     // with TT.seen pointing to first seen list entry. Anything between

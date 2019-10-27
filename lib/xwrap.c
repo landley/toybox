@@ -525,7 +525,8 @@ void xstat(char *path, struct stat *st)
 
 // Canonicalize path, even to file with one or more missing components at end.
 // Returns allocated string for pathname or NULL if doesn't exist
-// exact = 1 file must exist, 0 dir must exist, -1 show theoretical location
+// exact = 1 file must exist, 0 dir must exist, -1 show theoretical location,
+// -2 don't resolve last file
 char *xabspath(char *path, int exact)
 {
   struct string_list *todo, *done = 0;
@@ -570,7 +571,8 @@ char *xabspath(char *path, int exact)
     }
 
     // Is this a symlink?
-    len = readlinkat(dirfd, new->str, libbuf, sizeof(libbuf));
+    if (exact == -2 && !todo) len = 0;
+    else len = readlinkat(dirfd, new->str, libbuf, sizeof(libbuf));
     if (len>4095) goto error;
 
     // Not a symlink: add to linked list, move dirfd, fail if error
