@@ -80,8 +80,10 @@ static char *handle_entries(char *data, char **entry)
 
   // -0 support
   } else {
-    TT.bytes += sizeof(char *)+strlen(data)+1;
-    if ((TT.s && TT.bytes >= TT.s) || (TT.n && TT.entries >= TT.n)) return data;
+    long bytes = TT.bytes+sizeof(char *)+strlen(data)+1;
+
+    if (bytes >= TT.s || (TT.n && TT.entries >= TT.n)) return data;
+    TT.bytes = bytes;
     if (entry) entry[TT.entries] = data;
     TT.entries++;
   }
@@ -113,8 +115,8 @@ void xargs_main(void)
   }
 
   // count entries
-  for (entries = 0, bytes = -1; entries < toys.optc; entries++, bytes++)
-    bytes += strlen(toys.optargs[entries]) + sizeof(char *)*!FLAG(s);
+  for (entries = 0, bytes = -1; entries < toys.optc; entries++)
+    bytes += strlen(toys.optargs[entries])+1+sizeof(char *)*!FLAG(s);
   if (bytes >= TT.s) error_exit("argument too long");
 
   // Loop through exec chunks.
@@ -196,13 +198,8 @@ void xargs_main(void)
 
     // Abritrary number of execs, can't just leak memory each time...
 skip:
-    while (dlist) {
-      struct double_list *dtemp = dlist->next;
-
-      free(dlist->data);
-      free(dlist);
-      dlist = dtemp;
-    }
+    llist_traverse(dlist, llist_free_double);
+    dlist = 0;
     free(out);
   }
   if (TT.tty) fclose(TT.tty);
