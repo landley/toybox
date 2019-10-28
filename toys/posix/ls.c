@@ -403,9 +403,10 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
   // Loop through again to produce output.
   width = 0;
+  unsigned curcol = 0;
   for (ul = 0; ul<dtlen; ul++) {
     int ii, zap;
-    unsigned curcol, color = 0;
+    unsigned lastlen = *len, lastcol = curcol, color = 0;
     unsigned long next = next_column(ul, dtlen, columns, &curcol);
     struct stat *st = &(sort[next]->st);
     mode_t mode = st->st_mode;
@@ -426,6 +427,10 @@ static void listfiles(int dirfd, struct dirtree *indir)
       if (mm) xputc(',');
       if (flags & (FLAG_C|FLAG_x)) {
         if (!curcol) xputc('\n');
+        else { // Pad columns
+          lastcol = colsizes[lastcol]-lastlen-totpad;
+          printf("%*c", lastcol, ' ');
+        }
       } else if ((flags & FLAG_1) || width+1+*len > TT.screen_width) {
         xputc('\n');
         width = 0;
@@ -521,12 +526,6 @@ static void listfiles(int dirfd, struct dirtree *indir)
     }
 
     if (et) xputc(et);
-
-    // Pad columns
-    if (flags & (FLAG_C|FLAG_x)) {
-      curcol = colsizes[curcol]-(*len)-totpad;
-      if (curcol < 255) printf("%*c", curcol, ' ');
-    }
   }
 
   if (width) xputc('\n');
