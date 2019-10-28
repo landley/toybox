@@ -18,6 +18,8 @@ IN="cd lstest"
 OUT="cd .. "
 
 testing "no argument" "$IN && ls; $OUT" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
+testing "with -C: test column spacing equals 2" "$IN && ls -C; $OUT" "dir1  dir2  file1.txt  file2.txt\n" "" ""
+testing "with -x: test column spacing equals 2" "$IN && ls -x; $OUT" "dir1  dir2  file1.txt  file2.txt\n" "" ""
 testing "with wild char" "$IN && ls file*; $OUT" "file1.txt\nfile2.txt\n" "" ""
 testing "with wild char - long listing" "$IN && ls -1 file*; $OUT" "file1.txt\nfile2.txt\n" "" ""
 testing "with -p" "$IN && ls -p; $OUT" "dir1/\ndir2/\nfile1.txt\nfile2.txt\n" "" ""
