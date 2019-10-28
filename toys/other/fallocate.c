@@ -19,14 +19,12 @@ config FALLOCATE
 #include "toys.h"
 
 GLOBALS(
-  long offset;
-  long size;
+  long o, l;
 )
 
 void fallocate_main(void)
 {
   int fd = xcreate(*toys.optargs, O_RDWR | O_CREAT, 0644);
-  if ((errno = posix_fallocate(fd, TT.offset, TT.size)))
-    perror_exit("fallocate");
+  if ((errno = posix_fallocate(fd, TT.o, TT.l))) perror_exit("fallocate");
   if (CFG_TOYBOX_FREE) close(fd);
 }
