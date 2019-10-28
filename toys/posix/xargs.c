@@ -103,7 +103,7 @@ void xargs_main(void)
   // that the invoked utility has room to modify its environment variables
   // and command line arguments and still be able to invoke another utility",
   // though obviously that's not really something you can guarantee.
-  if (!FLAG(s)) TT.s = sysconf(_SC_ARG_MAX) - environ_bytes() - 2048;
+  if (!FLAG(s)) TT.s = sysconf(_SC_ARG_MAX) - environ_bytes() - 4096;
 
   TT.delim = '\n'*!FLAG(0);
 
