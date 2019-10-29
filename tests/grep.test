@@ -120,7 +120,7 @@ testing "-HnbB1" "grep -HnbB1 f input" \
 testing "-q match overrides error" \
   "grep -q hello missing input 2>/dev/null && echo yes" "yes\n" "hello\n" ""
 testing "-q not found is 1" \
-  'grep -q hello input || echo $?' "1\n" "" ""
+  'grep -q hello input || echo $?' "1\n" "x" ""
 testing "-q missing is 2" \
   'grep -q hello missing missing 2>/dev/null || echo $?' "2\n" "" ""
 testing "-q missing survives exists but not found" \

@@ -114,7 +114,7 @@ testing()
   fi
 
   echo -ne "$3" > expected
-  echo -ne "$4" > input
+  [ ! -z "$4" ] && echo -ne "$4" > input || rm -f input
   echo -ne "$5" | ${EVAL:-eval} -- "$2" > actual
   RETVAL=$?
 

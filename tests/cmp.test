@@ -35,7 +35,7 @@ testing "-s diff, return code" "cmp -s input input2 2>&1 || echo yes" "yes\n" "a
 testing "-l EOF, stderr" "cmp -l input input2 2>&1" "cmp: EOF on input2\n" "ab\nc\nx" ""
 testing "-l diff and EOF, stdout and stderr" "cmp -l input input2 2>&1 | sort" "4 170 143\ncmp: EOF on input2\n" "ab\nx\nx" ""
 
-testing "-s not exist" "cmp -s input doesnotexist 2>&1 || echo yes" "yes\n" "" ""
+testing "-s not exist" "cmp -s input doesnotexist 2>&1 || echo yes" "yes\n" "x" ""
 
 rm input2
 
