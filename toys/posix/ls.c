@@ -12,13 +12,13 @@
  *   Posix says the -l date format should vary based on how recent it is
  *   and we do --time-style=long-iso instead
 
-USE_LS(NEWTOY(ls, "(color):;(full-time)(show-control-chars)ZgoACFHLRSabcdfhikl@mnpqrstux1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][!qb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_LS(NEWTOY(ls, "(color):;(full-time)(show-control-chars)ZgoACFHLRSabcdfhikl@mnpqrstuw#=80<0x1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][!qb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config LS
   bool "ls"
   default y
   help
-    usage: ls [-ACFHLRSZacdfhiklmnpqrstux1] [--color[=auto]] [directory...]
+    usage: ls [-ACFHLRSZacdfhiklmnpqrstuwx1] [--color[=auto]] [directory...]
 
     List files.
 
@@ -37,7 +37,8 @@ config LS
     -g  like -l but no owner           -h  human readable sizes
     -l  long (show full details)       -m  comma separated
     -n  like -l but numeric uid/gid    -o  like -l but no group
-    -x  columns (horizontal sort)      -ll long with nanoseconds (--full-time)
+    -w  set column width               -x  columns (horizontal sort)
+    -ll long with nanoseconds (--full-time)
     --color  device=yellow  symlink=turquoise/red  dir=blue  socket=purple
              files: exe=green  suid=red  suidfile=redback  stickydir=greenback
              =auto means detect if output is a tty.
@@ -54,6 +55,7 @@ config LS
 // ls -lR starts .: then ./subdir:
 
 GLOBALS(
+  long w;
   long l;
   char *color;
 
@@ -564,7 +566,10 @@ void ls_main(void)
   }
 
   TT.screen_width = 80;
-  terminal_size(&TT.screen_width, NULL);
+  if (FLAG(w)) {
+    // TODO (ilijic): Add test for setting w flag
+    TT.screen_width = TT.w;
+  } else { terminal_size(&TT.screen_width, NULL); }
   if (TT.screen_width<2) TT.screen_width = 2;
   if (FLAG(b)) TT.escmore = " \\";
 
