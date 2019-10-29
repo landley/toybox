@@ -32,12 +32,18 @@ struct dirtree *dirtree_add_node(struct dirtree *parent, char *name, int flags)
   int len = 0, linklen = 0, statless = 0;
 
   if (name) {
-    // open code this because haven't got node to call dirtree_parentfd() on yet
-    int fd = parent ? parent->dirfd : AT_FDCWD;
+    // open code fd = because haven't got node to call dirtree_parentfd() on yet
+    int fd = parent ? parent->dirfd : AT_FDCWD,
+      sym = AT_SYMLINK_NOFOLLOW*!(flags&DIRTREE_SYMFOLLOW);
 
-    if (fstatat(fd, name, &st,AT_SYMLINK_NOFOLLOW*!(flags&DIRTREE_SYMFOLLOW))) {
-      if (flags&DIRTREE_STATLESS) statless++;
-      else goto error;
+    // stat dangling symlinks
+    if (fstatat(fd, name, &st, sym)) {
+      if (errno != ENOENT
+        || (!sym && fstatat(fd, name, &st, AT_SYMLINK_NOFOLLOW)))
+      {
+        if (flags&DIRTREE_STATLESS) statless++;
+        else goto error;
+      }
     }
     if (S_ISLNK(st.st_mode)) {
       if (0>(linklen = readlinkat(fd, name, libbuf, 4095))) goto error;
