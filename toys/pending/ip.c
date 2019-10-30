@@ -181,11 +181,13 @@ static void send_nlmesg(int type, int flags, int family,
 // Parse /etc/iproute2/RPDB_tables and prepare list.
 static void parseRPDB(char *fname, struct arglist **list, int32_t size)
 {
-  char *line;
-  int fd = open(fname, O_RDONLY);
+  FILE *fp = fopen(fname, "r");
+  char *line = 0;
+  size_t l = 0;
+  ssize_t len;
 
-  if (fd < 0) return;
-  for (; (line = get_line(fd)); free(line)) {
+  if (!fp) return;
+  while ((len = getline(&line, &l, fp)) > 0) {
     char *ptr = line;
     int32_t idx;
 
@@ -195,10 +197,8 @@ static void parseRPDB(char *fname, struct arglist **list, int32_t size)
         (sscanf(ptr, "0x%x %s #", &idx, toybuf) != 2) &&
         (sscanf(ptr, "%d %s\n", &idx, toybuf) != 2) &&
         (sscanf(ptr, "%d %s #", &idx, toybuf) != 2)) {
-      error_msg("Corrupted '%s' file", fname);
-      xclose(fd);
-      free(line);
-      return;
+      error_msg("corrupt %s", fname);
+      break;
     }
     if (idx >= 0 && idx < size) {
       int index = idx & (size-1);
@@ -208,7 +208,8 @@ static void parseRPDB(char *fname, struct arglist **list, int32_t size)
       list[index]->name = xstrdup(toybuf);
     }
   }
-  xclose(fd);
+  free(line);
+  fclose(fp);
 }
 
 static void free_alist(struct arglist **list)
