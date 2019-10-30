@@ -73,23 +73,26 @@ void rfkill_main(void)
   } else {
     // show list.
     while (sizeof(rfevent) == readall(fd, &rfevent, sizeof(rfevent))) {
-      char *line, *name = 0, *type = 0;
+      char *line = 0, *name = 0, *type = 0;
+      FILE *fp;
+      size_t l = 0;
+      ssize_t len;
 
       // filter list items
       if ((tid > 0 && tid != rfevent.type) || (idx != -1 && idx != rfevent.idx))
         continue;
 
       sprintf(toybuf, "/sys/class/rfkill/rfkill%u/uevent", rfevent.idx);
-      tvar = xopenro(toybuf);
-      while ((line = get_line(tvar))) {
+      fp = xfopen(toybuf, "r");
+      while ((len = getline(&line, &l, fp)) > 0) {
         char *s = line;
 
+        line[len-1] = 0;
         if (strstart(&s, "RFKILL_NAME=")) name = xstrdup(s);
         else if (strstart(&s, "RFKILL_TYPE=")) type = xstrdup(s);
-
-        free(line);
       }
-      xclose(tvar);
+      free(line);
+      fclose(fp);
 
       xprintf("%u: %s: %s\n", rfevent.idx, name, type);
       xprintf("\tSoft blocked: %s\n", rfevent.soft ? "yes" : "no");
