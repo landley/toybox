@@ -65,11 +65,13 @@ config WHOAMI
 
 GLOBALS(
   int is_groups;
+  int separator;
 )
 
 static void s_or_u(char *s, unsigned u, int done)
 {
-  if (toys.optflags&FLAG_n) printf("%s", s);
+  if (TT.separator) xputc(TT.separator);
+  if (FLAG(n)) printf("%s", s);
   else printf("%u", u);
   if (done) {
     xputc('\n');
@@ -79,39 +81,41 @@ static void s_or_u(char *s, unsigned u, int done)
 
 static void showid(char *header, unsigned u, char *s)
 {
+  if (TT.separator) xputc(TT.separator);
   printf("%s%u(%s)", header, u, s);
 }
 
 static void do_id(char *username)
 {
-  int flags, i, ngroups;
   struct passwd *pw;
   struct group *grp;
   uid_t uid = getuid(), euid = geteuid();
-  gid_t gid = getgid(), egid = getegid(), *groups;
-
-  flags = toys.optflags;
+  gid_t gid = getgid(), egid = getegid();
 
   // check if a username is given
   if (username) {
-    pw = xgetpwnam(username);
+    pw = getpwnam(username);
+    if (!pw) {
+      uid = atolx_range(username, 0, INT_MAX);
+      if ((pw = getpwuid(uid))) username = pw->pw_name;
+    }
+    if (!pw) perror_exit("no such user '%s'", username);
     uid = euid = pw->pw_uid;
     gid = egid = pw->pw_gid;
     if (TT.is_groups) printf("%s : ", pw->pw_name);
   }
 
-  i = flags & FLAG_r;
-  pw = xgetpwuid(i ? uid : euid);
-  if (toys.optflags&FLAG_u) s_or_u(pw->pw_name, pw->pw_uid, 1);
+  pw = xgetpwuid(FLAG(r) ? uid : euid);
+  if (FLAG(u)) s_or_u(pw->pw_name, pw->pw_uid, 1);
 
-  grp = xgetgrgid(i ? gid : egid);
-  if (flags & FLAG_g) s_or_u(grp->gr_name, grp->gr_gid, 1);
+  grp = xgetgrgid(FLAG(r) ? gid : egid);
+  if (FLAG(g)) s_or_u(grp->gr_name, grp->gr_gid, 1);
 
   if (!(toys.optflags&(FLAG_G|FLAG_g|FLAG_Z))) {
     showid("uid=", pw->pw_uid, pw->pw_name);
     showid(" gid=", grp->gr_gid, grp->gr_name);
 
-    if (!i) {
+    if (!FLAG(r)) {
       if (uid != euid) {
         pw = xgetpwuid(euid);
         showid(" euid=", pw->pw_uid, pw->pw_name);
@@ -125,23 +129,22 @@ static void do_id(char *username)
     showid(" groups=", grp->gr_gid, grp->gr_name);
   }
 
-  if (!(toys.optflags&FLAG_Z)) {
-    groups = (gid_t *)toybuf;
-    i = sizeof(toybuf)/sizeof(gid_t);
+  if (!FLAG(Z)) {
+    gid_t *groups = (gid_t *)toybuf;
+    int i = sizeof(toybuf)/sizeof(gid_t), ngroups;
+
     ngroups = username ? getgrouplist(username, gid, groups, &i)
       : getgroups(i, groups);
     if (ngroups<0) perror_exit(0);
 
-    int show_separator = !(toys.optflags&FLAG_G);
     for (i = 0; i<ngroups; i++) {
-      if (show_separator) xputc((toys.optflags&FLAG_G) ? ' ' : ',');
-      show_separator = 1;
+      TT.separator = FLAG(G) ? ' ' : ',';
       if (!(grp = getgrgid(groups[i]))) perror_msg(0);
-      else if (toys.optflags&FLAG_G) s_or_u(grp->gr_name, grp->gr_gid, 0);
+      else if (FLAG(G)) s_or_u(grp->gr_name, grp->gr_gid, 0);
       else if (grp->gr_gid != egid) showid("", grp->gr_gid, grp->gr_name);
-      else show_separator = 0; // Because we didn't show anything this time.
+      else TT.separator = 0; // Because we didn't show anything this time.
     }
-    if (toys.optflags&FLAG_G) {
+    if (FLAG(G)) {
       xputc('\n');
       xexit();
     }
@@ -151,9 +154,9 @@ static void do_id(char *username)
     if (lsm_enabled()) {
       char *context = lsm_context();
 
-      printf(" context=%s"+!!(toys.optflags&FLAG_Z), context);
+      printf(" context=%s"+!!FLAG(Z), context);
       if (CFG_TOYBOX_FREE) free(context);
-    } else if (toys.optflags&FLAG_Z) error_exit("%s disabled", lsm_name());
+    } else if (FLAG(Z)) error_exit("%s disabled", lsm_name());
   }
 
   xputc('\n');

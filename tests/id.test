@@ -1,0 +1,10 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+testing "id 0" "id 0" "uid=0(root) gid=0(root) groups=0(root)\n" "" ""
+testing "id root" "id root" "uid=0(root) gid=0(root) groups=0(root)\n" "" ""
+testing "id no-such-user" "id no-such-user 2>/dev/null ; echo \$?" "1\n" "" ""
+testing "id 9999999" "id 9999999 2>/dev/null ; echo \$?" "1\n" "" ""
