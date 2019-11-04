@@ -19,9 +19,9 @@ config ID
 
     Print user and group ID.
 
-    -n	Print names instead of numeric IDs (to be used with -Ggu)
-    -G	Show only the group IDs
+    -G	Show all group IDs
     -g	Show only the effective group ID
+    -n	Print names instead of numeric IDs (to be used with -Ggu)
     -r	Show real ID instead of effective ID
     -u	Show only the effective user ID
 
@@ -65,23 +65,17 @@ config WHOAMI
 
 GLOBALS(
   int is_groups;
-  int separator;
 )
 
-static void s_or_u(char *s, unsigned u, int done)
+static void showone(char *s, unsigned u)
 {
-  if (TT.separator) xputc(TT.separator);
-  if (FLAG(n)) printf("%s", s);
-  else printf("%u", u);
-  if (done) {
-    xputc('\n');
-    xexit();
-  }
+  if (FLAG(n)) printf("%s\n", s);
+  else printf("%u\n", u);
+  xexit();
 }
 
 static void showid(char *header, unsigned u, char *s)
 {
-  if (TT.separator) xputc(TT.separator);
   printf("%s%u(%s)", header, u, s);
 }
 
@@ -106,10 +100,10 @@ static void do_id(char *username)
   }
 
   pw = xgetpwuid(FLAG(r) ? uid : euid);
-  if (FLAG(u)) s_or_u(pw->pw_name, pw->pw_uid, 1);
+  if (FLAG(u)) showone(pw->pw_name, pw->pw_uid);
 
   grp = xgetgrgid(FLAG(r) ? gid : egid);
-  if (FLAG(g)) s_or_u(grp->gr_name, grp->gr_gid, 1);
+  if (FLAG(g)) showone(grp->gr_name, grp->gr_gid);
 
   if (!(toys.optflags&(FLAG_G|FLAG_g|FLAG_Z))) {
     showid("uid=", pw->pw_uid, pw->pw_name);
@@ -125,36 +119,35 @@ static void do_id(char *username)
         showid(" egid=", grp->gr_gid, grp->gr_name);
       }
     }
-
-    showid(" groups=", grp->gr_gid, grp->gr_name);
   }
 
-  if (!FLAG(Z)) {
+  if (!(toys.optflags&(FLAG_g|FLAG_Z))) {
     gid_t *groups = (gid_t *)toybuf;
     int i = sizeof(toybuf)/sizeof(gid_t), ngroups;
 
     ngroups = username ? getgrouplist(username, gid, groups, &i)
       : getgroups(i, groups);
-    if (ngroups<0) perror_exit(0);
-
-    for (i = 0; i<ngroups; i++) {
-      TT.separator = FLAG(G) ? ' ' : ',';
-      if (!(grp = getgrgid(groups[i]))) perror_msg(0);
-      else if (FLAG(G)) s_or_u(grp->gr_name, grp->gr_gid, 0);
-      else if (grp->gr_gid != egid) showid("", grp->gr_gid, grp->gr_name);
-      else TT.separator = 0; // Because we didn't show anything this time.
-    }
+    if (ngroups<0) perror_exit("getgroups");
     if (FLAG(G)) {
-      xputc('\n');
-      xexit();
+      printf("%u", grp->gr_gid);
+      for (i = 0; i<ngroups; i++)
+        if (groups[i] != egid) printf(" %u", groups[i]);
+    } else {
+      showid(" groups=", gid, grp->gr_name);
+      for (i = 0; i<ngroups; i++) {
+        if (groups[i] != egid) {
+          if ((grp=getgrgid(groups[i]))) showid(",", grp->gr_gid, grp->gr_name);
+          else printf(",%u", groups[i]);
+        }
+      }
     }
   }
 
-  if (!CFG_TOYBOX_LSM_NONE) {
+  if (!CFG_TOYBOX_LSM_NONE && !FLAG(G)) {
     if (lsm_enabled()) {
       char *context = lsm_context();
 
-      printf(" context=%s"+!!FLAG(Z), context);
+      printf("%s%s", FLAG(Z) ? "" : " context=", context);
       if (CFG_TOYBOX_FREE) free(context);
     } else if (FLAG(Z)) error_exit("%s disabled", lsm_name());
   }
