@@ -67,16 +67,19 @@ GLOBALS(
   int is_groups;
 )
 
-static void showone(char *s, unsigned u)
+static void showone(char *prefix, char *s, unsigned u, int done)
 {
-  if (FLAG(n)) printf("%s\n", s);
-  else printf("%u\n", u);
-  xexit();
+  if (FLAG(n)) printf("%s%s", prefix, s);
+  else printf("%s%u", prefix, u);
+  if (done) {
+    xputc('\n');
+    xexit();
+  }
 }
 
-static void showid(char *header, unsigned u, char *s)
+static void showid(char *prefix, unsigned u, char *s)
 {
-  printf("%s%u(%s)", header, u, s);
+  printf("%s%u(%s)", prefix, u, s);
 }
 
 static void do_id(char *username)
@@ -85,6 +88,8 @@ static void do_id(char *username)
   struct group *grp;
   uid_t uid = getuid(), euid = geteuid();
   gid_t gid = getgid(), egid = getegid();
+  gid_t *groups = (gid_t *)toybuf;
+  int i = sizeof(toybuf)/sizeof(gid_t), ngroups;
 
   // check if a username is given
   if (username) {
@@ -100,12 +105,28 @@ static void do_id(char *username)
   }
 
   pw = xgetpwuid(FLAG(r) ? uid : euid);
-  if (FLAG(u)) showone(pw->pw_name, pw->pw_uid);
+  if (FLAG(u)) showone("", pw->pw_name, pw->pw_uid, 1);
 
   grp = xgetgrgid(FLAG(r) ? gid : egid);
-  if (FLAG(g)) showone(grp->gr_name, grp->gr_gid);
+  if (FLAG(g)) showone("", grp->gr_name, grp->gr_gid, 1);
 
-  if (!(toys.optflags&(FLAG_G|FLAG_g|FLAG_Z))) {
+  ngroups = username ? getgrouplist(username, gid, groups, &i)
+    : getgroups(i, groups);
+  if (ngroups<0) perror_exit("getgroups");
+
+  if (FLAG(G)) {
+    showone("", grp->gr_name, grp->gr_gid, 0);
+    for (i = 0; i<ngroups; i++) {
+      if (groups[i] != egid) {
+        if ((grp=getgrgid(groups[i]))) showone(" ",grp->gr_name,grp->gr_gid,0);
+        else printf(" %u", groups[i]);
+      }
+    }
+    xputc('\n');
+    return;
+  }
+
+  if (!FLAG(Z)) {
     showid("uid=", pw->pw_uid, pw->pw_name);
     showid(" gid=", grp->gr_gid, grp->gr_name);
 
@@ -119,31 +140,17 @@ static void do_id(char *username)
         showid(" egid=", grp->gr_gid, grp->gr_name);
       }
     }
-  }
 
-  if (!(toys.optflags&(FLAG_g|FLAG_Z))) {
-    gid_t *groups = (gid_t *)toybuf;
-    int i = sizeof(toybuf)/sizeof(gid_t), ngroups;
-
-    ngroups = username ? getgrouplist(username, gid, groups, &i)
-      : getgroups(i, groups);
-    if (ngroups<0) perror_exit("getgroups");
-    if (FLAG(G)) {
-      printf("%u", grp->gr_gid);
-      for (i = 0; i<ngroups; i++)
-        if (groups[i] != egid) printf(" %u", groups[i]);
-    } else {
-      showid(" groups=", gid, grp->gr_name);
-      for (i = 0; i<ngroups; i++) {
-        if (groups[i] != egid) {
-          if ((grp=getgrgid(groups[i]))) showid(",", grp->gr_gid, grp->gr_name);
-          else printf(",%u", groups[i]);
-        }
+    showid(" groups=", gid, grp->gr_name);
+    for (i = 0; i<ngroups; i++) {
+      if (groups[i] != egid) {
+        if ((grp=getgrgid(groups[i]))) showid(",", grp->gr_gid, grp->gr_name);
+        else printf(",%u", groups[i]);
       }
     }
   }
 
-  if (!CFG_TOYBOX_LSM_NONE && !FLAG(G)) {
+  if (!CFG_TOYBOX_LSM_NONE) {
     if (lsm_enabled()) {
       char *context = lsm_context();
 
