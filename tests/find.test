@@ -133,4 +133,9 @@ testing "missing root error" \
 testing "-path match root" "find dir/f* -path dir/file" "dir/file\n" "" ""
 testing "-name match root" "find dir/f* -name file" "dir/file\n" "" ""
 
+# https://github.com/landley/toybox/issues/69
+ln -s nowhere broken
+testing "-H broken" "find -H broken" "broken\n" "" ""
+testing "-L broken" "find -L broken" "broken\n" "" ""
+
 rm -rf dir
