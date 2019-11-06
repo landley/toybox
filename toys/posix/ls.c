@@ -403,10 +403,9 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
   // Loop through again to produce output.
   width = 0;
-  unsigned curcol = 0;
   for (ul = 0; ul<dtlen; ul++) {
     int ii, zap;
-    unsigned lastlen = *len, lastcol = curcol, color = 0;
+    unsigned curcol, lastlen = *len, lastcol = ul ? curcol : 0, color = 0;
     unsigned long next = next_column(ul, dtlen, columns, &curcol);
     struct stat *st = &(sort[next]->st);
     mode_t mode = st->st_mode;
@@ -565,10 +564,8 @@ void ls_main(void)
   }
 
   TT.screen_width = 80;
-  if (FLAG(w)) {
-    // TODO (ilijic): Add test for setting w flag
-    TT.screen_width = TT.w;
-  } else { terminal_size(&TT.screen_width, NULL); }
+  if (FLAG(w)) TT.screen_width = TT.w+4;
+  else terminal_size(&TT.screen_width, NULL);
   if (TT.screen_width<2) TT.screen_width = 2;
   if (FLAG(b)) TT.escmore = " \\";
 

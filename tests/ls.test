@@ -33,9 +33,6 @@ testing "with -k" "$IN && ls -k; $OUT" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" "
 testing "with -m" "$IN && ls -m; $OUT" "dir1, dir2, file1.txt, file2.txt\n" "" ""
 testing "with -F" "$IN && ls -F; $OUT" "dir1/\ndir2/\nfile1.txt\nfile2.txt\n" "" ""
 testing "with -dk *" "$IN && ls -dk *; $OUT" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
-# TODO(ilijic) Remove `sed` commands in `-w` tests after trailing space patch is applied
-testing "with -w - one column" "$IN && ls -xw 5 | sed 's/^[ \t]*//;s/[ \t]*$//' && $OUT" "dir1\ndir2\nfile1.txt\nfile2.txt\n" "" ""
-testing "with -w - two columns" "$IN && ls -Cw 32 | sed 's/^[ \t]*//;s/[ \t]*$//' && $OUT" "dir1  file1.txt\ndir2  file2.txt\n" "" ""
 testing "with -Z" "$IN && ls -Z file1.txt | egrep -q '^[^ ]+ file1.txt' || echo fail; $OUT" "" "" ""
 testing "with -lZ" "$IN && ls --full-time -lZ file1.txt | egrep -q '^-[rwx-]+ +[0-9]+ +[^ ]+ +[^ ]+ +[^ ]+ +[0-9]+ [0-9][0-9][0-9][0-9]-[0-9][0-9]-.* file1.txt' || echo fail; $OUT" "" "" ""
 
@@ -59,6 +56,18 @@ unset INODE
 
 testing "missing" "$IN && ls does-not-exist 2>err ; grep -q 'ls:.*missing.*: No
 such file' err || echo missing error; $OUT" "" "" ""
+
+rm -f lstest/{file1.txt,err}
+touch lstest/{one,two,three,four,five,six,seven,eight,nine,ten}
+testing "-w test 1" "$IN && ls -Cw 20; $OUT" \
+  "eight  one    three\nfive   seven  two\nfour   six\nnine   ten\n" "" ""
+testing "-w test 2" "$IN && ls -Cw 19; $OUT" \
+  "eight  seven\nfive   six\nfour   ten\nnine   three\none    two\n" "" ""
+
+rm -rf lstest/*
+touch lstest/{a,b,c,d,e,f}
+testing "-w test 3" "$IN && ls -Cw 3; $OUT" "a\nb\nc\nd\ne\nf\n" "" ""
+testing "-w test 4" "$IN && ls -Cw 4; $OUT" "a  d\nb  e\nc  f\n" "" ""
 
 # Removing test dir for cleanup purpose
 rm -rf lstest
