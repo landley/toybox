@@ -133,20 +133,17 @@ static int print_with_h(char *s, long long value, int units)
 static void entrylen(struct dirtree *dt, unsigned *len)
 {
   struct stat *st = &(dt->st);
-  unsigned flags = toys.optflags;
   char tmp[64];
 
   *len = strwidth(dt->name);
   if (endtype(st)) ++*len;
-  if (flags & FLAG_m) ++*len;
+  if (FLAG(m)) ++*len;
 
-  len[1] = (flags & FLAG_i) ? numlen(st->st_ino) : 0;
-  if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) {
-    unsigned fn = flags & FLAG_n;
-
+  len[1] = FLAG(i) ? numlen(st->st_ino) : 0;
+  if (FLAG(l)||FLAG(o)||FLAG(n)||FLAG(g)) {
     len[2] = numlen(st->st_nlink);
-    len[3] = fn ? numlen(st->st_uid) : strwidth(getusername(st->st_uid));
-    len[4] = fn ? numlen(st->st_gid) : strwidth(getgroupname(st->st_gid));
+    len[3] = FLAG(n) ? numlen(st->st_uid) : strwidth(getusername(st->st_uid));
+    len[4] = FLAG(n) ? numlen(st->st_gid) : strwidth(getgroupname(st->st_gid));
     if (S_ISBLK(st->st_mode) || S_ISCHR(st->st_mode)) {
       // cheating slightly here: assuming minor is always 3 digits to avoid
       // tracking another column
@@ -154,8 +151,8 @@ static void entrylen(struct dirtree *dt, unsigned *len)
     } else len[5] = print_with_h(tmp, st->st_size, 1);
   }
 
-  len[6] = (flags & FLAG_s) ? print_with_h(tmp, st->st_blocks, 512) : 0;
-  len[7] = (flags & FLAG_Z) ? strwidth((char *)dt->extra) : 0;
+  len[6] = FLAG(s) ? print_with_h(tmp, st->st_blocks, 512) : 0;
+  len[7] = FLAG(Z) ? strwidth((char *)dt->extra) : 0;
 }
 
 static int compare(void *a, void *b)
@@ -182,15 +179,13 @@ static int compare(void *a, void *b)
 
 static int filter(struct dirtree *new)
 {
-  int flags = toys.optflags;
-
   // Special case to handle enormous dirs without running out of memory.
-  if (flags == (FLAG_1|FLAG_f)) {
+  if (toys.optflags == (FLAG_1|FLAG_f)) {
     xprintf("%s\n", new->name);
     return 0;
   }
 
-  if (flags & FLAG_Z) {
+  if (FLAG(Z)) {
     if (!CFG_TOYBOX_LSM_NONE) {
 
       // (Wouldn't it be nice if the lsm functions worked like openat(),
@@ -219,12 +214,12 @@ static int filter(struct dirtree *new)
     if (CFG_TOYBOX_LSM_NONE || !new->extra) new->extra = (long)xstrdup("?");
   }
 
-  if (flags & FLAG_u) new->st.st_mtime = new->st.st_atime;
-  if (flags & FLAG_c) new->st.st_mtime = new->st.st_ctime;
+  if (FLAG(u)) new->st.st_mtime = new->st.st_atime;
+  if (FLAG(c)) new->st.st_mtime = new->st.st_ctime;
   new->st.st_blocks >>= 1;
 
-  if (flags & (FLAG_a|FLAG_f)) return DIRTREE_SAVE;
-  if (!(flags & FLAG_A) && new->name[0]=='.') return 0;
+  if (FLAG(a)||FLAG(f)) return DIRTREE_SAVE;
+  if (!FLAG(A) && new->name[0]=='.') return 0;
 
   return dirtree_notdotdot(new) & DIRTREE_SAVE;
 }
@@ -235,8 +230,7 @@ static int filter(struct dirtree *new)
 static unsigned long next_column(unsigned long ul, unsigned long dtlen,
   unsigned columns, unsigned *xpos)
 {
-  unsigned long transition;
-  unsigned height, widecols;
+  unsigned height, extra;
 
   // Horizontal sort is easy
   if (!FLAG(C)) {
@@ -244,31 +238,13 @@ static unsigned long next_column(unsigned long ul, unsigned long dtlen,
     return ul;
   }
 
-  // vertical sort
+  // vertical sort (-x), uneven rounding goes along right edge
+  height = (dtlen+columns-1)/columns; // round up
+  extra = dtlen%height; // how many rows are wider?
+  if (extra && ul >= extra*columns) ul -= extra*columns--;
+  else extra = 0;
 
-  // For -x, calculate height of display, rounded up
-  height = (dtlen+columns-1)/columns;
-
-  // Sanity check: does wrapping render this column count impossible
-  // due to the right edge wrapping eating a whole row?
-  if (height*columns - dtlen >= height) {
-    *xpos = columns;
-    return 0;
-  }
-
-  // Uneven rounding goes along right edge
-  widecols = dtlen % height;
-  if (!widecols) widecols = height;
-  transition = widecols * columns;
-  if (ul < transition) {
-    *xpos =  ul % columns;
-    return (*xpos*height) + (ul/columns);
-  }
-
-  ul -= transition;
-  *xpos = ul % (columns-1);
-
-  return (*xpos*height) + widecols + (ul/(columns-1));
+  return (*xpos = ul % columns)*height + extra + ul/columns;
 }
 
 static int color_from_mode(mode_t mode)
@@ -301,7 +277,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
 {
   struct dirtree *dt, **sort;
   unsigned long dtlen, ul = 0;
-  unsigned width, flags = toys.optflags, totals[8], len[8], totpad = 0,
+  unsigned width, totals[8], len[8], totpad = 0,
     *colsizes = (unsigned *)toybuf, columns = sizeof(toybuf)/4;
   char tmp[64];
 
@@ -319,8 +295,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
     // Silently descend into single directory listed by itself on command line.
     // In this case only show dirname/total header when given -R.
     dt = indir->child;
-    if (dt && S_ISDIR(dt->st.st_mode) && !dt->next && !(flags&(FLAG_d|FLAG_R)))
-    {
+    if (dt && S_ISDIR(dt->st.st_mode) && !dt->next && !(FLAG(d)||FLAG(R))) {
       listfiles(open(dt->name, 0), TT.singledir = dt);
 
       return;
@@ -328,11 +303,11 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
     // Do preprocessing (Dirtree didn't populate, so callback wasn't called.)
     for (;dt; dt = dt->next) filter(dt);
-    if (flags == (FLAG_1|FLAG_f)) return;
+    if (toys.optflags == (FLAG_1|FLAG_f)) return;
   // Read directory contents. We dup() the fd because this will close it.
   // This reads/saves contents to display later, except for in "ls -1f" mode.
   } else dirtree_recurse(indir, filter, dup(dirfd),
-      DIRTREE_STATLESS|DIRTREE_SYMFOLLOW*!!(flags&FLAG_L));
+      DIRTREE_STATLESS|DIRTREE_SYMFOLLOW*!!FLAG(L));
 
   // Copy linked list to array and sort it. Directories go in array because
   // we visit them in sorted order too. (The nested loops let us measure and
@@ -344,8 +319,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
   }
 
   // Label directory if not top of tree, or if -R
-  if (indir->parent && (TT.singledir!=indir || (flags&FLAG_R)))
-  {
+  if (indir->parent && (TT.singledir!=indir || FLAG(R))) {
     char *path = dirtree_path(indir, 0);
 
     if (TT.nl_title++) xputc('\n');
@@ -354,7 +328,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
   }
 
   // Measure each entry to work out whitespace padding and total blocks
-  if (!(flags & FLAG_f)) {
+  if (!FLAG(f)) {
     unsigned long long blocks = 0;
 
     qsort(sort, dtlen, sizeof(void *), (void *)compare);
@@ -365,14 +339,15 @@ static void listfiles(int dirfd, struct dirtree *indir)
       blocks += sort[ul]->st.st_blocks;
     }
     totpad = totals[1]+!!totals[1]+totals[6]+!!totals[6]+totals[7]+!!totals[7];
-    if ((flags&(FLAG_h|FLAG_l|FLAG_o|FLAG_n|FLAG_g|FLAG_s)) && indir->parent) {
+    if ((FLAG(h)||FLAG(l)||FLAG(o)||FLAG(n)||FLAG(g)||FLAG(s)) && indir->parent)
+    {
       print_with_h(tmp, blocks, 512);
       xprintf("total %s\n", tmp);
     }
   }
 
   // Find largest entry in each field for display alignment
-  if (flags & (FLAG_C|FLAG_x)) {
+  if (FLAG(C)||FLAG(x)) {
 
     // columns can't be more than toybuf can hold, or more than files,
     // or > 1/2 screen width (one char filename, one space).
@@ -384,11 +359,10 @@ static void listfiles(int dirfd, struct dirtree *indir)
       unsigned c, totlen = columns;
 
       memset(colsizes, 0, columns*sizeof(unsigned));
-      for (ul=0; ul<dtlen; ul++) {
+      for (ul = 0; ul<dtlen; ul++) {
+        // measure each entry, plus two spaces between filenames
         entrylen(sort[next_column(ul, dtlen, columns, &c)], len);
-        // Add `2` to `totpad` to ensure two spaces between filenames
-        *len += totpad+2;
-        if (c == columns) break;
+        if (c<columns-1) *len += totpad+2;
         // Expand this column if necessary, break if that puts us over budget
         if (*len > colsizes[c]) {
           totlen += (*len)-colsizes[c];
@@ -405,9 +379,8 @@ static void listfiles(int dirfd, struct dirtree *indir)
   width = 0;
   for (ul = 0; ul<dtlen; ul++) {
     int ii, zap;
-    unsigned curcol, lastlen = *len, lastcol = ul ? curcol : 0, color = 0;
-    unsigned long next = next_column(ul, dtlen, columns, &curcol);
-    struct stat *st = &(sort[next]->st);
+    unsigned curcol, lastlen = *len, color = 0;
+    struct stat *st = &((dt = sort[next_column(ul,dtlen,columns,&curcol)])->st);
     mode_t mode = st->st_mode;
     char et = endtype(st), *ss;
 
@@ -415,22 +388,22 @@ static void listfiles(int dirfd, struct dirtree *indir)
     zap = !st->st_blksize && !st->st_dev && !st->st_ino;
 
     // Skip directories at the top of the tree when -d isn't set
-    if (S_ISDIR(mode) && !indir->parent && !(flags & FLAG_d)) continue;
+    if (S_ISDIR(mode) && !indir->parent && !FLAG(d)) continue;
     TT.nl_title=1;
 
     // Handle padding and wrapping for display purposes
-    entrylen(sort[next], len);
+    entrylen(dt, len);
     if (ul) {
-      int mm = !!(flags & FLAG_m);
+      int mm = !!FLAG(m);
 
       if (mm) xputc(',');
-      if (flags & (FLAG_C|FLAG_x)) {
+      if (FLAG(C)||FLAG(x)) {
         if (!curcol) xputc('\n');
-        else { // Pad columns
-          lastcol = colsizes[lastcol]-lastlen-totpad;
-          printf("%*c", lastcol, ' ');
+        else {
+          if (ul) next_column(ul-1, dtlen, columns, &curcol);
+          printf("%*c", colsizes[ul ? curcol : 0]-lastlen-totpad, ' ');
         }
-      } else if ((flags & FLAG_1) || width+1+*len > TT.screen_width) {
+      } else if (FLAG(1) || width+1+*len > TT.screen_width) {
         xputc('\n');
         width = 0;
       } else {
@@ -440,43 +413,40 @@ static void listfiles(int dirfd, struct dirtree *indir)
     }
     width += *len;
 
-    if (flags & FLAG_i) zprint(zap, "lu ", totals[1], st->st_ino);
+    if (FLAG(i)) zprint(zap, "lu ", totals[1], st->st_ino);
 
-    if (flags & FLAG_s) {
+    if (FLAG(s)) {
       print_with_h(tmp, st->st_blocks, 512);
       zprint(zap, "s ", totals[6], (unsigned long)tmp);
     }
 
-    if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) {
-
-      // (long) is to coerce the st types into something we know we can print.
+    if (FLAG(l)||FLAG(o)||FLAG(n)||FLAG(g)) {
       mode_to_string(mode, tmp);
       if (zap) memset(tmp+1, '?', 9);
       printf("%s", tmp);
       zprint(zap, "ld", totals[2]+1, st->st_nlink);
 
       // print user
-      if (!(flags&FLAG_g)) {
+      if (!FLAG(g)) {
         putchar(' ');
         ii = -totals[3];
-        if (zap || (flags&FLAG_n)) zprint(zap, "lu", ii, st->st_uid);
+        if (zap || FLAG(n)) zprint(zap, "lu", ii, st->st_uid);
         else draw_trim_esc(getusername(st->st_uid), ii, abs(ii), TT.escmore,
                            crunch_qb);
       }
 
       // print group
-      if (!(flags&FLAG_o)) {
+      if (!FLAG(o)) {
         putchar(' ');
         ii = -totals[4];
-        if (zap || (flags&FLAG_n)) zprint(zap, "lu", ii, st->st_gid);
+        if (zap || FLAG(n)) zprint(zap, "lu", ii, st->st_gid);
         else draw_trim_esc(getgroupname(st->st_gid), ii, abs(ii), TT.escmore,
                            crunch_qb);
       }
     }
-    if (FLAG(Z))
-      printf(" %-*s "+!FLAG(l), -(int)totals[7], (char *)sort[next]->extra);
+    if (FLAG(Z)) printf(" %-*s "+!FLAG(l), -(int)totals[7], (char *)dt->extra);
 
-    if (flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) {
+    if (FLAG(l)||FLAG(o)||FLAG(n)||FLAG(g)) {
       struct tm *tm;
 
       // print major/minor, or size
@@ -500,27 +470,27 @@ static void listfiles(int dirfd, struct dirtree *indir)
       zprint(zap, "s ", 17+(TT.l>1)*13, (unsigned long)tmp);
     }
 
-    if (flags & FLAG_color) {
+    if (FLAG(color)) {
       color = color_from_mode(st->st_mode);
       if (color) printf("\033[%d;%dm", color>>8, color&255);
     }
 
-    ss = sort[next]->name;
+    ss = dt->name;
     crunch_str(&ss, INT_MAX, stdout, TT.escmore, crunch_qb);
     if (color) printf("\033[0m");
 
-    if ((flags & (FLAG_l|FLAG_o|FLAG_n|FLAG_g)) && S_ISLNK(mode)) {
+    if ((FLAG(l)||FLAG(o)||FLAG(n)||FLAG(g)) && S_ISLNK(mode)) {
       printf(" -> ");
-      if (!zap && (flags & FLAG_color)) {
+      if (!zap && FLAG(color)) {
         struct stat st2;
 
-        if (fstatat(dirfd, sort[next]->symlink, &st2, 0)) color = 256+31;
+        if (fstatat(dirfd, dt->symlink, &st2, 0)) color = 256+31;
         else color = color_from_mode(st2.st_mode);
 
         if (color) printf("\033[%d;%dm", color>>8, color&255);
       }
 
-      zprint(zap, "s", 0, (unsigned long)sort[next]->symlink);
+      zprint(zap, "s", 0, (unsigned long)dt->symlink);
       if (!zap && color) printf("\033[0m");
     }
 
@@ -532,10 +502,10 @@ static void listfiles(int dirfd, struct dirtree *indir)
   // Free directory entries, recursing first if necessary.
 
   for (ul = 0; ul<dtlen; free(sort[ul++])) {
-    if ((flags & FLAG_d) || !S_ISDIR(sort[ul]->st.st_mode)) continue;
+    if (FLAG(d) || !S_ISDIR(sort[ul]->st.st_mode)) continue;
 
     // Recurse into dirs if at top of the tree or given -R
-    if (!indir->parent || ((flags&FLAG_R) && dirtree_notdotdot(sort[ul])))
+    if (!indir->parent || (FLAG(R) && dirtree_notdotdot(sort[ul])))
       listfiles(openat(dirfd, sort[ul]->name, 0), sort[ul]);
     free((void *)sort[ul]->extra);
   }
@@ -556,15 +526,15 @@ void ls_main(void)
   // Do we have an implied -1
   if (isatty(1)) {
     if (!FLAG(show_control_chars)) toys.optflags |= FLAG_b;
-    if (toys.optflags&(FLAG_l|FLAG_o|FLAG_n|FLAG_g)) toys.optflags |= FLAG_1;
-    else if (!(toys.optflags&(FLAG_1|FLAG_x|FLAG_m))) toys.optflags |= FLAG_C;
+    if (FLAG(l)||FLAG(o)||FLAG(n)||FLAG(g)) toys.optflags |= FLAG_1;
+    else if (!(FLAG(1)||FLAG(x)||FLAG(m))) toys.optflags |= FLAG_C;
   } else {
     if (!FLAG(m)) toys.optflags |= FLAG_1;
     if (TT.color) toys.optflags ^= FLAG_color;
   }
 
   TT.screen_width = 80;
-  if (FLAG(w)) TT.screen_width = TT.w+4;
+  if (FLAG(w)) TT.screen_width = TT.w+2;
   else terminal_size(&TT.screen_width, NULL);
   if (TT.screen_width<2) TT.screen_width = 2;
   if (FLAG(b)) TT.escmore = " \\";
@@ -580,8 +550,7 @@ void ls_main(void)
   TT.files = dirtree_add_node(0, 0, 0);
   TT.files->dirfd = AT_FDCWD;
   for (s = *toys.optargs ? toys.optargs : noargs; *s; s++) {
-    int sym = !(toys.optflags&(FLAG_l|FLAG_d|FLAG_F))
-      || (toys.optflags&(FLAG_L|FLAG_H));
+    int sym = !(FLAG(l)||FLAG(d)||FLAG(F)) || FLAG(L) || FLAG(H);
 
     dt = dirtree_add_node(0, *s, DIRTREE_STATLESS|DIRTREE_SYMFOLLOW*sym);
 
