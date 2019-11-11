@@ -263,16 +263,8 @@ void expr_main(void)
   if (ret.s) printf("%s\n", ret.s);
   else printf("%lld\n", ret.i);
 
-  int status = is_false(&ret);
+  toys.exitval = is_false(&ret);
 
   // Free all the strings we allocated.
-  struct arg_list *h, *head = TT.allocated;
-  while (head) {
-    h = head;
-    head = head->next;
-    free(h->arg); // free the string
-    free(h); // free the node for tracking the string
-  }
-
-  toys.exitval = status;
+  llist_traverse(TT.allocated, llist_free_arg);
 }
