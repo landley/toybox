@@ -37,6 +37,10 @@ static int do_rm(struct dirtree *try)
   // This is either the posix section 2(b) prompt or the section 3 prompt.
   if (!FLAG(f)
     && (!S_ISLNK(try->st.st_mode) && faccessat(fd, try->name, W_OK, 0))) or++;
+
+  // Posix section 1(a), don't prompt for nonexistent.
+  if (or && errno == ENOENT) goto skip;
+
   if (!(dir && try->again) && ((or && isatty(0)) || FLAG(i))) {
     char *s = dirtree_path(try, 0);
 

@@ -11,6 +11,8 @@ echo "abcdefghijklmnopqrstuvwxyz" > file.txt
 testing "text-file" "rm file.txt && [ ! -e file.txt ] && echo 'yes'" "yes\n" "" ""
 rm -f file*
 
+testing "-i nonexistent" "</dev/zero rm -i file.txt 2>/dev/null || echo 'yes'" "yes\n" "" ""
+
 mkdir dir
 testing "empty directory" "rm -r dir && [ ! -d dir ] && echo 'yes'" "yes\n" "" ""
 rm -rf dir
