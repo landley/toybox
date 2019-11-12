@@ -356,13 +356,14 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
     // Try to fit as many columns as we can, dropping down by one each time
     for (;columns > 1; columns--) {
-      unsigned c, totlen = columns;
+      unsigned c, cc, totlen = columns;
 
       memset(colsizes, 0, columns*sizeof(unsigned));
       for (ul = 0; ul<dtlen; ul++) {
-        // measure each entry, plus two spaces between filenames
-        entrylen(sort[next_column(ul, dtlen, columns, &c)], len);
-        if (c<columns-1) *len += totpad+2;
+        cc = next_column(ul, dtlen, columns, &c);
+        if (cc>=dtlen) break; // tilt: remainder bigger than height
+        entrylen(sort[cc], len);
+        if (c<columns-1) *len += totpad+2;  // 2 spaces between filenames
         // Expand this column if necessary, break if that puts us over budget
         if (*len > colsizes[c]) {
           totlen += (*len)-colsizes[c];
