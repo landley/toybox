@@ -287,8 +287,14 @@ static inline int __android_log_write(int pri, const char *tag, const char *msg)
 #endif
 
 // libprocessgroup is an Android platform library not included in the NDK.
-#if defined(__BIONIC__) && __has_include(<processgroup/sched_policy.h>)
+#if defined(__BIONIC__)
+#if __has_include(<processgroup/sched_policy.h>)
 #include <processgroup/sched_policy.h>
+#define GOT_IT
+#endif
+#endif
+#ifdef GOT_IT
+#undef GOT_IT
 #else
 static inline int get_sched_policy(int tid, void *policy) {return 0;}
 static inline char *get_sched_policy_name(int policy) {return "unknown";}
