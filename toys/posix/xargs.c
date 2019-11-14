@@ -117,7 +117,7 @@ void xargs_main(void)
   // count entries
   for (entries = 0, bytes = -1; entries < toys.optc; entries++)
     bytes += strlen(toys.optargs[entries])+1+sizeof(char *)*!FLAG(s);
-  if (bytes >= TT.s) error_exit("argument too long");
+  if (bytes >= TT.s) error_exit("command too long");
 
   // Loop through exec chunks.
   while (data || !done) {
