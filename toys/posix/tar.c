@@ -848,7 +848,7 @@ void tar_main(void)
         // detect gzip and bzip signatures
         if (SWAP_BE16(*(short *)hdr)==0x1f8b) toys.optflags |= FLAG_z;
         else if (!memcmp(hdr, "BZh", 3)) toys.optflags |= FLAG_j;
-        else if (peek_be(hdr, 7) == 0xfd377a585a0000) toys.optflags |= FLAG_J;
+        else if (peek_be(hdr, 7) == 0xfd377a585a0000UL) toys.optflags |= FLAG_J;
         else error_exit("Not tar");
 
         // if we can seek back we don't need to loop and copy data

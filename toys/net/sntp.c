@@ -39,7 +39,7 @@ GLOBALS(
 )
 
 // Seconds from 1900 to 1970, including appropriate leap days
-#define SEVENTIES 2208988800L
+#define SEVENTIES 2208988800UL
 
 // Get time and return ntptime (saving timespec in pointer if not null)
 // NTP time is high 32 bits = seconds since 1970 (blame RFC 868), low 32 bits

@@ -284,7 +284,7 @@ static void do_regular_file(int fd, char *name)
     xputc('\n');
   } else if (len>4 && strstart(&s, "BZh") && isdigit(*s))
     xprintf("bzip2 compressed data, block size = %c00k\n", *s);
-  else if (len > 31 && peek_be(s, 7) == 0xfd377a585a0000)
+  else if (len > 31 && peek_be(s, 7) == 0xfd377a585a0000UL)
     xputs("xz compressed data");
   else if (len>10 && strstart(&s, "\x1f\x8b")) xputs("gzip compressed data");
   else if (len>32 && !memcmp(s+1, "\xfa\xed\xfe", 3)) {
