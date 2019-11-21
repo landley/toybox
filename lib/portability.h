@@ -105,6 +105,9 @@ static inline char *basename(char *path) { return __xpg_basename(path); }
 char *strcasestr(const char *haystack, const char *needle);
 #endif // defined(glibc)
 
+// getopt_long(), getopt_long_only(), and struct option.
+#include <getopt.h>
+
 #if !defined(__GLIBC__)
 // POSIX basename.
 #include <libgen.h>
