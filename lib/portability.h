@@ -350,3 +350,8 @@ struct signame {
   char *name;
 };
 void xsignal_all_killers(void *handler);
+
+// Different OSes encode major/minor device numbers differently.
+int dev_minor(int dev);
+int dev_major(int dev);
+int dev_makedev(int major, int minor);

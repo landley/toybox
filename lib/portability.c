@@ -515,3 +515,36 @@ char *num_to_sig(int sig)
 
   return NULL;
 }
+
+int dev_minor(int dev)
+{
+#if defined(__linux__)
+  return ((dev&0xfff00000)>>12)|(dev&0xff);
+#elif defined(__APPLE__)
+  return dev&0xffffff;
+#else
+#error
+#endif
+}
+
+int dev_major(int dev)
+{
+#if defined(__linux__)
+  return (dev&0xfff00)>>8;
+#elif defined(__APPLE__)
+  return (dev>>24)&0xff;
+#else
+#error
+#endif
+}
+
+int dev_makedev(int major, int minor)
+{
+#if defined(__linux__)
+  return (minor&0xff)|((major&0xfff)<<8)|((minor&0xfff00)<<12);
+#elif defined(__APPLE__)
+  return (minor&0xffffff)|((major&0xff)<<24);
+#else
+#error
+#endif
+}

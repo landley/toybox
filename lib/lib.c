@@ -1213,21 +1213,6 @@ char *next_printf(char *s, char **start)
   return 0;
 }
 
-int dev_minor(int dev)
-{
-  return ((dev&0xfff00000)>>12)|(dev&0xff);
-}
-
-int dev_major(int dev)
-{
-  return (dev&0xfff00)>>8;
-}
-
-int dev_makedev(int major, int minor)
-{
-  return (minor&0xff)|((major&0xfff)<<8)|((minor&0xfff00)<<12);
-}
-
 // Return cached passwd entries.
 struct passwd *bufgetpwuid(uid_t uid)
 {
