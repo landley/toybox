@@ -54,7 +54,9 @@ testing "symlink -L" "file -L symlink" "symlink: Java class file, version 53.0 (
 testing "- pipe" "cat $FILES/java.class | file -" "-: Java class file, version 53.0 (Java 1.9)\n" "" ""
 testing "- redirect" "file - <$FILES/java.class" "-: Java class file, version 53.0 (Java 1.9)\n" "" ""
 
-testing "/dev/zero" "file /dev/zero" "/dev/zero: character special (1/5)\n" "" ""
+zero_dev="1/5"
+[ "$(uname)" == "Darwin" ] && zero_dev="3/3"
+testing "/dev/zero" "file /dev/zero" "/dev/zero: character special ($zero_dev)\n" "" ""
 testing "- </dev/zero" "file - </dev/zero" "-: data\n" "" ""
 
 rm empty bash.script bash.script2 env.python.script ascii android.dex
