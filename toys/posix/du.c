@@ -56,14 +56,14 @@ static void print(long long size, struct dirtree *node)
 
   if (TT.depth > TT.d) return;
 
-  if (toys.optflags & FLAG_h) {
+  if (FLAG(h)) {
     human_readable(toybuf, size, 0);
     printf("%s", toybuf);
   } else {
     int bits = 10;
 
-    if (toys.optflags & FLAG_K) bits = 9;
-    else if (toys.optflags & FLAG_m) bits = 20;
+    if (FLAG(K)) bits = 9;
+    else if (FLAG(m)) bits = 20;
 
     printf("%llu", (size>>bits)+!!(size&((1<<bits)-1)));
   }
@@ -112,11 +112,11 @@ static int do_du(struct dirtree *node)
   else if (!dirtree_notdotdot(node)) return 0;
 
   // detect swiching filesystems
-  if ((toys.optflags & FLAG_x) && (TT.st_dev != node->st.st_dev))
+  if (FLAG(x) && (TT.st_dev != node->st.st_dev))
     return 0;
 
   // Don't loop endlessly on recursive directory symlink
-  if (toys.optflags & FLAG_L) {
+  if (FLAG(L)) {
     struct dirtree *try = node;
 
     while ((try = try->parent))
@@ -125,14 +125,14 @@ static int do_du(struct dirtree *node)
   }
 
   // Don't count hard links twice
-  if (!(toys.optflags & FLAG_l) && !node->again)
+  if (!FLAG(l) && !node->again)
     if (seen_inode(&TT.inodes, &node->st)) return 0;
 
   // Collect child info before printing directory size
   if (S_ISDIR(node->st.st_mode)) {
     if (!node->again) {
       TT.depth++;
-      return DIRTREE_COMEAGAIN|(DIRTREE_SYMFOLLOW*!!(toys.optflags&FLAG_L));
+      return DIRTREE_COMEAGAIN|(DIRTREE_SYMFOLLOW*!!FLAG(L));
     } else TT.depth--;
   }
 
@@ -144,9 +144,7 @@ static int do_du(struct dirtree *node)
     node->parent->extra = (unsigned long)node->parent->extra+blocks;
   else TT.total += node->extra;
 
-  if ((toys.optflags & FLAG_a) || !node->parent
-      || (S_ISDIR(node->st.st_mode) && !(toys.optflags & FLAG_s)))
-  {
+  if (FLAG(a) || !node->parent || (S_ISDIR(node->st.st_mode) && !FLAG(s))) {
     blocks = node->extra;
     print(blocks*512LL, node);
   }
@@ -162,7 +160,7 @@ void du_main(void)
   for (args = toys.optc ? toys.optargs : noargs; *args; args++)
     dirtree_flagread(*args, DIRTREE_SYMFOLLOW*!!(toys.optflags&(FLAG_H|FLAG_L)),
       do_du);
-  if (toys.optflags & FLAG_c) print(TT.total*512, 0);
+  if (FLAG(c)) print(TT.total*512, 0);
 
   if (CFG_TOYBOX_FREE) seen_inode(TT.inodes, 0);
 }
