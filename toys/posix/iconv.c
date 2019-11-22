@@ -18,8 +18,8 @@ config ICONV
     Convert character encoding of files.
 
     -c	Omit invalid chars
-    -f	Convert from (default utf8)
-    -t	Convert to   (default utf8)
+    -f	Convert from (default UTF-8)
+    -t	Convert to   (default UTF-8)
 */
 
 #define FOR_iconv
@@ -63,8 +63,8 @@ static void do_iconv(int fd, char *name)
 
 void iconv_main(void)
 {
-  if (!TT.t) TT.t = "utf8";
-  if (!TT.f) TT.f = "utf8";
+  if (!TT.t) TT.t = "UTF-8";
+  if (!TT.f) TT.f = "UTF-8";
 
   if ((iconv_t)-1 == (TT.ic = iconv_open(TT.t, TT.f)))
     perror_exit("%s/%s", TT.t, TT.f);
