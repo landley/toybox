@@ -16,15 +16,14 @@ testing "file1 notfound file2" \
         "cat file1 notfound file2 2>stderr && echo ok ; cat stderr; rm stderr" \
         "one\ntwo\ncat: notfound: No such file or directory\n" "" ""
 
-FILE="$(readlink -f /proc/self/exe)"
-testing "file1" \
-        'cat "$FILE" > file1 && cmp "$FILE" file1 && echo yes' \
-        "yes\n" "" ""
+testing "binary" \
+        'cat "$C" > file1 && cmp "$C" file1 && echo yes' "yes\n" "" ""
 
 testing "- file1" \
         "cat - file1 | diff -a -U 0 - file1 | tail -n 1" \
         "-hello\n" "" "hello\n"
 
+[ -e /dev/full ] || SKIPNEXT=1
 testing "> /dev/full" \
         "cat - > /dev/full 2>stderr && echo ok; cat stderr; rm stderr" \
         "cat: xwrite: No space left on device\n" "" "zero\n"
