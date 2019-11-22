@@ -11,10 +11,15 @@
 PRINTF="$(which printf)"
 
 testing "text" "$PRINTF TEXT" "TEXT" "" ""
+
+# TODO: we have to use \x1b rather than \e in the expectations because
+# the Mac is stuck on bash 3.2 which doesn't support \e. This can go
+# away when we have a usable toysh.
 testing "escapes" "$PRINTF 'one\ntwo\n\v\t\r\f\e\b\athree'" \
-  "one\ntwo\n\v\t\r\f\e\b\athree" "" ""
+  "one\ntwo\n\v\t\r\f\x1b\b\athree" "" ""
 testing "%b escapes" "$PRINTF %b 'one\ntwo\n\v\t\r\f\e\b\athree'" \
-  "one\ntwo\n\v\t\r\f\e\b\athree" "" ""
+  "one\ntwo\n\v\t\r\f\x1b\b\athree" "" ""
+
 testing "null" "$PRINTF 'x\0y' | od -An -tx1" ' 78 00 79\n' "" ""
 testing "trailing slash" "$PRINTF 'abc\'" 'abc\' "" ""
 testing "octal" "$PRINTF ' \1\002\429\045x'" ' \001\002"9%x' "" ""
