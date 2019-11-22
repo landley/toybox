@@ -8,6 +8,9 @@ then
   exit 1
 fi
 
+# Add trailing / to PREFIX when it's set but hasn't got one
+[ "$PREFIX" == "${PREFIX%/}" ] && PREFIX="${PREFIX:+$PREFIX/}"
+
 # Harvest TOYBOX_* symbols from .config
 if [ ! -e .config ]
 then
@@ -41,7 +44,7 @@ do
   echo "# CONFIG_TOYBOX is not set" >> "$KCONFIG_CONFIG" &&
   grep "CONFIG_TOYBOX_" .config >> "$KCONFIG_CONFIG" &&
 
-  export OUTNAME="${PREFIX:+/$PREFIX}$i"
+  export OUTNAME="$PREFIX$i"
   rm -f "$OUTNAME" &&
   scripts/make.sh || exit 1
 done
