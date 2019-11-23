@@ -1197,7 +1197,7 @@ ssize_t bc_num_cmp(BcNum *a, BcNum *b) {
   a_int -= b_int;
   a_max = (a->rdx > b->rdx);
 
-  if (a_int) return (ssize_t) a_int;
+  if (a_int) return neg ? -((ssize_t) a_int) : (ssize_t) a_int;
 
   if (a_max) {
     min = b->rdx;
