@@ -23,7 +23,7 @@ testing "- file1" \
         "cat - file1 | diff -a -U 0 - file1 | tail -n 1" \
         "-hello\n" "" "hello\n"
 
-[ -e /dev/full ] || SKIPNEXT=1
+skipnot [ -e /dev/full ]
 testing "> /dev/full" \
         "cat - > /dev/full 2>stderr && echo ok; cat stderr; rm stderr" \
         "cat: xwrite: No space left on device\n" "" "zero\n"
