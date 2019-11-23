@@ -38,9 +38,8 @@ struct dirtree *dirtree_add_node(struct dirtree *parent, char *name, int flags)
 
     // stat dangling symlinks
     if (fstatat(fd, name, &st, sym)) {
-      if (errno != ENOENT
-        || (!sym && fstatat(fd, name, &st, AT_SYMLINK_NOFOLLOW)))
-      {
+      // If we got ENOENT without NOFOLLOW, try again with NOFOLLOW.
+      if (errno!=ENOENT || sym || fstatat(fd, name, &st, AT_SYMLINK_NOFOLLOW)) {
         if (flags&DIRTREE_STATLESS) statless++;
         else goto error;
       }
