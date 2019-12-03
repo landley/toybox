@@ -104,14 +104,14 @@ testing "dummy0 mtu 2000" \
 # Results Expected: after calling ifconfig dummy0, there is one line with the
 #                   selected ip address
 testing "dummy0 add ::2" \
-"ifconfig dummy0 add ::2/126 && ifconfig dummy0 | grep \:\:2\/126 | wc -l" \
+"ifconfig dummy0 add ::2/126 && ifconfig dummy0 | grep \:\:2/126 | wc -l" \
 "1\n" "" ""
 
 # Test Description: Verify ifconfig del removes the selected ip6 address
 # Results Expected: after calling ifconfig dummy0, there are no lines with the
 #                   selected ip address
 testing "dummy0 del ::2" \
-"ifconfig dummy0 del ::2/126 && ifconfig dummy0 | grep \:\:2 | wc -l" \
+"ifconfig dummy0 del ::2/126 && ifconfig dummy0 | grep \:\:2/126 | wc -l" \
 "0\n" "" ""
 
 # Test Description: Remove the noarp flag and bring the interface down in
