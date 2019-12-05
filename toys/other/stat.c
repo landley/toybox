@@ -150,24 +150,8 @@ static void print_statfs(char type) {
     out('d', statfs->f_namelen);
 #endif
   } else if (type == 't') out('x', statfs->f_type);
-  else if (type == 'T') {
-    char *s = "unknown";
-    struct {unsigned num; char *name;} nn[] = {
-      {0xADFF, "affs"}, {0x5346544e, "ntfs"}, {0x1Cd1, "devpts"},
-      {0x137D, "ext"}, {0xEF51, "ext2"}, {0xEF53, "ext3"},
-      {0x1BADFACE, "bfs"}, {0x9123683E, "btrfs"}, {0x28cd3d45, "cramfs"},
-      {0x3153464a, "jfs"}, {0x7275, "romfs"}, {0x01021994, "tmpfs"},
-      {0x3434, "nilfs"}, {0x6969, "nfs"}, {0x9fa0, "proc"},
-      {0x534F434B, "sockfs"}, {0x62656572, "sysfs"}, {0x517B, "smb"},
-      {0x4d44, "msdos"}, {0x4006, "fat"}, {0x43415d53, "smackfs"},
-      {0x73717368, "squashfs"}
-    };
-    int i;
-
-    for (i=0; i<ARRAY_LEN(nn); i++)
-      if (nn[i].num == statfs->f_type) s = nn[i].name;
-    strout(s);
-  } else if (type == 'i') {
+  else if (type == 'T') strout(fs_type_name(statfs));
+  else if (type == 'i') {
     int *val = (int *) &statfs->f_fsid;
     char buf[32];
 

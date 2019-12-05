@@ -548,3 +548,30 @@ int dev_makedev(int major, int minor)
 #error
 #endif
 }
+
+char *fs_type_name(struct statfs *statfs)
+{
+#if defined(__APPLE__)
+  // macOS has an `f_type` field, but assigns values dynamically as filesystems
+  // are registered. They do give you the name directly though, so use that.
+  return statfs->f_fstypename;
+#else
+  char *s = NULL;
+  struct {unsigned num; char *name;} nn[] = {
+    {0xADFF, "affs"}, {0x5346544e, "ntfs"}, {0x1Cd1, "devpts"},
+    {0x137D, "ext"}, {0xEF51, "ext2"}, {0xEF53, "ext3"},
+    {0x1BADFACE, "bfs"}, {0x9123683E, "btrfs"}, {0x28cd3d45, "cramfs"},
+    {0x3153464a, "jfs"}, {0x7275, "romfs"}, {0x01021994, "tmpfs"},
+    {0x3434, "nilfs"}, {0x6969, "nfs"}, {0x9fa0, "proc"},
+    {0x534F434B, "sockfs"}, {0x62656572, "sysfs"}, {0x517B, "smb"},
+    {0x4d44, "msdos"}, {0x4006, "fat"}, {0x43415d53, "smackfs"},
+    {0x73717368, "squashfs"}
+  };
+  int i;
+
+  for (i=0; i<ARRAY_LEN(nn); i++)
+    if (nn[i].num == statfs->f_type) s = nn[i].name;
+  if (!s) sprintf(s = libbuf, "0x%x", statfs->f_type);
+  return s;
+#endif
+}

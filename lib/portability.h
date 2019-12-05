@@ -355,3 +355,5 @@ void xsignal_all_killers(void *handler);
 int dev_minor(int dev);
 int dev_major(int dev);
 int dev_makedev(int major, int minor);
+
+char *fs_type_name(struct statfs *statfs);
