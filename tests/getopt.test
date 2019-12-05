@@ -30,7 +30,7 @@ test_getopt "-o a -l one:: -- -a --one arg" " -a --one '' -- 'arg'"
 test_getopt "-o a -l one:: -- -a --one=arg" " -a --one 'arg' --"
 
 # "Alternative" long options (-like -this but also --like --this).
-test_getopt "-o a -a -l long -- -long --long a" " --long --long -- 'a'"
+test_getopt "--options a -a --longoptions long -- -long --long a" " --long --long -- 'a'"
 
 # -u lets you avoid quoting even with modern -o.
 test_getopt "-u -o a: -- -a b c" " -a b -- c"

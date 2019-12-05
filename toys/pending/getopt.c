@@ -2,7 +2,7 @@
  *
  * Copyright 2019 The Android Open Source Project
 
-USE_GETOPT(NEWTOY(getopt, "^(alternative)a(name)n:(options)o:(long)(longoptions)l*Tu", TOYFLAG_USR|TOYFLAG_BIN))
+USE_GETOPT(NEWTOY(getopt, "^a(alternative)n:(name)o:(options)l*(long)(longoptions)Tu", TOYFLAG_USR|TOYFLAG_BIN))
 
 config GETOPT
   bool "getopt"
