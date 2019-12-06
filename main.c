@@ -83,7 +83,11 @@ static void toy_singleinit(struct toy_list *which, char *argv[])
   toys.which = which;
   toys.argv = argv;
 
-  if (CFG_TOYBOX_I18N) setlocale(LC_CTYPE, "C.UTF-8");
+  if (CFG_TOYBOX_I18N) {
+    // Deliberately try C.UTF-8 before the user's locale to work around users
+    // that choose non-UTF-8 locales. macOS doesn't support C.UTF-8 though.
+    if (!setlocale(LC_CTYPE, "C.UTF-8")) setlocale(LC_CTYPE, "");
+  }
   setlinebuf(stdout);
 
   // Parse --help and --version for (almost) all commands
