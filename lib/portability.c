@@ -571,7 +571,7 @@ char *fs_type_name(struct statfs *statfs)
 
   for (i=0; i<ARRAY_LEN(nn); i++)
     if (nn[i].num == statfs->f_type) s = nn[i].name;
-  if (!s) sprintf(s = libbuf, "0x%x", statfs->f_type);
+  if (!s) sprintf(s = libbuf, "0x%x", (unsigned)statfs->f_type);
   return s;
 #endif
 }
