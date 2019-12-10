@@ -4,9 +4,11 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/du.html
  *
- * TODO: cleanup
+ * TODO: cleanup (should seen_inode be lib?)
+ * 32 bit du -b maxes out at 4 gigs (instead of 2 terabytes via *512 trick)
+ * because dirtree->extra is a long.
 
-USE_DU(NEWTOY(du, "d#<0=-1hmlcaHkKLsx[-HL][-kKmh]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_DU(NEWTOY(du, "d#<0=-1hmlcaHkKLsxb[-HL][-kKmh]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config DU
   bool "du"
@@ -17,6 +19,7 @@ config DU
     Show disk usage, space consumed by files and directories.
 
     Size in:
+    -b	apparent bytes (directory listing size, not space used)
     -k	1024 byte blocks (default)
     -K	512 byte blocks (posix)
     -m	Megabytes
@@ -65,7 +68,8 @@ static void print(long long size, struct dirtree *node)
     if (FLAG(K)) bits = 9;
     else if (FLAG(m)) bits = 20;
 
-    printf("%llu", (size>>bits)+!!(size&((1<<bits)-1)));
+    if (FLAG(b) && bits == 10 && !FLAG(k)) printf("%llu", size);
+    else printf("%llu", (size>>bits)+!!(size&((1<<bits)-1)));
   }
   if (node) name = dirtree_path(node, NULL);
   xprintf("\t%s\n", name);
@@ -138,7 +142,8 @@ static int do_du(struct dirtree *node)
 
   // Modern compilers' optimizers are insane and think signed overflow
   // behaves differently than unsigned overflow. Sigh. Big hammer.
-  blocks = node->st.st_blocks + (unsigned long)node->extra;
+  blocks = FLAG(b) ? node->st.st_size : node->st.st_blocks;
+  blocks += (unsigned long)node->extra;
   node->extra = blocks;
   if (node->parent)
     node->parent->extra = (unsigned long)node->parent->extra+blocks;
@@ -146,7 +151,7 @@ static int do_du(struct dirtree *node)
 
   if (FLAG(a) || !node->parent || (S_ISDIR(node->st.st_mode) && !FLAG(s))) {
     blocks = node->extra;
-    print(blocks*512LL, node);
+    print(FLAG(b) ? blocks : blocks*512LL, node);
   }
 
   return 0;
@@ -160,7 +165,7 @@ void du_main(void)
   for (args = toys.optc ? toys.optargs : noargs; *args; args++)
     dirtree_flagread(*args, DIRTREE_SYMFOLLOW*!!(toys.optflags&(FLAG_H|FLAG_L)),
       do_du);
-  if (FLAG(c)) print(TT.total*512, 0);
+  if (FLAG(c)) print(FLAG(b) ? TT.total : TT.total*512, 0);
 
   if (CFG_TOYBOX_FREE) seen_inode(TT.inodes, 0);
 }
