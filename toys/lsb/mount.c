@@ -270,6 +270,7 @@ static void mount_filesystem(char *dev, char *dir, char *type,
       dev = tortoise(1, (char *[]){"losetup",
         (flags&MS_RDONLY) ? "-fsr" : "-fs", dev, 0});
       if (!dev) break;
+      continue;
     }
 
     free(buf);
