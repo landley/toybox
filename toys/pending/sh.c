@@ -101,6 +101,8 @@ GLOBALS(
 
   long lineno;
 
+  char **locals;
+
   struct double_list functions;
   unsigned options;
 
@@ -117,11 +119,18 @@ GLOBALS(
 
     // null terminated array of running processes in pipeline
     struct sh_process {
-      struct string_list *delete; // expanded strings
-      int pid, exit;   // status? Stopped? Exited?
+      struct string_list *delete;   // expanded strings
+      struct sh_redirects {
+        struct sh_redirects *next, *prev;
+        int count, rd[];
+      // rdlist = NULL if process didn't redirect, urd undoes <&- for builtins
+      // rdlist is ** because this is our view into inherited context
+      } **rdlist, *urd;
+      int pid, exit;
       struct sh_arg arg;
     } *procs, *proc;
   } *jobs, *job;
+  struct sh_process *callback_pp;
   unsigned jobcnt;
 )
 
@@ -142,7 +151,7 @@ void exit_main(void)
 }
 
 // like error_msg() but exit from shell scripts
-void syntax_err(char *msg, ...)
+static void syntax_err(char *msg, ...)
 {
   va_list va;
 
@@ -203,6 +212,9 @@ down:
 // $((arithmetic)), split, path 
 #define NO_PATH  (1<<0)
 #define NO_SPLIT (1<<1)
+#define NO_BRACE (1<<2)
+#define NO_TILDE (1<<3)
+#define NO_QUOTE (1<<4)
 // TODO: ${name:?error} causes an error/abort here (syntax_err longjmp?)
 // TODO: $1 $@ $* need args marshalled down here: function+structure?
 // arg = append to this
@@ -236,13 +248,30 @@ static void expand_arg(struct sh_arg *arg, char *new, unsigned flags,
 */
 }
 
+// Expand exactly one arg, returning NULL if it split.
+// If return != new you need to free it.
+static char *expand_one_arg(char *new, unsigned flags)
+{
+  struct sh_arg arg;
+  char *s = 0;
+  int i;
+
+  memset(&arg, 0, sizeof(arg));
+  expand_arg(&arg, new, flags, 0);
+  if (arg.c == 1) s = *arg.v;
+  else for (i = 0; i < arg.c; i++) free(arg.v[i]);
+  free(arg.v);
+
+  return s;
+}
+
 // Assign one variable
 // s: key=val
 // type: 0 = whatever it was before, local otherwise
 #define TAKE_MEM 0x80000000
 // declare -aAilnrux
 // ft
-void setvar(char *s, unsigned type)
+static void setvar(char *s, unsigned type)
 {
   if (type&TAKE_MEM) type ^= TAKE_MEM;
   else s = xstrdup(s);
@@ -251,22 +280,38 @@ void setvar(char *s, unsigned type)
   xsetenv(s, 0);
 }
 
-char *getvar(char *s)
+// get variable of length len starting at s.
+static char *getvar(char *s, int len)
 {
-  return getenv(s);
+  unsigned uu;
+  char **ss = TT.locals;
+
+  // loop through local, then global variables
+  for (uu = 0; ; uu++) {
+    if (!ss[uu]) {
+      if (ss != TT.locals) return 0;
+      ss = environ;
+      uu = 0;
+    }
+    // Use UHF rubik's cube protocol to find match.
+    if (!strncmp(ss[uu], s, len) && ss[uu][len] == '=') return ss[uu]+len+1;
+  }
 }
 
 // return length of match found at this point
 static int anystart(char *s, char **try)
 {
+  char *ss = s;
+
   while (*try) {
-    if (strstart(&s, *try)) return strlen(*try);
+    if (strstart(&s, *try)) return s-ss;
     try++;
   }
 
   return 0;
 }
 
+// is this one of the strings in try[] (null terminated array)
 static int anystr(char *s, char **try)
 {
   while (*try) if (!strcmp(s, *try++)) return 1;
@@ -275,7 +320,7 @@ static int anystr(char *s, char **try)
 }
 
 // return length of valid prefix that could go before redirect
-int redir_prefix(char *word)
+static int redir_prefix(char *word)
 {
   char *s = word;
 
@@ -290,15 +335,12 @@ int redir_prefix(char *word)
 
 // TODO |&
 
-// rd[0] = next, 1 = prev, 2 = len, 3-x = to/from redirection pairs.
-// Execute the commands in a pipeline segment
-struct sh_process *run_command(struct sh_arg *arg, int **rdlist)
+// Return number of entries at the start that are environment variable
+// assignments, and perform assignments if nothing else on the line
+static int assign_env(struct sh_arg *arg)
 {
-  struct sh_process *pp = xzalloc(sizeof(struct sh_process));
-  struct toy_list *tl;
-  char *s, *ss, *sss;
-  unsigned envlen, j;
-  int fd, here = 0, rdcount = 0, *rd = 0, *rr, hfd = 0;
+  int envlen, j;
+  char *s;
 
   // Grab variable assignments
   for (envlen = 0; envlen<arg->c; envlen++) {
@@ -308,165 +350,328 @@ struct sh_process *run_command(struct sh_arg *arg, int **rdlist)
   }
 
   // perform assignments locally if there's no command
-  if (envlen == arg->c) {
-    for (j = 0; j<envlen; j++) {
-      struct sh_arg aa;
+  if (envlen != arg->c) return envlen;
 
-      aa.c = 0;
-      expand_arg(&aa, arg->v[j], NO_PATH|NO_SPLIT, 0);
-      setvar(*aa.v, TAKE_MEM);
-      free(aa.v);
-    }
-    free(pp);
-
-    return 0;
+  for (j = 0; j<envlen; j++) {
+    s = expand_one_arg(arg->v[j], NO_PATH|NO_SPLIT);
+    setvar(s, TAKE_MEM*(s!=arg->v[j]));
   }
+
+  return 0;
+}
+
+// cleanup one level of rdlist, can be llist_traverse() callback
+static void free_redirects(void *redir)
+{
+  struct sh_redirects *rd = redir;
+  int i, j;
+
+  for (i = 0; i<rd->count; i++) {
+    j = rd->rd[2*i+1];
+    if (j&3) close(j>>2);  // close for parent process
+  }
+
+  free(rd);
+}
+
+// clean up struct sh_process
+static void cleanup_process(struct sh_process *pp)
+{
+  int i, *rr;
+
+  if (pp->rdlist) free_redirects(dlist_lpop((void *)pp->rdlist));
+  llist_traverse(pp->delete, free);
+
+  // restore stdin/out/err for interactive builtins
+  if (pp->urd) for (i = 0; pp->urd->count; i++) {
+    rr = pp->urd->rd+2*i;
+    dup2(rr[0], rr[1]); // TODO fd exhaustion? (And do what about it?)
+    close(rr[0]);
+  }
+}
+
+int next_hfd(int hfd)
+{
+  for (; hfd<99999; hfd++) if (-1 == fcntl(hfd, F_GETFL)) break;
+  return (hfd == 99999) ? -1 : hfd;
+}
+
+void add_redirect(struct sh_redirects **rdlist, int to, int from)
+{
+  struct sh_redirects *rd = *rdlist;
+  int *rr, count;
+
+  // if to and from both -1, add a redirect level instead of redirect entry
+  if (to == -1 && from == -1) {
+    rd = 0;
+    count = 0;
+  } else count = (rd = (*rdlist)->prev)->count;
+
+  if (!rd || (count && !(count&31))) {
+    if (rd) dlist_lpop((void *)rdlist);
+    // add extra entry in case of |&
+    dlist_add_nomalloc((void *)rdlist,
+      xrealloc(rd, sizeof(*rd)+(count+32)*2*sizeof(int *)));
+    if (!rd) return;
+    rd = (*rdlist)->prev;
+  }
+  rr = rd->rd+2*count;
+  rr[0] = to;
+  rr[1] = from;
+  rd->count++;
+}
+
+// Expand arguments and collect redirects. This can be called from command
+// or block context.
+static struct sh_process *expand_redir(struct sh_arg *arg, int envlen,
+  struct sh_redirects **rdlist)
+{
+  struct sh_process *pp;
+  char *s, *ss, *sss;
+  int j, to, from, here = 0, hfd = 10;
+
+  if (envlen<0 || envlen>=arg->c) return 0;
+  pp = xzalloc(sizeof(struct sh_process));
 
   // We vfork() instead of fork to support nommu systems, and do
   // redirection setup in the parent process. Open new filehandles
-  // and move them to temporary values >10. The rd[] array has pairs of
-  // filehandles: child replaces fd1 with fd2 via dup2() and close() after
-  // the vfork(). fd2 is <<1, if bottom bit set don't close it (dup instead).
+  // and move to temporary values >10. Child calls dup2()/close after vfork().
   // If fd2 < 0 it's a here document (parent process writes to a pipe later).
 
   // Expand arguments and perform redirections
   for (j = envlen; j<arg->c; j++) {
 
-    // Is this a redirect?
-    ss = (s = arg->v[j]) + redir_prefix(arg->v[j]);
-    if (!anystr(ss, (char *[]){"<<<", "<<-", "<<", "<&", "<>", "<", ">>", ">&",
-      ">|", ">", "&>>", "&>", 0}))
-    {
+    // Is this a redirect? s = prefix, ss = operator
+    sss = ss = (s = arg->v[j]) + redir_prefix(arg->v[j]);
+    sss += anystart(ss, (char *[]){"<<<", "<<-", "<<", "<&", "<>", "<", ">>",
+      ">&", ">|", ">", "&>>", "&>", 0});
+    if (ss == sss) {
       // Nope: save/expand argument and loop
-      expand_arg(&pp->arg, s, 0, 0);
+      expand_arg(&pp->arg, s, 0, &pp->delete);
 
       continue;
+    } else if (j+1 >= arg->c) {
+      s = "\\n";
+      goto flush;
     }
+    sss = arg->v[++j];
 
-    // Yes. Expand rd[] and find first unused filehandle >10
-    if (!(rdcount&31)) {
-      if (rd) dlist_lpop((void *)rdlist);
-      rd = xrealloc(rd, (2*rdcount+3+2*32)*sizeof(int *));
-      dlist_add_nomalloc((void *)rdlist, (void *)rd);
-    }
-    rr = rd+3+rdcount;
-    if (!hfd)
-      for (hfd = 10; hfd<99999; hfd++) if (-1 == fcntl(hfd, F_GETFL)) break;
+    // It's a redirect: for [fd]<name s = start of [fd], ss = <, sss = name
 
-    // error check: premature EOF, target fd too high, or redirect file splits
-    if (++j == arg->c || (isdigit(*s) && ss-s>5)) goto flush;
-    fd = pp->arg.c;
+    if (!pp->rdlist) add_redirect(pp->rdlist = rdlist, -1, -1);
+    hfd = next_hfd(hfd);
+    // error check: premature EOF, no free high fd, target fd too big
+    if (hfd == -1 || ++j == arg->c || (isdigit(*s) && ss-s>5)) goto flush;
 
     // expand arguments for everything but << and <<-
-    if (strncmp(ss, "<<", 2) || ss[2] == '<') {
-      expand_arg(&pp->arg, arg->v[j], NO_PATH|(NO_SPLIT*!strcmp(ss, "<<<")), 0);
-      if (fd+1 != pp->arg.c) goto flush;
-      sss = pp->arg.v[--pp->arg.c];
-    } else dlist_add((void *)&pp->delete, sss = xstrdup(arg->v[j]));
+    if (strncmp(ss, "<<", 2) && ss[2] != '<') {
+      sss = expand_one_arg(sss, NO_PATH);
+      if (!sss) goto flush; // arg splitting here is an error
+      if (sss != arg->v[j]) dlist_add((void *)&pp->delete, sss);
+    }
 
-    // rd[] entries come in pairs: first is which fd gets redirected after
-    // vfork(), I.E. the [n] part of [n]<word
-
-    if (isdigit(*ss)) fd = atoi(ss);
-    else if (*ss == '{') {
-      ss++;
+    // Parse the [fd] part of [fd]<name
+    to = *ss != '<';
+    if (isdigit(*s)) to = atoi(s);
+    else if (*s == '{') {
       // when we close a filehandle, we _read_ from {var}, not write to it
-      if ((!strcmp(s, "<&") || !strcmp(s, ">&")) && !strcmp(sss, "-")) {
-        ss = xstrndup(ss, (s-ss)-1);
-        sss = getvar(ss);
-        free(ss);
-        fd = -1;
-        if (sss) fd = atoi(sss);
-        if (fd<0) goto flush;
-        if (fd>2) {
-          rr[0] = fd;
-          rr[1] = fd<<1; // close it
-          rdcount++;
-        }
+      if ((!strcmp(ss, "<&") || !strcmp(ss, ">&")) && !strcmp(sss, "-")) {
+        to = -1;
+        if ((ss = getvar(s+1, ss-s-2))) to = atoi(ss); // TODO trailing garbage?
+        if (to<0) goto flush;
+        add_redirect(rdlist, to, (to<<2)+1);
+
         continue;
-      } else setvar(xmprintf("%.*s=%d", (int)(s-ss), ss, hfd),  TAKE_MEM); 
-    } else fd = *ss != '<';
-    *rr = fd;
+      // record high file descriptor in {to}<from environment variable
+      } else setvar(xmprintf("%.*s=%d", (int)(ss-s-1), s, to = hfd),  TAKE_MEM);
+    }
 
-    // at this point for [n]<word s = start of [n], ss = start of <, sss = word
+    // HERE documents?
+    if (!strcmp(ss, "<<<") || !strcmp(ss, "<<-") || !strcmp(ss, "<<")) {
+      char *tmp = getvar("TMPDIR", 6);
+      int i, bad, len, l2, zap = (ss[2] == '-'),
+        noforg =(ss[strcspn(ss, "\"'")]);
 
-    // second entry in this rd[] pair is new fd to dup2() after vfork(),
-    // I.E. for [n]<word the fd if you open("word"). It's stored <<1 and the
-    // low bit set means don't close(rr[1]) after dup2(rr[1]>>1, rr[0]);
+      // store contents in open-but-deleted /tmp file.
+      tmp = xmprintf("%s/sh-XXXXXX", tmp ? tmp : "/tmp");
+      if ((from = mkstemp(tmp))>=0) {
+        if (unlink(tmp)) bad++;
 
-    // fd<0 means HERE document. Canned input stored earlier, becomes pipe later
-    if (!strcmp(s, "<<<") || !strcmp(s, "<<-") || !strcmp(s, "<<")) {
-      fd = --here<<2;
-      if (s[2] == '-') fd += 1;          // zap tabs
-      if (s[strcspn(s, "\"'")]) fd += 2; // it was quoted so no expansion
-      rr[1] = fd;
-      rdcount++;
+        // write here document contents to file and lseek back to start
+        else if (ss[2] == '<') {
+          if (!noforg) sss = expand_one_arg(sss, NO_PATH|NO_SPLIT);
+          len = strlen(sss);
+          if (len != writeall(from, sss, len)) bad++;
+          free(sss);
+        } else {
+          struct sh_arg *hh = arg+here++;
+
+          for (i = 0; i<hh->c; i++) {
+            ss = hh->v[i];
+            sss = 0;
+            // expand_parameter, commands, and arithmetic
+            if (!noforg)
+              ss = sss = expand_one_arg(ss,
+                NO_PATH|NO_SPLIT|NO_BRACE|NO_TILDE|NO_QUOTE);
+
+            while (zap && *ss == '\t') ss++;
+            l2 = writeall(from, ss, len = strlen(ss));
+            free(sss);
+            if (len != l2) break;
+          }
+          if (i != hh->c) bad++;
+        }
+        if (!bad && lseek(from, 0, SEEK_SET)) bad++;
+      }
+
+      // error report/handling
+      if (bad || from == -1 || hfd != dup2(from, hfd)) {
+        if (bad || from == -1) perror_msg("bad %s: '%s'", ss, tmp);
+        else perror_msg("dup2");
+        if (from != -1) close(from);
+        pp->exit = 1;
+        s = 0;
+        free(tmp);
+
+        goto flush;
+      }
+      free(tmp);
+
+      if (from != hfd) close(from);
+      add_redirect(rdlist, to, (from<<2)+(2*(to!=from)));
 
       continue;
     }
 
-    // Handle file descriptor duplication/close (&> &>> <& >& with number or -)
-    if (strchr(ss, '&') && ss[2] != '>') {
-      char *dig = sss;
+    // from>=0 means it's fd<<2 (new fd to dup2() after vfork()) plus
+    // 2 if we should close(from>>2) after dup2(from>>2, to),
+    // 1 if we should close but dup for nofork recovery (ala <&2-)
 
-      // These redirect existing fd so nothing to open()
-      while (isdigit(dig)) dig++;
-      if (dig-sss>5) {
+    // Handle file descriptor duplication/close (&> &>> <& >& with number or -)
+    // These redirect existing fd so nothing to open()
+    if (strchr(ss, '&') && ss[2] != '>' && *ss != '|') {
+      // is there an explicit fd?
+      ss = sss;
+      while (isdigit(ss)) ss++;
+      if (ss-sss>5 || (*ss && (*ss != '-' || ss[1]))) {
+        // bad fd
         s = sss;
         goto flush;
       }
 
-// TODO can't check if fd is open here, must do it when actual redirects happen
-      if (!*dig || (*dig=='-' && !dig[1])) {
-        rr[1] = (((dig==sss) ? *rr : atoi(sss))<<1)+(*dig != '-');
-        rdcount++;
+      // TODO can't reasonably check if fd is open here, should
+      // do it when actual redirects happen
+      add_redirect(rdlist, to, (((ss==sss)?to:atoi(sss))<<2)+(*ss != '-'));
 
-        continue;
-      }
+      continue;
     }
 
     // Permissions to open external file with: < > >> <& >& <> >| &>> &>
-    if (!strcmp(ss, "<>")) fd = O_CREAT|O_RDWR;
-    else if (strstr(ss, ">>")) fd = O_CREAT|O_APPEND;
+    if (!strcmp(ss, "<>")) from = O_CREAT|O_RDWR;
+    else if (strstr(ss, ">>")) from = O_CREAT|O_APPEND;
     else {
-      fd = (*ss != '<') ? O_CREAT|O_WRONLY|O_TRUNC : O_RDONLY;
+      from = (*ss != '<') ? O_CREAT|O_WRONLY|O_TRUNC : O_RDONLY;
       if (!strcmp(ss, ">") && (TT.options&SH_NOCLOBBER)) {
         struct stat st;
 
         // Not _just_ O_EXCL: > /dev/null allowed
-        if (stat(sss, &st) || !S_ISREG(st.st_mode)) fd |= O_EXCL;
+        if (stat(sss, &st) || !S_ISREG(st.st_mode)) from |= O_EXCL;
       }
     }
 
-    // Open the file
 // TODO: /dev/fd/# /dev/{stdin,stdout,stderr} /dev/{tcp,udp}/host/port
-    if (-1 == (fd = xcreate(sss, fd|WARN_ONLY, 777)) || hfd != dup2(fd, hfd)) {
+
+// TODO: is umask respected here?
+    // Open the file
+    from = xcreate(sss, from|WARN_ONLY, 777);
+    if (-1 == from || hfd != dup2(from, hfd)) {
       pp->exit = 1;
       s = 0;
+      if (from != -1) perror_msg("dup2");
 
       goto flush;
     }
-    if (fd != hfd) close(fd);
-    rr[1] = hfd<<1;
-    rdcount++;
+    if (from != hfd) close(from);
 
-    // queue up a 2>&1 ?
-    if (strchr(ss, '&')) {
-      if (!(31&++rdcount)) rd = xrealloc(rd, (2*rdcount+66)*sizeof(int *));
-      rr = rd+3+rdcount;
-      rr[0] = 2;
-      rr[1] = 1+(1<<1);
-      rdcount++;
-    }
+    add_redirect(rdlist, to, (hfd<<2)+2);
   }
-  if (rd) rd[2] = rdcount;
 
-// TODO: ok, now _use_ in_rd[in_rdcount] and rd[rdcount]. :)
+  s = 0;
 
-// TODO: handle ((math)) here
+flush:
+  if (s) {
+    syntax_err("bad %s", s);
+    if (!pp->exit) pp->exit = 1;
+  }
 
-// TODO use envlen
-// TODO: check for functions
+  return pp;
+}
+
+// perform the redirects in an rdlist, saving undo information as necessary
+// rd->rd[] is destination/source filehandle pairs, length is 2*rd->count
+// first (dest): filehandle to replace (via dup2)
+// second (src): fd<<2 + 2=close fd after dup, 1=close but save for nofork
+static int perform_redirects(struct sh_process *pp, int nofork)
+{
+  struct sh_redirects *rd = 0;
+  int rc = 0, hfd = 20;
+
+  if (pp->rdlist) rd = *pp->rdlist;
+  if (rd) for (;;) {
+    int i, j, *rr;
+
+    for (i = 0; i<rd->count; i++) {
+      rr = rd->rd+2*i;
+
+      // preserve redirected stdin/out/err for nofork, to restore later
+      if (nofork && (rr[1]&1)) {
+        if (!pp->urd) add_redirect(&pp->urd, -1, -1);
+        hfd = next_hfd(hfd);
+        if (hfd == -1 || hfd != dup2(rr[0], hfd)) {
+          perror_msg("%d", rr[0]);
+          rc = 1;
+          continue; // don't perform a redirect we can't undo
+        } else add_redirect(&pp->urd, hfd, rr[0]);
+      }
+
+      // move the filehandle
+      j = rr[1]>>2;
+      if (rr[0] != j && j != dup2(rr[0], j)) {
+        perror_msg("%d", j);
+        rc = 1;
+      } else if ((rr[1]&1) || ((rr[1]&2) && !nofork)) {
+        close(j);
+        rr[1] &= ~2;
+      }
+    }
+
+    if (rd->next == *pp->rdlist) break;
+    rd = rd->next;
+  }
+
+  return rc;
+}
+
+// callback from xpopen_setup()
+static void redirect_callback(void)
+{
+  if (perform_redirects(TT.callback_pp, 0)) _exit(1);
+  TT.callback_pp = 0;
+}
+
+// Execute the commands in a pipeline segment
+static struct sh_process *run_command(struct sh_arg *arg,
+  struct sh_redirects **rdlist, int *pipes)
+{
+  struct sh_process *pp;
+  struct toy_list *tl;
+
+  // grab environment var assignments, expand arguments and queue up redirects
+  if (!(pp = expand_redir(arg, assign_env(arg), rdlist))) return 0;
+  if (pp->exit) return pp;
+
+// TODO: handle ((math))
+// TODO: check for functions()
 
   // Is this command a builtin that should run in this process?
   if ((tl = toy_find(*pp->arg.v))
@@ -475,15 +680,18 @@ struct sh_process *run_command(struct sh_arg *arg, int **rdlist)
     struct toy_context temp;
     sigjmp_buf rebound;
 
+    // NOFORK can't background and blocks until done or interrupted, so
+    // do redirects here then unwind after the command.
+
+    perform_redirects(pp, 1);
+
     // This fakes lots of what toybox_main() does.
     memcpy(&temp, &toys, sizeof(struct toy_context));
     memset(&toys, 0, sizeof(struct toy_context));
 
-// TODO: redirect stdin/out
     if (!sigsetjmp(rebound, 1)) {
       toys.rebound = &rebound;
-// must be null terminated
-      toy_init(tl, pp->arg.v);
+      toy_init(tl, pp->arg.v);  // arg.v must be null terminated
       tl->toy_main();
     }
     pp->exit = toys.exitval;
@@ -491,26 +699,15 @@ struct sh_process *run_command(struct sh_arg *arg, int **rdlist)
     if (toys.old_umask) umask(toys.old_umask);
     memcpy(&toys, &temp, sizeof(struct toy_context));
   } else {
-    int pipe[2];
-
-    pipe[0] = 0;
-    pipe[1] = 1;
-// TODO: redirect and pipe
-// TODO: redirecting stderr needs xpopen3() or rethink
-    if (-1 == (pp->pid = xpopen_both(pp->arg.v, pipe)))
+    TT.callback_pp = pp;
+    if (-1 == (pp->pid = xpopen_setup(pp->arg.v, pipes, redirect_callback)))
       perror_msg("%s: vfork", *pp->arg.v);
-// TODO: don't close stdin/stdout!
-    else pp->exit = xpclose_both(pp->pid, 0);
   }
+  cleanup_process(pp);
 
-  s = 0;
-flush:
-  if (s) {
-    syntax_err("bad %s", s);
-    if (!pp->exit) pp->exit = 1;
-  }
-  for (j = 0; j<rdcount; j++) if (rd[4+2*j]>6) close(rd[4+2*j]>>1);
-  if (rdcount) free(dlist_lpop((void *)rdlist));
+  // unwind redirects
+
+// TODO: what if exception handler recovery?
 
   return pp;
 }
@@ -618,17 +815,20 @@ struct sh_pipeline {
 };
 
 // run a series of "command | command && command" with redirects.
-int run_pipeline(struct sh_pipeline **pl, int *rd)
+int run_pipeline(struct sh_pipeline **pl, struct sh_redirects **rdlist)
 {
   struct sh_process *pp;
-  int rc = 0;
+  int rc = 0, pipes[2];
 
   for (;;) {
 // TODO job control
-    if (!(pp = run_command((*pl)->arg, &rd))) rc = 0;
+// TODO pipes (ending, leading)
+    if (!(pp = run_command((*pl)->arg, rdlist, 0))) rc = 0;
     else {
+// TODO backgrounding
+      if (pp->pid) pp->exit = xpclose_both(pp->pid, 0);
 //wait4(pp);
-      llist_traverse(pp->delete, free);
+// TODO -o pipefail
       rc = pp->exit;
       free(pp);
     }
@@ -637,7 +837,6 @@ int run_pipeline(struct sh_pipeline **pl, int *rd)
     else return rc;
   }
 }
-
 
 
 // scratch space (state held between calls). Don't want to make it global yet
@@ -716,9 +915,14 @@ static int parse_line(char *line, struct sh_function *sp)
     } else if (pl->count != pl->here) {
       arg += 1+pl->here;
 
-      argxtend(arg);
-      if (strcmp(line, arg->v[arg->c])) {
+      // Match unquoted EOF.
+      for (s = line, end = arg->v[arg->c]; *s && *end; s++, i++) {
+        s += strspn(s, "\\\"'");
+        if (*s != *end) break;
+      }
+      if (!*s && !*end) {
         // Add this line
+        argxtend(arg);
         arg->v[arg->c+1] = arg->v[arg->c];
         arg->v[arg->c++] = xstrdup(line);
       // EOF hit, end HERE document
@@ -744,6 +948,8 @@ static int parse_line(char *line, struct sh_function *sp)
       // find arguments of the form [{n}]<<[-] with another one after it
       for (i = 0; i<arg->c; i++) {
         s = arg->v[i] + redir_prefix(arg->v[i]);
+// TODO <<< is funky
+// argc[] entries removed from main list? Can have more than one?
         if (strcmp(s, "<<") && strcmp(s, "<<-") && strcmp(s, "<<<")) continue;
         if (i+1 == arg->c) goto flush;
 
@@ -755,8 +961,10 @@ static int parse_line(char *line, struct sh_function *sp)
 
         // queue up HERE EOF so input loop asks for more lines.
         arg[pl->count].v = xzalloc(2*sizeof(void *));
-        *arg[pl->count].v = arg->v[++i];
-        arg[pl->count].c = -(s[2] == '<'); // note <<< as c = -1
+        arg[pl->count].v[0] = arg->v[++i];
+        arg[pl->count].v[1] = 0;
+        arg[pl->count].c = 0;
+        if (s[2] == '<') pl->here++; // <<< doesn't load more data
       }
       pl = 0;
     }
@@ -974,6 +1182,7 @@ check:
   free(delete);
 
   // advance past <<< arguments (stored as here documents, but no new input)
+  if (!sp->pipeline) return 0;
   pl = sp->pipeline->prev;
   while (pl->count<pl->here && pl->arg[pl->count].c<0)
     pl->arg[pl->count++].c = 0;
@@ -1032,7 +1241,8 @@ static void run_function(struct sh_function *sp)
   struct blockstack {
     struct blockstack *next;
     struct sh_pipeline *start, *end;
-    int run, loop, *redir;
+    struct sh_redirects *redir;
+    int run, loop;
 
     struct sh_arg farg;          // for/select arg stack
     struct string_list *fdelete; // farg's cleanup list
@@ -1076,7 +1286,7 @@ static void run_function(struct sh_function *sp)
 // inherit redirects?
 // returns last statement of pipeline
       if (!blk) toys.exitval = run_pipeline(&pl, 0);
-      else if (blk->run) toys.exitval = run_pipeline(&pl, blk->redir);
+      else if (blk->run) toys.exitval = run_pipeline(&pl, &blk->redir);
       else while (pl->next && !pl->next->type) pl = pl->next;
 
     // Starting a new block?
@@ -1241,6 +1451,9 @@ void sh_main(void)
   char *new;
   struct sh_function scratch;
   int prompt = 0;
+
+  // Is this an interactive shell?
+//  if (FLAG(i) || (!FLAG(c)&&(FLAG(S)||!toys.optc) && isatty(0) && isatty(1))) 
 
   // Set up signal handlers and grab control of this tty.
 

@@ -22,6 +22,12 @@ long environ_bytes()
 // Use this instead of envc so we keep track of what needs to be freed.
 void xclearenv(void)
 {
+  if (toys.envc) {
+    char **ss;
+
+    for (ss = environ; *ss; ss++) free(*ss);
+    free(environ);
+  }
   toys.envc = 0;
   *environ = 0;
 }
@@ -29,18 +35,18 @@ void xclearenv(void)
 // Frees entries we set earlier. Use with libc getenv but not setenv/putenv.
 // if name has an equals and !val, act like putenv (name=val must be malloced!)
 // if !val unset name. (Name with = and val is an error)
-void xsetenv(char *name, char *val)
+void xsetmyenv(int *envc, char ***env, char *name, char *val)
 {
-  unsigned i, len, envc;
+  unsigned i, len, ec;
   char *new;
 
   // If we haven't snapshot initial environment state yet, do so now.
-  if (!toys.envc) {
+  if (!*envc) {
     // envc is size +1 so even if env empty it's nonzero after initialization
-    while (environ[toys.envc++]);
-    memcpy(new = xmalloc(((toys.envc|0xff)+1)*sizeof(char *)),
-      environ, toys.envc*sizeof(char *));
-    environ = (void *)new;
+    while ((*env)[(*envc)++]);
+    memcpy(new = xmalloc(((*envc|0xff)+1)*sizeof(char *)), *env,
+      *envc*sizeof(char *));
+    *env = (void *)new;
   }
 
   new = strchr(name, '=');
@@ -53,16 +59,16 @@ void xsetenv(char *name, char *val)
     if (val) new = xmprintf("%s=%s", name, val);
   }
 
-  envc = toys.envc-1;  // compensate for size +1 above
-  for (i = 0; environ[i]; i++) {
+  ec = (*envc)-1;  // compensate for size +1 above
+  for (i = 0; (*env)[i]; i++) {
     // Drop old entry, freeing as appropriate. Assumes no duplicates.
-    if (!memcmp(name, environ[i], len) && environ[i][len]=='=') {
-      if (i>=envc) free(environ[i]);
+    if (!memcmp(name, (*env)[i], len) && (*env)[i][len]=='=') {
+      if (i>=ec) free((*env)[i]);
       else {
         // move old entries down, add at end of old data
-        toys.envc = envc--;
-        for (; new ? i<envc : !!environ[i]; i++) environ[i] = environ[i+1];
-        i = envc;
+        *envc = ec--;
+        for (; new ? i<ec : !!(*env)[i]; i++) (*env)[i] = (*env)[i+1];
+        i = ec;
       }
       break;
     }
@@ -71,12 +77,18 @@ void xsetenv(char *name, char *val)
   if (!new) return;
 
   // resize and null terminate if expanding
-  if (!environ[i]) {
+  if (!(*env)[i]) {
     len = i+1;
-    if (!(len&255)) environ = xrealloc(environ, len*sizeof(char *));
-    environ[len] = 0;
+    if (!(len&255)) *env = xrealloc(*env, len*sizeof(char *));
+    (*env)[len] = 0;
   }
-  environ[i] = new;
+  (*env)[i] = new;
+}
+
+// xsetenv for normal environment (extern variables).
+void xsetenv(char *name, char *val)
+{
+  return xsetmyenv(&toys.envc, &environ, name, val);
 }
 
 void xunsetenv(char *name)

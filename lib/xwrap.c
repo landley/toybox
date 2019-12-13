@@ -224,7 +224,7 @@ void xexec(char **argv)
 //           If -1, replace with pipe handle connected to stdin/stdout.
 //           NULL treated as {0, 1}, I.E. leave stdin/stdout as is
 // return: pid of child process
-pid_t xpopen_both(char **argv, int *pipes)
+pid_t xpopen_setup(char **argv, int *pipes, void (*callback)(void))
 {
   int cestnepasun[4], pid;
 
@@ -269,6 +269,7 @@ pid_t xpopen_both(char **argv, int *pipes)
         close(pipes[1]);
       }
     }
+    if (callback) callback();
     if (argv) xexec(argv);
 
     // In fork() case, force recursion because we know it's us.
@@ -308,6 +309,12 @@ pid_t xpopen_both(char **argv, int *pipes)
 
   return pid;
 }
+
+pid_t xpopen_both(char **argv, int *pipes)
+{
+  return xpopen_setup(argv, pipes, 0);
+}
+
 
 // Wait for child process to exit, then return adjusted exit code.
 int xwaitpid(pid_t pid)

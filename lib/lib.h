@@ -134,6 +134,7 @@ void xputs(char *s);
 void xputc(char c);
 void xflush(int flush);
 void xexec(char **argv);
+pid_t xpopen_setup(char **argv, int *pipes, void (*callback)(void));
 pid_t xpopen_both(char **argv, int *pipes);
 int xwaitpid(pid_t pid);
 int xpclose_both(pid_t pid, int *pipes);
