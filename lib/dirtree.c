@@ -44,7 +44,7 @@ struct dirtree *dirtree_add_node(struct dirtree *parent, char *name, int flags)
         else goto error;
       }
     }
-    if (S_ISLNK(st.st_mode)) {
+    if (!statless && S_ISLNK(st.st_mode)) {
       if (0>(linklen = readlinkat(fd, name, libbuf, 4095))) goto error;
       libbuf[linklen++]=0;
     }
