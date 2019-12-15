@@ -6,7 +6,7 @@ USE_GETOPT(NEWTOY(getopt, "^a(alternative)n:(name)o:(options)l*(long)(longoption
 
 config GETOPT
   bool "getopt"
-  default y
+  default n
   help
     usage: getopt [OPTIONS] [--] ARG...
 
