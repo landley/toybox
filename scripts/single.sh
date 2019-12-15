@@ -33,16 +33,25 @@ do
     exit 1
   fi
 
+  make allnoconfig > /dev/null || exit 1
+
+  DEPENDS=
+  MPDEL=
+  if [ "$i" == sh ]
+  then
+    DEPENDS="$(sed -n 's/USE_\([^(]*\)(NEWTOY([^,]*,.*TOYFLAG_MAYFORK.*/\1/p' toys/*/*.c)"
+  else
+    MPDEL="-e 's/CONFIG_TOYBOX=y/# CONFIG_TOYBOX is not set/;t'"
+  fi
+
   # Enable stuff this command depends on
-  DEPENDS="$(sed -n "/^config *$i"'$/,/^$/{s/^[ \t]*depends on //;T;s/[!][A-Z0-9_]*//g;s/ *&& */|/g;p}' $TOYFILE | xargs | tr ' ' '|')"
+  DEPENDS="$({ echo $DEPENDS; sed -n "/^config *$i"'$/,/^$/{s/^[ \t]*depends on //;T;s/[!][A-Z0-9_]*//g;s/ *&& */|/g;p}' $TOYFILE ;}| xargs | tr ' ' '|')"
 
   NAME=$(echo $i | tr a-z- A-Z_)
-  make allnoconfig > /dev/null &&
-  sed -ri -e '/CONFIG_TOYBOX/d' \
+  sed -ri $MPDEL \
     -e "s/# (CONFIG_($NAME|${NAME}_.*${DEPENDS:+|$DEPENDS})) is not set/\1=y/" \
     "$KCONFIG_CONFIG" &&
-  echo "# CONFIG_TOYBOX is not set" >> "$KCONFIG_CONFIG" &&
-  grep "CONFIG_TOYBOX_" .config >> "$KCONFIG_CONFIG" &&
+  grep "CONFIG_TOYBOX_" .config >> "$KCONFIG_CONFIG" || exit 1
 
   export OUTNAME="$PREFIX$i"
   rm -f "$OUTNAME" &&
