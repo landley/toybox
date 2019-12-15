@@ -115,7 +115,7 @@ testing()
 
   echo -ne "$3" > expected
   [ ! -z "$4" ] && echo -ne "$4" > input || rm -f input
-  echo -ne "$5" | ${EVAL:-eval} -- "$2" > actual
+  echo -ne "$5" | ${EVAL:-eval --} "$2" > actual
   RETVAL=$?
 
   # Catch segfaults
