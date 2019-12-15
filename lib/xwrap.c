@@ -1066,13 +1066,14 @@ char *xgetline(FILE *fp, int *len)
 {
   char *new = 0;
   size_t linelen = 0;
+  long ll;
 
   errno = 0;
-  if (1>(linelen = getline(&new, &linelen, fp))) {
+  if (1>(ll = getline(&new, &linelen, fp))) {
     if (errno) perror_msg("getline");
     new = 0;
   } else if (new[linelen-1] == '\n') new[--linelen] = 0;
-  if (len) *len = linelen;
+  if (len) *len = ll;
 
   return new;
 }
