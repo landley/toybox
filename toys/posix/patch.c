@@ -15,20 +15,19 @@
  *
  * -E remove empty files --remove-empty-files
  * -F fuzz (number, default 2)
- * [file] which file to patch
 
-USE_PATCH(NEWTOY(patch, "(no-backup-if-mismatch)(dry-run)"USE_TOYBOX_DEBUG("x")"g#fulp#d:i:Rs(quiet)", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PATCH(NEWTOY(patch, ">2(no-backup-if-mismatch)(dry-run)"USE_TOYBOX_DEBUG("x")"g#fulp#d:i:Rs(quiet)", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PATCH
   bool "patch"
   default y
   help
-    usage: patch [-d DIR] [-i file] [-p depth] [-Rlsu] [--dry-run]
+    usage: patch [-d DIR] [-i PATCH] [-p depth] [-Rlsu] [--dry-run] [FILE [PATCH]]
 
     Apply a unified diff to one or more files.
 
     -d	Modify files in DIR
-    -i	Input file (default=stdin)
+    -i	Input patch file (default=stdin)
     -l	Loose match (ignore whitespace)
     -p	Number of '/' to strip from start of file paths (default=all)
     -R	Reverse patch
@@ -267,7 +266,7 @@ char *unquote_file(char *filename) {
       } else {
         ch = unescape(s[1]);
         *t++ = ch ? ch : s[1];
-		s++;
+        s++;
       }
     } else *t++ = *s;
   }
@@ -288,6 +287,7 @@ void patch_main(void)
   int reverse = FLAG(R), state = 0, patchlinenum = 0, strip = 0;
   char *oldname = NULL, *newname = NULL;
 
+  if (toys.optc == 2) TT.i = toys.optargs[1];
   if (TT.i) TT.filepatch = xopenro(TT.i);
   TT.filein = TT.fileout = -1;
 
@@ -388,12 +388,23 @@ void patch_main(void)
         oldsum = TT.oldline + TT.oldlen;
         newsum = TT.newline + TT.newlen;
 
+        // If an original file was provided on the command line, it overrides
+        // *all* files mentioned in the patch, not just the first.
+        if (toys.optc) {
+          char **which = reverse ? &oldname : &newname;
+
+          free(*which);
+          *which = strdup(toys.optargs[0]);
+          // The supplied path should be taken literally with or without -p.
+          toys.optflags |= FLAG_p;
+          TT.p = 0;
+        }
+
         name = reverse ? oldname : newname;
 
         // We're deleting oldname if new file is /dev/null (before -p)
         // or if new hunk is empty (zero context) after patching
-        if (!strcmp(name, "/dev/null") || !(reverse ? oldsum : newsum))
-        {
+        if (!strcmp(name, "/dev/null") || !(reverse ? oldsum : newsum)) {
           name = reverse ? newname : oldname;
           del++;
         }
