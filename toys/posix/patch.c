@@ -14,15 +14,14 @@
  * -r rejectfile write rejected hunks to this file
  *
  * -E remove empty files --remove-empty-files
- * -F fuzz (number, default 2)
 
-USE_PATCH(NEWTOY(patch, ">2(no-backup-if-mismatch)(dry-run)"USE_TOYBOX_DEBUG("x")"g#fulp#d:i:Rs(quiet)", TOYFLAG_USR|TOYFLAG_BIN))
+USE_PATCH(NEWTOY(patch, ">2(no-backup-if-mismatch)(dry-run)"USE_TOYBOX_DEBUG("x")"F#g#fulp#d:i:Rs(quiet)", TOYFLAG_USR|TOYFLAG_BIN))
 
 config PATCH
   bool "patch"
   default y
   help
-    usage: patch [-d DIR] [-i PATCH] [-p depth] [-Rlsu] [--dry-run] [FILE [PATCH]]
+    usage: patch [-d DIR] [-i PATCH] [-p depth] [-F FUZZ] [-Rlsu] [--dry-run] [FILE [PATCH]]
 
     Apply a unified diff to one or more files.
 
@@ -36,7 +35,7 @@ config PATCH
     --dry-run Don't change files, just confirm patch applies
 
     This version of patch only handles unified diffs, and only modifies
-    a file when all hunks to that file apply.  Patch prints failed hunks
+    a file when all hunks to that file apply. Patch prints failed hunks
     to stderr, and exits with nonzero status if any hunks fail.
 
     A file compared against /dev/null (or with a date <= the epoch) is
@@ -48,7 +47,7 @@ config PATCH
 
 GLOBALS(
   char *i, *d;
-  long p, g;
+  long p, g, F;
 
   struct double_list *current_hunk;
   long oldline, oldlen, newline, newlen;
@@ -130,7 +129,7 @@ static int loosecmp(char *aa, char *bb)
 static int apply_one_hunk(void)
 {
   struct double_list *plist, *buf = NULL, *check;
-  int matcheof, trailing = 0, reverse = FLAG(R), backwarn = 0;
+  int matcheof, trailing = 0, reverse = FLAG(R), backwarn = 0, allfuzz=0, fuzz;
   int (*lcmp)(char *aa, char *bb);
 
   lcmp = FLAG(l) ? (void *)loosecmp : (void *)strcmp;
@@ -138,11 +137,25 @@ static int apply_one_hunk(void)
 
   // Match EOF if there aren't as many ending context lines as beginning
   for (plist = TT.current_hunk; plist; plist = plist->next) {
-    if (plist->data[0]==' ') trailing++;
+    char c = *plist->data, *s;
+
+    if (c==' ') trailing++;
     else trailing = 0;
+
+    // Only allow fuzz if 2 context lines have multiple nonwhitespace chars.
+    // avoids the "all context was blank or } lines" issue. Removed lines
+    // count as context since they're matched.
+    if (c==' ' || c=="-+"[reverse]) {
+      s = plist->data+1;
+      while (isspace(*s)) s++;
+      if (*s && s[1] && !isspace(s[1])) allfuzz++;
+    }
+
     if (FLAG(x)) fprintf(stderr, "HUNK:%s\n", plist->data);
   }
   matcheof = !trailing || trailing < TT.context;
+  if (allfuzz<2) allfuzz = 0;
+  else allfuzz = FLAG(F) ? TT.F : TT.context ? TT.context-1 : 0;
 
   if (FLAG(x)) fprintf(stderr,"MATCHEOF=%c\n", matcheof ? 'Y' : 'N');
 
@@ -150,6 +163,7 @@ static int apply_one_hunk(void)
   // lines and all lines to be removed until we've found the end of a
   // complete hunk.
   plist = TT.current_hunk;
+  fuzz = allfuzz;
   buf = NULL;
 
   for (;;) {
@@ -184,7 +198,7 @@ static int apply_one_hunk(void)
     // Compare this line with next expected line of hunk.
 
     // A match can fail because the next line doesn't match, or because
-    // we hit the end of a hunk that needed EOF, and this isn't EOF.
+    // we hit the end of a hunk that needed EOF and this isn't EOF.
 
     // If match failed, flush first line of buffered data and
     // recheck buffered data for a new match until we find one or run
@@ -192,6 +206,11 @@ static int apply_one_hunk(void)
 
     for (;;) {
       if (!plist || lcmp(check->data, plist->data+1)) {
+        if (plist && *plist->data == ' ' && fuzz-->0) {
+          if (FLAG(x)) fprintf(stderr, "FUZZED: %s\n", plist->data);
+          goto fuzzed;
+        }
+
         // Match failed.  Write out first line of buffered data and
         // recheck remaining buffered data for a new match.
 
@@ -215,6 +234,7 @@ static int apply_one_hunk(void)
         TT.state = 3;
         do_line(check = dlist_pop(&buf));
         plist = TT.current_hunk;
+        fuzz = allfuzz;
 
         // If we've reached the end of the buffer without confirming a
         // match, read more lines.
@@ -222,6 +242,7 @@ static int apply_one_hunk(void)
         check = buf;
       } else {
         if (FLAG(x)) fprintf(stderr, "MAYBE: %s\n", plist->data);
+fuzzed:
         // This line matches. Advance plist, detect successful match.
         plist = plist->next;
         if (!plist && !matcheof) goto out;
