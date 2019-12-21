@@ -246,32 +246,30 @@ done:
 }
 
 // read a filename that has been quoted or escaped
-char *unquote_file(char *filename) {
-  char *s = filename, *result, *t, *u;
-  int quote = 0, ch;
+char *unquote_file(char *filename)
+{
+  char *s = filename, *t;
+
+  // Return copy of file that wasn't quoted
+  if (*s++ != '"' || !*s) return xstrdup(filename);
 
   // quoted and escaped filenames are larger than the original
-  result = xmalloc(strlen(filename) + 1);
-  t = result;
-  if (*s == '"') {
-    s++;
-    quote = 1;
-  }
-  for (; *s && !(quote && *s == '"' && !s[1]); s++) {
+  for (t = filename = xmalloc(strlen(s) + 1); *s != '"'; s++) {
+    if (!s[1]) error_exit("bad %s", filename);
+
     // don't accept escape sequences unless the filename is quoted
-    if (quote && *s == '\\' && s[1]) {
-      if (s[1] >= '0' && s[1] < '8') {
-        *t++ = strtoul(s + 1, &u, 8);
-        s = u - 1;
-      } else {
-        ch = unescape(s[1]);
-        *t++ = ch ? ch : s[1];
-        s++;
-      }
-    } else *t++ = *s;
+    if (*s != '\\') *t++ = *s;
+    else if (*++s >= '0' && *s < '8') {
+      *t++ = strtoul(s, &s, 8);
+      s--;
+    } else {
+      if (!(*t = unescape(*s))) *t = *s;;
+      t++;
+    }
   }
   *t = 0;
-  return result;
+
+  return filename;
 }
 
 // Read a patch file and find hunks, opening/creating/deleting files.

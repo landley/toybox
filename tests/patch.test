@@ -78,4 +78,11 @@ testing "filter timestamps" "patch > /dev/null && cat bork" \
  five
 "
 
+testing "quoted name" "patch > /dev/null && cat 'fruit bat'" \
+  "hello\n" "" '
+--- /dev/null
++++ "fruit bat"
+@@ -0,0 +1 @@
++hello
+'
 # todo bork bork2
