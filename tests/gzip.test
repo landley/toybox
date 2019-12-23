@@ -76,3 +76,6 @@ testing "permissions/times preservation" \
     "gzip -k f1 && TZ=UTC stat -c '%a %Y' f1 && stat -c '%a %X %Y' f1.gz" \
     "411 544413660\n411 252558240 544413660\n" "" ""
 rm -f f1 f1.gz
+
+testing "reject non-gzip" "gzip -dc $FILES/blkid/msdos.bz2 2>/dev/null ||
+    echo rejected" "rejected\n" "" ""
