@@ -54,18 +54,18 @@ void tee_main(void)
 
   for (;;) {
     struct fd_list *fdl;
-    int len;
+    int len, out = 0;
 
     // Read data from stdin
     len = xread(0, toybuf, sizeof(toybuf));
     if (len<1) break;
 
     // Write data to each output file, plus stdout.
-    fdl = TT.outputs;
-    for (;;) {
-      if(len != writeall(fdl ? fdl->fd : 1, toybuf, len)) toys.exitval=1;
+    for (fdl = TT.outputs; ;fdl = fdl->next) {
+      if (!fdl && out) break;
+      if (len != writeall(fdl ? fdl->fd : 1, toybuf, len)) toys.exitval=1;
       if (!fdl) break;
-      fdl = fdl->next;
+      if (fdl->fd == 1) out++;
     }
   }
 }
