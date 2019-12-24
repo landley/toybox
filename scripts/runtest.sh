@@ -95,6 +95,26 @@ wrong_args()
   fi
 }
 
+# Announce failure and handle fallout
+do_fail()
+{
+  FAILCOUNT=$(($FAILCOUNT+1))
+  printf "%s\n" "$SHOWFAIL: $NAME"
+  if [ -n "$VERBOSE" ]
+  then
+    [ ! -z "$4" ] && printf "%s\n" "echo -ne \"$4\" > input"
+    printf "%s\n" "echo -ne '$5' |$EVAL $2"
+    printf "%s\n" "$DIFF"
+    [ "$VERBOSE" == fail ] && exit 1
+  fi
+}
+
+# Announce success
+do_pass()
+{
+  [ "$VERBOSE" != "nopass" ] && printf "%s\n" "$SHOWPASS: $NAME"
+}
+
 # The testing function
 
 testing()
@@ -124,15 +144,7 @@ testing()
   DIFF="$(diff -au${NOSPACE:+w} expected actual)"
   if [ ! -z "$DIFF" ]
   then
-    FAILCOUNT=$(($FAILCOUNT+1))
-    printf "%s\n" "$SHOWFAIL: $NAME"
-    if [ -n "$VERBOSE" ]
-    then
-      [ ! -z "$4" ] && printf "%s\n" "echo -ne \"$4\" > input"
-      printf "%s\n" "echo -ne '$5' |$EVAL $2"
-      printf "%s\n" "$DIFF"
-      [ "$VERBOSE" == fail ] && exit 1
-    fi
+    do_fail
   else
     [ "$VERBOSE" != "nopass" ] && printf "%s\n" "$SHOWPASS: $NAME"
   fi
@@ -150,6 +162,70 @@ testcmd()
   X="$1"
   [ -z "$X" ] && X="$CMDNAME $2"
   testing "$X" "\"$C\" $2" "$3" "$4" "$5"
+}
+
+# txpect NAME COMMAND I/O/E/Xstring
+# Run COMMAND and interact with it: send I strings to input, read O or E
+# strings from stdout or stderr (empty string is "any nonzero string here"),
+# X means close stdin/stdout/stderr and match return code (blank means nonzero)
+txpect()
+{
+  # Run command with redirection through fifos
+  NAME="$1"
+
+  if [ $# -lt 2 ] || ! mkfifo in-$$ out-$$ err-$$
+  then
+    do_fail
+    return
+  fi
+  $2 <in-$$ >out-$$ 2>err-$$ &
+  shift 2
+  : {IN}>in-$$ {OUT}<out-$$ {ERR}<err-$$ && rm in-$$ out-$$ err-$$
+
+  [ $? -ne 0 ] && { do_fail;return;}
+
+  # Loop through challenge/response pairs, with 2 second timeout
+  while [ $# -gt 0 ]
+  do
+    LEN=$((${#1}-1))
+    case ${1::1} in
+
+      # send input to child
+      I) echo -en "${1:1}" >&$IN || { do_fail;return;} ;;
+
+      # check output from child
+      [OE])
+        [ $LEN == 0 ] && LARG="" || LARG="-rN $LEN"
+        O=$OUT
+        [ ${1::1} == 'E' ] && O=$ERR
+        read -t2 $LARG A <&$O
+        if [ $LEN -eq 0 ]
+        then
+          [ -z "$A" ] && { do_fail;return;}
+        else
+          [ "$A" != "${1:1}" ] && { do_fail;return;}
+        fi
+        ;;
+
+      # close I/O and wait for exit
+      X)
+        exec {IN}<&- {OUT}<&- {ERR}<&-
+        wait
+        X=$?
+        if [ -z "$LEN" ]
+        then
+          [ $X -eq 0 ] && { do_fail;return;}        # any error
+        else
+          [ $X != "${1:1}" ] && { do_fail;return;} # specific value
+        fi
+        ;;
+    esac
+    shift
+  done
+  # In case we already closed it
+  exec {IN}<&- {OUT}<&- {ERR}<&-
+
+  do_pass
 }
 
 # Recursively grab an executable and all the libraries needed to run it.

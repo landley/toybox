@@ -1,76 +1,25 @@
 #!/bin/bash
 
+# Testing shell corner cases _within_ a shell script is kind of hard.
+
 [ -f testing.sh ] && . testing.sh
 
 #testing "name" "command" "result" "infile" "stdin"
 
-if [ -z "$(which bash)" ]
-then
-  echo "$SHOWSKIP: no bash alias"
-  return 2>/dev/null
-  exit
-fi
+[ -z "$SH" ] && { [ -z "$TEST_HOST" ] && SH="sh" || export SH="bash" ; }
+export EVAL="$SH -c"
 
-shellit()
-{
-  EVAL="bash -c" testing "$2" "$1 printf %s $2" "$3" "$4" "$5"
-}
+testing "leading assignments don't affect current line" \
+  'VAR=12345 echo ${VAR}a' "a\n" "" ""
+testing "can't have space before first : but yes around arguments" \
+  'BLAH=abcdefghi; echo ${BLAH: 1 : 3 }' "bcd\n" "" ""
 
-# $'' expands special chars but doesn't do so inside double quotes.
+# Prompt changes for root/normal user
+[ $(id -u) -eq 0 ] && P='#' || P='$'
+# run sufficiently isolated shell child process to get predictable results
+SH="env -i PATH=${PATH@Q} PS1=\\$ $SH --noediting --noprofile --norc -is"
 
-shellit "" "\$'a\\tb'" "a\tb" "" ""
-shellit "" "\"\$'a\\tb'\"" '$'"'"'a\\tb'"'" "" "" 
+# texpect "name" "command" E/O/I"string"
 
-# $(( )) tests
-
-shellit 'x=1;' '$((-x))' '-1' '' ''
-shellit 'x=0;' '$((x++)); echo $x' '01\n' '' ''
-shellit 'x=0;' '$((++x))' '1' '' ''
-shellit 'x=0;' '$((~x))' '-1' '' ''
-shellit 'x=1;' '$((!x))' '0' '' ''
-shellit 'x=0;' '$((!x))' '1' '' ''
-shellit 'x=2;' '$((2*x))' '4' '' ''
-shellit 'x=9;' '$((x/4))' '2' '' ''
-shellit 'x=9;' '$((x%4))' '1' '' ''
-shellit 'x=4;' '$((x+2))' '6' '' ''
-shellit 'x=4;' '$((x-2))' '2' '' ''
-shellit 'x=4;' '$((1<<x))' '16' '' ''
-shellit 'x=4;' '$((x>>1))' '2' '' ''
-shellit '' '$((3**4))' '81' '' ''
-shellit '' '$((3<=4))' '1' '' ''
-shellit '' '$((3>=4))' '0' '' ''
-shellit '' '$((3<4))' '1' '' ''
-shellit '' '$((3>4))' '0' '' ''
-shellit '' '$((3==4))' '0' '' ''
-shellit '' '$((3!=4))' '1' '' ''
-shellit '' '$((6&4))' '4' '' ''
-shellit '' '$((4|2))' '6' '' ''
-shellit '' '$((6&&2))' '1' '' ''
-shellit '' '$((6||4))' '1' '' ''
-shellit '' '$((1?2:3))' '2' '' ''
-shellit 'x=2;' '$((x=3)); echo $x' '33\n' '' ''
-shellit 'x=2;' '$((x*=3)); echo $x' '66\n' '' ''
-shellit 'x=5;' '$((x/=2)); echo $x' '22\n' '' ''
-shellit 'x=9;' '$((x%=5)); echo $x' '44\n' '' ''
-shellit 'x=9;' '$((x-=3)); echo $x' '66\n' '' ''
-shellit 'x=3;' '$((x+=2)); echo $x' '55\n' '' ''
-shellit 'x=7;' '$((x&=13)); echo $x' '55\n' '' ''
-shellit 'x=5;' '$((x|=12)); echo $x' '1313\n' '' ''
-shellit 'x=5;' '$((x^=12)); echo $x' '99\n' '' ''
-shellit 'x=2;' '$((x<<=2)); echo $x' '88\n' '' ''
-shellit 'x=12;' '$((x>>=2)); echo $x' '33\n' '' ''
-shellit 'x=2;' '$((x++,5)); echo $x' '53\n' '' ''
-
-# echo $(ls -l #comment)
-# cat -</dev/null
-# cat -|xargs echo
-# cat -(ls)
-# echo -!
-# echo -{
-# echo -(
-# (echo -)
-# echo $
-# "echo \$(echo \"hello\nworld\")"
-# "echo \"one ;\ntwo\""
-# echo $(ls -l &)
-# echo one < /dev/null two
+txpect "prompt and exit" "$SH" "E$P" "Iexit\n" X0
+txpect "prompt and echo" "$SH" "E$P" "Iecho hello\n" "Ohello"$'\n' "E$P" X0
