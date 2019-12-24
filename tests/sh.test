@@ -9,17 +9,17 @@
 [ -z "$SH" ] && { [ -z "$TEST_HOST" ] && SH="sh" || export SH="bash" ; }
 export EVAL="$SH -c"
 
-testing "leading assignments don't affect current line" \
-  'VAR=12345 echo ${VAR}a' "a\n" "" ""
-testing "can't have space before first : but yes around arguments" \
-  'BLAH=abcdefghi; echo ${BLAH: 1 : 3 }' "bcd\n" "" ""
-
-# Prompt changes for root/normal user
-[ $(id -u) -eq 0 ] && P='#' || P='$'
-# run sufficiently isolated shell child process to get predictable results
-SH="env -i PATH=${PATH@Q} PS1=\\$ $SH --noediting --noprofile --norc -is"
+#testing "leading assignments don't affect current line" \
+#  'VAR=12345 echo ${VAR}a' "a\n" "" ""
+#testing "can't have space before first : but yes around arguments" \
+#  'BLAH=abcdefghi; echo ${BLAH: 1 : 3 }' "bcd\n" "" ""
 
 # texpect "name" "command" E/O/I"string"
+
+# Prompt changes for root/normal user
+[ $(id -u) -eq 0 ] && P='# ' || P='$ '
+# run sufficiently isolated shell child process to get predictable results
+SH="env -i PATH=${PATH@Q} PS1='\\$ ' $SH --noediting --noprofile --norc -is"
 
 txpect "prompt and exit" "$SH" "E$P" "Iexit\n" X0
 txpect "prompt and echo" "$SH" "E$P" "Iecho hello\n" "Ohello"$'\n' "E$P" X0

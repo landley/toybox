@@ -95,20 +95,6 @@ wrong_args()
   fi
 }
 
-# Announce failure and handle fallout
-do_fail()
-{
-  FAILCOUNT=$(($FAILCOUNT+1))
-  printf "%s\n" "$SHOWFAIL: $NAME"
-  if [ -n "$VERBOSE" ]
-  then
-    [ ! -z "$4" ] && printf "%s\n" "echo -ne \"$4\" > input"
-    printf "%s\n" "echo -ne '$5' |$EVAL $2"
-    printf "%s\n" "$DIFF"
-    [ "$VERBOSE" == fail ] && exit 1
-  fi
-}
-
 # Announce success
 do_pass()
 {
@@ -144,7 +130,15 @@ testing()
   DIFF="$(diff -au${NOSPACE:+w} expected actual)"
   if [ ! -z "$DIFF" ]
   then
-    do_fail
+    FAILCOUNT=$(($FAILCOUNT+1))
+    printf "%s\n" "$SHOWFAIL: $NAME"
+    if [ -n "$VERBOSE" ]
+    then
+      [ ! -z "$4" ] && printf "%s\n" "echo -ne \"$4\" > input"
+      printf "%s\n" "echo -ne '$5' |$EVAL $2"
+      printf "%s\n" "$DIFF"
+      [ "$VERBOSE" == fail ] && exit 1
+    fi
   else
     [ "$VERBOSE" != "nopass" ] && printf "%s\n" "$SHOWPASS: $NAME"
   fi
@@ -164,7 +158,20 @@ testcmd()
   testing "$X" "\"$C\" $2" "$3" "$4" "$5"
 }
 
-# txpect NAME COMMAND I/O/E/Xstring
+# Announce failure and handle fallout for txpect
+do_fail()
+{
+  FAILCOUNT=$(($FAILCOUNT+1))
+  printf "%s\n" "$SHOWFAIL: $NAME"
+  if [ ! -z "$CASE" ]
+  then
+    echo "Expected '$CASE'"
+    echo "Got '$A'"
+  fi
+  [ "$VERBOSE" == fail ] && exit 1
+}
+
+# txpect NAME COMMAND [I/O/E/Xstring]...
 # Run COMMAND and interact with it: send I strings to input, read O or E
 # strings from stdout or stderr (empty string is "any nonzero string here"),
 # X means close stdin/stdout/stderr and match return code (blank means nonzero)
@@ -172,13 +179,14 @@ txpect()
 {
   # Run command with redirection through fifos
   NAME="$1"
+  CASE=
 
   if [ $# -lt 2 ] || ! mkfifo in-$$ out-$$ err-$$
   then
     do_fail
     return
   fi
-  $2 <in-$$ >out-$$ 2>err-$$ &
+  eval "$2" <in-$$ >out-$$ 2>err-$$ &
   shift 2
   : {IN}>in-$$ {OUT}<out-$$ {ERR}<err-$$ && rm in-$$ out-$$ err-$$
 
@@ -188,10 +196,12 @@ txpect()
   while [ $# -gt 0 ]
   do
     LEN=$((${#1}-1))
+    CASE="$1"
+    A=
     case ${1::1} in
 
       # send input to child
-      I) echo -en "${1:1}" >&$IN || { do_fail;return;} ;;
+      I) echo -en "${1:1}" >&$IN || { do_fail;break;} ;;
 
       # check output from child
       [OE])
@@ -201,9 +211,16 @@ txpect()
         read -t2 $LARG A <&$O
         if [ $LEN -eq 0 ]
         then
-          [ -z "$A" ] && { do_fail;return;}
+          [ -z "$A" ] && { do_fail;break;}
         else
-          [ "$A" != "${1:1}" ] && { do_fail;return;}
+          if [ "$A" != "${1:1}" ]
+          then
+            # Append the rest of the output if there is any.
+            read -t.1 B <&$O
+            A="$A$B"
+            read -t.1 -rN 9999 B<&$ERR
+            do_fail;break;
+          fi
         fi
         ;;
 
@@ -211,12 +228,12 @@ txpect()
       X)
         exec {IN}<&- {OUT}<&- {ERR}<&-
         wait
-        X=$?
+        A=$?
         if [ -z "$LEN" ]
         then
-          [ $X -eq 0 ] && { do_fail;return;}        # any error
+          [ $A -eq 0 ] && { do_fail;break;}        # any error
         else
-          [ $X != "${1:1}" ] && { do_fail;return;} # specific value
+          [ $A != "${1:1}" ] && { do_fail;break;}  # specific value
         fi
         ;;
     esac
@@ -225,7 +242,7 @@ txpect()
   # In case we already closed it
   exec {IN}<&- {OUT}<&- {ERR}<&-
 
-  do_pass
+  [ $# -eq 0 ] && do_pass
 }
 
 # Recursively grab an executable and all the libraries needed to run it.
