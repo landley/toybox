@@ -169,7 +169,7 @@ static void alloread(void *buf, int len)
   free(*b);
   *b = xmalloc(len+1);
   xreadall(TT.fd, *b, len);
-  b[len] = 0;
+  ((char*)(*b))[len] = 0;
 }
 
 // callback from dirtree to create archive
