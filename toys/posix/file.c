@@ -36,21 +36,6 @@ static void do_elf_file(int fd)
   int endian = toybuf[5], bits = toybuf[4], i, j, dynamic = 0, stripped = 1,
       phentsize, phnum, shsize, shnum;
   int64_t (*elf_int)(void *ptr, unsigned size);
-  // Values from include/linux/elf-em.h (plus arch/*/include/asm/elf.h)
-  // Names are linux/arch/ directory (sometimes before 32/64 bit merges)
-  struct {int val; char *name;} type[] = {{0x9026, "alpha"}, {93, "arc"},
-    {195, "arcv2"}, {40, "arm"}, {183, "arm64"}, {0x18ad, "avr32"},
-    {247, "bpf"}, {106, "blackfin"}, {140, "c6x"}, {23, "cell"}, {76, "cris"},
-    {252, "csky"}, {0x5441, "frv"}, {46, "h8300"}, {164, "hexagon"},
-    {50, "ia64"}, {88, "m32r"}, {0x9041, "m32r"}, {4, "m68k"}, {174, "metag"},
-    {189, "microblaze"}, {0xbaab, "microblaze-old"}, {8, "mips"},
-    {10, "mips-old"}, {89, "mn10300"}, {0xbeef, "mn10300-old"}, {113, "nios2"},
-    {92, "openrisc"}, {0x8472, "openrisc-old"}, {15, "parisc"}, {20, "ppc"},
-    {21, "ppc64"}, {243, "riscv"}, {22, "s390"}, {0xa390, "s390-old"},
-    {135, "score"}, {42, "sh"}, {2, "sparc"}, {18, "sparc8+"}, {43, "sparc9"},
-    {188, "tile"}, {191, "tilegx"}, {3, "386"}, {6, "486"}, {62, "x86-64"},
-    {94, "xtensa"}, {0xabc7, "xtensa-old"}
-  };
   char *map = 0;
   off_t phoff, shoff;
 
@@ -83,11 +68,8 @@ static void do_elf_file(int fd)
     endian = 0;
   }
 
-  // e_machine, ala "x86", from big table above
-  j = elf_int(toybuf+18, 2);
-  for (i = 0; i<ARRAY_LEN(type); i++) if (j==type[i].val) break;
-  if (i<ARRAY_LEN(type)) printf("%s", type[i].name);
-  else printf("(unknown arch %d)", j);
+  // "x86".
+  printf("%s", elf_arch_name(elf_int(toybuf+18, 2)));
 
   bits--;
   // If what we've seen so far doesn't seem consistent, bail.

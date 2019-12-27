@@ -271,6 +271,7 @@ void reset_env(struct passwd *p, int clear);
 void loggit(int priority, char *format, ...);
 unsigned tar_cksum(void *data);
 int is_tar_header(void *pkt);
+char *elf_arch_name(int type);
 
 #define HR_SPACE 1 // Space between number and units
 #define HR_B     2 // Use "B" for single byte units
