@@ -38,7 +38,7 @@ struct line_list {
   int len;
 };
 
-static struct line_list *get_chunk(int fd, int len)
+static struct line_list *read_chunk(int fd, int len)
 {
   struct line_list *line = xmalloc(sizeof(struct line_list)+len);
 
@@ -54,7 +54,7 @@ static struct line_list *get_chunk(int fd, int len)
   return line;
 }
 
-static void dump_chunk(void *ptr)
+static void write_chunk(void *ptr)
 {
   struct line_list *list = ptr;
 
@@ -94,7 +94,7 @@ static int try_lseek(int fd, long bytes, long lines)
       perror_msg("seek failed");
       break;
     }
-    if (!(temp = get_chunk(fd, chunk))) break;
+    if (!(temp = read_chunk(fd, chunk))) break;
     temp->next = list;
     list = temp;
 
@@ -116,7 +116,7 @@ static int try_lseek(int fd, long bytes, long lines)
   }
 
   // Output stored data
-  llist_traverse(list, dump_chunk);
+  llist_traverse(list, write_chunk);
 
   // In case of -f
   lseek(fd, bytes, SEEK_SET);
@@ -152,7 +152,7 @@ static void do_tail(int fd, char *name)
     // Read data until we run out, keep a trailing buffer
     for (;;) {
       // Read next page of data, appending to linked list in order
-      if (!(new = get_chunk(fd, sizeof(toybuf)))) break;
+      if (!(new = read_chunk(fd, sizeof(toybuf)))) break;
       dlist_add_nomalloc((void *)&list, (void *)new);
 
       // If tracing bytes, add until we have enough, discarding overflow.
@@ -192,7 +192,7 @@ static void do_tail(int fd, char *name)
     }
 
     // Output/free the buffer.
-    llist_traverse(list, dump_chunk);
+    llist_traverse(list, write_chunk);
 
   // Measuring from the beginning of the file.
   } else for (;;) {
