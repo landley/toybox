@@ -11,6 +11,8 @@ config TRUE
   bool "true"
   default y
   help
+    usage: true
+
     Return zero.
 */
 
