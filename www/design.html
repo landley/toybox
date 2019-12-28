@@ -17,7 +17,7 @@ of importance:</p>
 
 <b><h3>Features</h3></b>
 
-<p>These days toybox is the command line of Android, so anything they android
+<p>These days toybox is the command line of Android, so anything the android
 guys say to do gets at the very least closely listened to.</p>
 
 <p>Toybox should provide the command line utilities of a build
@@ -134,7 +134,8 @@ copy-on-write mappings of the zero page.  Actual physical pages get allocated
 when the copy-on-write gets broken by writing to the virtual page.  This
 is why checking the return value of malloc() isn't very useful anymore, it
 only detects running out of virtual memory, not physical memory.  Unless
-you're using a <a href=http://nommu.org>NOMMU system</a>, where all bets are off.)</p>
+you're using a <a href=http://nommu.org>NOMMU system</a>, where all bets
+are off.)</p>
 
 <p>Don't think that just because you don't have a swap file the system can't
 start swap thrashing: any file backed page (ala mmap) can be evicted, and
@@ -326,12 +327,19 @@ effort on them.</p>
 <p>I don't do windows.</p>
 
 <p>We depend on C99 and posix-2008 libc features such as the openat() family of
-functions. We also assume certain "modern" linux kernel behavior such
-as large environment sizes (<a href=https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=b6a2fea39318>linux commit b6a2fea39318</a>, went into 2.6.22
-released <a href=faq.html#support_horizon>July 2007</a>). In theory this shouldn't prevent us from working on
+functions. We also root around in the linux /proc directory a lot (no other
+way to implement "ps" at the moment), and assume certain "modern" linux kernel
+behavior such as large environment sizes (<a href=https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=b6a2fea39318>linux commit b6a2fea39318</a>, went into 2.6.22
+released <a href=faq.html#support_horizon>July 2007</a>, expanding the 128k
+limit to 2 gigabytes. But it was then
+trimmed back down to 10 megabytes, and when I asked for a way to query the
+actual value from the kernel if it was going to keep changing
+like that, <a href=https://lkml.org/lkml/2017/11/5/204>Linus declined</a>).
+In theory this shouldn't prevent us from working on
 older kernels or other implementations (ala BSD), but we don't police their
 corner cases.</p>
 
+<a name="bits" />
 <b><h3>32/64 bit</h3></b>
 <p>Toybox should work on both 32 bit and 64 bit systems. 64 bit desktop
 hardware went mainstream in 2005 and was essentially ubiquitous
