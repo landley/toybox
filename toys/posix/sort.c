@@ -62,8 +62,7 @@ GLOBALS(
 
   void *key_list;
   int linecount;
-  char **lines;
-  char *name;
+  char **lines, *name;
 )
 
 // The sort types are n, g, and M.
@@ -84,7 +83,7 @@ struct sort_key
 
 static char *get_key_data(char *str, struct sort_key *key, int flags)
 {
-  int start=0, end, len, i, j;
+  int start = 0, end, len, i, j;
 
   // Special case whole string, so we don't have to make a copy
 
@@ -99,8 +98,8 @@ static char *get_key_data(char *str, struct sort_key *key, int flags)
 
     // Loop through fields
     else {
-      end=0;
-      for (i=1; i < key->range[2*j]+j; i++) {
+      end = 0;
+      for (i = 1; i < key->range[2*j]+j; i++) {
 
         // Skip leading blanks
         if (str[end] && !TT.t) while (isspace(str[end])) end++;
@@ -138,7 +137,7 @@ static char *get_key_data(char *str, struct sort_key *key, int flags)
   }
 
   // Make the copy
-  if (end<start) end=start;
+  if (end<start) end = start;
   str = xstrndup(str+start, end-start);
 
   // Handle -d
@@ -279,12 +278,12 @@ static int compare_keys(const void *xarg, const void *yarg)
 // Read each line from file, appending to a big array.
 static void sort_lines(char **pline, long len)
 {
-  char * line;
+  char *line;
 
   if (!pline) return;
   line = *pline;
   if (!FLAG(z) && len && line[len-1]=='\n') line[--len] = 0;
-  *pline = NULL;
+  *pline = 0;
 
   // handle -c here so we don't allocate more memory than necessary.
   if (FLAG(c)) {
@@ -293,7 +292,7 @@ static void sort_lines(char **pline, long len)
     if (TT.lines && compare_keys((void *)&TT.lines, &line)>j)
       error_exit("%s: Check line %d\n", TT.name, TT.linecount);
     free(TT.lines);
-    TT.lines = (char **)line;
+    TT.lines = (void *)line;
   } else {
     if (!(TT.linecount&63))
       TT.lines = xrealloc(TT.lines, sizeof(char *)*(TT.linecount+64));
