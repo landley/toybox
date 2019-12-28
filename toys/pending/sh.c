@@ -119,26 +119,22 @@ GLOBALS(
 
     // null terminated array of running processes in pipeline
     struct sh_process {
+      struct sh_process *next, *prev;
       struct string_list *delete;   // expanded strings
       int *urd, pid, exit;          // undo redirects, child PID, exit status
       struct sh_arg arg;
     } *procs, *proc;
   } *jobs, *job;
-  struct sh_process *callback_pp;
   unsigned jobcnt;
-  int hfd;  // next high filehandle (>= 10)
+  int hfd, *hfdclose;  // next high filehandle (>= 10)
 )
 
 
 // ordered for greedy matching, so >&; becomes >& ; not > &;
-// these would be const so the array is rodata, but then the compiler
-// throws endless warnings. The strings are already rodata and you don't
-// need to say const for that, but insecure C++ loons keep working to screw
-// up C because its continued existence threatens them somehow.
-static char *redirectors[] = {"<<<", "<<-", "<<", "<&", "<>", "<", ">>",
+// making these const means I need to typecast the const away later to
+// avoid endless warnings.
+static const char *redirectors[] = {"<<<", "<<-", "<<", "<&", "<>", "<", ">>",
   ">&", ">|", ">", "&>>", "&>", 0};
-static char *flowcontrol[] = {";;&", ";;", ";&", ";", "||", "|&", "|",
-   "&&", "&", "(", ")", 0};
 
 #define SH_NOCLOBBER 1   // set -C
 
@@ -376,9 +372,11 @@ static void unredirect(int *urd)
   if (!urd) return;
 
   for (i = 0; i<*urd; i++) {
-    // No idea what to do about fd exhaustion here, so Steinbach's Guideline.
-    dup2(rr[0], rr[1]);
-    close(rr[0]);
+    if (rr[1] != -1) {
+      // No idea what to do about fd exhaustion here, so Steinbach's Guideline.
+      dup2(rr[0], rr[1]);
+      close(rr[0]);
+    }
     rr += 2;
   }
   free(urd);
@@ -399,14 +397,6 @@ int next_hfd()
   return hfd;
 }
 
-/*
-4 cases:
-redirect now: from -> to, saving displaced to (+, +) = hfd to
-explicitly close (now), saving displaced to (-1, +) = hfd to
-redirect saving to, close saving from: (+, +) = hfd to then (-1, +) = hfd to
-{var} leak - nothing to save? Except the from open is deferred (+, +) but to == hfd
-*/
-
 // Perform a redirect, saving displaced filehandle to a high (>10) fd
 // rd is an int array: [0] = count, followed by from/to pairs to restore later.
 // If from == -1 just save to, else dup from->to after saving to.
@@ -417,6 +407,7 @@ int save_redirect(int **rd, int from, int to)
   // save displaced to, copying to high (>=10) file descriptor to undo later
   // except if we're saving to environment variable instead (don't undo that)
   if ((hfd = next_hfd())==-1 || hfd != dup2(to, hfd)) return 1;
+  fcntl(hfd, F_SETFD, FD_CLOEXEC);
 
   // dup "to"
   if (from != -1 && to != dup2(from, to)) {
@@ -436,7 +427,7 @@ int save_redirect(int **rd, int from, int to)
 
 // Expand arguments and perform redirections. Return new process object with
 // expanded args. This can be called from command or block context.
-static struct sh_process *expand_redir(struct sh_arg *arg, int envlen)
+static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
 {
   struct sh_process *pp;
   char *s, *ss, *sss, *cv = 0;
@@ -446,6 +437,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen)
 
   if (envlen<0 || envlen>=arg->c) return 0;
   pp = xzalloc(sizeof(struct sh_process));
+  pp->urd = urd;
 
   // When we redirect, we copy each displaced filehandle to restore it later.
 
@@ -455,7 +447,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen)
 
     // Is this a redirect? s = prefix, ss = operator
     sss = ss = (s = arg->v[j]) + redir_prefix(arg->v[j]);
-    sss += anystart(ss, redirectors);
+    sss += anystart(ss, (void *)redirectors);
     if (ss == sss) {
       // Nope: save/expand argument and loop
       expand_arg(&pp->arg, s, 0, &pp->delete);
@@ -491,6 +483,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen)
         if (!(ss = getvar(s+1, ss-s-2))) break;
         to = atoi(ss); // TODO trailing garbage?
         if (save_redirect(&pp->urd, -1, to)) break;
+        close(to);
 
         continue;
       // record high file descriptor in {to}<from environment variable
@@ -556,8 +549,8 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen)
         break;
       }
 
-      from = (ss=sss) ? to : atoi(sss);
-      saveclose++;
+      from = (ss==sss) ? to : atoi(sss);
+      if (*ss == '-') saveclose++;
     } else {
 
       // Permissions to open external file with: < > >> <& >& <> >| &>> &>
@@ -577,7 +570,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen)
 
 // TODO: is umask respected here?
       // Open the file
-      if (-1 == (from = xcreate(sss, from|WARN_ONLY, 777))) break;
+      if (-1 == (from = xcreate(sss, from|WARN_ONLY, 0666))) break;
     }
 
     // perform redirect, saving displaced "to".
@@ -588,8 +581,8 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen)
       setvar(cv, TAKE_MEM);
       cv = 0;
     }
-    if (saveclose) save_redirect(&pp->urd, from, to);
-    else close(from);
+    if (saveclose) save_redirect(&pp->urd, -1, from);
+    close(from);
   }
 
   if (j != arg->c) {
@@ -601,23 +594,14 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen)
   return pp;
 }
 
-// callback from xpopen_setup() to close all the high filehandles
-// we cached things in so child doesn't inherit unnecessary open fds.
-static void redirect_callback(void)
-{
-  int i, *rr = TT.callback_pp->urd;
-
-  for (i = 0; i<*rr; i++) close(rr[1+2*i]);
-}
-
 // Execute a single command
-static struct sh_process *run_command(struct sh_arg *arg, int *pipes)
+static struct sh_process *run_command(struct sh_arg *arg)
 {
   struct sh_process *pp;
   struct toy_list *tl;
 
   // grab environment var assignments, expand arguments and perform redirects
-  if (!(pp = expand_redir(arg, assign_env(arg)))) return 0;
+  if (!(pp = expand_redir(arg, assign_env(arg), 0))) return 0;
 
   // Do nothing if nothing to do
   if (pp->exit || !pp->arg.v);
@@ -646,17 +630,24 @@ static struct sh_process *run_command(struct sh_arg *arg, int *pipes)
     if (toys.old_umask) umask(toys.old_umask);
     memcpy(&toys, &temp, sizeof(struct toy_context));
   } else {
-    TT.callback_pp = pp;
-    if (-1 == (pp->pid = xpopen_setup(pp->arg.v, pipes, redirect_callback)))
+    if (-1 == (pp->pid = xpopen_both(pp->arg.v, 0)))
       perror_msg("%s: vfork", *pp->arg.v);
   }
 
   // cleanup process
-  llist_traverse(pp->delete, free);
   unredirect(pp->urd);
 
   return pp;
 }
+
+static void free_process(void *ppp)
+{
+  struct sh_process *pp = ppp;
+
+  llist_traverse(pp->delete, free);
+  free(pp);
+}
+
 
 // parse next word from command line. Returns end, or 0 if need continuation
 // caller eats leading spaces
@@ -711,11 +702,12 @@ static char *parse_word(char *start)
 
       // Redirections. 123<<file- parses as 2 args: "123<<" "file-".
       s = end + redir_prefix(end);
-      j = anystart(s, redirectors);
+      j = anystart(s, (void *)redirectors);
       if (j) s += j;
 
-      // Control characters
-      else s = end + anystart(end, flowcontrol);
+      // Flow control characters that end pipeline segments
+      else s = end + anystart(end, (char *[]){";;&", ";;", ";&", ";", "||",
+        "|&", "|", "&&", "&", "(", ")", 0});
       if (s != end) return (end == start) ? s : end;
       i++;
     }
@@ -756,64 +748,6 @@ struct sh_pipeline {
   int count, here, type;
   struct sh_arg arg[1];
 };
-
-// run a series of "segment | segment && segment" with redirects.
-int run_pipeline(struct sh_pipeline **pl)
-{
-  struct sh_process *pp;
-  int rc = 0, pin = 0, pipes[2], *psave;
-
-  // loop through pipeline segments in a block
-  for (;;) {
-    struct sh_arg *arg = (*pl)->arg;
-
-    psave = 0;
-/*
-    char *ctl = arg->v[arg->c];
-
-    // Did the previous pipe segment pipe input into us?
-    if (pin-->0) save_redir(&psave, pipes[1], 0);
-
-// TODO job control: & backgrounding
-// TODO && ||
-// TODO | |&
-// TODO add redir segment, redir pipes[1] to pipes[0] with close, pop again later
-// TODO pipe segments are subshells ala ( )
-// TODO: don't () around single process pipeline, shell otherwise
-//       this turns into exec for sh -c "echo"
-//       single pipe segments that _aren't_ builtins run directly,
-//       compound pipe segments and builtins run via subshell.
-//       I.E. subshell implicit exec
-// TODO we're not running a command, we're running a block stack?
-//    echo one two three | while read i; do echo hello; done
-// TODO free/cleanup partial pipeline on NULL return?
-
-// TODO run_pipeline has to merge into run_function because pipes don't
-//      connect commands, they connect arbitrary function chunks.
-    if (ctl) {
-
-      // pipe?
-      if (*ctl == '|' && ctl[1] != '|') {
-    }
-*/
-
-// TODO: force background? builtin in pipeline implicit ()
-    if (!(pp = run_command(arg, 0))) rc = 0;
-    else {
-// TODO backgrounding
-      if (pp->pid) pp->exit = xpclose_both(pp->pid, 0);
-//wait4(pp);
-// TODO -o pipefail
-      rc = pp->exit;
-      free(pp);
-    }
-    unredirect(psave);
-
-    if ((*pl)->next && !(*pl)->next->type) *pl = (*pl)->next;
-    else return rc;
-  }
-}
-
 
 // scratch space (state held between calls). Don't want to make it global yet
 // because this could be reentrant.
@@ -1009,7 +943,6 @@ static int parse_line(char *line, struct sh_function *sp)
     s = arg->v[arg->c] = xstrndup(start, end-start);
     start = end;
     if (strchr(";|&", *s)) {
-
       // flow control without a statement is an error
       if (!arg->c) goto flush;
 
@@ -1018,9 +951,9 @@ static int parse_line(char *line, struct sh_function *sp)
         arg->v[arg->c] = 0;
         free(s);
         s = 0;
-      }
+
       // ;; and friends only allowed in case statements
-      if (*s == ';' && (!ex || strcmp(ex, "esac"))) goto flush;
+      } else if (*s == ';' && (!ex || strcmp(ex, "esac"))) goto flush;
       last = s;
       pl->count = -1;
 
@@ -1203,8 +1136,8 @@ static void dump_state(struct sh_function *sp)
 
   for (pl = sp->pipeline; pl ; pl = (pl->next == sp->pipeline) ? 0 : pl->next) {
     for (i = 0; i<pl->arg->c; i++)
-      printf("arg[%d][%ld]=%s\n", q, i, pl->arg->v[i]);
-    printf("type=%d term[%d]=%s\n", pl->type, q++, pl->arg->v[pl->arg->c]);
+      dprintf(2, "arg[%d][%ld]=%s\n", q, i, pl->arg->v[i]);
+    dprintf(2, "type=%d term[%d]=%s\n", pl->type, q++, pl->arg->v[pl->arg->c]);
   }
 }
 
@@ -1215,30 +1148,116 @@ static void dump_state(struct sh_function *sp)
 */
 
 
+static int wait_pipeline(struct sh_process *pp)
+{
+  int rc = 0;
 
-// run a shell function, handling flow control statements
+  for (dlist_terminate(pp); pp; pp = pp->next) {
+    if (pp->pid) {
+      // TODO job control: not xwait, handle EINTR ourselves and check signals
+      pp->exit = xwaitpid(pp->pid);
+      pp->pid = 0;
+    }
+    // TODO handle set -o pipefail here
+    rc = pp->exit;
+  }
+
+  return rc;
+}
+
+static int pipe_segments(char *ctl, int *pipes, int **urd)
+{
+  unredirect(*urd);
+  *urd = 0;
+
+  // Did the previous pipe segment pipe input into us?
+  if (pipes[1] != -1) {
+    save_redirect(urd, pipes[1], 0);
+    close(pipes[1]);
+    pipes[1] = -1;
+  }
+
+  // are we piping output to the next segment?
+  if (ctl && *ctl == '|' && ctl[1] != '|') {
+    if (pipe(pipes)) {
+      perror_msg("pipe");
+// TODO record pipeline rc
+// TODO check did not reach end of pipeline after loop
+      return 1;
+    }
+    if (pipes[0] != 1) {
+      save_redirect(urd, pipes[0], 1);
+      close(pipes[0]);
+    }
+    fcntl(pipes[1], F_SETFD, FD_CLOEXEC);
+  }
+
+  return 0;
+}
+
+static struct sh_pipeline *skip_andor(int rc, struct sh_pipeline *pl)
+{
+  char *ctl = pl->arg->v[pl->arg->c];
+
+  // For && and || skip pipeline segment(s) based on return code
+  while (ctl && ((!strcmp(ctl, "&&") && rc) || (!strcmp(ctl, "||") && !rc))) {
+    if (!pl->next || pl->next->type == 2 || pl->next->type == 3) break;
+    pl = pl->type ? block_end(pl) : pl->next;
+    ctl = pl ? pl->arg->v[pl->arg->c] : 0;
+  }
+
+  return pl;
+}
+
+// run a parsed shell function. Handle flow control blocks and characters,
+// setup pipes and block redirection, break/continue, call builtins,
+// vfork/exec external commands.
 static void run_function(struct sh_function *sp)
 {
   struct sh_pipeline *pl = sp->pipeline, *end;
   struct blockstack {
     struct blockstack *next;
     struct sh_pipeline *start, *end;
-    int run, loop, *redir;
-
+    struct sh_process *pin;      // processes piping into this block
+    int run, loop, *urd, pout;
     struct sh_arg farg;          // for/select arg stack
     struct string_list *fdelete; // farg's cleanup list
     char *fvar;                  // for/select's iteration variable name
   } *blk = 0, *new;
+  struct sh_process *pplist = 0; // processes piping into current level
+  int *urd = 0, pipes[2] = {-1, -1};
   long i;
 
-  // iterate through the commands
+// TODO can't free sh_process delete until ready to dispose else no debug output
+
+  // iterate through pipeline segments
   while (pl) {
     char *s = *pl->arg->v, *ss = pl->arg->v[1];
-//dprintf(2, "s=%s %s %d %s %d\n", s, ss, pl->type, blk ? blk->start->arg->v[0] : "X", blk ? blk->run : 0);
-    // Normal executable statement?
+    struct sh_process *pp = 0;
+
+    // Is this an executable segment?
     if (!pl->type) {
-// TODO: break & is supported? Seriously? Also break > potato
-// TODO: break multiple aguments
+      struct sh_arg *arg = pl->arg;
+      char *ctl = arg->v[arg->c];
+
+      // Skip disabled block
+      if (blk && !blk->run) {
+        while (pl->next && !pl->next->type) pl = pl->next;
+        continue;
+      }
+
+      if (pipe_segments(ctl, pipes, &urd)) break;
+
+      // If we just started a new pipeline, implicit parentheses (subshell)
+
+// TODO: "echo | read i" is backgroundable with ctrl-Z despite read = builtin.
+//       probably have to inline run_command here to do that? Implicit ()
+//       also "X=42 | true; echo $X" doesn't get X.
+
+      // TODO: bash supports "break &" and "break > file". No idea why.
+
+      // Is it a flow control jump? These aren't handled as normal builtins
+      // because they move *pl to other pipeline segments which is local here.
       if (!strcmp(s, "break") || !strcmp(s, "continue")) {
 
         // How many layers to peel off?
@@ -1256,7 +1275,14 @@ static void run_function(struct sh_function *sp)
             break;
           }
           pl = blk->end;
+// TODO collate end_block logic
+
+      // if ending a block, free, cleanup redirects, and pop stack.
+
           llist_traverse(blk->fdelete, free);
+          unredirect(blk->urd);
+          if (pipes[1]) close(pipes[1]);
+          pipes[1] = blk->pout;
           free(llist_pop(&blk));
         }
         if (i) {
@@ -1264,17 +1290,27 @@ static void run_function(struct sh_function *sp)
           break;
         }
         pl = pl->next;
-
         continue;
+
+      // Parse and run next command
+      } else {
+
+// TODO: "echo | read i" is backgroundable with ctrl-Z despite read = builtin.
+//       probably have to inline run_command here to do that? Implicit ()
+//       also "X=42 | true; echo $X" doesn't get X.
+
+        if (!(pp = run_command(arg))) break;
+        dlist_add_nomalloc((void *)&pplist, (void *)pp);
       }
 
-// inherit redirects?
-// returns last statement of pipeline
-      if (!blk) toys.exitval = run_pipeline(&pl);
-      else if (blk->run) toys.exitval = run_pipeline(&pl);
-      else while (pl->next && !pl->next->type) pl = pl->next;
+      if (pipes[1] == -1) {
+        toys.exitval = wait_pipeline(pplist);
+        llist_traverse(pplist, free_process);
+        pplist = 0;
+        pl = skip_andor(toys.exitval, pl);
+      }
 
-    // Starting a new block?
+    // Start of flow control block?
     } else if (pl->type == 1) {
 
       // are we entering this block (rather than looping back to it)?
@@ -1288,6 +1324,9 @@ static void run_function(struct sh_function *sp)
           continue;
         }
 
+        // If previous piped into this block, save context until block end
+        if (pipe_segments(0, pipes, &urd)) break;
+
         // It's a new block we're running, save context and add it to the stack.
         new = xzalloc(sizeof(*blk));
         new->next = blk;
@@ -1295,10 +1334,27 @@ static void run_function(struct sh_function *sp)
         blk->start = pl;
         blk->end = end;
         blk->run = 1;
-// TODO perform block end redirects to blk->redir
+
+        // save context until block end
+        blk->pout = pipes[1];
+        blk->urd = urd;
+        urd = 0;
+        pipes[1] = -1;
+
+        // Perform redirects listed at end of block
+        pp = expand_redir(blk->end->arg, 0, blk->urd);
+        if (pp) {
+          blk->urd = pp->urd;
+          if (pp->arg.c) syntax_err("unexpected %s", *pp->arg.v);
+          llist_traverse(pp->delete, free);
+          if (pp->arg.c) break;
+          free(pp);
+        }
       }
 
       // What flow control statement is this?
+
+// TODO ( subshell
 
       // if/then/elif/else/fi, while until/do/done - no special handling needed
 
@@ -1328,7 +1384,7 @@ case/esac
 function/}
 */
 
-    // gearshift from block start to block body
+    // gearshift from block start to block body (end of flow control test)
     } else if (pl->type == 2) {
 
       // Handle if statement
@@ -1348,7 +1404,7 @@ dprintf(2, "TODO skipped running for((;;)), need math parser\n");
           TAKE_MEM);
       }
 
-    // end of block
+    // end of block, may have trailing redirections and/or pipe
     } else if (pl->type == 3) {
 
       // repeating block?
@@ -1357,20 +1413,30 @@ dprintf(2, "TODO skipped running for((;;)), need math parser\n");
         continue;
       }
 
-      // if ending a block, pop stack.
+// TODO goto "break" above instead of copying it here?
+      // if ending a block, free, cleanup redirects, and pop stack.
+      // needing to unredirect(urd) or close(pipes[1]) here would be syntax err
       llist_traverse(blk->fdelete, free);
+      unredirect(blk->urd);
+      pipes[1] = blk->pout;
       free(llist_pop(&blk));
-
-// TODO unwind redirects (cleanup blk->redir)
-
     } else if (pl->type == 'f') pl = add_function(s, pl);
 
     pl = pl->next;
   }
 
+  // did we exit with unfinished stuff?
+  if (pipes[1] != -1) close(pipes[1]);
+  if (pplist) {
+    toys.exitval = wait_pipeline(pplist);
+    llist_traverse(pplist, free_process);
+  }
+  unredirect(urd);
+
   // Cleanup from syntax_err();
   while (blk) {
     llist_traverse(blk->fdelete, free);
+    unredirect(blk->urd);
     free(llist_pop(&blk));
   }
 
