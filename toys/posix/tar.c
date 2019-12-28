@@ -164,12 +164,12 @@ static void skippy(long long len)
 static void alloread(void *buf, int len)
 {
   // actually void **, but automatic typecasting doesn't work with void ** :(
-  void **b = buf;
+  char **b = buf;
 
   free(*b);
   *b = xmalloc(len+1);
   xreadall(TT.fd, *b, len);
-  ((char*)(*b))[len] = 0;
+  (*b)[len] = 0;
 }
 
 // callback from dirtree to create archive
