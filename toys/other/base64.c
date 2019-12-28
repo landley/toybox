@@ -48,7 +48,7 @@ static void do_base64(int fd, char *name)
   for (;;) {
     // If no more data, flush buffer
     if (!(len = xread(fd, buf, sizeof(toybuf)-128))) {
-      if (!(toys.optflags & FLAG_d)) {
+      if (!FLAG(d)) {
         if (bits) wraputchar(toybuf[out<<(6-bits)], &x);
         while (TT.total&3) wraputchar('=', &x);
         if (x) xputc('\n');
@@ -58,7 +58,7 @@ static void do_base64(int fd, char *name)
     }
 
     for (i=0; i<len; i++) {
-      if (toys.optflags & FLAG_d) {
+      if (FLAG(d)) {
         if (buf[i] == '=') return;
 
         if ((x = stridx(toybuf, buf[i])) != -1) {
@@ -72,7 +72,7 @@ static void do_base64(int fd, char *name)
 
           continue;
         }
-        if (buf[i] == '\n' || (toys.optflags & FLAG_i)) continue;
+        if (buf[i] == '\n' || FLAG(i)) continue;
 
         break;
       } else {

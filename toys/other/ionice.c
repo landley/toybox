@@ -40,26 +40,24 @@ config IORENICE
 #include <sys/syscall.h>
 
 GLOBALS(
-  long pid;
-  long level;
-  long class;
+  long p, n, c;
 )
 
 static int ioprio_get(void)
 {
-  return syscall(__NR_ioprio_get, 1, (int)TT.pid);
+  return syscall(__NR_ioprio_get, 1, (int)TT.p);
 }
 
 static int ioprio_set(void)
 {
-  int prio = ((int)TT.class << 13) | (int)TT.level;
+  int prio = ((int)TT.c << 13) | (int)TT.n;
 
-  return syscall(__NR_ioprio_set, 1, (int)TT.pid, prio);
+  return syscall(__NR_ioprio_set, 1, (int)TT.p, prio);
 }
 
 void ionice_main(void)
 {
-  if (!TT.pid && !toys.optc) error_exit("Need -p or COMMAND");
+  if (!TT.p && !toys.optc) error_exit("Need -p or COMMAND");
   if (toys.optflags == FLAG_p) {
     int p = ioprio_get();
     xprintf("%s: prio %d\n",
@@ -67,7 +65,7 @@ void ionice_main(void)
       p&7);
   } else {
     if (-1 == ioprio_set() && !(toys.optflags&FLAG_t)) perror_exit("set");
-    if (!TT.pid) xexec(toys.optargs);
+    if (!TT.p) xexec(toys.optargs);
   }
 }
 
@@ -75,23 +73,22 @@ void iorenice_main(void)
 {
   char *classes[] = {"none", "rt", "be", "idle"};
 
-  TT.pid = atolx(*toys.optargs);
+  TT.p = atolx(*toys.optargs);
   if (toys.optc == 1) {
     int p = ioprio_get();
 
     if (p == -1) perror_exit("read priority");
-    TT.class = (p>>13)&3;
+    TT.c = (p>>13)&3;
     p &= 7;
-    xprintf("Pid %ld, class %s (%ld), prio %d\n",
-            TT.pid, classes[TT.class], TT.class, p);
+    xprintf("Pid %ld, class %s (%ld), prio %d\n", TT.p, classes[TT.c], TT.c, p);
     return;
   }
 
-  for (TT.class = 0; TT.class<4; TT.class++)
-    if (!strcmp(toys.optargs[toys.optc-1], classes[TT.class])) break;
-  if (toys.optc == 3 || TT.class == 4) TT.level = atolx(toys.optargs[1]);
-  else TT.level = 4;
-  TT.class &= 3;
+  for (TT.c = 0; TT.c<4; TT.c++)
+    if (!strcmp(toys.optargs[toys.optc-1], classes[TT.c])) break;
+  if (toys.optc == 3 || TT.c == 4) TT.n = atolx(toys.optargs[1]);
+  else TT.n = 4;
+  TT.c &= 3;
 
   if (-1 == ioprio_set()) perror_exit("set");
 }
