@@ -10,6 +10,8 @@ config FALSE
   bool "false"
   default y
   help
+    usage: false
+
     Return nonzero.
 */
 
