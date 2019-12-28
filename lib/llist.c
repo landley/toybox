@@ -109,7 +109,7 @@ void *dlist_terminate(void *list)
 {
   struct double_list *end = list;
 
-  if (!list) return 0;
+  if (!end || !end->prev) return 0;
 
   end = end->prev;
   end->next->prev = 0;
