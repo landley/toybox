@@ -435,7 +435,6 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
 
   TT.hfd = 10;
 
-  if (envlen<0 || envlen>=arg->c) return 0;
   pp = xzalloc(sizeof(struct sh_process));
   pp->urd = urd;
 
@@ -568,7 +567,6 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
 
 // TODO: /dev/fd/# /dev/{stdin,stdout,stderr} /dev/{tcp,udp}/host/port
 
-// TODO: is umask respected here?
       // Open the file
       if (-1 == (from = xcreate(sss, from|WARN_ONLY, 0666))) break;
     }
@@ -585,6 +583,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
     close(from);
   }
 
+  // didn't parse everything?
   if (j != arg->c) {
     syntax_err("bad %s", s);
     if (!pp->exit) pp->exit = 1;
@@ -601,14 +600,14 @@ static struct sh_process *run_command(struct sh_arg *arg)
   struct toy_list *tl;
 
   // grab environment var assignments, expand arguments and perform redirects
-  if (!(pp = expand_redir(arg, assign_env(arg), 0))) return 0;
+  pp = expand_redir(arg, assign_env(arg), 0);
 
   // Do nothing if nothing to do
   if (pp->exit || !pp->arg.v);
   else if (!strcmp(*pp->arg.v, "((")) {
     printf("Math!\n");
 // TODO: handle ((math))
-// TODO: check for functions()
+// TODO: call functions()
   // Is this command a builtin that should run in this process?
   } else if ((tl = toy_find(*pp->arg.v))
     && (tl->flags & (TOYFLAG_NOFORK|TOYFLAG_MAYFORK)))
@@ -624,6 +623,7 @@ static struct sh_process *run_command(struct sh_arg *arg)
       toys.rebound = &rebound;
       toy_init(tl, pp->arg.v);  // arg.v must be null terminated
       tl->toy_main();
+      xflush(0);
     }
     pp->exit = toys.exitval;
     if (toys.optargs != toys.argv+1) free(toys.optargs);
@@ -1171,10 +1171,10 @@ static int pipe_segments(char *ctl, int *pipes, int **urd)
   *urd = 0;
 
   // Did the previous pipe segment pipe input into us?
-  if (pipes[1] != -1) {
-    save_redirect(urd, pipes[1], 0);
-    close(pipes[1]);
-    pipes[1] = -1;
+  if (*pipes != -1) {
+    save_redirect(urd, *pipes, 0);
+    close(*pipes);
+    *pipes = -1;
   }
 
   // are we piping output to the next segment?
@@ -1185,11 +1185,11 @@ static int pipe_segments(char *ctl, int *pipes, int **urd)
 // TODO check did not reach end of pipeline after loop
       return 1;
     }
-    if (pipes[0] != 1) {
-      save_redirect(urd, pipes[0], 1);
-      close(pipes[0]);
+    if (pipes[1] != 1) {
+      save_redirect(urd, pipes[1], 1);
+      close(pipes[1]);
     }
-    fcntl(pipes[1], F_SETFD, FD_CLOEXEC);
+    fcntl(*pipes, F_SETFD, FD_CLOEXEC);
   }
 
   return 0;
@@ -1233,7 +1233,6 @@ static void run_function(struct sh_function *sp)
   // iterate through pipeline segments
   while (pl) {
     char *s = *pl->arg->v, *ss = pl->arg->v[1];
-    struct sh_process *pp = 0;
 
     // Is this an executable segment?
     if (!pl->type) {
@@ -1281,8 +1280,8 @@ static void run_function(struct sh_function *sp)
 
           llist_traverse(blk->fdelete, free);
           unredirect(blk->urd);
-          if (pipes[1]) close(pipes[1]);
-          pipes[1] = blk->pout;
+          if (*pipes) close(*pipes);
+          *pipes = blk->pout;
           free(llist_pop(&blk));
         }
         if (i) {
@@ -1299,11 +1298,10 @@ static void run_function(struct sh_function *sp)
 //       probably have to inline run_command here to do that? Implicit ()
 //       also "X=42 | true; echo $X" doesn't get X.
 
-        if (!(pp = run_command(arg))) break;
-        dlist_add_nomalloc((void *)&pplist, (void *)pp);
+        dlist_add_nomalloc((void *)&pplist, (void *)run_command(arg));
       }
 
-      if (pipes[1] == -1) {
+      if (*pipes == -1) {
         toys.exitval = wait_pipeline(pplist);
         llist_traverse(pplist, free_process);
         pplist = 0;
@@ -1315,6 +1313,7 @@ static void run_function(struct sh_function *sp)
 
       // are we entering this block (rather than looping back to it)?
       if (!blk || blk->start != pl) {
+        struct sh_process *pp;
 
         // If it's a nested block we're not running, skip ahead.
         end = block_end(pl->next);
@@ -1336,20 +1335,18 @@ static void run_function(struct sh_function *sp)
         blk->run = 1;
 
         // save context until block end
-        blk->pout = pipes[1];
+        blk->pout = *pipes;
         blk->urd = urd;
         urd = 0;
-        pipes[1] = -1;
+        *pipes = -1;
 
         // Perform redirects listed at end of block
         pp = expand_redir(blk->end->arg, 0, blk->urd);
-        if (pp) {
-          blk->urd = pp->urd;
-          if (pp->arg.c) syntax_err("unexpected %s", *pp->arg.v);
-          llist_traverse(pp->delete, free);
-          if (pp->arg.c) break;
-          free(pp);
-        }
+        blk->urd = pp->urd;
+        if (pp->arg.c) perror_msg("unexpected %s", *pp->arg.v);
+        llist_traverse(pp->delete, free);
+        if (pp->arg.c) break;
+        free(pp);
       }
 
       // What flow control statement is this?
@@ -1415,10 +1412,10 @@ dprintf(2, "TODO skipped running for((;;)), need math parser\n");
 
 // TODO goto "break" above instead of copying it here?
       // if ending a block, free, cleanup redirects, and pop stack.
-      // needing to unredirect(urd) or close(pipes[1]) here would be syntax err
+      // needing to unredirect(urd) or close(pipes[0]) here would be syntax err
       llist_traverse(blk->fdelete, free);
       unredirect(blk->urd);
-      pipes[1] = blk->pout;
+      *pipes = blk->pout;
       free(llist_pop(&blk));
     } else if (pl->type == 'f') pl = add_function(s, pl);
 
@@ -1426,7 +1423,7 @@ dprintf(2, "TODO skipped running for((;;)), need math parser\n");
   }
 
   // did we exit with unfinished stuff?
-  if (pipes[1] != -1) close(pipes[1]);
+  if (*pipes != -1) close(*pipes);
   if (pplist) {
     toys.exitval = wait_pipeline(pplist);
     llist_traverse(pplist, free_process);
@@ -1503,6 +1500,14 @@ void sh_main(void)
   struct sh_function scratch;
   int prompt = 0;
 
+  signal(SIGPIPE, SIG_IGN);
+
+/*
+int fd = open("/dev/tty", O_RDWR);
+dup2(fd, 255);
+close(fd);
+*/
+
   // Is this an interactive shell?
 //  if (FLAG(i) || (!FLAG(c)&&(FLAG(S)||!toys.optc) && isatty(0) && isatty(1))) 
 
@@ -1546,4 +1551,5 @@ if (0) dump_state(&scratch);
 
   if (prompt) error_exit("%ld:unfinished line"+4*!TT.lineno, TT.lineno);
   toys.exitval = f && ferror(f);
+  clearerr(stdout);
 }
