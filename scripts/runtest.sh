@@ -173,7 +173,7 @@ do_fail()
 
 # txpect NAME COMMAND [I/O/E/Xstring]...
 # Run COMMAND and interact with it: send I strings to input, read O or E
-# strings from stdout or stderr (empty string is "any nonzero string here"),
+# strings from stdout or stderr (empty string is "read line of input here"),
 # X means close stdin/stdout/stderr and match return code (blank means nonzero)
 txpect()
 {
@@ -195,6 +195,7 @@ txpect()
   # Loop through challenge/response pairs, with 2 second timeout
   while [ $# -gt 0 ]
   do
+    [ "$VERBOSE" == xpect ] && echo "$1" >&2
     LEN=$((${#1}-1))
     CASE="$1"
     A=
@@ -208,7 +209,9 @@ txpect()
         [ $LEN == 0 ] && LARG="" || LARG="-rN $LEN"
         O=$OUT
         [ ${1::1} == 'E' ] && O=$ERR
+        A=
         read -t2 $LARG A <&$O
+        [ "$VERBOSE" == xpect ] && echo "$A" >&2
         if [ $LEN -eq 0 ]
         then
           [ -z "$A" ] && { do_fail;break;}
@@ -236,6 +239,7 @@ txpect()
           [ $A != "${1:1}" ] && { do_fail;break;}  # specific value
         fi
         ;;
+      *) do_fail; break ;;
     esac
     shift
   done
