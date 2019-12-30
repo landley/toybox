@@ -121,7 +121,7 @@ GLOBALS(
     struct sh_process {
       struct sh_process *next, *prev;
       struct string_list *delete;   // expanded strings
-      int *urd, pid, exit;          // undo redirects, child PID, exit status
+      int *urd, envlen, pid, exit;  // undo redirects, child PID, exit status
       struct sh_arg arg;
     } *procs, *proc;
   } *jobs, *job;
@@ -129,6 +129,7 @@ GLOBALS(
   int hfd, *hfdclose;  // next high filehandle (>= 10)
 )
 
+#define BUGBUG 0
 
 // ordered for greedy matching, so >&; becomes >& ; not > &;
 // making these const means I need to typecast the const away later to
@@ -230,6 +231,8 @@ static void expand_arg(struct sh_arg *arg, char *new, unsigned flags,
   struct string_list **delete)
 {
   if (!(arg->c&32)) arg->v = xrealloc(arg->v, sizeof(void *)*(arg->c+33));
+
+// TODO ls -l /proc/$$/fd
 
   arg->v[arg->c++] = new;
   arg->v[arg->c] = 0;
@@ -339,31 +342,6 @@ static int redir_prefix(char *word)
 
 // TODO |&
 
-// Return number of entries at the start that are environment variable
-// assignments, and perform assignments if nothing else on the line
-static int assign_env(struct sh_arg *arg)
-{
-  int envlen, j;
-  char *s;
-
-  // Grab variable assignments
-  for (envlen = 0; envlen<arg->c; envlen++) {
-    s = arg->v[envlen];
-    for (j=0; s[j] && (s[j]=='_' || !ispunct(s[j])); j++);
-    if (!j || s[j] != '=') break;
-  }
-
-  // perform assignments locally if there's no command
-  if (envlen != arg->c) return envlen;
-
-  for (j = 0; j<envlen; j++) {
-    s = expand_one_arg(arg->v[j], NO_PATH|NO_SPLIT);
-    setvar(s, TAKE_MEM*(s!=arg->v[j]));
-  }
-
-  return 0;
-}
-
 // restore displaced filehandles, closing high filehandles they were copied to
 static void unredirect(int *urd)
 {
@@ -371,13 +349,13 @@ static void unredirect(int *urd)
 
   if (!urd) return;
 
-  for (i = 0; i<*urd; i++) {
+  for (i = 0; i<*urd; i++, rr += 2) {
+if (BUGBUG) dprintf(255, "urd %d %d\n", rr[0], rr[1]);
     if (rr[1] != -1) {
       // No idea what to do about fd exhaustion here, so Steinbach's Guideline.
       dup2(rr[0], rr[1]);
       close(rr[0]);
     }
-    rr += 2;
   }
   free(urd);
 }
@@ -409,6 +387,7 @@ int save_redirect(int **rd, int from, int to)
   if ((hfd = next_hfd())==-1 || hfd != dup2(to, hfd)) return 1;
   fcntl(hfd, F_SETFD, FD_CLOEXEC);
 
+if (BUGBUG) dprintf(255, "redir from=%d to=%d hfd=%d\n", from, to, hfd);
   // dup "to"
   if (from != -1 && to != dup2(from, to)) {
     close(hfd);
@@ -460,7 +439,6 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
     sss = arg->v[++j];
 
     // It's a redirect: for [to]<from s = start of [to], ss = <, sss = from
-
     if (isdigit(*s) && ss-s>5) break;
 
     // expand arguments for everything but << and <<-
@@ -598,12 +576,32 @@ static struct sh_process *run_command(struct sh_arg *arg)
 {
   struct sh_process *pp;
   struct toy_list *tl;
+  int envlen, j;
+  char *s;
 
-  // grab environment var assignments, expand arguments and perform redirects
-  pp = expand_redir(arg, assign_env(arg), 0);
+  // Grab leading variable assignments
+  for (envlen = 0; envlen<arg->c; envlen++) {
+    s = arg->v[envlen];
+    for (j=0; s[j] && (s[j]=='_' || !ispunct(s[j])); j++);
+    if (!j || s[j] != '=') break;
+  }
 
+  // expand arguments and perform redirects
+  pp = expand_redir(arg, envlen, 0);
+
+if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); for (i=0; i<pp->arg.c; i++) dprintf(255, "'%s' ", pp->arg.v[i]); dprintf(255, "\n"); }
+  // perform assignments locally if there's no command
+  if (envlen == arg->c) {
+    for (j = 0; j<envlen; j++) {
+      s = expand_one_arg(arg->v[j], NO_PATH|NO_SPLIT);
+if (BUGBUG) dprintf(255, "setvar %s\n", s);
+      setvar(s, TAKE_MEM*(s!=arg->v[j]));
+    }
+    unredirect(pp->urd);
+
+    return pp;
   // Do nothing if nothing to do
-  if (pp->exit || !pp->arg.v);
+  } else if (pp->exit || !pp->arg.v);
   else if (!strcmp(*pp->arg.v, "((")) {
     printf("Math!\n");
 // TODO: handle ((math))
@@ -630,8 +628,38 @@ static struct sh_process *run_command(struct sh_arg *arg)
     if (toys.old_umask) umask(toys.old_umask);
     memcpy(&toys, &temp, sizeof(struct toy_context));
   } else {
+    char **env = 0, **old = environ, *ss, *sss;
+    int kk, ll;
+
+    // Assign leading environment variables
+    if (envlen) {
+      kk = 0;
+      if (environ) while (environ[kk]) kk++;
+      if (kk) env = xmemdup(environ, sizeof(char *)*(kk+1));
+      for (j = 0; j<envlen; j++) {
+        sss = expand_one_arg(arg->v[j], NO_PATH|NO_SPLIT);
+        if (sss != arg->v[j]) dlist_add((void *)&pp->delete, sss);
+        for (ll = 0; ll<kk; ll++) {
+          for (s = sss, ss = env[ll]; *s == *ss && *s != '='; s++, ss++);
+          if (*s != '=') continue;
+          env[ll] = sss;
+          break;
+        }
+        if (ll == kk) {
+          if (!(kk&31)) env = xrealloc(env, (33+kk)*sizeof(char *));
+          env[kk++] = sss;
+          env[kk] = 0;
+        }
+      }
+      environ = env;
+    }
+
     if (-1 == (pp->pid = xpopen_both(pp->arg.v, 0)))
       perror_msg("%s: vfork", *pp->arg.v);
+
+    // Restore environment variables
+    environ = old;
+    free(env);
   }
 
   // cleanup process
@@ -777,6 +805,9 @@ void free_pipeline(void *pipeline)
 struct sh_pipeline *block_end(struct sh_pipeline *pl)
 {
   int i = 0;
+
+// TODO: should this be inlined into type 1 processing to set blk->end and
+// then everything else use that?
 
   while (pl) {
     if (pl->type == 1 || pl->type == 'f') i++;
@@ -1128,16 +1159,16 @@ static void dump_state(struct sh_function *sp)
     struct double_list *dl;
 
     for (dl = sp->expect; dl; dl = (dl->next == sp->expect) ? 0 : dl->next)
-      dprintf(2, "expecting %s\n", dl->data);
+      dprintf(255, "expecting %s\n", dl->data);
     if (sp->pipeline)
-      dprintf(2, "pipeline count=%d here=%d\n", sp->pipeline->prev->count,
+      dprintf(255, "pipeline count=%d here=%d\n", sp->pipeline->prev->count,
         sp->pipeline->prev->here);
   }
 
   for (pl = sp->pipeline; pl ; pl = (pl->next == sp->pipeline) ? 0 : pl->next) {
     for (i = 0; i<pl->arg->c; i++)
-      dprintf(2, "arg[%d][%ld]=%s\n", q, i, pl->arg->v[i]);
-    dprintf(2, "type=%d term[%d]=%s\n", pl->type, q++, pl->arg->v[pl->arg->c]);
+      dprintf(255, "arg[%d][%ld]=%s\n", q, i, pl->arg->v[i]);
+    dprintf(255, "type=%d term[%d]=%s\n", pl->type, q++, pl->arg->v[pl->arg->c]);
   }
 }
 
@@ -1233,7 +1264,7 @@ static void run_function(struct sh_function *sp)
   // iterate through pipeline segments
   while (pl) {
     char *s = *pl->arg->v, *ss = pl->arg->v[1];
-
+if (BUGBUG) dprintf(255, "type=%d %s %s\n", pl->type, pl->arg->v[0], pl->arg->v[pl->arg->c]);
     // Is this an executable segment?
     if (!pl->type) {
       struct sh_arg *arg = pl->arg;
@@ -1500,14 +1531,10 @@ void sh_main(void)
   struct sh_function scratch;
   int prompt = 0;
 
+  TT.hfd = 10;
   signal(SIGPIPE, SIG_IGN);
 
-/*
-int fd = open("/dev/tty", O_RDWR);
-dup2(fd, 255);
-close(fd);
-*/
-
+if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); dup2(fd, 255); close(fd); }
   // Is this an interactive shell?
 //  if (FLAG(i) || (!FLAG(c)&&(FLAG(S)||!toys.optc) && isatty(0) && isatty(1))) 
 
@@ -1539,7 +1566,7 @@ close(fd);
 
     // returns 0 if line consumed, command if it needs more data
     prompt = parse_line(new, &scratch);
-if (0) dump_state(&scratch);
+if (BUGBUG) dump_state(&scratch);
     if (prompt != 1) {
 // TODO: ./blah.sh one two three: put one two three in scratch.arg
       if (!prompt) run_function(&scratch);
