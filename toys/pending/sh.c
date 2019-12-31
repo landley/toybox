@@ -230,10 +230,32 @@ static void do_prompt(char *prompt)
 static void expand_arg(struct sh_arg *arg, char *new, unsigned flags,
   struct string_list **delete)
 {
+//  char *s = new, quote = 0;
+
   if (!(arg->c&32)) arg->v = xrealloc(arg->v, sizeof(void *)*(arg->c+33));
 
+/*
 // TODO ls -l /proc/$$/fd
 
+// ${ $(( $( $[ $' `
+
+  while (*s) {
+    if (!quote && !(flags&NO_BRACE) && *s == '{') {
+TODO this recurses
+    } else if (quote != '*s == '$') {
+      // *@#?-$!_0 "Special Paremeters" ($0 not affected by shift)
+      // 0-9 positional parameters
+      if (s[1] == '$'
+
+// EUID GROUPS HOSTNAME HOSTTYPE=$(uname -m) MACHTYPE=$HOSTTYPE-unknown-linux
+// OLDPWD OSTYPE=linux/android PIPESTATUS PPID PWD RANDOM REPLY SECONDS UID
+// COLUMNS LINES HOME SHELL
+// IFS PATH
+// PS0 PS1='$ ' PS2='> ' PS3
+    }
+  }
+*/
+  // literal passthrough
   arg->v[arg->c++] = new;
   arg->v[arg->c] = 0;
 
@@ -257,7 +279,7 @@ static void expand_arg(struct sh_arg *arg, char *new, unsigned flags,
 
 // Expand exactly one arg, returning NULL if it split.
 // If return != new you need to free it.
-static char *expand_one_arg(char *new, unsigned flags)
+static char *expand_one_arg(char *new, unsigned flags, struct string_list **del)
 {
   struct sh_arg arg;
   char *s = 0;
@@ -268,6 +290,7 @@ static char *expand_one_arg(char *new, unsigned flags)
   if (arg.c == 1) s = *arg.v;
   else for (i = 0; i < arg.c; i++) free(arg.v[i]);
   free(arg.v);
+  if (del && s != new) dlist_add((void *)del, s);
 
   return s;
 }
@@ -384,13 +407,14 @@ int save_redirect(int **rd, int from, int to)
 
   // save displaced to, copying to high (>=10) file descriptor to undo later
   // except if we're saving to environment variable instead (don't undo that)
-  if ((hfd = next_hfd())==-1 || hfd != dup2(to, hfd)) return 1;
-  fcntl(hfd, F_SETFD, FD_CLOEXEC);
+  if ((hfd = next_hfd())==-1) return 1;
+  if (hfd != dup2(to, hfd)) hfd = -1;
+  else fcntl(hfd, F_SETFD, FD_CLOEXEC);
 
 if (BUGBUG) dprintf(255, "redir from=%d to=%d hfd=%d\n", from, to, hfd);
   // dup "to"
   if (from != -1 && to != dup2(from, to)) {
-    close(hfd);
+    if (hfd != -1) close(hfd);
 
     return 1;
   }
@@ -402,6 +426,34 @@ if (BUGBUG) dprintf(255, "redir from=%d to=%d hfd=%d\n", from, to, hfd);
   rr[2*cnt] = to;
 
   return 0;
+}
+
+// Pipeline segments
+struct sh_pipeline {
+  struct sh_pipeline *next, *prev;
+  int count, here, type;
+  struct sh_arg arg[1];
+};
+
+// scratch space (state held between calls). Don't want to make it global yet
+// because this could be reentrant.
+struct sh_function {
+  char *name;
+  struct sh_pipeline *pipeline;
+  struct double_list *expect;
+// TODO: lifetime rules for arg? remember "shift" command.
+  struct sh_arg *arg; // arguments to function call
+  char *end;
+};
+
+// TODO: try to avoid prototype.
+static int parse_line(char *line, struct sh_function *sp);
+void free_function(struct sh_function *sp);
+void argxtend(struct sh_arg *arg);
+
+void run_subshell(struct sh_pipeline *sp)
+{
+  dprintf(2, "TODO: run_subshell\n");
 }
 
 // Expand arguments and perform redirections. Return new process object with
@@ -421,11 +473,48 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
 
   // Expand arguments and perform redirections
   for (j = envlen; j<arg->c; j++) {
-    int saveclose = 0;
+    int saveclose = 0, bad = 0;
+
+    s = arg->v[j];
+
+    // Handle <() >() redirectionss
+    if ((*s == '<' || *s == '>') && s[1] == '(') {
+      struct sh_function sf;
+      int pipes[2], *uu = 0, dd;
+
+      // Grab subshell data
+      memset(&sf, 0, sizeof(struct sh_function));
+      errno = 0;
+      if (parse_line(s+1, &sf) || pipe(pipes)) {
+        perror_msg_raw(s);
+        free_function(&sf);
+        pp->exit = 1;
+
+        return pp;
+      }
+// pipe[1] > pipe[0]->0
+// pipe[0] < pipe[1]->1 
+
+      // Perform input or output redirect and launch process
+      dd = *s == '<';
+      save_redirect(&uu, pipes[dd], dd);
+      fcntl(pipes[!dd], F_SETFD, FD_CLOEXEC);
+      run_subshell(sf.pipeline); // ignore errors, don't track
+      unredirect(uu);
+      save_redirect(&urd, -1, pipes[!dd]);
+
+      // Argument is /dev/fd/%d with pipe filehandle
+      dlist_add((void *)&pp->delete, ss = xmprintf("/dev/fd/%d", pipes[dd]));
+      argxtend(&pp->arg);
+      pp->arg.v[pp->arg.c++] = ss;
+      pp->arg.v[pp->arg.c] = 0;
+
+      continue;
+    }
 
     // Is this a redirect? s = prefix, ss = operator
-    sss = ss = (s = arg->v[j]) + redir_prefix(arg->v[j]);
-    sss += anystart(ss, (void *)redirectors);
+    ss = s + redir_prefix(arg->v[j]);
+    sss = ss + anystart(ss, (void *)redirectors);
     if (ss == sss) {
       // Nope: save/expand argument and loop
       expand_arg(&pp->arg, s, 0, &pp->delete);
@@ -442,13 +531,11 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
     if (isdigit(*s) && ss-s>5) break;
 
     // expand arguments for everything but << and <<-
-    if (strncmp(ss, "<<", 2) && ss[2] != '<') {
-      sss = expand_one_arg(sss, NO_PATH);
-      if (!sss) {
-        s = sss;
-        break; // arg splitting here is an error
-      }
-      if (sss != arg->v[j]) dlist_add((void *)&pp->delete, sss);
+    if (strncmp(ss, "<<", 2) && ss[2] != '<' &&
+      !(sss = expand_one_arg(sss, NO_PATH, &pp->delete)))
+    {
+      s = sss;
+      break; // arg splitting here is an error
     }
 
     // Parse the [fd] part of [fd]<name
@@ -474,7 +561,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
     // HERE documents?
     if (!strcmp(ss, "<<<") || !strcmp(ss, "<<-") || !strcmp(ss, "<<")) {
       char *tmp = getvar("TMPDIR", 6);
-      int i, len, bad = 0, zap = (ss[2] == '-'), x = !ss[strcspn(ss, "\"'")];
+      int i, len, zap = (ss[2] == '-'), x = !ss[strcspn(ss, "\"'")];
 
       // store contents in open-but-deleted /tmp file.
       tmp = xmprintf("%s/sh-XXXXXX", tmp ? tmp : "/tmp");
@@ -483,7 +570,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
 
         // write contents to file (if <<< else <<) then lseek back to start
         else if (ss[2] == '<') {
-          if (x) sss = expand_one_arg(sss, NO_PATH|NO_SPLIT);
+          if (x) sss = expand_one_arg(sss, NO_PATH|NO_SPLIT, 0);
           len = strlen(sss);
           if (len != writeall(from, sss, len)) bad++;
           if (x) free(sss);
@@ -495,7 +582,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
             sss = 0;
             // expand_parameter, commands, and arithmetic
             if (x) ss = sss = expand_one_arg(ss,
-              NO_PATH|NO_SPLIT|NO_BRACE|NO_TILDE|NO_QUOTE);
+              NO_PATH|NO_SPLIT|NO_BRACE|NO_TILDE|NO_QUOTE, 0);
 
             while (zap && *ss == '\t') ss++;
             x = writeall(from, ss, len = strlen(ss));
@@ -543,22 +630,25 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
         }
       }
 
-// TODO: /dev/fd/# /dev/{stdin,stdout,stderr} /dev/{tcp,udp}/host/port
+      // we expect /dev/fd/# and /dev/{stdin,stdout,stderr} to be in /dev
+
+// TODO: /dev/{tcp,udp}/host/port
 
       // Open the file
       if (-1 == (from = xcreate(sss, from|WARN_ONLY, 0666))) break;
     }
 
     // perform redirect, saving displaced "to".
-    save_redirect(&pp->urd, from, to);
+    if (save_redirect(&pp->urd, from, to)) bad++;
     // Do we save displaced "to" in env variable instead of undo list?
     if (cv) {
       --*pp->urd;
       setvar(cv, TAKE_MEM);
       cv = 0;
     }
-    if (saveclose) save_redirect(&pp->urd, -1, from);
+    if (saveclose && save_redirect(&pp->urd, -1, from)) bad++;
     close(from);
+    if (bad) break;
   }
 
   // didn't parse everything?
@@ -593,13 +683,10 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
   // perform assignments locally if there's no command
   if (envlen == arg->c) {
     for (j = 0; j<envlen; j++) {
-      s = expand_one_arg(arg->v[j], NO_PATH|NO_SPLIT);
-if (BUGBUG) dprintf(255, "setvar %s\n", s);
+      s = expand_one_arg(arg->v[j], NO_PATH|NO_SPLIT, 0);
       setvar(s, TAKE_MEM*(s!=arg->v[j]));
     }
-    unredirect(pp->urd);
 
-    return pp;
   // Do nothing if nothing to do
   } else if (pp->exit || !pp->arg.v);
   else if (!strcmp(*pp->arg.v, "((")) {
@@ -637,8 +724,7 @@ if (BUGBUG) dprintf(255, "setvar %s\n", s);
       if (environ) while (environ[kk]) kk++;
       if (kk) env = xmemdup(environ, sizeof(char *)*(kk+1));
       for (j = 0; j<envlen; j++) {
-        sss = expand_one_arg(arg->v[j], NO_PATH|NO_SPLIT);
-        if (sss != arg->v[j]) dlist_add((void *)&pp->delete, sss);
+        sss = expand_one_arg(arg->v[j], NO_PATH|NO_SPLIT, &pp->delete);
         for (ll = 0; ll<kk; ll++) {
           for (s = sss, ss = env[ll]; *s == *ss && *s != '='; s++, ss++);
           if (*s != '=') continue;
@@ -681,8 +767,20 @@ static void free_process(void *ppp)
 // caller eats leading spaces
 static char *parse_word(char *start)
 {
-  int i, j, quote = 0, q, qc = 0;
+  int i, quote = 0, q, qc = 0;
   char *end = start, *s;
+
+  // Things we should only return at the _start_ of a word
+
+  if (strstart(&end, "<(") || strstart(&end, ">(")) toybuf[quote++]=')';
+
+  // Redirections. 123<<file- parses as 2 args: "123<<" "file-".
+  s = end + redir_prefix(end);
+  if ((i = anystart(s, (void *)redirectors))) s += i;
+  // Flow control characters that end pipeline segments
+  else s = end + anystart(end, (char *[]){";;&", ";;", ";&", ";", "||",
+    "|&", "|", "&&", "&", "(", ")", 0});
+  if (s != end) return (end == start) ? s : end;
 
   // (( is a special quote at the start of a word
   if (strstart(&end, "((")) toybuf[quote++] = 255;
@@ -697,9 +795,8 @@ static char *parse_word(char *start)
       return (void *)1;
     }
 
-    q = quote ? toybuf[quote-1] : 0;
     // Handle quote contexts
-    if (q) {
+    if ((q = quote ? toybuf[quote-1] : 0)) {
 
       // when waiting for parentheses, they nest
       if ((q == ')' || q == '\xff') && (*end == '(' || *end == ')')) {
@@ -709,7 +806,7 @@ static char *parse_word(char *start)
           // (( can end with )) or retroactively become two (( if we hit one )
           if (strstart(&end, "))")) quote--;
           else return start+1;
-        }
+        } else if (*end == ')') quote--;
         end++;
 
       // end quote?
@@ -725,27 +822,13 @@ static char *parse_word(char *start)
       // Things that only matter when unquoted
 
       if (isspace(*end)) break;
-
-      // Things we should only return at the _start_ of a word
-
-      // Redirections. 123<<file- parses as 2 args: "123<<" "file-".
-      s = end + redir_prefix(end);
-      j = anystart(s, (void *)redirectors);
-      if (j) s += j;
-
-      // Flow control characters that end pipeline segments
-      else s = end + anystart(end, (char *[]){";;&", ";;", ";&", ";", "||",
-        "|&", "|", "&&", "&", "(", ")", 0});
-      if (s != end) return (end == start) ? s : end;
-      i++;
+      if (*end == ')') return end+(start==end);
     }
 
     // Things the same unquoted or in most non-single-quote contexts
 
     // start new quote context?
     if (strchr("\"'`", *end)) toybuf[quote++] = *end++;
-    else if (q != '"' && (strstart(&end, "<(") || strstart(&end,">(")))
-      toybuf[quote++]=')';
 
     // backslash escapes
     else if (*end == '\\') {
@@ -769,24 +852,6 @@ void argxtend(struct sh_arg *arg)
 {
   if (!(arg->c&31)) arg->v = xrealloc(arg->v, (33+arg->c)*sizeof(void *));
 }
-
-// Pipeline segments
-struct sh_pipeline {
-  struct sh_pipeline *next, *prev;
-  int count, here, type;
-  struct sh_arg arg[1];
-};
-
-// scratch space (state held between calls). Don't want to make it global yet
-// because this could be reentrant.
-struct sh_function {
-  char *name;
-  struct sh_pipeline *pipeline;
-  struct double_list *expect;
-// TODO: lifetime rules for arg? remember "shift" command.
-  struct sh_arg *arg; // arguments to function call
-  char *end;
-};
 
 // Free one pipeline segment.
 void free_pipeline(void *pipeline)
@@ -913,11 +978,8 @@ static int parse_line(char *line, struct sh_function *sp)
     s = 0;
 
     // skip leading whitespace/comment here to know where next word starts
-    for (;;) {
-      if (isspace(*start)) ++start;
-      else if (*start=='#') while (*start && *start != '\n') ++start;
-      else break;
-    }
+    while (isspace(*start)) ++start;
+    if (*start=='#') while (*start && *start != '\n') ++start;
 
     // Parse next word and detect overflow (too many nested quotes).
     if ((end = parse_word(start)) == (void *)1)
@@ -1168,7 +1230,8 @@ static void dump_state(struct sh_function *sp)
   for (pl = sp->pipeline; pl ; pl = (pl->next == sp->pipeline) ? 0 : pl->next) {
     for (i = 0; i<pl->arg->c; i++)
       dprintf(255, "arg[%d][%ld]=%s\n", q, i, pl->arg->v[i]);
-    dprintf(255, "type=%d term[%d]=%s\n", pl->type, q++, pl->arg->v[pl->arg->c]);
+    if (pl->arg->c<0) dprintf(255, "argc=%d\n", pl->arg->c);
+    else dprintf(255, "type=%d term[%d]=%s\n", pl->type, q++, pl->arg->v[pl->arg->c]);
   }
 }
 
