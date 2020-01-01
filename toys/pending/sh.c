@@ -287,10 +287,11 @@ static char *expand_one_arg(char *new, unsigned flags, struct string_list **del)
 
   memset(&arg, 0, sizeof(arg));
   expand_arg(&arg, new, flags, 0);
-  if (arg.c == 1) s = *arg.v;
-  else for (i = 0; i < arg.c; i++) free(arg.v[i]);
+  if (arg.c == 1) {
+    s = *arg.v;
+    if (del && s != new) dlist_add((void *)del, s);
+  } else for (i = 0; i < arg.c; i++) free(arg.v[i]);
   free(arg.v);
-  if (del && s != new) dlist_add((void *)del, s);
 
   return s;
 }
@@ -722,7 +723,7 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
     if (envlen) {
       kk = 0;
       if (environ) while (environ[kk]) kk++;
-      if (kk) env = xmemdup(environ, sizeof(char *)*(kk+1));
+      if (kk) env = xmemdup(environ, sizeof(char *)*(kk+33));
       for (j = 0; j<envlen; j++) {
         sss = expand_one_arg(arg->v[j], NO_PATH|NO_SPLIT, &pp->delete);
         for (ll = 0; ll<kk; ll++) {
@@ -1370,8 +1371,7 @@ if (BUGBUG) dprintf(255, "type=%d %s %s\n", pl->type, pl->arg->v[0], pl->arg->v[
           pl = blk->end;
 // TODO collate end_block logic
 
-      // if ending a block, free, cleanup redirects, and pop stack.
-
+          // if ending a block, free, cleanup redirects and pop stack.
           llist_traverse(blk->fdelete, free);
           unredirect(blk->urd);
           if (*pipes) close(*pipes);
