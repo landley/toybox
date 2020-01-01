@@ -4,7 +4,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/time.html
 
-USE_TIME(NEWTOY(time, "<1^pv", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TIME(NEWTOY(time, "<1^pv", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_MAYFORK))
 
 config TIME
   bool "time"
@@ -45,20 +45,13 @@ void time_main(void)
     r = (tv2.tv_sec-tv.tv_sec)+((tv2.tv_usec-tv.tv_usec)/1000000.0);
     u = ru.ru_utime.tv_sec+(ru.ru_utime.tv_usec/1000000.0);
     s = ru.ru_stime.tv_sec+(ru.ru_stime.tv_usec/1000000.0);
-    if (FLAG(v)) {
-      fprintf(stderr, "Real time (s): %f\n"
-                      "System time (s): %f\n"
-                      "User time (s): %f\n"
-                      "Max RSS (KiB): %ld\n"
-                      "Major faults: %ld\n"
-                      "Minor faults: %ld\n"
-                      "File system inputs: %ld\n"
-                      "File system outputs: %ld\n"
-                      "Voluntary context switches: %ld\n"
-                      "Involuntary context switches: %ld\n", r, s, u,
-              ru.ru_maxrss, ru.ru_majflt, ru.ru_minflt, ru.ru_inblock,
-              ru.ru_oublock, ru.ru_nvcsw, ru.ru_nivcsw);
-    } else fprintf(stderr, "real %f\nuser %f\nsys %f\n", r, u, s);
+    if (FLAG(v)) fprintf(stderr, "Real time (s): %f\nSystem time (s): %f\n"
+      "User time (s): %f\nMax RSS (KiB): %ld\nMajor faults: %ld\n"
+      "Minor faults: %ld\nFile system inputs: %ld\nFile system outputs: %ld\n"
+      "Voluntary context switches: %ld\nInvoluntary context switches: %ld\n",
+      r, s, u, ru.ru_maxrss, ru.ru_majflt, ru.ru_minflt, ru.ru_inblock,
+      ru.ru_oublock, ru.ru_nvcsw, ru.ru_nivcsw);
+    else fprintf(stderr, "real %f\nuser %f\nsys %f\n", r, u, s);
     toys.exitval = WIFEXITED(stat) ? WEXITSTATUS(stat) : WTERMSIG(stat);
   }
 }
