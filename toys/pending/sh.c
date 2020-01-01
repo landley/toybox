@@ -213,6 +213,13 @@ static void do_prompt(char *prompt)
   writeall(2, toybuf, len);
 }
 
+void array_add(char ***list, unsigned count, char *data)
+{
+  if (!(count&31)) *list = xrealloc(*list, sizeof(char *)*(count+33));
+  (*list)[count] = data;
+  (*list)[count+1] = 0;
+}
+
 // quote removal, brace, tilde, parameter/variable, $(command),
 // $((arithmetic)), split, path 
 #define NO_PATH  (1<<0)
@@ -232,13 +239,11 @@ static void expand_arg(struct sh_arg *arg, char *new, unsigned flags,
 {
 //  char *s = new, quote = 0;
 
-  if (!(arg->c&32)) arg->v = xrealloc(arg->v, sizeof(void *)*(arg->c+33));
-
-/*
 // TODO ls -l /proc/$$/fd
 
 // ${ $(( $( $[ $' `
 
+/*
   while (*s) {
     if (!quote && !(flags&NO_BRACE) && *s == '{') {
 TODO this recurses
@@ -256,8 +261,7 @@ TODO this recurses
   }
 */
   // literal passthrough
-  arg->v[arg->c++] = new;
-  arg->v[arg->c] = 0;
+  array_add(&arg->v, arg->c++, new);
 
 /*
   char *s = word, *new = 0;
@@ -450,7 +454,6 @@ struct sh_function {
 // TODO: try to avoid prototype.
 static int parse_line(char *line, struct sh_function *sp);
 void free_function(struct sh_function *sp);
-void argxtend(struct sh_arg *arg);
 
 void run_subshell(struct sh_pipeline *sp)
 {
@@ -506,9 +509,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
 
       // Argument is /dev/fd/%d with pipe filehandle
       dlist_add((void *)&pp->delete, ss = xmprintf("/dev/fd/%d", pipes[dd]));
-      argxtend(&pp->arg);
-      pp->arg.v[pp->arg.c++] = ss;
-      pp->arg.v[pp->arg.c] = 0;
+      array_add(&pp->arg.v, pp->arg.c++, ss);
 
       continue;
     }
@@ -732,11 +733,7 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
           env[ll] = sss;
           break;
         }
-        if (ll == kk) {
-          if (!(kk&31)) env = xrealloc(env, (33+kk)*sizeof(char *));
-          env[kk++] = sss;
-          env[kk] = 0;
-        }
+        if (ll == kk) array_add(&env, kk, sss);
       }
       environ = env;
     }
@@ -848,12 +845,6 @@ static char *parse_word(char *start)
 
 // if then fi for while until select done done case esac break continue return
 
-// Allocate more space for arg, and possibly terminator
-void argxtend(struct sh_arg *arg)
-{
-  if (!(arg->c&31)) arg->v = xrealloc(arg->v, (33+arg->c)*sizeof(void *));
-}
-
 // Free one pipeline segment.
 void free_pipeline(void *pipeline)
 {
@@ -929,9 +920,9 @@ static int parse_line(char *line, struct sh_function *sp)
       }
       if (!*s && !*end) {
         // Add this line
-        argxtend(arg);
-        arg->v[arg->c+1] = arg->v[arg->c];
-        arg->v[arg->c++] = xstrdup(line);
+        array_add(&arg->v, arg->c++, xstrdup(line));
+        array_add(&arg->v, arg->c, arg->v[arg->c]);
+        arg->c++;
       // EOF hit, end HERE document
       } else {
         arg->v[arg->c] = 0;
@@ -992,13 +983,12 @@ static int parse_line(char *line, struct sh_function *sp)
       arg = pl->arg;
       dlist_add_nomalloc((void *)&sp->pipeline, (void *)pl);
     }
-    argxtend(arg);
 
     // Do we need to request another line to finish word (find ending quote)?
     if (!end) {
       // Save unparsed bit of this line, we'll need to re-parse it.
-      arg->v[arg->c] = xstrndup(start, strlen(start));
-      arg->c = -(arg->c+1);
+      array_add(&arg->v, arg->c++, xstrndup(start, strlen(start)));
+      arg->c = -arg->c;
       free(delete);
 
       return 1;
@@ -1034,7 +1024,7 @@ static int parse_line(char *line, struct sh_function *sp)
     }
 
     // Save argument (strdup) and check for flow control
-    s = arg->v[arg->c] = xstrndup(start, end-start);
+    array_add(&arg->v, arg->c, s = xstrndup(start, end-start));
     start = end;
     if (strchr(";|&", *s)) {
       // flow control without a statement is an error
