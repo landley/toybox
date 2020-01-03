@@ -51,7 +51,7 @@ void help_main(void)
   int i;
 
   // If called with no arguments as a builtin form the shell, show all builtins
-  if (!*toys.optargs && (toys.optflags&FLAGS_BUILTIN)) {
+  if (!*toys.optargs && toys.rebound) {
     for (i = 0; i < toys.toycount; i++) {
       if (!(toy_list[i].flags&(TOYFLAG_NOFORK|TOYFLAG_MAYFORK))) continue;
       toys.which = toy_list+i;
