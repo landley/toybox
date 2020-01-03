@@ -89,7 +89,7 @@ static void toy_singleinit(struct toy_list *which, char *argv[])
     if (!strcmp(argv[1], "--help")) {
       if (CFG_TOYBOX && toys.which == toy_list && toys.argv[2])
         if (!(toys.which = toy_find(toys.argv[2]))) unknown(toys.argv[2]);
-      show_help(stdout);
+      show_help(stdout, 1);
       xexit();
     }
 

@@ -16,10 +16,10 @@ static char *help_data =
 #include "generated/newtoys.h"
 ;
 
-void show_help(FILE *out)
+void show_help(FILE *out, int full)
 {
   int i = toys.which-toy_list;
-  char *s;
+  char *s, *ss;
 
   if (CFG_TOYBOX_HELP) {
     for (;;) {
@@ -30,6 +30,11 @@ void show_help(FILE *out)
       i = toy_find(++s)-toy_list;
     }
 
-    fprintf(out, "%s\n", s);
+    if (full) fprintf(out, "%s\n", s);
+    else {
+      strstart(&s, "usage: ");
+      for (ss = s; *ss && *ss!='\n'; ss++);
+      fprintf(out, "%.*s\n", (int)(ss-s), s);
+    }
   }
 }

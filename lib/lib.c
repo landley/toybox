@@ -72,7 +72,7 @@ void help_exit(char *msg, ...)
 {
   va_list va;
 
-  if (!msg) show_help(stdout);
+  if (!msg) show_help(stdout, 1);
   else {
     va_start(va, msg);
     verror_msg(msg, -1, va);
