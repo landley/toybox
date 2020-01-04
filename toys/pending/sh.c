@@ -72,7 +72,7 @@ config CD
   default n
   depends on SH
   help
-    usage: cd [-PLe] [path]
+    usage: cd [-PL] [path]
 
     Change current directory.  With no arguments, go $HOME.
 
@@ -154,6 +154,17 @@ void array_add(char ***list, unsigned count, char *data)
 
 // TODO local variables
 
+// Return index of variable within this list
+static unsigned findvar(char **list, char *name, int len)
+{
+  unsigned i;
+
+  for (i = 0; list[i]; i++)
+    if (!strncmp(list[i], name, len) && list[i][len] == '=') break;
+
+  return i;
+}
+
 // Assign one variable
 // s: key=val
 // type: 0 = whatever it was before, local otherwise
@@ -162,30 +173,41 @@ void array_add(char ***list, unsigned count, char *data)
 // ft
 static void setvar(char *s, unsigned type)
 {
+  unsigned uu;
+  int len = stridx(s, '=');
+
+  if (len == -1) {
+    error_msg("no = in setvar %s\n", s);
+    return;
+  }
+
   if (type&TAKE_MEM) type ^= TAKE_MEM;
   else s = xstrdup(s);
 
   // local, export, readonly, integer...
-  xsetenv(s, 0);
+
+  // exported variable?
+  if (environ && environ[uu = findvar(environ, s, len)]) {
+    if (uu>=toys.envc) free(environ[uu]);
+    environ[uu] = s;
+  } else {
+    uu = 0;
+    if (TT.locals && TT.locals[uu = findvar(TT.locals, s, len)]) {
+      free(TT.locals[uu]);
+      TT.locals[uu] = s;
+    } else array_add(&TT.locals, uu, s);
+  }
 }
 
 // get variable of length len starting at s.
 static char *getvarlen(char *s, int len)
 {
-  unsigned uu;
-  char **ss = TT.locals;
+  int i;
 
-  // loop through local, then global variables
-  for (uu = 0; ; uu++) {
-    if (!ss || !ss[uu]) {
-      if (ss != TT.locals) return 0;
-      ss = environ;
-      uu = 0;
-    }
-
-    // Use UHF rubik's cube protocol to find match.
-    if (!strncmp(ss[uu], s, len) && ss[uu][len] == '=') return ss[uu]+len+1;
-  }
+  if (TT.locals && TT.locals[i = findvar(TT.locals, s, len)])
+    return TT.locals[i]+len+1;
+  if (environ && environ[i = findvar(environ, s, len)])
+    return environ[i]+len+1;
 
   return 0;
 }
