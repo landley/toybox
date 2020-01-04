@@ -23,9 +23,9 @@ long environ_bytes()
 void xclearenv(void)
 {
   if (toys.envc) {
-    char **ss;
+    int i;
 
-    for (ss = environ; *ss; ss++) free(*ss);
+    for (i = 0; environ[i]; i++) if (i>=toys.envc) free(environ[i]);
     free(environ);
   }
   toys.envc = 0;
