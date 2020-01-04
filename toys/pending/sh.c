@@ -19,11 +19,9 @@
  *
  * Things like the bash man page are good to read too.
  *
- * TODO: "make sh" doesn't work (nofork builtins need to be included)
  * TODO: test that $PS1 color changes work without stupid \[ \] hack
  * TODO: make fake pty wrapper for test infrastructure
  * TODO: // Handle embedded NUL bytes in the command line.
- * TODO: var=val command
  * existing but considered builtins: false kill pwd true time
  * buitins: alias bg command fc fg getopts jobs newgrp read umask unalias wait
  * "special" builtins: break continue : . eval exec export readonly return set
@@ -37,6 +35,7 @@
  * label:
  * TODO: test exit from "trap EXIT" doesn't recurse
  * TODO: ! history expansion
+ * TODO: getuid() vs geteuid()
  *
  * bash man page:
  * control operators || & && ; ;; ;& ;;& ( ) | |& <newline>
@@ -44,9 +43,7 @@
  *   ! case  coproc  do done elif else esac fi for  function  if  in  select
  *   then until while { } time [[ ]]
 
-
-
-USE_SH(NEWTOY(cd, NULL, TOYFLAG_NOFORK))
+USE_SH(NEWTOY(cd, ">1LP[-LP]", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(exit, NULL, TOYFLAG_NOFORK))
 
 USE_SH(NEWTOY(sh, "(noediting)(noprofile)(norc)sc:i", TOYFLAG_BIN))
@@ -75,7 +72,7 @@ config CD
   default n
   depends on SH
   help
-    usage: cd [-PL] [path]
+    usage: cd [-PLe] [path]
 
     Change current directory.  With no arguments, go $HOME.
 
@@ -100,11 +97,10 @@ GLOBALS(
   char *command;
 
   long lineno;
-
   char **locals;
-
   struct double_list functions;
-  unsigned options;
+  unsigned options, jobcnt;
+  int hfd;  // next high filehandle (>= 10)
 
   // Running jobs.
   struct sh_job {
@@ -120,13 +116,11 @@ GLOBALS(
     // null terminated array of running processes in pipeline
     struct sh_process {
       struct sh_process *next, *prev;
-      struct string_list *delete;   // expanded strings
+      struct arg_list *delete;   // expanded strings
       int *urd, envlen, pid, exit;  // undo redirects, child PID, exit status
       struct sh_arg arg;
     } *procs, *proc;
   } *jobs, *job;
-  unsigned jobcnt;
-  int hfd, *hfdclose;  // next high filehandle (>= 10)
 )
 
 #define BUGBUG 0
@@ -138,20 +132,6 @@ static const char *redirectors[] = {"<<<", "<<-", "<<", "<&", "<>", "<", ">>",
   ">&", ">|", ">", "&>>", "&>", 0};
 
 #define SH_NOCLOBBER 1   // set -C
-
-void cd_main(void)
-{
-  char *dest = *toys.optargs ? *toys.optargs : getenv("HOME");
-
-// TODO: -LPE@
-// TODO: cd .. goes up $PWD path we used to get here, not ./..
-  xchdir(dest ? dest : "/");
-}
-
-void exit_main(void)
-{
-  exit(*toys.optargs ? atoi(*toys.optargs) : 0);
-}
 
 // like error_msg() but exit from shell scripts
 static void syntax_err(char *msg, ...)
@@ -165,54 +145,6 @@ static void syntax_err(char *msg, ...)
   if (*toys.optargs) xexit();
 }
 
-// Print prompt to stderr, parsing escapes
-// Truncated to 4k at the moment, waiting for somebody to complain.
-static void do_prompt(char *prompt)
-{
-  char *s, c, cc, *pp = toybuf;
-  int len;
-
-  if (!prompt) prompt = "\\$ ";
-  while ((len = sizeof(toybuf)-(pp-toybuf))>0 && *prompt) {
-    c = *(prompt++);
-
-    if (c=='!') {
-      if (*prompt=='!') prompt++;
-      else {
-        pp += snprintf(pp, len, "%ld", TT.lineno);
-        continue;
-      }
-    } else if (c=='\\') {
-      cc = *(prompt++);
-      if (!cc) {
-        *pp++ = c;
-        break;
-      }
-
-      // \nnn \dD{}hHjlstT@AuvVwW!#$
-      // Ignore bash's "nonprintable" hack; query our cursor position instead.
-      if (cc=='[' || cc==']') continue;
-      else if (cc=='$') *pp++ = getuid() ? '$' : '#';
-      else if (cc=='h' || cc=='H') {
-        *pp = 0;
-        gethostname(pp, len);
-        pp[len-1] = 0;
-        if (cc=='h' && (s = strchr(pp, '.'))) *s = 0;
-        pp += strlen(pp);
-      } else if (cc=='s') {
-        s = getbasename(*toys.argv);
-        while (*s && len--) *pp++ = *s++;
-      } else if (!(c = unescape(cc))) {
-        *pp++ = '\\';
-        if (--len) *pp++ = c;
-      } else *pp++ = c;
-    } else *pp++ = c;
-  }
-  len = pp-toybuf;
-  if (len>=sizeof(toybuf)) len = sizeof(toybuf);
-  writeall(2, toybuf, len);
-}
-
 void array_add(char ***list, unsigned count, char *data)
 {
   if (!(count&31)) *list = xrealloc(*list, sizeof(char *)*(count+33));
@@ -220,85 +152,7 @@ void array_add(char ***list, unsigned count, char *data)
   (*list)[count+1] = 0;
 }
 
-// quote removal, brace, tilde, parameter/variable, $(command),
-// $((arithmetic)), split, path 
-#define NO_PATH  (1<<0)
-#define NO_SPLIT (1<<1)
-#define NO_BRACE (1<<2)
-#define NO_TILDE (1<<3)
-#define NO_QUOTE (1<<4)
-// TODO: ${name:?error} causes an error/abort here (syntax_err longjmp?)
-// TODO: $1 $@ $* need args marshalled down here: function+structure?
-// arg = append to this
-// new = string to expand
-// flags = type of expansions (not) to do
-// delete = append new allocations to this so they can be freed later
-// TODO: at_args: $1 $2 $3 $* $@
-static void expand_arg(struct sh_arg *arg, char *new, unsigned flags,
-  struct string_list **delete)
-{
-//  char *s = new, quote = 0;
-
-// TODO ls -l /proc/$$/fd
-
-// ${ $(( $( $[ $' `
-
-/*
-  while (*s) {
-    if (!quote && !(flags&NO_BRACE) && *s == '{') {
-TODO this recurses
-    } else if (quote != '*s == '$') {
-      // *@#?-$!_0 "Special Paremeters" ($0 not affected by shift)
-      // 0-9 positional parameters
-      if (s[1] == '$'
-
-// EUID GROUPS HOSTNAME HOSTTYPE=$(uname -m) MACHTYPE=$HOSTTYPE-unknown-linux
-// OLDPWD OSTYPE=linux/android PIPESTATUS PPID PWD RANDOM REPLY SECONDS UID
-// COLUMNS LINES HOME SHELL
-// IFS PATH
-// PS0 PS1='$ ' PS2='> ' PS3
-    }
-  }
-*/
-  // literal passthrough
-  array_add(&arg->v, arg->c++, new);
-
-/*
-  char *s = word, *new = 0;
-
-  // replacement
-  while (*s) {
-    if (*s == '$') {
-      s++;
-    } else if (*strchr("*?[{", *s)) {
-      s++;
-    } else if (*s == '<' || *s == '>') {
-      s++;
-    } else s++;
-  }
-
-  return new;
-*/
-}
-
-// Expand exactly one arg, returning NULL if it split.
-// If return != new you need to free it.
-static char *expand_one_arg(char *new, unsigned flags, struct string_list **del)
-{
-  struct sh_arg arg;
-  char *s = 0;
-  int i;
-
-  memset(&arg, 0, sizeof(arg));
-  expand_arg(&arg, new, flags, 0);
-  if (arg.c == 1) {
-    s = *arg.v;
-    if (del && s != new) dlist_add((void *)del, s);
-  } else for (i = 0; i < arg.c; i++) free(arg.v[i]);
-  free(arg.v);
-
-  return s;
-}
+// TODO local variables
 
 // Assign one variable
 // s: key=val
@@ -316,37 +170,145 @@ static void setvar(char *s, unsigned type)
 }
 
 // get variable of length len starting at s.
-static char *getvar(char *s, int len)
+static char *getvarlen(char *s, int len)
 {
   unsigned uu;
   char **ss = TT.locals;
 
   // loop through local, then global variables
   for (uu = 0; ; uu++) {
-    if (!ss[uu]) {
+    if (!ss || !ss[uu]) {
       if (ss != TT.locals) return 0;
       ss = environ;
       uu = 0;
     }
+
     // Use UHF rubik's cube protocol to find match.
     if (!strncmp(ss[uu], s, len) && ss[uu][len] == '=') return ss[uu]+len+1;
-  }
-}
-
-// return length of match found at this point
-static int anystart(char *s, char **try)
-{
-  char *ss = s;
-
-  while (*try) {
-    if (strstart(&s, *try)) return s-ss;
-    try++;
   }
 
   return 0;
 }
 
-// is this one of the strings in try[] (null terminated array)
+static char *getvar(char *s)
+{
+  return getvarlen(s, strlen(s));
+}
+
+// quote removal, brace, tilde, parameter/variable, $(command),
+// $((arithmetic)), split, path 
+#define NO_PATH  (1<<0)
+#define NO_SPLIT (1<<1)
+#define NO_BRACE (1<<2)
+#define NO_TILDE (1<<3)
+#define NO_QUOTE (1<<4)
+#define FORCE_COPY (1<<31)
+// TODO: ${name:?error} causes an error/abort here (syntax_err longjmp?)
+// TODO: $1 $@ $* need args marshalled down here: function+structure?
+// arg = append to this
+// new = string to expand
+// flags = type of expansions (not) to do
+// delete = append new allocations to this so they can be freed later
+// TODO: at_args: $1 $2 $3 $* $@
+static void expand_arg(struct sh_arg *arg, char *old, unsigned flags,
+  struct arg_list **delete)
+{
+  char *new = old, *s, *ss, quote = 0;
+
+// TODO ls -l /proc/$$/fd
+
+// ${ $(( $( $[ $' `
+
+  // Tilde expansion
+  if (!(flags&NO_TILDE) && *new == '~') {
+    struct passwd *pw = 0;
+
+    // first expansion so don't need to free previous new
+    ss = 0;
+    for (s = new; *s && *s!=':' && *s!='/'; s++);
+    if (s-new==1) {
+      if (!(ss = getvar("HOME")) || !*ss) pw = bufgetpwuid(getuid());
+    } else {
+      // TODO bufgetpwnam
+      pw = getpwnam(new = xstrndup(new+1, (s-new)-1));
+      free(new);
+    }
+    if (pw && pw->pw_dir) ss = pw->pw_dir;
+    if (!ss || !*ss) ss = "/";
+    new = xmprintf("%s%s", ss, s);
+  }
+
+/*
+  while (*s) {
+    if (!quote && !(flags&NO_BRACE) && *s == '{') {
+TODO this recurses
+    } else if (quote != '*s == '$') {
+      // *@#?-$!_0 "Special Paremeters" ($0 not affected by shift)
+      // 0-9 positional parameters
+      if (s[1] == '$'
+
+// EUID GROUPS HOSTNAME HOSTTYPE=$(uname -m) MACHTYPE=$HOSTTYPE-unknown-linux
+// OLDPWD OSTYPE=linux/android PIPESTATUS PPID PWD RANDOM REPLY SECONDS UID
+// COLUMNS LINES HOME SHELL
+// IFS PATH
+// PS0 PS1='$ ' PS2='> ' PS3
+    }
+  }
+
+  // replacement
+  while (*s) {
+    if (*s == '$') {
+      s++;
+    } else if (*strchr("*?[{", *s)) {
+      s++;
+    } else if (*s == '<' || *s == '>') {
+      s++;
+    } else s++;
+  }
+*/
+
+  // We have a result. Append it.
+  if (old==new && (flags&FORCE_COPY)) new = xstrdup(new);
+  if (old!=new && delete) {
+    struct arg_list *al = xmalloc(sizeof(struct arg_list));
+
+    al->next = *delete;
+    al->arg = new;
+    *delete = al;
+  }
+  array_add(&arg->v, arg->c++, new);
+}
+
+// Expand exactly one arg, returning NULL if it split.
+// If return != new you need to free it.
+static char *expand_one_arg(char *new, unsigned flags, struct arg_list **del)
+{
+  struct sh_arg arg;
+  char *s = 0;
+  int i;
+
+  memset(&arg, 0, sizeof(arg));
+  expand_arg(&arg, new, flags, 0);
+  if (arg.c == 1) {
+    s = *arg.v;
+    if (del && s != new) dlist_add((void *)del, s);
+  } else for (i = 0; i < arg.c; i++) free(arg.v[i]);
+  free(arg.v);
+
+  return s;
+}
+
+// return length of match found at this point (try is null terminated array)
+static int anystart(char *s, char **try)
+{
+  char *ss = s;
+
+  while (*try) if (strstart(&s, *try++)) return s-ss;
+
+  return 0;
+}
+
+// does this entire string match one of the strings in try[]
 static int anystr(char *s, char **try)
 {
   while (*try) if (!strcmp(s, *try++)) return 1;
@@ -546,7 +508,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
     else if (*s == '{') {
       // when we close a filehandle, we _read_ from {var}, not write to it
       if ((!strcmp(ss, "<&") || !strcmp(ss, ">&")) && !strcmp(sss, "-")) {
-        if (!(ss = getvar(s+1, ss-s-2))) break;
+        if (!(ss = getvarlen(s+1, ss-s-2))) break;
         to = atoi(ss); // TODO trailing garbage?
         if (save_redirect(&pp->urd, -1, to)) break;
         close(to);
@@ -562,7 +524,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
 
     // HERE documents?
     if (!strcmp(ss, "<<<") || !strcmp(ss, "<<-") || !strcmp(ss, "<<")) {
-      char *tmp = getvar("TMPDIR", 6);
+      char *tmp = getvar("TMPDIR");
       int i, len, zap = (ss[2] == '-'), x = !ss[strcspn(ss, "\"'")];
 
       // store contents in open-but-deleted /tmp file.
@@ -755,8 +717,7 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
 static void free_process(void *ppp)
 {
   struct sh_process *pp = ppp;
-
-  llist_traverse(pp->delete, free);
+  llist_traverse(pp->delete, llist_free_arg);
   free(pp);
 }
 
@@ -999,7 +960,7 @@ static int parse_line(char *line, struct sh_function *sp)
     // Did we hit end of line or ) outside a function declaration?
     // ) is only saved at start of a statement, ends current statement
     if (end == start || (arg->c && *start == ')' && pl->type!='f')) {
-      arg->v[arg->c] = 0;
+      if (!arg->v) array_add(&arg->v, arg->c, 0);
 
       if (pl->type == 'f' && arg->c<3) {
         s = "function()";
@@ -1306,7 +1267,7 @@ static void run_function(struct sh_function *sp)
     struct sh_process *pin;      // processes piping into this block
     int run, loop, *urd, pout;
     struct sh_arg farg;          // for/select arg stack
-    struct string_list *fdelete; // farg's cleanup list
+    struct arg_list *fdelete; // farg's cleanup list
     char *fvar;                  // for/select's iteration variable name
   } *blk = 0, *new;
   struct sh_process *pplist = 0; // processes piping into current level
@@ -1524,6 +1485,82 @@ dprintf(2, "TODO skipped running for((;;)), need math parser\n");
   return;
 }
 
+// Parse and run a self-contained command line with no prompt/continuation
+static int sh_run(char *new)
+{
+  struct sh_function scratch;
+  int rc;
+
+// TODO: parse with len? (End early?)
+
+  if (!parse_line(new, &scratch)) run_function(&scratch);
+  free_function(&scratch);
+  rc = toys.exitval;
+  toys.exitval = 0;
+
+  return rc;
+}
+
+// Print prompt to stderr, parsing escapes
+// Truncated to 4k at the moment, waiting for somebody to complain.
+static void do_prompt(char *prompt)
+{
+  char *s, *ss, c, cc, *pp = toybuf;
+  int len, ll;
+
+  if (!prompt) prompt = "\\$ ";
+  while ((len = sizeof(toybuf)-(pp-toybuf))>0 && *prompt) {
+    c = *(prompt++);
+
+    if (c=='!') {
+      if (*prompt=='!') prompt++;
+      else {
+        pp += snprintf(pp, len, "%ld", TT.lineno);
+        continue;
+      }
+    } else if (c=='\\') {
+      cc = *(prompt++);
+      if (!cc) {
+        *pp++ = c;
+        break;
+      }
+
+      // \nnn \dD{}hHjlstT@AuvVwW!#$
+      // Ignore bash's "nonprintable" hack; query our cursor position instead.
+      if (cc=='[' || cc==']') continue;
+      else if (cc=='$') *pp++ = getuid() ? '$' : '#';
+      else if (cc=='h' || cc=='H') {
+        *pp = 0;
+        gethostname(pp, len);
+        pp[len-1] = 0;
+        if (cc=='h' && (s = strchr(pp, '.'))) *s = 0;
+        pp += strlen(pp);
+      } else if (cc=='s') {
+        s = getbasename(*toys.argv);
+        while (*s && len--) *pp++ = *s++;
+      } else if (cc=='w') {
+        if ((s = getvar("PWD"))) {
+          if ((ss = getvar("HOME")) && strstart(&s, ss)) {
+            *pp++ = '~';
+            if (--len && *s!='/') *pp++ = '/';
+            len--;
+          }
+          if (len>0) {
+            ll = strlen(s);
+            pp = stpncpy(pp, s, ll>len ? len : ll);
+          }
+        }
+      } else if (!(c = unescape(cc))) {
+        *pp++ = '\\';
+        if (--len) *pp++ = c;
+      } else *pp++ = c;
+    } else *pp++ = c;
+  }
+  len = pp-toybuf;
+  if (len>=sizeof(toybuf)) len = sizeof(toybuf);
+  writeall(2, toybuf, len);
+}
+
 void subshell_imports(void)
 {
 /*
@@ -1587,6 +1624,20 @@ void sh_main(void)
   TT.hfd = 10;
   signal(SIGPIPE, SIG_IGN);
 
+  // TODO euid stuff?
+
+  // TODO read profile, read rc
+
+  // if (!FLAG(noprofile)) { }
+
+  // Set local variable $HOME to user's login path
+  if (!(new = getenv("HOME"))) {
+    struct passwd *pw = getpwuid(getuid());
+
+    setvar(xmprintf("HOME=%s", (pw && *pw->pw_dir)?pw->pw_dir:"/"), TAKE_MEM);
+  }
+  sh_run("cd .");
+
 if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); dup2(fd, 255); close(fd); }
   // Is this an interactive shell?
 //  if (FLAG(i) || (!FLAG(c)&&(FLAG(S)||!toys.optc) && isatty(0) && isatty(1))) 
@@ -1633,3 +1684,80 @@ if (BUGBUG) dump_state(&scratch);
   toys.exitval = f && ferror(f);
   clearerr(stdout);
 }
+
+/********************* shell builtin functions *************************/
+
+#define CLEANUP_sh
+#define FOR_cd
+#include "generated/flags.h"
+void cd_main(void)
+{
+  char *home = getvar("HOME"), *pwd = getvar("PWD"), *dd = 0, *from, *to,
+    *dest = (*toys.optargs && **toys.optargs) ? *toys.optargs : "~";
+  int bad = 0;
+
+  // TODO: CDPATH? Really?
+
+  if (!home) home = "/";
+
+  // expand variables
+  if (dest) dd = expand_one_arg(dest, FORCE_COPY|NO_SPLIT, 0);
+  if (!dd || !*dd) {
+    free(dd);
+    dd = xstrdup("/");
+  }
+
+  // prepend cwd or $PWD to relative path
+  if (*dd != '/') {
+    to = 0;
+    from = pwd ? pwd : (to = getcwd(0, 0));
+    if (!from) xsetenv("PWD", "(nowhere)");
+    else {
+      from = xmprintf("%s/%s", from, dd);
+      free(dd);
+      free(to);
+      dd = from;
+    }
+  }
+
+  if (FLAG(P)) {
+    struct stat st;
+    char *pp;
+
+    // Does this directory exist?
+    if ((pp = xabspath(dd, 1)) && stat(pp, &st) && !S_ISDIR(st.st_mode))
+      bad++, errno = ENOTDIR;
+    else {
+      free(dd);
+      dd = pp;
+    }
+  } else {
+
+    // cancel out . and .. in the string
+    for (from = to = dd; *from;) {
+      while (*from=='/' && from[1]=='/') from++;
+      if (*from!='/' || from[1]!='.') *to++ = *from++;
+      else if (!from[2] || from[2]=='/') from += 2;
+      else if (from[2]=='.' && (!from[3] || from[3]=='/')) {
+        from += 3;
+        while (to>dd && *--to != '/');
+      } else *to++ = *from++;
+    }
+    if (to-dd>1 && to[-1]=='/') to--;
+    *to = 0;
+  }
+
+  if (bad || chdir(dd)) perror_msg("chdir '%s'", dd);
+  else {
+    if (pwd) xsetenv("OLD", pwd);
+    xsetenv("PWD", dd);
+  }
+  free(dd);
+}
+
+void exit_main(void)
+{
+  exit(*toys.optargs ? atoi(*toys.optargs) : 0);
+}
+
+

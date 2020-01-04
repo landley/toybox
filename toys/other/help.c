@@ -4,29 +4,21 @@
  *
  * Often a shell builtin.
 
-USE_HELP(NEWTOY(help, ""USE_HELP_EXTRAS("ahu"), TOYFLAG_BIN|TOYFLAG_MAYFORK))
+USE_HELP(NEWTOY(help, "ahu", TOYFLAG_BIN|TOYFLAG_MAYFORK))
 
 config HELP
   bool "help"
   default y
   depends on TOYBOX_HELP
   help
-    usage: help [command]
-
-    Show usage information for toybox commands.
-    Run "toybox" with no arguments for a list of available commands.
-
-config HELP_EXTRAS
-  bool "help -ah"
-  default y
-  depends on TOYBOX
-  depends on HELP
-  help
-    usage: help [-ah] [COMMAND]
+    usage: help [-ahu] [COMMAND]
 
     -a	All commands
     -u	Usage only
     -h	HTML output
+
+    Show usage information for toybox commands.
+    Run "toybox" with no arguments for a list of available commands.
 */
 
 #define FOR_help
@@ -51,11 +43,11 @@ void help_main(void)
   int i;
 
   // If called with no arguments as a builtin form the shell, show all builtins
-  if (!*toys.optargs && toys.rebound) {
+  if (toys.rebound && !*toys.optargs && !toys.optflags) {
     for (i = 0; i < toys.toycount; i++) {
       if (!(toy_list[i].flags&(TOYFLAG_NOFORK|TOYFLAG_MAYFORK))) continue;
       toys.which = toy_list+i;
-      show_help(stdout, 0);
+      show_help(stdout, FLAG(u));
     }
     return;
   }
