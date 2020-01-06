@@ -47,200 +47,66 @@ do
   done
 done
 
-rm -rf dir file && mkdir dir && touch file
-testing "750 dir 640 file" \
-  "chmod 750 dir 640 file 2>/dev/null ||
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-x---\n-rwxr-x---\n" "" ""
+rm -rf dir file && mkdir dir && touch file 640
+testing "750 dir 640 file" "chmod 750 dir 640 file &&
+  ls -ld 640 dir file | cut -d' ' -f 1 | cut -d. -f 1" \
+  "-rwxr-x---\ndrwxr-x---\n-rwxr-x---\n" "" ""
 
-rm -rf dir file && mkdir dir && touch file
-testing "666 dir file" \
-  "chmod 666 dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drw-rw-rw-\n-rw-rw-rw-\n" "" ""
+chtest()
+{
+  rm -rf dir file && mkdir dir && touch file
+  testing "$1 dir file" \
+    "chmod $1 dir file && ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" \
+    "$2" "" ""
+}
 
-rm -rf dir file && mkdir dir && touch file
-testing "765 *" "chmod 765 * &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxrw-r-x\n-rwxrw-r-x\n" "" ""
-
-##### u,g,o,a=r,w,x
-rm -rf dir file && mkdir dir && touch file
-testing "u=r dir file" "chmod u=r dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "dr--r-xr-x\n-r--r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "u=w dir file" "chmod u=w dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "d-w-r-xr-x\n--w-r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "u=x dir file" "chmod u=x dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "d--xr-xr-x\n---xr--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "u+r dir file" "chmod u+r dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-xr-x\n-rw-r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "u+w dir file" "chmod u+w dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-xr-x\n-rw-r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "u+x dir file" "chmod u+x dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-xr-x\n-rwxr--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "u-r dir file" "chmod u-r dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "d-wxr-xr-x\n--w-r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "u-w dir file" "chmod u-w dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "dr-xr-xr-x\n-r--r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "u-x dir file" "chmod u-x dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drw-r-xr-x\n-rw-r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "g=r dir file" "chmod g=r dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr--r-x\n-rw-r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "g=w dir file" "chmod g=w dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwx-w-r-x\n-rw--w-r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "g=x dir file" "chmod g=x dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwx--xr-x\n-rw---xr--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "g+r dir file" "chmod g+r dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-xr-x\n-rw-r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "g+w dir file" "chmod g+w dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxrwxr-x\n-rw-rw-r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "g+x dir file" "chmod g+x dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-xr-x\n-rw-r-xr--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "g-r dir file" "chmod g-r dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwx--xr-x\n-rw----r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "g-w dir file" "chmod g-w dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-xr-x\n-rw-r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "g-x dir file" "chmod g-x dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr--r-x\n-rw-r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "o=r dir file" "chmod o=r dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-xr--\n-rw-r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "o=w dir file" "chmod o=w dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-x-w-\n-rw-r---w-\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "o=x dir file" "chmod o=x dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-x--x\n-rw-r----x\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "o+r dir file" "chmod o+r dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-xr-x\n-rw-r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "o+w dir file" "chmod o+w dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-xrwx\n-rw-r--rw-\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "o+x dir file" "chmod o+x dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-xr-x\n-rw-r--r-x\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "o-r dir file" "chmod o-r dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-x--x\n-rw-r-----\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "o-w dir file" "chmod o-w dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-xr-x\n-rw-r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "o-x dir file" "chmod o-x dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-xr--\n-rw-r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "a=r dir file" "chmod a=r dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "dr--r--r--\n-r--r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "a=w dir file" "chmod a=w dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "d-w--w--w-\n--w--w--w-\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "a=x dir file" "chmod a=x dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "d--x--x--x\n---x--x--x\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "a+r dir file" "chmod a+r dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-xr-x\n-rw-r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "a+w dir file" "chmod a+w dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxrwxrwx\n-rw-rw-rw-\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "a+x dir file" "chmod a+x dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-xr-x\n-rwxr-xr-x\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "a-r dir file" "chmod a-r dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "d-wx--x--x\n--w-------\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "a-w dir file" "chmod a-w dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "dr-xr-xr-x\n-r--r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "a-x dir file" "chmod a-x dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drw-r--r--\n-rw-r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "=r dir file" "chmod =r dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "dr--r--r--\n-r--r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "=w dir file" "chmod =w dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "d-w-------\n--w-------\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "=x dir file" "chmod =x dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "d--x--x--x\n---x--x--x\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "+r dir file" "chmod +r dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-xr-x\n-rw-r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "+w dir file" "chmod +w dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-xr-x\n-rw-r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "+x dir file" "chmod +x dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drwxr-xr-x\n-rwxr-xr-x\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "-r dir file" "chmod -r dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "d-wx--x--x\n--w-------\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "-w dir file" "chmod -w dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "dr-xr-xr-x\n-r--r--r--\n" "" ""
-
-rm -rf dir file && mkdir dir && touch file
-testing "-x dir file" "chmod -x dir file &&
-   ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" "drw-r--r--\n-rw-r--r--\n" "" ""
+chtest 666 "drw-rw-rw-\n-rw-rw-rw-\n"
+chtest 765 "drwxrw-r-x\n-rwxrw-r-x\n"
+chtest u=r "dr--r-xr-x\n-r--r--r--\n"
+chtest u=w "d-w-r-xr-x\n--w-r--r--\n"
+chtest u=x "d--xr-xr-x\n---xr--r--\n"
+chtest u+r "drwxr-xr-x\n-rw-r--r--\n"
+chtest u+w "drwxr-xr-x\n-rw-r--r--\n"
+chtest u+x "drwxr-xr-x\n-rwxr--r--\n"
+chtest u-r "d-wxr-xr-x\n--w-r--r--\n"
+chtest u-w "dr-xr-xr-x\n-r--r--r--\n"
+chtest u-x "drw-r-xr-x\n-rw-r--r--\n"
+chtest g=r "drwxr--r-x\n-rw-r--r--\n"
+chtest g=w "drwx-w-r-x\n-rw--w-r--\n"
+chtest g=x "drwx--xr-x\n-rw---xr--\n"
+chtest g+r "drwxr-xr-x\n-rw-r--r--\n"
+chtest g+w "drwxrwxr-x\n-rw-rw-r--\n"
+chtest g+x "drwxr-xr-x\n-rw-r-xr--\n"
+chtest g-r "drwx--xr-x\n-rw----r--\n"
+chtest g-w "drwxr-xr-x\n-rw-r--r--\n"
+chtest g-x "drwxr--r-x\n-rw-r--r--\n"
+chtest o=r "drwxr-xr--\n-rw-r--r--\n"
+chtest o=w "drwxr-x-w-\n-rw-r---w-\n"
+chtest o=x "drwxr-x--x\n-rw-r----x\n"
+chtest o+r "drwxr-xr-x\n-rw-r--r--\n"
+chtest o+w "drwxr-xrwx\n-rw-r--rw-\n"
+chtest o+x "drwxr-xr-x\n-rw-r--r-x\n"
+chtest o-r "drwxr-x--x\n-rw-r-----\n"
+chtest o-w "drwxr-xr-x\n-rw-r--r--\n"
+chtest o-x "drwxr-xr--\n-rw-r--r--\n"
+chtest a=r "dr--r--r--\n-r--r--r--\n"
+chtest a=w "d-w--w--w-\n--w--w--w-\n"
+chtest a=x "d--x--x--x\n---x--x--x\n"
+chtest a+r "drwxr-xr-x\n-rw-r--r--\n"
+chtest a+w "drwxrwxrwx\n-rw-rw-rw-\n"
+chtest a+x "drwxr-xr-x\n-rwxr-xr-x\n"
+chtest a-r "d-wx--x--x\n--w-------\n"
+chtest a-w "dr-xr-xr-x\n-r--r--r--\n"
+chtest a-x "drw-r--r--\n-rw-r--r--\n"
+chtest =r "dr--r--r--\n-r--r--r--\n"
+chtest =w "d-w-------\n--w-------\n"
+chtest =x "d--x--x--x\n---x--x--x\n"
+chtest +r "drwxr-xr-x\n-rw-r--r--\n"
+chtest +w "drwxr-xr-x\n-rw-r--r--\n"
+chtest +x "drwxr-xr-x\n-rwxr-xr-x\n"
+chtest -r "d-wx--x--x\n--w-------\n"
+chtest -w "dr-xr-xr-x\n-r--r--r--\n"
+chtest -x "drw-r--r--\n-rw-r--r--\n"
 
 # Removing test files for cleanup purpose
 rm -rf dir file
