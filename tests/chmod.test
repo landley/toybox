@@ -107,6 +107,10 @@ chtest +x "drwxr-xr-x\n-rwxr-xr-x\n"
 chtest -r "d-wx--x--x\n--w-------\n"
 chtest -w "dr-xr-xr-x\n-r--r--r--\n"
 chtest -x "drw-r--r--\n-rw-r--r--\n"
+chtest g+s "drwxr-sr-x\n-rw-r-Sr--\n"
+chtest u+s "drwsr-xr-x\n-rwSr--r--\n"
+chtest o+s "drwxr-xr-x\n-rw-r--r--\n"
+chtest +t  "drwxr-xr-t\n-rw-r--r-T\n"
 
 # Removing test files for cleanup purpose
 rm -rf dir file

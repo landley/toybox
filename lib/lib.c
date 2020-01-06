@@ -922,12 +922,12 @@ mode_t string_to_mode(char *modestr, mode_t mode)
     // If who isn't specified, like "a" but honoring umask.
     if (!dowho) {
       dowho = 8;
-      umask(amask=umask(0));
+      umask(amask = umask(0));
     }
-    if (!*str || !(s = strchr(hows, *str))) goto barf;
-    dohow = *(str++);
 
-    if (!dohow) goto barf;
+    if (!*str || !(s = strchr(hows, *str))) goto barf;
+    if (!(dohow = *(str++))) goto barf;
+
     while (*str && (s = strchr(whats, *str))) {
       dowhat |= 1<<(s-whats);
       str++;
@@ -945,7 +945,7 @@ mode_t string_to_mode(char *modestr, mode_t mode)
     // Are we ready to do a thing yet?
     if (*str && *(str++) != ',') goto barf;
 
-    // Ok, apply the bits to the mode.
+    // Loop through what=xwrs and who=ogu to apply bits to the mode.
     for (i=0; i<4; i++) {
       for (j=0; j<3; j++) {
         mode_t bit = 0;
@@ -955,13 +955,12 @@ mode_t string_to_mode(char *modestr, mode_t mode)
 
         // Figure out new value at this location
         if (i == 3) {
-          // suid/sticky bit.
-          if (j) {
-            if ((dowhat & 8) && (dowho&(8|(1<<i)))) bit++;
-          } else if (dowhat & 16) bit++;
+          // suid and sticky
+          if (!j) bit = dowhat&16; // o+s = t
+          else if ((dowhat&8) && (dowho&(8|(1<<j)))) bit++;
         } else {
           if (!(dowho&(8|(1<<i)))) continue;
-          if (dowhat&(1<<j)) bit++;
+          else if (dowhat&(1<<j)) bit++;
         }
 
         // When selection active, modify bit
