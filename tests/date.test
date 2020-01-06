@@ -7,6 +7,7 @@
 # Use a consistent TZ for these tests, but not GMT/UTC because that
 # makes mistakes harder to spot.
 tz=Europe/Berlin
+this_year=$(TZ=$tz date +%Y)
 
 # Unix date parsing.
 testing "-d @0" "TZ=$tz date -d @0" "Thu Jan  1 01:00:00 CET 1970\n" "" ""
@@ -16,7 +17,7 @@ testing "-d @0x123 invalid" "TZ=$tz date -d @0x123 2>/dev/null || echo expected 
 # All toyonly because coreutils rejects POSIX format dates supplied to -d.
 # These expected values are from running on the host without -d (not as root!).
 toyonly testing "-d MMDDhhmm" \
-  "TZ=$tz date -d 06021234" "Sun Jun  2 12:34:00 CEST $(date +%Y)\n" "" ""
+  "TZ=$tz date -d 06021234 +'%F %T'" "$this_year-06-02 12:34:00\n" "" ""
 toyonly testing "-d MMDDhhmmYY.SS" \
   "TZ=$tz date -d 1110143115.30" "Tue Nov 10 14:31:30 CET 2015\n" "" ""
 # busybox thinks this is the year 603 (ISO time 0602-12-34 19:82 with out of range fields normalized).
@@ -35,7 +36,6 @@ testing "Unix time missing @" "TZ=$tz date 1438053157 2>/dev/null || echo no" \
   "no\n" "" ""
 
 # Test just hour and minute (accepted by coreutils and busybox, presumably for setting the time).
-this_year=$(date +%Y)
 testing "-d 12:34" 'TZ=UTC date -d 12:34 | grep -q " 12:34:00 UTC $this_year" && echo OK' "OK\n" "" ""
 testing "-d 12:34:56" 'TZ=UTC date -d 12:34:56 | grep -q " 12:34:56 UTC $this_year" && echo OK' "OK\n" "" ""
 
