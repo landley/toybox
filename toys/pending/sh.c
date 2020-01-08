@@ -367,9 +367,9 @@ int debug;
       bb->active = bb->commas[bb->cnt+1] = i;
       for (bnext = bb; bb && bb->active; bb = (bb==blist)?0:bb->prev);
 dprintf(2, "}[%d]%p@%d\n", bnext->cnt, bb, i);
-      // discard commaless brace
+      // discard commaless brace (from start of list or middle)
       if (!old[i] || !bnext->cnt)
-        free((blist == bnext) ? dlist_pop(&blist) : bnext);
+        free(dlist_pop((blist == bnext) ? &blist : &bnext));
     } else if (old[i] == '{') {
       dlist_add_nomalloc((void *)&blist,
         (void *)(bb = xzalloc(sizeof(struct brace)+34*4)));
