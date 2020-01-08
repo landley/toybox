@@ -187,29 +187,13 @@ static int filter(struct dirtree *new)
 
   if (FLAG(Z)) {
     if (!CFG_TOYBOX_LSM_NONE) {
+      // Linux doesn't support fgetxattr(2) on O_PATH file descriptors (though
+      // bionic works around that), and there are no *xattrat(2) calls, so we
+      // just use lgetxattr(2).
+      char *path = dirtree_path(new, 0);
 
-      // (Wouldn't it be nice if the lsm functions worked like openat(),
-      // fchmodat(), mknodat(), readlinkat() so we could do this without
-      // even O_PATH? But no, this is 1990's tech.)
-      int fd = openat(dirtree_parentfd(new), new->name,
-        O_PATH|(O_NOFOLLOW*!FLAG(L)));
-
-      if (fd != -1) {
-        if (-1 == lsm_fget_context(fd, (char **)&new->extra) && errno == EBADF)
-        {
-          char hack[32];
-
-          // Work around kernel bug that won't let us read this "metadata" from
-          // the filehandle unless we have permission to read the data. (We can
-          // query the same data in by path, but can't do it through an O_PATH
-          // filehandle, because reasons. But for some reason, THIS is ok? If
-          // they ever fix the kernel, this should stop triggering.)
-
-          sprintf(hack, "/proc/self/fd/%d", fd);
-          lsm_lget_context(hack, (char **)&new->extra);
-        }
-        close(fd);
-      }
+      (FLAG(L) ? lsm_get_context : lsm_lget_context)(path,(char **)&new->extra);
+      free(path);
     }
     if (CFG_TOYBOX_LSM_NONE || !new->extra) new->extra = (long)xstrdup("?");
   }
