@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/echo no
 
 # Testing shell corner cases _within_ a shell script is kind of hard.
 
@@ -9,6 +9,25 @@
 [ -z "$SH" ] && { [ -z "$TEST_HOST" ] && SH="sh" || export SH="bash" ; }
 export EVAL="$SH -c"
 
+testing "" "echo hello" "hello\n" "" ""
+testing "simple pipe" "echo hello | cat" "hello\n" "" ""
+testing "brackets" "echo {A{a,b}B{c,d}C}" "{AaBcC} {AaBdC} {AbBcC} {AbBdC}\n" \
+  "" ""
+testing "brackets2" "echo {A{a,b}B{c,d}C,D}" "AaBcC AaBdC AbBcC AbBdC D\n" "" ""
+#testing "brackets3" 'echo {A"b,c"D}' "{Ab,cD}\n" "" ""
+#testing "brackets4" 'echo {A"bc",D}' "Abc D\n" "" ""
+testing "brackets5" 'echo {A,B,C' "{A,B,C\n" "" ""
+testing "brackets6" 'echo {{{{A,B},C}D},E}' "{AD} {BD} {CD} E\n" "" ""
+testing "brackets7" 'echo {{{a,b},c,{d,e}},f}' "a b c d e f\n" "" ""
+testing "brackets8" 'echo A{a{b,c{B,C}D}d{e,f},g{h,i}j}E' \
+  "AabdeE AabdfE AacBDdeE AacBDdfE AacCDdeE AacCDdfE AghjE AgijE\n" "" ""
+
+
+testing "leading variable assignment" 'abc=def env | grep ^abc=; echo $abc' \
+  "abc=def\n\n" "" ""
+testing "leading variable assignments" \
+  "abc=def ghi=jkl env | egrep '^(abc|ghi)=' | sort; echo \$abc \$ghi" \
+  "abc=def\nghi=jkl\n\n" "" ""
 #testing "leading assignments don't affect current line" \
 #  'VAR=12345 echo ${VAR}a' "a\n" "" ""
 #testing "can't have space before first : but yes around arguments" \
@@ -23,3 +42,4 @@ SH="env -i PATH=${PATH@Q} PS1='\\$ ' $SH --noediting --noprofile --norc -is"
 
 txpect "prompt and exit" "$SH" "E$P" "Iexit\n" X0
 txpect "prompt and echo" "$SH" "E$P" "Iecho hello\n" "Ohello"$'\n' "E$P" X0
+txpect "redirect err" "$SH" "E$P" "Iecho > /dev/full\n" "E" "E$" X0

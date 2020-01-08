@@ -217,6 +217,31 @@ static char *getvar(char *s)
   return getvarlen(s, strlen(s));
 }
 
+
+
+// returns pointer to next unquoted (or double quoted if dquot) char.
+int skip_quote(char *s, int dquot, int *depth)
+{
+  int i, q = dquot ? *depth : 0;
+
+  // quotes were checked for balance and overflow by parse_word()
+  for (i = 0; s[i]; i++) {
+    char c = s[i], qq = q ? toybuf[q-1] : 0;
+
+    if (c == '\\') i++;
+    else if (qq!='\'' && c=='$' && s[1]=='(') {
+      toybuf[q++] = ')';
+      i++;
+    } else if (q && qq==c) q--;
+    else if ((!q || qq==')') && (c=='"' || c=='\'' || c=='`')) toybuf[q++] = c;
+    else if (!q || (dquot && q==1 && qq=='"')) break;
+  }
+
+  if (dquot) *depth = q;
+
+  return i;
+}
+
 // quote removal, brace, tilde, parameter/variable, $(command),
 // $((arithmetic)), split, path 
 #define NO_PATH  (1<<0)
@@ -225,6 +250,7 @@ static char *getvar(char *s)
 #define NO_TILDE (1<<3)
 #define NO_QUOTE (1<<4)
 #define FORCE_COPY (1<<31)
+#define FORCE_KEEP (1<<30)
 // TODO: ${name:?error} causes an error/abort here (syntax_err longjmp?)
 // TODO: $1 $@ $* need args marshalled down here: function+structure?
 // arg = append to this
@@ -232,18 +258,17 @@ static char *getvar(char *s)
 // flags = type of expansions (not) to do
 // delete = append new allocations to this so they can be freed later
 // TODO: at_args: $1 $2 $3 $* $@
-static void expand_arg(struct sh_arg *arg, char *old, unsigned flags,
+static void expand_arg_nobrace(struct sh_arg *arg, char *old, unsigned flags,
   struct arg_list **delete)
 {
-  char *new = old, *s, *ss, quote = 0;
+  char *new = old;
 
 // TODO ls -l /proc/$$/fd
-
-// ${ $(( $( $[ $' `
 
   // Tilde expansion
   if (!(flags&NO_TILDE) && *new == '~') {
     struct passwd *pw = 0;
+    char *s, *ss;
 
     // first expansion so don't need to free previous new
     ss = 0;
@@ -259,6 +284,8 @@ static void expand_arg(struct sh_arg *arg, char *old, unsigned flags,
     if (!ss || !*ss) ss = "/";
     new = xmprintf("%s%s", ss, s);
   }
+
+// ${ $(( $( $[ $' ` " '
 
 /*
   while (*s) {
@@ -289,9 +316,9 @@ TODO this recurses
   }
 */
 
-  // We have a result. Append it.
+  // Record result.
   if (old==new && (flags&FORCE_COPY)) new = xstrdup(new);
-  if (old!=new && delete) {
+  if ((old!=new || (flags&FORCE_KEEP)) && delete) {
     struct arg_list *al = xmalloc(sizeof(struct arg_list));
 
     al->next = *delete;
@@ -300,6 +327,231 @@ TODO this recurses
   }
   array_add(&arg->v, arg->c++, new);
 }
+
+// expand braces (ala {a,b,c}) and call expand_arg_nobrace() each permutation
+static void expand_arg(struct sh_arg *arg, char *old, unsigned flags,
+  struct arg_list **delete)
+{
+  struct brace {
+    struct brace *next, *prev, *stack;
+int debug;
+    int active, cnt, idx, commas[];
+  } *bb = 0, *blist = 0, *bstk, *bnext;
+  int i, j;
+  char *s, *ss;
+
+  // collect brace spans
+  if (!(flags&NO_BRACE)) for (i = 0; ; i++) {
+    if (!old[i += skip_quote(old+i, 0, 0)]) break;
+    if (old[i] == '{') {
+      dlist_add_nomalloc((void *)&blist,
+        (void *)(bb = xzalloc(sizeof(struct brace)+34*4)));
+dprintf(2, "{%p@%d %c\n", bb, i, bb->debug = old[i+1]);
+      bb->commas[0] = i;
+    } else if (!bb) continue;
+    else if  (bb && old[i] == ',') {
+dprintf(2, ",%p@%d\t%c\n", bb, i, old[i+1]);
+      if (bb->cnt && !(bb->cnt&31)) {
+        dlist_lpop(&blist);
+        dlist_add_nomalloc((void *)&blist,
+          (void *)(bb = xrealloc(bb, sizeof(struct brace)+(bb->cnt+34)*4)));
+      }
+      bb->commas[++bb->cnt] = i;
+dprintf(2, "cnt %c %d\n", bb->debug, bb->cnt);
+    } else if (bb && old[i] == '}') {
+      bb->active = bb->commas[bb->cnt+1] = i;
+      for (bnext = bb; bb && bb->active; bb = (bb==blist)?0:bb->prev);
+dprintf(2, "}[%d]%p@%d\n", bnext->cnt, bb, i);
+      // discard commaless brace
+      if (!bnext->cnt) free((blist == bnext) ? dlist_pop(&blist) : bnext);
+    }
+  }
+
+// TODO NOSPLIT with braces? (Collate with spaces?)
+  // If none, pass on verbatim
+  if (!blist) return expand_arg_nobrace(arg, old, flags, delete);
+
+dprintf(2, "got here\n");
+for (bstk = blist; bstk; bstk = (bstk->next == blist) ? 0 : bstk->next) {
+  dprintf(2, "murf %c %d %p", bstk->debug, bstk->cnt, bstk);
+  for (i = 0; i<=bstk->cnt+1; i++) dprintf(2, " %d", bstk->commas[i]);
+  dprintf(2, "\n");
+}
+
+// span from "{ to }" or ", to }" or "{ to ," uninterrupted by other spans
+// span from "{ to {" or ", to {" or "start to {"
+// span from "} to }" or "} to ," or "} to end"
+// span from } to {
+
+/*
+A prefix    - because new { with no parent
+  B prefix  - becaue new - in comma span
+    C span  - because next after this comma span
+  E suffix  - because next after this comma span
+  skipped comma span
+  J sibling -
+  K span    - 
+*/
+
+//the problem is we need previous bstk at _same_ level when sibling.
+//postprocess bb to next, so can't be _here.
+
+// span is active if ~parent or in parent's active comma span
+
+  // enclose entire range in top level brace.
+  (bstk = xzalloc(sizeof(struct brace)+8))->commas[1] = strlen(old)+1;
+  bstk->commas[0] = -1;
+
+  // loop through each combination
+  for (;;) {
+
+dprintf(2, "combination");
+for (bb = blist; bb; bb = (bb->next == blist) ? 0 : bb->next)
+  dprintf(2, " %c %d", bb->debug, bb->idx);
+dprintf(2, "\n");
+
+    // Brace expansion can't be longer than original string. Keep start to {
+    s = ss = xmalloc(bstk->commas[1]);
+
+    // Append output from active braces (in "saved" list)
+    for (bb = blist; bb;) {
+dprintf(2, "--- start loop span %c stk %c\n", bb->debug, bstk->debug);
+      // keep prefix and push self onto stack
+      if (bstk == bb) bstk = bstk->stack;  // pop self
+      i = bstk->commas[bstk->idx]+1;
+dprintf(2, "idx=%d i=%d o=%d cc=%d\n", bb->idx, i, bb->commas[0], bstk->commas[bstk->cnt+1]);
+      if (bstk->commas[bstk->cnt+1]>bb->commas[0])
+        s = stpncpy(s, old+i, bb->commas[0]-i);
+
+//murgle this is wrong for post-sibling span
+//how to distinguish enclosing stack from left sibling?
+
+//murgle: _end_ of previous segment stack output, not start.
+//but enclosing one had no comma, so no end?
+dprintf(2, "========%ld %.*s prefix for %c\n", s-ss, (int)(s-ss), ss, bb->debug);
+      // pop sibling
+      if (bstk->commas[bstk->cnt+1]<bb->commas[0]) {
+dprintf(2, "sibling pop %c to %c\n", bstk->debug, bstk->stack->debug);
+        bstk = bstk->stack;
+}
+ 
+      bb->stack = bstk; // push
+      bb->active = 1;
+      bstk = bnext = bb;
+dprintf(2, "pushed %c\n", bb->debug);
+dprintf(2, "bnext %p\n",bnext);
+      // skip inactive spans from earlier or later commas
+      while ((bnext = (bnext->next==blist) ? 0 : bnext->next)) {
+dprintf(2, "bnext %p\n", bnext);
+dprintf(2, "maybe %c %d %d\n", bnext->debug, bnext->commas[0], bb->commas[bb->idx]);
+        i = bnext->commas[0];
+        // past end of this brace
+        if (i>bb->commas[bb->cnt+1]) {
+dprintf(2, "exit 1 %d %d\n", i, bb->commas[bb->cnt+1]);
+		break;
+}
+dprintf(2, "bnext=%c\n", bnext->debug);
+        // in this brace but not this selection
+        if (i<bb->commas[bb->idx] || i>bb->commas[bb->idx+1]) {
+          bnext->active = 0;
+          bnext->stack = 0;
+        // in this selection!
+        } else {
+dprintf(2, "exit 2\n");
+		break;
+}
+dprintf(2, "skipped %c because %d < %d\n", bnext->debug, bnext->commas[0], bb->commas[bb->idx]);
+      }
+dprintf(2, "bnext now %p\n", bnext);
+if (bnext) dprintf(2, "bnext=%c\n", bnext->debug);
+      // is next span past this range?
+if (bnext) dprintf(2, "bnexts=%c %c %d %d\n", bnext->debug, bb->debug, bnext->commas[0], bb->commas[bb->idx]+1);
+      if (!bnext || bnext->commas[0]>bb->commas[bb->idx+1]) {
+dprintf(2, "span %d\n", bstk->idx);
+        // output uninterrupted span
+        i = bb->commas[bstk->idx]+1;
+        s = stpncpy(s, old+i, bb->commas[bb->idx+1]-i);
+dprintf(2, "span output %d %d\n", i, bstk->commas[bstk->idx+1]);
+dprintf(2, "=======2=%ld %.*s span for %c\n", s-ss, (int)(s-ss), ss, bstk->debug);
+
+        // While not sibling, output tail and pop
+        while (!bnext || bnext->commas[0] > bstk->commas[bstk->cnt+1]) {
+dprintf(2, "bstk=%p bnext=%p\n", bstk, bnext);
+if (bnext) dprintf(2, "pop %c vs %c because %d > %d\n", bstk->debug, bnext->debug, bnext->commas[0], bstk->commas[bstk->cnt+1]);
+          if (!(bb = bstk->stack)) break;
+
+/*
+  ok, failing active span is e,f: 4th span, print nothing after it (20,20)
+    first 20: 4[cnt+1], second 20: 1[idx+1]
+    j=1[idx+1]-i=4[cnt+1]
+*/
+
+if (bnext) dprintf(2, "parent %c next %c\n", bb->debug, bnext->debug);
+          i = bstk->commas[bstk->cnt+1]+1; // start of span
+          j = bb->commas[bb->idx+1]; // enclosing comma span
+char *typetype = "tail";
+dprintf(2, "what j=%d bb->idx=%d\n", j, bb->idx);
+dprintf(2, "bnext %c %d %d\n", bnext ? bnext->debug : '.', bnext ? bnext->commas[0] : 0, bnext ? bnext->commas[1] : 0);
+if (bnext) dprintf(2, "j=%d or j=%d\n", j, bnext->commas[0]);
+
+if (bnext) dprintf(2, "%c vs %c %d %d\n", bnext->debug, bstk->debug, bnext->commas[0], bstk->stack->commas[bstk->stack->cnt+1]);
+          while (bnext) {
+            if (bnext->commas[0]<j) {
+              j = bnext->commas[0];// sibling
+              break;
+typetype="sibling";
+            } else if (bb->commas[bb->cnt+1]>bnext->commas[0])
+              bnext = (bnext->next == blist) ? 0 : bnext->next;
+            else break;
+if (bnext) dprintf(2, "bnext=%c %c nc=%d bbc=%d\n", bnext->debug, bb->debug, bnext->commas[0], bb->commas[bb->cnt+1]);
+          }
+dprintf(2, "emit %d to %d\n", i, j);
+          s = stpncpy(s, old+i, j-i);
+dprintf(2, "=======3=%ld %.*s suffix for %c is %s\n", s-ss, (int)(s-ss), ss, bstk->debug, typetype);
+
+          // if next is sibling but parent _not_ a sibling, don't pop
+          if (bnext && bnext->commas[0]<bstk->stack->commas[bstk->stack->cnt+1])
+            break;
+
+dprintf(2, "pop %c", bstk->debug);
+          bstk = bstk->stack;
+dprintf(2, " now %c with %p\n", bstk ? bstk->debug : '.', bnext);
+        }
+dprintf(2, "out\n");
+      }
+if (bb && bnext) dprintf(2, "advance %c to %c (%c)\n", bb->debug, bnext->debug, blist->debug);
+      bb = (bnext == blist) ? 0 : bnext;
+dprintf(2, "down\n");
+    }
+dprintf(2, "increment\n");
+    // increment
+
+
+//dprintf(1, "ss=%s\n", ss);
+    expand_arg_nobrace(arg, ss, flags|FORCE_KEEP, delete);
+
+    for (bb = blist->prev; bb; bb = (bb == blist) ? 0 : bb->prev) {
+dprintf(2, "inky %c %p\n", bb->debug, bb->stack);
+      if (!bb->stack) {
+dprintf(2, "skip\n");
+        continue;
+}
+      else if (++bb->idx > bb->cnt) {
+dprintf(2, "roll bb->idx=%d bb->cnt=%d\n", bb->idx, bb->cnt);
+        bb->idx = 0;
+}
+      else {
+dprintf(2, "Incremented %c to %d\n", bb->debug, bb->idx);
+  break;
+}
+    }
+    if (!bb) {
+      llist_traverse(blist, free);
+      return;
+    }
+  }
+}
+
 
 // Expand exactly one arg, returning NULL if it split.
 // If return != new you need to free it.
@@ -1645,6 +1897,11 @@ void sh_main(void)
 
   TT.hfd = 10;
   signal(SIGPIPE, SIG_IGN);
+
+  // Ensure environ copied and toys.envc set
+  xunsetenv("");
+
+  // TODO: traverse and unset illegal environment variables named "$" and such
 
   // TODO euid stuff?
 
