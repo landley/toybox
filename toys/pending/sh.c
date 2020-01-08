@@ -220,6 +220,7 @@ static char *getvar(char *s)
 
 
 // returns pointer to next unquoted (or double quoted if dquot) char.
+// handle \ '' "" `` $()
 int skip_quote(char *s, int dquot, int *depth)
 {
   int i, q = dquot ? *depth : 0;
@@ -263,6 +264,8 @@ static void expand_arg_nobrace(struct sh_arg *arg, char *old, unsigned flags,
 {
   char *new = old;
 
+  if (flags&FORCE_KEEP) old = 0;
+
 // TODO ls -l /proc/$$/fd
 
   // Tilde expansion
@@ -282,7 +285,9 @@ static void expand_arg_nobrace(struct sh_arg *arg, char *old, unsigned flags,
     }
     if (pw && pw->pw_dir) ss = pw->pw_dir;
     if (!ss || !*ss) ss = "/";
-    new = xmprintf("%s%s", ss, s);
+    s = xmprintf("%s%s", ss, s);
+    if (old != new) free(new);
+    new = s;
   }
 
 // ${ $(( $( $[ $' ` " '
@@ -316,9 +321,23 @@ TODO this recurses
   }
 */
 
+  // quote removal
+  if (!(flags&NO_QUOTE)) {
+    int to = 0, from = 0;
+
+    for (;;) {
+      char c = new[from++];
+
+      if (c == '"' || c=='\'') continue;
+      if (c == '\\' && new[from]) c = new[from++];
+      if (from != to && old == new) new = xstrdup(new);
+      if (!(new[to++] = c)) break;
+    }
+  }
+
   // Record result.
   if (old==new && (flags&FORCE_COPY)) new = xstrdup(new);
-  if ((old!=new || (flags&FORCE_KEEP)) && delete) {
+  if (old!=new && delete) {
     struct arg_list *al = xmalloc(sizeof(struct arg_list));
 
     al->next = *delete;
@@ -342,8 +361,16 @@ int debug;
 
   // collect brace spans
   if (!(flags&NO_BRACE)) for (i = 0; ; i++) {
-    if (!old[i += skip_quote(old+i, 0, 0)]) break;
-    if (old[i] == '{') {
+    i += skip_quote(old+i, 0, 0);
+    if (!bb && !old[i]) break;
+    if (bb && (!old[i] || old[i] == '}')) {
+      bb->active = bb->commas[bb->cnt+1] = i;
+      for (bnext = bb; bb && bb->active; bb = (bb==blist)?0:bb->prev);
+dprintf(2, "}[%d]%p@%d\n", bnext->cnt, bb, i);
+      // discard commaless brace
+      if (!old[i] || !bnext->cnt)
+        free((blist == bnext) ? dlist_pop(&blist) : bnext);
+    } else if (old[i] == '{') {
       dlist_add_nomalloc((void *)&blist,
         (void *)(bb = xzalloc(sizeof(struct brace)+34*4)));
 dprintf(2, "{%p@%d %c\n", bb, i, bb->debug = old[i+1]);
@@ -358,12 +385,6 @@ dprintf(2, ",%p@%d\t%c\n", bb, i, old[i+1]);
       }
       bb->commas[++bb->cnt] = i;
 dprintf(2, "cnt %c %d\n", bb->debug, bb->cnt);
-    } else if (bb && old[i] == '}') {
-      bb->active = bb->commas[bb->cnt+1] = i;
-      for (bnext = bb; bb && bb->active; bb = (bb==blist)?0:bb->prev);
-dprintf(2, "}[%d]%p@%d\n", bnext->cnt, bb, i);
-      // discard commaless brace
-      if (!bnext->cnt) free((blist == bnext) ? dlist_pop(&blist) : bnext);
     }
   }
 
