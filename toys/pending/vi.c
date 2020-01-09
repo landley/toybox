@@ -64,7 +64,6 @@ static void draw_page();
 //utf8 support
 static int utf8_lnw(int* width, char* str, int bytes);
 static int utf8_dec(char key, char *utf8_scratch, int *sta_p);
-static int utf8_len(char *str);
 static int utf8_width(char *str, int bytes);
 static char* utf8_last(char* str, int size);
 
@@ -1114,6 +1113,7 @@ static void draw_page()
   struct linelist *scr_buf = 0;
   unsigned y = 0;
   int x = 0;
+  wchar_t wc;
 
   char *line = 0, *end = 0;
   int utf_l = 0,  bytes = 0;
@@ -1246,33 +1246,21 @@ static void draw_page()
 
   tty_jump(0, TT.screen_height);
   tty_esc("2K");
-  switch (TT.vi_mode) {
-    case 0:
-    tty_esc("30;44m");
-    printf("COMMAND|");
-    break;
-    case 1:
-    tty_esc("30;42m");
-    printf("NORMAL|");
-    break;
-    case 2:
-    tty_esc("30;41m");
-    printf("INSERT|");
-    break;
+  if (TT.vi_mode == 2) printf("\x1b[1m-- INSERT --\x1b[m");
 
-  }
   //DEBUG
-  tty_esc("m");
-  utf_l = utf8_len(&c_r->line->data[TT.cur_col]);
-  if (utf_l) {
+  utf_l=utf8towc(&wc, &c_r->line->data[TT.cur_col], c_r->line->len-TT.cur_col);
+  if (utf_l > 1) {
     char t[5] = {0, 0, 0, 0, 0};
     strncpy(t, &c_r->line->data[TT.cur_col], utf_l);
-    printf("utf: %d %s", utf_l, t);
+    printf(" (utf: %d %s)", utf_l, t);
   }
-  printf("| %d, %d\n", cx_scr, cy_scr); //screen coord
+  //DEBUG
 
   tty_jump(TT.screen_width-12, TT.screen_height);
-  printf("| %d, %d\n", TT.cur_row, TT.cur_col);
+  printf("%d,%d", TT.cur_row+1, TT.cur_col+1);
+  if (TT.cur_col != cx_scr) printf("-%d", cx_scr+1);
+  putchar('\n');
 
   tty_esc("m");
   tty_jump(0, TT.screen_height+1);
@@ -1325,71 +1313,34 @@ static void adjust_screen_buffer()
 
 }
 
-//return 0 if not ASCII nor UTF-8
-//this is not fully tested
-//naive implementation with branches
-//there is better branchless lookup table versions out there
-//1 0xxxxxxx
-//2 110xxxxx  10xxxxxx
-//3 1110xxxx  10xxxxxx  10xxxxxx
-//4 11110xxx  10xxxxxx  10xxxxxx  10xxxxxx
-static int utf8_len(char *str)
-{
-  int len = 0;
-  int i = 0;
-  uint8_t *c = (uint8_t*)str;
-  if (!c || !(*c)) return 0;
-  if (*c < 0x7F) return 1;
-  if ((*c & 0xE0) == 0xc0) len = 2;
-  else if ((*c & 0xF0) == 0xE0 ) len = 3;
-  else if ((*c & 0xF8) == 0xF0 ) len = 4;
-  else return 0;
-  c++;
-  for (i = len-1; i > 0; i--) {
-    if ((*c++ & 0xc0) != 0x80) return 0;
-  }
-  return len;
-}
-
 //get utf8 length and width at same time
-static int utf8_lnw(int* width, char* str, int bytes)
+static int utf8_lnw(int* width, char* s, int bytes)
 {
   wchar_t wc;
-  int length = 1;
-  *width = 1;
-  if (*str == 0x09) {
+  int length;
+
+  *width = 0;
+  if (*s == '\t') {
     *width = TT.tabstop;
     return 1;
   }
-  length = mbtowc(&wc, str, bytes);
-  switch (length) {
-  case -1:
-    mbtowc(0,0,4);
-  case 0:
-    *width = 0;
-    length = 0;
-    break;
-  default:
+  length = utf8towc(&wc, s, bytes);
+  if (length < 1) return 0;
   *width = wcwidth(wc);
-  }
   return length;
 }
 
 //try to estimate width of next "glyph" in terminal buffer
 //combining chars 0x300-0x36F shall be zero width
-static int utf8_width(char *str, int bytes)
+static int utf8_width(char *s, int bytes)
 {
   wchar_t wc;
-  if (*str == 0x09) return TT.tabstop;
-  switch (mbtowc(&wc, str, bytes)) {
-  case -1:
-    mbtowc(0,0,4);
-  case 0:
-    return -1;
-  default:
+  int length;
+
+  if (*s == '\t') return TT.tabstop;
+  length = utf8towc(&wc, s, bytes);
+  if (length < 1) return -1;
   return wcwidth(wc);
-  }
-  return 0;
 }
 
 static int utf8_dec(char key, char *utf8_scratch, int *sta_p)
