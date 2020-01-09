@@ -74,8 +74,11 @@ mountpoint -q sys || mount -t sysfs sys sys
 if ! mountpoint -q dev
 then
   mount -t devtmpfs dev dev || mdev -s
-  mkdir -p dev/pts
+  for i in ,fd /0,stdin /1,stdout /2,stderr
+  do ln -sf /proc/self/fd${i/,*/} dev/${i/*,/}; done
+  mkdir -p dev/{shm,pts}
   mountpoint -q dev/pts || mount -t devpts dev/pts dev/pts
+  chmod +t /dev/shm
 fi
 
 if [ $$ -eq 1 ]
@@ -83,7 +86,7 @@ then
   # Setup networking for QEMU (needs /proc)
   ifconfig eth0 10.0.2.15
   route add default gw 10.0.2.2
-  [ "$(date +%s)" -lt 1000 ] && rdate 10.0.2.2 # or time-b.nist.gov
+  [ "$(date +%s)" -lt 1000 ] && rdate 10.0.2.2 # Ask QEMU what time it is
   [ "$(date +%s)" -lt 10000000 ] && ntpd -nq -p north-america.pool.ntp.org
 
   [ -z "$CONSOLE" ] &&
@@ -101,7 +104,7 @@ chmod +x "$ROOT"/init &&
 
 # /etc/passwd with both kernel special accounts (root and nobody) + guest user
 cat > "$ROOT"/etc/passwd << 'EOF' &&
-root::0:0:root:/home/root:/bin/sh
+root::0:0:root:/root:/bin/sh
 guest:x:500:500:guest:/home/guest:/bin/sh
 nobody:x:65534:65534:nobody:/proc/self:/dev/null
 EOF
