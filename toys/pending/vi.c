@@ -43,43 +43,56 @@ GLOBALS(
       int len;
       char *data;
     } *il;
-    struct linelist {
-      struct linelist *up;//next
-      struct linelist *down;//prev
-      struct str_line *line;
-    } *text, *screen, *c_r;
+    size_t screen; //offset in slices must be higher than cursor
+    size_t cursor; //offset in slices
     //yank buffer
     struct yank_buf {
       char reg;
       int alloc;
       char* data;
     } yank;
+
+// mem_block contains RO data that is either original file as mmap
+// or heap allocated inserted data
+//
+//
+//
+  struct block_list {
+    struct block_list *next, *prev;
+    struct mem_block {
+      size_t size;
+      size_t len;
+      enum alloc_flag {
+        MMAP,  //can be munmap() before exit()
+        HEAP,  //can be free() before exit()
+        STACK, //global or stack perhaps toybuf
+      } alloc;
+      const char *data;
+    } *node;
+  } *text;
+
+// slices do not contain actual allocated data but slices of data in mem_block
+// when file is first opened it has only one slice.
+// after inserting data into middle new mem_block is allocated for insert data
+// and 3 slices are created, where first and last slice are pointing to original
+// mem_block with offsets, and middle slice is pointing to newly allocated block
+// When deleting, data is not freed but mem_blocks are sliced more such way that
+// deleted data left between 2 slices
+  struct slice_list {
+    struct slice_list *next, *prev;
+    struct slice {
+      size_t len;
+      const char *data;
+    } *node;
+  } *slices;
+
+  size_t filesize;
+  int fd; //file_handle
+
 )
 
-
-
-
-static void draw_page();
-
-//utf8 support
-static int utf8_lnw(int* width, char* str, int bytes);
-static int utf8_dec(char key, char *utf8_scratch, int *sta_p);
-static int utf8_width(char *str, int bytes);
-static char* utf8_last(char* str, int size);
-
-
-static int cur_left(int count0, int count1, char* unused);
-static int cur_right(int count0, int count1, char* unused);
-static int cur_up(int count0, int count1, char* unused);
-static int cur_down(int count0, int count1, char* unused);
-static void check_cursor_bounds();
-static void adjust_screen_buffer();
-static int search_str(char *s);
-
-static int vi_yank(char reg, struct linelist *row, int col, int flags);
-static int vi_delete(char reg, struct linelist *row, int col, int flags);
-
-
+static const char *blank = " \n\r\t";
+static const char *specials = ",.:;=-+*/(){}<>[]!@#$%^&|\\?\"\'";
 
 // TT.vi_mov_flag is used for special cases when certain move
 // acts differently depending is there DELETE/YANK or NOP
@@ -92,205 +105,550 @@ static int vi_delete(char reg, struct linelist *row, int col, int flags);
 // 0x40000000 = count0 not given
 // 0x80000000 = move was reverse
 
-void dlist_insert_nomalloc(struct double_list **list, struct double_list *new)
-{
-  if (*list) {
-    new->next = *list;
-    new->prev = (*list)->prev;
-    if ((*list)->prev) (*list)->prev->next = new;
-    (*list)->prev = new;
-  } else *list = new->next = new->prev = new;
-}
+
+static void draw_page();
+
+//utf8 support
+static int utf8_lnw(int* width, char* str, int bytes);
+static int utf8_dec(char key, char *utf8_scratch, int *sta_p);
+static char* utf8_last(char* str, int size);
 
 
-// Add an entry to the end of a doubly linked list
-struct double_list *dlist_insert(struct double_list **list, char *data)
+static int cur_left(int count0, int count1, char* unused);
+static int cur_right(int count0, int count1, char* unused);
+static int cur_up(int count0, int count1, char* unused);
+static int cur_down(int count0, int count1, char* unused);
+static void check_cursor_bounds();
+static void adjust_screen_buffer();
+static int search_str(char *s);
+
+//from TT.cursor to
+static int vi_yank(char reg, size_t from, int flags);
+static int vi_delete(char reg, size_t from, int flags);
+
+
+struct double_list *dlist_add_before(struct double_list **head,
+  struct double_list **list, char *data)
 {
   struct double_list *new = xmalloc(sizeof(struct double_list));
   new->data = data;
-  dlist_insert_nomalloc(list, new);
+  if (*list == *head) *head = new;
 
+  dlist_add_nomalloc(list, new);
   return new;
 }
 
-void linelist_free(void *node)
+struct double_list *dlist_add_after(struct double_list **head,
+  struct double_list **list, char *data)
 {
-  struct linelist *lst = (struct linelist *)node;
-  free(lst->line->data), free(lst->line), free(lst);
+  struct double_list *new = xmalloc(sizeof(struct double_list));
+  new->data = data;
+
+  if (*list) {
+    new->prev = *list;
+    new->next = (*list)->next;
+    (*list)->next->prev = new;
+    (*list)->next = new;
+  } else *head = *list = new->next = new->prev = new;
+  return new;
 }
 
-void linelist_unload()
+// str must be already allocated
+// ownership of allocated data is moved
+// data, pre allocated data
+// offset, offset in whole text
+// size, data allocation size of given data
+// len, length of the string
+// type, define allocation type for cleanup purposes at app exit
+static int insert_str(const char *data, size_t offset, size_t size, size_t len,
+  enum alloc_flag type)
 {
-  void* list = 0;
-  for (;TT.text->down; TT.text = TT.text->down);
-  list = (void*)TT.text;
-  TT.text = TT.screen = TT.c_r = 0;
-  llist_traverse(list, linelist_free);
+  struct mem_block *b = xmalloc(sizeof(struct mem_block));
+  struct slice *next = xmalloc(sizeof(struct slice));
+  struct slice_list *s = TT.slices;
+  b->size = size;
+  b->len = len;
+  b->alloc = type;
+  b->data = data;
+  next->len = len;
+  next->data = data;
+
+  //mem blocks can be just added unordered
+  TT.text = (struct block_list *)dlist_add((struct double_list **)&TT.text,
+    (char *)b);
+
+  if (!s) {
+    TT.slices = (struct slice_list *)dlist_add(
+      (struct double_list **)&TT.slices,
+      (char *)next);
+  } else {
+    size_t pos = 0;
+    //search insertation point for slice
+    do {
+      if (pos<=offset && pos+s->node->len>offset) break;
+      pos += s->node->len;
+      s = s->next;
+      if (s == TT.slices) return -1; //error out of bounds
+    } while (1);
+    //need to cut previous slice into 2 since insert is in middle
+    if (pos+s->node->len>offset && pos!=offset) {
+      struct slice *tail = xmalloc(sizeof(struct slice));
+      tail->len = s->node->len-(offset-pos);
+      tail->data = s->node->data+(offset-pos);
+      s->node->len = offset-pos;
+      //pos = offset;
+      s = (struct slice_list *)dlist_add_after(
+        (struct double_list **)&TT.slices,
+        (struct double_list **)&s,
+        (char *)tail);
+
+      s = (struct slice_list *)dlist_add_before(
+        (struct double_list **)&TT.slices,
+        (struct double_list **)&s,
+        (char *)next);
+    } else if (pos==offset) {
+      // insert before
+      s = (struct slice_list *)dlist_add_before(
+        (struct double_list **)&TT.slices,
+        (struct double_list **)&s,
+        (char *)next);
+    } else {
+      // insert after
+      s = (struct slice_list *)dlist_add_after((struct double_list **)&TT.slices,
+      (struct double_list **)&s,
+      (char *)next);
+    }
+  }
+  return 0;
 }
 
-void write_file(char *filename)
+// this will not free any memory
+// will only create more slices depending on position
+static int cut_str(size_t offset, size_t len)
 {
-  struct linelist *lst = TT.text;
-  FILE *fp = 0;
-  if (!filename) filename = (char*)*toys.optargs;
-  if (!(fp = fopen(filename, "w")) ) return;
+  struct slice_list *e, *s = TT.slices;
+  size_t end = offset+len;
+  size_t epos, spos = 0;
+  if (!s) return -1;
 
-  for (;lst; lst = lst->down)
-    fprintf(fp, "%s\n", lst->line->data);
+  //find start and end slices
+  for (;;) {
+    if (spos<=offset && spos+s->node->len>offset) break;
+    spos += s->node->len;
+    s = s->next;
 
-  fclose(fp);
-}
+    if (s == TT.slices) return -1; //error out of bounds
+  }
 
-int linelist_load(char *filename)
-{
-  struct linelist *lst = TT.c_r;//cursor position or 0
-  FILE *fp = 0;
-  if (!filename)
-    filename = (char*)*toys.optargs;
+  for (e = s, epos = spos; ; ) {
+    if (epos<=end && epos+e->node->len>end) break;
+    epos += e->node->len;
+    e = e->next;
 
-  fp = fopen(filename, "r");
-  if (!fp) {
-    char *line = xzalloc(80);
-    ssize_t alc = 80;
-    lst = (struct linelist*)dlist_add((struct double_list**)&lst,
-        xzalloc(sizeof(struct str_line)));
-    lst->line->alloc = alc;
-    lst->line->len = 0;
-    lst->line->data = line;
-    TT.text = lst;
-    dlist_terminate(TT.text->up);
-    return 1;
+    if (e == TT.slices) return -1; //error out of bounds
   }
 
   for (;;) {
-    char *line = xzalloc(80);
-    ssize_t alc = 80;
-    ssize_t len;
-    if ((len = getline(&line, (void *)&alc, fp)) == -1) {
-      if (errno == EINVAL || errno == ENOMEM) {
-        printf("error %d\n", errno);
-      }
-      free(line);
+    if (spos == offset && ( end >= spos+s->node->len)) {
+      //cut full
+      spos += s->node->len;
+      offset += s->node->len;
+      s = dlist_pop(&s);
+
+      if (s == TT.slices) TT.slices = s->next;
+    }
+
+    else if (spos < offset && ( end >= spos+s->node->len)) {
+      //cut end
+      size_t clip = s->node->len - (offset - spos);
+      offset = spos+s->node->len;
+      spos += s->node->len;
+      s->node->len -= clip;
+    }
+
+    else if (spos == offset && s == e) {
+      //cut begin
+      size_t clip = end - offset;
+      s->node->len -= clip;
+      s->node->data += clip;
       break;
     }
-    lst = (struct linelist*)dlist_add((struct double_list**)&lst,
-        xzalloc(sizeof(struct str_line)));
-    lst->line->alloc = alc;
-    lst->line->len = len;
-    lst->line->data = line;
 
-    if (lst->line->data[len-1] == '\n') {
-      lst->line->data[len-1] = 0;
-      lst->line->len--;
+    else {
+      //cut middle
+      struct slice *tail = xmalloc(sizeof(struct slice));
+      size_t clip = end-offset;
+      tail->len = s->node->len-(offset-spos)-clip;
+      tail->data = s->node->data+(offset-spos)+clip;
+      s->node->len = offset-spos; //wrong?
+      s = (struct slice_list *)dlist_add_after(
+        (struct double_list **)&TT.slices,
+        (struct double_list **)&s,
+        (char *)tail);
+      break;
     }
-    if (TT.text == 0) TT.text = lst;
+    if (s == e) break;
+
+    s = s->next;
   }
 
-  if (TT.text) dlist_terminate(TT.text->up);
+  return 0;
+}
 
-  fclose(fp);
+//find offset position in slices
+static struct slice_list *slice_offset(size_t *start, size_t offset)
+{
+  struct slice_list *s = TT.slices;
+  size_t spos = 0;
+
+  //find start
+  for ( ;s ; ) {
+    if (spos<=offset && spos+s->node->len>offset) break;
+
+    spos += s->node->len;
+    s = s->next;
+
+    if (s == TT.slices) s = 0; //error out of bounds
+  }
+  if (s) *start = spos;
+  return s;
+}
+
+static size_t text_strchr(size_t offset, char c)
+{
+  struct slice_list *s = TT.slices;
+  size_t epos, spos = 0;
+  int i = 0;
+
+  //find start
+  if (!(s = slice_offset(&spos, offset))) return SIZE_MAX;
+
+  i = offset-spos;
+  epos = spos+i;
+  do {
+    for (; i < s->node->len; i++, epos++)
+      if (s->node->data[i] == c) return epos;
+    s = s->next;
+    i = 0;
+  } while (s != TT.slices);
+
+  return SIZE_MAX;
+}
+
+static size_t text_strrchr(size_t offset, char c)
+{
+  struct slice_list *s = TT.slices;
+  size_t epos, spos = 0;
+  int i = 0;
+
+  //find start
+  if (!(s = slice_offset(&spos, offset))) return SIZE_MAX;
+
+  i = offset-spos;
+  epos = spos+i;
+  do {
+    for (; i >= 0; i--, epos--)
+      if (s->node->data[i] == c) return epos;
+    s = s->prev;
+    i = s->node->len-1;
+  } while (s != TT.slices->prev); //tail
+
+  return SIZE_MAX;
+}
+
+static size_t text_filesize()
+{
+  struct slice_list *s = TT.slices;
+  size_t pos = 0;
+  if (s) do {
+
+    pos += s->node->len;
+    s = s->next;
+
+  } while (s != TT.slices);
+
+  return pos;
+}
+
+static int text_count(size_t start, size_t end, char c)
+{
+  struct slice_list *s = TT.slices;
+  size_t i, count = 0, spos = 0;
+  if (!(s = slice_offset(&spos, start))) return 0;
+  i = start-spos;
+  if (s) do {
+    for (; i < s->node->len && spos+i<end; i++)
+      if (s->node->data[i] == c) count++;
+    if (spos+i>=end) return count;
+
+    spos += s->node->len;
+    i = 0;
+    s = s->next;
+
+  } while (s != TT.slices);
+
+  return count;
+}
+
+static char text_byte(size_t offset)
+{
+  struct slice_list *s = TT.slices;
+  size_t spos = 0;
+  //find start
+  if (!(s = slice_offset(&spos, offset))) return 0;
+  return s->node->data[offset-spos];
+}
+
+//utf-8 codepoint -1 if not valid, 0 if out_of_bounds, len if valid
+//copies data to dest if dest is not 0
+static int text_codepoint(char *dest, size_t offset)
+{
+  char scratch[8] = {0};
+  int state = 0, finished = 0;
+
+  for (;!(finished = utf8_dec(text_byte(offset), scratch, &state)); offset++)
+    if (!state) return -1;
+
+  if (!finished && !state) return -1;
+  if (dest) memcpy(dest,scratch,8);
+
+  return strlen(scratch);
+}
+
+static size_t text_sol(size_t offset)
+{
+  size_t pos;
+  if (!TT.filesize) return 0;
+  else if (TT.filesize <= offset) return TT.filesize-1;
+  else if ((pos = text_strrchr(offset, '\n')) == SIZE_MAX) return 0;
+  else if (pos < offset) return pos+1;
+  return offset;
+}
+
+static size_t text_eol(size_t offset)
+{
+  if (!TT.filesize) offset = 1;
+  else if (TT.filesize <= offset) return TT.filesize-1;
+  else if ((offset = text_strchr(offset, '\n')) == SIZE_MAX)
+    return TT.filesize-1;
+  return offset;
+}
+
+static size_t text_nsol(size_t offset)
+{
+  offset = text_eol(offset);
+  if (text_byte(offset) == '\n') offset++;
+  if (offset >= TT.filesize) offset--;
+  return offset;
+}
+
+static size_t text_psol(size_t offset)
+{
+  offset = text_sol(offset);
+  if (offset) offset--;
+  if (offset && text_byte(offset-1) != '\n') offset = text_sol(offset-1);
+  return offset;
+}
+
+static size_t text_getline(char *dest, size_t offset, size_t max_len)
+{
+  struct slice_list *s = TT.slices;
+  size_t end, spos = 0;
+  int i, j = 0;
+
+  if (dest) *dest = 0;
+
+  if (!s) return 0;
+  if ((end = text_strchr(offset, '\n')) == SIZE_MAX)
+    if ((end = TT.filesize)  > offset+max_len) return 0;
+
+  //find start
+  if (!(s = slice_offset(&spos, offset))) return 0;
+
+  i = offset-spos;
+  j = end-offset+1;
+  if (dest) do {
+    for (; i < s->node->len && j; i++, j--, dest++)
+      *dest = s->node->data[i];
+    s = s->next;
+    i = 0;
+  } while (s != TT.slices && j);
+
+  if (dest) *dest = 0;
+
+  return end-offset;
+}
+
+//copying is needed when file has lot of inserts that are
+//just few char long, but not always. Advanced search should
+//check big slices directly and just copy edge cases.
+//Also this is only line based search multiline
+//and regexec should be done instead.
+static size_t text_strstr(size_t offset, char *str)
+{
+  size_t bytes, pos = offset;
+  char *s = 0;
+  do {
+    bytes = text_getline(toybuf, pos, ARRAY_LEN(toybuf));
+    if (!bytes) pos++; //empty line
+    else if ((s = strstr(toybuf, str))) return pos+(s-toybuf);
+    else pos += bytes;
+  } while (pos < TT.filesize);
+
+  return SIZE_MAX;
+}
+
+static void block_list_free(void *node)
+{
+  struct block_list *d = node;
+
+  if (d->node->alloc == HEAP) free((void *)d->node->data);
+  else if (d->node->alloc == MMAP) munmap((void *)d->node->data, d->node->size);
+
+  free(d->node);
+  free(d);
+}
+
+static void linelist_unload()
+{
+  llist_traverse((void *)TT.slices, llist_free_double);
+  TT.slices = 0;
+
+  llist_traverse((void *)TT.text, block_list_free);
+  TT.text = 0;
+
+  if (TT.fd) {
+    xclose(TT.fd);
+    TT.fd = 0;
+  }
+}
+
+static int linelist_load(char *filename)
+{
+  if (!filename) filename = (char*)*toys.optargs;
+
+  if (filename) {
+    int fd;
+    size_t len, size;
+    char *data;
+    if ( (fd = open(filename, O_RDONLY)) <0) return 0;
+
+    size = fdlength(fd);
+    if (!(len = lseek(fd, 0, SEEK_END))) len = size;
+    lseek(fd, 0, SEEK_SET);
+
+    data = xmmap(0, size, PROT_READ, MAP_SHARED, fd, 0);
+    if (data == MAP_FAILED) return 0;
+    insert_str(data, 0, size, len, MMAP);
+    TT.filesize = text_filesize();
+    TT.fd = fd;
+  }
+
   return 1;
+}
+
+static void write_file(char *filename)
+{
+  struct slice_list *s = TT.slices;
+  struct stat st;
+  int fd = 0;
+  if (!s) return;
+
+  if (!filename) filename = (char*)*toys.optargs;
+
+  sprintf(toybuf, "%s.swp", filename);
+
+  if ( (fd = xopen(toybuf, O_WRONLY | O_CREAT | O_TRUNC)) <0) return;
+
+  do {
+    xwrite(fd, (void *)s->node->data, s->node->len );
+    s = s->next;
+  } while (s != TT.slices);
+
+  linelist_unload();
+
+  xclose(fd);
+  if (!stat(filename, &st)) chmod(toybuf, st.st_mode);
+  else chmod(toybuf, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+  xrename(toybuf, filename);
+  linelist_load(filename);
 
 }
 
-int vi_yy(char reg, int count0, int count1)
+static int vi_yy(char reg, int count0, int count1)
 {
-  struct linelist *pos = TT.c_r;
-  int col = TT.cur_col;
-  TT.cur_col = 0;
+  size_t history = TT.cursor;
+  size_t pos = text_sol(TT.cursor); //go left to first char on line
   TT.vi_mov_flag |= 0x4;
 
-  if (count0>1) cur_down(count0-1, 1, 0);
+  for (;count0; count0--) TT.cursor = text_nsol(TT.cursor);
 
-  vi_yank(reg, pos, 0, 0);
+  vi_yank(reg, pos, 0);
 
-  TT.cur_col = col, TT.c_r = pos;
+  TT.cursor = history;
   return 1;
 }
 
-int vi_dd(char reg, int count0, int count1)
+static int vi_dd(char reg, int count0, int count1)
 {
-  struct linelist *pos = TT.c_r;
-  TT.cur_col = 0;
+  size_t pos = text_sol(TT.cursor); //go left to first char on line
   TT.vi_mov_flag |= 0x4;
-  if (count0>1) cur_down(count0-1, 1, 0);
 
-  vi_delete(reg, pos, 0, 0);
+  for (;count0; count0--) TT.cursor = text_nsol(TT.cursor);
+
+  if (pos == TT.cursor && TT.filesize) pos--;
+  vi_delete(reg, pos, 0);
   check_cursor_bounds();
   return 1;
 }
 
 static int vi_x(char reg, int count0, int count1)
 {
-  char *last = 0, *cpos = 0, *start = 0;
-  int len = 0;
-  struct linelist *pos = TT.c_r;
-  int col = TT.cur_col;
-  if (!TT.c_r) return 0;
+  size_t from = TT.cursor;
 
-  start = TT.c_r->line->data;
-  len = TT.c_r->line->len;
-
-  last = utf8_last(start, len);
-  cpos = start+TT.cur_col;
-  if (cpos == last) {
+  if (text_byte(TT.cursor) == '\n') {
     cur_left(count0-1, 1, 0);
-    col = strlen(start);
   }
   else {
     cur_right(count0-1, 1, 0);
-    cpos = start+TT.cur_col;
-    if (cpos == last) TT.vi_mov_flag |= 2;
+    if (text_byte(TT.cursor) == '\n') TT.vi_mov_flag |= 2;
     else cur_right(1, 1, 0);
   }
 
-  vi_delete(reg, pos, col, 0);
+  vi_delete(reg, from, 0);
   check_cursor_bounds();
   return 1;
 }
 
-//move commands does not behave correct way yet.
-int vi_movw(int count0, int count1, char* unused)
+static int vi_movw(int count0, int count1, char* unused)
 {
   int count = count0*count1;
-  const char *empties = " \t\n\r";
-  const char *specials = ",.=-+*/(){}<>[]";
-//  char *current = 0;
-  if (!TT.c_r)
-    return 0;
-  if (TT.cur_col == TT.c_r->line->len-1 || !TT.c_r->line->len)
-    goto next_line;
-  if (strchr(empties, TT.c_r->line->data[TT.cur_col]))
-    goto find_non_empty;
-  if (strchr(specials, TT.c_r->line->data[TT.cur_col])) {
-    for (;strchr(specials, TT.c_r->line->data[TT.cur_col]); ) {
-      TT.cur_col++;
-      if (TT.cur_col == TT.c_r->line->len-1)
-        goto next_line;
-    }
-  } else for (;!strchr(specials, TT.c_r->line->data[TT.cur_col]) &&
-      !strchr(empties, TT.c_r->line->data[TT.cur_col]);) {
-      TT.cur_col++;
-      if (TT.cur_col == TT.c_r->line->len-1)
-        goto next_line;
-  }
+  while (count--) {
+    char c = text_byte(TT.cursor);
+    do {
+      if (TT.cursor > TT.filesize-1) break;
+      //if at empty jump to non empty
+      if (c == '\n') {
+        if (++TT.cursor > TT.filesize-1) break;
+        if ((c = text_byte(TT.cursor)) == '\n') break;
+        continue;
+      } else if (strchr(blank, c)) do {
+        if (++TT.cursor > TT.filesize-1) break;
+        c = text_byte(TT.cursor);
+      } while (strchr(blank, c));
+      //if at special jump to non special
+      else if (strchr(specials, c)) do {
+        if (++TT.cursor > TT.filesize-1) break;
+        c = text_byte(TT.cursor);
+      } while (strchr(specials, c));
+      //else jump to empty or spesial
+      else do {
+        if (++TT.cursor > TT.filesize-1) break;
+        c = text_byte(TT.cursor);
+      } while (c && !strchr(blank, c) && !strchr(specials, c));
 
-  for (;strchr(empties, TT.c_r->line->data[TT.cur_col]); ) {
-    TT.cur_col++;
-find_non_empty:
-    if (TT.cur_col == TT.c_r->line->len-1) {
-next_line:
-      //we could call j and g0
-      if (!TT.c_r->down) return 0;
-      TT.c_r = TT.c_r->down;
-      TT.cur_col = 0;
-      if (!TT.c_r->line->len) break;
-    }
+    } while (strchr(blank, c) && c != '\n'); //never stop at empty
   }
-  count--;
-  if (count>0)
-    return vi_movw(count, 1, 0);
-
   check_cursor_bounds();
   return 1;
 }
@@ -298,29 +656,39 @@ next_line:
 static int vi_movb(int count0, int count1, char* unused)
 {
   int count = count0*count1;
-  if (!TT.c_r)
-    return 0;
-  if (!TT.cur_col) {
-      if (!TT.c_r->up) return 0;
-      TT.c_r = TT.c_r->up;
-      TT.cur_col = (TT.c_r->line->len) ? TT.c_r->line->len-1 : 0;
-      goto exit_function;
+  int type = 0;
+  char c;
+  while (count--) {
+    c = text_byte(TT.cursor);
+    do {
+      if (!TT.cursor) break;
+      //if at empty jump to non empty
+      if (strchr(blank, c)) do {
+        if (!--TT.cursor) break;
+        c = text_byte(TT.cursor);
+      } while (strchr(blank, c));
+      //if at special jump to non special
+      else if (strchr(specials, c)) do {
+        if (!--TT.cursor) break;
+        type = 0;
+        c = text_byte(TT.cursor);
+      } while (strchr(specials, c));
+      //else jump to empty or spesial
+      else do {
+        if (!--TT.cursor) break;
+        type = 1;
+        c = text_byte(TT.cursor);
+      } while (!strchr(blank, c) && !strchr(specials, c));
+
+    } while (strchr(blank, c)); //never stop at empty
   }
-  if (TT.cur_col)
-      TT.cur_col--;
-  while (TT.c_r->line->data[TT.cur_col] <= ' ') {
-    if (TT.cur_col) TT.cur_col--;
-    else goto exit_function;
+  //find first
+  for (;TT.cursor; TT.cursor--) {
+    c = text_byte(TT.cursor-1);
+    if (type && !strchr(blank, c) && !strchr(specials, c)) break;
+    else if (!type && !strchr(specials, c)) break;
   }
-  while (TT.c_r->line->data[TT.cur_col] > ' ') {
-    if (TT.cur_col)TT.cur_col--;
-    else goto exit_function;
-  }
-  TT.cur_col++;
-exit_function:
-  count--;
-  if (count>1)
-    return vi_movb(count, 1, 0);
+
   TT.vi_mov_flag |= 0x80000000;
   check_cursor_bounds();
   return 1;
@@ -329,15 +697,19 @@ exit_function:
 static int vi_move(int count0, int count1, char *unused)
 {
   int count = count0*count1;
-  if (!TT.c_r)
-    return 0;
-  if (TT.cur_col < TT.c_r->line->len)
-    TT.cur_col++;
-  if (TT.c_r->line->data[TT.cur_col] <= ' ' || count > 1)
-    vi_movw(count, 1, 0); //find next word;
-  while (TT.c_r->line->data[TT.cur_col] > ' ')
-    TT.cur_col++;
-  if (TT.cur_col) TT.cur_col--;
+  int type = 0;
+  char c;
+
+  if (count>1) vi_movw(count-1, 1, unused);
+
+  c = text_byte(TT.cursor);
+  if (strchr(specials, c)) type = 1;
+  TT.cursor++;
+  for (;TT.cursor < TT.filesize-1; TT.cursor++) {
+    c = text_byte(TT.cursor+1);
+    if (!type && (strchr(blank, c) || strchr(specials, c))) break;
+    else if (type && !strchr(specials, c)) break;
+  }
 
   TT.vi_mov_flag |= 2;
   check_cursor_bounds();
@@ -347,65 +719,17 @@ static int vi_move(int count0, int count1, char *unused)
 
 static void i_insert(char* str, int len)
 {
-  char *t = xzalloc(TT.c_r->line->alloc);
-  char *s = TT.c_r->line->data;
-  int sel = TT.c_r->line->len-TT.cur_col;
-  strncpy(t, &s[TT.cur_col], sel);
-  t[sel+1] = 0;
-  if (TT.c_r->line->alloc < TT.c_r->line->len+len+5) {
-    TT.c_r->line->data = xrealloc(TT.c_r->line->data,
-      (TT.c_r->line->alloc+len)<<1);
+  if (!str || !len) return;
 
-    TT.c_r->line->alloc = (TT.c_r->line->alloc+len)<<1;
-    memset(&TT.c_r->line->data[TT.c_r->line->len], 0,
-        TT.c_r->line->alloc-TT.c_r->line->len);
-
-    s = TT.c_r->line->data;
-  }
-  strncpy(&s[TT.cur_col], str, len);
-  strcpy(&s[TT.cur_col+len], t);
-  TT.cur_col += len;
-  if (TT.cur_col) TT.cur_col--;
-
-  TT.c_r->line->len += len;
-  free(t);
-
+  insert_str(xstrdup(str), TT.cursor, len, len, HEAP);
+  TT.cursor += len;
+  TT.filesize = text_filesize();
   TT.vi_mov_flag |= 0x30000000;
 }
 
-//new line at split pos;
-void i_split()
-{
-  int alloc = 0, len = 0, idx = 0;
-  struct str_line *l = xmalloc(sizeof(struct str_line));
-  alloc = TT.c_r->line->alloc;
-
-  if (TT.cur_col) len = TT.c_r->line->len-TT.cur_col-1;
-  else len = TT.c_r->line->len;
-  if (len < 0) len = 0;
-
-  l->data = xzalloc(alloc);
-  l->alloc = alloc;
-  l->len = len;
-  idx = TT.c_r->line->len - len;
-
-  strncpy(l->data, &TT.c_r->line->data[idx], len);
-  memset(&l->data[len], 0, alloc-len);
-
-  TT.c_r->line->len -= len;
-  if (TT.c_r->line->len <= 0) TT.c_r->line->len = 0;
-
-  len = TT.c_r->line->len;
-
-  memset(&TT.c_r->line->data[len], 0, alloc-len);
-  TT.c_r = (struct linelist*)dlist_insert((struct double_list**)&TT.c_r, (char*)l);
-  TT.c_r->line = l;
-  TT.cur_col = 0;
-}
-
-
 static int vi_zero(int count0, int count1, char *unused)
 {
+  TT.cursor = text_sol(TT.cursor);
   TT.cur_col = 0;
   TT.vi_mov_flag |= 0x80000000;
   return 1;
@@ -413,12 +737,8 @@ static int vi_zero(int count0, int count1, char *unused)
 
 static int vi_eol(int count0, int count1, char *unused)
 {
-  int count = count0*count1;
-  for (;count > 1 && TT.c_r->down; count--)
-    TT.c_r = TT.c_r->down;
-
-  if (TT.c_r && TT.c_r->line->len)
-    TT.cur_col = TT.c_r->line->len-1;
+  //forward find /n
+  TT.cursor = text_strchr(TT.cursor, '\n');
   TT.vi_mov_flag |= 2;
   check_cursor_bounds();
   return 1;
@@ -427,166 +747,110 @@ static int vi_eol(int count0, int count1, char *unused)
 //TODO check register where to push from
 static int vi_push(char reg, int count0, int count1)
 {
-  char *start = TT.yank.data, *end = TT.yank.data+strlen(TT.yank.data);
-  struct linelist *cursor = TT.c_r;
-  int col = TT.cur_col;
-  //insert into new lines
-  if (*(end-1) == '\n') for (;start != end;) {
-    TT.vi_mov_flag |= 0x10000000;
-    char *next = strchr(start, '\n');
-    TT.cur_col = (TT.c_r->line->len) ? TT.c_r->line->len-1: 0;
-    i_split();
-    if (next) {
-      i_insert(start, next-start);
-      start = next+1;
-    } else start = end; //??
-  }
-
-  //insert into cursor
-  else for (;start != end;) {
-    char *next = strchr(start, '\n');
-    if (next) {
-      TT.vi_mov_flag |= 0x10000000;
-      i_insert(start, next-start);
-      i_split();
-      start = next+1;
-    } else {
-      i_insert(start, strlen(start));
-      start = end;
-    }
-  }
   //if row changes during push original cursor position is kept
   //vi inconsistancy
-  if (TT.c_r != cursor) TT.c_r = cursor, TT.cur_col = col;
+  //if yank ends with \n push is linemode else push in place+1
+  size_t history = TT.cursor;
+  char *start = TT.yank.data;
+  char *eol = strchr(start, '\n');
+
+  if (start[strlen(start)-1] == '\n') {
+    if ((TT.cursor = text_strchr(TT.cursor, '\n')) == SIZE_MAX)
+      TT.cursor = TT.filesize;
+    else TT.cursor = text_nsol(TT.cursor);
+  } else cur_right(1, 1, 0);
+
+  i_insert(start, strlen(start));
+  if (eol) {
+    TT.vi_mov_flag |= 0x10000000;
+    TT.cursor = history;
+  }
 
   return 1;
 }
 
 static int vi_find_c(int count0, int count1, char *symbol)
 {
-  int count = count0*count1;
-  if (TT.c_r && TT.c_r->line->len) {
-    while (count--) {
-        char* pos = strstr(&TT.c_r->line->data[TT.cur_col], symbol);
-        if (pos) {
-          TT.cur_col = pos-TT.c_r->line->data;
-          return 1;
-        }
-    }
-  }
-  return 0;
+////  int count = count0*count1;
+  size_t pos = text_strchr(TT.cursor, *symbol);
+  if (pos != SIZE_MAX) TT.cursor = pos;
+  return 1;
 }
 
 static int vi_find_cb(int count0, int count1, char *symbol)
 {
   //do backward search
+  size_t pos = text_strrchr(TT.cursor, *symbol);
+  if (pos != SIZE_MAX) TT.cursor = pos;
   return 1;
 }
 
 //if count is not spesified should go to last line
 static int vi_go(int count0, int count1, char *symbol)
 {
-  int prev_row = TT.cur_row;
-  TT.c_r = TT.text;
+  size_t prev_cursor = TT.cursor;
+  int count = count0*count1-1;
+  TT.cursor = 0;
 
-  if (TT.vi_mov_flag&0x40000000) for (;TT.c_r && TT.c_r->down; TT.c_r = TT.c_r->down);
-  else for (;TT.c_r && TT.c_r->down && --count0; TT.c_r = TT.c_r->down);
+  if (TT.vi_mov_flag&0x40000000 && (TT.cursor = TT.filesize) > 0)
+    TT.cursor = text_sol(TT.cursor-1);
+  else if (count) {
+    size_t next = 0;
+    for ( ;count && (next = text_strchr(next+1, '\n')) != SIZE_MAX; count--)
+      TT.cursor = next;
+    TT.cursor++;
+  }
 
-  TT.cur_col = 0;
   check_cursor_bounds();  //adjusts cursor column
-  if (prev_row>TT.cur_row) TT.vi_mov_flag |= 0x80000000;
+  if (prev_cursor > TT.cursor) TT.vi_mov_flag |= 0x80000000;
 
   return 1;
 }
 
-static int vi_delete(char reg, struct linelist *row, int col, int flags)
+static int vi_delete(char reg, size_t from, int flags)
 {
-  struct linelist *start = 0, *end = 0;
-  int col_s = 0, col_e = 0, bytes = 0;
+  size_t start = from, end = TT.cursor;
 
-  vi_yank(reg, row, col, flags);
+  vi_yank(reg, from, flags);
 
-  if (TT.vi_mov_flag&0x80000000) {
-    start = TT.c_r, end = row;
-    col_s = TT.cur_col, col_e = col;
-  } else {
-    start = row, end = TT.c_r;
-    col_s = col, col_e = TT.cur_col;
-  }
+  if (TT.vi_mov_flag&0x80000000)
+    start = TT.cursor, end = from;
+
+  //pre adjust cursor move one right until at next valid rune
   if (TT.vi_mov_flag&2) {
-    int len, width;
-    char *s = end->line->data;
-    len = utf8_lnw(&width, s+col_e, strlen(s+col_e));
-    for (;;) {
-      col_e += len;
-      len = utf8_lnw(&width, s+col_e, strlen(s+col_e));
-      if (len<1 || width || !(*(s+col_e))) break;
-    }
+    //int len, width;
+    //char *s = end->line->data;
+    //len = utf8_lnw(&width, s+col_e, strlen(s+col_e));
+    //for (;;) {
+      //col_e += len;
+      //len = utf8_lnw(&width, s+col_e, strlen(s+col_e));
+      //if (len<1 || width || !(*(s+col_e))) break;
+    //}
   }
-  if (start != end) { //goto last_line_delete;
-    if (col_s) {
-      memset(start->line->data+col_s, 0, start->line->len-col_s);
-      row->line->len = col_s;
-      col_s = 0;
-      start = start->down;
-    }
-  //full_line_delete:
-    TT.vi_mov_flag |= 0x10000000;
-    for (;start != end;) {
-      struct linelist *lst = start;
-      start = start->down;
-      lst = dlist_pop(&lst);
-      if (TT.screen == lst) TT.screen = start;
-      if (TT.text == lst) TT.text = start;
-      free(lst->line->data);
-      free(lst->line);
-      free(lst);
-    }
-  }
-//last_line_delete:
-  TT.vi_mov_flag |= 0x10000000;
-  //if (TT.vi_mov_flag&2) col_e = start->line->len;
-  if (TT.vi_mov_flag&4) {
-    if (!end->down && !end->up)
-      col_e = start->line->len;
-    else {
-      struct linelist *lst = 0;
-      col_e = 0, col_s = 0;
-      if (!start->down) lst = dlist_pop(&start);
-      else {
-        lst = start;
-        start = start->down;
-        lst = dlist_pop(&lst);
-      }
-      if (TT.screen == lst) TT.screen = start;
-      if (TT.text == lst) TT.text = start;
-      free(lst->line->data);
-      free(lst->line);
-      free(lst);
-    }
-  }
-  if (col_s < col_e) {
-    bytes = col_s + start->line->len - col_e;
-    memmove(start->line->data+col_s, start->line->data+col_e,
-        start->line->len-col_e);
-    memset(start->line->data+bytes, 0, start->line->len-bytes);
-    start->line->len = bytes;
-  }
-  TT.c_r = start;
-  TT.cur_col = col_s;
+  //find if range contains atleast single /n
+  //if so set TT.vi_mov_flag |= 0x10000000;
+
+  //do slice cut
+  cut_str(start, end-start);
+
+  //cursor is at start at after delete
+  TT.cursor = start;
+  TT.filesize = text_filesize();
+  //find line start by strrchr(/n) ++
+  //set cur_col with crunch_n_str maybe?
+
   return 1;
 }
+
 
 static int vi_D(char reg, int count0, int count1)
 {
-  int prev_col = TT.cur_col;
-  struct linelist *pos = TT.c_r;
+  size_t pos = TT.cursor;
   if (!count0) return 1;
   vi_eol(1, 1, 0);
-  vi_delete(reg, pos, prev_col, 0);
+  vi_delete(reg, pos, 0);
   count0--;
-  if (count0 && TT.c_r->down) {
-    TT.c_r = TT.c_r->down;
+  if (count0) {
     vi_dd(reg, count0, 1);
   }
   check_cursor_bounds();
@@ -595,37 +859,12 @@ static int vi_D(char reg, int count0, int count1)
 
 static int vi_join(char reg, int count0, int count1)
 {
+  size_t next;
   while (count0--) {
-    if (TT.c_r && TT.c_r->down) {
-      int size = TT.c_r->line->len+TT.c_r->down->line->len;
-      if (size > TT.c_r->line->alloc) {
-        if (size > TT.c_r->down->line->alloc) {
-          TT.c_r->line->data = xrealloc(TT.c_r->line->data,
-            TT.c_r->line->alloc*2+TT.il->alloc*2);
-          memmove(&TT.c_r->line->data[TT.c_r->line->len],
-              TT.c_r->down->line->data,TT.c_r->down->line->len);
-          TT.c_r->line->len = size;
-          TT.c_r = TT.c_r->down;
-          TT.c_r->line->alloc = TT.c_r->line->alloc*2+2*TT.il->alloc;
-          vi_dd(0,1,1);
-        } else {
-          memmove(&TT.c_r->down->line->data[TT.c_r->line->len],
-              TT.c_r->down->line->data,TT.c_r->down->line->len);
-          memmove(TT.c_r->down->line->data,TT.c_r->line->data,
-              TT.c_r->line->len);
-          TT.c_r->down->line->len = size;
-          vi_dd(0,1,1);
-        }
-      } else {
-          memmove(&TT.c_r->line->data[TT.c_r->line->len],
-              TT.c_r->down->line->data,TT.c_r->down->line->len);
-          TT.c_r->line->len = size;
-          TT.c_r = TT.c_r->down;
-          vi_dd(0,1,1);
-      }
-      TT.c_r = TT.c_r->up;
-
-    }
+    //just strchr(/n) and cut_str(pos, 1);
+    if ((next = text_strchr(TT.cursor, '\n')) == SIZE_MAX) break;
+    TT.cursor = next+1;
+    vi_delete(reg, TT.cursor-1, 0);
   }
   return 1;
 }
@@ -636,60 +875,38 @@ static int vi_find_next(char reg, int count0, int count1)
   return 1;
 }
 
-static int vi_change(char reg, struct linelist *row, int col, int flags)
+static int vi_change(char reg, size_t to, int flags)
 {
-  vi_delete(reg, row, col, flags);
+  vi_delete(reg, to, flags);
   TT.vi_mode = 2;
   return 1;
 }
 
 //TODO search yank buffer by register
+//TODO yanks could be separate slices so no need to copy data
 //now only supports default register
-static int vi_yank(char reg, struct linelist *row, int col, int flags)
+static int vi_yank(char reg, size_t from, int flags)
 {
-  struct linelist *start = 0, *end = 0;
-  int col_s = 0, col_e = 0, bytes = 0;
+  size_t start = from, end = TT.cursor;
+  char *str;
 
   memset(TT.yank.data, 0, TT.yank.alloc);
-  if (TT.vi_mov_flag&0x80000000) {
-    start = TT.c_r, end = row;
-    col_s = TT.cur_col, col_e = col;
-  } else {
-    start = row, end = TT.c_r;
-    col_s = col, col_e = TT.cur_col;
-  }
-  if (start == end) goto last_line_yank;
-  if (!col_s) goto full_line_yank;
+  if (TT.vi_mov_flag&0x80000000) start = TT.cursor, end = from;
+  else TT.cursor = start; //yank moves cursor to left pos always?
 
-  if (TT.yank.alloc < start->line->alloc) {
-    TT.yank.data = xrealloc(TT.yank.data, start->line->alloc*2);
-    TT.yank.alloc = start->line->alloc*2;
+  if (TT.yank.alloc < end-from) {
+    size_t new_bounds = (1+end-from)/1024;
+    new_bounds += ((1+end-from)%1024) ? 1 : 0;
+    new_bounds *= 1024;
+    TT.yank.data = xrealloc(TT.yank.data, new_bounds);
+    TT.yank.alloc = new_bounds;
   }
 
-  sprintf(TT.yank.data, "%s\n", start->line->data+col_s);
-  col_s = 0;
-  start = start->down;
+  //this is naive copy
+  for (str = TT.yank.data ; start<end; start++, str++) *str = text_byte(start);
 
-full_line_yank:
-  for (;start != end;) {
-    while (TT.yank.alloc-1 < strlen(TT.yank.data)+start->line->len)
-      TT.yank.data = xrealloc(TT.yank.data, TT.yank.alloc*2), TT.yank.alloc *= 2;
+  *str = 0;
 
-
-    sprintf(TT.yank.data+strlen(TT.yank.data), "%s\n", start->line->data);
-    start = start->down;
-  }
-last_line_yank:
-  while (TT.yank.alloc-1 < strlen(TT.yank.data)+end->line->len)
-    TT.yank.data = xrealloc(TT.yank.data, TT.yank.alloc*2), TT.yank.alloc *= 2;
-
-  if (TT.vi_mov_flag & 0x4)
-    sprintf(TT.yank.data+strlen(TT.yank.data), "%s\n", start->line->data);
-  else {
-    bytes = strlen(TT.yank.data)+col_e-col_s;
-    strncpy(TT.yank.data+strlen(TT.yank.data), end->line->data+col_s, col_e-col_s);
-    TT.yank.data[bytes] = 0;
-  }
   return 1;
 }
 
@@ -711,7 +928,7 @@ last_line_yank:
 struct vi_cmd_param {
   const char* cmd;
   unsigned flags;
-  int (*vi_cmd)(char, struct linelist*, int, int);//REG,row,col,FLAGS
+  int (*vi_cmd)(char, size_t, int);//REG,from,FLAGS
 };
 struct vi_mov_param {
   const char* mov;
@@ -763,11 +980,11 @@ struct vi_cmd_param vi_cmds[] =
   {"y", 1, &vi_yank},
 };
 
-int run_vi_cmd(char *cmd)
+static int run_vi_cmd(char *cmd)
 {
   int i = 0, val = 0;
   char *cmd_e;
-  int (*vi_cmd)(char, struct linelist*, int, int) = 0;
+  int (*vi_cmd)(char, size_t, int) = 0;
   int (*vi_mov)(int, int, char*) = 0;
 
   TT.count0 = 0, TT.count1 = 0, TT.vi_mov_flag = 0;
@@ -813,10 +1030,9 @@ int run_vi_cmd(char *cmd)
     }
   }
   if (vi_mov) {
-    int prev_col = TT.cur_col;
-    struct linelist *pos = TT.c_r;
+    int prev_cursor = TT.cursor;
     if (vi_mov(TT.count0, TT.count1, cmd)) {
-      if (vi_cmd) return (vi_cmd(TT.vi_reg, pos, prev_col, TT.vi_mov_flag));
+      if (vi_cmd) return (vi_cmd(TT.vi_reg, prev_cursor, TT.vi_mov_flag));
       else return 1;
     } else return 0; //return some error
   }
@@ -825,28 +1041,19 @@ int run_vi_cmd(char *cmd)
 
 static int search_str(char *s)
 {
-  struct linelist *lst = TT.c_r;
-  char *c = strstr(&TT.c_r->line->data[TT.cur_col+1], s);
+  size_t pos = text_strstr(TT.cursor+1, s);
 
   if (TT.last_search != s) {
     free(TT.last_search);
     TT.last_search = xstrdup(s);
   }
 
-  if (c) {
-    TT.cur_col = c-TT.c_r->line->data;
-  } else for (; !c;) {
-    lst = lst->down;
-    if (!lst) return 1;
-    c = strstr(lst->line->data, s);
-  }
-  TT.c_r = lst;
-  TT.cur_col = c-TT.c_r->line->data;
+  if (pos != SIZE_MAX) TT.cursor = pos;
   check_cursor_bounds();
   return 0;
 }
 
-int run_ex_cmd(char *cmd)
+static int run_ex_cmd(char *cmd)
 {
   if (cmd[0] == '/') {
     search_str(&cmd[1]);
@@ -897,7 +1104,7 @@ void vi_main(void)
   TT.il->alloc = 80, TT.yank.alloc = 128;
 
   linelist_load(0);
-  TT.screen = TT.c_r = TT.text;
+  TT.screen = TT.cursor = 0;
 
   TT.vi_mov_flag = 0x20000000;
   TT.vi_mode = 1, TT.tabstop = 8;
@@ -953,9 +1160,10 @@ void vi_main(void)
           break;
         case 'A':
           vi_eol(1, 1, 0);
-          // FALLTHROUGH
+          TT.vi_mode = 2;
+          break;
         case 'a':
-          if (TT.c_r && TT.c_r->line->len) TT.cur_col++;
+          cur_right(1, 1, 0);
           // FALLTHROUGH
         case 'i':
           TT.vi_mode = 2;
@@ -1018,6 +1226,7 @@ void vi_main(void)
       switch (key) {
         case 27:
           i_insert(TT.il->data, TT.il->len);
+          cur_left(1, 1, 0);
           TT.vi_mode = 1;
           TT.il->len = 0;
           memset(TT.il->data, 0, TT.il->alloc);
@@ -1035,10 +1244,10 @@ void vi_main(void)
         case 0x0D:
           //insert newline
           //
+          TT.il->data[TT.il->len++] = '\n';
           i_insert(TT.il->data, TT.il->len);
           TT.il->len = 0;
           memset(TT.il->data, 0, TT.il->alloc);
-          i_split();
           break;
         default:
           if ((key >= 0x20 || key == 0x09) &&
@@ -1068,7 +1277,7 @@ cleanup_vi:
   tty_esc("?1049l");
 }
 
-int vi_crunch(FILE* out, int cols, int wc)
+static int vi_crunch(FILE* out, int cols, int wc)
 {
   int ret = 0;
   if (wc < 32 && TT.list) {
@@ -1081,13 +1290,13 @@ int vi_crunch(FILE* out, int cols, int wc)
       for (;i--;) fputs(" ", out);
     }
     ret = TT.tabstop;
-  }
+  } else if (wc == '\n') return 0;
   return ret;
 }
 
 //crunch_str with n bytes restriction for printing substrings or
 //non null terminated strings
-int crunch_nstr(char **str, int width, int n, FILE *out, char *escmore,
+static int crunch_nstr(char **str, int width, int n, FILE *out, char *escmore,
   int (*escout)(FILE *out, int cols, int wc))
 {
   int columns = 0, col, bytes;
@@ -1120,9 +1329,9 @@ int crunch_nstr(char **str, int width, int n, FILE *out, char *escmore,
   return columns;
 }
 
+//BUGBUG cursor at eol
 static void draw_page()
 {
-  struct linelist *scr_buf = 0;
   unsigned y = 0;
   int x = 0;
 
@@ -1137,8 +1346,11 @@ static void draw_page()
 
   int scroll = 0, redraw = 0;
 
+  int SSOL, SOL;
+
+
   adjust_screen_buffer();
-  scr_buf = TT.screen;
+  //redraw = 3; //force full redraw
   redraw = (TT.vi_mov_flag & 0x30000000)>>28;
 
   scroll = TT.drawn_row-TT.scr_row;
@@ -1150,30 +1362,32 @@ static void draw_page()
   else if (scroll>0) printf("\033[%dL", scroll);  //scroll up
   else if (scroll<0) printf("\033[%dM", -scroll); //scroll down
 
-  //jump until cursor
-  for (; y < TT.screen_height; y++ ) {
-    if (scr_buf == TT.c_r) break;
-    scr_buf = scr_buf->down;
-  }
+  SOL = text_sol(TT.cursor);
+  bytes = text_getline(toybuf, SOL, ARRAY_LEN(toybuf));
+  line = toybuf;
+
+  for (SSOL = TT.screen, y = 0; SSOL < SOL; y++) SSOL = text_nsol(SSOL);
+
+  cy_scr = y;
+
   //draw cursor row
   /////////////////////////////////////////////////////////////
   //for long lines line starts to scroll when cursor hits margin
-  line = scr_buf->line->data;
-  bytes = TT.cur_col;
+  bytes = TT.cursor-SOL; // TT.cur_col;
   end = line;
 
 
   tty_jump(0, y);
   tty_esc("2K");
   //find cursor position
-  aw = crunch_nstr(&end, 1024, bytes, 0, "\t", vi_crunch);
+  aw = crunch_nstr(&end, 1024, bytes, 0, "\t\n", vi_crunch);
 
   //if we need to render text that is not inserted to buffer yet
   if (TT.vi_mode == 2 && TT.il->len) {
     char* iend = TT.il->data; //input end
     x = 0;
     //find insert end position
-    iw = crunch_str(&iend, 1024, 0, "\t", vi_crunch);
+    iw = crunch_str(&iend, 1024, 0, "\t\n", vi_crunch);
     clip = (aw+iw) - TT.screen_width+margin;
 
     //if clipped area is bigger than text before insert
@@ -1181,16 +1395,16 @@ static void draw_page()
       clip -= aw;
       iend = TT.il->data;
 
-      iw -= crunch_str(&iend, clip, 0, "\t", vi_crunch);
-      x = crunch_str(&iend, iw, stdout, "\t", vi_crunch);
+      iw -= crunch_str(&iend, clip, 0, "\t\n", vi_crunch);
+      x = crunch_str(&iend, iw, stdout, "\t\n", vi_crunch);
     } else {
       iend = TT.il->data;
       end = line;
 
       //if clipped area is substring from cursor row start
-      aw -= crunch_nstr(&end, clip, bytes, 0, "\t", vi_crunch);
-      x = crunch_str(&end, aw,  stdout, "\t", vi_crunch);
-      x += crunch_str(&iend, iw, stdout, "\t", vi_crunch);
+      aw -= crunch_nstr(&end, clip, bytes, 0, "\t\n", vi_crunch);
+      x = crunch_str(&end, aw,  stdout, "\t\n", vi_crunch);
+      x += crunch_str(&iend, iw, stdout, "\t\n", vi_crunch);
     }
   }
   //when not inserting but still need to keep cursor inside screen
@@ -1198,34 +1412,31 @@ static void draw_page()
   else if ( aw+margin > TT.screen_width) {
     clip = aw-TT.screen_width+margin;
     end = line;
-    aw -= crunch_nstr(&end, clip, bytes, 0, "\t", vi_crunch);
-    x = crunch_str(&end, aw,  stdout, "\t", vi_crunch);
+    aw -= crunch_nstr(&end, clip, bytes, 0, "\t\n", vi_crunch);
+    x = crunch_str(&end, aw,  stdout, "\t\n", vi_crunch);
   }
   else {
     end = line;
-    x = crunch_nstr(&end, aw, bytes, stdout, "\t", vi_crunch);
+    x = crunch_nstr(&end, aw, bytes, stdout, "\t\n", vi_crunch);
   }
   cx_scr = x;
   cy_scr = y;
-  if (scr_buf->line->len > bytes) {
-    x += crunch_str(&end, TT.screen_width-x,  stdout, "\t", vi_crunch);
-  }
-
-  if (scr_buf) scr_buf = scr_buf->down;
-  // drawing cursor row ends
-  ///////////////////////////////////////////////////////////////////
+  x += crunch_str(&end, TT.screen_width-x,  stdout, "\t\n", vi_crunch);
 
   //start drawing all other rows that needs update
   ///////////////////////////////////////////////////////////////////
-  y = 0, scr_buf = TT.screen;
+  y = 0, SSOL = TT.screen, line = toybuf;
+  bytes = text_getline(toybuf, SSOL, ARRAY_LEN(toybuf));
 
   //if we moved around in long line might need to redraw everything
   if (clip != TT.drawn_col) redraw = 3;
 
   for (; y < TT.screen_height; y++ ) {
     int draw_line = 0;
-    if (scr_buf == TT.c_r) {
-      scr_buf = scr_buf->down;
+    if (SSOL == SOL) {
+      line = toybuf;
+      SSOL += bytes+1;
+      bytes = text_getline(line, SSOL, ARRAY_LEN(toybuf));
       continue;
     } else if (redraw) draw_line++;
     else if (scroll<0 && TT.screen_height-y-1<-scroll)
@@ -1236,75 +1447,107 @@ static void draw_page()
     if (draw_line) {
 
       tty_esc("2K");
-      if (scr_buf) {
-        if (draw_line && scr_buf->line->data && scr_buf->line->len) {
-          line = scr_buf->line->data;
-          bytes = scr_buf->line->len;
+      if (line) {
+        if (draw_line && line && strlen(line)) {
 
-          aw = crunch_nstr(&line, clip, bytes, 0, "\t", vi_crunch);
-          crunch_str(&line, TT.screen_width-1, stdout, "\t", vi_crunch);
+          aw = crunch_nstr(&line, clip, bytes, 0, "\t\n", vi_crunch);
+          crunch_str(&line, TT.screen_width-1, stdout, "\t\n", vi_crunch);
           if ( *line ) printf("@");
 
         }
       } else if (draw_line) printf("~");
     }
-    if (scr_buf) scr_buf = scr_buf->down;
+    if (SSOL+bytes < TT.filesize)  {
+      line = toybuf;
+      SSOL += bytes+1;
+      bytes = text_getline(line, SSOL, ARRAY_LEN(toybuf));
+   } else line = 0;
   }
 
   TT.drawn_row = TT.scr_row, TT.drawn_col = clip;
 
   //finished updating visual area
-
   tty_jump(0, TT.screen_height);
   tty_esc("2K");
   if (TT.vi_mode == 2) printf("\x1b[1m-- INSERT --\x1b[m");
   if (!TT.vi_mode) printf("\x1b[1m%s \x1b[m",TT.il->data);
 
-  tty_jump(TT.screen_width-12, TT.screen_height);
-  printf("%d,%d", TT.cur_row+1, TT.cur_col+1);
-  if (TT.cur_col != cx_scr) printf("-%d", cx_scr+1);
+  sprintf(toybuf, "%ld / %ld,%d,%d", TT.cursor, TT.filesize,
+    TT.cur_row+1, TT.cur_col+1);
+
+  if (TT.cur_col != cx_scr) sprintf(toybuf+strlen(toybuf),"-%d", cx_scr+1);
+
+  tty_jump(TT.screen_width-strlen(toybuf), TT.screen_height);
+  printf("%s", toybuf);
 
   if (TT.vi_mode) tty_jump(cx_scr, cy_scr);
 
   xflush(1);
 
 }
-
+//jump into valid offset index
+//and valid utf8 codepoint
 static void check_cursor_bounds()
 {
-  if (TT.c_r->line->len == 0) {
-    TT.cur_col = 0;
-    return;
-  } else if (TT.c_r->line->len-1 < TT.cur_col) TT.cur_col = TT.c_r->line->len-1;
+  char buf[8] = {0};
+  int len, width = 0;
+  if (!TT.filesize) TT.cursor = 0;
 
-  if (TT.cur_col && utf8_width(&TT.c_r->line->data[TT.cur_col],
-        TT.c_r->line->len-TT.cur_col) <= 0)
-    TT.cur_col--, check_cursor_bounds();
+  for (;;) {
+    if (TT.cursor < 1) {
+      TT.cursor = 0;
+      return;
+    } else if (TT.cursor >= TT.filesize-1) {
+      TT.cursor = TT.filesize-1;
+      return;
+    }
+    if ((len = text_codepoint(buf, TT.cursor)) < 1) {
+      TT.cursor--; //we are not in valid data try jump over
+      continue;
+    }
+    if (utf8_lnw(&width, buf, len) && width) break;
+    else TT.cursor--; //combine char jump over
+  }
 }
 
+//TODO rewrite the logic, difficulties counting lines
+//and with big files scroll should not rely in knowing
+//absoluteline numbers
 static void adjust_screen_buffer()
 {
-  //search cursor and screen
-  struct linelist *t = TT.text;
-  int c = -1, s = -1, i = 0;
-  //searching cursor and screen line numbers
-  for (;((c == -1) || (s == -1)) && t != 0; i++, t = t->down) {
-    if (t == TT.c_r) c = i;
-    if (t == TT.screen) s = i;
+  size_t c, s;
+  TT.cur_row = 0, TT.scr_row = 0;
+  if (!TT.cursor) {
+    TT.screen = 0;
+    TT.vi_mov_flag = 0x20000000;
+    return;
+  } else if (TT.screen > (1<<18) || TT.cursor > (1<<18)) {
+     //give up, file is big, do full redraw
+
+    TT.screen = text_strrchr(TT.cursor-1, '\n')+1;
+    TT.vi_mov_flag = 0x20000000;
+    return;
   }
-  //adjust screen buffer so cursor is on drawing area
-  if (c <= s) TT.screen = TT.c_r, s = c; //scroll up
-  else {
-    //drawing does not have wrapping so no need to check width
+
+  s = text_count(0, TT.screen, '\n');
+  c = text_count(0, TT.cursor, '\n');
+  if (s >= c) {
+    TT.screen = text_strrchr(TT.cursor-1, '\n')+1;
+    s = c;
+    TT.vi_mov_flag = 0x20000000; //TODO I disabled scroll
+  } else {
     int distance = c-s+1;
-
     if (distance > (int)TT.screen_height) {
-      int adj = distance-TT.screen_height;
-      for (;adj; adj--) TT.screen = TT.screen->down, s++; //scroll down
-
+      int n, adj = distance-TT.screen_height;
+      TT.vi_mov_flag = 0x20000000; //TODO I disabled scroll
+      for (;adj; adj--, s++)
+        if ((n = text_strchr(TT.screen, '\n'))+1 > TT.screen)
+          TT.screen = n+1;
     }
   }
-  TT.cur_row = c, TT.scr_row = s;
+
+  TT.scr_row = s;
+  TT.cur_row = c;
 
 }
 
@@ -1323,19 +1566,6 @@ static int utf8_lnw(int* width, char* s, int bytes)
   if (length < 1) return 0;
   *width = wcwidth(wc);
   return length;
-}
-
-//try to estimate width of next "glyph" in terminal buffer
-//combining chars 0x300-0x36F shall be zero width
-static int utf8_width(char *s, int bytes)
-{
-  wchar_t wc;
-  int length;
-
-  if (*s == '\t') return TT.tabstop;
-  length = utf8towc(&wc, s, bytes);
-  if (length < 1) return -1;
-  return wcwidth(wc);
 }
 
 static int utf8_dec(char key, char *utf8_scratch, int *sta_p)
@@ -1379,9 +1609,9 @@ static int cur_left(int count0, int count1, char* unused)
   int count = count0*count1;
   TT.vi_mov_flag |= 0x80000000;
   for (;count--;) {
-    if (!TT.cur_col) return 1;
+    if (!TT.cursor) return 1;
 
-    TT.cur_col--;
+    TT.cursor--;
     check_cursor_bounds();
   }
   return 1;
@@ -1390,39 +1620,44 @@ static int cur_left(int count0, int count1, char* unused)
 static int cur_right(int count0, int count1, char* unused)
 {
   int count = count0*count1;
-  for (;count--;) {
-    if (TT.c_r->line->len <= 1) return 1;
-    if (TT.cur_col >= TT.c_r->line->len-1) {
-      TT.cur_col = utf8_last(TT.c_r->line->data, TT.c_r->line->len)
-        - TT.c_r->line->data;
-      return 1;
+  char buf[8] = {0};
+  int len, width = 0;
+  for (;count; count--) {
+    if ((len = text_codepoint(buf, TT.cursor)) > 0) TT.cursor += len;
+    else TT.cursor++;
+
+    for (;TT.cursor < TT.filesize;) {
+      if ((len = text_codepoint(buf, TT.cursor)) < 1) {
+        TT.cursor++; //we are not in valid data try jump over
+        continue;
+      }
+
+      if (utf8_lnw(&width, buf, len) && width) break;
+      else TT.cursor += len;
     }
-    TT.cur_col++;
-    if (utf8_width(&TT.c_r->line->data[TT.cur_col],
-          TT.c_r->line->len-TT.cur_col) <= 0)
-      cur_right(1, 1, 0);
+    if (*buf == '\n') break;
   }
+  check_cursor_bounds();
   return 1;
 }
 
+//TODO column shift
 static int cur_up(int count0, int count1, char* unused)
 {
   int count = count0*count1;
-  for (;count-- && TT.c_r->up;)
-    TT.c_r = TT.c_r->up;
+  for (;count--;) TT.cursor = text_psol(TT.cursor);
 
   TT.vi_mov_flag |= 0x80000000;
   check_cursor_bounds();
   return 1;
 }
 
+//TODO column shift
 static int cur_down(int count0, int count1, char* unused)
 {
   int count = count0*count1;
-  for (;count-- && TT.c_r->down;)
-    TT.c_r = TT.c_r->down;
+  for (;count--;) TT.cursor = text_nsol(TT.cursor);
 
   check_cursor_bounds();
   return 1;
 }
-
