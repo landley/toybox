@@ -35,7 +35,7 @@ GLOBALS(
   char *x, *p;
 
   char *elf, *shstrtab, *f;
-  off_t shoff, phoff, size;
+  long long shoff, phoff, size;
   int bits, shnum, shentsize, phentsize;
   int64_t (*elf_int)(void *ptr, unsigned size);
 )
@@ -258,10 +258,10 @@ static void show_notes(long offset, long size)
     printf("  %-20.*s 0x%08x\t", namesz, name, descsz);
     if (!memcmp(name, "GNU", 4)) {
       if (type == 1) {
-        printf("NT_GNU_ABI_TAG\tOS: %s, ABI: %ld.%ld.%ld",
+        printf("NT_GNU_ABI_TAG\tOS: %s, ABI: %d.%d.%d",
                !TT.elf_int(note+16, 4)?"Linux":"?",
-               TT.elf_int(note+20, 4), TT.elf_int(note+24, 4),
-               TT.elf_int(note+28, 4)), j=1;
+               (int)TT.elf_int(note+20, 4), (int)TT.elf_int(note+24, 4),
+               (int)TT.elf_int(note+28, 4)), j=1;
       } else if (type == 3) {
         printf("NT_GNU_BUILD_ID\t");
         for (;j<descsz;j++) printf("%02x",note[16+j]);
@@ -270,7 +270,7 @@ static void show_notes(long offset, long size)
       }
     } else if (!memcmp(name, "Android", 8)) {
       if (type == 1) {
-        printf("NT_VERSION\tAPI level %ld", TT.elf_int(note+20, 4)), j=1;
+        printf("NT_VERSION\tAPI level %d", (int)TT.elf_int(note+20, 4)), j=1;
         if (descsz>=132) printf(", NDK %.64s (%.64s)",note+24,note+24+64);
       }
     } else if (!memcmp(name, "CORE", 5) || !memcmp(name, "LINUX", 6)) {
@@ -353,9 +353,9 @@ static void scan_elf()
     printf("  Version:                           0x%x\n",
            (int) TT.elf_int(TT.elf+20, 4));
     printf("  Entry point address:               0x%x\n", entry);
-    printf("  Start of program headers:          %ld (bytes into file)\n",
+    printf("  Start of program headers:          %lld (bytes into file)\n",
            TT.phoff);
-    printf("  Start of section headers:          %ld (bytes into file)\n",
+    printf("  Start of section headers:          %lld (bytes into file)\n",
            TT.shoff);
     printf("  Flags:                             0x%x\n", flags);
     printf("  Size of this header:               %d (bytes)\n", ehsize);
@@ -371,7 +371,7 @@ static void scan_elf()
     if (!TT.shnum) printf("\nThere are no sections in this file.\n");
     else {
       if (!FLAG(h)) {
-        printf("There are %d section headers, starting at offset %#lx:\n",
+        printf("There are %d section headers, starting at offset %#llx:\n",
                TT.shnum, TT.shoff);
       }
       printf("\n"
@@ -414,7 +414,7 @@ static void scan_elf()
       if (!FLAG(h)) {
         printf("Elf file type is %s\n"
         "Entry point %#x\n"
-        "There are %d program headers, starting at offset %ld\n"
+        "There are %d program headers, starting at offset %lld\n"
         "\n",
         et_type(elf_type), entry, phnum, TT.phoff);
       }
