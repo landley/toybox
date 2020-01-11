@@ -14,6 +14,7 @@ config SETSID
 
     -d	Detach from tty
     -c	Control tty (become foreground process & receive keyboard signals)
+    -w	Wait for child (and exit with its status)
 */
 
 #define FOR_setsid
