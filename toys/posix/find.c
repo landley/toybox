@@ -636,7 +636,7 @@ static int do_find(struct dirtree *new)
               } else if (ch == 'p') ll = (long)(ff = dirtree_path(new, 0));
               else if (ch == 'T') {
                 if (*++fmt!='@') error_exit("bad -printf %%T: %%T%c", *fmt);
-                sprintf(buf, "%ld.%ld", new->st.st_mtim.tv_sec,
+                sprintf(buf, "%lld.%ld", (long long)new->st.st_mtim.tv_sec,
                              new->st.st_mtim.tv_nsec);
                 ll = (long)buf;
               } else if (ch == 'Z') {
