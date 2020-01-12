@@ -1685,7 +1685,7 @@ dprintf(2, "TODO skipped running for((;;)), need math parser\n");
 // Parse and run a self-contained command line with no prompt/continuation
 static int sh_run(char *new)
 {
-  struct sh_function scratch;
+  struct sh_function scratch = { 0 };
   int rc;
 
 // TODO: parse with len? (End early?)
