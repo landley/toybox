@@ -271,7 +271,7 @@ static void expand_arg_nobrace(struct sh_arg *arg, char *old, unsigned flags,
   // Tilde expansion
   if (!(flags&NO_TILDE) && *new == '~') {
     struct passwd *pw = 0;
-    char *s, *ss;
+    char *s, *ss, *sss;
 
     // first expansion so don't need to free previous new
     ss = 0;
@@ -280,8 +280,8 @@ static void expand_arg_nobrace(struct sh_arg *arg, char *old, unsigned flags,
       if (!(ss = getvar("HOME")) || !*ss) pw = bufgetpwuid(getuid());
     } else {
       // TODO bufgetpwnam
-      pw = getpwnam(new = xstrndup(new+1, (s-new)-1));
-      free(new);
+      pw = getpwnam(sss = xstrndup(new+1, (s-new)-1));
+      free(sss);
     }
     if (pw && pw->pw_dir) ss = pw->pw_dir;
     if (!ss || !*ss) ss = "/";
@@ -477,7 +477,6 @@ static void expand_arg(struct sh_arg *arg, char *old, unsigned flags,
 
 
 // Expand exactly one arg, returning NULL if it split.
-// If return != new you need to free it.
 static char *expand_one_arg(char *new, unsigned flags, struct arg_list **del)
 {
   struct sh_arg arg;
@@ -485,11 +484,9 @@ static char *expand_one_arg(char *new, unsigned flags, struct arg_list **del)
   int i;
 
   memset(&arg, 0, sizeof(arg));
-  expand_arg(&arg, new, flags, 0);
-  if (arg.c == 1) {
-    s = *arg.v;
-    if (del && s != new) dlist_add((void *)del, s);
-  } else for (i = 0; i < arg.c; i++) free(arg.v[i]);
+  expand_arg(&arg, new, flags, del);
+  if (arg.c == 1) s = *arg.v;
+  else if (!del) for (i = 0; i < arg.c; i++) free(arg.v[i]);
   free(arg.v);
 
   return s;
@@ -624,7 +621,7 @@ void run_subshell(struct sh_pipeline *sp)
 static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
 {
   struct sh_process *pp;
-  char *s, *ss, *sss, *cv = 0;
+  char *s = s, *ss, *sss, *cv = 0;
   int j, to, from, here = 0;
 
   TT.hfd = 10;
@@ -896,7 +893,6 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
       }
       environ = env;
     }
-
     if (-1 == (pp->pid = xpopen_both(pp->arg.v, 0)))
       perror_msg("%s: vfork", *pp->arg.v);
 
@@ -933,9 +929,6 @@ static char *parse_word(char *start)
   // Redirections. 123<<file- parses as 2 args: "123<<" "file-".
   s = end + redir_prefix(end);
   if ((i = anystart(s, (void *)redirectors))) s += i;
-  // Flow control characters that end pipeline segments
-  else s = end + anystart(end, (char *[]){";;&", ";;", ";&", ";", "||",
-    "|&", "|", "&&", "&", "(", ")", 0});
   if (s != end) return (end == start) ? s : end;
 
   // (( is a special quote at the start of a word
@@ -979,6 +972,11 @@ static char *parse_word(char *start)
 
       if (isspace(*end)) break;
       if (*end == ')') return end+(start==end);
+
+      // Flow control characters that end pipeline segments
+      s = end + anystart(end, (char *[]){";;&", ";;", ";&", ";", "||",
+        "|&", "|", "&&", "&", "(", ")", 0});
+      if (s != end) return (end == start) ? s : end;
     }
 
     // Things the same unquoted or in most non-single-quote contexts
@@ -1685,11 +1683,12 @@ dprintf(2, "TODO skipped running for((;;)), need math parser\n");
 // Parse and run a self-contained command line with no prompt/continuation
 static int sh_run(char *new)
 {
-  struct sh_function scratch = { 0 };
+  struct sh_function scratch;
   int rc;
 
 // TODO: parse with len? (End early?)
 
+  memset(&scratch, 0, sizeof(struct sh_function));
   if (!parse_line(new, &scratch)) run_function(&scratch);
   free_function(&scratch);
   rc = toys.exitval;
