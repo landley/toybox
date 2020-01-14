@@ -909,8 +909,10 @@ void vi_main(void)
 
 
   draw_page();
-  while(1) {
+  for (;;) {
     int key = scan_key(keybuf, -1);
+
+    if (key == -1) goto cleanup_vi;
 
     terminal_size(&TT.screen_width, &TT.screen_height);
     TT.screen_height -= 2; //TODO this is hack fix visual alignment
@@ -926,12 +928,6 @@ void vi_main(void)
       continue;
     }
 
-    switch (key) {
-      case -1:
-      case 3:
-      case 4:
-        goto cleanup_vi;
-    }
     if (TT.vi_mode == 1) { //NORMAL
       switch (key) {
         case '/':
