@@ -79,7 +79,7 @@ void xsetmyenv(int *envc, char ***env, char *name, char *val)
   // resize and null terminate if expanding
   if (!(*env)[i]) {
     len = i+1;
-    if (!(len&255)) *env = xrealloc(*env, len*sizeof(char *));
+    if (!(len&255)) *env = xrealloc(*env, (len+256)*sizeof(char *));
     (*env)[len] = 0;
   }
   (*env)[i] = new;
