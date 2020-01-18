@@ -95,7 +95,7 @@ chmod +x "$ROOT"/init &&
 
 # passwd and group with kernel special accounts (root and nobody) + guest user
 cat > "$ROOT"/etc/passwd << 'EOF' &&
-echo -e 'root::0:0:root:/root:/bin/sh
+root::0:0:root:/root:/bin/sh
 guest:x:500:500:guest:/home/guest:/bin/sh
 nobody:x:65534:65534:nobody:/proc/self:/dev/null
 EOF
