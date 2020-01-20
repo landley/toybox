@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/cal.html
 
-USE_CAL(NEWTOY(cal, ">2", TOYFLAG_USR|TOYFLAG_BIN))
+USE_CAL(NEWTOY(cal, ">2h", TOYFLAG_USR|TOYFLAG_BIN))
 
 config CAL
   bool "cal"
@@ -16,9 +16,16 @@ config CAL
 
     With one argument, prints all months of the specified year.
     With two arguments, prints calendar for month and year.
+
+    -h	Don't highlight today
 */
 
+#define FOR_cal
 #include "toys.h"
+
+GLOBALS(
+  struct tm *now;
+)
 
 // Write calendar into buffer: each line is 20 chars wide, end indicated
 // by empty string.
@@ -54,6 +61,10 @@ static char *calstrings(char *buf, struct tm *tm)
       char *pat = "   ";
       if (!mday ? wday==start : mday<len) {
         pat = "%2d ";
+        if (!FLAG(h) && tm->tm_year == TT.now->tm_year &&
+            tm->tm_mon == TT.now->tm_mon && mday == TT.now->tm_mday-1) {
+          pat = "\x1b[7m%2d\x1b[m ";
+        }
         mday++;
       }
       buf += sprintf(buf, pat, mday);
@@ -65,12 +76,17 @@ static char *calstrings(char *buf, struct tm *tm)
 }
 
 // Worst case scenario toybuf usage: sizeof(struct tm) plus 21 bytes/line
-// plus 8 lines/month plus 12 months, comes to a bit over 2k of our 4k buffer.
+// plus 8 lines/month plus 12 months, plus the escape sequences to highlight
+// today comes to a bit over 2k of our 4k buffer.
 
 void cal_main(void)
 {
-  struct tm *tm;
+  time_t now = time(0);
+  struct tm *tm = localtime(&now);
   char *buf = toybuf;
+
+  TT.now = tm;
+  if (!isatty(1)) toys.optflags |= FLAG_h;
 
   if (toys.optc) {
     // Conveniently starts zeroed
@@ -113,11 +129,6 @@ void cal_main(void)
 
     // What day of the week does that start on?
     mktime(tm);
-
-  } else {
-    time_t now;
-    time(&now);
-    tm = localtime(&now);
   }
 
   calstrings(buf, tm);
