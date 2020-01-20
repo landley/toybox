@@ -14,10 +14,10 @@ config LSATTR
   bool "lsattr"
   default y
   help
-    usage: lsattr [-Radlv] [Files...]
+    usage: lsattr [-Radlv] [file...]
 
     List file attributes on a Linux second extended file system.
-    (AacDdijsStu defined in chattr --help)
+    Flag letters are defined in chattr help.
 
     -R	Recursively list attributes of directories and their contents
     -a	List all files in directories, including files that start with '.'
@@ -29,7 +29,7 @@ config CHATTR
   bool "chattr"
   default y
   help
-    usage: chattr [-R] [-+=AacDdijsStTu] [-v version] [File...]
+    usage: chattr [-R] [-+=AacDdijsStTu] [-v version] [file...]
 
     Change file attributes on a Linux second extended file system.
 
@@ -44,13 +44,17 @@ config CHATTR
     Attributes:
       A  Don't track atime
       a  Append mode only
+      C  No copy on write
       c  Enable compress
       D  Write dir contents synchronously
       d  Don't backup with dump
+      F  Case-insensitive directory lookups (casefold)
       i  Cannot be modified (immutable)
       j  Write all data to journal first
-      s  Zero disk storage when deleted
+      P  Project hierarchy
       S  Write file contents synchronously
+      s  Zero disk storage when deleted
+      T  Top of directory hierarchy
       t  Disable tail-merging of partial blocks with other files
       u  Allow file to be undeleted
 */
@@ -58,24 +62,30 @@ config CHATTR
 #include "toys.h"
 #include <linux/fs.h>
 
+#define FS_PROJINHERT_FL 0x20000000 // Linux 4.5
+#define FS_CASEFOLD_FL   0x40000000 // Linux 5.4
+
 static struct ext2_attr {
   char *name;
   unsigned long flag;
   char opt;
 } e2attrs[] = {
-  {"Secure_Deletion",               FS_SECRM_FL,        's'}, // Secure deletion
-  {"Undelete",                      FS_UNRM_FL,         'u'}, // Undelete
-  {"Compression_Requested",         FS_COMPR_FL,        'c'}, // Compress file
-  {"Synchronous_Updates",           FS_SYNC_FL,         'S'}, // Synchronous updates
-  {"Immutable",                     FS_IMMUTABLE_FL,    'i'}, // Immutable file
-  {"Append_Only",                   FS_APPEND_FL,       'a'}, // writes to file may only append
-  {"No_Dump",                       FS_NODUMP_FL,       'd'}, // do not dump file
-  {"No_Atime",                      FS_NOATIME_FL,      'A'}, // do not update atime
-  {"Indexed_directory",             FS_INDEX_FL,        'I'}, // hash-indexed directory
-  {"Journaled_Data",                FS_JOURNAL_DATA_FL, 'j'}, // file data should be journaled
-  {"No_Tailmerging",                FS_NOTAIL_FL,       't'}, // file tail should not be merged
-  {"Synchronous_Directory_Updates", FS_DIRSYNC_FL,      'D'}, // dirsync behaviour (directories only)
-  {"Top_of_Directory_Hierarchies",  FS_TOPDIR_FL,       'T'}, // Top of directory hierarchies
+  {"No_Atime",                      FS_NOATIME_FL,      'A'},
+  {"Append_Only",                   FS_APPEND_FL,       'a'},
+  {"No_COW",                        FS_NOCOW_FL,        'C'},
+  {"Compression_Requested",         FS_COMPR_FL,        'c'},
+  {"Synchronous_Directory_Updates", FS_DIRSYNC_FL,      'D'},
+  {"No_Dump",                       FS_NODUMP_FL,       'd'},
+  {"Casefold",                      FS_CASEFOLD_FL,     'F'},
+  {"Indexed_directory",             FS_INDEX_FL,        'I'},
+  {"Immutable",                     FS_IMMUTABLE_FL,    'i'},
+  {"Journaled_Data",                FS_JOURNAL_DATA_FL, 'j'},
+  {"Project_Hierarchy",             FS_PROJINHERIT_FL,  'P'},
+  {"Synchronous_Updates",           FS_SYNC_FL,         'S'},
+  {"Secure_Deletion",               FS_SECRM_FL,        's'},
+  {"Top_of_Directory_Hierarchies",  FS_TOPDIR_FL,       'T'},
+  {"No_Tailmerging",                FS_NOTAIL_FL,       't'},
+  {"Undelete",                      FS_UNRM_FL,         'u'},
   {NULL,                            -1,                   0},
 };
 
@@ -101,7 +111,7 @@ static void print_file_attr(char *path)
   }
   if (-1 == (fd=open(path, O_RDONLY | O_NONBLOCK))) goto LABEL1;
 
-  if (toys.optflags & FLAG_v) { 
+  if (FLAG(v)) {
     if (ioctl(fd, FS_IOC_GETVERSION, (void*)&version) < 0) goto LABEL2;
     xprintf("%5lu ", version);
   }
@@ -110,7 +120,7 @@ static void print_file_attr(char *path)
   else {
     struct ext2_attr *ptr = e2attrs;
 
-    if (toys.optflags & FLAG_l) {
+    if (FLAG(l)) {
       int name_found = 0;
 
       xprintf("%-50s ", path);
@@ -152,10 +162,9 @@ static int retell_dir(struct dirtree *root)
 
   fpath = dirtree_path(root, NULL);
   //Special case: with '-a' option and '.'/'..' also included in printing list.
-  if ((root->name[0] != '.') || (toys.optflags & FLAG_a)) {
+  if ((root->name[0] != '.') || FLAG(a)) {
     print_file_attr(fpath);
-    if (S_ISDIR(root->st.st_mode) && (toys.optflags & FLAG_R)
-        && dirtree_notdotdot(root)) {
+    if (S_ISDIR(root->st.st_mode) && FLAG(R) && dirtree_notdotdot(root)) {
       xprintf("\n%s:\n", fpath);
       free(fpath);
       return (DIRTREE_RECURSE | DIRTREE_COMEAGAIN);
@@ -173,7 +182,7 @@ void lsattr_main(void)
       struct stat sb;
 
       if (lstat(*toys.optargs, &sb)) perror_msg("stat '%s'", *toys.optargs);
-      else if (S_ISDIR(sb.st_mode) && !(toys.optflags & FLAG_d))
+      else if (S_ISDIR(sb.st_mode) && !FLAG(d))
         dirtree_read(*toys.optargs, retell_dir);
       else print_file_attr(*toys.optargs);// to handle "./Filename" or "./Dir"
     }
