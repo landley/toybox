@@ -86,12 +86,11 @@ testing "dummy0 mtu 1269" \
 "ifconfig dummy0 mtu 1269 && ifconfig dummy0 | grep 1269 | wc -l" \
 "1\n" "" ""
 
-# Test Description: Verify ifconfig add fails with such a small mtu
-# Results Expected: There is one line of error message containing
-#                   "No buffer space available"
+# Test Description: ifconfig add for IPv6 fails with an mtu too small for IPv6.
+# Results Expected: Failure. No check for the exact error because old kernels
+#                   used ENOBUFS but 5.4 uses EINVAL.
 testing "dummy0 add ::2 -- too small mtu" \
-"ifconfig dummy0 add ::2 2>&1 | grep No\ buffer\ space\ available | wc -l" \
-"1\n" "" ""
+"ifconfig dummy0 add ::2 2>/dev/null || echo expected" "expected\n" "" ""
 
 # Test Description: Change the Maximum transmission unit (MTU) of the interface
 # Results Expected: After calling ifconfig dummy0, there is one line with the
