@@ -113,6 +113,13 @@ testing "duplicated --preserve options" \
   "cp --preserve=mode,mode walrus walrus2 2>&1 || echo bad" "" "" ""
 rm -rf walrus woot carpenter
 
+mkdir dir
+echo a > file
+echo b > b
+testing "-T file" "cp -T b file && cat file" "b\n" "" ""
+testing "-T dir" "cp -T b dir 2>/dev/null || echo expected" "expected\n" "" ""
+rm b file
+
 # cp -r ../source destdir
 # cp -r one/two/three missing
 # cp -r one/two/three two
