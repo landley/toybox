@@ -5,13 +5,14 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/vi.html
 
-USE_VI(NEWTOY(vi, "<1>1", TOYFLAG_USR|TOYFLAG_BIN))
+USE_VI(NEWTOY(vi, ">1s:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config VI
   bool "vi"
   default n
   help
-    usage: vi FILE
+    usage: vi [-s script] FILE
+    -s script: run script file
     Visual text editor. Predates the existence of standardized cursor keys,
     so the controls are weird and historical.
 */
@@ -20,6 +21,7 @@ config VI
 #include "toys.h"
 
 GLOBALS(
+    char *s;
     int cur_col;
     int cur_row;
     int scr_row;
@@ -885,6 +887,8 @@ void vi_main(void)
   char vi_buf[16] = {0};
   char utf8_code[8] = {0};
   int utf8_dec_p = 0, vi_buf_pos = 0;
+  FILE *script = 0;
+  if (FLAG(s)) script = fopen(TT.s, "r");
 
   TT.il = xzalloc(sizeof(struct str_line));
   TT.il->data = xzalloc(80);
@@ -912,7 +916,15 @@ void vi_main(void)
 
   draw_page();
   for (;;) {
-    int key = scan_key(keybuf, -1);
+    int key = 0;
+    if (script) {
+      key = fgetc(script);
+      if (key == EOF) {
+        fclose(script);
+        script = 0;
+        key = scan_key(keybuf, -1);
+      }
+    } else key = scan_key(keybuf, -1);
 
     if (key == -1) goto cleanup_vi;
 
@@ -983,6 +995,7 @@ void vi_main(void)
           TT.il->len = 0;
           memset(TT.il->data, 0, TT.il->alloc);
           break;
+        case 0x0A:
         case 0x0D:
           if (run_ex_cmd(TT.il->data) == -1)
             goto cleanup_vi;
@@ -1018,6 +1031,7 @@ void vi_main(void)
             TT.il->len -= shrink;
           }
           break;
+        case 0x0A:
         case 0x0D:
           //insert newline
           //
