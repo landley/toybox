@@ -97,7 +97,7 @@ GLOBALS(
   char *command;
 
   long lineno;
-  char **locals;
+  char **locals, *subshell_env;
   struct double_list functions;
   unsigned options, jobcnt;
   int hfd;  // next high filehandle (>= 10)
@@ -243,6 +243,18 @@ int skip_quote(char *s, int dquot, int *depth)
   return i;
 }
 
+// add argument to an arg_list
+void add_arg(struct arg_list **list, char *arg)
+{
+  struct arg_list *al;
+
+  if (!list) return;
+  al = xmalloc(sizeof(struct arg_list));
+  al->next = *list;
+  al->arg = arg;
+  *list = al;
+}
+
 // quote removal, brace, tilde, parameter/variable, $(command),
 // $((arithmetic)), split, path 
 #define NO_PATH  (1<<0)
@@ -337,13 +349,7 @@ TODO this recurses
 
   // Record result.
   if (old==new && (flags&FORCE_COPY)) new = xstrdup(new);
-  if (old!=new && delete) {
-    struct arg_list *al = xmalloc(sizeof(struct arg_list));
-
-    al->next = *delete;
-    al->arg = new;
-    *delete = al;
-  }
+  if (old!=new) add_arg(delete, new);
   array_add(&arg->v, arg->c++, new);
 }
 
@@ -611,9 +617,34 @@ struct sh_function {
 static int parse_line(char *line, struct sh_function *sp);
 void free_function(struct sh_function *sp);
 
-void run_subshell(struct sh_pipeline *sp)
+// TODO: waitpid(WNOHANG) to clean up zombies and catch background& ending
+
+static void subshell_callback(void)
 {
-  dprintf(2, "TODO: run_subshell\n");
+  TT.subshell_env = xmprintf("@%d,%d=", getpid(), getppid());
+  xsetenv(TT.subshell_env, 0);
+  TT.subshell_env[strlen(TT.subshell_env)-1] = 0;
+}
+
+// Pass environment and command string to child shell
+static int run_subshell(char *str, int len)
+{
+  int pipes[2], pid, i;
+
+  if (pipe(pipes) || 254 != dup2(pipes[0], 254)) return 1;
+  close(pipes[0]);
+
+  fcntl(pipes[1], F_SETFD, FD_CLOEXEC);
+
+  pid = xpopen_setup(0, 0, subshell_callback);
+  close(254);
+
+  if (TT.locals)
+    for (i = 0; TT.locals[i]; i++) dprintf(pipes[1], "%s\n", TT.locals[i]);
+  dprintf(pipes[1], "%.*s\n", len, str);
+  close(pipes[1]);
+
+  return pid;
 }
 
 // Expand arguments and perform redirections. Return new process object with
@@ -639,32 +670,27 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
 
     // Handle <() >() redirectionss
     if ((*s == '<' || *s == '>') && s[1] == '(') {
-      struct sh_function sf;
       int pipes[2], *uu = 0, dd;
 
       // Grab subshell data
-      memset(&sf, 0, sizeof(struct sh_function));
-      errno = 0;
-      if (parse_line(s+1, &sf) || pipe(pipes)) {
+      if (pipe(pipes)) {
         perror_msg_raw(s);
-        free_function(&sf);
         pp->exit = 1;
 
         return pp;
       }
-// pipe[1] > pipe[0]->0
-// pipe[0] < pipe[1]->1 
 
       // Perform input or output redirect and launch process
       dd = *s == '<';
       save_redirect(&uu, pipes[dd], dd);
-      fcntl(pipes[!dd], F_SETFD, FD_CLOEXEC);
-      run_subshell(sf.pipeline); // ignore errors, don't track
+      close(pipes[dd]);
+      run_subshell(s+2, strlen(s+2)-1); // ignore errors, don't track
       unredirect(uu);
       save_redirect(&urd, -1, pipes[!dd]);
 
-      // Argument is /dev/fd/%d with pipe filehandle
-      dlist_add((void *)&pp->delete, ss = xmprintf("/dev/fd/%d", pipes[dd]));
+      // bash uses /dev/fd/%d which requires /dev/fd to be a symlink to
+      // /proc/self/fd so we just produce that directly.
+      add_arg(&pp->delete, ss = xmprintf("/proc/self/fd/%d", pipes[!dd]));
       array_add(&pp->arg.v, pp->arg.c++, ss);
 
       continue;
@@ -755,7 +781,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
       free(tmp);
       if (bad) break;
 
-    // from>=0 means it's fd<<2 (new fd to dup2() after vfork()) plus
+    // from is fd<<2 (new fd to dup2() after vfork()) plus
     // 2 if we should close(from>>2) after dup2(from>>2, to),
     // 1 if we should close but dup for nofork recovery (ala <&2-)
 
@@ -772,7 +798,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
       }
 
       from = (ss==sss) ? to : atoi(sss);
-      if (*ss == '-') saveclose++;
+      saveclose = 2-(*ss == '-');
     } else {
 
       // Permissions to open external file with: < > >> <& >& <> >| &>> &>
@@ -804,8 +830,8 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
       setvar(cv, TAKE_MEM);
       cv = 0;
     }
-    if (saveclose && save_redirect(&pp->urd, -1, from)) bad++;
-    close(from);
+    if ((saveclose&1) && save_redirect(&pp->urd, -1, from)) bad++;
+    if (!(saveclose&2)) close(from);
     if (bad) break;
   }
 
@@ -1382,6 +1408,24 @@ static void dump_state(struct sh_function *sp)
   }
 }
 
+void dump_filehandles(char *when)
+{
+  int fd = open("/proc/self/fd", O_RDONLY);
+  DIR *dir = fdopendir(fd);
+  char buf[256];
+
+  if (dir) {
+    struct dirent *dd;
+
+    while ((dd = readdir(dir))) {
+      if (atoi(dd->d_name)!=fd && 0<readlinkat(fd, dd->d_name, buf,sizeof(buf)))
+        dprintf(2, "OPEN %s %d: %s = %s\n", when, getpid(), dd->d_name, buf);
+    }
+    closedir(dir);
+  }
+  close(fd);
+}
+
 /* Flow control statements:
 
   if/then/elif/else/fi, for select while until/do/done, case/esac,
@@ -1686,8 +1730,6 @@ static int sh_run(char *new)
   struct sh_function scratch;
   int rc;
 
-// TODO: parse with len? (End early?)
-
   memset(&scratch, 0, sizeof(struct sh_function));
   if (!parse_line(new, &scratch)) run_function(&scratch);
   free_function(&scratch);
@@ -1757,57 +1799,48 @@ static void do_prompt(char *prompt)
   writeall(2, toybuf, len);
 }
 
+// sanitize environment and handle nommu subshell handoff
 void subshell_imports(void)
 {
-/*
-  // TODO cull local variables because 'env "()=42" env | grep 42' works.
+  int to, from, pid = 0, ppid = 0, len;
+  struct stat st;
+  FILE *fp;
+  char *s;
 
-  // vfork() means subshells have to export and then re-import locals/functions
-  sprintf(toybuf, "(%d#%d)", getpid(), getppid());
-  if ((s = getenv(toybuf))) {
-    char *from, *to, *ss;
+  // Ensure environ copied and toys.envc set, and clean out illegal entries
+  xunsetenv("");
+  for (to = from = 0; (s = environ[from]); from++) {
 
-    unsetenv(toybuf);
-    ss = s;
-
-    // Loop through packing \\ until \0
-    for (from = to = s; *from; from++, to++) {
-      *to = *from;
-      if (*from != '\\') continue;
-      if (from[1] == '\\' || from[1] == '0') from++;
-      if (from[1] != '0') continue;
-      *to = 0;
-
-      // save chunk
-      for (ss = s; ss<to; ss++) {
-        if (*ss == '=') {
-          // first char of name is variable type ala declare
-          if (s+1<ss && strchr("aAilnru", *s)) {
-            setvar(ss, *s);
-
-            break;
-          }
-        } else if (!strncmp(ss, "(){", 3)) {
-          FILE *ff = fmemopen(s, to-s, "r");
-
-          while ((new = xgetline(ff, 0))) {
-            if ((prompt = parse_line(new, &scratch))<0) break;
-            free(new);
-          }
-          if (!prompt) {
-            add_function(s, scratch.pipeline);
-            free_function(&scratch);
-            break;
-          }
-          fclose(ff);
-        } else if (!isspace(*s) && !ispunct(*s)) continue;
-
-        error_exit("bad locals");
-      }
-      s = from+1;
+    // If nommu subshell gets handoff
+    if (!CFG_TOYBOX_FORK && !toys.stacktop) {
+      len = 0;
+      sscanf(s, "@%d,%d%n", &pid, &ppid, &len);
+      if (len && s[len]) pid = ppid = 0;
     }
+
+    // Filter out non-shell variable names
+    for (len = 0; s[len] && ((s[len] == '_') || !ispunct(s[len])); len++);
+    if (s[len] == '=') environ[to++] = environ[from];
   }
-*/
+  environ[toys.optc = to] = 0;
+
+//TODO indexed array,associative array,integer,local,nameref,readonly,uppercase
+//          if (s+1<ss && strchr("aAilnru", *s)) {
+
+  // sanity check: magic env variable, pipe status
+  if (CFG_TOYBOX_FORK || toys.stacktop || pid != getpid() || ppid != getppid())
+    return;
+  if (fstat(254, &st) || !S_ISFIFO(st.st_mode)) error_exit(0);
+  fcntl(254, F_SETFD, FD_CLOEXEC);
+  fp = fdopen(254, "r");
+
+  // This is not efficient, could array_add the local vars.
+// TODO implicit exec when possible
+  while ((s = xgetline(fp, 0))) to = sh_run(s);
+  fclose(fp);
+
+  toys.exitval = to;
+  xexit();
 }
 
 void sh_main(void)
@@ -1936,14 +1969,15 @@ void cd_main(void)
 
     // cancel out . and .. in the string
     for (from = to = dd; *from;) {
-      while (*from=='/' && from[1]=='/') from++;
-      if (*from!='/' || from[1]!='.') *to++ = *from++;
+      if (*from=='/' && from[1]=='/') from++;
+      else if (*from!='/' || from[1]!='.') *to++ = *from++;
       else if (!from[2] || from[2]=='/') from += 2;
       else if (from[2]=='.' && (!from[3] || from[3]=='/')) {
         from += 3;
         while (to>dd && *--to != '/');
       } else *to++ = *from++;
     }
+    if (to == dd) to++;
     if (to-dd>1 && to[-1]=='/') to--;
     *to = 0;
   }
@@ -1960,5 +1994,3 @@ void exit_main(void)
 {
   exit(*toys.optargs ? atoi(*toys.optargs) : 0);
 }
-
-
