@@ -4,35 +4,28 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-# lsattr - Testcases
+# We don't know whether the fs will have extents (e, typically true on the
+# desktop) or be encrypted (E, typically true on Android), so ask.
+# Unfortunately, this requires that we trust lsattr...
 mkdir dir && cd dir && touch file
+_b=$(lsattr -d . | awk '{print $1}')
+_A=$(lsattr file | sed 's/^--------/-------A/' | awk '{print $1}')
+attrs="No_Atime"
+lsattr -d . | grep -q e && attrs="$attrs, Extents"
+lsattr -d . | grep -q E && attrs="$attrs, Encrypted"
+
 chattr +A file &>/dev/null
 
-_p=$PWD
-_b="-------------"
-_A="-------A-----"
-
 testing "file" "lsattr file" "$_A file\n" "" ""
-testing "file_path" "lsattr $_p/file" "$_A $_p/file\n" "" ""
 testing "-R file" "lsattr -R file" "$_A file\n" "" ""
-testing "-R file_path" "lsattr -R $_p/file" "$_A $_p/file\n" "" ""
 testing "-a file" "lsattr -a file" "$_A file\n" "" ""
-testing "-a file_path" "lsattr -a $_p/file" "$_A $_p/file\n" "" ""
 testing "-d ." "lsattr -d ." "$_b .\n" "" ""
-testing "-d dir_path" "lsattr -d $_p" "$_b $_p\n" "" ""
 testing "-d file" "lsattr -d file" "$_A file\n" "" ""
-testing "-d file_path" "lsattr -d $_p/file" "$_A $_p/file\n" "" ""
-sp_44="                                            "
-testing "-l file" "lsattr -l file" "file  $sp_44 No_Atime\n" "" ""
-_v="12345"
-testing "-v file" "chattr -v $_v * && lsattr -v file" \
-  "$_v $_A file\n" "" ""
-testing "-v file_path" "chattr -v $_v * && lsattr -v $_p/file" \
-  "$_v $_A $_p/file\n" "" ""
-testing "-Radlv file1 file2" "chattr -v $_v * &&
-   lsattr -Radlv file input" \
-  "$_v file  $sp_44 No_Atime\n$_v input $sp_44 ---\n" "" ""
+NOSPACE=1 testing "-l file" "lsattr -l file" "file   $attrs\n" "" ""
+NOSPACE=1 testing "-v file" "lsattr -v file | sed 's/^[0-9]*/_/'" \
+  "_ $_A file\n" "" ""
+NOSPACE=1 testing "-lv file" "lsattr -lv file | sed 's/^[0-9]*/_/'" \
+  "_ file   $attrs\n" "" ""
 
-# Cleanup
 chattr -AacDdijsStTu file && cd ..
 rm -rf dir
