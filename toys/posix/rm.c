@@ -99,6 +99,11 @@ void rm_main(void)
       error_msg("rm /. if you mean it");
       continue;
     }
+    // "rm dir/.*" can expand to include .. which generally isn't what you want
+    if (!strcmp("..", basename(*s))) {
+      error_msg("bad path %s", *s);
+      continue;
+    }
 
     // Files that already don't exist aren't errors for -f, so try a quick
     // unlink now to see if it succeeds or reports that it didn't exist.
