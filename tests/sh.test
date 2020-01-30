@@ -10,9 +10,18 @@
 export EVAL="$SH -c"
 
 testing "" "echo hello" "hello\n" "" ""
+testing "semicolon" "echo one;echo two" "one\ntwo\n" "" ""
 testing "simple pipe" "echo hello | cat" "hello\n" "" ""
-testing "brackets" "echo {A{a,b}B{c,d}C}" "{AaBcC} {AaBdC} {AbBcC} {AbBdC}\n" \
-  "" ""
+testing "&&" "true && echo hello" "hello\n" "" ""
+testing "&&2" "false && echo hello" "" "" ""
+testing "||" "true || echo hello" "" "" ""
+testing "||2" "false || echo hello" "hello\n" "" ""
+testing "&& ||" "true && false && potato || echo hello" "hello\n" "" ""
+
+testing "tilde expansion" "echo ~" "$HOME\n" "" ""
+testing "tilde2" "echo ~/dir" "$HOME/dir\n" "" ""
+testing "bracket expansion" \
+  "echo {A{a,b}B{c,d}C}" "{AaBcC} {AaBdC} {AbBcC} {AbBdC}\n" "" ""
 testing "brackets2" "echo {A{a,b}B{c,d}C,D}" "AaBcC AaBdC AbBcC AbBdC D\n" "" ""
 testing "brackets3" 'echo {A"b,c"D}' "{Ab,cD}\n" "" ""
 testing "brackets4" 'echo {A"bc",D}' "Abc D\n" "" ""
@@ -21,7 +30,10 @@ testing "brackets6" 'echo {{{{A,B},C}D},E}' "{AD} {BD} {CD} E\n" "" ""
 testing "brackets7" 'echo {{{a,b},c,{d,e}},f}' "a b c d e f\n" "" ""
 testing "brackets8" 'echo A{a{b,c{B,C}D}d{e,f},g{h,i}j}E' \
   "AabdeE AabdfE AacBDdeE AacBDdfE AacCDdeE AacCDdfE AghjE AgijE\n" "" ""
-
+testing "brackets9" 'echo A{B{C,D}E{N,O},F{G,H}I}J{K,L}M' \
+  "ABCENJKM ABCENJLM ABCEOJKM ABCEOJLM ABDENJKM ABDENJLM ABDEOJKM ABDEOJLM AFGIJKM AFGIJLM AFHIJKM AFHIJLM\n" "" ""
+for i in /root /var/root /; do [ -e $i ] && EXPECT=$i && break; done
+testing "bracket+tilde" "echo {~,~root}/pwd" "$HOME/pwd $EXPECT/pwd\n" "" ""
 
 testing "leading variable assignment" 'abc=def env | grep ^abc=; echo $abc' \
   "abc=def\n\n" "" ""
@@ -42,4 +54,4 @@ SH="env -i PATH=${PATH@Q} PS1='\\$ ' $SH --noediting --noprofile --norc -is"
 
 txpect "prompt and exit" "$SH" "E$P" "Iexit\n" X0
 txpect "prompt and echo" "$SH" "E$P" "Iecho hello\n" "Ohello"$'\n' "E$P" X0
-txpect "redirect err" "$SH" "E$P" "Iecho > /dev/full\n" "E" "E$" X0
+txpect "redirect err" "$SH" "E$P" "Iecho > /dev/full\n" "E" "E$P" X0
