@@ -217,8 +217,6 @@ static char *getvar(char *s)
   return getvarlen(s, strlen(s));
 }
 
-
-
 // returns pointer to next unquoted (or double quoted if dquot) char.
 // handle \ '' "" `` $()
 int skip_quote(char *s, int dquot, int *depth)
@@ -304,6 +302,15 @@ static void expand_arg_nobrace(struct sh_arg *arg, char *old, unsigned flags,
 
 // ${ $(( $( $[ $' ` " '
 
+// TODO this is wrong
+  if (*new == '$') {
+    char *s = getvar(new+1);
+
+    if (new != old) free(new);
+    if (!s) return;
+    new = xstrdup(s);
+  }
+
 /*
   while (*s) {
     if (!quote && !(flags&NO_BRACE) && *s == '{') {
@@ -333,8 +340,9 @@ TODO this recurses
   }
 */
 
+// TODO not else?
   // quote removal
-  if (!(flags&NO_QUOTE)) {
+  else if (!(flags&NO_QUOTE)) {
     int to = 0, from = 0;
 
     for (;;) {
@@ -915,7 +923,7 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
           env[ll] = sss;
           break;
         }
-        if (ll == kk) array_add(&env, kk, sss);
+        if (ll == kk) array_add(&env, kk++, sss);
       }
       environ = env;
     }
