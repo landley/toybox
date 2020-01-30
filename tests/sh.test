@@ -9,7 +9,9 @@
 [ -z "$SH" ] && { [ -z "$TEST_HOST" ] && SH="sh" || export SH="bash" ; }
 export EVAL="$SH -c"
 
-testing "" "echo hello" "hello\n" "" ""
+testing "smoketest" "echo hello" "hello\n" "" ""
+
+# ; | && ||
 testing "semicolon" "echo one;echo two" "one\ntwo\n" "" ""
 testing "simple pipe" "echo hello | cat" "hello\n" "" ""
 testing "&&" "true && echo hello" "hello\n" "" ""
@@ -17,6 +19,14 @@ testing "&&2" "false && echo hello" "" "" ""
 testing "||" "true || echo hello" "" "" ""
 testing "||2" "false || echo hello" "hello\n" "" ""
 testing "&& ||" "true && false && potato || echo hello" "hello\n" "" ""
+
+# redirection
+
+testing "" "cat < input" "hello\n" "hello\n" ""
+testing "" "echo blah >out; cat out" "blah\n" "" ""
+testing "" "touch /not/exist 2>out||grep -o /not/exist out" "/not/exist\n" "" ""
+#testing "" 'echo hello | (read i <input; echo $i; read i; echo $i)' \
+#  "there\nhello\n" "there\n" ""
 
 testing "tilde expansion" "echo ~" "$HOME\n" "" ""
 testing "tilde2" "echo ~/dir" "$HOME/dir\n" "" ""

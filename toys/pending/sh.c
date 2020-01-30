@@ -22,16 +22,62 @@
  * TODO: test that $PS1 color changes work without stupid \[ \] hack
  * TODO: make fake pty wrapper for test infrastructure
  * TODO: // Handle embedded NUL bytes in the command line.
- * existing but considered builtins: false kill pwd true time
+ * existing but considered builtins: kill pwd time
  * buitins: alias bg command fc fg getopts jobs newgrp read umask unalias wait
- * "special" builtins: break continue : . eval exec export readonly return set
- *   shift times trap unset
+ *          disown umask suspend source pushd popd dirs logout times trap
+ *          unset local export readonly set : . let history declare
+ * "special" builtins: break continue eval exec return shift
+ * builtins with extra shell behavior: kill pwd time test
  * | & ; < > ( ) $ ` \ " ' <space> <tab> <newline>
  * * ? [ # ~ = %
  * ! { } case do done elif else esac fi for if in then until while
  * [[ ]] function select
  * $@ $* $# $? $- $$ $! $0
  * ENV HOME IFS LANG LC_ALL LINENO PATH PPID PS1 PS2 PS4 PWD
+
+// EUID GROUPS HOSTNAME HOSTTYPE=$(uname -m) MACHTYPE=$HOSTTYPE-unknown-linux
+// OLDPWD OSTYPE=linux/android PIPESTATUS PPID PWD RANDOM REPLY SECONDS UID
+// COLUMNS LINES HOME SHELL
+// IFS PATH
+// PS0 PS1='$ ' PS2='> ' PS3
+
+ENV - if [ -n "$ENV" ]; then . "$ENV"; fi # BASH_ENV - synonym for ENV
+#EXECIGNORE, FIGNORE, GLOBIGNORE
+FUNCNEST - maximum function nesting level (abort when above)
+
+BASH - argv0?
+BASHPID - synonym for $$ HERE
+BASH_SUBSHELL - SHLVL synonym
+BASH_EXECUTION_STRING - -c argument
+BASH_VERSION - toybox version
+
+REPLY - set by input with no args
+SHLVL - nested level of subshells, starting with 1
+UID  - readonly
+EUID - readonly
+PPID - readonly
+
+automatically set:
+HOME SHELL HOSTNAME
+HOSTTYPE - uname -m
+MACHTYPE - $(uname -m)-unknown-linux
+OSTYPE - unaem -o
+OPTARG - set by getopts builtin
+OPTIND - set by getopts builtin
+OPTERR
+OLDPWD - set by cd each time
+PWD - set by cd
+COLUMNS LINES - set at start and by winch
+
+PROMPT_COMMAND PROMPT_DIRTRIM PS0 PS1 PS2 PS3 PS4
+
+unsettable (assignments ignored before then)
+LINENO SECONDS RANDOM
+GROUPS - id -g
+HISTCMD - history number
+
+TMOUT - used by read
+
  * label:
  * TODO: test exit from "trap EXIT" doesn't recurse
  * TODO: ! history expansion
@@ -145,6 +191,7 @@ static void syntax_err(char *msg, ...)
   if (*toys.optargs) xexit();
 }
 
+// append to array with null terminator and realloc as necessary
 void array_add(char ***list, unsigned count, char *data)
 {
   if (!(count&31)) *list = xrealloc(*list, sizeof(char *)*(count+33));
@@ -217,8 +264,8 @@ static char *getvar(char *s)
   return getvarlen(s, strlen(s));
 }
 
-// returns pointer to next unquoted (or double quoted if dquot) char.
-// handle \ '' "" `` $()
+// returns offset of next unquoted (or double quoted if dquot) char.
+// handles \ '' "" `` $()
 int skip_quote(char *s, int dquot, int *depth)
 {
   int i, q = dquot ? *depth : 0;
@@ -228,12 +275,13 @@ int skip_quote(char *s, int dquot, int *depth)
     char c = s[i], qq = q ? toybuf[q-1] : 0;
 
     if (c == '\\') i++;
+    else if (dquot && q==1 && qq=='"' && c!='"') break;
     else if (qq!='\'' && c=='$' && s[1]=='(') {
       toybuf[q++] = ')';
       i++;
     } else if (q && qq==c) q--;
     else if ((!q || qq==')') && (c=='"' || c=='\'' || c=='`')) toybuf[q++] = c;
-    else if (!q || (dquot && q==1 && qq=='"')) break;
+    else if (!q) break;
   }
 
   if (dquot) *depth = q;
@@ -253,15 +301,14 @@ void add_arg(struct arg_list **list, char *arg)
   *list = al;
 }
 
-// quote removal, brace, tilde, parameter/variable, $(command),
-// $((arithmetic)), split, path 
-#define NO_PATH  (1<<0)
-#define NO_SPLIT (1<<1)
-#define NO_BRACE (1<<2)
-#define NO_TILDE (1<<3)
-#define NO_QUOTE (1<<4)
-#define FORCE_COPY (1<<31)
-#define FORCE_KEEP (1<<30)
+#define NO_PATH  (1<<0)    // path expansion (wildcards)
+#define NO_SPLIT (1<<1)    // word splitting
+#define NO_BRACE (1<<2)    // {brace,expansion}
+#define NO_TILDE (1<<3)    // ~username/path
+#define NO_QUOTE (1<<4)    // quote removal
+#define FORCE_COPY (1<<31) // don't keep original, copy even if not modified
+#define FORCE_KEEP (1<<30) // this is a copy, free if not appended to delete
+// TODO: parameter/variable $(command) $((math)) split pathglob
 // TODO: ${name:?error} causes an error/abort here (syntax_err longjmp?)
 // TODO: $1 $@ $* need args marshalled down here: function+structure?
 // arg = append to this
@@ -272,7 +319,8 @@ void add_arg(struct arg_list **list, char *arg)
 static void expand_arg_nobrace(struct sh_arg *arg, char *old, unsigned flags,
   struct arg_list **delete)
 {
-  char *new = old;
+  char *new = old, *s, *ss, *sss;
+  int depth = 0;
 
   if (flags&FORCE_KEEP) old = 0;
 
@@ -281,7 +329,6 @@ static void expand_arg_nobrace(struct sh_arg *arg, char *old, unsigned flags,
   // Tilde expansion
   if (!(flags&NO_TILDE) && *new == '~') {
     struct passwd *pw = 0;
-    char *s, *ss, *sss;
 
     // first expansion so don't need to free previous new
     ss = 0;
@@ -300,7 +347,7 @@ static void expand_arg_nobrace(struct sh_arg *arg, char *old, unsigned flags,
     new = s;
   }
 
-// ${ $(( $( $[ $' ` " '
+  // parameter/variable expansion
 
 // TODO this is wrong
   if (*new == '$') {
@@ -312,19 +359,16 @@ static void expand_arg_nobrace(struct sh_arg *arg, char *old, unsigned flags,
   }
 
 /*
+  for (s = new; *(s += skip_quote(s, 1, &depth));) {
+    if (*s == '`') {
+
+// ${ $(( $( $[ $' ` " '
+
   while (*s) {
-    if (!quote && !(flags&NO_BRACE) && *s == '{') {
-TODO this recurses
-    } else if (quote != '*s == '$') {
+    if (quote != '*s == '$') {
       // *@#?-$!_0 "Special Paremeters" ($0 not affected by shift)
       // 0-9 positional parameters
       if (s[1] == '$'
-
-// EUID GROUPS HOSTNAME HOSTTYPE=$(uname -m) MACHTYPE=$HOSTTYPE-unknown-linux
-// OLDPWD OSTYPE=linux/android PIPESTATUS PPID PWD RANDOM REPLY SECONDS UID
-// COLUMNS LINES HOME SHELL
-// IFS PATH
-// PS0 PS1='$ ' PS2='> ' PS3
     }
   }
 
@@ -488,7 +532,6 @@ static void expand_arg(struct sh_arg *arg, char *old, unsigned flags,
     if (!bb) return llist_traverse(blist, free);
   }
 }
-
 
 // Expand exactly one arg, returning NULL if it split.
 static char *expand_one_arg(char *new, unsigned flags, struct arg_list **del)
