@@ -148,7 +148,8 @@ else
   # which is used to build the rest (in alphabetical order)
   for i in i686:: \
          aarch64:eabi: armv4l:eabihf:"--with-arch=armv5t --with-float=soft" \
-         armv5l:eabihf:--with-arch=armv5t armv7l:eabihf:--with-arch=armv7-a \
+         "armv5l:eabihf:--with-arch=armv5t --with-float=vfp" \
+         "armv7l:eabihf:--with-arch=armv7-a --with-float=vfp" \
          "armv7m:eabi:--with-arch=armv7-m --with-mode=thumb --disable-libatomic --enable-default-pie" \
          armv7r:eabihf:"--with-arch=armv7-r --enable-default-pie" \
          i486:: m68k:: microblaze:: mips:: mips64:: mipsel:: powerpc:: \
