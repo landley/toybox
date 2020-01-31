@@ -126,3 +126,10 @@ extern char **environ;
 #define GLOBALS(...)
 #define ARRAY_LEN(array) (sizeof(array)/sizeof(*array))
 #define TAGGED_ARRAY(X, ...) {__VA_ARGS__}
+
+#ifndef TOYBOX_VERSION
+#ifndef TOYBOX_VENDOR
+#define TOYBOX_VENDOR ""
+#endif
+#define TOYBOX_VERSION "0.8.3"TOYBOX_VENDOR
+#endif

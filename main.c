@@ -5,13 +5,6 @@
 
 #include "toys.h"
 
-#ifndef TOYBOX_VERSION
-#ifndef TOYBOX_VENDOR
-#define TOYBOX_VENDOR ""
-#endif
-#define TOYBOX_VERSION "0.8.2"TOYBOX_VENDOR
-#endif
-
 // Populate toy_list[].
 
 #undef NEWTOY

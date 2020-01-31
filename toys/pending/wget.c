@@ -135,7 +135,7 @@ void wget_main(void)
   FILE *fp;
   ssize_t len, body_len;
   char *body, *result, *rc, *r_str, *redir_loc = 0;
-  char ua[18] = "toybox wget", ver[6], hostname[1024], port[6], path[1024];
+  char ua[18] = "toybox wget",  hostname[1024], port[6], path[1024];
 
   // TODO extract filename to be saved from URL
   if (!(toys.optflags & FLAG_O)) help_exit("no filename");
@@ -145,9 +145,7 @@ void wget_main(void)
   get_info(toys.optargs[0], hostname, port, path);
 
 
-#ifdef TOYBOX_VERSION
-  strcat(ua, "/"), strncpy(ver, TOYBOX_VERSION, 5), strcat(ua, ver);
-#endif
+  sprintf("/%s", TOYBOX_VERSION);
   for (;; redirects--) {
     sock = conn_svr(hostname, port);
     // compose HTTP request
