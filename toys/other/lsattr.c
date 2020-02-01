@@ -14,9 +14,9 @@ config LSATTR
   bool "lsattr"
   default y
   help
-    usage: lsattr [-Radlpv] [file...]
+    usage: lsattr [-Radlpv] [FILE...]
 
-    List file attributes on a Linux second extended file system.
+    List file attributes on a Linux file system.
     Flag letters are defined in chattr help.
 
     -R	Recursively list attributes of directories and their contents
@@ -30,9 +30,9 @@ config CHATTR
   bool "chattr"
   default y
   help
-    usage: chattr [-R] [-+=AacDdijsStTu] [-p projid] [-v version] [file...]
+    usage: chattr [-R] [-+=AacDdijsStTu] [-p PROJID] [-v VERSION] [FILE...]
 
-    Change file attributes on a Linux second extended file system.
+    Change file attributes on a Linux file system.
 
     -R	Recurse
     -p	Set the file's project number
@@ -44,21 +44,19 @@ config CHATTR
       '=' Set attributes
 
     Attributes:
-      A  Don't track atime
-      a  Append mode only
-      C  No copy on write
-      c  Enable compress
-      D  Write dir contents synchronously
-      d  Don't backup with dump
-      F  Case-insensitive directory lookups (casefold)
-      i  Cannot be modified (immutable)
-      j  Write all data to journal first
+      A  No atime                     a  Append only
+      C  No COW                       c  Compression
+      D  Synchronous dir updates      d  No dump
+      E  Encrypted                    e  Extents
+      F  Case-insensitive (casefold)
+      I  Indexed directory            i  Immutable
+      j  Journal data
+      N  Inline data in inode
       P  Project hierarchy
-      S  Write file contents synchronously
-      s  Zero disk storage when deleted
-      T  Top of directory hierarchy
-      t  Disable tail-merging of partial blocks with other files
-      u  Allow file to be undeleted
+      S  Synchronous file updates     s  Secure delete
+      T  Top of dir hierarchy         t  No tail-merging
+      u  Allow undelete
+      V  Verity
 */
 #define FOR_lsattr
 #include "toys.h"
