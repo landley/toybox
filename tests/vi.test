@@ -7,11 +7,10 @@ cp $FILES/vi/ascii.txt in.txt
 cp $FILES/vi/dd_first.in cmd.txt
 cp $FILES/vi/ascii_dd_first.out out.txt
 
-
-testing "dd first line ascii" \
+toyonly testing "dd first line ascii" \
   "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
 
-# teardown 
+# teardown
 rm in.txt cmd.txt out.txt
 
 # setup
@@ -19,45 +18,43 @@ cp $FILES/vi/ascii.txt in.txt
 cp $FILES/vi/dd_last.in cmd.txt
 cp $FILES/vi/ascii_dd_last.out out.txt
 
-testing "dd last line ascii" \
+toyonly testing "dd last line ascii" \
   "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
 
-# teardown 
+# teardown
 rm in.txt cmd.txt out.txt
 
+# setup
+cp $FILES/vi/ascii.txt in.txt
+cp $FILES/vi/dw_last.in cmd.txt
+cp $FILES/vi/ascii_dw_last.out out.txt
 
-## setup
-#cp $FILES/vi/ascii.txt in.txt
-#cp $FILES/vi/dw_last.in cmd.txt
-#cp $FILES/vi/ascii_dw_last.out out.txt
-#
-#testing "dw last line ascii" \
-#  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
-#
-## teardown 
-#rm in.txt cmd.txt out.txt
+toyonly testing "dw last line ascii" \
+  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
+
+# teardown
+rm in.txt cmd.txt out.txt
 
 # setup
 cp $FILES/vi/ascii.txt in.txt
 cp $FILES/vi/dw_first.in cmd.txt
 cp $FILES/vi/ascii_dw_first.out out.txt
 
-testing "dw first line ascii" \
+toyonly testing "dw first line ascii" \
   "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
 
-# teardown 
+# teardown
 rm in.txt cmd.txt out.txt
-
 
 # setup
 cp $FILES/vi/ascii.txt in.txt
 cp $FILES/vi/D_first.in cmd.txt
 cp $FILES/vi/ascii_D_first.out out.txt
 
-testing "D first line ascii" \
+toyonly testing "D first line ascii" \
   "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
 
-# teardown 
+# teardown
 rm in.txt cmd.txt out.txt
 
 # setup
@@ -65,8 +62,75 @@ cp $FILES/vi/ascii.txt in.txt
 cp $FILES/vi/D_last.in cmd.txt
 cp $FILES/vi/ascii_D_last.out out.txt
 
-testing "D last line ascii" \
+toyonly testing "D last line ascii" \
   "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
 
-# teardown 
+# teardown
 rm in.txt cmd.txt out.txt
+
+# setup
+cp $FILES/vi/ascii.txt in.txt
+cp $FILES/vi/yw_push.in cmd.txt
+cp $FILES/vi/ascii_yw_push.out out.txt
+
+toyonly testing "yw push ascii" \
+  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
+
+# teardown
+rm in.txt cmd.txt out.txt
+
+# setup
+cp $FILES/vi/ascii.txt in.txt
+cp $FILES/vi/insert_sof.in cmd.txt
+cp $FILES/vi/ascii_insert_sof.out out.txt
+
+toyonly testing "insert start of file ascii" \
+  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
+
+# teardown
+rm in.txt cmd.txt out.txt
+
+# setup
+cp $FILES/vi/ascii.txt in.txt
+cp $FILES/vi/insert_eof.in cmd.txt
+cp $FILES/vi/ascii_insert_eof.out out.txt
+
+toyonly testing "insert end of file ascii" \
+  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
+
+# teardown
+rm in.txt cmd.txt out.txt
+
+# setup
+cp $FILES/vi/ascii.txt in.txt
+cp $FILES/vi/insert_after_w.in cmd.txt
+cp $FILES/vi/ascii_insert_after_w.out out.txt
+
+toyonly testing "insert after first word ascii" \
+  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
+
+# teardown
+rm in.txt cmd.txt out.txt
+
+# setup
+cp $FILES/vi/ascii.txt in.txt
+cp $FILES/vi/insert_multi.in cmd.txt
+cp $FILES/vi/ascii_insert_multi.out out.txt
+
+toyonly testing "insert multiple times ascii" \
+  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
+
+# teardown
+rm in.txt cmd.txt out.txt
+
+# setup
+cp $FILES/vi/ascii.txt in.txt
+cp $FILES/vi/insert_multi_yy_push.in cmd.txt
+cp $FILES/vi/ascii_insert_multi_yy_push.out out.txt
+
+toyonly testing "insert multi yank move and push ascii" \
+  "vi -s cmd.txt in.txt 1>/dev/null 2>/dev/null && cmp in.txt out.txt && echo yes" "yes\n" "" ""
+
+# teardown
+rm in.txt cmd.txt out.txt
+
