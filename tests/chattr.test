@@ -17,10 +17,7 @@ function clean()
   # the long and short forms of those.
   # We also don't want to rely on chattr(1) to set a known version number or
   # project number, so blank out any numbers.
-  sed 's/, Encrypted//' | \
-  sed 's/-E-/---/' | \
-  sed 's/, Extents//' | \
-  sed 's/-e-/---/' | \
+  sed 's/, Encrypted//; s/-E-/---/; s/, Extents//; s/-e-/---/' | \
   sed -E 's/[0-9]+/_/g'
 }
 
@@ -53,39 +50,39 @@ testing "[-/+]i FILE[move]" "$IN && date > testFile &&
 testing "[-/+]i FILE[delete]" "$IN && touch testFile && chattr +i testFile &&
          rm -f testFile 2>/dev/null || lsattr testFile | clean &&
          chattr -i testFile; rm -rf testFile; $OUT" "$_i testFile\n" "" ""
-testing "[-/+]i FILE[read]" "$IN && echo "$_t" > testFile && 
-         chattr +i testFile && cat testFile && lsattr testFile | clean && 
+testing "[-/+]i FILE[read]" "$IN && echo "$_t" > testFile &&
+         chattr +i testFile && cat testFile && lsattr testFile | clean &&
          chattr -i testFile; rm -rf testFile; $OUT" "$_t\n$_i testFile\n" "" ""
 
 # 'a' --- append-only
 _a="-----a--------------"
-testing "[-/+]a FILE[write]" "$IN && echo "$_t" > testFile && 
-         chattr +a testFile && echo $_t > testFile || lsattr testFile | clean && 
-         chattr -a testFile; rm -rf testFile; $OUT" "$_a testFile\n" "" ""
-testing "[-/+]a FILE[re-write]" "$IN && echo "$_t" > testFile && 
+testing "[-/+]a FILE[write]" "$IN && echo "$_t" > testFile &&
          chattr +a testFile && echo $_t > testFile || lsattr testFile | clean &&
-         chattr -a testFile && echo $_t > testFile && cat testFile && 
-         lsattr testFile | clean; rm -rf testFile; 
+         chattr -a testFile; rm -rf testFile; $OUT" "$_a testFile\n" "" ""
+testing "[-/+]a FILE[re-write]" "$IN && echo "$_t" > testFile &&
+         chattr +a testFile && echo $_t > testFile || lsattr testFile | clean &&
+         chattr -a testFile && echo $_t > testFile && cat testFile &&
+         lsattr testFile | clean; rm -rf testFile;
          $OUT" "$_a testFile\n$_t\n$_empty testFile\n" "" ""
-testing "[-/+]a FILE[append]" "$IN && echo "$_t" > testFile && 
-         chattr +a testFile && echo $_t >> testFile && cat testFile && 
+testing "[-/+]a FILE[append]" "$IN && echo "$_t" > testFile &&
+         chattr +a testFile && echo $_t >> testFile && cat testFile &&
          lsattr testFile | clean && chattr -a testFile; rm -rf testFile; $OUT" \
          "$_t\n$_t\n$_a testFile\n" "" ""
-testing "[-/+]a FILE[move]" "$IN && echo "$_t" > testFile && 
+testing "[-/+]a FILE[move]" "$IN && echo "$_t" > testFile &&
          chattr +a testFile && mv testFile testFile1 ||
          lsattr testFile | clean && chattr -a testFile; rm -rf testFile; $OUT" \
          "$_a testFile\n" "" ""
-testing "[-/+]a FILE[delete]" "$IN && echo "$_t" > testFile && 
-         chattr +a testFile && rm -f testFile || lsattr testFile | clean && 
+testing "[-/+]a FILE[delete]" "$IN && echo "$_t" > testFile &&
+         chattr +a testFile && rm -f testFile || lsattr testFile | clean &&
          chattr -a testFile; rm -rf testFile; $OUT" "$_a testFile\n" "" ""
-testing "[-/+]a FILE[read]" "$IN && echo "$_t" > testFile && 
+testing "[-/+]a FILE[read]" "$IN && echo "$_t" > testFile &&
          chattr +a testFile && cat testFile && lsattr testFile | clean &&
          chattr -a testFile; rm -rf testFile; $OUT" "$_t\n$_a testFile\n" "" ""
 
 for attr in "A" "a" "c" "D" "d" "i" "j" "s" "S" "t" "T" "u"
 do
-  testing "[-/+]$attr FILE" "$IN && echo "$_t" > testFile && 
-           chattr +$attr testFile && cat testFile && chattr -$attr testFile && 
+  testing "[-/+]$attr FILE" "$IN && echo "$_t" > testFile &&
+           chattr +$attr testFile && cat testFile && chattr -$attr testFile &&
            lsattr testFile | clean; rm -rf testFile; $OUT" "$_t\n$_empty testFile\n" "" ""
 done
 
@@ -95,11 +92,11 @@ do
            cat testFile && lsattr testFile | clean; rm -rf testFile; $OUT" "$_t\n$_empty testFile\n" "" ""
 done
 
-testing "[-/+]AacDdijsStTu FILE" "$IN && echo "$_t" > testFile && 
-         chattr +AacDdijsStTu testFile && cat testFile && chattr -AacDdijsStTu testFile && 
+testing "[-/+]AacDdijsStTu FILE" "$IN && echo "$_t" > testFile &&
+         chattr +AacDdijsStTu testFile && cat testFile && chattr -AacDdijsStTu testFile &&
          lsattr testFile | clean; rm -rf testFile; $OUT" "$_t\n$_empty testFile\n" "" ""
 testing "[-/+]AacDdijsStTu(random) FILE" \
-        "$IN && echo "$_t" > testFile && 
+        "$IN && echo "$_t" > testFile &&
         chattr +AacDdijsStTu testFile && cat testFile && chattr -A testFile &&
         chattr -a testFile && chattr -c testFile && chattr -D testFile &&
         chattr -d testFile && chattr -i testFile && chattr -j testFile &&
@@ -107,7 +104,7 @@ testing "[-/+]AacDdijsStTu(random) FILE" \
         chattr -T testFile && chattr -u testFile && lsattr testFile | clean &&
         chattr -AacDdijsStTu testFile; rm -rf testFile; $OUT" \
         "$_t\n$_empty testFile\n" "" ""
-testing "[-/+]AacDdijsStTu FILE*" "$IN && 
+testing "[-/+]AacDdijsStTu FILE*" "$IN &&
         echo "$_t" > testFile && echo "$_t" > testFile1 &&
         echo "$_t" > testFile2 && echo "$_t" > testFile3 &&
         echo "$_t" > testFile4 && echo "$_t" > testFile5 &&
@@ -147,7 +144,7 @@ testing "[-/+]s FILE[write]" \
 	rm -rf testFile; $OUT" "$_s testFile\n" "" ""
 NOSPACE=1 testing "-v version FILE[write]" \
 	"$IN && echo "$_t" > testFile &&
-	chattr -v 1234 testFile && echo \"$_t\" > testFile && 
+	chattr -v 1234 testFile && echo \"$_t\" > testFile &&
 	lsattr -v testFile | clean; rm -rf testFile" \
 	"_ $_empty testFile\n" "" ""
 
