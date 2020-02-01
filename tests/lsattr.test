@@ -17,10 +17,7 @@ function clean()
   # the long and short forms of those.
   # We also don't want to rely on chattr(1) to set a known version number or
   # project number, so blank out any numbers.
-  sed 's/, Encrypted//' | \
-  sed 's/-E-/---/' | \
-  sed 's/, Extents//' | \
-  sed 's/-e-/---/' | \
+  sed 's/, Encrypted//; s/-E-/---/; s/, Extents//; s/-e-/---/' | \
   sed -E 's/[0-9]+/_/g'
 }
 
