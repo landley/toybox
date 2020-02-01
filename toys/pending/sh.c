@@ -19,64 +19,22 @@
  *
  * Things like the bash man page are good to read too.
  *
+ * deviations from posix: don't care about $LANG or $LC_ALL
+
  * TODO: test that $PS1 color changes work without stupid \[ \] hack
- * TODO: make fake pty wrapper for test infrastructure
- * TODO: // Handle embedded NUL bytes in the command line.
- * existing but considered builtins: kill pwd time
+ * TODO: Handle embedded NUL bytes in the command line? (When/how?)
+ * TODO: replace getenv() with faster func: sort env and binary search
+
  * buitins: alias bg command fc fg getopts jobs newgrp read umask unalias wait
  *          disown umask suspend source pushd popd dirs logout times trap
  *          unset local export readonly set : . let history declare
  * "special" builtins: break continue eval exec return shift
  * builtins with extra shell behavior: kill pwd time test
+
  * | & ; < > ( ) $ ` \ " ' <space> <tab> <newline>
  * * ? [ # ~ = %
  * ! { } case do done elif else esac fi for if in then until while
  * [[ ]] function select
- * $@ $* $# $? $- $$ $! $0
- * ENV HOME IFS LANG LC_ALL LINENO PATH PPID PS1 PS2 PS4 PWD
-
-// EUID GROUPS HOSTNAME HOSTTYPE=$(uname -m) MACHTYPE=$HOSTTYPE-unknown-linux
-// OLDPWD OSTYPE=linux/android PIPESTATUS PPID PWD RANDOM REPLY SECONDS UID
-// COLUMNS LINES HOME SHELL
-// IFS PATH
-// PS0 PS1='$ ' PS2='> ' PS3
-
-ENV - if [ -n "$ENV" ]; then . "$ENV"; fi # BASH_ENV - synonym for ENV
-#EXECIGNORE, FIGNORE, GLOBIGNORE
-FUNCNEST - maximum function nesting level (abort when above)
-
-BASH - argv0?
-BASHPID - synonym for $$ HERE
-BASH_SUBSHELL - SHLVL synonym
-BASH_EXECUTION_STRING - -c argument
-BASH_VERSION - toybox version
-
-REPLY - set by input with no args
-SHLVL - nested level of subshells, starting with 1
-UID  - readonly
-EUID - readonly
-PPID - readonly
-
-automatically set:
-HOME SHELL HOSTNAME
-HOSTTYPE - uname -m
-MACHTYPE - $(uname -m)-unknown-linux
-OSTYPE - unaem -o
-OPTARG - set by getopts builtin
-OPTIND - set by getopts builtin
-OPTERR
-OLDPWD - set by cd each time
-PWD - set by cd
-COLUMNS LINES - set at start and by winch
-
-PROMPT_COMMAND PROMPT_DIRTRIM PS0 PS1 PS2 PS3 PS4
-
-unsettable (assignments ignored before then)
-LINENO SECONDS RANDOM
-GROUPS - id -g
-HISTCMD - history number
-
-TMOUT - used by read
 
  * label:
  * TODO: test exit from "trap EXIT" doesn't recurse
@@ -90,7 +48,7 @@ TMOUT - used by read
  *   then until while { } time [[ ]]
 
 USE_SH(NEWTOY(cd, ">1LP[-LP]", TOYFLAG_NOFORK))
-USE_SH(NEWTOY(exit, NULL, TOYFLAG_NOFORK))
+USE_SH(NEWTOY(exit, 0, TOYFLAG_NOFORK))
 
 USE_SH(NEWTOY(sh, "(noediting)(noprofile)(norc)sc:i", TOYFLAG_BIN))
 USE_SH(OLDTOY(toysh, sh, TOYFLAG_BIN))
@@ -140,12 +98,12 @@ config EXIT
 #include "toys.h"
 
 GLOBALS(
-  char *command;
+  char *c;
 
   long lineno;
   char **locals, *subshell_env;
   struct double_list functions;
-  unsigned options, jobcnt;
+  unsigned options, jobcnt, loc_ro, loc_magic;
   int hfd;  // next high filehandle (>= 10)
 
   // Running jobs.
@@ -199,8 +157,6 @@ void array_add(char ***list, unsigned count, char *data)
   (*list)[count+1] = 0;
 }
 
-// TODO local variables
-
 // Return index of variable within this list
 static unsigned findvar(char **list, char *name, int len)
 {
@@ -223,10 +179,7 @@ static void setvar(char *s, unsigned type)
   unsigned uu;
   int len = stridx(s, '=');
 
-  if (len == -1) {
-    error_msg("no = in setvar %s\n", s);
-    return;
-  }
+  if (len == -1) return error_msg("no = in setvar %s\n", s);
 
   if (type&TAKE_MEM) type ^= TAKE_MEM;
   else s = xstrdup(s);
@@ -237,13 +190,11 @@ static void setvar(char *s, unsigned type)
   if (environ && environ[uu = findvar(environ, s, len)]) {
     if (uu>=toys.envc) free(environ[uu]);
     environ[uu] = s;
-  } else {
-    uu = 0;
-    if (TT.locals && TT.locals[uu = findvar(TT.locals, s, len)]) {
-      free(TT.locals[uu]);
-      TT.locals[uu] = s;
-    } else array_add(&TT.locals, uu, s);
-  }
+  } else if (TT.locals[uu = findvar(TT.locals, s, len)]) {
+    if (uu<TT.loc_ro) return error_msg("%.*s: readonly variable", len, s);
+    free(TT.locals[uu]);
+    TT.locals[uu] = s;
+  } else array_add(&TT.locals, uu, s);
 }
 
 // get variable of length len starting at s.
@@ -320,7 +271,6 @@ static void expand_arg_nobrace(struct sh_arg *arg, char *old, unsigned flags,
   struct arg_list **delete)
 {
   char *new = old, *s, *ss, *sss;
-  int depth = 0;
 
   if (flags&FORCE_KEEP) old = 0;
 
@@ -664,10 +614,6 @@ struct sh_function {
   char *end;
 };
 
-// TODO: try to avoid prototype.
-static int parse_line(char *line, struct sh_function *sp);
-void free_function(struct sh_function *sp);
-
 // TODO: waitpid(WNOHANG) to clean up zombies and catch background& ending
 
 static void subshell_callback(void)
@@ -677,23 +623,46 @@ static void subshell_callback(void)
   TT.subshell_env[strlen(TT.subshell_env)-1] = 0;
 }
 
+// TODO avoid prototype
+static int sh_run(char *new);
+
 // Pass environment and command string to child shell
 static int run_subshell(char *str, int len)
 {
-  int pipes[2], pid, i;
+  pid_t pid;
 
-  if (pipe(pipes) || 254 != dup2(pipes[0], 254)) return 1;
-  close(pipes[0]);
+  // The with-mmu path is significantly faster.
+  if (CFG_TOYBOX_FORK) {
+    char *s;
 
-  fcntl(pipes[1], F_SETFD, FD_CLOEXEC);
+    if ((pid = fork())<0) perror_msg("fork");
+    else if (pid>0) {
+      s = xstrndup(str, len);
+      sh_run(s);
+      free(s);
 
-  pid = xpopen_setup(0, 0, subshell_callback);
-  close(254);
+      _exit(toys.exitval);
+    }
 
-  if (TT.locals)
-    for (i = 0; TT.locals[i]; i++) dprintf(pipes[1], "%s\n", TT.locals[i]);
-  dprintf(pipes[1], "%.*s\n", len, str);
-  close(pipes[1]);
+  // On nommu vfork, exec /proc/self/exe, and pipe state data to ourselves.
+  } else {
+    int pipes[2], i;
+
+    // open pipe to child
+    if (pipe(pipes) || 254 != dup2(pipes[0], 254)) return 1;
+    close(pipes[0]);
+    fcntl(pipes[1], F_SETFD, FD_CLOEXEC);
+
+    // vfork child
+    pid = xpopen_setup(0, 0, subshell_callback);
+
+    // marshall data to child
+    close(254);
+    if (TT.locals)
+      for (i = 0; TT.locals[i]; i++) dprintf(pipes[1], "%s\n", TT.locals[i]);
+    dprintf(pipes[1], "%.*s\n", len, str);
+    close(pipes[1]);
+  }
 
   return pid;
 }
@@ -924,12 +893,11 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
 
   // Do nothing if nothing to do
   } else if (pp->exit || !pp->arg.v);
-  else if (!strcmp(*pp->arg.v, "((")) {
-    printf("Math!\n");
-// TODO: handle ((math))
+//  else if (!strcmp(*pp->arg.v, "(("))
+// TODO: handle ((math)) currently totally broken
 // TODO: call functions()
   // Is this command a builtin that should run in this process?
-  } else if ((tl = toy_find(*pp->arg.v))
+  else if ((tl = toy_find(*pp->arg.v))
     && (tl->flags & (TOYFLAG_NOFORK|TOYFLAG_MAYFORK)))
   {
     struct toy_context temp;
@@ -951,25 +919,30 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
     memcpy(&toys, &temp, sizeof(struct toy_context));
   } else {
     char **env = 0, **old = environ, *ss, *sss;
-    int kk, ll;
+    int kk = 0, ll;
 
-    // Assign leading environment variables
-    if (envlen) {
-      kk = 0;
-      if (environ) while (environ[kk]) kk++;
-      if (kk) env = xmemdup(environ, sizeof(char *)*(kk+33));
-      for (j = 0; j<envlen; j++) {
-        sss = expand_one_arg(arg->v[j], NO_PATH|NO_SPLIT, &pp->delete);
-        for (ll = 0; ll<kk; ll++) {
-          for (s = sss, ss = env[ll]; *s == *ss && *s != '='; s++, ss++);
-          if (*s != '=') continue;
-          env[ll] = sss;
-          break;
-        }
-        if (ll == kk) array_add(&env, kk++, sss);
-      }
+    // We don't allocate/free any array members, just the array
+    if (environ) while (environ[kk]) kk++;
+    if (kk) {
+      env = xmalloc(sizeof(char *)*(kk+33));
+      memcpy(env, environ, sizeof(char *)*(kk+1));
       environ = env;
     }
+    // assign leading environment variables
+    for (j = 0; j<envlen; j++) {
+      sss = expand_one_arg(arg->v[j], NO_PATH|NO_SPLIT, &pp->delete);
+      for (ll = 0; ll<kk; ll++) {
+        for (s = sss, ss = env[ll]; *s == *ss && *s != '='; s++, ss++);
+        if (*s != '=') continue;
+        env[ll] = sss;
+        break;
+      }
+      if (ll == kk) array_add(&environ, kk++, sss);
+    }
+    ss = getvar("SHLVL");
+    sprintf(toybuf, "%d", atoi(ss ? ss : "")+1);
+    xsetenv("SHLVL", toybuf);
+
     if (-1 == (pp->pid = xpopen_both(pp->arg.v, 0)))
       perror_msg("%s: vfork", *pp->arg.v);
 
@@ -1707,14 +1680,7 @@ dprintf(2, "TODO skipped init for((;;)), need math parser\n");
         pl = pl->next;
       }
 
-/* TODO
-case/esac
-{/}
-[[/]]
-(/)
-((/))
-function/}
-*/
+// TODO case/esac {/} [[/]] (/) ((/)) function/}
 
     // gearshift from block start to block body (end of flow control test)
     } else if (pl->type == 2) {
@@ -1780,6 +1746,8 @@ static int sh_run(char *new)
 {
   struct sh_function scratch;
   int rc;
+
+// TODO switch the fmemopen for -c to use this? Error checking? $(blah)
 
   memset(&scratch, 0, sizeof(struct sh_function));
   if (!parse_line(new, &scratch)) run_function(&scratch);
@@ -1850,13 +1818,52 @@ static void do_prompt(char *prompt)
   writeall(2, toybuf, len);
 }
 
-// sanitize environment and handle nommu subshell handoff
-void subshell_imports(void)
+// only set local variable when global not present
+static void setonlylocal(char ***to, char *name, char *val)
 {
-  int to, from, pid = 0, ppid = 0, len;
+  if (getenv(name)) return;
+  *(*to)++ = xmprintf("%s=%s", name, val ? val : "");
+}
+
+// init locals, sanitize environment, handle nommu subshell handoff
+void subshell_setup(void)
+{
+  struct passwd *pw = getpwuid(getuid());
+  int to, from, pid = 0, ppid = 0, mypid, myppid, len;
+  char *s, *ss, **ll, *locals[] = {"GROUPS=", "SECONDS=", "RANDOM=", "LINENO=",
+    xmprintf("PPID=%d", myppid = getppid()), xmprintf("EUID=%d", geteuid()),
+    xmprintf("$=%d", mypid = getpid()), xmprintf("UID=%d", getuid())};
   struct stat st;
+  struct utsname uu;
   FILE *fp;
-  char *s;
+
+  // Initialize read only local variables
+  TT.locals = xmalloc(32*sizeof(char *));
+  memcpy(TT.locals, locals, sizeof(locals));
+  ll = TT.locals+(TT.loc_ro = ARRAY_LEN(locals));
+  TT.loc_magic = 4;
+
+  // Add local variables that can be overwritten
+  setonlylocal(&ll, "PATH", _PATH_DEFPATH);
+  if (!pw) pw = (void *)toybuf; // first use, so still zeroed
+  setonlylocal(&ll, "HOME", *pw->pw_dir ? pw->pw_dir : "/");
+  setonlylocal(&ll, "SHELL", pw->pw_shell);
+  setonlylocal(&ll, "USER", pw->pw_name);
+  setonlylocal(&ll, "LOGNAME", pw->pw_name);
+  gethostname(toybuf, sizeof(toybuf)-1);
+  *ll++ = xmprintf("HOSTNAME=%s", toybuf);
+  uname(&uu);
+  setonlylocal(&ll, "HOSTTYPE", uu.machine);
+  sprintf(toybuf, "%s-unknown-linux", uu.machine);
+  setonlylocal(&ll, "MACHTYPE", toybuf);
+  setonlylocal(&ll, "OSTYPE", uu.sysname);
+  // sprintf(toybuf, "%s-toybox", TOYBOX_VERSION);
+  // setonlylocal(&ll, "BASH_VERSION", toybuf);
+  *ll++ = xstrdup("OPTERR=1");
+  *toybuf = 0;
+  if (readlink0("/proc/self/exe", toybuf, sizeof(toybuf)))
+    setonlylocal(&ll, "BASH", toybuf);
+  *ll = 0;
 
   // Ensure environ copied and toys.envc set, and clean out illegal entries
   xunsetenv("");
@@ -1875,12 +1882,30 @@ void subshell_imports(void)
   }
   environ[toys.optc = to] = 0;
 
+  // set/update PWD
+  sh_run("cd .");
+
+  // set _ to path to this shell
+  s = toys.argv[0];
+  ss = 0;
+  if (!strchr(s, '/')) {
+    if (!(ss = getcwd(0, 0))) {
+      if (*toybuf) s = toybuf;
+    } else {
+      s = xmprintf("%s/%s", ss, s);
+      free(ss);
+      ss = s;
+    }
+  }
+  xsetenv("_", s);
+  free(ss);
+  if (!getvar("SHLVL")) xsetenv("SHLVL", "1");
+
 //TODO indexed array,associative array,integer,local,nameref,readonly,uppercase
 //          if (s+1<ss && strchr("aAilnru", *s)) {
 
   // sanity check: magic env variable, pipe status
-  if (CFG_TOYBOX_FORK || toys.stacktop || pid != getpid() || ppid != getppid())
-    return;
+  if (CFG_TOYBOX_FORK || toys.stacktop || pid!=mypid || ppid!=myppid) return;
   if (fstat(254, &st) || !S_ISFIFO(st.st_mode)) error_exit(0);
   fcntl(254, F_SETFD, FD_CLOEXEC);
   fp = fdopen(254, "r");
@@ -1904,24 +1929,11 @@ void sh_main(void)
   TT.hfd = 10;
   signal(SIGPIPE, SIG_IGN);
 
-  // Ensure environ copied and toys.envc set
-  xunsetenv("");
-
-  // TODO: traverse and unset illegal environment variables named "$" and such
-
   // TODO euid stuff?
-
+  // TODO login shell?
   // TODO read profile, read rc
 
   // if (!FLAG(noprofile)) { }
-
-  // Set local variable $HOME to user's login path
-  if (!(new = getenv("HOME"))) {
-    struct passwd *pw = getpwuid(getuid());
-
-    setvar(xmprintf("HOME=%s", (pw && *pw->pw_dir)?pw->pw_dir:"/"), TAKE_MEM);
-  }
-  sh_run("cd .");
 
 if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); dup2(fd, 255); close(fd); }
   // Is this an interactive shell?
@@ -1930,10 +1942,12 @@ if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); dup2(fd, 255); close(fd); }
   // Set up signal handlers and grab control of this tty.
 
   // Read environment for exports from parent shell
-  subshell_imports();
+  subshell_setup();
 
   memset(&scratch, 0, sizeof(scratch));
-  if (TT.command) f = fmemopen(TT.command, strlen(TT.command), "r");
+
+// TODO unify fmemopen() here with sh_run
+  if (TT.c) f = fmemopen(TT.c, strlen(TT.c), "r");
   else if (*toys.optargs) f = xfopen(*toys.optargs, "r");
   else {
     f = stdin;
@@ -1949,7 +1963,7 @@ if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); dup2(fd, 255); close(fd); }
       if (!s) s = prompt ? "> " : (getpid() ? "\\$ " : "# ");
       do_prompt(s);
     } else TT.lineno++;
-// TODO line editing/history
+// TODO line editing/history, should set $COLUMNS $LINES and sigwinch update
     if (!(new = xgetline(f ? f : stdin, 0))) break;
 // TODO if (!isspace(*new)) add_to_history(line);
 
@@ -2035,7 +2049,7 @@ void cd_main(void)
 
   if (bad || chdir(dd)) perror_msg("chdir '%s'", dd);
   else {
-    if (pwd) xsetenv("OLD", pwd);
+    if (pwd) xsetenv("OLDPWD", pwd);
     xsetenv("PWD", dd);
   }
   free(dd);
