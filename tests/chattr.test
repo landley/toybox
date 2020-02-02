@@ -17,8 +17,8 @@ function clean()
   # inlined in the inode (N), or use indexed directories, so strip those out.
   # We also don't want to rely on chattr(1) to set a known version number or
   # project number, so blank out any numbers.
-  sed -E 's/, (Encrypted|Extents|Indexed_directory|Inline_Data)//g;' |
-    sed -E 's/[EeIN]-/--/g; s/[0-9]+/_/g'
+  sed -E -e 's/, (Encrypted|Extents|Indexed_directory|Inline_Data)//g;' \
+         -e 's/[EeIN]-/--/g; s/[0-9]+/_/g'
 }
 
 mkdir testattr
