@@ -13,12 +13,12 @@ fi
 function clean()
 {
   # We don't know whether the fs will have extents (e, typically true on the
-  # desktop) or be encrypted (E, typically true on Android), so strip out both
-  # the long and short forms of those.
+  # desktop) or be encrypted (E, typically true on Android), or have data
+  # inlined in the inode (N), or use indexed directories, so strip those out.
   # We also don't want to rely on chattr(1) to set a known version number or
   # project number, so blank out any numbers.
-  sed 's/, Encrypted//; s/-E-/---/; s/, Extents//; s/-e-/---/' | \
-  sed -E 's/[0-9]+/_/g'
+  sed -E 's/, (Encrypted|Extents|Indexed_directory|Inline_Data)//g;' |
+    sed -E 's/[EeIN]-/--/g; s/[0-9]+/_/g'
 }
 
 mkdir testattr
