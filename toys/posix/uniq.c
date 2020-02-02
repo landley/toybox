@@ -10,7 +10,7 @@ config UNIQ
   bool "uniq"
   default y
   help
-    usage: uniq [-cduiz] [-w maxchars] [-f fields] [-s char] [input_file [output_file]]
+    usage: uniq [-cduiz] [-w MAXCHARS] [-f FIELDS] [-s CHAR] [INFILE [OUTFILE]]
 
     Report or filter out repeated lines in a file
 

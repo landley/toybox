@@ -15,7 +15,7 @@ config ECHO
   bool "echo"
   default y
   help
-    usage: echo [-neE] [args...]
+    usage: echo [-neE] [ARG...]
 
     Write each argument to stdout, with one space between each, followed
     by a newline.

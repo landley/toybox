@@ -10,7 +10,7 @@ config CAL
   bool "cal"
   default y
   help
-    usage: cal [[month] year]
+    usage: cal [[MONTH] YEAR]
 
     Print a calendar.
 

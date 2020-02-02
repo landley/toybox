@@ -12,7 +12,7 @@ config DU
   bool "du"
   default y
   help
-    usage: du [-d N] [-askxHLlmc] [file...]
+    usage: du [-d N] [-askxHLlmc] [FILE...]
 
     Show disk usage, space consumed by files and directories.
 

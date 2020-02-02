@@ -10,9 +10,9 @@ config UUENCODE
   bool "uuencode"
   default y 
   help
-    usage: uuencode [-m] [file] encode-filename
+    usage: uuencode [-m] [INFILE] ENCODE_FILENAME
 
-    Uuencode stdin (or file) to stdout, with encode-filename in the output.
+    Uuencode stdin (or INFILE) to stdout, with ENCODE_FILENAME in the output.
 
     -m	Base64
 */

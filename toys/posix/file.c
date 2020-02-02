@@ -10,7 +10,7 @@ config FILE
   bool "file"
   default y
   help
-    usage: file [-bhLs] [file...]
+    usage: file [-bhLs] [FILE...]
 
     Examine the given files and describe their content types.
 

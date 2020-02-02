@@ -18,7 +18,7 @@ config KILL
   bool "kill"
   default y
   help
-    usage: kill [-l [SIGNAL] | -s SIGNAL | -SIGNAL] pid...
+    usage: kill [-l [SIGNAL] | -s SIGNAL | -SIGNAL] PID...
 
     Send signal to process(es).
 

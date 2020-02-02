@@ -12,7 +12,7 @@ config LOGGER
   bool "logger"
   default y
   help
-    usage: logger [-s] [-t TAG] [-p [FACILITY.]PRIORITY] [message...]
+    usage: logger [-s] [-t TAG] [-p [FACILITY.]PRIORITY] [MESSAGE...]
 
     Log message (or stdin) to syslog.
 

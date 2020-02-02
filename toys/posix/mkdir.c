@@ -10,7 +10,7 @@ config MKDIR
   bool "mkdir"
   default y
   help
-    usage: mkdir [-vp] [-m mode] [dirname...]
+    usage: mkdir [-vp] [-m MODE] [DIR...]
 
     Create one or more directories.
 

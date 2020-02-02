@@ -10,7 +10,7 @@ config NICE
   bool "nice"
   default y
   help
-    usage: nice [-n PRIORITY] COMMAND [ARG...]
+    usage: nice [-n PRIORITY] COMMAND...
 
     Run a command line at an increased or decreased scheduling priority.
 

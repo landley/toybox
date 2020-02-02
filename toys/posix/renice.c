@@ -10,7 +10,7 @@ config RENICE
   bool "renice"
   default y
   help
-    usage: renice [-gpu] -n increment ID ...
+    usage: renice [-gpu] -n INCREMENT ID...
 */
 
 #define FOR_renice

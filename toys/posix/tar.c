@@ -23,7 +23,7 @@ config TAR
   bool "tar"
   default y
   help
-    usage: tar [-cxt] [-fvohmjkOS] [-XTCf NAME] [FILES]
+    usage: tar [-cxt] [-fvohmjkOS] [-XTCf NAME] [FILE...]
 
     Create, extract, or list files in a .tar (or compressed t?z) file.
 

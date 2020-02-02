@@ -10,7 +10,7 @@ config RMDIR
   bool "rmdir"
   default y
   help
-    usage: rmdir [-p] [dirname...]
+    usage: rmdir [-p] [DIR...]
 
     Remove one or more directories.
 

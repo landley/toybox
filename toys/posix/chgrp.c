@@ -12,7 +12,7 @@ config CHGRP
   bool "chgrp"
   default y
   help
-    usage: chgrp/chown [-RHLP] [-fvh] group file...
+    usage: chgrp/chown [-RHLP] [-fvh] GROUP FILE...
 
     Change group of one or more files.
 

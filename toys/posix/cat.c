@@ -14,7 +14,7 @@ config CAT
   bool "cat"
   default y
   help
-    usage: cat [-u] [file...]
+    usage: cat [-u] [FILE...]
 
     Copy (concatenate) files to stdout.  If no files listed, copy from stdin.
     Filename "-" is a synonym for stdin.
@@ -37,7 +37,7 @@ config CATV
   bool "catv"
   default y
   help
-    usage: catv [-evt] [filename...]
+    usage: catv [-evt] [FILE...]
 
     Display nonprinting characters as escape sequences. Use M-x for
     high ascii characters (>127), and ^x for other nonprinting chars.

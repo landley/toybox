@@ -10,7 +10,7 @@ config DF
   bool "df"
   default y
   help
-    usage: df [-HPkhi] [-t type] [FILESYSTEM ...]
+    usage: df [-HPkhi] [-t type] [FILE...]
 
     The "disk free" command shows total/used/available disk space for
     each filesystem listed on the command line, or all currently mounted

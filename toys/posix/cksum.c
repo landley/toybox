@@ -11,7 +11,7 @@ config CKSUM
   bool "cksum"
   default y
   help
-    usage: cksum [-IPLN] [file...]
+    usage: cksum [-IPLN] [FILE...]
 
     For each file, output crc32 checksum value, length and name of file.
     If no files listed, copy from stdin.  Filename "-" is a synonym for stdin.

@@ -11,7 +11,7 @@ config TIME
   default y
   depends on TOYBOX_FLOAT
   help
-    usage: time [-pv] COMMAND [ARGS...]
+    usage: time [-pv] COMMAND...
 
     Run command line and report real, user, and system time elapsed in seconds.
     (real = clock on the wall, user = cpu used by command's code,

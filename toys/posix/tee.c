@@ -10,7 +10,7 @@ config TEE
   bool "tee"
   default y
   help
-    usage: tee [-ai] [file...]
+    usage: tee [-ai] [FILE...]
 
     Copy stdin to each listed file, and also to stdout.
     Filename "-" is a synonym for stdout.

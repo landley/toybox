@@ -18,7 +18,7 @@ config LS
   bool "ls"
   default y
   help
-    usage: ls [-ACFHLRSZacdfhiklmnpqrstuwx1] [--color[=auto]] [directory...]
+    usage: ls [-ACFHLRSZacdfhiklmnpqrstuwx1] [--color[=auto]] [FILE...]
 
     List files.
 

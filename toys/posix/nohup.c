@@ -10,7 +10,7 @@ config NOHUP
   bool "nohup"
   default y
   help
-    usage: nohup COMMAND [ARG...]
+    usage: nohup COMMAND...
 
     Run a command that survives the end of its terminal.
 
