@@ -185,7 +185,7 @@ static void mount_filesystem(char *dev, char *dir, char *type,
   if (strstart(&dev, "UUID=")) {
     char *s = tortoise(0, (char *[]){"blkid", "-U", dev, 0});
 
-    if (!dev) return error_msg("No uuid %s", dev);
+    if (!s) return error_msg("No uuid %s", dev);
     dev = s;
   }
 
