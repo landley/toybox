@@ -1472,7 +1472,7 @@ static void draw_page()
   if (TT.vi_mode == 2) printf("\x1b[1m-- INSERT --\x1b[m");
   if (!TT.vi_mode) printf("\x1b[1m%s \x1b[m",TT.il->data);
 
-  sprintf(toybuf, "%ld / %ld,%d,%d", TT.cursor, TT.filesize,
+  sprintf(toybuf, "%zu / %zu,%d,%d", TT.cursor, TT.filesize,
     TT.cur_row+1, TT.cur_col+1);
 
   if (TT.cur_col != cx_scr) sprintf(toybuf+strlen(toybuf),"-%d", cx_scr+1);
