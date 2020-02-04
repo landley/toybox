@@ -43,14 +43,14 @@ GLOBALS(
 // Section header.
 struct sh {
   int type, link, info;
-  long flags, addr, offset, size, addralign, entsize;
+  long long flags, addr, offset, size, addralign, entsize;
   char *name;
 };
 
 // Program header.
 struct ph {
   int type, flags;
-  long offset, vaddr, paddr, filesz, memsz, align;
+  long long offset, vaddr, paddr, filesz, memsz, align;
 };
 
 static void get_sh(int i, struct sh *s)
@@ -396,7 +396,7 @@ static void scan_elf()
       char sh_flags[12] = {}, *p = sh_flags;
 
       for (j=0; j<12; j++) if (s.flags&(1<<j)) *p++="WAXxMSILOTC"[j];
-      printf("  [%2d] %-20s %-14s %0*lx %06lx %06lx %02lx %3s %2d %2d %2ld\n",
+      printf("  [%2d] %-20s %-14s %0*llx %06llx %06llx %02llx %3s %2d %2d %2lld\n",
              i, s.name, sh_type(s.type), w, s.addr, s.offset, s.size,
              s.entsize, sh_flags, s.link, s.info, s.addralign);
     }
@@ -423,7 +423,7 @@ static void scan_elf()
              "Offset", w, "VirtAddr", w, "PhysAddr", "FileSiz", "MemSiz");
       for (i=0; i<phnum; i++) {
         get_ph(i, &ph);
-        printf("  %-14s 0x%06lx 0x%0*lx 0x%0*lx 0x%05lx 0x%05lx %c%c%c %#lx\n",
+        printf("  %-14s 0x%06llx 0x%0*llx 0x%0*llx 0x%05llx 0x%05llx %c%c%c %#llx\n",
                ph_type(ph.type), ph.offset, w, ph.vaddr, w, ph.paddr,
                ph.filesz, ph.memsz, ph.flags&4?'R':' ', ph.flags&2?'W':' ',
                ph.flags&1?'E':' ', ph.align);
@@ -456,7 +456,7 @@ static void scan_elf()
 
     xputc('\n');
     if (!dynamic.size) printf("There is no dynamic section in this file.\n");
-    else printf("Dynamic section at offset 0x%lx contains %ld entries:\n"
+    else printf("Dynamic section at offset 0x%llx contains %lld entries:\n"
                 "  %-*s %-20s %s\n",
                 dynamic.offset, dynamic.size/dynamic.entsize,
                 w+2, "Tag", "Type", "Name/Value");
@@ -517,7 +517,7 @@ static void scan_elf()
       get_ph(i, &ph);
       if (ph.type == 4 /*PT_NOTE*/) {
         printf("\n"
-          "Displaying notes found at file offset 0x%lx with length 0x%lx:\n",
+          "Displaying notes found at file offset 0x%llx with length 0x%llx:\n",
           ph.offset, ph.filesz);
         show_notes(ph.offset, ph.filesz);
       }
