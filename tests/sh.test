@@ -4,6 +4,8 @@
 
 [ -f testing.sh ] && . testing.sh
 
+# TODO make fake pty wrapper for test infrastructure
+
 #testing "name" "command" "result" "infile" "stdin"
 
 [ -z "$SH" ] && { [ -z "$TEST_HOST" ] && SH="sh" || export SH="bash" ; }
@@ -55,6 +57,10 @@ testing "leading variable assignments" \
 #testing "can't have space before first : but yes around arguments" \
 #  'BLAH=abcdefghi; echo ${BLAH: 1 : 3 }' "bcd\n" "" ""
 
+testing "curly brackets and pipe" \
+  '{ echo one; echo two ; } | tee blah.txt; wc blah.txt' \
+  "one\ntwo\n2 2 8 blah.txt\n" "" ""
+
 # texpect "name" "command" E/O/I"string"
 
 # Prompt changes for root/normal user
@@ -65,3 +71,39 @@ SH="env -i PATH=${PATH@Q} PS1='\\$ ' $SH --noediting --noprofile --norc -is"
 txpect "prompt and exit" "$SH" "E$P" "Iexit\n" X0
 txpect "prompt and echo" "$SH" "E$P" "Iecho hello\n" "Ohello"$'\n' "E$P" X0
 txpect "redirect err" "$SH" "E$P" "Iecho > /dev/full\n" "E" "E$P" X0
+txpect "wait for <(exit)" "$SH" "E$P" "Icat <(echo hello 1>&2)\n" $'Ehello\n' \
+  "E$P" X0
+
+
+
+# $@ $* $# $? $- $$ $! $0
+# always exported: PWD SHLVL _
+#  ./bash -c 'echo $_' prints $BASH, but PATH search shows path? Hmmm...
+# ro: UID PPID EUID $
+# IFS LINENO
+# PATH HOME SHELL USER LOGNAME SHLVL HOSTNAME HOSTTYPE MACHTYPE OSTYPE OLDPWD
+# PS0 PS1='$ ' PS2='> ' PS3 PS4 BASH BASH_VERSION
+# ENV - if [ -n "$ENV" ]; then . "$ENV"; fi # BASH_ENV - synonym for ENV
+# FUNCNEST - maximum function nesting level (abort when above)
+# REPLY - set by input with no args
+# OPTARG OPTIND - set by getopts builtin
+# OPTERR
+
+# maybe not: EXECIGNORE, FIGNORE, GLOBIGNORE
+
+#BASHPID - synonym for $$ HERE
+#BASH_SUBSHELL - SHLVL synonym
+#BASH_EXECUTION_STRING - -c argument
+#
+#automatically set:
+#OPTARG - set by getopts builtin
+#OPTIND - set by getopts builtin
+#
+#PROMPT_COMMAND PROMPT_DIRTRIM PS0 PS1 PS2 PS3 PS4
+#
+#unsettable (assignments ignored before then)
+#LINENO SECONDS RANDOM
+#GROUPS - id -g
+#HISTCMD - history number
+#
+#TMOUT - used by read
