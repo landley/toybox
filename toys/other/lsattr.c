@@ -353,5 +353,4 @@ void chattr_main(void)
   if (!(TT.add || TT.rm || TT.set || FLAG(p) || FLAG(v)))
     error_exit("need '-p', '-v', '=', '-', or '+'");
   for (; *argv; argv++) dirtree_read(*argv, update_attr);
-  toys.exitval = 0; //always set success at this point.
 }
