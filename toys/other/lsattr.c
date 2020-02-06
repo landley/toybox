@@ -124,6 +124,18 @@ static int ext2_getflag(int fd, struct stat *sb, unsigned long *flag)
   return (ioctl(fd, FS_IOC_GETFLAGS, (void*)flag));
 }
 
+static char *attrstr(unsigned long attrs, int full)
+{
+  struct ext2_attr *a = e2attrs;
+  char *s = toybuf;
+
+  for (; a->name; a++)
+    if (attrs & a->flag) *s++ = a->opt;
+    else if (full) *s++ = '-';
+  *s = '\0';
+  return toybuf;
+}
+
 static void print_file_attr(char *path)
 {
   unsigned long flag = 0, version = 0;
@@ -164,14 +176,7 @@ static void print_file_attr(char *path)
       }
       if (!name_found) xprintf("---");
       xputc('\n');
-    } else {
-      int index = 0;
-
-      for (; ptr->name; ptr++)
-        toybuf[index++] = (flag & ptr->flag) ? ptr->opt : '-';
-      toybuf[index] = '\0';
-      xprintf("%s %s\n", toybuf, path);
-    }
+    } else xprintf("%s %s\n", attrstr(flag, 1), path);
   }
   xclose(fd);
   return;
@@ -209,7 +214,7 @@ void lsattr_main(void)
 {
   if (!*toys.optargs) dirtree_read(".", retell_dir);
   else
-    for (; *toys.optargs;  toys.optargs++) {
+    for (; *toys.optargs; toys.optargs++) {
       struct stat sb;
 
       if (lstat(*toys.optargs, &sb)) perror_msg("stat '%s'", *toys.optargs);
@@ -271,7 +276,6 @@ static void parse_cmdline_arg(char ***argv)
 // Update attribute of given file.
 static int update_attr(struct dirtree *root)
 {
-  unsigned long fval = 0;
   char *fpath = NULL;
   int v = TT.v, fd;
 
@@ -291,22 +295,29 @@ static int update_attr(struct dirtree *root)
     free(fpath);
     return DIRTREE_ABORT;
   }
-  // Get current attr of file.
-  if (ext2_getflag(fd, &(root->st), &fval) < 0) {
-    perror_msg("read flags of '%s'", fpath);
-    free(fpath);
-    xclose(fd);
-    return DIRTREE_ABORT;
-  }
-  if (TT.set) { // for '=' operator.
-    if (ext2_setflag(fd, &(root->st), TT.set) < 0)
-      perror_msg("setting flags '%s'", fpath);
-  } else { // for '-' / '+' operator.
-    fval &= ~(TT.rm);
-    fval |= TT.add;
-    if (!S_ISDIR(root->st.st_mode)) fval &= ~FS_DIRSYNC_FL;
-    if (ext2_setflag(fd, &(root->st), fval) < 0)
-      perror_msg("setting flags '%s'", fpath);
+
+  // Any potential flag changes?
+  if (TT.set | TT.add | TT.set) {
+    unsigned long orig, new;
+
+    // Read current flags.
+    if (ext2_getflag(fd, &(root->st), &orig) < 0) {
+      perror_msg("read flags of '%s'", fpath);
+      free(fpath);
+      xclose(fd);
+      return DIRTREE_ABORT;
+    }
+    // Apply the requested changes.
+    if (TT.set) new = TT.set; // '='.
+    else { // '-' and/or '+'.
+      new = orig;
+      new &= ~(TT.rm);
+      new |= TT.add;
+      if (!S_ISDIR(root->st.st_mode)) new &= ~FS_DIRSYNC_FL;
+    }
+    // Write them back if there was any change.
+    if (orig != new && ext2_setflag(fd, &(root->st), new)<0)
+      perror_msg("%s: setting flags to =%s failed", fpath, attrstr(new, 0));
   }
 
   // (FS_IOC_SETVERSION works all the way back to 2.6, but FS_IOC_FSSETXATTR
@@ -316,12 +327,11 @@ static int update_attr(struct dirtree *root)
 
   if (FLAG(p)) {
     struct fsxattr_4_5 fsx;
+    int fail = ioctl(fd, FS_IOC_FSGETXATTR_4_5, &fsx);
 
-    if (ioctl(fd, FS_IOC_FSGETXATTR_4_5, &fsx))
-      perror_exit("%s: FS_IOC_FSGETXATTR failed", fpath);
     fsx.fsx_projid = TT.p;
-    if (ioctl(fd, FS_IOC_FSSETXATTR_4_5, &fsx))
-      perror_exit("%s: setting projid to %u failed", fpath, fsx.fsx_projid);
+    if (fail || ioctl(fd, FS_IOC_FSSETXATTR_4_5, &fsx))
+      perror_msg("%s: setting projid to %u failed", fpath, fsx.fsx_projid);
   }
 
   free(fpath);
