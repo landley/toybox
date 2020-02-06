@@ -117,7 +117,7 @@ static void print_stat(char type)
     printf("%s", TT.file);
     if (S_ISLNK(stat->st_mode))
       if (readlink0(TT.file, toybuf, sizeof(toybuf)))
-        printf(" -> `%s'", toybuf);
+        printf(" -> '%s'", toybuf);
   } else if (type == 'o') out('u', stat->st_blksize);
   else if (type == 's') out('u', stat->st_size);
   else if (type == 't') out('x', dev_major(stat->st_rdev));

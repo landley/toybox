@@ -20,5 +20,5 @@ config UNLINK
 void unlink_main(void)
 {
   if (unlink(*toys.optargs))
-    perror_exit("Couldn't unlink `%s'", *toys.optargs);
+    perror_exit("couldn't unlink '%s'", *toys.optargs);
 }
