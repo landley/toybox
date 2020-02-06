@@ -418,9 +418,9 @@ static int text_codepoint(char *dest, size_t offset)
 static size_t text_sol(size_t offset)
 {
   size_t pos;
-  if (!TT.filesize) return 0;
+  if (!TT.filesize || !offset) return 0;
   else if (TT.filesize <= offset) return TT.filesize-1;
-  else if ((pos = text_strrchr(offset, '\n')) == SIZE_MAX) return 0;
+  else if ((pos = text_strrchr(offset-1, '\n')) == SIZE_MAX) return 0;
   else if (pos < offset) return pos+1;
   return offset;
 }
