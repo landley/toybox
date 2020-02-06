@@ -142,6 +142,7 @@ static void syntax_err(char *msg, ...)
 {
   va_list va;
 
+// TODO rethink syntax errordom
   va_start(va, msg);
   verror_msg(msg, 0, va);
   va_end(va);
@@ -579,7 +580,7 @@ int save_redirect(int **rd, int from, int to)
   if (hfd != dup2(to, hfd)) hfd = -1;
   else fcntl(hfd, F_SETFD, FD_CLOEXEC);
 
-if (BUGBUG) dprintf(255, "redir from=%d to=%d hfd=%d\n", from, to, hfd);
+if (BUGBUG) dprintf(255, "%d redir from=%d to=%d hfd=%d\n", getpid(), from, to, hfd);
   // dup "to"
   if (from != -1 && to != dup2(from, to)) {
     if (hfd != -1) close(hfd);
@@ -1573,7 +1574,7 @@ static void run_function(struct sh_pipeline *pl)
   while (pl) {
     struct sh_arg *arg = pl->arg;
     char *s = *arg->v, *ss = arg->v[1], *ctl = arg->v[arg->c];
-if (BUGBUG) dprintf(255, "runtype=%d %s %s\n", pl->type, s, ctl);
+if (BUGBUG) dprintf(255, "%d runtype=%d %s %s\n", getpid(), pl->type, s, ctl);
     // Is this an executable segment?
     if (!pl->type) {
 
@@ -1582,7 +1583,6 @@ if (BUGBUG) dprintf(255, "runtype=%d %s %s\n", pl->type, s, ctl);
         while (pl->next && !pl->next->type) pl = pl->next;
         continue;
       }
-
       if (pipe_segments(ctl, pipes, &urd)) break;
 
       // If we just started a new pipeline, implicit parentheses (subshell)
@@ -1648,10 +1648,10 @@ if (BUGBUG) dprintf(255, "runtype=%d %s %s\n", pl->type, s, ctl);
 
     // Start of flow control block?
     } else if (pl->type == 1) {
+      struct sh_process *pp = 0;
 
       // are we entering this block (rather than looping back to it)?
       if (!blk || blk->start != pl) {
-        struct sh_process *pp;
 
         // If it's a nested block we're not running, skip ahead.
         end = block_end(pl->next);
@@ -1681,10 +1681,13 @@ if (BUGBUG) dprintf(255, "runtype=%d %s %s\n", pl->type, s, ctl);
         // Perform redirects listed at end of block
         pp = expand_redir(end->arg, 1, blk->urd);
         blk->urd = pp->urd;
-        if (pp->arg.c) perror_msg("unexpected %s", *pp->arg.v);
-        llist_traverse(pp->delete, free);
-        if (pp->arg.c) break;
-        free(pp);
+        if (pp->arg.c) {
+// TODO this is a syntax_error
+          perror_msg("unexpected %s", *pp->arg.v);
+          llist_traverse(pp->delete, free);
+          free(pp);
+          break;
+        }
       }
 
       // What flow control statement is this?
@@ -1720,9 +1723,17 @@ TODO: a | b | c needs subshell for builtins?
       } else if (!strcmp(s, "(")) {
         if (!CFG_TOYBOX_FORK) {
           ss = pl2str(pl->next);
-          run_subshell(ss, strlen(ss));
+          pp->pid = run_subshell(ss, strlen(ss));
+          free(ss);
+        } else {
+          if (!(pp->pid = fork())) {
+            run_function(pl->next);
+            _exit(toys.exitval);
+          }
         }
-        pl = blk->end;
+
+        dlist_add_nomalloc((void *)&pplist, (void *)pp);
+        pl = blk->end->prev;
       }
 
     // gearshift from block start to block body (end of flow control test)
