@@ -29,14 +29,11 @@ struct toy_list *toy_find(char *name)
 
   if (!CFG_TOYBOX || strchr(name, '/')) return 0;
 
-  // If the name starts with "toybox" accept that as a match.  Otherwise
-  // skip the first entry, which is out of order.
-
-  if (!strncmp(name, "toybox", 6)) return toy_list;
+  // Multiplexer name works as prefix, else skip first entry (it's out of order)
+  if (!toys.which && strstart(&name, "toybox")) return toy_list;
   bottom = 1;
 
   // Binary search to find this command.
-
   top = ARRAY_LEN(toy_list)-1;
   for (;;) {
     int result;
@@ -179,7 +176,7 @@ void toy_exec(char *argv[])
 // If first argument starts with - output list of command install paths.
 void toybox_main(void)
 {
-  static char *toy_paths[]={"usr/","bin/","sbin/",0};
+  static char *toy_paths[] = {"usr/","bin/","sbin/",0};
   int i, len = 0;
 
   // fast path: try to exec immediately.
@@ -201,12 +198,12 @@ void toybox_main(void)
   if (toys.argv[1] && toys.argv[1][0] != '-') unknown(toys.argv[1]);
 
   // Output list of command.
-  for (i=1; i<ARRAY_LEN(toy_list); i++) {
+  for (i = 1; i<ARRAY_LEN(toy_list); i++) {
     int fl = toy_list[i].flags;
     if (fl & TOYMASK_LOCATION) {
       if (toys.argv[1]) {
         int j;
-        for (j=0; toy_paths[j]; j++)
+        for (j = 0; toy_paths[j]; j++)
           if (fl & (1<<j)) len += printf("%s", toy_paths[j]);
       }
       len += printf("%s",toy_list[i].name);
