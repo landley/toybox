@@ -508,20 +508,13 @@ off_t fdlength(int fd)
   return base;
 }
 
-// Read contents of file as a single nul-terminated string.
-// measure file size if !len, allocate buffer if !buf
-// Existing buffers need len in *plen
-// Returns amount of data read in *plen
-char *readfileat(int dirfd, char *name, char *ibuf, off_t *plen)
+char *readfd(int fd, char *ibuf, off_t *plen)
 {
   off_t len, rlen;
-  int fd;
   char *buf, *rbuf;
 
   // Unsafe to probe for size with a supplied buffer, don't ever do that.
   if (CFG_TOYBOX_DEBUG && (ibuf ? !*plen : *plen)) error_exit("bad readfileat");
-
-  if (-1 == (fd = openat(dirfd, name, O_RDONLY))) return 0;
 
   // If we dunno the length, probe it. If we can't probe, start with 1 page.
   if (!*plen) {
@@ -543,7 +536,6 @@ char *readfileat(int dirfd, char *name, char *ibuf, off_t *plen)
     len -= rlen;
   }
   *plen = len = rlen+(rbuf-buf);
-  close(fd);
 
   if (rlen<0) {
     if (ibuf != buf) free(buf);
@@ -551,6 +543,20 @@ char *readfileat(int dirfd, char *name, char *ibuf, off_t *plen)
   } else buf[len] = 0;
 
   return buf;
+}
+
+// Read contents of file as a single nul-terminated string.
+// measure file size if !len, allocate buffer if !buf
+// Existing buffers need len in *plen
+// Returns amount of data read in *plen
+char *readfileat(int dirfd, char *name, char *ibuf, off_t *plen)
+{
+  if (-1 == (dirfd = openat(dirfd, name, O_RDONLY))) return 0;
+
+  ibuf = readfd(dirfd, ibuf, plen);
+  close(dirfd);
+
+  return ibuf;
 }
 
 char *readfile(char *name, char *ibuf, off_t len)

@@ -209,6 +209,7 @@ off_t lskip(int fd, off_t offset);
 int mkpathat(int atfd, char *dir, mode_t lastmode, int flags);
 int mkpath(char *dir);
 struct string_list **splitpath(char *path, struct string_list **list);
+char *readfd(int fd, char *ibuf, off_t *plen);
 char *readfileat(int dirfd, char *name, char *buf, off_t *len);
 char *readfile(char *name, char *buf, off_t len);
 void msleep(long milliseconds);
