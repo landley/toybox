@@ -144,8 +144,7 @@ void wget_main(void)
   if(!toys.optargs[0]) help_exit("no URL");
   get_info(toys.optargs[0], hostname, port, path);
 
-
-  sprintf("/%s", TOYBOX_VERSION);
+  sprintf(ua+11, "/%s", TOYBOX_VERSION);
   for (;; redirects--) {
     sock = conn_svr(hostname, port);
     // compose HTTP request
