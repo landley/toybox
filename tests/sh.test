@@ -9,9 +9,34 @@
 #testing "name" "command" "result" "infile" "stdin"
 
 [ -z "$SH" ] && { [ -z "$TEST_HOST" ] && SH="sh" || export SH="bash" ; }
+
+# Test the sh -c stuff before changing EVAL
+testing '$SH -c "" exit status 0' 'sh -c "" && echo $?' '0\n' '' ''
+testing '$SH -c arg split' \
+  "$SH -c 'for i in a\"\$@\"b;do echo =\$i=;done;echo \$0' 123 456 789" \
+  "=a456=\n=789b=\n123\n" "" ""
+testing "exec3" '$C -c "{ exec readlink /proc/self/fd/0;} < /proc/self/exe"' \
+  "$(readlink -f $C)\n" "" ""
+
+testing 'exec exitval' "$SH -c 'exec echo hello' && echo \$?" "hello\n0\n" "" ""
+testing 'simple script' '$SH input' 'input\n' 'echo $0' ''
+testing 'simple script2' '$SH ./input two;echo $?' './input+two\n42\n' \
+  '\necho $0+$1\n\nexit 42' ''
+mkdir sub
+echo echo hello > sub/script
+testing 'simple script in PATH' "PATH='$PWD/sub:$PATH' $SH script" \
+  'hello\n' '' ''
+rm -rf sub
+
+# Change EVAL to call sh -c for us, using "bash" explicitly for the host.
 export EVAL="$SH -c"
 
 testing "smoketest" "echo hello" "hello\n" "" ""
+testing "eval" "eval echo hello" "hello\n" "" ""
+testing "eval2" "eval 'echo hello'; echo $?" "hello\n0\n" "" ""
+testing "eval3" 'X="echo hello"; eval "$X"' "hello\n" "" ""
+testing "exec" "exec echo hello" "hello\n" "" ""
+testing "exec2" "exec echo hello; echo $?" "hello\n" "" "" 
 
 # ; | && ||
 testing "semicolon" "echo one;echo two" "one\ntwo\n" "" ""
@@ -24,11 +49,13 @@ testing "&& ||" "true && false && potato || echo hello" "hello\n" "" ""
 
 # redirection
 
-testing "" "cat < input" "hello\n" "hello\n" ""
-testing "" "echo blah >out; cat out" "blah\n" "" ""
-testing "" "touch /not/exist 2>out||grep -o /not/exist out" "/not/exist\n" "" ""
-#testing "" 'echo hello | (read i <input; echo $i; read i; echo $i)' \
-#  "there\nhello\n" "there\n" ""
+testing "redir1" "cat < input" "hello\n" "hello\n" ""
+testing "redir2" "echo blah >out; cat out" "blah\n" "" ""
+testing "redir3" "echo more >>out; cat out" "blah\nmore\n" "" ""
+testing "redir4" "touch /not/exist 2>out||grep -o /not/exist out" \
+  "/not/exist\n" "" ""
+testing "redir5" "ls out /not/exist &> out2 || wc -l < out2" "2\n" "" ""
+testing "redir6" "ls out /not/exist |& wc -l" "2\n" "" ""
 
 testing "tilde expansion" "echo ~" "$HOME\n" "" ""
 testing "tilde2" "echo ~/dir" "$HOME/dir\n" "" ""
@@ -47,15 +74,84 @@ testing "brackets9" 'echo A{B{C,D}E{N,O},F{G,H}I}J{K,L}M' \
 for i in /root /var/root /; do [ -e $i ] && EXPECT=$i && break; done
 testing "bracket+tilde" "echo {~,~root}/pwd" "$HOME/pwd $EXPECT/pwd\n" "" ""
 
+#testing "backtick1" 'X=fred; echo `echo $x`' 'fred\n' "" ""
+#testing "backtick2" 'X=fred; echo `x=y; echo $x`' 'y\n' "" ""
+
 testing "leading variable assignment" 'abc=def env | grep ^abc=; echo $abc' \
   "abc=def\n\n" "" ""
 testing "leading variable assignments" \
   "abc=def ghi=jkl env | egrep '^(abc|ghi)=' | sort; echo \$abc \$ghi" \
   "abc=def\nghi=jkl\n\n" "" ""
+
+#$ IFS=x X=xyxz; for i in abc${X}def; do echo =$i=; done
+#=abc=
+#=y=
+#=zdef=
+
+testing "IFS whitespace before/after" \
+  'IFS=" x"; A=" x " B=" x" C="x " D=x E="   "; for i in $A $B $C $D L$A L$B L$C L$D $A= $B= $C= $D= L$A= L$B= L$C= L$D=; do echo -n {$i}; done' \
+  "{}{}{}{}{L}{L}{L}{L}{}{=}{}{=}{}{=}{}{=}{L}{=}{L}{=}{L}{=}{L}{=}" "" ""
+
+testing "IFS" 'IFS=x; A=abx; echo -n "$A"' "abx" "" ""
+testing "IFS2" 'IFS=x; A=abx; echo -n $A' "ab" "" ""
+testing "IFS3" 'IFS=x; echo "$(echo abx)"' "abx\n" "" ""
+testing "IFS4" "IFS=x; echo \"\$(echo ab' ')\"" "ab \n" "" ""
+
+testing '$*' 'cc(){ for i in $*;do echo =$i=;done;};cc "" "" "" "" ""' \
+  "" "" ""
+testing '$*2' 'cc(){ for i in "$*";do echo =$i=;done;};cc ""' \
+  "==\n" "" ""
+# Flame. Flames. Flames, on the side of my face...
+testing '$*3' 'cc(){ for i in "$*";do echo =$i=;done;};cc "" ""' \
+  "= =\n" "" ""
+testing '$*4' 'cc(){ for i in "$*";do echo =$i=;done;};cc "" "" "" "" ""' \
+  "= =\n" "" ""
+testing '$*5' 'cc(){ for i in "$*";do echo =$i=;done;};cc "" "abc" ""' \
+  "= abc =\n" "" ""
+# creating empty arguments without quotes
+testing '$* + IFS' \
+  'IFS=x; cc(){ for i in $*; do echo =$i=;done;};cc xabcxx' \
+  "==\n=abc=\n==\n" "" ""
+testing '$@' 'cc(){ for i in "$@";do echo =$i=;done;};cc "" "" "" "" ""' \
+  "==\n==\n==\n==\n==\n" "" ""
+testing "IFS10" 'IFS=bcd; A=abcde; for i in $A; do echo =$i=; done' \
+  "=a=\n==\n==\n=e=\n" "" ""
+
+testing "IFS combinations" \
+  'IFS=" x"; A=" x " B=" x" C="x " D=x E="   "; for i in $A $B $C $D L$A L$B L$C L$D $A= $B= $C= $D= L$A= L$B= L$C= L$D=; do echo -n {$i}; done' \
+  "{}{}{}{}{L}{L}{L}{L}{}{=}{}{=}{}{=}{}{=}{L}{=}{L}{=}{L}{=}{L}{=}" "" ""
+
+
+
+# The bash man page doesn't say quote removal here, and yet:
+testing "case quoting" 'case a in "a") echo hello;; esac' 'hello\n' "" ""
+
+testing "subshell splitting" 'for i in $(true); do echo =$i=; done' "" "" ""
+#testing "subshell split 2"
+
+# variable assignment argument splitting only performed for "$@"
+testing "assignment splitting" 'X="one two"; Y=$X; echo $Y' "one two\n" "" ""
+testing "argument splitting" \
+  'chicken() { for i in a"$@"b;do echo =$i=;done;}; chicken 123 456 789' \
+  "=a123=\n=456=\n=789b=\n" "" ""
+testing "assignment splitting2" 'pop(){ X="$@";};pop one two three; echo $X' \
+  "one two three\n" "" ""
+
 #testing "leading assignments don't affect current line" \
 #  'VAR=12345 echo ${VAR}a' "a\n" "" ""
 #testing "can't have space before first : but yes around arguments" \
 #  'BLAH=abcdefghi; echo ${BLAH: 1 : 3 }' "bcd\n" "" ""
+
+testing "subshell exit err" '(exit 42); echo $?' "42\n" "" ""
+
+# Same thing twice, but how do we cmp if exec exited?
+#testing 'exec and $$' testing 'echo $$;exec readlink /proc/self' 
+
+X="$(which readlink)"
+testing "exec in paren" \
+  '(exec readlink /proc/self/exe);echo hello' "$X\nhello\n" "" ""
+testing "exec in brackets" \
+  "{ exec readlink /proc/self/exe;};echo hi" "$X\n" "" ""
 
 NOSPACE=1 testing "curly brackets and pipe" \
   '{ echo one; echo two ; } | tee blah.txt; wc blah.txt' \
@@ -63,6 +159,9 @@ NOSPACE=1 testing "curly brackets and pipe" \
 NOSPACE=1 testing "parentheses and pipe" \
   '(echo two;echo three)|tee blah.txt;wc blah.txt' \
   "two\nthree\n2 2 10 blah.txt\n" "" ""
+#testing "pipe into parentheses" \
+#  'echo hello | (read i <input; echo $i; read i; echo $i)' \
+#  "there\nhello\n" "there\n" ""
 
 # texpect "name" "command" E/O/I"string"
 
@@ -77,7 +176,10 @@ txpect "redirect err" "$SH" "E$P" "Iecho > /dev/full\n" "E" "E$P" X0
 txpect "wait for <(exit)" "$SH" "E$P" "Icat <(echo hello 1>&2)\n" $'Ehello\n' \
   "E$P" X0
 
-
+# TODO: The txpect plumbing does not work right yet even on TEST_HOST
+#txpect "backtick0" "$SH" "E$P" 'IX=fred; echo `echo \\\\$x`'$'\n' 'Ofred' "E$P" X0
+#txpect "backtick1" "$SH" "E$P" 'IX=fred; echo `echo $x`'$'\n' 'Ofred'$'\n' "E$P" X0
+#txpect "backtick2" "$SH" "E$P" 'IX=fred; echo `x=y; echo $x`' $'Oy\n' "E$P" X0
 
 # $@ $* $# $? $- $$ $! $0
 # always exported: PWD SHLVL _
