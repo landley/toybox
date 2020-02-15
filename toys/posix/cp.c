@@ -407,7 +407,7 @@ void cp_main(void)
     if (*--trail == '/') *trail = 0;
 
     if (destdir) {
-      char *s = FLAG(D) ? dirname(src) : getbasename(src);
+      char *s = FLAG(D) ? src : getbasename(src);
 
       TT.destname = xmprintf("%s/%s", destname, s);
       if (FLAG(D)) {
