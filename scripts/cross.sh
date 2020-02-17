@@ -35,6 +35,7 @@ then
   do
     {
       export TARGET
+      echo -en "\033]2;$TARGET $*\007"
       "$0" $TARGET "$@" 2>&1 || mv cross-log-$TARGET.{txt,failed}
     } | tee cross-log-$TARGET.txt
   done
