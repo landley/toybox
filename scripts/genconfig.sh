@@ -92,7 +92,7 @@ EOF
     #include <unistd.h>
     int main(int argc, char *argv[]) { return fork(); }
 EOF
-  echo -e '\tdepends on !TOYBOX_MUSL_NOMMU_IS_BROKEN'
+  echo -e '\tdepends on !TOYBOX_FORCE_NOMMU'
 
   probesymbol TOYBOX_PRLIMIT << EOF
     #include <sys/types.h>

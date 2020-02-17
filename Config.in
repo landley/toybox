@@ -165,22 +165,34 @@ config TOYBOX_UID_USR
 	help
 	  When commands like useradd/groupadd allocate user IDs, start here.
 
-config TOYBOX_MUSL_NOMMU_IS_BROKEN
-	bool "Workaround for musl-libc breakage on nommu systems."
+config TOYBOX_FORCE_NOMMU
+	bool "Enable nommu support when the build can't detect it."
 	default n
 	help
-	  When using musl-libc on a nommu system, you'll need to say "y" here.
+	  When using musl-libc on a nommu system, you'll need to say "y" here
+	  unless you used the patch in the mcm-buildall.sh script. You can also
+	  say "y" here to test the nommu codepaths on an mmu system.
 
-	  Although uclibc lets you detect support for things like fork() and
-	  daemon() at compile time, musl intentionally includes broken versions
-	  that always return -ENOSYS on nommu systems, and goes out of its way
-	  to prevent any cross-compile compatible compile-time probes for a
-	  nommu system. (It doesn't even #define __MUSL__ in features.h.)
+	  A nommu system can't use fork(), it can only vfork() which suspends
+	  the parent until the child calls exec() or exits. When a program
+	  needs a second instance of itself to run specific code at the same
+	  time as the parent, it must use a more complicated approach (such as
+	  exec("/proc/self/exe") then pass data to the new child through a pipe)
+	  which is larger and slower, especially for things like toysh subshells
+	  that need to duplicate a lot of internal state in the child process
+	  fork() gives you for free.
 
-	  Musl does this despite the fact that a nommu system can't even run
-	  standard ELF binaries, and requires specially packaged executables.
-	  So our only choice is to manually provide a musl nommu bug workaround
-	  you can manually select to enable (larger, slower) nommu support with
-	  musl.
+	  Libraries like uclibc omit fork() on nommu systems, allowing
+	  compile-time probes to select which codepath to use. But musl
+	  intentionally includes a broken version of fork() that always returns
+	  -ENOSYS on nommu systems, and goes out of its way to prevent any
+	  cross-compile compatible compile-time probes for a nommu system.
+	  (It doesn't even #define __MUSL__ in features.h.) Musl does this
+	  despite the fact that a nommu system can't even run standard ELF
+	  binaries (requiring specially packaged executables) because it wants
+	  to force every program to either include all nommu code in every
+	  instance ever built, or drop nommu support altogether.
+
+	  Building a toolchain scripts/mcm-buildall.sh patches musl to fix this.
 
 endmenu
