@@ -200,8 +200,8 @@ else
   chmod +x "$OUTPUT/qemu-$TARGET.sh" &&
 
   echo "Build linux for $KARCH"
+  pushd "$LINUX" && make distclean && popd &&
   cp -sfR "$LINUX" "$MYBUILD/linux" && pushd "$MYBUILD/linux" || exit 1
-  make distclean &&
   write_miniconfig > "$OUTPUT/miniconfig-$TARGET" &&
   make ARCH=$KARCH allnoconfig KCONFIG_ALLCONFIG="$OUTPUT/miniconfig-$TARGET" &&
   make ARCH=$KARCH CROSS_COMPILE="$CROSS_COMPILE" -j $(nproc) || exit 1
