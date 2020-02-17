@@ -43,7 +43,6 @@ rm -rf "$MYBUILD" && mkdir -p "$MYBUILD" || exit 1
 if [ ! -z "$CROSS_COMPILE" ]; then
   if [ ! -e "$AIRLOCK/toybox" ]; then
     echo === Create airlock dir
-
     PREFIX="$AIRLOCK" KCONFIG_CONFIG="$TOP"/.airlock CROSS_COMPILE= \
       make clean defconfig toybox install_airlock &&
     rm "$TOP"/.airlock || exit 1
@@ -59,8 +58,7 @@ chmod a+rwxt "$ROOT"/tmp && ln -s usr/{bin,sbin,lib} "$ROOT" || exit 1
 cat > "$ROOT"/init << 'EOF' &&
 #!/bin/sh
 
-export HOME=/home
-export PATH=/bin:/sbin
+export HOME=/home PATH=/bin:/sbin
 
 mountpoint -q proc || mount -t proc proc proc
 mountpoint -q sys || mount -t sysfs sys sys
@@ -80,12 +78,9 @@ if [ $$ -eq 1 ]; then
   [ "$(date +%s)" -lt 1000 ] && rdate 10.0.2.2 # Ask QEMU what time it is
   [ "$(date +%s)" -lt 10000000 ] && ntpd -nq -p north-america.pool.ntp.org
 
-  [ -z "$CONSOLE" ] &&
-    CONSOLE="$(sed -n 's@.* console=\(/dev/\)*\([^ ]*\).*@\2@p' /proc/cmdline)"
-
+  [ -z "$CONSOLE" ] && CONSOLE="$(</sys/class/tty/console/active)"
   [ -z "$HANDOFF" ] && HANDOFF=/bin/sh && echo Type exit when done.
-  [ -z "$CONSOLE" ] && CONSOLE=console
-  exec /sbin/oneit -c /dev/"$CONSOLE" $HANDOFF
+  exec /sbin/oneit -c /dev/"${CONSOLE:-console}" $HANDOFF
 else
   /bin/sh
   umount /dev/pts /dev /sys /proc
@@ -100,21 +95,12 @@ guest:x:500:500:guest:/home/guest:/bin/sh
 nobody:x:65534:65534:nobody:/proc/self:/dev/null
 EOF
 echo -e 'root:x:0:\nguest:x:500:\nnobody:x:65534:' > "$ROOT"/etc/group &&
-
-# /etc/resolv.conf using Google's public nameserver. (We could use QEMU's
-# 10.0.2.2 forwarder here, but this way works in both chroot and QEMU.)
+# Google's public nameserver.
 echo "nameserver 8.8.8.8" > "$ROOT"/etc/resolv.conf || exit 1
 
 # Build toybox
 make clean
-if [ -z .config ]; then
-  make defconfig
-  # Work around musl-libc design flaw.
-  [ "${CROSS_BASE/fdpic//}" != "$CROSS_BASE" ] &&
-    sed -i 's/.*\(CONFIG_TOYBOX_MUSL_NOMMU_IS_BROKEN\).*/\1=y/' .config
-else
-  make silentoldconfig
-fi
+make $([ -z .config ] && echo defconfig || echo silentoldconfig)
 LDFLAGS=--static PREFIX="$ROOT" make toybox install || exit 1
 
 write_miniconfig()
@@ -153,7 +139,7 @@ else
     # This could use the same VIRT board as armv7, but let's demonstrate a
     # different one requiring a separate device tree binary.
     QEMU="arm -M versatilepb -net nic,model=rtl8139 -net user"
-    KARCH=arm KARGS="console=ttyAMA0" VMLINUX=arch/arm/boot/zImage
+    KARCH=arm KARGS=ttyAMA0 VMLINUX=arch/arm/boot/zImage
     KCONF=CPU_ARM926T,MMU,VFP,ARM_THUMB,AEABI,ARCH_VERSATILE,ATAGS,DEPRECATED_PARAM_STRUCT,ARM_ATAG_DTB_COMPAT,ARM_ATAG_DTB_COMPAT_CMDLINE_EXTEND,SERIAL_AMBA_PL011,SERIAL_AMBA_PL011_CONSOLE,RTC_CLASS,RTC_DRV_PL031,RTC_HCTOSYS,PCI,PCI_VERSATILE,BLK_DEV_SD,SCSI,SCSI_LOWLEVEL,SCSI_SYM53C8XX_2,SCSI_SYM53C8XX_MMIO,NET_VENDOR_REALTEK,8139CP
     KERNEL_CONFIG="CONFIG_SCSI_SYM53C8XX_DMA_ADDRESSING_MODE=0"
     DTB=arch/arm/boot/dts/versatile-pb.dtb
@@ -164,7 +150,7 @@ else
     else
       QEMU="arm -M virt" KARCH=arm VMLINUX=arch/arm/boot/zImage
     fi
-    KARGS="console=ttyAMA0"
+    KARGS=ttyAMA0
     KCONF=MMU,ARCH_MULTI_V7,ARCH_VIRT,SOC_DRA7XX,ARCH_OMAP2PLUS_TYPICAL,ARCH_ALPINE,ARM_THUMB,VDSO,CPU_IDLE,ARM_CPUIDLE,KERNEL_MODE_NEON,SERIAL_AMBA_PL011,SERIAL_AMBA_PL011_CONSOLE,RTC_CLASS,RTC_HCTOSYS,RTC_DRV_PL031,NET_CORE,VIRTIO_MENU,VIRTIO_NET,PCI,PCI_HOST_GENERIC,VIRTIO_BLK,VIRTIO_PCI,VIRTIO_MMIO,ATA,ATA_SFF,ATA_BMDMA,ATA_PIIX,PATA_PLATFORM,PATA_OF_PLATFORM,ATA_GENERIC
   elif [ "$TARGET" == i486 ] || [ "$TARGET" == i686 ] ||
        [ "$TARGET" == x86_64 ] || [ "$TARGET" == x32 ]; then
@@ -176,35 +162,31 @@ else
       QEMU=x86_64 KCONF=64BIT
       [ "$TARGET" == x32 ] && KCONF=X86_X32
     fi
-    KARCH=x86 KARGS="console=ttyS0" VMLINUX=arch/x86/boot/bzImage
+    KARCH=x86 KARGS=ttyS0 VMLINUX=arch/x86/boot/bzImage
     KCONF=$KCONF,UNWINDER_FRAME_POINTER,PCI,BLK_DEV_SD,ATA,ATA_SFF,ATA_BMDMA,ATA_PIIX,NET_VENDOR_INTEL,E1000,SERIAL_8250,SERIAL_8250_CONSOLE,RTC_CLASS
   elif [ "$TARGET" == mips ] || [ "$TARGET" == mipsel ]; then
-    QEMU="mips -M malta" KARCH=mips KARGS="console=ttyS0" VMLINUX=vmlinux
+    QEMU="mips -M malta" KARCH=mips KARGS=ttyS0 VMLINUX=vmlinux
     KCONF=MIPS_MALTA,CPU_MIPS32_R2,SERIAL_8250,SERIAL_8250_CONSOLE,PCI,BLK_DEV_SD,ATA,ATA_SFF,ATA_BMDMA,ATA_PIIX,NET_VENDOR_AMD,PCNET32,POWER_RESET,POWER_RESET_SYSCON
     [ "$TARGET" == mipsel ] && KCONF=$KCONF,CPU_LITTLE_ENDIAN &&
       QEMU="mipsel -M malta"
   elif [ "$TARGET" == powerpc ]; then
-    KARCH=powerpc QEMU="ppc -M g3beige" KARGS="console=ttyS0" VMLINUX=vmlinux
+    KARCH=powerpc QEMU="ppc -M g3beige" KARGS=ttyS0 VMLINUX=vmlinux
     KCONF=ALTIVEC,PPC_PMAC,PPC_OF_BOOT_TRAMPOLINE,IDE,IDE_GD,IDE_GD_ATA,BLK_DEV_IDE_PMAC,BLK_DEV_IDE_PMAC_ATA100FIRST,MACINTOSH_DRIVERS,ADB,ADB_CUDA,NET_VENDOR_NATSEMI,NET_VENDOR_8390,NE2K_PCI,SERIO,SERIAL_PMACZILOG,SERIAL_PMACZILOG_TTYS,SERIAL_PMACZILOG_CONSOLE,BOOTX_TEXT
+
   elif [ "$TARGET" == powerpc64le ]; then
-    KARCH=powerpc QEMU="ppc64 -M pseries -vga none" KARGS="console=/dev/hvc0"
+    KARCH=powerpc QEMU="ppc64 -M pseries -vga none" KARGS=/dev/hvc0
     VMLINUX=vmlinux
     KCONF=PPC64,PPC_PSERIES,CPU_LITTLE_ENDIAN,PPC_OF_BOOT_TRAMPOLINE,BLK_DEV_SD,SCSI_LOWLEVEL,SCSI_IBMVSCSI,ATA,NET_VENDOR_IBM,IBMVETH,HVC_CONSOLE,PPC_TRANSACTIONAL_MEM,PPC_DISABLE_WERROR,SECTION_MISMATCH_WARN_ONLY
+
   elif [ "$TARGET" = s390x ] ; then
     QEMU="s390x" KARCH=s390 VMLINUX=arch/s390/boot/bzImage
     KCONF=MARCH_Z900,PACK_STACK,NET_CORE,VIRTIO_NET,VIRTIO_BLK,SCLP_TTY,SCLP_CONSOLE,SCLP_VT220_TTY,SCLP_VT220_CONSOLE,S390_GUEST
   elif [ "$TARGET" == sh4 ] ; then
     QEMU="sh4 -M r2d -serial null -serial mon:stdio" KARCH=sh
-    KARGS="console=ttySC1 noiotrap" VMLINUX=arch/sh/boot/zImage
+    KARGS="ttySC1 noiotrap" VMLINUX=arch/sh/boot/zImage
     KERNEL_CONFIG="CONFIG_MEMORY_START=0x0c000000"
     KCONF=CPU_SUBTYPE_SH7751R,MMU,VSYSCALL,SH_FPU,SH_RTS7751R2D,RTS7751R2D_PLUS,SERIAL_SH_SCI,SERIAL_SH_SCI_CONSOLE,PCI,NET_VENDOR_REALTEK,8139CP,PCI,BLK_DEV_SD,ATA,ATA_SFF,ATA_BMDMA,PATA_PLATFORM,BINFMT_ELF_FDPIC,BINFMT_FLAT
-#CONFIG_SPI=y
-#CONFIG_SPI_SH_SCI=y
-#CONFIG_MFD_SM501=y
-#CONFIG_RTC_CLASS=y
-#CONFIG_RTC_DRV_R9701=y
-#CONFIG_RTC_DRV_SH=y
-#CONFIG_RTC_HCTOSYS=y
+#see also SPI SPI_SH_SCI MFD_SM501 RTC_CLASS RTC_DRV_R9701 RTC_DRV_SH RTC_HCTOSYS
   else
     echo "Unknown \$TARGET"
     exit 1
@@ -213,7 +195,7 @@ else
   # Write the qemu launch script
   echo "qemu-system-$QEMU" '"$@"' -nographic -no-reboot -m 256 \
        "-kernel $(basename "$VMLINUX") -initrd ${CROSS_BASE}root.cpio.gz" \
-       "-append \"panic=1 HOST=$TARGET $KARGS \$KARGS\"" \
+       "-append \"panic=1 HOST=$TARGET console=$KARGS \$KARGS\"" \
        ${DTB:+-dtb "$(basename "$DTB")"} > "$OUTPUT/qemu-$TARGET.sh" &&
   chmod +x "$OUTPUT/qemu-$TARGET.sh" &&
 
