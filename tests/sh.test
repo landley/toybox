@@ -91,6 +91,15 @@ testing "leading variable assignments" \
 testing "IFS whitespace before/after" \
   'IFS=" x"; A=" x " B=" x" C="x " D=x E="   "; for i in $A $B $C $D L$A L$B L$C L$D $A= $B= $C= $D= L$A= L$B= L$C= L$D=; do echo -n {$i}; done' \
   "{}{}{}{}{L}{L}{L}{L}{}{=}{}{=}{}{=}{}{=}{L}{=}{L}{=}{L}{=}{L}{=}" "" ""
+testing "quotes and whitespace" \
+  'A="   abc   def   "; for i in ""$A""; do echo =$i=; done' \
+  "==\n=abc=\n=def=\n==\n" "" ""
+testing "quotes and whitespace2" \
+  'A="   abc   def   "; for i in """"$A""; do echo =$i=; done' \
+  "==\n=abc=\n=def=\n==\n" "" ""
+testing "quotes and whitespace3" \
+  'A="   abc   def   "; for i in ""x""$A""; do echo =$i=; done' \
+  "=x=\n=abc=\n=def=\n==\n" "" ""
 
 testing "IFS" 'IFS=x; A=abx; echo -n "$A"' "abx" "" ""
 testing "IFS2" 'IFS=x; A=abx; echo -n $A' "ab" "" ""
@@ -101,13 +110,19 @@ testing '$*' 'cc(){ for i in $*;do echo =$i=;done;};cc "" "" "" "" ""' \
   "" "" ""
 testing '$*2' 'cc(){ for i in "$*";do echo =$i=;done;};cc ""' \
   "==\n" "" ""
-# Flame. Flames. Flames, on the side of my face...
-testing '$*3' 'cc(){ for i in "$*";do echo =$i=;done;};cc "" ""' \
-  "= =\n" "" ""
+testing '$*3... Flame. Flames. Flames, on the side of my face...' \
+  'cc(){ for i in "$*";do echo =$i=;done;};cc "" ""' "= =\n" "" ""
+testing 'why... oh.' \
+  'cc() { echo ="$*"=; for i in =$*=; do echo -$i-; done;}; cc "" ""; echo and; cc ""' \
+  '= =\n-=-\n-=-\nand\n==\n-==-\n' "" ""
+testing 'really?' 'cc() { for i in $*; do echo -$i-; done;}; cc "" "" ""' \
+  "" "" ""
+testing 'Sigh.' 'cc() { echo =$1$2=;}; cc "" ""' "==\n" "" ""
 testing '$*4' 'cc(){ for i in "$*";do echo =$i=;done;};cc "" "" "" "" ""' \
   "= =\n" "" ""
 testing '$*5' 'cc(){ for i in "$*";do echo =$i=;done;};cc "" "abc" ""' \
   "= abc =\n" "" ""
+
 # creating empty arguments without quotes
 testing '$* + IFS' \
   'IFS=x; cc(){ for i in $*; do echo =$i=;done;};cc xabcxx' \
