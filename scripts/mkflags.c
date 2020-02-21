@@ -154,7 +154,7 @@ void octane(char *from)
 
 int main(int argc, char *argv[])
 {
-  char command[256], flags[1023], allflags[1024];
+  char command[256], flags[1024], allflags[1024];
   char *out, *outbuf = malloc(1024*1024);
 
   // Yes, the output buffer is 1 megabyte with no bounds checking.
