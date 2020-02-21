@@ -3,10 +3,15 @@
 # Grab default values for $CFLAGS and such.
 
 if [ ! -z "$ASAN" ]; then
-  # Turn ASan on.
-  CFLAGS="-fsanitize=address $CFLAGS"
-  # Optional, but effectively necessary if you want useful backtraces.
-  CFLAGS="-O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls $CFLAGS"
+  echo "Enabling ASan..."
+  # Turn ASan on. Everything except -fsanitize=address is optional, but
+  # but effectively required for useful backtraces.
+  asan_flags="-fsanitize=address \
+    -O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls"
+  CFLAGS="$asan_flags $CFLAGS"
+  HOSTCC="$HOSTCC $asan_flags"
+  # Ignore leaks on exit.
+  export ASAN_OPTIONS="detect_leaks=0"
 fi
 
 export LANG=c
