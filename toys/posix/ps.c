@@ -311,13 +311,14 @@ struct procpid {
 #define XX 64 // force string representation for sorting, etc
 
 // TODO: Android uses -30 for LABEL, but ideally it would auto-size.
+// TODO: ideally, PID and PPID would auto-size too.
 struct typography {
   char *name, *help;
   signed char width, slot;
 } static const typos[] = TAGGED_ARRAY(PS,
   // Numbers. (What's in slot[] is what's displayed, sorted numerically.)
-  {"PID", "Process ID", 5, SLOT_pid},
-  {"PPID", "Parent Process ID", 5, SLOT_ppid},
+  {"PID", "Process ID", 6, SLOT_pid},
+  {"PPID", "Parent Process ID", 6, SLOT_ppid},
   {"PRI", "Priority (dynamic 0 to 139)", 3, SLOT_priority},
   {"NI", "Niceness (static 19 to -20)", 3, SLOT_nice},
   {"ADDR", "Instruction pointer", 4+sizeof(long), SLOT_eip},
