@@ -49,9 +49,8 @@ GLOBALS(
   char *i, *d;
   long p, g, F;
 
-  struct double_list *current_hunk;
-  long oldline, oldlen, newline, newlen;
-  long linenum;
+  void *current_hunk;
+  long oldline, oldlen, newline, newlen, linenum, outnum;
   int context, state, filein, fileout, filepatch, hunknum;
   char *tempname;
 )
@@ -65,20 +64,17 @@ GLOBALS(
 
 static void do_line(void *data)
 {
-  struct double_list *dlist = (struct double_list *)data;
+  struct double_list *dlist = data;
 
-  if (TT.state>1 && *dlist->data != TT.state) {
-    char *s = dlist->data+(TT.state>3);
-    int i = TT.state == 2 ? 2 : TT.fileout;
+  TT.outnum++;
+  if (TT.state>1)
+    if (0>dprintf(TT.state==2 ? 2 : TT.fileout,"%s\n",dlist->data+(TT.state>3)))
+      perror_exit("write");
 
-    xwrite(i, s, strlen(s));
-    xwrite(i, "\n", 1);
-  }
+  if (FLAG(x))
+    fprintf(stderr, "DO %d %ld: %s\n", TT.state, TT.outnum, dlist->data);
 
-  if (FLAG(x)) fprintf(stderr, "DO %d: %s\n", TT.state, dlist->data);
-
-  free(dlist->data);
-  free(data);
+  llist_free_double(data);
 }
 
 static void finish_oldfile(void)
@@ -121,26 +117,24 @@ static int loosecmp(char *aa, char *bb)
 
 // Given a hunk of a unified diff, make the appropriate change to the file.
 // This does not use the location information, but instead treats a hunk
-// as a sort of regex.  Copies data from input to output until it finds
+// as a sort of regex. Copies data from input to output until it finds
 // the change to be made, then outputs the changed data and returns.
-// (Finding EOF first is an error.)  This is a single pass operation, so
+// (Finding EOF first is an error.) This is a single pass operation, so
 // multiple hunks must occur in order in the file.
 
 static int apply_one_hunk(void)
 {
-  struct double_list *plist, *buf = NULL, *check;
-  int matcheof, trailing = 0, reverse = FLAG(R), backwarn = 0, allfuzz=0, fuzz;
-  int (*lcmp)(char *aa, char *bb);
-
-  lcmp = FLAG(l) ? (void *)loosecmp : (void *)strcmp;
-  dlist_terminate(TT.current_hunk);
+  struct double_list *plist, *buf = 0, *check;
+  int matcheof, trail = 0, reverse = FLAG(R), backwarn = 0, allfuzz = 0, fuzz,i;
+  int (*lcmp)(char *aa, char *bb) = FLAG(l) ? loosecmp : (void *)strcmp;
 
   // Match EOF if there aren't as many ending context lines as beginning
+  dlist_terminate(TT.current_hunk);
   for (plist = TT.current_hunk; plist; plist = plist->next) {
     char c = *plist->data, *s;
 
-    if (c==' ') trailing++;
-    else trailing = 0;
+    if (c==' ') trail++;
+    else trail = 0;
 
     // Only allow fuzz if 2 context lines have multiple nonwhitespace chars.
     // avoids the "all context was blank or } lines" issue. Removed lines
@@ -153,9 +147,11 @@ static int apply_one_hunk(void)
 
     if (FLAG(x)) fprintf(stderr, "HUNK:%s\n", plist->data);
   }
-  matcheof = !trailing || trailing < TT.context;
+  matcheof = !trail || trail < TT.context;
   if (allfuzz<2) allfuzz = 0;
   else allfuzz = FLAG(F) ? TT.F : TT.context ? TT.context-1 : 0;
+  if (allfuzz>=sizeof(toybuf)/sizeof(long))
+    allfuzz = (sizeof(toybuf)/sizeof(long))-1;
 
   if (FLAG(x)) fprintf(stderr,"MATCHEOF=%c\n", matcheof ? 'Y' : 'N');
 
@@ -163,13 +159,10 @@ static int apply_one_hunk(void)
   // lines and all lines to be removed until we've found the end of a
   // complete hunk.
   plist = TT.current_hunk;
-  fuzz = allfuzz;
-  buf = NULL;
-
+  fuzz = 0;
   for (;;) {
     char *data = get_line(TT.filein);
 
-    TT.linenum++;
     // Figure out which line of hunk to compare with next. (Skip lines
     // of the hunk we'd be adding.)
     while (plist && *plist->data == "+-"[reverse]) {
@@ -192,9 +185,11 @@ static int apply_one_hunk(void)
       // File ended before we found a place for this hunk.
       fail_hunk();
       goto done;
-    } else if (FLAG(x)) fprintf(stderr, "IN: %s\n", data);
+    } else {
+      TT.linenum++;
+      if (FLAG(x)) fprintf(stderr, "IN: %s\n", data);
+    }
     check = dlist_add(&buf, data);
-
     // Compare this line with next expected line of hunk.
 
     // A match can fail because the next line doesn't match, or because
@@ -203,11 +198,13 @@ static int apply_one_hunk(void)
     // If match failed, flush first line of buffered data and
     // recheck buffered data for a new match until we find one or run
     // out of buffer.
-
-    for (;;) {
+    for (i = 0;; i++) {
       if (!plist || lcmp(check->data, plist->data+1)) {
-        if (plist && *plist->data == ' ' && fuzz-->0) {
-          if (FLAG(x)) fprintf(stderr, "FUZZED: %s\n", plist->data);
+        if (plist && *plist->data == ' ' && fuzz<allfuzz) {
+          if (FLAG(x))
+            fprintf(stderr, "FUZZED: %ld %s\n", TT.linenum, plist->data);
+          ((long *)toybuf)[fuzz++] = TT.outnum+i;
+
           goto fuzzed;
         }
 
@@ -226,7 +223,7 @@ static int apply_one_hunk(void)
         }
 
         // If this hunk must match start of file, fail if it didn't.
-        if (!TT.context || trailing>TT.context) {
+        if (!TT.context || trail>TT.context) {
           fail_hunk();
           goto done;
         }
@@ -234,7 +231,8 @@ static int apply_one_hunk(void)
         TT.state = 3;
         do_line(check = dlist_pop(&buf));
         plist = TT.current_hunk;
-        fuzz = allfuzz;
+        memset(toybuf, 0, (fuzz+7)/8);
+        fuzz = 0;
 
         // If we've reached the end of the buffer without confirming a
         // match, read more lines.
@@ -254,14 +252,21 @@ fuzzed:
 out:
   // We have a match.  Emit changed data.
   TT.state = "-+"[reverse];
-  llist_traverse(TT.current_hunk, do_line);
-  TT.current_hunk = NULL;
+  allfuzz = 0;
+  while ((plist = dlist_pop(&TT.current_hunk))) {
+    if (TT.state == *plist->data || *plist->data == ' ') {
+      if (((long *)toybuf)[allfuzz] == ++TT.outnum) {
+        dprintf(TT.fileout, "%s\n", buf->data);
+        allfuzz++;
+      } else if (*plist->data == ' ') dprintf(TT.fileout, "%s\n",plist->data+1);
+      llist_free_double(dlist_pop(&buf));
+    } else dprintf(TT.fileout, "%s\n", plist->data+1);
+    llist_free_double(plist);
+  }
+  TT.current_hunk = 0;
   TT.state = 1;
 done:
-  if (buf) {
-    dlist_terminate(buf);
-    llist_traverse(buf, do_line);
-  }
+  llist_traverse(buf, do_line);
 
   return TT.state;
 }
@@ -336,7 +341,7 @@ void patch_main(void)
     // Are we assembling a hunk?
     if (state >= 2) {
       if (*patchline==' ' || *patchline=='+' || *patchline=='-') {
-        dlist_add(&TT.current_hunk, patchline);
+        dlist_add((void *)&TT.current_hunk, patchline);
 
         if (*patchline != '+') TT.oldlen--;
         if (*patchline != '-') TT.newlen--;
@@ -455,8 +460,7 @@ void patch_main(void)
           }
           if (FLAG(dry_run)) TT.fileout = xopen("/dev/null", O_RDWR);
           else TT.fileout = copy_tempfile(TT.filein, name, &TT.tempname);
-          TT.linenum = 0;
-          TT.hunknum = 0;
+          TT.linenum = TT.outnum = TT.hunknum = 0;
         }
       }
 
