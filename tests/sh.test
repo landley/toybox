@@ -136,7 +136,10 @@ testing "IFS combinations" \
   'IFS=" x"; A=" x " B=" x" C="x " D=x E="   "; for i in $A $B $C $D L$A L$B L$C L$D $A= $B= $C= $D= L$A= L$B= L$C= L$D=; do echo -n {$i}; done' \
   "{}{}{}{}{L}{L}{L}{L}{}{=}{}{=}{}{=}{}{=}{L}{=}{L}{=}{L}{=}{L}{=}" "" ""
 
-
+testing "! isn't special" "echo !" "!\n" "" ""
+testing "! by itself" '!; echo $?' "1\n" "" ""
+testing "! true" '! true; echo $?' "1\n" "" ""
+testing "! ! true" '! ! true; echo $?' "0\n" "" ""
 
 # The bash man page doesn't say quote removal here, and yet:
 testing "case quoting" 'case a in "a") echo hello;; esac' 'hello\n' "" ""
