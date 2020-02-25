@@ -162,7 +162,7 @@ int main(int argc, char *argv[])
   if (!(out = outbuf)) return 1;
 
   printf("#undef FORCED_FLAG\n#undef FORCED_FLAGLL\n"
-    "#ifdef FORCE_FLAGS\n#define FORCED_FLAG 1\n#define FORCED_FLAGLL 1LL\n"
+    "#ifdef FORCE_FLAGS\n#define FORCED_FLAG 1\n#define FORCED_FLAGLL 1ULL\n"
     "#else\n#define FORCED_FLAG 0\n#define FORCED_FLAGLL 0\n#endif\n\n");
 
   for (;;) {
@@ -220,7 +220,7 @@ int main(int argc, char *argv[])
     out += strlen(out);
 
     while (aflist) {
-      char *llstr = bit>31 ? "LL" : "", *s = (char []){0, 0, 0, 0};
+      char *llstr = bit>30 ? "LL" : "", *s = (char []){0, 0, 0, 0};
       int enabled = 0;
 
       // Output flag macro for bare longopts
