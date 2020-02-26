@@ -11,8 +11,10 @@
 [ -z "$SH" ] && { [ -z "$TEST_HOST" ] && SH="sh" || export SH="bash" ; }
 
 # Test the sh -c stuff before changing EVAL
-testing '$SH -c "" exit status 0' 'sh -c "" && echo $?' '0\n' '' ''
-testing '$SH -c arg split' \
+testing '-c "" exit status 0' '$SH -c "" && echo $?' '0\n' '' ''
+testing '-c args' "\$SH -c 'echo \$0,\$1,\$2,\$3' one two three four five" \
+  "one,two,three,four\n" "" ""
+testing '-c arg split' \
   "$SH -c 'for i in a\"\$@\"b;do echo =\$i=;done;echo \$0' 123 456 789" \
   "=a456=\n=789b=\n123\n" "" ""
 testing "exec3" '$C -c "{ exec readlink /proc/self/fd/0;} < /proc/self/exe"' \
@@ -56,6 +58,7 @@ testing "redir4" "touch /not/exist 2>out||grep -o /not/exist out" \
   "/not/exist\n" "" ""
 testing "redir5" "ls out /not/exist &> out2 || wc -l < out2" "2\n" "" ""
 testing "redir6" "ls out /not/exist |& wc -l" "2\n" "" ""
+testing "redir7" 'echo -n $(<input)' "boing" "boing\n" ""
 
 testing "tilde expansion" "echo ~" "$HOME\n" "" ""
 testing "tilde2" "echo ~/dir" "$HOME/dir\n" "" ""
@@ -76,6 +79,7 @@ testing "bracket+tilde" "echo {~,~root}/pwd" "$HOME/pwd $EXPECT/pwd\n" "" ""
 
 #testing "backtick1" 'X=fred; echo `echo $x`' 'fred\n' "" ""
 #testing "backtick2" 'X=fred; echo `x=y; echo $x`' 'y\n' "" ""
+testing '$(( ) )' 'echo $((echo hello) | tr e x)' "hxllo\n" "" ""
 
 testing "leading variable assignment" 'abc=def env | grep ^abc=; echo $abc' \
   "abc=def\n\n" "" ""
