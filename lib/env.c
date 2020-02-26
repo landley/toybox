@@ -2,7 +2,7 @@
 
 #include "toys.h"
 
-// In libc, populated by start code,used by getenv() and exec() and friends.
+// In libc, populated by start code, used by getenv() and exec() and friends.
 extern char **environ;
 
 // Returns the number of bytes taken by the environment variables. For use
@@ -26,9 +26,8 @@ void xclearenv(void)
     int i;
 
     for (i = 0; environ[i]; i++) if (i>=toys.envc) free(environ[i]);
-    free(environ);
-  }
-  toys.envc = 0;
+  } else environ = xmalloc(256*sizeof(char *));
+  toys.envc = 1;
   *environ = 0;
 }
 
