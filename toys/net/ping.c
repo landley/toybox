@@ -5,7 +5,7 @@
  * Not in SUSv4.
  *
  * Note: ping_group_range should never have existed. To disable it, do:
- *   echo 0 $(((1<<31)-1)) > /proc/sys/net/ipv4/ping_group_range
+ *   echo 0 999999999 > /proc/sys/net/ipv4/ping_group_range
  * (Android does this by default in its init script.)
  *
  * Yes, I wimped out and capped -s at sizeof(toybuf), waiting for a complaint...
@@ -58,12 +58,13 @@ GLOBALS(
 // Print a summary. Called as a single handler or at exit.
 static void summary(int sig)
 {
-  if (!(toys.optflags&FLAG_q) && TT.sent && TT.sa) {
+  if (!FLAG(q) && TT.sent && TT.sa) {
     printf("\n--- %s ping statistics ---\n", ntop(TT.sa));
     printf("%lu packets transmitted, %lu received, %ld%% packet loss\n",
       TT.sent, TT.recv, ((TT.sent-TT.recv)*100)/(TT.sent?TT.sent:1));
-    printf("round-trip min/avg/max = %lu/%lu/%lu ms\n",
-      TT.min, TT.max, TT.fugit/(TT.recv?TT.recv:1));
+    if (TT.recv)
+      printf("round-trip min/avg/max = %lu/%lu/%lu ms\n",
+        TT.min, TT.fugit/TT.recv, TT.max);
   }
   TT.sa = 0;
 }
@@ -96,10 +97,10 @@ void ping_main(void)
   unsigned short seq = 0, pkttime;
 
   // Set nonstatic default values
-  if (!(toys.optflags&FLAG_i)) TT.i = (toys.optflags&FLAG_f) ? 200 : 1000;
+  if (!FLAG(i)) TT.i = FLAG(f) ? 200 : 1000;
   else if (TT.i<200 && getuid()) error_exit("need root for -i <200");
-  if (!(toys.optflags&FLAG_s)) TT.s = 56; // 64-PHDR_LEN
-  if ((toys.optflags&(FLAG_f|FLAG_c)) == FLAG_f) TT.c = 15;
+  if (!FLAG(s)) TT.s = 56; // 64-PHDR_LEN
+  if (FLAG(f) && !FLAG(c)) TT.c = 15;
 
   // ipv4 or ipv6? (0 = autodetect if -I or arg have only one address type.)
   if (FLAG(6) || strchr(toys.which->name, '6')) family = AF_INET6;
@@ -109,12 +110,10 @@ void ping_main(void)
   // If -I srcaddr look it up. Allow numeric address of correct type.
   memset(&srcaddr, 0, sizeof(srcaddr));
   if (TT.I) {
-    if (!(toys.optflags&FLAG_6) && inet_pton(AF_INET, TT.I,
-      (void *)&srcaddr.in.sin_addr))
-        family = AF_INET;
-    else if (!(toys.optflags&FLAG_4) && inet_pton(AF_INET6, TT.I,
-      (void *)&srcaddr.in6.sin6_addr))
-        family = AF_INET6;
+    if (!FLAG(6) && inet_pton(AF_INET, TT.I, (void *)&srcaddr.in.sin_addr))
+      family = AF_INET;
+    else if (!FLAG(4) && inet_pton(AF_INET6, TT.I, (void *)&srcaddr.in6.sin6_addr))
+      family = AF_INET6;
     else if (getifaddrs(&ifa2)) perror_exit("getifaddrs");
   }
 
@@ -150,28 +149,26 @@ void ping_main(void)
   if (TT.sock == -1) {
     perror_msg("socket SOCK_DGRAM %x", len);
     if (errno == EACCES) {
-      fprintf(stderr, "Kernel bug workaround (as root):\n");
-      fprintf(stderr, "echo 0 9999999 > /proc/sys/net/ipv4/ping_group_range\n");
+      fprintf(stderr, "Kernel bug workaround:\n"
+        "echo 0 99999999 | sudo tee /proc/sys/net/ipv4/ping_group_range\n");
     }
     xexit();
   }
   if (TT.I) xbind(TT.sock, sa, sizeof(srcaddr));
 
-  if (toys.optflags&FLAG_m) {
-      int mark = TT.m;
-
-      xsetsockopt(TT.sock, SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
+  if (FLAG(m)) {
+    len = TT.m;
+    xsetsockopt(TT.sock, SOL_SOCKET, SO_MARK, &len, 4);
   }
 
   if (TT.t) {
     len = TT.t;
-
     if (ai->ai_family == AF_INET)
       xsetsockopt(TT.sock, IPPROTO_IP, IP_TTL, &len, 4);
     else xsetsockopt(TT.sock, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &len, 4);
   }
 
-  if (!(toys.optflags&FLAG_q)) {
+  if (!FLAG(q)) {
     printf("Ping %s (%s)", *toys.optargs, ntop(TT.sa));
     if (TT.I) {
       *toybuf = 0;
@@ -180,6 +177,7 @@ void ping_main(void)
     // 20 byte TCP header, 8 byte ICMP header, plus data payload
     printf(": %ld(%ld) bytes.\n", TT.s, TT.s+28);
   }
+  TT.min = ULONG_MAX;
   toys.exitval = 1;
 
   tW = tw = 0;
@@ -214,11 +212,10 @@ void ping_main(void)
       ih->un.echo.sequence = ++seq;
       if (TT.s >= 4) *(unsigned *)(ih+1) = tnow;
 
-      ih->checksum = 0;
       ih->checksum = pingchksum((void *)toybuf, TT.s+sizeof(*ih));
       xsendto(TT.sock, toybuf, TT.s+sizeof(*ih), TT.sa);
       TT.sent++;
-      if ((toys.optflags&(FLAG_f|FLAG_q)) == FLAG_f) xputc('.');
+      if (FLAG(f) && !FLAG(q)) xputc('.');
 
       // last packet?
       if (TT.c) if (!--TT.c) {
@@ -238,16 +235,17 @@ void ping_main(void)
 
     TT.recv++;
     TT.fugit += (pkttime = millitime()-*(unsigned *)(ih+1));
+    if (pkttime < TT.min) TT.min = pkttime;
+    if (pkttime > TT.max) TT.max = pkttime;
 
     // reply id == 0 for ipv4, 129 for ipv6
 
-    if (!(toys.optflags&FLAG_q)) {
-      if (toys.optflags&FLAG_f) xputc('\b');
+    if (!FLAG(q)) {
+      if (FLAG(f)) xputc('\b');
       else {
         printf("%d bytes from %s: icmp_seq=%d ttl=%d", len, ntop(&srcaddr2.s),
                ih->un.echo.sequence, 0);
-        if (len >= sizeof(*ih)+4)
-          printf(" time=%u ms", pkttime);
+        if (len >= sizeof(*ih)+4) printf(" time=%u ms", pkttime);
         xputc('\n');
       }
     }
