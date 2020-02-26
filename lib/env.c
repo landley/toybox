@@ -29,7 +29,7 @@ void xclearenv(void)
     free(environ);
   }
   toys.envc = 0;
-  *environ = 0;
+  environ = 0;
 }
 
 // Frees entries we set earlier. Use with libc getenv but not setenv/putenv.
