@@ -126,7 +126,7 @@ static int apply_one_hunk(void)
 {
   struct double_list *plist, *buf = 0, *check;
   int matcheof, trail = 0, reverse = FLAG(R), backwarn = 0, allfuzz = 0, fuzz,i;
-  int (*lcmp)(char *aa, char *bb) = FLAG(l) ? loosecmp : (void *)strcmp;
+  int (*lcmp)(char *aa, char *bb) = FLAG(l) ? (void *)loosecmp : (void *)strcmp;
 
   // Match EOF if there aren't as many ending context lines as beginning
   dlist_terminate(TT.current_hunk);
