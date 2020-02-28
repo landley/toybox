@@ -10,8 +10,8 @@
  *
  * Yes, I wimped out and capped -s at sizeof(toybuf), waiting for a complaint...
 
-// -s > 4088 = sizeof(toybuf)-sizeof(struct icmphdr), then kernel adds 20 bytes
-USE_PING(NEWTOY(ping, "<1>1m#t#<0>255=64c#<0=3s#<0>4088=56i%W#<0=3w#<0qf46I:[-46]", TOYFLAG_USR|TOYFLAG_BIN))
+// -s > 4064 = sizeof(toybuf)-sizeof(struct icmphdr)-CMSG_SPACE(sizeof(uint8_t)), then kernel adds 20 bytes
+USE_PING(NEWTOY(ping, "<1>1m#t#<0>255=64c#<0=3s#<0>4064=56i%W#<0=3w#<0qf46I:[-46]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_PING(OLDTOY(ping6, ping, TOYFLAG_USR|TOYFLAG_BIN))
  
 config PING
@@ -85,14 +85,39 @@ static unsigned short pingchksum(unsigned short *data, int len)
   return u;
 }
 
+static int xrecvmsgwait(int fd, struct msghdr *msg, int flag,
+  union socksaddr *sa, int timeout)
+{
+  socklen_t sl = sizeof(*sa);
+  int len;
+
+  if (timeout >= 0) {
+    struct pollfd pfd;
+
+    pfd.fd = fd;
+    pfd.events = POLLIN;
+    if (!xpoll(&pfd, 1, timeout)) return 0;
+  }
+
+  msg->msg_name = (void *)sa;
+  msg->msg_namelen = sl;
+  len = recvmsg(fd, msg, flag);
+  if (len<0) perror_exit("recvmsg");
+
+  return len;
+}
+
 void ping_main(void)
 {
   struct addrinfo *ai, *ai2;
   struct ifaddrs *ifa, *ifa2 = 0;
   struct icmphdr *ih = (void *)toybuf;
+  struct msghdr msg;
+  struct cmsghdr *cmsg;
+  struct iovec iov;
   union socksaddr srcaddr, srcaddr2;
   struct sockaddr *sa = (void *)&srcaddr;
-  int family = 0, len;
+  int family = 0, ttl = 0, len;
   long long tnext, tW, tnow, tw;
   unsigned short seq = 0, pkttime;
 
@@ -156,16 +181,19 @@ void ping_main(void)
   }
   if (TT.I) xbind(TT.sock, sa, sizeof(srcaddr));
 
+  len = 1;
+  xsetsockopt(TT.sock, SOL_IP, IP_RECVTTL, &len, sizeof(len));
+
   if (FLAG(m)) {
     len = TT.m;
-    xsetsockopt(TT.sock, SOL_SOCKET, SO_MARK, &len, 4);
+    xsetsockopt(TT.sock, SOL_SOCKET, SO_MARK, &len, sizeof(len));
   }
 
   if (TT.t) {
     len = TT.t;
     if (ai->ai_family == AF_INET)
       xsetsockopt(TT.sock, IPPROTO_IP, IP_TTL, &len, 4);
-    else xsetsockopt(TT.sock, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &len, 4);
+    else xsetsockopt(TT.sock, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &len, sizeof(len));
   }
 
   if (!FLAG(q)) {
@@ -177,12 +205,23 @@ void ping_main(void)
     // 20 byte TCP header, 8 byte ICMP header, plus data payload
     printf(": %ld(%ld) bytes.\n", TT.s, TT.s+28);
   }
+
   TT.min = ULONG_MAX;
   toys.exitval = 1;
 
   tW = tw = 0;
   tnext = millitime();
   if (TT.w) tw = TT.w*1000+tnext;
+
+  memset(&msg, 0, sizeof(msg));
+  // left enought space to store ttl value
+  len = CMSG_SPACE(sizeof(uint8_t));
+  iov.iov_base = (void *)toybuf;
+  iov.iov_len = sizeof(toybuf) - len;
+  msg.msg_iov = &iov;
+  msg.msg_iovlen = 1;
+  msg.msg_control = &toybuf[iov.iov_len];
+  msg.msg_controllen = len;
 
   sigatexit(summary);
 
@@ -230,7 +269,7 @@ void ping_main(void)
     // wait for next packet or timeout
 
     if (waitms<0) waitms = 0;
-    if (!(len = xrecvwait(TT.sock, toybuf, sizeof(toybuf), &srcaddr2, waitms)))
+    if (!(len = xrecvmsgwait(TT.sock, &msg, 0, &srcaddr2, waitms)))
       continue;
 
     TT.recv++;
@@ -240,11 +279,20 @@ void ping_main(void)
 
     // reply id == 0 for ipv4, 129 for ipv6
 
+    cmsg = CMSG_FIRSTHDR(&msg);
+    for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+      if (cmsg->cmsg_level == IPPROTO_IP
+        && cmsg->cmsg_type == IP_TTL) {
+          ttl = *(uint8_t *)CMSG_DATA(cmsg);
+          break;
+      }
+    };
+
     if (!FLAG(q)) {
       if (FLAG(f)) xputc('\b');
       else {
         printf("%d bytes from %s: icmp_seq=%d ttl=%d", len, ntop(&srcaddr2.s),
-               ih->un.echo.sequence, 0);
+               ih->un.echo.sequence, ttl);
         if (len >= sizeof(*ih)+4) printf(" time=%u ms", pkttime);
         xputc('\n');
       }
