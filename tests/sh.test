@@ -170,7 +170,7 @@ testing "subshell exit err" '(exit 42); echo $?' "42\n" "" ""
 # Same thing twice, but how do we cmp if exec exited?
 #testing 'exec and $$' testing 'echo $$;exec readlink /proc/self' 
 
-X="$(which readlink)"
+X="$(realpath $(which readlink))"
 testing "exec in paren" \
   '(exec readlink /proc/self/exe);echo hello' "$X\nhello\n" "" ""
 testing "exec in brackets" \
