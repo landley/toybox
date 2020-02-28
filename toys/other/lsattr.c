@@ -67,6 +67,8 @@ GLOBALS(
   long p;
 
   long add, rm, set;
+  // !add and !rm tell us whether they were used, but `chattr =` is meaningful.
+  int have_set;
 )
 
 #define FS_PROJINHERT_FL 0x20000000 // Linux 4.5
@@ -264,6 +266,7 @@ static void parse_cmdline_arg(char ***argv)
           TT.add |= get_flag_val(*ptr);
         break;
       case '=':
+        TT.have_set = 1;
         for (ptr = ++arg; *ptr; ptr++)
           TT.set |= get_flag_val(*ptr);
         break;
@@ -297,7 +300,7 @@ static int update_attr(struct dirtree *root)
   }
 
   // Any potential flag changes?
-  if (TT.set | TT.add | TT.set) {
+  if (TT.have_set | TT.add | TT.rm) {
     unsigned long orig, new;
 
     // Read current flags.
@@ -308,7 +311,7 @@ static int update_attr(struct dirtree *root)
       return DIRTREE_ABORT;
     }
     // Apply the requested changes.
-    if (TT.set) new = TT.set; // '='.
+    if (TT.have_set) new = TT.set; // '='.
     else { // '-' and/or '+'.
       new = orig;
       new &= ~(TT.rm);
@@ -347,10 +350,10 @@ void chattr_main(void)
   if (TT.p < 0 || TT.p > UINT_MAX) error_exit("bad projid %lu", TT.p);
   if (TT.v < 0 || TT.v > UINT_MAX) error_exit("bad version %ld", TT.v);
   if (!*argv) help_exit("no file");
-  if (TT.set && (TT.add || TT.rm))
+  if (TT.have_set && (TT.add || TT.rm))
     error_exit("no '=' with '-' or '+'");
   if (TT.rm & TT.add) error_exit("set/unset same flag");
-  if (!(TT.add || TT.rm || TT.set || FLAG(p) || FLAG(v)))
+  if (!(TT.add || TT.rm || TT.have_set || FLAG(p) || FLAG(v)))
     error_exit("need '-p', '-v', '=', '-', or '+'");
   for (; *argv; argv++) dirtree_read(*argv, update_attr);
 }
