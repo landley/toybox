@@ -144,6 +144,7 @@ testing "! isn't special" "echo !" "!\n" "" ""
 testing "! by itself" '!; echo $?' "1\n" "" ""
 testing "! true" '! true; echo $?' "1\n" "" ""
 testing "! ! true" '! ! true; echo $?' "0\n" "" ""
+testing "! syntax err" '! echo 2>/dev/null < doesnotexist; echo $?' "0\n" "" ""
 
 # The bash man page doesn't say quote removal here, and yet:
 testing "case quoting" 'case a in "a") echo hello;; esac' 'hello\n' "" ""
@@ -202,6 +203,9 @@ txpect "wait for <(exit)" "$SH" "E$P" "Icat <(echo hello 1>&2)\n" $'Ehello\n' \
 #txpect "backtick0" "$SH" "E$P" 'IX=fred; echo `echo \\\\$x`'$'\n' 'Ofred' "E$P" X0
 #txpect "backtick1" "$SH" "E$P" 'IX=fred; echo `echo $x`'$'\n' 'Ofred'$'\n' "E$P" X0
 #txpect "backtick2" "$SH" "E$P" 'IX=fred; echo `x=y; echo $x`' $'Oy\n' "E$P" X0
+
+txpect '${ with newline' "$SH" "E$P" I'HELLO=abc; echo ${HELLO/b/'$'\n' "E> " \
+  I$'}\n' O$'a c\n' X0
 
 # $@ $* $# $? $- $$ $! $0
 # always exported: PWD SHLVL _
