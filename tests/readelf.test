@@ -70,7 +70,7 @@ Section Headers:
   [31] .strtab              STRTAB         0000000000000000 001b18 0001f4 00      0  0  1
 " "" ""
 
-NOSPACE=1 testing "-l" "readelf -lW $elf-short" "
+testing "-l" "readelf -lW $elf-short" "
 Elf file type is DYN (Shared object file)
 Entry point 0x1001
 There are 10 program headers, starting at offset 52
@@ -199,4 +199,21 @@ Hex dump of section '.shstrtab':
   0x000000e0 002e7368 73747274 6162002e 676e755f ..shstrtab..gnu_
   0x000000f0 64656275 67646174 61000000 000000   debugdata......
 
+" "" ""
+
+# TODO: remove the sed when we handle symbol versions
+testing "-s" "readelf -s $elf-short | sed s/@.*//" "
+Symbol table '.dynsym' contains 11 entries:
+   Num:    Value  Size Type    Bind   Vis      Ndx Name
+     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND 
+     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND __libc_init
+     2: 00000000     0 FUNC    GLOBAL DEFAULT  UND __stack_chk_fail
+     3: 00000000     0 OBJECT  GLOBAL DEFAULT  UND __stack_chk_guard
+     4: 00000000     0 FUNC    GLOBAL DEFAULT  UND memset
+     5: 000010d8    12 FUNC    GLOBAL DEFAULT   13 __aeabi_memclr
+     6: 000010d8    12 FUNC    GLOBAL DEFAULT   13 __aeabi_memclr4
+     7: 000010d8    12 FUNC    GLOBAL DEFAULT   13 __aeabi_memclr8
+     8: 000010c8    16 FUNC    GLOBAL DEFAULT   13 __aeabi_memset
+     9: 000010c8    16 FUNC    GLOBAL DEFAULT   13 __aeabi_memset4
+    10: 000010c8    16 FUNC    GLOBAL DEFAULT   13 __aeabi_memset8
 " "" ""
