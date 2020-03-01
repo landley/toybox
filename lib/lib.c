@@ -347,6 +347,7 @@ int stridx(char *haystack, char needle)
 }
 
 // Convert utf8 sequence to a unicode wide character
+// returns bytes consumed, or -1 if err, or -2 if need more data.
 int utf8towc(wchar_t *wc, char *str, unsigned len)
 {
   unsigned result, mask, first;
@@ -472,13 +473,12 @@ off_t fdlength(int fd)
 {
   struct stat st;
   off_t base = 0, range = 1, expand = 1, old;
+  unsigned long long size;
 
   if (!fstat(fd, &st) && S_ISREG(st.st_mode)) return st.st_size;
 
   // If the ioctl works for this, return it.
-  // TODO: is blocksize still always 512, or do we stat for it?
-  // unsigned int size;
-  // if (ioctl(fd, BLKGETSIZE, &size) >= 0) return size*512L;
+  if (ioctl(fd, BLKGETSIZE64, &size) >= 0) return size<<9;
 
   // If not, do a binary search for the last location we can read.  (Some
   // block devices don't do BLKGETSIZE right.)  This should probably have
