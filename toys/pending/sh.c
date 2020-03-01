@@ -8,7 +8,7 @@
  *
  * The first link describes the following shell builtins:
  *
- *   break colon continue dot eval exec exit export readonly return set shift
+ *   break : continue dot eval exec exit export readonly return set shift
  *   times trap unset
  *
  * The second link (the utilities directory) also contains specs for the
@@ -25,9 +25,9 @@
  * TODO: Handle embedded NUL bytes in the command line? (When/how?)
  * TODO: replace getenv() with faster func: sort env and binary search
 
- * buitins: alias bg command fc fg getopts jobs newgrp read umask unalias wait
- *          disown umask suspend source pushd popd dirs logout times trap
- *          unset local export readonly set : . let history declare
+ * builtins: alias bg command fc fg getopts jobs newgrp read umask unalias wait
+ *           disown umask suspend source pushd popd dirs logout times trap
+ *           unset local export readonly set : . let history declare
  * "special" builtins: break continue eval exec return shift
  * builtins with extra shell behavior: kill pwd time test
 
@@ -121,10 +121,13 @@ GLOBALS(
     struct sh_process {
       struct sh_process *next, *prev;
       struct arg_list *delete;   // expanded strings
-      int *urd, envlen, pid, exit;  // undo redirects, child PID, exit status
+      // undo redirects, a=b at start, child PID, exit status, has !
+      int *urd, envlen, pid, exit, not;
       struct sh_arg arg;
     } *procs, *proc;
   } *jobs, *job;
+
+  struct sh_arg *arg;
 )
 
 #define BUGBUG 0
@@ -216,27 +219,35 @@ static char *getvar(char *s)
   return getvarlen(s, strlen(s));
 }
 
-// returns offset of next unquoted (or double quoted if dquot) char.
-// handles \ '' "" `` $()
-int skip_quote(char *s, int dquot, int *depth)
+// TODO: make parse_word use this?
+// returns length of current quote context. Handles \ '' "" `` $()
+int skip_quote(char *s)
 {
-  int i, q = dquot ? *depth : 0;
+  int i, q = 0;
 
   // quotes were checked for balance and overflow by parse_word()
   for (i = 0; s[i]; i++) {
     char c = s[i], qq = q ? toybuf[q-1] : 0;
 
-    if (c == '\\') i++;
-    else if (dquot && q==1 && qq=='"' && c!='"') break;
-    else if (qq!='\'' && c=='$' && s[1]=='(') {
+    // backslash escapes skip a char, and return for EOL or unquoted.
+    if (c == '\\') {
+      if (qq!= '\'' && qq!='`') {
+        if (!s[++i]) return i;
+        if (!q) return ++i;
+      }
+    // $( triggers anywhere but inside ' '
+    } else if (qq!='\'' && c=='$' && s[1]=='(') {
       toybuf[q++] = ')';
-      i++;
-    } else if (q && qq==c) q--;
+      i+=2;
+    // unquoted parentheses nest inside $(), I.E. "$(()" isn't done yet.
+    } else if (c=='(' && qq==')') toybuf[q++] = ')';
+    // end current quoting context with match
+    else if (q && qq==c) q--;
+    // start new non-nesting quoting context only at top level
     else if ((!q || qq==')') && (c=='"' || c=='\'' || c=='`')) toybuf[q++] = c;
-    else if (!q) break;
-  }
 
-  if (dquot) *depth = q;
+    if (!q) break;
+  }
 
   return i;
 }
@@ -253,6 +264,213 @@ void add_arg(struct arg_list **list, char *arg)
   *list = al;
 }
 
+// Return next available high (>=10) file descriptor
+int next_hfd()
+{
+  int hfd;
+
+  for (; TT.hfd<=99999; TT.hfd++) if (-1 == fcntl(TT.hfd, F_GETFL)) break;
+  hfd = TT.hfd;
+  if (TT.hfd > 99999) {
+    hfd = -1;
+    if (!errno) errno = EMFILE;
+  }
+
+  return hfd;
+}
+
+// Perform a redirect, saving displaced filehandle to a high (>10) fd
+// rd is an int array: [0] = count, followed by from/to pairs to restore later.
+// If from == -1 just save to, else dup from->to after saving to.
+int save_redirect(int **rd, int from, int to)
+{
+  int cnt, hfd, *rr;
+
+  // save displaced to, copying to high (>=10) file descriptor to undo later
+  // except if we're saving to environment variable instead (don't undo that)
+  if ((hfd = next_hfd())==-1) return 1;
+  if (hfd != dup2(to, hfd)) hfd = -1;
+  else fcntl(hfd, F_SETFD, FD_CLOEXEC);
+
+if (BUGBUG) dprintf(255, "%d redir from=%d to=%d hfd=%d\n", getpid(), from, to, hfd);
+  // dup "to"
+  if (from != -1 && to != dup2(from, to)) {
+    if (hfd != -1) close(hfd);
+
+    return 1;
+  }
+
+  // Append undo information to redirect list so we can restore saved hfd later.
+  if (!((cnt = *rd ? **rd : 0)&31)) *rd = xrealloc(*rd, (cnt+33)*2*sizeof(int));
+  *(rr = *rd) = ++cnt;
+  rr[2*cnt-1] = hfd;
+  rr[2*cnt] = to;
+
+  return 0;
+}
+
+// TODO: waitpid(WNOHANG) to clean up zombies and catch background& ending
+static void subshell_callback(void)
+{
+  TT.subshell_env = xmprintf("@%d,%d=", getpid(), getppid());
+  xsetenv(TT.subshell_env, 0);
+  TT.subshell_env[strlen(TT.subshell_env)-1] = 0;
+}
+
+// TODO check every caller of run_subshell for error, or syntax_error() here
+// from pipe() failure
+
+// TODO eliminate prototypes
+static int sh_run(char *new);
+static void unredirect(int *urd);
+
+
+// Pass environment and command string to child shell, return PID of child
+static int run_subshell(char *str, int len)
+{
+  pid_t pid;
+
+  // The with-mmu path is significantly faster.
+  if (CFG_TOYBOX_FORK) {
+    char *s;
+
+    if ((pid = fork())<0) perror_msg("fork");
+    else if (!pid) {
+      s = xstrndup(str, len);
+      sh_run(s);
+      free(s);
+
+      _exit(toys.exitval);
+    }
+
+  // On nommu vfork, exec /proc/self/exe, and pipe state data to ourselves.
+  } else {
+    int pipes[2], i;
+
+    // open pipe to child
+    if (pipe(pipes) || 254 != dup2(pipes[0], 254)) return 1;
+    close(pipes[0]);
+    fcntl(pipes[1], F_SETFD, FD_CLOEXEC);
+
+    // vfork child
+    pid = xpopen_setup(0, 0, subshell_callback);
+
+    // marshall data to child
+    close(254);
+    if (TT.locals)
+      for (i = 0; TT.locals[i]; i++) dprintf(pipes[1], "%s\n", TT.locals[i]);
+    dprintf(pipes[1], "%.*s\n", len, str);
+    close(pipes[1]);
+  }
+
+  return pid;
+}
+
+// Call subshell with either stdin/stdout redirected, return other end of pipe
+int pipe_subshell(char *s, int len, int out)
+{
+  int pipes[2], *uu = 0, in = !out;
+
+  // Grab subshell data
+  if (pipe(pipes)) {
+    perror_msg("%.*s", len, s);
+
+    return -1;
+  }
+
+  // Perform input or output redirect and launch process
+  save_redirect(&uu, pipes[in], in);
+  close(pipes[in]);
+  run_subshell(s, len); // ignore errors, don't track
+  unredirect(uu);
+
+  return pipes[out];
+}
+
+// utf8 strchr: return wide char matched at wc from chrs, or 0 if not matched
+// if len, save length of wc when matched
+static int utf8chr(char *wc, char *chrs, int *len)
+{
+  wchar_t wc1, wc2;
+  int ll;
+
+  if (!*wc) return 0;
+
+  ll = utf8towc(&wc1, wc, 99);
+  if (ll<0 || wc1<1) {
+    if (len) ++*len;
+    return *wc;
+  }
+  if (wc1 > 0) {
+    if (len) *len = ll;
+    while (*(chrs += utf8towc(&wc2, chrs, 99))) if (wc1 == wc2) break;
+    if (*chrs) return wc1;
+  }
+
+  return 0;
+}
+
+// find utf8 characters in utf string
+// if c return first char in chrs or null terminator (ala strcspn)
+// else return first char not in chars (ala strspn)
+static char *utf8spnc(char *str, char *chrs, int c)
+{
+  int ll, len;
+
+  while (*str) {
+    ll = utf8chr(str, chrs, &len);
+    if (c ? ll : !ll) break;
+    str += len;
+  }
+
+  return str;
+}
+
+
+// This reeeeeally wants to be inline because we marshall half the function's
+// state to it and it write _back_ to more than one. End of loop?
+
+// Perform word splitting via $IFS, adding split chunks
+// Returns newly allocated end chunk.
+// input *off is length of new, output *off = resolved length
+static char *split_add(struct sh_arg *arg, struct arg_list **delete,
+  char *before, char *new, char *after, char quote, int *off)
+{
+// TODO TT.ifs
+  char *ifs = getenv("IFS"), *end = new;
+  int i, j, len;
+
+  if (!ifs) ifs = " \t\n";
+
+  if (!(quote&1)) while (*new && *(end = utf8spnc(new, ifs, 1))) {
+    new = xmprintf("%.*s%.*s", *off, before, (int)(end-new), new);
+    *off = 0;
+    for (j = 0; (i = utf8chr(end, ifs, &len)); end += len) {
+
+      // runs of space allowed/collapsed before and after non-whitespace IFS
+      if (!(j&1)) {
+        if (iswspace(i)) {
+          if (!j && new && !*new && !quote) {
+            free(new);
+            new = 0;
+          }
+        } else if (++j == 3) break;
+      } else j++;
+    }
+    if (new) {
+      add_arg(delete, new);
+      array_add(&arg->v, arg->c++, new);
+      quote = 0;
+    }
+    new = end;
+  }
+
+  end = xmprintf("%.*s%s%s", *off, before, new, after);
+  *off += strlen(new);
+
+  return end;
+}
+
 #define NO_PATH  (1<<0)    // path expansion (wildcards)
 #define NO_SPLIT (1<<1)    // word splitting
 #define NO_BRACE (1<<2)    // {brace,expansion}
@@ -264,96 +482,158 @@ void add_arg(struct arg_list **list, char *arg)
 // TODO: ${name:?error} causes an error/abort here (syntax_err longjmp?)
 // TODO: $1 $@ $* need args marshalled down here: function+structure?
 // arg = append to this
-// new = string to expand
+// str = string to expand
 // flags = type of expansions (not) to do
 // delete = append new allocations to this so they can be freed later
 // TODO: at_args: $1 $2 $3 $* $@
-static void expand_arg_nobrace(struct sh_arg *arg, char *old, unsigned flags,
+static void expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
   struct arg_list **delete)
 {
-  char *new = old, *s, *ss, *sss;
+  char cc, qq = 0, *old = str, *new = str, *s, *ss;
+  int ii = 0, jj, kk, oo;
 
   if (flags&FORCE_KEEP) old = 0;
 
 // TODO ls -l /proc/$$/fd
 
   // Tilde expansion
-  if (!(flags&NO_TILDE) && *new == '~') {
+  if (!(flags&NO_TILDE) && *str == '~') {
     struct passwd *pw = 0;
 
     // first expansion so don't need to free previous new
     ss = 0;
-    for (s = new; *s && *s!=':' && *s!='/'; s++);
-    if (s-new==1) {
+    while (str[ii] && str[ii]!=':' && str[ii]!='/') s++;
+    if (ii==1) {
       if (!(ss = getvar("HOME")) || !*ss) pw = bufgetpwuid(getuid());
     } else {
       // TODO bufgetpwnam
-      pw = getpwnam(sss = xstrndup(new+1, (s-new)-1));
-      free(sss);
+      pw = getpwnam(s = xstrndup(str+1, ii-1));
+      free(s);
     }
     if (pw && pw->pw_dir) ss = pw->pw_dir;
     if (!ss || !*ss) ss = "/";
-    s = xmprintf("%s%s", ss, s);
+    s = xmprintf("%s%s", ss, str+ii);
     if (old != new) free(new);
     new = s;
   }
 
-  // parameter/variable expansion
+  // parameter/variable expansion, and dequoting
 
-// TODO this is wrong
-  if (*new == '$') {
-    char *s = getvar(new+1);
+  for (oo = 0; (cc = str[ii++]); old != new && (new[oo] = 0)) {
+    // skip literal chars
+    if (!strchr("$'`\\\"", cc)) {
+      if (old != new) new[oo++] = cc;
+      continue;
+    }
 
-    if (new != old) free(new);
-    if (!s) return;
-    new = xstrdup(s);
-  }
+    // allocate snapshot if we just started modifying
+    if (old == new) {
+      new = xstrdup(new);
+      new[oo = ii-1] = 0;
+    }
 
-/*
-  for (s = new; *(s += skip_quote(s, 1, &depth));) {
-    if (*s == '`') {
+    // handle different types of escapes
+    if (cc == '\\') new[oo++] = str[ii] ? str[ii++] : cc;
+    else if (cc == '"') qq++;
+    else if (cc == '\'') {
+      if (qq&1) new[oo++] = cc;
+      else {
+        qq += 2;
+        while ((cc = str[ii++]) != '\'') new[oo++] = cc;
+      }
+    // both types of subshell work the same, so do $( here not in '$' below
+// TODO $((echo hello) | cat) ala $(( becomes $( ( retroactively
+    } else if (cc == '`' || (cc == '$' && str[ii] == '(' && str[ii+1] != '(')) {
+      kk = skip_quote(str+ii);
+      jj = cc == '$';
+// TODO what does \ in `` mean? What is echo `printf %s \$x` supposed to do?
+      jj = pipe_subshell(str+ii+1+jj, kk-2-jj, 1);
+      ii += kk;
+      ss = readfd(jj, 0, 0);
+      close(jj);
+      if (ss && *ss) {
+        kk = strlen(ss);
+        while (kk && ss[kk-1]=='\n') ss[--kk] = 0;
 
-// ${ $(( $( $[ $' ` " '
+        s = split_add(arg, delete, new, ss, str+ii, qq, &oo);
+        if (new != old) free(new);
+        new = s;
+      }
+      // Blank subshells don't add an argument.
+      if (!str[ii]) {
+        if (new != old) free(new);
+        new = 0;
+      }
+    } else if (cc == '$') {
+      char buf[16];
+      s = buf;
 
-  while (*s) {
-    if (quote != '*s == '$') {
-      // *@#?-$!_0 "Special Paremeters" ($0 not affected by shift)
-      // 0-9 positional parameters
-      if (s[1] == '$'
+// *@#?-$!_0 "Special Paremeters" ($0 not affected by shift)
+
+
+      if (!(cc = str[ii++])) {
+        new[oo++] = cc;
+        break;
+      } else if (cc == '?') {
+        char buf[16];
+        sprintf(buf, "%d", toys.exitval);
+
+        s = split_add(arg, delete, new, buf, str+ii, qq, &oo);
+        if (new != old) free(new);
+        new = s;
+      } else if (cc == '*' || cc == '@') {
+        // Quoted agglomeration
+        if ((qq&1) && cc=='*') {
+          for (jj = kk = 0; jj<TT.arg->c; jj++) kk += strlen(TT.arg->v[jj]);
+          s = xmalloc(oo+kk+TT.arg->c+strlen(str+ii)+1);
+          memcpy(s, new, oo);
+          for (jj = 0; jj<TT.arg->c; jj++)
+            oo += sprintf(s+oo, " %s"+!jj, TT.arg->v[jj]);
+          strcpy(s+oo, str+ii);
+        } else for (jj = 0; jj<TT.arg->c; jj++) {
+          s = split_add(arg, delete, new, TT.arg->v[jj],
+            jj+1==TT.arg->c ? str+ii : "", qq, &oo);
+          if (new != old) free(new);
+          new = s;
+        }
+      } else if(isdigit(cc)) {
+        for (kk = 0, ii--; isdigit(cc = str[ii]); ii++) kk = (10*kk)+cc-'0';
+        s = split_add(arg, delete, new, kk<TT.arg->c ? TT.arg->v[kk] : "",
+          str+ii, qq, &oo);
+        if (new != old) free(new);
+        new = s;
+
+      // TODO: ${ $(( $( $[ $'
+//      } else if (cc == '{') {
+
+      } else {
+        s = str+--ii;
+        for (jj = 0; s[jj] && (s[jj]=='_' || !ispunct(s[jj])); jj++);
+        s = jj ? getvarlen(str+ii, jj) : 0;
+        s = xstrdup(s ? s : ""); 
+        ii += jj;
+        s = split_add(arg, delete, new, s, str+ii, qq, &oo);
+        if (new != old) free(new);
+        new = s;
+      }
     }
   }
 
-  // replacement
-  while (*s) {
-    if (*s == '$') {
-      s++;
-    } else if (*strchr("*?[{", *s)) {
-      s++;
-    } else if (*s == '<' || *s == '>') {
-      s++;
-    } else s++;
-  }
-*/
+// TODO globbing * ? [
 
-// TODO not else?
-  // quote removal
-  else if (!(flags&NO_QUOTE)) {
-    int to = 0, from = 0;
+// Word splitting completely eliminating argument when no non-$IFS data left
+// wordexp keeps pattern when no matches
 
-    for (;;) {
-      char c = new[from++];
+// TODO NO_SPLIT cares about IFS, see also trailing \n
 
-      if (c == '"' || c=='\'') continue;
-      if (c == '\\' && new[from]) c = new[from++];
-      if (from != to && old == new) new = xstrdup(new);
-      if (!(new[to++] = c)) break;
-    }
-  }
+// quote removal
 
   // Record result.
-  if (old==new && (flags&FORCE_COPY)) new = xstrdup(new);
-  if (old!=new) add_arg(delete, new);
-  array_add(&arg->v, arg->c++, new);
+  if (*new || qq) {
+    if (old==new && (flags&FORCE_COPY)) new = xstrdup(new);
+    if (old!=new) add_arg(delete, new);
+    array_add(&arg->v, arg->c++, new);
+  } else if(old != new) free(new);
 }
 
 // expand braces (ala {a,b,c}) and call expand_arg_nobrace() each permutation
@@ -369,7 +649,7 @@ static void expand_arg(struct sh_arg *arg, char *old, unsigned flags,
 
   // collect brace spans
   if (!(flags&NO_BRACE)) for (i = 0; ; i++) {
-    i += skip_quote(old+i, 0, 0);
+    while ((j = skip_quote(old+i))) i += j;
     if (!bb && !old[i]) break;
     if (bb && (!old[i] || old[i] == '}')) {
       bb->active = bb->commas[bb->cnt+1] = i;
@@ -552,51 +832,6 @@ if (BUGBUG) dprintf(255, "urd %d %d\n", rr[0], rr[1]);
   free(urd);
 }
 
-// Return next available high (>=10) file descriptor
-int next_hfd()
-{
-  int hfd;
-
-  for (; TT.hfd<=99999; TT.hfd++) if (-1 == fcntl(TT.hfd, F_GETFL)) break;
-  hfd = TT.hfd;
-  if (TT.hfd > 99999) {
-    hfd = -1;
-    if (!errno) errno = EMFILE;
-  }
-
-  return hfd;
-}
-
-// Perform a redirect, saving displaced filehandle to a high (>10) fd
-// rd is an int array: [0] = count, followed by from/to pairs to restore later.
-// If from == -1 just save to, else dup from->to after saving to.
-int save_redirect(int **rd, int from, int to)
-{
-  int cnt, hfd, *rr;
-
-  // save displaced to, copying to high (>=10) file descriptor to undo later
-  // except if we're saving to environment variable instead (don't undo that)
-  if ((hfd = next_hfd())==-1) return 1;
-  if (hfd != dup2(to, hfd)) hfd = -1;
-  else fcntl(hfd, F_SETFD, FD_CLOEXEC);
-
-if (BUGBUG) dprintf(255, "%d redir from=%d to=%d hfd=%d\n", getpid(), from, to, hfd);
-  // dup "to"
-  if (from != -1 && to != dup2(from, to)) {
-    if (hfd != -1) close(hfd);
-
-    return 1;
-  }
-
-  // Append undo information to redirect list so we can restore saved hfd later.
-  if (!((cnt = *rd ? **rd : 0)&31)) *rd = xrealloc(*rd, (cnt+33)*2*sizeof(int));
-  *(rr = *rd) = ++cnt;
-  rr[2*cnt-1] = hfd;
-  rr[2*cnt] = to;
-
-  return 0;
-}
-
 // Pipeline segments
 struct sh_pipeline {
   struct sh_pipeline *next, *prev;
@@ -614,59 +849,6 @@ struct sh_function {
   struct sh_arg *arg; // arguments to function call
   char *end;
 };
-
-// TODO: waitpid(WNOHANG) to clean up zombies and catch background& ending
-
-static void subshell_callback(void)
-{
-  TT.subshell_env = xmprintf("@%d,%d=", getpid(), getppid());
-  xsetenv(TT.subshell_env, 0);
-  TT.subshell_env[strlen(TT.subshell_env)-1] = 0;
-}
-
-// TODO avoid prototype
-static int sh_run(char *new);
-
-// Pass environment and command string to child shell, return PID of child
-static int run_subshell(char *str, int len)
-{
-  pid_t pid;
-
-  // The with-mmu path is significantly faster.
-  if (CFG_TOYBOX_FORK) {
-    char *s;
-
-    if ((pid = fork())<0) perror_msg("fork");
-    else if (!pid) {
-      s = xstrndup(str, len);
-      sh_run(s);
-      free(s);
-
-      _exit(toys.exitval);
-    }
-
-  // On nommu vfork, exec /proc/self/exe, and pipe state data to ourselves.
-  } else {
-    int pipes[2], i;
-
-    // open pipe to child
-    if (pipe(pipes) || 254 != dup2(pipes[0], 254)) return 1;
-    close(pipes[0]);
-    fcntl(pipes[1], F_SETFD, FD_CLOEXEC);
-
-    // vfork child
-    pid = xpopen_setup(0, 0, subshell_callback);
-
-    // marshall data to child
-    close(254);
-    if (TT.locals)
-      for (i = 0; TT.locals[i]; i++) dprintf(pipes[1], "%s\n", TT.locals[i]);
-    dprintf(pipes[1], "%.*s\n", len, str);
-    close(pipes[1]);
-  }
-
-  return pid;
-}
 
 // turn a parsed pipeline back into a string.
 static char *pl2str(struct sh_pipeline *pl)
@@ -718,27 +900,19 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
 
     // Handle <() >() redirectionss
     if ((*s == '<' || *s == '>') && s[1] == '(') {
-      int pipes[2], *uu = 0, dd;
+      int new = pipe_subshell(s+2, strlen(s+1)-1, *s == '>');
 
       // Grab subshell data
-      if (pipe(pipes)) {
-        perror_msg_raw(s);
+      if (new == -1) {
         pp->exit = 1;
 
         return pp;
       }
-
-      // Perform input or output redirect and launch process
-      dd = *s == '<';
-      save_redirect(&uu, pipes[dd], dd);
-      close(pipes[dd]);
-      run_subshell(s+2, strlen(s+2)-1); // ignore errors, don't track
-      unredirect(uu);
-      save_redirect(&urd, -1, pipes[!dd]);
+      save_redirect(&urd, -1, new);
 
       // bash uses /dev/fd/%d which requires /dev/fd to be a symlink to
       // /proc/self/fd so we just produce that directly.
-      add_arg(&pp->delete, ss = xmprintf("/proc/self/fd/%d", pipes[!dd]));
+      add_arg(&pp->delete, ss = xmprintf("/proc/self/fd/%d", new));
       array_add(&pp->arg.v, pp->arg.c++, ss);
 
       continue;
@@ -1887,6 +2061,7 @@ void subshell_setup(void)
 {
   struct passwd *pw = getpwuid(getuid());
   int to, from, pid = 0, ppid = 0, mypid, myppid, len;
+// TODO: you can unset readonly and these first 4 aren't malloc()
   char *s, *ss, **ll, *locals[] = {"GROUPS=", "SECONDS=", "RANDOM=", "LINENO=",
     xmprintf("PPID=%d", myppid = getppid()), xmprintf("EUID=%d", geteuid()),
     xmprintf("$=%d", mypid = getpid()), xmprintf("UID=%d", getuid())};
@@ -1982,9 +2157,18 @@ void sh_main(void)
   char *new;
   struct sh_function scratch;
   int prompt = 0;
+  struct sh_arg arg;
 
   TT.hfd = 10;
   signal(SIGPIPE, SIG_IGN);
+
+  TT.arg = &arg;
+  if (!(arg.c = toys.optc)) {
+    arg.v = xmalloc(2*sizeof(char *));
+    arg.v[arg.c++] = *toys.argv;
+    arg.v[arg.c] = 0;
+  } else memcpy(arg.v = xmalloc((arg.c+1)*sizeof(char *)), toys.optargs,
+      (arg.c+1)*sizeof(char *));
 
   // TODO euid stuff?
   // TODO login shell?
