@@ -178,7 +178,7 @@ do_fail()
 txpect()
 {
   # Run command with redirection through fifos
-  NAME="$1"
+  NAME="$CMDNAME $1"
   CASE=
 
   if [ $# -lt 2 ] || ! mkfifo in-$$ out-$$ err-$$
