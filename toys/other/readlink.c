@@ -3,6 +3,7 @@
  * Copyright 2007 Rob Landley <rob@landley.net>
 
 USE_READLINK(NEWTOY(readlink, "<1nqmef(canonicalize)[-mef]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_REALPATH(NEWTOY(realpath, "<1", TOYFLAG_USR|TOYFLAG_BIN))
 
 config READLINK
   bool "readlink"
@@ -19,9 +20,18 @@ config READLINK
     -m	Ignore missing entries, show where it would be
     -n	No trailing newline
     -q	Quiet (no output, just error code)
+
+config REALPATH
+  bool "realpath"
+  default y
+  help
+    usage: realpath FILE...
+
+    Display the canonical absolute pathname
 */
 
 #define FOR_readlink
+#define FORCE_FLAGS
 #include "toys.h"
 
 void readlink_main(void)
@@ -40,4 +50,10 @@ void readlink_main(void)
       if (CFG_TOYBOX_FREE) free(s);
     } else toys.exitval = 1;
   }
+}
+
+void realpath_main(void)
+{
+  toys.optflags = FLAG_f;
+  readlink_main();
 }
