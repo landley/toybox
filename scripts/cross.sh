@@ -25,6 +25,9 @@ list()
 }
 [ $# -eq 0 ] && list && exit
 
+[ -z "$TOP" ] && TOP="$PWD/root/log"
+mkdir -p "$TOP" || exit 1
+
 X="$1"
 shift
 
@@ -33,11 +36,18 @@ if [ "$X" == all ]
 then
   for TARGET in $(list)
   do
+    LOG="$TOP/cross-log-$TARGET"
     {
       export TARGET
       echo -en "\033]2;$TARGET $*\007"
-      "$0" $TARGET "$@" 2>&1 || mv cross-log-$TARGET.{txt,failed}
-    } | tee cross-log-$TARGET.txt
+
+      rm -f "$LOG".{failed,success}
+      "$0" $TARGET "$@" 2>&1
+      X=$?
+      [ $X -eq 0 -o $X -eq 42 ] && mv "$LOG".{txt,success}
+    } |& tee "$LOG".txt
+    [ -z "$ALL" ] && [ ! -e "$LOG".success ] &&
+      { mv "$LOG".{txt,failed} ; break;}
   done
 
   exit

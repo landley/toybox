@@ -65,7 +65,7 @@ root_clean:
 	@echo root cleaned
 
 clean::
-	@rm -rf toybox generated change .singleconfig* cross-log-*.*
+	@rm -rf toybox generated change .singleconfig*
 	@echo cleaned
 
 # If singlemake was in generated/ "make clean; make test_ls" wouldn't work.
