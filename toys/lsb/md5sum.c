@@ -288,7 +288,7 @@ static void do_builtin_hash(int fd, char *name)
 {
   uint64_t count;
   int i, sha1=toys.which->name[0]=='s';
-  char buf;
+  char buf, *pp;
   void (*transform)(void);
 
   /* SHA1 initialization constants  (md5sum uses first 4) */
@@ -329,7 +329,10 @@ static void do_builtin_hash(int fd, char *name)
   else for (i=0; i<4; i++) sprintf(toybuf+8*i, "%08x", bswap_32(TT.state[i]));
 
   // Wipe variables. Cryptographer paranoia.
-  memset(TT.state, 0, sizeof(TT)-((long)TT.state-(long)&TT));
+  // if we do this with memset(), gcc throws a broken warning, and the (long)
+  // typecasts stop gcc from breaking "undefined behavior" that isn't.
+  for (pp = (void *)TT.state; (unsigned long)pp-(unsigned long)TT.state<sizeof(TT)-((unsigned long)TT.state-(unsigned long)&TT); pp++)
+    *pp = 0;
   i = strlen(toybuf)+1;
   memset(toybuf+i, 0, sizeof(toybuf)-i);
 }
