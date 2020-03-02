@@ -351,13 +351,25 @@ are always the same size (on both 32 and 64 bit). Pointer and int are _not_
 the same size on 64 bit systems, but pointer and long are.
 This is guaranteed by the LP64 memory model, a Unix standard (which Linux
 and MacOS X both implement, and which modern 64 bit processors such as
-x86-64 were <a href=http://www.pagetable.com/?p=6>designed for</a>).  See
-<a href=http://www.unix.org/whitepapers/64bit.html>the LP64 standard</a> and
-<a href=http://www.unix.org/version2/whatsnew/lp64_wp.html>the LP64
-rationale</a> for details.</p>
+x86-64 were <a href=http://www.pagetable.com/?p=6>designed for</a>).</p>
+
+<p>Back
+before unix.org went down, they hosted the
+<a href=https://web.archive.org/web/20020905181545/http://www.unix.org/whitepapers/64bit.html>LP64 standard</a> and
+<a href=https://web.archive.org/web/20020921185209/http://www.unix.org/version2/whatsnew/lp64_wp.html>the LP64 rationale</a>, but the important part is
+LP64 gives all the basic C integer types defined sizes:</p>
+
+<table border=1 cellpadding=10 cellspacing=2>
+<tr><td>C type</td><td>32 bit<br />sizeof</td><td>64 bit<br />sizeof</td></tr>
+<tr><td>char</td><td>1 byte</td><td>1 byte</td></tr>
+<tr><td>short</td><td>2 bytes</td><td>2 bytes</td></tr>
+<tr><td>int</td><td>4 bytes</td><td>4 bytes</td></tr>
+<tr><td>long</td><td>4 bytes</td><td>8 bytes</td></tr>
+<tr><td>long long</td><td>8 bytes</td><td>8 bytes</td></tr>
+</table>
 
 <p>Note that Windows doesn't work like this, and I don't care.
-<a href=http://blogs.msdn.com/oldnewthing/archive/2005/01/31/363790.aspx>The
+<a href=https://devblogs.microsoft.com/oldnewthing/20050131-00/?p=36563>The
 insane legacy reasons why this is broken on Windows are explained here.</a></p>
 
 <b><h3>Signedness of char</h3></b>
