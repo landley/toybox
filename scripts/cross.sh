@@ -8,6 +8,8 @@
 # With no arguments, lists available targets. Use target "all" to iterate
 # through each $TARGET from the list.
 
+trap "exit 1" INT
+
 CCC="$(dirname "$(readlink -f "$0")")"/../ccc
 if [ ! -d "$CCC" ]
 then
@@ -21,7 +23,7 @@ unset X Y
 # Display target list?
 list()
 {
-  ls "$CCC" | sed 's/-.*//' | sort -u | xargs
+  ls "$CCC" | sed -n 's/-.*//p' | sort -u | xargs
 }
 [ $# -eq 0 ] && list && exit
 
@@ -44,10 +46,9 @@ then
       rm -f "$LOG".{failed,success}
       "$0" $TARGET "$@" 2>&1
       X=$?
-      [ $X -eq 0 -o $X -eq 42 ] && mv "$LOG".{txt,success}
+      [ $X -eq 0 ] && mv "$LOG".{txt,success}
     } |& tee "$LOG".txt
-    [ -z "$ALL" ] && [ ! -e "$LOG".success ] &&
-      { mv "$LOG".{txt,failed} ; break;}
+    [ ! -e "$LOG".success ] && { mv "$LOG".{txt,failed};[ -z "$ALL" ] && break;}
   done
 
   exit
