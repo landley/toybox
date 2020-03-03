@@ -15,7 +15,7 @@
 // options shared between mv/cp must be in same order (right to left)
 // for FLAG macros to work out right in shared infrastructure.
 
-USE_CP(NEWTOY(cp, "<2"USE_CP_PRESERVE("(preserve):;")"D(parents)RHLPprdaslvnF(remove-destination)fiT[-HLPd][-ni]", TOYFLAG_BIN))
+USE_CP(NEWTOY(cp, "<2(preserve):;D(parents)RHLPprdaslvnF(remove-destination)fiT[-HLPd][-ni]", TOYFLAG_BIN))
 USE_MV(NEWTOY(mv, "<2vnF(remove-destination)fiT[-ni]", TOYFLAG_BIN))
 USE_INSTALL(NEWTOY(install, "<1cdDpsvm:o:g:", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -23,7 +23,7 @@ config CP
   bool "cp"
   default y
   help
-    usage: cp [-adfHiLlnPpRrsTv] SOURCE... DEST
+    usage: cp [-adfHiLlnPpRrsTv] [--preserve=motcxa] SOURCE... DEST
 
     Copy files from SOURCE to DEST.  If more than one SOURCE, DEST must
     be a directory.
@@ -46,15 +46,7 @@ config CP
     -T	DEST always treated as file, max 2 arguments
     -v	Verbose
 
-config CP_PRESERVE
-  bool "cp --preserve support"
-  default y
-  depends on CP
-  help
-    usage: cp [--preserve=motcxa]
-
-    --preserve takes either a comma separated list of attributes, or the first
-    letter(s) of:
+    Arguments to --preserve are the first letter(s) of:
 
             mode - permissions (ignore umask for rwx, copy suid and sticky bit)
        ownership - user and group
@@ -381,7 +373,7 @@ void cp_main(void)
   if (FLAG(a)||FLAG(p)) TT.pflags = _CP_mode|_CP_ownership|_CP_timestamps;
 
   // Not using comma_args() (yet?) because interpeting as letters.
-  if (CFG_CP_PRESERVE && FLAG(preserve)) {
+  if (FLAG(preserve)) {
     char *pre = xstrdup(TT.c.preserve ? TT.c.preserve : "mot"), *s;
 
     if (comma_remove(pre, "all")) TT.pflags = ~0;
