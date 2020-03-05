@@ -492,6 +492,7 @@ static void expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
   char cc, qq = 0, *old = str, *new = str, *s, *ss;
   int ii = 0, jj, kk, oo;
 
+if (BUGBUG) dprintf(255, "expand %s\n", str);
   if (flags&FORCE_KEEP) old = 0;
 
 // TODO ls -l /proc/$$/fd
@@ -1434,19 +1435,23 @@ static int parse_line(char *line, struct sh_function *sp)
     // Save argument (strdup) and check for flow control
     array_add(&arg->v, arg->c, s = xstrndup(start, end-start));
     start = end;
+
     if (strchr(";|&", *s)) {
-      // flow control without a statement is an error
-      if (!arg->c) goto flush;
 
       // treat ; as newline so we don't have to check both elsewhere.
       if (!strcmp(s, ";")) {
         arg->v[arg->c] = 0;
         free(s);
         s = 0;
+// TODO enforce only one ; allowed between "for i" and in or do.
+        if (!arg->c && ex && !memcmp(ex, "do\0C", 4)) continue;
 
       // ;; and friends only allowed in case statements
       } else if (*s == ';' && (!ex || strcmp(ex, "esac"))) goto flush;
       last = s;
+
+      // flow control without a statement is an error
+      if (!arg->c) goto flush;
       pl->count = -1;
 
       continue;
@@ -1882,6 +1887,7 @@ dprintf(2, "TODO skipped init for((;;)), need math parser\n");
               expand_arg(&blk->farg, pl->next->arg->v[i], 0, &blk->fdelete);
           } else expand_arg(&blk->farg, "\"$@\"", 0, &blk->fdelete);
         }
+        if (!pl->next->type) pl = pl->next;
 
 // TODO case/esac [[/]] (/) ((/)) function/}
 
