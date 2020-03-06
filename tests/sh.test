@@ -8,7 +8,20 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
+# texpect "name" "command" E/O/I"string"
+
+# Use "bash" name for host, "sh" for toybox
 [ -z "$SH" ] && { [ -z "$TEST_HOST" ] && SH="sh" || export SH="bash" ; }
+# Prompt changes for root/normal user
+[ $(id -u) -eq 0 ] && P='# ' || P='$ '
+# run sufficiently isolated shell child process to get predictable results
+SS="env -i PATH=${PATH@Q} PS1='\\$ ' $SH --noediting --noprofile --norc -is"
+
+txpect "prompt and exit" "$SS" "E$P" "Iexit\n" X0
+txpect "prompt and echo" "$SS" "E$P" "Iecho hello\n" "Ohello"$'\n' "E$P" X0
+txpect "redirect err" "$SS" "E$P" "Iecho > /dev/full\n" "E" "E$P" X0
+txpect "wait for <(exit)" "$SS" "E$P" "Icat <(echo hello 1>&2)\n" $'Ehello\n' \
+  "E$P" X0
 
 # Test the sh -c stuff before changing EVAL
 testing '-c "" exit status 0' '$SH -c "" && echo $?' '0\n' '' ''
@@ -17,6 +30,7 @@ testing '-c args' "\$SH -c 'echo \$0,\$1,\$2,\$3' one two three four five" \
 testing '-c arg split' \
   "$SH -c 'for i in a\"\$@\"b;do echo =\$i=;done;echo \$0' 123 456 789" \
   "=a456=\n=789b=\n123\n" "" ""
+testing '-c arg count' "$SH -c 'echo \$#' 9 8 7 6 1 2 3 4" "7\n" "" ""
 testing "exec3" '$C -c "{ exec readlink /proc/self/fd/0;} < /proc/self/exe"' \
   "$(readlink -f $C)\n" "" ""
 
@@ -24,11 +38,17 @@ testing 'exec exitval' "$SH -c 'exec echo hello' && echo \$?" "hello\n0\n" "" ""
 testing 'simple script' '$SH input' 'input\n' 'echo $0' ''
 testing 'simple script2' '$SH ./input two;echo $?' './input+two\n42\n' \
   '\necho $0+$1\n\nexit 42' ''
+
 mkdir sub
 echo echo hello > sub/script
 testing 'simple script in PATH' "PATH='$PWD/sub:$PATH' $SH script" \
   'hello\n' '' ''
 rm -rf sub
+
+testing "script file" "chmod +x input; ./input" "hello\n" "#!$C\necho hello" ""
+
+testing "IFS $*" "sh -c 'IFS=xy; echo \"\$*\"' one two tyree" "twoxtyree\n" \
+  "" ""
 
 # Change EVAL to call sh -c for us, using "bash" explicitly for the host.
 export EVAL="$SH -c"
@@ -81,11 +101,25 @@ testing "bracket+tilde" "echo {~,~root}/pwd" "$HOME/pwd $EXPECT/pwd\n" "" ""
 #testing "backtick2" 'X=fred; echo `x=y; echo $x`' 'y\n' "" ""
 testing '$(( ) )' 'echo $((echo hello) | tr e x)' "hxllo\n" "" ""
 
+# <glinda>A variable occurred</glinda>
+
+testing "expand" 'echo $PWD' "$(pwd)\n" "" ""
+testing "expand2" 'echo "$PWD"' "$(pwd)\n" "" ""
+testing "expand3" 'echo "$"PWD' '$PWD\n' "" ""
+testing "expand4" 'P=x; echo "$P"WD' 'xWD\n' "" ""
+testing "dequote" "echo one 'two' ''three 'fo'ur '\\'" \
+  'one two three four \\\n' '' ''
+
 testing "leading variable assignment" 'abc=def env | grep ^abc=; echo $abc' \
   "abc=def\n\n" "" ""
 testing "leading variable assignments" \
   "abc=def ghi=jkl env | egrep '^(abc|ghi)=' | sort; echo \$abc \$ghi" \
   "abc=def\nghi=jkl\n\n" "" ""
+
+testing "{1..5}" "echo {1..5}" "1 2 3 4 5\n" "" ""
+testing "{5..1}" "echo {5..1}" "5 4 3 2 1\n" "" ""
+testing "{5..1..2}" "echo {5..1..2}" "5 3 1\n" "" ""
+testing "{a..z..-3}" "echo {a..z..-3}" "a d g j m p s v y\n" "" ""
 
 #$ IFS=x X=xyxz; for i in abc${X}def; do echo =$i=; done
 #=abc=
@@ -109,6 +143,8 @@ testing "IFS" 'IFS=x; A=abx; echo -n "$A"' "abx" "" ""
 testing "IFS2" 'IFS=x; A=abx; echo -n $A' "ab" "" ""
 testing "IFS3" 'IFS=x; echo "$(echo abx)"' "abx\n" "" ""
 testing "IFS4" "IFS=x; echo \"\$(echo ab' ')\"" "ab \n" "" ""
+testing "IFS5" 'IFS=xy; for i in abcxdefyghi; do echo =$i=; done' \
+  "=abc def ghi=\n" "" ""
 
 testing '$*' 'cc(){ for i in $*;do echo =$i=;done;};cc "" "" "" "" ""' \
   "" "" ""
@@ -135,6 +171,9 @@ testing '$@' 'cc(){ for i in "$@";do echo =$i=;done;};cc "" "" "" "" ""' \
   "==\n==\n==\n==\n==\n" "" ""
 testing "IFS10" 'IFS=bcd; A=abcde; for i in $A; do echo =$i=; done' \
   "=a=\n==\n==\n=e=\n" "" ""
+testing "IFS11" \
+  'IFS=x; chicken() { for i in $@$@; do echo =$i=; done;}; chicken one "" abc dxf ghi' \
+  "=one=\n==\n=abc=\n=d=\n=f=\n=ghione=\n==\n=abc=\n=d=\n=f=\n=ghi=\n" "" ""
 
 testing "IFS combinations" \
   'IFS=" x"; A=" x " B=" x" C="x " D=x E="   "; for i in $A $B $C $D L$A L$B L$C L$D $A= $B= $C= $D= L$A= L$B= L$C= L$D=; do echo -n {$i}; done' \
@@ -186,28 +225,24 @@ NOSPACE=1 testing "parentheses and pipe" \
 #  'echo hello | (read i <input; echo $i; read i; echo $i)' \
 #  "there\nhello\n" "there\n" ""
 
-# texpect "name" "command" E/O/I"string"
-
-# Prompt changes for root/normal user
-[ $(id -u) -eq 0 ] && P='# ' || P='$ '
-# run sufficiently isolated shell child process to get predictable results
-SH="env -i PATH=${PATH@Q} PS1='\\$ ' $SH --noediting --noprofile --norc -is"
-
-txpect "prompt and exit" "$SH" "E$P" "Iexit\n" X0
-txpect "prompt and echo" "$SH" "E$P" "Iecho hello\n" "Ohello"$'\n' "E$P" X0
-txpect "redirect err" "$SH" "E$P" "Iecho > /dev/full\n" "E" "E$P" X0
-txpect "wait for <(exit)" "$SH" "E$P" "Icat <(echo hello 1>&2)\n" $'Ehello\n' \
-  "E$P" X0
-
 # TODO: The txpect plumbing does not work right yet even on TEST_HOST
-#txpect "backtick0" "$SH" "E$P" 'IX=fred; echo `echo \\\\$x`'$'\n' 'Ofred' "E$P" X0
-#txpect "backtick1" "$SH" "E$P" 'IX=fred; echo `echo $x`'$'\n' 'Ofred'$'\n' "E$P" X0
-#txpect "backtick2" "$SH" "E$P" 'IX=fred; echo `x=y; echo $x`' $'Oy\n' "E$P" X0
+#txpect "backtick0" "$SS" "E$P" 'IX=fred; echo `echo \\\\$x`'$'\n' 'Ofred' "E$P" X0
+#txpect "backtick1" "$SS" "E$P" 'IX=fred; echo `echo $x`'$'\n' 'Ofred'$'\n' "E$P" X0
+#txpect "backtick2" "$SS" "E$P" 'IX=fred; echo `x=y; echo $x`' $'Oy\n' "E$P" X0
 
-txpect '${ with newline' "$SH" "E$P" I'HELLO=abc; echo ${HELLO/b/'$'\n' "E> " \
+txpect '${ with newline' "$SS" "E$P" I'HELLO=abc; echo ${HELLO/b/'$'\n' "E> " \
   I$'}\n' O$'a c\n' X0
 
-# $@ $* $# $? $- $$ $! $0
+txpect 'here1' "$SS" "E$P" I'POTATO=123; cat << EOF'$'\n' "E> " \
+  I'$POTATO'$'\n' "E> " I'EOF'$'\n' O'123'$'\n' X0
+txpect 'here2' "$SS" "E$P" I'POTATO=123; cat << E"O"F'$'\n' "E> " \
+  I'$POTATO'$'\n' "E> " I'EOF'$'\n' O'$POTATO'$'\n' X0
+testing 'here3' 'abc(){ cat <<< x"$@"yz;};abc one two "three  four"' \
+  "xone two three  fouryz\n" "" ""
+
+testing '${#}' 'X=abcdef; echo ${#X}' "6\n" "" ""
+
+# $# $? $- $$ $! $0
 # always exported: PWD SHLVL _
 #  ./bash -c 'echo $_' prints $BASH, but PATH search shows path? Hmmm...
 # ro: UID PPID EUID $
