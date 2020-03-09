@@ -49,6 +49,7 @@
 
 USE_SH(NEWTOY(cd, ">1LP[-LP]", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(exit, 0, TOYFLAG_NOFORK))
+USE_SH(NEWTOY(unset, "fvn", TOYFLAG_NOFORK))
 
 USE_SH(NEWTOY(sh, "(noediting)(noprofile)(norc)sc:i", TOYFLAG_BIN))
 USE_SH(OLDTOY(toysh, sh, TOYFLAG_BIN))
@@ -92,6 +93,17 @@ config EXIT
 
     Exit shell.  If no return value supplied on command line, use value
     of most recent command, or 0 if none.
+
+config UNSET
+  bool
+  default n
+  depends on SH
+  help
+    usage: unset [-fvn] NAME...
+
+    -f	NAME is a function
+    -v	NAME is a variable
+    -n	dereference NAME and unset that
 */
 
 #define FOR_sh
@@ -101,7 +113,7 @@ GLOBALS(
   char *c;
 
   long lineno;
-  char **locals, *subshell_env;
+  char **locals, *subshell_env, *ifs;
   struct double_list functions;
   unsigned options, jobcnt, loc_ro, loc_magic;
   int hfd;  // next high filehandle (>= 10)
@@ -161,6 +173,25 @@ void array_add(char ***list, unsigned count, char *data)
   (*list)[count+1] = 0;
 }
 
+// add argument to an arg_list
+void add_arg(struct arg_list **list, char *arg)
+{
+  struct arg_list *al;
+
+  if (!list) return;
+  al = xmalloc(sizeof(struct arg_list));
+  al->next = *list;
+  al->arg = arg;
+  *list = al;
+}
+
+void array_add_del(char ***list, unsigned count, char *data,
+  struct arg_list **delete)
+{
+  if (delete) add_arg(delete, data);
+  array_add(list, count, data);
+}
+
 // Return index of variable within this list
 static unsigned findvar(char **list, char *name, int len)
 {
@@ -188,6 +219,8 @@ static void setvar(char *s, unsigned type)
   if (type&TAKE_MEM) type ^= TAKE_MEM;
   else s = xstrdup(s);
 
+  if (len == 3 && !memcmp(s, "IFS", 3)) TT.ifs = s+4;
+
   // local, export, readonly, integer...
 
   // exported variable?
@@ -202,7 +235,7 @@ static void setvar(char *s, unsigned type)
 }
 
 // get variable of length len starting at s.
-static char *getvarlen(char *s, int len)
+static char *getvarbylen(char *s, int len)
 {
   int i;
 
@@ -216,7 +249,7 @@ static char *getvarlen(char *s, int len)
 
 static char *getvar(char *s)
 {
-  return getvarlen(s, strlen(s));
+  return getvarbylen(s, strlen(s));
 }
 
 // TODO: make parse_word use this?
@@ -250,18 +283,6 @@ int skip_quote(char *s)
   }
 
   return i;
-}
-
-// add argument to an arg_list
-void add_arg(struct arg_list **list, char *arg)
-{
-  struct arg_list *al;
-
-  if (!list) return;
-  al = xmalloc(sizeof(struct arg_list));
-  al->next = *list;
-  al->arg = arg;
-  *list = al;
 }
 
 // Return next available high (>=10) file descriptor
@@ -310,6 +331,7 @@ if (BUGBUG) dprintf(255, "%d redir from=%d to=%d hfd=%d\n", getpid(), from, to, 
 }
 
 // TODO: waitpid(WNOHANG) to clean up zombies and catch background& ending
+// TODO: xunsetenv() after vfork()?
 static void subshell_callback(void)
 {
   TT.subshell_env = xmprintf("@%d,%d=", getpid(), getppid());
@@ -388,23 +410,23 @@ int pipe_subshell(char *s, int len, int out)
 }
 
 // utf8 strchr: return wide char matched at wc from chrs, or 0 if not matched
-// if len, save length of wc when matched
+// if len, save length of wc
 static int utf8chr(char *wc, char *chrs, int *len)
 {
   wchar_t wc1, wc2;
   int ll;
 
+  if (len) *len = 1;
   if (!*wc) return 0;
-
-  ll = utf8towc(&wc1, wc, 99);
-  if (ll<0 || wc1<1) {
-    if (len) ++*len;
-    return *wc;
-  }
-  if (wc1 > 0) {
+  if (0<(ll = utf8towc(&wc1, wc, 99))) {
     if (len) *len = ll;
-    while (*(chrs += utf8towc(&wc2, chrs, 99))) if (wc1 == wc2) break;
-    if (*chrs) return wc1;
+    while (*chrs) {
+      if(1>(ll = utf8towc(&wc2, chrs, 99))) chrs++;
+      else {
+        if (wc1 == wc2) return wc1;
+        chrs += ll;
+      }
+    }
   }
 
   return 0;
@@ -426,51 +448,6 @@ static char *utf8spnc(char *str, char *chrs, int c)
   return str;
 }
 
-
-// This reeeeeally wants to be inline because we marshall half the function's
-// state to it and it write _back_ to more than one. End of loop?
-
-// Perform word splitting via $IFS, adding split chunks
-// Returns newly allocated end chunk.
-// input *off is length of new, output *off = resolved length
-static char *split_add(struct sh_arg *arg, struct arg_list **delete,
-  char *before, char *new, char *after, char quote, int *off)
-{
-// TODO TT.ifs
-  char *ifs = getenv("IFS"), *end = new;
-  int i, j, len;
-
-  if (!ifs) ifs = " \t\n";
-
-  if (!(quote&1)) while (*new && *(end = utf8spnc(new, ifs, 1))) {
-    new = xmprintf("%.*s%.*s", *off, before, (int)(end-new), new);
-    *off = 0;
-    for (j = 0; (i = utf8chr(end, ifs, &len)); end += len) {
-
-      // runs of space allowed/collapsed before and after non-whitespace IFS
-      if (!(j&1)) {
-        if (iswspace(i)) {
-          if (!j && new && !*new && !quote) {
-            free(new);
-            new = 0;
-          }
-        } else if (++j == 3) break;
-      } else j++;
-    }
-    if (new) {
-      add_arg(delete, new);
-      array_add(&arg->v, arg->c++, new);
-      quote = 0;
-    }
-    new = end;
-  }
-
-  end = xmprintf("%.*s%s%s", *off, before, new, after);
-  *off += strlen(new);
-
-  return end;
-}
-
 #define NO_PATH  (1<<0)    // path expansion (wildcards)
 #define NO_SPLIT (1<<1)    // word splitting
 #define NO_BRACE (1<<2)    // {brace,expansion}
@@ -489,8 +466,8 @@ static char *split_add(struct sh_arg *arg, struct arg_list **delete,
 static void expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
   struct arg_list **delete)
 {
-  char cc, qq = 0, *old = str, *new = str, *s, *ss;
-  int ii = 0, jj, kk, oo;
+  char cc, qq = 0, *old = str, *new = str, *s, *ss, *ifs = 0, *del = 0;
+  int at = 0, ii = 0, dd, jj, kk, ll, oo;
 
 if (BUGBUG) dprintf(255, "expand %s\n", str);
   if (flags&FORCE_KEEP) old = 0;
@@ -520,7 +497,8 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
 
   // parameter/variable expansion, and dequoting
 
-  for (oo = 0; (cc = str[ii++]); old != new && (new[oo] = 0)) {
+  for (oo = 0; (cc = str[ii++]); old!=new && (new[oo] = 0)) {
+
     // skip literal chars
     if (!strchr("$'`\\\"", cc)) {
       if (old != new) new[oo++] = cc;
@@ -550,73 +528,102 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
 // TODO what does \ in `` mean? What is echo `printf %s \$x` supposed to do?
       jj = pipe_subshell(str+ii+1+jj, kk-2-jj, 1);
       ii += kk;
-      ss = readfd(jj, 0, 0);
+      if ((ifs = del = readfd(jj, 0, 0)))
+        for (kk = strlen(ifs); kk && ifs[kk-1]=='\n'; ifs[--kk] = 0);
       close(jj);
-      if (ss && *ss) {
-        kk = strlen(ss);
-        while (kk && ss[kk-1]=='\n') ss[--kk] = 0;
-
-        s = split_add(arg, delete, new, ss, str+ii, qq, &oo);
-        if (new != old) free(new);
-        new = s;
-      }
-      // Blank subshells don't add an argument.
-      if (!str[ii]) {
-        if (new != old) free(new);
-        new = 0;
-      }
     } else if (cc == '$') {
-      char buf[16];
-      s = buf;
 
 // *@#?-$!_0 "Special Paremeters" ($0 not affected by shift)
-
 
       if (!(cc = str[ii++])) {
         new[oo++] = cc;
         break;
-      } else if (cc == '?') {
-        char buf[16];
-        sprintf(buf, "%d", toys.exitval);
-
-        s = split_add(arg, delete, new, buf, str+ii, qq, &oo);
-        if (new != old) free(new);
-        new = s;
-      } else if (cc == '*' || cc == '@') {
-        // Quoted agglomeration
+      } else if (cc == '?') ifs = del = xmprintf("%d", toys.exitval);
+      else if (cc == '#') ifs = del = xmprintf("%d", TT.arg->c?TT.arg->c-1:0);
+      else if (cc == '*' || cc == '@') {
+        // If not doing word split, handle here
         if ((qq&1) && cc=='*') {
+//TODO separator is first char of IFS, not space: ll = utf8towc(&wc1, wc, 99);
+
           for (jj = kk = 0; jj<TT.arg->c; jj++) kk += strlen(TT.arg->v[jj]);
           s = xmalloc(oo+kk+TT.arg->c+strlen(str+ii)+1);
           memcpy(s, new, oo);
-          for (jj = 0; jj<TT.arg->c; jj++)
+          for (jj = 1; jj<TT.arg->c; jj++)
             oo += sprintf(s+oo, " %s"+!jj, TT.arg->v[jj]);
           strcpy(s+oo, str+ii);
-        } else for (jj = 0; jj<TT.arg->c; jj++) {
-          s = split_add(arg, delete, new, TT.arg->v[jj],
-            jj+1==TT.arg->c ? str+ii : "", qq, &oo);
-          if (new != old) free(new);
-          new = s;
-        }
+
+        // otherwise hand off to IFS logic at end of loop.
+        } else at = 1;
       } else if(isdigit(cc)) {
         for (kk = 0, ii--; isdigit(cc = str[ii]); ii++) kk = (10*kk)+cc-'0';
-        s = split_add(arg, delete, new, kk<TT.arg->c ? TT.arg->v[kk] : "",
-          str+ii, qq, &oo);
-        if (new != old) free(new);
-        new = s;
+        if (kk<TT.arg->c) ifs = TT.arg->v[kk];
 
-      // TODO: ${ $(( $( $[ $'
+      // TODO: ${ $(( $[ $'
 //      } else if (cc == '{') {
 
       } else {
         s = str+--ii;
         for (jj = 0; s[jj] && (s[jj]=='_' || !ispunct(s[jj])); jj++);
-        s = jj ? getvarlen(str+ii, jj) : 0;
-        s = xstrdup(s ? s : ""); 
+        if (!jj) new[oo++] = '$';
+// TODO: $((a=42)) can change var, affect lifetime here
+        else ifs = getvarbylen(str+ii, jj);
         ii += jj;
-        s = split_add(arg, delete, new, s, str+ii, qq, &oo);
-        if (new != old) free(new);
-        new = s;
       }
+    }
+
+    // combine before/ifs/after sections, splitting words on $IFS in ifs
+    if (ifs || at) {
+      if (!at && !*ifs && !qq) continue;
+
+      // when at!=0, loop through argv for "$@". Otherwise process ifs as-is
+      do {
+
+        // get next argument, is this last entry, first IFS separator character
+        if (at) ifs = TT.arg->v[at++];
+        kk = !at || at==TT.arg->c;
+        ss = (qq&1) ? ifs+strlen(ifs) : utf8spnc(ifs, TT.ifs, 1);
+
+        // loop within current ifs due to word break
+        do {
+          // fast path: no new allocation when no prefix, no separator,
+          // and either not last entry or no suffix
+          if (!oo && !*ss && (!kk || !str[ii])) {
+            if (!qq && ss==ifs) break;
+            dd = !!del;
+            del = 0;
+          } else {
+            // combine prefix, ifs before separator, and suffix (as appropriate)
+            ifs = xmprintf("%.*s%.*s%s", oo, new, ll = ss-ifs, ifs,
+                         (jj = (kk && !*ss)) ? str+ii : "");
+            if (old != new) free(new);
+            new = 0;
+            dd = 1;
+            if (jj) {
+              oo += ll;
+              new = ifs;
+
+              break;
+            } else oo = 0;
+
+            // combine whitespace separators
+            while ((jj = utf8chr(ss, TT.ifs, &ll)) && iswspace(jj)) ss += ll;
+
+            // add argument if quoted, non-blank, or non-whitespace separator
+            if (!qq && !*ifs && !*ss) {
+              free(ifs);
+
+              continue;
+            }
+          }
+
+          array_add_del(&arg->v, arg->c++, ifs, dd ? delete : 0);
+          qq &= 1;
+        } while (*(ifs = ss));
+      } while (!kk);
+
+      free(del);
+      ifs = del = 0;
+      at = 0;
     }
   }
 
@@ -632,8 +639,7 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
   // Record result.
   if (*new || qq) {
     if (old==new && (flags&FORCE_COPY)) new = xstrdup(new);
-    if (old!=new) add_arg(delete, new);
-    array_add(&arg->v, arg->c++, new);
+    array_add_del(&arg->v, arg->c++, new, (old != new) ? delete : 0);
   } else if(old != new) free(new);
 }
 
@@ -901,7 +907,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
 
     // Handle <() >() redirectionss
     if ((*s == '<' || *s == '>') && s[1] == '(') {
-      int new = pipe_subshell(s+2, strlen(s+1)-1, *s == '>');
+      int new = pipe_subshell(s+2, strlen(s+2)-1, *s == '>');
 
       // Grab subshell data
       if (new == -1) {
@@ -913,8 +919,8 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
 
       // bash uses /dev/fd/%d which requires /dev/fd to be a symlink to
       // /proc/self/fd so we just produce that directly.
-      add_arg(&pp->delete, ss = xmprintf("/proc/self/fd/%d", new));
-      array_add(&pp->arg.v, pp->arg.c++, ss);
+      array_add_del(&pp->arg.v, pp->arg.c++,
+        ss = xmprintf("/proc/self/fd/%d", new), &pp->delete);
 
       continue;
     }
@@ -951,7 +957,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
     else if (*s == '{') {
       // when we close a filehandle, we _read_ from {var}, not write to it
       if ((!strcmp(ss, "<&") || !strcmp(ss, ">&")) && !strcmp(sss, "-")) {
-        if (!(ss = getvarlen(s+1, ss-s-2))) break;
+        if (!(ss = getvarbylen(s+1, ss-s-2))) break;
         to = atoi(ss); // TODO trailing garbage?
         if (save_redirect(&pp->urd, -1, to)) break;
         close(to);
@@ -2105,6 +2111,7 @@ void subshell_setup(void)
 
   // Ensure environ copied and toys.envc set, and clean out illegal entries
   xunsetenv("");
+  TT.ifs = " \t\n";
   for (to = from = 0; (s = environ[from]); from++) {
 
     // If nommu subshell gets handoff
@@ -2117,6 +2124,7 @@ void subshell_setup(void)
     // Filter out non-shell variable names
     for (len = 0; s[len] && ((s[len] == '_') || !ispunct(s[len])); len++);
     if (s[len] == '=') environ[to++] = environ[from];
+    if (!memcmp(s, "IFS=", 4)) TT.ifs = s+4;
   }
   environ[toys.optc = to] = 0;
 
@@ -2305,4 +2313,33 @@ void cd_main(void)
 void exit_main(void)
 {
   exit(*toys.optargs ? atoi(*toys.optargs) : 0);
+}
+
+void unset_main(void)
+{
+  char **arg;
+  unsigned vv, xx;
+
+  for (arg = toys.optargs; *arg; arg++) {
+    if (!strcmp(*arg, "IFS")) TT.ifs = " \t\n";
+    if (strchr(*arg, '=')) error_msg("bad '%s'", *arg);
+    else {
+
+      // find and unset local
+      vv = findvar(TT.locals, *arg, strlen(*arg));
+      if (vv<TT.loc_ro || vv<TT.loc_magic) error_msg("nope"); // TODO this
+      else {
+        for (xx = vv; TT.locals[xx]; xx++);
+        if (xx) {
+          free(TT.locals[vv]);
+          memmove(TT.locals+vv, TT.locals+xx+1, xx);
+
+          continue;
+        }
+      }
+
+      // unset global
+      xsetenv(*arg, 0);
+    }
+  }
 }
