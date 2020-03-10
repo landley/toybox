@@ -19,7 +19,7 @@ testcmd "missing" "missing 2>&1" "modinfo: missing: not found\n" "" ""
 # Find some modules to work with.
 MODULE_PATH1=$(find $MODULE_ROOT/lib/modules -name *.ko | head -1 2>/dev/null)
 MODULE1=$(basename -s .ko $MODULE_PATH1)
-MODULE_PATH2=$(find $MODULE_ROOT/lib/modules -name *.ko | tail -1 2>/dev/null)
+MODULE_PATH2=$(find $MODULE_ROOT/lib/modules -name *.ko | head -2 | tail -1 2>/dev/null)
 MODULE2=$(basename -s .ko $MODULE_PATH2)
 DASH_MODULE=$(basename -s .ko \
   $(find $MODULE_ROOT/lib/modules -name *-*.ko | tail -1 2>/dev/null))

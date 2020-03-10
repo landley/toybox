@@ -40,16 +40,16 @@ static void output_field(char *field, char *value)
 
 static void modinfo_file(char *full_name)
 {
-  int fd, len, i;
-  char *buf = 0, *pos, *modinfo_tags[] = {
-    "alias", "license", "description", "author", "firmware",
-    "vermagic", "srcversion", "intree", "depends", "parm",
-    "parmtype",
+  int fd, flen, i;
+  char *buf = 0, *end, *modinfo_tags[] = {
+    "license", "author", "description", "firmware", "alias", "srcversion",
+    "depends", "retpoline", "intree", "name", "vermagic", "parm", "parmtype",
   };
 
   if (-1 != (fd = open(full_name, O_RDONLY))) {
-    len = fdlength(fd);
-    buf = xmmap(0, len, PROT_READ, MAP_SHARED, fd, 0);
+    flen = fdlength(fd);
+    buf = xmmap(0, flen, PROT_READ, MAP_SHARED, fd, 0);
+    end = buf + flen;
     close(fd);
   }
 
@@ -61,47 +61,42 @@ static void modinfo_file(char *full_name)
   TT.count++;
   output_field("filename", full_name);
 
-  for (pos = buf; pos < buf+len; pos++) {
-    if (*pos) continue;
+  for (i=0; i<ARRAY_LEN(modinfo_tags); i++) {
+    char *field = modinfo_tags[i], *p = buf;
+    int slen = sprintf(toybuf, "%s=", field);
 
-    for (i=0; i<ARRAY_LEN(modinfo_tags); i++) {
-      char *str = modinfo_tags[i];
-      int len = strlen(str);
-
-      if (!strncmp(pos+1, str, len) && pos[len+1] == '=')
-        output_field(str, pos+len+2);
+    while (p && p < end) {
+      p = memmem(p, end-p, toybuf, slen);
+      if (p) output_field(field, p += slen);
     }
   }
 
-  munmap(buf, len);
+  munmap(buf, flen);
 }
 
 static int check_module(struct dirtree *new)
 {
+  char *s;
+  int len;
+
   if (!dirtree_notdotdot(new)) return 0;
 
-  if (S_ISREG(new->st.st_mode)) {
-    char *s;
+  if (!S_ISREG(new->st.st_mode)) return DIRTREE_RECURSE;
 
-    for (s = toys.optargs[TT.mod]; *s; s++) {
-      int len = 0;
+  s = toys.optargs[TT.mod];
 
-      // The kernel treats - and _ the same, so we should too.
-      for (len = 0; s[len]; len++) {
-        if (s[len] == '-' && new->name[len] == '_') continue;
-        if (s[len] == '_' && new->name[len] == '-') continue;
-        if (s[len] != new->name[len]) break;
-      }
-      if (s[len] || strcmp(new->name+len, ".ko")) break;
-
-      modinfo_file(s = dirtree_path(new, 0));
-      free(s);
-
-      return DIRTREE_ABORT;
-    }
+  // The kernel treats - and _ the same, so we should too.
+  for (len = 0; s[len]; len++) {
+    if (s[len] == '-' && new->name[len] == '_') continue;
+    if (s[len] == '_' && new->name[len] == '-') continue;
+    if (s[len] != new->name[len]) break;
   }
+  if (s[len] || strcmp(new->name+len, ".ko")) return DIRTREE_RECURSE;
 
-  return DIRTREE_RECURSE;
+  modinfo_file(s = dirtree_path(new, 0));
+  free(s);
+
+  return DIRTREE_ABORT;
 }
 
 void modinfo_main(void)
@@ -120,9 +115,7 @@ void modinfo_main(void)
   }
 
   for (TT.mod = 0; TT.mod<toys.optc; TT.mod++) {
-    char *s = strstr(toys.optargs[TT.mod], ".ko");
-
-    if (s && !s[3]) modinfo_file(toys.optargs[TT.mod]);
+    if (strend(toys.optargs[TT.mod], ".ko")) modinfo_file(toys.optargs[TT.mod]);
     else {
       char *path = xmprintf("%s/lib/modules/%s", TT.b, TT.k);
 
