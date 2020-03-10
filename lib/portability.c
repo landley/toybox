@@ -575,3 +575,23 @@ char *fs_type_name(struct statfs *statfs)
   return s;
 #endif
 }
+
+#if defined(__APPLE__)
+#include <sys/disk.h>
+int get_block_device_size(int fd, unsigned long long* size)
+{
+  unsigned long block_size, block_count;
+
+  if (!ioctl(fd, DKIOCGETBLOCKSIZE, &block_size) &&
+      !ioctl(fd, DKIOCGETBLOCKCOUNT, &block_count)) {
+    *size = block_count * block_size;
+    return 1;
+  }
+  return 0;
+}
+#elif defined(__linux__)
+int get_block_device_size(int fd, unsigned long long* size)
+{
+  return (ioctl(fd, BLKGETSIZE64, &size) >= 0);
+}
+#endif

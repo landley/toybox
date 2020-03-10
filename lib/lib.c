@@ -478,14 +478,11 @@ off_t fdlength(int fd)
   if (!fstat(fd, &st) && S_ISREG(st.st_mode)) return st.st_size;
 
   // If the ioctl works for this, return it.
-  if (ioctl(fd, BLKGETSIZE64, &size) >= 0) return size<<9;
+  if (get_block_device_size(fd, &size)) return size<<9;
 
   // If not, do a binary search for the last location we can read.  (Some
   // block devices don't do BLKGETSIZE right.)  This should probably have
   // a CONFIG option...
-
-  // If not, do a binary search for the last location we can read.
-
   old = lseek(fd, 0, SEEK_CUR);
   do {
     char temp;
