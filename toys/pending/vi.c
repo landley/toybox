@@ -41,7 +41,7 @@ GLOBALS(
     char* data;
   } yank;
 
-  int modified, fd;
+  int modified;
   size_t filesize;
 // mem_block contains RO data that is either original file as mmap
 // or heap allocated inserted data
@@ -509,8 +509,7 @@ static void linelist_unload()
 {
   llist_traverse((void *)TT.slices, llist_free_double);
   llist_traverse((void *)TT.text, block_list_free);
-  if (TT.fd) xclose(TT.fd);
-  TT.slices = 0, TT.text = 0, TT.fd = 0;
+  TT.slices = 0, TT.text = 0;
 }
 
 static int linelist_load(char *filename)
@@ -518,20 +517,15 @@ static int linelist_load(char *filename)
   if (!filename) filename = (char*)*toys.optargs;
 
   if (filename) {
-    int fd;
-    size_t len, size;
+    int fd = open(filename, O_RDONLY);
+    size_t size;
     char *data;
-    if ( (fd = open(filename, O_RDONLY)) <0) return 0;
 
-    size = fdlength(fd);
-    if (!(len = lseek(fd, 0, SEEK_END))) len = size;
-    lseek(fd, 0, SEEK_SET);
-
-    data = xmmap(0, size, PROT_READ, MAP_SHARED, fd, 0);
-    if (data == MAP_FAILED) return 0;
-    insert_str(data, 0, size, len, MMAP);
+    if (fd == -1) return 0;
+    data = xmmap(0, size = fdlength(fd), PROT_READ, MAP_SHARED, fd, 0);
+    xclose(fd);
+    insert_str(data, 0, size, size, MMAP);
     TT.filesize = text_filesize();
-    TT.fd = fd;
   }
 
   return 1;
