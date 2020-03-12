@@ -68,7 +68,7 @@ static void unknown(char *name)
 }
 
 // Setup toybox global state for this command.
-static void toy_singleinit(struct toy_list *which, char *argv[])
+void toy_singleinit(struct toy_list *which, char *argv[])
 {
   toys.which = which;
   toys.argv = argv;

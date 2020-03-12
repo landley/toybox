@@ -8,14 +8,14 @@
  *
  * The first link describes the following shell builtins:
  *
- *   break : continue dot eval exec exit export readonly return set shift
- *   times trap unset
+ *   break : continue exit
+ *   . eval exec export readonly return set shift times trap unset
  *
  * The second link (the utilities directory) also contains specs for the
  * following shell builtins:
  *
- *   alias bg cd command fc fg getopts hash jobs kill read type ulimit
- *   umask unalias wait
+ *   cd ulimit umask
+ *   alias bg command fc fg getopts hash jobs kill read type unalias wait
  *
  * Things like the bash man page are good to read too.
  *
@@ -50,6 +50,7 @@
 USE_SH(NEWTOY(cd, ">1LP[-LP]", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(exit, 0, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(unset, "fvn", TOYFLAG_NOFORK))
+USE_SH(NEWTOY(eval, 0, TOYFLAG_NOFORK))
 
 USE_SH(NEWTOY(sh, "(noediting)(noprofile)(norc)sc:i", TOYFLAG_BIN))
 USE_SH(OLDTOY(toysh, sh, TOYFLAG_BIN))
@@ -104,14 +105,28 @@ config UNSET
     -f	NAME is a function
     -v	NAME is a variable
     -n	dereference NAME and unset that
+
+config EVAL
+  bool
+  default n
+  depends on SH
+  help
+    usage: eval COMMAND...
+
+    Execute (combined) arguments as a shell command.
 */
 
 #define FOR_sh
 #include "toys.h"
 
 GLOBALS(
-  char *c;
+  union {
+    struct {
+      char *c;
+    } sh;
+  };
 
+  // keep lineno here, we use it to work around a compiler bug
   long lineno;
   char **locals, *subshell_env, *ifs;
   struct double_list functions;
@@ -1109,23 +1124,29 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
   else if ((tl = toy_find(*pp->arg.v))
     && (tl->flags & (TOYFLAG_NOFORK|TOYFLAG_MAYFORK)))
   {
-    struct toy_context temp;
     sigjmp_buf rebound;
+    char temp[j = offsetof(struct toy_context, rebound)];
 
     // This fakes lots of what toybox_main() does.
-    memcpy(&temp, &toys, sizeof(struct toy_context));
-    memset(&toys, 0, sizeof(struct toy_context));
+    memcpy(&temp, &toys, j);
+    memset(&toys, 0, j);
+
+    // If we give the union in TT a name, the compiler complains
+    // "declaration does not declare anything", but if we DON'T give it a name
+    // it accepts it. So we can't use the union's type name here, and have
+    // to offsetof() the first thing _after_ the union to get the size.
+    memset(&TT, 0, offsetof(struct sh_data, lineno));
 
     if (!sigsetjmp(rebound, 1)) {
       toys.rebound = &rebound;
-      toy_init(tl, pp->arg.v);  // arg.v must be null terminated
+      toy_singleinit(tl, pp->arg.v);  // arg.v must be null terminated
       tl->toy_main();
       xflush(0);
     }
     pp->exit = toys.exitval;
     if (toys.optargs != toys.argv+1) free(toys.optargs);
     if (toys.old_umask) umask(toys.old_umask);
-    memcpy(&toys, &temp, sizeof(struct toy_context));
+    memcpy(&toys, &temp, j);
   } else {
     char **env = 0, **old = environ, *ss, *sss;
     int kk = 0, ll;
@@ -2202,7 +2223,7 @@ if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); dup2(fd, 255); close(fd); }
   memset(&scratch, 0, sizeof(scratch));
 
 // TODO unify fmemopen() here with sh_run
-  if (TT.c) f = fmemopen(TT.c, strlen(TT.c), "r");
+  if (TT.sh.c) f = fmemopen(TT.sh.c, strlen(TT.sh.c), "r");
   else if (*toys.optargs) f = xfopen(*toys.optargs, "r");
   else {
     f = stdin;
@@ -2342,4 +2363,16 @@ void unset_main(void)
       xsetenv(*arg, 0);
     }
   }
+}
+
+void eval_main(void)
+{
+  struct sh_arg *aa, arg;
+
+  aa = TT.arg;
+  TT.arg = &arg;
+  arg.v = toys.argv;
+  arg.c = toys.optc+1;
+  sh_run("\"$@\"");
+  TT.arg = aa;
 }

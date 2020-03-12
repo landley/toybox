@@ -42,7 +42,7 @@ void help_main(void)
 {
   int i;
 
-  // If called with no arguments as a builtin form the shell, show all builtins
+  // If called with no arguments as a builtin from the shell, show all builtins
   if (toys.rebound && !*toys.optargs && !toys.optflags) {
     for (i = 0; i < toys.toycount; i++) {
       if (!(toy_list[i].flags&(TOYFLAG_NOFORK|TOYFLAG_MAYFORK))) continue;
