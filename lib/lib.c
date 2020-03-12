@@ -478,7 +478,7 @@ off_t fdlength(int fd)
   if (!fstat(fd, &st) && S_ISREG(st.st_mode)) return st.st_size;
 
   // If the ioctl works for this, return it.
-  if (get_block_device_size(fd, &size)) return size<<9;
+  if (get_block_device_size(fd, &size)) return size;
 
   // If not, do a binary search for the last location we can read.  (Some
   // block devices don't do BLKGETSIZE right.)  This should probably have
