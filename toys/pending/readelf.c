@@ -8,7 +8,7 @@ USE_READELF(NEWTOY(readelf, "<1(dyn-syms)adehlnp:SsWx:", TOYFLAG_USR|TOYFLAG_BIN
 
 config READELF
   bool "readelf"
-  default y
+  default n
   help
     usage: readelf [-adehlnSs] [-p SECTION] [-x SECTION] [file...]
 
@@ -458,7 +458,7 @@ static void scan_elf()
                ph_type(ph.type), ph.offset, w, ph.vaddr, w, ph.paddr,
                ph.filesz, ph.memsz, ph.flags&4?'R':' ', ph.flags&2?'W':' ',
                ph.flags&1?'E':' ', ph.align);
-        if (ph.type == 3 /*PH_INTERP*/ && ph.filesz && ph.filesz) {
+        if (ph.type == 3 /*PH_INTERP*/ && ph.filesz - 1 < TT.size - ph.offset) {
           printf("      [Requesting program interpreter: %*s]\n",
                  (int) ph.filesz-1, TT.elf+ph.offset);
         }
