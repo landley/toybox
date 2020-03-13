@@ -17,11 +17,17 @@
 # run sufficiently isolated shell child process to get predictable results
 SS="env -i PATH=${PATH@Q} PS1='\\$ ' $SH --noediting --noprofile --norc -is"
 
-txpect "prompt and exit" "$SS" "E$P" "Iexit\n" X0
-txpect "prompt and echo" "$SS" "E$P" "Iecho hello\n" "Ohello"$'\n' "E$P" X0
-txpect "redirect err" "$SS" "E$P" "Iecho > /dev/full\n" "E" "E$P" X0
-txpect "wait for <(exit)" "$SS" "E$P" "Icat <(echo hello 1>&2)\n" $'Ehello\n' \
-  "E$P" X0
+
+shxpect() {
+  X="$1"
+  shift
+  txpect "$X" "$SS" E"$P" "$@" X0
+}
+
+shxpect "prompt and exit" I$'exit\n'
+shxpect "prompt and echo" I$'echo hello\n' O$'hello\n' E"$P"
+shxpect "redirect err" I$'echo > /dev/full\n' E E"$P"
+shxpect "wait for <(exit)" I$'cat <(echo hello 1>&2)\n' E$'hello\n' E"$P"
 
 # Test the sh -c stuff before changing EVAL
 testing '-c "" exit status 0' '$SH -c "" && echo $?' '0\n' '' ''
@@ -57,6 +63,8 @@ testing "smoketest" "echo hello" "hello\n" "" ""
 testing "eval" "eval echo hello" "hello\n" "" ""
 testing "eval2" "eval 'echo hello'; echo $?" "hello\n0\n" "" ""
 testing "eval3" 'X="echo hello"; eval "$X"' "hello\n" "" ""
+testing "eval4" 'eval printf '=%s=' \" hello \"' "= hello =" "" ""
+NOSPACE=1 testing "eval5" 'eval echo \" hello \" | wc' ' 1 1 8' "" ""
 testing "exec" "exec echo hello" "hello\n" "" ""
 testing "exec2" "exec echo hello; echo $?" "hello\n" "" "" 
 
@@ -77,8 +85,12 @@ testing "redir3" "echo more >>out; cat out" "blah\nmore\n" "" ""
 testing "redir4" "touch /not/exist 2>out||grep -o /not/exist out" \
   "/not/exist\n" "" ""
 testing "redir5" "ls out /not/exist &> out2 || wc -l < out2" "2\n" "" ""
-testing "redir6" "ls out /not/exist |& wc -l" "2\n" "" ""
-testing "redir7" 'echo -n $(<input)' "boing" "boing\n" ""
+testing "redir6" "ls out /not/exist &>>-abc || wc -l < ./-abc" "2\n" "" ""
+testing "redir7" "ls out /not/exist |& wc -l" "2\n" "" ""
+testing "redir8" 'echo -n $(<input)' "boing" "boing\n" ""
+shxpect "redir9" I$'echo hello > out 2>/does/not/exist\n' E E"$P" \
+  I$'wc -l < out\n' O$'0\n'
+rm -f out out2 ./-abc
 
 testing "tilde expansion" "echo ~" "$HOME\n" "" ""
 testing "tilde2" "echo ~/dir" "$HOME/dir\n" "" ""
@@ -174,6 +186,7 @@ testing "IFS10" 'IFS=bcd; A=abcde; for i in $A; do echo =$i=; done' \
 testing "IFS11" \
   'IFS=x; chicken() { for i in $@$@; do echo =$i=; done;}; chicken one "" abc dxf ghi' \
   "=one=\n==\n=abc=\n=d=\n=f=\n=ghione=\n==\n=abc=\n=d=\n=f=\n=ghi=\n" "" ""
+testing "IFS12" 'IFS=3;chicken(){ return 3;}; chicken;echo 3$?3' '3 3\n' "" ""
 
 testing "IFS combinations" \
   'IFS=" x"; A=" x " B=" x" C="x " D=x E="   "; for i in $A $B $C $D L$A L$B L$C L$D $A= $B= $C= $D= L$A= L$B= L$C= L$D=; do echo -n {$i}; done' \
@@ -230,13 +243,12 @@ NOSPACE=1 testing "parentheses and pipe" \
 #txpect "backtick1" "$SS" "E$P" 'IX=fred; echo `echo $x`'$'\n' 'Ofred'$'\n' "E$P" X0
 #txpect "backtick2" "$SS" "E$P" 'IX=fred; echo `x=y; echo $x`' $'Oy\n' "E$P" X0
 
-txpect '${ with newline' "$SS" "E$P" I'HELLO=abc; echo ${HELLO/b/'$'\n' "E> " \
-  I$'}\n' O$'a c\n' X0
+shxpect '${ with newline' I$'HELLO=abc; echo ${HELLO/b/\n' E"> " I$'}\n' O$'a c\n'
 
-txpect 'here1' "$SS" "E$P" I'POTATO=123; cat << EOF'$'\n' "E> " \
-  I'$POTATO'$'\n' "E> " I'EOF'$'\n' O'123'$'\n' X0
-txpect 'here2' "$SS" "E$P" I'POTATO=123; cat << E"O"F'$'\n' "E> " \
-  I'$POTATO'$'\n' "E> " I'EOF'$'\n' O'$POTATO'$'\n' X0
+shxpect 'here1' I$'POTATO=123; cat << EOF\n' E"> " \
+  I$'$POTATO\n' E"> " I$'EOF\n' O$'123\n'
+shxpect 'here2' I$'POTATO=123; cat << E"O"F\n' E"> " \
+  I$'$POTATO\n' E"> " I$'EOF\n' O$'$POTATO\n'
 testing 'here3' 'abc(){ cat <<< x"$@"yz;};abc one two "three  four"' \
   "xone two three  fouryz\n" "" ""
 
