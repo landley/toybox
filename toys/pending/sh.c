@@ -397,6 +397,7 @@ static int save_redirect(int **rd, int from, int to)
 {
   int cnt, hfd, *rr;
 
+  if (from == to) return 0;
   // save displaced to, copying to high (>=10) file descriptor to undo later
   // except if we're saving to environment variable instead (don't undo that)
   if ((hfd = next_hfd())==-1) return 1;
@@ -1105,23 +1106,23 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
 
     // Handle file descriptor duplication/close (&> &>> <& >& with number or -)
     // These redirect existing fd so nothing to open()
-    } else if (strchr(ss, '&')) {
+    } else if (*ss == '&' || ss[1] == '&') {
 
       // is there an explicit fd?
       for (ss = sss; isdigit(*ss); ss++);
       if (ss-sss>5 || (*ss && (*ss != '-' || ss[1]))) {
-        // bad fd
-        s = sss;
-        break;
+        if (*ss=='&') ss++;
+        saveclose = 4;
+        goto notfd;
       }
 
       from = (ss==sss) ? to : atoi(sss);
       saveclose = 2-(*ss == '-');
     } else {
-
+notfd:
       // Permissions to open external file with: < > >> <& >& <> >| &>> &>
       if (!strcmp(ss, "<>")) from = O_CREAT|O_RDWR;
-      else if (strstr(ss, ">>")) from = O_CREAT|O_APPEND;
+      else if (strstr(ss, ">>")) from = O_CREAT|O_APPEND|O_WRONLY;
       else {
         from = (*ss != '<') ? O_CREAT|O_WRONLY|O_TRUNC : O_RDONLY;
         if (!strcmp(ss, ">") && (TT.options&SH_NOCLOBBER)) {
@@ -1149,6 +1150,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
       cv = 0;
     }
     if ((saveclose&1) && save_redirect(&pp->urd, -1, from)) bad++;
+    if ((saveclose&4) && save_redirect(&pp->urd, from, 2)) bad++;
     if (!(saveclose&2)) close(from);
     if (bad) break;
   }
@@ -1540,7 +1542,7 @@ static int parse_line(char *line, struct sh_function *sp)
     array_add(&arg->v, arg->c, s = xstrndup(start, end-start));
     start = end;
 
-    if (strchr(";|&", *s)) {
+    if (strchr(";|&", *s) && strncmp(s, "&>", 2)) {
 
       // treat ; as newline so we don't have to check both elsewhere.
       if (!strcmp(s, ";")) {
@@ -1765,11 +1767,10 @@ static int pipe_segments(char *ctl, int *pipes, int **urd)
 // TODO check did not reach end of pipeline after loop
       return 1;
     }
-    if (pipes[1] != 1) {
-      save_redirect(urd, pipes[1], 1);
-      close(pipes[1]);
-    }
+    save_redirect(urd, pipes[1], 1);
+    if (pipes[1] != 1) close(pipes[1]);
     fcntl(*pipes, F_SETFD, FD_CLOEXEC);
+    if (ctl[1] == '&') save_redirect(urd, 1, 2);
   }
 
   return 0;
