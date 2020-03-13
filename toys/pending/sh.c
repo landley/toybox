@@ -51,6 +51,7 @@ USE_SH(NEWTOY(cd, ">1LP[-LP]", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(exit, 0, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(unset, "fvn", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(eval, 0, TOYFLAG_NOFORK))
+USE_SH(NEWTOY(exec, "cla:", TOYFLAG_NOFORK))
 
 USE_SH(NEWTOY(sh, "(noediting)(noprofile)(norc)sc:i", TOYFLAG_BIN))
 USE_SH(OLDTOY(toysh, sh, TOYFLAG_BIN))
@@ -114,6 +115,17 @@ config EVAL
     usage: eval COMMAND...
 
     Execute (combined) arguments as a shell command.
+
+config EXEC
+  bool
+  default n
+  depends on SH
+  help
+    usage: exec [-cl] [-a NAME] COMMAND...
+
+    -a	set argv[0] to NAME
+    -c	clear environment
+    -l	prepend - to argv[0]
 */
 
 #define FOR_sh
@@ -124,6 +136,9 @@ GLOBALS(
     struct {
       char *c;
     } sh;
+    struct {
+      char *a;
+    } exec;
   };
 
   // keep lineno here, we use it to work around a compiler bug
@@ -133,7 +148,7 @@ GLOBALS(
   unsigned options, jobcnt, loc_ro, loc_magic;
   int hfd;  // next high filehandle (>= 10)
 
-  // Running jobs.
+  // Running jobs for job control.
   struct sh_job {
     struct sh_job *next, *prev;
     unsigned jobno;
@@ -154,6 +169,7 @@ GLOBALS(
     } *procs, *proc;
   } *jobs, *job;
 
+  struct sh_process *pp;
   struct sh_arg *arg;
 )
 
@@ -535,6 +551,26 @@ static char *utf8spnc(char *str, char *chrs, int c)
   return str;
 }
 
+// glue together argument list with separator, plus pre/post sections
+static char *merge_args(char *pre, int argc, char *argv[], char *sep,
+  int *len, char *post)
+{
+  int prlen = strlen(pre), polen = strlen(post)+1, jj = 1, kk = 0;
+  char *s, *ss;
+
+  while (jj<argc) kk += *len + strlen(argv[jj++]);
+  s = ss = xmalloc(prlen+kk+polen);
+  memcpy(s, pre, prlen);
+  s += prlen;
+  for (jj = 1; jj<argc; jj++) s += sprintf(s, "%s%s", argv[jj], sep);
+  if (jj != 1) s -= *len;
+  *len = s-ss;
+  memcpy(s, post, polen);
+
+  return ss;
+}
+
+
 #define NO_PATH  (1<<0)    // path expansion (wildcards)
 #define NO_SPLIT (1<<1)    // word splitting
 #define NO_BRACE (1<<2)    // {brace,expansion}
@@ -630,14 +666,16 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
       else if (cc == '*' || cc == '@') {
         // If not doing word split, handle here
         if ((qq&1) && cc=='*') {
-//TODO separator is first char of IFS, not space: ll = utf8towc(&wc1, wc, 99);
+          char buf[8];
+          wchar_t wc;
 
-          for (jj = kk = 0; jj<TT.arg->c; jj++) kk += strlen(TT.arg->v[jj]);
-          s = xmalloc(oo+kk+TT.arg->c+strlen(str+ii)+1);
-          memcpy(s, new, oo);
-          for (jj = 1; jj<TT.arg->c; jj++)
-            oo += sprintf(s+oo, " %s"+!jj, TT.arg->v[jj]);
-          strcpy(s+oo, str+ii);
+          new[oo] = 0;
+          if (0>(oo = utf8towc(&wc, TT.ifs, 4))) oo = 0;
+          memcpy(buf, TT.ifs, oo);
+          buf[oo] = 0;
+          s = merge_args(new, TT.arg->c, TT.arg->v, buf, &oo, str+ii);
+          if (new != old) free(new);
+          new = s;
 
         // otherwise hand off to IFS logic at end of loop.
         } else at = 1;
@@ -1173,12 +1211,15 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
     // to offsetof() the first thing _after_ the union to get the size.
     memset(&TT, 0, offsetof(struct sh_data, lineno));
 
+    TT.pp = pp;
     if (!sigsetjmp(rebound, 1)) {
       toys.rebound = &rebound;
       toy_singleinit(tl, pp->arg.v);  // arg.v must be null terminated
       tl->toy_main();
       xflush(0);
     }
+    TT.pp = 0;
+    toys.rebound = 0;
     pp->exit = toys.exitval;
     if (toys.optargs != toys.argv+1) free(toys.optargs);
     if (toys.old_umask) umask(toys.old_umask);
@@ -2183,9 +2224,9 @@ static void subshell_setup(void)
 void sh_main(void)
 {
   FILE *f;
-  char *new;
+  char *new, *cc = TT.sh.c;
   struct sh_function scratch;
-  int prompt = 0;
+  int prompt = 0, ii = FLAG(i);
   struct sh_arg arg;
 
   TT.hfd = 10;
@@ -2207,32 +2248,41 @@ void sh_main(void)
 
 if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); dup2(fd, 255); close(fd); }
   // Is this an interactive shell?
-//  if (FLAG(i) || (!FLAG(c)&&(FLAG(S)||!toys.optc) && isatty(0) && isatty(1))) 
+  if (ii || (!FLAG(c)&&(FLAG(s)||!toys.optc) && isatty(0))) {
+    ii = 1;
+    // TODO Set up signal handlers and grab control of this tty.
+  }
 
-  // Set up signal handlers and grab control of this tty.
-
-  // Read environment for exports from parent shell
+  // Read environment for exports from parent shell. Note, calls run_sh()
+  // which blanks argument sections of TT and this, so parse everything
+  // we need from shell command line before that.
   subshell_setup();
-
   memset(&scratch, 0, sizeof(scratch));
 
 // TODO unify fmemopen() here with sh_run
-  if (TT.sh.c) f = fmemopen(TT.sh.c, strlen(TT.sh.c), "r");
-  else if (*toys.optargs) f = xfopen(*toys.optargs, "r");
-  else {
-    f = stdin;
-    if (isatty(0)) toys.optflags |= FLAG_i;
-  }
+  if (cc) f = fmemopen(cc, strlen(cc), "r");
+  else if (*toys.optargs) {
+
+    if (!(f = fopen(*toys.optargs, "r"))) {
+      char *pp = getvar("PATH");
+      struct string_list *sl = find_in_path(pp?pp:_PATH_DEFPATH, *toys.optargs);
+
+      for (;sl; free(llist_pop(&sl))) if ((f = fopen(sl->str, "r"))) break;
+      llist_traverse(sl, free);
+    }
+  } else f = stdin;
 
   for (;;) {
 
     // Prompt and read line
-    if (f == stdin) {
+    TT.lineno++;
+    if (ii && f == stdin) {
       char *s = getenv(prompt ? "PS2" : "PS1");
 
       if (!s) s = prompt ? "> " : (getpid() ? "\\$ " : "# ");
       do_prompt(s);
-    } else TT.lineno++;
+    }
+
 // TODO line editing/history, should set $COLUMNS $LINES and sigwinch update
     if (!(new = xgetline(f ? f : stdin, 0))) break;
 // TODO if (!isspace(*new)) add_to_history(line);
@@ -2361,12 +2411,35 @@ void unset_main(void)
 
 void eval_main(void)
 {
-  struct sh_arg *aa, arg;
+  int len = 1;
+  char *s = merge_args("", toys.optc+1, toys.argv, " ", &len, "");
 
-  aa = TT.arg;
-  TT.arg = &arg;
-  arg.v = toys.argv;
-  arg.c = toys.optc+1;
-  sh_run("\"$@\"");
-  TT.arg = aa;
+  sh_run(s);
+  free(s);
+}
+
+#define CLEANUP_cd
+#define FOR_exec
+#include "generated/flags.h"
+
+void exec_main(void)
+{
+  char *ee[1] = {0}, *cc, *pp = getvar("PATH");
+  struct string_list *sl;
+
+  // discard redirects and return if nothing to exec
+  free(TT.pp->urd);
+  TT.pp->urd = 0;
+  if (!toys.optc) return;
+
+  // exec, handling -acl
+  cc = *toys.optargs;
+  if (TT.exec.a || FLAG(l))
+    *toys.optargs = xmprintf("%s%s", FLAG(l)?"-":"", TT.exec.a?TT.exec.a:cc);
+  for (sl = find_in_path(pp?pp:_PATH_DEFPATH, cc); sl; free(llist_pop(&sl)))
+    execve(sl->str, toys.optargs, FLAG(c) ? ee : environ);
+
+  // report error (usually ENOENT) and return
+  perror_msg("%s", cc);
+  toys.exitval = 127;
 }
