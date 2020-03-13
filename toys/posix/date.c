@@ -43,8 +43,8 @@ config DATE
     %j day of year (001-366) %d day of month (01-31) %e day of month ( 1-31)
     %N nanosec (output only)
 
-    %U Week of year (0-53 start sunday)   %W Week of year (0-53 start monday)
-    %V Week of year (1-53 start monday, week < 4 days not part of this year)
+    %U Week of year (0-53 start Sunday)   %W Week of year (0-53 start Monday)
+    %V Week of year (1-53 start Monday, week < 4 days not part of this year)
 
     %F "%Y-%m-%d"     %R "%H:%M"        %T "%H:%M:%S"    %z numeric timezone
     %D "%m/%d/%y"     %r "%I:%M:%S %p"  %h "%b"          %s unix epoch time

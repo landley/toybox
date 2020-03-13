@@ -13,7 +13,7 @@ config LSPCI
 
     -e	Print all 6 digits in class
     -k	Print kernel driver
-    -m	Machine parseable format
+    -m	Machine readable format
 
 config LSPCI_TEXT
   bool "lspci readable output"

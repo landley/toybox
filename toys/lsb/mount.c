@@ -38,7 +38,7 @@ config MOUNT
 
 #config SMBMOUNT
 #  bool "smbmount"
-#  deault n
+#  default n
 #  helo
 #    usage: smbmount SHARE DIR
 #

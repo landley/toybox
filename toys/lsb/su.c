@@ -20,7 +20,7 @@ config SU
 
     With one argument, switch to USER and run user's shell from /etc/passwd.
     With no arguments, USER is root. If COMMAND line provided after USER,
-    exec() it as new USER (bypasing shell). If -u or -g specified, first
+    exec() it as new USER (bypassing shell). If -u or -g specified, first
     argument (if any) isn't USER (it's COMMAND).
 
     first argument is USER name to switch to (which must exist).

@@ -38,7 +38,7 @@ config TAR
     --mode MODE      Adjust modes           --mtime TIME  Override timestamps
     --owner NAME     Set file owner to NAME --group NAME  Set file group to NAME
     --sparse         Record sparse files
-    --restrict       All archive contents must extract under one subdirctory
+    --restrict       All archive contents must extract under one subdirectory
     --numeric-owner  Save/use/display uid and gid, not user/group name
     --no-recursion   Don't store directory contents
 */

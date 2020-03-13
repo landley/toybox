@@ -21,7 +21,7 @@ config SNTP
     -a	Adjust system clock gradually
     -S	Serve time instead of querying (bind to SERVER address if specified)
     -m	Wait for updates from multicast ADDRESS (RFC 4330 default 224.0.1.1)
-    -M	Multicast server on ADDRESS (deault 224.0.0.1)
+    -M	Multicast server on ADDRESS (default 224.0.0.1)
     -t	TTL (multicast only, default 1)
     -d	Daemonize (run in background re-querying )
     -D	Daemonize but stay in foreground: re-query time every 1000 seconds
