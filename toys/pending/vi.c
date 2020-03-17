@@ -751,8 +751,27 @@ static int cur_down(int count0, int count1, char *unused)
 {
   int count = count0*count1;
   for (;count--;) TT.cursor = text_nsol(TT.cursor);
-
   check_cursor_bounds();
+  return 1;
+}
+
+static int vi_H(int count0, int count1, char *unused)
+{
+  TT.cursor = text_sol(TT.screen);
+  return 1;
+}
+
+static int vi_L(int count0, int count1, char *unused)
+{
+  TT.cursor = text_sol(TT.screen);
+  cur_down(TT.screen_height-1, 1, 0);
+  return 1;
+}
+
+static int vi_M(int count0, int count1, char *unused)
+{
+  TT.cursor = text_sol(TT.screen);
+  cur_down(TT.screen_height/2, 1, 0);
   return 1;
 }
 
@@ -1106,10 +1125,13 @@ struct vi_mov_param vi_movs[] =
   {"b", 0, &vi_movb},
   {"e", 0, &vi_move},
   {"G", 0, &vi_go},
+  {"H", 0, &vi_H},
   {"h", 0, &cur_left},
   {"j", 0, &cur_down},
   {"k", 0, &cur_up},
+  {"L", 0, &vi_L},
   {"l", 0, &cur_right},
+  {"M", 0, &vi_M},
   {"w", 0, &vi_movw},
   {"$", 0, &vi_eol},
   {"f", 1, &vi_find_c},
