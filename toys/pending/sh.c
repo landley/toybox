@@ -146,7 +146,7 @@ GLOBALS(
   char **locals, *subshell_env, *ifs;
   struct double_list functions;
   unsigned options, jobcnt, loc_ro, loc_magic;
-  int hfd;  // next high filehandle (>= 10)
+  int hfd, pid;
 
   // Running jobs for job control.
   struct sh_job {
@@ -227,7 +227,7 @@ static void dump_state(struct sh_function *sp)
 
     while ((dd = readdir(dir))) {
       if (atoi(dd->d_name)!=fd && 0<readlinkat(fd, dd->d_name, buf,sizeof(buf)))
-        dprintf(2, "OPEN %d: %s = %s\n", getpid(), dd->d_name, buf);
+        dprintf(255, "OPEN %d: %s = %s\n", getpid(), dd->d_name, buf);
     }
     closedir(dir);
   }
@@ -242,17 +242,10 @@ static const char *redirectors[] = {"<<<", "<<-", "<<", "<&", "<>", "<", ">>",
 
 #define SH_NOCLOBBER 1   // set -C
 
-// like error_msg() but exit from shell scripts
-static void syntax_err(char *msg, ...)
+static void syntax_err(char *s)
 {
-  va_list va;
-
-// TODO rethink syntax errordom
-  va_start(va, msg);
-  verror_msg(msg, 0, va);
-  va_end(va);
-
-  if (*toys.optargs) xexit();
+  error_msg("syntax error: %s", s);
+  toys.exitval = 2;
 }
 
 // append to array with null terminator and realloc as necessary
@@ -342,37 +335,125 @@ static char *getvar(char *s)
   return getvarbylen(s, strlen(s));
 }
 
-// TODO: make parse_word use this?
-// returns length of current quote context. Handles \ '' "" `` $()
-static int skip_quote(char *s)
+// return length of match found at this point (try is null terminated array)
+static int anystart(char *s, char **try)
 {
-  int i, q = 0;
+  char *ss = s;
 
-  // quotes were checked for balance and overflow by parse_word()
-  for (i = 0; s[i]; i++) {
-    char c = s[i], qq = q ? toybuf[q-1] : 0;
+  while (*try) if (strstart(&s, *try++)) return s-ss;
 
-    // backslash escapes skip a char, and return for EOL or unquoted.
-    if (c == '\\') {
-      if (qq!= '\'' && qq!='`') {
-        if (!s[++i]) return i;
-        if (!q) return ++i;
+  return 0;
+}
+
+// does this entire string match one of the strings in try[]
+static int anystr(char *s, char **try)
+{
+  while (*try) if (!strcmp(s, *try++)) return 1;
+
+  return 0;
+}
+
+// return length of valid prefix that could go before redirect
+static int redir_prefix(char *word)
+{
+  char *s = word;
+
+  if (*s == '{') {
+    for (s++; isalnum(*s) || *s=='_'; s++);
+    if (*s == '}' && s != word+1) s++;
+    else s = word;
+  } else while (isdigit(*s)) s++;
+
+  return s-word;
+}
+
+// parse next word from command line. Returns end, or 0 if need continuation
+// caller eats leading spaces. If early, stop at first unquoted char.
+static char *parse_word(char *start, int early)
+{
+  int i, quote = 0, q, qc = 0;
+  char *end = start, *s;
+
+  // Things we should only return at the _start_ of a word
+
+  if (strstart(&end, "<(") || strstart(&end, ">(")) toybuf[quote++]=')';
+
+  // Redirections. 123<<file- parses as 2 args: "123<<" "file-".
+  s = end + redir_prefix(end);
+  if ((i = anystart(s, (void *)redirectors))) s += i;
+  if (s != end) return (end == start) ? s : end;
+
+  // (( is a special quote at the start of a word
+  if (strstart(&end, "((")) toybuf[quote++] = 255;
+
+  // find end of this word
+  while (*end) {
+    i = 0;
+
+    // barf if we're near overloading quote stack (nesting ridiculously deep)
+    if (quote>4000) {
+      syntax_err("tilt");
+      return (void *)1;
+    }
+
+    // Handle quote contexts
+    if ((q = quote ? toybuf[quote-1] : 0)) {
+
+      // when waiting for parentheses, they nest
+      if ((q == ')' || q == '\xff') && (*end == '(' || *end == ')')) {
+        if (*end == '(') qc++;
+        else if (qc) qc--;
+        else if (q == '\xff') {
+          // (( can end with )) or retroactively become two (( if we hit one )
+          if (strstart(&end, "))")) quote--;
+          else return start+1;
+        } else if (*end == ')') quote--;
+        end++;
+
+      // end quote?
+      } else if (*end == q) quote--, end++;
+
+      // single quote claims everything
+      else if (q == '\'') end++;
+      else i++;
+
+      // loop if we already handled a symbol
+      if (!i) continue;
+    } else {
+      // Things that only matter when unquoted
+
+      if (isspace(*end)) break;
+      if (*end == ')') return end+(start==end);
+
+      // Flow control characters that end pipeline segments
+      s = end + anystart(end, (char *[]){";;&", ";;", ";&", ";", "||",
+        "|&", "|", "&&", "&", "(", ")", 0});
+      if (s != end) return (end == start) ? s : end;
+    }
+
+    // Things the same unquoted or in most non-single-quote contexts
+
+    // start new quote context?
+    if (strchr("\"'`", *end)) toybuf[quote++] = *end++;
+
+    // backslash escapes
+    else if (*end == '\\') {
+      if (!end[1] || (end[1]=='\n' && !end[2])) return 0;
+      end += 2;
+    } else if (*end == '$' && -1 != (i = stridx("({[", end[1]))) {
+      end++;
+      if (strstart(&end, "((")) toybuf[quote++] = 255;
+      else {
+        toybuf[quote++] = ")}]"[i];
+        end++;
       }
-    // $( triggers anywhere but inside ' '
-    } else if (qq!='\'' && c=='$' && s[1]=='(') {
-      toybuf[q++] = ')';
-      i+=2;
-    // unquoted parentheses nest inside $(), I.E. "$(()" isn't done yet.
-    } else if (c=='(' && qq==')') toybuf[q++] = ')';
-    // end current quoting context with match
-    else if (q && qq==c) q--;
-    // start new non-nesting quoting context only at top level
-    else if ((!q || qq==')') && (c=='"' || c=='\'' || c=='`')) toybuf[q++] = c;
-
-    if (!q) break;
+    } else {
+      if (early && !quote) break;
+      end++;
+    }
   }
 
-  return i;
+  return quote ? 0 : end;
 }
 
 // Return next available high (>=10) file descriptor
@@ -392,7 +473,8 @@ static int next_hfd()
 
 // Perform a redirect, saving displaced filehandle to a high (>10) fd
 // rd is an int array: [0] = count, followed by from/to pairs to restore later.
-// If from == -1 just save to, else dup from->to after saving to.
+// If from >= 0 dup from->to after saving to. If from == -1 just save to.
+// if from == -2 schedule "to" to be closed by unredirect.
 static int save_redirect(int **rd, int from, int to)
 {
   int cnt, hfd, *rr;
@@ -400,16 +482,21 @@ static int save_redirect(int **rd, int from, int to)
   if (from == to) return 0;
   // save displaced to, copying to high (>=10) file descriptor to undo later
   // except if we're saving to environment variable instead (don't undo that)
-  if ((hfd = next_hfd())==-1) return 1;
-  if (hfd != dup2(to, hfd)) hfd = -1;
-  else fcntl(hfd, F_SETFD, FD_CLOEXEC);
-
+  if (from>-2) {
+    if ((hfd = next_hfd())==-1) return 1;
+    if (hfd != dup2(to, hfd)) hfd = -1;
+    else fcntl(hfd, F_SETFD, FD_CLOEXEC);
 if (BUGBUG) dprintf(255, "%d redir from=%d to=%d hfd=%d\n", getpid(), from, to, hfd);
-  // dup "to"
-  if (from != -1 && to != dup2(from, to)) {
-    if (hfd != -1) close(hfd);
+    // dup "to"
+    if (from >= 0 && to != dup2(from, to)) {
+      if (hfd >= 0) close(hfd);
 
-    return 1;
+      return 1;
+    }
+  } else {
+dprintf(255, "%d schedule close %d\n", getpid(), to);
+    hfd = to;
+    to = -1;
   }
 
   // Append undo information to redirect list so we can restore saved hfd later.
@@ -428,6 +515,8 @@ static void subshell_callback(void)
   TT.subshell_env = xmprintf("@%d,%d=", getpid(), getppid());
   xsetenv(TT.subshell_env, 0);
   TT.subshell_env[strlen(TT.subshell_env)-1] = 0;
+  xsetenv(xmprintf("$=%d", TT.pid), 0);
+// TODO: test $$ in (nommu)
 }
 
 // TODO check every caller of run_subshell for error, or syntax_error() here
@@ -438,6 +527,7 @@ static int run_subshell(char *str, int len)
 {
   pid_t pid;
 
+if (BUGBUG) dprintf(255, "run_subshell %.*s\n", len, str);
   // The with-mmu path is significantly faster.
   if (CFG_TOYBOX_FORK) {
     char *s;
@@ -447,7 +537,6 @@ static int run_subshell(char *str, int len)
       s = xstrndup(str, len);
       sh_run(s);
       free(s);
-
       _exit(toys.exitval);
     }
 
@@ -482,8 +571,8 @@ static void unredirect(int *urd)
   if (!urd) return;
 
   for (i = 0; i<*urd; i++, rr += 2) {
-if (BUGBUG) dprintf(255, "urd %d %d\n", rr[0], rr[1]);
-    if (rr[1] != -1) {
+if (BUGBUG) dprintf(255, "%d urd %d %d\n", getpid(), rr[0], rr[1]);
+    if (rr[0] != -1) {
       // No idea what to do about fd exhaustion here, so Steinbach's Guideline.
       dup2(rr[0], rr[1]);
       close(rr[0]);
@@ -504,10 +593,10 @@ static int pipe_subshell(char *s, int len, int out)
     return -1;
   }
 
-  // Perform input or output redirect and launch process
+  // Perform input or output redirect and launch process (ignoring errors)
   save_redirect(&uu, pipes[in], in);
   close(pipes[in]);
-  run_subshell(s, len); // ignore errors, don't track
+  run_subshell(s, len);
   unredirect(uu);
 
   return pipes[out];
@@ -646,15 +735,44 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
       }
     // both types of subshell work the same, so do $( here not in '$' below
 // TODO $((echo hello) | cat) ala $(( becomes $( ( retroactively
-    } else if (cc == '`' || (cc == '$' && str[ii] == '(' && str[ii+1] != '(')) {
-      kk = skip_quote(str+ii);
-      jj = cc == '$';
+    } else if (cc == '`' || (cc == '$' && str[ii] == '(')) {
+      off_t pp = 0;
+
+      s = str+ii-1;
+      kk = parse_word(str+ii-1, 1)-s;
+      if (*toybuf == 0xff) {
+        s += 3;
+        kk -= 5;
+dprintf(2, "TODO: do math for %.*s\n", kk, s);
+      } else {
+        // Run subshell and trim trailing newlines
+        s += (jj = 1+(cc == '$'));
+        ii += --kk;
+        kk -= jj;
+
+        // Special case echo $(<input)
+        for (ss = s; isspace(*ss); ss++);
+        if (*ss != '<') ss = 0;
+        else {
+          while (isspace(*++ss));
+          if (!(ll = parse_word(ss, 0)-ss)) ss = 0;
+          else {
+            jj = ll+(ss-s);
+            while (isspace(s[jj])) jj++;
+            if (jj != kk) ss = 0;
+            else {
+              jj = xcreate_stdio(ss = xstrndup(ss, ll), O_RDONLY|WARN_ONLY, 0);
+              free(ss);
+            }
+          }
+        }
+
 // TODO what does \ in `` mean? What is echo `printf %s \$x` supposed to do?
-      jj = pipe_subshell(str+ii+1+jj, kk-2-jj, 1);
-      ii += kk;
-      if ((ifs = del = readfd(jj, 0, 0)))
-        for (kk = strlen(ifs); kk && ifs[kk-1]=='\n'; ifs[--kk] = 0);
-      close(jj);
+        if (!ss) jj = pipe_subshell(s, kk, 1);
+        if ((ifs = del = readfd(jj, 0, &pp)))
+          for (kk = strlen(ifs); kk && ifs[kk-1]=='\n'; ifs[--kk] = 0);
+        close(jj);
+      }
     } else if (cc == '$') {
 
 // *@#?-$!_0 "Special Paremeters" ($0 not affected by shift)
@@ -687,6 +805,7 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
       // TODO: ${ $(( $[ $'
 //      } else if (cc == '{') {
 
+      // $VARIABLE
       } else {
         s = str+--ii;
         for (jj = 0; s[jj] && (s[jj]=='_' || !ispunct(s[jj])); jj++);
@@ -782,7 +901,7 @@ static void expand_arg(struct sh_arg *arg, char *old, unsigned flags,
 
   // collect brace spans
   if (!(flags&NO_BRACE)) for (i = 0; ; i++) {
-    while ((j = skip_quote(old+i))) i += j;
+    while ((s = parse_word(old+i, 1)) != old+i) i += s-(old+i);
     if (!bb && !old[i]) break;
     if (bb && (!old[i] || old[i] == '}')) {
       bb->active = bb->commas[bb->cnt+1] = i;
@@ -913,38 +1032,6 @@ static char *expand_one_arg(char *new, unsigned flags, struct arg_list **del)
   return s;
 }
 
-// return length of match found at this point (try is null terminated array)
-static int anystart(char *s, char **try)
-{
-  char *ss = s;
-
-  while (*try) if (strstart(&s, *try++)) return s-ss;
-
-  return 0;
-}
-
-// does this entire string match one of the strings in try[]
-static int anystr(char *s, char **try)
-{
-  while (*try) if (!strcmp(s, *try++)) return 1;
-
-  return 0;
-}
-
-// return length of valid prefix that could go before redirect
-static int redir_prefix(char *word)
-{
-  char *s = word;
-
-  if (*s == '{') {
-    for (s++; isalnum(*s) || *s=='_'; s++);
-    if (*s == '}' && s != word+1) s++;
-    else s = word;
-  } else while (isdigit(*s)) s++;
-
-  return s-word;
-}
-
 // TODO |&
 
 // turn a parsed pipeline back into a string.
@@ -1005,7 +1092,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
 
         return pp;
       }
-      save_redirect(&urd, -1, new);
+      save_redirect(&pp->urd, -2, new);
 
       // bash uses /dev/fd/%d which requires /dev/fd to be a symlink to
       // /proc/self/fd so we just produce that directly.
@@ -1124,7 +1211,7 @@ notfd:
       if (!strcmp(ss, "<>")) from = O_CREAT|O_RDWR;
       else if (strstr(ss, ">>")) from = O_CREAT|O_APPEND|O_WRONLY;
       else {
-        from = (*ss != '<') ? O_CREAT|O_WRONLY|O_TRUNC : O_RDONLY;
+        from = (*ss == '<') ? O_RDONLY : O_CREAT|O_WRONLY|O_TRUNC;
         if (!strcmp(ss, ">") && (TT.options&SH_NOCLOBBER)) {
           struct stat st;
 
@@ -1138,7 +1225,11 @@ notfd:
 // TODO: /dev/{tcp,udp}/host/port
 
       // Open the file
-      if (-1 == (from = xcreate(sss, from|WARN_ONLY, 0666))) break;
+      if (-1 == (from = xcreate_stdio(sss, from|WARN_ONLY, 0666))) {
+        s = 0;
+
+        break;
+      }
     }
 
     // perform redirect, saving displaced "to".
@@ -1157,7 +1248,7 @@ notfd:
 
   // didn't parse everything?
   if (j != arg->c) {
-    syntax_err("bad %s", s);
+    if (s) syntax_err(s);
     if (!pp->exit) pp->exit = 1;
     free(cv);
   }
@@ -1172,6 +1263,8 @@ static struct sh_process *run_command(struct sh_arg *arg)
   struct toy_list *tl;
   int envlen, j;
   char *s;
+
+if (BUGBUG) dprintf(255, "run_command %s\n", arg->v[0]);
 
   // Grab leading variable assignments
   for (envlen = 0; envlen<arg->c; envlen++) {
@@ -1271,91 +1364,6 @@ static void free_process(void *ppp)
   struct sh_process *pp = ppp;
   llist_traverse(pp->delete, llist_free_arg);
   free(pp);
-}
-
-
-// parse next word from command line. Returns end, or 0 if need continuation
-// caller eats leading spaces
-static char *parse_word(char *start)
-{
-  int i, quote = 0, q, qc = 0;
-  char *end = start, *s;
-
-  // Things we should only return at the _start_ of a word
-
-  if (strstart(&end, "<(") || strstart(&end, ">(")) toybuf[quote++]=')';
-
-  // Redirections. 123<<file- parses as 2 args: "123<<" "file-".
-  s = end + redir_prefix(end);
-  if ((i = anystart(s, (void *)redirectors))) s += i;
-  if (s != end) return (end == start) ? s : end;
-
-  // (( is a special quote at the start of a word
-  if (strstart(&end, "((")) toybuf[quote++] = 255;
-
-  // find end of this word
-  while (*end) {
-    i = 0;
-
-    // barf if we're near overloading quote stack (nesting ridiculously deep)
-    if (quote>4000) {
-      syntax_err("tilt");
-      return (void *)1;
-    }
-
-    // Handle quote contexts
-    if ((q = quote ? toybuf[quote-1] : 0)) {
-
-      // when waiting for parentheses, they nest
-      if ((q == ')' || q == '\xff') && (*end == '(' || *end == ')')) {
-        if (*end == '(') qc++;
-        else if (qc) qc--;
-        else if (q == '\xff') {
-          // (( can end with )) or retroactively become two (( if we hit one )
-          if (strstart(&end, "))")) quote--;
-          else return start+1;
-        } else if (*end == ')') quote--;
-        end++;
-
-      // end quote?
-      } else if (*end == q) quote--, end++;
-
-      // single quote claims everything
-      else if (q == '\'') end++;
-      else i++;
-
-      // loop if we already handled a symbol
-      if (!i) continue;
-    } else {
-      // Things that only matter when unquoted
-
-      if (isspace(*end)) break;
-      if (*end == ')') return end+(start==end);
-
-      // Flow control characters that end pipeline segments
-      s = end + anystart(end, (char *[]){";;&", ";;", ";&", ";", "||",
-        "|&", "|", "&&", "&", "(", ")", 0});
-      if (s != end) return (end == start) ? s : end;
-    }
-
-    // Things the same unquoted or in most non-single-quote contexts
-
-    // start new quote context?
-    if (strchr("\"'`", *end)) toybuf[quote++] = *end++;
-
-    // backslash escapes
-    else if (*end == '\\') {
-      if (!end[1] || (end[1]=='\n' && !end[2])) return 0;
-      end += 2;
-    } else if (*end++ == '$') {
-      if (-1 != (i = stridx("({[", *end))) {
-        toybuf[quote++] = ")}]"[i];
-        end++;
-      }
-    }
-  }
-
-  return quote ? 0 : end;
 }
 
 // if then fi for while until select done done case esac break continue return
@@ -1489,8 +1497,7 @@ static int parse_line(char *line, struct sh_function *sp)
     if (*start=='#') while (*start && *start != '\n') ++start;
 
     // Parse next word and detect overflow (too many nested quotes).
-    if ((end = parse_word(start)) == (void *)1)
-      goto flush;
+    if ((end = parse_word(start, 0)) == (void *)1) goto flush;
 
     // Is this a new pipeline segment?
     if (!pl) {
@@ -1715,7 +1722,7 @@ check:
   return 0;
 
 flush:
-  if (s) syntax_err("bad %s", s);
+  if (s) syntax_err(s);
   free_function(sp);
 
   return 0-!!s;
@@ -1754,7 +1761,7 @@ static int pipe_segments(char *ctl, int *pipes, int **urd)
 
   // Did the previous pipe segment pipe input into us?
   if (*pipes != -1) {
-    save_redirect(urd, *pipes, 0);
+    if (save_redirect(urd, *pipes, 0)) return 1;
     close(*pipes);
     *pipes = -1;
   }
@@ -1767,7 +1774,12 @@ static int pipe_segments(char *ctl, int *pipes, int **urd)
 // TODO check did not reach end of pipeline after loop
       return 1;
     }
-    save_redirect(urd, pipes[1], 1);
+    if (save_redirect(urd, pipes[1], 1)) {
+      close(pipes[0]);
+      close(pipes[1]);
+
+      return 1;
+    }
     if (pipes[1] != 1) close(pipes[1]);
     fcntl(*pipes, F_SETFD, FD_CLOEXEC);
     if (ctl[1] == '&') save_redirect(urd, 1, 2);
@@ -1812,6 +1824,8 @@ static void run_function(struct sh_pipeline *pl)
 
 // TODO can't free sh_process delete until ready to dispose else no debug output
 
+  TT.hfd = 10;
+
   // iterate through pipeline segments
   while (pl) {
     struct sh_arg *arg = pl->arg;
@@ -1843,7 +1857,7 @@ if (BUGBUG) dprintf(255, "%d runtype=%d %s %s\n", getpid(), pl->type, s, ctl);
         i = ss ? atol(ss) : 0;
         if (i<1) i = 1;
         if (!blk || arg->c>2 || ss[strspn(ss, "0123456789")]) {
-          syntax_err("bad %s", s);
+          syntax_err(s);
           break;
         }
         i = atol(ss);
@@ -1924,8 +1938,7 @@ if (BUGBUG) dprintf(255, "%d runtype=%d %s %s\n", getpid(), pl->type, s, ctl);
         pp = expand_redir(end->arg, 1, blk->urd);
         blk->urd = pp->urd;
         if (pp->arg.c) {
-// TODO this is a syntax_error
-          perror_msg("unexpected %s", *pp->arg.v);
+          syntax_err(*pp->arg.v);
           llist_traverse(pp->delete, free);
           free(pp);
           break;
@@ -2129,7 +2142,7 @@ static void setonlylocal(char ***to, char *name, char *val)
 static void subshell_setup(void)
 {
   struct passwd *pw = getpwuid(getuid());
-  int to, from, pid = 0, ppid = 0, mypid, myppid, len;
+  int to, from, pid = 0, ppid = 0, zpid = 0, mypid, myppid, len;
 // TODO: you can unset readonly and these first 4 aren't malloc()
   char *s, *ss, **ll, *locals[] = {"GROUPS=", "SECONDS=", "RANDOM=", "LINENO=",
     xmprintf("PPID=%d", myppid = getppid()), xmprintf("EUID=%d", geteuid()),
@@ -2182,6 +2195,7 @@ static void subshell_setup(void)
     for (len = 0; s[len] && ((s[len] == '_') || !ispunct(s[len])); len++);
     if (s[len] == '=') environ[to++] = environ[from];
     if (!memcmp(s, "IFS=", 4)) TT.ifs = s+4;
+    if (!CFG_TOYBOX_FORK && *s == '$' && s[1] == '=') zpid = atoi(s+2);
   }
   environ[toys.optc = to] = 0;
 
@@ -2210,6 +2224,7 @@ static void subshell_setup(void)
   // sanity check: magic env variable, pipe status
   if (CFG_TOYBOX_FORK || toys.stacktop || pid!=mypid || ppid!=myppid) return;
   if (fstat(254, &st) || !S_ISFIFO(st.st_mode)) error_exit(0);
+  TT.pid = zpid;
   fcntl(254, F_SETFD, FD_CLOEXEC);
   fp = fdopen(254, "r");
 
@@ -2230,9 +2245,9 @@ void sh_main(void)
   int prompt = 0, ii = FLAG(i);
   struct sh_arg arg;
 
-  TT.hfd = 10;
   signal(SIGPIPE, SIG_IGN);
 
+  TT.pid = getpid();
   TT.arg = &arg;
   if (!(arg.c = toys.optc)) {
     arg.v = xmalloc(2*sizeof(char *));
@@ -2263,7 +2278,7 @@ if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); dup2(fd, 255); close(fd); }
 // TODO unify fmemopen() here with sh_run
   if (cc) f = fmemopen(cc, strlen(cc), "r");
   else if (*toys.optargs) {
-
+// TODO: syntax_err should exit from shell scripts
     if (!(f = fopen(*toys.optargs, "r"))) {
       char *pp = getvar("PATH");
       struct string_list *sl = find_in_path(pp?pp:_PATH_DEFPATH, *toys.optargs);
