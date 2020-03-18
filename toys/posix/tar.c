@@ -495,8 +495,9 @@ static void extract_to_disk(void)
         return perror_msg("can't link '%s' -> '%s'", name, TT.hdr.link_target);
     // write contents
     } else {
-      int fd = xcreate(name, O_WRONLY|O_CREAT|(FLAG(overwrite)?O_TRUNC:O_EXCL),
-        WARN_ONLY|(ala & 07777));
+      int fd = xcreate(name,
+        WARN_ONLY|O_WRONLY|O_CREAT|(FLAG(overwrite)?O_TRUNC:O_EXCL),
+        ala & 07777);
       if (fd != -1) sendfile_sparse(fd);
       else skippy(TT.hdr.size);
     }
