@@ -19,7 +19,7 @@ config DU
     Show disk usage, space consumed by files and directories.
 
     Size in:
-    -b	apparent bytes (directory listing size, not space used)
+    -b	Apparent bytes (directory listing size, not space used)
     -k	1024 byte blocks (default)
     -K	512 byte blocks (posix)
     -m	Megabytes
