@@ -143,7 +143,7 @@ config SED
 
                  [0-9]    A number, substitute only that occurrence of pattern
                  g        Global, substitute all occurrences of pattern
-                 i        Ignore case when matching
+                 i/I      Ignore case when matching
                  p        Print the line if match was found and replaced
                  w [file] Write (append) line to file if match replaced
 
@@ -897,6 +897,7 @@ resume_s:
         if (isspace(*line) && *line != '\n') continue;
 
         if (0 <= (l = stridx("igp", *line))) command->sflags |= 1<<l;
+        else if (*line == 'I') command->sflags |= 1<<0;
         else if (!(command->sflags>>3) && 0<(l = strtol(line, &line, 10))) {
           command->sflags |= l << 3;
           line--;

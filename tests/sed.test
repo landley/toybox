@@ -188,4 +188,6 @@ testing 'megabyte s/x/y/g (5 sec timeout)' "timeout 5 sed 's/x/y/g' | sha1sum" \
   '138c1fa7c3f64186203b0192fb4abdb33cb4e98a  -\n' '' "$X\n"
 unset X Y
 
+testing 's i and I' 'sed s/o/0/ig' "f00l F00L" "" "fool FOOL"
+
 # -i with $ last line test
