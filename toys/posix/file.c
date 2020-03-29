@@ -264,6 +264,12 @@ static void do_regular_file(int fd, char *name)
     xprintf("Zip archive data");
     if (ver) xprintf(", requires at least v%d.%d to extract", ver/10, ver%10);
     xputc('\n');
+  } else if (len>9 && strstart(&s, "7z\xbc\xaf\x27\x1c")) {
+    int ver = toybuf[6]*10+toybuf[7];
+
+    xprintf("7-zip archive data");
+    if (ver) xprintf(", version %d.%d", ver/10, ver%10);
+    xputc('\n');
   } else if (len>4 && strstart(&s, "BZh") && isdigit(*s))
     xprintf("bzip2 compressed data, block size = %c00k\n", *s);
   else if (len > 31 && peek_be(s, 7) == 0xfd377a585a0000UL)
