@@ -31,6 +31,8 @@ testing "gzip data" "file $FILES/tar/tar.tgz | sed 's|$FILES/||'" \
     "tar/tar.tgz: gzip compressed data\n" "" ""
 testing "bzip2 data" "file $FILES/tar/tar.tbz2 | sed 's|$FILES/||'" \
     "tar/tar.tbz2: bzip2 compressed data, block size = 900k\n" "" ""
+testing "7z file" "file $FILES/tar/tar.7z | sed 's|$FILES/||'" \
+    "tar/tar.7z: 7-zip archive data, version 0.4\n" "" ""
 testing "zip file" "file $FILES/zip/example.zip | sed 's|$FILES/||'" \
     "zip/example.zip: Zip archive data, requires at least v1.0 to extract\n" "" ""
 
