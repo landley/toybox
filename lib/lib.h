@@ -188,6 +188,7 @@ void xsignal(int signal, void *handler);
 time_t xvali_date(struct tm *tm, char *str);
 void xparsedate(char *str, time_t *t, unsigned *nano, int endian);
 char *xgetline(FILE *fp, int *len);
+time_t xmktime(struct tm *tm, int utc);
 
 // lib.c
 void verror_msg(char *msg, int err, va_list va);

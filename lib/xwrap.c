@@ -1077,3 +1077,16 @@ char *xgetline(FILE *fp, int *len)
 
   return new;
 }
+
+time_t xmktime(struct tm *tm, int utc)
+{
+  char *old_tz = utc ? xtzset("UTC0") : 0;
+  time_t result;
+
+  if ((result = mktime(tm)) < 0) error_exit("mktime");
+  if (utc) {
+    free(xtzset(old_tz));
+    free(old_tz);
+  }
+  return result;
+}

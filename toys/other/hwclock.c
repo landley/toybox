@@ -25,12 +25,9 @@ config HWCLOCK
 
 #define FOR_hwclock
 #include "toys.h"
-#include <linux/rtc.h>
 
 GLOBALS(
   char *f;
-
-  int utc;
 )
 
 static int rtc_find(struct dirtree* node)
@@ -61,23 +58,17 @@ void hwclock_main()
   struct timezone tzone;
   struct timeval timeval;
   struct tm tm;
-  time_t time;
-  int fd = -1;
+  int fd = -1, utc;
 
-  // check for Grenich Mean Time
-  if (toys.optflags & FLAG_u) TT.utc = 1;
+  if (FLAG(u)) utc = 1;
+  else if (FLAG(l)) utc = 0;
   else {
-    FILE *fp;
-    char *s = 0;
-
-    for (fp = fopen("/etc/adjtime", "r");
-         fp && getline(&s, (void *)toybuf, fp)>0;
-         free(s), s = 0) TT.utc += !strncmp(s, "UTC", 3);
-    if (fp) fclose(fp);
+    xreadfile("/etc/adjtime", toybuf, sizeof(toybuf));
+    utc = !!strstr(toybuf, "UTC");
   }
 
-  if (!(toys.optflags&FLAG_t)) {
-    int w = toys.optflags & FLAG_w, flag = O_WRONLY*w;
+  if (!FLAG(t)) {
+    int flag = O_WRONLY*FLAG(w);
 
     // Open /dev/rtc (if your system has no /dev/rtc symlink, search for it).
     if (!TT.f && (fd = open("/dev/rtc", flag)) == -1) {
@@ -87,49 +78,38 @@ void hwclock_main()
     if (fd == -1) fd = xopen(TT.f, flag);
 
     // Get current time in seconds from rtc device. todo: get subsecond time
-    if (!w) {
-      char *s = s;
-
+    if (!FLAG(w)) {
       xioctl(fd, RTC_RD_TIME, &tm);
-      if (TT.utc) s = xtzset("UTC0");
-      if ((time = mktime(&tm)) < 0) error_exit("mktime failed");
-      if (TT.utc) {
-        free(xtzset(s));
-        free(s);
-      }
+      timeval.tv_sec = xmktime(&tm, utc);
+      timeval.tv_usec = 0; // todo: fixit
     }
   }
 
-  if (toys.optflags & (FLAG_w|FLAG_t)) {
+  if (FLAG(w) || FLAG(t)) {
     if (gettimeofday(&timeval, 0)) perror_exit("gettimeofday failed");
-    if (!(TT.utc ? gmtime_r : localtime_r)(&timeval.tv_sec, &tm))
-      error_exit(TT.utc ? "gmtime_r failed" : "localtime_r failed");
+    if (!(utc ? gmtime_r : localtime_r)(&timeval.tv_sec, &tm))
+      error_exit(utc ? "gmtime_r failed" : "localtime_r failed");
   }
 
-  if (toys.optflags & FLAG_w) {
+  if (FLAG(w)) {
     /* The value of tm_isdst is positive if daylight saving time is in effect,
      * zero if it is not and negative if the information is not available. 
      * todo: so why isn't this negative...? */
     tm.tm_isdst = 0;
     xioctl(fd, RTC_SET_TIME, &tm);
-  } else if (toys.optflags & FLAG_s) {
+  } else if (FLAG(s)) {
     tzone.tz_minuteswest = timezone / 60 - 60 * daylight;
-    timeval.tv_sec = time;
-    timeval.tv_usec = 0; // todo: fixit
-  } else if (toys.optflags & FLAG_t) {
+  } else if (FLAG(t)) {
     // Adjust seconds for timezone and daylight saving time
     // extern long timezone is defined in header sys/time.h
     tzone.tz_minuteswest = timezone / 60;
     if (tm.tm_isdst) tzone.tz_minuteswest -= 60;
-    if (!TT.utc) timeval.tv_sec += tzone.tz_minuteswest * 60;
+    if (!utc) timeval.tv_sec += tzone.tz_minuteswest * 60;
   } else {
-    char *c = ctime(&time), *s = strrchr(c, '\n');
-
-    if (s) *s = '\0';
-    // TODO: implement this.
-    xprintf("%s  0.000000 seconds\n", c);
+    strftime(toybuf, sizeof(toybuf), "%F %T%z", &tm);
+    xputs(toybuf);
   }
-  if (toys.optflags & (FLAG_t|FLAG_s)) {
+  if (FLAG(t) || FLAG(s)) {
     tzone.tz_dsttime = 0;
     if (settimeofday(&timeval, &tzone)) perror_exit("settimeofday failed");
   }
