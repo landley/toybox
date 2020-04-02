@@ -37,14 +37,13 @@ config RTCWAKE
 GLOBALS(
   long long t, s;
   char *m, *d;
-
-  struct rtc_wkalrm alarm;
 )
 
 void rtcwake_main(void)
 {
-  time_t now, rtc_now, then;
+  struct rtc_wkalrm alarm = {};
   struct tm rtc_tm;
+  time_t now, rtc_now, then;
   int fd, utc;
 
   if (FLAG(list_modes)) {
