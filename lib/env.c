@@ -34,18 +34,19 @@ void xclearenv(void)
 // Frees entries we set earlier. Use with libc getenv but not setenv/putenv.
 // if name has an equals and !val, act like putenv (name=val must be malloced!)
 // if !val unset name. (Name with = and val is an error)
-void xsetmyenv(int *envc, char ***env, char *name, char *val)
+// returns pointer to new name=value environment string, NULL if none
+char *xsetenv(char *name, char *val)
 {
   unsigned i, len, ec;
   char *new;
 
   // If we haven't snapshot initial environment state yet, do so now.
-  if (!*envc) {
+  if (!toys.envc) {
     // envc is size +1 so even if env empty it's nonzero after initialization
-    while ((*env)[(*envc)++]);
-    memcpy(new = xmalloc(((*envc|0xff)+1)*sizeof(char *)), *env,
-      *envc*sizeof(char *));
-    *env = (void *)new;
+    while (environ[toys.envc++]);
+    memcpy(new = xmalloc(((toys.envc|0xff)+1)*sizeof(char *)), environ,
+      toys.envc*sizeof(char *));
+    environ = (void *)new;
   }
 
   new = strchr(name, '=');
@@ -58,42 +59,58 @@ void xsetmyenv(int *envc, char ***env, char *name, char *val)
     if (val) new = xmprintf("%s=%s", name, val);
   }
 
-  ec = (*envc)-1;  // compensate for size +1 above
-  for (i = 0; (*env)[i]; i++) {
+  ec = toys.envc-1;  // compensate for size +1 above
+  for (i = 0; environ[i]; i++) {
     // Drop old entry, freeing as appropriate. Assumes no duplicates.
-    if (!memcmp(name, (*env)[i], len) && (*env)[i][len]=='=') {
-      if (i>=ec) free((*env)[i]);
+    if (!memcmp(name, environ[i], len) && environ[i][len]=='=') {
+      if (i>=ec) free(environ[i]);
       else {
         // move old entries down, add at end of old data
-        *envc = ec--;
-        for (; new ? i<ec : !!(*env)[i]; i++) (*env)[i] = (*env)[i+1];
+        toys.envc = ec--;
+        for (; new ? i<ec : !!environ[i]; i++) environ[i] = environ[i+1];
         i = ec;
       }
       break;
     }
   }
 
-  if (!new) return;
+  if (!new) return 0;
 
   // resize and null terminate if expanding
-  if (!(*env)[i]) {
+  if (!environ[i]) {
     len = i+1;
-    if (!(len&255)) *env = xrealloc(*env, (len+256)*sizeof(char *));
-    (*env)[len] = 0;
+    if (!(len&255)) environ = xrealloc(environ, (len+256)*sizeof(char *));
+    environ[len] = 0;
   }
-  (*env)[i] = new;
-}
 
-// xsetenv for normal environment (extern variables).
-void xsetenv(char *name, char *val)
-{
-  return xsetmyenv(&toys.envc, &environ, name, val);
+  return environ[i] = new;
 }
 
 void xunsetenv(char *name)
 {
   if (strchr(name, '=')) error_exit("xunsetenv %s name has =", name);
   xsetenv(name, 0);
+}
+
+// remove entry and return pointer instead of freeing
+char *xpop_env(char *name)
+{
+  int len, i;
+  char *s = 0;
+
+  for (len = 0; name[len] && name[len]!='='; len++);
+  for (i = 0; environ[i]; i++) {
+    if (!s && !strncmp(name, environ[i], len) && environ[i][len] == '=') {
+      s = environ[i];
+      if (toys.envc-1>i) {
+        s = xstrdup(s);
+        toys.envc--;
+      }
+    }
+    if (s) environ[i] = environ[i+1];
+  }
+
+  return s;
 }
 
 // reset environment for a user, optionally clearing most of it
