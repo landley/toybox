@@ -33,6 +33,7 @@ config RTCWAKE
 
 #define FOR_rtcwake
 #include "toys.h"
+#include <linux/rtc.h>
 
 GLOBALS(
   long long t, s;
@@ -41,11 +42,12 @@ GLOBALS(
 
 void rtcwake_main(void)
 {
-  struct rtc_wkalrm alarm = {};
+  struct rtc_wkalrm alarm;
   struct tm rtc_tm;
   time_t now, rtc_now, then;
   int fd, utc;
 
+  memset(&alarm, 0, sizeof(alarm));
   if (FLAG(list_modes)) {
     xreadfile("/sys/power/state", toybuf, sizeof(toybuf));
     printf("off no on disable show %s", toybuf);
@@ -77,17 +79,17 @@ void rtcwake_main(void)
   }
 
   if (!strcmp(TT.m, "show")) { // Don't suspend, just show current alarm.
-    xioctl(fd, RTC_WKALM_RD, &TT.alarm);
-    if (!TT.alarm.enabled) xputs("alarm: off");
+    xioctl(fd, RTC_WKALM_RD, &alarm);
+    if (!alarm.enabled) xputs("alarm: off");
     else {
-      if ((then = mktime((void *)&TT.alarm.time)) < 0) perror_exit("mktime");
+      if ((then = mktime((void *)&alarm.time)) < 0) perror_exit("mktime");
       xprintf("alarm: on %s", ctime(&then));
     }
     goto done;
   } else if (!strcmp(TT.m, "disable")) { // Cancel current alarm.
-    xioctl(fd, RTC_WKALM_RD, &TT.alarm);
-    TT.alarm.enabled = 0;
-    xioctl(fd, RTC_WKALM_SET, &TT.alarm);
+    xioctl(fd, RTC_WKALM_RD, &alarm);
+    alarm.enabled = 0;
+    xioctl(fd, RTC_WKALM_SET, &alarm);
     goto done;
   }
 
@@ -99,11 +101,11 @@ void rtcwake_main(void)
   } else help_exit("-m %s needs -s or -t", TT.m);
   if (FLAG(v)) xprintf("Wake time:\t%lld / %s", (long long)then, ctime(&then));
 
-  if (!(utc ? gmtime_r : localtime_r)(&then, (void *)&TT.alarm.time))
+  if (!(utc ? gmtime_r : localtime_r)(&then, (void *)&alarm.time))
     error_exit(utc ? "gmtime_r failed" : "localtime_r failed");
 
-  TT.alarm.enabled = 1;
-  xioctl(fd, RTC_WKALM_SET, &TT.alarm);
+  alarm.enabled = 1;
+  xioctl(fd, RTC_WKALM_SET, &alarm);
   sync();
 
   xprintf("wakeup using \"%s\" from %s at %s", TT.m, TT.d, ctime(&then));

@@ -25,6 +25,7 @@ config HWCLOCK
 
 #define FOR_hwclock
 #include "toys.h"
+#include <linux/rtc.h>
 
 GLOBALS(
   char *f;
