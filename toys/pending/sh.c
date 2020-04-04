@@ -796,7 +796,6 @@ static char *merge_args(char *pre, int argc, char *argv[], char *sep,
 #define NO_TILDE (1<<3)    // ~username/path
 #define NO_QUOTE (1<<4)    // quote removal
 #define FORCE_COPY (1<<31) // don't keep original, copy even if not modified
-#define FORCE_KEEP (1<<30) // this is a copy, free if not appended to delete
 // TODO: parameter/variable $(command) $((math)) split pathglob
 // TODO: ${name:?error} causes an error/abort here (syntax_err longjmp?)
 // TODO: $1 $@ $* need args marshalled down here: function+structure?
@@ -812,7 +811,6 @@ static void expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
   int at = 0, ii = 0, dd, jj, kk, ll, oo = 0;
 
 if (BUGBUG) dprintf(255, "expand %s\n", str);
-  if (flags&FORCE_KEEP) old = 0;
 
 // TODO ls -l /proc/$$/fd
 
@@ -1134,7 +1132,8 @@ static void expand_arg(struct sh_arg *arg, char *old, unsigned flags,
     }
 
     // Save result
-    expand_arg_nobrace(arg, ss, flags|FORCE_KEEP, delete);
+    add_arg(delete, ss);
+    expand_arg_nobrace(arg, ss, flags, delete);
 
     // increment
     for (bb = blist->prev; bb; bb = (bb == blist) ? 0 : bb->prev) {
