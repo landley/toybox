@@ -11,9 +11,6 @@ then
   exit $?
 fi
 
-# A synonym.
-[ -z "$CROSS_COMPILE" ] && CROSS_COMPILE="$CROSS"
-
 # CFLAGS and OPTIMIZE are different so you can add extra CFLAGS without
 # disabling default optimizations
 [ -z "$CFLAGS" ] && CFLAGS="-Wall -Wundef -Wno-char-subscripts -Werror=implicit-function-declaration"

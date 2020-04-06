@@ -2,19 +2,33 @@
 
 # Clear environment variables by restarting script w/bare minimum passed through
 [ -z "$NOCLEAR" ] &&
-  exec env -i NOCLEAR=1 HOME="$HOME" PATH="$PATH" LINUX="$LINUX" \
+  exec env -i NOCLEAR=1 HOME="$HOME" PATH="$PATH" LINUX="$LINUX" CROSS="$CROSS"\
     CROSS_COMPILE="$CROSS_COMPILE" CROSS_SHORT="$CROSS_SHORT" "$0" "$@"
+
+die() { echo "$@" >&2; exit 1; }
+announce() { echo -e "\033]2;$CROSS_SHORT $*\007\n=== $*"; }
+getcross() { X="$(echo "$CCC/$1"-*cross/bin/"$1"*-cc)"; echo "${X%cc}"; }
 
 # assign command line NAME=VALUE args to env vars
 while [ $# -ne 0 ]; do
   X="${1/=*/}" Y="${1#*=}"
-  [ "${1/=/}" != "$1" ] && eval "export $X=\"\$Y\"" || echo "unknown $i"
+  [ "${1/=/}" != "$1" ] && eval "export $X=\"\$Y\"" || PKG="$PKG $i"
   shift
 done
 
+if [ ! -z "$CROSS" ]; then
+  [ ! -d "${CCC:=$PWD/ccc}" ] && die "No ccc symlink to compiler directory."
+  CCCLIST="$(ls "$CCC" | sed -n 's/-.*//p' | sort -u | xargs)"
+  if [ "$CROSS" == all ]; then
+    for i in $CCCLIST; do CROSS_COMPILE="$(getcross $i)" exec "$0" "$@"; done
+  elif [ ! -e "${CROSS_COMPILE:=$(getcross $CROSS)}cc" ]; then
+    ls "$CCC" | sed -n 's/-.*//p' | sort -u | xargs
+    exit 0
+  fi
+fi
+
 # If we're cross compiling, set appropriate environment variables.
 if [ -z "$CROSS_COMPILE" ]; then
-  echo "Building natively"
   if ! cc --static -xc - -o /dev/null <<< "int main(void) {return 0;}"; then
     echo "Warning: host compiler can't create static binaries." >&2
     sleep 3
@@ -23,18 +37,15 @@ else
   CROSS_PATH="$(dirname "$(which "${CROSS_COMPILE}cc")")"
   CROSS_BASE="$(basename "$CROSS_COMPILE")"
   [ -z "$CROSS_SHORT" ] && CROSS_SHORT="${CROSS_BASE/-*/}"
-  echo "Cross compiling to $CROSS_SHORT"
-  if [ -z "$CROSS_PATH" ]; then
-    echo "no ${CROSS_COMPILE}cc in path" >&2
-    exit 1
-  fi
+  [ -z "$CROSS_PATH" ] && die "no ${CROSS_COMPILE}cc in path"
 fi
+echo "Building for ${CROSS_SHORT:=host}"
 
 # set up directories (can override most of these paths on cmdline)
 TOP="$PWD/root"
 [ -z "$BUILD" ] && BUILD="$TOP/build"
 [ -z "$AIRLOCK" ] && AIRLOCK="$TOP/airlock"
-[ -z "$OUTPUT" ] && OUTPUT="$TOP/${CROSS_SHORT:-host}"
+[ -z "$OUTPUT" ] && OUTPUT="$TOP/$CROSS_SHORT"
 [ -z "$ROOT" ] && ROOT="$OUTPUT/${CROSS_BASE}fs" && rm -rf "$ROOT"
 MYBUILD="$BUILD/${CROSS_BASE:-host-}tmp"
 rm -rf "$MYBUILD" && mkdir -p "$MYBUILD" || exit 1
@@ -42,7 +53,7 @@ rm -rf "$MYBUILD" && mkdir -p "$MYBUILD" || exit 1
 # Stabilize cross compiling by providing known $PATH contents
 if [ ! -z "$CROSS_COMPILE" ]; then
   if [ ! -e "$AIRLOCK/toybox" ]; then
-    echo === Create airlock dir
+    announce "airlock"
     PREFIX="$AIRLOCK" KCONFIG_CONFIG="$TOP"/.airlock CROSS_COMPILE= \
       make clean defconfig toybox install_airlock &&
     rm "$TOP"/.airlock || exit 1
@@ -99,6 +110,7 @@ echo -e 'root:x:0:\nguest:x:500:\nnobody:x:65534:' > "$ROOT"/etc/group &&
 echo "nameserver 8.8.8.8" > "$ROOT"/etc/resolv.conf || exit 1
 
 # Build toybox
+announce toybox
 make clean
 make $([ -z .config ] && echo defconfig || echo silentoldconfig)
 LDFLAGS=--static PREFIX="$ROOT" make toybox install || exit 1
@@ -135,7 +147,6 @@ else
   # Each target needs board config, serial console, RTC, ethernet, block device.
 
   if [ "$TARGET" == armv5l ]; then
-
     # This could use the same VIRT board as armv7, but let's demonstrate a
     # different one requiring a separate device tree binary.
     QEMU="arm -M versatilepb -net nic,model=rtl8139 -net user"
@@ -172,12 +183,10 @@ else
   elif [ "$TARGET" == powerpc ]; then
     KARCH=powerpc QEMU="ppc -M g3beige" KARGS=ttyS0 VMLINUX=vmlinux
     KCONF=ALTIVEC,PPC_PMAC,PPC_OF_BOOT_TRAMPOLINE,IDE,IDE_GD,IDE_GD_ATA,BLK_DEV_IDE_PMAC,BLK_DEV_IDE_PMAC_ATA100FIRST,MACINTOSH_DRIVERS,ADB,ADB_CUDA,NET_VENDOR_NATSEMI,NET_VENDOR_8390,NE2K_PCI,SERIO,SERIAL_PMACZILOG,SERIAL_PMACZILOG_TTYS,SERIAL_PMACZILOG_CONSOLE,BOOTX_TEXT
-
   elif [ "$TARGET" == powerpc64le ]; then
     KARCH=powerpc QEMU="ppc64 -M pseries -vga none" KARGS=/dev/hvc0
     VMLINUX=vmlinux
     KCONF=PPC64,PPC_PSERIES,CPU_LITTLE_ENDIAN,PPC_OF_BOOT_TRAMPOLINE,BLK_DEV_SD,SCSI_LOWLEVEL,SCSI_IBMVSCSI,ATA,NET_VENDOR_IBM,IBMVETH,HVC_CONSOLE,PPC_TRANSACTIONAL_MEM,PPC_DISABLE_WERROR,SECTION_MISMATCH_WARN_ONLY
-
   elif [ "$TARGET" = s390x ] ; then
     QEMU="s390x" KARCH=s390 VMLINUX=arch/s390/boot/bzImage
     KCONF=MARCH_Z900,PACK_STACK,NET_CORE,VIRTIO_NET,VIRTIO_BLK,SCLP_TTY,SCLP_CONSOLE,SCLP_VT220_TTY,SCLP_VT220_CONSOLE,S390_GUEST
@@ -187,9 +196,7 @@ else
     KERNEL_CONFIG="CONFIG_MEMORY_START=0x0c000000"
     KCONF=CPU_SUBTYPE_SH7751R,MMU,VSYSCALL,SH_FPU,SH_RTS7751R2D,RTS7751R2D_PLUS,SERIAL_SH_SCI,SERIAL_SH_SCI_CONSOLE,PCI,NET_VENDOR_REALTEK,8139CP,PCI,BLK_DEV_SD,ATA,ATA_SFF,ATA_BMDMA,PATA_PLATFORM,BINFMT_ELF_FDPIC,BINFMT_FLAT
 #see also SPI SPI_SH_SCI MFD_SM501 RTC_CLASS RTC_DRV_R9701 RTC_DRV_SH RTC_HCTOSYS
-  else
-    echo "Unknown \$TARGET"
-    exit 1
+  else die "Unknown \$TARGET"
   fi
 
   # Write the qemu launch script
@@ -199,7 +206,7 @@ else
        ${DTB:+-dtb "$(basename "$DTB")"} > "$OUTPUT/qemu-$TARGET.sh" &&
   chmod +x "$OUTPUT/qemu-$TARGET.sh" &&
 
-  echo "Build linux for $KARCH"
+  announce "linux-$KARCH"
   pushd "$LINUX" && make distclean && popd &&
   cp -sfR "$LINUX" "$MYBUILD/linux" && pushd "$MYBUILD/linux" || exit 1
   write_miniconfig > "$OUTPUT/miniconfig-$TARGET" &&
@@ -215,11 +222,13 @@ else
     popd || exit 1
 fi
 
+for i in $PKG; do announce "$i"; ./$i; done
+
 rmdir "$MYBUILD" "$BUILD" 2>/dev/null
 
 # package root filesystem for initramfs.
 # we do it here so module install can add files (not implemented yet)
-echo === create "${CROSS_BASE}root.cpio.gz"
+announce "${CROSS_BASE}root.cpio.gz"
 
 (cd "$ROOT" && find . | cpio -o -H newc | gzip) > \
   "$OUTPUT/${CROSS_BASE}root.cpio.gz"
