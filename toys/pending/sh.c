@@ -501,7 +501,7 @@ static char *parse_word(char *start, int early)
   if (s != end) return (end == start) ? s : end;
 
   // (( is a special quote at the start of a word
-  if (strstart(&end, "((")) toybuf[quote++] = 255;
+  if (strstart(&end, "((")) toybuf[quote++] = 254;
 
   // find end of this word
   while (*end) {
@@ -517,13 +517,14 @@ static char *parse_word(char *start, int early)
     if ((q = quote ? toybuf[quote-1] : 0)) {
 
       // when waiting for parentheses, they nest
-      if ((q == ')' || q == '\xff') && (*end == '(' || *end == ')')) {
+      if ((q == ')' || q >= 254) && (*end == '(' || *end == ')')) {
         if (*end == '(') qc++;
         else if (qc) qc--;
-        else if (q == '\xff') {
+        else if (q >= 254) {
           // (( can end with )) or retroactively become two (( if we hit one )
           if (strstart(&end, "))")) quote--;
-          else return start+1;
+          else if (q == 254) return start+1;
+          else if (q == 255) toybuf[quote-1] = ')';
         } else if (*end == ')') quote--;
         end++;
 
@@ -871,7 +872,7 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
 
       s = str+ii-1;
       kk = parse_word(str+ii-1, 1)-s;
-      if (*toybuf == 0xff) {
+      if (*toybuf == 255) {
         s += 3;
         kk -= 5;
 dprintf(2, "TODO: do math for %.*s\n", kk, s);
@@ -899,7 +900,7 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
         }
 
 // TODO what does \ in `` mean? What is echo `printf %s \$x` supposed to do?
-        if (!ss) jj = pipe_subshell(s, kk, 1);
+        if (!ss) jj = pipe_subshell(s, kk, 0);
         if ((ifs = del = readfd(jj, 0, &pp)))
           for (kk = strlen(ifs); kk && ifs[kk-1]=='\n'; ifs[--kk] = 0);
         close(jj);
@@ -1634,6 +1635,7 @@ static int parse_line(char *line, struct sh_function *sp)
     // Parse next word and detect overflow (too many nested quotes).
     if ((end = parse_word(start, 0)) == (void *)1) goto flush;
 
+if (BUGBUG>1) dprintf(255, "[%.*s]%c", end ? (int)(end-start) : 0, start, pl ? ' ' : '\n');
     // Is this a new pipeline segment?
     if (!pl) {
       pl = xzalloc(sizeof(struct sh_pipeline));
@@ -2417,11 +2419,12 @@ static void subshell_setup(void)
 
 void sh_main(void)
 {
-  FILE *f;
   char *new, *cc = TT.sh.c;
   struct sh_function scratch;
   int prompt = 0, ii = FLAG(i);
+  struct string_list *sl = 0;
   struct sh_arg arg;
+  FILE *f;
 
   signal(SIGPIPE, SIG_IGN);
 
@@ -2459,18 +2462,17 @@ if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); dup2(fd, 255); close(fd); }
   else if (*toys.optargs) {
 // TODO: syntax_err should exit from shell scripts
     if (!(f = fopen(*toys.optargs, "r"))) {
-      char *pp = getvar("PATH");
+      char *pp = getvar("PATH") ? : _PATH_DEFPATH;
 
-      struct string_list *sl = find_in_path(pp?pp:_PATH_DEFPATH, *toys.optargs);
-
-      for (;sl; free(llist_pop(&sl))) if ((f = fopen(sl->str, "r"))) break;
-      llist_traverse(sl, free);
+      for (sl = find_in_path(pp, *toys.optargs); sl; free(llist_pop(&sl)))
+        if ((f = fopen(sl->str, "r"))) break;
+      if (sl) llist_traverse(sl->next, free);
+      else perror_exit_raw(*toys.optargs);
     }
   } else f = stdin;
 
+  // Loop prompting and reading lines
   for (;;) {
-
-    // Prompt and read line
     TT.lineno++;
     if (ii && f == stdin) {
       char *s = getvar(prompt ? "PS2" : "PS1");
@@ -2480,7 +2482,12 @@ if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); dup2(fd, 255); close(fd); }
     }
 
 // TODO line editing/history, should set $COLUMNS $LINES and sigwinch update
-    if (!(new = xgetline(f ? f : stdin, 0))) break;
+    if (!(new = xgetline(f, 0))) break;
+    if (sl) {
+      if (*new == 0x7f) error_exit("'%s' is ELF", sl->str);
+      free(sl);
+      sl = 0;
+    }
 // TODO if (!isspace(*new)) add_to_history(line);
 
     // returns 0 if line consumed, command if it needs more data
