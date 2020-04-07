@@ -102,7 +102,7 @@ void test_main(void)
   if (toys.optc) for (pos = paren = pstack = 0; ; pos++) {
     int len = toys.optc-pos;
 
-    if (!toys.optargs[pos]) perror_exit("need arg @%d", pos);
+    if (!len) perror_exit("need arg @%d", pos);
 
     // Evaluate next test
     result = do_test(toys.optargs+pos, &len);
@@ -132,14 +132,14 @@ void test_main(void)
       else if (pstack&AND) result = 0;
 
       // Do it again for every )
-      if (!paren || !s || strcmp(")", s)) break;
+      if (!paren || pos==toys.optc || strcmp(")", s)) break;
       paren--;
       pstack >>= 3;
       s = toys.optargs[++pos];
     }
 
     // Out of arguments?
-    if (!s) {
+    if (pos==toys.optc) {
       if (paren) perror_exit("need )");
       break;
     }
