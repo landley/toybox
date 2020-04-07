@@ -146,7 +146,7 @@ void toy_init(struct toy_list *which, char *argv[])
 void toy_exec_which(struct toy_list *which, char *argv[])
 {
   // Return if we can't find it (which includes no multiplexer case),
-  if (!which) return;
+  if (!which || (which->flags&TOYFLAG_NOFORK)) return;
 
   // Return if stack depth getting noticeable (proxy for leaked heap, etc).
 
