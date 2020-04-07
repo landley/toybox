@@ -92,21 +92,19 @@ typedef int SHA512_CTX;
 GLOBALS(
   int sawline;
 
+  unsigned *md5table;
   // Crypto variables blanked after summing
-  unsigned state[5];
-  unsigned oldstate[5];
-  uint64_t count;
+  unsigned state[5], oldstate[5];
+  unsigned long long count;
   union {
     char c[64];
     unsigned i[16];
   } buffer;
 )
 
-// for(i=0; i<64; i++) md5table[i] = abs(sin(i+1))*(1<<32);  But calculating
-// that involves not just floating point but pulling in -lm (and arguing with
-// C about whether 1<<32 is a valid thing to do on 32 bit platforms) so:
-
-static uint32_t md5table[64] = {
+// Static table for when we haven't got floating point support
+#if ! CFG_TOYBOX_FLOAT
+static unsigned md5nofloat[64] = {
   0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee, 0xf57c0faf, 0x4787c62a,
   0xa8304613, 0xfd469501, 0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be,
   0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821, 0xf61e2562, 0xc040b340,
@@ -119,6 +117,9 @@ static uint32_t md5table[64] = {
   0xffeff47d, 0x85845dd1, 0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1,
   0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391
 };
+#else
+#define md5nofloat 0
+#endif
 
 // Mix next 64 bytes of data into md5 hash
 
@@ -156,7 +157,7 @@ static void md5_transform(void)
       rot = (5*rot)+(((rot+2)&2)>>1);
       temp = x[(a+2)&3] ^ (x[(a+1)&3] | ~x[(a+3)&3]);
     }
-    temp += x[a] + b[in] + md5table[i];
+    temp += x[a] + b[in] + TT.md5table[i];
     x[a] = x[(a+1)&3] + ((temp<<rot) | (temp>>(32-rot)));
   }
   for (i=0; i<4; i++) TT.state[i] += x[i];
@@ -286,8 +287,8 @@ static void do_lib_hash(int fd, char *name)
 
 static void do_builtin_hash(int fd, char *name)
 {
-  uint64_t count;
-  int i, sha1=toys.which->name[0]=='s';
+  unsigned long long count;
+  int i, sha1 = toys.which->name[0]=='s';
   char buf, *pp;
   void (*transform)(void);
 
@@ -405,6 +406,14 @@ static void do_c_file(char *name)
 void md5sum_main(void)
 {
   char **arg;
+  int i;
+
+  // Calculate table if we have floating point. Static version should drop
+  // out at compile time when we don't need it.
+  if (CFG_TOYBOX_FLOAT) {
+    TT.md5table = xmalloc(64*4);
+    for (i = 0; i<64; i++) TT.md5table[i] = fabs(sin(i+1))*(1LL<<32);
+  } else TT.md5table = md5nofloat;
 
   if (FLAG(c)) for (arg = toys.optargs; *arg; arg++) do_c_file(*arg);
   else {
