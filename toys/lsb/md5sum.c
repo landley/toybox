@@ -345,7 +345,7 @@ static void do_hash(int fd, char *name)
   else do_builtin_hash(fd, name);
 
   if (name)
-    printf((toys.optflags & FLAG_b) ? "%s\n" : "%s  %s\n", toybuf, name);
+    printf(FLAG(b) ? "%s\n" : "%s  %s\n", toybuf, name);
 }
 
 static int do_c_line(char *line)
@@ -410,10 +410,12 @@ void md5sum_main(void)
 
   // Calculate table if we have floating point. Static version should drop
   // out at compile time when we don't need it.
-  if (CFG_TOYBOX_FLOAT) {
-    TT.md5table = xmalloc(64*4);
-    for (i = 0; i<64; i++) TT.md5table[i] = fabs(sin(i+1))*(1LL<<32);
-  } else TT.md5table = md5nofloat;
+  if (toys.which->name[0]=='m') {
+    if (CFG_TOYBOX_FLOAT) {
+      TT.md5table = xmalloc(64*4);
+      for (i = 0; i<64; i++) TT.md5table[i] = fabs(sin(i+1))*(1LL<<32);
+    } else TT.md5table = md5nofloat;
+  }
 
   if (FLAG(c)) for (arg = toys.optargs; *arg; arg++) do_c_file(*arg);
   else {
