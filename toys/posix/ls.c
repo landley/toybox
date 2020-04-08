@@ -151,7 +151,7 @@ static void entrylen(struct dirtree *dt, unsigned *len)
     } else len[5] = print_with_h(tmp, st->st_size, 1);
   }
 
-  len[6] = FLAG(s) ? print_with_h(tmp, st->st_blocks, 512) : 0;
+  len[6] = FLAG(s) ? print_with_h(tmp, st->st_blocks, 1024) : 0;
   len[7] = FLAG(Z) ? strwidth((char *)dt->extra) : 0;
 }
 
@@ -200,7 +200,7 @@ static int filter(struct dirtree *new)
 
   if (FLAG(u)) new->st.st_mtime = new->st.st_atime;
   if (FLAG(c)) new->st.st_mtime = new->st.st_ctime;
-  new->st.st_blocks >>= 1;
+  new->st.st_blocks >>= 1; // Use 1KiB blocks rather than 512B blocks.
 
   if (FLAG(a)||FLAG(f)) return DIRTREE_SAVE;
   if (!FLAG(A) && new->name[0]=='.') return 0;
@@ -325,7 +325,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
     totpad = totals[1]+!!totals[1]+totals[6]+!!totals[6]+totals[7]+!!totals[7];
     if ((FLAG(h)||FLAG(l)||FLAG(o)||FLAG(n)||FLAG(g)||FLAG(s)) && indir->parent)
     {
-      print_with_h(tmp, blocks, 512);
+      print_with_h(tmp, blocks, 1024);
       xprintf("total %s\n", tmp);
     }
   }
@@ -401,7 +401,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
     if (FLAG(i)) zprint(zap, "lu ", totals[1], st->st_ino);
 
     if (FLAG(s)) {
-      print_with_h(tmp, st->st_blocks, 512);
+      print_with_h(tmp, st->st_blocks, 1024);
       zprint(zap, "s ", totals[6], (unsigned long)tmp);
     }
 
