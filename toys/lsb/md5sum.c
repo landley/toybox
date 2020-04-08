@@ -410,7 +410,7 @@ void md5sum_main(void)
 
   // Calculate table if we have floating point. Static version should drop
   // out at compile time when we don't need it.
-  if (toys.which->name[0]=='m') {
+  if (!CFG_TOYBOX_LIBCRYPTO && toys.which->name[0]=='m') {
     if (CFG_TOYBOX_FLOAT) {
       TT.md5table = xmalloc(64*4);
       for (i = 0; i<64; i++) TT.md5table[i] = fabs(sin(i+1))*(1LL<<32);
