@@ -211,7 +211,7 @@ else
   # Write the qemu launch script
   echo "qemu-system-$QEMU" '"$@"' -nographic -no-reboot -m 256 \
        "-kernel $(basename "$VMLINUX") -initrd ${CROSS_BASE}root.cpio.gz" \
-       "-append \"panic=1 HOST=$TARGET console=$KARGS \$KARGS\"" \
+       "-append \"quiet panic=1 HOST=$TARGET console=$KARGS \$KARGS\"" \
        ${DTB:+-dtb "$(basename "$DTB")"} > "$OUTPUT/qemu-$TARGET.sh" &&
   chmod +x "$OUTPUT/qemu-$TARGET.sh" &&
 
