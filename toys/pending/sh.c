@@ -485,7 +485,7 @@ static int redir_prefix(char *word)
 }
 
 // parse next word from command line. Returns end, or 0 if need continuation
-// caller eats leading spaces. If early, stop at first unquoted char.
+// caller eats leading spaces. early = skip one quote block (or return start)
 static char *parse_word(char *start, int early)
 {
   int i, quote = 0, q, qc = 0;
@@ -497,8 +497,7 @@ static char *parse_word(char *start, int early)
 
   // Redirections. 123<<file- parses as 2 args: "123<<" "file-".
   s = end + redir_prefix(end);
-  if ((i = anystart(s, (void *)redirectors))) s += i;
-  if (s != end) return (end == start) ? s : end;
+  if ((i = anystart(s, (void *)redirectors))) return s+i;
 
   // (( is a special quote at the start of a word
   if (strstart(&end, "((")) toybuf[quote++] = 254;
@@ -535,7 +534,8 @@ static char *parse_word(char *start, int early)
       else if (q == '\'') end++;
       else i++;
 
-      // loop if we already handled a symbol
+      // loop if we already handled a symbol and aren't stopping early
+      if (early && !quote) return end;
       if (!i) continue;
     } else {
       // Things that only matter when unquoted
@@ -565,10 +565,9 @@ static char *parse_word(char *start, int early)
         toybuf[quote++] = ")}]"[i];
         end++;
       }
-    } else {
-      if (early && !quote) break;
-      end++;
     }
+    if (early && !quote) return end;
+    end++;
   }
 
   return quote ? 0 : end;
@@ -871,7 +870,7 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
       off_t pp = 0;
 
       s = str+ii-1;
-      kk = parse_word(str+ii-1, 1)-s;
+      kk = parse_word(s, 1)-s;
       if (*toybuf == 255) {
         s += 3;
         kk -= 5;
@@ -913,6 +912,7 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
         new[oo++] = cc;
         break;
       } else if (cc == '?') ifs = del = xmprintf("%d", toys.exitval);
+      else if (cc == '$') ifs = del = xmprintf("%d", TT.pid);
       else if (cc == '#') ifs = del = xmprintf("%d", TT.arg->c?TT.arg->c-1:0);
       else if (cc == '*' || cc == '@') {
         // If not doing word split, handle here
@@ -1025,7 +1025,7 @@ static void expand_arg(struct sh_arg *arg, char *old, unsigned flags,
 {
   struct brace {
     struct brace *next, *prev, *stack;
-    int active, cnt, idx, commas[];
+    int active, cnt, idx, dots[2], commas[];
   } *bb = 0, *blist = 0, *bstk, *bnext;
   int i, j;
   char *s, *ss;
@@ -1213,6 +1213,12 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
     int saveclose = 0, bad = 0;
 
     s = arg->v[j];
+
+    if (!strcmp(s, "!")) {
+      pp->not ^= 1;
+
+      continue;
+    }
 
     // Handle <() >() redirectionss
     if ((*s == '<' || *s == '>') && s[1] == '(') {
@@ -1884,7 +1890,7 @@ static int wait_pipeline(struct sh_process *pp)
       pp->pid = 0;
     }
     // TODO handle set -o pipefail here
-    rc = pp->exit;
+    rc = pp->not ? !pp->exit : pp->exit;
   }
 
   return rc;
@@ -2640,9 +2646,9 @@ void export_main(void)
 void eval_main(void)
 {
   int len = 1;
-  char *s = merge_args("", toys.optc+1, toys.argv, " ", &len, "");
+  char *s;
 
-  sh_run(s);
+  sh_run(s = merge_args("", toys.optc+1, toys.argv, " ", &len, ""));
   free(s);
 }
 
