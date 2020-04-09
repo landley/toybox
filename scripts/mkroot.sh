@@ -217,7 +217,7 @@ else
   # Build kernel. Copy config, device tree binary, and kernel binary to output
   make ARCH=$KARCH CROSS_COMPILE="$CROSS_COMPILE" -j $(nproc) &&
   cp .config "$OUTPUT/linux-fullconfig" || exit 1
-  [ ! -z "$DTB" ] && { cp "$DTB" "$OUTPUT")" || exit 1 ;}
+  [ ! -z "$DTB" ] && { cp "$DTB" "$OUTPUT" || exit 1 ;}
   cp "$VMLINUX" "$OUTPUT" && cd .. && rm -rf linux && popd || exit 1
 fi
 
