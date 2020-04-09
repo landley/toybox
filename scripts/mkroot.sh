@@ -11,15 +11,13 @@ getcross() { X="$(echo "$CCC/$1"-*cross/bin/"$1"*-cc)"; echo "${X%cc}"; }
 
 # assign command line NAME=VALUE args to env vars
 while [ $# -ne 0 ]; do
-  X="${1/=*/}" Y="${1#*=}"
-  [ "${1/=/}" != "$1" ] && eval "export $X=\"\$Y\"" || PKG="$PKG $i"
+  [ "${1/=/}" != "$1" ] && eval "export ${1/=*/}=\"\${1#*=}\"" || PKG="$PKG $i"
   shift
 done
 
-# set up directories (can override most of these paths on cmdline)
+# set output and work directories (can override on cmdline)
 TOP="$PWD/root"
-: ${BUILD:=$TOP/build} ${AIRLOCK:=$TOP/airlock}
-mkdir -p ${LOG:=$TOP/log} || exit 1
+mkdir -p ${BUILD:=$TOP/build} ${AIRLOCK:=$TOP/airlock} ${LOG:=$TOP/log} ||exit 1
 
 # set CROSS_COMPILE from $CROSS using ccc. Handle "all" w/log, list, and err chk
 if [ ! -z "$CROSS" ]; then
@@ -60,13 +58,12 @@ if [ ! -z "$CROSS_COMPILE" ]; then
   if [ ! -e "$AIRLOCK/toybox" ]; then
     announce "airlock"
     PREFIX="$AIRLOCK" KCONFIG_CONFIG="$TOP"/.airlock CROSS_COMPILE= \
-      make clean defconfig toybox install_airlock &&
-    rm "$TOP"/.airlock || exit 1
+      make clean defconfig toybox install_airlock && rm "$TOP"/.airlock ||exit 1
   fi
   export PATH="$CROSS_PATH:$AIRLOCK"
 fi
 
-### Create files and directories
+# directory layout
 mkdir -p "$ROOT"/{etc,tmp,proc,sys,dev,home,mnt,root,usr/{bin,sbin,lib},var} &&
 chmod a+rwxt "$ROOT"/tmp && ln -s usr/{bin,sbin,lib} "$ROOT" || exit 1
 
@@ -108,46 +105,22 @@ fi
 EOF
 chmod +x "$ROOT"/init &&
 
-# passwd and group with kernel special accounts (root and nobody) + guest user
+# Google's nameserver, passwd+group with special (root/nobody) accounts + guest
+echo "nameserver 8.8.8.8" > "$ROOT"/etc/resolv.conf &&
 cat > "$ROOT"/etc/passwd << 'EOF' &&
 root::0:0:root:/root:/bin/sh
 guest:x:500:500:guest:/home/guest:/bin/sh
 nobody:x:65534:65534:nobody:/proc/self:/dev/null
 EOF
-echo -e 'root:x:0:\nguest:x:500:\nnobody:x:65534:' > "$ROOT"/etc/group &&
-# Google's public nameserver.
-echo "nameserver 8.8.8.8" > "$ROOT"/etc/resolv.conf || exit 1
+echo -e 'root:x:0:\nguest:x:500:\nnobody:x:65534:' > "$ROOT"/etc/group || exit 1
 
-# Build toybox
 announce toybox
-make clean &&
-make $([ -z .config ] && echo defconfig || echo silentoldconfig) &&
+make clean $([ -z .config ] && echo defconfig || echo silentoldconfig) &&
 LDFLAGS=--static PREFIX="$ROOT" make toybox install || exit 1
-
-write_miniconfig()
-{
-  # Generic options for all targets
-  KCGLOB=EARLY_PRINTK,BINFMT_ELF,BINFMT_SCRIPT,NO_HZ,HIGH_RES_TIMERS,BLK_DEV,BLK_DEV_INITRD,RD_GZIP,BLK_DEV_LOOP,EXT4_FS,EXT4_USE_FOR_EXT2,VFAT_FS,FAT_DEFAULT_UTF8,MISC_FILESYSTEMS,SQUASHFS,SQUASHFS_XATTR,SQUASHFS_ZLIB,DEVTMPFS,DEVTMPFS_MOUNT,TMPFS,TMPFS_POSIX_ACL,NET,PACKET,UNIX,INET,IPV6,NETDEVICES,NET_CORE,NETCONSOLE,ETHERNET
-
-  echo "# make ARCH=$KARCH allnoconfig KCONFIG_ALLCONFIG=$TARGET.miniconf"
-  echo "# make ARCH=$KARCH -j \$(nproc)"
-  echo "# boot $VMLINUX"
-  echo
-  echo "# CONFIG_EMBEDDED is not set"
-
-  # Expand list of =y symbols
-  for i in $KCGLOB $KCONF; do
-    echo "# architecture ${X:-independent}"
-    sed -E '/^$/d;s/([^,]*)($|,)/CONFIG_\1=y\n/g' <<< "$i"
-    X=specific
-  done
-  echo "$KERNEL_CONFIG"
-}
 
 if [ -z "$LINUX" ] || [ ! -d "$LINUX/kernel" ]; then
   echo 'No $LINUX directory, kernel build skipped.'
 else
-
   # Which architecture are we building a kernel for?
   [ -z "$TARGET" ] && TARGET="${CROSS_BASE/-*/}"
   [ -z "$TARGET" ] && TARGET="$(uname -m)"
@@ -218,25 +191,33 @@ else
   announce "linux-$KARCH"
   pushd "$LINUX" && make distclean && popd &&
   cp -sfR "$LINUX" "$MYBUILD/linux" && pushd "$MYBUILD/linux" &&
-  write_miniconfig > "$OUTPUT/miniconfig-$TARGET" &&
-  make ARCH=$KARCH allnoconfig KCONFIG_ALLCONFIG="$OUTPUT/miniconfig-$TARGET" ||
-    exit 1
 
-  # Remove stupid kernel defaults that shouldn't be on by default
+  # Write miniconfig
+  { echo "# make ARCH=$KARCH allnoconfig KCONFIG_ALLCONFIG=$TARGET.miniconf"
+    echo -e "# make ARCH=$KARCH -j \$(nproc)\n# boot $VMLINUX\n\n"
+    echo "# CONFIG_EMBEDDED is not set"
+
+    # Expand list of =y symbols, first generic then architecture-specific
+    for i in EARLY_PRINTK,BINFMT_ELF,BINFMT_SCRIPT,NO_HZ,HIGH_RES_TIMERS,BLK_DEV,BLK_DEV_INITRD,RD_GZIP,BLK_DEV_LOOP,EXT4_FS,EXT4_USE_FOR_EXT2,VFAT_FS,FAT_DEFAULT_UTF8,MISC_FILESYSTEMS,SQUASHFS,SQUASHFS_XATTR,SQUASHFS_ZLIB,DEVTMPFS,DEVTMPFS_MOUNT,TMPFS,TMPFS_POSIX_ACL,NET,PACKET,UNIX,INET,IPV6,NETDEVICES,NET_CORE,NETCONSOLE,ETHERNET $KCONF ; do
+      echo "# architecture ${X:-independent}"
+      sed -E '/^$/d;s/([^,]*)($|,)/CONFIG_\1=y\n/g' <<< "$i"
+      X=specific
+    done
+    echo "$KERNEL_CONFIG"
+  } > "$OUTPUT/miniconfig-$TARGET" &&
+  make ARCH=$KARCH allnoconfig KCONFIG_ALLCONFIG="$OUTPUT/miniconfig-$TARGET" &&
+
+  # Second config pass to remove stupid kernel defaults
   # See http://lkml.iu.edu/hypermail/linux/kernel/1912.3/03493.html
-  # And yes, CONFIG_EXPERT forces on CONFIG_DEBUG which adds gratuitous bloat.
-  sed -e 's/# CONFIG_EXPERT .*/CONFIG_EXPERT=y/' \
-    -e "$(sed -E '/^$/d;s@([^,]*)($|,)@/^CONFIG_\1=y/d;$a# CONFIG_\1 is not set/\n@g' <<< VT,SCHED_DEBUG,DEBUG_MISC,X86_DEBUG_FPU)" -i .config &&
+  sed -e 's/# CONFIG_EXPERT .*/CONFIG_EXPERT=y/' -e "$(sed -E -e '/^$/d' \
+    -e 's@([^,]*)($|,)@/^CONFIG_\1=y/d;$a# CONFIG_\1 is not set/\n@g' \
+       <<< VT,SCHED_DEBUG,DEBUG_MISC,X86_DEBUG_FPU)" -i .config &&
   yes "" | make ARCH=$KARCH oldconfig > /dev/null &&
 
+  # Build kernel. Copy config, device tree binary, and kernel binary to output
   make ARCH=$KARCH CROSS_COMPILE="$CROSS_COMPILE" -j $(nproc) &&
   cp .config "$OUTPUT/linux-fullconfig" || exit 1
-
-  # If we have a device tree binary, save it for QEMU.
-  if [ ! -z "$DTB" ]; then
-    cp "$DTB" "$OUTPUT/$(basename "$DTB")" || exit 1
-  fi
-
+  [ ! -z "$DTB" ] && { cp "$DTB" "$OUTPUT")" || exit 1 ;}
   cp "$VMLINUX" "$OUTPUT" && cd .. && rm -rf linux && popd || exit 1
 fi
 
@@ -244,5 +225,4 @@ fi
 for i in $PKG; do announce "$i"; ./$i; done
 rmdir "$MYBUILD" "$BUILD" 2>/dev/null
 announce "${CROSS_BASE}root.cpio.gz"
-(cd "$ROOT" && find . | cpio -o -H newc | gzip) > \
-  "$OUTPUT/${CROSS_BASE}root.cpio.gz"
+(cd "$ROOT" && find .|cpio -o -H newc|gzip) > "$OUTPUT/$CROSS_BASE"root.cpio.gz
