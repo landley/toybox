@@ -1979,7 +1979,7 @@ if (BUGBUG) dprintf(255, "%d runtype=%d %s %s\n", getpid(), pl->type, s, ctl);
 
       // Skip disabled block
       if (blk && !blk->run) {
-        while (pl->next && !pl->next->type) pl = pl->next;
+        pl = pl->next;
         continue;
       }
       if (pipe_segments(ctl, pipes, &urd)) break;
