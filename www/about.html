@@ -59,18 +59,21 @@ at ELC was devoted to this question, and has the following sections:</p>
   </ul>
 </ul>
 
-<p>The <a href=http://landley.net/talks/celf-2015.txt>2015 toybox talk</a>
-starts with links to three previous talks on the history and motivation of
-the project: "Why Toybox", "Why Public Domain", and "Why did I do
-Aboriginal Linux (which led me here)?". If you're really bored,
-there's even a half-finished
-<a href=http://landley.net/aboriginal/history.html>a history page</a>.</p>
+<p>A more recent talk from 2019 compares
+<a href=https://www.youtube.com/watch?v=MkJkyMuBm3g#t=1m18s>BusyBox vs toybox</a>
+and explains the design decisions behind both.
+(A 2015 toybox talk was part of the channel
+<a href=https://marc.info/?l=linux-embedded&m=158159902514847&w=2>accidentally deleted</a> off youtube by the Linux Foundation,
+but the <a href=https://landley.net/talks/celf-2015.txt>outline</a> is
+still available.)</p>
 
-<p>The toybox maintainer's earlier minimal self-hosting system project,
+<b><h2><a name="context" />What context was toybox created in?</h2></b>
+
+<p>The toybox maintainer's previous minimal self-hosting system project,
 <a href=http://landley.net/aboriginal/about.html>Aboriginal Linux</a>,
-got its minimal native development environment down to seven packages in
+got a native development environment down to only seven packages in
 its 1.0 release (busybox, uClibc, gcc, binutils, make, bash, and linux)
-and built Linux From Scratch under the result. That project
+and then built Linux From Scratch under the result. That project
 <a href=http://landley.net/aboriginal/history.html>was the reason</a>
 toybox's maintainer became busybox maintainer, having done so
 much work to extend busybox to replace all the gnu tools in a Linux From
@@ -84,13 +87,21 @@ from-scratch implementation under an
 shipped with Android due to the license. As long as we're starting over anyway,
 we can do a better job.</p>
 
-<p>These days, toybox is replacing busybox
-in Aboriginal Linux one command at a time, and each toybox release is
-regression tested by building Aboriginal Linux with it, then building
-Linux From Scratch under the result with the new toybox commands.
-The list of commands remaining is tracked <a href=roadmap.html#dev_env>in
-the roadmap</a>, and the replacing busybox in Aboriginal Linux is
-one of the main goals for toybox' 1.0 release.</p>
+<p>Toybox's current minimal native development environment builder is a new
+<a href=https://github.com/landley/toybox/blob/master/scripts/mkroot.sh>tiny
+implementation</a> integrated into the toybox source.
+The "make root" target will create a simple toybox chroot
+(by default in the root/host directory), and adding a LINUX= argument to
+the make command line pointing to Linux kernel source code creates a tiny
+bootable system with a wrapper script to run it under the emulator
+<a href=https://qemu.org>qemu</a>.</p>
+
+<p>The list of commands remaining before we can build Linux From Scratch under
+the result (with an appropriate
+<a href=https://github.com/landley/toybox/blob/master/scripts/mcm-buildall.sh>compiler</a>)
+is tracked <a href=roadmap.html#dev_env>in
+the roadmap</a>, and doing so is one of the main goals for toybox's 1.0
+release.</p>
 
 <p>Building LFS requres fewer commands than building AOSP, which has a lot more
 <a href=http://source.android.com/source/initializing.html>build
