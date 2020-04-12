@@ -563,7 +563,7 @@ static char *parse_word(char *start, int early)
     // Things the same unquoted or in most non-single-quote contexts
 
     // start new quote context?
-    if (strchr("\"'`", *end)) toybuf[quote++] = *end++;
+    if (strchr("\"'`", *end)) toybuf[quote++] = *end;
 
     // backslash escapes
     else if (*end == '\\') {
@@ -2461,7 +2461,7 @@ void sh_main(void)
 
   // if (!FLAG(noprofile)) { }
 
-if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); dup2(fd, 255); close(fd); }
+if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); if (fd == -1) fd = open("/dev/console", O_RDWR); dup2(fd, 255); close(fd); }
   // Is this an interactive shell?
   if (ii || (!FLAG(c)&&(FLAG(s)||!toys.optc) && isatty(0))) {
     ii = 1;
