@@ -49,7 +49,7 @@ fi
 echo "Building for ${CROSS:=host}"
 
 : ${OUTPUT:=$TOP/$CROSS}
-[ -z "$ROOT" ] && ROOT="$OUTPUT/${CROSS_BASE}fs" && rm -rf "$ROOT"
+[ -z "$ROOT" ] && ROOT="$OUTPUT/fs" && rm -rf "$ROOT"
 MYBUILD="$BUILD/${CROSS_BASE:-host-}tmp"
 rm -rf "$MYBUILD" && mkdir -p "$MYBUILD" || exit 1
 
@@ -97,7 +97,7 @@ if [ $$ -eq 1 ]; then
 
   [ -z "$CONSOLE" ] && CONSOLE="$(</sys/class/tty/console/active)"
   [ -z "$HANDOFF" ] && HANDOFF=/bin/sh && echo Type exit when done.
-  exec /sbin/oneit -c /dev/"${CONSOLE:-console}" $HANDOFF
+  exec oneit -c /dev/"${CONSOLE:-console}" $HANDOFF
 else
   /bin/sh
   umount /dev/pts /dev /sys /proc
@@ -157,6 +157,9 @@ else
     fi
     KARCH=x86 KARGS=ttyS0 VMLINUX=arch/x86/boot/bzImage
     KCONF=$KCONF,UNWINDER_FRAME_POINTER,PCI,BLK_DEV_SD,ATA,ATA_SFF,ATA_BMDMA,ATA_PIIX,NET_VENDOR_INTEL,E1000,SERIAL_8250,SERIAL_8250_CONSOLE,RTC_CLASS
+  elif [ "$TARGET" == m68k ]; then
+    QEMU="m68k -M q800" KARCH=m68k KARGS=ttyS0 VMLINUX=vmlinux
+    KCONF=MMU,M68040,M68KFPU_EMU,MAC,SCSI_MAC_ESP,MACINTOSH_DRIVERS,ADB,ADB_MACII,NET_CORE,MACSONIC,SERIAL_PMACZILOG,SERIAL_PMACZILOG_TTYS,SERIAL_PMACZILOG_CONSOLE
   elif [ "$TARGET" == mips ] || [ "$TARGET" == mipsel ]; then
     QEMU="mips -M malta" KARCH=mips KARGS=ttyS0 VMLINUX=vmlinux
     KCONF=MIPS_MALTA,CPU_MIPS32_R2,SERIAL_8250,SERIAL_8250_CONSOLE,PCI,BLK_DEV_SD,ATA,ATA_SFF,ATA_BMDMA,ATA_PIIX,NET_VENDOR_AMD,PCNET32,POWER_RESET,POWER_RESET_SYSCON
