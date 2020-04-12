@@ -188,7 +188,8 @@ else
   echo "qemu-system-$QEMU" '"$@"' -nographic -no-reboot -m 256 \
        "-kernel $(basename "$VMLINUX") -initrd ${CROSS_BASE}root.cpio.gz" \
        "-append \"quiet panic=1 HOST=$TARGET console=$KARGS \$KARGS\"" \
-       ${DTB:+-dtb "$(basename "$DTB")"} > "$OUTPUT/qemu-$TARGET.sh" &&
+       ${DTB:+-dtb "$(basename "$DTB")"} ";echo -e '\e[?7h'" \
+       > "$OUTPUT/qemu-$TARGET.sh" &&
   chmod +x "$OUTPUT/qemu-$TARGET.sh" &&
 
   announce "linux-$KARCH"
