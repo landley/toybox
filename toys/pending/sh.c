@@ -48,9 +48,10 @@
 
 USE_SH(NEWTOY(cd, ">1LP[-LP]", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(eval, 0, TOYFLAG_NOFORK))
-USE_SH(NEWTOY(exec, "cla:", TOYFLAG_NOFORK))
+USE_SH(NEWTOY(exec, "^cla:", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(exit, 0, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(export, "np", TOYFLAG_NOFORK))
+USE_SH(NEWTOY(shift, ">1", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(unset, "fvn", TOYFLAG_NOFORK))
 
 USE_SH(NEWTOY(sh, "(noediting)(noprofile)(norc)sc:i", TOYFLAG_BIN))
@@ -140,6 +141,16 @@ config EXPORT
     -n	Unexport. Turn listed variable(s) into local variables.
 
     With no arguments list exported variables/attributes as "declare" statements.
+
+config SHIFT
+  bool
+  default n
+  depends on SH
+  help
+    usage: shift [N]
+
+    Skip N (default 1) positional parameters, moving $1 and friends along the list.
+    Does not affect $0.
 */
 
 #define FOR_sh
@@ -160,7 +171,7 @@ GLOBALS(
   char *ifs;
   struct double_list functions;
   unsigned options, jobcnt;
-  int hfd, pid, varlen, cdcount;
+  int hfd, pid, varslen, shift, cdcount;
   unsigned long long SECONDS;
 
   struct sh_vars {
@@ -309,7 +320,7 @@ static char *varend(char *s)
 static struct sh_vars *findvar(char *name)
 {
   int len = varend(name)-name;
-  struct sh_vars *var = TT.vars+TT.varlen;
+  struct sh_vars *var = TT.vars+TT.varslen;
 
   if (len) while (var-- != TT.vars) 
     if (!strncmp(var->str, name, len) && var->str[len] == '=') return var;
@@ -320,12 +331,12 @@ static struct sh_vars *findvar(char *name)
 // Append variable to TT.vars, returning *struct. Does not check duplicates.
 static struct sh_vars *addvar(char *s)
 {
-  if (!(TT.varlen&31))
-    TT.vars = xrealloc(TT.vars, (TT.varlen+32)*sizeof(*TT.vars));
-  TT.vars[TT.varlen].flags = 0;
-  TT.vars[TT.varlen].str = s;
+  if (!(TT.varslen&31))
+    TT.vars = xrealloc(TT.vars, (TT.varslen+32)*sizeof(*TT.vars));
+  TT.vars[TT.varslen].flags = 0;
+  TT.vars[TT.varslen].str = s;
 
-  return TT.vars+TT.varlen++;
+  return TT.vars+TT.varslen++;
 }
 
 // TODO function to resolve a string into a number for $((1+2)) etc
@@ -424,7 +435,7 @@ static void unsetvar(char *name)
   } else free(var->str);
 
   ii = var-TT.vars;
-  memmove(TT.vars+ii, TT.vars+ii+1, TT.varlen-ii);
+  memmove(TT.vars+ii, TT.vars+ii+1, TT.varslen-ii);
 }
 
 // malloc declare -x "escaped string"
@@ -678,7 +689,7 @@ if (BUGBUG) dprintf(255, "run_subshell %.*s\n", len, str);
 
     // marshall data to child
     close(254);
-    for (i = 0; i<TT.varlen; i++) {
+    for (i = 0; i<TT.varslen; i++) {
       char *s;
 
       if (TT.vars[i].flags&VAR_GLOBAL) continue;
@@ -866,14 +877,14 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
       }
     // both types of subshell work the same, so do $( here not in '$' below
 // TODO $((echo hello) | cat) ala $(( becomes $( ( retroactively
-    } else if (cc == '`' || (cc == '$' && str[ii] == '(')) {
+    } else if (cc == '`' || (cc == '$' && strchr("([", str[ii]))) {
       off_t pp = 0;
 
       s = str+ii-1;
       kk = parse_word(s, 1)-s;
-      if (*toybuf == 255) {
-        s += 3;
-        kk -= 5;
+      if (str[ii] == '[' || *toybuf == 255) {
+        s += 2+(str[ii]!='[');
+        kk -= 3+2*(str[ii]!='[');
 dprintf(2, "TODO: do math for %.*s\n", kk, s);
       } else {
         // Run subshell and trim trailing newlines
@@ -932,10 +943,10 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
         } else at = 1;
       } else if(isdigit(cc)) {
         for (kk = 0, ii--; isdigit(cc = str[ii]); ii++) kk = (10*kk)+cc-'0';
+        if (kk) kk += TT.shift;
         if (kk<TT.arg->c) ifs = TT.arg->v[kk];
-
-      // TODO: ${ $(( $[ $'
-//      } else if (cc == '{') {
+      } else if (cc=='\'') {
+      } else if (cc == '{') {
 
       // $VARIABLE
       } else {
@@ -2489,6 +2500,7 @@ if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); dup2(fd, 255); close(fd); }
 
 // TODO line editing/history, should set $COLUMNS $LINES and sigwinch update
     if (!(new = xgetline(f, 0))) break;
+if (BUGBUG) dprintf(255, "line=%s\n", new);
     if (sl) {
       if (*new == 0x7f) error_exit("'%s' is ELF", sl->str);
       free(sl);
@@ -2658,7 +2670,7 @@ void eval_main(void)
 
 void exec_main(void)
 {
-  char *ee[1] = {0}, *cc, *pp = getvar("PATH");
+  char *ee[1] = {0}, **env = FLAG(c) ? ee : environ, *cc, *pp = getvar("PATH");
   struct string_list *sl;
 
   // discard redirects and return if nothing to exec
@@ -2670,10 +2682,21 @@ void exec_main(void)
   cc = *toys.optargs;
   if (TT.exec.a || FLAG(l))
     *toys.optargs = xmprintf("%s%s", FLAG(l)?"-":"", TT.exec.a?TT.exec.a:cc);
-  for (sl = find_in_path(pp?pp:_PATH_DEFPATH, cc); sl; free(llist_pop(&sl)))
-    execve(sl->str, toys.optargs, FLAG(c) ? ee : environ);
+  if (strchr(cc, '/')) execve(cc, toys.optargs, env);
+  else for (sl = find_in_path(pp?:_PATH_DEFPATH, cc); sl; free(llist_pop(&sl)))
+    execve(sl->str, toys.optargs, env);
 
   // report error (usually ENOENT) and return
   perror_msg("%s", cc);
   toys.exitval = 127;
+}
+
+void shift_main(void)
+{
+  long long by = 1;
+
+  if (toys.optc) by = atolx(*toys.optargs);
+  by += TT.shift;
+  if (by<0 || by>= TT.arg->c) toys.exitval++;
+  else TT.shift = by;
 }
