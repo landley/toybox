@@ -39,7 +39,7 @@ GLOBALS(
 //
 // - Fork a child (PID 1 is special: can't exit, has various signals blocked).
 // - Do a setsid() (so we have our own session).
-// - In the child, attach stdio to /dev/tty0 (/dev/console is special)
+// - In the child, attach stdio to TT.c (/dev/console is special)
 // - Exec the rest of the command line.
 //
 // PID 1 then reaps zombies until the child process it spawned exits, at which
@@ -92,12 +92,12 @@ void oneit_main(void)
 
       oneit_signaled((toys.optflags & FLAG_p) ? SIGUSR2 : SIGTERM);
     } else {
-      // Redirect stdio to /dev/tty0, with new session ID, so ctrl-c works.
+      // Redirect stdio to TT.c, with new session ID, so ctrl-c works.
       setsid();
       for (i=0; i<3; i++) {
         close(i);
         // Remember, O_CLOEXEC is backwards for xopen()
-        xopen_stdio(TT.c ? TT.c : "/dev/tty0", O_RDWR|O_CLOEXEC);
+        xopen_stdio(TT.c ? : "/dev/tty0", O_RDWR|O_CLOEXEC);
       }
 
       // Can't xexec() here, we vforked so we don't want to error_exit().
