@@ -272,7 +272,11 @@ static void dump_state(struct sh_function *sp)
 static const char *redirectors[] = {"<<<", "<<-", "<<", "<&", "<>", "<", ">>",
   ">&", ">|", ">", "&>>", "&>", 0};
 
-#define SH_NOCLOBBER 1   // set -C
+#define OPT_I           1
+#define OPT_BRACE       2   // set -B
+#define OPT_NOCLOBBER   4   // set -C
+#define OPT_S           8
+#define OPT_C          16
 
 static void syntax_err(char *s)
 {
@@ -917,11 +921,18 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
       }
     } else if (cc == '$') {
 
-// *@#?-$!_0 "Special Paremeters" ($0 not affected by shift)
+// -!_0 "Special Paremeters" ($0 not affected by shift)
 
       if (!(cc = str[ii++])) {
         new[oo++] = cc;
         break;
+      } else if (cc == '-') {
+        s = ifs = toybuf;
+        if (TT.options&OPT_I) *s++ = 'i';
+        if (TT.options&OPT_BRACE) *s++ = 'B';
+        if (TT.options&OPT_S) *s++ = 's';
+        if (TT.options&OPT_C) *s++ = 'c';
+        *s = 0;
       } else if (cc == '?') ifs = del = xmprintf("%d", toys.exitval);
       else if (cc == '$') ifs = del = xmprintf("%d", TT.pid);
       else if (cc == '#') ifs = del = xmprintf("%d", TT.arg->c?TT.arg->c-1:0);
@@ -1042,7 +1053,7 @@ static void expand_arg(struct sh_arg *arg, char *old, unsigned flags,
   char *s, *ss;
 
   // collect brace spans
-  if (!(flags&NO_BRACE)) for (i = 0; ; i++) {
+  if ((TT.options&OPT_BRACE) && !(flags&NO_BRACE)) for (i = 0; ; i++) {
     while ((s = parse_word(old+i, 1)) != old+i) i += s-(old+i);
     if (!bb && !old[i]) break;
     if (bb && (!old[i] || old[i] == '}')) {
@@ -1362,7 +1373,7 @@ notfd:
       else if (strstr(ss, ">>")) from = O_CREAT|O_APPEND|O_WRONLY;
       else {
         from = (*ss == '<') ? O_RDONLY : O_CREAT|O_WRONLY|O_TRUNC;
-        if (!strcmp(ss, ">") && (TT.options&SH_NOCLOBBER)) {
+        if (!strcmp(ss, ">") && (TT.options&OPT_NOCLOBBER)) {
           struct stat st;
 
           // Not _just_ O_EXCL: > /dev/null allowed
@@ -2231,7 +2242,7 @@ static void do_prompt(char *prompt)
   char *s, *ss, c, cc, *pp = toybuf;
   int len, ll;
 
-  if (!prompt) prompt = "\\$ ";
+  if (!prompt) return;
   while ((len = sizeof(toybuf)-(pp-toybuf))>0 && *prompt) {
     c = *(prompt++);
 
@@ -2293,7 +2304,7 @@ static struct sh_vars *initlocal(char *name, char *val)
 // export malloced name=value string
 static void export(char *str)
 {
-  struct sh_vars *shv;
+  struct sh_vars *shv = 0;
   char *s;
 
   // Make sure variable exists and is updated
@@ -2328,7 +2339,6 @@ static void subshell_setup(void)
 {
   struct passwd *pw = getpwuid(getuid());
   int ii, to, from, pid, ppid, zpid, myppid = getppid(), len;
-// TODO: you can unset readonly and these first 4 aren't malloc()
   char *s, *ss, *magic[] = {"SECONDS","RANDOM","LINENO","GROUPS"},
     *readonly[] = {xmprintf("EUID=%d", geteuid()), xmprintf("UID=%d", getuid()),
                    xmprintf("PPID=%d", myppid)};
@@ -2362,6 +2372,7 @@ static void subshell_setup(void)
   initlocal("OPTERR", "1"); // TODO: test if already exported?
   if (readlink0("/proc/self/exe", toybuf, sizeof(toybuf)))
     initlocal("BASH", toybuf);
+  initlocal("PS2", "> ");
 
   // Ensure environ copied and toys.envc set, and clean out illegal entries
   TT.ifs = " \t\n";
@@ -2373,6 +2384,7 @@ static void subshell_setup(void)
       sscanf(s, "@%d,%d%n", &pid, &ppid, &len);
       if (s[len]) pid = ppid = 0;
       if (*s == '$' && s[1] == '=') zpid = atoi(s+2);
+// TODO marshall $- to subshell like $$
     }
 
     // Filter out non-shell variable names from inherited environ.
@@ -2438,12 +2450,13 @@ void sh_main(void)
 {
   char *new, *cc = TT.sh.c;
   struct sh_function scratch;
-  int prompt = 0, ii = FLAG(i);
+  int prompt = 0;
   struct string_list *sl = 0;
   struct sh_arg arg;
   FILE *f;
 
   signal(SIGPIPE, SIG_IGN);
+  TT.options = OPT_BRACE;
 
   TT.pid = getpid();
   TT.SECONDS = time(0);
@@ -2463,20 +2476,26 @@ void sh_main(void)
 
 if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); if (fd == -1) fd = open("/dev/console", O_RDWR); dup2(fd, 255); close(fd); }
   // Is this an interactive shell?
-  if (ii || (!FLAG(c)&&(FLAG(s)||!toys.optc) && isatty(0))) {
-    ii = 1;
-    // TODO Set up signal handlers and grab control of this tty.
-  }
+  if (FLAG(s) || (!FLAG(c) && !toys.optc)) TT.options |= OPT_S;
+  if (FLAG(i) || (!FLAG(c) && (TT.options&OPT_S) && isatty(0)))
+    TT.options |= OPT_I;
+  if (FLAG(c)) TT.options |= OPT_C;
 
   // Read environment for exports from parent shell. Note, calls run_sh()
   // which blanks argument sections of TT and this, so parse everything
   // we need from shell command line before that.
   subshell_setup();
+  if (TT.options&OPT_I) {
+    if (!getvar("PS1")) setvarval("PS1", getpid() ? "\\$ " : "# ");
+    // TODO Set up signal handlers and grab control of this tty.
+  }
+
   memset(&scratch, 0, sizeof(scratch));
 
 // TODO unify fmemopen() here with sh_run
   if (cc) f = fmemopen(cc, strlen(cc), "r");
-  else if (*toys.optargs) {
+  else if (TT.options&OPT_S) f = stdin;
+  else {
 // TODO: syntax_err should exit from shell scripts
     if (!(f = fopen(*toys.optargs, "r"))) {
       char *pp = getvar("PATH") ? : _PATH_DEFPATH;
@@ -2486,17 +2505,13 @@ if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); if (fd == -1) fd = open("/dev/c
       if (sl) llist_traverse(sl->next, free);
       else perror_exit_raw(*toys.optargs);
     }
-  } else f = stdin;
+  }
 
   // Loop prompting and reading lines
   for (;;) {
     TT.lineno++;
-    if (ii && f == stdin) {
-      char *s = getvar(prompt ? "PS2" : "PS1");
-
-      if (!s) s = prompt ? "> " : (getpid() ? "\\$ " : "# ");
-      do_prompt(s);
-    }
+    if ((TT.options&(OPT_I|OPT_S|OPT_C)) == (OPT_I|OPT_S))
+      do_prompt(getvar(prompt ? "PS2" : "PS1"));
 
 // TODO line editing/history, should set $COLUMNS $LINES and sigwinch update
     if (!(new = xgetline(f, 0))) break;
@@ -2542,6 +2557,7 @@ void cd_main(void)
 
   // expand variables
   if (dest) dd = expand_one_arg(dest, FORCE_COPY|NO_SPLIT, 0);
+// TODO: no expand here
   if (!dd || !*dd) {
     free(dd);
     dd = xstrdup("/");
