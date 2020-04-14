@@ -70,7 +70,6 @@ GLOBALS(
 // TODO detect existing identical mount (procfs with different dev name?)
 // TODO user, users, owner, group, nofail
 // TODO -p (passfd)
-// TODO -a -t notype,type2
 // TODO --subtree
 // TODO --rbind, -R
 // TODO make "mount --bind,ro old new" work (implicit -o remount)

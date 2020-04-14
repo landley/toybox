@@ -121,7 +121,7 @@ static void octal_deslash(char *s)
 
 int mountlist_istype(struct mtab_list *ml, char *typelist)
 {
-  int len, skip;
+  int len, skip, i;
   char *t;
 
   if (!typelist) return 1;
@@ -131,9 +131,9 @@ int mountlist_istype(struct mtab_list *ml, char *typelist)
   for (;;) {
     if (!(t = comma_iterate(&typelist, &len))) break;
     if (!skip) {
-      // If one -t starts with "no", the rest must too
-      if (strncmp(t, "no", 2)) error_exit("bad typelist");
-      if (!strncmp(t+2, ml->type, len-2)) {
+      // If list starts with "no", other types in list may or may not
+      i = strncmp(t, "no", 2) ? 0 : 2;
+      if (!strncmp(t+i, ml->type, len-i)) {
         skip = 1;
         break;
       }
