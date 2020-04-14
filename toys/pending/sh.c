@@ -921,8 +921,8 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
       }
     } else if (cc == '$') {
 
-// -!_0 "Special Paremeters" ($0 not affected by shift)
-
+// TODO: $_ is last arg of last command, and exported as path to exe run
+// TODO: $! is PID of most recent background job
       if (!(cc = str[ii++])) {
         new[oo++] = cc;
         break;
@@ -957,6 +957,8 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
         if (kk) kk += TT.shift;
         if (kk<TT.arg->c) ifs = TT.arg->v[kk];
       } else if (cc=='\'') {
+        for (s = str+ii; *s != '\''; oo += wcrtomb(new+oo, unescape2(&s, 0),0));
+        ii = s-str+1;
       } else if (cc == '{') {
 
       // $VARIABLE
