@@ -585,16 +585,12 @@ static int do_find(struct dirtree *new)
         if (check) for (fmt = ss[1]; *fmt; fmt++) {
           // Print the parts that aren't escapes
           if (*fmt == '\\') {
-            int slash = *++fmt, n = unescape(slash);
+            unsigned u;
 
-            if (n) ch = n;
-            else if (slash=='c') break;
-            else if (slash=='0') {
-              ch = 0;
-              while (*fmt>='0' && *fmt<='7' && n++<3) ch=(ch*8)+*(fmt++)-'0';
-              --fmt;
-            } else error_exit("bad \\%c", *fmt);
-            putchar(ch);
+            if (fmt[1] == 'c') break;
+            if ((u = unescape2(&fmt, 0))<128) putchar(u);
+            else printf("%.*s", (int)wcrtomb(buf, u, 0), buf);
+            fmt--;
           } else if (*fmt != '%') putchar(*fmt);
           else if (*++fmt == '%') putchar('%');
           else {

@@ -436,6 +436,29 @@ int unescape(char c)
   return (idx == -1) ? 0 : to[idx];
 }
 
+// parse next character advancing pointer. echo requires leading 0 in octal esc
+int unescape2(char **c, int echo)
+{
+  int idx = *((*c)++), i, off;
+
+  if (idx != '\\' || !**c) return idx;
+  if (**c == 'c') return 31&*(++*c);
+  for (i = 0; i<4; i++) {
+    if (sscanf(*c, (char *[]){"0%3o%n"+!echo, "x%2x%n", "u%4x%n", "U%6x%n"}[i],
+        &idx, &off))
+    {
+      *c += off;
+
+      return idx;
+    }
+  }
+
+  if (-1 == (idx = stridx("\\abeEfnrtv'\"?", **c))) return '\\';
+  ++*c;
+
+  return "\\\a\b\033\033\f\n\r\t\v'\"?"[idx];
+}
+
 // If string ends with suffix return pointer to start of suffix in string,
 // else NULL
 char *strend(char *str, char *suffix)

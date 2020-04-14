@@ -41,12 +41,10 @@ config ECHO
 
 void echo_main(void)
 {
-  int i = 0, out;
-  char *arg, *c;
+  int i = 0;
+  char *arg, *c, out[8];
 
-  for (;;) {
-    arg = toys.optargs[i];
-    if (!arg) break;
+  while ((arg = toys.optargs[i])) {
     if (i++) putchar(' ');
 
     // Should we output arg verbatim?
@@ -58,40 +56,12 @@ void echo_main(void)
 
     // Handle -e
 
-    for (c = arg;;) {
-      if (!(out = *(c++))) break;
+    for (c = arg; *c; ) {
+      unsigned u;
 
-      // handle \escapes
-      if (out == '\\' && *c) {
-        int slash = *(c++), n = unescape(slash);
-
-        if (n) out = n;
-        else if (slash=='c') return;
-        else if (slash=='0') {
-          out = 0;
-          while (*c>='0' && *c<='7' && n++<3) out = (out*8)+*(c++)-'0';
-        } else if (slash=='x') {
-          out = 0;
-          while (n++<2) {
-            if (*c>='0' && *c<='9') out = (out*16)+*(c++)-'0';
-            else {
-              int temp = tolower(*c);
-              if (temp>='a' && temp<='f') {
-                out = (out*16)+temp-'a'+10;
-                c++;
-              } else {
-                if (n==1) {
-                  --c;
-                  out = '\\';
-                }
-                break;
-              }
-            }
-          }
-        // Slash in front of unknown character, print literal.
-        } else c--;
-      }
-      putchar(out);
+      if (*c == '\\' && c[1] == 'c') return;
+      if ((u = unescape2(&c, 1))<128) putchar(u);
+      else printf("%.*s", (int)wcrtomb(out, u, 0), out);
     }
   }
 
