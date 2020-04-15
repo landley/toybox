@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Build a standalone toybox command
 
@@ -9,7 +9,7 @@ then
 fi
 
 # Add trailing / to PREFIX when it's set but hasn't got one
-[ "$PREFIX" == "${PREFIX%/}" ] && PREFIX="${PREFIX:+$PREFIX/}"
+[ "$PREFIX" = "${PREFIX%/}" ] && PREFIX="${PREFIX:+$PREFIX/}"
 
 # Harvest TOYBOX_* symbols from .config
 if [ ! -e .config ]
@@ -24,7 +24,7 @@ touch -c .config
 export KCONFIG_CONFIG=.singleconfig
 for i in "$@"
 do
-  echo -n "$i:"
+  printf '%s:' "$i"
   TOYFILE="$(egrep -l "TOY[(]($i)[ ,]" toys/*/*.c)"
 
   if [ -z "$TOYFILE" ]
@@ -37,7 +37,7 @@ do
 
   DEPENDS=
   MPDEL=
-  if [ "$i" == sh ]
+  if [ "$i" = sh ]
   then
     DEPENDS="$(sed -n 's/USE_\([^(]*\)(NEWTOY([^,]*,.*TOYFLAG_MAYFORK.*/\1/p' toys/*/*.c)"
   else
