@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 if [ $# -ne 2 ]
 then
@@ -40,7 +40,7 @@ do_bloatcheck()
     fi
 
     SIZE=$(printf "%d" "0x$b")
-    if [ "$a" == "-" ]
+    if [ "$a" = "-" ]
     then
       OLD=$(($OLD+$SIZE))
       SIZE=$((-1*$SIZE))
