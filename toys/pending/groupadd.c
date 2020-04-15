@@ -39,17 +39,17 @@ static void new_group()
 {
   char *entry = NULL;
 
-  if (toys.optflags & FLAG_g) {
+  if (FLAG(g)) {
     if (TT.gid > INT_MAX) error_exit("gid should be less than  '%d' ", INT_MAX);
     if (getgrgid(TT.gid)) error_exit("group '%ld' is in use", TT.gid);
   } else {
-    if (toys.optflags & FLAG_S) TT.gid = CFG_TOYBOX_UID_SYS;
+    if (FLAG(S)) TT.gid = CFG_TOYBOX_UID_SYS;
     else TT.gid = CFG_TOYBOX_UID_USR;
     //find unused gid
     while (getgrgid(TT.gid)) TT.gid++;
   }
 
-  entry = xmprintf("%s:%s:%d:", *toys.optargs, "x", TT.gid);
+  entry = xmprintf("%s:%s:%ld:", *toys.optargs, "x", TT.gid);
   update_password(GROUP_PATH, *toys.optargs, entry);
   free(entry);
   entry = xmprintf("%s:%s::", *toys.optargs, "!");
