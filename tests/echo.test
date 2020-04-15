@@ -45,3 +45,7 @@ testcmd "-e \p" "-e '\\p'" "\\p\n" "" ""
 # http://austingroupbugs.net/view.php?id=1222 added -E
 testcmd "-En" "-En 'one\ntwo'" 'one\\ntwo' "" ""
 testcmd "-eE" "-eE '\e'" '\\e\n' "" ""
+
+# This is how bash's built-in echo behaves, but now how /bin/echo behaves.
+toyonly testcmd "" "-e 'a\x123\ufb3bbc' | od -An -tx1" \
+  " 61 12 33 ef ac bb 62 63 0a\n" "" ""
