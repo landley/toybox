@@ -132,7 +132,7 @@ static int mkpkt_err(uint8_t *buffer, uint16_t errorcode, char *errormsg)
  * Recieves data from server in BUFF with socket SD and updates FROM
  * and returns read length.
  */
-static ssize_t read_server(int sd, void *buf, size_t len,
+static int read_server(int sd, void *buf, int len,
   struct sockaddr_storage *from)
 {
   socklen_t alen;
@@ -214,7 +214,7 @@ static int read_ack(int sd, uint8_t *packet, struct sockaddr_storage *server,
   uint16_t *port, uint16_t *blockno)
 {
   struct sockaddr_storage from;
-  ssize_t nbytes;
+  int nbytes;
   uint16_t opcode, rblockno;
   int packetlen, retry;
 
@@ -434,12 +434,12 @@ void tftp_main(void)
   struct addrinfo *info, rp, *res=0;
   int ret;
 
-  if (toys.optflags & FLAG_r) {
-    if (!(toys.optflags & FLAG_l)) {
+  if (FLAG(r)) {
+    if (!FLAG(l)) {
       char *slash = strrchr(TT.remote_file, '/');
       TT.local_file = (slash) ? slash + 1 : TT.remote_file;
     }
-  } else if (toys.optflags & FLAG_l) TT.remote_file = TT.local_file;
+  } else if (FLAG(l)) TT.remote_file = TT.local_file;
   else error_exit("Please provide some files.");
 
   memset(&rp, 0, sizeof(rp));
@@ -457,6 +457,6 @@ void tftp_main(void)
   memcpy((void *)&TT.inaddr, info->ai_addr, info->ai_addrlen);
   freeaddrinfo(info);
 
-  if (toys.optflags & FLAG_g) file_get();
-  if (toys.optflags & FLAG_p) file_put();
+  if (FLAG(g)) file_get();
+  if (FLAG(p)) file_put();
 }
