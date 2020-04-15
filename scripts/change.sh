@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # build each command as a standalone executable
 
@@ -14,8 +14,8 @@ mkdir -p "$PREFIX" || exit 1
 
 for i in $(generated/instlist | egrep -vw "sh|help")
 do
-  echo -n " $i" &&
+  printf ' %s' "$i" &&
   scripts/single.sh $i > /dev/null 2>$PREFIX/${i}.bad &&
-    rm $PREFIX/${i}.bad || echo -n '*'
+    rm $PREFIX/${i}.bad || printf '*'
 done
 echo
