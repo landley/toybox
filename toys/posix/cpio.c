@@ -80,7 +80,7 @@ static unsigned x8u(char *hex)
 void cpio_main(void)
 {
   // Subtle bit: FLAG_o is 1 so we can just use it to select stdin/stdout.
-  int pipe, afd = toys.optflags & FLAG_o;
+  int pipe, afd = FLAG(o);
   pid_t pid = 0;
 
   // In passthrough mode, parent stays in original dir and generates archive
@@ -99,17 +99,17 @@ void cpio_main(void)
   }
 
   if (TT.F) {
-    int perm = (toys.optflags & FLAG_o) ? O_CREAT|O_WRONLY|O_TRUNC : O_RDONLY;
+    int perm = FLAG(o) ? O_CREAT|O_WRONLY|O_TRUNC : O_RDONLY;
 
     afd = xcreate(TT.F, perm, 0644);
   }
 
   // read cpio archive
 
-  if (toys.optflags & (FLAG_i|FLAG_t)) for (;;) {
+  if (FLAG(i) || FLAG(t)) for (;;) {
     char *name, *tofree, *data;
     unsigned size, mode, uid, gid, timestamp;
-    int test = toys.optflags & FLAG_t, err = 0;
+    int test = FLAG(t), err = 0;
 
     // Read header and name.
     if (!(size =readall(afd, toybuf, 110))) break;
@@ -130,7 +130,7 @@ void cpio_main(void)
     gid = x8u(toybuf+30);
     timestamp = x8u(toybuf+46); // unsigned 32 bit, so year 2100 problem
 
-    if (toys.optflags & (FLAG_t|FLAG_v)) puts(name);
+    if (FLAG(t) || FLAG(v)) puts(name);
 
     if (!test && strrchr(name, '/') && mkpath(name)) {
       perror_msg("mkpath '%s'", name);
@@ -147,7 +147,7 @@ void cpio_main(void)
       if (!test) err = symlink(data, name);
       free(data);
       // Can't get a filehandle to a symlink, so do special chown
-      if (!err && !geteuid() && !(toys.optflags & FLAG_no_preserve_owner))
+      if (!err && !geteuid() && !FLAG(no_preserve_owner))
         err = lchown(name, uid, gid);
     } else if (S_ISREG(mode)) {
       int fd = test ? 0 : open(name, O_CREAT|O_WRONLY|O_TRUNC|O_NOFOLLOW, mode);
@@ -173,7 +173,7 @@ void cpio_main(void)
 
       if (!test) {
         // set owner, restore dropped suid bit
-        if (!geteuid() && !(toys.optflags & FLAG_no_preserve_owner)) {
+        if (!geteuid() && !FLAG(no_preserve_owner)) {
           err = fchown(fd, uid, gid);
           if (!err) err = fchmod(fd, mode);
         }
@@ -189,7 +189,7 @@ void cpio_main(void)
       // Check that we at least have the right type of entity open, and do
       // NOT restore dropped suid bit in this case.
       if (!S_ISREG(mode) && !S_ISLNK(mode) && !geteuid()
-          && !(toys.optflags & FLAG_no_preserve_owner))
+          && !FLAG(no_preserve_owner))
       {
         int fd = open(name, O_RDONLY|O_NOFOLLOW);
         struct stat st;
@@ -274,7 +274,7 @@ void cpio_main(void)
     }
     free(name);
 
-    if (FLAG_trailer) {
+    if (FLAG(trailer)) {
       memset(toybuf, 0, sizeof(toybuf));
       xwrite(afd, toybuf,
         sprintf(toybuf, "070701%040X%056X%08XTRAILER!!!", 1, 0x0b, 0)+4);
