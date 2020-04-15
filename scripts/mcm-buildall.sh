@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Script to build all cross and native compilers supported by musl-libc.
 # This isn't directly used by toybox, but is useful for testing.
@@ -22,7 +22,7 @@ BOOTSTRAP=i686-linux-musl
 
 [ -z "$OUTPUT" ] && OUTPUT="$PWD/ccc"
 
-if [ "$1" == clean ]
+if [ "$1" = clean ]
 then
   rm -rf "$OUTPUT" host-* *.log
   make clean
@@ -38,7 +38,7 @@ make_toolchain()
     OUTPUT="$PWD/host-$TARGET"
     EXTRASUB=y
   else
-    if [ "$TYPE" == static ]
+    if [ "$TYPE" = static ]
     then
       HOST=$BOOTSTRAP
       [ "$TARGET" = "$HOST" ] && LP="$PWD/host-$HOST/bin:$LP"
@@ -53,7 +53,9 @@ make_toolchain()
          echo "no $TARGET-cc in $LP" && return
     fi
     COMMON_CONFIG="CC=\"$HOST-gcc -static --static\" CXX=\"$HOST-g++ -static --static\""
-    export -n HOST
+    _HOST="$HOST"
+    unset HOST
+    HOST="$_HOST"
     OUTPUT="$OUTPUT/${RENAME:-$TARGET}-$TYPE"
   fi
 
@@ -66,7 +68,7 @@ make_toolchain()
   # Change title bar to say what we're currently building
 
   echo === building $TARGET-$TYPE
-  echo -en "\033]2;$TARGET-$TYPE\007"
+  printf '\033]2;%s-%s\007' "$TARGET" "$TYPE"
 
   rm -rf build/"$TARGET" "$OUTPUT" &&
   [ -z "$CPUS" ] && CPUS=$(($(nproc)+1))
@@ -76,10 +78,10 @@ make_toolchain()
     COMMON_CONFIG="CFLAGS=\"$CFLAGS -g0 -Os\" CXXFLAGS=\"$CXXFLAGS -g0 -Os\" LDFLAGS=\"$LDFLAGS -s\" $COMMON_CONFIG" \
     install -j$CPUS || exit 1
   set +x
-  echo -e '#ifndef __MUSL__\n#define __MUSL__ 1\n#endif' \
+  printf '#ifndef __MUSL__\n#define __MUSL__ 1\n#endif\n' \
     >> "$OUTPUT/${EXTRASUB:+$TARGET/}include/features.h"
 
-  if [ ! -z "$RENAME" ] && [ "$TYPE" == cross ]
+  if [ ! -z "$RENAME" ] && [ "$TYPE" = cross ]
   then
     CONTEXT="output/$RENAME-cross/bin"
     for i in "$CONTEXT/$TARGET-"*
@@ -93,7 +95,7 @@ make_toolchain()
   # $BOOTSTRAP arch
   [ -z "$TYPE" ] && make clean
 
-  if [ "$TYPE" == native ]
+  if [ "$TYPE" = native ]
   then
     # gcc looks in "../usr/include" but not "/bin/../include" (relative to the
     # executable). That means /usr/bin/gcc looks in /usr/usr/include, so that's
@@ -108,14 +110,14 @@ make_toolchain()
 # Expand compressed target into binutils/gcc "tuple" and call make_toolchain
 make_tuple()
 {
-  PART1=${1/:*/}
-  PART3=${1/*:/}
-  PART2=${1:$((${#PART1}+1)):$((${#1}-${#PART3}-${#PART1}-2))}
+  PART1=${1%%:*}
+  PART3=${1##*:}
+  PART2=${1#${PART1}:} PART2=${PART2%:${PART3}}
 
   # Do we need to rename this toolchain after building it?
-  RENAME=${PART1/*@/}
-  [ "$RENAME" == "$PART1" ] && RENAME=
-  PART1=${PART1/@*/}
+  RENAME=${PART1##*@}
+  [ "$RENAME" = "$PART1" ] && RENAME=
+  PART1=${PART1%%@*}
   TARGET=${PART1}-linux-musl${PART2} 
 
   [ -z "$NOCLEAN" ] && rm -rf build
