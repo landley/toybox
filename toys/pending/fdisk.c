@@ -46,7 +46,7 @@ GLOBALS(
 #define sector(s) ((s) & 0x3f)
 #define cylinder(s, c) ((c) | (((s) & 0xc0) << 2))
 
-typedef off_t sector_t;
+typedef unsigned long long sector_t;
 
 struct partition {
   unsigned char boot_ind, head, sector, cyl, sys_ind, end_head,
