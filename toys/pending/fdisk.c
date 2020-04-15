@@ -46,7 +46,7 @@ GLOBALS(
 #define sector(s) ((s) & 0x3f)
 #define cylinder(s, c) ((c) | (((s) & 0xc0) << 2))
 
-typedef off_t sector_t;
+typedef uint64_t sector_t;
 
 struct partition {
   unsigned char boot_ind, head, sector, cyl, sys_ind, end_head,
@@ -149,7 +149,7 @@ static void read_sec_sz()
 {
   int arg;       
   if (ioctl(dev_fd, BLKSSZGET, &arg) == 0) g_sect_size = arg;
-  if (toys.optflags & FLAG_b) {
+  if (FLAG(b)) {
     if (TT.sect_sz !=  512 && TT.sect_sz != 1024 && TT.sect_sz != 2048 &&
         TT.sect_sz != 4096)
     {
@@ -375,12 +375,12 @@ static int read_mbr(char *device, int validate)
   read_sec_sz();
   sector_fac = g_sect_size/SECTOR_SIZE; //512 is hardware sector size.
   physical_HS(&h, &s); //physical dimensions may be diferent from HDIO_GETGEO
-  g_sectors = (toys.optflags & FLAG_S && TT.sectors)? TT.sectors :  s? s : disk.sectors?disk.sectors : 63;
-  g_heads = (toys.optflags & FLAG_H && TT.heads)? TT.heads : h? h : disk.heads? disk.heads : 255;
+  g_sectors = (FLAG(S) && TT.sectors)? TT.sectors :  s? s : disk.sectors?disk.sectors : 63;
+  g_heads = (FLAG(H) && TT.heads)? TT.heads : h? h : disk.heads? disk.heads : 255;
   g_cylinders = total_number_sectors/(g_heads * g_sectors * sector_fac);
 
-  if (!g_cylinders) g_cylinders = toys.optflags & FLAG_C? TT.cylinders : 0;
-  if ((g_cylinders > ONE_K) && !(toys.optflags & (FLAG_l | FLAG_S)))
+  if (!g_cylinders) g_cylinders = FLAG(C) ? TT.cylinders : 0;
+  if ((g_cylinders > ONE_K) && !(FLAG(l) || FLAG(S)))
     xprintf("\nThe number of cylinders for this disk is set to %lu.\n"
         "There is nothing wrong with that, but this is larger than 1024,\n"
         "and could in certain setups cause problems.\n", g_cylinders);
@@ -506,7 +506,7 @@ static void print_mbr(int validate)
   else xprintf("Disk %s: %lu.%lu GB, %llu bytes\n", disk_device, mbytes/1000, (mbytes/100)%10, bytes);
   xprintf("%ld heads, %ld sectors/track, %ld cylinders", g_heads, g_sectors, g_cylinders);
   if (!disp_unit_cyl) {
-    xprintf(", total %lld sectors\n", total_number_sectors/(g_sect_size/SECTOR_SIZE));
+    xprintf(", total %"PRIu64" sectors\n", total_number_sectors/(g_sect_size/SECTOR_SIZE));
     xprintf("Units = sectors of 1 * %ld = %ld bytes\n",g_sect_size, g_sect_size);
   } else xprintf("\nUnits = cylinders of %ld * %ld = %ld bytes\n\n",
       g_heads * g_sectors, g_sect_size, g_heads * g_sectors * g_sect_size);
@@ -786,7 +786,7 @@ static uint32_t ask_value(char *mesg, sector_t left, sector_t right, sector_t de
     }
     if(use_default) {
       val = defalt;
-      xprintf("Using default value %lld\n", defalt);
+      xprintf("Using default value %"PRIu64"\n", defalt);
     }
     if (val >= left && val <= right) return val;
     else xprintf("Value out of range\n");
@@ -800,7 +800,7 @@ static int validate(int start_index, sector_t* begin,sector_t* end, sector_t sta
   int i, valid = 0;
   for (i = start_index; i < num_parts; i++) {
     if (start >= begin[i] && start <= end[i]) {
-      if (asked) xprintf("Sector %lld is already allocated\n",start);
+      if (asked) xprintf("Sector %"PRIu64" is already allocated\n",start);
       valid = 0;
       break;
     } else valid = 1;
@@ -1074,9 +1074,9 @@ static void check(int n, unsigned h, unsigned s, unsigned c, sector_t start)
   if (real_s >= g_sectors)
     xprintf("Partition %u: sector %u greater than maximum %lu\n", n, s, g_sectors);
   if (real_c >= g_cylinders)
-    xprintf("Partition %u: cylinder %lld greater than maximum %lu\n", n, real_c + 1, g_cylinders);
+    xprintf("Partition %u: cylinder %"PRIu64" greater than maximum %lu\n", n, real_c + 1, g_cylinders);
   if (g_cylinders <= ONE_K && start != total)
-    xprintf("Partition %u: previous sectors %lld disagrees with total %lld\n", n, start, total);
+    xprintf("Partition %u: previous sectors %"PRIu64" disagrees with total %"PRIu64"\n", n, start, total);
 }
 
 static void verify_table(void)
@@ -1133,11 +1133,11 @@ static void verify_table(void)
     }
   }
   if (total > g_heads * g_sectors * g_cylinders)
-    xprintf("Total allocated sectors %lld greater than the maximum "
+    xprintf("Total allocated sectors %"PRIu64" greater than the maximum "
         "%lu\n", total, g_heads * g_sectors * g_cylinders);
   else {
     total = g_heads * g_sectors * g_cylinders - total;
-    if (total) xprintf("%lld unallocated sectors\n", total);
+    if (total) xprintf("%"PRIu64" unallocated sectors\n", total);
   }
 }
 
@@ -1469,8 +1469,8 @@ void fdisk_main(void)
   move_fd();
   if (TT.heads >= 256) TT.heads = 0;
   if (TT.sectors >= 64) TT.sectors = 0;
-  if (toys.optflags & FLAG_u) disp_unit_cyl = 0;
-  if (toys.optflags & FLAG_l) {
+  if (FLAG(u)) disp_unit_cyl = 0;
+  if (FLAG(l)) {
     if (!toys.optc) read_and_print_parts();
     else {
       while(*toys.optargs){
