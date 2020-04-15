@@ -37,7 +37,7 @@ void shred_main(void)
 {
   char **try;
 
-  if (!(toys.optflags & FLAG_n)) TT.n++;
+  if (!FLAG(n)) TT.n++;
 
   // We don't use loopfiles() here because "-" isn't stdin, and want to
   // respond to files we can't open via chmod.
@@ -47,7 +47,7 @@ void shred_main(void)
     int fd = open(*try, O_RDWR), iter = 0, throw;
 
     // do -f chmod if necessary
-    if (fd == -1 && (toys.optflags & FLAG_f)) {
+    if (fd == -1 && FLAG(f)) {
       chmod(*try, 0600);
       fd = open(*try, O_RDWR);
     }
@@ -70,7 +70,7 @@ void shred_main(void)
 
       if (pos >= len) {
         pos = -1;
-        if (++iter == TT.n && (toys.optargs && FLAG_z)) {
+        if (++iter == TT.n && FLAG(z)) {
           memset(toybuf, 0, sizeof(toybuf));
           continue;
         }
@@ -88,14 +88,12 @@ void shred_main(void)
       // Determine length, read random data if not zeroing, write.
 
       throw = sizeof(toybuf);
-      if (toys.optflags & FLAG_x)
-        if (len-pos < throw) throw = len-pos;
+      if (FLAG(x) && len-pos < throw) throw = len-pos;
 
       if (iter != TT.n) xgetrandom(toybuf, throw, 0);
       if (throw != writeall(fd, toybuf, throw)) perror_msg_raw(*try);
       pos += throw;
     }
-    if (toys.optflags & FLAG_u)
-      if (unlink(*try)) perror_msg("unlink '%s'", *try);
+    if (FLAG(u) && unlink(*try)) perror_msg("unlink '%s'", *try);
   }
 }
