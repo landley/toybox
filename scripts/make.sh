@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Grab default values for $CFLAGS and such.
 
@@ -16,8 +16,7 @@ fi
 
 export LANG=c
 export LC_ALL=C
-set -o pipefail
-source scripts/portability.sh
+. scripts/portability.sh
 
 [ -z "$KCONFIG_CONFIG" ] && KCONFIG_CONFIG=.config
 [ -z "$OUTNAME" ] && OUTNAME=toybox"${TARGET:+-$TARGET}"
@@ -31,7 +30,7 @@ UNSTRIPPED="generated/unstripped/$(basename "$OUTNAME")"
 DOTPROG=
 do_loudly()
 {
-  [ ! -z "$V" ] && echo "$@" || echo -n "$DOTPROG"
+  [ ! -z "$V" ] && echo "$@" || printf '%s' "$DOTPROG"
   "$@"
 }
 
@@ -60,7 +59,7 @@ fi
 
 if isnewer generated/newtoys.h toys
 then
-  echo -n "generated/newtoys.h "
+  printf 'generated/newtoys.h '
 
   echo "USE_TOYBOX(NEWTOY(toybox, NULL, TOYFLAG_STAYROOT))" > generated/newtoys.h
   $SED -n -e 's/^USE_[A-Z0-9_]*(/&/p' toys/*/*.c \
@@ -83,9 +82,9 @@ BUILD="$(echo ${CROSS_COMPILE}${CC} $CFLAGS -I . $OPTIMIZE $GITHASH)"
 LIBFILES="$(ls lib/*.c | grep -v lib/help.c)"
 TOYFILES="lib/help.c main.c $TOYFILES"
 
-if [ "${TOYFILES/pending//}" != "$TOYFILES" ]
+if [ "${TOYFILES#*pending}" != "$TOYFILES" ]
 then
-  echo -e "\n\033[1;31mwarning: using unfinished code from toys/pending\033[0m"
+  printf '\n\033[1;31mwarning: using unfinished code from toys/pending\033[0m\n'
 fi
 
 genbuildsh()
@@ -106,10 +105,10 @@ genbuildsh()
   echo '$BUILD $FILES $LINK'
 }
 
-if ! cmp -s <(genbuildsh 2>/dev/null | head -n 6 ; echo LINK="'"$LDOPTIMIZE $LDFLAGS) \
-          <(head -n 7 generated/build.sh 2>/dev/null | $SED '7s/ -o .*//')
+if [ "$(genbuildsh 2>/dev/null | head -n 6 ; echo LINK="'"$LDOPTIMIZE $LDFLAGS)" != \
+  "$(head -n 7 generated/build.sh 2>/dev/null | $SED '7s/ -o .*//')" ]
 then
-  echo -n "Library probe"
+  printf 'Library probe'
 
   # We trust --as-needed to remove each library if we don't use any symbols
   # out of it, this loop is because the compiler has no way to ignore a library
@@ -122,7 +121,7 @@ then
     echo "int main(int argc, char *argv[]) {return 0;}" | \
     ${CROSS_COMPILE}${CC} $CFLAGS $LDFLAGS -xc - -o generated/libprobe $LDASNEEDED -l$i > /dev/null 2>/dev/null &&
     echo -l$i >> generated/optlibs.dat
-    echo -n .
+    printf .
   done
   rm -f generated/libprobe
   echo
@@ -185,7 +184,7 @@ make_flagsh()
 
     echo "#define NEWTOY(aa,bb,cc) aa $I bb"
     echo '#define OLDTOY(...)'
-    if [ "$I" == A ]
+    if [ "$I" = A ]
     then
       cat generated/config.h
     else
@@ -215,13 +214,13 @@ make_flagsh()
 
 if isnewer generated/flags.h toys "$KCONFIG_CONFIG"
 then
-  echo -n "generated/flags.h "
+  printf 'generated/flags.h '
   make_flagsh
 fi
 
 # Extract global structure definitions and flag definitions from toys/*/*.c
 
-function getglobals()
+getglobals()
 {
   for i in toys/*/*.c
   do
@@ -230,13 +229,13 @@ function getglobals()
             -e 's/^GLOBALS(/struct '"$NAME"'_data {/' \
             -e 's/^)/};/' -e 'p' $i)"
 
-    [ ! -z "$DATA" ] && echo -e "// $i\n\n$DATA\n"
+    [ ! -z "$DATA" ] && printf '// %s\n\n%s\n\n' "$i" "$DATA"
   done
 }
 
 if isnewer generated/globals.h toys
 then
-  echo -n "generated/globals.h "
+  printf 'generated/globals.h '
   GLOBSTRUCT="$(getglobals)"
   (
     echo "$GLOBSTRUCT"
@@ -255,7 +254,7 @@ fi
 
 if isnewer generated/tags.h toys
 then
-  echo -n "generated/tags.h "
+  printf 'generated/tags.h '
 
   $SED -n '/TAGGED_ARRAY(/,/^)/{s/.*TAGGED_ARRAY[(]\([^,]*\),/\1/;p}' \
     toys/*/*.c lib/*.c | generated/mktags > generated/tags.h
@@ -273,7 +272,7 @@ fi
 
 [ ! -z "$NOBUILD" ] && exit 0
 
-echo -n "Compile $OUTNAME"
+printf 'Compile %s' "$OUTNAME"
 [ ! -z "$V" ] && echo
 DOTPROG=.
 
@@ -286,7 +285,7 @@ if [ ! -e "$X" ] || [ ! -z "$(find toys -name "*.h" -newer "$X")" ]
 then
   rm -rf generated/obj && mkdir -p generated/obj || exit 1
 else
-  rm -f generated/obj/{main,lib_help}.o || exit 1
+  rm -f generated/obj/main.o generated/obj/lib_help.o || exit 1
 fi
 
 # build each generated/obj/*.o file in parallel
@@ -299,9 +298,10 @@ CLICK=
 
 for i in $LIBFILES click $TOYFILES
 do
-  [ "$i" == click ] && CLICK=1 && continue
+  [ "$i" = click ] && CLICK=1 && continue
 
-  X=${i/lib\//lib_}
+  X="$i"
+  [ "${X#*lib/}" = "$X" ] || X="${X%%lib/*}lib_${X#*lib/}"
   X=${X##*/}
   OUT="generated/obj/${X%%.c}.o"
   LNKFILES="$LNKFILES $OUT"
@@ -309,7 +309,8 @@ do
   # $LIBFILES doesn't need to be rebuilt if older than .config, $TOYFILES does
   # ($TOYFILES contents can depend on CONFIG symbols, lib/*.c never should.)
 
-  [ "$OUT" -nt "$i" ] && [ -z "$CLICK" -o "$OUT" -nt "$KCONFIG_CONFIG" ] &&
+  [ -n "$(find "$OUT" -newer "$i" 2>/dev/null)" ] &&
+    { [ -z "$CLICK" ] || [ -n "$(find "$OUT" -newer "$KCONFIG_CONFIG" 2>/dev/null)" ]; } &&
     continue
 
   do_loudly $BUILD -c $i -o $OUT &
