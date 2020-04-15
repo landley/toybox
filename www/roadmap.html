@@ -41,6 +41,7 @@ and progress towards implementing it.</p>
 <li>Miscelaneous: <a href=#klibc>klibc</a>, <a href=#glibc>glibc</a>,
 <a href=#sash>sash</a>, <a href=#sbase>sbase</a>,
 <a href=#uclinux>uclinux</a>...</li>
+<li><a href=#packages>Other Packages</a></li>
 </ul>
 
 <hr />
@@ -1100,6 +1101,199 @@ kexec
 ascii crc32 devmem fmt i2cdetect i2cdump i2cget i2cset mcookie prlimit sntp ulimit uuidgen dhcp6 ipaddr iplink iproute iprule iptunnel cd exit toysh bash traceroute6
 </span>
 </b></blockquote>
+
+<hr />
+<a name=packages />
+<h2>Other packages</h2>
+
+<p>System administrators have <a href=https://github.com/landley/toybox/issues/168#issuecomment-583725500>asked</a> what other Linux packages toybox commands
+replace, so they can annotate alternatives in their package management system.</p>
+
+<p>This section uses the package definitions from Chapter 6 of
+<a href=http://www.linuxfromscratch.org/lfs/downloads/9.0/LFS-BOOK-9.0-NOCHUNKS.html>Linux From Scratch 9.0</a>). Each package lists what we currently
+replace, pending commands [in square brackets], and what we DON'T plan to
+implement.</p>
+
+<p>Each "see also" note means the listed package also installs the listed shared
+libraries. (While toybox contains equivalent functionality to a lot of these
+shared libraries in its lib/ directory, it does not currently provide a shared
+library interface.)</p>
+
+<h3>Packages toybox plans to provide complete-ish replacents for:</h3>
+<ul>
+<li><b>file</b>: file (see also: libmagic)</li>
+<li><b>m4</b>: [m4]</li>
+<li><b>bc</b>: [bc] [dc]</li>
+<li><b>bison</b>: [yacc] (not: bison, see also: liby)</li>
+<li><b>flex</b>: [lex] (not: flex flex++, see also: libfl)</li>
+<li><b>make</b>: [make]</li>
+<li><b>sed</b>: sed</li>
+<li><b>grep</b>: grep egrep fgrep</li>
+<li><b>bash</b>: bash sh (not: bashbug)</li>
+<li><b>diffutils</b>: cmp [diff] [diff3] [sdiff]</li>
+<li><b>gawk</b>: [awk] (not: gawk gawk-5.0.1)</li>
+<li><b>findutils</b>: find xargs (not: locate updatedb)</li>
+<li><b>less</b>: less (not: lessecho lesskey)</li>
+<li><b>gzip</b>: zcat [gzip] [gunzip] [zcmp] [zdiff] [zegrep] [zfgrep] [zgrep] [zless] [zmore]
+(not: gzexe uncompress zforce znew)</li>
+<li><b>make</b>: [make]</li>
+<li><b>patch</b>: patch</li>
+<li><b>tar</b>: tar</li>
+<li><b>procps-ng</b>: free pgrep pidof pkill ps sysctl top uptime vmstat w watch
+[pmap] [pwdx] [slabtop]
+(not: tload, see also libprocps)</li>
+<li><b>sysklogd</b>: [klogd] [syslogd]</li>
+<li><b>sysvinit</b>: [init] halt poweroff reboot killall5 [shutdown]
+(not telinit runlevel fstab-decode bootlogd)</li>
+<li><b>man</b>: man (but not accessdb apropos catman lexgrog mandb manpath whatis,
+see also libman libmandb)</li>
+<li><b>vim</b>: vi xxd (but not ex, rview, rvim, view, vim, vimdiff, vimtutor)</li>
+<li><b>sysvinit</b>: [init] halt poweroff reboot killall5 [shutdown]
+(not telinit runlevel fstab-decode bootlogd)</li>
+<li><b>kmod</b>: insmod lsmod rmmod modinfo [modprobe]
+(not: depmod kmod)</li>
+<li><b>attr</b>: [getfattr] setfattr (not: attr, see also: libattr)</li>
+<li><b>shadow</b>: [chfn] [chpasswd] [chsh] [groupadd] [groupdel] [groupmod]
+[newusers] passwd [su] [useradd] [userdel] [usermod]
+[lastlog] [login] [newgidmap] [newuidmap]
+(not: chage expiry faillog groupmems grpck logoutd newgrp nologin pwck sg
+vigr vipw, grpconv grpunconv pwconv pwunconv, chgpasswd gpasswd)</li>
+<li><b>psmisc</b>: killall [fuser] [pstree] [peekfd] [prtstat]
+(not: pslog pstree.x11)</li>
+<li><b>inetutils</b>: dnsdomainname [ftp] hostname ifconfig ping ping6 [telnet] [tftp] [traceroute] (not: talk)</li>
+<li><b>coreutils</b>: [ base64 basename true cat chgrp chmod chown chroot comm cp cut date
+dd df dirname du echo env expand factor false fmt fold groups head id install
+link ln logname ls md5sum mkdir mkfifo mknod mktemp mv nice nl nohup nproc od
+paste printenv printf pwd readlink realpath rm rmdir seq sha1sum shred
+sleep sort split stat sync tac tail tee test timeout touch true truncate
+tty uname uniq unlink wc who whoami yes
+[expr] [fold] [join] [numfmt] [runcon] [sha224sum] [sha256sum] [sha384sum]
+[sha512sum] [stty] [b2sum] [tr] [unexpand]
+(not: b2sum base32 basenc chcon cksum csplit dir dircolors hostid pathchk
+pinky pr ptx shuf stdbuf sum tsort users vdir, see also libstdbuf)</li>
+<li><b>util-linux</b>: blkid blockdev cal chrt dmesg eject fallocate flock hwclock
+ionice kill logger losetup mcookie mkswap more mount mountpoint nsenter
+pivot_root prlimit rename renice rev setsid swapoff swapon switch_root taskset
+umount unshare uuidgen
+[addpart] [fdisk] [findfs] [findmnt] [fsck] [fsfreeze] [fstrim] [getopt]
+[hexdump] [linux32] [linux64] [lsblk] [lscpu] [lsns] [setarch]
+(not: agetty blkdiscard blkzone cfdisk chcpu chmem choom col
+colcrt colrm column ctrlaltdel delpart fdformat fincore fsck.cramfs
+fsck.minix ipcmk ipcrm ipcs isosize last lastb ldattach look lsipc
+lslocks lslogins lsmem mesg mkfs mkfs.bfs mkfs.cramfs mkfs.minix namei partx
+raw readprofile resizepart rfkill rtcwake script scriptreplay
+setterm sfdisk sulogin swaplabel ul
+uname26 utmpdump uuidd uuidparse wall wdctl whereis wipefs
+i386 x86_64 zramctl)</li>
+</ul>
+
+<p>Commentary: toybox init doesn't do runlevels, man and vim are just the
+relevant commands without the piles of strange overgrowth, and if you want
+to call a toybox binary by another name you can create a symlink to a
+symlink. If somebody really wants to argue for "gzexe" or similar, be
+my guest, but there's a lot of obsolete crap in shadow, coreutils,
+util-linux...</p>
+
+<p>No idea why LFS is installing inetutils instead of net-tools
+(which contains arp route ifconfig mii-tool nameif netstat and rarp that
+toybox does or might implement, and plipconfig slattach that it probably won't.)</p>
+
+<h3>Packages toybox plans to provide partial replacents for:</h3>
+
+<p>Toybox provides replacements for some binaries from these packages,
+but there are other useful binaries which this package provides that toybox
+currently considers out of scope for the project:</p>
+
+<ul>
+<li><b>binutils</b>: strings [ar] [nm] [readelf] [size] [objcopy] [strip]
+(not c++filt, dwp, elfedit, gprof. The following commands belong
+in <a href=/code/qcc>qcc</a>: addr2line as ld objdump ranlib)</li>
+<li><b>bzip2</b>: bunzip2 bzcat [bzcmp] [bzdiff] [bzegrep] [bzfgrep] [bzgrep] [bzless]
+[bzmore] (not: bzip2, bzip2recover, see also libbz2)</li>
+<li><b>xz</b>: [xzcat] [lzcat] [lzcmp] [lzdiff] [lzegrep] [lzfgrep] [lzgrep]
+[lzless] [lzmadec, lzmainfo] [lzmore] [unlzma] [unxz] [xzcat]
+[xzcmp] [xzdec] [xzdiff] [xzegrep] [xzfgrep] [xzgrep] [xzless] [xzmore]
+(not: compression side, see also: liblzma)</li>
+<li><b>ncurses</b>: clear reset (not: everything else, see also: libcurses)</li>
+<li><b>e2fsprogs</b>: chattr lsattr [e2fsck] [mkfs.ext2] [mkfs.ext3]
+[fsck.ext2] [fsck.ext3] [e2label] [resize2fs] [tune2fs]
+(not badblocks compile_et debugfs dumpe2fse2freefrag e2image
+e2mmpstatus e2scrub e2scrub_all e2undo e4crypt e4defrag filefrag
+fsck.ext4 logsave mk_cmds mkfs.ext4 mklost+found)</li>
+</ul>
+
+<p>Toybox provides several decompressors but compresses to a single format
+(deflate, ala gzip/zlib). Our e2fsprogs doesn't currently plan to support
+ext4 or defrag. The "qcc" reference is because someday an external project to glue
+QEMU's <a href=https://git.qemu.org/?p=qemu.git;a=blob;f=tcg/README;h=bfa2e4ed246c;hb=HEAD>Tiny Code Generator</a>
+to Fabrice Bellard's old <a href=http://landley.net/hg/tinycc>Tiny C Compiler</a>
+making a multicall binary that does cc/ld/as for all the targets QEMU
+supports (then use the
+<a href=https://github.com/JuliaComputing/llvm-cbe>LLVM C Backend</a>
+to compile LLVM itself to C for use as a modern replacement for
+<a href=https://en.wikipedia.org/wiki/Cfront>cfront</a> to bootstrap
+C++ code) is under consideration
+as a successor project to toybox. Until then things like objdump -d
+(requiring target-specific disassembly for an unbounded number of architectures)
+are out of scope for toybox. (This means drawing the line somewhere between
+architecture-specific support in file and strace, and including a full
+assembler for each architecture.)</p>
+</span>
+
+<h3>Packages from LFS ch6 toybox does NOT plan to replace:</h3>
+
+<ul>
+<li><b>linux-api-headers</b></li>
+<li><b>man-pages glibc</b></li>
+<li><b>zlib</b></li>
+<li><b>readline</b></li>
+<li><b>gmp</b></li>
+<li><b>mpfr</b></li>
+<li><b>mpc</b></li>
+<li><b>gcc</b></li>
+<li><b>pkg-config</b></li>
+<li><b>ncurses</b></li>
+<li><b>acl</b></li>
+<li><b>libcap</b></li>
+<li><b>psmisc</b></li>
+<li><b>iana-etc</b></li>
+<li><b>libtool</b></li>
+<li><b>gdbm</b></li>
+<li><b>gperf</b></li>
+<li><b>expat</b></li>
+<li><b>perl</b></li>
+<li><b>XML::Parser</b></li>
+<li><b>intltool</b></li>
+<li><b>autoconf</b></li>
+<li><b>automake</b></li>
+<li><b>gettext</b></li>
+<li><b>libelf</b></li>
+<li><b>libffi</b></li>
+<li><b>openssl</b></li>
+<li><b>python</b></li>
+<li><b>ninja</b></li>
+<li><b>meson</b></li>
+<li><b>check</b></li>
+<li><b>groff</b></li>
+<li><b>grub</b></li>
+<li><b>libpipeline</b></li>
+<li><b>texinfo</b></li>
+</ul>
+
+<p>That said, we do implement our own zlib and readline replacements, and
+presumably _could_ export them as library bindings. Plus we provide
+our own version of a bunch of the section 1 man pages (as command help).
+Possibly libcap and acl are interesting?</p>
+
+<h3>Misc</h3>
+
+<p>The kbd package has over a dozen commands, we only implement chvt. The
+iproute2 package implements over a dozen commands, there's an "ip" in
+pending but I'm not a fan (ifconfig and route and such should be extended
+to work properly). We don't implement eudev, but toybox's maintainer
+created busybox mdev way back when (which replaces it) and plans to do a
+new one for toybox as soon as we work out what subset is still needed now that
+devtmpfs is available.</p>
 
 <!-- #include "footer.html" -->
 
