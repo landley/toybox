@@ -1447,7 +1447,7 @@ static int ipaddr_print( struct linkdata *link, int flag_l)
         }
 
         for (; NLMSG_OK(addr_ptr, len); addr_ptr = NLMSG_NEXT(addr_ptr, len)) {
-          if ((addr_ptr->nlmsg_type == RTM_NEWADDR))
+          if (addr_ptr->nlmsg_type == RTM_NEWADDR)
             print_addrinfo(addr_ptr, flag_l);
           if ((addr_ptr->nlmsg_type == NLMSG_DONE) ||
               (addr_ptr->nlmsg_type == NLMSG_ERROR) ||
@@ -1499,15 +1499,13 @@ struct {
 
 static void show_iproute_help(void)
 {
-  char *errmsg = "\n\n" \
+  error_exit("\n\n" \
        "iproute { list | flush } SELECTOR\n" \
        "iproute get ADDRESS [from ADDRESS iif STRING]\n" \
        "	[oif STRING]\n" \
        "iproute { add | del | change | append | replace | test } ROUTE\n" \
        "	SELECTOR := [root PREFIX] [match PREFIX] [proto RTPROTO]\n" \
-       "	ROUTE := [TYPE] PREFIX [proto RTPROTO] [metric METRIC]";
-
-  error_exit(errmsg);
+       "	ROUTE := [TYPE] PREFIX [proto RTPROTO] [metric METRIC]");
 }
 
 static void print_rta_metrics(char* out, const struct rtattr *mxattr)
@@ -2174,12 +2172,10 @@ static int iproute(char **argv)
 // ===========================================================================
 static void show_iprule_help(void)
 {
-  char *errmsg = "usage: ip rule [ list | add | del ] SELECTOR ACTION\n"
+  error_exit("usage: ip rule [ list | add | del ] SELECTOR ACTION\n"
     "SELECTOR := [ from PREFIX ] [ to PREFIX ] [pref NUMBER] [ tos TOS ]\n"
     "            [ fwmark FWMARK] [ dev/iif STRING ] [type TYPE]\n"
-    "ACTION := [ table TABLE_ID ] [ realms [SRCREALM/]DSTREALM ]";
-
-  error_exit(errmsg);
+    "ACTION := [ table TABLE_ID ] [ realms [SRCREALM/]DSTREALM ]");
 }
 
 static int ruleupdate(char **argv)
@@ -2423,12 +2419,10 @@ static int iprule(char **argv)
 //============================================================================
 static void show_iptunnel_help(void)
 {
-  char *errmsg = "usage: iptunnel { add | change | del | show } [NAME]\n"
+  error_exit("usage: iptunnel { add | change | del | show } [NAME]\n"
     "           [mode { ipip | gre | sit }] [remote ADDR] [local ADDR]\n"
     "           [[i|o]seq] [[i|o]key KEY] [[i|o]csum] [ttl TTL]\n"
-    "           [tos TOS] [[no]pmtudisc] [dev PHYS_DEV]";
-
-  error_exit(errmsg);
+    "           [tos TOS] [[no]pmtudisc] [dev PHYS_DEV]");
 }
 
 static int tnl_ioctl(char *dev, int rtype, struct ip_tunnel_parm *ptnl)
