@@ -16,15 +16,11 @@ config RTCWAKE
     -d FILE	Device to use (default /dev/rtc)
     -l	RTC uses local time
     -m	Mode (--list-modes to see those supported by your kernel):
-    	  disable  Cancel current alarm
-    	  freeze   Freeze processes, idle processors
-    	  disk     S4: suspend to disk
-    	  mem      S3: suspend to RAM
-    	  no       Don't suspend, just set wakeup time
-    	  off      S5: power off
-    	  on       Don't suspend, poll RTC for alarm
-    	  show     Don't suspend, just show current alarm
-    	  standby  S1: default
+    	  standby  S1: default              mem     S3: suspend to RAM
+    	  disk     S4: suspend to disk      off     S5: power off
+    	  disable  Cancel current alarm     freeze  stop processes/processors
+    	  no       just set wakeup time     on      just poll RTC for alarm
+    	  show     just show current alarm
     -s SECS	Wake SECS seconds from now
     -t UNIX	Wake UNIX seconds from epoch
     -u	RTC uses UTC
@@ -36,21 +32,20 @@ config RTCWAKE
 #include <linux/rtc.h>
 
 GLOBALS(
-  long long t, s;
+  long t, s;
   char *m, *d;
 )
 
 void rtcwake_main(void)
 {
-  struct rtc_wkalrm alarm;
+  struct rtc_wkalrm *alarm = (void *)(toybuf+2048);
   struct tm rtc_tm;
   time_t now, rtc_now, then;
   int fd, utc;
 
-  memset(&alarm, 0, sizeof(alarm));
   if (FLAG(list_modes)) {
-    xreadfile("/sys/power/state", toybuf, sizeof(toybuf));
-    printf("off no on disable show %s", toybuf);
+    printf("off no on disable show %s",
+      xreadfile("/sys/power/state", toybuf, 2048));
     return;
   }
 
@@ -60,10 +55,7 @@ void rtcwake_main(void)
 
   if (FLAG(u)) utc = 1;
   else if (FLAG(l)) utc = 0;
-  else {
-    xreadfile("/etc/adjtime", toybuf, sizeof(toybuf));
-    utc = !!strstr(toybuf, "UTC");
-  }
+  else utc = !!strstr(xreadfile("/etc/adjtime", toybuf, 2048), "UTC");
   if (FLAG(v)) xprintf("RTC time: %s\n", utc ? "UTC" : "local");
 
   if (!TT.d) TT.d = "/dev/rtc0";
@@ -79,40 +71,39 @@ void rtcwake_main(void)
   }
 
   if (!strcmp(TT.m, "show")) { // Don't suspend, just show current alarm.
-    xioctl(fd, RTC_WKALM_RD, &alarm);
-    if (!alarm.enabled) xputs("alarm: off");
+    xioctl(fd, RTC_WKALM_RD, alarm);
+    if (!alarm->enabled) xputs("alarm: off");
     else {
-      if ((then = mktime((void *)&alarm.time)) < 0) perror_exit("mktime");
+      if ((then = mktime((void *)&alarm->time)) < 0) perror_exit("mktime");
       xprintf("alarm: on %s", ctime(&then));
     }
-    goto done;
+    return;
   } else if (!strcmp(TT.m, "disable")) { // Cancel current alarm.
-    xioctl(fd, RTC_WKALM_RD, &alarm);
-    alarm.enabled = 0;
-    xioctl(fd, RTC_WKALM_SET, &alarm);
-    goto done;
+    xioctl(fd, RTC_WKALM_RD, alarm);
+    alarm->enabled = 0;
+    xioctl(fd, RTC_WKALM_SET, alarm);
+    return;
   }
 
-  if (FLAG(s)) {
-    then = rtc_now + TT.s + 1; // strace shows util-linux adds 1.
-  } else if (FLAG(t)) {
+  if (FLAG(s)) then = rtc_now + TT.s + 1; // strace shows util-linux adds 1.
+  else if (FLAG(t)) {
     then = TT.t + (rtc_now - now);
-    if (then<=rtc_now) error_exit("rtc %lld >= %lld", (long long)rtc_now, TT.t);
+    if (then<=rtc_now) error_exit("rtc %lld >= %ld", (long long)rtc_now, TT.t);
   } else help_exit("-m %s needs -s or -t", TT.m);
   if (FLAG(v)) xprintf("Wake time:\t%lld / %s", (long long)then, ctime(&then));
 
-  if (!(utc ? gmtime_r : localtime_r)(&then, (void *)&alarm.time))
-    error_exit(utc ? "gmtime_r failed" : "localtime_r failed");
+  if (!(utc ? gmtime_r : localtime_r)(&then, (void *)&alarm->time))
+    error_exit("%s failed", utc ? "gmtime_r" : "localtime_r");
 
-  alarm.enabled = 1;
-  xioctl(fd, RTC_WKALM_SET, &alarm);
+  alarm->enabled = 1;
+  xioctl(fd, RTC_WKALM_SET, alarm);
   sync();
 
   xprintf("wakeup using \"%s\" from %s at %s", TT.m, TT.d, ctime(&then));
   msleep(10);
 
-  if (!strcmp(TT.m, "no")) { // Don't suspend, just set wakeup time.
-  } else if (!strcmp(TT.m, "on")) { // Don't suspend, poll RTC for alarm.
+  if (!strcmp(TT.m, "no")); // Don't suspend, just set wakeup time.
+  else if (!strcmp(TT.m, "on")) { // Don't suspend, poll RTC for alarm.
     unsigned long data = 0;
 
     if (FLAG(v)) xputs("Reading RTC...");
@@ -120,16 +111,8 @@ void rtcwake_main(void)
       if (read(fd, &data, sizeof(data)) != sizeof(data)) perror_exit("read");
       if (FLAG(v)) xprintf("... %s: %lx\n", TT.d, data);
     }
-  } else if (!strcmp(TT.m, "off")) {
-    xexec((char *[]){"poweroff", 0});
-  } else {
-    // Everything else lands here for one final step. The write will fail with
-    // EINVAL if the mode is not supported.
-    int fd = xopen("/sys/power/state", O_WRONLY);
-
-    xwrite(fd, TT.m, strlen(TT.m));
-    close(fd);
-  }
-done:
-  close(fd);
+  } else if (!strcmp(TT.m, "off")) xexec((char *[]){"poweroff", 0});
+  // Everything else lands here for one final step. The write will fail with
+  // EINVAL if the mode is not supported.
+  else xwrite(xopen("/sys/power/state", O_WRONLY), TT.m, strlen(TT.m));
 }
