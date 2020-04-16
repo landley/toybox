@@ -2,38 +2,31 @@
  *
  * Copyright 2020 Patrick Oppenlander <patrick.oppenlander@gmail.com>
  *
- * See https://git.kernel.org/pub/scm/utils/util-linux/util-linux.git/tree/sys-utils/blkdiscard.8
+ * See http://man7.org/linux/man-pages/man8/blkdiscard.8.html
  *
- * These options are not supported:
- * -v, --verbose
- * -p, --step
- * -V, --version
- *
+ * The -v and -p options are not supported.
  * Size parsing does not match util-linux where MB, GB, TB are multiples of
  * 1000 and MiB, TiB, GiB are multipes of 1024.
 
-USE_BLKDISCARD(NEWTOY(blkdiscard, "<1>1f(force)l(length):o(offset):s(secure)z(zeroout)", TOYFLAG_BIN))
+USE_BLKDISCARD(NEWTOY(blkdiscard, "<1>1f(force)l(length):o(offset):s(secure)z(zeroout)[!sz]", TOYFLAG_BIN))
 
 config BLKDISCARD
   bool "blkdiscard"
   default n
   help
-    usage: blkdiscard [options] device
+    usage: blkdiscard [-olszf] DEVICE
 
     Discard device sectors.
 
-    -o, --offset OFF	Byte offset from which to start discarding
-    -l, --length LEN	Number of bytes to discard
+    -o, --offset OFF	Byte offset to start discarding at (default 0)
+    -l, --length LEN	Bytes to discard (default all)
     -s, --secure		Perform secure discard
     -z, --zeroout		Zero-fill rather than discard
-    -f, --force		Disable checking for mounted filesystem
-
-    By default OFF is zero and LEN is the device size meaning that the entire
-    device will be discarded.
+    -f, --force		Disable check for mounted filesystem
 
     OFF and LEN must be aligned to the device sector size.
-
-    WARNING: All discarded data will be permanently lost!
+    By default entire device is discarded.
+    WARNING: All discarded data is permanently lost!
 */
 
 #define FOR_blkdiscard
@@ -42,37 +35,21 @@ config BLKDISCARD
 #include <linux/fs.h>
 
 GLOBALS(
-  char *offset, *length;
+  char *o, *l;
 )
 
 void blkdiscard_main(void)
 {
-  int fd, req = BLKDISCARD;
-  uint64_t off = 0, len;
+  int fd = xopen(*toys.optargs, O_WRONLY|O_EXCL*!FLAG(f));
+  unsigned long long ol[2];
 
-  fd = xopen(toys.optargs[0], O_WRONLY | (FLAG(f) ? 0 : O_EXCL));
-
-  if (FLAG(o)) off = atolx_range(TT.offset, 0, LLONG_MAX);
-
-  if (FLAG(l)) len = atolx_range(TT.length, 0, LLONG_MAX);
+  ol[0] = FLAG(o) ? atolx_range(TT.o, 0, LLONG_MAX) : 0;
+  if (FLAG(l)) ol[1] = atolx_range(TT.l, 0, LLONG_MAX);
   else {
-    if (ioctl(fd, BLKGETSIZE64, &len) < 0) {
-      perror_msg("ioctl %x", (int)BLKGETSIZE64);
-      goto out;
-    }
-    len -= off;
+    xioctl(fd, BLKGETSIZE64, ol+1);
+    ol[1] -= ol[0];
   }
+  xioctl(fd, FLAG(s) ? BLKSECDISCARD : FLAG(z) ? BLKZEROOUT : BLKDISCARD, ol);
 
-  if (FLAG(s) && FLAG(z)) {
-    error_msg("secure and zeroout are mutually exclusive");
-    goto out;
-  }
-  if (FLAG(s)) req = BLKSECDISCARD;
-  if (FLAG(z)) req = BLKZEROOUT;
-
-  if (ioctl(fd, req, (uint64_t[]){off, len}) < 0)
-    perror_msg("ioctl %x", req);
-
-out:
   if (CFG_TOYBOX_FREE) close(fd);
 }
