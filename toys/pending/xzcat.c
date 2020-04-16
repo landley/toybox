@@ -2570,7 +2570,7 @@ static enum xz_ret dec_block(struct xz_dec *s, struct xz_buf *b)
   if (s->check_type == XZ_CHECK_CRC32)
     s->crc = xz_crc32(b->out + s->out_start,
         b->out_pos - s->out_start, s->crc);
-  else if (s->check_type == XZ_CHECK_CRC64)
+  else if (s->check_type == XZ_CHECK_CRC64) {
     s->crc = ~(s->crc);
     size_t size = b->out_pos - s->out_start;
     uint8_t *buf = b->out + s->out_start;
@@ -2579,6 +2579,7 @@ static enum xz_ret dec_block(struct xz_dec *s, struct xz_buf *b)
       --size;
     }
     s->crc=~(s->crc);
+  }
 
   if (ret == XZ_STREAM_END) {
     if (s->block_header.compressed != VLI_UNKNOWN

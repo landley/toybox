@@ -119,9 +119,9 @@ static void utmp_entry(void)
   setutent(); //start from start
   while ((utp_ptr = getutent()) != NULL) {
     if (utp_ptr->ut_pid == pid && utp_ptr->ut_type >= INIT_PROCESS) break;
-  }             
+  }
   if (!utp_ptr) entry.ut_type = DEAD_PROCESS;
-  time(&entry.ut_time);  
+  entry.ut_time = time(0);
   setutent();   
   pututline(&entry);     
 }

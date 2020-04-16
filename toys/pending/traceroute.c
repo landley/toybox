@@ -477,7 +477,7 @@ static void do_trace()
 
 void traceroute_main(void)
 {
-  unsigned opt_len = 0, pack_size = 0, tyser = 0;
+  unsigned pack_size = 0, tyser = 0;
   int lsrr = 0, set = 1;
   
   if(!(toys.optflags & FLAG_4) && 
@@ -499,7 +499,6 @@ void traceroute_main(void)
         resolve_addr(node->arg, AF_INET, SOCK_STREAM, 0, &sin);
         TT.gw_list[lsrr] = sin.sin_addr.s_addr;
       }
-      opt_len = (lsrr + 1) * sizeof(TT.gw_list[0]);
   } else TT.first_ttl = 1;
 
   TT.msg_len = pack_size = ICMP_HD_SIZE4; //udp payload is also 8bytes
