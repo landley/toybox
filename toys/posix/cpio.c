@@ -16,7 +16,7 @@
  * rdevmajor rdevminor namesize check
  * This is the equiavlent of mode -H newc when using GNU CPIO.
 
-USE_CPIO(NEWTOY(cpio, "(no-preserve-owner)(trailer)mduH:p:|i|t|F:v(verbose)o|[!pio][!pot][!pF]", TOYFLAG_BIN))
+USE_CPIO(NEWTOY(cpio, "(no-preserve-owner)mduH:p:|i|t|F:v(verbose)o|[!pio][!pot][!pF]", TOYFLAG_BIN))
 
 config CPIO
   bool "cpio"
@@ -34,7 +34,6 @@ config CPIO
     -t	Test files (list only, stdin=archive, stdout=list of files)
     -v	Verbose
     --no-preserve-owner (don't set ownership during extract)
-    --trailer Add legacy trailer (prevents concatenation)
 */
 
 #define FOR_cpio
@@ -274,11 +273,9 @@ void cpio_main(void)
     }
     free(name);
 
-    if (FLAG(trailer)) {
-      memset(toybuf, 0, sizeof(toybuf));
-      xwrite(afd, toybuf,
-        sprintf(toybuf, "070701%040X%056X%08XTRAILER!!!", 1, 0x0b, 0)+4);
-    }
+    memset(toybuf, 0, sizeof(toybuf));
+    xwrite(afd, toybuf,
+       sprintf(toybuf, "070701%040X%056X%08XTRAILER!!!", 1, 0x0b, 0)+4);
   }
   if (TT.F) xclose(afd);
 
