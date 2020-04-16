@@ -12,7 +12,7 @@ USE_BLKDISCARD(NEWTOY(blkdiscard, "<1>1f(force)l(length):o(offset):s(secure)z(ze
 
 config BLKDISCARD
   bool "blkdiscard"
-  default n
+  default y
   help
     usage: blkdiscard [-olszf] DEVICE
 
