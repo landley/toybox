@@ -6,7 +6,7 @@ USE_RTCWAKE(NEWTOY(rtcwake, "(list-modes);(auto)a(device)d:(local)l(mode)m:(seco
 
 config RTCWAKE
   bool "rtcwake"
-  default n
+  default y
   help
     usage: rtcwake [-aluv] [-d FILE] [-m MODE] [-s SECS] [-t UNIX]
 
