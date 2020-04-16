@@ -17,7 +17,6 @@
 # run sufficiently isolated shell child process to get predictable results
 SS="env -i PATH=${PATH@Q} PS1='\\$ ' $SH --noediting --noprofile --norc -is"
 
-
 shxpect() {
   X="$1"
   shift
@@ -44,6 +43,8 @@ testing 'exec exitval' "$SH -c 'exec echo hello' && echo \$?" "hello\n0\n" "" ""
 testing 'simple script' '$SH input' 'input\n' 'echo $0' ''
 testing 'simple script2' '$SH ./input two;echo $?' './input+two\n42\n' \
   '\necho $0+$1\n\nexit 42' ''
+testing 'shift' "$SH -c '"'for i in "" 2 1 1 1; do echo $? $1; shift $i; done'"' one two three four five" \
+  "0 two\n0 three\n0 five\n0\n1\n" "" ""
 
 mkdir sub
 echo echo hello > sub/script
@@ -90,6 +91,9 @@ testing "redir7" "ls out /not/exist |& wc -l" "2\n" "" ""
 testing "redir8" 'echo -n $(<input)' "boing" "boing\n" ""
 shxpect "redir9" I$'echo hello > out 2>/does/not/exist\n' E E"$P" \
   I$'wc -l < out\n' O$'0\n'
+testing "redir10" 'echo hello 3<&3' "hello\n" "" ""
+testing "redir11" 'if :;then echo one;fi {abc}<input; cat <&$abc' \
+  "one\npotato\n" "potato\n" ""
 rm -f out out2 ./-abc
 
 testing "tilde expansion" "echo ~" "$HOME\n" "" ""
@@ -111,7 +115,10 @@ testing "bracket+tilde" "echo {~,~root}/pwd" "$HOME/pwd $EXPECT/pwd\n" "" ""
 
 #testing "backtick1" 'X=fred; echo `echo $x`' 'fred\n' "" ""
 #testing "backtick2" 'X=fred; echo `x=y; echo $x`' 'y\n' "" ""
-testing '$(( ) )' 'echo $((echo hello) | tr e x)' "hxllo\n" "" ""
+testing '$(( ) )' 'echo ab$((echo hello) | tr e x)cd' "abhxllocd\n" "" ""
+
+testing "continue" 'for i in a b c; do for j in d e f; do echo $i $j; continue 2; done; done' \
+  "a d\nb d\nc d\n" "" ""
 
 # <glinda>A variable occurred</glinda>
 
@@ -253,6 +260,15 @@ testing 'here3' 'abc(){ cat <<< x"$@"yz;};abc one two "three  four"' \
   "xone two three  fouryz\n" "" ""
 
 testing '${#}' 'X=abcdef; echo ${#X}' "6\n" "" ""
+
+# Race condition, can say 43.
+#testing 'SECONDS' 'SECONDS=41; sleep 1; echo $SECONDS' '42\n' '' ''
+testing 'SECONDS2' 'readonly SECONDS; SECONDS=0; echo $SECONDS' '' '' '' # bash!
+testing 'SECONDS3' 'SECONDS=123+456; echo $SECONDS' '0\n' '' '' #bash!!
+testing 'LINENO' $'echo $LINENO\necho $LINENO' '0\n1\n' '' ''
+testing 'EUID' 'echo $EUID' "$(id -u)\n" '' ''
+testing 'UID' 'echo $UID' "$(id -ur)\n" '' ''
+# TODO finish variable list from shell init
 
 # $# $? $- $$ $! $0
 # always exported: PWD SHLVL _
