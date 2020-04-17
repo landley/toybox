@@ -149,7 +149,7 @@ static void read_sec_sz()
 {
   int arg;       
   if (ioctl(dev_fd, BLKSSZGET, &arg) == 0) g_sect_size = arg;
-  if (toys.optflags & FLAG_b) {
+  if (FLAG(b)) {
     if (TT.sect_sz !=  512 && TT.sect_sz != 1024 && TT.sect_sz != 2048 &&
         TT.sect_sz != 4096)
     {
@@ -375,12 +375,12 @@ static int read_mbr(char *device, int validate)
   read_sec_sz();
   sector_fac = g_sect_size/SECTOR_SIZE; //512 is hardware sector size.
   physical_HS(&h, &s); //physical dimensions may be diferent from HDIO_GETGEO
-  g_sectors = (toys.optflags & FLAG_S && TT.sectors)? TT.sectors :  s? s : disk.sectors?disk.sectors : 63;
-  g_heads = (toys.optflags & FLAG_H && TT.heads)? TT.heads : h? h : disk.heads? disk.heads : 255;
+  g_sectors = (FLAG(S) && TT.sectors) ? TT.sectors : s ? s : disk.sectors ? disk.sectors : 63;
+  g_heads = (FLAG(H) && TT.heads) ? TT.heads : h ? h : disk.heads ? disk.heads : 255;
   g_cylinders = total_number_sectors/(g_heads * g_sectors * sector_fac);
 
-  if (!g_cylinders) g_cylinders = toys.optflags & FLAG_C? TT.cylinders : 0;
-  if ((g_cylinders > ONE_K) && !(toys.optflags & (FLAG_l | FLAG_S)))
+  if (!g_cylinders) g_cylinders = FLAG(C) ? TT.cylinders : 0;
+  if ((g_cylinders > ONE_K) && !(FLAG(l) || FLAG(S)))
     xprintf("\nThe number of cylinders for this disk is set to %lu.\n"
         "There is nothing wrong with that, but this is larger than 1024,\n"
         "and could in certain setups cause problems.\n", g_cylinders);
@@ -1447,7 +1447,7 @@ static void read_and_print_parts()
   while (fgets(buffer, ONE_K, fp)) {
     reset_entries();
     num_parts = 4;
-    memset(name, 0, sizeof(name));
+    memset(name, 0, sizeof(*name));
     if (sscanf(buffer, " %u %u %u %[^\n ]", &ma, &mi, &sz, name) != 4)
       continue;
       
@@ -1469,8 +1469,8 @@ void fdisk_main(void)
   move_fd();
   if (TT.heads >= 256) TT.heads = 0;
   if (TT.sectors >= 64) TT.sectors = 0;
-  if (toys.optflags & FLAG_u) disp_unit_cyl = 0;
-  if (toys.optflags & FLAG_l) {
+  if (FLAG(u)) disp_unit_cyl = 0;
+  if (FLAG(l)) {
     if (!toys.optc) read_and_print_parts();
     else {
       while(*toys.optargs){
