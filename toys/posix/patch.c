@@ -327,7 +327,7 @@ void patch_main(void)
     // Other versions of patch accept damaged patches, so we need to also.
     if (strip || !patchlinenum++) {
       int len = strlen(patchline);
-      if (patchline[len-1] == '\r') {
+      if (len && patchline[len-1] == '\r') {
         if (!strip && !FLAG(s)) fprintf(stderr, "Removing DOS newlines\n");
         strip = 1;
         patchline[len-1]=0;
