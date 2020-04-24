@@ -32,6 +32,7 @@ shxpect "wait for <(exit)" I$'cat <(echo hello 1>&2)\n' E$'hello\n' E"$P"
 testing '-c "" exit status 0' '$SH -c "" && echo $?' '0\n' '' ''
 testing '-c args' "\$SH -c 'echo \$0,\$1,\$2,\$3' one two three four five" \
   "one,two,three,four\n" "" ""
+testing '-c args2' "\$SH -c 'echo \${10}' a b c d e f g h i j k l" "k\n" "" ""
 testing '-c arg split' \
   "$SH -c 'for i in a\"\$@\"b;do echo =\$i=;done;echo \$0' 123 456 789" \
   "=a456=\n=789b=\n123\n" "" ""
@@ -241,9 +242,21 @@ NOSPACE=1 testing "curly brackets and pipe" \
 NOSPACE=1 testing "parentheses and pipe" \
   '(echo two;echo three)|tee blah.txt;wc blah.txt' \
   "two\nthree\n2 2 10 blah.txt\n" "" ""
-#testing "pipe into parentheses" \
-#  'echo hello | (read i <input; echo $i; read i; echo $i)' \
-#  "there\nhello\n" "there\n" ""
+testing "pipe into parentheses" \
+  'echo hello | (read i <input; echo $i; read i; echo $i)' \
+  "there\nhello\n" "there\n" ""
+
+testing "\$''" $'echo $\'abc\\\'def\\nghi\'' "abc'def\nghi\n" '' ''
+testing "shift shift" 'shift; shift; shift; echo $? hello' "1 hello\n" "" ""
+testing 'search cross $*' 'chicken() { echo ${*/b c/ghi}; }; chicken a b c d' \
+  "a b c d\n" "" ""
+testing 'eval $IFS' 'IFS=x; X=x; eval abc=a${X}b 2>/dev/null; echo $abc' \
+  "\n" '' ''
+testing '${@:3:5}' 'chicken() { for i in "${@:3:5}"; do echo =$i=; done; } ; chicken ab cd ef gh ij kl mn op qr' \
+  '=ef=\n=gh=\n=ij=\n=kl=\n=mn=\n' '' ''
+testing '${@:3:5}' 'chicken() { for i in "${*:3:5}"; do unset IFS; echo =$i=; done; } ; IFS=x chicken ab cd ef gh ij kl mn op qr' \
+  '=efxghxijxklxmn=\n' '' ''
+testing 'sequence check' 'IFS=x; X=abxcd; echo ${X/bxc/g}' 'agd\n' '' ''
 
 # TODO: The txpect plumbing does not work right yet even on TEST_HOST
 #txpect "backtick0" "$SS" "E$P" 'IX=fred; echo `echo \\\\$x`'$'\n' 'Ofred' "E$P" X0
@@ -261,8 +274,10 @@ testing 'here3' 'abc(){ cat <<< x"$@"yz;};abc one two "three  four"' \
 
 testing '${#}' 'X=abcdef; echo ${#X}' "6\n" "" ""
 
-# Race condition, can say 43.
-#testing 'SECONDS' 'SECONDS=41; sleep 1; echo $SECONDS' '42\n' '' ''
+shxpect '${/newline/}' I$'x=$\'\na\';echo ${x/\n' E'> ' I$'/b}\n' O$'ba\n' E'> '
+
+# Race condition (in bash, but not in toysh) can say 43.
+testing 'SECONDS' 'SECONDS=41; sleep 1; echo $SECONDS' '42\n' '' ''
 testing 'SECONDS2' 'readonly SECONDS; SECONDS=0; echo $SECONDS' '' '' '' # bash!
 testing 'SECONDS3' 'SECONDS=123+456; echo $SECONDS' '0\n' '' '' #bash!!
 testing 'LINENO' $'echo $LINENO\necho $LINENO' '0\n1\n' '' ''
