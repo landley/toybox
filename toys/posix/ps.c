@@ -426,7 +426,7 @@ static void help_fields(int len, int multi)
       else j--;
     } else if (!multi) {
       left = !(j&1);
-      printf("  %-8s%*s%c"+2*!left, t->name, -30*left, t->help, 10+22*left);
+      printf(&"  %-8s%*s%c"[2*!left], t->name, -30*left, t->help, 10+22*left);
     }
   }
   if (!multi && left) xputc('\n');
@@ -1127,7 +1127,7 @@ static long long get_headers(struct ofields *field, char *buf, int blen)
   int len = 0;
 
   for (; field; field = field->next) {
-    len += snprintf(buf+len, blen-len, " %*s"+!bits, field->len,
+    len += snprintf(buf+len, blen-len, &" %*s"[!bits], field->len,
       field->title);
     bits |= 1LL<<field->which;
   }
@@ -1792,7 +1792,7 @@ static int iotop_filter(long long *oslot, long long *nslot, int milis)
 
 void iotop_main(void)
 {
-  char *s1 = 0, *s2 = 0, *d = "D"+!!FLAG(A);
+  char *s1 = 0, *s2 = 0, *d = &"D"[!!FLAG(A)];
 
   if (FLAG(K)) TT.forcek++;
 
@@ -1895,8 +1895,8 @@ void pgrep_main(void)
   comma_args(TT.pgrep.U, &TT.UU, "bad -U", parse_rest);
   comma_args(TT.pgrep.u, &TT.uu, "bad -u", parse_rest);
 
-  if ((toys.optflags&(FLAG_x|FLAG_f)) ||
-      !(toys.optflags&(FLAG_G|FLAG_g|FLAG_P|FLAG_s|FLAG_t|FLAG_U|FLAG_u)))
+  if ((FLAG(x) || FLAG(f)) ||
+      !(FLAG(G) || FLAG(g) || FLAG(P) || FLAG(s) || FLAG(t) || FLAG(U) || FLAG(u)))
     if (!toys.optc) help_exit("No PATTERN");
 
   if (FLAG(f)) TT.bits |= _PS_CMDLINE;
