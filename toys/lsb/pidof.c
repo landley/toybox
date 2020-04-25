@@ -31,10 +31,10 @@ static int print_pid(pid_t pid, char *name)
 {
   sprintf(toybuf, "%d", (int)pid);
   if (comma_scan(TT.omit, toybuf, 0)) return 0;
-  xprintf(" %s"+!!toys.exitval, toybuf);
+  xprintf(&" %s"[!!toys.exitval], toybuf);
   toys.exitval = 0;
 
-  return toys.optflags & FLAG_s;
+  return FLAG(s);
 }
 
 void pidof_main(void)
