@@ -84,7 +84,7 @@ static void do_man(char **pline, long len)
 
   if (FLAG(k)) {
     if (!TT.k_done && !start(".") && !start("'") && k(strstr(*pline, "- ")))
-      printf("%-20s %s%s", TT.k, "- "+2*(TT.line!=*pline), TT.line);
+      printf("%-20s %s%s", TT.k, &"- "[2*(TT.line!=*pline)], TT.line);
     else if (!TT.k_done && start(".so") && k(basename(*pline + 4)))
       printf("%s - See %s", TT.k, TT.line);
   } else {
@@ -131,7 +131,7 @@ static int zopen(char *s)
   if ((*fds = open(s, O_RDONLY)) == -1) return -1;
   while (suf && *known && strcmp(suf, *known++));
   if (!suf || !*known) return *fds;
-  sprintf(toybuf, "%czcat"+2*(suf[1]=='g'), suf[1]);
+  sprintf(toybuf, &"%czcat"[2*(suf[1]=='g')], suf[1]);
   xpopen_both((char *[]){toybuf, s, 0}, fds);
   close(fds[0]);
   return fds[1];
