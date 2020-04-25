@@ -26,7 +26,7 @@ GLOBALS(
 )
 
 //lease structure
-struct lease { 
+struct lease {
   uint32_t expires;
   uint32_t lease_nip;
   uint8_t lease_mac[6];
@@ -39,20 +39,20 @@ void dumpleases_main(void)
   struct in_addr addr;
   struct lease lease_struct;
   int64_t written_time , current_time, exp;
-  int i, fd; 
-  
-  if(!(toys.optflags & FLAG_f)) TT.file = "/var/lib/misc/dhcpd.leases"; //DEF_LEASE_FILE
+  int i, fd;
+
+  if(!FLAG(f)) TT.file = "/var/lib/misc/dhcpd.leases"; //DEF_LEASE_FILE
   fd = xopenro(TT.file);
-  xprintf("Mac Address       IP Address      Host Name           Expires %s\n", (toys.optflags & FLAG_a) ? "at" : "in");
+  xprintf("Mac Address       IP Address      Host Name           Expires %s\n", FLAG(a) ? "at" : "in");
   xread(fd, &written_time, sizeof(written_time));
   current_time = time(NULL);
   written_time = SWAP_BE64(written_time);
   if(current_time < written_time) written_time = current_time;
 
-  while(sizeof(lease_struct) == 
+  while(sizeof(lease_struct) ==
       (readall(fd, &lease_struct, sizeof(lease_struct)))) {
-    for (i = 0; i < 6; i++) printf(":%02x"+ !i, lease_struct.lease_mac[i]);
-    
+    for (i = 0; i < 6; i++) printf(&":%02x"[!i], lease_struct.lease_mac[i]);
+
     addr.s_addr = lease_struct.lease_nip;
     lease_struct.hostname[19] = '\0';
     xprintf(" %-16s%-20s", inet_ntoa(addr), lease_struct.hostname );
@@ -61,7 +61,7 @@ void dumpleases_main(void)
       xputs("expired");
       continue;
     }
-    if (!(toys.optflags & FLAG_a)) { 
+    if (!FLAG(a)) {
       unsigned dt, hr, m;
       unsigned expires = exp - current_time;
       dt = expires / (24*60*60); expires %= (24*60*60);
