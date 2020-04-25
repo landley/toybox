@@ -65,7 +65,7 @@ static int xread2line(int fd, char *buf, int len)
   while (total--)
     if (buf[total]=='\r' || buf[total]=='\n') buf[total] = 0;
     else break;
-  if (toys.optflags & FLAG_v) fprintf(stderr, "%s\n", toybuf);
+  if (FLAG(v)) fprintf(stderr, "%s\n", toybuf);
 
   return total+1;
 }
@@ -75,8 +75,8 @@ static int ftp_line(char *cmd, char *arg, int must)
   int rc = 0;
 
   if (cmd) {
-    char *s = "%s %s\r\n"+3*(!arg);
-    if (toys.optflags & FLAG_v) fprintf(stderr, s, cmd, arg);
+    char *s = &"%s %s\r\n"[3*(!arg)];
+    if (FLAG(v)) fprintf(stderr, s, cmd, arg);
     dprintf(TT.fd, s, cmd, arg);
   }
   if (must>=0) {
@@ -115,15 +115,15 @@ void ftpget_main(void)
   if (rc == 331) rc = ftp_line("PASS", TT.P, 0);
   if (rc != 230) error_exit_raw(toybuf);
 
-  if (toys.optflags & FLAG_m) {
+  if (FLAG(m)) {
     if (toys.optc != 3) error_exit("-m FROM TO");
     ftp_line("RNFR", toys.optargs[1], 350);
     ftp_line("RNTO", toys.optargs[2], 250);
-  } else if (toys.optflags & FLAG_M) ftp_line("MKD", toys.optargs[1], 257);
-  else if (toys.optflags & FLAG_d) ftp_line("DELE", toys.optargs[1], 250);
-  else if (toys.optflags & FLAG_D) ftp_line("RMD", toys.optargs[1], 250);
+  } else if (FLAG(M)) ftp_line("MKD", toys.optargs[1], 257);
+  else if (FLAG(d)) ftp_line("DELE", toys.optargs[1], 250);
+  else if (FLAG(D)) ftp_line("RMD", toys.optargs[1], 250);
   else {
-    int get = !(toys.optflags&FLAG_s), cnt = toys.optflags&FLAG_c;
+    int get = !(FLAG(s)), cnt = FLAG(c);
     char *cmd;
 
     // Only do passive binary transfers
@@ -152,14 +152,14 @@ void ftpget_main(void)
     // RETR blocks until file data read from data port, so use SIZE to check
     // if file exists before creating local copy
     lenr = 0;
-    if (toys.optflags&(FLAG_s|FLAG_g)) {
+    if (FLAG(s) || FLAG(g)) {
       if (ftp_line("SIZE", remote, 0) == 213)
         sscanf(toybuf, "%*u %llu", &lenr);
       else if (get) error_exit("no %s", remote);
     }
 
     // Open file for reading or writing
-    if (toys.optflags & (FLAG_g|FLAG_s)) {
+    if (FLAG(g) || FLAG(s)) {
       if (strcmp(toys.optargs[1], "-"))
         ii = xcreate(toys.optargs[1],
           get ? (cnt ? O_APPEND : O_TRUNC)|O_CREAT|O_WRONLY : O_RDONLY, 0666);
@@ -167,8 +167,8 @@ void ftpget_main(void)
     }
     if (get) {
       cmd = "RETR";
-      if (toys.optflags&FLAG_l) cmd = "LIST";
-      if (toys.optflags&FLAG_L) cmd = "NLST";
+      if (FLAG(l)) cmd = "LIST";
+      if (FLAG(L)) cmd = "NLST";
       if (cnt) {
         char buf[32];
 
@@ -179,8 +179,8 @@ void ftpget_main(void)
 
       ftp_line(cmd, remote, -1);
       lenl += xsendfile(port, ii);
-      ftp_line(0, 0, (toys.optflags&FLAG_g) ? 226 : 150);
-    } else if (toys.optflags & FLAG_s) {
+      ftp_line(0, 0, FLAG(g) ? 226 : 150);
+    } else if (FLAG(s)) {
       cmd = "STOR";
       if (cnt && lenr) {
         cmd = "APPE";
@@ -190,7 +190,7 @@ void ftpget_main(void)
       lenr += xsendfile(ii, port);
       close(port);
     }
-    if (toys.optflags&(FLAG_g|FLAG_s))
+    if (FLAG(g) || FLAG(s))
       if (lenl != lenr) error_exit("short %lld/%lld", lenl, lenr);
   }
   ftp_line("QUIT", 0, 0);
