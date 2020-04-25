@@ -444,7 +444,7 @@ int unescape2(char **c, int echo)
   if (idx != '\\' || !**c) return idx;
   if (**c == 'c') return 31&*(++*c);
   for (i = 0; i<4; i++) {
-    if (sscanf(*c, (char *[]){"0%3o%n"+!echo, "x%2x%n", "u%4x%n", "U%6x%n"}[i],
+    if (sscanf(*c, (char *[]){&"0%3o%n"[!echo], "x%2x%n", "u%4x%n", "U%6x%n"}[i],
         &idx, &off))
     {
       *c += off;
@@ -1214,7 +1214,7 @@ char *show_uuid(char *uuid)
   char *out = libbuf;
   int i;
 
-  for (i=0; i<16; i++) out+=sprintf(out, "-%02x"+!(0x550&(1<<i)), uuid[i]);
+  for (i=0; i<16; i++) out+=sprintf(out, &"-%02x"[!(0x550&(1<<i))], uuid[i]);
   *out = 0;
 
   return libbuf;
