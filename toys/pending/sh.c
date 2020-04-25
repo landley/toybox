@@ -2537,7 +2537,7 @@ if (BUGBUG) dump_state(&scratch);
     free(new);
   }
 
-  if (prompt) error_exit("%ld:unfinished line"+4*!TT.lineno, TT.lineno);
+  if (prompt) error_exit(&"%ld:unfinished line"[4*!TT.lineno], TT.lineno);
   toys.exitval = f && ferror(f);
   clearerr(stdout);
 }
