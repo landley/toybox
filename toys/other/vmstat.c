@@ -95,12 +95,12 @@ void vmstat_main(void)
     if (rows>3 && !(loop % (rows-3))) {
       char *header = headers;
 
-      if (!(toys.optflags&FLAG_n) && isatty(1)) terminal_size(0, &rows);
+      if (!FLAG(n) && isatty(1)) terminal_size(0, &rows);
       else rows = 0;
 
       printf("procs -----------memory---------- ---swap-- -----io---- -system-- ----cpu----\n");
       for (i=0; i<sizeof(lengths); i++) {
-        printf(" %*s"+!i, lengths[i], header);
+        printf(&" %*s"[!i], lengths[i], header);
         header += strlen(header)+1;
       }
       xputc('\n');
@@ -147,7 +147,7 @@ void vmstat_main(void)
       expected += lengths[i] + !!i;
       len = expected - offset - !!i;
       if (len < 0) len = 0;
-      offset += printf(" %*"PRIu64+!i, len, out);
+      offset += printf(&" %*"PRIu64[!i], len, out);
     }
     xputc('\n');
 
