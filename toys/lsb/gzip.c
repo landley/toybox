@@ -121,7 +121,7 @@ static void do_gzip(int ifd, char *in)
   // Are we writing to stdout?
   if (!ifd || FLAG(c)) ofd = 1;
   if (isatty(ifd)) {
-    if (!FLAG(f)) return error_msg("%s:need -f to read TTY"+3*!!ifd, in);
+    if (!FLAG(f)) return error_msg(&"%s:need -f to read TTY"[3*!!ifd], in);
     else ofd = 1;
   }
 
