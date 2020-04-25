@@ -211,8 +211,8 @@ static void run_command(char *command)
     final_command[x] = NULL;
   } else {
     snprintf(toybuf, sizeof(toybuf), "exec %s", command);
-    command = "-/bin/sh"+1;
-    final_command[0] = ("-/bin/sh"+!hyphen);
+    command = &"-/bin/sh"[1];
+    final_command[0] = (&"-/bin/sh"[!hyphen]);
     final_command[1] = "-c";
     final_command[2] = toybuf;
     final_command[3] = NULL;
