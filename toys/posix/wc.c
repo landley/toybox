@@ -47,7 +47,7 @@ static void show_lengths(unsigned long *lengths, char *name)
 
   for (i = 0; i<4; i++) {
     if (toys.optflags&(1<<i)) {
-      printf(" %*ld"+first, space, lengths[i]);
+      printf(&" %*ld"[first], space, lengths[i]);
       first = 0;
     }
     TT.totals[i] += lengths[i];
