@@ -81,7 +81,7 @@ static void fmt_line(char **pline, long len)
       TT.pos = TT.level;
       if (indent) printf("%.*s", indent, line);
     } else count++;
-    printf(" %s"+!(TT.pos!=TT.level), word);
+    printf(&" %s"[!(TT.pos!=TT.level)], word);
     TT.pos += count;
     while (isspace(line[idx])) idx++;
   }
