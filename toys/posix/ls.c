@@ -392,7 +392,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
         xputc('\n');
         width = 0;
       } else {
-        printf("  "+mm, 0); // shut up the stupid compiler
+        printf(&"  "[mm], 0); // shut up the stupid compiler
         width += 2-mm;
       }
     }
@@ -429,7 +429,7 @@ static void listfiles(int dirfd, struct dirtree *indir)
                            crunch_qb);
       }
     }
-    if (FLAG(Z)) printf(" %-*s "+!FLAG(l), -(int)totals[7], (char *)dt->extra);
+    if (FLAG(Z)) printf(&" %-*s "[!FLAG(l)], -(int)totals[7], (char *)dt->extra);
 
     if (FLAG(l)||FLAG(o)||FLAG(n)||FLAG(g)) {
       struct tm *tm;
