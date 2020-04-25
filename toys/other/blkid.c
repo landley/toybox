@@ -176,7 +176,7 @@ static void do_blkid(int fd, char *name)
                      toybuf[uoff+1], toybuf[uoff]);
     } else {
       for (j = 0; j < 16; j++)
-        s += sprintf(s, "-%02x"+!(0x550 & (1<<j)), toybuf[uoff+j]);
+        s += sprintf(s, &"-%02x"[!(0x550 & (1<<j))], toybuf[uoff+j]);
     }
 
     if (FLAG(U)) return flagshow(buf, name);
