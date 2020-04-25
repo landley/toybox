@@ -37,7 +37,7 @@ static void factor(char *s)
       continue;
     }
 
-    printf("-%llu:"+!dash, l);
+    printf(&"-%llu:"[!dash], l);
 
     // Negative numbers have -1 as a factor
     if (dash) printf(" -1");
