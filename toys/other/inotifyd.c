@@ -98,7 +98,7 @@ void inotifyd_main(void)
         *s = 0;
 
         if (**prog_args == '-' && !prog_args[0][1]) {
-          xprintf("%s\t%s\t%s\n" + 3*!event->len, toybuf,
+          xprintf(&"%s\t%s\t%s\n"[3*!event->len], toybuf,
               toys.optargs[event->wd], event->name);
         } else {
           prog_args[1] = toybuf;
