@@ -332,18 +332,6 @@ static void do_stty()
       else if (!strcmp(arg, "line")) new.c_line = get_arg(&i, N_TTY, NR_LDISCS);
       else if (!strcmp(arg, "min")) new.c_cc[VMIN] = get_arg(&i, 0, 255);
       else if (!strcmp(arg, "time")) new.c_cc[VTIME] = get_arg(&i, 0, 255);
-      else if (atoi(arg) > 0) {
-        int new_speed = speed(atolx_range(arg, 0, 4000000));
-
-        cfsetispeed(&new, new_speed);
-        cfsetospeed(&new, new_speed);
-      } else if (!strcmp(arg, "ispeed"))
-        cfsetispeed(&new, speed(get_arg(&i, 0, 4000000)));
-      else if (!strcmp(arg, "ospeed"))
-        cfsetospeed(&new, speed(get_arg(&i, 0, 4000000)));
-      else if (!strcmp(arg, "rows")) set_size(1, get_arg(&i, 0, USHRT_MAX));
-      else if (!strcmp(arg, "cols") || !strcmp(arg, "columns"))
-        set_size(0, get_arg(&i, 0, USHRT_MAX));
       else if (sscanf(arg, "%x:%x:%x:%x:%n", &new.c_iflag, &new.c_oflag,
                         &new.c_cflag, &new.c_lflag, &n) == 4)
       {
@@ -355,7 +343,19 @@ static void do_stty()
           new.c_cc[j] = value;
           arg += n+1;
         }
-      } else if (set_special_character(&new, &i, arg));
+      } else if (atoi(arg) > 0) {
+        int new_speed = speed(atolx_range(arg, 0, 4000000));
+
+        cfsetispeed(&new, new_speed);
+        cfsetospeed(&new, new_speed);
+      } else if (!strcmp(arg, "ispeed"))
+        cfsetispeed(&new, speed(get_arg(&i, 0, 4000000)));
+      else if (!strcmp(arg, "ospeed"))
+        cfsetospeed(&new, speed(get_arg(&i, 0, 4000000)));
+      else if (!strcmp(arg, "rows")) set_size(1, get_arg(&i, 0, USHRT_MAX));
+      else if (!strcmp(arg, "cols") || !strcmp(arg, "columns"))
+        set_size(0, get_arg(&i, 0, USHRT_MAX));
+      else if (set_special_character(&new, &i, arg));
         // Already done as a side effect.
       else if (!strcmp(arg, "cooked"))
         set_options(&new, "brkint", "ignpar", "istrip", "icrnl", "ixon",
