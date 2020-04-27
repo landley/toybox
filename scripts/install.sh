@@ -92,7 +92,7 @@ do
   fi
 done
 
-[ -z "$AIRLOCK" ] && exit 0
+[ -z "$AIRLOCK" ] && exit $EXIT
 
 # --airlock creates a single directory you can point the $PATH to for cross
 # compiling, which contains just toybox and symlinks to toolchain binaries.
@@ -111,13 +111,10 @@ PENDING="dd diff expr ftpd less tr vi wget awk sh sha512sum sha256sum unxz xzcat
 # "gcc" should go away for llvm, but some things still hardwire it
 TOOLCHAIN="as cc ld gcc objdump"
 
-if [ ! -z "$AIRLOCK" ]
-then
-
-  # Tools needed to build packages
-  for i in $TOOLCHAIN $PENDING $HOST_EXTRA
-  do
-    if [ ! -f "$i" ]
+# Tools needed to build packages
+for i in $TOOLCHAIN $PENDING $HOST_EXTRA
+do
+  if [ ! -f "$i" ]
   then
     # Loop through each instance, populating fallback directories (used by
     # things like distcc, which require multiple instances of the same binary
@@ -144,9 +141,5 @@ then
     fi
   fi
 done
-
-
-
-fi
 
 exit $EXIT
