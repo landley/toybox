@@ -909,7 +909,7 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
             if (ss[jj]) ifs = (void *)1;
           } else if (*ss == '#') {
             if (jj == 2 && (*ss == '@' || *ss == '*')) jj--;
-            else ifs = xmprintf("%ld", strlen(getvar(ss) ? : ""));
+            else ifs = xmprintf("%ld", (long)strlen(getvar(ss) ? : ""));
           }
         }
       } else {
