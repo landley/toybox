@@ -55,7 +55,7 @@ rm -rf sub
 
 testing "script file" "chmod +x input; ./input" "hello\n" "#!$C\necho hello" ""
 
-testing "IFS $*" "sh -c 'IFS=xy; echo \"\$*\"' one two tyree" "twoxtyree\n" \
+testing 'IFS $*' "sh -c 'IFS=xy; echo \"\$*\"' one two tyree" "twoxtyree\n" \
   "" ""
 
 # Change EVAL to call sh -c for us, using "bash" explicitly for the host.

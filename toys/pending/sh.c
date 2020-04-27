@@ -307,7 +307,7 @@ static void add_arg(struct arg_list **list, char *arg)
 static void array_add_del(char ***list, unsigned count, char *data,
   struct arg_list **delete)
 {
-  if (delete) add_arg(delete, data);
+  add_arg(delete, data);
   array_add(list, count, data);
 }
 
@@ -769,48 +769,12 @@ static int utf8chr(char *wc, char *chrs, int *len)
   return 0;
 }
 
-// find utf8 characters in utf string
-// if c return first char in chrs or null terminator (ala strcspn)
-// else return first char not in chars (ala strspn)
-static char *utf8spnc(char *str, char *chrs, int c)
-{
-  int ll, len;
-
-  while (*str) {
-    ll = utf8chr(str, chrs, &len);
-    if (c ? ll : !ll) break;
-    str += len;
-  }
-
-  return str;
-}
-
-// glue together argument list with separator, plus pre/post sections
-static char *merge_args(char *pre, int argc, char *argv[], char *sep,
-  int *len, char *post)
-{
-  int prlen = strlen(pre), polen = strlen(post)+1, jj = 1, kk = 0;
-  char *s, *ss;
-
-  while (jj<argc) kk += *len + strlen(argv[jj++]);
-  s = ss = xmalloc(prlen+kk+polen);
-  memcpy(s, pre, prlen);
-  s += prlen;
-  for (jj = 1; jj<argc; jj++) s += sprintf(s, "%s%s", argv[jj], sep);
-  if (jj != 1) s -= *len;
-  *len = s-ss;
-  memcpy(s, post, polen);
-
-  return ss;
-}
-
-
 #define NO_PATH  (1<<0)    // path expansion (wildcards)
 #define NO_SPLIT (1<<1)    // word splitting
 #define NO_BRACE (1<<2)    // {brace,expansion}
 #define NO_TILDE (1<<3)    // ~username/path
 #define NO_QUOTE (1<<4)    // quote removal
-#define FORCE_COPY (1<<31) // don't keep original, copy even if not modified
+#define SEMI_IFS (1<<5)    // Use ' ' instead of IFS to combine $*
 // TODO: parameter/variable $(command) $((math)) split pathglob
 // TODO: ${name:?error} causes an error/abort here (syntax_err longjmp?)
 // TODO: $1 $@ $* need args marshalled down here: function+structure?
@@ -819,11 +783,11 @@ static char *merge_args(char *pre, int argc, char *argv[], char *sep,
 // flags = type of expansions (not) to do
 // delete = append new allocations to this so they can be freed later
 // TODO: at_args: $1 $2 $3 $* $@
-static void expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
+static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
   struct arg_list **delete)
 {
-  char cc, qq = 0, *old = str, *new = str, *s, *ss, *ifs = 0, *del = 0;
-  int at = 0, ii = 0, dd, jj, kk, ll, oo = 0;
+  char cc, qq = 0, *old = str, *new = str, *s, *ss, *ifs, **aa;
+  int ii = 0, dd, jj, kk, ll, oo = 0, nodel;
 
 if (BUGBUG) dprintf(255, "expand %s\n", str);
 
@@ -869,6 +833,9 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
       new = xstrdup(new);
       new[oo = ii-1] = 0;
     }
+    ifs = 0;
+    aa = 0;
+    nodel = 0;
 
     // handle different types of escapes
     if (cc == '\\') new[oo++] = str[ii] ? str[ii++] : cc;
@@ -915,115 +882,178 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
 
 // TODO what does \ in `` mean? What is echo `printf %s \$x` supposed to do?
         if (!ss) jj = pipe_subshell(s, kk, 0);
-        if ((ifs = del = readfd(jj, 0, &pp)))
+        if ((ifs = readfd(jj, 0, &pp)))
           for (kk = strlen(ifs); kk && ifs[kk-1]=='\n'; ifs[--kk] = 0);
         close(jj);
       }
     } else if (cc == '$') {
 
+      // parse $ $'' ${} or $VAR
+
+      cc = str[ii++];
+      if (cc=='\'') {
+        for (s = str+ii; *s != '\''; oo += wcrtomb(new+oo, unescape2(&s, 0),0));
+        ii = s-str+1;
+
+        continue;
+      } else if (cc == '{') {
+        cc = *(ss = str+ii);
+        if (!(jj = strchr(ss, '}')-ss)) ifs = (void *)1;
+        ii += jj+1;
+
+        if (jj>1) {
+          // handle ${!x} and ${#x}
+          if (*ss == '!') {
+            if (!(ss = getvar(ss+1)) || !*ss) continue;
+            jj = varend(ss)-ss;
+            if (ss[jj]) ifs = (void *)1;
+          } else if (*ss == '#') {
+            if (jj == 2 && (*ss == '@' || *ss == '*')) jj--;
+            else ifs = xmprintf("%ld", strlen(getvar(ss) ? : ""));
+          }
+        }
+      } else {
+        ss = str+--ii;
+        if (!(jj = varend(ss)-ss)) jj++;
+        ii += jj;
+      }
+
+// ${#nom} ${} ${x}
+// ${x:-y} use default
+// ${x:=y} assign default (error if positional)
+// ${x:?y} err if null
+// ${x:+y} alt value
+// ${x:off} ${x:off:len} off<0 from end (must ": -"), len<0 also from end must
+//   0-based indexing
+// ${@:off:len} positional parameters, off -1 = len, -len is error
+//   1-based indexing
+// ${!x} deref (does bad substitution if name has : in it)
+// ${!x*} ${!x@} names matching prefix
+//   note: expands something other than arg->c
+// ${x#y} remove shortest prefix ${x##y} remove longest prefix
+//   x can be @ or *
+// ${x%y} ${x%%y} suffix
+// ${x/pat/sub} substitute ${x//pat/sub} global ${x/#pat/sub} begin
+// ${x/%pat/sub} end ${x/pat} delete pat
+//   x can be @ or *
+// ${x^pat} ${x^^pat} uppercase/g ${x,} ${x,,} lowercase/g (no pat = ?)
+// ${x@QEPAa} Q=$'blah' E=blah without the $'' wrap, P=expand as $PS1
+//   A=declare that recreates var a=attribute flags
+//   x can be @*
+
 // TODO: $_ is last arg of last command, and exported as path to exe run
 // TODO: $! is PID of most recent background job
-      if (!(cc = str[ii++])) {
-        new[oo++] = cc;
-        break;
-      } else if (cc == '-') {
-        s = ifs = toybuf;
+      if (ifs);
+      else if (cc == '-') {
+        s = ifs = xmalloc(8);
         if (TT.options&OPT_I) *s++ = 'i';
         if (TT.options&OPT_BRACE) *s++ = 'B';
         if (TT.options&OPT_S) *s++ = 's';
         if (TT.options&OPT_C) *s++ = 'c';
         *s = 0;
-      } else if (cc == '?') ifs = del = xmprintf("%d", toys.exitval);
-      else if (cc == '$') ifs = del = xmprintf("%d", TT.pid);
-      else if (cc == '#') ifs = del = xmprintf("%d", TT.arg->c?TT.arg->c-1:0);
-      else if (cc == '*' || cc == '@') {
-        // If not doing word split, handle here
-        if ((qq&1) && cc=='*') {
-          char buf[8];
-          wchar_t wc;
-
-          new[oo] = 0;
-          if (0>(oo = utf8towc(&wc, TT.ifs, 4))) oo = 0;
-          memcpy(buf, TT.ifs, oo);
-          buf[oo] = 0;
-          s = merge_args(new, TT.arg->c, TT.arg->v, buf, &oo, str+ii);
-          if (new != old) free(new);
-          new = s;
-
-        // otherwise hand off to IFS logic at end of loop.
-        } else at = 1;
-      } else if(isdigit(cc)) {
-        for (kk = 0, ii--; isdigit(cc = str[ii]); ii++) kk = (10*kk)+cc-'0';
-        if (kk) kk += TT.shift;
-        if (kk<TT.arg->c) ifs = TT.arg->v[kk];
-      } else if (cc=='\'') {
-        for (s = str+ii; *s != '\''; oo += wcrtomb(new+oo, unescape2(&s, 0),0));
-        ii = s-str+1;
-      } else if (cc == '{') {
+      } else if (cc == '?') ifs = xmprintf("%d", toys.exitval);
+      else if (cc == '$') ifs = xmprintf("%d", TT.pid);
+      else if (cc == '#') ifs = xmprintf("%d", TT.arg->c?TT.arg->c-1:0);
+      else if (cc == '*' || cc == '@') aa = TT.arg->v+1;
+      else if (isdigit(cc)) {
+        for (kk = ll = 0; kk<jj && isdigit(ss[kk]); kk++)
+          ll = (10*ll)+ss[kk]-'0';
+        if (ll) ll += TT.shift;
+        if (ll<TT.arg->c) ifs = TT.arg->v[ll];
+        nodel = 1;
 
       // $VARIABLE
       } else {
-        s = varend(ss = str+--ii);
-        if (!(jj = s-ss)) new[oo++] = '$';
-// TODO: $((a=42)) can change var, affect lifetime here
-        else ifs = getvar(ss);
-        ii += jj;
+        if (ss == varend(ss)) {
+          ii--;
+          if (ss[-1] == '$') new[oo++] = '$';
+          else ifs = (void *)1;
+        } else ifs = getvar(ss);
+        nodel = 1;
       }
     }
 
-    // combine before/ifs/after sections, splitting words on $IFS in ifs
-    if (ifs || at) {
-      if (!at && !*ifs && !qq) continue;
+// TODO: $((a=42)) can change var, affect lifetime
+// must replace ifs AND any previous output arg[] within pointer strlen()
+// TODO ${blah} here
 
-      // when at!=0, loop through argv for "$@". Otherwise process ifs as-is
+    if (ifs == (void *)1) {
+      error_msg("%.*s: bad substitution", (int)(s-(str+ii)+3), str+ii-2);
+      free(new);
+
+      return 1;
+    }
+
+    // combine before/ifs/after sections, splitting words on $IFS in ifs
+    if (ifs || aa) {
+      char sep[8];
+
+      // If not gluing together, nothing to substitute, not quoted: do nothing
+      if (!aa && !*ifs && !qq) continue;
+
+      // Fetch separator
+      *sep = 0;
+      if ((qq&1) && cc=='*') {
+        wchar_t wc;
+
+        if (flags&SEMI_IFS) strcpy(sep, " ");
+        else if (0<(dd = utf8towc(&wc, TT.ifs, 4)))
+          sprintf(sep, "%.*s", dd, TT.ifs);
+      }
+
+      // when aa proceed through entries until NULL, else process ifs once
       do {
 
-        // get next argument, is this last entry, first IFS separator character
-        if (at) ifs = TT.arg->v[at++];
-        kk = !at || at==TT.arg->c;
-        ss = (qq&1) ? ifs+strlen(ifs) : utf8spnc(ifs, TT.ifs, 1);
+        // get next argument, is this last entry, find end of word
+        if (aa) {
+          ifs = *aa ? : "";
+          if (*aa) aa++;
+          nodel = 1;
+        }
+        if (qq&1) ss = ifs+strlen(ifs);
+        else for (ss = ifs; *ss; ss += kk)
+          if ((ll = utf8chr(ss, TT.ifs, &kk))) break;
+        kk = !aa || !*aa;
 
-        // loop within current ifs due to word break
+        // loop within current ifs checking region to split words
         do {
-          // fast path: no new allocation when no prefix, no separator,
+          // fast path: use existing memory when no prefix, not splitting it,
           // and either not last entry or no suffix
-          if (!oo && !*ss && (!kk || !str[ii])) {
+          if (!oo && !*ss && (!kk || !str[ii]) && !((qq&1) && cc=='*')) {
             if (!qq && ss==ifs) break;
-            dd = !!del;
-            del = 0;
-          } else {
-            // combine prefix, ifs before separator, and suffix (as appropriate)
-            ifs = xmprintf("%.*s%.*s%s", oo, new, ll = ss-ifs, ifs,
-                         (jj = (kk && !*ss)) ? str+ii : "");
-            if (old != new) free(new);
-            new = 0;
-            dd = 1;
-            if (jj) {
-              oo += ll;
-              new = ifs;
+            array_add_del(&arg->v, arg->c++, ifs, nodel ? 0 : delete);
+            nodel = 1;
 
-              break;
-            } else oo = 0;
-
-            // combine whitespace separators
-            while ((jj = utf8chr(ss, TT.ifs, &ll)) && iswspace(jj)) ss += ll;
-
-            // add argument if quoted, non-blank, or non-whitespace separator
-            if (!qq && !*ifs && !*ss) {
-              free(ifs);
-
-              continue;
-            }
+            continue;
           }
 
-          array_add_del(&arg->v, arg->c++, ifs, dd ? delete : 0);
-          qq &= 1;
+          // resize allocation and copy next chunk of IFS-free data
+          new = xrealloc(new, oo + (ss-ifs) + strlen(sep) +
+                         ((jj = kk && !*ss) ? strlen(str+ii) : 0) + 1);
+          oo += sprintf(new + oo, "%.*s", (int)(ss-ifs), ifs);
+          if (!nodel) free(ifs);
+          nodel = 1;
+          if (jj) break;
+
+          // for single quoted "$*" append IFS
+          if ((qq&1) && cc == '*') oo += sprintf(new+oo, "%s", sep);
+
+          // add argument if quoted, non-blank, or non-whitespace separator
+          else {
+            if (qq || *new || *ss) {
+              array_add_del(&arg->v, arg->c++, new, nodel ? 0 : delete);
+              nodel = 1;
+            }
+            qq &= 1;
+            new = xstrdup(str+ii);
+            oo = 0;
+          }
+
+          // Skip trailing seperator (combining whitespace)
+          while ((jj = utf8chr(ss, TT.ifs, &ll)) && iswspace(jj)) ss += ll;
+
         } while (*(ifs = ss));
       } while (!kk);
-
-      free(del);
-      ifs = del = 0;
-      at = 0;
     }
   }
 
@@ -1037,14 +1067,15 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
 // quote removal
 
   // Record result.
-  if (*new || qq) {
-    if (old==new && (flags&FORCE_COPY)) new = xstrdup(new);
+  if (*new || qq)
     array_add_del(&arg->v, arg->c++, new, (old != new) ? delete : 0);
-  } else if(old != new) free(new);
+  else if(old != new) free(new);
+
+  return 0;
 }
 
 // expand braces (ala {a,b,c}) and call expand_arg_nobrace() each permutation
-static void expand_arg(struct sh_arg *arg, char *old, unsigned flags,
+static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
   struct arg_list **delete)
 {
   struct brace {
@@ -1156,9 +1187,13 @@ static void expand_arg(struct sh_arg *arg, char *old, unsigned flags,
       bb = (bnext == blist) ? 0 : bnext;
     }
 
-    // Save result
+    // Save result, aborting on expand error
     add_arg(delete, ss);
-    expand_arg_nobrace(arg, ss, flags, delete);
+    if (expand_arg_nobrace(arg, ss, flags, delete)) {
+      llist_traverse(blist, free);
+
+      return 1;
+    }
 
     // increment
     for (bb = blist->prev; bb; bb = (bb == blist) ? 0 : bb->prev) {
@@ -1168,11 +1203,14 @@ static void expand_arg(struct sh_arg *arg, char *old, unsigned flags,
     }
 
     // if increment went off left edge, done expanding
-    if (!bb) return llist_traverse(blist, free);
+    if (!bb) break;
   }
+  llist_traverse(blist, free);
+
+  return 0;
 }
 
-// Expand exactly one arg, returning NULL if it split.
+// Expand exactly one arg, returning NULL on error.
 static char *expand_one_arg(char *new, unsigned flags, struct arg_list **del)
 {
   struct sh_arg arg;
@@ -1180,9 +1218,8 @@ static char *expand_one_arg(char *new, unsigned flags, struct arg_list **del)
   int i;
 
   memset(&arg, 0, sizeof(arg));
-  expand_arg(&arg, new, flags, del);
-  if (arg.c == 1) s = *arg.v;
-  else if (!del) for (i = 0; i < arg.c; i++) free(arg.v[i]);
+  if (!expand_arg(&arg, new, flags, del) && arg.c == 1) s = *arg.v;
+  if (!del && !s) for (i = 0; i < arg.c; i++) free(arg.v[i]);
   free(arg.v);
 
   return s;
@@ -1269,8 +1306,11 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
     sss = ss + anystart(ss, (void *)redirectors);
     if (ss == sss) {
       // Nope: save/expand argument and loop
-      expand_arg(&pp->arg, s, 0, &pp->delete);
+      if (expand_arg(&pp->arg, s, 0, &pp->delete)) {
+        pp->exit = 1;
 
+        return pp;
+      }
       continue;
     } else if (j+1 >= arg->c) {
       // redirect needs one argument
@@ -1286,7 +1326,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
     if (strncmp(ss, "<<", 2) && ss[2] != '<' &&
       !(sss = expand_one_arg(sss, NO_PATH, &pp->delete)))
     {
-      s = sss;
+      s = 0;
       break; // arg splitting here is an error
     }
 
@@ -1323,7 +1363,10 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
 
         // write contents to file (if <<< else <<) then lseek back to start
         else if (ss[2] == '<') {
-          if (x) sss = expand_one_arg(sss, NO_PATH|NO_SPLIT, 0);
+          if (x && !(sss = expand_one_arg(sss, NO_PATH|NO_SPLIT, 0))) {
+            s = 0;
+            break;
+          }
           len = strlen(sss);
           if (len != writeall(from, sss, len)) bad++;
           if (x) free(sss);
@@ -1333,9 +1376,14 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
           for (i = 0; i<hh->c; i++) {
             ss = hh->v[i];
             sss = 0;
+// TODO audit this ala man page
             // expand_parameter, commands, and arithmetic
-            if (x) ss = sss = expand_one_arg(ss,
-              NO_PATH|NO_SPLIT|NO_BRACE|NO_TILDE|NO_QUOTE, 0);
+            if (x && !(ss = sss = expand_one_arg(ss,
+              NO_PATH|NO_SPLIT|NO_BRACE|NO_TILDE|NO_QUOTE, 0)))
+            {
+              s = 0;
+              break;
+            }
 
             while (zap && *ss == '\t') ss++;
             x = writeall(from, ss, len = strlen(ss));
@@ -1442,7 +1490,7 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
   // perform assignments locally if there's no command
   if (envlen == arg->c) {
     for (j = 0; j<envlen; j++) {
-      s = expand_one_arg(arg->v[j], NO_PATH|NO_SPLIT, 0);
+      if (!(s = expand_one_arg(arg->v[j], NO_PATH|NO_SPLIT, 0))) break;
       if (s == arg->v[j]) s = xstrdup(s);
       setvar(s);
     }
@@ -1500,7 +1548,8 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
 
     // assign leading environment variables
     for (j = 0; j<envlen; j++) {
-      sss = expand_one_arg(arg->v[j], NO_PATH|NO_SPLIT, &pp->delete);
+      if (!(sss = expand_one_arg(arg->v[j], NO_PATH|NO_SPLIT, &pp->delete)))
+        break;
       for (ll = 0; ll<kk; ll++) {
         for (s = sss, ss = env[ll]; *s == *ss && *s != '='; s++, ss++);
         if (*s != '=') continue;
@@ -1510,7 +1559,7 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
       if (ll == kk) array_add(&environ, kk++, sss);
     }
 
-    if (-1 == (pp->pid = xpopen_both(pp->arg.v, 0)))
+    if (j == envlen && -1 == (pp->pid = xpopen_both(pp->arg.v, 0)))
       perror_msg("%s: vfork", *pp->arg.v);
 
     // Restore environment variables
@@ -1540,8 +1589,9 @@ static void free_pipeline(void *pipeline)
   struct sh_pipeline *pl = pipeline;
   int i, j;
 
+  // free arguments and HERE doc contents
   if (pl) for (j=0; j<=pl->count; j++) {
-    for (i = 0; i<=pl->arg->c; i++)  free(pl->arg[j].v[i]);
+    for (i = 0; i<=pl->arg[j].c; i++) free(pl->arg[j].v[i]);
     free(pl->arg[j].v);
   }
   free(pl);
@@ -1583,7 +1633,8 @@ dprintf(2, "stub add_function");
 // 1 to request another line of input (> prompt), -1 for syntax err
 static int parse_line(char *line, struct sh_function *sp)
 {
-  char *start = line, *delete = 0, *end, *last = 0, *s, *ex, done = 0;
+  char *start = line, *delete = 0, *end, *last = 0, *s, *ex, done = 0,
+    *tails[] = {"fi", "done", "esac", "}", "]]", ")", 0};
   struct sh_pipeline *pl = sp->pipeline ? sp->pipeline->prev : 0;
   struct sh_arg *arg = 0;
   long i;
@@ -1632,6 +1683,8 @@ static int parse_line(char *line, struct sh_function *sp)
       pl->count = 0;
       arg = pl->arg;
 
+if (BUGBUG>1) dprintf(255, "{%d:%s}\n", pl->type, ex ? ex : (sp->expect ? "*" : ""));
+
       // find arguments of the form [{n}]<<[-] with another one after it
       for (i = 0; i<arg->c; i++) {
         s = arg->v[i] + redir_prefix(arg->v[i]);
@@ -1665,7 +1718,7 @@ static int parse_line(char *line, struct sh_function *sp)
     // Parse next word and detect overflow (too many nested quotes).
     if ((end = parse_word(start, 0)) == (void *)1) goto flush;
 
-if (BUGBUG>1) dprintf(255, "[%.*s]%c", end ? (int)(end-start) : 0, start, pl ? ' ' : '\n');
+if (BUGBUG>1) dprintf(255, "[%.*s] ", end ? (int)(end-start) : 0, start);
     // Is this a new pipeline segment?
     if (!pl) {
       pl = xzalloc(sizeof(struct sh_pipeline));
@@ -1782,9 +1835,10 @@ if (BUGBUG>1) dprintf(255, "[%.*s]%c", end ? (int)(end-start) : 0, start, pl ? '
       } else if (!memcmp(ex, "do\0C", 4)) {
         if (strcmp(s, "do")) {
           // can only have one "in" line between for/do, but not with for(())
-          if (!pl->prev->type) goto flush;
+          if (pl->prev->type == 's') goto flush;
           if (!strncmp(pl->prev->arg->v[1], "((", 2)) goto flush;
           else if (strcmp(s, "in")) goto flush;
+          pl->type = 's';
 
           continue;
         }
@@ -1810,20 +1864,20 @@ if (BUGBUG>1) dprintf(255, "[%.*s]%c", end ? (int)(end-start) : 0, start, pl ? '
     else if (!strcmp(s, "(")) end = ")";
 
     // Expecting NULL means a statement: I.E. any otherwise unrecognized word
-    else if (sp->expect && !ex) {
-      free(dlist_lpop(&sp->expect));
-      continue;
-    } else if (!ex) goto check;
+    if (!ex && sp->expect) free(dlist_lpop(&sp->expect));
 
-    // Did we start a new statement?
+    // Did we start a new statement
     if (end) {
       pl->type = 1;
 
       // Only innermost statement needed in { { { echo ;} ;} ;} and such
       if (sp->expect && !sp->expect->prev->data) free(dlist_lpop(&sp->expect));
 
+    // if can't end a statement here skip next few tests
+    } else if (!ex);
+
     // If we got here we expect a specific word to end this block: is this it?
-    } else if (!strcmp(s, ex)) {
+    else if (!strcmp(s, ex)) {
       // can't "if | then" or "while && do", only ; & or newline works
       if (last && (strcmp(ex, "then") || strcmp(last, "&"))) {
         s = end;
@@ -1831,8 +1885,7 @@ if (BUGBUG>1) dprintf(255, "[%.*s]%c", end ? (int)(end-start) : 0, start, pl ? '
       }
 
       free(dlist_lpop(&sp->expect));
-      pl->type = anystr(s, (char *[]){"fi", "done", "esac", "}", "]]", ")", 0})
-        ? 3 : 2;
+      pl->type = anystr(s, tails) ? 3 : 2;
 
       // if it's a multipart block, what comes next?
       if (!strcmp(s, "do")) end = "done";
@@ -1854,15 +1907,15 @@ if (BUGBUG>1) dprintf(255, "[%.*s]%c", end ? (int)(end-start) : 0, start, pl ? '
       }
     }
 
-    // Do we need to queue up the next thing to expect?
+    // Queue up the next thing to expect, all preceded by a statement
     if (end) {
       if (!pl->type) pl->type = 2;
+
       dlist_add(&sp->expect, end);
-      dlist_add(&sp->expect, 0);    // they're all preceded by a statement
+      if (!anystr(end, tails)) dlist_add(&sp->expect, 0);
       pl->count = -1;
     }
 
-check:
     // syntax error check: these can't be the first word in an unexpected place
     if (!pl->type && anystr(s, (char *[]){"then", "do", "esac", "}", "]]", ")",
         "done", "fi", "elif", "else", 0})) goto flush;
@@ -1970,21 +2023,39 @@ static struct sh_pipeline *skip_andor(int rc, struct sh_pipeline *pl)
   return pl;
 }
 
+struct blockstack {
+  struct blockstack *next;
+  struct sh_pipeline *start, *end;
+  struct sh_process *pin;      // processes piping into this block
+  int run, loop, *urd, pout;
+  struct sh_arg farg;          // for/select arg stack
+  struct arg_list *fdelete; // farg's cleanup list
+  char *fvar;                  // for/select's iteration variable name
+};
+
+// when ending a block, free, cleanup redirects and pop stack.
+static struct sh_pipeline *pop_block(struct blockstack **blist, int *pout)
+{
+  struct blockstack *blk = *blist;
+  struct sh_pipeline *pl = blk->end;
+
+  // when ending a block, free, cleanup redirects and pop stack.
+  if (*pout != -1) close(*pout);
+  *pout = blk->pout;
+  unredirect(blk->urd);
+  llist_traverse(blk->fdelete, free);
+  free(llist_pop(blist));
+
+  return pl;
+}
+
 // run a parsed shell function. Handle flow control blocks and characters,
 // setup pipes and block redirection, break/continue, call builtins,
 // vfork/exec external commands.
 static void run_function(struct sh_pipeline *pl)
 {
   struct sh_pipeline *end;
-  struct blockstack {
-    struct blockstack *next;
-    struct sh_pipeline *start, *end;
-    struct sh_process *pin;      // processes piping into this block
-    int run, loop, *urd, pout;
-    struct sh_arg farg;          // for/select arg stack
-    struct arg_list *fdelete; // farg's cleanup list
-    char *fvar;                  // for/select's iteration variable name
-  } *blk = 0, *new;
+  struct blockstack *blk = 0, *new;
   struct sh_process *pplist = 0; // processes piping into current level
   int *urd = 0, pipes[2] = {-1, -1};
   long i;
@@ -2027,23 +2098,10 @@ if (BUGBUG) dprintf(255, "%d runtype=%d %s %s\n", getpid(), pl->type, s, ctl);
           syntax_err(s);
           break;
         }
-        i = atol(ss);
-        if (!i) i++;
-        while (i && blk) {
-          if (--i && *s == 'c') {
-            pl = blk->start;
-            break;
-          }
-          pl = blk->end;
-// TODO collate end_block logic
 
-          // if ending a block, free, cleanup redirects and pop stack.
-          llist_traverse(blk->fdelete, free);
-          unredirect(blk->urd);
-          if (*pipes) close(*pipes);
-          *pipes = blk->pout;
-          free(llist_pop(&blk));
-        }
+        while (i && blk)
+          if (!--i && *s == 'c') pl = blk->start;
+          else pl = pop_block(&blk, pipes);
         if (i) {
           syntax_err("break outside loop");
           break;
@@ -2072,6 +2130,7 @@ if (BUGBUG) dprintf(255, "%d runtype=%d %s %s\n", getpid(), pl->type, s, ctl);
     // Start of flow control block?
     } else if (pl->type == 1) {
       struct sh_process *pp = 0;
+      int rc;
 
       // are we entering this block (rather than looping back to it)?
       if (!blk || blk->start != pl) {
@@ -2104,10 +2163,15 @@ if (BUGBUG) dprintf(255, "%d runtype=%d %s %s\n", getpid(), pl->type, s, ctl);
         // Perform redirects listed at end of block
         pp = expand_redir(end->arg, 1, blk->urd);
         blk->urd = pp->urd;
+        rc = pp->exit;
         if (pp->arg.c) {
           syntax_err(*pp->arg.v);
-          llist_traverse(pp->delete, free);
-          free(pp);
+          rc = 1;
+        }
+        llist_traverse(pp->delete, free);
+        free(pp);
+        if (rc) {
+          toys.exitval = rc;
           break;
         }
       }
@@ -2125,12 +2189,17 @@ dprintf(2, "TODO skipped init for((;;)), need math parser\n");
         } else {
 
           // populate blk->farg with expanded arguments
-          if (!pl->next->type) {
+          if (pl->next->type == 's') {
             for (i = 1; i<pl->next->arg->c; i++)
-              expand_arg(&blk->farg, pl->next->arg->v[i], 0, &blk->fdelete);
+              if (expand_arg(&blk->farg, pl->next->arg->v[i], 0, &blk->fdelete))
+                break;
+            if (i != pl->next->arg->c) {
+              pl = pop_block(&blk, pipes)->next;
+              continue;
+            }
+          // this can't fail
           } else expand_arg(&blk->farg, "\"$@\"", 0, &blk->fdelete);
         }
-        if (!pl->next->type) pl = pl->next;
 
 // TODO case/esac [[/]] (/) ((/)) function/}
 
@@ -2190,19 +2259,14 @@ dprintf(2, "TODO skipped running for((;;)), need math parser\n");
         continue;
       }
 
-// TODO goto "break" above instead of copying it here?
-      // if ending a block, free, cleanup redirects, and pop stack.
-      // needing to unredirect(urd) or close(pipes[0]) here would be syntax err
-      llist_traverse(blk->fdelete, free);
-      unredirect(blk->urd);
-      *pipes = blk->pout;
-      free(llist_pop(&blk));
+      pop_block(&blk, pipes);
     } else if (pl->type == 'f') pl = add_function(s, pl);
 
     pl = pl->next;
   }
 
   // did we exit with unfinished stuff?
+  // TODO: current context isn't packaged into a block, so can't just pop it
   if (*pipes != -1) close(*pipes);
   if (pplist) {
     toys.exitval = wait_pipeline(pplist);
@@ -2211,30 +2275,21 @@ dprintf(2, "TODO skipped running for((;;)), need math parser\n");
   unredirect(urd);
 
   // Cleanup from syntax_err();
-  while (blk) {
-    llist_traverse(blk->fdelete, free);
-    unredirect(blk->urd);
-    free(llist_pop(&blk));
-  }
-
-  return;
+  while (blk) pop_block(&blk, pipes);
 }
 
 // Parse and run a self-contained command line with no prompt/continuation
 static int sh_run(char *new)
 {
   struct sh_function scratch;
-  int rc;
 
 // TODO switch the fmemopen for -c to use this? Error checking? $(blah)
 
   memset(&scratch, 0, sizeof(struct sh_function));
   if (!parse_line(new, &scratch)) run_function(scratch.pipeline);
   free_function(&scratch);
-  rc = toys.exitval;
-  toys.exitval = 0;
 
-  return rc;
+  return toys.exitval;
 }
 
 // Print prompt to stderr, parsing escapes
@@ -2441,10 +2496,9 @@ static void subshell_setup(void)
 
   // This is not efficient, could array_add the local vars.
 // TODO implicit exec when possible
-  while ((s = xgetline(fp, 0))) to = sh_run(s);
+  while ((s = xgetline(fp, 0))) toys.exitval = sh_run(s);
   fclose(fp);
 
-  toys.exitval = to;
   xexit();
 }
 
@@ -2538,8 +2592,6 @@ if (BUGBUG) dump_state(&scratch);
   }
 
   if (prompt) error_exit("%ld:unfinished line"+4*!TT.lineno, TT.lineno);
-  toys.exitval = f && ferror(f);
-  clearerr(stdout);
 }
 
 /********************* shell builtin functions *************************/
@@ -2549,26 +2601,15 @@ if (BUGBUG) dump_state(&scratch);
 #include "generated/flags.h"
 void cd_main(void)
 {
-  char *home = getvar("HOME"), *pwd = getvar("PWD"), *dd = 0, *from, *to,
-    *dest = (*toys.optargs && **toys.optargs) ? *toys.optargs : "~";
+  char *home = getvar("HOME") ? : "/", *pwd = getvar("PWD"), *from, *to = 0,
+    *dd = xstrdup(*toys.optargs ? *toys.optargs : home);
   int bad = 0;
 
   // TODO: CDPATH? Really?
 
-  if (!home) home = "/";
-
-  // expand variables
-  if (dest) dd = expand_one_arg(dest, FORCE_COPY|NO_SPLIT, 0);
-// TODO: no expand here
-  if (!dd || !*dd) {
-    free(dd);
-    dd = xstrdup("/");
-  }
-
   // prepend cwd or $PWD to relative path
   if (*dd != '/') {
-    to = 0;
-    from = pwd ? pwd : (to = getcwd(0, 0));
+    from = pwd ? : (to = getcwd(0, 0));
     if (!from) setvarval("PWD", "(nowhere)");
     else {
       from = xmprintf("%s/%s", from, dd);
@@ -2675,10 +2716,13 @@ void export_main(void)
 
 void eval_main(void)
 {
-  int len = 1;
+  struct sh_arg *old = TT.arg, new = {toys.argv, toys.optc+1};
   char *s;
 
-  sh_run(s = merge_args("", toys.optc+1, toys.argv, " ", &len, ""));
+  TT.arg = &new;
+  s = expand_one_arg("\"$*\"", SEMI_IFS, 0);
+  TT.arg = old;
+  sh_run(s);
   free(s);
 }
 
@@ -2699,7 +2743,7 @@ void exec_main(void)
   // exec, handling -acl
   cc = *toys.optargs;
   if (TT.exec.a || FLAG(l))
-    *toys.optargs = xmprintf("%s%s", FLAG(l)?"-":"", TT.exec.a?TT.exec.a:cc);
+    *toys.optargs = xmprintf("%s%s", FLAG(l) ? "-" : "", TT.exec.a ? : cc);
   if (strchr(cc, '/')) execve(cc, toys.optargs, env);
   else for (sl = find_in_path(pp?:_PATH_DEFPATH, cc); sl; free(llist_pop(&sl)))
     execve(sl->str, toys.optargs, env);
