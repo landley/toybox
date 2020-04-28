@@ -89,8 +89,8 @@ if [ $$ -eq 1 ]; then
   ifconfig lo 127.0.0.1
   ifconfig eth0 10.0.2.15
   route add default gw 10.0.2.2
-  [ "$(date +%s)" -lt 1000 ] && rdate 10.0.2.2 # Ask QEMU what time it is
-  [ "$(date +%s)" -lt 10000000 ] && ntpd -nq -p north-america.pool.ntp.org
+  [ "$(date +%s)" -lt 1000 ] && timeout 2 sntp -sq 10.0.2.2 # Ask host
+  [ "$(date +%s)" -lt 10000000 ] && sntp -sq time.google.com
 
   # Run expansion scripts (if any)
   for i in $(/etc/rc/* | sort); do [ -e "$i" ] && . $i; done
@@ -115,7 +115,8 @@ EOF
 echo -e 'root:x:0:\nguest:x:500:\nnobody:x:65534:' > "$ROOT"/etc/group || exit 1
 
 announce toybox
-make clean $([ -z .config ] && echo defconfig || echo silentoldconfig) &&
+[ -e .config ] && CONF=silentoldconfig || unset CONF
+make clean ${CONF:-defconfig KCONFIG_ALLCONFIG=<(echo $'CONFIG_SH=y\nCONFIG_ROUTE=y')} &&
 LDFLAGS=--static PREFIX="$ROOT" make toybox install || exit 1
 
 if [ -z "$LINUX" ] || [ ! -d "$LINUX/kernel" ]; then
@@ -202,7 +203,7 @@ else
     echo "# CONFIG_EMBEDDED is not set"
 
     # Expand list of =y symbols, first generic then architecture-specific
-    for i in EARLY_PRINTK,BINFMT_ELF,BINFMT_SCRIPT,NO_HZ,HIGH_RES_TIMERS,BLK_DEV,BLK_DEV_INITRD,RD_GZIP,BLK_DEV_LOOP,EXT4_FS,EXT4_USE_FOR_EXT2,VFAT_FS,FAT_DEFAULT_UTF8,MISC_FILESYSTEMS,SQUASHFS,SQUASHFS_XATTR,SQUASHFS_ZLIB,DEVTMPFS,DEVTMPFS_MOUNT,TMPFS,TMPFS_POSIX_ACL,NET,PACKET,UNIX,INET,IPV6,NETDEVICES,NET_CORE,NETCONSOLE,ETHERNET $KCONF ; do
+    for i in EARLY_PRINTK,BINFMT_ELF,BINFMT_SCRIPT,NO_HZ,HIGH_RES_TIMERS,BLK_DEV,BLK_DEV_INITRD,RD_GZIP,BLK_DEV_LOOP,EXT4_FS,EXT4_USE_FOR_EXT2,VFAT_FS,FAT_DEFAULT_UTF8,MISC_FILESYSTEMS,SQUASHFS,SQUASHFS_XATTR,SQUASHFS_ZLIB,DEVTMPFS,DEVTMPFS_MOUNT,TMPFS,TMPFS_POSIX_ACL,NET,PACKET,UNIX,INET,IPV6,NETDEVICES,NET_CORE,NETCONSOLE,ETHERNET,COMPAT_32BIT_TIME $KCONF ; do
       echo "# architecture ${X:-independent}"
       sed -E '/^$/d;s/([^,]*)($|,)/CONFIG_\1=y\n/g' <<< "$i"
       X=specific
