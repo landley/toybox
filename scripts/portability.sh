@@ -1,6 +1,6 @@
 # sourced to find alternate names for things
 
-source configure
+. ./configure
 
 if [ -z "$(command -v "${CROSS_COMPILE}${CC}")" ]
 then

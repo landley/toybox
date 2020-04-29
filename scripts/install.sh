@@ -1,8 +1,8 @@
-#!/bin/bash
+#!/bin/sh
 
 # Grab default values for $CFLAGS and such.
 
-source ./configure
+. ./configure
 
 [ -z "$PREFIX" ] && PREFIX="/usr/toybox"
 
@@ -12,19 +12,19 @@ LONG_PATH=""
 while [ ! -z "$1" ]
 do
   # Create symlinks instead of hardlinks?
-  [ "$1" == "--symlink" ] && LINK_TYPE="-s"
+  [ "$1" = "--symlink" ] && LINK_TYPE="-s"
 
   # Uninstall?
-  [ "$1" == "--uninstall" ] && UNINSTALL=Uninstall
+  [ "$1" = "--uninstall" ] && UNINSTALL=Uninstall
 
   # Delete destination command if it exists?
-  [ "$1" == "--force" ] && DO_FORCE="-f"
+  [ "$1" = "--force" ] && DO_FORCE="-f"
 
   # Use {,usr}/{bin,sbin} paths instead of all files in one directory?
-  [ "$1" == "--long" ] && LONG_PATH="bin/"
+  [ "$1" = "--long" ] && LONG_PATH="bin/"
 
   # Symlink host toolchain binaries to destination to create cross compile $PATH
-  [ "$1" == "--airlock" ] && AIRLOCK=1
+  [ "$1" = "--airlock" ] && AIRLOCK=1
 
   shift
 done
@@ -130,8 +130,7 @@ do
         ln -sf "$j" "$FALLBACK/$i" || exit 1
       fi
 
-      X=$[$X+1]
-      FALLBACK="$PREFIX/fallback-$X"
+      FALLBACK="$PREFIX/fallback-$((X += 1))"
     done
 
     if [ ! -f "$PREFIX/$i" ]

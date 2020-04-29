@@ -1,10 +1,10 @@
-#!/bin/bash
+#!/bin/sh
 
 # This sets environment variables used by scripts/make.sh
 
 # People run ./configure out of habit, so do "defconfig" for them.
 
-if [ "$(basename "$0")" == configure ]
+if [ "${0##*/}" = configure ]
 then
   echo "Assuming you want 'make defconfig', but you should probably check the README."
   make defconfig

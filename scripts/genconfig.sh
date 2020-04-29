@@ -1,11 +1,11 @@
-#!/bin/bash
+#!/bin/sh
 
 # This has to be a separate file from scripts/make.sh so it can be called
 # before menuconfig.  (It's called again from scripts/make.sh just to be sure.)
 
 mkdir -p generated
 
-source scripts/portability.sh
+. scripts/portability.sh
 
 probecc()
 {
@@ -18,8 +18,8 @@ probesymbol()
 {
   probecc $2 2>/dev/null && DEFAULT=y || DEFAULT=n
   rm a.out 2>/dev/null
-  echo -e "config $1\n\tbool" || exit 1
-  echo -e "\tdefault $DEFAULT\n" || exit 1
+  printf 'config %s\n\tbool\n' "$1" || exit 1
+  printf '\tdefault %s\n\n' "$1" || exit 1
 }
 
 probeconfig()
@@ -28,7 +28,7 @@ probeconfig()
   # llvm produces its own really stupid warnings about things that aren't wrong,
   # and although you can turn the warning off, gcc reacts badly to command line
   # arguments it doesn't understand. So probe.
-  [ -z "$(probecc -Wno-string-plus-int <<< \#warn warn 2>&1 | grep string-plus-int)" ] &&
+  [ -z "$(echo '#warn' | probecc -Wno-string-plus-int warn 2>&1 | grep string-plus-int)" ] &&
     echo -Wno-string-plus-int >> generated/cflags
 
   # Probe for container support on target
@@ -92,7 +92,7 @@ EOF
     #include <unistd.h>
     int main(int argc, char *argv[]) { return fork(); }
 EOF
-  echo -e '\tdepends on !TOYBOX_FORCE_NOMMU'
+  printf '\tdepends on !TOYBOX_FORCE_NOMMU\n'
 
   probesymbol TOYBOX_PRLIMIT << EOF
     #include <sys/types.h>
@@ -149,16 +149,17 @@ PENDING=
 toys toys/*/*.c | (
 while IFS=":" read FILE NAME
 do
-  [ "$NAME" == help ] && continue
-  [ "$NAME" == install ] && continue
-  echo -e "$NAME: $FILE *.[ch] lib/*.[ch]\n\tscripts/single.sh $NAME\n"
-  echo -e "test_$NAME:\n\tscripts/test.sh $NAME\n"
-  [ "${FILE/pending//}" != "$FILE" ] &&
+  [ "$NAME" = help ] && continue
+  [ "$NAME" = install ] && continue
+  printf '%s: %s *.[ch] lib/*.[ch]\n\tscripts/single.sh %s\n\n' \
+    "$NAME" "$FILE" "$NAME"
+  printf 'test_%s:\n\tscripts/test.sh %s\n\n' "$NAME" "$NAME"
+  [ "${FILE#*pending}" != "$FILE" ] &&
     PENDING="$PENDING $NAME" ||
     WORKING="$WORKING $NAME"
 done &&
-echo -e "clean::\n\t@rm -f $WORKING $PENDING" &&
-echo -e "list:\n\t@echo $(echo $WORKING | tr ' ' '\n' | sort | xargs)" &&
-echo -e "list_pending:\n\t@echo $(echo $PENDING | tr ' ' '\n' | sort | xargs)" &&
-echo -e ".PHONY: $WORKING $PENDING" | $SED 's/ \([^ ]\)/ test_\1/g'
+printf 'clean::\n\t@rm -f %s %s\n' "$WORKING" "$PENDING" &&
+printf 'list:\n\t@echo %s\n' "$(echo $WORKING | tr ' ' '\n' | sort | xargs)" &&
+printf 'list_pending:\n\t@echo %s\n' "$(echo $WORKING | tr ' ' '\n' | sort | xargs)" &&
+echo ".PHONY: $WORKING $PENDING" | $SED 's/ \([^ ]\)/ test_\1/g'
 ) > .singlemake
