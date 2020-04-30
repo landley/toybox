@@ -123,6 +123,7 @@ if [ -z "$LINUX" ] || [ ! -d "$LINUX/kernel" ]; then
   echo 'No $LINUX directory, kernel build skipped.'
 else
   # Which architecture are we building a kernel for?
+  LINUX="$(realpath "$LINUX")"
   [ -z "$TARGET" ] && TARGET="${CROSS_BASE/-*/}"
   [ -z "$TARGET" ] && TARGET="$(uname -m)"
 

@@ -42,6 +42,7 @@ do_test()
     C="$(which $CMDNAME 2>/dev/null)"
     [ -z "$C" ] && "C=$CMDNAME"
   fi
+  C="$(realpath "$C")"
 
   . "$1"
 }
