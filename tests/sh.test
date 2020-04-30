@@ -39,24 +39,30 @@ testing '-c arg split' \
 testing '-c arg count' "$SH -c 'echo \$#' 9 8 7 6 1 2 3 4" "7\n" "" ""
 testing "exec3" '$C -c "{ exec readlink /proc/self/fd/0;} < /proc/self/exe"' \
   "$(readlink -f $C)\n" "" ""
+testing 'arg shift' "$SH -c '"'for i in "" 2 1 1 1; do echo $? $1; shift $i; done'"' one two three four five" \
+  "0 two\n0 three\n0 five\n0\n1\n" "" ""
+
+
 
 testing 'exec exitval' "$SH -c 'exec echo hello' && echo \$?" "hello\n0\n" "" ""
 testing 'simple script' '$SH input' 'input\n' 'echo $0' ''
 testing 'simple script2' '$SH ./input two;echo $?' './input+two\n42\n' \
   '\necho $0+$1\n\nexit 42' ''
-testing 'shift' "$SH -c '"'for i in "" 2 1 1 1; do echo $? $1; shift $i; done'"' one two three four five" \
-  "0 two\n0 three\n0 five\n0\n1\n" "" ""
 
 mkdir sub
 echo echo hello > sub/script
-testing 'simple script in PATH' "PATH='$PWD/sub:$PATH' $SH script" \
+testing 'simple script in $PATH' "PATH='$PWD/sub:$PATH' $SH script" \
   'hello\n' '' ''
 rm -rf sub
 
 testing "script file" "chmod +x input; ./input" "hello\n" "#!$C\necho hello" ""
 
-testing 'IFS $*' "sh -c 'IFS=xy; echo \"\$*\"' one two tyree" "twoxtyree\n" \
+testing 'IFS $*' "$SH -c 'IFS=xy; echo \"\$*\"' one two tyree" "twoxtyree\n" \
   "" ""
+
+testing 'default exports' \
+  "env -i \"$(which $SH)\" --noprofile -norc -c env | sort" \
+  "PWD=$(pwd)\nSHLVL=1\n_=$(which env)\n" "" ""
 
 # Change EVAL to call sh -c for us, using "bash" explicitly for the host.
 export EVAL="$SH -c"
@@ -96,6 +102,8 @@ testing "redir10" 'echo hello 3<&3' "hello\n" "" ""
 testing "redir11" 'if :;then echo one;fi {abc}<input; cat <&$abc' \
   "one\npotato\n" "potato\n" ""
 rm -f out out2 ./-abc
+
+# expansion
 
 testing "tilde expansion" "echo ~" "$HOME\n" "" ""
 testing "tilde2" "echo ~/dir" "$HOME/dir\n" "" ""
