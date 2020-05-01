@@ -80,8 +80,7 @@ root:
 	scripts/mkroot.sh $(MAKEFLAGS)
 
 run_root:
-	C=$$(basename "$$CROSS_COMPILE" | sed 's/-.*//'); \
-        cd root/"$${C:-host}" && ./qemu-*.sh $(MAKEFLAGS) || exit 1
+	cd root/"$${CROSS:-host}" && ./qemu-*.sh
 
 help::
 	@cat scripts/help.txt

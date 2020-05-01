@@ -20,7 +20,8 @@
   root            - Build/package root filesystem under root/ controlled by
                     CROSS= cross compile (see scripts/mcm-buildall.sh)
                     LINUX= build kernel from this source, configured for qemu
+  run_root        - boot toyroot under qemu, I.E. cd root/$CROSS && ./qemu-*.sh
 
 example: make defconfig toybox install CFLAGS="--static" CROSS_COMPILE=armv5l-
-or     : make root CROSS=sh4 LINUX=~/linux && (cd root/sh4; ./qemu-*.sh)
+or     : make root run_root CROSS=sh4 LINUX=~/linux
 
