@@ -37,49 +37,46 @@ void xclearenv(void)
 // returns pointer to new name=value environment string, NULL if none
 char *xsetenv(char *name, char *val)
 {
-  unsigned i, len, ec;
+  unsigned i, j = 0, len;
   char *new;
 
   // If we haven't snapshot initial environment state yet, do so now.
   if (!toys.envc) {
+
     // envc is size +1 so even if env empty it's nonzero after initialization
     while (environ[toys.envc++]);
-    memcpy(new = xmalloc(((toys.envc|0xff)+1)*sizeof(char *)), environ,
+    memcpy(new = xmalloc(((toys.envc|31)+1)*sizeof(char *)), environ,
       toys.envc*sizeof(char *));
     environ = (void *)new;
   }
 
-  new = strchr(name, '=');
-  if (new) {
+  if (!(new = strchr(name, '='))) {
+    len = strlen(name);
+    if (val) new = xmprintf("%s=%s", name, val);
+  } else {
     len = new-name;
     if (val) error_exit("xsetenv %s to %s", name, val);
     new = name;
-  } else {
-    len = strlen(name);
-    if (val) new = xmprintf("%s=%s", name, val);
   }
 
-  ec = toys.envc-1;  // compensate for size +1 above
   for (i = 0; environ[i]; i++) {
     // Drop old entry, freeing as appropriate. Assumes no duplicates.
     if (!memcmp(name, environ[i], len) && environ[i][len]=='=') {
-      if (i>=ec) free(environ[i]);
-      else {
-        // move old entries down, add at end of old data
-        toys.envc = ec--;
-        for (; new ? i<ec : !!environ[i]; i++) environ[i] = environ[i+1];
-        i = ec;
-      }
-      break;
+      if (i<toys.envc-1) toys.envc--;
+      else free(environ[i]);
+      j++;
     }
+
+    // move data down to fill hole, including null terminator
+    if (j && !(environ[i] = environ[i+1])) break;
   }
 
   if (!new) return 0;
 
   // resize and null terminate if expanding
-  if (!environ[i]) {
+  if (!j && !environ[i]) {
     len = i+1;
-    if (!(len&255)) environ = xrealloc(environ, (len+256)*sizeof(char *));
+    if (!(len&31)) environ = xrealloc(environ, (len+32)*sizeof(char *));
     environ[len] = 0;
   }
 

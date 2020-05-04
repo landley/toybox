@@ -42,7 +42,10 @@ testing "exec3" '$C -c "{ exec readlink /proc/self/fd/0;} < /proc/self/exe"' \
 testing 'arg shift' "$SH -c '"'for i in "" 2 1 1 1; do echo $? $1; shift $i; done'"' one two three four five" \
   "0 two\n0 three\n0 five\n0\n1\n" "" ""
 
-
+# The bash man page is lying when it says $_ starts with an absolute path.
+ln -s $(which $SH) bash
+testing 'non-absolute $_' "./bash -c 'echo \$_'" './bash\n' '' ''
+rm bash
 
 testing 'exec exitval' "$SH -c 'exec echo hello' && echo \$?" "hello\n0\n" "" ""
 testing 'simple script' '$SH input' 'input\n' 'echo $0' ''
@@ -61,7 +64,7 @@ testing 'IFS $*' "$SH -c 'IFS=xy; echo \"\$*\"' one two tyree" "twoxtyree\n" \
   "" ""
 
 testing 'default exports' \
-  "env -i \"$(which $SH)\" --noprofile -norc -c env | sort" \
+  "env -i \"$(which $SH)\" --noprofile --norc -c env | sort" \
   "PWD=$(pwd)\nSHLVL=1\n_=$(which env)\n" "" ""
 
 # Change EVAL to call sh -c for us, using "bash" explicitly for the host.

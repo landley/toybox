@@ -224,7 +224,7 @@ void xexec(char **argv)
 //           If -1, replace with pipe handle connected to stdin/stdout.
 //           NULL treated as {0, 1}, I.E. leave stdin/stdout as is
 // return: pid of child process
-pid_t xpopen_setup(char **argv, int *pipes, void (*callback)(void))
+pid_t xpopen_setup(char **argv, int *pipes, void (*callback)(char **argv))
 {
   int cestnepasun[4], pid;
 
@@ -269,7 +269,7 @@ pid_t xpopen_setup(char **argv, int *pipes, void (*callback)(void))
         close(pipes[1]);
       }
     }
-    if (callback) callback();
+    if (callback) callback(argv);
     if (argv) xexec(argv);
 
     // In fork() case, force recursion because we know it's us.
@@ -287,6 +287,7 @@ pid_t xpopen_setup(char **argv, int *pipes, void (*callback)(void))
       // setting high bit of argv[0][0] to let new process know
       **toys.argv |= 0x80;
       execv(s, toys.argv);
+      if ((s = getenv("_"))) execv(s, toys.argv);
       perror_msg_raw(s);
 
       _exit(127);

@@ -168,7 +168,7 @@ GLOBALS(
 
   // keep lineno here, we use it to work around a compiler bug
   long lineno;
-  char *ifs;
+  char *ifs, *isexec;
   struct double_list functions;
   unsigned options, jobcnt;
   int hfd, pid, varslen, shift, cdcount;
@@ -401,6 +401,19 @@ static struct sh_vars *setvar(char *s)
   return var;
 }
 
+static void unsetvar(char *name)
+{
+  struct sh_vars *var = findvar(name);
+  int ii = var-TT.vars;
+
+  if (!var) return;
+  if (var->flags&VAR_GLOBAL) xunsetenv(name);
+  else free(var->str);
+
+  memmove(TT.vars+ii, TT.vars+ii+1, TT.varslen-ii);
+  TT.varslen--;
+}
+
 static struct sh_vars *setvarval(char *name, char *val)
 {
   return setvar(xmprintf("%s=%s", name, val));
@@ -425,21 +438,6 @@ static char *getvar(char *s)
   }
 
   return varend(var->str)+1;
-}
-
-static void unsetvar(char *name)
-{
-  struct sh_vars *var = findvar(name);
-  int ii;
-
-  if (!var) return;
-  if (var->flags&VAR_GLOBAL) {
-    *varend(var->str) = 0;
-    xunsetenv(var->str);
-  } else free(var->str);
-
-  ii = var-TT.vars;
-  memmove(TT.vars+ii, TT.vars+ii+1, TT.varslen-ii);
 }
 
 // malloc declare -x "escaped string"
@@ -641,7 +639,7 @@ if (BUGBUG) dprintf(255, "%d schedule close %d\n", getpid(), to);
 }
 
 // TODO: waitpid(WNOHANG) to clean up zombies and catch background& ending
-static void subshell_callback(void)
+static void subshell_callback(char **argv)
 {
   char *s;
 
@@ -674,7 +672,7 @@ if (BUGBUG) dprintf(255, "run_subshell %.*s\n", len, str);
 
   // On nommu vfork, exec /proc/self/exe, and pipe state data to ourselves.
   } else {
-    int pipes[2], i;
+    int pipes[2], i, c;
 
     // open pipe to child
     if (pipe(pipes) || 254 != dup2(pipes[0], 254)) return 1;
@@ -686,7 +684,8 @@ if (BUGBUG) dprintf(255, "run_subshell %.*s\n", len, str);
 
     // free entries added to end of environment by callback (shared heap)
     for (i = 0; environ[i]; i++) {
-      if (!ispunct(environ[i][0])) continue;
+      c = environ[i][0];
+      if (c == '_' || !ispunct(c)) continue;
       free(environ[i]);
       environ[i] = 0;
     }
@@ -790,8 +789,6 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
   int ii = 0, dd, jj, kk, ll, oo = 0, nodel;
 
 if (BUGBUG) dprintf(255, "expand %s\n", str);
-
-// TODO ls -l /proc/$$/fd
 
   // Tilde expansion
   if (!(flags&NO_TILDE) && *str == '~') {
@@ -1467,13 +1464,33 @@ notfd:
   return pp;
 }
 
+static void shexec(char *cmd, char **argv)
+{
+  xsetenv(xmprintf("_=%s", cmd), 0);
+  execve(cmd, argv, environ);
+  if (errno == ENOEXEC) run_subshell("source \"$_\"", 11);
+}
+
+// Call binary, or run via child shell
+static void sh_exec(char **argv)
+{
+  char *pp = getvar("PATH" ? : _PATH_DEFPATH), *cc = TT.isexec ? : *argv;
+  struct string_list *sl;
+
+  if (strchr(cc, '/')) shexec(cc, argv);
+  else for (sl = find_in_path(pp, cc); sl; free(llist_pop(&sl)))
+    shexec(sl->str, argv);
+
+  if (!TT.isexec) _exit(127);
+}
+
 // Execute a single command
 static struct sh_process *run_command(struct sh_arg *arg)
 {
+  char *s, *ss = 0, *sss, **env = 0, **old = environ;
+  int envlen, jj, kk, ll;
   struct sh_process *pp;
   struct toy_list *tl;
-  int envlen, j;
-  char *s;
 
 if (BUGBUG) dprintf(255, "run_command %s\n", arg->v[0]);
 
@@ -1489,14 +1506,36 @@ if (BUGBUG) dprintf(255, "run_command %s\n", arg->v[0]);
 if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); for (i=0; i<pp->arg.c; i++) dprintf(255, "'%s' ", pp->arg.v[i]); dprintf(255, "\n"); }
   // perform assignments locally if there's no command
   if (envlen == arg->c) {
-    for (j = 0; j<envlen; j++) {
-      if (!(s = expand_one_arg(arg->v[j], NO_PATH|NO_SPLIT, 0))) break;
-      if (s == arg->v[j]) s = xstrdup(s);
+    for (jj = 0; jj<envlen; jj++) {
+      if (!(s = expand_one_arg(arg->v[jj], NO_PATH|NO_SPLIT, 0))) break;
+      if (s == arg->v[jj]) s = xstrdup(s);
       setvar(s);
     }
+    goto out;
+  }
+
+  if (envlen) {
+    for (kk = 0; environ[kk]; kk++);
+    env = xmalloc(sizeof(char *)*(kk+33));
+    memcpy(env, environ, sizeof(char *)*(kk+1));
+    environ = env;
+
+    // assign leading environment variables
+    for (jj = 0; jj<envlen; jj++) {
+      if (!(sss = expand_one_arg(arg->v[jj], NO_PATH|NO_SPLIT, &pp->delete)))
+        break;
+      for (ll = 0; ll<kk; ll++) {
+        for (s = sss, ss = environ[ll]; *s == *ss && *s != '='; s++, ss++);
+        if (*s != '=') continue;
+        environ[ll] = sss;
+        break;
+      }
+      if (ll == kk) array_add(&environ, kk++, sss);
+    }
+  } else jj = 0;
 
   // Do nothing if nothing to do
-  } else if (pp->exit || !pp->arg.v);
+  if (jj != envlen || pp->exit || !pp->arg.v);
 //  else if (!strcmp(*pp->arg.v, "(("))
 // TODO: handle ((math)) currently totally broken
 // TODO: call functions()
@@ -1505,11 +1544,11 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
     && (tl->flags & (TOYFLAG_NOFORK|TOYFLAG_MAYFORK)))
   {
     sigjmp_buf rebound;
-    char temp[j = offsetof(struct toy_context, rebound)];
+    char temp[jj = offsetof(struct toy_context, rebound)];
 
     // This fakes lots of what toybox_main() does.
-    memcpy(&temp, &toys, j);
-    memset(&toys, 0, j);
+    memcpy(&temp, &toys, jj);
+    memset(&toys, 0, jj);
 
     // If we give the union in TT a name, the compiler complains
     // "declaration does not declare anything", but if we DON'T give it a name
@@ -1529,45 +1568,16 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
     pp->exit = toys.exitval;
     if (toys.optargs != toys.argv+1) free(toys.optargs);
     if (toys.old_umask) umask(toys.old_umask);
-    memcpy(&toys, &temp, j);
-  } else {
-    char **env = 0, **old = environ, *ss = 0, *sss;
-    int kk = 0, ll, mm = -1;
+    memcpy(&toys, &temp, jj);
+  } else if (-1==(pp->pid = xpopen_setup(pp->arg.v+envlen, 0, sh_exec)))
+    perror_msg("%s: vfork", *pp->arg.v);
 
-    // We don't allocate/free any array members, just the array
-    if (environ) while (environ[kk]) {
-      if (strncmp(environ[kk], "SHLVL=", 6)) mm = kk;
-      kk++;
-    }
-    if (kk) {
-      env = xmalloc(sizeof(char *)*(kk+33));
-      memcpy(env, environ, sizeof(char *)*(kk+1));
-      if (mm != -1) env[mm] = xmprintf("SHLVL=%d", atoi(env[mm]+6)+1);
-      environ = env;
-    }
+  // Restore environment variables
+  environ = old;
+  free(env);
 
-    // assign leading environment variables
-    for (j = 0; j<envlen; j++) {
-      if (!(sss = expand_one_arg(arg->v[j], NO_PATH|NO_SPLIT, &pp->delete)))
-        break;
-      for (ll = 0; ll<kk; ll++) {
-        for (s = sss, ss = env[ll]; *s == *ss && *s != '='; s++, ss++);
-        if (*s != '=') continue;
-        env[ll] = sss;
-        break;
-      }
-      if (ll == kk) array_add(&environ, kk++, sss);
-    }
-
-    if (j == envlen && -1 == (pp->pid = xpopen_both(pp->arg.v, 0)))
-      perror_msg("%s: vfork", *pp->arg.v);
-
-    // Restore environment variables
-    environ = old;
-    if (mm != -1) free(env[mm]);
-    free(env);
-  }
-
+out:
+  setvarval("_", (envlen == arg->c) ? "" : s);
   // cleanup process
   unredirect(pp->urd);
 
@@ -2201,7 +2211,7 @@ dprintf(2, "TODO skipped init for((;;)), need math parser\n");
           } else expand_arg(&blk->farg, "\"$@\"", 0, &blk->fdelete);
         }
 
-// TODO case/esac [[/]] (/) ((/)) function/}
+// TODO case/esac [[/]] ((/)) function/}
 
 /*
 TODO: a | b | c needs subshell for builtins?
@@ -2358,7 +2368,7 @@ static struct sh_vars *initlocal(char *name, char *val)
   return addvar(xmprintf("%s=%s", name, val ? val : ""));
 }
 
-// export malloced name=value string
+// export existing "name" or assign/export name=value string (making new copy)
 static void export(char *str)
 {
   struct sh_vars *shv = 0;
@@ -2366,7 +2376,7 @@ static void export(char *str)
 
   // Make sure variable exists and is updated
   if (strchr(str, '=')) shv = setvar(xstrdup(str));
-  else if (!findvar(str)) shv = addvar(str = xmprintf("%s=", str));
+  else if (!(shv = findvar(str))) shv = addvar(str = xmprintf("%s=", str));
   if (!shv || (shv->flags&VAR_GLOBAL)) return;
 
   // Resolve local magic for export
@@ -2433,6 +2443,7 @@ static void subshell_setup(void)
 
   // Ensure environ copied and toys.envc set, and clean out illegal entries
   TT.ifs = " \t\n";
+  xsetenv("", 0);
   for (to = from = pid = ppid = zpid = 0; (s = environ[from]); from++) {
 
     // If nommu subshell gets handoff
@@ -2479,9 +2490,13 @@ static void subshell_setup(void)
   s = xsetenv("_", s);
   if (!findvar(s)) addvar(s)->flags = VAR_GLOBAL;
   free(ss);
-  if (!getvar("SHLVL")) {
-    s = xsetenv("SHLVL", "1");
-    if (!findvar(s)) addvar(s)->flags = VAR_GLOBAL;
+  if (!(ss = getvar("SHLVL"))) export("SHLVL=1");
+  else {
+    char buf[16];
+
+    sprintf(buf, "%u", atoi(ss+6)+1);
+    xsetenv("SHLVL", buf);
+    export("SHLVL");
   }
 
 //TODO indexed array,associative array,integer,local,nameref,readonly,uppercase
@@ -2732,8 +2747,7 @@ void eval_main(void)
 
 void exec_main(void)
 {
-  char *ee[1] = {0}, **env = FLAG(c) ? ee : environ, *cc, *pp = getvar("PATH");
-  struct string_list *sl;
+  char *ee[1] = {0}, **old = environ;
 
   // discard redirects and return if nothing to exec
   free(TT.pp->urd);
@@ -2741,16 +2755,17 @@ void exec_main(void)
   if (!toys.optc) return;
 
   // exec, handling -acl
-  cc = *toys.optargs;
+  TT.isexec = *toys.optargs;
+  if (FLAG(c)) environ = ee;
   if (TT.exec.a || FLAG(l))
-    *toys.optargs = xmprintf("%s%s", FLAG(l) ? "-" : "", TT.exec.a ? : cc);
-  if (strchr(cc, '/')) execve(cc, toys.optargs, env);
-  else for (sl = find_in_path(pp?:_PATH_DEFPATH, cc); sl; free(llist_pop(&sl)))
-    execve(sl->str, toys.optargs, env);
+    *toys.optargs = xmprintf("%s%s", FLAG(l) ? "-" : "", TT.exec.a?:TT.isexec);
+  sh_exec(toys.optargs);
 
   // report error (usually ENOENT) and return
-  perror_msg("%s", cc);
+  perror_msg("%s", TT.isexec);
   toys.exitval = 127;
+  environ = old;
+  TT.isexec = 0;
 }
 
 void shift_main(void)
