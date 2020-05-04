@@ -1477,10 +1477,12 @@ static void sh_exec(char **argv)
   char *pp = getvar("PATH" ? : _PATH_DEFPATH), *cc = TT.isexec ? : *argv;
   struct string_list *sl;
 
+  if (getpid() != TT.pid) signal(SIGINT, SIG_DFL);
   if (strchr(cc, '/')) shexec(cc, argv);
   else for (sl = find_in_path(pp, cc); sl; free(llist_pop(&sl)))
     shexec(sl->str, argv);
 
+  perror_msg("%s", *argv);
   if (!TT.isexec) _exit(127);
 }
 
@@ -2566,6 +2568,9 @@ if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); if (fd == -1) fd = open("/dev/c
   if (TT.options&OPT_I) {
     if (!getvar("PS1")) setvarval("PS1", getpid() ? "\\$ " : "# ");
     // TODO Set up signal handlers and grab control of this tty.
+    // ^C SIGINT ^\ SIGQUIT ^Z SIGTSTP SIGTTIN SIGTTOU SIGCHLD
+    // setsid(), setpgid(), tcsetpgrp()...
+    xsignal(SIGINT, SIG_IGN);
   }
 
   memset(&scratch, 0, sizeof(scratch));
@@ -2573,16 +2578,14 @@ if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); if (fd == -1) fd = open("/dev/c
 // TODO unify fmemopen() here with sh_run
   if (cc) f = fmemopen(cc, strlen(cc), "r");
   else if (TT.options&OPT_S) f = stdin;
-  else {
 // TODO: syntax_err should exit from shell scripts
-    if (!(f = fopen(*toys.optargs, "r"))) {
-      char *pp = getvar("PATH") ? : _PATH_DEFPATH;
+  else if (!(f = fopen(*toys.optargs, "r"))) {
+    char *pp = getvar("PATH") ? : _PATH_DEFPATH;
 
-      for (sl = find_in_path(pp, *toys.optargs); sl; free(llist_pop(&sl)))
-        if ((f = fopen(sl->str, "r"))) break;
-      if (sl) llist_traverse(sl->next, free);
-      else perror_exit_raw(*toys.optargs);
-    }
+    for (sl = find_in_path(pp, *toys.optargs); sl; free(llist_pop(&sl)))
+      if ((f = fopen(sl->str, "r"))) break;
+    if (sl) llist_traverse(sl->next, free);
+    else perror_exit_raw(*toys.optargs);
   }
 
   // Loop prompting and reading lines
@@ -2592,7 +2595,17 @@ if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); if (fd == -1) fd = open("/dev/c
       do_prompt(getvar(prompt ? "PS2" : "PS1"));
 
 // TODO line editing/history, should set $COLUMNS $LINES and sigwinch update
-    if (!(new = xgetline(f, 0))) break;
+    if (!(new = xgetline(f, 0))) {
+// TODO: after first EINTR getline returns always closed?
+      if (errno != EINTR) break;
+      free_function(&scratch);
+      prompt = 0;
+      if (f != stdin) break;
+      continue;
+// TODO: ctrl-z during script read having already read partial line,
+// SIGSTOP and SIGTSTP need need SA_RESTART, but child proc should stop
+    }
+
 if (BUGBUG) dprintf(255, "line=%s\n", new);
     if (sl) {
       if (*new == 0x7f) error_exit("'%s' is ELF", sl->str);
@@ -2767,12 +2780,12 @@ void exec_main(void)
   if (TT.exec.a || FLAG(l))
     *toys.optargs = xmprintf("%s%s", FLAG(l) ? "-" : "", TT.exec.a?:TT.isexec);
   sh_exec(toys.optargs);
+  TT.isexec = 0;
 
   // report error (usually ENOENT) and return
   perror_msg("%s", TT.isexec);
   toys.exitval = 127;
   environ = old;
-  TT.isexec = 0;
 }
 
 void shift_main(void)
