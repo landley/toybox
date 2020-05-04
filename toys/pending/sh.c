@@ -2368,6 +2368,11 @@ static struct sh_vars *initlocal(char *name, char *val)
   return addvar(xmprintf("%s=%s", name, val ? val : ""));
 }
 
+static struct sh_vars *initlocaldef(char *name, char *val, char *def)
+{
+  return initlocal(name, (!val || !*val) ? def : val);
+}
+
 // export existing "name" or assign/export name=value string (making new copy)
 static void export(char *str)
 {
@@ -2404,10 +2409,10 @@ static void unexport(char *str)
 // init locals, sanitize environment, handle nommu subshell handoff
 static void subshell_setup(void)
 {
-  struct passwd *pw = getpwuid(getuid());
-  int ii, to, from, pid, ppid, zpid, myppid = getppid(), len;
+  int ii, to, from, pid, ppid, zpid, myppid = getppid(), len, uid = getuid();
+  struct passwd *pw = getpwuid(uid);
   char *s, *ss, *magic[] = {"SECONDS","RANDOM","LINENO","GROUPS"},
-    *readonly[] = {xmprintf("EUID=%d", geteuid()), xmprintf("UID=%d", getuid()),
+    *readonly[] = {xmprintf("EUID=%d", geteuid()), xmprintf("UID=%d", uid),
                    xmprintf("PPID=%d", myppid)};
   struct stat st;
   struct utsname uu;
@@ -2423,10 +2428,11 @@ static void subshell_setup(void)
   // Add local variables that can be overwritten
   initlocal("PATH", _PATH_DEFPATH);
   if (!pw) pw = (void *)toybuf; // first use, so still zeroed
-  initlocal("HOME", *pw->pw_dir ? pw->pw_dir : "/");
-  initlocal("SHELL", pw->pw_shell);
-  initlocal("USER", pw->pw_name);
-  initlocal("LOGNAME", pw->pw_name);
+  sprintf(toybuf+1024, "%u", uid);
+  initlocaldef("HOME", pw->pw_dir, "/");
+  initlocaldef("SHELL", pw->pw_shell, "/bin/sh");
+  initlocaldef("USER", pw->pw_name, toybuf+1024);
+  initlocaldef("LOGNAME", pw->pw_name, toybuf+1024);
   gethostname(toybuf, sizeof(toybuf)-1);
   initlocal("HOSTNAME", toybuf);
   uname(&uu);
@@ -2437,8 +2443,8 @@ static void subshell_setup(void)
   // sprintf(toybuf, "%s-toybox", TOYBOX_VERSION);
   // initlocal("BASH_VERSION", toybuf);
   initlocal("OPTERR", "1"); // TODO: test if already exported?
-  if (readlink0("/proc/self/exe", toybuf, sizeof(toybuf)))
-    initlocal("BASH", toybuf);
+  if (readlink0("/proc/self/exe", s = toybuf, sizeof(toybuf))||(s=getenv("_")))
+    initlocal("BASH", s);
   initlocal("PS2", "> ");
 
   // Ensure environ copied and toys.envc set, and clean out illegal entries
@@ -2545,7 +2551,8 @@ void sh_main(void)
 
   // if (!FLAG(noprofile)) { }
 
-if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); if (fd == -1) fd = open("/dev/console", O_RDWR); dup2(fd, 255); close(fd); }
+if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); if (fd == -1) fd = open("/dev/console", O_RDWR); if (fd == -1) dup2(2, 255); else dup2(fd, 255); close(fd); }
+
   // Is this an interactive shell?
   if (FLAG(s) || (!FLAG(c) && !toys.optc)) TT.options |= OPT_S;
   if (FLAG(i) || (!FLAG(c) && (TT.options&OPT_S) && isatty(0)))
