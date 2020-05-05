@@ -1666,7 +1666,7 @@ static int parse_line(char *line, struct sh_function *sp)
       arg += 1+pl->here;
 
       // Match unquoted EOF.
-      for (s = line, end = arg->v[arg->c]; *s && *end; s++, i++) {
+      for (s = line, end = arg->v[arg->c]; *s && *end; s++) {
         s += strspn(s, "\\\"'");
         if (*s != *end) break;
       }
@@ -2780,10 +2780,10 @@ void exec_main(void)
   if (TT.exec.a || FLAG(l))
     *toys.optargs = xmprintf("%s%s", FLAG(l) ? "-" : "", TT.exec.a?:TT.isexec);
   sh_exec(toys.optargs);
-  TT.isexec = 0;
 
   // report error (usually ENOENT) and return
   perror_msg("%s", TT.isexec);
+  TT.isexec = 0;
   toys.exitval = 127;
   environ = old;
 }
