@@ -1,0 +1,44 @@
+#!/bin/echo Try "scripts/mkroot.sh dropbear"
+
+# Example overlay file, adding dropbear (which requires zlib)
+
+echo === download source
+
+download a4d316c404ff54ca545ea71a27af7dbc29817088 \
+  http://downloads.sf.net/libpng/zlib-1.2.8.tar.gz
+
+download 820ec2b8c869edbcf5ad1138777fc0f54349505c \
+  https://matt.ucc.asn.au/dropbear/releases/dropbear-2019.78.tar.bz2
+
+echo === Native build static zlib
+
+setupfor zlib
+# They keep checking in broken generated files.
+rm -f Makefile zconf.h &&
+CC=${CROSS_COMPILE}cc LD=${CROSS_COMPILE}ld AS=${CROSS_COMPILE}as ./configure &&
+make -j $(nproc) || exit 1
+
+# do _not_ cleanup zlib, we need the files we just built for dropbear
+cd ..
+
+echo === $HOST Native build static dropbear
+
+setupfor dropbear
+# Repeat after me: "autoconf is useless"
+echo 'echo "$@"' > config.sub &&
+ZLIB="$(echo ../zlib*)" &&
+CFLAGS="-I $ZLIB -O2" LDFLAGS="-L $ZLIB" ./configure --enable-static \
+  --host=${CROSS_BASE%-} &&
+sed -i 's@/usr/bin/dbclient@ssh@' options.h &&
+sed -i 's@\(#define NON_INETD_MODE\) 1@\1 0@' default_options.h &&
+make -j $(nproc) PROGRAMS="dropbear dbclient dropbearkey dropbearconvert scp" MULTI=1 SCPPROGRESS=1 &&
+${CROSS_COMPILE}strip dropbearmulti &&
+mkdir -p "$ROOT/bin" &&
+cp dropbearmulti "$ROOT"/bin || exit 1
+for i in "$ROOT"/bin/{ssh,sshd,scp,dropbearkey}
+do
+  ln -s dropbearmulti $i || exit 1
+done
+cleanup
+
+rm -rf zlib-*

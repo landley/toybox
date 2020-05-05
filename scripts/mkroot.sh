@@ -11,7 +11,8 @@ getcross() { X="$(echo "$CCC/$1"-*cross/bin/"$1"*-cc)"; echo "${X%cc}"; }
 
 # assign command line NAME=VALUE args to env vars
 while [ $# -ne 0 ]; do
-  [ "${1/=/}" != "$1" ] && eval "export ${1/=*/}=\"\${1#*=}\"" || PKG="$PKG $i"
+  [ "${1/=/}" != "$1" ] && eval "export ${1/=*/}=\"\${1#*=}\"" ||
+    { [ "$1" != '--' ] && PKG="${PKG:-plumbing} $1"; }
   shift
 done
 
@@ -48,7 +49,7 @@ else
 fi
 echo "Building for ${CROSS:=host}"
 
-: ${OUTPUT:=$TOP/$CROSS}
+: ${OUTPUT:=$TOP/$CROSS} ${PKGDIR:=$PWD/scripts/root}
 [ -z "$ROOT" ] && ROOT="$OUTPUT/fs" && rm -rf "$ROOT"
 MYBUILD="$BUILD/${CROSS_BASE:-host-}tmp"
 rm -rf "$MYBUILD" && mkdir -p "$MYBUILD" || exit 1
@@ -228,7 +229,7 @@ else
 fi
 
 # Build any modules, clean up, and package root filesystem for initramfs.
-for i in $PKG; do announce "$i"; ./$i; done
+for i in $PKG; do announce "$i"; PATH="$PKGDIR:$PATH" source $i; done
 rmdir "$MYBUILD" "$BUILD" 2>/dev/null
 announce "${CROSS_BASE}root.cpio.gz"
 (cd "$ROOT" && find .|cpio -o -H newc|gzip) > "$OUTPUT/$CROSS_BASE"root.cpio.gz
