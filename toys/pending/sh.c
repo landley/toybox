@@ -2,11 +2,14 @@
  *
  * Copyright 2006 Rob Landley <rob@landley.net>
  *
- * The POSIX-2008/SUSv4 spec for this is at:
+ * This shell aims for bash compatibility. The bash man page is at:
+ * http://man7.org/linux/man-pages/man1/bash.1.html
+ *
+ * The POSIX-2008/SUSv4 shell spec is at:
  * http://opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html
  * and http://opengroup.org/onlinepubs/9699919799/utilities/sh.html
  *
- * The first link describes the following shell builtins:
+ * The chap02 link describes the following shell builtins:
  *
  *   break : continue exit
  *   . eval exec export readonly return set shift times trap unset
@@ -16,8 +19,6 @@
  *
  *   cd ulimit umask
  *   alias bg command fc fg getopts hash jobs kill read type unalias wait
- *
- * Things like the bash man page are good to read too.
  *
  * deviations from posix: don't care about $LANG or $LC_ALL
 
