@@ -20,8 +20,9 @@ want the code to be consistent.</p>
 
 <p><h1><a name="building" /><a href="#building">Building Toybox</a></h1></p>
 
-<p>Toybox is configured using the Kconfig language pioneered by the Linux
-kernel, and adopted by many other projects (uClibc, OpenEmbedded, etc).
+<p>Toybox is configured using the
+<a href=https://github.com/torvalds/linux/blob/v2.6.16/Documentation/kbuild/kconfig-language.txt>Kconfig language</a> pioneered by the Linux
+kernel, and adopted by many other projects (buildroot, OpenEmbedded, etc).
 This generates a ".config" file containing the selected options, which
 controls which features are included when compiling toybox.</p>
 
@@ -189,8 +190,8 @@ toys/posix/cat.c only gets included if you have "CAT=y" in ".config".</p></li>
 year.</p></li>
 
 <li><p>Give a URL to the relevant standards document, where applicable.
-(Sample links to SUSv4 and LSB are provided, feel free to link to other
-documentation or standards as appropriate.)</p></li>
+(Sample links to SUSv4, LSB, IETF RFC, and man7.org are provided, feel free to
+link to other documentation or standards as appropriate.)</p></li>
 
 <li><p>Update the USE_YOURCOMMAND(NEWTOY(yourcommand,"blah",0)) line.
 The NEWTOY macro fills out this command's <a href="#toy_list">toy_list</a>
@@ -263,11 +264,13 @@ back off.</p></li>
 
 <a name="headers" /><h2><a href="#headers">Headers.</a></h2>
 
-<p>Commands generally don't have their own headers. If it's common code
-it can live in lib/, if it isn't put it in the command's .c file. (The line
-between implementing multiple commands in a C file via OLDTOY() to share
-infrastructure and moving that shared infrastructure to lib/ is a judgement
-call. Try to figure out which is simplest.)</p>
+<p>Commands are implemented as self-contained .c files, and generally don't
+have their own .h files. If it's common code put it in lib/, and if it's
+something like a local structure definition just put it in the command's .c
+file. If it would only ever be #included from one place, inline it.
+(The line between implementing multiple commands in a C file via OLDTOY()
+to share infrastructure and moving that shared infrastructure to lib/ is a
+judgement call. Try to figure out which is simplest.)</p>
 
 <p>The top level toys.h should #include all the standard (posix) headers
 that any command uses. (Partly this is friendly to ccache and partly this
@@ -281,7 +284,7 @@ or operating systems) should be confined to lib/portability.h and
 lib/portability.c. (There's even some minimal compile-time environment probing
 that writes data to generated/portability.h, see scripts/genconfig.sh.)</p>
 
-<p>Only include linux/*.h headers from individual commands (not from other
+<p>Only include &lt;linux/*.h&gt; headers from individual commands (not from other
 headers), and only if you really need to. Data that varies per architecture
 is a good reason to include a header. If you just need a couple constants
 that haven't changed since the 1990's, it's ok to #define them yourself or
@@ -1370,7 +1373,8 @@ Makefile.
 
 <h2>Directory kconfig/</h2>
 
-<p>Menuconfig infrastructure copied from the Linux kernel.  See the
+<p>Menuconfig infrastructure copied from the Linux kernel a long time ago
+(version 2.6.16).  See the
 Linux kernel's Documentation/kbuild/kconfig-language.txt</p>
 
 <!-- todo
