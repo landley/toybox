@@ -51,6 +51,16 @@ void *llist_pop(void *list)
   return (void *)next;
 }
 
+// Add new node at the beginning of the list.
+void llist_add(struct arg_list **old, void *data)
+{
+  struct arg_list *new = xmalloc(sizeof(struct arg_list));
+
+  new->arg = (char*)data;
+  new->next = *old;
+  *old = new;
+}
+
 // Remove first item from &list and return it
 void *dlist_pop(void *list)
 {
