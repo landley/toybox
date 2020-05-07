@@ -101,6 +101,7 @@ void netcat_main(void)
   TT.W = TT.W ? TT.W*1000 : -1;
   TT.q = TT.q ? TT.q*1000 : -1;
 
+  xsignal(SIGCHLD, SIG_IGN);
   set_alarm(TT.w);
 
   // The argument parsing logic can't make "<2" conditional on other
