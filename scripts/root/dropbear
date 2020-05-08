@@ -28,17 +28,29 @@ setupfor dropbear
 echo 'echo "$@"' > config.sub &&
 ZLIB="$(echo ../zlib*)" &&
 CFLAGS="-I $ZLIB -O2" LDFLAGS="-L $ZLIB" ./configure --enable-static \
-  --host=${CROSS_BASE%-} &&
+  --disable-wtmp --host=${CROSS_BASE%-} &&
 sed -i 's@/usr/bin/dbclient@ssh@' options.h &&
 sed -i 's@\(#define NON_INETD_MODE\) 1@\1 0@' default_options.h &&
 make -j $(nproc) PROGRAMS="dropbear dbclient dropbearkey dropbearconvert scp" MULTI=1 SCPPROGRESS=1 &&
 ${CROSS_COMPILE}strip dropbearmulti &&
-mkdir -p "$ROOT/bin" &&
+mkdir -p "$ROOT"/{bin,etc/dropbear,var/log} &&
+touch "$ROOT"/var/log/lastlog &&
 cp dropbearmulti "$ROOT"/bin || exit 1
-for i in "$ROOT"/bin/{ssh,sshd,scp,dropbearkey}
+for i in "$ROOT"/bin/{ssh,dropbear,scp,dropbearkey}
 do
   ln -s dropbearmulti $i || exit 1
 done
 cleanup
 
 rm -rf zlib-*
+
+# user root password root, user guest no password
+echo -e 'root:$1$939UTPzb$/PfVYAsF2Hqi/AQ3UBjbK/:::::::\nguest::::::::' > "$ROOT"/etc/shadow &&
+chmod 600 "$ROOT"/etc/shadow &&
+
+# file to run on host to ssh into guest
+echo 'ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" ${1:+$1@}127.0.0.1 -p 2222' > "$OUTPUT"/ssh2dropbear.sh &&
+chmod +x "$OUTPUT"/ssh2dropbear.sh
+
+# Forward 127.0.0.1:2222 into qemu instance
+QEMU_MORE="-nic user,hostfwd=tcp:127.0.0.1:2222-:22"

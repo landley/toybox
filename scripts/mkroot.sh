@@ -94,7 +94,7 @@ if [ $$ -eq 1 ]; then
   [ "$(date +%s)" -lt 10000000 ] && sntp -sq time.google.com
 
   # Run expansion scripts (if any)
-  for i in $(/etc/rc/* | sort); do [ -e "$i" ] && . $i; done
+  for i in $(echo /etc/rc/* | sort); do [ -e "$i" ] && . $i; done
 
   [ -z "$CONSOLE" ] && CONSOLE="$(</sys/class/tty/console/active)"
   [ -z "$HANDOFF" ] && HANDOFF=/bin/sh && echo Type exit when done.
@@ -109,7 +109,7 @@ chmod +x "$ROOT"/init &&
 # Google's nameserver, passwd+group with special (root/nobody) accounts + guest
 echo "nameserver 8.8.8.8" > "$ROOT"/etc/resolv.conf &&
 cat > "$ROOT"/etc/passwd << 'EOF' &&
-root::0:0:root:/root:/bin/sh
+root:x:0:0:root:/root:/bin/sh
 guest:x:500:500:guest:/home/guest:/bin/sh
 nobody:x:65534:65534:nobody:/proc/self:/dev/null
 EOF
@@ -119,6 +119,9 @@ announce toybox
 [ -e .config ] && CONF=silentoldconfig || unset CONF
 make clean ${CONF:-defconfig KCONFIG_ALLCONFIG=<(echo $'CONFIG_SH=y\nCONFIG_ROUTE=y')} &&
 LDFLAGS=--static PREFIX="$ROOT" make toybox install || exit 1
+
+# Build any modules
+for i in $PKG; do announce "$i"; PATH="$PKGDIR:$PATH" source $i; done
 
 if [ -z "$LINUX" ] || [ ! -d "$LINUX/kernel" ]; then
   echo 'No $LINUX directory, kernel build skipped.'
@@ -188,7 +191,7 @@ else
   fi
 
   # Write the qemu launch script
-  echo "qemu-system-$QEMU" '"$@"' -nographic -no-reboot -m 256 \
+  echo qemu-system-"$QEMU" '"$@"' $QEMU_MORE -nographic -no-reboot -m 256 \
        "-kernel $(basename "$VMLINUX") -initrd ${CROSS_BASE}root.cpio.gz" \
        "-append \"quiet panic=1 HOST=$TARGET console=$KARGS \$KARGS\"" \
        ${DTB:+-dtb "$(basename "$DTB")"} ";echo -e '\e[?7h'" \
@@ -228,8 +231,8 @@ else
   cp "$VMLINUX" "$OUTPUT" && cd .. && rm -rf linux && popd || exit 1
 fi
 
-# Build any modules, clean up, and package root filesystem for initramfs.
-for i in $PKG; do announce "$i"; PATH="$PKGDIR:$PATH" source $i; done
+# clean up and package root filesystem for initramfs.
 rmdir "$MYBUILD" "$BUILD" 2>/dev/null
 announce "${CROSS_BASE}root.cpio.gz"
-(cd "$ROOT" && find .|cpio -o -H newc|gzip) > "$OUTPUT/$CROSS_BASE"root.cpio.gz
+(cd "$ROOT" && find . | cpio -o -H newc --no-preserve-owner | gzip) \
+  > "$OUTPUT/$CROSS_BASE"root.cpio.gz
