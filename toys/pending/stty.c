@@ -196,11 +196,11 @@ static void show_speed(struct termios *t, int verbose)
   out(fmt, ispeed, ospeed);
 }
 
-static int get_arg(int *i, long long low, long long high)
+static int get_arg(int *i, long long high)
 {
   (*i)++;
   if (!toys.optargs[*i]) error_exit("missing arg");
-  return atolx_range(toys.optargs[*i], low, high);
+  return atolx_range(toys.optargs[*i], 0, high);
 }
 
 static int set_flag(tcflag_t *f, const struct flag *flags, int len,
@@ -314,10 +314,16 @@ static void xtcgetattr(struct termios *t)
   if (tcgetattr(TT.fd, t)) perror_exit("tcgetattr %s", TT.device);
 }
 
-static void do_stty()
+void stty_main(void)
 {
   struct termios old, sane;
   int i, j, n;
+
+  if (toys.optflags&(FLAG_a|FLAG_g) && *toys.optargs)
+    error_exit("no settings with -a/-g");
+
+  if (!TT.device) TT.device = "standard input";
+  else TT.fd = xopen(TT.device, (O_RDWR*!!*toys.optargs)|O_NOCTTY|O_NONBLOCK);
 
   xtcgetattr(&old);
 
@@ -329,9 +335,9 @@ static void do_stty()
 
       if (!strcmp(arg, "size")) show_size(0);
       else if (!strcmp(arg, "speed")) show_speed(&old, 0);
-      else if (!strcmp(arg, "line")) new.c_line = get_arg(&i, N_TTY, NR_LDISCS);
-      else if (!strcmp(arg, "min")) new.c_cc[VMIN] = get_arg(&i, 0, 255);
-      else if (!strcmp(arg, "time")) new.c_cc[VTIME] = get_arg(&i, 0, 255);
+      else if (!strcmp(arg, "line")) new.c_line = get_arg(&i, NR_LDISCS);
+      else if (!strcmp(arg, "min")) new.c_cc[VMIN] = get_arg(&i, 255);
+      else if (!strcmp(arg, "time")) new.c_cc[VTIME] = get_arg(&i, 255);
       else if (sscanf(arg, "%x:%x:%x:%x:%n", &new.c_iflag, &new.c_oflag,
                         &new.c_cflag, &new.c_lflag, &n) == 4)
       {
@@ -349,12 +355,12 @@ static void do_stty()
         cfsetispeed(&new, new_speed);
         cfsetospeed(&new, new_speed);
       } else if (!strcmp(arg, "ispeed"))
-        cfsetispeed(&new, speed(get_arg(&i, 0, 4000000)));
+        cfsetispeed(&new, speed(get_arg(&i, 4000000)));
       else if (!strcmp(arg, "ospeed"))
-        cfsetospeed(&new, speed(get_arg(&i, 0, 4000000)));
-      else if (!strcmp(arg, "rows")) set_size(1, get_arg(&i, 0, USHRT_MAX));
+        cfsetospeed(&new, speed(get_arg(&i, 4000000)));
+      else if (!strcmp(arg, "rows")) set_size(1, get_arg(&i, USHRT_MAX));
       else if (!strcmp(arg, "cols") || !strcmp(arg, "columns"))
-        set_size(0, get_arg(&i, 0, USHRT_MAX));
+        set_size(0, get_arg(&i, USHRT_MAX));
       else if (set_special_character(&new, &i, arg));
         // Already done as a side effect.
       else if (!strcmp(arg, "cooked"))
@@ -393,6 +399,7 @@ static void do_stty()
         set_option(&new, arg);
       }
     }
+
     tcsetattr(TT.fd, TCSAFLUSH, &new);
     xtcgetattr(&old);
     if (memcmp(&old, &new, sizeof(old)))
@@ -414,18 +421,17 @@ static void do_stty()
   if (toys.optflags&FLAG_a) show_size(1);
   out("line = %d;\n", old.c_line);
 
-  for (i=j=0;i<ARRAY_LEN(chars);i++) {
+  for (i=j=0; i<ARRAY_LEN(chars); i++) {
     char vis[16] = {};
     cc_t ch = old.c_cc[chars[i].value];
 
     if (ch == sane.c_cc[chars[i].value] && (toys.optflags&FLAG_a)==0)
       continue;
 
-    if (chars[i].value == VMIN || chars[i].value == VTIME) {
+    if (chars[i].value == VMIN || chars[i].value == VTIME)
       snprintf(vis, sizeof(vis), "%u", ch);
-    } else if (ch == _POSIX_VDISABLE) {
-      strcat(vis, "<undef>");
-    } else {
+    else if (ch == _POSIX_VDISABLE) strcat(vis, "<undef>");
+    else {
       if (ch > 0x7f) {
         strcat(vis, "M-");
         ch -= 128;
@@ -443,17 +449,6 @@ static void do_stty()
   show_flags(old.c_iflag, sane.c_iflag, iflags, ARRAY_LEN(iflags));
   show_flags(old.c_oflag, sane.c_oflag, oflags, ARRAY_LEN(oflags));
   show_flags(old.c_lflag, sane.c_lflag, lflags, ARRAY_LEN(lflags));
-}
-
-void stty_main(void)
-{
-  if (toys.optflags&(FLAG_a|FLAG_g) && *toys.optargs)
-    error_exit("can't make settings with -a/-g");
-
-  if (!TT.device) TT.device = "standard input";
-  else TT.fd=xopen(TT.device, (O_RDWR*!!*toys.optargs)|O_NOCTTY|O_NONBLOCK);
-
-  do_stty();
 
   if (CFG_TOYBOX_FREE && TT.device) close(TT.fd);
 }
