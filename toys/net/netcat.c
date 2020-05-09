@@ -7,13 +7,13 @@
  * netcat -L zombies
 
 USE_NETCAT(OLDTOY(nc, netcat, TOYFLAG_USR|TOYFLAG_BIN))
-USE_NETCAT(NEWTOY(netcat, USE_NETCAT_LISTEN("^tlL")"w#<1W#<1p#<1>65535q#<1s:f:46uU"USE_NETCAT_LISTEN("[!tlL][!Lw]")"[!46U]", TOYFLAG_BIN))
+USE_NETCAT(NEWTOY(netcat, USE_NETCAT_LISTEN("^tElL")"w#<1W#<1p#<1>65535q#<1s:f:46uU"USE_NETCAT_LISTEN("[!tlL][!Lw]")"[!46U]", TOYFLAG_BIN))
 
 config NETCAT
   bool "netcat"
   default y
   help
-    usage: netcat [-46U] [-u] [-wpq #] [-s addr] {IPADDR PORTNUM|-f FILENAME}
+    usage: netcat [-46U] [-u] [-wpq #] [-s addr] {IPADDR PORTNUM|-f FILENAME|COMMAND...}
 
     Forward stdin/stdout to a file or network connection.
 
@@ -36,19 +36,20 @@ config NETCAT_LISTEN
   default y
   depends on NETCAT
   help
-    usage: netcat [-t] [-lL COMMAND...]
+    usage: netcat [-tElL]
 
-    -l	Listen for one incoming connection
-    -L	Listen for multiple incoming connections (server mode)
-    -t	Allocate tty (must come before -l or -L)
+    -l	Listen for one incoming connection, then exit
+    -L	Listen and background each incoming connection (server mode)
+    -t	Allocate tty
+    -E	Forward stderr
 
-    The command line after -l or -L is executed (as a child process) to handle
-    each incoming connection. If blank -l waits for a connection and forwards
-    it to stdin/stdout. If no -p specified, -l prints port it bound to and
+    When listening the COMMAND line is executed as a child process to handle
+    an incoming connection. With no COMMAND -l forwards the connection
+    to stdin/stdout. If no -p specified, -l prints the port it bound to and
     backgrounds itself (returning immediately).
 
     For a quick-and-dirty server, try something like:
-    netcat -s 127.0.0.1 -p 1234 -tL /bin/bash -l
+    netcat -s 127.0.0.1 -p 1234 -tL sh -l
 */
 
 #define FOR_netcat
@@ -181,7 +182,7 @@ void netcat_main(void)
           }
           dup2(in1, 0);
           dup2(in1, 1);
-          if (FLAG(L)) dup2(in1, 2);
+          if (FLAG(E)) dup2(in1, 2);
           if (in1>2) close(in1);
           xexec(toys.optargs);
         }
