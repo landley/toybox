@@ -33,7 +33,7 @@ sed -i 's@/usr/bin/dbclient@ssh@' options.h &&
 sed -i 's@\(#define NON_INETD_MODE\) 1@\1 0@' default_options.h &&
 make -j $(nproc) PROGRAMS="dropbear dbclient dropbearkey dropbearconvert scp" MULTI=1 SCPPROGRESS=1 &&
 ${CROSS_COMPILE}strip dropbearmulti &&
-mkdir -p "$ROOT"/{bin,etc/dropbear,var/log} &&
+mkdir -p "$ROOT"/{bin,etc/{rc,dropbear},var/log} &&
 touch "$ROOT"/var/log/lastlog &&
 cp dropbearmulti "$ROOT"/bin || exit 1
 for i in "$ROOT"/bin/{ssh,dropbear,scp,dropbearkey}

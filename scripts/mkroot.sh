@@ -181,6 +181,10 @@ else
   elif [ "$TARGET" = s390x ] ; then
     QEMU="s390x" KARCH=s390 VMLINUX=arch/s390/boot/bzImage
     KCONF=MARCH_Z900,PACK_STACK,NET_CORE,VIRTIO_NET,VIRTIO_BLK,SCLP_TTY,SCLP_CONSOLE,SCLP_VT220_TTY,SCLP_VT220_CONSOLE,S390_GUEST
+  elif [ "$TARGET" == sh2eb ] ; then
+    KARCH=sh VMLINUX=vmlinux KERNEL_CONFIG='CONFIG_MEMORY_START=0x10000000
+CONFIG_CMDLINE="console=ttyUL0 earlycon"'
+    KCONF=CPU_SUBTYPE_J2,CPU_BIG_ENDIAN,SH_JCORE_SOC,SMP,BINFMT_ELF_FDPIC,JCORE_EMAC,SERIAL_UARTLITE,SERIAL_UARTLITE_CONSOLE,HZ_100,CMDLINE_OVERWRITE,SPI,SPI_JCORE,MMC,PWRSEQ_SIMPLE,MMC_BLOCK,MMC_SPI
   elif [ "$TARGET" == sh4 ] ; then
     QEMU="sh4 -M r2d -serial null -serial mon:stdio" KARCH=sh
     KARGS="ttySC1 noiotrap" VMLINUX=arch/sh/boot/zImage
@@ -190,13 +194,15 @@ else
   else die "Unknown \$TARGET"
   fi
 
-  # Write the qemu launch script
-  echo qemu-system-"$QEMU" '"$@"' $QEMU_MORE -nographic -no-reboot -m 256 \
-       "-kernel $(basename "$VMLINUX") -initrd ${CROSS_BASE}root.cpio.gz" \
-       "-append \"quiet panic=1 HOST=$TARGET console=$KARGS \$KARGS\"" \
-       ${DTB:+-dtb "$(basename "$DTB")"} ";echo -e '\e[?7h'" \
-       > "$OUTPUT/qemu-$TARGET.sh" &&
-  chmod +x "$OUTPUT/qemu-$TARGET.sh" &&
+  if [ ! -z "$QEMU" ] ; then
+    # Write the qemu launch script
+    echo qemu-system-"$QEMU" '"$@"' $QEMU_MORE -nographic -no-reboot -m 256 \
+         "-kernel $(basename "$VMLINUX") -initrd ${CROSS_BASE}root.cpio.gz" \
+         "-append \"quiet panic=1 HOST=$TARGET console=$KARGS \$KARGS\"" \
+         ${DTB:+-dtb "$(basename "$DTB")"} ";echo -e '\e[?7h'" \
+         > "$OUTPUT/qemu-$TARGET.sh" &&
+    chmod +x "$OUTPUT/qemu-$TARGET.sh" || exit 1
+  fi
 
   announce "linux-$KARCH"
   pushd "$LINUX" && make distclean && popd &&
