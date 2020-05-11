@@ -1,0 +1,33 @@
+VERBOSE=fail make distclean defconfig toybox tests
+news.html - release notes
+Update version in main.c
+  - git commit main.c www/news.html
+tag repo
+  - git tag $VER
+  - git push
+  - git push --tags
+source tarball
+  git archive --prefix=toybox-$VER/ $VER | gzip -9 > toybox-$VER.tar.gz
+  scp toybox-$VER.tar.gz landley.net:landley.net/toybox/downloads
+  scp www/news.html landley.net:landley.net/toybox/
+binaries
+  cd ../clean
+  git pull ../toybox
+  LDFLAGS=--static scripts/cross.sh all make clean defconfig toybox
+  ssh landley.net "mkdir landley.net/toybox/downloads/binaries/$VER"
+  scp toybox-* landley.net:landley.net/toybox/downloads/binaries/$VER/
+  update symlink
+update help.html
+  make clean; make defconfig; make
+  (./toybox --version && ./toybox help -ah) > www/help.html
+  scp www/help.html landley.net:landley.net/toybox/
+scripts/mkstatus.py -> status.html
+  - scp www/status.gen landley.net:landley.net/toybox/
+roadmap.html
+code.html
+Inform mailing list (with link to https://landley.net/toybox)
+Update #toybox topic
+  Toybox 0.7.3 released February 21, 2017. http://landley.net/toybox
+
+todo:
+  x86-64, sparc, cortex-m toolchains
