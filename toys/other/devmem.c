@@ -47,15 +47,15 @@ void devmem_main(void)
 
   // Not using peek()/poke() because registers care about size of read/write
   if (writing) {
-    if (bytes == 1) *(char *)p = data;
-    else if (bytes == 2) *(short *)p = data;
-    else if (bytes == 4) *(int *)p = data;
-    else if (bytes == 8) *(long long *)p = data;
+    if (bytes == 1) *(unsigned char *)p = data;
+    else if (bytes == 2) *(unsigned short *)p = data;
+    else if (bytes == 4) *(unsigned int *)p = data;
+    else if (bytes == 8) *(unsigned long long *)p = data;
   } else {
-    if (bytes == 1) data = *(char *)p;
-    else if (bytes == 2) data = *(short *)p;
-    else if (bytes == 4) data = *(int *)p;
-    else if (bytes == 8) data = *(long long *)p;
+    if (bytes == 1) data = *(unsigned char *)p;
+    else if (bytes == 2) data = *(unsigned short *)p;
+    else if (bytes == 4) data = *(unsigned int *)p;
+    else if (bytes == 8) data = *(unsigned long long *)p;
     printf("%#0*llx\n", bytes*2, data);
   }
 
