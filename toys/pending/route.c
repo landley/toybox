@@ -12,7 +12,7 @@
  *
  * mod dyn reinstate metric netmask gw mss window irtt dev
 
-USE_ROUTE(NEWTOY(route, "?neA:", TOYFLAG_BIN))
+USE_ROUTE(NEWTOY(route, "?neA:", TOYFLAG_SBIN))
 config ROUTE
   bool "route"
   default n
