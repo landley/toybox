@@ -51,6 +51,7 @@ testing 'exec exitval' "$SH -c 'exec echo hello' && echo \$?" "hello\n0\n" "" ""
 testing 'simple script' '$SH input' 'input\n' 'echo $0' ''
 testing 'simple script2' '$SH ./input two;echo $?' './input+two\n42\n' \
   '\necho $0+$1\n\nexit 42' ''
+testing '$LINENO 1' "$SH input" "1\n" 'echo $LINENO' ''
 
 mkdir sub
 echo echo hello > sub/script
@@ -129,6 +130,10 @@ testing "bracket+tilde" "echo {~,~root}/pwd" "$HOME/pwd $EXPECT/pwd\n" "" ""
 #testing "backtick2" 'X=fred; echo `x=y; echo $x`' 'y\n' "" ""
 testing '$(( ) )' 'echo ab$((echo hello) | tr e x)cd' "abhxllocd\n" "" ""
 
+# Loops and flow control
+testing "case" 'for i in A C J B; do case "$i" in A) echo got A ;; B) echo and B ;; C) echo then C ;; *) echo default ;; esac; done' \
+  "got A\nthen C\ndefault\nand B\n" "" ""
+
 testing "continue" 'for i in a b c; do for j in d e f; do echo $i $j; continue 2; done; done' \
   "a d\nb d\nc d\n" "" ""
 
@@ -146,6 +151,8 @@ testing "leading variable assignment" 'abc=def env | grep ^abc=; echo $abc' \
 testing "leading variable assignments" \
   "abc=def ghi=jkl env | egrep '^(abc|ghi)=' | sort; echo \$abc \$ghi" \
   "abc=def\nghi=jkl\n\n" "" ""
+testing "leading assignment fail" "1blah=123 echo hello 2>/dev/null || echo no"\
+  "no\n" "" ""
 
 testing "{1..5}" "echo {1..5}" "1 2 3 4 5\n" "" ""
 testing "{5..1}" "echo {5..1}" "5 4 3 2 1\n" "" ""
@@ -287,13 +294,21 @@ testing '${#}' 'X=abcdef; echo ${#X}' "6\n" "" ""
 
 shxpect '${/newline/}' I$'x=$\'\na\';echo ${x/\n' E'> ' I$'/b}\n' O$'ba\n' E'> '
 
+shxpect 'line continuation' I$'echo "hello" \\\n' E'> ' I$'> blah\n' E"$P" \
+  I$'wc blah\n' O$'1 1 6 blah\n'
+shxpect 'line continuation2' I$'echo ABC\\\n' E'> ' I$'DEF\n' O$'ABCDEF\n'
+
 # Race condition (in bash, but not in toysh) can say 43.
 testing 'SECONDS' 'SECONDS=41; sleep 1; echo $SECONDS' '42\n' '' ''
 testing 'SECONDS2' 'readonly SECONDS; SECONDS=0; echo $SECONDS' '' '' '' # bash!
 testing 'SECONDS3' 'SECONDS=123+456; echo $SECONDS' '0\n' '' '' #bash!!
-testing 'LINENO' $'echo $LINENO\necho $LINENO' '0\n1\n' '' ''
-testing 'EUID' 'echo $EUID' "$(id -u)\n" '' ''
-testing 'UID' 'echo $UID' "$(id -ur)\n" '' ''
+testing '$LINENO 2' $'echo $LINENO\necho $LINENO' '0\n1\n' '' ''
+testing '$EUID' 'echo $EUID' "$(id -u)\n" '' ''
+testing '$UID' 'echo $UID' "$(id -ur)\n" '' ''
+
+testing '$_ 1' 'echo walrus; echo $_' 'walrus\nwalrus\n' '' ''
+testing '$_ 2' 'unset _; echo $_' '_\n' '' ''
+
 # TODO finish variable list from shell init
 
 # $# $? $- $$ $! $0
