@@ -1,7 +1,7 @@
 VERBOSE=fail make distclean defconfig toybox tests
 news.html - release notes
 Update version in main.c
-  - git commit main.c www/news.html
+  - git commit toys.h www/news.html
 tag repo
   - git tag $VER
   - git push
@@ -13,9 +13,10 @@ source tarball
 binaries
   cd ../clean
   git pull ../toybox
-  LDFLAGS=--static scripts/cross.sh all make clean defconfig toybox
+  make distclean; make defconfig root CROSS=all
+  mkdir send; for i in root/*/fs/bin/toybox; do X=${i#*/}; X=${X%%/*}; cp $i send/toybox-$X; done
   ssh landley.net "mkdir landley.net/toybox/downloads/binaries/$VER"
-  scp toybox-* landley.net:landley.net/toybox/downloads/binaries/$VER/
+  scp send/toybox-* landley.net:landley.net/toybox/downloads/binaries/$VER/
   update symlink
 update help.html
   make clean; make defconfig; make
