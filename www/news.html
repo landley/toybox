@@ -8,6 +8,263 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+<a name="11-05-2020" /><a href="#11-05-2020"><hr><h2><b>May 11, 2020</b></h2></a>
+<blockquote>
+<p>Ford: Ah. A
+<a href=https://www.youtube.com/watch?v=WSsR419HBpQ>towel</a>.
+Keep this and guard it with your life.</p>
+<p>Arthur: Huh?</p>
+<p>Ford: Listen, it's a tough universe. There's all sorts of people and things
+trying to do you, kill you, rip you off, everything. If you're going to
+survive out there, you've really got to know where your
+<a href=towel.jpg>towel</a> is.</p>
+<p>- The Hitchhiker's Guide to the Galaxy.</p>
+</blockquote>
+
+<p>Despite everything <a href=downloads/toybox-0.8.3.tar.gz>Toybox 0.8.3</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.8.3>git commit</a>)
+is finally out, with new commands <b>rtcwake</b> from Elliott Hughes and
+<b>blkdiscard</b> from Patrick Oppenlander.
+The big news is "<b>make root</b>" now boots to a shell prompt,
+with toysh making it all the way through toyroot's init script.
+(Some people were looking forward to <b>patch --fuzz</b> support too.)</p>
+
+<p><u>Toyroot</u>: <b>make root</b> now does what it says on the tin, it
+builds a bootable toybox-based Linux system using two source
+packages (toybox and linux). The trivial version is "make root && sudo chroot
+root/host/fs /init". Here's
+a <a href=http://lists.landley.net/pipermail/toybox-landley.net/2020-April/011667.html>post with instructions</a> if you want to know how to build the
+cross compilers for testing the various architectures. The self-contained
+<a href=https://github.com/landley/toybox/blob/0.8.3/scripts/mkroot.sh>script
+that builds a simple bootable Linux system</a> is 250 lines long, and
+should be easy to read if you want to know how it works.</p>
+
+<p>It also has basic module support, meaning arguments that aren't X=Y variable
+assignments are the names of scripts to run to build more
+packages at the end of the build. I checked in an <a href=https://github.com/landley/toybox/blob/master/scripts/root/dropbear>example package</a>,
+and there's generic "download and extract source tarballs"
+<a href=https://github.com/landley/toybox/blob/master/scripts/root/plumbing>plumbing</a> available to such modules.
+(The Makefile doesn't know how to pass module names through to the script,
+so instead of "make root" you have to
+call the script directly, ala "scripts/mkroot.sh CROSS=sh4 LINUX=~/linux dropbear".)</p>
+
+<p>The resulting root filesystem now uses /root as the home
+dir for UID 0, and creates /dev/fd and /dev/shm in devtmpfs. The build works
+around a kernel
+build bug where "make distclean" doesn't work in a "cp -sfR" symlink
+directory. (The bug meant if you pointed LINUX= at unclean source, it was
+unhappy, so now it distcleans the source directory before copying it. This
+modifies said source directory, which is not ideal, but as usual the kernel guys
+<a href=http://lkml.iu.edu/hypermail/linux/kernel/2002.2/00083.html>ignored
+the bug report</a>, so a workaround was required.)
+The CROSS=all build announces each target in the title bar, puts
+its logs into root/log, and has better trap handling to stop with one
+ctrl-c.
+Since last release it uses a more concise config format for the various kernel
+arch targets (which shrank the script by about 50%), and merged
+the old (now removed) scripts/cross.sh into the main script so
+"make CROSS=armv7l LINUX=~/linux" is
+literally just a call to "scripts/mkroot.sh CROSS=armv7l LINUX=~/linux" now.</p>
+
+<p>As for <b>scripts/mcm-buildall.sh</b> building cross compilers,
+of COURSE gcc 8.3 requires a different configuration to build the same
+toolchain as previous versions, it's gcc. It now builds a proper
+nommu libc for sh2eb without a broken fork() call in it that can never
+be used but prevents compile-time probes from detecting nommu,
+and checks that the cross compiler completed before trying to build
+the native compiler.</p>
+
+<p>This was all tested with a recent
+<a href=https://github.com/richfelker/musl-cross-make/commit/5086175f2902>version</a>
+of musl-cross-make with the top level Makefile
+edited to use BINUTILS_VER = 2.32 because the newer one
+<a href=https://www.spinics.net/lists/linux-sh/msg56844.html>breaks the kernel
+build</a>
+and LINUX_VER = 4.19.90 because the default musl-cross-make config uses an
+out-of-tree headers package for some reason (those who forget history are
+<a href=https://lkml.org/lkml/2006/4/28/194>doomed to repeat it</a>) which
+breaks m68k and s390x. I won't post binaries of the resulting toolchains
+because they're GPLv3, but <a href=https://musl.cc/>thalheim might</a>.
+(I've also <a href=http://lists.landley.net/pipermail/toybox-landley.net/2020-May/011673.html>test built</a>
+with the Android NDK, but bionic's startup code currently segfaults before
+calling main() if it can't open /dev/null, and the kernel guys
+<a href=https://lkml.org/lkml/2017/9/13/651>ignored my patches</a> to
+make CONFIG_DEVTMPFS_MOUNT work in initramfs.)</p>
+
+<p>At the moment toyroot cheats and uses two commands out of pending: toysh
+is about 80% of the way to being useful but still missing some
+obvious features like function support, job and terminal control, command
+history, $((math)), wildcard expansion... plus a lot of bash features like array
+variables, so it isn't out of pending yet. And route needs to be redone to use the
+netlink interface that can handle multiple routing tables. For the moment
+scripts/mkroot.sh adds both of them to defconfig if you haven't already
+got a .config when you run it. (If you build and can't boot, your .config
+probably hasn't got CONFIG_SH switched on. Fix it in menuconfig, or
+rm .config and try gain.)</p>
+
+<p><u>New toybox features</u>:
+Elliott taught <b>patch</b> to understand [FILE [PATCH]] arguments, made
+<b>cal</b> highlight the current day, added -T to <b>cp</b>/<b>mv</b>,
+did a lot of work on <b>lsattr</b>/<b>chattr</b> (including adding -p
+and "chattr ="), added tar --absolute-names, taught <b>id</b> to
+support numeric lookup and handle unknown groups, made -G show all
+groups, and removed context= from -Z.
+Rob added <b>patch -F</b> (fuzz factor) support and <b>help -u</b> (usage only),
+taught <b>echo -e</b> about bash extensions like \uXXXX unicode escapes,
+<b>netcat -L</b> no longer automatically includes stderr (new -E
+option does that),
+<b>setsid</b> now uses -c (like the man page says) instead of -t, and added
+-w (wait) and -d (detach from tty). 
+Andrew Ilijic added <b>ls -w</b>, removed trailing whitespace on output,
+and added tests for -C and -x.</p>
+
+<p><u>Library</u>:
+another fix to 32 bit option parsing of long long optflag values,
+remove getdirname() and just use the libc function (which modifies
+its argument, but we don't have to free a malloc),
+dlist_terminate() can now be called repeatedly on the same list,
+new relative_path() function finds path from one directory to another,
+and readfd() works like readfile() but on an already open fd.
+Use MPATH macros in mkpathat(). Elliott added macOS versions of
+dev_minor()/dev_major()/makedev() to portability.c,
+implemented posix_fallocate() for macOS, removed a
+leftover uClibc workaround in fallocate that was breaking macOS,
+and moved the table of ELF architectures from file to lib/lib.c (so
+readelf can share).
+Park Ju Hyung pointed out the fast path of fdlength() was commented out,
+and we switched it to the 64 bit API while we were there (and then Elliott
+added macOS support).
+Joeky taught file to recognize 7z archives.</p>
+
+<p><u>Pending</u>:
+The shell got a bunch of work: standalone "make sh" now includes the
+multiplexer for builtin commands like "exit" and "cd". Added MAYFORK annotation
+for commands that exist in the $PATH but can also be run within the shell
+process (and sometimes have different behavior within the shell):
+currently applied to help, echo, false, kill, printf, pwd, test, time, and
+true.</p>
+
+<p>Elliott added new commands <b>getopt</b> and <b>readelf</b>.
+Jarno Mäkipää taught wget how to follow http 301 and 302 redirects,
+and did lots of work on vi. (Elliott also did work on vi.)
+Gavin Howard fixed a comparison bug in bc.
+Ethan Sommer fixed numerous small issues (including several build
+warnings and FLAG() macro conversions).</p>
+
+<p><u>Bugfixes</u>:
+<b>tar</b> extract now deletes files and symlinks where it's making a directory,
+<b>find -L -type -l</b> now finds dangling symlinks, extra #ifdefs in
+portability.h prevent old gcc versions from barfing on __has_include(),
+xgetline() now returns NULL at EOF, tee with no arguments was
+writing to stdout twice, setsid works on nommu (I.E. vfork) now,
+<b>netcat -L</b> no longer accumulates zombie processes,
+<b>sntp</b> now uses adjtimex instead of adjtime (to build on bionic).
+xcreate_stdio() was checking WARN_ONLY in the wrong field (and tar was
+passing it in the wrong field, so it worked there).
+Several people wrestled with the <b>xargs</b> "argument too long" problem.
+Alessio Balsini fixed memory leaks in loopback_setup() and "wayling"
+added a missing continue to losetup.
+Elliott fixed xargs -E, various things in modinfo,
+added an error check to gzip when using zlib (which copies non-gzip data to
+the output verbatim for some reason),
+found an case where dirtree could use
+uninitialized data and silenced "Invalid argument" warnings (triggered by
+Android's selinux policies making stat() and readlink() fail),
+fixed locale support in macOS (both in iconv
+and in main.c), taught stat to show filesystem time on macOS,
+fixed a 32 bit truncation in sntp, fixed a memory access one byte outside
+of its array in patch.c, removed the cpio --trailer option,
+and widened the pid display fields in ps to
+6 digits. Rich Felker fixed find.c assuming
+time_t is a long (y2038 issue on 32 bit).
+Greg Kaiser fixed a thinko in get_block_device_size().
+Jarno Mäkipää fixed utf8 support in cut -C, and cp --parents.
+David Legault complained that dir/.* tells rm to delete dir/.. and we'd do it.
+JakeSFR pointed out a bug in file's identification of broken symlinks.
+William Haddon fixed cp to treat a directory with a trailing slash
+teh same as one without.
+Denys Nykula fixed rm -i not to prompt for an empty "" argument.
+SebiderSushi reported that chmod g+s wasn't working.
+The linux kernel doesn't let an O_PATH fd work with fgetxattr(), so
+Elliott switched <b>ls</b> to use the path-based functions now (which is racy,
+it means you can stat() one inode and get the xattrs for a different one,
+but nobody in kernel land seems to use xattrs much so they're not fully
+supported by the API, and who's crazy enough to use xattrs for security
+anyway). Derick Pallas pointed out an xclearenv() bug.
+Atatsulo (or possibly luolongjuna) did a lot of work on the <b>ping</b>
+command: pointed out min/range/max were out of order,
+that we shouldn't print a summary unless we received at least one
+reply packet, and implemented ttl support.</p>
+
+<p><u>Build plumbing</u>:
+The "make root CROSS=all" build announces each target in the title bar, puts
+its logs into root/log, and has better trap handling to stop with one
+ctrl-c.</p>
+
+<p>Fixed scripts/single.sh to work when PREFIX has no trailing slash,
+make silentoldconfig no longer feeds "y" to kconfig (which puts menus in a
+loop) and instead just feeds in newlines to accept whatever the default is.
+The non-git version number I keep forgetting to update each release moved
+from main.c to toys.h.
+Fixed a couple different errors in mkflags.c (one of which caused ls --color
+to set all the other flags).</p>
+
+<p>Elliott added more macos support and tests, and added
+fallocate, cp, mktemp, and mv to the macOS defconfig.</p>
+
+<p><u>Cleanup</u>:
+Rob did some cleanup on xargs, ls, md5sum, and sort, tidied up main.c a bit,
+made cp, base64, dmesg, and free use FLAG macros,
+and switched fallocate to new style global names.
+Elliott Hughes switched rfkill from the old byte at a time get_line()
+to libc getline(), made du use FLAG() macros, and mad chattr use
+standard toybox argument parsing for -v and -p.
+Several commands (help, cp) had sub-options removed from menuconfig.
+Merged realpath into readlink.c, and use xabspath() instead of libc realpath().</p>
+
+<p><u>Documentation</u>:
+New roadmap section about <a href=roadmap.html#packages>other packages</a>
+that toybox can (eventually) replace.</p>
+
+<p>Update roadmap to note that posix-2008 moved to a different URL (content
+at the old URL undergoes random changes), and link to the IETF RFCs.
+design.html explains more of the history of environment sizes on links
+and has a #bits anchor tag.</p>
+
+<p>Update the <a href=design.html#bits>LP64 section</a> of design.html to
+fish the documents out of archive.org now that unix.org is gone,
+and show the actual size table locally.</p>
+
+<p>Elliott improved the help of <b>date</b> and <b>chattr</b>, and
+made the usage: lines in the posix directory more consistent.</p>
+
+<p>Shrank the sed help from 150 lines to 90-ish.</p>
+
+<p><u>Tests</u>:
+New "txpect" performs interactive tests, running through a sequence of
+writes to a command's stdin and reads from stdout and stderr, when failing it
+reports the first non-matching step. (This for example lets sh.test check
+the shell line continuation logic prompts with $PS1 and $PS2 appropriately
+with various unfinished input lines, and that "echo hello; if" doesn't
+output hello before prompting for the next line of input.) Added
+VERBOSE=xpect to print out each read and write successfully performed by txpect.</p>
+
+<p>runtest.sh only creates an "input" file when the input argument isn't empty,
+EVAL doesn't supply -- (you have to provide your own if you want that).</p>
+
+<p>Rob added basic <b>stat</b>, <b>patch</b>, and <b>tee</b> tests.
+Jarno added a bunch of <b>vi</b> tests.
+Elliott fixed tests for <b>ifconfig</b>, <b>lsattr</b>, <b>chattr</b>,
+and <b>date</b>, added tests for find, id, xargs, and made
+the id, iconv, env, file, printf and cat tests work on macOS (and skipped
+the du tests there). Rob cleaned up chmod tests.</p>
+
+<p><u>Sheer pedantry</u>:
+true and false now have usage: lines (which you have to "help false" to see
+because they (intentionally!) don't support --help.
+Renamed get_chunk()/dump_chunk() to read_chunk()/write_chunk() in tail.c
+Elliott fixed some typos.</p>
+
 <a name="18-10-2019" /><a href="#18-10-2019"><hr><h2><b>October 18, 2019</b></h2></a>
 <blockquote>
 <p>"In those days spirits were brave, the stakes were high, men were real
