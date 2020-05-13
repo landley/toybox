@@ -77,12 +77,6 @@ hardware and distributions released up to 7 years ago, and feel ok dropping
 support for stuff older than that. (This is a little longer than Ubuntu's
 Long Term Support, but not by much.)</p>
 
-<p>If a kernel or libc feature is less than 7 years old, I try to have a
-build-time configure test for it and let the functionality cleanly drop out.
-I also keep old Ubuntu images around in VMs and perform the occasional
-defconfig build there to see what breaks. (I'm not perfect about this,
-but I accept bug reports.)</p>
-
 <p>My original theory was "4 to 5 18-month cycles of moore's law should cover
 the vast majority of the installed base of PC hardware", loosely based on some
 research I did <a href=http://www.catb.org/esr/halloween/halloween9.html#id2867629>back in 2003</a>
@@ -110,7 +104,7 @@ linear growth in hardware capabilities is
 feature is less than 7 years old, I try to have a build-time configure test
 for it and let the functionality cleanly drop out. I also keep old Ubuntu
 images around in VMs and perform the occasional defconfig build there to
-see what breaks.</p>
+see what breaks. (I'm not perfect about this, but I accept bug reports.)</p>
 
 <h2><a name="releases" />Q: Why time based releases?</h2>
 <p>A: Toybox targets quarterly releases (a similar schedule to the Linux
@@ -183,27 +177,33 @@ generated/unstripped for the debug versions), and "install" adds a bunch of
 symlinks to toybox under the various command names. Toybox determines which
 command to run based on the filename, or you can use the "toybox" name in which case the first
 argument is the command to run (ala "toybox ls -l"). <b>You can also build
-individual commands as standalone executables</b>, ala "make sed cat ls".</p>
+individual commands as standalone executables</b>, ala "make sed cat ls".
+(The "make change" target builds all of them, as in "change for a $20".)</p>
 
 <p><b>The main() function is in main.c at the top level</b>,
 along with setup plumbing and selecting which command to run this time.
-The function toybox_main() implements the "toybox" multiplexer command.</p>
+The function toybox_main() in the same file implements the "toybox"
+multiplexer command that lists and selects the other commands.</p>
 
 <p><b>The individual command implementations are under "toys"</b>, and are grouped
 into categories (mostly based on which standard they come from, posix, lsb,
 android...) The "pending" directory contains unfinished commands, and the
-"examples" directory contains examples. Commands in those two directories
-are _not_ selected by defconfig. (These days pending directory is mostly
-third party submissions that have not yet undergone proper code review.)</p>
+"examples" directory contains example code that aren't really useful commands.
+Commands in those two directories
+are _not_ selected by defconfig. (Most of the files in the pending directory
+are third party submissions that have not yet undergone
+<a href=cleanup.html>proper code review</a>.)</p>
 
 <p><b>Common infrastructure shared between commands is under "lib"</b>. Most
 commands call lib/args.c to parse their command line arguments before calling
 the command's own main() function, which uses the option string in
 the command's NEWTOY() macro. This is similar to the libc function getopt(),
-but more powerful, and is documented at the top of lib/args.c.</p>
+but more powerful, and is documented at the top of lib/args.c. A NULL option
+string prevents this code from being called for that command.</p>
 
 <p>Most of the actual <b>build/install infrastructure is shell scripts under
-"scripts"</b>. <b>These populate the "generated" directory</b> with headers
+"scripts"</b> (starting with scripts/make.sh and scripts/install.sh).
+<b>These populate the "generated" directory</b> with headers
 created from other files, which are <a href=code.html#generated>described</a>
 in the code walkthrough. All the
 build's temporary files live under generated, including the .o files built
@@ -211,7 +211,7 @@ from the .c files (in generated/obj). The "make clean" target deletes that
 directory. ("make distclean" also deletes your .config and deletes the
 kconfig binaries that process .config.)</p>
 
-<p>Each command's file contains all the information for that command, so
+<p>Each command's .c file contains all the information for that command, so
 <b>adding a command to toybox means adding a single file under "toys"</b>.
 Usually you <a href=code.html#adding>start a new command</a> by copying an
 existing command file to a new filename
@@ -219,13 +219,17 @@ existing command file to a new filename
 and toys/posix/true.c have all been used for this purpose) and then replacing
 all instances of its old name with the new name (which should match the
 new filename), and modifying the help text, argument string, and what the
-code does. You might have to "make distclean" before you new command
+code does. You might have to "make distclean" before your new command
 shows up in defconfig or menuconfig.</p>
 
-<p><b>The toybox test suite lives in the "tests" directory</b>. From the top
-level you can "make tests" to test everything, or "make test_sed" test a
-single command's standalone version (which should behave identically)
-but that's why we test.</p>
+<p><b>The toybox test suite lives in the "tests" directory</b>, and is
+driven by scripts/test.sh and scripts/runtest.sh. From the top
+level you can "make tests" to test everything, or "make test_sed" to test a
+single command's standalone version (which should behave identically,
+but that's why we test). You can set TEST_HOST=1 to test the host versionn
+instead of the toybox version (in theory they should work the same),
+and VERBOSE=1 to see diffs of the expected and actual output when a
+test fails (VERBOSE=fail to stop at the first such failure)</p>
 
 <a name="mkroot" />
 <h2>Q: How do you build a working Linux system with toybox?</h2>
