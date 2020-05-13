@@ -17,8 +17,8 @@ BROKEN=$(readlink dangler)
 
 testing "directory" "file ." ".: directory\n" "" ""
 testing "empty" "file empty" "empty: empty\n" "" ""
-testing "bash.script" "file bash.script" "bash.script: /bin/bash script\n" "" ""
-testing "bash.script with spaces" "file bash.script2" "bash.script2: /bin/bash script\n" "" ""
+testing "bash.script" "file bash.script | grep -o ' script"' " script\n" "" ""
+testing "bash.script with spaces" "file bash.script2 | grep -o ' script'" " script\n" "" ""
 testing "env python script" "file env.python.script" "env.python.script: python script\n" "" ""
 testing "ascii" "file ascii" "ascii: ASCII text\n" "" ""
 testing "utf-8" "file $FILES/utf8/japan.txt | sed 's|$FILES/||'" \

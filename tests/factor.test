@@ -4,9 +4,9 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-testing "-32" "factor -32" "-32: -1 2 2 2 2 2\n" "" ""
-testing "0" "factor 0" "0: 0\n" "" ""
-testing "1" "factor 1" "1: 1\n" "" ""
+toyonly testing "-32" "factor -32" "-32: -1 2 2 2 2 2\n" "" ""
+toyonly testing "0" "factor 0" "0: 0\n" "" ""
+toyonly testing "1" "factor 1" "1: 1\n" "" ""
 testing "2" "factor 2" "2: 2\n" "" ""
 testing "3" "factor 3" "3: 3\n" "" ""
 testing "4" "factor 4" "4: 2 2\n" "" ""
