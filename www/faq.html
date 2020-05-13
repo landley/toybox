@@ -1,5 +1,9 @@
-<html><head><title>toybox news</title>
+<html><head><title>toybox FAQ</title>
 <!--#include file="header.html" -->
+
+<h1>Frequently Asked Questions</h1>
+
+<h2>General Questions</h2>
 
 <ul>
 <li><h2><a href="#capitalize">Do you capitalize toybox?</a></h2></li>
@@ -7,6 +11,12 @@
 <li><h2><a href="#support_horizon">Why a 7 year support horizon?</a></h2></li>
 <li><h2><a href="#releases">Why time based releases?</a></h2></li>
 <li><h2><a href="#code">Where do I start understanding the toybox source code?</a></h2></li>
+</ul>
+
+<h2>Using toybox</h2>
+
+<ul>
+<li><h2><a href="#mkroot">How do you build a working Linux system with toybox?</a></h2></li>
 </ul>
 
 <a name="capitalize" />
@@ -216,5 +226,77 @@ shows up in defconfig or menuconfig.</p>
 level you can "make tests" to test everything, or "make test_sed" test a
 single command's standalone version (which should behave identically)
 but that's why we test.</p>
+
+<a name="mkroot" />
+<h2>Q: How do you build a working Linux system with toybox?</h2>
+
+<p>A: To build a native chroot, "<b>make root</b>" then "<b>sudo chroot
+root/host/fs /init</b>". Type "exit" to get back out.</p>
+
+<p>You can also cross compile simple two package (toybox+linux) systems that
+boot to a shell prompt under <a href=https://qemu.org>qemu</a>, by specifying
+a target type with CROSS=
+(or setting CROSS_COMPILE= to a cross compiler prefix with optional absolute
+path), and pointing the build at a Linux kernel source directory, ala:</p>
+
+<blockquote><p><b>make root CROSS=sh4 LINUX=~/linux</b></p></blockquote>
+
+<p>Then you can <b>cd root/sh4; ./qemu-sh4.sh</b> to launch the emulator
+(you need the appropriate qemu-system-* binary installed). Type "exit"
+when done and it should shut down the emulator on the way out.</p>
+
+<p>The cross compilers I test this with are built from the musl-libc
+maintainer's
+<a href=https://github.com/richfelker/musl-cross-make>musl-cross-make</a>
+project, built by running toybox's scripts/mcm-buildall.sh in that directory,
+and then symlink the resulting "ccc" subdirectory into toybox where CROSS=
+can find them, ala:</p>
+
+<blockquote><pre>
+cd ~
+git clone https://github.com/landley/toybox
+git clone https://github.com/richfelker/musl-cross-make
+cd musl-cross-make
+../toybox/scripts/mcm-buildall.sh # this takes a while
+ln -s $(realpath ccc) ../toybox/ccc
+</pre></blockquote>
+
+<p>An unknown CROSS= should list all the available cross compilers under
+ccc. After the above musl-cross-make build and install,
+"<b>make root CROSS=help</b>" should say something like:
+<b>aarch64 armv4l armv5l armv7l armv7m armv7r i486 i686 m68k microblaze mips mips64 mipsel powerpc powerpc64 powerpc64le s390x sh2eb sh4 x32 x86_64</b>.
+(A long time ago I
+<a href=http://landley.net/aboriginal/architectures.html>tried to explain</a>
+what some of these architectures were.)</p>
+
+<p>You can build all the targets at once, and can add additonal packages
+to the build, by calling the script directly and listing packages on
+the command line:</p>
+
+<blockquote>
+<p><b>scripts/mkroot.sh CROSS=all LINUX=~/linux dropbear</b></p>
+</blockquote>
+
+<p>An example package build script (building the dropbear ssh server, adding a
+port forward from 127.0.0.1:2222 to the qemu command line, and providing a
+ssh2dropbear.sh convenience script to the output directory) is provided
+in the scripts/root directory. If you add your own scripts elsewhere, just
+give a path to them on the command line. (No, I'm not merging more package build
+scripts, I <a href=https://speakerdeck.com/landley/developing-for-non-x86-targets-using-qemu?slide=78>learned that lesson</a> long ago. But if you
+want to write your own, feel free.)</p>
+
+<p>(Note: if you don't have a <b>.config</b> it'll <b>make defconfig</b> and
+add CONFIG_SH and CONFIG_ROUTE to it. If you already have a <b>.config</b> that
+_doesn't_ have CONFIG_SH in it, you won't get a shell prompt or be able to run
+the init script without a shell. This is currently a problem because sh
+and route are still in pending and thus not in defconfig, and "make root"
+cheats when it adds them. I'm working on it. tl;dr if make root doesn't work
+"rm .config" and run it again, and all this should be fixed up in future when
+those two commands are promoted out of pending so "make defconfig" would have
+what you need anyway. It's designed to let yout tweak your config, which is
+why it uses the .config that's there when there is one, but the default is
+currently wrong because it's not quite finished yet.)</p>
+
+
 
 <!--#include file="footer.html" -->
