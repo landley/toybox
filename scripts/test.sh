@@ -40,7 +40,7 @@ do_test()
     [ ! -e "$C" ] && echo "$CMDNAME disabled" && return
   else
     C="$(which $CMDNAME 2>/dev/null)"
-    [ -z "$C" ] && "C=$CMDNAME"
+    [ -z "$C" ] && printf '%s\n' "$SHOWSKIP: no $CMDNAME" && return
   fi
   C="$(dirname $(realpath "$C"))/$CMDNAME"
 
