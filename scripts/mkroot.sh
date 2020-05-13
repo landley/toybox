@@ -243,6 +243,6 @@ fi
 
 # clean up and package root filesystem for initramfs.
 [ -z "$BUILTIN" ] && announce "${CROSS_BASE}root.cpio.gz" &&
-  (cd "$ROOT" && find . | cpio -o -H newc --no-preserve-owner | gzip) \
+  (cd "$ROOT" && find . | cpio -o -H newc ${CROSS_COMPILE:+--no-preserve-owner} | gzip) \
     > "$OUTPUT/$CROSS_BASE"root.cpio.gz
 rmdir "$MYBUILD" "$BUILD" 2>/dev/null # remove if empty
