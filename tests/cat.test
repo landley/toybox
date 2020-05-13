@@ -25,7 +25,7 @@ testing "- file1" \
 
 skipnot [ -e /dev/full ]
 testing "> /dev/full" \
-        "cat - > /dev/full 2>stderr && echo ok; cat stderr; rm stderr" \
-        "cat: xwrite: No space left on device\n" "" "zero\n"
+        "cat - > /dev/full 2>/dev/null || echo failed" \
+        "failed\n" "" "zero\n"
 
 rm file1 file2
