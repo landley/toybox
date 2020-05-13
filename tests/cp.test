@@ -123,7 +123,7 @@ rm b file
 mkdir -p b/c/d/
 mkdir a/
 echo a > b/c/d/file
-testing "-D b/c/d/file a/" "cp -D b/c/d/file a/ && cat a/b/c/d/file" "a\n" "" ""
+testing "--parents b/c/d/file a/" "cp --parents b/c/d/file a/ && cat a/b/c/d/file" "a\n" "" ""
 rm -rf a/
 rm -rf b/
 
