@@ -54,7 +54,7 @@ chmod 777 one 2>/dev/null ; rm -rf one
 mkdir -p d1
 touch d1/f1.txt d1/f2.txt
 testing "-rv dir" \
-  "rm -rv d1 | sort" "rm 'd1/f1.txt'\nrm 'd1/f2.txt'\nrmdir 'd1'\n" "" ""
+  "rm -rv d1 | sed \"s/emoved/m/;ectory //" | sort" "rm 'd1/f1.txt'\nrm 'd1/f2.txt'\nrmdir 'd1'\n" "" ""
 rm -rf d1
 
 touch "'"
