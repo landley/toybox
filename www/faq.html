@@ -16,6 +16,8 @@
 <h2>Using toybox</h2>
 
 <ul>
+<!-- get binaries -->
+<li><h2><a href="#cross">How do I cross compile toybox?</h2></li>
 <li><h2><a href="#mkroot">How do you build a working Linux system with toybox?</a></h2></li>
 </ul>
 
@@ -230,6 +232,103 @@ but that's why we test). You can set TEST_HOST=1 to test the host versionn
 instead of the toybox version (in theory they should work the same),
 and VERBOSE=1 to see diffs of the expected and actual output when a
 test fails (VERBOSE=fail to stop at the first such failure)</p>
+
+<a name="cross" />
+<h2>Q: How do I cross compile toybox?</h2>
+
+<p>A: toybox is tested against three C libraries (bionic, musl, glibc)
+with 2 compilers (llvm, gcc). The easy way to get coverage (if not every
+combination) is:</p>
+
+<p><b>1) gcc+glibc = host toolchain</b></p>
+
+<p>Most Linux distros come with that as a host compiler, just build normally
+(<b>make distclean defconfig toybox</b>, or <b>make menuconfig</b> followed
+by <b>make</b>).</p>
+
+<p>You can use LDFLAGS=--static if you want static binaries, but static
+glibc is hugely inefficient ("hello world" is 810k on x86-64) and throws a
+zillion linker warnings because one of its previous maintainers
+<a href=https://www.akkadia.org/drepper/no_static_linking.html>was insane</a>
+(which meant at the time he refused to fix
+<a href=https://elinux.org/images/2/2d/ELC2010-gc-sections_Denys_Vlasenko.pdf>obvious bugs</a>), plus it uses dlopen() at runtime to implement basic things like
+<a href=https://stackoverflow.com/questions/15165306/compile-a-static-binary-which-code-there-a-function-gethostbyname>DNS lookup</a> (which is impossible
+to support properly from a static binary because you wind up with two
+instances of malloc() managing two heaps which corrupt as soon as a malloc()
+from one is free()d into the other), although glibc added
+<a href=https://stackoverflow.com/questions/14289488/use-dlsym-on-a-static-binary>improper support</a> which still requires the shared libraries to be
+installed on the system alongside the static binary:
+<a href=https://www.youtube.com/watch?v=Ih-3vK2qLls>in brief, avoid</a>.)
+These days glibc is maintained by a committee instead of a single
+maintainer, if you consider that an improvement.</p>
+
+<p><b>2) gcc+musl = musl-cross-make</b>
+
+<p>The cross compilers I test this with are built from the
+<a href=http://musl.libc.org/>musl-libc</a> maintainer's
+<a href=https://github.com/richfelker/musl-cross-make>musl-cross-make</a>
+project, built by running toybox's scripts/mcm-buildall.sh in that directory,
+and then symlink the resulting "ccc" subdirectory into toybox where
+"make root CROSS=" can find them, ala:</p>
+
+<blockquote><pre>
+cd ~
+git clone https://github.com/landley/toybox
+git clone https://github.com/richfelker/musl-cross-make
+cd musl-cross-make
+../toybox/scripts/mcm-buildall.sh # this takes a while
+ln -s $(realpath ccc) ../toybox/ccc
+</pre></blockquote>
+
+<p>Instead of symlinking ccc, you can specify a CROSS_COMPILE= prefix
+in the same format the Linux kernel build uses. You can either provide a
+full path in the CROSS_COMPILE string, or add the appropriate bin directory
+to your $PATH. I.E:</p>
+
+<blockquote>
+<p>make LDFLAGS=--static CROSS_COMPILE=~/musl-cross-make/ccc/m68k-linux-musl-cross/bin/m68k-linux-musl- distclean defconfig toybox</p>
+</blockquote>
+
+<p>Is equivalent to:</p>
+
+<blockquote><p>
+export "PATH=~/musl-cross-make/ccc/m68k-linux-musl-cross/bin:$PATH"<br />
+LDFLAGS=--static make distclean defconfig toybox CROSS=m68k-linux-musl-
+</p></blockquote>
+
+<p>Note: a non-static build won't run unless you install musl on your host.
+In theory you could "make root" a dynamic root filesystem with musl by copying
+the shared libraries out of the toolchain, but I haven't bothered implementing
+that yet because a static linked musl hello world is 10k on x86
+(5k if stripped).</p>
+
+<p><b>3) llvm+bionic = Android NDK</b></p>
+
+<p>The <a href=https://developer.android.com/ndk/downloads>Android
+Native Development Kit</a> provides an llvm toolchain with the bionic
+libc used by Android. To turn it into something toybox can use, you
+just have to add an appropriately prefixed "cc" symlink to the other
+prefixed tools, ala:</p>
+
+<blockquote><pre>
+unzip android-ndk-r21b-linux-x86_64.zip
+cd android-ndk-21b/toolchains/llvm/prebuilt/linux-x86_64/bin
+ln -s x86_64-linux-android29-clang x86_64-linux-android-cc
+PATH="$PWD:$PATH"
+cd ~/toybox
+make distclean
+make LDFLAGS=--static CROSS_COMPILE=x86_64-linux-android- defconfig toybox
+</pre></blockquote>
+
+<p>Again, you need a static link unless you want to install bionic on your
+host. Binaries statically linked against bionic are almost as big as with
+glibc, but at least it doesn't have the dlopen() issues.</p>
+
+<p>Unfortunately, although the resulting toybox will run a bionic-based
+chroot will not, because even "hello world" statically linked
+against bionic will segfault before calling main() if /dev/null isn't
+present, and the init script written by mkroot.sh has to run a shell linked
+against bionic in order to mount devtmpfs on /dev to provide /dev/null.</p>
 
 <a name="mkroot" />
 <h2>Q: How do you build a working Linux system with toybox?</h2>
