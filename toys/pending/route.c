@@ -17,7 +17,7 @@ config ROUTE
   bool "route"
   default n
   help
-    usage: route [-ne] [-A [46]] [add|del TARGET [OPTIONS]]
+    usage: route [-ne] [-A [inet|inet6]] [add|del TARGET [OPTIONS]]
 
     Display, add or delete network routes in the "Forwarding Information Base".
 
