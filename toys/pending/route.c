@@ -49,6 +49,7 @@ config ROUTE
 #define FOR_route
 #include "toys.h"
 #include <net/route.h>
+#include <linux/rtnetlink.h>
 
 GLOBALS(
   char *family;
@@ -73,6 +74,37 @@ static struct _arglist arglist2[] = {
   { "-net", 1 }, { "-host", 2 },
   { NULL, 0 }
 };
+
+void xsend(int sockfd, void *buf, size_t len)
+{
+  if (send(sockfd, buf, len, 0) != len) exit(EXIT_FAILURE);
+}
+
+int xrecv(int sockfd, void *buf, size_t len)
+{
+  int msg_len = recv(sockfd, buf, len, 0);
+  if (msg_len < 0) exit(EXIT_FAILURE);
+
+  return msg_len;
+}
+
+void send_nlrtmsg(int fd, int type, int flags, struct rtmsg *rt)
+{
+  struct {
+    struct nlmsghdr nl;
+    struct rtmsg rt;
+  } req;
+
+  memset(&req, 0, sizeof(req));
+  req.nl.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
+  req.nl.nlmsg_type = type;
+  req.nl.nlmsg_flags = flags;
+  req.nl.nlmsg_pid = getpid();
+  req.nl.nlmsg_seq = 1;
+  req.rt = *rt;
+
+  xsend(fd, &req, sizeof(req));
+}
 
 // to get the host name from the given ip.
 static int get_hostname(char *ipstr, struct sockaddr_in *sockin)
