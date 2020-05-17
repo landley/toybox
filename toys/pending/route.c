@@ -197,8 +197,13 @@ static void display_routes(void)
         char netmask[32] = "0.0.0.0";
         char flags[10] = "U";
         uint32_t priority = 0;
+        uint32_t mss = 0;
+        uint32_t win = 0;
+        uint32_t irtt = 0;
         char if_name[IF_NAMESIZE] = "-";
         uint32_t route_netmask;
+        struct rtattr *metric;
+        uint32_t metric_len;
 
         if (!(toys.optflags & FLAG_n)) strcpy(destip, "default");
         if (!(toys.optflags & FLAG_n)) strcpy(gateip, "*");
@@ -233,7 +238,18 @@ static void display_routes(void)
               break;
 
             case RTA_METRICS:
-              //todo: Implement mss, win, irtt
+              metric_len = RTA_PAYLOAD(route_attribute);
+              for (metric = RTA_DATA(route_attribute);
+                   RTA_OK(metric, metric_len);
+                   metric=RTA_NEXT(metric, metric_len)) {
+                if (metric->rta_type == RTAX_ADVMSS) {
+                  mss = *(uint32_t *) RTA_DATA(metric);
+                } else if (metric->rta_type == RTAX_WINDOW) {
+                  win = *(uint32_t *) RTA_DATA(metric);
+                } else if (metric->rta_type == RTAX_RTT) {
+                  irtt = (*(uint32_t *) RTA_DATA(metric)) / 8;
+                }
+              }
               break;
           }
 
@@ -249,7 +265,7 @@ static void display_routes(void)
         // IPv4 caching is disabled so hard coding Use to 0
         xprintf("%-15.15s %-15.15s %-16s%-6s", destip, gateip, netmask, flags);
         if (toys.optflags & FLAG_e) {
-          xprintf("%5d %-5d %6d %s\n", 0, 0, 0, if_name);
+          xprintf("%5d %-5d %6d %s\n", mss, win, irtt, if_name);
         } else xprintf("%-6d %-2d %7d %s\n", priority, 0, 0, if_name);
       }
       msg_hdr_ptr = NLMSG_NEXT(msg_hdr_ptr, msg_hdr_len);
