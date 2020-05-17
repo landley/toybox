@@ -70,7 +70,8 @@ clean::
 
 # If singlemake was in generated/ "make clean; make test_ls" wouldn't work.
 distclean: clean root_clean
-	@rm -f toybox* .config* .singlemake root_download
+	@rm -f toybox* .config* .singlemake
+	@-rm root_download
 	@echo removed .config
 
 tests:
