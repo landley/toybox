@@ -158,45 +158,108 @@ static void get_flag_value(char *str, int flags)
   *str = 0;
 }
 
-// extract inet4 route info from /proc/net/route file and display it.
 static void display_routes(void)
 {
-  unsigned long dest, gate, mask;
-  int flags, ref, use, metric, mss, win, irtt, items;
-  char iface[64] = {0,}, flag_val[10]; //there are 9 flags "UGHRDMDAC" for route.
+  int fd, msg_hdr_len, route_protocol;
+  struct nlmsghdr buf[8192 / sizeof(struct nlmsghdr)];
+  struct nlmsghdr *msg_hdr_ptr;
+  struct rtmsg req;
 
-  FILE *fp = xfopen("/proc/net/route", "r");
+  struct rtmsg *route_entry;
+  struct rtattr *route_attribute;
+
+  fd = xsocket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+
+  memset(&req, 0, sizeof(req));
+  req.rtm_family = AF_INET;
+  req.rtm_table = RT_TABLE_MAIN;
+
+  send_nlrtmsg(fd, RTM_GETROUTE, NLM_F_REQUEST | NLM_F_DUMP, &req);
 
   xprintf("Kernel IP routing table\n"
-      "Destination     Gateway         Genmask         Flags %s Iface\n",
-      (toys.optflags & FLAG_e)? "  MSS Window  irtt" : "Metric Ref    Use");
+          "Destination     Gateway         Genmask         Flags %s Iface\n",
+          (toys.optflags & FLAG_e)? "  MSS Window  irtt" : "Metric Ref    Use");
 
-  if (fscanf(fp, "%*[^\n]\n") < 0) perror_exit("fscanf"); //skip 1st line
-  while ((items = fscanf(fp, "%63s%lx%lx%X%d%d%d%lx%d%d%d\n", iface, &dest, 
-          &gate, &flags, &ref, &use, &metric, &mask, &mss, &win, &irtt)) == 11)
-  {
-    char *destip = toybuf, *gateip = toybuf+32, *maskip = toybuf+64; //ip string 16
+  msg_hdr_len = xrecv(fd, buf, sizeof(buf));
+  msg_hdr_ptr = (struct nlmsghdr *) buf;
+  while (msg_hdr_ptr->nlmsg_type != NLMSG_DONE) {
+    while (NLMSG_OK(msg_hdr_ptr, msg_hdr_len)) {
+      route_entry = (struct rtmsg *) NLMSG_DATA(msg_hdr_ptr);
+      route_protocol = route_entry->rtm_protocol;
 
-    if (!(flags & RTF_UP)) continue; //skip down interfaces.
+      // Annoyingly NLM_F_MATCH is not yet implemented so even if we pass in
+      // RT_TABLE_MAIN with RTM_GETROUTE it still returns everything so we
+      // have to filter here.
+      if (route_entry->rtm_table == RT_TABLE_MAIN) {
+        struct in_addr netmask_addr;
+        char destip[32] = "0.0.0.0";
+        char gateip[32] = "0.0.0.0";
+        char netmask[32] = "0.0.0.0";
+        char flags[10] = "U";
+        uint32_t priority = 0;
+        char if_name[IF_NAMESIZE] = "-";
+        uint32_t route_netmask;
 
-    if (!dest && !(toys.optflags & FLAG_n)) strcpy( destip, "default");
-    else if (!inet_ntop(AF_INET, &dest, destip, 32)) perror_exit("inet");
+        if (!(toys.optflags & FLAG_n)) strcpy(destip, "default");
+        if (!(toys.optflags & FLAG_n)) strcpy(gateip, "*");
 
-    if (!gate && !(toys.optflags & FLAG_n)) strcpy( gateip, "*");
-    else if (!inet_ntop(AF_INET, &gate, gateip, 32)) perror_exit("inet");
+        route_netmask = route_entry->rtm_dst_len;
+        if (route_netmask == 0) {
+          netmask_addr.s_addr = ~((in_addr_t) -1);
+        } else {
+          netmask_addr.s_addr = htonl(~((1 << (32 - route_netmask)) - 1));
+        }
+        inet_ntop(AF_INET, &netmask_addr, netmask, sizeof(netmask));
 
-    if (!inet_ntop(AF_INET, &mask, maskip, 32)) perror_exit("inet");
+        route_attribute = RTM_RTA(route_entry);
+        int route_attribute_len = RTM_PAYLOAD(msg_hdr_ptr);
+        while (RTA_OK(route_attribute, route_attribute_len)) {
+          switch (route_attribute->rta_type) {
+            case RTA_DST:
+              inet_ntop(AF_INET, RTA_DATA(route_attribute), destip, 24);
+              break;
 
-    //Get flag Values
-    get_flag_value(flag_val, flags);
-    if (flags & RTF_REJECT) flag_val[0] = '!';
-    xprintf("%-15.15s %-15.15s %-16s%-6s", destip, gateip, maskip, flag_val);
-    if (toys.optflags & FLAG_e) xprintf("%5d %-5d %6d %s\n", mss, win, irtt, iface);
-    else xprintf("%-6d %-2d %7d %s\n", metric, ref, use, iface);
+            case RTA_GATEWAY:
+              inet_ntop(AF_INET, RTA_DATA(route_attribute), gateip, 24);
+              strcat(flags, "G");
+              break;
+
+            case RTA_PRIORITY:
+              priority = *(uint32_t *) RTA_DATA(route_attribute);
+              break;
+
+            case RTA_OIF:
+              if_indextoname(*((int *) RTA_DATA(route_attribute)), if_name);
+              break;
+
+            case RTA_METRICS:
+              //todo: Implement mss, win, irtt
+              break;
+          }
+
+          route_attribute = RTA_NEXT(route_attribute, route_attribute_len);
+        }
+
+        // Set/Update flags, rtnetlink.h note RTPROT_REDIRECT is not used
+        if (route_entry->rtm_type == RTN_UNREACHABLE) flags[0] = '!';
+        if (route_netmask == 32) strcat(flags, "H");
+        if (route_protocol == RTPROT_REDIRECT) strcat(flags, "D");
+
+        // Ref is not used by the kernel so hard coding to 0
+        // IPv4 caching is disabled so hard coding Use to 0
+        xprintf("%-15.15s %-15.15s %-16s%-6s", destip, gateip, netmask, flags);
+        if (toys.optflags & FLAG_e) {
+          xprintf("%5d %-5d %6d %s\n", 0, 0, 0, if_name);
+        } else xprintf("%-6d %-2d %7d %s\n", priority, 0, 0, if_name);
+      }
+      msg_hdr_ptr = NLMSG_NEXT(msg_hdr_ptr, msg_hdr_len);
+    }
+
+    msg_hdr_len = xrecv(fd, buf, sizeof(buf));
+    msg_hdr_ptr = (struct nlmsghdr *) buf;
   }
 
-  if (items > 0 && feof(fp)) perror_exit("fscanf %d", items);
-  fclose(fp);
+  xclose(fd);
 }
 
 /*
