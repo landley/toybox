@@ -1947,7 +1947,7 @@ if (BUGBUG>1) dprintf(255, "[%.*s] ", end ? (int)(end-start) : 0, start);
   // return if HERE document pending or more flow control needed to complete
   if (sp->expect) return 1;
   if (sp->pipeline && pl->count != pl->here) return 1;
-  if (pl->arg->v[pl->arg->c]) return 1;
+  if (pl->arg->v[pl->arg->c] && strcmp(pl->arg->v[pl->arg->c], "&")) return 1;
 
   // Don't need more input, can start executing.
 
