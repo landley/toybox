@@ -180,6 +180,7 @@ void netcat_main(void)
             close(in1);
             continue;
           }
+          close(sockfd);
           dup2(in1, 0);
           dup2(in1, 1);
           if (FLAG(E)) dup2(in1, 2);
