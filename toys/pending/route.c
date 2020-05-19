@@ -151,7 +151,6 @@ static void display_routes(sa_family_t family)
   struct nlmsghdr buf[8192 / sizeof(struct nlmsghdr)];
   struct nlmsghdr *msg_hdr_ptr;
   struct rtmsg req;
-
   struct rtmsg *route_entry;
   struct rtattr *route_attribute;
 
@@ -169,14 +168,14 @@ static void display_routes(sa_family_t family)
             (toys.optflags & FLAG_e) ? "  MSS Window  irtt" : "Metric Ref    Use");
   } else {
     xprintf("Kernel IPv6 routing table\n"
-            "%-31s%-26s Flag Met Ref Use If\n", "Destination", "Next Hop");
+            "%-31s%-26s Flag Metric Ref Use If\n", "Destination", "Next Hop");
   }
 
   msg_hdr_len = xrecv(fd, buf, sizeof(buf));
-  msg_hdr_ptr = (struct nlmsghdr *) buf;
+  msg_hdr_ptr = buf;
   while (msg_hdr_ptr->nlmsg_type != NLMSG_DONE) {
     while (NLMSG_OK(msg_hdr_ptr, msg_hdr_len)) {
-      route_entry = (struct rtmsg *) NLMSG_DATA(msg_hdr_ptr);
+      route_entry = NLMSG_DATA(msg_hdr_ptr);
       route_protocol = route_entry->rtm_protocol;
 
       // Annoyingly NLM_F_MATCH is not yet implemented so even if we pass in
@@ -192,11 +191,13 @@ static void display_routes(sa_family_t family)
         uint32_t mss = 0;
         uint32_t win = 0;
         uint32_t irtt = 0;
-        uint32_t refcount = 0; //todo(emolitor): implement
+        uint32_t ref = 0;
+        uint32_t use = 0;
         char if_name[IF_NAMESIZE] = "-";
         uint32_t route_netmask;
         struct rtattr *metric;
         uint32_t metric_len;
+        struct rta_cacheinfo *cache_info;
 
         if (family == AF_INET) {
           if (!(toys.optflags & FLAG_n)) strcpy(destip, "default");
@@ -249,48 +250,41 @@ static void display_routes(sa_family_t family)
                   win = *(uint32_t *) RTA_DATA(metric);
                 } else if (metric->rta_type == RTAX_RTT) {
                   irtt = (*(uint32_t *) RTA_DATA(metric)) / 8;
-                } else {
-                  printf("Unknown metric->rta_type %u\n", metric->rta_type);
                 }
               }
               break;
 
             case RTA_CACHEINFO:
-              // todo(emolitor): implement for AF_INET6
-              break;
-
-            case RTA_PREF:
-              // todo(emolitor): implement for AF_INET6
+              cache_info = RTA_DATA(route_attribute);
+              ref = cache_info->rta_clntref;
+              use = cache_info->rta_used;
               break;
           }
 
           route_attribute = RTA_NEXT(route_attribute, route_attribute_len);
         }
 
-        // Set/Update flags, rtnetlink.h note RTPROT_REDIRECT is not used
         if (route_entry->rtm_type == RTN_UNREACHABLE) flags[0] = '!';
         if (route_netmask == 32) strcat(flags, "H");
         if (route_protocol == RTPROT_REDIRECT) strcat(flags, "D");
 
         if (family == AF_INET) {
-          // Ref is not used by the kernel so hard coding to 0
-          // IPv4 caching is disabled so hard coding Use to 0
           xprintf("%-15.15s %-15.15s %-16s%-6s", destip, gateip, netmask, flags);
           if (toys.optflags & FLAG_e) {
             xprintf("%5d %-5d %6d %s\n", mss, win, irtt, if_name);
-          } else xprintf("%-6d %-2d %7d %s\n", priority, refcount, 0, if_name);
-        } else {;
-          char dest_with_mask[INET6_ADDRSTRLEN + 4];
-          snprintf(dest_with_mask, INET6_ADDRSTRLEN + 4, "%s/%u", destip, route_netmask);
-          xprintf("%-30s %-26s %-4s %-3d %-4d %2d %-8s\n",
-                  dest_with_mask, gateip, flags, priority, refcount, 0, if_name);
+          } else xprintf("%-6d %-2d %7d %s\n", priority, ref, use, if_name);
+        } else {
+          char *dest_with_mask = xmprintf("%s/%u", destip, route_netmask);
+          xprintf("%-30s %-26s %-4s %-6d %-4d %2d %-8s\n",
+                  dest_with_mask, gateip, flags, priority, ref, use, if_name);
+          free(dest_with_mask);
         }
       }
       msg_hdr_ptr = NLMSG_NEXT(msg_hdr_ptr, msg_hdr_len);
     }
 
     msg_hdr_len = xrecv(fd, buf, sizeof(buf));
-    msg_hdr_ptr = (struct nlmsghdr *) buf;
+    msg_hdr_ptr = buf;
   }
 
   xclose(fd);
