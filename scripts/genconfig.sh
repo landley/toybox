@@ -151,6 +151,7 @@ while IFS=":" read FILE NAME
 do
   [ "$NAME" == help ] && continue
   [ "$NAME" == install ] && continue
+  [ "$NAME" == sh ] && FILE="toys/*/*.c"
   echo -e "$NAME: $FILE *.[ch] lib/*.[ch]\n\tscripts/single.sh $NAME\n"
   echo -e "test_$NAME:\n\tscripts/test.sh $NAME\n"
   [ "${FILE/pending//}" != "$FILE" ] &&
