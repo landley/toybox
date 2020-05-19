@@ -452,9 +452,9 @@ void xsignal_all_killers(void *handler)
 {
   int i;
 
-  for (i=0; signames[i].num != SIGCHLD; i++)
-    if (signames[i].num != SIGKILL)
-      xsignal(signames[i].num, handler ? exit_signal : SIG_DFL);
+  if (!handler) handler = SIG_DFL;
+  for (i = 0; signames[i].num != SIGCHLD; i++)
+    if (signames[i].num != SIGKILL) xsignal(signames[i].num, handler);
 }
 
 // Convert a string like "9", "KILL", "SIGHUP", or "SIGRTMIN+2" to a number.
