@@ -78,7 +78,7 @@ void vmstat_main(void)
   int i, loop_delay = 0, loop_max = 0;
   unsigned loop, rows = 25, page_kb = sysconf(_SC_PAGESIZE)/1024;
   char *headers="r\0b\0swpd\0free\0buff\0cache\0si\0so\0bi\0bo\0in\0cs\0us\0"
-                "sy\0id\0wa", lengths[] = {2,2,6,6,6,6,4,4,5,5,4,4,2,2,2,2};
+                "sy\0id\0wa", lengths[] = {2,2,7,7,6,7,5,5,5,5,5,5,2,2,2,2};
 
   memset(top, 0, sizeof(top));
   if (toys.optc) loop_delay = atolx_range(toys.optargs[0], 0, INT_MAX);
@@ -98,7 +98,7 @@ void vmstat_main(void)
       if (!(toys.optflags&FLAG_n) && isatty(1)) terminal_size(0, &rows);
       else rows = 0;
 
-      printf("procs -----------memory---------- ---swap-- -----io---- -system-- ----cpu----\n");
+      printf("procs ------------memory------------ ----swap--- -----io---- ---system-- ----cpu----\n");
       for (i=0; i<sizeof(lengths); i++) {
         printf(" %*s"+!i, lengths[i], header);
         header += strlen(header)+1;
