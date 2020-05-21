@@ -453,7 +453,7 @@ int unescape2(char **c, int echo)
     }
   }
 
-  if (-1 == (idx = stridx("\\abeEfnrtv'\"?", **c))) return '\\';
+  if (-1 == (idx = stridx("\\abeEfnrtv'\"?0", **c))) return '\\';
   ++*c;
 
   return "\\\a\b\033\033\f\n\r\t\v'\"?"[idx];
