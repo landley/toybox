@@ -430,8 +430,11 @@ static const struct signame signames[] = {
   // Non-POSIX signals that cause termination
   SIGNIFY(PROF), SIGNIFY(IO),
 #ifdef __linux__
-# if !defined(__GLIBC__) && !defined(__mips__)
+# ifdef SIGSTKFLT
    SIGNIFY(STKFLT),
+# endif
+# ifdef SIGEMT
+   SIGNIFY(EMT),
 # endif
   SIGNIFY(POLL), SIGNIFY(PWR),
 #elif defined(__APPLE__)
