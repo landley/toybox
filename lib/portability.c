@@ -430,9 +430,9 @@ static const struct signame signames[] = {
   // Non-POSIX signals that cause termination
   SIGNIFY(PROF), SIGNIFY(IO),
 #ifdef __linux__
-# if !defined(__GLIBC__) && !defined(__mips__)
-   SIGNIFY(STKFLT),
-# endif
+#ifdef SIGSTKFLT
+  SIGNIFY(STKFLT),  // mips is broken, only target missing this
+#endif
   SIGNIFY(POLL), SIGNIFY(PWR),
 #elif defined(__APPLE__)
   SIGNIFY(EMT), SIGNIFY(INFO),
