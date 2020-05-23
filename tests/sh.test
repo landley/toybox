@@ -161,7 +161,7 @@ testing "{5..1..2}" "echo {5..1..2}" "5 3 1\n" "" ""
 testing "{a..z..-3}" "echo {a..z..-3}" "a d g j m p s v y\n" "" ""
 
 testing 'background pipe block' \
-  'if true; then { sleep .25;bzcat "$FILES"/blkid/ntfs.bz2; }; fi | wc -c' \
+  'if true; then { sleep .25;bzcat "$FILES"/blkid/ntfs.bz2; }& fi | wc -c' \
   '8388608\n' '' ''
 
 #$ IFS=x X=xyxz; for i in abc${X}def; do echo =$i=; done
