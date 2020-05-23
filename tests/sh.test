@@ -41,6 +41,7 @@ testing "exec3" '$C -c "{ exec readlink /proc/self/fd/0;} < /proc/self/exe"' \
   "$(readlink -f $C)\n" "" ""
 testing 'arg shift' "$SH -c '"'for i in "" 2 1 1 1; do echo $? $1; shift $i; done'"' one two three four five" \
   "0 two\n0 three\n0 five\n0\n1\n" "" ""
+testing '(subshell)' '$C -c "(echo hello)"' 'hello\n' '' ''
 
 # The bash man page is lying when it says $_ starts with an absolute path.
 ln -s $(which $SH) bash
@@ -158,6 +159,10 @@ testing "{1..5}" "echo {1..5}" "1 2 3 4 5\n" "" ""
 testing "{5..1}" "echo {5..1}" "5 4 3 2 1\n" "" ""
 testing "{5..1..2}" "echo {5..1..2}" "5 3 1\n" "" ""
 testing "{a..z..-3}" "echo {a..z..-3}" "a d g j m p s v y\n" "" ""
+
+testing 'background pipe block' \
+  'if true; then { sleep .25;bzcat "$FILES"/blkid/ntfs.bz2; }; fi | wc -c' \
+  '8388608\n' '' ''
 
 #$ IFS=x X=xyxz; for i in abc${X}def; do echo =$i=; done
 #=abc=
@@ -308,6 +313,19 @@ testing '$UID' 'echo $UID' "$(id -ur)\n" '' ''
 
 testing '$_ 1' 'echo walrus; echo $_' 'walrus\nwalrus\n' '' ''
 testing '$_ 2' 'unset _; echo $_' '_\n' '' ''
+
+# wildcards
+
+touch walrus wallpapers
+testing 'IFS wildcards' \
+  'IFS=xy; ABC=abcywal*sxdef; echo $ABC | tr " " "\n" | sort' \
+  'abc\ndef\nwallpapers\nwalrus\n' '' ''
+rm -f walrus wallpapers
+
+shxpect 'IFS +(extglob)' I$'shopt -s extglob\n' E"$P" \
+  I$'IFS=x; ABC=cxd; for i in +($ABC); do echo =$i=; done\n' \
+  O$'=+(c=\n' O$'=d)=\n'
+touch abc\)d
 
 # TODO finish variable list from shell init
 
