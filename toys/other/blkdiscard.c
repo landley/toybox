@@ -8,7 +8,7 @@
  * Size parsing does not match util-linux where MB, GB, TB are multiples of
  * 1000 and MiB, TiB, GiB are multipes of 1024.
 
-USE_BLKDISCARD(NEWTOY(blkdiscard, "<1>1f(force)l(length):o(offset):s(secure)z(zeroout)[!sz]", TOYFLAG_BIN))
+USE_BLKDISCARD(NEWTOY(blkdiscard, "<1>1f(force)l(length)#<0o(offset)#<0s(secure)z(zeroout)[!sz]", TOYFLAG_BIN))
 
 config BLKDISCARD
   bool "blkdiscard"
@@ -35,7 +35,7 @@ config BLKDISCARD
 #include <linux/fs.h>
 
 GLOBALS(
-  char *o, *l;
+  long o, l;
 )
 
 void blkdiscard_main(void)
@@ -43,13 +43,13 @@ void blkdiscard_main(void)
   int fd = xopen(*toys.optargs, O_WRONLY|O_EXCL*!FLAG(f));
   unsigned long long ol[2];
 
-  ol[0] = FLAG(o) ? atolx_range(TT.o, 0, LLONG_MAX) : 0;
-  if (FLAG(l)) ol[1] = atolx_range(TT.l, 0, LLONG_MAX);
+  // TODO: if numeric arg was long long array could live in TT.
+  if (FLAG(o)) ol[0] = TT.o;
+  if (FLAG(l)) ol[1] = TT.l;
   else {
     xioctl(fd, BLKGETSIZE64, ol+1);
     ol[1] -= ol[0];
   }
   xioctl(fd, FLAG(s) ? BLKSECDISCARD : FLAG(z) ? BLKZEROOUT : BLKDISCARD, ol);
-
-  if (CFG_TOYBOX_FREE) close(fd);
+  close(fd);
 }
