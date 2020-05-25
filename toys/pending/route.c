@@ -88,24 +88,6 @@ int xrecv(int sockfd, void *buf, size_t len)
   return msg_len;
 }
 
-void send_nlrtmsg(int fd, int type, int flags, struct rtmsg *rt)
-{
-  struct {
-    struct nlmsghdr nl;
-    struct rtmsg rt;
-  } req;
-
-  memset(&req, 0, sizeof(req));
-  req.nl.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
-  req.nl.nlmsg_type = type;
-  req.nl.nlmsg_flags = flags;
-  req.nl.nlmsg_pid = getpid();
-  req.nl.nlmsg_seq = 1;
-  req.rt = *rt;
-
-  xsend(fd, &req, sizeof(req));
-}
-
 // to get the host name from the given ip.
 static int get_hostname(char *ipstr, struct sockaddr_in *sockin)
 {
@@ -148,19 +130,26 @@ static int get_addrinfo(char *ip, struct sockaddr_in6 *sock_in6)
 static void display_routes(sa_family_t family)
 {
   int fd, msg_hdr_len, route_protocol;
+  struct {
+    struct nlmsghdr nl;
+    struct rtmsg rt;
+  } req;
   struct nlmsghdr buf[8192 / sizeof(struct nlmsghdr)];
   struct nlmsghdr *msg_hdr_ptr;
-  struct rtmsg req;
   struct rtmsg *route_entry;
   struct rtattr *route_attribute;
 
   fd = xsocket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
 
   memset(&req, 0, sizeof(req));
-  req.rtm_family = family;
-  req.rtm_table = RT_TABLE_MAIN;
-
-  send_nlrtmsg(fd, RTM_GETROUTE, NLM_F_REQUEST | NLM_F_DUMP, &req);
+  req.nl.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
+  req.nl.nlmsg_type = RTM_GETROUTE;
+  req.nl.nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP;
+  req.nl.nlmsg_pid = getpid();
+  req.nl.nlmsg_seq = 1;
+  req.rt.rtm_family = family;
+  req.rt.rtm_table = RT_TABLE_MAIN;
+  xsend(fd, &req, sizeof(req));
 
   if (family == AF_INET) {
     xprintf("Kernel IP routing table\n"
