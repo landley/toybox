@@ -77,13 +77,13 @@ static struct _arglist arglist2[] = {
 
 void xsend(int sockfd, void *buf, size_t len)
 {
-  if (send(sockfd, buf, len, 0) != len) exit(EXIT_FAILURE);
+  if (send(sockfd, buf, len, 0) != len) perror_exit("xsend");
 }
 
 int xrecv(int sockfd, void *buf, size_t len)
 {
   int msg_len = recv(sockfd, buf, len, 0);
-  if (msg_len < 0) exit(EXIT_FAILURE);
+  if (msg_len < 0) perror_exit("xrecv");
 
   return msg_len;
 }
@@ -382,7 +382,7 @@ static void setroute(char **argv)
 {
   struct rtentry rt;
   char *netmask, *targetip;
-  int is_net_or_host = 0, sokfd, arg2_action;
+  int is_net_or_host, sockfd, arg2_action;
   int action = get_action(&argv, arglist1); //verify the arg for add/del.
 
   if (!action || !*argv) help_exit("setroute");
@@ -414,10 +414,10 @@ static void setroute(char **argv)
   if ((action == 1) && (rt.rt_flags & RTF_HOST))
     (((struct sockaddr_in *)&((rt).rt_genmask))->sin_addr.s_addr) = INVALID_ADDR;
 
-  sokfd = xsocket(AF_INET, SOCK_DGRAM, 0);
-  if (action == 1) xioctl(sokfd, SIOCADDRT, &rt);
-  else xioctl(sokfd, SIOCDELRT, &rt);
-  xclose(sokfd);
+  sockfd = xsocket(AF_INET, SOCK_DGRAM, 0);
+  if (action == 1) xioctl(sockfd, SIOCADDRT, &rt);
+  else xioctl(sockfd, SIOCDELRT, &rt);
+  xclose(sockfd);
 }
 
 /*
