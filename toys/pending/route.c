@@ -88,6 +88,18 @@ int xrecv(int sockfd, void *buf, size_t len)
   return msg_len;
 }
 
+void addAttr(struct nlmsghdr *nl, int maxlen, void *attr, int type, int len)
+{
+  struct rtattr *rt;
+  int rtlen = RTA_LENGTH(len);
+  if (NLMSG_ALIGN(nl->nlmsg_len) + rtlen > maxlen) perror_exit("addAttr");
+  rt = (struct rtattr*)((char *)nl + NLMSG_ALIGN(nl->nlmsg_len));
+  rt->rta_type = type;
+  rt->rta_len = rtlen;
+  memcpy(RTA_DATA(rt), attr, len);
+  nl->nlmsg_len = NLMSG_ALIGN(nl->nlmsg_len) + rtlen;
+}
+
 // to get the host name from the given ip.
 static int get_hostname(char *ipstr, struct sockaddr_in *sockin)
 {
@@ -297,81 +309,11 @@ static int get_action(char ***argv, struct _arglist *list)
   return 0;
 }
 
-/*
- * used to get the params like: metric, netmask, gw, mss, window, irtt, dev and their values.
- * additionally set the flag values for reject, mod, dyn and reinstate.
- */
-static void get_next_params(char **argv, struct rtentry *rt, char **netmask)
-{
-  for (;*argv;argv++) {
-    if (!strcmp(*argv, "reject")) rt->rt_flags |= RTF_REJECT;
-    else if (!strcmp(*argv, "mod")) rt->rt_flags |= RTF_MODIFIED;
-    else if (!strcmp(*argv, "dyn")) rt->rt_flags |= RTF_DYNAMIC;
-    else if (!strcmp(*argv, "reinstate")) rt->rt_flags |= RTF_REINSTATE;
-    else {
-      if (!argv[1]) help_exit(0);
-
-      //set the metric field in the routing table.
-      if (!strcmp(*argv, "metric"))
-        rt->rt_metric = atolx_range(argv[1], 0, ULONG_MAX) + 1;
-      else if (!strcmp(*argv, "netmask")) {
-        //when adding a network route, the netmask to be used.
-        struct sockaddr sock;
-        unsigned int addr_mask = (((struct sockaddr_in *)&((rt)->rt_genmask))->sin_addr.s_addr);
-
-        if (addr_mask) help_exit("dup netmask");
-        *netmask = argv[1];
-        get_hostname(*netmask, (struct sockaddr_in *) &sock);
-        rt->rt_genmask = sock;
-      } else if (!strcmp(*argv, "gw")) { 
-        //route packets via a gateway.
-        if (!(rt->rt_flags & RTF_GATEWAY)) {
-          if (!get_hostname(argv[1], (struct sockaddr_in *) &rt->rt_gateway))
-            rt->rt_flags |= RTF_GATEWAY;
-          else perror_exit("gateway '%s' is a NETWORK", argv[1]);
-        } else help_exit("dup gw");
-      } else if (!strcmp(*argv, "mss")) {
-        //set the TCP Maximum Segment Size for connections over this route.
-        rt->rt_mtu = atolx_range(argv[1], 64, 65536);
-        rt->rt_flags |= RTF_MSS;
-      } else if (!strcmp(*argv, "window")) {
-        //set the TCP window size for connections over this route to W bytes.
-        rt->rt_window = atolx_range(argv[1], 128, INT_MAX); //win low
-        rt->rt_flags |= RTF_WINDOW;
-      } else if (!strcmp(*argv, "irtt")) {
-        rt->rt_irtt = atolx_range(argv[1], 0, INT_MAX);
-        rt->rt_flags |= RTF_IRTT;
-      } else if (!strcmp(*argv, "dev") && !rt->rt_dev) rt->rt_dev = argv[1];
-      else help_exit("no '%s'", *argv);
-      argv++;
-    }
-  }
-
-  if (!rt->rt_dev && (rt->rt_flags & RTF_REJECT)) rt->rt_dev = (char *)"lo";
-}
-
-// verify the netmask and conflict in netmask and route address.
-static void verify_netmask(struct rtentry *rt, char *netmask)
-{
-  unsigned int addr_mask = (((struct sockaddr_in *)&((rt)->rt_genmask))->sin_addr.s_addr);
-  unsigned int router_addr = ~(unsigned int)(((struct sockaddr_in *)&((rt)->rt_dst))->sin_addr.s_addr);
-
-  if (addr_mask) {
-    addr_mask = ~ntohl(addr_mask);
-    if ((rt->rt_flags & RTF_HOST) && addr_mask != INVALID_ADDR)
-      perror_exit("conflicting netmask and host route");
-    if (addr_mask & (addr_mask + 1)) perror_exit("wrong netmask '%s'", netmask);
-    addr_mask = ((struct sockaddr_in *) &rt->rt_dst)->sin_addr.s_addr;
-    if (addr_mask & router_addr) perror_exit("conflicting netmask and route address");
-  }
-}
-
 // add/del a route.
-static void setroute(char **argv)
+static void setroute(sa_family_t family, char **argv)
 {
-  struct rtentry rt;
-  char *netmask, *targetip;
-  int is_net_or_host, sockfd, arg2_action;
+  char *targetip;
+  int sockfd, arg2_action;
   int action = get_action(&argv, arglist1); //verify the arg for add/del.
 
   if (!action || !*argv) help_exit("setroute");
@@ -379,33 +321,124 @@ static void setroute(char **argv)
   arg2_action = get_action(&argv, arglist2); //verify the arg for -net or -host
   if (!*argv) help_exit("setroute");
 
-  memset(&rt, 0, sizeof(struct rtentry));
   targetip = *argv++;
 
-  netmask = strchr(targetip, '/');
-  if (netmask) {
-    *netmask++ = 0;
-    //used to verify the netmask and route conflict.
-    (((struct sockaddr_in *)&rt.rt_genmask)->sin_addr.s_addr)
-      = htonl((1<<(32-atolx_range(netmask, 0, 32)))-1);
-    rt.rt_genmask.sa_family = AF_INET;
-    netmask = 0;
-  } else netmask = "default";
+  struct nlmsghdr *nlMsg;
+  struct rtmsg *rtMsg;
 
-  is_net_or_host = get_hostname(targetip, (void *)&rt.rt_dst);
+  sockfd = xsocket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+  memset(toybuf, 0, sizeof(toybuf));
+  nlMsg = (struct nlmsghdr *) toybuf;
+  rtMsg = (struct rtmsg *) NLMSG_DATA(nlMsg);
 
-  if (arg2_action) is_net_or_host = arg2_action & 1;
-  rt.rt_flags = ((is_net_or_host) ? RTF_UP : (RTF_UP | RTF_HOST));
+  nlMsg->nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
 
-  get_next_params(argv, &rt, (char **)&netmask);
-  verify_netmask(&rt, (char *)netmask);
+  //TODO(emolitor): Improve action and arg2_action handling
+  if (action == 1) { // Add
+    nlMsg->nlmsg_type = RTM_NEWROUTE;
+    nlMsg->nlmsg_flags = NLM_F_REQUEST | NLM_F_CREATE | NLM_F_EXCL;
+  } else { // Delete
+    nlMsg->nlmsg_type = RTM_DELROUTE;
+    nlMsg->nlmsg_flags = NLM_F_REQUEST;
+  }
 
-  if ((action == 1) && (rt.rt_flags & RTF_HOST))
-    (((struct sockaddr_in *)&((rt).rt_genmask))->sin_addr.s_addr) = INVALID_ADDR;
+  nlMsg->nlmsg_pid = getpid();
+  nlMsg->nlmsg_seq = 1;
+  rtMsg->rtm_family = family;
+  rtMsg->rtm_table = RT_TABLE_UNSPEC;
+  rtMsg->rtm_type = RTN_UNICAST;
+  rtMsg->rtm_protocol = RTPROT_UNSPEC;
+  rtMsg->rtm_flags = RTM_F_NOTIFY;
+  if (family == AF_INET) {
+    rtMsg->rtm_dst_len = 32;
+    rtMsg->rtm_src_len = 32;
+  } else {
+    rtMsg->rtm_dst_len = 128;
+    rtMsg->rtm_src_len = 128;
+  }
 
-  sockfd = xsocket(AF_INET, SOCK_DGRAM, 0);
-  if (action == 1) xioctl(sockfd, SIOCADDRT, &rt);
-  else xioctl(sockfd, SIOCDELRT, &rt);
+  if (arg2_action == 2) {
+    rtMsg->rtm_scope = RT_SCOPE_HOST;
+  }
+
+  size_t addr_len = sizeof(struct in_addr);
+  if (family == AF_INET6) addr_len = sizeof(struct in6_addr);
+  unsigned char addr[sizeof(struct in6_addr)] = {0,};
+
+  for (; *argv; argv++) {
+    if (!strcmp(*argv, "mod")) {
+      continue;
+    } else if (!strcmp(*argv, "dyn")) {
+      continue;
+    } else if (!strcmp(*argv, "reinstate")) {
+      continue;
+    } else if (!strcmp(*argv, "reject")) {
+      rtMsg->rtm_type = RTN_UNREACHABLE;
+    } else {
+      if (!argv[1]) help_exit(0);
+
+      if (!strcmp(*argv, "metric")) {
+        unsigned int priority = atolx_range(argv[1], 0, UINT_MAX);
+        addAttr(nlMsg, sizeof(toybuf), &priority, RTA_PRIORITY, sizeof(unsigned int));
+      } else if (!strcmp(*argv, "netmask")) {
+        uint32_t netmask;
+        char *ptr;
+        uint32_t naddr[4] = {0,};
+        uint64_t plen;
+
+        netmask = (family == AF_INET6) ? 128 : 32; // set default netmask
+        plen = strtoul(argv[1], &ptr, 0);
+
+        if (!ptr || ptr == argv[1] || *ptr || !plen || plen > netmask) {
+          if (!inet_pton(family, argv[1], &naddr)) error_exit("invalid netmask");
+          if (family == AF_INET) {
+            uint32_t mask = htonl(*naddr), host = ~mask;
+            if (host & (host + 1)) error_exit("invalid netmask");
+            for (plen = 0; mask; mask <<= 1) ++plen;
+            if (plen > 32) error_exit("invalid netmask");
+          }
+        }
+        netmask = plen;
+        rtMsg->rtm_dst_len = netmask;
+      } else if (!strcmp(*argv, "gw")) {
+        if (!inet_pton(family, argv[1], &addr)) error_exit("invalid gw");
+        addAttr(nlMsg, sizeof(toybuf), &addr, RTA_GATEWAY, addr_len);
+      } else if (!strcmp(*argv, "mss")) {
+        // TODO(emolitor): Add RTA_METRICS support
+        //set the TCP Maximum Segment Size for connections over this route.
+        //rt->rt_mtu = atolx_range(argv[1], 64, 65536);
+        //rt->rt_flags |= RTF_MSS;
+      } else if (!strcmp(*argv, "window")) {
+        // TODO(emolitor): Add RTA_METRICS support
+        //set the TCP window size for connections over this route to W bytes.
+        //rt->rt_window = atolx_range(argv[1], 128, INT_MAX); //win low
+        //rt->rt_flags |= RTF_WINDOW;
+      } else if (!strcmp(*argv, "irtt")) {
+        // TODO(emolitor): Add RTA_METRICS support
+        //rt->rt_irtt = atolx_range(argv[1], 0, INT_MAX);
+        //rt->rt_flags |= RTF_IRTT;
+      } else if (!strcmp(*argv, "dev")) {
+        unsigned int if_idx = if_nametoindex(argv[1]);
+        if (!if_idx) perror_exit("dev");
+        addAttr(nlMsg, sizeof(toybuf), &if_idx, RTA_OIF, sizeof(unsigned int));
+      } else help_exit("no '%s'", *argv);
+      argv++;
+    }
+  }
+
+  if (strcmp(targetip, "default") != 0) {
+    char *ptr;
+    char *dst = strtok(targetip, "/");
+    char *prefix = strtok(NULL, "/");
+
+    if (prefix) rtMsg->rtm_dst_len = strtoul(prefix, &ptr, 0);
+    if (!inet_pton(family, dst, &addr)) error_exit("invalid target");
+    addAttr(nlMsg, sizeof(toybuf), &addr, RTA_DST, addr_len);
+  } else {
+    rtMsg->rtm_dst_len = 0;
+  }
+
+  xsend(sockfd, nlMsg, nlMsg->nlmsg_len);
   xclose(sockfd);
 }
 
@@ -505,6 +538,6 @@ void route_main(void)
     else help_exit(0);
   } else {
     if (!strcmp(TT.family, "inet6")) setroute_inet6(toys.optargs);
-    else setroute(toys.optargs);
+    else setroute(AF_INET, toys.optargs);
   }
 }
