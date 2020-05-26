@@ -50,7 +50,7 @@ config DD
 GLOBALS(
   int show_xfer, show_records;
   unsigned long long bytes, c_count, in_full, in_part, out_full, out_part;
-  struct timeval start;
+  struct timespec start;
   struct {
     char *name;
     int fd;
@@ -80,11 +80,11 @@ static const struct dd_flag dd_oflag[] = TAGGED_ARRAY(DD_oflag,
 static void status()
 {
   double seconds;
-  struct timeval now;
+  struct timespec now;
 
-  gettimeofday(&now, NULL);
-  seconds = ((now.tv_sec * 1000000 + now.tv_usec) -
-      (TT.start.tv_sec * 1000000 + TT.start.tv_usec))/1000000.0;
+  clock_gettime(CLOCK_REALTIME, &now);
+  seconds = ((now.tv_sec * 1000000000 + now.tv_nsec) -
+      (TT.start.tv_sec * 1000000000 + TT.start.tv_nsec))/1000000000.0;
 
   if (TT.show_records)
     fprintf(stderr, "%llu+%llu records in\n%llu+%llu records out\n",
@@ -176,7 +176,7 @@ void dd_main()
 
   signal(SIGINT, dd_sigint);
   signal(SIGUSR1, generic_signal);
-  gettimeofday(&TT.start, NULL);
+  clock_gettime(CLOCK_REALTIME, &TT.start);
 
   // For bs=, in/out is done as it is. so only in.sz is enough.
   // With Single buffer there will be overflow in a read following partial read.
