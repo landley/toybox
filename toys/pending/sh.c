@@ -1731,7 +1731,7 @@ if (BUGBUG>1) dprintf(255, "{%d:%s}\n", pl->type, ex ? ex : (sp->expect ? "*" : 
     // Parse next word and detect overflow (too many nested quotes).
     if ((end = parse_word(start, 0)) == (void *)1) goto flush;
 
-if (BUGBUG>1) dprintf(255, "[%.*s] ", end ? (int)(end-start) : 0, start);
+if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ? : "");
     // Is this a new pipeline segment?
     if (!pl) {
       pl = xzalloc(sizeof(struct sh_pipeline));
@@ -1891,11 +1891,9 @@ if (BUGBUG>1) dprintf(255, "[%.*s] ", end ? (int)(end-start) : 0, start);
 
     // If we got here we expect a specific word to end this block: is this it?
     else if (!strcmp(s, ex)) {
+
       // can't "if | then" or "while && do", only ; & or newline works
-      if (last && (strcmp(ex, "then") || strcmp(last, "&"))) {
-        s = end;
-        goto flush;
-      }
+      if (last && strcmp(last, "&")) goto flush;
 
       free(dlist_lpop(&sp->expect));
       pl->type = anystr(s, tails) ? 3 : 2;
@@ -2617,7 +2615,7 @@ if (BUGBUG) dprintf(255, "line=%s\n", new);
 
     // returns 0 if line consumed, command if it needs more data
     prompt = parse_line(new, &scratch);
-if (BUGBUG) dump_state(&scratch);
+if (BUGBUG) dprintf(255, "prompt=%d\n", prompt), dump_state(&scratch);
     if (prompt != 1) {
 // TODO: ./blah.sh one two three: put one two three in scratch.arg
       if (!prompt) run_function(scratch.pipeline);

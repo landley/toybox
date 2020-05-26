@@ -41,7 +41,9 @@ testing "exec3" '$C -c "{ exec readlink /proc/self/fd/0;} < /proc/self/exe"' \
   "$(readlink -f $C)\n" "" ""
 testing 'arg shift' "$SH -c '"'for i in "" 2 1 1 1; do echo $? $1; shift $i; done'"' one two three four five" \
   "0 two\n0 three\n0 five\n0\n1\n" "" ""
-testing '(subshell)' '$C -c "(echo hello)"' 'hello\n' '' ''
+testing '(subshell)' '$SH -c "(echo hello)"' 'hello\n' '' ''
+testing 'syntax' '$SH -c "if true; then echo hello | fi" 2>/dev/null || echo x'\
+  'x\n' '' ''
 
 # The bash man page is lying when it says $_ starts with an absolute path.
 ln -s $(which $SH) bash
