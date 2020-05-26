@@ -56,8 +56,7 @@ static int rtc_find(struct dirtree* node)
 
 void hwclock_main()
 {
-  struct timezone tzone;
-  struct timeval timeval;
+  struct timespec ts;
   struct tm tm;
   int fd = -1, utc;
 
@@ -81,38 +80,28 @@ void hwclock_main()
     // Get current time in seconds from rtc device. todo: get subsecond time
     if (!FLAG(w)) {
       xioctl(fd, RTC_RD_TIME, &tm);
-      timeval.tv_sec = xmktime(&tm, utc);
-      timeval.tv_usec = 0; // todo: fixit
+      ts.tv_sec = xmktime(&tm, utc);
+      ts.tv_nsec = 0; // todo: fixit
     }
   }
 
   if (FLAG(w) || FLAG(t)) {
-    if (gettimeofday(&timeval, 0)) perror_exit("gettimeofday failed");
-    if (!(utc ? gmtime_r : localtime_r)(&timeval.tv_sec, &tm))
+    if (clock_gettime(CLOCK_REALTIME, &ts)) perror_exit("clock_gettime failed");
+    if (!(utc ? gmtime_r : localtime_r)(&ts.tv_sec, &tm))
       error_exit(utc ? "gmtime_r failed" : "localtime_r failed");
   }
 
   if (FLAG(w)) {
     /* The value of tm_isdst is positive if daylight saving time is in effect,
-     * zero if it is not and negative if the information is not available. 
+     * zero if it is not and negative if the information is not available.
      * todo: so why isn't this negative...? */
     tm.tm_isdst = 0;
     xioctl(fd, RTC_SET_TIME, &tm);
-  } else if (FLAG(s)) {
-    tzone.tz_minuteswest = timezone / 60 - 60 * daylight;
-  } else if (FLAG(t)) {
-    // Adjust seconds for timezone and daylight saving time
-    // extern long timezone is defined in header sys/time.h
-    tzone.tz_minuteswest = timezone / 60;
-    if (tm.tm_isdst) tzone.tz_minuteswest -= 60;
-    if (!utc) timeval.tv_sec += tzone.tz_minuteswest * 60;
+  } else if (FLAG(t) || FLAG(s)) {
+    if (clock_settime(CLOCK_REALTIME, &ts)) perror_exit("clock_settime failed");
   } else {
     strftime(toybuf, sizeof(toybuf), "%F %T%z", &tm);
     xputs(toybuf);
-  }
-  if (FLAG(t) || FLAG(s)) {
-    tzone.tz_dsttime = 0;
-    if (settimeofday(&timeval, &tzone)) perror_exit("settimeofday failed");
   }
 
   if (fd != -1) close(fd);
