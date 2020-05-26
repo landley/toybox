@@ -63,7 +63,7 @@ static void initialize_console(void)
     }
   }
 
-  if (!getenv("TERM")) putenv("TERM=linux");
+  setenv("TERM", "linux", 0);
 }
 
 static void reset_term(int fd)
@@ -454,10 +454,10 @@ void init_main(void)
   if (chdir("/")) perror_exit("Can't cd to /");
   setsid();
 
-  putenv("HOME=/");
-  putenv("PATH=/sbin:/usr/sbin:/bin:/usr/bin");
-  putenv("SHELL=/bin/sh");
-  putenv("USER=root");
+  setenv("HOME", "/", 1);
+  setenv("PATH", "/sbin:/usr/sbin:/bin:/usr/bin", 1);
+  setenv("SHELL", "/bin/sh", 1);
+  setenv("USER", "root", 1);
 
   inittab_parsing();  
   xsignal(SIGUSR1, halt_poweroff_reboot_handler);//halt
