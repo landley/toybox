@@ -27,9 +27,9 @@ config TIME
 void time_main(void)
 {
   pid_t pid;
-  struct timeval tv, tv2;
+  struct timespec tv, tv2;
 
-  gettimeofday(&tv, NULL);
+  clock_gettime(CLOCK_REALTIME, &tv);
   if (!(pid = XVFORK())) xexec(toys.optargs);
   else {
     int stat;
@@ -37,12 +37,12 @@ void time_main(void)
     float r, u, s;
 
     wait4(pid, &stat, 0, &ru);
-    gettimeofday(&tv2, NULL);
-    if (tv.tv_usec > tv2.tv_usec) {
-      tv2.tv_usec += 1000000;
+    clock_gettime(CLOCK_REALTIME, &tv2);
+    if (tv.tv_nsec > tv2.tv_nsec) {
+      tv2.tv_nsec += 1000000000;
       tv2.tv_sec--;
     }
-    r = (tv2.tv_sec-tv.tv_sec)+((tv2.tv_usec-tv.tv_usec)/1000000.0);
+    r = (tv2.tv_sec-tv.tv_sec)+((tv2.tv_nsec-tv.tv_nsec)/1000000000.0);
     u = ru.ru_utime.tv_sec+(ru.ru_utime.tv_usec/1000000.0);
     s = ru.ru_stime.tv_sec+(ru.ru_stime.tv_usec/1000000.0);
     if (FLAG(v)) fprintf(stderr, "Real time (s): %f\nSystem time (s): %f\n"
