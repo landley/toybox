@@ -118,7 +118,10 @@ communication (ipcrm ipcs), and cross-tty communication from the minicomputer
 days (talk mesg write).  The "pax" utility <a href=https://slashdot.org/story/06/09/04/1335226/debian-kicks-jrg-schilling>failed</a> to replace tar,
 "mailx" is
 a command line email client, and "lp" submits files for printing to... what
-exactly?  (cups?)  The standard defines crontab but not crond.</p>
+exactly?  (cups?)  The standard defines crontab but not crond. What is
+pathchk supposed to be portable _to_? (Linux accepts 255 byte path components
+with any char except NUL or / and no max length on the total path, and
+EXPLICITLY doesn't care if it's an invalid utf8 sequence.)</p>
 
 <p>Removing all of that leaves the following commands, which toybox should
 implement:</p>
@@ -128,7 +131,7 @@ implement:</p>
 at awk basename bc cal cat chgrp chmod chown cksum cmp comm cp
 csplit cut date dd df diff dirname du echo env expand expr false file find
 fold fuser getconf grep head id join kill link ln logger logname ls man
-mkdir mkfifo more mv newgrp nice nl nohup od paste patch pathchk printf ps
+mkdir mkfifo more mv newgrp nice nl nohup od paste patch printf ps
 pwd renice rm rmdir sed sh sleep sort split stty tabs tail tee test time
 touch tput tr true tty uname unexpand uniq unlink uudecode uuencode vi wc
 who xargs zcat
@@ -194,7 +197,9 @@ interested in the set of LSB tools that aren't mentioned in posix.</p>
 
 <p>Of these, gettext and msgfmt are internationalization, install_initd and
 remove_initd weren't present in Ubuntu 10.04, lpr is out of scope,
-and lsb_release just reports information in /etc/os-release.</p>
+lsb_release just reports information in /etc/os-release, and sendmail's
+turned into a pile of cryptographic verification and DNS shenanigans due
+to spammers.</p>
 
 <p>This leaves:</p>
 
@@ -202,7 +207,7 @@ and lsb_release just reports information in /etc/os-release.</p>
 <span id=lsb>
 chfn chsh dmesg egrep fgrep groupadd groupdel groupmod groups
 gunzip gzip hostname install killall md5sum
-mknod mktemp mount passwd pidof sendmail seq shutdown
+mknod mktemp mount passwd pidof seq shutdown
 su sync tar umount useradd userdel usermod zcat
 </span>
 </b></blockquote>
@@ -476,7 +481,7 @@ from its core system, and is installing toybox as
 
 <blockquote><b>
 <span id=tizen>
-arch base64 users dir vdir unexpand shred join csplit
+arch base64 users unexpand shred join csplit
 hostid nproc runcon sha224sum sha256sum sha384sum sha512sum sha3sum mkfs.vfat fsck.vfat 
 dosfslabel uname stdbuf pinky diff3 sdiff zcmp zdiff zegrep zfgrep zless zmore
 </span>
@@ -689,7 +694,7 @@ ln, ls, mkdir, mknod, printenv, pwd, rm, rmdir, sync, and touch.</p>
 <blockquote><b>
 <span id=sash_cmd>
 ar chattr dd ed file find grep gunzip gzip lsattr more mount mv pivot_root
-sh sum tar umount
+sh tar umount
 </span>
 </b></blockquote>
 
@@ -708,7 +713,7 @@ consistency, and yanking "sponge", "mesg", "pagesize", "respawn", and
 
 <blockquote><p>
 <span id=sbase_cmd>
-basename cal cat chgrp chmod chown chroot cksum cmp cols comm cp crond cut date
+basename cal cat chgrp chmod chown chroot cksum cmp comm cp crond cut date
 dirname du echo env expand expr false find flock fold getconf grep head
 hostname join kill link ln logger logname ls md5sum mkdir mkfifo mktemp mv
 nice nl nohup od paste printenv printf pwd readlink renice rm rmdir sed seq
@@ -1078,7 +1083,7 @@ by various users. I _really_ need to clean up this section.</p>
 dig freeramdisk getty halt hexdump hwclock klogd modprobe ping ping6 pivot_root
 poweroff readahead rev sfdisk sudo syslogd taskset telnet telnetd tracepath
 traceroute unzip usleep vconfig zip free login modinfo unshare netcat help w
-ntpd iwconfig iwlist rdate
+iwconfig iwlist rdate
 dos2unix unix2dos catv clear
 pmap realpath setsid timeout truncate
 mkswap swapon swapoff
@@ -1099,6 +1104,7 @@ udpsvd adduser
 microcom tunctl chrt getfattr setfattr
 kexec
 ascii crc32 devmem fmt i2cdetect i2cdump i2cget i2cset mcookie prlimit sntp ulimit uuidgen dhcp6 ipaddr iplink iproute iprule iptunnel cd exit toysh bash traceroute6
+blkdiscard rtcwake
 </span>
 </b></blockquote>
 
