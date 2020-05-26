@@ -270,7 +270,6 @@ char *getgroupname(gid_t gid);
 void do_lines(int fd, char delim, void (*call)(char **pline, long len));
 long long millitime(void);
 char *format_iso_time(char *buf, size_t len, struct timespec *ts);
-void loggit(int priority, char *format, ...);
 unsigned tar_cksum(void *data);
 int is_tar_header(void *pkt);
 char *elf_arch_name(int type);
@@ -428,6 +427,15 @@ pid_t __attribute__((returns_twice)) xvforkwrap(pid_t pid);
 
 #define minof(a, b) ({typeof(a) aa = (a); typeof(b) bb = (b); aa<bb ? aa : bb;})
 #define maxof(a, b) ({typeof(a) aa = (a); typeof(b) bb = (b); aa>bb ? aa : bb;})
+
+// Syslog with the openlog/closelog, autodetecting daemon status via no tty
+#define loggit(priority, ...) \
+  do { \
+    openlog(toys.which->name, LOG_PID, \
+      (isatty(0) || isatty(1) || isatty(2)) ? LOG_AUTH : LOG_DAEMON); \
+    syslog(priority, __VA_ARGS__); \
+    closelog(); \
+  } while(0)
 
 // Functions in need of further review/cleanup
 #include "lib/pending.h"

@@ -1395,21 +1395,6 @@ char *format_iso_time(char *buf, size_t len, struct timespec *ts)
   return buf;
 }
 
-// Syslog with the openlog/closelog, autodetecting daemon status via no tty
-
-void loggit(int priority, char *format, ...)
-{
-  int i, facility = LOG_DAEMON;
-  va_list va;
-
-  for (i = 0; i<3; i++) if (isatty(i)) facility = LOG_AUTH;
-  openlog(toys.which->name, LOG_PID, facility);
-  va_start(va, format);
-  vsyslog(priority, format, va);
-  va_end(va);
-  closelog();
-}
-
 // Calculate tar packet checksum, with cksum field treated as 8 spaces
 unsigned tar_cksum(void *data)
 {
