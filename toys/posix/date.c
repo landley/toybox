@@ -155,12 +155,12 @@ void date_main(void)
 
   // Set the date
   } else if (setdate) {
-    struct timeval tv;
+    struct timespec tv;
 
     parse_date(setdate, &t);
     tv.tv_sec = t;
-    tv.tv_usec = TT.nano/1000;
-    if (settimeofday(&tv, NULL) < 0) perror_msg("cannot set date");
+    tv.tv_nsec = TT.nano;
+    if (clock_settime(CLOCK_REALTIME, &tv) < 0) perror_msg("cannot set date");
   }
 
   puts_time(format_string, localtime(&t));
