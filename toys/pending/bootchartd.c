@@ -278,7 +278,7 @@ void bootchartd_main()
     sigatexit(generic_signal);
     raise(SIGSTOP);
     if (!bchartd_opt && !getenv("PATH")) 
-      putenv("PATH=/sbin:/usr/sbin:/bin:/usr/bin");
+      setenv("PATH", "/sbin:/usr/sbin:/bin:/usr/bin", 1);
     start_logging();
     stop_logging(tmp_dir, bchartd_opt == 1 ? toys.optargs[1] : NULL);
     return;
