@@ -20,7 +20,7 @@ config DEVMEM
 
 void devmem_main(void)
 {
-  int writing = toys.optc == 3, page_size = getpagesize(), bytes = 4, fd;
+  int writing = toys.optc == 3, page_size = sysconf(_SC_PAGESIZE), bytes = 4,fd;
   unsigned long long addr = atolx(toys.optargs[0]), data = 0, map_off, map_len;
   void *map, *p;
 
