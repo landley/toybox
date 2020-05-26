@@ -73,6 +73,7 @@ testing 'default exports' \
 export EVAL="$SH -c"
 
 testing "smoketest" "echo hello" "hello\n" "" ""
+testing "line break" $'ec\\\nho hello' 'hello\n' '' ''
 testing "eval" "eval echo hello" "hello\n" "" ""
 testing "eval2" "eval 'echo hello'; echo $?" "hello\n0\n" "" ""
 testing "eval3" 'X="echo hello"; eval "$X"' "hello\n" "" ""
@@ -310,6 +311,12 @@ testing 'SECONDS3' 'SECONDS=123+456; echo $SECONDS' '0\n' '' '' #bash!!
 testing '$LINENO 2' $'echo $LINENO\necho $LINENO' '0\n1\n' '' ''
 testing '$EUID' 'echo $EUID' "$(id -u)\n" '' ''
 testing '$UID' 'echo $UID' "$(id -ur)\n" '' ''
+
+testing 'readonly for' \
+  'readonly i; for i in one two three; do echo $i; done 2>/dev/null; echo $?' \
+  '1\n' '' ''
+testing 'readonly {}<' \
+  'readonly i; echo hello 2>/dev/null {i}</dev/null; echo $?' '1\n' '' ''
 
 testing '$_ 1' 'echo walrus; echo $_' 'walrus\nwalrus\n' '' ''
 testing '$_ 2' 'unset _; echo $_' '_\n' '' ''
