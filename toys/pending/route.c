@@ -120,25 +120,6 @@ static int get_hostname(char *ipstr, struct sockaddr_in *sockin)
   return 0;
 }
 
-// used to extract the address info from the given ip.
-static int get_addrinfo(char *ip, struct sockaddr_in6 *sock_in6)
-{
-  struct addrinfo hints, *result;
-  int status = 0;
-
-  memset(&hints, 0, sizeof(struct addrinfo));
-  hints.ai_family = AF_INET6;
-  if ((status = getaddrinfo(ip, NULL, &hints, &result))) {
-    perror_msg("getaddrinfo: %s", gai_strerror(status));
-    return -1;
-  }
-  if (result) {
-    memcpy(sock_in6, result->ai_addr, sizeof(*sock_in6));
-    freeaddrinfo(result);
-  }
-  return 0;
-}
-
 static void display_routes(sa_family_t family)
 {
   int fd, msg_hdr_len, route_protocol;
@@ -442,93 +423,6 @@ static void setroute(sa_family_t family, char **argv)
   xclose(sockfd);
 }
 
-/*
- * get prefix len (if any) and remove the prefix from target ip.
- * if no prefix then set default prefix len.
- */
-static void is_prefix_inet6(char **tip, struct in6_rtmsg *rt)
-{
-  unsigned long plen;
-  char *prefix = strchr(*tip, '/');
-
-  if (prefix) {
-    *prefix = '\0';
-    plen = atolx_range(prefix + 1, 0, 128); //DEFAULT_PREFIXLEN);
-  } else plen = DEFAULT_PREFIXLEN;
-
-  rt->rtmsg_flags = (plen == DEFAULT_PREFIXLEN) ? (RTF_UP | RTF_HOST) : RTF_UP;
-  rt->rtmsg_dst_len = plen;
-}
-
-/*
- * used to get the params like: metric, gw, dev and their values.
- * additionally set the flag values for mod and dyn.
- */
-static void get_next_params_inet6(char **argv, struct sockaddr_in6 *sock_in6, struct in6_rtmsg *rt, char **dev_name)
-{
-  for (;*argv;argv++) {
-    if (!strcmp(*argv, "mod")) rt->rtmsg_flags |= RTF_MODIFIED;
-    else if (!strcmp(*argv, "dyn")) rt->rtmsg_flags |= RTF_DYNAMIC;
-    else {
-      if (!argv[1]) help_exit(0);
-
-      if (!strcmp(*argv, "metric")) 
-        rt->rtmsg_metric = atolx_range(argv[1], 0, ULONG_MAX);
-      else if (!strcmp(*argv, "gw")) {
-        //route packets via a gateway.
-        if (!(rt->rtmsg_flags & RTF_GATEWAY)) {
-          if (!get_addrinfo(argv[1], (struct sockaddr_in6 *) &sock_in6)) {
-            memcpy(&rt->rtmsg_gateway, sock_in6->sin6_addr.s6_addr, sizeof(struct in6_addr));
-            rt->rtmsg_flags |= RTF_GATEWAY;
-          } else perror_exit("resolving '%s'", argv[1]);
-        } else help_exit(0);
-      } else if (!strcmp(*argv, "dev")) {
-        if (!*dev_name) *dev_name = argv[1];
-      } else help_exit(0);
-      argv++;
-    }
-  }
-}
-
-// add/del a route.
-static void setroute_inet6(char **argv)
-{
-  struct sockaddr_in6 sock_in6;
-  struct in6_rtmsg rt;
-  char *targetip, *dev_name = 0;
-  int sockfd, action = get_action(&argv, arglist1);
-
-  if (!action || !*argv) help_exit(0);
-  memset(&sock_in6, 0, sizeof(struct sockaddr_in6));
-  memset(&rt, 0, sizeof(struct in6_rtmsg));
-  targetip = *argv++;
-  if (!*argv) help_exit(0);
-
-  if (!strcmp(targetip, "default")) {
-    rt.rtmsg_flags = RTF_UP;
-    rt.rtmsg_dst_len = 0;
-  } else {
-    is_prefix_inet6((char **)&targetip, &rt);
-    if (get_addrinfo(targetip, (struct sockaddr_in6 *) &sock_in6))
-      perror_exit("resolving '%s'", targetip);
-  }
-  rt.rtmsg_metric = 1; //default metric.
-  memcpy(&rt.rtmsg_dst, sock_in6.sin6_addr.s6_addr, sizeof(struct in6_addr));
-  get_next_params_inet6(argv, &sock_in6, &rt, (char **)&dev_name);
-
-  sockfd = xsocket(AF_INET6, SOCK_DGRAM, 0);
-  if (dev_name) {
-    char ifre_buf[sizeof(struct ifreq)] = {0,};
-    struct ifreq *ifre = (struct ifreq*)ifre_buf;
-    xstrncpy(ifre->ifr_name, dev_name, IFNAMSIZ);
-    xioctl(sockfd, SIOGIFINDEX, ifre);
-    rt.rtmsg_ifindex = ifre->ifr_ifindex;
-  }          
-  if (action == 1) xioctl(sockfd, SIOCADDRT, &rt);
-  else xioctl(sockfd, SIOCDELRT, &rt);
-  xclose(sockfd);
-}
-
 void route_main(void)
 {
   if (!TT.family) TT.family = "inet";
@@ -537,7 +431,7 @@ void route_main(void)
     else if (!strcmp(TT.family, "inet6")) display_routes(AF_INET6);
     else help_exit(0);
   } else {
-    if (!strcmp(TT.family, "inet6")) setroute_inet6(toys.optargs);
-    else setroute(AF_INET, toys.optargs);
+    if (!strcmp(TT.family, "inet")) setroute(AF_INET, toys.optargs);
+    else setroute(AF_INET6, toys.optargs);
   }
 }
