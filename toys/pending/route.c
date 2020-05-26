@@ -48,20 +48,14 @@ config ROUTE
 
 #define FOR_route
 #include "toys.h"
-#include <net/route.h>
 #include <linux/rtnetlink.h>
 
 GLOBALS(
   char *family;
 )
 
-#define DEFAULT_PREFIXLEN 128
-#define INVALID_ADDR 0xffffffffUL
-#define IPV6_ADDR_LEN 40 //32 + 7 (':') + 1 ('\0')
-
 struct _arglist {
   char *arg;
-
   int action;
 };
 
