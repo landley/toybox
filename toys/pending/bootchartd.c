@@ -30,11 +30,10 @@ config BOOTCHARTD
 
 GLOBALS(
   char buf[32];
-  long smpl_period_usec;
+  long msec;
   int proc_accounting;
-  int is_login;
 
-  pid_t cur_pid;
+  pid_t pid;
 )
 
 static void dump_data_in_file(char *fname, int wfd)
@@ -75,7 +74,7 @@ static int dump_proc_data(FILE *fp)
       toybuf[len] = '\0';
       close(fd);
       fputs(toybuf, fp);
-      if (!TT.is_login) continue;
+      if (TT.pid != 1) continue;
       if ((ptr = strchr(toybuf, '('))) {
         char *tmp = strchr(++ptr, ')');
 
@@ -94,31 +93,23 @@ static int dump_proc_data(FILE *fp)
 static int parse_config_file(char *fname)
 {
   size_t len = 0;
-  char  *line = NULL;
+  char  *line = 0;
   FILE *fp = fopen(fname, "r");
 
   if (!fp) return 0;
-  for (;getline(&line, &len, fp) != -1; line = NULL) {
+  for (;getline(&line, &len, fp) != -1; line = 0) {
     char *ptr = line;
 
     while (*ptr == ' ' || *ptr == '\t') ptr++;
     if (!*ptr || *ptr == '#' || *ptr == '\n') continue;
-    if (!strncmp(ptr, "SAMPLE_PERIOD", strlen("SAMPLE_PERIOD"))) {
-      double smpl_val;
+    if (strstart(&ptr, "SAMPLE_PERIOD=")) {
+      double dd;
 
-      if ((ptr = strchr(ptr, '='))) ptr += 1;
-      else continue;
-      sscanf(ptr, "%lf", &smpl_val);
-      TT.smpl_period_usec = smpl_val * 1000000;
-      if (TT.smpl_period_usec <= 0) TT.smpl_period_usec = 1;
-    }
-    if (!strncmp(ptr, "PROCESS_ACCOUNTING", strlen("PROCESS_ACCOUNTING"))) {
-      if ((ptr = strchr(ptr, '='))) ptr += 1;
-      else continue;
-      sscanf(ptr, "%s", toybuf);  // string will come with double quotes.
-      if (!(strncmp(toybuf+1, "on", strlen("on"))) ||
-          !(strncmp(toybuf+1, "yes", strlen("yes")))) TT.proc_accounting = 1;
-    }
+      sscanf(ptr, "%lf", &dd);
+      if ((TT.msec = dd*1000)<1) TT.msec = 1;
+    } else if (strstart(&ptr, "PROCESS_ACCOUNTING="))
+      if (strstart(&ptr, "\"on\"") || strstart(&ptr, "\"yes\""))
+        TT.proc_accounting = 1;
     free(line);
   }
   fclose(fp);
@@ -148,7 +139,7 @@ static void start_logging()
   int proc_diskstats_fd = xcreate("proc_diskstats.log",  
       O_WRONLY | O_CREAT | O_TRUNC, 0644);
   FILE *proc_ps_fp = xfopen("proc_ps.log", "w");
-  long tcnt = 60 * 1000 * 1000 / TT.smpl_period_usec;
+  long tcnt = 60 * 1000 / TT.msec;
 
   if (tcnt <= 0) tcnt = 1;
   if (TT.proc_accounting) {
@@ -160,10 +151,10 @@ static void start_logging()
   memset(TT.buf, 0, sizeof(TT.buf));
   while (--tcnt && !toys.signal) {
     int i = 0, j = 0, fd = open("/proc/uptime", O_RDONLY);
-    if (fd < 0) goto wait_usec;
+    if (fd < 0) goto wait;
     char *line = get_line(fd);
 
-    if (!line)  goto wait_usec;
+    if (!line)  goto wait;
     while (line[i] != ' ') {
       if (line[i] == '.') {
         i++;
@@ -172,18 +163,17 @@ static void start_logging()
       TT.buf[j++] = line[i++];
     }
     TT.buf[j++] = '\n';
-    TT.buf[j] = '\0';
+    TT.buf[j] = 0;
     free(line);
     close(fd);
     dump_data_in_file("/proc/stat", proc_stat_fd);
     dump_data_in_file("/proc/diskstats", proc_diskstats_fd);
     // stop proc dumping in 2 secs if getty or gdm, kdm, xdm found 
     if (dump_proc_data(proc_ps_fp))
-      if (tcnt > 2 * 1000 * 1000 / TT.smpl_period_usec)
-        tcnt = 2 * 1000 * 1000 / TT.smpl_period_usec;
-    fflush(NULL);
-wait_usec:
-    usleep(TT.smpl_period_usec);
+      if (tcnt > 2 * 1000 / TT.msec) tcnt = 2 * 1000 / TT.msec;
+    fflush(0);
+wait:
+    msleep(TT.msec);
   }
   xclose(proc_stat_fd);
   xclose(proc_diskstats_fd);
@@ -240,7 +230,7 @@ static void stop_logging(char *tmp_dir, char *prog)
 
 static int signal_pid(pid_t pid, char *name)
 {
-  if (pid != TT.cur_pid) kill(pid, SIGUSR1);
+  if (pid != TT.pid) kill(pid, SIGUSR1);
   return 0;
 }
 
@@ -249,10 +239,9 @@ void bootchartd_main()
   pid_t lgr_pid;
   int bchartd_opt = 0; // 0=PID1, 1=start, 2=stop, 3=init
 
-  TT.cur_pid = getpid();
-  TT.smpl_period_usec = 200 * 1000;
+  TT.pid = getpid();
+  TT.msec = 200;
 
-  TT.is_login = (TT.cur_pid == 1);
   if (*toys.optargs) {
     if (!strcmp("start", *toys.optargs)) bchartd_opt = 1;
     else if (!strcmp("stop", *toys.optargs)) bchartd_opt = 2;
@@ -265,7 +254,7 @@ void bootchartd_main()
       names_to_pid(process_name, signal_pid, 0);
       return;
     }
-  } else if (!TT.is_login) error_exit("not PID 1");
+  } else if (TT.pid != 1) error_exit("not PID 1");
 
   // Execute the code below for start or init or PID1 
   if (!parse_config_file("bootchartd.conf"))
