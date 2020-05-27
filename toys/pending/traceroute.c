@@ -217,8 +217,10 @@ static void do_trace()
       int res = 0, tleft;
 
       fflush(NULL);
-      if (!TT.istraceroute6)
-        if (probe && (toys.optflags & FLAG_z)) usleep(TT.pause_time * 1000);
+      if (!TT.istraceroute6) {
+        struct timespec ts = { 0, TT.pause_time * 1000000 };
+        if (probe && (toys.optflags & FLAG_z)) nanosleep(&ts, NULL);
+      }
 
       if (!TT.istraceroute6) send_probe4(++seq, ttl);
       else send_probe6(++seq, ttl);
