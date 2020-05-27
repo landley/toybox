@@ -41,7 +41,6 @@ GLOBALS(
 void hostname_main(void)
 {
   char *hostname = toybuf, *dot;
-  struct hostent *h;
 
   gethostname(toybuf, sizeof(toybuf)-1);
   if (TT.F && (hostname = xreadfile(TT.F, 0, 0))) {
@@ -61,9 +60,15 @@ void hostname_main(void)
 
   // We only do the DNS lookup for -d and -f.
   if (FLAG(d) || FLAG(f)) {
-    if (!(h = gethostbyname(toybuf)))
-      error_exit("gethostbyname: %s", hstrerror(h_errno));
-    snprintf(toybuf, sizeof(toybuf), "%s", h->h_name);
+    struct addrinfo *a, hints = { 0 };
+    int err;
+
+    hints.ai_family = AF_INET;
+    hints.ai_flags = AI_CANONNAME;
+    if ((err = getaddrinfo(toybuf, NULL, &hints, &a)))
+      error_exit("getaddrinfo: %s", gai_strerror(err));
+    snprintf(toybuf, sizeof(toybuf), "%s", a->ai_canonname);
+    freeaddrinfo(a);
   }
   dot = toybuf+strcspn(toybuf, ".");
   if (FLAG(s)) *dot = '\0';
