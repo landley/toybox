@@ -222,10 +222,13 @@ void arping_main(void)
     return;
   }
   if (!inet_aton(*toys.optargs, &dest_addr)) {
-    struct hostent *hp = gethostbyname2(*toys.optargs, AF_INET);
+    struct addrinfo *hp, hints = { 0 };
 
-    if (!hp) perror_exit("bad address '%s'", *toys.optargs);
-    memcpy(&dest_addr, hp->h_addr, 4);
+    hints.ai_family = AF_INET;
+    if (getaddrinfo(*toys.optargs, NULL, &hints, &hp))
+      perror_exit("bad address '%s'", *toys.optargs);
+    dest_addr = ((struct sockaddr_in *)hp)->sin_addr;
+    freeaddrinfo(hp);
   }
   if ((toys.optflags & FLAG_s) && !(inet_aton(TT.src_ip, &src_addr))) 
     perror_exit("invalid source address '%s'",TT.src_ip);
