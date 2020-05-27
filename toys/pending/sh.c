@@ -286,15 +286,15 @@ static void syntax_err(char *s)
 }
 
 // append to array with null terminator and realloc as necessary
-static void array_add(char ***list, unsigned count, char *data)
+static void arg_add(struct sh_arg *arg, char *data)
 {
-  if (!(count&31)) *list = xrealloc(*list, sizeof(char *)*(count+33));
-  (*list)[count] = data;
-  (*list)[count+1] = 0;
+  if (!(arg->c&31)) arg->v = xrealloc(arg->v, sizeof(char *)*(arg->c+33));
+  arg->v[arg->c++] = data;
+  arg->v[arg->c] = 0;
 }
 
 // add argument to an arg_list
-static void add_arg(struct arg_list **list, char *arg)
+static void push_arg(struct arg_list **list, char *arg)
 {
   struct arg_list *al;
 
@@ -305,11 +305,10 @@ static void add_arg(struct arg_list **list, char *arg)
   *list = al;
 }
 
-static void array_add_del(char ***list, unsigned count, char *data,
-  struct arg_list **delete)
+static void arg_add_del(struct sh_arg *arg, char *data,struct arg_list **delete)
 {
-  add_arg(delete, data);
-  array_add(list, count, data);
+  push_arg(delete, data);
+  arg_add(arg, data);
 }
 
 // return length of valid variable name
@@ -1019,7 +1018,7 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
           // and either not last entry or no suffix
           if (!oo && !*ss && (!kk || !str[ii]) && !((qq&1) && cc=='*')) {
             if (!qq && ss==ifs) break;
-            array_add_del(&arg->v, arg->c++, ifs, nodel ? 0 : delete);
+            arg_add_del(arg, ifs, nodel ? 0 : delete);
             nodel = 1;
 
             continue;
@@ -1039,7 +1038,7 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
           // add argument if quoted, non-blank, or non-whitespace separator
           else {
             if (qq || *new || *ss) {
-              array_add_del(&arg->v, arg->c++, new, nodel ? 0 : delete);
+              arg_add_del(arg, new, nodel ? 0 : delete);
               nodel = 1;
             }
             qq &= 1;
@@ -1066,7 +1065,7 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
 
   // Record result.
   if (*new || qq)
-    array_add_del(&arg->v, arg->c++, new, (old != new) ? delete : 0);
+    arg_add_del(arg, new, (old != new) ? delete : 0);
   else if(old != new) free(new);
 
   return 0;
@@ -1186,7 +1185,7 @@ static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
     }
 
     // Save result, aborting on expand error
-    add_arg(delete, ss);
+    push_arg(delete, ss);
     if (expand_arg_nobrace(arg, ss, flags, delete)) {
       llist_traverse(blist, free);
 
@@ -1293,8 +1292,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
 
       // bash uses /dev/fd/%d which requires /dev/fd to be a symlink to
       // /proc/self/fd so we just produce that directly.
-      array_add_del(&pp->arg.v, pp->arg.c++,
-        ss = xmprintf("/proc/self/fd/%d", new), &pp->delete);
+      arg_add_del(&pp->arg, ss = xmprintf("/proc/self/fd/%d", new),&pp->delete);
 
       continue;
     }
@@ -1490,8 +1488,9 @@ static void sh_exec(char **argv)
 // Execute a single command
 static struct sh_process *run_command(struct sh_arg *arg)
 {
-  char *s, *ss = 0, *sss, **env = 0, **old = environ;
-  int envlen, jj, kk, ll;
+  char *s, *ss = 0, *sss, **old = environ;
+  struct sh_arg env;
+  int envlen, jj, ll;
   struct sh_process *pp;
   struct toy_list *tl;
 
@@ -1517,25 +1516,26 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
     goto out;
   }
 
+  // assign leading environment variables (if any) in temp environ copy
+  jj = 0;
+  env.v = 0;
   if (envlen) {
-    for (kk = 0; environ[kk]; kk++);
-    env = xmalloc(sizeof(char *)*(kk+33));
-    memcpy(env, environ, sizeof(char *)*(kk+1));
-    environ = env;
-
-    // assign leading environment variables
-    for (jj = 0; jj<envlen; jj++) {
+    for (env.c = 0; environ[env.c]; env.c++);
+    memcpy(env.v = xmalloc(sizeof(char *)*(env.c+33)), environ,
+      sizeof(char *)*(env.c+1));
+    for (; jj<envlen; jj++) {
       if (!(sss = expand_one_arg(arg->v[jj], NO_PATH|NO_SPLIT, &pp->delete)))
         break;
-      for (ll = 0; ll<kk; ll++) {
-        for (s = sss, ss = environ[ll]; *s == *ss && *s != '='; s++, ss++);
+      for (ll = 0; ll<env.c; ll++) {
+        for (s = sss, ss = env.v[ll]; *s == *ss && *s != '='; s++, ss++);
         if (*s != '=') continue;
-        environ[ll] = sss;
+        env.v[ll] = sss;
         break;
       }
-      if (ll == kk) array_add(&environ, kk++, sss);
+      if (ll == env.c) arg_add(&env, sss);
     }
-  } else jj = 0;
+    environ = env.v;
+  }
 
   // Do nothing if nothing to do
   if (jj != envlen || pp->exit || !pp->arg.v);
@@ -1577,7 +1577,7 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
 
   // Restore environment variables
   environ = old;
-  free(env);
+  free(env.v);
 
 out:
   setvarval("_", (envlen == arg->c) ? "" : s);
@@ -1604,6 +1604,7 @@ static void free_pipeline(void *pipeline)
 
   // free arguments and HERE doc contents
   if (pl) for (j=0; j<=pl->count; j++) {
+    if (!pl->arg[j].v) continue;
     for (i = 0; i<=pl->arg[j].c; i++) free(pl->arg[j].v[i]);
     free(pl->arg[j].v);
   }
@@ -1671,12 +1672,11 @@ static int parse_line(char *line, struct sh_function *sp)
         s += strspn(s, "\\\"'");
         if (*s != *end) break;
       }
+      // Add this line, else EOF hit so end HERE document
       if (!*s && !*end) {
-        // Add this line
-        array_add(&arg->v, arg->c++, xstrdup(line));
-        array_add(&arg->v, arg->c, arg->v[arg->c]);
-        arg->c++;
-      // EOF hit, end HERE document
+        end = arg->v[arg->c];
+        arg_add(arg, xstrdup(line));
+        arg->v[arg->c] = end;
       } else {
         arg->v[arg->c] = 0;
         pl->here++;
@@ -1742,7 +1742,7 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
     // Do we need to request another line to finish word (find ending quote)?
     if (!end) {
       // Save unparsed bit of this line, we'll need to re-parse it.
-      array_add(&arg->v, arg->c++, xstrndup(start, strlen(start)));
+      arg_add(arg, xstrndup(start, strlen(start)));
       arg->c = -arg->c;
       free(delete);
 
@@ -1754,8 +1754,6 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
     // Did we hit end of line or ) outside a function declaration?
     // ) is only saved at start of a statement, ends current statement
     if (end == start || (arg->c && *start == ')' && pl->type!='f')) {
-      if (!arg->v) array_add(&arg->v, arg->c, 0);
-
       if (pl->type == 'f' && arg->c<3) {
         s = "function()";
         goto flush;
@@ -1779,10 +1777,11 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
     }
 
     // Save argument (strdup) and check for flow control
-    array_add(&arg->v, arg->c, s = xstrndup(start, end-start));
+    arg_add(arg, s = xstrndup(start, end-start));
     start = end;
 
     if (strchr(";|&", *s) && strncmp(s, "&>", 2)) {
+      arg->c--;
 
       // treat ; as newline so we don't have to check both elsewhere.
       if (!strcmp(s, ";")) {
@@ -1801,7 +1800,7 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
       pl->count = -1;
 
       continue;
-    } else arg->v[++arg->c] = 0;
+    }
 
     // is a function() in progress?
     if (arg->c>1 && !strcmp(s, "(")) pl->type = 'f';
