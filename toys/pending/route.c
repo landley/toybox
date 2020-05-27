@@ -94,26 +94,6 @@ void addAttr(struct nlmsghdr *nl, int maxlen, void *attr, int type, int len)
   nl->nlmsg_len = NLMSG_ALIGN(nl->nlmsg_len) + rtlen;
 }
 
-// to get the host name from the given ip.
-static int get_hostname(char *ipstr, struct sockaddr_in *sockin)
-{
-  struct hostent *host;
-
-  sockin->sin_family = AF_INET;
-  sockin->sin_port = 0;
-
-  if (!strcmp(ipstr, "default")) {
-    sockin->sin_addr.s_addr = INADDR_ANY;
-    return 1;
-  }
-
-  if (inet_aton(ipstr, &sockin->sin_addr)) return 0;
-  if (!(host = gethostbyname(ipstr))) perror_exit("resolving '%s'", ipstr);
-  memcpy(&sockin->sin_addr, host->h_addr_list[0], sizeof(struct in_addr));
-
-  return 0;
-}
-
 static void display_routes(sa_family_t family)
 {
   int fd, msg_hdr_len, route_protocol;
