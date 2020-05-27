@@ -428,16 +428,22 @@ static const struct signame signames[] = {
   SIGNIFY(USR1), SIGNIFY(USR2), SIGNIFY(SYS), SIGNIFY(TRAP),
   SIGNIFY(VTALRM), SIGNIFY(XCPU), SIGNIFY(XFSZ),
   // Non-POSIX signals that cause termination
-  SIGNIFY(PROF), SIGNIFY(IO), SIGNIFY(POLL), SIGNIFY(PWR),
+  SIGNIFY(PROF), SIGNIFY(IO),
   // signals only present/absent on some targets (mips and macos)
-#ifdef SIGSTKFLT
-  SIGNIFY(STKFLT),
-#endif
 #ifdef SIGEMT
   SIGNIFY(EMT),
 #endif
 #ifdef SIGINFO
   SIGNIFY(INFO),
+#endif
+#ifdef SIGPOLL
+  SIGNIFY(POLL),
+#endif
+#ifdef SIGPWR
+  SIGNIFY(PWR),
+#endif
+#ifdef SIGSTKFLT
+  SIGNIFY(STKFLT),
 #endif
 
   // Note: sigatexit relies on all the signals with a default disposition that
