@@ -149,6 +149,7 @@ static void start_logging()
       O_WRONLY | O_CREAT | O_TRUNC, 0644);
   FILE *proc_ps_fp = xfopen("proc_ps.log", "w");
   long tcnt = 60 * 1000 * 1000 / TT.smpl_period_usec;
+  struct timespec ts = { 0, TT.smpl_period_usec * 1000 };
 
   if (tcnt <= 0) tcnt = 1;
   if (TT.proc_accounting) {
@@ -183,7 +184,7 @@ static void start_logging()
         tcnt = 2 * 1000 * 1000 / TT.smpl_period_usec;
     fflush(NULL);
 wait_usec:
-    usleep(TT.smpl_period_usec);
+    nanosleep(&ts, NULL);
   }
   xclose(proc_stat_fd);
   xclose(proc_diskstats_fd);
