@@ -218,7 +218,7 @@ static void do_trace()
 
       fflush(NULL);
       if (!TT.istraceroute6)
-        if (probe && (toys.optflags & FLAG_z)) usleep(TT.pause_time * 1000);
+        if (probe && (toys.optflags & FLAG_z)) msleep(TT.pause_time);
 
       if (!TT.istraceroute6) send_probe4(++seq, ttl);
       else send_probe6(++seq, ttl);
