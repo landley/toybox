@@ -103,7 +103,7 @@ void toy_singleinit(struct toy_list *which, char *argv[])
       // that choose non-UTF-8 locales. macOS doesn't support C.UTF-8 though.
       if (!setlocale(LC_CTYPE, "C.UTF-8")) setlocale(LC_CTYPE, "");
     }
-    setlinebuf(stdout);
+    setvbuf(stdout, 0, _IOLBF, 0);
   }
 }
 
