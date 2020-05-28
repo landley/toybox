@@ -1623,7 +1623,7 @@ void dhcpd_main(void)
         openlog("UDHCPD :", LOG_PID, LOG_DAEMON);
         infomode |= LOG_SYSTEM;
   }
-  setlinebuf(stdout);
+  setvbuf(stdout, 0, _IOLBF, 0);
   //DHCPD_CONF_FILE
   parse_server_config((toys.optc==1)?toys.optargs[0]:"/etc/dhcpd.conf", keywords);
   infomsg(infomode, "toybox dhcpd started");
