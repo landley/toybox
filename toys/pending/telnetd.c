@@ -24,7 +24,7 @@ config TELNETD
 
 #define FOR_telnetd
 #include "toys.h"
-#include <utmp.h>
+#include <utmpx.h>
 GLOBALS(
     char *login_path;
     char *issue_path;
@@ -111,19 +111,18 @@ static void get_sockaddr(char *host, void *buf)
 
 static void utmp_entry(void)
 {               
-  struct utmp entry;
-  struct utmp *utp_ptr;
+  struct utmpx entry;
+  struct utmpx *utp_ptr;
   pid_t pid = getpid();
 
-  utmpname(_PATH_UTMP);
-  setutent(); //start from start
-  while ((utp_ptr = getutent()) != NULL) {
+  setutxent(); //start from start
+  while ((utp_ptr = getutxent()) != NULL) {
     if (utp_ptr->ut_pid == pid && utp_ptr->ut_type >= INIT_PROCESS) break;
   }
   if (!utp_ptr) entry.ut_type = DEAD_PROCESS;
-  entry.ut_time = time(0);
-  setutent();   
-  pututline(&entry);     
+  entry.ut_tv.tv_sec = time(0);
+  setutxent();
+  pututxline(&entry);
 }
 
 static int listen_socket(void)
