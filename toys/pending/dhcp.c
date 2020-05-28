@@ -1274,7 +1274,7 @@ void dhcp_main(void)
   fd_set rfds;
 
   xid = 0;
-  setlinebuf(stdout);
+  setvbuf(stdout, 0, _IOLBF, 0);
   dbg = dummy;
   if (toys.optflags & FLAG_v) dbg = xprintf;
   if (toys.optflags & FLAG_p) write_pid(TT.pidfile);
