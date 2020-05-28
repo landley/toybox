@@ -539,7 +539,7 @@ void dhcp6_main(void)
   fd_set rfds;
   
   srand(time(NULL));  
-  setlinebuf(stdout);
+  setvbuf(stdout, 0, _IOLBF, 0);
   dbg = dummy;
   TT.state = DHCP6SOLICIT;
   
