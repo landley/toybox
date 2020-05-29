@@ -35,7 +35,7 @@ testing "-t seconds" \
 testing "-t -" "TZ=utc touch -t 200109090146.40 - > walrus && TZ=utc date -r walrus +%s" \
   "1000000000\n" "" ""
 
-SKIP_HOST=1 testing "-t nanoseconds" \
+toyonly testing "-t nanoseconds" \
   "touch -t 201201231234.56123456789 walrus && date -r walrus +%Y%m%d-%H%M%S.%N" \
   "20120123-123456.123456789\n" "" ""
 

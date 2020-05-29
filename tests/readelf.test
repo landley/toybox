@@ -144,7 +144,7 @@ Dynamic section at offset 0xd98 contains 33 entries:
 " "" ""
 
 # toybox does a better job of decoding Android's ELF notes than binutils.
-SKIP_HOST=1 testing "-n" "readelf -nW $elf-short" "
+toyonly testing "-n" "readelf -nW $elf-short" "
 Displaying notes found in: .note.android.ident
   Owner                 Data size	Description
   Android              0x00000004	NT_VERSION	API level 28
