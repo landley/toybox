@@ -18,7 +18,11 @@
 <ul>
 <!-- get binaries -->
 <li><h2><a href="#cross">How do I cross compile toybox?</h2></li>
-<li><h2><a href="#mkroot">How do you build a working Linux system with toybox?</a></h2></li>
+<li><h2><a href="#system">Where does toybox fit into the Linux/Android
+ecosystem?<br />
+(I.E. What part of the operating system does toybox provide,
+and what does it depend on?)</h2></li>
+<li><h2><a href="#mkroot">How do I build a working Linux system with toybox?</a></h2></li>
 </ul>
 
 <a name="capitalize" />
@@ -271,14 +275,14 @@ project, built by running toybox's scripts/mcm-buildall.sh in that directory,
 and then symlink the resulting "ccc" subdirectory into toybox where
 "make root CROSS=" can find them, ala:</p>
 
-<blockquote><pre>
+<blockquote><b><pre>
 cd ~
 git clone https://github.com/landley/toybox
 git clone https://github.com/richfelker/musl-cross-make
 cd musl-cross-make
 ../toybox/scripts/mcm-buildall.sh # this takes a while
 ln -s $(realpath ccc) ../toybox/ccc
-</pre></blockquote>
+</pre></b></blockquote>
 
 <p>Instead of symlinking ccc, you can specify a CROSS_COMPILE= prefix
 in the same format the Linux kernel build uses. You can either provide a
@@ -286,15 +290,15 @@ full path in the CROSS_COMPILE string, or add the appropriate bin directory
 to your $PATH. I.E:</p>
 
 <blockquote>
-<p>make LDFLAGS=--static CROSS_COMPILE=~/musl-cross-make/ccc/m68k-linux-musl-cross/bin/m68k-linux-musl- distclean defconfig toybox</p>
+<b><p>make LDFLAGS=--static CROSS_COMPILE=~/musl-cross-make/ccc/m68k-linux-musl-cross/bin/m68k-linux-musl- distclean defconfig toybox</p></b>
 </blockquote>
 
 <p>Is equivalent to:</p>
 
-<blockquote><p>
+<blockquote><b><p>
 export "PATH=~/musl-cross-make/ccc/m68k-linux-musl-cross/bin:$PATH"<br />
 LDFLAGS=--static make distclean defconfig toybox CROSS=m68k-linux-musl-
-</p></blockquote>
+</p></b></blockquote>
 
 <p>Note: a non-static build won't run unless you install musl on your host.
 In theory you could "make root" a dynamic root filesystem with musl by copying
@@ -310,7 +314,7 @@ libc used by Android. To turn it into something toybox can use, you
 just have to add an appropriately prefixed "cc" symlink to the other
 prefixed tools, ala:</p>
 
-<blockquote><pre>
+<blockquote><b><pre>
 unzip android-ndk-r21b-linux-x86_64.zip
 cd android-ndk-21b/toolchains/llvm/prebuilt/linux-x86_64/bin
 ln -s x86_64-linux-android29-clang x86_64-linux-android-cc
@@ -318,7 +322,7 @@ PATH="$PWD:$PATH"
 cd ~/toybox
 make distclean
 make LDFLAGS=--static CROSS_COMPILE=x86_64-linux-android- defconfig toybox
-</pre></blockquote>
+</pre></b></blockquote>
 
 <p>Again, you need a static link unless you want to install bionic on your
 host. Binaries statically linked against bionic are almost as big as with
@@ -330,44 +334,116 @@ against bionic will segfault before calling main() if /dev/null isn't
 present, and the init script written by mkroot.sh has to run a shell linked
 against bionic in order to mount devtmpfs on /dev to provide /dev/null.</p>
 
+<a name="system" />
+<h2>Q: Where does toybox fit into the Linux/Android ecosystem?<br />
+(I.E. What part
+of the operating system does toybox provide, and what does it depend on?)</h2>
+
+<p>A: Toybox is a set of standard Linux command line
+utilities, so that three packages (a Linux kernel, C library, and toybox)
+provide a complete bootable unix-style command line system. Toybox provides a command
+shell and over a hundred different commands to call from that command shell.</p>
+
+<p>Toybox is not a complete operating system, it's a program that runs under
+an operating system. Booting a simple system to a shell prompt requires
+an kernel (such as Linux, or BSD with a Linux emulation layer)
+to drive the hardware, one or more programs for the system to run (toybox),
+and a C library ("libc") to connect them together (toybox has been tested with
+musl, uClibc, glibc, and bionic).</p>
+
+<p>The C library is delivered as part of a "toolchain", which is an integrated
+suite of compiler, assembler, and linker, plus the standard headers and
+libraries necessary to build C programs. (And miscellaneous binaries like
+nm and objdump.)</p>
+
+<p>Static linking (with the --static option) copies the shared library contents
+into the program, resulting in larger but more portable programs, which
+can run even if they're the only file in the filesystem. Otherwise,
+the "dynamically" linked programs require the shared library files to be
+present on the target system, either copied from the toolchain or built
+again from source (with potential version skew if they don't match the toolchain
+versions exactly). See
+"<a href=https://www.man7.org/linux/man-pages/man1/ldd.1.html>man ldd</a>",
+"<a href=https://www.man7.org/linux/man-pages/man8/ld.so.8.html>man ld.so</a>",
+and "<a href=https://www.man7.org/linux/man-pages/man7/libc.7.html>man libc</a>" for details.</p>
+
+<p>Toybox has a policy of requiring no external dependencies other than the
+C library for defconfig builds. You can optionally enable support for
+additional libraries in menuconfig (such as openssl, zlib, or selinux),
+but toybox either provides its own built-in versions of such functionality
+(which the libraries provide larger, more complex, often assembly optimized
+alternatives to), or allows things like selinux support to cleanly drop
+out.</p>
+
+<p>Most embedded systems will add a fourth package to the kernel/libc/cmdline
+above containing dedicated "application" that the embedded system exists to
+run, plus any other packages that application depends on.
+Build systems will add a native version of the toolchain packages so
+they can build additional software on the resulting system. Desktop systems
+will add a GUI and additional application packages like web browsers
+and video players. A linux distro like Debian would add hundreds of packages.
+Android adds around a thousand.</p>
+
+<p>But all of these systems conceptually sit on a common three-package
+"kernel/libc/cmdline" base, and toybox aims to provide a simple, reproducible,
+auditable version of the cmdline portion of that base.</p>
+
 <a name="mkroot" />
 <h2>Q: How do you build a working Linux system with toybox?</h2>
 
-<p>A: To build a native chroot, "<b>make root</b>" then "<b>sudo chroot
-root/host/fs /init</b>". Type "exit" to get back out.</p>
+<p>A: Toybox has a built-in <a href=https://github.com/landley/toybox/blob/master/scripts/mkroot.sh>system builder</a>, which has a Makefile target.
+To build a native root filesystem you can chroot into,
+"<b>make root</b>" then "<b>sudo chroot
+root/host/fs /init</b>" to enter it. Type "exit" to get back out.</p>
 
-<p>You can also cross compile simple two package (toybox+linux) systems that
-boot to a shell prompt under <a href=https://qemu.org>qemu</a>, by specifying
-a target type with CROSS=
+<p>You can also cross compile simple three package (toybox+libc+linux)
+systems that boot to a shell prompt under <a href=https://qemu.org>qemu</a>,
+by specifying a target type with CROSS=
 (or setting CROSS_COMPILE= to a cross compiler prefix with optional absolute
 path), and pointing the build at a Linux kernel source directory, ala:</p>
 
 <blockquote><p><b>make root CROSS=sh4 LINUX=~/linux</b></p></blockquote>
 
 <p>Then you can <b>cd root/sh4; ./qemu-sh4.sh</b> to launch the emulator
-(you need the appropriate qemu-system-* binary installed). Type "exit"
+(you need the appropriate qemu-system-* binary installed, it'll complain
+if it can't find it). Type "exit"
 when done and it should shut down the emulator on the way out.</p>
 
-<p>The cross compilers I test this with are built from the musl-libc
+<p>The build finds the <a href=#system>three packages</a> needed to produce
+this system because 1) you're in a toybox source directory, 2) your cross
+compiler has a libc built into it, 3) you tell it where to find a Linux kernel
+source directory with LINUX= on the command line. (If you don't say LINUX=,
+it skips that part of the build and just produces a root filesystem directory.)</p>
+
+<p>The CROSS= shortcut expects a "ccc" symlink in the toybox source directory
+pointing at a directory full of cross compilers. The ones I test this with are built from the musl-libc
 maintainer's
 <a href=https://github.com/richfelker/musl-cross-make>musl-cross-make</a>
 project, built by running toybox's scripts/mcm-buildall.sh in that directory,
 and then symlink the resulting "ccc" subdirectory into toybox where CROSS=
 can find them, ala:</p>
 
-<blockquote><pre>
+<blockquote><b><pre>
 cd ~
 git clone https://github.com/landley/toybox
 git clone https://github.com/richfelker/musl-cross-make
 cd musl-cross-make
 ../toybox/scripts/mcm-buildall.sh # this takes a while
 ln -s $(realpath ccc) ../toybox/ccc
-</pre></blockquote>
+</pre></b></blockquote>
 
-<p>An unknown CROSS= should list all the available cross compilers under
-ccc. After the above musl-cross-make build and install,
-"<b>make root CROSS=help</b>" should say something like:
-<b>aarch64 armv4l armv5l armv7l armv7m armv7r i486 i686 m68k microblaze mips mips64 mipsel powerpc powerpc64 powerpc64le s390x sh2eb sh4 x32 x86_64</b>.
+<p>If you don't want to do that, you can download <a href=http://mkroot.musl.cc/latest/>prebuilt binary versions</a> (from Zach van Rijn's site) and
+just extract them into a "ccc" subdirectory under the toybox source.</p>
+
+<p>Once you've installed the cross compilers, "<b>make root CROSS=help</b>"
+should list all the available cross compilers it recognizes under ccc,
+something like:</p>
+
+<blockquote><b><p>
+aarch64 armv4l armv5l armv7l armv7m armv7r i486 i686 m68k microblaze mips mips64 mipsel powerpc powerpc64 powerpc64le s390x sh2eb sh4 x32 x86_64
+</p></b></blockquote>
+
+
 (A long time ago I
 <a href=http://landley.net/aboriginal/architectures.html>tried to explain</a>
 what some of these architectures were.)</p>
@@ -388,17 +464,20 @@ give a path to them on the command line. (No, I'm not merging more package build
 scripts, I <a href=https://speakerdeck.com/landley/developing-for-non-x86-targets-using-qemu?slide=78>learned that lesson</a> long ago. But if you
 want to write your own, feel free.)</p>
 
-<p>(Note: if you don't have a <b>.config</b> it'll <b>make defconfig</b> and
-add CONFIG_SH and CONFIG_ROUTE to it. If you already have a <b>.config</b> that
+<p>(Note: currently mkroot.sh cheats. If you don't have a .config it'll
+make defconfig and add CONFIG_SH and CONFIG_ROUTE to it, because the new
+root filesystem kinda needs those commands to function properly. If you already
+have a .config that
 _doesn't_ have CONFIG_SH in it, you won't get a shell prompt or be able to run
 the init script without a shell. This is currently a problem because sh
-and route are still in pending and thus not in defconfig, and "make root"
-cheats when it adds them. I'm working on it. tl;dr if make root doesn't work
+and route are still in pending and thus not in defconfig, so "make root"
+cheats and adds them. I'm working on it. tl;dr if make root doesn't work
 "rm .config" and run it again, and all this should be fixed up in future when
 those two commands are promoted out of pending so "make defconfig" would have
 what you need anyway. It's designed to let yout tweak your config, which is
 why it uses the .config that's there when there is one, but the default is
-currently wrong because it's not quite finished yet.)</p>
+currently wrong because it's not quite finished yet. All this should be
+cleaned up in a future release, before 1.0.)</p>
 
 
 

@@ -30,15 +30,16 @@ Or maybe:
   LDFLAGS="--static" CROSS_COMPILE=armv5l- make defconfig toybox
   PREFIX=/path/to/root/filesystem/bin make install_flat
 
-The file "configure" defines default values for many environment
-variables that control the toybox build; if you set a value for any of
-these, your value is used instead of the default in that file.
+The file "configure" defines default values for many environment variables
+that control the toybox build; if export any these variables into your
+environment, your value is used instead of the default in that file.
 
 The CROSS_COMPILE argument above is optional, the default builds a version of
 toybox to run on the current machine. Cross compiling requires an appropriately
-prefixed cross compiler toolchain, several example toolchains are available at:
+prefixed cross compiler toolchain, several example toolchains (built using
+the file "scripts/mcm-buildall.sh" in the toybox source) are available at:
 
-  http://landley.net/aboriginal/bin
+  https://mkroot.musl.cc/latest/
 
 For the "CROSS_COMPILE=armv5l-" example above, download
 cross-compiler-armv5l.tar.bz2, extract it, and add its "bin" subdirectory to
@@ -47,11 +48,13 @@ includes a dash.)
 
 For more about cross compiling, see:
 
+  https://landley.net/toybox/faq.html#cross
   http://landley.net/writing/docs/cross-compiling.html
   http://landley.net/aboriginal/architectures.html
 
-For a more thorough description of the toybox build process, see
-http://landley.net/toybox/code.html#building
+For a more thorough description of the toybox build process, see:
+
+  http://landley.net/toybox/code.html#building
 
 --- Using toybox
 
@@ -61,81 +64,84 @@ Installing toybox adds symlinks for each command name to the $PATH.
 
 The special "toybox" command treats its first argument as the command to run.
 With no arguments, it lists available commands. This allows you to use toybox
-without installing it. This is the only command that can have an arbitrary
+without installing it, and is the only command that can have an arbitrary
 suffix (hence "toybox-armv5l").
 
-The "help" command provides information about each command (ala "help cat").
+The "help" command provides information about each command (ala "help cat"),
+and "help toybox" provides general information about toybox.
 
 --- Configuring toybox
 
 It works like the Linux kernel: allnoconfig, defconfig, and menuconfig edit
 a ".config" file that selects which features to include in the resulting
-binary. You can save and re-use your .config file, although may want to
+binary. You can save and re-use your .config file, but may want to
 run "make oldconfig" to re-run the dependency resolver when migrating to
 new versions.
 
 The maximum sane configuration is "make defconfig": allyesconfig isn't
-recommended for toybox because it enables unfinished commands and debug code.
+recommended as a starting point for toybox because it enables unfinished
+commands, debug code, and optional dependencies your build environment may
+not provide.
 
 --- Creating a Toybox-based Linux system
 
-Toybox is not a complete operating system, it's a program that runs under
-an operating system. Booting a simple system to a shell prompt requires
-three packages: an operating system kernel (Linux*) to drive the hardware,
-one or more programs for the system to run (toybox), and a C library ("libc")
-to tie them together (toybox has been tested with musl, uClibc, glibc,
-and bionic).
+Toybox has a built-in simple system builder (scripts/mkroot.sh) with a
+Makefile target:
 
-The C library is part of a "toolchain", which is an integrated suite
-of compiler, assembler, and linker, plus the standard headers and libraries
-necessary to build C programs. (And miscellaneous binaries like nm and objdump.)
+  make root
+  sudo chroot root/host/fs /init
 
-Static linking (with the --static option) copies the shared library contents
-into the program, resulting in larger but more portable programs, which
-can run even if they're the only file in the filesystem. Otherwise,
-the "dynamically" linked programs require the library files to be present on
-the target system ("man ldd" and "man ld.so" for details).
+Type "exit" to get back out. If you install appropriate cross compilers and
+point it at Linux source code, it can build simple three-package systems
+that boot to a shell prompt under qemu:
 
-An example toybox-based system is Aboriginal Linux:
+  make root CROSS_COMPILE=sh4-linux-musl- LINUX=~/linux
+  cd root/sh4
+  ./qemu-sh4.sh
 
-  http://landley.net/aboriginal/about.html
+By calling scripts/mkroot.sh directly you can add additional packages
+to the build, see scripts/root/dropbear as an example.
 
-That's designed to run under qemu, emulating several different hardware
-architectures (x86, x86-64, arm, mips, sparc, powerpc, sh4). Each toybox
-release is regression tested by building Linux From Scratch under this
-toybox-based system on each supported architecture, using QEMU to emulate
-big and little endian systems with different word size and alignment
-requirements. (The eventual goal is to replace Linux From Scratch with
-the Android Open Source Project.)
+The FAQ explains this in a lot more detail:
 
-* Or something providing the same API such as FreeBSD's Linux emulation layer.
+  https://landley.net/toybox/faq.html#system
+  https://landley.net/toybox/faq.html#mkroot
 
 --- Presentations
 
 1) "Why Toybox?" talk at the Embedded Linux Conference in 2013
 
-    video: http://youtu.be/SGmtP5Lg_t0
     outline: http://landley.net/talks/celf-2013.txt
-    linked from http://landley.net/toybox/ in nav bar on left as "Why is it?"
-    - march 21, 2013 entry has section links.
+    video: http://youtu.be/SGmtP5Lg_t0
+
+    The https://landley.net/toybox/about.html page has nav links breaking that
+    talk down into sections.
 
 2) "Why Public Domain?" The rise and fall of copyleft, Ohio LinuxFest 2013
 
-    audio: https://archive.org/download/OhioLinuxfest2013/24-Rob_Landley-The_Rise_and_Fall_of_Copyleft.mp3
     outline: http://landley.net/talks/ohio-2013.txt
+    audio: https://archive.org/download/OhioLinuxfest2013/24-Rob_Landley-The_Rise_and_Fall_of_Copyleft.mp3
 
 3) Why did I do Aboriginal Linux (which led me here)
 
     260 slide presentation:
-    https://speakerdeck.com/landley/developing-for-non-x86-targets-using-qemu
+      https://speakerdeck.com/landley/developing-for-non-x86-targets-using-qemu
 
     How and why to make android self-hosting:
       http://landley.net/aboriginal/about.html#selfhost
+
+    More backstory than strictly necessary:
+      https://landley.net/aboriginal/history.html
 
 4) What's new with toybox (ELC 2015 status update):
 
     video: http://elinux.org/ELC_2015_Presentations
     outline: http://landley.net/talks/celf-2015.txt
+
+5) Toybox vs BusyBox (2019 ELC talk):
+
+    outline: http://landley.net/talks/elc-2019.txt
+    video: https://www.youtube.com/watch?v=MkJkyMuBm3g
 
 --- Contributing
 
@@ -155,9 +161,9 @@ the easy thing to do is:
 Then send a file attachment. The list holds messages from non-subscribers
 for moderation, but I usually get to them in a day or two.
 
-Although I do accept pull requests on github, I download the patches and
-apply them with "git am" (which avoids gratuitous merge commits). Closing
-the pull request is then the submitter's responsibility.
+I download github pull requests as patches and apply them with "git am"
+(which avoids gratuitous merge commits). Sometimes I even remember to close
+the pull request.
 
 If I haven't responded to your patch after one week, feel free to remind
 me of it.
@@ -167,3 +173,6 @@ upstream first (into vanilla toybox, with discussion on the toybox mailing
 list) and then be pulled into android's toybox repo from there. (They
 generally resync on fridays). The exception is patches to their build scripts
 (Android.mk and the checked-in generated/* files) which go directly to AOSP.
+
+(As for the other meaning of "contributing", https://patreon.com/landley is
+always welcome but I warn you up front I'm terrible about updating it.)
