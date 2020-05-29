@@ -157,7 +157,7 @@
 
 #include "zconf.hash.c"
 
-#define printd(mask, fmt...) if (cdebug & (mask)) printf(fmt)
+#define printd(mask, ...) if (cdebug & (mask)) printf(__VA_ARGS__)
 
 #define PRINTD		0x0001
 #define DEBUG_PARSE	0x0002
