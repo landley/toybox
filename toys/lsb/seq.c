@@ -48,8 +48,9 @@ static void insanitize(char *f)
 static double parsef(char *s)
 {
   char *dp = strchr(s, '.');
+  size_t sz;
 
-  if (dp++) TT.precision = maxof(TT.precision, strcspn(dp, "eE"));
+  if (dp++ && (sz = strcspn(dp, "eE")) > TT.precision) TT.precision = sz;
 
   return xstrtod(s);
 }
@@ -75,8 +76,9 @@ void seq_main(void)
     int len = 0;
 
     for (i=0; i<3; i++) {
+      int len2;
       dd = (double []){first, increment, last}[i];
-      len = maxof(len, snprintf(0, 0, TT.f, dd));
+      if ((len2 = snprintf(0, 0, TT.f, dd)) > len) len = len2;
     }
     sprintf(TT.f = toybuf, "%%0%d.%df", len, TT.precision);
   }
