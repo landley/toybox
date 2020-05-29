@@ -174,7 +174,7 @@ struct ext2_dentry {
   uint16_t rec_len;       // Directory entry length
   uint8_t  name_len;      // Name length
   uint8_t  file_type;
-  char     name[0];     // File name
+  char     name[];     // File name
 };
 
 struct ext2_inode {
