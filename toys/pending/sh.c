@@ -906,7 +906,10 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
             if (ss[jj]) ifs = (void *)1;
           } else if (*ss == '#') {
             if (jj == 2 && (*ss == '@' || *ss == '*')) jj--;
-            else ifs = xmprintf("%ld", (long)strlen(getvar(ss) ? : ""));
+            else {
+              char *tmp = getvar(ss);
+              ifs = xmprintf("%zu", strlen(tmp ? tmp : ""));
+            }
           }
         }
       } else {
@@ -1003,7 +1006,7 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
 
         // get next argument, is this last entry, find end of word
         if (aa) {
-          ifs = *aa ? : "";
+          ifs = *aa ? *aa : "";
           if (*aa) aa++;
           nodel = 1;
         }
@@ -1473,8 +1476,10 @@ static void shexec(char *cmd, char **argv)
 // Call binary, or run via child shell
 static void sh_exec(char **argv)
 {
-  char *pp = getvar("PATH" ? : _PATH_DEFPATH), *cc = TT.isexec ? : *argv;
+  char *pp = getvar("PATH"), *cc = TT.isexec ? TT.isexec : *argv;
   struct string_list *sl;
+
+  if (!pp) pp = _PATH_DEFPATH;
 
   if (getpid() != TT.pid) signal(SIGINT, SIG_DFL);
   if (strchr(cc, '/')) shexec(cc, argv);
@@ -1731,7 +1736,7 @@ if (BUGBUG>1) dprintf(255, "{%d:%s}\n", pl->type, ex ? ex : (sp->expect ? "*" : 
     // Parse next word and detect overflow (too many nested quotes).
     if ((end = parse_word(start, 0)) == (void *)1) goto flush;
 
-if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ? : "");
+if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ? ex : "");
     // Is this a new pipeline segment?
     if (!pl) {
       pl = xzalloc(sizeof(struct sh_pipeline));
@@ -2578,8 +2583,9 @@ if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); if (fd == -1) fd = open("/dev/c
   else if (TT.options&OPT_S) f = stdin;
 // TODO: syntax_err should exit from shell scripts
   else if (!(f = fopen(*toys.optargs, "r"))) {
-    char *pp = getvar("PATH") ? : _PATH_DEFPATH;
+    char *pp = getvar("PATH");
 
+    if (!pp) pp = _PATH_DEFPATH;
     for (sl = find_in_path(pp, *toys.optargs); sl; free(llist_pop(&sl)))
       if ((f = fopen(sl->str, "r"))) break;
     if (sl) llist_traverse(sl->next, free);
@@ -2634,15 +2640,17 @@ if (BUGBUG) dprintf(255, "prompt=%d\n", prompt), dump_state(&scratch);
 #include "generated/flags.h"
 void cd_main(void)
 {
-  char *home = getvar("HOME") ? : "/", *pwd = getvar("PWD"), *from, *to = 0,
+  char *home = getvar("HOME"), *pwd = getvar("PWD"), *from, *to = 0,
     *dd = xstrdup(*toys.optargs ? *toys.optargs : home);
   int bad = 0;
 
   // TODO: CDPATH? Really?
 
+  if (!home) home = "/";
+
   // prepend cwd or $PWD to relative path
   if (*dd != '/') {
-    from = pwd ? : (to = getcwd(0, 0));
+    from = pwd ? pwd : (to = getcwd(0, 0));
     if (!from) setvarval("PWD", "(nowhere)");
     else {
       from = xmprintf("%s/%s", from, dd);
@@ -2776,7 +2784,8 @@ void exec_main(void)
   TT.isexec = *toys.optargs;
   if (FLAG(c)) environ = ee;
   if (TT.exec.a || FLAG(l))
-    *toys.optargs = xmprintf("%s%s", FLAG(l) ? "-" : "", TT.exec.a?:TT.isexec);
+    *toys.optargs = xmprintf("%s%s", FLAG(l) ? "-" : "",
+      TT.exec.a ? TT.exec.a : TT.isexec);
   sh_exec(toys.optargs);
 
   // report error (usually ENOENT) and return
