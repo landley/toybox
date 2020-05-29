@@ -158,6 +158,9 @@ testing "range +0" "sed -ne '/blah/,+0p'" "blah\n" "" \
 testing "range +3" "sed -ne '2,+3p'" "2\n3\n4\n5\n" "" \
   "1\n2\n3\n4\n5\nblah\n6\n7\n8\n9\n"
 
+testing "not -s" "sed -n 1p input -" "one" "one" "two"
+testing "-s" "sed -sn 1p input -" "one\ntwo" "one\n" "two"
+
 #echo meep | sed/sed -e '1a\' -e 'huh'
 #echo blah | sed/sed -f <(echo -e "1a\\\\\nboom")
 #echo merp | sed/sed "1a\\
