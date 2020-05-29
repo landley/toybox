@@ -23,7 +23,7 @@ config SED
   bool "sed"
   default y
   help
-    usage: sed [-inrzE] [-e SCRIPT]...|SCRIPT [-f SCRIPT_FILE]... [FILE...]
+    usage: sed [-inrszE] [-e SCRIPT]...|SCRIPT [-f SCRIPT_FILE]... [FILE...]
 
     Stream editor. Apply editing SCRIPTs to lines of input.
 
