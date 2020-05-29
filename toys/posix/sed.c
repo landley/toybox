@@ -17,7 +17,7 @@
  * 2-address anywhere an address is allowed, "T" command, multiline
  * continuations for [abc], \; to end [abc] argument before end of line.
 
-USE_SED(NEWTOY(sed, "(help)(version)e*f*i:;nErz(null-data)[+Er]", TOYFLAG_BIN|TOYFLAG_LOCALE|TOYFLAG_NOHELP))
+USE_SED(NEWTOY(sed, "(help)(version)e*f*i:;nErz(null-data)s[+Er]", TOYFLAG_BIN|TOYFLAG_LOCALE|TOYFLAG_NOHELP))
 
 config SED
   bool "sed"
@@ -214,7 +214,7 @@ static void sed_line(char **pline, long plen)
   int eol = 0, tea = 0;
 
   // Ignore EOF for all files before last unless -i
-  if (!pline && !FLAG(i)) return;
+  if (!pline && !FLAG(i) && !FLAG(s)) return;
 
   // Grab next line for deferred processing (EOF detection: we get a NULL
   // pline at EOF to flush last line). Note that only end of _last_ input
@@ -601,13 +601,15 @@ done:
 // Callback called on each input file
 static void do_sed_file(int fd, char *name)
 {
-  char *tmp;
+  char *tmp, *s;
 
   if (FLAG(i)) {
-    struct sedcmd *command;
-
     if (!fd) return error_msg("-i on stdin");
     TT.fdout = copy_tempfile(fd, name, &tmp);
+  }
+  if (FLAG(i) || FLAG(s)) {
+    struct sedcmd *command;
+
     TT.count = 0;
     for (command = (void *)TT.pattern; command; command = command->next)
       command->hit = 0;
@@ -615,13 +617,13 @@ static void do_sed_file(int fd, char *name)
   do_lines(fd, TT.delim, sed_line);
   if (FLAG(i)) {
     if (TT.i && *TT.i) {
-      char *s = xmprintf("%s%s", name, TT.i);
-
-      xrename(name, s);
+      xrename(name, s = xmprintf("%s%s", name, TT.i));
       free(s);
     }
     replace_tempfile(-1, TT.fdout, &tmp);
     TT.fdout = 1;
+  }
+  if (FLAG(i) || FLAG(s)) {
     TT.nextline = 0;
     TT.nextlen = TT.noeol = 0;
   }
@@ -1021,8 +1023,8 @@ void sed_main(void)
   loopfiles_rw(args, O_RDONLY|WARN_ONLY, 0, do_sed_file);
 
   // Provide EOF flush at end of cumulative input for non-i mode.
-  if (!FLAG(i)) {
-    toys.optflags |= FLAG_i;
+  if (!FLAG(i) && !FLAG(s)) {
+    toys.optflags |= FLAG_s;
     sed_line(0, 0);
   }
 
