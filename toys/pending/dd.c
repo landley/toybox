@@ -59,7 +59,7 @@ GLOBALS(
     unsigned long long offset;
   } in, out;
   unsigned conv, iflag, oflag;
-);
+)
 
 struct dd_flag {
   char *name;
