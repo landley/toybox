@@ -495,7 +495,7 @@ static void add_string_to_rtattr(struct nlmsghdr *n, int maxlen,
 // ===========================================================================
 #ifndef NLMSG_TAIL
 #define NLMSG_TAIL(nmsg) \
-  ((struct rtattr *) (((void *) (nmsg)) + NLMSG_ALIGN((nmsg)->nlmsg_len)))
+  ((struct rtattr *) (((char *) (nmsg)) + NLMSG_ALIGN((nmsg)->nlmsg_len)))
 #endif
 
 static uint32_t get_ifaceindex(char *name, int ext)
@@ -646,9 +646,9 @@ static int linkupdate(char **argv)
       add_string_to_rtattr(&request.mhdr, sizeof(request), 
           IFLA_INFO_DATA, NULL, 0);
       vlan_parse_opt(++argv, &request.mhdr, sizeof(request));
-      data->rta_len = (void *)NLMSG_TAIL(&request.mhdr) - (void *)data;
+      data->rta_len = (char *)NLMSG_TAIL(&request.mhdr) - (char *)data;
     }
-    attr->rta_len = (void *)NLMSG_TAIL(&request.mhdr) - (void *)attr;
+    attr->rta_len = (char *)NLMSG_TAIL(&request.mhdr) - (char *)attr;
   }
 
   if (link) {
