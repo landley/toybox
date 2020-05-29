@@ -46,9 +46,9 @@ config DEBUG_DHCP
 #include <netpacket/packet.h>
 
 #if CFG_DEBUG_DHCP==1
-# define dbg(fmt, arg...)   printf(fmt, ##arg)
+# define dbg(...)   printf(__VA_ARGS__)
 #else
-# define dbg(fmt, arg...)
+# define dbg(...)
 #endif
 
 #define LOG_SILENT          0x0
