@@ -21,7 +21,7 @@ struct str_len {
 
 struct string_list {
   struct string_list *next;
-  char str[0];
+  char str[];
 };
 
 struct arg_list {
@@ -388,7 +388,7 @@ struct mtab_list {
   char *dir;
   char *device;
   char *opts;
-  char type[0];
+  char type[];
 };
 
 int mountlist_istype(struct mtab_list  *ml, char *typelist);
