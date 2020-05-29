@@ -165,7 +165,7 @@ GLOBALS(
     struct {
       char *a;
     } exec;
-  };
+  } u;
 
   // keep lineno here, we use it to work around a compiler bug
   long lineno;
@@ -2525,7 +2525,7 @@ static void subshell_setup(void)
 
 void sh_main(void)
 {
-  char *new, *cc = TT.sh.c;
+  char *new, *cc = TT.u.sh.c;
   struct sh_function scratch;
   int prompt = 0;
   struct string_list *sl = 0;
@@ -2775,8 +2775,9 @@ void exec_main(void)
   // exec, handling -acl
   TT.isexec = *toys.optargs;
   if (FLAG(c)) environ = ee;
-  if (TT.exec.a || FLAG(l))
-    *toys.optargs = xmprintf("%s%s", FLAG(l) ? "-" : "", TT.exec.a?:TT.isexec);
+  if (TT.u.exec.a || FLAG(l))
+    *toys.optargs = xmprintf("%s%s", FLAG(l) ? "-" : "",
+      TT.u.exec.a?:TT.isexec);
   sh_exec(toys.optargs);
 
   // report error (usually ENOENT) and return
