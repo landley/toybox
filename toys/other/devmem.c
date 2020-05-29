@@ -42,7 +42,7 @@ void devmem_main(void)
   map_len = (addr+bytes-map_off);
   map = xmmap(NULL, map_len, writing ? PROT_WRITE : PROT_READ, MAP_SHARED, fd,
       map_off);
-  p = map + (addr & (page_size - 1));
+  p = (char *)map + (addr & (page_size - 1));
   close(fd);
 
   // Not using peek()/poke() because registers care about size of read/write
