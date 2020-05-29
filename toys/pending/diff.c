@@ -57,7 +57,7 @@ struct v_vector {
   union {
     unsigned hash;
     unsigned p;
-  };
+  } u;
 };
 
 struct diff {
@@ -93,8 +93,8 @@ enum {
 
 static int comp(const void *a, const void* b)
 {
-  int i = ((struct v_vector *)a)->hash -
-    ((struct v_vector *)b)->hash;
+  int i = ((struct v_vector *)a)->u.hash -
+    ((struct v_vector *)b)->u.hash;
 
   if (!i) i = ((struct v_vector *)a)->serial -
     ((struct v_vector *)b)->serial;
@@ -238,7 +238,7 @@ int bcomp(const void *a, const void *b)
 {
   struct v_vector *l = (struct v_vector*)a,
                   *r = (struct v_vector*)b;
-  int ret = l->hash - r->hash;
+  int ret = l->u.hash - r->u.hash;
 
   if (!ret) {
     if ((r -1)->last) return 0;
@@ -289,7 +289,7 @@ static int * create_j_vector()
         TT.offset[i] = xrealloc(TT.offset[i], size*sizeof(int));
       }
 
-      v[i][file[i].len].hash = hash & INT_MAX;
+      v[i][file[i].len].u.hash = hash & INT_MAX;
       TT.offset[i][file[i].len] = off;
       if ((tok & eof)) {
         TT.offset[i][file[i].len] = ++off;
@@ -308,10 +308,8 @@ static int * create_j_vector()
   e = v[1];
   e[0].serial = 0;
   e[0].last = 1;
-  for ( i = 1; i <= file[1].len; i++) {
-    if ((i == file[1].len) || (v[1][i].hash != v[1][i+1].hash)) e[i].last = 1;
-    else e[i].last = 0;
-  }
+  for ( i = 1; i <= file[1].len; i++)
+    e[i].last = i == file[1].len || v[1][i].u.hash != v[1][i+1].u.hash;
 
   p_vector = xzalloc((file[0].len + 2) * sizeof(int));
   for (i = 1; i <= file[0].len; i++) {
@@ -320,7 +318,7 @@ static int * create_j_vector()
   }
 
   for (i = 1; i <= file[0].len; i++)
-    e[i].p = p_vector[i];
+    e[i].u.p = p_vector[i];
   free(p_vector);
 
   size = 100;
@@ -332,12 +330,12 @@ static int * create_j_vector()
   k = 0;  //last successfully filled k candidate.
   for (i = 1; i <= file[0].len; i++) {
 
-    if (!e[i].p) continue;
+    if (!e[i].u.p) continue;
     if ((size - 2) == k) {
       size = size * 11 / 10;
       kcand = xrealloc(kcand, (size * sizeof(struct candidate*)));
     }
-    do_merge(kcand, &k, i, e, e[i].p);
+    do_merge(kcand, &k, i, e, e[i].u.p);
   }
   free(v[0]); //no need for v_vector now.
   free(v[1]);
