@@ -34,7 +34,7 @@ config NETSTAT
 GLOBALS(
   struct num_cache *inodes;
   int wpad;
-);
+)
 
 // convert address into text format.
 static void addr2str(int af, void *addr, unsigned port, char *buf, int len,
