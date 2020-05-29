@@ -97,7 +97,7 @@ void oneit_main(void)
       for (i=0; i<3; i++) {
         close(i);
         // Remember, O_CLOEXEC is backwards for xopen()
-        xopen_stdio(TT.c ? : "/dev/tty0", O_RDWR|O_CLOEXEC);
+        xopen_stdio(TT.c ? TT.c : "/dev/tty0", O_RDWR|O_CLOEXEC);
       }
 
       // Can't xexec() here, we vforked so we don't want to error_exit().
