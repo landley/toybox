@@ -205,7 +205,7 @@ GLOBALS(
       int signal;
       pid_t self, match;
     } pgrep;
-  };
+  } u;
 
   struct ptr_len gg, GG, pp, PP, ss, tt, uu, UU;
   struct dirtree *threadparent;
@@ -1301,15 +1301,15 @@ void ps_main(void)
   if (FLAG(w)) TT.width = 99999;
 
   // parse command line options other than -o
-  comma_args(TT.ps.P, &TT.PP, "bad -P", parse_rest);
-  comma_args(TT.ps.p, &TT.pp, "bad -p", parse_rest);
-  comma_args(TT.ps.t, &TT.tt, "bad -t", parse_rest);
-  comma_args(TT.ps.s, &TT.ss, "bad -s", parse_rest);
-  comma_args(TT.ps.u, &TT.uu, "bad -u", parse_rest);
-  comma_args(TT.ps.U, &TT.UU, "bad -U", parse_rest);
-  comma_args(TT.ps.g, &TT.gg, "bad -g", parse_rest);
-  comma_args(TT.ps.G, &TT.GG, "bad -G", parse_rest);
-  comma_args(TT.ps.k, &TT.kfields, "bad -k", parse_ko);
+  comma_args(TT.u.ps.P, &TT.PP, "bad -P", parse_rest);
+  comma_args(TT.u.ps.p, &TT.pp, "bad -p", parse_rest);
+  comma_args(TT.u.ps.t, &TT.tt, "bad -t", parse_rest);
+  comma_args(TT.u.ps.s, &TT.ss, "bad -s", parse_rest);
+  comma_args(TT.u.ps.u, &TT.uu, "bad -u", parse_rest);
+  comma_args(TT.u.ps.U, &TT.UU, "bad -U", parse_rest);
+  comma_args(TT.u.ps.g, &TT.gg, "bad -g", parse_rest);
+  comma_args(TT.u.ps.G, &TT.GG, "bad -G", parse_rest);
+  comma_args(TT.u.ps.k, &TT.kfields, "bad -k", parse_ko);
   dlist_terminate(TT.kfields);
 
   // It's undocumented, but traditionally extra arguments are extra -p args
@@ -1329,13 +1329,13 @@ void ps_main(void)
             FLAG(T) ? "CMD" : "NAME");
   sprintf(toybuf, not_o, FLAG(T) ? "PID,TID," : "PID,");
 
-  // Init TT.fields. This only uses toybuf if TT.ps.o is NULL
+  // Init TT.fields. This only uses toybuf if TT.u.ps.o is NULL
   if (FLAG(Z)) default_ko("LABEL", &TT.fields, 0, 0);
-  default_ko(toybuf, &TT.fields, "bad -o", TT.ps.o);
+  default_ko(toybuf, &TT.fields, "bad -o", TT.u.ps.o);
 
-  if (TT.ps.O) {
+  if (TT.u.ps.O) {
     if (TT.fields) TT.fields = ((struct ofields *)TT.fields)->prev;
-    comma_args(TT.ps.O, &TT.fields, "bad -O", parse_ko);
+    comma_args(TT.u.ps.O, &TT.fields, "bad -O", parse_ko);
     if (TT.fields) TT.fields = ((struct ofields *)TT.fields)->next;
   }
   dlist_terminate(TT.fields);
@@ -1558,7 +1558,7 @@ static void top_common(
             terminal_probesize(&TT.width, &TT.height);
           }
         }
-        if (TT.top.m) TT.height = TT.top.m+5;
+        if (TT.u.top.m) TT.height = TT.u.top.m+5;
         lines = TT.height;
       }
       if (recalc && !FLAG(q)) {
@@ -1672,14 +1672,14 @@ static void top_common(
         if (bold) printf("\033[m");
       }
 
-      if (TT.top.n && !--TT.top.n) {
+      if (TT.u.top.n && !--TT.u.top.n) {
         done++;
         break;
       }
 
       now = millitime();
-      if (timeout<=now) timeout = new.whence+TT.top.d;
-      if (timeout<=now || timeout>now+TT.top.d) timeout = now+TT.top.d;
+      if (timeout<=now) timeout = new.whence+TT.u.top.d;
+      if (timeout<=now || timeout>now+TT.u.top.d) timeout = now+TT.u.top.d;
 
       // In batch mode, we ignore the keyboard.
       if (FLAG(b)) {
@@ -1745,32 +1745,32 @@ static void top_setup(char *defo, char *defk)
     start_redraw(&TT.width, &TT.height);
   }
 
-  comma_args(TT.top.u, &TT.uu, "bad -u", parse_rest);
-  comma_args(TT.top.p, &TT.pp, "bad -p", parse_rest);
+  comma_args(TT.u.top.u, &TT.uu, "bad -u", parse_rest);
+  comma_args(TT.u.top.p, &TT.pp, "bad -p", parse_rest);
   TT.match_process = shared_match_process;
 
-  default_ko(defo, &TT.fields, "bad -o", TT.top.o);
+  default_ko(defo, &TT.fields, "bad -o", TT.u.top.o);
   dlist_terminate(TT.fields);
 
   // First (dummy) sort field is overwritten by setsort()
   default_ko("-S", &TT.kfields, 0, 0);
-  default_ko(defk, &TT.kfields, "bad -k", TT.top.k);
+  default_ko(defk, &TT.kfields, "bad -k", TT.u.top.k);
   dlist_terminate(TT.kfields);
-  setsort(TT.top.s-1);
+  setsort(TT.u.top.s-1);
 }
 
 void top_main(void)
 {
   sprintf(toybuf, "%cID,USER,%s%%CPU,%%MEM,TIME+,%s", FLAG(H) ? 'T' : 'P',
-    TT.top.O ? "" : "PR,NI,VIRT,RES,SHR,S,",
+    TT.u.top.O ? "" : "PR,NI,VIRT,RES,SHR,S,",
     FLAG(H) ? "CMD:15=THREAD,NAME=PROCESS" : "ARGS");
-  if (!TT.top.s) TT.top.s = TT.top.O ? 3 : 9;
+  if (!TT.u.top.s) TT.u.top.s = TT.u.top.O ? 3 : 9;
   top_setup(toybuf, "-%CPU,-ETIME,-PID");
-  if (TT.top.O) {
+  if (TT.u.top.O) {
     struct ofields *field = TT.fields;
 
     field = field->next->next;
-    comma_args(TT.top.O, &field, "bad -O", parse_ko);
+    comma_args(TT.u.top.O, &field, "bad -O", parse_ko);
   }
 
   top_common(merge_deltas);
@@ -1818,20 +1818,20 @@ struct regex_list {
 
 static void do_pgk(struct procpid *tb)
 {
-  if (TT.pgrep.signal) {
-    if (kill(*tb->slot, TT.pgrep.signal)) {
-      char *s = num_to_sig(TT.pgrep.signal);
+  if (TT.u.pgrep.signal) {
+    if (kill(*tb->slot, TT.u.pgrep.signal)) {
+      char *s = num_to_sig(TT.u.pgrep.signal);
 
-      if (!s) sprintf(s = toybuf, "%d", TT.pgrep.signal);
+      if (!s) sprintf(s = toybuf, "%d", TT.u.pgrep.signal);
       perror_msg("%s->%lld", s, *tb->slot);
     }
   }
-  if (!FLAG(c) && (!TT.pgrep.signal || TT.tty)) {
+  if (!FLAG(c) && (!TT.u.pgrep.signal || TT.tty)) {
     printf("%lld", *tb->slot);
     if (FLAG(l))
       printf(" %s", tb->str+tb->offset[4]*!!FLAG(f));
     
-    printf("%s", TT.pgrep.d ? TT.pgrep.d : "\n");
+    printf("%s", TT.u.pgrep.d ? TT.u.pgrep.d : "\n");
   }
 }
 
@@ -1843,10 +1843,10 @@ static void match_pgrep(void *p)
   char *name = tb->str+tb->offset[4]*!!FLAG(f);
 
   // Never match ourselves.
-  if (TT.pgrep.self == *tb->slot) return;
+  if (TT.u.pgrep.self == *tb->slot) return;
 
-  if (TT.pgrep.regexes) {
-    for (reg = TT.pgrep.regexes; reg; reg = reg->next) {
+  if (TT.u.pgrep.regexes) {
+    for (reg = TT.u.pgrep.regexes; reg; reg = reg->next) {
       if (regexec(&reg->reg, name, 1, &match, 0)) continue;
       if (FLAG(x))
         if (match.rm_so || match.rm_eo!=strlen(name)) continue;
@@ -1866,8 +1866,8 @@ static void match_pgrep(void *p)
     if (FLAG(o)) ll *= -1;
     if (TT.time && TT.time>ll) return;
     TT.time = ll;
-    free(TT.pgrep.snapshot);
-    TT.pgrep.snapshot = xmemdup(toybuf, (name+strlen(name)+1)-toybuf);
+    free(TT.u.pgrep.snapshot);
+    TT.u.pgrep.snapshot = xmemdup(toybuf, (name+strlen(name)+1)-toybuf);
   } else do_pgk(tb);
 }
 
@@ -1881,19 +1881,19 @@ void pgrep_main(void)
   char **arg;
   struct regex_list *reg;
 
-  TT.pgrep.self = getpid();
+  TT.u.pgrep.self = getpid();
 
   // No signal names start with "L", so no need for "L: " in optstr.
-  if (TT.pgrep.L && 1>(TT.pgrep.signal = sig_to_num(TT.pgrep.L)))
-    error_exit("bad -L '%s'", TT.pgrep.L);
+  if (TT.u.pgrep.L && 1>(TT.u.pgrep.signal = sig_to_num(TT.u.pgrep.L)))
+    error_exit("bad -L '%s'", TT.u.pgrep.L);
 
-  comma_args(TT.pgrep.G, &TT.GG, "bad -G", parse_rest);
-  comma_args(TT.pgrep.g, &TT.gg, "bad -g", parse_rest);
-  comma_args(TT.pgrep.P, &TT.PP, "bad -P", parse_rest);
-  comma_args(TT.pgrep.s, &TT.ss, "bad -s", parse_rest);
-  comma_args(TT.pgrep.t, &TT.tt, "bad -t", parse_rest);
-  comma_args(TT.pgrep.U, &TT.UU, "bad -U", parse_rest);
-  comma_args(TT.pgrep.u, &TT.uu, "bad -u", parse_rest);
+  comma_args(TT.u.pgrep.G, &TT.GG, "bad -G", parse_rest);
+  comma_args(TT.u.pgrep.g, &TT.gg, "bad -g", parse_rest);
+  comma_args(TT.u.pgrep.P, &TT.PP, "bad -P", parse_rest);
+  comma_args(TT.u.pgrep.s, &TT.ss, "bad -s", parse_rest);
+  comma_args(TT.u.pgrep.t, &TT.tt, "bad -t", parse_rest);
+  comma_args(TT.u.pgrep.U, &TT.UU, "bad -U", parse_rest);
+  comma_args(TT.u.pgrep.u, &TT.uu, "bad -u", parse_rest);
 
   if ((toys.optflags&(FLAG_x|FLAG_f)) ||
       !(toys.optflags&(FLAG_G|FLAG_g|FLAG_P|FLAG_s|FLAG_t|FLAG_U|FLAG_u)))
@@ -1903,8 +1903,8 @@ void pgrep_main(void)
   for (arg = toys.optargs; *arg; arg++) {
     reg = xmalloc(sizeof(struct regex_list));
     xregcomp(&reg->reg, *arg, REG_EXTENDED);
-    reg->next = TT.pgrep.regexes;
-    TT.pgrep.regexes = reg;
+    reg->next = TT.u.pgrep.regexes;
+    TT.u.pgrep.regexes = reg;
   }
   TT.match_process = pgrep_match_process;
   TT.show_process = match_pgrep;
@@ -1914,11 +1914,11 @@ void pgrep_main(void)
 
   dirtree_flagread("/proc", DIRTREE_SHUTUP|DIRTREE_PROC, get_ps);
   if (FLAG(c)) printf("%d\n", TT.sortpos);
-  if (TT.pgrep.snapshot) {
-    do_pgk(TT.pgrep.snapshot);
-    if (CFG_TOYBOX_FREE) free(TT.pgrep.snapshot);
+  if (TT.u.pgrep.snapshot) {
+    do_pgk(TT.u.pgrep.snapshot);
+    if (CFG_TOYBOX_FREE) free(TT.u.pgrep.snapshot);
   }
-  if (TT.pgrep.d) xputc('\n');
+  if (TT.u.pgrep.d) xputc('\n');
 }
 
 #define CLEANUP_pgrep
@@ -1929,8 +1929,8 @@ void pkill_main(void)
 {
   char **args = toys.optargs;
 
-  if (!FLAG(l) && *args && **args=='-') TT.pgrep.L = *(args++)+1;
-  if (!TT.pgrep.L) TT.pgrep.signal = SIGTERM;
+  if (!FLAG(l) && *args && **args=='-') TT.u.pgrep.L = *(args++)+1;
+  if (!TT.u.pgrep.L) TT.u.pgrep.signal = SIGTERM;
   if (FLAG(V)) TT.tty = 1;
   pgrep_main();
 }
