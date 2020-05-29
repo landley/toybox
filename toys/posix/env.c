@@ -26,7 +26,7 @@ config ENV
 
 GLOBALS(
   struct arg_list *u;
-);
+)
 
 void env_main(void)
 {
