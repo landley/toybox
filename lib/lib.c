@@ -662,7 +662,7 @@ void poke_le(void *ptr, long long val, unsigned size)
 
 void poke_be(void *ptr, long long val, unsigned size)
 {
-  char *c = ptr + size;
+  char *c = (char *)ptr + size;
 
   while (size--) {
     *--c = val&255;
