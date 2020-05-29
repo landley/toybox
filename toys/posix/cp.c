@@ -99,7 +99,7 @@ GLOBALS(
     struct {
       char *preserve;
     } c;
-  };
+  } u;
 
   char *destname;
   struct stat top;
@@ -374,7 +374,7 @@ void cp_main(void)
 
   // Not using comma_args() (yet?) because interpeting as letters.
   if (FLAG(preserve)) {
-    char *pre = xstrdup(TT.c.preserve ? TT.c.preserve : "mot"), *s;
+    char *pre = xstrdup(TT.u.c.preserve ? TT.u.c.preserve : "mot"), *s;
 
     if (comma_remove(pre, "all")) TT.pflags = ~0;
     for (i=0; i<ARRAY_LEN(cp_preserve); i++)
@@ -474,9 +474,9 @@ static inline int cp_flag_v(void) { return FLAG_v; };
 
 static int install_node(struct dirtree *try)
 {
-  try->st.st_mode = TT.i.m ? string_to_mode(TT.i.m, try->st.st_mode) : 0755;
-  if (TT.i.g) try->st.st_gid = TT.gid;
-  if (TT.i.o) try->st.st_uid = TT.uid;
+  try->st.st_mode = TT.u.i.m ? string_to_mode(TT.u.i.m, try->st.st_mode) : 0755;
+  if (TT.u.i.g) try->st.st_gid = TT.gid;
+  if (TT.u.i.o) try->st.st_uid = TT.uid;
 
   // Always returns 0 because no -r
   cp_node(try);
@@ -492,8 +492,8 @@ void install_main(void)
 {
   char **ss;
 
-  TT.uid = TT.i.o ? xgetuid(TT.i.o) : -1;
-  TT.gid = TT.i.g ? xgetgid(TT.i.g) : -1;
+  TT.uid = TT.u.i.o ? xgetuid(TT.u.i.o) : -1;
+  TT.gid = TT.u.i.g ? xgetgid(TT.u.i.g) : -1;
 
   if (FLAG(d)) {
     for (ss = toys.optargs; *ss; ss++) {
