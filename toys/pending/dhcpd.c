@@ -125,7 +125,7 @@ config DEBUG_DHCP
 GLOBALS(
     char *iface;
     long port;
-);
+)
 
 struct config_keyword {
   char *keyword;
