@@ -604,7 +604,10 @@ static void do_sed_file(int fd, char *name)
   char *tmp, *s;
 
   if (FLAG(i)) {
-    if (!fd) return error_msg("-i on stdin");
+    if (!fd) {
+      error_msg("-i on stdin");
+      return;
+    }
     TT.fdout = copy_tempfile(fd, name, &tmp);
   }
   if (FLAG(i) || FLAG(s)) {
