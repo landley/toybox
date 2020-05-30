@@ -121,18 +121,27 @@ static void do_gzip(int ifd, char *in)
   // Are we writing to stdout?
   if (!ifd || FLAG(c)) ofd = 1;
   if (isatty(ifd)) {
-    if (!FLAG(f)) return error_msg("%s:need -f to read TTY"+3*!!ifd, in);
+    if (!FLAG(f)) {
+      error_msg("%s:need -f to read TTY"+3*!!ifd, in);
+      return;
+    }
     else ofd = 1;
   }
 
   // Are we reading file.gz to write to file?
   if (!ofd) {
-    if (fstat(ifd, &sb)) return perror_msg("%s", in);
+    if (fstat(ifd, &sb)) {
+      perror_msg("%s", in);
+      return;
+    }
 
     // Add or remove .gz suffix as necessary
     if (!FLAG(d)) out = xmprintf("%s%s", in, ".gz");
     else if ((out = strend(in, ".gz"))>in) out = xstrndup(in, out-in);
-    else return error_msg("no .gz: %s", in);
+    else {
+      error_msg("no .gz: %s", in);
+      return;
+    }
 
     ofd = xcreate(out, O_CREAT|O_WRONLY|WARN_ONLY|(O_EXCL*!FLAG(f)),sb.st_mode);
     if (ofd == -1) return;
