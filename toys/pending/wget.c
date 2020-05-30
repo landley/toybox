@@ -171,7 +171,7 @@ void wget_main(void)
     // HTTP res code check
     if (!strcmp(rc, "301") || !strcmp(rc, "302")) {
       char* eol = 0;
-      if ((eol = strchr(redir_loc, '\r')) > 0) *eol = 0;
+      if ((eol = strchr(redir_loc, '\r'))) *eol = 0;
       else if (redir_loc) error_exit("Could not parse redirect URL");
       if (redirects < 0) error_exit("Too many redirects");
 
