@@ -2355,7 +2355,8 @@ static int show_rules(struct nlmsghdr *mhdr,
     printf("to %s", (msg->rtm_family == AF_INET || msg->rtm_family == AF_INET6)
         ? inet_ntop(msg->rtm_family, RTA_DATA(attr[RTA_DST]),
           toybuf, sizeof(toybuf))  : "???");
-    (msg->rtm_dst_len != hlen) ? printf("/%u", msg->rtm_dst_len) : xputc(' ');
+    if (msg->rtm_dst_len != hlen) printf("/%u", msg->rtm_dst_len);
+    else xputc(' ');
   } else if (msg->rtm_dst_len)
     printf("to 0/%d ", msg->rtm_dst_len);
 
