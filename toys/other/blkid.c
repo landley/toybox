@@ -158,7 +158,10 @@ static void do_blkid(int fd, char *name)
           if (!buf[j]) break;
         }
       } else sprintf(buf, "%.*s", len, s);
-      if (FLAG(L)) return flagshow(buf, name);
+      if (FLAG(L)) {
+        flagshow(buf, name);
+        return;
+      }
       show_tag("LABEL", buf);
     }
   }
@@ -179,7 +182,10 @@ static void do_blkid(int fd, char *name)
         s += sprintf(s, "-%02x"+!(0x550 & (1<<j)), toybuf[uoff+j]);
     }
 
-    if (FLAG(U)) return flagshow(buf, name);
+    if (FLAG(U)) {
+      flagshow(buf, name);
+      return;
+    }
     show_tag("UUID", buf);
   }
 
