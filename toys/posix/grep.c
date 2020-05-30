@@ -141,7 +141,10 @@ static void do_grep(int fd, char *name)
     if (bin && FLAG(I)) return;
   }
 
-  if (!(file = fdopen(fd, "r"))) return perror_msg("%s", name);
+  if (!(file = fdopen(fd, "r"))) {
+    perror_msg("%s", name);
+    return;
+  }
 
   // Loop through lines of input
   for (;;) {
