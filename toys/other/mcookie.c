@@ -28,7 +28,10 @@ void mcookie_main(void)
 {
   long long *ll = (void *)toybuf;
 
-  if (FLAG(V)) return (void)puts("mcookie from toybox");
+  if (FLAG(V)) {
+    puts("mcookie from toybox");
+    return;
+  }
   xgetrandom(toybuf, 16, 0);
   if (FLAG(v)) fputs("Got 16 bytes from xgetrandom()\n", stderr);
   xprintf("%016llx%06llx\n", ll[0], ll[1]);
