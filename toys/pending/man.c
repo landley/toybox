@@ -79,7 +79,10 @@ static char k(char *s) {
 
 static void do_man(char **pline, long len)
 {
-  if (!pline) return newln();
+  if (!pline) {
+    newln();
+    return;
+  }
   TT.line = *pline;
 
   if (FLAG(k)) {
@@ -192,7 +195,8 @@ void man_main(void)
       closedir(dp);
       free(d);
     }
-    return regfree(&TT.reg);
+    regfree(&TT.reg);
+    return;
   }
 
   if (!toys.optc) help_exit("which page?");
