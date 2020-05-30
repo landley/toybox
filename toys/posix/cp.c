@@ -463,9 +463,9 @@ void mv_main(void)
 
 // Export cp flags into install's flag context.
 
-static inline int cp_flag_F(void) { return FLAG_F; };
-static inline int cp_flag_p(void) { return FLAG_p; };
-static inline int cp_flag_v(void) { return FLAG_v; };
+static inline int cp_flag_F(void) { return FLAG_F; }
+static inline int cp_flag_p(void) { return FLAG_p; }
+static inline int cp_flag_v(void) { return FLAG_v; }
 
 // Switch to install's flag context
 #define CLEANUP_cp
