@@ -323,8 +323,8 @@ static void show_notes(long offset, long size)
 
 static void scan_elf()
 {
-  struct sh dynamic = {}, dynstr = {}, dynsym = {}, shstr = {}, strtab = {},
-    symtab = {}, s;
+  struct sh dynamic = {0}, dynstr = {0}, dynsym = {0}, shstr = {0},
+    strtab = {0}, symtab = {0}, s;
   struct ph ph;
   char *hdr = TT.elf;
   int type, machine, version, flags, entry, ehsize, phnum, shstrndx, i, j, w;
@@ -424,7 +424,7 @@ static void scan_elf()
     }
 
     if (FLAG(S)) {
-      char sh_flags[12] = {}, *p = sh_flags;
+      char sh_flags[12] = {0}, *p = sh_flags;
 
       for (j=0; j<12; j++) if (s.flags&(1<<j)) *p++="WAXxMSILOTC"[j];
       printf("  [%2d] %-20s %-14s %0*llx %06llx %06llx %02llx %3s %2d %2d %2lld\n",
@@ -503,9 +503,9 @@ static void scan_elf()
       else if (*type == 'f' || *type == 'F') {
         struct bitname { int bit; char *s; }
           df_names[] = {{0, "ORIGIN"},{1,"SYMBOLIC"},{2,"TEXTREL"},
-            {3,"BIND_NOW"},{4,"STATIC_TLS"},{}},
+            {3,"BIND_NOW"},{4,"STATIC_TLS"},{0}},
           df_1_names[]={{0,"NOW"},{1,"GLOBAL"},{2,"GROUP"},{3,"NODELETE"},
-            {5,"INITFIRST"},{27,"PIE"},{}},
+            {5,"INITFIRST"},{27,"PIE"},{0}},
           *names = *type == 'f' ? df_names : df_1_names;
         int mask;
 
