@@ -422,7 +422,7 @@ void stty_main(void)
   out("line = %d;\n", old.c_line);
 
   for (i=j=0; i<ARRAY_LEN(chars); i++) {
-    char vis[16] = {};
+    char vis[16] = {0};
     cc_t ch = old.c_cc[chars[i].value];
 
     if (ch == sane.c_cc[chars[i].value] && (toys.optflags&FLAG_a)==0)
