@@ -869,7 +869,8 @@ void diff_main(void)
   if ((TT.st[0].st_ino == TT.st[1].st_ino) //physicaly same device
       && (TT.st[0].st_dev == TT.st[1].st_dev)) {
     toys.exitval = 0;
-    return show_status(files);
+    show_status(files);
+    return;
   }
 
   if (S_ISDIR(TT.st[0].st_mode) && S_ISDIR(TT.st[1].st_mode)) {
