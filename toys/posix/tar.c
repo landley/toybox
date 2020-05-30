@@ -481,18 +481,24 @@ static void extract_to_disk(void)
   }
 
   // create path before file if necessary
-  if (strrchr(name, '/') && mkpath(name) && errno!=EEXIST)
-      return perror_msg(":%s: can't mkdir", name);
+  if (strrchr(name, '/') && mkpath(name) && errno!=EEXIST) {
+    perror_msg(":%s: can't mkdir", name);
+    return;
+  }
 
   // remove old file, if exists
-  if (!FLAG(k) && !S_ISDIR(ala) && unlink(name) && errno!=ENOENT)
-    return perror_msg("can't remove: %s", name);
+  if (!FLAG(k) && !S_ISDIR(ala) && unlink(name) && errno!=ENOENT) {
+    perror_msg("can't remove: %s", name);
+    return;
+  }
 
   if (S_ISREG(ala)) {
     // hardlink?
     if (TT.hdr.link_target) {
-      if (link(TT.hdr.link_target, name))
-        return perror_msg("can't link '%s' -> '%s'", name, TT.hdr.link_target);
+      if (link(TT.hdr.link_target, name)) {
+        perror_msg("can't link '%s' -> '%s'", name, TT.hdr.link_target);
+        return;
+      }
     // write contents
     } else {
       int fd = xcreate(name,
@@ -502,13 +508,19 @@ static void extract_to_disk(void)
       else skippy(TT.hdr.size);
     }
   } else if (S_ISDIR(ala)) {
-    if ((mkdir(name, 0700) == -1) && errno != EEXIST)
-      return perror_msg("%s: can't create", TT.hdr.name);
+    if ((mkdir(name, 0700) == -1) && errno != EEXIST) {
+      perror_msg("%s: can't create", TT.hdr.name);
+      return;
+    }
   } else if (S_ISLNK(ala)) {
-    if (symlink(TT.hdr.link_target, TT.hdr.name))
-      return perror_msg("can't link '%s' -> '%s'", name, TT.hdr.link_target);
-  } else if (mknod(name, ala, TT.hdr.device))
-    return perror_msg("can't create '%s'", name);
+    if (symlink(TT.hdr.link_target, TT.hdr.name)) {
+      perror_msg("can't link '%s' -> '%s'", name, TT.hdr.link_target);
+      return;
+    }
+  } else if (mknod(name, ala, TT.hdr.device)) {
+    perror_msg("can't create '%s'", name);
+    return;
+  }
 
   // Set ownership
   if (!FLAG(o) && !geteuid()) {
