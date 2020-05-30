@@ -45,7 +45,10 @@ static void fmt_line(char **pline, long len)
   int idx, indent, count;
 
   // Flush line on EOF
-  if (!pline) return newline();
+  if (!pline) {
+    newline();
+    return;
+  }
 
   // Measure indentation
   for (line = *pline, idx = count = 0; isspace(line[idx]); idx++) {
@@ -59,7 +62,8 @@ static void fmt_line(char **pline, long len)
     xputc('\n');
     TT.level = 0;
 
-    return newline();
+    newline();
+    return;
   }
 
   // Did indentation change?
