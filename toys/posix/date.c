@@ -128,7 +128,7 @@ void date_main(void)
 
   if (TT.d) {
     if (TT.D) {
-      struct tm tm = {};
+      struct tm tm = {0};
       char *s = strptime(TT.d, TT.D+(*TT.D=='+'), &tm);
 
       t = (s && *s) ? xvali_date(&tm, s) : xvali_date(0, TT.d);
