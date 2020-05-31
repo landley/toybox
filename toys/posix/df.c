@@ -49,7 +49,7 @@ static void measure_column(int col, const char *s)
 static void measure_numeric_column(int col, long long n)
 {
   snprintf(toybuf, sizeof(toybuf), "%llu", n);
-  return measure_column(col, toybuf);
+  measure_column(col, toybuf);
 }
 
 static void show_header()
