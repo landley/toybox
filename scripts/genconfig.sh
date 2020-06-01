@@ -107,6 +107,12 @@ EOF
     #include <sys/random.h>
     int main(void) { char buf[100]; getrandom(buf, 100, 0); }
 EOF
+
+  probesymbol TOYBOX_COPYFILERANGE << EOF
+    #include <sys/syscall.h>
+    #include <unistd.h>
+    int main(void) { copyfilerange(0, 0, 1, 0, 123, 0); }
+EOF
 }
 
 genconfig()
