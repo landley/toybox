@@ -94,19 +94,14 @@ void addAttr(struct nlmsghdr *nl, int maxlen, void *attr, int type, int len)
   nl->nlmsg_len = NLMSG_ALIGN(nl->nlmsg_len) + rtlen;
 }
 
-static void get_hostname(sa_family_t family, struct in_addr *addr, char *dst, size_t len) {
-  struct sockaddr_in sa;
+static void get_hostname(sa_family_t f, void *a, char *dst, size_t len) {
+  size_t a_len = (AF_INET6 == f) ? sizeof(struct in6_addr) : sizeof(struct in_addr);
 
-  memset(&sa, 0, sizeof sa);
-  sa.sin_family = family;
-  sa.sin_addr = *addr;
-
-  if (getnameinfo((struct sockaddr*)&sa, sizeof(sa), dst, len,NULL, 0, NI_NOFQDN)) {
-    perror_exit("getnameinfo");
-  }
+  struct hostent *host = gethostbyaddr(a, a_len, f);
+  if (host) xstrncpy(dst, host->h_name, len);
 }
 
-static void display_routes(sa_family_t family)
+static void display_routes(sa_family_t f)
 {
   int fd, msg_hdr_len, route_protocol;
   struct {
@@ -126,11 +121,11 @@ static void display_routes(sa_family_t family)
   req.nl.nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP;
   req.nl.nlmsg_pid = getpid();
   req.nl.nlmsg_seq = 1;
-  req.rt.rtm_family = family;
+  req.rt.rtm_family = f;
   req.rt.rtm_table = RT_TABLE_MAIN;
   xsend(fd, &req, sizeof(req));
 
-  if (family == AF_INET) {
+  if (f == AF_INET) {
     xprintf("Kernel IP routing table\n"
             "Destination     Gateway         Genmask         Flags %s Iface\n",
             (toys.optflags & FLAG_e) ? "  MSS Window  irtt" : "Metric Ref    Use");
@@ -167,7 +162,7 @@ static void display_routes(sa_family_t family)
         uint32_t metric_len;
         struct rta_cacheinfo *cache_info;
 
-        if (family == AF_INET) {
+        if (f == AF_INET) {
           if (!(toys.optflags & FLAG_n)) strcpy(dest, "default");
           else strcpy(dest, "0.0.0.0");
           if (!(toys.optflags & FLAG_n)) strcpy(gate, "*");
@@ -192,17 +187,17 @@ static void display_routes(sa_family_t family)
           switch (route_attribute->rta_type) {
             case RTA_DST:
               if (toys.optflags & FLAG_n) {
-                inet_ntop(family, RTA_DATA(route_attribute), dest, sizeof(dest));
+                inet_ntop(f, RTA_DATA(route_attribute), dest, sizeof(dest));
               } else {
-                get_hostname(family, RTA_DATA(route_attribute), dest, sizeof(dest));
+                get_hostname(f, RTA_DATA(route_attribute), dest, sizeof(dest));
               }
               break;
 
             case RTA_GATEWAY:
               if (toys.optflags & FLAG_n) {
-                inet_ntop(family, RTA_DATA(route_attribute), gate, sizeof(dest));
+                inet_ntop(f, RTA_DATA(route_attribute), gate, sizeof(dest));
               } else {
-                get_hostname(family, RTA_DATA(route_attribute), gate, sizeof(dest));
+                get_hostname(f, RTA_DATA(route_attribute), gate, sizeof(dest));
               }
               strcat(flags, "G");
               break;
@@ -244,7 +239,7 @@ static void display_routes(sa_family_t family)
         if (route_netmask == 32) strcat(flags, "H");
         if (route_protocol == RTPROT_REDIRECT) strcat(flags, "D");
 
-        if (family == AF_INET) {
+        if (f == AF_INET) {
           xprintf("%-15.15s %-15.15s %-16s%-6s", dest, gate, netmask, flags);
           if (toys.optflags & FLAG_e) {
             xprintf("%5d %-5d %6d %s\n", mss, win, irtt, if_name);
@@ -285,7 +280,7 @@ static int get_action(char ***argv, struct _arglist *list)
 }
 
 // add/del a route.
-static void setroute(sa_family_t family, char **argv)
+static void setroute(sa_family_t f, char **argv)
 {
   char *targetip;
   int sockfd, arg2_action;
@@ -316,12 +311,12 @@ static void setroute(sa_family_t family, char **argv)
 
   nlMsg->nlmsg_pid = getpid();
   nlMsg->nlmsg_seq = 1;
-  rtMsg->rtm_family = family;
+  rtMsg->rtm_family = f;
   rtMsg->rtm_table = RT_TABLE_UNSPEC;
   rtMsg->rtm_type = RTN_UNICAST;
   rtMsg->rtm_protocol = RTPROT_UNSPEC;
   rtMsg->rtm_flags = RTM_F_NOTIFY;
-  if (family == AF_INET) {
+  if (f == AF_INET) {
     rtMsg->rtm_dst_len = 32;
     rtMsg->rtm_src_len = 32;
   } else {
@@ -334,7 +329,7 @@ static void setroute(sa_family_t family, char **argv)
   }
 
   size_t addr_len = sizeof(struct in_addr);
-  if (family == AF_INET6) addr_len = sizeof(struct in6_addr);
+  if (f == AF_INET6) addr_len = sizeof(struct in6_addr);
   unsigned char addr[sizeof(struct in6_addr)] = {0,};
 
   for (; *argv; argv++) {
@@ -358,12 +353,12 @@ static void setroute(sa_family_t family, char **argv)
         uint32_t naddr[4] = {0,};
         uint64_t plen;
 
-        netmask = (family == AF_INET6) ? 128 : 32; // set default netmask
+        netmask = (f == AF_INET6) ? 128 : 32; // set default netmask
         plen = strtoul(argv[1], &ptr, 0);
 
         if (!ptr || ptr == argv[1] || *ptr || !plen || plen > netmask) {
-          if (!inet_pton(family, argv[1], &naddr)) error_exit("invalid netmask");
-          if (family == AF_INET) {
+          if (!inet_pton(f, argv[1], &naddr)) error_exit("invalid netmask");
+          if (f == AF_INET) {
             uint32_t mask = htonl(*naddr), host = ~mask;
             if (host & (host + 1)) error_exit("invalid netmask");
             for (plen = 0; mask; mask <<= 1) ++plen;
@@ -373,7 +368,7 @@ static void setroute(sa_family_t family, char **argv)
         netmask = plen;
         rtMsg->rtm_dst_len = netmask;
       } else if (!strcmp(*argv, "gw")) {
-        if (!inet_pton(family, argv[1], &addr)) error_exit("invalid gw");
+        if (!inet_pton(f, argv[1], &addr)) error_exit("invalid gw");
         addAttr(nlMsg, sizeof(toybuf), &addr, RTA_GATEWAY, addr_len);
       } else if (!strcmp(*argv, "mss")) {
         // TODO(emolitor): Add RTA_METRICS support
@@ -404,7 +399,7 @@ static void setroute(sa_family_t family, char **argv)
     char *prefix = strtok(NULL, "/");
 
     if (prefix) rtMsg->rtm_dst_len = strtoul(prefix, &ptr, 0);
-    if (!inet_pton(family, dst, &addr)) error_exit("invalid target");
+    if (!inet_pton(f, dst, &addr)) error_exit("invalid target");
     addAttr(nlMsg, sizeof(toybuf), &addr, RTA_DST, addr_len);
   } else {
     rtMsg->rtm_dst_len = 0;
