@@ -606,3 +606,33 @@ int get_block_device_size(int fd, unsigned long long* size)
   return (ioctl(fd, BLKGETSIZE64, size) >= 0);
 }
 #endif
+
+// TODO copy_file_range
+// Return bytes copied from in to out. If bytes <0 copy all of in to out.
+// If consuemd isn't null, amount read saved there (return is written or error)
+long long sendfile_len(int in, int out, long long bytes, long long *consumed)
+{
+  long long total = 0, len, ww;
+
+  if (consumed) *consumed = 0;
+  if (in<0) return 0;
+  while (bytes != total) {
+    ww = 0;
+    len = bytes-total;
+    if (bytes<0 || len>sizeof(libbuf)) len = sizeof(libbuf);
+
+#if CFG_TOYBOX_COPYFILERANGE
+    len = copy_file_range(in, 0, out, 0, bytes, 0);
+#else
+    ww = len = read(in, libbuf, len);
+#endif
+    if (!len && errno==EAGAIN) continue;
+    if (len<1) break;
+    if (consumed) *consumed += len;
+    if (ww && writeall(out, libbuf, len) != len) return -1;
+    total += len;
+  }
+
+  return total;
+}
+

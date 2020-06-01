@@ -814,29 +814,6 @@ void xpidfile(char *name)
   close(fd);
 }
 
-// Return bytes copied from in to out. If bytes <0 copy all of in to out.
-// If consuemd isn't null, amount read saved there (return is written or error)
-long long sendfile_len(int in, int out, long long bytes, long long *consumed)
-{
-  long long total = 0, len;
-
-  if (consumed) *consumed = 0;
-  if (in<0) return 0;
-  while (bytes != total) {
-    len = bytes-total;
-    if (bytes<0 || len>sizeof(libbuf)) len = sizeof(libbuf);
-
-    len = read(in, libbuf, len);
-    if (!len && errno==EAGAIN) continue;
-    if (len<1) break;
-    if (consumed) *consumed += len;
-    if (writeall(out, libbuf, len) != len) return -1;
-    total += len;
-  }
-
-  return total;
-}
-
 // error_exit if we couldn't copy all bytes
 long long xsendfile_len(int in, int out, long long bytes)
 {
