@@ -2,10 +2,10 @@
  *
  * Copyright 2012 Ranjan Kumar <ranjankumar.bth@gmail.com>
  * Copyright 2013 Kyungwan Han <asura321@gmail.com>
+ * Copyright 2020 Eric Molitor <eric@molitor.org>
  *
  * No Standard
  *
- * TODO: autodetect -net -host target dev -A (but complain)
  * route add -net target 10.0.0.0 netmask 255.0.0.0 dev eth0
  * route del delete
  * delete net route, must match netmask, informative error message
@@ -416,12 +416,18 @@ static void setroute(sa_family_t family, char **argv)
 
 void route_main(void)
 {
-  if (!TT.family) TT.family = "inet";
   if (!*toys.optargs) {
-    if (!strcmp(TT.family, "inet")) display_routes(AF_INET);
+    if ( (!TT.family) || (!strcmp(TT.family, "inet")) ) display_routes(AF_INET);
     else if (!strcmp(TT.family, "inet6")) display_routes(AF_INET6);
     else show_help(stdout, 1);
   } else {
+    if (!TT.family) {
+      if ( (toys.optc > 1) && (strchr(toys.optargs[1], ':')) ) {
+          xprintf("WARNING: Implicit IPV6 address using -Ainet6\n");
+          TT.family = "inet6";
+      } else TT.family = "inet";
+    }
+
     if (!strcmp(TT.family, "inet")) setroute(AF_INET, toys.optargs);
     else setroute(AF_INET6, toys.optargs);
   }
