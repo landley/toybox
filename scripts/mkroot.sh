@@ -25,7 +25,7 @@ if [ ! -z "$CROSS" ]; then
   if [ "${CROSS::3}" == all ]; then
     for i in $(ls "$CCC" | sed -n 's/-.*//p' | sort -u | xargs); do
       { rm -f "$LOG/$i-log".{failed,success}
-        "$0" "$@" CROSS=$i ; [ $((X=$?)) -eq 0 ] && mv "$LOG/$i".{txt,success}
+        "$0" "$@" CROSS=$i ; [ $? -eq 0 ] && mv "$LOG/$i".{txt,success}
       } |& tee "$LOG/$i.txt"
       [ ! -e "$LOG/$i.success" ] &&
         { mv "$LOG/$i".{txt,failed};[ "$CROSS" != allnonstop ] && exit 1; }
@@ -116,8 +116,9 @@ echo -e 'root:x:0:\nguest:x:500:\nnobody:x:65534:' > "$ROOT"/etc/group || exit 1
 
 # Build static toybox with existing .config if there is one, else defconfig+sh
 announce toybox
-[ -e .config ] && CONF=silentoldconfig || unset CONF
-make clean ${CONF:-defconfig KCONFIG_ALLCONFIG=<(echo $'CONFIG_SH=y\nCONFIG_ROUTE=y')} &&
+[ -e .config ] && [ -z "$PENDING" ] && CONF=silentoldconfig || unset CONF
+for i in $PENDING sh route; do XX="$XX"$'\n'CONFIG_${i^^?}=y; done
+make clean ${CONF:-defconfig KCONFIG_ALLCONFIG=<(echo "$XX")} &&
 LDFLAGS=--static PREFIX="$ROOT" make toybox install || exit 1
 
 # Build any packages listed on command line
