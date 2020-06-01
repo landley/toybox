@@ -290,20 +290,17 @@ static void setroute(sa_family_t family, char **argv)
   char *targetip;
   int sockfd, arg2_action;
   int action = get_action(&argv, arglist1); //verify the arg for add/del.
-
-  if (!action || !*argv) help_exit("setroute");
-
-  arg2_action = get_action(&argv, arglist2); //verify the arg for -net or -host
-  if (!*argv) help_exit("setroute");
-
-  targetip = *argv++;
-
+  struct nlmsghdr buf[8192 / sizeof(struct nlmsghdr)];
   struct nlmsghdr *nlMsg;
   struct rtmsg *rtMsg;
 
+  if (!action || !*argv) help_exit("setroute");
+  arg2_action = get_action(&argv, arglist2); //verify the arg for -net or -host
+  if (!*argv) help_exit("setroute");
+  targetip = *argv++;
   sockfd = xsocket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
-  memset(toybuf, 0, sizeof(toybuf));
-  nlMsg = (struct nlmsghdr *) toybuf;
+  memset(buf, 0, sizeof(buf));
+  nlMsg = (struct nlmsghdr *) buf;
   rtMsg = (struct rtmsg *) NLMSG_DATA(nlMsg);
 
   nlMsg->nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
@@ -350,7 +347,7 @@ static void setroute(sa_family_t family, char **argv)
     } else if (!strcmp(*argv, "reject")) {
       rtMsg->rtm_type = RTN_UNREACHABLE;
     } else {
-      if (!argv[1]) help_exit(0);
+      if (!argv[1]) show_help(stdout, 1);
 
       if (!strcmp(*argv, "metric")) {
         unsigned int priority = atolx_range(argv[1], 0, UINT_MAX);
@@ -423,7 +420,7 @@ void route_main(void)
   if (!*toys.optargs) {
     if (!strcmp(TT.family, "inet")) display_routes(AF_INET);
     else if (!strcmp(TT.family, "inet6")) display_routes(AF_INET6);
-    else help_exit(0);
+    else show_help(stdout, 1);
   } else {
     if (!strcmp(TT.family, "inet")) setroute(AF_INET, toys.optargs);
     else setroute(AF_INET6, toys.optargs);
