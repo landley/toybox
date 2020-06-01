@@ -53,10 +53,10 @@ chmod 777 one 2>/dev/null ; rm -rf one
 
 mkdir -p d1
 touch d1/f1.txt d1/f2.txt
-testing "-rv dir" \
-  "rm -rv d1 | sed \"s/emoved/m/;ectory //" | sort" "rm 'd1/f1.txt'\nrm 'd1/f2.txt'\nrmdir 'd1'\n" "" ""
+testing "-rv dir" "rm -rv d1 | sed 's/emoved/m/;s/ directory/dir/' | sort" \
+  "rm 'd1/f1.txt'\nrm 'd1/f2.txt'\nrmdir 'd1'\n" "" ""
 rm -rf d1
 
-touch "'"
-testing "-v \\'" "rm -v \\'" "rm '''\n" "" "" # TODO: coreutils escapes quote
-rm -f \'
+touch "meep"
+testing "-v" "rm -v meep | sed 's/emoved/m/'" "rm 'meep'\n" "" ""
+rm -f meep
