@@ -94,6 +94,18 @@ void addAttr(struct nlmsghdr *nl, int maxlen, void *attr, int type, int len)
   nl->nlmsg_len = NLMSG_ALIGN(nl->nlmsg_len) + rtlen;
 }
 
+static void get_hostname(sa_family_t family, struct in_addr *addr, char *dst, size_t len) {
+  struct sockaddr_in sa;
+
+  memset(&sa, 0, sizeof sa);
+  sa.sin_family = family;
+  sa.sin_addr = *addr;
+
+  if (getnameinfo((struct sockaddr*)&sa, sizeof(sa), dst, len,NULL, 0, NI_NOFQDN)) {
+    perror_exit("getnameinfo");
+  }
+}
+
 static void display_routes(sa_family_t family)
 {
   int fd, msg_hdr_len, route_protocol;
@@ -139,8 +151,8 @@ static void display_routes(sa_family_t family)
       // have to filter here.
       if (route_entry->rtm_table == RT_TABLE_MAIN) {
         struct in_addr netmask_addr;
-        char destip[INET6_ADDRSTRLEN];
-        char gateip[INET6_ADDRSTRLEN];
+        char dest[INET6_ADDRSTRLEN];
+        char gate[INET6_ADDRSTRLEN];
         char netmask[32];
         char flags[10] = "U";
         uint32_t priority = 0;
@@ -156,14 +168,14 @@ static void display_routes(sa_family_t family)
         struct rta_cacheinfo *cache_info;
 
         if (family == AF_INET) {
-          if (!(toys.optflags & FLAG_n)) strcpy(destip, "default");
-          else strcpy(destip, "0.0.0.0");
-          if (!(toys.optflags & FLAG_n)) strcpy(gateip, "*");
-          else strcpy(gateip, "0.0.0.0");
+          if (!(toys.optflags & FLAG_n)) strcpy(dest, "default");
+          else strcpy(dest, "0.0.0.0");
+          if (!(toys.optflags & FLAG_n)) strcpy(gate, "*");
+          else strcpy(gate, "0.0.0.0");
           strcpy(netmask, "0.0.0.0");
         } else {
-          strcpy(destip, "::");
-          strcpy(gateip, "::");
+          strcpy(dest, "::");
+          strcpy(gate, "::");
         }
 
         route_netmask = route_entry->rtm_dst_len;
@@ -179,11 +191,19 @@ static void display_routes(sa_family_t family)
         while (RTA_OK(route_attribute, route_attribute_len)) {
           switch (route_attribute->rta_type) {
             case RTA_DST:
-              inet_ntop(family, RTA_DATA(route_attribute), destip, INET6_ADDRSTRLEN);
+              if (toys.optflags & FLAG_n) {
+                inet_ntop(family, RTA_DATA(route_attribute), dest, sizeof(dest));
+              } else {
+                get_hostname(family, RTA_DATA(route_attribute), dest, sizeof(dest));
+              }
               break;
 
             case RTA_GATEWAY:
-              inet_ntop(family, RTA_DATA(route_attribute), gateip, INET6_ADDRSTRLEN);
+              if (toys.optflags & FLAG_n) {
+                inet_ntop(family, RTA_DATA(route_attribute), gate, sizeof(dest));
+              } else {
+                get_hostname(family, RTA_DATA(route_attribute), gate, sizeof(dest));
+              }
               strcat(flags, "G");
               break;
 
@@ -225,14 +245,14 @@ static void display_routes(sa_family_t family)
         if (route_protocol == RTPROT_REDIRECT) strcat(flags, "D");
 
         if (family == AF_INET) {
-          xprintf("%-15.15s %-15.15s %-16s%-6s", destip, gateip, netmask, flags);
+          xprintf("%-15.15s %-15.15s %-16s%-6s", dest, gate, netmask, flags);
           if (toys.optflags & FLAG_e) {
             xprintf("%5d %-5d %6d %s\n", mss, win, irtt, if_name);
           } else xprintf("%-6d %-2d %7d %s\n", priority, ref, use, if_name);
         } else {
-          char *dest_with_mask = xmprintf("%s/%u", destip, route_netmask);
+          char *dest_with_mask = xmprintf("%s/%u", dest, route_netmask);
           xprintf("%-30s %-26s %-4s %-6d %-4d %2d %-8s\n",
-                  dest_with_mask, gateip, flags, priority, ref, use, if_name);
+                  dest_with_mask, gate, flags, priority, ref, use, if_name);
           free(dest_with_mask);
         }
       }
