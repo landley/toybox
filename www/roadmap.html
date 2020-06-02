@@ -348,9 +348,8 @@ getevent getprop modprobe setprop start
 
 <p>getprop/setprop/start were in toybox and moved back because they're so
 tied to non-public system interfaces. modprobe shares the implementation
-used in init. getevent probably does make sense as a toybox command, but at the
-moment it's built with a python script that pulls all the constants from the
-latest kernel headers, which is very convenient.</p>
+used in init. getevent is a board bringup tool built with a python script
+that pulls all the constants from the latest kernel headers.</p>
 
 <h3>Other Android /system/bin commands</h3>
 
@@ -388,7 +387,7 @@ binaries in /system/bin are:</p>
 for toybox, we get:</p>
 
 <blockquote><b>
-arping blkid e2fsck dd fsck.f2fs fsck_msdos getevent gzip ip iptables
+arping blkid e2fsck dd fsck.f2fs fsck_msdos gzip ip iptables
 ip6tables iw logwrapper make_ext4fs make_f2fs modpobe newfs_msdos ping ping6
 reboot resize2fs sh ss tc tracepath tracepath6 traceroute traceroute6
 </b></blockquote>
