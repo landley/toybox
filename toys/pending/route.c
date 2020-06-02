@@ -48,6 +48,7 @@ config ROUTE
 
 #define FOR_route
 #include "toys.h"
+#define _LINUX_SYSINFO_H     // workaround for musl bug
 #include <linux/rtnetlink.h>
 
 GLOBALS(
