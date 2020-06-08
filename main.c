@@ -169,27 +169,25 @@ void toy_exec_which(struct toy_list *which, char *argv[])
 // Lookup internal toybox command to run via argv[0]
 void toy_exec(char *argv[])
 {
-  toy_exec_which(toy_find(basename(*argv)), argv);
+  toy_exec_which(toy_find(*argv), argv);
 }
 
 // Multiplexer command, first argument is command to run, rest are args to that.
 // If first argument starts with - output list of command install paths.
 void toybox_main(void)
 {
-  static char *toy_paths[] = {"usr/","bin/","sbin/",0};
+  char *toy_paths[] = {"usr/", "bin/", "sbin/", 0}, *s = toys.argv[1];
   int i, len = 0;
 
   // fast path: try to exec immediately.
   // (Leave toys.which null to disable suid return logic.)
   // Try dereferencing one layer of symlink
-  if (toys.argv[1]) {
-    toy_exec(toys.argv+1);
-    if (0<readlink(toys.argv[1], libbuf, sizeof(libbuf))) {
-      struct toy_list *tl= toy_find(basename(libbuf));
+  while (s) {
+    struct toy_list *tl = toy_find(basename(s));
 
-      if (tl == toy_list) unknown(basename(toys.argv[1]));
-      else toy_exec_which(tl, toys.argv+1);
-    }
+    if (tl==toy_list && s!=toys.argv[1]) unknown(basename(s));
+    toy_exec_which(toy_find(basename(s)), toys.argv+1);
+    s = (0<readlink(s, libbuf, sizeof(libbuf))) ? libbuf : 0;
   }
 
   // For early error reporting
