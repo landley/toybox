@@ -590,7 +590,7 @@ static void unpack_tar(char *first)
       else if (tar.type == 'L') alloread(&TT.hdr.name, TT.hdr.size);
       else if (tar.type == 'x') {
         char *p, *buf = 0;
-        int i, len, n;
+        int i, len, n = 0;
 
         // Posix extended record "LEN NAME=VALUE\n" format
         alloread(&buf, TT.hdr.size);
@@ -601,7 +601,7 @@ static void unpack_tar(char *first)
             break;
           }
           p[len-1] = 0;
-          if (i == 2) {
+          if (n) {
             TT.hdr.name = xstrdup(p+n);
             break;
           }
