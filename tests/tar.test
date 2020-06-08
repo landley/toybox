@@ -105,7 +105,7 @@ ln dir/link dir/hlink
 testing "create hardlink to symlink" "$TAR dir/link dir/hlink | SUM 3" \
   "3bc16f8fb6fc8b05f691da8caf989a70ee99284a\n" "" ""
 
-skipnot mkfifo dir/fifo
+skipnot mkfifo dir/fifo 2>/dev/null
 testing "create dir/fifo" "$TAR dir/fifo | SUM 3" \
   "bd1365db6e8ead4c813333f9666994c1899924d9\n" "" ""
 
@@ -161,15 +161,15 @@ testing "manually specify bz2" 'LST -jf "$FILES"/tar/tar.tbz2' \
   "drwxr-x--- enh/eng 0 2017-05-13 01:05 dir/\n-rw-r----- enh/eng 12 2017-05-13 01:05 dir/file\n" \
   "" ""
 
-skipnot mknod dir/char c 12 34
+skipnot mknod dir/char c 12 34 2>/dev/null
 testing "character special" "tar --mtime @0 -cf test.tar dir/char && rm -f dir/char && tar xf test.tar && ls -l dir/char" \
   "crw-rw---- 1 root root 12,  34 1970-01-01 00:00 dir/char\n" "" ""
 
-skipnot mknod dir/block b 23 45
+skipnot mknod dir/block b 23 45 2>/dev/null
 testing "block special" "tar --mtime @0 -cf test.tar dir/block && rm -f dir/block && tar xf test.tar && ls -l dir/block" \
   "brw-rw---- 1 root root 23,  45 1970-01-01 00:00 dir/block\n" "" ""
 
-skipnot chown nobody dir/file
+skipnot chown nobody dir/file 2>/dev/null
 testing "ownership" "$TAR dir/file | SUM 3" \
   "2d7b96c7025987215f5a41f10eaa84311160afdb\n" "" ""
 
@@ -246,6 +246,9 @@ testing "sparse extract hole at end" \
   "tar xf fweep2.tar && $TAR --sparse fweep2 | SUM 4" \
   "791060574c569e5c059e2b90c1961a3575898f97\n" "" ""
 rm fweep2 fweep2.tar
+
+testcmd "longname" "tf $FILES/tar/long_path.tar" \
+  "$(printf 'long file name%86cTRAILING' ' ' | tr ' ' _)\n" "" ""
 
 if false
 then
