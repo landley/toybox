@@ -250,6 +250,18 @@ rm fweep2 fweep2.tar
 testcmd "longname" "tf $FILES/tar/long_path.tar" \
   "$(printf 'long file name%86cTRAILING' ' ' | tr ' ' _)\n" "" ""
 
+mkdir -p links
+touch links/orig
+ln links/{orig,link1}
+ln links/{orig,link2}
+testcmd 'links' '-cf test.tar links' '' '' ''
+rm -rf links
+
+mkdir links
+for i in {0..12}; do touch links/orig$i; ln links/{orig,link}$i; done
+testcmd 'links2' '-cf test.tar links' '' '' ''
+rm -rf links
+
 if false
 then
 
