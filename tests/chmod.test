@@ -112,5 +112,12 @@ chtest u+s "drwsr-xr-x\n-rwSr--r--\n"
 chtest o+s "drwxr-xr-x\n-rw-r--r--\n"
 chtest +t  "drwxr-xr-t\n-rw-r--r-T\n"
 
+mkdir foo
+ln -s bar foo/baz
+# If you explicitly ask us, we'll try (and fail) to chmod a symlink.
+testing "-R symlink arg" 'chmod -R 750 foo/baz 2>/dev/null; echo $?' "1\n" "" ""
+# If you only imply that you might want us to do that, we'll skip it.
+testing "-R symlink recurse" 'chmod -R 750 foo; echo $?' "0\n" "" ""
+
 # Removing test files for cleanup purpose
 rm -rf dir file
