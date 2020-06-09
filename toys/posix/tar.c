@@ -246,7 +246,8 @@ static int add_to_tar(struct dirtree *node)
       i = 1;
     } else {
       // first time we've seen it. Store as normal file, but remember it.
-      if (!(TT.hlc&255)) TT.hlx = xrealloc(TT.hlx, TT.hlc+256);
+      if (!(TT.hlc&255))
+        TT.hlx = xrealloc(TT.hlx, sizeof(*TT.hlx)*(TT.hlc+256));
       TT.hlx[TT.hlc].arg = xstrdup(hname);
       TT.hlx[TT.hlc].ino = st->st_ino;
       TT.hlx[TT.hlc].dev = st->st_dev;
@@ -270,7 +271,7 @@ static int add_to_tar(struct dirtree *node)
     }
     if (strlen(lnk) > sizeof(hdr.link)) write_longname(lnk, 'K');
     strncpy(hdr.link, lnk, sizeof(hdr.link));
-    if (i) free(lnk);
+    if (i==2) free(lnk);
   } else if (S_ISREG(st->st_mode)) {
     hdr.type = '0';
     ITOO(hdr.size, st->st_size);
