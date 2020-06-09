@@ -211,7 +211,7 @@ static int sh_run(char *new);
 
 // Pipeline segments
 struct sh_pipeline {
-  struct sh_pipeline *next, *prev;
+  struct sh_pipeline *next, *prev, *end;
   int count, here, type;
   struct sh_arg arg[1];
 };
@@ -383,7 +383,7 @@ static struct sh_vars *setvar(char *s)
     error_msg("%.*s: read only", len, s);
     free(s);
 
-    return var;
+    return 0;
   } else if (flags&VAR_MAGIC) {
     if (*s == 'S') TT.SECONDS = millitime() - 1000*do_math(s+len-1);
     else if (*s == 'R') srandom(do_math(s+len-1));
@@ -1444,7 +1444,7 @@ notfd:
     // Do we save displaced "to" in env variable instead of undo list?
     if (cv) {
       --*pp->urd;
-      setvar(cv);
+      if (!setvar(cv)) bad++;
       cv = 0;
     }
     if ((saveclose&1) && save_redirect(&pp->urd, -1, from)) bad++;
@@ -1611,23 +1611,6 @@ static void free_pipeline(void *pipeline)
   free(pl);
 }
 
-// Return end of current block, or NULL if we weren't in block and fell off end.
-static struct sh_pipeline *block_end(struct sh_pipeline *pl)
-{
-  int i = 0;
-
-// TODO: should this be inlined into type 1 processing to set blk->end and
-// then everything else use that?
-
-  while (pl) {
-    if (pl->type == 1 || pl->type == 'f') i++;
-    else if (pl->type == 3) if (--i<1) break;
-    pl = pl->next;
-  }
-
-  return pl;
-}
-
 static void free_function(struct sh_function *sp)
 {
   llist_traverse(sp->pipeline, free_pipeline);
@@ -1640,7 +1623,7 @@ static struct sh_pipeline *add_function(char *name, struct sh_pipeline *pl)
 {
 dprintf(2, "stub add_function");
 
-  return block_end(pl->next);
+  return pl->end;
 }
 
 // Add a line of shell script to a shell function. Returns 0 if finished,
@@ -1735,6 +1718,7 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
     // Is this a new pipeline segment?
     if (!pl) {
       pl = xzalloc(sizeof(struct sh_pipeline));
+      pl->end = pl;
       arg = pl->arg;
       dlist_add_nomalloc((void *)&sp->pipeline, (void *)pl);
     }
@@ -1890,12 +1874,23 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
 
     // If we got here we expect a specific word to end this block: is this it?
     else if (!strcmp(s, ex)) {
-
       // can't "if | then" or "while && do", only ; & or newline works
       if (last && strcmp(last, "&")) goto flush;
 
+      // consume word, record block end location in earlier !0 type blocks
       free(dlist_lpop(&sp->expect));
-      pl->type = anystr(s, tails) ? 3 : 2;
+      if (3 == (pl->type = anystr(s, tails) ? 3 : 2)) {
+        struct sh_pipeline *pl2 = pl;
+
+        i = 0;
+        for (i = 0; (pl2 = pl2->prev);) {
+          if (pl2->type == 3) i++;
+          else if (pl2->type) {
+            if (!i) pl2->end = pl;
+            if ((pl2->type == 1 || pl2->type == 'f') && --i<0) break;
+          }
+        }
+      }
 
       // if it's a multipart block, what comes next?
       if (!strcmp(s, "do")) end = "done";
@@ -2018,24 +2013,9 @@ static int pipe_segments(char *ctl, int *pipes, int **urd)
   return 0;
 }
 
-// Handle && and || traversal in pipeline segments
-static struct sh_pipeline *skip_andor(int rc, struct sh_pipeline *pl)
-{
-  char *ctl = pl->arg->v[pl->arg->c];
-
-  // For && and || skip pipeline segment(s) based on return code
-  while (ctl && ((!strcmp(ctl, "&&") && rc) || (!strcmp(ctl, "||") && !rc))) {
-    if (!pl->next || pl->next->type == 2 || pl->next->type == 3) break;
-    pl = pl->type ? block_end(pl) : pl->next;
-    ctl = pl ? pl->arg->v[pl->arg->c] : 0;
-  }
-
-  return pl;
-}
-
 struct blockstack {
   struct blockstack *next;
-  struct sh_pipeline *start, *end;
+  struct sh_pipeline *start;
   struct sh_process *pin;      // processes piping into this block
   int run, loop, *urd, pout;
   struct sh_arg farg;          // for/select arg stack
@@ -2047,7 +2027,7 @@ struct blockstack {
 static struct sh_pipeline *pop_block(struct blockstack **blist, int *pout)
 {
   struct blockstack *blk = *blist;
-  struct sh_pipeline *pl = blk->end;
+  struct sh_pipeline *pl = blk->start->end;
 
   // when ending a block, free, cleanup redirects and pop stack.
   if (*pout != -1) close(*pout);
@@ -2064,7 +2044,6 @@ static struct sh_pipeline *pop_block(struct blockstack **blist, int *pout)
 // vfork/exec external commands.
 static void run_function(struct sh_pipeline *pl)
 {
-  struct sh_pipeline *end;
   struct blockstack *blk = 0, *new;
   struct sh_process *pplist = 0; // processes piping into current level
   int *urd = 0, pipes[2] = {-1, -1};
@@ -2134,7 +2113,9 @@ if (BUGBUG) dprintf(255, "%d runtype=%d %s %s\n", getpid(), pl->type, s, ctl);
         toys.exitval = wait_pipeline(pplist);
         llist_traverse(pplist, free_process);
         pplist = 0;
-        pl = skip_andor(toys.exitval, pl);
+        // for && and || skip pipeline segment(s) based on return code
+        while (ctl && !strcmp(ctl, toys.exitval ? "&&" : "||"))
+          ctl = (pl = pl->type ? pl->end : pl->next)?pl->arg->v[pl->arg->c]:0;
       }
 
     // Start of flow control block?
@@ -2146,22 +2127,19 @@ if (BUGBUG) dprintf(255, "%d runtype=%d %s %s\n", getpid(), pl->type, s, ctl);
       if (!blk || blk->start != pl) {
 
         // If it's a nested block we're not running, skip ahead.
-        end = block_end(pl->next);
         if (blk && !blk->run) {
-          pl = end;
-          if (pl) pl = pl->next;
+          pl = pl->end->next;
           continue;
         }
 
         // If previous piped into this block, save context until block end
-        if (pipe_segments(end->arg->v[end->arg->c], pipes, &urd)) break;
+        if (pipe_segments(pl->end->arg->v[pl->end->arg->c], pipes, &urd)) break;
 
         // It's a new block we're running, save context and add it to the stack.
         new = xzalloc(sizeof(*blk));
         new->next = blk;
         blk = new;
         blk->start = pl;
-        blk->end = end;
         blk->run = 1;
 
         // save context until block end
@@ -2171,7 +2149,7 @@ if (BUGBUG) dprintf(255, "%d runtype=%d %s %s\n", getpid(), pl->type, s, ctl);
         *pipes = -1;
 
         // Perform redirects listed at end of block
-        pp = expand_redir(end->arg, 1, blk->urd);
+        pp = expand_redir(pl->end->arg, 1, blk->urd);
         blk->urd = pp->urd;
         rc = pp->exit;
         if (pp->arg.c) {
@@ -2235,7 +2213,8 @@ TODO: a | b | c needs subshell for builtins?
         }
 
         dlist_add_nomalloc((void *)&pplist, (void *)pp);
-        pl = blk->end->prev;
+        pl = pl->end;
+        continue;
       }
 
     // gearshift from block start to block body (end of flow control test)
@@ -2250,7 +2229,7 @@ TODO: a | b | c needs subshell for builtins?
         else if (!strcmp(ss, "until")) blk->run = blk->run && toys.exitval;
         else if (blk->loop >= blk->farg.c) {
           blk->run = 0;
-          pl = block_end(pl);
+          pl = pl->end;
           continue;
         } else if (!strncmp(blk->fvar, "((", 2)) {
 dprintf(2, "TODO skipped running for((;;)), need math parser\n");
