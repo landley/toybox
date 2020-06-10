@@ -46,6 +46,11 @@
  * reserved words
  *   ! case  coproc  do done elif else esac fi for  function  if  in  select
  *   then until while { } time [[ ]]
+ *
+ * Flow control statements:
+ *
+ * if/then/elif/else/fi, for select while until/do/done, case/esac,
+ * {/}, [[/]], (/), function assignment
 
 USE_SH(NEWTOY(cd, ">1LP[-LP]", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(eval, 0, TOYFLAG_NOFORK))
@@ -143,6 +148,21 @@ config EXPORT
 
     With no arguments list exported variables/attributes as "declare" statements.
 
+config JOBS
+  bool
+  default n
+  depends on SH
+  help
+    usage: jobs [-lnprs] [%JOB | -x COMMAND...]
+
+    List running/stopped background jobs.
+
+    -l Include process ID in list
+    -n Show only new/changed processes
+    -p Show process IDs only
+    -r Show running processes
+    -s Show stopped processes
+
 config SHIFT
   bool
   default n
@@ -167,65 +187,49 @@ GLOBALS(
     } exec;
   };
 
-  // keep lineno here, we use it to work around a compiler bug
+  // keep lineno here, we use it to work around a compiler limitation
   long lineno;
   char *ifs, *isexec;
-  struct double_list functions;
   unsigned options, jobcnt;
-  int hfd, pid, varslen, shift, cdcount;
-  unsigned long long SECONDS;
+  int hfd, pid, bangpid, varslen, shift, cdcount;
+  long long SECONDS;
 
   struct sh_vars {
     long flags;
     char *str;
   } *vars;
 
-  // Running jobs for job control.
-  struct sh_job {
-    struct sh_job *next, *prev;
-    unsigned jobno;
+  // Parsed function
+  struct sh_function {
+    char *name;
+    struct sh_pipeline {  // pipeline segments
+      struct sh_pipeline *next, *prev, *end;
+      int count, here, type; // TODO abuse type to replace count during parsing
+      struct sh_arg {
+        char **v;
+        int c;
+      } arg[1];
+    } *pipeline;
+    struct double_list *expect; // should be zero at end of parsing
+  } *functions;
 
-    // Every pipeline has at least one set of arguments or it's Not A Thing
-    struct sh_arg {
-      char **v;
-      int c;
-    } pipeline;
+// TODO ctrl-Z suspend should stop script
+  struct sh_process {
+    struct sh_process *next, *prev; // | && ||
+    struct arg_list *delete;   // expanded strings
+    // undo redirects, a=b at start, child PID, exit status, has !, job #
+    int *urd, envlen, pid, exit, not, job;
+    long long when; // when job backgrounded/suspended
+// TODO struct sh_arg *raw;  // for display
+    struct sh_arg arg;
+  } *pp; // currently running process
 
-    // null terminated array of running processes in pipeline
-    struct sh_process {
-      struct sh_process *next, *prev;
-      struct arg_list *delete;   // expanded strings
-      // undo redirects, a=b at start, child PID, exit status, has !
-      int *urd, envlen, pid, exit, not;
-      struct sh_arg arg;
-    } *procs, *proc;
-  } *jobs, *job;
-
-  struct sh_process *pp;
-  struct sh_arg *arg;
+  struct sh_arg jobs, *arg;  // job list, command line args for $* etc
 )
 
 // Can't yet avoid this prototype. Fundamental problem is $($($(blah))) nests,
 // leading to function loop with run->parse->run
 static int sh_run(char *new);
-
-// Pipeline segments
-struct sh_pipeline {
-  struct sh_pipeline *next, *prev, *end;
-  int count, here, type;
-  struct sh_arg arg[1];
-};
-
-// scratch space (state held between calls). Don't want to make it global yet
-// because this could be reentrant.
-struct sh_function {
-  char *name;
-  struct sh_pipeline *pipeline;
-  struct double_list *expect;
-// TODO: lifetime rules for arg? remember "shift" command.
-  struct sh_arg *arg; // arguments to function call
-  char *end;
-};
 
 #define BUGBUG 0
 
@@ -843,6 +847,7 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
         qq += 2;
         while ((cc = str[ii++]) != '\'') new[oo++] = cc;
       }
+
     // both types of subshell work the same, so do $( here not in '$' below
 // TODO $((echo hello) | cat) ala $(( becomes $( ( retroactively
     } else if (cc == '`' || (cc == '$' && strchr("([", str[ii]))) {
@@ -939,7 +944,6 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
 //   x can be @*
 
 // TODO: $_ is last arg of last command, and exported as path to exe run
-// TODO: $! is PID of most recent background job
       if (ifs);
       else if (cc == '-') {
         s = ifs = xmalloc(8);
@@ -951,6 +955,7 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
       } else if (cc == '?') ifs = xmprintf("%d", toys.exitval);
       else if (cc == '$') ifs = xmprintf("%d", TT.pid);
       else if (cc == '#') ifs = xmprintf("%d", TT.arg->c?TT.arg->c-1:0);
+      else if (cc == '!') ifs = xmprintf("%d"+2*!TT.bangpid, TT.bangpid);
       else if (cc == '*' || cc == '@') aa = TT.arg->v+1;
       else if (isdigit(cc)) {
         for (kk = ll = 0; kk<jj && isdigit(ss[kk]); kk++)
@@ -1953,13 +1958,6 @@ flush:
   return 0-!!s;
 }
 
-/* Flow control statements:
-
-  if/then/elif/else/fi, for select while until/do/done, case/esac,
-  {/}, [[/]], (/), function assignment
-*/
-
-
 // wait for every process in a pipeline to end
 static int wait_pipeline(struct sh_process *pp)
 {
@@ -2015,11 +2013,11 @@ static int pipe_segments(char *ctl, int *pipes, int **urd)
 
 struct blockstack {
   struct blockstack *next;
-  struct sh_pipeline *start;
-  struct sh_process *pin;      // processes piping into this block
+  struct sh_pipeline *start, *middle;
+  struct sh_process *pp;       // list of processes piping in to us
   int run, loop, *urd, pout;
   struct sh_arg farg;          // for/select arg stack
-  struct arg_list *fdelete; // farg's cleanup list
+  struct arg_list *fdelete;    // farg's cleanup list
   char *fvar;                  // for/select's iteration variable name
 };
 
@@ -2049,148 +2047,13 @@ static void run_function(struct sh_pipeline *pl)
   int *urd = 0, pipes[2] = {-1, -1};
   long i;
 
-// TODO can't free sh_process delete until ready to dispose else no debug output
-
-  TT.hfd = 10;
-
-  // iterate through pipeline segments
-  while (pl) {
-    struct sh_arg *arg = pl->arg;
-    char *s = *arg->v, *ss = arg->v[1], *ctl = arg->v[arg->c];
-if (BUGBUG) dprintf(255, "%d runtype=%d %s %s\n", getpid(), pl->type, s, ctl);
-    // Is this an executable segment?
-    if (!pl->type) {
-
-      // Skip disabled block
-      if (blk && !blk->run) {
-        pl = pl->next;
-        continue;
-      }
-      if (pipe_segments(ctl, pipes, &urd)) break;
-
-      // If we just started a new pipeline, implicit parentheses (subshell)
-
-// TODO: "echo | read i" is backgroundable with ctrl-Z despite read = builtin.
-//       probably have to inline run_command here to do that? Implicit ()
-//       also "X=42 | true; echo $X" doesn't get X.
-
-      // TODO: bash supports "break &" and "break > file". No idea why.
-
-      // Is it a flow control jump? These aren't handled as normal builtins
-      // because they move *pl to other pipeline segments which is local here.
-      if (!strcmp(s, "break") || !strcmp(s, "continue")) {
-
-        // How many layers to peel off?
-        i = ss ? atol(ss) : 0;
-        if (i<1) i = 1;
-        if (!blk || arg->c>2 || ss[strspn(ss, "0123456789")]) {
-          syntax_err(s);
-          break;
-        }
-
-        while (i && blk)
-          if (!--i && *s == 'c') pl = blk->start;
-          else pl = pop_block(&blk, pipes);
-        if (i) {
-          syntax_err("break outside loop");
-          break;
-        }
-        pl = pl->next;
-        continue;
-
-      // Parse and run next command
-      } else {
-
 // TODO: "echo | read i" is backgroundable with ctrl-Z despite read = builtin.
 //       probably have to inline run_command here to do that? Implicit ()
 //       also "X=42 | true; echo $X" doesn't get X.
 //       I.E. run_subshell() here sometimes? (But when?)
-
-        dlist_add_nomalloc((void *)&pplist, (void *)run_command(arg));
-      }
-
-      if (*pipes == -1) {
-        toys.exitval = wait_pipeline(pplist);
-        llist_traverse(pplist, free_process);
-        pplist = 0;
-        // for && and || skip pipeline segment(s) based on return code
-        while (ctl && !strcmp(ctl, toys.exitval ? "&&" : "||"))
-          ctl = (pl = pl->type ? pl->end : pl->next)?pl->arg->v[pl->arg->c]:0;
-      }
-
-    // Start of flow control block?
-    } else if (pl->type == 1) {
-      struct sh_process *pp = 0;
-      int rc;
-
-      // are we entering this block (rather than looping back to it)?
-      if (!blk || blk->start != pl) {
-
-        // If it's a nested block we're not running, skip ahead.
-        if (blk && !blk->run) {
-          pl = pl->end->next;
-          continue;
-        }
-
-        // If previous piped into this block, save context until block end
-        if (pipe_segments(pl->end->arg->v[pl->end->arg->c], pipes, &urd)) break;
-
-        // It's a new block we're running, save context and add it to the stack.
-        new = xzalloc(sizeof(*blk));
-        new->next = blk;
-        blk = new;
-        blk->start = pl;
-        blk->run = 1;
-
-        // save context until block end
-        blk->pout = *pipes;
-        blk->urd = urd;
-        urd = 0;
-        *pipes = -1;
-
-        // Perform redirects listed at end of block
-        pp = expand_redir(pl->end->arg, 1, blk->urd);
-        blk->urd = pp->urd;
-        rc = pp->exit;
-        if (pp->arg.c) {
-          syntax_err(*pp->arg.v);
-          rc = 1;
-        }
-        llist_traverse(pp->delete, free);
-        free(pp);
-        if (rc) {
-          toys.exitval = rc;
-          break;
-        }
-      }
-
-      // What flow control statement is this?
-
-      // {/} if/then/elif/else/fi, while until/do/done - no special handling
-
-      // for select/do/done
-      if (!strcmp(s, "for") || !strcmp(s, "select")) {
-        if (blk->loop);
-        else if (!strncmp(blk->fvar = ss, "((", 2)) {
-          blk->loop = 1;
-dprintf(2, "TODO skipped init for((;;)), need math parser\n");
-        } else {
-
-          // populate blk->farg with expanded arguments
-          if (pl->next->type == 's') {
-            for (i = 1; i<pl->next->arg->c; i++)
-              if (expand_arg(&blk->farg, pl->next->arg->v[i], 0, &blk->fdelete))
-                break;
-            if (i != pl->next->arg->c) {
-              pl = pop_block(&blk, pipes)->next;
-              continue;
-            }
-          // this can't fail
-          } else expand_arg(&blk->farg, "\"$@\"", 0, &blk->fdelete);
-        }
-
-// TODO case/esac [[/]] ((/)) function/}
-
+// TODO: bash supports "break &" and "break > file". No idea why.
+// TODO If we just started a new pipeline, implicit parentheses (subshell)
+// TODO can't free sh_process delete until ready to dispose else no debug output
 /*
 TODO: a | b | c needs subshell for builtins?
         - anything that can produce output
@@ -2199,39 +2062,147 @@ TODO: a | b | c needs subshell for builtins?
       when to auto-exec? ps vs sh -c 'ps' vs sh -c '(ps)'
 */
 
-      // subshell
-      } else if (!strcmp(s, "(")) {
+
+  TT.hfd = 10;
+
+  // iterate through pipeline segments
+  while (pl) {
+    char *ctl = pl->end->arg->v[pl->end->arg->c],
+      *s = *pl->arg->v, *ss = pl->arg->v[1];
+
+    // Skip disabled blocks, handle pipes
+    if (pl->type<2) {
+      if (blk && !blk->run) {
+        pl = pl->end->next;
+        continue;
+      }
+      if (pipe_segments(ctl, pipes, &urd)) break;
+    }
+
+if (BUGBUG) dprintf(255, "%d runtype=%d %s %s\n", getpid(), pl->type, s, ctl);
+    // Is this an executable segment?
+    if (!pl->type) {
+
+      // Is it a flow control jump? These aren't handled as normal builtins
+      // because they move *pl to other pipeline segments which is local here.
+      if (!strcmp(s, "break") || !strcmp(s, "continue")) {
+
+        // How many layers to peel off?
+        i = ss ? atol(ss) : 0;
+        if (i<1) i = 1;
+        if (!blk || pl->arg->c>2 || ss[strspn(ss, "0123456789")]) {
+          syntax_err(s);
+          break;
+        }
+
+        while (i && blk)
+          if (!--i && *s == 'c') pl = blk->start;
+          else pl = pop_block(&blk, pipes);
+        if (i) {
+          syntax_err("break");
+          break;
+        }
+      } else {
+        // Parse and run next command, saving resulting process
+        dlist_add_nomalloc((void *)&pplist, (void *)run_command(pl->arg));
+
+        // Three cases: backgrounded&, pipelined|, last process in pipeline;
+        if (ctl && !strcmp(ctl, "&")) {
+          pplist->job = ++TT.jobcnt;
+          arg_add(&TT.jobs, (void *)pplist);
+          pplist = 0;
+        }
+      }
+
+    // Start of flow control block?
+    } else if (pl->type == 1) {
+      struct sh_process *pp = 0;
+      int rc;
+
+      // Save new block and add it to the stack.
+      new = xzalloc(sizeof(*blk));
+      new->next = blk;
+      blk = new;
+      blk->start = pl;
+      blk->run = 1;
+
+      // push pipe and redirect context into block
+      blk->pout = *pipes;
+      *pipes = -1;
+      pp = expand_redir(pl->end->arg, 1, blk->urd = urd);
+      urd = 0;
+      rc = pp->exit;
+      if (pp->arg.c) {
+        syntax_err(*pp->arg.v);
+        rc = 1;
+      }
+
+      // Cleanup if we're not doing a subshell
+      if (rc || strcmp(s, "(")) {
+        llist_traverse(pp->delete, free);
+        free(pp);
+        if (rc) {
+          toys.exitval = rc;
+          break;
+        }
+      } else {
+        // Create new process
         if (!CFG_TOYBOX_FORK) {
           ss = pl2str(pl->next);
           pp->pid = run_subshell(ss, strlen(ss));
           free(ss);
-        } else {
-          if (!(pp->pid = fork())) {
-            run_function(pl->next);
-            _exit(toys.exitval);
-          }
+        } else if (!(pp->pid = fork())) {
+          run_function(pl->next);
+          _exit(toys.exitval);
         }
 
+        // add process to current pipeline same as type 0
         dlist_add_nomalloc((void *)&pplist, (void *)pp);
         pl = pl->end;
         continue;
+      }
+pp = 0;
+
+      // What flow control statement is this?
+
+      // {/} if/then/elif/else/fi, while until/do/done - no special handling
+
+      // for select/do/done: populate blk->farg with expanded arguments (if any)
+      if (!strcmp(s, "for") || !strcmp(s, "select")) {
+        if (blk->loop); // TODO: still needed?
+        else if (!strncmp(blk->fvar = ss, "((", 2)) {
+          blk->loop = 1;
+dprintf(2, "TODO skipped init for((;;)), need math parser\n");
+
+        // in LIST
+        } else if (pl->next->type == 's') {
+          for (i = 1; i<pl->next->arg->c; i++)
+            if (expand_arg(&blk->farg, pl->next->arg->v[i], 0, &blk->fdelete))
+              break;
+          if (i != pl->next->arg->c) pl = pop_block(&blk, pipes);
+        // in without LIST. (This expansion can't fail.)
+        } else expand_arg(&blk->farg, "\"$@\"", 0, &blk->fdelete);
+
+// TODO case/esac [[/]] ((/)) function/}
+
       }
 
     // gearshift from block start to block body (end of flow control test)
     } else if (pl->type == 2) {
 
-      // Handle if statement
+      blk->middle = pl;
+
+      // Handle if/else/elif statement
       if (!strcmp(s, "then")) blk->run = blk->run && !toys.exitval;
       else if (!strcmp(s, "else") || !strcmp(s, "elif")) blk->run = !blk->run;
+
+      // Loop
       else if (!strcmp(s, "do")) {
         ss = *blk->start->arg->v;
         if (!strcmp(ss, "while")) blk->run = blk->run && !toys.exitval;
         else if (!strcmp(ss, "until")) blk->run = blk->run && toys.exitval;
-        else if (blk->loop >= blk->farg.c) {
-          blk->run = 0;
-          pl = pl->end;
-          continue;
-        } else if (!strncmp(blk->fvar, "((", 2)) {
+        else if (blk->loop >= blk->farg.c) pl = pop_block(&blk, pipes);
+        else if (!strncmp(blk->fvar, "((", 2)) {
 dprintf(2, "TODO skipped running for((;;)), need math parser\n");
         } else setvarval(blk->fvar, blk->farg.v[blk->loop++]);
       }
@@ -2239,17 +2210,29 @@ dprintf(2, "TODO skipped running for((;;)), need math parser\n");
     // end of block, may have trailing redirections and/or pipe
     } else if (pl->type == 3) {
 
-      // if we end a block we're not in, we started in a block.
+      // if we end a block we're not in, we started in a block (subshell)
       if (!blk) break;
 
       // repeating block?
       if (blk->run && !strcmp(s, "done")) {
-        pl = blk->start;
+        pl = blk->middle;
         continue;
       }
 
       pop_block(&blk, pipes);
     } else if (pl->type == 'f') pl = add_function(s, pl);
+
+    // If we ran a process and didn't pipe output or background, wait for exit
+    if (pplist && *pipes == -1) {
+      toys.exitval = wait_pipeline(pplist);
+      llist_traverse(pplist, free_process);
+      pplist = 0;
+    }
+
+    // for && and || skip pipeline segment(s) based on return code
+    if (pl->type == 1 || pl->type == 3)
+      while (ctl && !strcmp(ctl, toys.exitval ? "&&" : "||"))
+        ctl = (pl = pl->type ? pl->end : pl->next)?pl->arg->v[pl->arg->c]:0;
 
     pl = pl->next;
   }
