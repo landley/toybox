@@ -14,7 +14,7 @@ config HWCLOCK
 
     Get/set the hardware clock.
 
-    -f FILE	Use specified device file instead of /dev/rtc (--rtc)
+    -f FILE	Use specified device file instead of /dev/rtc0 (--rtc)
     -l	Hardware clock uses localtime (--localtime)
     -r	Show hardware clock time (--show)
     -s	Set system time from hardware clock (--hctosys)
@@ -31,29 +31,6 @@ GLOBALS(
   char *f;
 )
 
-static int rtc_find(struct dirtree* node)
-{
-  FILE *fp;
-
-  if (!node->parent) return DIRTREE_RECURSE;
-
-  sprintf(toybuf, "/sys/class/rtc/%s/hctosys", node->name);
-  fp = fopen(toybuf, "r");
-  if (fp) {
-    int hctosys = 0, items = fscanf(fp, "%d", &hctosys);
-
-    fclose(fp);
-    if (items == 1 && hctosys == 1) {
-      sprintf(toybuf, "/dev/%s", node->name);
-      TT.f = toybuf;
-
-      return DIRTREE_ABORT;
-    }
-  }
-
-  return 0;
-}
-
 void hwclock_main()
 {
   struct timezone tzone;
@@ -69,14 +46,8 @@ void hwclock_main()
   }
 
   if (!FLAG(t)) {
-    int flag = O_WRONLY*FLAG(w);
-
-    // Open /dev/rtc (if your system has no /dev/rtc symlink, search for it).
-    if (!TT.f && (fd = open("/dev/rtc", flag)) == -1) {
-      dirtree_read("/sys/class/rtc", rtc_find);
-      if (!TT.f) TT.f = "/dev/misc/rtc";
-    }
-    if (fd == -1) fd = xopen(TT.f, flag);
+    if (!TT.f) TT.f = "/dev/rtc0";
+    fd = xopen(TT.f, O_WRONLY*FLAG(w));
 
     // Get current time in seconds from rtc device. todo: get subsecond time
     if (!FLAG(w)) {
