@@ -9,7 +9,7 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-testcmd "echo" "&& echo yes" "\nyes\n" "" ""
+testcmd "echo" "&& $C yes" "\nyes\n" "" ""
 testcmd "1 2 3" "one  two	three" "one two three\n" "" ""
 testcmd "with spaces" "'one  two	three'" \
 	"one  two	three\n" "" ""
