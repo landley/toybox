@@ -225,8 +225,8 @@ static void do_regular_file(int fd, char *name)
 
   // https://www.w3.org/Graphics/GIF/spec-gif89a.txt
   } else if (len>16 && (strstart(&s, "GIF87a") || strstart(&s, "GIF89a")))
-    xprintf("GIF image data, %d x %d\n",
-      (int)peek_le(s, 2), (int)peek_le(s+2, 2));
+    xprintf("GIF image data, version %3.3s, %d x %d\n",
+      s-3, (int)peek_le(s, 2), (int)peek_le(s+2, 2));
 
   // TODO: parsing JPEG for width/height is harder than GIF or PNG.
   else if (len>32 && !memcmp(toybuf, "\xff\xd8", 2)) xputs("JPEG image data");
