@@ -84,7 +84,7 @@ and LINUX_VER = 4.19.90 because the default musl-cross-make config uses an
 out-of-tree headers package for some reason (those who forget history are
 <a href=https://lkml.org/lkml/2006/4/28/194>doomed to repeat it</a>) which
 breaks m68k and s390x. I won't post binaries of the resulting toolchains
-because they're GPLv3, but <a href=https://musl.cc/>thalheim might</a>.
+because they're GPLv3, but <a href=https://musl.cc/>Thalheim might</a>.
 (I've also <a href=http://lists.landley.net/pipermail/toybox-landley.net/2020-May/011673.html>test built</a>
 with the Android NDK, but bionic's startup code currently segfaults before
 calling main() if it can't open /dev/null, and the kernel guys
