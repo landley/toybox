@@ -35,6 +35,9 @@ testing "7z file" "file $FILES/tar/tar.7z | sed 's|$FILES/||'" \
     "tar/tar.7z: 7-zip archive data, version 0.4\n" "" ""
 testing "zip file" "file $FILES/zip/example.zip | sed 's|$FILES/||'" \
     "zip/example.zip: Zip archive data, requires at least v1.0 to extract\n" "" ""
+echo R0lGODlhIAAgAMZHAAAAABYWFiYmJioqKi4uLjIy | base64 -d > gif
+testing "gif file" "file gif" "gif: GIF image data, 32 x 32\n" "" ""
+rm -f gif
 
 # TODO: check in a genuine minimal .dex
 testing "Android .dex" "file android.dex" "android.dex: Android dex file, version 035\n" "" ""
