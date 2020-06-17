@@ -60,3 +60,5 @@ else
     do_test "$i"
   done
 fi
+
+[ $FAILCOUNT -eq 0 ]
