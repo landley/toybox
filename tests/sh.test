@@ -71,6 +71,10 @@ testing 'default exports' \
   "env -i \"$(which $SH)\" --noprofile --norc -c env | sort" \
   "PWD=$(pwd)\nSHLVL=1\n_=$(which env)\n" "" ""
 
+testing "leading assignment fail" \
+  "{ \$SH -c 'X=\${a?blah} > walroid';ls walroid;} 2>/dev/null" '' '' ''
+
+#########################################################################
 # Change EVAL to call sh -c for us, using "bash" explicitly for the host.
 export EVAL="$SH -c"
 
@@ -155,8 +159,15 @@ testing "leading variable assignment" 'abc=def env | grep ^abc=; echo $abc' \
 testing "leading variable assignments" \
   "abc=def ghi=jkl env | egrep '^(abc|ghi)=' | sort; echo \$abc \$ghi" \
   "abc=def\nghi=jkl\n\n" "" ""
-testing "leading assignment fail" "1blah=123 echo hello 2>/dev/null || echo no"\
-  "no\n" "" ""
+testing "leading assignment space" 'X="abc  def"; Y=$X; echo "$Y"' \
+  "abc  def\n" "" ""
+testing "leading assignment space2" \
+  'chicken() { X="$@"; }; chicken a b c d e; echo "$X"' 'a b c d e\n' '' ''
+testing "leading assignment fail2" \
+  "{ 1blah=123 echo hello;} 2>/dev/null || echo no" "no\n" "" ""
+testing "leading assignment redirect" \
+  "blah=123 echo hello > walrus && ls walrus" "walrus\n" "" ""
+rm -f walrus
 
 testing "{1..5}" "echo {1..5}" "1 2 3 4 5\n" "" ""
 testing "{5..1}" "echo {5..1}" "5 4 3 2 1\n" "" ""
@@ -191,6 +202,9 @@ testing "IFS3" 'IFS=x; echo "$(echo abx)"' "abx\n" "" ""
 testing "IFS4" "IFS=x; echo \"\$(echo ab' ')\"" "ab \n" "" ""
 testing "IFS5" 'IFS=xy; for i in abcxdefyghi; do echo =$i=; done' \
   "=abc def ghi=\n" "" ""
+
+testing 'empty $! is blank' 'echo $!' "\n" "" ""
+testing '$! = jobs -p' 'true & [ $(jobs -p) = $! ] && echo yes' "yes\n" "" ""
 
 testing '$*' 'cc(){ for i in $*;do echo =$i=;done;};cc "" "" "" "" ""' \
   "" "" ""
@@ -298,7 +312,19 @@ shxpect 'here2' I$'POTATO=123; cat << E"O"F\n' E"> " \
 testing 'here3' 'abc(){ cat <<< x"$@"yz;};abc one two "three  four"' \
   "xone two three  fouryz\n" "" ""
 
+testing '${var}' 'X=abcdef; echo ${X}' 'abcdef\n' '' '' 
 testing '${#}' 'X=abcdef; echo ${#X}' "6\n" "" ""
+shxpect 'empty ${}' I$'echo ${}; echo hello\n' E I$'echo and\n' O$'and\n'
+testing '${!x}' 'X=abcdef Y=X; echo ${!Y}' 'abcdef\n' '' ''
+testing '${!x} err' '{ X=abcdef Y=X:2; echo ${!Y}; echo bang;} 2>/dev/null' \
+  '' '' ''
+testing '${!x*}' 'abcdef=1 abc=2 abcq=; echo "${!abc@}" | tr " " \\n | sort' \
+  'abc\nabcdef\nabcq\n' '' ''
+testing '${!x*} none' 'echo "${!abc*}"' '\n' '' ''
+testing '${!x*} err' '{ echo "${!abc*x}"; echo boing;} 2>/dev/null' '' '' ''
+testing '${!x@Q}' 'ABC=123 X=ABC; echo ${!X@Q}' "'123'\n" '' ''
+# TODO: ${!abc@x} does _not_ error? And ${PWD@q}
+testing '${\}}' 'ABC=ab}cd; echo ${ABC/\}/x}' 'abxcd\n' '' ''
 
 shxpect '${/newline/}' I$'x=$\'\na\';echo ${x/\n' E'> ' I$'/b}\n' O$'ba\n' E'> '
 
@@ -307,9 +333,9 @@ shxpect 'line continuation' I$'echo "hello" \\\n' E'> ' I$'> blah\n' E"$P" \
 shxpect 'line continuation2' I$'echo ABC\\\n' E'> ' I$'DEF\n' O$'ABCDEF\n'
 
 # Race condition (in bash, but not in toysh) can say 43.
-testing 'SECONDS' 'SECONDS=41; sleep 1; echo $SECONDS' '42\n' '' ''
-testing 'SECONDS2' 'readonly SECONDS; SECONDS=0; echo $SECONDS' '' '' '' # bash!
-testing 'SECONDS3' 'SECONDS=123+456; echo $SECONDS' '0\n' '' '' #bash!!
+testing 'SECONDS' 'readonly SECONDS=41; sleep 1; echo $SECONDS' '42\n' '' ''
+# testing 'SECONDS2' 'readonly SECONDS; SECONDS=0; echo $SECONDS' '' '' '' #bash!
+testing 'SECONDS2' 'SECONDS=123+456; echo $SECONDS' '0\n' '' '' #bash!!
 testing '$LINENO 2' $'echo $LINENO\necho $LINENO' '0\n1\n' '' ''
 testing '$EUID' 'echo $EUID' "$(id -u)\n" '' ''
 testing '$UID' 'echo $UID' "$(id -ur)\n" '' ''
@@ -319,7 +345,8 @@ testing 'readonly for' \
   '1\n' '' ''
 testing 'readonly {}<' \
   'readonly i; echo hello 2>/dev/null {i}</dev/null; echo $?' '1\n' '' ''
-
+testing 'leading readonly assignment' \
+  'readonly boink=123; export boink; { boink=234 env | grep ^boink=;} 2>/dev/null; echo $?' 'boink=123\n0\n' '' ''
 testing '$_ 1' 'echo walrus; echo $_' 'walrus\nwalrus\n' '' ''
 testing '$_ 2' 'unset _; echo $_' '_\n' '' ''
 
@@ -334,7 +361,11 @@ rm -f walrus wallpapers
 shxpect 'IFS +(extglob)' I$'shopt -s extglob\n' E"$P" \
   I$'IFS=x; ABC=cxd; for i in +($ABC); do echo =$i=; done\n' \
   O$'=+(c=\n' O$'=d)=\n'
+
 touch abc\)d
+shxpect 'IFS +(extglob) 2' I$'shopt -s extglob\n' E"$P" \
+  I$'ABC="c?d"; for i in ab+($ABC); do echo =$i=; done\n' \
+  O$'=abc)d=\n'
 
 # TODO finish variable list from shell init
 
