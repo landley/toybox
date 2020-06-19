@@ -199,7 +199,7 @@ testing "quotes and whitespace3" \
 testing "IFS" 'IFS=x; A=abx; echo -n "$A"' "abx" "" ""
 testing "IFS2" 'IFS=x; A=abx; echo -n $A' "ab" "" ""
 testing "IFS3" 'IFS=x; echo "$(echo abx)"' "abx\n" "" ""
-testing "IFS4" "IFS=x; echo \"\$(echo ab' ')\"" "ab \n" "" ""
+testing "IFS4" 'IFS=x; echo $(echo abx)y' "ab y\n" "" ""
 testing "IFS5" 'IFS=xy; for i in abcxdefyghi; do echo =$i=; done' \
   "=abc def ghi=\n" "" ""
 
@@ -315,16 +315,45 @@ testing 'here3' 'abc(){ cat <<< x"$@"yz;};abc one two "three  four"' \
 testing '${var}' 'X=abcdef; echo ${X}' 'abcdef\n' '' '' 
 testing '${#}' 'X=abcdef; echo ${#X}' "6\n" "" ""
 shxpect 'empty ${}' I$'echo ${}; echo hello\n' E I$'echo and\n' O$'and\n'
+testing '${$b}' '{ echo ${$b};} 2>&1 | grep -o bad' 'bad\n' '' ''
 testing '${!x}' 'X=abcdef Y=X; echo ${!Y}' 'abcdef\n' '' ''
+testing '${!x@}' 'ABC=def; def=ghi; echo ${!ABC@}' 'ABC\n' '' ''
 testing '${!x} err' '{ X=abcdef Y=X:2; echo ${!Y}; echo bang;} 2>/dev/null' \
   '' '' ''
 testing '${!x*}' 'abcdef=1 abc=2 abcq=; echo "${!abc@}" | tr " " \\n | sort' \
   'abc\nabcdef\nabcq\n' '' ''
 testing '${!x*} none' 'echo "${!abc*}"' '\n' '' ''
 testing '${!x*} err' '{ echo "${!abc*x}"; echo boing;} 2>/dev/null' '' '' ''
+testing '${!none@Q}' 'echo ${X@Q} ${!X@Q}; X=ABC; echo ${!X@Q}' '\n\n' '' ''
 testing '${!x@Q}' 'ABC=123 X=ABC; echo ${!X@Q}' "'123'\n" '' ''
+testing '${#@Q}' 'echo ${#@Q}' "'0'\n" '' ''
+testing '${!*}' 'xx() { echo ${!*};}; fruit=123; xx fruit' '123\n' '' ''
+testing '${!*} indirect' 'xx() { echo ${!a@Q};}; a=@; xx one two three' \
+  "'one' 'two' 'three'\n" '' ''
+testing '${!x@ } match' \
+  '{ ABC=def; def=ghi; echo ${!ABC@ }; } 2>&1 | grep -o bad' 'bad\n' '' ''
+testing '${!x@ } no match no err' 'echo ${!ABC@ }def' 'def\n' '' ''
+testing '${!x@ } no match no err2' 'ABC=def; echo ${!ABC@ }ghi' 'ghi\n' '' ''
+toyonly testing '${#x::}' 'ABC=abcdefghijklmno; echo ${#ABC:1:2}' '5\n' '' ''
 # TODO: ${!abc@x} does _not_ error? And ${PWD@q}
+testing '$""' 'ABC=def; echo $"$ABC"' 'def\n' '' ''
 testing '${\}}' 'ABC=ab}cd; echo ${ABC/\}/x}' 'abxcd\n' '' ''
+testing 'bad ${^}' '{ echo ${^};} 2>&1 | grep -o bad' 'bad\n' '' ''
+testing '${:}' 'ABC=def; echo ${ABC:1}' 'ef\n' '' ''
+testing '${a: }' 'ABC=def; echo ${ABC: 1}' 'ef\n' '' ''
+testing '${a :}' 'ABC=def; { echo ${ABC :1};} 2>&1 | grep -o bad' 'bad\n' '' ''
+testing '${::}' 'ABC=defghi; echo ${ABC:1:2}' 'ef\n' '' ''
+testing '${: : }' 'ABC=defghi; echo ${ABC: 1 : 2 }' 'ef\n' '' ''
+testing '${::} indirect' 'ABC=defghi:1:2; { echo ${!ABC};} 2>&1 | grep -o bad' \
+  'bad\n' '' ''
+testing '${::-}' 'ABC=defghi; echo ${ABC:1:-2}' 'efg\n' '' ''
+testing '${:-:-}' 'ABC=defghi; echo ${ABC:-3:2}' 'defghi\n' '' ''
+testing '${:-:-}2' 'echo ${ABC:-3:2}' '3:2\n' '' ''
+testing '${: -:}' 'ABC=defghi; echo ${ABC: -3:2}' 'gh\n' '' ''
+testing '${@%}' 'chicken() { for i in "${@%abc}"; do echo "=$i="; done;}; chicken 1abc 2abc 3abc' '=1=\n=2=\n=3=\n' '' ''
+testing '${*%}' 'chicken() { for i in "${*%abc}"; do echo "=$i="; done;}; chicken 1abc 2abc 3abc' '=1 2 3=\n' '' ''
+testing '${@@Q}' 'xx() { echo "${@@Q}"; }; xx one two three' \
+  "'one' 'two' 'three'\n" '' ''
 
 shxpect '${/newline/}' I$'x=$\'\na\';echo ${x/\n' E'> ' I$'/b}\n' O$'ba\n' E'> '
 
