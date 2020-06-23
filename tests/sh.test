@@ -314,8 +314,13 @@ testing 'here3' 'abc(){ cat <<< x"$@"yz;};abc one two "three  four"' \
 
 testing '${var}' 'X=abcdef; echo ${X}' 'abcdef\n' '' '' 
 testing '${#}' 'X=abcdef; echo ${#X}' "6\n" "" ""
-shxpect 'empty ${}' I$'echo ${}; echo hello\n' E I$'echo and\n' O$'and\n'
+testing 'empty ${}' '{ echo ${};} 2>&1 | grep -o bad' 'bad\n' '' ''
+shxpect 'empty ${} syntax err abort' I$'echo ${}; echo hello\n' \
+  E I$'echo and\n' O$'and\n'
 testing '${$b}' '{ echo ${$b};} 2>&1 | grep -o bad' 'bad\n' '' ''
+testing '${!PATH*}' 'echo ${!PATH*}' 'PATH\n' '' ''
+testing '${!PATH@}' 'echo ${!PATH@}' 'PATH\n' '' ''
+#testing '${!PATH[@]}' 'echo ${!PATH[@]}' '0\n' '' ''
 testing '${!x}' 'X=abcdef Y=X; echo ${!Y}' 'abcdef\n' '' ''
 testing '${!x@}' 'ABC=def; def=ghi; echo ${!ABC@}' 'ABC\n' '' ''
 testing '${!x} err' '{ X=abcdef Y=X:2; echo ${!Y}; echo bang;} 2>/dev/null' \
@@ -337,6 +342,7 @@ testing '${!x@ } no match no err2' 'ABC=def; echo ${!ABC@ }ghi' 'ghi\n' '' ''
 toyonly testing '${#x::}' 'ABC=abcdefghijklmno; echo ${#ABC:1:2}' '5\n' '' ''
 # TODO: ${!abc@x} does _not_ error? And ${PWD@q}
 testing '$""' 'ABC=def; echo $"$ABC"' 'def\n' '' ''
+testing '"$""" does not nest' 'echo "$"abc""' '$abc\n' '' ''
 testing '${\}}' 'ABC=ab}cd; echo ${ABC/\}/x}' 'abxcd\n' '' ''
 testing 'bad ${^}' '{ echo ${^};} 2>&1 | grep -o bad' 'bad\n' '' ''
 testing '${:}' 'ABC=def; echo ${ABC:1}' 'ef\n' '' ''
@@ -369,13 +375,16 @@ testing '$LINENO 2' $'echo $LINENO\necho $LINENO' '0\n1\n' '' ''
 testing '$EUID' 'echo $EUID' "$(id -u)\n" '' ''
 testing '$UID' 'echo $UID' "$(id -ur)\n" '' ''
 
+testing 'readonly leading assignment' \
+  '{ readonly abc=123;abc=def echo hello; echo $?;} 2>output; grep -o readonly output' \
+  'hello\n0\nreadonly\n' '' ''
+testing 'readonly leading assignment2' \
+  'readonly boink=123; export boink; { boink=234 env | grep ^boink=;} 2>/dev/null; echo $?' 'boink=123\n0\n' '' ''
 testing 'readonly for' \
   'readonly i; for i in one two three; do echo $i; done 2>/dev/null; echo $?' \
   '1\n' '' ''
 testing 'readonly {}<' \
   'readonly i; echo hello 2>/dev/null {i}</dev/null; echo $?' '1\n' '' ''
-testing 'leading readonly assignment' \
-  'readonly boink=123; export boink; { boink=234 env | grep ^boink=;} 2>/dev/null; echo $?' 'boink=123\n0\n' '' ''
 testing '$_ 1' 'echo walrus; echo $_' 'walrus\nwalrus\n' '' ''
 testing '$_ 2' 'unset _; echo $_' '_\n' '' ''
 
