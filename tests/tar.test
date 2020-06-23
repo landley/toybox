@@ -262,6 +262,11 @@ for i in {0..12}; do touch links/orig$i; ln links/{orig,link}$i; done
 testcmd 'links2' '-cf test.tar links' '' '' ''
 rm -rf links
 
+install -m 000 -d folder/skip/oof &&
+testcmd 'exclude' '--exclude skip -cvf tar.tar folder && echo yes' \
+  'folder/\nyes\n' '' ''
+rm -rf folder tar.tar
+
 if false
 then
 

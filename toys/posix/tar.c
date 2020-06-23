@@ -179,7 +179,7 @@ static int add_to_tar(struct dirtree *node)
   struct tar_hdr hdr;
   struct passwd *pw = pw;
   struct group *gr = gr;
-  int i, fd =-1;
+  int i, fd = -1, norecurse = FLAG(no_recursion);
   char *name, *lnk, *hname;
 
   if (!dirtree_notdotdot(node)) return 0;
@@ -193,7 +193,11 @@ static int add_to_tar(struct dirtree *node)
 
   // exclusion defaults to --no-anchored and --wildcards-match-slash
   for (lnk = name; *lnk;) {
-    if (filter(TT.excl, lnk)) goto done;
+    if (filter(TT.excl, lnk)) {
+      norecurse++;
+
+      goto done;
+    }
     while (*lnk && *lnk!='/') lnk++;
     while (*lnk=='/') lnk++;
   }
@@ -339,7 +343,7 @@ static int add_to_tar(struct dirtree *node)
   itoo(hdr.chksum, sizeof(hdr.chksum)-1, tar_cksum(&hdr));
   hdr.chksum[7] = ' ';
 
-  if (FLAG(v)) dprintf(TT.fd ? 2 : 1, "%s\n", hname);
+  if (FLAG(v)) dprintf((TT.fd==1) ? 2 : 1, "%s\n", hname);
 
   // Write header and data to archive
   xwrite(TT.fd, &hdr, 512);
@@ -375,7 +379,7 @@ static int add_to_tar(struct dirtree *node)
 done:
   free(name);
 
-  return (DIRTREE_RECURSE|(FLAG(h)?DIRTREE_SYMFOLLOW:0))*!FLAG(no_recursion);
+  return (DIRTREE_RECURSE|(FLAG(h)?DIRTREE_SYMFOLLOW:0))*!norecurse;
 }
 
 static void wsettime(char *s, long long sec)
