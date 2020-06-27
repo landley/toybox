@@ -187,7 +187,8 @@ testing '\n too high' \
 
 # Performance test
 X=x; Y=20; while [ $Y -gt 0 ]; do X=$X$X; Y=$(($Y-1)); done
-testing 'megabyte s/x/y/g (5 sec timeout)' "timeout 5 sed 's/x/y/g' | sha1sum" \
+testing 'megabyte s/x/y/g (20 sec timeout)' \
+  "timeout 20 sed 's/x/y/g' | sha1sum" \
   '138c1fa7c3f64186203b0192fb4abdb33cb4e98a  -\n' '' "$X\n"
 unset X Y
 
