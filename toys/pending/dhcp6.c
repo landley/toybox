@@ -377,7 +377,7 @@ static void parse_ia_na(uint8_t *data, int data_length)
             if(!getaddrinfo(TT.req_ip, NULL, NULL,&res)) {
               dbg("Requesting IP: %s\n", TT.req_ip);
               memcpy (&TT.input_socket6, res->ai_addr, res->ai_addrlen);
-              memcpy(t+4, TT.input_socket6.sin6_addr.__in6_u.__u6_addr8, 16);
+              memcpy(t+4, TT.input_socket6.sin6_addr.s6_addr, 16);
             } else xprintf("Invalid IP: %s\n",TT.req_ip);
             freeaddrinfo(res);
           }
