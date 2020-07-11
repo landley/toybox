@@ -220,8 +220,7 @@ GLOBALS(
     // undo redirects, a=b at start, child PID, exit status, has !, job #
     int *urd, envlen, pid, exit, not, job;
     long long when; // when job backgrounded/suspended
-// TODO struct sh_arg *raw;  // for display
-    struct sh_arg arg;
+    struct sh_arg *raw, arg;
   } *pp; // currently running process
 
   struct sh_arg jobs, *arg;  // job list, command line args for $* etc
@@ -348,9 +347,15 @@ static struct sh_vars *addvar(char *s)
 }
 
 // TODO function to resolve a string into a number for $((1+2)) etc
-long long do_math(char *s)
+long long do_math(char **s)
 {
-  return atoll(s);
+  long long ll;
+
+  while (isspace(**s)) ++*s;
+  ll = strtoll(*s, s, 0);
+  while (isspace(**s)) ++*s;
+
+  return ll;
 }
 
 // Assign one variable from malloced key=val string, returns var struct
@@ -376,10 +381,10 @@ static struct sh_vars *setvar(char *s)
   if (s[len] != '=') {
     error_msg("bad setvar %s\n", s);
     free(s);
+
     return 0;
   }
-  if (len == 3 && !memcmp(s, "IFS", 3)) TT.ifs = s+4;
-
+  if (!strncmp(s, "IFS=", 4)) TT.ifs = s+4;
   if (!(var = findvar(s))) return addvar(s);
   flags = var->flags;
 
@@ -388,19 +393,25 @@ static struct sh_vars *setvar(char *s)
     free(s);
 
     return 0;
-  } else if (flags&VAR_MAGIC) {
-    if (*s == 'S') TT.SECONDS = millitime() - 1000*do_math(s+len-1);
-    else if (*s == 'R') srandom(do_math(s+len-1));
-  } else if (flags&VAR_GLOBAL) xsetenv(var->str = s, 0);
-  else {
-    free(var->str);
-    var->str = s;
   }
+
 // TODO if (flags&(VAR_TOUPPER|VAR_TOLOWER)) 
 // unicode _is stupid enough for upper/lower case to be different utf8 byte
 // lengths. example: lowercase of U+0130 (C4 B0) is U+0069 (69)
 // TODO VAR_INT
 // TODO VAR_ARRAY VAR_DICT
+
+  if (flags&VAR_MAGIC) {
+    char *ss = s+len-1;
+
+// TODO: trailing garbage after do_math()?
+    if (*s == 'S') TT.SECONDS = millitime() - 1000*do_math(&ss);
+    else if (*s == 'R') srandom(do_math(&ss));
+  } else if (flags&VAR_GLOBAL) xsetenv(var->str = s, 0);
+  else {
+    free(var->str);
+    var->str = s;
+  }
 
   return var;
 }
@@ -750,7 +761,7 @@ static int pipe_subshell(char *s, int len, int out)
 }
 
 // utf8 strchr: return wide char matched at wc from chrs, or 0 if not matched
-// if len, save length of wc
+// if len, save length of next wc (whether or not it's in list)
 static int utf8chr(char *wc, char *chrs, int *len)
 {
   wchar_t wc1, wc2;
@@ -772,6 +783,54 @@ static int utf8chr(char *wc, char *chrs, int *len)
   return 0;
 }
 
+// grab variable or special param (ala $$) up to len bytes. Return value.
+// set *used to length consumed. Does not handle $* and $@
+char *getvar_special(char *str, int len, int *used, struct arg_list **delete)
+{
+  char *s = 0, *ss, cc = *str;
+  unsigned uu;
+
+  *used = 1;
+  if (cc == '-') {
+    s = ss = xmalloc(8);
+    if (TT.options&OPT_I) *ss++ = 'i';
+    if (TT.options&OPT_BRACE) *ss++ = 'B';
+    if (TT.options&OPT_S) *ss++ = 's';
+    if (TT.options&OPT_C) *ss++ = 'c';
+    *ss = 0;
+  } else if (cc == '?') s = xmprintf("%d", toys.exitval);
+  else if (cc == '$') s = xmprintf("%d", TT.pid);
+  else if (cc == '#') s = xmprintf("%d", TT.arg->c?TT.arg->c-1:0);
+  else if (cc == '!') s = xmprintf("%d"+2*!TT.bangpid, TT.bangpid);
+  else {
+    delete = 0;
+    for (*used = uu = 0; *used<len && isdigit(str[*used]); ++*used)
+      uu = (10*uu)+str[*used]-'0';
+    if (*used) {
+      if (uu) uu += TT.shift;
+      if (uu<TT.arg->c) s = TT.arg->v[uu];
+    } else if ((*used = varend(str)-str)) return getvar(str);
+  }
+  if (s) push_arg(delete, s);
+
+  return s;
+}
+
+// Copy string until } including escaped }
+char *slashcopy(char *s, char c)
+{
+  char *ss;
+  int ii, jj;
+
+  for (ii = 0; s[ii] != c; ii++) if (s[ii] == '\\') ii++;
+  ss = xmalloc(ii+1);
+  for (ii = jj = 0; s[jj] != c; ii++)
+    if ('\\'==(s[ii] = s[jj++])) s[ii] = s[jj++];
+  ss[ii] = 0;
+
+  return ss;
+}
+
 #define NO_PATH  (1<<0)    // path expansion (wildcards)
 #define NO_SPLIT (1<<1)    // word splitting
 #define NO_BRACE (1<<2)    // {brace,expansion}
@@ -789,8 +848,8 @@ static int utf8chr(char *wc, char *chrs, int *len)
 static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
   struct arg_list **delete)
 {
-  char cc, qq = 0, *old = str, *new = str, *s, *ss, *ifs, **aa;
-  int ii = 0, dd, jj, kk, ll, oo = 0, nodel;
+  char cc, qq = 0, sep[6], *old = str, *new = str, *s, *ss, *ifs, *slice;
+  int ii = 0, oo = 0, xx, yy, dd, jj, kk, ll, mm;
 
 if (BUGBUG) dprintf(255, "expand %s\n", str);
 
@@ -822,6 +881,7 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
   // parameter/variable expansion, and dequoting
 
   for (; (cc = str[ii++]); old!=new && (new[oo] = 0)) {
+    struct sh_arg aa = {0};
 
     // skip literal chars
     if (!strchr("$'`\\\"", cc)) {
@@ -834,11 +894,9 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
       new = xstrdup(new);
       new[oo = ii-1] = 0;
     }
-    ifs = 0;
-    aa = 0;
-    nodel = 0;
+    ifs = slice = 0;
 
-    // handle different types of escapes
+    // handle escapes and quoting
     if (cc == '\\') new[oo++] = str[ii] ? str[ii++] : cc;
     else if (cc == '"') qq++;
     else if (cc == '\'') {
@@ -888,50 +946,188 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
           for (kk = strlen(ifs); kk && ifs[kk-1]=='\n'; ifs[--kk] = 0);
         close(jj);
       }
+
+    // $VARIABLE expansions
+
     } else if (cc == '$') {
-
-      // parse $ $'' ${} or $VAR
-
-      cc = str[ii++];
+      cc = *(ss = str+ii++);
       if (cc=='\'') {
         for (s = str+ii; *s != '\''; oo += wcrtomb(new+oo, unescape2(&s, 0),0));
         ii = s-str+1;
 
         continue;
-      } else if (cc == '{') {
-        cc = *(ss = str+ii);
-        if (!(jj = strchr(ss, '}')-ss)) ifs = (void *)1;
-        ii += jj+1;
+      } else if (cc=='"' && !(qq&1)) {
+        qq++;
 
-        if (jj>1) {
-          // handle ${!x} and ${#x}
-          if (*ss == '!') {
-            if (!(ss = getvar(ss+1)) || !*ss) continue;
-            jj = varend(ss)-ss;
-            if (ss[jj]) ifs = (void *)1;
-          } else if (*ss == '#') {
-            if (jj == 2 && (*ss == '@' || *ss == '*')) jj--;
-            else ifs = xmprintf("%ld", (long)strlen(getvar(ss) ? : ""));
+        continue;
+      } else if (cc == '{') {
+
+        // Skip escapes to find }, parse_word() guarantees ${} terminates
+        for (cc = *++ss; str[ii] != '}'; ii++) if (str[ii]=='\\') ii++;
+        ii++;
+
+        if (cc == '}') ifs = (void *)1;
+        else if (strchr("#!", cc)) ss++;
+        jj = varend(ss)-ss;
+        if (!jj) while (isdigit(ss[jj])) jj++;
+        if (!jj && strchr("#$!_*", *ss)) jj++;
+        // parameter or operator? Maybe not a prefix: ${#-} vs ${#-x}
+        if (!jj && strchr("-?@", *ss)) if (ss[++jj]!='}' && ss[-1]!='{') ss--;
+        slice = ss+jj;        // start of :operation
+
+        if (!jj) {
+          ifs = (void *)1;
+          // literal ${#} or ${!} wasn't a prefix
+          if (strchr("#!", cc)) ifs = getvar_special(--ss, 1, &kk, delete);
+        } else if (ss[-1]=='{'); // not prefix, fall through
+        else if (cc == '#') {  // TODO ${#x[@]}
+          dd = !!strchr("@*", *ss);  // For ${#@} or ${#*} do normal ${#}
+          ifs = getvar_special(ss-dd, jj, &kk, delete) ? : "";
+          if (!dd) push_arg(delete, ifs = xmprintf("%ld", strlen(ifs)));
+        // ${!@} ${!@Q} ${!x} ${!x@} ${!x@Q} ${!x#} ${!x[} ${!x[*]}
+        } else if (cc == '!') {  // TODO: ${var[@]} array
+
+          // special case: normal varname followed by @} or *} = prefix list
+          if (ss[jj] == '*' || (ss[jj] == '@' && !isalpha(ss[jj+1]))) {
+            for (slice++, kk = 0; kk<TT.varslen; kk++) {
+              if (!strncmp(s = TT.vars[kk].str, ss, jj)) {
+                arg_add(&aa, s = xstrndup(s, stridx(s, '=')));
+                push_arg(delete, s);
+              }
+            }
+            if (aa.c) push_arg(delete, (void *)aa.v);
+
+          // else dereference to get new varname, discarding if none, check err
+          } else {
+            // First expansion
+            if (strchr("@*", *ss)) { // special case ${!*}/${!@}
+              expand_arg_nobrace(&aa, "\"$*\"", NO_PATH|NO_SPLIT, delete);
+              ifs = *aa.v;
+              free(aa.v);
+              memset(&aa, 0, sizeof(aa));
+              jj = 1;
+            } else ifs = getvar_special(ss, jj, &jj, delete);
+            slice = ss+jj;
+
+            // Second expansion
+            if (!jj) ifs = (void *)1;
+            else if (ifs && *(ss = ifs)) {
+              if (strchr("@*", cc)) {
+                aa.c = TT.arg->c-1;
+                aa.v = TT.arg->v+1;
+                jj = 1;
+              } else ifs = getvar_special(ifs, strlen(ifs), &jj, delete);
+              if (ss && ss[jj]) {
+                ifs = (void *)1;
+                slice = ss+strlen(ss);
+              }
+            }
           }
         }
-      } else {
-        ss = str+--ii;
-        if (!(jj = varend(ss)-ss)) jj++;
-        ii += jj;
-      }
 
-// ${#nom} ${} ${x}
-// ${x:-y} use default
-// ${x:=y} assign default (error if positional)
-// ${x:?y} err if null
-// ${x:+y} alt value
-// ${x:off} ${x:off:len} off<0 from end (must ": -"), len<0 also from end must
-//   0-based indexing
-// ${@:off:len} positional parameters, off -1 = len, -len is error
-//   1-based indexing
-// ${!x} deref (does bad substitution if name has : in it)
-// ${!x*} ${!x@} names matching prefix
-//   note: expands something other than arg->c
+        // Substitution error?
+        if (ifs == (void *)1) {
+barf:
+          if (!(((unsigned long)ifs)>>1)) ifs = "bad substitution";
+          error_msg("%.*s: %s", (int)(slice-ss), ss, ifs);
+          free(new);
+
+          return 1;
+        }
+      } else jj = 1;
+
+      // Resolve unprefixed variables
+      if (strchr("{$", ss[-1])) {
+        if (strchr("@*", cc)) {
+          aa.c = TT.arg->c-1;
+          aa.v = TT.arg->v+1;
+        } else {
+          ifs = getvar_special(ss, jj, &jj, delete);
+          if (!jj) {
+            if (ss[-1] == '{') goto barf;
+            new[oo++] = '$';
+            ii--;
+            continue;
+          } else if (ss[-1] != '{') ii += jj-1;
+        }
+      }
+    }
+
+    // combine before/ifs/after sections & split words on $IFS in ifs
+
+    // Fetch separator
+    *sep = 0;
+    if ((qq&1) && cc=='*') {
+      wchar_t wc;
+
+      if (flags&SEMI_IFS) strcpy(sep, " ");
+      else if (0<(dd = utf8towc(&wc, TT.ifs, 4)))
+        sprintf(sep, "%.*s", dd, TT.ifs);
+    }
+
+    // when aa proceed through entries until NULL, else process ifs once
+    mm = yy = 0;
+    do {
+
+      // get next argument
+      if (aa.c) ifs = aa.v[mm++] ? : "";
+
+      // Are we performing surgery on this argument?
+      if (slice && *slice != '}') {
+        dd = slice[xx = (*slice == ':')];
+        if (!ifs || (xx && !*ifs)) {
+          if (strchr("-?=", dd)) { // - use default = assign default ? error
+            push_arg(delete, ifs = slashcopy(slice+xx+1, '}'));
+            if (dd == '?' || (dd == '=' &&
+              !(setvar(s = xmprintf("%.*s=%s", (int)(slice-ss), ss, ifs)))))
+                goto barf;
+          }
+        // use alternate value
+        } else if (dd == '+') push_arg(delete, ifs = slashcopy(slice+xx+1,'}'));
+        else if (xx) { // ${x::}
+          long long la, lb, lc;
+
+// TODO don't redo math in loop
+          ss = slice+1;
+          la = do_math(&s);
+          if (s && *s == ':') {
+            s++;
+            lb = do_math(&s);
+          } else lb = LLONG_MAX;
+          if (s && *s != '}') {
+            error_msg("%.*s: bad '%c'", (int)(slice-ss), ss, *s);
+            s = 0;
+          }
+          if (!s) {
+            free(new);
+            return 1;
+          }
+
+          // This isn't quite what bash does, but close enough.
+          if (!(lc = aa.c)) lc = strlen(ifs);
+          else if (!la && !yy && strchr("@*", slice[1])) {
+            aa.v--; // ${*:0} shows $0 even though default is 1-indexed
+            aa.c++;
+            yy++;
+          }
+          if (la<0 && (la += lc)<0) continue;
+          if (lb<0) lb = lc+lb-la;
+          if (aa.c) {
+            if (mm<la || mm>=la+lb) continue;
+          } else if (la>=lc || lb<0) ifs = "";
+          else if (la+lb>=lc) ifs += la;
+          else if (!*delete || ifs != (*delete)->arg)
+            push_arg(delete, ifs = xmprintf("%.*s", (int)lb, ifs+la));
+          else {
+            for (dd = 0; dd<lb ; dd++) if (!(ifs[dd] = ifs[dd+la])) break;
+            ifs[dd] = 0;
+          }
+        } else {
+// TODO test ${-abc} as error
+          ifs = slice;
+          goto barf;
+        }
+
 // ${x#y} remove shortest prefix ${x##y} remove longest prefix
 //   x can be @ or *
 // ${x%y} ${x%%y} suffix
@@ -943,130 +1139,60 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
 //   A=declare that recreates var a=attribute flags
 //   x can be @*
 
-// TODO: $_ is last arg of last command, and exported as path to exe run
-      if (ifs);
-      else if (cc == '-') {
-        s = ifs = xmalloc(8);
-        if (TT.options&OPT_I) *s++ = 'i';
-        if (TT.options&OPT_BRACE) *s++ = 'B';
-        if (TT.options&OPT_S) *s++ = 's';
-        if (TT.options&OPT_C) *s++ = 'c';
-        *s = 0;
-      } else if (cc == '?') ifs = xmprintf("%d", toys.exitval);
-      else if (cc == '$') ifs = xmprintf("%d", TT.pid);
-      else if (cc == '#') ifs = xmprintf("%d", TT.arg->c?TT.arg->c-1:0);
-      else if (cc == '!') ifs = xmprintf("%d"+2*!TT.bangpid, TT.bangpid);
-      else if (cc == '*' || cc == '@') aa = TT.arg->v+1;
-      else if (isdigit(cc)) {
-        for (kk = ll = 0; kk<jj && isdigit(ss[kk]); kk++)
-          ll = (10*ll)+ss[kk]-'0';
-        if (ll) ll += TT.shift;
-        if (ll<TT.arg->c) ifs = TT.arg->v[ll];
-        nodel = 1;
-
-      // $VARIABLE
-      } else {
-        if (ss == varend(ss)) {
-          ii--;
-          if (ss[-1] == '$') new[oo++] = '$';
-          else ifs = (void *)1;
-        } else ifs = getvar(ss);
-        nodel = 1;
-      }
-    }
-
 // TODO: $((a=42)) can change var, affect lifetime
 // must replace ifs AND any previous output arg[] within pointer strlen()
-// TODO ${blah} here
 
-    if (ifs == (void *)1) {
-      error_msg("%.*s: bad substitution", (int)(s-(str+ii)+3), str+ii-2);
-      free(new);
-
-      return 1;
-    }
-
-    // combine before/ifs/after sections, splitting words on $IFS in ifs
-    if (ifs || aa) {
-      char sep[8];
-
-      // If not gluing together, nothing to substitute, not quoted: do nothing
-      if (!aa && !*ifs && !qq) continue;
-
-      // Fetch separator
-      *sep = 0;
-      if ((qq&1) && cc=='*') {
-        wchar_t wc;
-
-        if (flags&SEMI_IFS) strcpy(sep, " ");
-        else if (0<(dd = utf8towc(&wc, TT.ifs, 4)))
-          sprintf(sep, "%.*s", dd, TT.ifs);
       }
 
-      // when aa proceed through entries until NULL, else process ifs once
+      // Nothing left to do?
+      if (!ifs) break;
+      if (!*ifs && !qq) continue;
+
+      // loop within current ifs checking region to split words
       do {
 
-        // get next argument, is this last entry, find end of word
-        if (aa) {
-          ifs = *aa ? : "";
-          if (*aa) aa++;
-          nodel = 1;
-        }
+        // find end of (split) word
         if (qq&1) ss = ifs+strlen(ifs);
-        else for (ss = ifs; *ss; ss += kk)
-          if ((ll = utf8chr(ss, TT.ifs, &kk))) break;
-        kk = !aa || !*aa;
+        else for (ss = ifs; *ss; ss += kk) if (utf8chr(ss, TT.ifs, &kk)) break;
 
-        // loop within current ifs checking region to split words
-        do {
-          // fast path: use existing memory when no prefix, not splitting it,
-          // and either not last entry or no suffix
-          if (!oo && !*ss && (!kk || !str[ii]) && !((qq&1) && cc=='*')) {
-            if (!qq && ss==ifs) break;
-            arg_add_del(arg, ifs, nodel ? 0 : delete);
-            nodel = 1;
+        // when no prefix, not splitting, no suffix: use existing memory
+        if (!oo && !*ss && !((mm==aa.c) ? str[ii] : ((qq&1) && cc=='*'))) {
+          if (qq || ss!=ifs) arg_add(arg, ifs);
+          continue;
+        }
 
-            continue;
-          }
+        // resize allocation and copy next chunk of IFS-free data
+        new = xrealloc(new, oo + (ss-ifs) + strlen(sep) +
+                       ((jj = (mm == aa.c) && !*ss) ? strlen(str+ii) : 0) + 1);
+        oo += sprintf(new + oo, "%.*s", (int)(ss-ifs), ifs);
+        if (jj) break;
 
-          // resize allocation and copy next chunk of IFS-free data
-          new = xrealloc(new, oo + (ss-ifs) + strlen(sep) +
-                         ((jj = kk && !*ss) ? strlen(str+ii) : 0) + 1);
-          oo += sprintf(new + oo, "%.*s", (int)(ss-ifs), ifs);
-          if (!nodel) free(ifs);
-          nodel = 1;
-          if (jj) break;
+        // for double quoted "$*" append first separator from IFS
+        if ((qq&1) && cc == '*') oo += sprintf(new+oo, "%s", sep);
 
-          // for single quoted "$*" append IFS
-          if ((qq&1) && cc == '*') oo += sprintf(new+oo, "%s", sep);
+        // finished arg: keep if quoted, non-blank, or non-whitespace separator
+        else {
+          if (qq || *new || *ss) arg_add(arg, xrealloc(new, strlen(new)+1));
+          qq &= 1;
+          new = xstrdup(str+ii);
+          oo = 0;
+        }
 
-          // add argument if quoted, non-blank, or non-whitespace separator
-          else {
-            if (qq || *new || *ss) {
-              arg_add_del(arg, new, nodel ? 0 : delete);
-              nodel = 1;
-            }
-            qq &= 1;
-            new = xstrdup(str+ii);
-            oo = 0;
-          }
-
-          // Skip trailing seperator (combining whitespace)
-          while ((jj = utf8chr(ss, TT.ifs, &ll)) && iswspace(jj)) ss += ll;
-
-        } while (*(ifs = ss));
-      } while (!kk);
-    }
+        // Skip trailing seperator (combining whitespace)
+        while ((jj = utf8chr(ss, TT.ifs, &ll))) {
+          ss += ll;
+          if (!iswspace(jj)) break;
+        }
+      } while (*(ifs = ss));
+    } while (!(mm == aa.c));
   }
 
-// TODO globbing * ? [
+// TODO globbing * ? [] +() happens after variable resolution
 
-// Word splitting completely eliminating argument when no non-$IFS data left
+// TODO test word splitting completely eliminating argument when no non-$IFS data left
 // wordexp keeps pattern when no matches
 
-// TODO NO_SPLIT cares about IFS, see also trailing \n
-
-// quote removal
+// TODO test NO_SPLIT cares about IFS, see also trailing \n
 
   // Record result.
   if (*new || qq)
@@ -1268,6 +1394,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
 
   pp = xzalloc(sizeof(struct sh_process));
   pp->urd = urd;
+  pp->raw = arg;
 
   // When we redirect, we copy each displaced filehandle to restore it later.
 
@@ -1515,8 +1642,7 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
   if (envlen == arg->c) {
     for (jj = 0; jj<envlen; jj++) {
       if (!(s = expand_one_arg(arg->v[jj], NO_PATH|NO_SPLIT, 0))) break;
-      if (s == arg->v[jj]) s = xstrdup(s);
-      setvar(s);
+      setvar((s == arg->v[jj]) ? xstrdup(s) : s);
     }
     goto out;
   }
@@ -1524,7 +1650,7 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
   // assign leading environment variables (if any) in temp environ copy
   jj = 0;
   env.v = 0;
-  if (envlen) {
+  if (!pp->exit && envlen) {
     for (env.c = 0; environ[env.c]; env.c++);
     memcpy(env.v = xmalloc(sizeof(char *)*(env.c+33)), environ,
       sizeof(char *)*(env.c+1));
@@ -2062,7 +2188,6 @@ TODO: a | b | c needs subshell for builtins?
       when to auto-exec? ps vs sh -c 'ps' vs sh -c '(ps)'
 */
 
-
   TT.hfd = 10;
 
   // iterate through pipeline segments
@@ -2230,7 +2355,7 @@ dprintf(2, "TODO skipped running for((;;)), need math parser\n");
     }
 
     // for && and || skip pipeline segment(s) based on return code
-    if (pl->type == 1 || pl->type == 3)
+    if (!pl->type || pl->type == 3)
       while (ctl && !strcmp(ctl, toys.exitval ? "&&" : "||"))
         ctl = (pl = pl->type ? pl->end : pl->next)?pl->arg->v[pl->arg->c]:0;
 
@@ -2746,6 +2871,94 @@ void exec_main(void)
   TT.isexec = 0;
   toys.exitval = 127;
   environ = old;
+}
+
+// Find + and - jobs. Returns index of plus, writes minus to *minus
+int find_plus_minus(int *minus)
+{
+  long long when, then;
+  int i, plus;
+
+  if (minus) *minus = 0;
+  for (then = i = plus = 0; i<TT.jobs.c; i++) {
+    if ((when = ((struct sh_process *)TT.jobs.v[i])->when) > then) {
+      then = when;
+      if (minus) *minus = plus;
+      plus = i;
+    }
+  }
+
+  return plus;
+}
+
+// Return T.jobs index or -1 from identifier
+// Note, we don't return "ambiguous job spec", we return the first hit or -1.
+// TODO %% %+ %- %?ab
+int find_job(char *s)
+{
+  char *ss;
+  long ll = strtol(s, &ss, 10);
+  int i, j;
+
+  if (!TT.jobs.c) return -1;
+  if (!*s || (!s[1] && strchr("%+-", *s))) {
+    int minus, plus = find_plus_minus(&minus);
+
+    return (*s == '-') ? minus : plus;
+  }
+
+  // Is this a %1 numeric jobspec?
+  if (s != ss && !*ss)
+    for (i = 0; i<TT.jobs.c; i++)
+      if (((struct sh_process *)TT.jobs.v[i])->job == ll) return i;
+
+  // Match start of command or %?abc
+  for (i = 0; i<TT.jobs.c; i++) {
+    struct sh_process *pp = (void *)TT.jobs.v[i];
+
+    if (strstart(&s, *pp->arg.v)) return i;
+    if (*s != '?' || !s[1]) continue;
+    for (j = 0; j<pp->arg.c; j++) if (strstr(pp->arg.v[j], s+1)) return i;
+  }
+
+  return -1;
+}
+
+// We pass in dash to avoid looping over every job each time
+void print_job(int i, char dash)
+{
+  struct sh_process *pp = (void *)TT.jobs.v[i];
+  char *s = "Run";
+  int j;
+
+// TODO Terminated (Exited)
+  if (pp->exit<0) s = "Stop";
+  else if (pp->exit>126) s = "Kill";
+  else if (pp->exit>0) s = "Done";
+  printf("[%d]%c  %-6s", pp->job, dash, s);
+  for (j = 0; j<pp->raw->c; j++) printf(" %s"+!j, pp->raw->v[j]);
+  printf("\n");
+}
+
+void jobs_main(void)
+{
+  int i, j, minus, plus = find_plus_minus(&minus);
+  char *s;
+
+// TODO -lnprs
+
+  for (i = 0;;i++) {
+    if (toys.optc) {
+      if (!(s = toys.optargs[i])) break;
+      if ((j = find_job(s+('%' == *s))) == -1) {
+        perror_msg("%s: no such job", s);
+
+        continue;
+      }
+    } else if ((j = i) >= TT.jobs.c) break;
+
+    print_job(i, (i == plus) ? '+' : (i == minus) ? '-' : ' ');
+  }
 }
 
 void shift_main(void)
