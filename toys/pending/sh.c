@@ -825,7 +825,7 @@ char *slashcopy(char *s, char c)
   for (ii = 0; s[ii] != c; ii++) if (s[ii] == '\\') ii++;
   ss = xmalloc(ii+1);
   for (ii = jj = 0; s[jj] != c; ii++)
-    if ('\\'==(s[ii] = s[jj++])) s[ii] = s[jj++];
+    if ('\\'==(ss[ii] = s[jj++])) ss[ii] = s[jj++];
   ss[ii] = 0;
 
   return ss;
@@ -1384,7 +1384,7 @@ static char *pl2str(struct sh_pipeline *pl)
 
 // Expand arguments and perform redirections. Return new process object with
 // expanded args. This can be called from command or block context.
-static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
+static struct sh_process *expand_redir(struct sh_arg *arg, int skip, int *urd)
 {
   struct sh_process *pp;
   char *s = s, *ss, *sss, *cv = 0;
@@ -1399,7 +1399,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int envlen, int *urd)
   // When we redirect, we copy each displaced filehandle to restore it later.
 
   // Expand arguments and perform redirections
-  for (j = envlen; j<arg->c; j++) {
+  for (j = skip; j<arg->c; j++) {
     int saveclose = 0, bad = 0;
 
     s = arg->v[j];
@@ -1621,41 +1621,36 @@ static void sh_exec(char **argv)
 static struct sh_process *run_command(struct sh_arg *arg)
 {
   char *s, *ss = 0, *sss, **old = environ;
-  struct sh_arg env;
-  int envlen, jj, ll;
+  struct sh_arg env = {0};
+  int envlen, jj = 0, ll;
   struct sh_process *pp;
+  struct arg_list *delete = 0;
   struct toy_list *tl;
 
 if (BUGBUG) dprintf(255, "run_command %s\n", arg->v[0]);
 
-  // Grab leading variable assignments
+  // Count leading variable assignments
   for (envlen = 0; envlen<arg->c; envlen++) {
     s = varend(arg->v[envlen]);
     if (s == arg->v[envlen] || *s != '=') break;
   }
 
-  // expand arguments and perform redirects
-  pp = expand_redir(arg, envlen, 0);
-
-if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); for (i=0; i<pp->arg.c; i++) dprintf(255, "'%s' ", pp->arg.v[i]); dprintf(255, "\n"); }
+if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); for (i=0; i<arg->c; i++) dprintf(255, "'%s' ", arg->v[i]); dprintf(255, "\n"); }
   // perform assignments locally if there's no command
   if (envlen == arg->c) {
-    for (jj = 0; jj<envlen; jj++) {
+    while (jj<envlen) {
       if (!(s = expand_one_arg(arg->v[jj], NO_PATH|NO_SPLIT, 0))) break;
-      setvar((s == arg->v[jj]) ? xstrdup(s) : s);
+      setvar((s == arg->v[jj++]) ? xstrdup(s) : s);
     }
-    goto out;
-  }
+    if (jj == envlen) setvarval("_", "");
 
   // assign leading environment variables (if any) in temp environ copy
-  jj = 0;
-  env.v = 0;
-  if (!pp->exit && envlen) {
-    for (env.c = 0; environ[env.c]; env.c++);
+  } else if (envlen) {
+    while (environ[env.c]) env.c++;
     memcpy(env.v = xmalloc(sizeof(char *)*(env.c+33)), environ,
       sizeof(char *)*(env.c+1));
     for (; jj<envlen; jj++) {
-      if (!(sss = expand_one_arg(arg->v[jj], NO_PATH|NO_SPLIT, &pp->delete)))
+      if (!(sss = expand_one_arg(arg->v[jj], NO_PATH|NO_SPLIT, &delete)))
         break;
       for (ll = 0; ll<env.c; ll++) {
         for (s = sss, ss = env.v[ll]; *s == *ss && *s != '='; s++, ss++);
@@ -1668,8 +1663,20 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
     environ = env.v;
   }
 
+  // return early if error or assignment only
+  if (envlen == arg->c || jj != envlen) {
+    pp = xzalloc(sizeof(struct sh_process));
+    pp->exit = jj != envlen;
+
+    goto out;
+  }
+
+  // expand arguments and perform redirects
+  pp = expand_redir(arg, envlen, 0);
+if (BUGBUG) { int i; dprintf(255, "cooked arg->c=%d run=", arg->c); for (i=0; i<pp->arg.c; i++) dprintf(255, "'%s' ", pp->arg.v[i]); dprintf(255, "\n"); }
+
   // Do nothing if nothing to do
-  if (jj != envlen || pp->exit || !pp->arg.v);
+  if (pp->exit || !pp->arg.v);
 //  else if (!strcmp(*pp->arg.v, "(("))
 // TODO: handle ((math)) currently totally broken
 // TODO: call functions()
@@ -1703,17 +1710,18 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
     if (toys.optargs != toys.argv+1) free(toys.optargs);
     if (toys.old_umask) umask(toys.old_umask);
     memcpy(&toys, &temp, jj);
-  } else if (-1==(pp->pid = xpopen_setup(pp->arg.v+envlen, 0, sh_exec)))
+  } else if (-1==(pp->pid = xpopen_setup(pp->arg.v, 0, sh_exec)))
     perror_msg("%s: vfork", *pp->arg.v);
 
   // Restore environment variables
   environ = old;
   free(env.v);
 
-out:
-  setvarval("_", (envlen == arg->c) ? "" : s);
+  if (pp->arg.c) setvarval("_", pp->arg.v[pp->arg.c-1]);
   // cleanup process
   unredirect(pp->urd);
+out:
+  llist_traverse(delete, llist_free_arg);
 
   return pp;
 }
