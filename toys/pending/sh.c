@@ -1057,7 +1057,8 @@ barf:
 
     // Fetch separator
     *sep = 0;
-    if ((qq&1) && cc=='*') {
+    if ((qq&1) && cc=='*') flags |= NO_SPLIT;
+    if (flags&NO_SPLIT) {
       wchar_t wc;
 
       if (flags&SEMI_IFS) strcpy(sep, " ");
@@ -1156,7 +1157,7 @@ barf:
         else for (ss = ifs; *ss; ss += kk) if (utf8chr(ss, TT.ifs, &kk)) break;
 
         // when no prefix, not splitting, no suffix: use existing memory
-        if (!oo && !*ss && !((mm==aa.c) ? str[ii] : ((qq&1) && cc=='*'))) {
+        if (!oo && !*ss && !((mm==aa.c) ? str[ii] : (flags&NO_SPLIT))) {
           if (qq || ss!=ifs) arg_add(arg, ifs);
           continue;
         }
@@ -1168,7 +1169,7 @@ barf:
         if (jj) break;
 
         // for double quoted "$*" append first separator from IFS
-        if ((qq&1) && cc == '*') oo += sprintf(new+oo, "%s", sep);
+        if (flags&NO_SPLIT) oo += sprintf(new+oo, "%s", sep);
 
         // finished arg: keep if quoted, non-blank, or non-whitespace separator
         else {
@@ -1341,14 +1342,10 @@ static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
 // Expand exactly one arg, returning NULL on error.
 static char *expand_one_arg(char *new, unsigned flags, struct arg_list **del)
 {
-  struct sh_arg arg;
+  struct sh_arg arg = {0};
   char *s = 0;
-  int i;
 
-  memset(&arg, 0, sizeof(arg));
   if (!expand_arg(&arg, new, flags, del) && arg.c == 1) s = *arg.v;
-  if (!del && !s) for (i = 0; i < arg.c; i++) free(arg.v[i]);
-  free(arg.v);
 
   return s;
 }
