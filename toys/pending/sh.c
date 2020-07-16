@@ -1153,7 +1153,7 @@ barf:
       do {
 
         // find end of (split) word
-        if (qq&1) ss = ifs+strlen(ifs);
+        if ((qq&1) || (flags&NO_SPLIT)) ss = ifs+strlen(ifs);
         else for (ss = ifs; *ss; ss += kk) if (utf8chr(ss, TT.ifs, &kk)) break;
 
         // when no prefix, not splitting, no suffix: use existing memory
