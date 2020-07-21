@@ -86,3 +86,34 @@ testing "quoted name" "patch > /dev/null && cat 'fruit bat'" \
 +hello
 '
 # todo bork bork2
+
+# We hit a bug, test the bugfix.
+testing "fuzz" "patch > /dev/null && cat input" \
+"blah blah
+ */
+package org.yaml.snakeyaml.representer;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+" "blah blah
+ */
+package org.yaml.snakeyaml.representer;
+
+import java.beans.IntrospectionException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+" "--- a/x/input
++++ b/x/input
+@@ -15,7 +15,6 @@
+  */
+ package org.yaml.snakeyaml.representer;
+
+-import java.beans.IntrospectionException;
+ import java.util.ArrayList;
+ import java.util.Arrays;
+ import java.util.Iterator;
+"

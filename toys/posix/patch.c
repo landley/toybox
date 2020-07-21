@@ -125,12 +125,12 @@ static int loosecmp(char *aa, char *bb)
 static int apply_one_hunk(void)
 {
   struct double_list *plist, *buf = 0, *check;
-  int matcheof, trail = 0, reverse = FLAG(R), backwarn = 0, allfuzz = 0, fuzz,i;
+  int matcheof, trail = 0, reverse = FLAG(R), backwarn = 0, allfuzz, fuzz, i;
   int (*lcmp)(char *aa, char *bb) = FLAG(l) ? (void *)loosecmp : (void *)strcmp;
 
   // Match EOF if there aren't as many ending context lines as beginning
   dlist_terminate(TT.current_hunk);
-  for (plist = TT.current_hunk; plist; plist = plist->next) {
+  for (fuzz = 0, plist = TT.current_hunk; plist; plist = plist->next) {
     char c = *plist->data, *s;
 
     if (c==' ') trail++;
@@ -142,22 +142,19 @@ static int apply_one_hunk(void)
     if (c==' ' || c=="-+"[reverse]) {
       s = plist->data+1;
       while (isspace(*s)) s++;
-      if (*s && s[1] && !isspace(s[1])) allfuzz++;
+      if (*s && s[1] && !isspace(s[1])) fuzz++;
     }
 
     if (FLAG(x)) fprintf(stderr, "HUNK:%s\n", plist->data);
   }
   matcheof = !trail || trail < TT.context;
-  if (allfuzz<2) allfuzz = 0;
-  else allfuzz = FLAG(F) ? TT.F : TT.context ? TT.context-1 : 0;
-  if (allfuzz>=sizeof(toybuf)/sizeof(long))
-    allfuzz = (sizeof(toybuf)/sizeof(long))-1;
+  if (fuzz<2) allfuzz = 0;
+  else allfuzz = FLAG(F) ? TT.F : (TT.context ? TT.context-1 : 0);
 
   if (FLAG(x)) fprintf(stderr,"MATCHEOF=%c\n", matcheof ? 'Y' : 'N');
 
   // Loop through input data searching for this hunk. Match all context
-  // lines and all lines to be removed until we've found the end of a
-  // complete hunk.
+  // lines and lines to be removed until we've found end of complete hunk.
   plist = TT.current_hunk;
   fuzz = 0;
   for (;;) {
@@ -190,26 +187,21 @@ static int apply_one_hunk(void)
       if (FLAG(x)) fprintf(stderr, "IN: %s\n", data);
     }
     check = dlist_add(&buf, data);
-    // Compare this line with next expected line of hunk.
 
-    // A match can fail because the next line doesn't match, or because
-    // we hit the end of a hunk that needed EOF and this isn't EOF.
-
-    // If match failed, flush first line of buffered data and
-    // recheck buffered data for a new match until we find one or run
-    // out of buffer.
+    // Compare this line with next expected line of hunk. Match can fail
+    // because next line doesn't match, or because we hit end of a hunk that
+    // needed EOF and this isn't EOF.
     for (i = 0;; i++) {
       if (!plist || lcmp(check->data, plist->data+1)) {
+
+        // Match failed: can we fuzz it?
         if (plist && *plist->data == ' ' && fuzz<allfuzz) {
           if (FLAG(x))
             fprintf(stderr, "FUZZED: %ld %s\n", TT.linenum, plist->data);
-          ((long *)toybuf)[fuzz++] = TT.outnum+i;
+          fuzz++;
 
           goto fuzzed;
         }
-
-        // Match failed.  Write out first line of buffered data and
-        // recheck remaining buffered data for a new match.
 
         if (FLAG(x)) {
           int bug = 0;
@@ -228,14 +220,13 @@ static int apply_one_hunk(void)
           goto done;
         }
 
+        // Write out first line of buffer and recheck rest for new match.
         TT.state = 3;
         do_line(check = dlist_pop(&buf));
         plist = TT.current_hunk;
-        memset(toybuf, 0, (fuzz+7)/8);
         fuzz = 0;
 
-        // If we've reached the end of the buffer without confirming a
-        // match, read more lines.
+        // If end of the buffer without finishing a match, read more lines.
         if (!buf) break;
         check = buf;
       } else {
@@ -252,13 +243,9 @@ fuzzed:
 out:
   // We have a match.  Emit changed data.
   TT.state = "-+"[reverse];
-  allfuzz = 0;
   while ((plist = dlist_pop(&TT.current_hunk))) {
     if (TT.state == *plist->data || *plist->data == ' ') {
-      if (((long *)toybuf)[allfuzz] == ++TT.outnum) {
-        dprintf(TT.fileout, "%s\n", buf->data);
-        allfuzz++;
-      } else if (*plist->data == ' ') dprintf(TT.fileout, "%s\n",plist->data+1);
+      if (*plist->data == ' ') dprintf(TT.fileout, "%s\n", buf->data);
       llist_free_double(dlist_pop(&buf));
     } else dprintf(TT.fileout, "%s\n", plist->data+1);
     llist_free_double(plist);
