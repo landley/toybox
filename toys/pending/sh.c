@@ -22,6 +22,7 @@
  *
  * deviations from posix: don't care about $LANG or $LC_ALL
 
+ * TODO: case wildcard
  * TODO: test that $PS1 color changes work without stupid \[ \] hack
  * TODO: Handle embedded NUL bytes in the command line? (When/how?)
 
@@ -593,7 +594,11 @@ static char *parse_word(char *start, int early)
         toybuf[quote++] = ")}]"[i];
         end++;
       }
+    } else if (end[1]=='(' && strchr("?*+@!", *end)) {
+      toybuf[quote++] = ')';
+      end += 2;
     }
+
     if (early && !quote) return end;
     end++;
   }
@@ -831,6 +836,13 @@ char *slashcopy(char *s, char c)
   return ss;
 }
 
+// wildcard expand data and add results to arg list
+static void wildcard_add(struct sh_arg *arg, char *data)
+{
+  arg_add(arg, data);
+}
+
+
 #define NO_PATH  (1<<0)    // path expansion (wildcards)
 #define NO_SPLIT (1<<1)    // word splitting
 #define NO_BRACE (1<<2)    // {brace,expansion}
@@ -838,18 +850,14 @@ char *slashcopy(char *s, char c)
 #define NO_QUOTE (1<<4)    // quote removal
 #define SEMI_IFS (1<<5)    // Use ' ' instead of IFS to combine $*
 // TODO: parameter/variable $(command) $((math)) split pathglob
-// TODO: ${name:?error} causes an error/abort here (syntax_err longjmp?)
-// TODO: $1 $@ $* need args marshalled down here: function+structure?
-// arg = append to this
-// str = string to expand
-// flags = type of expansions (not) to do
-// delete = append new allocations to this so they can be freed later
-// TODO: at_args: $1 $2 $3 $* $@
+// expand str appending to arg using above flag defines, add mallocs to delete
 static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
   struct arg_list **delete)
 {
   char cc, qq = 0, sep[6], *old = str, *new = str, *s, *ss, *ifs, *slice;
   int ii = 0, oo = 0, xx, yy, dd, jj, kk, ll, mm;
+  void (*cardish_add)(struct sh_arg *arg, char *data) =
+    (flags&NO_PATH) ? arg_add : wildcard_add;
 
 if (BUGBUG) dprintf(255, "expand %s\n", str);
 
@@ -878,8 +886,7 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
     }
   }
 
-  // parameter/variable expansion, and dequoting
-
+  // parameter/variable expansion and dequoting
   for (; (cc = str[ii++]); old!=new && (new[oo] = 0)) {
     struct sh_arg aa = {0};
 
@@ -1158,7 +1165,7 @@ barf:
 
         // when no prefix, not splitting, no suffix: use existing memory
         if (!oo && !*ss && !((mm==aa.c) ? str[ii] : (flags&NO_SPLIT))) {
-          if (qq || ss!=ifs) arg_add(arg, ifs);
+          if (qq || ss!=ifs) cardish_add(arg, ifs);
           continue;
         }
 
@@ -1173,9 +1180,12 @@ barf:
 
         // finished arg: keep if quoted, non-blank, or non-whitespace separator
         else {
-          if (qq || *new || *ss) arg_add(arg, xrealloc(new, strlen(new)+1));
+          if (qq || *new || *ss) {
+            push_arg(delete, new = xrealloc(new, strlen(new)+1));
+            cardish_add(arg, new);
+            new = xstrdup(str+ii);
+          }
           qq &= 1;
-          new = xstrdup(str+ii);
           oo = 0;
         }
 
@@ -1196,9 +1206,10 @@ barf:
 // TODO test NO_SPLIT cares about IFS, see also trailing \n
 
   // Record result.
-  if (*new || qq)
-    arg_add_del(arg, new, (old != new) ? delete : 0);
-  else if(old != new) free(new);
+  if (*new || qq) {
+    if (old != new) push_arg(delete, new);
+    cardish_add(arg, new);
+  } else if (old != new) free(new);
 
   return 0;
 }
@@ -2607,7 +2618,7 @@ static void subshell_setup(void)
   fcntl(254, F_SETFD, FD_CLOEXEC);
   fp = fdopen(254, "r");
 
-  // This is not efficient, could array_add the local vars.
+// TODO This is not efficient, could array_add the local vars.
 // TODO implicit exec when possible
   while ((s = xgetline(fp, 0))) toys.exitval = sh_run(s);
   fclose(fp);
