@@ -837,27 +837,34 @@ char *slashcopy(char *s, char c)
 }
 
 // wildcard expand data and add results to arg list
-static void wildcard_add(struct sh_arg *arg, char *data)
+static void wildcard_add(struct sh_arg *arg, char *data, struct sh_arg *deck,
+  struct arg_list **delete)
 {
   arg_add(arg, data);
 }
 
+// Record active wildcard chars in output string
+static void collect_wildcards(char *new, long oo, struct sh_arg *deck,
+  struct sh_arg *ant)
+{
+  ;
+}
 
-#define NO_PATH  (1<<0)    // path expansion (wildcards)
-#define NO_SPLIT (1<<1)    // word splitting
-#define NO_BRACE (1<<2)    // {brace,expansion}
-#define NO_TILDE (1<<3)    // ~username/path
-#define NO_QUOTE (1<<4)    // quote removal
+#define NO_QUOTE (1<<0)    // quote removal
+#define NO_PATH  (1<<1)    // path expansion (wildcards)
+#define NO_SPLIT (1<<2)    // word splitting
+#define NO_BRACE (1<<3)    // {brace,expansion}
+#define NO_TILDE (1<<4)    // ~username/path
 #define SEMI_IFS (1<<5)    // Use ' ' instead of IFS to combine $*
 // TODO: parameter/variable $(command) $((math)) split pathglob
 // expand str appending to arg using above flag defines, add mallocs to delete
 static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
   struct arg_list **delete)
 {
-  char cc, qq = 0, sep[6], *old = str, *new = str, *s, *ss, *ifs, *slice;
+  char cc, qq = flags&NO_QUOTE, sep[6], *old = str, *new = str, *s, *ss, *ifs,
+    *slice;
   int ii = 0, oo = 0, xx, yy, dd, jj, kk, ll, mm;
-  void (*cardish_add)(struct sh_arg *arg, char *data) =
-    (flags&NO_PATH) ? arg_add : wildcard_add;
+  struct sh_arg deck = {0}, ant = {0};
 
 if (BUGBUG) dprintf(255, "expand %s\n", str);
 
@@ -890,22 +897,27 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
   for (; (cc = str[ii++]); old!=new && (new[oo] = 0)) {
     struct sh_arg aa = {0};
 
+    if (!(flags&NO_PATH) && !(qq&1)) collect_wildcards(new, oo, &deck, &ant);
+
     // skip literal chars
-    if (!strchr("$'`\\\"", cc)) {
-      if (old != new) new[oo++] = cc;
+    if (!strchr("'\"\\$`"+2*(flags&NO_QUOTE), cc)) {
+      if (old != new) new[oo] = cc;
+      oo++;
       continue;
     }
 
     // allocate snapshot if we just started modifying
     if (old == new) {
       new = xstrdup(new);
-      new[oo = ii-1] = 0;
+      new[oo] = 0;
     }
     ifs = slice = 0;
 
     // handle escapes and quoting
-    if (cc == '\\') new[oo++] = str[ii] ? str[ii++] : cc;
-    else if (cc == '"') qq++;
+    if (cc == '\\') {
+      if (!(qq&1) || strchr("\"\\$`", str[ii]))
+        new[oo++] = str[ii] ? str[ii++] : cc;
+    } else if (cc == '"') qq++;
     else if (cc == '\'') {
       if (qq&1) new[oo++] = cc;
       else {
@@ -1165,7 +1177,7 @@ barf:
 
         // when no prefix, not splitting, no suffix: use existing memory
         if (!oo && !*ss && !((mm==aa.c) ? str[ii] : (flags&NO_SPLIT))) {
-          if (qq || ss!=ifs) cardish_add(arg, ifs);
+          if (qq || ss!=ifs) wildcard_add(arg, ifs, &deck, delete);
           continue;
         }
 
@@ -1182,7 +1194,7 @@ barf:
         else {
           if (qq || *new || *ss) {
             push_arg(delete, new = xrealloc(new, strlen(new)+1));
-            cardish_add(arg, new);
+            wildcard_add(arg, new, &deck, delete);
             new = xstrdup(str+ii);
           }
           qq &= 1;
@@ -1208,8 +1220,11 @@ barf:
   // Record result.
   if (*new || qq) {
     if (old != new) push_arg(delete, new);
-    cardish_add(arg, new);
+    wildcard_add(arg, new, &deck, delete);
   } else if (old != new) free(new);
+
+// TODO free deck
+// TODO free ant, use ant to trim deck in wildcard_add
 
   return 0;
 }
@@ -1356,7 +1371,8 @@ static char *expand_one_arg(char *new, unsigned flags, struct arg_list **del)
   struct sh_arg arg = {0};
   char *s = 0;
 
-  if (!expand_arg(&arg, new, flags, del) && arg.c == 1) s = *arg.v;
+  if (!expand_arg(&arg, new, flags|NO_PATH|NO_SPLIT, del)) s = *arg.v;
+  free(arg.v);
 
   return s;
 }
@@ -1459,11 +1475,16 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int skip, int *urd)
     if (isdigit(*s) && ss-s>5) break;
 
     // expand arguments for everything but << and <<-
-    if (strncmp(ss, "<<", 2) && ss[2] != '<' &&
-      !(sss = expand_one_arg(sss, NO_PATH, &pp->delete)))
-    {
-      s = 0;
-      break; // arg splitting here is an error
+    if (strncmp(ss, "<<", 2) && ss[2] != '<') {
+      struct sh_arg tmp = {0};
+
+      if (!expand_arg(&tmp, sss, 0, &pp->delete) && tmp.c == 1) sss = *tmp.v;
+      else {
+        if (tmp.c > 1) error_msg("%s: ambiguous redirect", sss);
+        s = 0;
+      }
+      free(tmp.v);
+      if (!s) break;
     }
 
     // Parse the [fd] part of [fd]<name
@@ -1499,13 +1520,13 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int skip, int *urd)
 
         // write contents to file (if <<< else <<) then lseek back to start
         else if (ss[2] == '<') {
-          if (x && !(sss = expand_one_arg(sss, NO_PATH|NO_SPLIT, 0))) {
+          if (!(ss = expand_one_arg(sss, 0, 0))) {
             s = 0;
             break;
           }
-          len = strlen(sss);
-          if (len != writeall(from, sss, len)) bad++;
-          if (x) free(sss);
+          len = strlen(ss);
+          if (len != writeall(from, ss, len)) bad++;
+          if (ss != sss) free(ss);
         } else {
           struct sh_arg *hh = arg+here++;
 
@@ -1514,9 +1535,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int skip, int *urd)
             sss = 0;
 // TODO audit this ala man page
             // expand_parameter, commands, and arithmetic
-            if (x && !(ss = sss = expand_one_arg(ss,
-              NO_PATH|NO_SPLIT|NO_BRACE|NO_TILDE|NO_QUOTE, 0)))
-            {
+            if (x && !(ss = sss = expand_one_arg(ss, ~SEMI_IFS, 0))) {
               s = 0;
               break;
             }
@@ -1647,7 +1666,7 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
   // perform assignments locally if there's no command
   if (envlen == arg->c) {
     while (jj<envlen) {
-      if (!(s = expand_one_arg(arg->v[jj], NO_PATH|NO_SPLIT, 0))) break;
+      if (!(s = expand_one_arg(arg->v[jj], SEMI_IFS, 0))) break;
       setvar((s == arg->v[jj++]) ? xstrdup(s) : s);
     }
     if (jj == envlen) setvarval("_", "");
@@ -1658,7 +1677,7 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
     memcpy(env.v = xmalloc(sizeof(char *)*(env.c+33)), environ,
       sizeof(char *)*(env.c+1));
     for (; jj<envlen; jj++) {
-      if (!(sss = expand_one_arg(arg->v[jj], NO_PATH|NO_SPLIT, &delete)))
+      if (!(sss = expand_one_arg(arg->v[jj], SEMI_IFS, &delete)))
         break;
       for (ll = 0; ll<env.c; ll++) {
         for (s = sss, ss = env.v[ll]; *s == *ss && *s != '='; s++, ss++);
@@ -2321,7 +2340,7 @@ dprintf(2, "TODO skipped init for((;;)), need math parser\n");
             if (expand_arg(&blk->farg, pl->next->arg->v[i], 0, &blk->fdelete))
               break;
           if (i != pl->next->arg->c) pl = pop_block(&blk, pipes);
-        // in without LIST. (This expansion can't fail.)
+        // in without LIST. (This expansion can't return error.)
         } else expand_arg(&blk->farg, "\"$@\"", 0, &blk->fdelete);
 
 // TODO case/esac [[/]] ((/)) function/}
