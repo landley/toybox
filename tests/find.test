@@ -38,6 +38,8 @@ testing "( -type p -o -type d ) -type p" \
 testing "-type l -o -type d -type p -o -type f" \
 	"find dir -type l -o -type d -type p -o -type f | sort" \
 	"dir/file\ndir/link\n" "" ""
+testing "-type l,f" \
+	"find dir -type l,f | sort" "dir/file\ndir/link\n" "" ""
 
 # Testing short-circuit evaluations
 
