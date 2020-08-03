@@ -26,7 +26,7 @@ config XARGS
     -n	Max number of arguments per command
     -o	Open tty for COMMAND's stdin (default /dev/null)
     -p	Prompt for y/n from tty before running each command
-    -P  Parallel processes (default 1)
+    -P	Parallel processes (default 1)
     -r	Don't run with empty input (otherwise always run command once)
     -s	Size in bytes per command line
     -t	Trace, print command line to stderr
