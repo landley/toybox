@@ -9,6 +9,9 @@
 tz=Europe/Berlin
 this_year=$(TZ=$tz date +%Y)
 
+# Use a consistent locale too.
+export LANG=C
+
 # Unix date parsing.
 testing "-d @0" "TZ=$tz date -d @0" "Thu Jan  1 01:00:00 CET 1970\n" "" ""
 testing "-d @0x123 invalid" "TZ=$tz date -d @0x123 2>/dev/null || echo expected error" "expected error\n" "" ""
@@ -54,3 +57,10 @@ rm -f f
 testing "TZ=" "TZ='America/Los_Angeles' date -d 'TZ=\"Europe/Berlin\" 2018-01-04 08:00'" "Wed Jan  3 23:00:00 PST 2018\n" "" ""
 testing "TZ=" "TZ='America/Los_Angeles' date -d 'TZ=\"Europe/Berlin\" 2018-10-04 08:00'" "Wed Oct  3 23:00:00 PDT 2018\n" "" ""
 testing "TZ= @" "TZ='America/Los_Angeles' date -d 'TZ=\"GMT\" @1533427200'" "Sat Aug  4 17:00:00 PDT 2018\n" "" ""
+
+testing "tz Z" \
+  "date -u -d 2020-08-01T12:34:56Z" "Sat Aug  1 12:34:56 UTC 2020\n" "" ""
+testing "tz +0800" \
+  "date -u -d 2020-08-01T12:34:56+0800" "Sat Aug  1 04:34:56 UTC 2020\n" "" ""
+testing "tz +08:00" \
+  "date -u -d 2020-08-01T12:34:56+08:00" "Sat Aug  1 04:34:56 UTC 2020\n" "" ""

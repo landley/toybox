@@ -964,6 +964,35 @@ time_t xvali_date(struct tm *tm, char *str)
   error_exit("bad date %s", str);
 }
 
+// Turn a timezone specified as +HH[:MM] or Z into a value for $TZ.
+static int convert_tz(char *tz, char **pp)
+{
+  char sign, *p = *pp;
+  unsigned h_off, m_off, len;
+
+  if (*p == 'Z') {
+    strcpy(tz, "UTC0");
+    *pp = p+1;
+    return 1;
+  }
+
+  sign = *p++;
+  if (sign != '+' && sign != '-') return 0;
+
+  if (sscanf(p, "%2u%n", &h_off, &len) != 1) return 0;
+  p += len;
+
+  if (*p == ':') p++;
+
+  if (sscanf(p, "%2u%n", &m_off, &len) != 1) return 0;
+  p += len;
+
+  // We have to flip the sign because POSIX UTC offsets are backwards!
+  sprintf(tz, "UTC%c%02d:%02d", sign == '-' ? '+' : '-', h_off, m_off);
+  *pp = p;
+  return 1;
+}
+
 // Parse date string (relative to current *t). Sets time_t and nanoseconds.
 void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
 {
@@ -975,7 +1004,7 @@ void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
   char *s = str, *p, *oldtz = 0, *formats[] = {"%Y-%m-%d %T", "%Y-%m-%dT%T",
     "%H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d", "%H:%M", "%m%d%H%M",
     endian ? "%m%d%H%M%y" : "%y%m%d%H%M",
-    endian ? "%m%d%H%M%C%y" : "%C%y%m%d%H%M"};
+    endian ? "%m%d%H%M%C%y" : "%C%y%m%d%H%M"}, tz[10];
 
   *nano = 0;
 
@@ -998,15 +1027,6 @@ void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
     xvali_date(0, str);
   }
 
-  // Trailing Z means UTC timezone, don't expect libc to know this.
-  // (Trimming it off here means it won't show up in error messages.)
-  if ((i = strlen(str)) && toupper(str[i-1])=='Z') {
-    str[--i] = 0;
-    oldtz = getenv("TZ");
-    if (oldtz) oldtz = xstrdup(oldtz);
-    setenv("TZ", "UTC0", 1);
-  }
-
   // Try each format
   for (i = 0; i<ARRAY_LEN(formats); i++) {
     localtime_r(&now, &tm);
@@ -1014,6 +1034,7 @@ void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
     tm.tm_isdst = -endian;
 
     if ((p = strptime(s, formats[i], &tm))) {
+      // Handle optional fractional seconds.
       if (*p == '.') {
         p++;
         // If format didn't already specify seconds, grab seconds
@@ -1027,6 +1048,13 @@ void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
           *nano *= 10;
           if (isdigit(*p)) *nano += *p++-'0';
         }
+      }
+
+      // Handle optional timezone.
+      if (convert_tz(tz, &p)) {
+        oldtz = getenv("TZ");
+        if (oldtz) oldtz = xstrdup(oldtz);
+        setenv("TZ", tz, 1);
       }
 
       if (!*p) break;

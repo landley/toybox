@@ -29,6 +29,9 @@ config DATE
     YYYY-MM-DD [hh:mm[:ss]]   ISO 8601
     hh:mm[:ss]                24-hour time today
 
+    All input formats can be followed by fractional seconds, and/or a UTC
+    offset such as -0800.
+
     All input formats can be preceded by TZ="id" to set the input time zone
     separately from the output time zone. Otherwise $TZ sets both.
 
