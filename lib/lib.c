@@ -445,7 +445,7 @@ int unescape2(char **c, int echo)
   if (**c == 'c') return 31&*(++*c);
   for (i = 0; i<4; i++) {
     if (sscanf(*c, (char *[]){"0%3o%n"+!echo, "x%2x%n", "u%4x%n", "U%6x%n"}[i],
-        &idx, &off))
+        &idx, &off) > 0)
     {
       *c += off;
 
