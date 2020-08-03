@@ -8,15 +8,14 @@
  * TODO: -I	Insert mode
  * TODO: -L	Max number of lines of input per command
  * TODO: -x	Exit if can't fit everything in one command
- * TODO: -P NUM	Run up to NUM processes at once
 
-USE_XARGS(NEWTOY(xargs, "^E:P#optrn#<1(max-args)s#0[!0E]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_XARGS(NEWTOY(xargs, "^E:P#<0=1optrn#<1(max-args)s#0[!0E]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config XARGS
   bool "xargs"
   default y
   help
-    usage: xargs [-0prt] [-s NUM] [-n NUM] [-E STR] COMMAND...
+    usage: xargs [-0prt] [-snE STR] COMMAND...
 
     Run command line one or more times, appending arguments from stdin.
 
@@ -27,7 +26,8 @@ config XARGS
     -n	Max number of arguments per command
     -o	Open tty for COMMAND's stdin (default /dev/null)
     -p	Prompt for y/n from tty before running each command
-    -r	Don't run command with empty input (otherwise always run command once)
+    -P  Parallel processes (default 1)
+    -r	Don't run with empty input (otherwise always run command once)
     -s	Size in bytes per command line
     -t	Trace, print command line to stderr
 */
@@ -39,7 +39,7 @@ GLOBALS(
   long s, n, P;
   char *E;
 
-  long entries, bytes;
+  long entries, bytes, np;
   char delim;
   FILE *tty;
 )
@@ -91,12 +91,22 @@ static char *handle_entries(char *data, char **entry)
   return 0;
 }
 
+// Handle SIGUSR1 and SIGUSR2 for -P
+static void signal_P(int sig)
+{
+  if (sig == SIGUSR2 && TT.P>1) TT.P--;
+  else TT.P++;
+}
+
 void xargs_main(void)
 {
   struct double_list *dlist = 0, *dtemp;
   int entries, bytes, done = 0, status;
-  char *data = 0, **out;
+  char *data = 0, **out = 0;
   pid_t pid = 0;
+
+  xsignal_flags(SIGUSR1, signal_P, SA_RESTART);
+  xsignal_flags(SIGUSR2, signal_P, SA_RESTART);
 
   // POSIX requires that we never hit the ARG_MAX limit, even if we try to
   // with -s. POSIX also says we have to reserve 2048 bytes "to guarantee
@@ -138,7 +148,6 @@ void xargs_main(void)
         }
       }
       dlist_add(&dlist, data);
-
       // Count data used
       if (!(data = handle_entries(data, 0))) continue;
       if (data == (char *)2) done++;
@@ -150,8 +159,7 @@ void xargs_main(void)
 
     if (!TT.entries) {
       if (data) error_exit("argument too long");
-      else if (pid) return;
-      else if (FLAG(r)) continue;
+      if (pid || FLAG(r)) goto reap_children;
     }
 
     // Fill out command line to exec
@@ -170,7 +178,7 @@ void xargs_main(void)
       if (FLAG(p)) {
         fprintf(stderr, "?");
         if (!TT.tty) TT.tty = xfopen("/dev/tty", "re");
-        if (!fyesno(TT.tty, 0)) goto skip;
+        if (!fyesno(TT.tty, 0)) goto reap_children;
       } else fprintf(stderr, "\n");
     }
 
@@ -179,28 +187,30 @@ void xargs_main(void)
       xopen_stdio(FLAG(o) ? "/dev/tty" : "/dev/null", O_RDONLY);
       xexec(out);
     }
-    waitpid(pid, &status, 0);
+    TT.np++;
 
-    // xargs is yet another weird collection of exit value special cases,
-    // different from all the others.
-    if (WIFEXITED(status)) {
-      if (WEXITSTATUS(status) == 126 || WEXITSTATUS(status) == 127) {
-        toys.exitval = WEXITSTATUS(status);
-        return;
-      } else if (WEXITSTATUS(status) >= 1 && WEXITSTATUS(status) <= 125) {
-        toys.exitval = 123;
-      } else if (WEXITSTATUS(status) == 255) {
-        error_msg("%s: exited with status 255; aborting", out[0]);
+reap_children:
+    while (TT.np) {
+      int xv = (TT.np == TT.P) || (!data && done);
+
+      if (1>(xv = waitpid(-1, &status, WNOHANG*!xv))) break;
+      TT.np--;
+      xv = WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status)+128;
+      if (xv == 255) {
+        error_msg("%s: exited with status 255; aborting", *out);
         toys.exitval = 124;
-        return;
-      }
-    } else toys.exitval = 127;
+        break;
+      } else if ((xv|1)==127) toys.exitval = xv;
+      else if (xv>127) xv = 125;
+      else if (xv) toys.exitval = 123;
+    }
 
     // Abritrary number of execs, can't just leak memory each time...
-skip:
     llist_traverse(dlist, llist_free_double);
     dlist = 0;
     free(out);
+    out = 0;
   }
+  while (TT.np && -1 != wait(&status)) TT.np--;
   if (TT.tty) fclose(TT.tty);
 }
