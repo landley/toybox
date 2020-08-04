@@ -27,7 +27,7 @@ config GETTY
 */
 #define FOR_getty
 #include "toys.h"
-#include <utmp.h>
+#include <utmpx.h>
 
 GLOBALS(
   char *issue_str;
@@ -262,35 +262,35 @@ static int read_login_name(void)
 // Put hostname entry in utmp file
 static void utmp_entry(void)
 {
-  struct utmp entry;
-  struct utmp *utp_ptr;
+  struct utmpx entry;
+  struct utmpx *utp_ptr;
   pid_t pid = getpid();
   char *utmperr = "can't make utmp entry, host length greater than UT_HOSTSIZE(256)";
 
-  utmpname(_PATH_UTMP);
-  setutent(); // Starts from start
-  while ((utp_ptr = getutent())) 
+  setutxent(); // Starts from start
+  while ((utp_ptr = getutxent()))
     if (utp_ptr->ut_pid == pid && utp_ptr->ut_type >= INIT_PROCESS) break;
-  if (!utp_ptr) { 
+  if (!utp_ptr) {
     entry.ut_type = LOGIN_PROCESS;
     entry.ut_pid = getpid();
-    xstrncpy(entry.ut_line, ttyname(STDIN_FILENO) + 
-        strlen("/dev/"), UT_LINESIZE);
-    time((time_t *)&entry.ut_time);
-    xstrncpy(entry.ut_user, "LOGIN", UT_NAMESIZE);
-    if (strlen(TT.host_str) > UT_HOSTSIZE) perror_msg_raw(utmperr);
-    else xstrncpy(entry.ut_host, TT.host_str, UT_HOSTSIZE);
-    setutent();
-    pututline(&entry);
+    xstrncpy(entry.ut_line, ttyname(STDIN_FILENO) +
+        strlen("/dev/"), sizeof(entry.ut_line));
+    time((time_t *)&entry.ut_tv.tv_sec);
+    xstrncpy(entry.ut_user, "LOGIN", sizeof(entry.ut_user));
+    if (strlen(TT.host_str) > sizeof(entry.ut_host)) perror_msg_raw(utmperr);
+    else xstrncpy(entry.ut_host, TT.host_str, sizeof(entry.ut_host));
+    setutxent();
+    pututxline(&entry);
     return;
   }
-  xstrncpy(entry.ut_line, ttyname(STDIN_FILENO) + strlen("/dev/"), UT_LINESIZE);
-  xstrncpy(entry.ut_user, "LOGIN", UT_NAMESIZE);
-  if (strlen(TT.host_str) > UT_HOSTSIZE) perror_msg_raw(utmperr);
-  else xstrncpy(entry.ut_host, TT.host_str, UT_HOSTSIZE);
-  time((time_t *)&entry.ut_time);
-  setutent();
-  pututline(&entry);
+  xstrncpy(entry.ut_line, ttyname(STDIN_FILENO) + strlen("/dev/"),
+    sizeof(entry.ut_line));
+  xstrncpy(entry.ut_user, "LOGIN", sizeof(entry.ut_user));
+  if (strlen(TT.host_str) > sizeof(entry.ut_host)) perror_msg_raw(utmperr);
+  else xstrncpy(entry.ut_host, TT.host_str, sizeof(entry.ut_host));
+  time((time_t *)&entry.ut_tv.tv_sec);
+  setutxent();
+  pututxline(&entry);
 }
 
 void getty_main(void)
