@@ -964,35 +964,6 @@ time_t xvali_date(struct tm *tm, char *str)
   error_exit("bad date %s", str);
 }
 
-// Turn a timezone specified as +HH[:MM] or Z into a value for $TZ.
-static int convert_tz(char *tz, char **pp)
-{
-  char sign, *p = *pp;
-  unsigned h_off, m_off, len;
-
-  if (*p == 'Z') {
-    strcpy(tz, "UTC0");
-    *pp = p+1;
-    return 1;
-  }
-
-  sign = *p++;
-  if (sign != '+' && sign != '-') return 0;
-
-  if (sscanf(p, "%2u%n", &h_off, &len) != 1) return 0;
-  p += len;
-
-  if (*p == ':') p++;
-
-  if (sscanf(p, "%2u%n", &m_off, &len) != 1) return 0;
-  p += len;
-
-  // We have to flip the sign because POSIX UTC offsets are backwards!
-  sprintf(tz, "UTC%c%02d:%02d", sign == '-' ? '+' : '-', h_off, m_off);
-  *pp = p;
-  return 1;
-}
-
 // Parse date string (relative to current *t). Sets time_t and nanoseconds.
 void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
 {
@@ -1004,7 +975,7 @@ void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
   char *s = str, *p, *oldtz = 0, *formats[] = {"%Y-%m-%d %T", "%Y-%m-%dT%T",
     "%H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d", "%H:%M", "%m%d%H%M",
     endian ? "%m%d%H%M%y" : "%y%m%d%H%M",
-    endian ? "%m%d%H%M%C%y" : "%C%y%m%d%H%M"}, tz[10];
+    endian ? "%m%d%H%M%C%y" : "%C%y%m%d%H%M"};
 
   *nano = 0;
 
@@ -1050,10 +1021,24 @@ void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
         }
       }
 
-      // Handle optional timezone.
-      if (convert_tz(tz, &p)) {
-        oldtz = getenv("TZ");
-        if (oldtz) oldtz = xstrdup(oldtz);
+      // Handle optional Z or +HH[[:]MM] timezone
+      if (*p && strchr("Z+-", *p)) {
+        unsigned hh, mm = 0, len;
+        char *tz, sign = *p++;
+
+        if (sign == 'Z') tz = "UTC0";
+        else if (sscanf(p, "%2u%2u%n",  &hh, &mm, &len) == 2
+              || sscanf(p, "%2u%n:%2u%n", &hh, &len, &mm, &len) > 0)
+        {
+          // flip sign because POSIX UTC offsets are backwards
+          sprintf(tz = libbuf, "UTC%c%02d:%02d", "+-"[sign=='+'], hh, mm);
+          p += len;
+        } else continue;
+
+        if (!oldtz) {
+          oldtz = getenv("TZ");
+          if (oldtz) oldtz = xstrdup(oldtz);
+        }
         setenv("TZ", tz, 1);
       }
 
