@@ -58,9 +58,18 @@ testing "TZ=" "TZ='America/Los_Angeles' date -d 'TZ=\"Europe/Berlin\" 2018-01-04
 testing "TZ=" "TZ='America/Los_Angeles' date -d 'TZ=\"Europe/Berlin\" 2018-10-04 08:00'" "Wed Oct  3 23:00:00 PDT 2018\n" "" ""
 testing "TZ= @" "TZ='America/Los_Angeles' date -d 'TZ=\"GMT\" @1533427200'" "Sat Aug  4 17:00:00 PDT 2018\n" "" ""
 
+# Test all supported UTC offset variants.
 testing "tz Z" \
   "date -u -d 2020-08-01T12:34:56Z" "Sat Aug  1 12:34:56 UTC 2020\n" "" ""
+testing "tz -0800" \
+  "date -u -d 2020-08-01T12:34:56-0800" "Sat Aug  1 20:34:56 UTC 2020\n" "" ""
 testing "tz +0800" \
   "date -u -d 2020-08-01T12:34:56+0800" "Sat Aug  1 04:34:56 UTC 2020\n" "" ""
 testing "tz +08:00" \
   "date -u -d 2020-08-01T12:34:56+08:00" "Sat Aug  1 04:34:56 UTC 2020\n" "" ""
+testing "tz +8" \
+  "date -u -d 2020-08-01T12:34:56+8" "Sat Aug  1 04:34:56 UTC 2020\n" "" ""
+testing "tz +08" \
+  "date -u -d 2020-08-01T12:34:56+08" "Sat Aug  1 04:34:56 UTC 2020\n" "" ""
+testing "tz +008" \
+  "date -u -d 2020-08-01T12:34:56+008" "Sat Aug  1 12:26:56 UTC 2020\n" "" ""
