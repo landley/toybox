@@ -1048,7 +1048,7 @@ char *xgetline(FILE *fp, int *len)
 
   errno = 0;
   if (1>(ll = getline(&new, &linelen, fp))) {
-    if (errno) perror_msg("getline");
+    if (errno && errno != EINTR) perror_msg("getline");
     new = 0;
   } else if (new[ll-1] == '\n') new[--ll] = 0;
   if (len) *len = ll;
