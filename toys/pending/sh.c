@@ -292,7 +292,9 @@ static void syntax_err(char *s)
 // append to array with null terminator and realloc as necessary
 static void arg_add(struct sh_arg *arg, char *data)
 {
-  if (!(arg->c&31)) arg->v = xrealloc(arg->v, sizeof(char *)*(arg->c+33));
+  // expand with stride 32. Micro-optimization: don't realloc empty stack
+  if (!(arg->c&31) && (arg->c || !arg->v))
+    arg->v = xrealloc(arg->v, sizeof(char *)*(arg->c+33));
   arg->v[arg->c++] = data;
   arg->v[arg->c] = 0;
 }
@@ -844,10 +846,62 @@ static void wildcard_add(struct sh_arg *arg, char *data, struct sh_arg *deck,
 }
 
 // Record active wildcard chars in output string
-static void collect_wildcards(char *new, long oo, struct sh_arg *deck,
-  struct sh_arg *ant)
+// *new start of string, oo offset into string, deck is found wildcards,
+// ant is scratch space for nested +()
+static void collect_wildcards(char *new, long oo, struct sh_arg *deck)
 {
-  ;
+  long bracket, *vv;
+  char cc = new[oo];
+
+  // Record unescaped/unquoted wildcard metadata for later processing
+
+  if (!deck->c) arg_add(deck, 0);
+  vv = (long *)deck->v;
+
+  // Start +( range, or remove first char that isn't wildcard without (
+  if (deck->c>1 && vv[deck->c-1] == oo-1 && strchr("+@!*?", new[oo-1])) {
+    if (cc == '(') {
+      vv[deck->c-1] = oo;
+      return;
+    } else if (!strchr("*?", new[oo-1])) deck->c--;
+  }
+
+  // yank unifinished ( ranges from metadata, they're not live wildcards
+  if (!cc) {
+    long ii = 0, jj = 65535&*vv;
+
+    for (oo = deck->c; jj;) {
+      cc = new[vv[--oo]];
+      if (')' == cc) ii++;
+      else if ('(' == cc) {
+        if (ii) ii--;
+        else {
+          memmove(vv+oo, vv+oo+1, sizeof(long)*(deck->c-- -oo));
+          jj--;
+        }
+      }
+    }
+
+    return;
+  } else if (strchr("|+@!*?", cc));
+  // Pop parentheses stack
+  else if (cc == ')' && (65535&*vv)) --*vv;
+
+  // If we complete a [range] discard any other wildcards within, add [ and ]
+  else if (cc == ']' && (bracket = *vv>>16)) {
+    if (bracket == oo || (bracket+1 == oo && new[oo-1] == '^')) return;
+    while (deck->c>1 && vv[deck->c-1]>=bracket) deck->c--;
+    *vv &= 65535;
+    arg_add(deck, (void *)--bracket);
+
+  // [ is speculative, don't add to deck yet, just record we saw it
+  } else {
+    if (cc == '[' && !(*vv>>16)) *vv = (oo<<16)+(65535&*vv);
+    return;
+  }
+
+  // add active wildcard location
+  arg_add(deck, (void *)oo);
 }
 
 #define NO_QUOTE (1<<0)    // quote removal
@@ -861,10 +915,10 @@ static void collect_wildcards(char *new, long oo, struct sh_arg *deck,
 static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
   struct arg_list **delete)
 {
-  char cc, qq = flags&NO_QUOTE, sep[6], *old = str, *new = str, *s, *ss, *ifs,
+  char cc, qq = flags&NO_QUOTE, sep[6], *new = str, *s, *ss, *ifs,
     *slice;
   int ii = 0, oo = 0, xx, yy, dd, jj, kk, ll, mm;
-  struct sh_arg deck = {0}, ant = {0};
+  struct sh_arg deck = {0};
 
 if (BUGBUG) dprintf(255, "expand %s\n", str);
 
@@ -888,26 +942,27 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
     if (ss) {
       oo = strlen(ss);
       s = xmprintf("%s%s", ss, str+ii);
-      if (old != new) free(new);
+      if (str != new) free(new);
       new = s;
     }
   }
 
   // parameter/variable expansion and dequoting
-  for (; (cc = str[ii++]); old!=new && (new[oo] = 0)) {
+  for (; (cc = str[ii++]); str!=new && (new[oo] = 0)) {
     struct sh_arg aa = {0};
+    int nosplit = 0;
 
-    if (!(flags&NO_PATH) && !(qq&1)) collect_wildcards(new, oo, &deck, &ant);
+    if (!(flags&NO_PATH) && !(qq&1)) collect_wildcards(new, oo, &deck);
 
     // skip literal chars
     if (!strchr("'\"\\$`"+2*(flags&NO_QUOTE), cc)) {
-      if (old != new) new[oo] = cc;
+      if (str != new) new[oo] = cc;
       oo++;
       continue;
     }
 
     // allocate snapshot if we just started modifying
-    if (old == new) {
+    if (str == new) {
       new = xstrdup(new);
       new[oo] = 0;
     }
@@ -1049,9 +1104,7 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
 barf:
           if (!(((unsigned long)ifs)>>1)) ifs = "bad substitution";
           error_msg("%.*s: %s", (int)(slice-ss), ss, ifs);
-          free(new);
-
-          return 1;
+          goto fail;
         }
       } else jj = 1;
 
@@ -1074,13 +1127,14 @@ barf:
 
     // combine before/ifs/after sections & split words on $IFS in ifs
 
-    // Fetch separator
+    // Fetch separator to glue string back together with
     *sep = 0;
-    if ((qq&1) && cc=='*') flags |= NO_SPLIT;
-    if (flags&NO_SPLIT) {
+    if (((qq&1) && cc=='*') || (flags&NO_SPLIT)) {
       wchar_t wc;
 
+      nosplit++;
       if (flags&SEMI_IFS) strcpy(sep, " ");
+// TODO what if separator is bigger? Need to grab 1 column of combining chars
       else if (0<(dd = utf8towc(&wc, TT.ifs, 4)))
         sprintf(sep, "%.*s", dd, TT.ifs);
     }
@@ -1118,10 +1172,7 @@ barf:
             error_msg("%.*s: bad '%c'", (int)(slice-ss), ss, *s);
             s = 0;
           }
-          if (!s) {
-            free(new);
-            return 1;
-          }
+          if (!s) goto fail;
 
           // This isn't quite what bash does, but close enough.
           if (!(lc = aa.c)) lc = strlen(ifs);
@@ -1172,26 +1223,31 @@ barf:
       do {
 
         // find end of (split) word
-        if ((qq&1) || (flags&NO_SPLIT)) ss = ifs+strlen(ifs);
+        if ((qq&1) || nosplit) ss = ifs+strlen(ifs);
         else for (ss = ifs; *ss; ss += kk) if (utf8chr(ss, TT.ifs, &kk)) break;
 
         // when no prefix, not splitting, no suffix: use existing memory
-        if (!oo && !*ss && !((mm==aa.c) ? str[ii] : (flags&NO_SPLIT))) {
-          if (qq || ss!=ifs) wildcard_add(arg, ifs, &deck, delete);
+        if (!oo && !*ss && !((mm==aa.c) ? str[ii] : nosplit)) {
+          if (qq || ss!=ifs) {
+            if (!(flags&NO_PATH))
+              for (jj = 0; ifs[jj]; jj++) collect_wildcards(ifs, jj, &deck);
+            wildcard_add(arg, ifs, &deck, delete);
+          }
           continue;
         }
 
         // resize allocation and copy next chunk of IFS-free data
-        new = xrealloc(new, oo + (ss-ifs) + strlen(sep) +
-                       ((jj = (mm == aa.c) && !*ss) ? strlen(str+ii) : 0) + 1);
-        oo += sprintf(new + oo, "%.*s", (int)(ss-ifs), ifs);
+        jj = (mm == aa.c) && !*ss;
+        new = xrealloc(new, oo + (ss-ifs) + ((nosplit&!jj) ? strlen(sep) : 0) +
+                       (jj ? strlen(str+ii) : 0) + 1);
+        dd = sprintf(new + oo, "%.*s%s", (int)(ss-ifs), ifs,
+          (nosplit&!jj) ? sep : "");
+        if (flags&NO_PATH) oo += dd;
+        else while (dd--) collect_wildcards(new, oo++, &deck);
         if (jj) break;
 
-        // for double quoted "$*" append first separator from IFS
-        if (flags&NO_SPLIT) oo += sprintf(new+oo, "%s", sep);
-
-        // finished arg: keep if quoted, non-blank, or non-whitespace separator
-        else {
+        // If splitting, keep quoted, non-blank, or non-whitespace separator
+        if (!nosplit) {
           if (qq || *new || *ss) {
             push_arg(delete, new = xrealloc(new, strlen(new)+1));
             wildcard_add(arg, new, &deck, delete);
@@ -1219,14 +1275,19 @@ barf:
 
   // Record result.
   if (*new || qq) {
-    if (old != new) push_arg(delete, new);
+    if (str != new) push_arg(delete, new);
     wildcard_add(arg, new, &deck, delete);
-  } else if (old != new) free(new);
+    new = 0;
+  }
 
-// TODO free deck
-// TODO free ant, use ant to trim deck in wildcard_add
+  // return success after freeing
+  arg = 0;
 
-  return 0;
+fail:
+  if (str != new) free(new);
+  free(deck.v);
+
+  return !!arg;
 }
 
 // expand braces (ala {a,b,c}) and call expand_arg_nobrace() each permutation
