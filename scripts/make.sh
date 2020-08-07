@@ -47,7 +47,7 @@ echo "Generate headers from toys/*/*.c..."
 
 mkdir -p generated/unstripped
 
-if isnewer generated/Config.in toys
+if isnewer generated/Config.in toys || isnewer generated/Config.in Config.in
 then
   echo "Extract configuration information from toys/*.c files..."
   scripts/genconfig.sh

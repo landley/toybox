@@ -13,19 +13,16 @@ config TOYBOX
 	bool
 	default y
 	help
-	  usage: toybox [--long | --help | --version | [command] [arguments...]]
+	  usage: toybox [--long | --help | --version | [COMMAND] [ARGUMENTS...]]
 
-	  With no arguments, shows available commands. First argument is
-	  name of a command to run, followed by any arguments to that command.
+	  Toybox multicall binary: https://landley.net/toybox/about.html
 
-	  --long	Show path to each command
+	  With no arguments, "toybox" shows available COMMAND names. Add --long
+	  to include suggested install path for each command, see
+	  https://landley.net/toybox/faq.html#install for details.
 
-	  To install command symlinks with paths, try:
-	    for i in $(/bin/toybox --long); do ln -s /bin/toybox $i; done
-	  or all in one directory:
-	    for i in $(./toybox); do ln -s toybox $i; done; PATH=$PWD:$PATH
-
-	  Most toybox commands also understand the following arguments:
+	  First argument is name of a COMMAND to run, followed by any ARGUMENTS
+	  to that command. Most toybox commands also understand:
 
 	  --help		Show command help (only)
 	  --version	Show toybox version (only)

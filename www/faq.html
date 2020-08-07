@@ -17,6 +17,7 @@
 
 <ul>
 <!-- get binaries -->
+<li><h2><a href="#install">How do I install toybox?</h2></li>
 <li><h2><a href="#cross">How do I cross compile toybox?</h2></li>
 <li><h2><a href="#system">Where does toybox fit into the Linux/Android
 ecosystem?<br />
@@ -236,6 +237,34 @@ but that's why we test). You can set TEST_HOST=1 to test the host versionn
 instead of the toybox version (in theory they should work the same),
 and VERBOSE=1 to see diffs of the expected and actual output when a
 test fails (VERBOSE=fail to stop at the first such failure)</p>
+
+<a name="install" />
+<h2>Q: How do I install toybox?</h2>
+
+<p>A:
+Multicall binaries like toybox behave differently based on the filename
+used to call them, so if you "mv toybox ls; ./ls" it acts like ls. Creating
+symlinks or hardlinks and adding them to the $PATH lets you run the
+commands normally by name.</p>
+
+<p>If you already have a <a href=https://landley.net/toybox/downloads/binaries/>toybox binary</a>
+you can install a tree of command symlinks living in
+<a href=http://git.musl-libc.org/cgit/musl/tree/include/paths.h>the
+standard path</a>
+locations (<b>export PATH=/bin:/usr/bin:/sbin:/usr/sbin</b>) by doing:</p>
+
+<blockquote><p><b>for i in $(/bin/toybox --long); do ln -s /bin/toybox $i; done</b></p></blockquote>
+
+<p>or you can install all the symlinks in the same directory as the toybox binary
+(<b>export PATH="$PWD:$PATH"</b>) via:</p>
+
+<blockquote><p><b>for i in $(./toybox); do ln -s toybox $i; done</b></p></blockquote></p>
+
+<p>When building from source, use the "<b>make install</b>" and
+"<b>make install_flat</b>"
+targets with an appropriate <b>PREFIX=/path/to/new/directory</b> either
+exported or on the make command line
+(as mentioned in "<b>make help</b>" output).</p>
 
 <a name="cross" />
 <h2>Q: How do I cross compile toybox?</h2>

@@ -64,7 +64,7 @@ static void unknown(char *name)
 {
   toys.exitval = 127;
   toys.which = toy_list;
-  error_exit("Unknown command %s", name);
+  help_exit("Unknown command %s", name);
 }
 
 // Setup toybox global state for this command.
@@ -193,7 +193,7 @@ void toybox_main(void)
   // For early error reporting
   toys.which = toy_list;
 
-  if (toys.argv[1] && toys.argv[1][0] != '-') unknown(toys.argv[1]);
+  if (toys.argv[1] && strcmp(toys.argv[1], "--long")) unknown(toys.argv[1]);
 
   // Output list of command.
   for (i = 1; i<ARRAY_LEN(toy_list); i++) {
