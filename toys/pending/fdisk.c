@@ -433,7 +433,7 @@ static void consistency_check(const struct partition *p, int partition)
 
   //Logical and Physical diff 
   if (g_cylinders <= ONE_K && (physbc != lbc || physbh != lbh || physbs != lbs)) {
-    xprintf("Partition %u has different physical/logical beginings (Non-Linux?): \n", partition+1);
+    xprintf("Partition %u has different physical/logical beginnings (Non-Linux?): \n", partition+1);
     xprintf("phys = (%u %u %u) ",physbc, physbh, physbs);
     xprintf("logical = (%u %u %u)\n", lbc, lbh, lbs);
   }
@@ -1157,7 +1157,7 @@ static void move_begning(int idx)
     xprintf("Partition %u doesn't have data area\n", idx+1);
     return;
   }
-  sprintf(mesg, "New begining of data (0 - %lld, default %lld): ", 
+  sprintf(mesg, "New beginning of data (0 - %lld, default %lld): ",
       (long long int)(end), (long long int)(start));
   new_start = ask_value(mesg, 0, end, start);
   if (new_start != start) {
@@ -1332,7 +1332,7 @@ static void expert_menu(void)
     char *msg = "Expert Command ('m' for help): ";
     choice = 0x20 | read_input(msg, NULL);
     switch (choice) {
-      case 'b': //move data begining in partition
+      case 'b': //move data beginning in partition
         idx = ask_partition(num_parts);
         move_begning(idx - 1);
         break;
