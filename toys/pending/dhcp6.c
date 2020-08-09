@@ -619,7 +619,7 @@ void dhcp6_main(void)
         if (TT.state == DHCP6SOLICIT) {
           if (mymsg->dhcp6.msgtype == DHCP6ADVERTISE ) {
             if (!validate_ids()) {
-              dbg("Invalid id recieved, solicit.\n");
+              dbg("Invalid id received, solicit.\n");
               TT.state = DHCP6SOLICIT;
               continue;
             }
@@ -640,7 +640,7 @@ void dhcp6_main(void)
         } else if (TT.state == DHCP6REQUEST || TT.state == DHCP6RENEW ) {
           if (mymsg->dhcp6.msgtype == DHCP6REPLY) {
             if (!validate_ids()) {
-              dbg("Invalid id recieved, %d.\n", TT.state);
+              dbg("Invalid id received, %d.\n", TT.state);
               TT.state = DHCP6REQUEST;
               continue;
             }

@@ -1285,7 +1285,7 @@ static int ipaddr_listflush(char **argv)
     if (!*argv)
       error_exit("Incomplete command for \"flush\"");
     if (TT.addressfamily == AF_PACKET)
-      error_exit("Can't flush link Addressess");
+      error_exit("Can't flush link Addresses");
   }
   addrinfo.scope = -1;
   while (*argv) {

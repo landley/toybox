@@ -428,7 +428,7 @@ static int strtoopt( char *str, uint8_t optonly)
     options_list[count].len = sizeof(uint32_t);
     options_list[count].val = xmalloc(sizeof(uint32_t));
     convtmp = strtou32(valstr);
-    if (convtmp < 0) error_exit("Invalid/wrong formated number %s", valstr);
+    if (convtmp < 0) error_exit("Invalid/wrong formatted number %s", valstr);
     convtmp = htonl(convtmp);
     memcpy(options_list[count].val, &convtmp, sizeof(uint32_t));
     break;

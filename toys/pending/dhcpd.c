@@ -631,12 +631,12 @@ static int strtoopt(const char *str, void *var)
     while(grp){
       while(*grp == ' ' || *grp == '\t') grp++;
       tp = strchr(grp, '/');
-      if (!tp) error_exit("wrong formated static route option");
+      if (!tp) error_exit("wrong formatted static route option");
       *tp = '\0';
       mask = strtol(++tp, &tp, 10);
-      if (striptovar(grp, (uint8_t*)&nip)<0) error_exit("wrong formated static route option");
+      if (striptovar(grp, (uint8_t*)&nip)<0) error_exit("wrong formatted static route option");
       while(*tp == ' ' || *tp == '\t' || *tp == '-') tp++;
-      if (striptovar(tp, (uint8_t*)&router)<0) error_exit("wrong formated static route option");
+      if (striptovar(tp, (uint8_t*)&router)<0) error_exit("wrong formatted static route option");
       options_list[count].val = xrealloc(options_list[count].val, options_list[count].len + 1 + mask/8 + 4);
       memcpy(((uint8_t*)options_list[count].val)+options_list[count].len, &mask, 1);
       options_list[count].len += 1;

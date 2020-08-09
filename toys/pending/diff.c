@@ -253,7 +253,7 @@ int bcomp(const void *a, const void *b)
  *    classes of lines in file[1], with e.last = true on the last element of each class.
  *    The elements are ordered by serial within classes.
  * 4. Form the p vector stored in  p_vector. p_vector[i], if non-zero, now points in e vector
- *    to the begining of the equiv class of lines in file[1] equivalent to line
+ *    to the beginning of the equiv class of lines in file[1] equivalent to line
  *    i in file[0].
  * 5. Form the k-candidates as discribed in do_merge.
  * 6. Create a vector J[i] = j, such that i'th line in file[0] is j'th line of
