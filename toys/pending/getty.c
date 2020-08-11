@@ -25,9 +25,9 @@ config GETTY
     -I INITSTR  Send INITSTR before anything else
     -H HOST    Log HOST into the utmp file as the hostname
 */
+
 #define FOR_getty
 #include "toys.h"
-#include <utmp.h>
 
 GLOBALS(
   char *issue_str;
@@ -259,38 +259,35 @@ static int read_login_name(void)
   return 1;
 }
 
-// Put hostname entry in utmp file
 static void utmp_entry(void)
 {
-  struct utmp entry;
-  struct utmp *utp_ptr;
-  pid_t pid = getpid();
-  char *utmperr = "can't make utmp entry, host length greater than UT_HOSTSIZE(256)";
+  struct utmpx entry = {.ut_pid = getpid()}, *ep;
+  int fd;
 
-  utmpname(_PATH_UTMP);
-  setutent(); // Starts from start
-  while ((utp_ptr = getutent())) 
-    if (utp_ptr->ut_pid == pid && utp_ptr->ut_type >= INIT_PROCESS) break;
-  if (!utp_ptr) { 
-    entry.ut_type = LOGIN_PROCESS;
-    entry.ut_pid = getpid();
-    xstrncpy(entry.ut_line, ttyname(STDIN_FILENO) + 
-        strlen("/dev/"), UT_LINESIZE);
-    time((time_t *)&entry.ut_time);
-    xstrncpy(entry.ut_user, "LOGIN", UT_NAMESIZE);
-    if (strlen(TT.host_str) > UT_HOSTSIZE) perror_msg_raw(utmperr);
-    else xstrncpy(entry.ut_host, TT.host_str, UT_HOSTSIZE);
-    setutent();
-    pututline(&entry);
-    return;
+  // We're responsible for ensuring that the utmp file exists.
+  if (access(_PATH_UTMP, F_OK) && (fd = open(_PATH_UTMP, O_CREAT, 0664)) != -1)
+    close(fd);
+
+  // Find any existing entry.
+  setutxent();
+  while ((ep = getutxent()))
+    if (ep->ut_pid == entry.ut_pid && ep->ut_type >= INIT_PROCESS) break;
+  if (ep) entry = *ep;
+  else entry.ut_type = LOGIN_PROCESS;
+
+  // Modify.
+  entry.ut_tv.tv_sec = time(0);
+  xstrncpy(entry.ut_user, "LOGIN", sizeof(entry.ut_user));
+  xstrncpy(entry.ut_line, ttyname(0) + strlen("/dev/"), sizeof(entry.ut_line));
+  if (FLAG(H)) {
+    if (strlen(TT.host_str) >= sizeof(entry.ut_host))
+      perror_msg_raw("hostname too long");
+    else xstrncpy(entry.ut_host, TT.host_str, sizeof(entry.ut_host));
   }
-  xstrncpy(entry.ut_line, ttyname(STDIN_FILENO) + strlen("/dev/"), UT_LINESIZE);
-  xstrncpy(entry.ut_user, "LOGIN", UT_NAMESIZE);
-  if (strlen(TT.host_str) > UT_HOSTSIZE) perror_msg_raw(utmperr);
-  else xstrncpy(entry.ut_host, TT.host_str, UT_HOSTSIZE);
-  time((time_t *)&entry.ut_time);
-  setutent();
-  pututline(&entry);
+
+  // Write.
+  pututxline(&entry);
+  endutxent();
 }
 
 void getty_main(void)
@@ -304,7 +301,7 @@ void getty_main(void)
   open_tty();
   termios_init();
   tcsetpgrp(STDIN_FILENO, pid);
-  if (toys.optflags & FLAG_H) utmp_entry();
+  utmp_entry();
   if (toys.optflags & FLAG_I) 
     writeall(STDOUT_FILENO,TT.init_str,strlen(TT.init_str));
   if (toys.optflags & FLAG_m) sense_baud();
