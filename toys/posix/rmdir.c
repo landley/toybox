@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/rmdir.html
 
-USE_RMDIR(NEWTOY(rmdir, "<1(ignore-fail-on-non-empty)p", TOYFLAG_BIN))
+USE_RMDIR(NEWTOY(rmdir, "<1(ignore-fail-on-non-empty)p(parents)", TOYFLAG_BIN))
 
 config RMDIR
   bool "rmdir"
