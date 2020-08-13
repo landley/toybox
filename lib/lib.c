@@ -901,16 +901,19 @@ void sigatexit(void *handler)
   toys.xexit = al;
 }
 
-// Output a nicely formatted 80-column table of all the signals.
+// Output a nicely formatted table of all the signals.
 void list_signals()
 {
   int i = 0, count = 0;
+  unsigned cols = 80;
   char *name;
 
+  terminal_size(&cols, 0);
+  cols /= 16;
   for (; i<=NSIG; i++) {
     if ((name = num_to_sig(i))) {
       printf("%2d) SIG%-9s", i, name);
-      if (++count % 5 == 0) putchar('\n');
+      if (++count % cols == 0) putchar('\n');
     }
   }
   putchar('\n');
