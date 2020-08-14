@@ -5,13 +5,15 @@
  *
  * No Standard.
 
-USE_GETTY(NEWTOY(getty, "<2t#<0H:I:l:f:iwnmLh",TOYFLAG_SBIN))
+USE_GETTY(NEWTOY(getty, "<2t#<0H:I:l:f:iwnmLh", TOYFLAG_SBIN))
 
 config GETTY
   bool "getty"
   default n
   help
     usage: getty [OPTIONS] BAUD_RATE[,BAUD_RATE]... TTY [TERMTYPE]
+
+    Wait for a modem to dial into serial port, adjust baud rate, call login.
 
     -h    Enable hardware RTS/CTS flow control
     -L    Set CLOCAL (ignore Carrier Detect state)
@@ -36,11 +38,9 @@ GLOBALS(
   char *host_str; 
   long timeout;
   
-  char *tty_name;  
-  int  speeds[20];
-  int  sc;              
+  char *tty_name, buff[128];
+  int speeds[20], sc;
   struct termios termios;
-  char buff[128];
 )
 
 #define CTL(x)        ((x) ^ 0100) 
@@ -101,19 +101,6 @@ static void get_speed(char *sp)
     if (TT.speeds[TT.sc] < 0) perror_exit("bad speed");
     if (++TT.sc > 10) perror_exit("too many speeds, max is 10");
   }
-}
-
-// Parse args and set TERM env. variable
-static void parse_arguments(void)
-{
-  if (isdigit(**toys.optargs)) {
-    get_speed(*toys.optargs);
-    if (*++toys.optargs) TT.tty_name = xmprintf("%s", *toys.optargs);
-  } else {
-    TT.tty_name = xmprintf("%s", *toys.optargs);
-    if (*++toys.optargs) get_speed(*toys.optargs);
-  } 
-  if (*++toys.optargs) setenv("TERM", *toys.optargs, 1);
 }
 
 // Get controlling terminal and redirect stdio 
@@ -292,40 +279,40 @@ static void utmp_entry(void)
 
 void getty_main(void)
 {
-  pid_t pid = getpid();
-  char *ptr[3] = {"/bin/login", NULL, NULL}; //2 NULLs so we can add username
+  char ch, *ptr[3] = {"/bin/login", 0, 0}; // space to add username
 
-  if (!(toys.optflags & FLAG_f)) TT.issue_str = "/etc/issue";
-  if (toys.optflags & FLAG_l) ptr[0] = TT.login_str;
-  parse_arguments();
+  if (!FLAG(f)) TT.issue_str = "/etc/issue";
+  if (FLAG(l)) ptr[0] = TT.login_str;
+
+  // parse arguments and set $TERM
+  if (isdigit(**toys.optargs)) {
+    get_speed(*toys.optargs);
+    if (*++toys.optargs) TT.tty_name = xmprintf("%s", *toys.optargs);
+  } else {
+    TT.tty_name = xmprintf("%s", *toys.optargs);
+    if (*++toys.optargs) get_speed(*toys.optargs);
+  }
+  if (*++toys.optargs) setenv("TERM", *toys.optargs, 1);
+
   open_tty();
   termios_init();
-  tcsetpgrp(STDIN_FILENO, pid);
+  tcsetpgrp(0, getpid());
   utmp_entry();
-  if (toys.optflags & FLAG_I) 
-    writeall(STDOUT_FILENO,TT.init_str,strlen(TT.init_str));
-  if (toys.optflags & FLAG_m) sense_baud();
-  if (toys.optflags & FLAG_t) alarm(TT.timeout);
-  if (toys.optflags & FLAG_w) {
-    char ch;
-
-    while (readall(STDIN_FILENO, &ch, 1) != 1)  
-      if (ch == '\n' || ch == '\r') break;
-  }
-  if (!(toys.optflags & FLAG_n)) {
+  if (FLAG(I)) writeall(0, TT.init_str, strlen(TT.init_str));
+  if (FLAG(m)) sense_baud();
+  if (FLAG(t)) alarm(TT.timeout);
+  if (FLAG(w)) while (readall(0, &ch, 1) != 1)  if (ch=='\n' || ch=='\r') break;
+  if (!FLAG(n)) {
     int index = 1; // 0th we already set.
 
-    while (1) {
-      int l = read_login_name();
-
-      if (l) break;
-      index = index % TT.sc;
+    for (;;) {
+      if (read_login_name()) break;
+      index %= TT.sc;
       cfsetspeed(&TT.termios, TT.speeds[index]); // Select from multiple speeds
       //Necessary after cfsetspeed
-      if (tcsetattr(STDIN_FILENO, TCSANOW, &TT.termios) < 0) 
-        perror_exit("tcsetattr"); 
+      if (tcsetattr(0, TCSANOW, &TT.termios) < 0) perror_exit("tcsetattr");
     }
-    ptr[1]=TT.buff; //put the username in the login command line
+    ptr[1] = TT.buff; //put the username in the login command line
   }
   xexec(ptr);
 }
