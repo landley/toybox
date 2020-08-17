@@ -16,6 +16,9 @@ config TOYBOX
 	  usage: toybox [--long | --help | --version | [COMMAND] [ARGUMENTS...]]
 
 	  Toybox multicall binary: https://landley.net/toybox/about.html
+	  Bug reports: https://github.com/landley/toybox/issues
+	  Feedback: http://lists.landley.net/listinfo.cgi/toybox-landley.net
+	  Contributors, please see: https://landley.net/toybox/cleanup.html
 
 	  With no arguments, "toybox" shows available COMMAND names. Add --long
 	  to include suggested install path for each command, see
