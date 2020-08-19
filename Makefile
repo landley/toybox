@@ -1,7 +1,7 @@
 # Makefile for toybox.
 # Copyright 2006 Rob Landley <rob@landley.net>
 
-# If people set these on the make command line, use 'em
+# If people set these on the make command line, use them.
 # Note that CC defaults to "cc" so the one in configure doesn't get
 # used when scripts/make.sh and care called through "make".
 
@@ -17,7 +17,7 @@ toybox generated/unstripped/toybox: $(KCONFIG_CONFIG) *.[ch] lib/*.[ch] toys/*/*
 	scripts/make.sh
 
 .PHONY: clean distclean baseline bloatcheck install install_flat \
-	uinstall uninstall_flat tests help change \
+	uninstall uninstall_flat tests help change \
 	list list_working list_pending root run_root
 
 include kconfig/Makefile
@@ -34,6 +34,7 @@ generated/Config.in: toys/*/*.c scripts/genconfig.sh
 	scripts/genconfig.sh
 
 # Development targets
+
 baseline: generated/unstripped/toybox
 	@cp generated/unstripped/toybox generated/unstripped/toybox_old
 
