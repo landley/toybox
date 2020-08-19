@@ -263,7 +263,6 @@ static int add_to_tar(struct dirtree *node)
   // !i because hardlink to a symlink is a thing.
   if (!i && S_ISLNK(st->st_mode)) {
     i = 2;
-    lnk = xreadlink(name);
   }
 
   // Handle file types
