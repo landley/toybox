@@ -16,7 +16,7 @@
  * rdevmajor rdevminor namesize check
  * This is the equiavlent of mode -H newc when using GNU CPIO.
 
-USE_CPIO(NEWTOY(cpio, "(no-preserve-owner)mduH:p:|i|t|F:v(verbose)o|[!pio][!pot][!pF]", TOYFLAG_BIN))
+USE_CPIO(NEWTOY(cpio, "(quiet)(no-preserve-owner)md(make-directories)uH:p|i|t|F:v(verbose)o|[!pio][!pot][!pF]", TOYFLAG_BIN))
 
 config CPIO
   bool "cpio"
@@ -32,6 +32,7 @@ config CPIO
     -i	Extract from archive into file system (stdin=archive)
     -o	Create archive (stdin=list of files, stdout=archive)
     -t	Test files (list only, stdin=archive, stdout=list of files)
+    -d	Create directories if needed
     -v	Verbose
     --no-preserve-owner (don't set ownership during extract)
 */
@@ -40,7 +41,7 @@ config CPIO
 #include "toys.h"
 
 GLOBALS(
-  char *F, *p, *H;
+  char *F, *H;
 )
 
 // Read strings, tail padded to 4 byte alignment. Argument "align" is amount
@@ -84,7 +85,12 @@ void cpio_main(void)
 
   // In passthrough mode, parent stays in original dir and generates archive
   // to pipe, child does chdir to new dir and reads archive from stdin (pipe).
-  if (TT.p) {
+  if (FLAG(p)) {
+    if (FLAG(d)) {
+      if (!*toys.optargs) error_exit("need directory for -p");
+      if (mkdir(*toys.optargs, 0700) == -1 && errno != EEXIST)
+        perror_exit("mkdir %s", *toys.optargs);
+    }
     if (toys.stacktop) {
       // xpopen() doesn't return from child due to vfork(), instead restarts
       // with !toys.stacktop
@@ -93,7 +99,7 @@ void cpio_main(void)
     } else {
       // child
       toys.optflags |= FLAG_i;
-      xchdir(TT.p);
+      xchdir(*toys.optargs);
     }
   }
 
@@ -129,9 +135,10 @@ void cpio_main(void)
     gid = x8u(toybuf+30);
     timestamp = x8u(toybuf+46); // unsigned 32 bit, so year 2100 problem
 
+    // (This output is unaffected by --quiet.)
     if (FLAG(t) || FLAG(v)) puts(name);
 
-    if (!test && strrchr(name, '/') && mkpath(name)) {
+    if (!test && FLAG(d) && strrchr(name, '/') && mkpath(name)) {
       perror_msg("mkpath '%s'", name);
       test++;
     }
@@ -279,5 +286,5 @@ void cpio_main(void)
   }
   if (TT.F) xclose(afd);
 
-  if (TT.p) toys.exitval |= xpclose(pid, pipe);
+  if (FLAG(p) && pid) toys.exitval |= xpclose(pid, pipe);
 }

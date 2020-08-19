@@ -29,6 +29,12 @@ testing "archive length" "cpio -o -H newc|dd ibs=2 skip=291 count=5 2>/dev/null"
 testing "archive magic" "cpio -o -H newc|dd ibs=2 count=3 2>/dev/null" "070701" "" "a\n"
 # check name length (8 bytes before the empty "crc")
 testing "name length" "cpio -o -H newc|dd ibs=2 skip=47 count=4 2>/dev/null" "00000002" "" "a\n"
+testing "-t" "cpio -o -H newc|cpio -it" "a\nbb\n" "" "a\nbb"
+testing "-t --quiet" "cpio -o -H newc|cpio -it --quiet" "a\nbb\n" "" "a\nbb"
+mkdir out
+testing "-p" "cpio -p out && find out | sort" "out\nout/a\nout/bb\n" "" "a\nbb"
+rm -rf out
+testing "-pd" "cpio -pd out && find out | sort" "out\nout/a\nout/bb\n" "" "a\nbb"
 rm a bb ccc dddd
 
 # archive dangling symlinks and empty files even if we cannot open them
