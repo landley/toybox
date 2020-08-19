@@ -260,21 +260,16 @@ static int add_to_tar(struct dirtree *node)
     }
   } else i = 0;
 
-  // !i because hardlink to a symlink is a thing.
-  if (!i && S_ISLNK(st->st_mode)) {
-    i = 2;
-  }
-
   // Handle file types
-  if (i) {
-    hdr.type = '0'+i;
-    if (i==2 && !(lnk = xreadlink(name))) {
+  if (i || S_ISLNK(st->st_mode)) {
+    hdr.type = '1'+!i;
+    if (!i && !(lnk = xreadlink(name))) {
       perror_msg("readlink");
       goto done;
     }
     if (strlen(lnk) > sizeof(hdr.link)) write_longname(lnk, 'K');
     strncpy(hdr.link, lnk, sizeof(hdr.link));
-    if (i==2) free(lnk);
+    if (!i) free(lnk);
   } else if (S_ISREG(st->st_mode)) {
     hdr.type = '0';
     ITOO(hdr.size, st->st_size);
