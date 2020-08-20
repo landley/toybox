@@ -160,7 +160,7 @@ void xprintf(char *format, ...)
 void xputsl(char *s, int len)
 {
   xflush(0);
-  xwrite(0, s, len);
+  xwrite(1, s, len);
 }
 
 // xputs with no newline
