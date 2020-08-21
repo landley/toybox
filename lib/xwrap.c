@@ -159,7 +159,7 @@ void xprintf(char *format, ...)
 // Put string with length (does not append newline)
 void xputsl(char *s, int len)
 {
-  xflush(0);
+  xflush(1);
   xwrite(1, s, len);
 }
 
