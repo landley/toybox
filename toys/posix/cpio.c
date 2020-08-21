@@ -1,20 +1,19 @@
 /* cpio.c - a basic cpio
  *
- * Written 2013 AD by Isaac Dunham; this code is placed under the
- * same license as toybox or as CC0, at your option.
+ * Copyright 2013 Isaac Dunham <ibid.ag@gmail.com>
+ * Copyright 2015 Frontier Silicon Ltd.
  *
- * Portions Copyright 2015 by Frontier Silicon Ltd.
- *
- * http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cpio.html
+ * see http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cpio.html
  * and http://pubs.opengroup.org/onlinepubs/7908799/xcu/cpio.html
  *
- * Yes, that's SUSv2, the newer standards removed it around the time RPM
- * and initramfs started heavily using this archive format.
- *
- * Modern cpio expanded header to 110 bytes (first field 6 bytes, rest are 8).
+ * Yes, that's SUSv2, newer versions removed it, but RPM and initramfs use
+ * this archive format. We implement (only) the modern "-H newc" variant which
+ * expanded headers to 110 bytes (first field 6 bytes, rest are 8).
  * In order: magic ino mode uid gid nlink mtime filesize devmajor devminor
  * rdevmajor rdevminor namesize check
  * This is the equiavlent of mode -H newc when using GNU CPIO.
+ *
+ * todo: export/import linux file list text format ala gen_initramfs_list.sh
 
 USE_CPIO(NEWTOY(cpio, "(quiet)(no-preserve-owner)md(make-directories)uH:p|i|t|F:v(verbose)o|[!pio][!pot][!pF]", TOYFLAG_BIN))
 
@@ -243,6 +242,7 @@ void cpio_main(void)
         continue;
       }
 
+      if (FLAG(no_preserve_owner)) st.st_uid = st.st_gid = 0;
       if (!S_ISREG(st.st_mode) && !S_ISLNK(st.st_mode)) st.st_size = 0;
       if (st.st_size >> 32) perror_msg("skipping >2G file '%s'", name);
       else {
