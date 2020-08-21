@@ -38,7 +38,7 @@ config CP
     -L	Follow all symlinks
     -l	Hard link instead of copy
     -n	No clobber (don't overwrite DEST)
-    -P	Do not follow symlinks [default]
+    -P	Do not follow symlinks
     -p	Preserve timestamps, ownership, and mode
     -R	Recurse into subdirectories (DEST must be a directory)
     -r	Synonym for -R
@@ -238,7 +238,7 @@ static int cp_node(struct dirtree *try)
 
       // Do something _other_ than copy contents of a file?
       } else if (!S_ISREG(try->st.st_mode)
-                 && (try->parent || (flags & (FLAG_a|FLAG_r))))
+                 && (try->parent || (flags & (FLAG_a|FLAG_P|FLAG_r))))
       {
         int i;
 

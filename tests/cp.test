@@ -127,6 +127,13 @@ testing "--parents b/c/d/file a/" "cp --parents b/c/d/file a/ && cat a/b/c/d/fil
 rm -rf a/
 rm -rf b/
 
+echo a > file
+testing "-P file" "cp -P file fdst && stat -c %F fdst" "regular file\n" "" ""
+ln -s file lnk
+testing "-P symlink" "cp -P lnk ldst && stat -c %F ldst" "symbolic link\n" "" ""
+testing "follow symlink" "cp lnk ldst2 && stat -c %F ldst2" "regular file\n" "" ""
+rm file fdst lnk ldst ldst2
+
 # cp -r ../source destdir
 # cp -r one/two/three missing
 # cp -r one/two/three two
