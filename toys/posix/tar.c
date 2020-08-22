@@ -17,7 +17,7 @@
  * Why --exclude pattern but no --include? tar cvzf a.tgz dir --include '*.txt'
  *
 
-USE_TAR(NEWTOY(tar, "&(restrict)(full-time)(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mode):(mtime):(group):(owner):(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)P(absolute-names)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):a[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TAR(NEWTOY(tar, "&(restrict)(full-time)(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mode):(mtime):(group):(owner):(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)I(use-compress-program):J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)P(absolute-names)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):a[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TAR
   bool "tar"
@@ -41,6 +41,7 @@ config TAR
     --restrict       All archive contents must extract under one subdirectory
     --numeric-owner  Save/use/display uid and gid, not user/group name
     --no-recursion   Don't store directory contents
+    -I PROG          Filter through PROG to compress or PROG -d to decompress
 */
 
 #define FOR_tar
@@ -49,7 +50,7 @@ config TAR
 GLOBALS(
   char *f, *C;
   struct arg_list *T, *X;
-  char *to_command, *owner, *group, *mtime, *mode;
+  char *I, *to_command, *owner, *group, *mtime, *mode;
   struct arg_list *exclude;
 
   struct double_list *incl, *excl, *seen;
@@ -790,7 +791,7 @@ static void do_XT(char **pline, long len)
 void tar_main(void)
 {
   char *s, **args = toys.optargs,
-    *archiver = FLAG(z) ? "gzip" : (FLAG(J) ? "xz" : "bzip2");
+    *archiver = FLAG(I) ? TT.I : (FLAG(z) ? "gzip" : (FLAG(J) ? "xz":"bzip2"));
   int len = 0;
 
   // Needed when extracting to command
@@ -842,7 +843,7 @@ void tar_main(void)
     char *hdr = 0;
 
     // autodetect compression type when not specified
-    if (!(FLAG(j)||FLAG(z)||FLAG(J))) {
+    if (!(FLAG(j)||FLAG(z)||FLAG(I)||FLAG(J))) {
       len = xread(TT.fd, hdr = toybuf+sizeof(toybuf)-512, 512);
       if (len!=512 || !is_tar_header(hdr)) {
         // detect gzip and bzip signatures
@@ -856,14 +857,14 @@ void tar_main(void)
       }
     }
 
-    if (FLAG(j)||FLAG(z)||FLAG(J)) {
+    if (FLAG(j)||FLAG(z)||FLAG(I)||FLAG(J)) {
       int pipefd[2] = {hdr ? -1 : TT.fd, -1}, i, pid;
-      struct string_list *zcat = find_in_path(getenv("PATH"),
+      struct string_list *zcat = FLAG(I) ? 0 : find_in_path(getenv("PATH"),
         FLAG(j) ? "bzcat" : FLAG(J) ? "xzcat" : "zcat");
 
       // Toybox provides more decompressors than compressors, so try them first
       xpopen_both(zcat ? (char *[]){zcat->str, 0} :
-        (char *[]){archiver, "-dc", 0}, pipefd);
+        (char *[]){archiver, "-d", 0}, pipefd);
       if (CFG_TOYBOX_FREE) llist_traverse(zcat, free);
 
       if (!hdr) {
@@ -920,7 +921,7 @@ void tar_main(void)
     struct double_list *dl = TT.incl;
 
     // autodetect compression type based on -f name. (Use > to avoid.)
-    if (TT.f && !FLAG(j) && !FLAG(z)) {
+    if (TT.f && !FLAG(j) && !FLAG(z) && !FLAG(I) && !FLAG(J)) {
       char *tbz[] = {".tbz", ".tbz2", ".tar.bz", ".tar.bz2"};
       if (strend(TT.f, ".tgz") || strend(TT.f, ".tar.gz"))
         toys.optflags |= FLAG_z;
@@ -930,10 +931,10 @@ void tar_main(void)
         if (strend(TT.f, tbz[len])) toys.optflags |= FLAG_j;
     }
 
-    if (FLAG(j)||FLAG(z)||FLAG(J)) {
+    if (FLAG(j)||FLAG(z)||FLAG(I)||FLAG(J)) {
       int pipefd[2] = {-1, TT.fd};
 
-      xpopen_both((char *[]){archiver, "-f", 0}, pipefd);
+      xpopen_both((char *[]){archiver, 0}, pipefd);
       close(TT.fd);
       TT.fd = pipefd[0];
     }
