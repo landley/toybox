@@ -135,32 +135,16 @@ testing "no clobber (dest doesn't exist)" \
   "yes\n" "" ""
 rm -f file*
 
-# If there is stdin, it prompts.  If no stdin, it moves anyway and file2 won't
-# exist.
 touch file1 file2
 chmod 400 file1 file2
-testing "mv over unwritable file: no stdin" \
+testing "over unwritable file only prompts when stdin is a terminal" \
   "mv file2 file1 2>/dev/null && [ -e file1 -a ! -e file2 ] && echo yes" \
   "yes\n" "" ""
 rm -f file*
 
 touch file1 file2
-chmod 400 file1 file2
-testing "mv over unwritable file: answered YES" \
-  "mv file2 file1 2>/dev/null && [ -e file1 -a ! -e file2 ] && echo yes" \
-  "yes\n" "" "y\n"
-rm -f file*
-
-touch file1 file2
-chmod 400 file1 file2
-testing "mv over unwritable file: answered NO" \
-  "mv file2 file1 2>/dev/null && [ -e file1 -a -e file2 ] && echo yes" \
-  "yes\n" "" "n\n"
-rm -f file*
-
-touch file1 file2
 testing "interactive: no stdin" \
-  "mv -i file2 file1 2>/dev/null && [ -e file1 -a ! -e file2 ] && echo yes" \
+  "mv -i file2 file1 2>/dev/null && [ -e file1 -a -e file2 ] && echo yes" \
   "yes\n" "" ""
 rm -f file*
 
