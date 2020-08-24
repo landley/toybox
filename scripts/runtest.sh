@@ -180,6 +180,7 @@ txpect()
   # Run command with redirection through fifos
   NAME="$CMDNAME $1"
   CASE=
+  VERBOSITY=
 
   if [ $# -lt 2 ] || ! mkfifo in-$$ out-$$ err-$$
   then
@@ -195,7 +196,7 @@ txpect()
   # Loop through challenge/response pairs, with 2 second timeout
   while [ $# -gt 0 ]
   do
-    [ "$VERBOSE" == xpect ] && echo "$1" >&2
+    VERBOSITY="$VERBOSITY"$'\n'"$1"
     LEN=$((${#1}-1))
     CASE="$1"
     A=
@@ -211,7 +212,7 @@ txpect()
         [ ${1::1} == 'E' ] && O=$ERR
         A=
         read -t2 $LARG A <&$O
-        [ "$VERBOSE" == xpect ] && printf '%s\n' "$A" >&2
+        VERBOSITY="$VERBOSITY"$'\n'"$A"
         if [ $LEN -eq 0 ]
         then
           [ -z "$A" ] && { do_fail;break;}
@@ -246,7 +247,12 @@ txpect()
   # In case we already closed it
   exec {IN}<&- {OUT}<&- {ERR}<&-
 
-  [ $# -eq 0 ] && do_pass
+  if [ $# -eq 0 ]
+  then
+    do_pass
+  else
+    [ ! -z "$VERBOSE" ] && echo "$VERBOSITY" >&2
+  fi
 }
 
 # Recursively grab an executable and all the libraries needed to run it.
