@@ -162,8 +162,9 @@ testing "manually specify bz2" 'LST -jf "$FILES"/tar/tar.tbz2' \
   "" ""
 
 # -I
-testing "-I gzip c" "$TAR -Igzip file | file -" \
-  "/dev/stdin: gzip compressed data, from Unix\n" "" ""
+testing "-I gzip c" \
+  "$TAR -Igzip file | file - | grep -q 'gzip compressed' && echo okay" \
+  "okay\n" "" ""
 testing "-I gzip t" 'LST -Igzip -f "$FILES"/tar/tar.tgz' \
   "drwxr-x--- enh/eng 0 2017-05-13 01:05 dir/\n-rw-r----- enh/eng 12 2017-05-13 01:05 dir/file\n" \
   "" ""
