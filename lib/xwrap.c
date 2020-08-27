@@ -967,6 +967,7 @@ void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
   // Formats with seconds come first. Posix can't agree on whether 12 digits
   // has year before (touch -t) or year after (date), so support both.
   char *s = str, *p, *oldtz = 0, *formats[] = {"%Y-%m-%d %T", "%Y-%m-%dT%T",
+    "%a %b %e %H:%M:%S %Z %Y", // date(1) output format in POSIX/C locale.
     "%H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d", "%H:%M", "%m%d%H%M",
     endian ? "%m%d%H%M%y" : "%y%m%d%H%M",
     endian ? "%m%d%H%M%C%y" : "%C%y%m%d%H%M"};

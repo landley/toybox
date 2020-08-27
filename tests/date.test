@@ -73,3 +73,7 @@ testing "tz +08" \
   "date -u -d 2020-08-01T12:34:56+08" "Sat Aug  1 04:34:56 UTC 2020\n" "" ""
 testing "tz +008" \
   "date -u -d 2020-08-01T12:34:56+008" "Sat Aug  1 12:26:56 UTC 2020\n" "" ""
+
+# Can we parse date's own output format?
+testing "round trip" 'TZ=$tz date -d "$(TZ=$tz date -d @1598476818)"' \
+  "Wed Aug 26 23:20:18 CEST 2020\n" "" ""
