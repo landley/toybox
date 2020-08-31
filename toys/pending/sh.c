@@ -2322,6 +2322,66 @@ static struct sh_pipeline *pop_block(struct blockstack **blist, int *pout)
   return pl;
 }
 
+// Print prompt to stderr, parsing escapes
+// Truncated to 4k at the moment, waiting for somebody to complain.
+static void do_prompt(char *prompt)
+{
+  char *s, *ss, c, cc, *pp = toybuf;
+  int len, ll;
+
+  if (!prompt) return;
+  while ((len = sizeof(toybuf)-(pp-toybuf))>0 && *prompt) {
+    c = *(prompt++);
+
+    if (c=='!') {
+      if (*prompt=='!') prompt++;
+      else {
+        pp += snprintf(pp, len, "%ld", TT.lineno);
+        continue;
+      }
+    } else if (c=='\\') {
+      cc = *(prompt++);
+      if (!cc) {
+        *pp++ = c;
+        break;
+      }
+
+      // \nnn \dD{}hHjlstT@AuvVwW!#$
+      // Ignore bash's "nonprintable" hack; query our cursor position instead.
+      if (cc=='[' || cc==']') continue;
+      else if (cc=='$') *pp++ = getuid() ? '$' : '#';
+      else if (cc=='h' || cc=='H') {
+        *pp = 0;
+        gethostname(pp, len);
+        pp[len-1] = 0;
+        if (cc=='h' && (s = strchr(pp, '.'))) *s = 0;
+        pp += strlen(pp);
+      } else if (cc=='s') {
+        s = getbasename(*toys.argv);
+        while (*s && len--) *pp++ = *s++;
+      } else if (cc=='w') {
+        if ((s = getvar("PWD"))) {
+          if ((ss = getvar("HOME")) && strstart(&s, ss)) {
+            *pp++ = '~';
+            if (--len && *s!='/') *pp++ = '/';
+            len--;
+          }
+          if (len>0) {
+            ll = strlen(s);
+            pp = stpncpy(pp, s, ll>len ? len : ll);
+          }
+        }
+      } else if (!(c = unescape(cc))) {
+        *pp++ = '\\';
+        if (--len) *pp++ = c;
+      } else *pp++ = c;
+    } else *pp++ = c;
+  }
+  len = pp-toybuf;
+  if (len>=sizeof(toybuf)) len = sizeof(toybuf);
+  writeall(2, toybuf, len);
+}
+
 // run a parsed shell function. Handle flow control blocks and characters,
 // setup pipes and block redirection, break/continue, call builtins,
 // vfork/exec external commands.
@@ -2351,7 +2411,7 @@ TODO: a | b | c needs subshell for builtins?
 
   // iterate through pipeline segments
   while (pl) {
-    char *ctl = pl->end->arg->v[pl->end->arg->c],
+    char *ctl = pl->end->arg->v[pl->end->arg->c], **vv,
       *s = *pl->arg->v, *ss = pl->arg->v[1];
 
     // Skip disabled blocks, handle pipes
@@ -2466,6 +2526,10 @@ dprintf(2, "TODO skipped init for((;;)), need math parser\n");
         // in without LIST. (This expansion can't return error.)
         } else expand_arg(&blk->farg, "\"$@\"", 0, &blk->fdelete);
 
+        // TODO: ls -C style output
+        if (*s == 's') for (i = 0; i<blk->farg.c; i++)
+          dprintf(2, "%ld) %s\n", i+1, blk->farg.v[i]);
+
       // TODO: bash man page says it performs <(process substituion) here?!?
       } else if (!strcmp(s, "case"))
         if (!(blk->fvar = expand_one_arg(ss, NO_NULL, &blk->fdelete))) break;
@@ -2474,6 +2538,8 @@ dprintf(2, "TODO skipped init for((;;)), need math parser\n");
 
     // gearshift from block start to block body (end of flow control test)
     } else if (pl->type == 2) {
+      int match, err;
+
       blk->middle = pl;
 
       // ;; end, ;& continue through next block, ;;& test next block
@@ -2483,10 +2549,8 @@ dprintf(2, "TODO skipped init for((;;)), need math parser\n");
           continue;
         } else if (strcmp(s, ";&")) {
           struct sh_arg arg = {0}, arg2 = {0};
-          int match, err = 0;
-          char **vv = 0;
 
-          while (!err) {
+          for (err = 0, vv = 0; !err;) {
             if (!vv) {
               vv = pl->arg->v + (**pl->arg->v == ';');
               if (!*vv) {
@@ -2523,7 +2587,21 @@ dprintf(2, "TODO skipped init for((;;)), need math parser\n");
         ss = *blk->start->arg->v;
         if (!strcmp(ss, "while")) blk->run = blk->run && !toys.exitval;
         else if (!strcmp(ss, "until")) blk->run = blk->run && toys.exitval;
-        else if (blk->loop >= blk->farg.c) pl = pop_block(&blk, pipes);
+        else if (!strcmp(ss, "select")) {
+          do_prompt(getvar("PS3"));
+// TODO: ctrl-c not breaking out of this?
+          if (!(ss = xgetline(stdin, 0))) {
+            pl = pop_block(&blk, pipes);
+            printf("\n");
+          } else if (!*ss) {
+            pl = blk->start;
+            continue;
+          } else {
+            match = atoi(ss);
+            setvarval(blk->fvar, (match<1 || match>blk->farg.c)
+              ? "" : blk->farg.v[match-1]);
+          }
+        } else if (blk->loop >= blk->farg.c) pl = pop_block(&blk, pipes);
         else if (!strncmp(blk->fvar, "((", 2)) {
 dprintf(2, "TODO skipped running for((;;)), need math parser\n");
         } else setvarval(blk->fvar, blk->farg.v[blk->loop++]);
@@ -2584,66 +2662,6 @@ static int sh_run(char *new)
   free_function(&scratch);
 
   return toys.exitval;
-}
-
-// Print prompt to stderr, parsing escapes
-// Truncated to 4k at the moment, waiting for somebody to complain.
-static void do_prompt(char *prompt)
-{
-  char *s, *ss, c, cc, *pp = toybuf;
-  int len, ll;
-
-  if (!prompt) return;
-  while ((len = sizeof(toybuf)-(pp-toybuf))>0 && *prompt) {
-    c = *(prompt++);
-
-    if (c=='!') {
-      if (*prompt=='!') prompt++;
-      else {
-        pp += snprintf(pp, len, "%ld", TT.lineno);
-        continue;
-      }
-    } else if (c=='\\') {
-      cc = *(prompt++);
-      if (!cc) {
-        *pp++ = c;
-        break;
-      }
-
-      // \nnn \dD{}hHjlstT@AuvVwW!#$
-      // Ignore bash's "nonprintable" hack; query our cursor position instead.
-      if (cc=='[' || cc==']') continue;
-      else if (cc=='$') *pp++ = getuid() ? '$' : '#';
-      else if (cc=='h' || cc=='H') {
-        *pp = 0;
-        gethostname(pp, len);
-        pp[len-1] = 0;
-        if (cc=='h' && (s = strchr(pp, '.'))) *s = 0;
-        pp += strlen(pp);
-      } else if (cc=='s') {
-        s = getbasename(*toys.argv);
-        while (*s && len--) *pp++ = *s++;
-      } else if (cc=='w') {
-        if ((s = getvar("PWD"))) {
-          if ((ss = getvar("HOME")) && strstart(&s, ss)) {
-            *pp++ = '~';
-            if (--len && *s!='/') *pp++ = '/';
-            len--;
-          }
-          if (len>0) {
-            ll = strlen(s);
-            pp = stpncpy(pp, s, ll>len ? len : ll);
-          }
-        }
-      } else if (!(c = unescape(cc))) {
-        *pp++ = '\\';
-        if (--len) *pp++ = c;
-      } else *pp++ = c;
-    } else *pp++ = c;
-  }
-  len = pp-toybuf;
-  if (len>=sizeof(toybuf)) len = sizeof(toybuf);
-  writeall(2, toybuf, len);
 }
 
 // only set local variable when global not present, does not extend array
@@ -2730,6 +2748,7 @@ static void subshell_setup(void)
   if (readlink0("/proc/self/exe", s = toybuf, sizeof(toybuf))||(s=getenv("_")))
     initlocal("BASH", s);
   initlocal("PS2", "> ");
+  initlocal("PS3", "#? ");
 
   // Ensure environ copied and toys.envc set, and clean out illegal entries
   TT.ifs = " \t\n";
