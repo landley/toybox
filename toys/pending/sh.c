@@ -9,38 +9,24 @@
  * http://opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html
  * and http://opengroup.org/onlinepubs/9699919799/utilities/sh.html
  *
- * The chap02 link describes the following shell builtins:
- *
- *   break : continue exit
- *   . eval exec export readonly return set shift times trap unset
- *
- * The second link (the utilities directory) also contains specs for the
- * following shell builtins:
- *
- *   cd ulimit umask
- *   alias bg command fc fg getopts hash jobs kill read type unalias wait
- *
  * deviations from posix: don't care about $LANG or $LC_ALL
 
- * TODO: case wildcard
- * TODO: test that $PS1 color changes work without stupid \[ \] hack
- * TODO: Handle embedded NUL bytes in the command line? (When/how?)
-
  * builtins: alias bg command fc fg getopts jobs newgrp read umask unalias wait
- *           disown umask suspend source pushd popd dirs logout times trap
- *           unset local export readonly set : . let history declare
+ *          disown suspend source pushd popd dirs logout times trap cd hash exit
+ *           unset local export readonly set : . let history declare ulimit type
  * "special" builtins: break continue eval exec return shift
- * builtins with extra shell behavior: kill pwd time test
+ * external with extra shell behavior: kill pwd time test
 
- * | & ; < > ( ) $ ` \ " ' <space> <tab> <newline>
- * * ? [ # ~ = %
- * ! { } case do done elif else esac fi for if in then until while
- * [[ ]] function select
+ * * ? [ # ~ = % [[ ]] function select exit label:
 
- * label:
+ * TODO: case, wildcard +(*|?), job control (find_plus_minus), ${x//}, $(())
+
+ * TODO: support case in $() because $(case a in a) ;; ; esac) stops at first )
  * TODO: test exit from "trap EXIT" doesn't recurse
  * TODO: ! history expansion
  * TODO: getuid() vs geteuid()
+ * TODO: test that $PS1 color changes work without stupid \[ \] hack
+ * TODO: Handle embedded NUL bytes in the command line? (When/how?)
  *
  * bash man page:
  * control operators || & && ; ;; ;& ;;& ( ) | |& <newline>
@@ -517,9 +503,10 @@ static int redir_prefix(char *word)
 
 // parse next word from command line. Returns end, or 0 if need continuation
 // caller eats leading spaces. early = skip one quote block (or return start)
-static char *parse_word(char *start, int early)
+// quote is depth of existing quote stack in toybuf (usually 0)
+static char *parse_word(char *start, int early, int quote)
 {
-  int i, quote = 0, q, qc = 0;
+  int i, q, qc = 0;
   char *end = start, *s;
 
   // Things we should only return at the _start_ of a word
@@ -838,11 +825,24 @@ char *slashcopy(char *s, char c)
   return ss;
 }
 
+// Return 0 fail, 1 short match, 2 exact match
+static int wildcard_match(char *str, char *pattern, struct sh_arg *deck)
+{
+  int i;
+
+// TODO actual plumbing here
+  for (i = 0; str[i]; i++) if (str[i]!=pattern[i]) return 0;
+
+  return 1+!pattern[i];
+}
+
 // wildcard expand data and add results to arg list
-static void wildcard_add(struct sh_arg *arg, char *data, struct sh_arg *deck,
+static void wildcard_add(struct sh_arg *arg, char *pattern, struct sh_arg *deck,
   struct arg_list **delete)
 {
-  arg_add(arg, data);
+// TODO: abc/*/def.txt in segments, partial matches
+  arg_add(arg, pattern);
+// TODO when flush deck?
 }
 
 // Record active wildcard chars in output string
@@ -909,11 +909,13 @@ static void collect_wildcards(char *new, long oo, struct sh_arg *deck)
 #define NO_SPLIT (1<<2)    // word splitting
 #define NO_BRACE (1<<3)    // {brace,expansion}
 #define NO_TILDE (1<<4)    // ~username/path
-#define SEMI_IFS (1<<5)    // Use ' ' instead of IFS to combine $*
-// TODO: parameter/variable $(command) $((math)) split pathglob
+#define NO_NULL  (1<<5)    // Expand to "" instead of NULL
+#define SEMI_IFS (1<<6)    // Use ' ' instead of IFS to combine $*
 // expand str appending to arg using above flag defines, add mallocs to delete
+// if ant not null, save wildcard deck there instead of expanding vs filesystem
+// returns 0 for success, 1 for error
 static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
-  struct arg_list **delete)
+  struct arg_list **delete, struct sh_arg *ant)
 {
   char cc, qq = flags&NO_QUOTE, sep[6], *new = str, *s, *ss, *ifs,
     *slice;
@@ -948,11 +950,12 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
   }
 
   // parameter/variable expansion and dequoting
+  if (!ant) ant = &deck;
   for (; (cc = str[ii++]); str!=new && (new[oo] = 0)) {
     struct sh_arg aa = {0};
     int nosplit = 0;
 
-    if (!(flags&NO_PATH) && !(qq&1)) collect_wildcards(new, oo, &deck);
+    if (!(flags&NO_PATH) && !(qq&1)) collect_wildcards(new, oo, ant);
 
     // skip literal chars
     if (!strchr("'\"\\$`"+2*(flags&NO_QUOTE), cc)) {
@@ -986,7 +989,7 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
       off_t pp = 0;
 
       s = str+ii-1;
-      kk = parse_word(s, 1)-s;
+      kk = parse_word(s, 1, 0)-s;
       if (str[ii] == '[' || *toybuf == 255) {
         s += 2+(str[ii]!='[');
         kk -= 3+2*(str[ii]!='[');
@@ -1002,7 +1005,7 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
         if (*ss != '<') ss = 0;
         else {
           while (isspace(*++ss));
-          if (!(ll = parse_word(ss, 0)-ss)) ss = 0;
+          if (!(ll = parse_word(ss, 0, 0)-ss)) ss = 0;
           else {
             jj = ll+(ss-s);
             while (isspace(s[jj])) jj++;
@@ -1075,7 +1078,7 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
           } else {
             // First expansion
             if (strchr("@*", *ss)) { // special case ${!*}/${!@}
-              expand_arg_nobrace(&aa, "\"$*\"", NO_PATH|NO_SPLIT, delete);
+              expand_arg_nobrace(&aa, "\"$*\"", NO_PATH|NO_SPLIT, delete, 0);
               ifs = *aa.v;
               free(aa.v);
               memset(&aa, 0, sizeof(aa));
@@ -1230,7 +1233,7 @@ barf:
         if (!oo && !*ss && !((mm==aa.c) ? str[ii] : nosplit)) {
           if (qq || ss!=ifs) {
             if (!(flags&NO_PATH))
-              for (jj = 0; ifs[jj]; jj++) collect_wildcards(ifs, jj, &deck);
+              for (jj = 0; ifs[jj]; jj++) collect_wildcards(ifs, jj, ant);
             wildcard_add(arg, ifs, &deck, delete);
           }
           continue;
@@ -1243,7 +1246,7 @@ barf:
         dd = sprintf(new + oo, "%.*s%s", (int)(ss-ifs), ifs,
           (nosplit&!jj) ? sep : "");
         if (flags&NO_PATH) oo += dd;
-        else while (dd--) collect_wildcards(new, oo++, &deck);
+        else while (dd--) collect_wildcards(new, oo++, ant);
         if (jj) break;
 
         // If splitting, keep quoted, non-blank, or non-whitespace separator
@@ -1303,7 +1306,7 @@ static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
 
   // collect brace spans
   if ((TT.options&OPT_BRACE) && !(flags&NO_BRACE)) for (i = 0; ; i++) {
-    while ((s = parse_word(old+i, 1)) != old+i) i += s-(old+i);
+    while ((s = parse_word(old+i, 1, 0)) != old+i) i += s-(old+i);
     if (!bb && !old[i]) break;
     if (bb && (!old[i] || old[i] == '}')) {
       bb->active = bb->commas[bb->cnt+1] = i;
@@ -1327,7 +1330,7 @@ static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
 
 // TODO NOSPLIT with braces? (Collate with spaces?)
   // If none, pass on verbatim
-  if (!blist) return expand_arg_nobrace(arg, old, flags, delete);
+  if (!blist) return expand_arg_nobrace(arg, old, flags, delete, 0);
 
   // enclose entire range in top level brace.
   (bstk = xzalloc(sizeof(struct brace)+8))->commas[1] = strlen(old)+1;
@@ -1405,7 +1408,7 @@ static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
 
     // Save result, aborting on expand error
     push_arg(delete, ss);
-    if (expand_arg_nobrace(arg, ss, flags, delete)) {
+    if (expand_arg_nobrace(arg, ss, flags, delete, 0)) {
       llist_traverse(blist, free);
 
       return 1;
@@ -1432,7 +1435,8 @@ static char *expand_one_arg(char *new, unsigned flags, struct arg_list **del)
   struct sh_arg arg = {0};
   char *s = 0;
 
-  if (!expand_arg(&arg, new, flags|NO_PATH|NO_SPLIT, del)) s = *arg.v;
+  if (!expand_arg(&arg, new, flags|NO_PATH|NO_SPLIT, del))
+    if (!(s = *arg.v) && (flags&(SEMI_IFS|NO_NULL))) s = "";
   free(arg.v);
 
   return s;
@@ -1461,6 +1465,7 @@ static char *pl2str(struct sh_pipeline *pl)
     if (j) ss = stpcpy(ss, sss);
     else len += strlen(sss);
 
+// TODO test output with case and function
 // TODO add HERE documents back in
     if (j) return s;
     s = ss = xmalloc(len+1);
@@ -1738,8 +1743,7 @@ if (BUGBUG) { int i; dprintf(255, "envlen=%d arg->c=%d run=", envlen, arg->c); f
     memcpy(env.v = xmalloc(sizeof(char *)*(env.c+33)), environ,
       sizeof(char *)*(env.c+1));
     for (; jj<envlen; jj++) {
-      if (!(sss = expand_one_arg(arg->v[jj], SEMI_IFS, &delete)))
-        break;
+      if (!(sss = expand_one_arg(arg->v[jj], SEMI_IFS, &delete))) break;
       for (ll = 0; ll<env.c; ll++) {
         for (s = sss, ss = env.v[ll]; *s == *ss && *s != '='; s++, ss++);
         if (*s != '=') continue;
@@ -1853,13 +1857,23 @@ dprintf(2, "stub add_function");
   return pl->end;
 }
 
+static struct sh_pipeline *add_pl(struct sh_function *sp, struct sh_arg **arg)
+{
+  struct sh_pipeline *pl = xzalloc(sizeof(struct sh_pipeline));
+
+  *arg = pl->arg;
+  dlist_add_nomalloc((void *)&sp->pipeline, (void *)pl);
+
+  return pl->end = pl;
+}
+
 // Add a line of shell script to a shell function. Returns 0 if finished,
 // 1 to request another line of input (> prompt), -1 for syntax err
 static int parse_line(char *line, struct sh_function *sp)
 {
   char *start = line, *delete = 0, *end, *last = 0, *s, *ex, done = 0,
     *tails[] = {"fi", "done", "esac", "}", "]]", ")", 0};
-  struct sh_pipeline *pl = sp->pipeline ? sp->pipeline->prev : 0;
+  struct sh_pipeline *pl = sp->pipeline ? sp->pipeline->prev : 0, *pl2, *pl3;
   struct sh_arg *arg = 0;
   long i;
 
@@ -1939,16 +1953,11 @@ if (BUGBUG>1) dprintf(255, "{%d:%s}\n", pl->type, ex ? ex : (sp->expect ? "*" : 
     if (*start=='#') while (*start && *start != '\n') ++start;
 
     // Parse next word and detect overflow (too many nested quotes).
-    if ((end = parse_word(start, 0)) == (void *)1) goto flush;
+    if ((end = parse_word(start, 0, 0)) == (void *)1) goto flush;
 
 if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ? : "");
     // Is this a new pipeline segment?
-    if (!pl) {
-      pl = xzalloc(sizeof(struct sh_pipeline));
-      pl->end = pl;
-      arg = pl->arg;
-      dlist_add_nomalloc((void *)&sp->pipeline, (void *)pl);
-    }
+    if (!pl) pl = add_pl(sp, &arg);
 
     // Do we need to request another line to finish word (find ending quote)?
     if (!end) {
@@ -1962,9 +1971,60 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
 
     // Ok, we have a word. What does it _mean_?
 
+    // case/esac parsing is weird, handle first
+    if (ex && !memcmp(ex, "esac\0A", 6)
+        && (pl->type || (*start==';' && end-start>1)))
+    {
+      // premature end of line only allowed at 'case x\nin' or after ;;
+      if (start == end) {
+        if (pl->type==1 && arg->c==2) break;
+        if (pl->type==2 && arg->c==1 && **arg->v==';') break;
+        s = "newline";
+        goto flush;
+      }
+
+      // type 0: just got ;; so start new type 2 (catching "echo | ;;" errors)
+      if (!pl->type) {
+        if (pl->prev->type==1) goto flush;
+        for (;;) {
+          if (arg->v[arg->c] && strcmp(arg->v[arg->c], "&")) goto flush;
+          if (arg->c) break;
+          arg = pl->prev->arg;
+        }
+        if (*arg->v) pl = add_pl(sp, &arg);
+        pl->type = 2;
+      }
+
+      // Save argument
+      arg_add(arg, s = xstrndup(start, end-start));
+      start = end;
+
+      // type 1: case x [\n] in
+      if (pl->type==1 && arg->c==3) {
+        if (strcmp(arg->v[2], "in")) goto flush;
+        (pl = add_pl(sp, &arg))->type = 2;
+
+      // type 2: [;;] [(] pattern [|pattern...] )
+      } else if (pl->type==2) {
+        *toybuf = ')';
+        i = arg->c - (**arg->v==';' && arg->v[0][1]);
+        if (arg->c==1 && **arg->v==';' && (long)parse_word(start,0,*s!='(')<2) {
+          pl = add_pl(sp, &arg);
+          sp->expect->prev->data = "esac\0B";
+        } else {
+          i -= arg->c>1 && *arg->v[1]=='(';
+          if (i>0 && ((i&1)==!!strchr("|)", *s) || strchr(";(", *s)))
+            goto flush;
+          if (*s=='&' || !strcmp(s, "||")) goto flush;
+          if (*s==')') pl = add_pl(sp, &arg);
+        }
+      }
+
+      continue;
+
     // Did we hit end of line or ) outside a function declaration?
     // ) is only saved at start of a statement, ends current statement
-    if (end == start || (arg->c && *start == ')' && pl->type!='f')) {
+    } else if (end == start || (arg->c && *start == ')' && pl->type!='f')) {
       if (pl->type == 'f' && arg->c<3) {
         s = "function()";
         goto flush;
@@ -1987,10 +2047,11 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
       continue;
     }
 
-    // Save argument (strdup) and check for flow control
+    // Save word and check for flow control
     arg_add(arg, s = xstrndup(start, end-start));
     start = end;
 
+    // is it a line break token?
     if (strchr(";|&", *s) && strncmp(s, "&>", 2)) {
       arg->c--;
 
@@ -2003,7 +2064,7 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
         if (!arg->c && ex && !memcmp(ex, "do\0C", 4)) continue;
 
       // ;; and friends only allowed in case statements
-      } else if (*s == ';' && (!ex || strcmp(ex, "esac"))) goto flush;
+      } else if (*s == ';') goto flush;
       last = s;
 
       // flow control without a statement is an error
@@ -2070,10 +2131,10 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
 
     // start of a new block?
 
-    // for/select requires variable name on same line, can't break segment yet
-    if (!strcmp(s, "for") || !strcmp(s, "select")) {
+    // for/select/case require var name on same line, can't break segment yet
+    if (!strcmp(s, "for") || !strcmp(s, "select") || !strcmp(s, "case")) {
       if (!pl->type) pl->type = 1;
-      dlist_add(&sp->expect, "do\0A");
+      dlist_add(&sp->expect, (*s == 'c') ? "esac\0A" : "do\0A");
 
       continue;
     }
@@ -2081,7 +2142,6 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
     end = 0;
     if (!strcmp(s, "if")) end = "then";
     else if (!strcmp(s, "while") || !strcmp(s, "until")) end = "do\0B";
-    else if (!strcmp(s, "case")) end = "esac";
     else if (!strcmp(s, "{")) end = "}";
     else if (!strcmp(s, "[[")) end = "]]";
     else if (!strcmp(s, "(")) end = ")";
@@ -2107,13 +2167,15 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
       // consume word, record block end location in earlier !0 type blocks
       free(dlist_lpop(&sp->expect));
       if (3 == (pl->type = anystr(s, tails) ? 3 : 2)) {
-        struct sh_pipeline *pl2 = pl;
-
-        i = 0;
-        for (i = 0; (pl2 = pl2->prev);) {
+        for (i = 0, pl2 = pl3 = pl; (pl2 = pl2->prev);) {
           if (pl2->type == 3) i++;
           else if (pl2->type) {
-            if (!i) pl2->end = pl;
+            if (!i) {
+              if (pl2->type == 2) {
+                pl2->end = pl3;
+                pl3 = pl2;
+              } else pl2->end = pl;
+            }
             if ((pl2->type == 1 || pl2->type == 'f') && --i<0) break;
           }
         }
@@ -2238,7 +2300,7 @@ struct blockstack {
   struct sh_pipeline *start, *middle;
   struct sh_process *pp;       // list of processes piping in to us
   int run, loop, *urd, pout;
-  struct sh_arg farg;          // for/select arg stack
+  struct sh_arg farg;          // for/select arg stack, case wildcard deck
   struct arg_list *fdelete;    // farg's cleanup list
   char *fvar;                  // for/select's iteration variable name
 };
@@ -2254,6 +2316,7 @@ static struct sh_pipeline *pop_block(struct blockstack **blist, int *pout)
   *pout = blk->pout;
   unredirect(blk->urd);
   llist_traverse(blk->fdelete, free);
+  free(blk->farg.v);
   free(llist_pop(blist));
 
   return pl;
@@ -2382,13 +2445,12 @@ if (BUGBUG) dprintf(255, "%d runtype=%d %s %s\n", getpid(), pl->type, s, ctl);
         pl = pl->end;
         continue;
       }
-pp = 0;
 
       // What flow control statement is this?
 
       // {/} if/then/elif/else/fi, while until/do/done - no special handling
 
-      // for select/do/done: populate blk->farg with expanded arguments (if any)
+      // for/select/do/done: populate blk->farg with expanded arguments (if any)
       if (!strcmp(s, "for") || !strcmp(s, "select")) {
         if (blk->loop); // TODO: still needed?
         else if (!strncmp(blk->fvar = ss, "((", 2)) {
@@ -2404,17 +2466,56 @@ dprintf(2, "TODO skipped init for((;;)), need math parser\n");
         // in without LIST. (This expansion can't return error.)
         } else expand_arg(&blk->farg, "\"$@\"", 0, &blk->fdelete);
 
-// TODO case/esac [[/]] ((/)) function/}
+      // TODO: bash man page says it performs <(process substituion) here?!?
+      } else if (!strcmp(s, "case"))
+        if (!(blk->fvar = expand_one_arg(ss, NO_NULL, &blk->fdelete))) break;
 
-      }
+// TODO [[/]] ((/)) function/}
 
     // gearshift from block start to block body (end of flow control test)
     } else if (pl->type == 2) {
-
       blk->middle = pl;
 
+      // ;; end, ;& continue through next block, ;;& test next block
+      if (!strcmp(*blk->start->arg->v, "case")) {
+        if (!strcmp(s, ";;")) {
+          while (pl->type!=3) pl = pl->end;
+          continue;
+        } else if (strcmp(s, ";&")) {
+          struct sh_arg arg = {0}, arg2 = {0};
+          int match, err = 0;
+          char **vv = 0;
+
+          while (!err) {
+            if (!vv) {
+              vv = pl->arg->v + (**pl->arg->v == ';');
+              if (!*vv) {
+                pl = pl->next;
+// TODO if not type==3 syntax err here, but catch it above
+
+                break;
+              } else vv += **vv == '(';
+            }
+            arg.c = 0;
+            if (expand_arg_nobrace(&arg, *vv++, NO_PATH|NO_SPLIT, &blk->fdelete,
+              &arg2)) err = 1;
+            else {
+              match = wildcard_match(arg.c ? *arg.v : "", blk->fvar, &arg2);
+              if (match == 2) break;
+              else if (**vv++ == ')') {
+                vv = 0;
+                if ((pl = pl->end)->type!=2) break;
+              }
+            }
+          }
+          free(arg.v);
+          free(arg2.v);
+          if (err) break;
+          if (pl->type==3) continue;
+        }
+
       // Handle if/else/elif statement
-      if (!strcmp(s, "then")) blk->run = blk->run && !toys.exitval;
+      } else if (!strcmp(s, "then")) blk->run = blk->run && !toys.exitval;
       else if (!strcmp(s, "else") || !strcmp(s, "elif")) blk->run = !blk->run;
 
       // Loop
@@ -2453,7 +2554,7 @@ dprintf(2, "TODO skipped running for((;;)), need math parser\n");
     // for && and || skip pipeline segment(s) based on return code
     if (!pl->type || pl->type == 3)
       while (ctl && !strcmp(ctl, toys.exitval ? "&&" : "||"))
-        ctl = (pl = pl->type ? pl->end : pl->next)?pl->arg->v[pl->arg->c]:0;
+        ctl = (pl = pl->type ? pl->end : pl->next) ? pl->arg->v[pl->arg->c] : 0;
 
     pl = pl->next;
   }

@@ -1,5 +1,31 @@
 #!/bin/echo no
 
+#        // ${#} ${#x} ${#@} ${#x[@]} ${#!} ${!#}
+#        // ${!} ${!@} ${!@Q} ${!x} ${!x@} ${!x@Q} ${!x#} ${!x[} ${!x[*]}
+
+# Looked like a prefix but wasn't: three chars (@ # -) are both paremeter name
+# and slice operator. When immediately followed by } it's parameter, otherwise
+# otherwise we did NOT have a prefix and it's an operator.
+#
+# ${#-} ${#-abc}
+# ${##} ${##0}
+# ${#@} ${#@Q}
+#
+# backslash not discarded: echo "abc\"def"
+
+# ${x:-y} use default
+# ${x:=y} assign default (error if positional)
+# ${x:?y} err if null
+# ${x:+y} alt value
+# ${x:off} ${x:off:len} off<0 from end (must ": -"), len<0 also from end must
+#   0-based indexing
+# ${@:off:len} positional parameters, off -1 = len, -len is error
+#   1-based indexing
+
+# [] wins over +()
+# touch 'AB[DEF]'; echo AB[+(DEF]) AB[+(DEF)?
+# AB[+(DEF]) AB[DEF]
+
 # Testing shell corner cases _within_ a shell script is kind of hard.
 
 [ -f testing.sh ] && . testing.sh
@@ -36,6 +62,9 @@ testing '-c args2' "\$SH -c 'echo \${10}' a b c d e f g h i j k l" "k\n" "" ""
 testing '-c arg split' \
   "$SH -c 'for i in a\"\$@\"b;do echo =\$i=;done;echo \$0' 123 456 789" \
   "=a456=\n=789b=\n123\n" "" ""
+testing '-c arg split2' \
+  "$SH -c 'for i in a\"\$* \$@\"b; do echo =\$i=;done' one two three four five"\
+  "=atwo three four five two=\n=three=\n=four=\n=fiveb=\n" "" ""
 testing '-c arg count' "$SH -c 'echo \$#' 9 8 7 6 1 2 3 4" "7\n" "" ""
 testing "exec3" '$C -c "{ exec readlink /proc/self/fd/0;} < /proc/self/exe"' \
   "$(readlink -f $C)\n" "" ""
@@ -159,6 +188,8 @@ testing "leading variable assignment" 'abc=def env | grep ^abc=; echo $abc' \
 testing "leading variable assignments" \
   "abc=def ghi=jkl env | egrep '^(abc|ghi)=' | sort; echo \$abc \$ghi" \
   "abc=def\nghi=jkl\n\n" "" ""
+testing "leading assignment occurs after parsing" \
+  'abc=def; abc=ghi echo $abc' "def\n" "" ""
 testing "leading assignment space" 'X="abc  def"; Y=$X; echo "$Y"' \
   "abc  def\n" "" ""
 testing "leading assignment space2" \
@@ -253,11 +284,11 @@ testing "subshell splitting" 'for i in $(true); do echo =$i=; done' "" "" ""
 #testing "subshell split 2"
 
 # variable assignment argument splitting only performed for "$@"
-testing "assignment splitting" 'X="one two"; Y=$X; echo $Y' "one two\n" "" ""
+testing "assignment nosplit" 'X="one two"; Y=$X; echo $Y' "one two\n" "" ""
 testing "argument splitting" \
   'chicken() { for i in a"$@"b;do echo =$i=;done;}; chicken 123 456 789' \
   "=a123=\n=456=\n=789b=\n" "" ""
-testing "assignment splitting2" 'pop(){ X="$@";};pop one two three; echo $X' \
+testing "assignment nosplit2" 'pop(){ X="$@";};pop one two three; echo $X' \
   "one two three\n" "" ""
 
 #testing "leading assignments don't affect current line" \
@@ -396,6 +427,8 @@ testing 'IFS wildcards' \
   'abc\ndef\nwallpapers\nwalrus\n' '' ''
 rm -f walrus wallpapers
 
+# Force parsing granularity via interactive shxpect because bash parses all
+# of sh -c "str" in one go, meaning the "shopt -s extglob" won't take effect
 shxpect 'IFS +(extglob)' I$'shopt -s extglob\n' E"$P" \
   I$'IFS=x; ABC=cxd; for i in +($ABC); do echo =$i=; done\n' \
   O$'=+(c=\n' O$'=d)=\n'
@@ -404,6 +437,16 @@ touch abc\)d
 shxpect 'IFS +(extglob) 2' I$'shopt -s extglob\n' E"$P" \
   I$'ABC="c?d"; for i in ab+($ABC); do echo =$i=; done\n' \
   O$'=abc)d=\n'
+rm abc\)d
+
+shxpect '[+(]) overlap priority' I$'shopt -s extglob\n' E"$P" \
+  I$'touch "AB[DEF]"; echo AB[+(DEF]) AB[+(DEF)? AB+([DEF)]\n' \
+  O$'AB[+(DEF]) AB[DEF] AB+([DEF)]\n' \
+  I$'X="("; Y=")"; echo AB[+${X}DEF${Y}?\n' O$'AB[DEF]\n'
+
+# TODO: syntax error takes out ': ${a?b}; echo $?' (I.E. never runs echo)
+shxpect '${a?b} sets err, stops cmdline eval' \
+  I$': ${a?b} ${c:=d}\n' E E"$P" I$'echo $?$c\n' O$'1\n'
 
 # TODO finish variable list from shell init
 
