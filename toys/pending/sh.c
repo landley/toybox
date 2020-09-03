@@ -1293,36 +1293,76 @@ fail:
   return !!arg;
 }
 
+struct sh_brace {
+  struct sh_brace *next, *prev, *stack;
+  int active, cnt, idx, commas[];
+};
+
+static int brace_end(struct sh_brace *bb)
+{
+  return bb->commas[(bb->cnt<0 ? 0 : bb->cnt)+1];
+}
+
 // expand braces (ala {a,b,c}) and call expand_arg_nobrace() each permutation
 static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
   struct arg_list **delete)
 {
-  struct brace {
-    struct brace *next, *prev, *stack;
-    int active, cnt, idx, dots[2], commas[];
-  } *bb = 0, *blist = 0, *bstk, *bnext;
-  int i, j;
+  struct sh_brace *bb = 0, *blist = 0, *bstk, *bnext;
+  int i, j, k, x;
   char *s, *ss;
 
   // collect brace spans
   if ((TT.options&OPT_BRACE) && !(flags&NO_BRACE)) for (i = 0; ; i++) {
+    // skip quoted/escaped text
     while ((s = parse_word(old+i, 1, 0)) != old+i) i += s-(old+i);
+    // stop at end of string if we haven't got any more open braces
     if (!bb && !old[i]) break;
+    // end a brace?
     if (bb && (!old[i] || old[i] == '}')) {
       bb->active = bb->commas[bb->cnt+1] = i;
-      for (bnext = bb; bb && bb->active; bb = (bb==blist)?0:bb->prev);
-      if (!old[i] || !bnext->cnt) // discard commaless brace from start/middle
+      // pop brace from bb into bnext
+      for (bnext = bb; bb && bb->active; bb = (bb==blist) ? 0 : bb->prev);
+      // Is this a .. span?
+      j = 1+*bnext->commas;
+      if (old[i] && !bnext->cnt && i-j>=4) {
+        // a..z span? Single digit numbers handled here too. TODO: utf8
+        if (old[j+1]=='.' && old[j+2]=='.') {
+          bnext->commas[2] = old[j];
+          bnext->commas[3] = old[j+3];
+          k = 0;
+          if (old[j+4]=='}' ||
+            (sscanf(old+j+4, "..%u}%n", bnext->commas+4, &k) && k))
+              bnext->cnt = -1;
+        }
+        // 3..11 numeric span?
+        if (!bnext->cnt) {
+          for (k=0, j = 1+*bnext->commas; k<3; k++, j += x)
+            if (!sscanf(old+j, "..%u%n"+2*!k, bnext->commas+2+k, &x)) break;
+          if (old[j] == '}') bnext->cnt = -2;
+        }
+        // Increment goes in the right direction by at least 1
+        if (bnext->cnt) {
+          if (!bnext->commas[4]) bnext->commas[4] = 1;
+          if ((bnext->commas[3]-bnext->commas[2]>0) != (bnext->commas[4]>0))
+            bnext->commas[4] *= -1;
+        }
+      }
+      // discard unterminated span, or commaless span that wasn't x..y
+      if (!old[i] || !bnext->cnt)
         free(dlist_pop((blist == bnext) ? &blist : &bnext));
+    // starting brace
     } else if (old[i] == '{') {
       dlist_add_nomalloc((void *)&blist,
-        (void *)(bb = xzalloc(sizeof(struct brace)+34*4)));
+        (void *)(bb = xzalloc(sizeof(struct sh_brace)+34*4)));
       bb->commas[0] = i;
+    // no active span?
     } else if (!bb) continue;
-    else if  (bb && old[i] == ',') {
+    // add a comma to current span
+    else if (bb && old[i] == ',') {
       if (bb->cnt && !(bb->cnt&31)) {
         dlist_lpop(&blist);
         dlist_add_nomalloc((void *)&blist,
-          (void *)(bb = xrealloc(bb, sizeof(struct brace)+(bb->cnt+34)*4)));
+          (void *)(bb = xrealloc(bb, sizeof(struct sh_brace)+(bb->cnt+34)*4)));
       }
       bb->commas[++bb->cnt] = i;
     }
@@ -1333,7 +1373,7 @@ static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
   if (!blist) return expand_arg_nobrace(arg, old, flags, delete, 0);
 
   // enclose entire range in top level brace.
-  (bstk = xzalloc(sizeof(struct brace)+8))->commas[1] = strlen(old)+1;
+  (bstk = xzalloc(sizeof(struct sh_brace)+8))->commas[1] = strlen(old)+1;
   bstk->commas[0] = -1;
 
   // loop through each combination
@@ -1342,68 +1382,70 @@ static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
     // Brace expansion can't be longer than original string. Keep start to {
     s = ss = xmalloc(bstk->commas[1]);
 
-    // Append output from active braces (in "saved" list)
-    for (bb = blist; bb;) {
+    // Append output from active braces to string
+    for (bb = blist; bb; bb = (bnext == blist) ? 0 : bnext) {
 
-      // keep prefix and push self onto stack
-      if (bstk == bb) bstk = bstk->stack;  // pop self
-      i = bstk->commas[bstk->idx]+1;
-      if (bstk->commas[bstk->cnt+1]>bb->commas[0])
+      // If this brace already tip of stack, pop it. (We'll re-add in a moment.)
+      if (bstk == bb) bstk = bstk->stack;
+      // if bb is within bstk, save prefix text from bstk's "," to bb's "{"
+      if (brace_end(bstk)>bb->commas[0]) {
+        i = bstk->commas[bstk->idx]+1;
         s = stpncpy(s, old+i, bb->commas[0]-i);
-
-      // pop sibling
-      if (bstk->commas[bstk->cnt+1]<bb->commas[0]) bstk = bstk->stack;
- 
-      bb->stack = bstk; // push
+      }
+      else bstk = bstk->stack; // bb past bstk so done with old bstk, pop it
+      // push self onto stack as active
+      bb->stack = bstk;
       bb->active = 1;
       bstk = bnext = bb;
 
-      // skip inactive spans from earlier or later commas
+      // Find next active range: skip inactive spans from earlier/later commas
       while ((bnext = (bnext->next==blist) ? 0 : bnext->next)) {
-        i = bnext->commas[0];
 
-        // past end of this brace
-        if (i>bb->commas[bb->cnt+1]) break;
+        // past end of this brace (always true for a..b ranges)
+        if ((i = bnext->commas[0])>brace_end(bb)) break;
 
-        // in this brace but not this selection
+        // in this brace but not this section
         if (i<bb->commas[bb->idx] || i>bb->commas[bb->idx+1]) {
           bnext->active = 0;
           bnext->stack = 0;
 
-        // in this selection
+        // in this section
         } else break;
       }
 
       // is next span past this range?
-      if (!bnext || bnext->commas[0]>bb->commas[bb->idx+1]) {
+      if (!bnext || bb->cnt<0 || bnext->commas[0]>bb->commas[bb->idx+1]) {
 
         // output uninterrupted span
-        i = bb->commas[bstk->idx]+1;
-        s = stpncpy(s, old+i, bb->commas[bb->idx+1]-i);
+        if (bb->cnt<0)
+          s += sprintf(s, (bb->cnt==-1) ? "%c" : "%d",
+                       bb->commas[2]+bb->commas[4]*bb->idx);
+        else {
+          i = bb->commas[bstk->idx]+1;
+          s = stpncpy(s, old+i, bb->commas[bb->idx+1]-i);
+        }
 
         // While not sibling, output tail and pop
-        while (!bnext || bnext->commas[0] > bstk->commas[bstk->cnt+1]) {
+        while (!bnext || bnext->commas[0]>brace_end(bstk)) {
           if (!(bb = bstk->stack)) break;
-          i = bstk->commas[bstk->cnt+1]+1; // start of span
-          j = bb->commas[bb->idx+1]; // enclosing comma span
+          i = brace_end(bstk)+1; // start of span
+          j = bb->commas[bb->idx+1]; // enclosing comma span (can't be a..b)
 
           while (bnext) {
             if (bnext->commas[0]<j) {
               j = bnext->commas[0];// sibling
               break;
-            } else if (bb->commas[bb->cnt+1]>bnext->commas[0])
+            } else if (brace_end(bb)>bnext->commas[0])
               bnext = (bnext->next == blist) ? 0 : bnext->next;
             else break;
           }
           s = stpncpy(s, old+i, j-i);
 
           // if next is sibling but parent _not_ a sibling, don't pop
-          if (bnext && bnext->commas[0]<bstk->stack->commas[bstk->stack->cnt+1])
-            break;
-          bstk = bstk->stack;
+          if (bnext && bnext->commas[0]<brace_end(bb)) break;
+          bstk = bb;
         }
       }
-      bb = (bnext == blist) ? 0 : bnext;
     }
 
     // Save result, aborting on expand error
@@ -1417,7 +1459,11 @@ static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
     // increment
     for (bb = blist->prev; bb; bb = (bb == blist) ? 0 : bb->prev) {
       if (!bb->stack) continue;
-      else if (++bb->idx > bb->cnt) bb->idx = 0;
+      else if (bb->cnt<0) {
+        if (abs(bb->commas[2]-bb->commas[3]) < abs(++bb->idx*bb->commas[4]))
+          bb->idx = 0;
+        else break;
+      } else if (++bb->idx > bb->cnt) bb->idx = 0;
       else break;
     }
 
