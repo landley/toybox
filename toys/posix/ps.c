@@ -600,7 +600,7 @@ static char *string_field(struct procpid *tb, struct ofields *field)
     }
     if (which <= PS_SHR) ll *= sysconf(_SC_PAGESIZE);
     if (TT.forcek) sprintf(out, "%lldk", ll/1024);
-    else human_readable_long(s, ll, i-1, 0);
+    else human_readable_long(s, ll, i-1, 0, 0);
 
   // Posix doesn't specify what flags should say. Man page says
   // 1 for PF_FORKNOEXEC and 4 for PF_SUPERPRIV from linux/sched.h
@@ -1568,7 +1568,7 @@ static void top_common(
           char hr[4][32];
           long long ll, up = 0;
           long run[6];
-          int j;
+          int j, k;
 
           // Count running, sleeping, stopped, zombie processes.
           // The kernel has more states (and different sets in different
@@ -1590,19 +1590,19 @@ static void top_common(
               j = i%3;
               pos = strafter(toybuf+256, (char *[]){"MemTotal:","\nMemFree:",
                     "\nBuffers:","\nSwapTotal:","\nSwapFree:","\nCached:"}[i]);
-              human_readable_long(hr[j+!!j], 1024*(run[i] = pos?atol(pos):0),
-                8, 0);
-              if (j==1) human_readable_long(hr[1], 1024*(run[i-1]-run[i]), 8,0);
+              run[i] = pos ? atol(pos) : 0;
+              k = (*run>=10000000);
+              human_readable_long(hr[j+!!j], run[i]>>(10*k), 8, k+1, HR_COMMAS);
+              if (j==1) human_readable_long(hr[1], (run[i-1]-run[i])>>(10*k),
+                8, k+1, HR_COMMAS);
               else if (j==2) {
-                sprintf(toybuf, (i<3)
-                  ? "  Mem: %9s total, %9s used, %9s free, %9s buffers"
-                  : " Swap: %9s total, %9s used, %9s free, %9s cached",
-                  hr[0], hr[1], hr[2], hr[3]);
+                sprintf(toybuf, " %s: %9s total, %9s used, %9s free, %9s %s",
+                  (i<3) ? " Mem" : "Swap", hr[0], hr[1], hr[2], hr[3],
+                  (i<3) ? "buffers" : "cached");
                 lines = header_line(lines, 0);
               }
             }
           }
-
           pos = toybuf;
           i = sysconf(_SC_NPROCESSORS_CONF);
           pos += sprintf(pos, "%d%%cpu", i*100);

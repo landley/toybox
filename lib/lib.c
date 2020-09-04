@@ -1148,18 +1148,33 @@ match:
 }
 
 // display first "dgt" many digits of number plus unit (kilo-exabytes)
-int human_readable_long(char *buf, unsigned long long num, int dgt, int style)
+int human_readable_long(char *buf, unsigned long long num, int dgt, int unit,
+  int style)
 {
   unsigned long long snap = 0;
-  int len, unit, divisor = (style&HR_1000) ? 1000 : 1024;
+  int len, commas = 0, off, ii, divisor = (style&HR_1000) ? 1000 : 1024;
 
   // Divide rounding up until we have 3 or fewer digits. Since the part we
   // print is decimal, the test is 999 even when we divide by 1024.
-  // We can't run out of units because 1<<64 is 18 exabytes.
-  for (unit = 0; snprintf(0, 0, "%llu", num)>dgt; unit++)
+  // The largest unit we can detect is 1<<64 = 18 Exabytes, but we added
+  // Zettabyte and Yottabyte in case "unit" starts above zero.
+  for (;;unit++) {
+    len = snprintf(0, 0, "%llu", num);
+    if (style&HR_COMMAS) commas = (len>4)*((len-1)/3);
+    if (len<=(dgt-commas)) break;
     num = ((snap = num)+(divisor/2))/divisor;
+  }
+  if (CFG_TOYBOX_DEBUG && unit>8) return sprintf(buf, "%.*s", dgt, "TILT");
+
   len = sprintf(buf, "%llu", num);
-  if (unit && len == 1) {
+  if (commas) {
+    for (ii = 0; ii<commas; ii++) {
+      off = len-3*(ii+1);
+      memmove(buf+off+commas-ii, buf+off, 3);
+      buf[off+commas-ii-1] = ',';
+    }
+    len += commas;
+  } else if (unit && len == 1) {
     // Redo rounding for 1.2M case, this works with and without HR_1000.
     num = snap/divisor;
     snap -= num*divisor;
@@ -1169,7 +1184,7 @@ int human_readable_long(char *buf, unsigned long long num, int dgt, int style)
   }
   if (style & HR_SPACE) buf[len++] = ' ';
   if (unit) {
-    unit = " kMGTPE"[unit];
+    unit = " kMGTPEZY"[unit];
 
     if (!(style&HR_1000)) unit = toupper(unit);
     buf[len++] = unit;
@@ -1182,7 +1197,7 @@ int human_readable_long(char *buf, unsigned long long num, int dgt, int style)
 // Give 3 digit estimate + units ala 999M or 1.7T
 int human_readable(char *buf, unsigned long long num, int style)
 {
-  return human_readable_long(buf, num, 3, style);
+  return human_readable_long(buf, num, 3, 0, style);
 }
 
 // The qsort man page says you can use alphasort, the posix committee
