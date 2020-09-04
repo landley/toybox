@@ -213,7 +213,7 @@ GLOBALS(
   dev_t tty;
   void *fields, *kfields;
   long long ticks, bits, time;
-  int kcount, forcek, sortpos;
+  int kcount, forcek, sortpos, pidlen;
   int (*match_process)(long long *slot);
   void (*show_process)(void *tb);
 )
@@ -311,7 +311,6 @@ struct procpid {
 #define XX 64 // force string representation for sorting, etc
 
 // TODO: Android uses -30 for LABEL, but ideally it would auto-size.
-// TODO: ideally, PID and PPID would auto-size too.
 struct typography {
   char *name, *help;
   signed char width, slot;
@@ -1112,8 +1111,9 @@ static char *parse_ko(void *data, char *type, int length)
   }
   if (i==ARRAY_LEN(typos)) return type;
   if (!field->title) field->title = typos[field->which].name;
-  if (!field->len) field->len = typos[field->which].width;
-  else if (typos[field->which].width<0) field->len *= -1;
+  k = i<2 ? TT.pidlen : typos[field->which].width;
+  if (!field->len) field->len = k;
+  else if (k<0) field->len *= -1;
   dlist_add_nomalloc(data, (void *)field);
 
   return 0;
@@ -1280,11 +1280,9 @@ static void default_ko(char *s, void *fields, char *err, struct arg_list *arg)
   if (x) help_help();
 }
 
-void ps_main(void)
+void common_setup(void)
 {
-  char **arg;
-  struct dirtree *dt;
-  char *not_o;
+  char buf[128];
   int i;
 
   TT.ticks = sysconf(_SC_CLK_TCK); // units for starttime/uptime
@@ -1294,6 +1292,20 @@ void ps_main(void)
 
     if (!fstat(i, &st)) TT.tty = st.st_rdev;
   }
+
+  if (readfile("/proc/sys/kernel/pid_max", buf, 128))
+    while (isdigit(buf[TT.pidlen])) TT.pidlen++;
+  else TT.pidlen = 6;
+}
+
+void ps_main(void)
+{
+  char **arg;
+  struct dirtree *dt;
+  char *not_o;
+  int i;
+
+  common_setup();
 
   // If we can't query terminal size pad to 80 but do -w
   TT.width = 80;
@@ -1733,8 +1745,7 @@ static void top_common(
 
 static void top_setup(char *defo, char *defk)
 {
-  TT.ticks = sysconf(_SC_CLK_TCK); // units for starttime/uptime
-  TT.tty = tty_fd() != -1;
+  common_setup();
 
   // Are we doing "batch" output or interactive?
   if (FLAG(b)) TT.width = TT.height = 99999;
