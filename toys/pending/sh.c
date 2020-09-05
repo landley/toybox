@@ -1417,10 +1417,10 @@ static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
       if (!bnext || bb->cnt<0 || bnext->commas[0]>bb->commas[bb->idx+1]) {
 
         // output uninterrupted span
-        if (bb->cnt<0)
-          s += sprintf(s, (bb->cnt==-1) ? "%c" : "%d",
-                       bb->commas[2]+bb->commas[4]*bb->idx);
-        else {
+        if (bb->cnt<0) {
+          k = bb->commas[2]+bb->commas[4]*bb->idx;
+          s += sprintf(s, (bb->cnt==-1) ? "\\%c"+!ispunct(k) : "%d", k);
+        } else {
           i = bb->commas[bstk->idx]+1;
           s = stpncpy(s, old+i, bb->commas[bb->idx+1]-i);
         }
