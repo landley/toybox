@@ -64,9 +64,10 @@ void logger_main(void)
     else {
       *s1++ = len = 0;
       facility = arrayfind(TT.p, facilities, ARRAY_LEN(facilities));
-      if (facility == -1 && strncasecmp(TT.p, "local", 5)) {
-        facility = s1[5]-'0';
-        if (facility>7 || s1[6]) facility = -1;
+      if (facility == -1 && strncasecmp(TT.p, "local", 5) == 0) {
+        s2 = TT.p;
+        facility = s2[5]-'0';
+        if (facility>7 || s2[6]) facility = -1;
         if (facility>=0) facility += 16;
       }
       if (facility<0) error_exit("bad facility: %s", TT.p);
