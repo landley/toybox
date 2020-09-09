@@ -25,11 +25,11 @@ GLOBALS(
   char *filename;
 )
 
-// extract hostname from url
+// extract hostname and port from url
 static unsigned get_hn(const char *url, char *hostname) {
   unsigned i;
 
-  for (i = 0; url[i] != '\0' && url[i] != ':' && url[i] != '/'; i++) {
+  for (i = 0; url[i] != '\0' && url[i] != '/'; i++) {
     if(i >= 1024) error_exit("too long hostname in URL");
     hostname[i] = url[i];
   }
@@ -41,7 +41,6 @@ static unsigned get_hn(const char *url, char *hostname) {
 // extract port number
 static unsigned get_port(const char *url, char *port, unsigned url_i) {
   unsigned i;
-
   for (i = 0; url[i] != '\0' && url[i] != '/'; i++, url_i++) {
     if('0' <= url[i] && url[i] <= '9') port[i] = url[i];
     else error_exit("wrong decimal port number");
@@ -50,6 +49,20 @@ static unsigned get_port(const char *url, char *port, unsigned url_i) {
   else error_exit("too long port number");
 
   return url_i;
+}
+
+static void strip_v6_brackets(char* hostname) {
+  size_t len = strlen(hostname);
+  if (len > 1023) {
+    error_exit("hostname too long, %d bytes\n", len);
+  }
+  char * closing_bracket = strchr(hostname, ']');
+  if (closing_bracket && closing_bracket == hostname + len - 1) {
+    if (strchr(hostname, '[') == hostname) {
+      hostname[len-1] = 0;
+      memmove(hostname, hostname + 1, len - 1);
+    }
+  }
 }
 
 // get http infos in URL
@@ -62,11 +75,30 @@ static void get_info(const char *url, char* hostname, char *port, char *path) {
   len = get_hn(url+i, hostname);
   i += len;
 
-  // get port if exists
-  if (url[i] == ':') {
-    i++;
-    i = get_port(url+i, port, i);
-  } else strcpy(port, "80");
+  // `hostname` now contains `host:port`, where host can be any of: a raw IPv4
+  // address; a bracketed, raw IPv6 address, or a hostname. Extract port, if it exists,
+  // by searching for the last ':' in the hostname string.
+  char *port_delim = strrchr(hostname, ':');
+  char use_default_port = 1;
+  if (port_delim) {
+    // Found a colon; is there a closing bracket after it? If so,
+    // then this colon was in the middle of a bracketed IPv6 address
+    if (!strchr(port_delim, ']')) {
+      // No closing bracket; this is a real port
+      use_default_port = 0;
+      get_port(port_delim + 1, port, 0);
+
+      // Mark the new end of the hostname string
+      *port_delim = 0;
+    }
+  }
+
+  if (use_default_port) {
+    strcpy(port, "80");
+  }
+
+  // This is a NOP if hostname is not a bracketed IPv6 address
+  strip_v6_brackets(hostname);
 
   // get uri in URL
   if (url[i] == '\0') strcpy(path, "/");
