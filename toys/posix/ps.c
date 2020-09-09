@@ -1604,11 +1604,11 @@ static void top_common(
                     "\nBuffers:","\nSwapTotal:","\nSwapFree:","\nCached:"}[i]);
               run[i] = pos ? atol(pos) : 0;
               k = (*run>=10000000);
-              human_readable_long(hr[j+!!j], run[i]>>(10*k), 8, k+1, HR_COMMAS);
+              human_readable_long(hr[j+!!j], run[i]>>(10*k), 9, k+1, HR_COMMAS);
               if (j==1) human_readable_long(hr[1], (run[i-1]-run[i])>>(10*k),
                 8, k+1, HR_COMMAS);
               else if (j==2) {
-                sprintf(toybuf, " %s: %9s total, %9s used, %9s free, %9s %s",
+                sprintf(toybuf, " %s:%10s total,%10s used,%10s free,%10s %s",
                   (i<3) ? " Mem" : "Swap", hr[0], hr[1], hr[2], hr[3],
                   (i<3) ? "buffers" : "cached");
                 lines = header_line(lines, 0);

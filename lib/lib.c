@@ -1151,6 +1151,7 @@ match:
 int human_readable_long(char *buf, unsigned long long num, int dgt, int unit,
   int style)
 {
+  static char cc, dot;
   unsigned long long snap = 0;
   int len, commas = 0, off, ii, divisor = (style&HR_1000) ? 1000 : 1024;
 
@@ -1160,18 +1161,29 @@ int human_readable_long(char *buf, unsigned long long num, int dgt, int unit,
   // Zettabyte and Yottabyte in case "unit" starts above zero.
   for (;;unit++) {
     len = snprintf(0, 0, "%llu", num);
-    if (style&HR_COMMAS) commas = (len>4)*((len-1)/3);
+    if (style&HR_COMMAS) commas = (len-1)/3;
     if (len<=(dgt-commas)) break;
     num = ((snap = num)+(divisor/2))/divisor;
   }
   if (CFG_TOYBOX_DEBUG && unit>8) return sprintf(buf, "%.*s", dgt, "TILT");
 
+  if (!dot) {
+    if (CFG_TOYBOX_I18N) {
+      struct lconv *ll;
+
+      setlocale(LC_NUMERIC, "");
+      ll = localeconv();
+      dot = *ll->decimal_point ? : '.';
+      cc = *ll->thousands_sep ? : ',';
+    } else cc = ',', dot = '.';
+  }
+
   len = sprintf(buf, "%llu", num);
-  if (commas) {
+  if (style&HR_COMMAS) {
     for (ii = 0; ii<commas; ii++) {
       off = len-3*(ii+1);
       memmove(buf+off+commas-ii, buf+off, 3);
-      buf[off+commas-ii-1] = ',';
+      buf[off+commas-ii-1] = cc;
     }
     len += commas;
   } else if (unit && len == 1) {
@@ -1180,7 +1192,7 @@ int human_readable_long(char *buf, unsigned long long num, int dgt, int unit,
     snap -= num*divisor;
     snap = ((snap*100)+50)/divisor;
     snap /= 10;
-    len = sprintf(buf, "%llu.%llu", num, snap);
+    len = sprintf(buf, "%llu%c%llu", num, dot, snap);
   }
   if (style & HR_SPACE) buf[len++] = ' ';
   if (unit) {
