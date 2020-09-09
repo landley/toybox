@@ -6,6 +6,7 @@ USE_DEMO_UTF8TOWC(NEWTOY(demo_utf8towc, 0, TOYFLAG_USR|TOYFLAG_BIN))
 
 config DEMO_UTF8TOWC
   bool "demo_utf8towc"
+  depends on TOYBOX_I18N
   default n
   help
     usage: demo_utf8towc
@@ -21,8 +22,6 @@ void demo_utf8towc_main(void)
   int len1, len2;
   unsigned u, h;
   wchar_t wc1, wc2;
-
-  setlocale(LC_ALL, "en_US.UTF-8");
 
   memset(&mb, 0, sizeof(mb));
   for (u=1; u; u++) {
