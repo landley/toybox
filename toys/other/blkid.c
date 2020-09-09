@@ -73,7 +73,7 @@ static void show_tag(char *key, char *value)
     for (al = TT.s; al; al = al->next) if (!strcmp(key, al->arg)) show = 1;
   } else show = 1;
 
-  if (show) printf(" %s=\"%s\"", key, value);
+  if (show && *value) printf(" %s=\"%s\"", key, value);
 }
 
 static void flagshow(char *s, char *name)
