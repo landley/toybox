@@ -1604,9 +1604,9 @@ static void top_common(
                     "\nBuffers:","\nSwapTotal:","\nSwapFree:","\nCached:"}[i]);
               run[i] = pos ? atol(pos) : 0;
               k = (*run>=10000000);
-              human_readable_long(hr[j+!!j], run[i]>>(10*k), 9, k+1, HR_COMMAS);
+              human_readable_long(hr[j+!!j], run[i]>>(10*k), 9, k+1, HR_NODOT);
               if (j==1) human_readable_long(hr[1], (run[i-1]-run[i])>>(10*k),
-                8, k+1, HR_COMMAS);
+                8, k+1, HR_NODOT);
               else if (j==2) {
                 sprintf(toybuf, " %s:%10s total,%10s used,%10s free,%10s %s",
                   (i<3) ? " Mem" : "Swap", hr[0], hr[1], hr[2], hr[3],
