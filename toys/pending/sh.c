@@ -174,19 +174,20 @@ GLOBALS(
     } exec;
   };
 
-  // keep lineno here, we use it to work around a compiler limitation
+  // keep lineno here: used to work around compiler limitation in run_command()
   long lineno;
   char *ifs, *isexec;
   unsigned options, jobcnt;
   int hfd, pid, bangpid, varslen, shift, cdcount;
   long long SECONDS;
 
+  // global and local variables
   struct sh_vars {
     long flags;
     char *str;
   } *vars;
 
-  // Parsed function
+  // Parsed functions
   struct sh_function {
     char *name;
     struct sh_pipeline {  // pipeline segments
@@ -220,7 +221,7 @@ static int sh_run(char *new);
 #define BUGBUG 0
 
 // call with NULL to just dump FDs
-static void dump_state(struct sh_function *sp)
+static void dump_state(struct sh_function *sp, int err)
 {
   struct sh_pipeline *pl;
   long i;
@@ -232,17 +233,18 @@ static void dump_state(struct sh_function *sp)
     struct double_list *dl;
 
     for (dl = sp->expect; dl; dl = (dl->next == sp->expect) ? 0 : dl->next)
-      dprintf(255, "expecting %s\n", dl->data);
+      dprintf(err, "expecting %s\n", dl->data);
     if (sp->pipeline)
-      dprintf(255, "pipeline count=%d here=%d\n", sp->pipeline->prev->count,
+      dprintf(err, "pipeline count=%d here=%d\n", sp->pipeline->prev->count,
         sp->pipeline->prev->here);
   }
 
   if (sp) for (pl = sp->pipeline; pl ; pl = (pl->next == sp->pipeline) ? 0 : pl->next) {
-    for (i = 0; i<pl->arg->c; i++)
-      dprintf(255, "arg[%d][%ld]=%s\n", q, i, pl->arg->v[i]);
-    if (pl->arg->c<0) dprintf(255, "argc=%d\n", pl->arg->c);
-    else dprintf(255, "type=%d term[%d]=%s\n", pl->type, q++, pl->arg->v[pl->arg->c]);
+    dprintf(err, "<%d> type=%d argc=%d", q++, pl->type, pl->arg->c);
+    for (i = 0; i<=pl->arg->c; i++)
+      if (i == pl->arg->c) dprintf(err, " term=%s", pl->arg->v ? pl->arg->v[pl->arg->c] : "");
+      else dprintf(err, " arg[%ld]=%s", i, pl->arg->v[i]);
+    dprintf(err, "\n");
   }
 
   if (dir) {
@@ -250,7 +252,7 @@ static void dump_state(struct sh_function *sp)
 
     while ((dd = readdir(dir))) {
       if (atoi(dd->d_name)!=fd && 0<readlinkat(fd, dd->d_name, buf,sizeof(buf)))
-        dprintf(255, "OPEN %d: %s = %s\n", getpid(), dd->d_name, buf);
+        dprintf(err, "OPEN %d: %s = %s\n", getpid(), dd->d_name, buf);
     }
     closedir(dir);
   }
@@ -273,6 +275,7 @@ static void syntax_err(char *s)
 {
   error_msg("syntax error: %s", s);
   toys.exitval = 2;
+  if (!(TT.options&OPT_I)) xexit();
 }
 
 // append to array with null terminator and realloc as necessary
@@ -574,7 +577,7 @@ static char *parse_word(char *start, int early, int quote)
 
     // backslash escapes
     else if (*end == '\\') {
-      if (!end[1] || (end[1]=='\n' && !end[2])) return 0;
+      if (!end[1] || (end[1]=='\n' && !end[2])) return early ? end+1 : 0;
       end += 2;
     } else if (*end == '$' && -1 != (i = stridx("({[", end[1]))) {
       end++;
@@ -592,7 +595,7 @@ static char *parse_word(char *start, int early, int quote)
     end++;
   }
 
-  return quote ? 0 : end;
+  return (quote && !early) ? 0 : end;
 }
 
 // Return next available high (>=10) file descriptor
@@ -917,8 +920,7 @@ static void collect_wildcards(char *new, long oo, struct sh_arg *deck)
 static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
   struct arg_list **delete, struct sh_arg *ant)
 {
-  char cc, qq = flags&NO_QUOTE, sep[6], *new = str, *s, *ss, *ifs,
-    *slice;
+  char cc, qq = flags&NO_QUOTE, sep[6], *new = str, *s, *ss, *ifs, *slice;
   int ii = 0, oo = 0, xx, yy, dd, jj, kk, ll, mm;
   struct sh_arg deck = {0};
 
@@ -1917,7 +1919,7 @@ static struct sh_pipeline *add_pl(struct sh_function *sp, struct sh_arg **arg)
 // 1 to request another line of input (> prompt), -1 for syntax err
 static int parse_line(char *line, struct sh_function *sp)
 {
-  char *start = line, *delete = 0, *end, *last = 0, *s, *ex, done = 0,
+  char *start = line, *delete = 0, *end, *s, *ex, done = 0,
     *tails[] = {"fi", "done", "esac", "}", "]]", ")", 0};
   struct sh_pipeline *pl = sp->pipeline ? sp->pipeline->prev : 0, *pl2, *pl3;
   struct sh_arg *arg = 0;
@@ -1953,8 +1955,8 @@ static int parse_line(char *line, struct sh_function *sp)
       }
       start = 0;
 
-    // Nope, new segment
-    } else pl = 0;
+    // Nope, new segment if not self-managing type
+    } else if (pl->type < 128) pl = 0;
   }
 
   // Parse words, assemble argv[] pipelines, check flow control and HERE docs
@@ -2001,7 +2003,7 @@ if (BUGBUG>1) dprintf(255, "{%d:%s}\n", pl->type, ex ? ex : (sp->expect ? "*" : 
     // Parse next word and detect overflow (too many nested quotes).
     if ((end = parse_word(start, 0, 0)) == (void *)1) goto flush;
 
-if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ? : "");
+if (BUGBUG>1) dprintf(255, "[%d:%.*s:%s] ", pl ? pl->type : 0, end ? (int)(end-start) : 0, start, ex ? : "");
     // Is this a new pipeline segment?
     if (!pl) pl = add_pl(sp, &arg);
 
@@ -2017,56 +2019,34 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
 
     // Ok, we have a word. What does it _mean_?
 
-    // case/esac parsing is weird, handle first
-    if (ex && !memcmp(ex, "esac\0A", 6)
-        && (pl->type || (*start==';' && end-start>1)))
-    {
-      // premature end of line only allowed at 'case x\nin' or after ;;
-      if (start == end) {
-        if (pl->type==1 && arg->c==2) break;
-        if (pl->type==2 && arg->c==1 && **arg->v==';') break;
+    // case/esac parsing is weird (unbalanced parentheses!), handle first
+    i = ex && !strcmp(ex, "esac") && (pl->type || (*start==';' && end-start>1));
+    if (i) {
+      // Premature EOL in type 1 (case x\nin) or 2 (at start or after ;;) is ok
+      if (end == start) {
+        if (pl->type==128 && arg->c==2) break;  // case x\nin
+        if (pl->type==129 && (!arg->c || (arg->c==1 && **arg->v==';'))) break;
         s = "newline";
         goto flush;
       }
 
-      // type 0: just got ;; so start new type 2 (catching "echo | ;;" errors)
+      // type 0 means just got ;; so start new type 2
       if (!pl->type) {
-        if (pl->prev->type==1) goto flush;
-        for (;;) {
-          if (arg->v[arg->c] && strcmp(arg->v[arg->c], "&")) goto flush;
-          if (arg->c) break;
-          arg = pl->prev->arg;
-        }
-        if (*arg->v) pl = add_pl(sp, &arg);
-        pl->type = 2;
-      }
-
-      // Save argument
-      arg_add(arg, s = xstrndup(start, end-start));
-      start = end;
-
-      // type 1: case x [\n] in
-      if (pl->type==1 && arg->c==3) {
-        if (strcmp(arg->v[2], "in")) goto flush;
-        (pl = add_pl(sp, &arg))->type = 2;
-
-      // type 2: [;;] [(] pattern [|pattern...] )
-      } else if (pl->type==2) {
-        *toybuf = ')';
-        i = arg->c - (**arg->v==';' && arg->v[0][1]);
-        if (arg->c==1 && **arg->v==';' && (long)parse_word(start,0,*s!='(')<2) {
-          pl = add_pl(sp, &arg);
-          sp->expect->prev->data = "esac\0B";
+        // catch "echo | ;;" errors
+        if (arg->v && arg->v[arg->c] && strcmp(arg->v[arg->c], "&")) goto flush;
+        if (!arg->c) {
+          if (pl->prev->type == 2) {
+            // Add a call to "true" between empty ) ;;
+            arg_add(arg, xstrdup(":"));
+            pl = add_pl(sp, &arg);
+          }
+          pl->type = 129;
         } else {
-          i -= arg->c>1 && *arg->v[1]=='(';
-          if (i>0 && ((i&1)==!!strchr("|)", *s) || strchr(";(", *s)))
-            goto flush;
-          if (*s=='&' || !strcmp(s, "||")) goto flush;
-          if (*s==')') pl = add_pl(sp, &arg);
+          // check for here documents
+          pl->count = -1;
+          continue;
         }
       }
-
-      continue;
 
     // Did we hit end of line or ) outside a function declaration?
     // ) is only saved at start of a statement, ends current statement
@@ -2088,7 +2068,6 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
       // stop at EOL, else continue with new pipeline segment for )
       if (end == start) done++;
       pl->count = -1;
-      last = 0;
 
       continue;
     }
@@ -2096,6 +2075,46 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
     // Save word and check for flow control
     arg_add(arg, s = xstrndup(start, end-start));
     start = end;
+
+    // Second half of case/esac parsing
+    if (i) {
+      // type 1 (128): case x [\n] in
+      if (pl->type==128) {
+        if (arg->c==2 && strchr("()|;&", *s)) goto flush;
+        if (arg->c==3) {
+          if (strcmp(s, "in")) goto flush;
+          pl->type = 1;
+          (pl = add_pl(sp, &arg))->type = 129;
+        }
+
+        continue;
+
+      // type 2 (129): [;;] [(] pattern [|pattern...] )
+      } else {
+
+        // can't start with line break or ";;" or "case ? in ;;" without ")"
+        if (*s==';') {
+          if (arg->c>1 || (arg->c==1 && pl->prev->type==1)) goto flush;
+        } else pl->type = 2;
+        i = arg->c - (**arg->v==';' && arg->v[0][1]);
+        if (i==1 && !strcmp(s, "esac")) {
+          // esac right after "in" or ";;" ends block, fall through
+          if (arg->c>1) {
+            arg->v[1] = 0;
+            pl = add_pl(sp, &arg);
+            arg_add(arg, s);
+          } else pl->type = 0;
+        } else {
+          if (arg->c>1) i -= *arg->v[1]=='(';
+          if (i>0 && ((i&1)==!!strchr("|)", *s) || strchr(";(", *s)))
+            goto flush;
+          if (*s=='&' || !strcmp(s, "||")) goto flush;
+          if (*s==')') pl = add_pl(sp, &arg);
+
+          continue;
+        }
+      }
+    }
 
     // is it a line break token?
     if (strchr(";|&", *s) && strncmp(s, "&>", 2)) {
@@ -2111,7 +2130,6 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
 
       // ;; and friends only allowed in case statements
       } else if (*s == ';') goto flush;
-      last = s;
 
       // flow control without a statement is an error
       if (!arg->c) goto flush;
@@ -2129,7 +2147,6 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
 
         // end function segment, expect function body
         pl->count = -1;
-        last = 0;
         dlist_add(&sp->expect, "}");
         dlist_add(&sp->expect, 0);
         dlist_add(&sp->expect, "{");
@@ -2141,7 +2158,7 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
     } else if (ex && !memcmp(ex, "do\0A", 4)) {
 
       // Sanity check and break the segment
-      if (strncmp(s, "((", 2) && strchr(s, '=')) goto flush;
+      if (strncmp(s, "((", 2) && *varend(s)) goto flush;
       pl->count = -1;
       sp->expect->prev->data = "do\0C";
 
@@ -2179,8 +2196,9 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
 
     // for/select/case require var name on same line, can't break segment yet
     if (!strcmp(s, "for") || !strcmp(s, "select") || !strcmp(s, "case")) {
-      if (!pl->type) pl->type = 1;
-      dlist_add(&sp->expect, (*s == 'c') ? "esac\0A" : "do\0A");
+// TODO why !pl->type here
+      if (!pl->type) pl->type = (*s == 'c') ? 128 : 1;
+      dlist_add(&sp->expect, (*s == 'c') ? "esac" : "do\0A");
 
       continue;
     }
@@ -2207,8 +2225,10 @@ if (BUGBUG>1) dprintf(255, "[%.*s:%s] ", end ? (int)(end-start) : 0, start, ex ?
 
     // If we got here we expect a specific word to end this block: is this it?
     else if (!strcmp(s, ex)) {
+      struct sh_arg *aa = pl->prev->arg;
+
       // can't "if | then" or "while && do", only ; & or newline works
-      if (last && strcmp(last, "&")) goto flush;
+      if (aa->v[aa->c] && strcmp(aa->v[aa->c], "&")) goto flush;
 
       // consume word, record block end location in earlier !0 type blocks
       free(dlist_lpop(&sp->expect));
@@ -2925,7 +2945,6 @@ if (BUGBUG) { int fd = open("/dev/tty", O_RDWR); if (fd == -1) fd = open("/dev/c
 // TODO unify fmemopen() here with sh_run
   if (cc) f = fmemopen(cc, strlen(cc), "r");
   else if (TT.options&OPT_S) f = stdin;
-// TODO: syntax_err should exit from shell scripts
   else if (!(f = fopen(*toys.optargs, "r"))) {
     char *pp = getvar("PATH") ? : _PATH_DEFPATH;
 
@@ -2963,7 +2982,7 @@ if (BUGBUG) dprintf(255, "line=%s\n", new);
 
     // returns 0 if line consumed, command if it needs more data
     prompt = parse_line(new, &scratch);
-if (BUGBUG) dprintf(255, "prompt=%d\n", prompt), dump_state(&scratch);
+if (BUGBUG) dprintf(255, "prompt=%d\n", prompt), dump_state(&scratch, 255);
     if (prompt != 1) {
 // TODO: ./blah.sh one two three: put one two three in scratch.arg
       if (!prompt) run_function(scratch.pipeline);

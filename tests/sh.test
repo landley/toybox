@@ -170,6 +170,9 @@ testing '$(( ) )' 'echo ab$((echo hello) | tr e x)cd' "abhxllocd\n" "" ""
 # Loops and flow control
 testing "case" 'for i in A C J B; do case "$i" in A) echo got A ;; B) echo and B ;; C) echo then C ;; *) echo default ;; esac; done' \
   "got A\nthen C\ndefault\nand B\n" "" ""
+testing "case newlines" \
+  $'case i\n\nin\n\na) echo one\n\n;;\n\ni)\n\necho two\n\n;;\n\nesac' \
+  "two\n" "" ""
 
 testing "continue" 'for i in a b c; do for j in d e f; do echo $i $j; continue 2; done; done' \
   "a d\nb d\nc d\n" "" ""
@@ -481,3 +484,5 @@ shxpect '${a?b} sets err, stops cmdline eval' \
 #HISTCMD - history number
 #
 #TMOUT - used by read
+
+# does not match: ./sh -c 'echo {a..Z}' becomes a ` _ ^ ] \ [ Z
