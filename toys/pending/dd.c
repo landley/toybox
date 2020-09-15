@@ -224,7 +224,12 @@ void dd_main()
   if (!(TT.oflag & _DD_oflag_seek_bytes)) bs *= TT.out.sz;
   if (bs) {
     xlseek(TT.out.fd, bs, SEEK_CUR);
-    if (trunc && ftruncate(TT.out.fd, bs)) perror_exit("ftruncate");
+    if (trunc && ftruncate(TT.out.fd, bs)) {
+      struct stat st;
+      if (fstat(TT.out.fd, &st) < 0 || S_ISREG(st.st_mode) || S_ISDIR(st.st_mode)) {
+        perror_exit("unexpected ftruncate failure");
+      }
+    }
   }
 
   unsigned long long bytes_left = TT.c_count;
