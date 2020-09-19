@@ -2,9 +2,9 @@
 
 source configure
 
-if [ -z "$(command -v "${CROSS_COMPILE}${CC}")" ]
+if [ -z "$(command -v "${CROSS_COMPILE}cc")" ]
 then
-  echo "No ${CROSS_COMPILE}${CC} found" >&2
+  echo "No ${CROSS_COMPILE}cc found" >&2
   exit 1
 fi
 
