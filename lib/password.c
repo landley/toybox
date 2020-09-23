@@ -62,7 +62,7 @@ int read_password(char *buf, int buflen, char *mesg)
   tcflush(0, TCIFLUSH);
   xset_terminal(0, 1, 0, &oldtermio);
 
-  xprintf("%s", mesg);
+  dprintf(1, "%s", mesg);
 
   for (i=0; i < buflen-1; i++) {
     if ((ret = read(0, buf+i, 1)) < 0 || (!ret && !i)) {
