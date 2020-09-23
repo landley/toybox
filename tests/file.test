@@ -7,7 +7,7 @@
 touch empty
 echo "#!/bin/bash" > bash.script
 echo "#!  /bin/bash" > bash.script2
-echo "#!  /usr/bin/env python" > env.python.script
+echo "#!  /usr/bin/env python" > test.py
 echo "Hello, world!" > ascii
 echo "6465780a3033350038ca8f6ce910f94e" | xxd -r -p > android.dex
 ln -s $FILES/java.class symlink
@@ -19,28 +19,33 @@ testing "directory" "file ." ".: directory\n" "" ""
 testing "empty" "file empty" "empty: empty\n" "" ""
 testing "bash.script" "file bash.script | grep -o ' script'" " script\n" "" ""
 testing "bash.script with spaces" "file bash.script2 | grep -o ' script'" " script\n" "" ""
-testing "env python script" "file env.python.script" "env.python.script: python script\n" "" ""
+testing "env python script" "file test.py | egrep -o '(python|script)' | sort" \
+  "python\nscript\n" "" ""
 testing "ascii" "file ascii" "ascii: ASCII text\n" "" ""
-testing "utf-8" "file $FILES/utf8/japan.txt | sed 's|$FILES/||'" \
-    "utf8/japan.txt: UTF-8 text\n" "" ""
-testing "java class" "file $FILES/java.class | sed 's|$FILES/||'" \
-    "java.class: Java class file, version 53.0 (Java 1.9)\n" "" ""
+testing "utf-8" \
+  "file $FILES/utf8/japan.txt | egrep -o '(UTF-8|text)' | LANG=c sort" \
+  "UTF-8\ntext\n" "" ""
+testing "java class" \
+  "file $FILES/java.class | egrep -o '(Java class|version 53.0)'"\
+  "Java class\nversion 53.0\n" "" ""
 testing "tar file" "file $FILES/tar/tar.tar | sed 's|$FILES/||'" \
     "tar/tar.tar: POSIX tar archive (GNU)\n" "" ""
-testing "gzip data" "file $FILES/tar/tar.tgz | sed 's|$FILES/||'" \
-    "tar/tar.tgz: gzip compressed data\n" "" ""
+testing "gzip data" "file $FILES/tar/tar.tgz | grep -o 'gzip compressed data'" \
+    "gzip compressed data\n" "" ""
 testing "bzip2 data" "file $FILES/tar/tar.tbz2 | sed 's|$FILES/||'" \
     "tar/tar.tbz2: bzip2 compressed data, block size = 900k\n" "" ""
 testing "7z file" "file $FILES/tar/tar.7z | sed 's|$FILES/||'" \
     "tar/tar.7z: 7-zip archive data, version 0.4\n" "" ""
-testing "zip file" "file $FILES/zip/example.zip | sed 's|$FILES/||'" \
-    "zip/example.zip: Zip archive data, requires at least v1.0 to extract\n" "" ""
+testing "zip file" \
+  "file $FILES/zip/example.zip | egrep -o '(Zip archive data|at least v1.0 to extract)'" \
+    "Zip archive data\nat least v1.0 to extract\n" "" ""
 echo R0lGODlhIAAgAMZHAAAAABYWFiYmJioqKi4uLjIy | base64 -d > gif
 testing "gif file" "file gif" "gif: GIF image data, version 89a, 32 x 32\n" "" ""
 rm -f gif
 
 # TODO: check in a genuine minimal .dex
-testing "Android .dex" "file android.dex" "android.dex: Android dex file, version 035\n" "" ""
+testing "Android .dex" "file android.dex | egrep -o '(dex file|version 035)'" \
+  "dex file\nversion 035\n" "" ""
 
 # These actually test a lot of the ELF code: 32-/64-bit, arm/arm64, PT_INTERP,
 # the two kinds of NDK ELF note, BuildID, and stripped/not stripped.
@@ -54,14 +59,20 @@ toyonly testing "Android NDK short ELF note" \
 testing "broken symlink" "file dangler" "dangler: broken symbolic link to $BROKEN\n" "" ""
 testing "symlink" "file symlink" "symlink: symbolic link to $LINK\n" "" ""
 testing "symlink -h" "file -h symlink" "symlink: symbolic link to $LINK\n" "" ""
-testing "symlink -L" "file -L symlink" "symlink: Java class file, version 53.0 (Java 1.9)\n" "" ""
+testing "symlink -L" \
+  "file -L symlink | egrep -o '(symlink:|Java class|version 53.0)'" \
+  "symlink:\nJava class\nversion 53.0\n" "" ""
 
-testing "- pipe" "cat $FILES/java.class | file -" "-: Java class file, version 53.0 (Java 1.9)\n" "" ""
-testing "- redirect" "file - <$FILES/java.class" "-: Java class file, version 53.0 (Java 1.9)\n" "" ""
+# Some host versions say "-" some "/dev/stdin"...
+testing "- pipe" "cat $FILES/java.class | file - | egrep -o '(Java class|version 53.0)'" \
+  "Java class\nversion 53.0\n" "" ""
+testing "- redirect" \
+  "file - <$FILES/java.class | egrep -o '(Java class|version 53.0)'" \
+  "Java class\nversion 53.0\n" "" ""
 
 zero_dev="1/5"
 [ "$(uname)" == "Darwin" ] && zero_dev="3/3"
 testing "/dev/zero" "file /dev/zero" "/dev/zero: character special ($zero_dev)\n" "" ""
-testing "- </dev/zero" "file - </dev/zero" "-: data\n" "" ""
+testing "- </dev/zero" "file - </dev/zero | grep -ow data" "data\n" "" ""
 
-rm empty bash.script bash.script2 env.python.script ascii android.dex
+rm empty bash.script bash.script2 test.py ascii android.dex
