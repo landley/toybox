@@ -176,7 +176,7 @@ GLOBALS(
 
   // keep lineno here: used to work around compiler limitation in run_command()
   long lineno;
-  char *ifs, *isexec;
+  char *ifs, *isexec, *wcpat;
   unsigned options, jobcnt;
   int hfd, pid, bangpid, varslen, shift, cdcount;
   long long SECONDS;
@@ -211,7 +211,8 @@ GLOBALS(
     struct sh_arg *raw, arg;
   } *pp; // currently running process
 
-  struct sh_arg jobs, *arg;  // job list, command line args for $* etc
+  // job list, command line for $*, scratch space for do_wildcard_files()
+  struct sh_arg jobs, *arg, *wcdeck;
 )
 
 // Can't yet avoid this prototype. Fundamental problem is $($($(blah))) nests,
@@ -460,11 +461,11 @@ static char *declarep(struct sh_vars *var)
 
   for (in = types = varend(var->str); *in; in++) len += !!strchr("$\"\\`", *in);
   len += in-types;
-  ss = xmalloc(len+13);
+  ss = xmalloc(len+15);
 
   out = ss + sprintf(ss, "declare -%s \"", out);
-  while (types) {
-    if (strchr("$\"\\`", *in)) *out++ = '\\';
+  while (*types) {
+    if (strchr("$\"\\`", *types)) *out++ = '\\';
     *out++ = *types++;
   }
   *out++ = '"';
@@ -605,7 +606,7 @@ static int next_hfd()
 
   for (; TT.hfd<=99999; TT.hfd++) if (-1 == fcntl(TT.hfd, F_GETFL)) break;
   hfd = TT.hfd;
-  if (TT.hfd > 99999) {
+  if (TT.hfd>99999) {
     hfd = -1;
     if (!errno) errno = EMFILE;
   }
@@ -828,29 +829,177 @@ char *slashcopy(char *s, char c)
   return ss;
 }
 
-// Return 0 fail, 1 short match, 2 exact match
-static int wildcard_match(char *str, char *pattern, struct sh_arg *deck)
+int getutf8(char *s, int len, int *cc)
 {
-  int i;
+  wchar_t wc;
 
-// TODO actual plumbing here
-  for (i = 0; str[i]; i++) if (str[i]!=pattern[i]) return 0;
+  if (len<0) wc = len = 0;
+  else if (1>(len = utf8towc(&wc, s, len))) wc = *s, len = 1;
+  if (cc) *cc = wc;
 
-  return 1+!pattern[i];
+  return len;
 }
 
-// wildcard expand data and add results to arg list
-static void wildcard_add(struct sh_arg *arg, char *pattern, struct sh_arg *deck,
-  struct arg_list **delete)
+#define WILD_SHORT 1 // else longest match
+#define WILD_CASE  2 // case insensitive
+// Returns length of str matched by pattern, or -1 if not all pattern consumed
+static int wildcard_match(char *str, int len, char *pattern, int plen,
+  struct sh_arg *deck, int flags)
 {
-// TODO: abc/*/def.txt in segments, partial matches
-  arg_add(arg, pattern);
-// TODO when flush deck?
+  struct sh_arg ant = {0};    // stack: of str offsets
+  long ss, pp, dd, best = -1;
+  int i, j, c, not;
+
+  // Loop through wildcards in pattern.
+  for (ss = pp = dd = 0; ;pp++) {
+    // did we consume pattern?
+    if (pp==plen) {
+      if (ss>best) best = ss;
+      if (ss==len || (flags&WILD_SHORT)) break;
+    // attempt literal match?
+    } else if (dd>=deck->c || pp!=(long)deck->v[dd]) {
+      if (ss<len) {
+        if (flags&WILD_CASE) {
+          c = towupper(getutf8(str+ss, len-ss, &i));
+          ss += i;
+          i = towupper(getutf8(pattern+pp, pp-plen, &j));
+          pp += j;
+        } else c = str[ss++], i = pattern[pp++];
+        if (c==i) continue;
+      }
+
+    // Wildcard chars: |+@!*?()[]
+    } else if ((c = pattern[(long)deck->v[dd++]])=='?') {
+      ss += (i = getutf8(str+ss, len-ss, 0));
+      if (i) continue;
+    } else if (c == '*') {
+      // start with zero length match, don't record consecutive **
+      if (!dd || pp-1!=(long)deck->v[dd-1] || pattern[pp-1]!='*') {
+        arg_add(&ant, (void *)ss);
+        arg_add(&ant, 0);
+        dd++;
+      }
+
+      continue;
+    } else if (c == '[') {
+      not = !!strchr("!^", pattern[++pp]);
+      ss += getutf8(str+ss, len-ss, &c);
+      for (i = 0, pp += not; pp<(long)deck->v[dd]; i = 0) {
+        pp += getutf8(pattern+pp, plen-pp, &i);
+        if (pattern[pp]=='-') {
+          ++pp;
+          pp += getutf8(pattern+pp, plen-pp, &j);
+          if (not^(i<=c && j>=c)) break;
+        } else if (not^(i==c)) break;
+      }
+      if (i) {
+        pp = (long)deck->v[dd++];
+
+        continue;
+      }
+
+    // ( preceded by +@!*?
+
+    } else { // TODO ( ) |
+      dd++;
+      continue;
+    }
+
+    // match failure, pop retry stack or return failure
+    // TODO: seek to next | in paren
+    while (ant.c) {
+      if ((c = pattern[(long)deck->v[--dd]])=='*') {
+        if (len<(ss = (long)ant.v[ant.c-2]+ (long)++ant.v[ant.c-1])) ant.c -= 2;
+        else {
+          dd++;
+          break;
+        }
+      } else if (c == '(') dprintf(2, "TODO: (");
+    }
+
+    if (!ant.c) break;
+  }
+
+  free (ant.v);
+
+  return best;
+}
+
+// Skip to next slash in wildcard path. Needs deck to know what [ranges] to skip
+char *wildcard_skipslash(char *pattern, struct sh_arg *deck, int *doff)
+{
+  char *p;
+  int i = 0;
+
+  for (p = pattern; *p && *p!='/'; p++) {
+    // Skip [] and nested () ranges within deck
+    if (*doff<deck->c && p-pattern == (long)deck->v[*doff]) {
+      ++*doff;
+      if (*p=='[') p = deck->v[(*doff)++];
+      else if (*p=='(') while (*++p) if (p-pattern == (long)deck->v[*doff]) {
+        ++*doff;
+        if (*p == ')') {
+          if (!i) break;
+          i--;
+        } else if (*p == '(') i++;
+      }
+    }
+  }
+
+  return p;
+}
+
+// TODO ** means this directory as well as ones below it, shopt -s globstar
+
+// Filesystem traversal callback
+// pass on: filename, portion of deck, portion of pattern,
+// input: pattern+offset, deck+offset. Need to update offsets.
+int do_wildcard_files(struct dirtree *node)
+{
+  struct dirtree *nn;
+  char *p, *pattern = TT.wcpat;
+  int lvl, ll, rc;
+  struct sh_arg ant;
+
+  // Find active pattern range
+  for (nn = node, lvl = ll = 1;; lvl = ll, pattern = p) {
+    p = wildcard_skipslash(pattern, TT.wcdeck, &ll);
+    if (lvl != ll && !(nn = nn->parent)) break;
+    while (*p == '/') p++;
+  }
+
+  // Don't include . entries unless explicitly asked for them 
+  if (*node->name == '.' && *pattern != '.') return 0;
+
+  // Don't descend into non-directory (called with DIRTREE_SYMFOLLOW)
+  if (*p && !S_ISDIR(node->st.st_mode) && *node->name) return 0;
+
+  // match this filename from pattern to p in deck from lvl to ll
+  ant.c = ll-lvl;
+  ant.v = TT.wcdeck->v+lvl;
+  rc = wildcard_match(node->name, strlen(node->name), pattern,p-pattern,&ant,0);
+  if (rc<0 || node->name[rc]) return 0;
+
+  // We matched: recurse or save
+  if (!*p) return DIRTREE_SAVE;
+  lvl = ll;
+  pattern = p;
+  while (*p && lvl == ll) {
+    p = wildcard_skipslash(p, TT.wcdeck, &ll);
+    while (*p == '/') p++;
+  }
+  if (lvl == ll) {
+    p = xmprintf("%s%s", node->name, pattern);
+    rc = faccessat(dirtree_parentfd(node), p, F_OK, AT_SYMLINK_NOFOLLOW);
+    free(p);
+    return DIRTREE_SAVE*!rc;
+  }
+
+  return DIRTREE_RECURSE;
 }
 
 // Record active wildcard chars in output string
 // *new start of string, oo offset into string, deck is found wildcards,
-// ant is scratch space for nested +()
 static void collect_wildcards(char *new, long oo, struct sh_arg *deck)
 {
   long bracket, *vv;
@@ -861,6 +1010,26 @@ static void collect_wildcards(char *new, long oo, struct sh_arg *deck)
   if (!deck->c) arg_add(deck, 0);
   vv = (long *)deck->v;
 
+  // vv[0] used for paren level (bottom 16 bits) + bracket start offset<<16
+
+  // at end loop backwards through live wildcards to remove pending unmatched (
+  if (!cc) {
+    long ii = 0, jj = 65535&*vv, kk;
+
+    for (*vv = 0, kk = deck->c; jj;) {
+      if (')' == (cc = new[vv[--kk]])) ii++;
+      else if ('(' == cc) {
+        if (ii) ii--;
+        else {
+          memmove(vv+kk, vv+kk+1, sizeof(long)*(deck->c-- -kk));
+          jj--;
+        }
+      }
+    }
+
+    return;
+  }
+
   // Start +( range, or remove first char that isn't wildcard without (
   if (deck->c>1 && vv[deck->c-1] == oo-1 && strchr("+@!*?", new[oo-1])) {
     if (cc == '(') {
@@ -869,42 +1038,72 @@ static void collect_wildcards(char *new, long oo, struct sh_arg *deck)
     } else if (!strchr("*?", new[oo-1])) deck->c--;
   }
 
-  // yank unifinished ( ranges from metadata, they're not live wildcards
-  if (!cc) {
-    long ii = 0, jj = 65535&*vv;
-
-    for (oo = deck->c; jj;) {
-      cc = new[vv[--oo]];
-      if (')' == cc) ii++;
-      else if ('(' == cc) {
-        if (ii) ii--;
-        else {
-          memmove(vv+oo, vv+oo+1, sizeof(long)*(deck->c-- -oo));
-          jj--;
-        }
-      }
-    }
-
-    return;
-  } else if (strchr("|+@!*?", cc));
-  // Pop parentheses stack
+  // fall through to add wildcard, popping parentheses stack as necessary
+  if (strchr("|+@!*?", cc));
   else if (cc == ')' && (65535&*vv)) --*vv;
 
-  // If we complete a [range] discard any other wildcards within, add [ and ]
+  // complete [range], discard wildcards within, add [, fall through to add ]
   else if (cc == ']' && (bracket = *vv>>16)) {
-    if (bracket == oo || (bracket+1 == oo && new[oo-1] == '^')) return;
+    // don't end range yet for [] or [^]
+    if (bracket+1 == oo || (bracket+2 == oo && strchr("!^", new[oo-1]))) return;
     while (deck->c>1 && vv[deck->c-1]>=bracket) deck->c--;
     *vv &= 65535;
     arg_add(deck, (void *)--bracket);
 
-  // [ is speculative, don't add to deck yet, just record we saw it
+  // Not a wildcard
   } else {
+    // [ is speculative, don't add to deck yet, just record we saw it
     if (cc == '[' && !(*vv>>16)) *vv = (oo<<16)+(65535&*vv);
     return;
   }
 
   // add active wildcard location
   arg_add(deck, (void *)oo);
+}
+
+// wildcard expand data against filesystem, and add results to arg list
+// Note: this wildcard deck has extra argument at start (leftover from parsing)
+static void wildcard_add_files(struct sh_arg *arg, char *pattern,
+  struct sh_arg *deck, struct arg_list **delete)
+{
+  struct dirtree *dt;
+  char *p, *pp;
+  int lvl, ll;
+
+  // fast path: when no wildcards, add pattern verbatim
+  if (deck->c<2) return arg_add(arg, pattern);
+
+  if (*deck->v) collect_wildcards("", 0, deck);
+  TT.wcdeck = deck;
+  TT.wcpat = pattern;
+
+  // Find leading patternless path (if any)
+  for (p = pattern, lvl = ll = 1; ; p = pp) {
+    pp = wildcard_skipslash(p, deck, &ll);
+    if (ll != lvl) break;
+    while (*pp == '/') pp++;
+  }
+
+  // Traverse
+  pp = 0;
+  dt = dirtree_flagread((p==pattern) ? 0 : (pp = xstrndup(pattern, p-pattern)),
+    DIRTREE_STATLESS|DIRTREE_SYMFOLLOW, do_wildcard_files);
+  free(pp);
+
+  if (!dt) return arg_add(arg, pattern);
+
+  // traverse dirtree via child and parent pointers, consuming/freeing nodes
+  while (dt) {
+    while (dt->child) dt = dt->child;
+    arg_add(arg, dirtree_path(dt, 0));
+    do {
+      pp = (void *)dt;
+      if ((dt = dt->parent)) dt->child = dt->child->next;
+      free(pp);
+    } while (dt && !dt->child);
+  }
+
+// TODO: test .*/../
 }
 
 #define NO_QUOTE (1<<0)    // quote removal
@@ -957,11 +1156,10 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
     struct sh_arg aa = {0};
     int nosplit = 0;
 
-    if (!(flags&NO_PATH) && !(qq&1)) collect_wildcards(new, oo, ant);
-
     // skip literal chars
     if (!strchr("'\"\\$`"+2*(flags&NO_QUOTE), cc)) {
       if (str != new) new[oo] = cc;
+      if (!(flags&NO_PATH) && !(qq&1)) collect_wildcards(new, oo, ant);
       oo++;
       continue;
     }
@@ -975,7 +1173,7 @@ if (BUGBUG) dprintf(255, "expand %s\n", str);
 
     // handle escapes and quoting
     if (cc == '\\') {
-      if (!(qq&1) || strchr("\"\\$`", str[ii]))
+      if (!(qq&1) || (str[ii] && strchr("\"\\$`", str[ii])))
         new[oo++] = str[ii] ? str[ii++] : cc;
     } else if (cc == '"') qq++;
     else if (cc == '\'') {
@@ -1236,7 +1434,7 @@ barf:
           if (qq || ss!=ifs) {
             if (!(flags&NO_PATH))
               for (jj = 0; ifs[jj]; jj++) collect_wildcards(ifs, jj, ant);
-            wildcard_add(arg, ifs, &deck, delete);
+            wildcard_add_files(arg, ifs, &deck, delete);
           }
           continue;
         }
@@ -1255,7 +1453,7 @@ barf:
         if (!nosplit) {
           if (qq || *new || *ss) {
             push_arg(delete, new = xrealloc(new, strlen(new)+1));
-            wildcard_add(arg, new, &deck, delete);
+            wildcard_add_files(arg, new, &deck, delete);
             new = xstrdup(str+ii);
           }
           qq &= 1;
@@ -1281,7 +1479,7 @@ barf:
   // Record result.
   if (*new || qq) {
     if (str != new) push_arg(delete, new);
-    wildcard_add(arg, new, &deck, delete);
+    wildcard_add_files(arg, new, &deck, delete);
     new = 0;
   }
 
@@ -2616,26 +2814,24 @@ dprintf(2, "TODO skipped init for((;;)), need math parser\n");
         } else if (strcmp(s, ";&")) {
           struct sh_arg arg = {0}, arg2 = {0};
 
-          for (err = 0, vv = 0; !err;) {
+          for (err = 0, vv = 0;;) {
             if (!vv) {
               vv = pl->arg->v + (**pl->arg->v == ';');
               if (!*vv) {
-                pl = pl->next;
-// TODO if not type==3 syntax err here, but catch it above
-
+                pl = pl->next; // TODO syntax err if not type==3, catch above
                 break;
               } else vv += **vv == '(';
             }
             arg.c = 0;
-            if (expand_arg_nobrace(&arg, *vv++, NO_PATH|NO_SPLIT, &blk->fdelete,
-              &arg2)) err = 1;
-            else {
-              match = wildcard_match(arg.c ? *arg.v : "", blk->fvar, &arg2);
-              if (match == 2) break;
-              else if (**vv++ == ')') {
-                vv = 0;
-                if ((pl = pl->end)->type!=2) break;
-              }
+            if ((err = expand_arg_nobrace(&arg, *vv++, NO_PATH|NO_SPLIT,
+              &blk->fdelete, &arg2))) break;
+            s = arg.c ? *arg.v : "";
+            match = wildcard_match(s, strlen(s), blk->fvar, strlen(blk->fvar),
+              &arg2, 0);
+            if (match<0 || s[match]) break;
+            else if (**vv++ == ')') {
+              vv = 0;
+              if ((pl = pl->end)->type!=2) break;
             }
           }
           free(arg.v);
@@ -3149,6 +3345,7 @@ void exec_main(void)
 
   // report error (usually ENOENT) and return
   perror_msg("%s", TT.isexec);
+  if (*toys.optargs != TT.isexec) free(*toys.optargs);
   TT.isexec = 0;
   toys.exitval = 127;
   environ = old;
