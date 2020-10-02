@@ -851,7 +851,8 @@ static int wildcard_match(char *str, int len, char *pattern, int plen,
   int i, j, c, not;
 
   // Loop through wildcards in pattern.
-  for (ss = pp = dd = 0; ;pp++) {
+  for (ss = pp = dd = 0; ;) {
+
     // did we consume pattern?
     if (pp==plen) {
       if (ss>best) best = ss;
@@ -869,40 +870,44 @@ static int wildcard_match(char *str, int len, char *pattern, int plen,
       }
 
     // Wildcard chars: |+@!*?()[]
-    } else if ((c = pattern[(long)deck->v[dd++]])=='?') {
-      ss += (i = getutf8(str+ss, len-ss, 0));
-      if (i) continue;
-    } else if (c == '*') {
-      // start with zero length match, don't record consecutive **
-      if (!dd || pp-1!=(long)deck->v[dd-1] || pattern[pp-1]!='*') {
-        arg_add(&ant, (void *)ss);
-        arg_add(&ant, 0);
-        dd++;
-      }
+    } else {
+      c = pattern[pp++];
+      dd++;
+      if (c=='?') {
+        ss += (i = getutf8(str+ss, len-ss, 0));
+        if (i) continue;
+      } else if (c=='*') {
 
-      continue;
-    } else if (c == '[') {
-      not = !!strchr("!^", pattern[++pp]);
-      ss += getutf8(str+ss, len-ss, &c);
-      for (i = 0, pp += not; pp<(long)deck->v[dd]; i = 0) {
-        pp += getutf8(pattern+pp, plen-pp, &i);
-        if (pattern[pp]=='-') {
-          ++pp;
-          pp += getutf8(pattern+pp, plen-pp, &j);
-          if (not^(i<=c && j>=c)) break;
-        } else if (not^(i==c)) break;
-      }
-      if (i) {
-        pp = (long)deck->v[dd++];
+        // start with zero length match, don't record consecutive **
+        if (dd==1 || pp-2!=(long)deck->v[dd-1] || pattern[pp-2]!='*') {
+          arg_add(&ant, (void *)ss);
+          arg_add(&ant, 0);
+        }
 
         continue;
+      } else if (c == '[') {
+        pp += (not = !!strchr("!^", pattern[pp]));
+        ss += getutf8(str+ss, len-ss, &c);
+        for (i = 0; pp<(long)deck->v[dd]; i = 0) {
+          pp += getutf8(pattern+pp, plen-pp, &i);
+          if (pattern[pp]=='-') {
+            ++pp;
+            pp += getutf8(pattern+pp, plen-pp, &j);
+            if (not^(i<=c && j>=c)) break;
+          } else if (not^(i==c)) break;
+        }
+        if (i) {
+          pp = (long)deck->v[dd++];
+
+          continue;
+        }
+
+      // ( preceded by +@!*?
+
+      } else { // TODO ( ) |
+        dd++;
+        continue;
       }
-
-    // ( preceded by +@!*?
-
-    } else { // TODO ( ) |
-      dd++;
-      continue;
     }
 
     // match failure, pop retry stack or return failure
@@ -919,7 +924,6 @@ static int wildcard_match(char *str, int len, char *pattern, int plen,
 
     if (!ant.c) break;
   }
-
   free (ant.v);
 
   return best;
@@ -1489,6 +1493,10 @@ barf:
 fail:
   if (str != new) free(new);
   free(deck.v);
+  if (ant!=&deck && ant->v) {
+    collect_wildcards("", 0, ant);
+    memmove(ant->v, ant->v+1, ant->c--*sizeof(long));
+  }
 
   return !!arg;
 }
@@ -2823,12 +2831,12 @@ dprintf(2, "TODO skipped init for((;;)), need math parser\n");
               } else vv += **vv == '(';
             }
             arg.c = 0;
-            if ((err = expand_arg_nobrace(&arg, *vv++, NO_PATH|NO_SPLIT,
-              &blk->fdelete, &arg2))) break;
+            if ((err = expand_arg_nobrace(&arg, *vv++, NO_SPLIT, &blk->fdelete,
+              &arg2))) break;
             s = arg.c ? *arg.v : "";
-            match = wildcard_match(s, strlen(s), blk->fvar, strlen(blk->fvar),
+            match = wildcard_match(blk->fvar, strlen(blk->fvar), s, strlen(s),
               &arg2, 0);
-            if (match<0 || s[match]) break;
+            if (match>=0 && !s[match]) break;
             else if (**vv++ == ')') {
               vv = 0;
               if ((pl = pl->end)->type!=2) break;
