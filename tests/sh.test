@@ -163,6 +163,13 @@ testing "brackets9" 'echo A{B{C,D}E{N,O},F{G,H}I}J{K,L}M' \
 for i in /root /var/root /; do [ -e $i ] && EXPECT=$i && break; done
 testing "bracket+tilde" "echo {~,~root}/pwd" "$HOME/pwd $EXPECT/pwd\n" "" ""
 
+# Slices
+
+testing '${x#prefix}' 'x=abcde; echo ${x#abc}' 'de\n' '' ''
+testing '${x#short} ${x##long}' 'x=banana; echo ${x#b*n} ${x##b*n}' \
+  'ana a\n' '' ''
+toyonly testing '${x#utf8}' 'x=aそcde; echo ${x##a?c}' 'de\n' '' ''
+
 #testing "backtick1" 'X=fred; echo `echo $x`' 'fred\n' "" ""
 #testing "backtick2" 'X=fred; echo `x=y; echo $x`' 'y\n' "" ""
 testing '$(( ) )' 'echo ab$((echo hello) | tr e x)cd' "abhxllocd\n" "" ""

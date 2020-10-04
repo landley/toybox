@@ -814,21 +814,7 @@ char *getvar_special(char *str, int len, int *used, struct arg_list **delete)
   return s;
 }
 
-// Copy string until } including escaped }
-char *slashcopy(char *s, char c)
-{
-  char *ss;
-  int ii, jj;
-
-  for (ii = 0; s[ii] != c; ii++) if (s[ii] == '\\') ii++;
-  ss = xmalloc(ii+1);
-  for (ii = jj = 0; s[jj] != c; ii++)
-    if ('\\'==(ss[ii] = s[jj++])) ss[ii] = s[jj++];
-  ss[ii] = 0;
-
-  return ss;
-}
-
+// Return length of utf8 char @s fitting in len, writing value into *cc
 int getutf8(char *s, int len, int *cc)
 {
   wchar_t wc;
@@ -914,9 +900,9 @@ static int wildcard_match(char *str, int len, char *pattern, int plen,
     // TODO: seek to next | in paren
     while (ant.c) {
       if ((c = pattern[(long)deck->v[--dd]])=='*') {
-        if (len<(ss = (long)ant.v[ant.c-2]+ (long)++ant.v[ant.c-1])) ant.c -= 2;
+        if (len<(ss = (long)ant.v[ant.c-2]+(long)++ant.v[ant.c-1])) ant.c -= 2;
         else {
-          dd++;
+          pp = (long)deck->v[dd++]+1;
           break;
         }
       } else if (c == '(') dprintf(2, "TODO: (");
@@ -930,18 +916,19 @@ static int wildcard_match(char *str, int len, char *pattern, int plen,
 }
 
 // Skip to next slash in wildcard path. Needs deck to know what [ranges] to skip
-char *wildcard_skipslash(char *pattern, struct sh_arg *deck, int *doff)
+// idx = pointer to index in deck, updated as we pass wildcards
+char *wildcard_skipslash(char *pattern, struct sh_arg *deck, int *idx)
 {
   char *p;
   int i = 0;
 
   for (p = pattern; *p && *p!='/'; p++) {
     // Skip [] and nested () ranges within deck
-    if (*doff<deck->c && p-pattern == (long)deck->v[*doff]) {
-      ++*doff;
-      if (*p=='[') p = deck->v[(*doff)++];
-      else if (*p=='(') while (*++p) if (p-pattern == (long)deck->v[*doff]) {
-        ++*doff;
+    if (*idx<deck->c && p-pattern == (long)deck->v[*idx]) {
+      ++*idx;
+      if (*p=='[') p = deck->v[(*idx)++];
+      else if (*p=='(') while (*++p) if (p-pattern == (long)deck->v[*idx]) {
+        ++*idx;
         if (*p == ')') {
           if (!i) break;
           i--;
@@ -966,7 +953,7 @@ int do_wildcard_files(struct dirtree *node)
   struct sh_arg ant;
 
   // Find active pattern range
-  for (nn = node, lvl = ll = 1;; lvl = ll, pattern = p) {
+  for (nn = node, lvl = ll = 0;; lvl = ll, pattern = p) {
     p = wildcard_skipslash(pattern, TT.wcdeck, &ll);
     if (lvl != ll && !(nn = nn->parent)) break;
     while (*p == '/') p++;
@@ -1020,7 +1007,7 @@ static void collect_wildcards(char *new, long oo, struct sh_arg *deck)
   if (!cc) {
     long ii = 0, jj = 65535&*vv, kk;
 
-    for (*vv = 0, kk = deck->c; jj;) {
+    for (kk = deck->c; jj;) {
       if (')' == (cc = new[vv[--kk]])) ii++;
       else if ('(' == cc) {
         if (ii) ii--;
@@ -1030,6 +1017,7 @@ static void collect_wildcards(char *new, long oo, struct sh_arg *deck)
         }
       }
     }
+    if (deck->c) memmove(vv, vv+1, sizeof(long)*deck->c--);
 
     return;
   }
@@ -1074,10 +1062,11 @@ static void wildcard_add_files(struct sh_arg *arg, char *pattern,
   char *p, *pp;
   int lvl, ll;
 
-  // fast path: when no wildcards, add pattern verbatim
-  if (deck->c<2) return arg_add(arg, pattern);
+  collect_wildcards("", 0, deck);
 
-  if (*deck->v) collect_wildcards("", 0, deck);
+  // fast path: when no wildcards, add pattern verbatim
+  if (!deck->c) return arg_add(arg, pattern);
+
   TT.wcdeck = deck;
   TT.wcpat = pattern;
 
@@ -1107,7 +1096,26 @@ static void wildcard_add_files(struct sh_arg *arg, char *pattern,
     } while (dt && !dt->child);
   }
 
+  deck->c = 0;
+
 // TODO: test .*/../
+}
+
+// Copy string until } including escaped }
+char *slashcopy(char *s, char c, struct sh_arg *deck)
+{
+  char *ss;
+  int ii, jj;
+
+  for (ii = 0; s[ii] != c; ii++) if (s[ii] == '\\') ii++;
+  ss = xmalloc(ii+1);
+  for (ii = jj = 0; s[jj] != c; ii++)
+    if ('\\'==(ss[ii] = s[jj++])) ss[ii] = s[jj++];
+    else if (deck) collect_wildcards(ss, ii, deck);
+  ss[ii] = 0;
+  if (deck) collect_wildcards("", 0, deck);
+
+  return ss;
 }
 
 #define NO_QUOTE (1<<0)    // quote removal
@@ -1333,6 +1341,9 @@ barf:
     }
 
     // combine before/ifs/after sections & split words on $IFS in ifs
+    // keep oo bytes of str before (already parsed)
+    // insert ifs (active for wildcards+splitting)
+    // keep str+ii after (still to parse)
 
     // Fetch separator to glue string back together with
     *sep = 0;
@@ -1358,13 +1369,14 @@ barf:
         dd = slice[xx = (*slice == ':')];
         if (!ifs || (xx && !*ifs)) {
           if (strchr("-?=", dd)) { // - use default = assign default ? error
-            push_arg(delete, ifs = slashcopy(slice+xx+1, '}'));
+            push_arg(delete, ifs = slashcopy(slice+xx+1, '}', 0));
             if (dd == '?' || (dd == '=' &&
               !(setvar(s = xmprintf("%.*s=%s", (int)(slice-ss), ss, ifs)))))
                 goto barf;
           }
         // use alternate value
-        } else if (dd == '+') push_arg(delete, ifs = slashcopy(slice+xx+1,'}'));
+        } else if (dd == '+')
+          push_arg(delete, ifs = slashcopy(slice+xx+1, '}', 0));
         else if (xx) { // ${x::}
           long long la, lb, lc;
 
@@ -1400,14 +1412,24 @@ barf:
             for (dd = 0; dd<lb ; dd++) if (!(ifs[dd] = ifs[dd+la])) break;
             ifs[dd] = 0;
           }
+        // ${x#y} remove shortest prefix ${x##y} remove longest prefix
+        } else if (*slice=='#') {
+          struct sh_arg wild = {0};
+
+          s = slashcopy(slice+(xx = slice[1]=='#')+1, '}', &wild);
+          dd = wildcard_match(ifs, strlen(ifs), s, strlen(s), &wild,
+            WILD_SHORT*!xx);
+          free(s);
+          free(wild.v);
+          if (dd>0) ifs += dd;
+
+// TODO test x can be @ or *
         } else {
 // TODO test ${-abc} as error
           ifs = slice;
           goto barf;
         }
 
-// ${x#y} remove shortest prefix ${x##y} remove longest prefix
-//   x can be @ or *
 // ${x%y} ${x%%y} suffix
 // ${x/pat/sub} substitute ${x//pat/sub} global ${x/#pat/sub} begin
 // ${x/%pat/sub} end ${x/pat} delete pat
@@ -1493,10 +1515,7 @@ barf:
 fail:
   if (str != new) free(new);
   free(deck.v);
-  if (ant!=&deck && ant->v) {
-    collect_wildcards("", 0, ant);
-    memmove(ant->v, ant->v+1, ant->c--*sizeof(long));
-  }
+  if (ant!=&deck && ant->v) collect_wildcards("", 0, ant);
 
   return !!arg;
 }
