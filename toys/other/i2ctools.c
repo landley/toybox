@@ -196,7 +196,7 @@ void i2cdetect_main(void)
     bus = atolx_range(*toys.optargs, 0, INT_MAX);
     if (toys.optc == 3) {
       first = atolx_range(toys.optargs[1], 0, 0x7f);
-      last = atolx_range(toys.optargs[1], 0, 0x7f);
+      last = atolx_range(toys.optargs[2], 0, 0x7f);
       if (first > last) error_exit("first > last");
     }
 
