@@ -915,16 +915,26 @@ static int wildcard_match(char *str, int len, char *pattern, int plen,
   return best;
 }
 
-// Skip to next slash in wildcard path. Needs deck to know what [ranges] to skip
-// idx = pointer to index in deck, updated as we pass wildcards
-char *wildcard_skipslash(char *pattern, struct sh_arg *deck, int *idx)
+// skip to next slash in wildcard path, passing count active ranges.
+// start at pattern[off] and deck[*idx], return pattern pos and update *idx
+char *wildcard_path(char *pattern, int off, struct sh_arg *deck, int *idx,
+  int count)
 {
-  char *p;
-  int i = 0;
+  char *p, *old;
+  int i = 0, j = 0;
 
-  for (p = pattern; *p && *p!='/'; p++) {
-    // Skip [] and nested () ranges within deck
+  // Skip [] and nested () ranges within deck until / or NUL
+  for (p = old = pattern+off;; p++) {
+
+    if (!*p) return p;
+    while (*p=='/') {
+      old = p++;
+      j = 0;
+    }
+
+    // Got wildcard? Return if start of name if out of count, else skip [] ()
     if (*idx<deck->c && p-pattern == (long)deck->v[*idx]) {
+      if (!j++ && !count--) return old;
       ++*idx;
       if (*p=='[') p = deck->v[(*idx)++];
       else if (*p=='(') while (*++p) if (p-pattern == (long)deck->v[*idx]) {
@@ -936,8 +946,6 @@ char *wildcard_skipslash(char *pattern, struct sh_arg *deck, int *idx)
       }
     }
   }
-
-  return p;
 }
 
 // TODO ** means this directory as well as ones below it, shopt -s globstar
@@ -948,41 +956,40 @@ char *wildcard_skipslash(char *pattern, struct sh_arg *deck, int *idx)
 int do_wildcard_files(struct dirtree *node)
 {
   struct dirtree *nn;
-  char *p, *pattern = TT.wcpat;
-  int lvl, ll, rc;
+  char *pattern, *patend;
+  int lvl, ll = 0, ii = 0, rc;
   struct sh_arg ant;
 
+  if (!node->parent) return DIRTREE_RECURSE;
+
   // Find active pattern range
-  for (nn = node, lvl = ll = 0;; lvl = ll, pattern = p) {
-    p = wildcard_skipslash(pattern, TT.wcdeck, &ll);
-    if (lvl != ll && !(nn = nn->parent)) break;
-    while (*p == '/') p++;
-  }
+  for (nn = node->parent->parent; nn; nn = nn->parent) ii++;
+  pattern = wildcard_path(TT.wcpat, 0, TT.wcdeck, &ll, ii)+1;
+  lvl = ll;
+  patend = wildcard_path(TT.wcpat, pattern-TT.wcpat, TT.wcdeck, &ll, 1);
 
   // Don't include . entries unless explicitly asked for them 
-  if (*node->name == '.' && *pattern != '.') return 0;
+  if (*node->name=='.' && *pattern!='.') return 0;
 
-  // Don't descend into non-directory (called with DIRTREE_SYMFOLLOW)
-  if (*p && !S_ISDIR(node->st.st_mode) && *node->name) return 0;
+  // Don't descend into non-directory (was called with DIRTREE_SYMFOLLOW)
+  if (*patend && !S_ISDIR(node->st.st_mode) && *node->name) return 0;
 
   // match this filename from pattern to p in deck from lvl to ll
   ant.c = ll-lvl;
   ant.v = TT.wcdeck->v+lvl;
-  rc = wildcard_match(node->name, strlen(node->name), pattern,p-pattern,&ant,0);
+  for (ii = 0; ii<ant.c; ii++) TT.wcdeck->v[lvl+ii] -= pattern-TT.wcpat;
+  rc = wildcard_match(node->name, strlen(node->name), pattern, patend-pattern,
+    &ant, 0);
+  for (ii = 0; ii<ant.c; ii++) TT.wcdeck->v[lvl+ii] += pattern-TT.wcpat;
   if (rc<0 || node->name[rc]) return 0;
 
   // We matched: recurse or save
-  if (!*p) return DIRTREE_SAVE;
-  lvl = ll;
-  pattern = p;
-  while (*p && lvl == ll) {
-    p = wildcard_skipslash(p, TT.wcdeck, &ll);
-    while (*p == '/') p++;
-  }
-  if (lvl == ll) {
-    p = xmprintf("%s%s", node->name, pattern);
-    rc = faccessat(dirtree_parentfd(node), p, F_OK, AT_SYMLINK_NOFOLLOW);
-    free(p);
+  if (!*patend) return DIRTREE_SAVE;
+  if (!*wildcard_path(TT.wcpat, patend-TT.wcpat, TT.wcdeck, &ll, 0)) {
+    pattern = xmprintf("%s%s", node->name, patend);
+    rc = faccessat(dirtree_parentfd(node), pattern, F_OK, AT_SYMLINK_NOFOLLOW);
+    free(pattern);
+
     return DIRTREE_SAVE*!rc;
   }
 
@@ -1060,29 +1067,21 @@ static void wildcard_add_files(struct sh_arg *arg, char *pattern,
 {
   struct dirtree *dt;
   char *p, *pp;
-  int lvl, ll;
-
-  collect_wildcards("", 0, deck);
+  int ll = 0;
 
   // fast path: when no wildcards, add pattern verbatim
+  collect_wildcards("", 0, deck);
   if (!deck->c) return arg_add(arg, pattern);
 
-  TT.wcdeck = deck;
-  TT.wcpat = pattern;
-
   // Find leading patternless path (if any)
-  for (p = pattern, lvl = ll = 1; ; p = pp) {
-    pp = wildcard_skipslash(p, deck, &ll);
-    if (ll != lvl) break;
-    while (*pp == '/') pp++;
-  }
+  p = wildcard_path(TT.wcpat = pattern, 0, TT.wcdeck = deck, &ll, 0);
+  if ((pp = (p==pattern) ? 0 : xstrndup(pattern, p-pattern))) p++;
 
-  // Traverse
-  pp = 0;
-  dt = dirtree_flagread((p==pattern) ? 0 : (pp = xstrndup(pattern, p-pattern)),
-    DIRTREE_STATLESS|DIRTREE_SYMFOLLOW, do_wildcard_files);
+  // Traverse. If no match, save pattern verbatim.
+  dt = dirtree_flagread(pp, DIRTREE_STATLESS|DIRTREE_SYMFOLLOW,
+    do_wildcard_files);
   free(pp);
-
+  deck->c = 0;
   if (!dt) return arg_add(arg, pattern);
 
   // traverse dirtree via child and parent pointers, consuming/freeing nodes
@@ -1095,9 +1094,6 @@ static void wildcard_add_files(struct sh_arg *arg, char *pattern,
       free(pp);
     } while (dt && !dt->child);
   }
-
-  deck->c = 0;
-
 // TODO: test .*/../
 }
 
@@ -1413,10 +1409,10 @@ barf:
             ifs[dd] = 0;
           }
         // ${x#y} remove shortest prefix ${x##y} remove longest prefix
-        } else if (*slice=='#') {
+        } else if (strchr("#%^,", *slice)) {
           struct sh_arg wild = {0};
 
-          s = slashcopy(slice+(xx = slice[1]=='#')+1, '}', &wild);
+          s = slashcopy(slice+(xx = slice[1]==*slice)+1, '}', &wild);
           dd = wildcard_match(ifs, strlen(ifs), s, strlen(s), &wild,
             WILD_SHORT*!xx);
           free(s);
@@ -1441,7 +1437,7 @@ barf:
 
 // TODO: $((a=42)) can change var, affect lifetime
 // must replace ifs AND any previous output arg[] within pointer strlen()
-
+// also x=;echo $x${x:=4}$x
       }
 
       // Nothing left to do?
