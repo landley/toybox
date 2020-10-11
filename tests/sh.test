@@ -1,5 +1,9 @@
 #!/bin/echo no
 
+# TODO https://mywiki.wooledge.org/BashFAQ
+#   http://tiswww.case.edu/php/chet/bash/FAQ
+#   https://mywiki.wooledge.org/BashPitfalls#set_-euo_pipefail
+
 #        // ${#} ${#x} ${#@} ${#x[@]} ${#!} ${!#}
 #        // ${!} ${!@} ${!@Q} ${!x} ${!x@} ${!x@Q} ${!x#} ${!x[} ${!x[*]}
 
@@ -169,10 +173,15 @@ testing '${x#prefix}' 'x=abcde; echo ${x#abc}' 'de\n' '' ''
 testing '${x#short} ${x##long}' 'x=banana; echo ${x#b*n} ${x##b*n}' \
   'ana a\n' '' ''
 toyonly testing '${x#utf8}' 'x=aそcde; echo ${x##a?c}' 'de\n' '' ''
+mkdir -p abc/def/ghi
+touch www
+testing 'wildcards' 'echo w[v-x]w w[x-v]w abc/*/ghi' \
+  'www w[x-v]w abc/def/ghi\n' '' ''
 
 #testing "backtick1" 'X=fred; echo `echo $x`' 'fred\n' "" ""
 #testing "backtick2" 'X=fred; echo `x=y; echo $x`' 'y\n' "" ""
 testing '$(( ) )' 'echo ab$((echo hello) | tr e x)cd' "abhxllocd\n" "" ""
+testing '$((x=y)) lifetime' 'a=boing; echo $a $a$((a=4))$a $a' 'boing boing44 4\n' '' ''
 
 # Loops and flow control
 testing "case" 'for i in A C J B; do case "$i" in A) echo got A ;; B) echo and B ;; C) echo then C ;; *) echo default ;; esac; done' \

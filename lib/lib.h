@@ -74,11 +74,11 @@ void get_optflags(void);
 // Don't warn about failure to stat
 #define DIRTREE_SHUTUP      16
 // Breadth first traversal, conserves filehandles at the expense of memory
-#define DIRTREE_BREADTH     32
+#define DIRTREE_BREADTH     32 // TODO not implemented yet
 // skip non-numeric entries
 #define DIRTREE_PROC        64
 // Return files we can't stat
-#define DIRTREE_STATLESS    128
+#define DIRTREE_STATLESS   128
 // Don't look at any more files in this directory.
 #define DIRTREE_ABORT      256
 
@@ -229,6 +229,7 @@ long long xstrtol(char *str, char **end, int base);
 long long atolx(char *c);
 long long atolx_range(char *numstr, long long low, long long high);
 int stridx(char *haystack, char needle);
+int wctoutf8(char *s, unsigned wc);
 int utf8towc(wchar_t *wc, char *str, unsigned len);
 char *strlower(char *s);
 char *strafter(char *haystack, char *needle);
