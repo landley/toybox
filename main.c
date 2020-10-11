@@ -25,7 +25,7 @@ char toybuf[4096], libbuf[4096];
 
 struct toy_list *toy_find(char *name)
 {
-  int top, bottom, middle;
+  long unsigned int top, bottom, middle;
 
   if (!CFG_TOYBOX || strchr(name, '/')) return 0;
 
