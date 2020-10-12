@@ -3,7 +3,7 @@
  * Copyright 2012 Andre Renaud <andre@bluewatersys.com>
  * Copyright 2012 Rob Landley <rob@landley.net>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/od.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/od.html
 
 USE_OD(NEWTOY(od, "j#vw#<1=16N#xsodcbA:t*", TOYFLAG_USR|TOYFLAG_BIN))
 

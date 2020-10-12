@@ -2,7 +2,7 @@
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/echo.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/echo.html
  *
  * Deviations from posix: we parse command line options, as Linux has
  * consistently done since 1992. Posix defaults -e to on, we require -e.

@@ -2,7 +2,7 @@
  *
  * Copyright 2006 Rob Landley <rob@landley.net>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/df.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/df.html
 
 USE_DF(NEWTOY(df, "HPkhit*a[-HPkh]", TOYFLAG_SBIN))
 

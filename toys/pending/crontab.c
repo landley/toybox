@@ -2,7 +2,7 @@
  *
  * Copyright 2014 Ranjan Kumar <ranjankumar.bth@gmail.com>
  *
- * http://pubs.opengroup.org/onlinepubs/9699919799/utilities/crontab.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/crontab.html
 
 USE_CRONTAB(NEWTOY(crontab, "c:u:elr[!elr]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
 

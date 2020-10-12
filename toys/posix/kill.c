@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Daniel Walter <d.walter@0x90.at>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/kill.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/kill.html
  *
  * killall5.c - Send signal to all processes outside current session.
  *
