@@ -4,7 +4,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/file.html
 
-USE_FILE(NEWTOY(file, "<1bhLs[!hL]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_FILE(NEWTOY(file, "<1b(brief)hLs[!hL]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config FILE
   bool "file"

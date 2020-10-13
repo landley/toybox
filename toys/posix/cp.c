@@ -16,8 +16,8 @@
 // for FLAG macros to work out right in shared infrastructure.
 
 USE_CP(NEWTOY(cp, "<2(preserve):;D(parents)RHLPprdaslvnF(remove-destination)fiT[-HLPd][-ni]", TOYFLAG_BIN))
-USE_MV(NEWTOY(mv, "<2vnF(remove-destination)fiT[-ni]", TOYFLAG_BIN))
-USE_INSTALL(NEWTOY(install, "<1cdDpsvm:o:g:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_MV(NEWTOY(mv, "<2v(verbose)nF(remove-destination)fiT[-ni]", TOYFLAG_BIN))
+USE_INSTALL(NEWTOY(install, "<1cdDp(preserve-timestamps)svm:o:g:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config CP
   bool "cp"
