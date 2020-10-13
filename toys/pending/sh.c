@@ -786,10 +786,8 @@ int getutf8(char *s, int len, int *cc)
 #define WILD_SHORT 1 // else longest match
 #define WILD_CASE  2 // case insensitive
 #define WILD_ANY   4 // advance through pattern instead of str
-#define WILD_SCAN  8 // search from beginning for start/end
-#define WILD_BACK 16 // search from end
 // Returns length of str matched by pattern, or -1 if not all pattern consumed
-static int wildcard_match(char *str, int len, char *pattern, int plen,
+static int wildcard_matchlen(char *str, int len, char *pattern, int plen,
   struct sh_arg *deck, int flags)
 {
   struct sh_arg ant = {0};    // stack: of str offsets
@@ -882,26 +880,12 @@ static int wildcard_match(char *str, int len, char *pattern, int plen,
   return best;
 }
 
-static int wildcard_scan(char *s, char *pattern, struct sh_arg *deck, int flags)
+static int wildcard_match(char *s, char *p, struct sh_arg *deck, int flags)
 {
-  int ll = strlen(s), bb = flags&WILD_BACK, ii = bb ? ll-1 : 0,
-      pp = strlen(pattern), rc, best = -1;
-
-  for (;;) {
-    rc = wildcard_match(s+ii, ll-ii, pattern, pp, deck, flags);
-    if (!(flags&(WILD_BACK|WILD_SCAN))) return rc;
-    if (rc>0 && !s[rc]) {
-      if ((flags&(WILD_SHORT|WILD_BACK))!=WILD_BACK) return rc;
-      best = ii;
-    }
-    if (bb) {
-      if (!ii--) return best;
-    } else {
-      if (!--ll) return -1;
-      s++;
-    }
-  }
+  return wildcard_matchlen(s, strlen(s), p, strlen(p), deck, flags);
 }
+
+
 // TODO: test that * matches ""
 
 // skip to next slash in wildcard path, passing count active ranges.
@@ -969,8 +953,8 @@ int do_wildcard_files(struct dirtree *node)
   ant.c = ll-lvl;
   ant.v = TT.wcdeck->v+lvl;
   for (ii = 0; ii<ant.c; ii++) TT.wcdeck->v[lvl+ii] -= pattern-TT.wcpat;
-  rc = wildcard_match(node->name, strlen(node->name), pattern, patend-pattern,
-    &ant, 0);
+  rc = wildcard_matchlen(node->name, strlen(node->name), pattern,
+    patend-pattern, &ant, 0);
   for (ii = 0; ii<ant.c; ii++) TT.wcdeck->v[lvl+ii] += pattern-TT.wcpat;
 
   // Return failure or save exact match.
@@ -1412,10 +1396,12 @@ barf:
           if (strchr("^,", *slice)) {
             for (ss = ifs; *ss; ss += dd) {
               dd = getutf8(ss, 4, &jj);
-              if (0<wildcard_scan(ss, s, &wild, WILD_ANY)) {
+              if (!*s || 0<wildcard_match(ss, s, &wild, WILD_ANY)) {
                 ll = ((*slice=='^') ? towupper : towlower)(jj);
 
                 // Of COURSE unicode case switch can change utf8 encoding length
+                // Lower case U+0069 becomes u+0130 in turkish.
+                // Greek U+0390 becomes 3 characters TODO test this
                 if (ll != jj) {
                   yy = ss-ifs;
                   if (!*delete || (*delete)->arg!=ifs)
@@ -1429,22 +1415,28 @@ barf:
                 }
               }
               if (!xx) break;
-              ss += dd;
-              yy -= dd;
             }
-          } else if (0<(dd = wildcard_scan(ifs, s, &wild,
-                               WILD_SHORT*!xx+WILD_BACK*(*slice=='%'))))
-          {
-            if (*slice == '#') ifs += dd;
-            else if (ifs[dd]) {
-              if (*delete && (*delete)->arg==ifs) ifs[dd] = 0;
-              else push_arg(delete, ifs = xstrndup(ifs, dd));
+          } else if (*slice=='#') {
+            if (0<(dd = wildcard_match(ifs, s, &wild, WILD_SHORT*!xx)))
+              ifs += dd;
+          } else if (*slice=='%') {
+            for (ss = ifs+strlen(ifs), yy = -1; ss>=ifs; ss--) {
+              if (0<(dd = wildcard_match(ss, s, &wild, WILD_SHORT*xx))&&!ss[dd])
+              {
+                yy = ss-ifs;
+                if (!xx) break;
+              }
+            }
+
+            if (yy != -1) {
+              if (*delete && (*delete)->arg==ifs) ifs[yy] = 0;
+              else push_arg(delete, ifs = xstrndup(ifs, yy));
             }
           }
           free(s);
           free(wild.v);
-//        } else if (*slice=='/') {
-//murgle
+//      } else if (*slice=='/') {
+//      } else if (*slice=='@') {
 
 // TODO test x can be @ or *
         } else {
@@ -2866,7 +2858,7 @@ dprintf(2, "TODO skipped init for((;;)), need math parser\n");
             if ((err = expand_arg_nobrace(&arg, *vv++, NO_SPLIT, &blk->fdelete,
               &arg2))) break;
             s = arg.c ? *arg.v : "";
-            match = wildcard_scan(blk->fvar, s, &arg2, 0);
+            match = wildcard_match(blk->fvar, s, &arg2, 0);
             if (match>=0 && !s[match]) break;
             else if (**vv++ == ')') {
               vv = 0;

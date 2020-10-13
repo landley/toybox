@@ -9,7 +9,7 @@
 
 # Looked like a prefix but wasn't: three chars (@ # -) are both paremeter name
 # and slice operator. When immediately followed by } it's parameter, otherwise
-# otherwise we did NOT have a prefix and it's an operator.
+# we did NOT have a prefix and it's an operator.
 #
 # ${#-} ${#-abc}
 # ${##} ${##0}
@@ -173,6 +173,14 @@ testing '${x#prefix}' 'x=abcde; echo ${x#abc}' 'de\n' '' ''
 testing '${x#short} ${x##long}' 'x=banana; echo ${x#b*n} ${x##b*n}' \
   'ana a\n' '' ''
 toyonly testing '${x#utf8}' 'x=aそcde; echo ${x##a?c}' 'de\n' '' ''
+testing '${x%y}' 'x=potato; echo ${x%t*o} ${x%%t*o}' 'pota po\n' '' ''
+testing '${x^y}' 'x=aaaaa; echo ${x^a}' 'Aaaaa\n' '' ''
+testing '${x^^y}' 'x=abccdec; echo ${x^^c}; x=abcdec; echo ${x^^c}' \
+  'abCCdeC\nabCdeC\n' '' ''
+testing '${x,y}' 'x=BBB; echo ${x,B}' 'bBB\n' '' ''
+testing '${x,,y}' 'x=POTATO; echo ${x,,} ${x,,?} ${x,,*} ${x,,T}' \
+  'potato potato potato POtAtO\n' '' ''
+
 mkdir -p abc/def/ghi
 touch www
 testing 'wildcards' 'echo w[v-x]w w[x-v]w abc/*/ghi' \
