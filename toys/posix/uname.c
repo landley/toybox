@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/uname.html
 
-USE_UNAME(NEWTOY(uname, "oamvrns[+os]", TOYFLAG_BIN))
+USE_UNAME(NEWTOY(uname, "poamvrns[+os]", TOYFLAG_BIN))
 USE_ARCH(NEWTOY(arch, 0, TOYFLAG_USR|TOYFLAG_BIN))
 
 config ARCH 
@@ -28,7 +28,8 @@ config UNAME
     -r	Kernel Release number
     -v	Kernel Version 
     -m	Machine (hardware) name
-    -a	All of the above
+    -p	Platform
+    -a	All of the above but platform
 */
 
 #define FOR_uname
@@ -79,6 +80,16 @@ void uname_main(void)
       }
       xwrite(1, c, len);
     }
+  }
+  if ((flags & FLAG_p) && !(flags & FLAG_a)) {
+      char *c = " unknown";
+
+      if (!needspace) {
+        c++;
+      }
+      int len = strlen(c);
+
+      xwrite(1, c, len);
   }
   putchar('\n');
 }
