@@ -87,8 +87,10 @@ char *dirtree_path(struct dirtree *node, int *plen)
   char *path;
   int ii, ll, len;
 
-  if (!node->parent) return xstrdup(node->name);
   ll = len = plen ? *plen : 0;
+  if (!node->parent) {
+    return strcpy(path = xzalloc(strlen(node->name)+ll+1), node->name);
+  }
   for (nn = node; nn; nn = nn->parent)
     if ((ii = strlen(nn->name))) len += ii+1-(nn->name[ii-1]=='/');
   if (plen) *plen = len;
