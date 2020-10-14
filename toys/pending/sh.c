@@ -1080,18 +1080,23 @@ static void wildcard_add_files(struct sh_arg *arg, char *pattern,
 }
 
 // Copy string until } including escaped }
-char *slashcopy(char *s, char c, struct sh_arg *deck)
+// if deck collect wildcards, and store terminator at deck->v[deck->c]
+char *slashcopy(char *s, char *c, struct sh_arg *deck)
 {
   char *ss;
-  int ii, jj;
+  long ii, jj;
 
-  for (ii = 0; s[ii] != c; ii++) if (s[ii] == '\\') ii++;
+  for (ii = 0; !strchr(c, s[ii]); ii++) if (s[ii] == '\\') ii++;
   ss = xmalloc(ii+1);
-  for (ii = jj = 0; s[jj] != c; ii++)
+  for (ii = jj = 0; !strchr(c, s[jj]); ii++)
     if ('\\'==(ss[ii] = s[jj++])) ss[ii] = s[jj++];
     else if (deck) collect_wildcards(ss, ii, deck);
   ss[ii] = 0;
-  if (deck) collect_wildcards("", 0, deck);
+  if (deck) {
+    arg_add(deck, 0);
+    deck->v[--deck->c] = (void *)jj;
+    collect_wildcards("", 0, deck);
+  }
 
   return ss;
 }
@@ -1342,14 +1347,14 @@ barf:
         dd = slice[xx = (*slice == ':')];
         if (!ifs || (xx && !*ifs)) {
           if (strchr("-?=", dd)) { // - use default = assign default ? error
-            push_arg(delete, ifs = slashcopy(slice+xx+1, '}', 0));
+            push_arg(delete, ifs = slashcopy(slice+xx+1, "}", 0));
             if (dd == '?' || (dd == '=' &&
               !(setvar(s = xmprintf("%.*s=%s", (int)(slice-ss), ss, ifs)))))
                 goto barf;
           }
         // use alternate value
         } else if (dd == '+')
-          push_arg(delete, ifs = slashcopy(slice+xx+1, '}', 0));
+          push_arg(delete, ifs = slashcopy(slice+xx+1, "}", 0));
         else if (xx) { // ${x::}
           long long la, lb, lc;
 
@@ -1385,12 +1390,11 @@ barf:
             for (dd = 0; dd<lb ; dd++) if (!(ifs[dd] = ifs[dd+la])) break;
             ifs[dd] = 0;
           }
-        // ${x#y} remove shortest prefix ${x##y} remove longest prefix
         } else if (strchr("#%^,", *slice)) {
           struct sh_arg wild = {0};
           char buf[8];
 
-          s = slashcopy(slice+(xx = slice[1]==*slice)+1, '}', &wild);
+          s = slashcopy(slice+(xx = slice[1]==*slice)+1, "}", &wild);
 
           // ${x^pat} ${x^^pat} uppercase ${x,} ${x,,} lowercase (no pat = ?)
           if (strchr("^,", *slice)) {
@@ -1416,9 +1420,11 @@ barf:
               }
               if (!xx) break;
             }
+          // ${x#y} remove shortest prefix ${x##y} remove longest prefix
           } else if (*slice=='#') {
             if (0<(dd = wildcard_match(ifs, s, &wild, WILD_SHORT*!xx)))
               ifs += dd;
+          // ${x%y} ${x%%y} suffix
           } else if (*slice=='%') {
             for (ss = ifs+strlen(ifs), yy = -1; ss>=ifs; ss--) {
               if (0<(dd = wildcard_match(ss, s, &wild, WILD_SHORT*xx))&&!ss[dd])
@@ -1435,7 +1441,47 @@ barf:
           }
           free(s);
           free(wild.v);
-//      } else if (*slice=='/') {
+
+        // ${x/pat/sub} substitute ${x//pat/sub} global ${x/#pat/sub} begin
+        // ${x/%pat/sub} end ${x/pat} delete pat (x can be @ or *)
+        } else if (*slice=='/') {
+          struct sh_arg wild = {0};
+
+          s = slashcopy(ss = slice+(xx = !!strchr("/#%", slice[1]))+1, "/}",
+            &wild);
+          ss += (long)wild.v[wild.c];
+          ss = (*ss == '/') ? slashcopy(ss+1, "}", 0) : 0;
+          jj = ss ? strlen(ss) : 0;
+          ll = 0;
+          for (ll = 0; ifs[ll];) {
+            // TODO nocasematch option
+            if (0<(dd = wildcard_match(ifs+ll, s, &wild, 0))) {
+              char *bird = 0;
+
+              if (slice[1]=='%' && ifs[ll+dd]) {
+                ll++;
+                continue;
+              }
+              if (*delete && (*delete)->arg==ifs) {
+                if (jj==dd) memcpy(ifs+ll, ss, jj);
+                else if (jj<dd) sprintf(ifs+ll, "%s%s", ss, ifs+ll+dd);
+                else bird = ifs;
+              } else bird = (void *)1;
+              if (bird) {
+                ifs = xmprintf("%.*s%s%s", ll, ifs, ss ? : "", ifs+ll+dd);
+                if (bird != (void *)1) {
+                  free(bird);
+                  (*delete)->arg = ifs;
+                } else push_arg(delete, ifs);
+              }
+              if (slice[1]!='/') break;
+            } else ll++;
+            if (slice[1]=='#') break;
+          }
+
+// ${x@QEPAa} Q=$'blah' E=blah without the $'' wrap, P=expand as $PS1
+//   A=declare that recreates var a=attribute flags
+//   x can be @*
 //      } else if (*slice=='@') {
 
 // TODO test x can be @ or *
@@ -1444,14 +1490,6 @@ barf:
           ifs = slice;
           goto barf;
         }
-
-// ${x%y} ${x%%y} suffix
-// ${x/pat/sub} substitute ${x//pat/sub} global ${x/#pat/sub} begin
-// ${x/%pat/sub} end ${x/pat} delete pat
-//   x can be @ or *
-// ${x@QEPAa} Q=$'blah' E=blah without the $'' wrap, P=expand as $PS1
-//   A=declare that recreates var a=attribute flags
-//   x can be @*
 
 // TODO: $((a=42)) can change var, affect lifetime
 // must replace ifs AND any previous output arg[] within pointer strlen()
