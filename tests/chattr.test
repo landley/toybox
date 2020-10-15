@@ -46,9 +46,11 @@ testing "append-only" "$IN && echo "$_t" > testFile &&
 
 # For the rest, just toggle the bits back and forth (where supported).
 # Note that some file system/kernel combinations do return success but
-# silently ignore your request: +T on 4.19 f2fs, or +F on 5.2i ext4,
+# silently ignore your request: +T on 4.19 f2fs, or +F on 5.2 ext4,
 # for example, so we're deliberately a bit selective here.
-for attr in "A" "c" "d" "e" "j" "P" "S" "s" "t" "u"; do
+# f2fs in 5.6+ kernels supports compression, but you can only enable
+# compression on a file while it's still empty, so we skip +c too.
+for attr in "A" "d" "e" "j" "P" "S" "s" "t" "u"; do
   echo "$_t" > testFile && chattr +$attr testFile 2>/dev/null || SKIPNEXT=1
   # Check that $attr is in the lsattr output, then that - turns it back off.
   testing "toggle $attr" "lsattr testFile | awk '{print \$1}' > attrs;
