@@ -75,7 +75,7 @@ error:
   return 0;
 }
 
-// Return path to this node, assembled recursively.
+// Return path to this node.
 
 // Initial call can pass in NULL to plen, or point to an int initialized to 0
 // to return the length of the path, or a value greater than 0 to allocate
@@ -88,9 +88,8 @@ char *dirtree_path(struct dirtree *node, int *plen)
   int ii, ll, len;
 
   ll = len = plen ? *plen : 0;
-  if (!node->parent) {
-    return strcpy(path = xzalloc(strlen(node->name)+ll+1), node->name);
-  }
+  if (!node->parent)
+    return strcpy(xmalloc(strlen(node->name)+ll+1), node->name);
   for (nn = node; nn; nn = nn->parent)
     if ((ii = strlen(nn->name))) len += ii+1-(nn->name[ii-1]=='/');
   if (plen) *plen = len;
