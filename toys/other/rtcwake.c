@@ -55,7 +55,7 @@ void rtcwake_main(void)
 
   if (FLAG(u)) utc = 1;
   else if (FLAG(l)) utc = 0;
-  else utc = !!strstr(xreadfile("/etc/adjtime", toybuf, 2048), "UTC");
+  else utc = !readfile("/etc/adjtime", toybuf, 2048) || !!strstr(toybuf, "UTC");
   if (FLAG(v)) xprintf("RTC time: %s\n", utc ? "UTC" : "local");
 
   if (!TT.d) TT.d = "/dev/rtc0";
