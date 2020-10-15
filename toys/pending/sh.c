@@ -1253,7 +1253,7 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
         else if (cc == '#') {  // TODO ${#x[@]}
           dd = !!strchr("@*", *ss);  // For ${#@} or ${#*} do normal ${#}
           ifs = getvar_special(ss-dd, jj, &kk, delete) ? : "";
-          if (!dd) push_arg(delete, ifs = xmprintf("%ld", strlen(ifs)));
+          if (!dd) push_arg(delete, ifs = xmprintf("%ld", (long)strlen(ifs)));
         // ${!@} ${!@Q} ${!x} ${!x@} ${!x@Q} ${!x#} ${!x[} ${!x[*]}
         } else if (cc == '!') {  // TODO: ${var[@]} array
 
@@ -2961,10 +2961,12 @@ dprintf(2, "TODO skipped running for((;;)), need math parser\n");
     }
 
     // for && and || skip pipeline segment(s) based on return code
-    if (!pl->type || pl->type == 3)
-      while (ctl && !strcmp(ctl, toys.exitval ? "&&" : "||"))
-        ctl = (pl = pl->type ? pl->end : pl->next) ? pl->arg->v[pl->arg->c] : 0;
-
+    if (!pl->type || pl->type == 3) {
+      while (ctl && !strcmp(ctl, toys.exitval ? "&&" : "||")) {
+        if ((pl = pl->next)->type) pl = pl->end;
+        ctl = pl->arg->v[pl->arg->c];
+      }
+    }
     pl = pl->next;
   }
 
