@@ -53,7 +53,7 @@ struct dirtree *dirtree_add_node(struct dirtree *parent, char *name, int flags)
 
   // Allocate/populate return structure
   memset(dt = xmalloc((len = sizeof(struct dirtree)+len+1)+linklen), 0,
-    statless ? sizeof(struct dirtree)+1 : offsetof(struct dirtree, st));
+    statless ? sizeof(struct dirtree) : offsetof(struct dirtree, st));
   dt->parent = parent;
   dt->again = statless ? 2 : 0;
   if (!statless) memcpy(&dt->st, &st, sizeof(struct stat));
