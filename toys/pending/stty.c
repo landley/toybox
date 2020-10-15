@@ -330,7 +330,7 @@ void stty_main(void)
   xtcgetattr(&old);
 
   if (*toys.optargs) {
-    struct termios new = old;
+    struct termios new = old, tmp;
 
     for (i=0; toys.optargs[i]; i++) {
       char *arg = toys.optargs[i];
@@ -340,11 +340,15 @@ void stty_main(void)
       else if (!strcmp(arg, "line")) new.c_line = get_arg(&i, NR_LDISCS);
       else if (!strcmp(arg, "min")) new.c_cc[VMIN] = get_arg(&i, 255);
       else if (!strcmp(arg, "time")) new.c_cc[VTIME] = get_arg(&i, 255);
-      else if (sscanf(arg, "%x:%x:%x:%x:%n", &new.c_iflag, &new.c_oflag,
-                        &new.c_cflag, &new.c_lflag, &n) == 4)
+      else if (sscanf(arg, "%x:%x:%x:%x:%n", &tmp.c_iflag, &tmp.c_oflag,
+                        &tmp.c_cflag, &tmp.c_lflag, &n) == 4)
       {
         int value;
 
+        new.c_iflag = tmp.c_iflag;
+        new.c_oflag = tmp.c_oflag;
+        new.c_cflag = tmp.c_cflag;
+        new.c_lflag = tmp.c_lflag;
         arg += n;
         for (j=0;j<NCCS;j++) {
           if (sscanf(arg, "%x%n", &value, &n) != 1) error_exit("bad -g string");
