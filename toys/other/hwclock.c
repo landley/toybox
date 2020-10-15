@@ -40,10 +40,8 @@ void hwclock_main()
 
   if (FLAG(u)) utc = 1;
   else if (FLAG(l)) utc = 0;
-  else {
-    xreadfile("/etc/adjtime", toybuf, sizeof(toybuf));
-    utc = !!strstr(toybuf, "UTC");
-  }
+  else utc = !readfile("/etc/adjtime", toybuf, sizeof(toybuf)) ||
+    !!strstr(toybuf, "UTC");
 
   if (!FLAG(t)) {
     if (!TT.f) TT.f = "/dev/rtc0";
