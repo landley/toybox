@@ -38,6 +38,7 @@ void watchdog_main(void)
 {
   if (!FLAG(F) && daemon(1, 1)) perror_exit("failed to daemonize");
   xsignal(SIGTERM, safe_shutdown);
+  xsignal(SIGINT, safe_shutdown);
   xioctl(TT.fd = xopen(*toys.optargs, O_WRONLY), WDIOC_SETTIMEOUT, &TT.T);
 
   // Now that we've got the watchdog device open, kick it periodically.
