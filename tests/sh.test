@@ -197,7 +197,8 @@ testing "case" 'for i in A C J B; do case "$i" in A) echo got A ;; B) echo and B
 testing "case newlines" \
   $'case i\n\nin\n\na) echo one\n\n;;\n\ni)\n\necho two\n\n;;\n\nesac' \
   "two\n" "" ""
-
+testing 'loop in && ||' \
+  'false && for i in a b c; do echo $i; done || echo no' 'no\n' '' ''
 testing "continue" 'for i in a b c; do for j in d e f; do echo $i $j; continue 2; done; done' \
   "a d\nb d\nc d\n" "" ""
 
@@ -474,6 +475,10 @@ shxpect '[+(]) overlap priority' I$'shopt -s extglob\n' E"$P" \
 # TODO: syntax error takes out ': ${a?b}; echo $?' (I.E. never runs echo)
 shxpect '${a?b} sets err, stops cmdline eval' \
   I$': ${a?b} ${c:=d}\n' E E"$P" I$'echo $?$c\n' O$'1\n'
+
+testing 'source file' 'source input' 'hello\n' 'echo hello \\\n' ''
+testing '. file' '. input' 'hello\n' 'echo hello \\\n' ''
+testing 'source no newline' 'source input' 'hello \\\n' 'echo hello \\' ''
 
 # TODO finish variable list from shell init
 

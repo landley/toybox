@@ -3560,7 +3560,7 @@ void source_main(void)
 
       break;
     }
-    if (1!=(prompt = parse_line(new ? : "", &scratch))) {
+    if (1!=(prompt = parse_line(new ? : " ", &scratch))) {
       if (!prompt) run_function(scratch.pipeline);
       free_function(&scratch);
       if (!new) {
