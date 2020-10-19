@@ -74,16 +74,17 @@ cat > "$ROOT"/init << 'EOF' &&
 
 export HOME=/home PATH=/bin:/sbin
 
-mountpoint -q proc || mount -t proc proc proc
-mountpoint -q sys || mount -t sysfs sys sys
 if ! mountpoint -q dev; then
   mount -t devtmpfs dev dev || mdev -s
+  [ $$ -eq 1 ] && exec >/dev/console 2>&1
   for i in ,fd /0,stdin /1,stdout /2,stderr
   do ln -sf /proc/self/fd${i/,*/} dev/${i/*,/}; done
   mkdir -p dev/{shm,pts}
   mountpoint -q dev/pts || mount -t devpts dev/pts dev/pts
   chmod +t /dev/shm
 fi
+mountpoint -q proc || mount -t proc proc proc
+mountpoint -q sys || mount -t sysfs sys sys
 
 if [ $$ -eq 1 ]; then # Setup networking for QEMU (needs /proc)
   ifconfig lo 127.0.0.1
