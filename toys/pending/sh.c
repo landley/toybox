@@ -46,6 +46,8 @@ USE_SH(NEWTOY(exec, "^cla:", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(exit, 0, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(export, "np", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(shift, ">1", TOYFLAG_NOFORK))
+USE_SH(NEWTOY(source, "<1", TOYFLAG_NOFORK))
+USE_SH(OLDTOY(., source, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(unset, "fvn", TOYFLAG_NOFORK))
 
 USE_SH(NEWTOY(sh, "(noediting)(noprofile)(norc)sc:i", TOYFLAG_BIN))
@@ -160,6 +162,15 @@ config SHIFT
 
     Skip N (default 1) positional parameters, moving $1 and friends along the list.
     Does not affect $0.
+
+config SOURCE
+  bool
+  default n
+  depends on SH
+  help
+    usage: source FILE [ARGS...]
+
+    Read FILE and execute commands. Any ARGS become positional parameters.
 */
 
 #define FOR_sh
@@ -1253,7 +1264,7 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
         else if (cc == '#') {  // TODO ${#x[@]}
           dd = !!strchr("@*", *ss);  // For ${#@} or ${#*} do normal ${#}
           ifs = getvar_special(ss-dd, jj, &kk, delete) ? : "";
-          if (!dd) push_arg(delete, ifs = xmprintf("%ld", (long)strlen(ifs)));
+          if (!dd) push_arg(delete, ifs = xmprintf("%zu", strlen(ifs)));
         // ${!@} ${!@Q} ${!x} ${!x@} ${!x@Q} ${!x#} ${!x[} ${!x[*]}
         } else if (cc == '!') {  // TODO: ${var[@]} array
 
@@ -1352,8 +1363,9 @@ barf:
               !(setvar(s = xmprintf("%.*s=%s", (int)(slice-ss), ss, ifs)))))
                 goto barf;
           }
+        } else if (dd == '-'); // NOP when ifs not empty
         // use alternate value
-        } else if (dd == '+')
+        else if (dd == '+')
           push_arg(delete, ifs = slashcopy(slice+xx+1, "}", 0));
         else if (xx) { // ${x::}
           long long la, lb, lc;
@@ -2016,6 +2028,7 @@ static void shexec(char *cmd, char **argv)
 {
   xsetenv(xmprintf("_=%s", cmd), 0);
   execve(cmd, argv, environ);
+// TODO: why?
   if (errno == ENOEXEC) run_subshell("source \"$_\"", 11);
 }
 
@@ -3159,6 +3172,21 @@ static void subshell_setup(void)
   xexit();
 }
 
+FILE *fpathopen(char *name)
+{
+  struct string_list *sl = 0;
+  FILE *f = fopen(name, "r");
+  char *pp = getvar("PATH") ? : _PATH_DEFPATH;
+
+  if (!f) {
+    for (sl = find_in_path(pp, *toys.optargs); sl; free(llist_pop(&sl)))
+      if ((f = fopen(sl->str, "r"))) break;
+    if (sl) llist_traverse(sl, free);
+  }
+
+  return f;
+}
+
 void sh_main(void)
 {
   char *new, *cc = TT.sh.c;
@@ -3210,14 +3238,7 @@ void sh_main(void)
 // TODO unify fmemopen() here with sh_run
   if (cc) f = fmemopen(cc, strlen(cc), "r");
   else if (TT.options&OPT_S) f = stdin;
-  else if (!(f = fopen(*toys.optargs, "r"))) {
-    char *pp = getvar("PATH") ? : _PATH_DEFPATH;
-
-    for (sl = find_in_path(pp, *toys.optargs); sl; free(llist_pop(&sl)))
-      if ((f = fopen(sl->str, "r"))) break;
-    if (sl) llist_traverse(sl->next, free);
-    else perror_exit_raw(*toys.optargs);
-  }
+  else if (!(f = fpathopen(*toys.optargs))) perror_exit_raw(*toys.optargs);
 
   // Loop prompting and reading lines
   for (;;) {
@@ -3511,6 +3532,47 @@ void shift_main(void)
 
   if (toys.optc) by = atolx(*toys.optargs);
   by += TT.shift;
-  if (by<0 || by>= TT.arg->c) toys.exitval++;
+  if (by<0 || by>=TT.arg->c) toys.exitval++;
   else TT.shift = by;
+}
+
+void source_main(void)
+{
+  struct sh_function scratch;
+  FILE *ff = fpathopen(*toys.optargs);
+  long lineno = TT.lineno, shift = TT.shift, prompt;
+  struct sh_arg arg, *old = TT.arg;
+  char *new;
+
+  if (!ff) return perror_msg_raw(*toys.optargs);
+
+  arg.c = toys.optc;
+  arg.v = toys.optargs;
+  TT.arg = &arg;
+  memset(&scratch, 0, sizeof(scratch));
+
+  // TODO: factor out and combine with sh_main() plumbing?
+  for (TT.lineno = TT.shift = 0;;) {
+    new = xgetline(ff, 0);
+    if (!TT.lineno++ && new && *new == 0x7f) {
+      error_msg("'%s' is ELF", *toys.optargs);
+      free(new);
+
+      break;
+    }
+    if (1!=(prompt = parse_line(new ? : "", &scratch))) {
+      if (!prompt) run_function(scratch.pipeline);
+      free_function(&scratch);
+      if (!new) {
+        if (prompt) syntax_err("unexpected end of file");
+
+        break;
+      }
+    }
+    free(new);
+  }
+  fclose(ff);
+  TT.lineno = lineno;
+  TT.shift = shift;
+  TT.arg = old;
 }
