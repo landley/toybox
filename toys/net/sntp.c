@@ -11,6 +11,7 @@ USE_SNTP(NEWTOY(sntp, ">1M :m :Sp:t#<0=1>16asdDqr#<4>17=10[!as]", TOYFLAG_USR|TO
 config SNTP
   bool "sntp"
   default y
+  depends on TOYBOX_FORK
   help
     usage: sntp [-saSdDq] [-r SHIFT] [-mM[ADDRESS]] [-p PORT] [SERVER]
 
