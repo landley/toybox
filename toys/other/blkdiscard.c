@@ -44,7 +44,7 @@ void blkdiscard_main(void)
   unsigned long long ol[2];
 
   // TODO: if numeric arg was long long array could live in TT.
-  if (FLAG(o)) ol[0] = TT.o;
+  ol[0] = TT.o;
   if (FLAG(l)) ol[1] = TT.l;
   else {
     xioctl(fd, BLKGETSIZE64, ol+1);
