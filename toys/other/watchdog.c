@@ -8,7 +8,7 @@ USE_WATCHDOG(NEWTOY(watchdog, "<1>1Ft#=4<1T#=60<1", TOYFLAG_NEEDROOT|TOYFLAG_BIN
 
 config WATCHDOG
   bool "watchdog"
-  default n
+  default y
   depends on TOYBOX_FORK
   help
     usage: watchdog [-F] [-t SW_TIMER_S] [-T HW_TIMER_S] DEV
@@ -44,7 +44,7 @@ void watchdog_main(void)
 
   // Now that we've got the watchdog device open, kick it periodically.
   for (;;) {
-    write(TT.fd, "\0", 1);
+    write(TT.fd, "", 1);
     sleep(TT.t);
   }
 }
