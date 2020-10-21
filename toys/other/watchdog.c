@@ -11,14 +11,15 @@ config WATCHDOG
   default y
   depends on TOYBOX_FORK
   help
-    usage: watchdog [-F] [-t SW_TIMER_S] [-T HW_TIMER_S] DEV
+    usage: watchdog [-F] [-t UPDATE] [-T DEADLINE] DEV
 
     Start the watchdog timer at DEV with optional timeout parameters.
 
     -F	run in the foreground (do not daemonize)
-    -t	software timer (in seconds)
-    -T	hardware timer (in seconds)
+    -t	poke watchdog every UPDATE seconds (default 4)
+    -T	reboot if not poked for DEADLINE seconds (default 60)
 */
+
 #define FOR_watchdog
 #include "toys.h"
 #include "linux/watchdog.h"
