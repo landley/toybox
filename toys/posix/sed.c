@@ -93,7 +93,7 @@ config SED
       b LABEL    Branch, jumps to :LABEL (with no LABEL to end of SCRIPT)
       c TEXT     Delete matching ADDRESS range and output TEXT instead
       i TEXT     Insert text (output immediately)
-      r FILE     Append contents of FILIE to output before reading next line.
+      r FILE     Append contents of FILE to output before reading next line.
       s/S/R/F    Search for regex S replace match with R using flags F. Delimiter
                  is anything but \n or \, escape with \ to use in S or R. Printf
                  escapes work. Unescaped & in R becomes full matched text, \1
@@ -114,8 +114,6 @@ config SED
     The TEXT arguments (to a c i) may end with an unescaped "\" to append
     the next line (leading whitespace is not skipped), and treat ";" as a
     literal character (use "\;" instead).
-
-
 */
 
 #define FOR_sed
