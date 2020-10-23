@@ -11,7 +11,6 @@ USE_SNTP(NEWTOY(sntp, ">1M :m :Sp:t#<0=1>16asdDqr#<4>17=10[!as]", TOYFLAG_USR|TO
 config SNTP
   bool "sntp"
   default y
-  depends on TOYBOX_FORK
   help
     usage: sntp [-saSdDq] [-r SHIFT] [-mM[ADDRESS]] [-p PORT] [SERVER]
 
@@ -79,6 +78,8 @@ void sntp_main(void)
   union socksaddr sa;
   int fd, tries = 0;
 
+  if (FLAG(d)) xvdaemon();
+
   if (FLAG(M)) toys.optflags |= FLAG_S;
   if (!(FLAG(S)||FLAG(m)) && !*toys.optargs)
     error_exit("Need -SMm or SERVER address");
@@ -87,8 +88,6 @@ void sntp_main(void)
   if (!TT.p || !*TT.p) TT.p = "123";
   ai = xgetaddrinfo(*toys.optargs, TT.p, AF_UNSPEC, SOCK_DGRAM, IPPROTO_UDP,
     AI_PASSIVE*!*toys.optargs);
-
-  if (FLAG(d) && daemon(0, 0)) perror_exit("daemonize");
 
   // Act as server if necessary
   if (FLAG(S)||FLAG(m)) {

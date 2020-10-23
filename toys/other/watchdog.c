@@ -9,7 +9,6 @@ USE_WATCHDOG(NEWTOY(watchdog, "<1>1Ft#=4<1T#=60<1", TOYFLAG_NEEDROOT|TOYFLAG_BIN
 config WATCHDOG
   bool "watchdog"
   default y
-  depends on TOYBOX_FORK
   help
     usage: watchdog [-F] [-t UPDATE] [-T DEADLINE] DEV
 
@@ -38,7 +37,7 @@ void safe_shutdown(int ignored) {
 
 void watchdog_main(void)
 {
-  if (!FLAG(F) && daemon(1, 1)) perror_exit("failed to daemonize");
+  if (!FLAG(F)) xvdaemon();
   xsignal(SIGTERM, safe_shutdown);
   xsignal(SIGINT, safe_shutdown);
   xioctl(TT.fd = xopen(*toys.optargs, O_WRONLY), WDIOC_SETTIMEOUT, &TT.T);

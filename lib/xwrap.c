@@ -182,6 +182,30 @@ void xputc(char c)
   xflush(0);
 }
 
+// daemonize via vfork(). Does not chdir("/"), caller should do that first
+// note: restarts process from command_main()
+void xvdaemon(void)
+{
+  int fd;
+
+  // vfork and exec /proc/self/exe
+  if (toys.stacktop) {
+    xpopen(0, 0, 0);
+    _exit(0);
+  }
+
+  // new session id, point fd 0-2 at /dev/null, detach from tty
+  setsid();
+  close(0);
+  xopen_stdio("/dev/null", O_RDWR);
+  dup2(0, 1);
+  if (-1 != (fd = open("/dev/tty", O_RDONLY))) {
+    ioctl(fd, TIOCNOTTY);
+    close(fd);
+  }
+  dup2(0, 2);
+}
+
 // This is called through the XVFORK macro because parent/child of vfork
 // share a stack, so child returning from a function would stomp the return
 // address parent would need. Solution: make vfork() an argument so processes
