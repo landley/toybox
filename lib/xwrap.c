@@ -190,7 +190,7 @@ void xvdaemon(void)
 
   // vfork and exec /proc/self/exe
   if (toys.stacktop) {
-    xpopen(0, 0, 0);
+    xpopen_both(0, 0);
     _exit(0);
   }
 
