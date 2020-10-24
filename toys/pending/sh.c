@@ -3189,7 +3189,7 @@ FILE *fpathopen(char *name)
 
 void sh_main(void)
 {
-  char *new, *cc = TT.sh.c;
+  char *new, *cc = 0;
   struct sh_function scratch;
   int prompt = 0;
   struct string_list *sl = 0;
@@ -3216,10 +3216,13 @@ void sh_main(void)
   // if (!FLAG(noprofile)) { }
 
   // Is this an interactive shell?
-  if (FLAG(s) || (!FLAG(c) && !toys.optc)) TT.options |= OPT_S;
-  if (FLAG(i) || (!FLAG(c) && (TT.options&OPT_S) && isatty(0)))
-    TT.options |= OPT_I;
-  if (FLAG(c)) TT.options |= OPT_C;
+  if (toys.stacktop) {
+    cc = TT.sh.c;
+    if (FLAG(s) || (!FLAG(c) && !toys.optc)) TT.options |= OPT_S;
+    if (FLAG(i) || (!FLAG(c) && (TT.options&OPT_S) && isatty(0)))
+      TT.options |= OPT_I;
+    if (FLAG(c)) TT.options |= OPT_C;
+  }
 
   // Read environment for exports from parent shell. Note, calls run_sh()
   // which blanks argument sections of TT and this, so parse everything
