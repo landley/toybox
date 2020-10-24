@@ -98,6 +98,7 @@ if [ $$ -eq 1 ]; then # Setup networking for QEMU (needs /proc)
 
   [ -z "$CONSOLE" ] && CONSOLE="$(</sys/class/tty/console/active)"
   [ -z "$HANDOFF" ] && HANDOFF=/bin/sh && echo Type exit when done.
+  echo 3 > /proc/sys/kernel/printk
   exec oneit -c /dev/"${CONSOLE:-console}" $HANDOFF
 else # for chroot
   /bin/sh
