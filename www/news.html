@@ -18,12 +18,15 @@ are sure what is normal anyway."</p>
 
 <p>After a longer and slightly more
 <a href=https://github.com/landley/toybox/commit/07a896862ddf>turbulent</a>
-development cycle than some
-(the "the <a href=https://landley.net/notes-2020.html#13-10-2020>year</a>
-of hindsight" has not let up)
+development cycle than some,
 <a href=downloads/toybox-0.8.4.tar.gz>Toybox 0.8.4</a>
 (<a href=https://github.com/landley/toybox/releases/tag/0.8.4>git commit</a>)
-is out, with new commands <b>sha3sum</b> and <b><a href=https://github.com/landley/toybox/commit/6b4c32ae3986>watchdog</a></b>.</p>
+is out with new commands <b>sha3sum</b> and <b><a href=https://github.com/landley/toybox/commit/6b4c32ae3986>watchdog</a></b>.</p>
+
+<p>There are <a href=downloads/binaries/mkroot/0.8.4>prebuilt mkroot binaries</a>
+now, tiny toybox linux systems for a dozen architectures, all bootable under
+qemu. (The vmlinux in each tarball is a vanilla linux-5.9 kernel built
+from the included config file.)</p>
 
 <p>The FAQ got <a href=faq.html>noticeably larger</a>, and the README has
 more links. New command features include the <b>sed -s</b> flag,
@@ -42,26 +45,25 @@ we implemented wildcards, case/esac and select, brace expansion sequences
 the remaining variable slice types ${a#y} ${a%y} ${a^y} ${a,y}
 ${a/search/replace}, the "<b>source</b>" shell builtin,
 the start of job control, and several bugfixes.
-Plus the standalone "<b>make sh</b>" build understands MAYFORK now.</p>
+Plus the standalone "<b>make sh</b>" build understands MAYFORK now. It's
+still missing features like functions() and $((math)) but it's getting
+close to usable now.</p>
 
 <p><u>Documentation</u>:
 Some of the README contents moved to the FAQ, and the README's "presentations"
-section got some new links.
-New FAQ entries explaining mkroot ("how do I build a working Linux system
-with toybox") and cross compiling (how to get/setup the 2 compilers and
-3 libc we regression test against), plus "where does toybox fit into the
+section got some new links. Several new <a href=faq.html>FAQ</a> entries explaining things like
+mkroot ("how do I build a working Linux system
+with toybox"), cross compiling (how to get/setup the 2 compilers and
+3 libc we regression test against), and "where does toybox fit into the
 linux/android ecosystem".
-The "toybox --help" output now lists the project's web page (<a href=https://github.com/landley/toybox/issues/50>by request</a>).</p>
-
-
-<p>Elliott removed
+The "toybox --help" output now lists the project's web page (<a href=https://github.com/landley/toybox/issues/50>by request</a>).
+Elliott removed
 getevent (an android board bringup/hardware debugging tool built by running
 a python script against kernel headers, not really in scope for toybox),
 fixed xargs help formatting, and taught the toybox multiplexer's
 command list output (and "kill -l") to measure the current the terminal width
-when wordwrapping (previously hardwired to 80 columns).</p>
-
-<p>If you're curious, I checked in my <a href=www/release.txt>release procedure
+when wordwrapping (previously hardwired to 80 columns).
+If you're curious, I checked in my <a href=www/release.txt>release procedure
 checklist</a>, and
 vixed a stale link in the nav bar on the left ("statistics" changed domains).
 Firas Khaliki Khana fixed some issues in the roadmap, and Rob
