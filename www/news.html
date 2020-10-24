@@ -8,6 +8,164 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+<a name="24-10-2020" /><a href="#24-10-2020"><hr><h2><b>October 24, 2020</b></h2></a>
+<blockquote><p>
+"We are now cruising at a level of two to the power of twenty-five thousand to
+one against and falling, and we will be restoring normality just as soon as we
+are sure what is normal anyway."</p>
+<p>- The Hitchhiker's Guide to the Galaxy</p>
+</blockquote>
+
+<p>After a longer and slightly more
+<a href=https://github.com/landley/toybox/commit/07a896862ddf>turbulent</a>
+development cycle than some
+(the "the <a href=https://landley.net/notes-2020.html#13-10-2020>year</a>
+of hindsight" has not let up)
+<a href=downloads/toybox-0.8.4.tar.gz>Toybox 0.8.4</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.8.4>git commit</a>)
+is out, with new commands <b>sha3sum</b> and <b><a href=https://github.com/landley/toybox/commit/6b4c32ae3986>watchdog</a></b>.</p>
+
+<p>The FAQ got <a href=faq.html>noticeably larger</a>, and the README has
+more links. New command features include the <b>sed -s</b> flag,
+<b>cpio --no-preserve-owner</b> now affects archive creation,
+Elliott added <b>tar -I</b> and multi-type
+<b>find -type a,b,c</b> support, Mark Salyzyn added <b>xargs -P</b> to
+run parallel jobs, the <b>ps</b> and <b>top</b> commands
+now autodetect pid length, and <b>top</b> adjusts units for memory display based on
+system size.</p>
+
+<p><u>Toysh and toyroot</u>:
+lots of new work on <b>toysh</b>: 29 commits to sh.c since last release, adding 1500
+lines and deleting 700, plus a bunch of sh.tests entries). Since last release
+we implemented wildcards, case/esac and select, brace expansion sequences
+(ala {1..10..2} and {a..z}),
+the remaining variable slice types ${a#y} ${a%y} ${a^y} ${a,y}
+${a/search/replace}, the "<b>source</b>" shell builtin,
+the start of job control, and several bugfixes.
+Plus the standalone "<b>make sh</b>" build understands MAYFORK now.</p>
+
+<p><u>Documentation</u>:
+Some of the README contents moved to the FAQ, and the README's "presentations"
+section got some new links.
+New FAQ entries explaining mkroot ("how do I build a working Linux system
+with toybox") and cross compiling (how to get/setup the 2 compilers and
+3 libc we regression test against), plus "where does toybox fit into the
+linux/android ecosystem".
+The "toybox --help" output now lists the project's web page (<a href=https://github.com/landley/toybox/issues/50>by request</a>).</p>
+
+
+<p>Elliott removed
+getevent (an android board bringup/hardware debugging tool built by running
+a python script against kernel headers, not really in scope for toybox),
+fixed xargs help formatting, and taught the toybox multiplexer's
+command list output (and "kill -l") to measure the current the terminal width
+when wordwrapping (previously hardwired to 80 columns).</p>
+
+<p>If you're curious, I checked in my <a href=www/release.txt>release procedure
+checklist</a>, and
+vixed a stale link in the nav bar on the left ("statistics" changed domains).
+Firas Khaliki Khana fixed some issues in the roadmap, and Rob
+tweaked the roadmap so status.html is slightly more current.</p>
+
+<p><u>Tests</u>:
+The "make tests" target now fails if any of the tests it ran failed.
+Lots of TEST_HOST tests got fixed (checking for specific error messages exposes
+TEST_HOST to version skew, and scripts/test.sh will now skip TEST_HOST
+commands that aren't installed) and added toyonly annotations as necessary
+(replacing most uses of SKIP_HOST).
+Eric Molitor added automated github tests on MacOS and Ubuntu using their
+"workflows" thing.
+The clang asan plumbing slows some code down more than 10 times, so some testing timeouts were expanded.
+
+<p><u>Pending</u>:
+Eric Molitor did a bunch of work on route: moved it to sbin, added xsend and
+xrecv, taught display_routes() and setroute to use the rtnetlink API and
+do hostname lookups, added support for mss, win, and irtt, merged ipv6 and ipv4
+codepaths with autodetection of address type, implemented RTA_CACHEINFO
+support, switched exit paths to perror_exit(), and removed unused code.
+Ethan Sommer fixed warnings in dhcpd, removed a bunch of unnecessary
+; after GLOBALS() blocks and an unnecessary return in df.
+Erik Moqvist fixed dns setting in the dhcp client.
+Rob did some cleanup on bootchartd, traceroute, getty...
+Elliott fixed getty to reliably update utmp.
+Chris Sarra added ipv6 support to wget.
+Ariadne Conill submitted several small fixes from testing Alpine Linux with
+toybox, and Antoni Villalonga i Noceras fixed typos in error messages.</p>
+
+<p><u>Bugfixes</u>:
+Elliott avoided sign extension in devmem, and Ethan Sommer switched it from
+getpagesize() to posix sysconf(_SC_PAGESIZE).
+Elliott fixed chmod -R
+ignoring dangling symlinks, fixed stty <a href=https://github.com/landley/toybox/issues/251>misparsing c_iflags</a>, fixed the chattr f2fs test with
+compression enabled, taught blkid not to show empty tags, taught xparsedate()
+to read date's default output format, fixed a recent echo -e \0 regression,
+changed cpio -p parsing to match a <a href=http://lists.landley.net/pipermail/toybox-landley.net/2020-August/011955.html>bug</a> in the gnu version
+which an existing script <a href=https://github.com/landley/toybox/commit/fa1af3b085cc>depended on</a>,
+and switched hwclock back to looking
+only at /dev/rtc0 for <a href=https://github.com/landley/toybox/commit/70e2232ce61c>reasons</a> involving kernel version skew and vendor bug reports.</p>
+
+<p>David Legault pointed out that unescape2() (and thus echo -e) wasn't handling
+\0 right.
+Khem Raj reported that mips glibc doesn't have SIGSTKFLT, leading to
+a build break if we assume glibc behaves consistently, which led to a bunch of
+macos signal portability cleanups from Elliott.
+William Djupström fixed tar extracting long file paths, adding hardlinks
+to an archive, and reported that --exclude wasn't working.
+Peter McConalogue pointed out that cp/mv -i prompt should
+default N, and mv should only prompt when stdin is a tty.
+Patrick Oppenlander made rtcwake and hwclock default to UTC if /dev/adjtime
+isn't available, suggested watchdog catch SIGINT, and caught an
+uninitialized offset in blkdiscard which gcc apparently didn't.
+Ryan Pritchard reported that <b>file</b> wasn't getting gif heights right,
+and Elliott added gif version output so TEST_HOST provided similar output.
+Martin Stjernholm fixed <b>cp -P</b> to not follow symlinks and updated
+the help text to say it's not the default.
+Antoni Villalonga added more --long asiases to <b>chgrp/chown/rmdir</b>.
+
+<p>The symlink indirection code subtly broke xexec() so it would still try to call
+a builtin when given a path to a command (fixed now).
+The code to trip \n off xgetline() was using the length of the allocation
+instead of the length of the read.
+Netcat no longer leaks sockfd into child processes.
+Patch "fuzz" support was outputting context lines from the hunk, not the
+file. Chrisrfq fixed i2cdetect parameter reading.
+Chris Sarra taught dd not to throw an error trying to truncate device files,
+added a misshing fflush() to lib/password.c, fixed a parse error in logger
+preventing local facility logging from working right, taught init
+to reload inittab when it receives SIGHUP, and fixed a memory leak in tar.</p>
+
+<p><u>Library</u>:
+New xvdaemon() function daemonizing on nommu systems, to wean commands
+off daemon() which requires TOYBOX_FORK.
+Teach sendfile_len() to use copy_file_range() when available, with compile
+time probe. Fix xsignal_all_killers() to install the correct handler.
+Rob switched dirtree_path() to a non-recursive implementation, and
+taught dirtree that a top level entry named "" is equivalent to
+"." but should not show up in dirtree_path(),
+read_password() now reads from tty device rather than stdin, and handles ctrl-c and ctrl-d, and
+human_readable() now has HR_NODOT so it can print single digit numbers without going "0.0".
+Petri Gynther increased the vmstat column sizes so it didn't fit
+in 80 columns anymore.
+Elliott added UTC offset support to xparsedate().</p>
+
+<p><u>Infrastructure</u>:
+mkroot now only passes --no-preserve-owner to cpio (so initramfs files
+belong to root rather than whichever user ran the build) when using toybox's
+version, because the other one is brain-damaged and errors out not
+understanding it. (It understands it for extract, but not create. Yes really.)
+New PENDING variable you can set to enable more than just sh and route out
+of pending.
+The "make distclean" no longer deletes root_download (where mkroot's "extra plumbing"
+file saves source code downloads it tarballs, such as dropbear).</p>
+
+<p><u>Cleanup</u>:
+Cleanup openvt (35 lines added, 78 lines removed)
+Cleanup blkdiscard so lib/args.c parses the -o and -l numbers, which means
+32 bit systems are limited to 2 gigabyte sizes which is a TODO item systemwide.
+oneit now uses flag macros and mentions -rn in the help. demo-utf8towc
+now has main.c call setlocale for it.
+Some cleanup on stty.</p>
+
 <a name="11-05-2020" /><a href="#11-05-2020"><hr><h2><b>May 11, 2020</b></h2></a>
 <blockquote>
 <p>Ford: Ah. A
