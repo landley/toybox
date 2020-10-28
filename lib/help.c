@@ -21,6 +21,11 @@ void show_help(FILE *out, int full)
   int i = toys.which-toy_list;
   char *s, *ss;
 
+  if (!(full&2))
+    fprintf(out, "Toybox %s" USE_TOYBOX(" multicall binary")
+                 ": https://landley.net/toybox"
+                 USE_TOYBOX(" (see toybox --help)") "\n\n", toybox_version);
+
   if (CFG_TOYBOX_HELP) {
     for (;;) {
       s = help_data;

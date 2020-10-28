@@ -21,7 +21,7 @@ struct toy_list toy_list[] = {
 
 struct toy_context toys;
 union global_union this;
-char toybuf[4096], libbuf[4096];
+char *toybox_version = TOYBOX_VERSION, toybuf[4096], libbuf[4096];
 
 struct toy_list *toy_find(char *name)
 {
@@ -84,7 +84,7 @@ void toy_singleinit(struct toy_list *which, char *argv[])
     }
 
     if (!strcmp(argv[1], "--version")) {
-      xputs("toybox "TOYBOX_VERSION);
+      xprintf("toybox %s\n", toybox_version);
       xexit();
     }
   }
