@@ -6,6 +6,7 @@
 
 // For musl
 #define _ALL_SOURCE
+#include <regex.h>
 #ifndef REG_STARTEND
 #define REG_STARTEND 0
 #endif

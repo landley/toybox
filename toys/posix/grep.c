@@ -65,7 +65,6 @@ config FGREP
 
 #define FOR_grep
 #include "toys.h"
-#include <regex.h>
 
 GLOBALS(
   long m, A, B, C;
