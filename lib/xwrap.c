@@ -938,7 +938,7 @@ void xregcomp(regex_t *preg, char *regex, int cflags)
 
   if ((rc = regcomp(preg, regex, cflags))) {
     regerror(rc, preg, libbuf, sizeof(libbuf));
-    error_exit("bad regex: %s", libbuf);
+    error_exit("bad regex '%s': %s", regex, libbuf);
   }
 }
 
