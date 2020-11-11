@@ -242,7 +242,8 @@ else
          armv7r:eabihf:"--with-arch=armv7-r --enable-default-pie" \
          i486:: m68k:: microblaze:: mips:: mips64:: mipsel:: powerpc:: \
          powerpc64:: powerpc64le:: s390x:: sh2eb:fdpic:--with-cpu=mj2 \
-         sh4::--enable-incomplete-targets x86_64:: x86_64@x32:x32:
+         sh4::--enable-incomplete-targets x86_64::--with-mtune=nocona \
+         x86_64@x32:x32:
   do
     make_tuple "$i"
   done
