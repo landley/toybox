@@ -7,7 +7,7 @@
  * Note: setting a 2 year date is 50 years back/forward from today,
  * not posix's hardwired magic dates.
 
-USE_DATE(NEWTOY(date, "d:D:r:u[!dr]", TOYFLAG_BIN))
+USE_DATE(NEWTOY(date, "d:D:r:u(utc)[!dr]", TOYFLAG_BIN))
 
 config DATE
   bool "date"
