@@ -394,6 +394,11 @@ static void do_regular_file(int fd, char *name)
     xprintf("Android DTB/DTBO v%d, %d entries\n", (int) peek_be(s+28, 4),
         (int) peek_be(s+16, 4));
 
+    // frameworks/base/core/java/com/android/internal/util/BinaryXmlSerializer.java
+  } else if (len>4 && !memcmp(s, "ABX", 3)) {
+    xprintf("Android Binary XML v%d\n", s[3]);
+
+    // Text files, including shell scripts.
   } else {
     char *what = 0;
     int i, bytes;
