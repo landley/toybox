@@ -37,7 +37,7 @@ static void do_elf_file(int fd)
       phentsize, phnum, shsize, shnum;
   int64_t (*elf_int)(void *ptr, unsigned size);
   char *map = 0;
-  off_t phoff, shoff;
+  long phoff, shoff;
 
   printf("ELF ");
   elf_int = (endian==2) ? peek_be : peek_le;
@@ -107,11 +107,11 @@ static void do_elf_file(int fd)
 
   // We need to read the phdrs for dynamic vs static.
   // (Note: fields got reordered for 64 bit)
-  if (phoff+phnum*phentsize>TT.len) goto bad;
+  if (phoff<0 || phoff>TT.len || phnum*phentsize>TT.len-phoff) goto bad;
   for (i = 0; i<phnum; i++) {
     char *phdr = map+phoff+i*phentsize;
     int p_type = elf_int(phdr, 4);
-    long long p_offset, p_filesz;
+    unsigned long long p_offset, p_filesz;
 
     if (p_type==2 /*PT_DYNAMIC*/) dynamic = 1;
     if (p_type!=3 /*PT_INTERP*/ && p_type!=4 /*PT_NOTE*/) continue;
@@ -121,7 +121,7 @@ static void do_elf_file(int fd)
     p_filesz = elf_int(phdr+16*j, 4*j);
 
     if (p_type==3 /*PT_INTERP*/) {
-      if (p_offset+p_filesz>TT.len) goto bad;
+      if (p_filesz>TT.len || p_offset>TT.len-p_filesz) goto bad;
       printf(", dynamic (%.*s)", (int)p_filesz, map+p_offset);
     }
   }
@@ -131,12 +131,17 @@ static void do_elf_file(int fd)
   // Notes are in program headers *and* section headers, but some files don't
   // contain program headers, so we prefer to check here.
   // (Note: fields got reordered for 64 bit)
-  if (shoff+i*shnum>TT.len) goto bad;
+  if (shoff<0 || shoff>TT.len || shnum*shsize>TT.len-shoff) goto bad;
   for (i = 0; i<shnum; i++) {
     char *shdr = map+shoff+i*shsize;
-    int sh_type = elf_int(shdr+4, 4);
-    long sh_offset = elf_int(shdr+8+8*(bits+1), 4*(bits+1));
-    int sh_size = elf_int(shdr+8+12*(bits+1), 4);
+    unsigned long sh_offset;
+    int sh_type, sh_size;
+
+    if (shdr>map+TT.len-(8+4*(bits+1))) goto bad;
+    sh_type = elf_int(shdr+4, 4);
+    sh_offset = elf_int(shdr+8+8*(bits+1), 4*(bits+1));
+    sh_size = elf_int(shdr+8+12*(bits+1), 4);
+    if (sh_offset>TT.len || sh_size>TT.len-sh_offset) goto bad;
 
     if (sh_type == 2 /*SHT_SYMTAB*/) {
       stripped = 0;
@@ -151,12 +156,13 @@ static void do_elf_file(int fd)
       while (sh_size >= 3*4) { // Don't try to read a truncated entry.
         unsigned n_namesz, n_descsz, n_type, notesz;
 
-        if (sh_offset+sh_size>TT.len) goto bad;
+        if (note>map+TT.len-3*4) goto bad;
 
         n_namesz = elf_int(note, 4);
         n_descsz = elf_int(note+4, 4);
         n_type = elf_int(note+8, 4);
         notesz = 3*4 + ((n_namesz+3)&~3) + ((n_descsz+3)&~3);
+        if (notesz<n_namesz || notesz<n_descsz) goto bad;
 
         // Does the claimed size of this note actually fit in the section?
         if (notesz > sh_size) goto bad;
@@ -191,7 +197,7 @@ bad:
 static void do_regular_file(int fd, char *name)
 {
   char *s;
-  int len, magic;
+  unsigned len, magic;
 
   // zero through elf shnum, just in case
   memset(toybuf, 0, 80);
