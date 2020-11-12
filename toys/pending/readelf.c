@@ -35,7 +35,7 @@ GLOBALS(
   char *x, *p;
 
   char *elf, *shstrtab, *f;
-  unsigned long long shoff, phoff, size;
+  unsigned long long shoff, phoff, size, shstrtabsz;
   int bits, endian, shnum, shentsize, phentsize;
 )
 
@@ -75,13 +75,14 @@ static unsigned short elf_short(char **p)
   return elf_get(p, 2);
 }
 
-static void get_sh(int i, struct sh *s)
+static int get_sh(unsigned i, struct sh *s)
 {
   char *shdr = TT.elf+TT.shoff+i*TT.shentsize;
-  int name_offset;
+  unsigned name_offset;
 
   if (i >= TT.shnum || shdr > TT.elf+TT.size-TT.shentsize) {
-    error_exit("%s: no shdr %d",TT.f,i);
+    printf("No shdr %d\n", i);
+    return 0;
   }
 
   name_offset = elf_int(&shdr);
@@ -95,14 +96,21 @@ static void get_sh(int i, struct sh *s)
   s->addralign = elf_long(&shdr);
   s->entsize = elf_long(&shdr);
 
+  if (s->offset>TT.size || s->size>TT.size || s->offset>TT.size-s->size) {
+    printf("Bad offset/size %llu/%llu for sh %d\n", s->offset, s->size, i);
+    return 0;
+  }
+
   if (!TT.shstrtab) s->name = "?";
   else {
     s->name = TT.shstrtab + name_offset;
-    if (s->name >= TT.elf+TT.size) error_exit("%s: shdr %d bad name", TT.f, i);
-    if (s->offset >= TT.size-s->size && s->type != 8 /*SHT_NOBITS*/)
-      error_exit("%s: shdr %d has bad offset/size %llu/%llu", TT.f, i,
-        s->offset, s->size);
+    if (name_offset > TT.shstrtabsz || s->name >= TT.elf+TT.size) {
+      printf("Bad name for sh %d\n", i);
+      return 0;
+    }
   }
+
+  return 1;
 }
 
 static int find_section(char *spec, struct sh *s)
@@ -113,26 +121,25 @@ static int find_section(char *spec, struct sh *s)
   // Valid section number?
   errno = 0;
   i = strtoul(spec, &end, 0);
-  if (!errno && !*end && i < TT.shnum) {
-    get_sh(i, s);
-    return 1;
-  }
+  if (!errno && !*end && i < TT.shnum) return get_sh(i, s);
 
   // Search the section names.
   for (i=0; i<TT.shnum; i++) {
-    get_sh(i, s);
-    if (!strcmp(s->name, spec)) return 1;
+    if (get_sh(i, s) && !strcmp(s->name, spec)) return 1;
   }
 
   error_msg("%s: no section '%s", TT.f, spec);
   return 0;
 }
 
-static void get_ph(int i, struct ph *ph)
+static int get_ph(int i, struct ph *ph)
 {
   char *phdr = TT.elf+TT.phoff+i*TT.phentsize;
 
-  if (phdr > TT.elf+TT.size-TT.phentsize) error_exit("%s: no phdr %d",TT.f,i);
+  if (phdr > TT.elf+TT.size-TT.phentsize) {
+    printf("Bad phdr %d\n", i);
+    return 0;
+  }
 
   // Elf64_Phdr reordered fields.
   ph->type = elf_int(&phdr);
@@ -154,9 +161,12 @@ static void get_ph(int i, struct ph *ph)
     ph->align = elf_int(&phdr);
   }
 
-  if (ph->offset >= TT.size-ph->filesz)
-    error_exit("%s: phdr %d has bad offset/size %llu/%llu", TT.f, i,
-      ph->offset, ph->filesz);
+  if (ph->offset >= TT.size-ph->filesz) {
+    printf("phdr %d has bad offset/size %llu/%llu", i, ph->offset, ph->filesz);
+    return 0;
+  }
+
+  return 1;
 }
 
 #define MAP(...) __VA_ARGS__
@@ -238,9 +248,9 @@ static void show_symbols(struct sh *table, struct sh *strtab)
          "   Num:    %*s  Size Type    Bind   Vis      Ndx Name\n",
          table->name, numsym, 5+8*TT.bits, "Value");
   for (i=0; i<numsym; i++) {
-    int st_name = elf_int(&symtab), st_value, st_shndx;
+    unsigned st_name = elf_int(&symtab), st_value, st_shndx;
     unsigned char st_info, st_other;
-    long st_size;
+    unsigned long st_size;
     char *name;
 
     // The various fields were moved around for 64-bit.
@@ -259,7 +269,7 @@ static void show_symbols(struct sh *table, struct sh *strtab)
     }
 
     name = TT.elf + strtab->offset + st_name;
-    if (name >= TT.elf+TT.size) error_exit("%s: bad symbol name", TT.f);
+    if (name >= TT.elf+TT.size) name = "???";
 
     if (!st_shndx) ndx = "UND";
     else if (st_shndx==0xfff1) ndx = "ABS";
@@ -267,7 +277,7 @@ static void show_symbols(struct sh *table, struct sh *strtab)
 
     // TODO: look up and show any symbol versions with @ or @@.
 
-    printf("%6d: %0*x %5ld %-7s %-6s %-9s%3s %s\n", i, 8*(TT.bits+1),
+    printf("%6d: %0*x %5lu %-7s %-6s %-9s%3s %s\n", i, 8*(TT.bits+1),
       st_value, st_size, stt_type(st_info & 0xf), stb_type(st_info >> 4),
       stv_type(st_other & 3), ndx, name);
   }
@@ -280,15 +290,24 @@ static int notematch(int namesz, char **p, char *expected, int len)
   return 1;
 }
 
-static void show_notes(long offset, long size)
+static void show_notes(unsigned long offset, unsigned long size)
 {
   char *note = TT.elf + offset;
+
+  if (size > TT.size || offset > TT.size-size) {
+    printf("Bad note bounds %lu/%lu\n", offset, size);
+    return;
+  }
 
   printf("  %-20s %10s\tDescription\n", "Owner", "Data size");
   while (note < TT.elf+offset+size) {
     char *p = note, *desc;
-    int namesz = elf_int(&p), descsz = elf_int(&p), type = elf_int(&p), j = 0;
+    unsigned namesz=elf_int(&p), descsz=elf_int(&p), type=elf_int(&p), j=0;
 
+    if (namesz > size || descsz > size) {
+      error_msg("%s: bad note @%lu", TT.f, offset);
+      return;
+    }
     printf("  %-20.*s 0x%08x\t", namesz, p, descsz);
     if (notematch(namesz, &p, "GNU", 4)) {
       if (type == 1) {
@@ -356,18 +375,6 @@ static void scan_elf()
   TT.shnum = elf_short(&hdr);
   shstrndx = elf_short(&hdr);
 
-  // Set up the section header string table so we can use section header names.
-  // Core files have shstrndx == 0.
-  TT.shstrtab = 0;
-  if (shstrndx != 0) {
-    get_sh(shstrndx, &shstr);
-    if (shstr.type != 3 /*SHT_STRTAB*/) {
-      error_msg("%s: bad shstrndx", TT.f);
-      return;
-    }
-    TT.shstrtab = TT.elf+shstr.offset;
-  }
-
   if (toys.optc > 1) printf("\nFile: %s\n", TT.f);
 
   if (FLAG(h)) {
@@ -384,9 +391,9 @@ static void scan_elf()
     printf("  Machine:                           %s\n", elf_arch_name(machine));
     printf("  Version:                           0x%x\n", version);
     printf("  Entry point address:               0x%x\n", entry);
-    printf("  Start of program headers:          %lld (bytes into file)\n",
+    printf("  Start of program headers:          %llu (bytes into file)\n",
            TT.phoff);
-    printf("  Start of section headers:          %lld (bytes into file)\n",
+    printf("  Start of section headers:          %llu (bytes into file)\n",
            TT.shoff);
     printf("  Flags:                             0x%x\n", flags);
     printf("  Size of this header:               %d (bytes)\n", ehsize);
@@ -395,6 +402,27 @@ static void scan_elf()
     printf("  Size of section headers:           %d (bytes)\n", TT.shentsize);
     printf("  Number of section headers:         %d\n", TT.shnum);
     printf("  Section header string table index: %d\n", shstrndx);
+  }
+  if (TT.phoff > TT.size) {
+    error_msg("%s: bad phoff", TT.f);
+    return;
+  }
+  if (TT.shoff > TT.size) {
+    error_msg("%s: bad shoff", TT.f);
+    return;
+  }
+
+  // Set up the section header string table so we can use section header names.
+  // Core files have shstrndx == 0.
+  TT.shstrtab = 0;
+  TT.shstrtabsz = 0;
+  if (shstrndx != 0) {
+    if (!get_sh(shstrndx, &shstr) || shstr.type != 3 /*SHT_STRTAB*/) {
+      error_msg("%s: bad shstrndx", TT.f);
+      return;
+    }
+    TT.shstrtab = TT.elf+shstr.offset;
+    TT.shstrtabsz = shstr.size;
   }
 
   w = 8*(TT.bits+1);
@@ -414,7 +442,7 @@ static void scan_elf()
   // We need to iterate through the section headers even if we're not
   // dumping them, to find specific sections.
   for (i=0; i<TT.shnum; i++) {
-    get_sh(i, &s);
+    if (!get_sh(i, &s)) continue;
     if (s.type == 2 /*SHT_SYMTAB*/) symtab = s;
     else if (s.type == 6 /*SHT_DYNAMIC*/) dynamic = s;
     else if (s.type == 11 /*SHT_DYNSYM*/) dynsym = s;
@@ -453,12 +481,13 @@ static void scan_elf()
              "  %-14s %-8s %-*s   %-*s   %-7s %-7s Flg Align\n", "Type",
              "Offset", w, "VirtAddr", w, "PhysAddr", "FileSiz", "MemSiz");
       for (i=0; i<phnum; i++) {
-        get_ph(i, &ph);
+        if (!get_ph(i, &ph)) continue;
         printf("  %-14s 0x%06llx 0x%0*llx 0x%0*llx 0x%05llx 0x%05llx %c%c%c %#llx\n",
                ph_type(ph.type), ph.offset, w, ph.vaddr, w, ph.paddr,
                ph.filesz, ph.memsz, ph.flags&4?'R':' ', ph.flags&2?'W':' ',
                ph.flags&1?'E':' ', ph.align);
-        if (ph.type == 3 /*PH_INTERP*/ && ph.filesz - 1 < TT.size - ph.offset) {
+        if (ph.type == 3 /*PH_INTERP*/ && ph.filesz<TT.size &&
+            ph.offset<TT.size && ph.filesz - 1 < TT.size - ph.offset) {
           printf("      [Requesting program interpreter: %*s]\n",
                  (int) ph.filesz-1, TT.elf+ph.offset);
         }
@@ -468,10 +497,10 @@ static void scan_elf()
              " Section to Segment mapping:\n"
              "  Segment Sections...\n");
       for (i=0; i<phnum; i++) {
-        get_ph(i, &ph);
+        if (!get_ph(i, &ph)) continue;
         printf("   %02d     ", i);
         for (j=0; j<TT.shnum; j++) {
-          get_sh(j, &s);
+          if (!get_sh(j, &s)) continue;
           if (!*s.name) continue;
           if (s.offset >= ph.offset && s.offset+s.size <= ph.offset+ph.filesz)
             printf("%s ", s.name);
@@ -488,45 +517,51 @@ static void scan_elf()
 
     xputc('\n');
     if (!dynamic.size) printf("There is no dynamic section in this file.\n");
-    else printf("Dynamic section at offset 0x%llx contains %lld entries:\n"
-                "  %-*s %-20s %s\n",
-                dynamic.offset, dynamic.size/dynamic.entsize,
-                w+2, "Tag", "Type", "Name/Value");
-    while (dyn < end) {
-      unsigned long long tag = elf_long(&dyn), val = elf_long(&dyn);
-      char *type = dt_type(tag);
+    else if (!dynamic.entsize) printf("Bad dynamic entry size 0!\n");
+    else {
+      printf("Dynamic section at offset 0x%llx contains %lld entries:\n"
+             "  %-*s %-20s %s\n",
+             dynamic.offset, dynamic.size/dynamic.entsize,
+             w+2, "Tag", "Type", "Name/Value");
+      while (dyn < end) {
+        unsigned long long tag = elf_long(&dyn), val = elf_long(&dyn);
+        char *type = dt_type(tag);
 
-      printf(" 0x%0*llx %-20s ", w, tag, *type=='0' ? type : type+1);
-      if (*type == 'd') printf("%lld\n", val);
-      else if (*type == 'b') printf("%lld (bytes)\n", val);
-      else if (*type == 's') printf("%s\n", TT.elf+dynstr.offset+val);
-      else if (*type == 'f' || *type == 'F') {
-        struct bitname { int bit; char *s; }
-          df_names[] = {{0, "ORIGIN"},{1,"SYMBOLIC"},{2,"TEXTREL"},
-            {3,"BIND_NOW"},{4,"STATIC_TLS"},{}},
-          df_1_names[]={{0,"NOW"},{1,"GLOBAL"},{2,"GROUP"},{3,"NODELETE"},
-            {5,"INITFIRST"},{27,"PIE"},{}},
-          *names = *type == 'f' ? df_names : df_1_names;
-        int mask;
+        printf(" 0x%0*llx %-20s ", w, tag, *type=='0' ? type : type+1);
+        if (*type == 'd') printf("%lld\n", val);
+        else if (*type == 'b') printf("%lld (bytes)\n", val);
+        else if (*type == 's') printf("%s\n", TT.elf+dynstr.offset+val);
+        else if (*type == 'f' || *type == 'F') {
+          struct bitname { int bit; char *s; }
+            df_names[] = {{0, "ORIGIN"},{1,"SYMBOLIC"},{2,"TEXTREL"},
+              {3,"BIND_NOW"},{4,"STATIC_TLS"},{}},
+            df_1_names[]={{0,"NOW"},{1,"GLOBAL"},{2,"GROUP"},{3,"NODELETE"},
+              {5,"INITFIRST"},{27,"PIE"},{}},
+            *names = *type == 'f' ? df_names : df_1_names;
+          int mask;
 
-        if (*type == 'F') printf("Flags: ");
-        for (j=0; names[j].s; j++) {
-          if (val & (mask=(1<<names[j].bit))) {
-            printf("%s%s", names[j].s, (val &= ~mask) ? " " : "");
+          if (*type == 'F') printf("Flags: ");
+          for (j=0; names[j].s; j++) {
+            if (val & (mask=(1<<names[j].bit))) {
+              printf("%s%s", names[j].s, (val &= ~mask) ? " " : "");
+            }
           }
-        }
-        if (val) printf("0x%llx", val);
-        xputc('\n');
-      } else if (*type == 'N' || *type == 'R' || *type == 'S') {
-        printf("%s: [%s]\n", *type=='N' ? "Shared library" :
-          (*type=='R' ? "Library runpath" : "Library soname"),
-          TT.elf+dynstr.offset+val);
-      } else if (*type == 'P') {
-        type = dt_type(val);
-        j = strlen(type);
-        if (*type != '0') type += 2, j -= 3;
-        printf("%*.*s\n", j, j, type);
-      } else printf("0x%llx\n", val);
+          if (val) printf("0x%llx", val);
+          xputc('\n');
+        } else if (*type == 'N' || *type == 'R' || *type == 'S') {
+          char *s = TT.elf+dynstr.offset+val;
+
+          if (dynstr.offset>TT.size || val>TT.size || dynstr.offset>TT.size-val)
+            s = "???";
+          printf("%s: [%s]\n", *type=='N' ? "Shared library" :
+            (*type=='R' ? "Library runpath" : "Library soname"), s);
+        } else if (*type == 'P') {
+          type = dt_type(val);
+          j = strlen(type);
+          if (*type != '0') type += 2, j -= 3;
+          printf("%*.*s\n", j, j, type);
+        } else printf("0x%llx\n", val);
+      }
     }
   }
 
@@ -537,7 +572,7 @@ static void scan_elf()
     int found = 0;
 
     for (i=0; i<TT.shnum; i++) {
-      get_sh(i, &s);
+      if (!get_sh(i, &s)) continue;
       if (s.type == 7 /*SHT_NOTE*/) {
         printf("\nDisplaying notes found in: %s\n", s.name);
         show_notes(s.offset, s.size);
@@ -545,7 +580,7 @@ static void scan_elf()
       }
     }
     for (i=0; !found && i<phnum; i++) {
-      get_ph(i, &ph);
+      if (!get_ph(i, &ph)) continue;
       if (ph.type == 4 /*PT_NOTE*/) {
         printf("\n"
           "Displaying notes found at file offset 0x%llx with length 0x%llx:\n",
