@@ -8,7 +8,7 @@
  * todo: qtv --rsyncable
 
 // gzip.net version allows all options for all commands.
-USE_GZIP(NEWTOY(gzip,    "ncdfk123456789[-123456789]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_GZIP(NEWTOY(gzip,    "n(no-name)cdfk123456789[-123456789]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_GUNZIP(NEWTOY(gunzip, "cdfk123456789[-123456789]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_ZCAT(NEWTOY(zcat,     "cdfk123456789[-123456789]", TOYFLAG_USR|TOYFLAG_BIN))
 
