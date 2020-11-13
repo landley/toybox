@@ -43,7 +43,7 @@ if [ -z "$UNINSTALL" ]
 then
   mkdir -p "${PREFIX}/${LONG_PATH}" &&
   rm -f "${PREFIX}/${LONG_PATH}/toybox" &&
-  cp toybox ${PREFIX}/${LONG_PATH} || exit 1
+  cp toybox"${TARGET:+-$TARGET}" ${PREFIX}/${LONG_PATH} || exit 1
 else
   rm -f "${PREFIX}/${LONG_PATH}/toybox" 2>/dev/null
 fi
@@ -86,7 +86,7 @@ do
   # Create link
   if [ -z "$UNINSTALL" ]
   then
-    ln $DO_FORCE $LINK_TYPE ${DOTPATH}toybox $i || EXIT=1
+    ln $DO_FORCE $LINK_TYPE ${DOTPATH}"toybox${TARGET:+-$TARGET}" $i || EXIT=1
   else
     rm -f $i || EXIT=1
   fi
