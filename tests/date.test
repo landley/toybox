@@ -53,6 +53,21 @@ testing "trailing %" "touch -d 2012-01-23T12:34:56.123456789 f && date -r f +%Y%
 testing "just %" "touch -d 2012-01-23T12:34:56.123456789 f && date -r f +%" "%\n" "" ""
 rm -f f
 
+# Test --iso...
+testing "-I" "touch -d 2012-01-23T12:34:56.123456789Z f && date -r f -u -I" \
+  "2012-01-23\n" "" ""
+testing "-Id" "touch -d 2012-01-23T12:34:56.123456789Z f && date -r f -u -Id" \
+  "2012-01-23\n" "" ""
+testing "-Ih" "touch -d 2012-01-23T12:34:56.123456789Z f && date -r f -u -Ih" \
+  "2012-01-23T12+00:00\n" "" ""
+testing "-Im" "touch -d 2012-01-23T12:34:56.123456789Z f && date -r f -u -Im" \
+  "2012-01-23T12:34+00:00\n" "" ""
+testing "-Is" "touch -d 2012-01-23T12:34:56.123456789Z f && date -r f -u -Is" \
+  "2012-01-23T12:34:56+00:00\n" "" ""
+testing "-In" "touch -d 2012-01-23T12:34:56.123456789Z f && date -r f -u -In" \
+  "2012-01-23T12:34:56,123456789+00:00\n" "" ""
+rm -f f
+
 # Test embedded TZ to take a date in one time zone and display it in another.
 testing "TZ=" "TZ='America/Los_Angeles' date -d 'TZ=\"Europe/Berlin\" 2018-01-04 08:00'" "Wed Jan  3 23:00:00 PST 2018\n" "" ""
 testing "TZ=" "TZ='America/Los_Angeles' date -d 'TZ=\"Europe/Berlin\" 2018-10-04 08:00'" "Wed Oct  3 23:00:00 PDT 2018\n" "" ""
