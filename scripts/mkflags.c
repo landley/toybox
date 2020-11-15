@@ -22,21 +22,23 @@ struct flag {
 int chrtype(char c)
 {
   // Does this populate a GLOBALS() variable?
-  if (strchr("?&^-:#|@*; %", c)) return 1;
+  if (strchr("^-:#|@*; %.", c)) return 1;
 
   // Is this followed by a numeric argument in optstr?
   if (strchr("=<>", c)) return 2;
+
+  if (strchr("?&0", c)) return 3;
 
   return 0;
 }
 
 // replace chopped out USE_BLAH() sections with low-ascii characters
-// showing how many flags got skipped
+// showing how many flags got skipped so FLAG_ macros stay constant
 
 char *mark_gaps(char *flags, char *all)
 {
   char *n, *new, c;
-  int bare = 1;
+  int bare = 2;
 
   // Shell feeds in " " for blank args, leading space not meaningful.
   while (isspace(*flags)) flags++;
@@ -48,7 +50,8 @@ char *mark_gaps(char *flags, char *all)
     if (*all == '(') {
       int len = 0;
 
-      while (all[len++] != ')');
+      if (bare) bare = 1;
+      while (all[len]) if (all[len++] == ')') break;
       if (strncmp(flags, all, len)) {
         // bare longopts need their own skip placeholders
         if (bare) *(new++) = 1;
@@ -61,7 +64,7 @@ char *mark_gaps(char *flags, char *all)
       continue;
     }
     c = *(all++);
-    if (bare) bare = chrtype(c);
+    if (bare && !chrtype(c)) bare = 0;
     if (*flags == c) {
       *(new++) = c;
       flags++;
@@ -69,7 +72,7 @@ char *mark_gaps(char *flags, char *all)
     }
 
     c = chrtype(c);
-    if (!c) *(new++) = 1;
+    if (!c || (!bare && c==3)) *(new++) = 1;
     else if (c==2) while (isdigit(*all)) all++;
   }
   *new = 0;
@@ -81,7 +84,7 @@ char *mark_gaps(char *flags, char *all)
 
 struct flag *digest(char *string)
 {
-  struct flag *list = NULL;
+  struct flag *list = 0;
   char *err = string, c;
 
   while (*string) {
@@ -112,7 +115,7 @@ struct flag *digest(char *string)
     }
 
     c = chrtype(*string);
-    if (c == 1) string++;
+    if (c == 1 || (c == 3 && !list)) string++;
     else if (c == 2) {
       if (string[1]=='-') string++;
       if (!isdigit(string[1])) {

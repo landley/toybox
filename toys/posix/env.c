@@ -6,7 +6,7 @@
  *
  * Deviations from posix: "-" argument and -0
 
-USE_ENV(NEWTOY(env, "^0iu*", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(125)))
+USE_ENV(NEWTOY(env, "^i0u*", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(125)))
 
 config ENV
   bool "env"

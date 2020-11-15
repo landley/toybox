@@ -76,6 +76,7 @@
 //     >9 die if > # leftover arguments (default MAX_INT)
 //     ? Allow unknown arguments (pass them through to command).
 //     & first arg has imaginary dash (ala tar/ps/ar) which sets FLAGS_NODASH
+//     0 Include argv[0] in optargs
 //
 //   At the end: [groups] of previously seen options
 //     - Only one in group (switch off)    [-abc] means -ab=-b, -ba=-a, -abc=-c
@@ -226,17 +227,17 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt)
 
 // Parse this command's options string into struct getoptflagstate, which
 // includes a struct opts linked list in reverse order (I.E. right-to-left)
-void parse_optflaglist(struct getoptflagstate *gof)
+int parse_optflaglist(struct getoptflagstate *gof)
 {
   char *options = toys.which->options;
   long *nextarg = (long *)&this;
   struct opts *new = 0;
-  int idx;
+  int idx, rc = 0;
 
   // Parse option format string
   memset(gof, 0, sizeof(struct getoptflagstate));
   gof->maxargs = INT_MAX;
-  if (!options) return;
+  if (!options) return 0;
 
   // Parse leading special behavior indicators
   for (;;) {
@@ -245,6 +246,7 @@ void parse_optflaglist(struct getoptflagstate *gof)
     else if (*options == '>') gof->maxargs=*(++options)-'0';
     else if (*options == '?') gof->noerror++;
     else if (*options == '&') gof->nodash_now = 1;
+    else if (*options == '0') rc = 1;
     else break;
     options++;
   }
@@ -371,6 +373,8 @@ void parse_optflaglist(struct getoptflagstate *gof)
       }
     }
   }
+
+  return rc;
 }
 
 // Fill out toys.optflags, toys.optargs, and this[] from toys.argv
@@ -388,11 +392,10 @@ void get_optflags(void)
   toys.exitval = toys.which->flags >> 24;
 
   // Allocate memory for optargs
-  saveflags = 0;
+  saveflags = toys.optc = parse_optflaglist(&gof);
   while (toys.argv[saveflags++]);
   toys.optargs = xzalloc(sizeof(char *)*saveflags);
-
-  parse_optflaglist(&gof);
+  if (toys.optc) *toys.optargs = *toys.argv;
 
   if (toys.argv[1] && toys.argv[1][0] == '-') gof.nodash_now = 0;
 
