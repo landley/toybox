@@ -46,11 +46,11 @@ USE_SH(NEWTOY(exec, "^cla:", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(exit, 0, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(export, "np", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(shift, ">1", TOYFLAG_NOFORK))
-USE_SH(NEWTOY(source, "<1", TOYFLAG_NOFORK))
+USE_SH(NEWTOY(source, "0<1", TOYFLAG_NOFORK))
 USE_SH(OLDTOY(., source, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(unset, "fvn", TOYFLAG_NOFORK))
 
-USE_SH(NEWTOY(sh, "(noediting)(noprofile)(norc)sc:i", TOYFLAG_BIN))
+USE_SH(NEWTOY(sh, "0(noediting)(noprofile)(norc)sc:i", TOYFLAG_BIN))
 USE_SH(OLDTOY(toysh, sh, TOYFLAG_BIN))
 USE_SH(OLDTOY(bash, sh, TOYFLAG_BIN))
 // Login lies in argv[0], so add some aliases to catch that
@@ -237,17 +237,14 @@ static int sh_run(char *new);
 static const char *redirectors[] = {"<<<", "<<-", "<<", "<&", "<>", "<", ">>",
   ">&", ">|", ">", "&>>", "&>", 0};
 
-#define OPT_I           1
-#define OPT_BRACE       2   // set -B
-#define OPT_NOCLOBBER   4   // set -C
-#define OPT_S           8
-#define OPT_C          16
+#define OPT_BRACE       0x100   // set -B
+#define OPT_NOCLOBBER   0x200   // set -C
 
 static void syntax_err(char *s)
 {
   error_msg("syntax error: %s", s);
   toys.exitval = 2;
-  if (!(TT.options&OPT_I)) xexit();
+  if (!(TT.options&FLAG_i)) xexit();
 }
 
 // append to array with null terminator and realloc as necessary
@@ -759,10 +756,10 @@ char *getvar_special(char *str, int len, int *used, struct arg_list **delete)
   *used = 1;
   if (cc == '-') {
     s = ss = xmalloc(8);
-    if (TT.options&OPT_I) *ss++ = 'i';
+    if (TT.options&FLAG_i) *ss++ = 'i';
     if (TT.options&OPT_BRACE) *ss++ = 'B';
-    if (TT.options&OPT_S) *ss++ = 's';
-    if (TT.options&OPT_C) *ss++ = 'c';
+    if (TT.options&FLAG_s) *ss++ = 's';
+    if (TT.options&FLAG_c) *ss++ = 'c';
     *ss = 0;
   } else if (cc == '?') s = xmprintf("%d", toys.exitval);
   else if (cc == '$') s = xmprintf("%d", TT.pid);
@@ -2286,6 +2283,8 @@ static int parse_line(char *line, struct sh_function *sp)
     // Parse next word and detect overflow (too many nested quotes).
     if ((end = parse_word(start, 0, 0)) == (void *)1) goto flush;
 
+// dprintf(2, "word[%ld]=%.*s (%s)\n", end ? end-start : 0, (int)(end ? end-start : 0), start, ex);
+
     // Is this a new pipeline segment?
     if (!pl) pl = add_pl(sp, &arg);
 
@@ -2934,7 +2933,7 @@ dprintf(2, "TODO skipped init for((;;)), need math parser\n");
         else if (!strcmp(ss, "select")) {
           do_prompt(getvar("PS3"));
 // TODO: ctrl-c not breaking out of this?
-          if (!(ss = xgetline(stdin, 0))) {
+          if (!(ss = xgetline(stdin))) {
             pl = pop_block(&blk, pipes);
             printf("\n");
           } else if (!*ss) {
@@ -3005,6 +3004,7 @@ static int sh_run(char *new)
 
   memset(&scratch, 0, sizeof(struct sh_function));
   if (!parse_line(new, &scratch)) run_function(scratch.pipeline);
+// TODO else error?
   free_function(&scratch);
 
   return toys.exitval;
@@ -3054,6 +3054,90 @@ static void unexport(char *str)
   if (strchr(str, '=')) setvar(str);
 }
 
+FILE *fpathopen(char *name)
+{
+  struct string_list *sl = 0;
+  FILE *f = fopen(name, "r");
+  char *pp = getvar("PATH") ? : _PATH_DEFPATH;
+
+  if (!f) {
+    for (sl = find_in_path(pp, name); sl; free(llist_pop(&sl)))
+      if ((f = fopen(sl->str, "r"))) break;
+    if (sl) llist_traverse(sl, free);
+  }
+
+  return f;
+}
+
+// get line with command history
+char *prompt_getline(FILE *ff, int prompt)
+{
+  char *new, ps[16];
+
+// TODO line editing/history, should set $COLUMNS $LINES and sigwinch update
+  errno = 0;
+  if (!ff && prompt) {
+    sprintf(ps, "PS%d", prompt);
+    do_prompt(getvar(ps));
+  }
+  do if ((new = xgetline(ff ? : stdin))) return new;
+  while (errno == EINTR);
+//  TODO: after first EINTR returns closed?
+// TODO: ctrl-z during script read having already read partial line,
+// SIGSTOP and SIGTSTP need need SA_RESTART, but child proc should stop
+// TODO if (!isspace(*new)) add_to_history(line);
+
+  return 0;
+}
+
+// Read script input and execute lines, with or without prompts
+int do_source(char *name, FILE *ff)
+{
+  struct sh_function scratch;
+  long lineno = TT.lineno, shift = TT.shift;
+  struct sh_arg arg, *old = TT.arg;
+  int more = 0;
+  char *new;
+
+  arg.c = toys.optc;
+  arg.v = toys.optargs;
+  TT.arg = &arg;
+  TT.lineno = TT.shift = 0;
+  memset(&scratch, 0, sizeof(scratch));
+
+  // TODO: factor out and combine with sh_main() plumbing?
+  do {
+    new = prompt_getline(ff, more+1);
+    if (!TT.lineno++ && new && !memcmp(new, "\177ELF", 4)) {
+      error_msg("'%s' is ELF", name);
+      free(new);
+
+      break;
+    }
+
+    // TODO: source <(echo 'echo hello\') vs source <(echo -n 'echo hello\')
+    // prints "hello" vs "hello\"
+
+    // returns 0 if line consumed, command if it needs more data
+    more = parse_line(new ? : " ", &scratch);
+    if (more==1) {
+      if (!new && !ff) syntax_err("unexpected end of file");
+    } else {
+      if (!more) run_function(scratch.pipeline);
+      free_function(&scratch);
+      more = 0;
+    }
+    free(new);
+  } while(new);
+
+  if (ff) fclose(ff);
+  TT.lineno = lineno;
+  TT.shift = shift;
+  TT.arg = old;
+
+  return more;
+}
+
 // init locals, sanitize environment, handle nommu subshell handoff
 static void subshell_setup(void)
 {
@@ -3064,7 +3148,6 @@ static void subshell_setup(void)
                    xmprintf("PPID=%d", myppid)};
   struct stat st;
   struct utsname uu;
-  FILE *fp;
 
   // Initialize magic and read only local variables
   srandom(TT.SECONDS = millitime());
@@ -3127,7 +3210,8 @@ static void subshell_setup(void)
     }
     if (!memcmp(s, "IFS=", 4)) TT.ifs = s+4;
   }
-  environ[toys.optc = to] = 0;
+  environ[to++] = 0;
+  toys.envc = to;
 
   // set/update PWD
   sh_run("cd .");
@@ -3162,52 +3246,21 @@ static void subshell_setup(void)
   if (fstat(254, &st) || !S_ISFIFO(st.st_mode)) error_exit(0);
   TT.pid = zpid;
   fcntl(254, F_SETFD, FD_CLOEXEC);
-  fp = fdopen(254, "r");
-
-// TODO This is not efficient, could array_add the local vars.
-// TODO implicit exec when possible
-  while ((s = xgetline(fp, 0))) toys.exitval = sh_run(s);
-  fclose(fp);
+  do_source("", fdopen(254, "r"));
 
   xexit();
 }
 
-FILE *fpathopen(char *name)
-{
-  struct string_list *sl = 0;
-  FILE *f = fopen(name, "r");
-  char *pp = getvar("PATH") ? : _PATH_DEFPATH;
-
-  if (!f) {
-    for (sl = find_in_path(pp, *toys.optargs); sl; free(llist_pop(&sl)))
-      if ((f = fopen(sl->str, "r"))) break;
-    if (sl) llist_traverse(sl, free);
-  }
-
-  return f;
-}
-
 void sh_main(void)
 {
-  char *new, *cc = 0;
-  struct sh_function scratch;
-  int prompt = 0;
-  struct string_list *sl = 0;
-  struct sh_arg arg;
-  FILE *f;
+  char *cc = 0;
+  FILE *ff;
 
   signal(SIGPIPE, SIG_IGN);
   TT.options = OPT_BRACE;
 
   TT.pid = getpid();
   TT.SECONDS = time(0);
-  TT.arg = &arg;
-  if (!(arg.c = toys.optc)) {
-    arg.v = xmalloc(2*sizeof(char *));
-    arg.v[arg.c++] = *toys.argv;
-    arg.v[arg.c] = 0;
-  } else memcpy(arg.v = xmalloc((arg.c+1)*sizeof(char *)), toys.optargs,
-      (arg.c+1)*sizeof(char *));
 
   // TODO euid stuff?
   // TODO login shell?
@@ -3215,20 +3268,25 @@ void sh_main(void)
 
   // if (!FLAG(noprofile)) { }
 
-  // Is this an interactive shell?
+  // If not reentering, figure out if this is an interactive shell.
   if (toys.stacktop) {
     cc = TT.sh.c;
-    if (FLAG(s) || (!FLAG(c) && !toys.optc)) TT.options |= OPT_S;
-    if (FLAG(i) || (!FLAG(c) && (TT.options&OPT_S) && isatty(0)))
-      TT.options |= OPT_I;
-    if (FLAG(c)) TT.options |= OPT_C;
+    if (!FLAG(c)) {
+      if (toys.optc==1) toys.optflags |= FLAG_s;
+      if (FLAG(s) && isatty(0)) toys.optflags |= FLAG_i;
+    } else if (toys.optc>1) {
+      toys.optargs++;
+      toys.optc--;
+    }
+    TT.options |= toys.optflags&0xff;
   }
 
   // Read environment for exports from parent shell. Note, calls run_sh()
   // which blanks argument sections of TT and this, so parse everything
   // we need from shell command line before that.
   subshell_setup();
-  if (TT.options&OPT_I) {
+
+  if (TT.options&FLAG_i) {
     if (!getvar("PS1")) setvarval("PS1", getpid() ? "\\$ " : "# ");
     // TODO Set up signal handlers and grab control of this tty.
     // ^C SIGINT ^\ SIGQUIT ^Z SIGTSTP SIGTTIN SIGTTOU SIGCHLD
@@ -3236,50 +3294,17 @@ void sh_main(void)
     xsignal(SIGINT, SIG_IGN);
   }
 
-  memset(&scratch, 0, sizeof(scratch));
-
 // TODO unify fmemopen() here with sh_run
-  if (cc) f = fmemopen(cc, strlen(cc), "r");
-  else if (TT.options&OPT_S) f = stdin;
-  else if (!(f = fpathopen(*toys.optargs))) perror_exit_raw(*toys.optargs);
+  if (cc) ff = fmemopen(cc, strlen(cc), "r");
+  else if (TT.options&FLAG_s) ff = (TT.options&FLAG_i) ? 0 : stdin;
+  else if (!(ff = fpathopen(*toys.optargs))) perror_exit_raw(*toys.optargs);
 
-  // Loop prompting and reading lines
-  for (;;) {
-    TT.lineno++;
-    if ((TT.options&(OPT_I|OPT_S|OPT_C)) == (OPT_I|OPT_S))
-      do_prompt(getvar(prompt ? "PS2" : "PS1"));
-
-// TODO line editing/history, should set $COLUMNS $LINES and sigwinch update
-    if (!(new = xgetline(f, 0))) {
-// TODO: after first EINTR getline returns always closed?
-      if (errno != EINTR) break;
-      free_function(&scratch);
-      prompt = 0;
-      if (f != stdin) break;
-      continue;
-// TODO: ctrl-z during script read having already read partial line,
-// SIGSTOP and SIGTSTP need need SA_RESTART, but child proc should stop
-    }
-
-    if (sl) {
-      if (*new == 0x7f) error_exit("'%s' is ELF", sl->str);
-      free(sl);
-      sl = 0;
-    }
-// TODO if (!isspace(*new)) add_to_history(line);
-
-    // returns 0 if line consumed, command if it needs more data
-    if (1 != (prompt = parse_line(new, &scratch))) {
-// TODO: ./blah.sh one two three: put one two three in scratch.arg
-      if (!prompt) run_function(scratch.pipeline);
-      free_function(&scratch);
-      prompt = 0;
-    }
-    free(new);
-  }
-
-  if (prompt) error_exit("%ld:unfinished line"+4*!TT.lineno, TT.lineno);
+  // Read and execute lines from file
+  if (do_source(cc ? : *toys.optargs, ff))
+    error_exit("%ld:unfinished line"+4*!TT.lineno, TT.lineno);
 }
+
+// TODO: ./blah.sh one two three: put one two three in scratch.arg
 
 /********************* shell builtin functions *************************/
 
@@ -3541,41 +3566,14 @@ void shift_main(void)
 
 void source_main(void)
 {
-  struct sh_function scratch;
-  FILE *ff = fpathopen(*toys.optargs);
-  long lineno = TT.lineno, shift = TT.shift, prompt;
-  struct sh_arg arg, *old = TT.arg;
-  char *new;
+  char *name = *toys.optargs;
+  FILE *ff = fpathopen(name);
 
-  if (!ff) return perror_msg_raw(*toys.optargs);
+  if (!ff) return perror_msg_raw(name);
 
-  arg.c = toys.optc;
-  arg.v = toys.optargs;
-  TT.arg = &arg;
-  memset(&scratch, 0, sizeof(scratch));
+  // $0 is shell name, not source file name while running this
+// TODO add tests: sh -c "source input four five" one two three
+  *toys.optargs = *toys.argv;
 
-  // TODO: factor out and combine with sh_main() plumbing?
-  for (TT.lineno = TT.shift = 0;;) {
-    new = xgetline(ff, 0);
-    if (!TT.lineno++ && new && *new == 0x7f) {
-      error_msg("'%s' is ELF", *toys.optargs);
-      free(new);
-
-      break;
-    }
-    if (1!=(prompt = parse_line(new ? : " ", &scratch))) {
-      if (!prompt) run_function(scratch.pipeline);
-      free_function(&scratch);
-      if (!new) {
-        if (prompt) syntax_err("unexpected end of file");
-
-        break;
-      }
-    }
-    free(new);
-  }
-  fclose(ff);
-  TT.lineno = lineno;
-  TT.shift = shift;
-  TT.arg = old;
+  do_source(name, ff);
 }
