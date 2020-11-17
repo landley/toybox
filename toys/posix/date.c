@@ -98,22 +98,22 @@ static void puts_time(char *fmt, struct tm *tm)
     long n = 0;
 
     // Find next %N/%:z or end of format string.
-    if (*(snap = s) == '%') {
-      ++s;
-      if (*s == 'N') n = 9;
-      else if (isdigit(*s) && *(s+1) == 'N') n = *(s++)-'0';
-      else if (*s == ':' && *(s+1) == 'z') s++, n++;
-      if (*s && *s != 'N' && (*s != 'z' || n == 0)) continue;
-    } else if (*s) continue;
+    if (*(snap = s)) {
+      if (*s != '%') continue;
+      if (*++s == 'N') n = 9;
+      else if (isdigit(*s) && s[1] == 'N') n = *s++-'0';
+      else if (*s == ':' && s[1] == 'z') s++, n++;
+      else continue;
+    }
 
     // Only modify input string if needed (default format is constant string).
     if (*s) *snap = 0;
     // Do we have any regular work for strftime to do?
-    if (!*fmt) out = toybuf;
-    else {
-      if (!strftime(toybuf, sizeof(toybuf)-10, fmt, tm))
+    out = toybuf;
+    if (*fmt) {
+      if (!strftime(out, sizeof(toybuf)-12, fmt, tm))
         perror_exit("bad format '%s'", fmt);
-      out = toybuf+strlen(toybuf);
+      out += strlen(out);
     }
     // Do we have any custom formatting to append to that?
     if (*s == 'N') {
@@ -121,10 +121,10 @@ static void puts_time(char *fmt, struct tm *tm)
       out[n] = 0;
     } else if (*s == 'z') {
       strftime(out, 10, "%z", tm);
-      strcpy(out+4, out+3);
+      memmove(out+4, out+3, strlen(out+3)+1);
       out[3] = ':';
     }
-    fputs(toybuf, stdout);
+    xputsn(toybuf);
     if (!*s || !*(fmt = s+1)) break;
   }
   xputc('\n');
