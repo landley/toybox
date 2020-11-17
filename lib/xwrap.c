@@ -1072,18 +1072,18 @@ void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
   free(oldtz);
 }
 
-char *xgetline(FILE *fp, int *len)
+// Return line of text from file. Strips trailing newline (if any).
+char *xgetline(FILE *fp)
 {
   char *new = 0;
-  size_t linelen = 0;
+  size_t len = 0;
   long ll;
 
   errno = 0;
-  if (1>(ll = getline(&new, &linelen, fp))) {
+  if (1>(ll = getline(&new, &len, fp))) {
     if (errno && errno != EINTR) perror_msg("getline");
     new = 0;
   } else if (new[ll-1] == '\n') new[--ll] = 0;
-  if (len) *len = ll;
 
   return new;
 }
