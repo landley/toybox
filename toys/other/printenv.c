@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Georgi Chorbadzhiyski <georgi@unixsol.org>
 
-USE_PRINTENV(NEWTOY(printenv, "0(null)", TOYFLAG_BIN))
+USE_PRINTENV(NEWTOY(printenv, "(null)0", TOYFLAG_BIN))
 
 config PRINTENV
   bool "printenv"
