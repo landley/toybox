@@ -22,30 +22,35 @@ config MICROCOM
 GLOBALS(
   long s;
 
-  int fd;
-  struct termios original_stdin_state, original_fd_state;
+  int fd, stok;
+  struct termios old_stdin, old_fd;
 )
 
 // TODO: tty_sigreset outputs ansi escape sequences, how to disable?
 static void restore_states(int i)
 {
-  tcsetattr(0, TCSAFLUSH, &TT.original_stdin_state);
-  tcsetattr(TT.fd, TCSAFLUSH, &TT.original_fd_state);
+  if (TT.stok) tcsetattr(0, TCSAFLUSH, &TT.old_stdin);
+  tcsetattr(TT.fd, TCSAFLUSH, &TT.old_fd);
 }
 
 void microcom_main(void)
 {
+  struct termios tio;
   struct pollfd fds[2];
   int i;
 
   // Open with O_NDELAY, but switch back to blocking for reads.
   TT.fd = xopen(*toys.optargs, O_RDWR | O_NOCTTY | O_NDELAY);
-  if (-1==(i = fcntl(TT.fd, F_GETFL, 0)) || fcntl(TT.fd, F_SETFL, i&~O_NDELAY))
+  if (-1==(i = fcntl(TT.fd, F_GETFL, 0)) || fcntl(TT.fd, F_SETFL, i&~O_NDELAY)
+      || tcgetattr(TT.fd, &TT.old_fd))
     perror_exit_raw(*toys.optargs);
 
   // Set both input and output to raw mode.
-  xset_terminal(TT.fd, 1, TT.s, &TT.original_fd_state);
-  set_terminal(0, 1, 0, &TT.original_stdin_state);
+  memcpy(&tio, &TT.old_fd, sizeof(struct termios));
+  cfmakeraw(&tio);
+  xsetspeed(&tio, TT.s);
+  if (tcsetattr(TT.fd, TCSAFLUSH, &tio)) perror_exit("set speed");
+  if (!set_terminal(0, 1, 0, &TT.old_stdin)) TT.stok++;
   // ...and arrange to restore things, however we may exit.
   sigatexit(restore_states);
 
