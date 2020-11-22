@@ -24,6 +24,7 @@ config TEE
 
 GLOBALS(
   void *outputs;
+  int out;
 )
 
 struct fd_list {
@@ -39,33 +40,27 @@ static void do_tee_open(int fd, char *name)
 
   temp = xmalloc(sizeof(struct fd_list));
   temp->next = TT.outputs;
-  temp->fd = fd;
+  if (1 == (temp->fd = fd)) TT.out++;
   TT.outputs = temp;
 }
 
 void tee_main(void)
 {
+  struct fd_list *fdl;
+  int len;
+
   if (FLAG(i)) xsignal(SIGINT, SIG_IGN);
 
-  // Open output files
+  // Open output files (plus stdout if not already in output list)
   loopfiles_rw(toys.optargs,
     O_RDWR|O_CREAT|WARN_ONLY|(FLAG(a)?O_APPEND:O_TRUNC),
     0666, do_tee_open);
+  if (!TT.out) do_tee_open(1, 0);
 
+  // Read data from stdin, write to each output file.
   for (;;) {
-    struct fd_list *fdl;
-    int len, out = 0;
-
-    // Read data from stdin
-    len = xread(0, toybuf, sizeof(toybuf));
-    if (len<1) break;
-
-    // Write data to each output file, plus stdout.
-    for (fdl = TT.outputs; ;fdl = fdl->next) {
-      if (!fdl && out) break;
-      if (len != writeall(fdl ? fdl->fd : 1, toybuf, len)) toys.exitval=1;
-      if (!fdl) break;
-      if (fdl->fd == 1) out++;
-    }
+    if (1>(len = xread(0, toybuf, sizeof(toybuf)))) break;
+    for (fdl = TT.outputs; fdl;fdl = fdl->next)
+      if (len != writeall(fdl->fd, toybuf, len)) toys.exitval = 1;
   }
 }
