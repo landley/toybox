@@ -56,15 +56,15 @@ to make Android self-hosting using toybox. This helped
 it to Android's attention</a>, and they
 <a href=https://lwn.net/Articles/629362/>merged it</a> into Android M.</p>
 
-<p>The answer to the second question is "licensing". BusyBox predates Android
-by almost a decade but Android still doesn't ship with it because GPLv3 came
+<p>The unfixable problem with busybox was licensing: BusyBox predates Android
+by almost a decade, but Android still doesn't ship with it because GPLv3 came
 out around the same time Android did and caused many people to throw
 out the GPLv2 baby with the GPLv3 bathwater.
 Android <a href=https://source.android.com/source/licenses.html>explicitly
 discourages</a> use of GPL and LGPL licenses in its products, and has gradually
-reimplemented historical GPL components such as its bluetooth stack under the
-Apache license. Apple's even
-<a href=http://meta.ath0.com/2012/02/05/apples-great-gpl-purge/>more pronounced</a> response was to freeze xcode at the last GPLv2 releases
+reimplemented historical GPL components (such as its bluetooth stack) under the
+Apache license. Apple's
+<a href=http://meta.ath0.com/2012/02/05/apples-great-gpl-purge/>less subtle</a> response was to freeze xcode at the last GPLv2 releases
 (GCC 4.2.1 with binutils 2.17) for over 5 years while sponsoring the
 development of new projects (clang/llvm/lld) to replace them,
 implementing a
@@ -530,7 +530,8 @@ nm and objdump.)</p>
 <p>Toybox is tested against two compilers (llvm, gcc) and three C libraries
 (bionic, musl, glibc) in the following combinations:</p>
 
-<p><u>1) gcc+glibc = host toolchain</u></p>
+<a name="cross1" />
+<p><a href="#cross1">1) gcc+glibc = host toolchain</a></p>
 
 <p>Most Linux distros come with that as a host compiler, which is used by
 default when you build normally
@@ -555,7 +556,8 @@ by a committee</a> instead of a single
 maintainer, if that's an improvement. (As with Windows and
 Cobol, most people deal with it and get on with their lives.)</p>
 
-<p><u>2) gcc+musl = musl-cross-make</u></p>
+<a name="cross2" />
+<p><a href="#cross2">2) gcc+musl = musl-cross-make</a></p>
 
 <p>The cross compilers I test this with are built from the
 <a href=http://musl.libc.org/>musl-libc</a> maintainer's
@@ -598,7 +600,8 @@ the shared libraries out of the toolchain, but I haven't bothered implementing
 that in mkroot yet because a static linked musl hello world is 10k on x86
 (5k if stripped).</p>
 
-<p><u>3) llvm+bionic = Android NDK</u></p>
+<a name="cross3" />
+<p><a href="#cross3">3) llvm+bionic = Android NDK</a></p>
 
 <p>The <a href=https://developer.android.com/ndk/downloads>Android
 Native Development Kit</a> provides an llvm toolchain with the bionic
