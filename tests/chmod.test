@@ -109,6 +109,7 @@ chtest -w "dr-xr-xr-x\n-r--r--r--\n"
 chtest -x "drw-r--r--\n-rw-r--r--\n"
 chtest g+s "drwxr-sr-x\n-rw-r-Sr--\n"
 chtest u+s "drwsr-xr-x\n-rwSr--r--\n"
+chtest +s "drwsr-sr-x\n-rwSr-Sr--\n"
 chtest o+s "drwxr-xr-x\n-rw-r--r--\n"
 chtest +t  "drwxr-xr-t\n-rw-r--r-T\n"
 
