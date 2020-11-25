@@ -42,7 +42,32 @@ testing "! -e" 'type_test ! -e' "n" "" ""
 rm f L s p
 rmdir d
 
-# TODO: Test rwx gu t
+# test -rwx each bit position and failure
+touch walrus
+MASK=111
+for i in x w r k g u; do
+  [ $i == k ] && MASK=1000
+  # test everything off produces "off"
+  chmod 000 walrus
+  testcmd "-$i 0" "-$i walrus || echo yes" "yes\n" "" ""
+  chmod $((7777-$MASK)) walrus
+  testcmd "-$i inverted" "-$i walrus || echo yes" "yes\n" "" ""
+  MASK=$(($MASK<<1))
+done
+unset MASK
+# Test setuid setgid sticky enabled
+for i in uu+s gg+s k+t; do
+  chmod 000 walrus
+  chmod ${i:1}+s walrus
+  testcmd "-${i:0:1}" "-${i:0:1} walrus && echo yes" "yes\n" "" ""
+done
+# test each ugo+rwx bit position individually
+for i in 1 10 100; do for j in x w r; do
+  chmod $i walrus
+  testcmd "-$j $i" "-$j walrus && echo yes" "yes\n" "" ""
+  i=$((i<<1))
+done; done
+rm -f walrus
 
 testcmd "" "'' || echo yes" "yes\n" "" ""
 testcmd "" "a && echo yes" "yes\n" "" ""

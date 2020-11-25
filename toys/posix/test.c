@@ -5,7 +5,7 @@
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/test.html
 
 USE_TEST(NEWTOY(test, 0, TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_NOHELP|TOYFLAG_MAYFORK))
-USE_TEST(OLDTOY([, test, TOYFLAG_NOFORK|TOYFLAG_NOHELP))
+USE_SH(OLDTOY([, test, TOYFLAG_NOFORK|TOYFLAG_NOHELP))
 
 config TEST
   bool "test"
@@ -20,7 +20,7 @@ config TEST
       -b  block device   -f  regular file   -p  fifo           -u  setuid bit
       -c  char device    -g  setgid         -r  read bit       -w  write bit
       -d  directory      -h  symlink        -S  socket         -x  execute bit
-      -e  exists         -L  symlink        -s  nonzero size
+      -e  exists         -L  symlink        -s  nonzero size   -k  sticky bit
     STRING is:
       -n  nonzero size   -z  zero size      (STRING by itself implies -n)
     FD (integer file descriptor) is:
@@ -66,16 +66,16 @@ int do_test(char **args, int *count)
   if (*count>=2 && *s == '-' && s[1] && !s[2]) {
     *count = 2;
     c = s[1];
-    if (-1 != (i = stridx("hLbcdefgpSusxwr", c))) {
+    if (-1 != (i = stridx("hLbcdefgkpSusxwr", c))) {
       struct stat st;
 
       // stat or lstat, then handle rwx and s
       if (-1 == ((i<2) ? lstat : stat)(args[1], &st)) return 0;
-      if (i>=12) return !!(st.st_mode&(0x111<<(i-12)));
+      if (i>=13) return !!(st.st_mode&(0111<<(i-13)));
       if (c == 's') return !!st.st_size; // otherwise 1<<32 == 0
 
       // handle file type checking and SUID/SGID
-      if ((i = (unsigned short []){80,80,48,16,32,0,64,2,8,96,4}[i]<<9)>=4096)
+      if ((i = ((char []){80,80,48,16,32,0,64,2,1,8,96,4}[i])<<9)>=4096)
         return (st.st_mode&S_IFMT) == i;
       else return (st.st_mode & i) == i;
     } else if (c == 'z') return !*args[1];
