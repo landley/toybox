@@ -3105,7 +3105,6 @@ int do_source(char *name, FILE *ff)
   TT.lineno = TT.shift = 0;
   memset(&scratch, 0, sizeof(scratch));
 
-  // TODO: factor out and combine with sh_main() plumbing?
   do {
     new = prompt_getline(ff, more+1);
     if (!TT.lineno++ && new && !memcmp(new, "\177ELF", 4)) {
@@ -3274,7 +3273,8 @@ void sh_main(void)
     if (!FLAG(c)) {
       if (toys.optc==1) toys.optflags |= FLAG_s;
       if (FLAG(s) && isatty(0)) toys.optflags |= FLAG_i;
-    } else if (toys.optc>1) {
+    }
+    if (toys.optc>1) {
       toys.optargs++;
       toys.optc--;
     }
