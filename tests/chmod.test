@@ -112,6 +112,7 @@ chtest u+s "drwsr-xr-x\n-rwSr--r--\n"
 chtest +s "drwsr-sr-x\n-rwSr-Sr--\n"
 chtest o+s "drwxr-xr-x\n-rw-r--r--\n"
 chtest +t  "drwxr-xr-t\n-rw-r--r-T\n"
+chtest a=r+w+x "drwxrwxrwx\n-rwxrwxrwx\n"
 
 mkdir foo
 ln -s bar foo/baz

@@ -970,48 +970,52 @@ mode_t string_to_mode(char *modestr, mode_t mode)
       umask(amask = umask(0));
     }
 
-    if (!*str || !(s = strchr(hows, *str))) goto barf;
-    if (!(dohow = *(str++))) goto barf;
+    // Repeated "hows" are allowed; something like "a=r+w+s" is valid.
+    if (!*str) goto barf;
+    while (*str) {
+      if (!strchr(hows, *str)) goto barf;
+      if (!(dohow = *(str++))) goto barf;
 
-    while (*str && (s = strchr(whats, *str))) {
-      dowhat |= 1<<(s-whats);
-      str++;
-    }
+      while (*str && (s = strchr(whats, *str))) {
+        dowhat |= 1<<(s-whats);
+        str++;
+      }
 
-    // Convert X to x for directory or if already executable somewhere
-    if ((dowhat&32) &&  (S_ISDIR(mode) || (mode&0111))) dowhat |= 1;
+      // Convert X to x for directory or if already executable somewhere
+      if ((dowhat&32) &&  (S_ISDIR(mode) || (mode&0111))) dowhat |= 1;
 
-    // Copy mode from another category?
-    if (!dowhat && *str && (s = strchr(whys, *str))) {
-      dowhat = (mode>>(3*(s-whys)))&7;
-      str++;
-    }
+      // Copy mode from another category?
+      if (!dowhat && *str && (s = strchr(whys, *str))) {
+        dowhat = (mode>>(3*(s-whys)))&7;
+        str++;
+      }
 
-    // Are we ready to do a thing yet?
-    if (*str && *(str++) != ',') goto barf;
+      // Are we ready to do a thing yet?
+      if (*str && (str[1] != ',' && !strchr(hows, *str))) goto barf;
 
-    // Loop through what=xwrs and who=ogu to apply bits to the mode.
-    for (i=0; i<4; i++) {
-      for (j=0; j<3; j++) {
-        mode_t bit = 0;
-        int where = 1<<((3*i)+j);
+      // Loop through what=xwrs and who=ogu to apply bits to the mode.
+      for (i=0; i<4; i++) {
+        for (j=0; j<3; j++) {
+          mode_t bit = 0;
+          int where = 1<<((3*i)+j);
 
-        if (amask & where) continue;
+          if (amask & where) continue;
 
-        // Figure out new value at this location
-        if (i == 3) {
-          // suid and sticky
-          if (!j) bit = dowhat&16; // o+s = t
-          else if ((dowhat&8) && (dowho&(8|(1<<j)))) bit++;
-        } else {
-          if (!(dowho&(8|(1<<i)))) continue;
-          else if (dowhat&(1<<j)) bit++;
+          // Figure out new value at this location
+          if (i == 3) {
+            // suid and sticky
+            if (!j) bit = dowhat&16; // o+s = t
+            else if ((dowhat&8) && (dowho&(8|(1<<j)))) bit++;
+          } else {
+            if (!(dowho&(8|(1<<i)))) continue;
+            else if (dowhat&(1<<j)) bit++;
+          }
+
+          // When selection active, modify bit
+
+          if (dohow == '=' || (bit && dohow == '-')) mode &= ~where;
+          if (bit && dohow != '-') mode |= where;
         }
-
-        // When selection active, modify bit
-
-        if (dohow == '=' || (bit && dohow == '-')) mode &= ~where;
-        if (bit && dohow != '-') mode |= where;
       }
     }
 
