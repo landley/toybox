@@ -210,26 +210,21 @@ save:
 
 static void print_map(char *set1, char *set2)
 {
-  int r = 0, i, prev_char = -1;
+  int n, src, dst, prev = -1;
 
-  while (1)
-  {
-    i = 0;
-    r = read(STDIN_FILENO, (toybuf), sizeof(toybuf));
-    if (!r) break;
-    for (;r > i;i++) {
+  while ((n = read(0, toybuf, sizeof(toybuf)))) {
+    if (!FLAG(d) && !FLAG(s)) {
+      for (dst = 0; dst < n; dst++) toybuf[dst] = TT.map[toybuf[dst]];
+    } else {
+      for (src = dst = 0; src < n; src++) {
+        int ch = TT.map[toybuf[src]];
 
-      if ((toys.optflags & FLAG_d) && (TT.map[(int)toybuf[i]] & 0x100)) continue;
-      if (toys.optflags & FLAG_s) {
-        if ((TT.map[(int)toybuf[i]] & 0x200) &&
-            (prev_char == TT.map[(int)toybuf[i]])) {
-          continue;
-        }
+        if (FLAG(d) && (ch & 0x100)) continue;
+        if (FLAG(s) && ((ch & 0x200) && prev == ch)) continue;
+        toybuf[dst++] = prev = ch;
       }
-      xputc(TT.map[(int)toybuf[i]] & 0xFF);
-      prev_char = TT.map[(int)toybuf[i]];
-      fflush(stdout);
     }
+    xwrite(1, toybuf, dst);
   }
 }
 
