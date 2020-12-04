@@ -147,7 +147,7 @@ struct sedcmd {
   int rmatch[2];  // offset of regex struct for prefix matches (/abc/,/def/p)
   int arg1, arg2, w; // offset of two arguments per command, plus s//w filename
   unsigned not, hit;
-  unsigned sflags; // s///flag bits: i=1, g=2, p=4
+  unsigned sflags; // s///flag bits: i=1, g=2, p=4, x=8
   char c; // action
 };
 
@@ -441,7 +441,7 @@ static void sed_line(char **pline, long plen)
         } else zmatch = 0;
 
         // If we're replacing only a specific match, skip if this isn't it
-        off = command->sflags>>3;
+        off = command->sflags>>4;
         if (off && off != ++count) {
           memcpy(l2+l2used, rline, match[0].rm_eo);
           l2used += match[0].rm_eo;
@@ -793,6 +793,7 @@ static void parse_pattern(char **pline, long len)
       if (!TT.nextlen--) break;
     } else if (c == 's') {
       char *end, delim = 0;
+      int flags;
 
       // s/pattern/replacement/flags
 
@@ -845,19 +846,20 @@ resume_s:
 
         if (isspace(*line) && *line != '\n') continue;
 
-        if (0 <= (l = stridx("igp", *line))) command->sflags |= 1<<l;
+        if (0 <= (l = stridx("igpx", *line))) command->sflags |= 1<<l;
         else if (*line == 'I') command->sflags |= 1<<0;
-        else if (!(command->sflags>>3) && 0<(l = strtol(line, &line, 10))) {
-          command->sflags |= l << 3;
+        else if (!(command->sflags>>4) && 0<(l = strtol(line, &line, 10))) {
+          command->sflags |= l << 4;
           line--;
         } else break;
       }
+      flags = (FLAG(r) || (command->sflags&8)) ? REG_EXTENDED : 0;
+      if (command->sflags&1) flags |= REG_ICASE;
 
       // We deferred actually parsing the regex until we had the s///i flag
       // allocating the space was done by extend_string() above
       if (!*TT.remember) command->arg1 = 0;
-      else xregcomp((void *)(command->arg1 + (char *)command), TT.remember,
-        (REG_EXTENDED*!!FLAG(r))|((command->sflags&1)*REG_ICASE));
+      else xregcomp((void *)(command->arg1+(char *)command),TT.remember,flags);
       free(TT.remember);
       TT.remember = 0;
       if (*line == 'w') {
