@@ -971,18 +971,12 @@ mode_t string_to_mode(char *modestr, mode_t mode)
     }
 
     // Repeated "hows" are allowed; something like "a=r+w+s" is valid.
-    if (!*str) goto barf;
-    while (*str) {
-      if (!strchr(hows, *str)) goto barf;
-      if (!(dohow = *(str++))) goto barf;
-
-      while (*str && (s = strchr(whats, *str))) {
-        dowhat |= 1<<(s-whats);
-        str++;
-      }
+    do {
+      if (!(dohow = *str) || !strchr(hows, *str)) goto barf;
+      while (*++str && (s = strchr(whats, *str))) dowhat |= 1<<(s-whats);
 
       // Convert X to x for directory or if already executable somewhere
-      if ((dowhat&32) &&  (S_ISDIR(mode) || (mode&0111))) dowhat |= 1;
+      if ((dowhat&32) && (S_ISDIR(mode) || (mode&0111))) dowhat |= 1;
 
       // Copy mode from another category?
       if (!dowhat && *str && (s = strchr(whys, *str))) {
@@ -1004,7 +998,7 @@ mode_t string_to_mode(char *modestr, mode_t mode)
           // Figure out new value at this location
           if (i == 3) {
             // suid and sticky
-            if (!j) bit = dowhat&16; // o+s = t
+            if (!j) bit = dowhat&16; // o+s = t but a+s doesn't set t, hence t
             else if ((dowhat&8) && (dowho&(8|(1<<j)))) bit++;
           } else {
             if (!(dowho&(8|(1<<i)))) continue;
@@ -1012,12 +1006,11 @@ mode_t string_to_mode(char *modestr, mode_t mode)
           }
 
           // When selection active, modify bit
-
           if (dohow == '=' || (bit && dohow == '-')) mode &= ~where;
           if (bit && dohow != '-') mode |= where;
         }
       }
-    }
+    } while (*str);
 
     if (!*str) break;
   }
