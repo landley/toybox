@@ -690,7 +690,7 @@ void find_main(void)
 
   // Distinguish paths from filters
   for (len = 0; toys.optargs[len]; len++)
-    if (strchr("-!(", *toys.optargs[len])) break;
+    if (*toys.optargs[len] && strchr("-!(", *toys.optargs[len])) break;
   TT.filter = toys.optargs+len;
 
   // use "." if no paths
