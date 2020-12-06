@@ -58,6 +58,7 @@
 
 // Internationalization support (also in POSIX and LSB)
 
+#include <langinfo.h>
 #include <locale.h>
 #include <wchar.h>
 #include <wctype.h>

@@ -106,12 +106,6 @@ config TOYBOX_HELP_DASHDASH
 	  optstring. (Use TOYFLAG_NOHELP to disable.) Produces the same output
 	  as "help command". --version shows toybox version.
 
-config TOYBOX_I18N
-	bool "Internationalization support"
-	default y
-	help
-	  Support for UTF-8 character sets, and some locale support.
-
 config TOYBOX_FREE
 	bool "Free memory unnecessarily"
 	default n

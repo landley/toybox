@@ -43,22 +43,18 @@ static void do_expand(int fd, char *name)
     }
     if (!len) break;
     for (i=0; i<len; i++) {
-      int width = 1;
+      wchar_t blah;
+      int width = utf8towc(&blah, toybuf+i, len-i);
       char c;
 
-      if (CFG_TOYBOX_I18N) {
-        wchar_t blah;
-
-        width = utf8towc(&blah, toybuf+i, len-i);
-        if (width > 1) {
-          if (width != fwrite(toybuf+i, width, 1, stdout))
-            perror_exit("stdout");
-          i += width-1;
-          x++;
-          continue;
-        } else if (width == -2) break;
-        else if (width == -1) continue;
-      }
+      if (width > 1) {
+        if (width != fwrite(toybuf+i, width, 1, stdout))
+          perror_exit("stdout");
+        i += width-1;
+        x++;
+        continue;
+      } else if (width == -2) break;
+      else if (width == -1) continue;
       c = toybuf[i];
 
       if (c != '\t') {

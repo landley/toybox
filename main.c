@@ -98,11 +98,10 @@ void toy_singleinit(struct toy_list *which, char *argv[])
   if (!(which->flags & TOYFLAG_NOFORK)) {
     toys.old_umask = umask(0);
     if (!(which->flags & TOYFLAG_UMASK)) umask(toys.old_umask);
-    if (CFG_TOYBOX_I18N) {
-      // Deliberately try C.UTF-8 before the user's locale to work around users
-      // that choose non-UTF-8 locales. macOS doesn't support C.UTF-8 though.
-      if (!setlocale(LC_CTYPE, "C.UTF-8")) setlocale(LC_CTYPE, "");
-    }
+
+    // Try user's locale, falling back to C.UTF-8
+    setlocale(LC_CTYPE, "");
+    if (!strcmp("UTF-8", nl_langinfo(CODESET))) setlocale(LC_CTYPE, "C.UTF-8");
     setlinebuf(stdout);
   }
 }

@@ -6,7 +6,6 @@ USE_DEMO_UTF8TOWC(NEWTOY(demo_utf8towc, 0, TOYFLAG_USR|TOYFLAG_BIN))
 
 config DEMO_UTF8TOWC
   bool "demo_utf8towc"
-  depends on TOYBOX_I18N
   default n
   help
     usage: demo_utf8towc

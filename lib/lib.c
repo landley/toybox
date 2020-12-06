@@ -395,37 +395,41 @@ int utf8towc(wchar_t *wc, char *str, unsigned len)
   return str-s;
 }
 
+// Convert string to lower case, utf8 aware.
 char *strlower(char *s)
 {
   char *try, *new;
+  int len, mlen = (strlen(s)|7)+9;
+  wchar_t c;
 
-  if (!CFG_TOYBOX_I18N) {
-    try = new = xstrdup(s);
-    for (; *s; s++) *(new++) = tolower(*s);
-  } else {
-    // I can't guarantee the string _won't_ expand during reencoding, so...?
-    try = new = xmalloc(strlen(s)*2+1);
+  try = new = xmalloc(mlen);
 
-    while (*s) {
-      wchar_t c;
-      int len = utf8towc(&c, s, MB_CUR_MAX);
+  while (*s) {
 
-      if (len < 1) *(new++) = *(s++);
-      else {
-        s += len;
-        // squash title case too
-        c = towlower(c);
+    if (1>(len = utf8towc(&c, s, MB_CUR_MAX))) {
+      *(new++) = *(s++);
 
-        // if we had a valid utf8 sequence, convert it to lower case, and can't
-        // encode back to utf8, something is wrong with your libc. But just
-        // in case somebody finds an exploit...
-        len = wcrtomb(new, c, 0);
-        if (len < 1) error_exit("bad utf8 %x", (int)c);
-        new += len;
-      }
+      continue;
     }
-    *new = 0;
+
+    s += len;
+    // squash title case too
+    c = towlower(c);
+
+    // if we had a valid utf8 sequence, convert it to lower case, and can't
+    // encode back to utf8, something is wrong with your libc. But just
+    // in case somebody finds an exploit...
+    len = wcrtomb(new, c, 0);
+    if (len < 1) error_exit("bad utf8 %x", (int)c);
+    new += len;
+
+    // Case conversion can expand utf8 representation, but with extra mlen
+    // space above we should basically never need to realloc
+    if (mlen+4 > (len = new-try)) continue;
+    try = xrealloc(try, mlen = len+16);
+    new = try+len;
   }
+  *new = 0;
 
   return try;
 }
