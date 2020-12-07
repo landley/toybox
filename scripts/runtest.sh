@@ -83,8 +83,11 @@ toyonly()
   IS_TOYBOX="$("$C" --version 2>/dev/null)"
   # Ideally we'd just check for "toybox", but toybox sed lies to make autoconf
   # happy, so we have at least two things to check for.
-  IS_TOYBOX_RE='(toybox|This is not GNU).*'
-  [[ "$IS_TOYBOX" =~ $IS_TOYBOX_RE ]] || SKIPNEXT=1
+  case "$IS_TOYBOX" in
+    toybox*) ;;
+    This\ is\ not\ GNU*) ;;
+    *) SKIPNEXT=1 ;;
+  esac
 
   "$@"
 }
