@@ -6,7 +6,7 @@ USE_PWGEN(NEWTOY(pwgen, ">2r(remove):c(capitalize)n(numerals)y(symbols)s(secure)
 
 config PWGEN
   bool "pwgen"
-  default n
+  default y
   help
     usage: pwgen [-cAn0yrsBhC1v] [LENGTH] [COUNT]
 
