@@ -38,7 +38,7 @@ void pwgen_main(void)
 {
   int length = 8, count, ii, jj, c, rand = 0, x = 0;
   unsigned xx = 80, yy = 24;
-  char janice[16];
+  char randbuf[16];
 
   if (isatty(1)) terminal_size(&xx, &yy);
   else toys.optflags |= FLAG_1;
@@ -51,18 +51,19 @@ void pwgen_main(void)
   for (jj = 0; jj<count; jj++) {
     for (ii = 0; ii<length;) {
       // Don't fetch more random than necessary, give each byte 2 tries to fit
-      if (!rand) xgetrandom(janice, rand = sizeof(janice), 0);
-      c = 33+janice[--rand]%93; // remainder 69 makes >102 less likely
+      if (!rand) xgetrandom(randbuf, rand = sizeof(randbuf), 0);
+      c = 33+randbuf[--rand]%93; // remainder 69 makes >102 less likely
+      if (FLAG(s)) randbuf[rand] = 0;
 
       if (c>='A' && c<='Z') {
         if (FLAG(A)) continue;
         // take out half the capital letters to be more human readable
-        else c |= (0x80&janice[rand])>>2;
+        else c |= (0x80&randbuf[rand])>>2;
       }
       if (FLAG(0) && c>='0' && c<='9') continue;
       if (FLAG(B) && strchr("0O1lI'`.,", c)) continue;
       if (FLAG(v) && strchr("aeiou", tolower(c))) continue;
-      if (!FLAG(y) || (0x80&janice[rand]))
+      if (!FLAG(y) || (0x80&randbuf[rand]))
         if (c<'0' || (c>'9' && c<'A') || (c>'Z' && c<'a') || c>'z') continue;
       if (TT.r && strchr(TT.r, c)) continue;
 
