@@ -213,12 +213,11 @@ void toybox_main(void)
   xputc('\n');
 }
 
-#include <malloc.h>
 int main(int argc, char *argv[])
 {
   // don't segfault if our environment is crazy
   if (!*argv) return 127;
-mallopt(M_CHECK_ACTION, 1);
+
   // Snapshot stack location so we can detect recursion depth later.
   // Nommu has special reentry path, !stacktop = "vfork/exec self happened"
   if (!CFG_TOYBOX_FORK && (0x80 & **argv)) **argv &= 0x7f;
