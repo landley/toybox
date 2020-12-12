@@ -69,3 +69,5 @@ testing "invalid increment" "seq 1 1f 1 2>/dev/null || echo y" "y\n" "" ""
 
 # TODO: busybox fails this too, but GNU seems to not use double for large ints.
 #testing "too large for double" "seq -s, 9007199254740991 1 9007199254740992" "9007199254740992\n" "" ""
+
+testing "fast path" "timeout 10 seq 10000000 > /dev/null" "" "" ""
