@@ -101,8 +101,8 @@ void toy_singleinit(struct toy_list *which, char *argv[])
 
     // Try user's locale, falling back to C.UTF-8
     setlocale(LC_CTYPE, "");
-    if (!strcmp("UTF-8", nl_langinfo(CODESET))) setlocale(LC_CTYPE, "C.UTF-8");
-    setlinebuf(stdout);
+    if (strcmp("UTF-8", nl_langinfo(CODESET))) setlocale(LC_CTYPE, "C.UTF-8");
+    setvbuf(stdout, 0, (which->flags & TOYFLAG_LINEBUF) ? _IOLBF : _IONBF, 0);
   }
 }
 
@@ -213,11 +213,12 @@ void toybox_main(void)
   xputc('\n');
 }
 
+#include <malloc.h>
 int main(int argc, char *argv[])
 {
   // don't segfault if our environment is crazy
   if (!*argv) return 127;
-
+mallopt(M_CHECK_ACTION, 1);
   // Snapshot stack location so we can detect recursion depth later.
   // Nommu has special reentry path, !stacktop = "vfork/exec self happened"
   if (!CFG_TOYBOX_FORK && (0x80 & **argv)) **argv &= 0x7f;
