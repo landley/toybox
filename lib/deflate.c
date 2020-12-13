@@ -403,7 +403,7 @@ static int is_gzip(struct bitbuf *bb)
   bitbuf_skip(bb, 6*8);
 
   // Skip extra, name, comment, header CRC fields
-  if (flags & 4) bitbuf_skip(bb, 16);
+  if (flags & 4) bitbuf_skip(bb, bitbuf_get(bb, 16) * 8);
   if (flags & 8) while (bitbuf_get(bb, 8));
   if (flags & 16) while (bitbuf_get(bb, 8));
   if (flags & 2) bitbuf_skip(bb, 16);
