@@ -21,6 +21,13 @@ testing "no files (stdin to stdout)" "cat f.gz | gunzip > f &&
     test -f f.gz && cat f" "hello world\n" "" ""
 rm -f f f.gz
 
+# test FEXTRA support
+echo "1f8b08040000000000ff04000000ffff4bcbcfe70200a865327e04000000" | xxd -r -p > f1.gz
+testing "FEXTRA flag skipped properly" "gunzip f1.gz &&
+    ! test -f f1.gz && test -f f1 &&
+    cat f1" "foo\n" "" ""
+rm -f f1 f1.gz
+
 # -c	Output to stdout
 echo -n "foo " | gzip > f1.gz
 echo "bar" | gzip > f2.gz
