@@ -56,12 +56,13 @@ static double parsef(char *s)
 char *itoa(char *s, int i)
 {
   char buf[16], *ff = buf;
+  unsigned n = i;
 
   if (i<0) {
     *s++ = '-';
-    i = -i;
+    n = -i;
   }
-  do *ff++ = '0'+i%10; while ((i /= 10));
+  do *ff++ = '0'+n%10; while ((n /= 10));
   do *s++ = *--ff; while (ff>buf);
   *s++ = '\n';
 
