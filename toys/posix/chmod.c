@@ -50,7 +50,7 @@ static int do_chmod(struct dirtree *try)
     // symlinks mentioned directly as arguments. We'll fail, of course,
     // but that's what you asked for in that case.
   } else {
-    mode = string_to_mode(TT.mode, try->st.st_mode);
+    mode = string_to_mode(TT.mode, try->st.st_mode & ~S_IFMT);
     if (FLAG(v)) {
       char *s = dirtree_path(try, 0);
 
