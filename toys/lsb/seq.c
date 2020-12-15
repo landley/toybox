@@ -115,7 +115,7 @@ void seq_main(void)
       ss = flush_toybuf(itoa(ss, ii));
     else if (inc<0) for (; ii>=len; ii += inc)
       ss = flush_toybuf(itoa(ss, ii));
-    if (ss != toybuf) write(1, toybuf, ss-toybuf);
+    if (ss != toybuf) xwrite(1, toybuf, ss-toybuf);
 
     return;
   }
