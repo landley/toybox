@@ -45,6 +45,7 @@ USE_SH(NEWTOY(eval, 0, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(exec, "^cla:", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(exit, 0, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(export, "np", TOYFLAG_NOFORK))
+USE_SH(NEWTOY(set, 0, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(shift, ">1", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(source, "0<1", TOYFLAG_NOFORK))
 USE_SH(OLDTOY(., source, TOYFLAG_NOFORK))
@@ -92,6 +93,24 @@ config EXIT
 
     Exit shell.  If no return value supplied on command line, use value
     of most recent command, or 0 if none.
+
+config SET
+  bool
+  default n
+  depends on SH
+  help
+    usage: set [+a] [+o OPTION] [VAR...]
+
+    Set variables and shell attributes. Use + to disable and - to enable.
+    NAME=VALUE arguments assign to the variable, any leftovers set $1, $2...
+    With no arguments, prints current variables.
+
+    -f	NAME is a function
+    -v	NAME is a variable
+    -n	dereference NAME and unset that
+
+    OPTIONs:
+      history - enable command history
 
 config UNSET
   bool
@@ -186,11 +205,10 @@ GLOBALS(
     } exec;
   };
 
-  // keep lineno here: used to work around compiler limitation in run_command()
-  long lineno;
+  // keep ifs here: used to work around compiler limitation in run_command()
   char *ifs, *isexec, *wcpat;
   unsigned options, jobcnt;
-  int hfd, pid, bangpid, varslen, shift, cdcount;
+  int hfd, pid, bangpid, varslen, cdcount;
   long long SECONDS;
 
   // global and local variables
@@ -202,7 +220,7 @@ GLOBALS(
   // Parsed functions
   struct sh_function {
     char *name;
-    struct sh_pipeline {  // pipeline segments
+    struct sh_pipeline {  // pipeline segments: linked list of arg w/metadata
       struct sh_pipeline *next, *prev, *end;
       int count, here, type; // TODO abuse type to replace count during parsing
       struct sh_arg {
@@ -223,8 +241,16 @@ GLOBALS(
     struct sh_arg *raw, arg;
   } *pp; // currently running process
 
+  struct sh_callstack {
+    struct sh_callstack *next;
+    struct sh_function scratch;
+    struct sh_arg arg;
+    struct arg_list *delete;
+    long lineno, shift;
+  } *cc;
+
   // job list, command line for $*, scratch space for do_wildcard_files()
-  struct sh_arg jobs, *arg, *wcdeck;
+  struct sh_arg jobs, *wcdeck;
 )
 
 // Can't yet avoid this prototype. Fundamental problem is $($($(blah))) nests,
@@ -237,8 +263,10 @@ static int sh_run(char *new);
 static const char *redirectors[] = {"<<<", "<<-", "<<", "<&", "<>", "<", ">>",
   ">&", ">|", ">", "&>>", "&>", 0};
 
-#define OPT_BRACE       0x100   // set -B
-#define OPT_NOCLOBBER   0x200   // set -C
+// The order of these has to match the string in set_main()
+#define OPT_B	0x100
+#define OPT_C	0x200
+#define OPT_x	0x400
 
 static void syntax_err(char *s)
 {
@@ -258,7 +286,7 @@ static void arg_add(struct sh_arg *arg, char *data)
 }
 
 // add argument to an arg_list
-static char *push_arg(struct arg_list **list, char *arg)
+static void *push_arg(struct arg_list **list, void *arg)
 {
   struct arg_list *al;
 
@@ -409,7 +437,7 @@ static char *getvar(char *s)
 
     if (c == 'S') sprintf(toybuf, "%lld", (millitime()-TT.SECONDS)/1000);
     else if (c == 'R') sprintf(toybuf, "%ld", random()&((1<<16)-1));
-    else if (c == 'L') sprintf(toybuf, "%ld", TT.lineno);
+    else if (c == 'L') sprintf(toybuf, "%ld", TT.cc->lineno);
     else if (c == 'G') sprintf(toybuf, "TODO: GROUPS");
 
     return toybuf;
@@ -757,21 +785,21 @@ char *getvar_special(char *str, int len, int *used, struct arg_list **delete)
   if (cc == '-') {
     s = ss = xmalloc(8);
     if (TT.options&FLAG_i) *ss++ = 'i';
-    if (TT.options&OPT_BRACE) *ss++ = 'B';
+    if (TT.options&OPT_B) *ss++ = 'B';
     if (TT.options&FLAG_s) *ss++ = 's';
     if (TT.options&FLAG_c) *ss++ = 'c';
     *ss = 0;
   } else if (cc == '?') s = xmprintf("%d", toys.exitval);
   else if (cc == '$') s = xmprintf("%d", TT.pid);
-  else if (cc == '#') s = xmprintf("%d", TT.arg->c?TT.arg->c-1:0);
+  else if (cc == '#') s = xmprintf("%d", TT.cc->arg.c?TT.cc->arg.c-1:0);
   else if (cc == '!') s = xmprintf("%d"+2*!TT.bangpid, TT.bangpid);
   else {
     delete = 0;
     for (*used = uu = 0; *used<len && isdigit(str[*used]); ++*used)
       uu = (10*uu)+str[*used]-'0';
     if (*used) {
-      if (uu) uu += TT.shift;
-      if (uu<TT.arg->c) s = TT.arg->v[uu];
+      if (uu) uu += TT.cc->shift;
+      if (uu<TT.cc->arg.c) s = TT.cc->arg.v[uu];
     } else if ((*used = varend(str)-str)) return getvar(str);
   }
   if (s) push_arg(delete, s);
@@ -1270,7 +1298,7 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
             for (slice++, kk = 0; kk<TT.varslen; kk++)
               if (!strncmp(s = TT.vars[kk].str, ss, jj))
                 arg_add(&aa, push_arg(delete, s = xstrndup(s, stridx(s, '='))));
-            if (aa.c) push_arg(delete, (void *)aa.v);
+            if (aa.c) push_arg(delete, aa.v);
 
           // else dereference to get new varname, discarding if none, check err
           } else {
@@ -1288,8 +1316,8 @@ dprintf(2, "TODO: do math for %.*s\n", kk, s);
             if (!jj) ifs = (void *)1;
             else if (ifs && *(ss = ifs)) {
               if (strchr("@*", cc)) {
-                aa.c = TT.arg->c-1;
-                aa.v = TT.arg->v+1;
+                aa.c = TT.cc->arg.c-1;
+                aa.v = TT.cc->arg.v+1;
                 jj = 1;
               } else ifs = getvar_special(ifs, strlen(ifs), &jj, delete);
               if (ss && ss[jj]) {
@@ -1312,8 +1340,8 @@ barf:
       // Resolve unprefixed variables
       if (strchr("{$", ss[-1])) {
         if (strchr("@*", cc)) {
-          aa.c = TT.arg->c-1;
-          aa.v = TT.arg->v+1;
+          aa.c = TT.cc->arg.c-1;
+          aa.v = TT.cc->arg.v+1;
         } else {
           ifs = getvar_special(ss, jj, &jj, delete);
           if (!jj) {
@@ -1600,7 +1628,7 @@ static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
   char *s, *ss;
 
   // collect brace spans
-  if ((TT.options&OPT_BRACE) && !(flags&NO_BRACE)) for (i = 0; ; i++) {
+  if ((TT.options&OPT_B) && !(flags&NO_BRACE)) for (i = 0; ; i++) {
     // skip quoted/escaped text
     while ((s = parse_word(old+i, 1, 0)) != old+i) i += s-(old+i);
     // stop at end of string if we haven't got any more open braces
@@ -1793,8 +1821,7 @@ static char *pl2str(struct sh_pipeline *pl)
       if (j) ss += sprintf(ss, "%s ", pl->arg->v[i]);
       else len += strlen(pl->arg->v[i])+1;
 
-    sss = pl->arg->v[pl->arg->c];
-    if (!sss) sss = ";";
+    if (!(sss = pl->arg->v[pl->arg->c])) sss = ";"+!end->next;
     if (j) ss = stpcpy(ss, sss);
     else len += strlen(sss);
 
@@ -1977,7 +2004,7 @@ notfd:
       else if (strstr(ss, ">>")) from = O_CREAT|O_APPEND|O_WRONLY;
       else {
         from = (*ss == '<') ? O_RDONLY : O_CREAT|O_WRONLY|O_TRUNC;
-        if (!strcmp(ss, ">") && (TT.options&OPT_NOCLOBBER)) {
+        if (!strcmp(ss, ">") && (TT.options&OPT_C)) {
           struct stat st;
 
           // Not _just_ O_EXCL: > /dev/null allowed
@@ -2117,7 +2144,7 @@ static struct sh_process *run_command(struct sh_arg *arg)
     // "declaration does not declare anything", but if we DON'T give it a name
     // it accepts it. So we can't use the union's type name here, and have
     // to offsetof() the first thing _after_ the union to get the size.
-    memset(&TT, 0, offsetof(struct sh_data, lineno));
+    memset(&TT, 0, offsetof(struct sh_data, ifs));
 
     TT.pp = pp;
     if (!sigsetjmp(rebound, 1)) {
@@ -2187,6 +2214,7 @@ dprintf(2, "stub add_function");
   return pl->end;
 }
 
+// Append a new pipeline to function, returning pipeline and pipeline's arg
 static struct sh_pipeline *add_pl(struct sh_function *sp, struct sh_arg **arg)
 {
   struct sh_pipeline *pl = xzalloc(sizeof(struct sh_pipeline));
@@ -2642,6 +2670,7 @@ static int pipe_segments(char *ctl, int *pipes, int **urd)
   return 0;
 }
 
+// Stack of nested if/else/fi and for/do/done contexts.
 struct blockstack {
   struct blockstack *next;
   struct sh_pipeline *start, *middle;
@@ -2683,7 +2712,7 @@ static void do_prompt(char *prompt)
     if (c=='!') {
       if (*prompt=='!') prompt++;
       else {
-        pp += snprintf(pp, len, "%ld", TT.lineno);
+        pp += snprintf(pp, len, "%ld", TT.cc->lineno);
         continue;
       }
     } else if (c=='\\') {
@@ -2755,6 +2784,14 @@ TODO: a | b | c needs subshell for builtins?
 */
 
   TT.hfd = 10;
+
+  if (TT.options&OPT_x) {
+    char *s = pl2str(pl);
+
+    do_prompt(getvar("PS4"));
+    dprintf(2, "%s\n", s);
+    free(s);
+  }
 
   // iterate through pipeline segments
   while (pl) {
@@ -3010,7 +3047,7 @@ static int sh_run(char *new)
   return toys.exitval;
 }
 
-// only set local variable when global not present, does not extend array
+// set variable
 static struct sh_vars *initlocal(char *name, char *val)
 {
   return addvar(xmprintf("%s=%s", name, val ? val : ""));
@@ -3093,21 +3130,18 @@ char *prompt_getline(FILE *ff, int prompt)
 // Read script input and execute lines, with or without prompts
 int do_source(char *name, FILE *ff)
 {
-  struct sh_function scratch;
-  long lineno = TT.lineno, shift = TT.shift;
-  struct sh_arg arg, *old = TT.arg;
+  struct sh_callstack *cc = xzalloc(sizeof(struct sh_callstack));
   int more = 0;
   char *new;
 
-  arg.c = toys.optc;
-  arg.v = toys.optargs;
-  TT.arg = &arg;
-  TT.lineno = TT.shift = 0;
-  memset(&scratch, 0, sizeof(scratch));
+  cc->next = TT.cc;
+  cc->arg.v = toys.optargs;
+  cc->arg.c = toys.optc;
+  TT.cc = cc;
 
   do {
     new = prompt_getline(ff, more+1);
-    if (!TT.lineno++ && new && !memcmp(new, "\177ELF", 4)) {
+    if (!TT.cc->lineno++ && new && !memcmp(new, "\177ELF", 4)) {
       error_msg("'%s' is ELF", name);
       free(new);
 
@@ -3118,21 +3152,22 @@ int do_source(char *name, FILE *ff)
     // prints "hello" vs "hello\"
 
     // returns 0 if line consumed, command if it needs more data
-    more = parse_line(new ? : " ", &scratch);
+    more = parse_line(new ? : " ", &cc->scratch);
     if (more==1) {
       if (!new && !ff) syntax_err("unexpected end of file");
     } else {
-      if (!more) run_function(scratch.pipeline);
-      free_function(&scratch);
+      if (!more) run_function(cc->scratch.pipeline);
+      free_function(&cc->scratch);
       more = 0;
     }
     free(new);
   } while(new);
 
   if (ff) fclose(ff);
-  TT.lineno = lineno;
-  TT.shift = shift;
-  TT.arg = old;
+  TT.cc = TT.cc->next;
+  free_function(&cc->scratch);
+  llist_traverse(cc->delete, llist_free_arg);
+  free(cc);
 
   return more;
 }
@@ -3177,6 +3212,7 @@ static void subshell_setup(void)
     initlocal("BASH", s);
   initlocal("PS2", "> ");
   initlocal("PS3", "#? ");
+  initlocal("PS4", "+ ");
 
   // Ensure environ copied and toys.envc set, and clean out illegal entries
   TT.ifs = " \t\n";
@@ -3256,7 +3292,7 @@ void sh_main(void)
   FILE *ff;
 
   signal(SIGPIPE, SIG_IGN);
-  TT.options = OPT_BRACE;
+  TT.options = OPT_B;
 
   TT.pid = getpid();
   TT.SECONDS = time(0);
@@ -3301,7 +3337,7 @@ void sh_main(void)
 
   // Read and execute lines from file
   if (do_source(cc ? : *toys.optargs, ff))
-    error_exit("%ld:unfinished line"+4*!TT.lineno, TT.lineno);
+    error_exit("%ld:unfinished line"+4*!TT.cc->lineno, TT.cc->lineno);
 }
 
 // TODO: ./blah.sh one two three: put one two three in scratch.arg
@@ -3382,6 +3418,58 @@ void exit_main(void)
   exit(*toys.optargs ? atoi(*toys.optargs) : 0);
 }
 
+// lib/args.c can't +prefix & "+o history" needs space so parse cmdline here
+void set_main(void)
+{
+  char *cc, *ostr[] = {"braceexpand", "noclobber", "xtrace"};
+  int ii, jj, kk, oo = 0, dd = 0;
+
+  // Handle options
+  for (ii = 0;; ii++) {
+    if ((cc = toys.optargs[ii]) && !(dd = stridx("-+", *cc)+1) && oo--) {
+      for (jj = 0; jj<ARRAY_LEN(ostr); jj++) if (!strcmp(cc, ostr[jj])) break;
+      if (jj != ARRAY_LEN(ostr)) {
+        if (dd==1) TT.options |= OPT_B<<kk;
+        else TT.options &= ~(OPT_B<<kk);
+
+        continue;
+      }
+      error_exit("bad -o %s", cc);
+    }
+    if (oo>0) for (jj = 0; jj<ARRAY_LEN(ostr); jj++)
+      printf("%s\t%s\n", ostr[jj], TT.options&(OPT_B<<jj) ? "on" : "off");
+    oo = 0;
+    if (!cc || !dd) break;
+    for (jj = 1; cc[jj]; jj++) {
+      if (cc[jj] == 'o') oo++;
+      else if (-1 != (kk = stridx("BCx", cc[jj]))) {
+        if (*cc == '-') TT.options |= OPT_B<<kk;
+        else TT.options &= ~(OPT_B<<kk);
+      } else error_exit("bad -%c", toys.optargs[ii][1]);
+    }
+  }
+
+  // handle positional parameters
+  if (cc) {
+    struct arg_list *al, **head;
+    struct sh_arg *arg = &TT.cc->arg;
+
+    for (al = *(head = &TT.cc->delete); al; al = *(head = &al->next))
+      if (al->arg == (void *)arg->v) break;
+
+    // free last set's memory (if any) so it doesn't accumulate in loop
+    if (al) for (jj = arg->c+1; jj; jj--) {
+      *head = al->next;
+      free(al->arg);
+      free(al);
+    }
+
+    while (toys.optargs[ii])
+      arg_add(arg, push_arg(&TT.cc->delete, strdup(toys.optargs[ii++])));
+    push_arg(&TT.cc->delete, arg->v);
+  }
+}
+
 void unset_main(void)
 {
   char **arg, *s;
@@ -3428,12 +3516,18 @@ void export_main(void)
 
 void eval_main(void)
 {
-  struct sh_arg *old = TT.arg, new = {toys.argv, toys.optc+1};
+  struct sh_arg old = TT.cc->arg, *volatile arg = &TT.cc->arg;
   char *s;
 
-  TT.arg = &new;
+  // borrow the $* expand infrastructure (avoiding $* from trap handler race).
+  arg->c = 0;
+  arg->v = toys.argv;
+  arg->c = toys.optc+1;
   s = expand_one_arg("\"$*\"", SEMI_IFS, 0);
-  TT.arg = old;
+  arg->c = 0;
+  arg->v = old.v;
+  arg->c = old.c;
+
   sh_run(s);
   free(s);
 }
@@ -3559,9 +3653,9 @@ void shift_main(void)
   long long by = 1;
 
   if (toys.optc) by = atolx(*toys.optargs);
-  by += TT.shift;
-  if (by<0 || by>=TT.arg->c) toys.exitval++;
-  else TT.shift = by;
+  by += TT.cc->shift;
+  if (by<0 || by>=TT.cc->arg.c) toys.exitval++;
+  else TT.cc->shift = by;
 }
 
 void source_main(void)
