@@ -99,9 +99,11 @@ void toy_singleinit(struct toy_list *which, char *argv[])
     toys.old_umask = umask(0);
     if (!(which->flags & TOYFLAG_UMASK)) umask(toys.old_umask);
 
-    // Try user's locale, falling back to C.UTF-8
+    // Try user's locale, falling back to C.UTF-8 for Linux or UTF-8 for Mac.
+    // (Neither locale name works on both OSes.)
     setlocale(LC_CTYPE, "");
-    if (strcmp("UTF-8", nl_langinfo(CODESET))) setlocale(LC_CTYPE, "C.UTF-8");
+    if (strcmp("UTF-8", nl_langinfo(CODESET)))
+      if (!setlocale(LC_CTYPE, "C.UTF-8")) setlocale(LC_CTYPE, "UTF-8");
     setvbuf(stdout, 0, (which->flags & TOYFLAG_LINEBUF) ? _IOLBF : _IONBF, 0);
   }
 }
