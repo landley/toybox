@@ -126,14 +126,15 @@ int mountlist_istype(struct mtab_list *ml, char *typelist)
 
   if (!typelist) return 1;
 
+  // leading "no" indicates whether entire list is inverted
   skip = strncmp(typelist, "no", 2);
 
   for (;;) {
     if (!(t = comma_iterate(&typelist, &len))) break;
     if (!skip) {
-      // If one -t starts with "no", the rest must too
-      if (strncmp(t, "no", 2)) error_exit("bad typelist");
-      if (!strncmp(t+2, ml->type, len-2)) {
+      // later "no" after first are ignored
+      strstart(&t, "no");
+      if (!strncmp(t, ml->type, len-2)) {
         skip = 1;
         break;
       }
