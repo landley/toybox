@@ -44,6 +44,7 @@ void llist_free_arg(void *node);
 void llist_free_double(void *node);
 void llist_traverse(void *list, void (*using)(void *node));
 void *llist_pop(void *list);  // actually void **list
+void llist_add(struct arg_list **old, void *data);
 void *dlist_pop(void *list);  // actually struct double_list **list
 void *dlist_lpop(void *list); // also struct double_list **list
 void dlist_add_nomalloc(struct double_list **list, struct double_list *new);

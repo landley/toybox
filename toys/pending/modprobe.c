@@ -39,7 +39,7 @@ GLOBALS(
   uint8_t symreq;
 )
 
-/* Note: if "#define DBASE_SIZE" modified, 
+/* Note: if "#define DBASE_SIZE" modified,
  * Please update GLOBALS dbase[256] accordingly.
  */
 #define DBASE_SIZE  256
@@ -68,7 +68,7 @@ static char *path2mod(char *file, char *mod)
   if (!mod) mod = xmalloc(MODNAME_LEN);
 
   from = getbasename(file);
-  
+
   for (i = 0; i < (MODNAME_LEN-1) && from[i] && from[i] != '.'; i++)
     mod[i] = (from[i] == '-') ? '_' : from[i];
   mod[i] = '\0';
@@ -100,16 +100,6 @@ static void *llist_popme(struct arg_list **head)
     free(temp);
   }
   return data;
-}
-
-// Add new node at the beginning of the list.
-static void llist_add(struct arg_list **old, void *data)
-{
-  struct arg_list *new = xmalloc(sizeof(struct arg_list));
-
-  new->arg = (char*)data;
-  new->next = *old;
-  *old = new;
 }
 
 // Add new node at tail of list.
@@ -184,11 +174,11 @@ static int read_line(FILE *fl, char **li)
   }
   for (;;) {
     if (line[len - 1] == '\n') len--;
-    if (!len) { 
+    if (!len) {
       free(line);
       return len;
     } else if (line[len - 1] != '\\') break;
-    
+
     len--;
     nxtlen = getline(&nxtline, &nxtlinelen, fl);
     if (nxtlen <= 0) break;
@@ -226,11 +216,11 @@ static int config_action(struct dirtree *node)
     free(filename);
     return 0;
   }
-  for (line = linecp = NULL; read_line(fc, &line) > 0; 
+  for (line = linecp = NULL; read_line(fc, &line) > 0;
       free(line), free(linecp), line = linecp = NULL) {
     char *tk = NULL;
 
-    if (!strlen(line)) continue; 
+    if (!strlen(line)) continue;
     linecp = xstrdup(line);
     for (tk = strtok(linecp, "# \t"), tcount = 0; tk;
         tk = strtok(NULL, "# \t"), tcount++) {
@@ -240,7 +230,7 @@ static int config_action(struct dirtree *node)
         break;
       }
     }
-    if (!tk) continue; 
+    if (!tk) continue;
     // process the tokens[0] contains first word of config line.
     if (!strcmp(tokens[0], "alias")) {
       struct arg_list *temp;
@@ -325,7 +315,7 @@ static void find_dep(void)
       if (!mod) continue;
       if ((mod->flags & MOD_ALOADED) &&
           !(toys.optflags & (FLAG_r | FLAG_D))) continue;
-      
+
       mod->flags |= MOD_FNDDEPMOD;
       if ((mod->flags & MOD_NDDEPS) && (!mod->dep)) {
         TT.nudeps--;
@@ -441,7 +431,7 @@ static int go_probe(struct module_s *m)
   }
   if (toys.optflags & FLAG_v) printf("go_prob'ing %s\n", m->name);
   if (!(toys.optflags & FLAG_r)) m->dep = llist_rev(m->dep);
-  
+
   while (m->dep) {
     struct module_s *m2;
     char *fn, *options;
@@ -532,7 +522,7 @@ void modprobe_main(void)
 
   // Read /proc/modules to get loaded modules.
   fs = xfopen("/proc/modules", "r");
-  
+
   while (read_line(fs, &procline) > 0) {
     *(strchr(procline, ' ')) = '\0';
     get_mod(procline, 1)->flags = MOD_ALOADED;
@@ -579,11 +569,11 @@ void modprobe_main(void)
     do { // Probe all real names for the alias.
       char *real = ((struct arg_list*)llist_pop(&module->rnames))->arg;
       struct module_s *m2 = get_mod(real, 0);
-      
+
       if (toys.optflags&FLAG_v)
         printf("probing alias %s by realname %s\n", module->name, real);
       if (!m2) continue;
-      if (!(m2->flags & MOD_BLACKLIST) 
+      if (!(m2->flags & MOD_BLACKLIST)
           && (!(m2->flags & MOD_ALOADED) || (flags & (FLAG_r | FLAG_D))))
         go_probe(m2);
       free(real);

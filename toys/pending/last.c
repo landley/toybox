@@ -41,15 +41,6 @@ static void free_list()
   }
 }
 
-static void llist_add_node(struct arg_list **old, void *data)
-{
-  struct arg_list *new = xmalloc(sizeof(struct arg_list));
-  
-  new->arg = (char*)data;
-  new->next = *old;
-  *old = new;
-}
-
 // Find a node and dlink it from the list.
 static struct arg_list *find_and_dlink(struct arg_list **list, char *devname)
 {
@@ -178,9 +169,9 @@ void last_main(void)
             ut.ut_line, pwidth, pwidth, ut.ut_host, 
             toybuf, toybuf+18, toybuf+28);
       }
-      llist_add_node(&TT.list, memcpy(xmalloc(sizeof(ut)), &ut, sizeof(ut)));
+      llist_add(&TT.list, memcpy(xmalloc(sizeof(ut)), &ut, sizeof(ut)));
     } else if (ut.ut_type == DEAD_PROCESS && *ut.ut_line)
-      llist_add_node(&TT.list, memcpy(xmalloc(sizeof(ut)), &ut, sizeof(ut)));
+      llist_add(&TT.list, memcpy(xmalloc(sizeof(ut)), &ut, sizeof(ut)));
 
     loc -= sizeof(ut);
     if(loc < 0) break;
