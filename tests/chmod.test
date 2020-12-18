@@ -24,28 +24,16 @@ mkdir dir
 touch file
 
 # We don't need to test all 512 permissions
-for u in 0 1 2 3 4 5 6 7
-do
-  for g in 0 3 6
-  do
-    for o in 0 7
-    do
-      if [ "$type" == file ]
-      then
-        type=dir
-        rm -rf "./$type" && mkdir $type
-        DASH=d
-      else
-        type=file
-        rm -f "./$type" && touch $type
-        DASH=-
-      fi
-      DASHES=$(num2perm $u$g$o)
-      testing "$u$g$o $type" "chmod $u$g$o $type && 
-        ls -ld $type | cut -d' ' -f 1 | cut -d. -f 1" "$DASH$DASHES\n" "" ""
-    done
-  done
-done
+file=- dir=d DOfile=touch DOdir=mkdir
+unset touch mkdir d
+for U in {0..7}; do for G in 0 3 6; do for O in 0 7; do for T in dir file; do
+  chmod 777 $T 2>/dev/null
+  X=DO$T
+  rm -rf $T && ${!X} $T
+  testing "$U$G$O $T" "chmod $U$G$O $T && ls -ld $T | cut -d' ' -f 1" \
+    "${!T}$(num2perm $U$G$O)\n" "" ""
+done; done; done; done
+unset U G O T X
 
 rm -rf dir file && mkdir dir && touch file 640
 testing "750 dir 640 file" "chmod 750 dir 640 file &&
@@ -54,6 +42,7 @@ testing "750 dir 640 file" "chmod 750 dir 640 file &&
 
 chtest()
 {
+  chmod -fR 700 dir file 2>/dev/null
   rm -rf dir file && mkdir dir && touch file
   testing "$1 dir file" \
     "chmod $1 dir file && ls -ld dir file | cut -d' ' -f 1 | cut -d. -f 1" \
@@ -107,10 +96,17 @@ chtest +x "drwxr-xr-x\n-rwxr-xr-x\n"
 chtest -r "d-wx--x--x\n--w-------\n"
 chtest -w "dr-xr-xr-x\n-r--r--r--\n"
 chtest -x "drw-r--r--\n-rw-r--r--\n"
+
+# macOS doesn't allow +s in /tmp
+touch s-supported
+chmod +s s-supported 2>/dev/null || SKIP=1
+rm s-supported
 chtest g+s "drwxr-sr-x\n-rw-r-Sr--\n"
 chtest u+s "drwsr-xr-x\n-rwSr--r--\n"
 chtest +s "drwsr-sr-x\n-rwSr-Sr--\n"
 chtest o+s "drwxr-xr-x\n-rw-r--r--\n"
+unset SKIP
+
 chtest +t  "drwxr-xr-t\n-rw-r--r-T\n"
 chtest a=r+w+x "drwxrwxrwx\n-rwxrwxrwx\n"
 

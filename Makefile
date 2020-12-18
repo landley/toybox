@@ -63,6 +63,7 @@ root_clean:
 	@echo root cleaned
 
 clean::
+	@chmod -fR 700 generated || true
 	@rm -rf toybox generated change .singleconfig*
 	@echo cleaned
 
