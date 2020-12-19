@@ -102,7 +102,9 @@ static struct ext2_attr {
   {"No_Dump",                       FS_NODUMP_FL,       'd'},
   {"No_Atime",                      FS_NOATIME_FL,      'A'},
   {"Compression_Requested",         FS_COMPR_FL,        'c'},
+  #ifdef FS_ENCRYPT_FL /* Linux >= 4.5 */
   {"Encrypted",                     FS_ENCRYPT_FL,      'E'},
+  #endif
   {"Journaled_Data",                FS_JOURNAL_DATA_FL, 'j'},
   {"Indexed_directory",             FS_INDEX_FL,        'I'},
   {"No_Tailmerging",                FS_NOTAIL_FL,       't'},
@@ -110,7 +112,9 @@ static struct ext2_attr {
   {"Extents",                       FS_EXTENT_FL,       'e'},
   {"No_COW",                        FS_NOCOW_FL,        'C'},
   {"Casefold",                      FS_CASEFOLD_FL,     'F'},
+  #ifdef FS_INLINE_DATA_FL /* Linux >= 4.5 */
   {"Inline_Data",                   FS_INLINE_DATA_FL,  'N'},
+  #endif
   {"Project_Hierarchy",             FS_PROJINHERIT_FL,  'P'},
   {"Verity",                        FS_VERITY_FL,       'V'},
   {NULL,                            0,                  0},

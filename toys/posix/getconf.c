@@ -46,6 +46,11 @@ config GETCONF
 #define _CS_V7_ENV -1
 #endif
 
+#ifndef _CS_V7_ENV
+// _CS_V7_ENV introduced by IEEE Std 1003.1-2001
+#define _CS_V7_ENV 0
+#endif
+
 struct config {
   char *name;
   long long value;
