@@ -513,11 +513,13 @@ static char *parse_word(char *start, int early, int quote)
 
   // Things we should only return at the _start_ of a word
 
-  if (strstart(&end, "<(") || strstart(&end, ">(")) toybuf[quote++]=')';
-
   // Redirections. 123<<file- parses as 2 args: "123<<" "file-".
   s = end + redir_prefix(end);
   if ((i = anystart(s, (void *)redirectors))) return s+i;
+  if (strstart(&s, "<(") || strstart(&s, ">(")) {
+    toybuf[quote++]=')';
+    end = s;
+  }
 
   // (( is a special quote at the start of a word
   if (strstart(&end, "((")) toybuf[quote++] = 254;
@@ -534,14 +536,13 @@ static char *parse_word(char *start, int early, int quote)
 
     // Handle quote contexts
     if ((q = quote ? toybuf[quote-1] : 0)) {
-
       // when waiting for parentheses, they nest
       if ((q == ')' || q >= 254) && (*end == '(' || *end == ')')) {
         if (*end == '(') qc++;
         else if (qc) qc--;
         else if (q >= 254) {
           // (( can end with )) or retroactively become two (( if we hit one )
-          if (strstart(&end, "))")) quote--;
+          if (*end == ')' && end[1] == ')') quote--, end++;
           else if (q == 254) return start+1;
           else if (q == 255) toybuf[quote-1] = ')';
         } else if (*end == ')') quote--;
@@ -561,7 +562,6 @@ static char *parse_word(char *start, int early, int quote)
       // Things that only matter when unquoted
 
       if (isspace(*end)) break;
-      if (*end == ')') return end+(start==end);
 
       // Flow control characters that end pipeline segments
       s = end + anystart(end, (char *[]){";;&", ";;", ";&", ";", "||",
