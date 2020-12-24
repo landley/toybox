@@ -7,6 +7,20 @@ on:
     branches: [ master ]
 
 jobs:
+  MacOS-11_0:
+    runs-on: macos-11.0
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup
+      run: brew install gnu-sed
+    - name: Configure
+      run: make macos_defconfig
+    - name: Build
+      run: make
+    - name: Test
+      run: VERBOSE=1 make tests
+
   MacOS-10_15:
     runs-on: macos-10.15
 
