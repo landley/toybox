@@ -2337,7 +2337,6 @@ static int parse_line(char *line, struct sh_function *sp)
     // Ok, we have a word. What does it _mean_?
 
     // case/esac parsing is weird (unbalanced parentheses!), handle first
-
     i = ex && !strcmp(ex, "esac") &&
         ((pl->type && pl->type != 3) || (*start==';' && end-start>1));
     if (i) {
@@ -2850,7 +2849,8 @@ TODO: a | b | c needs subshell for builtins?
         }
 
         while (i && blk)
-          if (!--i && *s == 'c') pl = blk->start;
+          if (blk->middle && !strcmp(*blk->middle->arg->v, "do")
+            && !--i && *s=='c') pl = blk->start;
           else pl = pop_block(&blk, pipes);
         if (i) {
           syntax_err("break");
