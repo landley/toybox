@@ -96,6 +96,7 @@ chtest +x "drwxr-xr-x\n-rwxr-xr-x\n"
 chtest -r "d-wx--x--x\n--w-------\n"
 chtest -w "dr-xr-xr-x\n-r--r--r--\n"
 chtest -x "drw-r--r--\n-rw-r--r--\n"
+chtest a-w,a+x "dr-xr-xr-x\n-r-xr-xr-x\n"
 
 # macOS doesn't allow +s in /tmp
 touch s-supported

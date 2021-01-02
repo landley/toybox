@@ -976,21 +976,18 @@ mode_t string_to_mode(char *modestr, mode_t mode)
     }
 
     // Repeated "hows" are allowed; something like "a=r+w+s" is valid.
-    do {
-      if (!(dohow = *str) || !strchr(hows, *str)) goto barf;
+    for (;;) {
+      if (-1 == stridx(hows, dohow = *str)) goto barf;
       while (*++str && (s = strchr(whats, *str))) dowhat |= 1<<(s-whats);
 
       // Convert X to x for directory or if already executable somewhere
       if ((dowhat&32) && (S_ISDIR(mode) || (mode&0111))) dowhat |= 1;
 
       // Copy mode from another category?
-      if (!dowhat && *str && (s = strchr(whys, *str))) {
-        dowhat = (mode>>(3*(s-whys)))&7;
+      if (!dowhat && -1 != (i = stridx(whys, *str))) {
+        dowhat = (mode>>(3*i))&7;
         str++;
       }
-
-      // Are we ready to do a thing yet?
-      if (*str && (str[1] != ',' && !strchr(hows, *str))) goto barf;
 
       // Loop through what=xwrs and who=ogu to apply bits to the mode.
       for (i=0; i<4; i++) {
@@ -1015,12 +1012,14 @@ mode_t string_to_mode(char *modestr, mode_t mode)
           if (bit && dohow != '-') mode |= where;
         }
       }
-    } while (*str);
-
-    if (!*str) break;
+      if (!*str) return mode|extrabits;
+      if (*str == ',') {
+        str++;
+        break;
+      }
+    }
   }
 
-  return mode|extrabits;
 barf:
   error_exit("bad mode '%s'", modestr);
 }
