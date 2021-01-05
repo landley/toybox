@@ -208,11 +208,15 @@ ssize_t xattr_lset(const char*, const char*, const void*, size_t, int);
 ssize_t xattr_fset(int, const char*, const void*, size_t, int);
 #endif
 
-// macOS doesn't have these functions, but we can fake them.
 #ifdef __APPLE__
+// macOS doesn't have these functions, but we can fake them.
 int mknodat(int, const char*, mode_t, dev_t);
 int posix_fallocate(int, off_t, off_t);
+
+// macOS keeps newlocale(3) in the non-POSIX <xlocale.h> rather than <locale.h>.
+#include <xlocale.h>
 #endif
+
 
 // Android is missing some headers and functions
 // "generated/config.h" is included first

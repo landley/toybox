@@ -99,11 +99,13 @@ void toy_singleinit(struct toy_list *which, char *argv[])
     toys.old_umask = umask(0);
     if (!(which->flags & TOYFLAG_UMASK)) umask(toys.old_umask);
 
-    // Try user's locale, falling back to C.UTF-8 for Linux or UTF-8 for Mac.
-    // (Neither locale name works on both OSes.)
+    // Try user's locale, but merge in the en_US.UTF-8 locale's character
+    // type data if the user's locale isn't UTF-8. (We can't merge in C.UTF-8
+    // because that locale doesn't exist on macOS.)
     setlocale(LC_CTYPE, "");
     if (strcmp("UTF-8", nl_langinfo(CODESET)))
-      if (!setlocale(LC_CTYPE, "C.UTF-8")) setlocale(LC_CTYPE, "UTF-8");
+      uselocale(newlocale(LC_CTYPE_MASK, "en_US.UTF-8", NULL));
+
     setvbuf(stdout, 0, (which->flags & TOYFLAG_LINEBUF) ? _IOLBF : _IONBF, 0);
   }
 }
