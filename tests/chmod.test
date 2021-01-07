@@ -24,16 +24,20 @@ mkdir dir
 touch file
 
 # We don't need to test all 512 permissions
-file=- dir=d DOfile=touch DOdir=mkdir
-unset touch mkdir d
-for U in {0..7}; do for G in 0 3 6; do for O in 0 7; do for T in dir file; do
+for U in $(seq 0 7); do for G in 0 3 6; do for O in 0 7; do for T in dir file; do
   chmod 777 $T 2>/dev/null
-  X=DO$T
-  rm -rf $T && ${!X} $T
+  rm -rf $T
+  if [ "$T" == file ]; then
+    touch file
+    C=-
+  else
+    mkdir dir
+    C=d
+  fi
   testing "$U$G$O $T" "chmod $U$G$O $T && ls -ld $T | cut -d' ' -f 1" \
-    "${!T}$(num2perm $U$G$O)\n" "" ""
+    "${C}$(num2perm $U$G$O)\n" "" ""
 done; done; done; done
-unset U G O T X
+unset U G O T C
 
 rm -rf dir file && mkdir dir && touch file 640
 testing "750 dir 640 file" "chmod 750 dir 640 file &&
