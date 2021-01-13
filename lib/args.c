@@ -131,7 +131,7 @@ struct getoptflagstate
 };
 
 // Use getoptflagstate to parse one command line option from argv
-static int gotflag(struct getoptflagstate *gof, struct opts *opt)
+static int gotflag(struct getoptflagstate *gof, struct opts *opt, int shrt)
 {
   unsigned long long i;
   int type;
@@ -168,7 +168,8 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt)
   }
 
   // Does this option take an argument?
-  if (!gof->arg) {
+  if (!gof->arg || (shrt && !gof->arg[1])) {
+    gof->arg = 0;
     if (opt->flags & 8) return 0;
     gof->arg = "";
   } else gof->arg++;
@@ -445,7 +446,7 @@ void get_optflags(void)
         }
 
         // Long option parsed, handle option.
-        gotflag(&gof, catch);
+        gotflag(&gof, catch, 0);
         continue;
       }
 
@@ -458,7 +459,7 @@ void get_optflags(void)
     // At this point, we have the args part of -args.  Loop through
     // each entry (could be -abc meaning -a -b -c)
     saveflags = toys.optflags;
-    while (*gof.arg) {
+    while (gof.arg && *gof.arg) {
 
       // Identify next option char.
       for (catch = gof.opts; catch; catch = catch->next)
@@ -466,7 +467,7 @@ void get_optflags(void)
           if (!((catch->flags&4) && gof.arg[1])) break;
 
       // Handle option char (advancing past what was used)
-      if (gotflag(&gof, catch) ) {
+      if (gotflag(&gof, catch, 1) ) {
         toys.optflags = saveflags;
         gof.arg = toys.argv[gof.argc];
         goto notflag;

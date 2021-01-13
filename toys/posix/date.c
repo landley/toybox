@@ -138,7 +138,7 @@ void date_main(void)
 
   if (FLAG(I)) {
     char *iso_formats[] = {"%F","%FT%H%:z","%FT%R%:z","%FT%T%:z","%FT%T,%N%:z"};
-    int i = stridx("dhmsn", *TT.I ? *TT.I : 'd');
+    int i = stridx("dhmsn", (TT.I && *TT.I) ? *TT.I : 'd');
 
     if (i<0) help_exit("bad -I: %s", TT.I);
     format_string = xstrdup(iso_formats[i]);
