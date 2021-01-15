@@ -870,18 +870,6 @@ void base64_init(char *p)
   *(p++) = '/';
 }
 
-// Init base32 table
-
-void base32_init(char *p)
-{
-  int i;
-
-  for (i = 'A'; i != '8'; i++) {
-    if (i == 'Z'+1) i = '2';
-    *(p++) = i;
-  }
-}
-
 int yesno(int def)
 {
   return fyesno(stdin, def);

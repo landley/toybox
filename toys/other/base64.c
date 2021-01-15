@@ -2,8 +2,9 @@
  *
  * Copyright 2014 Rob Landley <rob@landley.net>
  *
- * No standard
+ * See https://tools.ietf.org/html/rfc4648
 
+// These optflags have to match. Todo: cleanup and collapse together?
 USE_BASE64(NEWTOY(base64, "diw#<0=76[!dw]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_BASE32(NEWTOY(base32, "diw#<0=76[!dw]", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -33,6 +34,7 @@ config BASE32
 */
 
 #define FOR_base64
+#define FORCE_FLAGS
 #include "toys.h"
 
 GLOBALS(
@@ -52,7 +54,7 @@ static void wraputchar(int c, int *x)
   };
 }
 
-static void do_base_n(int fd, char *name)
+static void do_base(int fd, char *name)
 {
   int out = 0, bits = 0, x = 0, i, len;
   char *buf = toybuf+128;
@@ -106,17 +108,15 @@ void base64_main(void)
   TT.n = 6;
   TT.align = 3;
   base64_init(toybuf);
-  loopfiles(toys.optargs, do_base_n);
+  loopfiles(toys.optargs, do_base);
 }
-
-#define CLEANUP_base64
-#define FOR_base32
-#include "generated/flags.h"
 
 void base32_main(void)
 {
+  int i;
+
   TT.n = 5;
   TT.align = 7;
-  base32_init(toybuf);
-  loopfiles(toys.optargs, do_base_n);
+  for (i = 0; i<32; i++) toybuf[i] = i+(i<26 ? 'A' : 24);
+  loopfiles(toys.optargs, do_base);
 }
