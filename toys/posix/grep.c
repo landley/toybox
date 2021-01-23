@@ -372,20 +372,12 @@ static void parse_regex(void)
   // exit to free. Not supporting nofork for this command any time soon.)
   al = TT.f ? TT.f : TT.e;
   while (al) {
-    if (TT.f) s = ss = xreadfile(al->arg, 0, 0);
-    else s = ss = al->arg;
-
-    // Split lines at \n, add individual lines to new list.
-    do {
-// TODO: NUL terminated input shouldn't split -e at \n
-      ss = strchr(s, '\n');
-      if (ss) *(ss++) = 0;
-      new = xmalloc(sizeof(struct arg_list));
-      new->next = list;
-      new->arg = s;
-      list = new;
-      s = ss;
-    } while (ss && *s);
+    if (TT.f) {
+      if (!*(s = ss = xreadfile(al->arg, 0, 0))) {
+        free(ss);
+        s = 0;
+      }
+    } else s = ss = al->arg;
 
     // Advance, when we run out of -f switch to -e.
     al = al->next;
@@ -393,6 +385,18 @@ static void parse_regex(void)
       TT.f = 0;
       al = TT.e;
     }
+    if (!s) continue;
+
+    // Split lines at \n, add individual lines to new list.
+    do {
+      ss = FLAG(z) ? 0 : strchr(s, '\n');
+      if (ss) *(ss++) = 0;
+      new = xmalloc(sizeof(struct arg_list));
+      new->next = list;
+      new->arg = s;
+      list = new;
+      s = ss;
+    } while (ss && *s);
   }
   TT.e = list;
 

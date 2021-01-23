@@ -85,7 +85,7 @@ testing "-r dir" "grep -r one sub | sort" "sub/one:one\nsub/two:one\n" \
   "" ""
 rm -rf sub
 
-# -x exact match trumps -F's "empty string matches whole line" behavior
+# -x exact match overrides -F's "empty string matches whole line" behavior
 testing "-Fx ''" "grep -Fx '' input" "" "one one one\n" ""
 testing "-F ''" "grep -F '' input" "one one one\n" "one one one\n" ""
 testing "-F -e blah -e ''" "grep -F -e blah -e '' input" "one one one\n" \
@@ -138,7 +138,7 @@ testing '' "grep -o -e '' -e two" "two\ntwo\n" "" \
   "one two three\none two\none\n"
 
 echo "one\ntwo\nthree" > test
-testing "-l trumps -C" "grep -l -C1 two test input" "test\ninput\n" \
+testing "-l overrides -C" "grep -l -C1 two test input" "test\ninput\n" \
   "three\ntwo\none\n" ""
 rm test
 
@@ -197,3 +197,5 @@ testing "-Fx" "grep -Fx h input" "h\n" \
   "missing\nH\nthis is hello\nthis is world\nh\nmissing" ""
 testing "-Fix" "grep -Fix h input" "H\nh\n" \
   "missing\nH\nthis is HELLO\nthis is WORLD\nh\nmissing" ""
+testing "-f /dev/null" "grep -f /dev/null" "" "" "hello\n"
+testing "-z with \n in pattern" "grep -f input" "hi\nthere\n" "i\nt" "hi\nthere"
