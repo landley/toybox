@@ -102,8 +102,8 @@ static void do_action(struct sockaddr *srcaddr, struct sockaddr *dstaddr,
   if (TT.pw) xsetuser(TT.pw);
 
   if (opcode == TFTPD_OP_RRQ) fd = open(file, O_RDONLY, 0666);
-  else fd = open(file, ((toys.optflags & FLAG_c) ?
-        (O_WRONLY|O_TRUNC|O_CREAT) : (O_WRONLY|O_TRUNC)) , 0666);
+  else fd = open(file,
+    FLAG(c) ? (O_WRONLY|O_TRUNC|O_CREAT) : (O_WRONLY|O_TRUNC), 0666);
   if (fd < 0) {
     g_errpkt[3] = TFTPD_ER_NOSUCHFILE;
     send_errpkt(dstaddr, socklen, "can't open file");
@@ -263,9 +263,9 @@ void tftpd_main(void)
   // request is either upload or Download.
   opcode = buf[1];
   if (((opcode != TFTPD_OP_RRQ) && (opcode != TFTPD_OP_WRQ))
-      || ((opcode == TFTPD_OP_WRQ) && (toys.optflags & FLAG_r))) {
+      || ((opcode == TFTPD_OP_WRQ) && FLAG(r))) {
     send_errpkt((struct sockaddr*)&dstaddr, socklen,
-    	(opcode == TFTPD_OP_WRQ) ? "write error" : "packet format error");
+      (opcode == TFTPD_OP_WRQ) ? "write error" : "packet format error");
     return;
   }
 
@@ -304,5 +304,5 @@ void tftpd_main(void)
   //do send / receive file.
   do_action((struct sockaddr*)&srcaddr, (struct sockaddr*)&dstaddr,
       socklen, toybuf + 2, opcode, tsize, blksize);
-  if (CFG_TOYBOX_FREE) close(STDIN_FILENO);
+  if (CFG_TOYBOX_FREE) close(0);
 }

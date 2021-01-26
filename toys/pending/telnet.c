@@ -107,7 +107,7 @@ static void handle_esc(void)
       " z  suspend telnet\r\n"
       " e  exit telnet\r\n", 114);
 
-  if (read(STDIN_FILENO, &input, 1) <= 0) {
+  if (read(0, &input, 1) <= 0) {
     if(TT.term_ok) tcsetattr(0, TCSADRAIN, &TT.def_term);
     exit(0);
   }
@@ -258,7 +258,7 @@ static int read_server(int len)
     }
   } while (TT.pbuff < len);
 
-  if (i) xwrite(STDIN_FILENO, toybuf, i);
+  if (i) xwrite(0, toybuf, i);
   return 0;
 }
 
@@ -310,7 +310,7 @@ void telnet_main(void)
   setsockopt(TT.sfd, SOL_SOCKET, SO_REUSEADDR, &set, sizeof(set));
   setsockopt(TT.sfd, SOL_SOCKET, SO_KEEPALIVE, &set, sizeof(set));
 
-  pfds[0].fd = STDIN_FILENO;
+  pfds[0].fd = 0;
   pfds[0].events = POLLIN;
   pfds[1].fd = TT.sfd;
   pfds[1].events = POLLIN;
@@ -325,7 +325,7 @@ void telnet_main(void)
       continue;
     }
     if(pfds[0].revents) {
-      len = read(STDIN_FILENO, TT.buff, DATABUFSIZE);
+      len = read(0, TT.buff, DATABUFSIZE);
       if(len > 0) write_server(len);
       else return;
     }
