@@ -100,6 +100,7 @@ int pollinate(int in1, int in2, int out1, int out2, int timeout, int shutdown_ti
 {
   struct pollfd pollfds[2];
   int i, pollcount = 2;
+  int openfds = 2;
 
   memset(pollfds, 0, 2*sizeof(struct pollfd));
   pollfds[0].events = pollfds[1].events = POLLIN;
@@ -107,27 +108,30 @@ int pollinate(int in1, int in2, int out1, int out2, int timeout, int shutdown_ti
   pollfds[1].fd = in2;
 
   // Poll loop copying data from each fd to the other one.
-  for (;;) {
+  while (openfds > 0) {
     if (!xpoll(pollfds, pollcount, timeout)) return pollcount;
 
     for (i=0; i<pollcount; i++) {
+      if (pollfds[i].fd < 0) continue;
       if (pollfds[i].revents & POLLIN) {
         int len = read(pollfds[i].fd, libbuf, sizeof(libbuf));
-        if (len<1) pollfds[i].revents = POLLHUP;
+        if (len<1) goto cleanup;
         else xwrite(i ? out2 : out1, libbuf, len);
-      }
-      if (pollfds[i].revents & POLLHUP) {
+      } else if (pollfds[i].revents & POLLHUP) {
+cleanup:
         // Close half-connection.  This is needed for things like
         // "echo GET / | netcat landley.net 80"
-        // Note that in1 closing triggers timeout, in2 returns now.
+        // Note that in1 closing triggers timeout.
         if (i) {
           shutdown(pollfds[0].fd, SHUT_WR);
-          pollcount--;
           timeout = shutdown_timeout;
-        } else return 0;
+        }
+        pollfds[i].fd = -1;
+        openfds--;
       }
     }
   }
+  return 0;
 }
 
 // Return converted ipv4/ipv6 numeric address in libbuf
