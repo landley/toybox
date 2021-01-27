@@ -127,6 +127,7 @@ int pollinate(int in1, int in2, int out1, int out2, int timeout, int shutdown_ti
           shutdown(pollfds[0].fd, SHUT_WR);
           pollcount--;
           timeout = shutdown_timeout;
+          pollfds[i].fd = -1;
         } else return 0;
       }
     }
