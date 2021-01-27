@@ -114,7 +114,10 @@ int pollinate(int in1, int in2, int out1, int out2, int timeout, int shutdown_ti
       if (pollfds[i].revents & POLLIN) {
         int len = read(pollfds[i].fd, libbuf, sizeof(libbuf));
         if (len<1) pollfds[i].revents = POLLHUP;
-        else xwrite(i ? out2 : out1, libbuf, len);
+        else {
+          xwrite(i ? out2 : out1, libbuf, len);
+          continue;
+        }
       }
       if (pollfds[i].revents & POLLHUP) {
         // Close half-connection.  This is needed for things like
