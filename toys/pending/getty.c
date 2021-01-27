@@ -32,11 +32,8 @@ config GETTY
 #include "toys.h"
 
 GLOBALS(
-  char *issue_str;
-  char *login_str;
-  char *init_str;
-  char *host_str;
-  long timeout;
+  char *f, *l, *I, *H;
+  long t;
 
   char *tty_name, buff[128];
   int speeds[20], sc;
@@ -140,7 +137,7 @@ static void sense_baud(void)
 void write_issue(char *file, struct utsname *uts)
 {
   char buff[20] = {0,};
-  int fd = open(TT.issue_str, O_RDONLY), size;
+  int fd = open(TT.f, O_RDONLY), size;
 
   if (fd < 0) return;
   while ((size = readall(fd, buff, 1)) > 0) {
@@ -167,7 +164,7 @@ static int read_login_name(void)
 
     uname(&uts);
 
-    if (!FLAG(i)) write_issue(TT.issue_str, &uts);
+    if (!FLAG(i)) write_issue(TT.f, &uts);
 
     printf("%s login: ", uts.nodename);
     xflush(1);
@@ -204,11 +201,7 @@ static void utmp_entry(void)
   entry.ut_tv.tv_sec = time(0);
   xstrncpy(entry.ut_user, "LOGIN", sizeof(entry.ut_user));
   xstrncpy(entry.ut_line, ttyname(0) + strlen("/dev/"), sizeof(entry.ut_line));
-  if (FLAG(H)) {
-    if (strlen(TT.host_str) >= sizeof(entry.ut_host))
-      perror_msg_raw("hostname too long");
-    else xstrncpy(entry.ut_host, TT.host_str, sizeof(entry.ut_host));
-  }
+  if (FLAG(H)) xstrncpy(entry.ut_host, TT.H, sizeof(entry.ut_host));
 
   // Write.
   pututxline(&entry);
@@ -217,10 +210,9 @@ static void utmp_entry(void)
 
 void getty_main(void)
 {
-  char ch, *cmd[3] = {"/bin/login", 0, 0}; // space to add username
+  char ch, *cmd[3] = {TT.l ? : "/bin/login", 0, 0}; // space to add username
 
-  if (!FLAG(f)) TT.issue_str = "/etc/issue";
-  if (FLAG(l)) cmd[0] = TT.login_str;
+  if (!FLAG(f)) TT.f = "/etc/issue";
 
   // parse arguments and set $TERM
   if (isdigit(**toys.optargs)) {
@@ -236,9 +228,9 @@ void getty_main(void)
   termios_init();
   tcsetpgrp(0, getpid());
   utmp_entry();
-  if (FLAG(I)) writeall(0, TT.init_str, strlen(TT.init_str));
+  if (FLAG(I)) xputsn(TT.I);
   if (FLAG(m)) sense_baud();
-  if (FLAG(t)) alarm(TT.timeout);
+  if (FLAG(t)) alarm(TT.t);
   if (FLAG(w)) while (readall(0, &ch, 1) != 1)  if (ch=='\n' || ch=='\r') break;
   if (!FLAG(n)) {
     int index = 1; // 0th we already set.
