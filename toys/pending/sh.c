@@ -1157,7 +1157,7 @@ char *slashcopy(char *s, char *c, struct sh_arg *deck)
 static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
   struct arg_list **delete, struct sh_arg *ant)
 {
-  char cc, qq = flags&NO_QUOTE, sep[6], *new = str, *s, *ss, *ifs, *slice;
+  char cc, qq = flags&NO_QUOTE, sep[6], *new = str, *s, *ss = ss, *ifs, *slice;
   int ii = 0, oo = 0, xx, yy, dd, jj, kk, ll, mm;
   struct sh_arg deck = {0};
 
@@ -1816,7 +1816,7 @@ static char *expand_one_arg(char *new, unsigned flags, struct arg_list **del)
 static char *pl2str(struct sh_pipeline *pl, int one)
 {
   struct sh_pipeline *end = 0, *pp;
-  int len, i;
+  int len = len, i;
   char *s, *ss;
 
   // Find end of block (or one argument)
