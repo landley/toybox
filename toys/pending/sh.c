@@ -232,6 +232,25 @@ GLOBALS(
     struct double_list *expect; // should be zero at end of parsing
   } *functions;
 
+  // runtime function call stack
+  struct sh_fcall {
+    struct sh_fcall *next;
+    struct sh_function *func;
+    struct sh_pipeline *pl;
+    int *urd, pout;
+
+    // Runtime stack of nested if/else/fi and for/do/done contexts.
+    struct sh_blockstack {
+      struct sh_blockstack *next;
+      struct sh_pipeline *start, *middle;
+      struct sh_process *pp;       // list of processes piping in to us
+      int run, loop, *urd, pout;
+      struct sh_arg farg;          // for/select arg stack, case wildcard deck
+      struct arg_list *fdelete;    // farg's cleanup list
+      char *fvar;                  // for/select's iteration variable name
+    } *blk;
+  } *ff;
+
 // TODO ctrl-Z suspend should stop script
   struct sh_process {
     struct sh_process *next, *prev; // | && ||
@@ -247,8 +266,8 @@ GLOBALS(
     struct sh_function scratch;
     struct sh_arg arg;
     struct arg_list *delete;
-    unsigned lineno;
     long shift;
+    unsigned lineno;
   } *cc;
 
   // job list, command line for $*, scratch space for do_wildcard_files()
@@ -2071,7 +2090,7 @@ static void sh_exec(char **argv)
   char *pp = getvar("PATH" ? : _PATH_DEFPATH), *cc = TT.isexec ? : *argv;
   struct string_list *sl;
 
-  if (getpid() != TT.pid) signal(SIGINT, SIG_DFL);
+  if (getpid() != TT.pid) signal(SIGINT, SIG_DFL); // TODO: restore all?
   if (strchr(cc, '/')) shexec(cc, argv);
   else for (sl = find_in_path(pp, cc); sl; free(llist_pop(&sl)))
     shexec(sl->str, argv);
@@ -2139,7 +2158,7 @@ static struct sh_process *run_command(struct sh_arg *arg)
 // TODO: handle ((math)) currently totally broken
 // TODO: call functions()
   // Is this command a builtin that should run in this process?
-  else if ((tl = toy_find(*pp->arg.v))
+  else if (TT.ff->pout == -1 && (tl = toy_find(*pp->arg.v))
     && (tl->flags & (TOYFLAG_NOFORK|TOYFLAG_MAYFORK)))
   {
     sigjmp_buf rebound;
@@ -2645,65 +2664,20 @@ static int wait_pipeline(struct sh_process *pp)
   return rc;
 }
 
-// pipe data into and out of this segment, I.E. handle leading and trailing |
-static int pipe_segments(char *ctl, int *pipes, int **urd)
-{
-  unredirect(*urd);
-  *urd = 0;
-
-  // Did the previous pipe segment pipe input into us?
-  if (*pipes != -1) {
-    if (save_redirect(urd, *pipes, 0)) return 1;
-    close(*pipes);
-    *pipes = -1;
-  }
-
-  // are we piping output to the next segment?
-  if (ctl && *ctl == '|' && ctl[1] != '|') {
-    if (pipe(pipes)) {
-      perror_msg("pipe");
-// TODO record pipeline rc
-// TODO check did not reach end of pipeline after loop
-      return 1;
-    }
-    if (save_redirect(urd, pipes[1], 1)) {
-      close(pipes[0]);
-      close(pipes[1]);
-
-      return 1;
-    }
-    if (pipes[1] != 1) close(pipes[1]);
-    fcntl(*pipes, F_SETFD, FD_CLOEXEC);
-    if (ctl[1] == '&') save_redirect(urd, 1, 2);
-  }
-
-  return 0;
-}
-
-// Stack of nested if/else/fi and for/do/done contexts.
-struct blockstack {
-  struct blockstack *next;
-  struct sh_pipeline *start, *middle;
-  struct sh_process *pp;       // list of processes piping in to us
-  int run, loop, *urd, pout;
-  struct sh_arg farg;          // for/select arg stack, case wildcard deck
-  struct arg_list *fdelete;    // farg's cleanup list
-  char *fvar;                  // for/select's iteration variable name
-};
-
 // when ending a block, free, cleanup redirects and pop stack.
-static struct sh_pipeline *pop_block(struct blockstack **blist, int *pout)
+static struct sh_pipeline *pop_block(struct sh_blockstack **cached)
 {
-  struct blockstack *blk = *blist;
+  struct sh_blockstack *blk = TT.ff->blk;
   struct sh_pipeline *pl = blk->start->end;
 
   // when ending a block, free, cleanup redirects and pop stack.
-  if (*pout != -1) close(*pout);
-  *pout = blk->pout;
+  if (TT.ff->pout != -1) close(TT.ff->pout);
+  TT.ff->pout = blk->pout;
   unredirect(blk->urd);
-  llist_traverse(blk->fdelete, free);
+  llist_traverse(blk->fdelete, llist_free_arg);
   free(blk->farg.v);
-  free(llist_pop(blist));
+  free(llist_pop(&TT.ff->blk));
+  if (cached) *cached = TT.ff->blk;
 
   return pl;
 }
@@ -2768,45 +2742,82 @@ static void do_prompt(char *prompt)
   writeall(2, toybuf, len);
 }
 
-// run a parsed shell function. Handle flow control blocks and characters,
-// setup pipes and block redirection, break/continue, call builtins,
-// vfork/exec external commands.
-static void run_function(struct sh_pipeline *pl)
-{
-  struct blockstack *blk = 0, *new;
-  struct sh_process *pplist = 0; // processes piping into current level
-  int *urd = 0, pipes[2] = {-1, -1};
-  long i, j, k;
-
-  if (!pl) return;
-
-// TODO: "echo | read i" is backgroundable with ctrl-Z despite read = builtin.
-//       probably have to inline run_command here to do that? Implicit ()
-//       also "X=42 | true; echo $X" doesn't get X.
-//       I.E. run_subshell() here sometimes? (But when?)
-// TODO: bash supports "break &" and "break > file". No idea why.
-// TODO If we just started a new pipeline, implicit parentheses (subshell)
-// TODO can't free sh_process delete until ready to dispose else no debug output
 /*
-TODO: a | b | c needs subshell for builtins?
+ TODO: "echo | read i" is backgroundable with ctrl-Z despite read = builtin.
+       probably have to inline run_command here to do that? Implicit ()
+       also "X=42 | true; echo $X" doesn't get X.
+       I.E. run_subshell() here sometimes? (But when?)
+ TODO: bash supports "break &" and "break > file". No idea why.
+ TODO If we just started a new pipeline, implicit parentheses (subshell)
+ TODO can't free sh_process delete until ready to dispose else no debug output
+ TODO: a | b | c needs subshell for builtins?
         - anything that can produce output
         - echo declare dirs
       (a; b; c) like { } but subshell
       when to auto-exec? ps vs sh -c 'ps' vs sh -c '(ps)'
 */
 
-  TT.hfd = 10;
+// Add entry to runtime function call stack
+static void call_function(struct sh_function *func)
+{
+  struct sh_fcall *ff = xzalloc(sizeof(struct sh_fcall));
+
+  ff->next = TT.ff;
+  ff->func = func;
+  ff->pl = func->pipeline;
+  ff->pout = -1;
+  TT.ff = ff;
+}
+
+static struct sh_fcall *pop_function(struct sh_blockstack **blk)
+{
+  struct sh_fcall *ff = TT.ff;
+
+  if (!ff) return 0;
+
+  if (ff->pout != -1) close(ff->pout);
+  unredirect(ff->urd);
+
+  while (ff->blk) pop_block(0);
+  TT.ff = ff->next;
+  free(ff);
+  if (blk) *blk = TT.ff->blk;
+
+  return TT.ff;
+}
+
+// run a parsed shell function. Handle flow control blocks and characters,
+// setup pipes and block redirection, break/continue, call builtins, functions,
+// vfork/exec external commands. Return when out of input.
+static void run_lines(void)
+{
+  char *ctl, *s, *ss, **vv;
+  struct sh_blockstack *blk = TT.ff->blk;
+  struct sh_process *pplist = 0; // processes piping into current level
+  long i, j, k;
 
   // iterate through pipeline segments
-  while (pl) {
-    char *ctl = pl->end->arg->v[pl->end->arg->c], **vv,
-      *s = *pl->arg->v, *ss = pl->arg->v[1];
+  for (;;) {
+    // return from function
+    if (!TT.ff->pl) {
+      if (!TT.ff->next) break;
+      pop_function(&blk);
 
-    // Skip disabled blocks, handle pipes
-    TT.LINENO = pl->lineno;
-    if (pl->type<2) {
+      continue;
+    }
+
+    ctl = TT.ff->pl->end->arg->v[TT.ff->pl->end->arg->c];
+    s = *TT.ff->pl->arg->v;
+    ss = TT.ff->pl->arg->v[1];
+
+    TT.LINENO = TT.ff->pl->lineno;
+    if (!pplist) TT.hfd = 10;
+
+    // Skip disabled blocks, handle pipes and backgrounding
+    if (TT.ff->pl->type<2) {
       if (blk && !blk->run) {
-        pl = pl->end->next;
+        TT.ff->pl = TT.ff->pl->end->next;
+
         continue;
       }
 
@@ -2824,17 +2835,48 @@ TODO: a | b | c needs subshell for builtins?
           do_prompt(ss);
           free(ss);
 
-          ss = pl2str(pl, 1);
+          // TODO resolve variables
+          ss = pl2str(TT.ff->pl, 1);
           dprintf(2, "%s\n", ss);
           free(ss);
         }
       }
 
-      if (pipe_segments(ctl, pipes, &urd)) break;
+      // pipe data into and out of this segment, I.E. leading/trailing |
+      unredirect(TT.ff->urd);
+      TT.ff->urd = 0;
+
+      // Pipe from previous segment becomes our stdin.
+      if (TT.ff->pout != -1) {
+        if (save_redirect(&TT.ff->urd, TT.ff->pout, 0)) break;
+        close(TT.ff->pout);
+        TT.ff->pout = -1;
+      }
+
+      // are we piping output to the next segment?
+      if (ctl && *ctl == '|' && ctl[1] != '|') {
+        int pipes[2] = {-1, -1};
+
+        if (pipe(pipes)) {
+          perror_msg("pipe");
+// TODO record pipeline rc
+// TODO check did not reach end of pipeline after loop
+          break;
+        }
+        if (save_redirect(&TT.ff->urd, pipes[1], 1)) {
+          close(pipes[0]);
+          close(pipes[1]);
+
+          break;
+        }
+        if (pipes[1] != 1) close(pipes[1]);
+        fcntl(TT.ff->pout = *pipes, F_SETFD, FD_CLOEXEC);
+        if (ctl[1] == '&') save_redirect(&TT.ff->urd, 1, 2);
+      }
     }
 
     // Is this an executable segment?
-    if (!pl->type) {
+    if (!TT.ff->pl->type) {
 
       // Is it a flow control jump? These aren't handled as normal builtins
       // because they move *pl to other pipeline segments which is local here.
@@ -2843,128 +2885,132 @@ TODO: a | b | c needs subshell for builtins?
         // How many layers to peel off?
         i = ss ? atol(ss) : 0;
         if (i<1) i = 1;
-        if (!blk || pl->arg->c>2 || (ss && ss[strspn(ss, "0123456789")])) {
+        if (!blk || TT.ff->pl->arg->c>2 || (ss && ss[strspn(ss,"0123456789")])){
           syntax_err(s);
           break;
         }
 
-        while (i && blk)
+        while (i && blk) {
           if (blk->middle && !strcmp(*blk->middle->arg->v, "do")
-            && !--i && *s=='c') pl = blk->start;
-          else pl = pop_block(&blk, pipes);
+            && !--i && *s=='c') TT.ff->pl = blk->start;
+          else TT.ff->pl = pop_block(&blk);
+        }
         if (i) {
           syntax_err("break");
           break;
         }
-      } else {
-        // Parse and run next command, saving resulting process
-        dlist_add_nomalloc((void *)&pplist, (void *)run_command(pl->arg));
 
-        // Three cases: backgrounded&, pipelined|, last process in pipeline;
-        if (ctl && !strcmp(ctl, "&")) {
-          pplist->job = ++TT.jobcnt;
-          arg_add(&TT.jobs, (void *)pplist);
-          pplist = 0;
-        }
-      }
+      // Parse and run next command, saving resulting process
+      } else dlist_add_nomalloc((void *)&pplist,
+                                (void *)run_command(TT.ff->pl->arg));
 
     // Start of flow control block?
-    } else if (pl->type == 1) {
+    } else if (TT.ff->pl->type == 1) {
       struct sh_process *pp = 0;
       int rc;
 
       // Save new block and add it to the stack.
-      new = xzalloc(sizeof(*blk));
-      new->next = blk;
-      blk = new;
-      blk->start = pl;
+      blk = xzalloc(sizeof(*blk));
+      blk->next = TT.ff->blk;
+      blk->start = TT.ff->pl;
       blk->run = 1;
+      TT.ff->blk = blk;
 
       // push pipe and redirect context into block
-      blk->pout = *pipes;
-      *pipes = -1;
-      pp = expand_redir(pl->end->arg, 1, blk->urd = urd);
-      urd = 0;
+      blk->pout = TT.ff->pout;
+      TT.ff->pout = -1;
+      pp = expand_redir(TT.ff->pl->end->arg, 1, blk->urd = TT.ff->urd);
+      TT.ff->urd = 0;
       rc = pp->exit;
       if (pp->arg.c) {
         syntax_err(*pp->arg.v);
         rc = 1;
       }
 
-      // Cleanup if we're not doing a subshell
-      if (rc || strcmp(s, "(")) {
-        llist_traverse(pp->delete, free);
+// TODO test background a block: { abc; } &
+
+      // If we spawn a subshell, pass data off to child process
+      i = ctl && !strcmp(ctl, "&");
+      if (!rc && (blk->pout!=-1 || !strcmp(s, "(") || i)) {
+        // Create new process
+        if (!CFG_TOYBOX_FORK) {
+          ss = pl2str(TT.ff->pl->next, 0);
+          pp->pid = run_subshell(ss, strlen(ss));
+          free(ss);
+        } else if (!(pp->pid = fork())) {
+          // Clear the board in child process: run pl->next in root sh_fcall
+          // just leak rather than freeing, it's copy-on-write with parent
+          TT.ff->pl = TT.ff->pl->next;
+          TT.ff->next = 0;
+          blk = TT.ff->blk = 0;
+          pplist = 0;
+
+          continue;
+        }
+        TT.ff->pl = TT.ff->pl->end;
+        dlist_add_nomalloc((void *)&pplist, (void *)pp);
+
+      // handle start of block in this process
+      } else {
+        // clean up after redirects (if any)
+        llist_traverse(pp->delete, llist_free_arg);
         free(pp);
         if (rc) {
           toys.exitval = rc;
           break;
         }
-      } else {
-        // Create new process
-        if (!CFG_TOYBOX_FORK) {
-          ss = pl2str(pl->next, 0);
-          pp->pid = run_subshell(ss, strlen(ss));
-          free(ss);
-        } else if (!(pp->pid = fork())) {
-          run_function(pl->next);
-          _exit(toys.exitval);
-        }
 
-        // add process to current pipeline same as type 0
-        dlist_add_nomalloc((void *)&pplist, (void *)pp);
-        pl = pl->end;
-        continue;
-      }
+        // What flow control statement is this?
 
-      // What flow control statement is this?
+        // {/} if/then/elif/else/fi, while until/do/done - no special handling
 
-      // {/} if/then/elif/else/fi, while until/do/done - no special handling
-
-      // for/select/do/done: populate blk->farg with expanded arguments (if any)
-      if (!strcmp(s, "for") || !strcmp(s, "select")) {
-        if (blk->loop); // TODO: still needed?
-        else if (!strncmp(blk->fvar = ss, "((", 2)) {
-          blk->loop = 1;
+        // for/select/do/done: populate blk->farg with expanded args (if any)
+        if (!strcmp(s, "for") || !strcmp(s, "select")) {
+          if (blk->loop); // TODO: still needed?
+          else if (!strncmp(blk->fvar = ss, "((", 2)) {
+            blk->loop = 1;
 dprintf(2, "TODO skipped init for((;;)), need math parser\n");
 
-        // in LIST
-        } else if (pl->next->type == 's') {
-          for (i = 1; i<pl->next->arg->c; i++)
-            if (expand_arg(&blk->farg, pl->next->arg->v[i], 0, &blk->fdelete))
-              break;
-          if (i != pl->next->arg->c) pl = pop_block(&blk, pipes);
-        // in without LIST. (This expansion can't return error.)
-        } else expand_arg(&blk->farg, "\"$@\"", 0, &blk->fdelete);
+          // in LIST
+          } else if (TT.ff->pl->next->type == 's') {
+            for (i = 1; i<TT.ff->pl->next->arg->c; i++)
+              if (expand_arg(&blk->farg, TT.ff->pl->next->arg->v[i],
+                             0, &blk->fdelete)) break;
+            if (i != TT.ff->pl->next->arg->c) TT.ff->pl = pop_block(&blk);
+          // in without LIST. (This expansion can't return error.)
+          } else expand_arg(&blk->farg, "\"$@\"", 0, &blk->fdelete);
 
-        // TODO: ls -C style output
-        if (*s == 's') for (i = 0; i<blk->farg.c; i++)
-          dprintf(2, "%ld) %s\n", i+1, blk->farg.v[i]);
+          // TODO: ls -C style output
+          if (*s == 's') for (i = 0; i<blk->farg.c; i++)
+            dprintf(2, "%ld) %s\n", i+1, blk->farg.v[i]);
 
-      // TODO: bash man page says it performs <(process substituion) here?!?
-      } else if (!strcmp(s, "case"))
-        if (!(blk->fvar = expand_one_arg(ss, NO_NULL, &blk->fdelete))) break;
+        // TODO: bash man page says it performs <(process substituion) here?!?
+        } else if (!strcmp(s, "case"))
+          if (!(blk->fvar = expand_one_arg(ss, NO_NULL, &blk->fdelete))) break;
 
 // TODO [[/]] ((/)) function/}
+      }
 
     // gearshift from block start to block body (end of flow control test)
-    } else if (pl->type == 2) {
+    } else if (TT.ff->pl->type == 2) {
       int match, err;
 
-      blk->middle = pl;
+      blk->middle = TT.ff->pl;
 
       // ;; end, ;& continue through next block, ;;& test next block
       if (!strcmp(*blk->start->arg->v, "case")) {
         if (!strcmp(s, ";;")) {
-          while (pl->type!=3) pl = pl->end;
+          while (TT.ff->pl->type!=3) TT.ff->pl = TT.ff->pl->end;
           continue;
         } else if (strcmp(s, ";&")) {
           struct sh_arg arg = {0}, arg2 = {0};
 
           for (err = 0, vv = 0;;) {
             if (!vv) {
-              vv = pl->arg->v + (**pl->arg->v == ';');
+              vv = TT.ff->pl->arg->v + (**TT.ff->pl->arg->v == ';');
               if (!*vv) {
-                pl = pl->next; // TODO syntax err if not type==3, catch above
+                // TODO syntax err if not type==3, catch above
+                TT.ff->pl = TT.ff->pl->next;
                 break;
               } else vv += **vv == '(';
             }
@@ -2976,13 +3022,13 @@ dprintf(2, "TODO skipped init for((;;)), need math parser\n");
             if (match>=0 && !s[match]) break;
             else if (**vv++ == ')') {
               vv = 0;
-              if ((pl = pl->end)->type!=2) break;
+              if ((TT.ff->pl = TT.ff->pl->end)->type!=2) break;
             }
           }
           free(arg.v);
           free(arg2.v);
           if (err) break;
-          if (pl->type==3) continue;
+          if (TT.ff->pl->type==3) continue;
         }
 
       // Handle if/else/elif statement
@@ -2998,77 +3044,90 @@ dprintf(2, "TODO skipped init for((;;)), need math parser\n");
           do_prompt(getvar("PS3"));
 // TODO: ctrl-c not breaking out of this?
           if (!(ss = xgetline(stdin))) {
-            pl = pop_block(&blk, pipes);
+            TT.ff->pl = pop_block(&blk);
             printf("\n");
           } else if (!*ss) {
-            pl = blk->start;
+            TT.ff->pl = blk->start;
             continue;
           } else {
             match = atoi(ss);
             setvarval(blk->fvar, (match<1 || match>blk->farg.c)
               ? "" : blk->farg.v[match-1]);
           }
-        } else if (blk->loop >= blk->farg.c) pl = pop_block(&blk, pipes);
+        } else if (blk->loop >= blk->farg.c) TT.ff->pl = pop_block(&blk);
         else if (!strncmp(blk->fvar, "((", 2)) {
 dprintf(2, "TODO skipped running for((;;)), need math parser\n");
         } else setvarval(blk->fvar, blk->farg.v[blk->loop++]);
       }
 
-    // end of block, may have trailing redirections and/or pipe
-    } else if (pl->type == 3) {
+    // end of block
+    } else if (TT.ff->pl->type == 3) {
 
-      // if we end a block we're not in, we started in a block (subshell)
-      if (!blk) break;
+      // If we end a block we're not in, pop function context.
+      if (!blk) {
 
-      // repeating block?
-      if (blk->run && !strcmp(s, "done")) {
-        pl = blk->middle;
-        continue;
+        // Exit subshell if no function context left
+        if (!pop_function(&blk)) xexit();
+      } else {
+
+        // repeating block?
+        if (blk->run && !strcmp(s, "done")) {
+          TT.ff->pl = blk->middle;
+          continue;
+        }
+
+        // cleans up after trailing redirections/pipe
+        pop_block(&blk);
       }
+    } else if (TT.ff->pl->type == 'f') TT.ff->pl = add_function(s, TT.ff->pl);
 
-      pop_block(&blk, pipes);
-    } else if (pl->type == 'f') pl = add_function(s, pl);
-
-    // If we ran a process and didn't pipe output or background, wait for exit
-    if (pplist && *pipes == -1) {
-      toys.exitval = wait_pipeline(pplist);
-      llist_traverse(pplist, free_process);
+    // Three cases: background & pipeline | last process in pipeline ;
+    // If we ran a process and didn't pipe output, background or wait for exit
+    if (pplist && TT.ff->pout == -1) {
+      if (ctl && !strcmp(ctl, "&")) {
+        pplist->job = ++TT.jobcnt;
+        arg_add(&TT.jobs, (void *)pplist);
+      } else {
+        toys.exitval = wait_pipeline(pplist);
+        llist_traverse(pplist, free_process);
+      }
       pplist = 0;
     }
 
     // for && and || skip pipeline segment(s) based on return code
-    if (!pl->type || pl->type == 3) {
+    if (!TT.ff->pl->type || TT.ff->pl->type == 3) {
       while (ctl && !strcmp(ctl, toys.exitval ? "&&" : "||")) {
-        if ((pl = pl->next)->type) pl = pl->end;
-        ctl = pl->arg->v[pl->arg->c];
+        if ((TT.ff->pl = TT.ff->pl->next)->type) TT.ff->pl = TT.ff->pl->end;
+        ctl = TT.ff->pl->arg->v[TT.ff->pl->arg->c];
       }
     }
-    pl = pl->next;
+    TT.ff->pl = TT.ff->pl->next;
   }
 
-  // did we exit with unfinished stuff?
-  // TODO: current context isn't packaged into a block, so can't just pop it
-  if (*pipes != -1) close(*pipes);
+  // clean up any unfinished stuff
   if (pplist) {
     toys.exitval = wait_pipeline(pplist);
     llist_traverse(pplist, free_process);
   }
-  unredirect(urd);
-
-  // Cleanup from syntax_err();
-  while (blk) pop_block(&blk, pipes);
+  while (pop_function(0));
 }
 
 // Parse and run a self-contained command line with no prompt/continuation
 static int sh_run(char *new)
 {
   struct sh_function scratch;
+  void *ff = TT.ff;
 
 // TODO switch the fmemopen for -c to use this? Error checking? $(blah)
 // TODO Merge this with do_source()
 
   memset(&scratch, 0, sizeof(struct sh_function));
-  if (!parse_line(new, &scratch)) run_function(scratch.pipeline);
+  if (!parse_line(new, &scratch)) {
+    TT.ff = 0;
+    call_function(&scratch);
+    run_lines();
+    TT.ff = ff;
+  }
 // TODO else error?
   free_function(&scratch);
 
@@ -3184,7 +3243,10 @@ int do_source(char *name, FILE *ff)
     if (more==1) {
       if (!new && !ff) syntax_err("unexpected end of file");
     } else {
-      if (!more) run_function(cc->scratch.pipeline);
+      if (!more) {
+        call_function(&cc->scratch);
+        run_lines();
+      }
       free_function(&cc->scratch);
       more = 0;
     }
