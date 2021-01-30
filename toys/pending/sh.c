@@ -2158,8 +2158,9 @@ static struct sh_process *run_command(struct sh_arg *arg)
 // TODO: handle ((math)) currently totally broken
 // TODO: call functions()
   // Is this command a builtin that should run in this process?
-  else if (TT.ff->pout == -1 && (tl = toy_find(*pp->arg.v))
-    && (tl->flags & (TOYFLAG_NOFORK|TOYFLAG_MAYFORK)))
+  else if ((tl = toy_find(*pp->arg.v))
+    && ((tl->flags&TOYFLAG_NOFORK)
+      || (TT.ff->pout == -1 && (tl->flags&TOYFLAG_MAYFORK))))
   {
     sigjmp_buf rebound;
     char temp[jj = offsetof(struct toy_context, rebound)];
@@ -2168,10 +2169,9 @@ static struct sh_process *run_command(struct sh_arg *arg)
     memcpy(&temp, &toys, jj);
     memset(&toys, 0, jj);
 
-    // If we give the union in TT a name, the compiler complains
-    // "declaration does not declare anything", but if we DON'T give it a name
-    // it accepts it. So we can't use the union's type name here, and have
-    // to offsetof() the first thing _after_ the union to get the size.
+    // The compiler complains "declaration does not declare anything" if we
+    // name the union in TT, only works WITHOUT name. So we can't sizeof(union)
+    // instead offsetof() first thing after the union to get the size.
     memset(&TT, 0, offsetof(struct sh_data, ifs));
 
     TT.pp = pp;
@@ -2781,7 +2781,7 @@ static struct sh_fcall *pop_function(struct sh_blockstack **blk)
   while (ff->blk) pop_block(0);
   TT.ff = ff->next;
   free(ff);
-  if (blk) *blk = TT.ff->blk;
+  if (blk) *blk = TT.ff ? TT.ff->blk : 0;
 
   return TT.ff;
 }
@@ -2798,6 +2798,7 @@ static void run_lines(void)
 
   // iterate through pipeline segments
   for (;;) {
+
     // return from function
     if (!TT.ff->pl) {
       if (!TT.ff->next) break;
