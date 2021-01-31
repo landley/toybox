@@ -29,7 +29,7 @@ config TEST
     --- Tests with one argument on each side of an operator:
     Two strings:
       =  are identical   !=  differ         <   aaa<bbb        >   bbb>aaa
-      ~= matches regex
+
     Two integers:
       -eq  equal         -gt  first > second    -lt  first < second
       -ne  not equal     -ge  first >= second   -le  first <= second
@@ -100,7 +100,7 @@ void test_main(void)
   int pos, paren, pstack, result = 0;
 
   toys.exitval = 2;
-  if (!strcmp("[", toys.which->name))
+  if (CFG_TOYBOX && !strcmp("[", toys.which->name))
     if (!toys.optc || strcmp("]", toys.optargs[--toys.optc]))
       error_exit("Missing ']'");
 
