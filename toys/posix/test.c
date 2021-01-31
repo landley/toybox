@@ -5,7 +5,7 @@
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/test.html
 
 USE_TEST(NEWTOY(test, 0, TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_NOHELP|TOYFLAG_MAYFORK))
-USE_SH(OLDTOY([, test, TOYFLAG_NOFORK|TOYFLAG_NOHELP))
+USE_TOYBOX_TEST_GLUE(OLDTOY([, test, TOYFLAG_BIN|TOYFLAG_MAYFORK|TOYFLAG_NOHELP))
 
 config TEST
   bool "test"
@@ -28,7 +28,8 @@ config TEST
 
     --- Tests with one argument on each side of an operator:
     Two strings:
-      =  are identical   !=  differ
+      =  are identical   !=  differ         <   aaa<bbb        >   bbb>aaa
+      ~= matches regex
     Two integers:
       -eq  equal         -gt  first > second    -lt  first < second
       -ne  not equal     -ge  first >= second   -le  first <= second
@@ -36,6 +37,11 @@ config TEST
     --- Modify or combine tests:
       ! EXPR     not (swap true/false)   EXPR -a EXPR    and (are both true)
       ( EXPR )   evaluate this first     EXPR -o EXPR    or (is either true)
+
+config TOYBOX_TEST_GLUE
+  bool
+  default y
+  depends on TEST || SH
 */
 
 #include "toys.h"
