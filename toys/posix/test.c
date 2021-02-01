@@ -3,9 +3,11 @@
  * Copyright 2018 Rob Landley <rob@landley.net>
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/test.html
+ *
+ * TODO sh [[ ]] options: <   aaa<bbb  >   bbb>aaa   ~= regex
 
 USE_TEST(NEWTOY(test, 0, TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_NOHELP|TOYFLAG_MAYFORK))
-USE_TOYBOX_TEST_GLUE(OLDTOY([, test, TOYFLAG_BIN|TOYFLAG_MAYFORK|TOYFLAG_NOHELP))
+USE_TEST_GLUE(OLDTOY([, test, TOYFLAG_BIN|TOYFLAG_MAYFORK|TOYFLAG_NOHELP))
 
 config TEST
   bool "test"
@@ -28,7 +30,7 @@ config TEST
 
     --- Tests with one argument on each side of an operator:
     Two strings:
-      =  are identical   !=  differ         <   aaa<bbb        >   bbb>aaa
+      =  are identical   !=  differ
 
     Two integers:
       -eq  equal         -gt  first > second    -lt  first < second
@@ -38,7 +40,7 @@ config TEST
       ! EXPR     not (swap true/false)   EXPR -a EXPR    and (are both true)
       ( EXPR )   evaluate this first     EXPR -o EXPR    or (is either true)
 
-config TOYBOX_TEST_GLUE
+config TEST_GLUE
   bool
   default y
   depends on TEST || SH
