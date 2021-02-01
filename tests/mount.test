@@ -47,8 +47,8 @@ testing "-w $tmp_b_fs /mnt (write_only mode)" \
    sleep 1 && umount /mnt && ! test -e /mnt/testDir" "" "" ""
 reCreateTmpFs
 testing "-rw $tmp_b_fs /mnt (read_write mode)" \
-  'mount -rw $tmp_b_fs /mnt >/dev/null && mkdir /mnt/testDir && \
-   sleep 1 && ! test -e /mnt/testDir && umount /mnt' "" "" ""
+  "mount -rw $tmp_b_fs /mnt >/dev/null && mkdir /mnt/testDir && \
+   sleep 1 && ! test -e /mnt/testDir && umount /mnt" "" "" ""
 reCreateTmpFs
 testing "$tmp_b_fs /mnt -t fs_type" \
   "mount $tmp_b_fs /mnt -t $tmp_b_fs_type >/dev/null 2>&1 &&
