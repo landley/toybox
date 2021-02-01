@@ -60,3 +60,9 @@ rm -rf d1
 touch "meep"
 testing "-v" "rm -v meep | sed 's/emoved/m/'" "rm 'meep'\n" "" ""
 rm -f meep
+
+skipnot [ $(id -u) -eq 0 ]
+testing "-f <readonly_filesystem>/<missing_file>" \
+  "rm -rf mnt_point && mkdir -p mnt_point &&
+  mount -t tmpfs -o ro none ./mnt_point && rm -f mnt_point/missing_file &&
+  echo yes; umount ./mnt_point; rm -rf mnt_point" "yes\n" "" ""
