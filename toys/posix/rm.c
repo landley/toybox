@@ -90,7 +90,6 @@ nodelete:
 void rm_main(void)
 {
   char **s;
-  struct stat st;
 
   // Can't use <1 in optstring because zero arguments with -f isn't an error
   if (!toys.optc && !FLAG(f)) help_exit("Needs 1 argument");
@@ -106,15 +105,13 @@ void rm_main(void)
       continue;
     }
 
-    // Files that already don't exist aren't errors for -f.
-    // We explicitly use lstat() but not faccessat() because Android bionic
-    // intentionally don't support AT_SYMLINK_NOFOLLOW.
-    if (FLAG(f) && lstat(*s, &st) && errno == ENOENT) continue;
+    // Files that already don't exist aren't errors for -f. Use lstat() instead
+    // of faccessat() because bionic doesn't support AT_SYMLINK_NOFOLLOW
+    if (FLAG(f) && lstat(*s, (void *)toybuf) && errno == ENOENT) continue;
 
     // There's a race here where a file removed between the above check and
     // dirtree's stat would report the nonexistence as an error, but that's
     // not a normal "it didn't exist" so I'm ok with it.
-
     dirtree_read(*s, do_rm);
   }
 }
