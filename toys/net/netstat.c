@@ -43,6 +43,7 @@ static void addr2str(int af, void *addr, unsigned port, char *buf, int len,
   int pos, count;
   struct servent *ser = 0;
 
+// TODO lib/net.c has ntop()
   // Convert to numeric address
   if (!inet_ntop(af, addr, buf, 256)) {
     *buf = 0;
@@ -60,7 +61,8 @@ static void addr2str(int af, void *addr, unsigned port, char *buf, int len,
     return;
   }
 
-  if (!(toys.optflags & FLAG_n)) {
+// TODO xgetaddrinfo()
+  if (!FLAG(n)) {
     struct addrinfo hints, *result, *rp;
     char cut[4];
 
@@ -107,14 +109,9 @@ static void show_ip(char *fname)
   char *state_label[] = {"", "ESTABLISHED", "SYN_SENT", "SYN_RECV", "FIN_WAIT1",
                          "FIN_WAIT2", "TIME_WAIT", "CLOSE", "CLOSE_WAIT",
                          "LAST_ACK", "LISTEN", "CLOSING", "UNKNOWN"};
-  struct passwd *pw;
   FILE *fp = fopen(fname, "r");
 
-  if (!fp) {
-     perror_msg("'%s'", fname);
-     return;
-  }
-
+  if (!fp) return perror_msg("'%s'", fname);
   if(!fgets(toybuf, sizeof(toybuf), fp)) return; //skip header.
 
   while (fgets(toybuf, sizeof(toybuf), fp)) {
@@ -127,27 +124,23 @@ static void show_ip(char *fname)
     unsigned long inode;
 
     // Try ipv6, then try ipv4
-    nitems = sscanf(toybuf,
+    if (16 != sscanf(toybuf,
       " %d: %8x%8x%8x%8x:%x %8x%8x%8x%8x:%x %x %x:%x %*X:%*X %*X %d %*d %ld",
       &num, &laddr.i6.u.a, &laddr.i6.u.b, &laddr.i6.u.c,
       &laddr.i6.u.d, &lport, &raddr.i6.u.a, &raddr.i6.u.b,
       &raddr.i6.u.c, &raddr.i6.u.d, &rport, &state, &txq, &rxq,
-      &uid, &inode);
-
-    if (nitems!=16) {
-      nitems = sscanf(toybuf,
+      &uid, &inode))
+    {
+      nitems = AF_INET;
+      if (10 != sscanf(toybuf,
         " %d: %x:%x %x:%x %x %x:%x %*X:%*X %*X %d %*d %ld",
         &num, &laddr.i4.u, &lport, &raddr.i4.u, &rport, &state, &txq,
-        &rxq, &uid, &inode);
-
-      if (nitems!=10) continue;
-      nitems = AF_INET;
+        &rxq, &uid, &inode)) continue;
     } else nitems = AF_INET6;
 
     // Should we display this? (listening or all or TCP/UDP/RAW)
-    if (!((toys.optflags & FLAG_l) && (!rport && (state & 0xA)))
-      && !(toys.optflags & FLAG_a) && !(rport & (0x10 | 0x20 | 0x40)))
-        continue;
+    if (!(FLAG(l) && (!rport && (state&0xA))) && !FLAG(a) && !(rport&0x70))
+      continue;
 
     addr2str(nitems, &laddr, lport, lip, TT.wpad, label);
     addr2str(nitems, &raddr, rport, rip, TT.wpad, label);
@@ -163,15 +156,14 @@ static void show_ip(char *fname)
       else if (state == 7) ss_state = "";
     } else if (strstart(&s, "raw")) sprintf(ss_state = buf, "%u", state);
 
-    if (!(toys.optflags & FLAG_n) && (pw = bufgetpwuid(uid)))
-      snprintf(toybuf, sizeof(toybuf), "%s", pw->pw_name);
-    else snprintf(toybuf, sizeof(toybuf), "%d", uid);
-
-    printf("%-6s%6d%7d ", label, rxq, txq);
-    printf("%*.*s %*.*s ", -TT.wpad, TT.wpad, lip, -TT.wpad, TT.wpad, rip);
-    printf("%-11s", ss_state);
-    if ((toys.optflags & FLAG_e)) printf(" %-10s %-11ld", toybuf, inode);
-    if ((toys.optflags & FLAG_p)) {
+    printf("%-6s%6d%7d %*.*s %*.*s %-11s", label, rxq, txq, -TT.wpad, TT.wpad,
+      lip, -TT.wpad, TT.wpad, rip, ss_state);
+    if (FLAG(e)) {
+      if (FLAG(n)) sprintf(s = toybuf, "%d", uid);
+      else s = getusername(uid);
+      printf(" %-10s %-11ld", s, inode);
+    }
+    if (FLAG(p)) {
       struct num_cache *nc = get_num_cache(TT.inodes, inode);
 
       printf(" %s", nc ? nc->data : "-");
@@ -210,10 +202,9 @@ static void show_unix_sockets(void)
     if (type>ARRAY_LEN(types)) type = 0;
     if (state>ARRAY_LEN(states) || (state==1 && !flags)) state = 0;
     sprintf(toybuf, "[ %s]", flags ? "ACC " : "");
-
     printf("unix  %-6ld %-11s %-10s %-13s %8lu ",
       refcount, toybuf, types[type], states[state], inode);
-    if (toys.optflags & FLAG_p) {
+    if (FLAG(p)) {
       struct num_cache *nc = get_num_cache(TT.inodes, inode);
 
       printf("%-19.19s", nc ? nc->data : "-");
@@ -244,13 +235,8 @@ static int scan_pids(struct dirtree *node)
 
   sprintf(s, "%d/fd", pid);
   if (-1==(dirfd = openat(dirtree_parentfd(node), s, O_RDONLY))) return 0;
-  if (!(dp = fdopendir(dirfd))) {
-    close(dirfd);
-
-    return 0;
-  }
-
-  while ((entry = readdir(dp))) {
+  if (!(dp = fdopendir(dirfd))) close(dirfd);
+  else while ((entry = readdir(dp))) {
     s = toybuf+256;
     if (!readlinkat0(dirfd, entry->d_name, s, sizeof(toybuf)-256)) continue;
     // Can the "[0000]:" happen in a modern kernel?
@@ -266,9 +252,7 @@ static int scan_pids(struct dirtree *node)
   return 0;
 }
 
-/*
- * extract inet4 route info from /proc/net/route file and display it.
- */
+// extract inet4 route info from /proc/net/route file and display it.
 static void display_routes(void)
 {
   static const char flagchars[] = "GHRDMDAC";
@@ -324,8 +308,7 @@ static void display_routes(void)
     if (flags & RTF_REJECT) *flag_val = '!';
 
     printf("%-15.15s %-15.15s %-16s%-6s", destip, gateip, maskip, flag_val);
-    if (!(toys.optflags & FLAG_e))
-      printf("%5d %-5d %6d %s\n", mss, win, irtt, iface);
+    if (!FLAG(e)) printf("%5d %-5d %6d %s\n", mss, win, irtt, iface);
     else printf("%-6d %-2d %7d %s\n", metric, ref, use, iface);
   }
 
@@ -337,47 +320,46 @@ void netstat_main(void)
   int tuwx = FLAG_t|FLAG_u|FLAG_w|FLAG_x;
   char *type = "w/o";
 
-  TT.wpad = (toys.optflags&FLAG_W) ? 51 : 23;
+  TT.wpad = FLAG(W) ? 51 : 23;
   if (!(toys.optflags&(FLAG_r|tuwx))) toys.optflags |= tuwx;
-  if (toys.optflags & FLAG_r) display_routes();
+  if (FLAG(r)) display_routes();
   if (!(toys.optflags&tuwx)) return;
 
-  if (toys.optflags & FLAG_a) type = "established and";
-  else if (toys.optflags & FLAG_l) type = "only";
+  if (FLAG(a)) type = "established and";
+  else if (FLAG(l)) type = "only";
 
-  if (toys.optflags & FLAG_p) dirtree_read("/proc", scan_pids);
+  if (FLAG(p)) dirtree_read("/proc", scan_pids);
 
   if (toys.optflags&(FLAG_t|FLAG_u|FLAG_w)) {
     printf("Active %s (%s servers)\n", "Internet connections", type);
     printf("Proto Recv-Q Send-Q %*s %*s State      ", -TT.wpad, "Local Address",
       -TT.wpad, "Foreign Address");
-    if (toys.optflags & FLAG_e) printf(" User       Inode      ");
-    if (toys.optflags & FLAG_p) printf(" PID/Program Name");
+    if (FLAG(e)) printf(" User       Inode      ");
+    if (FLAG(p)) printf(" PID/Program Name");
     xputc('\n');
 
-    if (toys.optflags & FLAG_t) {
+    if (FLAG(t)) {
       show_ip("/proc/net/tcp");
       show_ip("/proc/net/tcp6");
     }
-    if (toys.optflags & FLAG_u) {
+    if (FLAG(u)) {
       show_ip("/proc/net/udp");
       show_ip("/proc/net/udp6");
     }
-    if (toys.optflags & FLAG_w) {
+    if (FLAG(w)) {
       show_ip("/proc/net/raw");
       show_ip("/proc/net/raw6");
     }
   }
 
-  if (toys.optflags & FLAG_x) {
+  if (FLAG(x)) {
     printf("Active %s (%s servers)\n", "UNIX domain sockets", type);
 
     printf("Proto RefCnt Flags\t Type\t    State\t    %s Path\n",
-      (toys.optflags&FLAG_p) ? "PID/Program Name" : "I-Node");
+      FLAG(p) ? "PID/Program Name" : "I-Node");
     show_unix_sockets();
   }
 
-  if ((toys.optflags & FLAG_p) && CFG_TOYBOX_FREE)
-    llist_traverse(TT.inodes, free);
+  if (FLAG(p) && CFG_TOYBOX_FREE) llist_traverse(TT.inodes, free);
   toys.exitval = 0;
 }
