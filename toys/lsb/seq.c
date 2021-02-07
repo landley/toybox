@@ -53,7 +53,8 @@ static double parsef(char *s)
 }
 
 // fast integer conversion to decimal string
-char *itoa(char *s, int i)
+// TODO move to lib?
+static char *itoa(char *s, int i)
 {
   char buf[16], *ff = buf;
   unsigned n = i;
@@ -69,10 +70,9 @@ char *itoa(char *s, int i)
   return s;
 }
 
-char *flush_toybuf(char *ss)
+static char *flush_toybuf(char *ss)
 {
   if (ss-toybuf<TT.buflen) return ss;
-
   xwrite(1, toybuf, ss-toybuf); 
 
   return toybuf;

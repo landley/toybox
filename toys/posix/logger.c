@@ -30,7 +30,8 @@ GLOBALS(
 
 // find str in names[], accepting unambiguous short matches
 // returns offset into array of match, or -1 if no match
-int arrayfind(char *str, char *names[], int len)
+// TODO: move to lib?
+static int arrayfind(char *str, char *names[], int len)
 {
   int j, i, ll = 0, maybe = -1;
 

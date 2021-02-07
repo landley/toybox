@@ -37,7 +37,7 @@ struct bitbuf {
 };
 
 // malloc a struct bitbuf
-struct bitbuf *bitbuf_init(int fd, int size)
+static struct bitbuf *bitbuf_init(int fd, int size)
 {
   struct bitbuf *bb = xzalloc(sizeof(struct bitbuf)+size);
 
@@ -49,7 +49,7 @@ struct bitbuf *bitbuf_init(int fd, int size)
 
 // Advance bitpos without the overhead of recording bits
 // Loads more data when input buffer empty
-void bitbuf_skip(struct bitbuf *bb, int bits)
+static void bitbuf_skip(struct bitbuf *bb, int bits)
 {
   int pos = bb->bitpos + bits, len = bb->len << 3;
 
@@ -75,7 +75,7 @@ static inline int bitbuf_bit(struct bitbuf *bb)
 }
 
 // Fetch the next X bits from the bitbuf, little endian
-unsigned bitbuf_get(struct bitbuf *bb, int bits)
+static unsigned bitbuf_get(struct bitbuf *bb, int bits)
 {
   int result = 0, offset = 0;
 
@@ -98,7 +98,7 @@ unsigned bitbuf_get(struct bitbuf *bb, int bits)
   return result;
 }
 
-void bitbuf_flush(struct bitbuf *bb)
+static void bitbuf_flush(struct bitbuf *bb)
 {
   if (!bb->bitpos) return;
 
@@ -107,7 +107,7 @@ void bitbuf_flush(struct bitbuf *bb)
   bb->bitpos = 0;
 }
 
-void bitbuf_put(struct bitbuf *bb, int data, int len)
+static void bitbuf_put(struct bitbuf *bb, int data, int len)
 {
   while (len) {
     int click = bb->bitpos >> 3, blow, blen;
@@ -411,7 +411,7 @@ static int is_gzip(struct bitbuf *bb)
   return 1;
 }
 
-void gzip_crc(struct deflate *dd, char *data, int len)
+static void gzip_crc(struct deflate *dd, char *data, int len)
 {
   int i;
   unsigned crc, *crc_table = dd->crctable;

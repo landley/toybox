@@ -55,7 +55,7 @@ static void handler(int i)
 
 // timeval inexplicably makes up a new type for microseconds, despite timespec's
 // nanoseconds field (needing to store 1000* the range) using "long". Bravo.
-void xparsetimeval(char *s, struct timeval *tv)
+static void xparsetimeval(char *s, struct timeval *tv)
 {
   long ll;
 

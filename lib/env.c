@@ -8,7 +8,7 @@ extern char **environ;
 // Returns the number of bytes taken by the environment variables. For use
 // when calculating the maximum bytes of environment+argument data that can
 // be passed to exec for find(1) and xargs(1).
-long environ_bytes()
+long environ_bytes(void)
 {
   long bytes = sizeof(char *);
   char **ev;

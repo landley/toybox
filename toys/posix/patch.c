@@ -259,7 +259,7 @@ done:
 }
 
 // read a filename that has been quoted or escaped
-char *unquote_file(char *filename)
+static char *unquote_file(char *filename)
 {
   char *s = filename, *t;
 

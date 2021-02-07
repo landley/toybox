@@ -287,7 +287,7 @@ int human_readable(char *buf, unsigned long long num, int style);
 
 // env.c
 
-long environ_bytes();
+long environ_bytes(void);
 char *xsetenv(char *name, char *val);
 void xunsetenv(char *name);
 char *xpop_env(char *name); // because xpopenv() looks like xpopen_v()
@@ -404,7 +404,7 @@ struct mtab_list *xgetmountlist(char *path);
 void generic_signal(int signal);
 void exit_signal(int signal);
 void sigatexit(void *handler);
-void list_signals();
+void list_signals(void);
 
 mode_t string_to_mode(char *mode_str, mode_t base);
 void mode_to_string(mode_t mode, char *buf);

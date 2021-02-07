@@ -1280,7 +1280,7 @@ static void default_ko(char *s, void *fields, char *err, struct arg_list *arg)
   if (x) help_help();
 }
 
-void common_setup(void)
+static void common_setup(void)
 {
   char buf[128];
   int i;

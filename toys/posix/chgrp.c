@@ -100,7 +100,7 @@ void chgrp_main(void)
   if (CFG_TOYBOX_FREE && ischown) free(own);
 }
 
-void chown_main()
+void chown_main(void)
 {
   chgrp_main();
 }

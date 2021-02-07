@@ -228,7 +228,7 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt, int shrt)
 
 // Parse this command's options string into struct getoptflagstate, which
 // includes a struct opts linked list in reverse order (I.E. right-to-left)
-int parse_optflaglist(struct getoptflagstate *gof)
+static int parse_optflaglist(struct getoptflagstate *gof)
 {
   char *options = toys.which->options;
   long *nextarg = (long *)&this;

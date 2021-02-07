@@ -113,8 +113,8 @@ int dirtree_parentfd(struct dirtree *node)
 // returns NULL. If !callback return top node unchanged.
 // If !new return DIRTREE_ABORTVAL
 
-struct dirtree *dirtree_handle_callback(struct dirtree *new,
-          int (*callback)(struct dirtree *node))
+static struct dirtree *dirtree_handle_callback(struct dirtree *new,
+  int (*callback)(struct dirtree *node))
 {
   int flags;
 

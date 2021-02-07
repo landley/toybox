@@ -33,7 +33,7 @@ GLOBALS(
 )
 
 // When a child process exits, stop tracking them. Handle errors for -be
-void watch_child(int sig)
+static void watch_child(int sig)
 {
   int status;
   pid_t pid = wait(&status);
@@ -41,8 +41,8 @@ void watch_child(int sig)
   status = WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status)+127;
   if (status) {
     // TODO should this be beep()?
-    if (toys.optflags&FLAG_b) putchar('\b');
-    if (toys.optflags&FLAG_e) {
+    if (FLAG(b)) putchar('\b');
+    if (FLAG(e)) {
       printf("Exit status %d\r\n", status);
       tty_reset();
       _exit(status);
@@ -55,7 +55,7 @@ void watch_child(int sig)
 
 // Return early for low-ascii characters with special behavior,
 // discard remaining low ascii, escape other unprintable chars normally
-int watch_escape(FILE *out, int cols, int wc)
+static int watch_escape(FILE *out, int cols, int wc)
 {
   if (wc==27 || (wc>=7 && wc<=13)) return -1;
   if (wc < 32) return 0;
@@ -99,7 +99,7 @@ void watch_main(void)
       start_redraw(&width, &height);
 
       // redraw the header
-      if (!(toys.optflags&FLAG_t)) {
+      if (!FLAG(t)) {
         time_t t = time(0);
         int pad, ctimelen;
 

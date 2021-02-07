@@ -146,7 +146,7 @@ void toy_init(struct toy_list *which, char *argv[])
 
 // Run an internal toybox command.
 // Only returns if it can't run command internally, otherwise xexit() when done.
-void toy_exec_which(struct toy_list *which, char *argv[])
+static void toy_exec_which(struct toy_list *which, char *argv[])
 {
   // Return if we can't find it (which includes no multiplexer case),
   if (!which || (which->flags&TOYFLAG_NOFORK)) return;

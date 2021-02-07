@@ -29,7 +29,8 @@ GLOBALS(
   int fd;
 )
 
-void safe_shutdown(int ignored) {
+static void safe_shutdown(int ignored)
+{
   write(TT.fd, "V", 1);
   close(TT.fd);
   error_exit("safely exited watchdog.");

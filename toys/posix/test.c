@@ -49,7 +49,7 @@ config TEST_GLUE
 #include "toys.h"
 
 // Consume 3, 2, or 1 argument test, returning result and *count used.
-int do_test(char **args, int *count)
+static int do_test(char **args, int *count)
 {
   char c, *s;
   int i;
