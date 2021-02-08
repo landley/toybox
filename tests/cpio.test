@@ -39,7 +39,7 @@ rm a bb ccc dddd
 
 # archive dangling symlinks and empty files even if we cannot open them
 touch a; chmod a-rwx a; ln -s a/cant b
-toyonly testing "archives unreadable empty files" "cpio -o -H newc|cpio -it" "a\nb\n" "" "a\nb\n"
+toyonly testing "archives unreadable empty files" "cpio -o -H newc|cpio -it" "b\na\n" "" "b\na\n"
 chmod u+rw a; rm -f a b
 
 

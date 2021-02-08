@@ -229,6 +229,7 @@ void cpio_main(void)
       struct stat st;
       unsigned nlen, error = 0, zero = 0;
       int len, fd = -1;
+      char *link = 0;
       ssize_t llen;
 
       len = getline(&name, &size, stdin);
@@ -236,11 +237,14 @@ void cpio_main(void)
       if (name[len-1] == '\n') name[--len] = 0;
       nlen = len+1;
       if (lstat(name, &st) || (S_ISREG(st.st_mode)
-          && st.st_size && (fd = open(name, O_RDONLY))<0))
+          && st.st_size && (fd = open(name, O_RDONLY))<0)
+          || (S_ISLNK(st.st_mode) && !(link = xreadlink(name))))
       {
         perror_msg_raw(name);
         continue;
       }
+      // encrypted filesystems can stat the wrong link size
+      if (link) st.st_size = strlen(link);
 
       if (FLAG(no_preserve_owner)) st.st_uid = st.st_gid = 0;
       if (!S_ISREG(st.st_mode) && !S_ISLNK(st.st_mode)) st.st_size = 0;
@@ -260,14 +264,9 @@ void cpio_main(void)
         if (llen) xwrite(afd, &zero, 4-llen);
 
         // Write out body for symlink or regular file
-        llen = st.st_size;
-        if (S_ISLNK(st.st_mode)) {
-          if (readlink(name, toybuf, sizeof(toybuf)-1) == llen)
-            xwrite(afd, toybuf, llen);
-          else perror_msg("readlink '%s'", name);
-        } else while (llen) {
+        if (link) xwrite(afd, link, st.st_size);
+        else for (llen = st.st_size; llen; llen -= nlen) {
           nlen = llen > sizeof(toybuf) ? sizeof(toybuf) : llen;
-          llen -= nlen;
           // If read fails, write anyway (already wrote size in header)
           if (nlen != readall(fd, toybuf, nlen))
             if (!error++) perror_msg("bad read from file '%s'", name);
@@ -276,7 +275,8 @@ void cpio_main(void)
         llen = st.st_size & 3;
         if (llen) xwrite(afd, &zero, 4-llen);
       }
-      close(fd);
+      free(link);
+      xclose(fd);
     }
     free(name);
 
