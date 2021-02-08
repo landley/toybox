@@ -65,7 +65,7 @@ static void do_split(int infd, char *in)
       if (j) error_exit("bad suffix");
       bytesleft = TT.b;
       linesleft = TT.l;
-      if (outfd != -1) close(outfd);
+      xclose(outfd);
       outfd = xcreate(TT.outfile, O_RDWR|O_CREAT|O_TRUNC, st.st_mode & 0777);
     }
 
@@ -86,7 +86,7 @@ static void do_split(int infd, char *in)
   }
 
   if (CFG_TOYBOX_FREE) {
-    if (outfd != -1) close(outfd);
+    xclose(outfd);
     if (infd) close(infd);
     free(TT.outfile);
   }

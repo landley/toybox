@@ -52,7 +52,7 @@ GLOBALS(
 static int loopback_setup(char *device, char *file)
 {
   struct loop_info64 *loop = (void *)(toybuf+32);
-  int lfd = -1, ffd = ffd;
+  int lfd = -1, ffd = -1;
   int racy = !device;
 
   // Open file (ffd) and loop device (lfd)
@@ -129,8 +129,8 @@ static int loopback_setup(char *device, char *file)
   }
 
 done:
-  if (file) close(ffd);
-  if (lfd != -1) close(lfd);
+  xclose(ffd);
+  xclose(lfd);
   return 0;
 }
 

@@ -84,5 +84,5 @@ void hwclock_main()
     if (settimeofday(&timeval, &tzone)) perror_exit("settimeofday failed");
   }
 
-  if (fd != -1) close(fd);
+  xclose(fd);
 }

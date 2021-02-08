@@ -416,7 +416,7 @@ void xpipe(int *pp)
 
 void xclose(int fd)
 {
-  if (close(fd)) perror_exit("xclose");
+  if (fd != -1 && close(fd)) perror_exit("xclose");
 }
 
 int xdup(int fd)
