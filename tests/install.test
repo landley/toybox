@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# TODO: fill this out.
+# TODO: "make install" means something else, so no test_install, only callable
+# from "make tests"...
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+dd if=/dev/urandom of=random bs=64 count=1 2> /dev/null
+testing "install -D exists" \
+  "mkdir -p a; touch a/b; install -D random a/b && cmp random a/b && echo yes" \
+  "yes\n" "" ""
+rm -rf a random
