@@ -30,16 +30,17 @@ config ULIMIT
     (or read-only -ap selected) display current value (sizes in bytes).
     Default is ulimit -P $PPID -Sf" (show soft filesize of your shell).
     
-    -S  Set/show soft limit          -H  Set/show hard (maximum) limit
-    -a  Show all limits              -c  Core file size
-    -d  Process data segment         -e  Max scheduling priority
-    -f  Output file size             -i  Pending signal count
-    -l  Locked memory                -m  Resident Set Size
-    -n  Number of open files         -p  Pipe buffer
-    -q  Posix message queue          -r  Max Real-time priority
-    -R  Realtime latency (usec)      -s  Stack size
-    -t  Total CPU time (in seconds)  -u  Maximum processes (under this UID)
-    -v  Virtual memory size          -P  PID to affect (default $PPID)
+    -P  PID to affect (default $PPID)  -a  Show all limits
+    -S  Set/show soft limit            -H  Set/show hard (maximum) limit
+
+    -c  Core file size (blocks)        -d  Process data segment (KiB)
+    -e  Max scheduling priority        -f  File size (KiB)
+    -i  Pending signal count           -l  Locked memory (KiB)
+    -m  Resident Set Size (KiB)        -n  Number of open files
+    -p  Pipe buffer (512 bytes)        -q  POSIX message queues
+    -r  Max realtime priority          -R  Realtime latency (us)
+    -s  Stack size (KiB)               -t  Total CPU time (s)
+    -u  Maximum processes (this UID)   -v  Virtual memory size (KiB)
 */
 
 #define FOR_ulimit
@@ -55,17 +56,25 @@ int prlimit(pid_t pid, int resource, const struct rlimit *new_limit,
   struct rlimit *old_limit);
 
 // I'd like to sort the RLIMIT values 0-15, but mips, alpha and sparc
-// override the asm-generic values for 5-9. Also, the kernel implementation
-// of RLIMIT_LOCKS (-x) was removed from Linux in 2003.
+// override the asm-generic values for 5-9, and alphabetical order is nice for
+// humans anyway.
 void ulimit_main(void)
 {
   struct rlimit rr;
   int i;
-  // Order is cdefilmnqRrstuv
-  char map[] = {RLIMIT_CORE, RLIMIT_DATA, RLIMIT_NICE, RLIMIT_FSIZE,
-                RLIMIT_SIGPENDING, RLIMIT_MEMLOCK, RLIMIT_RSS, RLIMIT_NOFILE, 0,
-                RLIMIT_MSGQUEUE, RLIMIT_RTTIME, RLIMIT_RTPRIO, RLIMIT_STACK,
-                RLIMIT_CPU, RLIMIT_NPROC, RLIMIT_AS};
+  // map and desc are in the same order as flags.
+  // The Linux kernel implementation of RLIMIT_LOCKS (-x) was removed in 2003.
+  char *flags="cdefilmnpqRrstuv";
+  char map[] = {RLIMIT_CORE, RLIMIT_DATA, RLIMIT_NICE,
+    RLIMIT_FSIZE, RLIMIT_SIGPENDING, RLIMIT_MEMLOCK,
+    RLIMIT_RSS, RLIMIT_NOFILE, 0, RLIMIT_MSGQUEUE,
+    RLIMIT_RTTIME, RLIMIT_RTPRIO, RLIMIT_STACK, RLIMIT_CPU, RLIMIT_NPROC,
+    RLIMIT_AS};
+  char *desc[]={"core dump size (blocks)", "data size (KiB)", "max nice",
+    "file size (blocks)", "pending signals", "locked memory (KiB)",
+    "RSS (KiB)", "open files", "pipe size (512 bytes)", "message queues",
+    "RT time (us)", "RT priority", "stack (KiB)", "cpu time (s)", "processes",
+    "address space (KiB)"};
 
   if (!(toys.optflags&(FLAG_H-1))) toys.optflags |= FLAG_f;
   if ((FLAG(a)||FLAG(p)) && toys.optc) error_exit("can't set -ap");
@@ -74,13 +83,11 @@ void ulimit_main(void)
   if (!FLAG(P)) TT.P = getppid();
 
   for (i=0; i<sizeof(map); i++) {
-    char *flags="cdefilmnpqRrstuv";
-
     int get = toys.optflags&(FLAG_a|(1<<i));
 
     if (get && prlimit(TT.P, map[i], 0, &rr)) perror_exit("-%c", flags[i]);
     if (!toys.optc) {
-      if (FLAG(a)) printf("-%c: ", flags[i]);
+      if (FLAG(a)) printf("-%c: %-25s ", flags[i], desc[i]);
       if (get) {
         if ((1<<i)&FLAG_p) {
           if (FLAG(H))
