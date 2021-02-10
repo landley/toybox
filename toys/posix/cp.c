@@ -17,7 +17,7 @@
 
 USE_CP(NEWTOY(cp, "<2(preserve):;D(parents)RHLPprdaslvnF(remove-destination)fiT[-HLPd][-ni]", TOYFLAG_BIN))
 USE_MV(NEWTOY(mv, "<2vnF(remove-destination)fiT[-ni]", TOYFLAG_BIN))
-USE_INSTALL(NEWTOY(install, "<1cdDpsvm:o:g:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_INSTALL(NEWTOY(install, "<1cdDpsvt:m:o:g:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config CP
   bool "cp"
@@ -71,7 +71,7 @@ config INSTALL
   bool "install"
   default y
   help
-    usage: install [-dDpsv] [-o USER] [-g GROUP] [-m MODE] [SOURCE...] DEST
+    usage: install [-dDpsv] [-o USER] [-g GROUP] [-m MODE] [-t TARGET] [SOURCE...] DEST
 
     Copy files and set attributes.
 
@@ -82,6 +82,7 @@ config INSTALL
     -o	Make copy belong to USER
     -p	Preserve timestamps
     -s	Call "strip -p"
+    -t	Copy files to TARGET dir (no DEST)
     -v	Verbose
 */
 
@@ -93,7 +94,7 @@ GLOBALS(
   union {
     // install's options
     struct {
-      char *g, *o, *m;
+      char *g, *o, *m, *t;
     } i;
     // cp's options
     struct {
@@ -359,7 +360,7 @@ static int cp_node(struct dirtree *try)
 
 void cp_main(void)
 {
-  char *destname = toys.optargs[--toys.optc];
+  char *destname = TT.i.t ? : toys.optargs[--toys.optc];
   int i, destdir = !stat(destname, &TT.top) && S_ISDIR(TT.top.st_mode);
 
   if (FLAG(T)) {
@@ -367,7 +368,7 @@ void cp_main(void)
     if (destdir) error_exit("'%s' is a directory", destname);
   }
 
-  if ((toys.optc>1 || FLAG(D)) && !destdir)
+  if ((toys.optc>1 || FLAG(D) || TT.i.t) && !destdir)
     error_exit("'%s' not directory", destname);
 
   if (FLAG(a)||FLAG(p)) TT.pflags = _CP_mode|_CP_ownership|_CP_timestamps;
