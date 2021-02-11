@@ -11,13 +11,14 @@ USE_SHA3SUM(NEWTOY(sha3sum, "bSa#<128>512=224", TOYFLAG_USR|TOYFLAG_BIN))
 
 config SHA3SUM
   bool "sha3sum"
-  default n
+  default y
   help
     usage: sha3sum [-S] [-a BITS] [FILE...]
 
     Hash function du jour.
 
     -a	Produce a hash BITS long (default 224)
+    -b	Brief (hash only, no filename)
     -S	Use SHAKE termination byte instead of SHA3 (ask FIPS why)
 */
 
