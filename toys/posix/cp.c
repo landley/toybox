@@ -15,15 +15,15 @@
 // options shared between mv/cp must be in same order (right to left)
 // for FLAG macros to work out right in shared infrastructure.
 
-USE_CP(NEWTOY(cp, "<2(preserve):;D(parents)RHLPprdaslvnF(remove-destination)fiT[-HLPd][-ni]", TOYFLAG_BIN))
-USE_MV(NEWTOY(mv, "<2vnF(remove-destination)fiT[-ni]", TOYFLAG_BIN))
+USE_CP(NEWTOY(cp, "<2(preserve):;D(parents)RHLPprdaslvnF(remove-destination)fit:T[-HLPd][-ni]", TOYFLAG_BIN))
+USE_MV(NEWTOY(mv, "<2vnF(remove-destination)fit:T[-ni]", TOYFLAG_BIN))
 USE_INSTALL(NEWTOY(install, "<1cdDpsvt:m:o:g:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config CP
   bool "cp"
   default y
   help
-    usage: cp [-adfHiLlnPpRrsTv] [--preserve=motcxa] SOURCE... DEST
+    usage: cp [-adfHiLlnPpRrsTv] [--preserve=motcxa] [-t TARGET] SOURCE... [DEST]
 
     Copy files from SOURCE to DEST.  If more than one SOURCE, DEST must
     be a directory.
@@ -43,6 +43,7 @@ config CP
     -R	Recurse into subdirectories (DEST must be a directory)
     -r	Synonym for -R
     -s	Symlink instead of copy
+    -t	Copy to TARGET dir (no DEST)
     -T	DEST always treated as file, max 2 arguments
     -v	Verbose
 
@@ -59,11 +60,12 @@ config MV
   bool "mv"
   default y
   help
-    usage: mv [-finTv] SOURCE... DEST
+    usage: mv [-finTv] [-t TARGET] SOURCE... [DEST]
 
     -f	Force copy by deleting destination file
     -i	Interactive, prompt before overwriting existing DEST
     -n	No clobber (don't overwrite DEST)
+    -t	Move to TARGET dir (no DEST)
     -T	DEST always treated as file, max 2 arguments
     -v	Verbose
 
@@ -71,7 +73,7 @@ config INSTALL
   bool "install"
   default y
   help
-    usage: install [-dDpsv] [-o USER] [-g GROUP] [-m MODE] [-t TARGET] [SOURCE...] DEST
+    usage: install [-dDpsv] [-o USER] [-g GROUP] [-m MODE] [-t TARGET] [SOURCE...] [DEST]
 
     Copy files and set attributes.
 
@@ -98,7 +100,7 @@ GLOBALS(
     } i;
     // cp's options
     struct {
-      char *preserve;
+      char *t, *preserve;
     } c;
   };
 
@@ -360,7 +362,8 @@ static int cp_node(struct dirtree *try)
 
 void cp_main(void)
 {
-  char *destname = TT.i.t ? : toys.optargs[--toys.optc];
+  char *tt = *toys.which->name == 'i' ? TT.i.t : TT.c.t,
+    *destname = tt ? : toys.optargs[--toys.optc];
   int i, destdir = !stat(destname, &TT.top) && S_ISDIR(TT.top.st_mode);
 
   if (FLAG(T)) {
@@ -368,7 +371,7 @@ void cp_main(void)
     if (destdir) error_exit("'%s' is a directory", destname);
   }
 
-  if ((toys.optc>1 || FLAG(D) || TT.i.t) && !destdir)
+  if ((toys.optc>1 || FLAG(D) || tt) && !destdir)
     error_exit("'%s' not directory", destname);
 
   if (FLAG(a)||FLAG(p)) TT.pflags = _CP_mode|_CP_ownership|_CP_timestamps;
