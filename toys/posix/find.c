@@ -34,6 +34,9 @@ config FIND
     -depth           ignore contents of dir    -maxdepth N at most N dirs down
     -inum N          inode number N            -empty      empty files and dirs
     -type [bcdflps]  type is (block, char, dir, file, symlink, pipe, socket)
+    -executable      Matches files which are executable and directories which
+                     are searchable
+    -executable-sane Matches files which are executable
     -true            always true               -false      always false
     -context PATTERN security context
     -newerXY FILE    X=acm time > FILE's Y=acm time (Y=t: FILE is literal time)
@@ -350,7 +353,10 @@ static int do_find(struct dirtree *new)
       if (check) if (bufgetgrgid(new->st.st_gid)) test = 0;
     } else if (!strcmp(s, "prune")) {
       if (check && S_ISDIR(new->st.st_mode) && !TT.depth) recurse = 0;
-
+    } else if (!strcmp(s, "executable")) {
+      if (check) if (!(access(dirtree_path(new, 0), X_OK) == 0)) test = 0;
+    } else if (!strcmp(s, "executable-sane")) {
+      if (check) if (!S_ISREG(new->st.st_mode) || !(access(dirtree_path(new, 0), X_OK) == 0)) test = 0;
     // Remaining filters take an argument
     } else {
       if (!strcmp(s, "name") || !strcmp(s, "iname")
