@@ -83,8 +83,7 @@ rm one two random
 rm -rf dir
 
 mkdir -p one/two/three/four
-touch one/two/three/five
-touch one/{six,seven,eight}
+touch one/two/three/five one/{six,seven,eight}
 testing "-r /abspath dest" \
 	"cp -r \"$(readlink -f one)\" dir && diff -r one dir && echo yes" \
 	"yes\n" "" ""
@@ -120,12 +119,10 @@ testing "-T file" "cp -T b file && cat file" "b\n" "" ""
 testing "-T dir" "cp -T b dir 2>/dev/null || echo expected" "expected\n" "" ""
 rm b file
 
-mkdir -p b/c/d/
-mkdir a/
+mkdir -p b/c/d/ a/
 echo a > b/c/d/file
 testing "--parents b/c/d/file a/" "cp --parents b/c/d/file a/ && cat a/b/c/d/file" "a\n" "" ""
-rm -rf a/
-rm -rf b/
+rm -rf a/ b/
 
 echo a > file
 testing "-P file" "cp -P file fdst && stat -c %F fdst" "regular file\n" "" ""
