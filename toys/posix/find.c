@@ -35,7 +35,7 @@ config FIND
     -inum N          inode number N            -empty      empty files and dirs
     -type [bcdflps]  type is (block, char, dir, file, symlink, pipe, socket)
     -true            always true               -false      always false
-    -context PATTERN security context
+    -context PATTERN security context          -executable access(X_OK) perm+ACL
     -newerXY FILE    X=acm time > FILE's Y=acm time (Y=t: FILE is literal time)
 
     Numbers N may be prefixed by a - (less than) or + (greater than). Units for
@@ -345,11 +345,13 @@ static int do_find(struct dirtree *new)
         } else test = 0;
       }
     } else if (!strcmp(s, "nouser")) {
-      if (check) if (bufgetpwuid(new->st.st_uid)) test = 0;
+      if (check && bufgetpwuid(new->st.st_uid)) test = 0;
     } else if (!strcmp(s, "nogroup")) {
-      if (check) if (bufgetgrgid(new->st.st_gid)) test = 0;
+      if (check && bufgetgrgid(new->st.st_gid)) test = 0;
     } else if (!strcmp(s, "prune")) {
       if (check && S_ISDIR(new->st.st_mode) && !TT.depth) recurse = 0;
+    } else if (!strcmp(s, "executable")) {
+      if (check && faccessat(dirtree_parentfd(new), new->name,X_OK,0)) test = 0;
 
     // Remaining filters take an argument
     } else {
