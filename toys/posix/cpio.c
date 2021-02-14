@@ -278,7 +278,7 @@ void cpio_main(void)
       free(link);
       xclose(fd);
     }
-    free(name);
+    if (CFG_TOYBOX_FREE) free(name);
 
     memset(toybuf, 0, sizeof(toybuf));
     xwrite(afd, toybuf,
