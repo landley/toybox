@@ -80,8 +80,8 @@ static void show_mt(struct mtab_list *mt, int measuring)
   char *dsuapm[6]; // device, size, used, avail, percent, mount
   int i;
 
-  // Return if it wasn't found (should never happen, but with /etc/mtab...)
-  if (!mt) return;
+  // If we don't have -a, skip overmounted and synthetic filesystems.
+  if (!mt || (!FLAG(a) && (!mt->stat.st_dev || !mt->statvfs.f_blocks))) return;
 
   // If we have -t, skip other filesystem types
   if (TT.t) {
@@ -91,9 +91,6 @@ static void show_mt(struct mtab_list *mt, int measuring)
 
     if (!al) return;
   }
-
-  // If we don't have -a, skip synthetic filesystems
-  if (!FLAG(a) && !mt->statvfs.f_blocks) return;
 
   // Prepare filesystem display fields
   *dsuapm = *mt->device == '/' ? xabspath(mt->device, 0) : 0;
@@ -179,7 +176,7 @@ void df_main(void)
         if (mt->stat.st_dev == mt2->stat.st_dev) {
           // For --bind mounts, show earliest mount
           if (!strcmp(mt->device, mt2->device)) {
-            if (!FLAG(a)) mt3->stat.st_dev = 0;
+            mt3->stat.st_dev = 0;
             mt3 = mt2;
           } else mt2->stat.st_dev = 0;
         }
@@ -188,8 +185,7 @@ void df_main(void)
 
     // Measure the names then output the table (in filesystem creation order).
     for (measuring = 1;;) {
-      for (mt = mtstart; mt; mt = mt->next)
-        if (mt->stat.st_dev) show_mt(mt, measuring);
+      for (mt = mtstart; mt; mt = mt->next) show_mt(mt, measuring);
       if (!measuring--) break;
       print_header();
     }
