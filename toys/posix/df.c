@@ -155,8 +155,9 @@ void df_main(void)
         struct stat st;
 
         // Stat it (complain if we can't).
-        if (stat(*next, &st)) perror_msg("'%s'", *next);
-        else {
+        if (stat(*next, &st)) {
+          if (!measuring) perror_msg("'%s'", *next);
+        } else {
           // Find and display this filesystem.  Use _last_ hit in case of
           // overmounts (which is first hit in the reversed list).
           for (mt = mtend; mt; mt = mt->prev)
