@@ -160,11 +160,11 @@ void df_main(void)
         } else {
           // Find and display this filesystem.  Use _last_ hit in case of
           // overmounts (which is first hit in the reversed list).
-          for (mt = mtend; mt; mt = mt->prev)
-            if (st.st_dev == mt->stat.st_dev
-                || (st.st_rdev && (st.st_rdev == mt->stat.st_dev)))
-              break;
-          show_mt(mt, measuring);
+          for (mt = mtend, mt2 = 0; mt; mt = mt->prev) {
+            if (!mt2 && st.st_dev == mt->stat.st_dev) mt2 = mt;
+            if (st.st_rdev && (st.st_rdev == mt->stat.st_dev)) break;
+          }
+          show_mt(mt ? : mt2, measuring);
         }
       }
       if (!measuring--) break;
