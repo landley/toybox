@@ -346,10 +346,6 @@ struct xnotify *xnotify_init(int max);
 int xnotify_add(struct xnotify *not, int fd, char *path);
 int xnotify_wait(struct xnotify *not, char **path);
 
-#ifdef __APPLE__
-#define f_frsize f_iosize
-#endif
-
 int sig_to_num(char *s);
 char *num_to_sig(int sig);
 
