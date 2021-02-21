@@ -199,3 +199,6 @@ testing "-Fix" "grep -Fix h input" "H\nh\n" \
   "missing\nH\nthis is HELLO\nthis is WORLD\nh\nmissing" ""
 testing "-f /dev/null" "grep -f /dev/null" "" "" "hello\n"
 testing "-z with \n in pattern" "grep -f input" "hi\nthere\n" "i\nt" "hi\nthere"
+
+testing "print zero length match" "grep '[0-9]*'" "abc\n" "" "abc\n"
+testing "-o skip zero length match" "grep -o '[0-9]*'" "1234\n" "" "a1234b"

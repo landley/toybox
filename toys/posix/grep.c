@@ -218,8 +218,12 @@ static void do_grep(int fd, char *name)
         }
       }
 
-      if (!rc && FLAG(x))
-        if (mm->rm_so || line[mm->rm_eo]) rc = 1;
+      if (!rc && FLAG(o) && !mm->rm_eo && ulen>start-line) {
+        start++;
+        continue;
+      }
+
+      if (!rc && FLAG(x) && (mm->rm_so || ulen-(start-line)!=mm->rm_eo)) rc = 1;
 
       if (!rc && FLAG(w)) {
         char c = 0;
@@ -240,10 +244,8 @@ static void do_grep(int fd, char *name)
 
       if (FLAG(v)) {
         if (FLAG(o)) {
-          if (rc) {
-            mm->rm_so = 0;
-            mm->rm_eo = ulen-(start-line);
-          } else if (!mm->rm_so) {
+          if (rc) mm->rm_eo = ulen-(start-line);
+          else if (!mm->rm_so) {
             start += mm->rm_eo;
             continue;
           } else mm->rm_eo = mm->rm_so;
