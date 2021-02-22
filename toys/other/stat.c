@@ -33,8 +33,8 @@ config STAT
     The valid format escape sequences for filesystems:
     %a  Available blocks    |%b  Total blocks       |%c  Total inodes
     %d  Free inodes         |%f  Free blocks        |%i  File system ID
-    %l  Max filename length |%n  File name          |%s  Fragment size
-    %S  Best transfer size  |%t  FS type (hex)      |%T  FS type (driver name)
+    %l  Max filename length |%n  File name          |%s  Best transfer size
+    %S  Actual block size   |%t  FS type (hex)      |%T  FS type (driver name)
 */
 
 #define FOR_stat
@@ -157,8 +157,14 @@ static void print_statfs(char type) {
 
     sprintf(buf, "%08x%08x", val[0], val[1]);
     strout(buf);
-  } else if (type == 's') out('d', statfs->f_frsize);
+  }
+#ifdef __APPLE__
+  else if (type == 's') out('d', statfs->f_iosize);
   else if (type == 'S') out('d', statfs->f_bsize);
+#else
+  else if (type == 's') out('d', statfs->f_bsize);
+  else if (type == 'S') out('d', statfs->f_frsize);
+#endif
   else strout("?");
 }
 
