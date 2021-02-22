@@ -478,7 +478,6 @@ void mv_main(void)
 static inline int cp_flag_F(void) { return FLAG_F; };
 static inline int cp_flag_p(void) { return FLAG_p; };
 static inline int cp_flag_v(void) { return FLAG_v; };
-static inline int cp_flag_D(void) { return FLAG_D; };
 
 // Switch to install's flag context
 #define CLEANUP_cp
@@ -529,7 +528,7 @@ void install_main(void)
 
   // Translate flags from install to cp
   toys.optflags = cp_flag_F() + cp_flag_v()*!!FLAG(v)
-    + cp_flag_p()*!!(FLAG(p)|FLAG(o)|FLAG(g)) + cp_flag_D()*!!FLAG(D);
+    + cp_flag_p()*!!(FLAG(p)|FLAG(o)|FLAG(g));
 
   TT.callback = install_node;
   cp_main();
