@@ -98,8 +98,8 @@ static void status()
   }
 }
 
-static void dd_sigint(int sig) {
-  status();
+static void dd_sigint(int sig)
+{
   toys.exitval = sig|128;
   xexit();
 }
@@ -174,8 +174,9 @@ void dd_main()
   }
   if (bs) TT.in.sz = TT.out.sz = bs;
 
-  signal(SIGINT, dd_sigint);
-  signal(SIGUSR1, generic_signal);
+  sigatexit(status);
+  xsignal(SIGINT, dd_sigint);
+  xsignal(SIGUSR1, status);
   gettimeofday(&TT.start, NULL);
 
   // For bs=, in/out is done as it is. so only in.sz is enough.
@@ -238,13 +239,6 @@ void dd_main()
     int chunk = bytes_left < TT.in.sz ? bytes_left : TT.in.sz;
     ssize_t n;
 
-    // Show progress and exit on SIGINT or just continue on SIGUSR1.
-    if (toys.signal) {
-      status();
-      if (toys.signal==SIGINT) exit_signal(toys.signal);
-      toys.signal = 0;
-    }
-
     TT.in.bp = TT.in.buff + TT.in.count;
     if (TT.conv & _DD_conv_sync) memset(TT.in.bp, 0, TT.in.sz);
     if (!(n = read(TT.in.fd, TT.in.bp, chunk))) break;
@@ -288,6 +282,4 @@ void dd_main()
   close(TT.in.fd);
   close(TT.out.fd);
   if (TT.in.buff) free(TT.in.buff);
-
-  status();
 }

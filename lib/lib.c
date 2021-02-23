@@ -911,9 +911,10 @@ void exit_signal(int sig)
   xexit();
 }
 
-// Install the same handler on every signal that defaults to killing the
-// process, calling the handler on the way out. Calling multiple times
-// adds the handlers to a list, to be called in order.
+// Install an atexit handler. Also install the same handler on every signal
+// that defaults to killing the process, calling the handler on the way out.
+// Calling multiple times adds the handlers to a list, to be called in LIFO
+// order.
 void sigatexit(void *handler)
 {
   struct arg_list *al = 0;
