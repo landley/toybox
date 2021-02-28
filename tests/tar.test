@@ -274,6 +274,12 @@ testcmd 'exclude' '--exclude skip -cvf tar.tar folder && echo yes' \
   'folder/\nyes\n' '' ''
 rm -rf folder tar.tar
 
+mkdir -p one/two; echo hello > one/two/three; tar czf test.tar one/two/three
+rm one/two/three; mkdir one/two/three
+testcmd 'replace dir with file' '-xf test.tar && cat one/two/three' \
+  'hello\n' '' ''
+rm -rf one test.tar
+
 if false
 then
 
