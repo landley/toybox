@@ -42,4 +42,20 @@ touch a; chmod a-rwx a; ln -s a/cant b
 toyonly testing "archives unreadable empty files" "cpio -o -H newc|cpio -it" "b\na\n" "" "b\na\n"
 chmod u+rw a; rm -f a b
 
+mkdir a
+echo "old" >a/b
+echo "a/b" | cpio -o -H newc >a.cpio
+rm -rf a
+testing "-i doesn't create leading directories" "cpio -i <a.cpio 2>/dev/null; [ -e a ] || echo yes" "yes\n" "" ""
+rm -rf a
+testing "-id creates leading directories" "cpio -id <a.cpio && cat a/b" "old\n" "" ""
+rm -rf a a.cpio
 
+mkdir a
+echo "old" >a/b
+find a | cpio -o -H newc >a.cpio
+testing "-i keeps existing files" "echo new >a/b && cpio -i <a.cpio 2>/dev/null; cat a/b" "new\n" "" ""
+testing "-id keeps existing files" "echo new >a/b && cpio -id <a.cpio 2>/dev/null; cat a/b" "new\n" "" ""
+testing "-iu replaces existing files; no error" "echo new >a/b && cpio -iu <a.cpio && cat a/b" "old\n" "" ""
+testing "-idu replaces existing files; no error" "echo new >a/b && cpio -idu <a.cpio && cat a/b" "old\n" "" ""
+rm -rf a a.cpio

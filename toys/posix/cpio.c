@@ -22,7 +22,7 @@ config CPIO
   default y
   help
     usage: cpio -{o|t|i|p DEST} [-v] [--verbose] [-F FILE] [--no-preserve-owner]
-           [ignored: -mdu -H newc]
+           [ignored: -m -H newc]
 
     Copy files into and out of a "newc" format cpio archive.
 
@@ -32,6 +32,7 @@ config CPIO
     -o	Create archive (stdin=list of files, stdout=archive)
     -t	Test files (list only, stdin=archive, stdout=list of files)
     -d	Create directories if needed
+    -u	unlink existing files when extracting
     -v	Verbose
     --no-preserve-owner (don't set ownership during extract)
 */
@@ -137,6 +138,8 @@ void cpio_main(void)
     // (This output is unaffected by --quiet.)
     if (FLAG(t) || FLAG(v)) puts(name);
 
+    if (FLAG(u) && !test) if (unlink(name) && errno == EISDIR) rmdir(name);
+
     if (!test && FLAG(d) && strrchr(name, '/') && mkpath(name)) {
       perror_msg("mkpath '%s'", name);
       test++;
@@ -146,7 +149,7 @@ void cpio_main(void)
     // properly aligned with next file.
 
     if (S_ISDIR(mode)) {
-      if (!test) err = mkdir(name, mode);
+      if (!test) err = mkdir(name, mode) && !FLAG(u);
     } else if (S_ISLNK(mode)) {
       data = strpad(afd, size, 0);
       if (!test) err = symlink(data, name);
@@ -155,7 +158,7 @@ void cpio_main(void)
       if (!err && !geteuid() && !FLAG(no_preserve_owner))
         err = lchown(name, uid, gid);
     } else if (S_ISREG(mode)) {
-      int fd = test ? 0 : open(name, O_CREAT|O_WRONLY|O_TRUNC|O_NOFOLLOW, mode);
+      int fd = test ? 0 : open(name, O_CREAT|O_WRONLY|O_EXCL|O_NOFOLLOW, mode);
 
       // If write fails, we still need to read/discard data to continue with
       // archive. Since doing so overwrites errno, report error now
