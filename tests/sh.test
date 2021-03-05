@@ -89,6 +89,10 @@ testing 'exec exitval' "$SH -c 'exec echo hello' && echo \$?" "hello\n0\n" "" ""
 testing 'simple script' '$SH input' 'input\n' 'echo $0' ''
 testing 'simple script2' '$SH ./input two;echo $?' './input+two\n42\n' \
   '\necho $0+$1\n\nexit 42' ''
+# this segfaults bash
+toyonly testing 'recursion guard' \
+  '$SH input 2>/dev/null; [ $? -lt 128 ] && echo pass' 'pass\n' \
+  'source input' ''
 testing '$LINENO 1' "$SH input" "1\n" 'echo $LINENO' ''
 
 mkdir sub
@@ -111,6 +115,8 @@ testing "leading assignment fail" \
 
 testing "lineno" "$SH input" "5 one\n6 one\n5 two\n6 two\n" \
   '#!/bin/bash\n\nfor i in one two\ndo\n  echo $LINENO $i\n  echo $LINENO $i\ndone\n' ""
+
+testing "eval0" "sh -c 'eval echo \$*' one two three" "two three\n" "" ""
 
 #########################################################################
 # Change EVAL to call sh -c for us, using "bash" explicitly for the host.
@@ -201,6 +207,8 @@ testing 'quote' "echo \"'\"" "'\n" "" ""
 # Loops and flow control
 testing "case" 'for i in A C J B; do case "$i" in A) echo got A ;; B) echo and B ;; C) echo then C ;; *) echo default ;; esac; done' \
   "got A\nthen C\ndefault\nand B\n" "" ""
+testing 'case;;&' 'case wow in w?w) echo ok;;& wow) echo no; esac' 'ok\nno\n' \
+  "" ""
 testing "case newlines" \
   $'case i\n\nin\n\na) echo one\n\n;;\n\ni)\n\necho two\n\n;;\n\nesac' \
   "two\n" "" ""
@@ -498,6 +506,20 @@ shxpect 'trace redirect' I$'set -x; echo one\n' E$'+ echo one\n'"$P" O$'one\n' \
 testing 'source file' 'source input' 'hello\n' 'echo hello \\\n' ''
 testing '. file' '. input' 'hello\n' 'echo hello \\\n' ''
 testing 'source no newline' 'source input' 'hello \\\n' 'echo hello \\' ''
+testing 'source is live' \
+  'for i in one two three; do echo "echo $i" > input; source input; done' \
+  'one\ntwo\nthree\n' 'x' ''
+testing 'source is live in functions' \
+  'func() { source input; }; for i in one two three; do echo echo $i > input; func; done' \
+  'one\ntwo\nthree\n' 'x' ''
+testing 'subshell inheritance' \
+  'func() { source input; cat <(echo $xx; xx=456; echo $xx); echo $xx;}; echo local xx=123 > input; func; echo $xx' \
+  '123\n456\n123\n\n' 'x' ''
+
+testing 'functions() {} in same PID' \
+  '{ echo $BASHPID; chicken() { echo $BASHPID;}; chicken;} | sort -u | wc -l' '1\n' '' ''
+testing 'functions() () different PID' \
+  '{ echo $BASHPID; chicken() ( echo $BASHPID;); chicken;} | sort -u | wc -l' '2\n' '' ''
 
 # TODO finish variable list from shell init
 
