@@ -86,17 +86,17 @@ struct tar_hdr {
 };
 
 // Tar uses ASCII octal when it fits, base-256 otherwise.
-#define ASCII_FITS(val, len) (!(val>>(3*(len-1))))
+static int ascii_fits(unsigned long long val, int len)
+{
+  return !(val>>(3*(len-1)));
+}
+
 // convert from int to octal (or base-256)
 static void itoo(char *str, int len, unsigned long long val)
 {
-  if (ASCII_FITS(val, len)) sprintf(str, "%0*llo", len-1, val);
+  if (ascii_fits(val, len)) sprintf(str, "%0*llo", len-1, val);
   else {
-    str += len;
-    while (len--) {
-      *--str = val;
-      val >>= 8;
-    }
+    for (str += len; len--; val >>= 8) *--str = val;
     *str = 128;
   }
 }
@@ -294,10 +294,10 @@ static int add_to_tar(struct dirtree *node)
 
   if (!FLAG(numeric_owner)) {
     if ((TT.owner || (pw = bufgetpwuid(st->st_uid))) &&
-        ASCII_FITS(st->st_uid, sizeof(hdr.uid)))
+        ascii_fits(st->st_uid, sizeof(hdr.uid)))
       strncpy(hdr.uname, TT.owner ? TT.owner : pw->pw_name, sizeof(hdr.uname));
     if ((TT.group || (gr = bufgetgrgid(st->st_gid))) &&
-        ASCII_FITS(st->st_gid, sizeof(hdr.gid)))
+        ascii_fits(st->st_gid, sizeof(hdr.gid)))
       strncpy(hdr.gname, TT.group ? TT.group : gr->gr_name, sizeof(hdr.gname));
   }
 
