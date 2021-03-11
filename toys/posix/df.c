@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/df.html
 
-USE_DF(NEWTOY(df, "HPkhit*a[-HPkh]", TOYFLAG_SBIN))
+USE_DF(NEWTOY(df, "HPkhit*a[-HPh]", TOYFLAG_SBIN))
 
 config DF
   bool "df"
@@ -63,7 +63,8 @@ static void print_header()
                       sizeof(char *)*4);
   else {
     if (!(FLAG(H)||FLAG(h))) {
-      dsuapm[1] = TT.units == 512 ? "512-blocks" : "1K-blocks";
+      dsuapm[1] = TT.units == 512 ? "512-blocks" :
+        FLAG(P) ? "1024-blocks" : "1K-blocks";
       dsuapm[3] = "Available";
       if (FLAG(P)) dsuapm[4] = "Capacity";
     }
@@ -142,7 +143,7 @@ void df_main(void)
 
   // Units are 512 bytes if you select "pedantic" without "kilobytes".
   if (FLAG(H)||FLAG(h)||FLAG(i)) TT.units = 1;
-  else TT.units = FLAG(P) ? 512 : 1024;
+  else TT.units = FLAG(P) && !FLAG(k) ? 512 : 1024;
 
   if (!(mtstart = xgetmountlist(0))) return;
   mtend = dlist_terminate(mtstart);
