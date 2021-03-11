@@ -154,7 +154,7 @@ static void do_grep(int fd, char *name)
     lcount++;
     errno = 0;
     ulen = len = getdelim(&line, &ulen, TT.indelim, file);
-    if (errno) perror_msg("%s", name);
+    if (len == -1 && errno) perror_msg("%s", name);
     if (len<1) break;
     if (line[ulen-1] == TT.indelim) line[--ulen] = 0;
 
