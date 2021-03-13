@@ -622,12 +622,13 @@ long long sendfile_len(int in, int out, long long bytes, long long *consumed)
     len = bytes-total;
     if (bytes<0 || len>sizeof(libbuf)) len = sizeof(libbuf);
 
+    errno = 0;
 #if CFG_TOYBOX_COPYFILERANGE
     len = copy_file_range(in, 0, out, 0, bytes, 0);
 #else
     ww = len = read(in, libbuf, len);
 #endif
-    if (!len && errno==EAGAIN) continue;
+    if (len<1 && errno==EAGAIN) continue;
     if (len<1) break;
     if (consumed) *consumed += len;
     if (ww && writeall(out, libbuf, len) != len) return -1;
