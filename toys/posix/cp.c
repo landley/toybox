@@ -412,11 +412,11 @@ void cp_main(void)
 
   // Loop through sources
   for (i=0; i<toys.optc; i++) {
-    char *src = toys.optargs[i], *trail = src;
-    int rc = 1;
+    char *src = toys.optargs[i], *trail;
+    int send = 1;
 
-    while (*++trail);
-    if (*--trail == '/') *trail = 0;
+    if (!(trail = strrchr(src, '/')) || trail[1]) trail = 0;
+    else while (trail>src && *trail=='/') *trail-- = 0;
 
     if (destdir) {
       char *s = FLAG(D) ? src : getbasename(src);
@@ -433,6 +433,7 @@ void cp_main(void)
       }
     } else TT.destname = destname;
 
+    // "mv across devices" triggers cp fallback path, so set that as default
     errno = EXDEV;
     if (CFG_MV && toys.which->name[0] == 'm') {
       int force = FLAG(f), no_clobber = FLAG(n);
@@ -446,18 +447,18 @@ void cp_main(void)
         // _else_) but I don't care.
         if (exists && (FLAG(i) || (!(st.st_mode & 0222) && isatty(0)))) {
           fprintf(stderr, "%s: overwrite '%s'", toys.which->name, TT.destname);
-          if (!yesno(0)) rc = 0;
+          if (!yesno(0)) send = 0;
           else unlink(TT.destname);
         }
         // if -n and dest exists, don't try to rename() or copy
-        if (exists && no_clobber) rc = 0;
+        if (exists && no_clobber) send = 0;
       }
-      if (rc) rc = rename(src, TT.destname);
-      if (errno && !*trail) *trail = '/';
+      if (send) send = rename(src, TT.destname);
+      if (trail) trail[1] = '/';
     }
 
-    // Copy if we didn't mv, skipping nonexistent sources
-    if (rc) {
+    // Copy if we didn't mv or hit an error, skipping nonexistent sources
+    if (send) {
       if (errno!=EXDEV || dirtree_flagread(src, DIRTREE_SHUTUP+
         DIRTREE_SYMFOLLOW*!!(FLAG(H)||FLAG(L)), TT.callback))
           perror_msg("bad '%s'", src);
