@@ -85,6 +85,21 @@ ln -s $(which $SH) bash
 testing 'non-absolute $_' "./bash -c 'echo \$_'" './bash\n' '' ''
 rm bash
 
+shxpect '$_ preserved on assignment error' I$'true hello; a=1 b=2 c=${}\n' \
+  E E"$P" I$'echo $_\n' O$'hello\n'
+shxpect '$_ preserved on prefix error' I$'true hello; a=1 b=2 c=${} true\n' \
+  E E"$P" I$'echo $_\n' O$'hello\n'
+shxpect '$_ preserved on exec error' I$'true hello; ${}\n' \
+  E E"$P" I$'echo $_\n' O$'hello\n'
+shxpect '$_ abspath on exec' I$'env | grep ^_=\n' O$'_=/usr/bin/env\n'
+testing '$_ literal after exec' 'env >/dev/null; echo $_' 'env\n' '' ''
+shxpect '$_ no path for builtin' I$'true; echo $_\n' O$'true\n'
+testing 'prefix is local for builtins' 'abc=123; abc=def unset abc; echo $abc' \
+  '123\n' '' ''
+testing 'prefix localizes magic vars' \
+  'SECONDS=123; SECONDS=345 true; echo $SECONDS' '123\n' '' ''
+shxpect 'body evaluated before variable exports' I$'a=x${} y${}\n' RE'y${}'
+
 testing 'exec exitval' "$SH -c 'exec echo hello' && echo \$?" "hello\n0\n" "" ""
 testing 'simple script' '$SH input' 'input\n' 'echo $0' ''
 testing 'simple script2' '$SH ./input two;echo $?' './input+two\n42\n' \
@@ -515,11 +530,26 @@ testing 'source is live in functions' \
 testing 'subshell inheritance' \
   'func() { source input; cat <(echo $xx; xx=456; echo $xx); echo $xx;}; echo local xx=123 > input; func; echo $xx' \
   '123\n456\n123\n\n' 'x' ''
+testing 'semicolon vs newline' \
+  'source input 2>/dev/null || echo yes' 'one\nyes\n' \
+  'echo one\necho two; echo |' ''
+testing 'syntax err pops to source but encapsulating function continues' \
+  'func() { echo one; source <(echo -e "echo hello\necho |") 2>/dev/null; echo three;}; func; echo four' \
+  'one\nhello\nthree\nfour\n' '' ''
+testing '"exit shell" means exit eval but encapsulating function continues' \
+  'func() { eval "echo one; echo \${?potato}; echo and" 2>/dev/null; echo plus;}; func; echo then' \
+  'one\nplus\nthen\n' '' ''
 
 testing 'functions() {} in same PID' \
   '{ echo $BASHPID; chicken() { echo $BASHPID;}; chicken;} | sort -u | wc -l' '1\n' '' ''
 testing 'functions() () different PID' \
   '{ echo $BASHPID; chicken() ( echo $BASHPID;); chicken;} | sort -u | wc -l' '2\n' '' ''
+testing 'function() just wants any block span' \
+  'func() if true; then echo hello; fi; echo one; func; echo two' \
+  'one\nhello\ntwo\n' '' ''
+shxpect 'local creates a whiteout' \
+  I$'func() { local potato; echo ${potato?bang}; }; potato=123; func\n' \
+  E E"$P" I$'echo $?\n' O$'1\n'
 
 # TODO finish variable list from shell init
 

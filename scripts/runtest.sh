@@ -61,7 +61,7 @@ optional()
   # Not set?
   if [ -z "$1" ] || [ -z "$OPTIONFLAGS" ] || [ ${#option} -ne 0 ]
   then
-    SKIP=""
+    unset SKIP
     return
   fi
   SKIP=1
@@ -183,6 +183,8 @@ do_fail()
 # X means close stdin/stdout/stderr and match return code (blank means nonzero)
 txpect()
 {
+  local NAME CASE VERBOSITY LEN A B
+
   # Run command with redirection through fifos
   NAME="$CMDNAME $1"
   CASE=
@@ -206,16 +208,18 @@ txpect()
     LEN=$((${#1}-1))
     CASE="$1"
     A=
+    B=
     case ${1::1} in
 
       # send input to child
       I) printf %s "${1:1}" >&$IN || { do_fail;break;} ;;
 
+      R) LEN=0; B=1; ;&
       # check output from child
       [OE])
         [ $LEN == 0 ] && LARG="" || LARG="-rN $LEN"
         O=$OUT
-        [ ${1::1} == 'E' ] && O=$ERR
+        [ "${1:$B:1}" == 'E' ] && O=$ERR
         A=
         read -t2 $LARG A <&$O
         VERBOSITY="$VERBOSITY"$'\n'"$A"
@@ -223,8 +227,9 @@ txpect()
         then
           [ -z "$A" ] && { do_fail;break;}
         else
-          if [ "$A" != "${1:1}" ]
-          then
+          if [ ${1::1} == 'R' ] && [[ "$A" =~ "${1:2}" ]]; then true
+          elif [ ${1::1} != 'R' ] && [ "$A" == "${1:1}" ]; then true
+          else
             # Append the rest of the output if there is any.
             read -t.1 B <&$O
             A="$A$B"
