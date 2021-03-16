@@ -115,6 +115,11 @@ unset SKIP
 chtest +t  "drwxr-xr-t\n-rw-r--r-T\n"
 chtest a=r+w+x "drwxrwxrwx\n-rwxrwxrwx\n"
 
+# (chtest starts off with a directory that's +x...)
+testing "+X" \
+  "mkdir -m 000 Xd && touch Xf && chmod +X Xd Xf && ls -ld Xd Xf | cut -d' ' -f 1" \
+  "d--x--x--x\n-rw-r--r--\n" "" ""
+
 mkdir foo
 ln -s bar foo/baz
 # If you explicitly ask us, we'll try (and fail) to chmod a symlink.
