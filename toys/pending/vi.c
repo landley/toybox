@@ -949,13 +949,57 @@ static int vi_zero(int count0, int count1, char *unused)
   return 1;
 }
 
-static int vi_eol(int count0, int count1, char *unused)
+static int vi_dollar(int count0, int count1, char *unused)
 {
-  //forward find /n
-  TT.cursor = text_strchr(TT.cursor, '\n');
-  TT.vi_mov_flag |= 2;
-  check_cursor_bounds();
+  size_t new = text_strchr(TT.cursor, '\n');
+
+  if (new != TT.cursor) {
+    TT.cursor = new - 1;
+    TT.vi_mov_flag |= 2;
+    check_cursor_bounds();
+  }
   return 1;
+}
+
+static void vi_eol()
+{
+  TT.cursor = text_strchr(TT.cursor, '\n');
+  check_cursor_bounds();
+}
+
+static void ctrl_b()
+{
+  int i;
+
+  for (i=0; i<TT.screen_height-2; ++i) {
+    TT.screen = text_psol(TT.screen);
+    // TODO: retain x offset.
+    TT.cursor = text_psol(TT.screen);
+  }
+}
+
+static void ctrl_f()
+{
+  int i;
+
+  for (i=0; i<TT.screen_height-2; ++i) TT.screen = text_nsol(TT.screen);
+  // TODO: real vi keeps the x position.
+  if (TT.screen > TT.cursor) TT.cursor = TT.screen;
+}
+
+static void ctrl_e()
+{
+  TT.screen = text_nsol(TT.screen);
+  // TODO: real vi keeps the x position.
+  if (TT.screen > TT.cursor) TT.cursor = TT.screen;
+}
+
+static void ctrl_y()
+{
+  TT.screen = text_psol(TT.screen);
+  // TODO: only if we're on the bottom line
+  TT.cursor = text_psol(TT.cursor);
+  // TODO: real vi keeps the x position.
 }
 
 //TODO check register where to push from
@@ -1040,7 +1084,7 @@ static int vi_D(char reg, int count0, int count1)
 {
   size_t pos = TT.cursor;
   if (!count0) return 1;
-  vi_eol(1, 1, 0);
+  vi_eol();
   vi_delete(reg, pos, 0);
   if (--count0) vi_dd(reg, count0, 1);
 
@@ -1133,7 +1177,7 @@ struct vi_mov_param vi_movs[] =
   {"l", 0, &cur_right},
   {"M", 0, &vi_M},
   {"w", 0, &vi_movw},
-  {"$", 0, &vi_eol},
+  {"$", 0, &vi_dollar},
   {"f", 1, &vi_find_c},
   {"F", 1, &vi_find_cb},
 };
@@ -1346,14 +1390,14 @@ static void draw_page()
   tty_jump(0, y);
   tty_esc("2K");
   //find cursor position
-  aw = crunch_nstr(&end, 1024, bytes, 0, "\t\n", vi_crunch);
+  aw = crunch_nstr(&end, INT_MAX, bytes, 0, "\t\n", vi_crunch);
 
   //if we need to render text that is not inserted to buffer yet
   if (TT.vi_mode == 2 && TT.il->len) {
     char* iend = TT.il->data; //input end
     x = 0;
     //find insert end position
-    iw = crunch_str(&iend, 1024, 0, "\t\n", vi_crunch);
+    iw = crunch_str(&iend, INT_MAX, 0, "\t\n", vi_crunch);
     clip = (aw+iw) - TT.screen_width+margin;
 
     //if clipped area is bigger than text before insert
@@ -1411,17 +1455,12 @@ static void draw_page()
 
     tty_jump(0, y);
     if (draw_line) {
-
       tty_esc("2K");
-      if (line) {
-        if (draw_line && line && strlen(line)) {
-
-          aw = crunch_nstr(&line, clip, bytes, 0, "\t\n", vi_crunch);
-          crunch_str(&line, TT.screen_width-1, stdout, "\t\n", vi_crunch);
-          if ( *line ) printf("@");
-
-        }
-      } else if (draw_line) printf("~");
+      if (line && strlen(line)) {
+        aw = crunch_nstr(&line, clip, bytes, 0, "\t\n", vi_crunch);
+        crunch_str(&line, TT.screen_width-1, stdout, "\t\n", vi_crunch);
+        if ( *line ) printf("@");
+      } else printf("\033[2m~\033[m");
     }
     if (SSOL+bytes < TT.filesize)  {
       line = toybuf;
@@ -1432,20 +1471,21 @@ static void draw_page()
 
   TT.drawn_row = TT.scr_row, TT.drawn_col = clip;
 
-  //finished updating visual area
+  // Finished updating visual area, show status line.
   tty_jump(0, TT.screen_height);
   tty_esc("2K");
-  if (TT.vi_mode == 2) printf("\x1b[1m-- INSERT --\x1b[m");
+  if (TT.vi_mode == 2) printf("\033[1m-- INSERT --\033[m");
   if (!TT.vi_mode) {
-    cx_scr = printf("%s",TT.il->data);
+    cx_scr = printf("%s", TT.il->data);
     cy_scr = TT.screen_height;
+    *toybuf = 0;
+  } else {
+    // TODO: the row,col display doesn't show the cursor column
+    // TODO: real vi shows the percentage by lines, not bytes
+    sprintf(toybuf, "%zu/%zuC  %zu%%  %d,%d", TT.cursor, TT.filesize,
+      (100*TT.cursor)/TT.filesize, TT.cur_row+1, TT.cur_col+1);
+    if (TT.cur_col != cx_scr) sprintf(toybuf+strlen(toybuf),"-%d", cx_scr+1);
   }
-
-  sprintf(toybuf, "%zu / %zu,%d,%d", TT.cursor, TT.filesize,
-    TT.cur_row+1, TT.cur_col+1);
-
-  if (TT.cur_col != cx_scr) sprintf(toybuf+strlen(toybuf),"-%d", cx_scr+1);
-
   tty_jump(TT.screen_width-strlen(toybuf), TT.screen_height);
   printf("%s", toybuf);
 
@@ -1455,12 +1495,12 @@ static void draw_page()
 
 void vi_main(void)
 {
+  char stdout_buf[BUFSIZ];
   char keybuf[16] = {0};
   char vi_buf[16] = {0};
   char utf8_code[8] = {0};
-  int utf8_dec_p = 0, vi_buf_pos = 0, i;
-  FILE *script = 0;
-  if (FLAG(s)) script = fopen(TT.s, "r");
+  int utf8_dec_p = 0, vi_buf_pos = 0;
+  FILE *script = FLAG(s) ? xfopen(TT.s, "r") : 0;
 
   TT.il = xzalloc(sizeof(struct str_line));
   TT.il->data = xzalloc(80);
@@ -1478,17 +1518,19 @@ void vi_main(void)
   terminal_size(&TT.screen_width, &TT.screen_height);
   TT.screen_height -= 1;
 
+  // Avoid flicker.
+  setbuf(stdout, stdout_buf);
+
+  xsignal(SIGWINCH, generic_signal);
   set_terminal(0, 1, 0, 0);
   //writes stdout into different xterm buffer so when we exit
   //we dont get scroll log full of junk
   tty_esc("?1049h");
-  tty_esc("H");
-  xflush(1);
 
-
-  draw_page();
   for (;;) {
     int key = 0;
+
+    draw_page();
     if (script) {
       key = fgetc(script);
       if (key == EOF) {
@@ -1499,9 +1541,12 @@ void vi_main(void)
     } else key = scan_key(keybuf, -1);
 
     if (key == -1) goto cleanup_vi;
-
-    terminal_size(&TT.screen_width, &TT.screen_height);
-    TT.screen_height -= 1; //TODO this is hack fix visual alignment
+    else if (key == -3) {
+      toys.signal = 0;
+      terminal_size(&TT.screen_width, &TT.screen_height);
+      TT.screen_height -= 1; //TODO this is hack fix visual alignment
+      continue;
+    }
 
     // TODO: support cursor keys in ex mode too.
     if (TT.vi_mode && key>=256) {
@@ -1510,7 +1555,10 @@ void vi_main(void)
       else if (key==KEY_DOWN) cur_down(1, 1, 0);
       else if (key==KEY_LEFT) cur_left(1, 1, 0);
       else if (key==KEY_RIGHT) cur_right(1, 1, 0);
-      draw_page();
+      else if (key==KEY_HOME) vi_zero(1, 1, 0);
+      else if (key==KEY_END) vi_dollar(1, 1, 0);
+      else if (key==KEY_PGDN) ctrl_f();
+      else if (key==KEY_PGUP) ctrl_b();
       continue;
     }
 
@@ -1524,7 +1572,7 @@ void vi_main(void)
           TT.il->len++;
           break;
         case 'A':
-          vi_eol(1, 1, 0);
+          vi_eol();
           TT.vi_mode = 2;
           break;
         case 'a':
@@ -1534,23 +1582,16 @@ void vi_main(void)
           TT.vi_mode = 2;
           break;
         case 'B'-'@':
-          for (i=0; i<TT.screen_height-2; ++i) TT.screen = text_psol(TT.screen);
-          // TODO: if we're on the bottom visible line, move the cursor up.
-          if (TT.screen > TT.cursor) TT.cursor = TT.screen;
+          ctrl_b();
           break;
         case 'E'-'@':
-          TT.screen = text_nsol(TT.screen);
-          // TODO: real vi keeps the x position.
-          if (TT.screen > TT.cursor) TT.cursor = TT.screen;
+          ctrl_e();
           break;
         case 'F'-'@':
-          for (i=0; i<TT.screen_height-2; ++i) TT.screen = text_nsol(TT.screen);
-          // TODO: real vi keeps the x position.
-          if (TT.screen > TT.cursor) TT.cursor = TT.screen;
+          ctrl_f();
           break;
-        case 'U'-'@':
-          TT.screen = text_psol(TT.screen);
-          // TODO: if we're on the bottom visible line, move the cursor up.
+        case 'Y'-'@':
+          ctrl_y();
           break;
         case 27:
           vi_buf[0] = 0;
@@ -1650,9 +1691,6 @@ void vi_main(void)
           break;
       }
     }
-
-    draw_page();
-
   }
 cleanup_vi:
   linelist_unload();
@@ -1660,4 +1698,3 @@ cleanup_vi:
   tty_reset();
   tty_esc("?1049l");
 }
-
