@@ -587,30 +587,21 @@ static int redir_prefix(char *word)
 // quote is depth of existing quote stack in toybuf (usually 0)
 static char *parse_word(char *start, int early, int quote)
 {
-  int i, q, qc = 0;
-  char *end = start, *s;
+  int ii, qq, qc = 0;
+  char *end = start, *ss;
 
-  // Things we should only return at the _start_ of a word
-
-  // Redirections. 123<<file- parses as 2 args: "123<<" "file-".
-  s = end + redir_prefix(end);
-
-  if (strstart(&s, "<(") || strstart(&s, ">(")) {
+  // Things that only matter at the start of word: redirections, <(), (( ))
+  ss = end + redir_prefix(end); // 123<<file- parses as 2 args: "123<<" "file-"
+  if (strstart(&ss, "<(") || strstart(&ss, ">(")) {
     toybuf[quote++]=')';
-    end = s;
-  } else if ((i = anystart(s, (void *)redirectors))) return s+i;
-
-  if (strstart(&s, "<(") || strstart(&s, ">(")) {
-    toybuf[quote++]=')';
-    end = s;
-  }
-
-  // (( is a special quote at the start of a word
+    end = ss;
+  } else if ((ii = anystart(ss, (void *)redirectors))) return ss+ii;
   if (strstart(&end, "((")) toybuf[quote++] = 254;
 
-  // find end of this word
+  // Loop to find end of this word
   while (*end) {
-    i = 0;
+    // If we're stopping early and already handled a symbol...
+    if (early && end!=start && !quote) break;
 
     // barf if we're near overloading quote stack (nesting ridiculously deep)
     if (quote>4000) {
@@ -618,64 +609,46 @@ static char *parse_word(char *start, int early, int quote)
       return (void *)1;
     }
 
-    // Handle quote contexts
-    if ((q = quote ? toybuf[quote-1] : 0)) {
-      // when waiting for parentheses, they nest
-      if ((q == ')' || q >= 254) && (*end == '(' || *end == ')')) {
-        if (*end == '(') qc++;
+    // Are we in a quote context?
+    if ((qq = quote ? toybuf[quote-1] : 0)) {
+      ii = *end++;
+      if ((qq==')' || qq>=254) && (ii=='(' || ii==')')) { // parentheses nest
+        if (ii=='(') qc++;
         else if (qc) qc--;
-        else if (q >= 254) {
+        else if (qq>=254) {
           // (( can end with )) or retroactively become two (( if we hit one )
-          if (*end == ')' && end[1] == ')') quote--, end++;
-          else if (q == 254) return start+1;
-          else if (q == 255) toybuf[quote-1] = ')';
-        } else if (*end == ')') quote--;
-        end++;
+          if (ii==')' && *end==')') quote--, end++;
+          else if (qq==254) return start+1;
+          else if (qq==255) toybuf[quote-1] = ')';
+        } else if (ii==')') quote--;
+      } else if (ii==qq) quote--;        // matching end quote
+      else if (qq!='\'') end--, ii = 0;  // single quote claims everything
+      if (ii) continue;                  // fall through for other quote types
 
-      // end quote?
-      } else if (*end == q) quote--, end++;
-
-      // single quote claims everything
-      else if (q == '\'') end++;
-      else i++;
-
-      // loop if we already handled a symbol and aren't stopping early
-      if (early && !quote) return end;
-      if (!i) continue;
+    // space and flow control chars only end word when not quoted in any way
     } else {
-      // Things that only matter when unquoted
-
       if (isspace(*end)) break;
-
-      // Flow control characters that end pipeline segments
-      s = end + anystart(end, (char *[]){";;&", ";;", ";&", ";", "||",
+      ss = end + anystart(end, (char *[]){";;&", ";;", ";&", ";", "||",
         "|&", "|", "&&", "&", "(", ")", 0});
-      if (s != end) return (end == start) ? s : end;
+      if (ss!=end) return (end==start) ? ss : end;
     }
 
-    // Things the same unquoted or in most non-single-quote contexts
-
-    // start new quote context?
-    if (strchr("'\"`"+(q == '"'), *end)) toybuf[quote++] = *end;
+    // start new quote context? (' not special within ")
+    if (strchr("'\"`"+(qq=='"'), ii = *end++)) toybuf[quote++] = ii;
 
     // backslash escapes
-    else if (*end == '\\') {
-      if (!end[1] || (end[1]=='\n' && !end[2])) return early ? end+1 : 0;
-      end += 2;
-    } else if (*end == '$' && -1 != (i = stridx("({[", end[1]))) {
+    else if (ii=='\\') {
+      if (!*end || (*end=='\n' && !end[1])) return early ? end : 0;
       end++;
-      if (strstart(&end, "((")) toybuf[quote++] = 255;
-      else {
-        toybuf[quote++] = ")}]"[i];
+    } else if (ii=='$' && -1!=(qq = stridx("({[", *end))) {
+      if (strstart(&end, "((")) {
+        toybuf[quote++] = 255;
         end++;
-      }
-    } else if (end[1]=='(' && strchr("?*+@!", *end)) {
+      } else toybuf[quote++] = ")}]"[qq];
+    } else if (*end=='(' && strchr("?*+@!", ii)) {
       toybuf[quote++] = ')';
-      end += 2;
-    }
-
-    if (early && !quote) return end;
-    end++;
+      end++;
+    };
   }
 
   return (quote && !early) ? 0 : end;
