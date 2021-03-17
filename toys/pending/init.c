@@ -308,11 +308,7 @@ static void waitforpid(pid_t pid)
 {
   if (pid <= 0) return;
 
-  for(;;) {
-    pid_t y = wait(NULL);
-    mark_as_terminated_process(y);
-    if (kill(y, 0)) break;
-  }
+  while (!kill(pid, 0)) mark_as_terminated_process(wait(NULL));
 }
 
 static void run_action_from_list(int action)
