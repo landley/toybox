@@ -99,6 +99,7 @@ testing 'prefix is local for builtins' 'abc=123; abc=def unset abc; echo $abc' \
 testing 'prefix localizes magic vars' \
   'SECONDS=123; SECONDS=345 true; echo $SECONDS' '123\n' '' ''
 shxpect 'body evaluated before variable exports' I$'a=x${} y${}\n' RE'y${}'
+testing '$NOTHING clears $_' 'true; $NOTHING; echo $_' '\n' '' ''
 
 testing 'exec exitval' "$SH -c 'exec echo hello' && echo \$?" "hello\n0\n" "" ""
 testing 'simple script' '$SH input' 'input\n' 'echo $0' ''
