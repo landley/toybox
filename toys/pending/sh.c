@@ -779,8 +779,7 @@ static struct sh_pipeline *pop_block(struct sh_blockstack **cached)
 // Add entry to runtime function call stack
 static void call_function(void)
 {
-  // push to dlist like single list (reverse order, new entry becomes TT.ff)
-  if (TT.ff) TT.ff = TT.ff->next;
+  // dlist in reverse order: TT.ff = current function, TT.ff->prev = globals
   dlist_add_nomalloc((void *)&TT.ff, xzalloc(sizeof(struct sh_fcall)));
   TT.ff = TT.ff->prev;
   TT.ff->pout = -1;
@@ -810,7 +809,6 @@ static int end_function(int funconly)
 
   // for a function, free variables and pop context
   if (!func) return 0;
-
   while (ff->varslen)
     if (!(ff->vars[--ff->varslen].flags&VAR_NOFREE))
       free(ff->vars[ff->varslen].str);
@@ -2245,16 +2243,14 @@ static struct sh_process *run_command(void)
     if (s == arg->v[envlen] || *s != '=') break;
   }
 
-  // expand arguments and perform redirects
-  pp = expand_redir(arg, envlen, 0);
-
-  // assign variables. If command, create temp function context to hold vars
-  if (!pp->exit && envlen) {
+  if (envlen) {
     struct sh_fcall *ff;
     struct sh_vars *vv;
 
-    if (!(ll = envlen == arg->c)) call_function();
-    for (; jj<envlen && !pp->exit; jj++) {
+    // If prefix assignment, create temp function context to hold vars
+    if (!(ll = envlen==arg->c)) call_function();
+    for (; jj<envlen && !pp; jj++) {
+// TODO merge this, export() and local_main
       s = arg->v[jj];
       if (!ll && (!(vv = findvar(s, &ff)) || ff != TT.ff)) {
         if (vv && (vv->flags&VAR_READONLY)) {
@@ -2263,14 +2259,17 @@ static struct sh_process *run_command(void)
         }
         addvar(s, TT.ff)->flags = VAR_NOFREE|VAR_GLOBAL;
       }
-      if (!(sss = expand_one_arg(s, SEMI_IFS, ll ? &delete : 0))) pp->exit = 1;
-      else setvar((!ll || sss != s) ? s : xstrdup(s));
+      if (!(sss = expand_one_arg(s, SEMI_IFS, ll ? &delete : 0))) {
+        if (!pp) pp = xzalloc(sizeof(struct sh_process));
+        pp->exit = 1;
+      } else setvar((!ll || sss != s) ? s : xstrdup(s));
     }
   }
 
-  // Run command
+  // Expand command line and do what it says
+  if (!pp) pp = expand_redir(arg, envlen, 0);
   s = pp->arg.v ? pp->arg.v[pp->arg.c-1] : "";
-  if (pp->exit || envlen == arg->c) s = 0; // leave $_ alone
+  if (pp->exit || envlen==arg->c) s = 0; // leave $_ alone
   else if (!pp->arg.v); // nothing to do but blank ""
 // TODO handle ((math)): else if (!strcmp(*pp->arg.v, "(("))
 // TODO: call functions() FUNCTION
@@ -2910,6 +2909,7 @@ static void run_lines(void)
     ctl = TT.ff->pl->end->arg->v[TT.ff->pl->end->arg->c];
     s = *TT.ff->pl->arg->v;
     ss = TT.ff->pl->arg->v[1];
+//dprintf(2, "s=%s ss=%s ctl=%s type=%d\n", s, ss, ctl, TT->ff->pl->type);
     if (!pplist) TT.hfd = 10;
 
     // Skip disabled blocks, handle pipes and backgrounding
@@ -3267,14 +3267,13 @@ int do_source(char *name, FILE *ff)
   char *new;
 
 // TODO fix/catch NONBLOCK on input?
-
 // TODO when DO we reset lineno? (!LINENO means \0 returns 1)
 // when do we NOT reset lineno? Inherit but preserve perhaps? newline in $()?
   if (!name) TT.LINENO = 0;
 
   do {
     if ((void *)1 == (new = get_next_line(ff, more+1))) goto is_binary;
-
+//dprintf(2, "getline from %p %s\n", ff, new);
     // did we exec an ELF file or something?
     if (!TT.LINENO++ && name && new) {
       wchar_t wc;
@@ -3877,11 +3876,10 @@ void source_main(void)
   FILE *ff = fpathopen(name);
 
   if (!ff) return perror_msg_raw(name);
-
   // $0 is shell name, not source file name while running this
 // TODO add tests: sh -c "source input four five" one two three
   *toys.optargs = *toys.argv;
-  if (++TT.srclvl>99) error_msg("bad source depth %d", TT.srclvl);
+  if (++TT.srclvl>50) error_msg("recursive occlusion");
   else {
     call_function();
     TT.ff->arg.v = toys.optargs;
