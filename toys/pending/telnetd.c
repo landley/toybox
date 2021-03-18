@@ -24,7 +24,9 @@ config TELNETD
 
 #define FOR_telnetd
 #include "toys.h"
+#include <arpa/telnet.h>
 #include <utmp.h>
+
 GLOBALS(
     char *login_path;
     char *issue_path;
@@ -35,20 +37,6 @@ GLOBALS(
     int gmax_fd;
     pid_t fork_pid;
 )
-
-
-# define IAC         255  /* interpret as command: */
-# define DONT        254  /* you are not to use option */
-# define DO          253  /* please, you use option */
-# define WONT        252  /* I won't use option */
-# define WILL        251  /* I will use option */
-# define SB          250  /* interpret as subnegotiation */
-# define SE          240  /* end sub negotiation */
-# define NOP         241  /* No Operation */
-# define TELOPT_ECHO   1  /* echo */
-# define TELOPT_SGA    3  /* suppress go ahead */
-# define TELOPT_TTYPE 24  /* terminal type */
-# define TELOPT_NAWS  31  /* window size */
 
 #define BUFSIZE 4*1024
 struct term_session {
@@ -132,7 +120,7 @@ static int listen_socket(void)
   char buf[sizeof(struct sockaddr_storage)];
 
   memset(buf, 0, sizeof(buf));
-  if (toys.optflags & FLAG_b) {
+  if (FLAG(b)) {
     get_sockaddr(TT.host_addr, buf);
     af = ((struct sockaddr *)buf)->sa_family;
   } else {
@@ -140,8 +128,7 @@ static int listen_socket(void)
     ((struct sockaddr_in*)buf)->sin_family = af;
   }
   s = xsocket(af, SOCK_STREAM, 0);
-  if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *)&yes, sizeof(yes)) == -1) 
-    perror_exit("setsockopt");
+  xsetsockopt(s, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 
   xbind(s, (struct sockaddr *)buf, ((af == AF_INET)?
           (sizeof(struct sockaddr_in)):(sizeof(struct sockaddr_in6))));
@@ -187,9 +174,9 @@ static int new_session(int sockfd)
   setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, &i, sizeof(i));
   flags = fcntl(sockfd, F_GETFL);
   fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
-  if (toys.optflags & FLAG_i) fcntl((sockfd + 1), F_SETFL, flags | O_NONBLOCK);
+  if (FLAG(i)) fcntl((sockfd + 1), F_SETFL, flags | O_NONBLOCK);
 
-  writeall((toys.optflags & FLAG_i)?1:sockfd, intial_iacs, sizeof(intial_iacs));
+  writeall(FLAG(i)?1:sockfd, intial_iacs, sizeof(intial_iacs));
   if ((TT.fork_pid = forkpty(&fd, tty_name, NULL, NULL)) > 0) {
     flags = fcntl(fd, F_GETFL);
     fcntl(fd, F_SETFL, flags | O_NONBLOCK);
@@ -300,21 +287,19 @@ static int dup_iacs(char *start, int fd, int len)
 
 void telnetd_main(void)
 {
-  errno = 0;
   fd_set rd, wr;
   struct term_session *tm = NULL;
   struct timeval tv, *tv_ptr = NULL;
   int pty_fd, new_fd, c = 0, w, master_fd = 0;
-  int inetd_m = toys.optflags & FLAG_i;
 
-  if (!(toys.optflags & FLAG_l)) TT.login_path = "/bin/login";
-  if (!(toys.optflags & FLAG_f)) TT.issue_path = "/etc/issue.net";
-  if (toys.optflags & FLAG_w) toys.optflags |= FLAG_F;
-  if (!inetd_m) {
+  if (!FLAG(l)) TT.login_path = "/bin/login";
+  if (!FLAG(f)) TT.issue_path = "/etc/issue.net";
+  if (FLAG(w)) toys.optflags |= FLAG_F;
+  if (!FLAG(i)) {
     master_fd = listen_socket();
     fcntl(master_fd, F_SETFD, FD_CLOEXEC);
     if (master_fd > TT.gmax_fd) TT.gmax_fd = master_fd;
-    if (!(toys.optflags & FLAG_F)) daemon(0, 0); 
+    if (!FLAG(F)) daemon(0, 0);
   } else {
     pty_fd = new_session(master_fd); //master_fd = 0
     if (pty_fd > TT.gmax_fd) TT.gmax_fd = pty_fd;
@@ -328,7 +313,7 @@ void telnetd_main(void)
     } else session_list = tm;
   }
 
-  if ((toys.optflags & FLAG_w) && !session_list) {
+  if (FLAG(w) && !session_list) {
     tv.tv_sec = TT.w_sec;
     tv.tv_usec = 0;
     tv_ptr = &tv;
@@ -338,7 +323,7 @@ void telnetd_main(void)
   for (;;) {
     FD_ZERO(&rd);
     FD_ZERO(&wr);
-    if (!inetd_m) FD_SET(master_fd, &rd);
+    if (!FLAG(i)) FD_SET(master_fd, &rd);
 
     tm = session_list;
     while (tm) {
@@ -354,10 +339,10 @@ void telnetd_main(void)
 
 
     int r = select(TT.gmax_fd + 1, &rd, &wr, NULL, tv_ptr);
-    if (!r) return; //timeout
+    if (!r) error_exit("select timed out");
     if (r < -1) continue;
 
-    if (!inetd_m && FD_ISSET(master_fd, &rd)) { //accept new connection
+    if (!FLAG(i) && FD_ISSET(master_fd, &rd)) { //accept new connection
       new_fd = accept(master_fd, NULL, NULL);
       if (new_fd < 0) continue;
       tv_ptr = NULL;
@@ -382,7 +367,7 @@ void telnetd_main(void)
         if ((c = read(tm->pty_fd, tm->buff1 + tm->buff1_avail,
                 BUFSIZE-tm->buff1_avail)) <= 0) break;
         tm->buff1_avail += c;
-        if ((w = dup_iacs(tm->buff1 + tm->buff1_written, tm->new_fd + inetd_m,
+        if ((w = dup_iacs(tm->buff1 + tm->buff1_written, tm->new_fd + FLAG(i),
                 tm->buff1_avail - tm->buff1_written)) < 0) break;
         tm->buff1_written += w;
       }
@@ -401,7 +386,7 @@ void telnetd_main(void)
         tm->buff2_written += w;
       }
       if (FD_ISSET(tm->new_fd, &wr)) {
-        if ((w = dup_iacs(tm->buff1 + tm->buff1_written, tm->new_fd + inetd_m,
+        if ((w = dup_iacs(tm->buff1 + tm->buff1_written, tm->new_fd + FLAG(i),
                 tm->buff1_avail - tm->buff1_written)) < 0) break;
         tm->buff1_written += w;
       }
@@ -421,17 +406,16 @@ void telnetd_main(void)
       // funny little dance to avoid race conditions.
       toys.signal = 0;
       pid = waitpid(-1, &status, WNOHANG);
-      if (pid < 0) break;
+      if (pid <= 0) break;
       toys.signal++;
-
 
       for (tm = session_list; tm; tm = tm->next) {
         if (tm->child_pid == pid) break;
         prev = tm;
       }
-      if (!tm) return; // reparented child we don't care about
+      if (!tm) error_exit("unexpected reparenting of %d", pid);
 
-      if (toys.optflags & FLAG_i) exit(EXIT_SUCCESS);
+      if (FLAG(i)) exit(EXIT_SUCCESS);
       if (!prev) session_list = session_list->next;
       else prev->next = tm->next;
       utmp_entry();
