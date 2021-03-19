@@ -590,7 +590,7 @@ static char *parse_word(char *start, int early, int quote)
   int ii, qq, qc = 0;
   char *end = start, *ss;
 
-  // Things that only matter at the start of word: redirections, <(), (( ))
+  // Handle redirections, <(), (( )) that only count at the start of word
   ss = end + redir_prefix(end); // 123<<file- parses as 2 args: "123<<" "file-"
   if (strstart(&ss, "<(") || strstart(&ss, ">(")) {
     toybuf[quote++]=')';
@@ -636,19 +636,19 @@ static char *parse_word(char *start, int early, int quote)
     // start new quote context? (' not special within ")
     if (strchr("'\"`"+(qq=='"'), ii = *end++)) toybuf[quote++] = ii;
 
-    // backslash escapes
-    else if (ii=='\\') {
-      if (!*end || (*end=='\n' && !end[1])) return early ? end : 0;
+    // \? $() ${} $[] ?() *() +() @() !()
+    else {
+      if (ii=='\\') { // TODO why end[1] here? sh -c $'abc\\\ndef' Add test.
+        if (!*end || (*end=='\n' && !end[1])) return early ? end : 0;
+      } else if (ii=='$' && -1!=(qq = stridx("({[", *end))) {
+        if (strstart(&end, "((")) {
+          toybuf[quote++] = 255;
+          end++;
+        } else toybuf[quote++] = ")}]"[qq];
+      } else if (*end=='(' && strchr("?*+@!", ii)) toybuf[quote++] = ')';
+      else end--;
       end++;
-    } else if (ii=='$' && -1!=(qq = stridx("({[", *end))) {
-      if (strstart(&end, "((")) {
-        toybuf[quote++] = 255;
-        end++;
-      } else toybuf[quote++] = ")}]"[qq];
-    } else if (*end=='(' && strchr("?*+@!", ii)) {
-      toybuf[quote++] = ')';
-      end++;
-    };
+    }
   }
 
   return (quote && !early) ? 0 : end;
@@ -2232,7 +2232,7 @@ static struct sh_process *run_command(void)
 {
   char *s, *sss;
   struct sh_arg *arg = TT.ff->pl->arg;
-  int envlen, jj = 0, ll;
+  int envlen, jj = 0, persist;
   struct sh_process *pp = 0;
   struct arg_list *delete = 0;
   struct toy_list *tl;
@@ -2248,21 +2248,21 @@ static struct sh_process *run_command(void)
     struct sh_vars *vv;
 
     // If prefix assignment, create temp function context to hold vars
-    if (!(ll = envlen==arg->c)) call_function();
+    if (!(persist = envlen==arg->c)) call_function();
     for (; jj<envlen && !pp; jj++) {
-// TODO merge this, export() and local_main
+// TODO this is localize(), merge with export() and local_main
       s = arg->v[jj];
-      if (!ll && (!(vv = findvar(s, &ff)) || ff != TT.ff)) {
+      if (!persist && (!(vv = findvar(s, &ff)) || ff != TT.ff)) {
         if (vv && (vv->flags&VAR_READONLY)) {
           error_msg("%.*s: readonly variable", (int)(varend(s)-s), s);
           continue;
         }
         addvar(s, TT.ff)->flags = VAR_NOFREE|VAR_GLOBAL;
       }
-      if (!(sss = expand_one_arg(s, SEMI_IFS, ll ? &delete : 0))) {
+      if (!(sss = expand_one_arg(s, SEMI_IFS, persist ? 0 : &delete))) {
         if (!pp) pp = xzalloc(sizeof(struct sh_process));
         pp->exit = 1;
-      } else setvar((!ll || sss != s) ? s : xstrdup(s));
+      } else setvar((!persist || sss != s) ? sss : xstrdup(sss));
     }
   }
 
@@ -2446,7 +2446,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
 
     // Parse next word and detect overflow (too many nested quotes).
     if ((end = parse_word(start, 0, 0)) == (void *)1) goto flush;
-
+//dprintf(2, "word=%.*s\n", (int)(end-start), end ? start : "");
     // Is this a new pipeline segment?
     if (!pl) pl = add_pl(ppl, &arg);
 
@@ -2909,7 +2909,7 @@ static void run_lines(void)
     ctl = TT.ff->pl->end->arg->v[TT.ff->pl->end->arg->c];
     s = *TT.ff->pl->arg->v;
     ss = TT.ff->pl->arg->v[1];
-//dprintf(2, "s=%s ss=%s ctl=%s type=%d\n", s, ss, ctl, TT->ff->pl->type);
+//dprintf(2, "s=%s ss=%s ctl=%s type=%d\n", s, ss, ctl, TT.ff->pl->type);
     if (!pplist) TT.hfd = 10;
 
     // Skip disabled blocks, handle pipes and backgrounding
