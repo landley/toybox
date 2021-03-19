@@ -646,7 +646,10 @@ static char *parse_word(char *start, int early, int quote)
           end++;
         } else toybuf[quote++] = ")}]"[qq];
       } else if (*end=='(' && strchr("?*+@!", ii)) toybuf[quote++] = ')';
-      else end--;
+      else {
+        end--;
+        if (early && !quote) return end;
+      }
       end++;
     }
   }
@@ -1362,7 +1365,7 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
 
     // both types of subshell work the same, so do $( here not in '$' below
 // TODO $((echo hello) | cat) ala $(( becomes $( ( retroactively
-    } else if (cc == '`' || (cc == '$' && strchr("([", str[ii]))) {
+    } else if (cc == '`' || (cc == '$' && str[ii] && strchr("([", str[ii]))) {
       off_t pp = 0;
 
       s = str+ii-1;
