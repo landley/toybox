@@ -37,6 +37,12 @@ static void do_rmdir(char *name)
     if (!toys.optflags) return;
     do {
       if (!(temp = strrchr(name, '/'))) return;
+
+      if (temp == name) {
+        temp[1] = 0;
+        break;
+      }
+
       *temp = 0;
     } while (!temp[1]);
   }
