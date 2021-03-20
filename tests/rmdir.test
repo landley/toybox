@@ -40,6 +40,10 @@ testing "-p part of path" \
 	"yes\n" "" ""
 rm -rf temp
 
+skipnot [ $UID -eq 0 ]
+testing '-p abspath' \
+  'mkdir -p /test/2/3 && rmdir -p /test/2/3 && [ ! -e /test ] && echo yes' \
+  'yes\n' '' ''
 
 mkdir -p one/two/three
 testing "-p one/two/three" \
