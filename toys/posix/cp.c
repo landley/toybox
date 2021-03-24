@@ -520,11 +520,11 @@ void install_main(void)
     return;
   }
 
-  if (FLAG(D) && !FLAG(t)) {
-    TT.destname = toys.optargs[toys.optc-1];
-    if (mkpathat(AT_FDCWD, TT.destname, 0, MKPATHAT_MAKE))
-      perror_exit("-D '%s'", TT.destname);
-    if (toys.optc == 1) return;
+  if (FLAG(D)) {
+    char *destname = FLAG(t) ? TT.i.t : (TT.destname = toys.optargs[toys.optc-1]);
+    if (mkpathat(AT_FDCWD, destname, 0777, MKPATHAT_MAKE | (FLAG(t) ? MKPATHAT_MKLAST : 0)))
+      perror_exit("-D '%s'", destname);
+    if (toys.optc == !FLAG(t)) return;
   }
 
   // Translate flags from install to cp
