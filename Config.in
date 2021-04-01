@@ -182,6 +182,6 @@ config TOYBOX_FORCE_NOMMU
 	  to force every program to either include all nommu code in every
 	  instance ever built, or drop nommu support altogether.
 
-	  Building a toolchain scripts/mcm-buildall.sh patches musl to fix this.
+	  Building a scripts/mcm-buildall.sh toolchain patches musl to fix this.
 
 endmenu
