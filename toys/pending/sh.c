@@ -865,7 +865,7 @@ static int end_function(int funconly)
 static int run_subshell(char *str, int len)
 {
   pid_t pid;
-//dprintf(2, "%d run_subshell %.*s\n", getpid(), len, str);
+//dprintf(2, "%d run_subshell %.*s\n", getpid(), len, str); debug_show_fds();
   // The with-mmu path is significantly faster.
   if (CFG_TOYBOX_FORK) {
     if ((pid = fork())<0) perror_msg("fork");
@@ -2290,7 +2290,10 @@ static struct sh_process *run_command(void)
     struct sh_vars *vv;
 
     // If prefix assignment, create temp function context to hold vars
-    if (!(persist = envlen==arg->c || TT.ff->blk->pipe)) call_function();
+    if (envlen!=arg->c || TT.ff->blk->pipe!=-1) {
+      call_function();
+      persist = 0;
+    }
     for (; jj<envlen && !pp; jj++) {
 // TODO this is localize(), merge with export() and local_main
       s = arg->v[jj];
@@ -2313,13 +2316,13 @@ static struct sh_process *run_command(void)
   if (pp->exit || envlen==arg->c) s = 0; // leave $_ alone
   else if (!pp->arg.v) s = "";           // nothing to do but blank $_
   else {
-    struct toy_list *tl = toy_find(pp->arg.v[envlen]);
+    struct toy_list *tl = toy_find(*pp->arg.v);
 
     jj = tl ? tl->flags : 0;
     TT.pp = pp;
     s = pp->arg.v[pp->arg.c-1];
     sss = pp->arg.v[pp->arg.c];
-//dprintf(2, "%d run command %s\n", getpid(), pp->arg.v[envlen]);
+//dprintf(2, "%d run command %s\n", getpid(), *pp->arg.v); debug_show_fds();
 // TODO handle ((math)): else if (!strcmp(*pp->arg.v, "(("))
 // TODO: call functions() FUNCTION
 // TODO what about "echo | x=1 | export fruit", must subshell? Test this.
@@ -3329,7 +3332,7 @@ int do_source(char *name, FILE *ff)
 
   do {
     if ((void *)1 == (new = get_next_line(ff, more+1))) goto is_binary;
-//dprintf(2, "%d getline from %p %s\n", getpid(), ff, new);
+//dprintf(2, "%d getline from %p %s\n", getpid(), ff, new); debug_show_fds();
     // did we exec an ELF file or something?
     if (!TT.LINENO++ && name && new) {
       wchar_t wc;
