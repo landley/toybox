@@ -3085,6 +3085,7 @@ static void run_lines(void)
           continue;
         }
         TT.ff->pl = TT.ff->pl->end;
+        pop_block();
         dlist_add_nomalloc((void *)&pplist, (void *)pp);
 
       // handle start of block in this process
