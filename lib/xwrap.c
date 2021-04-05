@@ -225,8 +225,8 @@ pid_t __attribute__((returns_twice)) xvforkwrap(pid_t pid)
 void xexec(char **argv)
 {
   // Only recurse to builtin when we have multiplexer and !vfork context.
-  if (CFG_TOYBOX && !CFG_TOYBOX_NORECURSE && toys.stacktop && **argv != '/')
-    toy_exec(argv);
+  if (CFG_TOYBOX && !CFG_TOYBOX_NORECURSE)
+    if (toys.stacktop && !strchr(**argv,'/')) toy_exec(argv);
   execvp(argv[0], argv);
 
   toys.exitval = 126+(errno == ENOENT);
