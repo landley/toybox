@@ -136,6 +136,11 @@ testing "-t one arg" 'cp -t sub/ input && cat sub/input' 'yes\n' 'yes\n' ''
 toyonly testing "-Dt" 'cp -Dt sub2 input && cat sub2/input' 'and\n' 'and\n' ''
 rm -rf sub sub2
 
+testing '-u1' 'echo one>one; sleep .1; echo two>two; cp -u one two; cat two' \
+  'two\n' '' ''
+testing '-u2' 'echo two>two; sleep .1; echo one>one; cp -u one two; cat two' \
+  'one\n' '' ''
+
 # cp -r ../source destdir
 # cp -r one/two/three missing
 # cp -r one/two/three two

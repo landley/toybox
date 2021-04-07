@@ -15,7 +15,7 @@
 // options shared between mv/cp must be in same order (right to left)
 // for FLAG macros to work out right in shared infrastructure.
 
-USE_CP(NEWTOY(cp, "<1(preserve):;D(parents)RHLPprdaslvnF(remove-destination)fit:T[-HLPd][-ni]", TOYFLAG_BIN))
+USE_CP(NEWTOY(cp, "<1(preserve):;D(parents)RHLPprudaslvnF(remove-destination)fit:T[-HLPd][-niu]", TOYFLAG_BIN))
 USE_MV(NEWTOY(mv, "<1vnF(remove-destination)fit:T[-ni]", TOYFLAG_BIN))
 USE_INSTALL(NEWTOY(install, "<1cdDpsvt:m:o:g:", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -38,6 +38,7 @@ config CP
     -L	Follow all symlinks
     -l	Hard link instead of copy
     -n	No clobber (don't overwrite DEST)
+    -u	Update (keep newest mtime)
     -P	Do not follow symlinks
     -p	Preserve timestamps, ownership, and mode
     -R	Recurse into subdirectories (DEST must be a directory)
@@ -152,7 +153,7 @@ static int cp_node(struct dirtree *try)
       return 0;
     }
 
-    // Handle -invF
+    // Handle -inuvF
 
     if (!faccessat(cfd, catch, F_OK, 0) && !S_ISDIR(cst.st_mode)) {
       char *s;
@@ -165,6 +166,8 @@ static int cp_node(struct dirtree *try)
         error_msg("unlink '%s'", catch);
         return 0;
       } else if (flags & FLAG_n) return 0;
+      else if ((flags & FLAG_u) && nanodiff(&try->st.st_mtim, &cst.st_mtim)>0)
+        return 0;
       else if (flags & FLAG_i) {
         fprintf(stderr, "%s: overwrite '%s'", toys.which->name,
           s = dirtree_path(try, 0));
