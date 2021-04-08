@@ -96,7 +96,6 @@ void *xrealloc(void *ptr, size_t size)
 char *xstrndup(char *s, size_t n)
 {
   char *ret = strndup(s, n);
-
   if (!ret) error_exit("xstrndup");
 
   return ret;
@@ -127,8 +126,7 @@ char *xmprintf(char *format, ...)
   va_copy(va2, va);
 
   // How long is it?
-  len = vsnprintf(0, 0, format, va);
-  len++;
+  len = vsnprintf(0, 0, format, va)+1;
   va_end(va);
 
   // Allocate and do the sprintf()
@@ -226,7 +224,7 @@ void xexec(char **argv)
 {
   // Only recurse to builtin when we have multiplexer and !vfork context.
   if (CFG_TOYBOX && !CFG_TOYBOX_NORECURSE)
-    if (toys.stacktop && !strchr(**argv,'/')) toy_exec(argv);
+    if (toys.stacktop && !strchr(*argv, '/')) toy_exec(argv);
   execvp(argv[0], argv);
 
   toys.exitval = 126+(errno == ENOENT);
