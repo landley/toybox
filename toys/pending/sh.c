@@ -2288,11 +2288,11 @@ static struct sh_process *run_command(void)
   struct sh_process *pp = 0;
   struct arg_list *delete = 0;
 
-  // Count leading variable assignments and perform any assignment(s)
-  for (envlen = 0; envlen<arg->c; envlen++) {
-    s = varend(arg->v[envlen]);
-    if (s == arg->v[envlen] || *s != '=') break;
-  }
+  // Count leading variable assignments
+  for (envlen = 0; envlen<arg->c; envlen++)
+    if ((s = varend(arg->v[envlen])) == arg->v[envlen] || *s != '=') break;
+
+  // perform any assignments
   if (envlen) {
     struct sh_fcall *ff;
     struct sh_vars *vv;
@@ -2309,10 +2309,10 @@ static struct sh_process *run_command(void)
         error_msg("%.*s: readonly variable", (int)(varend(s)-s), s);
         continue;
       }
-      if (!vv || (!persist && ff != TT.ff))
+      if (!vv || (!persist && ff != TT.ff && (ff = TT.ff)))
         (vv = addvar(s, ff))->flags = VAR_NOFREE|(VAR_GLOBAL*!persist);
       if (!(sss = expand_one_arg(s, SEMI_IFS, persist ? 0 : &delete))) {
-        if (!pp) pp = xzalloc(sizeof(struct sh_process));
+        if (!pp) pp = xzalloc(sizeof(*pp));
         pp->exit = 1;
       } else if (persist || sss != s) {
         vv->flags &= ~VAR_NOFREE;
@@ -2323,8 +2323,17 @@ static struct sh_process *run_command(void)
     }
   }
 
-  // Expand command line and do what it says
-  if (!pp) pp = expand_redir(arg, envlen, 0);
+  // expand cmdline with _old_ var context, matching bash's order of operations
+  if (!pp) {
+    sss = persist ? 0 : dlist_pop(&TT.ff);
+    pp = expand_redir(arg, envlen, 0);
+    if (!persist) {
+      dlist_add_nomalloc((void *)&TT.ff, (void *)sss);
+      TT.ff = TT.ff->prev;
+    }
+  }
+
+  // Do the thing
   if (pp->exit || envlen==arg->c) s = 0; // leave $_ alone
   else if (!pp->arg.v) s = "";           // nothing to do but blank $_
   else {
