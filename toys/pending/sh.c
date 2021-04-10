@@ -216,11 +216,11 @@ GLOBALS(
     } exec;
   };
 
-  // keep ifs here: used to work around compiler limitation in run_command()
-  char *ifs, *isexec, *wcpat;
+  // keep SECONDS here: used to work around compiler limitation in run_command()
+  long long SECONDS;
+  char *isexec, *wcpat;
   unsigned options, jobcnt, LINENO;
   int hfd, pid, bangpid, varslen, cdcount, srclvl, recursion;
-  long long SECONDS;
 
 // FUNCTION transplant pipelines from place to place?
 // function keyword can have pointer to function struct? Still refcnt?
@@ -251,6 +251,7 @@ GLOBALS(
 
 //    struct sh_function *func;
     struct sh_pipeline *pl;
+    char *ifs;
     int varslen;
     struct sh_arg arg;
     struct arg_list *delete;
@@ -399,6 +400,7 @@ static struct sh_vars *addvar(char *s, struct sh_fcall *ff)
 {
   if (!(ff->varslen&31))
     ff->vars = xrealloc(ff->vars, (ff->varslen+32)*sizeof(*ff->vars));
+  if (!s) return ff->vars;
   ff->vars[ff->varslen].flags = 0;
   ff->vars[ff->varslen].str = s;
 
@@ -421,9 +423,10 @@ long long do_math(char **s)
 // ft
 static struct sh_vars *setvar(char *s)
 {
-  int len = varend(s)-s;
-  long flags;
+  struct sh_fcall *ff;
   struct sh_vars *var;
+  long flags;
+  int len = varend(s)-s;
 
   if (s[len] != '=') {
     error_msg("bad setvar %s\n", s);
@@ -431,8 +434,10 @@ static struct sh_vars *setvar(char *s)
 
     return 0;
   }
-  if (!strncmp(s, "IFS=", 4)) TT.ifs = s+4;
-  if (!(var = findvar(s, 0))) return addvar(s, TT.ff->prev);
+  if (!(var = findvar(s, &ff))) ff = TT.ff->prev;
+  if (!strncmp(s, "IFS=", 4))
+    do ff->ifs = s+4; while ((ff = ff->next) != TT.ff->prev);
+  if (!var) return addvar(s, TT.ff->prev);
   flags = (var->flags &= ~VAR_WHITEOUT);
 
   if (flags&VAR_READONLY) {
@@ -483,6 +488,8 @@ static void unsetvar(char *name)
     if (!(var->flags&VAR_NOFREE)) free(var->str);
     memmove(ff->vars+ii, ff->vars+ii+1, (ff->varslen--)-ii);
   }
+  if (!strcmp(name, "IFS"))
+    do ff->ifs = " \t\n"; while ((ff = ff->next) != TT.ff->prev);
 }
 
 static struct sh_vars *setvarval(char *name, char *val)
@@ -829,6 +836,7 @@ static void call_function(void)
   // default $* is to copy previous
   TT.ff->arg.v = TT.ff->next->arg.v;
   TT.ff->arg.c = TT.ff->next->arg.c;
+  TT.ff->ifs = TT.ff->next->ifs;
 }
 
 // returns 0 if source popped, nonzero if function popped
@@ -838,7 +846,6 @@ static int end_function(int funconly)
   int func = ff->next!=ff && ff->vars;
 
   if (!func && funconly) return 0;
-
   llist_traverse(ff->delete, llist_free_arg);
   ff->delete = 0;
   while (TT.ff->blk->next) pop_block();
@@ -1563,8 +1570,8 @@ barf:
       nosplit++;
       if (flags&SEMI_IFS) strcpy(sep, " ");
 // TODO what if separator is bigger? Need to grab 1 column of combining chars
-      else if (0<(dd = utf8towc(&wc, TT.ifs, 4)))
-        sprintf(sep, "%.*s", dd, TT.ifs);
+      else if (0<(dd = utf8towc(&wc, TT.ff->ifs, 4)))
+        sprintf(sep, "%.*s", dd, TT.ff->ifs);
     }
 
     // when aa proceed through entries until NULL, else process ifs once
@@ -1737,7 +1744,8 @@ barf:
 
         // find end of (split) word
         if ((qq&1) || nosplit) ss = ifs+strlen(ifs);
-        else for (ss = ifs; *ss; ss += kk) if (utf8chr(ss, TT.ifs, &kk)) break;
+        else for (ss = ifs; *ss; ss += kk)
+          if (utf8chr(ss, TT.ff->ifs, &kk)) break;
 
         // when no prefix, not splitting, no suffix: use existing memory
         if (!oo && !*ss && !((mm==aa.c) ? str[ii] : nosplit)) {
@@ -1771,7 +1779,7 @@ barf:
         }
 
         // Skip trailing seperator (combining whitespace)
-        while ((jj = utf8chr(ss, TT.ifs, &ll))) {
+        while ((jj = utf8chr(ss, TT.ff->ifs, &ll))) {
           ss += ll;
           if (!iswspace(jj)) break;
         }
@@ -2290,24 +2298,28 @@ static struct sh_process *run_command(void)
     struct sh_vars *vv;
 
     // If prefix assignment, create temp function context to hold vars
-    if (envlen!=arg->c || TT.ff->blk->pipe!=-1) {
+    if (envlen!=arg->c || TT.ff->blk->pipe) {
       call_function();
+      addvar(0, TT.ff); // function context (not source) so end_function deletes
       persist = 0;
-    }
+    } else ff = TT.ff->prev;
     for (; jj<envlen && !pp; jj++) {
-// TODO this is localize(), merge with export() and local_main
-      s = arg->v[jj];
-      if (!persist && (!(vv = findvar(s, &ff)) || ff != TT.ff)) {
-        if (vv && (vv->flags&VAR_READONLY)) {
-          error_msg("%.*s: readonly variable", (int)(varend(s)-s), s);
-          continue;
-        }
-        addvar(s, TT.ff)->flags = VAR_NOFREE|VAR_GLOBAL;
+      if (!(vv = findvar(s = arg->v[jj], &ff))) ff = persist?TT.ff->prev:TT.ff;
+      if (vv && (vv->flags&VAR_READONLY)) {
+        error_msg("%.*s: readonly variable", (int)(varend(s)-s), s);
+        continue;
       }
+      if (!vv || (!persist && ff != TT.ff))
+        (vv = addvar(s, ff))->flags = VAR_NOFREE|(VAR_GLOBAL*!persist);
       if (!(sss = expand_one_arg(s, SEMI_IFS, persist ? 0 : &delete))) {
         if (!pp) pp = xzalloc(sizeof(struct sh_process));
         pp->exit = 1;
-      } else setvar((!persist || sss != s) ? sss : xstrdup(sss));
+      } else if (persist || sss != s) {
+        vv->flags &= ~VAR_NOFREE;
+        vv->str = sss==s ? xstrdup(sss) : sss;
+      }
+      if (!strncmp(vv->str, "IFS=", 4))
+        do ff->ifs = s+4; while ((ff = ff->next) != TT.ff->prev);
     }
   }
 
@@ -2322,7 +2334,7 @@ static struct sh_process *run_command(void)
     TT.pp = pp;
     s = pp->arg.v[pp->arg.c-1];
     sss = pp->arg.v[pp->arg.c];
-//dprintf(2, "%d run command %s\n", getpid(), *pp->arg.v); debug_show_fds();
+//dprintf(2, "%d run command %p %s\n", getpid(), TT.ff, *pp->arg.v); debug_show_fds();
 // TODO handle ((math)): else if (!strcmp(*pp->arg.v, "(("))
 // TODO: call functions() FUNCTION
 // TODO what about "echo | x=1 | export fruit", must subshell? Test this.
@@ -2340,7 +2352,7 @@ static struct sh_process *run_command(void)
       // The compiler complains "declaration does not declare anything" if we
       // name the union in TT, only works WITHOUT name. So we can't
       // sizeof(union) instead offsetof() first thing after union to get size.
-      memset(&TT, 0, offsetof(struct sh_data, ifs));
+      memset(&TT, 0, offsetof(struct sh_data, SECONDS));
       if (!sigsetjmp(rebound, 1)) {
         toys.rebound = &rebound;
         toy_singleinit(tl, pp->arg.v);
@@ -2358,6 +2370,7 @@ static struct sh_process *run_command(void)
 
   // cleanup process
   unredirect(pp->urd);
+  pp->urd = 0;
   if (!persist) end_function(0);
   if (s) setvarval("_", s);
   llist_traverse(delete, llist_free_arg);
@@ -2798,7 +2811,9 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
 flush:
   if (s) syntax_err(s);
   llist_traverse(*ppl, free_pipeline);
+  *ppl = 0;
   llist_traverse(*expect, free);
+  *expect = 0;
 
   return 0-!!s;
 }
@@ -3427,7 +3442,7 @@ static void subshell_setup(void)
   initvar("PS4", "+ ");
 
   // Ensure environ copied and toys.envc set, and clean out illegal entries
-  TT.ifs = " \t\n";
+  TT.ff->ifs = " \t\n";
 
   for (from = pid = ppid = zpid = 0; (s = environ[from]); from++) {
 
@@ -3453,7 +3468,7 @@ static void subshell_setup(void)
       shv->flags |= VAR_GLOBAL;
       shv->str = s;
     }
-    if (!memcmp(s, "IFS=", 4)) TT.ifs = s+4;
+    if (!memcmp(s, "IFS=", 4)) TT.ff->ifs = s+4;
   }
 
   // set/update PWD
@@ -3700,7 +3715,6 @@ void unset_main(void)
     }
 
     // unset magic variable?
-    if (!strcmp(*arg, "IFS")) TT.ifs = " \t\n";
     unsetvar(*arg);
   }
 }
