@@ -2314,12 +2314,14 @@ static struct sh_process *run_command(void)
       if (!(sss = expand_one_arg(s, SEMI_IFS, persist ? 0 : &delete))) {
         if (!pp) pp = xzalloc(sizeof(*pp));
         pp->exit = 1;
-      } else if (persist || sss != s) {
-        vv->flags &= ~VAR_NOFREE;
-        vv->str = sss==s ? xstrdup(sss) : sss;
+      } else {
+        if (persist || sss != s) {
+          vv->flags &= ~VAR_NOFREE;
+          vv->str = sss==s ? xstrdup(sss) : sss;
+        }
+        if (!strncmp(vv->str, "IFS=", 4))
+          do ff->ifs = vv->str+4; while ((ff = ff->next) != TT.ff->prev);
       }
-      if (!strncmp(vv->str, "IFS=", 4))
-        do ff->ifs = s+4; while ((ff = ff->next) != TT.ff->prev);
     }
   }
 
