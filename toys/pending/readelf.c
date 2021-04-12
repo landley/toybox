@@ -96,9 +96,11 @@ static int get_sh(unsigned i, struct sh *s)
   s->addralign = elf_long(&shdr);
   s->entsize = elf_long(&shdr);
 
-  if (s->offset>TT.size || s->size>TT.size || s->offset>TT.size-s->size) {
-    printf("Bad offset/size %llu/%llu for sh %d\n", s->offset, s->size, i);
-    return 0;
+  if (s->type != 8) {
+    if (s->offset>TT.size || s->size>TT.size || s->offset>TT.size-s->size) {
+      printf("Bad offset/size %llu/%llu for sh %d\n", s->offset, s->size, i);
+      return 0;
+    }
   }
 
   if (!TT.shstrtab) s->name = "?";
@@ -425,7 +427,7 @@ static void scan_elf()
     TT.shstrtabsz = shstr.size;
   }
 
-  w = 8*(TT.bits+1);
+  w = 8<<TT.bits;
   if (FLAG(S)) {
     if (!TT.shnum) printf("\nThere are no sections in this file.\n");
     else {
@@ -435,7 +437,7 @@ static void scan_elf()
       }
       printf("\n"
              "Section Headers:\n"
-             "  [Nr] %-20s %-14s %-*s %-6s %-6s ES Flg Lk Inf Al\n",
+             "  [Nr] %-17s %-15s %-*s %-6s %-6s ES Flg Lk Inf Al\n",
              "Name", "Type", w, "Address", "Off", "Size");
     }
   }
@@ -455,7 +457,7 @@ static void scan_elf()
       char sh_flags[12] = {}, *p = sh_flags;
 
       for (j=0; j<12; j++) if (s.flags&(1<<j)) *p++="WAXxMSILOTC"[j];
-      printf("  [%2d] %-20s %-14s %0*llx %06llx %06llx %02llx %3s %2d %2d %2lld\n",
+      printf("  [%2d] %-17s %-15s %0*llx %06llx %06llx %02llx %3s %2d %2d %2lld\n",
              i, s.name, sh_type(s.type), w, s.addr, s.offset, s.size,
              s.entsize, sh_flags, s.link, s.info, s.addralign);
     }
