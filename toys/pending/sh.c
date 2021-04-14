@@ -1779,9 +1779,10 @@ barf:
         }
 
         // Skip trailing seperator (combining whitespace)
+        kk = 0;
         while ((jj = utf8chr(ss, TT.ff->ifs, &ll))) {
+          if (!iswspace(jj) && kk++) break;
           ss += ll;
-          if (!iswspace(jj)) break;
         }
       } while (*(ifs = ss));
     } while (!(mm == aa.c));
