@@ -59,3 +59,6 @@ testing "-id keeps existing files" "echo new >a/b && cpio -id <a.cpio 2>/dev/nul
 testing "-iu replaces existing files; no error" "echo new >a/b && cpio -iu <a.cpio && cat a/b" "old\n" "" ""
 testing "-idu replaces existing files; no error" "echo new >a/b && cpio -idu <a.cpio && cat a/b" "old\n" "" ""
 rm -rf a a.cpio
+
+testing "error on empty file" \
+  "setsid cpio -i < /dev/null 2>/dev/null || echo err" "err\n" "" ""
