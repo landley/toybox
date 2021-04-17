@@ -3,7 +3,8 @@
  * Copyright 2013 Isaac Dunham <ibid.ag@gmail.com>
  * Copyright 2015 Frontier Silicon Ltd.
  *
- * see http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cpio.html
+ * see https://www.kernel.org/doc/Documentation/early-userspace/buffer-format.txt
+ * and http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cpio.html
  * and http://pubs.opengroup.org/onlinepubs/7908799/xcu/cpio.html
  *
  * Yes, that's SUSv2, newer versions removed it, but RPM and initramfs use
@@ -11,7 +12,7 @@
  * expanded headers to 110 bytes (first field 6 bytes, rest are 8).
  * In order: magic ino mode uid gid nlink mtime filesize devmajor devminor
  * rdevmajor rdevminor namesize check
- * This is the equiavlent of mode -H newc when using GNU CPIO.
+ * This is the equivalent of mode -H newc in other implementations.
  *
  * todo: export/import linux file list text format ala gen_initramfs_list.sh
 
@@ -113,11 +114,21 @@ void cpio_main(void)
 
   if (FLAG(i) || FLAG(t)) for (;; empty = 0) {
     char *name, *tofree, *data;
-    unsigned size, mode, uid, gid, timestamp;
-    int test = FLAG(t), err = 0;
+    unsigned mode, uid, gid, timestamp;
+    int test = FLAG(t), err = 0, size = 0, len;
 
-    // Read header and name.
-    if (!(size = readall(afd, toybuf, 110))) {
+    // read header, skipping arbitrary leading NUL bytes (concatenated archives)
+    for (;;) {
+      if (1>(len = readall(afd, toybuf+size, 110-size))) break;
+      if (size || *toybuf) {
+        size += len;
+        break;
+      }
+      for (size = 0; size<len; size++) if (toybuf[size]) break;
+      memmove(toybuf, toybuf+size, len-size);
+      size = len-size;
+    }
+    if (!size) {
       if (empty) error_exit("empty archive");
       else break;
     }

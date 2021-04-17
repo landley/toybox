@@ -58,6 +58,8 @@ testing "-i keeps existing files" "echo new >a/b && cpio -i <a.cpio 2>/dev/null;
 testing "-id keeps existing files" "echo new >a/b && cpio -id <a.cpio 2>/dev/null; cat a/b" "new\n" "" ""
 testing "-iu replaces existing files; no error" "echo new >a/b && cpio -iu <a.cpio && cat a/b" "old\n" "" ""
 testing "-idu replaces existing files; no error" "echo new >a/b && cpio -idu <a.cpio && cat a/b" "old\n" "" ""
+testing "skip NUL" "for i in a b; do dd if=/dev/zero bs=512 count=1 2>/dev/null; cat a.cpio; done | cpio -t -H newc" \
+  "a\na/b\na\na/b\n" "" ""
 rm -rf a a.cpio
 
 testing "error on empty file" \
