@@ -24,14 +24,15 @@ void setsid_main(void)
 {
   int i;
 
-  // This must be before vfork() or tcsetpgrp() will hang waiting for parent.
-  setpgid(0, 0);
-
   // setsid() fails if we're already session leader, ala "exec setsid" from sh.
   // Second call can't fail, so loop won't continue endlessly.
   while (setsid()<0) {
-    pid_t pid = XVFORK();
+    pid_t pid;
 
+    // This must be before vfork() or tcsetpgrp() will hang waiting for parent.
+    setpgid(0, 0);
+
+    pid = XVFORK();
     if (pid) {
       i = 0;
       if (FLAG(w)) {
