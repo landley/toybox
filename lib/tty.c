@@ -150,9 +150,11 @@ struct scan_key_list {
 
   // VT102/VT220 escapes.
   {KEY_HOME, "\033[1~"},
+  {KEY_HOME|KEY_CTRL, "\033[1;5~"},
   {KEY_INSERT, "\033[2~"},
   {KEY_DELETE, "\033[3~"},
   {KEY_END, "\033[4~"},
+  {KEY_END|KEY_CTRL, "\033[4;5~"},
   {KEY_PGUP, "\033[5~"},
   {KEY_PGDN, "\033[6~"},
   // "Normal" "PC" escapes (xterm).
@@ -161,6 +163,8 @@ struct scan_key_list {
   // "Application" "PC" escapes (gnome-terminal).
   {KEY_HOME, "\033[H"},
   {KEY_END, "\033[F"},
+  {KEY_HOME|KEY_CTRL, "\033[1;5H"},
+  {KEY_END|KEY_CTRL, "\033[1;5F"},
 
   {KEY_FN+1, "\033OP"}, {KEY_FN+2, "\033OQ"}, {KEY_FN+3, "\033OR"},
   {KEY_FN+4, "\033OS"}, {KEY_FN+5, "\033[15~"}, {KEY_FN+6, "\033[17~"},

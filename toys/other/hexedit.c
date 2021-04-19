@@ -10,18 +10,21 @@ config HEXEDIT
   bool "hexedit"
   default y
   help
-    usage: hexedit FILENAME
+    usage: hexedit FILE
 
-    Hexadecimal file editor. All changes are written to disk immediately.
+    Hexadecimal file editor/viewer. All changes are written to disk immediately.
 
     -r	Read only (display but don't edit)
 
     Keys:
-    Arrows        Move left/right/up/down by one line/column
-    Pg Up/Pg Dn   Move up/down by one page
-    0-9, a-f      Change current half-byte to hexadecimal value
-    u             Undo
-    q/^c/^d/<esc> Quit
+    Arrows         Move left/right/up/down by one line/column
+    PgUp/PgDn      Move up/down by one page
+    Home/End       Start/end of line (start/end of file with ctrl)
+    0-9, a-f       Change current half-byte to hexadecimal value
+    ^J or :        Jump (+/- for relative offset, otherwise absolute address)
+    ^F or /        Find string (^G/n: next, ^D/p: previous match)
+    u              Undo
+    q/^C/^Q/Esc    Quit
 */
 
 #define FOR_hexedit
@@ -31,39 +34,83 @@ GLOBALS(
   char *data;
   long long len, base;
   int numlen, undo, undolen;
-  unsigned height;
+  unsigned rows, cols;
+  long long pos;
+  char keybuf[16];
+  char input[80];
+  char *search;
 )
 
 #define UNDO_LEN (sizeof(toybuf)/(sizeof(long long)+1))
 
-// Render all characters printable, using color to distinguish.
-static int draw_char(FILE *fp, wchar_t broiled)
+static void show_error(char *what)
 {
-  if (fp) {
-    if (broiled<32 || broiled>=127) {
-      if (broiled>127) {
-        tty_esc("2m");
-        broiled &= 127;
-      }
-      if (broiled<32 || broiled==127) {
-        tty_esc("7m");
-        if (broiled==127) broiled = 32;
-        else broiled += 64;
-      }
-      printf("%c", (int)broiled);
-      tty_esc("0m");
-    } else printf("%c", (int)broiled);
-  }
-
-  return 1;
+  tty_jump(0, TT.rows);
+  printf("\e[41m\e[37m\e[K\e[1m%s\e[0m", what);
+  xflush(1);
+  msleep(500);
 }
 
-static void draw_tail(void)
+// TODO: support arrow keys, insertion, and scrolling (and reuse in vi)
+static int prompt(char *prompt, char *initial_value)
 {
-  tty_jump(0, TT.height);
+  int yes = 0, key, len = strlen(initial_value);
+
+  strcpy(TT.input, initial_value);
+  while (1) {
+    tty_jump(0, TT.rows);
+    tty_esc("K");
+    printf("\e[1m%s: \e[0m%s", prompt, TT.input);
+    tty_esc("?25h");
+    xflush(1);
+
+    key = scan_key(TT.keybuf, -1);
+    if (key < 0 || key == 27) break;
+    if (key == '\r') {
+      yes = len; // Hitting enter with no input counts as cancellation.
+      break;
+    }
+
+    if (key == 0x7f) {
+      if (len > 0) TT.input[--len] = 0;
+    } else if (key == 'U'-'@') {
+      while (len > 0) TT.input[--len] = 0;
+    } else if (key >= ' ' && key < 0x7f && len < sizeof(TT.input)) {
+      TT.input[len++] = key;
+    }
+  }
+
+  tty_esc("?25l");
+  return yes;
+}
+
+// Render all characters printable, using color to distinguish.
+static void draw_char(int ch)
+{
+  if (ch >= ' ' && ch < 0x7f) putchar(ch);
+  else {
+    if (ch < ' ') printf("\e[31m%c", ch + '@');
+    else printf("\e[35m?");
+  }
+  printf("\e[0m");
+}
+
+static void draw_status(void)
+{
+  char line[80];
+
+  tty_jump(0, TT.rows);
   tty_esc("K");
 
-  draw_trim(*toys.optargs, -1, 71);
+  snprintf(line, sizeof(line), "\"%s\"%s, %#llx/%#llx", *toys.optargs,
+    FLAG(r) ? " [readonly]" : "", TT.pos, TT.len);
+  draw_trim(line, -1, TT.cols);
+}
+
+static void draw_byte(int byte)
+{
+  if (byte) printf("%02x", byte);
+  else printf("\e[2m00\e[0m");
 }
 
 static void draw_line(long long yy)
@@ -74,10 +121,13 @@ static void draw_line(long long yy)
   if (yy+xx>=TT.len) xx = TT.len-yy;
 
   if (yy<TT.len) {
-    printf("\r%0*llX ", TT.numlen, yy);
-    for (x=0; x<xx; x++) printf(" %02X", TT.data[yy+x]);
+    printf("\r\e[33m%0*llx\e[0m ", TT.numlen, yy);
+    for (x=0; x<xx; x++) {
+      putchar(' ');
+      draw_byte(TT.data[yy+x]);
+    }
     printf("%*s", 2+3*(16-xx), "");
-    for (x=0; x<xx; x++) draw_char(stdout, TT.data[yy+x]);
+    for (x=0; x<xx; x++) draw_char(TT.data[yy+x]);
     printf("%*s", 16-xx, "");
   }
   tty_esc("K");
@@ -88,11 +138,11 @@ static void draw_page(void)
   int y;
 
   tty_jump(0, 0);
-  for (y = 0; y<TT.height; y++) {
+  for (y = 0; y<TT.rows; y++) {
     if (y) printf("\r\n");
     draw_line(y);
   }
-  draw_tail();
+  draw_status();
 }
 
 // side: 0 = editing left, 1 = editing right, 2 = clear, 3 = read only
@@ -101,115 +151,177 @@ static void highlight(int xx, int yy, int side)
   char cc = TT.data[16*(TT.base+yy)+xx];
   int i;
 
-  // Display cursor
+  // Display cursor in hex area.
   tty_jump(2+TT.numlen+3*xx, yy);
   tty_esc("0m");
   if (side!=2) tty_esc("7m");
-  if (side>1) printf("%02X", cc);
+  if (side>1) draw_byte(cc);
   else for (i=0; i<2;) {
     if (side==i) tty_esc("32m");
-    printf("%X", (cc>>(4*(1&++i)))&15);
+    printf("%x", (cc>>(4*(1&++i)))&15);
   }
-  tty_esc("0m");
   tty_jump(TT.numlen+17*3+xx, yy);
-  draw_char(stdout, cc);
+
+  // Display cursor in text area.
+  if (side!=2) tty_esc("7m");
+  draw_char(cc);
+}
+
+static void find_next(int pos)
+{
+  char *p;
+
+  p = memmem(TT.data+pos, TT.len-pos, TT.search, strlen(TT.search));
+  if (p) TT.pos = p - TT.data;
+  else show_error("No match!");
+}
+
+static void find_prev(int pos)
+{
+  size_t len = strlen(TT.search);
+
+  for (; pos >= 0; pos--) {
+    if (!memcmp(TT.data+pos, TT.search, len)) {
+      TT.pos = pos;
+      return;
+    }
+  }
+  show_error("No match!");
 }
 
 void hexedit_main(void)
 {
-  long long pos = 0, y;
-  int x, i, side = 0, key, ro = toys.optflags&FLAG_r,
-      fd = xopen(*toys.optargs, ro ? O_RDONLY : O_RDWR);
-  char keybuf[16];
-
-  *keybuf = 0;
+  long long y;
+  int x, i, side = 0, key, fd;
 
   // Terminal setup
-  TT.height = 25;
-  terminal_size(0, &TT.height);
-  if (TT.height) TT.height--;
+  TT.cols = 80;
+  TT.rows = 24;
+  terminal_size(&TT.cols, &TT.rows);
+  if (TT.rows) TT.rows--;
+  xsignal(SIGWINCH, generic_signal);
   sigatexit(tty_sigreset);
   tty_esc("0m");
   tty_esc("?25l");
-  fflush(0);
+  xflush(1);
   xset_terminal(1, 1, 0, 0);
 
+  if (access(*toys.optargs, W_OK)) toys.optflags |= FLAG_r;
+  fd = xopen(*toys.optargs, FLAG(r) ? O_RDONLY : O_RDWR);
   if ((TT.len = fdlength(fd))<1) error_exit("bad length");
   if (sizeof(long)==32 && TT.len>SIZE_MAX) TT.len = SIZE_MAX;
   // count file length hex in digits, rounded up to multiple of 4
-  for (pos = TT.len, TT.numlen = 0; pos; pos >>= 4, TT.numlen++);
+  for (TT.pos = TT.len, TT.numlen = 0; TT.pos; TT.pos >>= 4, TT.numlen++);
   TT.numlen += (4-TT.numlen)&3;
 
-  TT.data = xmmap(0, TT.len, PROT_READ|(PROT_WRITE*!ro), MAP_SHARED, fd, 0);
+  TT.data=xmmap(0, TT.len, PROT_READ|(PROT_WRITE*!FLAG(r)), MAP_SHARED, fd, 0);
+  close(fd);
   draw_page();
 
   for (;;) {
     // Scroll display if necessary
-    if (pos<0) pos = 0;
-    if (pos>=TT.len) pos = TT.len-1;
-    x = pos&15;
-    y = pos/16;
+    if (TT.pos<0) TT.pos = 0;
+    if (TT.pos>=TT.len) TT.pos = TT.len-1;
+    x = TT.pos&15;
+    y = TT.pos/16;
 
-    i = 0;
     while (y<TT.base) {
-      if (TT.base-y>(TT.height/2)) {
+      if (TT.base-y>(TT.rows/2)) {
         TT.base = y;
         draw_page();
       } else {
         TT.base--;
-        i++;
         tty_jump(0, 0);
         tty_esc("1L");
         draw_line(0);
       }
     }
-    while (y>=TT.base+TT.height) {
-      if (y-(TT.base+TT.height)>(TT.height/2)) {
-        TT.base = y-TT.height-1;
+    while (y>=TT.base+TT.rows) {
+      if (y-(TT.base+TT.rows)>(TT.rows/2)) {
+        TT.base = y-TT.rows-1;
         draw_page();
       } else {
         TT.base++;
-        i++;
         tty_jump(0, 0);
         tty_esc("1M");
-        tty_jump(0, TT.height-1);
-        draw_line(TT.height-1);
+        tty_jump(0, TT.rows-1);
+        draw_line(TT.rows-1);
       }
     }
-    if (i) draw_tail();
+    draw_status();
     y -= TT.base;
 
     // Display cursor and flush output
-    highlight(x, y, ro ? 3 : side);
+    highlight(x, y, FLAG(r) ? 3 : side);
     xflush(1);
 
     // Wait for next key
-    key = scan_key(keybuf, -1);
-    // Exit for q, ctrl-c, ctrl-d, escape, or EOF
-    if (key==-1 || key==3 || key==4 || key==27 || key=='q') break;
+    key = scan_key(TT.keybuf, -1);
+
+    // Window resized?
+    if (key == -3) {
+      toys.signal = 0;
+      terminal_size(&TT.cols, &TT.rows);
+      if (TT.rows) TT.rows--;
+      draw_page();
+      continue;
+    }
+
+    // Various popular ways to quit...
+    if (key==-1||key==('C'-'@')||key==('Q'-'@')||key==27||key=='q') break;
+    highlight(x, y, 2);
+
+    if (key == ('J'-'@') || key == ':' || key == '-' || key == '+') {
+      // Jump (relative or absolute)
+      char initial[2] = {}, *s = 0;
+      long long val;
+
+      if (key == '-' || key == '+') *initial = key;
+      if (!prompt("Jump to", initial)) continue;
+
+      val = estrtol(TT.input, &s, 0);
+      if (!errno && s && !*s) {
+        if (*TT.input == '-' || *TT.input == '+') TT.pos += val;
+        else TT.pos = val;
+      }
+      continue;
+    } else if (key == ('F'-'@') || key == '/') { // Find
+      if (!prompt("Find", TT.search ? TT.search : "")) continue;
+
+      // TODO: parse hex escapes in input, and record length to support \0
+      free(TT.search);
+      TT.search = xstrdup(TT.input);
+      find_next(TT.pos);
+    } else if (TT.search && (key == ('G'-'@') || key == 'n')) { // Find next
+      if (TT.pos < TT.len) find_next(TT.pos+1);
+    } else if (TT.search && (key == ('D'-'@') || key == 'p')) { // Find previous
+      if (TT.pos > 0) find_prev(TT.pos-1);
+    }
+
+    // Remove cursor
     highlight(x, y, 2);
 
     // Hex digit?
     if (key>='a' && key<='f') key-=32;
-    if (!ro && ((key>='0' && key<='9') || (key>='A' && key<='F'))) {
+    if (!FLAG(r) && ((key>='0' && key<='9') || (key>='A' && key<='F'))) {
       if (!side) {
         long long *ll = (long long *)toybuf;
 
-        ll[TT.undo] = pos;
-        toybuf[(sizeof(long long)*UNDO_LEN)+TT.undo++] = TT.data[pos];
+        ll[TT.undo] = TT.pos;
+        toybuf[(sizeof(long long)*UNDO_LEN)+TT.undo++] = TT.data[TT.pos];
         if (TT.undolen < UNDO_LEN) TT.undolen++;
         TT.undo %= UNDO_LEN;
       }
 
       i = key - '0';
       if (i>9) i -= 7;
-      TT.data[pos] &= 15<<(4*side);
-      TT.data[pos] |= i<<(4*!side);
+      TT.data[TT.pos] &= 15<<(4*side);
+      TT.data[TT.pos] |= i<<(4*!side);
 
       if (++side==2) {
         highlight(x, y, side);
         side = 0;
-        ++pos;
+        ++TT.pos;
       }
     } else side = 0;
     if (key=='u') {
@@ -218,26 +330,35 @@ void hexedit_main(void)
 
         TT.undolen--;
         if (!TT.undo) TT.undo = UNDO_LEN;
-        pos = ll[--TT.undo];
-        TT.data[pos] = toybuf[sizeof(long long)*UNDO_LEN+TT.undo];
+        TT.pos = ll[--TT.undo];
+        TT.data[TT.pos] = toybuf[sizeof(long long)*UNDO_LEN+TT.undo];
       }
     }
     if (key>=256) {
       key -= 256;
 
-      if (key==KEY_UP) pos -= 16;
-      else if (key==KEY_DOWN) pos += 16;
+      if (key==KEY_UP) TT.pos -= 16;
+      else if (key==KEY_DOWN) TT.pos += 16;
       else if (key==KEY_RIGHT) {
-        if (x<15) pos++;
+        if (TT.pos<TT.len) TT.pos++;
       } else if (key==KEY_LEFT) {
-        if (x) pos--;
-      } else if (key==KEY_PGUP) pos -= 16*TT.height;
-      else if (key==KEY_PGDN) pos += 16*TT.height;
-      else if (key==KEY_HOME) pos = 0;
-      else if (key==KEY_END) pos = TT.len-1;
+        if (TT.pos>0) TT.pos--;
+      } else if (key==KEY_PGUP) {
+        TT.pos -= 16*TT.rows;
+        if (TT.pos < 0) TT.pos = 0;
+        TT.base = TT.pos/16;
+        draw_page();
+      } else if (key==KEY_PGDN) {
+        TT.pos += 16*TT.rows;
+        if (TT.pos > TT.len-1) TT.pos = TT.len-1;
+        TT.base = TT.pos/16;
+        draw_page();
+      } else if (key==KEY_HOME) TT.pos = TT.pos & ~0xf;
+      else if (key==KEY_END) TT.pos = TT.pos | 0xf;
+      else if (key==(KEY_CTRL|KEY_HOME)) TT.pos = 0;
+      else if (key==(KEY_CTRL|KEY_END)) TT.pos = TT.len-1;
     }
   }
   munmap(TT.data, TT.len);
-  close(fd);
   tty_reset();
 }
