@@ -62,5 +62,4 @@ testing "skip NUL" "for i in a b; do dd if=/dev/zero bs=512 count=1 2>/dev/null;
   "a\na/b\na\na/b\n" "" ""
 rm -rf a a.cpio
 
-testing "error on empty file" \
-  "setsid cpio -i < /dev/null 2>/dev/null || echo err" "err\n" "" ""
+testing "error on empty file" "cpio -i 2>/dev/null || echo err" "err\n" "" ""
