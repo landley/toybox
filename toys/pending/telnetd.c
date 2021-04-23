@@ -25,7 +25,6 @@ config TELNETD
 #define FOR_telnetd
 #include "toys.h"
 #include <arpa/telnet.h>
-#include <utmp.h>
 
 GLOBALS(
     char *login_path;
@@ -97,23 +96,6 @@ static void get_sockaddr(char *host, void *buf)
   else ((struct sockaddr_in6*)buf)->sin6_port = port_num;
 }
 
-static void utmp_entry(void)
-{               
-  struct utmp entry;
-  struct utmp *utp_ptr;
-  pid_t pid = getpid();
-
-  utmpname(_PATH_UTMP);
-  setutent(); //start from start
-  while ((utp_ptr = getutent()) != NULL) {
-    if (utp_ptr->ut_pid == pid && utp_ptr->ut_type >= INIT_PROCESS) break;
-  }
-  if (!utp_ptr) entry.ut_type = DEAD_PROCESS;
-  entry.ut_time = time(0);
-  setutent();   
-  pututline(&entry);     
-}
-
 static int listen_socket(void)
 {
   int s, af = AF_INET, yes = 1;
@@ -165,11 +147,13 @@ static void write_issue(char *tty)
 
 static int new_session(int sockfd)
 {
-  char *argv_login[2]; //arguments for execvp cmd, NULL
+  char *argv_login[] = {NULL, "-h", NULL, NULL};
   char tty_name[30]; //tty name length.
   int fd, flags, i = 1;
   char intial_iacs[] = {IAC, DO, TELOPT_ECHO, IAC, DO, TELOPT_NAWS,
     IAC, WILL, TELOPT_ECHO, IAC, WILL, TELOPT_SGA };
+  struct sockaddr_storage sa;
+  socklen_t sl = sizeof(sa);
 
   setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, &i, sizeof(i));
   flags = fcntl(sockfd, F_GETFL);
@@ -183,9 +167,14 @@ static int new_session(int sockfd)
     return fd;
   }
   if (TT.fork_pid < 0) perror_exit("fork");
+
+  if (getpeername(sockfd, (void *)&sa, &sl)) perror_exit("getpeername");
+  if (getnameinfo((void *)&sa, sl, toybuf, sizeof(toybuf), NULL, 0, 0))
+    perror_exit("getnameinfo");
+
   write_issue(tty_name);
-  argv_login[0] = strdup(TT.login_path);
-  argv_login[1] = NULL;
+  argv_login[0] = TT.login_path;
+  argv_login[2] = toybuf;
   execvp(argv_login[0], argv_login);
   exit(EXIT_FAILURE);
 }
@@ -418,7 +407,6 @@ void telnetd_main(void)
       if (FLAG(i)) exit(EXIT_SUCCESS);
       if (!prev) session_list = session_list->next;
       else prev->next = tm->next;
-      utmp_entry();
       xclose(tm->pty_fd);
       xclose(tm->new_fd);
       free(tm);
