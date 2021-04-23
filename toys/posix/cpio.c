@@ -166,11 +166,13 @@ void cpio_main(void)
       if (!test) err = mkdir(name, mode) && !FLAG(u);
     } else if (S_ISLNK(mode)) {
       data = strpad(afd, size, 0);
-      if (!test) err = symlink(data, name);
+      if (!test) {
+        err = symlink(data, name);
+        // Can't get a filehandle to a symlink, so do special chown
+        if (!err && !geteuid() && !FLAG(no_preserve_owner))
+          err = lchown(name, uid, gid);
+      }
       free(data);
-      // Can't get a filehandle to a symlink, so do special chown
-      if (!err && !geteuid() && !FLAG(no_preserve_owner))
-        err = lchown(name, uid, gid);
     } else if (S_ISREG(mode)) {
       int fd = test ? 0 : open(name, O_CREAT|O_WRONLY|O_EXCL|O_NOFOLLOW, mode);
 

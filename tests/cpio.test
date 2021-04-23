@@ -63,3 +63,22 @@ testing "skip NUL" "for i in a b; do dd if=/dev/zero bs=512 count=1 2>/dev/null;
 rm -rf a a.cpio
 
 testing "error on empty file" "cpio -i 2>/dev/null || echo err" "err\n" "" ""
+
+mkdir a
+touch a/file
+ln -s a/symlink a/symlink
+mkdir a/dir
+find a | cpio -o -H newc >a.cpio
+if [ "$(id -u)" -eq 0 ]; then
+  # We chown between user "root" and the last user in /etc/passwd,
+  # and group "root" and the last group in /etc/group.
+  USR="$(sed -n '$s/:.*//p' /etc/passwd)"
+  GRP="$(sed -n '$s/:.*//p' /etc/group)"
+  # Or if that fails, we assume we're on Android...
+  : "${USR:=shell}"
+  : "${GRP:=shell}"
+  chown -h "${USR}:${GRP}" a/file a/symlink a/dir
+fi
+skipnot [ $(id -u) -eq 0 ]
+testing "-t preserve ownership" "cpio -t <a.cpio >/dev/null && stat -c '%U:%G' a/file a/symlink a/dir" "${USR}:${GRP}\n${USR}:${GRP}\n${USR}:${GRP}\n" "" ""
+rm -rf a a.cpio
