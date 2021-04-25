@@ -49,7 +49,7 @@ USE_SH(NEWTOY(set, 0, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(shift, ">1", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(source, "<1", TOYFLAG_NOFORK))
 USE_SH(OLDTOY(., source, TOYFLAG_NOFORK))
-USE_SH(NEWTOY(unset, "fvn", TOYFLAG_NOFORK))
+USE_SH(NEWTOY(unset, "fvn[!fv]", TOYFLAG_NOFORK))
 
 USE_SH(NEWTOY(sh, "0(noediting)(noprofile)(norc)sc:i", TOYFLAG_BIN))
 USE_SH(OLDTOY(toysh, sh, TOYFLAG_BIN))
@@ -107,7 +107,7 @@ config SET
 
     -f	NAME is a function
     -v	NAME is a variable
-    -n	dereference NAME and unset that
+    -n	don't follow name reference
 
     OPTIONs:
       history - enable command history
@@ -222,22 +222,23 @@ GLOBALS(
   unsigned options, jobcnt, LINENO;
   int hfd, pid, bangpid, varslen, cdcount, srclvl, recursion;
 
-// FUNCTION transplant pipelines from place to place?
-// function keyword can have pointer to function struct? Still refcnt?
-// is function body like HERE document? Lifetime rules
-
-  // Callable functions
+  // Callable function array
   struct sh_function {
     char *name;
     struct sh_pipeline {  // pipeline segments: linked list of arg w/metadata
       struct sh_pipeline *next, *prev, *end;
       int count, here, type, lineno;
-      struct sh_arg {
-        char **v;
-        int c;
-      } arg[1];
+      union {
+        struct sh_function *funky;
+        struct sh_arg {
+          char **v;
+          int c;
+        } arg[1];
+      };
     } *pipeline;
-  } *functions;
+    unsigned long refcount;
+  } **functions;
+  long funcslen;
 
   // runtime function call stack
   struct sh_fcall {
@@ -248,14 +249,13 @@ GLOBALS(
       long flags;
       char *str;
     } *vars;
+    long varslen, shift;
 
-//    struct sh_function *func;
+    struct sh_function *func; // TODO wire this up
     struct sh_pipeline *pl;
     char *ifs;
-    int varslen;
     struct sh_arg arg;
     struct arg_list *delete;
-    long shift;
 
     // Runtime stack of nested if/else/fi and for/do/done contexts.
     struct sh_blockstack {
@@ -421,31 +421,16 @@ long long do_math(char **s)
 
 // declare -aAilnrux
 // ft
-static struct sh_vars *setvar(char *s)
+static struct sh_vars *setvar_found(char *s, struct sh_vars *var)
 {
-  struct sh_fcall *ff;
-  struct sh_vars *var;
   long flags;
-  int len = varend(s)-s;
 
-  if (s[len] != '=') {
-    error_msg("bad setvar %s\n", s);
+  if ((flags = var->flags&~VAR_WHITEOUT)&VAR_READONLY) {
+    error_msg("%.*s: read only", (int)(strchr(s, '=')-s), s);
     free(s);
 
     return 0;
-  }
-  if (!(var = findvar(s, &ff))) ff = TT.ff->prev;
-  if (!strncmp(s, "IFS=", 4))
-    do ff->ifs = s+4; while ((ff = ff->next) != TT.ff->prev);
-  if (!var) return addvar(s, TT.ff->prev);
-  flags = (var->flags &= ~VAR_WHITEOUT);
-
-  if (flags&VAR_READONLY) {
-    error_msg("%.*s: read only", len, s);
-    free(s);
-
-    return 0;
-  }
+  } else var->flags = flags;
 
 // TODO if (flags&(VAR_TOUPPER|VAR_TOLOWER)) 
 // unicode _is stupid enough for upper/lower case to be different utf8 byte
@@ -454,11 +439,11 @@ static struct sh_vars *setvar(char *s)
 // TODO VAR_ARRAY VAR_DICT
 
   if (flags&VAR_MAGIC) {
-    char *ss = s+len-1;
+    char *ss = strchr(s, '=')+1;
 
-// TODO: trailing garbage after do_math()?
     if (*s == 'S') TT.SECONDS = millitime() - 1000*do_math(&ss);
     else if (*s == 'R') srandom(do_math(&ss));
+// TODO: trailing garbage after do_math()?
   } else {
     if (!(flags&VAR_NOFREE)) free(var->str);
     else var->flags ^= VAR_NOFREE;
@@ -468,28 +453,56 @@ static struct sh_vars *setvar(char *s)
   return var;
 }
 
-static void unsetvar(char *name)
+// Update $IFS cache in function call stack after variable assignment
+static void cache_ifs(char *s, struct sh_fcall *ff)
+{
+  if (!strncmp(s, "IFS=", 4))
+    do ff->ifs = s+4; while ((ff = ff->next) != TT.ff->prev);
+}
+
+static struct sh_vars *setvar(char *s)
+{
+  struct sh_fcall *ff;
+  struct sh_vars *var;
+
+  if (s[varend(s)-s] != '=') {
+    error_msg("bad setvar %s\n", s);
+    free(s);
+
+    return 0;
+  }
+  if (!(var = findvar(s, &ff))) ff = TT.ff->prev;
+  cache_ifs(s, ff);
+  if (!var) return addvar(s, TT.ff->prev);
+
+  return setvar_found(s, var);
+}
+
+// returns whether variable found (whiteout doesn't count)
+static int unsetvar(char *name)
 {
   struct sh_fcall *ff;
   struct sh_vars *var = findvar(name, &ff);
   int ii = var-ff->vars, len = varend(name)-name;
 
-  // Is this freeable?
-  if (name[len]) return error_msg("bad %s", name);
-  if (!var || (var->flags&VAR_WHITEOUT)) return;
-  if (var->flags&VAR_READONLY) return error_msg("readonly %s", name);
-
-  // turn local into whiteout or free from global context
-  if (ff != TT.ff->prev) {
-    var->flags = VAR_WHITEOUT;
-    if (!(var->flags&VAR_NOFREE))
-      (var->str = xrealloc(var->str, len+2))[len+1] = 0;
-  } else {
-    if (!(var->flags&VAR_NOFREE)) free(var->str);
-    memmove(ff->vars+ii, ff->vars+ii+1, (ff->varslen--)-ii);
+  if (!var || (var->flags&VAR_WHITEOUT)) return 0;
+  if (var->flags&VAR_READONLY) error_msg("readonly %.*s", len, name);
+  else {
+    // turn local into whiteout
+    if (ff != TT.ff->prev) {
+      var->flags = VAR_WHITEOUT;
+      if (!(var->flags&VAR_NOFREE))
+        (var->str = xrealloc(var->str, len+2))[len+1] = 0;
+    // free from global context
+    } else {
+      if (!(var->flags&VAR_NOFREE)) free(var->str);
+      memmove(ff->vars+ii, ff->vars+ii+1, (ff->varslen--)-ii);
+    }
+    if (!strcmp(name, "IFS"))
+      do ff->ifs = " \t\n"; while ((ff = ff->next) != TT.ff->prev);
   }
-  if (!strcmp(name, "IFS"))
-    do ff->ifs = " \t\n"; while ((ff = ff->next) != TT.ff->prev);
+
+  return 1;
 }
 
 static struct sh_vars *setvarval(char *name, char *val)
@@ -839,6 +852,19 @@ static void call_function(void)
   TT.ff->ifs = TT.ff->next->ifs;
 }
 
+// functions contain pipelines contain functions: prototype because loop
+static void free_pipeline(void *pipeline);
+
+static void free_function(struct sh_function *funky)
+{
+  if (--funky->refcount) return;
+
+  free(funky->name);
+  llist_traverse(funky->pipeline, free_pipeline);
+  free(funky);
+}
+
+// TODO: old function-vs-source definition is "has variables", but no ff->func?
 // returns 0 if source popped, nonzero if function popped
 static int end_function(int funconly)
 {
@@ -858,6 +884,7 @@ static int end_function(int funconly)
       free(ff->vars[ff->varslen].str);
   free(ff->vars);
   free(TT.ff->blk);
+  if (ff->func) free_function(ff->func);
   free(dlist_pop(&TT.ff));
 
   return 1;
@@ -2285,61 +2312,64 @@ static struct sh_process *run_command(void)
 {
   char *s, *sss;
   struct sh_arg *arg = TT.ff->pl->arg;
-  int envlen, jj = 0, persist = 1;
-  struct sh_process *pp = 0;
-  struct arg_list *delete = 0;
+  int envlen, funk = TT.funcslen, jj = 0, locals = 0;
+  struct sh_process *pp;
 
   // Count leading variable assignments
   for (envlen = 0; envlen<arg->c; envlen++)
     if ((s = varend(arg->v[envlen])) == arg->v[envlen] || *s != '=') break;
+  pp = expand_redir(arg, envlen, 0);
+
+  // Are we calling a shell function?  TODO binary search
+  if (pp->arg.c && !strchr(*pp->arg.v, '/'))
+    for (funk = 0; funk<TT.funcslen; funk++)
+       if (!strcmp(*pp->arg.v, TT.functions[funk]->name)) break;
+
+  // Create new function context to hold local vars?
+  if (funk != TT.funcslen || (envlen && pp->arg.c) || TT.ff->blk->pipe) {
+    call_function();
+    addvar(0, TT.ff); // function context (not source) so end_function deletes
+    locals = 1;
+  }
 
   // perform any assignments
   if (envlen) {
     struct sh_fcall *ff;
     struct sh_vars *vv;
 
-    // If prefix assignment, create temp function context to hold vars
-    if (envlen!=arg->c || TT.ff->blk->pipe) {
-      call_function();
-      addvar(0, TT.ff); // function context (not source) so end_function deletes
-      persist = 0;
-    } else ff = TT.ff->prev;
-    for (; jj<envlen && !pp; jj++) {
-      if (!(vv = findvar(s = arg->v[jj], &ff))) ff = persist?TT.ff->prev:TT.ff;
-      if (vv && (vv->flags&VAR_READONLY)) {
-        error_msg("%.*s: readonly variable", (int)(varend(s)-s), s);
-        continue;
-      }
-      if (!vv || (!persist && ff != TT.ff && (ff = TT.ff)))
-        (vv = addvar(s, ff))->flags = VAR_NOFREE|(VAR_GLOBAL*!persist);
-      if (!(sss = expand_one_arg(s, SEMI_IFS, persist ? 0 : &delete))) {
-        if (!pp) pp = xzalloc(sizeof(*pp));
-        pp->exit = 1;
-      } else {
-        if (persist || sss != s) {
-          vv->flags &= ~VAR_NOFREE;
-          vv->str = sss==s ? xstrdup(sss) : sss;
-        }
-        if (!strncmp(vv->str, "IFS=", 4))
-          do ff->ifs = vv->str+4; while ((ff = ff->next) != TT.ff->prev);
-      }
-    }
-  }
+    for (; jj<envlen && !pp->exit; jj++) {
+      if (!(vv = findvar(s = arg->v[jj], &ff))) ff = locals?TT.ff:TT.ff->prev;
+      else if (vv->flags&VAR_READONLY) ff = 0;
+      else if (locals && ff!=TT.ff) vv = 0, ff = TT.ff;
 
-  // expand cmdline with _old_ var context, matching bash's order of operations
-  if (!pp) {
-    sss = persist ? 0 : dlist_pop(&TT.ff);
-    pp = expand_redir(arg, envlen, 0);
-    if (!persist) {
-      dlist_add_nomalloc((void *)&TT.ff, (void *)sss);
-      TT.ff = TT.ff->prev;
+      if (!vv&&ff) (vv = addvar(s, ff))->flags = VAR_NOFREE|(VAR_GLOBAL*locals);
+      if (!(sss = expand_one_arg(s, SEMI_IFS, 0))) pp->exit = 1;
+      else {
+        if (!setvar_found(sss, vv)) continue;
+        if (sss==s) {
+          if (!locals) vv->str = xstrdup(sss);
+          else vv->flags |= VAR_NOFREE;
+        }
+        cache_ifs(vv->str, ff ? : TT.ff);
+      }
     }
   }
 
   // Do the thing
   if (pp->exit || envlen==arg->c) s = 0; // leave $_ alone
-  else if (!pp->arg.v) s = "";           // nothing to do but blank $_
-  else {
+  else if (!pp->arg.c) s = "";           // nothing to do but blank $_
+
+// TODO: call functions() FUNCTION
+// TODO what about "echo | x=1 | export fruit", must subshell? Test this.
+//   Several NOFORK can just NOP in a pipeline? Except ${a?b} still errors
+
+  // call shell function
+  else if (funk != TT.funcslen) {
+    TT.ff->func = TT.ff->pl->funky;
+    TT.ff->func->refcount++;
+    TT.ff->pl = TT.ff->func->pipeline;
+    TT.ff->arg = pp->arg;
+  } else {
     struct toy_list *tl = toy_find(*pp->arg.v);
 
     jj = tl ? tl->flags : 0;
@@ -2348,12 +2378,10 @@ static struct sh_process *run_command(void)
     sss = pp->arg.v[pp->arg.c];
 //dprintf(2, "%d run command %p %s\n", getpid(), TT.ff, *pp->arg.v); debug_show_fds();
 // TODO handle ((math)): else if (!strcmp(*pp->arg.v, "(("))
-// TODO: call functions() FUNCTION
-// TODO what about "echo | x=1 | export fruit", must subshell? Test this.
 // TODO: figure out when can exec instead of forking, ala sh -c blah
 
     // Is this command a builtin that should run in this process?
-    if ((jj&TOYFLAG_NOFORK) || ((jj&TOYFLAG_MAYFORK) && (!sss || *sss!='|'))) {
+    if ((jj&TOYFLAG_NOFORK) || ((jj&TOYFLAG_MAYFORK) && !locals)) {
       sigjmp_buf rebound;
       char temp[jj = offsetof(struct toy_context, rebound)];
 
@@ -2383,9 +2411,8 @@ static struct sh_process *run_command(void)
   // cleanup process
   unredirect(pp->urd);
   pp->urd = 0;
-  if (!persist) end_function(0);
+  if (locals && funk == TT.funcslen) end_function(0);
   if (s) setvarval("_", s);
-  llist_traverse(delete, llist_free_arg);
 
   return pp;
 }
@@ -2405,21 +2432,16 @@ static void free_pipeline(void *pipeline)
   struct sh_pipeline *pl = pipeline;
   int i, j;
 
-  // free arguments and HERE doc contents
-  if (pl) for (j=0; j<=pl->count; j++) {
+  if (!pl) return;
+
+  // free either function or arguments and HERE doc contents
+  if (pl->type == 'F') free_function(pl->funky);
+  else for (j=0; j<=pl->count; j++) {
     if (!pl->arg[j].v) continue;
     for (i = 0; i<=pl->arg[j].c; i++) free(pl->arg[j].v[i]);
     free(pl->arg[j].v);
   }
   free(pl);
-}
-
-// TODO this has to add to a namespace context. Functions within functions...
-static struct sh_pipeline *add_function(char *name, struct sh_pipeline *pl)
-{
-dprintf(2, "stub add_function");
-
-  return pl->end;
 }
 
 // Append a new pipeline to function, returning pipeline and pipeline's arg
@@ -2514,6 +2536,42 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
     if (done) break;
     s = 0;
 
+    // Did we just end a function?
+    if (ex == (void *)1) {
+      struct sh_function *funky;
+
+      // function must be followed by a compound statement for some reason
+      if ((*ppl)->prev->type != 3) {
+        s = *(*ppl)->prev->arg->v;
+        goto flush;
+      }
+
+      // Back up to saved function() statement and create sh_function
+      free(dlist_lpop(expect));
+      pl = (void *)(*expect)->data;
+      funky = xmalloc(sizeof(struct sh_function));
+      funky->name = *pl->arg->v;
+      if (pl->arg->v[1]) {
+        free(pl->arg->v[1]);
+        free(pl->arg->v[2]);
+      }
+      funky->refcount = 1;
+
+      // Chop out pipeline segments added since saved function
+      funky->pipeline = pl->next;
+      pl->next->prev = (*ppl)->prev;
+      (*ppl)->prev->next = pl->next;
+      pl->next = *ppl;
+      (*ppl)->prev = pl;
+
+      // Immature function has matured (meaning cleanup is different)
+      pl->type = 'F';
+      pl->funky = funky;
+      pl = 0;
+      free(dlist_lpop(expect));
+      ex = *expect ? (*expect)->prev->data : 0;
+    }
+
     // skip leading whitespace/comment here to know where next word starts
     while (isspace(*start)) ++start;
     if (*start=='#') while (*start && *start != '\n') ++start;
@@ -2521,6 +2579,18 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
     // Parse next word and detect overflow (too many nested quotes).
     if ((end = parse_word(start, 0, 0)) == (void *)1) goto flush;
 //dprintf(2, "%d %p %s word=%.*s\n", getpid(), pl, ex, (int)(end-start), end ? start : "");
+
+    if (pl && pl->type == 'f' && arg->c == 1 && (end-start!=1 || *start!='(')) {
+funky:
+      // end function segment, expect function body
+      dlist_add(expect, (void *)pl);
+      pl = 0;
+      dlist_add(expect, (void *)1);
+      dlist_add(expect, 0);
+
+      continue;
+    }
+
     // Is this a new pipeline segment?
     if (!pl) pl = add_pl(ppl, &arg);
 
@@ -2570,8 +2640,9 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
     // Did we hit end of line or ) outside a function declaration?
     // ) is only saved at start of a statement, ends current statement
     } else if (end == start || (arg->c && *start == ')' && pl->type!='f')) {
-      if (pl->type == 'f' && arg->c<3) {
-        s = "function()";
+      // function () needs both parentheses or neither
+      if (pl->type == 'f' && arg->c != 1 && arg->c != 3) {
+        s = "function(";
         goto flush;
       }
 
@@ -2635,8 +2706,30 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
       }
     }
 
+    // Are we starting a new [function] name [()] definition
+    if (!pl->type || pl->type=='f') {
+      if (!pl->type && arg->c==1 && !strcmp(s, "function")) {
+        free(arg->v[--arg->c]);
+        arg->v[arg->c] = 0;
+        pl->type = 'f';
+        continue;
+      } else if (arg->c==2 && !strcmp(s, "(")) pl->type = 'f';
+    }
+
+    // one or both of [function] name[()]
+    if (pl->type=='f') {
+      if (arg->v[strcspn(*arg->v, "\"'`><;|&$")]) {
+        s = *arg->v;
+        goto flush;
+      }
+      if (arg->c == 2 && strcmp(s, "(")) goto flush;
+      if (arg->c == 3) {
+        if (strcmp(s, ")")) goto flush;
+        goto funky;
+      }
+
     // is it a line break token?
-    if (strchr(";|&", *s) && strncmp(s, "&>", 2)) {
+    } else if (strchr(";|&", *s) && strncmp(s, "&>", 2)) {
       arg->c--;
 
       // treat ; as newline so we don't have to check both elsewhere.
@@ -2644,7 +2737,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
         arg->v[arg->c] = 0;
         free(s);
         s = 0;
-// TODO enforce only one ; allowed between "for i" and in or do.
+// TODO can't have ; between "for i" and in or do. (Newline yes, ; no. Why?)
         if (!arg->c && ex && !memcmp(ex, "do\0C", 4)) continue;
 
       // ;; and friends only allowed in case statements
@@ -2655,23 +2748,6 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
       pl->count = -1;
 
       continue;
-    }
-
-    // is a function() in progress?
-    if (arg->c>1 && !strcmp(s, "(")) pl->type = 'f';
-    if (pl->type=='f') {
-      if (arg->c == 2 && strcmp(s, "(")) goto flush;
-      if (arg->c == 3) {
-        if (strcmp(s, ")")) goto flush;
-
-        // end function segment, expect function body
-        pl->count = -1;
-        dlist_add(expect, "}");
-        dlist_add(expect, 0);
-        dlist_add(expect, "{");
-
-        continue;
-      }
 
     // a for/select must have at least one additional argument on same line
     } else if (ex && !memcmp(ex, "do\0A", 4)) {
@@ -2688,17 +2764,9 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
 
     // Do we expect something that _must_ come next? (no multiple statements)
     if (ex) {
-      // When waiting for { it must be next symbol, but can be on a new line.
-      if (!strcmp(ex, "{")) {
-        if (strcmp(s, "{")) goto flush;
-        free(arg->v[--arg->c]);  // don't save the {, function starts the block
-        free(dlist_lpop(expect));
-
-        continue;
-
       // The "test" part of for/select loops can have (at most) one "in" line,
       // for {((;;))|name [in...]} do
-      } else if (!memcmp(ex, "do\0C", 4)) {
+      if (!memcmp(ex, "do\0C", 4)) {
         if (strcmp(s, "do")) {
           // can only have one "in" line between for/do, but not with for(())
           if (pl->prev->type == 's') goto flush;
@@ -2744,10 +2812,8 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
 
     // If we got here we expect a specific word to end this block: is this it?
     else if (!strcmp(s, ex)) {
-      struct sh_arg *aa = pl->prev->arg;
-
       // can't "if | then" or "while && do", only ; & or newline works
-      if (aa->v[aa->c] && strcmp(aa->v[aa->c], "&")) goto flush;
+      if (strcmp(pl->prev->arg->v[pl->prev->arg->c] ? : "&", "&")) goto flush;
 
       // consume word, record block end location in earlier !0 type blocks
       free(dlist_lpop(expect));
@@ -2761,7 +2827,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
                 pl3 = pl2;
               } else pl2->end = pl;
             }
-            if ((pl2->type == 1 || pl2->type == 'f') && --i<0) break;
+            if (pl2->type == 1 && --i<0) break;
           }
         }
       }
@@ -2969,7 +3035,7 @@ static char *get_next_line(FILE *ff, int prompt)
 static void run_lines(void)
 {
   char *ctl, *s, *ss, **vv;
-  struct sh_process *pplist = 0; // processes piping into current level
+  struct sh_process *pp, *pplist = 0; // processes piping into current level
   long i, j, k;
 
   // iterate through pipeline segments
@@ -3074,13 +3140,12 @@ static void run_lines(void)
           syntax_err(s);
           break;
         }
-
       // Parse and run next command, saving resulting process
-      } else dlist_add_nomalloc((void *)&pplist, (void *)run_command());
+      } else if ((pp = run_command()))
+        dlist_add_nomalloc((void *)&pplist, (void *)pp);
 
     // Start of flow control block?
     } else if (TT.ff->pl->type == 1) {
-      struct sh_process *pp = 0;
 
 // TODO test cat | {thingy} is new PID: { is ( for |
 
@@ -3244,8 +3309,23 @@ dprintf(2, "TODO skipped running for((;;)), need math parser\n");
       // cleans up after trailing redirections/pipe
       pop_block();
 
-// FUNCTION this!
-    } else if (TT.ff->pl->type == 'f') TT.ff->pl = add_function(s, TT.ff->pl);
+    // declare a shell function
+    } else if (TT.ff->pl->type == 'F') {
+// TODO binary search
+      for (i = 0; i<TT.funcslen; i++)
+        if (!strcmp(TT.functions[i]->name, TT.ff->pl->funky->name)) break;
+      if (i == TT.funcslen) {
+        struct sh_arg arg = {(void *)TT.functions, TT.funcslen};
+
+        arg_add(&arg, (void *)TT.ff->pl->funky);
+        TT.funcslen = arg.c;
+        TT.functions = (void *)arg.v;
+      } else {
+        free_function(TT.functions[i]);
+        TT.functions[i] = TT.ff->pl->funky;
+      }
+      TT.functions[i]->refcount++;
+    }
 
     // Three cases: 1) background & 2) pipeline | 3) last process in pipeline ;
     // If we ran a process and didn't pipe output, background or wait for exit
@@ -3480,7 +3560,7 @@ static void subshell_setup(void)
       shv->flags |= VAR_GLOBAL;
       shv->str = s;
     }
-    if (!memcmp(s, "IFS=", 4)) TT.ff->ifs = s+4;
+    cache_ifs(s, TT.ff);
   }
 
   // set/update PWD
@@ -3715,9 +3795,15 @@ void set_main(void)
   }
 }
 
+// TODO need test: unset clears var first and stops, function only if no var.
+#define CLEANUP_cd
+#define FOR_unset
+#include "generated/flags.h"
+
 void unset_main(void)
 {
   char **arg, *s;
+  int ii;
 
   for (arg = toys.optargs; *arg; arg++) {
     s = varend(*arg);
@@ -3726,12 +3812,20 @@ void unset_main(void)
       continue;
     }
 
-    // unset magic variable?
-    unsetvar(*arg);
+    // TODO -n and name reference support
+    // unset variable
+    if (!FLAG(f) && unsetvar(*arg)) continue;
+    // unset function TODO binary search
+    for (ii = 0; ii<TT.funcslen; ii++)
+      if (!strcmp(*arg, TT.functions[ii]->name)) break;
+    if (ii != TT.funcslen) {
+      free_function(TT.functions[ii]);
+      memmove(TT.functions+ii, TT.functions+ii+1, TT.funcslen+1-ii);
+    }
   }
 }
 
-#define CLEANUP_cd
+#define CLEANUP_unset
 #define FOR_export
 #include "generated/flags.h"
 
