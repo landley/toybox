@@ -228,13 +228,10 @@ GLOBALS(
     struct sh_pipeline {  // pipeline segments: linked list of arg w/metadata
       struct sh_pipeline *next, *prev, *end;
       int count, here, type, lineno;
-      union {
-        struct sh_function *funky;
-        struct sh_arg {
-          char **v;
-          int c;
-        } arg[1];
-      };
+      struct sh_arg {
+        char **v;
+        int c;
+      } arg[1];
     } *pipeline;
     unsigned long refcount;
   } **functions;
@@ -771,6 +768,7 @@ static char *pl2str(struct sh_pipeline *pl, int one)
   // measure, then allocate
   for (ss = 0;; ss = xmalloc(len+1)) {
     for (pp = pl; pp != end; pp = pp->next) {
+      if (pp->type == 'F') continue; // TODO fix this
       for (i = len = 0; i<pp->arg->c; i++)
         len += snprintf(ss+len, ss ? INT_MAX : 0, "%s ", pp->arg->v[i]);
       if (!(s = pp->arg->v[pp->arg->c])) s = ";"+(pp->next==end);
@@ -782,6 +780,7 @@ static char *pl2str(struct sh_pipeline *pl, int one)
 
 // TODO test output with case and function
 // TODO add HERE documents back in
+// TODO handle functions
 }
 
 // restore displaced filehandles, closing high filehandles they were copied to
@@ -2365,8 +2364,7 @@ static struct sh_process *run_command(void)
 
   // call shell function
   else if (funk != TT.funcslen) {
-    TT.ff->func = TT.ff->pl->funky;
-    TT.ff->func->refcount++;
+    (TT.ff->func = TT.functions[funk])->refcount++;
     TT.ff->pl = TT.ff->func->pipeline;
     TT.ff->arg = pp->arg;
   } else {
@@ -2435,8 +2433,11 @@ static void free_pipeline(void *pipeline)
   if (!pl) return;
 
   // free either function or arguments and HERE doc contents
-  if (pl->type == 'F') free_function(pl->funky);
-  else for (j=0; j<=pl->count; j++) {
+  if (pl->type == 'F') {
+    free_function((void *)*pl->arg->v);
+    *pl->arg->v = 0;
+  }
+  for (j=0; j<=pl->count; j++) {
     if (!pl->arg[j].v) continue;
     for (i = 0; i<=pl->arg[j].c; i++) free(pl->arg[j].v[i]);
     free(pl->arg[j].v);
@@ -2550,12 +2551,9 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
       free(dlist_lpop(expect));
       pl = (void *)(*expect)->data;
       funky = xmalloc(sizeof(struct sh_function));
-      funky->name = *pl->arg->v;
-      if (pl->arg->v[1]) {
-        free(pl->arg->v[1]);
-        free(pl->arg->v[2]);
-      }
       funky->refcount = 1;
+      funky->name = *pl->arg->v;
+      *pl->arg->v = (void *)funky;
 
       // Chop out pipeline segments added since saved function
       funky->pipeline = pl->next;
@@ -2566,7 +2564,6 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
 
       // Immature function has matured (meaning cleanup is different)
       pl->type = 'F';
-      pl->funky = funky;
       pl = 0;
       free(dlist_lpop(expect));
       ex = *expect ? (*expect)->prev->data : 0;
@@ -2652,12 +2649,10 @@ funky:
         goto flush;
       }
 
-      // don't save blank pipeline segments
-      if (!arg->c) free_pipeline(dlist_lpop(ppl));
-
-      // stop at EOL, else continue with new pipeline segment for )
+      // Stop at EOL. Discard blank pipeline segment, else end segment
       if (end == start) done++;
-      pl->count = -1;
+      if (!pl->type && !arg->c) free_pipeline(dlist_lpop(ppl));
+      else pl->count = -1;
 
       continue;
     }
@@ -2718,7 +2713,7 @@ funky:
 
     // one or both of [function] name[()]
     if (pl->type=='f') {
-      if (arg->v[strcspn(*arg->v, "\"'`><;|&$")]) {
+      if (arg->v[0][strcspn(*arg->v, "\"'`><;|&$")]) {
         s = *arg->v;
         goto flush;
       }
@@ -2727,6 +2722,8 @@ funky:
         if (strcmp(s, ")")) goto flush;
         goto funky;
       }
+
+      continue;
 
     // is it a line break token?
     } else if (strchr(";|&", *s) && strncmp(s, "&>", 2)) {
@@ -3311,18 +3308,20 @@ dprintf(2, "TODO skipped running for((;;)), need math parser\n");
 
     // declare a shell function
     } else if (TT.ff->pl->type == 'F') {
+      struct sh_function *funky = (void *)*TT.ff->pl->arg->v;
+
 // TODO binary search
       for (i = 0; i<TT.funcslen; i++)
-        if (!strcmp(TT.functions[i]->name, TT.ff->pl->funky->name)) break;
+        if (!strcmp(TT.functions[i]->name, funky->name)) break;
       if (i == TT.funcslen) {
         struct sh_arg arg = {(void *)TT.functions, TT.funcslen};
 
-        arg_add(&arg, (void *)TT.ff->pl->funky);
-        TT.funcslen = arg.c;
+        arg_add(&arg, (void *)funky); // TODO possibly an expand@31 function?
         TT.functions = (void *)arg.v;
+        TT.funcslen++;
       } else {
         free_function(TT.functions[i]);
-        TT.functions[i] = TT.ff->pl->funky;
+        TT.functions[i] = funky;
       }
       TT.functions[i]->refcount++;
     }
