@@ -443,7 +443,7 @@ static void sed_line(char **pline, long plen)
         // If we're replacing only a specific match, skip if this isn't it
         off = command->sflags>>4;
         if (off && off != ++count) {
-          memcpy(l2+l2used, rline, match[0].rm_eo);
+          if (l2) memcpy(l2+l2used, rline, match[0].rm_eo);
           l2used += match[0].rm_eo;
           rline += match[0].rm_eo;
 

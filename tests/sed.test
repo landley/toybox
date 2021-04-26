@@ -115,6 +115,7 @@ testing 'empty match after nonempty match' "sed -e 's/a*/c/g'" 'cbcncgc' \
 testing 'empty match' "sed -e 's/[^ac]*/A/g'" 'AaAcA' '' 'abcde'
 testing 's///#comment' "sed -e 's/TWO/four/i#comment'" "one\nfour\nthree" \
 	"" "one\ntwo\nthree"
+testing 's///num off end' 'sed -e s/e//2' 'e\n' '' 'e\n'
 
 testing 'N flushes pending a and advances match counter' \
 	"sed -e 'a woo' -e 'N;\$p'" 'woo\none\ntwo\none\ntwo' "" 'one\ntwo'
