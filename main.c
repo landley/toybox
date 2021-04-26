@@ -95,7 +95,7 @@ void toy_singleinit(struct toy_list *which, char *argv[])
     for (toys.optc = 0; toys.optargs[toys.optc]; toys.optc++);
   }
 
-  if (!(which->flags & TOYFLAG_NOFORK)) {
+  if (strcmp(which->name, "toybox") && !(which->flags & TOYFLAG_NOFORK)) {
     toys.old_umask = umask(0);
     if (!(which->flags & TOYFLAG_UMASK)) umask(toys.old_umask);
 

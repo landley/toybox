@@ -2,7 +2,7 @@
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
 
-USE_YES(NEWTOY(yes, NULL, TOYFLAG_USR|TOYFLAG_BIN))
+USE_YES(NEWTOY(yes, NULL, TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LINEBUF))
 
 config YES
   bool "yes"
