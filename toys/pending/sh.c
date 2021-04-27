@@ -2366,6 +2366,7 @@ static struct sh_process *run_command(void)
   else if (funk != TT.funcslen) {
     (TT.ff->func = TT.functions[funk])->refcount++;
     TT.ff->pl = TT.ff->func->pipeline;
+    TT.ff->next->pl = TT.ff->next->pl->next;
     TT.ff->arg = pp->arg;
   } else {
     struct toy_list *tl = toy_find(*pp->arg.v);
@@ -2450,7 +2451,7 @@ static struct sh_pipeline *add_pl(struct sh_pipeline **ppl, struct sh_arg **arg)
 {
   struct sh_pipeline *pl = xzalloc(sizeof(struct sh_pipeline));
 
-  *arg = pl->arg;
+  if (arg) *arg = pl->arg;
   pl->lineno = TT.LINENO;
   dlist_add_nomalloc((void *)ppl, (void *)pl);
 
@@ -2557,6 +2558,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
         (*ppl)->prev->next = pl->next;
         pl->next = *ppl;
         (*ppl)->prev = pl;
+        dlist_terminate(funky->pipeline = add_pl(&funky->pipeline, 0));
 
         // Immature function has matured (meaning cleanup is different)
         pl->type = 'F';
