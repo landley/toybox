@@ -162,7 +162,7 @@ static int new_session(int sockfd)
   if (TT.fork_pid < 0) perror_exit("fork");
 
   if (getpeername(sockfd, (void *)&sa, &sl)) perror_exit("getpeername");
-  if (getnameinfo((void *)&sa, sl, toybuf, sizeof(toybuf), NULL, 0, 0))
+  if (getnameinfo((void *)&sa, sl, toybuf, sizeof(toybuf), NULL, 0, NI_NUMERICHOST))
     perror_exit("getnameinfo");
 
   write_issue(tty_name);
