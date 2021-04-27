@@ -2532,42 +2532,41 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
         arg[pl->count].c = 0;
         if (s[2] == '<') pl->here++; // <<< doesn't load more data
       }
+
+      // Did we just end a function?
+      if (ex == (void *)1) {
+        struct sh_function *funky;
+
+        // function must be followed by a compound statement for some reason
+        if ((*ppl)->prev->type != 3) {
+          s = *(*ppl)->prev->arg->v;
+          goto flush;
+        }
+
+        // Back up to saved function() statement and create sh_function
+        free(dlist_lpop(expect));
+        pl = (void *)(*expect)->data;
+        funky = xmalloc(sizeof(struct sh_function));
+        funky->refcount = 1;
+        funky->name = *pl->arg->v;
+        *pl->arg->v = (void *)funky;
+
+        // Chop out pipeline segments added since saved function
+        funky->pipeline = pl->next;
+        pl->next->prev = (*ppl)->prev;
+        (*ppl)->prev->next = pl->next;
+        pl->next = *ppl;
+        (*ppl)->prev = pl;
+
+        // Immature function has matured (meaning cleanup is different)
+        pl->type = 'F';
+        free(dlist_lpop(expect));
+        ex = *expect ? (*expect)->prev->data : 0;
+      }
       pl = 0;
     }
     if (done) break;
     s = 0;
-
-    // Did we just end a function?
-    if (ex == (void *)1) {
-      struct sh_function *funky;
-
-      // function must be followed by a compound statement for some reason
-      if ((*ppl)->prev->type != 3) {
-        s = *(*ppl)->prev->arg->v;
-        goto flush;
-      }
-
-      // Back up to saved function() statement and create sh_function
-      free(dlist_lpop(expect));
-      pl = (void *)(*expect)->data;
-      funky = xmalloc(sizeof(struct sh_function));
-      funky->refcount = 1;
-      funky->name = *pl->arg->v;
-      *pl->arg->v = (void *)funky;
-
-      // Chop out pipeline segments added since saved function
-      funky->pipeline = pl->next;
-      pl->next->prev = (*ppl)->prev;
-      (*ppl)->prev->next = pl->next;
-      pl->next = *ppl;
-      (*ppl)->prev = pl;
-
-      // Immature function has matured (meaning cleanup is different)
-      pl->type = 'F';
-      pl = 0;
-      free(dlist_lpop(expect));
-      ex = *expect ? (*expect)->prev->data : 0;
-    }
 
     // skip leading whitespace/comment here to know where next word starts
     while (isspace(*start)) ++start;
@@ -2575,7 +2574,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
 
     // Parse next word and detect overflow (too many nested quotes).
     if ((end = parse_word(start, 0, 0)) == (void *)1) goto flush;
-//dprintf(2, "%d %p %s word=%.*s\n", getpid(), pl, ex, (int)(end-start), end ? start : "");
+//dprintf(2, "%d %p %s word=%.*s\n", getpid(), pl, (ex != (void *)1) ? ex : "function", (int)(end-start), end ? start : "");
 
     if (pl && pl->type == 'f' && arg->c == 1 && (end-start!=1 || *start!='(')) {
 funky:
@@ -2604,7 +2603,7 @@ funky:
     // Ok, we have a word. What does it _mean_?
 
     // case/esac parsing is weird (unbalanced parentheses!), handle first
-    i = ex && !strcmp(ex, "esac") &&
+    i = (unsigned long)ex>1 && !strcmp(ex, "esac") &&
         ((pl->type && pl->type != 3) || (*start==';' && end-start>1));
     if (i) {
 
@@ -2644,7 +2643,7 @@ funky:
       }
 
       // "for" on its own line is an error.
-      if (arg->c == 1 && ex && !memcmp(ex, "do\0A", 4)) {
+      if (arg->c == 1 && (unsigned long)ex>1 && !memcmp(ex, "do\0A", 4)) {
         s = "newline";
         goto flush;
       }
@@ -2735,7 +2734,7 @@ funky:
         free(s);
         s = 0;
 // TODO can't have ; between "for i" and in or do. (Newline yes, ; no. Why?)
-        if (!arg->c && ex && !memcmp(ex, "do\0C", 4)) continue;
+        if (!arg->c && (unsigned long)ex>1 && !memcmp(ex, "do\0C", 4)) continue;
 
       // ;; and friends only allowed in case statements
       } else if (*s == ';') goto flush;
@@ -2747,7 +2746,7 @@ funky:
       continue;
 
     // a for/select must have at least one additional argument on same line
-    } else if (ex && !memcmp(ex, "do\0A", 4)) {
+    } else if ((unsigned long)ex>1 && !memcmp(ex, "do\0A", 4)) {
 
       // Sanity check and break the segment
       if (strncmp(s, "((", 2) && *varend(s)) goto flush;
@@ -2760,7 +2759,7 @@ funky:
     } else if (arg->c>1) continue;
 
     // Do we expect something that _must_ come next? (no multiple statements)
-    if (ex) {
+    if ((unsigned long)ex>1) {
       // The "test" part of for/select loops can have (at most) one "in" line,
       // for {((;;))|name [in...]} do
       if (!memcmp(ex, "do\0C", 4)) {
@@ -2805,7 +2804,7 @@ funky:
       if (*expect && !(*expect)->prev->data) free(dlist_lpop(expect));
 
     // if can't end a statement here skip next few tests
-    } else if (!ex);
+    } else if ((unsigned long)ex<2);
 
     // If we got here we expect a specific word to end this block: is this it?
     else if (!strcmp(s, ex)) {
@@ -2887,7 +2886,12 @@ flush:
   if (s) syntax_err(s);
   llist_traverse(*ppl, free_pipeline);
   *ppl = 0;
-  llist_traverse(*expect, free);
+  while (*expect) {
+    struct double_list *del = dlist_pop(expect);
+
+    if (del->data != (void *)1) free(del->data);
+    free(del);
+  }
   *expect = 0;
 
   return 0-!!s;
@@ -3046,7 +3050,7 @@ static void run_lines(void)
     ctl = TT.ff->pl->end->arg->v[TT.ff->pl->end->arg->c];
     s = *TT.ff->pl->arg->v;
     ss = TT.ff->pl->arg->v[1];
-//dprintf(2, "%d s=%s ss=%s ctl=%s type=%d\n", getpid(), s, ss, ctl, TT.ff->pl->type);
+//dprintf(2, "%d s=%s ss=%s ctl=%s type=%d\n", getpid(), (TT.ff->pl->type == 'F') ? ((struct sh_function *)s)->name : s, ss, ctl, TT.ff->pl->type);
     if (!pplist) TT.hfd = 10;
 
     // Skip disabled blocks, handle pipes and backgrounding
