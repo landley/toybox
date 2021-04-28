@@ -2327,6 +2327,10 @@ static struct sh_process *run_command(void)
   // Create new function context to hold local vars?
   if (funk != TT.funcslen || (envlen && pp->arg.c) || TT.ff->blk->pipe) {
     call_function();
+    if (funk != TT.funcslen) {
+      TT.ff->delete = pp->delete;
+      pp->delete = 0;
+    }
     addvar(0, TT.ff); // function context (not source) so end_function deletes
     locals = 1;
   }
