@@ -2327,6 +2327,7 @@ static struct sh_process *run_command(void)
   // Create new function context to hold local vars?
   if (funk != TT.funcslen || (envlen && pp->arg.c) || TT.ff->blk->pipe) {
     call_function();
+// TODO function needs to run asynchronously in pipeline
     if (funk != TT.funcslen) {
       TT.ff->delete = pp->delete;
       pp->delete = 0;
@@ -2370,7 +2371,6 @@ static struct sh_process *run_command(void)
   else if (funk != TT.funcslen) {
     (TT.ff->func = TT.functions[funk])->refcount++;
     TT.ff->pl = TT.ff->func->pipeline;
-    TT.ff->next->pl = TT.ff->next->pl->next;
     TT.ff->arg = pp->arg;
   } else {
     struct toy_list *tl = toy_find(*pp->arg.v);
@@ -2563,6 +2563,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
         pl->next = *ppl;
         (*ppl)->prev = pl;
         dlist_terminate(funky->pipeline = add_pl(&funky->pipeline, 0));
+        funky->pipeline->type = 'f';
 
         // Immature function has matured (meaning cleanup is different)
         pl->type = 'F';
@@ -3049,14 +3050,13 @@ static void run_lines(void)
   for (;;) {
     if (!TT.ff->pl) {
       if (!end_function(1)) break;
-
-      continue;
+      goto advance;
     }
 
     ctl = TT.ff->pl->end->arg->v[TT.ff->pl->end->arg->c];
     s = *TT.ff->pl->arg->v;
     ss = TT.ff->pl->arg->v[1];
-//dprintf(2, "%d s=%s ss=%s ctl=%s type=%d\n", getpid(), (TT.ff->pl->type == 'F') ? ((struct sh_function *)s)->name : s, ss, ctl, TT.ff->pl->type);
+//dprintf(2, "%d s=%s ss=%s ctl=%s type=%d pl=%p ff=%p\n", getpid(), (TT.ff->pl->type == 'F') ? ((struct sh_function *)s)->name : s, ss, ctl, TT.ff->pl->type, TT.ff->pl, TT.ff);
     if (!pplist) TT.hfd = 10;
 
     // Skip disabled blocks, handle pipes and backgrounding
@@ -3303,7 +3303,6 @@ dprintf(2, "TODO skipped running for((;;)), need math parser\n");
 
     // end of block
     } else if (TT.ff->pl->type == 3) {
-
       // If we end a block we're not in, exit subshell
       if (!TT.ff->blk->next) xexit();
 
@@ -3348,12 +3347,13 @@ dprintf(2, "TODO skipped running for((;;)), need math parser\n");
       }
       pplist = 0;
     }
-
+advance:
     // for && and || skip pipeline segment(s) based on return code
     if (!TT.ff->pl->type || TT.ff->pl->type == 3) {
-      while (ctl && !strcmp(ctl, toys.exitval ? "&&" : "||")) {
-        if ((TT.ff->pl = TT.ff->pl->next)->type) TT.ff->pl = TT.ff->pl->end;
+      for (;;) {
         ctl = TT.ff->pl->arg->v[TT.ff->pl->arg->c];
+        if (!ctl || strcmp(ctl, toys.exitval ? "&&" : "||")) break;
+        if ((TT.ff->pl = TT.ff->pl->next)->type) TT.ff->pl = TT.ff->pl->end;
       }
     }
     TT.ff->pl = TT.ff->pl->next;

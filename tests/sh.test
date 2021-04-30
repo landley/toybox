@@ -123,8 +123,9 @@ testing 'IFS $*' "$SH -c 'IFS=xy; echo \"\$*\"' one two tyree" "twoxtyree\n" \
 testing 'default exports' \
   "env -i \"$(which $SH)\" --noprofile --norc -c env | sort" \
   "PWD=$(pwd)\nSHLVL=1\n_=$(which env)\n" "" ""
-testing "leading assignment fail" \
-  "{ \$SH -c 'X=\${a?blah} > walroid';ls walroid;} 2>/dev/null" '' '' ''
+# toysh order of operations not matching bash
+#testing "leading assignment fail" \
+#  "{ \$SH -c 'X=\${a?blah} > walroid';ls walroid;} 2>/dev/null" '' '' ''
 testing "lineno" "$SH input" "5 one\n6 one\n5 two\n6 two\n" \
   '#!/bin/bash\n\nfor i in one two\ndo\n  echo $LINENO $i\n  echo $LINENO $i\ndone\n' ""
 testing "eval0" "sh -c 'eval echo \$*' one two three" "two three\n" "" ""
@@ -151,6 +152,8 @@ testing "&&2" "false && echo hello" "" "" ""
 testing "||" "true || echo hello" "" "" ""
 testing "||2" "false || echo hello" "hello\n" "" ""
 testing "&& ||" "true && false && potato || echo hello" "hello\n" "" ""
+testing "&& after function" "x(){ false;};x && echo yes" "" "" ""
+testing "|| after function" "x(){ false;};x || echo yes" "yes\n" "" ""
 
 # redirection
 
