@@ -24,8 +24,6 @@ config TELNET
 GLOBALS(
   int sock;
   char buf[2048]; // Half sizeof(toybuf) allows a buffer full of IACs.
-  char iac[128];
-  int iac_len;
   struct termios old_term;
   struct termios raw_term;
   uint8_t mode;
@@ -49,29 +47,6 @@ GLOBALS(
 static void raw(int raw)
 {
   tcsetattr(0, TCSADRAIN, raw ? &TT.raw_term : &TT.old_term);
-}
-
-static void flush_iac(void)
-{
-  xwrite(TT.sock, TT.iac, TT.iac_len);
-  TT.iac_len = 0;
-}
-
-static void iac(int n, ...)
-{
-  va_list va; 
-
-  if (TT.iac_len + n >= sizeof(TT.iac)) flush_iac();
-  va_start(va, n);
-  while (n--) TT.iac[TT.iac_len++] = va_arg(va, int);
-  va_end(va);
-}
-
-static void iacstr(char *str)
-{
-  if (TT.iac_len) flush_iac();
-  xwrite(TT.sock, str, strlen(str));
-  TT.iac_len = 0;
 }
 
 static void slc(int line)
@@ -116,8 +91,7 @@ static void handle_esc(void)
       TT.mode = CM_TRY;
       TT.echo = TT.sga = 0;
       set_mode();
-      iac(6, IAC, DONT, TELOPT_ECHO, IAC, DONT, TELOPT_SGA);
-      flush_iac();
+      dprintf(TT.sock,"%c%c%c%c%c%c",IAC,DONT,TELOPT_ECHO,IAC,DONT,TELOPT_SGA);
       goto ret;
     }
   } else if (input == 'c') {
@@ -125,8 +99,7 @@ static void handle_esc(void)
       TT.mode = CM_TRY;
       TT.echo = TT.sga = 1;
       set_mode();
-      iac(6, IAC, DO, TELOPT_ECHO, IAC, DO, TELOPT_SGA);
-      flush_iac();
+      dprintf(TT.sock,"%c%c%c%c%c%c",IAC,DO,TELOPT_ECHO,IAC,DO,TELOPT_SGA);
       goto ret;
     }
   } else if (input == 'z') {
@@ -146,32 +119,32 @@ ret:
 static void handle_wwdd(char opt)
 {
   if (opt == TELOPT_ECHO) {
-    if (TT.request == DO) iac(3, IAC, WONT, TELOPT_ECHO);
+    if (TT.request == DO) dprintf(TT.sock, "%c%c%c", IAC, WONT, TELOPT_ECHO);
     if (TT.request == DONT) return;
     if (TT.echo) {
         if (TT.request == WILL) return;
     } else if (TT.request == WONT) return;
     if (TT.mode != CM_OFF) TT.echo ^= 1;
-    iac(3, IAC, TT.echo ? DO : DONT, TELOPT_ECHO);
+    dprintf(TT.sock, "%c%c%c", IAC, TT.echo ? DO : DONT, TELOPT_ECHO);
     set_mode();
   } else if (opt == TELOPT_SGA) { // Suppress Go Ahead
     if (TT.sga) {
       if (TT.request == WILL) return;
     } else if (TT.request == WONT) return;
     TT.sga ^= 1;
-    iac(3, IAC, TT.sga ? DO : DONT, TELOPT_SGA);
+    dprintf(TT.sock, "%c%c%c", IAC, TT.sga ? DO : DONT, TELOPT_SGA);
   } else if (opt == TELOPT_TTYPE) { // Terminal TYPE
-    iac(3, IAC, WILL, TELOPT_TTYPE);
+    dprintf(TT.sock, "%c%c%c", IAC, WILL, TELOPT_TTYPE);
   } else if (opt == TELOPT_NAWS) { // Negotiate About Window Size
     unsigned cols = 80, rows = 24;
 
     terminal_size(&cols, &rows);
-    iac(3, IAC, WILL, TELOPT_NAWS);
-    iac(7, IAC, SB, TELOPT_NAWS, cols>>8, cols, rows>>8, rows);
-    iac(2, IAC, SE);
+    dprintf(TT.sock, "%c%c%c%c%c%c%c%c%c%c%c%c", IAC, WILL, TELOPT_NAWS,
+            IAC, SB, TELOPT_NAWS, cols>>8, cols, rows>>8, rows,
+            IAC, SE);
   } else {
     // Say "no" to anything we don't understand.
-    iac(3, IAC, (TT.request == WILL) ? DONT : WONT, opt);
+    dprintf(TT.sock, "%c%c%c", IAC, (TT.request == WILL) ? DONT : WONT, opt);
   }
 }
 
@@ -210,9 +183,8 @@ static void handle_server_output(int n)
       else TT.state = WANT_IAC;
     } else if (TT.state == SAW_SB_TTYPE) {
       if (ch == TELQUAL_SEND) {
-        iac(4, IAC, SB, TELOPT_TTYPE, TELQUAL_IS);
-        iacstr(getenv("TERM") ?: "NVT");
-        iac(2, IAC, SE);
+        dprintf(TT.sock, "%c%c%c%c%s%c%c", IAC, SB, TELOPT_TTYPE, TELQUAL_IS,
+                getenv("TERM") ?: "NVT", IAC, SE);
       }
       TT.state = WANT_IAC;
     } else if (TT.state == WANT_IAC) {
@@ -295,6 +267,5 @@ void telnet_main(void)
         error_exit("Connection closed by foreign host\r");
       handle_server_output(n);
     }
-    if (TT.iac_len) flush_iac();
   }
 }
