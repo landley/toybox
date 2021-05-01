@@ -49,7 +49,7 @@ int xgetrandom(void *buf, unsigned buflen, unsigned flags)
 // Get list of mounted filesystems, including stat and statvfs info.
 // Returns a reversed list, which is good for finding overmounts and such.
 
-#if defined(__APPLE__) || defined(__FreeBSD__)
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 
 #include <sys/mount.h>
 
@@ -188,7 +188,7 @@ struct mtab_list *xgetmountlist(char *path)
 
 #endif
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__OpenBSD__)
 
 #include <sys/event.h>
 
@@ -332,7 +332,7 @@ ssize_t xattr_fset(int fd, const char* name,
   return fsetxattr(fd, name, value, size, 0, flags);
 }
 
-#else
+#elif !defined(__OpenBSD__)
 
 ssize_t xattr_get(const char *path, const char *name, void *value, size_t size)
 {
@@ -534,6 +534,8 @@ int dev_minor(int dev)
   return ((dev&0xfff00000)>>12)|(dev&0xff);
 #elif defined(__APPLE__)
   return dev&0xffffff;
+#elif defined(__OpenBSD__)
+  return minor(dev);
 #else
 #error
 #endif
@@ -545,6 +547,8 @@ int dev_major(int dev)
   return (dev&0xfff00)>>8;
 #elif defined(__APPLE__)
   return (dev>>24)&0xff;
+#elif defined(__OpenBSD__)
+  return major(dev);
 #else
 #error
 #endif
@@ -556,6 +560,8 @@ int dev_makedev(int major, int minor)
   return (minor&0xff)|((major&0xfff)<<8)|((minor&0xfff00)<<12);
 #elif defined(__APPLE__)
   return (minor&0xffffff)|((major&0xff)<<24);
+#elif defined(__OpenBSD__)
+  return makedev(major, minor);
 #else
 #error
 #endif
@@ -563,7 +569,7 @@ int dev_makedev(int major, int minor)
 
 char *fs_type_name(struct statfs *statfs)
 {
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__OpenBSD__)
   // macOS has an `f_type` field, but assigns values dynamically as filesystems
   // are registered. They do give you the name directly though, so use that.
   return statfs->f_fstypename;
@@ -605,6 +611,16 @@ int get_block_device_size(int fd, unsigned long long* size)
 int get_block_device_size(int fd, unsigned long long* size)
 {
   return (ioctl(fd, BLKGETSIZE64, size) >= 0);
+}
+#elif defined(__OpenBSD__)
+#include <sys/dkio.h>
+#include <sys/disklabel.h>
+int get_block_device_size(int fd, unsigned long long* size)
+{
+  struct disklabel lab;
+  int status = (ioctl(fd, DIOCGDINFO, &lab) >= 0);
+  *size = lab.d_secsize * lab.d_nsectors;
+  return status;
 }
 #endif
 
