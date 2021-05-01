@@ -133,7 +133,7 @@ void *memmem(const void *haystack, size_t haystack_length,
 #define bswap_32(x) OSSwapInt32(x)
 #define bswap_64(x) OSSwapInt64(x)
 
-#elif defined(__FreeBSD__)
+#elif defined(__FreeBSD__) || defined(__OpenBSD__)
 
 #include <sys/endian.h>
 
@@ -184,7 +184,7 @@ void *memmem(const void *haystack, size_t haystack_length,
 
 #ifdef __APPLE__
 #include <util.h>
-#elif !defined(__FreeBSD__)
+#elif !defined(__FreeBSD__) && !defined(__OpenBSD__)
 #include <pty.h>
 #else
 #include <termios.h>
@@ -208,13 +208,16 @@ ssize_t xattr_lset(const char*, const char*, const void*, size_t, int);
 ssize_t xattr_fset(int, const char*, const void*, size_t, int);
 #endif
 
-#ifdef __APPLE__
+#if defined(__APPLE__)
 // macOS doesn't have these functions, but we can fake them.
 int mknodat(int, const char*, mode_t, dev_t);
 int posix_fallocate(int, off_t, off_t);
 
 // macOS keeps newlocale(3) in the non-POSIX <xlocale.h> rather than <locale.h>.
 #include <xlocale.h>
+#endif
+
+#if defined(__APPLE__) || defined(__OpenBSD__)
 static inline long statfs_bsize(struct statfs *sf) { return sf->f_iosize; }
 static inline long statfs_frsize(struct statfs *sf) { return sf->f_bsize; }
 #else
