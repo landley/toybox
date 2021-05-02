@@ -45,11 +45,13 @@ USE_SH(NEWTOY(eval, 0, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(exec, "^cla:", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(exit, 0, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(export, "np", TOYFLAG_NOFORK))
+USE_SH(NEWTOY(jobs, "lnprs", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(set, 0, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(shift, ">1", TOYFLAG_NOFORK))
 USE_SH(NEWTOY(source, "<1", TOYFLAG_NOFORK))
 USE_SH(OLDTOY(., source, TOYFLAG_NOFORK))
 USE_SH(NEWTOY(unset, "fvn[!fv]", TOYFLAG_NOFORK))
+USE_SH(NEWTOY(wait, "n", TOYFLAG_NOFORK))
 
 USE_SH(NEWTOY(sh, "0(noediting)(noprofile)(norc)sc:i", TOYFLAG_BIN))
 USE_SH(OLDTOY(toysh, sh, TOYFLAG_BIN))
@@ -201,6 +203,18 @@ config SOURCE
     usage: source FILE [ARGS...]
 
     Read FILE and execute commands. Any ARGS become positional parameters.
+
+config WAIT
+  bool
+  default n
+  depends on SH
+  help
+    usage: wait [-n] [ID...]
+
+    Wait for background processes to exit, returning its exit code.
+    ID can be PID or job, with no IDs waits for all backgrounded processes.
+
+    -n	Wait for next process to exit
 */
 
 #define FOR_sh
@@ -271,7 +285,7 @@ GLOBALS(
     struct sh_process *next, *prev; // | && ||
     struct arg_list *delete;   // expanded strings
     // undo redirects, a=b at start, child PID, exit status, has !, job #
-    int *urd, envlen, pid, exit, not, job;
+    int *urd, envlen, pid, exit, not, job, dash;
     long long when; // when job backgrounded/suspended
     struct sh_arg *raw, arg;
   } *pp; // currently running process
@@ -752,6 +766,7 @@ static void subshell_callback(char **argv)
 // TODO: test $$ in (nommu)
 }
 
+// TODO what happens when you background a function?
 // turn a parsed pipeline back into a string.
 static char *pl2str(struct sh_pipeline *pl, int one)
 {
@@ -2420,11 +2435,16 @@ static struct sh_process *run_command(void)
   return pp;
 }
 
-static void free_process(void *ppp)
+static int free_process(struct sh_process *pp)
 {
-  struct sh_process *pp = ppp;
+  int rc;
+
+  if (!pp) return 127;
+  rc = pp->exit;
   llist_traverse(pp->delete, llist_free_arg);
   free(pp);
+
+  return rc;
 }
 
 // if then fi for while until select done done case esac break continue return
@@ -2904,6 +2924,80 @@ flush:
   return 0-!!s;
 }
 
+// Find + and - jobs. Returns index of plus, writes minus to *minus
+int find_plus_minus(int *minus)
+{
+  long long when, then;
+  int i, plus;
+
+  if (minus) *minus = 0;
+  for (then = i = plus = 0; i<TT.jobs.c; i++) {
+    if ((when = ((struct sh_process *)TT.jobs.v[i])->when) > then) {
+      then = when;
+      if (minus) *minus = plus;
+      plus = i;
+    }
+  }
+
+  return plus;
+}
+
+char is_plus_minus(int i, int plus, int minus)
+{
+  return (i == plus) ? '+' : (i == minus) ? '-' : ' ';
+}
+
+
+// We pass in dash to avoid looping over every job each time
+char *show_job(struct sh_process *pp, char dash)
+{
+  char *s = "Run", *buf = 0;
+  int i, j, len, len2;
+
+// TODO Terminated (Exited)
+  if (pp->exit<0) s = "Stop";
+  else if (pp->exit>126) s = "Kill";
+  else if (pp->exit>0) s = "Done";
+  for (i = len = len2 = 0;; i++) {
+    len += snprintf(buf, len2, "[%d]%c  %-6s", pp->job, dash, s);
+    for (j = 0; j<pp->raw->c; j++)
+      len += snprintf(buf, len2, " %s"+!j, pp->raw->v[j]);
+    if (!i) buf = xmalloc(len2 = len+1);
+    else break;
+  }
+
+  return buf;
+}
+
+// Wait for pid to exit and remove from jobs table, returning process or 0.
+struct sh_process *wait_job(int pid, int nohang)
+{
+  struct sh_process *pp;
+  int ii, status, minus, plus;
+
+  if (TT.jobs.c<1) return 0;
+  for (;;) {
+    errno = 0;
+    if (-1 == (pid = waitpid(pid, &status, nohang ? WNOHANG : 0))) {
+      if (errno==EINTR && !toys.signal) continue;
+      return 0;
+    }
+    for (ii = 0; ii<TT.jobs.c; ii++) {
+      pp = (void *)TT.jobs.v[ii];
+      if (pp->pid == pid) break;
+    }
+    if (ii == TT.jobs.c) continue;
+    if (pid<1) return 0;
+    if (!WIFSTOPPED(status) && !WIFCONTINUED(status)) break;
+  }
+  plus = find_plus_minus(&minus);
+  memmove(TT.jobs.v+ii, TT.jobs.v+ii+1, (TT.jobs.c--)-ii);
+  pp->exit = WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status)+128;
+  pp->dash = is_plus_minus(ii, plus, minus);
+
+  return pp;
+}
+
 // wait for every process in a pipeline to end
 static int wait_pipeline(struct sh_process *pp)
 {
@@ -2917,6 +3011,13 @@ static int wait_pipeline(struct sh_process *pp)
     }
     // TODO handle set -o pipefail here
     rc = pp->not ? !pp->exit : pp->exit;
+  }
+
+  while ((pp = wait_job(-1, 1)) && (TT.options&FLAG_i)) {
+    char *s = show_job(pp, pp->dash);
+
+    dprintf(2, "%s\n", s);
+    free(s);
   }
 
   return rc;
@@ -3339,11 +3440,13 @@ dprintf(2, "TODO skipped running for((;;)), need math parser\n");
     // If we ran a process and didn't pipe output, background or wait for exit
     if (pplist && TT.ff->blk->pout == -1) {
       if (ctl && !strcmp(ctl, "&")) {
+        if (!TT.jobs.c) TT.jobcnt = 0;
         pplist->job = ++TT.jobcnt;
         arg_add(&TT.jobs, (void *)pplist);
+        if (TT.options&FLAG_i) dprintf(2, "[%u] %u\n", pplist->job,pplist->pid);
       } else {
         toys.exitval = wait_pipeline(pplist);
-        llist_traverse(pplist, free_process);
+        llist_traverse(pplist, (void *)free_process);
       }
       pplist = 0;
     }
@@ -3362,7 +3465,7 @@ advance:
   // clean up any unfinished stuff
   if (pplist) {
     toys.exitval = wait_pipeline(pplist);
-    llist_traverse(pplist, free_process);
+    llist_traverse(pplist, (void *)free_process);
   }
 
   // exit source context (and function calls on syntax err)
@@ -3914,24 +4017,6 @@ void exec_main(void)
   environ = old;
 }
 
-// Find + and - jobs. Returns index of plus, writes minus to *minus
-int find_plus_minus(int *minus)
-{
-  long long when, then;
-  int i, plus;
-
-  if (minus) *minus = 0;
-  for (then = i = plus = 0; i<TT.jobs.c; i++) {
-    if ((when = ((struct sh_process *)TT.jobs.v[i])->when) > then) {
-      then = when;
-      if (minus) *minus = plus;
-      plus = i;
-    }
-  }
-
-  return plus;
-}
-
 // Return T.jobs index or -1 from identifier
 // Note, we don't return "ambiguous job spec", we return the first hit or -1.
 // TODO %% %+ %- %?ab
@@ -3965,22 +4050,6 @@ int find_job(char *s)
   return -1;
 }
 
-// We pass in dash to avoid looping over every job each time
-void print_job(int i, char dash)
-{
-  struct sh_process *pp = (void *)TT.jobs.v[i];
-  char *s = "Run";
-  int j;
-
-// TODO Terminated (Exited)
-  if (pp->exit<0) s = "Stop";
-  else if (pp->exit>126) s = "Kill";
-  else if (pp->exit>0) s = "Done";
-  printf("[%d]%c  %-6s", pp->job, dash, s);
-  for (j = 0; j<pp->raw->c; j++) printf(" %s"+!j, pp->raw->v[j]);
-  printf("\n");
-}
-
 void jobs_main(void)
 {
   int i, j, minus, plus = find_plus_minus(&minus);
@@ -3998,7 +4067,9 @@ void jobs_main(void)
       }
     } else if ((j = i) >= TT.jobs.c) break;
 
-    print_job(i, (i == plus) ? '+' : (i == minus) ? '-' : ' ');
+    s = show_job((void *)TT.jobs.v[i], is_plus_minus(i, plus, minus));
+    printf("%s\n", s);
+    free(s);
   }
 }
 
@@ -4076,4 +4147,36 @@ void source_main(void)
   do_source(name, ff);
   free(dlist_pop(&TT.ff));
   --TT.srclvl;
+}
+
+#define CLEANUP_local
+#define FOR_wait
+#include "generated/flags.h"
+
+void wait_main(void)
+{
+  struct sh_process *pp;
+  int ii, jj;
+  long long ll;
+  char *s;
+
+  // TODO does -o pipefail affect return code here
+  if (FLAG(n)) toys.exitval = free_process(wait_job(-1, 0));
+  else if (!toys.optc) while (TT.jobs.c) {
+    if (!(pp = wait_job(-1, 0))) break;
+  } else for (ii = 0; ii<toys.optc; ii++) {
+    ll = estrtol(toys.optargs[ii], &s, 10);
+    if (errno || *s) {
+      if (-1 == (jj = find_job(toys.optargs[ii]))) {
+        error_msg("%s: bad pid/job", toys.optargs[ii]);
+        continue;
+      }
+      ll = ((struct sh_process *)TT.jobs.v[jj])->pid;
+    }
+    if (!(pp = wait_job(ll, 0))) {
+      if (toys.signal) toys.exitval = 128+toys.signal;
+      break;
+    }
+    toys.exitval = free_process(pp);
+  }
 }
