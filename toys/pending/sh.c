@@ -2978,8 +2978,8 @@ struct sh_process *wait_job(int pid, int nohang)
   if (TT.jobs.c<1) return 0;
   for (;;) {
     errno = 0;
-    if (-1 == (pid = waitpid(pid, &status, nohang ? WNOHANG : 0))) {
-      if (errno==EINTR && !toys.signal) continue;
+    if (1>(pid = waitpid(pid, &status, nohang ? WNOHANG : 0))) {
+      if (!nohang && errno==EINTR && !toys.signal) continue;
       return 0;
     }
     for (ii = 0; ii<TT.jobs.c; ii++) {
