@@ -17,23 +17,15 @@ config ECHO
   help
     usage: echo [-neE] [ARG...]
 
-    Write each argument to stdout, with one space between each, followed
-    by a newline.
+    Write each argument to stdout, one space between each, followed by a newline.
 
     -n	No trailing newline
     -E	Print escape sequences literally (default)
     -e	Process the following escape sequences:
-    	\\	Backslash
-    	\0NNN	Octal values (1 to 3 digits)
-    	\a	Alert (beep/flash)
-    	\b	Backspace
-    	\c	Stop output here (avoids trailing newline)
-    	\f	Form feed
-    	\n	Newline
-    	\r	Carriage return
-    	\t	Horizontal tab
-    	\v	Vertical tab
-    	\xHH	Hexadecimal values (1 to 2 digits)
+    	\\  Backslash		\0NNN Octal (1-3 digit)	\xHH Hex (1-2 digit)
+    	\a  Alert (beep/flash)	\b  Backspace		\c  Stop here (no \n)
+    	\f  Form feed		\n  Newline		\r  Carriage return
+    	\t  Horizontal tab	\v  Vertical tab
 */
 
 #define FOR_echo
