@@ -535,6 +535,7 @@ static char *getvar(char *s)
     else if (c == 'R') sprintf(toybuf, "%ld", random()&((1<<16)-1));
     else if (c == 'L') sprintf(toybuf, "%u", TT.ff->pl->lineno);
     else if (c == 'G') sprintf(toybuf, "TODO: GROUPS");
+    else if (c == 'B') sprintf(toybuf, "%d", getpid());
 
     return toybuf;
   }
@@ -3602,7 +3603,7 @@ static void subshell_setup(void)
 {
   int ii, from, pid, ppid, zpid, myppid = getppid(), len, uid = getuid();
   struct passwd *pw = getpwuid(uid);
-  char *s, *ss, *magic[] = {"SECONDS", "RANDOM", "LINENO", "GROUPS"},
+  char *s, *ss, *magic[] = {"SECONDS", "RANDOM", "LINENO", "GROUPS", "BASHPID"},
     *readonly[] = {xmprintf("EUID=%d", geteuid()), xmprintf("UID=%d", uid),
                    xmprintf("PPID=%d", myppid)};
   struct stat st;
@@ -3616,8 +3617,8 @@ static void subshell_setup(void)
 
   // Initialize magic and read only local variables
   srandom(TT.SECONDS = millitime());
-  for (ii = 0; ii<ARRAY_LEN(magic); ii++)
-    initvar(magic[ii], "")->flags = VAR_MAGIC|(VAR_INT*('G'!=*magic[ii]));
+  for (ii = 0; ii<ARRAY_LEN(magic) && (s = magic[ii]); ii++)
+    initvar(s, "")->flags = VAR_MAGIC+VAR_INT*('G'!=*s)+VAR_READONLY*('B'==*s);
   for (ii = 0; ii<ARRAY_LEN(readonly); ii++)
     addvar(readonly[ii], TT.ff)->flags = VAR_READONLY|VAR_INT;
 
