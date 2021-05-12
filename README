@@ -31,7 +31,7 @@ Or maybe:
   PREFIX=/path/to/root/filesystem/bin make install_flat
 
 The file "configure" defines default values for many environment variables
-that control the toybox build; if export any these variables into your
+that control the toybox build; if you export any of these variables into your
 environment, your value is used instead of the default in that file.
 
 The CROSS_COMPILE argument above is optional, the default builds a version of
