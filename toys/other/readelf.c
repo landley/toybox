@@ -8,7 +8,7 @@ USE_READELF(NEWTOY(readelf, "<1(dyn-syms)adehlnp:SsWx:", TOYFLAG_USR|TOYFLAG_BIN
 
 config READELF
   bool "readelf"
-  default n
+  default y
   help
     usage: readelf [-adehlnSs] [-p SECTION] [-x SECTION] [file...]
 
