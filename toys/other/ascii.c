@@ -56,7 +56,7 @@ void unicode_main(void)
 {
   int from, to, n;
   char next, **args, *s;
-  wchar_t wc;
+  unsigned wc;
 
   // Loop through args, handling range, hex code, or character(s)
   for (args = toys.optargs; *args; args++) {
