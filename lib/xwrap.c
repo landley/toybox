@@ -338,7 +338,7 @@ int xwaitpid(pid_t pid)
 {
   int status;
 
-  while (-1 == waitpid(pid, &status, 0) && errno == EINTR);
+  while (-1 == waitpid(pid, &status, 0) && errno == EINTR) errno = 0;
 
   return WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status)+128;
 }
