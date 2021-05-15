@@ -82,6 +82,7 @@ void *dlist_lpop(void *list)
   return v;
 }
 
+// Append to list in-order (*list unchanged unless empty, ->prev is new node)
 void dlist_add_nomalloc(struct double_list **list, struct double_list *new)
 {
   if (*list) {
@@ -91,7 +92,6 @@ void dlist_add_nomalloc(struct double_list **list, struct double_list *new)
     (*list)->prev = new;
   } else *list = new->next = new->prev = new;
 }
-
 
 // Add an entry to the end of a doubly linked list
 struct double_list *dlist_add(struct double_list **list, char *data)

@@ -196,12 +196,12 @@ bad:
 
 static void do_regular_file(int fd, char *name)
 {
-  char *s;
+  char *s = toybuf;
   unsigned len, magic;
 
   // zero through elf shnum, just in case
-  memset(toybuf, 0, 80);
-  if ((len = readall(fd, s = toybuf, sizeof(toybuf)))<0) perror_msg("%s", name);
+  memset(s, 0, 80);
+  if ((len = readall(fd, s, sizeof(toybuf)-8))<0) perror_msg("%s", name);
 
   if (!len) xputs("empty");
   // 45 bytes: https://www.muppetlabs.com/~breadbox/software/tiny/teensy.html
@@ -235,7 +235,7 @@ static void do_regular_file(int fd, char *name)
       s-3, (int)peek_le(s, 2), (int)peek_le(s+2, 2));
 
   // TODO: parsing JPEG for width/height is harder than GIF or PNG.
-  else if (len>32 && !memcmp(toybuf, "\xff\xd8", 2)) xputs("JPEG image data");
+  else if (len>32 && !memcmp(s, "\xff\xd8", 2)) xputs("JPEG image data");
 
   // https://en.wikipedia.org/wiki/Java_class_file#General_layout
   else if (len>8 && strstart(&s, "\xca\xfe\xba\xbe"))
@@ -252,9 +252,9 @@ static void do_regular_file(int fd, char *name)
   else if (len>85 && strstart(&s, "07070")) {
     char *cpioformat = "unknown type";
 
-    if (toybuf[5] == '7') cpioformat = "pre-SVR4 or odc";
-    else if (toybuf[5] == '1') cpioformat = "SVR4 with no CRC";
-    else if (toybuf[5] == '2') cpioformat = "SVR4 with CRC";
+    if (*s == '7') cpioformat = "pre-SVR4 or odc";
+    else if (*s == '1') cpioformat = "SVR4 with no CRC";
+    else if (*s == '2') cpioformat = "SVR4 with CRC";
     xprintf("ASCII cpio archive (%s)\n", cpioformat);
   } else if (len>33 && ((magic=peek(&s,2))==0143561 || magic==070707)) {
     if (magic == 0143561) printf("byte-swapped ");
@@ -265,16 +265,12 @@ static void do_regular_file(int fd, char *name)
       (s[262]!=' ' || s[263]!=' ')?"":" (GNU)");
   // zip/jar/apk archive, ODF/OOXML document, or such
   else if (len>5 && strstart(&s, "PK\03\04")) {
-    int ver = toybuf[4];
-
     xprintf("Zip archive data");
-    if (ver) xprintf(", requires at least v%d.%d to extract", ver/10, ver%10);
+    if (*s) xprintf(", requires at least v%d.%d to extract", *s/10, *s%10);
     xputc('\n');
   } else if (len>9 && strstart(&s, "7z\xbc\xaf\x27\x1c")) {
-    int ver = toybuf[6]*10+toybuf[7];
-
     xprintf("7-zip archive data");
-    if (ver) xprintf(", version %d.%d", ver/10, ver%10);
+    if (*s || s[1]) xprintf(", version %d.%d", *s, s[1]);
     xputc('\n');
   } else if (len>4 && strstart(&s, "BZh") && isdigit(*s))
     xprintf("bzip2 compressed data, block size = %c00k\n", *s);
@@ -410,13 +406,14 @@ static void do_regular_file(int fd, char *name)
       // Whitespace is allowed between the #! and the interpreter
       while (isspace(*s)) s++;
       if (strstart(&s, "/usr/bin/env")) while (isspace(*s)) s++;
-      for (what = s; (s-toybuf)<len && !isspace(*s); s++);
+      for (what = s; *s && !isspace(*s); s++);
       strcpy(s, " script");
 
     // Distinguish ASCII text, UTF-8 text, or data
     } else for (i = 0; i<len; ++i) {
-      if (!(isprint(toybuf[i]) || isspace(toybuf[i]))) {
-        wchar_t wc;
+      if (!(isprint(s[i]) || isspace(s[i]))) {
+        unsigned wc;
+
         if ((bytes = utf8towc(&wc, s+i, len-i))>0 && wcwidth(wc)>=0) {
           i += bytes-1;
           if (!what) what = "UTF-8 text";

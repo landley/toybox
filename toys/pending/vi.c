@@ -84,7 +84,7 @@ static const char *specials = ",.:;=-+*/(){}<>[]!@#$%^&|\\?\"\'";
 //get utf8 length and width at same time
 static int utf8_lnw(int *width, char *s, int bytes)
 {
-  wchar_t wc;
+  unsigned wc;
   int length = 1;
 
   if (*s == '\t') *width = TT.tabstop;
@@ -1312,10 +1312,9 @@ static int crunch_nstr(char **str, int width, int n, FILE *out, char *escmore,
 {
   int columns = 0, col, bytes;
   char *start, *end;
+  unsigned wc;
 
   for (end = start = *str; *end && n>0; columns += col, end += bytes, n -= bytes) {
-    wchar_t wc;
-
     if ((bytes = utf8towc(&wc, end, 4))>0 && (col = wcwidth(wc))>=0) {
       if (!escmore || wc>255 || !strchr(escmore, wc)) {
         if (width-columns<col) break;
