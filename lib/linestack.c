@@ -93,10 +93,9 @@ int crunch_str(char **str, int width, FILE *out, char *escmore,
 {
   int columns = 0, col, bytes;
   char *start, *end;
+  unsigned wc;
 
   for (end = start = *str; *end; columns += col, end += bytes) {
-    wchar_t wc;
-
     if ((bytes = utf8towc(&wc, end, 4))>0 && (col = wcwidth(wc))>=0) {
       if (!escmore || wc>255 || !strchr(escmore, wc)) {
         if (width-columns<col) break;

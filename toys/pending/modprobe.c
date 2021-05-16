@@ -224,7 +224,7 @@ static int config_action(struct dirtree *node)
     free(filename);
     return 0;
   }
-  for (line = linecp = NULL; read_line(fc, &line) > 0; 
+  for (line = linecp = NULL; read_line(fc, &line) >= 0;
       free(line), free(linecp), line = linecp = NULL) {
     char *tk = NULL;
 
@@ -286,7 +286,7 @@ static int depmode_read_entry(char *cmdname)
   int ret = -1;
   FILE *fe = xfopen("modules.dep", "r");
 
-  while (read_line(fe, &line) > 0) {
+  while (read_line(fe, &line) >= 0) {
     char *tmp = strchr(line, ':');
 
     if (tmp) {
@@ -314,7 +314,7 @@ static void find_dep(void)
   struct module_s *mod;
   FILE *fe = xfopen("modules.dep", "r");
 
-  for (; read_line(fe, &line) > 0; free(line)) {
+  for (; read_line(fe, &line) >= 0; free(line)) {
     char *tmp = strchr(line, ':');
 
     if (tmp) {

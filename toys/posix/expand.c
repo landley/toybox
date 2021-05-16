@@ -43,7 +43,7 @@ static void do_expand(int fd, char *name)
     }
     if (!len) break;
     for (i=0; i<len; i++) {
-      wchar_t blah;
+      unsigned blah;
       int width = utf8towc(&blah, toybuf+i, len-i);
       char c;
 

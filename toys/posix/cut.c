@@ -85,7 +85,7 @@ static void cut_line(char **pline, long len)
       count = ss-s;
 
     } else if (toys.optflags&FLAG_c) {
-      wchar_t wc;
+      unsigned wc;
       char *sss;
 
       // Find start

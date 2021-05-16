@@ -196,12 +196,12 @@ bad:
 
 static void do_regular_file(int fd, char *name)
 {
-  char *s;
+  char *s = toybuf;
   unsigned len, magic;
 
   // zero through elf shnum, just in case
-  memset(toybuf, 0, 80);
-  if ((len = readall(fd, s = toybuf, sizeof(toybuf)))<0) perror_msg("%s", name);
+  memset(s, 0, 80);
+  if ((len = readall(fd, s, sizeof(toybuf)-8))<0) perror_msg("%s", name);
 
   if (!len) xputs("empty");
   // 45 bytes: https://www.muppetlabs.com/~breadbox/software/tiny/teensy.html
@@ -235,7 +235,7 @@ static void do_regular_file(int fd, char *name)
       s-3, (int)peek_le(s, 2), (int)peek_le(s+2, 2));
 
   // TODO: parsing JPEG for width/height is harder than GIF or PNG.
-  else if (len>32 && !memcmp(toybuf, "\xff\xd8", 2)) xputs("JPEG image data");
+  else if (len>32 && !memcmp(s, "\xff\xd8", 2)) xputs("JPEG image data");
 
   // https://en.wikipedia.org/wiki/Java_class_file#General_layout
   else if (len>8 && strstart(&s, "\xca\xfe\xba\xbe"))
@@ -243,7 +243,7 @@ static void do_regular_file(int fd, char *name)
       (int)peek_be(s+2, 2), (int)peek_be(s, 2), (int)peek_be(s+2, 2)-44);
 
   // https://source.android.com/devices/tech/dalvik/dex-format#dex-file-magic
-  else if (len>8 && strstart(&s, "dex\n") && s[3] == 0)
+  else if (len>8 && strstart(&s, "dex\n") && !s[3])
     xprintf("Android dex file, version %s\n", s);
 
   // https://people.freebsd.org/~kientzle/libarchive/man/cpio.5.txt
@@ -252,45 +252,40 @@ static void do_regular_file(int fd, char *name)
   else if (len>85 && strstart(&s, "07070")) {
     char *cpioformat = "unknown type";
 
-    if (toybuf[5] == '7') cpioformat = "pre-SVR4 or odc";
-    else if (toybuf[5] == '1') cpioformat = "SVR4 with no CRC";
-    else if (toybuf[5] == '2') cpioformat = "SVR4 with CRC";
+    if (*s == '7') cpioformat = "pre-SVR4 or odc";
+    else if (*s == '1') cpioformat = "SVR4 with no CRC";
+    else if (*s == '2') cpioformat = "SVR4 with CRC";
     xprintf("ASCII cpio archive (%s)\n", cpioformat);
-  } else if (len>33 && (magic=peek(&s,2), magic==0143561 || magic==070707)) {
+  } else if (len>33 && ((magic=peek(&s,2))==0143561 || magic==070707)) {
     if (magic == 0143561) printf("byte-swapped ");
     xputs("cpio archive");
   // tar archive (old, ustar/pax, or gnu)
   } else if (len>500 && is_tar_header(s))
     xprintf("%s tar archive%s\n", s[257] ? "POSIX" : "old",
-      strncmp(s+262,"  ",2)?"":" (GNU)");
+      (s[262]!=' ' || s[263]!=' ')?"":" (GNU)");
   // zip/jar/apk archive, ODF/OOXML document, or such
   else if (len>5 && strstart(&s, "PK\03\04")) {
-    int ver = toybuf[4];
-
     xprintf("Zip archive data");
-    if (ver) xprintf(", requires at least v%d.%d to extract", ver/10, ver%10);
+    if (*s) xprintf(", requires at least v%d.%d to extract", *s/10, *s%10);
     xputc('\n');
   } else if (len>9 && strstart(&s, "7z\xbc\xaf\x27\x1c")) {
-    int ver = toybuf[6]*10+toybuf[7];
-
     xprintf("7-zip archive data");
-    if (ver) xprintf(", version %d.%d", ver/10, ver%10);
+    if (*s || s[1]) xprintf(", version %d.%d", *s, s[1]);
     xputc('\n');
   } else if (len>4 && strstart(&s, "BZh") && isdigit(*s))
     xprintf("bzip2 compressed data, block size = %c00k\n", *s);
-  else if (len > 31 && peek_be(s, 7) == 0xfd377a585a0000UL)
+  else if (len>31 && peek_be(s, 7) == 0xfd377a585a0000UL)
     xputs("xz compressed data");
   else if (len>10 && strstart(&s, "\x1f\x8b")) xputs("gzip compressed data");
   else if (len>32 && !memcmp(s+1, "\xfa\xed\xfe", 3)) {
-    int bit = s[0]=='\xce'?32:64;
-    char *what;
+    int bit = (*s==0xce) ? 32 : 64;
+    char *what = 0;
 
     xprintf("Mach-O %d-bit ", bit);
 
     if (s[4] == 7) what = (bit==32)?"x86":"x86-";
     else if (s[4] == 12) what = "arm";
     else if (s[4] == 18) what = "ppc";
-    else what = NULL;
     if (what) xprintf("%s%s ", what, (bit==32)?"":"64");
     else xprintf("(bad arch %d) ", s[4]);
 
@@ -322,14 +317,14 @@ static void do_regular_file(int fd, char *name)
   } else if (len>32 && !memcmp(s, "RIF", 3) && !memcmp(s+8, "WAVEfmt ", 8)) {
     // https://en.wikipedia.org/wiki/WAV
     int le = (s[3] == 'F');
-    int format = le ? peek_le(s+20,2) : peek_be(s+20,2);
-    int channels = le ? peek_le(s+22,2) : peek_be(s+22,2);
-    int hz = le ? peek_le(s+24,4) : peek_be(s+24,4);
-    int bits = le ? peek_le(s+34,2) : peek_be(s+34,2);
+    int format = le ? peek_le(s+20, 2) : peek_be(s+20, 2);
+    int channels = le ? peek_le(s+22, 2) : peek_be(s+22, 2);
+    int hz = le ? peek_le(s+24, 4) : peek_be(s+24, 4);
+    int bits = le ? peek_le(s+34, 2) : peek_be(s+34, 2);
 
     xprintf("WAV audio, %s, ", le ? "LE" : "BE");
-    if (bits != 0) xprintf("%d-bit, ", bits);
-    if (channels==1||channels==2) xprintf("%s, ", channels==1?"mono":"stereo");
+    if (bits) xprintf("%d-bit, ", bits);
+    if (channels==1||channels==2) xprintf("%s, ",(channels==1)?"mono":"stereo");
     else xprintf("%d-channel, ", channels);
     xprintf("%d Hz, ", hz);
     // See https://tools.ietf.org/html/rfc2361, though there appear to be bugs
@@ -353,27 +348,24 @@ static void do_regular_file(int fd, char *name)
             (int)peek_be(s+4, 2), (int)peek_be(s+8, 4));
 
   // https://docs.microsoft.com/en-us/typography/opentype/spec/otff
-  } else if (len>12 && !memcmp(s, "OTTO", 4)) {
-    xputs("OpenType font");
-  } else if (len>4 && !memcmp(s, "BC\xc0\xde", 4)) {
-    xputs("LLVM IR bitcode");
-  } else if (strstart(&s, "-----BEGIN CERTIFICATE-----")) {
-    xputs("PEM certificate");
+  } else if (len>12 && !memcmp(s, "OTTO", 4)) xputs("OpenType font");
+  else if (len>4 && !memcmp(s, "BC\xc0\xde", 4)) xputs("LLVM IR bitcode");
+  else if (strstart(&s,"-----BEGIN CERTIFICATE-----")) xputs("PEM certificate");
 
   // https://msdn.microsoft.com/en-us/library/windows/desktop/ms680547(v=vs.85).aspx
-  } else if (len>0x70 && !memcmp(s, "MZ", 2) &&
-      (magic=peek_le(s+0x3c,4))<len-4 && !memcmp(s+magic, "\x50\x45\0\0", 4)) {
+  else if (len>0x70 && !memcmp(s, "MZ", 2) &&
+      (magic=peek_le(s+0x3c,4))<len-4 && !memcmp(s+magic, "\x50\x45\0", 4)) {
     xprintf("MS PE32%s executable %s", (peek_le(s+magic+24, 2)==0x20b)?"+":"",
         (peek_le(s+magic+22, 2)&0x2000)?"(DLL) ":"");
     if (peek_le(s+magic+20, 2)>70) {
       char *types[] = {0, "native", "GUI", "console", "OS/2", "driver", "CE",
           "EFI", "EFI boot", "EFI runtime", "EFI ROM", "XBOX", 0, "boot"};
-      int type = peek_le(s+magic+92, 2);
-      char *name = (type>0 && type<ARRAY_LEN(types))?types[type]:0;
+      unsigned type = peek_le(s+magic+92, 2);
+      char *name = (type<ARRAY_LEN(types)) ? types[type] : 0;
 
-      xprintf("(%s) ", name?name:"unknown");
+      xprintf("(%s) ", name ? : "unknown");
     }
-    xprintf("%s\n", (peek_le(s+magic+4, 2)==0x14c)?"x86":"x86-64");
+    xprintf("x86%s\n", (peek_le(s+magic+4, 2)==0x14c) ? "" : "-64");
 
     // https://en.wikipedia.org/wiki/BMP_file_format
   } else if (len > 0x32 && !memcmp(s, "BM", 2) && !memcmp(s+6, "\0\0\0\0", 4)) {
@@ -414,13 +406,14 @@ static void do_regular_file(int fd, char *name)
       // Whitespace is allowed between the #! and the interpreter
       while (isspace(*s)) s++;
       if (strstart(&s, "/usr/bin/env")) while (isspace(*s)) s++;
-      for (what = s; (s-toybuf)<len && !isspace(*s); s++);
+      for (what = s; *s && !isspace(*s); s++);
       strcpy(s, " script");
 
     // Distinguish ASCII text, UTF-8 text, or data
     } else for (i = 0; i<len; ++i) {
-      if (!(isprint(toybuf[i]) || isspace(toybuf[i]))) {
-        wchar_t wc;
+      if (!(isprint(s[i]) || isspace(s[i]))) {
+        unsigned wc;
+
         if ((bytes = utf8towc(&wc, s+i, len-i))>0 && wcwidth(wc)>=0) {
           i += bytes-1;
           if (!what) what = "UTF-8 text";

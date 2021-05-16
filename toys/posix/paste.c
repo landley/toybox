@@ -45,7 +45,7 @@ static void paste_files(void)
 
     for (i = any = dcount = dlen = 0; seq || i<TT.files; i++) {
       size_t blen;
-      wchar_t wc;
+      unsigned wc;
       FILE *ff = seq ? *fps : fps[i];
 
       // Read and output line, preserving embedded NUL bytes.

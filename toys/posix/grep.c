@@ -124,7 +124,7 @@ static void do_grep(int fd, char *name)
   if (!FLAG(a) && !lseek(fd, 0, SEEK_CUR)) {
     char buf[256];
     int len, i = 0;
-    wchar_t wc;
+    unsigned wc;
 
     // If the first 256 bytes don't parse as utf8, call it binary.
     if (0<(len = read(fd, buf, 256))) {

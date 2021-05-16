@@ -19,11 +19,11 @@ void demo_utf8towc_main(void)
 {
   mbstate_t mb;
   int len1, len2;
-  unsigned u, h;
-  wchar_t wc1, wc2;
+  unsigned u, h, wc2;
+  wchar_t wc1;
 
   memset(&mb, 0, sizeof(mb));
-  for (u=1; u; u++) {
+  for (u = 1; u<=0x10ffff; u++) {
     char *str = (void *)&h;
 
     wc1 = wc2 = 0;

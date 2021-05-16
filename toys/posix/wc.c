@@ -74,6 +74,7 @@ static void do_wc(int fd, char *name)
 
   for (;;) {
     int pos, done = 0, len2 = read(fd, toybuf+len, sizeof(toybuf)-len);
+    unsigned wchar;
 
     if (len2<0) perror_msg_raw(name);
     else len += len2;
@@ -85,8 +86,6 @@ static void do_wc(int fd, char *name)
       if (FLAG(m)) {
         // If we've consumed next wide char
         if (--clen<1) {
-          wchar_t wchar;
-
           // next wide size, don't count invalid, fetch more data if necessary
           clen = utf8towc(&wchar, toybuf+pos, len-pos);
           if (clen == -1) continue;
