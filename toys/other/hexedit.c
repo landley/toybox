@@ -24,6 +24,7 @@ config HEXEDIT
     ^J or :        Jump (+/- for relative offset, otherwise absolute address)
     ^F or /        Find string (^G/n: next, ^D/p: previous match)
     u              Undo
+    x              Toggle bw/color display
     q/^C/^Q/Esc    Quit
 */
 
@@ -31,14 +32,10 @@ config HEXEDIT
 #include "toys.h"
 
 GLOBALS(
-  char *data;
-  long long len, base;
-  int numlen, undo, undolen;
+  char *data, *search, keybuf[16], input[80];
+  long long len, base, pos;
+  int numlen, undo, undolen, mode;
   unsigned rows, cols;
-  long long pos;
-  char keybuf[16];
-  char input[80];
-  char *search;
 )
 
 #define UNDO_LEN (sizeof(toybuf)/(sizeof(long long)+1))
@@ -71,13 +68,10 @@ static int prompt(char *prompt, char *initial_value)
       break;
     }
 
-    if (key == 0x7f) {
-      if (len > 0) TT.input[--len] = 0;
-    } else if (key == 'U'-'@') {
-      while (len > 0) TT.input[--len] = 0;
-    } else if (key >= ' ' && key < 0x7f && len < sizeof(TT.input)) {
+    if (key == 0x7f && (len > 0)) TT.input[--len] = 0;
+    else if (key == 'U'-'@') while (len > 0) TT.input[--len] = 0;
+    else if (key >= ' ' && key < 0x7f && len < sizeof(TT.input))
       TT.input[len++] = key;
-    }
   }
 
   tty_esc("?25l");
@@ -87,12 +81,27 @@ static int prompt(char *prompt, char *initial_value)
 // Render all characters printable, using color to distinguish.
 static void draw_char(int ch)
 {
-  if (ch >= ' ' && ch < 0x7f) putchar(ch);
-  else {
-    if (ch < ' ') printf("\e[31m%c", ch + '@');
-    else printf("\e[35m?");
+  if (ch >= ' ' && ch < 0x7f) {
+    putchar(ch);
+    return;
   }
-  printf("\e[0m");
+
+  if (TT.mode) {
+    if (ch>127) {
+      tty_esc("2m");
+      ch &= 127;
+    }
+    if (ch<32 || ch==127) {
+      tty_esc("7m");
+      if (ch==127) ch = 32;
+      else ch += 64;
+    }
+    xputc(ch);
+  } else {
+    if (ch < ' ') printf("\e[31m%c", ch + '@');
+    else tty_esc("35m?");
+  }
+  tty_esc("0m");
 }
 
 static void draw_status(void)
@@ -121,7 +130,7 @@ static void draw_line(long long yy)
   if (yy+xx>=TT.len) xx = TT.len-yy;
 
   if (yy<TT.len) {
-    printf("\r\e[33m%0*llx\e[0m ", TT.numlen, yy);
+    printf("\r\e[%dm%0*llx\e[0m ", 33*!TT.mode, TT.numlen, yy);
     for (x=0; x<xx; x++) {
       putchar(' ');
       draw_byte(TT.data[yy+x]);
@@ -263,6 +272,13 @@ void hexedit_main(void)
       toys.signal = 0;
       terminal_size(&TT.cols, &TT.rows);
       if (TT.rows) TT.rows--;
+      draw_page();
+      continue;
+    }
+
+    if (key == 'x') {
+      TT.mode = !TT.mode;
+      tty_esc("0m");
       draw_page();
       continue;
     }
