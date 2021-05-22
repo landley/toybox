@@ -57,7 +57,7 @@ static long long elf_get(char **p, int len)
   long long result;
 
   if (*p+len-TT.elf>TT.size)
-    perror_exit("Access off end: %ld[%d] of %lld\n", *p-TT.elf, len, TT.size);
+    perror_exit("Access off end: %td[%d] of %lld\n", *p-TT.elf, len, TT.size);
 
   result = ((TT.endian == 2) ? peek_be : peek_le)(*p, len);
   *p += len;
