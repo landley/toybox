@@ -342,22 +342,21 @@ corner cases.</p>
 <a name="bits" />
 <b><h3>32/64 bit</h3></b>
 <p>Toybox should work on both 32 bit and 64 bit systems. 64 bit desktop
-hardware went mainstream in 2005 and was essentially ubiquitous
-by the end of the decade, but 32 bit hardware will continue to be important
-in embedded devices for several more years.</p>
+hardware went mainstream in <a href=https://web.archive.org/web/20040307000108mp_/http://developer.intel.com/technology/64bitextensions/faq.htm>in 2005</a>
+and was essentially ubiquitous <a href=faq.html#support_horizon>by 2012</a>,
+but 32 bit hardware will continue to be important in embedded devices for years to come.</p>
 
-<p>Toybox relies on the fact that on any Unix-like platform, pointer and long
-are always the same size (on both 32 and 64 bit). Pointer and int are _not_
-the same size on 64 bit systems, but pointer and long are.
-This is guaranteed by the LP64 memory model, a Unix standard (which Linux
-and MacOS X both implement, and which modern 64 bit processors such as
-x86-64 were <a href=http://www.pagetable.com/?p=6>designed for</a>).</p>
+<p>Toybox relies on the
+<a href=http://archive.opengroup.org/public/tech/aspen/lp64_wp.htm>LP64 standard</a>
+which Linux, MacOS X, and BSD all implement, and which modern 64 bit processors such as
+x86-64 were <a href=http://www.pagetable.com/?p=6>explicitly designed to
+support</a>. (Here's the original <a href=https://web.archive.org/web/20020905181545/http://www.unix.org/whitepapers/64bit.html>LP64 white paper</a>.)</p>
 
-<p>Back
-before unix.org went down, they hosted the
-<a href=https://web.archive.org/web/20020905181545/http://www.unix.org/whitepapers/64bit.html>LP64 standard</a> and
-<a href=https://web.archive.org/web/20020921185209/http://www.unix.org/version2/whatsnew/lp64_wp.html>the LP64 rationale</a>, but the important part is
-LP64 gives all the basic C integer types defined sizes:</p>
+<p>LP64 defines explicit sizes for all the basic C integer types, and
+guarantees that on any Unix-like platform "long" and "pointer" types
+are always the same size. This means it's safe to assign pointers into
+longs and vice versa without losing data: on 32 bit systems both are 32 bit,
+on 64 bit systems both are 64 bit.</p>
 
 <table border=1 cellpadding=10 cellspacing=2>
 <tr><td>C type</td><td>32 bit<br />sizeof</td><td>64 bit<br />sizeof</td></tr>
@@ -368,9 +367,12 @@ LP64 gives all the basic C integer types defined sizes:</p>
 <tr><td>long long</td><td>8 bytes</td><td>8 bytes</td></tr>
 </table>
 
-<p>Note that Windows doesn't work like this, and I don't care.
-<a href=https://devblogs.microsoft.com/oldnewthing/20050131-00/?p=36563>The
-insane legacy reasons why this is broken on Windows are explained here.</a></p>
+<p>LP64 eliminates the need to use c99 "uint32_t" and friends: the basic
+C types all have known size/behavior, and the only type whose
+size varies is "long", which is the natural register size of the processor.</p>
+
+<p>(Note that Windows doesn't work like this, and I don't care, but if you're
+curious here are <a href=https://devblogs.microsoft.com/oldnewthing/20050131-00/?p=36563>The insane legacy reasons why this is broken on Windows</a> are explained here.</a></p>
 
 <b><h3>Signedness of char</h3></b>
 <p>On platforms like x86, variables of type char default to unsigned.  On
