@@ -10,7 +10,7 @@ mkfifo fifo
 sleep .1
 ln -s fifo link
 cd ..
-touch b
+touch irrelevant
 
 mkdir perm
 touch perm/all-read-only
@@ -88,7 +88,6 @@ testing "-name FILE" "find dir -name FILE" "" "" ""
 testing "-iname file" "find dir -iname FILE" "dir/file\n" "" ""
 testing "-iname FILE" "find dir -iname FILE" "dir/file\n" "" ""
 
-
 testing "-name (no arguments)" \
   "find dir -name 2>&1 | grep -o '[-]name'" "-name\n" "" ""
 testing "-iname (no arguments)" \
@@ -123,7 +122,6 @@ ln -s looper dir/looper
 testing "-L symlink loop noisy" \
   "LANG=C find -L dir -name file 2>err ; grep -q dir/looper err || echo missing error" \
   "dir/file\n" "" ""
-rm -f dir/looper err
 
 testing "-false" "find dir -false" "" "" ""
 testing "-true" "find dir/file -true" "dir/file\n" "" ""
@@ -131,6 +129,7 @@ testing "-true" "find dir/file -true" "dir/file\n" "" ""
 testing "missing root error" \
   "LANG=C find -L dir/missing-root 2>err ; grep -q dir/missing-root err || echo missing error" \
   "" "" ""
+rm -f dir/looper err
 
 testing "-path match root" "find dir/f* -path dir/file" "dir/file\n" "" ""
 testing "-name match root" "find dir/f* -name file" "dir/file\n" "" ""
@@ -143,5 +142,6 @@ testing "-L broken" "find -L broken" "broken\n" "" ""
 testing "one slash" 'find /etc/ -maxdepth 1 | grep /passwd\$' '/etc/passwd\n' \
   '' ''
 testing 'empty arg' 'find "" dir -name file 2>/dev/null' 'dir/file\n' '' ''
+testing 'quit' 'find dir perm -print -quit' 'dir\n' '' ''
 
-rm -rf dir
+rm -rf dir broken perm irrelevant
