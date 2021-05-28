@@ -1042,7 +1042,7 @@ void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
       while (isspace(*p)) p++;
       if (*p && strchr("Z+-", *p)) {
         unsigned uu[3] = {0}, n = 0, nn = 0;
-        char *tz, sign = *p++;
+        char *tz = 0, sign = *p++;
 
         if (sign == 'Z') tz = "UTC0";
         else if (0<sscanf(p, " %u%n : %u%n : %u%n", uu,&n,uu+1,&nn,uu+2,&nn)) {
@@ -1057,13 +1057,13 @@ void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
           sprintf(tz = libbuf, "UTC%c%02u:%02u:%02u", "+-"[sign=='+'],
             uu[0], uu[1], uu[2]);
           p += nn;
-        } else continue;
+        }
 
         if (!oldtz) {
           oldtz = getenv("TZ");
           if (oldtz) oldtz = xstrdup(oldtz);
         }
-        setenv("TZ", tz, 1);
+        if (tz) setenv("TZ", tz, 1);
       }
       while (isspace(*p)) p++;
 
