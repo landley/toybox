@@ -1039,17 +1039,24 @@ void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
       }
 
       // Handle optional Z or +HH[[:]MM] timezone
+      while (isspace(*p)) p++;
       if (*p && strchr("Z+-", *p)) {
-        unsigned hh, mm = 0, len;
+        unsigned uu[3] = {0}, n = 0, nn = 0;
         char *tz, sign = *p++;
 
         if (sign == 'Z') tz = "UTC0";
-        else if (sscanf(p, "%2u%2u%n",  &hh, &mm, &len) == 2
-              || sscanf(p, "%2u%n:%2u%n", &hh, &len, &mm, &len) > 0)
-        {
+        else if (0<sscanf(p, " %u%n : %u%n : %u%n", uu,&n,uu+1,&nn,uu+2,&nn)) {
+          if (n>2) {
+            uu[1] += uu[0]%100;
+            uu[0] /= 100;
+          }
+          if (n>nn) nn = n;
+          if (!nn) continue;
+
           // flip sign because POSIX UTC offsets are backwards
-          sprintf(tz = libbuf, "UTC%c%02d:%02d", "+-"[sign=='+'], hh, mm);
-          p += len;
+          sprintf(tz = libbuf, "UTC%c%02u:%02u:%02u", "+-"[sign=='+'],
+            uu[0], uu[1], uu[2]);
+          p += nn;
         } else continue;
 
         if (!oldtz) {
@@ -1058,6 +1065,7 @@ void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
         }
         setenv("TZ", tz, 1);
       }
+      while (isspace(*p)) p++;
 
       if (!*p) break;
     }
