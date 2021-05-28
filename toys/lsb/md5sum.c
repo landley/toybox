@@ -1,4 +1,4 @@
-/* md5sum.c - Calculate hashes md5, sha1, sha256, sha512.
+/* md5sum.c - Calculate hashes md5, sha1, sha224, sha256, sha384, sha512.
  *
  * Copyright 2012, 2021 Rob Landley <rob@landley.net>
  *
@@ -18,10 +18,10 @@
 
 USE_MD5SUM(NEWTOY(md5sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_SHA1SUM(NEWTOY(sha1sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
-USE_TOYBOX_LIBCRYPTO(USE_SHA224SUM(OLDTOY(sha224sum, sha1sum, TOYFLAG_USR|TOYFLAG_BIN)))
+USE_SHA256SUM(NEWTOY(sha224sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_SHA256SUM(NEWTOY(sha256sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
-USE_TOYBOX_LIBCRYPTO(USE_SHA384SUM(OLDTOY(sha384sum, sha1sum, TOYFLAG_USR|TOYFLAG_BIN)))
-USE_TOYBOX_LIBCRYPTO(USE_SHA512SUM(OLDTOY(sha512sum, sha1sum, TOYFLAG_USR|TOYFLAG_BIN)))
+USE_SHA256SUM(NEWTOY(sha384sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SHA512SUM(NEWTOY(sha512sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config MD5SUM
   bool "md5sum"
@@ -53,27 +53,24 @@ config SHA1SUM
 config SHA224SUM
   bool "sha224sum"
   default y
-  depends on TOYBOX_LIBCRYPTO
   help
     See sha1sum
 
 config SHA256SUM
   bool "sha256sum"
-  default n
+  default y
   help
     See sha1sum
 
 config SHA384SUM
   bool "sha384sum"
   default y
-  depends on TOYBOX_LIBCRYPTO
   help
     See sha1sum
 
 config SHA512SUM
   bool "sha512sum"
   default y
-  depends on TOYBOX_LIBCRYPTO
   help
     See sha1sum
 */
@@ -92,17 +89,29 @@ typedef int SHA512_CTX;
 GLOBALS(
   int sawline;
 
-  unsigned *md5table;
+  enum hashmethods {
+    MD5,
+    SHA1,
+    SHA224,
+    SHA256,
+    SHA384,
+    SHA512
+  } hashmethod;
+
+  unsigned *rconsttable;
+  unsigned long *rconsttable64; // for sha384/512
   // Crypto variables blanked after summing
-  unsigned state[5], oldstate[5];
+  unsigned state[8], oldstate[8];
+  unsigned long state64[8], oldstate64[8];
   unsigned long long count;
   union {
-    char c[64];
-    unsigned i[16];
+    char c[64]; // bytes. md5 uses 16 of them.
+    unsigned i[16]; // words
+    unsigned long i64[16]; // words for sha384/512
   } buffer;
 )
 
-// Static table for when we haven't got floating point support
+// Round constants. Static table for when we haven't got floating point support
 #if ! CFG_TOYBOX_FLOAT
 static unsigned md5nofloat[64] = {
   0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee, 0xf57c0faf, 0x4787c62a,
@@ -117,9 +126,52 @@ static unsigned md5nofloat[64] = {
   0xffeff47d, 0x85845dd1, 0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1,
   0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391
 };
+// sha1 needs only 4 values, so we always use precomputed values (defined later)
 #else
 #define md5nofloat 0
 #endif
+static unsigned sha256nofloat[64] = {
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
+  0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+  0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
+  0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147,
+  0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+  0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+  0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
+  0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+  0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+};
+static unsigned long sha512nofloat[80] = {
+  0x428a2f98d728ae22, 0x7137449123ef65cd, 0xb5c0fbcfec4d3b2f,
+  0xe9b5dba58189dbbc, 0x3956c25bf348b538, 0x59f111f1b605d019,
+  0x923f82a4af194f9b, 0xab1c5ed5da6d8118, 0xd807aa98a3030242,
+  0x12835b0145706fbe, 0x243185be4ee4b28c, 0x550c7dc3d5ffb4e2,
+  0x72be5d74f27b896f, 0x80deb1fe3b1696b1, 0x9bdc06a725c71235,
+  0xc19bf174cf692694, 0xe49b69c19ef14ad2, 0xefbe4786384f25e3,
+  0x0fc19dc68b8cd5b5, 0x240ca1cc77ac9c65, 0x2de92c6f592b0275,
+  0x4a7484aa6ea6e483, 0x5cb0a9dcbd41fbd4, 0x76f988da831153b5,
+  0x983e5152ee66dfab, 0xa831c66d2db43210, 0xb00327c898fb213f,
+  0xbf597fc7beef0ee4, 0xc6e00bf33da88fc2, 0xd5a79147930aa725,
+  0x06ca6351e003826f, 0x142929670a0e6e70, 0x27b70a8546d22ffc,
+  0x2e1b21385c26c926, 0x4d2c6dfc5ac42aed, 0x53380d139d95b3df,
+  0x650a73548baf63de, 0x766a0abb3c77b2a8, 0x81c2c92e47edaee6,
+  0x92722c851482353b, 0xa2bfe8a14cf10364, 0xa81a664bbc423001,
+  0xc24b8b70d0f89791, 0xc76c51a30654be30, 0xd192e819d6ef5218,
+  0xd69906245565a910, 0xf40e35855771202a, 0x106aa07032bbd1b8,
+  0x19a4c116b8d2d0c8, 0x1e376c085141ab53, 0x2748774cdf8eeb99,
+  0x34b0bcb5e19b48a8, 0x391c0cb3c5c95a63, 0x4ed8aa4ae3418acb,
+  0x5b9cca4f7763e373, 0x682e6ff3d6b2b8a3, 0x748f82ee5defb2fc,
+  0x78a5636f43172f60, 0x84c87814a1f0ab72, 0x8cc702081a6439ec,
+  0x90befffa23631e28, 0xa4506cebde82bde9, 0xbef9a3f7b2c67915,
+  0xc67178f2e372532b, 0xca273eceea26619c, 0xd186b8c721c0c207,
+  0xeada7dd6cde0eb1e, 0xf57d4f7fee6ed178, 0x06f067aa72176fba,
+  0x0a637dc5a2c898a6, 0x113f9804bef90dae, 0x1b710b35131c471b,
+  0x28db77f523047d84, 0x32caab7b40c72493, 0x3c9ebe0a15c9bebc,
+  0x431d67c49c100d4c, 0x4cc5d4becb3e42b6, 0x597f299cfc657e2a,
+  0x5fcb6fab3ad6faec, 0x6c44198c4a475817
+};
 
 // Mix next 64 bytes of data into md5 hash
 
@@ -157,7 +209,7 @@ static void md5_transform(void)
       rot = (5*rot)+(((rot+2)&2)>>1);
       temp = x[(a+2)&3] ^ (x[(a+1)&3] | ~x[(a+3)&3]);
     }
-    temp += x[a] + b[in] + TT.md5table[i];
+    temp += x[a] + b[in] + TT.rconsttable[i];
     x[a] = x[(a+1)&3] + ((temp<<rot) | (temp>>(32-rot)));
   }
   for (i=0; i<4; i++) TT.state[i] += x[i];
@@ -165,7 +217,7 @@ static void md5_transform(void)
 
 // Mix next 64 bytes of data into sha1 hash.
 
-static const unsigned rconsts[]={0x5A827999,0x6ED9EBA1,0x8F1BBCDC,0xCA62C1D6};
+static const unsigned sha1rconsts[]={0x5A827999,0x6ED9EBA1,0x8F1BBCDC,0xCA62C1D6};
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
 static void sha1_transform(void)
@@ -197,7 +249,7 @@ static void sha1_transform(void)
       else
         work += block[count&15] = rol(block[(count+13)&15]
               ^ block[(count+8)&15] ^ block[(count+2)&15] ^ block[count&15], 1);
-      *rot[4] += work + rol(*rot[0],5) + rconsts[i];
+      *rot[4] += work + rol(*rot[0],5) + sha1rconsts[i];
       *rot[1] = rol(*rot[1],30);
 
       // Rotate by one for next time.
@@ -408,13 +460,45 @@ void md5sum_main(void)
   char **arg;
   int i;
 
+  if (toys.which->name[0]=='m') { TT.hashmethod = MD5; }
+  else if (toys.which->name[3]=='1') { TT.hashmethod = SHA1; }
+  else if (toys.which->name[4]=='2') { TT.hashmethod = SHA224; }
+  else if (toys.which->name[4]=='5') { TT.hashmethod = SHA256; }
+  else if (toys.which->name[4]=='8') { TT.hashmethod = SHA384; }
+  else if (toys.which->name[4]=='1') { TT.hashmethod = SHA512; }
+  else { error_exit("unrecognized hash method name: %s", toys.which->name); }
+
   // Calculate table if we have floating point. Static version should drop
   // out at compile time when we don't need it.
-  if (!CFG_TOYBOX_LIBCRYPTO && toys.which->name[0]=='m') {
-    if (CFG_TOYBOX_FLOAT) {
-      TT.md5table = xmalloc(64*4);
-      for (i = 0; i<64; i++) TT.md5table[i] = fabs(sin(i+1))*(1LL<<32);
-    } else TT.md5table = md5nofloat;
+  if (!CFG_TOYBOX_LIBCRYPTO) {
+    switch(TT.hashmethod) {
+      case MD5:
+        if (CFG_TOYBOX_FLOAT) {
+          TT.rconsttable = xmalloc(64*4);
+          for (i = 0; i<64; i++) TT.rconsttable[i] = fabs(sin(i+1))*(1LL<<32);
+        } else TT.rconsttable = md5nofloat;
+	break;
+      case SHA1:
+	break;
+      case SHA224:
+      case SHA256:
+        //if (CFG_TOYBOX_FLOAT) {
+        //  TT.rconsttable = xmalloc(64*4);
+        //  for (i = 0; i<64; i++) TT.rconsttable[i] = TODO
+        //  first 32 bits of the fractional parts of the cube roots of the first 64 primes 2..311 -- but perhaps storing a list of primes would use a similar amount of memory anyway -?
+        //} else TT.rconsttable = sha256nofloat;
+        TT.rconsttable = sha256nofloat; // temporary
+	break;
+      case SHA384:
+      case SHA512:
+        //if (CFG_TOYBOX_FLOAT) {
+        //  TT.rconsttable64 = xmalloc(80*8);
+        //  for (i = 0; i<80; i++) TT.rconsttable64[i] = TODO
+        //} else TT.rconsttable64 = sha512nofloat;
+        TT.rconsttable64 = sha512nofloat; // temporary
+	break;
+      default: error_exit("unrecognized hash method name"); break;
+    }
   }
 
   if (FLAG(c)) for (arg = toys.optargs; *arg; arg++) do_c_file(*arg);
@@ -429,7 +513,22 @@ void sha1sum_main(void)
   md5sum_main();
 }
 
+void sha224sum_main(void)
+{
+  md5sum_main();
+}
+
 void sha256sum_main(void)
+{
+  md5sum_main();
+}
+
+void sha384sum_main(void)
+{
+  md5sum_main();
+}
+
+void sha512sum_main(void)
 {
   md5sum_main();
 }
