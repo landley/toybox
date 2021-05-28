@@ -1,12 +1,13 @@
-/* md5sum.c - Calculate RFC 1321 md5 hash and sha1 hash.
+/* md5sum.c - Calculate hashes md5, sha1, sha256, sha512.
  *
- * Copyright 2012 Rob Landley <rob@landley.net>
+ * Copyright 2012, 2021 Rob Landley <rob@landley.net>
  *
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/md5sum.html
  * and http://www.ietf.org/rfc/rfc1321.txt
+ * and http://www.ietf.org/rfc/rfc4634.txt
  *
  * They're combined this way to share infrastructure, and because md5sum is
- * and LSB standard command (but sha1sum and newer hashes are a good idea,
+ * a LSB standard command (but sha1sum and newer hashes are a good idea,
  * see http://valerieaurora.org/hash.html).
  *
  * We optionally use openssl (or equivalent) to access assembly optimized
@@ -18,7 +19,7 @@
 USE_MD5SUM(NEWTOY(md5sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_SHA1SUM(NEWTOY(sha1sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_TOYBOX_LIBCRYPTO(USE_SHA224SUM(OLDTOY(sha224sum, sha1sum, TOYFLAG_USR|TOYFLAG_BIN)))
-USE_TOYBOX_LIBCRYPTO(USE_SHA256SUM(OLDTOY(sha256sum, sha1sum, TOYFLAG_USR|TOYFLAG_BIN)))
+USE_SHA256SUM(NEWTOY(sha256sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_TOYBOX_LIBCRYPTO(USE_SHA384SUM(OLDTOY(sha384sum, sha1sum, TOYFLAG_USR|TOYFLAG_BIN)))
 USE_TOYBOX_LIBCRYPTO(USE_SHA512SUM(OLDTOY(sha512sum, sha1sum, TOYFLAG_USR|TOYFLAG_BIN)))
 
@@ -58,8 +59,7 @@ config SHA224SUM
 
 config SHA256SUM
   bool "sha256sum"
-  default y
-  depends on TOYBOX_LIBCRYPTO
+  default n
   help
     See sha1sum
 
@@ -425,6 +425,11 @@ void md5sum_main(void)
 }
 
 void sha1sum_main(void)
+{
+  md5sum_main();
+}
+
+void sha256sum_main(void)
 {
   md5sum_main();
 }
