@@ -2973,7 +2973,7 @@ char *show_job(struct sh_process *pp, char dash)
 // Wait for pid to exit and remove from jobs table, returning process or 0.
 struct sh_process *wait_job(int pid, int nohang)
 {
-  struct sh_process *pp;
+  struct sh_process *pp = pp;
   int ii, status, minus, plus;
 
   if (TT.jobs.c<1) return 0;
