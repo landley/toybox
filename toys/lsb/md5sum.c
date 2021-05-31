@@ -89,15 +89,7 @@ typedef int SHA512_CTX;
 GLOBALS(
   int sawline;
 
-  enum hashmethods {
-    // TODO: are these names already in use?
-    MD5,
-    SHA1,
-    SHA224,
-    SHA256,
-    SHA384,
-    SHA512
-  } hashmethod;
+  enum hashmethods { MD5, SHA1, SHA224, SHA256, SHA384, SHA512 } hashmethod;
 
   uint32_t *rconsttable32;
   uint64_t *rconsttable64; // for sha384,sha512
@@ -106,13 +98,12 @@ GLOBALS(
     uint32_t i32[8]; // for md5,sha1,sha224,sha256
     uint64_t i64[8]; // for sha384,sha512
   } state;
-  unsigned long long count; // this is a 64 bit number, which
-                            // is less than the 128 bits needed
-			    // for sha384 and sha512. However,
-			    // we use 64 bits for all methods
-			    // because it would only affect
-			    // hash values for input data that
-			    // is larger than about 23 petabytes
+  uint64_t count; // the spec for sha384 and sha512
+                  // uses a 128-bit number to count
+		  // the amount of input bits. When
+		  // using a 64-bit number, the
+		  // maximum input data size is
+		  // about 23 petabytes.
   union {
     char c[128]; // bytes, 1024 bits
     uint32_t i32[16]; // 512 bits for md5,sha1,sha224,sha256
@@ -122,7 +113,7 @@ GLOBALS(
 
 // Round constants. Static table for when we haven't got floating point support
 #if ! CFG_TOYBOX_FLOAT
-static uint32_t md5nofloat[64] = {
+static const uint32_t md5nofloat[64] = {
   0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee, 0xf57c0faf, 0x4787c62a,
   0xa8304613, 0xfd469501, 0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be,
   0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821, 0xf61e2562, 0xc040b340,
@@ -137,21 +128,17 @@ static uint32_t md5nofloat[64] = {
 };
 #else // TODO: move this below the sha512 definition
 #define md5nofloat 0
+static const uint8_t primegaps[79] = {
+ 1, 2, 2, 4, 2, 4, 2, 4, 6, 2,
+ 6, 4, 2, 4, 6, 6, 2, 6, 4, 2,
+ 6, 4, 6, 8, 4, 2, 4, 2, 4,14,
+ 4, 6, 2,10, 2, 6, 6, 4, 6, 6,
+ 2,10, 2, 4, 2,12,12, 4, 2, 4,
+ 6, 2,10, 6, 6, 6, 2, 6, 4, 2,
+10,14, 4, 2, 4,14, 6,10, 2, 4,
+ 6, 8, 6, 6, 4, 6, 8, 4, 8 };
 #endif
-static uint32_t sha256nofloat[64] = {
-  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
-  0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
-  0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
-  0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147,
-  0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-  0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
-  0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
-  0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
-  0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
-};
-static uint64_t sha512nofloat[80] = {
+static const uint64_t sha512nofloat[80] = {
   0x428a2f98d728ae22, 0x7137449123ef65cd, 0xb5c0fbcfec4d3b2f,
   0xe9b5dba58189dbbc, 0x3956c25bf348b538, 0x59f111f1b605d019,
   0x923f82a4af194f9b, 0xab1c5ed5da6d8118, 0xd807aa98a3030242,
@@ -184,6 +171,11 @@ static uint64_t sha512nofloat[80] = {
 static const uint32_t sha1rconsts[] = {
   0x5A827999, 0x6ED9EBA1, 0x8F1BBCDC, 0xCA62C1D6
 };
+
+// bit rotations
+#define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
+#define ror(value, bits) (((value) >> (bits)) | ((value) << (32 - (bits))))
+#define ror64(value, bits) (((value) >> (bits)) | ((value) << (64 - (bits))))
 
 // Mix next 64 bytes of data into md5 hash
 
@@ -228,10 +220,6 @@ static void md5_transform(void)
 }
 
 // Mix next 64 bytes of data into sha1 hash.
-
-#define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
-#define ror(value, bits) (((value) >> (bits)) | ((value) << (32 - (bits))))
-#define ror64(value, bits) (((value) >> (bits)) | ((value) << (64 - (bits))))
 
 static void sha1_transform(void)
 {
@@ -284,11 +272,12 @@ static void sha256_transform(void)
   uint32_t s0, s1, S0, S1, ch, maj, temp1, temp2;
   uint32_t rot[8]; // a,b,c,d,e,f,g,h
 
-  //printf("buffer.c[0 1 2 3] = %02hhX %02hhX %02hhX %02hhX\n", TT.buffer.c[0], TT.buffer.c[1], TT.buffer.c[2], TT.buffer.c[3]);
+  /*
   printf("buffer.c[0 - 4] = %02hhX %02hhX %02hhX %02hhX %02hhX\n", TT.buffer.c[0], TT.buffer.c[1], TT.buffer.c[2], TT.buffer.c[3], TT.buffer.c[4]);
   printf("buffer.c[56 - 63] = %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX\n", \
     TT.buffer.c[56], TT.buffer.c[57], TT.buffer.c[58], TT.buffer.c[59], \
     TT.buffer.c[60], TT.buffer.c[61], TT.buffer.c[62], TT.buffer.c[63]);
+  */
   for (i=0; i<16; i++) {
     block[i] = SWAP_BE32(TT.buffer.i32[i]);
   }
@@ -344,12 +333,14 @@ static void sha512_transform(void)
   uint64_t s0, s1, S0, S1, ch, maj, temp1, temp2;
   uint64_t rot[8]; // a,b,c,d,e,f,g,h
 
+  /*
   printf("buffer.c[0 - 4] = %02hhX %02hhX %02hhX %02hhX %02hhX\n", TT.buffer.c[0], TT.buffer.c[1], TT.buffer.c[2], TT.buffer.c[3], TT.buffer.c[4]);
   printf("buffer.c[112 - 127] = %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX\n", \
     TT.buffer.c[112], TT.buffer.c[113], TT.buffer.c[114], TT.buffer.c[115], \
     TT.buffer.c[116], TT.buffer.c[117], TT.buffer.c[118], TT.buffer.c[119], \
     TT.buffer.c[120], TT.buffer.c[121], TT.buffer.c[122], TT.buffer.c[123], \
     TT.buffer.c[124], TT.buffer.c[125], TT.buffer.c[126], TT.buffer.c[127]);
+  */
   for (i=0; i<16; i++) {
     block[i] = SWAP_BE64(TT.buffer.i64[i]);
   }
@@ -443,7 +434,7 @@ static void sha384_transform(void)
   sha512_transform();
 }
 
-// Fill the 64-byte (512-bit) working buffer and call transform() when full.
+// Fill the 64/128-byte (512/1024-bit) working buffer and call transform() when full.
 
 static void hash_update(char *data, unsigned int len, void (*transform)(void), int chunksize)
 {
@@ -525,18 +516,17 @@ static void do_lib_hash(int fd, char *name)
 
 static void do_builtin_hash(int fd, char *name)
 {
-  unsigned long long count;
+  uint64_t count;
   int i, chunksize, lengthsize, digestlen;
   char buf, *pp;
   void (*transform)(void);
 
-  //printf("starting do_builtin_hash()\n");
   TT.count = 0;
   switch(TT.hashmethod) {
     case MD5:
     case SHA1:
       transform = (TT.hashmethod == MD5) ? md5_transform : sha1_transform;
-      digestlen = (TT.hashmethod == MD5) ? 0 : 20; // bytes
+      digestlen = (TT.hashmethod == MD5) ? 16 : 20; // bytes
       chunksize = 64; // bytes
       lengthsize = 8; // bytes
       TT.state.i32[0] = 0x67452301;
@@ -610,7 +600,7 @@ static void do_builtin_hash(int fd, char *name)
     hash_update(toybuf, i, transform, chunksize);
   }
 
-  count = TT.count << 3;
+  count = TT.count << 3; // convert to bytes
 
   // End the message by appending a "1" bit to the data, ending with the
   // message size (in bits, big endian), and adding enough zero bits in
@@ -624,21 +614,19 @@ static void do_builtin_hash(int fd, char *name)
     buf = 0;
   } while ((TT.count & (chunksize - 1)) != (chunksize - lengthsize));
   count = (TT.hashmethod == MD5) ? SWAP_LE64(count) : SWAP_BE64(count);
-  // Note that we should be using a 128-bit count for SHA384 and SHA512,
-  // but since we are using a 64-bit count, then SWAP_BE64() is correct.
-  printf("count=%lld count=%08X %08X\n", count, \
-    (uint32_t) (count >> 32), (uint32_t) count);
+  //printf("count=%ld count=%08X %08X\n", count, (uint32_t) (count >> 32), (uint32_t) count);
   hash_update((void *)&count, 8, transform, chunksize);
 
   // write digest to toybuf
-  if (TT.hashmethod == MD5) {
-    for (i=0; i<4; i++) sprintf(toybuf+8*i, "%08x", bswap_32(TT.state.i32[i]));
-  } else if ((TT.hashmethod == SHA1) || (TT.hashmethod == SHA224) || (TT.hashmethod == SHA256)) {
-    for (i=0; i<digestlen; i++)
-      sprintf(toybuf+2*i, "%02x", 255&(TT.state.i32[i>>2] >> ((3-(i & 3)) * 8)));
-  } else { // SHA384 and SHA512
-    for (i=0; i<(digestlen/8); i++) {
+  if ((TT.hashmethod == SHA384) || (TT.hashmethod == SHA512)) {
+    for (i=0; i<digestlen/8; i++) {
       sprintf(toybuf+16*i, "%016lx", TT.state.i64[i]);
+    }
+  } else { // MD5, SHA1, SHA224, SHA256
+    for (i=0; i<digestlen/4; i++) {
+      sprintf(toybuf+8*i, "%08x",
+              (TT.hashmethod == MD5) ? bswap_32(TT.state.i32[i]) : TT.state.i32[i]
+       );
     }
   }
   // Wipe variables. Cryptographer paranoia.
@@ -721,13 +709,9 @@ void md5sum_main(void)
   char **arg;
   int i;
 
-  if (toys.which->name[0]=='m') { TT.hashmethod = MD5; }
-  else if (toys.which->name[3]=='1') { TT.hashmethod = SHA1; }
-  else if (toys.which->name[4]=='2') { TT.hashmethod = SHA224; }
-  else if (toys.which->name[4]=='5') { TT.hashmethod = SHA256; }
-  else if (toys.which->name[4]=='8') { TT.hashmethod = SHA384; }
-  else if (toys.which->name[4]=='1') { TT.hashmethod = SHA512; }
-  else { error_exit("unrecognized hash method from command name: %s", toys.which->name); }
+  if (toys.which->name[0]=='m') {
+    TT.hashmethod = MD5;
+  }
 
   // Calculate table if we have floating point. Static version should drop
   // out at compile time when we don't need it.
@@ -739,24 +723,43 @@ void md5sum_main(void)
           for (i = 0; i<64; i++) TT.rconsttable32[i] = fabs(sin(i+1))*(1LL<<32);
         } else TT.rconsttable32 = md5nofloat;
 	break;
-      case SHA1:
+      case SHA1: // no table needed for SHA1
 	break;
       case SHA224:
       case SHA256:
-        //if (CFG_TOYBOX_FLOAT) {
-        //  TT.rconsttable32 = xmalloc(64*4);
-        //  for (i = 0; i<64; i++) TT.rconsttable32[i] = TODO
-        //  first 32 bits of the fractional parts of the cube roots of the first 64 primes 2..311 -- but perhaps storing a list of primes would use a similar amount of memory anyway -?
-        //} else TT.rconsttable32 = sha256nofloat;
-        TT.rconsttable32 = sha256nofloat; // temporary
+        TT.rconsttable32 = xmalloc(64*4);
+        if (CFG_TOYBOX_FLOAT) {
+          // first 32 bits of the fractional parts of the cube roots of the first 64 primes 2..311
+	  uint16_t prime = 2;
+	  i = 0;
+          for (i=0; i<64; i++) {
+            TT.rconsttable32[i] = (uint32_t) (fmod(cbrt(prime), 1.0) * pow(2,32));
+	    //printf("i=%d\tanswer=%08x\trconst=%08x\tprime=%d\tcbrt=%.8f\n",i,(uint32_t) (sha512nofloat[i] >> 32),TT.rconsttable32[i],prime,cbrt( (double) prime ));
+	    prime += primegaps[i];
+          }
+        } else {
+          for (i=0; i<64; i++) {
+            TT.rconsttable32[i] = (uint32_t) (sha512nofloat[i] >> 32);
+          }
+	}
 	break;
       case SHA384:
       case SHA512:
-        //if (CFG_TOYBOX_FLOAT) {
-        //  TT.rconsttable64 = xmalloc(80*8);
-        //  for (i = 0; i<80; i++) TT.rconsttable64[i] = TODO
-        //} else TT.rconsttable64 = sha512nofloat;
-        TT.rconsttable64 = sha512nofloat; // temporary
+        if (CFG_TOYBOX_FLOAT) {
+          TT.rconsttable64 = xmalloc(80*8);
+          // first 64 bits of the fractional parts of the cube roots of the first 80 primes 2..409
+	  uint16_t prime = 2;
+	  long double primecbrt;
+	  i = 0;
+          for (i=0; i<80; i++) {
+            primecbrt = cbrt(prime);
+            TT.rconsttable64[i] = (uint64_t) ((primecbrt - (long double) floor(primecbrt)) * pow(2,64));
+	    //printf("i=%d\tanswer=%016lx\trconst=%016lx\tprime=%d\tcbrt=%.40Lf\n",i,sha512nofloat[i],TT.rconsttable64[i],prime,primecbrt);
+	    prime += primegaps[i];
+          }
+        } else {
+          TT.rconsttable64 = sha512nofloat;
+	}
 	break;
       default: error_exit("unrecognized hash method name"); break;
     }
@@ -771,25 +774,30 @@ void md5sum_main(void)
 
 void sha1sum_main(void)
 {
+  TT.hashmethod = SHA1;
   md5sum_main();
 }
 
 void sha224sum_main(void)
 {
+  TT.hashmethod = SHA224;
   md5sum_main();
 }
 
 void sha256sum_main(void)
 {
+  TT.hashmethod = SHA256;
   md5sum_main();
 }
 
 void sha384sum_main(void)
 {
+  TT.hashmethod = SHA384;
   md5sum_main();
 }
 
 void sha512sum_main(void)
 {
+  TT.hashmethod = SHA512;
   md5sum_main();
 }
