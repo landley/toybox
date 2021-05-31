@@ -126,19 +126,13 @@ static const uint32_t md5nofloat[64] = {
   0xffeff47d, 0x85845dd1, 0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1,
   0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391
 };
-#else // TODO: move this below the sha512 definition
+#else
 #define md5nofloat 0
-static const uint8_t primegaps[79] = {
- 1, 2, 2, 4, 2, 4, 2, 4, 6, 2,
- 6, 4, 2, 4, 6, 6, 2, 6, 4, 2,
- 6, 4, 6, 8, 4, 2, 4, 2, 4,14,
- 4, 6, 2,10, 2, 6, 6, 4, 6, 6,
- 2,10, 2, 4, 2,12,12, 4, 2, 4,
- 6, 2,10, 6, 6, 6, 2, 6, 4, 2,
-10,14, 4, 2, 4,14, 6,10, 2, 4,
- 6, 8, 6, 6, 4, 6, 8, 4, 8 };
 #endif
-static const uint64_t sha512nofloat[80] = {
+static uint64_t sha512nofloat[80] = {
+  // we cannot calculate these 64-bit values using the readily
+  // available floating point data types and math functions,
+  // so we always use this lookup table (80 * 8 bytes)
   0x428a2f98d728ae22, 0x7137449123ef65cd, 0xb5c0fbcfec4d3b2f,
   0xe9b5dba58189dbbc, 0x3956c25bf348b538, 0x59f111f1b605d019,
   0x923f82a4af194f9b, 0xab1c5ed5da6d8118, 0xd807aa98a3030242,
@@ -728,38 +722,13 @@ void md5sum_main(void)
       case SHA224:
       case SHA256:
         TT.rconsttable32 = xmalloc(64*4);
-        if (CFG_TOYBOX_FLOAT) {
-          // first 32 bits of the fractional parts of the cube roots of the first 64 primes 2..311
-	  uint16_t prime = 2;
-	  i = 0;
-          for (i=0; i<64; i++) {
-            TT.rconsttable32[i] = (uint32_t) (fmod(cbrt(prime), 1.0) * pow(2,32));
-	    //printf("i=%d\tanswer=%08x\trconst=%08x\tprime=%d\tcbrt=%.8f\n",i,(uint32_t) (sha512nofloat[i] >> 32),TT.rconsttable32[i],prime,cbrt( (double) prime ));
-	    prime += primegaps[i];
-          }
-        } else {
-          for (i=0; i<64; i++) {
-            TT.rconsttable32[i] = (uint32_t) (sha512nofloat[i] >> 32);
-          }
+        for (i=0; i<64; i++) {
+          TT.rconsttable32[i] = (uint32_t) (sha512nofloat[i] >> 32);
 	}
 	break;
       case SHA384:
       case SHA512:
-        if (CFG_TOYBOX_FLOAT) {
-          TT.rconsttable64 = xmalloc(80*8);
-          // first 64 bits of the fractional parts of the cube roots of the first 80 primes 2..409
-	  uint16_t prime = 2;
-	  long double primecbrt;
-	  i = 0;
-          for (i=0; i<80; i++) {
-            primecbrt = cbrt(prime);
-            TT.rconsttable64[i] = (uint64_t) ((primecbrt - (long double) floor(primecbrt)) * pow(2,64));
-	    //printf("i=%d\tanswer=%016lx\trconst=%016lx\tprime=%d\tcbrt=%.40Lf\n",i,sha512nofloat[i],TT.rconsttable64[i],prime,primecbrt);
-	    prime += primegaps[i];
-          }
-        } else {
-          TT.rconsttable64 = sha512nofloat;
-	}
+        TT.rconsttable64 = sha512nofloat;
 	break;
       default: error_exit("unrecognized hash method name"); break;
     }
