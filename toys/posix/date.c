@@ -7,7 +7,7 @@
  * Note: setting a 2 year date is 50 years back/forward from today,
  * not posix's hardwired magic dates.
 
-USE_DATE(NEWTOY(date, "d:D:I(iso)(iso-8601):;r:u(utc)[!dr]", TOYFLAG_BIN))
+USE_DATE(NEWTOY(date, "d:D:I(iso)(iso-8601):;r:s:u(utc)[!dr]", TOYFLAG_BIN))
 
 config DATE
   bool "date"
@@ -21,6 +21,7 @@ config DATE
     -D	+FORMAT for SET or -d (instead of MMDDhhmm[[CC]YY][.ss])
     -I RES	ISO 8601 with RESolution d=date/h=hours/m=minutes/s=seconds/n=ns
     -r	Use modification time of FILE instead of current date
+    -s DATE	Set the system clock to DATE.
     -u	Use UTC instead of current timezone
 
     Supported input formats:
@@ -59,7 +60,7 @@ config DATE
 #include "toys.h"
 
 GLOBALS(
-  char *r, *I, *D, *d;
+  char *s, *r, *I, *D, *d;
 
   unsigned nano;
 )
@@ -168,6 +169,11 @@ void date_main(void)
 
     t = ts.tv_sec;
     TT.nano = ts.tv_nsec;
+  }
+
+  if (FLAG(s)) {
+    if (setdate) help_exit("can't set two dates at once");
+    setdate = TT.s;
   }
 
   // Fall through if no arguments
