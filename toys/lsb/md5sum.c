@@ -18,9 +18,9 @@
 
 USE_MD5SUM(NEWTOY(md5sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_SHA1SUM(NEWTOY(sha1sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
-USE_SHA256SUM(NEWTOY(sha224sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SHA224SUM(NEWTOY(sha224sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_SHA256SUM(NEWTOY(sha256sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
-USE_SHA256SUM(NEWTOY(sha384sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SHA384SUM(NEWTOY(sha384sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_SHA512SUM(NEWTOY(sha512sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config MD5SUM
