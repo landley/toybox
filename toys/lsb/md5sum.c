@@ -88,32 +88,27 @@ typedef int SHA512_CTX;
 
 GLOBALS(
   int sawline;
-
   enum hashmethods { MD5, SHA1, SHA224, SHA256, SHA384, SHA512 } hashmethod;
+  unsigned *rconsttable32;
+  unsigned long long *rconsttable64; // for sha384,sha512
 
-  uint32_t *rconsttable32;
-  uint64_t *rconsttable64; // for sha384,sha512
   // Crypto variables blanked after summing
   union {
-    uint32_t i32[8]; // for md5,sha1,sha224,sha256
-    uint64_t i64[8]; // for sha384,sha512
+    unsigned i32[8]; // for md5,sha1,sha224,sha256
+    unsigned long long i64[8]; // for sha384,sha512
   } state;
-  uint64_t count; // the spec for sha384 and sha512
-                  // uses a 128-bit number to count
-		  // the amount of input bits. When
-		  // using a 64-bit number, the
-		  // maximum input data size is
-		  // about 23 petabytes.
+  // sha384/512 spec has 128-bit count of input bits, but 64-bit is 23 petabytes
+  unsigned long long count;
   union {
     char c[128]; // bytes, 1024 bits
-    uint32_t i32[16]; // 512 bits for md5,sha1,sha224,sha256
-    uint64_t i64[16]; // 1024 bits for sha384,sha512
+    unsigned i32[16]; // 512 bits for md5,sha1,sha224,sha256
+    unsigned long long i64[16]; // 1024 bits for sha384,sha512
   } buffer;
 )
 
 // Round constants. Static table for when we haven't got floating point support
 #if ! CFG_TOYBOX_FLOAT
-static const uint32_t md5nofloat[64] = {
+static const unsigned md5nofloat[64] = {
   0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee, 0xf57c0faf, 0x4787c62a,
   0xa8304613, 0xfd469501, 0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be,
   0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821, 0xf61e2562, 0xc040b340,
@@ -129,7 +124,7 @@ static const uint32_t md5nofloat[64] = {
 #else
 #define md5nofloat 0
 #endif
-static uint64_t sha512nofloat[80] = {
+static unsigned long long sha512nofloat[80] = {
   // we cannot calculate these 64-bit values using the readily
   // available floating point data types and math functions,
   // so we always use this lookup table (80 * 8 bytes)
@@ -162,7 +157,7 @@ static uint64_t sha512nofloat[80] = {
   0x5fcb6fab3ad6faec, 0x6c44198c4a475817
 };
 // sha1 needs only 4 round constant values, so prefer precomputed
-static const uint32_t sha1rconsts[] = {
+static const unsigned sha1rconsts[] = {
   0x5A827999, 0x6ED9EBA1, 0x8F1BBCDC, 0xCA62C1D6
 };
 
@@ -175,13 +170,13 @@ static const uint32_t sha1rconsts[] = {
 
 static void md5_transform(void)
 {
-  uint32_t x[4], *b = (uint32_t *)TT.buffer.c;
+  unsigned x[4], *b = TT.buffer.i32;
   int i;
 
   memcpy(x, TT.state.i32, sizeof(x));
 
-  for (i=0; i<64; i++) {
-    uint32_t in, a, rot, temp;
+  for (i = 0; i<64; i++) {
+    unsigned in, a, rot, temp;
 
     a = (-i)&3;
     if (i<16) {
@@ -210,7 +205,7 @@ static void md5_transform(void)
     temp += x[a] + b[in] + TT.rconsttable32[i];
     x[a] = x[(a+1)&3] + ((temp<<rot) | (temp>>(32-rot)));
   }
-  for (i=0; i<4; i++) TT.state.i32[i] += x[i];
+  for (i = 0; i<4; i++) TT.state.i32[i] += x[i];
 }
 
 // Mix next 64 bytes of data into sha1 hash.
@@ -218,20 +213,16 @@ static void md5_transform(void)
 static void sha1_transform(void)
 {
   int i, j, k, count;
-  uint32_t *block = TT.buffer.i32;
-  uint32_t oldstate[5];
-  uint32_t *rot[5], *temp;
+  unsigned *block = TT.buffer.i32, oldstate[5], *rot[5], *temp, work;
 
   // Copy context->state.i32[] to working vars
-  for (i=0; i<5; i++) {
+  for (i = 0; i<5; i++) {
     oldstate[i] = TT.state.i32[i];
     rot[i] = TT.state.i32 + i;
   }
   // 4 rounds of 20 operations each.
-  for (i=count=0; i<4; i++) {
-    for (j=0; j<20; j++) {
-      uint32_t work;
-
+  for (i = count = 0; i<4; i++) {
+    for (j = 0; j<20; j++) {
       work = *rot[2] ^ *rot[3];
       if (!i) work = (work & *rot[1]) ^ *rot[3];
       else {
@@ -240,7 +231,7 @@ static void sha1_transform(void)
       }
 
       if (!i && j<16)
-        work += block[count] = (rol(block[count],24)&0xFF00FF00)
+        work += block[count] = (ror(block[count],8)&0xFF00FF00)
                              | (rol(block[count],8)&0x00FF00FF);
       else
         work += block[count&15] = rol(block[(count+13)&15]
@@ -250,190 +241,85 @@ static void sha1_transform(void)
 
       // Rotate by one for next time.
       temp = rot[4];
-      for (k=4; k; k--) rot[k] = rot[k-1];
+      for (k = 4; k; k--) rot[k] = rot[k-1];
       *rot = temp;
       count++;
     }
   }
   // Add the previous values of state.i32[]
-  for (i=0; i<5; i++) TT.state.i32[i] += oldstate[i];
+  for (i = 0; i<5; i++) TT.state.i32[i] += oldstate[i];
 }
 
-static void sha256_transform(void)
+static void sha2_32_transform(void)
 {
+  unsigned block[64], s0, s1, S0, S1, ch, maj, temp1, temp2, rot[8];
   int i;
-  uint32_t block[64];
-  uint32_t s0, s1, S0, S1, ch, maj, temp1, temp2;
-  uint32_t rot[8]; // a,b,c,d,e,f,g,h
 
-  /*
-  printf("buffer.c[0 - 4] = %02hhX %02hhX %02hhX %02hhX %02hhX\n", TT.buffer.c[0], TT.buffer.c[1], TT.buffer.c[2], TT.buffer.c[3], TT.buffer.c[4]);
-  printf("buffer.c[56 - 63] = %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX\n", \
-    TT.buffer.c[56], TT.buffer.c[57], TT.buffer.c[58], TT.buffer.c[59], \
-    TT.buffer.c[60], TT.buffer.c[61], TT.buffer.c[62], TT.buffer.c[63]);
-  */
-  for (i=0; i<16; i++) {
-    block[i] = SWAP_BE32(TT.buffer.i32[i]);
-  }
+  for (i = 0; i<16; i++) block[i] = SWAP_BE32(TT.buffer.i32[i]);
+
   // Extend the message schedule array beyond first 16 words
-  for (i=16; i<64; i++) {
+  for (i = 16; i<64; i++) {
     s0 = ror(block[i-15], 7) ^ ror(block[i-15], 18) ^ (block[i-15] >> 3);
     s1 = ror(block[i-2], 17) ^ ror(block[i-2], 19) ^ (block[i-2] >> 10);
     block[i] = block[i-16] + s0 + block[i-7] + s1;
   }
   // Copy context->state.i32[] to working vars
-  for (i=0; i<8; i++) {
-    //TT.oldstate32[i] = TT.state.i32[i];
-    rot[i] = TT.state.i32[i];
-  }
+  for (i = 0; i<8; i++) rot[i] = TT.state.i32[i];
   // 64 rounds
-  for (i=0; i<64; i++) {
+  for (i = 0; i<64; i++) {
     S1 = ror(rot[4],6) ^ ror(rot[4],11) ^ ror(rot[4], 25);
     ch = (rot[4] & rot[5]) ^ ((~ rot[4]) & rot[6]);
     temp1 = rot[7] + S1 + ch + TT.rconsttable32[i] + block[i];
     S0 = ror(rot[0],2) ^ ror(rot[0],13) ^ ror(rot[0], 22);
     maj = (rot[0] & rot[1]) ^ (rot[0] & rot[2]) ^ (rot[1] & rot[2]);
     temp2 = S0 + maj;
-    /* if (i < 2) {
-      printf("begin round %d: rot[0] = %u  rot[1] = %u  rot[2] = %u\n", i, rot[0], rot[1], rot[2]);
-      printf("  S1=%u ch=%u temp1=%u S0=%u maj=%u temp2=%u\n", S1,ch,temp1,S0,maj,temp2);
-      printf("  rot[7]=%u K[i]=%u W[i]=%u TT.buffer.i[i]=%u\n", rot[7],TT.rconsttable32[i],block[i],TT.buffer.i[i]);
-    } */
-    rot[7] = rot[6];
-    rot[6] = rot[5];
-    rot[5] = rot[4];
-    rot[4] = rot[3] + temp1;
-    rot[3] = rot[2];
-    rot[2] = rot[1];
-    rot[1] = rot[0];
+    memmove(rot+1, rot, 28);
+    rot[4] += temp1;
     rot[0] = temp1 + temp2;
   }
-  //printf("%d rounds done: rot[0] = %u  rot[1] = %u  rot[2] = %u\n", i, rot[0], rot[1], rot[2]);
 
   // Add the previous values of state.i32[]
-  for (i=0; i<8; i++) TT.state.i32[i] += rot[i];
-  //printf("state.i32[0] = %u  state.i32[1] = %u  state.i32[2] = %u\n", TT.state.i32[0], TT.state.i32[1], TT.state.i32[2]);
+  for (i = 0; i<8; i++) TT.state.i32[i] += rot[i];
 }
 
-static void sha224_transform(void)
+static void sha2_64_transform(void)
 {
-  sha256_transform();
-}
-
-static void sha512_transform(void)
-{
+  unsigned long long block[80], s0, s1, S0, S1, ch, maj, temp1, temp2, rot[8];
   int i;
-  uint64_t block[80];
-  uint64_t s0, s1, S0, S1, ch, maj, temp1, temp2;
-  uint64_t rot[8]; // a,b,c,d,e,f,g,h
 
-  /*
-  printf("buffer.c[0 - 4] = %02hhX %02hhX %02hhX %02hhX %02hhX\n", TT.buffer.c[0], TT.buffer.c[1], TT.buffer.c[2], TT.buffer.c[3], TT.buffer.c[4]);
-  printf("buffer.c[112 - 127] = %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX %02hhX\n", \
-    TT.buffer.c[112], TT.buffer.c[113], TT.buffer.c[114], TT.buffer.c[115], \
-    TT.buffer.c[116], TT.buffer.c[117], TT.buffer.c[118], TT.buffer.c[119], \
-    TT.buffer.c[120], TT.buffer.c[121], TT.buffer.c[122], TT.buffer.c[123], \
-    TT.buffer.c[124], TT.buffer.c[125], TT.buffer.c[126], TT.buffer.c[127]);
-  */
-  for (i=0; i<16; i++) {
-    block[i] = SWAP_BE64(TT.buffer.i64[i]);
-  }
+  for (i=0; i<16; i++) block[i] = SWAP_BE64(TT.buffer.i64[i]);
+
   // Extend the message schedule array beyond first 16 words
-  for (i=16; i<80; i++) {
+  for (i = 16; i<80; i++) {
     s0 = ror64(block[i-15], 1) ^ ror64(block[i-15], 8) ^ (block[i-15] >> 7);
     s1 = ror64(block[i-2], 19) ^ ror64(block[i-2], 61) ^ (block[i-2] >> 6);
     block[i] = block[i-16] + s0 + block[i-7] + s1;
   }
   // Copy context->state.i64[] to working vars
-  for (i=0; i<8; i++) {
-    rot[i] = TT.state.i64[i];
-  }
+  for (i = 0; i<8; i++) rot[i] = TT.state.i64[i];
   // 80 rounds
-  for (i=0; i<80; i++) {
+  for (i = 0; i<80; i++) {
     S1 = ror64(rot[4],14) ^ ror64(rot[4],18) ^ ror64(rot[4], 41);
     ch = (rot[4] & rot[5]) ^ ((~ rot[4]) & rot[6]);
     temp1 = rot[7] + S1 + ch + TT.rconsttable64[i] + block[i];
     S0 = ror64(rot[0],28) ^ ror64(rot[0],34) ^ ror64(rot[0], 39);
     maj = (rot[0] & rot[1]) ^ (rot[0] & rot[2]) ^ (rot[1] & rot[2]);
     temp2 = S0 + maj;
-    /*
-    if (i < 3) {
-      printf("  S1=%lu ch=%lu temp1=%lu S0=%lu maj=%lu temp2=%lu\n", S1,ch,temp1,S0,maj,temp2);
-      printf("  rot[7]=%lu K[i]=%lu W[i]=%lu TT.buffer.i64[i]=%lu\n", rot[7],TT.rconsttable64[i],block[i],TT.buffer.i64[i]);
-    }
-    */
-    rot[7] = rot[6];
-    rot[6] = rot[5];
-    rot[5] = rot[4];
-    rot[4] = rot[3] + temp1;
-    rot[3] = rot[2];
-    rot[2] = rot[1];
-    rot[1] = rot[0];
+    memmove(rot+1, rot, 56);
+    rot[4] += temp1;
     rot[0] = temp1 + temp2;
-    /*
-    if ((i < 3) || (i > 77)) {
-      //printf("after round %d: rot[0] = %lu  rot[1] = %lu  rot[2] = %lu\n", i, rot[0], rot[1], rot[2]);
-      printf("t= %d: A=%08X%08X B=%08X%08X C= %08X%08X D=%08X%08X\n", i, \
-        (uint32_t) (rot[0] >> 32), (uint32_t) rot[0], \
-        (uint32_t) (rot[1] >> 32), (uint32_t) rot[1], \
-        (uint32_t) (rot[2] >> 32), (uint32_t) rot[2], \
-        (uint32_t) (rot[3] >> 32), (uint32_t) rot[3]  \
-	);
-      printf("t= %d: E=%08X%08X F=%08X%08X G= %08X%08X H=%08X%08X\n", i, \
-        (uint32_t) (rot[4] >> 32), (uint32_t) rot[4], \
-        (uint32_t) (rot[5] >> 32), (uint32_t) rot[5], \
-        (uint32_t) (rot[6] >> 32), (uint32_t) rot[6], \
-        (uint32_t) (rot[7] >> 32), (uint32_t) rot[7]  \
-	);
-    }
-    */
   }
-  //printf("%d rounds done: rot[0] = %lu  rot[1] = %lu  rot[2] = %lu\n", i, rot[0], rot[1], rot[2]);
 
   // Add the previous values of state.i64[]
-  /*
-      printf("t= %d: 0=%08X%08X 1=%08X%08X 2= %08X%08X 3=%08X%08X\n", -1, \
-        (uint32_t) (TT.state.i64[0] >> 32), (uint32_t) TT.state.i64[0], \
-        (uint32_t) (TT.state.i64[1] >> 32), (uint32_t) TT.state.i64[1], \
-        (uint32_t) (TT.state.i64[2] >> 32), (uint32_t) TT.state.i64[2], \
-        (uint32_t) (TT.state.i64[3] >> 32), (uint32_t) TT.state.i64[3]  \
-	);
-      printf("t= %d: 4=%08X%08X 5=%08X%08X 6= %08X%08X 7=%08X%08X\n", -1, \
-        (uint32_t) (TT.state.i64[4] >> 32), (uint32_t) TT.state.i64[4], \
-        (uint32_t) (TT.state.i64[5] >> 32), (uint32_t) TT.state.i64[5], \
-        (uint32_t) (TT.state.i64[6] >> 32), (uint32_t) TT.state.i64[6], \
-        (uint32_t) (TT.state.i64[7] >> 32), (uint32_t) TT.state.i64[7]  \
-	);
-  */
   for (i=0; i<8; i++) TT.state.i64[i] += rot[i];
-  /*
-      printf("t= %d: 0=%08X%08X 1=%08X%08X 2= %08X%08X 3=%08X%08X\n", -2, \
-        (uint32_t) (TT.state.i64[0] >> 32), (uint32_t) TT.state.i64[0], \
-        (uint32_t) (TT.state.i64[1] >> 32), (uint32_t) TT.state.i64[1], \
-        (uint32_t) (TT.state.i64[2] >> 32), (uint32_t) TT.state.i64[2], \
-        (uint32_t) (TT.state.i64[3] >> 32), (uint32_t) TT.state.i64[3]  \
-	);
-      printf("t= %d: 4=%08X%08X 5=%08X%08X 6= %08X%08X 7=%08X%08X\n", -2, \
-        (uint32_t) (TT.state.i64[4] >> 32), (uint32_t) TT.state.i64[4], \
-        (uint32_t) (TT.state.i64[5] >> 32), (uint32_t) TT.state.i64[5], \
-        (uint32_t) (TT.state.i64[6] >> 32), (uint32_t) TT.state.i64[6], \
-        (uint32_t) (TT.state.i64[7] >> 32), (uint32_t) TT.state.i64[7]  \
-	);
-  */
-  //printf("state.i64[0] = %lu  state.i64[1] = %lu  state.i64[2] = %lu\n", TT.state.i64[0], TT.state.i64[1], TT.state.i64[2]);
-}
-
-static void sha384_transform(void)
-{
-  sha512_transform();
 }
 
 // Fill the 64/128-byte (512/1024-bit) working buffer and call transform() when full.
 
-static void hash_update(char *data, unsigned int len, void (*transform)(void), int chunksize)
+static void hash_update(char *data, unsigned int len, void (*transform)(void),
+  int chunksize)
 {
   unsigned int i, j;
-  //printf("starting hash_update() TT.count = %llu len = %d chunksize = %d\n", TT.count,len,chunksize);
 
   j = TT.count & (chunksize - 1);
   TT.count += len;
@@ -443,18 +329,14 @@ static void hash_update(char *data, unsigned int len, void (*transform)(void), i
     i = chunksize - j;
     if (i>len) i = len;
     memcpy(TT.buffer.c+j, data, i);
-    //printf("checking chunksize. j(%d) + i(%d) = chunksize(%d) ?\n", j,i,chunksize);
     if (j+i != chunksize) break;
 
     // Process a frame
     if (IS_BIG_ENDIAN) { // TODO: test on big endian architecture
-      if ((TT.hashmethod == SHA512) || (TT.hashmethod == SHA384)) {
+      if (TT.hashmethod>=SHA384)
         for (j=0; j<16; j++) TT.buffer.i64[j] = SWAP_LE64(TT.buffer.i64[j]);
-      } else { // MD5, SHA1, SHA224, SHA256
-        for (j=0; j<16; j++) TT.buffer.i32[j] = SWAP_LE32(TT.buffer.i32[j]);
-      }
+      else for (j=0; j<16; j++) TT.buffer.i32[j] = SWAP_LE32(TT.buffer.i32[j]);
     }
-    //printf("calling transform. hashmethod = %d\n", TT.hashmethod);
     transform();
     j=0;
     data += i;
@@ -510,91 +392,42 @@ static void do_lib_hash(int fd, char *name)
 
 static void do_builtin_hash(int fd, char *name)
 {
-  uint64_t count;
-  int i, chunksize, lengthsize, digestlen;
-  char buf, *pp;
+  unsigned long long count;
+  int i, chunksize, digestlen;
+  volatile char *pp;
   void (*transform)(void);
+  char buf;
+
+  // select hash type
+  transform = (void *[]){md5_transform, sha1_transform, sha2_32_transform,
+    sha2_32_transform, sha2_64_transform, sha2_64_transform}[TT.hashmethod];
+  digestlen = (char []){16, 20, 28, 32, 48, 64}[TT.hashmethod];
+  chunksize = 64<<(TT.hashmethod>=SHA384);
+  if (TT.hashmethod<=SHA1)
+    memcpy(TT.state.i32, (unsigned []){0x67452301, 0xEFCDAB89, 0x98BADCFE,
+      0x10325476, 0xC3D2E1F0}, 20);
+  else if (TT.hashmethod==SHA224)
+    memcpy(TT.state.i32, (unsigned []){0xc1059ed8, 0x367cd507, 0x3070dd17,
+      0xf70e5939, 0xffc00b31, 0x68581511, 0x64f98fa7, 0xbefa4fa4}, 32);
+  else if (TT.hashmethod==SHA256)
+    memcpy(TT.state.i32, (unsigned []){0x6a09e667, 0xbb67ae85, 0x3c6ef372,
+      0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19}, 32);
+  else if (TT.hashmethod==SHA384)
+    memcpy(TT.state.i64, (unsigned long long []){0xcbbb9d5dc1059ed8,
+      0x629a292a367cd507, 0x9159015a3070dd17, 0x152fecd8f70e5939,
+      0x67332667ffc00b31, 0x8eb44a8768581511, 0xdb0c2e0d64f98fa7,
+      0x47b5481dbefa4fa4}, 64);
+  else memcpy(TT.state.i64, (unsigned long long []){0x6a09e667f3bcc908,
+      0xbb67ae8584caa73b, 0x3c6ef372fe94f82b, 0xa54ff53a5f1d36f1,
+      0x510e527fade682d1, 0x9b05688c2b3e6c1f, 0x1f83d9abfb41bd6b,
+      0x5be0cd19137e2179}, 64);
 
   TT.count = 0;
-  switch(TT.hashmethod) {
-    case MD5:
-    case SHA1:
-      transform = (TT.hashmethod == MD5) ? md5_transform : sha1_transform;
-      digestlen = (TT.hashmethod == MD5) ? 16 : 20; // bytes
-      chunksize = 64; // bytes
-      lengthsize = 8; // bytes
-      TT.state.i32[0] = 0x67452301;
-      TT.state.i32[1] = 0xEFCDAB89;
-      TT.state.i32[2] = 0x98BADCFE;
-      TT.state.i32[3] = 0x10325476;
-      TT.state.i32[4] = 0xC3D2E1F0; // not used for MD5
-      break;
-    case SHA224:
-      transform = sha224_transform;
-      digestlen = 28;
-      chunksize = 64;
-      lengthsize = 8;
-      TT.state.i32[0] = 0xc1059ed8;
-      TT.state.i32[1] = 0x367cd507;
-      TT.state.i32[2] = 0x3070dd17;
-      TT.state.i32[3] = 0xf70e5939;
-      TT.state.i32[4] = 0xffc00b31;
-      TT.state.i32[5] = 0x68581511;
-      TT.state.i32[6] = 0x64f98fa7;
-      TT.state.i32[7] = 0xbefa4fa4;
-      break;
-    case SHA256:
-      transform = sha256_transform;
-      digestlen = 32;
-      chunksize = 64;
-      lengthsize = 8;
-      TT.state.i32[0] = 0x6a09e667;
-      TT.state.i32[1] = 0xbb67ae85;
-      TT.state.i32[2] = 0x3c6ef372;
-      TT.state.i32[3] = 0xa54ff53a;
-      TT.state.i32[4] = 0x510e527f;
-      TT.state.i32[5] = 0x9b05688c;
-      TT.state.i32[6] = 0x1f83d9ab;
-      TT.state.i32[7] = 0x5be0cd19;
-      break;
-    case SHA384:
-      transform = sha384_transform;
-      digestlen = 48;
-      chunksize = 128;
-      lengthsize = 8; // bytes. should be 16 according to spec
-      TT.state.i64[0] = 0xcbbb9d5dc1059ed8;
-      TT.state.i64[1] = 0x629a292a367cd507;
-      TT.state.i64[2] = 0x9159015a3070dd17;
-      TT.state.i64[3] = 0x152fecd8f70e5939;
-      TT.state.i64[4] = 0x67332667ffc00b31;
-      TT.state.i64[5] = 0x8eb44a8768581511;
-      TT.state.i64[6] = 0xdb0c2e0d64f98fa7;
-      TT.state.i64[7] = 0x47b5481dbefa4fa4;
-      break;
-    case SHA512:
-      transform = sha512_transform;
-      digestlen = 64;
-      chunksize = 128;
-      lengthsize = 8; // bytes. should be 16 according to spec
-      TT.state.i64[0] = 0x6a09e667f3bcc908;
-      TT.state.i64[1] = 0xbb67ae8584caa73b;
-      TT.state.i64[2] = 0x3c6ef372fe94f82b;
-      TT.state.i64[3] = 0xa54ff53a5f1d36f1;
-      TT.state.i64[4] = 0x510e527fade682d1;
-      TT.state.i64[5] = 0x9b05688c2b3e6c1f;
-      TT.state.i64[6] = 0x1f83d9abfb41bd6b;
-      TT.state.i64[7] = 0x5be0cd19137e2179;
-      break;
-    default: error_exit("unrecognized hash method name"); break;
-    }
-
   for (;;) {
     i = read(fd, toybuf, sizeof(toybuf));
     if (i<1) break;
     hash_update(toybuf, i, transform, chunksize);
   }
-
-  count = TT.count << 3; // convert to bytes
 
   // End the message by appending a "1" bit to the data, ending with the
   // message size (in bits, big endian), and adding enough zero bits in
@@ -603,33 +436,25 @@ static void do_builtin_hash(int fd, char *name)
   // Since our input up to now has been in whole bytes, we can deal with
   // bytes here too.
   buf = 0x80;
+  count = TT.count << 3; // convert to bits
   do {
     hash_update(&buf, 1, transform, chunksize);
     buf = 0;
-  } while ((TT.count & (chunksize - 1)) != (chunksize - lengthsize));
+  } while ((TT.count & (chunksize - 1)) != (chunksize - 8));
   count = (TT.hashmethod == MD5) ? SWAP_LE64(count) : SWAP_BE64(count);
-  //printf("count=%ld count=%08X %08X\n", count, (uint32_t) (count >> 32), (uint32_t) count);
   hash_update((void *)&count, 8, transform, chunksize);
 
   // write digest to toybuf
-  if ((TT.hashmethod == SHA384) || (TT.hashmethod == SHA512)) {
-    for (i=0; i<digestlen/8; i++) {
-      sprintf(toybuf+16*i, "%016lx", TT.state.i64[i]);
-    }
-  } else { // MD5, SHA1, SHA224, SHA256
-    for (i=0; i<digestlen/4; i++) {
-      sprintf(toybuf+8*i, "%08x",
-              (TT.hashmethod == MD5) ? bswap_32(TT.state.i32[i]) : TT.state.i32[i]
-       );
-    }
-  }
+  if (TT.hashmethod>=SHA384) for (i=0; i<digestlen/8; i++)
+    sprintf(toybuf+16*i, "%016llx", TT.state.i64[i]);
+  else for (i=0; i<digestlen/4; i++)
+    sprintf(toybuf+8*i, "%08x", (TT.hashmethod == MD5)
+      ? bswap_32(TT.state.i32[i]) : TT.state.i32[i]);
   // Wipe variables. Cryptographer paranoia.
-  // if we do this with memset(), gcc throws a broken warning, and the (uint32_t)
-  // typecasts stop gcc from breaking "undefined behavior" that isn't.
-  for (pp = (void *)TT.state.i64; (uint64_t)pp-(uint64_t)TT.state.i64<sizeof(TT)-((uint64_t)TT.state.i64-(uint64_t)&TT); pp++)
-    *pp = 0;
-  i = strlen(toybuf)+1;
-  memset(toybuf+i, 0, sizeof(toybuf)-i);
+  i = sizeof(struct md5sum_data)-offsetof(struct md5sum_data, state.i64);
+  for (pp = (void *)TT.state.i64; i; i--) *pp++ = 0;
+  pp = toybuf+strlen(toybuf)+1;
+  for (i = sizeof(toybuf)-(pp-toybuf); i; i--) *pp++ = 0;
 }
 
 // Callback for loopfiles()
@@ -639,13 +464,12 @@ static void do_hash(int fd, char *name)
   if (CFG_TOYBOX_LIBCRYPTO) do_lib_hash(fd, name);
   else do_builtin_hash(fd, name);
 
-  if (name)
-    printf(FLAG(b) ? "%s\n" : "%s  %s\n", toybuf, name);
+  if (name) printf("%s  %s\n"+4*!!FLAG(b), toybuf, name);
 }
 
-static int do_c_line(char *line)
+static void do_c_line(char *line)
 {
-  int space = 0, fail = 0;
+  int space = 0, fail = 0, fd;
   char *name;
 
   for (name = line; *name; name++) {
@@ -654,42 +478,32 @@ static int do_c_line(char *line)
       *name = 0;
     } else if (space) break;
   }
+  if (!space || !*line || !*name) return error_msg("bad line %s", line);
 
-  if (!space || !*line || !*name) error_msg("bad line %s", line);
-  else {
-    int fd = !strcmp(name, "-") ? 0 : open(name, O_RDONLY);
+  fd = !strcmp(name, "-") ? 0 : open(name, O_RDONLY);
 
-    TT.sawline = 1;
-    if (fd==-1) {
-      perror_msg_raw(name);
-      *toybuf = 0;
-    } else do_hash(fd, 0);
-    if (strcasecmp(line, toybuf)) toys.exitval = fail = 1;
-    if (!FLAG(s)) printf("%s: %s\n", name, fail ? "FAILED" : "OK");
-    if (fd>0) close(fd);
-  }
-
-  return 0;
+  TT.sawline = 1;
+  if (fd==-1) {
+    perror_msg_raw(name);
+    *toybuf = 0;
+  } else do_hash(fd, 0);
+  if (strcasecmp(line, toybuf)) toys.exitval = fail = 1;
+  if (!FLAG(s)) printf("%s: %s\n", name, fail ? "FAILED" : "OK");
+  if (fd>0) close(fd);
 }
 
 // Used instead of loopfiles_line to report error on files containing no hashes.
 static void do_c_file(char *name)
 {
   FILE *fp = !strcmp(name, "-") ? stdin : fopen(name, "r");
+  char *line;
 
-  if (!fp) {
-    perror_msg_raw(name);
-    return;
-  }
+  if (!fp) return perror_msg_raw(name);
 
   TT.sawline = 0;
 
   for (;;) {
-    char *line = 0;
-    ssize_t len;
-
-    if ((len = getline(&line, (void *)&len, fp))<1) break;
-    if (line[len-1]=='\n') line[len-1] = 0;
+    if (!(line = xgetline(fp))) break;
     do_c_line(line);
     free(line);
   }
@@ -700,41 +514,23 @@ static void do_c_file(char *name)
 
 void md5sum_main(void)
 {
-  char **arg;
   int i;
-
-  if (toys.which->name[0]=='m') {
-    TT.hashmethod = MD5;
-  }
 
   // Calculate table if we have floating point. Static version should drop
   // out at compile time when we don't need it.
   if (!CFG_TOYBOX_LIBCRYPTO) {
-    switch(TT.hashmethod) {
-      case MD5:
-        if (CFG_TOYBOX_FLOAT) {
-          TT.rconsttable32 = xmalloc(64*4);
-          for (i = 0; i<64; i++) TT.rconsttable32[i] = fabs(sin(i+1))*(1LL<<32);
-        } else TT.rconsttable32 = md5nofloat;
-	break;
-      case SHA1: // no table needed for SHA1
-	break;
-      case SHA224:
-      case SHA256:
+    if (TT.hashmethod==MD5) {
+      if (CFG_TOYBOX_FLOAT) {
         TT.rconsttable32 = xmalloc(64*4);
-        for (i=0; i<64; i++) {
-          TT.rconsttable32[i] = (uint32_t) (sha512nofloat[i] >> 32);
-	}
-	break;
-      case SHA384:
-      case SHA512:
-        TT.rconsttable64 = sha512nofloat;
-	break;
-      default: error_exit("unrecognized hash method name"); break;
-    }
+        for (i = 0; i<64; i++) TT.rconsttable32[i] = fabs(sin(i+1))*(1LL<<32);
+      } else TT.rconsttable32 = md5nofloat;
+    } else if (TT.hashmethod==SHA224 || TT.hashmethod==SHA256) {
+      TT.rconsttable32 = xmalloc(64*4);
+      for (i=0; i<64; i++) TT.rconsttable32[i] = sha512nofloat[i] >> 32;
+    } else if (TT.hashmethod>=SHA384) TT.rconsttable64 = sha512nofloat;
   }
 
-  if (FLAG(c)) for (arg = toys.optargs; *arg; arg++) do_c_file(*arg);
+  if (FLAG(c)) for (i = 0; toys.optargs[i]; i++) do_c_file(toys.optargs[i]);
   else {
     if (FLAG(s)) error_exit("-s only with -c");
     loopfiles(toys.optargs, do_hash);
