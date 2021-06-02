@@ -44,7 +44,7 @@ do_test()
   fi
   C="$(dirname $(realpath "$C"))/$CMDNAME"
 
-  . "$1"
+  (. "$1")
 }
 
 if [ $# -ne 0 ]
