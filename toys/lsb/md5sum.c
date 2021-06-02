@@ -332,11 +332,6 @@ static void hash_update(char *data, unsigned int len, void (*transform)(void),
     if (j+i != chunksize) break;
 
     // Process a frame
-    if (IS_BIG_ENDIAN) { // TODO: test on big endian architecture
-      if (TT.hashmethod>=SHA384)
-        for (j=0; j<16; j++) TT.buffer.i64[j] = SWAP_LE64(TT.buffer.i64[j]);
-      else for (j=0; j<16; j++) TT.buffer.i32[j] = SWAP_LE32(TT.buffer.i32[j]);
-    }
     transform();
     j=0;
     data += i;
