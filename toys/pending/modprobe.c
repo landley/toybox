@@ -238,7 +238,8 @@ static int config_action(struct dirtree *node)
         break;
       }
     }
-    if (!tk) continue; 
+    // Every command requires at least one argument.
+    if (tcount < 2) continue;
     // process the tokens[0] contains first word of config line.
     if (!strcmp(tokens[0], "alias")) {
       struct arg_list *temp;
