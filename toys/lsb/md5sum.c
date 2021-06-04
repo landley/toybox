@@ -17,20 +17,21 @@
  * coreutils supports --status but not -s, busybox supports -s but not --status
 
 USE_MD5SUM(NEWTOY(md5sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
-USE_SHA1SUM(NEWTOY(sha1sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
-USE_SHA224SUM(NEWTOY(sha224sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
-USE_SHA256SUM(NEWTOY(sha256sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
-USE_SHA384SUM(NEWTOY(sha384sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
-USE_SHA512SUM(NEWTOY(sha512sum, "bc(check)s(status)[!bc]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SHA1SUM(OLDTOY(sha1sum, md5sum, TOYFLAG_USR|TOYFLAG_BIN))
+USE_SHA224SUM(OLDTOY(sha224sum, md5sum, TOYFLAG_USR|TOYFLAG_BIN))
+USE_SHA256SUM(OLDTOY(sha256sum, md5sum, TOYFLAG_USR|TOYFLAG_BIN))
+USE_SHA384SUM(OLDTOY(sha384sum, md5sum, TOYFLAG_USR|TOYFLAG_BIN))
+USE_SHA512SUM(OLDTOY(sha512sum, md5sum, TOYFLAG_USR|TOYFLAG_BIN))
 
 config MD5SUM
   bool "md5sum"
   default y
   help
-    usage: md5sum [-bcs] [FILE]...
+    usage: ???sum [-bcs] [FILE]...
 
-    Calculate md5 hash for each input file, reading from stdin if none.
-    Output one hash (32 hex digits) for each input file, followed by filename.
+    Calculate hash for each input file, reading from stdin if none, writing
+    hexadecimal digits to stdout for each input file (md5=32 hex digits,
+    sha1=40, sha224=56, sha256=64, sha384=96, sha512=128) followed by filename.
 
     -b	Brief (hash only, no filename)
     -c	Check each line of each FILE is the same hash+filename we'd output
@@ -40,39 +41,31 @@ config SHA1SUM
   bool "sha1sum"
   default y
   help
-    usage: sha?sum [-bcs] [FILE]...
-
-    Calculate sha hash for each input file, reading from stdin if none. Output
-    one hash (40 hex digits for sha1, 56 for sha224, 64 for sha256, 96 for sha384,
-    and 128 for sha512) for each input file, followed by filename.
-
-    -b	Brief (hash only, no filename)
-    -c	Check each line of each FILE is the same hash+filename we'd output
-    -s	No output, exit status 0 if all hashes match, 1 otherwise
+    See md5sum
 
 config SHA224SUM
   bool "sha224sum"
   default y
   help
-    See sha1sum
+    See md5sum
 
 config SHA256SUM
   bool "sha256sum"
   default y
   help
-    See sha1sum
+    See md5sum
 
 config SHA384SUM
   bool "sha384sum"
   default y
   help
-    See sha1sum
+    See md5sum
 
 config SHA512SUM
   bool "sha512sum"
   default y
   help
-    See sha1sum
+    See md5sum
 */
 
 #define FORCE_FLAGS
@@ -88,22 +81,16 @@ typedef int SHA512_CTX;
 
 GLOBALS(
   int sawline;
-  enum hashmethods { MD5, SHA1, SHA224, SHA256, SHA384, SHA512 } hashmethod;
   unsigned *rconsttable32;
   unsigned long long *rconsttable64; // for sha384,sha512
 
   // Crypto variables blanked after summing
-  union {
-    unsigned i32[8]; // for md5,sha1,sha224,sha256
-    unsigned long long i64[8]; // for sha384,sha512
-  } state;
-  // sha384/512 spec has 128-bit count of input bits, but 64-bit is 23 petabytes
-  unsigned long long count;
+  unsigned long long count, overflow;
   union {
     char c[128]; // bytes, 1024 bits
     unsigned i32[16]; // 512 bits for md5,sha1,sha224,sha256
     unsigned long long i64[16]; // 1024 bits for sha384,sha512
-  } buffer;
+  } state, buffer;
 )
 
 // Round constants. Static table for when we haven't got floating point support
@@ -322,6 +309,7 @@ static void hash_update(char *data, unsigned int len, void (*transform)(void),
   unsigned int i, j;
 
   j = TT.count & (chunksize - 1);
+  if (TT.count+len<TT.count) TT.overflow++;
   TT.count += len;
 
   for (;;) {
@@ -387,27 +375,30 @@ static void do_lib_hash(int fd, char *name)
 
 static void do_builtin_hash(int fd, char *name)
 {
-  unsigned long long count;
-  int i, chunksize, digestlen;
+  unsigned long long count[2];
+  int i, chunksize, digestlen, method;
   volatile char *pp;
   void (*transform)(void);
   char buf;
 
+  // md5sum, sha1sum, sha224sum, sha256sum, sha384sum, sha512sum
+  method = stridx("us2581", toys.which->name[4]);
+
   // select hash type
   transform = (void *[]){md5_transform, sha1_transform, sha2_32_transform,
-    sha2_32_transform, sha2_64_transform, sha2_64_transform}[TT.hashmethod];
-  digestlen = (char []){16, 20, 28, 32, 48, 64}[TT.hashmethod];
-  chunksize = 64<<(TT.hashmethod>=SHA384);
-  if (TT.hashmethod<=SHA1)
+    sha2_32_transform, sha2_64_transform, sha2_64_transform}[method];
+  digestlen = (char []){16, 20, 28, 32, 48, 64}[method];
+  chunksize = 64<<(method>=4);
+  if (method<=1)
     memcpy(TT.state.i32, (unsigned []){0x67452301, 0xEFCDAB89, 0x98BADCFE,
       0x10325476, 0xC3D2E1F0}, 20);
-  else if (TT.hashmethod==SHA224)
+  else if (method==2)
     memcpy(TT.state.i32, (unsigned []){0xc1059ed8, 0x367cd507, 0x3070dd17,
       0xf70e5939, 0xffc00b31, 0x68581511, 0x64f98fa7, 0xbefa4fa4}, 32);
-  else if (TT.hashmethod==SHA256)
+  else if (method==3)
     memcpy(TT.state.i32, (unsigned []){0x6a09e667, 0xbb67ae85, 0x3c6ef372,
       0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19}, 32);
-  else if (TT.hashmethod==SHA384)
+  else if (method==4)
     memcpy(TT.state.i64, (unsigned long long []){0xcbbb9d5dc1059ed8,
       0x629a292a367cd507, 0x9159015a3070dd17, 0x152fecd8f70e5939,
       0x67332667ffc00b31, 0x8eb44a8768581511, 0xdb0c2e0d64f98fa7,
@@ -426,26 +417,30 @@ static void do_builtin_hash(int fd, char *name)
 
   // End the message by appending a "1" bit to the data, ending with the
   // message size (in bits, big endian), and adding enough zero bits in
-  // between to pad to the end of the next 64-byte frame.
+  // between to pad to the end of the next frame.
   //
   // Since our input up to now has been in whole bytes, we can deal with
-  // bytes here too.
+  // bytes here too. sha384 and 512 use 128 bit counter, so track overflow.
   buf = 0x80;
-  count = TT.count << 3; // convert to bits
+  count[0] = (TT.overflow<<3)+(TT.count>>61);
+  count[1] = TT.count<<3; // convert to bits
+  for (i = 0; i<2; i++)
+    count[i] = !method ? SWAP_LE64(count[i]) : SWAP_BE64(count[i]);
+  i = 8<<(method>=4);
   do {
     hash_update(&buf, 1, transform, chunksize);
     buf = 0;
-  } while ((TT.count & (chunksize - 1)) != (chunksize - 8));
-  count = (TT.hashmethod == MD5) ? SWAP_LE64(count) : SWAP_BE64(count);
-  hash_update((void *)&count, 8, transform, chunksize);
+  } while ((TT.count&(chunksize-1)) != chunksize-i);
+  hash_update((void *)(count+(method<4)), i, transform, chunksize);
 
   // write digest to toybuf
-  if (TT.hashmethod>=SHA384) for (i=0; i<digestlen/8; i++)
+  if (method>=4) for (i=0; i<digestlen/8; i++)
     sprintf(toybuf+16*i, "%016llx", TT.state.i64[i]);
   else for (i=0; i<digestlen/4; i++)
-    sprintf(toybuf+8*i, "%08x", (TT.hashmethod == MD5)
-      ? bswap_32(TT.state.i32[i]) : TT.state.i32[i]);
-  // Wipe variables. Cryptographer paranoia.
+    sprintf(toybuf+8*i, "%08x",
+            !method ? bswap_32(TT.state.i32[i]) : TT.state.i32[i]);
+  // Wipe variables. Cryptographer paranoia. Avoid "optimizing" out memset
+  // by looping on a volatile pointer.
   i = sizeof(struct md5sum_data)-offsetof(struct md5sum_data, state.i64);
   for (pp = (void *)TT.state.i64; i; i--) *pp++ = 0;
   pp = toybuf+strlen(toybuf)+1;
@@ -514,15 +509,15 @@ void md5sum_main(void)
   // Calculate table if we have floating point. Static version should drop
   // out at compile time when we don't need it.
   if (!CFG_TOYBOX_LIBCRYPTO) {
-    if (TT.hashmethod==MD5) {
+    if (*toys.which->name == 'm') { // MD5
       if (CFG_TOYBOX_FLOAT) {
         TT.rconsttable32 = xmalloc(64*4);
         for (i = 0; i<64; i++) TT.rconsttable32[i] = fabs(sin(i+1))*(1LL<<32);
       } else TT.rconsttable32 = md5nofloat;
-    } else if (TT.hashmethod==SHA224 || TT.hashmethod==SHA256) {
+    } else if (strchr("25", toys.which->name[4])) { // 224, 256
       TT.rconsttable32 = xmalloc(64*4);
       for (i=0; i<64; i++) TT.rconsttable32[i] = sha512nofloat[i] >> 32;
-    } else if (TT.hashmethod>=SHA384) TT.rconsttable64 = sha512nofloat;
+    } else if (toys.which->name[3] != '1') TT.rconsttable64 = sha512nofloat;
   }
 
   if (FLAG(c)) for (i = 0; toys.optargs[i]; i++) do_c_file(toys.optargs[i]);
@@ -530,34 +525,4 @@ void md5sum_main(void)
     if (FLAG(s)) error_exit("-s only with -c");
     loopfiles(toys.optargs, do_hash);
   }
-}
-
-void sha1sum_main(void)
-{
-  TT.hashmethod = SHA1;
-  md5sum_main();
-}
-
-void sha224sum_main(void)
-{
-  TT.hashmethod = SHA224;
-  md5sum_main();
-}
-
-void sha256sum_main(void)
-{
-  TT.hashmethod = SHA256;
-  md5sum_main();
-}
-
-void sha384sum_main(void)
-{
-  TT.hashmethod = SHA384;
-  md5sum_main();
-}
-
-void sha512sum_main(void)
-{
-  TT.hashmethod = SHA512;
-  md5sum_main();
 }
