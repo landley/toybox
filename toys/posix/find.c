@@ -37,6 +37,7 @@ config FIND
     -true            always true               -false      always false
     -context PATTERN security context          -executable access(X_OK) perm+ACL
     -newerXY FILE    X=acm time > FILE's Y=acm time (Y=t: FILE is literal time)
+    -quit            exit immediately
 
     Numbers N may be prefixed by a - (less than) or + (greater than). Units for
     -Xtime are d (days, default), h (hours), m (minutes), or s (seconds).
@@ -352,6 +353,11 @@ static int do_find(struct dirtree *new)
       if (check && S_ISDIR(new->st.st_mode) && !TT.depth) recurse = 0;
     } else if (!strcmp(s, "executable")) {
       if (check && faccessat(dirtree_parentfd(new), new->name,X_OK,0)) test = 0;
+    } else if (!strcmp(s, "quit")) {
+      if (check) {
+        execdir(0, 1);
+        xexit();
+      }
 
     // Remaining filters take an argument
     } else {

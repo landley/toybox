@@ -285,7 +285,7 @@ GLOBALS(
     struct sh_process *next, *prev; // | && ||
     struct arg_list *delete;   // expanded strings
     // undo redirects, a=b at start, child PID, exit status, has !, job #
-    int *urd, envlen, pid, exit, not, job, dash;
+    int *urd, envlen, pid, exit, flags, job, dash;
     long long when; // when job backgrounded/suspended
     struct sh_arg *raw, arg;
   } *pp; // currently running process
@@ -307,6 +307,9 @@ static const char *redirectors[] = {"<<<", "<<-", "<<", "<&", "<>", "<", ">>",
 #define OPT_B	0x100
 #define OPT_C	0x200
 #define OPT_x	0x400
+
+// struct sh_process->flags
+#define PFLAG_NOT    1
 
 static void syntax_err(char *s)
 {
@@ -994,7 +997,7 @@ static int pipe_subshell(char *s, int len, int out)
 // if len, save length of next wc (whether or not it's in list)
 static int utf8chr(char *wc, char *chrs, int *len)
 {
-  wchar_t wc1, wc2;
+  unsigned wc1, wc2;
   int ll;
 
   if (len) *len = 1;
@@ -1049,7 +1052,7 @@ char *getvar_special(char *str, int len, int *used, struct arg_list **delete)
 // Return length of utf8 char @s fitting in len, writing value into *cc
 int getutf8(char *s, int len, int *cc)
 {
-  wchar_t wc;
+  unsigned wc;
 
   if (len<0) wc = len = 0;
   else if (1>(len = utf8towc(&wc, s, len))) wc = *s, len = 1;
@@ -1607,7 +1610,7 @@ barf:
     // Fetch separator to glue string back together with
     *sep = 0;
     if (((qq&1) && cc=='*') || (flags&NO_SPLIT)) {
-      wchar_t wc;
+      unsigned wc;
 
       nosplit++;
       if (flags&SEMI_IFS) strcpy(sep, " ");
@@ -2073,7 +2076,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int skip, int *urd)
     s = arg->v[j];
 
     if (!strcmp(s, "!")) {
-      pp->not ^= 1;
+      pp->flags ^= PFLAG_NOT;
 
       continue;
     }
@@ -2973,7 +2976,7 @@ char *show_job(struct sh_process *pp, char dash)
 // Wait for pid to exit and remove from jobs table, returning process or 0.
 struct sh_process *wait_job(int pid, int nohang)
 {
-  struct sh_process *pp;
+  struct sh_process *pp = pp;
   int ii, status, minus, plus;
 
   if (TT.jobs.c<1) return 0;
@@ -3011,7 +3014,7 @@ static int wait_pipeline(struct sh_process *pp)
       pp->pid = 0;
     }
     // TODO handle set -o pipefail here
-    rc = pp->not ? !pp->exit : pp->exit;
+    rc = (pp->flags&PFLAG_NOT) ? !pp->exit : pp->exit;
   }
 
   while ((pp = wait_job(-1, 1)) && (TT.options&FLAG_i)) {
@@ -3535,7 +3538,7 @@ int do_source(char *name, FILE *ff)
 {
   struct sh_pipeline *pl = 0;
   struct double_list *expect = 0;
-  unsigned lineno = TT.LINENO, more = 0;
+  unsigned lineno = TT.LINENO, more = 0, wc;
   int cc, ii;
   char *new;
 
@@ -3555,8 +3558,6 @@ int do_source(char *name, FILE *ff)
 //dprintf(2, "%d getline from %p %s\n", getpid(), ff, new); debug_show_fds();
     // did we exec an ELF file or something?
     if (!TT.LINENO++ && name && new) {
-      wchar_t wc;
-
       // A shell script's first line has no high bytes that aren't valid utf-8.
       for (ii = 0; new[ii] && 0<(cc = utf8towc(&wc, new+ii, 4)); ii += cc);
       if (new[ii]) {

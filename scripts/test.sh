@@ -31,7 +31,8 @@ export LC_COLLATE=C
 
 do_test()
 {
-  cd "$TESTDIR" && rm -rf testdir && mkdir testdir && cd testdir || exit 1
+  cd "$TESTDIR" && rm -rf testdir continue && mkdir testdir && cd testdir ||
+    exit 1
   CMDNAME="${1##*/}"
   CMDNAME="${CMDNAME%.test}"
   if [ -z "$TEST_HOST" ]
@@ -44,7 +45,9 @@ do_test()
   fi
   C="$(dirname $(realpath "$C"))/$CMDNAME"
 
-  . "$1"
+  (. "$1"; cd "$TESTDIR"; touch continue)
+  cd "$TESTDIR"
+  [ -e continue ] || exit 1
 }
 
 if [ $# -ne 0 ]
