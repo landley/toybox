@@ -8,7 +8,7 @@ USE_CHSH(NEWTOY(chsh, "s:", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
 
 config CHSH
   bool "chsh"
-  default y
+  default n
   help
     usage: chsh [-s SHELL] [USER]
 

@@ -8,6 +8,139 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+<a name="19-05-2021" /><a href="#19-15-2021"><hr><h2><b>May 19, 2021</b></h2></a>
+<blockquote><p>It was of course a descendant of these eccentric poets
+who invented the spurious tales of impending doom which enabled the people of
+Golgafrincham to rid themselves of the useless third of their population.
+The other two-thirds stayed firmly at home and lived full, rich and happy lives
+until they were all suddenly wiped out by a virulent disease contracted from
+a dirty telephone.</p><p>- The Hitchhiker's Guide to the Galaxy</p></blockquote>
+
+<p><a href=downloads/toybox-0.8.5.tar.gz>Toybox 0.8.5</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.8.5>git commit</a>)
+is out, with prebuilt <a href=downloads/binaries/0.8.5>static binaries</a> and
+<a href=downloads/binaries/mkroot/0.8.5>mkroot images</a>
+bootable under QEMU (using vanilla linux-5.12, except that s390 needed another
+<a href=http://lkml.iu.edu/hypermail/linux/kernel/2105.2/02904.html>perl
+removal patch</a>).</p>
+
+<p>This development cycle had thirty commits to sh.c fixing bugs and adding
+features to <b>toysh</b>. Shell functions and local variables are now implemented,
+along with the "set" builtin and trace support, and job control is
+about halfway in. The shell as a whole is <a href=https://en.wikipedia.org/wiki/Ninety%E2%80%93ninety_rule>maybe 80% done</a>, but still
+has some obvious gaps like $((math)) and interactive command line
+history/editing, plus a bunch of testing.</p>
+
+<p><u>New commands</u>:
+Moritz Röhrich added <b>pwgen</b> and <b>base32</b>, and
+Elliott Hughes added <b>unicode</b>. The
+<b>readelf</b> command got promoted out of pending, and
+<b>sha3sum</b> is now switched on in defconfig.</p>
+
+<p>Michael Christensen added <b>chsh</b> to pending, which hasn't been promoted
+yet because it's part of a group of commands (useradd, userdel, groupadd,
+groupdel) that should all be promoted together at some point.</p>
+
+<p><u>Upgrades</u>:
+<b>cpio</b> now supports extracting multiple concatenated archives.
+<b>file</b> now recognizes android's new XML binary format.
+<b>devmem</b> now works on nommu, can handle 0x prefxes on the address,
+and prints
+hex or decimal output to match the address type.
+<b>df</b> -a now shows overmounted filesystems.
+<b>test</b> -k checks the sticky bit.
+Added -t to <b>install</b>, <b>cp</b>, and <b>mv</b>, and -u to <b>cp</b>
+and <b>cpio</b>.
+<b>find</b> -executable checks that _we_ can execute them (u+x could be owned
+by a different user or have selinux weirdness).</p>
+
+<p>Elliott added several features to <b>date</b> (--iso, %:z output format, and
+--utc as a synonym for -u), added a <b>sed</b> s///x option,
+added units to <b>ulimit</b> output, and
+made several UI changes to <b>hexedit</b> including a color
+mode (which is now the default, press x to toggle between old and new
+display), masked out the file type in <b>chmod</b> error messages and
+taught it to handle complex modes (like u+s+s), 
+hardened <b>file</b> and <b>readelf</b> against invalid input,
+added a portability.h workaround for macos statvfs for <b>df</b>,
+enabled line buffering in <b>echo</b> and <b>yes</b>,
+and significatly sped up <b>tr</b>. Rob similarly optimized <b>seq</b>
+and <b>count</b>.</p>
+
+<p><b>make tests</b> now defaults to VERBOSE=fail (and now has VERBOSE=all to
+continue after failure, and VERBOSE=quiet to show FAIL: lines without
+diff -u output).
+Cleanups to tee, netstat, file, and df. Added "static" annotations in a
+lot of commands, made more things use FLAG() macros. Ethan Sommer pointed out
+an unnecessary wrapper function in chgrp.
+In pending, Elliott did some cleanups and bugfixes to gettty, telnet, telnetd,
+tftpd, init, modprobe, and dd, and added more features to vi.
+Rob did some cleanup on modprobe.</p>
+
+<p><u>Bugfixes</u>:
+Yi-Yo Chiang fixed a <b>rm</b> bug where -f could get confused by read
+only filesystems and produce an error trying to unlink a nonexistent
+file, pointed out <b>install</b> -D was broken when the target file
+already exists, pointed out a <b>cpio</b> interaction with certain encrypted
+filesystems where readlink() wouldn't write as much payload as the header
+promised (corrupting the archive) and fixed another cpio bug where -t test
+mode would chown() files, and fixed quoting in mount.test.
+Elliott fixed a sequencing issue in <b>setsid</b>'s system calls,
+fixed some <b>sed</b> tests (sed's lie-to-autoconf --version
+output was preventing toyonly tests from triggering) and
+fixed <b>tar</b>'s base 256 output for very large files.
+Nir Lichtman pointed out that <b>rm</b> -p shouldn't try to rmdir / at the end,
+Luke Frankart pointed out a typo that broke <b>test</b> checking file modes,
+Firas Khalil Khana fixed a duplicate entry in the roadmap,
+Ethan Sommer fixed <b>install</b> -Dt,
+Andy Hu requested that <b>mount</b> handle mixed options like
+-tnomsdos,smbfs.
+Denys Nykula reported a <b>chmod</b> regression,
+asm89 pointed out a <b>netcat</b> bug writing transactions larger than
+4k,
+Daniel Santana fixed <b>df</b> combining -P and -k,
+Robin Hsu fixed <b>grep</b> getting confused by libc setting errno when
+a library function call succeeded.
+Puck Meerburg taught the <b>gunzip</b> code not to be confused by FEXTRA entries
+(as described in RFC 1952) and added a test suite entry for that.</p>
+
+<p><b>find</b> handles empty arguments properly now (with test), <b>date</b>
+-I with no arguments no longer segfaults, <b>grep</b> -f /dev/null no
+longer adds a "" regex matching everything, -z no longer splits patterns
+on \n, and -o can print zero length matches,
+<b>cp</b> -t works with one argument and with --parents.
+<b>readelf</b> displays properly in 80 columns and doesn't reject .bss
+off end of file, and <b>sed</b> s///2 now works when there isn't more than one
+match.
+<b>tar</b> now removes empty directories where it wants to put a non-directory.
+<b>microcom</b> sets serial device terminal attributes correctly.</p>
+
+<p>The prebuilt x86-64 binaries shouldn't segfault on older x86-64 processors
+anymore (workaround for gcc bug).
+Cross compiling was sometimes confusing install.sh because it created
+a hyphenated "toybox-$TARGET" and then tried to make symlinks to just "toybox".</p>
+
+<p><u>Build</u>:
+CONFIG_TOYBOX_I18N went away: toybox builds always support utf8 now.
+Ella-0 added OpenBSD support (but not a separate defconfig, try
+"make freebsd_defconfig").</p>
+
+<p><u>Library</u>:
+utf8towc() is now unsigned instead of wchar_t, matching wctoutf8().
+xclose() tests if fd is -1 so the caller doesn't have to.
+txpect (the test suite's built-in "expect", implemented in shell) can
+now do regex matches, and sh.test uses this.</p>
+
+<p>Elliott added the failing regex to the xregcomp() error message, and
+made multiple portability tweaks (header tweaks to build in more
+environments, running tests on Raspberry Pi OS and under mksh,
+fix utf8 locale selection on macos).</p>
+
+<p><u>Docs</u>:
+<b>chmod</b>'s help text explains why o+s doesn't set +t (and has a
+test for it). The <b>echo</b> help text is more compact.
+Checked in a better conversion of <a href=https://landley.net/toybox/toycans.png>toycans.png</a>.</p>
+
 <a name="24-10-2020" /><a href="#24-10-2020"><hr><h2><b>October 24, 2020</b></h2></a>
 <blockquote><p>
 "We are now cruising at a level of two to the power of twenty-five thousand to
@@ -65,7 +198,7 @@ command list output (and "kill -l") to measure the current the terminal width
 when wordwrapping (previously hardwired to 80 columns).
 If you're curious, I checked in my <a href=www/release.txt>release procedure
 checklist</a>, and
-vixed a stale link in the nav bar on the left ("statistics" changed domains).
+fixed a stale link in the nav bar on the left ("statistics" changed domains).
 Firas Khaliki Khana fixed some issues in the roadmap, and Rob
 tweaked the roadmap so status.html is slightly more current.</p>
 
@@ -178,7 +311,7 @@ Keep this and guard it with your life.</p>
 trying to do you, kill you, rip you off, everything. If you're going to
 survive out there, you've really got to know where your
 <a href=towel.jpg>towel</a> is.</p>
-<p>- The Hitchhiker's Guide to the Galaxy.</p>
+<p>- The Hitchhiker's Guide to the Galaxy</p>
 </blockquote>
 
 <p>Despite everything <a href=downloads/toybox-0.8.3.tar.gz>Toybox 0.8.3</a>
@@ -977,7 +1110,7 @@ tests early in bash 4.4 (for VERBOSE=fail).</p>
 <a name="31-10-2018" /><a href="#31-10-2018"><hr><h2><b>October 31, 2018</b></h2></a>
 <blockquote><p>
 "In the beginning the Universe was created.
-This has made a lot of people very angry and been widely regarded as a bad move." - The Hitchhiker's Guide to the Galaxy.
+This has made a lot of people very angry and been widely regarded as a bad move."</p><p>- The Hitchhiker's Guide to the Galaxy
 </p>
 </blockquote>
 
@@ -1835,7 +1968,7 @@ break the code.</p>
 <blockquote><p>"I checked it very thoroughly," said the computer, "and that
 quite definitely is the answer. I think the problem, to be quite honest with
 you, is that you've never actually known what the question is."
-- The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+</p><p>- The Hitchhiker's Guide to the Galaxy</p></blockquote>
 
 <p><a href=downloads/toybox-0.7.0.tar.gz>Toybox 0.7.0</a>
 (<a href=https://github.com/landley/toybox/releases/tag/0.7.0>git commit</a>)
@@ -1996,7 +2129,7 @@ to ask Dreamhost. I know I have. More than a dozen times.</p>
 not from Guildford after all, but from a small planet somewhere in the vicinity
 of Betelgeuse?" Arthur shrugged in a so-so sort of way. "I don't know," he
 said, taking a pull of beer. "Why - do you think it's the sort of thing you're
-likely to say?" - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+likely to say?"</p><p>- The Hitchhiker's Guide to the Galaxy</p></blockquote>
 
 <p><a href=downloads/toybox-0.6.1.tar.gz>Toybox 0.6.1</a>
 (<a href=https://github.com/landley/toybox/releases/tag/0.6.1>git commit</a>)
@@ -2146,7 +2279,7 @@ directory. (Ooops.)</p>
 The reason why it was published in the form of a micro sub meson electronic
 component is that if it were printed in normal book form, an interstellar
 hitchhiker would require several inconveniently large buildings to carry it
-around in." - The Hitchhiker's Guide to the Galaxy </p></blockquote>
+around in.</p><p>- The Hitchhiker's Guide to the Galaxy</p></blockquote>
 
 <p><a href=downloads/toybox-0.6.0.tar.gz>Toybox 0.6.0</a>
 (<a href=https://github.com/landley/toybox/releases/tag/0.6.0>git commit</a>)
@@ -2385,7 +2518,7 @@ than the mercurial repository, I bit the bullet and switched the project's repo
 <a name="25-02-2015" /><a href="#25-02-2015"><hr><h2><b>February 25, 2015</b></h2></a>
 <blockquote><p>"A common mistake that people make when trying to design
 something completely foolproof is to underestimate the ingenuity of
-complete fools."</p><p>- The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+complete fools."</p><p>- The Hitchhiker's Guide to the Galaxy</p></blockquote>
 
 <p><a href=downloads/toybox-0.5.2.tar.gz>Toybox 0.5.2</a>
 (<a href=/hg/toybox/shortlog/1702>commit 1702</a>) is out.</p>
@@ -2533,7 +2666,7 @@ on the left.</p>
 
 <a name="19-11-2014" /><a href="#19-11-2014"><hr><h2><b>November 19, 2014</b></h2></a>
 
-<blockquote><p>"This time it was right, it would work, and no one would have to get nailed to anything." - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+<blockquote><p>"This time it was right, it would work, and no one would have to get nailed to anything."</p><p>- The Hitchhiker's Guide to the Galaxy</p></blockquote>
 
 <p><a href=downloads/toybox-0.5.1.tar.bz2>Toybox 0.5.1</a>
 (<a href=/hg/toybox/shortlog/1566>commit 1566</a>) is out.</p>
@@ -2614,7 +2747,7 @@ a new unescape() function.</p>
 <blockquote><p>"There is an art, it says, or rather, a knack to flying.
 The knack lies in learning how to throw yourself at the ground and miss...
 Clearly, it is this second part, the missing, which presents the
-difficulties." - The Hitchhiker's Guide to the Galaxy.<p></blockquote>
+difficulties."</p><p>- The Hitchhiker's Guide to the Galaxy<p></blockquote>
 
 <p><a href=downloads/toybox-0.5.0.tar.bz2>Toybox 0.5.0</a>
 (<a href=/hg/toybox/shortlog/1512>commit 1512</a>) is out.</p>
@@ -2767,7 +2900,7 @@ most of the people living on it were unhappy for pretty much of the time. Many
 solutions were suggested for this problem, but most of these were largely
 concerned with the movement of small green pieces of paper, which was odd
 because on the whole it wasn't the small green pieces of paper that were
-unhappy." - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+unhappy."</p><p>- The Hitchhiker's Guide to the Galaxy</p></blockquote>
 
 <p><a href=downloads/toybox-0.4.9.tar.bz2>Toybox 0.4.9</a> (<a href=/hg/toybox/shortlog/1385>commit 1385</a>) is out.</p>
 
@@ -2888,7 +3021,7 @@ first one, the build break is now more informative).</p>
 which was so amazingly intelligent that even before the data banks
 had been connected up it had started from "I think therefore I am" and got as
 far as the existence of rice pudding and income tax before anyone managed to
-turn it off. - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+turn it off.</p><p>- The Hitchhiker's Guide to the Galaxy</p></blockquote>
 
 <p><a href=downloads/toybox-0.4.8.tar.bz2>Toybox 0.4.8</a> is based on
 <a href=http://landley.net/hg/toybox/shortlog/1262>commit 1262</a>. And
@@ -2970,8 +3103,8 @@ good code. The README no longer trails off into obvious unfinished confusion
 at the end. Each page on the website should now have its own title.</p>
 
 <a name="18-11-2013" /><a href="#18-11-2013"><hr><h2><b>November 18, 2013</b></h2></a>
-<blockquote><p>"Space," it says, "is big. Really big. You just won't believe how vastly, hugely, mindbogglingly big it is. I mean, you may think it's a long way down the street to the chemist's, but that's just peanuts to space." -
-The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+<blockquote><p>"Space," it says, "is big. Really big. You just won't believe how vastly, hugely, mindbogglingly big it is. I mean, you may think it's a long way down the street to the chemist's, but that's just peanuts to space."</p><p>-
+The Hitchhiker's Guide to the Galaxy</p></blockquote>
 
 <p><a href=downloads/toybox-0.4.7.tar.bz2>Toybox 0.4.7</a> is based on
 <a href=http://landley.net/hg/toybox/shortlog/1122>commit 1122</a>.</p>
@@ -3010,7 +3143,7 @@ now uses scripts/single.sh when testing a single command.</p>
 <blockquote><p>"Think of a number," said the computer, "any number."
 Arthur told the computer the telephone number of King's Cross railway
 station passenger inquiries, on the grounds that it must have some function,
-and this might turn out to be it. - The Hitchhiker's Guide to the Galaxy</p>
+and this might turn out to be it.</p><p>- The Hitchhiker's Guide to the Galaxy</p>
 </blockquote>
 
 <p><a href=downloads/toybox-0.4.6.tar.bz2>Toybox 0.4.6</a> is based on
@@ -3144,8 +3277,7 @@ against it and post them to the list.</p>
 <a name="02-07-2013" /><a href="#02-07-2013"><hr><h2><b>July 2, 2013</b></h2></a>
 <blockquote><p>"Time is an illusion. Lunchtime doubly so." "Very deep. You
 should send that in to the Reader's Digest. They've got a page for people
-like you." -
-The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+like you."</p><p>- The Hitchhiker's Guide to the Galaxy</p></blockquote>
 
 <p><a href=downloads/toybox-0.4.5.tar.bz2>Toybox 0.4.5</a> is based on
 <a href=http://landley.net/hg/toybox/shortlog/941>commit 941</a>. It adds
@@ -3257,7 +3389,7 @@ the ads, it's The Linux Foundation.)</p>
 
 <a name="14-03-2013" /><a href="#14-03-2013"><hr><h2><b>March 14, 2013</b></h2></a>
 <blockquote><p>"Ford, you're turning into a penguin. Stop it." -
-The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+</p><p>The Hitchhiker's Guide to the Galaxy</p></blockquote>
 
 <p><a href=downloads/toybox-0.4.4.tar.bz2>Toybox 0.4.4</a> is based on
 <a href=http://landley.net/hg/toybox/shortlog/813>commit 813</a>, adding
@@ -3279,7 +3411,7 @@ should at least compile (although defconfig is still what's useful).</p>
 (klibc, sash, sbase, s6...) to see what commands they include.</p>
 
 <a name="18-01-2013" /><a href="#18-01-2013"><hr><h2><b>January 18, 2013</b></h2></a>
-<blockquote><p>This must be Thursday. I never could get the hang of Thursdays. - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+<blockquote><p>This must be Thursday. I never could get the hang of Thursdays.</p><p>- The Hitchhiker's Guide to the Galaxy</p></blockquote>
 
 <p><a href=downloads/toybox-0.4.3.tar.bz2>Toybox 0.4.3</a> is based on
 <a href=http://landley.net/hg/toybox/shortlog/793>commit 793</a>. There
@@ -3323,7 +3455,7 @@ to -Os by default now.</p>
 <blockquote><p>"The major difference between a thing that might go wrong and a
 thing that cannot possibly go wrong is that when a thing that cannot possibly
 go wrong goes wrong it usually turns out to be impossible to get at or repair."
-</p><p>- The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+</p><p>- The Hitchhiker's Guide to the Galaxy</p></blockquote>
 
 <p><a href=downloads/toybox-0.4.2.tar.bz2>Toybox 0.4.2</a> is based on
 <a href=http://landley.net/hg/toybox/shortlog/749>commit 749</a> and is
@@ -3372,7 +3504,7 @@ filehandles, so drilling down over 1000 nested subdirectories).</p>
 
 <a name="13-11-2012" /><a href="#13-11-2012"><hr><h2><b>November 13, 2012</b></h2></a>
 <blockquote><p>"Rule Six: The winning team shall be the first team that wins."
-- The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+</p><p>- The Hitchhiker's Guide to the Galaxy</p></blockquote>
 
 <p><a href=downloads/toybox-0.4.1.tar.bz2>Toybox 0.4.1</a> is based on
 <a href=http://landley.net/hg/toybox/shortlog/691>commit 691</a>.</p>
@@ -3437,7 +3569,7 @@ back now.</p>
 <a name="23-07-2012" /><a href="#23-07-2012"><hr><h2><b>July 23, 2012</b></h2></a>
 <blockquote><p>"Ford", Arthur said. "There's an infinite number of monkeys
 out here who want to talk to us about this script for Hamlet they've worked
-out." - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+out."</p><p>- The Hitchhiker's Guide to the Galaxy</p></blockquote>
 
 <p><a href=downloads/toybox-0.4.0.tar.bz2>Toybox 0.4.0</a> is based on
 <a href=http://landley.net/hg/toybox/shortlog/640>commit 640</a>.</p>
@@ -3460,7 +3592,7 @@ glibc bug where static linking prevents stdout from automatically flushing
 pending output on exit.</p>
 
 <a name="25-06-2012" /><a href="#25-06-2012"><hr><h2><b>June 25, 2012</b></h2></a>
-<blockquote><p>"For a moment, nothing happened. Then, after a second or so, nothing continued to happen." - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+<blockquote><p>"For a moment, nothing happened. Then, after a second or so, nothing continued to happen."</p><p>- The Hitchhiker's Guide to the Galaxy</p></blockquote>
 
 <p><a href=downloads/toybox-0.3.1.tar.bz2>Toybox 0.3.1</a> is based on commit
 <a href=http://landley.net/hg/toybox/shortlog/607>commit 607</a>. It's
@@ -3481,7 +3613,7 @@ he was more intelligent than dolphins because he had achieved so much - the
 wheel, New York, wars and so on - whilst all the dolphins had ever done was
 muck about in the water having a good time. But conversely, the dolphins had
 always believed that they were far more intelligent than man - for precisely
-the same reasons." - The Hitchhiker's Guide to the Galaxy.</p></blockquote>
+the same reasons."</p><p>- The Hitchhiker's Guide to the Galaxy</p></blockquote>
 
 <p>It's well past time for <a href=downloads/toybox-0.3.0.tar.bz2>toybox 0.3.0</a>,
 so here it is, based
@@ -3545,7 +3677,7 @@ yet, but if I wait until everything works we won't have a release before
 <blockquote><p>"They went unnoticed at Goonhilly, passed over Cape Canaveral
 without a blip, and Woomera and Jodrell Bank looked straight through them.
 Which was a pity, because it was exactly the sort of thing they'd been looking
-for all these years."</p></p>- The Hitchhiker's Guide to the Galaxy.</p>
+for all these years."</p><p>- The Hitchhiker's Guide to the Galaxy</p>
 </p></blockquote>
 
 <p>Here's <a href=downloads/toybox-0.2.1.tar.bz2>toybox 0.2.1</a> based
