@@ -514,10 +514,10 @@ void md5sum_main(void)
         TT.rconsttable32 = xmalloc(64*4);
         for (i = 0; i<64; i++) TT.rconsttable32[i] = fabs(sin(i+1))*(1LL<<32);
       } else TT.rconsttable32 = md5nofloat;
-    } else if (strchr("25", toys.which->name[4])) { // 224, 256
+    } else if (toys.which->name[3] == '2') { // sha224, sha256
       TT.rconsttable32 = xmalloc(64*4);
       for (i=0; i<64; i++) TT.rconsttable32[i] = sha512nofloat[i] >> 32;
-    } else if (toys.which->name[3] != '1') TT.rconsttable64 = sha512nofloat;
+    } else TT.rconsttable64 = sha512nofloat; // sha384, sha512
   }
 
   if (FLAG(c)) for (i = 0; toys.optargs[i]; i++) do_c_file(toys.optargs[i]);
