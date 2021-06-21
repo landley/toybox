@@ -10,7 +10,7 @@
  *
  * todo: -n, -s with -c
 
-USE_CUT(NEWTOY(cut, "b*|c*|f*|F*|C*|O(output-delimiter):d:sDn[!cbf]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_CUT(NEWTOY(cut, "b*|c*|f*|F*|C*|O(output-delimiter):d:sDn[!cbfF]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config CUT
   bool "cut"
@@ -72,8 +72,8 @@ static void cut_line(char **pline, long len)
     count = end-start;
 
     // Find start and end of output string for the relevant selection type
-    if (toys.optflags&FLAG_b) s += start;
-    else if (toys.optflags&FLAG_C) {
+    if (FLAG(b)) s += start;
+    else if (FLAG(C)) {
       // crunch_str() currently assumes that combining characters get
       // escaped, to provide an unambiguous visual representation.
       // This assumes the input string is null terminated.
@@ -84,7 +84,7 @@ static void cut_line(char **pline, long len)
       crunch_str(&ss, count, 0, 0, 0);
       count = ss-s;
 
-    } else if (toys.optflags&FLAG_c) {
+    } else if (FLAG(c)) {
       unsigned wc;
       char *sss;
 
@@ -113,7 +113,7 @@ static void cut_line(char **pline, long len)
         if (j) start = count;
         else end = start;
         while (*ss && start) {
-          if (toys.optflags&FLAG_f) {
+          if (FLAG(f)) {
             if (!strchr(TT.d, *ss++)) continue;
             if (!--start && j) ss--;
           } else {
@@ -130,8 +130,8 @@ static void cut_line(char **pline, long len)
 
       // If we never encountered even one separator, print whole line (posix!)
       if (!j && end == start) {
-        if (toys.optflags&FLAG_D) break;
-        if (toys.optflags&FLAG_s) return;
+        if (FLAG(D)) break;
+        if (FLAG(s)) return;
         fwrite(line, len, 1, stdout);
         break;
       } else if (!*s) continue;
@@ -192,11 +192,11 @@ void cut_main(void)
     error_exit("-s needs -Ff");
   if ((toys.optflags&(FLAG_d|FLAG_f|FLAG_F))==FLAG_d)
     error_exit("-d needs -Ff");
-  if (!TT.d) TT.d = (toys.optflags&FLAG_F) ? "[[:space:]][[:space:]]*" : "\t";
-  if (toys.optflags&FLAG_F) xregcomp(&TT.reg, TT.d, REG_EXTENDED);
+  if (!TT.d) TT.d = (FLAG(F)) ? "[[:space:]][[:space:]]*" : "\t";
+  if (FLAG(F)) xregcomp(&TT.reg, TT.d, REG_EXTENDED);
   if (!TT.O) {
-    if (toys.optflags&FLAG_F) TT.O = " ";
-    else if (toys.optflags&FLAG_f) TT.O = TT.d;
+    if (FLAG(F)) TT.O = " ";
+    else if (FLAG(f)) TT.O = TT.d;
   }
 
   // Parse ranges, which are attached to a selection type (only one can be set)
@@ -207,7 +207,7 @@ void cut_main(void)
   if (!TT.pairs) error_exit("no selections");
 
   // Sort and collate selections
-  if (!(toys.optflags&FLAG_D)) {
+  if (!FLAG(D)) {
     int from, to;
     unsigned *pairs = (void *)toybuf;
 
