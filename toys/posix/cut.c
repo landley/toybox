@@ -42,26 +42,36 @@ GLOBALS(
   char *d, *O;
   struct arg_list *select[5]; // we treat them the same, so loop through
 
+  unsigned line;
   int pairs;
   regex_t reg;
 )
 
-
 // Apply selections to an input line, producing output
 static void cut_line(char **pline, long len)
 {
-  unsigned *pairs = (void *)toybuf;
+  unsigned *pairs = (void *)toybuf, wc;
   char *line;
-  int i, j;
+  int i, j, k;
 
   if (!pline) return;
   line = *pline;
   if (len && line[len-1]=='\n') line[--len] = 0;
+  TT.line++;
 
   // Loop through selections
   for (i=0; i<TT.pairs; i++) {
     unsigned start = pairs[2*i], end = pairs[(2*i)+1], count;
-    char *s = line, *ss;
+    char *s = line, *ss, *sss;
+
+    // when the delimiter is \n output lines.
+    if (*TT.d == '\n') {
+      if (TT.line<start || TT.line>end) {
+        if (i+1 == TT.pairs) return;
+        continue;
+      }
+      goto write_line;
+    }
 
     // input: start/end position, count=difference between them
     // output: s = start of string, len = bytes to output
@@ -72,8 +82,20 @@ static void cut_line(char **pline, long len)
     count = end-start;
 
     // Find start and end of output string for the relevant selection type
-    if (FLAG(b)) s += start;
-    else if (FLAG(C)) {
+    if (FLAG(b)) {
+      if (!FLAG(n)) s += start;
+      else {
+        if (end>len) end = len;
+        for (sss = ss = s; (k = (ss-line))<end;) {
+          if (0>(j = utf8towc(&wc, ss, len))) ss++;
+          else {
+            if (((ss += j)-line)<=end) sss = ss;
+            if ((ss-line)<=start) s = ss;
+          }
+        }
+        if (!(count = sss-s)) continue;
+      }
+    } else if (FLAG(C)) {
       // crunch_str() currently assumes that combining characters get
       // escaped, to provide an unambiguous visual representation.
       // This assumes the input string is null terminated.
@@ -85,8 +107,6 @@ static void cut_line(char **pline, long len)
       count = ss-s;
 
     } else if (FLAG(c)) {
-      unsigned wc;
-      char *sss;
 
       // Find start
       ss = line+len;
@@ -132,6 +152,7 @@ static void cut_line(char **pline, long len)
       if (!j && end == start) {
         if (FLAG(D)) break;
         if (FLAG(s)) return;
+write_line:
         fwrite(line, len, 1, stdout);
         break;
       } else if (!*s) continue;
