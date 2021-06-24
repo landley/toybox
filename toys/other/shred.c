@@ -10,7 +10,7 @@ config SHRED
   bool "shred"
   default y
   help
-    usage: shred [-fuz] [-n COUNT] [-s SIZE] FILE...
+    usage: shred [-fuxz] [-n COUNT] [-o OFFSET] [-s SIZE] FILE...
 
     Securely delete a file by overwriting its contents with random data.
 

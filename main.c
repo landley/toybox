@@ -30,7 +30,7 @@ struct toy_list *toy_find(char *name)
   if (!CFG_TOYBOX || strchr(name, '/')) return 0;
 
   // Multiplexer name works as prefix, else skip first entry (it's out of order)
-  if (!toys.which && strstart(&name, "toybox")) return toy_list;
+  if (!toys.which && strstart(&name, toy_list->name)) return toy_list;
   bottom = 1;
 
   // Binary search to find this command.
@@ -67,6 +67,21 @@ static void unknown(char *name)
   help_exit("Unknown command %s", name);
 }
 
+void check_help(char **arg)
+{
+  if (!strcmp(*arg, "--help")) {
+    if (CFG_TOYBOX && toys.which == toy_list && arg[1])
+      if (!(toys.which = toy_find(arg[1]))) unknown(arg[1]);
+    show_help(stdout, 1);
+    xexit();
+  }
+
+  if (!strcmp(*arg, "--version")) {
+    xprintf("toybox %s\n", toybox_version);
+    xexit();
+  }
+}
+
 // Setup toybox global state for this command.
 void toy_singleinit(struct toy_list *which, char *argv[])
 {
@@ -74,23 +89,12 @@ void toy_singleinit(struct toy_list *which, char *argv[])
   toys.argv = argv;
   toys.toycount = ARRAY_LEN(toy_list);
 
-  // Parse --help and --version for (almost) all commands
-  if (CFG_TOYBOX_HELP_DASHDASH && !(which->flags & TOYFLAG_NOHELP) && argv[1]) {
-    if (!strcmp(argv[1], "--help")) {
-      if (CFG_TOYBOX && toys.which == toy_list && toys.argv[2])
-        if (!(toys.which = toy_find(toys.argv[2]))) unknown(toys.argv[2]);
-      show_help(stdout, 1);
-      xexit();
-    }
-
-    if (!strcmp(argv[1], "--version")) {
-      xprintf("toybox %s\n", toybox_version);
-      xexit();
-    }
-  }
-
   if (NEED_OPTIONS && which->options) get_optflags();
   else {
+    // Parse --help and --version for (almost) all commands
+    if (CFG_TOYBOX_HELP_DASHDASH && !(which->flags & TOYFLAG_NOHELP) && argv[1])
+      check_help(argv+1);
+
     toys.optargs = argv+1;
     for (toys.optc = 0; toys.optargs[toys.optc]; toys.optc++);
   }

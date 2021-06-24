@@ -13,29 +13,27 @@ echo "one:two:three:four:five:six:seven
 alpha:beta:gamma:delta:epsilon:zeta:eta:theta:iota:kappa:lambda:mu
 the quick brown fox jumps over the lazy dog" >abc.txt
 
-testing "-b a,a,a" "cut -b 3,3,3 abc.txt" "e\np\ne\n" "" ""
-testing "-b overlaps" "cut -b 1-3,2-5,7-9,9-10 abc.txt" \
+testcmd "-b a,a,a" "-b 3,3,3 abc.txt" "e\np\ne\n" "" ""
+testcmd "-b overlaps" "-b 1-3,2-5,7-9,9-10 abc.txt" \
   "one:to:th\nalphabeta\nthe qick \n" "" ""
-testing "-b encapsulated" "cut -b 3-8,4-6 abc.txt" "e:two:\npha:be\ne quic\n" \
+testcmd "-b encapsulated" "-b 3-8,4-6 abc.txt" "e:two:\npha:be\ne quic\n" \
   "" ""
-testing "-bO overlaps" \
-  "cut --output-delimiter ' ' -b 1-3,2-5,7-9,9-10 abc.txt" \
+testcmd "-bO overlaps" "--output-delimiter ' ' -b 1-3,2-5,7-9,9-10 abc.txt" \
   "one:t o:th\nalpha beta\nthe q ick \n" "" ""
-testing "high-low error" "cut -b 8-3 abc.txt 2>/dev/null || echo err" "err\n" \
+testcmd "high-low error" "-b 8-3 abc.txt 2>/dev/null || echo err" "err\n" \
   "" ""
 
-testing "-c a-b" "cut -c 4-10 abc.txt" ":two:th\nha:beta\n quick \n" "" ""
-testing "-c a-" "cut -c 41- abc.txt" "\ntheta:iota:kappa:lambda:mu\ndog\n" "" ""
-testing "-c -b" "cut -c -39 abc.txt" \
+testcmd "-c a-b" "-c 4-10 abc.txt" ":two:th\nha:beta\n quick \n" "" ""
+testcmd "-c a-" "-c 41- abc.txt" "\ntheta:iota:kappa:lambda:mu\ndog\n" "" ""
+testcmd "-c -b" "-c -39 abc.txt" \
   "one:two:three:four:five:six:seven\nalpha:beta:gamma:delta:epsilon:zeta:eta\nthe quick brown fox jumps over the lazy\n" \
   "" ""
-testing "-c a" "cut -c 40 abc.txt" "\n:\n \n" "" ""
-testing "-c a,b-c,d" "cut -c 3,5-7,10 abc.txt" "etwoh\npa:ba\nequi \n" "" ""
-toyonly testing "-c japan.txt" 'cut -c 3-6,9-12 "$FILES/utf8/japan.txt"' \
+testcmd "-c a" "-c 40 abc.txt" "\n:\n \n" "" ""
+testcmd "-c a,b-c,d" "-c 3,5-7,10 abc.txt" "etwoh\npa:ba\nequi \n" "" ""
+toyonly testcmd "-c japan.txt" '-c 3-6,9-12 "$FILES/utf8/japan.txt"' \
   "ガラスをられます\n" "" ""
 
-toyonly testing "-C test1.txt" 'cut -C -1 "$FILES/utf8/test1.txt"' \
-  "l̴̗̞̠\n" "" ""
+toyonly testcmd "-C test1.txt" '-C -1 "$FILES/utf8/test1.txt"' "l̴̗̞̠\n" "" ""
 
 # substitute for awk
 toyonly testcmd "-DF" "-DF 2,7,5" \
@@ -47,24 +45,26 @@ Weather forecast for tonight : dark.
 Apple: you can buy better, but you can't pay more.
 Subcalifragilisticexpialidocious.
 Auntie Em: Hate you, hate Kansas. Took the dog. Dorothy."
+toyonly testcmd "-DF 2" "-DF 7,1,3-6,2-5" \
+  "seven one three four five six two three four five\n" "" \
+  "one two three four five six seven eight nine\n"
 
 testcmd "empty field" "-d ':' -f 1-3" "a::b\n" "" "a::b\n"
 testcmd "empty field 2" "-d ':' -f 3-5" "b::c\n" "" "a::b::c:d\n"
 
-testing "-f a-" "cut -d ':' -f 5- abc.txt" "five:six:seven\nepsilon:zeta:eta:theta:iota:kappa:lambda:mu\nthe quick brown fox jumps over the lazy dog\n" "" ""
+testcmd "-f a-" "-d ':' -f 5- abc.txt" "five:six:seven\nepsilon:zeta:eta:theta:iota:kappa:lambda:mu\nthe quick brown fox jumps over the lazy dog\n" "" ""
 
-testing "show whole line with no delim" "cut -d ' ' -f 3 abc.txt" \
+testcmd "show whole line with no delim" "-d ' ' -f 3 abc.txt" \
 	"one:two:three:four:five:six:seven\nalpha:beta:gamma:delta:epsilon:zeta:eta:theta:iota:kappa:lambda:mu\nbrown\n" "" ""
 
-testing "with echo, -c (a-b)" "echo 'ref_categorie=test' | cut -c 1-15 " "ref_categorie=t\n" "" ""
-testing "with echo, -c (a)" "echo 'ref_categorie=test' | cut -c 14" "=\n" "" ""
+testcmd "-c (a-b)" "-c 1-15 " "ref_categorie=t\n" "" "ref_categorie=test\n"
+testcmd "-c (a)" "-c 14" "=\n" "" "ref_categorie=test\n"
 
 # Modifying abc.txt data as per new testcase
 echo "abcdefghijklmnopqrstuvwxyz" >abc.txt
 
-testing "with -c (a,b,c)" "cut -c 4,5,20 abc.txt" "det\n" "" ""
-
-testing "with -b (a,b,c)" "cut -b 4,5,20 abc.txt" "det\n" "" ""
+testcmd "-c (a,b,c)" "-c 4,5,20 abc.txt" "det\n" "" ""
+testcmd "-b (a,b,c)" "-b 4,5,20 abc.txt" "det\n" "" ""
 
 # Modifying abc.txt data as per testcase
 echo "406378:Sales:Itorre:Jan
@@ -72,13 +72,17 @@ echo "406378:Sales:Itorre:Jan
 636496:Research:Ancholie:Mel
 396082:Sales:Jucacion:Ed" >abc.txt
 
-testing "with -d -f(:) -s" "cut -d: -f3 -s abc.txt" "Itorre\nNasium\nAncholie\nJucacion\n" "" ""
+testcmd "-d -f(:) -s" "-d: -f3 -s abc.txt" "Itorre\nNasium\nAncholie\nJucacion\n" "" ""
+testcmd "-d -f( ) -s" "-d' ' -f3 -s abc.txt && echo yes" "yes\n" "" ""
+testcmd "-d -f(a) -s" "-da -f3 -s abc.txt" "n\nsium:Jim\n\ncion:Ed\n" "" ""
+testcmd "-d -f(a) -s -n" "-da -f3 -s -n abc.txt" "n\nsium:Jim\n\ncion:Ed\n" "" ""
 
-testing "with -d -f( ) -s" "cut -d' ' -f3 -s abc.txt && echo yes" "yes\n" "" ""
+# Feature posix documents but nobody bothers to implement
+toyonly testcmd "-nb" '-nb 8-17 "$FILES/utf8/japan.txt"' "ガラス\n" "" ""
 
-testing "with -d -f(a) -s" "cut -da -f3 -s abc.txt" "n\nsium:Jim\n\ncion:Ed\n" "" ""
-
-testing "with -d -f(a) -s -n" "cut -da -f3 -s -n abc.txt" "n\nsium:Jim\n\ncion:Ed\n" "" ""
+# Feature that is, as far as I can tell, totally undocumented?
+testcmd "-d newline" "-d \$'\n' -f 2-3,5" "two\nthree\nfive\n" "" \
+  'one\ntwo\nthree\nfour\nfive\nsix\seven\n'
 
 # Removing abc.txt file for cleanup purpose
 rm abc.txt

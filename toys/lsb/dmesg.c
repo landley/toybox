@@ -141,7 +141,7 @@ void dmesg_main(void)
     for (;;) {
       // why does /dev/kmesg return EPIPE instead of EAGAIN if oldest message
       // expires as we read it?
-      if (-1==(len = read(fd, msg, sizeof(msg))) && errno==EPIPE) continue;
+      if (-1==(len = read(fd, msg, sizeof(msg)-1)) && errno==EPIPE) continue;
       // read() from kmsg always fails on a pre-3.5 kernel.
       if (len==-1 && errno==EINVAL) goto klogctl_mode;
       if (len<1) break;

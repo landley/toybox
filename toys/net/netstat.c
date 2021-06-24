@@ -182,8 +182,8 @@ static void show_unix_sockets(void)
     if (state==1 && flags && !(FLAG(a) || FLAG(l))) continue;
 
     if (type==10) type = 7; // move SOCK_PACKET into line
-    if (type>ARRAY_LEN(types)) type = 0;
-    if (state>ARRAY_LEN(states) || (state==1 && !flags)) state = 0;
+    if (type>=ARRAY_LEN(types)) type = 0;
+    if (state>=ARRAY_LEN(states) || (state==1 && !flags)) state = 0;
 
     if (state!=1 && FLAG(l)) continue;
 

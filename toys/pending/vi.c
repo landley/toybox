@@ -518,13 +518,16 @@ static int linelist_load(char *filename)
 
   if (filename) {
     int fd = open(filename, O_RDONLY);
-    size_t size;
-    char *data;
+    long long size;
 
-    if (fd == -1) return 0;
-    data = xmmap(0, size = fdlength(fd), PROT_READ, MAP_SHARED, fd, 0);
+    if (fd == -1 || !(size = fdlength(fd))) {
+      insert_str("", 0, 0, 0, STACK);
+      TT.filesize = 0;
+
+      return 0;
+    }
+    insert_str(xmmap(0, size, PROT_READ, MAP_SHARED, fd, 0), 0, size,size,MMAP);
     xclose(fd);
-    insert_str(data, 0, size, size, MMAP);
     TT.filesize = text_filesize();
   }
 
@@ -556,7 +559,6 @@ static void write_file(char *filename)
   else chmod(toybuf, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
   xrename(toybuf, filename);
   linelist_load(filename);
-
 }
 
 //jump into valid offset index
@@ -1482,7 +1484,7 @@ static void draw_page()
     // TODO: the row,col display doesn't show the cursor column
     // TODO: real vi shows the percentage by lines, not bytes
     sprintf(toybuf, "%zu/%zuC  %zu%%  %d,%d", TT.cursor, TT.filesize,
-      (100*TT.cursor)/TT.filesize, TT.cur_row+1, TT.cur_col+1);
+      (100*TT.cursor)/(TT.filesize ? : 1), TT.cur_row+1, TT.cur_col+1);
     if (TT.cur_col != cx_scr) sprintf(toybuf+strlen(toybuf),"-%d", cx_scr+1);
   }
   tty_jump(TT.screen_width-strlen(toybuf), TT.screen_height);
@@ -1508,12 +1510,11 @@ void vi_main(void)
   TT.il->alloc = 80, TT.yank.alloc = 128;
 
   linelist_load(0);
-  TT.screen = TT.cursor = 0;
 
   TT.vi_mov_flag = 0x20000000;
   TT.vi_mode = 1, TT.tabstop = 8;
-  TT.screen_width = 80, TT.screen_height = 24;
 
+  TT.screen_width = 80, TT.screen_height = 24;
   terminal_size(&TT.screen_width, &TT.screen_height);
   TT.screen_height -= 1;
 

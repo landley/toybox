@@ -2,8 +2,8 @@
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
 
-// Flag order is signifcant: b-t are units in order, FLAG_h-1 is unit mask
-USE_FREE(NEWTOY(free, "htgmkb[!htgmkb]", TOYFLAG_USR|TOYFLAG_BIN))
+// Flag order is signifcant: b-g are units in order, FLAG_h-1 is unit mask
+USE_FREE(NEWTOY(free, "hgmkb[!hgmkb]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config FREE
   bool "free"
@@ -13,7 +13,7 @@ config FREE
 
     Display the total, free and used amount of physical memory and swap space.
 
-    -bkmgt	Output units (default is bytes)
+    -bkmg	Output units (default is bytes)
     -h	Human readable (K=1024)
 */
 
