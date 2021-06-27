@@ -8,13 +8,13 @@
  * - should splitting an empty file produce an empty outfile? (Went with "no".)
  * - permissions on output file
 
-USE_SPLIT(NEWTOY(split, ">2a#<1=2>9b#<1l#<1[!bl]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SPLIT(NEWTOY(split, ">2a#<1=2>9b#<1l#<1n#<1[!bl][!bn][!ln]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config SPLIT
   bool "split"
   default y
   help
-    usage: split [-a SUFFIX_LEN] [-b BYTES] [-l LINES] [INPUT [OUTPUT]]
+    usage: split [-a SUFFIX_LEN] [-b BYTES] [-l LINES] [-n PARTS] [INPUT [OUTPUT]]
 
     Copy INPUT (or stdin) data to a series of OUTPUT (or "x") files with
     alphabetically increasing suffix (aa, ab, ac... az, ba, bb...).
@@ -22,13 +22,14 @@ config SPLIT
     -a	Suffix length (default 2)
     -b	BYTES/file (10, 10k, 10m, 10g...)
     -l	LINES/file (default 1000)
+    -n	PARTS
 */
 
 #define FOR_split
 #include "toys.h"
 
 GLOBALS(
-  long l, b, a;
+  long n, l, b, a;
 
   char *outfile;
 )
@@ -42,6 +43,12 @@ static void do_split(int infd, char *in)
   // posix doesn't cover permissions on output file, so copy input (or 0777)
   st.st_mode = 0777;
   fstat(infd, &st);
+
+  if (!TT.b && TT.n) {
+    if (lseek(infd, 0, SEEK_CUR) < 0)
+      error_exit("cannot determine file size");
+    TT.b = st.st_size / TT.n;
+  }
 
   len = pos = filenum = bytesleft = linesleft = 0;
   for (;;) {
@@ -64,6 +71,8 @@ static void do_split(int infd, char *in)
       }
       if (j) error_exit("bad suffix");
       bytesleft = TT.b;
+      if (TT.n && filenum == TT.n && st.st_size % 2)
+          ++bytesleft;
       linesleft = TT.l;
       xclose(outfd);
       outfd = xcreate(TT.outfile, O_RDWR|O_CREAT|O_TRUNC, st.st_mode & 0777);
@@ -95,7 +104,7 @@ static void do_split(int infd, char *in)
 
 void split_main(void)
 {
-  if (!TT.b && !TT.l) TT.l = 1000;
+  if (!TT.b && !TT.l && !TT.n) TT.l = 1000;
 
   // Allocate template for output filenames
   TT.outfile = xmprintf("%s%*c", (toys.optc == 2) ? toys.optargs[1] : "x",
