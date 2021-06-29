@@ -310,7 +310,7 @@ static int write_rotate(struct logfile *tf, int len)
   return write(tf->logfd, toybuf, len);
 }
 
-//Parse messege and write to file.
+//Parse message and write to file.
 static void logmsg(char *msg, int len)
 {
   time_t now;
@@ -321,7 +321,7 @@ static void logmsg(char *msg, int len)
 
   char *omsg = msg;
   int olen = len, fac, lvl;
-  
+
   if (*msg == '<') { // Extract the priority no.
     pri = (int) strtoul(msg + 1, &p, 10);
     if (*p == '>') msg = p + 1;
@@ -342,7 +342,7 @@ static void logmsg(char *msg, int len)
   fac = LOG_FAC(pri);
   lvl = LOG_PRI(pri);
 
-  if (toys.optflags & FLAG_K) len = sprintf(toybuf, "<%d> %s\n", pri, msg);
+  if (toys.optflags & FLAG_K) len = sprintf(toybuf, "<%d> %s", pri, msg);
   else {
     char facbuf[12], pribuf[12];
 
@@ -351,8 +351,8 @@ static void logmsg(char *msg, int len)
 
     p = "local";
     if (!uname(&uts)) p = uts.nodename;
-    if (toys.optflags & FLAG_S) len = sprintf(toybuf, "%s %s\n", ts, msg);
-    else len = sprintf(toybuf, "%s %s %s.%s %s\n", ts, p, facstr, lvlstr, msg);
+    if (toys.optflags & FLAG_S) len = sprintf(toybuf, "%s %s", ts, msg);
+    else len = sprintf(toybuf, "%s %s %s.%s %s", ts, p, facstr, lvlstr, msg);
   }
   if (lvl >= TT.log_prio) return;
 
@@ -454,7 +454,7 @@ init_jumpin:
     nfds++;
   }
   if (!nfds) {
-    error_msg("Can't open single socket for listenning.");
+    error_msg("Can't open single socket for listening.");
     goto clean_and_exit;
   }
 
@@ -524,8 +524,19 @@ init_jumpin:
       for (tsd = TT.lsocks; tsd; tsd = tsd->next) {
         int sd = tsd->sd;
         if (FD_ISSET(sd, &rfds)) {
-          int len = read(sd, buffer, 1023); //buffer is of 1K, hence readingonly 1023 bytes, 1 for NUL
+          // Buffer is of 1 KiB, hence reading only 1022 bytes, reserving 1
+          // for '\n' and 1 for '\0'
+          int len = read(sd, buffer, 1022);
+
+          // The syslog function's documentation says that a trailing '\n' is
+          // optional. We trim any that are present, and then append one.
+          while (len > 0 &&
+                 (buffer[len - 1] == '\n' || buffer[len - 1] == '\0')) {
+            --len;
+          }
+
           if (len > 0) {
+            buffer[len++] = '\n';
             buffer[len] = '\0';
             if((toys.optflags & FLAG_D) && (len == last_len))
               if (!memcmp(last_buf, buffer, len)) break;
