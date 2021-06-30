@@ -211,7 +211,7 @@ int xnotify_add(struct xnotify *not, int fd, char *path)
   if (not->count == not->max) error_exit("xnotify_add overflow");
   EV_SET(&event, fd, EVFILT_VNODE, EV_ADD|EV_CLEAR, NOTE_WRITE, 0, NULL);
   if (kevent(not->kq, &event, 1, NULL, 0, NULL) == -1 || event.flags & EV_ERROR)
-    return -1;
+    error_exit("xnotify_add failed on %s", path);
   not->paths[not->count] = path;
   not->fds[not->count++] = fd;
 
@@ -257,7 +257,7 @@ int xnotify_add(struct xnotify *not, int fd, char *path)
 
   if (not->max == not->count) error_exit("xnotify_add overflow");
   if ((not->fds[i] = inotify_add_watch(not->kq, path, IN_MODIFY))==-1)
-    return -1;
+    perror_exit("xnotify_add failed on %s", path);
   not->fds[i+1] = fd;
   not->paths[not->count++] = path;
 

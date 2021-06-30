@@ -6,30 +6,39 @@
  *
  * Deviations from posix: -f waits for pipe/fifo on stdin (nonblock?).
 
-USE_TAIL(NEWTOY(tail, "?fc-n-[-cn]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TAIL(NEWTOY(tail, "?fFs#=1c-n-[-cn][-fF]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TAIL
   bool "tail"
   default y
   help
-    usage: tail [-n|c NUMBER] [-f] [FILE...]
+    usage: tail [-n|c NUMBER] [-f|F] [-s SECONDS] [FILE...]
 
     Copy last lines from files to stdout. If no files listed, copy from
     stdin. Filename "-" is a synonym for stdin.
 
     -n	Output the last NUMBER lines (default 10), +X counts from start
     -c	Output the last NUMBER bytes, +NUMBER counts from start
-    -f	Follow FILE(s), waiting for more data to be appended
+    -f	Follow FILE(s) by descriptor, waiting for more data to be appended
+    -F	Follow FILE(s) by filename, waiting for more data, and retrying
+    -s	Used with -F, sleep SECONDS between retries (default 1)
 */
 
 #define FOR_tail
 #include "toys.h"
 
-GLOBALS(
-  long n, c;
+struct follow_file {
+  char *path;
+  int fd;
+  dev_t dev;
+  ino_t ino;
+};
 
+GLOBALS(
+  long n, c, s;
   int file_no, last_fd;
   struct xnotify *not;
+  struct follow_file *F;
 )
 
 struct line_list {
@@ -123,17 +132,89 @@ static int try_lseek(int fd, long bytes, long lines)
   return 1;
 }
 
+static void show_new(int fd, char *path)
+{
+  int len;
+
+  while ((len = read(fd, toybuf, sizeof(toybuf)))>0) {
+    if (TT.last_fd != fd) {
+      TT.last_fd = fd;
+      xprintf("\n==> %s <==\n", path);
+    }
+    xwrite(1, toybuf, len);
+  }
+}
+
+static void tail_F()
+{
+  struct stat sb;
+  int i, old_fd;
+
+  for (;;) {
+    for (i = 0; i<TT.file_no; ++i) {
+      old_fd = TT.F[i].fd;
+      if (stat(TT.F[i].path, &sb) != 0) {
+        if (old_fd >= 0) {
+          xprintf("tail: file inaccessible: %s\n", TT.F[i].path);
+          close(old_fd);
+          TT.F[i].fd = -1;
+        }
+        continue;
+      }
+
+      if (old_fd < 0 || sb.st_dev != TT.F[i].dev || sb.st_ino != TT.F[i].ino) {
+        if (old_fd >= 0) close(old_fd);
+        TT.F[i].fd = open(TT.F[i].path, O_RDONLY);
+        if (TT.F[i].fd == -1) continue;
+        else {
+          xprintf("tail: following new file: %s\n", TT.F[i].path);
+          TT.F[i].dev = sb.st_dev;
+          TT.F[i].ino = sb.st_ino;
+        }
+      } else if (sb.st_size && sb.st_size < lseek(TT.F[i].fd, 0, SEEK_CUR)) {
+        // If file was truncated, move to start.
+        xprintf("tail: file truncated: %s\n", TT.F[i].path);
+        xlseek(TT.F[i].fd, 0, SEEK_SET);
+      }
+
+      show_new(TT.F[i].fd, TT.F[i].path);
+    }
+
+    sleep(TT.s);
+  }
+}
+
+static void tail_f()
+{
+  char *path;
+  int fd;
+
+  for (;;) {
+    fd = xnotify_wait(TT.not, &path);
+    show_new(fd, path);
+  }
+}
+
 // Called for each file listed on command line, and/or stdin
 static void do_tail(int fd, char *name)
 {
   long bytes = TT.c, lines = TT.n;
   int linepop = 1;
 
-  if (FLAG(f)) {
+  if (FLAG(f) || FLAG(F)) {
     char *s = name;
+    struct stat sb;
 
     if (!fd) sprintf(s = toybuf, "/proc/self/fd/%d", fd);
-    if (xnotify_add(TT.not, fd, s)) perror_exit("-f on '%s' failed", s);
+
+    if (FLAG(f)) xnotify_add(TT.not, fd, s);
+    if (FLAG(F)) {
+      if (fstat(fd, &sb) != 0) perror_exit("%s", name);
+      TT.F[TT.file_no].fd = fd;
+      TT.F[TT.file_no].path = s;
+      TT.F[TT.file_no].dev = sb.st_dev;
+      TT.F[TT.file_no].ino = sb.st_ino;
+    }
   }
 
   if (TT.file_no++) xputc('\n');
@@ -227,23 +308,13 @@ void tail_main(void)
     }
   }
 
-  if (FLAG(f)) TT.not = xnotify_init(toys.optc);
-  loopfiles_rw(args, O_RDONLY|WARN_ONLY|(O_CLOEXEC*!FLAG(f)), 0, do_tail);
+  if (FLAG(F)) TT.F = xmalloc(toys.optc * sizeof(struct follow_file));
+  else if (FLAG(f)) TT.not = xnotify_init(toys.optc);
 
-  if (FLAG(f) && TT.file_no) {
-    for (;;) {
-      char *path;
-      int fd = xnotify_wait(TT.not, &path), len;
+  loopfiles_rw(args, O_RDONLY|WARN_ONLY|(O_CLOEXEC*!(FLAG(f) || FLAG(F))), 0, do_tail);
 
-      // Read new data.
-      while ((len = read(fd, toybuf, sizeof(toybuf)))>0) {
-        if (TT.last_fd != fd) {
-          TT.last_fd = fd;
-          xprintf("\n==> %s <==\n", path);
-        }
-
-        xwrite(1, toybuf, len);
-      }
-    }
+  if (TT.file_no) {
+    if (FLAG(F)) tail_F();
+    else if (FLAG(f)) tail_f();
   }
 }
