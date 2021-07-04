@@ -188,7 +188,9 @@ static void do_tail(int fd, char *name)
   long bytes = TT.c, lines = TT.n;
   int linepop = 1;
 
-  if (fd == -1 && !FLAG(F)) return;
+  if (FLAG(F)) {
+    if (!fd) perror_exit("no -F with '-'");
+  } else if (fd == -1) return;
   if (FLAG(f) || FLAG(F)) {
     char *s = name;
     struct stat sb;
