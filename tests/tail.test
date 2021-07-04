@@ -73,3 +73,9 @@ testing "-f one two three" \
   'tail -f one two three & sleep .25 ; echo more >> three ; echo also >> one; sleep .25; kill $! >/dev/null' \
   "==> one <==\nuno\n\n==> two <==\ndos\n\n==> three <==\ntres\nmore\n\n==> one <==\nalso\n" "" ""
 rm one two three
+
+testing "-F" "tail -s .1 -F walrus 2>/dev/null & sleep .2; echo hello > walrus;
+sleep .2; truncate -s 0 walrus; sleep .2; echo potato >> walrus; sleep .2;
+echo hello >> walrus; sleep .2; rm walrus; sleep .2; echo done > walrus;
+  sleep .5; kill %1" "hello\npotato\nhello\ndone\n" "" ""
+rm -f walrus
