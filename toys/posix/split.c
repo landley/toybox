@@ -22,7 +22,7 @@ config SPLIT
     -a	Suffix length (default 2)
     -b	BYTES/file (10, 10k, 10m, 10g...)
     -l	LINES/file (default 1000)
-    -n	PARTS
+    -n	PARTS many equal length files
 */
 
 #define FOR_split
@@ -42,14 +42,10 @@ static void do_split(int infd, char *in)
 
   // posix doesn't cover permissions on output file, so copy input (or 0777)
   st.st_mode = 0777;
+  st.st_size = 0;
   fstat(infd, &st);
 
-  if (!TT.b && TT.n) {
-    if (lseek(infd, 0, SEEK_CUR) < 0)
-      error_exit("cannot determine file size");
-    TT.b = st.st_size / TT.n;
-  }
-
+  if (TT.n && (TT.b = st.st_size/TT.n)<1) return error_msg("%s: no size", in);
   len = pos = filenum = bytesleft = linesleft = 0;
   for (;;) {
     int i, j;
@@ -70,9 +66,7 @@ static void do_split(int infd, char *in)
         j /= 26;
       }
       if (j) error_exit("bad suffix");
-      bytesleft = TT.b;
-      if (TT.n && filenum == TT.n && st.st_size % 2)
-          ++bytesleft;
+      bytesleft = TT.b + ((filenum == TT.n) ? st.st_size%TT.n : 0);
       linesleft = TT.l;
       xclose(outfd);
       outfd = xcreate(TT.outfile, O_RDWR|O_CREAT|O_TRUNC, st.st_mode & 0777);
