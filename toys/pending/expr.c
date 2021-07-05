@@ -3,7 +3,7 @@
  * Copyright 2016 Google Inc.
  * Copyright 2013 Daniel Verkamp <daniel@drv.nu>
  *
- * http://pubs.opengroup.org/onlinepubs/9699919799/utilities/expr.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/expr.html
  *
  * The web standard is incomplete (precedence grouping missing), see:
  * http://permalink.gmane.org/gmane.comp.standards.posix.austin.general/10141

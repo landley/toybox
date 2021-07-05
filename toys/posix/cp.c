@@ -1,7 +1,7 @@
 /* Copyright 2008 Rob Landley <rob@landley.net>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/cp.html
- * And http://opengroup.org/onlinepubs/9699919799/utilities/mv.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/cp.html
+ * And http://pubs.opengroup.org/onlinepubs/9699919799/utilities/mv.html
  * And http://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic.html#INSTALL
  *
  * Posix says "cp -Rf dir file" shouldn't delete file, but our -f does.

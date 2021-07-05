@@ -2,7 +2,7 @@
  *
  * Copyright 2013 Bilal Qureshi <bilal.jmi@gmail.com>
  *
- * http://pubs.opengroup.org/onlinepubs/9699919799/utilities/more.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/more.html
 
 USE_MORE(NEWTOY(more, 0, TOYFLAG_USR|TOYFLAG_BIN))
 

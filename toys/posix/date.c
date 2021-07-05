@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Andre Renaud <andre@bluewatersys.com>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/date.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/date.html
  *
  * Note: setting a 2 year date is 50 years back/forward from today,
  * not posix's hardwired magic dates.

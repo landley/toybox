@@ -2,7 +2,7 @@
  *
  * Copyright 2011 Rob Landley <rob@landley.net>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/link.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/link.html
 
 USE_LINK(NEWTOY(link, "<2>2", TOYFLAG_USR|TOYFLAG_BIN))
 

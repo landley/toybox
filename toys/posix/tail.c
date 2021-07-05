@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Timothy Elliott <tle@holymonkey.com>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/tail.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/tail.html
  *
  * Deviations from posix: -f waits for pipe/fifo on stdin (nonblock?).
 

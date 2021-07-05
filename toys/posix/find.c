@@ -2,7 +2,7 @@
  *
  * Copyright 2014 Rob Landley <rob@landley.net>
  *
- * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/find.c
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/find.html
  *
  * Our "unspecified" behavior for no paths is to use "."
  * Parentheses can only stack 4096 deep

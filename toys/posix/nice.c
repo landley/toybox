@@ -2,7 +2,7 @@
  *
  * Copyright 2010 Rob Landley <rob@landley.net>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/nice.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/nice.html
 
 USE_NICE(NEWTOY(nice, "^<1n#", TOYFLAG_BIN))
 

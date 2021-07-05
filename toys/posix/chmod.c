@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Rob Landley <rob@landley.net>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/chmod.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/chmod.html
 
 USE_CHMOD(NEWTOY(chmod, "<2?vfR[-vf]", TOYFLAG_BIN))
 

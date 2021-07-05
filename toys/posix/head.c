@@ -2,7 +2,7 @@
  *
  * Copyright 2006 Timothy Elliott <tle@holymonkey.com>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/head.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/head.html
  *
  * Deviations from posix: -c
 

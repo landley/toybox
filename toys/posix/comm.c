@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Ilya Kuzmich <ikv@safe-mail.net>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/comm.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/comm.html
 
 // <# and ># take single digit, so 321 define flags
 USE_COMM(NEWTOY(comm, "<2>2321", TOYFLAG_USR|TOYFLAG_BIN))

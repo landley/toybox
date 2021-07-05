@@ -3,7 +3,7 @@
  * Copyright 2013 Ashwini Kumar <ak.ashwini@gmail.com>
  * Copyright 2013 Kyungwan Han <asura321@gmail.com>
  *
- * See  http://opengroup.org/onlinepubs/9699919799/utilities/dd.html
+ * See  http://pubs.opengroup.org/onlinepubs/9699919799/utilities/dd.html
 
 USE_DD(NEWTOY(dd, 0, TOYFLAG_USR|TOYFLAG_BIN))
 

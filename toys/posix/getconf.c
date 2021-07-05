@@ -2,7 +2,7 @@
  *
  * Copyright 2017 Rob Landley <rob@landley.net>
  *
- * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/getconf.c
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/getconf.html
  *
  * Deviations from posix: no -v because nothing says what it should DO.
  * Added -l, what symbols should be included is a bit unclear.

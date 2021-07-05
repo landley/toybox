@@ -2,7 +2,7 @@
  *
  * Copyright 2016 Rob Landley <rob@landley.net>
  *
- * http://pubs.opengroup.org/onlinepubs/9699919799/utilities/cut.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/cut.html
  *
  * Deviations from posix: added -DF. We can only accept 512 selections, and
  * "-" counts as start to end. Using spaces to separate a comma-separated list

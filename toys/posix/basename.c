@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Tryn Mirell <tryn@mirell.org>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/basename.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/basename.html
 
 
 USE_BASENAME(NEWTOY(basename, "^<1as:", TOYFLAG_USR|TOYFLAG_BIN))

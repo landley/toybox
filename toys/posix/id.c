@@ -4,7 +4,7 @@
  *
  * by Tim Bird <tim.bird@am.sony.com>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/id.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/id.html
 
 USE_ID(NEWTOY(id, ">1"USE_ID_Z("Z")"nGgru[!"USE_ID_Z("Z")"Ggu]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_GROUPS(NEWTOY(groups, NULL, TOYFLAG_USR|TOYFLAG_BIN))

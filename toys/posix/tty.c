@@ -2,7 +2,7 @@
  *
  * Copyright 2011 Rob Landley <rob@landley.net>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/tty.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/tty.html
 
 USE_TTY(NEWTOY(tty, "s", TOYFLAG_USR|TOYFLAG_BIN))
 

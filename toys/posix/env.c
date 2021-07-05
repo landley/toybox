@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Tryn Mirell <tryn@mirell.org>
  *
- * http://opengroup.org/onlinepubs/9699919799/utilities/env.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/env.html
  *
  * Deviations from posix: "-" argument and -0
 

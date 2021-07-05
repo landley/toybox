@@ -2,7 +2,7 @@
  *
  * Copyright 2008 Rob Landley <rob@landley.net>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/rmdir.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/rmdir.html
 
 USE_RMDIR(NEWTOY(rmdir, "<1(ignore-fail-on-non-empty)p(parents)", TOYFLAG_BIN))
 

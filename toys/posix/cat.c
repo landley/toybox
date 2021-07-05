@@ -2,7 +2,7 @@
  *
  * Copyright 2006 Rob Landley <rob@landley.net>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/cat.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/cat.html
  *
  * And "Cat -v considered harmful" at
  *   http://cm.bell-labs.com/cm/cs/doc/84/kp.ps.gz

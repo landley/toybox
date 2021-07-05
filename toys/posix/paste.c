@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Felix Janda <felix.janda@posteo.de>
  *
- * http://pubs.opengroup.org/onlinepubs/9699919799/utilities/paste.html 
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/paste.html 
  *
  * Deviations from posix: the FILE argument isn't mandatory, none == '-'
 
