@@ -192,7 +192,7 @@ char **grab_dashlines(struct double_list **help, struct double_list **from,
   // Find start of dash block. Must be at start or after blank line.
   for (;;) {
     s = skip_spaces((*from)->data);
-    if (*s == '-' && s[1] != '-' && !count) break;
+    if (*s == '-' && s[1] != '-' && s[2] != '-' && !count) break;
 
     if (!*s) count = 0;
     else count++;
