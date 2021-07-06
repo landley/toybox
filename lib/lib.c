@@ -713,9 +713,9 @@ void poke(void *ptr, long long val, unsigned size)
 void loopfiles_rw(char **argv, int flags, int permissions,
   void (*function)(int fd, char *name))
 {
-  int fd, failok = !(flags&WARN_ONLY);
+  int fd, failok = !(flags&WARN_ONLY), anyway = flags & LOOPFILES_ANYWAY;
 
-  flags &= ~WARN_ONLY;
+  flags &= ~(WARN_ONLY|LOOPFILES_ANYWAY);
 
   // If no arguments, read from stdin.
   if (!*argv) function((flags & O_ACCMODE) != O_RDONLY ? 1 : 0, "-");
@@ -726,10 +726,10 @@ void loopfiles_rw(char **argv, int flags, int permissions,
     if (!strcmp(*argv, "-")) fd = 0;
     else if (0>(fd = notstdio(open(*argv, flags, permissions))) && !failok) {
       perror_msg_raw(*argv);
-      continue;
+      if (!anyway) continue;
     }
     function(fd, *argv);
-    if ((flags & O_CLOEXEC) && fd) close(fd);
+    if ((flags & O_CLOEXEC) && fd>0) close(fd);
   } while (*++argv);
 }
 
