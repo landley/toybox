@@ -140,6 +140,14 @@ testing '-u1' 'echo one>one; sleep .1; echo two>two; cp -u one two; cat two' \
   'two\n' '' ''
 testing '-u2' 'echo two>two; sleep .1; echo one>one; cp -u one two; cat two' \
   'one\n' '' ''
+mkdir a b
+
+echo potato > a/one
+echo potato > a/two
+touch b/one b/two
+testing '-i' 'cp -ri a/. b/. 2>/dev/null; cmp -s a/one b/one || cmp -s a/one b/two && echo yes' \
+  'yes\n' '' 'n\ny\n'
+rm -rf one two a b
 
 # cp -r ../source destdir
 # cp -r one/two/three missing
