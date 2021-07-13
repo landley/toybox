@@ -34,6 +34,7 @@ config IP
 #include <net/if_arp.h>
 #include <ifaddrs.h>
 #include <fnmatch.h>
+#include <linux/ip.h> // Centos 7.2 EOL June 30 2024
 #include <linux/if_tunnel.h>
 
 #ifndef IP_DF
