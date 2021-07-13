@@ -69,6 +69,7 @@
 #include "lib/lib.h"
 #include "lib/lsm.h"
 #include "lib/toyflags.h"
+#include <shadow.h>
 
 // Get list of function prototypes for all enabled command_main() functions.
 
