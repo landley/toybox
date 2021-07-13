@@ -111,8 +111,8 @@ static struct ext2_attr {
   {"Extents",                       FS_EXTENT_FL,       'e'},
   {"No_COW",                        FS_NOCOW_FL,        'C'},
   {"Casefold",                      FS_CASEFOLD_FL,     'F'},
-  {"Inline_Data",                   FS_INLINE_DATA_FL,  'N'},
-  {"Project_Hierarchy",             FS_PROJINHERIT_FL,  'P'},
+  {"Inline_Data",                   0x10000000,  'N'},
+  {"Project_Hierarchy",             0x20000000,  'P'},
   {"Verity",                        FS_VERITY_FL,       'V'},
   {NULL,                            0,                  0},
 };
