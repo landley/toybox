@@ -71,12 +71,23 @@ GLOBALS(
   int have_set;
 )
 
-#define FS_PROJINHERT_FL 0x20000000 // Linux 4.5
-#define FS_CASEFOLD_FL   0x40000000 // Linux 5.4
-#define FS_VERITY_FL     0x00100000 // Linux 5.4
+// Added more recently than the 7 year support horizon. TODO: remove
+#ifndef FS_INLINE_DATA_FL
+#define FS_INLINE_DATA_FL 0x10000000 // commit 68ce7bfcd995a 2016-01-08
+#endif
+#ifndef FS_PROJINHERIT_FL
+#define FS_PROJINHERIT_FL 0x20000000 // commit 8b4953e13f4c5 2015-10-17
+#endif
+#ifndef FS_CASEFOLD_FL
+#define FS_CASEFOLD_FL    0x40000000 // commit 71e90b4654a92 2019-07-23
+#endif
+#ifndef FS_VERITY_FL
+#define FS_VERITY_FL      0x00100000 // commit fe9918d3b228b 2019-07-22
+#endif
 
-// Linux 4.5
-struct fsxattr_4_5 {
+#ifndef FS_IOC_FSGETXATTR
+// commit 334e580a6f97e 2016-01-04
+struct fsxattr {
   unsigned fsx_xflags;
   unsigned fsx_extsize;
   unsigned fsx_nextents;
@@ -84,8 +95,9 @@ struct fsxattr_4_5 {
   unsigned fsx_cowextsize;
   char fsx_pad[8];
 };
-#define FS_IOC_FSGETXATTR_4_5 _IOR('X', 31, struct fsxattr_4_5)
-#define FS_IOC_FSSETXATTR_4_5 _IOW('X', 32, struct fsxattr_4_5)
+#define FS_IOC_FSGETXATTR _IOR('X', 31, struct fsxattr)
+#define FS_IOC_FSSETXATTR _IOW('X', 32, struct fsxattr)
+#endif
 
 static struct ext2_attr {
   char *name;
@@ -152,9 +164,9 @@ static void print_file_attr(char *path)
   if (-1 == (fd=open(path, O_RDONLY | O_NONBLOCK))) goto LABEL1;
 
   if (FLAG(p)) {
-    struct fsxattr_4_5 fsx;
+    struct fsxattr fsx;
 
-    if (ioctl(fd, FS_IOC_FSGETXATTR_4_5, &fsx)) goto LABEL2;
+    if (ioctl(fd, FS_IOC_FSGETXATTR, &fsx)) goto LABEL2;
     xprintf("%5u ", fsx.fsx_projid);
   }
   if (FLAG(v)) {
@@ -330,11 +342,11 @@ static int update_attr(struct dirtree *root)
     perror_msg("%s: setting version to %d failed", fpath, v);
 
   if (FLAG(p)) {
-    struct fsxattr_4_5 fsx;
-    int fail = ioctl(fd, FS_IOC_FSGETXATTR_4_5, &fsx);
+    struct fsxattr fsx;
+    int fail = ioctl(fd, FS_IOC_FSGETXATTR, &fsx);
 
     fsx.fsx_projid = TT.p;
-    if (fail || ioctl(fd, FS_IOC_FSSETXATTR_4_5, &fsx))
+    if (fail || ioctl(fd, FS_IOC_FSSETXATTR, &fsx))
       perror_msg("%s: setting projid to %u failed", fpath, fsx.fsx_projid);
   }
 
