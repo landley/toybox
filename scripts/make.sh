@@ -92,18 +92,8 @@ genbuildsh()
 {
   # Write a canned build line for use on crippled build machines.
 
-  echo "#!/bin/sh"
-  echo
-  echo "PATH='$PATH'"
-  echo
-  echo "BUILD='$BUILD'"
-  echo
-  echo "LINK='$LINK'"
-  echo
-  echo "FILES='$LIBFILES $TOYFILES'"
-  echo
-  echo
-  echo '$BUILD $FILES $LINK'
+  echo -e "#!/bin/sh\n\nPATH='\$PATH'\n\nBUILD='\$BUILD'\n\nLINK='\$LINK'\n"
+  echo -e "FILES='$LIBFILES $TOYFILES'\n\n\$BUILD \$FILES \$LINK"
 }
 
 if ! cmp -s <(genbuildsh 2>/dev/null | head -n 6 ; echo LINK="'"$LDOPTIMIZE $LDFLAGS) \
@@ -111,10 +101,9 @@ if ! cmp -s <(genbuildsh 2>/dev/null | head -n 6 ; echo LINK="'"$LDOPTIMIZE $LDF
 then
   echo -n "Library probe"
 
-  # We trust --as-needed to remove each library if we don't use any symbols
-  # out of it, this loop is because the compiler has no way to ignore a library
-  # that doesn't exist, so we have to detect and skip nonexistent libraries
-  # for it.
+  # --as-needed removes libraries we don't use any symbols out of, but the
+  # compiler has no way to ignore a library that doesn't exist, so detect
+  # and skip nonexistent libraries for it.
 
   > generated/optlibs.dat
   for i in util crypt m resolv selinux smack attr crypto z log iconv

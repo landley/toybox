@@ -39,11 +39,11 @@ do_test()
   then
     C="$TESTDIR/$CMDNAME"
     [ ! -e "$C" ] && echo "$CMDNAME disabled" && return
+    C="$(dirname $(realpath "$C"))/$CMDNAME"
   else
     C="$(which $CMDNAME 2>/dev/null)"
     [ -z "$C" ] && printf '%s\n' "$SHOWSKIP: no $CMDNAME" && return
   fi
-  C="$(dirname $(realpath "$C"))/$CMDNAME"
 
   (. "$1"; cd "$TESTDIR"; touch continue)
   cd "$TESTDIR"
