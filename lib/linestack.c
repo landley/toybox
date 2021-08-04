@@ -1,7 +1,7 @@
 #include "toys.h"
 
 // The design idea here is indexing a big blob of (potentially mmaped) data
-// instead of copying the data into a zillion seperate malloc()s.
+// instead of copying the data into a zillion separate malloc()s.
 
 // A linestack is an array of struct ptr_len, with a currently used len
 // and max tracking the memory allocation. This indexes existing string data,

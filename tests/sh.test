@@ -9,7 +9,7 @@
 #        // ${#} ${#x} ${#@} ${#x[@]} ${#!} ${!#}
 #        // ${!} ${!@} ${!@Q} ${!x} ${!x@} ${!x@Q} ${!x#} ${!x[} ${!x[*]}
 
-# Looked like a prefix but wasn't: three chars (@ # -) are both paremeter name
+# Looked like a prefix but wasn't: three chars (@ # -) are both parameter name
 # and slice operator. When immediately followed by } it's parameter, otherwise
 # we did NOT have a prefix and it's an operator.
 #

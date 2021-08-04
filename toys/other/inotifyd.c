@@ -86,7 +86,7 @@ void inotifyd_main(void)
       int left = len - (((char *)event)-(char *)buf),
           size = sizeof(struct inotify_event);
 
-      // Don't dereference event if ->len is off end of bufer
+      // Don't dereference event if ->len is off end of buffer
       if (left >= size) size += event->len;
       if (left < size) break;
 

@@ -39,7 +39,7 @@ and progress towards implementing it. There's also a
 <li><a href=#aosp>Building AOSP</a></li>
 <li><a href=#tizen>Tizen Core</a></li>
 <li><a href=#buildroot>buildroot</a></li>
-<li>Miscelaneous: <a href=#klibc>klibc</a>, <a href=#glibc>glibc</a>,
+<li>Miscellaneous: <a href=#klibc>klibc</a>, <a href=#glibc>glibc</a>,
 <a href=#sash>sash</a>, <a href=#sbase>sbase</a>,
 <a href=#uclinux>uclinux</a>...</li>
 <li><a href=#packages>Other Packages</a></li>
@@ -147,7 +147,7 @@ fairly low.</p>
 
 <p>POSIX allowed its standards process to be compromised
 by leaving things out, thus allowing IBM mainframes and Windows NT to drive
-a truck through the holes and declare themselves compilant. But it means what
+a truck through the holes and declare themselves compliant. But it means what
 they DID standardize tends to be respected (if sometimes obsolete).</p>
 
 <p>The Linux Standard Base's failure mode is different, they respond to
@@ -187,7 +187,7 @@ tar umount useradd userdel usermod xargs zcat
 </b></blockquote>
 
 <p>Where posix specifies one of those commands, LSB's deltas tend to be
-accomodations for broken tool versions which aren't up to date with the
+accommodations for broken tool versions which aren't up to date with the
 standard yet. (See <a href=http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/more.html>more</a> and <a href=http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/xargs.html>xargs</a>
 for examples.)</p>
 
@@ -261,11 +261,11 @@ resize2fs tune2fs fsck.ext2 genext2fs mke2fs xzcat
 configure, make, and install in each package, and providing basic command line
 facilities such as a text editor. (It does not include a compiler toolchain or
 C library, those are outside the scope of the toybox project, although mkroot
-has a <a href=https://landley.net/code/qcc>potentialy follow-up project</a>.
+has a <a href=https://landley.net/code/qcc>potentially follow-up project</a>.
 For now we use distro toolchains,
 <a href=https://github.com/richfelker/musl-cross-make>musl-cross-make</a>,
 and the Android NDK for build testing.)
-That build system also instaled bash 2.05b as #!/bin/sh and its scripts
+That build system also installed bash 2.05b as #!/bin/sh and its scripts
 required bash extensions not present in shells such as busybox ash.
 To replace that toysh needs to supply several bash extensions _and_ work
 when called under the name "bash".</p>
@@ -630,7 +630,7 @@ non-configurable iconv.</p>
 unistd.h; it probably belongs in the development toolchain.</p>
 
 <p>getent handles retrieving entries from passwd-style databases
-(in a rather lame way) and is trivially replacable by grep.</p>
+(in a rather lame way) and is trivially replaceable by grep.</p>
 
 <p>locale was discussed under <a href=#susv4>posix</a>.
 localedef compiles locale definitions, which musl currently does not use.</p>
@@ -647,7 +647,7 @@ timezone database</a>. Unless we want to maintain our own fork of the
 standards body's database like glibc does, these are of no interest,
 but for completeness:</p>
 
-<p>tzselect outputs a TZ variable correponding to user input. 
+<p>tzselect outputs a TZ variable corresponding to user input.
 The documentation does not indicate how to use it in a script, but it seems
 that Debian may have done so.
 zdump prints current time in each of several timezones, optionally
@@ -775,7 +775,7 @@ umount waitdev
 </p></blockquote>
 
 <p>This list is nuts: "plymouth" is an alias for "null" which is basically
-"true" (which thie above list doesn't have). Things like buildEnv and
+"true" (which the above list doesn't have). Things like buildEnv and
 loadDrivers are bespoke Red Hat behavior that might as well be hardwired in
 to nash's main() without being called.</p>
 
@@ -948,7 +948,7 @@ proggy" in uclinux's kconfig (as opposed to clamsmtp and smtpclient and
 so on), this gettyd isn't a generic version but specifically a
 hardwired ppp dialin utility, mgetty isn't a generic version but is combined
 with "sendfax", hostap is an intersil prism driver, wlan-ng is also an
-intersil prism dirver, null is a program to intentionally dereference a
+intersil prism driver, null is a program to intentionally dereference a
 null pointer (in case you needed one), iso_client is a
 "Demo Application for the USB Device Driver", kendin-config is
 "for configuring the Micrel Kendin KS8995M over QSPI", speedtouch configures

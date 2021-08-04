@@ -208,7 +208,7 @@ void eval_op(struct op_def *o, struct value *ret, struct value *rhs)
   }
 }
 
-// Evalute a compound expression using recursive "Precedence Climbing"
+// Evaluate a compound expression using recursive "Precedence Climbing"
 // algorithm, setting 'ret'.
 static void eval_expr(struct value *ret, int min_prec)
 {

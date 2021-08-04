@@ -475,7 +475,7 @@ Jarno Mäkipää fixed utf8 support in cut -C, and cp --parents.
 David Legault complained that dir/.* tells rm to delete dir/.. and we'd do it.
 JakeSFR pointed out a bug in file's identification of broken symlinks.
 William Haddon fixed cp to treat a directory with a trailing slash
-teh same as one without.
+the same as one without.
 Denys Nykula fixed rm -i not to prompt for an empty "" argument.
 SebiderSushi reported that chmod g+s wasn't working.
 The linux kernel doesn't let an O_PATH fd work with fgetxattr(), so
@@ -719,7 +719,7 @@ Coversions between signal names and numbers now include all the Linux signals,
 not just posix ones. The functions sig_to_num() and num_to_sig() moved into
 lib/portability.h, because MacOS has different signals.
 TOYFLAG_MAYFORK allows commands to run in toysh's process without forking,
-but also makes them accessable from the toybox multiplexer or standalone.
+but also makes them accessible from the toybox multiplexer or standalone.
 A MAYFORK command has to clean up after itself (even in error paths) and
 can't discard anything we need to keep (such as closing stdout).</p>
 
@@ -898,7 +898,7 @@ clear the environment when -p is absent.
 Vidar Holen fixed inverted find -exec exit status.
 Rob made chgrp() stop relying on libc's printf("%s", NULL) printing "(null)"
 because a <a href=https://github.com/varnishcache/varnish-cache/issues/2879>newly added gcc bug</a> turns that into a build break, and
-fixed an outright embarassing xstrndup() bug.
+fixed an outright embarrassing xstrndup() bug.
 Liwugang fixed a segfault when stat's format string had a trailing %.
 A missing else in grep meant -x was sometimes ignored.</p>
 
@@ -1062,7 +1062,7 @@ Removed CFG_SORT_BIG (the sort command always
 has the full functionality now. The general future direction or toybox
 is to either have a command or not have it; multiple versions of the
 same command aren't worth the complexity in testing, documentation,
-or system adminstration).</p>
+or system administration).</p>
 
 <p><u>Library code</u>:
 The mkflags plumbing can now support arbitrary punctuation as option
@@ -1218,7 +1218,7 @@ Added "%" to lib/args.c reading seconds (including fractions/units) into a
 long milliseconds argument. Redid xparsetime() to not need floating point,
 added xparsemillitime() for milliseconds common case, and
 parsetime() now treats leading garbage as an error instead of returning zero.
-The bufgetpwuid()/pufgetgrgid() functons can now handle more than 4k of group
+The bufgetpwuid()/pufgetgrgid() functions can now handle more than 4k of group
 data. The set_terminal() function can now set serial speed, and microcom.c
 uses it. Added xsignal_flags(), and more consistently use xsignal() (which wraps
 sigaction()) instead of signal().
@@ -1276,13 +1276,13 @@ pushed Rob to make <b>file</b> work better recognizing things on stdin
 ("cat /bin/ls | file -" still won't work but "file - < /bin/ls" should).
 Rob fixed a bug in <b>netstat</b> on 64 bit big endian systems,
 and fixed <b>cut</b> -DF
-(a posix compliance fix broke its ability to act as a decent awk replacment
+(a posix compliance fix broke its ability to act as a decent awk replacement
 because outputting all delimiterless lines isn't what you want there, -D
 now disables that too).</p>
 </u></p>
 
 <p><u>Documentation</u>: Rob added a buildroot section to the roadmap with the
-prequisites that needs to run, and reformatted more of the ps --help text
+prerequisites that needs to run, and reformatted more of the ps --help text
 to two columns.</p>
 
 <p><u>Library</u>:
@@ -1535,7 +1535,7 @@ and provides error messages for files we could open but not read.</p>
 
 <p><u>Library</u>:
 New library functions: strend() complements strstart(), minof()/maxof()
-are min/max macros that evalute arguments once and autodetect type (why
+are min/max macros that evaluate arguments once and autodetect type (why
 isn't this in libc?), xmmap() checks MAP_FAILED (which is not NULL).</p>
 
 <a name="21-02-2017" /><a href="#21-02-2017"><hr><h2><b>February 21, 2017</b></h2></a>
@@ -1679,7 +1679,7 @@ We taught stat to handle "%12x" and "%.12x" printf-style escapes, which
 apparently other versions do. The ifconfig output now shows the interface's
 device driver. Added patch -d and --dry-run, wc can now do -cm together,
 find has a NOP -noleaf so scripts that use that don't break, add -c to md5sum
-and sha1sum. Elliott taught ps to treat extra aguments as additional -p
+and sha1sum. Elliott taught ps to treat extra arguments as additional -p
 pids, implemented xxd -s, did a number of upgrades to file (added -HL,
 support for ar files, improved ELF support to report android API level
 and stripped/not stripped and it no longer prints a guessed build ID type).
@@ -1747,7 +1747,7 @@ output and all.)</p>
 New library functions readlink0() and readlinkat0() which properly null
 terminates the symlink value (which the stock libc function inexplicably
 doesn't).
-The new do_lines() function interates reading lines from a filehandle
+The new do_lines() function iterates reading lines from a filehandle
 and calling a function on each line.
 New function pollinate() factoring out netcat's poll() loop so things
 like telnet can use it.
@@ -1898,7 +1898,7 @@ build loop has fewer forks now.</p>
 consistently prints the name of the command being tested at the start of each
 test (and the common infrastructure does that, not each individual test), and
 "make tests" actually runs all the available tests now.
-Seperated pgrep and pkill tests, split lsattr/chattr, added fstype and base64
+Separated pgrep and pkill tests, split lsattr/chattr, added fstype and base64
 tests. The "tests/files" directory now collects files for tests to
 use, with blkid, bzcat, and utf8 subdirectories: the $FILES variable
 gives a path to it, so "$FILES/blkid/ext2.bz2" and so on.
@@ -2464,7 +2464,7 @@ Since time.c uses floating point, added TOYBOX_FLOAT dependency in config.</p>
 security modules stuff, if (lsm_enabled()) should turn into a compile-time
 constant 0 and let code drop out when TOYBOX_LSM_NONE selected, but
 testing against CFG_TOYBOX_LSM_NONE or derived symbols is still useful
-becuase when it _is_ enabled the probe turns into a system call you
+because when it _is_ enabled the probe turns into a system call you
 don't want to repeat too much.</p>
 
 <p>Switched a bunch of commands from signal() to xsignal(). Factored out
@@ -2499,7 +2499,7 @@ the <a href=roadmap.html>roadmap</a>, and that's ignoring the implementations
 written for DOS or in assembly over the years). But I do care what
 Linux From Scratch expects, and if it's
 <a href=http://archive.linuxfromscratch.org/lfs-museum/7.6/LFS-BOOK-7.6-NOCHUNKS.html#ch-tools-gcc-pass1>calling mv -v</a>
-then I impelement mv -v
+then I implement mv -v
 even if <a href=http://landley.net/toybox/roadmap.html>posix hasn't got
 it</a>. And I don't know why "gnu counterparts" would describe this when
 util-linux isn't a gnu package, nor are info-zip, e2fsprogs, kmod, less,
@@ -2529,7 +2529,7 @@ base64 (the Tizen guys wanted them), getenforce, setenforce, and chcon (android)
 mix (promoted with fixes from Isaac Dunham), nsenter (from
 Andy Lutomirski, merged into unshare).</p>
 
-<p>Elliott Hughes submited a bunch of patches to support Android (to
+<p>Elliott Hughes submitted a bunch of patches to support Android (to
 both toybox and Bionic libc, which he maintains). On toybox's end this
 involved a lot of fixups to portability.[ch] and fixes to over a dozen
 commands, plus several new ones. Other portability fixes included working
@@ -2760,7 +2760,7 @@ difficulties."</p><p>- The Hitchhiker's Guide to the Galaxy<p></blockquote>
 <p>cp now implements -HL and -F to force delete of pending files, cpio now
 ignores -m and implements -p, ls -C now has utf8 support (using wcwidth
 instead of strlen), and umount got a number of upgrades involving
-looking things up in /proc/mounts. Other minor cleanups happend to
+looking things up in /proc/mounts. Other minor cleanups happened to
 cut, touch, free, and id.</p>
 
 <p>In pending: Bradley Controy submitted mix (adjusts OSS sound volume). Ashwini
@@ -2813,7 +2813,7 @@ commands.
 <p>A new addition to the "generated" directory is generated/build.sh
 containing a single compiler command line to build toybox in its current
 configuration. Combined with the generated/*.{h,sh} files from an
-exisiting build, this may let you build on a new system that hasn't quite
+existing build, this may let you build on a new system that hasn't quite
 got enough OS bits working to run a full configureand make.</p>
 
 <h3>Internals</h3>
@@ -2829,7 +2829,7 @@ use it to more easily modify a file's existing mode.
 Split xpopen() into xpopen_both(), xopen(), and xrun() depending on whether
 we want to redirect both, one, or neither of stdin/stdout.</p>
 
-<p>Bugfixes: Better error message when TOYBOX_SUID option can't drop priviliges
+<p>Bugfixes: Better error message when TOYBOX_SUID option can't drop privileges
 (which happens when you suid something _other_ than root).
 The old pending version of nbd_client.c wasn't deleted when the
 command was promoted (and the build would break if both were enabled),
@@ -3302,7 +3302,7 @@ more people to do it, but the writeups aren't caught up yet. The
 of other projects, and the README and about pages got updated.</p>
 
 <p>Fixed _another_ "ls -C" segfault when terminal size can't be detected,
-condensed the ls help text to fit on one page, implented --color, and taught
+condensed the ls help text to fit on one page, implemented --color, and taught
 -l to print the major, minor numbers when showing block/char devices.
 Argument parsing now handles "--" properly (to end option checking),
 and the infrastructure can now handle bare --longopts that have no
@@ -3554,7 +3554,7 @@ some more. The patch file creation logic got tweaked several times to
 successfully apply more patches. Support for older (pre 2.10) glibc
 versions was added to portability.h.</p>
 
-<p>Miscelaneous cleanups all around (mknod, sha1sum, logname), including a
+<p>Miscellaneous cleanups all around (mknod, sha1sum, logname), including a
 rewrite of taskset to be less dependent on libc getting the headers right. All
 the command headers should now point to the current relevant standards
 document, where applicable.</p>
@@ -3599,7 +3599,7 @@ pending output on exit.</p>
 mostly a bugfix release for ls -l (which was unhappy on targets other than
 x86-64), plus a new "date" from Andre Renaud and rewritten chgrp/chown which
 now support the full set of posix flags, plus a little work on the test
-suite and some more header tweaks towards eventual compatability with the
+suite and some more header tweaks towards eventual compatibility with the
 musl libc.</p>
 
 <p>The todo list runneth over, but "release early, release often", so here
@@ -3644,7 +3644,7 @@ Pere Orga fixed some documentation.</p>
 
 <p>The "tac" and "clear" commands are now normal commands instead of shell
 wrappers, and the header #includes have been cleaned up a bit to remove
-deprecated functions and attempt to increase compatability with the bionic and
+deprecated functions and attempt to increase compatibility with the bionic and
 musl C libraries, "tail" should now use lseek() for large files, and "id" got
 some cleanups and bugfixes.</p>
 

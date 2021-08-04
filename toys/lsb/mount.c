@@ -42,7 +42,7 @@ config MOUNT
 #  helo
 #    usage: smbmount SHARE DIR
 #
-#    Mount smb share with user/pasword prompt as necessary.
+#    Mount smb share with user/password prompt as necessary.
 #
 #config NFSMOUNT
 #  bool "nfsmount"
@@ -309,7 +309,7 @@ void mount_main(void)
   for (ss = toys.optargs; *ss; ss++) {
     char *sss = *ss;
 
-    // If you realy, really want to mount a file named "--", we support it.
+    // If you really, really want to mount a file named "--", we support it.
     if (sss[0]=='-' && sss[1]=='-' && sss[2]) comma_collate(&opts, sss+2);
     else if (!dev) dev = sss;
     else if (!dir) dir = sss;

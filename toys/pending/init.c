@@ -31,7 +31,7 @@ struct action_list_seed {
 } *action_list_pointer = NULL;
 int caught_signal;
 
-//INITTAB action defination
+//INITTAB action definition
 #define SYSINIT     0x01
 #define WAIT        0x02
 #define ONCE        0x04

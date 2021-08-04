@@ -1,6 +1,6 @@
 Here's how mount actually works:
 
-The mount comand calls the mount system call, which has five arguments you
+The mount command calls the mount system call, which has five arguments you
 can see on the "man 2 mount" page:
 
   int mount(const char *source, const char *target, const char *filesystemtype,
@@ -30,7 +30,7 @@ read only. The mount command assembles an option string to supply to the "data"
 argument of the option syscall, but first it parses it for VFS options
 (ro,noexec,nodev,nosuid,noatime...) each of which corresponds to a flag
 from #include <sys/mount.h>. The mount command removes those options from the
-sting and sets the corresponding bit in mountflags, then the remaining options
+string and sets the corresponding bit in mountflags, then the remaining options
 (if any) form the data argument for the filesystem driver.
 
 A few quick implementation details: the mountflag MS_SILENCE gets set by
@@ -60,7 +60,7 @@ Different drivers implement different filesystems, which have four categories:
 This kind of filesystem driver acts as a lens to look at a block device
 through. The source argument for block backed filesystems is a path to a
 block device, such as "/dev/hda1", which stores the contents of the
-filesystem in a fixed block of sequential storage, and there's a seperate
+filesystem in a fixed block of sequential storage, and there's a separate
 driver providing that block device.
 
 Block backed filesystems are the "conventional" filesystem type most people
@@ -92,7 +92,7 @@ more often than not you don't.
 
 These are also known as "pipe backed" filesystems (or "network filesystems"
 because that's a common case, although a network doesn't need to be inolved).
-Conceptually they're char device backed filesystems (analogus to the block
+Conceptually they're char device backed filesystems (analogous to the block
 device backed ones), but you don't commonly specify a character device in
 /dev when mounting them because you're talking to a specific server process,
 not a whole machine.

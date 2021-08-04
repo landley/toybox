@@ -125,7 +125,7 @@ multiple commands:</li>
 <li><a href="#lib_args">lib/args.c</a></li>
 <li><a href="#lib_dirtree">lib/dirtree.c</a></li>
 </ul>
-<li>The <a href="#toys">toys directory</a> contains the C files implementating
+<li>The <a href="#toys">toys directory</a> contains the C files implementing
 each command. Currently it contains five subdirectories categorizing the
 commands: posix, lsb, other, example, and pending.</li>
 <li>The <a href="#scripts">scripts directory</a> contains the build and
@@ -255,7 +255,7 @@ with your option string, that will give you error messages.</p>
 
 <p>Otherwise it'll just segfault without
 explanation when it falls off the end because it didn't find a matching
-end parantheses for a longopt, or you put a nonexistent option in a square
+end parentheses for a longopt, or you put a nonexistent option in a square
 bracket grouping... Since these kind of errors can only be caused by a
 developer, not by end users, we don't normally want runtime checks for
 them. Once you're happy with your option string, you can switch TOYBOX_DEBUG
@@ -352,7 +352,7 @@ defining macros and #including generated/newtoys.h.</p>
 <li><p>void (*<b>toy_main</b>)(void) - function pointer to run this
 command.</p></li>
 <li><p>char *<b>options</b> - command line option string (used by
-get_optflags() in lib/args.c to intialize toys.optflags, toys.optargs, and
+get_optflags() in lib/args.c to initialize toys.optflags, toys.optargs, and
 entries in the toy's GLOBALS struct).  When this is NULL, no option
 parsing is done before calling toy_main().</p></li>
 <li><p>int <b>flags</b> - Behavior flags for this command.  The following flags are currently understood:</p>
@@ -451,7 +451,7 @@ declare global variables outside of this, because such global variables would
 allocate memory when running other commands that don't use those global
 variables.</p>
 
-<p>The first few fields of this structure can be intialized by <a href="#lib_args">get_optargs()</a>,
+<p>The first few fields of this structure can be initialized by <a href="#lib_args">get_optargs()</a>,
 as specified by the options field off this command's toy_list entry.  See
 the get_optargs() description in lib/args.c for details.</p>
 </li>
@@ -609,7 +609,7 @@ is the first entry, the rest are in alphabetical order. Each line should be
 inside an appropriate USE_ macro, so code that #includes this file only sees
 the currently enabled commands.</p>
 
-<p>By #definining NEWTOY() to various things before #including this file,
+<p>By #defining NEWTOY() to various things before #including this file,
 it may be used to create function prototypes (in toys.h), initialize the
 help_data array (in lib/help.c),  initialize the toy_list array (in main.c,
 the alphabetical order lets toy_find() do a binary search, the exception to
@@ -621,7 +621,7 @@ lib/args.c if nothing currently enabled is using it.)<p>
 
 <p>Each NEWTOY and OLDTOY macro contains the command name, command line
 option string (telling lib/args.c how to parse command line options for
-this command), recommended install location, and miscelaneous data such
+this command), recommended install location, and miscellaneous data such
 as whether this command should retain root permissions if installed suid.</p>
 </li>
 
@@ -1163,7 +1163,7 @@ options they're switching back off, but [+] won't set options it didn't see
 <p><b>whitespace</b></p>
 
 <p>Arguments may occur with or without a space (I.E. "-a 42" or "-a42").
-The command line argument "-abc" may be interepreted many different ways:
+The command line argument "-abc" may be interpreted many different ways:
 the optflags string "cba" sets toys.optflags = 7, "c:ba" sets toys.optflags=4
 and saves "ba" as the argument to -c, and "cb:a" sets optflags to 6 and saves
 "c" as the argument to -b.</p>
@@ -1247,7 +1247,7 @@ which is NULL for non-symlinks.</p>
 
 <p>During a callback function, the <b>int dirfd</b> field of directory nodes
 contains a directory file descriptor (for use with the openat() family of
-functions). This isn't usually used directly, intstead call dirtree_parentfd()
+functions). This isn't usually used directly, instead call dirtree_parentfd()
 on the callback's node argument. The <b>char again</b> field is 0 for the
 first callback on a node, and 1 on the second callback (triggered by returning
 DIRTREE_COMEAGAIN on a directory, made after all children have been processed).
@@ -1322,7 +1322,7 @@ encountered during recursive directory traversal.
 <b>DIRTREE_RECURSE</b> from the callback, instead calling <b>dirtree_recurse</b>() manually
 from elsewhere in the program. This gives ls -lR manual control
 of traversal order, which is neither depth first nor breadth first but
-instead a sort of FIFO order requried by the ls standard.</p>
+instead a sort of FIFO order required by the ls standard.</p>
 
 <a name="toys">
 <h1><a href="#toys">Directory toys/</a></h1>

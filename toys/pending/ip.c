@@ -835,7 +835,7 @@ static int print_link_output(struct linkdata *link)
   xputc('\n');
 
   //user can specify stats flag two times
-  //one for stats and other for erros e.g. -s and -s -s
+  //one for stats and other for errors e.g. -s and -s -s
   print_stats(&link->rt_stat);
   free(flags);
 

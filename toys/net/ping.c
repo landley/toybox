@@ -214,7 +214,7 @@ void ping_main(void)
   if (TT.w) tw = TT.w*1000+tnext;
 
   memset(&msg, 0, sizeof(msg));
-  // left enought space to store ttl value
+  // left enough space to store ttl value
   len = CMSG_SPACE(sizeof(uint8_t));
   iov.iov_base = (void *)toybuf;
   iov.iov_len = sizeof(toybuf) - len;

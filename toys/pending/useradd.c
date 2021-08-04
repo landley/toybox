@@ -57,7 +57,7 @@ void useradd_main(void)
   if (getpwnam(s)) error_exit("'%s' in use", s);
 
   // Add a new group to the system, if UID is given then that is validated
-  // to be free, else a free UID is choosen by self.
+  // to be free, else a free UID is chosen by self.
   // SYSTEM IDs are considered in the range 100 ... 999
   // add_user(), add a new entry in /etc/passwd, /etc/shadow files
 

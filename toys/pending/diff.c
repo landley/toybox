@@ -147,7 +147,7 @@ static void free_candidates(struct candidate *c)
  *  2.b. if s = k (fence reached move it further) do K[k + 2] = K[k + 1], k++
  * 3. if E[p].last true break i.e we have reached at the end of an equiv class
  *    else p = p + 1 //keep traversing the equiv class.
- * 4. K[r] = c //Save the sucessfully filled k-candidate.
+ * 4. K[r] = c //Save the successfully filled k-candidate.
  */
 static void  do_merge(struct candidate **K, int *k, int i,
     struct v_vector *E, int p)
@@ -249,13 +249,13 @@ int bcomp(const void *a, const void *b)
 /*  file[0] corresponds file 1 and file[1] correspond file 2.
  * 1. calc hashes for both the files and store them in vector(v[0], v[1])
  * 2. sort file[1] with hash as primary and serial as sec. key
- * 3. Form the equivalance class of file[1] stored in e vector. It lists all the equivalence
+ * 3. Form the equivalence class of file[1] stored in e vector. It lists all the equivalence
  *    classes of lines in file[1], with e.last = true on the last element of each class.
  *    The elements are ordered by serial within classes.
  * 4. Form the p vector stored in  p_vector. p_vector[i], if non-zero, now points in e vector
  *    to the beginning of the equiv class of lines in file[1] equivalent to line
  *    i in file[0].
- * 5. Form the k-candidates as discribed in do_merge.
+ * 5. Form the k-candidates as described in do_merge.
  * 6. Create a vector J[i] = j, such that i'th line in file[0] is j'th line of
  *    file[1], i.e J comprises LCS
  */
@@ -866,7 +866,7 @@ void diff_main(void)
       && (S_ISDIR(TT.st[0].st_mode) || S_ISDIR(TT.st[1].st_mode)))
     error_exit("can't compare stdin to directory");
 
-  if ((TT.st[0].st_ino == TT.st[1].st_ino) //physicaly same device
+  if ((TT.st[0].st_ino == TT.st[1].st_ino) //physically same device
       && (TT.st[0].st_dev == TT.st[1].st_dev)) {
     toys.exitval = 0;
     return show_status(files);

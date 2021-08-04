@@ -848,7 +848,7 @@ static int get_ps(struct dirtree *new)
     get_sched_policy(slot[SLOT_tid], (void *)&slot[SLOT_pcy]);
 
   // Done using buf[] (tb->str) as scratch space, now read string data,
-  // saving consective null terminated strings. (Save starting offsets into
+  // saving consecutive null terminated strings. (Save starting offsets into
   // str->offset to avoid strlen() loop to find relevant string.)
 
   // Fetch string data while parentfd still available, appending to buf.
@@ -1791,7 +1791,7 @@ void top_main(void)
 #define FOR_iotop
 #include "generated/flags.h"
 
-// Compare old and new proces lists to measure changes
+// Compare old and new process lists to measure changes
 static int iotop_filter(long long *oslot, long long *nslot, int milis)
 {
   // Current I/O, or accumulated since process start?

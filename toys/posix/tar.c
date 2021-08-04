@@ -208,7 +208,7 @@ static int add_to_tar(struct dirtree *node)
     while (*lnk=='/') lnk++;
   }
 
-  // Consume the 1 extra byte alocated in dirtree_path()
+  // Consume the 1 extra byte allocated in dirtree_path()
   if (S_ISDIR(st->st_mode) && name[i-1] != '/') strcat(name, "/");
 
   // remove leading / and any .. entries from saved name
@@ -583,7 +583,7 @@ static void unpack_tar(char *first)
       TT.hdr.size = 0;
       continue;
     }
-    // ensure null temination even of pathological packets
+    // ensure null termination even of pathological packets
     tar.padd[0] = and = 0;
 
     // Is this a valid TAR header?

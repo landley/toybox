@@ -115,7 +115,7 @@ static int do_du(struct dirtree *node)
   if (!node->parent) TT.st_dev = node->st.st_dev;
   else if (!dirtree_notdotdot(node)) return 0;
 
-  // detect swiching filesystems
+  // detect switching filesystems
   if (FLAG(x) && (TT.st_dev != node->st.st_dev))
     return 0;
 

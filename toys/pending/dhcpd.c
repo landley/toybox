@@ -429,7 +429,7 @@ static int get_interface(const char *interface, int *ifindex, void *oip,
 /*
  *logs messeges to syslog or console
  *opening the log is still left with applet.
- *FIXME: move to more relevent lib. probably libc.c
+ *FIXME: move to more relevant lib. probably libc.c
  */
 static void infomsg(uint8_t infomode, char *s, ...)
 {
@@ -456,7 +456,7 @@ static void infomsg(uint8_t infomode, char *s, ...)
 /*
  * Writes self PID in file PATH
  * FIXME: libc implementation only writes in /var/run
- * this is more generic as some implemenation may provide
+ * this is more generic as some implementation may provide
  * arguments to write in specific file. as dhcpd does.
  */
 static void write_pid(char *path)
@@ -494,7 +494,7 @@ static int setup_signal()
   return 0;
 }
 
-// String STR to UINT32 conversion strored in VAR
+// String STR to UINT32 conversion stored in VAR
 static int strtou32(const char *str, void *var)
 {
   char *endptr = NULL;
@@ -830,7 +830,7 @@ static int open_listensock(void)
   gstate.listensock = xsocket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
   setsockopt(gstate.listensock, SOL_SOCKET, SO_REUSEADDR, &constone, sizeof(constone));
   if (setsockopt(gstate.listensock, SOL_SOCKET, SO_BROADCAST, &constone, sizeof(constone)) == -1) {
-    error_msg("failed to receive brodcast packets.\n");
+    error_msg("failed to receive broadcast packets.\n");
     close(gstate.listensock);
     return -1;
   }
@@ -1125,7 +1125,7 @@ static uint8_t* get_optval6(uint8_t *optptr, uint16_t opt, uint16_t *datalen, vo
   return optptr;
 }
 
-// Retrives Requested Parameter list from dhcp req packet.
+// Retrieves Requested Parameter list from dhcp req packet.
 static uint8_t get_reqparam(uint8_t **list)
 {
   uint8_t len, *optptr;

@@ -230,7 +230,7 @@ static void read_geometry(struct hd_geometry *disk)
 }
 
 /* Read the extended boot record for the 
- * logical partion details.
+ * logical partition details.
  */
 static void read_ebr(int idx)
 {
@@ -263,7 +263,7 @@ static void read_ebr(int idx)
       close(dev_fd);
       error_exit("Couldn't read sector zero\n");
     }
-    num_parts++; //extended partions present.
+    num_parts++; //extended partitions present.
     q = part_offset(sec_buf, 1);
   } while (!is_partition_clear(q) && IS_EXTENDED(q->sys_ind));
 }
@@ -315,7 +315,7 @@ static inline void write_table_flag(char *buf)
 }
 
 /* free the buffers used for holding details of
- * extended logical partions
+ * extended logical partitions
 */
 static void free_bufs(void)
 {
@@ -374,7 +374,7 @@ static int read_mbr(char *device, int validate)
   total_number_sectors = read_size(); //Device size
   read_sec_sz();
   sector_fac = g_sect_size/SECTOR_SIZE; //512 is hardware sector size.
-  physical_HS(&h, &s); //physical dimensions may be diferent from HDIO_GETGEO
+  physical_HS(&h, &s); //physical dimensions may be different from HDIO_GETGEO
   g_sectors = (FLAG(S) && TT.sectors) ? TT.sectors : s ? s : disk.sectors ? disk.sectors : 63;
   g_heads = (FLAG(H) && TT.heads) ? TT.heads : h ? h : disk.heads ? disk.heads : 255;
   g_cylinders = total_number_sectors/(g_heads * g_sectors * sector_fac);
@@ -600,7 +600,7 @@ void delete_partition(int i)
     num_parts = 4;
   } else {
     //only logical is delete, need to move the rest of them backwards
-    if (i == 4) { //move partiton# 6 to 5.
+    if (i == 4) { //move partition# 6 to 5.
       partitions[i].modified = 1;
       if (num_parts > i+1) {
         q = partitions[i + 1].part;
@@ -608,7 +608,7 @@ void delete_partition(int i)
         ext_p = part_offset(partitions[i].sec_buffer, 1);
         ext_q = part_offset(partitions[i + 1].sec_buffer, 1);
         *ext_p = *ext_q; //copy the extended info pointer
-        // change the start of the 4th partiton. 
+        // change the start of the 4th partition.
         new_start = partitions[i + 1].start_offset + swap_le32toh(q->start4) - extended_offset;
         new_start = SWAP_LE32(new_start);
         memcpy(p->start4, (void *)&new_start, 4);
@@ -721,7 +721,7 @@ static int get_free_partition(int max)
   return num;
 }
 
-//taking user input for partition start/end sectors/cyinders
+//taking user input for partition start/end sectors/cylinders
 static uint32_t ask_value(char *mesg, sector_t left, sector_t right, sector_t defalt)
 { 
   char *str = toybuf;
@@ -820,7 +820,7 @@ static sector_t ask_start_sector(int idx, sector_t* begin, sector_t* end, int ex
   if (disp_unit_cyl) limit = (sector_t)g_sectors * g_heads * g_cylinders - 1;
   else limit = total_number_sectors - 1;
 
-  if (disp_unit_cyl) //make the begin of every partition to cylnder boundary 
+  if (disp_unit_cyl) //make the beginning of every partition to cylinder boundary
     for (i = 0; i < num_parts; i++)
       begin[i] = (begin[i]/(g_heads* g_sectors)) * (g_heads* g_sectors);
 
@@ -873,7 +873,7 @@ static sector_t ask_end_sector(int idx, sector_t* begin, sector_t* end, int ext_
   if (disp_unit_cyl) limit = (sector_t)g_sectors * g_heads * g_cylinders - 1;
   else limit = total_number_sectors - 1;
 
-  if (disp_unit_cyl) //make the begin of every partition to cylnder boundary
+  if (disp_unit_cyl) //make the beginning of every partition to cylinder boundary
     for (i = 0; i < num_parts; i++)
       begin[i] = (begin[i]/(g_heads* g_sectors)) * (g_heads* g_sectors);
 
@@ -993,7 +993,7 @@ static void add_logical_partition(void)
   else add_partition(num_parts -1, LINUX_NATIVE);
 }
 
-/* Add a new partiton to the partition table.
+/* Add a new partition to the partition table.
  * MAX partitions limit is taken to be 60, can be changed
  */
 static void add_new_partition(void)

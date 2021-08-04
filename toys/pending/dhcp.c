@@ -314,7 +314,7 @@ static int get_interface( char *interface, int *ifindex, uint32_t *oip, uint8_t 
 /*
  *logs messeges to syslog or console
  *opening the log is still left with applet.
- *FIXME: move to more relevent lib. probably libc.c
+ *FIXME: move to more relevant lib. probably libc.c
  */
 static void infomsg(uint8_t infomode,  char *s, ...)
 {
@@ -341,7 +341,7 @@ static void infomsg(uint8_t infomode,  char *s, ...)
 /*
  * Writes self PID in file PATH
  * FIXME: libc implementation only writes in /var/run
- * this is more generic as some implemenation may provide
+ * this is more generic as some implementation may provide
  * arguments to write in specific file. as dhcpd does.
  */
 static void write_pid(char *path)
@@ -356,7 +356,7 @@ static void write_pid(char *path)
   }
 }
 
-// String STR to UINT32 conversion strored in VAR
+// String STR to UINT32 conversion stored in VAR
 static long strtou32( char *str)
 {
   char *endptr = NULL;
@@ -624,7 +624,7 @@ static int mode_app(void)
   }
   setsockopt(state->sockfd, SOL_SOCKET, SO_REUSEADDR, &set, sizeof(set));
   if (setsockopt(state->sockfd, SOL_SOCKET, SO_BROADCAST, &set, sizeof(set)) == -1) {
-    dbg("MODE APP : brodcast failed.\n");
+    dbg("MODE APP : broadcast failed.\n");
     close(state->sockfd);
     return -1;
   }

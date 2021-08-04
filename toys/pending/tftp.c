@@ -129,7 +129,7 @@ static int mkpkt_err(uint8_t *buffer, uint16_t errorcode, char *errormsg)
 }
 
 /*
- * Recieves data from server in BUFF with socket SD and updates FROM
+ * Receives data from server in BUFF with socket SD and updates FROM
  * and returns read length.
  */
 static int read_server(int sd, void *buf, int len,
@@ -401,7 +401,7 @@ int file_put(void)
       goto errout_with_sd;
     }
   }
-  for (;;) {  // loop for data sending and receving ack from server.
+  for (;;) {  // loop for data sending and receiving ack from server.
     packetlen = mkpkt_data(fd, offset, packet, blockno);
     if (packetlen < 0) goto errout_with_sd;
 

@@ -6,7 +6,7 @@
  *
  * The -v and -p options are not supported.
  * Size parsing does not match util-linux where MB, GB, TB are multiples of
- * 1000 and MiB, TiB, GiB are multipes of 1024.
+ * 1000 and MiB, TiB, GiB are multiples of 1024.
 
 USE_BLKDISCARD(NEWTOY(blkdiscard, "<1>1f(force)l(length)#<0o(offset)#<0s(secure)z(zeroout)[!sz]", TOYFLAG_BIN))
 

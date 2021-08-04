@@ -27,7 +27,7 @@ under the result. In theory, this should only require four packages:
 1) a set of posix-ish command line utilities,
 2) a compiler<a name="1_back"></a><sup><font size=-3><a href=#1>[1]</a></font></sup>,
 3) a C library, and 4) a kernel. This provides a reproducible and auditable
-base system, which with the addition of a few convienciences (vi, top,
+base system, which with the addition of a few conveniences (vi, top,
 shell command line history...) can provide a usable interactive experience
 rather than just a headless build server.</p>
 
@@ -103,7 +103,7 @@ is tracked <a href=roadmap.html#dev_env>in
 the roadmap</a>, and doing so is one of the main goals for toybox's 1.0
 release.</p>
 
-<p>Building LFS requres fewer commands than building AOSP, which has a lot more
+<p>Building LFS requires fewer commands than building AOSP, which has a lot more
 <a href=http://source.android.com/source/initializing.html>build
 prerequisites</a>. In theory some of those can be built from source
 as external packages (we're clearly not including our own java implementation),
@@ -120,7 +120,7 @@ There is also a <a href=roadmap.html>roadmap</a> listing all planned commands
 for the 1.0 release and the reasons for including them.</p>
 
 <p>In general, configuring toybox with "make defconfig" enables all the commands
-compete enough to be useful. Configuring "allyesconfig" enables partially
+complete enough to be useful. Configuring "allyesconfig" enables partially
 implemented commands as well, along with debugging features.</p>
 
 <b><h3>Relevant Standards</h3></b>
@@ -134,7 +134,7 @@ Toybox also isn't implementing full internationalization support: it should be
 8-bit clean and handle UTF-8, but otherwise we leave this to X11 and higher
 layers. And some things (like $CDPATH support in "cd") await a good
 explanation of why to bother with them. (POSIX provides an important
-frame of reference, but is not an infallable set of commandments to be blindly
+frame of reference, but is not an infallible set of commandments to be blindly
 obeyed. We do try to document our deviations from it in the comment section
 at the start of each command under toys/posix.)</p>
 
@@ -187,7 +187,7 @@ implementable as a single multicall binary acting like make, cc, as, ld, cpp,
 strip, readelf, nm, objdump, and so on as necessary. It's just the existing
 packages that do this <strike>kinda suck</strike> don't. (In theory "make"
 belongs in qcc, in practice llvm hasn't got its own make so toybox probably
-needs to add it after 1.0 to eliminate another gpl build prerequite from
+needs to add it after 1.0 to eliminate another gpl build prerequisite from
 AOSP.)</p>
 
 <p><a name="2" /><a href="#2_back">[2]</a>
