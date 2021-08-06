@@ -63,8 +63,7 @@ config CHATTR
 #include <linux/fs.h>
 
 GLOBALS(
-  long v;
-  long p;
+  long v, p;
 
   long add, rm, set;
   // !add and !rm tell us whether they were used, but `chattr =` is meaningful.
@@ -88,11 +87,7 @@ GLOBALS(
 #ifndef FS_IOC_FSGETXATTR
 // commit 334e580a6f97e 2016-01-04
 struct fsxattr {
-  unsigned fsx_xflags;
-  unsigned fsx_extsize;
-  unsigned fsx_nextents;
-  unsigned fsx_projid;
-  unsigned fsx_cowextsize;
+  unsigned fsx_xflags, fsx_extsize, fsx_nextents, fsx_projid, fsx_cowextsize;
   char fsx_pad[8];
 };
 #define FS_IOC_FSGETXATTR _IOR('X', 31, struct fsxattr)
@@ -154,23 +149,23 @@ static char *attrstr(unsigned long attrs, int full)
 static void print_file_attr(char *path)
 {
   unsigned long flag = 0, version = 0;
-  int fd;
+  int fd = -1;
   struct stat sb;
 
   if (!stat(path, &sb) && !S_ISREG(sb.st_mode) && !S_ISDIR(sb.st_mode)) {
     errno = EOPNOTSUPP;
-    goto LABEL1;
+    goto error;
   }
-  if (-1 == (fd=open(path, O_RDONLY | O_NONBLOCK))) goto LABEL1;
+  if (-1 == (fd=open(path, O_RDONLY | O_NONBLOCK))) goto error;
 
   if (FLAG(p)) {
     struct fsxattr fsx;
 
-    if (ioctl(fd, FS_IOC_FSGETXATTR, &fsx)) goto LABEL2;
+    if (ioctl(fd, FS_IOC_FSGETXATTR, &fsx)) goto error;
     xprintf("%5u ", fsx.fsx_projid);
   }
   if (FLAG(v)) {
-    if (ioctl(fd, FS_IOC_GETVERSION, (void*)&version) < 0) goto LABEL2;
+    if (ioctl(fd, FS_IOC_GETVERSION, (void*)&version) < 0) goto error;
     xprintf("%-10lu ", version);
   }
 
@@ -193,10 +188,10 @@ static void print_file_attr(char *path)
       xputc('\n');
     } else xprintf("%s %s\n", attrstr(flag, 1), path);
   }
+  path = 0;
+error:
   xclose(fd);
-  return;
-LABEL2: xclose(fd);
-LABEL1: perror_msg("reading '%s'", path);
+  if (path) perror_msg("reading '%s'", path);
 }
 
 // Get directory information.

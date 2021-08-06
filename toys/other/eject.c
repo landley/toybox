@@ -24,13 +24,14 @@ config EJECT
 #include "toys.h"
 #include <scsi/sg.h>
 #include <scsi/scsi.h>
+#include <linux/cdrom.h>
 
-// The SCSI way of requesting eject
+// SCSI's overcomplicated way of requesting eject
 static void remove_scsi(int fd)
 {
   unsigned i;
   sg_io_hdr_t *header = (sg_io_hdr_t *)(toybuf+64);
-  char sg_driver_cmd[3][6] = {
+  char sg_driver_cmd[][6] = {
     { ALLOW_MEDIUM_REMOVAL, 0, 0, 0, 0, 0 },
     { START_STOP, 0, 0, 0, 1, 0 }, //start the motor
     { START_STOP, 0, 0, 0, 2, 0 } //eject the media
@@ -44,35 +45,22 @@ static void remove_scsi(int fd)
   header->sbp = (void *)toybuf;
   header->timeout = 2000;
 
-  for (i = 0; i < 3; i++) {
+  for (i = 0; i < ARRAY_LEN(sg_driver_cmd); i++) {
     header->cmdp = (void *)sg_driver_cmd[i];
-    xioctl(fd, SG_IO, (void *)header);
+    xioctl(fd, SG_IO, header);
   }
 
   // force kernel to reread partition table when new disc is inserted
   ioctl(fd, BLKRRPART);
 }
 
-/*
- * eject main function.
- */
 void eject_main(void)
 {
-  int fd, out = 0;
-  char *device_name = "/dev/cdrom";
+  int fd = xopen(*toys.optargs ? : "/dev/cdrom", O_RDONLY | O_NONBLOCK);
 
-  if (*toys.optargs) device_name = *toys.optargs;
-
-  fd = xopen(device_name, O_RDONLY | O_NONBLOCK);
-  if (!toys.optflags) xioctl(fd, 0x5309, &out);		// CDROM_EJECT
-  else if (toys.optflags & FLAG_s) remove_scsi(fd);
-  else {
-    if ((toys.optflags & FLAG_T) || (toys.optflags & FLAG_t)) {
-      int rc = ioctl(fd, 0x5326, &out);			// CDROM_DRIVE_STATUS
-      if ((toys.optflags & FLAG_t) || rc == 2)		// CDS_TRAY_OPEN
-        xioctl(fd, 0x5319, &out);			// CDROM_CLOSE_TRAY
-      else xioctl(fd, 0x5309, &out);			// CDROM_EJECT
-    }
-  }
+  if (FLAG(s)) remove_scsi(fd);
+  else if (FLAG(T) && CDS_TRAY_OPEN == ioctl(fd, CDROM_DRIVE_STATUS, toybuf))
+    xioctl(fd, CDROMCLOSETRAY, toybuf);
+  else xioctl(fd, CDROMEJECT, toybuf);
   if (CFG_TOYBOX_FREE) xclose(fd);
 }
