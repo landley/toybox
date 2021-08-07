@@ -1068,7 +1068,7 @@ char *getbasename(char *name)
 // Return pointer to xabspath(file) if file is under dir, else 0
 char *fileunderdir(char *file, char *dir)
 {
-  char *s1 = xabspath(dir, 1), *s2 = xabspath(file, -1), *ss = s2;
+  char *s1 = xabspath(dir, ABS_FILE), *s2 = xabspath(file, 0), *ss = s2;
   int rc = s1 && s2 && strstart(&ss, s1) && (!s1[1] || s2[strlen(s1)] == '/');
 
   free(s1);
@@ -1083,8 +1083,8 @@ char *relative_path(char *from, char *to)
   char *s, *ret = 0;
   int i, j, k;
 
-  if (!(from = xabspath(from, -1))) return 0;
-  if (!(to = xabspath(to, -1))) goto error;
+  if (!(from = xabspath(from, 0))) return 0;
+  if (!(to = xabspath(to, 0))) goto error;
 
   // skip common directories from root
   for (i = j = 0; from[i] && from[i] == to[i]; i++) if (to[i] == '/') j = i+1;

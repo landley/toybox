@@ -90,8 +90,7 @@ struct dirtree {
   char *symlink;
   int dirfd;
   struct stat st;
-  char again;
-  char name[];
+  char again, name[];
 };
 
 int isdotdot(char *name);
@@ -114,6 +113,12 @@ void show_help(FILE *out, int full);
 // plenty of headroom.
 #define WARN_ONLY        (1<<31) // don't exit, just warn
 #define LOOPFILES_ANYWAY (1<<30) // call function with fd -1
+
+// xabspath flags
+#define ABS_PATH 1 // all but last path component must exist
+#define ABS_FILE 2 // last path component must exist
+#define ABS_KEEP 4 // don't resolve symlinks in path to last component
+#define ABS_LAST 8 // don't resolve symlink in last path component
 
 // xwrap.c
 void xstrncpy(char *dest, char *src, size_t size);

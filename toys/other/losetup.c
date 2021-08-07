@@ -103,9 +103,9 @@ static int loopback_setup(char *device, char *file)
     }
   // Associate file with this device?
   } else if (file) {
-    char *f_path = xabspath(file, 1);
+    char *f_path = xabspath(file, ABS_PATH);
 
-    if (!f_path) perror_exit("file"); // already opened, but if deleted since...
+    if (!f_path) perror_exit("%s", file); // already opened but if deleted since
     if (ioctl(lfd, LOOP_SET_FD, ffd)) {
       free(f_path);
       if (racy && errno == EBUSY) return 1;

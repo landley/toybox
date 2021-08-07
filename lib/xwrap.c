@@ -548,74 +548,73 @@ void xstat(char *path, struct stat *st)
 }
 
 // Canonicalize path, even to file with one or more missing components at end.
-// Returns allocated string for pathname or NULL if doesn't exist
-// exact = 1 file must exist, 0 dir must exist, -1 show theoretical location,
-// -2 don't resolve last file
-char *xabspath(char *path, int exact)
+// Returns allocated string for pathname or NULL if doesn't exist. Flags are:
+// ABS_PATH:path to last component must exist ABS_FILE: whole path must exist
+// ABS_KEEP:keep symlinks in path ABS_LAST: keep symlink at end of path
+char *xabspath(char *path, int flags)
 {
-  struct string_list *todo, *done = 0;
-  int try = 9999, dirfd = open("/", O_PATH), missing = 0;
-  char *ret;
+  struct string_list *todo, *done = 0, *new, **tail;
+  int fd, track, len, try = 9999, dirfd = -1, missing = 0;
+  char *str;
 
-  // If this isn't an absolute path, start with cwd.
+  // If the last file must exist, path to it must exist.
+  if (flags&ABS_FILE) flags |= ABS_PATH;
+  // If we don't resolve path's symlinks, don't resolve last symlink.
+  if (flags&ABS_KEEP) flags |= ABS_LAST;
+
+  // If this isn't an absolute path, start with cwd or $PWD.
   if (*path != '/') {
-    char *temp = xgetcwd();
-
-    splitpath(path, splitpath(temp, &todo));
-    free(temp);
+    if ((flags & ABS_KEEP) && (str = getenv("PWD")))
+      splitpath(path, splitpath(str, &todo));
+    else {
+      splitpath(path, splitpath(str = xgetcwd(), &todo));
+      free(str);
+    }
   } else splitpath(path, &todo);
 
   // Iterate through path components in todo, prepend processed ones to done.
   while (todo) {
-    struct string_list *new = llist_pop(&todo), **tail;
-    ssize_t len;
-
-    // Eventually break out of endless loops
+    // break out of endless symlink loops
     if (!try--) {
       errno = ELOOP;
       goto error;
     }
 
-    // Removable path componenents.
-    if (!strcmp(new->str, ".") || !strcmp(new->str, "..")) {
-      int x = new->str[1];
-
+    // Remove . or .. component, tracking dirfd back up tree as necessary
+    str = (new = llist_pop(&todo))->str;
+    // track dirfd if this component must exist or we're resolving symlinks
+    track = ((flags>>!todo) & (ABS_PATH|ABS_KEEP)) ^ ABS_KEEP;
+    if (!done && track) dirfd = open("/", O_PATH);
+    if (*str=='.' && !str[1+((fd = str[1])=='.')]) {
       free(new);
-      if (!x) continue;
-      if (done) free(llist_pop(&done));
-      len = 0;
-
-      if (missing) missing--;
-      else {
-        if (-1 == (x = openat(dirfd, "..", O_PATH))) goto error;
-        close(dirfd);
-        dirfd = x;
+      if (fd) {
+        if (done) free(llist_pop(&done));
+        if (missing) missing--;
+        else if (track) {
+          if (-1 == (fd = openat(dirfd, "..", O_PATH))) goto error;
+          close(dirfd);
+          dirfd = fd;
+        }
       }
       continue;
     }
 
     // Is this a symlink?
-    if (exact == -2 && !todo) len = 0;
+    if (flags & (ABS_KEEP<<!todo)) errno = len = 0;
     else len = readlinkat(dirfd, new->str, libbuf, sizeof(libbuf));
     if (len>4095) goto error;
 
     // Not a symlink: add to linked list, move dirfd, fail if error
     if (len<1) {
-      int fd;
-
       new->next = done;
       done = new;
-      if (errno == EINVAL && !todo) break;
-      if (errno == ENOENT && exact<0) {
-        missing++;
-        continue;
+      if (errno == ENOENT && !(flags & (ABS_PATH<<!todo))) missing++;
+      else if (errno != EINVAL && (flags & (ABS_PATH<<!todo))) goto error;
+      else if (track) {
+        if (-1 == (fd = openat(dirfd, new->str, O_PATH))) goto error;
+        close(dirfd);
+        dirfd = fd;
       }
-      if (errno != EINVAL && (exact || todo)) goto error;
-
-      fd = openat(dirfd, new->str, O_PATH);
-      if (fd == -1 && (exact || todo || errno != ENOENT)) goto error;
-      close(dirfd);
-      dirfd = fd;
       continue;
     }
 
@@ -623,13 +622,13 @@ char *xabspath(char *path, int exact)
     libbuf[len] = 0;
     if (*libbuf == '/') {
       llist_traverse(done, free);
-      done=0;
+      done = 0;
       close(dirfd);
-      dirfd = open("/", O_PATH);
+      dirfd = -1;
     }
     free(new);
 
-    // prepend components of new path. Note symlink to "/" will leave new NULL
+    // prepend components of new path. Note symlink to "/" will leave new = NULL
     tail = splitpath(libbuf, &new);
 
     // symlink to "/" will return null and leave tail alone
@@ -638,11 +637,10 @@ char *xabspath(char *path, int exact)
       todo = new;
     }
   }
-  close(dirfd);
+  xclose(dirfd);
 
-  // At this point done has the path, in reverse order. Reverse list while
-  // calculating buffer length.
-
+  // At this point done has the path, in reverse order. Reverse list
+  // (into todo) while calculating buffer length.
   try = 2;
   while (done) {
     struct string_list *temp = llist_pop(&done);
@@ -654,20 +652,18 @@ char *xabspath(char *path, int exact)
   }
 
   // Assemble return buffer
-
-  ret = xmalloc(try);
-  *ret = '/';
-  ret [try = 1] = 0;
+  *(str = xmalloc(try)) = '/';
+  str[try = 1] = 0;
   while (todo) {
-    if (try>1) ret[try++] = '/';
-    try = stpcpy(ret+try, todo->str) - ret;
+    if (try>1) str[try++] = '/';
+    try = stpcpy(str+try, todo->str) - str;
     free(llist_pop(&todo));
   }
 
-  return ret;
+  return str;
 
 error:
-  close(dirfd);
+  xclose(dirfd);
   llist_traverse(todo, free);
   llist_traverse(done, free);
 
