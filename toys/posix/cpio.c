@@ -16,7 +16,7 @@
  *
  * todo: export/import linux file list text format ala gen_initramfs_list.sh
 
-USE_CPIO(NEWTOY(cpio, "(quiet)(no-preserve-owner)md(make-directories)uH:p|i|t|F:v(verbose)o|[!pio][!pot][!pF]", TOYFLAG_BIN))
+USE_CPIO(NEWTOY(cpio, "(ignore-devno)(renumber-inodes)(quiet)(no-preserve-owner)md(make-directories)uH:p|i|t|F:v(verbose)o|[!pio][!pot][!pF]", TOYFLAG_BIN))
 
 config CPIO
   bool "cpio"
@@ -243,6 +243,7 @@ void cpio_main(void)
   } else {
     char *name = 0;
     size_t size = 0;
+    unsigned inode = 0;
 
     for (;;) {
       struct stat st;
@@ -269,6 +270,8 @@ void cpio_main(void)
       if (!S_ISREG(st.st_mode) && !S_ISLNK(st.st_mode)) st.st_size = 0;
       if (st.st_size >> 32) perror_msg("skipping >2G file '%s'", name);
       else {
+        if (FLAG(renumber_inodes)) st.st_ino = ++inode;
+        if (FLAG(ignore_devno)) st.st_rdev = 0;
         llen = sprintf(toybuf,
           "070701%08X%08X%08X%08X%08X%08X%08X%08X%08X%08X%08X%08X%08X",
           (int)st.st_ino, st.st_mode, st.st_uid, st.st_gid, (int)st.st_nlink,

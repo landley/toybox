@@ -399,7 +399,7 @@ static int dirflush(char *name, int isdir)
 
   // Barf if name not in TT.cwd
   if (name) {
-    if (!(ss = s = xabspath(name, -1-isdir))) {
+    if (!(ss = s = xabspath(name, isdir ? ABS_LAST : 0))) {
       error_msg("'%s' bad symlink", name);
 
       return 1;
@@ -834,7 +834,7 @@ void tar_main(void)
   }
 
   // Get destination directory
-  TT.cwd = xabspath(s = xgetcwd(), 1);
+  TT.cwd = xabspath(s = xgetcwd(), ABS_PATH);
   free(s);
 
   // Remember archive inode so we don't overwrite it or add it to itself

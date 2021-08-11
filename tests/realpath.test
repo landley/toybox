@@ -1,0 +1,39 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+TOP="$(readlink -f .)"
+
+testcmd '' '.' "$TOP\n" '' ''
+testcmd '-z' '-z . | tr "\0" X' "${TOP}X" '' ''
+touch file
+testcmd 'file' 'file' "$TOP/file\n" '' ''
+mkdir -p one/two/three
+testcmd 'dir' 'one/two/three' "$TOP/one/two/three\n" '' ''
+testcmd '--relative-to' '. --relative-to=one/two/three' '../../..\n' '' ''
+testcmd '--relative-base' 'one one/two one/two/three --relative-base=one/two' \
+  "$TOP/one\n.\nthree\n" '' ''
+testcmd '--relative-base stomps --relative-to' \
+  '--relative-to=.. --relative-base=one/two one' "$TOP/one\n" '' ''
+testcmd 'missing defaults to -m' 'missing' "$TOP/missing\n" '' ''
+testcmd 'missing -e' '-e missing 2>/dev/null || echo ok' 'ok\n' '' ''
+
+# The -s tests use $PWD instead of $TOP because symlinks in path _to_ here
+# should not be resolved either. The shell exports $PWD: use it.
+ln -s ./one uno
+testcmd '-s' '-s uno/two' "$PWD/uno/two\n" '' ''
+ln -s one/two dos
+testcmd '-s link/..' '-es dos/three' "$PWD/dos/three\n" '' ''
+testcmd '-s .. eats symlink' '-s dos/..' "$PWD\n" '' ''
+# In toybox this test is consistent with the previous one
+toyonly testing '-s .. eats symlink in $PWD' \
+  'cd dos && realpath -s ..' "$PWD\n" '' ''
+# Logically -es means the _symlink_ should exist, but match behavior...
+ln -s missing dangling
+testcmd '-es dangling symlink' '-es dangling 2>/dev/null || echo ok' \
+  'ok\n' '' ''
+testcmd '-ms' '-ms dangling/../dos/../one/two' "$PWD/one/two\n" '' ''
+ln -s ../two/.. one/two/ichi
+testcmd '-es' '-es one/two/ichi/two/ichi/two' "$PWD/one/two/ichi/two/ichi/two\n" '' ''
