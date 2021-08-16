@@ -56,7 +56,7 @@ void su_main()
   if (*toys.optargs) name = *(toys.optargs++);
   else name = "root";
 
-  loggit(LOG_NOTICE, "%s->%s", getusername(getuid()), name);
+  loggit(LOG_NOTICE, "%s->%s", getusername(geteuid()), name);
 
   if (!(shp = getspnam(name))) perror_exit("no '%s'", name);
   if (getuid()) {
