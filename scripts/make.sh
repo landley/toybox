@@ -14,6 +14,9 @@ if [ ! -z "$ASAN" ]; then
   export ASAN_OPTIONS="detect_leaks=0"
 fi
 
+# Centos 7 bug workaround, EOL June 30 2024.
+unset DASHN; wait -n 2>/dev/null; [ $? -eq 2 ] || DASHN=-n
+
 export LANG=c
 export LC_ALL=C
 set -o pipefail
@@ -302,14 +305,14 @@ do
   do_loudly $BUILD -c $i -o $OUT &
 
   # ratelimit to $CPUS many parallel jobs, detecting errors
-  [ $((++COUNT)) -ge $CPUS ] && { wait -n; DONE=$?; : $((--COUNT)); }
+  [ $((++COUNT)) -ge $CPUS ] && { wait $DASHN; DONE=$?; : $((--COUNT)); }
   [ $DONE -ne 0 ] && break
 done
 # wait for all background jobs, detecting errors
 
 while [ $((COUNT--)) -gt 0 ]
 do
-  wait -n;
+  wait $DASHN;
   DONE=$((DONE+$?))
 done
 [ $DONE -ne 0 ] && exit 1
