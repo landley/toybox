@@ -123,7 +123,7 @@ void ping_main(void)
 
   // Set nonstatic default values
   if (!FLAG(i)) TT.i = FLAG(f) ? 200 : 1000;
-  else if (TT.i<200 && getuid()) error_exit("need root for -i <200");
+  else if (TT.i<200 && geteuid()) error_exit("need root for -i <200");
   if (!FLAG(s)) TT.s = 56; // 64-PHDR_LEN
   if (FLAG(f) && !FLAG(c)) TT.c = 15;
 
