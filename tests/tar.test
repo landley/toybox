@@ -19,21 +19,11 @@ LONG=${LONG:1:255}
 # Reproducible tarballs: override ownership and timestamp.
 TAR='tar c --owner root --group root --mtime @1234567890'
 
-# Also amount of trailing NUL padding varies (1024 bytes is minimum,
-# gnu/dammit does more) so look at first N 512-byte frames when
-# analyzing header content.
+# Different tars add variable trailing NUL padding (1024 bytes is just minimum)
+# so look at first N 512-byte frames when analyzing header content.
 function SUM()
 {
-  if [ -n "$TARHD" ]; then
-    # (Android's shell doesn't support process substitution.)
-    mkfifo xxd-pipe
-    xxd <xxd-pipe & pid=$!
-    tee xxd-pipe | head -c $(($1*512)) | sha1sum | sed "s/ .*//"
-    rm xxd-pipe
-    wait $pid
-  else
-    head -c $(($1*512)) | sha1sum | sed "s/ .*//"
-  fi
+  tee save.dat | head -c $(($1*512)) | sha1sum | sed "s/ .*//"
 }
 
 function LST()
@@ -327,3 +317,4 @@ TZ="$OLDTZ"
 umask $OLDUMASK
 unset LONG TAR SUM OLDUMASK OLDTZ
 unset -f LST
+rm save.dat
