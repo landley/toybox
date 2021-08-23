@@ -56,7 +56,7 @@ GLOBALS(
   struct double_list *incl, *excl, *seen;
   struct string_list *dirs;
   char *cwd;
-  int fd, ouid, ggid, hlc, warn, adev, aino, sparselen;
+  int fd, ouid, ggid, hlc, warn, adev, aino, sparselen, pid;
   long long *sparse;
   time_t mtt;
 
@@ -923,7 +923,7 @@ void tar_main(void)
         FLAG(j) ? "bzcat" : FLAG(J) ? "xzcat" : "zcat");
 
       // Toybox provides more decompressors than compressors, so try them first
-      xpopen_both(zcat ? (char *[]){zcat->str, 0} :
+      TT.pid = xpopen_both(zcat ? (char *[]){zcat->str, 0} :
         (char *[]){archiver, "-d", 0}, pipefd);
       if (CFG_TOYBOX_FREE) llist_traverse(zcat, free);
 
@@ -964,6 +964,8 @@ void tar_main(void)
 
     unpack_tar(hdr);
     dirflush(0, 0);
+    // Shut up archiver about inability to write all trailing NULs to pipe buf
+    if (TT.pid>0) kill(TT.pid, 9);
 
     // Each time a TT.incl entry is seen it's moved to the end of the list,
     // with TT.seen pointing to first seen list entry. Anything between
