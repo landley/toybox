@@ -210,7 +210,7 @@ toyonly testing "cat tbz | extract dir/file (autodetect)" \
   "dir/\ndir/file\ndrwxr-x--- 1494637555 dd/dir\n-rw-r----- 1494637555 dd/dir/file\n" \
   "" ""
 
-yes | (dd bs=$((1<<16)) count=1; dd bs=8192 seek=14 count=1; dd bs=4096 seek=64 count=5) 2>/dev/null > fweep
+yes | (dd bs=$((1<<16)) count=1 status=none; dd bs=8192 seek=14 count=1 status=none; dd bs=4096 seek=64 count=5 status=none) > fweep
 testing "sparse without overflow" "$TAR --sparse fweep | SUM 3" \
   "e1560110293247934493626d564c8f03c357cec5\n" "" ""
 
