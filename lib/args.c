@@ -342,7 +342,7 @@ static int parse_optflaglist(struct getoptflagstate *gof)
 
   // Parse trailing group indicators
   while (*options) {
-    unsigned bits = 0;
+    unsigned long long bits = 0;
 
     if (CFG_TOYBOX_DEBUG && *options != '[') error_exit("trailing %s", options);
 
@@ -354,20 +354,20 @@ static int parse_optflaglist(struct getoptflagstate *gof)
     // Don't advance past ] but do process it once in loop.
     while (*options++ != ']') {
       struct opts *opt;
-      int i;
+      long long ll;
 
       if (CFG_TOYBOX_DEBUG && !*options) error_exit("[ without ]");
       // Find this option flag (in previously parsed struct opt)
-      for (i=0, opt = gof->opts; ; i++, opt = opt->next) {
+      for (ll = 1, opt = gof->opts; ; ll <<= 1, opt = opt->next) {
         if (*options == ']') {
           if (!opt) break;
-          if (bits&(1<<i)) opt->dex[idx] |= bits&~(1<<i);
+          if (bits&ll) opt->dex[idx] |= bits&~ll;
         } else {
           if (*options==1) break;
           if (CFG_TOYBOX_DEBUG && !opt)
             error_exit("[] unknown target %c", *options);
           if (opt->c == *options) {
-            bits |= 1<<i;
+            bits |= ll;
             break;
           }
         }

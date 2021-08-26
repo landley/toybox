@@ -30,7 +30,7 @@ static void do_help(struct toy_list *t)
     xprintf("<a name=\"%s\"><h1>%s</h1><blockquote><pre>\n", t->name, t->name);
 
   toys.which = t;
-  show_help(stdout, FLAG(h)+!FLAG(u));
+  show_help(stdout, !FLAG(u)+(!!toys.argv[1]<<1));
 
   if (FLAG(h)) xprintf("</blockquote></pre>\n");
 }

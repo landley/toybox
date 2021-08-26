@@ -17,13 +17,13 @@
  * Why --exclude pattern but no --include? tar cvzf a.tgz dir --include '*.txt'
  *
 
-USE_TAR(NEWTOY(tar, "&(restrict)(full-time)(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mode):(mtime):(group):(owner):(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)I(use-compress-program):J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)P(absolute-names)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):a[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TAR(NEWTOY(tar, "&(selinux)(restrict)(full-time)(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mode):(mtime):(group):(owner):(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)I(use-compress-program):J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)P(absolute-names)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):a[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TAR
   bool "tar"
   default y
   help
-    usage: tar [-cxt] [-fvohmjkOS] [-XTCf NAME] [FILE...]
+    usage: tar [-cxt] [-fvohmjkOS] [-XTCf NAME] [--selinux] [FILE...]
 
     Create, extract, or list files in a .tar (or compressed t?z) file.
 
@@ -37,7 +37,7 @@ config TAR
     --exclude        FILENAME to exclude    --full-time   Show seconds with -tv
     --mode MODE      Adjust modes           --mtime TIME  Override timestamps
     --owner NAME     Set file owner to NAME --group NAME  Set file group to NAME
-    --sparse         Record sparse files
+    --sparse         Record sparse files    --selinux     Record/restore labels
     --restrict       All archive contents must extract under one subdirectory
     --numeric-owner  Save/use/display uid and gid, not user/group name
     --no-recursion   Don't store directory contents
@@ -56,7 +56,7 @@ GLOBALS(
   struct double_list *incl, *excl, *seen;
   struct string_list *dirs;
   char *cwd;
-  int fd, ouid, ggid, hlc, warn, adev, aino, sparselen;
+  int fd, ouid, ggid, hlc, warn, adev, aino, sparselen, pid;
   long long *sparse;
   time_t mtt;
 
@@ -108,8 +108,10 @@ static unsigned long long otoi(char *str, unsigned len)
   unsigned long long val = 0;
 
   // When tar value too big or octal, use binary encoding with high bit set
-  if (128&*str) while (--len) val = (val<<8)+*++str;
-  else {
+  if (128&*str) while (--len) {
+    if (val<<8 < val) error_exit("bad header");
+    val = (val<<8)+*++str;
+  } else {
     while (len && *str == ' ') str++;
     while (len && *str>='0' && *str<='7') val = val*8+*str++-'0', len--;
     if (len && *str && *str != ' ') error_exit("bad header");
@@ -119,16 +121,15 @@ static unsigned long long otoi(char *str, unsigned len)
 }
 #define OTOI(x) otoi(x, sizeof(x))
 
-static void write_longname(char *name, char type)
+static void write_prefix_block(char *data, int len, char type)
 {
   struct tar_hdr tmp;
-  int sz = strlen(name) +1;
 
   memset(&tmp, 0, sizeof(tmp));
-  strcpy(tmp.name, "././@LongLink");
+  sprintf(tmp.name, "././@%s", type=='x' ? "PaxHeaders" : "LongLink");
   ITOO(tmp.uid, 0);
   ITOO(tmp.gid, 0);
-  ITOO(tmp.size, sz);
+  ITOO(tmp.size, len);
   ITOO(tmp.mtime, 0);
   tmp.type = type;
   strcpy(tmp.magic, "ustar  ");
@@ -145,8 +146,15 @@ static void write_longname(char *name, char type)
 
   // write header and name, padded with NUL to block size
   xwrite(TT.fd, &tmp, 512);
-  xwrite(TT.fd, name, sz);
-  if (sz%512) xwrite(TT.fd, toybuf, 512-(sz%512));
+  xwrite(TT.fd, data, len);
+  if (len%512) xwrite(TT.fd, toybuf, 512-(len%512));
+}
+
+static void maybe_prefix_block(char *data, int check, int type)
+{
+  int len = strlen(data);
+
+  if (len>check) write_prefix_block(data, len+1, type);
 }
 
 static struct double_list *filter(struct double_list *lst, char *name)
@@ -273,7 +281,7 @@ static int add_to_tar(struct dirtree *node)
       perror_msg("readlink");
       goto done;
     }
-    if (strlen(lnk) > sizeof(hdr.link)) write_longname(lnk, 'K');
+    maybe_prefix_block(lnk, sizeof(hdr.link), 'K');
     strncpy(hdr.link, lnk, sizeof(hdr.link));
     if (!i) free(lnk);
   } else if (S_ISREG(st->st_mode)) {
@@ -290,8 +298,37 @@ static int add_to_tar(struct dirtree *node)
     goto done;
   }
 
-  if (strlen(hname) > sizeof(hdr.name)) write_longname(hname, 'L');
+  // write out 'x' prefix header for --selinux data
+  if (FLAG(selinux)) {
+    int start = 0, sz = 0, temp, len = 0;
+    char *buf = 0, *sec = "security.selinux";
 
+    for (;;) {
+      // First time get length, second time read data into prepared buffer
+      len = (S_ISLNK(st->st_mode) ? xattr_lget : xattr_get)
+        (name, sec, buf+start, sz);
+
+      // Handle data or error
+      if (len>999999 || (sz && len>sz)) len = -1, errno = E2BIG;
+      if (buf || len<1) {
+        if (len>0) {
+          strcpy(buf+start+sz, "\n");
+          write_prefix_block(buf, start+sz+2, 'x');
+        } else if (errno==ENODATA || errno==ENOTSUP) len = 0;
+        if (len) perror_msg("getfilecon %s", name);
+
+        free(buf);
+        break;
+      }
+
+      // Allocate buffer. Length includes prefix: calculate twice (wrap 99->100)
+      temp = snprintf(0, 0, "%d", sz = (start = 22)+len+1);
+      start += temp + (temp != snprintf(0, 0, "%d", temp+sz));
+      buf = xmprintf("%u RHT.%s=%.*s", start+len+1, sec, sz = len, "");
+    }
+  }
+
+  maybe_prefix_block(hname, sizeof(hdr.name), 'L');
   if (!FLAG(numeric_owner)) {
     if ((TT.owner || (pw = bufgetpwuid(st->st_uid))) &&
         ascii_fits(st->st_uid, sizeof(hdr.uid)))
@@ -561,7 +598,7 @@ static void unpack_tar(char *first)
 {
   struct double_list *walk, *delete;
   struct tar_hdr tar;
-  int i, and = 0;
+  int i, sefd = -1, and = 0;
   unsigned maj, min;
   char *s;
 
@@ -594,43 +631,54 @@ static void unpack_tar(char *first)
     if ((tar.type<'0' || tar.type>'7') && tar.type!='S'
         && (*tar.magic && tar.type))
     {
-      // Long name extension header?
-      if (tar.type == 'K') alloread(&TT.hdr.link_target, TT.hdr.size);
-      else if (tar.type == 'L') alloread(&TT.hdr.name, TT.hdr.size);
-      else if (tar.type == 'x') {
-        char *p, *buf = 0;
-        int i, len, n = 0;
+      // Skip to next record if unknown type or payload > 1 megabyte
+      if (!strchr("KLx", tar.type) || TT.hdr.size>1<<20) skippy(TT.hdr.size);
+      // Read link or long name
+      else if (tar.type != 'x')
+        alloread(tar.type=='K'?&TT.hdr.link_target:&TT.hdr.name, TT.hdr.size);
+      // Loop through 'x' payload records in "LEN NAME=VALUE\n" format
+      else {
+        char *p, *pp, *buf = 0;
+        unsigned i, len, n;
 
-        // Posix extended record "LEN NAME=VALUE\n" format
         alloread(&buf, TT.hdr.size);
         for (p = buf; (p-buf)<TT.hdr.size; p += len) {
-          i = sscanf(p, "%u path=%n", &len, &n);
-          if (i<1 || len<4 || len>TT.hdr.size) {
+          i = TT.hdr.size-(p-buf);
+          if (1!=sscanf(p, "%u %n", &len, &n) || len<n+4 || len>i || n>i) {
             error_msg("bad header");
             break;
           }
           p[len-1] = 0;
-          if (n) {
-            TT.hdr.name = xstrdup(p+n);
+          pp = p+n;
+          // Ignore "RHT." prefix, if any.
+          strstart(&pp, "RHT.");
+          if ((FLAG(selinux) && !(FLAG(t)|FLAG(O)))
+              && strstart(&pp, "security.selinux="))
+          {
+            i = strlen(pp);
+            sefd = xopen("/proc/self/attr/fscreate", O_WRONLY|WARN_ONLY);
+            if (sefd == -1 ||  i!=write(sefd, pp, i))
+              perror_msg("setfscreatecon %s", pp);
+          } else if (strstart(&pp, "path=")) {
+            free(TT.hdr.name);
+            TT.hdr.name = xstrdup(pp);
             break;
           }
         }
         free(buf);
-
-      // Ignore everything else.
-      } else skippy(TT.hdr.size);
+      }
 
       continue;
     }
 
     // Handle sparse file type
+    TT.sparselen = 0;
     if (tar.type == 'S') {
       char sparse[512];
       int max = 8;
 
       // Load 4 pairs of offset/len from S block, plus 21 pairs from each
       // continuation block, list says where to seek/write sparse file contents
-      TT.sparselen = 0;
       s = 386+(char *)&tar;
       *sparse = i = 0;
 
@@ -654,10 +702,7 @@ static void unpack_tar(char *first)
       TT.sparselen /= 2;
       if (TT.sparselen)
         TT.hdr.ssize = TT.sparse[2*TT.sparselen-1]+TT.sparse[2*TT.sparselen-2];
-    } else {
-      TT.sparselen = 0;
-      TT.hdr.ssize = TT.hdr.size;
-    }
+    } else TT.hdr.ssize = TT.hdr.size;
 
     // At this point, we have something to output. Convert metadata.
     TT.hdr.mode = OTOI(tar.mode)&0xfff;
@@ -771,6 +816,12 @@ static void unpack_tar(char *first)
       } else extract_to_disk();
     }
 
+    if (sefd != -1) {
+      // zero length write resets fscreate context to default
+      write(sefd, 0, 0);
+      close(sefd);
+      sefd = -1;
+    }
     free(TT.hdr.name);
     free(TT.hdr.link_target);
     free(TT.hdr.uname);
@@ -872,7 +923,7 @@ void tar_main(void)
         FLAG(j) ? "bzcat" : FLAG(J) ? "xzcat" : "zcat");
 
       // Toybox provides more decompressors than compressors, so try them first
-      xpopen_both(zcat ? (char *[]){zcat->str, 0} :
+      TT.pid = xpopen_both(zcat ? (char *[]){zcat->str, 0} :
         (char *[]){archiver, "-d", 0}, pipefd);
       if (CFG_TOYBOX_FREE) llist_traverse(zcat, free);
 
@@ -913,6 +964,8 @@ void tar_main(void)
 
     unpack_tar(hdr);
     dirflush(0, 0);
+    // Shut up archiver about inability to write all trailing NULs to pipe buf
+    if (TT.pid>0) kill(TT.pid, 9);
 
     // Each time a TT.incl entry is seen it's moved to the end of the list,
     // with TT.seen pointing to first seen list entry. Anything between
