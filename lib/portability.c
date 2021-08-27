@@ -422,6 +422,7 @@ int posix_fallocate(int fd, off_t offset, off_t length)
 #define SIGNIFY(x) {SIG##x, #x}
 
 static const struct signame signames[] = {
+  {0, "0"},
   // POSIX
   SIGNIFY(ABRT), SIGNIFY(ALRM), SIGNIFY(BUS),
   SIGNIFY(FPE), SIGNIFY(HUP), SIGNIFY(ILL), SIGNIFY(INT), SIGNIFY(KILL),

@@ -931,7 +931,7 @@ void sigatexit(void *handler)
 // Output a nicely formatted table of all the signals.
 void list_signals(void)
 {
-  int i = 0, count = 0;
+  int i = 1, count = 0;
   unsigned cols = 80;
   char *name;
 
