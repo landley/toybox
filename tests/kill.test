@@ -6,3 +6,4 @@
 
 testcmd "-l HUP" "-l HUP" "1\n" "" ""
 testcmd "-l 1" "-l 1" "HUP\n" "" ""
+testcmd "-0 self" "-0 $$ && echo yes" "yes\n" "" ""
