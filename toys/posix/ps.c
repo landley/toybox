@@ -1400,6 +1400,7 @@ void ps_main(void)
     if (CFG_TOYBOX_FREE) free(tbsort);
   }
 
+  if (!TT.kcount) toys.exitval = 1;
   if (CFG_TOYBOX_FREE) {
     free(TT.gg.ptr);
     free(TT.GG.ptr);
