@@ -14,6 +14,7 @@ ln -s $FILES/java.class symlink
 LINK=$(readlink symlink)
 ln -s $FILES/java.klass dangler
 BROKEN=$(readlink dangler)
+echo "cafebabe000000020100000700000003000040000000d9300000000e0100000c8000000200014000000098500000000e" | xxd -r -p > universal
 
 testing "directory" "file ." ".: directory\n" "" ""
 testing "empty" "file empty" "empty: empty\n" "" ""
@@ -28,6 +29,9 @@ testing "utf-8" \
 testing "java class" \
   "file $FILES/java.class | egrep -o '(Java class|version 53.0)'"\
   "Java class\nversion 53.0\n" "" ""
+testing "mach-o universal" \
+  "file universal" \
+  "universal: Mach-O universal binary with 2 architectures: x86-64,arm64\n" "" ""
 testing "tar file" "file $FILES/tar/tar.tar | sed 's|$FILES/||'" \
     "tar/tar.tar: POSIX tar archive (GNU)\n" "" ""
 testing "gzip data" "file $FILES/tar/tar.tgz | grep -o 'gzip compressed data'" \

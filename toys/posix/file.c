@@ -237,13 +237,39 @@ static void do_regular_file(int fd, char *name)
   // TODO: parsing JPEG for width/height is harder than GIF or PNG.
   else if (len>32 && !memcmp(s, "\xff\xd8", 2)) xputs("JPEG image data");
 
-  // https://en.wikipedia.org/wiki/Java_class_file#General_layout
-  else if (len>8 && strstart(&s, "\xca\xfe\xba\xbe"))
-    xprintf("Java class file, version %d.%d (Java 1.%d)\n",
-      (int)peek_be(s+2, 2), (int)peek_be(s, 2), (int)peek_be(s+2, 2)-44);
+  else if (len>8 && strstart(&s, "\xca\xfe\xba\xbe")) {
+    unsigned count = peek_be(s, 4), i, arch;
+
+    // 0xcafebabe can be a Java class file or a Mach-O universal binary.
+    // Java major version numbers start with 0x2d for JDK 1.1, and realistically
+    // you're never going to see more than 2 architectures in a binary anyway...
+    if (count < 0x2d) {
+      // https://eclecticlight.co/2020/07/28/universal-binaries-inside-fat-headers/
+      xprintf("Mach-O universal binary with %u architecture%s:",
+        count, count == 1 ? "" : "s");
+      s += 4;
+      len -= 8;
+      for (i = 0; i < count && len >= 20; i++) {
+        char *name = "unknown";
+
+        arch = peek_be(s, 4);
+	if (arch == 0x00000007) name = "i386";
+        else if (arch == 0x01000007) name = "x86-64";
+	else if (arch == 0x0000000c) name = "arm";
+        else if (arch == 0x0100000c) name = "arm64";
+        xprintf("%c%s", i?',':' ', name);
+        s += 20;
+        len -= 20;
+      }
+      xprintf("\n");
+    } else {
+      // https://en.wikipedia.org/wiki/Java_class_file#General_layout
+      xprintf("Java class file, version %d.%d (Java 1.%d)\n",
+        (int)peek_be(s+2, 2), (int)peek_be(s, 2), (int)peek_be(s+2, 2)-44);
+    }
 
   // https://source.android.com/devices/tech/dalvik/dex-format#dex-file-magic
-  else if (len>8 && strstart(&s, "dex\n") && !s[3])
+  } else if (len>8 && strstart(&s, "dex\n") && !s[3])
     xprintf("Android dex file, version %s\n", s);
 
   // https://people.freebsd.org/~kientzle/libarchive/man/cpio.5.txt
