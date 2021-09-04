@@ -10,7 +10,7 @@
  * xxd -p "plain" output:
  *   "4c696e75782076657273696f6e20342e392e302d342d616d643634202864"
 
-USE_XXD(NEWTOY(xxd, ">1c#l#o#g#<1=2iprs#[!rs]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_XXD(NEWTOY(xxd, ">1c#<0>256l#o#g#<1=2iprs#[!rs]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config XXD
   bool "xxd"
@@ -18,12 +18,12 @@ config XXD
   help
     usage: xxd [-c n] [-g n] [-i] [-l n] [-o n] [-p] [-r] [-s n] [file]
 
-    Hexdump a file to stdout.  If no file is listed, copy from stdin.
+    Hexdump a file to stdout. If no file is listed, copy from stdin.
     Filename "-" is a synonym for stdin.
 
     -c n	Show n bytes per line (default 16)
     -g n	Group bytes by adding a ' ' every n bytes (default 2)
-    -i	Include file output format (comma-separated hex byte literals)
+    -i	Output include file (CSV hex bytes, plus C header/footer if not stdin)
     -l n	Limit of n bytes before stopping (default is no limit)
     -o n	Add n to display offset
     -p	Plain hexdump (30 bytes/line, no grouping)
@@ -44,15 +44,16 @@ static void do_xxd(int fd, char *name)
   long long limit = TT.l;
   int i, len, space;
 
-  if (toys.optflags&FLAG_s) {
+  if (FLAG(s)) {
     xlseek(fd, TT.s, SEEK_SET);
     pos = TT.s;
     if (limit) limit += TT.s;
   }
 
   while (0<(len = readall(fd, toybuf,
-                          (limit && limit-pos<TT.c)?limit-pos:TT.c))) {
-    if (!(toys.optflags&FLAG_p)) printf("%08llx: ", TT.o + pos);
+                          (limit && limit-pos<TT.c)?limit-pos:TT.c)))
+  {
+    if (!FLAG(p)) printf("%08llx: ", TT.o + pos);
     pos += len;
     space = 2*TT.c+TT.c/TT.g+1;
 
@@ -64,7 +65,7 @@ static void do_xxd(int fd, char *name)
       }
     }
 
-    if (!(toys.optflags&FLAG_p)) {
+    if (!FLAG(p)) {
       printf("%*s", space, "");
       for (i=0; i<len; i++)
         putchar((toybuf[i]>=' ' && toybuf[i]<='~') ? toybuf[i] : '.');
@@ -108,54 +109,48 @@ static void do_xxd_reverse(int fd, char *name)
   FILE *fp = xfdopen(fd, "r");
   int tmp;
 
-  if (toys.optflags&FLAG_i) {
-    // -ri is a very easy special case.
-    while (fscanf(fp, " 0x%02x,", &tmp) == 1) {
-      fputc(tmp & 0xff, stdout);
-    }
-  } else {
-    while (!feof(fp)) {
-      int col = 0;
+  // -ri is a very easy special case.
+  if (FLAG(i)) while (fscanf(fp, " 0x%02x,", &tmp) == 1) xputc(tmp);
+  else while (!feof(fp)) {
+    int col = 0;
 
-      // Each line of a regular hexdump starts with an offset/address.
-      // Each line of a plain hexdump just goes straight into the bytes.
-      if (!(toys.optflags&FLAG_p)) {
-        long long pos;
+    // Each line of a regular hexdump starts with an offset/address.
+    // Each line of a plain hexdump just goes straight into the bytes.
+    if (!FLAG(p)) {
+      long long pos;
 
-        if (fscanf(fp, "%llx: ", &pos) == 1) {
-          if (fseek(stdout, pos, SEEK_SET) != 0) {
-            // TODO: just write out zeros if non-seekable?
-            perror_exit("%s: seek failed", name);
-          }
+      if (fscanf(fp, "%llx: ", &pos) == 1) {
+        if (fseek(stdout, pos, SEEK_SET) != 0) {
+          // TODO: just write out zeros if non-seekable?
+          perror_exit("%s: seek failed", name);
         }
       }
+    }
 
-      // A plain hexdump can have as many bytes per line as you like,
-      // but a non-plain hexdump assumes garbage after it's seen the
-      // specified number of bytes.
-      while (toys.optflags&FLAG_p || col < TT.c) {
-        int n1, n2;
+    // A plain hexdump can have as many bytes per line as you like,
+    // but a non-plain hexdump assumes garbage after it's seen the
+    // specified number of bytes.
+    while (FLAG(p) || col < TT.c) {
+      int n1, n2;
 
-        // If we're at EOF or EOL or we read some non-hex...
-        if ((n1 = n2 = dehex(fgetc(fp))) < 0 || (n2 = dehex(fgetc(fp))) < 0) {
-          // If we're at EOL, start on that line.
-          if (n1 == -2 || n2 == -2) continue;
-          // Otherwise, skip to the next line.
-          break;
-        }
-
-        fputc((n1 << 4) | (n2 & 0xf), stdout);
-        col++;
-
-        // Is there any grouping going on? Ignore a single space.
-        tmp = fgetc(fp);
-        if (tmp != ' ') ungetc(tmp, fp);
+      // If we're at EOF or EOL or we read some non-hex...
+      if ((n1 = n2 = dehex(fgetc(fp))) < 0 || (n2 = dehex(fgetc(fp))) < 0) {
+        // If we're at EOL, start on that line.
+        if (n1 == -2 || n2 == -2) continue;
+        // Otherwise, skip to the next line.
+        break;
       }
 
-      // Skip anything else on this line (such as the ASCII dump).
-      while ((tmp = fgetc(fp)) != EOF && tmp != '\n')
-        ;
+      fputc((n1 << 4) | (n2 & 0xf), stdout);
+      col++;
+
+      // Is there any grouping going on? Ignore a single space.
+      tmp = fgetc(fp);
+      if (tmp != ' ') ungetc(tmp, fp);
     }
+
+    // Skip anything else on this line (such as the ASCII dump).
+    while ((tmp = fgetc(fp)) != EOF && tmp != '\n');
   }
 
   if (ferror(fp)) perror_msg_raw(name);
@@ -164,13 +159,11 @@ static void do_xxd_reverse(int fd, char *name)
 
 void xxd_main(void)
 {
-  if (TT.c < 0 || TT.c > 256) error_exit("invalid -c: %ld", TT.c);
-  if (TT.c == 0) TT.c = (toys.optflags&FLAG_i)?12:16;
+  if (!TT.c) TT.c = FLAG(i) ? 12 : 16;
 
   // Plain style is 30 bytes/line, no grouping.
-  if (toys.optflags&FLAG_p) TT.c = TT.g = 30;
+  if (FLAG(p)) TT.c = TT.g = 30;
 
   loopfiles(toys.optargs,
-    toys.optflags&FLAG_r ? do_xxd_reverse
-      : (toys.optflags&FLAG_i ? do_xxd_include : do_xxd));
+    FLAG(r) ? do_xxd_reverse : (FLAG(i) ? do_xxd_include : do_xxd));
 }
