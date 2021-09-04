@@ -4,18 +4,19 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/cal.html
 
-USE_CAL(NEWTOY(cal, ">2h", TOYFLAG_USR|TOYFLAG_BIN))
+USE_CAL(NEWTOY(cal, ">3h", TOYFLAG_USR|TOYFLAG_BIN))
 
 config CAL
   bool "cal"
   default y
   help
-    usage: cal [[MONTH] YEAR]
+    usage: cal [[[DAY] MONTH] YEAR]
 
     Print a calendar.
 
     With one argument, prints all months of the specified year.
     With two arguments, prints calendar for month and year.
+    With three arguments, highlights day within month and year.
 
     -h	Don't highlight today
 */
@@ -27,36 +28,41 @@ GLOBALS(
   struct tm *now;
 )
 
+// Thirty days hath september april june and november. February is just weird.
+static int monthlen(struct tm *tm)
+{
+  int len = 31, month = tm->tm_mon, year = tm->tm_year;
+
+  if (tm->tm_mon==1) {
+    len = 28;
+    if (!(year&3) && !((year%100) && !(year%400))) len++;
+  } else if ((month+(month>6))&1) len = 30;
+
+  return len;
+}
+
 // Write calendar into buffer: each line is 20 chars wide, end indicated
 // by empty string.
 
 static char *calstrings(char *buf, struct tm *tm)
 {
-  char temp[21];
   int wday, mday, start, len, line;
+  char temp[21];
 
   // header
   len = strftime(temp, 21, "%B %Y", tm);
   len += (20-len)/2;
-  buf += sprintf(buf, "%*s%*s ", len, temp, 20-len, "");
-  buf++;
-  buf += sprintf(buf, "Su Mo Tu We Th Fr Sa ");
-  buf++;
+  buf += sprintf(buf, "%*s%*s ", len, temp, 20-len, "")+1;
+  buf += sprintf(buf, "Su Mo Tu We Th Fr Sa ")+1;
 
   // What day of the week does this month start on?
-  if (tm->tm_mday>1)
-    start = (36+tm->tm_wday-tm->tm_mday)%7;
+  if (tm->tm_mday>1) start = (36+tm->tm_wday-tm->tm_mday)%7;
   else start = tm->tm_wday;
 
   // What day does this month end on?  Alas, libc doesn't tell us...
-  len = 31;
-  if (tm->tm_mon == 1) {
-    int year = tm->tm_year;
-    len = 28;
-    if (!(year & 3) && !((year&100) && !(year&400))) len++;
-  } else if ((tm->tm_mon+(tm->tm_mon>6 ? 1 : 0)) & 1) len = 30;
+  len = monthlen(tm);
 
-  for (mday=line=0;line<6;line++) {
+  for (mday = line = 0; line<6; line++) {
     for (wday=0; wday<7; wday++) {
       char *pat = "   ";
       if (!mday ? wday==start : mday<len) {
@@ -94,13 +100,15 @@ void cal_main(void)
     buf += sizeof(struct tm);
 
     // Last argument is year, one before that (if any) is month.
-    tm->tm_year = atolx_range(toys.optargs[--toys.optc], 1, 9999);
-    tm->tm_year -= 1900;
+    tm->tm_year = atolx_range(toys.optargs[--toys.optc], 1, 9999) - 1900;
     tm->tm_mday = 1;
     tm->tm_hour = 12;  // noon to avoid timezone weirdness
     if (toys.optc) {
-      tm->tm_mon = atolx_range(toys.optargs[--toys.optc], 1, 12);
-      tm->tm_mon--;
+      tm->tm_mon = atolx_range(toys.optargs[--toys.optc], 1, 12)-1;
+      if (toys.optc) {
+        tm->tm_mday = atolx_range(toys.optargs[--toys.optc], 1, monthlen(tm));
+        TT.now = tm;
+      }
 
     // Print 12 months of the year
 
