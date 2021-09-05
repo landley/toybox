@@ -11,7 +11,7 @@
  * TODO: i2cget non-byte modes? default to current read address?
  * TODO: i2cset -r? -m MASK? c/s modes, p mode modifier?
 
-USE_I2CDETECT(NEWTOY(i2cdetect, ">3aFly", TOYFLAG_USR|TOYFLAG_BIN))
+USE_I2CDETECT(NEWTOY(i2cdetect, ">3aFlqry[!qr]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_I2CDUMP(NEWTOY(i2cdump, "<2>2fy", TOYFLAG_USR|TOYFLAG_BIN))
 USE_I2CGET(NEWTOY(i2cget, "<3>3fy", TOYFLAG_USR|TOYFLAG_BIN))
 USE_I2CSET(NEWTOY(i2cset, "<4fy", TOYFLAG_USR|TOYFLAG_BIN))
@@ -20,15 +20,16 @@ config I2CDETECT
   bool "i2cdetect"
   default y
   help
-    usage: i2cdetect [-ary] BUS [FIRST LAST]
+    usage: i2cdetect [-aqry] BUS [FIRST LAST]
     usage: i2cdetect -F BUS
     usage: i2cdetect -l
 
     Detect i2c devices.
 
-    -a	All addresses (0x00-0x7f rather than 0x03-0x77)
+    -a	All addresses (0x00-0x7f rather than 0x03-0x77 or FIRST-LAST)
     -F	Show functionality
-    -l	List all buses
+    -l	List available buses
+    -q	Probe with SMBus Quick Write (default)
     -r	Probe with SMBus Read Byte
     -y	Answer "yes" to confirmation prompts (for script use)
 
@@ -76,7 +77,7 @@ printf_format static void confirm(const char *fmt, ...)
 {
   va_list va;
 
-  if (toys.optflags & FLAG_y) return;
+  if (FLAG(y)) return;
 
   va_start(va, fmt);
   vfprintf(stderr, fmt, va);
@@ -106,17 +107,22 @@ static unsigned long i2c_get_funcs(int bus)
 
 static int i2c_read_byte(int fd, int addr, int *byte)
 {
-  struct i2c_smbus_ioctl_data ioctl_data;
   union i2c_smbus_data data;
+  struct i2c_smbus_ioctl_data ioctl_data = { .read_write=I2C_SMBUS_READ,
+    .size=I2C_SMBUS_BYTE_DATA, .command=addr, .data=&data };
 
   memset(&data, 0, sizeof(data));
-  ioctl_data.read_write = I2C_SMBUS_READ;
-  ioctl_data.size = I2C_SMBUS_BYTE_DATA;
-  ioctl_data.command = addr;
-  ioctl_data.data = &data;
   if (ioctl(fd, I2C_SMBUS, &ioctl_data) == -1) return -1;
   *byte = data.byte;
   return 0;
+}
+
+static int i2c_quick_write(int fd, int addr)
+{
+  struct i2c_smbus_ioctl_data ioctl_data = { .read_write=I2C_SMBUS_QUICK,
+    .size=0, .command=addr };
+
+  return ioctl(fd, I2C_SMBUS, &ioctl_data);
 }
 
 static void i2cdetect_dash_F(int bus)
@@ -178,21 +184,21 @@ static int i2cdetect_dash_l(struct dirtree *node)
 
 void i2cdetect_main(void)
 {
-  if (toys.optflags & FLAG_l) {
+  if (FLAG(l)) {
     if (toys.optc) error_exit("-l doesn't take arguments");
-    dirtree_read("/sys/class/i2c-dev", i2cdetect_dash_l);
-  } else if (toys.optflags & FLAG_F) {
+    dirtree_flagread("/sys/class/i2c-dev", DIRTREE_SHUTUP, i2cdetect_dash_l);
+  } else if (FLAG(F)) {
     if (toys.optc != 1) error_exit("-F BUS");
     i2cdetect_dash_F(atolx_range(*toys.optargs, 0, INT_MAX));
   } else {
     int bus, first = 0x03, last = 0x77, fd, row, addr, byte;
 
-    if (toys.optflags & FLAG_a) {
+    if (FLAG(a)) {
       first = 0x00;
       last = 0x7f;
     }
 
-    if (toys.optc != 1 && toys.optc != 3) error_exit("bad args");
+    if (toys.optc != 1 && toys.optc != 3) help_exit("Needs 1 or 3 arguments");
     bus = atolx_range(*toys.optargs, 0, INT_MAX);
     if (toys.optc == 3) {
       first = atolx_range(toys.optargs[1], 0, 0x7f);
@@ -216,7 +222,8 @@ void i2cdetect_main(void)
             }
             perror_exit("ioctl(I2C_SLAVE)");
           }
-          if (i2c_read_byte(fd, addr, &byte) == -1) xprintf(" --");
+          if ((FLAG(r) ? i2c_read_byte(fd, addr, &byte)
+                       : i2c_quick_write(fd, addr)) == -1) xprintf(" --");
           else xprintf(" %02x", addr);
         }
       }
@@ -238,7 +245,7 @@ void i2cdump_main(void)
 
   confirm("Dump chip 0x%02x on bus %d?", chip, bus);
 
-  fd = i2c_open(bus, (toys.optflags&FLAG_f)?I2C_SLAVE_FORCE:I2C_SLAVE, chip);
+  fd = i2c_open(bus, FLAG(f)?I2C_SLAVE_FORCE:I2C_SLAVE, chip);
   printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f    0123456789abcdef\n");
   for (row = 0; row <= 0xf0; row += 16) {
     xprintf("%02x:", row & 0xf0);
@@ -265,7 +272,7 @@ void i2cget_main(void)
 
   confirm("Read register 0x%02x from chip 0x%02x on bus %d?", addr, chip, bus);
 
-  fd = i2c_open(bus, (toys.optflags&FLAG_f)?I2C_SLAVE_FORCE:I2C_SLAVE, chip);
+  fd = i2c_open(bus, FLAG(f)?I2C_SLAVE_FORCE:I2C_SLAVE, chip);
   if (i2c_read_byte(fd, addr, &byte) == -1) perror_exit("i2c_read_byte");
   printf("0x%02x\n", byte);
   close(fd);
@@ -305,7 +312,7 @@ void i2cset_main(void)
 
   confirm("Write register 0x%02x from chip 0x%02x on bus %d?", addr, chip, bus);
 
-  fd = i2c_open(bus, (toys.optflags&FLAG_f)?I2C_SLAVE_FORCE:I2C_SLAVE, chip);
+  fd = i2c_open(bus, FLAG(f)?I2C_SLAVE_FORCE:I2C_SLAVE, chip);
   ioctl_data.read_write = I2C_SMBUS_WRITE;
   ioctl_data.command = addr;
   ioctl_data.data = &data;
