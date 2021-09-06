@@ -751,7 +751,7 @@ void xsetuser(struct passwd *pwd)
 
 // This can return null (meaning file not found).  It just won't return null
 // for memory allocation reasons.
-char *xreadlink(char *name)
+char *xreadlinkat(int dir, char *name)
 {
   int len, size = 0;
   char *buf = 0;
@@ -760,7 +760,7 @@ char *xreadlink(char *name)
   for(;;) {
     size +=64;
     buf = xrealloc(buf, size);
-    len = readlink(name, buf, size);
+    len = readlinkat(dir, name, buf, size);
 
     if (len<0) {
       free(buf);
@@ -772,6 +772,12 @@ char *xreadlink(char *name)
     }
   }
 }
+
+char *xreadlink(char *name)
+{
+  return xreadlinkat(AT_FDCWD, name);
+}
+
 
 char *xreadfile(char *name, char *buf, off_t len)
 {

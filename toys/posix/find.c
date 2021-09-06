@@ -7,6 +7,7 @@
  * Our "unspecified" behavior for no paths is to use "."
  * Parentheses can only stack 4096 deep
  * Not treating two {} as an error, but only using last
+ * TODO: -context
 
 USE_FIND(NEWTOY(find, "?^HL[-HL]", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -306,7 +307,7 @@ static int do_find(struct dirtree *new)
       if (new && check)
         test = !unlinkat(dirtree_parentfd(new), new->name,
           S_ISDIR(new->st.st_mode) ? AT_REMOVEDIR : 0);
-    } else if (!strcmp(s, "depth")) TT.depth = 1;
+    } else if (!strcmp(s, "depth") || !strcmp(s, "d")) TT.depth = 1;
     else if (!strcmp(s, "o") || !strcmp(s, "or")) {
       if (not) goto error;
       if (active) {
@@ -363,13 +364,16 @@ static int do_find(struct dirtree *new)
     } else {
       if (!strcmp(s, "name") || !strcmp(s, "iname")
         || !strcmp(s, "wholename") || !strcmp(s, "iwholename")
-        || !strcmp(s, "path") || !strcmp(s, "ipath"))
+        || !strcmp(s, "path") || !strcmp(s, "ipath")
+        || !strcmp(s, "lname") || !strcmp(s, "ilname"))
       {
         int i = (*s == 'i'), is_path = (s[i] != 'n');
         char *arg = ss[1], *path = 0, *name = new ? new->name : arg;
 
         // Handle path expansion and case flattening
-        if (new && is_path) name = path = dirtree_path(new, 0);
+        if (new && s[i] == 'l')
+          name = path = xreadlinkat(dirtree_parentfd(new), new->name);
+        else if (new && is_path) name = path = dirtree_path(new, 0);
         if (i) {
           if ((check || !new) && name) name = strlower(name);
           if (!new) dlist_add(&TT.argdata, name);
@@ -377,7 +381,7 @@ static int do_find(struct dirtree *new)
         }
 
         if (check) {
-          test = !fnmatch(arg, is_path ? name : basename(name),
+          test = !fnmatch(arg, path ? name : basename(name),
             FNM_PATHNAME*(!is_path));
           if (i) free(name);
         }
@@ -630,10 +634,7 @@ static int do_find(struct dirtree *new)
               else if (ch == 'g') ll = (long)getgroupname(new->st.st_gid);
               else if (ch == 'u') ll = (long)getusername(new->st.st_uid);
               else if (ch == 'l') {
-                char *path = dirtree_path(new, 0);
-
-                ll = (long)(ff = xreadlink(path));
-                free(path);
+                ll = (long)(ff = xreadlinkat(dirtree_parentfd(new), new->name));
                 if (!ll) ll = (long)"";
               } else if (ch == 'M') {
                 mode_to_string(new->st.st_mode, buf);

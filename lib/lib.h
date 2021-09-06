@@ -183,6 +183,7 @@ struct group *xgetgrnam(char *name);
 unsigned xgetuid(char *name);
 unsigned xgetgid(char *name);
 void xsetuser(struct passwd *pwd);
+char *xreadlinkat(int dir, char *name);
 char *xreadlink(char *name);
 double xstrtod(char *s);
 long xparsetime(char *arg, long units, long *fraction);
