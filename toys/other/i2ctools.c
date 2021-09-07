@@ -247,8 +247,11 @@ void i2cdump_main(void)
   for (row = 0; row<=0xf0; row += 16) {
     xprintf("%02x:", row & 0xf0);
     for (addr = row; addr<row+16; ++addr) {
-      if (i2c_read_byte(fd, addr, &byte)==-1) perror_exit("i2c_read_byte");
-      printf(" %02x", byte);
+      if (!i2c_read_byte(fd, addr, &byte)) printf(" %02x", byte);
+      else {
+        printf(" XX");
+        byte = 'X';
+      }
       toybuf[addr-row] = isprint(byte) ? byte : (byte ? '?' : '.');
     }
     printf("    %16.16s\n", toybuf);
