@@ -8,12 +8,12 @@ config RMMOD
   bool "rmmod"
   default y
   help
-    usage: rmmod [-wf] [MODULE]
+    usage: rmmod [-wf] MODULE...
 
-    Unload the module named MODULE from the Linux kernel.
+    Unload the given kernel modules.
+
     -f	Force unload of a module
     -w	Wait until the module is no longer used
-
 */
 
 #define FOR_rmmod
@@ -24,20 +24,17 @@ config RMMOD
 
 void rmmod_main(void)
 {
-  unsigned int flags = O_NONBLOCK|O_EXCL;
-  char * mod_name;
-  int len;
+  char **args, *module, *s;
+  unsigned flags;
 
-  // Basename
-  mod_name = basename(*toys.optargs);
+  for (args = toys.optargs; *args; args++) {
+    module = basename(*args);
+    // Remove .ko if present
+    if ((s = strend(module, ".ko"))) *s = 0;
 
-  // Remove .ko if present
-  len = strlen(mod_name);
-  if (len > 3 && !strcmp(&mod_name[len-3], ".ko" )) mod_name[len-3] = 0;
-
-  if (toys.optflags & FLAG_f) flags |= O_TRUNC;
-  if (toys.optflags & FLAG_w) flags &= ~O_NONBLOCK;
-
-  if (delete_module(mod_name, flags))
-    perror_exit("failed to unload %s", mod_name);
+    flags = O_NONBLOCK;
+    if (FLAG(f)) flags |= O_TRUNC;
+    if (FLAG(w)) flags &= ~O_NONBLOCK;
+    if (delete_module(module, flags)) perror_msg("failed to unload %s", module);
+  }
 }
