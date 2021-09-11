@@ -51,7 +51,7 @@ void time_main(void)
       "Voluntary context switches: %ld\nInvoluntary context switches: %ld\n",
       r, s, u, ru.ru_maxrss, ru.ru_majflt, ru.ru_minflt, ru.ru_inblock,
       ru.ru_oublock, ru.ru_nvcsw, ru.ru_nivcsw);
-    else fprintf(stderr, "real %f\nuser %f\nsys %f\n", r, u, s);
+    else fprintf(stderr, "\nreal\t%f\nuser\t%f\nsys\t%f\n", r, u, s);
     toys.exitval = WIFEXITED(stat) ? WEXITSTATUS(stat) : WTERMSIG(stat);
   }
 }
