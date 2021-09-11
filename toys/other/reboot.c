@@ -10,16 +10,13 @@ config REBOOT
   bool "reboot"
   default y
   help
-    usage: reboot/halt/poweroff [-fn] [-d DURATION]
+    usage: reboot/halt/poweroff [-fn] [-d DELAY]
 
     Restart, halt, or power off the system.
 
-    DURATION can be a decimal fraction. An optional suffix can be "m"
-    (minutes), "h" (hours), "d" (days), or "s" (seconds, the default).
-
-    -d	Delay before proceeding
-    -f	Don't signal init
-    -n	Don't sync before stopping the system
+    -d	Wait DELAY before proceeding (in seconds or m/h/d suffix: -d 1.5m = 90s)
+    -f	Force reboot (don't signal init, reboot directly)
+    -n	Don't sync filesystems before reboot
 */
 
 #define FOR_reboot
