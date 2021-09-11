@@ -8,7 +8,7 @@ config INSMOD
   bool "insmod"
   default y
   help
-    usage: insmod MODULE [MODULE_OPTIONS]
+    usage: insmod MODULE [OPTION...]
 
     Load the module named MODULE passing options if given.
 */
@@ -16,12 +16,6 @@ config INSMOD
 #include "toys.h"
 
 #include <sys/syscall.h>
-#ifdef SYS_finit_module
-#define finit_module(fd, opts, flags) syscall(SYS_finit_module, fd, opts, flags)
-#else
-#define finit_module(a, b, c) (errno = ENOSYS)
-#endif
-#define init_module(mod, len, opts) syscall(SYS_init_module, mod, len, opts)
 
 void insmod_main(void)
 {
@@ -36,15 +30,15 @@ void insmod_main(void)
     strcat(toybuf, " ");
   }
 
-  // finit_module was new in Linux 3.8, and doesn't work on stdin,
-  // so we fall back to init_module if necessary.
-  rc = finit_module(fd, toybuf, 0);
+  // finit_module doesn't work on stdin, so we fall back to init_module...
+  rc = syscall(SYS_finit_module, fd, toybuf, 0);
   if (rc && (fd == 0 || errno == ENOSYS)) {
     off_t len = 0;
     char *path = !strcmp(*toys.optargs, "-") ? "/dev/stdin" : *toys.optargs;
     char *buf = readfileat(AT_FDCWD, path, NULL, &len);
 
-    rc = init_module(buf, len, toybuf);
+    if (!buf) perror_exit("couldn't read %s", path);
+    rc = syscall(SYS_init_module, buf, len, toybuf);
     if (CFG_TOYBOX_FREE) free(buf);
   }
 
