@@ -16,14 +16,14 @@ config MODPROBE
     modprobe utility - inserts modules and dependencies.
 
     -a  Load multiple MODULEs
+    -b  Apply blacklist to module names too
+    -D  Show dependencies
     -d  Load modules from DIR, option may be used multiple times
     -l  List (MODULE is a pattern)
-    -r  Remove MODULE (stacks) or do autoclean
     -q  Quiet
-    -v  Verbose
+    -r  Remove MODULE (stacks) or do autoclean
     -s  Log to syslog
-    -D  Show dependencies
-    -b  Apply blacklist to module names too
+    -v  Verbose
 */
 #define FOR_modprobe
 #include "toys.h"
@@ -37,10 +37,6 @@ GLOBALS(
   int nudeps, symreq;
 )
 
-/* Note: if "#define DBASE_SIZE" modified, 
- * Please update GLOBALS dbase[256] accordingly.
- */
-#define DBASE_SIZE  256
 #define MODNAME_LEN 256
 
 // Modules flag definations
@@ -146,7 +142,7 @@ static struct module_s *get_mod(char *mod, uint8_t add)
 
   path2mod(mod, name);
   for (i = 0; name[i]; i++) hash = ((hash*31) + hash) + name[i];
-  hash %= DBASE_SIZE;
+  hash %= ARRAY_LEN(TT.dbase);
   for (temp = TT.dbase[hash]; temp; temp = temp->next) {
     modentry = (struct module_s *) temp->arg;
     if (!strcmp(modentry->name, name)) return modentry;
@@ -159,7 +155,7 @@ static struct module_s *get_mod(char *mod, uint8_t add)
 }
 
 /*
- * Read a line from file with \ continuation and escape commented line.
+ * Read a line from file with \ continuation and skip commented lines.
  * Return the line in allocated string (*li)
  */
 static int read_line(FILE *fl, char **li)
@@ -243,13 +239,13 @@ static int config_action(struct dirtree *node)
     // process the tokens[0] contains first word of config line.
     if (!strcmp(tokens[0], "alias")) {
       struct arg_list *temp;
-      char aliase[MODNAME_LEN], *realname;
+      char alias[MODNAME_LEN], *realname;
 
       if (!tokens[2]) continue;
-      path2mod(tokens[1], aliase);
+      path2mod(tokens[1], alias);
       for (temp = TT.probes; temp; temp = temp->next) {
         modent = (struct module_s *) temp->arg;
-        if (fnmatch(aliase, modent->name, 0)) continue;
+        if (fnmatch(alias, modent->name, 0)) continue;
         realname = path2mod(tokens[2], NULL);
         llist_add(&modent->rnames, realname);
         if (modent->flags & MOD_NDDEPS) {
@@ -283,7 +279,7 @@ static int config_action(struct dirtree *node)
 // Show matched modules else return -1 on failure.
 static int depmode_read_entry(char *cmdname)
 {
-  char *line;
+  char *line, *name;
   int ret = -1;
   FILE *fe = xfopen("modules.dep", "r");
 
@@ -292,8 +288,7 @@ static int depmode_read_entry(char *cmdname)
 
     if (tmp) {
       *tmp = '\0';
-     char *name = basename(line);
-
+      name = basename(line);
       tmp = strchr(name, '.');
       if (tmp) *tmp = '\0';
       if (!cmdname || !fnmatch(cmdname, name, 0)) {
@@ -344,47 +339,22 @@ static void find_dep(void)
 }
 
 // Remove a module from the Linux Kernel. if !modules does auto remove.
-static int rm_mod(char *modules, unsigned flags)
+static int rm_mod(char *modules)
 {
   char *s;
 
   if (modules && (s = strend(modules, ".ko"))) *s = 0;
-  errno = 0;
-  syscall(__NR_delete_module, modules, flags ? : O_NONBLOCK|O_EXCL);
-
-  return errno;
+  return syscall(__NR_delete_module, modules, O_NONBLOCK);
 }
 
-// Insert module same as insmod implementation.
+// Insert module; simpler than insmod(1) because we already flattened the array
+// of flags, and don't need to support loading from stdin.
 static int ins_mod(char *modules, char *flags)
 {
-  char *buf = NULL;
-  int len, res;
-  int fd = xopenro(modules);
+  int fd = xopenro(modules), rc = syscall(__NR_finit_module, fd, flags, 0);
 
-  while (flags && strlen(toybuf) + strlen(flags) + 2 < sizeof(toybuf)) {
-    strcat(toybuf, flags);
-    strcat(toybuf, " ");
-  }
-
-#ifdef __NR_finit_module
-  res = syscall(__NR_finit_module, fd, toybuf, 0);
-  if (!res || errno != ENOSYS) {
-    xclose(fd);
-    return res;
-  }
-#endif
-
-  // TODO xreadfile()
-
-  len = fdlength(fd);
-  buf = xmalloc(len);
-  xreadall(fd, buf, len);
   xclose(fd);
-
-  res = syscall(__NR_init_module, buf, len, toybuf);
-  if (CFG_TOYBOX_FREE && buf != toybuf) free(buf);
-  return res;
+  return rc;
 }
 
 // Add module in probes list, if not loaded.
@@ -425,13 +395,13 @@ static char *add_cmdopt(char **argv)
 }
 
 // Probes a single module and loads all its dependencies.
-static int go_probe(struct module_s *m)
+static void go_probe(struct module_s *m)
 {
   int rc = 0, first = 1;
 
   if (!(m->flags & MOD_FNDDEPMOD)) {
     if (!FLAG(q)) error_msg("module %s not found in modules.dep", m->name);
-    return -ENOENT;
+    return;
   }
   if (FLAG(v)) printf("go_prob'ing %s\n", m->name);
   if (!FLAG(r)) m->dep = llist_rev(m->dep);
@@ -446,7 +416,7 @@ static int go_probe(struct module_s *m)
     // are we removing ?
     if (FLAG(r)) {
       if (m2->flags & MOD_ALOADED) {
-        if ((rc = rm_mod(m2->name, O_EXCL))) {
+        if (rm_mod(m2->name)) {
           if (first) {
             perror_msg("can't unload module %s", m2->name);
             break;
@@ -486,7 +456,6 @@ static int go_probe(struct module_s *m)
     }
     m2->flags |= MOD_ALOADED;
   }
-  return rc;
 }
 
 void modprobe_main(void)
@@ -499,7 +468,7 @@ void modprobe_main(void)
   if (toys.optc<1 && !FLAG(r) == !FLAG(l)) help_exit("bad syntax");
   // Check for -r flag without arg if yes then do auto remove.
   if (FLAG(r) && !toys.optc) {
-    if (rm_mod(0, O_NONBLOCK|O_EXCL)) perror_exit("rmmod");
+    if (rm_mod(0)) perror_exit("rmmod");
     return;
   }
 
@@ -530,7 +499,7 @@ void modprobe_main(void)
     procline = NULL;
   }
   fclose(fs);
-  if (FLAG(a) || FLAG(r)) while (argv) add_mod(*argv++);
+  if (FLAG(a) || FLAG(r)) for (; *argv; argv++) add_mod(*argv);
   else {
     add_mod(*argv);
     TT.cmdopts = add_cmdopt(argv);
