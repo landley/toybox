@@ -67,8 +67,12 @@ static void unknown(char *name)
   help_exit("Unknown command %s", name);
 }
 
+// Parse --help and --version for (almost) all commands
 void check_help(char **arg)
 {
+  if (!CFG_TOYBOX_HELP_DASHDASH || !*arg || (toys.which->flags&TOYFLAG_NOHELP))
+    return;
+
   if (!strcmp(*arg, "--help")) {
     if (CFG_TOYBOX && toys.which == toy_list && arg[1])
       if (!(toys.which = toy_find(arg[1]))) unknown(arg[1]);
@@ -91,11 +95,7 @@ void toy_singleinit(struct toy_list *which, char *argv[])
 
   if (NEED_OPTIONS && which->options) get_optflags();
   else {
-    // Parse --help and --version for (almost) all commands
-    if (CFG_TOYBOX_HELP_DASHDASH && !(which->flags & TOYFLAG_NOHELP) && argv[1])
-      check_help(argv+1);
-
-    toys.optargs = argv+1;
+    check_help(toys.optargs = argv+1);
     for (toys.optc = 0; toys.optargs[toys.optc]; toys.optc++);
   }
 
@@ -135,7 +135,10 @@ void toy_init(struct toy_list *which, char *argv[])
     } else if (CFG_TOYBOX_DEBUG && uid && which != toy_list)
       error_msg("Not installed suid root");
 
-    if ((which->flags & TOYFLAG_NEEDROOT) && euid) help_exit("Not root");
+    if ((which->flags & TOYFLAG_NEEDROOT) && euid) {
+      check_help(argv+1);
+      help_exit("Not root");
+    }
   }
 
   // Free old toys contents (to be reentrant), but leave rebound if any
