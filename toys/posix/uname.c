@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/uname.html
 
-USE_UNAME(NEWTOY(uname, "oamvrns[+os]", TOYFLAG_BIN))
+USE_UNAME(NEWTOY(uname, "oamvrns", TOYFLAG_BIN))
 USE_ARCH(NEWTOY(arch, 0, TOYFLAG_USR|TOYFLAG_BIN))
 
 config ARCH 
@@ -54,7 +54,12 @@ void uname_main(void)
   struct utsname u;
 
   uname(&u);
-
+  if (FLAG(o))
+#ifdef __ANDROID__
+    printf("Android");
+#else
+    flags |= FLAG_s;
+#endif
   if (!flags) flags = FLAG_s;
   for (i=0; i<5; i++) {
     char *c = ((char *) &u)+(sizeof(u.sysname)*i);
