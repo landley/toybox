@@ -371,3 +371,5 @@ int dev_makedev(int major, int minor);
 char *fs_type_name(struct statfs *statfs);
 
 int get_block_device_size(int fd, unsigned long long *size);
+
+#include <sys/user.h>
