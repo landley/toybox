@@ -529,10 +529,8 @@ static void extract_to_disk(void)
       return perror_msg(":%s: can't mkdir", name);
 
   // remove old file, if exists
-  if (!FLAG(k) && !S_ISDIR(ala) && unlink(name)) {
-    if (errno==EISDIR && !rmdir(name));
-    else if (errno!=ENOENT) return perror_msg("can't remove: %s", name);
-  }
+  if (!FLAG(k) && !S_ISDIR(ala) && rmdir(name) && errno!=ENOENT && unlink(name))
+    return perror_msg("can't remove: %s", name);
 
   if (S_ISREG(ala)) {
     // hardlink?
