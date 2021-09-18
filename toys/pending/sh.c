@@ -434,7 +434,7 @@ static int recalculate(long long *dd, char **ss, int lvl)
   long long ee, ff;
   char cc = **nospace(ss);
 
-  // handle unary prefixes and constants
+  // handle unary prefixes, parenthetical blocks, and constants
 
   if (cc=='+' || cc=='-') {
     ++*ss;
@@ -446,9 +446,9 @@ static int recalculate(long long *dd, char **ss, int lvl)
     if (**ss!=')') return 0;
     else ++*ss;
   } else if (isdigit(cc)) *dd = strtoll(*ss, ss, 0); //TODO overflow?
-  else if (lvl>2) return 0;
+  else return 0;
 
-  if (strstart(nospace(ss), "**")) {
+  if (lvl>1) if (strstart(nospace(ss), "**")) {
     if (!recalculate(&ee, ss, 3)) return 0;
     if (ee<0) perror_msg("** < 0");
     for (ff = *dd, *dd = 1; ee; ee--) *dd *= ff;
@@ -478,17 +478,6 @@ static int recalculate(long long *dd, char **ss, int lvl)
   nospace(ss);
 
   return 1;
-}
-
-
-// Function to resolve string into a number, squelching errors.
-long long do_math(char *s)
-{
-  long long ll;
-
-  if (!recalculate(&ll, &s, 15)) ll = 0;
-
-  return ll;
 }
 
 // declare -aAilnrux
@@ -1524,7 +1513,7 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
         ss = (s += 2+(str[ii]!='['));
         jj = kk - (3+2*(str[ii]!='['));
         if (!recalculate(&ll, &s, 0) || ss+jj != s) {
-          error_msg("math: %.*s", (int)(jj-(s-ss)), s);
+          error_msg("math: %.*s @ %ld", jj, ss, (s-ss));
           goto fail;
         }
         ii += kk-1;
@@ -1706,7 +1695,6 @@ barf:
         else if (xx) { // ${x::}
           long long la = 0, lb = LLONG_MAX, lc = 1;
 
-// TODO don't redo math in loop
           ss = ++slice;
           if ((lc = recalculate(&la, &ss, 0)) && *ss == ':') {
             ss++;
@@ -1996,7 +1984,7 @@ static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
     }
   }
 
-// TODO NOSPLIT with braces? (Collate with spaces?)
+// TODO NO_SPLIT with braces? (Collate with spaces?)
   // If none, pass on verbatim
   if (!blist) return expand_arg_nobrace(arg, old, flags, delete, 0);
 
