@@ -2917,12 +2917,7 @@ flush:
   if (s) syntax_err(s);
   llist_traverse(*ppl, free_pipeline);
   *ppl = 0;
-  while (*expect) {
-    struct double_list *del = dlist_pop(expect);
-
-    if (del->data != (void *)1) free(del->data);
-    free(del);
-  }
+  llist_traverse(*expect, free);
   *expect = 0;
 
   return 0-!!s;
