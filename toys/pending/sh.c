@@ -421,14 +421,72 @@ static struct sh_vars *addvar(char *s, struct sh_fcall *ff)
   return ff->vars+ff->varslen++;
 }
 
-// TODO function to resolve a string into a number for $((1+2)) etc
-long long do_math(char **s)
+static char **nospace(char **ss)
+{
+  while (isspace(**ss)) ++*ss;
+
+  return ss;
+}
+
+// Recursively calculate string into dd, returns 0 if failed, ss = error point
+static int recalculate(long long *dd, char **ss, int lvl)
+{
+  long long ee, ff;
+  char cc = **nospace(ss);
+
+  // handle unary prefixes and constants
+
+  if (cc=='+' || cc=='-') {
+    ++*ss;
+    if (!recalculate(dd, ss, 0)) return 0;
+    if (cc=='-') *dd = -*dd;
+  } else if (cc=='(') {
+    ++*ss;
+    if (!recalculate(dd, ss, 0)) return 0;
+    if (**ss!=')') return 0;
+    else ++*ss;
+  } else if (isdigit(cc)) *dd = strtoll(*ss, ss, 0); //TODO overflow?
+  else if (lvl>2) return 0;
+
+  if (strstart(nospace(ss), "**")) {
+    if (!recalculate(&ee, ss, 3)) return 0;
+    if (ee<0) perror_msg("** < 0");
+    for (ff = *dd, *dd = 1; ee; ee--) *dd *= ff;
+  }
+
+  if (lvl>0) while ((cc = **nospace(ss))) {
+    if (cc=='*' || cc=='/' || cc=='%') {
+      ++*ss;
+      if (!recalculate(&ee, ss, 2)) return 0;
+      if (cc=='*') *dd *= ee;
+      else if (cc=='%') *dd %= ee;
+      else if (!ee) {
+        perror_msg("/0");
+        return 0;
+      } else *dd /= ee;
+    } else break;
+  }
+
+  if (!lvl) while ((cc = **nospace(ss))) {
+    if (cc=='+' || cc=='-') {
+      ++*ss;
+      if (!recalculate(&ee, ss, 1)) return 0;
+      if (cc=='+') *dd += ee;
+      else *dd -= ee;
+    } else break;
+  }
+  nospace(ss);
+
+  return 1;
+}
+
+
+// Function to resolve string into a number, squelching errors.
+long long do_math(char *s)
 {
   long long ll;
 
-  while (isspace(**s)) ++*s;
-  ll = strtoll(*s, s, 0);
-  while (isspace(**s)) ++*s;
+  if (!recalculate(&ll, &s, 15)) ll = 0;
 
   return ll;
 }
@@ -455,9 +513,8 @@ static struct sh_vars *setvar_found(char *s, struct sh_vars *var)
   if (flags&VAR_MAGIC) {
     char *ss = strchr(s, '=')+1;
 
-    if (*s == 'S') TT.SECONDS = millitime() - 1000*do_math(&ss);
-    else if (*s == 'R') srandom(do_math(&ss));
-// TODO: trailing garbage after do_math()?
+    if (*s == 'S') TT.SECONDS = millitime() - 1000*atoll(ss);
+    else if (*s == 'R') srandom(atoll(ss));
   } else {
     if (!(flags&VAR_NOFREE)) free(var->str);
     else var->flags ^= VAR_NOFREE;
@@ -1462,9 +1519,16 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
       s = str+ii-1;
       kk = parse_word(s, 1, 0)-s;
       if (str[ii] == '[' || *toybuf == 255) {
-        s += 2+(str[ii]!='[');
-        kk -= 3+2*(str[ii]!='[');
-dprintf(2, "TODO: do math for %.*s\n", kk, s);
+        long long ll;
+
+        ss = (s += 2+(str[ii]!='['));
+        jj = kk - (3+2*(str[ii]!='['));
+        if (!recalculate(&ll, &s, 0) || ss+jj != s) {
+          error_msg("math: %.*s", (int)(jj-(s-ss)), s);
+          goto fail;
+        }
+        ii += kk-1;
+        push_arg(delete, ifs = xmprintf("%lld", ll));
       } else {
         // Run subshell and trim trailing newlines
         s += (jj = 1+(cc == '$'));
@@ -1640,24 +1704,23 @@ barf:
         else if (dd == '+')
           push_arg(delete, ifs = slashcopy(slice+xx+1, "}", 0));
         else if (xx) { // ${x::}
-          long long la, lb, lc;
+          long long la = 0, lb = LLONG_MAX, lc = 1;
 
 // TODO don't redo math in loop
-          ss = slice+1;
-          la = do_math(&s);
-          if (s && *s == ':') {
-            s++;
-            lb = do_math(&s);
-          } else lb = LLONG_MAX;
-          if (s && *s != '}') {
-            error_msg("%.*s: bad '%c'", (int)(slice-ss), ss, *s);
-            s = 0;
+          ss = ++slice;
+          if ((lc = recalculate(&la, &ss, 0)) && *ss == ':') {
+            ss++;
+            lc = recalculate(&lb, &ss, 0);
           }
-          if (!s) goto fail;
+          if (!lc || *ss != '}') {
+            for (s = ss; *s != '}' && *s != ':'; s++);
+            error_msg("bad %.*s @ %ld", (int)(s-slice), slice, ss-slice);
+            goto fail;
+          }
 
           // This isn't quite what bash does, but close enough.
           if (!(lc = aa.c)) lc = strlen(ifs);
-          else if (!la && !yy && strchr("@*", slice[1])) {
+          else if (!la && !yy && strchr("@*", *slice)) {
             aa.v--; // ${*:0} shows $0 even though default is 1-indexed
             aa.c++;
             yy++;
