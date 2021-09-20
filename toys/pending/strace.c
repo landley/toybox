@@ -18,6 +18,7 @@ config STRACE
 
 #include <sys/ptrace.h>
 #include <sys/syscall.h>
+#include <sys/user.h>
 
 #define FOR_strace
 #include "toys.h"
@@ -26,31 +27,36 @@ GLOBALS(
   long s;
   long p;
 
-  struct user_regs_struct regs;
+  // 216 for x86-64.
+  char regs_buf[256];
   pid_t pid;
   char *fmt;
   char ioctl[32];
   int arg;
 )
 
+  struct user_regs_struct regs;
+
 #if defined(__x86_64__)
-#define REG_SYSCALL TT.regs.orig_rax
-#define REG_ARG0 TT.regs.rdi
-#define REG_ARG1 TT.regs.rsi
-#define REG_ARG2 TT.regs.rdx
-#define REG_ARG3 TT.regs.r10
-#define REG_ARG4 TT.regs.r8
-#define REG_ARG5 TT.regs.r9
-#define REG_RESULT TT.regs.rax
+#define REGS ((struct user_regs_struct *) &TT.regs_buf)
+#define REG_SYSCALL REGS->orig_rax
+#define REG_ARG0 REGS->rdi
+#define REG_ARG1 REGS->rsi
+#define REG_ARG2 REGS->rdx
+#define REG_ARG3 REGS->r10
+#define REG_ARG4 REGS->r8
+#define REG_ARG5 REGS->r9
+#define REG_RESULT REGS->rax
 #elif defined(__i386__)
-#define REG_SYSCALL TT.regs.orig_eax
-#define REG_ARG0 TT.regs.ebx
-#define REG_ARG1 TT.regs.ecx
-#define REG_ARG2 TT.regs.edx
-#define REG_ARG3 TT.regs.esi
-#define REG_ARG4 TT.regs.edi
-#define REG_ARG5 TT.regs.ebp
-#define REG_RESULT TT.regs.eax
+#define REGS ((struct user_regs_struct *) &TT.regs_buf)
+#define REG_SYSCALL REGS->orig_eax
+#define REG_ARG0 REGS->ebx
+#define REG_ARG1 REGS->ecx
+#define REG_ARG2 REGS->edx
+#define REG_ARG3 REGS->esi
+#define REG_ARG4 REGS->edi
+#define REG_ARG5 REGS->ebp
+#define REG_RESULT REGS->eax
 #else
 // TODO: arm/arm64
 #error unsupported architecture
@@ -163,7 +169,7 @@ static void xptrace(int req, pid_t pid, void *addr, void *data)
 
 static void get_regs()
 {
-  xptrace(PTRACE_GETREGS, TT.pid, 0, &TT.regs);
+  xptrace(PTRACE_GETREGS, TT.pid, 0, &TT.regs_buf);
 }
 
 static long get_arg()
