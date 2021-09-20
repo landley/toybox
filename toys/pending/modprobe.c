@@ -39,7 +39,7 @@ GLOBALS(
 
 #define MODNAME_LEN 256
 
-// Modules flag definations
+// Modules flag definitions
 #define MOD_ALOADED   0x0001
 #define MOD_BLACKLIST 0x0002
 #define MOD_FNDDEPMOD 0x0004
@@ -374,7 +374,7 @@ static void add_mod(char *name)
   if (!strncmp(mod->name, "symbol:", 7)) TT.symreq = 1;
 }
 
-// Parse cmdline options suplied for module.
+// Parse cmdline options supplied for module.
 static char *add_cmdopt(char **argv)
 {
   char *opt = xzalloc(1);

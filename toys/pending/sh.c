@@ -1886,7 +1886,7 @@ barf:
           oo = 0;
         }
 
-        // Skip trailing seperator (combining whitespace)
+        // Skip trailing separator (combining whitespace)
         kk = 0;
         while ((jj = utf8chr(ss, TT.ff->ifs, &ll))) {
           if (!iswspace(jj) && kk++) break;
@@ -3383,7 +3383,7 @@ dprintf(2, "TODO skipped init for((;;)), need math parser\n");
           if (*s == 's') for (i = 0; i<TT.ff->blk->farg.c; i++)
             dprintf(2, "%ld) %s\n", i+1, TT.ff->blk->farg.v[i]);
 
-        // TODO: bash man page says it performs <(process substituion) here?!?
+        // TODO: bash man page says it performs <(process substitution) here?!?
         } else if (!strcmp(s, "case")) {
           TT.ff->blk->fvar = expand_one_arg(ss, NO_NULL, &TT.ff->blk->fdelete);
           if (!TT.ff->blk->fvar) break;

@@ -58,7 +58,7 @@ static void addr2str(int af, void *addr, unsigned port, char *buf, int len,
       socklen_t sock_len = (af == AF_INET) ? sizeof(struct sockaddr_in)
         : sizeof(struct sockaddr_in6);
 
-      // We assume that a failing getnameinfo dosn't stomp "buf" here.
+      // We assume that a failing getnameinfo doesn't stomp "buf" here.
       for (rp = result; rp; rp = rp->ai_next)
         if (!getnameinfo(rp->ai_addr, sock_len, buf, 256, 0, 0, 0)) break;
       freeaddrinfo(result);

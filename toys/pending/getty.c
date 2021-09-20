@@ -109,7 +109,7 @@ static void termios_init(void)
   if (tcsetattr(0, TCSANOW, &TT.termios) < 0) perror_exit("tcsetattr");
 }
 
-// Get the baud rate from modems CONNECT mesage, Its of form <junk><BAUD><Junk>
+// Get the baud rate from modems CONNECT message, It's of form <junk><BAUD><Junk>
 static void sense_baud(void)
 {
   int vmin, speed;

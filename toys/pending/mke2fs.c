@@ -79,7 +79,7 @@ GLOBALS(
   long blocksize;
   long bytes_per_inode;
   long inodes;           // Total inodes in filesystem.
-  long reserved_percent; // Integer precent of space to reserve for root.
+  long reserved_percent; // Integer percent of space to reserve for root.
   char *gendir;          // Where to read dirtree from.
 
   // Internal data.

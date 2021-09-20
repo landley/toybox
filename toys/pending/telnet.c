@@ -161,7 +161,7 @@ static void handle_server_output(int n)
   //
   // The only subnegotiation we support is IAC SB TTYPE SEND IAC SE, so we just
   // hard-code that into our state machine rather than having a more general
-  // "collect the subnegotation into a buffer and handle it after we've seen
+  // "collect the subnegotiation into a buffer and handle it after we've seen
   // the IAC SE at the end". It's 2021, so we're unlikely to need more.
 
   while (p < end) {

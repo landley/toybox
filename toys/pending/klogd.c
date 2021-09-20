@@ -1,4 +1,4 @@
-/* klogd.c - Klogd, The kernel log Dameon.
+/* klogd.c - Klogd, The kernel log Daemon.
  *
  * Copyright 2013 Sandeep Sharma <sandeep.jack2756@gmail.com>
  * Copyright 2013 Kyungwan Han <asura321@gmail.com>

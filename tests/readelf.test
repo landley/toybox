@@ -104,7 +104,7 @@ Program Headers:
 " "" ""
 
 # binutils doesn't line up the column headers for 64-bit ELF files.
-# TODO: binutils readelf lies about trailing NULL entires binutils ld produces
+# TODO: binutils readelf lies about trailing NULL entries binutils ld produces
 NOSPACE=1 toyonly testing "-d" "readelf -dW $elf-full" "
 Dynamic section at offset 0xd98 contains 33 entries:
   Tag                Type                 Name/Value

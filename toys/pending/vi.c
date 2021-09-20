@@ -1008,7 +1008,7 @@ static void ctrl_y()
 static int vi_push(char reg, int count0, int count1)
 {
   //if row changes during push original cursor position is kept
-  //vi inconsistancy
+  //vi inconsistency
   //if yank ends with \n push is linemode else push in place+1
   size_t history = TT.cursor;
   char *start = TT.yank.data;
@@ -1045,7 +1045,7 @@ static int vi_find_cb(int count0, int count1, char *symbol)
   return 1;
 }
 
-//if count is not spesified should go to last line
+//if count is not specified should go to last line
 static int vi_go(int count0, int count1, char *symbol)
 {
   size_t prev_cursor = TT.cursor;
@@ -1125,7 +1125,7 @@ static int vi_find_next(char reg, int count0, int count1)
 //where:
 //-------------------------------------------------------------
 //"[REG] is optional buffer where deleted/yanked text goes REG can be
-//  atleast 0-9, a-z or default "
+//  at least 0-9, a-z or default "
 //[COUNT] is optional multiplier for cmd execution if there is 2 COUNT
 //  operations they are multiplied together
 //CMD is operation to be executed

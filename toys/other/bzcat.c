@@ -151,7 +151,7 @@ static unsigned int get_bits(struct bunzip_data *bd, char bits_wanted)
  * 16 bits : Mapping table index.
  *[16 bits]: symToByte[symTotal] (Mapping table.  For each bit set in mapping
  *           table index above, read another 16 bits of mapping table data.
- *           If correspondig bit is unset, all bits in that mapping table
+ *           If corresponding bit is unset, all bits in that mapping table
  *           section are 0.)
  *  3 bits : groupCount (how many huffman tables used to encode, anywhere
  *           from 2 to MAX_GROUPS)

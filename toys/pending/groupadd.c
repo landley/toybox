@@ -31,7 +31,7 @@ GLOBALS(
 )
 
 /* Add a new group to the system, if GID is given then that is validated
- * to be free, else a free GID is choosen by self.
+ * to be free, else a free GID is chosen by self.
  * SYSTEM IDs are considered in the range 100 ... 999
  * update_group(), updates the entries in /etc/group, /etc/gshadow files
  */

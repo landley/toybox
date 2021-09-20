@@ -483,7 +483,7 @@ int first_alpha(const char *string, const char *exempt)
  * lxdialog suggest <ESC> <ESC> which is correctly translated to two
  * times esc. But then we need to ignore the second esc to avoid stepping
  * out one menu too much. Filter away all escaped key sequences since
- * keypad(FALSE) turn off ncurses support for escape sequences - and thats
+ * keypad(FALSE) turn off ncurses support for escape sequences - and that's
  * needed to make notimeout() do as expected.
  */
 int on_key_esc(WINDOW *win)

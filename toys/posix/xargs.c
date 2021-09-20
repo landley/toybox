@@ -205,7 +205,7 @@ reap_children:
       else if (xv) toys.exitval = 123;
     }
 
-    // Abritrary number of execs, can't just leak memory each time...
+    // Arbitrary number of execs, can't just leak memory each time...
     llist_traverse(dlist, llist_free_double);
     dlist = 0;
     free(out);

@@ -46,7 +46,7 @@ int terminal_size(unsigned *xx, unsigned *yy)
   return x || y;
 }
 
-// Query terminal size, sending ANSI probe if necesary. (Probe queries xterm
+// Query terminal size, sending ANSI probe if necessary. (Probe queries xterm
 // size through serial connection, when local TTY doesn't know but remote does.)
 // Returns 0 if ANSI probe sent, 1 if size determined from tty or environment
 

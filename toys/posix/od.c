@@ -133,7 +133,7 @@ static void od_outline(void)
 
   if (TT.leftover<TT.w) memset(TT.buf+TT.leftover, 0, TT.w-TT.leftover);
 
-  // Handle duplciate lines as *
+  // Handle duplicate lines as *
   if (!(flags&FLAG_v) && TT.j != TT.pos && TT.leftover
     && !memcmp(TT.bufs[0], TT.bufs[1], TT.w))
   {

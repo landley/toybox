@@ -379,7 +379,7 @@ void cp_main(void)
 
   if (FLAG(a)||FLAG(p)) TT.pflags = _CP_mode|_CP_ownership|_CP_timestamps;
 
-  // Not using comma_args() (yet?) because interpeting as letters.
+  // Not using comma_args() (yet?) because interpreting as letters.
   if (FLAG(preserve)) {
     char *pre = xstrdup(TT.c.preserve ? TT.c.preserve : "mot"), *s;
 

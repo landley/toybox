@@ -618,7 +618,7 @@ static int do_find(struct dirtree *new)
             ff = 0;
             ch = *fmt;
 
-            // long long is its own stack size on LP64, so handle seperately
+            // long long is its own stack size on LP64, so handle separately
             if (ch == 'i' || ch == 's') {
               strcpy(next+len, "lld");
               printf(next, (ch == 'i') ? (long long)new->st.st_ino

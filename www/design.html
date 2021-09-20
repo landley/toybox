@@ -34,7 +34,7 @@ Android Open Source Project under the result. Any "circular dependencies"
 should be solved by toybox including the missing dependencies itself
 (see "Shared Libraries" below).</p>
 
-<p>Finally, toybox may provide some "convenience" utilties
+<p>Finally, toybox may provide some "convenience" utilities
 like top and vi that aren't necessarily used in a build but which turn
 the minimal build environment into a minimal development environment
 (supporting edit/compile/test cycles in a text console), configure
@@ -112,7 +112,7 @@ Technica:
 <a href=http://arstechnica.com/paedia/r/ram_guide/ram_guide.part3-1.html>part three</a>,
 plus this
 <a href=http://arstechnica.com/articles/paedia/cpu/caching.ars/1>article on
-cacheing</a>, and this one on
+caching</a>, and this one on
 <a href=http://arstechnica.com/articles/paedia/cpu/bandwidth-latency.ars>bandwidth
 and latency</a>.
 And there's <a href=http://arstechnica.com/paedia/index.html>more where that came from</a>.)
@@ -125,7 +125,7 @@ is 128k and a big L2 cache is a couple of megabytes.  A cheap low-power
 embedded processor may have 8k of L1 cache and no L2.)</p>
 
 <p>Learn how <a href=http://nommu.org/memory-faq.txt>virtual memory and
-memory managment units work</a>.  Don't touch
+memory management units work</a>.  Don't touch
 memory you don't have to.  Even just reading memory evicts stuff from L1 and L2
 cache, which may have to be read back in later.  Writing memory can force the
 operating system to break copy-on-write, which allocates more memory.  (The
@@ -256,14 +256,14 @@ tested and supported.</p>
 <p>Prioritizing simplicity tends to serve our other goals: simplifying code
 generally reduces its size (both in terms of binary size and runtime memory
 usage), and avoiding unnecessary work makes code run faster. Smaller code
-also tends to run faster on modern hardware due to CPU cacheing: fitting your
+also tends to run faster on modern hardware due to CPU caching: fitting your
 code into L1 cache is great, and staying in L2 cache is still pretty good.</p>
 
 <p>But a simple implementation is not always the smallest or fastest, and
 balancing simplicity vs the other goals can be difficult. For example, the
 atolx_range() function in lib/lib.c always uses the 64 bit "long long" type,
 which produces larger and slower code on 32 bit platforms and
-often assigned into smaller interger types. Although libc has parallel
+often assigned into smaller integer types. Although libc has parallel
 implementations for different data sizes (atoi, atol, atoll) we chose a
 common codepath which can cover all cases (every user goes through the
 same codepath, with the maximum amount of testing and minimum and avoids
@@ -520,7 +520,7 @@ because we need to distinguish which if an else binds to. Curly brackets go
 on the same line as the test/loop statement. The exception to both cases is
 if the test part of an if statement is long enough to split into multiple
 lines, then we put the curly bracket on its own line afterwards (so it doesn't
-get lost in the multple line variably indented mess), and we put it there
+get lost in the multiple line variably indented mess), and we put it there
 even if it's only grouping one line (because the indentation level is not
 providing clear information in that case).</p>
 

@@ -93,7 +93,7 @@ static char *dec(int val, CODE *clist, char *buf)
 
 /*
  * recurses the logfile list and resolves config
- * for evry file and updates facilty and log level bits.
+ * for every file and updates facilty and log level bits.
  */
 static int resolve_config(struct logfile *file, char *config)
 {

@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Elie De Brauwer <eliedebrauwer@gmail.com>
 
-// Flag order is signifcant: b-g are units in order, FLAG_h-1 is unit mask
+// Flag order is significant: b-g are units in order, FLAG_h-1 is unit mask
 USE_FREE(NEWTOY(free, "hgmkb[!hgmkb]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config FREE

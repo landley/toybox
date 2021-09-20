@@ -1055,7 +1055,7 @@ void mode_to_string(mode_t mode, char *buf)
 }
 
 // basename() can modify its argument or return a pointer to a constant string
-// This just gives after the last '/' or the whole stirng if no /
+// This just gives after the last '/' or the whole string if no /
 char *getbasename(char *name)
 {
   char *s = strrchr(name, '/');

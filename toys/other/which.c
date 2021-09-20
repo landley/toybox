@@ -16,7 +16,7 @@ config WHICH
 */
 #include "toys.h"
 
-// Find an exectuable file either at a path with a slash in it (absolute or
+// Find an executable file either at a path with a slash in it (absolute or
 // relative to current directory), or in $PATH.  Returns absolute path to file,
 // or NULL if not found.
 
