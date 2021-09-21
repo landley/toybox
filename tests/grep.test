@@ -13,6 +13,7 @@ echo -e "this is test" > foo
 echo -e "this is test2" > foo2
 echo -e "this is foo3" > foo3
 testing "-l" "grep -l test foo foo2 foo3" "foo\nfoo2\n" "" ""
+testing "-L" "grep -L test foo foo2 foo3" "foo3\n" "" ""
 rm foo foo2 foo3
 
 testing "-q" "grep -q test input && echo yes" "yes\n" "this is a test\n" ""

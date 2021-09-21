@@ -10,7 +10,7 @@
 * echo hello | grep -f </dev/null
 *
 
-USE_GREP(NEWTOY(grep, "(line-buffered)(color):;(exclude-dir)*S(exclude)*M(include)*ZzEFHIab(byte-offset)h(no-filename)ino(only-matching)rRsvwcl(files-with-matches)q(quiet)(silent)e*f*C#B#A#m#x[!wx][!EFw]", TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)|TOYFLAG_LINEBUF))
+USE_GREP(NEWTOY(grep, "(line-buffered)(color):;(exclude-dir)*S(exclude)*M(include)*ZzEFHIab(byte-offset)h(no-filename)ino(only-matching)rRsvwcL(files-without-match)l(files-with-matches)q(quiet)(silent)e*f*C#B#A#m#x[!wx][!EFw]", TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)|TOYFLAG_LINEBUF))
 USE_EGREP(OLDTOY(egrep, grep, TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)|TOYFLAG_LINEBUF))
 USE_FGREP(OLDTOY(fgrep, grep, TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)|TOYFLAG_LINEBUF))
 
@@ -44,6 +44,7 @@ config GREP
     -x  whole line               -z  input NUL terminated
 
     display modes: (default: matched line)
+    -L  show only non-matching filenames
     -c  count of matching lines  -l  show only matching filenames
     -o  only matching part       -q  quiet (errors only)
     -s  silent (no error msg)    -Z  output NUL terminated
@@ -267,8 +268,9 @@ static void do_grep(int fd, char *name)
         toys.exitval = 0;
         xexit();
       }
-      if (FLAG(l)) {
-        xprintf("%s%c", name, TT.outdelim);
+      if (FLAG(L) || FLAG(l)) {
+        if (FLAG(l))
+          xprintf("%s%c", name, TT.outdelim);
         free(line);
         fclose(file);
         return;
@@ -351,6 +353,11 @@ static void do_grep(int fd, char *name)
     free(line);
 
     if (FLAG(m) && mcount >= TT.m) break;
+  }
+
+  if (FLAG(L)) {
+    xprintf("%s%c", name, TT.outdelim);
+    return;
   }
 
   if (FLAG(c)) outline(0, ':', name, mcount, 0, 1);
