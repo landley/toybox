@@ -28,7 +28,7 @@ void uptime_main(void)
   struct sysinfo info;
   time_t t;
   struct tm *tm;
-  unsigned int days, hours, minutes;
+  unsigned int weeks, days, hours, minutes;
   struct utmpx *entry;
   int users = 0;
 
@@ -37,7 +37,7 @@ void uptime_main(void)
   time(&t);
 
   // Just show the time of boot?
-  if (toys.optflags & FLAG_s) {
+  if (FLAG(s)) {
     t -= info.uptime;
     tm = localtime(&t);
     strftime(toybuf, sizeof(toybuf), "%F %T", tm);
@@ -54,10 +54,9 @@ void uptime_main(void)
   hours = info.uptime%24;
   days = info.uptime/24;
 
-  if (toys.optflags & FLAG_p) {
-    int weeks = days/7;
+  if (FLAG(p)) {
+    weeks = days/7;
     days %= 7;
-
     xprintf("up %d week%s, %d day%s, %d hour%s, %d minute%s\n",
         weeks, (weeks!=1)?"s":"",
         days, (days!=1)?"s":"",
