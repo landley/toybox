@@ -57,25 +57,24 @@ void uptime_main(void)
   if (FLAG(p)) {
     weeks = days/7;
     days %= 7;
-    xprintf("up %d week%s, %d day%s, %d hour%s, %d minute%s\n",
+    xprintf("up %d week%s, %d day%s, %d hour%s, %d minute%s, ",
         weeks, (weeks!=1)?"s":"",
         days, (days!=1)?"s":"",
         hours, (hours!=1)?"s":"",
         minutes, (minutes!=1)?"s":"");
-    return;
+  } else {
+    xprintf(" %02d:%02d:%02d up ", tm->tm_hour, tm->tm_min, tm->tm_sec);
+    if (days) xprintf("%d day%s, ", days, (days!=1)?"s":"");
+    if (hours) xprintf("%2d:%02d, ", hours, minutes);
+    else printf("%d min, ", minutes);
+
+    // Obtain info about logged on users
+    setutxent();
+    while ((entry = getutxent())) if (entry->ut_type == USER_PROCESS) users++;
+    endutxent();
+    printf(" %d user%s, ", users, (users!=1) ? "s" : "");
   }
 
-  xprintf(" %02d:%02d:%02d up ", tm->tm_hour, tm->tm_min, tm->tm_sec);
-  if (days) xprintf("%d day%s, ", days, (days!=1)?"s":"");
-  if (hours) xprintf("%2d:%02d, ", hours, minutes);
-  else printf("%d min, ", minutes);
-
-  // Obtain info about logged on users
-  setutxent();
-  while ((entry = getutxent())) if (entry->ut_type == USER_PROCESS) users++;
-  endutxent();
-
-  printf(" %d user%s, ", users, (users!=1) ? "s" : "");
   printf(" load average: %.02f, %.02f, %.02f\n", info.loads[0]/65536.0,
     info.loads[1]/65536.0, info.loads[2]/65536.0);
 }
