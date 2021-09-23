@@ -93,7 +93,7 @@ static void reset_term(int fd)
   tcsetattr(fd, TCSANOW, &terminal);
 }
 
-static void add_new_action(uint8_t action,char *command,char *term)
+static void add_new_action(int action, char *command, char *term)
 {
   struct action_list_seed *x,**y;
 
@@ -120,72 +120,66 @@ static void add_new_action(uint8_t action,char *command,char *term)
   *y = x;
 }
 
-static void inittab_parsing(void)
+static void parse_inittab(void)
 {
-  int i, fd, line_number = 0, token_count = 0;
-  char *p, *q, *extracted_token, *tty_name = NULL, *command = NULL, *tmp;
-  uint8_t action = 0;
+  char *line = 0;
+  size_t allocated_length = 0;
+  int line_number = 0;
   char *act_name = "sysinit\0wait\0once\0respawn\0askfirst\0ctrlaltdel\0"
                     "shutdown\0restart\0";
+  FILE *fp = fopen("/etc/inittab", "r");
 
-  fd = open("/etc/inittab", O_RDONLY);
-  if (fd < 0) {
+  if (!fp) {
     error_msg("Unable to open /etc/inittab. Using Default inittab");
     add_new_action(SYSINIT, "/etc/init.d/rcS", "");
     add_new_action(RESPAWN, "/sbin/getty -n -l /bin/sh -L 115200 tty1 vt100", "");
-  } else {
-    while((q = p = get_line(fd))) { //read single line from /etc/inittab
-      char *x;
-
-      if ((x = strchr(p, '#'))) *x = '\0';
-      line_number++;
-      token_count = 0;
-      action = 0;
-      tty_name = command = NULL;
-
-      while ((extracted_token = strsep(&p,":"))) {
-        token_count++;
-        switch (token_count) {
-          case 1:
-            if (*extracted_token) {
-              if (!strncmp(extracted_token, "/dev/", 5))
-                tty_name = xmprintf("%s",extracted_token);
-              else tty_name = xmprintf("/dev/%s",extracted_token);
-            } else tty_name = xstrdup("");
-            break;
-          case 2:
-            break;
-          case 3:
-            for (tmp = act_name, i = 0; *tmp; i++, tmp += strlen(tmp) +1) {
-              if (!strcmp(tmp, extracted_token)) {
-                action = 1 << i;
-                break;
-              }
-            }
-            if (!*tmp) error_msg("Invalid action at line number %d ---- ignoring",line_number);
-            break;
-          case 4:
-            command = xstrdup(extracted_token);
-            break;
-          default:
-            error_msg("Bad inittab entry at line %d", line_number);
-            break;
-        }
-      }  //while token
-
-      if (q) free(q);
-      if (token_count != 4) {
-        free(tty_name);
-        free(command);
-        continue;
-      }
-      if (action) add_new_action(action, command, tty_name);
-      free(tty_name);
-      free(command);
-    } //while line
-
-    close(fd);
+    return;
   }
+
+  while (getline(&line, &allocated_length, fp)) {
+    char *p = line, *x, *tty_name = 0, *command = 0, *extracted_token, *tmp;
+    int action = 0, token_count = 0, i;
+
+    if ((x = strchr(p, '#'))) *x = '\0';
+    line_number++;
+    action = 0;
+
+    while ((extracted_token = strsep(&p,":"))) {
+      token_count++;
+      switch (token_count) {
+        case 1:
+          if (*extracted_token) {
+            if (!strncmp(extracted_token, "/dev/", 5))
+              tty_name = xmprintf("%s",extracted_token);
+            else tty_name = xmprintf("/dev/%s",extracted_token);
+          } else tty_name = xstrdup("");
+          break;
+        case 2:
+          break;
+        case 3:
+          for (tmp = act_name, i = 0; *tmp; i++, tmp += strlen(tmp) +1) {
+            if (!strcmp(tmp, extracted_token)) {
+              action = 1 << i;
+              break;
+            }
+          }
+          if (!*tmp) error_msg("Invalid action at line number %d ---- ignoring",line_number);
+          break;
+        case 4:
+          command = xstrdup(extracted_token);
+          break;
+        default:
+          error_msg("Bad inittab entry at line %d", line_number);
+          break;
+      }
+    }  //while token
+
+    if (token_count == 4 && action) add_new_action(action, command, tty_name);
+    free(tty_name);
+    free(command);
+  }
+  free(line);
+  fclose(fp);
 }
 
 static void reload_inittab(void)
@@ -204,7 +198,7 @@ static void reload_inittab(void)
     }
     y = &(*y)->next;
   }
-  inittab_parsing();
+  parse_inittab();
 }
 
 static void run_command(char *command)
@@ -478,7 +472,7 @@ void init_main(void)
   putenv("SHELL=/bin/sh");
   putenv("USER=root");
 
-  inittab_parsing();  
+  parse_inittab();
   xsignal(SIGUSR1, halt_poweroff_reboot_handler);//halt
   xsignal(SIGUSR2, halt_poweroff_reboot_handler);//poweroff
   xsignal(SIGTERM, halt_poweroff_reboot_handler);//reboot
