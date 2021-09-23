@@ -29,13 +29,13 @@ GLOBALS(
 
 void reboot_main(void)
 {
-  struct timespec tv;
+  struct timespec ts;
   int types[] = {RB_AUTOBOOT, RB_HALT_SYSTEM, RB_POWER_OFF},
       sigs[] = {SIGTERM, SIGUSR1, SIGUSR2}, idx;
 
   if (TT.d) {
-    tv.tv_sec = xparsetime(TT.d, 9, &tv.tv_nsec);
-    nanosleep(&tv, NULL);
+    xparsetimespec(TT.d, &ts);
+    nanosleep(&ts, NULL);
   }
 
   if (!FLAG(n)) sync();

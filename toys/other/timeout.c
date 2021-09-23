@@ -33,8 +33,9 @@ GLOBALS(
 
   int nextsig;
   pid_t pid;
-  struct timeval ktv;
-  struct itimerval itv;
+  struct timespec kts;
+  struct itimerspec its;
+  timer_t timer;
 )
 
 static void handler(int i)
@@ -48,27 +49,21 @@ static void handler(int i)
     TT.k = 0;
     TT.nextsig = SIGKILL;
     xsignal(SIGALRM, handler);
-    TT.itv.it_value = TT.ktv;
-    setitimer(ITIMER_REAL, &TT.itv, (void *)toybuf);
+    TT.its.it_value = TT.kts;
+    if (timer_settime(TT.timer, 0, &TT.its, 0)) perror_exit("timer_settime");
   }
-}
-
-// timeval inexplicably makes up a new type for microseconds, despite timespec's
-// nanoseconds field (needing to store 1000* the range) using "long". Bravo.
-static void xparsetimeval(char *s, struct timeval *tv)
-{
-  long ll;
-
-  tv->tv_sec = xparsetime(s, 6, &ll);
-  tv->tv_usec = ll;
 }
 
 void timeout_main(void)
 {
+  struct sigevent se = { .sigev_notify = SIGEV_SIGNAL, .sigev_signo = SIGALRM };
+
   // Use same ARGFAIL value for any remaining parsing errors
   toys.exitval = 125;
-  xparsetimeval(*toys.optargs, &TT.itv.it_value);
-  if (TT.k) xparsetimeval(TT.k, &TT.ktv);
+  xparsetimespec(*toys.optargs, &TT.its.it_value);
+  if (TT.k) xparsetimespec(TT.k, &TT.kts);
+
+  if (timer_create(CLOCK_MONOTONIC, &se, &TT.timer)) perror_exit("timer");
 
   TT.nextsig = SIGTERM;
   if (TT.s && -1 == (TT.nextsig = sig_to_num(TT.s)))
@@ -82,7 +77,7 @@ void timeout_main(void)
     int status;
 
     xsignal(SIGALRM, handler);
-    setitimer(ITIMER_REAL, &TT.itv, (void *)toybuf);
+    if (timer_settime(TT.timer, 0, &TT.its, 0)) perror_exit("timer_settime");
 
     status = xwaitpid(TT.pid);
     if (FLAG(preserve_status) || !toys.exitval) toys.exitval = status;

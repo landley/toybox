@@ -922,6 +922,10 @@ long long xparsemillitime(char *arg)
   return (l*1000LL)+ll;
 }
 
+void xparsetimespec(char *arg, struct timespec *ts)
+{
+  ts->tv_sec = xparsetime(arg, 9, &ts->tv_nsec);
+}
 
 
 // Compile a regular expression into a regex_t
