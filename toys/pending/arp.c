@@ -201,11 +201,9 @@ static int delete_entry(void)
 void arp_main(void)
 {
   struct sockaddr sa;
-  char ip[128], hw_addr[128], mask[12], dev[128], *host_ip = NULL, *line = 0;
+  char ip[16], hw_addr[30], mask[16], dev[16], *host_ip = NULL;
   FILE *fp;
   int h_type, type, flag, i, entries = 0, disp = 0;
-  size_t allocated_length;
-  ssize_t n;
 
   TT.device = "";
   memset(&sa, 0, sizeof(sa));
@@ -242,14 +240,11 @@ void arp_main(void)
   }
 
   fp = xfopen("/proc/net/arp", "r");
-  getline(&line, &allocated_length, fp); // Skip header.
-  while ((n = getline(&line, &allocated_length, fp)) > 0) {
+  fgets(toybuf, sizeof(toybuf), fp); // Skip header.
+  while (fscanf(fp, "%16s 0x%x 0x%x %30s %16s %16s",
+                ip, &h_type, &flag, hw_addr, mask, dev) == 6) {
     char *host_name = "?";
-    int ip_len;
 
-    if (sscanf(line, "%s%n 0x%x 0x%x %s %s %s\n", ip, &ip_len,
-               &h_type, &flag, hw_addr, mask, dev) != 6) break;
-    line[ip_len] = 0;
     entries++;
     if ((FLAG(H) && get_index(hwtype, TT.hw_type) != h_type) ||
       (FLAG(i) && strcmp(TT.interface, dev)) ||
@@ -258,9 +253,8 @@ void arp_main(void)
     }
 
     resolve_host(ip, &sa);
-    if (!FLAG(n)) {
-      if (!ip_to_host(&sa, NI_NAMEREQD)) host_name = toybuf;
-    } else ip_to_host(&sa, NI_NUMERICHOST);
+    if (FLAG(n)) ip_to_host(&sa, NI_NUMERICHOST);
+    else if (!ip_to_host(&sa, NI_NAMEREQD)) host_name = toybuf;
 
     disp++;
     printf("%s (%s) at" , host_name, ip);
@@ -290,7 +284,6 @@ void arp_main(void)
 
   if (CFG_TOYBOX_FREE) {
     free(host_ip);
-    free(line);
     fclose(fp);
   }
 }
