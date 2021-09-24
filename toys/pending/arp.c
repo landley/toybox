@@ -241,7 +241,7 @@ void arp_main(void)
 
   fp = xfopen("/proc/net/arp", "r");
   fgets(toybuf, sizeof(toybuf), fp); // Skip header.
-  while (fscanf(fp, "%16s 0x%x 0x%x %30s %16s %16s",
+  while (fscanf(fp, "%15s 0x%x 0x%x %29s %15s %15s",
                 ip, &h_type, &flag, hw_addr, mask, dev) == 6) {
     char *host_name = "?";
 
