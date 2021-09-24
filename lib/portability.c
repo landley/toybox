@@ -655,3 +655,27 @@ long long sendfile_len(int in, int out, long long bytes, long long *consumed)
   return total;
 }
 
+#if __APPLE__
+// The absolute minimum POSIX timer implementation to build timeout(1).
+// Note that although timeout(1) uses POSIX timers to get the monotonic clock,
+// that doesn't seem to be an option on macOS (without using other libraries),
+// so we just mangle that back into a regular setitimer(ITIMER_REAL) call.
+int timer_create(clock_t c, struct sigevent *se, timer_t *t)
+{
+  if (se->sigev_notify != SIGEV_SIGNAL || se->sigev_signo != SIGALRM)
+    error_exit("unimplemented");
+  *t = 1;
+  return 0;
+}
+
+int timer_settime(timer_t t, int flags, struct itimerspec *new, void *old)
+{
+  struct itimerval mangled;
+
+  if (flags != 0 || old != 0) error_exit("unimplemented");
+  memset(&mangled, 0, sizeof(mangled));
+  mangled.it_value.tv_sec = new->it_value.tv_sec;
+  mangled.it_value.tv_usec = new->it_value.tv_nsec / 1000;
+  return setitimer(ITIMER_REAL, &mangled, NULL);
+}
+#endif
