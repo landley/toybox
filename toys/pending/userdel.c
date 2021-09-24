@@ -50,7 +50,7 @@ static void update_groupfiles(char *filename, char* username)
 
   newfp = xfopen(filenamesfx, "w+");
 
-  while (getline(&line, &allocated_length, exfp)) {
+  while (getline(&line, &allocated_length, exfp) > 0) {
     sprintf(toybuf, "%s:",username);
     if (strncmp(line, toybuf, ulen+1)) {
       char *n, *p = strrchr(line, ':');

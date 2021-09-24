@@ -115,7 +115,7 @@ static void scan_proc_net_file(char *path, int family, char type,
 
   if (!fp) return;
 
-  if (!getline(&line, &line_length, fp)) return; // Skip header.
+  if (getline(&line, &line_length, fp) <= 0) return; // Skip header.
 
   while (getline(&line, &line_length, fp) > 0) {
     fn(line, family, type);

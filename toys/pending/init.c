@@ -136,7 +136,7 @@ static void parse_inittab(void)
     return;
   }
 
-  while (getline(&line, &allocated_length, fp)) {
+  while (getline(&line, &allocated_length, fp) > 0) {
     char *p = line, *x, *tty_name = 0, *command = 0, *extracted_token, *tmp;
     int action = 0, token_count = 0, i;
 
