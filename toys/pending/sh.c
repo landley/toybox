@@ -401,9 +401,9 @@ static struct sh_vars *findvar(char *name, struct sh_fcall **pff)
 
     if (!var) continue;
     if (pff) *pff = ff;
-    while (var-- != ff->vars)
+    while (var--!=ff->vars)
       if (pff || !(var->flags&VAR_WHITEOUT))
-        if (!strncmp(var->str, name, len) && var->str[len] == '=') return var;
+        if (!strncmp(var->str, name, len) && var->str[len]=='=') return var;
   } while ((ff = ff->next)!=TT.ff);
 
   return 0;
@@ -2379,14 +2379,14 @@ static void sh_exec(char **argv)
 // Execute a single command at TT.ff->pl
 static struct sh_process *run_command(void)
 {
-  char *s, *sss;
+  char *s, *ss, *sss;
   struct sh_arg *arg = TT.ff->pl->arg;
   int envlen, funk = TT.funcslen, jj = 0, locals = 0;
   struct sh_process *pp;
 
   // Count leading variable assignments
   for (envlen = 0; envlen<arg->c; envlen++)
-    if ((s = varend(arg->v[envlen])) == arg->v[envlen] || *s != '=') break;
+    if ((s = varend(arg->v[envlen]))==arg->v[envlen] || s[*s=='+']!='=') break;
   pp = expand_redir(arg, envlen, 0);
 
   // Are we calling a shell function?  TODO binary search
@@ -2403,7 +2403,7 @@ static struct sh_process *run_command(void)
       pp->delete = 0;
     }
     addvar(0, TT.ff); // function context (not source) so end_function deletes
-    locals = 1;
+    locals = 1;  // create local variables for function prefix assignment
   }
 
   // perform any assignments
@@ -2416,13 +2416,24 @@ static struct sh_process *run_command(void)
       else if (vv->flags&VAR_READONLY) ff = 0;
       else if (locals && ff!=TT.ff) vv = 0, ff = TT.ff;
 
-      if (!vv&&ff) (vv = addvar(s, ff))->flags = VAR_NOFREE|(VAR_GLOBAL*locals);
       if (!(sss = expand_one_arg(s, SEMI_IFS, 0))) pp->exit = 1;
       else {
-        if (!setvar_found(sss, vv)) continue;
+        ss = varend(sss);
+        if (!vv&&ff)
+          (vv = addvar(s, ff))->flags = VAR_NOFREE|(VAR_GLOBAL*locals);
+        else if (*ss=='+') {
+          ss = xmprintf("%s%s", vv->str, ss+2);
+          free(sss);
+          sss = ss;
+        }
+
+        if (!setvar_found(sss, vv)) {
+          if (sss!=s) free(sss);
+          continue;
+        }
         if (sss==s) {
           if (!locals) vv->str = xstrdup(sss);
-          else vv->flags |= VAR_NOFREE;
+          else vv->flags |= VAR_NOFREE; // argument mem outlives command
         }
         cache_ifs(vv->str, ff ? : TT.ff);
       }

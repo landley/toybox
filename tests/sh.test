@@ -120,9 +120,10 @@ rm -rf sub
 testing "script file" "chmod +x input; ./input" "hello\n" "#!$C\necho hello" ""
 testing 'IFS $*' "$SH -c 'IFS=xy; echo \"\$*\"' one two tyree" "twoxtyree\n" \
   "" ""
+# Note: bash version skew, SHLVL=1 in earlier bash versions
 testing 'default exports' \
   "env -i \"$(which $SH)\" --noprofile --norc -c env | sort" \
-  "PWD=$(pwd)\nSHLVL=1\n_=$(which env)\n" "" ""
+  "PWD=$(pwd)\nSHLVL=0\n_=$(which env)\n" "" ""
 # toysh order of operations not matching bash
 #testing "leading assignment fail" \
 #  "{ \$SH -c 'X=\${a?blah} > walroid';ls walroid;} 2>/dev/null" '' '' ''
@@ -136,6 +137,8 @@ export EVAL="$SH -c"
 
 testing "smoketest" "echo hello" "hello\n" "" ""
 testing "line break" $'ec\\\nho hello' 'hello\n' '' ''
+testing "assignment" 'x=y; echo $x' 'y\n' '' ''
+testing "+= assignment" 'x=abc; y=def; y+=$x; echo $y' 'defabc\n' '' ''
 testing "eval" "eval echo hello" "hello\n" "" ""
 testing "eval2" "eval 'echo hello'; echo $?" "hello\n0\n" "" ""
 testing "eval3" 'X="echo hello"; eval "$X"' "hello\n" "" ""
@@ -211,12 +214,17 @@ touch www
 testing 'wildcards' 'echo w[v-x]w w[x-v]w abc/*/ghi' \
   'www w[x-v]w abc/def/ghi\n' '' ''
 
-#testing "backtick1" 'X=fred; echo `echo $x`' 'fred\n' "" ""
-#testing "backtick2" 'X=fred; echo `x=y; echo $x`' 'y\n' "" ""
+testing "backtick1" 'x=fred; echo `echo $x`' 'fred\n' "" ""
+testing "backtick2" 'x=fred; echo `x=y; echo $x`; echo $x' 'y\nfred\n' "" ""
 testing '$(( ) )' 'echo ab$((echo hello) | tr e x)cd' "abhxllocd\n" "" ""
-testing '$((x=y)) lifetime' 'a=boing; echo $a $a$((a=4))$a $a' 'boing boing44 4\n' '' ''
+SKIPNEXT=1 testing '$((x=y)) lifetime' 'a=boing; echo $a $a$((a=4))$a $a' 'boing boing44 4\n' '' ''
 
 testing 'quote' "echo \"'\"" "'\n" "" ""
+
+testing "math" 'echo $((1+2))' '3\n' '' ''
+testing "[math]" 'echo $[1+2]' '3\n' '' ''
+testing "math prio" 'echo $((1+2*3))' '7\n' '' ''
+testing "math paren" 'echo $(((1+2)*3))' '9\n' '' ''
 
 # Loops and flow control
 testing "case" 'for i in A C J B; do case "$i" in A) echo got A ;; B) echo and B ;; C) echo then C ;; *) echo default ;; esac; done' \
@@ -267,12 +275,14 @@ testing "{a..z..-3}" "echo {a..z..-3}" "a d g j m p s v y\n" "" ""
 
 mkfifo POIT
 testing 'background curly block' \
-  '{ sed s/ll/xx/ POIT; }& echo hello > POIT; wait' 'hexxo\n' '' ''
+  '{ sed s/ll/xx/ POIT; }& echo hello > POIT; wait && echo yes' \
+  'hexxo\nyes\n' '' ''
 rm -f POIT
 
 testing 'background pipe block' \
   'if true; then { sleep .25;bzcat "$FILES"/blkid/ntfs.bz2; }& fi | wc -c' \
   '8388608\n' '' ''
+testing 'background variable assignment' 'X=x; X=y & echo $X' 'x\n' '' ''
 
 #$ IFS=x X=xyxz; for i in abc${X}def; do echo =$i=; done
 #=abc=
@@ -346,7 +356,8 @@ testing "! syntax err" '! echo 2>/dev/null < doesnotexist; echo $?' "0\n" "" ""
 testing "case quoting" 'case a in "a") echo hello;; esac' 'hello\n' "" ""
 
 testing "subshell splitting" 'for i in $(true); do echo =$i=; done' "" "" ""
-#testing "subshell split 2"
+testing "subshell split 2" 'for i in $(echo "one two thr"); do echo =$i=; done'\
+  "=one=\n=two=\n=thr=\n" "" ""
 
 # variable assignment argument splitting only performed for "$@"
 testing "assignment nosplit" 'X="one two"; Y=$X; echo $Y' "one two\n" "" ""
@@ -425,7 +436,8 @@ testing '${!x*}' 'abcdef=1 abc=2 abcq=; echo "${!abc@}" | tr " " \\n | sort' \
   'abc\nabcdef\nabcq\n' '' ''
 testing '${!x*} none' 'echo "${!abc*}"' '\n' '' ''
 testing '${!x*} err' '{ echo "${!abc*x}"; echo boing;} 2>/dev/null' '' '' ''
-testing '${!none@Q}' 'echo ${X@Q} ${!X@Q}; X=ABC; echo ${!X@Q}' '\n\n' '' ''
+# TODO bash 5.x broke this
+#testing '${!none@Q}' 'echo ${X@Q} ${!X@Q}; X=ABC; echo ${!X@Q}' '\n\n' '' ''
 testing '${!x@Q}' 'ABC=123 X=ABC; echo ${!X@Q}' "'123'\n" '' ''
 testing '${#@Q}' 'echo ${#@Q}' "'0'\n" '' ''
 testing '${!*}' 'xx() { echo ${!*};}; fruit=123; xx fruit' '123\n' '' ''
@@ -433,7 +445,8 @@ testing '${!*} indirect' 'xx() { echo ${!a@Q};}; a=@; xx one two three' \
   "'one' 'two' 'three'\n" '' ''
 testing '${!x@ } match' \
   '{ ABC=def; def=ghi; echo ${!ABC@ }; } 2>&1 | grep -o bad' 'bad\n' '' ''
-testing '${!x@ } no match no err' 'echo ${!ABC@ }def' 'def\n' '' ''
+# Bash added an error for this between 4.4 and 5.x.
+#testing '${!x@ } no match no err' 'echo ${!ABC@ }def' 'def\n' '' ''
 testing '${!x@ } no match no err2' 'ABC=def; echo ${!ABC@ }ghi' 'ghi\n' '' ''
 toyonly testing '${#x::}' 'ABC=abcdefghijklmno; echo ${#ABC:1:2}' '5\n' '' ''
 # TODO: ${!abc@x} does _not_ error? And ${PWD@q}
@@ -446,8 +459,9 @@ testing '${a: }' 'ABC=def; echo ${ABC: 1}' 'ef\n' '' ''
 testing '${a :}' 'ABC=def; { echo ${ABC :1};} 2>&1 | grep -o bad' 'bad\n' '' ''
 testing '${::}' 'ABC=defghi; echo ${ABC:1:2}' 'ef\n' '' ''
 testing '${: : }' 'ABC=defghi; echo ${ABC: 1 : 2 }' 'ef\n' '' ''
-testing '${::} indirect' 'ABC=defghi:1:2; { echo ${!ABC};} 2>&1 | grep -o bad' \
-  'bad\n' '' ''
+testing '${::} indirect' \
+  'ABC=defghi:1:2; ( echo ${!ABC};) 2>input; [ -s input ] && echo yes' \
+  'yes\n' '' ''
 testing '${::-}' 'ABC=defghi; echo ${ABC:1:-2}' 'efg\n' '' ''
 testing '${:-:-}' 'ABC=defghi; echo ${ABC:-3:2}' 'defghi\n' '' ''
 testing '${:-:-}2' 'echo ${ABC:-3:2}' '3:2\n' '' ''
@@ -546,13 +560,28 @@ testing 'functions() () different PID' \
 testing 'function() just wants any block span' \
   'func() if true; then echo hello; fi; echo one; func; echo two' \
   'one\nhello\ntwo\n' '' ''
+testing 'function alternate syntax' \
+  'function func if true; then echo hello; fi; echo one; func; echo two' \
+  'one\nhello\ntwo\n' '' ''
+testing 'function syntax 3' \
+  'function func ( ) if true; then echo hello; fi; echo one; func; echo two' \
+  'one\nhello\ntwo\n' '' ''
+testing 'function nested parentheses' \
+  '( potato() { echo aaa; }; potato )' 'aaa\n' '' ''
 shxpect 'local creates a whiteout' \
   I$'func() { local potato; echo ${potato?bang}; }; potato=123; func\n' \
   E E"$P" I$'echo $?\n' O$'1\n'
 
+testing '$$ is parent shell' \
+  '{ echo $$; (echo $$) } | sort -u | wc -l' "1\n" "" ""
+testing '$PPID is parent shell' \
+  '{ echo $PPID; (echo $PPID) } | sort -u | wc -l' "1\n" "" ""
+testing '$BASHPID is current PID' \
+  '{ echo $BASHPID; (echo $BASHPID) } | sort -u | wc -l' "2\n" "" ""
+
 # TODO finish variable list from shell init
 
-# $# $? $- $$ $! $0
+# $# $? $- $! $0  # $$
 # always exported: PWD SHLVL _
 #  ./bash -c 'echo $_' prints $BASH, but PATH search shows path? Hmmm...
 # ro: UID PPID EUID $
