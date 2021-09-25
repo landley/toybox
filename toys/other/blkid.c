@@ -197,12 +197,11 @@ void blkid_main(void)
   if (*toys.optargs && !FLAG(L) && !FLAG(U)) loopfiles(toys.optargs, do_blkid);
   else {
     unsigned int ma, mi, sz, fd;
-    char *name = toybuf, *buffer = toybuf+1024, device[32];
+    char name[32], device[5+32];
     FILE *fp = xfopen("/proc/partitions", "r");
 
-    while (fgets(buffer, 1024, fp)) {
-      *name = 0;
-      if (sscanf(buffer, " %u %u %u %[^\n ]", &ma, &mi, &sz, name) != 4)
+    while (fgets(toybuf, sizeof(toybuf), fp)) {
+      if (sscanf(toybuf, " %u %u %u %31s", &ma, &mi, &sz, name) != 4)
         continue;
 
       sprintf(device, "/dev/%.20s", name);
