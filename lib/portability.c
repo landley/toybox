@@ -655,7 +655,7 @@ long long sendfile_len(int in, int out, long long bytes, long long *consumed)
   return total;
 }
 
-#if __APPLE__
+#ifdef __APPLE__
 // The absolute minimum POSIX timer implementation to build timeout(1).
 // Note that although timeout(1) uses POSIX timers to get the monotonic clock,
 // that doesn't seem to be an option on macOS (without using other libraries),
