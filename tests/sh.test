@@ -120,10 +120,10 @@ rm -rf sub
 testing "script file" "chmod +x input; ./input" "hello\n" "#!$C\necho hello" ""
 testing 'IFS $*' "$SH -c 'IFS=xy; echo \"\$*\"' one two tyree" "twoxtyree\n" \
   "" ""
-# Note: bash version skew, SHLVL=1 in earlier bash versions
+# Without the \n\n bash 5 emits SHLVL=0
 testing 'default exports' \
-  "env -i \"$(which $SH)\" --noprofile --norc -c env | sort" \
-  "PWD=$(pwd)\nSHLVL=0\n_=$(which env)\n" "" ""
+  "env -i \"$(which $SH)\" --noprofile --norc -c \$'env\n\n' | sort" \
+  "PWD=$(pwd)\nSHLVL=1\n_=$(which env)\n" "" ""
 # toysh order of operations not matching bash
 #testing "leading assignment fail" \
 #  "{ \$SH -c 'X=\${a?blah} > walroid';ls walroid;} 2>/dev/null" '' '' ''
@@ -138,7 +138,7 @@ export EVAL="$SH -c"
 testing "smoketest" "echo hello" "hello\n" "" ""
 testing "line break" $'ec\\\nho hello' 'hello\n' '' ''
 testing "assignment" 'x=y; echo $x' 'y\n' '' ''
-testing "+= assignment" 'x=abc; y=def; y+=$x; echo $y' 'defabc\n' '' ''
+testing "+= assignment" 'x+=abc; y=def; y+=$x; echo $y' 'defabc\n' '' ''
 testing "eval" "eval echo hello" "hello\n" "" ""
 testing "eval2" "eval 'echo hello'; echo $?" "hello\n0\n" "" ""
 testing "eval3" 'X="echo hello"; eval "$X"' "hello\n" "" ""
@@ -596,7 +596,6 @@ testing '$BASHPID is current PID' \
 
 # maybe not: EXECIGNORE, FIGNORE, GLOBIGNORE
 
-#BASHPID - synonym for $$ HERE
 #BASH_SUBSHELL - SHLVL synonym
 #BASH_EXECUTION_STRING - -c argument
 #
