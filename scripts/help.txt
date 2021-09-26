@@ -7,8 +7,8 @@
   bloatcheck      - Report size differences between old and current versions
   test_COMMAND    - Run tests for COMMAND (test_ps, test_cat, etc.)
   tests           - Run test suite against all compiled commands.
-                    export TEST_HOST=1 to test host command, VERBOSE=1
-                    to show diff, VERBOSE=fail to stop after first failure.
+                    export TEST_HOST=1 to test host command, VERBOSE=all
+                    to show all failures.
   clean           - Delete temporary files.
   distclean       - Delete everything that isn't shipped.
   install_airlock - Install toybox and host toolchain into $PREFIX directory

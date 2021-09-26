@@ -19,7 +19,7 @@ jobs:
     - name: Build
       run: make
     - name: Test
-      run: VERBOSE=1 make tests
+      run: VERBOSE=all make tests
 
   MacOS-10_15:
     runs-on: macos-10.15
@@ -33,7 +33,7 @@ jobs:
     - name: Build
       run: make
     - name: Test
-      run: VERBOSE=1 make tests
+      run: VERBOSE=all make tests
 
   Ubuntu-20_04:
     runs-on: ubuntu-20.04
@@ -47,4 +47,4 @@ jobs:
     - name: Build
       run: make
     - name: Test
-      run: VERBOSE=1 make tests
+      run: VERBOSE=all make tests
