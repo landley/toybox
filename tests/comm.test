@@ -1,0 +1,9 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+for i in a b c ; do echo $i >> lhs ; done
+for i in c d e ; do echo $i >> rhs ; done
+testing "comm" "comm lhs rhs" "a\nb\n\t\tc\n\td\n\te\n" "" ""
