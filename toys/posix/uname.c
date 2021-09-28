@@ -69,7 +69,6 @@ void arch_main(void)
   uname_main();
 }
 
-#include <sys/personality.h>
 void linux32_main(void)
 {
   personality(PER_LINUX32);

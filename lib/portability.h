@@ -193,6 +193,13 @@ void *memmem(const void *haystack, size_t haystack_length,
 #endif
 #endif
 
+#ifdef __linux__
+#include <sys/personality.h>
+#else
+#define LINUX_PER32 0
+void personality(int x);
+#endif
+
 #if defined(__APPLE__) || defined(__linux__)
 // Linux and macOS has both have getxattr and friends in <sys/xattr.h>, but
 // they aren't compatible.
