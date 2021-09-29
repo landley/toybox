@@ -196,7 +196,7 @@ void *memmem(const void *haystack, size_t haystack_length,
 #ifdef __linux__
 #include <sys/personality.h>
 #else
-#define LINUX_PER32 0
+#define PER_LINUX32 0
 void personality(int x);
 #endif
 
