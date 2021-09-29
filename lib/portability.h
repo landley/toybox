@@ -197,7 +197,7 @@ void *memmem(const void *haystack, size_t haystack_length,
 #include <sys/personality.h>
 #else
 #define PER_LINUX32 0
-void personality(int x);
+#define personality(x)
 #endif
 
 #if defined(__APPLE__) || defined(__linux__)
