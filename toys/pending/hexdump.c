@@ -14,25 +14,25 @@ config HEXDUMP
   bool "hexdump"
   default n
   help
-    usage: hexdump [-b|-c|-C|-d|-o|-x] [-v] [-n bytes] [-s bytes] FILES
+    usage: hexdump [-bcCdovx] [-n LEN] [-s SKIP] [FILE...]
 
-    Dump file content in hexadecimal format to stdout.
+    Dump file(s) in hexadecimal format.
 
-    -b            One-byte octal display
-    -c            One-byte character display
-    -C            Canonical (hex + ASCII) display
-    -d            Two-bytes decimal display
-    -n <bytes>    Dump only <bytes> bytes of the input
-    -o            Two-bytes octal display
-    -s <bytes>    Skip <bytes> bytes from the beginning of the input
-    -v            Do not squeeze identical lines in the output together
-    -x            Two-bytes hexadecimal display (default)
+    -n LEN	Show LEN bytes of output
+    -s SKIP	Skip bytes of input
+    -v	Verbose (don't combine identical lines)
+
+    Display type:
+    -b One byte octal   -c One byte character -C Canonical (hex + ASCII)
+    -d Two byte decimal -o Two byte octal     -x Two byte hexadecimal (default)
 
 config HD
   bool "hd"
   default HEXDUMP
   help
-    See hexdump
+    usage: hd [FILE...]
+
+    Display file(s) in cannonical hex+ASCII format.
 */
 
 #define FOR_hexdump
@@ -40,6 +40,7 @@ config HD
 
 GLOBALS(
     long s, n;
+
     long long len, pos, ppos;
     const char *fmt;
     unsigned int fn, bc;  // file number and byte count
@@ -61,12 +62,13 @@ const char *make_printable(unsigned char byte) {
   }
 }
 
-void do_hexdump(int fd, char *name) {
+void do_hexdump(int fd, char *name)
+{
   unsigned short block, adv, i;
   int sl, fs;  // skip line, file size
 
   TT.fn++;  // keep track of how many files have been printed.
-  // skipp ahead, if neccessary skip entire files:
+  // skipp ahead, if necessary skip entire files:
   if (FLAG(s) && (TT.s-TT.pos>0)) {
     fs = xlseek(fd, 0L, SEEK_END);
 
@@ -141,8 +143,8 @@ newline:
   if (TT.len < 0) perror_exit("read");
 }
 
-void hexdump_main(void) {
-  TT.fn = 0;
+void hexdump_main(void)
+{
   if FLAG(b) TT.fmt = " %03o";
   else if FLAG(d) TT.fmt = " %05d";
   else if FLAG(o) TT.fmt = " %06o";
