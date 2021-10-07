@@ -10,12 +10,12 @@ if [ ! -z "$ASAN" ]; then
     -O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls"
   CFLAGS="$asan_flags $CFLAGS"
   HOSTCC="$HOSTCC $asan_flags"
-  # Ignore leaks on exit.
+  # Ignore leaks on exit. TODO
   export ASAN_OPTIONS="detect_leaks=0"
 fi
 
 # Centos 7 bug workaround, EOL June 30 2024.
-unset DASHN; wait -n 2>/dev/null; [ $? -eq 2 ] || DASHN=-n
+DASHN=-n; wait -n 2>/dev/null; [ $? -eq 2 ] && unset DASHN
 
 export LANG=c
 export LC_ALL=C
@@ -26,9 +26,8 @@ source scripts/portability.sh
 [ -z "$OUTNAME" ] && OUTNAME=toybox"${TARGET:+-$TARGET}"
 UNSTRIPPED="generated/unstripped/$(basename "$OUTNAME")"
 
-# Try to keep one more cc invocation going than we have processors
-[ -z "$CPUS" ] && \
-  CPUS=$(($(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null)+1))
+# Default to running one more parallel cc instance than we have processors
+: ${CPUS:=$(($(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null)+1))}
 
 # Respond to V= by echoing command lines as well as running them
 DOTPROG=
@@ -109,7 +108,7 @@ then
   # and skip nonexistent libraries for it.
 
   > generated/optlibs.dat
-  for i in util crypt m resolv selinux smack attr crypto z log iconv
+  for i in util crypt m resolv rt selinux smack attr crypto z log iconv
   do
     echo "int main(int argc, char *argv[]) {return 0;}" | \
     ${CROSS_COMPILE}${CC} $CFLAGS $LDFLAGS -xc - -o generated/libprobe $LDASNEEDED -l$i > /dev/null 2>/dev/null &&
@@ -166,8 +165,10 @@ fi
 # allow multiple NEWTOY() in the same C file. (When disabled the FLAG is 0,
 # so flags&0 becomes a constant 0 allowing dead code elimination.)
 
-make_flagsh()
-{
+if isnewer generated/flags.h toys "$KCONFIG_CONFIG"
+then
+  echo -n "generated/flags.h "
+
   # Parse files through C preprocessor twice, once to get flags for current
   # .config and once to get flags for allyesconfig
   for I in A B
@@ -203,12 +204,6 @@ make_flagsh()
   done | sort -s | $SED -n -e 's/ A / /;t pair;h;s/\([^ ]*\).*/\1 " "/;x' \
     -e 'b single;:pair;h;n;:single;s/[^ ]* B //;H;g;s/\n/ /;p' | \
     tee generated/flags.raw | generated/mkflags > generated/flags.h || exit 1
-}
-
-if isnewer generated/flags.h toys "$KCONFIG_CONFIG"
-then
-  echo -n "generated/flags.h "
-  make_flagsh
 fi
 
 # Extract global structure definitions and flag definitions from toys/*/*.c
@@ -217,12 +212,12 @@ function getglobals()
 {
   for i in toys/*/*.c
   do
+    # alas basename -s isn't in posix yet.
     NAME="$(echo $i | $SED 's@.*/\(.*\)\.c@\1@')"
     DATA="$($SED -n -e '/^GLOBALS(/,/^)/b got;b;:got' \
-            -e 's/^GLOBALS(/struct '"$NAME"'_data {/' \
+            -e 's/^GLOBALS(/_data {/' \
             -e 's/^)/};/' -e 'p' $i)"
-
-    [ ! -z "$DATA" ] && echo -e "// $i\n\n$DATA\n"
+    [ ! -z "$DATA" ] && echo -e "// $i\n\nstruct $NAME$DATA\n"
   done
 }
 

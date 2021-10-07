@@ -19,6 +19,10 @@ config LOGWRAPPER
 #define FOR_logwrapper
 #include "toys.h"
 
+#if CFG_TOYBOX
+#warning Must be built standalone to work.
+#endif
+
 void logwrapper_main(void)
 {
   char *log = getenv("WRAPLOG"), *omnom = basename(*toys.argv),

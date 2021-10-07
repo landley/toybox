@@ -371,26 +371,29 @@ static void scan_cronfiles()
   if (!(dp = opendir("."))) loginfo(LOG_EXIT, "chdir(%s)", ".");
 
   while ((entry = readdir(dp))) {
-    int fd;
-    char *line;
     CRONFILE *cfile;
+    FILE *fp;
+    char *line = 0;
+    size_t allocated_length = 0;
 
-    if (entry->d_name[0] == '.' && (!entry->d_name[1] ||
-          (entry->d_name[1] == '.' && !entry->d_name[2]))) 
-      continue;
+    if (isdotdot(entry->d_name)) continue;
 
     if (!getpwnam(entry->d_name)) {
       loginfo(LOG_LEVEL7, "ignoring file '%s' (no such user)", entry->d_name);
       continue;
     }
-    if ((fd = open(entry->d_name, O_RDONLY)) < 0) continue;
+
+    if (!(fp = fopen(entry->d_name, "r"))) continue;
 
     // one node for each user
     cfile = xzalloc(sizeof(CRONFILE));
     cfile->username = xstrdup(entry->d_name);
 
-    for (; (line = get_line(fd)); free(line))
+    while (getline(&line, &allocated_length, fp) > 0) {
       parse_line(line, cfile);
+    }
+    free(line);
+    fclose(fp);
 
     // If there is no job for a cron, remove the VAR list.
     if (!cfile->job) {
@@ -410,7 +413,6 @@ static void scan_cronfiles()
       dlist_add_nomalloc((struct double_list **)&gclist,
           (struct double_list *)cfile);
     }
-    close(fd);
   }
   closedir(dp);
 }

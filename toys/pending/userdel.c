@@ -27,6 +27,7 @@ static void update_groupfiles(char *filename, char* username)
   char *filenamesfx = NULL, *sfx = NULL, *line = NULL;
   FILE *exfp, *newfp;
   int ulen = strlen(username);
+  size_t allocated_length = 0;
   struct flock lock;
 
   filenamesfx = xmprintf("%s+", filename);
@@ -49,10 +50,9 @@ static void update_groupfiles(char *filename, char* username)
 
   newfp = xfopen(filenamesfx, "w+");
 
-  while ((line = get_line(fileno(exfp))) != NULL){
+  while (getline(&line, &allocated_length, exfp) > 0) {
     sprintf(toybuf, "%s:",username);
-    if (!strncmp(line, toybuf, ulen+1)) goto LOOP;
-    else {
+    if (strncmp(line, toybuf, ulen+1)) {
       char *n, *p = strrchr(line, ':');
 
       if (p && *++p && (n = strstr(p, username))) {
@@ -72,9 +72,8 @@ static void update_groupfiles(char *filename, char* username)
         if (!n) fprintf(newfp, "%s\n", line);
       } else fprintf(newfp, "%s\n", line);
     }
-LOOP:
-    free(line);
   }
+  free(line);
   fcntl(fileno(exfp), F_SETLK, &lock);
   fclose(exfp);
   errno = 0;
@@ -91,9 +90,8 @@ LOOP:
 
 void userdel_main(void)
 {
-  struct passwd *pwd = NULL;
+  struct passwd *pwd = xgetpwnam(*toys.optargs);
 
-  pwd = xgetpwnam(*toys.optargs);
   update_password("/etc/passwd", pwd->pw_name, NULL);
   update_password("/etc/shadow", pwd->pw_name, NULL);
 
@@ -106,7 +104,7 @@ void userdel_main(void)
   update_groupfiles("/etc/group", *toys.optargs);
   update_groupfiles("/etc/gshadow", *toys.optargs);
 
-  if (toys.optflags & FLAG_r) {
+  if (FLAG(r)) {
     char *arg[] = {"rm", "-fr", pwd->pw_dir, NULL, NULL};
 
     sprintf(toybuf, "/var/spool/mail/%s",pwd->pw_name);

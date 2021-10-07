@@ -426,10 +426,8 @@ void get_optflags(void)
           continue;
         }
 
-        if (CFG_TOYBOX_HELP_DASHDASH && !(toys.which->flags&TOYFLAG_NOHELP))
-          check_help(toys.argv+gof.argc);
-
         // do we match a known --longopt?
+        check_help(toys.argv+gof.argc);
         for (lo = gof.longopts; lo; lo = lo->next) {
           if (!strncmp(gof.arg, lo->str, lo->len)) {
             if (!gof.arg[lo->len]) gof.arg = 0;

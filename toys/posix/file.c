@@ -25,7 +25,6 @@ config FILE
 
 GLOBALS(
   int max_name_len;
-
   off_t len;
 )
 
@@ -33,14 +32,13 @@ GLOBALS(
 // anyway, so calculate struct offsets manually. (It's a fixed ABI.)
 static void do_elf_file(int fd)
 {
-  int endian = toybuf[5], bits = toybuf[4], i, j, dynamic = 0, stripped = 1,
-      phentsize, phnum, shsize, shnum;
-  int64_t (*elf_int)(void *ptr, unsigned size);
-  char *map = 0;
-  long phoff, shoff;
+  unsigned endian = toybuf[5], bits = toybuf[4]-1, i, j, dynamic = 0,
+           stripped = 1, phentsize, phnum, shsize, shnum, bail = 0;
+  int64_t (*elf_int)(void *ptr, unsigned size) = (endian==2)?peek_be:peek_le;
+  char *map = MAP_FAILED;
+  unsigned long phoff, shoff;
 
   printf("ELF ");
-  elf_int = (endian==2) ? peek_be : peek_le;
 
   // executable type
   i = elf_int(toybuf+16, 2);
@@ -48,35 +46,32 @@ static void do_elf_file(int fd)
   else if (i == 2) printf("executable");
   else if (i == 3) printf("shared object");
   else if (i == 4) printf("core dump");
-  else printf("(bad type %d)", i);
-  if (elf_int(toybuf+36+12*(bits==2), 4) & 0x8000) printf(" (fdpic)");
+  else {
+    printf("(bad type %d)", i);
+    bail++;
+  }
+  if (elf_int(toybuf+36+12*!!bits, 4) & 0x8000) printf(" (fdpic)");
   printf(", ");
 
   // "64-bit"
-  if (bits == 1) printf("32-bit ");
-  else if (bits == 2) printf("64-bit ");
-  else {
+  if (bits&~1) {
     printf("(bad class %d) ", bits);
-    bits = 0;
-  }
+    bail++;
+  } else printf("%d-bit ", 32<<bits);
 
   // "LSB"
   if (endian == 1) printf("LSB ");
   else if (endian == 2) printf("MSB ");
   else {
-    printf("(bad endian %d) \n", endian);
-    endian = 0;
+    printf("(bad endian %d) ", endian);
+    bail++;
   }
 
   // "x86".
   printf("%s", elf_arch_name(elf_int(toybuf+18, 2)));
+  if (bail) goto bad;
 
-  bits--;
   // If what we've seen so far doesn't seem consistent, bail.
-  if (!((bits&1)==bits && endian)) {
-    printf(", corrupt?\n");
-    return;
-  }
 
   // Parsing ELF means following tables that may point to data earlier in
   // the file, so sequential reading involves buffering unknown amounts of
@@ -95,7 +90,7 @@ static void do_elf_file(int fd)
   // With binutils, phentsize seems to only be non-zero if phnum is non-zero.
   // Such ELF files are rare, but do exist. (Android's crtbegin files, say.)
   if (phnum && (phentsize != 32+24*bits)) {
-    printf(", corrupt phentsize %d?", phentsize);
+    printf(", bad phentsize %d?", phentsize);
     goto bad;
   }
 
@@ -105,23 +100,21 @@ static void do_elf_file(int fd)
   if (MAP_FAILED == (map = mmap(0, TT.len, PROT_READ, MAP_SHARED, fd, 0)))
     goto bad;
 
-  // We need to read the phdrs for dynamic vs static.
-  // (Note: fields got reordered for 64 bit)
-  if (phoff<0 || phoff>TT.len || phnum*phentsize>TT.len-phoff) goto bad;
+  // Read the phdrs for dynamic vs static. (Note: fields reordered on 64 bit)
+  if (phoff>TT.len || phnum*phentsize>TT.len-phoff) goto bad;
   for (i = 0; i<phnum; i++) {
     char *phdr = map+phoff+i*phentsize;
-    int p_type = elf_int(phdr, 4);
+    unsigned p_type = elf_int(phdr, 4);
     unsigned long long p_offset, p_filesz;
 
-    if (p_type==2 /*PT_DYNAMIC*/) dynamic = 1;
-    if (p_type!=3 /*PT_INTERP*/ && p_type!=4 /*PT_NOTE*/) continue;
-
-    j = bits+1;
-    p_offset = elf_int(phdr+4*j, 4*j);
-    p_filesz = elf_int(phdr+16*j, 4*j);
-
-    if (p_type==3 /*PT_INTERP*/) {
+    // TODO: what does PT_DYNAMIC without PT_INTERP mean?
+    if (p_type-2>2) continue; // 2 = PT_DYNAMIC, 3 = PT_INTERP, 4 = PT_NOTE
+    dynamic |= p_type==2;
+    p_offset = elf_int(phdr+(4<<bits), 4<<bits);
+    p_filesz = elf_int(phdr+(16<<bits), 4<<bits);
+    if (p_type==3) {
       if (p_filesz>TT.len || p_offset>TT.len-p_filesz) goto bad;
+      // TODO: if (int)<0 prints endlessly, could go off end of map?
       printf(", dynamic (%.*s)", (int)p_filesz, map+p_offset);
     }
   }
@@ -129,18 +122,17 @@ static void do_elf_file(int fd)
 
   // We need to read the shdrs for stripped/unstripped and any notes.
   // Notes are in program headers *and* section headers, but some files don't
-  // contain program headers, so we prefer to check here.
-  // (Note: fields got reordered for 64 bit)
+  // contain program headers, so check here. (Note: fields reordered on 64 bit)
   if (shoff<0 || shoff>TT.len || shnum*shsize>TT.len-shoff) goto bad;
   for (i = 0; i<shnum; i++) {
     char *shdr = map+shoff+i*shsize;
     unsigned long sh_offset;
     int sh_type, sh_size;
 
-    if (shdr>map+TT.len-(8+4*(bits+1))) goto bad;
+    if (shdr>map+TT.len-(8+(4<<bits))) goto bad;
     sh_type = elf_int(shdr+4, 4);
-    sh_offset = elf_int(shdr+8+8*(bits+1), 4*(bits+1));
-    sh_size = elf_int(shdr+8+12*(bits+1), 4);
+    sh_offset = elf_int(shdr+8+(8<<bits), 4<<bits);
+    sh_size = elf_int(shdr+8+(12<<bits), 4);
     if (sh_offset>TT.len || sh_size>TT.len-sh_offset) goto bad;
 
     if (sh_type == 2 /*SHT_SYMTAB*/) {
@@ -167,11 +159,9 @@ static void do_elf_file(int fd)
         // Does the claimed size of this note actually fit in the section?
         if (notesz > sh_size) goto bad;
 
-        if (n_namesz==4 && !memcmp(note+12, "GNU", 4)) {
-          if (n_type==3 /*NT_GNU_BUILD_ID*/) {
-            printf(", BuildID=");
-            for (j = 0; j < n_descsz; ++j) printf("%02x", note[16 + j]);
-          }
+        if (n_namesz==4 && !memcmp(note+12, "GNU", 4) && n_type==3) {
+          printf(", BuildID=");
+          for (j = 0; j<n_descsz; j++) printf("%02x", note[16+j]);
         } else if (n_namesz==8 && !memcmp(note+12, "Android", 8)) {
           if (n_type==1 /*.android.note.ident*/ && n_descsz >= 4) {
             printf(", for Android %d", (int)elf_int(note+20, 4));
@@ -191,7 +181,7 @@ static void do_elf_file(int fd)
 bad:
   xputc('\n');
 
-  if (map && map != MAP_FAILED) munmap(map, TT.len);
+  if (map != MAP_FAILED) munmap(map, TT.len);
 }
 
 static void do_regular_file(int fd, char *name)
@@ -206,7 +196,7 @@ static void do_regular_file(int fd, char *name)
   if (!len) xputs("empty");
   // 45 bytes: https://www.muppetlabs.com/~breadbox/software/tiny/teensy.html
   else if (len>=45 && strstart(&s, "\177ELF")) do_elf_file(fd);
-  else if (len>=8 && strstart(&s, "!<arch>\n")) xputs("ar archive");
+  else if (strstart(&s, "!<arch>\n")) xputs("ar archive");
   else if (len>28 && strstart(&s, "\x89PNG\x0d\x0a\x1a\x0a")) {
     // PNG is big-endian: https://www.w3.org/TR/PNG/#7Integers-and-byte-order
     int chunk_length = peek_be(s, 4);
@@ -221,10 +211,8 @@ static void do_regular_file(int fd, char *name)
                                 "grayscale with alpha", 0, "color RGBA"};
 
       if (s[9]<ARRAY_LEN(colors)) c = colors[s[9]];
-      if (!c) c = "unknown";
-
       xprintf(", %d x %d, %d-bit/%s, %sinterlaced", (int)peek_be(s, 4),
-        (int)peek_be(s+4, 4), s[8], c, s[12] ? "" : "non-");
+        (int)peek_be(s+4, 4), s[8], c ? : "unknown", s[12] ? "" : "non-");
     }
 
     xputc('\n');
@@ -237,19 +225,40 @@ static void do_regular_file(int fd, char *name)
   // TODO: parsing JPEG for width/height is harder than GIF or PNG.
   else if (len>32 && !memcmp(s, "\xff\xd8", 2)) xputs("JPEG image data");
 
-  // https://en.wikipedia.org/wiki/Java_class_file#General_layout
-  else if (len>8 && strstart(&s, "\xca\xfe\xba\xbe"))
-    xprintf("Java class file, version %d.%d (Java 1.%d)\n",
-      (int)peek_be(s+2, 2), (int)peek_be(s, 2), (int)peek_be(s+2, 2)-44);
+  else if (len>8 && strstart(&s, "\xca\xfe\xba\xbe")) {
+    unsigned count = peek_be(s, 4), i, arch;
+
+    // 0xcafebabe can be a Java class file or a Mach-O universal binary.
+    // Java major version numbers start with 0x2d for JDK 1.1, and realistically
+    // you're never going to see more than 2 architectures in a binary anyway...
+    if (count<0x2d && len>=(count*20)) {
+      // https://eclecticlight.co/2020/07/28/universal-binaries-inside-fat-headers/
+      xprintf("Mach-O universal binary with %u architecture%s:",
+        count, count == 1 ? "" : "s");
+      for (i = 0, s += 4; i < count; i++, s += 20) {
+        arch = peek_be(s, 4);
+	if (arch == 0x00000007) name = "i386";
+        else if (arch == 0x01000007) name = "x86_64";
+	else if (arch == 0x0000000c) name = "arm";
+        else if (arch == 0x0100000c) name = "arm64";
+        else name = "unknown";
+        xprintf(" [%s]", name);
+      }
+      xprintf("\n");
+    } else {
+      // https://en.wikipedia.org/wiki/Java_class_file#General_layout
+      xprintf("Java class file, version %d.%d (Java 1.%d)\n",
+        (int)peek_be(s+2, 2), (int)peek_be(s, 2), (int)peek_be(s+2, 2)-44);
+    }
 
   // https://source.android.com/devices/tech/dalvik/dex-format#dex-file-magic
-  else if (len>8 && strstart(&s, "dex\n") && !s[3])
+  } else if (len>8 && strstart(&s, "dex\n") && !s[3])
     xprintf("Android dex file, version %s\n", s);
 
   // https://people.freebsd.org/~kientzle/libarchive/man/cpio.5.txt
   // the lengths for cpio are size of header + 9 bytes, since any valid
   // cpio archive ends with a record for "TARGET!!!"
-  else if (len>85 && strstart(&s, "07070")) {
+  else if (len>6 && strstart(&s, "07070")) {
     char *cpioformat = "unknown type";
 
     if (*s == '7') cpioformat = "pre-SVR4 or odc";
@@ -341,15 +350,14 @@ static void do_regular_file(int fd, char *name)
     else if (format == 0xfffe) xprintf("extensible");
     else xprintf("unknown format %d", format);
     xputc('\n');
-  } else if (len>12 && !memcmp(s, "\x00\x01\x00\x00", 4)) {
-    xputs("TrueType font");
-  } else if (len>12 && !memcmp(s, "ttcf\x00", 5)) {
+  } else if (len>12 && peek_be(s, 4)==0x10000) xputs("TrueType font");
+  else if (len>12 && !memcmp(s, "ttcf\x00", 5)) {
     xprintf("TrueType font collection, version %d, %d fonts\n",
             (int)peek_be(s+4, 2), (int)peek_be(s+8, 4));
 
   // https://docs.microsoft.com/en-us/typography/opentype/spec/otff
-  } else if (len>12 && !memcmp(s, "OTTO", 4)) xputs("OpenType font");
-  else if (len>4 && !memcmp(s, "BC\xc0\xde", 4)) xputs("LLVM IR bitcode");
+  } else if (len>12 && strstart(&s, "OTTO")) xputs("OpenType font");
+  else if (strstart(&s, "BC\xc0\xde")) xputs("LLVM IR bitcode");
   else if (strstart(&s,"-----BEGIN CERTIFICATE-----")) xputs("PEM certificate");
 
   // https://msdn.microsoft.com/en-us/library/windows/desktop/ms680547(v=vs.85).aspx
@@ -359,38 +367,36 @@ static void do_regular_file(int fd, char *name)
         (peek_le(s+magic+22, 2)&0x2000)?"(DLL) ":"");
     if (peek_le(s+magic+20, 2)>70) {
       char *types[] = {0, "native", "GUI", "console", "OS/2", "driver", "CE",
-          "EFI", "EFI boot", "EFI runtime", "EFI ROM", "XBOX", 0, "boot"};
+          "EFI", "EFI boot", "EFI runtime", "EFI ROM", "XBOX", 0, "boot"}, *nn;
       unsigned type = peek_le(s+magic+92, 2);
-      char *name = (type<ARRAY_LEN(types)) ? types[type] : 0;
 
-      xprintf("(%s) ", name ? : "unknown");
+      nn = (type<ARRAY_LEN(types)) ? types[type] : 0;
+      xprintf("(%s) ", nn ? : "unknown");
     }
     xprintf("x86%s\n", (peek_le(s+magic+4, 2)==0x14c) ? "" : "-64");
 
     // https://en.wikipedia.org/wiki/BMP_file_format
-  } else if (len > 0x32 && !memcmp(s, "BM", 2) && !memcmp(s+6, "\0\0\0\0", 4)) {
-    int w = peek_le(s+0x12,4), h = peek_le(s+0x16,4), bpp = peek_le(s+0x1c,2);
-
-    xprintf("BMP image, %d x %d, %d bpp\n", w, h, bpp);
+  } else if (len>0x32 && !memcmp(s, "BM", 2) && !peek_be(s+6, 4)) {
+    xprintf("BMP image, %d x %d, %d bpp\n", (int)peek_le(s+18, 4),
+            (int)peek_le(s+22,4), (int)peek_le(s+28, 2));
 
     // https://github.com/torvalds/linux/blob/master/tools/perf/Documentation/perf.data-file-format.txt
-  } else if (len>=104 && !memcmp(s, "PERFILE2", 8)) {
-    xputs("Linux perf data");
+  } else if (len>=104 && strstart(&s, "PERFILE2")) xputs("Linux perf data");
 
     // https://android.googlesource.com/platform/system/core/+/master/libsparse/sparse_format.h
-  } else if (len>28 && peek_le(s, 4) == 0xed26ff3a) {
+  else if (len>28 && peek_le(s, 4) == 0xed26ff3a) {
     xprintf("Android sparse image v%d.%d, %d %d-byte blocks (%d chunks)\n",
-        (int) peek_le(s+4, 2), (int) peek_le(s+6, 2), (int) peek_le(s+16, 4),
-        (int) peek_le(s+12, 4), (int) peek_le(s+20, 4));
+        (int)peek_le(s+4, 2), (int)peek_le(s+6, 2), (int)peek_le(s+16, 4),
+        (int)peek_le(s+12, 4), (int)peek_le(s+20, 4));
 
     // https://android.googlesource.com/platform/system/tools/mkbootimg/+/refs/heads/master/include/bootimg/bootimg.h
   } else if (len>1632 && !memcmp(s, "ANDROID!", 8)) {
-    xprintf("Android boot image v%d\n", (int) peek_le(s+40, 4));
+    xprintf("Android boot image v%d\n", (int)peek_le(s+40, 4));
 
     // https://source.android.com/devices/architecture/dto/partitions
   } else if (len>32 && peek_be(s, 4) == 0xd7b7ab1e) {
-    xprintf("Android DTB/DTBO v%d, %d entries\n", (int) peek_be(s+28, 4),
-        (int) peek_be(s+16, 4));
+    xprintf("Android DTB/DTBO v%d, %d entries\n", (int)peek_be(s+28, 4),
+            (int)peek_be(s+16, 4));
 
     // frameworks/base/core/java/com/android/internal/util/BinaryXmlSerializer.java
   } else if (len>4 && !memcmp(s, "ABX", 3)) {
@@ -431,11 +437,8 @@ void file_main(void)
 {
   char **arg;
 
-  for (arg = toys.optargs; *arg; ++arg) {
-    int name_len = strlen(*arg);
-
-    if (name_len > TT.max_name_len) TT.max_name_len = name_len;
-  }
+  for (arg = toys.optargs; *arg; ++arg)
+    TT.max_name_len = maxof(strlen(*arg), TT.max_name_len);
 
   // Can't use loopfiles here because it doesn't call function when can't open
   for (arg = toys.optargs; *arg; arg++) {
@@ -447,31 +450,36 @@ void file_main(void)
       xprintf("%s: %*s", name, (int)(TT.max_name_len - strlen(name)), "");
 
     sb.st_size = 0;
-    if (fd || !(FLAG(L) ? stat : lstat)(name, &sb)) {
-      if (!fd && !FLAG(s) && (S_ISBLK(sb.st_mode) || S_ISCHR(sb.st_mode))) {
-        sprintf(what = toybuf, "%s special (%u/%u)",
-            S_ISBLK(sb.st_mode) ? "block" : "character",
-            dev_major(sb.st_rdev), dev_minor(sb.st_rdev));
-      } else if (fd || S_ISREG(sb.st_mode)) {
-        TT.len = sb.st_size;
-        // This test identifies an empty file we don't have permission to read
-        if (!fd && !sb.st_size) what = "empty";
-        else if ((fd = openro(name, O_RDONLY)) != -1) {
-          do_regular_file(fd, name);
-          if (fd) close(fd);
-          continue;
-        }
-      } else if (S_ISFIFO(sb.st_mode)) what = "fifo";
-      else if (S_ISDIR(sb.st_mode)) what = "directory";
-      else if (S_ISSOCK(sb.st_mode)) what = "socket";
-      else if (S_ISLNK(sb.st_mode)) {
-        char *lnk = xreadlink(name);
+    if (!fd && (FLAG(L) ? stat : lstat)(name, &sb)) {
+      xprintf("cannot open: %s\n", strerror(errno));
 
-        sprintf(what = toybuf, "%ssymbolic link to %s",
-            stat(name, &sb) ? "broken " : "", lnk);
-        free(lnk);
+      continue;
+    }
+
+    if (!fd && !FLAG(s) && (S_ISBLK(sb.st_mode) || S_ISCHR(sb.st_mode))) {
+      sprintf(what = toybuf, "%s special (%u/%u)",
+          S_ISBLK(sb.st_mode) ? "block" : "character",
+          dev_major(sb.st_rdev), dev_minor(sb.st_rdev));
+    } else if (fd || S_ISREG(sb.st_mode)) {
+      TT.len = sb.st_size;
+      // This test identifies an empty file we don't have permission to read
+      if (!fd && !sb.st_size) what = "empty";
+      else if ((fd = openro(name, O_RDONLY)) != -1) {
+        do_regular_file(fd, name);
+        if (fd) close(fd);
+
+        continue;
       }
-      xputs(what);
-    } else xprintf("cannot open: %s\n", strerror(errno));
+    } else if (S_ISFIFO(sb.st_mode)) what = "fifo";
+    else if (S_ISDIR(sb.st_mode)) what = "directory";
+    else if (S_ISSOCK(sb.st_mode)) what = "socket";
+    else if (S_ISLNK(sb.st_mode)) {
+      char *lnk = xreadlink(name);
+
+      sprintf(what = toybuf, "%ssymbolic link to %s",
+          stat(name, &sb) ? "broken " : "", lnk);
+      free(lnk);
+    }
+    xputs(what);
   }
 }

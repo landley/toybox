@@ -9,8 +9,9 @@
 # The following environment variables enable optional behavior in "testing":
 #    DEBUG - Show every command run by test script.
 #    VERBOSE - "all" continue after failed test
-#              "quiet" like all but just print FAIL (no diff -u).
+#              "fail" show diff and stop at first failed test
 #              "nopass" don't show successful tests
+#              "quiet" like all but just print FAIL (no diff -u).
 #
 # The "testcmd" function takes five arguments:
 #	$1) Description to display when running command

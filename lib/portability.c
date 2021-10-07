@@ -422,6 +422,7 @@ int posix_fallocate(int fd, off_t offset, off_t length)
 #define SIGNIFY(x) {SIG##x, #x}
 
 static const struct signame signames[] = {
+  {0, "0"},
   // POSIX
   SIGNIFY(ABRT), SIGNIFY(ALRM), SIGNIFY(BUS),
   SIGNIFY(FPE), SIGNIFY(HUP), SIGNIFY(ILL), SIGNIFY(INT), SIGNIFY(KILL),
@@ -465,7 +466,7 @@ void xsignal_all_killers(void *handler)
   int i;
 
   if (!handler) handler = SIG_DFL;
-  for (i = 0; signames[i].num != SIGCHLD; i++)
+  for (i = 1; signames[i].num != SIGCHLD; i++)
     if (signames[i].num != SIGKILL) xsignal(signames[i].num, handler);
 }
 
@@ -654,3 +655,27 @@ long long sendfile_len(int in, int out, long long bytes, long long *consumed)
   return total;
 }
 
+#ifdef __APPLE__
+// The absolute minimum POSIX timer implementation to build timeout(1).
+// Note that although timeout(1) uses POSIX timers to get the monotonic clock,
+// that doesn't seem to be an option on macOS (without using other libraries),
+// so we just mangle that back into a regular setitimer(ITIMER_REAL) call.
+int timer_create(clock_t c, struct sigevent *se, timer_t *t)
+{
+  if (se->sigev_notify != SIGEV_SIGNAL || se->sigev_signo != SIGALRM)
+    error_exit("unimplemented");
+  *t = 1;
+  return 0;
+}
+
+int timer_settime(timer_t t, int flags, struct itimerspec *new, void *old)
+{
+  struct itimerval mangled;
+
+  if (flags != 0 || old != 0) error_exit("unimplemented");
+  memset(&mangled, 0, sizeof(mangled));
+  mangled.it_value.tv_sec = new->it_value.tv_sec;
+  mangled.it_value.tv_usec = new->it_value.tv_nsec / 1000;
+  return setitimer(ITIMER_REAL, &mangled, NULL);
+}
+#endif

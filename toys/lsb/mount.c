@@ -215,7 +215,7 @@ static void mount_filesystem(char *dev, char *dir, char *type,
     if (fp && !buf) {
       size_t i;
 
-      if (getline(&buf, &i, fp)<0) {
+      if (getline(&buf, &i, fp)<1) {
         error_msg("%s: need -t", dev);
         break;
       }

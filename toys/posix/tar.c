@@ -231,7 +231,7 @@ static int add_to_tar(struct dirtree *node)
   if (!*hname) goto done;
 
   if (TT.warn && hname != name) {
-    fprintf(stderr, "removing leading '%.*s' from member names\n",
+    dprintf(2, "removing leading '%.*s' from member names\n",
            (int)(hname-name), name);
     TT.warn = 0;
   }
@@ -382,7 +382,7 @@ static int add_to_tar(struct dirtree *node)
   itoo(hdr.chksum, sizeof(hdr.chksum)-1, tar_cksum(&hdr));
   hdr.chksum[7] = ' ';
 
-  if (FLAG(v)) dprintf((TT.fd==1) ? 2 : 1, "%s\n", hname);
+  if (FLAG(v)) dprintf(1+(TT.fd==1), "%s\n", hname);
 
   // Write header and data to archive
   xwrite(TT.fd, &hdr, 512);
@@ -529,10 +529,8 @@ static void extract_to_disk(void)
       return perror_msg(":%s: can't mkdir", name);
 
   // remove old file, if exists
-  if (!FLAG(k) && !S_ISDIR(ala) && unlink(name)) {
-    if (errno==EISDIR && !rmdir(name));
-    else if (errno!=ENOENT) return perror_msg("can't remove: %s", name);
-  }
+  if (!FLAG(k) && !S_ISDIR(ala) && rmdir(name) && errno!=ENOENT && unlink(name))
+    return perror_msg("can't remove: %s", name);
 
   if (S_ISREG(ala)) {
     // hardlink?
@@ -545,7 +543,7 @@ static void extract_to_disk(void)
         WARN_ONLY|O_WRONLY|O_CREAT|(FLAG(overwrite)?O_TRUNC:O_EXCL),
         ala & 07777);
       if (fd != -1) sendfile_sparse(fd);
-      else skippy(TT.hdr.size);
+      else return skippy(TT.hdr.size);
     }
   } else if (S_ISDIR(ala)) {
     if ((mkdir(name, 0700) == -1) && errno != EEXIST)
@@ -657,7 +655,7 @@ static void unpack_tar(char *first)
           {
             i = strlen(pp);
             sefd = xopen("/proc/self/attr/fscreate", O_WRONLY|WARN_ONLY);
-            if (sefd == -1 ||  i!=write(sefd, pp, i))
+            if (sefd==-1 ||  i!=write(sefd, pp, i))
               perror_msg("setfscreatecon %s", pp);
           } else if (strstart(&pp, "path=")) {
             free(TT.hdr.name);
@@ -818,7 +816,7 @@ static void unpack_tar(char *first)
 
     if (sefd != -1) {
       // zero length write resets fscreate context to default
-      write(sefd, 0, 0);
+      (void)write(sefd, 0, 0);
       close(sefd);
       sefd = -1;
     }
@@ -1002,11 +1000,12 @@ void tar_main(void)
     }
     do {
       TT.warn = 1;
-      dirtree_flagread(dl->data, FLAG(h)?DIRTREE_SYMFOLLOW:0, add_to_tar);
+      dirtree_flagread(dl->data, FLAG(h) ? DIRTREE_SYMFOLLOW : 0, add_to_tar);
     } while (TT.incl != (dl = dl->next));
 
     writeall(TT.fd, toybuf, 1024);
   }
+  if (toys.exitval) error_msg("had errors");
 
   if (CFG_TOYBOX_FREE) {
     llist_traverse(TT.excl, llist_free_double);

@@ -11,7 +11,7 @@
  * TODO: i2cget non-byte modes? default to current read address?
  * TODO: i2cset -r? -m MASK? c/s modes, p mode modifier?
 
-USE_I2CDETECT(NEWTOY(i2cdetect, ">3aFly", TOYFLAG_USR|TOYFLAG_BIN))
+USE_I2CDETECT(NEWTOY(i2cdetect, ">3aFlqry[!qr]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_I2CDUMP(NEWTOY(i2cdump, "<2>2fy", TOYFLAG_USR|TOYFLAG_BIN))
 USE_I2CGET(NEWTOY(i2cget, "<3>3fy", TOYFLAG_USR|TOYFLAG_BIN))
 USE_I2CSET(NEWTOY(i2cset, "<4fy", TOYFLAG_USR|TOYFLAG_BIN))
@@ -20,15 +20,16 @@ config I2CDETECT
   bool "i2cdetect"
   default y
   help
-    usage: i2cdetect [-ary] BUS [FIRST LAST]
+    usage: i2cdetect [-aqry] BUS [FIRST LAST]
     usage: i2cdetect -F BUS
     usage: i2cdetect -l
 
     Detect i2c devices.
 
-    -a	All addresses (0x00-0x7f rather than 0x03-0x77)
+    -a	All addresses (0x00-0x7f rather than 0x03-0x77 or FIRST-LAST)
     -F	Show functionality
-    -l	List all buses
+    -l	List available buses
+    -q	Probe with SMBus Quick Write (default)
     -r	Probe with SMBus Read Byte
     -y	Answer "yes" to confirmation prompts (for script use)
 
@@ -67,6 +68,7 @@ config I2CSET
 */
 
 #define FOR_i2cdetect
+#define TT this.i2ctools
 #include "toys.h"
 
 #include <linux/i2c.h>
@@ -76,7 +78,7 @@ printf_format static void confirm(const char *fmt, ...)
 {
   va_list va;
 
-  if (toys.optflags & FLAG_y) return;
+  if (FLAG(y)) return;
 
   va_start(va, fmt);
   vfprintf(stderr, fmt, va);
@@ -106,23 +108,26 @@ static unsigned long i2c_get_funcs(int bus)
 
 static int i2c_read_byte(int fd, int addr, int *byte)
 {
-  struct i2c_smbus_ioctl_data ioctl_data;
   union i2c_smbus_data data;
+  struct i2c_smbus_ioctl_data ioctl_data = { .read_write = I2C_SMBUS_READ,
+    .size = I2C_SMBUS_BYTE_DATA, .command = addr, .data = &data };
 
   memset(&data, 0, sizeof(data));
-  ioctl_data.read_write = I2C_SMBUS_READ;
-  ioctl_data.size = I2C_SMBUS_BYTE_DATA;
-  ioctl_data.command = addr;
-  ioctl_data.data = &data;
-  if (ioctl(fd, I2C_SMBUS, &ioctl_data) == -1) return -1;
+  if (ioctl(fd, I2C_SMBUS, &ioctl_data)==-1) return -1;
   *byte = data.byte;
   return 0;
 }
 
+static int i2c_quick_write(int fd, int addr)
+{
+  struct i2c_smbus_ioctl_data ioctl_data = { .read_write = I2C_SMBUS_QUICK,
+    .size = 0, .command = addr };
+
+  return ioctl(fd, I2C_SMBUS, &ioctl_data);
+}
+
 static void i2cdetect_dash_F(int bus)
 {
-  size_t i;
-
   struct { int mask; const char *name; } funcs[] = {
     {I2C_FUNC_I2C, "I2C"},
     {I2C_FUNC_SMBUS_QUICK, "SMBus Quick Command"},
@@ -140,13 +145,12 @@ static void i2cdetect_dash_F(int bus)
     {I2C_FUNC_SMBUS_WRITE_I2C_BLOCK, "I2C Write Block"},
     {I2C_FUNC_SMBUS_READ_I2C_BLOCK, "I2C Read Block"},
   };
-  unsigned long supported = i2c_get_funcs(bus);
+  unsigned long sup = i2c_get_funcs(bus);
+  int i;
 
   printf("Functionalities implemented by %s:\n", toybuf);
-  for (i = 0; i < ARRAY_LEN(funcs); ++i) {
-    printf("%-32s %s\n", funcs[i].name,
-           (supported & funcs[i].mask) ? "yes" : "no");
-  }
+  for (i = 0; i < ARRAY_LEN(funcs); ++i)
+    printf("%-32s %s\n", funcs[i].name, (sup & funcs[i].mask) ? "yes" : "no");
 }
 
 static int i2cdetect_dash_l(struct dirtree *node)
@@ -158,7 +162,7 @@ static int i2cdetect_dash_l(struct dirtree *node)
 
   if (!node->parent) return DIRTREE_RECURSE; // Skip the directory itself.
 
-  if (sscanf(node->name, "i2c-%d", &bus) != 1) return 0;
+  if (sscanf(node->name, "i2c-%d", &bus)!=1) return 0;
   funcs = i2c_get_funcs(bus);
 
   fname = dirtree_path(node, &suffix_len);
@@ -167,10 +171,9 @@ static int i2cdetect_dash_l(struct dirtree *node)
   free(fname);
   if ((p = strchr(toybuf, '\n'))) *p = 0;
 
-  // "i2c-1	i2c       	Synopsys DesignWare I2C adapter 	I2C adapter"
+  // "i2c-1	i2c	Synopsys DesignWare I2C adapter		I2C adapter"
   printf("%s\t%-10s\t%-32s\t%s\n", node->name,
-         (funcs & I2C_FUNC_I2C) ? "i2c" : "?",
-         toybuf,
+         (funcs & I2C_FUNC_I2C) ? "i2c" : "?", toybuf,
          (funcs & I2C_FUNC_I2C) ? "I2C Adapter" : "?");
 
   return 0;
@@ -178,23 +181,23 @@ static int i2cdetect_dash_l(struct dirtree *node)
 
 void i2cdetect_main(void)
 {
-  if (toys.optflags & FLAG_l) {
+  if (FLAG(l)) {
     if (toys.optc) error_exit("-l doesn't take arguments");
-    dirtree_read("/sys/class/i2c-dev", i2cdetect_dash_l);
-  } else if (toys.optflags & FLAG_F) {
+    dirtree_flagread("/sys/class/i2c-dev", DIRTREE_SHUTUP, i2cdetect_dash_l);
+  } else if (FLAG(F)) {
     if (toys.optc != 1) error_exit("-F BUS");
     i2cdetect_dash_F(atolx_range(*toys.optargs, 0, INT_MAX));
   } else {
     int bus, first = 0x03, last = 0x77, fd, row, addr, byte;
 
-    if (toys.optflags & FLAG_a) {
+    if (FLAG(a)) {
       first = 0x00;
       last = 0x7f;
     }
 
-    if (toys.optc != 1 && toys.optc != 3) error_exit("bad args");
+    if (toys.optc!=1 && toys.optc!=3) help_exit("Needs 1 or 3 arguments");
     bus = atolx_range(*toys.optargs, 0, INT_MAX);
-    if (toys.optc == 3) {
+    if (toys.optc==3) {
       first = atolx_range(toys.optargs[1], 0, 0x7f);
       last = atolx_range(toys.optargs[2], 0, 0x7f);
       if (first > last) error_exit("first > last");
@@ -206,8 +209,8 @@ void i2cdetect_main(void)
     printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n");
     for (row = 0; row <= 0x70; row += 16) {
       xprintf("%02x:", row & 0xf0);
-      for (addr = row; addr < row + 16; ++addr) {
-        if (addr < first || addr > last) printf("   ");
+      for (addr = row; addr<row+16; ++addr) {
+        if (addr<first || addr>last) printf("   ");
         else {
           if (ioctl(fd, I2C_SLAVE, addr) == -1) {
             if (errno == EBUSY) {
@@ -216,7 +219,8 @@ void i2cdetect_main(void)
             }
             perror_exit("ioctl(I2C_SLAVE)");
           }
-          if (i2c_read_byte(fd, addr, &byte) == -1) xprintf(" --");
+          if ((FLAG(r) ? i2c_read_byte(fd, addr, &byte)
+                       : i2c_quick_write(fd, addr)) == -1) xprintf(" --");
           else xprintf(" %02x", addr);
         }
       }
@@ -238,13 +242,16 @@ void i2cdump_main(void)
 
   confirm("Dump chip 0x%02x on bus %d?", chip, bus);
 
-  fd = i2c_open(bus, (toys.optflags&FLAG_f)?I2C_SLAVE_FORCE:I2C_SLAVE, chip);
+  fd = i2c_open(bus, FLAG(f) ? I2C_SLAVE_FORCE : I2C_SLAVE, chip);
   printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f    0123456789abcdef\n");
-  for (row = 0; row <= 0xf0; row += 16) {
+  for (row = 0; row<=0xf0; row += 16) {
     xprintf("%02x:", row & 0xf0);
-    for (addr = row; addr < row + 16; ++addr) {
-      if (i2c_read_byte(fd, addr, &byte) == -1) perror_exit("i2c_read_byte");
-      printf(" %02x", byte);
+    for (addr = row; addr<row+16; ++addr) {
+      if (!i2c_read_byte(fd, addr, &byte)) printf(" %02x", byte);
+      else {
+        printf(" XX");
+        byte = 'X';
+      }
       toybuf[addr-row] = isprint(byte) ? byte : (byte ? '?' : '.');
     }
     printf("    %16.16s\n", toybuf);
@@ -265,8 +272,8 @@ void i2cget_main(void)
 
   confirm("Read register 0x%02x from chip 0x%02x on bus %d?", addr, chip, bus);
 
-  fd = i2c_open(bus, (toys.optflags&FLAG_f)?I2C_SLAVE_FORCE:I2C_SLAVE, chip);
-  if (i2c_read_byte(fd, addr, &byte) == -1) perror_exit("i2c_read_byte");
+  fd = i2c_open(bus, FLAG(f) ? I2C_SLAVE_FORCE : I2C_SLAVE, chip);
+  if (i2c_read_byte(fd, addr, &byte)==-1) perror_exit("i2c_read_byte");
   printf("0x%02x\n", byte);
   close(fd);
 }
@@ -286,26 +293,24 @@ void i2cset_main(void)
   union i2c_smbus_data data;
 
   memset(&data, 0, sizeof(data));
-  if (strlen(mode) != 1) help_exit("mode too long");
-  if (*mode == 'b' && toys.optc == 5) {
+  if (strlen(mode)!=1) help_exit("mode too long");
+  if (*mode=='b' && toys.optc==5) {
     ioctl_data.size = I2C_SMBUS_BYTE_DATA;
     data.byte = atolx_range(toys.optargs[3], 0, 0xff);
-  } else if (*mode == 'w' && toys.optc == 5) {
+  } else if (*mode=='w' && toys.optc==5) {
     ioctl_data.size = I2C_SMBUS_WORD_DATA;
     data.word = atolx_range(toys.optargs[3], 0, 0xffff);
-  } else if (*mode == 'i' && toys.optc >= 5) {
-    if (toys.optc - 4 > I2C_SMBUS_BLOCK_MAX) error_exit("too much data");
+  } else if (*mode=='i' && toys.optc>=5) {
+    if (toys.optc-4>I2C_SMBUS_BLOCK_MAX) error_exit("too much data");
     ioctl_data.size = I2C_SMBUS_I2C_BLOCK_DATA;
-    for (i = 0; i < toys.optc - 4; ++i)
+    for (i = 0; i<toys.optc-4; ++i)
       data.block[i+1] = atolx_range(toys.optargs[3+i], 0, 0xff);
-    data.block[0] = toys.optc - 4;
-  } else {
-    help_exit("syntax error");
-  }
+    data.block[0] = toys.optc-4;
+  } else help_exit("syntax error");
 
   confirm("Write register 0x%02x from chip 0x%02x on bus %d?", addr, chip, bus);
 
-  fd = i2c_open(bus, (toys.optflags&FLAG_f)?I2C_SLAVE_FORCE:I2C_SLAVE, chip);
+  fd = i2c_open(bus, FLAG(f) ? I2C_SLAVE_FORCE : I2C_SLAVE, chip);
   ioctl_data.read_write = I2C_SMBUS_WRITE;
   ioctl_data.command = addr;
   ioctl_data.data = &data;

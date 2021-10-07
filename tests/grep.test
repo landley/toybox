@@ -13,6 +13,7 @@ echo -e "this is test" > foo
 echo -e "this is test2" > foo2
 echo -e "this is foo3" > foo3
 testing "-l" "grep -l test foo foo2 foo3" "foo\nfoo2\n" "" ""
+testing "-L" "grep -L test foo foo2 foo3" "foo3\n" "" ""
 rm foo foo2 foo3
 
 testing "-q" "grep -q test input && echo yes" "yes\n" "this is a test\n" ""
@@ -202,3 +203,7 @@ testing "-z with \n in pattern" "grep -f input" "hi\nthere\n" "i\nt" "hi\nthere"
 
 testing "print zero length match" "grep '[0-9]*'" "abc\n" "" "abc\n"
 testing "-o skip zero length match" "grep -o '[0-9]*'" "1234\n" "" "a1234b"
+# Bit of a hack, but other greps insert gratuitous \e[K clear-to-EOL
+testing "--color highlights all matches" \
+  "grep --color=always def | grep -o '[[][0-9;]*[Km]def.[[]m' | wc -l" \
+  "2\n" "" "abcdefghidefjkl\n"

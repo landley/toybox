@@ -241,7 +241,13 @@ If you specified two-character command line arguments in
 NEWTOY(), the first few global variables will be initialized by the automatic
 argument parsing logic, and the type and order of these variables must
 correspond to the arguments specified in NEWTOY().
-(See <a href="#lib_args">lib/args.c</a> for details.)</p></li>
+(See <a href="#lib_args">lib/args.c</a> for details.)</p>
+
+<blockquote><p>NOTE: the GLOBALS() block creates a "this.filename" entry
+in generated/globals.h. If your toys/*/filename.c does not match the first
+command name, you'll need to "#define TT this.filename" yourself before
+#including toys.h if you want to use TT globals</p></blockquote>
+</li>
 
 <li><p>Rename hello_main() to yourcommand_main().  This is the main() function
 where execution of your command starts. Your command line options are

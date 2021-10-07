@@ -2,7 +2,7 @@
  *
  * Copyright 2014 Sandeep Sharma <sandeep.jack2756@gmail.com>
  * Copyright 2014 Kyungwan Han <asura321@gamil.com>
- * No Standard 
+ * No Standard
 
 USE_ARP(NEWTOY(arp, "vi:nDsdap:A:H:[+Ap][!sd]", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -17,17 +17,17 @@ config ARP
     [-v]  [-H HWTYPE] [-i IF] -s HOSTNAME HWADDR [netmask MASK] pub
     [-v]  [-H HWTYPE] [-i IF] -Ds HOSTNAME IFACE [netmask MASK] pub
 
-    Manipulate ARP cache
+    Manipulate ARP cache.
 
-    -a    Display (all) hosts
-    -s    Set new ARP entry
-    -d    Delete a specified entry
-    -v    Verbose
-    -n    Don't resolve names
-    -i IF Network interface
-    -D    Read <hwaddr> from given device
-    -A,-p AF  Protocol family
-    -H    HWTYPE Hardware address type
+    -a	Display (all) hosts
+    -s	Set new ARP entry
+    -d	Delete a specified entry
+    -v	Verbose
+    -n	Don't resolve names
+    -i IFACE	Network interface
+    -D	Read <hwaddr> from given device
+    -A,-p AF	Protocol family
+    -H HWTYPE	Hardware address type
 
 */
 
@@ -40,12 +40,12 @@ GLOBALS(
     char *af_type_A;
     char *af_type_p;
     char *interface;
-    
+
     int sockfd;
     char *device;
 )
 
-struct arpreq req; //Global request structure 
+struct arpreq req;
 
 struct type {
   char *name;
@@ -53,7 +53,7 @@ struct type {
 };
 
 struct type hwtype[] = {
-  {"ether", ARPHRD_ETHER }, 
+  {"ether", ARPHRD_ETHER },
   {"loop" ,ARPHRD_LOOPBACK},
   {"ppp" ,ARPHRD_PPP},
   {"infiniband" ,ARPHRD_INFINIBAND},
@@ -61,14 +61,14 @@ struct type hwtype[] = {
 };
 
 struct type aftype[] = {
-  {"inet", AF_INET }, 
+  {"inet", AF_INET },
   {"inet6" ,AF_INET6},
   {"unspec" ,AF_UNSPEC},
   {NULL, -1},
 };
 
 struct type flag_type[] = {
-  {"PERM", ATF_PERM }, 
+  {"PERM", ATF_PERM },
   {"PUB" ,ATF_PUBL},
   {"DONTPUB" ,ATF_DONTPUB},
   {"TRAIL" ,ATF_USETRAILERS},
@@ -78,25 +78,18 @@ struct type flag_type[] = {
 static int get_index(struct type arr[], char *name)
 {
   int i;
-  
-  for (i = 0; arr[i].name; i++) 
+
+  for (i = 0; arr[i].name; i++)
     if (!strcmp(arr[i].name, name)) break;
   return arr[i].val;
 }
 
 static void resolve_host(char *host, struct sockaddr *sa)
 {
-  struct addrinfo hints, *res = NULL;
-  int ret;
+  struct addrinfo *ai = xgetaddrinfo(host, NULL, AF_INET, SOCK_STREAM, 0, 0);
 
-  memset(&hints, 0, sizeof hints);
-  hints.ai_family = AF_INET;
-  hints.ai_socktype = SOCK_STREAM;
-  if ((ret = getaddrinfo(host, NULL, &hints, &res))) 
-    perror_exit("%s", gai_strerror(ret));
-
-  memcpy(sa, res->ai_addr, res->ai_addrlen);
-  freeaddrinfo(res);
+  memcpy(sa, ai->ai_addr, ai->ai_addrlen);
+  freeaddrinfo(ai);
 }
 
 static void check_flags(int *i, char** argv)
@@ -142,7 +135,7 @@ static int set_entry(void)
   
   if (!toys.optargs[1]) error_exit("bad syntax");
 
-  if (!(toys.optflags & FLAG_D)) {
+  if (!FLAG(D)) {
     char *ptr = toys.optargs[1];
     char *p = ptr, *hw_addr = req.arp_ha.sa_data;
 
@@ -162,7 +155,7 @@ static int set_entry(void)
 
     xstrncpy(ifre.ifr_name, toys.optargs[1], IFNAMSIZ);
     xioctl(TT.sockfd, SIOCGIFHWADDR, &ifre);
-    if ((toys.optflags & FLAG_H) && (ifre.ifr_hwaddr.sa_family != ARPHRD_ETHER)) 
+    if (FLAG(H) && ifre.ifr_hwaddr.sa_family != ARPHRD_ETHER)
       error_exit("protocol type mismatch");
     memcpy(&req.arp_ha, &(ifre.ifr_hwaddr), sizeof(req.arp_ha));
   }
@@ -172,12 +165,12 @@ static int set_entry(void)
   req.arp_flags = flags;
   xstrncpy(req.arp_dev, TT.device, sizeof(req.arp_dev));
   xioctl(TT.sockfd, SIOCSARP, &req);
-  
-  if (toys.optflags & FLAG_v) xprintf("Entry set for %s\n", toys.optargs[0]);
+
+  if (FLAG(v)) xprintf("Entry set for %s\n", toys.optargs[0]);
   return 0;
 }
 
-static int ip_to_host(struct sockaddr *sa, int flag) 
+static int ip_to_host(struct sockaddr *sa, int flag)
 {
   int status = 0;
   char hbuf[NI_MAXHOST] = {0,}, sbuf[NI_MAXSERV] = {0,}; 
@@ -194,55 +187,51 @@ static int ip_to_host(struct sockaddr *sa, int flag)
 
 static int delete_entry(void)
 {
-  int flags;
-  
-  flags = ATF_PERM;
+  int flags = ATF_PERM;
+
   if (toys.optargs[1]) check_flags(&flags, (toys.optargs+1));
   req.arp_flags = flags;
   xstrncpy(req.arp_dev, TT.device, sizeof(req.arp_dev));
   xioctl(TT.sockfd, SIOCDARP, &req);
-  
-  if (toys.optflags & FLAG_v) xprintf("Delete entry for  %s\n", toys.optargs[0]);
+
+  if (FLAG(v)) xprintf("Delete entry for  %s\n", toys.optargs[0]);
   return 0;
 }
 
 void arp_main(void)
 {
   struct sockaddr sa;
-  char ip[128], hw_addr[128], mask[12], dev[128], *host_ip = NULL, *buf;
-  int h_type, type, flag, i, fd, entries = 0, disp = 0;
+  char ip[16], hw_addr[30], mask[16], dev[16], *host_ip = NULL;
+  FILE *fp;
+  int h_type, type, flag, i, entries = 0, disp = 0;
 
   TT.device = "";
   memset(&sa, 0, sizeof(sa));
-  memset(&req, 0, sizeof(req));
   TT.sockfd = xsocket(AF_INET, SOCK_STREAM, 0);
 
-  if ((toys.optflags & FLAG_A) || (toys.optflags & FLAG_p)) {
-    if ((type = get_index(aftype, 
-            (TT.af_type_A)?TT.af_type_A:TT.af_type_p)) != AF_INET) 
+  if (FLAG(A) || FLAG(p)) {
+    if ((type = get_index(aftype,
+            (TT.af_type_A)?TT.af_type_A:TT.af_type_p)) != AF_INET)
       error_exit((type != -1)?"only inet supported by kernel":"unknown family");
-  } 
+  }
 
   req.arp_ha.sa_family = ARPHRD_ETHER;
-  if (toys.optflags & FLAG_H) {
-    if ((type = get_index(hwtype, TT.hw_type)) != ARPHRD_ETHER) 
+  if (FLAG(H)) {
+    if ((type = get_index(hwtype, TT.hw_type)) != ARPHRD_ETHER)
       error_exit((type != -1)?"h/w type not supported":"unknown h/w type");
     req.arp_ha.sa_family = type;
   }
 
-  if (((toys.optflags & FLAG_s) || toys.optflags & FLAG_d)) { 
-    if (!toys.optargs[0]) error_exit("host name req");
+  if (FLAG(s) || FLAG(d)) {
+    if (!toys.optargs[0]) error_exit("-%c needs a host name", FLAG(d)?'d':'s');
     resolve_host(toys.optargs[0], &sa);
     memcpy(&req.arp_pa, &sa, sizeof(struct sockaddr));
+
+    if (FLAG(s) && !set_entry()) return;
+    if (FLAG(d) && !delete_entry()) return;
   }
 
-  if ((toys.optflags & FLAG_s) && !set_entry()) return;
-  if ((toys.optflags & FLAG_d) && !delete_entry()) return; 
-
-  //show arp chache
-  fd = xopenro("/proc/net/arp");
-  buf = get_line(fd);
-  free(buf); //skip first line
+  // Show arp cache.
 
   if (toys.optargs[0]) {
     resolve_host(toys.optargs[0], &sa);
@@ -250,28 +239,27 @@ void arp_main(void)
     host_ip = xstrdup(toybuf);
   }
 
-  while ((buf = get_line(fd))) {
+  fp = xfopen("/proc/net/arp", "r");
+  fgets(toybuf, sizeof(toybuf), fp); // Skip header.
+  while (fscanf(fp, "%15s 0x%x 0x%x %29s %15s %15s",
+                ip, &h_type, &flag, hw_addr, mask, dev) == 6) {
     char *host_name = "?";
-    
-    if ((sscanf(buf, "%s 0x%x 0x%x %s %s %s\n", ip,
-        &h_type, &flag, hw_addr, mask, dev )) != 6) break;
+
     entries++;
-    if (((toys.optflags & FLAG_H) && (get_index(hwtype, TT.hw_type) != h_type))
-     || ((toys.optflags & FLAG_i) && strcmp(TT.interface, dev))
-     || (toys.optargs[0] && strcmp(host_ip, ip))) {
-      free(buf);
+    if ((FLAG(H) && get_index(hwtype, TT.hw_type) != h_type) ||
+      (FLAG(i) && strcmp(TT.interface, dev)) ||
+      (toys.optargs[0] && strcmp(host_ip, ip))) {
       continue;
     }
 
-    resolve_host(buf, &sa);
-    if (!(toys.optflags & FLAG_n)) { 
-      if (!ip_to_host(&sa, NI_NAMEREQD)) host_name = toybuf;
-    } else ip_to_host(&sa, NI_NUMERICHOST);
-    
+    resolve_host(ip, &sa);
+    if (FLAG(n)) ip_to_host(&sa, NI_NUMERICHOST);
+    else if (!ip_to_host(&sa, NI_NAMEREQD)) host_name = toybuf;
+
     disp++;
     printf("%s (%s) at" , host_name, ip);
 
-    for (i = 0; hwtype[i].name; i++) 
+    for (i = 0; hwtype[i].name; i++)
       if (hwtype[i].val & h_type) break;
     if (!hwtype[i].name) error_exit("unknown h/w type");
 
@@ -282,21 +270,20 @@ void arp_main(void)
 
     if (flag & ATF_NETMASK) printf("netmask %s ", mask);
 
-    for (i = 0; flag_type[i].name; i++) 
+    for (i = 0; flag_type[i].name; i++)
       if (flag_type[i].val & flag) printf(" %s", flag_type[i].name);
 
     printf(" on %s\n", dev);
-    free(buf);
   }
-  
-  if (toys.optflags & FLAG_v) 
+
+  if (FLAG(v))
     xprintf("Entries: %d\tSkipped: %d\tFound: %d\n",
         entries, entries - disp, disp);
-  if (!disp) xprintf("No Match found in %d entries\n", entries);
-  
+  if (toys.optargs[0] && !disp)
+    xprintf("%s (%s) -- no entry\n", toys.optargs[0], host_ip);
+
   if (CFG_TOYBOX_FREE) {
     free(host_ip);
-    free(buf);
-    xclose(fd);
+    fclose(fp);
   }
 }

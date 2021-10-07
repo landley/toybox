@@ -39,22 +39,24 @@ GLOBALS(
   char *d;
 )
 
-void makedevs_main()
+void makedevs_main(void)
 {
-  int fd = 0, line_no, i;
+  FILE *fp = stdin;
   char *line = NULL;
+  size_t allocated_length = 0;
+  int line_no = 0, i;
 
   // Open file and chdir, verbosely
   xprintf("rootdir = %s\n", *toys.optargs);
-  if ((toys.optflags & FLAG_d) && strcmp(TT.d, "-")) {
-    fd = xopenro(TT.d);
+  if (FLAG(d) && strcmp(TT.d, "-")) {
+    fp = xfopen(TT.d, "r");
     xprintf("table = %s\n", TT.d);
   } else xprintf("table = <stdin>\n");
   xchdir(*toys.optargs);
 
-  for (line_no = 0; (line = get_line(fd)); free(line)) {
+  while (getline(&line, &allocated_length, fp) > 0) {
     char type=0, user[64], group[64], *node, *ptr = line;
-    unsigned int mode = 0755, major = 0, minor = 0, cnt = 0, incr = 0, 
+    unsigned int mode = 0755, major = 0, minor = 0, cnt = 0, incr = 0,
                  st_val = 0;
     uid_t uid;
     gid_t gid;
@@ -104,9 +106,10 @@ void makedevs_main()
         continue;
       }
 
-      if (chown(ptr, uid, gid) || chmod(ptr, mode)) 
+      if (chown(ptr, uid, gid) || chmod(ptr, mode))
         perror_msg("line %d: can't chown/chmod '%s'", line_no, ptr);
     }
   }
-  xclose(fd);
+  free(line);
+  if (fp != stdin) fclose(fp);
 }

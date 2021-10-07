@@ -252,8 +252,8 @@ level you can "make tests" to test everything, or "make test_sed" to test a
 single command's standalone version (which should behave identically,
 but that's why we test). You can set TEST_HOST=1 to test the host version
 instead of the toybox version (in theory they should work the same),
-and VERBOSE=1 to see diffs of the expected and actual output when a
-test fails. Set VERBOSE=fail to stop at the first such failure.</p>
+and VERBOSE=all to see diffs of the expected and actual output for all
+failing tests. The default VERBOSE=fail stops at the first such failure.</p>
 
 <hr /><h2><a name="when" />Q: When were historical toybox versions released?</h2>
 

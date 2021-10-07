@@ -29,7 +29,7 @@ config BOOTCHARTD
 #include "toys.h"
 
 GLOBALS(
-  char buf[32];
+  char timestamp[32];
   long msec;
   int proc_accounting;
 
@@ -41,7 +41,7 @@ static void dump_data_in_file(char *fname, int wfd)
   int rfd = open(fname, O_RDONLY);
 
   if (rfd != -1) {
-    xwrite(wfd, TT.buf, strlen(TT.buf));
+    xwrite(wfd, TT.timestamp, strlen(TT.timestamp));
     xsendfile(rfd, wfd);
     close(rfd);
     xwrite(wfd, "\n", 1);
@@ -55,7 +55,7 @@ static int dump_proc_data(FILE *fp)
   pid_t pid;
   DIR *proc_dir = opendir("/proc");
 
-  fputs(TT.buf, fp);
+  fputs(TT.timestamp, fp);
   while ((pid_dir = readdir(proc_dir))) {
     char filename[64];
     int fd;
@@ -134,6 +134,7 @@ static char *create_tmp_dir()
 
 static void start_logging()
 {
+  struct timespec ts;
   int proc_stat_fd = xcreate("proc_stat.log",  
       O_WRONLY | O_CREAT | O_TRUNC, 0644);
   int proc_diskstats_fd = xcreate("proc_diskstats.log",  
@@ -148,31 +149,16 @@ static void start_logging()
     xclose(kp_fd);
     acct("kernel_procs_acct");
   }
-  memset(TT.buf, 0, sizeof(TT.buf));
   while (--tcnt && !toys.signal) {
-    int i = 0, j = 0, fd = open("/proc/uptime", O_RDONLY);
-    if (fd < 0) goto wait;
-    char *line = get_line(fd);
-
-    if (!line)  goto wait;
-    while (line[i] != ' ') {
-      if (line[i] == '.') {
-        i++;
-        continue;
-      }
-      TT.buf[j++] = line[i++];
-    }
-    TT.buf[j++] = '\n';
-    TT.buf[j] = 0;
-    free(line);
-    close(fd);
+    clock_gettime(CLOCK_BOOTTIME, &ts);
+    sprintf(TT.timestamp, "%ld.%02d\n", (long) ts.tv_sec,
+        (int) (ts.tv_nsec/10000000));
     dump_data_in_file("/proc/stat", proc_stat_fd);
     dump_data_in_file("/proc/diskstats", proc_diskstats_fd);
     // stop proc dumping in 2 secs if getty or gdm, kdm, xdm found 
     if (dump_proc_data(proc_ps_fp))
       if (tcnt > 2 * 1000 / TT.msec) tcnt = 2 * 1000 / TT.msec;
     fflush(0);
-wait:
     msleep(TT.msec);
   }
   xclose(proc_stat_fd);

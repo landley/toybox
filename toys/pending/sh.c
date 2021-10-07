@@ -401,9 +401,9 @@ static struct sh_vars *findvar(char *name, struct sh_fcall **pff)
 
     if (!var) continue;
     if (pff) *pff = ff;
-    while (var-- != ff->vars)
+    while (var--!=ff->vars)
       if (pff || !(var->flags&VAR_WHITEOUT))
-        if (!strncmp(var->str, name, len) && var->str[len] == '=') return var;
+        if (!strncmp(var->str, name, len) && var->str[len]=='=') return var;
   } while ((ff = ff->next)!=TT.ff);
 
   return 0;
@@ -421,16 +421,63 @@ static struct sh_vars *addvar(char *s, struct sh_fcall *ff)
   return ff->vars+ff->varslen++;
 }
 
-// TODO function to resolve a string into a number for $((1+2)) etc
-long long do_math(char **s)
+static char **nospace(char **ss)
 {
-  long long ll;
+  while (isspace(**ss)) ++*ss;
 
-  while (isspace(**s)) ++*s;
-  ll = strtoll(*s, s, 0);
-  while (isspace(**s)) ++*s;
+  return ss;
+}
 
-  return ll;
+// Recursively calculate string into dd, returns 0 if failed, ss = error point
+static int recalculate(long long *dd, char **ss, int lvl)
+{
+  long long ee, ff;
+  char cc = **nospace(ss);
+
+  // handle unary prefixes, parenthetical blocks, and constants
+
+  if (cc=='+' || cc=='-') {
+    ++*ss;
+    if (!recalculate(dd, ss, 0)) return 0;
+    if (cc=='-') *dd = -*dd;
+  } else if (cc=='(') {
+    ++*ss;
+    if (!recalculate(dd, ss, 0)) return 0;
+    if (**ss!=')') return 0;
+    else ++*ss;
+  } else if (isdigit(cc)) *dd = strtoll(*ss, ss, 0); //TODO overflow?
+  else return 0;
+
+  if (lvl>1) if (strstart(nospace(ss), "**")) {
+    if (!recalculate(&ee, ss, 3)) return 0;
+    if (ee<0) perror_msg("** < 0");
+    for (ff = *dd, *dd = 1; ee; ee--) *dd *= ff;
+  }
+
+  if (lvl>0) while ((cc = **nospace(ss))) {
+    if (cc=='*' || cc=='/' || cc=='%') {
+      ++*ss;
+      if (!recalculate(&ee, ss, 2)) return 0;
+      if (cc=='*') *dd *= ee;
+      else if (cc=='%') *dd %= ee;
+      else if (!ee) {
+        perror_msg("/0");
+        return 0;
+      } else *dd /= ee;
+    } else break;
+  }
+
+  if (!lvl) while ((cc = **nospace(ss))) {
+    if (cc=='+' || cc=='-') {
+      ++*ss;
+      if (!recalculate(&ee, ss, 1)) return 0;
+      if (cc=='+') *dd += ee;
+      else *dd -= ee;
+    } else break;
+  }
+  nospace(ss);
+
+  return 1;
 }
 
 // declare -aAilnrux
@@ -455,9 +502,8 @@ static struct sh_vars *setvar_found(char *s, struct sh_vars *var)
   if (flags&VAR_MAGIC) {
     char *ss = strchr(s, '=')+1;
 
-    if (*s == 'S') TT.SECONDS = millitime() - 1000*do_math(&ss);
-    else if (*s == 'R') srandom(do_math(&ss));
-// TODO: trailing garbage after do_math()?
+    if (*s == 'S') TT.SECONDS = millitime() - 1000*atoll(ss);
+    else if (*s == 'R') srandom(atoll(ss));
   } else {
     if (!(flags&VAR_NOFREE)) free(var->str);
     else var->flags ^= VAR_NOFREE;
@@ -1462,9 +1508,16 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
       s = str+ii-1;
       kk = parse_word(s, 1, 0)-s;
       if (str[ii] == '[' || *toybuf == 255) {
-        s += 2+(str[ii]!='[');
-        kk -= 3+2*(str[ii]!='[');
-dprintf(2, "TODO: do math for %.*s\n", kk, s);
+        long long ll;
+
+        ss = (s += 2+(str[ii]!='['));
+        jj = kk - (3+2*(str[ii]!='['));
+        if (!recalculate(&ll, &s, 0) || ss+jj != s) {
+          error_msg("math: %.*s @ %ld", jj, ss, (s-ss));
+          goto fail;
+        }
+        ii += kk-1;
+        push_arg(delete, ifs = xmprintf("%lld", ll));
       } else {
         // Run subshell and trim trailing newlines
         s += (jj = 1+(cc == '$'));
@@ -1640,24 +1693,22 @@ barf:
         else if (dd == '+')
           push_arg(delete, ifs = slashcopy(slice+xx+1, "}", 0));
         else if (xx) { // ${x::}
-          long long la, lb, lc;
+          long long la = 0, lb = LLONG_MAX, lc = 1;
 
-// TODO don't redo math in loop
-          ss = slice+1;
-          la = do_math(&s);
-          if (s && *s == ':') {
-            s++;
-            lb = do_math(&s);
-          } else lb = LLONG_MAX;
-          if (s && *s != '}') {
-            error_msg("%.*s: bad '%c'", (int)(slice-ss), ss, *s);
-            s = 0;
+          ss = ++slice;
+          if ((lc = recalculate(&la, &ss, 0)) && *ss == ':') {
+            ss++;
+            lc = recalculate(&lb, &ss, 0);
           }
-          if (!s) goto fail;
+          if (!lc || *ss != '}') {
+            for (s = ss; *s != '}' && *s != ':'; s++);
+            error_msg("bad %.*s @ %ld", (int)(s-slice), slice, ss-slice);
+            goto fail;
+          }
 
           // This isn't quite what bash does, but close enough.
           if (!(lc = aa.c)) lc = strlen(ifs);
-          else if (!la && !yy && strchr("@*", slice[1])) {
+          else if (!la && !yy && strchr("@*", *slice)) {
             aa.v--; // ${*:0} shows $0 even though default is 1-indexed
             aa.c++;
             yy++;
@@ -1933,7 +1984,7 @@ static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
     }
   }
 
-// TODO NOSPLIT with braces? (Collate with spaces?)
+// TODO NO_SPLIT with braces? (Collate with spaces?)
   // If none, pass on verbatim
   if (!blist) return expand_arg_nobrace(arg, old, flags, delete, 0);
 
@@ -2328,14 +2379,14 @@ static void sh_exec(char **argv)
 // Execute a single command at TT.ff->pl
 static struct sh_process *run_command(void)
 {
-  char *s, *sss;
+  char *s, *ss, *sss;
   struct sh_arg *arg = TT.ff->pl->arg;
   int envlen, funk = TT.funcslen, jj = 0, locals = 0;
   struct sh_process *pp;
 
   // Count leading variable assignments
   for (envlen = 0; envlen<arg->c; envlen++)
-    if ((s = varend(arg->v[envlen])) == arg->v[envlen] || *s != '=') break;
+    if ((s = varend(arg->v[envlen]))==arg->v[envlen] || s[*s=='+']!='=') break;
   pp = expand_redir(arg, envlen, 0);
 
   // Are we calling a shell function?  TODO binary search
@@ -2352,7 +2403,7 @@ static struct sh_process *run_command(void)
       pp->delete = 0;
     }
     addvar(0, TT.ff); // function context (not source) so end_function deletes
-    locals = 1;
+    locals = 1;  // create local variables for function prefix assignment
   }
 
   // perform any assignments
@@ -2365,13 +2416,24 @@ static struct sh_process *run_command(void)
       else if (vv->flags&VAR_READONLY) ff = 0;
       else if (locals && ff!=TT.ff) vv = 0, ff = TT.ff;
 
-      if (!vv&&ff) (vv = addvar(s, ff))->flags = VAR_NOFREE|(VAR_GLOBAL*locals);
       if (!(sss = expand_one_arg(s, SEMI_IFS, 0))) pp->exit = 1;
       else {
-        if (!setvar_found(sss, vv)) continue;
+        ss = varend(sss);
+        if (!vv&&ff)
+          (vv = addvar(s, ff))->flags = VAR_NOFREE|(VAR_GLOBAL*locals);
+        else if (*ss=='+') {
+          ss = xmprintf("%s%s", vv->str, ss+2);
+          free(sss);
+          sss = ss;
+        }
+
+        if (!setvar_found(sss, vv)) {
+          if (sss!=s) free(sss);
+          continue;
+        }
         if (sss==s) {
           if (!locals) vv->str = xstrdup(sss);
-          else vv->flags |= VAR_NOFREE;
+          else vv->flags |= VAR_NOFREE; // argument mem outlives command
         }
         cache_ifs(vv->str, ff ? : TT.ff);
       }
@@ -2917,12 +2979,7 @@ flush:
   if (s) syntax_err(s);
   llist_traverse(*ppl, free_pipeline);
   *ppl = 0;
-  while (*expect) {
-    struct double_list *del = dlist_pop(expect);
-
-    if (del->data != (void *)1) free(del->data);
-    free(del);
-  }
+  llist_traverse(*expect, free);
   *expect = 0;
 
   return 0-!!s;

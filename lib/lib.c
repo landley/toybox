@@ -931,7 +931,7 @@ void sigatexit(void *handler)
 // Output a nicely formatted table of all the signals.
 void list_signals(void)
 {
-  int i = 0, count = 0;
+  int i = 1, count = 0;
   unsigned cols = 80;
   char *name;
 
@@ -1164,9 +1164,10 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name),
       if (scripts && !strcmp(bb, getbasename(cmd+strlen(cmd)+1))) goto match;
       continue;
 match:
-      if (callback(u, *cur)) break;
+      if (callback(u, *cur)) goto done;
     }
   }
+done:
   closedir(dp);
 }
 

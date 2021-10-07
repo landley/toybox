@@ -193,6 +193,13 @@ void *memmem(const void *haystack, size_t haystack_length,
 #endif
 #endif
 
+#ifdef __linux__
+#include <sys/personality.h>
+#else
+#define PER_LINUX32 0
+int personality(int);
+#endif
+
 #if defined(__APPLE__) || defined(__linux__)
 // Linux and macOS has both have getxattr and friends in <sys/xattr.h>, but
 // they aren't compatible.
@@ -371,3 +378,13 @@ int dev_makedev(int major, int minor);
 char *fs_type_name(struct statfs *statfs);
 
 int get_block_device_size(int fd, unsigned long long *size);
+
+#ifdef __APPLE__
+// Apple doesn't have POSIX timers; this is "just enough" for timeout(1).
+typedef int timer_t;
+struct itimerspec {
+  struct timespec it_value;
+};
+int timer_create(clock_t c, struct sigevent *se, timer_t *t);
+int timer_settime(timer_t t, int flags, struct itimerspec *new, void *old);
+#endif

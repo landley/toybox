@@ -21,8 +21,10 @@ CFLAGS="$CFLAGS -funsigned-char"
 [ -z "$ASAN" ] || { CFLAGS="$CFLAGS -O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize=address"; NOSTRIP=1; }
 
 # We accept LDFLAGS, but by default don't have anything in it
-if [ "$(uname)" != "Darwin" ]
+if [ "$(uname)" == "Darwin" ]
 then
+  [ -z "$LDOPTIMIZE" ] && LDOPTIMIZE="-Wl,-dead_strip"
+else
   [ -z "$LDOPTIMIZE" ] && LDOPTIMIZE="-Wl,--gc-sections"
   LDASNEEDED="-Wl,--as-needed"
 fi

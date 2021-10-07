@@ -19,6 +19,7 @@ toybox generated/unstripped/toybox: $(KCONFIG_CONFIG) *.[ch] lib/*.[ch] toys/*/*
 .PHONY: clean distclean baseline bloatcheck install install_flat \
 	uninstall uninstall_flat tests help change \
 	list list_working list_pending root run_root
+.SUFFIXES: # Disable legacy behavior
 
 include kconfig/Makefile
 -include .singlemake

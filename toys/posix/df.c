@@ -101,12 +101,12 @@ static void show_mt(struct mtab_list *mt, int measuring)
     if (FLAG(i)) {
       suap[0] = mt->statvfs.f_files;
       suap[1] = mt->statvfs.f_files - mt->statvfs.f_ffree;
-      suap[2] = getuid() ? mt->statvfs.f_favail : mt->statvfs.f_ffree;
+      suap[2] = geteuid() ? mt->statvfs.f_favail : mt->statvfs.f_ffree;
     } else {
       block = maxof(mt->statvfs.f_frsize, 1);
       suap[0] = mt->statvfs.f_blocks;
       suap[1] = mt->statvfs.f_blocks - mt->statvfs.f_bfree;
-      suap[2] = getuid() ? mt->statvfs.f_bavail : mt->statvfs.f_bfree;
+      suap[2] = geteuid() ? mt->statvfs.f_bavail : mt->statvfs.f_bfree;
     }
 
     // Scale and convert to strings

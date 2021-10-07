@@ -27,29 +27,29 @@ config COMM
 
 static void writeline(const char *line, int col)
 {
-  if (col == 0 && toys.optflags & FLAG_1) return;
+  if (!col && FLAG(1)) return;
   else if (col == 1) {
-    if (toys.optflags & FLAG_2) return;
-    if (!(toys.optflags & FLAG_1)) putchar('\t');
+    if (FLAG(2)) return;
+    if (!FLAG(1)) putchar('\t');
   } else if (col == 2) {
-    if (toys.optflags & FLAG_3) return;
-    if (!(toys.optflags & FLAG_1)) putchar('\t');
-    if (!(toys.optflags & FLAG_2)) putchar('\t');
+    if (FLAG(3)) return;
+    if (!FLAG(1)) putchar('\t');
+    if (!FLAG(2)) putchar('\t');
   }
   puts(line);
 }
 
 void comm_main(void)
 {
-  int file[2];
+  FILE *file[2];
   char *line[2];
   int i;
 
   if (toys.optflags == 7) return;
 
   for (i = 0; i < 2; i++) {
-    file[i] = xopenro(toys.optargs[i]);
-    line[i] = get_line(file[i]);
+    file[i] = xfopen(toys.optargs[i], "r");
+    line[i] = xgetline(file[i]);
   }
 
   while (line[0] && line[1]) {
@@ -59,22 +59,22 @@ void comm_main(void)
       writeline(line[0], 2);
       for (i = 0; i < 2; i++) {
         free(line[i]);
-        line[i] = get_line(file[i]);
+        line[i] = xgetline(file[i]);
       }
     } else {
       i = order < 0 ? 0 : 1;
       writeline(line[i], i);
       free(line[i]);
-      line[i] = get_line(file[i]);
+      line[i] = xgetline(file[i]);
     }
   }
 
-  /* print rest of the longer file */
+  // Print rest of the longer file.
   for (i = line[0] ? 0 : 1; line[i];) {
     writeline(line[i], i);
     free(line[i]);
-    line[i] = get_line(file[i]);
+    line[i] = xgetline(file[i]);
   }
 
-  if (CFG_TOYBOX_FREE) for (i = 0; i < 2; i++) xclose(file[i]);
+  if (CFG_TOYBOX_FREE) for (i = 0; i < 2; i++) fclose(file[i]);
 }

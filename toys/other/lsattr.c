@@ -65,7 +65,7 @@ config CHATTR
 GLOBALS(
   long v, p;
 
-  long add, rm, set;
+  unsigned add, rm, set;
   // !add and !rm tell us whether they were used, but `chattr =` is meaningful.
   int have_set;
 )
@@ -96,7 +96,7 @@ struct fsxattr {
 
 static struct ext2_attr {
   char *name;
-  unsigned long flag;
+  unsigned flag;
   char opt;
 } e2attrs[] = {
   // Do not sort! These are in the order that lsattr outputs them.
@@ -125,7 +125,7 @@ static struct ext2_attr {
 };
 
 // Get file flags on a Linux second extended file system.
-static int ext2_getflag(int fd, struct stat *sb, unsigned long *flag)
+static int ext2_getflag(int fd, struct stat *sb, unsigned *flag)
 {
   if(!S_ISREG(sb->st_mode) && !S_ISDIR(sb->st_mode)) {
     errno = EOPNOTSUPP;
@@ -134,7 +134,7 @@ static int ext2_getflag(int fd, struct stat *sb, unsigned long *flag)
   return (ioctl(fd, FS_IOC_GETFLAGS, (void*)flag));
 }
 
-static char *attrstr(unsigned long attrs, int full)
+static char *attrstr(unsigned attrs, int full)
 {
   struct ext2_attr *a = e2attrs;
   char *s = toybuf;
@@ -142,13 +142,14 @@ static char *attrstr(unsigned long attrs, int full)
   for (; a->name; a++)
     if (attrs & a->flag) *s++ = a->opt;
     else if (full) *s++ = '-';
-  *s = '\0';
+  *s = 0;
+
   return toybuf;
 }
 
 static void print_file_attr(char *path)
 {
-  unsigned long flag = 0, version = 0;
+  unsigned flag = 0, version = 0;
   int fd = -1;
   struct stat sb;
 
@@ -166,7 +167,7 @@ static void print_file_attr(char *path)
   }
   if (FLAG(v)) {
     if (ioctl(fd, FS_IOC_GETVERSION, (void*)&version) < 0) goto error;
-    xprintf("%-10lu ", version);
+    xprintf("%-10u ", version);
   }
 
   if (ext2_getflag(fd, &sb, &flag) < 0) perror_msg("reading flags '%s'", path);
@@ -240,7 +241,7 @@ void lsattr_main(void)
 #include "generated/flags.h"
 
 // Set file flags on a Linux second extended file system.
-static inline int ext2_setflag(int fd, struct stat *sb, unsigned long flag)
+static inline int ext2_setflag(int fd, struct stat *sb, unsigned flag)
 {
   if (!S_ISREG(sb->st_mode) && !S_ISDIR(sb->st_mode)) {
     errno = EOPNOTSUPP;
@@ -249,12 +250,11 @@ static inline int ext2_setflag(int fd, struct stat *sb, unsigned long flag)
   return (ioctl(fd, FS_IOC_SETFLAGS, (void*)&flag));
 }
 
-static unsigned long get_flag_val(char ch)
+static unsigned get_flag_val(char ch)
 {
   struct ext2_attr *ptr = e2attrs;
 
-  for (; ptr->name; ptr++)
-    if (ptr->opt == ch) return ptr->flag;
+  for (; ptr->name; ptr++) if (ptr->opt == ch) return ptr->flag;
   help_exit("bad '%c'", ch);
 }
 
@@ -288,7 +288,7 @@ static void parse_cmdline_arg(char ***argv)
 static int update_attr(struct dirtree *root)
 {
   char *fpath = NULL;
-  int v = TT.v, fd;
+  int vv = TT.v, fd;
 
   if (!dirtree_notdotdot(root)) return 0;
 
@@ -309,7 +309,7 @@ static int update_attr(struct dirtree *root)
 
   // Any potential flag changes?
   if (TT.have_set | TT.add | TT.rm) {
-    unsigned long orig, new;
+    unsigned orig, new;
 
     // Read current flags.
     if (ext2_getflag(fd, &(root->st), &orig) < 0) {
@@ -333,8 +333,8 @@ static int update_attr(struct dirtree *root)
 
   // (FS_IOC_SETVERSION works all the way back to 2.6, but FS_IOC_FSSETXATTR
   // isn't available until 4.5.)
-  if (FLAG(v) && (ioctl(fd, FS_IOC_SETVERSION, &v)<0))
-    perror_msg("%s: setting version to %d failed", fpath, v);
+  if (FLAG(v) && (ioctl(fd, FS_IOC_SETVERSION, &vv)<0))
+    perror_msg("%s: setting version to %d failed", fpath, vv);
 
   if (FLAG(p)) {
     struct fsxattr fsx;
