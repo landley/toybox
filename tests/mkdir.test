@@ -8,9 +8,14 @@ testing "mkdir" "mkdir one && [ -d one ] && echo yes" "yes\n" "" ""
 rmdir one
 
 touch existing
-testing "existing" \
+testing "existing file" \
 	"mkdir existing 2> /dev/null || [ -f existing ] && echo yes" "yes\n" "" ""
 rm existing
+
+mkdir existing
+testing "existing dir" \
+	"mkdir existing 2> /dev/null || echo yes" "yes\n" "" ""
+rmdir existing
 
 testing "one two" \
 	"mkdir one two && [ -d one ] && [ -d two ] && echo yes" "yes\n" "" ""
