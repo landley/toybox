@@ -16,7 +16,7 @@ config CUT
   bool "cut"
   default y
   help
-    usage: cut [-Ds] [-bcfF LIST] [-dO DELIM] [FILE...]
+    usage: cut [-Ds] [-bcCfF LIST] [-dO DELIM] [FILE...]
 
     Print selected parts of lines from each FILE to standard output.
 
