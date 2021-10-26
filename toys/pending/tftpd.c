@@ -84,6 +84,21 @@ static void send_errpkt(struct sockaddr *dstaddr,
     perror_exit("sendto failed");
 }
 
+// Advance to the next option or value. Returns NULL if there are no
+// more options.
+static char *next_token(char *at, char *end)
+{
+  if (at == NULL) return NULL;
+
+  for (; at < end; at++) {
+    if (*at == '\0') {
+      at++;
+      break;
+    }
+  }
+  return (at < end) ? at : NULL;
+}
+
 // Used to send / receive packets.
 static void do_action(struct sockaddr *srcaddr, struct sockaddr *dstaddr,
     socklen_t socklen, char *file, int opcode, int tsize, int blksize)
@@ -208,7 +223,7 @@ POLL_INPUT:
         break;
       }
     }
-    
+
     // server will receive DATA pkt and write the data.
     if ((opcode == TFTPD_OP_WRQ) && (pktopcode == TFTPD_OP_DATA)) {
       if (rblockno == blockno) {
@@ -218,7 +233,7 @@ POLL_INPUT:
           send_errpkt(dstaddr, socklen, "write error");
           break;
         }
-      
+
         if (nw != blksize) done = 1;
       }
       continue;
@@ -236,10 +251,11 @@ CLEAN_APP:
 
 void tftpd_main(void)
 {
-  int fd = 0, recvmsg_len, rbuflen, opcode, blksize = TFTPD_BLKSIZE, tsize = 0, set =1;
+  int fd = 0, recvmsg_len, opcode, blksize = TFTPD_BLKSIZE, tsize = 0, set =1, bflag = 0;
   struct sockaddr_storage srcaddr, dstaddr;
   socklen_t socklen = sizeof(struct sockaddr_storage);
   char *buf = toybuf;
+  char *end;
 
   memset(&srcaddr, 0, sizeof(srcaddr));
   if (getsockname(0, (struct sockaddr *)&srcaddr, &socklen)) help_exit(0);
@@ -248,6 +264,7 @@ void tftpd_main(void)
   if (*toys.optargs) xchroot(*toys.optargs);
 
   recvmsg_len = recvfrom(fd, toybuf, blksize, 0, (void *)&dstaddr, &socklen);
+  end = toybuf + recvmsg_len;
 
   TT.sfd = xsocket(dstaddr.ss_family, SOCK_DGRAM, 0);
   if (setsockopt(TT.sfd, SOL_SOCKET, SO_REUSEADDR, (const void *)&set,
@@ -275,31 +292,28 @@ void tftpd_main(void)
     return;
   }
 
-  buf += strlen(buf) + 1; //1 '\0'.
+  buf = next_token(buf, end);
   // As per RFC 1350, mode is case in-sensitive.
-  if (buf >= toybuf+recvmsg_len || strcasecmp(buf, "octet")) {
+  if (buf == NULL || strcasecmp(buf, "octet")) {
     send_errpkt((struct sockaddr*)&dstaddr, socklen, "packet format error");
     return;
   }
 
   //RFC2348. e.g. of size type: "ttype1\0ttype1_val\0...ttypeN\0ttypeN_val\0"
-  buf += strlen(buf) + 1;
-  rbuflen = toybuf + recvmsg_len - buf;
-  if (rbuflen) {
-    int jump = 0, bflag = 0;
+  for (buf = next_token(buf, end); buf != NULL; buf = next_token(buf, end)) {
+    char *opt = buf;
+    buf = next_token(buf, end);
+    if (buf == NULL) break; // Missing value.
 
-    for (; rbuflen; rbuflen -= jump, buf += jump) {
-      if (!bflag && !strcasecmp(buf, "blksize")) { //get blksize
-        errno = 0;
-        blksize = strtoul(buf, NULL, 10);
-        if (errno || blksize > 65564 || blksize < 8) blksize = TFTPD_BLKSIZE;
-        bflag ^= 1;
-      } else if (!tsize && !strcasecmp(buf, "tsize")) tsize ^= 1;
-      
-      jump += strlen(buf) + 1;
-    }
-    tsize &= (opcode == TFTPD_OP_RRQ);
+    if (!bflag && !strcasecmp(opt, "blksize")) {
+      errno = 0;
+      blksize = strtoul(buf, NULL, 10);
+      if (errno || blksize > 65564 || blksize < 8) blksize = TFTPD_BLKSIZE;
+      bflag ^= 1;
+    } else if (!tsize && !strcasecmp(opt, "tsize")) tsize ^= 1;
   }
+
+  tsize &= (opcode == TFTPD_OP_RRQ);
 
   //do send / receive file.
   do_action((struct sockaddr*)&srcaddr, (struct sockaddr*)&dstaddr,
