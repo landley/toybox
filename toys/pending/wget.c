@@ -1,7 +1,26 @@
-/* wget.c - Simple downloader to get the resource file in HTTP server
+/* wget.c - Simple downloader to get the resource file from a HTTP server
  *
  * Copyright 2016 Lipi C.H. Lee <lipisoft@gmail.com>
  * Copyright 2021 Eric Molitor <eric@molitor.org>
+ *
+ * Relevant sources of information
+ * -------------------------------
+ * HTTP 1.1: https://www.rfc-editor.org/rfc/rfc7230
+ * Chunked Encoding: https://www.rfc-editor.org/rfc/rfc7230#section-4.1
+ * UTF-8 Encoded Header Values https://www.rfc-editor.org/rfc/rfc5987
+ *
+ * Test URLs for supported features
+ * --------------------------------
+ * Chunked Encoding: https://jigsaw.w3.org/HTTP/ChunkedScript
+ * Redirect 301: https://jigsaw.w3.org/HTTP/300/301.html
+ * Redirect 302: https://jigsaw.w3.org/HTTP/300/302.html
+ *
+ * Test URLs for future features
+ * -----------------------------
+ * TLS 1.0: https://tls-v1-0.badssl.com:1010/
+ * TLS 1.1: https://tls-v1-0.badssl.com:1011/
+ * TLS 1.2: https://tls-v1-0.badssl.com:1012/
+ * Transfer Encoding [gzip|deflate]: https://jigsaw.w3.org/HTTP/TE/bar.txt
  *
 
 USE_WGET(NEWTOY(wget, "<1>1d(debug)O(output-document):", TOYFLAG_USR|TOYFLAG_BIN))
@@ -18,39 +37,32 @@ config WGET
       wget http://www.example.com
 */
 
-// todo(emolitor): Add support for chunked encoding
-// todo(emolitor): Add support for ftp
+// todo: Add support for TLS
+// todo: Add support for ftp
+// todo: Add support for RFC5987
 
 #define FOR_wget
 #include "toys.h"
 
 #define WGET_FILENAME "Content-Disposition: attachment; filename="
-#define WGET_CHUNKED "transfer-encoding: chunked"
+#define WGET_CHUNKED  "transfer-encoding: chunked"
 #define WGET_LOCATION "Location: "
+
+#define MAX_URL 2048
 
 GLOBALS(
   char *filename;
 )
 
-static char *wget_strncasestr(char *haystack, char *needle, size_t h_len)
+static char *wget_strncaseafter(char *haystack, char *needle)
 {
-  size_t n_len = strlen(needle);
-  for (int i=0; i < (h_len - n_len); i++) {
-    if (strncasecmp(haystack + i, needle, n_len) == 0) return haystack + i;
-  }
-
-  return NULL;
-}
-
-static char *wget_strncaseafter(char *haystack, char *needle, size_t h_len)
-{
-  char *result = wget_strncasestr(haystack, needle, h_len);
+  char *result = strcasestr(haystack, needle);
   if (result) result = result + strlen(needle);
   return result;
 }
 
 // get http info in URL
-static void get_info(char *url, char **host, char **port, char **path)
+static void wget_info(char *url, char **host, char **port, char **path)
 {
   *host = strafter(url, "://");
   *path = strchr(*host, '/');
@@ -76,104 +88,152 @@ static void get_info(char *url, char **host, char **port, char **path)
   if (!*port) *port="80";
 }
 
-// connect to any IPv4 or IPv6 server
-static int conn_svr(char *host, char *port)
+static int wget_connect(char *host, char *port)
 {
   struct addrinfo *ai = xgetaddrinfo(host, port, AF_UNSPEC, SOCK_STREAM, 0,0);
   return xconnectany(ai);
 }
 
-// make HTTP request header field
-static void mk_fld(char *name, char *value)
-{
-  strcat(toybuf, name);
-  strcat(toybuf, ": ");
-  strcat(toybuf, value);
-  strcat(toybuf, "\r\n");
+static char* wget_find_header(char *header, char *val) {
+  char *v= wget_strncaseafter(header, val);
+  return v;
 }
 
-// get http response body starting address and its length
-static char *get_body(ssize_t len, ssize_t *body_len)
+static int wget_has_header(char *header, char *val)
 {
-  char *body = memmem(toybuf, len, "\r\n\r\n", 4);
-  if (!body) error_exit("response too large");
-  body += 4;
-  *body_len = len - (body - toybuf);
-  return body;
+  return wget_find_header(header, val) != NULL;
+}
+
+static void wget_redirect(char *header, char url[])
+{
+  char *redir = wget_find_header(header, WGET_LOCATION);
+  if (!redir) error_exit("could not parse redirect URL");
+  snprintf(url, MAX_URL, "%.*s", stridx(redir, '\r'), redir);
+}
+
+static char *wget_filename(char *header, char *path)
+{
+  char *f = wget_find_header(header, WGET_FILENAME);
+  if (f) strchr(f, '\r')[0] = '\0';
+
+  if (!f && strchr(path, '/')) f = getbasename(path);
+  if (!f || !(*f) ) f = "index.html";
+
+  return f;
 }
 
 void wget_main(void)
 {
-  int sock, fd, redirects = 10;
-  ssize_t len, body_len;
-  char *body, *result, *rc, *r_str, *host, *port, *path, *f, *url, *redir;
-  char ua[] = "toybox wget/" TOYBOX_VERSION;
+  long status = 0;
+  ssize_t len, c_len = 0;
+  int sock, fd, chunked, redirects = 10;
+  char *body, *host, *port, *path;
+  char agent[] = "toybox wget/" TOYBOX_VERSION;
+  char url[MAX_URL];
 
-  if(!toys.optargs[0]) help_exit("no URL");
-  url = xstrdup(toys.optargs[0]);
+  xstrncpy(url, toys.optargs[0], MAX_URL);
 
-  get_info(url, &host, &port, &path);
+  for (;status != 200; redirects--) {
+    char *index;
+    if (redirects < 0) error_exit("Too many redirects");
+    wget_info(url, &host, &port, &path);
 
-  for (;; redirects--) {
-    sock = conn_svr(host, port);
-    // compose HTTP request
-    sprintf(toybuf, "GET /%s HTTP/1.0\r\n", path);
-    mk_fld("Host", host);
-    mk_fld("User-Agent", ua);
-    mk_fld("Connection", "close");
-    strcat(toybuf, "\r\n");
+    sprintf(toybuf, "GET /%s HTTP/1.1\r\nHost: %s\r\n"
+                    "User-Agent: %s\r\nConnection: close\r\n\r\n",
+                    path, host, agent);
+    if (FLAG(d)) printf("--- Request\n%s", toybuf);
 
-    // send the HTTP request
+    sock = wget_connect(host, port);
     xwrite(sock, toybuf, strlen(toybuf));
 
-    // read HTTP response
-    len = xread(sock, toybuf, sizeof(toybuf));
-    body = get_body(len, &body_len);
-    redir = wget_strncaseafter(toybuf, WGET_LOCATION, body - toybuf);
-    result = strtok(toybuf, "\r");
-    strtok(result, " ");
-    rc = strtok(NULL, " ");
-    r_str = strtok(NULL, " ");
+    // Greedily read the HTTP response until either complete or toybuf is full
+    index = toybuf;
+    while ((len = read(sock, index, sizeof(toybuf) - (index - toybuf))) > 0)
+      index += len;
 
-    // HTTP res code check
-    if (!strcmp(rc, "301") || !strcmp(rc, "302")) {
-      if (redir) strchr(redir, '\r')[0] = '\0';
-      else error_exit("Could not parse redirect URL");
-      if (redirects < 0) error_exit("Too many redirects");
+    //Process the response such that
+    //  Valid ranges  toybuf[0...index)      valid length is (index - toybuf)
+    //  Header ranges toybuf[0...body)       header length strlen(toybuf)
+    //  Remnant Body  toybuf[body...index)   valid remnant body length is len
+    //
+    // Per RFC7230 the header cannot contain a NUL octet so we NUL terminate at
+    // the footer of the header. This allows for normal string functions to be
+    // used when processing the header.
+    body = memmem(toybuf, index - toybuf, "\r\n\r\n", 4);
+    if (!body) error_exit("response header too large");
+    body[0] = '\0'; // NUL terminate the headers
+    body += 4; // Skip to the head of body
+    len = index - body; // Adjust len to be body length
+    if (FLAG(d)) printf("--- Response\n%s\n\n", toybuf);
 
-      if (FLAG(d))
-        printf("Redirection: %s %s %s\n", rc, r_str, redir);
-
-      free(url);
-      url = xstrdup(redir);
+    status = strtol(strafter(toybuf, " "), NULL, 10);
+    if ((status == 301) || (status == 302)) {
+      wget_redirect(toybuf, url);
       close(sock);
-      get_info(url, &host, &port, &path);
-    } else if (!strcmp(rc, "200")) break;
-    else error_exit("res: %s(%s)", rc, r_str);
+    } else if (status != 200) error_exit("response: %ld", status);
   }
 
-  if (wget_strncaseafter(toybuf, WGET_CHUNKED, body - toybuf))
-    error_exit("chunked encoding not supported");
-
-  // Extract filename from content disposition
-  f = wget_strncaseafter(toybuf, WGET_FILENAME, body - toybuf);
-  if (!FLAG(O) && f) {
-    strchr(f, '\r')[0] = '\0';
-    TT.filename = f;
+  if (!FLAG(O)) {
+    TT.filename = wget_filename(toybuf, path);
+    if (!access(TT.filename, F_OK))
+      error_exit("%s already exists", TT.filename);
   }
-
-  // Extract filename from path
-  if (!TT.filename && strchr(path, '/')) TT.filename = getbasename(path);
-
-  // If all else fails default to index.html
-  if (!(TT.filename) || !(*TT.filename) ) TT.filename = "index.html";
-
-  if (!FLAG(O) && !access(TT.filename, F_OK))
-    error_exit("%s already exists", TT.filename);
-
   fd = xcreate(TT.filename, (O_WRONLY|O_CREAT|O_TRUNC), 0644);
-  if (*body) xwrite(fd, body, body_len);
-  while ((len = read(sock, toybuf, sizeof(toybuf))) > 0) xwrite(fd, toybuf, len);
 
-  free(url);
+  chunked = wget_has_header(toybuf, WGET_CHUNKED);
+
+  // If chunked we offset the first buffer by 2 character, meaning it is
+  // pointing at half of the header boundary, aka '\r\n'. This simplifies
+  // parsing of the first c_len length by allowing the do while loop to fall
+  // through on the first iteration and parse the first c_len size.
+  if (chunked) {
+    len = len + 2;
+    memmove(toybuf, body - 2, len);
+  } else {
+    memmove(toybuf, body, len);
+  }
+
+  // len is the size remaining in toybuf
+  // c_len is the size of the remaining bytes in the current chunk
+  do {
+    if (chunked) {
+      if (c_len > 0) { // We have an incomplete c_len to write
+        if (len <= c_len) { // Buffer is less than the c_len so full write
+          xwrite(fd, toybuf, len);
+          c_len = c_len - len;
+          len = 0;
+        } else { // Buffer is larger than the c_len so partial write
+          xwrite(fd, toybuf, c_len);
+          len = len - c_len;
+          memmove(toybuf, toybuf + c_len, len);
+          c_len = 0;
+        }
+      }
+
+      // If len is less than 2 we can't validate the chunk boundary so fall
+      // through and go read more into toybuf.
+      if ((c_len == 0) && (len > 2)) {
+        char *c;
+        if (strncmp(toybuf, "\r\n", 2) != 0) error_exit("chunk boundary");
+
+        // If we can't find the end of the new chunk signature fall through and
+        // read more into toybuf.
+        c = memmem(toybuf + 2, len - 2, "\r\n",2);
+        if (c) {
+          c_len = strtol(toybuf + 2, NULL, 16);
+          if (c_len == 0) goto exit; // A c_len of zero means we are complete
+          len = len - (c - toybuf) - 2;
+          memmove(toybuf, c + 2, len);
+        }
+      }
+
+      if (len == sizeof(toybuf)) error_exit("chunk overflow");
+    } else {
+      xwrite(fd, toybuf, len);
+      len = 0;
+    }
+  } while ((len += read(sock, toybuf + len, sizeof(toybuf) - len)) > 0);
+
+  exit:
+  close(sock);
 }
