@@ -127,14 +127,13 @@ void wget_main(void)
   long status = 0;
   ssize_t len, c_len = 0;
   int sock, fd, chunked, redirects = 10;
-  char *body, *host, *port, *path;
+  char *body, *index, *host, *port, *path;
   char agent[] = "toybox wget/" TOYBOX_VERSION;
   char url[MAX_URL];
 
   xstrncpy(url, toys.optargs[0], MAX_URL);
 
   for (;status != 200; redirects--) {
-    char *index;
     if (redirects < 0) error_exit("Too many redirects");
     wget_info(url, &host, &port, &path);
 
@@ -232,7 +231,7 @@ void wget_main(void)
       xwrite(fd, toybuf, len);
       len = 0;
     }
-  } while ((len += read(sock, toybuf + len, sizeof(toybuf) - len)) > 0);
+  } while ((len += xread(sock, toybuf + len, sizeof(toybuf) - len)) > 0);
 
   exit:
   close(sock);
