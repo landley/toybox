@@ -50,12 +50,12 @@ if unknowns: print "uncategorized: %s" % " ".join(unknowns)
 
 conv = [("posix", '<a href="http://pubs.opengroup.org/onlinepubs/9699919799/utilities/%s.html">%%s</a>', "[%s]"),
         ("lsb", '<a href="http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/%s.html">%%s</a>', '&lt;%s&gt;'),
-        ("development", '<a href="http://linux.die.net/man/1/%s">%%s</a>', '(%s)'),
+        ("development", '<a href="https://man7.org/linux/man-pages/man1/%s.1.html">%%s</a>', '(%s)'),
         ("toolbox", "", '{%s}'), ("klibc_cmd", "", '=%s='),
         ("sash_cmd", "", '#%s#'), ("sbase_cmd", "", '@%s@'),
         ("beastiebox_cmd", "", '*%s*'), ("tizen", "", '$%s$'),
-        ("shell", "", "%%%s%%"),
-        ("request", '<a href="http://linux.die.net/man/1/%s">%%s</a>', '+%s+')]
+        ("shell", "", "%%%s%%"), ("fhs_cmd", "", '-%s-'), ("yocto", "", ".%s."),
+        ("request", '<a href="https://man7.org/linux/man-pages/man1/%s.1.html">%%s</a>', '+%s+')]
 
 
 def categorize(reverse, i, skippy=""):
@@ -98,21 +98,21 @@ print "implemented=%s" % len(toystuff)
 
 outfile=open("www/status.gen", "w")
 outfile.write("<h1>Status of toybox %s</h1>\n" % version[0]);
-outfile.write("<h3>Legend: [posix] &lt;lsb&gt; (development) {android}\n")
-outfile.write("=klibc= #sash# @sbase@ *beastiebox* $tizen$ %shell% +request+ other\n")
-outfile.write("<strike>pending</strike></h3>\n");
+outfile.write("<h3>Legend: %s <strike>pending</strike></h3>\n"%" ".join(map(lambda i: i[2]%(i[0].split("_")[0]), conv[:-1])))
 
 outfile.write("<a name=done><h2><a href=#done>Completed</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(done))
-outfile.write("<a name=part><h2><a href=#part>Partially implemented</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(pend))
+outfile.write("<a name=part><h2><a href=#part>Partially implemented (in toys/pending)</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(pend))
 outfile.write("<a name=todo><h2><a href=#todo>Not started yet</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(todo))
 
 # Output unfinished commands by category
 
 outfile.write("<hr><h2>Categories of remaining todo items</h2>")
 
-for i in stuff:
+for i in conv:
   todo = []
+  i=i[0]
 
+  if i=="shell": continue
   for j in stuff[i]:
     if j in toystuff: continue
     if j in pending: todo.append('<strike>%s</strike>' % j)
@@ -122,7 +122,7 @@ for i in stuff:
     k = i
     for j in conv:
       if j[0] == i:
-        k = j[2] % i
+        k = j[2] % i.split("_")[0]
 
     outfile.write("<a name=%s><h2><a href=#%s>%s<a></h2><blockquote><p>" % (i,i,k))
     outfile.write(" ".join(todo))
