@@ -73,9 +73,9 @@ GLOBALS(
 
   int sock;
   char *url;
-  #if CFG_WGET_TLS
+#if CFG_WGET_TLS
   struct tls *tls;
-  #endif
+#endif
 )
 
 static char *wget_strncaseafter(char *haystack, char *needle)
@@ -120,7 +120,7 @@ static void wget_connect(char *host, char *port)
     struct addrinfo *ai = xgetaddrinfo(host, port, AF_UNSPEC, SOCK_STREAM, 0,0);
     TT.sock = xconnectany(ai);
   } else if (WGET_IS_HTTPS) {
-    #if CFG_WGET_TLS
+#if CFG_WGET_TLS
     struct tls_config *cfg = NULL;
     uint32_t protocols;
     if ((TT.tls  = tls_client()) == NULL)
@@ -137,7 +137,7 @@ static void wget_connect(char *host, char *port)
 
     if (tls_connect(TT.tls, host, port) != 0)
       error_exit("tls_connect: %s", tls_error(TT.tls));
-    #endif
+#endif
   } else error_exit("unsupported protocol");
 }
 
@@ -145,11 +145,11 @@ static size_t wget_read(void *buf, size_t len)
 {
   if (WGET_IS_HTTP) return xread(TT.sock, buf, len);
   else if (WGET_IS_HTTPS) {
-   #if CFG_WGET_TLS
+#if CFG_WGET_TLS
     ssize_t ret = tls_read(TT.tls, buf, len);
     if (ret < 0) error_exit("tls_read: %s", tls_error(TT.tls));
     return ret;
-   #endif
+#endif
   } else error_exit("unsupported protocol");
 }
 
@@ -158,9 +158,9 @@ static void wget_write(void *buf, size_t len)
   if (WGET_IS_HTTP) {
     xwrite(TT.sock, buf, len);
   } else if (WGET_IS_HTTPS) {
-    #if CFG_WGET_TLS
+#if CFG_WGET_TLS
     if (len != tls_write(TT.tls, buf, len)) error_exit("tls_write: %s", tls_error(TT.tls));
-    #endif
+#endif
   } else error_exit("unsupported protocol");
 }
 
@@ -171,12 +171,12 @@ static void wget_close()
       TT.sock = 0;
   }
 
-  #if CFG_WGET_TLS
+#if CFG_WGET_TLS
   if (TT.tls) {
     tls_close(TT.tls);
     tls_free(TT.tls);
   }
-  #endif
+#endif
 }
 
 static char* wget_find_header(char *header, char *val) {
