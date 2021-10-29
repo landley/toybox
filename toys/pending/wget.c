@@ -9,20 +9,22 @@
  * Chunked Encoding: https://www.rfc-editor.org/rfc/rfc7230#section-4.1
  * UTF-8 Encoded Header Values https://www.rfc-editor.org/rfc/rfc5987
  *
- * Test URLs for supported features
- * --------------------------------
+ * Test URLs
+ * ---------
  * Chunked Encoding: https://jigsaw.w3.org/HTTP/ChunkedScript
  * Redirect 301: https://jigsaw.w3.org/HTTP/300/301.html
  * Redirect 302: https://jigsaw.w3.org/HTTP/300/302.html
  * TLS 1.0: https://tls-v1-0.badssl.com:1010/
- * TLS 1.1: https://tls-v1-0.badssl.com:1011/
- * TLS 1.2: https://tls-v1-0.badssl.com:1012/
+ * TLS 1.1: https://tls-v1-1.badssl.com:1011/
+ * TLS 1.2: https://tls-v1-2.badssl.com:1012/
  * TLS 1.3: https://tls13.1d.pw/
- *
- * Test URLs for future features
- * -----------------------------
  * Transfer Encoding [gzip|deflate]: https://jigsaw.w3.org/HTTP/TE/bar.txt
  *
+ *
+ * todo: Add support for configurable TLS versions
+ * todo: Add support for ftp
+ * todo: Add support for Transfer Encoding (gzip|deflate)
+ * todo: Add support for RFC5987
 
 USE_WGET(NEWTOY(wget, "<1>1(max-redirect)#<0=20d(debug)O(output-document):", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -38,34 +40,44 @@ config WGET
     examples:
       wget http://www.example.com
 
-config WGET_TLS
-  bool "Enable HTTPS support for wget"
+config WGET_LIBTLS
+  bool "Enable HTTPS support for wget via LibTLS"
   default n
-  depends on WGET
+  depends on WGET && !WGET_OPENSSL
   help
-    Enable HTTPS support for wget by linking to libtls.
+    Enable HTTPS support for wget by linking to LibTLS.
     Supports using libtls, libretls or libtls-bearssl.
-*/
 
-// todo: Add support for configurable TLS versions
-// todo: Add support for ftp
-// todo: Add support for Transfer Encoding (gzip|deflate)
-// todo: Add support for RFC5987
+config WGET_OPENSSL
+  bool "Enable HTTPS support for wget via OpenSSL"
+  default n
+  depends on WGET && !WGET_LIBTLS
+  help
+    Enable HTTPS support for wget by linking to OpenSSL.
+*/
 
 #define FOR_wget
 #include "toys.h"
 
-#if CFG_WGET_TLS
+#if CFG_WGET_LIBTLS
+#define WGET_SSL 1
 #include <tls.h>
+#elif CFG_WGET_OPENSSL
+#define WGET_SSL 1
+#include <openssl/crypto.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#else
+#define WGET_SSL 0
 #endif
 
-#define WGET_FILENAME       "Content-Disposition: attachment; filename="
-#define WGET_CHUNKED        "transfer-encoding: chunked"
-#define WGET_LOCATION       "Location: "
-#define WGET_TLS_PROTOCOLS  "tlsv1.2"
+#define WGET_FILENAME         "Content-Disposition: attachment; filename="
+#define WGET_CHUNKED          "transfer-encoding: chunked"
+#define WGET_LOCATION         "Location: "
+#define WGET_LIBTLS_PROTOCOLS "tlsv1.2"
 
 #define WGET_IS_HTTP  (strncmp(TT.url, "http://", 7) == 0)
-#define WGET_IS_HTTPS (CFG_WGET_TLS && (strncmp(TT.url, "https://", 8) == 0))
+#define WGET_IS_HTTPS (WGET_SSL && (strncmp(TT.url, "https://", 8) == 0))
 
 GLOBALS(
   char *filename;
@@ -73,8 +85,11 @@ GLOBALS(
 
   int sock;
   char *url;
-#if CFG_WGET_TLS
+#if CFG_WGET_LIBTLS
   struct tls *tls;
+#elif CFG_WGET_OPENSSL
+  struct ssl_ctx_st *ctx;
+  struct ssl_st *ssl;
 #endif
 )
 
@@ -117,17 +132,18 @@ static void wget_info(char *url, char **host, char **port, char **path)
 static void wget_connect(char *host, char *port)
 {
   if (WGET_IS_HTTP) {
-    struct addrinfo *ai = xgetaddrinfo(host, port, AF_UNSPEC, SOCK_STREAM, 0,0);
-    TT.sock = xconnectany(ai);
+    struct addrinfo *a =
+        xgetaddrinfo(host, port, AF_UNSPEC, SOCK_STREAM, 0, 0);
+    TT.sock = xconnectany(a);
   } else if (WGET_IS_HTTPS) {
-#if CFG_WGET_TLS
+#if CFG_WGET_LIBTLS
     struct tls_config *cfg = NULL;
     uint32_t protocols;
-    if ((TT.tls  = tls_client()) == NULL)
+    if ((TT.tls = tls_client()) == NULL)
       error_exit("tls_client: %s", tls_error(TT.tls));
     if ((cfg = tls_config_new()) == NULL)
       error_exit("tls_config_new: %s", tls_config_error(cfg));
-    if (tls_config_parse_protocols(&protocols, WGET_TLS_PROTOCOLS) != 0)
+    if (tls_config_parse_protocols(&protocols, WGET_LIBTLS_PROTOCOLS) != 0)
       error_exit("tls_config_parse_protocols");
     if (tls_config_set_protocols(cfg, protocols) != 0)
       error_exit("tls_config_set_protocols: %s", tls_config_error(cfg));
@@ -137,6 +153,32 @@ static void wget_connect(char *host, char *port)
 
     if (tls_connect(TT.tls, host, port) != 0)
       error_exit("tls_connect: %s", tls_error(TT.tls));
+#elif CFG_WGET_OPENSSL
+    SSL_library_init();
+    OpenSSL_add_all_algorithms();
+    SSL_load_error_strings();
+    ERR_load_crypto_strings();
+
+    TT.ctx = SSL_CTX_new(TLS_client_method());
+    if (!TT.ctx) error_exit("SSL_CTX_new");
+
+    struct addrinfo *a =
+        xgetaddrinfo(host, port, AF_UNSPEC, SOCK_STREAM, 0, 0);
+    TT.sock = xconnectany(a);
+
+    TT.ssl = SSL_new(TT.ctx);
+    if (!TT.ssl)
+      error_exit("SSL_new: %s", ERR_error_string(ERR_get_error(), NULL));
+
+    if (!SSL_set_tlsext_host_name(TT.ssl, host))
+      error_exit("SSL_set_tlsext_host_name: %s",
+                 ERR_error_string(ERR_get_error(), NULL));
+
+    SSL_set_fd(TT.ssl, TT.sock);
+    if (SSL_connect(TT.ssl) == -1)
+      error_exit("SSL_set_fd: %s", ERR_error_string(ERR_get_error(), NULL));
+
+    if (FLAG(d)) printf("TLS: %s\n", SSL_get_cipher(TT.ssl));
 #endif
   } else error_exit("unsupported protocol");
 }
@@ -145,10 +187,15 @@ static size_t wget_read(void *buf, size_t len)
 {
   if (WGET_IS_HTTP) return xread(TT.sock, buf, len);
   else if (WGET_IS_HTTPS) {
-#if CFG_WGET_TLS
-    ssize_t ret = tls_read(TT.tls, buf, len);
-    if (ret < 0) error_exit("tls_read: %s", tls_error(TT.tls));
-    return ret;
+#if CFG_WGET_LIBTLS
+   ssize_t ret = tls_read(TT.tls, buf, len);
+   if (ret < 0) error_exit("tls_read: %s", tls_error(TT.tls));
+   return ret;
+#elif CFG_WGET_OPENSSL
+   int ret = SSL_read(TT.ssl, buf, (int) len);
+   if (ret < 0)
+     error_exit("SSL_read: %s", ERR_error_string(ERR_get_error(), NULL));
+   return ret;
 #endif
   } else error_exit("unsupported protocol");
 }
@@ -158,8 +205,12 @@ static void wget_write(void *buf, size_t len)
   if (WGET_IS_HTTP) {
     xwrite(TT.sock, buf, len);
   } else if (WGET_IS_HTTPS) {
-#if CFG_WGET_TLS
-    if (len != tls_write(TT.tls, buf, len)) error_exit("tls_write: %s", tls_error(TT.tls));
+#if CFG_WGET_LIBTLS
+    if (len != tls_write(TT.tls, buf, len))
+      error_exit("tls_write: %s", tls_error(TT.tls));
+#elif CFG_WGET_OPENSSL
+    if (len != SSL_write(TT.ssl, buf, (int) len))
+      error_exit("SSL_write: %s", ERR_error_string(ERR_get_error(), NULL));
 #endif
   } else error_exit("unsupported protocol");
 }
@@ -171,10 +222,22 @@ static void wget_close()
       TT.sock = 0;
   }
 
-#if CFG_WGET_TLS
+#if CFG_WGET_LIBTLS
   if (TT.tls) {
     tls_close(TT.tls);
     tls_free(TT.tls);
+    TT.tls = NULL;
+  }
+#elif CFG_WGET_OPENSSL
+  if (TT.ssl) {
+    SSL_shutdown(TT.ssl);
+    SSL_free(TT.ssl);
+    TT.ssl = NULL;
+  }
+
+  if (TT.ctx) {
+    SSL_CTX_free(TT.ctx);
+    TT.ctx = NULL;
   }
 #endif
 }
