@@ -23,7 +23,7 @@ print "Collecting data..."
 
 stuff,blah=readit(["sed","-n", 's/<span id=\\([a-z_]*\\)>/\\1 /;t good;d;:good;h;:loop;n;s@</span>@@;t out;H;b loop;:out;g;s/\\n/ /g;p', "www/roadmap.html", "www/status.html"])
 blah,toystuff=readit(["./toybox"])
-blah,pending=readit(["sed -n 's/[^ \\t].*TOY(\\([^,]*\\),.*/\\1/p' toys/pending/*.c"], 1)
+blah,pending=readit(["sed", "-n", "s/.*NEWTOY[(]\([^,]*\).*TOYFLAG_NOFORK.*/\1/p", "toys/pending/sh.c"], True)
 blah,version=readit(["git","describe","--tags"])
 
 print "Analyzing..."
@@ -53,8 +53,9 @@ conv = [("posix", '<a href="http://pubs.opengroup.org/onlinepubs/9699919799/util
         ("development", '<a href="https://man7.org/linux/man-pages/man1/%s.1.html">%%s</a>', '(%s)'),
         ("toolbox", "", '{%s}'), ("klibc_cmd", "", '=%s='),
         ("sash_cmd", "", '#%s#'), ("sbase_cmd", "", '@%s@'),
-        ("beastiebox_cmd", "", '*%s*'), ("tizen", "", '$%s$'),
-        ("shell", "", "%%%s%%"), ("fhs_cmd", "", '-%s-'), ("yocto", "", ".%s."),
+        ("beastiebox_cmd", "", '*%s*'), ("tizen_cmd", "", '$%s$'),
+        ("fhs_cmd", "", '-%s-'), ("yocto_cmd", "", ".%s."),
+        ("shell", "", "%%%s%%"),
         ("request", '<a href="https://man7.org/linux/man-pages/man1/%s.1.html">%%s</a>', '+%s+')]
 
 
@@ -98,7 +99,7 @@ print "implemented=%s" % len(toystuff)
 
 outfile=open("www/status.gen", "w")
 outfile.write("<h1>Status of toybox %s</h1>\n" % version[0]);
-outfile.write("<h3>Legend: %s <strike>pending</strike></h3>\n"%" ".join(map(lambda i: i[2]%(i[0].split("_")[0]), conv[:-1])))
+outfile.write("<h3>Legend: %s <strike>pending</strike></h3>\n"%" ".join(map(lambda i: i[2]%(i[0].split("_")[0]), conv[:-2])))
 
 outfile.write("<a name=done><h2><a href=#done>Completed</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(done))
 outfile.write("<a name=part><h2><a href=#part>Partially implemented (in toys/pending)</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(pend))
