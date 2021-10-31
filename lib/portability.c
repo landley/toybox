@@ -678,4 +678,27 @@ int timer_settime(timer_t t, int flags, struct itimerspec *new, void *old)
   mangled.it_value.tv_usec = new->it_value.tv_nsec / 1000;
   return setitimer(ITIMER_REAL, &mangled, NULL);
 }
+// glibc requires -lrt for linux syscalls, which pulls in libgcc_eh.a for
+// static linking, and gcc 9.3 leaks pthread calls from that breaking the build
+// These are both just linux syscalls: wrap them ourselves
+#elif !CFG_TOYBOX_HASTIMERS
+int timer_create_wrap(clockid_t c, struct sigevent *se, timer_t *t)
+{
+  // convert overengineered structure to what kernel actually uses
+  struct ksigevent { void *sv; int signo, notify, tid; } kk = {
+    0, se->sigev_signo, se->sigev_notify, 0
+  };
+  int timer;
+
+  if (syscall(SYS_timer_create, c, &kk, &timer)<0) return -1;
+  *t = (timer_t)(long)timer;
+
+  return 0;
+}
+
+int timer_settime_wrap(timer_t t, int flags, struct itimerspec *val,
+  struct itimerspec *old)
+{
+  return syscall(SYS_timer_settime, t, flags, val, old);
+}
 #endif
