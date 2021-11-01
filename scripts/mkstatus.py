@@ -23,8 +23,8 @@ print "Collecting data..."
 
 stuff,blah=readit(["sed","-n", 's/<span id=\\([a-z_]*\\)>/\\1 /;t good;d;:good;h;:loop;n;s@</span>@@;t out;H;b loop;:out;g;s/\\n/ /g;p', "www/roadmap.html", "www/status.html"])
 blah,toystuff=readit(["./toybox"])
-blah,pending=readit(["sed", "-n", "s/.*NEWTOY[(]\([^,]*\).*TOYFLAG_NOFORK.*/\1/p", "toys/pending/sh.c"], True)
-blah,version=readit(["git","describe","--tags"])
+blah,pending=readit(["sed", "-n", "s/.*NEWTOY[(]\([^,]*\).*TOYFLAG_NOFORK.*/\1/p", "toys/pending/sh.c"])
+version=readit(["./toybox","--version"])[-1][-1]
 
 print "Analyzing..."
 
@@ -102,7 +102,7 @@ outfile.write("""<html><head><title>toybox current status</title>
 <!--#include file="header.html" -->
 <title>Toybox Status</title>
 """);
-outfile.write("<h1>Status of toybox %s</h1>\n" % version[0]);
+outfile.write("<h1>Status of toybox %s</h1>\n" % version);
 outfile.write("<h3>Legend: %s <strike>pending</strike></h3>\n"%" ".join(map(lambda i: i[2]%(i[0].split("_")[0]), conv[:-2])))
 
 outfile.write("<a name=done><h2><a href=#done>Completed</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(done))
