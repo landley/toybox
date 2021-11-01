@@ -97,7 +97,11 @@ print "implemented=%s" % len(toystuff)
 
 # Write data to output file
 
-outfile=open("www/status.gen", "w")
+outfile=open("www/status.html", "w")
+outfile.write("""<html><head><title>toybox current status</title>
+<!--#include file="header.html" -->
+<title>Toybox Status</title>
+""");
 outfile.write("<h1>Status of toybox %s</h1>\n" % version[0]);
 outfile.write("<h3>Legend: %s <strike>pending</strike></h3>\n"%" ".join(map(lambda i: i[2]%(i[0].split("_")[0]), conv[:-2])))
 
@@ -130,3 +134,8 @@ for i in conv:
     outfile.write("</p></blockquote>\n")
 
 outfile.write("<hr><a name=all><h2><a href=#all>All commands together in one big list</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(allcmd))
+
+outfile.write("""
+<p>See the <a href=roadmap.html>Roadmap page</a> for more information.</p>
+
+<!-- #include "footer.html" -->""")
