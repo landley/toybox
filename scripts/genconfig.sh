@@ -113,7 +113,7 @@ EOF
     #include <unistd.h>
     int main(void) { copyfilerange(0, 0, 1, 0, 123, 0); }
 EOF
-  probesymbol TOYBOX_HASTIMERS -lrt << EOF
+  probesymbol TOYBOX_HASTIMERS << EOF
     #include <signal.h>
     #include <time.h>
     int main(void) {void *x=0;timer_create(CLOCK_MONOTONIC,x,x);}

@@ -389,6 +389,8 @@ int timer_create(clock_t c, struct sigevent *se, timer_t *t);
 int timer_settime(timer_t t, int flags, struct itimerspec *new, void *old);
 #elif !CFG_TOYBOX_HASTIMERS
 #include <syscall.h>
+#include <signal.h>
+#include <time.h>
 int timer_create_wrap(clockid_t c, struct sigevent *se, timer_t *t);
 #define timer_create(...) timer_create_wrap(__VA_ARGS__)
 int timer_settime_wrap(timer_t t, int flags, struct itimerspec *val,
