@@ -27,7 +27,7 @@ GLOBALS(
 void uudecode_main(void)
 {
   FILE *ifp = stdin;
-  int ofd, idx = 0, m = m, n;
+  int ofd, idx = 0, m QUIET, n;
   size_t allocated_length;
   char *line = 0, mode[16],
        *class[] = {"begin%*[ ]%15s%*[ ]%n", "begin-base64%*[ ]%15s%*[ ]%n"};
