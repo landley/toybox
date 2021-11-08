@@ -46,7 +46,7 @@ void switch_root_main(void)
   char *newroot = *toys.optargs, **cmdline = toys.optargs+1;
   struct stat st1, st2;
   struct statfs stfs;
-  int console = console; // gcc's "may be used" warnings are broken.
+  int console QUIET;
 
   if (getpid() != 1) error_exit("not pid 1");
 

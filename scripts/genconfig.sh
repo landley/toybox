@@ -9,14 +9,14 @@ source scripts/portability.sh
 
 probecc()
 {
-  ${CROSS_COMPILE}${CC} $CFLAGS -xc -o /dev/null $1 -
+  ${CROSS_COMPILE}${CC} $CFLAGS $LDFLAGS -xc -o /dev/null - "$@"
 }
 
 # Probe for a single config symbol with a "compiles or not" test.
 # Symbol name is first argument, flags second, feed C file to stdin
 probesymbol()
 {
-  probecc $2 2>/dev/null && DEFAULT=y || DEFAULT=n
+  probecc "${@:2}" 2>/dev/null && DEFAULT=y || DEFAULT=n
   rm a.out 2>/dev/null
   echo -e "config $1\n\tbool" || exit 1
   echo -e "\tdefault $DEFAULT\n" || exit 1
@@ -112,6 +112,11 @@ EOF
     #include <sys/syscall.h>
     #include <unistd.h>
     int main(void) { copyfilerange(0, 0, 1, 0, 123, 0); }
+EOF
+  probesymbol TOYBOX_HASTIMERS << EOF
+    #include <signal.h>
+    #include <time.h>
+    int main(void) {void *x=0;timer_create(CLOCK_MONOTONIC,x,x);}
 EOF
 }
 

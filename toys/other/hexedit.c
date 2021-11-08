@@ -369,8 +369,8 @@ void hexedit_main(void)
         if (TT.pos > TT.len-1) TT.pos = TT.len-1;
         TT.base = TT.pos/16;
         draw_page();
-      } else if (key==KEY_HOME) TT.pos = TT.pos & ~0xf;
-      else if (key==KEY_END) TT.pos = TT.pos | 0xf;
+      } else if (key==KEY_HOME) TT.pos &= ~0xf;
+      else if (key==KEY_END) TT.pos |= 0xf;
       else if (key==(KEY_CTRL|KEY_HOME)) TT.pos = 0;
       else if (key==(KEY_CTRL|KEY_END)) TT.pos = TT.len-1;
     }

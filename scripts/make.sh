@@ -108,7 +108,7 @@ then
   # and skip nonexistent libraries for it.
 
   > generated/optlibs.dat
-  for i in util crypt m resolv rt selinux smack attr crypto z log iconv
+  for i in util crypt m resolv selinux smack attr crypto z log iconv tls ssl
   do
     echo "int main(int argc, char *argv[]) {return 0;}" | \
     ${CROSS_COMPILE}${CC} $CFLAGS $LDFLAGS -xc - -o generated/libprobe $LDASNEEDED -l$i > /dev/null 2>/dev/null &&

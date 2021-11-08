@@ -2,48 +2,65 @@
 <!--#include file="header.html" -->
 <title>Toybox Roadmap</title>
 
-<h2>Goals and use cases</h2>
-
-<p>We have several potential use cases for a new set of command line
-utilities, and are using those to determine which commands to implement
-for Toybox's 1.0 release. (Most of these have their own section in the
-<a href=status.html>status page</a>.)</p>
-
-<p>The most interesting publicly available standards are POSIX-2008
-(also known as the Single
-Unix Specification version 4) and the Linux Standard Base (version 4.1).
-The main test harness is including toybox in <a href=https://landley.net/aboriginal/about.html>Aboriginal Linux</a> and if that can
-build itself using the result to <a href=https://github.com/landley/control-images>build Linux From Scratch</a> (version 6.8).
-We also aim to replace Android's Toolbox.</p>
-
-<p>At a secondary level we'd like to meet other use cases. We've analyzed
-the commands provided by similar projects (klibc, sash, sbase, embutils,
-nash, and beastiebox), along with various vendor configurations of busybox,
-and some end user requests.</p>
-
-<p>Finally, we'd like to provide a good replacement for the Bash shell,
-which was the first program Linux ever ran and remains the standard shell
-of Linux no matter what Ubuntu says. This doesn't mean including the full
-set of Bash 4.x functionality, but does involve {various,features} &lt(beyond)
-posix.</p>
-
-<p>See the <a href=status.html>status page</a> for the categorized command list
-and progress towards implementing it. There's also a
-<a href=todo.html>historical todo list</a> from the project's 2011 relaunch.</p>
+<h2>Roadmap sections</h2>
 
 <ul>
+<li><a href=#goals>Introduction</a></li>
 <li><a href=#susv4>POSIX-2008/SUSv4</a></li>
 <li><a href=#sigh>Linux "Standard" Base</a></li>
+<li><a href=#rfc>IETF RFCs and Man Pages</a></li>
 <li><a href=#dev_env>Development Environment</a></li>
 <li><a href=#android>Android Toolbox</a></li>
 <li><a href=#aosp>Building AOSP</a></li>
 <li><a href=#tizen>Tizen Core</a></li>
+<li><a href=#yocto>Yocto</a></li>
+<li><a href=#fhs>Filesystem Hierachy Standard</a></li>
 <li><a href=#buildroot>buildroot</a></li>
 <li>Miscelaneous: <a href=#klibc>klibc</a>, <a href=#glibc>glibc</a>,
 <a href=#sash>sash</a>, <a href=#sbase>sbase</a>,
 <a href=#uclinux>uclinux</a>...</li>
 <li><a href=#packages>Other Packages</a></li>
 </ul>
+
+<a name="goals" />
+<h2>Introduction (Goals and use cases)</h2>
+
+<p>We have several potential use cases for a new set of command line
+utilities, and are using those to determine which commands to implement
+for Toybox's 1.0 release. Most of these have their own section in the
+<a href=status.html>status page</a>, showing current progress towards
+commplation.</p>
+
+<p>The most interesting publicly available standards are A) POSIX-2008 (also
+known as SUSv4), B) the Linux Standard Base version 4.1, and C) the official
+<a href=https://www.kernel.org/doc/man-pages/>Linux man pages</a>.
+But they include commands we've decided not implement, exclude
+commands or features we have, and don't always entirely match reality.</p>
+
+<p>The most thorough real world test (other than a large interactive
+userbase) is using toybox as the command line in a build system such as
+<a href=https://landley.net/aboriginal/about.html>Aboriginal
+Linux</a>, having it rebuild itself from source code, and using the result
+to <a href=https://github.com/landley/control-images>build Linux From Scratch</a>.
+The current "minimal native development system" goal is to use
+<a href=faq.html#mkroot>mkroot</a>
+plus <a href=faq.html#cross>musl-cross-make</a> to hermetically build
+<a href=https://source.android.com>AOSP</a>.</p>
+
+<p>We've also checked what commands were provided by similar projects
+(klibc, sash, sbase, embutils,
+nash, and beastiebox), looked at various vendor configurations of busybox,
+and collected end user requests.</p>
+
+<p>Finally, we'd like to provide a good replacement for the Bash shell,
+which was the first program Linux ever ran and remains the standard shell
+of Linux (no matter what Ubuntu says). This doesn't necessarily mean including
+every last Bash 5.x feature, but does involve {various,features} &lt(beyond)
+posix.</p>
+
+<p>See the <a href=status.html>status page</a> for the categorized command list
+and progress towards implementing it. There's also a
+<a href=todo.html>historical todo list</a> from the project's 2011 relaunch.</p>
 
 <hr />
 <a name="standards">
@@ -53,43 +70,57 @@ and progress towards implementing it. There's also a
 <p>The best standards describe reality rather than attempting to impose a
 new one. A good standard should document, not legislate.
 Standards which document existing reality tend to be approved by
-more than one standards body, such ANSI and ISO both approving <a href=https://landley.net/c99-draft.html>C99</a>. That's why
-the IEEE POSIX committee's 2008 standard, the Single Unix Specification version
-4, and the Open Group Base Specification edition 7 are all the same standard
-from three sources, but most people just call it "posix" (portable operating
-system derived from unix). It's available <a href=https://pubs.opengroup.org/onlinepubs/9699919799>online in full</a>, and may be downloaded as a tarball...
-with a caveat.</p>
-
-<p>Although previous versions of Posix have their own
-stable URLs (where you can still find
-<a href=https://pubs.opengroup.org/onlinepubs/009695399/>SUSv3</a> and
-<a href=https://pubs.opengroup.org/onlinepubs/7990989775/>SUSv2</a>),
-the 2008 release of SUSv4 was replaced by a 2013 release also claiming
-to be SUSv4, then again by a 2018 release still at the same URL. Similarly,
-the other version numbers claim not to have changed, but instead adopted some
-sort of "Windows 95" naming scheme ("The Open Group Base Specifications Issue
-7, 2018 edition"). Since a moving target isn't a standard, we've stuck
-with the 2008 version and ignored whatever changes they make
-until they stop this forced-upgrade-behind-your back nonsense.
-Luckily you can still find the original content
-<a href=https://pubs.opengroup.org/onlinepubs/9699919799.2008edition/>here</a>.
-(We haven't changed the URLs in each command to the longer version yet,
-but can if conflicts arise.)</p>
+more than one standards body, such ANSI and ISO both approving <a href=https://landley.net/c99-draft.html>C99</a>. That's why IEEE 1003.1-2008,
+the Single Unix Specification version 4, and the Open Group Base Specification
+edition 7 are all the same standard from three sources, but most people just
+call it "posix" (portable operating system derived from unix).
+It's available <a href=https://pubs.opengroup.org/onlinepubs/9699919799>online in full</a>, and may be downloaded as a tarball.
+Previous versions (<a href=https://pubs.opengroup.org/onlinepubs/009695399/>SUSv3</a> and
+<a href=https://pubs.opengroup.org/onlinepubs/7990989775/>SUSv2</a>)
+are also available.
+(Note: 
+<a href=https://pubs.opengroup.org/onlinepubs/9699919799.2008edition/>Posix
+2008</a> was reissued in 2013 and 2018, the first was minor wordsmithing
+with no behavioral changes, the second was to renew a ten year timeout
+to still be considered a "current standard" by some government regulations.
+It's still posix-2008/SUSv4/issue 7.)</p>
 
 <h3>Why not just use posix for everything?</h3>
 
-<p>Unfortunately posix describes an incomplete subset of reality,
-lacking any mention of commands such as init or mount required to
-actually boot a system. It describes logname but not login. It provides ipcrm
+<p>Unfortunately, Posix describes an incomplete subset of reality, because
+it was designed to. It started with proprietary unix vendors collaborating to
+describe the functionality their fragmented APIs could agree on, which was then
+incorporated into <a href=https://nvlpubs.nist.gov/nistpubs/Legacy/FIPS/fipspub151-2-1993.pdf>US federal procurement standards</a>
+as a <a href=https://www.youtube.com/watch?v=nwrTTXOg-KI>compliance requirement</a>
+for things like navy contracts, giving large corporations
+like IBM and Microsoft millions of dollars of incentive
+to punch holes in the standard big enough to drive
+<a href=https://en.wikipedia.org/wiki/Microsoft_POSIX_subsystem>Windows NT</a> and
+<a href=http://www.naspa.net/magazine/1996/May/T9605006.PDF>OS/360</a> through.
+When open source projects like Linux started developing on the internet
+(enabled by the 1993 relaxation of the National Science Foundation's
+"Acceptable Use Policy" allowing everyone to connect to the internet,
+previously restricted to approved government/military/university organizations),
+Posix <a href=http://www.opengroup.org/testing/fips/policy_info.html>ignored
+the upstarts</a> and Linux eventually
+<a href=https://www.linuxjournal.com/article/3417>returned the favor</a>,
+leaving Posix behind.</p>
+
+<p>The result is a "standard" that lacks any mention of commands like
+"init" or "mount" required to actually boot a system.
+It describes logname but not login. It provides ipcrm
 and ipcs, but not ipcmk, so you can use System V IPC resources but not create
 them. And widely used real-world commands such as tar and cpio (the basis
 of initramfs and RPM) which were present in earlier
 versions of the standard have been removed, while obsolete commands like
 cksum, compress, sccs and uucp remain with no mention of modern counterparts
-like crc32/sha1sum, gzip/xz, svn/git or scp/rsync. Meanwhile the commands
+like crc32/sha1sum, gzip/xz, svn/git or scp/rsync. Meanwhile posix' description
+of the commands
 themselves are missing dozens of features and specify silly things like ebcdic
 support in dd or that wc should use %d (not %lld) for byte counts. So
 we have to extensively filter posix to get a useful set of recommendations.</p>
+
+<h3>Analysis</h3>
 
 <p>Starting with the
 <a href="http://pubs.opengroup.org/onlinepubs/9699919799.2008edition/idx/utilities.html">full "utilities" list</a>,
@@ -100,18 +131,18 @@ val what), fortran support (asa fort77), and batch processing support (batch
 qalter qdel qhold qmove qmsg qrerun qrls qselect qsig qstat qsub).</p>
 
 <p>Some commands are for a compiler toolchain (ar c99 cflow ctags cxref gencat
-iconv lex m4 make nm strings strip tsort yacc), which is outside of toybox's
+iconv lex m4 make nm strings strip tsort yacc) which is outside of toybox's
 mandate and should be supplied externally. (Again, some of these may be
 revisited later, but not for toybox 1.0.)</p>
 
 <p>Some commands are part of a command shell, and can't be implemented as
 separate executables (alias bg cd command fc fg getopts hash jobs kill read
-type ulimit umask unalias wait). These may be revisited as part of a built-in
+type ulimit umask unalias wait). These may be revisited as part of the built-in
 toybox shell, but are not exported into $PATH via symlinks. (If you fork a
 child process and have it "cd" then exit, you've accomplished nothing.)
 Again, what posix provides is incomplete: a shell also needs exit, if, while,
 for, case, export, set, unset, trap, exec... (And for bash compatibility
-function, source...)</p>
+function, source, declare...)</p>
 
 <p>A few other commands are judgement calls, providing command-line
 internationalization support (iconv locale localedef), System V inter-process
@@ -122,7 +153,8 @@ a command line email client, and "lp" submits files for printing to... what
 exactly?  (cups?)  The standard defines crontab but not crond. What is
 pathchk supposed to be portable _to_? (Linux accepts 255 byte path components
 with any char except NUL or / and no max length on the total path, and
-EXPLICITLY doesn't care if it's an invalid utf8 sequence.)</p>
+<a href=https://yarchive.net/comp/linux/utf8.html>EXPLICITLY</a>
+doesn't care if it's an invalid utf8 sequence.)</p>
 
 <p>Removing all of that leaves the following commands, which toybox should
 implement:</p>
@@ -143,36 +175,40 @@ who xargs zcat
 
 <p>One attempt to supplement POSIX towards an actual usable system was the
 Linux Standard Base. Unfortunately, the quality of this "standard" is
-fairly low.</p>
+fairly low, largely due to the Free Standards Group that maintained it
+being consumed by <a href=https://landley.net/notes-2010.html#18-07-2010>the Linux Foundation</a> in 2007.</p>
 
-<p>POSIX allowed its standards process to be compromised
-by leaving things out, thus allowing IBM mainframes and Windows NT to drive
-a truck through the holes and declare themselves compilant. But it means what
-they DID standardize tends to be respected (if sometimes obsolete).</p>
-
-<p>The Linux Standard Base's failure mode is different, they respond to
+<p>Where POSIX allowed its standards process to be compromised
+by leaving things out (but what
+they DID standardize tends to be respected, if sometimes obsolete),
+the Linux Standard Base's failure mode is different. They respond to
 pressure by including anything their members pay them enough to promote,
 such as allowing Red Hat to push
 RPM into the standard even though all sorts of distros (Debian, Slackware, Arch,
-Gentoo) don't use it and never will. This means anything in the LSB is
+Gentoo, Android) don't use it and never will. This means anything in the LSB is
 at best a suggestion: arbitrary portions of this standard are widely
 ignored.</p>
 
-<p>The community perception seems to be that the Linux Standard Base is
+<p>The <a href=https://mjg59.dreamwidth.org/39546.html>community perception</a>
+seems to be that the Linux Standard Base is
 the best standard money can buy, I.E. the Linux Foundation is supported by
 financial donations from large companies and the LSB
 <a href=https://www.softwarefreedom.org/blog/2016/apr/11/lf/>represents the interests
-of those donors</a> more than technical merit. (The Linux Foundation, which
+of those donors</a> regardless of technical merit. (The Linux Foundation, which
 maintains the LSB, isn't a 501c3. It's a 501c6, the
-same kind of legal entity as the Tobacco Institute and Microsoft's old
-"Don't Copy That Floppy" program.) Debian officially
-<a href=http://lwn.net/Articles/658809>washed its hands of LSB</a> when 5.0
-came out in 2015, and no longer even pretends to support it (which may affect
-Debian derivatives like Ubuntu and Knoppix). Toybox hasn't moved to 5.0 for
-similar reasons.</p>
+same kind of legal entity as the Tobacco Institute and
+<a href=https://lwn.net/Articles/706585/>Microsoft's</a>
+old "<a href=https://en.wikipedia.org/wiki/Don%27t_Copy_That_Floppy>Don't Copy That Floppy</a>" program.) Debian officially
+<a href=http://lwn.net/Articles/658809>washed its hands of LSB</a> by
+refusing to adopt release 5.0 in 2015, and no longer even pretends to support
+it (which affect Debian derivatives like Ubuntu and Knoppix). Toybox has
+stayed on 4.1 for similar reasons: a lot of historical effort went into
+producing the standard before the Linux Foundation took over.</p>
 
 <p>That said, Posix by itself isn't enough, and this is the next most
 comprehensive standards effort for Linux so far, so we salvage what we can.</p>
+
+<h3>Analysis</h3>
 
 <p>The LSB specifies a <a href=http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html>list of command line
 utilities</a>:</p>
@@ -213,12 +249,23 @@ su sync tar umount useradd userdel usermod zcat
 </span>
 </b></blockquote>
 
-<h3><a name=rfc /><a href="#rfc">IETF RFCs</a></h3>
+<h3><a name=rfc /><a href="#rfc">IETF RFCs and Man Pages</a></h3>
+
+<p>They're very nice, but there's thousands of them.</p>
 
 <p>Discussion of standards wouldn't be complete without the Internet
-Engineering Task Force's "<a href=https://www.rfc-editor.org/in-notes/rfc-index.txt>Request For Comments</a>" collection.</p>
+Engineering Task Force's "<a href=https://www.rfc-editor.org/in-notes/rfc-index.txt>Request For Comments</a>" collection and Michael Kerrisk's
+<a href=https://www.kernel.org/doc/man-pages/>Linux man-pages project</a>.
+Except these aren't standards, they're collections of documentation with
+low barriers to inclusion. They're not saying "you should support
+X", they're saying "if you do, here's how".
+Thus neither really helps us select which commands to include.</p>
 
-<p>These are more about protocols than commands. The noise level is
+<p>The man pages website includes the commands in git, yum, perf, postgres,
+flatpack... Great for examining the features of a command you've
+already decided to include, useless for deciding _what_ to include.</p>
+
+<p>The RFCs are more about protocols than commands. The noise level is
 extremely high: there's thousands of RFCs, many describing a proposed idea
 that never took off, and less than 1% of the resulting documents are
 currently relevant to toybox. And the documents are numbered based on the
@@ -229,9 +276,9 @@ have developed a certain amount of <a href=https://www.ietf.org/rfc/rfc8179.txt>
 they <a href=https://www.ietf.org/rfc/rfc4330.txt>document</a> is to find an <a href=https://www.ietf.org/rfc/rfc1769.txt>earlier version</a> to read first.</p>
 
 <p>That said, RFC documents can be useful (especially for networking protocols)
-and the three URL templates the recommended starting files
+and the four URL templates the recommended starting files
 for new commands (toys/example/skeleton.c or toys/example/hello.c depending on how much
-plumbing you want to start with) provide point to are posix, lsb, and
+plumbing you want to start with) provide point to posix, lsb, man, and
 rfc pages.</p>
 
 <hr />
@@ -290,7 +337,7 @@ still needs the following busybox commands for which toybox does not yet
 supply adequate replacements:</p>
 
 <blockquote><b>
-awk dd diff expr fdisk ftpd gzip less route sh sha512sum tr unxz vi wget xzcat
+awk dd diff expr fdisk ftpd gzip less route sh tr unxz vi wget xzcat
 </b></blockquote>
 
 <p>All of those except awk, ftpd, and less have partial implementations
@@ -473,21 +520,33 @@ and hexdump that are actually used to build.)</p>
 <hr />
 <h2><a name=tizen /><a href="#tizen">Use case: Tizen Core</a></h2>
 
-<p>The Tizen project has expressed a desire to eliminate GPLv3 software
-from its core system, and is installing toybox as
+<p>A side effect of the Linux Foundation following the money to the
+exclusion of all else is they "support" their donors' myriad often
+contradictory pet projects with elaborate announcements and press releases.
+Long ago when Nokia's Maemo merged
+with Intel's Moblin to form <a href=https://www.linuxfoundation.org/press-release/linux-foundation-to-host-meego-project/>MeeGo</a>, there were believable <a href=https://www.linuxfoundation.org/press-release/public-support-for-the-meego-project/>statements</a>
+about unifying fragmented vendor efforts. Then MeeGo merged with
+<a href=http://en.wikipedia.org/wiki/LiMo_Foundation>LiMo</a> to
+<a href=notes-2012.html#16-05-2012>form Tizen</a>,
+which became a Samsung-only project (that <a href=https://www.androidheadlines.com/2021/05/samsung-tvs-continue-use-tizen-os.html>still ships</a>
+inside <a href=https://twitter.com/cstross/status/1453747613686288385>televisions</a>,
+but was otherwise subsumed into <a href=https://www.theverge.com/2021/5/18/22440483/samsung-smartwatch-google-wearos-tizen-watch>Android GO</a>).</p>
+
+<p>Along the way, the Tizen project expressed a desire to eliminate GPLv3 software
+from its core system, and in installing toybox as
 <a href=https://wiki.tizen.org/wiki/Toybox>part of this process</a>.</p>
 
-<p>They have a fairly long list of new commands they'd like to see in toybox:</p>
+<p>They had a fairly long list of new commands they wanted to see in toybox:</p>
 
 <blockquote><b>
-<span id=tizen>
+<span id=tizen_cmd>
 arch base64 users unexpand shred join csplit
 hostid nproc runcon sha224sum sha256sum sha384sum sha512sum sha3sum mkfs.vfat fsck.vfat 
-dosfslabel uname stdbuf pinky diff3 sdiff zcmp zdiff zegrep zfgrep zless zmore
+dosfslabel uname pinky diff3 sdiff zcmp zdiff zegrep zfgrep zless zmore
 </span>
 </b></blockquote>
 
-<p>In addition, they'd like to use several commands currently in pending:</p>
+<p>In addition, they wanted to use several commands then in pending:</p>
 
 <blockquote><b>
 <span id=tizen>
@@ -496,28 +555,108 @@ tar diff printf wget rsync fdisk vi less tr test stty fold expr dd
 </b></blockquote>
 
 <p>Also, tizen uses a different Linux Security Module called SMACK, so
-many of the SELinux options ala ls -Z need smack alternatives in an
-if/else setup.</p>
+many of the SELinux options ala ls -Z needed smack alternatives in an
+if/else setup. (We added lib/lsm.h to abstract this.)</p>
+
+<hr />
+<h2><a name=yocto /><a href="#yocto">Use case: Yocto</a></h2>
+
+<p>Another project the Linux Foundation is paid to appreciate is Yocto,
+which was designed to fix the ongoing proprietary fragmentation problem
+(now in Linux build systems instead of vendor unix forks) by being the
+build system equivalent of a glue trap. While proclaiming that having the
+"minimum level of standardization" contributes to a "strong ecosystem",
+Yocto uses a "<a href=https://www.yoctoproject.org/software-overview/layers/>layered</a>"
+design where everybody who touches it is encouraged to add more and more layers
+of metadata on top of what came before, until they wind up <a href=https://github.com/varigit/variscite-bsp-platform>using repo</a> just to manage
+the layers (let alone their contents). But -- and this is the
+important bit -- all these dispirate forks are called "yocto" and built on
+top of giant piles of code the Linux Foundation can take credit for
+since they filed the serial numbers off OpenEmbedded.</p>
+
+<p>Yocto's "core-image-minimal" target (only 3,106 build steps in the 3.3
+release, which believe it or not is
+<a href=https://landley.net/notes-2019.html#06-02-2019>an improvement</a>) builds a busybox-based system with the following commands:</p>
+
+<blockquote><b>
+<span id=yocto_cmd>
+addgroup adduser ascii sh awk base32 basename blkid bunzip2 bzcat bzip2 cat
+chattr chgrp chmod chown chroot chvt clear cmp cp cpio crc32 cut date dc dd
+deallocvt delgroup deluser depmod df diff dirname dmesg dnsdomainname du
+dumpkmap dumpleases echo egrep env expr false fbset fdisk fgrep find flock
+free fsck fstrim fuser getopt getty grep groups gunzip gzip head hexdump
+hostname hwclock id ifconfig ifdown ifup insmod ip kill killall klogd less
+ln loadfont loadkmap logger logname logread losetup ls lsmod lzcat md5sum
+mesg microcom mkdir mkfifo mknod mkswap mktemp modprobe more mount mountpoint
+mv nc netstat nohup nproc nslookup od openvt patch pgrep pidof pivot_root
+printf ps pwd rdate readlink realpath reboot renice reset resize rev rfkill
+rm rmdir rmmod route run-parts sed seq setconsole setsid sh sha1sum sha256sum
+shuf sleep sort start-stop-daemon stat strings stty sulogin swapoff swapon
+switch_root sync sysctl syslogd tail tar tee telnet test tftp time top touch
+tr true ts tty udhcpc udhcpd umount uname uniq unlink unzip uptime users
+usleep vi watch wc wget which who whoami xargs xzcat yes zcat
+</span>
+</b></blockquote>
+
+
+
+<a name="fhs" />
+<hr /><a href=fhs>Filesystem Hierachy Standard</a>
+<h2>Filesystem Hierarchy Standard:</h2>
+
+<p>Another standard taken over by the Linux Foundation. (At least the
+links to this one didn't <a href=http://lanana.org/>go 404</a> the
+instant they took it over). Of historical interest due to what it
+managed to achieve before they chased away the hobbyists maintaining it.
+Only one version (3.0 in 2015) has been released since the Linux Foundation
+absorbed the FHS. The previous release, Version 2.3, was released in 2004.
+The Linux Foundation did not retain earlier versions. The contents of
+the relevant sections appear identical between the two versions, the
+Linux Foundation just added section numbers.</p>
+
+<p><a href=https://refspects.linuxfoundation.org/FHS_3.0/fhs-3.0.html>FHS 3.0</a>
+section 3.4.2 requires commands to be in the /bin directory, and then 3.4.3
+has an optional list,
+and then 3.16.2 and 3.16.3 similarly cover /sbin. There are linux
+specific sections in 6.1.2 and 6.1.6 but everything in them is obsolete.</p>
+
+<p>The /bin options include csh but not bash, and ed but not vi.
+The /sbin options have update which seems obsolete (filesystem
+buffers haven't needed a userspace process to flush them for DECADES),
+fastboot and fasthalt (reboot and halt have -nf), and
+fsck.* and mkfs.* that don't actually specify any specific filesystems.
+Removing that gives us:</p>
+
+<blockquote><b>
+<span id=fhs_cmd>
+cat chgrp chmod chown cp date dd df dmesg echo false hostname kill ln
+login ls mkdir mknod more mount mv ps pwd rm rmdir sed sh stty su sync true
+umount uname tar cpio gzip gunzip zcat netstat ping
+shutdown fdisk getty halt ifconfig init mkswap reboot route swapon swapoff
+</span>
+</b></blockquote>
 
 <hr /><a name=buildroot />
 <h2>buildroot:</h2>
 
-<p>The <a href=https://buildroot.org/downloads/manual/manual.html#requirement-mandatory>mandatory packages</a>
+<p>If a toybox-based development environment is to support running
+buildroot under it, the <a href=https://buildroot.org/downloads/manual/manual.html#requirement-mandatory>mandatory packages</a>
 section of the buildroot manual lists:</p>
 
-<blockquote><p>
+<blockquote><p><b>
 which sed make bash patch gzip bzip2 tar cpio unzip rsync file bc wget
-</p></blockquote>
+</b></p></blockquote>
 
 <p>(It also lists binutils gcc g++ perl python, and for debian it wants
 build-essential. And it wants file to be in /usr/bin because
 <a href=https://git.busybox.net/buildroot/tree/support/dependencies/dependencies.sh?h=2018.02.x#n84>libtool
 breaks otherwise</a>.)</p>
 
-<p>Buildroot does not support a cross toolchain that lives in "/usr/bin"
+<p>Oddly, buildroot can't NOT cross compile. Buildroot does not support a cross toolchain that lives in "/usr/bin"
 with a prefix of "" (if you try, and chop out the test for a blank prefix,
-it dies trying to run "/usr/bin/-gcc"). But you can patch your way to
-making it work if you try.</p>
+it dies trying to run "/usr/bin/-gcc"). You can patch your way to
+making it work if you try, but buildroot's developers explicitly do not
+support this.</p>
 
 <hr /><a name=klibc />
 <h2>klibc:</h2>
@@ -529,7 +668,7 @@ and nobody's quite sure if the license is BSD or GPL. It inexplicably
 <a href=http://www.infoworld.com/d/data-center/perl-isnt-going-anywhere-better-or-worse-211580>requires perl to build</a>, and seems like an ideal candidate for
 replacement.</p>
 
-<p>In addition to a C library even less capable than bionic (obsoleted by
+<p>In addition to a C library less general-purpose than bionic (let alone
 musl), klibc builds a random assortment of executables to run init scripts
 with. There's no multiplexer command, these are individual executables:</p>
 
@@ -552,26 +691,20 @@ which removes mknodes, mksyntax, sha1hash, and fixdep from the list.
 (And sha1hash is just an unpolished sha1sum anyway.)</p>
 
 <p>The run-init command is more commonly called switch_root, nuke is just
-"rm -rf -- $@", and minips is more commonly called "ps". I'm not doing aliases
-for the oddball names.</p>
-
-<p>Yet more stale forks of dash and gzip sucked in here (see "dubious
-license terms" above), adding nothing to the other projects we've looked at.
-But we still need sh, gunzip, gzip, and zcat to replace this package.</p>
-
-<p>At the time I did the initial analysis toybox already had cat, chroot, dmesg, false,
-kill, ln, losetup, ls, mkdir, mkfifo, readlink, rm, switch_root, sleep, sync,
-true, and uname.</p>
-
-<p>The low hanging fruit is cpio, dd, ps, mv, and pivot_root.</p>
-
-<p>The "kinit" command is another gratuitous rename, it's init running as PID 1.
+"rm -rf -- $@", and minips is more commonly called "ps": I'm not doing aliases
+for these oddball names.
+The "kinit" command is another gratuitous rename, it's init running as PID 1.
 The halt, poweroff, and reboot commands work with it.</p>
 
-<p>I've got mount and umount queued up already, fstype and nfsmount go with
-those. (And probably smbmount and p9mount, but this hasn't got one. Those
-are all about querying for login credentials, probably workable into the
-base mount command.)</p>
+<p>Yet more stale forks of dash and gzip got sucked in here (see "dubious
+license terms" above).
+
+<p>In theory "blkid" or "file" handle fstype (and df for mounted filesystems),
+but we could do fstype.</p>
+
+<p>We should implement nfsmount, and probably smbmount
+and p9mount even though this hasn't got one. The reason these aren't
+in the base "mount" command is they interactively query login credentials.</p>
 
 <p>The ipconfig command here has a built in dhcp client, so it's ifconfig
 and dhcpcd and maybe some other stuff.</p>
@@ -585,12 +718,12 @@ still parses "resume=" on the command line). And yet various distros seem to
 make use of klibc for this.
 Given the history of swsusp/hibernate (and 
 <a href=http://lwn.net/Articles/333007>TuxOnIce</a>
-and <a href=http://lwn.net/Articles/242107>kexec jump</a>) I've lost track
+and <a href=http://lwn.net/Articles/242107>kexec jump</a>...) I've lost track
 of the current state of the art here. Ah, Documentation/power/userland-swsusp.txt
 has the API docs, and <a href=http://suspend.sf.net>here's a better
 tool</a>...</p>
 
-<p>So the list of things actually in klibc are:</p>
+<p>This gives us a klibc command list:</p>
 
 <blockquote><b>
 <span id=klibc_cmd>
@@ -617,29 +750,26 @@ catchsegv getconf getent iconv iconvconfig ldconfig ldd locale localedef
 mtrace nscd rpcent rpcinfo tzselect zdump zic
 </b></blockquote>
 
-<p>Of those, musl libc only implements ldd.</p>
+<p>Of those, musl libc only implements ldd. Of the rest:</p>
 
-<p>catchsegv is a rudimentary debugger, probably out of scope for toybox.</p>
-
-<p>iconv has been <a href="#susv4">previously discussed</a>.</p>
-
-<p>iconvconfig is only relevant if iconv is user-configurable; musl uses a
-non-configurable iconv.</p>
-
-<p>getconf is a posix utility which displays several variables from 
-unistd.h; it probably belongs in the development toolchain.</p>
-
-<p>getent handles retrieving entries from passwd-style databases
-(in a rather lame way) and is trivially replacable by grep.</p>
-
-<p>locale was discussed under <a href=#susv4>posix</a>.
-localedef compiles locale definitions, which musl currently does not use.</p>
-
-<p>mtrace is a perl script to use the malloc debugging that glibc has built-in;
-this is not relevant for musl, and would necessarily vary with libc. </p>
-
-<p>nscd is a name service caching daemon, which is not yet relevant for musl.
-rpcinfo and rpcent are related to rpc, which musl does not include.</p>
+<ul>
+<li><b>catchsegv</b> is a rudimentary debugger, probably out of scope for toybox.</li>
+<li><b>iconv</b> has been <a href="#susv4">previously discussed</a>.</li>
+<li><b>iconvconfig</b> is only relevant if iconv is user-configurable; musl uses a
+non-configurable iconv.</li>
+<li><b>getconf</b> is a posix utility which displays several variables from 
+unistd.h; it probably belongs in the development toolchain.</li>
+<li><b>getent</b> handles retrieving entries from passwd-style databases
+(in a rather lame way) and is trivially replacable by grep.</li>
+<li><b>locale</b> was discussed under <a href=#susv4>posix</a>.
+localedef compiles locale definitions, which musl currently does not use.</li>
+<li><b>mtrace</b> is a perl script to use the malloc debugging that glibc has built-in;
+this is not relevant for musl, and would necessarily vary with libc.</li>
+<li><b>nscd</b> is a name service caching daemon, which is not yet relevant for musl.</li>
+<li><b>rpcinfo</b> and <b>rpcent</b> are related to the Remote Procedure Calls
+layer (an old sun technology used by some userspace NFS implementations),
+which musl does not include and debian does not install by default.</li>
+</ul>
 
 <p>The remaining commands involve glibc's bundled timezone database,
 which seems to be derived from the <a href=http://www.iana.org/time-zones>IANA
@@ -647,14 +777,17 @@ timezone database</a>. Unless we want to maintain our own fork of the
 standards body's database like glibc does, these are of no interest,
 but for completeness:</p>
 
-<p>tzselect outputs a TZ variable correponding to user input. 
+<li>
+<li><b>tzselect</b> outputs a TZ variable correponding to user input. 
 The documentation does not indicate how to use it in a script, but it seems
-that Debian may have done so.
-zdump prints current time in each of several timezones, optionally
-outputting a great deal of extra information about each timezone.
-zic converts a description of a timezone to a file in tz format.</p>
+that Debian may have done so.</li>
+<li><b>zdump</b> prints current time in each of several timezones, optionally
+outputting a great deal of extra information about each timezone.</li>
+<li><b>zic</b> converts a description of a timezone to a file in tz format.</li>
+</ul>
 
-<p>None of glibc's bundled commands are currently of interest to toybox.</p>
+<p>We implemented getconf, and I could see maybe arguing for ncsd.
+The rest are not relevant to toybox.</p>
 
 </b></blockquote>
 
@@ -1094,7 +1227,7 @@ arp makedevs sysctl killall5 crond crontab deluser last mkpasswd watch
 blockdev rpm2cpio arping brctl dumpleases fsck
 tcpsvd tftpd
 factor fallocate fsfreeze inotifyd lspci nbd-client partprobe strings
-base64 mix
+base32 base64 mix
 reset hexedit nsenter shred
 fsync insmod ionice lsmod lsusb rmmod vmstat xxd top iotop
 lsof ionice compress dhcp dhcpd addgroup delgroup host iconv ip
@@ -1106,6 +1239,8 @@ kexec
 ascii crc32 devmem fmt i2cdetect i2cdump i2cget i2cset mcookie prlimit sntp ulimit uuidgen dhcp6 ipaddr iplink iproute iprule iptunnel cd exit toysh bash traceroute6
 blkdiscard rtcwake
 watchdog
+pwgen readelf unicode
+rsync
 </span>
 </b></blockquote>
 

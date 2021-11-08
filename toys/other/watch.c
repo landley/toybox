@@ -67,7 +67,7 @@ void watch_main(void)
 {
   char *cmdv[] = {"/bin/sh", "-c", 0, 0}, *cmd, *ss;
   long long now, then = millitime();
-  unsigned width, height, i, cmdlen, len, xx = xx, yy = yy, active = active;
+  unsigned width, height, i, cmdlen, len, xx QUIET, yy QUIET, active QUIET;
   struct pollfd pfd[2];
   pid_t pid = 0;
   int fds[2], cc;

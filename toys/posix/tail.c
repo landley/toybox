@@ -6,7 +6,7 @@
  *
  * Deviations from posix: -f waits for pipe/fifo on stdin (nonblock?).
 
-USE_TAIL(NEWTOY(tail, "?fFs:c-n-[-cn][-fF]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TAIL(NEWTOY(tail, "?fFs:c(bytes)-n(lines)-[-cn][-fF]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TAIL
   bool "tail"

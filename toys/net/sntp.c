@@ -72,7 +72,7 @@ static void doublyso(unsigned long long now, struct timespec *tv)
 void sntp_main(void)
 {
   struct timespec tv, tv2;
-  unsigned long long *pktime = (void *)toybuf, now, then, before = before;
+  unsigned long long *pktime = (void *)toybuf, now, then, before QUIET;
   long long diff = 0;
   struct addrinfo *ai;
   union socksaddr sa;

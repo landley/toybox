@@ -29,6 +29,11 @@
 // Test for gcc (using compiler builtin #define)
 
 #ifdef __GNUC__
+#ifndef __clang__
+#define QUIET = 0 // shut up false positive "may be used uninitialized" warning
+#else
+#define QUIET
+#endif
 #define printf_format	__attribute__((format(printf, 1, 2)))
 #else
 #define printf_format
@@ -387,4 +392,13 @@ struct itimerspec {
 };
 int timer_create(clock_t c, struct sigevent *se, timer_t *t);
 int timer_settime(timer_t t, int flags, struct itimerspec *new, void *old);
+#elif !CFG_TOYBOX_HASTIMERS
+#include <syscall.h>
+#include <signal.h>
+#include <time.h>
+int timer_create_wrap(clockid_t c, struct sigevent *se, timer_t *t);
+#define timer_create(...) timer_create_wrap(__VA_ARGS__)
+int timer_settime_wrap(timer_t t, int flags, struct itimerspec *val,
+  struct itimerspec *old);
+#define timer_settime(...) timer_settime_wrap(__VA_ARGS__)
 #endif
