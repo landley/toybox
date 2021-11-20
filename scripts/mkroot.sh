@@ -63,7 +63,7 @@ if [ -z "$NO_LOGPATH" ]; then
   [ -n "$CROSS_COMPILE" ] && PATH="${CROSS_COMPILE%/*}:$PATH" &&
     CROSS_COMPILE=${CROSS_COMPILE##*/}
   export WRAPDIR="$BUILD/record-commands" LOGPATH="$LOG/commands-$CROSS.txt"
-  rm -rf "$WRAPDIR" "$LOGPATH" &&
+  rm -rf "$WRAPDIR" "$LOGPATH" generated/obj &&
   WRAPDIR="$WRAPDIR" CROSS_COMPILE= source scripts/record-commands || exit 1
 fi
 
