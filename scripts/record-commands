@@ -3,38 +3,40 @@
 # Set up command recording wrapper
 
 [ -z "$WRAPDIR" ] && WRAPDIR="$PWD"/record-commands && RM=$(which rm)
-[ -z "$WRAPLOG" ] && export WRAPLOG="$PWD"/log.txt
+[ -z "$LOGPATH" ] && export LOGPATH="$PWD"/log.txt
 
-if [ $# -eq 0 ]
+if [ ${#BASH_SOURCE[@]} -lt 2 ] && [ $# -eq 0 ]
 then
-  echo "usage: WRAPDIR=dir WRAPLOG=log.txt record-commands COMMAND..."
+  echo "usage: WRAPDIR=dir LOGPATH=log.txt record-commands COMMAND..."
   echo 'Then examine log.txt. "record-commands echo" to just setup $WRAPDIR'
   exit 1
 fi
 
-if [ ! -x "$WRAPDIR/logwrapper" ]
+if [ ! -x "$WRAPDIR/logpath" ]
 then
-  make logwrapper
-  mkdir -p "$WRAPDIR" && mv logwrapper "$WRAPDIR" || exit 1
-
+  mkdir -p "$WRAPDIR" && PREFIX="$WRAPDIR/" scripts/single.sh logpath || exit 1
   echo "$PATH" | tr : '\n' | while read DIR
   do
-    ls "$DIR/" | while read FILE
+    find "$DIR/" -type f,l -maxdepth 1 -executable -exec basename {} \; | \
+    while read FILE
     do
-      ln -s logwrapper "$WRAPDIR/$FILE" 2>/dev/null
+      ln -s logpath "$WRAPDIR/$FILE" 2>/dev/null
     done
   done
 fi
 
 # Delete old log (if any)
-rm -f "$WRAPLOG"
+rm -f "$LOGPATH"
 
-X=0
-if [ ! -z "$1" ]
+# When sourced, set up wrapper for current context.
+export PATH="$WRAPDIR:$PATH"
+if [ ${#BASH_SOURCE[@]} -lt 2 ]
 then
-  PATH="$WRAPDIR:$PATH" "$@"
-fi
-X=$?
-[ ! -z "$RM" ] && "$RM" -rf "$WRAPDIR"
+  "$@"
+  X=$?
 
-exit $X
+  [ ! -z "$RM" ] && "$RM" -rf "$WRAPDIR"
+
+  exit $X
+fi
+
