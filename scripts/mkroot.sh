@@ -9,63 +9,68 @@ announce() { echo -e "\033]2;$CROSS $*\007\n=== $*"; }
 [ -z "$NOCLEAR" ] && exec env -i NOCLEAR=1 HOME="$HOME" PATH="$PATH" \
     LINUX="$LINUX" CROSS="$CROSS" CROSS_COMPILE="$CROSS_COMPILE" "$0" "$@"
 
-# assign command line NAME=VALUE args to env vars, keeping rest as packages
+# assign command line NAME=VALUE args to env vars, the rest are packages
 while [ $# -ne 0 ]; do
-  [ "${1/=/}" != "$1" ] && eval "export ${1/=*/}=\"\${1#*=}\"" ||
-    { [ "$1" != '--' ] && PKG="${PKG:-plumbing} $1"; }
+  [ "${1/=/}" != "$1" ] && export "$1" ||
+    { [ "$1" != -- ] && PKG="${PKG:-plumbing} $1"; }
   shift
 done
-mkdir -p ${TOP:=$PWD/root} ${LOG:=$TOP/log} ${BUILD:=$TOP/build} || exit 1
-: ${PKGDIR:=$PWD/scripts/root}
-
-# Are we cross compiling?
-if [ ! -z "$CROSS" ]; then
-  [ ! -d "${CCC:=$PWD/ccc}" ] && die "No ccc symlink to compiler directory."
-  if [ "${CROSS::3}" == all ]; then # loop calling ourselves each target in ccc
-    for i in $(ls "$CCC" | sed -n 's/-.*//p' | sort -u); do
-      rm -f "$LOG/$i".{n,y}
-      { "$0" "$@" CROSS=$i && mv "$LOG/$i".{n,y};} |& tee "$LOG/$i.n"
-      [ ! -e "$LOG/$i.y" ] && [ "$CROSS" != allnonstop ] && exit 1;
-    done
-    exit
-  else # Set $CROSS_COMPILE and $CROSS_PATH from $CROSS using ccc directory
-    CROSS_COMPILE="$(echo "$CCC/$CROSS"-*cross/bin/"$CROSS"*-cc)"
-    [ ! -e "$CROSS_COMPILE" ] && # Show available targets
-      { ls "$CCC" | sed -n 's/-.*//p' | sort -u | xargs; exit;}
-    CROSS_PATH="$(dirname "$(which "$CROSS_COMPILE")")"
-    [ -z "$CROSS_PATH" ] && die "no $CROSS_COMPILE in path"
-    CROSS_COMPILE="${CROSS_COMPILE%cc}"
-  fi
-fi
-
-${CROSS_COMPILE}cc --static -xc - -o /dev/null <<< "int main(void){return 0;}"||
-  die "${CROSS_COMPILE}cc can't create static binaries"
-echo "Building for ${CROSS:=host}"
 
 # Create work/output directories (command line can override these)
-mkdir -p ${OUTPUT:=$TOP/$CROSS} || exit 1
-MYBUILD="$BUILD/${CROSS}-tmp" # only rm -r things WE SET
-rm -rf "$MYBUILD" && mkdir -p "$MYBUILD" || exit 1
-[ -z "$ROOT" ] && ROOT="$OUTPUT/fs" && rm -rf "$ROOT"
+mkdir -p ${TOP:=$PWD/root} ${BUILD:=$TOP/build} ${LOG:=$BUILD/log} || exit 1
 
-# ----- Build airlock
+# ----- Set up for cross compling (optional)
 
-# When cross compiling build under a host toybox with known behavior
-if [ ! -z "$CROSS_COMPILE" ]; then
-  if [ ! -e "${AIRLOCK:=$TOP/airlock}/toybox" ]; then
-    announce "airlock"
-    PREFIX="$AIRLOCK" KCONFIG_CONFIG="$TOP"/.airlock CROSS_COMPILE= \
-      make clean defconfig toybox install_airlock && rm "$TOP"/.airlock ||exit 1
-  fi
-  export PATH="${CROSS_PATH:+$CROSS_PATH:}$AIRLOCK"
-
-  # Install command line logging wrapper
-  if [ ! -z "$LLOG" ]; then
-    WRAPDIR="$TOP/$AIRLOCK/record-commands" &&
-    export WRAPLOG="$LOG/commands-$CROSS.txt" &&
-    KCONFIG_CONFIG="$TOP"/airlock source scripts/record-commands || exit 1
+if [ -n "$CROSS_COMPILE" ]; then
+  CROSS_COMPILE="$(realpath -s "$CROSS_COMPILE")" # absolute path for airlock
+  [ -z "$CROSS" ] && CROSS=${CROSS_COMPILE/*[/]/} CROSS=${CROSS/-*/}
+elif [ -n "$CROSS" ]; then # CROSS=all, CROSS=target, or list available targets
+  [ ! -d "${CCC:=$PWD/ccc}" ] && die "No ccc symlink to compiler directory."
+  TARGETS="$(ls "$CCC" | sed -n 's/-.*//p' | sort -u)"
+  if [ "${CROSS::3}" == all ]; then # loop calling ourselves for each target
+    for i in $TARGETS; do rm -f "$LOG/$i".{n,y}
+      { "$0" "$@" CROSS=$i && mv "$LOG/$i".{n,y};} |& tee "$LOG/$i.n"
+      [ ! -e "$LOG/$i.y" ] && [ "$CROSS" != allnonstop ] && exit 1;
+    done; exit
+  else # Set $CROSS_COMPILE from $CROSS using ccc directory
+    CROSS_COMPILE="$(echo "$CCC/$CROSS"-*cross/bin/"$CROSS"*-cc)"
+    [ ! -e "$CROSS_COMPILE" ] && echo $TARGETS && exit # list available targets
+    CROSS_COMPILE="${CROSS_COMPILE%cc}" # keep prefix, not path to compiler
   fi
 fi
+
+# Smoketest target compiler
+echo "Building for ${CROSS:=host}"
+${CROSS_COMPILE}cc --static -xc - -o /dev/null <<< "int main(void){return 0;}"||
+  die "${CROSS_COMPILE}cc can't create static binaries"
+
+# ----- Build airlock (Optional)
+
+# When cross compiling build under a host toybox with known behavior
+if [ -n "$CROSS_COMPILE" ]; then
+  if [ ! -e "${AIRLOCK:=$BUILD/airlock}/toybox" ]; then
+    announce "airlock"
+    PREFIX="$AIRLOCK" KCONFIG_CONFIG="$BUILD"/.airlock CROSS_COMPILE= \
+      make clean defconfig toybox install_airlock &&
+      rm "$BUILD"/.airlock || exit 1
+  fi
+  export PATH="$AIRLOCK"
+fi
+
+# Install command line recording wrapper, logs all commands run from $PATH
+if [ -z "$NO_LOGPATH" ]; then
+  # Move cross compiler into $PATH so calls to it get logged
+  [ -n "$CROSS_COMPILE" ] && PATH="${CROSS_COMPILE%/*}:$PATH" &&
+    CROSS_COMPILE=${CROSS_COMPILE##*/}
+  export WRAPDIR="$BUILD/record-commands" LOGPATH="$LOG/commands-$CROSS.txt"
+  rm -rf "$WRAPDIR" "$LOGPATH" &&
+  WRAPDIR="$WRAPDIR" CROSS_COMPILE= source scripts/record-commands || exit 1
+fi
+
+# Create per-target work directories
+MYBUILD="$BUILD/${CROSS}-tmp" && rm -rf "$MYBUILD" && mkdir -p "$MYBUILD" &&
+mkdir -p ${OUTPUT:=$TOP/$CROSS} || exit 1
+[ -z "$ROOT" ] && ROOT="$OUTPUT/fs" && rm -rf "$ROOT"
 
 # ----- Create new root filesystem's directory layout.
 
@@ -99,7 +104,7 @@ if [ $$ -eq 1 ]; then # Setup networking for QEMU (needs /proc)
   [ "$(date +%s)" -lt 10000000 ] && sntp -sq time.google.com
 
   # Run package scripts (if any)
-  for i in /etc/rc/*; do [ -e "$i" ] && . "$i"; done
+  for i in $(ls -1 /etc/rc 2>/dev/null | sort); do . "$i"; done
 
   [ -z "$CONSOLE" ] && CONSOLE="$(</sys/class/tty/console/active)"
   [ -z "$HANDOFF" ] && HANDOFF=/bin/sh && echo Type exit when done.
@@ -130,8 +135,11 @@ LDFLAGS=--static PREFIX="$ROOT" make clean \
 
 # Build any packages listed on command line
 for i in $PKG; do
-  announce "$i"; PATH="$PKGDIR:$PATH" source $i || die $i
+  announce "$i"
+  ( PATH="${PKGDIR:=$PWD/scripts/root}:$PATH" source $i ) || die $i
 done
+
+# ----- Build kernel for target
 
 if [ -z "$LINUX" ] || [ ! -d "$LINUX/kernel" ]; then
   echo 'No $LINUX directory, kernel build skipped.'
@@ -208,7 +216,7 @@ CONFIG_CMDLINE="console=ttyUL0 earlycon"' BUILTIN=1
   fi
 
   # Write the qemu launch script
-  if [ ! -z "$QEMU" ]; then
+  if [ -n "$QEMU" ]; then
     [ -z "$BUILTIN" ] && INITRD="-initrd ${CROSS}root.cpio.gz"
     echo qemu-system-"$QEMU" '"$@"' $QEMU_MORE -nographic -no-reboot -m 256 \
          -kernel $(basename $VMLINUX) $INITRD \
@@ -235,7 +243,7 @@ CONFIG_CMDLINE="console=ttyUL0 earlycon"' BUILTIN=1
       sed -E '/^$/d;s/([^,]*)($|,)/CONFIG_\1=y\n/g' <<< "$i"
       X=specific
     done
-    [ ! -z "$BUILTIN" ] && echo -e CONFIG_INITRAMFS_SOURCE="\"$OUTPUT/fs\""
+    [ -n "$BUILTIN" ] && echo -e CONFIG_INITRAMFS_SOURCE="\"$OUTPUT/fs\""
     echo "$KERNEL_CONFIG"
   } > "$OUTPUT/miniconfig-$TARGET" &&
   make ARCH=$KARCH allnoconfig KCONFIG_ALLCONFIG="$OUTPUT/miniconfig-$TARGET" &&
@@ -250,12 +258,12 @@ CONFIG_CMDLINE="console=ttyUL0 earlycon"' BUILTIN=1
   # Build kernel. Copy config, device tree binary, and kernel binary to output
   make ARCH=$KARCH CROSS_COMPILE="$CROSS_COMPILE" -j $(nproc) &&
   cp .config "$OUTPUT/linux-fullconfig" || exit 1
-  [ ! -z "$DTB" ] && { cp "$DTB" "$OUTPUT" || exit 1 ;}
+  [ -n "$DTB" ] && { cp "$DTB" "$OUTPUT" || exit 1 ;}
   cp "$VMLINUX" "$OUTPUT" && cd .. && rm -rf linux && popd || exit 1
 fi
 
 # clean up and package root filesystem for initramfs.
 [ -z "$BUILTIN" ] && announce "${CROSS}root.cpio.gz" &&
   (cd "$ROOT" && find . | cpio -o -H newc ${CROSS_COMPILE:+--no-preserve-owner} | gzip) \
-    > "$OUTPUT/$CROSS"root.cpio.gz
+    > "$OUTPUT/$CROSS"root.cpio.gz || exit 1
 rmdir "$MYBUILD" "$BUILD" 2>/dev/null || exit 0 # remove if empty, not an error
