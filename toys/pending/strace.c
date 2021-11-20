@@ -1,6 +1,8 @@
 /* strace.c - Trace system calls.
  *
  * Copyright 2020 The Android Open Source Project
+ *
+ * See https://man7.org/linux/man-pages/man2/syscall.2.html
 
 USE_STRACE(NEWTOY(strace, "^p#s#v", TOYFLAG_USR|TOYFLAG_SBIN))
 
@@ -24,41 +26,40 @@ config STRACE
 #include "toys.h"
 
 GLOBALS(
-  long s;
-  long p;
+  long s, p;
 
-  // 216 for x86-64.
-  char regs_buf[256];
+  char ioctl[32], *fmt;
+  long regs[256/sizeof(long)], syscall;
   pid_t pid;
-  char *fmt;
-  char ioctl[32];
   int arg;
 )
 
   struct user_regs_struct regs;
 
-#if defined(__x86_64__)
-#define REGS ((struct user_regs_struct *) &TT.regs_buf)
-#define REG_SYSCALL REGS->orig_rax
-#define REG_ARG0 REGS->rdi
-#define REG_ARG1 REGS->rsi
-#define REG_ARG2 REGS->rdx
-#define REG_ARG3 REGS->r10
-#define REG_ARG4 REGS->r8
-#define REG_ARG5 REGS->r9
-#define REG_RESULT REGS->rax
+
+// Syscall args from https://man7.org/linux/man-pages/man2/syscall.2.html
+// REG_ORDER is args 0-6, SYSCALL, RESULT
+#if defined(__ARM_EABI__)
+static const char REG_ORDER[] = {0,1,2,3,4,5,7,0};
+#elif defined(__ARM_ARCH) && __ARM_ARCH == 8
+static const char REG_ORDER[] = {0,1,2,3,4,5,8,0};
 #elif defined(__i386__)
-#define REGS ((struct user_regs_struct *) &TT.regs_buf)
-#define REG_SYSCALL REGS->orig_eax
-#define REG_ARG0 REGS->ebx
-#define REG_ARG1 REGS->ecx
-#define REG_ARG2 REGS->edx
-#define REG_ARG3 REGS->esi
-#define REG_ARG4 REGS->edi
-#define REG_ARG5 REGS->ebp
-#define REG_RESULT REGS->eax
+// ebx,ecx,edx,esi,edi,ebp,orig_eax,eax
+static const char REG_ORDER[] = {0,1,2,3,4,5,11,6};
+#elif defined(__m68k__)
+// d1,d2,d3,d4,d5,a0,orig_d0,d0
+static const char REG_ORDER[] = {0,1,2,3,4,7,16,14);
+#elif defined(__PPC__) || defined(__PPC64__)
+static const char REG_ORDER[] = {3,4,5,6,7,8,0,3};
+#elif defined(__s390__) // also covers s390x
+// r2,r3,r4,r5,r6,r7,r1,r2 but mask+addr before r0 so +2
+static const char REG_ORDER[] = {4,5,6,7,8,9,3,4};
+#elif defined(__sh__)
+static const char REG_ORDER[] = {4,5,6,7,0,1,3,0};
+#elif defined(__x86_64__)
+// rdi,rsi,rdx,r10,r8,r9,orig_rax,rax
+static const char REG_ORDER[] = {14,13,12,7,9,8,15,10};
 #else
-// TODO: arm/arm64
 #error unsupported architecture
 #endif
 
@@ -169,29 +170,17 @@ static void xptrace(int req, pid_t pid, void *addr, void *data)
 
 static void get_regs()
 {
-  xptrace(PTRACE_GETREGS, TT.pid, 0, &TT.regs_buf);
+  xptrace(PTRACE_GETREGS, TT.pid, 0, TT.regs);
 }
 
-static long get_arg()
-{
-  switch (TT.arg) {
-    case 0: return REG_ARG0;
-    case 1: return REG_ARG1;
-    case 2: return REG_ARG2;
-    case 3: return REG_ARG3;
-    case 4: return REG_ARG4;
-    case 5: return REG_ARG5;
-    default: error_exit("no arg %d", TT.arg);
-  }
-}
-
-static void ptrace_struct(long addr, void* dst, size_t bytes)
+static void ptrace_struct(long addr, void *dst, size_t bytes)
 {
   int offset = 0, i;
+  long v;
 
   for (i=0; i<bytes; i+=sizeof(long)) {
     errno = 0;
-    long v = ptrace(PTRACE_PEEKDATA, TT.pid, addr + offset);
+    v = ptrace(PTRACE_PEEKDATA, TT.pid, addr + offset);
     if (errno) perror_exit("PTRACE_PEEKDATA failed");
     memcpy(dst + offset, &v, sizeof(v));
     offset += sizeof(long);
@@ -210,7 +199,7 @@ static void print_struct(long addr)
     struct ifreq ir;
 
     ptrace_struct(addr, &ir, sizeof(ir));
-    // TODO: is this always an ioctl? use REG_ARG1 to work out what to show.
+    // TODO: is this always an ioctl? use TT.regs[REG_ORDER[1]] to work out what to show.
     fprintf(stderr, "{...}");
   } else if (strstart(&TT.fmt, "fsxattr}")) {
     struct fsxattr fx;
@@ -402,8 +391,9 @@ static void print_args()
 {
   int i;
 
-  for (i=0; *TT.fmt; ++TT.arg, ++i) {
-    long v = get_arg();
+  // Loop through arguments and print according to format string
+  for (i = 0; *TT.fmt; i++, TT.arg++) {
+    long v = TT.regs[REG_ORDER[TT.arg]];
     char *s, ch;
 
     if (i) fprintf(stderr, ", ");
@@ -441,9 +431,10 @@ static void print_enter(void)
   char *name;
 
   get_regs();
-  if (REG_SYSCALL == __NR_ioctl) {
+  TT.syscall = TT.regs[REG_ORDER[6]];
+  if (TT.syscall == __NR_ioctl) {
     name = "ioctl";
-    switch (REG_ARG1) {
+    switch (TT.regs[REG_ORDER[1]]) {
       case FS_IOC_FSGETXATTR: TT.fmt = "fi/{fsxattr}"; break;
       case FS_IOC_FSSETXATTR: TT.fmt = "fi{fsxattr}"; break;
       case FS_IOC_GETFLAGS: TT.fmt = "fi/{longx}"; break;
@@ -474,10 +465,10 @@ static void print_enter(void)
       case TIOCGWINSZ: TT.fmt = "fi/{winsize}"; break;
       case TIOCSWINSZ: TT.fmt = "fi{winsize}"; break;
       default:
-        TT.fmt = (REG_ARG0 & 1) ? "fip" : "fi/p";
+        TT.fmt = (TT.regs[REG_ORDER[0]]&1) ? "fip" : "fi/p";
         break;
     }
-  } else switch (REG_SYSCALL) {
+  } else switch (TT.syscall) {
 #define SC(n,f) case __NR_ ## n: name = #n; TT.fmt = f; break
     SC(access, "s|access|");
     SC(arch_prctl, "dp");
@@ -526,7 +517,7 @@ static void print_enter(void)
     SC(uname, "p");
     SC(write, "dsz");
     default:
-      sprintf(name = toybuf, "SYS_%d", (int)REG_SYSCALL);
+      sprintf(name = toybuf, "SYS_%ld", TT.syscall);
       TT.fmt = "pppppp";
       break;
   }
@@ -538,16 +529,16 @@ static void print_enter(void)
 
 static void print_exit(void)
 {
+  long result;
+
   get_regs();
+  result = TT.regs[REG_ORDER[7]];
   if (*TT.fmt) print_args();
   fprintf(stderr, ") = ");
-  if (REG_RESULT >= -4095UL) {
-    fprintf(stderr, "-1 %s (%s)", strerrno(-REG_RESULT), strerror(-REG_RESULT));
-  } else if (REG_SYSCALL == __NR_mmap || REG_SYSCALL == __NR_brk) {
-    print_ptr(REG_RESULT);
-  } else {
-    fprintf(stderr, "%ld", (long)REG_RESULT);
-  }
+  if (result >= -4095UL)
+    fprintf(stderr, "-1 %s (%s)", strerrno(-result), strerror(-result));
+  else if (TT.syscall==__NR_mmap || TT.syscall==__NR_brk) print_ptr(result);
+  else fprintf(stderr, "%ld", result);
   fputc('\n', stderr);
 }
 
