@@ -1,12 +1,3 @@
-<div id="top"></div>
-
-[![Contributors][contributors-shield]](https://github.com/landley/toybox/graphs/contributors)
-[![Forks][forks-shield]][https://github.com/landley/toybox/network/members]
-[![Issues][issues-shield]][https://github.com/landley/toybox/issues]
-[![0BSD License][license-shield]][https://github.com/landley/toybox/blob/master/LICENSE]
-
-<br/>
-
 # Toybox: All-In-One Linux command line.
 
 ## Getting started
@@ -42,7 +33,7 @@ The file `configure` defines default values for many environment variables that 
 The CROSS_COMPILE argument above is optional, the default builds a version of
 toybox to run on the current machine. Cross compiling requires an appropriately
 prefixed cross compiler toolchain, several example toolchains (built using
-the file `scripts/mcm-buildall.sh` in the toybox source) are available at: [Description](https://mkroot.musl.cc/latest/)
+the file `scripts/mcm-buildall.sh` in the toybox source) are available at: [Link](https://mkroot.musl.cc/latest/)
   
 
 For the `CROSS_COMPILE=armv5l-` example above, download
@@ -102,29 +93,30 @@ By calling scripts/mkroot.sh directly you can add additional packages
 to the build, see scripts/root/dropbear as an example.
 
 The FAQ explains this in a lot more detail:
-
+```sh
   https://landley.net/toybox/faq.html#system
   https://landley.net/toybox/faq.html#mkroot
+```
 
 ## Presentations
 
 1) "Why Toybox?" talk at the Embedded Linux Conference in 2013
 
-   * [outline](http://landley.net/talks/celf-2013.txt)
-   * [video](http://youtu.be/SGmtP5Lg_t0)
+   * [Outline](http://landley.net/talks/celf-2013.txt)
+   * [Video](http://youtu.be/SGmtP5Lg_t0)
 
     The https://landley.net/toybox/about.html page has nav links breaking that talk down into sections.
 
 2) "Why Public Domain?" The rise and fall of copyleft, Ohio LinuxFest 2013
 
-   * [outline](http://landley.net/talks/ohio-2013.txt)
-   * [audio](https://archive.org/download/OhioLinuxfest2013/24-Rob_Landley-The_Rise_and_Fall_of_Copyleft.mp3)
+   * [Outline](http://landley.net/talks/ohio-2013.txt)
+   * [Audio](https://archive.org/download/OhioLinuxfest2013/24-Rob_Landley-The_Rise_and_Fall_of_Copyleft.mp3)
 
 3) Why did I do Aboriginal Linux (which led me here)
 
-  * 260 slide presentation: [Description](https://speakerdeck.com/landley/developing-for-non-x86-targets-using-qemu)
-  *  How and why to make android self-hosting: [Description](http://landley.net/aboriginal/about.html#selfhost)
-  * More backstory than strictly necessary: [Description](https://landley.net/aboriginal/history.html)
+   * 260 slide presentation: [Details](https://speakerdeck.com/landley/developing-for-non-x86-targets-using-qemu)
+   *  How and why to make android self-hosting: [Details](http://landley.net/aboriginal/about.html#selfhost)
+   * More backstory than strictly necessary: [Details](https://landley.net/aboriginal/history.html)
 
 4) What's new with toybox (ELC 2015 status update):
 
@@ -153,7 +145,6 @@ The maintainer prefers patches be sent to the mailing list. If you use git, the 
 Then send a file attachment. The list holds messages from non-subscribers for moderation, but I usually get to them in a day or two.
 
 I download github pull requests as patches and apply them with  "git am"  (which avoids gratuitous merge commits). Sometimes I even remember to close the pull request.
-
 If I haven't responded to your patch after one week, feel free to remind me of it.
 
 Android's policy for toybox patches is that non-build patches should go upstream first (into vanilla toybox, with discussion on the toybox mailing list) and then be pulled into android's toybox repo from there. (They generally resync on fridays). The exception is patches to their build scripts (Android.mk and the checked-in generated/* files) which go directly to AOSP.
