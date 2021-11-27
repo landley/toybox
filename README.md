@@ -147,6 +147,7 @@ Then send a file attachment. The list holds messages from non-subscribers for mo
 I download github pull requests as patches and apply them with  "git am"  (which avoids gratuitous merge commits). Sometimes I even remember to close the pull request.
 If I haven't responded to your patch after one week, feel free to remind me of it.
 
-Android's policy for toybox patches is that non-build patches should go upstream first (into vanilla toybox, with discussion on the toybox mailing list) and then be pulled into android's toybox repo from there. (They generally resync on fridays). The exception is patches to their build scripts (Android.mk and the checked-in generated/* files) which go directly to AOSP.
+Android's policy for toybox patches is that non-build patches should go upstream first (into vanilla toybox, with discussion on the toybox mailing list) and then be pulled into android's toybox repo from there. (They generally resync on fridays). The exception is patches to their build scripts 
+(Android.mk and the checked-in generated/* files) which go directly to AOSP.
 
 (As for the other meaning of "contributing", https://patreon.com/landley is always welcome but I warn you up front I'm terrible about updating it.)
