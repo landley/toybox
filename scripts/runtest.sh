@@ -135,20 +135,21 @@ testing()
   [ $RETVAL -gt 128 ] && [ $RETVAL -lt 255 ] &&
     echo "exited with signal (or returned $RETVAL)" >> actual
   DIFF="$(diff -au${NOSPACE:+w} expected actual)"
-  if [ ! -z "$DIFF" ]
+  if [ -n "$DIFF" ]
   then
     FAILCOUNT=$(($FAILCOUNT+1))
     printf "%s\n" "$SHOWFAIL: $NAME"
-    if [ "$VERBOSE" != quiet ]
-    then
-      [ ! -z "$4" ] && printf "%s\n" "echo -ne \"$4\" > input"
-      printf "%s\n" "echo -ne '$5' |$EVAL $2"
-      printf "%s\n" "$DIFF"
-      [ "$VERBOSE" != all ] && exit 1
-    fi
   else
     [ "$VERBOSE" != "nopass" ] && printf "%s\n" "$SHOWPASS: $NAME"
   fi
+  if [ "$VERBOSE" != quiet ] && [ -n "$DIFF" -o "$VERBOSE" == spam ]
+  then
+    [ ! -z "$4" ] && printf "%s\n" "echo -ne \"$4\" > input"
+    printf "%s\n" "echo -ne '$5' |$EVAL $2"
+    [ -n "$DIFF" ] && printf "%s\n" "$DIFF"
+  fi
+
+  [ -n "$DIFF" -a "$VERBOSE" != all ] && exit 1
   rm -f input expected actual
 
   [ -n "$DEBUG" ] && set +x
@@ -184,7 +185,7 @@ do_fail()
 # X means close stdin/stdout/stderr and match return code (blank means nonzero)
 txpect()
 {
-  local NAME CASE VERBOSITY LEN A B
+  local NAME CASE VERBOSITY LEN A B X O
 
   # Run command with redirection through fifos
   NAME="$CMDNAME $1"
@@ -205,11 +206,9 @@ txpect()
   # Loop through challenge/response pairs, with 2 second timeout
   while [ $# -gt 0 ]
   do
-    VERBOSITY="$VERBOSITY"$'\n'"$1"
-    LEN=$((${#1}-1))
-    CASE="$1"
-    A=
-    B=
+    VERBOSITY="$VERBOSITY"$'\n'"$1"  LEN=$((${#1}-1))  CASE="$1"  A=  B=
+
+    [ "$VERBOSE" == spam ] && echo "txpect $CASE"
     case ${1::1} in
 
       # send input to child
@@ -219,14 +218,15 @@ txpect()
       # check output from child
       [OE])
         [ $LEN == 0 ] && LARG="" || LARG="-rN $LEN"
-        O=$OUT
+        O=$OUT  A=
         [ "${1:$B:1}" == 'E' ] && O=$ERR
-        A=
         read -t2 $LARG A <&$O
+        X=$?
+        [ "$VERBOSE" == spam ] && echo "txgot $X '$A'"
         VERBOSITY="$VERBOSITY"$'\n'"$A"
         if [ $LEN -eq 0 ]
         then
-          [ -z "$A" ] && { do_fail;break;}
+          [ -z "$A" -o "$X" -ne 0 ] && { do_fail;break;}
         else
           if [ ${1::1} == 'R' ] && [[ "$A" =~ "${1:2}" ]]; then true
           elif [ ${1::1} != 'R' ] && [ "$A" == "${1:1}" ]; then true
