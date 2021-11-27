@@ -53,22 +53,22 @@ For a more thorough description of the toybox build process, see:
 ```
 ## Using toybox
 
-The toybox build produces a multicall binary, a "swiss-army-knife" program that acts differently 
+The toybox build produces a multicall binary, a `swiss-army-knife` program that acts differently 
 depending on the name it was called by (cp, mv, cat...).
 Installing toybox adds symlinks for each command name to the $PATH.
 
-The special "toybox" command treats its first argument as the command to run.
+The special `toybox` command treats its first argument as the command to run.
  With no arguments, it lists available commands. This allows you to use toybox without installing it, 
- and is the only command that can have an arbitrary suffix (hence `"toybox-armv5l"`).
+ and is the only command that can have an arbitrary suffix (hence `toybox-armv5l`).
 
-The "help" command provides information about each command (ala `"help cat"`),
-and "help toybox" provides general information about toybox.
+The `help` command provides information about each command (ala `help cat`),
+and `help toybox` provides general information about toybox.
 
 ## Configuring toybox
 
 It works like the Linux kernel: allnoconfig, defconfig, and menuconfig edit a ".config" 
 file that selects which features to include in the resulting binary. You can save and re-use your
- .config file, but may want to run "make oldconfig" to re-run the dependency resolver when migrating to new versions.
+ .config file, but may want to run `make oldconfig` to re-run the dependency resolver when migrating to new versions.
 
 The maximum sane configuration is `make defconfig`: allyesconfig isn't recommended as a starting point for
  toybox because it enables unfinished commands, debug code, and optional dependencies your build environment may not provide.
@@ -81,7 +81,7 @@ Makefile target:
   make root
   sudo chroot root/host/fs /init
 ```
-Type "exit" to get back out. If you install appropriate cross compilers and
+Type `exit` to get back out. If you install appropriate cross compilers and
 point it at Linux source code, it can build simple three-package systems
 that boot to a shell prompt under qemu:
 ```sh
