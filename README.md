@@ -33,7 +33,7 @@ The file `configure` defines default values for many environment variables that 
 The CROSS_COMPILE argument above is optional, the default builds a version of
 toybox to run on the current machine. Cross compiling requires an appropriately
 prefixed cross compiler toolchain, several example toolchains (built using
-the file `scripts/mcm-buildall.sh` in the toybox source) are available at: [Link](https://mkroot.musl.cc/latest/)
+the file `scripts/mcm-buildall.sh` in the toybox source) are available at: [Details](https://mkroot.musl.cc/latest/)
   
 
 For the `CROSS_COMPILE=armv5l-` example above, download
