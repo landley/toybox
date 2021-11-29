@@ -22,7 +22,7 @@ mkdir -p ${TOP:=$PWD/root} ${BUILD:=$TOP/build} ${LOG:=$BUILD/log} || exit 1
 
 if [ -n "$CROSS_COMPILE" ]; then
   CROSS_COMPILE="$(realpath -s "$CROSS_COMPILE")" # absolute path for airlock
-  [ -z "$CROSS" ] && CROSS=${CROSS_COMPILE/*[/]/} CROSS=${CROSS/-*/}
+  [ -z "$CROSS" ] && CROSS=${CROSS_COMPILE/*\//} CROSS=${CROSS/-*/}
 elif [ -n "$CROSS" ]; then # CROSS=all, CROSS=target, or list available targets
   [ ! -d "${CCC:=$PWD/ccc}" ] && die "No ccc symlink to compiler directory."
   TARGETS="$(ls "$CCC" | sed -n 's/-.*//p' | sort -u)"
