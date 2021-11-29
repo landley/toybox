@@ -11,8 +11,7 @@ announce() { echo -e "\033]2;$CROSS $*\007\n=== $*"; }
 
 # assign command line NAME=VALUE args to env vars, the rest are packages
 while [ $# -ne 0 ]; do
-  [ "${1/=/}" != "$1" ] && export "$1" ||
-    { [ "$1" != -- ] && PKG="${PKG:-plumbing} $1"; }
+  [ "${1/=/}" != "$1" ] && export "$1" || { [ "$1" != -- ] && PKG="PKG $1"; }
   shift
 done
 
@@ -28,9 +27,8 @@ elif [ -n "$CROSS" ]; then # CROSS=all, CROSS=target, or list available targets
   [ ! -d "${CCC:=$PWD/ccc}" ] && die "No ccc symlink to compiler directory."
   TARGETS="$(ls "$CCC" | sed -n 's/-.*//p' | sort -u)"
   if [ "${CROSS::3}" == all ]; then # loop calling ourselves for each target
-    for i in $TARGETS; do rm -f "$LOG/$i".{n,y}
-      { "$0" "$@" CROSS=$i && mv "$LOG/$i".{n,y};} |& tee "$LOG/$i.n"
-      [ ! -e "$LOG/$i.y" ] && [ "$CROSS" != allnonstop ] && exit 1;
+    for i in $TARGETS; do
+      "$0" "$@" CROSS=$i || [ "$CROSS" == allnonstop ] || exit 1
     done; exit
   else # Set $CROSS_COMPILE from $CROSS using ccc directory
     CROSS_COMPILE="$(echo "$CCC/$CROSS"-*cross/bin/"$CROSS"*-cc)"
@@ -39,15 +37,17 @@ elif [ -n "$CROSS" ]; then # CROSS=all, CROSS=target, or list available targets
   fi
 fi
 
-# Smoketest target compiler
+# Start logging
+rm -f "$LOG/${CROSS:=host}".{n,y}
+[ -z "$NOLOG" ] && exec > >(tee "$LOG/$CROSS.n") 2>&1
 echo "Building for ${CROSS:=host}"
+
+# ----- Build airlock (Optional)
 ${CROSS_COMPILE}cc --static -xc - -o /dev/null <<< "int main(void){return 0;}"||
   die "${CROSS_COMPILE}cc can't create static binaries"
 
-# ----- Build airlock (Optional)
-
-# When cross compiling build under a host toybox with known behavior
-if [ -n "$CROSS_COMPILE" ]; then
+if [ -n "$CROSS_COMPILE" ] && [ -z "$NOAIRLOCK" ]; then
+  # When cross compiling build under a host toybox with known behavior
   if [ ! -e "${AIRLOCK:=$BUILD/airlock}/toybox" ]; then
     announce "airlock"
     PREFIX="$AIRLOCK" KCONFIG_CONFIG="$BUILD"/.airlock CROSS_COMPILE= \
@@ -58,11 +58,11 @@ if [ -n "$CROSS_COMPILE" ]; then
 fi
 
 # Install command line recording wrapper, logs all commands run from $PATH
-if [ -z "$NO_LOGPATH" ]; then
+if [ -z "$NOLOGPATH" ]; then
   # Move cross compiler into $PATH so calls to it get logged
   [ -n "$CROSS_COMPILE" ] && PATH="${CROSS_COMPILE%/*}:$PATH" &&
     CROSS_COMPILE=${CROSS_COMPILE##*/}
-  export WRAPDIR="$BUILD/record-commands" LOGPATH="$LOG/commands-$CROSS.txt"
+  export WRAPDIR="$BUILD/record-commands" LOGPATH="$LOG/$CROSS-commands.txt"
   rm -rf "$WRAPDIR" "$LOGPATH" generated/obj &&
   WRAPDIR="$WRAPDIR" CROSS_COMPILE= source scripts/record-commands || exit 1
 fi
@@ -136,7 +136,8 @@ LDFLAGS=--static PREFIX="$ROOT" make clean \
 # Build any packages listed on command line
 for i in $PKG; do
   announce "$i"
-  ( PATH="${PKGDIR:=$PWD/scripts/root}:$PATH" source $i ) || die $i
+  ( PATH="${PKGDIR:=$PWD/scripts/root}:$PATH"; source plumbing; source $i ) ||
+    die $i
 done
 
 # ----- Build kernel for target
@@ -229,8 +230,8 @@ CONFIG_CMDLINE="console=ttyUL0 earlycon"' BUILTIN=1
   announce "linux-$KARCH"
   pushd "$LINUX" && make distclean && popd &&
   cp -sfR "$LINUX" "$MYBUILD/linux" && pushd "$MYBUILD/linux" &&
-  # Work around x86-64 bug
-  sed -is '/select HAVE_STACK_VALIDATION/d' arch/x86/Kconfig &&
+  sed -is '/select HAVE_STACK_VALIDATION/d' arch/x86/Kconfig && # Fix x86-64
+  sed -is 's/depends on !SMP/& || !MMU/' mm/Kconfig &&          # Fix sh2eb
 
   # Write miniconfig
   { echo "# make ARCH=$KARCH allnoconfig KCONFIG_ALLCONFIG=$TARGET.miniconf"
@@ -266,4 +267,6 @@ fi
 [ -z "$BUILTIN" ] && announce "${CROSS}root.cpio.gz" &&
   (cd "$ROOT" && find . | cpio -o -H newc ${CROSS_COMPILE:+--no-preserve-owner} | gzip) \
     > "$OUTPUT/$CROSS"root.cpio.gz || exit 1
+
+mv "$LOG/$CROSS".{n,y} #2>/dev/null
 rmdir "$MYBUILD" "$BUILD" 2>/dev/null || exit 0 # remove if empty, not an error
