@@ -4,11 +4,11 @@
 
 echo === download source
 
-download a4d316c404ff54ca545ea71a27af7dbc29817088 \
-  http://downloads.sf.net/libpng/zlib-1.2.8.tar.gz
+download e6d119755acdf9104d7ba236b1242696940ed6dd \
+  http://downloads.sf.net/libpng/zlib-1.2.11.tar.gz
 
-download 820ec2b8c869edbcf5ad1138777fc0f54349505c \
-  https://matt.ucc.asn.au/dropbear/releases/dropbear-2019.78.tar.bz2
+download c3d4fe27fa17ec8217dbedbd33dd73a1ca6cda2c \
+  https://matt.ucc.asn.au/dropbear/releases/dropbear-2020.81.tar.bz2
 
 echo === Native build static zlib
 
