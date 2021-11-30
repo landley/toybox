@@ -21,15 +21,15 @@ def readit(args, shell=False):
 
 print "Collecting data..."
 
-stuff,blah=readit(["sed","-n", 's/<span id=\\([a-z_]*\\)>/\\1 /;t good;d;:good;h;:loop;n;s@</span>@@;t out;H;b loop;:out;g;s/\\n/ /g;p', "www/roadmap.html", "www/status.html"])
+stuff,blah=readit(["sed","-n", 's/<span id=\\([a-z_]*\\)>/\\1 /;t good;d;:good;h;:loop;n;s@</span>@@;t out;H;b loop;:out;g;s/\\n/ /g;p', "www/roadmap.html"])
 blah,toystuff=readit(["./toybox"])
-blah,pending=readit(["sed", "-n", "s/.*NEWTOY[(]\([^,]*\).*TOYFLAG_NOFORK.*/\1/p", "toys/pending/sh.c"])
+blah,stuff["shell"]=readit(["sed", "-n", "s/.*NEWTOY[(]\\([^,]*\\).*TOYFLAG_NOFORK.*/\\1/p", "toys/pending/sh.c"])
+blah,pending=readit(["/bin/bash", "-c", "sed -n 's/[^ \\t].*TOY(\\([^,]*\\),.*/\\1/p' toys/pending/*.c"])
 version=readit(["./toybox","--version"])[-1][-1]
 
 print "Analyzing..."
 
 # Create reverse mappings: reverse["command"] gives list of categories it's in
-
 reverse={}
 for i in stuff:
   for j in stuff[i]:
@@ -57,7 +57,6 @@ conv = [("posix", '<a href="http://pubs.opengroup.org/onlinepubs/9699919799/util
         ("fhs_cmd", "", '-%s-'), ("yocto_cmd", "", ".%s."),
         ("shell", "", "%%%s%%"),
         ("request", '<a href="https://man7.org/linux/man-pages/man1/%s.1.html">%%s</a>', '+%s+')]
-
 
 def categorize(reverse, i, skippy=""):
   linky = "%s"
@@ -103,7 +102,7 @@ outfile.write("""<html><head><title>toybox current status</title>
 <title>Toybox Status</title>
 """);
 outfile.write("<h1>Status of toybox %s</h1>\n" % version);
-outfile.write("<h3>Legend: %s <strike>pending</strike></h3>\n"%" ".join(map(lambda i: i[2]%(i[0].split("_")[0]), conv[:-2])))
+outfile.write("<h3>Legend: %s <strike>pending</strike></h3>\n"%" ".join(map(lambda i: i[2]%(i[0].split("_")[0]), conv)))
 
 outfile.write("<a name=done><h2><a href=#done>Completed</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(done))
 outfile.write("<a name=part><h2><a href=#part>Partially implemented (in toys/pending)</a></h2><blockquote><p>%s</p></blockquote>\n" % "\n".join(pend))
@@ -117,7 +116,6 @@ for i in conv:
   todo = []
   i=i[0]
 
-  if i=="shell": continue
   for j in stuff[i]:
     if j in toystuff: continue
     if j in pending: todo.append('<strike>%s</strike>' % j)
