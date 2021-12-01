@@ -48,7 +48,7 @@ static const char REG_ORDER[] = {0,1,2,3,4,5,8,0};
 static const char REG_ORDER[] = {0,1,2,3,4,5,11,6};
 #elif defined(__m68k__)
 // d1,d2,d3,d4,d5,a0,orig_d0,d0
-static const char REG_ORDER[] = {0,1,2,3,4,7,16,14);
+static const char REG_ORDER[] = {0,1,2,3,4,7,16,14};
 #elif defined(__PPC__) || defined(__PPC64__)
 static const char REG_ORDER[] = {3,4,5,6,7,8,0,3};
 #elif defined(__s390__) // also covers s390x
