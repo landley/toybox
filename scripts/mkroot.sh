@@ -142,9 +142,8 @@ LDFLAGS=--static PREFIX="$ROOT" make clean \
   ${CONF:-defconfig KCONFIG_ALLCONFIG=<(echo "$XX")} toybox install || exit 1
 
 # Build any packages listed on command line
-for i in $PKG; do
-  announce "$i"
-  ( PATH="$PKGDIR:$PATH"; source plumbing; source $i ) || die $i
+for i in ${PKG:+plumbing $PKG}; do
+  announce "$i"; PATH="$PKGDIR:$PATH" source $i || die $i
 done
 
 # ----- Build kernel for target
