@@ -8,10 +8,11 @@
 
 # The following environment variables enable optional behavior in "testing":
 #    DEBUG - Show every command run by test script.
-#    VERBOSE - "all" continue after failed test
-#              "fail" show diff and stop at first failed test
+#    VERBOSE - "all"    continue after failed test
+#              "fail"   show diff and stop at first failed test
 #              "nopass" don't show successful tests
-#              "quiet" like all but just print FAIL (no diff -u).
+#              "quiet"  don't show diff -u for failures
+#              "spam"   show passing test command lines
 #
 # The "testcmd" function takes five arguments:
 #	$1) Description to display when running command
@@ -68,9 +69,14 @@ optional()
   SKIP=1
 }
 
+verbose_has()
+{
+  [ "${VERBOSE/$1/}" != "$VERBOSE" ]
+}
+
 skipnot()
 {
-  if [ "$VERBOSE" == quiet ]
+  if verbose_has quiet
   then
     eval "$@" 2>/dev/null
   else
@@ -105,7 +111,7 @@ wrong_args()
 # Announce success
 do_pass()
 {
-  [ "$VERBOSE" != "nopass" ] && printf "%s\n" "$SHOWPASS: $NAME"
+  ! verbose_has nopass && printf "%s\n" "$SHOWPASS: $NAME"
 }
 
 # The testing function
@@ -121,7 +127,7 @@ testing()
 
   if [ -n "$SKIP" -o -n "$SKIP_HOST" -a -n "$TEST_HOST" -o -n "$SKIPNEXT" ]
   then
-    [ "$VERBOSE" != quiet ] && printf "%s\n" "$SHOWSKIP: $NAME"
+    verbose_has quiet && printf "%s\n" "$SHOWSKIP: $NAME"
     unset SKIPNEXT
     return 0
   fi
@@ -135,20 +141,21 @@ testing()
   [ $RETVAL -gt 128 ] && [ $RETVAL -lt 255 ] &&
     echo "exited with signal (or returned $RETVAL)" >> actual
   DIFF="$(diff -au${NOSPACE:+w} expected actual)"
-  if [ ! -z "$DIFF" ]
+  if [ -n "$DIFF" ]
   then
     FAILCOUNT=$(($FAILCOUNT+1))
     printf "%s\n" "$SHOWFAIL: $NAME"
-    if [ "$VERBOSE" != quiet ]
-    then
-      [ ! -z "$4" ] && printf "%s\n" "echo -ne \"$4\" > input"
-      printf "%s\n" "echo -ne '$5' |$EVAL $2"
-      printf "%s\n" "$DIFF"
-      [ "$VERBOSE" != all ] && exit 1
-    fi
   else
-    [ "$VERBOSE" != "nopass" ] && printf "%s\n" "$SHOWPASS: $NAME"
+    ! verbose_has nopass && printf "%s\n" "$SHOWPASS: $NAME"
   fi
+  if ! verbose_has quiet && { [ -n "$DIFF" ] || verbose_has spam; }
+  then
+    [ ! -z "$4" ] && printf "%s\n" "echo -ne \"$4\" > input"
+    printf "%s\n" "echo -ne '$5' |$EVAL $2"
+    [ -n "$DIFF" ] && printf "%s\n" "$DIFF"
+  fi
+
+  [ -n "$DIFF" ] && ! verbose_has all && exit 1
   rm -f input expected actual
 
   [ -n "$DEBUG" ] && set +x
@@ -175,7 +182,7 @@ do_fail()
     echo "Expected '$CASE'"
     echo "Got '$A'"
   fi
-  [ "$VERBOSE" != all ] && [ "$VERBOSE" != quiet ] && exit 1
+  ! verbose_has all && exit 1
 }
 
 # txpect NAME COMMAND [I/O/E/Xstring]...
@@ -184,7 +191,7 @@ do_fail()
 # X means close stdin/stdout/stderr and match return code (blank means nonzero)
 txpect()
 {
-  local NAME CASE VERBOSITY LEN A B
+  local NAME CASE VERBOSITY LEN A B X O
 
   # Run command with redirection through fifos
   NAME="$CMDNAME $1"
@@ -205,11 +212,9 @@ txpect()
   # Loop through challenge/response pairs, with 2 second timeout
   while [ $# -gt 0 ]
   do
-    VERBOSITY="$VERBOSITY"$'\n'"$1"
-    LEN=$((${#1}-1))
-    CASE="$1"
-    A=
-    B=
+    VERBOSITY="$VERBOSITY"$'\n'"$1"  LEN=$((${#1}-1))  CASE="$1"  A=  B=
+
+    verbose_has spam && echo "txpect $CASE"
     case ${1::1} in
 
       # send input to child
@@ -219,14 +224,15 @@ txpect()
       # check output from child
       [OE])
         [ $LEN == 0 ] && LARG="" || LARG="-rN $LEN"
-        O=$OUT
+        O=$OUT  A=
         [ "${1:$B:1}" == 'E' ] && O=$ERR
-        A=
         read -t2 $LARG A <&$O
+        X=$?
+        verbose_has spam && echo "txgot $X '$A'"
         VERBOSITY="$VERBOSITY"$'\n'"$A"
         if [ $LEN -eq 0 ]
         then
-          [ -z "$A" ] && { do_fail;break;}
+          [ -z "$A" -o "$X" -ne 0 ] && { do_fail;break;}
         else
           if [ ${1::1} == 'R' ] && [[ "$A" =~ "${1:2}" ]]; then true
           elif [ ${1::1} != 'R' ] && [ "$A" == "${1:1}" ]; then true
@@ -263,7 +269,7 @@ txpect()
   then
     do_pass
   else
-    [ "$VERBOSE" != quiet ] && echo "$VERBOSITY" >&2
+    ! verbose_has quiet && echo "$VERBOSITY" >&2
   fi
 }
 

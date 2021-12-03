@@ -480,30 +480,35 @@ static int recalculate(long long *dd, char **ss, int lvl)
   long long ee, ff;
   char cc = **nospace(ss);
 
-  // handle unary prefixes, parenthetical blocks, and constants
-
+  // TODO: assignable (variable)
+  // Always start handling unary prefixes, parenthetical blocks, and constants
   if (cc=='+' || cc=='-') {
     ++*ss;
-    if (!recalculate(dd, ss, 0) || *ss) return 0;
+    if (!recalculate(dd, ss, 1) || **ss) return 0;
     if (cc=='-') *dd = -*dd;
   } else if (cc=='(') {
     ++*ss;
-    if (!recalculate(dd, ss, 0)) return 0;
+    if (!recalculate(dd, ss, 1)) return 0;
     if (**ss!=')') return 0;
     else ++*ss;
   } else if (isdigit(cc)) *dd = strtoll(*ss, ss, 0); //TODO overflow?
-  else return 0;
+  else if (!lvl && (!cc || cc==')')) {
+    *dd = 0;
+    return 1;
+  } else return 0;
 
-  if (lvl>1) if (strstart(nospace(ss), "**")) {
-    if (!recalculate(&ee, ss, 3)) return 0;
+  // x^y binds first
+  if (lvl<4) while (strstart(nospace(ss), "**")) {
+    if (!recalculate(&ee, ss, 4)) return 0;
     if (ee<0) perror_msg("** < 0");
     for (ff = *dd, *dd = 1; ee; ee--) *dd *= ff;
   }
 
-  if (lvl>0) while ((cc = **nospace(ss))) {
+  // w*x/y%z bind next
+  if (lvl<3) while ((cc = **nospace(ss))) {
     if (cc=='*' || cc=='/' || cc=='%') {
       ++*ss;
-      if (!recalculate(&ee, ss, 2)) return 0;
+      if (!recalculate(&ee, ss, 3)) return 0;
       if (cc=='*') *dd *= ee;
       else if (cc=='%') *dd %= ee;
       else if (!ee) {
@@ -513,10 +518,11 @@ static int recalculate(long long *dd, char **ss, int lvl)
     } else break;
   }
 
-  if (!lvl) while ((cc = **nospace(ss))) {
+  // x+y-z
+  if (lvl<2) while ((cc = **nospace(ss))) {
     if (cc=='+' || cc=='-') {
       ++*ss;
-      if (!recalculate(&ee, ss, 1)) return 0;
+      if (!recalculate(&ee, ss, 2)) return 0;
       if (cc=='+') *dd += ee;
       else *dd -= ee;
     } else break;
@@ -531,8 +537,7 @@ static int calculate(long long *ll, char *equation)
   char *ss = equation;
 
   // TODO: error_msg->sherror_msg() with LINENO for scripts
-  if (!*equation) *ll = 0;
-  else if (!recalculate(ll, &ss, 0) || *ss) {
+  if (!recalculate(ll, &ss, 0) || *ss) {
     perror_msg("bad math: %s @ %d", equation, (int)(ss-equation));
 
     return 0;
@@ -898,8 +903,8 @@ static char *parse_word(char *start, int early, int quote)
         if (!*end || (*end=='\n' && !end[1])) return early ? end : 0;
       } else if (ii=='$' && -1!=(qq = stridx("({[", *end))) {
         if (strstart(&end, "((")) {
+          end--;
           toybuf[quote++] = 255;
-          end++;
         } else toybuf[quote++] = ")}]"[qq];
       } else if (*end=='(' && strchr("?*+@!", ii)) toybuf[quote++] = ')';
       else {
@@ -1161,7 +1166,7 @@ static int run_subshell(char *str, int len)
 
     for (i = 0, vv = visible_vars(); vv[i]; i++)
       dprintf(pipes[1], "%u %lu\n%.*s", (unsigned)strlen(vv[i]->str),
-              vv[i]->flags, strlen(vv[i]->str), vv[i]->str);
+              vv[i]->flags, (int)strlen(vv[i]->str), vv[i]->str);
     free(vv);
 
     // send command
@@ -1653,12 +1658,19 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
       s = str+ii-1;
       kk = parse_word(s, 1, 0)-s;
       if (str[ii] == '[' || *toybuf == 255) {
+        struct sh_arg aa = {0};
         long long ll;
 
-        ss = (s += 2+(str[ii]!='['));
-        jj = kk - (3+2*(str[ii]!='['));
-        if (!recalculate(&ll, &s, 0) || ss+jj != s) {
-          error_msg("math: %.*s @ %ld", jj, ss, (s-ss));
+        // Expand $VARS in math string
+        ss = str+ii+1+(str[ii]=='(');
+        push_arg(delete, ss = xstrndup(ss, kk - (3+2*(str[ii]!='['))));
+        expand_arg_nobrace(&aa, ss, NO_PATH|NO_SPLIT, delete, 0);
+        s = ss = (aa.v && *aa.v) ? *aa.v : "";
+        free(aa.v);
+
+        // Recursively calculate result
+        if (!recalculate(&ll, &s, 0) || *s) {
+          error_msg("bad math: %s @ %ld", ss, (s-ss)+1);
           goto fail;
         }
         ii += kk-1;

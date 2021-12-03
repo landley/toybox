@@ -84,6 +84,8 @@ testing 'syntax' '$SH -c "if true; then echo hello | fi" 2>/dev/null || echo x'\
 ln -s $(which $SH) bash
 testing 'non-absolute $_' "./bash -c 'echo \$_'" './bash\n' '' ''
 rm bash
+testing '$_ with functions' 'true; x(){ echo $_;}; x abc; echo $_' \
+  'true\nabc\n' '' ''
 
 shxpect '$_ preserved on assignment error' I$'true hello; a=1 b=2 c=${}\n' \
   E E"$P" I$'echo $_\n' O$'hello\n'
@@ -223,8 +225,9 @@ testing 'quote' "echo \"'\"" "'\n" "" ""
 
 testing "math" 'echo $((1+2))' '3\n' '' ''
 testing "[math]" 'echo $[1+2]' '3\n' '' ''
-testing "math prio" 'echo $((1+2*3))' '7\n' '' ''
+testing "math prio" 'echo $((1+2*3**4))' '163\n' '' ''
 testing "math paren" 'echo $(((1+2)*3))' '9\n' '' ''
+testing "math spaces" 'echo $(( ( 1 + 2 ) * 7 - 5 ** 2 ))' '-4\n' '' ''
 
 # Loops and flow control
 testing "case" 'for i in A C J B; do case "$i" in A) echo got A ;; B) echo and B ;; C) echo then C ;; *) echo default ;; esac; done' \
@@ -571,6 +574,9 @@ testing 'function nested parentheses' \
 shxpect 'local creates a whiteout' \
   I$'func() { local potato; echo ${potato?bang}; }; potato=123; func\n' \
   E E"$P" I$'echo $?\n' O$'1\n'
+testing 'local replaces/preserves magic type' \
+  'x() { local RANDOM=potato; echo $RANDOM;};x;echo -e "$RANDOM\n$RANDOM"|wc -l'\
+  'potato\n2\n' '' ''
 
 testing '$$ is parent shell' \
   '{ echo $$; (echo $$) } | sort -u | wc -l' "1\n" "" ""
@@ -578,6 +584,20 @@ testing '$PPID is parent shell' \
   '{ echo $PPID; (echo $PPID) } | sort -u | wc -l' "1\n" "" ""
 testing '$BASHPID is current PID' \
   '{ echo $BASHPID; (echo $BASHPID) } | sort -u | wc -l' "2\n" "" ""
+
+testing 'unexport supports +=' 'export -n ABC+=DEF; declare -p ABC' \
+  'declare -- ABC="DEF"\n' '' ''
+testing 'unexport existing +=' \
+  'export ABC=XYZ; export -n ABC+=DEF; declare -p ABC' \
+  'declare -- ABC="XYZDEF"\n' '' ''
+
+testing '$!' '{ echo $BASHPID & echo $!; echo ${!};} | sort -u | wc -l' '1\n' \
+  '' ''
+
+shxpect 'blank line preserves $?' \
+  I$'false\n' E"$P" I$'\n' E"$P" I$'echo $?\n' O$'1\n'
+testing 'NOP line clears $?' 'false;$NOTHING;echo $?' '0\n' '' ''
+testing 'run "$@"' 'false;"$@";echo $?' '0\n' '' ''
 
 # TODO finish variable list from shell init
 

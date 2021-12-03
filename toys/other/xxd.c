@@ -77,13 +77,11 @@ static void do_xxd(int fd, char *name)
 
 static void do_xxd_include(int fd, char *name)
 {
-  long long total = 0;
   int c = 1, i, len;
 
   // The original xxd outputs a header/footer if given a filename (not stdin).
   // We don't, which means that unlike the original we can implement -ri.
   while ((len = read(fd, toybuf, sizeof(toybuf))) > 0) {
-    total += len;
     for (i = 0; i < len; ++i) {
       printf("%s%#.02x", c > 1 ? ", " : "  ", toybuf[i]);
       if (c++ == TT.c) {

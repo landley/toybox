@@ -1,37 +1,36 @@
-/* logwrapper.c - Record commands called out of $PATH to a log
+/* logpath.c - Record commands called out of $PATH to a log
  *
  * Copyright 2019 Rob Landley <rob@landley.net>
  *
  * I made it up. Must be built standalone to work. (Is its own multiplexer.)
 
-USE_LOGWRAPPER(NEWTOY(logwrapper, 0, TOYFLAG_NOHELP|TOYFLAG_USR|TOYFLAG_BIN))
+USE_LOGPATH(NEWTOY(logpath, 0, TOYFLAG_NOHELP|TOYFLAG_USR|TOYFLAG_BIN))
 
-config LOGWRAPPER
-  bool "logwrapper"
+config LOGPATH
+  bool "logpath"
   default n
   help
-    usage: logwrapper ...
+    usage: logpath ...
 
-    Append command line to $WRAPLOG, then call second instance
+    Append command line to $LOGPATH, then call second instance
     of command in $PATH.
 */
 
-#define FOR_logwrapper
+#define FOR_logpath
 #include "toys.h"
 
 #if CFG_TOYBOX
 #warning Must be built standalone to work.
 #endif
 
-void logwrapper_main(void)
+void logpath_main(void)
 {
-  char *log = getenv("WRAPLOG"), *omnom = basename(*toys.argv),
-       *s, *ss, *sss;
+  char *log = getenv("LOGPATH"), *omnom = basename(*toys.argv), *s, *ss, *sss;
   struct string_list *list;
   int i, len;
 
   // Log the command line
-  if (!log) error_exit("no $WRAPLOG");
+  if (!log) error_exit("no $LOGPATH");
   len = strlen(omnom)+2;
   for (i = 0; i<toys.optc; i++) len += 2*strlen(toys.optargs[i])+3;
   ss = stpcpy(s = xmalloc(len), omnom);
@@ -52,7 +51,7 @@ void logwrapper_main(void)
   *(ss++) = '\n';
 
   // Atomically append to log and free buffer
-  i = xcreate(log, O_RDWR|O_CREAT|O_APPEND, 0644);
+  i = xcreate(log, O_WRONLY|O_CREAT|O_APPEND, 0644);
   xwrite(i, s, ss-s);
   close(i);
   free(s);
@@ -67,13 +66,12 @@ void logwrapper_main(void)
     }
   }
 
-  // Skip first instance and try to run next one, until out of instances.
-  for (;;) {
-    if (list) free(llist_pop(&list));
-    if (!list)
-      error_exit("no %s after %s in $PATH=%s", omnom,
-        **toys.argv == '/' ? *toys.argv : "logwrapper", getenv("PATH"));
+  // Skip first instance and try to run next one, continuing until one works
+  for (;list; free(llist_pop(&list))) {
+    free(llist_pop(&list));
     *toys.argv = list->str;
     execve(list->str, toys.argv, environ);
   }
+  error_exit("no %s after %s in $PATH=%s", omnom,
+    **toys.argv == '/' ? *toys.argv : "logpath", getenv("PATH"));
 }

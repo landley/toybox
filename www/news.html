@@ -1,14 +1,201 @@
 <html><head><title>toybox news</title>
 <!--#include file="header.html" -->
 
-<p>Toybox combines common Linux command line utilities together
+<p>Toybox combines the most common Linux command line utilities together
 into a single BSD-licensed executable that's simple, small, fast,
 reasonably standards-compliant, and powerful enough to turn Android into
 a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
-<a name="19-05-2021" /><a href="#19-15-2021"><hr><h2><b>May 19, 2021</b></h2></a>
+<a name="30-11-2021" /><a href="#30-11-2021"><hr><h2><b>November 30, 2021</b></h2></a>
+<blockquote><p>
+Busy? We'll I've just got this bulldozer to lie in front of or otherwise it'll
+knock my house down but otherwise no, not especially, why?</p>
+<p>- The Hitchhiker's Guide to the Galaxy</p></blockquote>
+
+<p><a href=downloads/toybox-0.8.6.tar.gz>Toybox 0.8.6</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.8.6>git commit</a>)
+is out, with prebuilt <a href=downloads/binaries/0.8.6>static binaries</a> and
+<a href=downloads/binaries/mkroot/0.8.6>mkroot images</a>
+bootable under QEMU (using vanilla linux-5.15).</p>
+
+<p><u>Make root</u>: The <a href=faq.html#mkroot>system builder</a> got upgraded, with better
+logging and layout of the output directory, plus <a href=https://github.com/landley/toybox/blob/0.8.6/scripts/mkroot.sh>scripts/mkroot.sh</a>
+should be easier to read and understand now.
+(Also added basic support for the <a href=http://lists.landley.net/pipermail/toybox-landley.net/2021-August/012497.html>qualcomm hexagon</a>,
+although it just builds a chroot filesystem, you can't boot a hexagon kernel under qemu
+<a href=https://lists.nongnu.org/archive/html/qemu-devel/2021-07/msg06430.html>quite yet</a>.)</p>
+</p>
+
+<p><u>New commands</u>: Rob added <b>linux32</b>.
+Dan Brown added <b>sha256sum</b> (and the related 224/384/512 variants).
+In pending, Elliott contributed <b>strace</b> and
+Moritz Röhrich contributed <b>hexdump</b>.</p>
+
+<p><u>Features</u>:
+Elliott added <b>date -s</b>, <b>pmap -p</b>, <b>tail -F -s</b>, <b>kill -0</b>,
+<b>reboot/halt/poweroff -d</b>, taught <b>file</b> to
+recognize Mach-o universal binaries, made Android's <b>log</b>
+take input from stdin when it has no arguments, added <b>tail --bytes --lines</b>
+(the --long synonyms for -c and -n),
+added <b>i2cdetect -q</b>, taught <b>i2cdump</b> to write XX for
+read failures, made <b>timeout</b> use the monotonic clock,
+and modernized the output of <b>uptime</b>.</p>
+
+<p>Rob added <b>find -quit -lname -ilname</b> and <b>-d</b> as a synonym for -depth,
+taught <b>cut -d $'\n'</b>
+to cut by line and added posix <b>cut -nb</b> (which wraps to the start of -c
+utf8 characters), added <b>cpio --ignore-devno --renumber-inodes</b>,
+taught <b>cal</b> to use 3 arguments (day month year), added <b>tar --selinux</b>
+support and a "had errors" message at the end, made <b>uname -o</b>
+say "Toybox", and fixed the <b>grep -Fw</b> combination (used by the 64 bit
+powerpc kernel build).</p>
+
+<p>Ella-0 added <b>split -n</b>. Peter Collingbourne added <b>grep -L</b>.</p>
+
+<p><u>Outside world</u>: The 0BSD license is <a href=https://lwn.net/Articles/868882/>now part</a> of the
+<a href=https://standards.iso.org/ittf/PubliclyAvailableStandards/>ISO-5962</a>
+standard. Of the currently <a href=https://github.com/search?q=license%3A0bsd&type=Repositories&ref=advsearch>38k 0BSD licensed projects on github</a> toybox
+isn't even the most popular, it's fourth.</p>
+
+<p>Elliott asked that toybox's <b>cut -DF</b> feature (a cheaper
+alternative to <b>awk '{print $3}'</b> be supported by other packages so
+it might someday make it into posix, so Rob
+<a href=http://lists.busybox.net/pipermail/busybox/2021-June/088886.html>submitted it to busybox</a>
+where it was <a href=https://git.busybox.net/busybox/commit/?id=0068ce2fa0e3>eventually merged</a>.</p>
+
+<p>Added a local <a href=https://landley.net/toybox/git>git mirror</a> for
+those reluctant to trust Microsoft Github.</p>
+
+<p>In the web nav bar, our <a href=https://isfreenodedeadyet.com/>freenode</a>
+channel moved to libera.chat
+(like <a href=https://boingboing.net/2021/05/19/freenode-irc-staff-quit-after-new-owner-seizes-control.html>everyone else's</a>;
+<a href=https://lwn.net/Articles/856543/>there</a>
+<a href=https://hackaday.com/2021/05/20/freenode-debacle-prompts-staff-exodus-new-network/>was</a>
+<a href=https://twitter.com/marcan42/status/1396280769778098185>a</a>
+<a href=https://twitter.com/mjg59/status/1396237336988446722>certain</a>
+<a href=https://www.devever.net/~hl/freenode_abuse>amount</a>
+<a href=https://twitter.com/TwitchiH/status/1395756163527028739>of</a>
+<a href=https://twitter.com/joepie91/status/1395364883303182339>drama</a>
+<a href=https://twitter.com/RichFelker/status/1404816846734385164>involved</a>).</p>
+
+<p><u>Pending</u>: lots more work on <b>toysh</b>: it has basic $((math)) support
+now, += assignment, the "declare" command and corresponding variable
+types (declare -i, declare -u, etc), several bugfixes, greatly
+improved support for background processes on NOMMU systems, and a bunch
+more sh.test entries.</p>
+
+<p>Elliott fixed <b>modprobe</b>'s parsing of short lines. Rob fixed a
+division by zero error when <b>vi</b> tries to edit a zero length file.
+Anqi Dong made sure that syslogd messages sent to sockets end with a
+newline. Eric Molitor significantly upgrade <b>wget</b> with http 1.1,
+chunked encoding, and (external library) https (TLS 1.2) support,
+plus several bugfixes. Michael Hope fixed <b>tftpd</b>'s option parsing.</p>
+
+<p><u>Documentation</u>: The roadmap.html and status.html pages
+got noticeable updates. (status.html is now directly generated by
+scripts/mkstatus.py, the old status.html wrapper that server-side-included
+status.gen has been removed).
+The <a href=design.html>design</a>
+page provides better links to the LP64 documentation, and the
+<a href=code.html>code</a> page explains a corner case where the filename
+and first command name expect to match (and how to work around it if they don't).
+Some website files weren't in the repository: two jpegs linked from html
+files, and the www/.htaccess file that triggers the server side includes
+in the navigation menu is now checked in. Johannes Schmitz fixed a
+typo in about.html.</p>
+
+<p>The <b>shred</b> usage line now includes all options.
+The <b>logwrapper</b> command now warns when it isn't built standalone.
+The <b>help</b> command no longer shows a header line about toybox unless
+it's called with no arguments. (It still shows it for command --help.)
+The --help option no longer needs to be the first option, and is
+checked before the "Not root" error message for restricted commands.</p>
+
+<p><u>Bugfixes</u>:
+Elliott made <b>ps</b> exit with status 1 if no processes were shown (for LTP),
+fixed an off-by-one in <b>dmesg</b> and a bounds check in <b>netstat</b>,
+fixed <b>pidof -s</b>, and taught <b>rmmod</b> to handle multiple arguments.
+Denys Vlasenko pointed out that <b>free -t</b> is "total" not "terabytes".
+Samanta Navarro pointed out a leftover 32 bit limitation in argument groups.
+Mikhail Kashkarov fixed mkdir's error handling for existing directories
+without -p.
+Rob fixed the 32 bit <b>readelf</b> build on Android, fixed a race condition
+in <b>tar</b> leading
+to the occasional spurious archiver warning,
+<a href=https://github.com/landley/toybox/commit/127cff38809e>changed cp</a>
+to work around a posix violation in the kernel, made xparsedate() handle more
+whitespace and ignore trailing + or - (a NOP timezone), made <b>su</b> log the
+right username, switched getuid() checks to geteuid() in <b>df</b> and <b>ping</b>,
+fixed a place in the test suite where do_test()
+could get confused by symlinks in the $PATH (calling realpath too early
+and losing the name of the command being run),
+made <b>env -i</b> use the old $PATH to run its command,
+and made <b>grep --color</b> highlight all matches.</p>
+
+<p>Worked around a bug in glibc+gcc 9.3 where linking against librt.a
+(for things like timer_create()) pulls in libgcc_eh.a which uses
+threads, meaning you can't statically link against librt.a from
+a non-threaded app. (I hadn't noticed because it works fine with the musl
+and llvm/bionic toolchains, only fails statically linking on e.g. debian.)
+The <a href=https://github.com/torvalds/linux/commit/d18760560593>kernel fix</a> for the cpio encrypted filesystem issue worked around in 0.8.5 made
+it in. Similarly, the
+FS_IOC_{GET,SET}{VERSION,FLAGS} ioctl family are <a href=https://www.spinics.net/lists/linux-api/msg49101.html>historically broken</a>
+(taking an unsigned int argument while advertising signed long),
+which <a href=https://github.com/landley/toybox/commit/dcfac5c983ad>we fixed</a> and reported upstream to a long
+round of bikeshedding (sadly
+the result seems to have been the man page maintainer
+<a href=https://git.kernel.org/pub/scm/docs/man-pages/man-pages.git/commit/man2?id=3de87d46840d>giving up</a>
+on documenting ioctls at all.</p>
+
+<p><u>Cleanups</u>:
+<b>cut</b> switched to FLAG() macros and no longer allows -f with -F,
+<b>eject</b> uses FLAG() macros and the linux/eject.h header,
+prettycool@protonmail added tabs to <b>time</b>'s output, and Rob removed
+the floating point dependency from time. Minor cleanups
+to lsattr, lspci, nsenter, xxd, file, insmod, modprobe, arp, bootchartd, pmap,
+comm, lsof, blkid, crond, init, userdel, makedevs, and scripts/make.sh.
+The "int fd = fd;"
+initialization hack to shut up gcc's "may be used uninitalized, but isn't" false
+positive warning has been replaced by a QUIET macro that resolves
+to nothing on llvm (which doesn't have the gcc bug).
+Ryan Pritchard reported a bug where <b>alias ls="ls --color"</b> would prevent
+--help or --version from being the first argument to the command, which was
+a pain to fix without breaking things like <b>echo -- --version</b> and
+<b>basename -s --help file--help</b>.
+(Both toy_singleinit() in main.c _and_ get_optflags() in lib/args.c now
+check for those.)</p>
+
+<p><u>Infrastructure</u>:
+xabspath() now has a more granular (flag based) control interface.</p>
+
+<p><b>scripts/make.sh</b> now uses wait -n (available since bash 4.3 in February 2014)
+to keep the processors busier during a parallel build.
+Tests are now running in a subshell, which means functions and local
+variables defined in one don't pollute others during "make tests".
+
+<p>Guo Chuang reported that lsattr won't build on an 8 year old version of
+<a href=https://github.com/landley/toybox/pull/292#issuecomment-899895909>centos</a>,
+which is still supported for 2 more years because Red Hat can
+be paid to have a 10 year support horizon, longer than toybox's 7. Rob
+fixed it (and merged a similarly ancient compilation failure fix when
+building pending/ip.c against a 3.10 kernel),
+but the <a href=http://lists.landley.net/pipermail/toybox-landley.net/2021-August/012537.html>philosophal argument</a>
+remains <a href=http://lists.landley.net/pipermail/toybox-landley.net/2021-September/012603.html>unresolved</a>.</p>
+
+<p>Standalone builds can now override the .config file location with
+KCONFIG_CONFIG same as the multiplexer build. scripts/single.sh can
+now cope with a missing .config file (it uses the defconfig values
+for the CONFIG_TOYBOX_* global symbols).
+"make install_airlock" no longer needs host versions of sha256sum and sha512sum.</p>
+
+<p>In the test suite, <b>VERBOSE=spam</b> now shows expands successful tests
+like it would for errors.</p>
+
+<p><b>scripts/record-commands</b> got updated and logwrapper got renamed <b>logpath</b>.</p>
+
+<a name="19-05-2021" /><a href="#19-05-2021"><hr><h2><b>May 19, 2021</b></h2></a>
 <blockquote><p>It was of course a descendant of these eccentric poets
 who invented the spurious tales of impending doom which enabled the people of
 Golgafrincham to rid themselves of the useless third of their population.
@@ -39,7 +226,8 @@ Elliott Hughes added <b>unicode</b>. The
 
 <p>Michael Christensen added <b>chsh</b> to pending, which hasn't been promoted
 yet because it's part of a group of commands (useradd, userdel, groupadd,
-groupdel) that should all be promoted together at some point.</p>
+groupdel) that should all be promoted together at some point
+(and depend on lib/passwd.c, which could use some more work).</p>
 
 <p><u>Upgrades</u>:
 <b>cpio</b> now supports extracting multiple concatenated archives.
