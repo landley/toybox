@@ -844,7 +844,7 @@ void replace_tempfile(int fdin, int fdout, char **tempname)
 
 // Create a 256 entry CRC32 lookup table.
 
-void crc_init(unsigned int *crc_table, int little_endian)
+void crc_init(unsigned *crc_table, int little_endian)
 {
   unsigned int i;
 
