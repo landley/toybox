@@ -6,7 +6,6 @@
  */
 
 #include "toys.h"
-#include <time.h>
 
 // generate ID prefix and random salt for given encryption algorithm.
 int get_salt(char *salt, char *algo)
@@ -27,7 +26,7 @@ int get_salt(char *salt, char *algo)
       xgetrandom(libbuf, ((len*6)+7)/8, 0);
 
       // Grab 6 bit chunks and convert to characters in ./0-9a-zA-Z
-      for (i=0; i<len; i++) {
+      for (i = 0; i<len; i++) {
         int bitpos = i*6, bits = bitpos/8;
 
         bits = ((libbuf[i]+(libbuf[i+1]<<8)) >> (bitpos&7)) & 0x3f;
@@ -50,150 +49,109 @@ int get_salt(char *salt, char *algo)
 int read_password(char *buf, int buflen, char *mesg)
 {
   struct termios oldtermio;
-  struct sigaction sa, oldsa;
+  struct sigaction sa = {.sa_handler = generic_signal}, oldsa;
   int i, tty = tty_fd(), ret = 1;
 
-  // NOP signal handler to return from the read. Use sigaction() instead
-  // of xsignal() because we want to restore the old handler afterwards.
-  memset(&sa, 0, sizeof(sa));
-  sa.sa_handler = generic_signal;
+  // Set NOP signal handler to return from the read.
   sigaction(SIGINT, &sa, &oldsa);
-
   tcflush(tty, TCIFLUSH);
   xset_terminal(tty, 1, 0, &oldtermio);
   dprintf(tty, "%s", mesg);
 
+  // Loop assembling password. (Too long = fail)
   for (i = 0; i<buflen-1; i++) {
-    if ((ret = read(tty, buf+i, 1))<0 || (!ret&&!i) || *buf==4 || buf[i]==3) {
-      i = 0;
-      ret = 1;
-
+    // tty closed, or EOF or ctrl-D at start, or ctrl-C anywhere: fail.
+    if ((ret = read(tty, buf+i, 1))<0 || (!ret&&!i) || *buf==4 || buf[i]==3)
       break;
-    } else if (!ret || buf[i] == '\n' || buf[i] == '\r') {
+    // EOF or newline: return success
+    else if (!ret || buf[i]=='\n' || buf[i]=='\r') {
       ret = 0;
-
       break;
     } else if (buf[i] == 8 || buf[i] == 127) i -= 2-!i;
   }
 
   // Restore terminal/signal state, terminate string
-  sigaction(SIGINT, &oldsa, 0);
   tcsetattr(0, TCSANOW, &oldtermio);
-  buf[i] = 0;
+  sigaction(SIGINT, &oldsa, 0);
   xputc('\n');
+  buf[i*!ret] = 0;
 
   return ret;
 }
 
-static char *get_nextcolon(char *line, int cnt)
-{
-  while (cnt--) {
-    if (!(line = strchr(line, ':'))) error_exit("Invalid Entry\n");
-    line++; //jump past the colon
-  }
-  return line;
-}
-
-/*update_password is used by multiple utilities to update /etc/passwd,
- * /etc/shadow, /etc/group and /etc/gshadow files,
- * which are used as user, group databeses
- * entry can be
- * 1. encrypted password, when updating user password.
- * 2. complete entry for user details, when creating new user
- * 3. group members comma',' separated list, when adding user to group
- * 4. complete entry for group details, when creating new group
- * 5. entry = NULL, delete the named entry user/group
+/* update colon-separated text files ala /etc/{passwd,shadow,group,gshadow}
+ * username = string match for first entry in line
+ * entry = new entry (NULL deletes matching line from file)
+ * pos = which entry to replace with "entry" (0 is first)
  */
-int update_password(char *filename, char* username, char* entry)
+// filename+ = new copy being written, filename- = backup of old version
+// returns 1 for success, 0 for failure
+int update_password(char *filename, char *username, char *entry, int pos)
 {
-  char *filenamesfx = NULL, *namesfx = NULL, *shadow = NULL,
-       *sfx = NULL, *line = NULL;
-  FILE *exfp, *newfp;
-  int ret = -1, found = 0, n;
-  struct flock lock;
-  size_t allocated_length;
+  char *filenamesfx = xmprintf("%s-", filename), *line = 0, *start, *end;
+  FILE *ofp, *nfp;
+  int ret = 0, found = 0, len = strlen(username)*!strchr(username, ':'), ii;
+  struct flock lock = {.l_type = F_WRLCK};
+  long long ll = 0;
 
-  shadow = strstr(filename, "shadow");
-  filenamesfx = xmprintf("%s+", filename);
-  sfx = strchr(filenamesfx, '+');
-
-  exfp = fopen(filename, "r+");
-  if (!exfp) {
-    perror_msg("Couldn't open file %s",filename);
+  // Open old filename ("r" won't let us lock), get blocking lock
+  if (!(ofp = fopen(filename, "w+")) || 0>fcntl(fileno(ofp), F_SETLK, &lock)) {
+    perror_msg("%s", filename);
     goto free_storage;
   }
 
-  *sfx = '-';
+  // Delete old backup, link new backup. (Failure here isn't fatal.)
   unlink(filenamesfx);
-  ret = link(filename, filenamesfx);
-  if (ret < 0) error_msg("can't create backup file");
+  if (0>link(filename, filenamesfx)) perror_msg("%s", filenamesfx);
 
-  *sfx = '+';
-  lock.l_type = F_WRLCK;
-  lock.l_whence = SEEK_SET;
-  lock.l_start = 0;
-  lock.l_len = 0;
-
-  ret = fcntl(fileno(exfp), F_SETLK, &lock);
-  if (ret < 0) perror_msg("Couldn't lock file %s",filename);
-
-  lock.l_type = F_UNLCK; //unlocking at a later stage
-
-  newfp = fopen(filenamesfx, "w+");
-  if (!newfp) {
-    error_msg("couldn't open file for writing");
-    ret = -1;
-    fclose(exfp);
+  // Open new file to copy entries to
+  filenamesfx[strlen(filenamesfx)-1] = '+';
+  if (!(nfp = fopen(filenamesfx, "w+"))) {
+    perror_msg("%s", filenamesfx);
     goto free_storage;
   }
 
-  ret = 0;
-  namesfx = xmprintf("%s:",username);
-  while ((n = getline(&line, &allocated_length, exfp)) > 0) {
-    line[n-1] = 0;
-    if (strncmp(line, namesfx, strlen(namesfx)))
-      fprintf(newfp, "%s\n", line);
-    else if (entry) {
-      char *current_ptr = NULL;
+  // Loop through lines
+  while (getline(&line, (void *)&ll, ofp)) {
+    // find matching line
+    start = end = line;
+    if (strncmp(chomp(line), username, len) || line[len]!=':') {
+      found++;
+      if (!entry) continue;
 
-      found = 1;
-      if (!strcmp(toys.which->name, "passwd")) {
-        fprintf(newfp, "%s%s:",namesfx, entry);
-        current_ptr = get_nextcolon(line, 2); //past passwd
-        if (shadow) {
-          fprintf(newfp, "%u:",(unsigned)(time(NULL))/(24*60*60));
-          current_ptr = get_nextcolon(current_ptr, 1);
-          fprintf(newfp, "%s\n",current_ptr);
-        } else fprintf(newfp, "%s\n",current_ptr);
-      } else if (!strcmp(toys.which->name, "groupadd") ||
-          !strcmp(toys.which->name, "addgroup") ||
-          !strcmp(toys.which->name, "delgroup") ||
-          !strcmp(toys.which->name, "groupdel")){
-        current_ptr = get_nextcolon(line, 3); //past gid/admin list
-        *current_ptr = '\0';
-        fprintf(newfp, "%s", line);
-        fprintf(newfp, "%s\n", entry);
+      // Find start and end of span to replace
+      for (ii = pos;;) {
+        while (*end != ':') {
+          if (!*end) break;
+          end++;
+        }
+        if (ii) {
+          start = ++end;
+          ii--;
+        } else break;
       }
+      if (ii) start = end = line;
     }
+
+    // Write with replacement (if any)
+    fprintf(nfp, "%*s%s%s\n", (int)(start-line), line,
+            (start==line) ? "" : entry, end);
+    memset(line, 0, strlen(line));
   }
   free(line);
-  free(namesfx);
-  if (!found && entry) fprintf(newfp, "%s\n", entry);
-  fcntl(fileno(exfp), F_SETLK, &lock);
-  fclose(exfp);
+  fflush(nfp);
+  fsync(fileno(nfp));
+  fclose(nfp);  // automatically unlocks
 
-  errno = 0;
-  fflush(newfp);
-  fsync(fileno(newfp));
-  fclose(newfp);
-  rename(filenamesfx, filename);
-  if (errno) {
-    perror_msg("File Writing/Saving failed: ");
+  if (!found || rename(filenamesfx, filename)) {
+    if (found) perror_msg("%s -> %s", filenamesfx, filename);
+    else if (entry) fprintf(nfp, "%s\n", entry);
     unlink(filenamesfx);
-    ret = -1;
-  }
+  } else ret = 1;
 
 free_storage:
+  if (ofp) fclose(ofp);
   free(filenamesfx);
+
   return ret;
 }
