@@ -85,6 +85,7 @@ testing "-exec {} +" \
 testing "-name file" "find dir -name file" "dir/file\n" "" ""
 testing "-name FILE" "find dir -name FILE" "" "" ""
 
+ln -s ../broken dir/link2
 testing "-iname file" "find dir -iname FILE" "dir/file\n" "" ""
 testing "-iname FILE" "find dir -iname FILE" "dir/file\n" "" ""
 
@@ -92,6 +93,8 @@ testing "-name (no arguments)" \
   "find dir -name 2>&1 | grep -o '[-]name'" "-name\n" "" ""
 testing "-iname (no arguments)" \
   "find dir -iname 2>&1 | grep -o '[-]iname'" "-iname\n" "" ""
+testing "-lname" "find dir -lname '?./brok*'" "dir/link2\n" "" ""
+testing "-ilname" "find dir -ilname '*ROK*'" "dir/link2\n" "" ""
 
 testing "" "find dir \( -iname file -o -iname missing \) -exec echo {} \;" \
   "dir/file\n" "" ""
@@ -143,5 +146,8 @@ testing "one slash" 'find /etc/ -maxdepth 1 | grep /passwd\$' '/etc/passwd\n' \
   '' ''
 testing 'empty arg' 'find "" dir -name file 2>/dev/null' 'dir/file\n' '' ''
 testing 'quit' 'find dir perm -print -quit' 'dir\n' '' ''
+ln dir/file perm/hardlink
+testing 'samefile' 'find . -samefile dir/file | sort' \
+  './dir/file\n./perm/hardlink\n' '' ''
 
 rm -rf dir broken perm irrelevant
