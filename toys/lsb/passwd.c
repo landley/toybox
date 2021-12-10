@@ -58,7 +58,6 @@ void passwd_main(void)
   struct passwd *pw = 0;
   struct spwd *sp;
   char *pass, *name, *encrypted = 0, salt[MAX_SALT_LEN];
-  int ret = -1;
 
   // If we're root or not -lud, load specified user. Exit if not allowed.
   if (!(myuid = getuid()) || !(toys.optflags&(FLAG_l|FLAG_u|FLAG_d))) {
@@ -72,19 +71,20 @@ void passwd_main(void)
   name = pw->pw_name;
   if (*(pass = pw->pw_passwd)=='x' && (sp = getspnam(name))) pass = sp->sp_pwdp;
 
-  if (toys.optflags & FLAG_l) {
+  if (FLAG(l)) {
     if (*pass=='!') error_exit("already locked");
     printf("Locking '%s'\n", name);
     encrypted = xmprintf("!%s", pass);
-  } else if (toys.optflags & FLAG_u) {
+  } else if (FLAG(u)) {
     if (*pass!='!') error_exit("already unlocked");
     printf("Unlocking '%s'\n", name);
     encrypted = pass+1;
-  } else if (toys.optflags & FLAG_d) {
+  } else if (FLAG(d)) {
     printf("Deleting password for '%s'\n", name);
-    encrypted = "";
+    *(encrypted = toybuf) = 0;
   } else {
-    if (get_salt(salt, TT.a ? TT.a : "des")<0) error_exit("bad -a '%s'", TT.a);
+    if (!TT.a) TT.a = "des";
+    if (get_salt(salt, TT.a)<0) error_exit("bad -a '%s'", TT.a);
 
     printf("Changing password for %s\n", name);
     if (myuid) {
@@ -105,11 +105,11 @@ void passwd_main(void)
   }
 
   // Update the passwd
-  ret = update_password(*pw->pw_passwd=='x' ? "/etc/shadow" : "/etc/passwd",
-    name, encrypted);
-
-  if (ret) error_msg("Failure");
+  if (update_password(*pw->pw_passwd=='x' ? "/etc/shadow" : "/etc/passwd",
+    name, encrypted, 1)) error_msg("Failure");
   else fprintf(stderr, "Success\n");
 
-  if (CFG_TOYBOX_FREE && (toys.optflags & FLAG_l)) free(encrypted);
+  memset(toybuf, 0, sizeof(toybuf));
+  memset(encrypted, 0, strlen(encrypted));
+  free(encrypted);
 }

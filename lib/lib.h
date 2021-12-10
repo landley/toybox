@@ -261,7 +261,7 @@ int wfchmodat(int rc, char *name, mode_t mode);
 int copy_tempfile(int fdin, char *name, char **tempname);
 void delete_tempfile(int fdin, int fdout, char **tempname);
 void replace_tempfile(int fdin, int fdout, char **tempname);
-void crc_init(unsigned int *crc_table, int little_endian);
+void crc_init(unsigned *crc_table, int little_endian);
 void base64_init(char *p);
 int yesno(int def);
 int fyesno(FILE *fp, int def);

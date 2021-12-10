@@ -754,25 +754,6 @@ void loopfiles_lines(char **argv, void (*function)(char **pline, long len))
   loopfiles_rw(argv, O_RDONLY|WARN_ONLY, 0, loopfile_lines_bridge);
 }
 
-// Slow, but small.
-char *get_line(int fd)
-{
-  char c, *buf = NULL;
-  long len = 0;
-
-  for (;;) {
-    if (1>read(fd, &c, 1)) break;
-    if (!(len & 63)) buf=xrealloc(buf, len+65);
-    if ((buf[len++]=c) == '\n') break;
-  }
-  if (buf) {
-    buf[len]=0;
-    if (buf[--len]=='\n') buf[len]=0;
-  }
-
-  return buf;
-}
-
 int wfchmodat(int fd, char *name, mode_t mode)
 {
   int rc = fchmodat(fd, name, mode, 0);
@@ -844,7 +825,7 @@ void replace_tempfile(int fdin, int fdout, char **tempname)
 
 // Create a 256 entry CRC32 lookup table.
 
-void crc_init(unsigned int *crc_table, int little_endian)
+void crc_init(unsigned *crc_table, int little_endian)
 {
   unsigned int i;
 
