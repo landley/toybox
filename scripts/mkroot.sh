@@ -270,9 +270,11 @@ CONFIG_CMDLINE="console=ttyUL0 earlycon"' BUILTIN=1
 fi
 
 # clean up and package root filesystem for initramfs.
-[ -z "$BUILTIN" ] && announce "${CROSS}root.cpio.gz" &&
-  (cd "$ROOT" && find . | cpio -o -H newc ${CROSS_COMPILE:+--no-preserve-owner} | gzip) \
-    > "$OUTPUT/$CROSS"root.cpio.gz || exit 1
+if [ -z "$BUILTIN" ]; then
+  announce "${CROSS}root.cpio.gz"
+  (cd "$ROOT" && find . | cpio -o -H newc ${CROSS_COMPILE:+--no-preserve-owner}\
+    | gzip) > "$OUTPUT/$CROSS"root.cpio.gz || exit 1
+fi
 
 mv "$LOG/$CROSS".{n,y} #2>/dev/null
 rmdir "$MYBUILD" "$BUILD" 2>/dev/null || exit 0 # remove if empty, not an error
