@@ -282,7 +282,7 @@ static int cp_node(struct dirtree *try)
             xattr_flist(fdin, list, listlen);
             list[listlen-1] = 0; // I do not trust this API.
             for (name = list; name-list < listlen; name += strlen(name)+1) {
-              if (!(TT.pflags&_CP_xattr) && strncmp(name, "security.", 9))
+              if (!(TT.pflags&_CP_context) && (strncmp(name, "security.", 9) == 0))
                 continue;
               if ((len = xattr_fget(fdin, name, 0, 0))>0) {
                 value = xmalloc(len);
