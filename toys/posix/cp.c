@@ -257,7 +257,7 @@ static int cp_node(struct dirtree *try)
 
       // Copy contents of file.
       } else {
-        int fdin;
+        int fdin, ii;
 
         fdin = openat(tfd, try->name, O_RDONLY);
         if (fdin < 0) {
@@ -282,8 +282,9 @@ static int cp_node(struct dirtree *try)
             xattr_flist(fdin, list, listlen);
             list[listlen-1] = 0; // I do not trust this API.
             for (name = list; name-list < listlen; name += strlen(name)+1) {
-              if (!(TT.pflags&_CP_context) && (strncmp(name, "security.", 9) == 0))
-                continue;
+              // context copies security, xattr copies everything else
+              ii = strncmp(name, "security.", 9) ? _CP_xattr : _CP_context;
+              if (!(TT.pflags&ii)) continue;
               if ((len = xattr_fget(fdin, name, 0, 0))>0) {
                 value = xmalloc(len);
                 if (len == xattr_fget(fdin, name, value, len))
