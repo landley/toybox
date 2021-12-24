@@ -326,7 +326,7 @@ static void set_default(void)
 {
   sigset_t signal_set_c;
 
-  sigatexit(SIG_DFL);
+  xsignal_all_killers(0);
   sigfillset(&signal_set_c);
   sigprocmask(SIG_UNBLOCK,&signal_set_c, NULL);
 
