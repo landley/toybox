@@ -465,7 +465,6 @@ void xsignal_all_killers(void *handler)
 {
   int i;
 
-  if (!handler) handler = SIG_DFL;
   for (i = 1; signames[i].num != SIGCHLD; i++)
     if (signames[i].num != SIGKILL) xsignal(signames[i].num, handler);
 }
