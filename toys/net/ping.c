@@ -301,9 +301,7 @@ void ping_main(void)
     toys.exitval = 0;
   }
 
-  sigatexit(0);
-  summary(0);
-
+  // summary(0) gets called for us atexit.
   if (CFG_TOYBOX_FREE) {
     freeaddrinfo(ai2);
     if (ifa2) freeifaddrs(ifa2);
