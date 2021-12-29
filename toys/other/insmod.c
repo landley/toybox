@@ -15,8 +15,6 @@ config INSMOD
 
 #include "toys.h"
 
-#include <sys/syscall.h>
-
 void insmod_main(void)
 {
   int fd = xopenro(*toys.optargs);

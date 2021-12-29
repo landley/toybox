@@ -19,7 +19,6 @@ config STRACE
 */
 
 #include <sys/ptrace.h>
-#include <sys/syscall.h>
 #include <sys/user.h>
 
 #define FOR_strace

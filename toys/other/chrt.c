@@ -35,7 +35,6 @@ GLOBALS(
 // musl-libc intentionally broke sched_get_priority_min() and friends in
 // commit 1e21e78bf7a5 because its maintainer didn't like those Linux
 // system calls, so work around it here.
-#include <sys/syscall.h>
 #define sched_get_priority_min(policy) \
   (int)syscall(SYS_sched_get_priority_min, (int)policy)
 #define sched_get_priority_max(policy) \

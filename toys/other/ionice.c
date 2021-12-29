@@ -37,7 +37,6 @@ config IORENICE
 
 #define FOR_ionice
 #include "toys.h"
-#include <sys/syscall.h>
 
 GLOBALS(
   long p, n, c;

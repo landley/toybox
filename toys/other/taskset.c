@@ -34,7 +34,6 @@ config TASKSET
 #define FOR_taskset
 #include "toys.h"
 
-#include <sys/syscall.h>
 #define sched_setaffinity(pid, size, cpuset) \
   syscall(__NR_sched_setaffinity, (pid_t)pid, (size_t)size, (void *)cpuset)
 #define sched_getaffinity(pid, size, cpuset) \
