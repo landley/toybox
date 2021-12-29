@@ -4,17 +4,19 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/cmp.html
 
-USE_CMP(NEWTOY(cmp, "<1>2ls(silent)(quiet)[!ls]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
+USE_CMP(NEWTOY(cmp, "<1>4ls(silent)(quiet)n#<1[!ls]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 
 config CMP
   bool "cmp"
   default y
   help
-    usage: cmp [-l] [-s] FILE1 [FILE2 [SKIP1 [SKIP2]]]
+    usage: cmp [-ls] [-n LEN] FILE1 [FILE2 [SKIP1 [SKIP2]]]
 
-    Compare the contents of two files. (Or stdin and file if only one given.)
+    Compare the contents of files (vs stdin if only one given), optionally
+    skipping bytes at start.
 
     -l	Show all differing bytes
+    -n LEN	Compare at most LEN bytes
     -s	Silent
 */
 
@@ -22,15 +24,21 @@ config CMP
 #include "toys.h"
 
 GLOBALS(
+  long n;
+
   int fd;
   char *name;
 )
 
+// We hijack loopfiles() to open and understand the "-" filename for us.
 static void do_cmp(int fd, char *name)
 {
   int i, len1, len2, min_len, size = sizeof(toybuf)/2;
   long byte_no = 1, line_no = 1;
   char *buf2 = toybuf+size;
+
+  if (toys.optc>(i = 2+!!TT.fd) && lskip(fd, atolx(toys.optargs[i])))
+    error_exit("EOF on %s", name);
 
   // First time through, cache the data and return.
   if (!TT.fd) {
@@ -43,19 +51,17 @@ static void do_cmp(int fd, char *name)
 
   toys.exitval = 0;
 
-  for (;;) {
+  for (;!FLAG(n) || TT.n;) {
+    if (FLAG(n)) TT.n -= size = minof(size, TT.n);
     len1 = readall(TT.fd, toybuf, size);
     len2 = readall(fd, buf2, size);
-
-    min_len = len1 < len2 ? len1 : len2;
+    min_len = minof(len1, len2);
     for (i=0; i<min_len; i++) {
       if (toybuf[i] != buf2[i]) {
         toys.exitval = 1;
-        if (toys.optflags & FLAG_l)
-          printf("%ld %o %o\n", byte_no, toybuf[i], buf2[i]);
+        if (FLAG(l)) printf("%ld %o %o\n", byte_no, toybuf[i], buf2[i]);
         else {
-          if (!(toys.optflags & FLAG_s)) 
-            printf("%s %s differ: char %ld, line %ld\n",
+          if (!FLAG(s)) printf("%s %s differ: char %ld, line %ld\n",
               TT.name, name, byte_no, line_no);
           goto out;
         }
@@ -64,21 +70,20 @@ static void do_cmp(int fd, char *name)
       if (toybuf[i] == '\n') line_no++;
     }
     if (len1 != len2) {
-      if (!(toys.optflags & FLAG_s))
-        fprintf(stderr, "cmp: EOF on %s\n", len1 < len2 ? TT.name : name);
-      toys.exitval = 1;
+      if (!FLAG(s)) error_msg("EOF on %s", len1 < len2 ? TT.name : name);
+      else toys.exitval = 1;
       break;
     }
     if (len1 < 1) break;
   }
 out:
   if (CFG_TOYBOX_FREE) close(TT.fd);
+  xexit();
 }
 
 void cmp_main(void)
 {
   toys.exitval = 2;
-  loopfiles_rw(toys.optargs, O_CLOEXEC|(WARN_ONLY*!(toys.optflags&FLAG_s)), 0,
-    do_cmp);
+  loopfiles_rw(toys.optargs, O_CLOEXEC|(WARN_ONLY*!FLAG(s)), 0, do_cmp);
   if (toys.optc == 1) do_cmp(0, "-");
 }

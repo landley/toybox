@@ -13,7 +13,7 @@ fi
 
 # CFLAGS and OPTIMIZE are different so you can add extra CFLAGS without
 # disabling default optimizations
-[ -z "$CFLAGS" ] && CFLAGS="-Wall -Wundef -Wno-char-subscripts -Werror=implicit-function-declaration"
+[ -z "$CFLAGS" ] && CFLAGS="-Wall -Wundef -Wno-char-subscripts -Werror=implicit-function-declaration -Wno-pointer-sign"
 # Required for our expected ABI. we're 8-bit clean thus "char" must be unsigned.
 CFLAGS="$CFLAGS -funsigned-char"
 [ -z "$OPTIMIZE" ] && OPTIMIZE="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-strict-aliasing"

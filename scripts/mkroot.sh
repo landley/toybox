@@ -115,7 +115,7 @@ if [ $$ -eq 1 ]; then # Setup networking for QEMU (needs /proc)
   for i in $(ls -1 /etc/rc 2>/dev/null | sort); do . /etc/rc/"$i"; done
 
   [ -z "$CONSOLE" ] && CONSOLE="$(</sys/class/tty/console/active)"
-  [ -z "$HANDOFF" ] && HANDOFF=/bin/sh && echo Type exit when done.
+  [ -z "$HANDOFF" ] && HANDOFF=/bin/sh && echo -e '\e[?7hType exit when done.'
   echo 3 > /proc/sys/kernel/printk
   exec oneit -c /dev/"${CONSOLE:-console}" $HANDOFF
 else # for chroot
@@ -228,8 +228,7 @@ CONFIG_CMDLINE="console=ttyUL0 earlycon"' BUILTIN=1
     echo qemu-system-"$QEMU" '"$@"' $QEMU_MORE -nographic -no-reboot -m 256 \
          -kernel $(basename $VMLINUX) $INITRD \
          "-append \"panic=1 HOST=$TARGET console=$KARGS \$KARGS\"" \
-         ${DTB:+-dtb "$(basename "$DTB")"} ";echo -e '\e[?7h'" \
-         > "$OUTPUT/qemu-$TARGET.sh" &&
+         ${DTB:+-dtb "$(basename "$DTB")"} > "$OUTPUT/qemu-$TARGET.sh" &&
     chmod +x "$OUTPUT/qemu-$TARGET.sh" || exit 1
   fi
 
