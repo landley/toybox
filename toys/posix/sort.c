@@ -7,7 +7,7 @@
  * Deviations from POSIX: Lots.
  * We invented -x
 
-USE_SORT(NEWTOY(sort, USE_SORT_FLOAT("g")"S:T:m" "o:k*t:" "xVbMcszdfirun", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
+USE_SORT(NEWTOY(sort, USE_SORT_FLOAT("gh")"S:T:m" "o:k*t:" "xVbMcszdfirun", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 
 config SORT
   bool "sort"
@@ -24,6 +24,7 @@ config SORT
     -c	Check whether input is sorted
     -d	Dictionary order (use alphanumeric and whitespace chars only)
     -f	Force uppercase (case insensitive sort)
+    -h	Human readable numbers
     -i	Ignore nonprinting characters
     -M	Month sort (jan, feb, etc)
     -x	Hexadecimal numerical sort
@@ -61,7 +62,7 @@ GLOBALS(
   char *o, *T, S;
 
   void *key_list;
-  int linecount;
+  unsigned linecount;
   char **lines, *name;
 )
 
@@ -72,8 +73,7 @@ GLOBALS(
 
 #define FLAG_bb (1<<31)  // Ignore trailing blanks
 
-struct sort_key
-{
+struct sort_key {
   struct sort_key *next_key;  // linked list
   unsigned range[4];          // start word, start char, end word, end char
   int flags;
@@ -115,7 +115,7 @@ static char *get_key_data(char *str, struct sort_key *key, int flags)
         }
       }
     }
-    if (!j) start=end;
+    if (!j) start = end;
   }
 
   // Key with explicit separator starts after the separator
@@ -194,7 +194,7 @@ static int compare_values(int flags, char *x, char *y)
     }
     if (yinf) return dy<0 ? 1 : -1;
 
-    return dx>dy ? 1 : (dx<dy ? -1 : 0);
+    return dx<dy ? -1 : dx>dy;
   } else if (flags & FLAG_M) {
     struct tm thyme;
     int dx;
@@ -227,12 +227,24 @@ static int compare_values(int flags, char *x, char *y)
       }
     }
     return *x ? !!*y : -1;
-  } else if (flags & FLAG_n) {
+  } else if (flags & (FLAG_n|FLAG_h)) {
     // Full floating point version of -n
     if (CFG_SORT_FLOAT) {
-      double dx = atof(x), dy = atof(y);
+      char *xx = x, *units = "kmgtpez";
+      double dxy[2];
+      int i = 0;
 
-      return dx>dy ? 1 : (dx<dy ? -1 : 0);
+      do {
+        dxy[i] = estrtol(xx, &xx, 0);
+        if (flags & FLAG_h) {
+          if (isspace(*xx)) xx++;
+          if (*xx && (xx = strchr(units, tolower(*xx))))
+            do dxy[i] *= 1024; while (xx-->units);
+        }
+        xx = y;
+      } while (!i++);
+
+      return dxy[0]<dxy[1] ? -1 : dxy[0]>dxy[1];
     // Integer version of -n for tiny systems
     } else return atoi(x)-atoi(y);
 
@@ -247,8 +259,8 @@ static int compare_keys(const void *xarg, const void *yarg)
   char *x, *y, *xx = *(char **)xarg, *yy = *(char **)yarg;
   struct sort_key *key;
 
-  for (key=(struct sort_key *)TT.key_list; !retval && key; key = key->next_key){
-    flags = key->flags ? key->flags : toys.optflags;
+  for (key=(void *)TT.key_list; !retval && key; key = key->next_key) {
+    flags = key->flags ? : toys.optflags;
 
     // Chop out and modify key chunks, handling -dfib
 
@@ -287,10 +299,8 @@ static void sort_lines(char **pline, long len)
 
   // handle -c here so we don't allocate more memory than necessary.
   if (FLAG(c)) {
-    int j = FLAG(u) ? -1 : 0;
-
-    if (TT.lines && compare_keys((void *)&TT.lines, &line)>j)
-      error_exit("%s: Check line %d\n", TT.name, TT.linecount);
+    if (TT.lines && compare_keys((void *)&TT.lines, &line)>-!!FLAG(u))
+      error_exit("%s: Check line %u\n", TT.name, TT.linecount);
     free(TT.lines);
     TT.lines = (void *)line;
   } else {
@@ -310,7 +320,9 @@ static void sort_read(int fd, char *name)
 
 void sort_main(void)
 {
-  int idx, fd = 1;
+  int idx, jdx, fd = 1;
+
+  if (FLAG(u)) toys.optflags |= FLAG_s;
 
   // Parse -k sort keys.
   if (TT.k) {
@@ -318,39 +330,32 @@ void sort_main(void)
 
     for (arg = TT.k; arg; arg = arg->next) {
       struct sort_key *key = add_key();
-      char *temp;
+      char *temp, *temp2, *optlist;
       int flag;
 
       idx = 0;
       temp = arg->arg;
       while (*temp) {
         // Start of range
-        key->range[2*idx] = (unsigned)strtol(temp, &temp, 10);
-        if (*temp=='.')
-          key->range[(2*idx)+1] = (unsigned)strtol(temp+1, &temp, 10);
+        key->range[2*idx] = strtol(temp, &temp, 10);
+        if (*temp=='.') key->range[(2*idx)+1] = strtol(temp+1, &temp, 10);
 
         // Handle flags appended to a key type.
         for (;*temp;temp++) {
-          char *temp2, *optlist;
 
-          // Note that a second comma becomes an "Unknown key" error.
-
+          // Second comma becomes an "Unknown key" error.
           if (*temp==',' && !idx++) {
             temp++;
             break;
           }
 
           // Which flag is this?
-
           optlist = toys.which->options;
           temp2 = strchr(optlist, *temp);
-          flag = (1<<(optlist-temp2+strlen(optlist)-1));
+          flag = 1<<(optlist-temp2+strlen(optlist)-1);
 
           // Was it a flag that can apply to a key?
-
-          if (!temp2 || flag>FLAG_x
-            || (flag&(FLAG_u|FLAG_c|FLAG_s|FLAG_z)))
-          {
+          if (!temp2 || flag>FLAG_x || (flag&(FLAG_u|FLAG_c|FLAG_s|FLAG_z))) {
             toys.exitval = 2;
             error_exit("Unknown key option.");
           }
@@ -380,11 +385,8 @@ void sort_main(void)
 
   // handle unique (-u)
   if (FLAG(u)) {
-    int jdx;
-
     for (jdx=0, idx=1; idx<TT.linecount; idx++) {
-      if (!compare_keys(&TT.lines[jdx], &TT.lines[idx]))
-        free(TT.lines[idx]);
+      if (!compare_keys(&TT.lines[jdx], &TT.lines[idx])) free(TT.lines[idx]);
       else TT.lines[++jdx] = TT.lines[idx];
     }
     if (TT.linecount) TT.linecount = jdx+1;

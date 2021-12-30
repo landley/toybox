@@ -88,7 +88,7 @@ testing "key edge case with -t" "sort -n -k4 -t/" \
 /usr/lib/prebaseconfig.d/6
 "
 
-testing "-x" "sort -x" "010\na0\n 0c0\n" "" "a0\n010\n 0c0\n"
+toyonly testing "-x" "sort -x" "010\na0\n 0c0\n" "" "a0\n010\n 0c0\n"
 
 # Test that -f applies to key or fallback independently
 
@@ -97,10 +97,12 @@ testing "" "sort -k2,2" "a B C\na B a\nA b b\n" "" "a B a\nA b b\na B C\n"
 testing "" "sort -f -k2,2" "A b b\na B C\na B a\n" "" "a B a\nA b b\na B C\n" 
 testing "" "sort -t, -k3n" "3,4,1,2\n4,1,2,3\n1,2,3,4\n2,3,4,1\n" "" \
   "1,2,3,4\n2,3,4,1\n4,1,2,3\n3,4,1,2\n"
-testing "-kx" "sort -k1,1x" "3\na\n0c\n" "" "0c\na\n3\n"
+toyonly testing "-kx" "sort -k1,1x" "3\na\n0c\n" "" "0c\na\n3\n"
 
-testing "" "sort -V" "toy-2.37.tar.gz\ntoy-3.4.tar.gz\ntoy-3.12.tar.gz\ntoy-4.16-rc2.tar.gz\ntoy-4.16.tar.gz\n" "" \
-  "toy-3.12.tar.gz\ntoy-2.37.tar.gz\ntoy-3.4.tar.gz\ntoy-4.16-rc2.tar.gz\ntoy-4.16.tar.gz"
+# This has irredeemable version skew on the host and no standard defining it.
+# testing "-V" "LANG=c sort -V" \
+#  "toy-2.37.tar.gz\ntoy-3.4.tar.gz\ntoy-3.12.tar.gz\ntoy-4.16-rc2.tar.gz\ntoy-4.16.tar.gz\n" "" \
+#  "toy-3.12.tar.gz\ntoy-2.37.tar.gz\ntoy-3.4.tar.gz\ntoy-4.16-rc2.tar.gz\ntoy-4.16.tar.gz"
 
 optional SORT_FLOAT
 
@@ -108,3 +110,12 @@ optional SORT_FLOAT
 testing "-g" "sort -g" \
   "bork\nNaN\n-inf\n0.4\n1.222\n01.37\n2.1\n+infinity\n" "" \
   "01.37\n1.222\n2.1\n0.4\nNaN\nbork\n-inf\n+infinity\n"
+
+# -n without number sorts as leading zero, but fallback is whole string
+testcmd '-n without number sorts as leading zero' '-n' \
+  '-1\n0A\n0D\nC\n1z\n3b\n' '' '1z\n0D\n3b\nC\n-1\n0A\n'
+
+testcmd '-u implies -s' '-uk2,2n' 'zero 1\nthree 2\nfour 3\n' '' \
+   'zero 1\none 1\nfour 3\ntwo 1\nthree 2\nalso 1'
+testcmd '-h' '-h' '1bx\n1by\n1x\n1x\n1y\n1Ky\n1Ky\n1ky\n1My\n1Gx\n1Gx\n' '' \
+  '1bx\n1y\n1by\n1x\n1ky\n1x\n1Ky\n1Gx\n1Ky\n1Gx\n1My'
