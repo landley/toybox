@@ -231,13 +231,16 @@ static int compare_values(int flags, char *x, char *y)
     // Full floating point version of -n
     if (CFG_SORT_FLOAT) {
       char *xx = x, *units = "kmgtpez";
-      double dxy[2];
+      double dxy[2], zz = 1;
       int i = 0;
 
       do {
         dxy[i] = estrtol(xx, &xx, 0);
         if (flags & FLAG_h) {
-          if (isspace(*xx)) xx++;
+          if (*xx=='.') {
+            xx++;
+            while (isdigit(*xx)) dxy[i] += ((*xx++)-'0')*(zz/=10);
+          }
           if (*xx && (xx = strchr(units, tolower(*xx))))
             do dxy[i] *= 1024; while (xx-->units);
         }
@@ -245,7 +248,7 @@ static int compare_values(int flags, char *x, char *y)
       } while (!i++);
 
       return dxy[0]<dxy[1] ? -1 : dxy[0]>dxy[1];
-    // Integer version of -n for tiny systems
+    // Integer version of -n for tiny systems. (qsort needs int return not long)
     } else return atoi(x)-atoi(y);
 
   // Ascii sort
