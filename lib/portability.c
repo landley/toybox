@@ -457,7 +457,6 @@ static const struct signame signames[] = {
   // Non-POSIX signals that don't cause termination
   SIGNIFY(WINCH),
 };
-int signames_len = ARRAY_LEN(signames);
 
 #undef SIGNIFY
 
@@ -511,7 +510,7 @@ char *num_to_sig(int sig)
   int i;
 
   // A named signal?
-  for (i=0; i<signames_len; i++)
+  for (i=0; i<ARRAY_LEN(signames); i++)
     if (signames[i].num == sig) return signames[i].name;
 
   // A real-time signal?

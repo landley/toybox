@@ -55,7 +55,7 @@ struct config {
 // confstr(), or output the macro value directly.
 
 // Probe the live system
-struct config sysconfs[] = {
+static struct config sysconfs[] = {
   /* POSIX */
 #define CONF(n) {"_POSIX_" #n,_SC_ ## n}
   CONF(ADVISORY_INFO), CONF(BARRIERS), CONF(ASYNCHRONOUS_IO),
@@ -118,7 +118,7 @@ struct config sysconfs[] = {
 };
 
 // Probe the live system with a path
-struct config pathconfs[] = {
+static struct config pathconfs[] = {
 #undef CONF
 #define CONF(n) {#n,_PC_ ## n}
   CONF(ASYNC_IO), CONF(CHOWN_RESTRICTED), CONF(FILESIZEBITS), CONF(LINK_MAX),
@@ -129,14 +129,14 @@ struct config pathconfs[] = {
 };
 
 // Strings out of a header
-struct config confstrs[] = {
+static struct config confstrs[] = {
 #undef CONF
 #define CONF(n) {#n,_CS_ ## n}
   CONF(PATH), CONF(V7_ENV)
 };
 
 // Integers out of a header
-struct config limits[] = {
+static struct config limits[] = {
 #undef CONF
 #define CONF(n) {#n,n}
   CONF(_POSIX_AIO_LISTIO_MAX), CONF(_POSIX_AIO_MAX), CONF(_POSIX_ARG_MAX),
@@ -167,7 +167,7 @@ struct config limits[] = {
 };
 
 // Names we need to handle ourselves (default to blank but shouldn't error)
-struct config others[] = {
+static struct config others[] = {
   {"LFS_CFLAGS", 0}, {"LFS_LDFLAGS", 0}, {"LFS_LIBS", 0}
 };
 

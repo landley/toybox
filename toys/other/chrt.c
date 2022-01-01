@@ -47,7 +47,7 @@ GLOBALS(
   syscall(SYS_sched_setscheduler, (pid_t)pid, (int)scheduler, (void *)param)
 #endif
 
-char *polnames[] = {
+static char *polnames[] = {
   "SCHED_OTHER", "SCHED_FIFO", "SCHED_RR", "SCHED_BATCH", 0, "SCHED_IDLE",
   "SCHED_DEADLINE"
 };
