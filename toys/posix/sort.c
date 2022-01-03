@@ -7,7 +7,7 @@
  * Deviations from POSIX: Lots.
  * We invented -x
 
-USE_SORT(NEWTOY(sort, USE_SORT_FLOAT("gh")"S:T:m" "o:k*t:" "xVbMcszdfirun", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
+USE_SORT(NEWTOY(sort, USE_SORT_FLOAT("g")"S:T:m" "o:k*t:" "xVbMcszdfirun", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 
 config SORT
   bool "sort"
@@ -24,7 +24,6 @@ config SORT
     -c	Check whether input is sorted
     -d	Dictionary order (use alphanumeric and whitespace chars only)
     -f	Force uppercase (case insensitive sort)
-    -h	Human readable numbers
     -i	Ignore nonprinting characters
     -M	Month sort (jan, feb, etc)
     -x	Hexadecimal numerical sort
@@ -227,29 +226,11 @@ static int compare_values(int flags, char *x, char *y)
       }
     }
     return *x ? !!*y : -1;
-  } else if (flags & (FLAG_n|FLAG_h)) {
-    // Full floating point version of -n
-    if (CFG_SORT_FLOAT) {
-      char *xx = x, *units = "kmgtpez";
-      double dxy[2], zz = 1;
-      int i = 0;
+  // This is actually an integer sort with decimals sorted by string fallback.
+  } else if (flags & FLAG_n) {
+    long long dx = atoll(x), dy = atoll(y);
 
-      do {
-        dxy[i] = estrtol(xx, &xx, 0);
-        if (flags & FLAG_h) {
-          if (*xx=='.') {
-            xx++;
-            while (isdigit(*xx)) dxy[i] += ((*xx++)-'0')*(zz/=10);
-          }
-          if (*xx && (xx = strchr(units, tolower(*xx))))
-            do dxy[i] *= 1024; while (xx-->units);
-        }
-        xx = y;
-      } while (!i++);
-
-      return dxy[0]<dxy[1] ? -1 : dxy[0]>dxy[1];
-    // Integer version of -n for tiny systems. (qsort needs int return not long)
-    } else return atoi(x)-atoi(y);
+    return dx<dy ? -1 : dx>dy;
 
   // Ascii sort
   } else return ((flags&FLAG_f) ? strcasecmp : strcmp)(x, y);

@@ -117,7 +117,3 @@ testcmd '-n without number sorts as leading zero' '-n' \
 
 testcmd '-u implies -s' '-uk2,2n' 'zero 1\nthree 2\nfour 3\n' '' \
    'zero 1\none 1\nfour 3\ntwo 1\nthree 2\nalso 1'
-testcmd '-h' '-h' '1bx\n1by\n1x\n1x\n1y\n1Ky\n1Ky\n1ky\n1My\n1Gx\n1Gx\n' '' \
-  '1bx\n1y\n1by\n1x\n1ky\n1x\n1Ky\n1Gx\n1Ky\n1Gx\n1My'
-testcmd '-h2' '-h' '9\n2K\n320K\n1.000071M\n1.000073M\n2.6M\n' '' \
-  '320K\n2.6M\n9\n1.000073M\n2K\n1.000071M'
