@@ -2,7 +2,12 @@
  *
  * Copyright 2015 Rob Landley <rob@landley.net>
  *
- * No standard
+ * No standard.
+ *
+ * See https://man7.org/linux/man-pages/man4/console_codes.4.html
+ * \e[#m   - color change           \e[y,xH - jump to x/y pos (1-based)
+ * \e[K    - delete to EOL          \e[25l  - disable cursor (h to enable)
+ * \e[1L   - zap line after cursor  \e[1M   - zap line before cursor
 
 USE_HEXEDIT(NEWTOY(hexedit, "<1>1r", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 
@@ -42,8 +47,7 @@ GLOBALS(
 
 static void show_error(char *what)
 {
-  tty_jump(0, TT.rows);
-  printf("\e[41m\e[37m\e[K\e[1m%s\e[0m", what);
+  printf("\e[%dH\e[41m\e[37m\e[K\e[1m%s\e[0m", TT.rows+1, what);
   xflush(1);
   msleep(500);
 }
@@ -55,10 +59,7 @@ static int prompt(char *prompt, char *initial_value)
 
   strcpy(TT.input, initial_value);
   while (1) {
-    tty_jump(0, TT.rows);
-    tty_esc("K");
-    printf("\e[1m%s: \e[0m%s", prompt, TT.input);
-    tty_esc("?25h");
+    printf("\e[%dH\e[K\e[1m%s: \e[0m%s\e[?25h", TT.rows+1, prompt, TT.input);
     xflush(1);
 
     key = scan_key(TT.keybuf, -1);
@@ -73,8 +74,8 @@ static int prompt(char *prompt, char *initial_value)
     else if (key >= ' ' && key < 0x7f && len < sizeof(TT.input))
       TT.input[len++] = key;
   }
+  printf("\e[?25l");
 
-  tty_esc("?25l");
   return yes;
 }
 
@@ -88,28 +89,27 @@ static void draw_char(int ch)
 
   if (TT.mode) {
     if (ch>127) {
-      tty_esc("2m");
+      printf("\e[2m");
       ch &= 127;
     }
     if (ch<32 || ch==127) {
-      tty_esc("7m");
+      printf("\e[7m");
       if (ch==127) ch = 32;
       else ch += 64;
     }
     xputc(ch);
   } else {
     if (ch < ' ') printf("\e[31m%c", ch + '@');
-    else tty_esc("35m?");
+    else printf("\e[35m?");
   }
-  tty_esc("0m");
+  printf("\e[0m");
 }
 
 static void draw_status(void)
 {
   char line[80];
 
-  tty_jump(0, TT.rows);
-  tty_esc("K");
+  printf("\e[%dH\e[K", TT.rows+1);
 
   snprintf(line, sizeof(line), "\"%s\"%s, %#llx/%#llx", *toys.optargs,
     FLAG(r) ? " [readonly]" : "", TT.pos, TT.len);
@@ -139,16 +139,15 @@ static void draw_line(long long yy)
     for (x=0; x<xx; x++) draw_char(TT.data[yy+x]);
     printf("%*s", 16-xx, "");
   }
-  tty_esc("K");
+  printf("\e[K");
 }
 
 static void draw_page(void)
 {
   int y;
 
-  tty_jump(0, 0);
   for (y = 0; y<TT.rows; y++) {
-    if (y) printf("\r\n");
+    printf(y ? "\r\n" : "\e[H");
     draw_line(y);
   }
   draw_status();
@@ -161,18 +160,15 @@ static void highlight(int xx, int yy, int side)
   int i;
 
   // Display cursor in hex area.
-  tty_jump(2+TT.numlen+3*xx, yy);
-  tty_esc("0m");
-  if (side!=2) tty_esc("7m");
+  printf("\e[%u;%uH\e[%dm", yy+1, TT.numlen+3*(xx+1), 7*(side!=2));
   if (side>1) draw_byte(cc);
   else for (i=0; i<2;) {
-    if (side==i) tty_esc("32m");
+    if (side==i) printf("\e[32m");
     printf("%x", (cc>>(4*(1&++i)))&15);
   }
-  tty_jump(TT.numlen+17*3+xx, yy);
 
   // Display cursor in text area.
-  if (side!=2) tty_esc("7m");
+  printf("\e[7m\e[%u;%uH"+4*(side==2), yy+1, 1+TT.numlen+17*3+xx);
   draw_char(cc);
 }
 
@@ -210,9 +206,7 @@ void hexedit_main(void)
   if (TT.rows) TT.rows--;
   xsignal(SIGWINCH, generic_signal);
   sigatexit(tty_sigreset);
-  tty_esc("0m");
-  tty_esc("?25l");
-  xflush(1);
+  dprintf(1, "\e[0m\e[?25l");
   xset_terminal(1, 1, 0, 0);
 
   if (access(*toys.optargs, W_OK)) toys.optflags |= FLAG_r;
@@ -234,29 +228,30 @@ void hexedit_main(void)
     x = TT.pos&15;
     y = TT.pos/16;
 
+    // scroll up
     while (y<TT.base) {
       if (TT.base-y>(TT.rows/2)) {
         TT.base = y;
         draw_page();
       } else {
         TT.base--;
-        tty_jump(0, 0);
-        tty_esc("1L");
+        printf("\e[H\e[1L");
         draw_line(0);
       }
     }
+
+    // scroll down
     while (y>=TT.base+TT.rows) {
       if (y-(TT.base+TT.rows)>(TT.rows/2)) {
         TT.base = y-TT.rows-1;
         draw_page();
       } else {
         TT.base++;
-        tty_jump(0, 0);
-        tty_esc("1M");
-        tty_jump(0, TT.rows-1);
+        printf("\e[H\e[1M\e[%uH", TT.rows);
         draw_line(TT.rows-1);
       }
     }
+
     draw_status();
     y -= TT.base;
 
@@ -278,7 +273,7 @@ void hexedit_main(void)
 
     if (key == 'x') {
       TT.mode = !TT.mode;
-      tty_esc("0m");
+      printf("\e[0m");
       draw_page();
       continue;
     }
