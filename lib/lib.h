@@ -348,8 +348,6 @@ int scan_key_getsize(char *scratch, int timeout_ms, unsigned *xx, unsigned *yy);
 void xsetspeed(struct termios *tio, int speed);
 int set_terminal(int fd, int raw, int speed, struct termios *old);
 void xset_terminal(int fd, int raw, int speed, struct termios *old);
-void tty_esc(char *s);
-void tty_jump(int x, int y);
 void tty_reset(void);
 void tty_sigreset(int i);
 void start_redraw(unsigned *width, unsigned *height);

@@ -43,6 +43,7 @@
  *       at right edge? (Not adjusting to screen size at all? Header wraps?)
  * TODO: top: thread support and SMP
  * TODO: pgrep -f only searches the amount of cmdline that fits in toybuf.
+ * TODO: pgrep qemu-system-i386 never matches because one char too long
 
 USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflMno*O*p(pid)*s*t*Tu*U*g*G*wZ[!ol][+Ae][!oO]", TOYFLAG_BIN|TOYFLAG_LOCALE))
 // stayroot because iotop needs root to read other process' proc/$$/io
@@ -1466,7 +1467,7 @@ static int header_line(int line, int rev)
 
 static void top_cursor_cleanup(void)
 {
-  tty_esc("?25h");
+  xputsn("\e[?25h");
 }
 
 static void top_common(
@@ -1490,7 +1491,7 @@ static void top_common(
   if (!FLAG(b)) {
     setbuf(stdout, stdout_buf);
     sigatexit(top_cursor_cleanup);
-    tty_esc("?25l");
+    xputsn("\e[?25l");
   }
 
   toys.signal = SIGWINCH;

@@ -252,27 +252,10 @@ int scan_key(char *scratch, int timeout_ms)
   return scan_key_getsize(scratch, timeout_ms, NULL, NULL);
 }
 
-void tty_esc(char *s)
-{
-  printf("\e[%s", s);
-}
-
-void tty_jump(int x, int y)
-{
-  char s[32];
-
-  sprintf(s, "%d;%dH", y+1, x+1);
-  tty_esc(s);
-}
-
 void tty_reset(void)
 {
   set_terminal(0, 0, 0, 0);
-  tty_esc("?25h");
-  tty_esc("0m");
-  tty_jump(0, 999);
-  tty_esc("K");
-  fflush(0);
+  xputsn("\e[?25h\e[0m\e[999H\e[K");
 }
 
 // If you call set_terminal(), use sigatexit(tty_sigreset);
