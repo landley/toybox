@@ -49,7 +49,7 @@ void demo_scankey_main(void)
         printf("%c", key);
       printf("] ");
     } else printf("key=%d ", key);
-    printf("x=%d y=%d width=%d height=%d\033[K", x, y, width, height);
+    printf("x=%d y=%d width=%d height=%d\e[K", x, y, width, height);
     fflush(0);
 
     if (key == -2) continue;

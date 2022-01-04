@@ -1458,8 +1458,8 @@ static int header_line(int line, int rev)
 
   if (FLAG(b)) puts(toybuf);
   else {
-    printf("%s%-*.*s%s\r\n", rev?"\033[7m":"", rev?TT.width:0, TT.width, toybuf,
-      rev?"\033[0m":"");
+    printf("%s%-*.*s%s\r\n", rev?"\e[7m":"", rev?TT.width:0, TT.width, toybuf,
+      rev?"\e[0m":"");
   }
 
   return line-1;
@@ -1566,7 +1566,7 @@ static void top_common(
       if (recalc) {
         qsort(mix.tb, mix.count, sizeof(struct procpid *), (void *)ksort);
         if (!FLAG(b)) {
-          printf("\033[H\033[J");
+          printf("\e[H\e[J");
           if (toys.signal) {
             toys.signal = 0;
             terminal_probesize(&TT.width, &TT.height);
@@ -1673,7 +1673,7 @@ static void top_common(
         lines = header_line(lines, 1);
       }
       if (!recalc && !FLAG(b))
-        printf("\033[%dH\033[J", 1+TT.height-lines);
+        printf("\e[%dH\e[J", 1+TT.height-lines);
       recalc = 1;
 
       for (i = 0; i<lines && i+topoff<mix.count; i++) {
@@ -1681,9 +1681,9 @@ static void top_common(
         int bold = !FLAG(b) && mix.tb[i+topoff]->state == 'R';
 
         if (!FLAG(b) && i) putchar('\n');
-        if (bold) printf("\033[1m");
+        if (bold) printf("\e[1m");
         show_ps(mix.tb[i+topoff]);
-        if (bold) printf("\033[m");
+        if (bold) printf("\e[m");
       }
 
       if (TT.top.n && !--TT.top.n) {

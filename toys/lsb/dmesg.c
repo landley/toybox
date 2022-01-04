@@ -42,7 +42,7 @@ GLOBALS(
 
 static void color(int c)
 {
-  if (TT.use_color) printf("\033[%dm", c);
+  if (TT.use_color) printf("\e[%dm", c);
 }
 
 static void format_message(char *msg, int new)

@@ -1460,7 +1460,7 @@ static void draw_page()
         aw = crunch_nstr(&line, clip, bytes, 0, "\t\n", vi_crunch);
         crunch_str(&line, TT.screen_width-1, stdout, "\t\n", vi_crunch);
         if ( *line ) printf("@");
-      } else printf("\033[2m~\033[m");
+      } else printf("\e[2m~\e[m");
     }
     if (SSOL+bytes < TT.filesize)  {
       line = toybuf;
@@ -1473,7 +1473,7 @@ static void draw_page()
 
   // Finished updating visual area, show status line.
   printf("\e[%uH\e[2K", TT.screen_height+1);
-  if (TT.vi_mode == 2) printf("\033[1m-- INSERT --\033[m");
+  if (TT.vi_mode == 2) printf("\e[1m-- INSERT --\e[m");
   if (!TT.vi_mode) {
     cx_scr = printf("%s", TT.il->data);
     cy_scr = TT.screen_height;

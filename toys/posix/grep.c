@@ -461,11 +461,11 @@ void grep_main(void)
     toys.optflags &= ~FLAG_color;
 
   if (FLAG(color)) {
-    TT.purple = "\033[35m";
-    TT.cyan = "\033[36m";
-    TT.red = "\033[1;31m";
-    TT.green = "\033[32m";
-    TT.grey = "\033[m";
+    TT.purple = "\e[35m";
+    TT.cyan = "\e[36m";
+    TT.red = "\e[1;31m";
+    TT.green = "\e[32m";
+    TT.grey = "\e[m";
   } else TT.purple = TT.cyan = TT.red = TT.green = TT.grey = "";
 
   if (FLAG(R)) toys.optflags |= FLAG_r;

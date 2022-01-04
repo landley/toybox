@@ -279,5 +279,5 @@ void start_redraw(unsigned *width, unsigned *height)
     toys.signal = -1;
     terminal_probesize(width, height);
   }
-  xprintf("\033[H\033[J");
+  xputsn("\e[H\e[J");
 }
