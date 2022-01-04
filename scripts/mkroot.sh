@@ -103,6 +103,7 @@ fi
 mountpoint -q dev/pts || mount -t devpts dev/pts dev/pts
 mountpoint -q proc || mount -t proc proc proc
 mountpoint -q sys || mount -t sysfs sys sys
+echo 0 99999 > /proc/sys/net/ipv4/ping_group_range
 
 if [ $$ -eq 1 ]; then # Setup networking for QEMU (needs /proc)
   ifconfig lo 127.0.0.1
