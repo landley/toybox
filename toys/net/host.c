@@ -10,7 +10,7 @@ USE_HOST(NEWTOY(host, "<1>2avt:", TOYFLAG_USR|TOYFLAG_BIN))
 
 config HOST
   bool "host"
-  default n
+  default y
   help
     usage: host [-v] [-t TYPE] NAME [SERVER]
 
@@ -28,6 +28,9 @@ config HOST
 
 GLOBALS(
   char *t;
+
+  char **nsname;
+  unsigned nslen;
 )
 
 static const struct rrt {
@@ -49,13 +52,31 @@ int xdn_expand(char *packet, char *endpkt, char *comp, char *expand, int elen)
   return i;
 }
 
+// Fetch "nameserve" lines from /etc/resolv.conf. Ignores 'options' lines
+static void get_nsname(char **pline, long len)
+{
+  char *line, *p;
+
+  if (!len) return;
+  line = *pline;
+  if (strstart(&line, "nameserver") && isspace(*line)) {
+    while (isspace(*line)) line++;
+    for (p = line; *p && !isspace(*p) && *p!='#'; p++);
+    if (p == line) return;
+    *p = 0;
+    if (!(TT.nslen&8))
+      TT.nsname = xrealloc(TT.nsname, (TT.nslen+8)*sizeof(void *));
+    TT.nsname[TT.nslen++] = xstrdup(line);
+  }
+}
+
 void host_main(void)
 {
   int verbose = FLAG(a)||FLAG(v), type, abuf_len = 65536, //Largest TCP response
-      i, j, sec, rcode, qlen, alen, pllen = 0, t2len = 2048;
+      i, j, sec, rcode, qlen, alen QUIET, pllen = 0, t2len = 2048;
   unsigned count, ttl;
   char *abuf = xmalloc(abuf_len), *name = *toys.optargs, *p, *ss,
-       *nsname = toys.optargs[1], *t2 = toybuf+t2len;
+       *t2 = toybuf+t2len;
   struct addrinfo *ai;
 
   // What kind of query are we doing?
@@ -87,18 +108,24 @@ void host_main(void)
   qlen = res_mkquery(0, name, 1, type, 0, 0, 0, t2, 280); //t2len);
   if (qlen<0) error_exit("bad NAME: %s", name);
 
-  // Send query packet to server, receive response
-  if (nsname) {
-    ai = xgetaddrinfo(nsname, "53", 0, SOCK_DGRAM, 0, 0);
+  // Grab nameservers
+  if (toys.optargs[1]) TT.nsname = toys.optargs+1;
+  else do_lines(xopen("/etc/resolv.conf", O_RDONLY), '\n', get_nsname);
+  if (!TT.nsname) error_exit("No nameservers");
+
+  // Send one query packet to each server until we receive response
+  while (*TT.nsname) {
+    if (verbose) printf("Using domain server %s:\n", *TT.nsname);
+    ai = xgetaddrinfo(*TT.nsname, "53", 0, SOCK_DGRAM, 0, 0);
     i = xsocket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
     xconnect(i, ai->ai_addr, ai->ai_addrlen);
     setsockopt(i, SOL_SOCKET, SO_RCVTIMEO, &(struct timeval){ .tv_sec = 5 },
       sizeof(struct timeval));
-    if (verbose) printf("Using domain server %s:\n", nsname);
     send(i, t2, qlen, 0);
-    alen = recv(i, abuf, abuf_len, 0);
-  } else alen = res_send(t2, qlen, abuf, abuf_len);
-  if (alen < 16) error_exit("Host not found.");
+    if (16 < (alen = recv(i, abuf, abuf_len, 0))) break;
+    if (!*++TT.nsname) error_exit("Host not found.");
+    close(i);
+  }
 
   // Did it error?
   rcode = abuf[3]&7;

@@ -56,15 +56,16 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-// Internationalization support (also in POSIX and LSB)
+// Internationalization support (also in POSIX)
 
 #include <langinfo.h>
 #include <locale.h>
 #include <wchar.h>
 #include <wctype.h>
 
-// LSB 4.1 headers
+// Non-posix headers
 #include <sys/ioctl.h>
+#include <sys/syscall.h>
 
 #include "lib/lib.h"
 #include "lib/lsm.h"

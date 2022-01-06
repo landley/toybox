@@ -64,7 +64,6 @@ config NSENTER
 
 #define FOR_nsenter
 #include "toys.h"
-#include <sys/syscall.h>
 #include <linux/sched.h>
 
 #define unshare(flags) syscall(SYS_unshare, flags)

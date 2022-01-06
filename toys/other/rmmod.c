@@ -19,7 +19,6 @@ config RMMOD
 #define FOR_rmmod
 #include "toys.h"
 
-#include <sys/syscall.h>
 #define delete_module(mod, flags) syscall(__NR_delete_module, mod, flags)
 
 void rmmod_main(void)

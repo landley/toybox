@@ -61,7 +61,7 @@ void pwgen_main(void)
         else c |= (0x80&randbuf[rand])>>2;
       }
       if (FLAG(0) && c>='0' && c<='9') continue;
-      if (FLAG(B) && strchr("0O1lI'`.,", c)) continue;
+      if (FLAG(B) && strchr("0O1lI8B5S2ZD'`.,", c)) continue;
       if (FLAG(v) && strchr("aeiou", tolower(c))) continue;
       if (!FLAG(y) || (0x80&randbuf[rand]))
         if (c<'0' || (c>'9' && c<'A') || (c>'Z' && c<'a') || c>'z') continue;

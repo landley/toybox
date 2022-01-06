@@ -17,8 +17,6 @@ config READAHEAD
 
 #include "toys.h"
 
-#include <sys/syscall.h>
-
 static void do_readahead(int fd, char *name)
 {
   int rc;

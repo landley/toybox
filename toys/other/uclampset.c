@@ -30,7 +30,6 @@ GLOBALS(
 )
 
 // Added to 5.3 kernel (commit a509a7cd7974): too new to rely on headers
-#include <sys/syscall.h>
 #ifndef SCHED_FLAG_RESET_ON_FORK
 #define SCHED_FLAG_RESET_ON_FORK 0x01
 #define SCHED_FLAG_KEEP_POLICY 0x08

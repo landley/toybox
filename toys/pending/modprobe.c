@@ -27,7 +27,6 @@ config MODPROBE
 */
 #define FOR_modprobe
 #include "toys.h"
-#include <sys/syscall.h>
 
 GLOBALS(
   struct arg_list *dirs;
