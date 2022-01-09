@@ -52,4 +52,5 @@ testing "-l" "nl -ba -l2 -w2 - input" \
 testing "no space" "nl -w 1 -v 42" "42\tline\n" "" "line\n"
 
 # Should test for -E but no other implementation seems to have it?
-#testing "-E" "nl -w2 -sx -Ebp'(one|two)'" " 1x" "one\nand\ntwo\n"
+toyonly testing "-E" "nl -w2 -sx -Ebp'(one|two)'" " 1xone\n   and\n 2xtwo\n" \
+  "" "one\nand\ntwo\n"
