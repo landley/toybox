@@ -26,7 +26,8 @@ testing "" "fmt -w 11" "1 2 3 4 5\n6 7 8 9 0\n" "" "1 2 3 4 5 6 7 8 9 0\n"
 testing "" "fmt -w 12" "1 2 3 4 5 6\n7 8 9 0\n" "" "1 2 3 4 5 6 7 8 9 0\n"
 
 testing "matched tab indent" "fmt" "\thello world\n" "" "\thello\n\tworld"
-testing "matched tab/space" "fmt" '        hello world\n' "" \
+# Version skew: debian is now emitting \t instead of "first line's indent"
+toyonly testing "matched tab/space" "fmt" '        hello world\n' "" \
   "        hello\n\tworld"
 testing "matched space/tab" "fmt" "\thello world\n" ""  "\thello\n        world"
 
