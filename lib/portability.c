@@ -475,8 +475,8 @@ int sig_to_num(char *sigstr)
   char *s;
 
   // Numeric?
-  i = estrtol(sigstr, &s, 10);
-  if (!errno && !*s) return i;
+  offset = estrtol(sigstr, &s, 10);
+  if (!errno && !*s) return offset;
 
   // Skip leading "SIG".
   strcasestart(&sigstr, "sig");
