@@ -1388,7 +1388,7 @@ static void draw_page()
   end = line;
 
 
-  xputsn("\e[%uH\e[2K", y+1);
+  printf("\e[%uH\e[2K", y+1);
   //find cursor position
   aw = crunch_nstr(&end, INT_MAX, bytes, 0, "\t\n", vi_crunch);
 
