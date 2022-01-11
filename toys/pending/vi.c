@@ -1369,7 +1369,7 @@ static void draw_page()
   else if (abs(scroll)>TT.screen_height/2) redraw = 3;
 
   xputsn("\e[H"); // jump to top left
-  if (redraw&2) xputsn("\e[2J\e[h");   //clear screen
+  if (redraw&2) xputsn("\e[2J\e[H");   //clear screen
   else if (scroll>0) printf("\e[%dL", scroll);  //scroll up
   else if (scroll<0) printf("\e[%dM", -scroll); //scroll down
 
@@ -1388,7 +1388,7 @@ static void draw_page()
   end = line;
 
 
-  printf("\e[%uH\e[2K", y+1);
+  printf("\e[%u;0H\e[2K", y+1);
   //find cursor position
   aw = crunch_nstr(&end, INT_MAX, bytes, 0, "\t\n", vi_crunch);
 
@@ -1453,9 +1453,9 @@ static void draw_page()
       scroll++, draw_line++;
     else if (scroll>0) scroll--, draw_line++;
 
-    printf("\e[%uH", y+1);
+    printf("\e[%u;0H", y+1);
     if (draw_line) {
-      xputsn("\e[2K");
+      printf("\e[2K");
       if (line && strlen(line)) {
         aw = crunch_nstr(&line, clip, bytes, 0, "\t\n", vi_crunch);
         crunch_str(&line, TT.screen_width-1, stdout, "\t\n", vi_crunch);
@@ -1472,7 +1472,7 @@ static void draw_page()
   TT.drawn_row = TT.scr_row, TT.drawn_col = clip;
 
   // Finished updating visual area, show status line.
-  printf("\e[%uH\e[2K", TT.screen_height+1);
+  printf("\e[%u;0H\e[2K", TT.screen_height+1);
   if (TT.vi_mode == 2) printf("\e[1m-- INSERT --\e[m");
   if (!TT.vi_mode) {
     cx_scr = printf("%s", TT.il->data);
@@ -1485,8 +1485,9 @@ static void draw_page()
       (100*TT.cursor)/(TT.filesize ? : 1), TT.cur_row+1, TT.cur_col+1);
     if (TT.cur_col != cx_scr) sprintf(toybuf+strlen(toybuf),"-%d", cx_scr+1);
   }
-  printf("\e[%u;%uH%s\e[%u;%uH", toybuf, TT.screen_height+1,
-    1+TT.screen_width-strlen(toybuf), cy_scr+1, cx_scr+1);
+  printf("\e[%u;%uH%s\e[%u;%uH", TT.screen_height+1,
+    (int) (1+TT.screen_width-strlen(toybuf)),
+    toybuf, cy_scr+1, cx_scr+1);
   xflush(1);
 }
 
