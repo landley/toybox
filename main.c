@@ -143,7 +143,9 @@ void toy_init(struct toy_list *which, char *argv[])
 
   // Free old toys contents (to be reentrant), but leave rebound if any
   // don't blank old optargs if our new argc lives in the old optargs.
-  if (argv<toys.optargs || argv>toys.optargs+toys.optc) free(toys.optargs);
+  if (toys.optargs) {
+    if (argv<toys.optargs || argv>toys.optargs+toys.optc) free(toys.optargs);
+  }
   memset(&toys, 0, offsetof(struct toy_context, rebound));
   if (oldwhich) memset(&this, 0, sizeof(this));
 
