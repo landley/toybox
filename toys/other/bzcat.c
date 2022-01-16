@@ -82,7 +82,7 @@ struct bwdata {
 struct bunzip_data {
   // Input stream, input buffer, input bit buffer
   int in_fd, inbufCount, inbufPos;
-  char *inbuf;
+  unsigned char *inbuf;
   unsigned int inbufBitCount, inbufBits;
 
   // Output buffer
@@ -601,7 +601,7 @@ dataus_interruptus:
 
 // Allocate the structure, read file header. If !len, src_fd contains
 // filehandle to read from. Else inbuf contains data.
-static int start_bunzip(struct bunzip_data **bdp, int src_fd, char *inbuf,
+static int start_bunzip(struct bunzip_data **bdp, int src_fd, unsigned char *inbuf,
   int len)
 {
   struct bunzip_data *bd;
@@ -618,7 +618,7 @@ static int start_bunzip(struct bunzip_data **bdp, int src_fd, char *inbuf,
     bd->inbufCount = len;
     bd->in_fd = -1;
   } else {
-    bd->inbuf = (char *)(bd+1);
+    bd->inbuf = (unsigned char *)(bd+1);
     bd->in_fd = src_fd;
   }
 
