@@ -62,7 +62,9 @@ config BZCAT
 
 // This is what we know about each huffman coding group
 struct group_data {
-  int limit[MAX_HUFCODE_BITS+1], base[MAX_HUFCODE_BITS], permute[MAX_SYMBOLS];
+  // limit and base are 1-indexed. index 0 is never used but increasing
+  // the length by 1 simplifies the code and isn't that much of a waste.
+  int limit[1+MAX_HUFCODE_BITS+1], base[1+MAX_HUFCODE_BITS], permute[MAX_SYMBOLS];
   char minLen, maxLen;
 };
 
@@ -161,7 +163,7 @@ static unsigned int get_bits(struct bunzip_data *bd, char bits_wanted)
 static int read_block_header(struct bunzip_data *bd, struct bwdata *bw)
 {
   struct group_data *hufGroup;
-  int hh, ii, jj, kk, symCount, *base, *limit;
+  int hh, ii, jj, kk, symCount;
   unsigned char uc;
 
   // Read in header signature and CRC (which is stored big endian)
@@ -273,16 +275,10 @@ static int read_block_header(struct bunzip_data *bd, struct bwdata *bw)
     hufGroup->minLen = minLen;
     hufGroup->maxLen = maxLen;
 
-    // Note that minLen can't be smaller than 1, so we adjust the base
-    // and limit array pointers so we're not always wasting the first
-    // entry.  We do this again when using them (during symbol decoding).
-    base = hufGroup->base-1;
-    limit = hufGroup->limit-1;
-
     // zero temp[] and limit[], and calculate permute[]
     pp = 0;
     for (ii = minLen; ii <= maxLen; ii++) {
-      temp[ii] = limit[ii] = 0;
+      temp[ii] = hufGroup->limit[ii] = 0;
       for (hh = 0; hh < symCount; hh++)
         if (length[hh] == ii) hufGroup->permute[pp++] = hh;
     }
@@ -297,13 +293,13 @@ static int read_block_header(struct bunzip_data *bd, struct bwdata *bw)
     pp = hh = 0;
     for (ii = minLen; ii < maxLen; ii++) {
       pp += temp[ii];
-      limit[ii] = pp-1;
+      hufGroup->limit[ii] = pp-1;
       pp <<= 1;
-      base[ii+1] = pp-(hh+=temp[ii]);
+      hufGroup->base[ii+1] = pp-(hh+=temp[ii]);
     }
-    limit[maxLen] = pp+temp[maxLen]-1;
-    limit[maxLen+1] = INT_MAX;
-    base[minLen] = 0;
+    hufGroup->limit[maxLen] = pp+temp[maxLen]-1;
+    hufGroup->limit[maxLen+1] = INT_MAX;
+    hufGroup->base[minLen] = 0;
   }
 
   return 0;
@@ -320,7 +316,7 @@ static int read_huffman_data(struct bunzip_data *bd, struct bwdata *bw)
 {
   struct group_data *hufGroup;
   int ii, jj, kk, runPos, dbufCount, symCount, selector, nextSym,
-    *byteCount, *base, *limit;
+    *byteCount;
   unsigned hh, *dbuf = bw->dbuf;
   unsigned char uc;
 
@@ -340,7 +336,6 @@ static int read_huffman_data(struct bunzip_data *bd, struct bwdata *bw)
   // linearly, staying in cache more, so isn't as limited by DRAM access.)
   runPos = dbufCount = symCount = selector = 0;
   // Some unnecessary initializations to shut gcc up.
-  base = limit = 0;
   hufGroup = 0;
   hh = 0;
 
@@ -351,14 +346,12 @@ static int read_huffman_data(struct bunzip_data *bd, struct bwdata *bw)
       symCount = GROUP_SIZE-1;
       if (selector >= bd->nSelectors) return RETVAL_DATA_ERROR;
       hufGroup = bd->groups + bd->selectors[selector++];
-      base = hufGroup->base-1;
-      limit = hufGroup->limit-1;
     }
 
     // Read next huffman-coded symbol (into jj).
     ii = hufGroup->minLen;
     jj = get_bits(bd, ii);
-    while (jj > limit[ii]) {
+    while (jj > hufGroup->limit[ii]) {
       // if (ii > hufGroup->maxLen) return RETVAL_DATA_ERROR;
       ii++;
 
@@ -369,7 +362,7 @@ static int read_huffman_data(struct bunzip_data *bd, struct bwdata *bw)
       jj = (jj << 1) | kk;
     }
     // Huffman decode jj into nextSym (with bounds checking)
-    jj-=base[ii];
+    jj-=hufGroup->base[ii];
 
     if (ii > hufGroup->maxLen || (unsigned)jj >= MAX_SYMBOLS)
       return RETVAL_DATA_ERROR;
