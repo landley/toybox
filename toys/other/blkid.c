@@ -106,6 +106,10 @@ static void do_blkid(int fd, char *name)
         pass++;
         continue;
       }
+      if (fstypes[i].magic_len+fstypes[i].magic_offset-off > sizeof(toybuf)) {
+        pass++;
+        continue;
+      }
       if (fstypes[i].magic_offset < off) continue;
 
       // Populate 64 bit little endian magic value
@@ -141,7 +145,7 @@ static void do_blkid(int fd, char *name)
 
   len = fstypes[i].label_len;
   if (!FLAG(U) && len) {
-    s = toybuf+fstypes[i].label_off-off;
+    s = toybuf+(fstypes[i].label_off-off);
     if (!strcmp(type, "vfat")) {
       show_tag("SEC_TYPE", "msdos");
       while (len && s[len-1]==' ') len--;
