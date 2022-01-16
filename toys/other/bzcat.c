@@ -126,7 +126,7 @@ static unsigned int get_bits(struct bunzip_data *bd, char bits_wanted)
 
     // Avoid 32-bit overflow (dump bit buffer to top of output)
     if (bd->inbufBitCount>=24) {
-      bits = bd->inbufBits&((1<<bd->inbufBitCount)-1);
+      bits = bd->inbufBits&((1u<<bd->inbufBitCount)-1);
       bits_wanted -= bd->inbufBitCount;
       bits <<= bits_wanted;
       bd->inbufBitCount = 0;
