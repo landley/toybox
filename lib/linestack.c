@@ -142,9 +142,9 @@ int crunch_rev_escape(FILE *out, int cols, int wc)
 {
   int rc;
 
-  tty_esc("7m");
+  xputsn("\e[7m");
   rc = crunch_escape(out, cols, wc);
-  tty_esc("27m");
+  xputsn("\e[27m");
 
   return rc;
 }

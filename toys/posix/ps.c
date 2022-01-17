@@ -43,6 +43,7 @@
  *       at right edge? (Not adjusting to screen size at all? Header wraps?)
  * TODO: top: thread support and SMP
  * TODO: pgrep -f only searches the amount of cmdline that fits in toybuf.
+ * TODO: pgrep qemu-system-i386 never matches because one char too long
 
 USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflMno*O*p(pid)*s*t*Tu*U*g*G*wZ[!ol][+Ae][!oO]", TOYFLAG_BIN|TOYFLAG_LOCALE))
 // stayroot because iotop needs root to read other process' proc/$$/io
@@ -1457,8 +1458,8 @@ static int header_line(int line, int rev)
 
   if (FLAG(b)) puts(toybuf);
   else {
-    printf("%s%-*.*s%s\r\n", rev?"\033[7m":"", rev?TT.width:0, TT.width, toybuf,
-      rev?"\033[0m":"");
+    printf("%s%-*.*s%s\r\n", rev?"\e[7m":"", rev?TT.width:0, TT.width, toybuf,
+      rev?"\e[0m":"");
   }
 
   return line-1;
@@ -1466,7 +1467,7 @@ static int header_line(int line, int rev)
 
 static void top_cursor_cleanup(void)
 {
-  tty_esc("?25h");
+  xputsn("\e[?25h");
 }
 
 static void top_common(
@@ -1490,7 +1491,7 @@ static void top_common(
   if (!FLAG(b)) {
     setbuf(stdout, stdout_buf);
     sigatexit(top_cursor_cleanup);
-    tty_esc("?25l");
+    xputsn("\e[?25l");
   }
 
   toys.signal = SIGWINCH;
@@ -1565,7 +1566,7 @@ static void top_common(
       if (recalc) {
         qsort(mix.tb, mix.count, sizeof(struct procpid *), (void *)ksort);
         if (!FLAG(b)) {
-          printf("\033[H\033[J");
+          printf("\e[H\e[J");
           if (toys.signal) {
             toys.signal = 0;
             terminal_probesize(&TT.width, &TT.height);
@@ -1672,7 +1673,7 @@ static void top_common(
         lines = header_line(lines, 1);
       }
       if (!recalc && !FLAG(b))
-        printf("\033[%dH\033[J", 1+TT.height-lines);
+        printf("\e[%dH\e[J", 1+TT.height-lines);
       recalc = 1;
 
       for (i = 0; i<lines && i+topoff<mix.count; i++) {
@@ -1680,9 +1681,9 @@ static void top_common(
         int bold = !FLAG(b) && mix.tb[i+topoff]->state == 'R';
 
         if (!FLAG(b) && i) putchar('\n');
-        if (bold) printf("\033[1m");
+        if (bold) printf("\e[1m");
         show_ps(mix.tb[i+topoff]);
-        if (bold) printf("\033[m");
+        if (bold) printf("\e[m");
       }
 
       if (TT.top.n && !--TT.top.n) {

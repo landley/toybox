@@ -457,7 +457,7 @@ char *chomp(char *s)
 
 int unescape(char c)
 {
-  char *from = "\\abefnrtv", *to = "\\\a\b\033\f\n\r\t\v";
+  char *from = "\\abefnrtv", *to = "\\\a\b\e\f\n\r\t\v";
   int idx = stridx(from, c);
 
   return (idx == -1) ? 0 : to[idx];
@@ -483,7 +483,7 @@ int unescape2(char **c, int echo)
   if (-1 == (idx = stridx("\\abeEfnrtv'\"?0", **c))) return '\\';
   ++*c;
 
-  return "\\\a\b\033\033\f\n\r\t\v'\"?"[idx];
+  return "\\\a\b\e\e\f\n\r\t\v'\"?"[idx];
 }
 
 // If string ends with suffix return pointer to start of suffix in string,

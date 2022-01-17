@@ -427,8 +427,8 @@ static void print_diff(int a, int b, char c, int *off_set, FILE *fp)
   char *reset = NULL;
 
   if (c != ' ' && (toys.optflags & FLAG_color)) {
-    printf("\033[%dm", c == '+' ? 32 : 31);
-    reset = "\033[0m";
+    printf("\e[%dm", c == '+' ? 32 : 31);
+    reset = "\e[0m";
   }
 
   for (i = a; i <= b; i++) {
@@ -639,7 +639,7 @@ static void do_diff(char **files)
   TT.status = change; //update status, may change bcoz of -w etc.
 
   if (!(toys.optflags & FLAG_q) && change) {  //start of !FLAG_q
-    if (toys.optflags & FLAG_color) printf("\033[1m");
+    if (toys.optflags & FLAG_color) printf("\e[1m");
     if (toys.optflags & FLAG_L) printf("--- %s\n", llist->arg);
     else show_label("---", files[0], &(TT).st[0]);
     if (((toys.optflags & FLAG_L) && !llist->next) || !(toys.optflags & FLAG_L))
@@ -648,7 +648,7 @@ static void do_diff(char **files)
       while (llist->next) llist = llist->next;
       printf("+++ %s\n", llist->arg);
     }
-    if (toys.optflags & FLAG_color) printf("\033[0m");
+    if (toys.optflags & FLAG_color) printf("\e[0m");
 
     struct diff *t, *ptr1 = d, *ptr2 = d;
     while (i) {
@@ -683,7 +683,7 @@ calc_ct:
       start2 = MAX(1, ptr1->c - (ptr1->a - ptr1->suff));
       end2 = ptr2->prev - ptr2->b + ptr2->d;
 
-      if (toys.optflags & FLAG_color) printf("\033[36m");
+      if (toys.optflags & FLAG_color) printf("\e[36m");
       printf("@@ -%ld", start1 ? ptr1->suff: (ptr1->suff -1));
       if (end1 != -1) printf(",%ld ", ptr2->prev-ptr1->suff + 1);
       else putchar(' ');
@@ -692,7 +692,7 @@ calc_ct:
       if ((end2 - start2 +1) != 1) printf(",%ld ", (end2 - start2 +1));
       else putchar(' ');
       printf("@@");
-      if (toys.optflags & FLAG_color) printf("\033[0m");
+      if (toys.optflags & FLAG_color) printf("\e[0m");
       putchar('\n');
 
       for (t = ptr1; t <= ptr2; t++) {

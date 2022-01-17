@@ -84,7 +84,7 @@ static int crunch_qb(FILE *out, int cols, int wc)
       for (i = 0; i<len; i++) {
         *to++ = '\\';
         if (strchr(TT.escmore, from[i])) *to++ = from[i];
-        else if (-1 != (j = stridx("\\\a\b\033\f\n\r\t\v", from[i])))
+        else if (-1 != (j = stridx("\\\a\b\e\f\n\r\t\v", from[i])))
           *to++ = "\\abefnrtv"[j];
         else to += sprintf(to, "%03o", from[i]);
       }
@@ -457,12 +457,12 @@ static void listfiles(int dirfd, struct dirtree *indir)
 
     if (FLAG(color)) {
       color = color_from_mode(st->st_mode);
-      if (color) printf("\033[%d;%dm", color>>8, color&255);
+      if (color) printf("\e[%d;%dm", color>>8, color&255);
     }
 
     ss = dt->name;
     crunch_str(&ss, INT_MAX, stdout, TT.escmore, crunch_qb);
-    if (color) printf("\033[0m");
+    if (color) printf("\e[0m");
 
     if ((FLAG(l)||FLAG(o)||FLAG(n)||FLAG(g)) && S_ISLNK(mode)) {
       printf(" -> ");
@@ -472,11 +472,11 @@ static void listfiles(int dirfd, struct dirtree *indir)
         if (fstatat(dirfd, dt->symlink, &st2, 0)) color = 256+31;
         else color = color_from_mode(st2.st_mode);
 
-        if (color) printf("\033[%d;%dm", color>>8, color&255);
+        if (color) printf("\e[%d;%dm", color>>8, color&255);
       }
 
       zprint(zap, "s", 0, (unsigned long)dt->symlink);
-      if (!zap && color) printf("\033[0m");
+      if (!zap && color) printf("\e[0m");
     }
 
     if (et) xputc(et);

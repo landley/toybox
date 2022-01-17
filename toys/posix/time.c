@@ -26,33 +26,28 @@ config TIME
 
 void time_main(void)
 {
-  struct timeval tv, tv2;
+  struct timespec ts, ts2;
   struct rusage ru;
   long long sec[3];
   int stat, ii, idx, nano[3];
   pid_t pid;
-  char *label[] = {"\nreal"+!!FLAG(p), "user", "sys"},
-       tab = toys.optflags ? ' ' : '\t';
+  char *labels[] = {"\nreal"+!!FLAG(p), "user", "sys"}, **label = labels,
+       *vlabels[] ={"Real", "User", "System"}, tab = toys.optflags ? ' ' : '\t';
 
-  if (FLAG(v))
-    memcpy(label, (char *[]){"Real", "User", "System"}, 3*sizeof(char *));
-  gettimeofday(&tv, NULL);
+  if (FLAG(v)) label = vlabels;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
   if (!(pid = XVFORK())) xexec(toys.optargs);
   wait4(pid, &stat, 0, &ru);
-  gettimeofday(&tv2, NULL);
-  if (tv.tv_usec > tv2.tv_usec) {
-    tv2.tv_usec += 1000000;
-    tv2.tv_sec--;
-  }
-  sec[0] = tv2.tv_sec-tv.tv_sec, nano[0] = tv2.tv_usec-tv.tv_usec;
+  clock_gettime(CLOCK_MONOTONIC, &ts2);
+  sec[0] = nanodiff(&ts, &ts2);
+  nano[0] = (sec[0] % 1000000000)/(toys.optflags ? 1000 : 1000000);
+  sec[0] /= 1000000000;
   sec[1] = ru.ru_utime.tv_sec, nano[1] = ru.ru_utime.tv_usec;
   sec[2] = ru.ru_stime.tv_sec, nano[2] = ru.ru_stime.tv_usec;
-  for (ii = idx = 0; ii<3; ii++) {
-    if (!toys.optflags) sec[ii] = (sec[ii]+500)/1000;
+  for (ii = idx = 0; ii<3; ii++)
     idx += sprintf(toybuf+idx, "%s%s%c%lld.%0*d\n", label[ii],
                    FLAG(v) ? " time (s):" : "", tab, sec[ii],
-                   3<<!!toys.optflags, nano[ii]);
-  }
+                   6>>!toys.optflags, nano[ii]);
   if (FLAG(v)) idx += sprintf(toybuf+idx,
     "Max RSS (KiB): %ld\nMajor faults: %ld\n"
     "Minor faults: %ld\nFile system inputs: %ld\nFile system outputs: %ld\n"

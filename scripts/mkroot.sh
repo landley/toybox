@@ -1,9 +1,6 @@
 #!/bin/bash
 
-# ----- Setup environment
-
-die() { echo "$@" >&2; exit 1; }
-announce() { echo -e "\033]2;$CROSS $*\007\n=== $*"; }
+# ------------------------------ Part 1: Setup -------------------------------
 
 # Clear environment variables by restarting script w/bare minimum passed through
 [ -z "$NOCLEAR" ] && exec env -i NOCLEAR=1 HOME="$HOME" PATH="$PATH" \
@@ -18,52 +15,60 @@ done
 : ${LOG:=${BUILD:=${TOP:=$PWD/root}/build}/log} ${AIRLOCK:=$BUILD/airlock}
 : ${CCC:=$PWD/ccc} ${PKGDIR:=$PWD/scripts/root}
 
+# useful functions
+announce() { echo -e "\033]2;$CROSS $*\007\n=== $*"; }
+die() { echo "$@" >&2; exit 1; }
+
 # ----- Are we cross compiling (via CROSS_COMPILE= or CROSS=)
 
 if [ -n "$CROSS_COMPILE" ]; then
   CROSS_COMPILE="$(realpath -s "$CROSS_COMPILE")" # airlock needs absolute path
   [ -z "$CROSS" ] && CROSS=${CROSS_COMPILE/*\//} CROSS=${CROSS/-*/}
+
 elif [ -n "$CROSS" ]; then # CROSS=all/allnonstop/$ARCH else list known $ARCHes
   [ ! -d "$CCC" ] && die "No ccc symlink to compiler directory."
   TARGETS="$(ls "$CCC" | sed -n 's/-.*//p' | sort -u)"
-  if [ "${CROSS::3}" == all ]; then
-    for i in $TARGETS; do # loop calling ourselves for each target
+
+  if [ "${CROSS::3}" == all ]; then # loop calling ourselves for each target
+    for i in $TARGETS; do
       "$0" "$@" CROSS=$i || [ "$CROSS" == allnonstop ] || exit 1
     done; exit
+
   else # Find matching cross compiler under ccc/ else list available targets
     CROSS_COMPILE="$(echo "$CCC/$CROSS"-*cross/bin/"$CROSS"*-cc)" # wildcard
-    if [ -e "$CROSS_COMPILE" ]; then
-      CROSS_COMPILE="${CROSS_COMPILE%cc}" # keep prefix for cc/ld/as/nm/strip...
-    else
-      echo $TARGETS && exit # list available targets
-    fi
+    [ ! -e "$CROSS_COMPILE" ] && echo $TARGETS && exit # list available targets
+    CROSS_COMPILE="${CROSS_COMPILE%cc}" # trim to prefix for cc/ld/as/nm/strip
   fi
 fi
 
-# Verify compiler works
+# Verify selected compiler works
 ${CROSS_COMPILE}cc --static -xc - -o /dev/null <<< "int main(void){return 0;}"||
   die "${CROSS_COMPILE}cc can't create static binaries"
 
-# Set CROSS=host if not cross compiling, and create per-target output directory
+# When not cross compiling set CROSS=host. Create per-target output directory
 : ${CROSS:=host} ${OUTPUT:=$TOP/$CROSS}
 
-# ----- Build airlock (Optional)
+# ----- Create hermetic build environment
 
 if [ -z "$NOAIRLOCK"] && [ -n "$CROSS_COMPILE" ]; then
-  # When cross compiling set host $PATH to binaries with known behavior
+  # When cross compiling set host $PATH to binaries with known behavior by
+  # - building a host toybox later builds use as their command line
+  # - cherry-picking specific commands from old path via symlink
   if [ ! -e "$AIRLOCK/toybox" ]; then
     announce "airlock" &&
     PREFIX="$AIRLOCK" KCONFIG_CONFIG=.singleconfig_airlock CROSS_COMPILE= \
-      make clean defconfig toybox install_airlock &&
+      make clean defconfig toybox install_airlock && # see scripts/install.sh
     rm .singleconfig_airlock || exit 1
   fi
   export PATH="$AIRLOCK"
 fi
 
 # Create per-target work directories
-MYBUILD="$BUILD/${CROSS}-tmp" && rm -rf "$MYBUILD" && mkdir -p "$MYBUILD" &&
-mkdir -p "$OUTPUT" "$LOG" || exit 1
+MYBUILD="$BUILD/${CROSS}-tmp" && rm -rf "$MYBUILD" &&
+mkdir -p "$MYBUILD" "$OUTPUT" "$LOG" || exit 1
 [ -z "$ROOT" ] && ROOT="$OUTPUT/fs" && rm -rf "$ROOT"
+
+# ----- log build output
 
 # Install command line recording wrapper, logs all commands run from $PATH
 if [ -z "$NOLOGPATH" ]; then
@@ -72,13 +77,16 @@ if [ -z "$NOLOGPATH" ]; then
     CROSS_COMPILE=${CROSS_COMPILE##*/}
   export WRAPDIR="$BUILD/record-commands" LOGPATH="$LOG/$CROSS-commands.txt"
   rm -rf "$WRAPDIR" "$LOGPATH" generated/obj &&
-  WRAPDIR="$WRAPDIR" CROSS_COMPILE= source scripts/record-commands || exit 1
+  WRAPDIR="$WRAPDIR" CROSS_COMPILE= NOSTRIP=1 source scripts/record-commands ||
+    exit 1
 fi
 
 # Start logging stdout/stderr
 rm -f "$LOG/$CROSS".{n,y} || exit 1
 [ -z "$NOLOG" ] && exec > >(tee "$LOG/$CROSS.n") 2>&1
 echo "Building for $CROSS"
+
+# ---------------------- Part 2: Create root filesystem -----------------------
 
 # ----- Create new root filesystem's directory layout.
 
@@ -103,6 +111,7 @@ fi
 mountpoint -q dev/pts || mount -t devpts dev/pts dev/pts
 mountpoint -q proc || mount -t proc proc proc
 mountpoint -q sys || mount -t sysfs sys sys
+echo 0 99999 > /proc/sys/net/ipv4/ping_group_range
 
 if [ $$ -eq 1 ]; then # Setup networking for QEMU (needs /proc)
   ifconfig lo 127.0.0.1
@@ -146,6 +155,8 @@ for i in ${PKG:+plumbing $PKG}; do
   announce "$i"; PATH="$PKGDIR:$PATH" source $i || die $i
 done
 
+# ------------------ Part 3: Build + package bootable system ------------------
+
 # ----- Build kernel for target
 
 if [ -z "$LINUX" ] || [ ! -d "$LINUX/kernel" ]; then
@@ -175,7 +186,7 @@ else
       QEMU="arm -M virt" KARCH=arm VMLINUX=arch/arm/boot/zImage
     fi
     KARGS=ttyAMA0
-    KCONF=MMU,ARCH_MULTI_V7,ARCH_VIRT,SOC_DRA7XX,ARCH_OMAP2PLUS_TYPICAL,ARCH_ALPINE,ARM_THUMB,VDSO,CPU_IDLE,ARM_CPUIDLE,KERNEL_MODE_NEON,SERIAL_AMBA_PL011,SERIAL_AMBA_PL011_CONSOLE,RTC_CLASS,RTC_HCTOSYS,RTC_DRV_PL031,NET_CORE,VIRTIO_MENU,VIRTIO_NET,PCI,PCI_HOST_GENERIC,VIRTIO_BLK,VIRTIO_PCI,VIRTIO_MMIO,ATA,ATA_SFF,ATA_BMDMA,ATA_PIIX,PATA_PLATFORM,PATA_OF_PLATFORM,ATA_GENERIC
+    KCONF=MMU,ARCH_MULTI_V7,ARCH_VIRT,SOC_DRA7XX,ARCH_OMAP2PLUS_TYPICAL,ARCH_ALPINE,ARM_THUMB,VDSO,CPU_IDLE,ARM_CPUIDLE,KERNEL_MODE_NEON,SERIAL_AMBA_PL011,SERIAL_AMBA_PL011_CONSOLE,RTC_CLASS,RTC_HCTOSYS,RTC_DRV_PL031,NET_CORE,VIRTIO_MENU,VIRTIO_NET,PCI,PCI_HOST_GENERIC,VIRTIO_BLK,VIRTIO_PCI,VIRTIO_MMIO,ATA,ATA_SFF,ATA_BMDMA,ATA_PIIX,PATA_PLATFORM,PATA_OF_PLATFORM,ATA_GENERIC,CONFIG_ARM_LPAE
   elif [ "$TARGET" == hexagon ]; then
     QEMU="hexagon -M comet" KARGS=ttyS0 VMLINUX=vmlinux
     KARCH="hexagon LLVM_IAS=1" KCONF=SPI,SPI_BITBANG,IOMMU_SUPPORT
@@ -275,5 +286,5 @@ if [ -z "$BUILTIN" ]; then
     | gzip) > "$OUTPUT/$CROSS"root.cpio.gz || exit 1
 fi
 
-mv "$LOG/$CROSS".{n,y} #2>/dev/null
+mv "$LOG/$CROSS".{n,y}
 rmdir "$MYBUILD" "$BUILD" 2>/dev/null || exit 0 # remove if empty, not an error

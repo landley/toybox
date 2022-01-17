@@ -4,10 +4,10 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/nl.html
  *
- * This implements a subset: only one logical page (-ip), no sections (-dfh).
- * todo: -l
+ * Deviations from posix: only one logical page (no -ip), no sections (-dfh),
+ * add -E, support multiple FILE, -n output is long not int.
 
-USE_NL(NEWTOY(nl, "v#=1l#w#<0=6Eb:n:s:", TOYFLAG_USR|TOYFLAG_BIN))
+USE_NL(NEWTOY(nl, "v#=1l#w#<0=6b:n:s:E", TOYFLAG_USR|TOYFLAG_BIN))
 
 config NL
   bool "nl"
@@ -34,8 +34,7 @@ GLOBALS(
   long w, l, v;
 
   // Count of consecutive blank lines for -l has to persist between files
-  long lcount;
-  long slen;
+  long lcount, slen;
 )
 
 static void do_nl(char **pline, long len)
@@ -71,10 +70,10 @@ void nl_main(void)
   sprintf(toybuf, "%%%s%s", clip, "*ld%s");
 
   if (!TT.b) TT.b = "t";
-  if (*TT.b == 'p' && TT.b[1])
-    xregcomp((void *)(toybuf+16), TT.b+1,
-      REG_NOSUB | (toys.optflags&FLAG_E)*REG_EXTENDED);
-  else if (!strchr("atn", *TT.b)) error_exit("bad -b '%s'", TT.b);
+  if (*TT.b=='p' && TT.b[1])
+    xregcomp((void *)(toybuf+16), TT.b+1, REG_NOSUB|FLAG(E)*REG_EXTENDED);
+  else if (!TT.b[0] || TT.b[1] || !strchr("atn", *TT.b))
+    error_exit("bad -b '%s'", TT.b);
 
   loopfiles_lines(toys.optargs, do_nl);
 }

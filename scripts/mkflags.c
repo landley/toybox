@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
 
   printf("#undef FORCED_FLAG\n#undef FORCED_FLAGLL\n"
     "#ifdef FORCE_FLAGS\n#define FORCED_FLAG 1\n#define FORCED_FLAGLL 1ULL\n"
-    "#else\n#define FORCED_FLAG 0\n#define FORCED_FLAGLL 0\n#endif\n\n");
+    "#else\n#define FORCED_FLAG 0\n#define FORCED_FLAGLL 0LL\n#endif\n\n");
 
   for (;;) {
     struct flag *flist, *aflist, *offlist;

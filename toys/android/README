@@ -1,5 +1,6 @@
-Android
+Android commands
 
-Commands primarily used by Android, not vanilla Linux. (Also SELinux stuff.)
+Commands primarily used by Android, not present in vanilla Linux.
+(Mostly SELinux stuff.)
 
 Bug Elliott Hughes <enh@google.com> about this.
