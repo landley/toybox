@@ -881,7 +881,7 @@ writenow:
       for (cc = line; *cc; cc++) if (*cc == '\\' && cc[1] == ';') break;
       delim = *cc;
       *cc = 0;
-      fd = xcreate(line, O_WRONLY|O_CREAT|O_TRUNC, 0644);
+      fd = xcreate(line, O_WRONLY|O_CREAT|O_TRUNC|O_APPEND, 0644);
       *cc = delim;
 
       command->w = reg - (char *)command;
