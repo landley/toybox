@@ -302,7 +302,7 @@ char *xpop_env(char *name); // because xpopenv() looks like xpopen_v()
 void xclearenv(void);
 void reset_env(struct passwd *p, int clear);
 
-// linestack.c
+// utf8.c
 
 int crunch_escape(FILE *out, int cols, int wc);
 int crunch_rev_escape(FILE *out, int cols, int wc);
