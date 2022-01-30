@@ -3,11 +3,6 @@
  * Copyright 2015 Rob Landley <rob@landley.net>
  *
  * No standard.
- *
- * See https://man7.org/linux/man-pages/man4/console_codes.4.html
- * \e[#m   - color change           \e[y,xH - jump to x/y pos (1-based)
- * \e[K    - delete to EOL          \e[25l  - disable cursor (h to enable)
- * \e[1L   - zap line after cursor  \e[1M   - zap line before cursor
 
 USE_HEXEDIT(NEWTOY(hexedit, "<1>1r", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 
