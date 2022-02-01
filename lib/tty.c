@@ -1,6 +1,11 @@
 /* tty.c - cursor control
  *
  * Copyright 2015 Rob Landley <rob@landley.net>
+ *
+ * Common ANSI (See https://man7.org/linux/man-pages/man4/console_codes.4.html)
+ * \e[#m   - color change           \e[y;xH - jump to x/y pos (1;1 is top left)
+ * \e[K    - delete to EOL          \e[25l  - disable cursor (h to enable)
+ * \e[1L   - Insert 1 (blank) line  \e[1M   - Delete 1 line (scrolling rest up)
  */
 
 #include "toys.h"
