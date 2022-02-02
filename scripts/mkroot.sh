@@ -105,10 +105,10 @@ if ! mountpoint -q dev; then
   [ $$ -eq 1 ] && exec 0<>/dev/console 1>&0 2>&1
   for i in ,fd /0,stdin /1,stdout /2,stderr
   do ln -sf /proc/self/fd${i/,*/} dev/${i/*,/}; done
-  mkdir -p dev/{shm,pts}
+  mkdir dev/shm
   chmod +t /dev/shm
 fi
-mountpoint -q dev/pts || mount -t devpts dev/pts dev/pts
+mountpoint -q dev/pts || { mkdir dev/pts && mount -t devpts dev/pts dev/pts; }
 mountpoint -q proc || mount -t proc proc proc
 mountpoint -q sys || mount -t sysfs sys sys
 echo 0 99999 > /proc/sys/net/ipv4/ping_group_range
