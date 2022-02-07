@@ -106,9 +106,10 @@ done
 # The following are commands toybox should provide, but doesn't yet.
 # For now symlink the host version. This list must go away by 1.0.
 
-PENDING="dd diff expr ftpd less tr vi wget awk sh unxz xzcat bc bison flex make nm ar gzip"
+PENDING="dd diff expr tr vi wget sh xzcat bc ar gzip   ftpd less awk unxz bison flex make nm"
 
-# "gcc" should go away for llvm, but some things still hardwire it
+# "gcc" can go away if the kernel guys merge my patch:
+# http://lkml.iu.edu/hypermail/linux/kernel/2202.0/01505.html
 TOOLCHAIN="as cc ld gcc objdump"
 
 # Tools needed to build packages
