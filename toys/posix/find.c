@@ -457,7 +457,7 @@ static int do_find(struct dirtree *new)
           }
         }
       } else if (!strcmp(s, "user") || !strcmp(s, "group")
-              || !strcmp(s, "newer") || !strcmp(s, "samefile"))
+              || !strncmp(s, "newer", 5) || !strcmp(s, "samefile"))
       {
         int macoff[] = {offsetof(struct stat, st_mtim),
           offsetof(struct stat, st_atim), offsetof(struct stat, st_ctim)};

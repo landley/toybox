@@ -149,5 +149,10 @@ testing 'quit' 'find dir perm -print -quit' 'dir\n' '' ''
 ln dir/file perm/hardlink
 testing 'samefile' 'find . -samefile dir/file | sort' \
   './dir/file\n./perm/hardlink\n' '' ''
-
 rm -rf dir broken perm irrelevant
+
+mkdir dir
+touch -d @12345 dir/one
+touch -d @12346 dir/two
+testing 'newerat' 'find dir -type f -newerat @12345' 'dir/two\n' '' ''
+rm -rf dir
