@@ -20,7 +20,7 @@ config LSPCI_TEXT
   depends on LSPCI
   default y
   help
-    usage: lspci [-n] [-i FILE ]
+    usage: lspci [-n] [-i FILE]
 
     -n	Numeric output (repeat for readable and numeric)
     -i	PCI ID database (default /usr/share/misc/pci.ids)
@@ -116,7 +116,8 @@ driver:
 void lspci_main(void)
 {
   if (CFG_LSPCI_TEXT && TT.n != 1) {
-    if (!TT.i) TT.i = "/usr/share/misc/pci.ids";
+    if (!TT.i) TT.i = CFG_TOYBOX_ON_ANDROID ? "/vendor/pci.ids" :
+        "/usr/share/misc/pci.ids";
     if (!(TT.db = fopen(TT.i, "r"))) perror_msg("%s", TT.i);
   }
 
