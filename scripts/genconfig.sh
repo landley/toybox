@@ -24,13 +24,6 @@ probesymbol()
 
 probeconfig()
 {
-  > generated/cflags
-  # llvm produces its own really stupid warnings about things that aren't wrong,
-  # and although you can turn the warning off, gcc reacts badly to command line
-  # arguments it doesn't understand. So probe.
-  [ -z "$(probecc -Wno-string-plus-int <<< \#warn warn 2>&1 | grep string-plus-int)" ] &&
-    echo -Wno-string-plus-int >> generated/cflags
-
   # Probe for container support on target
   probesymbol TOYBOX_CONTAINER << EOF
     #include <stdio.h>
