@@ -67,14 +67,21 @@ static int list_device(struct dirtree *new)
 
 void lsusb_main(void)
 {
-  int fd;
+  char *path = "/etc:/vendor:/usr/share/misc";
+  struct string_list *sl;
+  int fd = -1;
 
   // Parse  http://www.linux-usb.org/usb.ids file (if available)
-  if (-1 != (fd = open("/etc/usb.ids", O_RDONLY))) {
+  if ((sl = find_in_path(path, "usb.ids.gz"))) {
+    signal(SIGCHLD, SIG_IGN);
+    xpopen((char *[]){"zcat", sl->str, 0}, &fd, 1);
+  } else if ((sl = find_in_path(path, "usb.ids"))) fd = xopen(sl->str,O_RDONLY);
+  if (fd != -1) {
     FILE *fp = fdopen(fd, "r");
     char *s, *ss;
     struct ids *ids, *tids;
 
+    free(sl);
     while ((s = xgetline(fp))) {
       fd = estrtol(s, &ss, 16);
       if (ss == s+4+(*s=='\t') && *ss++==' ') {
