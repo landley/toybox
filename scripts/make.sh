@@ -2,23 +2,6 @@
 
 # Grab default values for $CFLAGS and such.
 
-if [ ! -z "$ASAN" ]; then
-  echo "Enabling ASan..."
-  # Turn ASan on. Everything except -fsanitize=address is optional, but
-  # but effectively required for useful backtraces.
-  asan_flags="-fsanitize=address \
-    -O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls"
-  CFLAGS="$asan_flags $CFLAGS"
-  HOSTCC="$HOSTCC $asan_flags"
-  # Ignore leaks on exit. TODO
-  export ASAN_OPTIONS="detect_leaks=0"
-fi
-
-# Centos 7 bug workaround, EOL June 30 2024.
-DASHN=-n; wait -n 2>/dev/null; [ $? -eq 2 ] && unset DASHN
-
-export LANG=c
-export LC_ALL=C
 set -o pipefail
 source scripts/portability.sh
 
