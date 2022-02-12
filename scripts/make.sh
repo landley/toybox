@@ -62,11 +62,10 @@ fi
 [ -d ".git" ] && GITHASH="$(git describe --tags --abbrev=12 2>/dev/null)"
 [ ! -z "$GITHASH" ] && GITHASH="-DTOYBOX_VERSION=\"$GITHASH\""
 TOYFILES="$($SED -n 's/^CONFIG_\([^=]*\)=.*/\1/p' "$KCONFIG_CONFIG" | xargs | tr ' [A-Z]' '|[a-z]')"
-TOYFILES="$(egrep -l "TOY[(]($TOYFILES)[ ,]" toys/*/*.c)"
+TOYFILES="main.c $(egrep -l "TOY[(]($TOYFILES)[ ,]" toys/*/*.c | xargs)"
 CFLAGS="$CFLAGS $(cat generated/cflags)"
 BUILD="$(echo ${CROSS_COMPILE}${CC} $CFLAGS -I . $OPTIMIZE $GITHASH)"
 LIBFILES="$(ls lib/*.c)"
-TOYFILES="main.c $TOYFILES"
 
 if [ "${TOYFILES/pending//}" != "$TOYFILES" ]
 then
@@ -77,12 +76,12 @@ genbuildsh()
 {
   # Write a canned build line for use on crippled build machines.
 
-  echo -e "#!/bin/sh\n\nPATH='\$PATH'\n\nBUILD='\$BUILD'\n\nLINK='\$LINK'\n"
-  echo -e "FILES='$LIBFILES $TOYFILES'\n\n\$BUILD \$FILES \$LINK"
+  echo -e "#!/bin/sh\n\nPATH='$PATH'\nBUILD='$BUILD'\nLINK='$LINK'\n"
+  echo -e "\$BUILD lib/*.c $TOYFILES \$LINK"
 }
 
-if ! cmp -s <(genbuildsh 2>/dev/null | head -n 6 ; echo LINK="'"$LDOPTIMIZE $LDFLAGS) \
-          <(head -n 7 generated/build.sh 2>/dev/null | $SED '7s/ -o .*//')
+if ! cmp -s <(genbuildsh 2>/dev/null | head -n 4 ; echo LINK="'"$LDOPTIMIZE $LDFLAGS) \
+          <(head -n 5 generated/build.sh 2>/dev/null | $SED '5s/ -o .*//')
 then
   echo -n "Library probe"
 
