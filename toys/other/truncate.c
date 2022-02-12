@@ -53,7 +53,7 @@ static void do_truncate(int fd, char *name)
 
 void truncate_main(void)
 {
-  int cr = !(toys.optflags&FLAG_c);
+  int cr = !FLAG(c);
 
   if (-1 != (TT.type = stridx("+-<>/%", *TT.s))) TT.s++;
   TT.size = atolx(TT.s);

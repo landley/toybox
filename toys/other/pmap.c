@@ -28,7 +28,7 @@ config PMAP
 void pmap_main(void)
 {
   char **optargs, *line = 0;
-  size_t allocated_length = 0;
+  size_t len = 0;
 
   for (optargs = toys.optargs; *optargs; optargs++) {
     long long start, end, pss, tpss=0, dirty, tdirty=0, swap, tswap=0, total=0;
@@ -46,7 +46,7 @@ void pmap_main(void)
     free(name);
 
     // Only bother scanning the more verbose smaps file in -x mode.
-    sprintf(toybuf, "/proc/%u/%smaps", pid, FLAG(x) ? "s" : "");
+    sprintf(toybuf, "/proc/%u/%smaps", pid, "s"+!FLAG(x));
     if (!(fp = fopen(toybuf, "r"))) {
       error_msg("no %s", toybuf);
       continue;
@@ -56,7 +56,7 @@ void pmap_main(void)
       xprintf("Address%*cKbytes     PSS   Dirty    Swap Mode  Mapping\n",
           (int)(sizeof(long)*2)-5, ' ');
 
-    while (getline(&line, &allocated_length, fp) > 0) {
+    while (getline(&line, &len, fp) > 0) {
       count = sscanf(line, "%llx-%llx %4s %*s %*s %*s %n", &start, &end, mode,
           &off);
       if (count == 3) {
