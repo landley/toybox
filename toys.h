@@ -83,9 +83,10 @@
 // These live in main.c
 
 struct toy_list *toy_find(char *name);
-void toy_init(struct toy_list *which, char *argv[]);
+void show_help(FILE *out, int full);
 void check_help(char **arg);
 void toy_singleinit(struct toy_list *which, char *argv[]);
+void toy_init(struct toy_list *which, char *argv[]);
 void toy_exec(char *argv[]);
 
 // Array of available commands
@@ -121,9 +122,7 @@ extern struct toy_context {
 
 // Two big temporary buffers: one for use by commands, one for library functions
 
-extern char *toybox_version, toybuf[4096], libbuf[4096];
-
-extern char **environ;
+extern char **environ, *toybox_version, toybuf[4096], libbuf[4096];
 
 #define FLAG(x) (toys.optflags&FLAG_##x)
 

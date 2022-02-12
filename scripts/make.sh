@@ -82,8 +82,8 @@ TOYFILES="$($SED -n 's/^CONFIG_\([^=]*\)=.*/\1/p' "$KCONFIG_CONFIG" | xargs | tr
 TOYFILES="$(egrep -l "TOY[(]($TOYFILES)[ ,]" toys/*/*.c)"
 CFLAGS="$CFLAGS $(cat generated/cflags)"
 BUILD="$(echo ${CROSS_COMPILE}${CC} $CFLAGS -I . $OPTIMIZE $GITHASH)"
-LIBFILES="$(ls lib/*.c | grep -v lib/help.c)"
-TOYFILES="lib/help.c main.c $TOYFILES"
+LIBFILES="$(ls lib/*.c)"
+TOYFILES="main.c $TOYFILES"
 
 if [ "${TOYFILES/pending//}" != "$TOYFILES" ]
 then
