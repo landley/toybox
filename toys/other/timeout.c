@@ -63,8 +63,6 @@ void timeout_main(void)
   xparsetimespec(*toys.optargs, &TT.its.it_value);
   if (TT.k) xparsetimespec(TT.k, &TT.kts);
 
-  if (timer_create(CLOCK_MONOTONIC, &se, &TT.timer)) perror_exit("timer");
-
   TT.nextsig = SIGTERM;
   if (TT.s && -1 == (TT.nextsig = sig_to_num(TT.s)))
     error_exit("bad -s: '%s'", TT.s);
@@ -77,6 +75,7 @@ void timeout_main(void)
     int status;
 
     xsignal(SIGALRM, handler);
+    if (timer_create(CLOCK_MONOTONIC, &se, &TT.timer)) perror_exit("timer");
     if (timer_settime(TT.timer, 0, &TT.its, 0)) perror_exit("timer_settime");
 
     status = xwaitpid(TT.pid);
