@@ -437,7 +437,7 @@ enviornment.</p>
 
 <p>Partly because toybox's maintainer has his own corollary to Moore's law:
 50% of what you know about programming the hardware is obsolete every 18
-months, but advantage of of C &amp; Unix it's usually the same 50% cycling
+months, but the advantage of C &amp; Unix it's usually the same 50% cycling
 out over and over.</p>
 
 <p>But mostly because the updates haven't added anything we care about.
@@ -454,8 +454,8 @@ types (uint32_t and friends), which LP64 handles for us.</p>
 
 <p>We're ignoring new versions of the Linux Foundation's standards (LSB, FHS)
 entirely, for the same reason Debian is: they're not good at maintaining
-standards. The Linux Foundation acquirred the Free Standards Group
-the same way X acquired Y.</p>
+standards. (The Linux Foundation acquiring the Free Standards Group worked
+out about as well as Microsoft buying Nokia.)</p>
 
 <p>We refer to current versions of man7.org because it's
 not easily versioned (the website updates regularly) and because
@@ -476,21 +476,23 @@ without replying on non-posix APIs....</p>
 
 <p>When the options a command offers visibly contradict posix, we try to have
 a "deviations from posix" section at the top of the source listing the
-differences.</p>
+differences, but that's about what we provide not what we used from the OS
+or build environment.</p>
 
 <p>The build needs bash (not a pure-posix sh), and building on MacOS requires
 "gsed" (because Mac's sed is terrible), but toybox is explicitly self-hosting
-and failure to build under the tool versions we provide is a bug.</p>
+and any failure to build under the tool versions we provide would be a bug
+needing to be fixed.</p>
 
 <p>Within the code, everything in main.c and lib/*.c has to build
 on every supported Linux version, compiler, and library, plus BSD and MacOS.
 We mostly try to keep #if/else staircases for portability issues to
-lib/portability.[ch]. No other lib</p>
+lib/portability.[ch].</p>
 
 <p>Portability of individual commands varies: we sometimes program directly
 against linux kernel APIs (unavoidable when accessing /proc and /sys),
-individual commands are allowed to #include <linux/*.h> (common
-headers and library files are not, except lib/portability.* within an
+individual commands are allowed to #include &lt;linux/*.h&gt; (common
+headers and library files are not, except maybe lib/portability.* within an
 appropriate #ifdef),  we only really test against Linux errno values
 (unless somebody on BSD submits a bug), and a few commands outright cheat
 (the way ifconfig checks for ioctl numbers in the 0x89XX range). This is
@@ -499,7 +501,7 @@ the main reason some commands build on BSD/MacOS and some don't.</p>
 <a name="bits" />
 <b><h3>32/64 bit</h3></b>
 <p>Toybox should work on both 32 bit and 64 bit systems. 64 bit desktop
-hardware went mainstream in <a href=https://web.archive.org/web/20040307000108mp_/http://developer.intel.com/technology/64bitextensions/faq.htm>in 2005</a>
+hardware went mainstream <a href=https://web.archive.org/web/20040307000108mp_/http://developer.intel.com/technology/64bitextensions/faq.htm>in 2005</a>
 and was essentially ubiquitous <a href=faq.html#support_horizon>by 2012</a>,
 but 32 bit hardware will continue to be important in embedded devices for years to come.</p>
 
@@ -511,17 +513,15 @@ support</a>. (Here's the original <a href=https://web.archive.org/web/2002090518
 
 <p>LP64 defines explicit sizes for all the basic C integer types, and
 guarantees that on any Unix-like platform "long" and "pointer" types
-are always the same size. This means it's safe to assign pointers into
+are always the same size (the processor's register size).
+This means it's safe to assign pointers into
 longs and vice versa without losing data: on 32 bit systems both are 32 bit,
 on 64 bit systems both are 64 bit.</p>
 
 <table border=1 cellpadding=10 cellspacing=2>
-<tr><td>C type</td><td>32 bit<br />sizeof</td><td>64 bit<br />sizeof</td></tr>
-<tr><td>char</td><td>1 byte</td><td>1 byte</td></tr>
-<tr><td>short</td><td>2 bytes</td><td>2 bytes</td></tr>
-<tr><td>int</td><td>4 bytes</td><td>4 bytes</td></tr>
-<tr><td>long</td><td>4 bytes</td><td>8 bytes</td></tr>
-<tr><td>long long</td><td>8 bytes</td><td>8 bytes</td></tr>
+<tr><td>C type</td><td>char</td><td>short</td><td>int</td><td>long</td><td>long long</td></tr>
+<tr><td>32 bit<br />sizeof</td><td>8 bits</td><td>16 bits</td><td>32 bits</td><td>32 bits</td><td>64 bits</td></tr>
+<tr><td>64 bit<br />sizeof</td><td>8 bits</td><td>16 bits</td><td>32 bits</td><td>64 bits</td><td>64 bits</td></tr>
 </table>
 
 <p>LP64 eliminates the need to use c99 "uint32_t" and friends: the basic
@@ -533,7 +533,7 @@ curious here are <a href=https://devblogs.microsoft.com/oldnewthing/20050131-00/
 
 <p>The main squishy bit in LP64 is that "long long" was defined as
 "at least" 64 bits instead of "exactly" 64 bits, and the standards body
-that issued it collapsed in the wake of proprietary unix wars (all
+that issued it collapsed in the wake of the <a href=https://en.wikipedia.org/wiki/Unix_wars>proprietary unix wars</a> (all
 those lawsuits between AT&amp;T/BSDI/Novell/Caldera/SCO), so is
 not available to issue an official correction. Then again a processor
 with 128-bit general purpose registers wouldn't be commercially viable
@@ -541,11 +541,12 @@ with 128-bit general purpose registers wouldn't be commercially viable
 (because 2005+32*1.5), and with the S-curve of Moore's Law slowly
 <a href=http://www.acm.org/articles/people-of-acm/2016/david-patterson>bending back down</a> as
 atomic limits and <a href=http://www.cnet.com/news/end-of-moores-law-its-not-just-about-physics/>exponential cost increases</a> produce increasing
-drag.... (The original Moore's Law curve would give a high end 2022 workstation
-around 8 terabytes of RAM, available retail. Most don't even come with
+drag.... (The original Moore's Law curve would mean that in the year 2022
+a high end workstation would have around 8 terabytes of RAM, available retail.
+Most don't even come with
 that much disk space.) At worst we don't need to care for decades, the
-S-curve means probably not in our lifetimes, atomic limits may mean "never".
-I'm ok treating "long long" as exactly 64 bits.</p>
+S-curve bending down means probably not in our lifetimes, and
+atomic limits may mean "never". So I'm ok treating "long long" as exactly 64 bits.</p>
 
 <b><h3>Signedness of char</h3></b>
 <p>On platforms like x86, variables of type char default to unsigned.  On
@@ -688,16 +689,16 @@ but "b" is not. Spacing it the second way is not how C works.)</p>
 founder Rob) have mediocre eyesight (so tend to increase the font size in
 terminal windows and web browsers), and program in a lot of coffee shops
 on laptops with a smallish sceen. I'm aware this <a href=http://lkml.iu.edu/hypermail/linux/kernel/2005.3/08168.html>exasperates Linus torvalds</a>
-(with his 8-character tab intents where just being in a function eats 8 chars
-and 4 more levels eats half of an 80 column terminal),but you've
+(with his 8-character tab indents where just being in a function eats 8 chars
+and 4 more indent levels eats half of an 80 column terminal), but you've
 gotta break somewhere and even Linus admits there isn't another obvious
 place to do so. (80 columns came from punched cards, which came
 from civil war era dollar bill sorting boxes IBM founder Herman Hollerith
 bought secondhand when bidding to run the 1890 census. "Totally arbitrary"
 plus "100 yeas old" = standard.)</p>
 
-<p>If statements with a single line body go on the same line if the result
-fits in 80 columns, on a second line if it doesn't. We usually only use
+<p>If statements with a single line body go on the same line when the result
+fits in 80 columns, on a second line when it doesn't. We usually only use
 curly brackets if we need to, either because the body is multiple lines or
 because we need to distinguish which if an else binds to. Curly brackets go
 on the same line as the test/loop statement. The exception to both cases is
