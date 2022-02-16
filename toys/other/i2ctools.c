@@ -230,7 +230,6 @@ void i2cdetect_main(void)
   }
 }
 
-#define CLEANUP_i2cdetect
 #define FOR_i2cdump
 #include "generated/flags.h"
 
@@ -259,7 +258,6 @@ void i2cdump_main(void)
   close(fd);
 }
 
-#define CLEANUP_i2cdump
 #define FOR_i2cget
 #include "generated/flags.h"
 
@@ -278,7 +276,6 @@ void i2cget_main(void)
   close(fd);
 }
 
-#define CLEANUP_i2cget
 #define FOR_i2cset
 #include "generated/flags.h"
 

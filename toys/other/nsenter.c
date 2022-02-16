@@ -75,7 +75,6 @@ GLOBALS(
 )
 
 // Code that must run in unshare's flag context
-#define CLEANUP_nsenter
 #define FOR_unshare
 #include <generated/flags.h>
 
@@ -111,7 +110,6 @@ static int test_f()
 }
 
 // Shift back to the context GLOBALS lives in (I.E. matching the filename).
-#define CLEANUP_unshare
 #define FOR_nsenter
 #include <generated/flags.h>
 

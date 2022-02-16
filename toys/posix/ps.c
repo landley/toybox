@@ -1421,7 +1421,6 @@ void ps_main(void)
   }
 }
 
-#define CLEANUP_ps
 #define FOR_top
 #include "generated/flags.h"
 
@@ -1792,7 +1791,6 @@ void top_main(void)
   top_common(merge_deltas);
 }
 
-#define CLEANUP_top
 #define FOR_iotop
 #include "generated/flags.h"
 
@@ -1823,7 +1821,6 @@ void iotop_main(void)
 // context, so force pgrep's flags on even when building pkill standalone.
 // (All the pgrep/pkill functions drop out when building ps standalone.)
 #define FORCE_FLAGS
-#define CLEANUP_iotop
 #define FOR_pgrep
 #include "generated/flags.h"
 
@@ -1937,7 +1934,6 @@ void pgrep_main(void)
   if (TT.pgrep.d) xputc('\n');
 }
 
-#define CLEANUP_pgrep
 #define FOR_pkill
 #include "generated/flags.h"
 

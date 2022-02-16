@@ -236,7 +236,6 @@ void lsattr_main(void)
 }
 
 // Switch gears from lsattr to chattr.
-#define CLEANUP_lsattr
 #define FOR_chattr
 #include "generated/flags.h"
 

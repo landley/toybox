@@ -3990,7 +3990,6 @@ void sh_main(void)
 
 /********************* shell builtin functions *************************/
 
-#define CLEANUP_sh
 #define FOR_cd
 #include "generated/flags.h"
 void cd_main(void)
@@ -4130,7 +4129,6 @@ void set_main(void)
 }
 
 // TODO need test: unset clears var first and stops, function only if no var.
-#define CLEANUP_cd
 #define FOR_unset
 #include "generated/flags.h"
 
@@ -4159,7 +4157,6 @@ void unset_main(void)
   }
 }
 
-#define CLEANUP_unset
 #define FOR_export
 #include "generated/flags.h"
 
@@ -4196,7 +4193,6 @@ void export_main(void)
   }
 }
 
-#define CLEANUP_export
 #define FOR_declare
 #include "generated/flags.h"
 
@@ -4250,7 +4246,6 @@ void eval_main(void)
   free(s);
 }
 
-#define CLEANUP_declare
 #define FOR_exec
 #include "generated/flags.h"
 
@@ -4334,7 +4329,6 @@ void jobs_main(void)
   }
 }
 
-#define CLEANUP_exec
 #define FOR_local
 #include "generated/flags.h"
 
@@ -4410,7 +4404,6 @@ void source_main(void)
   --TT.srclvl;
 }
 
-#define CLEANUP_local
 #define FOR_wait
 #include "generated/flags.h"
 
