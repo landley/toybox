@@ -8,11 +8,6 @@ struct ptr_len {
   long len;
 };
 
-struct str_len {
-  char *str;
-  long len;
-};
-
 // llist.c
 
 // All these list types can be handled by the same code because first element
