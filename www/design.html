@@ -1,24 +1,28 @@
 <html><head><title>The design of toybox</title></head>
 <!--#include file="header.html" -->
 
+<h2>Topics</h2>
+<ul>
+<li><a href=#goals><h3>Design Goals</h3></a></li>
+<li><a href=#portability><h3>Portability Issues</h3></a></li>
+<li><a href=#license><h3>License</a></h3></a></li>
+<li><a href=#codestyle><h3>Coding Style</h3></a></li>
+</ul>
+<hr />
+
 <a name="goals"><b><h2><a href="#goals">Design goals</a></h2></b>
 
 <p>Toybox should be simple, small, fast, and full featured. In that order.</p>
 
-<p>When these goals need to be balanced off against each other, keeping the code
+<p>It should be possible to get about <a href=https://en.wikipedia.org/wiki/Pareto_principle>80% of the way</a> to each goal
+before they really start to fight.
+When these goals need to be balanced off against each other, keeping the code
 as simple as it can be to do what it does is the most important (and hardest)
 goal. Then keeping it small is slightly more important than making it fast.
 Features are the reason we write code in the first place but this has all
 been implemented before so if we can't do a better job why bother?</p>
 
-<p>It should be possible to get 80% of the way to each goal
-before they really start to fight. Here they are in reverse order
-of importance:</p>
-
 <b><h3>Features</h3></b>
-
-<p>These days toybox is the command line of Android, so anything the android
-guys say to do gets at the very least closely listened to.</p>
 
 <p>Toybox should provide the command line utilities of a build
 environment capable of recompiling itself under itself from source code.
@@ -34,18 +38,20 @@ Android Open Source Project under the result. Any "circular dependencies"
 should be solved by toybox including the missing dependencies itself
 (see "Shared Libraries" below).</p>
 
-<p>Finally, toybox may provide some "convenience" utilties
+<p>Toybox may also provide some "convenience" utilties
 like top and vi that aren't necessarily used in a build but which turn
 the minimal build environment into a minimal development environment
 (supporting edit/compile/test cycles in a text console), configure
 network infrastructure for communication with other systems (in a build
 cluster), and so on.</p>
 
-<p>The hard part is deciding what NOT to include.
-A project without boundaries will bloat itself
-to death. One of the hardest but most important things a project must
-do is draw a line and say "no, this is somebody else's problem, not
-something we should do."
+<p>And these days toybox is the command line of Android, so anything the android
+guys say to do gets at the very least closely listened to.</p>
+
+<p>The hard part is deciding what NOT to include. A project without boundaries
+will bloat itself to death. One of the hardest but most important things a
+project must do is draw a line and say "no, this is somebody else's problem,
+not something we should do."
 Some things are simply outside the scope of the project: even though
 posix defines commands for compiling and linking, we're not going to include
 a compiler or linker (and support for a potentially infinite number of hardware
@@ -68,7 +74,10 @@ development systems, are a distraction from the 1.0 release.</p>
 
 <b><h3>Speed</h3></b>
 
-<p>It's easy to say lots about optimizing for speed (which is why this section
+<p>Quick smoketest: use the "time" command, and if you haven't got a test
+case that's embarassing enough to motivate digging, move on.</p>
+
+<p>It's easy to say a lot about optimizing for speed (which is why this section
 is so long), but at the same time it's the optimization we care the least about.
 The essence of speed is being as efficient as possible, which means doing as
 little work as possible.  A design that's small and simple gets you 90% of the
@@ -77,16 +86,17 @@ it's worth (and often actually counterproductive).  Still, here's some
 advice:</p>
 
 <p>First, understand the darn problem you're trying to solve.  You'd think
-I wouldn't have to say this, but I do.  Trying to find a faster sorting
+I wouldn't have to say this, and yet.  Trying to find a faster sorting
 algorithm is no substitute for figuring out a way to skip the sorting step
 entirely.  The fastest way to do anything is not to have to do it at all,
 and _all_ optimization boils down to avoiding unnecessary work.</p>
 
-<p>Speed is easy to measure; there are dozens of profiling tools for Linux
-(although personally I find the "time" command a good starting place).
-Don't waste too much time trying to optimize something you can't measure,
-and there's no much point speeding up things you don't spend much time doing
-anyway.</p>
+<p>Speed is easy to measure; there are dozens of profiling tools for Linux,
+but sticking in calls to "millitime()" out of lib.c and subtracting
+(or doing two clock_gettime() cals and then nanodiff() on them) is
+quick and easy. Don't waste too much time trying to optimize something you
+can't measure, and there's no much point speeding up things you don't spend
+much time doing anyway.</p>
 
 <p>Understand the difference between throughput and latency.  Faster
 processors improve throughput, but don't always do much for latency.
@@ -97,6 +107,12 @@ loops, and worry about latency everywhere else.  (And don't worry too much
 about avoiding system calls or function calls or anything else in the name
 of speed unless you are in the middle of a tight loop that's you've already
 proven isn't running fast enough.)</p>
+
+<p>The lowest hanging optimization fruit is usually either "don't make
+unnecessary copies of data" or "use a reasonable block size in your
+I/O transactions instead of byte-at-a-time".
+Start by looking for those, most of the rest of this advice is just explaining
+why they're bad.</p>
 
 <p>"Locality of reference" is generally nice, in all sorts of contexts.
 It's obvious that waiting for disk access is 1000x slower than doing stuff in
@@ -147,7 +163,7 @@ memory killer to free up pages by killing processes (the alternative is the
 entire OS freezing solid).  Modern operating systems seldom run out of
 memory gracefully.</p>
 
-<p>Also, it's better to be simple than clever.  Many people think that mmap()
+<p>It's usually better to be simple than clever. Many people think that mmap()
 is faster than read() because it avoids a copy, but twiddling with the memory
 management is itself slow, and can cause unnecessary CPU cache flushes.  And
 if a read faults in dozens of pages sequentially, but your mmap iterates
@@ -160,7 +176,7 @@ try to speed things up, and measure again to confirm it actually _did_ speed
 things up rather than made them worse.  (And understanding what's really going
 on underneath is a big help to making it happen faster.)</p>
 
-<p>In general, being simple is better than being clever.  Optimization
+<p>Another reason to be simple than clever is optimization
 strategies change with time.  For example, decades ago precalculating a table
 of results (for things like isdigit() or cosine(int degrees)) was clearly
 faster because processors were so slow.  Then processors got faster and grew
@@ -169,54 +185,108 @@ the table lookup (because the calculation fit in L1 cache but the lookup
 had to go out to DRAM).  Then cache sizes got bigger (the Pentium M has
 2 megabytes of L2 cache) and the table fit in cache, so the table became
 fast again...  Predicting how changes in hardware will affect your algorithm
-is difficult, and using ten year old optimization advice and produce
-laughably bad results.  But being simple and efficient is always going to
-give at least a reasonable result.</p>
+is difficult, and using ten year old optimization advice can produce
+laughably bad results.  Being simple and efficient should give at least a
+reasonable starting point.</p>
+
+<p>Even at the design level, a lot of simple algorithms scale terribly but
+perform fine with small data sets. When small datasets are the common case,
+"better" versions that trade higher throughput for worse latency can
+consistently perform worse.
+So if you think you're only ever going to feed the algorithm small data sets,
+maybe just do the simple thing and wait for somebody to complain. For example,
+you probably don't need to sort and binary search the contents of
+/etc/passwd, because even 50k users is still a reasonably manageable data
+set for a readline/strcmp loop, and that's the userbase of a fairly major
+<a href=https://en.wikipedia.org/wiki/List_of_United_States_public_university_campuses_by_enrollment>university</a>.
+Instead commands like "ls" call bufgetpwuid() out of lib/lib.c
+which keeps a linked list of recently seen items, avoiding reparsing entirely
+and trusting locality of reference to bring up the same dozen or so entries
+for "ls -l /dev" or similar. The pathological failure mode of "simple
+linked list" is to perform exactly as badly as constantly rescanning a
+huge /etc/passwd, so this simple optimization shouldn't ever make performance
+worse (modulo possible memory exhaustion and thus swap thrashing).
+On the other hand, toybox's multiplexer does sort and binary
+search its command list to minimize the latency of each command startup,
+because the sort is a compile-time cost done once per build,
+and the whole of command startup
+is a "hot path" that should do as little work as possible because EVERY
+command has to go through it every time before performing any other function
+so tiny gains are worthwhile. (These decisions aren't perfect, the point is
+to show that thought went into them.)</p>
 
 <p>The famous quote from Ken Thompson, "When in doubt, use brute force",
 applies to toybox.  Do the simple thing first, do as little of it as possible,
 and make sure it's right.  You can always speed it up later.</p>
 
 <b><h3>Size</h3></b>
+<p>Quick smoketest: build toybox with and without the command (or the change),
+and maybe run "nm --size-sort" on files in generated/unstripped.
+(See make bloatcheck below for toybox's built in nm size diff-er.)</p>
+
 <p>Again, being simple gives you most of this. An algorithm that does less work
-is generally smaller.  Understand the problem, treat size as a cost, and
+is generally smaller. Understand the problem, treat size as a cost, and
 get a good bang for the byte.</p>
 
-<p>Understand the difference between binary size, heap size, and stack size.
-Your binary is the executable file on disk, your heap is where malloc() memory
-lives, and your stack is where local variables (and function call return
-addresses) live.  Optimizing for binary size is generally good: executing
-fewer instructions makes your program run faster (and fits more of it in
-cache).  On embedded systems, binary size is especially precious because
-flash is expensive (and its successor, MRAM, even more so).  Small stack size
+<p>What "size" means depends on context: there are at least a half dozen
+different metrics in two broad categories: space used on disk/flash/ROM,
+and space used in memory at runtime.</p>
+
+<p>Your executable file has at least
+four main segments (text = executable code, rodata = read only data,
+data = writeable variables initialized to a value other than zero,
+bss = writeable data initialized to zero). Text and rodata are shared between multiple instances of the program running
+simultaneously, the other 4 aren't. Only text, rodata, and data take up
+space in the binary, bss, stack and heap only matter at runtime. You can
+view toybox's symbols with "nm generated/unstripped/toybox", the T/R/D/B
+lets you know the segment the symbol lives in. (Lowercase means it's
+local/static.)</p>
+
+<p>Then at runtime there's
+heap size (where malloc() memory lives) and stack size (where local
+variables and function call arguments and return addresses live). And
+on 32 bit systems mmap() can have a constrained amount of virtual memory
+(usually a couple gigabytes: the limits on 64 bit systems are generally big
+enough it doesn't come up)</p>
+
+<p>Optimizing for binary size is generally good: less code is less to go
+wrong, and executing fewer instructions makes your program run faster (and
+fits more of it in cache). On embedded systems, binary size is especially
+precious because flash is expensive and code may need binary auditing for
+security. Small stack size
 is important for nommu systems because they have to preallocate their stack
-and can't make it bigger via page fault.  And everybody likes a small heap.</p>
+and can't make it bigger via page fault. And everybody likes a small heap.</p>
 
-<p>Measure the right things.  Especially with modern optimizers, expecting
+<p>Measure the right things. Especially with modern optimizers, expecting
 something to be smaller is no guarantee it will be after the compiler's done
-with it.  Binary size isn't the most accurate indicator of the impact of a
-given change, because lots of things get combined and rounded during
-compilation and linking.  Matt Mackall's bloat-o-meter is a python script
-which compares two versions of a program, and shows size changes in each
-symbol (using the "nm" command behind the scenes).  To use this, run
-"make baseline" to build a baseline version to compare against, and
-then "make bloatometer" to compare that baseline version against the current
-code.</p>
+with it. Will total binary size is the final result, it isn't always the most
+accurate indicator of the impact of a given change, because lots of things
+get combined and rounded during compilation and linking (and things like
+ASAN disable optimization). Toybox has scripts/bloatcheck to compare two versions
+of a program and show size changes in each symbol (using "nm --size-sort").
+You can "make baseline" to build a baseline version to compare against,
+and then apply your changes and "make bloatcheck" to compare against
+the saved baseline version.</p>
 
-<p>Avoid special cases.  Whenever you see similar chunks of code in more than
+<p>Avoid special cases. Whenever you see similar chunks of code in more than
 one place, it might be possible to combine them and have the users call shared
-code. (This is the most commonly cited trick, which doesn't make it easy. If
-seeing two lines of code do the same thing makes you slightly uncomfortable,
-you've got the right mindset.)</p>
+code (perhaps out of lib/*.c). This is the most commonly cited trick, which
+doesn't make it easy to work out HOW to share. If seeing two lines of code do
+the same thing makes you slightly uncomfortable, you've got the right mindset,
+but "reuse" requires the "re" to have benefit, and infrastructure in search
+of a user will generally bit-rot before it finds one.</p>
 
-<p>Some specific advice: Using a char in place of an int when doing math
-produces significantly larger code on some platforms (notably arm),
-because each time the compiler has to emit code to convert it to int, do the
-math, and convert it back.  Bitfields have this problem on most platforms.
-Because of this, using char to index a for() loop is probably not a net win,
-although using char (or a bitfield) to store a value in a structure that's
-repeated hundreds of times can be a good tradeoff of binary size for heap
-space.</p>
+<p>The are a lot of potential microoptimizations (on some architectures
+using char instead of int as a loop index is noticeably slower, on some
+architectures C bitfields are surprisingly inefficient, & is often faster
+than % in a tight loop, conditional assignment avoids branch prediction
+failures...) but they're generally not worth doing unless you're trying to
+speed up the middle of a tight inner loop chewing through a large amount
+of data (such as a compression algorithm). For data pumps sane blocking
+and fewer system calls (buffer some input/output and do a big read/write
+instead of a bunch of little small ones) is usually the big win. But
+be careful about cacheing stuff: the two persistently had problems in computer
+science are naming things, cache coherency, and off by one errors.</p>
 
 <b><h3>Simplicity</h3></b>
 
@@ -315,6 +385,7 @@ come up with a better way to do it.</p>
 <a href=http://blog.outer-court.com/archive/2005-08-24-n14.html>why
 programmers should strive to be lazy and dumb</a>?</p>
 
+<hr>
 <a name="portability"><b><h2><a href="#portability">Portability issues</a></h2></b>
 
 <b><h3>Platforms</h3></b>
@@ -326,23 +397,111 @@ effort on them.</p>
 
 <p>I don't do windows.</p>
 
-<p>We depend on C99 and posix-2008 libc features such as the openat() family of
+<a name="standards" />
+<b><h3>Standards</h3></b>
+
+<p>Toybox is implemented with reference to
+<a href=http://www.open-std.org/jtc1/sc22/wg14/www/docs/n1256.pdf>c99</a>,
+<a href=roadmap.html#susv4>Posix 2008</a>,
+<a href=#bits>LP64</a>,
+<a href=roadmap.html#sigh>LSB 4.1</a>,
+the <a href=https://www.kernel.org/doc/man-pages/>Linux man pages</a>,
+various <a href=https://www.rfc-editor.org/rfc-index.html>IETF RFCs</a>,
+the linux kernel source's
+<a href=https://www.kernel.org/doc/Documentation/>Documentation</a> directory,
+utf8 and unicode, and our terminal control outputs ANSI
+<a href=https://man7.org/linux/man-pages/man4/console_codes.4.html>escape sequences</a>.
+Toybox gets <a href=faq.html#cross>tested</a> with gcc and llvm on glibc,
+musl-libc, and bionic, plus occasional <a href=https://github.com/landley/toybox/blob/master/kconfig/freebsd_miniconfig>FreeBSD</a> and
+<a href=https://github.com/landley/toybox/blob/master/kconfig/macos_miniconfig>MacOS</a> builds for subsets
+of the commands.</p>
+
+<p>For the build environment and runtime environment, toybox depends on
+posix-2008 libc features such as the openat() family of
 functions. We also root around in the linux /proc directory a lot (no other
 way to implement "ps" at the moment), and assume certain "modern" linux kernel
-behavior such as large environment sizes (<a href=https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=b6a2fea39318>linux commit b6a2fea39318</a>, went into 2.6.22
-released <a href=faq.html#support_horizon>July 2007</a>, expanding the 128k
-limit to 2 gigabytes. But it was then
+behavior (for example <a href=https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=b6a2fea39318>linux 2.6.22</a>
+expanded the 128k process environment size limit to 2 gigabytes, then it was
 trimmed back down to 10 megabytes, and when I asked for a way to query the
 actual value from the kernel if it was going to keep changing
-like that, <a href=https://lkml.org/lkml/2017/11/5/204>Linus declined</a>).
-In theory this shouldn't prevent us from working on
-older kernels or other implementations (ala BSD), but we don't police their
-corner cases.</p>
+like that <a href=https://lkml.org/lkml/2017/11/5/204>Linus declined</a>).
+We make an effort to support <a href=faq.html#support_horizon>older kernels</a>
+and other implementations (primarily MacOS and BSD) but we don't always
+police their corner cases very closely.</p>
+
+<p><b>Why not just use the newest version of each standard?</b>
+
+<p>Partly to <a href=faq.html#support_horizon>support older systems</a>:
+you can't fix a bug in the old system if you can't build in the old
+enviornment.</p>
+
+<p>Partly because toybox's maintainer has his own corollary to Moore's law:
+50% of what you know about programming the hardware is obsolete every 18
+months, but the advantage of C &amp; Unix it's usually the same 50% cycling
+out over and over.</p>
+
+<p>But mostly because the updates haven't added anything we care about.
+Posix-2008 switched some things to larger (64 bit) data types and added the
+openat() family of functions (which take a directory filehandle instead of
+using the Current Working Directory),
+but the 2013 and 2018 releases of posix were basically typo fixes: still
+release 7, still SUSv4. (An eventual release 8 might be interesting but
+it's not out yet.) We use C99 instead of C11 or newer because the new stuff
+was mostly about threading (atomic variables and such), and except for using
+// style single line comments we're more or less writing C89 code anyway.
+The main other new thing of interest in C99 was explicit width data
+types (uint32_t and friends), which LP64 handles for us.</p>
+
+<p>We're ignoring new versions of the Linux Foundation's standards (LSB, FHS)
+entirely, for the same reason Debian is: they're not good at maintaining
+standards. (The Linux Foundation acquiring the Free Standards Group worked
+out about as well as Microsoft buying Nokia.)</p>
+
+<p>We refer to current versions of man7.org because it's
+not easily versioned (the website updates regularly) and because
+Michael Kerrisk does a good job maintaining it so far. That said, we
+try to "provide new" in our commands but "depend on old" in our build scripts.
+(For example, we didn't start using "wait -n" until it had been in bash for 7
+years, and even then people depending on Centos' 10 year support horizon
+complained.)</p>
+
+<p>Using newer vs older RFCs, and upgrading between versions, is a per-case
+judgement call.</p>
+
+<p><b>How strictly do you adhere to these standards?</b>
+
+<p>...ish? The man pages have a lot of stuff that's not in posix,
+and there's no "init" or "mount" in posix, you can't implement "ps"
+without replying on non-posix APIs....</p>
+
+<p>When the options a command offers visibly contradict posix, we try to have
+a "deviations from posix" section at the top of the source listing the
+differences, but that's about what we provide not what we used from the OS
+or build environment.</p>
+
+<p>The build needs bash (not a pure-posix sh), and building on MacOS requires
+"gsed" (because Mac's sed is terrible), but toybox is explicitly self-hosting
+and any failure to build under the tool versions we provide would be a bug
+needing to be fixed.</p>
+
+<p>Within the code, everything in main.c and lib/*.c has to build
+on every supported Linux version, compiler, and library, plus BSD and MacOS.
+We mostly try to keep #if/else staircases for portability issues to
+lib/portability.[ch].</p>
+
+<p>Portability of individual commands varies: we sometimes program directly
+against linux kernel APIs (unavoidable when accessing /proc and /sys),
+individual commands are allowed to #include &lt;linux/*.h&gt; (common
+headers and library files are not, except maybe lib/portability.* within an
+appropriate #ifdef),  we only really test against Linux errno values
+(unless somebody on BSD submits a bug), and a few commands outright cheat
+(the way ifconfig checks for ioctl numbers in the 0x89XX range). This is
+the main reason some commands build on BSD/MacOS and some don't.</p>
 
 <a name="bits" />
 <b><h3>32/64 bit</h3></b>
 <p>Toybox should work on both 32 bit and 64 bit systems. 64 bit desktop
-hardware went mainstream in <a href=https://web.archive.org/web/20040307000108mp_/http://developer.intel.com/technology/64bitextensions/faq.htm>in 2005</a>
+hardware went mainstream <a href=https://web.archive.org/web/20040307000108mp_/http://developer.intel.com/technology/64bitextensions/faq.htm>in 2005</a>
 and was essentially ubiquitous <a href=faq.html#support_horizon>by 2012</a>,
 but 32 bit hardware will continue to be important in embedded devices for years to come.</p>
 
@@ -354,17 +513,15 @@ support</a>. (Here's the original <a href=https://web.archive.org/web/2002090518
 
 <p>LP64 defines explicit sizes for all the basic C integer types, and
 guarantees that on any Unix-like platform "long" and "pointer" types
-are always the same size. This means it's safe to assign pointers into
+are always the same size (the processor's register size).
+This means it's safe to assign pointers into
 longs and vice versa without losing data: on 32 bit systems both are 32 bit,
 on 64 bit systems both are 64 bit.</p>
 
 <table border=1 cellpadding=10 cellspacing=2>
-<tr><td>C type</td><td>32 bit<br />sizeof</td><td>64 bit<br />sizeof</td></tr>
-<tr><td>char</td><td>1 byte</td><td>1 byte</td></tr>
-<tr><td>short</td><td>2 bytes</td><td>2 bytes</td></tr>
-<tr><td>int</td><td>4 bytes</td><td>4 bytes</td></tr>
-<tr><td>long</td><td>4 bytes</td><td>8 bytes</td></tr>
-<tr><td>long long</td><td>8 bytes</td><td>8 bytes</td></tr>
+<tr><td>C type</td><td>char</td><td>short</td><td>int</td><td>long</td><td>long long</td></tr>
+<tr><td>32 bit<br />sizeof</td><td>8 bits</td><td>16 bits</td><td>32 bits</td><td>32 bits</td><td>64 bits</td></tr>
+<tr><td>64 bit<br />sizeof</td><td>8 bits</td><td>16 bits</td><td>32 bits</td><td>64 bits</td><td>64 bits</td></tr>
 </table>
 
 <p>LP64 eliminates the need to use c99 "uint32_t" and friends: the basic
@@ -373,6 +530,23 @@ size varies is "long", which is the natural register size of the processor.</p>
 
 <p>Note that Windows doesn't work like this, and I don't care, but if you're
 curious here are <a href=https://devblogs.microsoft.com/oldnewthing/20050131-00/?p=36563>the insane legacy reasons why this is broken on Windows</a>.</a></p>
+
+<p>The main squishy bit in LP64 is that "long long" was defined as
+"at least" 64 bits instead of "exactly" 64 bits, and the standards body
+that issued it collapsed in the wake of the <a href=https://en.wikipedia.org/wiki/Unix_wars>proprietary unix wars</a> (all
+those lawsuits between AT&amp;T/BSDI/Novell/Caldera/SCO), so is
+not available to issue an official correction. Then again a processor
+with 128-bit general purpose registers wouldn't be commercially viable
+<a href=https://landley.net/notes-2011.html#26-06-2011>until 2053</a>
+(because 2005+32*1.5), and with the S-curve of Moore's Law slowly
+<a href=http://www.acm.org/articles/people-of-acm/2016/david-patterson>bending back down</a> as
+atomic limits and <a href=http://www.cnet.com/news/end-of-moores-law-its-not-just-about-physics/>exponential cost increases</a> produce increasing
+drag.... (The original Moore's Law curve would mean that in the year 2022
+a high end workstation would have around 8 terabytes of RAM, available retail.
+Most don't even come with
+that much disk space.) At worst we don't need to care for decades, the
+S-curve bending down means probably not in our lifetimes, and
+atomic limits may mean "never". So I'm ok treating "long long" as exactly 64 bits.</p>
 
 <b><h3>Signedness of char</h3></b>
 <p>On platforms like x86, variables of type char default to unsigned.  On
@@ -444,8 +618,7 @@ work.</p>
 <p>(This is why we use an external https wrapper program, because depending on
 openssl or similar to be linked in would change the behavior of toybox.)</p>
 
-<a name="license" />
-<h2>License</h2>
+<hr /><a name="license" /><h2>License</h2>
 
 <p>Toybox is licensed <a href=license.html>0BSD</a>, which is a public domain
 equivalent license approved by <a href=https://spdx.org/licenses/0BSD.html>SPDX</a>. This works like other BSD licenses except that it doesn't
@@ -464,8 +637,7 @@ most BSD or Apache licensed code without changing our license terms.</p>
 license, such as the xz decompressor or
 <a href=https://github.com/mkj/dropbear/blob/master/libtommath/LICENSE>libtommath</a> and <a href=https://github.com/mkj/dropbear/blob/master/libtomcrypt/LICENSE>libtomcrypt</a>.</p>
 
-<a name="codestyle" />
-<h2>Coding style</h2>
+<hr /><a name="codestyle" /><h2>Coding style</h2>
 
 <p>The real coding style holy wars are over things that don't matter
 (whitespace, indentation, curly bracket placement...) and thus have no
@@ -513,8 +685,20 @@ that's easier to search for perhaps?</p>
 (In C "char *a, b;" and "char* a, b;" mean the same thing: "a" is a pointer
 but "b" is not. Spacing it the second way is not how C works.)</p>
 
-<p>If statements with a single line body go on the same line if the result
-fits in 80 columns, on a second line if it doesn't. We usually only use
+<p>We wrap lines at 80 columns. Part of the reason for this I (toybox's
+founder Rob) have mediocre eyesight (so tend to increase the font size in
+terminal windows and web browsers), and program in a lot of coffee shops
+on laptops with a smallish sceen. I'm aware this <a href=http://lkml.iu.edu/hypermail/linux/kernel/2005.3/08168.html>exasperates Linus torvalds</a>
+(with his 8-character tab indents where just being in a function eats 8 chars
+and 4 more indent levels eats half of an 80 column terminal), but you've
+gotta break somewhere and even Linus admits there isn't another obvious
+place to do so. (80 columns came from punched cards, which came
+from civil war era dollar bill sorting boxes IBM founder Herman Hollerith
+bought secondhand when bidding to run the 1890 census. "Totally arbitrary"
+plus "100 yeas old" = standard.)</p>
+
+<p>If statements with a single line body go on the same line when the result
+fits in 80 columns, on a second line when it doesn't. We usually only use
 curly brackets if we need to, either because the body is multiple lines or
 because we need to distinguish which if an else binds to. Curly brackets go
 on the same line as the test/loop statement. The exception to both cases is

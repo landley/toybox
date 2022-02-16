@@ -218,8 +218,8 @@ int main(int argc, char *argv[])
     }
     printf("#endif\n\n");
 
-    sprintf(out, "#ifdef FOR_%s\n#ifndef TT\n#define TT this.%s\n#endif\n",
-            command, command);
+    sprintf(out, "#ifdef FOR_%s\n#define CLEANUP_%s\n#ifndef TT\n#define TT this.%s\n#endif\n",
+            command, command, command);
     out += strlen(out);
 
     while (aflist) {

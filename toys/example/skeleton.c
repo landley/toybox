@@ -35,7 +35,7 @@ config SKELETON_ALIAS
     usage: skeleton_alias [-dq] [-b NUMBER]
 
     Example of a second command with different arguments in the same source
-    file as the first. This allows shared infrastructure not added to lib/.
+    file as the first. This allows shared infrastructure outside of lib/.
 */
 
 #define FOR_skeleton
@@ -90,7 +90,6 @@ void skeleton_main(void)
 }
 
 // Switch gears from skeleton to skeleton_alias (swap FLAG macros).
-#define CLEANUP_skeleton
 #define FOR_skeleton_alias
 #include "generated/flags.h"
 

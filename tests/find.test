@@ -155,4 +155,5 @@ mkdir dir
 touch -d @12345 dir/one
 touch -d @12346 dir/two
 testing 'newerat' 'find dir -type f -newerat @12345' 'dir/two\n' '' ''
+testing 'newer nano' 'find dir -type f -newerat @12345.67890' 'dir/two\n' '' ''
 rm -rf dir

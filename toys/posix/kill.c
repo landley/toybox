@@ -51,7 +51,6 @@ GLOBALS(
 
 // But kill's flags are a subset of killall5's
 
-#define CLEANUP_kill
 #define FOR_killall5
 #include "generated/flags.h"
 

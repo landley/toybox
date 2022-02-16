@@ -1,8 +1,8 @@
-/* xwrap.c - wrappers around existing library functions.
+/* xwrap.c - library function wrappers that exit instead of returning error
  *
- * Functions with the x prefix are wrappers that either succeed or kill the
- * program with an error message, but never return failure. They usually have
- * the same arguments and return value as the function they wrap.
+ * Functions with the x prefix either succeed or kill the program with an
+ * error message, so the caller doesn't have to check for failure. They
+ * usually have the same arguments and return value as the function they wrap.
  *
  * Copyright 2006 Rob Landley <rob@landley.net>
  */
@@ -992,6 +992,7 @@ void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
   struct tm tm;
   time_t now = *t;
   int len = 0, i = 0;
+  long long ll;
   // Formats with seconds come first. Posix can't agree on whether 12 digits
   // has year before (touch -t) or year after (date), so support both.
   char *s = str, *p, *oldtz = 0, *formats[] = {"%Y-%m-%d %T", "%Y-%m-%dT%T",
@@ -1003,21 +1004,14 @@ void xparsedate(char *str, time_t *t, unsigned *nano, int endian)
   *nano = 0;
 
   // Parse @UNIXTIME[.FRACTION]
-  if (*str == '@') {
-    long long ll;
-
-    // Collect seconds and nanoseconds.
-    // &ll is not just t because we can't guarantee time_t is 64 bit (yet).
-    sscanf(s, "@%lld%n", &ll, &len);
-    if (s[len]=='.') {
-      s += len+1;
-      for (len = 0; len<9; len++) {
-        *nano *= 10;
-        if (isdigit(*s)) *nano += *s++-'0';
-      }
+  if (1 == sscanf(s, "@%lld%n", &ll, &len)) {
+    if (*(s+=len)=='.') for (len = 0, s++; len<9; len++) {
+      *nano *= 10;
+      if (isdigit(*s)) *nano += *s++-'0';
     }
+    // Can't be sure t is 64 bit (yet) for %lld above
     *t = ll;
-    if (!s[len]) return;
+    if (!*s) return;
     xvali_date(0, str);
   }
 

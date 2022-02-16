@@ -20,8 +20,8 @@ GLOBALS(
   void *ids;
 )
 
-struct ids {
-  struct ids *next, *child;
+struct dev_ids {
+  struct dev_ids *next, *child;
   int id;
   char name[];
 };
@@ -30,7 +30,7 @@ static int list_device(struct dirtree *new)
 {
   FILE *file;
   char *name;
-  struct ids *ids;
+  struct dev_ids *ids;
   int busnum = 0, devnum = 0, pid = 0, vid = 0, count = 0;
 
   if (!new->parent) return DIRTREE_RECURSE;
@@ -39,6 +39,7 @@ static int list_device(struct dirtree *new)
   // Read data from proc file
   sprintf(toybuf, "%s/uevent", name = dirtree_path(new, 0));
   if (!(file = fopen(toybuf, "r"))) return 0;
+  free(name);
   while (fgets(toybuf, sizeof(toybuf), file))
     if (sscanf(toybuf, "BUSNUM=%u\n", &busnum)
         || sscanf(toybuf, "DEVNUM=%u\n", &devnum)
@@ -60,40 +61,54 @@ static int list_device(struct dirtree *new)
     }
     xputc('\n');
   }
-  free(name);
 
   return 0;
 }
 
+// Search for pci.ids or usb.ids and return parsed structure, or NULL
+struct dev_ids *parse_dev_ids(char *name)
+{
+  char *path = "/etc:/vendor:/usr/share/misc";
+  struct string_list *sl;
+  FILE *fp;
+  char *s, *ss;
+  struct dev_ids *ids = 0, *new;
+  int fd = -1;
+
+  // Open compressed or uncompressed file
+  sprintf(toybuf, "%s.gz", name);
+  if ((sl = find_in_path(path, toybuf))) {
+    signal(SIGCHLD, SIG_IGN);
+    xpopen((char *[]){"zcat", sl->str, 0}, &fd, 1);
+  } else if ((sl = find_in_path(path, name))) fd = xopen(sl->str,O_RDONLY);
+  free(sl);
+  if (fd == -1) return 0;
+
+  for (fp = fdopen(fd, "r"); (s = ss = xgetline(fp)); free(s)) {
+    if (s[strspn(s, " \t")]=='#' || strstart(&ss, "\t\t")) continue;
+    fd = estrtol(s, &ss, 16);
+    if (ss == s+4+(*s=='\t') && *ss++==' ') {
+      new = xmalloc(sizeof(*new)+strlen(ss)+1);
+      new->child = 0;
+      new->id = fd;
+      strcpy(new->name, ss);
+      if (!ids || *s!='\t') {
+        new->next = ids;
+        ids = new;
+      } else {
+        new->next = ids->child;
+        ids->child = new;
+      }
+    }
+  }
+  fclose(fp);
+
+  return ids;
+}
+
 void lsusb_main(void)
 {
-  int fd;
-
   // Parse  http://www.linux-usb.org/usb.ids file (if available)
-  if (-1 != (fd = open("/etc/usb.ids", O_RDONLY))) {
-    FILE *fp = fdopen(fd, "r");
-    char *s, *ss;
-    struct ids *ids, *tids;
-
-    while ((s = xgetline(fp))) {
-      fd = estrtol(s, &ss, 16);
-      if (ss == s+4+(*s=='\t') && *ss++==' ') {
-        ids = xmalloc(sizeof(*ids)+strlen(ss)+1);
-        ids->child = 0;
-        ids->id = fd;
-        strcpy(ids->name, ss);
-        if (!TT.ids || *s!='\t') {
-          ids->next = TT.ids;
-          TT.ids = ids;
-        } else {
-          tids = TT.ids;
-          ids->next = tids->child;
-          tids->child = ids;
-        }
-      }
-      free(s);
-    }
-    fclose(fp);
-  }
+  TT.ids = parse_dev_ids("usb.ids");
   dirtree_read("/sys/bus/usb/devices/", list_device);
 }
