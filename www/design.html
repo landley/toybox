@@ -93,7 +93,7 @@ and _all_ optimization boils down to avoiding unnecessary work.</p>
 
 <p>Speed is easy to measure; there are dozens of profiling tools for Linux,
 but sticking in calls to "millitime()" out of lib.c and subtracting
-(or doing two clock_gettime() cals and then nanodiff() on them) is
+(or doing two clock_gettime() calls and then nanodiff() on them) is
 quick and easy. Don't waste too much time trying to optimize something you
 can't measure, and there's no much point speeding up things you don't spend
 much time doing anyway.</p>
@@ -285,7 +285,7 @@ speed up the middle of a tight inner loop chewing through a large amount
 of data (such as a compression algorithm). For data pumps sane blocking
 and fewer system calls (buffer some input/output and do a big read/write
 instead of a bunch of little small ones) is usually the big win. But
-be careful about cacheing stuff: the two persistently had problems in computer
+be careful about cacheing stuff: the two persistently hard problems in computer
 science are naming things, cache coherency, and off by one errors.</p>
 
 <b><h3>Simplicity</h3></b>
@@ -433,7 +433,7 @@ police their corner cases very closely.</p>
 
 <p>Partly to <a href=faq.html#support_horizon>support older systems</a>:
 you can't fix a bug in the old system if you can't build in the old
-enviornment.</p>
+environment.</p>
 
 <p>Partly because toybox's maintainer has his own corollary to Moore's law:
 50% of what you know about programming the hardware is obsolete every 18
