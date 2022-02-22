@@ -5,7 +5,7 @@
  * TODO: gpiomon
 
 USE_GPIODETECT(NEWTOY(gpiodetect, ">0", TOYFLAG_USR|TOYFLAG_BIN))
-USE_GPIOFIND(NEWTOY(gpioinfo, "", TOYFLAG_USR|TOYFLAG_BIN))
+USE_GPIOFIND(NEWTOY(gpioinfo, 0, TOYFLAG_USR|TOYFLAG_BIN))
 USE_GPIOGET(NEWTOY(gpioget, "<2l", TOYFLAG_USR|TOYFLAG_BIN))
 USE_GPIOINFO(NEWTOY(gpiofind, "<1>1", TOYFLAG_USR|TOYFLAG_BIN))
 USE_GPIOSET(NEWTOY(gpioset, "<2l", TOYFLAG_USR|TOYFLAG_BIN))
@@ -62,7 +62,7 @@ config GPIOSET
 #include "toys.h"
 
 GLOBALS(
-  struct arg_list *chips;
+  struct double_list *chips;
   int chip_count;
 )
 
@@ -76,32 +76,29 @@ static int open_chip(char *chip)
 
 static int collect_chips(struct dirtree *node)
 {
-  struct arg_list *new;
   int n;
 
   if (!node->parent) return DIRTREE_RECURSE; // Skip the directory itself.
 
   if (sscanf(node->name, "gpiochip%d", &n)!=1) return 0;
 
-  new = xmalloc(sizeof(struct arg_list));
-  new->arg = strdup(node->name);
-  new->next = TT.chips;
-  TT.chips = new;
+  dlist_add(&TT.chips, strdup(node->name));
   TT.chip_count++;
+
   return 0;
 }
 
 static int comparator(const void *a, const void *b)
 {
-  struct arg_list *lhs = *(struct arg_list **)a;
-  struct arg_list *rhs = *(struct arg_list **)b;
+  struct double_list *lhs = *(struct double_list **)a,
+    *rhs = *(struct double_list **)b;
 
-  return strcmp(lhs->arg, rhs->arg);
+  return strcmp(lhs->data, rhs->data);
 }
 
 static void foreach_chip(void (*cb)(char *name))
 {
-  struct arg_list **sorted, *chip;
+  struct double_list **sorted, *chip;
   int i = 0;
 
   dirtree_flagread("/dev", DIRTREE_SHUTUP, collect_chips);
@@ -110,13 +107,13 @@ static void foreach_chip(void (*cb)(char *name))
   for (chip = TT.chips; chip; chip=chip->next, i++) sorted[i] = chip;
   qsort(sorted, TT.chip_count, sizeof(void *), comparator);
 
-  for (i=0; i<TT.chip_count; i++) {
-    sprintf(toybuf, "/dev/%s", sorted[i]->arg);
+  for (i = 0; i<TT.chip_count; i++) {
+    sprintf(toybuf, "/dev/%s", sorted[i]->data);
     cb(toybuf);
   }
 
   free(sorted);
-  llist_free_arg(TT.chips);
+  llist_traverse(&TT.chips, llist_free_arg);
 }
 
 static void gpiodetect(char *path)
@@ -205,9 +202,7 @@ void gpioinfo_main(void)
   int i;
 
   if (!toys.optc) foreach_chip(gpioinfo);
-  else for (i = 0; toys.optargs[i]; i++) {
-    gpioinfo_fd(open_chip(toys.optargs[i]));
-  }
+  else for (i = 0; toys.optargs[i];i++) gpioinfo_fd(open_chip(toys.optargs[i]));
 }
 
 #define FOR_gpioget
@@ -231,9 +226,8 @@ void gpioget_main(void)
   }
   xioctl(fd, GPIO_GET_LINEHANDLE_IOCTL, &req);
   xioctl(req.fd, GPIOHANDLE_GET_LINE_VALUES_IOCTL, &data);
-  for (line=0; line<req.lines; line++) {
-    printf("%s%d", line>0 ? " " : "", data.values[line]);
-  }
+  for (line = 0; line<req.lines; line++)
+    printf("%s%d", " "+(line<1), data.values[line]);
   xputc('\n');
 }
 
@@ -244,15 +238,14 @@ void gpioset_main(void)
 {
   struct gpiohandle_request req = { .flags = GPIOHANDLE_REQUEST_OUTPUT };
   char **args = toys.optargs;
-  int fd, line, value;
+  int fd, value;
 
   fd = open_chip(*args);
   if (FLAG(l)) req.flags |= GPIOHANDLE_REQUEST_ACTIVE_LOW;
   for (args++; *args; args++, req.lines++) {
-    if (req.lines >= GPIOHANDLES_MAX) error_exit("too many requests!");
-    if (sscanf(*args, "%d=%d", &line, &value) != 2)
+    if (req.lines == GPIOHANDLES_MAX) error_exit("too many requests!");
+    if (sscanf(*args, "%d=%d", req.lineoffsets+req.lines, &value) != 2)
       perror_exit("not LINE=VALUE: %s", *args);
-    req.lineoffsets[req.lines] = line;
     req.default_values[req.lines] = value;
   }
   xioctl(fd, GPIO_GET_LINEHANDLE_IOCTL, &req);
