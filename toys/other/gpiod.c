@@ -96,15 +96,17 @@ static int comparator(const void *a, const void *b)
   return strcmp(lhs->data, rhs->data);
 }
 
+// call cb() in sorted order
 static void foreach_chip(void (*cb)(char *name))
 {
-  struct double_list **sorted, *chip;
+  struct double_list **sorted;
   int i = 0;
 
   dirtree_flagread("/dev", DIRTREE_SHUTUP, collect_chips);
+  if (!TT.chips) return;
 
   sorted = xmalloc(TT.chip_count*sizeof(void *));
-  for (chip = TT.chips; chip; chip=chip->next, i++) sorted[i] = chip;
+  for (i = 0; i<TT.chip_count; i++) sorted[i] = TT.chips = TT.chips->next;
   qsort(sorted, TT.chip_count, sizeof(void *), comparator);
 
   for (i = 0; i<TT.chip_count; i++) {
