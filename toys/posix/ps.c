@@ -49,7 +49,7 @@ USE_PS(NEWTOY(ps, "k(sort)*P(ppid)*aAdeflMno*O*p(pid)*s*t*Tu*U*g*G*wZ[!ol][+Ae][
 // stayroot because iotop needs root to read other process' proc/$$/io
 // TOP and IOTOP have a large common option block used for common processing,
 // the default values are different but the flags are in the same order.
-USE_TOP(NEWTOY(top, ">0O*" "Hk*o*p*u*s#<1d%<100=3000m#n#<1bq[!oO]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_TOP(NEWTOY(top, ">0O*h" "Hk*o*p*u*s#<1d%<100=3000m#n#<1bq[!oO]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 USE_IOTOP(NEWTOY(iotop, ">0AaKO" "Hk*o*p*u*s#<1=7d%<100=3000m#n#<1bq", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT|TOYFLAG_LOCALE))
 USE_PGREP(NEWTOY(pgrep, "?cld:u*U*t*s*P*g*G*fnovxL:[-no]", TOYFLAG_USR|TOYFLAG_BIN))
 USE_PKILL(NEWTOY(pkill,    "?Vu*U*t*s*P*g*G*fnovxl:[-no]", TOYFLAG_USR|TOYFLAG_BIN))
@@ -89,11 +89,12 @@ config TOP
   bool "top"
   default y
   help
-    usage: top [-Hbq] [-k FIELD,] [-o FIELD,] [-s SORT] [-n NUMBER] [-m LINES] [-d SECONDS] [-p PID,] [-u USER,]
+    usage: top [-Hhbq] [-k FIELD,] [-o FIELD,] [-s SORT] [-n NUMBER] [-m LINES] [-d SECONDS] [-p PID,] [-u USER,]
 
     Show process activity in real time.
 
     -H	Show threads
+    -h	Usage graphs instead of text
     -k	Fallback sort FIELDS (default -S,-%CPU,-ETIME,-PID)
     -o	Show FIELDS (def PID,USER,PR,NI,VIRT,RES,SHR,S,%CPU,%MEM,TIME+,CMDLINE)
     -O	Add FIELDS (replacing PR,NI,VIRT,RES,SHR,S from default)
@@ -1475,6 +1476,35 @@ static void top_cursor_cleanup(void)
   xputsn("\e[?25h");
 }
 
+// Show a three color bar graph. spans: 0 total size, 1used, 2 nice, 3 sys
+static void bargraph(char *label, unsigned width, unsigned long span[4])
+{
+  char percent[16];
+  long long ll;
+  unsigned i, color, len;
+
+  if (!*span) ++*span;
+  i = ((span[1]+(unsigned long long)span[2]+span[3])*1000)/ *span;
+  len = sprintf(percent, "%u.%u", i/10, i%10);
+
+  printf("%s[", label);
+  for (ll = i = color = 0; i<width; i++) {
+    while (ll<1 && color<4) {
+      if (color++!=3) {
+        ll += span[color]*width;
+        if (ll<*span/2) continue;
+      }
+      // green, red, blue, grey
+      if (color==4) printf("\e[1;2;37m");
+      else printf("\e[%um", (char[]){32,34,31}[color-1]);
+      break;
+    }
+    if (color<4) ll -= *span;
+    printf("%c", width-i>len ? (color==4 ? ' ' : '|') : percent[len-(width-i)]);
+  }
+  printf("\e[0m]");
+}
+
 static void top_common(
   int (*filter)(long long *oslot, long long *nslot, int milis))
 {
@@ -1587,7 +1617,8 @@ static void top_common(
           char hr[4][32];
           long long ll, up = 0;
           long run[6];
-          int j, k;
+          int j, k, cpus = sysconf(_SC_NPROCESSORS_CONF);
+
 
           // Count running, sleeping, stopped, zombie processes.
           // The kernel has more states (and different sets in different
@@ -1610,6 +1641,7 @@ static void top_common(
               pos = strafter(toybuf+256, (char *[]){"MemTotal:","\nMemFree:",
                     "\nBuffers:","\nSwapTotal:","\nSwapFree:","\nCached:"}[i]);
               run[i] = pos ? atol(pos) : 0;
+              if (FLAG(h)) continue;
               k = (*run>=10000000);
               human_readable_long(hr[j+!!j], run[i]>>(10*k), 9, k+1, HR_NODOT);
               if (j==1) human_readable_long(hr[1], (run[i-1]-run[i])>>(10*k),
@@ -1621,17 +1653,24 @@ static void top_common(
                 lines = header_line(lines, 0);
               }
             }
+            if (FLAG(h)) {
+              unsigned long swp[] = {run[3], 0, 0, run[3]-run[4]},
+                mem[] = {run[0], run[0]-run[1]-run[2]-run[5], run[2], run[5]};
+
+              bargraph("Mem", 34, mem);
+              bargraph(" Swp", 34, swp);
+              xprintf("\r\n");
+            }
           }
           pos = toybuf;
-          i = sysconf(_SC_NPROCESSORS_CONF);
-          pos += sprintf(pos, "%d%%cpu", i*100);
-          j = 4+(i>10);
+          pos += sprintf(pos, "%d%%cpu", cpus*100);
+          j = 4+(cpus>10);
 
           // If a processor goes idle it's powered down and its idle ticks don't
           // advance, so calculate idle time as potential time - used.
           if (mix.count) up = mix.tb[0]->slot[SLOT_upticks];
           if (!up) up = 1;
-          now = up*i;
+          now = up*cpus;
           ll = stats[3] = stats[11] = 0;
           for (i = 0; i<8; i++) ll += stats[i]-stats[i+8];
           stats[3] = now - llabs(ll);
@@ -1640,7 +1679,6 @@ static void top_common(
             ll = (llabs(stats[i]-stats[i+8])*1000)/up;
             pos += sprintf(pos, "% *lld%%%s", j, (ll+5)/10, cpufields[i]);
           }
-          lines = header_line(lines, 0);
         // Display "iotop" header.
         } else {
           struct ofields *field;
@@ -1663,9 +1701,10 @@ static void top_common(
               field->len, string_field(&tb, field));
           }
           *--pos = 0;
-          lines = header_line(lines, 0);
         }
 
+        lines = header_line(lines, 0);
+        // print line of header labels for currently displayed fields
         get_headers(TT.fields, pos = toybuf, sizeof(toybuf));
         for (i = 0, is = ' '; *pos; pos++) {
           was = is;
