@@ -2,7 +2,7 @@
  *
  * Copyright 2019 The Android Open Source Project
 
-USE_DEVMEM(NEWTOY(devmem, "<1>3", TOYFLAG_USR|TOYFLAG_BIN))
+USE_DEVMEM(NEWTOY(devmem, "<1>3", TOYFLAG_USR|TOYFLAG_SBIN))
 
 config DEVMEM
   bool "devmem"

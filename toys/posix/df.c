@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/df.html
 
-USE_DF(NEWTOY(df, "HPkhit*a[-HPh]", TOYFLAG_SBIN))
+USE_DF(NEWTOY(df, "HPkhit*a[-HPh]", TOYFLAG_BIN))
 
 config DF
   bool "df"

@@ -11,10 +11,10 @@
  * TODO: i2cget non-byte modes? default to current read address?
  * TODO: i2cset -r? -m MASK? c/s modes, p mode modifier?
 
-USE_I2CDETECT(NEWTOY(i2cdetect, ">3aFlqry[!qr]", TOYFLAG_USR|TOYFLAG_BIN))
-USE_I2CDUMP(NEWTOY(i2cdump, "<2>2fy", TOYFLAG_USR|TOYFLAG_BIN))
-USE_I2CGET(NEWTOY(i2cget, "<3>3fy", TOYFLAG_USR|TOYFLAG_BIN))
-USE_I2CSET(NEWTOY(i2cset, "<4fy", TOYFLAG_USR|TOYFLAG_BIN))
+USE_I2CDETECT(NEWTOY(i2cdetect, ">3aFlqry[!qr]", TOYFLAG_USR|TOYFLAG_SBIN))
+USE_I2CDUMP(NEWTOY(i2cdump, "<2>2fy", TOYFLAG_USR|TOYFLAG_SBIN))
+USE_I2CGET(NEWTOY(i2cget, "<3>3fy", TOYFLAG_USR|TOYFLAG_SBIN))
+USE_I2CSET(NEWTOY(i2cset, "<4fy", TOYFLAG_USR|TOYFLAG_SBIN))
 
 config I2CDETECT
   bool "i2cdetect"

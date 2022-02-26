@@ -4,7 +4,7 @@
  *
  * See kernel.org/doc/Documentation/watchdog/watchdog-api.txt
 
-USE_WATCHDOG(NEWTOY(watchdog, "<1>1Ft#=4<1T#=60<1", TOYFLAG_NEEDROOT|TOYFLAG_BIN))
+USE_WATCHDOG(NEWTOY(watchdog, "<1>1Ft#=4<1T#=60<1", TOYFLAG_NEEDROOT|TOYFLAG_SBIN))
 
 config WATCHDOG
   bool "watchdog"
