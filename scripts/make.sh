@@ -5,8 +5,6 @@
 set -o pipefail
 source scripts/portability.sh
 
-[ -z "$KCONFIG_CONFIG" ] && KCONFIG_CONFIG=.config
-[ -z "$OUTNAME" ] && OUTNAME=toybox"${TARGET:+-$TARGET}"
 UNSTRIPPED="generated/unstripped/$(basename "$OUTNAME")"
 
 # Default to running one more parallel cc instance than we have processors
@@ -59,8 +57,7 @@ fi
 # Extract a list of toys/*/*.c files to compile from the data in $KCONFIG_CONFIG
 # (First command names, then filenames with relevant {NEW,OLD}TOY() macro.)
 
-[ -d ".git" ] && GITHASH="$(git describe --tags --abbrev=12 2>/dev/null)"
-[ ! -z "$GITHASH" ] && GITHASH="-DTOYBOX_VERSION=\"$GITHASH\""
+[ -d ".git" ] && GITHASH="-DTOYBOX_VERSION=\"$(git describe --tags --abbrev=12 2>/dev/null)\""
 TOYFILES="$($SED -n 's/^CONFIG_\([^=]*\)=.*/\1/p' "$KCONFIG_CONFIG" | xargs | tr ' [A-Z]' '|[a-z]')"
 TOYFILES="main.c $(egrep -l "TOY[(]($TOYFILES)[ ,]" toys/*/*.c | xargs)"
 BUILD="$(echo ${CROSS_COMPILE}${CC} $CFLAGS -I . $OPTIMIZE $GITHASH)"

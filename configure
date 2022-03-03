@@ -47,3 +47,5 @@ fi
 [ -z "$HOSTCC" ] && HOSTCC=cc
 
 [ -z "$GENERATED" ] && GENERATED=generated
+[ -z "$KCONFIG_CONFIG" ] && KCONFIG_CONFIG=.config
+[ -z "$OUTNAME" ] && OUTNAME=toybox"${TARGET:+-$TARGET}"
