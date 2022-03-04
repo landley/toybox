@@ -28,7 +28,7 @@ config LSUSB
 
     List USB hosts/devices.
 
-    -i	ID database (default /etc/usb.ids)
+    -i	ID database (default /etc/usb.ids[.gz])
 */
 
 #define FOR_lsusb
@@ -161,11 +161,11 @@ static int list_usb(struct dirtree *new)
   char *n1, *n2;
 
   if (!new->parent) return DIRTREE_RECURSE;
-  if (3 != scan_uevent(new, 3, (struct scanloop[]){{"BUSNUM=%u", &busnum, 0},
+  if (3 == scan_uevent(new, 3, (struct scanloop[]){{"BUSNUM=%u", &busnum, 0},
     {"DEVNUM=%u", &devnum, 0}, {"PRODUCT=%x/%x", &pid, &vid}}))
   {
     get_names(TT.ids, pid, vid, &n1, &n2);
-    printf("Bus %03d Device %03d: ID %04x:%04x%s%s\n",
+    printf("Bus %03d Device %03d: ID %04x:%04x %s %s\n",
       busnum, devnum, pid, vid, n1, n2);
   }
 
