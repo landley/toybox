@@ -161,7 +161,7 @@ static int list_usb(struct dirtree *new)
   char *n1, *n2;
 
   if (!new->parent) return DIRTREE_RECURSE;
-  if (3 != scan_uevent(new, 3, (struct scanloop[]){{"BUSNUM=%u", &busnum, 0},
+  if (3 == scan_uevent(new, 3, (struct scanloop[]){{"BUSNUM=%u", &busnum, 0},
     {"DEVNUM=%u", &devnum, 0}, {"PRODUCT=%x/%x", &pid, &vid}}))
   {
     get_names(TT.ids, pid, vid, &n1, &n2);
@@ -203,7 +203,7 @@ static int list_pci(struct dirtree *new)
   }
 
   // Load uevent data, look up names in database
-  if (3 != scan_uevent(new, 3, (struct scanloop[]){{"DRIVER=", &driver, 0},
+  if (3 == scan_uevent(new, 3, (struct scanloop[]){{"DRIVER=", &driver, 0},
     {"PCI_CLASS=%x", cvd, 0}, {"PCI_ID=%x:%x", cvd+1, cvd+2}})) return 0;
   get_names(TT.class, 255&(cvd[0]>>16), 255&(cvd[0]>>8), names, names);
   get_names(TT.ids, cvd[1], cvd[2], names+1, names+2);
