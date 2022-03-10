@@ -137,6 +137,13 @@ testing "eval0" "sh -c 'eval echo \$*' one two three" "two three\n" "" ""
 # Change EVAL to call sh -c for us, using "bash" explicitly for the host.
 export EVAL="$SH -c"
 
+
+mkdir -p one/two/three
+testing 'cd in renamed dir' \
+  'cd one/two/three && mv ../../../{one,four} && cd .. && echo ${PWD: -9:9}' \
+  '/four/two\n' '' ''
+rm -rf one
+
 testing "smoketest" "echo hello" "hello\n" "" ""
 testing "line break" $'ec\\\nho hello' 'hello\n' '' ''
 testing "assignment" 'x=y; echo $x' 'y\n' '' ''

@@ -81,9 +81,10 @@ config CD
   default n
   depends on SH
   help
-    usage: cd [-PL] [path]
+    usage: cd [-PL] [-] [path]
 
-    Change current directory.  With no arguments, go $HOME.
+    Change current directory. With no arguments, go $HOME. Sets $OLDPWD to
+    previous directory: cd - to return to $OLDPWD.
 
     -P	Physical path: resolve symlinks in path
     -L	Local path: .. trims directories off $PWD (default)
@@ -255,7 +256,7 @@ GLOBALS(
   long long SECONDS;
   char *isexec, *wcpat;
   unsigned options, jobcnt, LINENO;
-  int hfd, pid, bangpid, varslen, cdcount, srclvl, recursion;
+  int hfd, pid, bangpid, varslen, srclvl, recursion;
 
   // Callable function array
   struct sh_function {
@@ -328,6 +329,9 @@ static const char *redirectors[] = {"<<<", "<<-", "<<", "<&", "<>", "<", ">>",
 #define OPT_B	0x100
 #define OPT_C	0x200
 #define OPT_x	0x400
+
+// only export $PWD and $OLDPWD on first cd
+#define OPT_cd  0x80000000
 
 // struct sh_process->flags
 #define PFLAG_NOT    1
@@ -484,7 +488,7 @@ static int recalculate(long long *dd, char **ss, int lvl)
   // Always start handling unary prefixes, parenthetical blocks, and constants
   if (cc=='+' || cc=='-') {
     ++*ss;
-    if (!recalculate(dd, ss, 1) || **ss) return 0;
+    if (!recalculate(dd, ss, 1)) return 0;
     if (cc=='-') *dd = -*dd;
   } else if (cc=='(') {
     ++*ss;
@@ -3994,68 +3998,58 @@ void sh_main(void)
 #include "generated/flags.h"
 void cd_main(void)
 {
-  char *home = getvar("HOME") ? : "/", *pwd = getvar("PWD"), *from, *to = 0,
-    *dd = xstrdup(*toys.optargs ? *toys.optargs : home);
-  int bad = 0;
+  char *from, *to = 0, *dd = *toys.optargs ? : (getvar("HOME") ? : "/"),
+       *pwd = FLAG(P) ? 0 : getvar("PWD"), *zap = 0;
+  struct stat st1, st2;
 
   // TODO: CDPATH? Really?
 
-  // prepend cwd or $PWD to relative path
-  if (*dd != '/') {
-    from = pwd ? : (to = getcwd(0, 0));
-    if (!from) setvarval("PWD", "(nowhere)");
-    else {
-      from = xmprintf("%s/%s", from, dd);
-      free(dd);
-      free(to);
-      dd = from;
-    }
-  }
+  // For cd - use $OLDPWD as destination directory
+  if (!strcmp(dd, "-") && (!(dd = getvar("OLDPWD")) || !*dd))
+    return perror_msg("No $OLDPWD");
 
-  if (FLAG(P)) {
-    struct stat st;
-    char *pp;
+  if (*dd == '/') pwd = 0;
 
-    // Does this directory exist?
-    if ((pp = xabspath(dd, 1)) && stat(pp, &st) && !S_ISDIR(st.st_mode))
-      bad++, errno = ENOTDIR;
-    else {
-      free(dd);
-      dd = pp;
-    }
-  } else {
+  // Did $PWD move out from under us?
+  if (pwd && !stat(".", &st1))
+    if (stat(pwd, &st2) || st1.st_dev!=st2.st_dev || st1.st_ino!=st2.st_ino)
+      pwd = 0;
+
+  // Handle logical relative path
+  if (pwd) {
+    zap = xmprintf("%s/%s", pwd, dd);
 
     // cancel out . and .. in the string
-    for (from = to = dd; *from;) {
+    for (from = to = zap; *from;) {
       if (*from=='/' && from[1]=='/') from++;
       else if (*from!='/' || from[1]!='.') *to++ = *from++;
       else if (!from[2] || from[2]=='/') from += 2;
       else if (from[2]=='.' && (!from[3] || from[3]=='/')) {
         from += 3;
-        while (to>dd && *--to != '/');
+        while (to>zap && *--to != '/');
       } else *to++ = *from++;
     }
-    if (to == dd) to++;
-    if (to-dd>1 && to[-1]=='/') to--;
+    if (to == zap) to++;
+    if (to-zap>1 && to[-1]=='/') to--;
     *to = 0;
   }
 
-  if (bad || chdir(dd)) perror_msg("chdir '%s'", dd);
-  else {
-    if (pwd) {
-      setvarval("OLDPWD", pwd);
-      if (TT.cdcount == 1) {
-        export("OLDPWD");
-        TT.cdcount++;
-      }
-    }
-    setvarval("PWD", dd);
-    if (!TT.cdcount) {
-      export("PWD");
-      TT.cdcount++;
-    }
-  }
+  // If logical chdir doesn't work, fall back to physical
+  if (!zap || chdir(zap)) {
+    free(zap);
+    if (chdir(dd)) return perror_msg("%s", dd);
+    if (!(dd = getcwd(0, 0))) dd = xstrdup("(nowhere)");
+  } else dd = zap;
+
+  if ((pwd = getvar("PWD"))) setvarval("OLDPWD", pwd);
+  setvarval("PWD", dd);
   free(dd);
+
+  if (!(TT.options&OPT_cd)) {
+    export("OLDPWD");
+    export("PWD");
+    TT.options |= OPT_cd;
+  }
 }
 
 void exit_main(void)
