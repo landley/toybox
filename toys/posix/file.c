@@ -133,6 +133,7 @@ static void do_elf_file(int fd)
     sh_type = elf_int(shdr+4, 4);
     sh_offset = elf_int(shdr+8+(8<<bits), 4<<bits);
     sh_size = elf_int(shdr+8+(12<<bits), 4);
+    if (sh_type == 8 /*SHT_NOBITS*/) sh_size = 0;
     if (sh_offset>TT.len || sh_size>TT.len-sh_offset) goto bad;
 
     if (sh_type == 2 /*SHT_SYMTAB*/) {
