@@ -101,6 +101,8 @@ EOF
     int main(void) { char buf[100]; getrandom(buf, 100, 0); }
 EOF
 
+  # glibc requires #define GNU to get the wrapper for this Linux system call,
+  # so just use syscall().
   probesymbol TOYBOX_COPYFILERANGE << EOF
     #include <sys/syscall.h>
     #include <unistd.h>
