@@ -69,15 +69,9 @@ static void do_elf_file(int fd)
 
   // "x86".
   printf("%s", elf_arch_name(elf_int(toybuf+18, 2)));
-  if (bail) goto bad;
 
   // If what we've seen so far doesn't seem consistent, bail.
-
-  // Parsing ELF means following tables that may point to data earlier in
-  // the file, so sequential reading involves buffering unknown amounts of
-  // data. Just skip it if we can't mmap.
-  if (MAP_FAILED == (map = mmap(0, TT.len, PROT_READ, MAP_SHARED, fd, 0)))
-    goto bad;
+  if (bail) goto bad;
 
   // Stash what we need from the header; it's okay to reuse toybuf after this.
   phentsize = elf_int(toybuf+42+12*bits, 2);
@@ -93,15 +87,24 @@ static void do_elf_file(int fd)
     printf(", bad phentsize %d?", phentsize);
     goto bad;
   }
+  if (phoff>TT.len || phnum*phentsize>TT.len-phoff) {
+    printf(", bad phoff %lu?", phoff);
+    goto bad;
+  }
+  if (shoff>TT.len || shnum*shsize>TT.len-shoff) {
+    printf(", bad shoff %lu?", phoff);
+    goto bad;
+  }
 
   // Parsing ELF means following tables that may point to data earlier in
   // the file, so sequential reading involves buffering unknown amounts of
   // data. Just skip it if we can't mmap.
-  if (MAP_FAILED == (map = mmap(0, TT.len, PROT_READ, MAP_SHARED, fd, 0)))
+  if (MAP_FAILED == (map = mmap(0, TT.len, PROT_READ, MAP_SHARED, fd, 0))) {
+    perror_msg("mmap");
     goto bad;
+  }
 
   // Read the phdrs for dynamic vs static. (Note: fields reordered on 64 bit)
-  if (phoff>TT.len || phnum*phentsize>TT.len-phoff) goto bad;
   for (i = 0; i<phnum; i++) {
     char *phdr = map+phoff+i*phentsize;
     unsigned p_type = elf_int(phdr, 4);
@@ -113,7 +116,10 @@ static void do_elf_file(int fd)
     p_offset = elf_int(phdr+(4<<bits), 4<<bits);
     p_filesz = elf_int(phdr+(16<<bits), 4<<bits);
     if (p_type==3) {
-      if (p_filesz>TT.len || p_offset>TT.len-p_filesz) goto bad;
+      if (p_filesz>TT.len || p_offset>TT.len-p_filesz) {
+        printf(", bad phdr %d?", i);
+        goto bad;
+      }
       // TODO: if (int)<0 prints endlessly, could go off end of map?
       printf(", dynamic (%.*s)", (int)p_filesz, map+p_offset);
     }
@@ -123,18 +129,23 @@ static void do_elf_file(int fd)
   // We need to read the shdrs for stripped/unstripped and any notes.
   // Notes are in program headers *and* section headers, but some files don't
   // contain program headers, so check here. (Note: fields reordered on 64 bit)
-  if (shoff<0 || shoff>TT.len || shnum*shsize>TT.len-shoff) goto bad;
   for (i = 0; i<shnum; i++) {
     char *shdr = map+shoff+i*shsize;
     unsigned long sh_offset;
     int sh_type, sh_size;
 
-    if (shdr>map+TT.len-(8+(4<<bits))) goto bad;
+    if (shdr>map+TT.len-(8+(4<<bits))) {
+      printf(", bad shdr %d?", i);
+      goto bad;
+    }
     sh_type = elf_int(shdr+4, 4);
     sh_offset = elf_int(shdr+8+(8<<bits), 4<<bits);
     sh_size = elf_int(shdr+8+(12<<bits), 4);
     if (sh_type == 8 /*SHT_NOBITS*/) sh_size = 0;
-    if (sh_offset>TT.len || sh_size>TT.len-sh_offset) goto bad;
+    if (sh_offset>TT.len || sh_size>TT.len-sh_offset) {
+      printf(", bad shdr %d?", i);
+      goto bad;
+    }
 
     if (sh_type == 2 /*SHT_SYMTAB*/) {
       stripped = 0;
@@ -149,16 +160,22 @@ static void do_elf_file(int fd)
       while (sh_size >= 3*4) { // Don't try to read a truncated entry.
         unsigned n_namesz, n_descsz, n_type, notesz;
 
-        if (note>map+TT.len-3*4) goto bad;
+        if (note>map+TT.len-3*4) {
+          printf(", bad note %d?", i);
+          goto bad;
+        }
 
         n_namesz = elf_int(note, 4);
         n_descsz = elf_int(note+4, 4);
         n_type = elf_int(note+8, 4);
         notesz = 3*4 + ((n_namesz+3)&~3) + ((n_descsz+3)&~3);
-        if (notesz<n_namesz || notesz<n_descsz) goto bad;
 
-        // Does the claimed size of this note actually fit in the section?
-        if (notesz > sh_size) goto bad;
+        // Are the name/desc sizes consistent, and does the claimed size of
+        // the note actually fit in the section?
+        if (notesz<n_namesz || notesz<n_descsz || notesz>sh_size) {
+          printf(", bad note %d size?", i);
+          goto bad;
+        }
 
         if (n_namesz==4 && !memcmp(note+12, "GNU", 4) && n_type==3) {
           printf(", BuildID=");
