@@ -623,6 +623,17 @@ int get_block_device_size(int fd, unsigned long long* size)
 }
 #endif
 
+ssize_t copy_file_range_wrap(int infd, off_t *inoff, int outfd,
+    off_t *outoff, size_t len, unsigned flags)
+{
+#if defined(__linux__)
+  return syscall(__NR_copy_file_range, infd, inoff, outfd, outoff, len, flags);
+#else
+  errno = EINVAL;
+  return -1;
+#endif
+}
+
 // Return bytes copied from in to out. If bytes <0 copy all of in to out.
 // If consumed isn't null, amount read saved there (return is written or error)
 long long sendfile_len(int in, int out, long long bytes, long long *consumed)
@@ -639,7 +650,7 @@ long long sendfile_len(int in, int out, long long bytes, long long *consumed)
     errno = 0;
     if (copy_file_range) {
       if (bytes<0 || bytes>(1<<30)) len = (1<<30);
-      len = syscall(__NR_copy_file_range, in, 0, out, 0, len, 0);
+      len = copy_file_range_wrap(in, 0, out, 0, len, 0);
       if (len < 0 && errno == EINVAL)
         copy_file_range = 0;
     }
