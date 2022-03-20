@@ -225,8 +225,12 @@ static int add_to_tar(struct dirtree *node)
     if (!(lnk = strstr(lnk, ".."))) break;
     if (lnk == hname || lnk[-1] == '/') {
       if (!lnk[2]) goto done;
-      if (lnk[2]=='/') lnk = hname = lnk+3;
-    } else lnk+= 2;
+      if (lnk[2]=='/') {
+        lnk = hname = lnk+3;
+        continue;
+      }
+    }
+    lnk += 2;
   }
   if (!*hname) goto done;
 

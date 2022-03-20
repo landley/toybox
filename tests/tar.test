@@ -275,6 +275,14 @@ testcmd 'replace dir with file' '-xf test.tar && cat one/two/three' \
   'hello\n' '' ''
 rm -rf one test.tar
 
+mkdir ..dotsdir
+testing "create ..dotsdir" "$TAR ..dotsdir | SUM 3" \
+  "de99091a91c74ef6b90093e9165b413670730572\n" "" ""
+
+testing "pass ..dotsdir" "$TAR ..dotsdir | LST" \
+  "drwxrwxr-x root/root 0 2009-02-13 23:31 ..dotsdir/\n" "" ""
+rmdir ..dotsdir
+
 if false
 then
 
