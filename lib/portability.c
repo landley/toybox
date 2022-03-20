@@ -651,8 +651,11 @@ long long sendfile_len(int in, int out, long long bytes, long long *consumed)
     if (copy_file_range) {
       if (bytes<0 || bytes>(1<<30)) len = (1<<30);
       len = copy_file_range_wrap(in, 0, out, 0, len, 0);
-      if (len < 0 && errno == EINVAL)
+      if (len < 0 && errno == EINVAL) {
         copy_file_range = 0;
+
+        continue;
+      }
     }
     if (!copy_file_range) {
       if (bytes<0 || len>sizeof(libbuf)) len = sizeof(libbuf);
