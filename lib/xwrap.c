@@ -104,7 +104,12 @@ char *xstrndup(char *s, size_t n)
 // Die unless we can allocate a copy of this string.
 char *xstrdup(char *s)
 {
-  return xstrndup(s, strlen(s));
+  long len = strlen(s);
+  char *c = xmalloc(++len);
+
+  memcpy(c, s, len);
+
+  return c;
 }
 
 void *xmemdup(void *s, long len)
