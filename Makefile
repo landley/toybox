@@ -3,7 +3,7 @@
 
 # If people set these on the make command line, use 'em
 # Note that CC defaults to "cc" so the one in configure doesn't get
-# used when scripts/make.sh and care called through "make".
+# used when scripts/make.sh and such called through "make".
 
 HOSTCC?=cc
 
