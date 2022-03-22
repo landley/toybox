@@ -350,6 +350,7 @@ void debug_show_fds()
   struct dirent *DE;
   char *s, *ss = 0, buf[4096], *sss = buf;
 
+  if (!X) return;
   for (; (DE = readdir(X));) {
     if (atoi(DE->d_name) == fd) continue;
     s = xreadlink(ss = xmprintf("/proc/self/fd/%s", DE->d_name));
@@ -1547,7 +1548,7 @@ static void wildcard_add_files(struct sh_arg *arg, char *pattern,
   if (!dt) return arg_add(arg, pattern);
   while (dt) {
     while (dt->child) dt = dt->child;
-    arg_add(arg, dirtree_path(dt, 0));
+    arg_add(arg, push_arg(delete, dirtree_path(dt, 0)));
     do {
       pp = (void *)dt;
       if ((dt = dt->parent)) dt->child = dt->child->next;
@@ -2285,9 +2286,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int skip, int *urd)
   for (j = skip; j<arg->c; j++) {
     int saveclose = 0, bad = 0;
 
-    s = arg->v[j];
-
-    if (!strcmp(s, "!")) {
+    if (!strcmp(s = arg->v[j], "!")) {
       pp->flags ^= PFLAG_NOT;
 
       continue;
@@ -2889,8 +2888,10 @@ funky:
 
       // Stop at EOL. Discard blank pipeline segment, else end segment
       if (end == start) done++;
-      if (!pl->type && !arg->c) free_pipeline(dlist_lpop(ppl));
-      else pl->count = -1;
+      if (!pl->type && !arg->c) {
+        free_pipeline(dlist_lpop(ppl));
+        pl = *ppl ? (*ppl)->prev : 0;
+      } else pl->count = -1;
 
       continue;
     }
