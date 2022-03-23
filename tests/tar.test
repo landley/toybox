@@ -45,9 +45,13 @@ testing "pass user" "tar -c --owner nobody --group root --mtime @0 file | LST" \
   "-rw-rw-r-- nobody/root 0 1970-01-01 00:00 file\n" "" ""
 # (We assume that if we have the nobody user, we also have the group, in the
 # absence of a good portable way to test for the existence of a named group.)
-skipnot id nobody >/dev/null
+skipnot getent group nobody >/dev/null
 testing "pass group" "tar c --owner root --group nobody --mtime @0 file | LST" \
   "-rw-rw-r-- root/nobody 0 1970-01-01 00:00 file\n" "" ""
+
+skipnot getent group nogroup >/dev/null
+testing "pass group" "tar c --owner root --group nogroup --mtime @0 file | LST" \
+  "-rw-rw-r-- root/nogroup 0 1970-01-01 00:00 file\n" "" ""
 
 # Historically we output a "base 256" format that _we_ could decode but that
 # GNU tar choked on, so check the exact bytes with SUM, not a LST round trip.
