@@ -26,7 +26,7 @@
  * todo: Add support for Transfer Encoding (gzip|deflate)
  * todo: Add support for RFC5987
 
-USE_WGET(NEWTOY(wget, "<1>1(max-redirect)#<0=20d(debug)O(output-document):", TOYFLAG_USR|TOYFLAG_BIN))
+USE_WGET(NEWTOY(wget, "<1>1(max-redirect)#<0=20d(debug)O(output-document):p(post-data):", TOYFLAG_USR|TOYFLAG_BIN))
 
 config WGET
   bool "wget"
@@ -36,6 +36,7 @@ config WGET
         --max-redirect          maximum redirections allowed
     -d, --debug                 print lots of debugging information
     -O, --output-document=FILE  specify output filename
+    -p, --post-data=DATA        send data in body of POST request
 
     examples:
       wget http://www.example.com
@@ -77,6 +78,7 @@ config WGET_OPENSSL
 
 GLOBALS(
   char *O;
+  char *postdata;
   long max_redirect;
 
   int sock;
@@ -269,10 +271,17 @@ void wget_main(void)
     if (!TT.max_redirect--) error_exit("Too many redirects");
 
     wget_info(TT.url, &host, &port, &path);
-
-    sprintf(toybuf, "GET /%s HTTP/1.1\r\nHost: %s\r\n"
-                    "User-Agent: %s\r\nConnection: close\r\n\r\n",
-                    path, host, agent);
+    if (!FLAG(p)) {
+      sprintf(toybuf, "GET /%s HTTP/1.1\r\nHost: %s\r\n"
+                      "User-Agent: %s\r\nConnection: close\r\n\r\n",
+                      path, host, agent);
+    } else {
+      sprintf(toybuf, "POST /%s HTTP/1.1\r\nHost: %s\r\n"
+                      "User-Agent: %s\r\nConnection: close\r\n"
+                      "Content-Length: %ld\r\n\r\n"
+                      "%s",
+                      path, host, agent, sizeof(TT.postdata), TT.postdata);
+    }
     if (FLAG(d)) printf("--- Request\n%s", toybuf);
 
     wget_connect(host, port);
