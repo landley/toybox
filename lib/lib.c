@@ -449,9 +449,10 @@ char *strafter(char *haystack, char *needle)
 // Remove trailing \n
 char *chomp(char *s)
 {
-  char *p = strrchr(s, '\n');
+  char *p = s+strlen(s);
 
-  if (p && !p[1]) *p = 0;
+  while (p>=s && (p[-1]=='\r' || p[-1]=='\n')) *--p = 0;
+
   return s;
 }
 
