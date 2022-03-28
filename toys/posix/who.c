@@ -4,7 +4,7 @@
  *
  * by Luis Felipe Strano Moraes <lfelipe@profusion.mobi>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/who.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/who.html
  *
  * Posix says to support many options (-abdHlmpqrstTu) but this
  * isn't aimed at minicomputers with modem pools.

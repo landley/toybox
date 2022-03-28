@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Georgi Chorbadzhiyski <georgi@unixsol.org>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/mkfifo.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/mkfifo.html
 
 USE_MKFIFO(NEWTOY(mkfifo, "<1"USE_MKFIFO_Z("Z:")"m:", TOYFLAG_USR|TOYFLAG_BIN))
 

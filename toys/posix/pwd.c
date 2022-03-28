@@ -2,7 +2,7 @@
  *
  * Copyright 2006 Rob Landley <rob@landley.net>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/pwd.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/pwd.html
 
 USE_PWD(NEWTOY(pwd, ">0LP[-LP]", TOYFLAG_BIN|TOYFLAG_MAYFORK))
 

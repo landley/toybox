@@ -2,7 +2,7 @@
  *
  * Copyright 2008 Rob Landley <rob@landley.net>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/tee.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/tee.html
 
 USE_TEE(NEWTOY(tee, "ia", TOYFLAG_USR|TOYFLAG_BIN))
 

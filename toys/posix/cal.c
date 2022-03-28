@@ -2,7 +2,7 @@
  *
  * Copyright 2011 Rob Landley <rob@landley.net>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/cal.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/cal.html
 
 USE_CAL(NEWTOY(cal, ">3h", TOYFLAG_USR|TOYFLAG_BIN))
 

@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Ashwini Kumar <ak.ashwini@gmail.com>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/du.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/du.html
  *
  * TODO: cleanup (should seen_inode be lib?)
  * 32 bit du -b maxes out at 4 gigs (instead of 2 terabytes via *512 trick)

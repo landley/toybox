@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Georgi Chorbadzhiyski <georgi@unixsol.org>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/uniq.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/uniq.html
 
 USE_UNIQ(NEWTOY(uniq, "f#s#w#zicdu", TOYFLAG_USR|TOYFLAG_BIN))
 

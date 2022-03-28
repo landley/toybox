@@ -2,7 +2,7 @@
  *
  * Copyright 2012 Timothy Elliott <tle@holymonkey.com>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/cmp.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/cmp.html
 
 USE_CMP(NEWTOY(cmp, "<1>4ls(silent)(quiet)n#<1[!ls]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 

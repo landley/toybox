@@ -2,7 +2,7 @@
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
  *
- * see http://opengroup.org/onlinepubs/9699919799/utilities/patch.html
+ * see http://pubs.opengroup.org/onlinepubs/9699919799/utilities/patch.html
  * (But only does -u, because who still cares about "ed"?)
  *
  * TODO:

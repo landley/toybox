@@ -2,7 +2,7 @@
  *
  * Copyright 2011 Rob Landley <rob@landley.net>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/nohup.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/nohup.html
 
 USE_NOHUP(NEWTOY(nohup, "<1^", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(125)))
 

@@ -2,7 +2,7 @@
  *
  * Copyright 2008 Rob Landley <rob@landley.net>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/uname.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/uname.html
 
 USE_UNAME(NEWTOY(uname, "aomvrns", TOYFLAG_BIN))
 USE_ARCH(NEWTOY(arch, 0, TOYFLAG_USR|TOYFLAG_BIN))

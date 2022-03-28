@@ -2,7 +2,7 @@
  *
  * Copyright 2008 Rob Landley <rob@landley.net>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/cksum.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/cksum.html
 
 USE_CKSUM(NEWTOY(cksum, "HIPLN", TOYFLAG_BIN))
 USE_CRC32(NEWTOY(crc32, 0, TOYFLAG_BIN))

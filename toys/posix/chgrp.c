@@ -2,8 +2,8 @@
  *
  * Copyright 2012 Georgi Chorbadzhiyski <georgi@unixsol.org>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/chown.html
- * See http://opengroup.org/onlinepubs/9699919799/utilities/chgrp.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/chown.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/chgrp.html
 
 USE_CHGRP(NEWTOY(chgrp, "<2h(no-dereference)PLHRfv[-HLP]", TOYFLAG_BIN))
 USE_CHOWN(OLDTOY(chown, chgrp, TOYFLAG_BIN))

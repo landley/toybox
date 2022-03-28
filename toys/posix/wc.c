@@ -2,7 +2,7 @@
  *
  * Copyright 2011 Rob Landley <rob@landley.net>
  *
- * See http://opengroup.org/onlinepubs/9699919799/utilities/wc.html
+ * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/wc.html
 
 USE_WC(NEWTOY(wc, "mcwl", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LOCALE))
 

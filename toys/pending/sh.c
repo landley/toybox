@@ -6,8 +6,8 @@
  * http://man7.org/linux/man-pages/man1/bash.1.html
  *
  * The POSIX-2008/SUSv4 shell spec is at:
- * http://opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html
- * and http://opengroup.org/onlinepubs/9699919799/utilities/sh.html
+ * http://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html
+ * and http://pubs.opengroup.org/onlinepubs/9699919799/utilities/sh.html
  *
  * deviations from posix: don't care about $LANG or $LC_ALL
 
