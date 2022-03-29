@@ -77,8 +77,8 @@ config WGET_OPENSSL
 #define WGET_IS_HTTPS (WGET_SSL && (strncmp(TT.url, "https://", 8) == 0))
 
 GLOBALS(
-  char *O;
   char *postdata;
+  char *O;
   long max_redirect;
 
   int sock;
