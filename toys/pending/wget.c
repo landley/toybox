@@ -280,7 +280,7 @@ void wget_main(void)
                       "User-Agent: %s\r\nConnection: close\r\n"
                       "Content-Length: %ld\r\n\r\n"
                       "%s",
-                      path, host, agent, sizeof(TT.postdata), TT.postdata);
+                      path, host, agent, strlen(TT.postdata), TT.postdata);
     }
     if (FLAG(d)) printf("--- Request\n%s", toybuf);
 
