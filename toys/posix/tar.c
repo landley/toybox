@@ -34,10 +34,10 @@ config TAR
     J  xz compression        j  bzip2 compression     z  gzip compression
     O  Extract to stdout     X  exclude names in FILE T  include names in FILE
 
-    --exclude        FILENAME to exclude    --full-time   Show seconds with -tv
-    --mode MODE      Adjust modes           --mtime TIME  Override timestamps
-    --owner NAME     Set file owner to NAME --group NAME  Set file group to NAME
-    --sparse         Record sparse files    --selinux     Record/restore labels
+    --exclude        FILENAME to exclude  --full-time         Show seconds with -tv
+    --mode MODE      Adjust permissions   --owner NAME[:UID]  Set file ownership
+    --mtime TIME     Override timestamps  --group NAME[:GID]  Set file group
+    --sparse         Record sparse files  --selinux           Save/restore labels
     --restrict       All archive contents must extract under one subdirectory
     --numeric-owner  Save/use/display uid and gid, not user/group name
     --no-recursion   Don't store directory contents
@@ -336,10 +336,10 @@ static int add_to_tar(struct dirtree *node)
   if (!FLAG(numeric_owner)) {
     if ((TT.owner || (pw = bufgetpwuid(st->st_uid))) &&
         ascii_fits(st->st_uid, sizeof(hdr.uid)))
-      strncpy(hdr.uname, TT.owner ? TT.owner : pw->pw_name, sizeof(hdr.uname));
+      strncpy(hdr.uname, TT.owner ? : pw->pw_name, sizeof(hdr.uname));
     if ((TT.group || (gr = bufgetgrgid(st->st_gid))) &&
         ascii_fits(st->st_gid, sizeof(hdr.gid)))
-      strncpy(hdr.gname, TT.group ? TT.group : gr->gr_name, sizeof(hdr.gname));
+      strncpy(hdr.gname, TT.group ? : gr->gr_name, sizeof(hdr.gname));
   }
 
   TT.sparselen = 0;
@@ -716,8 +716,8 @@ static void unpack_tar(char *first)
     maj = OTOI(tar.major);
     min = OTOI(tar.minor);
     TT.hdr.device = dev_makedev(maj, min);
-    TT.hdr.uname = xstrndup(TT.owner ? TT.owner : tar.uname, sizeof(tar.uname));
-    TT.hdr.gname = xstrndup(TT.group ? TT.group : tar.gname, sizeof(tar.gname));
+    TT.hdr.uname = xstrndup(TT.owner ? : tar.uname, sizeof(tar.uname));
+    TT.hdr.gname = xstrndup(TT.group ? : tar.gname, sizeof(tar.gname));
 
     if (TT.owner) TT.hdr.uid = TT.ouid;
     else if (!FLAG(numeric_owner)) {
@@ -861,8 +861,20 @@ void tar_main(void)
 
   // Get possible early errors out of the way
   if (!geteuid()) toys.optflags |= FLAG_p;
-  if (TT.owner) TT.ouid = xgetuid(TT.owner);
-  if (TT.group) TT.ggid = xgetgid(TT.group);
+  if (TT.owner) {
+    if (!(s = strchr(TT.owner, ':'))) TT.ouid = xgetuid(TT.owner);
+    else {
+      TT.owner = xstrndup(TT.owner, s++-TT.owner);
+      TT.ouid = atolx_range(s, 0, INT_MAX);
+    }
+  }
+  if (TT.group) {
+    if (!(s = strchr(TT.group, ':'))) TT.ggid = xgetgid(TT.group);
+    else {
+      TT.group = xstrndup(TT.group, s++-TT.group);
+      TT.ggid = atolx_range(s, 0, INT_MAX);
+    }
+  }
   if (TT.mtime) xparsedate(TT.mtime, &TT.mtt, (void *)&s, 1);
 
   // Collect file list.
