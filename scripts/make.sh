@@ -55,7 +55,8 @@ fi
 # Extract a list of toys/*/*.c files to compile from the data in $KCONFIG_CONFIG
 # (First command names, then filenames with relevant {NEW,OLD}TOY() macro.)
 
-[ -d ".git" ] && GITHASH="-DTOYBOX_VERSION=\"$(git describe --tags --abbrev=12 2>/dev/null)\""
+[ -d ".git" ] && [ ! -z "$(which git 2>/dev/null)" ] &&
+   GITHASH="-DTOYBOX_VERSION=\"$(git describe --tags --abbrev=12 2>/dev/null)\""
 TOYFILES="$($SED -n 's/^CONFIG_\([^=]*\)=.*/\1/p' "$KCONFIG_CONFIG" | xargs | tr ' [A-Z]' '|[a-z]')"
 TOYFILES="main.c $(egrep -l "TOY[(]($TOYFILES)[ ,]" toys/*/*.c | xargs)"
 BUILD="$(echo ${CROSS_COMPILE}${CC} $CFLAGS -I . $OPTIMIZE $GITHASH)"
@@ -69,12 +70,13 @@ genbuildsh()
 {
   # Write a canned build line for use on crippled build machines.
 
-  echo -e "#!/bin/sh\n\nPATH='$PATH'\nBUILD='$BUILD'\nLINK='$LINK'\n"
+  LLINK="$(echo $LDOPTIMIZE $LDFLAGS $(cat "$GENDIR"/optlibs.dat))"
+  echo -e "#!/bin/sh\n\nPATH='$PATH'\nBUILD='$BUILD'\nLINK='$LLINK'\n"
   echo -e "\$BUILD lib/*.c $TOYFILES \$LINK -o $OUTNAME"
 }
 
-if ! cmp -s <(genbuildsh 2>/dev/null | head -n 4 ; echo LINK="'"$LDOPTIMIZE $LDFLAGS) \
-          <(head -n 5 "$GENDIR"/build.sh 2>/dev/null | $SED '5s/ -o .*//')
+if ! cmp -s <(genbuildsh 2>/dev/null | head -n 5) \
+            <(head -n 5 "$GENDIR"/build.sh 2>/dev/null | $SED '5s/ -o .*//')
 then
   echo -n "Library probe"
 
@@ -94,9 +96,6 @@ then
   echo
 fi
 
-# LINK needs optlibs.dat, above
-
-LINK="$(echo $LDOPTIMIZE $LDFLAGS $(cat "$GENDIR"/optlibs.dat))"
 genbuildsh > "$GENDIR"/build.sh && chmod +x "$GENDIR"/build.sh || exit 1
 
 #TODO: "make $SED && make" doesn't regenerate config.h because diff .config
@@ -239,7 +238,7 @@ echo -n "Compile $OUTNAME"
 [ ! -z "$V" ] && echo
 DOTPROG=.
 
-# This is a parallel version of: do_loudly $BUILD $FILES $LINK || exit 1
+# This is a parallel version of: do_loudly $BUILD $FILES $LLINK || exit 1
 
 # Any headers newer than the oldest generated/obj file?
 X="$(ls -1t "$GENDIR"/obj/* 2>/dev/null | tail -n 1)"
@@ -288,7 +287,7 @@ done
 [ $DONE -ne 0 ] && exit 1
 
 UNSTRIPPED="$UNSTRIPPED/${OUTNAME/*\//}"
-do_loudly $BUILD $LNKFILES $LINK -o "$UNSTRIPPED" || exit 1
+do_loudly $BUILD $LNKFILES $LLINK -o "$UNSTRIPPED" || exit 1
 if [ ! -z "$NOSTRIP" ] ||
   ! do_loudly ${CROSS_COMPILE}${STRIP} "$UNSTRIPPED" -o "$OUTNAME"
 then
