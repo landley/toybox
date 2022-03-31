@@ -43,7 +43,8 @@ if isnewer "$GENDIR"/newtoys.h toys
 then
   echo -n "$GENDIR/newtoys.h "
 
-  echo "USE_TOYBOX(NEWTOY(toybox, NULL, TOYFLAG_STAYROOT))" > "$GENDIR"/newtoys.h
+  echo "USE_TOYBOX(NEWTOY(toybox, NULL, TOYFLAG_STAYROOT|TOYFLAG_NOHELP))" \
+    > "$GENDIR"/newtoys.h
   $SED -n -e 's/^USE_[A-Z0-9_]*(/&/p' toys/*/*.c \
 	| $SED 's/\(.*TOY(\)\([^,]*\),\(.*\)/\2 \1\2,\3/' | sort -s -k 1,1 \
 	| $SED 's/[^ ]* //'  >> "$GENDIR"/newtoys.h

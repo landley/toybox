@@ -114,8 +114,9 @@ static void unknown(char *name)
 // Parse --help and --version for (almost) all commands
 void check_help(char **arg)
 {
-  if (!CFG_TOYBOX_HELP_DASHDASH || !*arg || (toys.which->flags&TOYFLAG_NOHELP))
-    return;
+  if (!CFG_TOYBOX_HELP_DASHDASH || !*arg) return;
+  if (!CFG_TOYBOX || toys.which != toy_list)
+    if (toys.which->flags&TOYFLAG_NOHELP) return;
 
   if (!strcmp(*arg, "--help")) {
     if (CFG_TOYBOX && toys.which == toy_list && arg[1])
