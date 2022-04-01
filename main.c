@@ -165,7 +165,6 @@ void toy_init(struct toy_list *which, char *argv[])
   void *oldwhich = toys.which;
 
   // Drop permissions for non-suid commands.
-
   if (CFG_TOYBOX_SUID) {
     if (!toys.which) toys.which = toy_list;
 
@@ -181,6 +180,7 @@ void toy_init(struct toy_list *which, char *argv[])
       error_msg("Not installed suid root");
 
     if ((which->flags & TOYFLAG_NEEDROOT) && euid) {
+      toys.which = which;
       check_help(argv+1);
       help_exit("Not root");
     }
@@ -237,12 +237,13 @@ void toybox_main(void)
 
   // fast path: try to exec immediately.
   // (Leave toys.which null to disable suid return logic.)
-  // Try dereferencing one layer of symlink
+  // Try dereferencing symlinks until we hit a recognized name
   while (s) {
-    struct toy_list *tl = toy_find(basename(s));
+    char *ss = basename(s);
+    struct toy_list *tl = toy_find(ss);
 
-    if (tl==toy_list && s!=toys.argv[1]) unknown(basename(s));
-    toy_exec_which(toy_find(basename(s)), toys.argv+1);
+    if (tl==toy_list && s!=toys.argv[1]) unknown(ss);
+    toy_exec_which(tl, toys.argv+1);
     s = (0<readlink(s, libbuf, sizeof(libbuf))) ? libbuf : 0;
   }
 
