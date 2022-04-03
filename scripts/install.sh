@@ -4,7 +4,7 @@
 
 source ./configure
 
-[ -z "$PREFIX" ] && PREFIX="/usr/toybox"
+[ -z "$PREFIX" ] && PREFIX="$PWD/install"
 
 # Parse command line arguments.
 

@@ -41,13 +41,13 @@ baseline: generated/unstripped/toybox
 bloatcheck: generated/unstripped/toybox_old generated/unstripped/toybox
 	@scripts/bloatcheck generated/unstripped/toybox_old generated/unstripped/toybox
 
-install_flat:
+install_flat: toybox
 	scripts/install.sh --symlink --force
 
-install_airlock:
+install_airlock: toybox
 	scripts/install.sh --symlink --force --airlock
 
-install:
+install: toybox
 	scripts/install.sh --long --symlink --force
 
 uninstall_flat:
@@ -65,7 +65,7 @@ root_clean:
 
 clean::
 	@chmod -fR 700 generated || true
-	@rm -rf toybox generated change .singleconfig*
+	@rm -rf toybox generated change install .singleconfig*
 	@echo cleaned
 
 # If singlemake was in generated/ "make clean; make test_ls" wouldn't work.
