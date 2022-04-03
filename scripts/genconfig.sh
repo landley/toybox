@@ -3,9 +3,9 @@
 # This has to be a separate file from scripts/make.sh so it can be called
 # before menuconfig.  (It's called again from scripts/make.sh just to be sure.)
 
-mkdir -p generated
-
 source scripts/portability.sh
+
+mkdir -p "$GENDIR"
 
 probecc()
 {
@@ -140,8 +140,8 @@ genconfig()
   done
 }
 
-probeconfig > generated/Config.probed || rm generated/Config.probed
-genconfig > generated/Config.in || rm generated/Config.in
+probeconfig > "$GENDIR"/Config.probed || rm "$GENDIR"/Config.probed
+genconfig > "$GENDIR"/Config.in || rm "$GENDIR"/Config.in
 
 # Find names of commands that can be built standalone in these C files
 toys()
