@@ -17,7 +17,7 @@
  * Why --exclude pattern but no --include? tar cvzf a.tgz dir --include '*.txt'
  *
 
-USE_TAR(NEWTOY(tar, "&(selinux)(restrict)(full-time)(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mode):(mtime):(group):(owner):(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)I(use-compress-program):J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)P(absolute-names)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):a[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TAR(NEWTOY(tar, "&(strip-components)#(selinux)(restrict)(full-time)(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mode):(mtime):(group):(owner):(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)I(use-compress-program):J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)P(absolute-names)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):a[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TAR
   bool "tar"
@@ -38,9 +38,9 @@ config TAR
     --mode MODE      Adjust permissions   --owner NAME[:UID]  Set file ownership
     --mtime TIME     Override timestamps  --group NAME[:GID]  Set file group
     --sparse         Record sparse files  --selinux           Save/restore labels
-    --restrict       All archive contents must extract under one subdirectory
-    --numeric-owner  Save/use/display uid and gid, not user/group name
-    --no-recursion   Don't store directory contents
+    --restrict       All under one dir    --no-recursion      Skip dir contents
+    --numeric-owner  Use numeric uid/gid, not user/group names
+    --strip-components NUM  Ignore first NUM directory components when extracting
     -I PROG          Filter through PROG to compress or PROG -d to decompress
 */
 
@@ -52,6 +52,7 @@ GLOBALS(
   struct arg_list *T, *X;
   char *I, *to_command, *owner, *group, *mtime, *mode;
   struct arg_list *exclude;
+  long strip_components;
 
   struct double_list *incl, *excl, *seen;
   struct string_list *dirs;
@@ -520,7 +521,15 @@ error:
 static void extract_to_disk(void)
 {
   char *name = TT.hdr.name;
-  int ala = TT.hdr.mode;
+  int ala = TT.hdr.mode, strip;
+
+  for (strip = 0; strip < TT.strip_components; strip++) {
+    char *s = strchr(name, '/');
+
+    if (s && s[1]) name = s+1;
+    else if (S_ISDIR(ala)) return;
+    else break;
+  }
 
   if (dirflush(name, S_ISDIR(ala))) {
     if (S_ISREG(ala) && !TT.hdr.link_target) skippy(TT.hdr.size);
@@ -543,17 +552,16 @@ static void extract_to_disk(void)
         return perror_msg("can't link '%s' -> '%s'", name, TT.hdr.link_target);
     // write contents
     } else {
-      int fd = xcreate(name,
-        WARN_ONLY|O_WRONLY|O_CREAT|(FLAG(overwrite)?O_TRUNC:O_EXCL),
-        ala & 07777);
-      if (fd != -1) sendfile_sparse(fd);
+      int fd = WARN_ONLY|O_WRONLY|O_CREAT|(FLAG(overwrite) ? O_TRUNC : O_EXCL);
+
+      if ((fd = xcreate(name, fd, ala&07777)) != -1) sendfile_sparse(fd);
       else return skippy(TT.hdr.size);
     }
   } else if (S_ISDIR(ala)) {
     if ((mkdir(name, 0700) == -1) && errno != EEXIST)
-      return perror_msg("%s: can't create", TT.hdr.name);
+      return perror_msg("%s: can't create", name);
   } else if (S_ISLNK(ala)) {
-    if (symlink(TT.hdr.link_target, TT.hdr.name))
+    if (symlink(TT.hdr.link_target, name))
       return perror_msg("can't link '%s' -> '%s'", name, TT.hdr.link_target);
   } else if (mknod(name, ala, TT.hdr.device))
     return perror_msg("can't create '%s'", name);
@@ -564,20 +572,20 @@ static void extract_to_disk(void)
 
     if (TT.owner) TT.hdr.uid = TT.ouid;
     else if (!FLAG(numeric_owner) && *TT.hdr.uname) {
-      struct passwd *pw = getpwnam(TT.hdr.uname);
+      struct passwd *pw = bufgetpwnamuid(TT.hdr.uname, 0);
       if (pw && (TT.owner || !FLAG(numeric_owner))) TT.hdr.uid = pw->pw_uid;
     }
 
     if (TT.group) TT.hdr.gid = TT.ggid;
     else if (!FLAG(numeric_owner) && *TT.hdr.uname) {
-      struct group *gr = getgrnam(TT.hdr.gname);
+      struct group *gr = bufgetgrnamgid(TT.hdr.gname, 0);
       if (gr) TT.hdr.gid = gr->gr_gid;
     }
 
     if (lchown(name, u, g)) perror_msg("chown %d:%d '%s'", u, g, name);;
   }
 
-  if (!S_ISLNK(ala)) chmod(TT.hdr.name, FLAG(p) ? ala : ala&0777);
+  if (!S_ISLNK(ala)) chmod(name, FLAG(p) ? ala : ala&0777);
 
   // Apply mtime.
   if (!FLAG(m)) {
@@ -592,7 +600,7 @@ static void extract_to_disk(void)
       strcpy(sl->str+sizeof(long long), name);
       sl->next = TT.dirs;
       TT.dirs = sl;
-    } else wsettime(TT.hdr.name, TT.hdr.mtime);
+    } else wsettime(name, TT.hdr.mtime);
   }
 }
 
@@ -721,13 +729,13 @@ static void unpack_tar(char *first)
 
     if (TT.owner) TT.hdr.uid = TT.ouid;
     else if (!FLAG(numeric_owner)) {
-      struct passwd *pw = getpwnam(TT.hdr.uname);
+      struct passwd *pw = bufgetpwnamuid(TT.hdr.uname, 0);
       if (pw && (TT.owner || !FLAG(numeric_owner))) TT.hdr.uid = pw->pw_uid;
     }
 
     if (TT.group) TT.hdr.gid = TT.ggid;
     else if (!FLAG(numeric_owner)) {
-      struct group *gr = getgrnam(TT.hdr.gname);
+      struct group *gr = bufgetgrnamgid(TT.hdr.gname, 0);
       if (gr) TT.hdr.gid = gr->gr_gid;
     }
 

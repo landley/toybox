@@ -1252,7 +1252,7 @@ char *next_printf(char *s, char **start)
 }
 
 // Return cached passwd entries.
-struct passwd *bufgetpwuid(uid_t uid)
+struct passwd *bufgetpwnamuid(char *name, uid_t uid)
 {
   struct pwuidbuf_list {
     struct pwuidbuf_list *next;
@@ -1264,11 +1264,14 @@ struct passwd *bufgetpwuid(uid_t uid)
 
   // If we already have this one, return it.
   for (list = pwuidbuf; list; list = list->next)
-    if (list->pw.pw_uid == uid) return &(list->pw);
+    if (name ? !strcmp(name, list->pw.pw_name) : list->pw.pw_uid==uid)
+      return &(list->pw);
 
   for (;;) {
     list = xrealloc(list, size *= 2);
-    errno = getpwuid_r(uid, &list->pw, sizeof(*list)+(char *)list,
+    if (name) errno = getpwnam_r(name, &list->pw, sizeof(*list)+(char *)list,
+      size-sizeof(*list), &temp);
+    else errno = getpwuid_r(uid, &list->pw, sizeof(*list)+(char *)list,
       size-sizeof(*list), &temp);
     if (errno != ERANGE) break;
   }
@@ -1284,8 +1287,13 @@ struct passwd *bufgetpwuid(uid_t uid)
   return &list->pw;
 }
 
+struct passwd *bufgetpwuid(uid_t uid)
+{
+  return bufgetpwnamuid(0, uid);
+}
+
 // Return cached group entries.
-struct group *bufgetgrgid(gid_t gid)
+struct group *bufgetgrnamgid(char *name, gid_t gid)
 {
   struct grgidbuf_list {
     struct grgidbuf_list *next;
@@ -1296,11 +1304,14 @@ struct group *bufgetgrgid(gid_t gid)
   unsigned size = 256;
 
   for (list = grgidbuf; list; list = list->next)
-    if (list->gr.gr_gid == gid) return &(list->gr);
+    if (name ? !strcmp(name, list->gr.gr_name) : list->gr.gr_gid==gid)
+      return &(list->gr);
 
   for (;;) {
     list = xrealloc(list, size *= 2);
-    errno = getgrgid_r(gid, &list->gr, sizeof(*list)+(char *)list,
+    if (name) errno = getgrnam_r(name, &list->gr, sizeof(*list)+(char *)list,
+      size-sizeof(*list), &temp);
+    else errno = getgrgid_r(gid, &list->gr, sizeof(*list)+(char *)list,
       size-sizeof(*list), &temp);
     if (errno != ERANGE) break;
   }
@@ -1314,6 +1325,12 @@ struct group *bufgetgrgid(gid_t gid)
 
   return &list->gr;
 }
+
+struct group *bufgetgrgid(gid_t gid)
+{
+  return bufgetgrnamgid(0, gid);
+}
+
 
 // Always null terminates, returns 0 for failure, len for success
 int readlinkat0(int dirfd, char *path, char *buf, int len)
