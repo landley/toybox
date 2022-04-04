@@ -6,7 +6,7 @@
  * Documentation/block/ioprio.txt in the linux source.
 
 USE_IONICE(NEWTOY(ionice, "^tc#<0>3=2n#<0>7=5p#", TOYFLAG_USR|TOYFLAG_BIN))
-USE_IORENICE(NEWTOY(iorenice, "?<1>3", TOYFLAG_USR|TOYFLAG_BIN))
+USE_IORENICE(NEWTOY(iorenice, "<1>3", TOYFLAG_USR|TOYFLAG_BIN))
 
 config IONICE
   bool "ionice"

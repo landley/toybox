@@ -77,6 +77,7 @@
 //     ? Allow unknown arguments (pass them through to command).
 //     & first arg has imaginary dash (ala tar/ps/ar) which sets FLAGS_NODASH
 //     0 Include argv[0] in optargs
+//     note: ^ and ? implied when no options
 //
 //   At the end: [groups] of previously seen options
 //     - Only one in group (switch off)    [-abc] means -ab=-b, -ba=-a, -abc=-c
@@ -254,7 +255,7 @@ static int parse_optflaglist(struct getoptflagstate *gof)
 
   // Parse option string into a linked list of options with attributes.
 
-  if (!*options) gof->stopearly++;
+  if (!*options) gof->stopearly++, gof->noerror++;
   while (*options) {
     char *temp;
 
