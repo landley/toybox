@@ -2,7 +2,7 @@
  *
  * Copyright 2014 Rob Landley <rob@landley.net>
  *
- * No standard, but it's in coreutils
+ * See https://man7.org/linux/man-pages/man1/factor.1.html
 
 USE_FACTOR(NEWTOY(factor, 0, TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -19,7 +19,7 @@ config FACTOR
 
 static void factor(char *s)
 {
-  unsigned long long l, ll;
+  unsigned long long l, ll, lll;
 
   for (;;) {
     char *err = s;
@@ -55,9 +55,8 @@ static void factor(char *s)
     }
 
     // test odd numbers until square is > remainder or integer wrap.
-    for (ll=3; ;ll += 2) {
-      long lll = ll*ll;
-
+    for (ll = 3;; ll += 2) {
+      lll = ll*ll;
       if (lll>l || lll<ll) {
         if (l>1) printf(" %llu", l);
         break;
@@ -73,14 +72,11 @@ static void factor(char *s)
 
 void factor_main(void)
 {
-  if (toys.optc) {
-    char **ss;
+  char *s = 0, **ss;
+  size_t len = 0;
 
-    for (ss = toys.optargs; *ss; ss++) factor(*ss);
-  } else for (;;) {
-    char *s = 0;
-    size_t len = 0;
-
+  if (toys.optc) for (ss = toys.optargs; *ss; ss++) factor(*ss);
+  else for (;;) {
     if (-1 == getline(&s, &len, stdin)) break;
     factor(s);
   }
