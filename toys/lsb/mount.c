@@ -232,8 +232,7 @@ static void mount_filesystem(char *dev, char *dir, char *type,
       i = strlen(type);
       if (i) type[i-1] = 0;
     }
-    if (FLAG(v))
-      printf("try '%s' type '%s' on '%s'\n", dev, type, dir);
+    if (FLAG(v)) printf("try '%s' type '%s' on '%s'\n", dev, type, dir);
     for (;;) {
       rc = mount(dev, dir, type, flags, opts);
       // Did we succeed, fail unrecoverably, or already try read-only?
@@ -354,8 +353,7 @@ void mount_main(void)
           continue;
       } else {
         if (dir && strcmp(dir, mm->dir)) continue;
-        if (dev && strcmp(dev, mm->device) && (dir || strcmp(dev, mm->dir)))
-          continue;
+        if (strcmp(dev, mm->device) && (dir || strcmp(dev, mm->dir))) continue;
       }
 
       // Don't overmount the same dev on the same directory
