@@ -4,7 +4,7 @@
 
 // -ef positions match ABS_FILE ABS_PATH
 USE_READLINK(NEWTOY(readlink, "<1nqmef(canonicalize)[-mef]", TOYFLAG_USR|TOYFLAG_BIN))
-USE_REALPATH(NEWTOY(realpath, "<1", TOYFLAG_USR|TOYFLAG_BIN))
+USE_REALPATH(OLDTOY(realpath, readlink, TOYFLAG_USR|TOYFLAG_BIN))
 
 config READLINK
   bool "readlink"
@@ -39,6 +39,7 @@ void readlink_main(void)
 {
   char **arg, *s;
 
+  if (toys.which->name[3]=='l') toys.optflags |= FLAG_f;
   for (arg = toys.optargs; *arg; arg++) {
     // Calculating full canonical path?
     // Take advantage of flag positions: m = 0, f = ABS_PATH, e = ABS_FILE
@@ -51,10 +52,4 @@ void readlink_main(void)
       free(s);
     } else toys.exitval = 1;
   }
-}
-
-void realpath_main(void)
-{
-  toys.optflags = FLAG_f;
-  readlink_main();
 }
