@@ -67,7 +67,7 @@ gen_config.h: .config
 
 kconfig/mconf: $(SHIPPED)
 	$(HOSTCC) -o $@ kconfig/mconf.c kconfig/zconf.tab.c \
-		kconfig/lxdialog/*.c -lcurses -DCURSES_LOC="<ncurses.h>" \
+		kconfig/lxdialog/*.c `pkg-config --libs ncurses` -DCURSES_LOC="<ncurses.h>" \
 		-DKBUILD_NO_NLS=1 -DPROJECT_NAME=\"$(KCONFIG_PROJECT)\"
 
 kconfig/conf: $(SHIPPED)
