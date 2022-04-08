@@ -102,7 +102,7 @@ static void wget_info(char *url, char **host, char **port, char **path)
   }
   if (!url) error_exit("unsupported protocol: %s", ss);
 
-  if ((*path = strchr(*host = url, '/'))) *(*path++) = 0;
+  if ((*path = strchr(*host = url, '/'))) *((*path)++) = 0;
   else *path = "";
 
   // Get port number and trim literal IPv6 addresses
@@ -227,21 +227,27 @@ static void wget_close()
 
 static char *wget_find_header(char *header, char *val)
 {
-  char *result = strcasestr(chomp(header), val);
+  char *result = strcasestr(header, val);
 
-  return result ? result + strlen(val) : 0;
+  if (result) {
+    result += strlen(val);
+    result[strcspn(result, "\r\n")] = 0;
+  }
+
+  return result;
 }
 
 void wget_main(void)
 {
   long status = 0;
   size_t len, c_len = 0;
-  int fd;
+  int fd = 0;
   char *body, *index, *host, *port, *path, *chunked, *ss;
   char agent[] = "toybox wget/" TOYBOX_VERSION;
 
-  TT.url = xstrdup(toys.optargs[0]);
+  TT.url = xstrdup(*toys.optargs);
 
+  // Ask server for URL, following redirects until success
   while (status != 200) {
     if (!TT.max_redirect--) error_exit("Too many redirects");
 
@@ -256,20 +262,20 @@ void wget_main(void)
     wget_write(ss, strlen(ss));
     free(ss);
 
-    // Read HTTP response until either complete or toybuf is full
+    // Read HTTP response into toybuf (probably with some body at end)
     for (index = toybuf;
       (len = wget_read(index, sizeof(toybuf)-(index-toybuf)))>0; index += len);
 
     // Split response into header and body, and null terminate header.
     // (RFC7230 says header cannot contain NUL.)
-    if (!(body = memmem(toybuf, index-toybuf, "\r\n\r\n", 4)))
+    if (!(body = memmem(ss = toybuf, index-toybuf, "\r\n\r\n", 4)))
       error_exit("response header too large");
     *body = 0;
     body += 4;
     len = index-body;
     if (FLAG(d)) printf("--- Response\n%s\n\n", toybuf);
 
-    status = strtol(strafter(toybuf, " "), NULL, 10);
+    status = strstart(&ss, "HTTP/1.1 ") ? strtol(ss, 0, 10) : 0;
     if ((status == 301) || (status == 302)) {
       if (!(ss = wget_find_header(toybuf, "Location: ")))
         error_exit("bad redirect");
@@ -279,14 +285,16 @@ void wget_main(void)
     } else if (status != 200) error_exit("response: %ld", status);
   }
 
-  if (!FLAG(O)) {
+  // Open output file
+  if (TT.O && !strcmp(TT.O, "-")) fd = 1;
+  else if (!TT.O) {
     ss = wget_find_header(toybuf, "Content-Disposition: attachment; filename=");
     if (!ss && strchr(path, '/')) ss = getbasename(path);
     if (!ss || !*ss ) ss = "index.html";
     if (!access((TT.O = ss), F_OK)) error_exit("%s already exists", TT.O);
   }
   // TODO: don't allow header/basename to write to stdout
-  fd = !strcmp(TT.O, "-") ? 1 : xcreate(TT.O, (O_WRONLY|O_CREAT|O_TRUNC), 0644);
+  if (!fd) fd = xcreate(TT.O, (O_WRONLY|O_CREAT|O_TRUNC), 0644);
 
   // If chunked we offset the first buffer by 2 character, meaning it is
   // pointing at half of the header boundary, aka '\r\n'. This simplifies
