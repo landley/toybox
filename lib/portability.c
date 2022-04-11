@@ -623,10 +623,11 @@ int get_block_device_size(int fd, unsigned long long* size)
 }
 #endif
 
-ssize_t copy_file_range_wrap(int infd, off_t *inoff, int outfd,
+static ssize_t copy_file_range_wrap(int infd, off_t *inoff, int outfd,
     off_t *outoff, size_t len, unsigned flags)
 {
-#if defined(__linux__)
+  // glibc added this constant in git at the end of 2017, shipped in 2018-02.
+#if defined(__NR_copy_file_range)
   return syscall(__NR_copy_file_range, infd, inoff, outfd, outoff, len, flags);
 #else
   errno = EINVAL;
