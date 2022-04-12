@@ -136,12 +136,6 @@ config TOYBOX_DEBUG
 	  Enable extra checks for debugging purposes. All of them catch
 	  things that can only go wrong at development time, not runtime.
 
-config TOYBOX_PEDANTIC_ARGS
-	bool "Pedantic argument checking"
-	default n
-	help
-	  Check arguments for commands that have no arguments.
-
 config TOYBOX_UID_SYS
 	int "First system UID"
 	default 100
