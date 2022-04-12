@@ -2,7 +2,7 @@
 
 # Grab default values for $CFLAGS and such.
 
-source ./configure
+source scripts/portability.sh
 
 [ -z "$PREFIX" ] && PREFIX="$PWD/install"
 
@@ -32,8 +32,8 @@ done
 echo "Compile instlist..."
 
 NOBUILD=1 scripts/make.sh
-$DEBUG $HOSTCC -I . scripts/install.c -o generated/instlist || exit 1
-COMMANDS="$(generated/instlist $LONG_PATH)"
+$DEBUG $HOSTCC -I . scripts/install.c -o "$UNSTRIPPED"/instlist || exit 1
+COMMANDS="$("$UNSTRIPPED"/instlist $LONG_PATH)"
 
 echo "${UNINSTALL:-Install} commands..."
 

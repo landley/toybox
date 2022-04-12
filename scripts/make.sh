@@ -26,7 +26,7 @@ isnewer()
 
 echo "Generate headers from toys/*/*.c..."
 
-mkdir -p "${UNSTRIPPED:=$GENDIR/unstripped}"
+mkdir -p "$UNSTRIPPED"
 
 if isnewer "$GENDIR"/Config.in toys || isnewer "$GENDIR"/Config.in Config.in
 then
