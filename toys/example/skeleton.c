@@ -7,6 +7,7 @@
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html
  * See https://www.ietf.org/rfc/rfc3.txt
  * See https://man7.org/linux/man-pages/man1/intro.1.html
+ * No standard.
 
 // Accept many different kinds of command line argument (see top of lib/args.c)
 // Demonstrate two commands in the same file (see www/documentation.html)

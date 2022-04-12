@@ -5,7 +5,8 @@
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/
  * See http://refspecs.linuxfoundation.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/cmdbehav.html
  * See https://www.ietf.org/rfc/rfc3.txt
- * see https://man7.org/linux/man-pages/man1/intro.1.html
+ * See https://man7.org/linux/man-pages/man1/intro.1.html
+ * No standard.
 
 USE_HELLO(NEWTOY(hello, 0, TOYFLAG_USR|TOYFLAG_BIN))
 
