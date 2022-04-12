@@ -2,6 +2,8 @@
 
 # build each command as a standalone executable
 
+source scripts/portability.sh
+
 NOBUILD=1 scripts/make.sh > /dev/null &&
 ${HOSTCC:-cc} -I . scripts/install.c -o "$UNSTRIPPED"/instlist &&
 export PREFIX=${PREFIX:-change/} &&
