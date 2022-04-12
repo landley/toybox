@@ -20,9 +20,3 @@ CFLAGS="$CFLAGS -Wall -Wundef -Wno-char-subscripts -Werror=implicit-function-dec
 : ${OPTIMIZE:=-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-strict-aliasing}
 
 # We accept LDFLAGS, but by default don't have anything in it
-if [ "$(uname)" == "Darwin" ]
-then
-  : ${LDOPTIMIZE:=-Wl,-dead_strip} ${STRIP:=strip}
-else
-  : ${LDOPTIMIZE:=-Wl,--gc-sections -Wl,--as-needed} ${STRIP:=strip -s -R .note* -R .comment}
-fi
