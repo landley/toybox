@@ -31,9 +31,10 @@ if [ ! -z "$ASAN" ]; then
   NOSTRIP=1
   # Ignore leaks on exit. TODO
   export ASAN_OPTIONS="detect_leaks=0"
+  unset ASAN
 fi
 
-# Centos 7 bug workaround, EOL June 30 2024.
+# Centos 7 bug workaround, EOL June 30 2024. TODO
 DASHN=-n; wait -n 2>/dev/null; [ $? -eq 2 ] && unset DASHN
 
 # If the build is using gnu tools, make them behave less randomly.
