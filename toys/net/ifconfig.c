@@ -510,8 +510,9 @@ void ifconfig_main(void)
           if (on < 0) {
             void *dest = ((on = -on)>>16)+(char *)&ifre;
 
+            // If we're about to set mem_start/io_addr/irq, get other 2 first
             if (off == SIOCSIFMAP) xioctl(TT.sockfd, SIOCGIFMAP, &ifre);
-            if (SIOCSIFNAME) xstrncpy(dest, *argv, on&0xffff);
+            if (off == SIOCSIFNAME) xstrncpy(dest, *argv, on&0xffff);
             else poke(dest, strtoul(*argv, 0, 0), on&15);
             xioctl(TT.sockfd, off, &ifre);
             break;
