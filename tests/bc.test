@@ -5,7 +5,6 @@
 #testcmd "name "args" "result" "infile" "stdin"
 
 BDIR="$FILES/bc"
-TESTDIR="./"
 
 run_bc_test() {
 	tst="$1"

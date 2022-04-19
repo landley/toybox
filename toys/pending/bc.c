@@ -5370,7 +5370,7 @@ size_t bc_program_insertFunc(BcProgram *p, char *name) {
   id.len = p->fns.len;
 
   new = bc_map_insert(&p->fn_map, &id, &idx);
-  idx = ((struct ptr_len *)bc_vec_item(&p->fn_map, idx))->len;
+  idx = ((struct BcVec *)bc_vec_item(&p->fn_map, idx))->len;
 
   if (!new) {
     BcFunc *func = bc_vec_item(&p->fns, idx);
