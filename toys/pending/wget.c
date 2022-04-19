@@ -44,7 +44,7 @@ config WGET
 config WGET_LIBTLS
   bool "Enable HTTPS support for wget via LibTLS"
   default n
-  depends on WGET && !WGET_OPENSSL
+  depends on WGET
   help
     Enable HTTPS support for wget by linking to LibTLS.
     Supports using libtls, libretls or libtls-bearssl.
@@ -52,7 +52,7 @@ config WGET_LIBTLS
 config WGET_OPENSSL
   bool "Enable HTTPS support for wget via OpenSSL"
   default n
-  depends on WGET && !WGET_LIBTLS
+  depends on WGET
   help
     Enable HTTPS support for wget by linking to OpenSSL.
 */
@@ -94,14 +94,13 @@ static void wget_info(char *url, char **host, char **port, char **path)
   char *ss = url;
 
   // Must start with case insensitive http:// or https://
-  if (strncmp(url, "http", 4)) url = 0;
+  if (strncasecmp(url, "http", 4)) url = 0;
   else {
     url += 4;
     if ((TT.https = WGET_SSL && toupper(*url=='s'))) url++;
     if (!strstart(&url, "://")) url = 0;
   }
   if (!url) error_exit("unsupported protocol: %s", ss);
-
   if ((*path = strchr(*host = url, '/'))) *((*path)++) = 0;
   else *path = "";
 
@@ -227,22 +226,18 @@ static void wget_close()
 
 static char *wget_find_header(char *header, char *val)
 {
-  char *result = strcasestr(header, val);
+  if (!(header = strcasestr(header, val))) return 0;
+  header += strlen(val);
 
-  if (result) {
-    result += strlen(val);
-    result[strcspn(result, "\r\n")] = 0;
-  }
-
-  return result;
+  return xstrndup(header, strcspn(header, "\r\n"));
 }
 
 void wget_main(void)
 {
   long status = 0;
   size_t len, c_len = 0;
-  int fd = 0;
-  char *body, *index, *host, *port, *path, *chunked, *ss;
+  int fd = 0, ii;
+  char *body, *index, *host, *port, *path = 0, *chunked, *ss;
   char agent[] = "toybox wget/" TOYBOX_VERSION;
 
   TT.url = xstrdup(*toys.optargs);
@@ -280,7 +275,7 @@ void wget_main(void)
       if (!(ss = wget_find_header(toybuf, "Location: ")))
         error_exit("bad redirect");
       free(TT.url);
-      TT.url = xstrdup(ss);
+      TT.url = ss;
       wget_close();
     } else if (status != 200) error_exit("response: %ld", status);
   }
@@ -289,8 +284,14 @@ void wget_main(void)
   if (TT.O && !strcmp(TT.O, "-")) fd = 1;
   else if (!TT.O) {
     ss = wget_find_header(toybuf, "Content-Disposition: attachment; filename=");
-    if (!ss && strchr(path, '/')) ss = getbasename(path);
-    if (!ss || !*ss ) ss = "index.html";
+    if (!ss) {
+      path = 0;
+      for (ii = 0, ss = *toys.optargs; *ss && *ss!='?' && *ss!='#'; ss++)
+        if (*ss=='/' && ++ii>2) path = ss+1;
+      ss = (path && ss>path) ? xstrndup(path, ss-path) : 0;
+      // TODO: handle %20 style escapes
+    }
+    if (!ss) ss = "index.html";
     if (!access((TT.O = ss), F_OK)) error_exit("%s already exists", TT.O);
   }
   // TODO: don't allow header/basename to write to stdout
