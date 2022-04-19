@@ -3,11 +3,6 @@
  * Copyright 2006 Rob Landley <rob@landley.net>
  */
 
-struct ptr_len {
-  void *ptr;
-  long len;
-};
-
 // llist.c
 
 // All these list types can be handled by the same code because first element
@@ -373,6 +368,8 @@ int comma_remove(char *optlist, char *opt);
 
 long long gzip_fd(int infd, int outfd);
 long long gunzip_fd(int infd, int outfd);
+long long gunzip_fd_preload(int infd, int outfd, char *buf, unsigned len);
+
 
 // getmountlist.c
 struct mtab_list {

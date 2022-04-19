@@ -209,7 +209,10 @@ GLOBALS(
     } pgrep;
   };
 
-  struct ptr_len gg, GG, pp, PP, ss, tt, uu, UU;
+  struct ps_ptr_len {
+    void *ptr;
+    long len;
+  } gg, GG, pp, PP, ss, tt, uu, UU;
   struct dirtree *threadparent;
   unsigned width, height, scroll;
   dev_t tty;
@@ -461,7 +464,7 @@ static void help_help(void)
 // process match filter for top/ps/pgrep: Return 0 to discard, nonzero to keep
 static int shared_match_process(long long *slot)
 {
-  struct ptr_len match[] = {
+  struct ps_ptr_len match[] = {
     {&TT.gg, SLOT_gid}, {&TT.GG, SLOT_rgid}, {&TT.pp, SLOT_pid},
     {&TT.PP, SLOT_ppid}, {&TT.ss, SLOT_sid}, {&TT.tt, SLOT_ttynr},
     {&TT.uu, SLOT_uid}, {&TT.UU, SLOT_ruid}
@@ -471,7 +474,7 @@ static int shared_match_process(long long *slot)
 
   // Do we have -g -G -p -P -s -t -u -U options selecting processes?
   for (i = 0; i < ARRAY_LEN(match); i++) {
-    struct ptr_len *mm = match[i].ptr;
+    struct ps_ptr_len *mm = match[i].ptr;
 
     if (mm->len) {
       ll = mm->ptr;
@@ -1146,7 +1149,7 @@ static long long get_headers(struct ofields *field, char *buf, int blen)
 // Parse command line options -p -s -t -u -U -g -G
 static char *parse_rest(void *data, char *str, int len)
 {
-  struct ptr_len *pl = (struct ptr_len *)data;
+  struct ps_ptr_len *pl = (struct ps_ptr_len *)data;
   long *ll = pl->ptr;
   char *end;
   int num = 0;
