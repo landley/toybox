@@ -30,7 +30,7 @@ USE_WGET(NEWTOY(wget, "<1>1(max-redirect)#<0=20d(debug)O(output-document):p(post
 
 config WGET
   bool "wget"
-  default n
+  default y
   help
     usage: wget [OPTIONS]... [URL]
         --max-redirect          maximum redirections allowed
@@ -44,17 +44,12 @@ config WGET
 config WGET_LIBTLS
   bool "Enable HTTPS support for wget via LibTLS"
   default n
-  depends on WGET
+  depends on WGET && !TOYBOX_LIBCRYPTO
   help
     Enable HTTPS support for wget by linking to LibTLS.
     Supports using libtls, libretls or libtls-bearssl.
 
-config WGET_OPENSSL
-  bool "Enable HTTPS support for wget via OpenSSL"
-  default n
-  depends on WGET
-  help
-    Enable HTTPS support for wget by linking to OpenSSL.
+    Use TOYBOX_LIBCRYPTO to enable HTTPS support via OpenSSL.
 */
 
 #define FOR_wget
@@ -63,7 +58,7 @@ config WGET_OPENSSL
 #if CFG_WGET_LIBTLS
 #define WGET_SSL 1
 #include <tls.h>
-#elif CFG_WGET_OPENSSL
+#elif CFG_TOYBOX_LIBCRYPTO
 #define WGET_SSL 1
 #include <openssl/crypto.h>
 #include <openssl/ssl.h>
@@ -82,7 +77,7 @@ GLOBALS(
   char *url;
 #if CFG_WGET_LIBTLS
   struct tls *tls;
-#elif CFG_WGET_OPENSSL
+#elif CFG_TOYBOX_LIBCRYPTO
   struct ssl_ctx_st *ctx;
   struct ssl_st *ssl;
 #endif
@@ -134,7 +129,7 @@ static void wget_connect(char *host, char *port)
 
     if (tls_connect(TT.tls, host, port))
       error_exit("tls_connect: %s", tls_error(TT.tls));
-#elif CFG_WGET_OPENSSL
+#elif CFG_TOYBOX_LIBCRYPTO
     SSL_library_init();
     OpenSSL_add_all_algorithms();
     SSL_load_error_strings();
@@ -171,7 +166,7 @@ static size_t wget_read(void *buf, size_t len)
 
 #if CFG_WGET_LIBTLS
     if ((ret = tls_read(TT.tls, buf, len))<0) err = tls_error(TT.tls);
-#elif CFG_WGET_OPENSSL
+#elif CFG_TOYBOX_LIBCRYPTO
     if ((ret = SSL_read(TT.ssl, buf, len))<0)
       err = ERR_error_string(ERR_get_error(), 0);
 #endif
@@ -189,7 +184,7 @@ static void wget_write(void *buf, size_t len)
 
 #if CFG_WGET_LIBTLS
     if (len != tls_write(TT.tls, buf, len)) err = tls_error(TT.tls);
-#elif CFG_WGET_OPENSSL
+#elif CFG_TOYBOX_LIBCRYPTO
     if (len != SSL_write(TT.ssl, buf, len))
       err = ERR_error_string(ERR_get_error(), 0);
 #endif
@@ -210,7 +205,7 @@ static void wget_close()
     tls_free(TT.tls);
     TT.tls = 0;
   }
-#elif CFG_WGET_OPENSSL
+#elif CFG_TOYBOX_LIBCRYPTO
   if (TT.ssl) {
     SSL_shutdown(TT.ssl);
     SSL_free(TT.ssl);
