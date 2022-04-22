@@ -6,42 +6,31 @@
  * fix -t, xconnect
  * netcat -L zombies
 
+USE_NETCAT(NEWTOY(netcat, "^tElLw#<1W#<1p#<1>65535q#<1s:f:46uU[!tlL][!Lw][!46U]", TOYFLAG_BIN))
 USE_NETCAT(OLDTOY(nc, netcat, TOYFLAG_USR|TOYFLAG_BIN))
-USE_NETCAT(NEWTOY(netcat, USE_NETCAT_LISTEN("^tElL")"w#<1W#<1p#<1>65535q#<1s:f:46uU"USE_NETCAT_LISTEN("[!tlL][!Lw]")"[!46U]", TOYFLAG_BIN))
 
 config NETCAT
   bool "netcat"
   default y
   help
-    usage: netcat [-46U] [-u] [-wpq #] [-s addr] {IPADDR PORTNUM|-f FILENAME|COMMAND...}
+    usage: netcat [-46ElLtUu] [-wpq #] [-s addr] {IPADDR PORTNUM|-f FILENAME|COMMAND...}
 
     Forward stdin/stdout to a file or network connection.
 
     -4	Force IPv4
     -6	Force IPv6
+    -E	Forward stderr
     -f	Use FILENAME (ala /dev/ttyS0) instead of network
+    -l	Listen for one incoming connection, then exit
+    -L	Listen and background each incoming connection (server mode)
     -p	Local port number
     -q	Quit SECONDS after EOF on stdin, even if stdout hasn't closed yet
     -s	Local source address
+    -t	Allocate tty
     -u	Use UDP
     -U	Use a UNIX domain socket
     -w	SECONDS timeout to establish connection
     -W	SECONDS timeout for more data on an idle connection
-
-    Use "stty 115200 -F /dev/ttyS0 && stty raw -echo -ctlecho" with
-    netcat -f to connect to a serial port.
-
-config NETCAT_LISTEN
-  bool "netcat server options (-let)"
-  default y
-  depends on NETCAT
-  help
-    usage: netcat [-tElL]
-
-    -l	Listen for one incoming connection, then exit
-    -L	Listen and background each incoming connection (server mode)
-    -t	Allocate tty
-    -E	Forward stderr
 
     When listening the COMMAND line is executed as a child process to handle
     an incoming connection. With no COMMAND -l forwards the connection
@@ -50,6 +39,9 @@ config NETCAT_LISTEN
 
     For a quick-and-dirty server, try something like:
     netcat -s 127.0.0.1 -p 1234 -tL sh -l
+
+    Or use "stty 115200 -F /dev/ttyS0 && stty raw -echo -ctlecho" with
+    netcat -f to connect to a serial port.
 */
 
 #define FOR_netcat
@@ -64,12 +56,6 @@ static void timeout(int signum)
 {
   if (TT.w) error_exit("Timeout");
   xexit();
-}
-
-static void set_alarm(int seconds)
-{
-  xsignal(SIGALRM, seconds ? timeout : SIG_DFL);
-  alarm(seconds);
 }
 
 // open AF_UNIX socket
@@ -90,7 +76,6 @@ static int usock(char *name, int type, int out)
 
   return sockfd;
 }
- 
 
 void netcat_main(void)
 {
@@ -103,7 +88,10 @@ void netcat_main(void)
   TT.q = TT.q ? TT.q*1000 : -1;
 
   xsignal(SIGCHLD, SIG_IGN);
-  set_alarm(TT.w);
+  if (TT.w) {
+    xsignal(SIGALRM, timeout);
+    alarm(TT.w);
+  }
 
   // The argument parsing logic can't make "<2" conditional on other
   // arguments like -f and -l, so do it by hand here.
@@ -123,7 +111,7 @@ void netcat_main(void)
                                           family, type, 0, 0));
 
       // We have a connection. Disarm timeout and start poll/send loop.
-      set_alarm(0);
+      alarm(0);
       in1 = out2 = sockfd;
       pollinate(in1, in2, out1, out2, TT.W, TT.q);
     } else {
@@ -161,7 +149,7 @@ void netcat_main(void)
         if (in1<0) perror_exit("accept");
 
         // We have a connection. Disarm timeout.
-        set_alarm(0);
+        alarm(0);
 
         if (toys.optc) {
           // Do we need a tty?
