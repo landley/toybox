@@ -84,3 +84,5 @@ testing "parallel sleep" "
 #testing "-n exact match"
 #testing "-s exact match"
 #testing "-s impossible"
+
+testing "no stdin" "echo -n | xargs cat" "" "" ""

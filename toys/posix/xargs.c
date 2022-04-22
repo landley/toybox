@@ -184,7 +184,7 @@ void xargs_main(void)
 
     if (!(pid = XVFORK())) {
       close(0);
-      xopen_stdio(FLAG(o) ? "/dev/tty" : "/dev/null", O_RDONLY);
+      xopen_stdio(FLAG(o) ? "/dev/tty" : "/dev/null", O_RDONLY|O_CLOEXEC);
       xexec(out);
     }
     TT.np++;
