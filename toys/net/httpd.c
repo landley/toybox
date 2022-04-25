@@ -10,7 +10,7 @@ USE_HTTPD(NEWTOY(httpd, ">1", TOYFLAG_USR|TOYFLAG_BIN))
 
 config HTTPD
   bool "httpd"
-  default n
+  default y
   help
     usage: httpd [DIR]
 
