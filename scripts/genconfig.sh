@@ -18,8 +18,7 @@ probesymbol()
 {
   probecc "${@:2}" 2>/dev/null && DEFAULT=y || DEFAULT=n
   rm a.out 2>/dev/null
-  echo -e "config $1\n\tbool" || exit 1
-  echo -e "\tdefault $DEFAULT\n" || exit 1
+  echo -e "config $1\n\tbool\n\tdefault $DEFAULT\n" || exit 1
 }
 
 probeconfig()
