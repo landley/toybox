@@ -147,7 +147,7 @@ echo -e 'root:x:0:\nguest:x:500:\nnobody:x:65534:' > "$ROOT"/etc/group || exit 1
 announce toybox
 [ ! -z "$PENDING" ] && rm -f .config
 [ -e .config ] && CONF=silentoldconfig || unset CONF
-for i in $PENDING sh route wget; do XX="$XX"$'\n'CONFIG_${i^^?}=y; done
+for i in $PENDING sh route; do XX="$XX"$'\n'CONFIG_${i^^?}=y; done
 LDFLAGS=--static PREFIX="$ROOT" make clean \
   ${CONF:-defconfig KCONFIG_ALLCONFIG=<(echo "$XX")} toybox install || exit 1
 
