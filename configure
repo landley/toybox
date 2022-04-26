@@ -12,7 +12,7 @@ then
 fi
 
 # Warn about stuff, disable stupid warnings, be 8-bit clean for utf8.
-CFLAGS="$CFLAGS -Wall -Wundef -Wno-char-subscripts -Werror=implicit-function-declaration -Wno-char-subscripts -Wno-pointer-sign -Wno-string-plus-int -funsigned-char"
+CFLAGS="$CFLAGS -Wall -Wundef -Werror=implicit-function-declaration -Wno-char-subscripts -Wno-pointer-sign -Wno-string-plus-int -funsigned-char"
 
 # Set default values if variable not already set
 : ${CC:=cc} ${HOSTCC:=cc} ${GENDIR:=generated} ${KCONFIG_CONFIG:=.config}
