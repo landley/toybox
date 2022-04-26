@@ -19,6 +19,8 @@
 #    outfill|keepalive INTEGER - SLIP analog dialup line quality monitoring
 #    metric INTEGER - added to Linux 0.9.10 with comment "never used", still true
 
+#testing "name" "command" "result" "infile" "stdin"
+
 [ -f testing.sh ] && . testing.sh
 
 if [ "$(id -u)" -ne 0 ]
@@ -27,8 +29,6 @@ then
   return 2>/dev/null
   exit
 fi
-
-#testing "name" "command" "result" "infile" "stdin"
 
 # Add a dummy interface to test with
 modprobe dummy 2>/dev/null
@@ -39,38 +39,31 @@ then
   exit
 fi
 
-# Test Description: Disable the dummy0 interface
 # Results Expected: After calling ifconfig, no lines with dummy0 are displayed
-testing "dummy0 down and if config /-only" \
-"ifconfig dummy0 down && ifconfig | grep dummy | wc -l" \
-"0\n" "" ""
+testing "Disable the dummy0 interface"
+  "ifconfig dummy0 down && ifconfig | grep dummy | wc -l" "0\n" "" ""
 
-# Test Description: Enable the dummy0 interface
 # Results Expected: After calling ifconfig, one line with dummy0 is displayed
-testing "dummy0 up" \
-"ifconfig dummy0 up && ifconfig dummy0 | grep dummy | wc -l" \
-"1\n" "" ""
+testing "Enable the dummy0 interface" \
+  "ifconfig dummy0 up && ifconfig dummy0 | grep dummy | wc -l" "1\n" "" ""
 
-# Test Description: Set the ip address of the dummy0 interface
 # Results Expected: After calling ifconfig dummy0, one line displays the ip
 #                   address selected
-testing "dummy0 10.240.240.240" \
-"ifconfig dummy0 10.240.240.240 && ifconfig dummy0 | grep 10\.240\.240\.240 | wc -l" \
-"1\n" "" ""
+testing "Set the ip address of the dummy0 interface" \
+  "ifconfig dummy0 10.240.240.240 && ifconfig dummy0 | grep 10\.240\.240\.240 | wc -l" \
+  "1\n" "" ""
 
-# Test Description: Change the netmask to the interface
 # Results Expected: After calling ifconfig dummy0, one line displays the
 #                   netmask selected
-testing "dummy0 netmask 255.255.240.0" \
-"ifconfig dummy0 netmask 255.255.240.0 && ifconfig dummy0 | grep 255\.255\.240\.0 | wc -l" \
-"1\n" "" ""
+testing "Change the netmask to the interface" \
+  "ifconfig dummy0 netmask 255.255.240.0 && ifconfig dummy0 | grep 255\.255\.240\.0 | wc -l" \
+  "1\n" "" ""
 
-# Test Description: Change the broadcast address to the interface
 # Results Expected: After calling ifconfig dummy0, one line displays the
 #                   broadcast address selected
-testing "dummy0 broadcast 10.240.240.255" \
-"ifconfig dummy0 broadcast 10.240.240.255 && ifconfig dummy0 | grep 10\.240\.240\.255 | wc -l" \
-"1\n" "" ""
+testing "Change the broadcast address to the interface" \
+  "ifconfig dummy0 broadcast 10.240.240.255 && ifconfig dummy0 | grep 10\.240\.240\.255 | wc -l" \
+  "1\n" "" ""
 
 # Test Description: Revert to the default ip address
 # Results Expected: After calling ifconfig dummy0, there are no lines
