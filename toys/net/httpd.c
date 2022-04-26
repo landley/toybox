@@ -4,7 +4,13 @@
  *
  * See https://www.ietf.org/rfc/rfc2616.txt
  *
- * TODO: multiple domains, cgi, https, actual inetd with ratelimit...
+ * TODO: multiple domains, https, actual inetd with ratelimit...
+ * range, gzip, ETag (If-None-Match:, Last-Modified:), Date:
+ * "Accept-Ranges: bytes"/"Range: bytes=xxx-[yyy]"
+ * .htaccess (auth, forward)
+ * optional conf file, error pages
+ * -ifv -p [IP:]PORT -u [USER][:GRP] -c CFGFILE
+ * cgi: SERVER_PORT SERVER_NAME REMOTE_ADDR REMOTE_HOST REQUEST_METHOD
 
 USE_HTTPD(NEWTOY(httpd, ">1", TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -31,7 +37,7 @@ void header_time(int stat, char *str, char *more)
 {
   char buf[64];
 
-  xprintf("HTTP/1.0 %d %s\r\nServer: toybox httpd/%s\r\nDate: %s\r\n%s"
+  xprintf("HTTP/1.1 %d %s\r\nServer: toybox httpd/%s\r\nDate: %s\r\n%s"
     "Connection: close\r\n\r\n", stat, str, TOYBOX_VERSION,
     rfc1123(buf, time(0)), more ? : "");
 }

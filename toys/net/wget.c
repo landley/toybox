@@ -103,7 +103,7 @@ static void wget_info(char *url, char **host, char **port, char **path)
   if (**host=='[' && (ss = strchr(++*host, ']'))) {
     *ss++ = 0;
     *port = (*ss==':') ? ++ss : 0;
-  } else if ((*port = strchr(*host, ':'))) *(*port++) = 0;
+  } else if ((*port = strchr(*host, ':'))) *((*port)++) = 0;
   if (!*port) *port = HTTPS ? "443" : "80";
 }
 
@@ -272,7 +272,7 @@ void wget_main(void)
       free(TT.url);
       TT.url = ss;
       wget_close();
-    } else if (status != 200) error_exit("response: %ld", status);
+    } else if (status != 200) error_exit("response %ld", status);
   }
 
   // Open output file
