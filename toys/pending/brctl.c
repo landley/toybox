@@ -143,12 +143,12 @@ void br_addif(char **argv)
   unsigned long args[4] = {BRCTL_ADD_IF, 0, 0, 0};
 
   if (!(index = if_nametoindex(argv[1]))) perror_exit("interface %s", argv[1]);
+  xstrncpy(ifr.ifr_name, argv[0], IFNAMSIZ);
 #ifdef SIOCBRADDIF
   ifr.ifr_ifindex = index;
   xioctl(TT.sockfd, SIOCBRADDIF, &ifr);
 #else
   args[1] = index;
-  xstrncpy(ifr.ifr_name, argv[0], IFNAMSIZ);
   ifr.ifr_data = (char *)args;
   xioctl(TT.sockfd, SIOCDEVPRIVATE, &ifr);
 #endif
@@ -161,12 +161,12 @@ void br_delif(char **argv)
   unsigned long args[4] = {BRCTL_DEL_IF, 0, 0, 0};
 
   if (!(index = if_nametoindex(argv[1]))) perror_exit("interface %s",argv[1]);
+  xstrncpy(ifr.ifr_name, argv[0], IFNAMSIZ);
 #ifdef SIOCBRDELIF
-  ifr.ifr_ifindex = ifindex;
+  ifr.ifr_ifindex = index;
   xioctl(TT.sockfd, SIOCBRDELIF, &ifr);
 #else
   args[1] = index;     
-  xstrncpy(ifr.ifr_name, argv[0], IFNAMSIZ);
   ifr.ifr_data = (char *)args;  
   xioctl(TT.sockfd, SIOCDEVPRIVATE, &ifr);
 #endif
