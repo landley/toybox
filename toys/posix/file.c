@@ -206,6 +206,7 @@ static void do_regular_file(int fd, char *name)
 {
   char *s = toybuf;
   unsigned len, magic;
+  int ii;
 
   // zero through elf shnum, just in case
   memset(s, 0, 80);
@@ -215,6 +216,8 @@ static void do_regular_file(int fd, char *name)
   // 45 bytes: https://www.muppetlabs.com/~breadbox/software/tiny/teensy.html
   else if (len>=45 && strstart(&s, "\177ELF")) do_elf_file(fd);
   else if (strstart(&s, "!<arch>\n")) xputs("ar archive");
+  else if (*s=='%' && 2==sscanf(s, "%%PDF%d.%u", &ii, &magic))
+    xprintf("PDF document, version %d.%u\n", -ii, magic);
   else if (len>28 && strstart(&s, "\x89PNG\x0d\x0a\x1a\x0a")) {
     // PNG is big-endian: https://www.w3.org/TR/PNG/#7Integers-and-byte-order
     int chunk_length = peek_be(s, 4);
