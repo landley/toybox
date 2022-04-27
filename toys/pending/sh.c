@@ -3310,6 +3310,7 @@ static char *get_next_line(FILE *ff, int prompt)
 // TODO: ctrl-z during script read having already read partial line,
 // SIGSTOP and SIGTSTP need SA_RESTART, but child proc should stop
 // TODO if (!isspace(*new)) add_to_history(line);
+// TODO: embedded nul bytes need signaling for the "tried to run binary" test.
 
   for (new = 0, len = 0;;) {
     errno = 0;
@@ -3764,7 +3765,7 @@ int do_source(char *name, FILE *ff)
     // did we exec an ELF file or something?
     if (!TT.LINENO++ && name && new) {
       // A shell script's first line has no high bytes that aren't valid utf-8.
-      for (ii = 0; new[ii] && 0<(cc = utf8towc(&wc, new+ii, 4)); ii += cc);
+      for (ii = 0; new[ii]>6 && 0<(cc = utf8towc(&wc, new+ii, 4)); ii += cc);
       if (new[ii]) {
 is_binary:
         if (name) error_msg("'%s' is binary", name); // TODO syntax_err() exit?
