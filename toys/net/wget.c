@@ -243,7 +243,7 @@ void wget_main(void)
 
     // Connect and write request
     wget_info(TT.url, &host, &port, &path);
-    if (TT.p) sprintf(toybuf, "Content-Length: %ld\r\n", strlen(TT.p));
+    if (TT.p) sprintf(toybuf, "Content-Length: %ld\r\n", (long)strlen(TT.p));
     ss = xmprintf("%s /%s HTTP/1.1\r\nHost: %s\r\nUser-Agent: %s\r\n"
                   "Connection: close\r\n%s\r\n%s", FLAG(p) ? "POST" : "GET",
                   path, host, agent, FLAG(p) ? toybuf : "", FLAG(p)?TT.p:"");
