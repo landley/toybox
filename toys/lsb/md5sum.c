@@ -160,8 +160,7 @@ static void md5_transform(void)
   unsigned x[4], *b = TT.buffer.i32;
   int i;
 
-  memcpy(x, TT.state.i32, sizeof(x));
-
+  for (i = 0; i<4; i++) x[i] = TT.state.i32[i];
   for (i = 0; i<64; i++) {
     unsigned in, a, rot, temp;
 
@@ -189,7 +188,7 @@ static void md5_transform(void)
       rot = (5*rot)+(((rot+2)&2)>>1);
       temp = x[(a+2)&3] ^ (x[(a+1)&3] | ~x[(a+3)&3]);
     }
-    temp += x[a] + b[in] + TT.rconsttable32[i];
+    temp += x[a] + SWAP_LE32(b[in]) + TT.rconsttable32[i];
     x[a] = x[(a+1)&3] + ((temp<<rot) | (temp>>(32-rot)));
   }
   for (i = 0; i<4; i++) TT.state.i32[i] += x[i];
@@ -207,6 +206,8 @@ static void sha1_transform(void)
     oldstate[i] = TT.state.i32[i];
     rot[i] = TT.state.i32 + i;
   }
+  if (IS_BIG_ENDIAN) for (i = 0; i<16; i++) block[i] = SWAP_LE32(block[i]);
+
   // 4 rounds of 20 operations each.
   for (i = count = 0; i<4; i++) {
     for (j = 0; j<20; j++) {
