@@ -256,7 +256,7 @@ GLOBALS(
   long long SECONDS;
   char *isexec, *wcpat;
   unsigned options, jobcnt, LINENO;
-  int hfd, pid, bangpid, varslen, srclvl, recursion;
+  int hfd, pid, bangpid, srclvl, recursion;
 
   // Callable function array
   struct sh_function {
@@ -282,11 +282,11 @@ GLOBALS(
       long flags;
       char *str;
     } *vars;
-    long varslen, shift;
+    long varslen, shift, oldlineno;
 
     struct sh_function *func; // TODO wire this up
     struct sh_pipeline *pl;
-    char *ifs;
+    char *ifs, *omnom;
     struct sh_arg arg;
     struct arg_list *delete;
 
@@ -338,7 +338,10 @@ static const char *redirectors[] = {"<<<", "<<-", "<<", "<&", "<>", "<", ">>",
 
 static void syntax_err(char *s)
 {
-  error_msg("syntax error: %s", s);
+  struct sh_fcall *ff = TT.ff;
+// TODO: script@line only for script not interactive.
+  for (ff = TT.ff; ff != TT.ff->prev; ff = ff->next) if (ff->omnom) break;
+  error_msg("syntax error '%s'@%u: %s", ff->omnom ? : "-c", TT.LINENO, s);
   toys.exitval = 2;
   if (!(TT.options&FLAG_i)) xexit();
 }
@@ -3754,6 +3757,8 @@ int do_source(char *name, FILE *ff)
     goto end;
   }
 
+  if (name) TT.ff->omnom = name;
+
 // TODO fix/catch NONBLOCK on input?
 // TODO when DO we reset lineno? (!LINENO means \0 returns 1)
 // when do we NOT reset lineno? Inherit but preserve perhaps? newline in $()?
@@ -4395,7 +4400,10 @@ void source_main(void)
   call_function();
   TT.ff->arg.v = toys.optargs;
   TT.ff->arg.c = toys.optc;
+  TT.ff->oldlineno = TT.LINENO;
+  TT.LINENO = 0;
   do_source(name, ff);
+  TT.LINENO = TT.ff->oldlineno;
   free(dlist_pop(&TT.ff));
   --TT.srclvl;
 }
