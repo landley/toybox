@@ -91,7 +91,11 @@ make_toolchain()
 
   # Prevent cross compiler reusing dynamically linked host build files for
   # $BOOTSTRAP arch
-  [ -z "$TYPE" ] && make clean
+  [ -z "$TYPE" ] && {
+    [ -e musl-git-master ] && mv musl-git-master keep-this-dir
+    make clean
+    [ -e keep-this-dir ] && mv keep-this-dir musl-git-master
+  }
 
   if [ "$TYPE" == native ]
   then
