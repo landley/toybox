@@ -734,7 +734,7 @@ static int unsetvar(char *name)
 {
   struct sh_fcall *ff;
   struct sh_vars *var = findvar(name, &ff);
-  int ii = var-ff->vars, len = varend(name)-name;
+  int ii = 0, len = varend(name)-name;
 
   if (!var || (var->flags&VAR_WHITEOUT)) return 0;
   if (var->flags&VAR_READONLY) error_msg("readonly %.*s", len, name);
@@ -747,6 +747,7 @@ static int unsetvar(char *name)
     // free from global context
     } else {
       if (!(var->flags&VAR_NOFREE)) free(var->str);
+      ii = var-ff->vars;
       memmove(ff->vars+ii, ff->vars+ii+1, (ff->varslen--)-ii);
     }
     if (!strcmp(name, "IFS"))
