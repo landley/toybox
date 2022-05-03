@@ -143,18 +143,20 @@ nobody:x:65534:65534:nobody:/proc/self:/dev/null
 EOF
 echo -e 'root:x:0:\nguest:x:500:\nnobody:x:65534:' > "$ROOT"/etc/group || exit 1
 
+# Build any packages listed on command line
+for i in ${PKG:+plumbing $PKG}; do
+  announce "$i"; PATH="$PKGDIR:$PATH" source $i || die $i
+done
+
 # Build static toybox with existing .config if there is one, else defconfig+sh
 announce toybox
 [ ! -z "$PENDING" ] && rm -f .config
 [ -e .config ] && CONF=silentoldconfig || unset CONF
 for i in $PENDING sh route; do XX="$XX"$'\n'CONFIG_${i^^?}=y; done
-LDFLAGS=--static PREFIX="$ROOT" make clean \
+[ -e "$ROOT"/lib/libc.so ] || export LDFLAGS=--static
+PREFIX="$ROOT" make clean \
   ${CONF:-defconfig KCONFIG_ALLCONFIG=<(echo "$XX")} toybox install || exit 1
-
-# Build any packages listed on command line
-for i in ${PKG:+plumbing $PKG}; do
-  announce "$i"; PATH="$PKGDIR:$PATH" source $i || die $i
-done
+unset LDFLAGS
 
 # ------------------ Part 3: Build + package bootable system ------------------
 
