@@ -2784,7 +2784,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
 
         // Back up to saved function() statement and create sh_function
         free(dlist_lpop(expect));
-        pl = (void *)(*expect)->data;
+        pl = (void *)(*expect)->prev->data;
         funky = xmalloc(sizeof(struct sh_function));
         funky->refcount = 1;
         funky->name = *pl->arg->v;
