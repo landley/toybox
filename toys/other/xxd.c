@@ -104,7 +104,8 @@ static int dehex(char ch)
 
 static void do_xxd_reverse(int fd, char *name)
 {
-  FILE *fp = xfdopen(fd, "r");
+  FILE *fp = xfdopen(xdup(fd), "r");
+  long long current_pos = 0;
   int tmp;
 
   // -ri is a very easy special case.
@@ -118,7 +119,7 @@ static void do_xxd_reverse(int fd, char *name)
       long long pos;
 
       if (fscanf(fp, "%llx: ", &pos) == 1) {
-        if (fseek(stdout, pos, SEEK_SET) != 0) {
+        if (pos != current_pos && fseek(stdout, pos, SEEK_SET) != 0) {
           // TODO: just write out zeros if non-seekable?
           perror_exit("%s: seek failed", name);
         }
@@ -141,6 +142,7 @@ static void do_xxd_reverse(int fd, char *name)
 
       fputc((n1 << 4) | (n2 & 0xf), stdout);
       col++;
+      current_pos++;
 
       // Is there any grouping going on? Ignore a single space.
       tmp = fgetc(fp);
