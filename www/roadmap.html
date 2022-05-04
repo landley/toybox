@@ -132,13 +132,14 @@ qalter qdel qhold qmove qmsg qrerun qrls qselect qsig qstat qsub).</p>
 
 <p>Some commands are for a compiler toolchain (ar c99 cflow ctags cxref gencat
 iconv lex m4 make nm strings strip tsort yacc) which is outside of toybox's
-mandate and should be supplied externally. (Again, some of these may be
+mandate and should be supplied externally. (Some of these may be
 revisited later, but not for toybox 1.0.)</p>
 
 <p>Some commands are part of a command shell, and can't be implemented as
 separate executables (alias bg cd command fc fg getopts hash jobs kill read
-type ulimit umask unalias wait). These may be revisited as part of the built-in
-toybox shell, but are not exported into $PATH via symlinks. (If you fork a
+type ulimit umask unalias wait). These may be implemented as part of the
+built-in toybox shell, but are not exported into $PATH via symlinks and
+thus are not part of toybox's main command list. (If you fork a
 child process and have it "cd" then exit, you've accomplished nothing.)
 Again, what posix provides is incomplete: a shell also needs exit, if, while,
 for, case, export, set, unset, trap, exec... (And for bash compatibility
@@ -147,10 +148,10 @@ function, source, declare...)</p>
 <p>A few other commands are judgement calls, providing command-line
 internationalization support (iconv locale localedef), System V inter-process
 communication (ipcrm ipcs), and cross-tty communication from the minicomputer
-days (talk mesg write).  The "pax" utility <a href=https://slashdot.org/story/06/09/04/1335226/debian-kicks-jrg-schilling>failed</a> to replace tar,
+days (talk mesg write). The "pax" utility <a href=https://slashdot.org/story/06/09/04/1335226/debian-kicks-jrg-schilling>failed</a> to replace tar,
 "mailx" is
 a command line email client, and "lp" submits files for printing to... what
-exactly?  (cups?)  The standard defines crontab but not crond. What is
+exactly? (cups?) The standard defines crontab but not crond. What is
 pathchk supposed to be portable _to_? (Linux accepts 255 byte path components
 with any char except NUL or / and no max length on the total path, and
 <a href=https://yarchive.net/comp/linux/utf8.html>EXPLICITLY</a>
@@ -191,17 +192,17 @@ ignored.</p>
 
 <p>The <a href=https://mjg59.dreamwidth.org/39546.html>community perception</a>
 seems to be that the Linux Standard Base is
-the best standard money can buy, I.E. the Linux Foundation is supported by
+the best standard money can buy: the Linux Foundation is supported by
 financial donations from large companies and the LSB
 <a href=https://www.softwarefreedom.org/blog/2016/apr/11/lf/>represents the interests
 of those donors</a> regardless of technical merit. (The Linux Foundation, which
-maintains the LSB, isn't a 501c3. It's a 501c6, the
+maintains the LSB, is NOT a 501c3. It's a 501c6, the
 same kind of legal entity as the Tobacco Institute and
 <a href=https://lwn.net/Articles/706585/>Microsoft's</a>
 old "<a href=https://en.wikipedia.org/wiki/Don%27t_Copy_That_Floppy>Don't Copy That Floppy</a>" program.) Debian officially
 <a href=http://lwn.net/Articles/658809>washed its hands of LSB</a> by
 refusing to adopt release 5.0 in 2015, and no longer even pretends to support
-it (which affect Debian derivatives like Ubuntu and Knoppix). Toybox has
+it (which affects Debian derivatives like Ubuntu and Knoppix). Toybox has
 stayed on 4.1 for similar reasons: a lot of historical effort went into
 producing the standard before the Linux Foundation took over.</p>
 
@@ -317,42 +318,43 @@ required bash extensions not present in shells such as busybox ash.
 To replace that toysh needs to supply several bash extensions _and_ work
 when called under the name "bash".</p>
 
-<p>The development methodology used a <a href=http://landley.net/aboriginal/FAQ.html#debug_logging>command logging wrapper</a>
-that intercepted each command called out of the $PATH and append the
-command line to a log file, then <a href=https://github.com/landley/aboriginal/blob/master/more/report-recorded-commands.sh>analyze</a> the result to create a
-<a href=https://landley.net/notes-2008.html#23-01-2008>list of commands</a>,
-then <a href=https://github.com/landley/aboriginal/blob/master/host-tools.sh>create a directory of symlinks</a> pointing to those commands out of the
-host $PATH. Then the new implementation can replace these commands one
-at a time, checking the results and the log output to spot any behavior
-changes.</p>
+<p>The above command list was collected using a command line recording wrapper,
+see scripts/record-commands and toys/example/logpath.c, which
+scripts/mkroot.sh uses to populate root/log/*-commands.txt. Try
+<b>awk '{print $1}' root/build/log/*-commands.txt | sort -u | grep -v musl | xargs</b>
+after building a mkroot target to get a similar command list used by that
+build.</p>
 
 <h3>Stages and moving targets</h3>
 
-<p>This use case has two stages: 1) building a bootable system that can
-rebuild itself from source, and 2) a build environment capable
-of bootstrapping up to arbitrary complexity (as exemplified by building
+<p>The development environment use case has two stages, achieving:
+1) a bootable system that can rebuild itself from source, and 2)
+a build environment capable
+of bootstrapping up to arbitrary complexity (by building
 Linux From Scratch and Beyond Linux From Scratch under the resulting
-system). To accomplish just the first goal, the old build
-still needs the following busybox commands for which toybox does not yet
-supply adequate replacements:</p>
+system, or the Android Open Source Project). To accomplish just the first
+goal (a minimal system that can rebuild _itself_ from source), the old
+build still needs the following busybox commands for which toybox does
+not yet supply adequate replacements:</p>
 
 <blockquote><b>
-awk dd diff expr fdisk ftpd gzip less route sh tr unxz vi wget xzcat
+awk dd diff expr fdisk ftpd gzip less route sh tr unxz vi xzcat
 </b></blockquote>
 
 <p>All of those except awk, ftpd, and less have partial implementations
 in "pending".</p>
 
-<p>In 2017 Aboriginal Linux development ended, replaced by the
-<a href=https://github.com/landley/mkroot>mkroot</a> project
-designed to use an existing cross+native toolchain (such as
+<p>In 2017 Aboriginal Linux development ended, replaced by a much simpler
+project ("mkroot") designed to use an existing cross+native toolchain (such as
 <a href=https://github.com/richfelker/musl-cross-make>musl-cross-make</a>
-or the Android NDK) instead of building its own. In 2019 the still-incomplete
-mkroot was merged into toybox as the "make root" target. This is intended
+or the Android NDK) instead of building its own cross and native compilers
+from source. In 2019 the still-incomplete
+mkroot was merged into toybox as the "make root" target (which runs
+scripts/mkroot.sh). This is intended
 as a simpler way of providing essentially the same build environment, and doesn't
 significantly affect the rest of this analysis (although the "rebuild itself
-from source" test now includes building musl-cross-make under either mkroot
-or toybox's "make airlock" host environment).</p>
+from source" test should now include building musl-cross-make under either
+mkroot or toybox's "make airlock" host environment).</p>
 
 <p>Building Linux From Scratch is not the same as building the
 <a href=https://source.android.com>Android Open Source Project</a>,
@@ -556,7 +558,10 @@ tar diff printf wget rsync fdisk vi less tr test stty fold expr dd
 
 <p>Also, tizen uses a different Linux Security Module called SMACK, so
 many of the SELinux options ala ls -Z needed smack alternatives in an
-if/else setup. (We added lib/lsm.h to abstract this.)</p>
+if/else setup. We added lib/lsm.h to abstract this, but haven't heard
+from Tizen in years and have started implementing SELinux support without
+Smack support in places like tar.c. At some point, lib/lsm.h may go away
+due to lack of expressed interest.</p>
 
 <hr />
 <h2><a name=yocto /><a href="#yocto">Use case: Yocto</a></h2>
@@ -572,11 +577,14 @@ of metadata on top of what came before, until they wind up <a href=https://githu
 the layers (let alone their contents). But -- and this is the
 important bit -- all these dispirate forks are called "yocto" and built on
 top of giant piles of code the Linux Foundation can take credit for
-since they filed the serial numbers off OpenEmbedded.</p>
+since they filed the serial numbers off OpenEmbedded. (And THEN users
+are encouraged to check the result into their own repository as one
+big initial commit, discarding all layers and history.)</p>
 
 <p>Yocto's "core-image-minimal" target (only 3,106 build steps in the 3.3
-release, which believe it or not is
-<a href=https://landley.net/notes-2019.html#06-02-2019>an improvement</a>) builds a busybox-based system with the following commands:</p>
+release, which includes building host versions of gnome packages and
+<a href=https://landley.net/notes-2019.html#06-02-2019>something called</a>
+the "uninative binary shim") builds a busybox-based system with the following commands:</p>
 
 <blockquote><b>
 <span id=yocto_cmd>
@@ -668,8 +676,8 @@ and nobody's quite sure if the license is BSD or GPL. It inexplicably
 <a href=http://www.infoworld.com/d/data-center/perl-isnt-going-anywhere-better-or-worse-211580>requires perl to build</a>, and seems like an ideal candidate for
 replacement.</p>
 
-<p>In addition to a C library less general-purpose than bionic (let alone
-musl), klibc builds a random assortment of executables to run init scripts
+<p>In addition to a C library less general-purpose than old versions of bionic
+(let alone musl), klibc builds a random assortment of executables to run init scripts
 with. There's no multiplexer command, these are individual executables:</p>
 
 <blockquote><p><b>
@@ -697,7 +705,7 @@ The "kinit" command is another gratuitous rename, it's init running as PID 1.
 The halt, poweroff, and reboot commands work with it.</p>
 
 <p>Yet more stale forks of dash and gzip got sucked in here (see "dubious
-license terms" above).
+license terms" above).</p>
 
 <p>In theory "blkid" or "file" handle fstype (and df for mounted filesystems),
 but we could do fstype.</p>
@@ -756,7 +764,7 @@ mtrace nscd rpcent rpcinfo tzselect zdump zic
 <li><b>catchsegv</b> is a rudimentary debugger, probably out of scope for toybox.</li>
 <li><b>iconv</b> has been <a href="#susv4">previously discussed</a>.</li>
 <li><b>iconvconfig</b> is only relevant if iconv is user-configurable; musl uses a
-non-configurable iconv.</li>
+non-configurable iconv now that utf8+unicode exist.</li>
 <li><b>getconf</b> is a posix utility which displays several variables from 
 unistd.h; it probably belongs in the development toolchain.</li>
 <li><b>getent</b> handles retrieving entries from passwd-style databases
@@ -818,16 +826,15 @@ sum sync tar touch umask umount unalias where
 
 <p>Plus sh because it's a shell. A dozen or so commands can only sanely be
 implemented as shell builtins (alias aliasall cd exec exit prompt quit setenv
-source umask unalias), where is an alias for which, and at triage time toybox
-already has chgrp, chmod, chown, cmp, cp, chroot, echo, help, kill, losetup,
-ln, ls, mkdir, mknod, printenv, pwd, rm, rmdir, sync, and touch.</p>
+source umask unalias), and where is an alias for which.</p>
 
 <p>This leaves:</p>
 
 <blockquote><b>
 <span id=sash_cmd>
-ar chattr dd ed file find grep gunzip gzip lsattr more mount mv pivot_root
-sh tar umount
+chgrp chmod chown cmp cp chroot echo find grep help kill losetup
+ln ls mkdir mknod mount mv pivot_root printenv pwd rm rmdir sync tar touch umount
+ar chattr dd ed file gunzip gzip lsattr more sh
 </span>
 </b></blockquote>
 
@@ -908,7 +915,7 @@ umount waitdev
 </p></blockquote>
 
 <p>This list is nuts: "plymouth" is an alias for "null" which is basically
-"true" (which thie above list doesn't have). Things like buildEnv and
+"true" (which the above list doesn't have). Things like buildEnv and
 loadDrivers are bespoke Red Hat behavior that might as well be hardwired in
 to nash's main() without being called.</p>
 
@@ -1014,8 +1021,7 @@ snapshots mostly consisting of software from the 1990's. For example the
 which predated iptables, which is in the process of being replaced by
 nftables.</p>
 
-<p>Nevertheless, people still try to use this because (at least until the
-launch of <a href=http://nommu.org>nommu.org</a>) the project was viewed
+<p>Nevertheless, people still try to use this because the project was viewed
 as the place to discuss, develop, and learn about nommu Linux.
 The role of uclinux.org as an educational resource kept people coming
 to it long after it had collapsed as a Linux distro.</p>
