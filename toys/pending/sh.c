@@ -282,7 +282,7 @@ GLOBALS(
       long flags;
       char *str;
     } *vars;
-    long varslen, shift, oldlineno;
+    long varslen, varscap, shift, oldlineno;
 
     struct sh_function *func; // TODO wire this up
     struct sh_pipeline *pl;
@@ -446,8 +446,10 @@ static struct sh_vars *findvar(char *name, struct sh_fcall **pff)
 // Append variable to ff->vars, returning *struct. Does not check duplicates.
 static struct sh_vars *addvar(char *s, struct sh_fcall *ff)
 {
-  if (!(ff->varslen&31))
-    ff->vars = xrealloc(ff->vars, (ff->varslen+32)*sizeof(*ff->vars));
+  if (ff->varslen == ff->varscap && !(ff->varslen&31)) {
+    ff->varscap += 32;
+    ff->vars = xrealloc(ff->vars, (ff->varscap)*sizeof(*ff->vars));
+  }
   if (!s) return ff->vars;
   ff->vars[ff->varslen].flags = 0;
   ff->vars[ff->varslen].str = s;
@@ -715,7 +717,7 @@ static struct sh_vars *setvar_long(char *s, int freeable, struct sh_fcall *ff)
   if (!(vv = setvar_found(s, freeable, vv))) {
     int ii = vv-ff->vars;
 
-    if (!was) memmove(ff->vars+ii, ff->vars+ii+1, (ff->varslen--)-ii);
+    if (!was) memmove(ff->vars+ii, ff->vars+ii+1, sizeof(ff->vars)*((--ff->varslen)-ii));
   } else cache_ifs(vv->str, ff);
 
   return vv;
@@ -748,7 +750,7 @@ static int unsetvar(char *name)
     } else {
       if (!(var->flags&VAR_NOFREE)) free(var->str);
       ii = var-ff->vars;
-      memmove(ff->vars+ii, ff->vars+ii+1, (ff->varslen--)-ii);
+      memmove(ff->vars+ii, ff->vars+ii+1, sizeof(ff->vars)*((ff->varslen)-ii));
     }
     if (!strcmp(name, "IFS"))
       do ff->ifs = " \t\n"; while ((ff = ff->next) != TT.ff->prev);
