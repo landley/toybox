@@ -6,6 +6,12 @@
  * \e[#m   - color change           \e[y;xH - jump to x/y pos (1;1 is top left)
  * \e[K    - delete to EOL          \e[25l  - disable cursor (h to enable)
  * \e[1L   - Insert 1 (blank) line  \e[1M   - Delete 1 line (scrolling rest up)
+ * \e[2J   - clear screen
+ *
+ * colors: 0=black 1=red 2=green 3=brown 4=blue 5=purple 6=cyan 7=grey
+ *         +30 foreground, +40 background.
+ *         \e[1m = bright, \e[2m = dark, \e[0m = reset to defaults
+ *         \e[1;32;2;42mhello\e[0m - dark green text on light green background
  */
 
 #include "toys.h"
