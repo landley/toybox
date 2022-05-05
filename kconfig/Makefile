@@ -39,6 +39,8 @@ macos_defconfig: $(obj)/conf $(KCONFIG_TOP)
 bsd_defconfig: $(obj)/conf $(KCONFIG_TOP)
 	KCONFIG_ALLCONFIG=$(obj)/freebsd_miniconfig $< -n $(KCONFIG_TOP) > /dev/null
 
+android_defconfig: $(obj)/conf $(KCONFIG_TOP)
+	KCONFIG_ALLCONFIG=$(obj)/android_miniconfig $< -n $(KCONFIG_TOP) > /dev/null
 # Help text used by make help
 help::
 	@echo  '  config	  - Update current config utilising a line-oriented program'
@@ -55,6 +57,7 @@ help::
 	@echo  '                    (NOP binary, starting point for further configuration)'
 	@echo  '  macos_defconfig - Select commands known to build on macosx'
 	@echo  '  bsd_defconfig   - Select commands known to build on freebsd'
+	@echo  '  android_defconfig - Select commands available on android'
 
 # Cheesy build
 
