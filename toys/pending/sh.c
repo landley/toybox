@@ -715,9 +715,7 @@ static struct sh_vars *setvar_long(char *s, int freeable, struct sh_fcall *ff)
   // Add if necessary, set value, and remove again if we added but set failed
   if (!(was = vv = findvar(s, &ff))) (vv = addvar(s, ff))->flags = VAR_NOFREE;
   if (!(vv = setvar_found(s, freeable, vv))) {
-    int ii = vv-ff->vars;
-
-    if (!was) memmove(ff->vars+ii, ff->vars+ii+1, sizeof(ff->vars)*((--ff->varslen)-ii));
+    if (!was) memmove(vv, vv+1, sizeof(ff->vars)*(--ff->varslen-(vv-ff->vars)));
   } else cache_ifs(vv->str, ff);
 
   return vv;
@@ -736,7 +734,7 @@ static int unsetvar(char *name)
 {
   struct sh_fcall *ff;
   struct sh_vars *var = findvar(name, &ff);
-  int ii = 0, len = varend(name)-name;
+  int len = varend(name)-name;
 
   if (!var || (var->flags&VAR_WHITEOUT)) return 0;
   if (var->flags&VAR_READONLY) error_msg("readonly %.*s", len, name);
@@ -749,8 +747,7 @@ static int unsetvar(char *name)
     // free from global context
     } else {
       if (!(var->flags&VAR_NOFREE)) free(var->str);
-      ii = var-ff->vars;
-      memmove(ff->vars+ii, ff->vars+ii+1, sizeof(ff->vars)*((ff->varslen)-ii));
+      memmove(var, var+1, sizeof(ff->vars)*(ff->varslen-(var-ff->vars)));
     }
     if (!strcmp(name, "IFS"))
       do ff->ifs = " \t\n"; while ((ff = ff->next) != TT.ff->prev);
