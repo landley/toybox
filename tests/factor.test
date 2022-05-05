@@ -20,3 +20,8 @@ testing "10000000019" "factor 10000000019" \
 testing "3 6 from stdin" "factor" "3: 3\n6: 2 3\n" "" "3 6"
 testing "stdin newline" "factor" "3: 3\n6: 2 3\n" "" "3\n6\n"
 
+testing "-h" "factor -h $(((1<<63)-26))" \
+  "9223372036854775782: 2 3^4 17 23 319279 456065899\n" "" ""
+testing "-x" "factor -x $(((1<<63)-20))" \
+  "7fffffffffffffec: 2 2 3 283 43f2ba978e663\n" "" ""
+
