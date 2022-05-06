@@ -709,14 +709,18 @@ static struct sh_vars *setvar_long(char *s, int freeable, struct sh_fcall *ff)
   if (ss[*ss=='+']!='=') {
     error_msg("bad setvar %s\n", s);
     if (freeable) free(s);
+
     return 0;
   }
 
   // Add if necessary, set value, and remove again if we added but set failed
   if (!(was = vv = findvar(s, &ff))) (vv = addvar(s, ff))->flags = VAR_NOFREE;
-  if (!(vv = setvar_found(s, freeable, vv))) {
+  if (!setvar_found(s, freeable, vv)) {
     if (!was) memmove(vv, vv+1, sizeof(ff->vars)*(--ff->varslen-(vv-ff->vars)));
-  } else cache_ifs(vv->str, ff);
+
+    return 0;
+  }
+  cache_ifs(vv->str, ff);
 
   return vv;
 }
