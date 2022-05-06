@@ -3838,7 +3838,7 @@ static void nommu_reentry(void)
   // Read named variables: type, len, var=value\0
   for (;;) {
     len = ll = 0;
-    fscanf(fp, "%u %lu%*[^\n]", &len, &ll);
+    (void)fscanf(fp, "%u %lu%*[^\n]", &len, &ll);
     fgetc(fp); // Discard the newline fscanf didn't eat.
     if (!len) break;
     (s = xmalloc(len+1))[len] = 0;
