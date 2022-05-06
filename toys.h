@@ -134,5 +134,5 @@ extern char **environ, *toybox_version, toybuf[4096], libbuf[4096];
 #ifndef TOYBOX_VENDOR
 #define TOYBOX_VENDOR ""
 #endif
-#define TOYBOX_VERSION "0.8.6"TOYBOX_VENDOR
+#define TOYBOX_VERSION "0.8.7"TOYBOX_VENDOR
 #endif

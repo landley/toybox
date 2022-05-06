@@ -8,6 +8,151 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+<a name="06-05-2022" /><a href="#06-05-2022"><hr><h2><b>May 6, 2022</b></h2></a>
+<blockquote><p>
+The mighty ships tore across the empty wastes of space and
+finally dived screaming on to the first planet they came across - which
+happened to be the Earth - where due to a terrible miscalculation of scale
+the entire battle fleet was accidentally swallowed by a small dog.</p>
+<p>- The Hitchhiker's Guide to the Galaxy</p></blockquote>
+
+<p><a href=downloads/toybox-0.8.7.tar.gz>Toybox 0.8.7</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.8.7>git commit</a>)
+is out, with prebuilt <a href=downloads/binaries/0.8.7>static binaries</a> and
+<a href=downloads/binaries/mkroot/0.8.7>mkroot images</a>
+bootable under QEMU (using vanilla linux-5.17).</p>
+
+<p>Rob also <a href=downloads/binaries/toolchains/latest>uploaded</a>
+the prebuilt binary cross and native compilers used to build those
+mkroot images (there's a <a href=downloads/binaries/toolchains/latest/README>README</a>
+in there), and started producing
+<a href=https://www.youtube.com/channel/UC4VFy3wc1nzq5tUHhiti6fw>tutorial videos</a> explaining the
+toybox commands, their implementation, toybox's infrastructure...</p>
+
+<p>The commands <b>host</b>, <b>wget</b>, <b>openvt</b>, and
+<b>deallocvt</b> were cleaned up and promoted.
+Elliott contributed the new commands <b>uclampset</b>, <b>gpiodetect</b>,
+<b>gpioinfo</b>, <b>gpioiget</b>, <b>gpiofind</b>, and <b>gpioset</b>,
+and Rob wrote a simple <b>httpd</b> (largely to give wget.test something to
+talk to).</p>
+
+<p>One command was removed: <b>catv</b> didn't really serve a purpose
+(everybody just uses <b>cat -v</b>).</p>
+
+
+
+
+<p><u>Features</u>:
+<b>top</b> can now move the list with the LEFT/RIGHT cursor keys (changing the
+sort field is now SHIFT LEFT/RIGHT). Added <b>find -samefile</b>,
+<b>cmp -n</b> (and wired up skip1 skip2),
+<b>tar --strip components</b> (and tar --owner and --group can now specify :UID and :GID making tar.test more portable),
+<b>lsusb</b> and </b>lspci</b> now read /etc/{usb,pci}.ids[.gz] (when
+available) to provide human readable device descriptions,
+<b>ifconfig</b> can now rename interfaces.
+Moritz Weber added <b>wget</b> post support for form data.
+In toysh, <b>cd</b> got updated ("cd -" jumps to $OLDPWD,
+and cd can now handle deleted directories).</p>
+
+<p><u>Bugfixes</u>:
+<b>cp --preserve xattr,context</b> work together now, and
+Dario Freni fixed <b>cp --xattr</b> to avoid copying selinux context.
+The <b>sort -u</b> option now implies -s, <b>wget -O -</b> now writes to stdout,
+<b>pwget -B</b> removes more characters other implementations don't emit,
+</b>time</b>'s realtime output was not properly zero padding the fractional
+part, and <b>sed</b> now works with multiple w to the same file.
+Fixed <b>nl -E</b>, <b>realpath -e</b>, <b>find</b> -newerXY and @time.nanosecond parsing,
+Various <b>sh</b> (it handles ${X: -1:1} properly now,
+which is not the same as ${X:-1:1} because :- has special meaning).
+The <b>hello</b> command in the examples directory now wait for a keypress before
+exiting when run as PID 1 (because calling wait() returned "No child process"
+immediately.)
+The multiplexer's <b>toybox command --help</b> once again shows the command's
+help (not toybox --help).
+Elliott fixed a strip bug in the MacOS build, taught <b>file</b> not to be confused
+by ELF BSS sections but to otherwise detect more invalid ELF files,
+and fixed an <b>xargs</b> bug where stdin was inappropriately O_CLOEXEC.
+Github user hg42 reported a bug where <b>tar</b> was looping trying to remove ".."
+at the start of names.</p>
+
+<p><u>Library</u>:
+Taught flags.h to #define its own CLEANUP macros so switching FLAG()
+contexts requires fewer steps.
+When args.c is just enforcing max/min argument count but collecting no
+options, imply "?" so "command -123" isn't an unknown option.
+Moved lib/help.c into main.c (nothing else in lib/ had to rebuild
+when the config changes which commands are enabled).
+The remains of linestack.c were renamed utf8.c, and
+toys.h now includes sys/syscall.h so commands don't have to.</p>
+
+<p>Yank things with only one remaining user: moved get_line()
+to patch.c, struct str_len to bc.c, and struct ptr_len to ps.c
+Removed tty_esc() and tty_jump() wrappers.
+Various cleanups to lib/password.c and lib/tty.c.
+Removed the PEDANTIC_ARGS config option which just set a macro that was never
+used, xsignal_all_killers() now takes SIG_DFL as the reset value instead
+of explicitly checking for NULL,
+chomp() now removes any number of trailing \r\n, and it's now safe to
+llist_pop(0) just like dlist_pop(0).
+LongPing Wei improved support for copy_file_range().</p>
+
+<p><u>Build</u>:
+If you don't set $PREFIX, <b>make install</b> now defaults to $PWD/install
+(which does not require root access to write to, and you can tar up your
+pile of symlinks from there).
+More command sub-options removed (NETCAT_LISTEN and CAT_V).</p>
+
+<p>Some of the uglier scripts/make.sh plumbing moved into scripts/portability.sh
+(which should now be safe to source twice),
+and moved almost all config varible definitions to "configure" now. The
+new $GENDIR variable theoretically lets the "generated" directory live
+somewhere else (not very tested yet).
+Various tweaks to scripts/make.sh to try to avoid unnecessary rebuilds
+and library probes when toolchain and config haven't changed.
+Added -Wno-pointer-sign to $CFLAGS because passing an unsigned char * to a
+function that expects char * is not a problem.
+
+<p>The airlock install in scripts/install.sh had the $PENDING items sorted
+into "started" and "not started". Add git and bash to $PENDING (used
+out of $PATH by --version and the powerpc64le build, respectively).</p>
+
+<p><u>Cleanup</u>:
+Removed the lib/linestack.c plumbing (which was never finished and hadn't
+been touched in years).
+Merged lspci.c into lsusb.c (so they can share config file reading
+infrastructure), and merged chvt/deallocvt into openvt.c.
+Minor cleanups to ping, fsync, ionice, pmap, truncate, timeout, tty,
+factor, mount.
+Went through and replaced \033 with \e in strings (since clang supports
+it and \033 is just awkward). Added LL to constant 0 in the FLAG macros
+to prevent gcc from warning that 0<<32 might produce 0.
+Moved llvm's -Wno-string-plus-int into configure instead of probing
+for it, since gcc no longer dies when asked to suppress an unknown warning.</p>
+
+<p><u>mkroot</u>:
+the ANSI escape to undo QEMU's wordwrap bug is now in both the init script
+and launch wrapper script (so wordwrap isn't broken while running the
+emulated system, nor if the emulated system fails to run).
+If devtmpfs was already mounted on /dev, we still need to create dev/pts.
+The init script now includes the linux kernel bug workaround to enable ping
+support. The armv7 target enabled CONFIG_ARM_LPAE in the kernel to work around
+around <a href=https://bugs.launchpad.net/qemu/+bug/1790975>a QEMU bug</a>
+that's gone unfixed for 4 years. Enable network support in m68k target.
+The mcm-buildall.sh script got some minor updates, and the resulting
+cross and native compiler binaries are now downloadable so you don't have
+to run the build if you don't want to.</p>
+
+<p><u>Docs</u>:
+"toybox --help" no longer says "see toybox --help".
+There's an ANSI escape cheat sheet at the start of lib/tty.c.
+Reworded some command directory READMEs, and tweaked menuconfig display.
+Converted www/doc/mount.html and www/doc/ext2.html from text to html.
+Freshened up design.html a little (and fixed some typos pointed out by
+Peter Ennis).
+Replaced the git internals video URL in roadmap.html with a different
+performance of the same talk that hasn't been made private.
+Added the kconfig-language.txt from Linux-2.6.12 to the kconfig/ directory.</p>
+
 <a name="30-11-2021" /><a href="#30-11-2021"><hr><h2><b>November 30, 2021</b></h2></a>
 <blockquote><p>
 Busy? We'll I've just got this bulldozer to lie in front of or otherwise it'll
