@@ -5,7 +5,7 @@
  *
  * See: http://cm.bell-labs.com/cm/cs/cstr/41.pdf
 
-USE_DIFF(NEWTOY(diff, "<2>2(color)(strip-trailing-cr)B(ignore-blank-lines)d(minimal)b(ignore-space-change)ut(expand-tabs)w(ignore-all-space)i(ignore-case)T(initial-tab)s(report-identical-files)q(brief)a(text)L(label)*S(starting-file):N(new-file)r(recursive)U(unified)#<0=3", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
+USE_DIFF(NEWTOY(diff, "<2>2(unchanged-line-format):(old-line-format):(new-line-format):(color)(strip-trailing-cr)B(ignore-blank-lines)d(minimal)b(ignore-space-change)ut(expand-tabs)w(ignore-all-space)i(ignore-case)T(initial-tab)s(report-identical-files)q(brief)a(text)L(label)*S(starting-file):N(new-file)r(recursive)U(unified)#<0=3", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 
 config DIFF
   bool "diff"
@@ -30,8 +30,16 @@ config DIFF
   -U	Output LINES lines of context
   -w	Ignore all whitespace
 
-  --color              Colored output
-  --strip-trailing-cr  Strip trailing '\r's from input lines
+  --color                  Colored output
+  --strip-trailing-cr      Strip trailing '\r's from input lines
+  --unchanged-line-format  Format for unchanged lines
+  --old-line-format        Format for lines just in the first file
+  --new-line-format        Format for lines just in the second file
+
+  Supported format specifiers are:
+  * %l, the contents of the line, without the trailing newline
+  * %L, the contents of the line, including the trailing newline
+  * %%, the character '%'
 */
 
 #define FOR_diff
@@ -41,6 +49,9 @@ GLOBALS(
   long ct;
   char *start;
   struct arg_list *L_list;
+  char *new_line_format;
+  char *old_line_format;
+  char *unchanged_line_format;
 
   int dir_num, size, is_binary, status, change, len[2];
   int *offset[2];
@@ -424,15 +435,41 @@ static int *diff(char **files)
 static void print_diff(int a, int b, char c, int *off_set, FILE *fp)
 {
   int i, j, cc, cl;
-  char *reset = NULL;
+  char *reset = NULL, *fmt = NULL;
 
-  if (c != ' ' && (toys.optflags & FLAG_color)) {
+  if (!TT.new_line_format && c != ' ' && (toys.optflags & FLAG_color)) {
     printf("\e[%dm", c == '+' ? 32 : 31);
     reset = "\e[0m";
   }
 
   for (i = a; i <= b; i++) {
     fseek(fp, off_set[i - 1], SEEK_SET);
+    if (TT.new_line_format) {
+      if (c == '+') fmt = TT.new_line_format;
+      else if (c == '-') fmt = TT.old_line_format;
+      else fmt = TT.unchanged_line_format;
+      while (*fmt) {
+        if (*fmt == '%') {
+          fmt++;
+          char f = *fmt++;
+          if (f == '%') putchar('%');
+          else if (f == 'l' || f == 'L') {
+            for (j = 0; j <  (off_set[i] - off_set[i - 1]); j++) {
+              cc = fgetc(fp);
+              if (cc == EOF) {
+                break;
+              }
+              if (cc != '\n' || f == 'L') putchar(cc);
+            }
+          } else {
+            error_exit("Unrecognized format specifier %%%c", f);
+          }
+        } else {
+          putchar(*fmt++);
+        }
+      }
+      continue;
+    }
     putchar(c);
     if (toys.optflags & FLAG_T) putchar('\t');
     for (j = 0, cl = 0; j <  (off_set[i] - off_set[i - 1]); j++) {
@@ -639,22 +676,24 @@ static void do_diff(char **files)
   TT.status = change; //update status, may change bcoz of -w etc.
 
   if (!(toys.optflags & FLAG_q) && change) {  //start of !FLAG_q
-    if (toys.optflags & FLAG_color) printf("\e[1m");
-    if (toys.optflags & FLAG_L) printf("--- %s\n", llist->arg);
-    else show_label("---", files[0], &(TT).st[0]);
-    if (((toys.optflags & FLAG_L) && !llist->next) || !(toys.optflags & FLAG_L))
-      show_label("+++", files[1], &(TT).st[1]);
-    else {
-      while (llist->next) llist = llist->next;
-      printf("+++ %s\n", llist->arg);
+    if (!TT.new_line_format) {
+      if (toys.optflags & FLAG_color) printf("\e[1m");
+      if (toys.optflags & FLAG_L) printf("--- %s\n", llist->arg);
+      else show_label("---", files[0], &(TT).st[0]);
+      if (((toys.optflags & FLAG_L) && !llist->next) || !(toys.optflags & FLAG_L))
+        show_label("+++", files[1], &(TT).st[1]);
+      else {
+        while (llist->next) llist = llist->next;
+        printf("+++ %s\n", llist->arg);
+      }
+      if (toys.optflags & FLAG_color) printf("\e[0m");
     }
-    if (toys.optflags & FLAG_color) printf("\e[0m");
 
     struct diff *t, *ptr1 = d, *ptr2 = d;
     while (i) {
       long a,b;
 
-      if (TT.ct > file[0].len) TT.ct = file[0].len; //trim context to file len.
+      if (TT.new_line_format || TT.ct > file[0].len) TT.ct = file[0].len; //trim context to file len.
       if (ptr1->b < ptr1->a && ptr1->d < ptr1->c) {
         i--;
         continue;
@@ -683,17 +722,19 @@ calc_ct:
       start2 = MAX(1, ptr1->c - (ptr1->a - ptr1->suff));
       end2 = ptr2->prev - ptr2->b + ptr2->d;
 
-      if (toys.optflags & FLAG_color) printf("\e[36m");
-      printf("@@ -%ld", start1 ? ptr1->suff: (ptr1->suff -1));
-      if (end1 != -1) printf(",%ld ", ptr2->prev-ptr1->suff + 1);
-      else putchar(' ');
+      if (!TT.new_line_format) {
+        if (toys.optflags & FLAG_color) printf("\e[36m");
+        printf("@@ -%ld", start1 ? ptr1->suff: (ptr1->suff -1));
+        if (end1 != -1) printf(",%ld ", ptr2->prev-ptr1->suff + 1);
+        else putchar(' ');
 
-      printf("+%ld", (end2 - start2 + 1) ? start2: (start2 -1));
-      if ((end2 - start2 +1) != 1) printf(",%ld ", (end2 - start2 +1));
-      else putchar(' ');
-      printf("@@");
-      if (toys.optflags & FLAG_color) printf("\e[0m");
-      putchar('\n');
+        printf("+%ld", (end2 - start2 + 1) ? start2: (start2 -1));
+        if ((end2 - start2 +1) != 1) printf(",%ld ", (end2 - start2 +1));
+        else putchar(' ');
+        printf("@@");
+        if (toys.optflags & FLAG_color) printf("\e[0m");
+        putchar('\n');
+      }
 
       for (t = ptr1; t <= ptr2; t++) {
         if (t== ptr1) print_diff(t->suff, t->a-1, ' ', TT.offset[0], file[0].fp);
@@ -865,6 +906,17 @@ void diff_main(void)
   if ((IS_STDIN(files[0]) || IS_STDIN(files[1]))
       && (S_ISDIR(TT.st[0].st_mode) || S_ISDIR(TT.st[1].st_mode)))
     error_exit("can't compare stdin to directory");
+
+  if (TT.unchanged_line_format || TT.old_line_format || TT.new_line_format) {
+    if (S_ISDIR(TT.st[0].st_mode) && S_ISDIR(TT.st[1].st_mode))
+      error_exit("can't use line format with directories");
+    if (!TT.unchanged_line_format)
+      TT.unchanged_line_format = "%l\n";
+    if (!TT.old_line_format)
+      TT.old_line_format = "%l\n";
+    if (!TT.new_line_format)
+      TT.new_line_format = "%l\n";
+  }
 
   if ((TT.st[0].st_ino == TT.st[1].st_ino) //physicaly same device
       && (TT.st[0].st_dev == TT.st[1].st_dev)) {

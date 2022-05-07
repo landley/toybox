@@ -38,3 +38,7 @@ echo -e "hello\r\nworld\r\n"> a
 echo -e "hello\nworld\n"> b
 testing "--strip-trailing-cr off" "diff -q a b" "Files a and b differ\n" "" ""
 testing "--strip-trailing-cr on" "diff -u --strip-trailing-cr a b" "" "" ""
+
+echo -e "1\n2" > aa
+echo -e "1\n3" > bb
+testing "line format" "diff --unchanged-line-format=U%l --old-line-format=D%l --new-line-format=A%l aa bb" "U1D2A3" "" ""
