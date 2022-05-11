@@ -401,7 +401,7 @@ effort on them.</p>
 <b><h3>Standards</h3></b>
 
 <p>Toybox is implemented with reference to
-<a href=http://www.open-std.org/jtc1/sc22/wg14/www/docs/n1256.pdf>c99</a>,
+<a href=https://www.open-std.org/jtc1/sc22/wg14/www/docs/n1548.pdf>c11</a>,
 <a href=roadmap.html#susv4>Posix 2008</a>,
 <a href=#bits>LP64</a>,
 <a href=roadmap.html#sigh>LSB 4.1</a>,
@@ -446,16 +446,22 @@ openat() family of functions (which take a directory filehandle instead of
 using the Current Working Directory),
 but the 2013 and 2018 releases of posix were basically typo fixes: still
 release 7, still SUSv4. (An eventual release 8 might be interesting but
-it's not out yet.) We use C99 instead of C11 or newer because the new stuff
-was mostly about threading (atomic variables and such), and except for using
-// style single line comments we're more or less writing C89 code anyway.
-The main other new thing of interest in C99 was explicit width data
-types (uint32_t and friends), which LP64 handles for us.</p>
+it's not out yet.)</p>
+
+<p>We're nominally C11 but mostly just writing good old ANSI C (I.E. C89).
+We use a few of the new features like compound literals (6.5.2.5) and structure
+initialization by member name with unnamed members zeroed (6.7.9),
+but mostly we "officially" went from c99 to C11 to work around a
+<a href=https://github.com/landley/toybox/commit/3625a260065b>clang compiler bug</a>.
+The main thing we use from c99 that c89 hadn't had was // single line comments.
+(We mostly don't even use C99's explicit width data types, ala uint32_t and
+friends, because LP64 handles that for us.)</p>
 
 <p>We're ignoring new versions of the Linux Foundation's standards (LSB, FHS)
 entirely, for the same reason Debian is: they're not good at maintaining
 standards. (The Linux Foundation acquiring the Free Standards Group worked
-out about as well as Microsoft buying Nokia.)</p>
+out about as well as Microsoft buying Nokia, Twitter buying Vine, Yahoo
+buying Flickr...)</p>
 
 <p>We refer to current versions of man7.org because it's
 not easily versioned (the website updates regularly) and because
@@ -674,7 +680,7 @@ now we're doing this." (Not a hard and fast rule about _where_ it goes,
 but there should be some for the same reason writing has paragraph breaks.)</p>
 
 <p>Variable declarations go at the start of blocks, with a blank line between
-them and other code. Yes, c99 allows you to put them anywhere, but they're
+them and other code. Yes, c99 allowed you to put them anywhere, but they're
 harder to find if you do that. If there's a large enough distance between
 the declaration and the code using it to make you uncomfortable, maybe the
 function's too big, or is there an if statement or something you can
