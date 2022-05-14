@@ -7,8 +7,8 @@ echo === download source
 download e6d119755acdf9104d7ba236b1242696940ed6dd \
   http://downloads.sf.net/libpng/zlib-1.2.11.tar.gz
 
-download c3d4fe27fa17ec8217dbedbd33dd73a1ca6cda2c \
-  https://matt.ucc.asn.au/dropbear/releases/dropbear-2020.81.tar.bz2
+download 9719ea91b5ce8d93ee9a50b5c3a5bcd628736181 \
+  https://matt.ucc.asn.au/dropbear/releases/dropbear-2022.82.tar.bz2
 
 echo === Native build static zlib
 
@@ -19,7 +19,6 @@ CC=${CROSS_COMPILE}cc LD=${CROSS_COMPILE}ld AS=${CROSS_COMPILE}as ./configure &&
 make -j $(nproc) || exit 1
 
 # do _not_ cleanup zlib, we need the files we just built for dropbear
-cd ..
 
 echo === $HOST Native build static dropbear
 
@@ -27,7 +26,7 @@ setupfor dropbear
 # Repeat after me: "autoconf is useless"
 echo 'echo "$@"' > config.sub &&
 ZLIB="$(echo ../zlib*)" &&
-CFLAGS="-I $ZLIB -O2" LDFLAGS="-L $ZLIB" ./configure --enable-static \
+CC="$CROSS_COMPILE"cc CFLAGS="-I $ZLIB -O2" LDFLAGS="-L $ZLIB" ./configure --enable-static \
   --disable-wtmp --host="$(basename "$CROSS_COMPILE" | sed 's/-$//')" &&
 sed -i 's@/usr/bin/dbclient@ssh@' options.h &&
 sed -i 's@\(#define NON_INETD_MODE\) 1@\1 0@' default_options.h &&
@@ -40,9 +39,11 @@ for i in "$ROOT"/bin/{ssh,dropbear,scp,dropbearkey}
 do
   ln -s dropbearmulti $i || exit 1
 done
+# We didn't cleanup zlib
+unset ZLIB
+rm -rf ../zlib-*
+# cleanup dropbear
 cleanup
-
-rm -rf zlib-*
 
 # user root password root, user guest no password
 echo -e 'root:$1$939UTPzb$/PfVYAsF2Hqi/AQ3UBjbK/:::::::\nguest::::::::' > "$ROOT"/etc/shadow &&

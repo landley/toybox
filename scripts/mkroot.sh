@@ -145,7 +145,9 @@ echo -e 'root:x:0:\nguest:x:500:\nnobody:x:65534:' > "$ROOT"/etc/group || exit 1
 
 # Build any packages listed on command line
 for i in ${PKG:+plumbing $PKG}; do
+  pushd .
   announce "$i"; PATH="$PKGDIR:$PATH" source $i || die $i
+  popd
 done
 
 # Build static toybox with existing .config if there is one, else defconfig+sh
