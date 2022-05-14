@@ -22,6 +22,6 @@
                     LINUX= build kernel from this source, configured for qemu
   run_root        - boot toyroot under qemu, I.E. cd root/$CROSS && ./qemu-*.sh
 
-example: make defconfig toybox install CFLAGS="--static" CROSS_COMPILE=armv5l-
+example: make defconfig toybox install LDFLAGS="--static" CROSS_COMPILE=armv5l-
 or     : make root run_root CROSS=sh4 LINUX=~/linux
 
