@@ -135,7 +135,7 @@ testing "eval0" "sh -c 'eval echo \$*' one two three" "two three\n" "" ""
 
 #########################################################################
 # Change EVAL to call sh -c for us, using "bash" explicitly for the host.
-export EVAL="$SH -c"
+export EVAL="timeout 10 $SH -c"
 
 
 mkdir -p one/two/three
@@ -222,6 +222,9 @@ mkdir -p abc/def/ghi
 touch www
 testing 'wildcards' 'echo w[v-x]w w[x-v]w abc/*/ghi' \
   'www w[x-v]w abc/def/ghi\n' '' ''
+testing 'hidden wildcards' \
+  'touch .abc abc && echo *bc && echo and && echo .*bc' \
+  'abc\nand\n.abc\n' '' ''
 
 testing "backtick1" 'x=fred; echo `echo $x`' 'fred\n' "" ""
 testing "backtick2" 'x=fred; echo `x=y; echo $x`; echo $x' 'y\nfred\n' "" ""
