@@ -16,6 +16,7 @@ fi
 # Tell linker to do dead code elimination at function level
 if [ "$(uname)" == "Darwin" ]
 then
+  CFLAGS+=" -Wno-deprecated-declarations"
   : ${LDOPTIMIZE:=-Wl,-dead_strip} ${STRIP:=strip}
 else
   : ${LDOPTIMIZE:=-Wl,--gc-sections -Wl,--as-needed} ${STRIP:=strip -s -R .note* -R .comment}
