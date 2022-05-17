@@ -71,13 +71,13 @@
 //        I.E. "-j 3" not "-j3". So "kill -stop" != "kill -s top"
 //
 //   At the beginning of the get_opt string (before any options):
-//     ^ stop at first nonoption argument
 //     <0 die if less than # leftover arguments (default 0)
 //     >9 die if > # leftover arguments (default MAX_INT)
-//     ? Allow unknown arguments (pass them through to command).
-//     & first arg has imaginary dash (ala tar/ps/ar) which sets FLAGS_NODASH
 //     0 Include argv[0] in optargs
-//     note: ^ and ? implied when no options
+//     ^ stop at first nonoption argument (implied when no flags)
+//     ? Pass unknown arguments through to command (implied when no flags).
+//     & first arg has imaginary dash (ala tar/ps/ar) which sets FLAGS_NODASH
+//     ~ Collate following bare longopts (as if under short opt, repeatable)
 //
 //   At the end: [groups] of previously seen options
 //     - Only one in group (switch off)    [-abc] means -ab=-b, -ba=-a, -abc=-c
@@ -332,7 +332,7 @@ static int parse_optflaglist(struct getoptflagstate *gof)
   for (new = gof->opts; new; new = new->next) {
     unsigned long long u = 1LL<<idx++;
 
-    if (new->c == 1) new->c = 0;
+    if (new->c == 1 || new->c=='~') new->c = 0;
     new->dex[1] = u;
     if (new->flags & 1) gof->requires |= u;
     if (new->type) {

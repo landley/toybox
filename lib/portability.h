@@ -292,8 +292,12 @@ typedef float FLOAT;
 pid_t xfork(void);
 #endif
 
-//#define strncpy(...) @@strncpyisbadmmkay@@
-//#define strncat(...) @@strncatisbadmmkay@@
+// gratuitously memsets ALL the extra space with zeroes (not just a terminator)
+// but to make up for it truncating doesn't null terminate the output at all.
+// There are occasions to use it, but it is NOT A GENERAL PURPOSE FUNCTION.
+// #define strncpy(...) @@strncpyisbadmmkay@@
+// strncat writes a null terminator one byte PAST the buffer size it's given.
+#define strncat(...) strncatisbadmmkay
 
 // Support building the Android tools on glibc, so hermetic AOSP builds can
 // use toybox before they're ready to switch to host bionic.
