@@ -42,3 +42,16 @@ testing "--strip-trailing-cr on" "diff -u --strip-trailing-cr a b" "" "" ""
 echo -e "1\n2" > aa
 echo -e "1\n3" > bb
 testing "line format" "diff --unchanged-line-format=U%l --old-line-format=D%l --new-line-format=A%l aa bb" "U1D2A3" "" ""
+
+mkfifo fifo1
+mkfifo fifo2
+echo -e "1\n2" > fifo1&
+echo -e "1\n3" > fifo2&
+expected='--- fifo1
++++ fifo2
+@@ -1,2 +1,2 @@
+ 1
+-2
++3
+'
+testing "fifos" "diff -L fifo1 -L fifo2 fifo1 fifo2" "$expected" "" ""

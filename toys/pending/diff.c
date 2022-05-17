@@ -203,6 +203,20 @@ static FILE* read_stdin()
   return fdopen(tmpfd, "r");
 }
 
+static FILE* read_fifo(char* name)
+{
+  char *tmp_name;
+  int srcfd = open(name, O_RDONLY);
+  int tmpfd = xtempfile("fifo", &tmp_name);
+
+  unlink(tmp_name);
+  free(tmp_name);
+
+  xsendfile(srcfd, tmpfd);
+  close(srcfd);
+  return fdopen(tmpfd, "r");
+}
+
 static int read_tok(FILE *fp, off_t *off, int tok)
 {
   int t = 0, is_space;
@@ -285,7 +299,7 @@ static int * create_j_vector()
     v[i] = xzalloc(size * sizeof(struct v_vector));
     TT.offset[i] = xzalloc(size * sizeof(int));
     file[i].len = 0;
-    fseek(file[i].fp, 0, SEEK_SET);
+    if (fseek(file[i].fp, 0, SEEK_SET)) perror_exit("fseek failed");
 
     while (1) {
       tok  = read_tok(file[i].fp, &off, tok);
@@ -365,8 +379,8 @@ static int * create_j_vector()
   for (i = 1; i <= file[0].len; i++) { // jackpot?
     if (!J[i]) continue;
 
-    fseek(file[0].fp, TT.offset[0][i - 1], SEEK_SET);
-    fseek(file[1].fp, TT.offset[1][J[i] - 1], SEEK_SET);
+    if (fseek(file[0].fp, TT.offset[0][i - 1], SEEK_SET)) perror_exit("fseek failed");
+    if (fseek(file[1].fp, TT.offset[1][J[i] - 1], SEEK_SET)) perror_exit("fseek failed");
 
     for (j = J[i]; i <= file[0].len && J[i] == j; i++, j++) {
       int tok0 = 0, tok1 = 0;
@@ -393,6 +407,7 @@ static int *diff(char **files)
 
   for (i = 0; i < 2; i++) {
     if (IS_STDIN(files[i])) file[i].fp = read_stdin();
+    else if (S_ISFIFO(TT.st[i].st_mode)) file[i].fp = read_fifo(files[i]);
     else file[i].fp = fopen(files[i], "r");
 
     if (!file[i].fp){
@@ -406,8 +421,8 @@ static int *diff(char **files)
   bufi = toybuf;
   bufj = (toybuf + s);
 
-  fseek(file[0].fp, 0, SEEK_SET);
-  fseek(file[1].fp, 0, SEEK_SET);
+  if (fseek(file[0].fp, 0, SEEK_SET)) perror_exit("fseek failed");
+  if (fseek(file[1].fp, 0, SEEK_SET)) perror_exit("fseek failed");
 
   if (toys.optflags & FLAG_a) return create_j_vector();
 
@@ -443,7 +458,7 @@ static void print_diff(int a, int b, char c, int *off_set, FILE *fp)
   }
 
   for (i = a; i <= b; i++) {
-    fseek(fp, off_set[i - 1], SEEK_SET);
+    if (fseek(fp, off_set[i - 1], SEEK_SET)) perror_exit("fseek failed");
     if (TT.new_line_format) {
       if (c == '+') fmt = TT.new_line_format;
       else if (c == '-') fmt = TT.old_line_format;
@@ -906,6 +921,10 @@ void diff_main(void)
   if ((IS_STDIN(files[0]) || IS_STDIN(files[1]))
       && (S_ISDIR(TT.st[0].st_mode) || S_ISDIR(TT.st[1].st_mode)))
     error_exit("can't compare stdin to directory");
+
+  if ((S_ISFIFO(TT.st[0].st_mode) || S_ISFIFO(TT.st[1].st_mode))
+      && (S_ISDIR(TT.st[0].st_mode) || S_ISDIR(TT.st[1].st_mode)))
+    error_exit("can't compare pipe to directory");
 
   if (TT.unchanged_line_format || TT.old_line_format || TT.new_line_format) {
     if (S_ISDIR(TT.st[0].st_mode) && S_ISDIR(TT.st[1].st_mode))
