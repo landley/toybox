@@ -42,6 +42,7 @@ testing "--strip-trailing-cr on" "diff -u --strip-trailing-cr a b" "" "" ""
 echo -e "1\n2" > aa
 echo -e "1\n3" > bb
 testing "line format" "diff --unchanged-line-format=U%l --old-line-format=D%l --new-line-format=A%l aa bb" "U1D2A3" "" ""
+testing "line format empty" "diff --unchanged-line-format= --old-line-format=D%l --new-line-format=A%l aa bb" "D2A3" "" ""
 
 mkfifo fifo1
 mkfifo fifo2
