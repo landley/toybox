@@ -16,7 +16,8 @@ do_loudly()
 # Is anything under directory $2 newer than generated/$1 (or does it not exist)?
 isnewer()
 {
-  find "${@:2}" -newer "$GENDIR/$1" &>/dev/null && return 1
+  [ -e "$GENDIR/$1" ] && [ -z "$(find "${@:2}" -newer "$GENDIR/$1")" ] &&
+    return 1
   [ "$((DIDNEWER++))" -eq 0 ] && echo -n "$GENDIR/{" || echo -n ,
   echo -n $1
   return 0
