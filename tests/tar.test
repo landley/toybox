@@ -284,8 +284,19 @@ testing "pass ..dotsdir" "$TAR ..dotsdir | LST" \
   "drwxrwxr-x root/root 0 2009-02-13 23:31 ..dotsdir/\n" "" ""
 rmdir ..dotsdir
 
+mkdir -p one/two/three/four/five
+touch one/two/three/four/five/six
+testing "--strip" "$TAR one | tar t --strip=2 --show-transformed | grep six" \
+  "three/four/five/six\n" "" ""
+testing "--xform" "$TAR one --xform=s@three/four/@zero@ | tar t | grep six" \
+  "one/two/zerofive/six\n" "" ""
+rm -rf one
+
 if false
 then
+# Sequencing issues that leak implementation details out the interface
+testing "what order are --xform, --strip, and --exclude processed in?"
+testing "--xform vs ../ removal and adding / to dirs"
 
 chmod 700 dir
 tar cpf tar.tgz dir/file

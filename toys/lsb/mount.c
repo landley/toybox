@@ -145,25 +145,6 @@ static long flag_opts(char *new, long flags, char **more)
   return flags;
 }
 
-// Shell out to a program, returning the output string or NULL on error
-static char *tortoise(int loud, char **cmd)
-{
-  int rc, pipe, len;
-  pid_t pid;
-
-  pid = xpopen(cmd, &pipe, 1);
-  len = readall(pipe, toybuf, sizeof(toybuf)-1);
-  rc = xpclose(pid, pipe);
-  if (!rc && len > 1) {
-    if (toybuf[len-1] == '\n') --len;
-    toybuf[len] = 0;
-    return toybuf;
-  }
-  if (loud) error_msg("%s failed %d", *cmd, rc);
-
-  return 0;
-}
-
 static void mount_filesystem(char *dev, char *dir, char *type,
   unsigned long flags, char *opts)
 {
@@ -183,10 +164,11 @@ static void mount_filesystem(char *dev, char *dir, char *type,
   }
 
   if (strstart(&dev, "UUID=")) {
-    char *s = tortoise(0, (char *[]){"blkid", "-U", dev, 0});
+    char *s = xrunread((char *[]){"blkid", "-U", dev, 0}, 0);
 
-    if (!s) return error_msg("No uuid %s", dev);
-    dev = s;
+    if (!s || strlen(s)>=sizeof(toybuf)) return error_msg("No uuid %s", dev);
+    strcpy(dev = toybuf, s);
+    free(s);
   }
 
   // Autodetect bind mount or filesystem type
@@ -266,10 +248,11 @@ static void mount_filesystem(char *dev, char *dir, char *type,
     // device, then do the loopback setup and retry the mount.
 
     if (rc && errno == ENOTBLK) {
-      dev = tortoise(1, (char *[]){"losetup",
-        (flags&MS_RDONLY) ? "-fsr" : "-fs", dev, 0});
-      if (!dev) break;
-      continue;
+      char *losetup[] = {"losetup", (flags&MS_RDONLY)?"-fsr":"-fs", dev, 0};
+
+      if ((dev = xrunread(losetup, 0))) continue;
+      error_msg("%s failed", *losetup);
+      break;
     }
 
     free(buf);

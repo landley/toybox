@@ -384,6 +384,34 @@ int xrun(char **argv)
   return xpclose_both(xpopen_both(argv, 0), 0);
 }
 
+// Run child, writing "stdin", returning stdout or NULL, pass through stderr
+char *xrunread(char *argv[], char *stdin)
+{
+  char *result = 0;
+  int pipe[] = {-1, -1}, total = 0, len;
+  pid_t pid;
+
+  pid = xpopen_both(argv, pipe);
+  if (stdin && *stdin) writeall(*pipe, stdin, strlen(stdin));
+  close(*pipe);
+  for (;;) {
+    if (0>=(len = readall(pipe[1], libbuf, sizeof(libbuf)))) break;
+    memcpy((result = xrealloc(result, 1+total+len))+total, libbuf, len);
+    total += len;
+    if (len != sizeof(libbuf)) break;
+  }
+  if (result) result[total] = 0;
+  close(pipe[1]);
+
+  if (xwaitpid(pid)) {
+    free(result);
+
+    return 0;
+  }
+
+  return result;
+}
+
 void xaccess(char *path, int flags)
 {
   if (access(path, flags)) perror_exit("Can't access '%s'", path);

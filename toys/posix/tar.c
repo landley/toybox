@@ -17,7 +17,7 @@
  * Why --exclude pattern but no --include? tar cvzf a.tgz dir --include '*.txt'
  *
 
-USE_TAR(NEWTOY(tar, "&(strip-components)#(selinux)(restrict)(full-time)(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mode):(mtime):(group):(owner):(to-command):o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)I(use-compress-program):J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)P(absolute-names)m(touch)X(exclude-from)*T(files-from)*C(directory):f(file):a[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TAR(NEWTOY(tar, "&(show-transformed-names)(selinux)(restrict)(full-time)(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mode):(mtime):(group):(owner):(to-command):~(strip-components)(strip)#~(transform)(xform)*o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)P(absolute-names)m(touch)X(exclude-from)*T(files-from)*I(use-compress-program):C(directory):f(file):a[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TAR
   bool "tar"
@@ -41,6 +41,7 @@ config TAR
     --restrict       All under one dir    --no-recursion      Skip dir contents
     --numeric-owner  Use numeric uid/gid, not user/group names
     --strip-components NUM  Ignore first NUM directory components when extracting
+    --xform=SED      Modify filenames via SED expression (ala s/find/replace/g)
     -I PROG          Filter through PROG to compress or PROG -d to decompress
 */
 
@@ -48,15 +49,15 @@ config TAR
 #include "toys.h"
 
 GLOBALS(
-  char *f, *C;
-  struct arg_list *T, *X;
-  char *I, *to_command, *owner, *group, *mtime, *mode;
+  char *f, *C, *I;
+  struct arg_list *T, *X, *xform;
+  long strip;
+  char *to_command, *owner, *group, *mtime, *mode;
   struct arg_list *exclude;
-  long strip_components;
 
   struct double_list *incl, *excl, *seen;
   struct string_list *dirs;
-  char *cwd;
+  char *cwd, **xfsed;
   int fd, ouid, ggid, hlc, warn, adev, aino, sparselen, pid;
   long long *sparse;
   time_t mtt;
@@ -80,8 +81,9 @@ GLOBALS(
   } hdr;
 )
 
+// The on-disk 512 byte record structure.
 struct tar_hdr {
-  char name[100], mode[8], uid[8], gid[8],size[12], mtime[12], chksum[8],
+  char name[100], mode[8], uid[8], gid[8], size[12], mtime[12], chksum[8],
        type, link[100], magic[8], uname[32], gname[32], major[8], minor[8],
        prefix[155], padd[12];
 };
@@ -194,8 +196,8 @@ static int add_to_tar(struct dirtree *node)
   struct tar_hdr hdr;
   struct passwd *pw = pw;
   struct group *gr = gr;
-  int i, fd = -1, norecurse = FLAG(no_recursion);
-  char *name, *lnk, *hname;
+  int i, fd = -1, recurse = 0;
+  char *name, *lnk, *hname, *xfname = 0;
 
   if (!dirtree_notdotdot(node)) return 0;
   if (TT.adev == st->st_dev && TT.aino == st->st_ino) {
@@ -208,11 +210,7 @@ static int add_to_tar(struct dirtree *node)
 
   // exclusion defaults to --no-anchored and --wildcards-match-slash
   for (lnk = name; *lnk;) {
-    if (filter(TT.excl, lnk)) {
-      norecurse++;
-
-      goto done;
-    }
+    if (filter(TT.excl, lnk)) goto done;
     while (*lnk && *lnk!='/') lnk++;
     while (*lnk=='/') lnk++;
   }
@@ -240,6 +238,10 @@ static int add_to_tar(struct dirtree *node)
            (int)(hname-name), name);
     TT.warn = 0;
   }
+
+  // Note: linux sed doesn't add newline, so no need to remove it or use -z.
+  if (TT.xfsed)
+    if (!(hname = xfname = xrunread(TT.xfsed, hname))) error_exit("bad xform");
 
   if (TT.owner) st->st_uid = TT.ouid;
   if (TT.group) st->st_gid = TT.ggid;
@@ -348,6 +350,7 @@ static int add_to_tar(struct dirtree *node)
     // Before we write the header, make sure we can read the file
     if ((fd = open(name, O_RDONLY)) < 0) {
       perror_msg("can't open '%s'", name);
+      free(name);
 
       return 0;
     }
@@ -420,10 +423,13 @@ static int add_to_tar(struct dirtree *node)
     if (st->st_size%512) writeall(TT.fd, toybuf, (512-(st->st_size%512)));
     close(fd);
   }
+  recurse = !FLAG(no_recursion);
+
 done:
+  free(xfname);
   free(name);
 
-  return (DIRTREE_RECURSE|(FLAG(h)?DIRTREE_SYMFOLLOW:0))*!norecurse;
+  return recurse*(DIRTREE_RECURSE|(FLAG(h)?DIRTREE_SYMFOLLOW:0));
 }
 
 static void wsettime(char *s, long long sec)
@@ -518,18 +524,9 @@ error:
   close(fd);
 }
 
-static void extract_to_disk(void)
+static void extract_to_disk(char *name)
 {
-  char *name = TT.hdr.name;
-  int ala = TT.hdr.mode, strip;
-
-  for (strip = 0; strip < TT.strip_components; strip++) {
-    char *s = strchr(name, '/');
-
-    if (s && s[1]) name = s+1;
-    else if (S_ISDIR(ala)) return;
-    else break;
-  }
+  int ala = TT.hdr.mode;
 
   if (dirflush(name, S_ISDIR(ala))) {
     if (S_ISREG(ala) && !TT.hdr.link_target) skippy(TT.hdr.size);
@@ -610,7 +607,7 @@ static void unpack_tar(char *first)
   struct tar_hdr tar;
   int i, sefd = -1, and = 0;
   unsigned maj, min;
-  char *s;
+  char *s, *name;
 
   for (;;) {
     if (first) {
@@ -776,9 +773,31 @@ static void unpack_tar(char *first)
       }
     }
 
-    // Skip excluded files
-    if (filter(TT.excl, TT.hdr.name) || (TT.incl && !delete))
+    // Skip excluded files, filtering on the untransformed name.
+    if (filter(TT.excl, name = TT.hdr.name) || (TT.incl && !delete)) {
       skippy(TT.hdr.size);
+      goto done;
+    }
+
+    // We accept --show-transformed but always do, so it's a NOP.
+    name = TT.hdr.name;
+    if (TT.xfsed) {
+      if (!(name = xrunread(TT.xfsed, name))) error_exit("bad xform");
+      free(TT.hdr.name);
+      TT.hdr.name = name;
+    }
+
+    for (i = 0; i<TT.strip; i++) {
+      char *s = strchr(name, '/');
+
+      if (s && s[1]) name = s+1;
+      else {
+        if (S_ISDIR(TT.hdr.mode)) *name = 0;
+        break;
+      }
+    }
+
+    if (!*name) skippy(TT.hdr.size);
     else if (FLAG(t)) {
       if (FLAG(v)) {
         struct tm *lc = localtime(TT.mtime ? &TT.mtt : &TT.hdr.mtime);
@@ -796,12 +815,12 @@ static void unpack_tar(char *first)
         printf("  %d-%02d-%02d %02d:%02d%s ", 1900+lc->tm_year, 1+lc->tm_mon,
           lc->tm_mday, lc->tm_hour, lc->tm_min, FLAG(full_time) ? perm : "");
       }
-      printf("%s", TT.hdr.name);
+      printf("%s", name);
       if (TT.hdr.link_target) printf(" -> %s", TT.hdr.link_target);
       xputc('\n');
       skippy(TT.hdr.size);
     } else {
-      if (FLAG(v)) printf("%s\n", TT.hdr.name);
+      if (FLAG(v)) printf("%s\n", name);
       if (FLAG(O)) sendfile_sparse(1);
       else if (FLAG(to_command)) {
         if (S_ISREG(TT.hdr.mode)) {
@@ -810,7 +829,7 @@ static void unpack_tar(char *first)
           xsetenv("TAR_FILETYPE", "f");
           xsetenv(xmprintf("TAR_MODE=%o", TT.hdr.mode), 0);
           xsetenv(xmprintf("TAR_SIZE=%lld", TT.hdr.ssize), 0);
-          xsetenv("TAR_FILENAME", TT.hdr.name);
+          xsetenv("TAR_FILENAME", name);
           xsetenv("TAR_UNAME", TT.hdr.uname);
           xsetenv("TAR_GNAME", TT.hdr.gname);
           xsetenv(xmprintf("TAR_MTIME=%llo", (long long)TT.hdr.mtime), 0);
@@ -823,9 +842,10 @@ static void unpack_tar(char *first)
           fd = xpclose_both(pid, 0);
           if (fd) error_msg("%d: Child returned %d", pid, fd);
         }
-      } else extract_to_disk();
+      } else extract_to_disk(name);
     }
 
+done:
     if (sefd != -1) {
       // zero length write resets fscreate context to default
       (void)write(sefd, 0, 0);
@@ -862,7 +882,7 @@ void tar_main(void)
 {
   char *s, **args = toys.optargs,
     *archiver = FLAG(I) ? TT.I : (FLAG(z) ? "gzip" : (FLAG(J) ? "xz":"bzip2"));
-  int len = 0;
+  int len = 0, ii;
 
   // Needed when extracting to command
   signal(SIGPIPE, SIG_IGN);
@@ -896,6 +916,19 @@ void tar_main(void)
   if (FLAG(c)) {
     if (!TT.incl) error_exit("empty archive");
     TT.fd = 1;
+  }
+
+  if (TT.xform) {
+    struct arg_list *al;
+
+    for (ii = 0, al = TT.xform; al; al = al->next) ii++;
+    TT.xfsed = xmalloc((ii+1)*2*sizeof(char *));
+    TT.xfsed[0] = "sed";
+    for (ii = 1, al = TT.xform; al; al = al->next) {
+      TT.xfsed[ii++] = "-e";
+      TT.xfsed[ii++] = al->arg;
+    }
+    TT.xfsed[ii] = 0;
   }
 
   // nommu reentry for nonseekable input skips this, parent did it for us
