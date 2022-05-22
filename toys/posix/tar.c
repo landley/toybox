@@ -570,7 +570,7 @@ static void extract_to_disk(char *name)
     if (TT.owner) TT.hdr.uid = TT.ouid;
     else if (!FLAG(numeric_owner) && *TT.hdr.uname) {
       struct passwd *pw = bufgetpwnamuid(TT.hdr.uname, 0);
-      if (pw && (TT.owner || !FLAG(numeric_owner))) TT.hdr.uid = pw->pw_uid;
+      if (pw) TT.hdr.uid = pw->pw_uid;
     }
 
     if (TT.group) TT.hdr.gid = TT.ggid;
