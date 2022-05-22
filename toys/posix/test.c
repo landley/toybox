@@ -20,8 +20,8 @@ config TEST
     --- Tests with a single argument (after the option):
     PATH is/has:
       -b  block device   -f  regular file   -p  fifo           -u  setuid bit
-      -c  char device    -g  setgid         -r  read bit       -w  write bit
-      -d  directory      -h  symlink        -S  socket         -x  execute bit
+      -c  char device    -g  setgid         -r  readable       -w  writable
+      -d  directory      -h  symlink        -S  socket         -x  executable
       -e  exists         -L  symlink        -s  nonzero size   -k  sticky bit
     STRING is:
       -n  nonzero size   -z  zero size      (STRING by itself implies -n)
@@ -77,9 +77,9 @@ static int do_test(char **args, int *count)
     if (-1 != (i = stridx("hLbcdefgkpSusxwr", c))) {
       struct stat st;
 
-      // stat or lstat, then handle rwx and s
+      if (i>=13) return !access(args[1], 1<<(i-13));
+      // stat or lstat, check s
       if (-1 == ((i<2) ? lstat : stat)(args[1], &st)) return 0;
-      if (i>=13) return !!(st.st_mode&(0111<<(i-13)));
       if (c == 's') return !!st.st_size; // otherwise 1<<32 == 0
 
       // handle file type checking and SUID/SGID

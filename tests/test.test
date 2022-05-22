@@ -62,9 +62,12 @@ for i in uu+s gg+s k+t; do
   testcmd "-${i:0:1}" "-${i:0:1} walrus && echo yes" "yes\n" "" ""
 done
 # test each ugo+rwx bit position individually
+XX=no
 for i in 1 10 100; do for j in x w r; do
   chmod $i walrus
-  testcmd "-$j $i" "-$j walrus && echo yes" "yes\n" "" ""
+
+  [ $i == 100 ] && XX=yes
+  testcmd "-$j $i" "-$j walrus && echo yes || echo no" "$XX\n" "" ""
   i=$((i<<1))
 done; done
 rm -f walrus
@@ -94,12 +97,14 @@ testing "-ge" "arith_test -ge" "eg" "" ""
 testing "-lt" "arith_test -lt" "l" "" ""
 testing "-le" "arith_test -le" "le" "" ""
 
+testing "positional" "test -a == -a && echo yes" "yes\n" "" ""
+testing "! stacks" 'test \! \! \! \! 2 -eq 2 && echo yes' "yes\n" "" ""
+
 # test ! = -o a
 # test ! \( = -o a \)
 # test \( ! = \) -o a
 # test \( \)
 
-#testing "" "[ -a -eq -a ] && echo yes" "yes\n" "" ""
 
 # -e == -a
 # -e == -a -o -d != -o
@@ -111,3 +116,12 @@ testing "-le" "arith_test -le" "le" "" ""
 #  // x -o ( x -a x ) -a x -o x
 
 # trailing ! and (
+# test \( ! ! ! -e \) \)
+# test \( \( "" \) -a "" \) -a ""
+# test !
+# test \( \) == \) \) -a x
+
+# test \( "" \) -a \) == \)
+# test \( "x" \) -a \) == \)
+# test -e == -a
+# test \( "" \)
