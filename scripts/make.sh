@@ -221,22 +221,19 @@ DOTPROG=.
 
 # This is a parallel version of: do_loudly $BUILD $FILES $LLINK || exit 1
 
-# Any headers newer than the oldest generated/obj file?
+# Build all if oldest generated/obj file isn't newer than all header files.
 X="$(ls -1t "$GENDIR"/obj/* 2>/dev/null | tail -n 1)"
-# TODO: redo this
 if [ ! -e "$X" ] || [ -n "$(find toys -name "*.h" -newer "$X")" ]
 then
   rm -rf "$GENDIR"/obj && mkdir -p "$GENDIR"/obj || exit 1
 else
+  # always redo toy_list[] and help_data[]
   rm -f "$GENDIR"/obj/main.o || exit 1
 fi
 
 # build each generated/obj/*.o file in parallel
 
-unset PENDING LNKFILES CLICK
-DONE=0
-COUNT=0
-
+PENDING= LNKFILES= CLICK= DONE=0 COUNT=0
 for i in lib/*.c click $TOYFILES
 do
   [ "$i" == click ] && CLICK=1 && continue
@@ -246,7 +243,7 @@ do
   OUT="$GENDIR/obj/${X%%.c}.o"
   LNKFILES="$LNKFILES $OUT"
 
-  # Library files don't get rebuilt if older than .config, commands do.
+  # Library files don't get rebuilt if older than .config, but commands do.
   [ "$OUT" -nt "$i" ] && [ -z "$CLICK" -o "$OUT" -nt "$KCONFIG_CONFIG" ] &&
     continue
 
@@ -275,10 +272,8 @@ then
   cp "$UNSTRIPPED" "$OUTNAME" || exit 1
 fi
 
-# gcc 4.4's strip command is buggy, and doesn't set the executable bit on
-# its output the way SUSv4 suggests it do so. While we're at it, make sure
-# we don't have the "w" bit set so things like bzip2's "cp -f" install don't
-# overwrite our binary through the symlink.
+# Remove write bit set so buggy installs (like bzip's) don't overwrite the
+# multiplexer binary via truncate-and-write through a symlink.
 do_loudly chmod 555 "$OUTNAME" || exit 1
 
 echo
