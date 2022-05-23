@@ -26,6 +26,7 @@
 <!-- get binaries -->
 <li><h2><a href="#install">How do I install toybox?</h2></li>
 <li><h2><a href="#cross">How do I cross compile toybox?</h2></li>
+<li><h2><a href="#targets">What architectures does toybox support?</li>
 <li><h2><a href="#system">What part of Linux/Android does toybox provide?</h2></li>
 <li><h2><a href="#mkroot">How do I build a working Linux system with toybox?</a></h2></li>
 </ul>
@@ -71,7 +72,7 @@ implementing a
 <a href=https://www.osnews.com/story/24572/apple-ditches-samba-in-favour-of-homegrown-replacement/>new SMB server</a> from scratch to
 <a href=https://archive.org/details/copyleftconf2020-allison>replace samba</a>,
 switching <a href=https://www.theverge.com/2019/6/4/18651872/apple-macos-catalina-zsh-bash-shell-replacement-features>bash with zsh</a>, and so on.
-Toybox itself exists because somebody with in a legacy position
+Toybox itself exists because somebody in a legacy position
 just wouldn't shut up about GPLv3, otherwise I would probably
 still happily be maintaining BusyBox. (For more on how I wound
 up working on busybox in the first place,
@@ -351,8 +352,7 @@ but develops on a standard 64-bit Linux+glibc distro while building embedded
 and is not a Google employee so does not have access
 to the Google build cluster of powerful machines capable of running the full
 AOSP build in a reasonable amount of time. Rob is working to get android
-building under android (the list of
-toybox tools Android's build uses is
+building under android (the list of toybox tools Android's build uses is
 <a href=https://android.googlesource.com/platform/prebuilts/build-tools/+/refs/heads/master/path/linux-x86/>here</a>,
 and what else it needs from its build environment is
 <a href=https://android.googlesource.com/platform/build/soong/+/refs/heads/master/ui/build/paths/config.go>here</a>), and he hopes someday to not only make a usable development
@@ -525,10 +525,59 @@ run on your target. A toolchain is an
 integrated suite of compiler, assembler, and linker, plus the standard
 headers and
 libraries necessary to build C programs. (And a few miscellaneous binaries like
-nm and objdump.)</p>
+nm and objdump that display info about <a href=https://en.wikipedia.org/wiki/Executable_and_Linkable_Format>ELF files</a>.)</p>
 
-<p>Toybox is tested against two compilers (llvm, gcc) and three C libraries
-(bionic, musl, glibc) in the following combinations:</p>
+<p>Toybox supports the standard $CROSS_COMPILE prefix environnment variable,
+same as the Linux kernel build uses. This is used to prefix all the tools
+(target-cc, target-ld, target-strip) during the build, meaning the prefix
+usually ends with a "-" that's easy to forget but kind of important
+("target-cc" and "targetcc" are not the same name).</p>
+
+<p>You can either provide a
+full path in the CROSS_COMPILE string, or add the appropriate bin directory
+to your $PATH. I.E:</p>
+
+<blockquote>
+<b><p>make LDFLAGS=--static CROSS_COMPILE=~/musl-cross-make/ccc/m68k-linux-musl-cross/bin/m68k-linux-musl- distclean defconfig toybox</p></b>
+</blockquote>
+
+<p>Is equivalent to:</p>
+
+<blockquote><b><p>
+export "PATH=~/musl-cross-make/ccc/m68k-linux-musl-cross/bin:$PATH"<br />
+LDFLAGS=--static CROSS_COMPILE=m68k-linux-musl- make distclean defconfig toybox
+</p></b></blockquote>
+
+<p>(Both of those examples use static linking so you can install just
+the single file to target, or test them with "qemu-m68k toybox". Feel free
+to dynamically link instead if you prefer, mkroot offers a "dynamic"
+add-on to copy the compiler's shared libraries into the new root
+filesystem.)</p>
+
+<p>Toybox's <a href=#mkroot>system builder</a> can use a simpler $CROSS
+variable to specify the target(s) to build for if you've installed
+<a href=#cross2>compatible</a> cross compilers under the "ccc" directory.
+Behind the scenes this uses wildcard expansion to set $CROSS_COMPILER to
+an appropriate path/prefix-.</p>
+
+<hr /><h2><a name="targets">Q: What architectures does toybox support?</h2>
+
+<p>Toybox runs on 64 bit and 32 bit processors, little endian and big endian,
+tries to respect alignment, and will enable nommu support when fork() is
+unavailable (or when TOYBOX_FORCE_NOMMU is enabled in the config to
+work around broken nommu toolchains), but otherwise tries to be
+processor agnostic (although some commands such as strace can't avoid
+a processor-specific if/else staircase.).</p>
+
+<P>Several commands (such as ps/top) are unavoidably full of Linux assumptions.
+Some subset of the commands have been made to run on BSD and MacOS X, and
+lib/portability.* and scripts/genconfig.sh exist to catch some known
+variations.</p>
+</p>
+
+<p>Each release gets tested against two compilers (llvm, gcc), three C
+libraries (bionic, musl, glibc), and a half-dozen different processor
+types, in the following combinations:</p>
 
 <a name="cross1" />
 <p><a href="#cross1">1) gcc+glibc = host toolchain</a></p>
@@ -554,15 +603,15 @@ installed on the system alongside the static binary:
 These days glibc is <a href=https://blog.aurel32.net/175>maintained
 by a committee</a> instead of a single
 maintainer, if that's an improvement. (As with Windows and
-Cobol, most people deal with it and get on with their lives.)</p>
+Cobol, most people just try to get on with their lives.)</p>
 
 <a name="cross2" />
 <p><a href="#cross2">2) gcc+musl = musl-cross-make</a></p>
 
-<p>The cross compilers I test this with are built from the
+<p>These cross compilers are built from the
 <a href=http://musl.libc.org/>musl-libc</a> maintainer's
 <a href=https://github.com/richfelker/musl-cross-make>musl-cross-make</a>
-project, built by running toybox's scripts/mcm-buildall.sh in that directory,
+project, built by running toybox's <a href=https://github.com/landley/toybox/blob/master/scripts/mcm-buildall.sh>scripts/mcm-buildall.sh</a> in that directory,
 and then symlink the resulting "ccc" subdirectory into toybox where
 "make root CROSS=" can find them, ala:</p>
 
@@ -575,7 +624,14 @@ cd musl-cross-make
 ln -s $(realpath ccc) ../toybox/ccc
 </pre></b></blockquote>
 
-<p>Instead of symlinking ccc, you can specify a CROSS_COMPILE= prefix
+<p>Since this takes a long time to run, and builds lots of targets
+(cross and native), we've uploaded
+<a href=downloads/binaries/toolchains/latest>the resulting binaries</a>
+so you can wget and extract a tarball or two instead of
+compiling them all yourself. (See the README in that directory for details.
+Yes there's a big source tarball in there for license compliance reasons.)</p>
+
+<p>Instead of CROSS= you can also specify a CROSS_COMPILE= prefix
 in the same format the Linux kernel build uses. You can either provide a
 full path in the CROSS_COMPILE string, or add the appropriate bin directory
 to your $PATH. I.E:</p>
@@ -591,14 +647,14 @@ export "PATH=~/musl-cross-make/ccc/m68k-linux-musl-cross/bin:$PATH"<br />
 LDFLAGS=--static make distclean defconfig toybox CROSS=m68k-linux-musl-
 </p></b></blockquote>
 
-<p>Note: these examples use static linking becausae a dynamic musl binary
+<p>Note: these examples use static linking because a dynamic musl binary
 won't run on your host unless you install musl's libc.so into the system
 libraries (which is an accident waiting to happen adding a second C library
 to most glibc linux distribution) or play with $LD_LIBRARY_PATH.
-In theory you could "make root" a dynamic root filesystem with musl by copying
-the shared libraries out of the toolchain, but I haven't bothered implementing
-that in mkroot yet because a static linked musl hello world is 10k on x86
-(5k if stripped).</p>
+(The <a href=https://github.com/landley/toybox/blob/master/scripts/root/dynamic>dynamic</a> package
+in mkroot copies the shared libraries out of the toolchain to create a dynamic
+linking environment in the root filesystem, but it's not nearly as well
+tested.)</p>
 
 <a name="cross3" />
 <p><a href="#cross3">3) llvm+bionic = Android NDK</a></p>
