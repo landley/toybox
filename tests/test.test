@@ -47,11 +47,13 @@ touch walrus
 MASK=111
 for i in x w r k g u; do
   [ $i == k ] && MASK=1000
+  XX=no
+  [ $UID -eq 0 ] && [ $i == r -o $i == w ] && XX=yes  # Root always has access
   # test everything off produces "off"
   chmod 000 walrus
-  testcmd "-$i 0" "-$i walrus || echo yes" "yes\n" "" ""
+  testcmd "-$i 0" "-$i walrus && echo yes || echo no" "$XX\n" "" ""
   chmod $((7777-$MASK)) walrus
-  testcmd "-$i inverted" "-$i walrus || echo yes" "yes\n" "" ""
+  testcmd "-$i inverted" "-$i walrus && echo yes || echo no" "$XX\n" "" ""
   MASK=$(($MASK<<1))
 done
 unset MASK
@@ -63,6 +65,7 @@ for i in uu+s gg+s k+t; do
 done
 # test each ugo+rwx bit position individually
 XX=no
+[ $UID -eq 0 ] && XX=yes  # Root always has access
 for i in 1 10 100; do for j in x w r; do
   chmod $i walrus
 
