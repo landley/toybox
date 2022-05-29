@@ -3,13 +3,13 @@
 # Grab default values for $CFLAGS and such.
 set -o pipefail
 source scripts/portability.sh
-mkdir -p "$UNSTRIPPED"
+
+# Shell functions called by the build
 
 # Respond to V= by echoing command lines as well as running them
-unset DOTPROG
 do_loudly()
 {
-  [ -n "$V" ] && echo "$@" || echo -n "$DOTPROG"
+  { [ -n "$V" ] && echo "$@" || echo -n "$DOTPROG" ; } >&2
   "$@"
 }
 
@@ -18,9 +18,8 @@ isnewer()
 {
   [ -e "$GENDIR/$1" ] && [ -z "$(find "${@:2}" -newer "$GENDIR/$1")" ] &&
     return 1
-  [ "$((DIDNEWER++))" -eq 0 ] && echo -n "$GENDIR/{" || echo -n ,
-  echo -n $1
-  return 0
+  echo -n "${DIDNEWER:-$GENDIR/{}$1"
+  DIDNEWER=,
 }
 
 # Build a tool that runs on the host
@@ -32,23 +31,41 @@ hostcomp()
   fi
 }
 
-# Used once for dependency checking, then again to write build.sh
-genbuildsh()
+# Set/record build environment information
+compflags()
 {
-  LLINK="$(echo $LDOPTIMIZE $LDFLAGS $(cat "$GENDIR"/optlibs.dat))"
-  echo -e "#!/bin/sh\n\nPATH='$PATH'\nBUILD='$BUILD'\nLINK='$LLINK'\n"
-  echo -e "\$BUILD lib/*.c $TOYFILES \$LINK -o $OUTNAME"
+  [ -z "$VERSION" ] && [ -d ".git" ] && [ -n "$(which git 2>/dev/null)" ] &&
+   VERSION="-DTOYBOX_VERSION=\"$(git describe --tags --abbrev=12 2>/dev/null)\""
+
+  # VERSION and LIBRARIES volatile, changing either does not require a rebuild
+  echo '#!/bin/sh'
+  echo
+  echo "VERSION='$VERSION'"
+  echo "LIBRARIES='$(xargs 2>/dev/null < "$GENDIR/optlibs.dat")'"
+  echo "BUILD='${CROSS_COMPILE}${CC} $CFLAGS -I . $OPTIMIZE '\"\$VERSION\""
+  echo "LINK='$LDOPTIMIZE $LDFLAGS '\"\$LIBRARIES\""
+  echo "PATH='$PATH'"
+  echo "# Built from $KCONFIG_CONFIG"
+  echo
 }
+
+# Make sure rm -rf isn't gonna go funny
+B="$(readlink -f "$PWD")/" A="$(readlink -f "$GENDIR")" A="${A%/}"/
+[ "$A" == "${B::${#A}}" ] &&
+  { echo "\$GENDIR=$GENDIR cannot include \$PWD=$PWD"; exit 1; }
+unset A B DOTPROG DIDNEWER
+
+# Force full rebuild if our compiler/linker options changed
+cmp -s <(compflags|sed '5,8!d') <($SED '5,8!d' "$GENDIR"/build.sh 2>/dev/null)||
+  rm -rf "$GENDIR"/* # Keep symlink, delete contents
+mkdir -p "$UNSTRIPPED" || exit 1
 
 # Extract a list of toys/*/*.c files to compile from the data in $KCONFIG_CONFIG
 # (First command names, then filenames with relevant {NEW,OLD}TOY() macro.)
 
 [ -n "$V" ] && echo -e "\nWhich C files to build..."
-[ -d ".git" ] && [ -n "$(which git 2>/dev/null)" ] &&
-   GITHASH="-DTOYBOX_VERSION=\"$(git describe --tags --abbrev=12 2>/dev/null)\""
 TOYFILES="$($SED -n 's/^CONFIG_\([^=]*\)=.*/\1/p' "$KCONFIG_CONFIG" | xargs | tr ' [A-Z]' '|[a-z]')"
 TOYFILES="main.c $(egrep -l "TOY[(]($TOYFILES)[ ,]" toys/*/*.c | xargs)"
-BUILD="$(echo ${CROSS_COMPILE}${CC} $CFLAGS -I . $OPTIMIZE $GITHASH)"
 
 if [ "${TOYFILES/pending//}" != "$TOYFILES" ]
 then
@@ -56,8 +73,7 @@ then
 fi
 
 # Probe library list if our compiler/linker options changed
-if ! cmp -s <(genbuildsh 2>/dev/null | head -n 5) \
-            <(head -n 5 "$GENDIR"/build.sh 2>/dev/null)
+if [ ! -e "$GENDIR"/optlibs.dat ]
 then
   echo -n "Library probe"
 
@@ -65,25 +81,37 @@ then
   # compiler has no way to ignore a library that doesn't exist, so detect
   # and skip nonexistent libraries for it.
 
-  > "$GENDIR"/optlibs.dat
+  > "$GENDIR"/optlibs.new
+  [ -z "$V" ] && X=/dev/null || X=/dev/stderr
   for i in util crypt m resolv selinux smack attr crypto z log iconv tls ssl
   do
-    ${CROSS_COMPILE}${CC} $CFLAGS $LDFLAGS -xc - -o "$UNSTRIPPED"/libprobe -l$i\
-      &>/dev/null <<<"int main(int argc, char *argv[]) {return 0;}" &&
-      echo -l$i >> "$GENDIR"/optlibs.dat
-    echo -n .
+    do_loudly ${CROSS_COMPILE}${CC} $CFLAGS $LDFLAGS -xc - -l$i &>$X \
+      -o "$UNSTRIPPED"/libprobe <<<"int main(int argc,char*argv[]){return 0;}"&&
+      do_loudly echo -n ' '-l$i >> "$GENDIR"/optlibs.new
   done
+  unset X
   rm -f "$UNSTRIPPED"/libprobe
+  mv "$GENDIR"/optlibs.{new,dat} || exit 1
   echo
 fi
 
-# Write a canned build line for use on crippled build machines.
-genbuildsh > "$GENDIR"/build.sh && chmod +x "$GENDIR"/build.sh || exit 1
+# Write build variables (and set them locally), then append build invocation.
+compflags > "$GENDIR"/build.sh && source "$GENDIR/build.sh" &&
+  echo -e "\$BUILD lib/*.c $TOYFILES \$LINK -o $OUTNAME" >> "$GENDIR"/build.sh&&
+  chmod +x "$GENDIR"/build.sh || exit 1
 
 if isnewer Config.in toys || isnewer Config.in Config.in
 then
   scripts/genconfig.sh
 fi
+
+# Does .config need dependency recalculation because toolchain changed?
+A="$($SED -n '/^config .*$/h;s/default \(.\)/\1/;T;H;g;s/config \([^\n]*\)[^yn]*\(.\)/\1=\2/p' "$GENDIR"/Config.probed | sort)"
+B="$(egrep "^CONFIG_($(echo "$A" | sed 's/=[yn]//' | xargs | tr ' ' '|'))=" "$KCONFIG_CONFIG" | $SED 's/^CONFIG_//' | sort)"
+A="$(echo "$A" | grep -v =n)"
+[ "$A" != "$B" ] &&
+  { echo -e "\nConfig.probed changed, run 'make oldconfig'" >&2; exit 1;}
+unset A B
 
 # Create a list of all the commands toybox can provide.
 if isnewer newtoys.h toys
@@ -219,7 +247,7 @@ echo -n "Compile $OUTNAME"
 [ -n "$V" ] && echo
 DOTPROG=.
 
-# This is a parallel version of: do_loudly $BUILD $FILES $LLINK || exit 1
+# This is a parallel version of: do_loudly $BUILD lib/*.c $TOYFILES $LINK
 
 # Build all if oldest generated/obj file isn't newer than all header files.
 X="$(ls -1t "$GENDIR"/obj/* 2>/dev/null | tail -n 1)"
@@ -263,7 +291,7 @@ done
 [ $DONE -ne 0 ] && exit 1
 
 UNSTRIPPED="$UNSTRIPPED/${OUTNAME/*\//}"
-do_loudly $BUILD $LNKFILES $LLINK -o "$UNSTRIPPED" || exit 1
+do_loudly $BUILD $LNKFILES $LINK -o "$UNSTRIPPED" || exit 1
 if [ -n "$NOSTRIP" ] ||
   ! do_loudly ${CROSS_COMPILE}${STRIP} "$UNSTRIPPED" -o "$OUTNAME"
 then
