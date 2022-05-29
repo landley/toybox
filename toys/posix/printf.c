@@ -130,7 +130,7 @@ void printf_main(void)
           printf(toybuf, wp[0], wp[1], ld);
         } else error_exit("bad %%%c@%ld", c, (long)(f-*toys.optargs));
 
-        if (end && (errno || *end)) perror_msg("bad %%%c %s", c, aa);
+        if (end && (*end || errno==ERANGE)) perror_msg("bad %%%c %s", c, aa);
       }
     }
 

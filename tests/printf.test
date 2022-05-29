@@ -31,6 +31,8 @@ testing "%x" "$PRINTF '%x\n' 0x2a" "2a\n" "" ""
 testing "%d 42" "$PRINTF %d 42" "42" "" ""
 testing "%d 0x2a" "$PRINTF %d 0x2a" "42" "" ""
 testing "%d 052" "$PRINTF %d 052" "42" "" ""
+testing "%d none" "$PRINTF %d" "0" "" ""
+testing "%d null" "$PRINTF %d ''" "0" "" ""
 
 testing "%s width precision" \
   "$PRINTF '%3s,%.3s,%10s,%10.3s' abcde fghij klmno pqrst" \
@@ -45,7 +47,6 @@ testing "extra args" "$PRINTF 'abc%s!%ddef\n' X 42 ARG 36" \
 testing "'%3c'" "$PRINTF '%3c' x" "  x" "" ""
 testing "'%-3c'" "$PRINTF '%-3c' x" "x  " "" ""
 testing "'%+d'" "$PRINTF '%+d' 5" "+5" "" ""
-
 
 testing "'%5d%4d' 1 21 321 4321 54321" \
   "$PRINTF '%5d%4d' 1 21 321 4321 54321" "    1  21  321432154321   0" "" ""
