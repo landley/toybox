@@ -58,7 +58,7 @@ unset A B DOTPROG DIDNEWER
 # Force full rebuild if our compiler/linker options changed
 cmp -s <(compflags|sed '5,8!d') <($SED '5,8!d' "$GENDIR"/build.sh 2>/dev/null)||
   rm -rf "$GENDIR"/* # Keep symlink, delete contents
-mkdir -p "$UNSTRIPPED" || exit 1
+mkdir -p "$UNSTRIPPED"  "$(dirname $OUTNAME)" || exit 1
 
 # Extract a list of toys/*/*.c files to compile from the data in $KCONFIG_CONFIG
 # (First command names, then filenames with relevant {NEW,OLD}TOY() macro.)
