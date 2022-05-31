@@ -2861,7 +2861,7 @@ funky:
       }
 
       // type 0 means just got ;; so start new type 2
-      if (!pl->type) {
+      if (!pl->type || pl->type==3) {
         // catch "echo | ;;" errors
         if (arg->v && arg->v[arg->c] && strcmp(arg->v[arg->c], "&")) goto flush;
         if (!arg->c) {
@@ -3790,9 +3790,8 @@ is_binary:
     more = parse_line(new ? : " ", &pl, &expect);
     free(new);
     if (more==1) {
-      if (!new) {
-        if (!ff) syntax_err("unexpected end of file");
-      } else continue;
+      if (!new) syntax_err("unexpected end of file");
+      else continue;
     } else if (!more && pl) {
       TT.ff->pl = pl;
       run_lines();

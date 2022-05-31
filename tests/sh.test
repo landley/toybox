@@ -247,6 +247,8 @@ testing 'case;;&' 'case wow in w?w) echo ok;;& wow) echo no; esac' 'ok\nno\n' \
 testing "case newlines" \
   $'case i\n\nin\n\na) echo one\n\n;;\n\ni)\n\necho two\n\n;;\n\nesac' \
   "two\n" "" ""
+testing "case block" \
+  $'case X in\n  X) printf %s "X" || { echo potato;} ;;\nesac' 'X' '' ''
 testing 'loop in && ||' \
   'false && for i in a b c; do echo $i; done || echo no' 'no\n' '' ''
 testing "continue" 'for i in a b c; do for j in d e f; do echo $i $j; continue 2; done; done' \
