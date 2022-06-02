@@ -102,6 +102,8 @@ testing 'prefix localizes magic vars' \
   'SECONDS=123; SECONDS=345 true; echo $SECONDS' '123\n' '' ''
 shxpect 'body evaluated before variable exports' I$'a=x${} y${}\n' RE'y${}'
 testing '$NOTHING clears $_' 'true; $NOTHING; echo $_' '\n' '' ''
+testing 'assignment with redirect is persistent, not prefix' \
+  'ABC=DEF > potato && rm potato && echo $ABC' 'DEF\n' '' ''
 
 testing 'exec exitval' "$SH -c 'exec echo hello' && echo \$?" "hello\n0\n" "" ""
 testing 'simple script' '$SH input' 'input\n' 'echo $0' ''
@@ -433,6 +435,8 @@ shxpect 'here2' I$'POTATO=123; cat << E"O"F\n' E"> " \
   I$'$POTATO\n' E"> " I$'EOF\n' O$'$POTATO\n'
 testing 'here3' 'abc(){ cat <<< x"$@"yz;};abc one two "three  four"' \
   "xone two three  fouryz\n" "" ""
+testing 'here4' 'for i in one two three; do cat <<< "ab${i}de"; done' \
+  'abonede\nabtwode\nabthreede\n' '' ''
 
 testing '${var}' 'X=abcdef; echo ${X}' 'abcdef\n' '' '' 
 testing '${#}' 'X=abcdef; echo ${#X}' "6\n" "" ""
@@ -610,6 +614,24 @@ shxpect 'blank line preserves $?' \
   I$'false\n' E"$P" I$'\n' E"$P" I$'echo $?\n' O$'1\n'
 testing 'NOP line clears $?' 'false;$NOTHING;echo $?' '0\n' '' ''
 testing 'run "$@"' 'false;"$@";echo $?' '0\n' '' ''
+
+# "Word splitting... not performed on the words between the [[ and ]]"
+testing '[[split1]]' 'A="1 -lt 2"; [[ $A ]] && echo yes' 'yes\n' '' ''
+testing '[[split2]]' 'A="2 -lt 1"; [[ $A ]] && echo yes' 'yes\n' '' ''
+testing '[[split3]]' \
+  'A="2 -lt 1"; [[ -e $A ]] && echo one; touch "$A" && [[ -e $A ]] && echo two'\
+  'two\n' '' ''
+rm -f '2 -lt 1'
+testing '[[split4]]' \
+  '[[ $(cat) == "a b" ]] <<< "a b" > potato && rm potato && echo ok' \
+  'ok\n' '' ''
+# And token parsing leaking through: 1>2 is an error, 1 >2 is not
+testing '[[1>2]] is not a redirect' '[[ 1 >2 ]] || [ -e 2 ] || echo yup' \
+  'yup\n' '' ''
+testing "[[1 >0]] doesn't need that second space" \
+  '[[ 1 >0 ]] && { [ -e 2 ] || echo yup; }' 'yup\n' '' ''
+testing '[[1<2]] is alphabetical, not numeric' '[[ 123 < 19 ]] && echo yes' \
+  'yes\n' '' ''
 
 # TODO finish variable list from shell init
 
