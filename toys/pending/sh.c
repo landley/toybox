@@ -318,6 +318,8 @@ GLOBALS(
 
 // Prototype because $($($(blah))) nests, leading to run->parse->run loop
 int do_source(char *name, FILE *ff);
+// functions contain pipelines contain functions: prototype because loop
+static void free_pipeline(void *pipeline);
 
 // ordered for greedy matching, so >&; becomes >& ; not > &;
 // making these const means I need to typecast the const away later to
@@ -363,6 +365,13 @@ void debug_show_fds()
   *sss = 0;
   dprintf(2, "%d fd:%s\n", getpid(), buf);
   closedir(X);
+}
+
+static char **nospace(char **ss)
+{
+  while (isspace(**ss)) ++*ss;
+
+  return ss;
 }
 
 // append to array with null terminator and realloc as necessary
@@ -457,13 +466,6 @@ static struct sh_vars *addvar(char *s, struct sh_fcall *ff)
   return ff->vars+ff->varslen++;
 }
 
-static char **nospace(char **ss)
-{
-  while (isspace(**ss)) ++*ss;
-
-  return ss;
-}
-
 /*
 15L ( [ . -> ++ --
 14R (all prefix operators)
@@ -542,6 +544,59 @@ static int recalculate(long long *dd, char **ss, int lvl)
   return 1;
 }
 
+// Return length of utf8 char @s fitting in len, writing value into *cc
+int getutf8(char *s, int len, int *cc)
+{
+  unsigned wc;
+
+  if (len<0) wc = len = 0;
+  else if (1>(len = utf8towc(&wc, s, len))) wc = *s, len = 1;
+  if (cc) *cc = wc;
+
+  return len;
+}
+
+// utf8 strchr: return wide char matched at wc from chrs, or 0 if not matched
+// if len, save length of next wc (whether or not it's in list)
+static int utf8chr(char *wc, char *chrs, int *len)
+{
+  unsigned wc1, wc2;
+  int ll;
+
+  if (len) *len = 1;
+  if (!*wc) return 0;
+  if (0<(ll = utf8towc(&wc1, wc, 99))) {
+    if (len) *len = ll;
+    while (*chrs) {
+      if(1>(ll = utf8towc(&wc2, chrs, 99))) chrs++;
+      else {
+        if (wc1 == wc2) return wc1;
+        chrs += ll;
+      }
+    }
+  }
+
+  return 0;
+}
+
+// return length of match found at this point (try is null terminated array)
+static int anystart(char *s, char **try)
+{
+  char *ss = s;
+
+  while (*try) if (strstart(&s, *try++)) return s-ss;
+
+  return 0;
+}
+
+// does this entire string match one of the strings in try[]
+static int anystr(char *s, char **try)
+{
+  while (*try) if (!strcmp(s, *try++)) return 1;
+
+  return 0;
+}
+
 static int calculate(long long *ll, char *equation)
 {
   char *ss = equation;
@@ -554,18 +609,6 @@ static int calculate(long long *ll, char *equation)
   }
 
   return 1;
-}
-
-// Return length of utf8 char @s fitting in len, writing value into *cc
-int getutf8(char *s, int len, int *cc)
-{
-  unsigned wc;
-
-  if (len<0) wc = len = 0;
-  else if (1>(len = utf8towc(&wc, s, len))) wc = *s, len = 1;
-  if (cc) *cc = wc;
-
-  return len;
 }
 
 // get value of variable starting at s.
@@ -824,24 +867,6 @@ static char *declarep(struct sh_vars *var)
   return ss; 
 }
 
-// return length of match found at this point (try is null terminated array)
-static int anystart(char *s, char **try)
-{
-  char *ss = s;
-
-  while (*try) if (strstart(&s, *try++)) return s-ss;
-
-  return 0;
-}
-
-// does this entire string match one of the strings in try[]
-static int anystr(char *s, char **try)
-{
-  while (*try) if (!strcmp(s, *try++)) return 1;
-
-  return 0;
-}
-
 // return length of valid prefix that could go before redirect
 static int redir_prefix(char *word)
 {
@@ -982,6 +1007,21 @@ static int save_redirect(int **rd, int from, int to)
   return 0;
 }
 
+// restore displaced filehandles, closing high filehandles they were copied to
+static void unredirect(int *urd)
+{
+  int *rr = urd+1, i;
+
+  if (!urd) return;
+
+  for (i = 0; i<*urd; i++, rr += 2) if (rr[0] != -1) {
+    // No idea what to do about fd exhaustion here, so Steinbach's Guideline.
+    dup2(rr[0], rr[1]);
+    close(rr[0]);
+  }
+  free(urd);
+}
+
 // TODO: waitpid(WNOHANG) to clean up zombies and catch background& ending
 static void subshell_callback(char **argv)
 {
@@ -1019,21 +1059,6 @@ static char *pl2str(struct sh_pipeline *pl, int one)
 // TODO test output with case and function
 // TODO add HERE documents back in
 // TODO handle functions
-}
-
-// restore displaced filehandles, closing high filehandles they were copied to
-static void unredirect(int *urd)
-{
-  int *rr = urd+1, i;
-
-  if (!urd) return;
-
-  for (i = 0; i<*urd; i++, rr += 2) if (rr[0] != -1) {
-    // No idea what to do about fd exhaustion here, so Steinbach's Guideline.
-    dup2(rr[0], rr[1]);
-    close(rr[0]);
-  }
-  free(urd);
 }
 
 static struct sh_blockstack *clear_block(struct sh_blockstack *blk)
@@ -1088,9 +1113,6 @@ static void call_function(void)
   TT.ff->arg.c = TT.ff->next->arg.c;
   TT.ff->ifs = TT.ff->next->ifs;
 }
-
-// functions contain pipelines contain functions: prototype because loop
-static void free_pipeline(void *pipeline);
 
 static void free_function(struct sh_function *funky)
 {
@@ -1211,29 +1233,6 @@ static int pipe_subshell(char *s, int len, int out)
   unredirect(uu);
 
   return pipes[out];
-}
-
-// utf8 strchr: return wide char matched at wc from chrs, or 0 if not matched
-// if len, save length of next wc (whether or not it's in list)
-static int utf8chr(char *wc, char *chrs, int *len)
-{
-  unsigned wc1, wc2;
-  int ll;
-
-  if (len) *len = 1;
-  if (!*wc) return 0;
-  if (0<(ll = utf8towc(&wc1, wc, 99))) {
-    if (len) *len = ll;
-    while (*chrs) {
-      if(1>(ll = utf8towc(&wc2, chrs, 99))) chrs++;
-      else {
-        if (wc1 == wc2) return wc1;
-        chrs += ll;
-      }
-    }
-  }
-
-  return 0;
 }
 
 // grab variable or special param (ala $$) up to len bytes. Return value.
