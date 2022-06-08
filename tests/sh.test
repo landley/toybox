@@ -437,6 +437,18 @@ testing 'here3' 'abc(){ cat <<< x"$@"yz;};abc one two "three  four"' \
   "xone two three  fouryz\n" "" ""
 testing 'here4' 'for i in one two three; do cat <<< "ab${i}de"; done' \
   'abonede\nabtwode\nabthreede\n' '' ''
+testing 'here5' $'cat << EOF && cat << EOF2\nEOF2\nEOF\nEOF\nEOF2' \
+  'EOF2\nEOF\n' '' ''
+# Nothing is actually quoted, but there are quotes, therefore...
+testing 'here6' $'cat << EOF""\n$POTATO\nEOF' '$POTATO\n' '' ''
+# Not ambiguous when split, unlike <$FILENAME redirects
+testing 'here7' 'ABC="abc def"; cat <<< $ABC' 'abc def\n' '' ''
+# What does HERE expansion _not_ expand?
+testing 'here8' $'ABC="x y"\ncat << EOF\n~root/{"$ABC",def}\nEOF' \
+  '~root/{"x y",def}\n' '' ''
+# <<- eats leading tabs before expansion
+testing 'here9' $'A=$\'\\tone\'; cat <<- EOF\n$A\n\ttwo\nEOF' "\tone\ntwo\n" \
+  '' ''
 
 testing '${var}' 'X=abcdef; echo ${X}' 'abcdef\n' '' '' 
 testing '${#}' 'X=abcdef; echo ${#X}' "6\n" "" ""
@@ -624,6 +636,9 @@ testing '[[split3]]' \
 rm -f '2 -lt 1'
 testing '[[split4]]' \
   '[[ $(cat) == "a b" ]] <<< "a b" > potato && rm potato && echo ok' \
+  'ok\n' '' ''
+testing '[[split5]]' \
+  '[[ $(cat) == "a b" ]] < <(echo a b) > potato && rm potato && echo ok' \
   'ok\n' '' ''
 # And token parsing leaking through: 1>2 is an error, 1 >2 is not
 testing '[[1>2]] is not a redirect' '[[ 1 >2 ]] || [ -e 2 ] || echo yup' \
