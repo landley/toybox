@@ -4,14 +4,23 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-testcmd '0 args' '; echo $?'  '1\n' '' ''
-testcmd '1 arg' '== ; echo $?' '0\n' '' ''
+testcmd "-- isn't parsed" "-- == -- && echo yes" "yes\n" "" ""
+
+# Number and position of args is important
+testcmd 'no args is false' '; echo $?'  '1\n' '' ''
+testcmd 'empty string is false' '""; echo $?' '1\n' '' ''
+testcmd '1 arg is true if not empty string' '== ; echo $?' '0\n' '' ''
+testcmd "1 arg isn't an operand" '-t 2>&1; echo $?' '0\n' '' ''
 testcmd '2 args' '-e == ; echo $?' '1\n' '' ''
 testcmd '3 args' '-e == -e ; echo $?' '0\n' '' ''
+
+# parse as operator before parsing as parentheses around one argument
 testcmd '' '\( == \) ; echo $?' '1\n' '' ''
 testcmd '' '\( == \( ; echo $?' '0\n' '' ''
+testcmd '' '\( "" \) ; echo $?' '1\n' '' ''
+testcmd '' '\( x \) ; echo $?' '0\n' '' ''
 
-# TODO: Should also have device and socket files
+# TODO: Should also have device and socket files, but requires root
 
 mkdir d
 touch f
@@ -30,17 +39,21 @@ type_test()
 testing "-b" "type_test -b" "" "" ""
 testing "-c" "type_test -c" "L" "" ""
 testing "-d" "type_test -d" "d" "" ""
+testing "-e" "type_test -e" "dfLsp" "" ""
 testing "-f" "type_test -f" "fs" "" ""
 testing "-h" "type_test -h" "L" "" ""
 testing "-L" "type_test -L" "L" "" ""
-testing "-s" "type_test -s" "ds" "" ""
-testing "-S" "type_test -S" "" "" ""
 testing "-p" "type_test -p" "p" "" ""
-testing "-e" "type_test -e" "dfLsp" "" ""
+testing "-S" "type_test -S" "" "" ""
+testing "-s" "type_test -s" "ds" "" ""
 testing "! -e" 'type_test ! -e' "n" "" ""
 
 rm f L s p
 rmdir d
+
+# Alas can't expand to a redirect, so just test one success/fail
+testcmd "-t" '-t 0 < /dev/null; echo $?' '1\n' '' ''
+testcmd "-t2" '-t 0 < /dev/ptmx; echo $?' '0\n' '' ''
 
 # test -rwx each bit position and failure
 touch walrus
@@ -65,6 +78,7 @@ for i in uu+s gg+s k+t; do
 done
 # test each ugo+rwx bit position individually
 XX=no
+# Note: chmod 007 means everybody EXCEPT owner/group can access it. (Unix!)
 [ $(id -u) -eq 0 ] && XX=yes  # Root always has access
 for i in 1 10 100; do for j in x w r; do
   chmod $i walrus
@@ -75,8 +89,7 @@ for i in 1 10 100; do for j in x w r; do
 done; done
 rm -f walrus
 
-testcmd "" "'' || echo yes" "yes\n" "" ""
-testcmd "" "a && echo yes" "yes\n" "" ""
+# Not zero length, zero length, equals, not equals
 testcmd "-n" "-n '' || echo yes" "yes\n" "" ""
 testcmd "-n2" "-n a && echo yes" "yes\n" "" ""
 testcmd "-z" "-z '' && echo yes" "yes\n" "" ""
@@ -102,6 +115,16 @@ testing "-le" "arith_test -le" "le" "" ""
 
 testing "positional" "test -a == -a && echo yes" "yes\n" "" ""
 testing "! stacks" 'test \! \! \! \! 2 -eq 2 && echo yes' "yes\n" "" ""
+
+# bash builtin "test" has these, but /usr/bin/test does not.
+testing "<1" 'test abc \< def && echo yes' "yes\n" "" ""
+testing "<2" 'test def \< abc || echo yes' "yes\n" "" ""
+testing ">1" 'test abc \> def || echo yes' "yes\n" "" ""
+testing ">2" 'test def \> abc && echo yes' "yes\n" "" ""
+# bash only has this for [[ ]] but extra tests to _exclude_ silly...
+toyonly testcmd "=~" 'abc =~ a.c && echo yes' "yes\n" "" ""
+toyonly testcmd "=~ fail" 'abc =~ d.c; echo $?' '1\n' "" ""
+toyonly testcmd "=~ zero length match" 'abc =~ "1*" && echo yes' 'yes\n' '' ''
 
 # test ! = -o a
 # test ! \( = -o a \)

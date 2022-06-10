@@ -4,10 +4,11 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/test.html
  *
- * TODO sh [[ ]] options: <   aaa<bbb  >   bbb>aaa   ~= regex
+ * Deviations from posix: -k, [[ < > =~ ]]
 
 USE_TEST(NEWTOY(test, 0, TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_NOHELP|TOYFLAG_MAYFORK))
 USE_TEST_GLUE(OLDTOY([, test, TOYFLAG_BIN|TOYFLAG_MAYFORK|TOYFLAG_NOHELP))
+USE_SH(OLDTOY([[, test, TOYFLAG_NOFORK|TOYFLAG_NOHELP))
 
 config TEST
   bool "test"
@@ -15,7 +16,8 @@ config TEST
   help
     usage: test [-bcdefghLPrSsuwx PATH] [-nz STRING] [-t FD] [X ?? Y]
 
-    Return true or false by performing tests. (With no arguments return false.)
+    Return true or false by performing tests. No arguments is false, one argument
+    is true if not empty string.
 
     --- Tests with a single argument (after the option):
     PATH is/has:
@@ -24,14 +26,15 @@ config TEST
       -d  directory      -h  symlink        -S  socket         -x  executable
       -e  exists         -L  symlink        -s  nonzero size   -k  sticky bit
     STRING is:
-      -n  nonzero size   -z  zero size      (STRING by itself implies -n)
+      -n  nonzero size   -z  zero size
     FD (integer file descriptor) is:
       -t  a TTY
 
     --- Tests with one argument on each side of an operator:
     Two strings:
-      =  are identical   !=  differ
-
+      =  are identical   !=  differ         =~  string matches regex
+    Alphabetical sort:
+      <  first is lower  >   first higher
     Two integers:
       -eq  equal         -gt  first > second    -lt  first < second
       -ne  not equal     -ge  first >= second   -le  first <= second
@@ -57,8 +60,24 @@ static int do_test(char **args, int *count)
   if (*count>=3) {
     *count = 3;
     char *s = args[1], *ss = "eqnegtgeltle";
+    // TODO shell integration case insensitivity
     if (!strcmp(s, "=") || !strcmp(s, "==")) return !strcmp(args[0], args[2]);
     if (!strcmp(s, "!=")) return strcmp(args[0], args[2]);
+    if (!strcmp(s, "=~")) {
+      regex_t reg;
+
+      // TODO: regex needs integrated quoting support with the shell.
+      // Ala [[ abc =~ "1"* ]] matches but [[ abc =~ 1"*" ]] does not
+      xregcomp(&reg, args[2], REG_NOSUB); // REG_EXTENDED? REG_ICASE?
+      i = regexec(&reg, args[0], 0, 0, 0);
+      regfree(&reg);
+
+      return !i;
+    }
+    if ((*s=='<' || *s=='>') && !s[1]) {
+      i = strcmp(args[0], args[2]);
+      return (*s=='<') ? i<0 : i>0;
+    }
     if (*s=='-' && strlen(s)==3 && (s = strstr(ss, s+1)) && !((i = s-ss)&1)) {
       long long a = atolx(args[0]), b = atolx(args[2]);
 
@@ -98,13 +117,14 @@ static int do_test(char **args, int *count)
 #define OR  4  // test before -o succeeded since ( so force true
 void test_main(void)
 {
-  char *s;
+  char *s = (void *)1;
   int pos, paren, pstack, result = 0;
 
   toys.exitval = 2;
-  if (CFG_TOYBOX && !strcmp("[", toys.which->name))
-    if (!toys.optc || strcmp("]", toys.optargs[--toys.optc]))
-      error_exit("Missing ']'");
+  if (CFG_TOYBOX && *toys.which->name=='[') {
+    if (toys.optc) for (s = toys.optargs[--toys.optc]; *s==']'; s++);
+    if (*s) error_exit("Missing ']'");
+  }
 
   // loop through command line arguments
   if (toys.optc) for (pos = paren = pstack = 0; ; pos++) {
