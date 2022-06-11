@@ -867,8 +867,8 @@ static char *declarep(struct sh_vars *var)
   return ss; 
 }
 
-// return length of valid prefix that could go before redirect
-static int redir_prefix(char *word)
+// Skip past valid prefix that could go before redirect
+static char *skip_redir_prefix(char *word)
 {
   char *s = word;
 
@@ -877,7 +877,7 @@ static int redir_prefix(char *word)
     else s = word;
   } else while (isdigit(*s)) s++;
 
-  return s-word;
+  return s;
 }
 
 // parse next word from command line. Returns end, or 0 if need continuation
@@ -889,7 +889,7 @@ static char *parse_word(char *start, int early, int quote)
   char *end = start, *ss;
 
   // Handle redirections, <(), (( )) that only count at the start of word
-  ss = end + redir_prefix(end); // 123<<file- parses as 2 args: "123<<" "file-"
+  ss = skip_redir_prefix(end); // 123<<file- parses as 2 args: "123<<" "file-"
   if (strstart(&ss, "<(") || strstart(&ss, ">(")) {
     toybuf[quote++]=')';
     end = ss;
@@ -2318,7 +2318,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int skip, int *urd)
     }
 
     // Is this a redirect? s = prefix, ss = operator
-    ss = s + redir_prefix(arg->v[j]);
+    ss = skip_redir_prefix(s);
     sss = ss + anystart(ss, (void *)redirectors);
     if (ss == sss) {
       // Nope: save/expand argument and loop
@@ -2755,7 +2755,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
 
       // find arguments of the form [{n}]<<[-] with another one after it
       for (i = 0; i<arg->c; i++) {
-        s = arg->v[i] + redir_prefix(arg->v[i]);
+        s = skip_redir_prefix(arg->v[i]);
 // TODO <<< is funky
 // argc[] entries removed from main list? Can have more than one?
         if (strcmp(s, "<<") && strcmp(s, "<<-") && strcmp(s, "<<<")) continue;
@@ -3519,7 +3519,7 @@ static void run_lines(void)
           if (TT.ff->blk->loop);
           else if (!strncmp(TT.ff->blk->fvar = ss, "((", 2)) {
             TT.ff->blk->loop = 1;
-dprintf(2, "TODO skipped init for((;;)), need math parser\n");
+dprintf(2, "TODO skipped init for((;;)), math parser needs var assignment\n");
 
           // in LIST
           } else if (TT.ff->pl->next->type == 's') {
@@ -3613,7 +3613,7 @@ dprintf(2, "TODO skipped init for((;;)), need math parser\n");
           }
         } else if (blk->loop >= blk->farg.c) TT.ff->pl = pop_block();
         else if (!strncmp(blk->fvar, "((", 2)) {
-dprintf(2, "TODO skipped running for((;;)), need math parser\n");
+dprintf(2, "TODO skipped running for((;;)), math parser needs var assignment\n");
         } else setvarval(blk->fvar, blk->farg.v[blk->loop++]);
       }
 
