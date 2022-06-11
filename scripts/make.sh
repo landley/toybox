@@ -110,7 +110,7 @@ A="$($SED -n '/^config .*$/h;s/default \(.\)/\1/;T;H;g;s/config \([^\n]*\)[^yn]*
 B="$(egrep "^CONFIG_($(echo "$A" | sed 's/=[yn]//' | xargs | tr ' ' '|'))=" "$KCONFIG_CONFIG" | $SED 's/^CONFIG_//' | sort)"
 A="$(echo "$A" | grep -v =n)"
 [ "$A" != "$B" ] &&
-  { echo -e "\nConfig.probed changed, run 'make oldconfig'" >&2; exit 1;}
+  { echo -e "\nWarning: Config.probed changed, run 'make oldconfig'" >&2; }
 unset A B
 
 # Create a list of all the commands toybox can provide.
