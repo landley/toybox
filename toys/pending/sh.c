@@ -70,10 +70,62 @@ config SH
     usage: sh [-c command] [script]
 
     Command shell.  Runs a shell script, or reads input interactively
-    and responds to it.
+    and responds to it. Roughly compatible with "bash". Run "help" for
+    list of built-in commands.
 
     -c	command line to execute
     -i	interactive mode (default when STDIN is a tty)
+    -s	don't run script (args set $* parameters but read commands from stdin)
+
+    Command shells parse each line of input (prompting when interactive), perform
+    variable expansion and redirection, execute commands (spawning child processes
+    and background jobs), and perform flow control based on the return code.
+
+    Parsing:
+      syntax errors
+
+    Interactive prompts:
+      line continuation
+
+    Variable expansion:
+      Note: can cause syntax errors at runtime
+
+    Redirection:
+      HERE documents (parsing)
+      Pipelines (flow control and job control)
+
+    Running commands:
+      process state
+      builtins
+        cd [[ ]] (( ))
+        ! : [ # TODO: help for these?
+        true false help echo kill printf pwd test
+      child processes
+
+    Job control:
+      &    Background process
+      Ctrl-C kill process
+      Ctrl-Z suspend process
+      bg fg jobs kill
+
+    Flow control:
+    ;    End statement (same as newline)
+    &    Background process (returns true unless syntax error)
+    &&   If this fails, next command fails without running
+    ||   If this succeeds, next command succeeds without running
+    |    Pipelines! (Can of worms...)
+    for {name [in...]}|((;;)) do; BODY; done
+    if TEST; then BODY; fi
+    while TEST; do BODY; done
+    case a in X);; esac
+    [[ TEST ]]
+    ((MATH))
+
+    Job control:
+    &    Background process
+    Ctrl-C kill process
+    Ctrl-Z suspend process
+    bg fg jobs kill
 
 # These are here for the help text, they're not selectable and control nothing
 config CD
@@ -545,7 +597,7 @@ static int recalculate(long long *dd, char **ss, int lvl)
 }
 
 // Return length of utf8 char @s fitting in len, writing value into *cc
-int getutf8(char *s, int len, int *cc)
+static int getutf8(char *s, int len, int *cc)
 {
   unsigned wc;
 
@@ -1711,7 +1763,7 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
 
 // TODO what does \ in `` mean? What is echo `printf %s \$x` supposed to do?
         // This has to be async so pipe buffer doesn't fill up
-        if (!ss) jj = pipe_subshell(s, kk, 0);
+        if (!ss) jj = pipe_subshell(s, kk, 0); // TODO $(true &&) syntax_err()
         if ((ifs = readfd(jj, 0, &pp)))
           for (kk = strlen(ifs); kk && ifs[kk-1]=='\n'; ifs[--kk] = 0);
         close(jj);
@@ -2264,6 +2316,7 @@ static char *expand_one_arg(char *new, unsigned flags, struct arg_list **del)
   struct sh_arg arg = {0};
   char *s = 0;
 
+  // TODO: ${var:?error} here?
   if (!expand_arg(&arg, new, flags|NO_PATH|NO_SPLIT, del))
     if (!(s = *arg.v) && (flags&(SEMI_IFS|NO_NULL))) s = "";
   free(arg.v);
@@ -2286,7 +2339,7 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int skip, int *urd)
   pp->urd = urd;
   pp->raw = arg;
 
-  // When we redirect, we copy each displaced filehandle to restore it later.
+  // When redirecting, copy each displaced filehandle to restore it later.
 
   // Expand arguments and perform redirections
   for (j = skip; j<arg->c; j++) {
@@ -2399,14 +2452,14 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int skip, int *urd)
             sss = 0;
 // TODO audit this ala man page
             // expand_parameter, commands, and arithmetic
-            if (x && !(ss = sss = expand_one_arg(ss, ~SEMI_IFS, 0))) {
+            if (x && !(sss = expand_one_arg(ss, ~SEMI_IFS, 0))) {
               s = 0;
               break;
             }
 
             while (zap && *ss == '\t') ss++;
             x = writeall(from, ss, len = strlen(ss));
-            free(sss);
+            if (ss != sss) free(sss);
             if (len != x) break;
           }
           if (i != hh->c) bad++;
@@ -3464,8 +3517,7 @@ static void run_lines(void)
           break;
         }
       // Parse and run next command, saving resulting process
-      } else if ((pp = run_command()))
-        dlist_add_nomalloc((void *)&pplist, (void *)pp);
+      } else dlist_add_nomalloc((void *)&pplist, (void *)run_command());
 
     // Start of flow control block?
     } else if (TT.ff->pl->type == 1) {
@@ -3909,7 +3961,7 @@ static void subshell_setup(void)
       shv->flags |= VAR_EXPORT;
       shv->str = s;
     }
-    cache_ifs(s, TT.ff);
+    cache_ifs(s, TT.ff); // TODO: replace with set(get("IFS")) after loop
   }
 
   // set/update PWD
