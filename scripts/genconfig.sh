@@ -73,12 +73,6 @@ EOF
     #endif
 EOF
 
-  probesymbol TOYBOX_ANDROID_SCHEDPOLICY << EOF
-    #include <processgroup/sched_policy.h>
-
-    int main(int argc,char *argv[]) { get_sched_policy_name(0); }
-EOF
-
   # nommu support
   probesymbol TOYBOX_FORK << EOF
     #include <unistd.h>
