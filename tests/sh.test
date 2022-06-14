@@ -240,6 +240,9 @@ testing "[math]" 'echo $[1+2]' '3\n' '' ''
 testing "math prio" 'echo $((1+2*3**4))' '163\n' '' ''
 testing "math paren" 'echo $(((1+2)*3))' '9\n' '' ''
 testing "math spaces" 'echo $(( ( 1 + 2 ) * 7 - 5 ** 2 ))' '-4\n' '' ''
+testing "math2" '((1<2)) </dev/null && echo yes' 'yes\n' '' ''
+testing "math3" '((1>2)) </dev/null || echo yes' 'yes\n' '' ''
+testing "not math" '((echo hello) )' 'hello\n' '' ''
 
 # Loops and flow control
 testing "case" 'for i in A C J B; do case "$i" in A) echo got A ;; B) echo and B ;; C) echo then C ;; *) echo default ;; esac; done' \
@@ -584,6 +587,7 @@ testing '"exit shell" means exit eval but encapsulating function continues' \
   'func() { eval "echo one; echo \${?potato}; echo and" 2>/dev/null; echo plus;}; func; echo then' \
   'one\nplus\nthen\n' '' ''
 
+shxpect "functions need block" I$'x() echo;\n' RE'[Ss]yntax [Ee]rror'
 testing 'functions() {} in same PID' \
   '{ echo $BASHPID; chicken() { echo $BASHPID;}; chicken;} | sort -u | wc -l' '1\n' '' ''
 testing 'functions() () different PID' \
@@ -647,6 +651,7 @@ testing "[[1 >0]] doesn't need that second space" \
   '[[ 1 >0 ]] && { [ -e 2 ] || echo yup; }' 'yup\n' '' ''
 testing '[[1<2]] is alphabetical, not numeric' '[[ 123 < 19 ]] && echo yes' \
   'yes\n' '' ''
+testing '[[~]]' '[[ ~ == $HOME ]] && echo yes' 'yes\n' '' ''
 
 # TODO finish variable list from shell init
 

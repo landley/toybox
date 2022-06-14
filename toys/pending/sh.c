@@ -10,6 +10,9 @@
  * and http://opengroup.org/onlinepubs/9699919799/utilities/sh.html
  *
  * deviations from posix: don't care about $LANG or $LC_ALL
+ * deviations from bash:
+ *   redirect+expansion in one pass so we can't report errors between them.
+ *   Trailing redirects error at runtime, not parse time.
 
  * builtins: alias bg command fc fg getopts jobs newgrp read umask unalias wait
  *          disown suspend source pushd popd dirs logout times trap cd hash exit
@@ -562,17 +565,17 @@ static int recalculate(long long *dd, char **ss, int lvl)
   } else return 0;
 
   // x^y binds first
-  if (lvl<4) while (strstart(nospace(ss), "**")) {
-    if (!recalculate(&ee, ss, 4)) return 0;
+  if (lvl<5) while (strstart(nospace(ss), "**")) {
+    if (!recalculate(&ee, ss, 5)) return 0;
     if (ee<0) perror_msg("** < 0");
     for (ff = *dd, *dd = 1; ee; ee--) *dd *= ff;
   }
 
   // w*x/y%z bind next
-  if (lvl<3) while ((cc = **nospace(ss))) {
+  if (lvl<4) while ((cc = **nospace(ss))) {
     if (cc=='*' || cc=='/' || cc=='%') {
       ++*ss;
-      if (!recalculate(&ee, ss, 3)) return 0;
+      if (!recalculate(&ee, ss, 4)) return 0;
       if (cc=='*') *dd *= ee;
       else if (cc=='%') *dd %= ee;
       else if (!ee) {
@@ -583,12 +586,23 @@ static int recalculate(long long *dd, char **ss, int lvl)
   }
 
   // x+y-z
-  if (lvl<2) while ((cc = **nospace(ss))) {
+  if (lvl<3) while ((cc = **nospace(ss))) {
     if (cc=='+' || cc=='-') {
       ++*ss;
-      if (!recalculate(&ee, ss, 2)) return 0;
+      if (!recalculate(&ee, ss, 3)) return 0;
       if (cc=='+') *dd += ee;
       else *dd -= ee;
+    } else break;
+  }
+
+  if (lvl<2) while ((cc = **nospace(ss))) {
+    if (cc=='<' || cc=='>') {
+      char *s = *ss;
+
+      if (*++*ss=='=') ++*ss;
+      if (!recalculate(&ee, ss, 2)) return 0;
+      if (cc=='<') *dd = (s[1]=='=') ? (*dd<=ee) : (*dd<ee);
+      else *dd = (s[1]=='=') ? (*dd>=ee) : (*dd>ee);
     } else break;
   }
   nospace(ss);
@@ -2391,8 +2405,8 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int skip, int *urd)
     // It's a redirect: for [to]<from s = start of [to], ss = <, sss = from
     if (isdigit(*s) && ss-s>5) break;
 
-    // expand arguments for everything but << and <<-
-    if (strncmp(ss, "<<", 2) && ss[2] != '<') {
+    // expand arguments for everything but HERE docs
+    if (strncmp(ss, "<<", 2)) {
       struct sh_arg tmp = {0};
 
       if (!expand_arg(&tmp, sss, 0, &pp->delete) && tmp.c == 1) sss = *tmp.v;
@@ -2426,17 +2440,14 @@ static struct sh_process *expand_redir(struct sh_arg *arg, int skip, int *urd)
     }
 
     // HERE documents?
-    if (!strcmp(ss, "<<<") || !strcmp(ss, "<<-") || !strcmp(ss, "<<")) {
-      char *tmp = getvar("TMPDIR");
+    if (!strncmp(ss, "<<", 2)) {
+      char *tmp = xmprintf("%s/sh-XXXXXX", getvar("TMPDIR") ? : "/tmp");
       int i, len, zap = (ss[2] == '-'), x = !ss[strcspn(ss, "\"'")];
 
-      // store contents in open-but-deleted /tmp file.
-      tmp = xmprintf("%s/sh-XXXXXX", tmp ? tmp : "/tmp");
+      // store contents in open-but-deleted /tmp file: write then lseek(start)
       if ((from = mkstemp(tmp))>=0) {
         if (unlink(tmp)) bad++;
-
-        // write contents to file (if <<< else <<) then lseek back to start
-        else if (ss[2] == '<') {
+        else if (ss[2] == '<') { // not stored in arg[here]
           if (!(ss = expand_one_arg(sss, 0, 0))) {
             s = 0;
             break;
@@ -2600,19 +2611,43 @@ static struct sh_process *run_command(void)
 {
   char *s, *ss, *sss;
   struct sh_arg *arg = TT.ff->pl->arg;
-  int envlen, funk = TT.funcslen, jj = 0, prefix = 0;
+  int envlen, skiplen, funk = TT.funcslen, ii, jj = 0, prefix = 0;
   struct sh_process *pp;
 
   // Count leading variable assignments
-  for (envlen = 0; envlen<arg->c; envlen++)
+  for (envlen = skiplen = 0; envlen<arg->c; envlen++)
     if ((ss = varend(arg->v[envlen]))==arg->v[envlen] || ss[*ss=='+']!='=')
       break;
-  pp = expand_redir(arg, envlen, 0);
+
+  // Skip [[ ]] and (( )) contents for now
+  if ((s = arg->v[envlen])) {
+    if (!memcmp(s, "((", 2)) skiplen = 1;
+    else if (!strcmp(s, "[[")) while (strcmp(arg->v[envlen+skiplen++], "]]"));
+  }
+  pp = expand_redir(arg, envlen+skiplen, 0);
+
+// TODO: if error stops redir, expansion assignments, prefix assignments,
+// what sequence do they occur in?
+  if (skiplen) {
+    // Trailing redirects can't expand to any contents
+    if (pp->arg.c) {
+      syntax_err(*pp->arg.v);
+      pp->exit = 1;
+    }
+    if (!pp->exit) {
+      for (ii = 0; ii<skiplen; ii++)
+// TODO: [[ ~ ] expands but ((~)) doesn't, what else?
+        if (expand_arg(&pp->arg, arg->v[envlen+ii], NO_PATH|NO_SPLIT, &pp->delete))
+          break;
+      if (ii != skiplen) pp->exit = toys.exitval = 1;
+    }
+    if (pp->exit) return pp;
+  }
 
   // Are we calling a shell function?  TODO binary search
-  if (pp->arg.c && !strchr(*pp->arg.v, '/'))
-    for (funk = 0; funk<TT.funcslen; funk++)
-       if (!strcmp(*pp->arg.v, TT.functions[funk]->name)) break;
+  if (pp->arg.c)
+    if (!strchr(s, '/')) for (funk = 0; funk<TT.funcslen; funk++)
+       if (!strcmp(s, TT.functions[funk]->name)) break;
 
   // Create new function context to hold local vars?
   if (funk != TT.funcslen || (envlen && pp->arg.c) || TT.ff->blk->pipe) {
@@ -2649,8 +2684,21 @@ static struct sh_process *run_command(void)
 // TODO what about "echo | x=1 | export fruit", must subshell? Test this.
 //   Several NOFORK can just NOP in a pipeline? Except ${a?b} still errors
 
+  // ((math))
+  else if (!memcmp(s = *pp->arg.v, "((", 2)) {
+    char *ss = s+2;
+    long long ll;
+
+    funk = TT.funcslen;
+    ii = strlen(s)-2;
+    if (!recalculate(&ll, &ss, 0) || ss!=s+ii)
+      perror_msg("bad math: %.*s @ %ld", ii-2, s+2, (ss-s)-2);
+    else toys.exitval = !ll;
+    pp->exit = toys.exitval;
+    s = 0; // Really!
+
   // call shell function
-  else if (funk != TT.funcslen) {
+  } else if (funk != TT.funcslen) {
     s = 0; // $_ set on return, not here
     (TT.ff->func = TT.functions[funk])->refcount++;
     TT.ff->pl = TT.ff->func->pipeline;
@@ -2664,7 +2712,6 @@ static struct sh_process *run_command(void)
     s = pp->arg.v[pp->arg.c-1];
     sss = pp->arg.v[pp->arg.c];
 //dprintf(2, "%d run command %p %s\n", getpid(), TT.ff, *pp->arg.v); debug_show_fds();
-// TODO handle ((math)): else if (!strcmp(*pp->arg.v, "(("))
 // TODO: figure out when can exec instead of forking, ala sh -c blah
 
     // Is this command a builtin that should run in this process?
@@ -2775,22 +2822,28 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
 
     // is a HERE document in progress?
     } else if (pl->count != pl->here) {
-      arg += 1+pl->here;
+      // Back up to oldest unfinished pipeline segment.
+      while (pl != *ppl && pl->prev->count != pl->prev->here) pl = pl->prev;
+      arg = pl->arg+1+pl->here;
 
       // Match unquoted EOF.
-      for (s = line, end = arg->v[arg->c]; *s && *end; s++) {
+      for (s = line, end = arg->v[arg->c]; *end; s++) {
         s += strspn(s, "\\\"'");
-        if (*s != *end) break;
+        if (!*s || *s != *end) break;
       }
       // Add this line, else EOF hit so end HERE document
-      if (!*s && !*end) {
+      if (*s || *end) {
         end = arg->v[arg->c];
         arg_add(arg, xstrdup(line));
         arg->v[arg->c] = end;
       } else {
+        // End segment and advance/consume bridge segments
         arg->v[arg->c] = 0;
-        pl->here++;
+        if (pl->count == ++pl->here)
+          while (pl->next != *ppl && (pl = pl->next)->here == -1)
+            pl->here = pl->count;
       }
+      if (pl->here != pl->count) return 1;
       start = 0;
 
     // Nope, new segment if not self-managing type
@@ -2803,63 +2856,25 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
 
     // Look for << HERE redirections in completed pipeline segment
     if (pl && pl->count == -1) {
-      pl->count = 0;
-      arg = pl->arg;
-
       // find arguments of the form [{n}]<<[-] with another one after it
-      for (i = 0; i<arg->c; i++) {
+      for (arg = pl->arg, pl->count = i = 0; i<arg->c; i++) {
         s = skip_redir_prefix(arg->v[i]);
-// TODO <<< is funky
-// argc[] entries removed from main list? Can have more than one?
-        if (strcmp(s, "<<") && strcmp(s, "<<-") && strcmp(s, "<<<")) continue;
+        if (strncmp(s, "<<", 2) || s[2]=='<') continue;
         if (i+1 == arg->c) goto flush;
 
-        // Add another arg[] to the pipeline segment (removing/readding to list
-        // because realloc can move pointer)
+        // Add another arg[] to the pipeline segment (removing/re-adding
+        // to list because realloc can move pointer)
         dlist_lpop(ppl);
-        pl = xrealloc(pl, sizeof(*pl) + ++pl->count*sizeof(struct sh_arg));
+        pl = xrealloc(pl, sizeof(*pl)+(++pl->count+1)*sizeof(struct sh_arg));
+        arg = pl->arg;
         dlist_add_nomalloc((void *)ppl, (void *)pl);
 
         // queue up HERE EOF so input loop asks for more lines.
-        arg[pl->count].v = xzalloc(2*sizeof(void *));
-        arg[pl->count].v[0] = arg->v[++i];
-        arg[pl->count].v[1] = 0;
+        *(arg[pl->count].v = xzalloc(2*sizeof(void *))) = arg->v[++i];
         arg[pl->count].c = 0;
-        if (s[2] == '<') pl->here++; // <<< doesn't load more data
       }
-
-      // Did we just end a function?
-      if (ex == (void *)1) {
-        struct sh_function *funky;
-
-        // function must be followed by a compound statement for some reason
-        if ((*ppl)->prev->type != 3) {
-          s = *(*ppl)->prev->arg->v;
-          goto flush;
-        }
-
-        // Back up to saved function() statement and create sh_function
-        free(dlist_lpop(expect));
-        pl = (void *)(*expect)->data;
-        funky = xmalloc(sizeof(struct sh_function));
-        funky->refcount = 1;
-        funky->name = *pl->arg->v;
-        *pl->arg->v = (void *)funky;
-
-        // Chop out pipeline segments added since saved function
-        funky->pipeline = pl->next;
-        pl->next->prev = (*ppl)->prev;
-        (*ppl)->prev->next = pl->next;
-        pl->next = *ppl;
-        (*ppl)->prev = pl;
-        dlist_terminate(funky->pipeline = add_pl(&funky->pipeline, 0));
-        funky->pipeline->type = 'f';
-
-        // Immature function has matured (meaning cleanup is different)
-        pl->type = 'F';
-        free(dlist_lpop(expect));
-        ex = *expect ? (*expect)->prev->data : 0;
-      }
+      // Mark "bridge" segment when previous pl had HERE but this doesn't
+      if (!pl->count && pl->prev->count != pl->prev->here) pl->prev->here = -1;
       pl = 0;
     }
     if (done) break;
@@ -2871,15 +2886,13 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
 
     // Parse next word and detect overflow (too many nested quotes).
     if ((end = parse_word(start, 0, 0)) == (void *)1) goto flush;
-//dprintf(2, "%d %p %s word=%.*s\n", getpid(), pl, (ex != (void *)1) ? ex : "function", (int)(end-start), end ? start : "");
+//dprintf(2, "%d %p(%d) %s word=%.*s\n", getpid(), pl, pl ? pl->type : -1, ex, (int)(end-start), end ? start : "");
 
+    // End function declaration?
     if (pl && pl->type == 'f' && arg->c == 1 && (end-start!=1 || *start!='(')) {
-funky:
-      // end function segment, expect function body
-      dlist_add(expect, (void *)pl);
-      pl = 0;
-      dlist_add(expect, (void *)1);
+      // end (possibly multiline) function segment, expect function body next
       dlist_add(expect, 0);
+      pl = 0;
 
       continue;
     }
@@ -2900,7 +2913,7 @@ funky:
     // Ok, we have a word. What does it _mean_?
 
     // case/esac parsing is weird (unbalanced parentheses!), handle first
-    i = (unsigned long)ex>1 && !strcmp(ex, "esac") &&
+    i = ex && !strcmp(ex, "esac") &&
         ((pl->type && pl->type != 3) || (*start==';' && end-start>1));
     if (i) {
 
@@ -2933,6 +2946,7 @@ funky:
     // Did we hit end of line or ) outside a function declaration?
     // ) is only saved at start of a statement, ends current statement
     } else if (end == start || (arg->c && *start == ')' && pl->type!='f')) {
+//TODO: test ) within ]]
       // function () needs both parentheses or neither
       if (pl->type == 'f' && arg->c != 1 && arg->c != 3) {
         s = "function(";
@@ -2940,7 +2954,7 @@ funky:
       }
 
       // "for" on its own line is an error.
-      if (arg->c == 1 && (unsigned long)ex>1 && !memcmp(ex, "do\0A", 4)) {
+      if (arg->c == 1 && ex && !memcmp(ex, "do\0A", 4)) {
         s = "newline";
         goto flush;
       }
@@ -3018,7 +3032,8 @@ funky:
       if (arg->c == 2 && strcmp(s, "(")) goto flush;
       if (arg->c == 3) {
         if (strcmp(s, ")")) goto flush;
-        goto funky;
+        dlist_add(expect, 0);
+        pl = 0;
       }
 
       continue;
@@ -3033,19 +3048,19 @@ funky:
         free(s);
         s = 0;
 // TODO can't have ; between "for i" and in or do. (Newline yes, ; no. Why?)
-        if (!arg->c && (unsigned long)ex>1 && !memcmp(ex, "do\0C", 4)) continue;
+        if (!arg->c && ex && !memcmp(ex, "do\0C", 4)) continue;
 
       // ;; and friends only allowed in case statements
       } else if (*s == ';') goto flush;
 
-      // flow control without a statement is an error
+      // Connecting nonexistent statements is an error
       if (!arg->c) goto flush;
       pl->count = -1;
 
       continue;
 
     // a for/select must have at least one additional argument on same line
-    } else if ((unsigned long)ex>1 && !memcmp(ex, "do\0A", 4)) {
+    } else if (ex && !memcmp(ex, "do\0A", 4)) {
 
       // Sanity check and break the segment
       if (strncmp(s, "((", 2) && *varend(s)) goto flush;
@@ -3055,22 +3070,24 @@ funky:
       continue;
 
     // flow control is the first word of a pipeline segment
-    } else if (arg->c>1) continue;
+    } else if (arg->c>1) {
+      // Except that [[ ]] is a type 0 segment
+      if (ex && *ex==']' && !strcmp(s, ex)) free(dlist_lpop(expect));
 
-    // Do we expect something that _must_ come next? (no multiple statements)
-    if ((unsigned long)ex>1) {
-      // The "test" part of for/select loops can have (at most) one "in" line,
-      // for {((;;))|name [in...]} do
-      if (!memcmp(ex, "do\0C", 4)) {
-        if (strcmp(s, "do")) {
-          // can only have one "in" line between for/do, but not with for(())
-          if (pl->prev->type == 's') goto flush;
-          if (!strncmp(pl->prev->arg->v[1], "((", 2)) goto flush;
-          else if (strcmp(s, "in")) goto flush;
-          pl->type = 's';
+      continue;
+    }
 
-          continue;
-        }
+    // The "test" part of for/select loops can have (at most) one "in" line,
+    // for {((;;))|name [in...]} do
+    if (ex && !memcmp(ex, "do\0C", 4)) {
+      if (strcmp(s, "do")) {
+        // can only have one "in" line between for/do, but not with for(())
+        if (pl->prev->type == 's') goto flush;
+        if (!strncmp(pl->prev->arg->v[1], "((", 2)) goto flush;
+        else if (strcmp(s, "in")) goto flush;
+        pl->type = 's';
+
+        continue;
       }
     }
 
@@ -3089,28 +3106,36 @@ funky:
     if (!strcmp(s, "if")) end = "then";
     else if (!strcmp(s, "while") || !strcmp(s, "until")) end = "do\0B";
     else if (!strcmp(s, "{")) end = "}";
-    else if (!strcmp(s, "[[")) end = "]]";
     else if (!strcmp(s, "(")) end = ")";
+    else if (!strcmp(s, "[[")) end = "]]";
 
-    // Expecting NULL means a statement: I.E. any otherwise unrecognized word
-    if (!ex && *expect) free(dlist_lpop(expect));
+    // Expecting NULL means any statement (don't care which).
+    if (!ex && *expect) {
+      if (pl->prev->type == 'f' && !end && memcmp(s, "((", 2)) goto flush;
+      free(dlist_lpop(expect));
+    }
 
     // Did we start a new statement
     if (end) {
-      pl->type = 1;
+      if (*end!=']') pl->type = 1;
+      else {
+        // [[ ]] is a type 0 segment, not a flow control block
+        dlist_add(expect, end);
+        continue;
+      }
 
       // Only innermost statement needed in { { { echo ;} ;} ;} and such
       if (*expect && !(*expect)->prev->data) free(dlist_lpop(expect));
 
-    // if can't end a statement here skip next few tests
-    } else if ((unsigned long)ex<2);
+    // if not looking for end of statement skip next few tests
+    } else if (!ex);
 
     // If we got here we expect a specific word to end this block: is this it?
     else if (!strcmp(s, ex)) {
       // can't "if | then" or "while && do", only ; & or newline works
       if (strcmp(pl->prev->arg->v[pl->prev->arg->c] ? : "&", "&")) goto flush;
 
-      // consume word, record block end location in earlier !0 type blocks
+      // consume word, record block end in earlier !0 type (non-nested) blocks
       free(dlist_lpop(expect));
       if (3 == (pl->type = anystr(s, tails) ? 3 : 2)) {
         for (i = 0, pl2 = pl3 = pl; (pl2 = pl2->prev);) {
@@ -3119,7 +3144,7 @@ funky:
             if (!i) {
               if (pl2->type == 2) {
                 pl2->end = pl3;
-                pl3 = pl2;
+                pl3 = pl2;   // chain multiple gearshifts for case/esac
               } else pl2->end = pl;
             }
             if (pl2->type == 1 && --i<0) break;
@@ -3164,17 +3189,43 @@ funky:
 
   // ignore blank and comment lines
   if (!*ppl) return 0;
-
-// TODO <<< has no parsing impact, why play with it here at all?
-  // advance past <<< arguments (stored as here documents, but no new input)
   pl = (*ppl)->prev;
-  while (pl->count<pl->here && pl->arg[pl->count].c<0)
-    pl->arg[pl->count++].c = 0;
 
   // return if HERE document pending or more flow control needed to complete
+  if (pl->count != pl->here) return 1;
   if (*expect) return 1;
-  if (*ppl && pl->count != pl->here) return 1;
   if (pl->arg->v[pl->arg->c] && strcmp(pl->arg->v[pl->arg->c], "&")) return 1;
+
+  // Transplant completed function bodies into reference counted structures
+  for (;;) {
+    if (pl->type=='f') {
+      struct sh_function *funky;
+
+      // Create sh_function struct, attach to declaration's pipeline segment
+      funky = xmalloc(sizeof(struct sh_function));
+      funky->refcount = 1;
+      funky->name = *pl->arg->v;
+      *pl->arg->v = (void *)funky;
+      pl->type = 'F'; // different cleanup
+
+      // Transplant function body into new struct, re-circling both lists
+      pl2 = pl->next;
+      // Add NOP 'f' segment (TODO: remove need for this?)
+      (funky->pipeline = add_pl(&pl2, 0))->type = 'f';
+      // Find end of block
+      for (i = 0, pl3 = pl2->next;;pl3 = pl3->next)
+        if (pl3->type == 1) i++;
+        else if (pl3->type == 3 && --i<0) break;
+      // Chop removed segment out of old list.
+      pl3->next->prev = pl;
+      pl->next = pl3->next;
+      // Terminate removed segment.
+      pl2->prev = 0;
+      pl3->next = 0;
+    }
+    if (pl == *ppl) break;
+    pl = pl->prev;
+  }
 
   // Don't need more input, can start executing.
 
