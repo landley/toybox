@@ -639,7 +639,9 @@ long long sendfile_len(int in, int out, long long bytes, long long *consumed)
     if (try_cfr) {
       if (bytes<0 || bytes>(1<<30)) len = (1<<30);
       // glibc added this constant in git at the end of 2017, shipped 2018-02.
-#if defined (__NR_copy_file_range)
+      // Android's had the constant for years, but you'll get SIGSYS if you use
+      // this system call before Android U (2023's release).
+#if defined(__NR_copy_file_range) && !defined(__ANDROID__)
       len = syscall(__NR_copy_file_range, in, 0, out, 0, len, 0);
 #else
       errno = EINVAL;
