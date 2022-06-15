@@ -258,9 +258,9 @@ static void do_regular_file(int fd, char *name)
         count, count == 1 ? "" : "s");
       for (i = 0, s += 4; i < count; i++, s += 20) {
         arch = peek_be(s, 4);
-	if (arch == 0x00000007) name = "i386";
+        if (arch == 0x00000007) name = "i386";
         else if (arch == 0x01000007) name = "x86_64";
-	else if (arch == 0x0000000c) name = "arm";
+        else if (arch == 0x0000000c) name = "arm";
         else if (arch == 0x0100000c) name = "arm64";
         else name = "unknown";
         xprintf(" [%s]", name);
@@ -384,6 +384,31 @@ static void do_regular_file(int fd, char *name)
   // https://msdn.microsoft.com/en-us/library/windows/desktop/ms680547(v=vs.85).aspx
   else if (len>0x70 && !memcmp(s, "MZ", 2) &&
       (magic=peek_le(s+0x3c,4))<len-4 && !memcmp(s+magic, "\x50\x45\0", 4)) {
+
+    // Linux kernel images look like PE files.
+    if (!memcmp(s+0x38, "ARM\x64", 4)) {
+      // https://www.kernel.org/doc/Documentation/arm64/booting.txt
+      // I've only ever seen LE, 4KiB pages, so ignore flags for now.
+      xputs("Linux arm64 kernel image");
+      return;
+    } else if (!memcmp(s+0x202, "HdrS", 4)) {
+      // https://www.kernel.org/doc/Documentation/x86/boot.txt
+      unsigned ver_off = peek_le(s+0x20e, 2);
+
+      xprintf("Linux x86-64 kernel image");
+      if ((0x200 + ver_off) < len) {
+        s += 0x200 + ver_off;
+      } else {
+        if (lseek(fd, ver_off - len + 0x200, SEEK_CUR)<0 ||
+            (len = readall(fd, s, sizeof(toybuf)))<0) {
+          perror_msg("%s", name);
+          return;
+        }
+      }
+      xprintf(", version %s\n", s);
+      return;
+    }
+
     xprintf("MS PE32%s executable %s", (peek_le(s+magic+24, 2)==0x20b)?"+":"",
         (peek_le(s+magic+22, 2)&0x2000)?"(DLL) ":"");
     if (peek_le(s+magic+20, 2)>70) {
