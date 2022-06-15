@@ -234,7 +234,7 @@ txpect()
         then
           [ -z "$A" -o "$X" -ne 0 ] && { do_fail;break;}
         else
-          if [ ${1::1} == 'R' ] && [[ "$A" =~ "${1:2}" ]]; then true
+          if [ ${1::1} == 'R' ] && [[ "$A" =~ ${1:2} ]]; then true
           elif [ ${1::1} != 'R' ] && [ "$A" == "${1:1}" ]; then true
           else
             # Append the rest of the output if there is any.
