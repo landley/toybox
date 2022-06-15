@@ -33,13 +33,6 @@ probeconfig()
     int main(int argc, char *argv[]){printf("%d", x+SYS_unshare+ SYS_setns);}
 EOF
 
-  probesymbol TOYBOX_FIFREEZE -c << EOF
-    #include <linux/fs.h>
-    #ifndef FIFREEZE
-    #error nope
-    #endif
-EOF
-
   # Work around some uClibc limitations
   probesymbol TOYBOX_ICONV -c << EOF
     #include "iconv.h"

@@ -7,7 +7,6 @@ USE_FSFREEZE(NEWTOY(fsfreeze, "<1>1f|u|[!fu]", TOYFLAG_USR|TOYFLAG_SBIN))
 config FSFREEZE
   bool "fsfreeze"
   default y
-  depends on TOYBOX_FIFREEZE
   help
     usage: fsfreeze {-f | -u} MOUNTPOINT
 
@@ -26,6 +25,6 @@ void fsfreeze_main(void)
   int fd = xopenro(*toys.optargs); 
   long p = 1;
 
-  xioctl(fd, (toys.optflags & FLAG_f) ? FIFREEZE : FITHAW, &p);
+  xioctl(fd, FLAG(f) ? FIFREEZE : FITHAW, &p);
   xclose(fd);
 }
