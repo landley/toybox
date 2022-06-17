@@ -16,7 +16,6 @@ USE_WHO(NEWTOY(who, "a", TOYFLAG_USR|TOYFLAG_BIN))
 config WHO
   bool "who"
   default y
-  depends on TOYBOX_UTMPX
   help
     usage: who
 

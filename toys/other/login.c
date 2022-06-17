@@ -10,7 +10,6 @@ USE_LOGIN(NEWTOY(login, ">1f:ph:", TOYFLAG_BIN|TOYFLAG_NEEDROOT))
 config LOGIN
   bool "login"
   default y
-  depends on TOYBOX_SHADOW
   help
     usage: login [-p] [-h host] [-f USERNAME] [USERNAME]
 

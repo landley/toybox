@@ -12,7 +12,6 @@ USE_SU(NEWTOY(su, "^lmpu:g:c:s:[!lmp]", TOYFLAG_BIN|TOYFLAG_ROOTONLY))
 config SU
   bool "su"
   default y
-  depends on TOYBOX_SHADOW
   help
     usage: su [-lp] [-u UID] [-g GID,...] [-s SHELL] [-c CMD] [USER [COMMAND...]]
 

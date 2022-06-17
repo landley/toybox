@@ -240,10 +240,10 @@ static inline long statfs_frsize(struct statfs *sf) { return sf->f_frsize; }
 
 // Android is missing some headers and functions
 // "generated/config.h" is included first
-#if CFG_TOYBOX_SHADOW
+#if __has_include(<shadow.h>)
 #include <shadow.h>
 #endif
-#if CFG_TOYBOX_UTMPX
+#if __has_include(<utmpx.h>)
 #include <utmpx.h>
 #else
 struct utmpx {int ut_type;};

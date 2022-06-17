@@ -23,27 +23,6 @@ probesymbol()
 
 probeconfig()
 {
-  # Android and some other platforms miss utmpx
-  probesymbol TOYBOX_UTMPX -c << EOF
-    #include <utmpx.h>
-    #ifndef BOOT_TIME
-    #error nope
-    #endif
-    int main(int argc, char *argv[]) {
-      struct utmpx *a; 
-      if (0 != (a = getutxent())) return 0;
-      return 1;
-    }
-EOF
-
-  # Android is missing shadow.h
-  probesymbol TOYBOX_SHADOW -c << EOF
-    #include <shadow.h>
-    int main(int argc, char *argv[]) {
-      struct spwd *a = getspnam("root"); return 0;
-    }
-EOF
-
   # Some commands are android-specific
   probesymbol TOYBOX_ON_ANDROID -c << EOF
     #ifndef __ANDROID__
