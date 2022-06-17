@@ -18,7 +18,6 @@ USE_UNSHARE(NEWTOY(unshare, "<1^f(fork);r(map-root-user);i:(ipc);m:(mount);n:(ne
 config UNSHARE
   bool "unshare"
   default y
-  depends on TOYBOX_CONTAINER
   help
     usage: unshare [-imnpuUr] COMMAND...
 
@@ -39,7 +38,6 @@ config UNSHARE
 
 config NSENTER
   bool "nsenter"
-  depends on TOYBOX_CONTAINER
   default y
   help
     usage: nsenter [-t pid] [-F] [-i] [-m] [-n] [-p] [-u] [-U] COMMAND...

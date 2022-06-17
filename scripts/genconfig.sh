@@ -23,16 +23,6 @@ probesymbol()
 
 probeconfig()
 {
-  # Probe for container support on target
-  probesymbol TOYBOX_CONTAINER << EOF
-    #include <stdio.h>
-    #include <sys/syscall.h>
-    #include <linux/sched.h>
-    int x=CLONE_NEWNS|CLONE_NEWUTS|CLONE_NEWIPC|CLONE_NEWNET;
-
-    int main(int argc, char *argv[]){printf("%d", x+SYS_unshare+ SYS_setns);}
-EOF
-
   # Android and some other platforms miss utmpx
   probesymbol TOYBOX_UTMPX -c << EOF
     #include <utmpx.h>
