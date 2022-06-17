@@ -55,7 +55,7 @@ static void do_xxd(int fd, char *name)
   {
     if (!FLAG(p)) printf("%08llx: ", TT.o + pos);
     pos += len;
-    space = 2*TT.c+TT.c/TT.g+1;
+    space = 2*TT.c+(TT.c+TT.g-1)/TT.g+1;
 
     for (i=0; i<len;) {
       space -= printf("%02x", toybuf[i]);
@@ -67,7 +67,7 @@ static void do_xxd(int fd, char *name)
 
     if (!FLAG(p)) {
       printf("%*s", space, "");
-      for (i=0; i<len; i++)
+      for (i = 0; i<len; i++)
         putchar((toybuf[i]>=' ' && toybuf[i]<='~') ? toybuf[i] : '.');
     }
     putchar('\n');

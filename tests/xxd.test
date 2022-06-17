@@ -22,7 +22,7 @@ testing "xxd" "xxd" \
 testing "-c 8 -g 4 file1" "xxd -c 8 -g 4 file1" \
     "00000000: 74686973 20697320  this is \n00000008: 736f6d65 20746578  some tex\n00000010: 740a               t.\n" "" ""
 testing "-c 8 -g 3 file1" "xxd -c 8 -g 3 file1" \
-    "00000000: 746869 732069 7320 this is \n00000008: 736f6d 652074 6578 some tex\n00000010: 740a               t.\n" "" ""
+    "00000000: 746869 732069 7320  this is \n00000008: 736f6d 652074 6578  some tex\n00000010: 740a                t.\n" "" ""
 
 testing "-i" "cat file1 | xxd -i -" "  0x74, 0x68, 0x69, 0x73, 0x20, 0x69, 0x73, 0x20, 0x73, 0x6f, 0x6d, 0x65,\n  0x20, 0x74, 0x65, 0x78, 0x74, 0x0a\n" "" ""
 
