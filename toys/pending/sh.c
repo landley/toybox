@@ -375,6 +375,8 @@ GLOBALS(
 int do_source(char *name, FILE *ff);
 // functions contain pipelines contain functions: prototype because loop
 static void free_pipeline(void *pipeline);
+// recalculate needs to get/set variables, but setvar_found calls recalculate
+static struct sh_vars *setvar(char *str);
 
 // ordered for greedy matching, so >&; becomes >& ; not > &;
 // making these const means I need to typecast the const away later to
@@ -507,6 +509,35 @@ static struct sh_vars *findvar(char *name, struct sh_fcall **pff)
   return 0;
 }
 
+// get value of variable starting at s.
+static char *getvar(char *s)
+{
+  struct sh_vars *var = findvar(s, 0);
+
+  if (!var) return 0;
+
+  if (var->flags & VAR_MAGIC) {
+    char c = *var->str;
+
+    if (c == 'S') sprintf(toybuf, "%lld", (millitime()-TT.SECONDS)/1000);
+    else if (c == 'R') sprintf(toybuf, "%ld", random()&((1<<16)-1));
+    else if (c == 'L') sprintf(toybuf, "%u", TT.ff->pl->lineno);
+    else if (c == 'G') sprintf(toybuf, "TODO: GROUPS");
+    else if (c == 'B') sprintf(toybuf, "%d", getpid());
+    else if (c == 'E') {
+      struct timespec ts;
+
+      clock_gettime(CLOCK_REALTIME, &ts);
+      sprintf(toybuf, "%lld%c%06ld", (long long)ts.tv_sec, (s[5]=='R')*'.',
+              ts.tv_nsec/1000);
+    }
+
+    return toybuf;
+  }
+
+  return varend(var->str)+1;
+}
+
 // Append variable to ff->vars, returning *struct. Does not check duplicates.
 static struct sh_vars *addvar(char *s, struct sh_fcall *ff)
 {
@@ -521,91 +552,209 @@ static struct sh_vars *addvar(char *s, struct sh_fcall *ff)
   return ff->vars+ff->varslen++;
 }
 
-/*
-15L ( [ . -> ++ --
-14R (all prefix operators)
-++ -- + - ! ~ (typecast) * & sizeof
-13L * / %
-12L + -
-11L << >>
-10L < <= > >=
-9L == !=
-8L & (bitwise)
-7L ^ (xor)
-6L |
-5L &&
-4L ||
-3R ? :
-2R (assignments) = += -= *= /= %= &= ^= |= <<= >>=
-1L ,
-
-*/
-
 // Recursively calculate string into dd, returns 0 if failed, ss = error point
+// Recursion resolves operators of lower priority level to a value
+// Loops through operators at same priority
 static int recalculate(long long *dd, char **ss, int lvl)
 {
   long long ee, ff;
-  char cc = **nospace(ss);
+  char *var = 0, *val, cc = **nospace(ss);
+  int ii, assign = 1;
 
-  // TODO: assignable (variable)
-  // Always start handling unary prefixes, parenthetical blocks, and constants
-  if (cc=='+' || cc=='-') {
+  if (lvl>99) {
+    lvl -= 100;
+    assign = 0;
+  }
+
+  // Unary prefixes can only occur at the start of a parse context
+  if (cc=='!' || cc=='~') {
     ++*ss;
-    if (!recalculate(dd, ss, 1)) return 0;
-    if (cc=='-') *dd = -*dd;
+    if (!recalculate(dd, ss, 15)) return 0;
+    *dd = (cc=='!') ? !*dd : ~*dd;
+  } else if (cc=='+' || cc=='-') {
+    // Is this actually preincrement/decrement? (Requires assignable var.)
+    if (*++*ss==cc) {
+      val = (*ss)++;
+      nospace(ss);
+      if (*ss==(var = varend(*ss))) {
+        *ss = val;
+        var = 0;
+      }
+    }
+    if (!var) {
+      if (!recalculate(dd, ss, 15)) return 0;
+      if (cc=='-') *dd = -*dd;
+    }
   } else if (cc=='(') {
     ++*ss;
     if (!recalculate(dd, ss, 1)) return 0;
     if (**ss!=')') return 0;
     else ++*ss;
-  } else if (isdigit(cc)) *dd = strtoll(*ss, ss, 0); //TODO overflow?
-  else if (!lvl && (!cc || cc==')')) {
+  } else if (isdigit(cc)) {
+    *dd = strtoll(*ss, ss, 0);
+    if (**ss=='#') {
+      if (!*++*ss || isspace(**ss) || ispunct(**ss)) return 0;
+      *dd = strtoll(val = *ss, ss, *dd);
+      if (val == *ss) return 0;
+    }
+  } else if ((var = varend(*ss))==*ss) {
+    if (lvl || (cc && cc!=')')) return 0;
     *dd = 0;
     return 1;
-  } else return 0;
+  }
 
-  // x^y binds first
-  if (lvl<5) while (strstart(nospace(ss), "**")) {
-    if (!recalculate(&ee, ss, 5)) return 0;
+  // If we got a variable, evaluate its contents to set *dd
+  if (var) {
+    // Recursively evaluate, catching x=y; y=x; echo $((x))
+    if (TT.recursion++ == 50+200*CFG_TOYBOX_FORK) {
+      perror_msg("recursive occlusion");
+      --TT.recursion;
+
+      return 0;
+    }
+    val = getvar(var = *ss) ? : "";
+    ii = recalculate(dd, &val, 0);
+    TT.recursion--;
+    if (!ii) return 0;
+    if (*val) {
+      perror_msg("bad math: %s @ %d", var, (int)(val-var));
+
+      return 0;
+    }
+    val = *ss = varend(var);
+
+    // Operators that assign to a varible must be adjacent to one:
+
+    // Handle preincrement/predecrement (only gets here if var set before else)
+    if (cc=='+' || cc=='-') {
+      if (cc=='+') ee = ++*dd;
+      else ee = --*dd;
+    } else cc = 0;
+
+    // handle postinc/postdec
+    if ((**nospace(ss)=='+' || **ss=='-') && (*ss)[1]==**ss) {
+      ee = ((cc = **ss)=='+') ? 1+*dd : -1+*dd;
+      *ss += 2;
+
+    // Assignment operators: = *= /= %= += -= <<= >>= &= ^= |=
+    } else if ((*ss)[ii = 2*!memcmp(*ss, "<<", 2)+2*!memcmp(*ss, ">>", 2)
+                          +!!strchr("*/%+-", **ss)]=='=')
+    {
+      // TODO: assignments are lower priority BUT must go after variable,
+      // come up with precedence checking tests?
+      cc = **ss;
+      *ss += ii+1;
+      if (!recalculate(&ee, ss, 1)) return 0; // lvl instead of 1?
+      if (cc=='*') *dd *= ee;
+      else if (cc=='/') *dd /= ee;
+      else if (cc=='%') *dd %= ee;
+      else if (cc=='+') *dd += ee;
+      else if (cc=='-') *dd -= ee;
+      else if (cc=='<') *dd <<= ee;
+      else if (cc=='>') *dd >>= ee;
+      else if (cc=='&') *dd &= ee;
+      else if (cc=='^') *dd ^= ee;
+      else if (cc=='|') *dd |= ee;
+      else *dd = ee;
+      ee = *dd;
+    }
+    if (cc && assign) setvar(xmprintf("%.*s=%lld", (int)(val-var), var, ee));
+  }
+
+  // x**y binds first
+  if (lvl<14) while (strstart(nospace(ss), "**")) {
+    if (!recalculate(&ee, ss, 14)) return 0;
     if (ee<0) perror_msg("** < 0");
     for (ff = *dd, *dd = 1; ee; ee--) *dd *= ff;
   }
 
   // w*x/y%z bind next
-  if (lvl<4) while ((cc = **nospace(ss))) {
-    if (cc=='*' || cc=='/' || cc=='%') {
-      ++*ss;
-      if (!recalculate(&ee, ss, 4)) return 0;
-      if (cc=='*') *dd *= ee;
-      else if (cc=='%') *dd %= ee;
-      else if (!ee) {
-        perror_msg("/0");
-        return 0;
-      } else *dd /= ee;
-    } else break;
+  if (lvl<13) while ((cc = **nospace(ss)) && strchr("*/%", cc)) {
+    ++*ss;
+    if (!recalculate(&ee, ss, 13)) return 0;
+    if (cc=='*') *dd *= ee;
+    else if (cc=='%') *dd %= ee;
+    else if (!ee) {
+      perror_msg("/0");
+      return 0;
+    } else *dd /= ee;
   }
 
   // x+y-z
-  if (lvl<3) while ((cc = **nospace(ss))) {
-    if (cc=='+' || cc=='-') {
-      ++*ss;
-      if (!recalculate(&ee, ss, 3)) return 0;
-      if (cc=='+') *dd += ee;
-      else *dd -= ee;
-    } else break;
+  if (lvl<12) while ((cc = **nospace(ss)) && strchr("+-", cc)) {
+    ++*ss;
+    if (!recalculate(&ee, ss, 12)) return 0;
+    if (cc=='+') *dd += ee;
+    else *dd -= ee;
   }
 
-  if (lvl<2) while ((cc = **nospace(ss))) {
-    if (cc=='<' || cc=='>') {
-      char *s = *ss;
+  // x<<y >>
 
-      if (*++*ss=='=') ++*ss;
-      if (!recalculate(&ee, ss, 2)) return 0;
-      if (cc=='<') *dd = (s[1]=='=') ? (*dd<=ee) : (*dd<ee);
-      else *dd = (s[1]=='=') ? (*dd>=ee) : (*dd>ee);
-    } else break;
+  if (lvl<11) while ((cc = **nospace(ss)) && strchr("<>", cc) && cc==(*ss)[1]) {
+    *ss += 2;
+    if (!recalculate(&ee, ss, 11)) return 0;
+    if (cc == '<') *dd <<= ee;
+    else *dd >>= ee;
   }
-  nospace(ss);
+
+  // x<y <= > >=
+  if (lvl<10) while ((cc = **nospace(ss)) && strchr("<>", cc)) {
+    if ((ii = *++*ss=='=')) ++*ss;
+    if (!recalculate(&ee, ss, 10)) return 0;
+    if (cc=='<') *dd = ii ? (*dd<=ee) : (*dd<ee);
+    else *dd = ii ? (*dd>=ee) : (*dd>ee);
+  }
+
+  if (lvl<9) while ((cc = **nospace(ss)) && strchr("=!", cc) && (*ss)[1]=='=') {
+    *ss += 2;
+    if (!recalculate(&ee, ss, 9)) return 0;
+    *dd = (cc=='!') ? *dd != ee : *dd == ee;
+  }
+
+  if (lvl<8) while (**nospace(ss)=='&') {
+    ++*ss;
+    if (!recalculate(&ee, ss, 8)) return 0;
+    *dd &= ee;
+  }
+
+  if (lvl<7) while (**nospace(ss)=='^') {
+    ++*ss;
+    if (!recalculate(&ee, ss, 7)) return 0;
+    *dd ^= ee;
+  }
+
+  if (lvl<6) while (**nospace(ss)=='|') {
+    ++*ss;
+    if (!recalculate(&ee, ss, 6)) return 0;
+    *dd |= ee;
+  }
+
+  if (lvl<5) while (strstart(nospace(ss), "&&")) {
+    if (!recalculate(&ee, ss, 5+100*!!*dd)) return 0;
+    *dd = *dd && ee;
+  }
+
+  if (lvl<4) while (strstart(nospace(ss), "||")) {
+    if (!recalculate(&ee, ss, 4+100*!*dd)) return 0;
+    *dd = *dd || ee;
+  }
+
+  if (lvl<3) while (**nospace(ss)=='?') {
+    ++*ss;
+    if (**nospace(ss)==':' && *dd) ee = *dd;
+// TODO: test , within ? : (3 instead of 1?)
+    else if (!recalculate(&ee, ss, 1+100*!*dd) || **nospace(ss)!=':')
+      return 0;
+    ++*ss;
+    if (!recalculate(&ff, ss, 1+100*!!*dd)) return 0;
+    *dd = *dd ? ee : ff;
+  }
+
+  // ,
+  if (lvl<2) while ((cc = **nospace(ss)) && cc==',') {
+    ++*ss;
+    if (!recalculate(dd, ss, 2)) return 0;
+  }
 
   return 1;
 }
@@ -661,49 +810,6 @@ static int anystr(char *s, char **try)
   while (*try) if (!strcmp(s, *try++)) return 1;
 
   return 0;
-}
-
-static int calculate(long long *ll, char *equation)
-{
-  char *ss = equation;
-
-  // TODO: error_msg->sherror_msg() with LINENO for scripts
-  if (!recalculate(ll, &ss, 0) || *ss) {
-    perror_msg("bad math: %s @ %d", equation, (int)(ss-equation));
-
-    return 0;
-  }
-
-  return 1;
-}
-
-// get value of variable starting at s.
-static char *getvar(char *s)
-{
-  struct sh_vars *var = findvar(s, 0);
-
-  if (!var) return 0;
-
-  if (var->flags & VAR_MAGIC) {
-    char c = *var->str;
-
-    if (c == 'S') sprintf(toybuf, "%lld", (millitime()-TT.SECONDS)/1000);
-    else if (c == 'R') sprintf(toybuf, "%ld", random()&((1<<16)-1));
-    else if (c == 'L') sprintf(toybuf, "%u", TT.ff->pl->lineno);
-    else if (c == 'G') sprintf(toybuf, "TODO: GROUPS");
-    else if (c == 'B') sprintf(toybuf, "%d", getpid());
-    else if (c == 'E') {
-      struct timespec ts;
-
-      clock_gettime(CLOCK_REALTIME, &ts);
-      sprintf(toybuf, "%lld%c%06ld", (long long)ts.tv_sec, (s[5]=='R')*'.',
-              ts.tv_nsec/1000);
-    }
-
-    return toybuf;
-  }
-
-  return varend(var->str)+1;
 }
 
 // Update $IFS cache in function call stack after variable assignment
@@ -769,7 +875,13 @@ static struct sh_vars *setvar_found(char *s, int freeable, struct sh_vars *var)
   // integer variables treat += differently
   ss = s+vlen+(s[vlen]=='+')+1;
   if (flags&VAR_INT) {
-    if (!calculate(&ll, ss)) goto bad;
+    sd = ss;
+    if (!recalculate(&ll, &sd, 0) || *sd) {
+     perror_msg("bad math: %s @ %d", ss, (int)(sd-ss));
+
+     goto bad;
+    }
+
     sprintf(buf, "%lld", ll);
     if (flags&VAR_MAGIC) {
       if (*s == 'S') {

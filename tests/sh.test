@@ -236,13 +236,18 @@ SKIPNEXT=1 testing '$((x=y)) lifetime' 'a=boing; echo $a $a$((a=4))$a $a' 'boing
 testing 'quote' "echo \"'\"" "'\n" "" ""
 
 testing "math" 'echo $((1+2))' '3\n' '' ''
-testing "[math]" 'echo $[1+2]' '3\n' '' ''
+testing "[oldmath]" 'echo $[1+2]' '3\n' '' ''
 testing "math prio" 'echo $((1+2*3**4))' '163\n' '' ''
 testing "math paren" 'echo $(((1+2)*3))' '9\n' '' ''
 testing "math spaces" 'echo $(( ( 1 + 2 ) * 7 - 5 ** 2 ))' '-4\n' '' ''
 testing "math2" '((1<2)) </dev/null && echo yes' 'yes\n' '' ''
 testing "math3" '((1>2)) </dev/null || echo yes' 'yes\n' '' ''
 testing "not math" '((echo hello) )' 'hello\n' '' ''
+testing "" 'echo $((++x)); echo $x' '1\n1\n' '' ''
+testing "" 'echo $((+++x)); echo $x' '1\n1\n' '' ''
+testing "" 'echo $((--x)); echo $x' '-1\n-1\n' '' ''
+testing "" 'echo $((---x)); echo $x' '1\n-1\n' '' ''
+testing "" 'echo $((x---7)); echo $x' '-7\n-1\n' '' ''
 
 # Loops and flow control
 testing "case" 'for i in A C J B; do case "$i" in A) echo got A ;; B) echo and B ;; C) echo then C ;; *) echo default ;; esac; done' \
