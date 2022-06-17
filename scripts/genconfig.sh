@@ -33,11 +33,6 @@ probeconfig()
     int main(int argc, char *argv[]){printf("%d", x+SYS_unshare+ SYS_setns);}
 EOF
 
-  # Work around some uClibc limitations
-  probesymbol TOYBOX_ICONV -c << EOF
-    #include "iconv.h"
-EOF
-  
   # Android and some other platforms miss utmpx
   probesymbol TOYBOX_UTMPX -c << EOF
     #include <utmpx.h>
