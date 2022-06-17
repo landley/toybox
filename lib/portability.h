@@ -347,7 +347,7 @@ typedef struct {char *c_name; int c_val;} CODE;
 extern CODE prioritynames[], facilitynames[];
 #endif
 
-#if CFG_TOYBOX_GETRANDOM
+#if __has_include (<sys/random.h>)
 #include <sys/random.h>
 #endif
 int xgetrandom(void *buf, unsigned len, unsigned flags);

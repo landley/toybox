@@ -34,7 +34,7 @@ int xgetrandom(void *buf, unsigned buflen, unsigned flags)
 {
   int fd;
 
-#if CFG_TOYBOX_GETRANDOM
+#if __has_include(<sys/random.h>)
   if (buflen == getrandom(buf, buflen, flags&~WARN_ONLY)) return 1;
   if (errno!=ENOSYS && !(flags&WARN_ONLY)) perror_exit("getrandom");
 #endif

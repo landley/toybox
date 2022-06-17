@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This has to be a separate file from scripts/make.sh so it can be called
-# before menuconfig.  (It's called again from scripts/make.sh just to be sure.)
+# before menuconfig. (It's called again from scripts/make.sh just to be sure.)
 
 source scripts/portability.sh
 
@@ -36,11 +36,6 @@ EOF
     int main(int argc, char *argv[]) { return fork(); }
 EOF
   echo -e '\tdepends on !TOYBOX_FORCE_NOMMU'
-
-  probesymbol TOYBOX_GETRANDOM << EOF
-    #include <sys/random.h>
-    int main(void) { char buf[100]; getrandom(buf, 100, 0); }
-EOF
 }
 
 genconfig()
