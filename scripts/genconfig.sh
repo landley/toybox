@@ -58,15 +58,6 @@ EOF
 EOF
   echo -e '\tdepends on !TOYBOX_FORCE_NOMMU'
 
-  probesymbol TOYBOX_PRLIMIT << EOF
-    #include <sys/types.h>
-    #include <sys/time.h>
-    #include <sys/resource.h>
-    int prlimit(pid_t pid, int resource, const struct rlimit *new_limit,
-      struct rlimit *old_limit);
-    int main(int argc, char *argv[]) { prlimit(0, 0, 0, 0); }
-EOF
-
   probesymbol TOYBOX_GETRANDOM << EOF
     #include <sys/random.h>
     int main(void) { char buf[100]; getrandom(buf, 100, 0); }

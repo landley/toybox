@@ -22,7 +22,6 @@ USE_ULIMIT(OLDTOY(prlimit, ulimit, TOYFLAG_USR|TOYFLAG_BIN))
 config ULIMIT
   bool "ulimit"
   default y
-  depends on TOYBOX_PRLIMIT
   help
     usage: ulimit [-P PID] [-SHRacdefilmnpqrstuv] [LIMIT]
 
