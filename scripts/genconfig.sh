@@ -62,12 +62,6 @@ EOF
     #include <sys/random.h>
     int main(void) { char buf[100]; getrandom(buf, 100, 0); }
 EOF
-
-  probesymbol TOYBOX_HASTIMERS << EOF
-    #include <signal.h>
-    #include <time.h>
-    int main(void) {void *x=0;timer_create(CLOCK_MONOTONIC,x,x);}
-EOF
 }
 
 genconfig()

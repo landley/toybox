@@ -397,7 +397,8 @@ struct itimerspec {
 };
 int timer_create(clock_t c, struct sigevent *se, timer_t *t);
 int timer_settime(timer_t t, int flags, struct itimerspec *new, void *old);
-#elif !CFG_TOYBOX_HASTIMERS
+#elif defined(__GLIBC__)
+// Work around a glibc bug that interacts badly with a gcc bug.
 #include <syscall.h>
 #include <signal.h>
 #include <time.h>

@@ -692,7 +692,7 @@ int timer_settime(timer_t t, int flags, struct itimerspec *new, void *old)
 // glibc requires -lrt for linux syscalls, which pulls in libgcc_eh.a for
 // static linking, and gcc 9.3 leaks pthread calls from that breaking the build
 // These are both just linux syscalls: wrap them ourselves
-#elif !CFG_TOYBOX_HASTIMERS
+#elif defined(__GLIBC__)
 int timer_create_wrap(clockid_t c, struct sigevent *se, timer_t *t)
 {
   // convert overengineered structure to what kernel actually uses
