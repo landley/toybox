@@ -34,8 +34,12 @@ int xgetrandom(void *buf, unsigned buflen, unsigned flags)
 {
   int fd;
 
+  // Linux keeps getrandom() in <sys/random.h> and getentropy() in <unistd.h>
+  // BSD/macOS only has getentropy(), but it's in <sys/random.h> (to be fair,
+  // they were there first). getrandom() and getentropy() both went into glibc
+  // in the same release (2.25 in 2017), so this test still works.
 #if __has_include(<sys/random.h>)
-  if (buflen == getrandom(buf, buflen, flags&~WARN_ONLY)) return 1;
+  if (!getentropy(buf, buflen)) return 1;
   if (errno!=ENOSYS && !(flags&WARN_ONLY)) perror_exit("getrandom");
 #endif
   fd = xopen(flags ? "/dev/random" : "/dev/urandom",O_RDONLY|(flags&WARN_ONLY));
