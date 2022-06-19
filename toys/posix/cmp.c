@@ -34,11 +34,10 @@ GLOBALS(
 static void do_cmp(int fd, char *name)
 {
   int i, len1, len2, min_len, size = sizeof(toybuf)/2;
-  long byte_no = 1, line_no = 1;
+  long long byte_no = 1, line_no = 1;
   char *buf2 = toybuf+size;
 
-  if (toys.optc>(i = 2+!!TT.fd) && lskip(fd, atolx(toys.optargs[i])))
-    error_exit("EOF on %s", name);
+  if (toys.optc>(i = 2+!!TT.fd)) lskip(fd, atolx(toys.optargs[i]));
 
   // First time through, cache the data and return.
   if (!TT.fd) {
@@ -56,12 +55,12 @@ static void do_cmp(int fd, char *name)
     len1 = readall(TT.fd, toybuf, size);
     len2 = readall(fd, buf2, size);
     min_len = minof(len1, len2);
-    for (i=0; i<min_len; i++) {
+    for (i = 0; i<min_len; i++) {
       if (toybuf[i] != buf2[i]) {
         toys.exitval = 1;
-        if (FLAG(l)) printf("%ld %o %o\n", byte_no, toybuf[i], buf2[i]);
+        if (FLAG(l)) printf("%lld %o %o\n", byte_no, toybuf[i], buf2[i]);
         else {
-          if (!FLAG(s)) printf("%s %s differ: char %ld, line %ld\n",
+          if (!FLAG(s)) printf("%s %s differ: char %lld, line %lld\n",
               TT.name, name, byte_no, line_no);
           goto out;
         }
@@ -70,8 +69,11 @@ static void do_cmp(int fd, char *name)
       if (toybuf[i] == '\n') line_no++;
     }
     if (len1 != len2) {
-      if (!FLAG(s)) error_msg("EOF on %s", len1 < len2 ? TT.name : name);
-      else toys.exitval = 1;
+      if (!FLAG(s)) {
+        strcpy(toybuf, "EOF on %s after byte %lld, line %lld");
+        if (FLAG(l)) *strchr(toybuf, ',') = 0;
+        error_msg(toybuf, len1 < len2 ? TT.name : name, byte_no-1, line_no-1);
+      } else toys.exitval = 1;
       break;
     }
     if (len1 < 1) break;

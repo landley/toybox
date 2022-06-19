@@ -22,7 +22,8 @@ c" > input2
 testcmd "identical files, stdout" "input input2" "" "ab\nc\n" ""
 testcmd "identical files, return code" "input input2 && echo yes" "yes\n" "ab\nc\n" ""
 
-testcmd "EOF, stderr" "input input2 2>&1" "cmp: EOF on input2\n" "ab\nc\nx" ""
+testcmd "EOF, stderr" "input input2 2>&1" \
+  "cmp: EOF on input2 after byte 5, line 2\n" "ab\nc\nx" ""
 testcmd "EOF, return code" "input input2 2>/dev/null || echo yes" "yes\n" "ab\nc\nx" ""
 # The gnu/dammit version fails this because posix says "char" and they don't.
 testcmd "diff, stdout" "input input2 | sed s/byte/char/" \
@@ -32,8 +33,10 @@ testcmd "diff, return code" "input input2 > /dev/null || echo yes" "yes\n" "ab\n
 testcmd "-s EOF, return code" "-s input input2 2>&1 || echo yes"  "yes\n" "ab\nc\nx" ""
 testcmd "-s diff, return code" "-s input input2 2>&1 || echo yes" "yes\n" "ab\nx\nx" ""
 
-testcmd "-l EOF, stderr" "-l input input2 2>&1" "cmp: EOF on input2\n" "ab\nc\nx" ""
-testcmd "-l diff and EOF, stdout and stderr" "-l input input2 2>&1 | sort" "4 170 143\ncmp: EOF on input2\n" "ab\nx\nx" ""
+testcmd "-l EOF, stderr" "-l input input2 2>&1" \
+  "cmp: EOF on input2 after byte 5\n" "ab\nc\nx" ""
+testcmd "-l diff and EOF, stdout and stderr" "-l input input2 2>&1 | sort" \
+  "4 170 143\ncmp: EOF on input2 after byte 5\n" "ab\nx\nx" ""
 
 testcmd "-s not exist" "-s input doesnotexist 2>&1 || echo yes" "yes\n" "x" ""
 
