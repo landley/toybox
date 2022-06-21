@@ -237,17 +237,22 @@ testing 'quote' "echo \"'\"" "'\n" "" ""
 
 testing "math" 'echo $((1+2))' '3\n' '' ''
 testing "[oldmath]" 'echo $[1+2]' '3\n' '' ''
-testing "math prio" 'echo $((1+2*3**4))' '163\n' '' ''
+testing "math basic priority" 'echo $((1+2*3**4))' '163\n' '' ''
 testing "math paren" 'echo $(((1+2)*3))' '9\n' '' ''
 testing "math spaces" 'echo $(( ( 1 + 2 ) * 7 - 5 ** 2 ))' '-4\n' '' ''
-testing "math2" '((1<2)) </dev/null && echo yes' 'yes\n' '' ''
-testing "math3" '((1>2)) </dev/null || echo yes' 'yes\n' '' ''
-testing "not math" '((echo hello) )' 'hello\n' '' ''
-testing "" 'echo $((++x)); echo $x' '1\n1\n' '' ''
-testing "" 'echo $((+++x)); echo $x' '1\n1\n' '' ''
-testing "" 'echo $((--x)); echo $x' '-1\n-1\n' '' ''
-testing "" 'echo $((---x)); echo $x' '1\n-1\n' '' ''
-testing "" 'echo $((x---7)); echo $x' '-7\n-1\n' '' ''
+testing "((<)) isn't redirect" '((1<2)) </dev/null && echo yes' 'yes\n' '' ''
+testing "((>)) isn't redirect" '((1>2)) </dev/null || echo yes' 'yes\n' '' ''
+testing "((not math) )" '((echo hello) )' 'hello\n' '' ''
+testing "preincrement" 'echo $((++x)); echo $x' '1\n1\n' '' ''
+testing "preincrement vs prefix plus" 'echo $((+++x)); echo $x' '1\n1\n' '' ''
+testing "predecrement" 'echo $((--x)); echo $x' '-1\n-1\n' '' ''
+testing "predecrement vs prefix minus" 'echo $((---x)); echo $x' '1\n-1\n' '' ''
+testing "minus-minus-minus" 'echo $((x---7)); echo $x' '-7\n-1\n' '' ''
+testing "x---y is x-- -y not x- --y" 'x=1 y=1; echo $((x---y)) $x $y' '0 0 1\n'\
+  '' ''
+testing "nesting ? :" \
+  'for((i=0;i<8;i++)); do echo $((i&1?i&2?1:i&4?2:3:4));done' \
+  '4\n3\n4\n1\n4\n2\n4\n1\n' '' ''
 
 # Loops and flow control
 testing "case" 'for i in A C J B; do case "$i" in A) echo got A ;; B) echo and B ;; C) echo then C ;; *) echo default ;; esac; done' \
