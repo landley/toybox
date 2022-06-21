@@ -598,6 +598,7 @@ static int recalculate(long long *dd, char **ss, int lvl)
       if (val == *ss) return 0;
     }
   } else if ((var = varend(*ss))==*ss) {
+    // At lvl 0 "" is ok, anything higher needs a non-empty equation
     if (lvl || (cc && cc!=')')) return 0;
     *dd = 0;
     return 1;
@@ -637,8 +638,8 @@ static int recalculate(long long *dd, char **ss, int lvl)
       *ss += 2;
 
     // Assignment operators: = *= /= %= += -= <<= >>= &= ^= |=
-    } else if ((*ss)[ii = 2*!memcmp(*ss, "<<", 2)+2*!memcmp(*ss, ">>", 2)
-                          +!!strchr("*/%+-", **ss)]=='=')
+    } else if (lvl<=2 && (*ss)[ii = !!strchr("*/%+-", **ss)
+               +2*!memcmp(*ss, "<<", 2)+2*!memcmp(*ss, ">>", 2)]=='=')
     {
       // TODO: assignments are lower priority BUT must go after variable,
       // come up with precedence checking tests?
@@ -662,14 +663,14 @@ static int recalculate(long long *dd, char **ss, int lvl)
   }
 
   // x**y binds first
-  if (lvl<14) while (strstart(nospace(ss), "**")) {
+  if (lvl<=13) while (strstart(nospace(ss), "**")) {
     if (!recalculate(&ee, ss, 14)) return 0;
     if (ee<0) perror_msg("** < 0");
     for (ff = *dd, *dd = 1; ee; ee--) *dd *= ff;
   }
 
   // w*x/y%z bind next
-  if (lvl<13) while ((cc = **nospace(ss)) && strchr("*/%", cc)) {
+  if (lvl<=12) while ((cc = **nospace(ss)) && strchr("*/%", cc)) {
     ++*ss;
     if (!recalculate(&ee, ss, 13)) return 0;
     if (cc=='*') *dd *= ee;
@@ -681,7 +682,7 @@ static int recalculate(long long *dd, char **ss, int lvl)
   }
 
   // x+y-z
-  if (lvl<12) while ((cc = **nospace(ss)) && strchr("+-", cc)) {
+  if (lvl<=11) while ((cc = **nospace(ss)) && strchr("+-", cc)) {
     ++*ss;
     if (!recalculate(&ee, ss, 12)) return 0;
     if (cc=='+') *dd += ee;
@@ -690,7 +691,7 @@ static int recalculate(long long *dd, char **ss, int lvl)
 
   // x<<y >>
 
-  if (lvl<11) while ((cc = **nospace(ss)) && strchr("<>", cc) && cc==(*ss)[1]) {
+  if (lvl<=10) while ((cc = **nospace(ss)) && strchr("<>", cc) && cc==(*ss)[1]){
     *ss += 2;
     if (!recalculate(&ee, ss, 11)) return 0;
     if (cc == '<') *dd <<= ee;
@@ -698,51 +699,52 @@ static int recalculate(long long *dd, char **ss, int lvl)
   }
 
   // x<y <= > >=
-  if (lvl<10) while ((cc = **nospace(ss)) && strchr("<>", cc)) {
+  if (lvl<=9) while ((cc = **nospace(ss)) && strchr("<>", cc)) {
     if ((ii = *++*ss=='=')) ++*ss;
     if (!recalculate(&ee, ss, 10)) return 0;
     if (cc=='<') *dd = ii ? (*dd<=ee) : (*dd<ee);
     else *dd = ii ? (*dd>=ee) : (*dd>ee);
   }
 
-  if (lvl<9) while ((cc = **nospace(ss)) && strchr("=!", cc) && (*ss)[1]=='=') {
+  if (lvl<=8) while ((cc = **nospace(ss)) && strchr("=!", cc) && (*ss)[1]=='='){
     *ss += 2;
     if (!recalculate(&ee, ss, 9)) return 0;
     *dd = (cc=='!') ? *dd != ee : *dd == ee;
   }
 
-  if (lvl<8) while (**nospace(ss)=='&') {
+  if (lvl<=7) while (**nospace(ss)=='&') {
     ++*ss;
     if (!recalculate(&ee, ss, 8)) return 0;
     *dd &= ee;
   }
 
-  if (lvl<7) while (**nospace(ss)=='^') {
+  if (lvl<=6) while (**nospace(ss)=='^') {
     ++*ss;
     if (!recalculate(&ee, ss, 7)) return 0;
     *dd ^= ee;
   }
 
-  if (lvl<6) while (**nospace(ss)=='|') {
+  if (lvl<=5) while (**nospace(ss)=='|') {
     ++*ss;
     if (!recalculate(&ee, ss, 6)) return 0;
     *dd |= ee;
   }
 
-  if (lvl<5) while (strstart(nospace(ss), "&&")) {
-    if (!recalculate(&ee, ss, 5+100*!!*dd)) return 0;
+  if (lvl<=5) while (strstart(nospace(ss), "&&")) {
+    if (!recalculate(&ee, ss, 6+100*!!*dd)) return 0;
     *dd = *dd && ee;
   }
 
-  if (lvl<4) while (strstart(nospace(ss), "||")) {
-    if (!recalculate(&ee, ss, 4+100*!*dd)) return 0;
+  if (lvl<=4) while (strstart(nospace(ss), "||")) {
+    if (!recalculate(&ee, ss, 5+100*!*dd)) return 0;
     *dd = *dd || ee;
   }
 
-  if (lvl<3) while (**nospace(ss)=='?') {
+  // ? : slightly weird: recurses with lower priority instead of looping
+  // because a ? b ? c : d ? e : f : g == a ? (b ? c : (d ? e : f) : g)
+  if (lvl<=3) if (**nospace(ss)=='?') {
     ++*ss;
     if (**nospace(ss)==':' && *dd) ee = *dd;
-// TODO: test , within ? : (3 instead of 1?)
     else if (!recalculate(&ee, ss, 1+100*!*dd) || **nospace(ss)!=':')
       return 0;
     ++*ss;
@@ -750,8 +752,10 @@ static int recalculate(long long *dd, char **ss, int lvl)
     *dd = *dd ? ee : ff;
   }
 
-  // ,
-  if (lvl<2) while ((cc = **nospace(ss)) && cc==',') {
+  // lvl<=2 assignment would go here, but handled above because variable
+
+  // , (slightly weird, replaces dd instead of modifying it via ee/ff)
+  if (lvl<=1) while ((cc = **nospace(ss)) && cc==',') {
     ++*ss;
     if (!recalculate(dd, ss, 2)) return 0;
   }
@@ -1775,7 +1779,7 @@ char *slashcopy(char *s, char *c, struct sh_arg *deck)
 // if ant not null, save wildcard deck there instead of expanding vs filesystem
 // returns 0 for success, 1 for error
 static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
-  struct arg_list **delete, struct sh_arg *ant)
+  struct arg_list **delete, struct sh_arg *ant, long *measure)
 {
   char cc, qq = flags&NO_QUOTE, sep[6], *new = str, *s, *ss = ss, *ifs, *slice;
   int ii = 0, oo = 0, xx, yy, dd, jj, kk, ll, mm;
@@ -1811,6 +1815,8 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
   for (; (cc = str[ii++]); str!=new && (new[oo] = 0)) {
     struct sh_arg aa = {0};
     int nosplit = 0;
+
+    if (measure && cc==*measure) break;
 
     // skip literal chars
     if (!strchr("'\"\\$`"+2*(flags&NO_QUOTE), cc)) {
@@ -1853,7 +1859,7 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
         // Expand $VARS in math string
         ss = str+ii+1+(str[ii]=='(');
         push_arg(delete, ss = xstrndup(ss, kk - (3+2*(str[ii]!='['))));
-        expand_arg_nobrace(&aa, ss, NO_PATH|NO_SPLIT, delete, 0);
+        expand_arg_nobrace(&aa, ss, NO_PATH|NO_SPLIT, delete, 0, 0);
         s = ss = (aa.v && *aa.v) ? *aa.v : "";
         free(aa.v);
 
@@ -1950,7 +1956,7 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
           } else {
             // First expansion
             if (strchr("@*", *ss)) { // special case ${!*}/${!@}
-              expand_arg_nobrace(&aa, "\"$*\"", NO_PATH|NO_SPLIT, delete, 0);
+              expand_arg_nobrace(&aa, "\"$*\"", NO_PATH|NO_SPLIT, delete, 0, 0);
               ifs = *aa.v;
               free(aa.v);
               memset(&aa, 0, sizeof(aa));
@@ -2251,6 +2257,7 @@ fail:
   if (str != new) free(new);
   free(deck.v);
   if (ant!=&deck && ant->v) collect_wildcards("", 0, ant);
+  if (measure) *measure = --ii;
 
   return !!arg;
 }
@@ -2332,7 +2339,7 @@ static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
 
 // TODO NO_SPLIT with braces? (Collate with spaces?)
   // If none, pass on verbatim
-  if (!blist) return expand_arg_nobrace(arg, old, flags, delete, 0);
+  if (!blist) return expand_arg_nobrace(arg, old, flags, delete, 0, 0);
 
   // enclose entire range in top level brace.
   (bstk = xzalloc(sizeof(struct sh_brace)+8))->commas[1] = strlen(old)+1;
@@ -2411,7 +2418,7 @@ static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
     }
 
     // Save result, aborting on expand error
-    if (expand_arg_nobrace(arg, push_arg(delete, ss), flags, delete, 0)) {
+    if (expand_arg_nobrace(arg, push_arg(delete, ss), flags, delete, 0, 0)) {
       llist_traverse(blist, free);
 
       return 1;
@@ -3731,10 +3738,39 @@ static void run_lines(void)
 
         // for/select/do/done: populate blk->farg with expanded args (if any)
         if (!strcmp(s, "for") || !strcmp(s, "select")) {
-          if (TT.ff->blk->loop);
+          if (TT.ff->blk->loop); // skip init, not first time through loop
+
+          // in (;;)
           else if (!strncmp(TT.ff->blk->fvar = ss, "((", 2)) {
+            char *in = ss+2, *out;
+            long long ll;
+
             TT.ff->blk->loop = 1;
-dprintf(2, "TODO skipped init for((;;)), math parser needs var assignment\n");
+            for (i = 0; i<3; i++) {
+              if (i==2) k = strlen(in)-2;
+              else {
+                // perform expansion but immediately discard it to find ;
+                k = ';';
+                pp = xzalloc(sizeof(*pp));
+                if (expand_arg_nobrace(&pp->arg, ss+2, NO_PATH|NO_SPLIT,
+                    &pp->delete, 0, &k)) break;
+                free_process(pp);
+                if (in[k] != ';') break;
+              }
+              (out = xmalloc(k+1))[k] = 0;
+              memcpy(out, in, k);
+              arg_add(&TT.ff->blk->farg, push_arg(&TT.ff->blk->fdelete, out));
+              in += k+1;
+            }
+            if (i!=3) {
+              syntax_err(ss);
+              break;
+            }
+            in = out = *TT.ff->blk->farg.v;
+            if (!recalculate(&ll, &in, 0) || *in) {
+              perror_msg("bad math: %s @ %ld", in, in-out);
+              break;
+            }
 
           // in LIST
           } else if (TT.ff->pl->next->type == 's') {
@@ -3785,7 +3821,7 @@ dprintf(2, "TODO skipped init for((;;)), math parser needs var assignment\n");
             }
             arg.c = arg2.c = 0;
             if ((err = expand_arg_nobrace(&arg, *vv++, NO_SPLIT,
-              &TT.ff->blk->fdelete, &arg2))) break;
+              &TT.ff->blk->fdelete, &arg2, 0))) break;
             s = arg.c ? *arg.v : "";
             match = wildcard_match(TT.ff->blk->fvar, s, &arg2, 0);
             if (match>=0 && !s[match]) break;
@@ -3828,7 +3864,21 @@ dprintf(2, "TODO skipped init for((;;)), math parser needs var assignment\n");
           }
         } else if (blk->loop >= blk->farg.c) TT.ff->pl = pop_block();
         else if (!strncmp(blk->fvar, "((", 2)) {
-dprintf(2, "TODO skipped running for((;;)), math parser needs var assignment\n");
+          char *aa, *bb;
+          long long ll;
+
+          for (i = 2; i; i--) {
+            if (TT.ff->blk->loop == 1) {
+              TT.ff->blk->loop++;
+              i--;
+            }
+            aa = bb = TT.ff->blk->farg.v[i];
+            if (!recalculate(&ll, &aa, 0) || *aa) {
+              perror_msg("bad math: %s @ %ld", aa, aa-bb);
+              break;
+            }
+            if (i==1 && !ll) TT.ff->pl = pop_block();
+          }
         } else setvarval(blk->fvar, blk->farg.v[blk->loop++]);
       }
 
