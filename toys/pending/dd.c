@@ -40,8 +40,7 @@ config DD
 
 GLOBALS(
   int show_xfer, show_records;
-  unsigned long long bytes, in_full, in_part, out_full, out_part;
-  struct timeval start;
+  unsigned long long bytes, in_full, in_part, out_full, out_part, start;
   struct {
     char *name;
     int fd;
@@ -70,12 +69,7 @@ static const struct dd_flag dd_oflag[] = TAGGED_ARRAY(DD_oflag,
 
 static void status()
 {
-  double seconds;
-  struct timeval now;
-
-  gettimeofday(&now, NULL);
-  seconds = ((now.tv_sec * 1000000 + now.tv_usec) -
-      (TT.start.tv_sec * 1000000 + TT.start.tv_usec))/1000000.0;
+  unsigned long long now = millitime()-TT.start ? : 1, bytes = TT.bytes*1000;
 
   if (TT.show_records)
     fprintf(stderr, "%llu+%llu records in\n%llu+%llu records out\n",
@@ -84,8 +78,9 @@ static void status()
   if (TT.show_xfer) {
     human_readable(toybuf, TT.bytes, HR_SPACE|HR_B);
     fprintf(stderr, "%llu bytes (%s) copied, ", TT.bytes, toybuf);
-    human_readable(toybuf, TT.bytes/seconds, HR_SPACE|HR_B);
-    fprintf(stderr, "%f s, %s/s\n", seconds, toybuf);
+    bytes = (bytes>TT.bytes) ? bytes/now : TT.bytes/((now+999)/1000);
+    human_readable(toybuf, bytes, HR_SPACE|HR_B);
+    fprintf(stderr, "%llu.%03u s, %s/s\n", now/1000, (int)(now%1000), toybuf);
   }
 }
 
@@ -162,7 +157,7 @@ void dd_main()
   sigatexit(status);
   xsignal(SIGINT, dd_sigint);
   xsignal(SIGUSR1, status);
-  gettimeofday(&TT.start, NULL);
+  TT.start = millitime();
 
   // For bs=, in/out is done as it is. so only in.sz is enough.
   // With Single buffer there will be overflow in a read following partial read.
