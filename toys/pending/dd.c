@@ -1,9 +1,9 @@
-/* dd.c - program to convert and copy a file.
+/* dd.c - convert/copy a file
  *
  * Copyright 2013 Ashwini Kumar <ak.ashwini@gmail.com>
  * Copyright 2013 Kyungwan Han <asura321@gmail.com>
  *
- * See  http://opengroup.org/onlinepubs/9699919799/utilities/dd.html
+ * See http://opengroup.org/onlinepubs/9699919799/utilities/dd.html
 
 USE_DD(NEWTOY(dd, 0, TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -11,37 +11,28 @@ config DD
   bool "dd"
   default n
   help
-    usage: dd [if=FILE] [of=FILE] [ibs=N] [obs=N] [iflag=FLAGS] [oflag=FLAGS]
-            [bs=N] [count=N] [seek=N] [skip=N]
-            [conv=notrunc|noerror|sync|fsync] [status=noxfer|none]
+    usage: dd [if|of=FILE] [ibs|obs|bs|count|seek|skip=N] [conv|status|iflag|oflag=FLAG[,FLAG...]]
 
-    Copy/convert files.
+    Copy/convert blocks of data from input to output, with the following
+    keyword=value modifiers (and their default values):
 
-    if=FILE		Read from FILE instead of stdin
-    of=FILE		Write to FILE instead of stdout
-    bs=N		Read and write N bytes at a time
-    ibs=N		Input block size
-    obs=N		Output block size
-    count=N		Copy only N input blocks
-    skip=N		Skip N input blocks
-    seek=N		Skip N output blocks
-    iflag=FLAGS	Set input flags
-    oflag=FLAGS	Set output flags
-    conv=notrunc	Don't truncate output file
-    conv=noerror	Continue after read errors
-    conv=sync	Pad blocks with zeros
-    conv=fsync	Physically write data out before finishing
-    status=noxfer	Don't show transfer rate
-    status=none	Don't show transfer rate or records in/out
+    if=FILE  Read FILE (stdin)          of=FILE  Write to FILE (stdout)
+       bs=N  Block size in bytes (512)  count=N  Stop after copying N blocks
+      ibs=N  Input block size (bs=)       obs=N  Output block size (bs=)
+     skip=N  Skip N input blocks (0)     seek=N  Skip N output blocks (0)
 
-    FLAGS is a comma-separated list of:
+    Each =N value accepts the normal unit suffixes (see toybox --help).
 
-    count_bytes	(iflag) interpret count=N in bytes, not blocks
-    seek_bytes	(oflag) interpret seek=N in bytes, not blocks
-    skip_bytes	(iflag) interpret skip=N in bytes, not blocks
+    These modifiers take a comma separated list of potential options:
 
-    Numbers may be suffixed by c (*1), w (*2), b (*512), kD (*1000), k (*1024),
-    MD (*1000*1000), M (*1024*1024), GD (*1000*1000*1000) or G (*1024*1024*1024).
+    iflag=count_bytes,skip_bytes   count=N or skip=N is in bytes not blocks
+    oflag=seek_bytes,append        seek=N is in bytes, append output to file
+    status=noxfer,none             don't show transfer rate, no summary info
+    conv=
+      notrunc  Don't truncate output    noerror  Continue after read errors
+      sync     Zero pad short reads     fsync    Flush output to disk at end
+      sparse   Seek past zeroed output  excl     Fail if output file exists
+      nocreat  Fail if of=FILE missing
 */
 
 #define FOR_dd
@@ -66,7 +57,7 @@ struct dd_flag {
 };
 
 static const struct dd_flag dd_conv[] = TAGGED_ARRAY(DD_conv,
-  {"fsync"}, {"noerror"}, {"notrunc"}, {"sync"},
+  {"fsync"}, {"noerror"}, {"notrunc"}, {"sync"}, // TODO sparse excl nocreat
 );
 
 static const struct dd_flag dd_iflag[] = TAGGED_ARRAY(DD_iflag,
@@ -128,16 +119,15 @@ static void parse_flags(char *what, char *arg,
   char *pre = xstrdup(arg);
   int i;
 
-  for (i=0; i<flag_count; ++i) {
+  for (i = 0; i<flag_count; ++i)
     while (comma_remove(pre, flags[i].name)) *result |= 1<<i;
-  }
   if (*pre) error_exit("bad %s=%s", what, pre);
   free(pre);
 }
 
 void dd_main()
 {
-  char **args;
+  char **args, *arg;
   unsigned long long bs = 0;
   int trunc = O_TRUNC;
 
@@ -145,9 +135,7 @@ void dd_main()
   TT.c_count = ULLONG_MAX;
 
   TT.in.sz = TT.out.sz = 512; //default io block size
-  for (args = toys.optargs; *args; args++) {
-    char *arg = *args;
-
+  for (args = toys.optargs; (arg = *args); args++) {
     if (strstart(&arg, "bs=")) bs = atolx_range(arg, 1, LONG_MAX);
     else if (strstart(&arg, "ibs=")) TT.in.sz = atolx_range(arg, 1, LONG_MAX);
     else if (strstart(&arg, "obs=")) TT.out.sz = atolx_range(arg, 1, LONG_MAX);
@@ -163,10 +151,9 @@ void dd_main()
       if (!strcmp(arg, "noxfer")) TT.show_xfer = 0;
       else if (!strcmp(arg, "none")) TT.show_xfer = TT.show_records = 0;
       else error_exit("unknown status '%s'", arg);
-    } else if (strstart(&arg, "conv=")) {
+    } else if (strstart(&arg, "conv="))
       parse_flags("conv", arg, dd_conv, ARRAY_LEN(dd_conv), &TT.conv);
-      fprintf(stderr, "conv=%x\n", TT.conv);
-    } else if (strstart(&arg, "iflag="))
+    else if (strstart(&arg, "iflag="))
       parse_flags("iflag", arg, dd_iflag, ARRAY_LEN(dd_iflag), &TT.iflag);
     else if (strstart(&arg, "oflag="))
       parse_flags("oflag", arg, dd_oflag, ARRAY_LEN(dd_oflag), &TT.oflag);
@@ -219,8 +206,7 @@ void dd_main()
   }
 
   // Implement seek= and truncate as necessary. We handled position zero
-  // truncate with O_TRUNC on open, so output to /dev/null and such doesn't
-  // error.
+  // truncate with O_TRUNC on open, so output to /dev/null etc doesn't error.
   bs = TT.out.offset;
   if (!(TT.oflag & _DD_oflag_seek_bytes)) bs *= TT.out.sz;
   if (bs) {
@@ -228,7 +214,7 @@ void dd_main()
 
     xlseek(TT.out.fd, bs, SEEK_CUR);
     if (trunc && !fstat(TT.out.fd, &st) && S_ISREG(st.st_mode)
-      && ftruncate(TT.out.fd, bs)) perror_exit("unexpected ftruncate failure");
+      && ftruncate(TT.out.fd, bs)) perror_exit("truncate");
   }
 
   unsigned long long bytes_left = TT.c_count;
