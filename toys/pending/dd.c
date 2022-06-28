@@ -84,12 +84,6 @@ static void status()
   }
 }
 
-static void dd_sigint(int sig)
-{
-  toys.exitval = sig|128;
-  xexit();
-}
-
 static void write_out(int all)
 {
   TT.out.bp = TT.out.buff;
@@ -155,7 +149,6 @@ void dd_main()
   if (bs) TT.in.sz = TT.out.sz = bs;
 
   sigatexit(status);
-  xsignal(SIGINT, dd_sigint);
   xsignal(SIGUSR1, status);
   TT.start = millitime();
 
