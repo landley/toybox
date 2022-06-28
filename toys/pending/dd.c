@@ -40,7 +40,7 @@ config DD
 
 GLOBALS(
   int show_xfer, show_records;
-  unsigned long long bytes, c_count, in_full, in_part, out_full, out_part;
+  unsigned long long bytes, in_full, in_part, out_full, out_part;
   struct timeval start;
   struct {
     char *name;
@@ -128,19 +128,17 @@ static void parse_flags(char *what, char *arg,
 void dd_main()
 {
   char **args, *arg;
-  unsigned long long bs = 0;
+  unsigned long long bs = 0, count = ULLONG_MAX;
   int trunc = O_TRUNC;
 
   TT.show_xfer = TT.show_records = 1;
-  TT.c_count = ULLONG_MAX;
 
   TT.in.sz = TT.out.sz = 512; //default io block size
   for (args = toys.optargs; (arg = *args); args++) {
     if (strstart(&arg, "bs=")) bs = atolx_range(arg, 1, LONG_MAX);
     else if (strstart(&arg, "ibs=")) TT.in.sz = atolx_range(arg, 1, LONG_MAX);
     else if (strstart(&arg, "obs=")) TT.out.sz = atolx_range(arg, 1, LONG_MAX);
-    else if (strstart(&arg, "count="))
-      TT.c_count = atolx_range(arg, 0, LLONG_MAX);
+    else if (strstart(&arg, "count=")) count = atolx_range(arg, 0, LLONG_MAX);
     else if (strstart(&arg, "if=")) TT.in.name = arg;
     else if (strstart(&arg, "of=")) TT.out.name = arg;
     else if (strstart(&arg, "seek="))
@@ -217,16 +215,16 @@ void dd_main()
       && ftruncate(TT.out.fd, bs)) perror_exit("truncate");
   }
 
-  unsigned long long bytes_left = TT.c_count;
-  if (TT.c_count != ULLONG_MAX && !(TT.iflag & _DD_iflag_count_bytes)) {
-    bytes_left *= TT.in.sz;
-  }
-  while (bytes_left) {
-    int chunk = bytes_left < TT.in.sz ? bytes_left : TT.in.sz;
+  if (!(TT.iflag & _DD_iflag_count_bytes) && count*TT.in.sz>count)
+    count *= TT.in.sz;
+
+  while (count) {
+    int chunk = minof(count, TT.in.sz);
     ssize_t n;
 
     TT.in.bp = TT.in.buff + TT.in.count;
     if (TT.conv & _DD_conv_sync) memset(TT.in.bp, 0, TT.in.sz);
+    errno = 0;
     if (!(n = read(TT.in.fd, TT.in.bp, chunk))) break;
     if (n < 0) {
       if (errno == EINTR) continue;
@@ -247,7 +245,7 @@ void dd_main()
       if (TT.conv & _DD_conv_sync) TT.in.count += TT.in.sz;
       else TT.in.count += n;
     }
-    bytes_left -= n;
+    count -= n;
 
     TT.out.count = TT.in.count;
     if (bs) {
