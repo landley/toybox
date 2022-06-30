@@ -5,34 +5,32 @@
 seq 10 > left
 seq 11 > right
 
-testing "unknown argument" 'diff --oops left right 2>/dev/null ; echo $?' "2\n" "" ""
-testing "missing" 'diff missing1 missing2 2>/dev/null ; echo $?' "2\n" "" ""
+testcmd "unknown argument" '--oops left right 2>/dev/null ; echo $?' "2\n" "" ""
+testcmd "missing" 'missing1 missing2 2>/dev/null ; echo $?' "2\n" "" ""
 
 testing "- -" 'diff - - ; echo $?' "0\n" "" "whatever"
 
-expected='--- lll
+testing "simple" "diff -u -L lll -L rrr left right" '--- lll
 +++ rrr
 @@ -8,3 +8,4 @@
  8
  9
  10
 +11
-'
-# Hm this only gives unified diffs?
-testing "simple" "diff -L lll -L rrr left right" "$expected" "" ""
+' "" ""
 
-
-expected='--- tree1/file
-+++ tree2/file
-@@ -1 +1 @@
--foo
-+food
-'
 mkdir -p tree1 tree2
 echo foo > tree1/file
 echo food > tree2/file
 
-testing "-r" "diff -r -L tree1/file -L tree2/file tree1 tree2 |tee out" "$expected" "" ""
+# Debian's diff gratuitously echoes its command line with -r. No idea why.
+testcmd "-r" "-u -r -L tree1/file -L tree2/file tree1 tree2 | grep -v ^diff" \
+  '--- tree1/file
++++ tree2/file
+@@ -1 +1 @@
+-foo
++food
+' "" ""
 
 echo -e "hello\r\nworld\r\n"> a
 echo -e "hello\nworld\n"> b
@@ -55,4 +53,4 @@ expected='--- fifo1
 -2
 +3
 '
-testing "fifos" "diff -L fifo1 -L fifo2 fifo1 fifo2" "$expected" "" ""
+testing "fifos" "diff -u -L fifo1 -L fifo2 fifo1 fifo2" "$expected" "" ""
