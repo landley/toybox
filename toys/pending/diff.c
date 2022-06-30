@@ -3,7 +3,9 @@
  * Copyright 2014 Sandeep Sharma <sandeep.jack2756@gmail.com>
  * Copyright 2014 Ashwini Kumar <ak.ashwini1981@gmail.com>
  *
- * See: http://cm.bell-labs.com/cm/cs/cstr/41.pdf
+ * See https://pubs.opengroup.org/onlinepubs/9699919799/utilities/diff.html
+ *
+ * Deviations from posix: always does -u
 
 USE_DIFF(NEWTOY(diff, "<2>2(unchanged-line-format):;(old-line-format):;(new-line-format):;(color)(strip-trailing-cr)B(ignore-blank-lines)d(minimal)b(ignore-space-change)ut(expand-tabs)w(ignore-all-space)i(ignore-case)T(initial-tab)s(report-identical-files)q(brief)a(text)L(label)*S(starting-file):N(new-file)r(recursive)U(unified)#<0=3", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 
@@ -23,19 +25,16 @@ config DIFF
   -q	Output only whether files differ
   -r	Recurse
   -S	Start with FILE when comparing directories
-  -T	Make tabs line up by prefixing a tab when necessary
   -s	Report when two files are the same
+  -T	Make tabs line up by prefixing a tab when necessary
   -t	Expand tabs to spaces in output
   -u	Unified diff
   -U	Output LINES lines of context
   -w	Ignore all whitespace
 
-  --color                  Colored output
-  --strip-trailing-cr      Strip trailing '\r's from input lines
-  --unchanged-line-format  Format for unchanged lines
-  --old-line-format        Format for lines just in the first file
-  --new-line-format        Format for lines just in the second file
-
+  --color     Color output   --strip-trailing-cr   Strip '\r' from input lines
+  --TYPE-line-format=FORMAT  Display TYPE (unchanged/old/new) lines using FORMAT
+    FORMAT uses printf integer escapes (ala %-2.4x) followed by LETTER: FELMNn
   Supported format specifiers are:
   * %l, the contents of the line, without the trailing newline
   * %L, the contents of the line, including the trailing newline
@@ -53,6 +52,14 @@ GLOBALS(
 
   int dir_num, size, is_binary, differ, change, len[2], *offset[2];
   struct stat st[2];
+  struct {
+    char **list;
+    int nr_elm;
+  } dir[2];
+  struct {
+    FILE *fp;
+    int len;
+  } file[2];
 )
 
 #define IS_STDIN(s)     (*(s)=='-' && !(s)[1])
@@ -70,24 +77,9 @@ struct diff {
   long a, b, c, d, prev, suff;
 };
 
-static struct dir_t {
-  char **list;
-  int nr_elm;
-} dir[2];
-
 struct candidate {
   int a, b;
   struct candidate *prev, *next;
-};
-
-static struct file_t {
-  FILE *fp;
-  int len;
-} file[2];
-
-enum {
-  SAME,
-  DIFFER,
 };
 
 enum {
@@ -104,7 +96,7 @@ static int comp(void *a, void *b)
   return i ? : ((struct v_vector *)a)->serial - ((struct v_vector *)b)->serial;
 }
 
-static int search (struct candidate **K, int r, int k, int j)
+static int search(struct candidate **K, int r, int k, int j)
 {
   int low = r, upper = k, mid;
 
@@ -232,12 +224,11 @@ static int read_tok(FILE *fp, off_t *off, int tok)
     tok |= (t & (eof + eol)); //set tok eof+eol when t is eof
 
     if (t == '\n') tok |= eol;
-    if (toys.optflags & FLAG_i)
-      if (t >= 'A' && t <= 'Z') t = tolower(t);
+    if (FLAG(i)) if (t >= 'A' && t <= 'Z') t = tolower(t);
 
-    if (toys.optflags & FLAG_w && is_space) continue;
+    if (FLAG(w) && is_space) continue;
 
-    if (toys.optflags & FLAG_b) {
+    if (FLAG(b)) {
       if (tok & space) {
         if (is_space) continue;
         tok &= ~space;
@@ -284,95 +275,92 @@ static int *create_j_vector()
     hash = 5831;
     v[i] = xzalloc(size * sizeof(struct v_vector));
     TT.offset[i] = xzalloc(size * sizeof(int));
-    file[i].len = 0;
-    if (fseek(file[i].fp, 0, SEEK_SET)) perror_exit("fseek failed");
+    TT.file[i].len = 0;
+    if (fseek(TT.file[i].fp, 0, SEEK_SET)) perror_exit("fseek failed");
 
     while (1) {
-      tok  = read_tok(file[i].fp, &off, tok);
+      tok  = read_tok(TT.file[i].fp, &off, tok);
       if (!(tok & empty)) {
         hash = ((hash << 5) + hash) + (tok & 0xff);
         continue;
       }
 
-      if (size == ++file[i].len) {
+      if (size == ++TT.file[i].len) {
         size = size * 11 / 10;
         v[i] = xrealloc(v[i], size*sizeof(struct v_vector));
         TT.offset[i] = xrealloc(TT.offset[i], size*sizeof(int));
       }
 
-      v[i][file[i].len].hash = hash & INT_MAX;
-      TT.offset[i][file[i].len] = off;
+      v[i][TT.file[i].len].hash = hash & INT_MAX;
+      TT.offset[i][TT.file[i].len] = off;
       if ((tok & eof)) {
-        TT.offset[i][file[i].len] = ++off;
+        TT.offset[i][TT.file[i].len] = ++off;
         break;
       }
       hash = 5831;  //next line
       tok = 0;
     }
-    if (TT.offset[i][file[i].len] - TT.offset[i][file[i].len - 1] == 1)
-      file[i].len--;
+    if (TT.offset[i][TT.file[i].len]-TT.offset[i][TT.file[i].len-1] == 1)
+      TT.file[i].len--;
   }
 
-  for (i = 0; i <= file[1].len; i++) v[1][i].serial = i;
-  qsort(v[1] + 1, file[1].len, sizeof(struct v_vector), (void *)comp);
+  for (i = 0; i<=TT.file[1].len; i++) v[1][i].serial = i;
+  qsort(v[1]+1, TT.file[1].len, sizeof(struct v_vector), (void *)comp);
 
   e = v[1];
   e[0].serial = 0;
   e[0].last = 1;
-  for (i = 1; i <= file[1].len; i++) {
-    if ((i == file[1].len) || (v[1][i].hash != v[1][i+1].hash)) e[i].last = 1;
-    else e[i].last = 0;
-  }
+  for (i = 1; i<=TT.file[1].len; i++)
+    e[i].last = i==TT.file[1].len || v[1][i].hash!=v[1][i+1].hash;
 
-  p_vector = xzalloc((file[0].len + 2) * sizeof(int));
-  for (i = 1; i <= file[0].len; i++) {
-    void *r = bsearch(&v[0][i], e+1, file[1].len, sizeof(e[0]), (void *)bcomp);
+  p_vector = xzalloc((TT.file[0].len+2)*sizeof(int));
+  for (i = 1; i<=TT.file[0].len; i++) {
+    void *r = bsearch(&v[0][i], e+1, TT.file[1].len, sizeof(*e), (void *)bcomp);
     if (r) p_vector[i] = (struct v_vector *)r - e;
   }
 
-  for (i = 1; i<=file[0].len; i++) e[i].p = p_vector[i];
+  for (i = 1; i<=TT.file[0].len; i++) e[i].p = p_vector[i];
   free(p_vector);
 
   size = 100;
   kcand = xzalloc(size * sizeof(struct candidate *));
 
   kcand[0] = new_candidate(0 , 0, 0);
-  kcand[1] = new_candidate(file[0].len+1, file[1].len+1, 0); //the fence
+  kcand[1] = new_candidate(TT.file[0].len+1, TT.file[1].len+1, 0); //the fence
 
   k = 0;  //last successfully filled k candidate.
-  for (i = 1; i <= file[0].len; i++) {
-
+  for (i = 1; i<=TT.file[0].len; i++) {
     if (!e[i].p) continue;
     if ((size - 2) == k) {
       size = size * 11 / 10;
-      kcand = xrealloc(kcand, (size * sizeof(struct candidate *)));
+      kcand = xrealloc(kcand, (size*sizeof(struct candidate *)));
     }
     do_merge(kcand, &k, i, e, e[i].p);
   }
   free(v[0]); //no need for v_vector now.
   free(v[1]);
 
-  J = xzalloc((file[0].len + 2) * sizeof(int));
+  J = xzalloc((TT.file[0].len+2)*sizeof(int));
 
-  for (pr = kcand[k]; pr; pr = pr->prev)
-    J[pr->a] = pr->b;
-  J[file[0].len + 1] = file[1].len+1; //mark boundary
+  for (pr = kcand[k]; pr; pr = pr->prev) J[pr->a] = pr->b;
+  J[TT.file[0].len+1] = TT.file[1].len+1; //mark boundary
 
-  for (i = k + 1; i >= 0; i--) free_candidates(kcand[i]);
+  for (i = k+1; i>=0; i--) free_candidates(kcand[i]);
   free(kcand);
 
-  for (i = 1; i <= file[0].len; i++) { // jackpot?
+  for (i = 1; i<=TT.file[0].len; i++) { // jackpot?
     if (!J[i]) continue;
 
-    if (fseek(file[0].fp, TT.offset[0][i - 1], SEEK_SET)) perror_exit("fseek failed");
-    if (fseek(file[1].fp, TT.offset[1][J[i] - 1], SEEK_SET)) perror_exit("fseek failed");
+    if (fseek(TT.file[0].fp, TT.offset[0][i-1], SEEK_SET)
+     || fseek(TT.file[1].fp, TT.offset[1][J[i]-1], SEEK_SET))
+       perror_exit("fseek");
 
-    for (j = J[i]; i <= file[0].len && J[i] == j; i++, j++) {
+    for (j = J[i]; i<=TT.file[0].len && J[i]==j; i++, j++) {
       int tok0 = 0, tok1 = 0;
 
       do {
-        tok0 = read_tok(file[0].fp, NULL, tok0);
-        tok1 = read_tok(file[1].fp, NULL, tok1);
+        tok0 = read_tok(TT.file[0].fp, NULL, tok0);
+        tok1 = read_tok(TT.file[1].fp, NULL, tok1);
         if (((tok0 ^ tok1) & empty) || ((tok0 & 0xff) != (tok1 & 0xff)))
           J[i] = 0;
       } while (!(tok0 & tok1 & empty));
@@ -391,12 +379,12 @@ static int *diff(char **files)
   TT.differ = 0;
 
   for (i = 0; i < 2; i++) {
-    if (IS_STDIN(files[i])) file[i].fp = read_stdin();
-    else if (S_ISFIFO(TT.st[i].st_mode)) file[i].fp = read_fifo(files[i]);
-    else file[i].fp = fopen(files[i], "r");
+    if (IS_STDIN(files[i])) TT.file[i].fp = read_stdin();
+    else if (S_ISFIFO(TT.st[i].st_mode)) TT.file[i].fp = read_fifo(files[i]);
+    else TT.file[i].fp = fopen(files[i], "r");
 
-    if (!file[i].fp){
-      perror_msg("%s",files[i]);
+    if (!TT.file[i].fp) {
+      perror_msg("%s", files[i]);
       TT.differ = 2;
       return 0; //return SAME
     }
@@ -406,14 +394,14 @@ static int *diff(char **files)
   bufi = toybuf;
   bufj = (toybuf + s);
 
-  if (fseek(file[0].fp, 0, SEEK_SET)) perror_exit("fseek failed");
-  if (fseek(file[1].fp, 0, SEEK_SET)) perror_exit("fseek failed");
+  if (fseek(TT.file[0].fp, 0, SEEK_SET) || fseek(TT.file[1].fp, 0, SEEK_SET))
+    perror_exit("fseek");
 
-  if (toys.optflags & FLAG_a) return create_j_vector();
+  if (FLAG(a)) return create_j_vector();
 
   while (1) {
-    i = fread(bufi, 1, s, file[0].fp);
-    j = fread(bufj, 1, s, file[1].fp);
+    i = fread(bufi, 1, s, TT.file[0].fp);
+    j = fread(bufj, 1, s, TT.file[1].fp);
 
     if (i != j) TT.differ = 1;
 
@@ -435,7 +423,7 @@ static void print_diff(int a, int b, char c, int *off_set, FILE *fp)
   int i, j, cc, cl;
   char *reset = NULL, *fmt = NULL;
 
-  if (!TT.new_line_format && c != ' ' && (toys.optflags & FLAG_color)) {
+  if (!TT.new_line_format && c != ' ' && FLAG(color)) {
     printf("\e[%dm", c == '+' ? 32 : 31);
     reset = "\e[0m";
   }
@@ -469,15 +457,14 @@ static void print_diff(int a, int b, char c, int *off_set, FILE *fp)
       continue;
     }
     putchar(c);
-    if (toys.optflags & FLAG_T) putchar('\t');
+    if (FLAG(T)) putchar('\t');
     for (j = 0, cl = 0; j <  (off_set[i] - off_set[i - 1]); j++) {
       cc = fgetc(fp);
       if (cc == EOF) {
         printf("%s\n\\ No newline at end of file\n", reset ? reset : "");
         return;
       }
-      if ((cc == '\t') && (toys.optflags & FLAG_t))
-        do putchar(' '); while (++cl & 7);
+      if ((cc == '\t') && FLAG(t)) do putchar(' '); while (++cl & 7);
       else {
         putchar(cc); //xputc has calls to fflush, it hurts performance badly.
         cl++;
@@ -523,14 +510,14 @@ static void add_to_list(struct dirtree *node)
 {
   char *full_path;
 
-  dir[TT.dir_num].list = xrealloc(dir[TT.dir_num].list,
+  TT.dir[TT.dir_num].list = xrealloc(TT.dir[TT.dir_num].list,
       (TT.size + 1)*sizeof(char*));
   TT.size++;
   full_path = dirtree_path(node, NULL);
-  dir[TT.dir_num].list[TT.size - 1] = full_path;
+  TT.dir[TT.dir_num].list[TT.size - 1] = full_path;
 }
 
-static int list_dir (struct dirtree *node)
+static int list_dir(struct dirtree *node)
 {
   int ret = 0;
 
@@ -541,9 +528,9 @@ static int list_dir (struct dirtree *node)
     return (DIRTREE_RECURSE|DIRTREE_SYMFOLLOW);
   }
 
-  if (S_ISDIR(node->st.st_mode) && (toys.optflags & FLAG_r)) {
-    if (!(toys.optflags & FLAG_N)) ret = skip(node);
-    if (!ret) return (DIRTREE_RECURSE|DIRTREE_SYMFOLLOW);
+  if (S_ISDIR(node->st.st_mode) && FLAG(r)) {
+    if (!FLAG(N)) ret = skip(node);
+    if (!ret) return DIRTREE_RECURSE|DIRTREE_SYMFOLLOW;
     else {
       add_to_list(node); //only at one side.
       return 0;
@@ -635,19 +622,19 @@ static void do_diff(char **files)
   d = xzalloc(size *sizeof(struct diff));
   do {
     ignore_white = 0;
-    for (d[x].a = i; d[x].a <= file[0].len; d[x].a++) {
+    for (d[x].a = i; d[x].a<=TT.file[0].len; d[x].a++) {
       if (J[d[x].a] != (J[d[x].a - 1] + 1)) break;
       else continue;
     }
     d[x].c = (J[d[x].a - 1] + 1);
 
-    for (d[x].b = (d[x].a - 1); d[x].b <= file[0].len; d[x].b++) {
+    for (d[x].b = (d[x].a - 1); d[x].b<=TT.file[0].len; d[x].b++) {
       if (J[d[x].b + 1]) break;
       else continue;
     }
     d[x].d = (J[d[x].b + 1] - 1);
 
-    if ((toys.optflags & FLAG_B)) {
+    if (FLAG(B)) {
       if (d[x].a <= d[x].b) {
         if ((TT.offset[0][d[x].b] - TT.offset[0][d[x].a - 1])
             == (d[x].b - d[x].a + 1))
@@ -664,10 +651,10 @@ static void do_diff(char **files)
 
     if (!ignore_white) d = xrealloc(d, (x + 2) *sizeof(struct diff));
     i = d[x].b + 1;
-    if (i > file[0].len) break;
+    if (i>TT.file[0].len) break;
     J[d[x].b] = d[x].d;
     if (!ignore_white) x++;
-  } while (i <= file[0].len);
+  } while (i<=TT.file[0].len);
 
   i = x+1;
   TT.differ = change; //update status, may change bcoz of -w etc.
@@ -690,14 +677,14 @@ static void do_diff(char **files)
       long a,b;
 
       // trim context to file len.
-      if (TT.new_line_format || TT.ct > file[0].len) TT.ct = file[0].len;
+      if (TT.new_line_format || TT.ct>TT.file[0].len) TT.ct = TT.file[0].len;
       if (ptr1->b < ptr1->a && ptr1->d < ptr1->c) {
         i--;
         continue;
       }
       //Handle the context stuff
       a =  ptr1->a;
-      b = minof(file[0].len, ptr1->b);
+      b = minof(TT.file[0].len, ptr1->b);
       if (i == x + 1) ptr1->suff = maxof(1, a-TT.ct);
       else if (ptr1[-1].prev >= ptr1->a-TT.ct) ptr1->suff = ptr1[-1].prev+1;
       else ptr1->suff =  ptr1->a-TT.ct;
@@ -715,7 +702,7 @@ calc_ct:
       end2 = ptr2->prev - ptr2->b + ptr2->d;
 
       if (!TT.new_line_format) {
-        if (toys.optflags & FLAG_color) printf("\e[36m");
+        if (FLAG(color)) printf("\e[36m");
         printf("@@ -%ld", start1 ? ptr1->suff: (ptr1->suff -1));
         if (end1 != -1) printf(",%ld ", ptr2->prev-ptr1->suff + 1);
         else putchar(' ');
@@ -724,17 +711,17 @@ calc_ct:
         if ((end2 - start2 +1) != 1) printf(",%ld ", (end2 - start2 +1));
         else putchar(' ');
         printf("@@");
-        if (toys.optflags & FLAG_color) printf("\e[0m");
+        if (FLAG(color)) printf("\e[0m");
         putchar('\n');
       }
 
       for (t = ptr1; t <= ptr2; t++) {
-        if (t== ptr1) print_diff(t->suff, t->a-1, ' ', TT.offset[0], file[0].fp);
-        print_diff(t->a, t->b, '-', TT.offset[0], file[0].fp);
-        print_diff(t->c, t->d, '+', TT.offset[1], file[1].fp);
+        if (t==ptr1) print_diff(t->suff, t->a-1, ' ', TT.offset[0], TT.file[0].fp);
+        print_diff(t->a, t->b, '-', TT.offset[0], TT.file[0].fp);
+        print_diff(t->c, t->d, '+', TT.offset[1], TT.file[1].fp);
         if (t == ptr2)
-          print_diff(t->b+1, (t)->prev, ' ', TT.offset[0], file[0].fp);
-        else print_diff(t->b+1, (t+1)->a-1, ' ', TT.offset[0], file[0].fp);
+          print_diff(t->b+1, (t)->prev, ' ', TT.offset[0], TT.file[0].fp);
+        else print_diff(t->b+1, (t+1)->a-1, ' ', TT.offset[0], TT.file[0].fp);
       }
       ptr2++;
       ptr1 = ptr2;
@@ -761,26 +748,16 @@ static void create_empty_entry(int l , int r, int j)
   char *f[2], *path[2];
   int i;
 
-  if (j > 0 && (toys.optflags & FLAG_N)) {
-    path[0] = concat_file_path(dir[0].list[0], dir[1].list[r] + TT.len[1]);
-    f[0] = "/dev/null";
-    path[1] = f[1] = dir[1].list[r];
-    stat(f[1], &st[0]);
-    st[1] = st[0];
-  }
-  else if (j < 0 && (toys.optflags & FLAG_N)) {
-    path[1] = concat_file_path(dir[1].list[0], dir[0].list[l] + TT.len[0]);
-    f[1] = "/dev/null";
-    path[0] = f[0] = dir[0].list[l];
-    stat(f[0], &st[0]);
-    st[1] = st[0];
-  }
-
-  if (!j) {
-    for (i = 0; i < 2; i++) {
-      path[i] = f[i] = dir[i].list[!i ? l: r];
-      stat(f[i], &st[i]);
+  for (i = 0; i < 2; i++) {
+    if (j) {
+      if (!FLAG(N) || i!=(j>0)) continue;
+      path[!i] = concat_file_path(TT.dir[!i].list[0],
+        TT.dir[i].list[i ? r : l]+TT.len[i]);
+      f[!i] = "/dev/null";
     }
+    path[i] = f[i] = TT.dir[i].list[i ? r : l];
+    stat(f[i], st+i);
+    if (j) st[!i] = st[i];
   }
 
   if (S_ISDIR(st[0].st_mode) && S_ISDIR(st[1].st_mode))
@@ -801,8 +778,8 @@ static void create_empty_entry(int l , int r, int j)
   } else {
     do_diff(f);
     show_status(path);
-    if (file[0].fp) fclose(file[0].fp);
-    if (file[1].fp) fclose(file[1].fp);
+    if (TT.file[0].fp) fclose(TT.file[0].fp);
+    if (TT.file[1].fp) fclose(TT.file[1].fp);
   }
 
   if ((toys.optflags & FLAG_N) && j) {
@@ -817,70 +794,56 @@ static void diff_dir(int *start)
 
   l = start[0]; //left side file start
   r = start[1]; //right side file start
-  while (l < dir[0].nr_elm && r < dir[1].nr_elm) {
-    if ((j = strcmp ((dir[0].list[l] + TT.len[0]),
-            (dir[1].list[r] + TT.len[1]))) && !(toys.optflags & FLAG_N)) {
+  while (l < TT.dir[0].nr_elm && r < TT.dir[1].nr_elm) {
+    if ((j = strcmp (TT.dir[0].list[l]+TT.len[0],
+            (TT.dir[1].list[r]+TT.len[1]))) && !FLAG(N)) {
       if (j > 0) {
-        printf ("Only in %s: %s\n", dir[1].list[0], dir[1].list[r] + TT.len[1]);
-        free(dir[1].list[r]);
-        r++;
+        printf("Only in %s: %s\n", TT.dir[1].list[0], TT.dir[1].list[r]+TT.len[1]);
+        free(TT.dir[1].list[r++]);
       } else {
-        printf ("Only in %s: %s\n", dir[0].list[0], dir[0].list[l] + TT.len[0]);
-        free(dir[0].list[l]);
-        l++;
+        printf ("Only in %s: %s\n", TT.dir[0].list[0], TT.dir[0].list[l]+TT.len[0]);
+        free(TT.dir[0].list[l++]);
       }
       TT.differ = 1;
     } else {
       create_empty_entry(l, r, j); //create non empty dirs/files if -N.
-      if (j > 0) {
-        free(dir[1].list[r]);
-        r++;
-      } else if (j < 0) {
-        free(dir[0].list[l]);
-        l++;
-      } else {
-        free(dir[1].list[r]);
-        free(dir[0].list[l]);
-        l++;
-        r++;
-      }
+      if (j>=0) free(TT.dir[1].list[r++]);
+      if (j<=0) free(TT.dir[0].list[l++]);
     }
   }
 
-  if (l == dir[0].nr_elm) {
-    while (r < dir[1].nr_elm) {
-      if (!(toys.optflags & FLAG_N)) {
-        printf ("Only in %s: %s\n", dir[1].list[0], dir[1].list[r] + TT.len[1]);
+  if (l == TT.dir[0].nr_elm) {
+    while (r<TT.dir[1].nr_elm) {
+      if (!FLAG(N)) {
+        printf ("Only in %s: %s\n", TT.dir[1].list[0], TT.dir[1].list[r]+TT.len[1]);
         TT.differ = 1;
       } else create_empty_entry(l, r, 1);
-      free(dir[1].list[r]);
-      r++;
+      free(TT.dir[1].list[r++]);
     }
-  } else if (r == dir[1].nr_elm) {
-    while (l < dir[0].nr_elm) {
-      if (!(toys.optflags & FLAG_N)) {
-        printf ("Only in %s: %s\n", dir[0].list[0], dir[0].list[l] + TT.len[0]);
+  } else if (r == TT.dir[1].nr_elm) {
+    while (l<TT.dir[0].nr_elm) {
+      if (!FLAG(N)) {
+        printf ("Only in %s: %s\n", TT.dir[0].list[0], TT.dir[0].list[l]+TT.len[0]);
         TT.differ = 1;
       } else create_empty_entry(l, r, -1);
-      free(dir[0].list[l]);
-      l++;
+      free(TT.dir[0].list[l++]);
     }
   }
-  free(dir[0].list[0]); //we are done, free root nodes too
-  free(dir[1].list[0]);
+  free(TT.dir[0].list[0]); //we are done, free root nodes too
+  free(TT.dir[0].list);
+  free(TT.dir[1].list[0]);
+  free(TT.dir[1].list);
 }
 
 void diff_main(void)
 {
   int j = 0, k = 1, start[2] = {1, 1};
-  char *files[2];
+  char **files = toys.optargs;
 
   toys.exitval = 2;
-
   if (FLAG(color) && !isatty(1)) toys.optflags ^= FLAG_color;
 
   for (j = 0; j < 2; j++) {
-    files[j] = toys.optargs[j];
     if (IS_STDIN(files[j])) fstat(0, &TT.st[j]);
     else xstat(files[j], &TT.st[j]);
   }
@@ -896,26 +859,24 @@ void diff_main(void)
     if (!TT.new_line_format) TT.new_line_format = "%l\n";
   }
 
-  if ((TT.st[0].st_ino == TT.st[1].st_ino) //physicaly same device
-      && (TT.st[0].st_dev == TT.st[1].st_dev)) {
+  if (same_file(TT.st, TT.st+1)) {
     toys.exitval = 0;
     return show_status(files);
   }
 
   if (S_ISDIR(TT.st[0].st_mode) && S_ISDIR(TT.st[1].st_mode)) {
     for (j = 0; j < 2; j++) {
-      memset(dir+j, 0, sizeof(struct dir_t));
+      memset(TT.dir+j, 0, sizeof(*TT.dir));
       dirtree_flagread(files[j], DIRTREE_SYMFOLLOW, list_dir);
-      dir[j].nr_elm = TT.size; //size updated in list_dir
-      qsort(&(dir[j].list[1]), TT.size - 1, sizeof(char *), (void *)cmp);
+      TT.dir[j].nr_elm = TT.size; //size updated in list_dir
+      qsort(&TT.dir[j].list[1], TT.size-1, sizeof(char *), (void *)cmp);
 
-      TT.len[j] = strlen(dir[j].list[0]); //calc root node len
-      TT.len[j] += (dir[j].list[0][TT.len[j] -1] != '/');
+      TT.len[j] = strlen(TT.dir[j].list[0]); //calc root node len
+      TT.len[j] += TT.dir[j].list[0][TT.len[j]-1] != '/';
 
-      if (toys.optflags & FLAG_S) {
-        while (k < TT.size && strcmp(dir[j].list[k] +
-              TT.len[j], TT.start) < 0) {
-          start[j] += 1;
+      if (FLAG(S)) {
+        while (k<TT.size && strcmp(TT.dir[j].list[k]+TT.len[j], TT.start)<0) {
+          start[j]++;
           k++;
         }
       }
@@ -924,8 +885,6 @@ void diff_main(void)
       k = 1;
     }
     diff_dir(start);
-    free(dir[0].list);
-    free(dir[1].list);
   } else {
     if (S_ISDIR(TT.st[0].st_mode) || S_ISDIR(TT.st[1].st_mode)) {
       int d = S_ISDIR(TT.st[0].st_mode);
@@ -936,8 +895,8 @@ void diff_main(void)
     }
     do_diff(files);
     show_status(files);
-    if (file[0].fp) fclose(file[0].fp);
-    if (file[1].fp) fclose(file[1].fp);
+    if (TT.file[0].fp) fclose(TT.file[0].fp);
+    if (TT.file[1].fp) fclose(TT.file[1].fp);
   }
   toys.exitval = TT.differ; //exit status will be the status
 }
