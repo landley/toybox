@@ -78,8 +78,8 @@ struct diff {
 };
 
 struct candidate {
+  struct candidate *next, *prev;
   int a, b;
-  struct candidate *prev, *next;
 };
 
 enum {
@@ -115,7 +115,7 @@ static int search(struct candidate **K, int r, int k, int j)
   return -1;
 }
 
-static struct candidate * new_candidate (int i, int j, struct candidate *prev)
+static struct candidate *new_candidate (int i, int j, struct candidate *prev)
 {
   struct candidate *c = xzalloc(sizeof(struct candidate));
 
@@ -124,7 +124,6 @@ static struct candidate * new_candidate (int i, int j, struct candidate *prev)
   c->prev = prev;
   return c;
 }
-
 
 static void free_candidates(struct candidate *c)
 {
@@ -135,8 +134,8 @@ static void free_candidates(struct candidate *c)
     free(t);
   }
 }
-/*
- * 1. Search K[r: k] for an element K[s] such that K[s]-> b < j and K[s + 1]->b > j
+
+/* 1. Search K[r: k] for an element K[s] such that K[s]-> b < j and K[s + 1]->b > j
  * 2. if found do
  *  2.a. If K[s + 1]->b > j do K[r] = c; r = s+1 and c = candidate(i, j, K[s]) //we have a candidate
  *  2.b. if s = k (fence reached move it further) do K[k + 2] = K[k + 1], k++
@@ -144,19 +143,18 @@ static void free_candidates(struct candidate *c)
  *    else p = p + 1 //keep traversing the equiv class.
  * 4. K[r] = c //Save the sucessfully filled k-candidate.
  */
-static void  do_merge(struct candidate **K, int *k, int i,
+static void do_merge(struct candidate **K, int *k, int i,
     struct v_vector *E, int p)
 {
   int r = 0, s, j;
   struct candidate *pr = 0, *c = K[0];
 
-  while (1) {
+  for (;;) {
     j = E[p].serial;
     s = search(K, r, *k, j);
-    if (s >= 0 && (((struct candidate *)(K[s]))->b < j &&
-          ((struct candidate *)(K[s + 1]))->b > j)) {
+    if (s>=0 && K[s]->b<j && K[s+1]->b>j) {
 
-      if (((struct candidate *)(K[s + 1]))->b > j) {
+      if (K[s + 1]->b>j) {
         pr = K[s];
         if (r && K[r]) c->next = K[r];
         K[r] = c;
