@@ -888,9 +888,14 @@ void generic_signal(int sig)
   toys.signal = sig;
 }
 
+// More or less SIG_DFL that runs our atexit list and can siglongjmp.
 void exit_signal(int sig)
 {
+  sigset_t sigset;
+
   if (sig) toys.exitval = sig|128;
+  sigfillset(&sigset);
+  sigprocmask(SIG_BLOCK, &sigset, 0);
   xexit();
 }
 
