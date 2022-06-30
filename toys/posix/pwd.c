@@ -41,8 +41,7 @@ void pwd_main(void)
 
     // If current directory exists, make sure it matches.
     if (s && pwd)
-        if (stat(pwd, &st1) || stat(PWD, &st2) || st1.st_ino != st2.st_ino ||
-            st1.st_dev != st2.st_dev) s = 0;
+      if (stat(pwd, &st1) || stat(PWD, &st2) || !same_file(&st1, &st2)) s = 0;
   } else s = 0;
 
   // If -L didn't give us a valid path, use cwd.

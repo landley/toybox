@@ -238,7 +238,7 @@ static int do_find(struct dirtree *new)
         struct dirtree *n;
 
         for (n = new->parent; n; n = n->parent) {
-          if (n->st.st_ino==new->st.st_ino && n->st.st_dev==new->st.st_dev) {
+          if (same_file(&n->st, &new->st)) {
             error_msg("'%s': loop detected", s = dirtree_path(new, 0));
             free(s);
 
@@ -467,10 +467,7 @@ static int do_find(struct dirtree *new)
             uid_t uid;
             gid_t gid;
             struct timespec tm;
-            struct {
-              dev_t d;
-              ino_t i;
-            };
+            struct dev_ino di;
           };
         } *udl;
         struct stat st;
@@ -485,7 +482,7 @@ static int do_find(struct dirtree *new)
                 goto error;
               if (*s=='s' || !s[5] || s[6]!='t') {
                 xstat(arg, &st);
-                if (*s=='s') udl->d = st.st_dev, udl->i = st.st_ino;
+                if (*s=='s') udl->di.dev = st.st_dev, udl->di.ino = st.st_ino;
                 else udl->tm = *(struct timespec *)(((char *)&st)
                                + macoff[!s[5] ? 0 : stridx("ac", s[6])+1]);
               } else if (s[6] == 't') {
@@ -502,8 +499,7 @@ static int do_find(struct dirtree *new)
           if (check) {
             if (*s == 'u') test = new->st.st_uid == udl->uid;
             else if (*s == 'g') test = new->st.st_gid == udl->gid;
-            else if (*s == 's')
-              test = new->st.st_dev == udl->d && new->st.st_ino == udl->i;
+            else if (*s == 's') test = same_dev_ino(&new->st, &udl->di);
             else {
               struct timespec *tm = (void *)(((char *)&new->st)
                 + macoff[!s[5] ? 0 : stridx("ac", s[5])+1]);

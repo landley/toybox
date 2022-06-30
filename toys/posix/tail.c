@@ -36,8 +36,7 @@ GLOBALS(
   struct {
     char *path;
     int fd;
-    dev_t dev;
-    ino_t ino;
+    struct dev_ino di;
   } *F;
 )
 
@@ -159,12 +158,12 @@ static void tail_continue()
         continue;
       }
 
-      if (fd<0 || sb.st_dev!=TT.F[i].dev || sb.st_ino!=TT.F[i].ino) {
+      if (fd<0 || !same_dev_ino(&sb, &TT.F[i].di)) {
         if (fd>=0) close(fd);
         if (-1 == (TT.F[i].fd = fd = open(path, O_RDONLY))) continue;
         error_msg("following new file: %s\n", path);
-        TT.F[i].dev = sb.st_dev;
-        TT.F[i].ino = sb.st_ino;
+        TT.F[i].di.dev = sb.st_dev;
+        TT.F[i].di.ino = sb.st_ino;
       } else if (sb.st_size <= (pos = lseek(fd, 0, SEEK_CUR))) {
         if (pos == sb.st_size) continue;
         error_msg("file truncated: %s\n", path);
@@ -201,8 +200,8 @@ static void do_tail(int fd, char *name)
     if (FLAG(F)) {
       if (fd != -1) {
         if (fstat(fd, &sb)) perror_exit("%s", name);
-        TT.F[TT.file_no].dev = sb.st_dev;
-        TT.F[TT.file_no].ino = sb.st_ino;
+        TT.F[TT.file_no].di.dev = sb.st_dev;
+        TT.F[TT.file_no].di.ino = sb.st_ino;
       }
       TT.F[TT.file_no].fd = fd;
       TT.F[TT.file_no].path = s;

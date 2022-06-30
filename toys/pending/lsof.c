@@ -42,8 +42,7 @@ struct file_info {
   char *name, fd[8], rw, locks, type[10], device[32], size_off[32], node[32];
 
   // For filtering.
-  dev_t st_dev;
-  ino_t st_ino;
+  struct dev_ino di;
 };
 
 static void print_info(void *data)
@@ -55,13 +54,11 @@ static void print_info(void *data)
     int i;
 
     for (i = 0; i<toys.optc; i++)
-      if (TT.sought_files[i].st_dev==fi->st_dev)
-        if (TT.sought_files[i].st_ino==fi->st_ino) break;
-
+      if (same_file(TT.sought_files+i, &fi->di)) break;
     if (i==toys.optc) return;
   }
 
-  if (toys.optflags&FLAG_t) {
+  if (FLAG(t)) {
     if (fi->pi.pid != TT.last_shown_pid)
       printf("%d\n", TT.last_shown_pid = fi->pi.pid);
   } else {
@@ -130,7 +127,7 @@ static struct file_info *add_socket(ino_t inode, const char *type)
   struct file_info *fi = xzalloc(sizeof(struct file_info));
 
   dlist_add_nomalloc(&TT.all_sockets, (struct double_list *)fi);
-  fi->st_ino = inode;
+  fi->di.ino = inode;
   strcpy(fi->type, type);
   return fi;
 }
@@ -231,9 +228,9 @@ static int find_socket(struct file_info *fi, long inode)
   void* list = TT.all_sockets;
 
   while (list) {
-    struct file_info *s = (struct file_info*) llist_pop(&list);
+    struct file_info *s = (struct file_info *)llist_pop(&list);
 
-    if (s->st_ino == inode) {
+    if (s->di.ino == inode) {
       fi->name = s->name ? strdup(s->name) : NULL;
       strcpy(fi->type, s->type);
       return 1;
@@ -282,8 +279,8 @@ static void fill_stat(struct file_info *fi, const char *path)
   snprintf(fi->node, sizeof(fi->node), "%ld", (long)sb.st_ino);
 
   // Stash st_dev and st_ino for filtering.
-  fi->st_dev = sb.st_dev;
-  fi->st_ino = sb.st_ino;
+  fi->di.dev = sb.st_dev;
+  fi->di.ino = sb.st_ino;
 }
 
 struct file_info *new_file_info(struct proc_info *pi, const char *fd)

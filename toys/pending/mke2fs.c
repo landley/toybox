@@ -342,9 +342,7 @@ static void check_treelinks(struct dirtree *tree)
       // Look for other copies of current node
       current->st.st_nlink = 0;
       for (that = tree; that; that = treenext(that)) {
-        if (current->st.st_ino == that->st.st_ino &&
-          current->st.st_dev == that->st.st_dev)
-        {
+        if (same_file(current, that)) {
           current->st.st_nlink++;
           current->st.st_ino = inode;
         }

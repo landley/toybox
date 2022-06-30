@@ -58,15 +58,15 @@ GLOBALS(
   struct double_list *incl, *excl, *seen;
   struct string_list *dirs;
   char *cwd, **xfsed;
-  int fd, ouid, ggid, hlc, warn, adev, aino, sparselen, pid;
+  int fd, ouid, ggid, hlc, warn, sparselen, pid;
+  struct dev_ino archive_di;
   long long *sparse;
   time_t mtt;
 
   // hardlinks seen so far (hlc many)
   struct {
     char *arg;
-    ino_t ino;
-    dev_t dev;
+    struct dev_ino di;
   } *hlx;
 
   // Parsed information about a tar header.
@@ -200,7 +200,7 @@ static int add_to_tar(struct dirtree *node)
   char *name, *lnk, *hname, *xfname = 0;
 
   if (!dirtree_notdotdot(node)) return 0;
-  if (TT.adev == st->st_dev && TT.aino == st->st_ino) {
+  if (same_dev_ino(st, &TT.archive_di)) {
     error_msg("'%s' file is the archive; not dumped", node->name);
     return 0;
   }
@@ -262,10 +262,7 @@ static int add_to_tar(struct dirtree *node)
   // Are there hardlinks to a non-directory entry?
   if (st->st_nlink>1 && !S_ISDIR(st->st_mode)) {
     // Have we seen this dev&ino before?
-    for (i = 0; i<TT.hlc; i++) {
-      if (st->st_ino == TT.hlx[i].ino && st->st_dev == TT.hlx[i].dev)
-        break;
-    }
+    for (i = 0; i<TT.hlc; i++) if (same_dev_ino(st, &TT.hlx[i].di)) break;
     if (i != TT.hlc) {
       lnk = TT.hlx[i].arg;
       i = 1;
@@ -274,8 +271,8 @@ static int add_to_tar(struct dirtree *node)
       if (!(TT.hlc&255))
         TT.hlx = xrealloc(TT.hlx, sizeof(*TT.hlx)*(TT.hlc+256));
       TT.hlx[TT.hlc].arg = xstrdup(hname);
-      TT.hlx[TT.hlc].ino = st->st_ino;
-      TT.hlx[TT.hlc].dev = st->st_dev;
+      TT.hlx[TT.hlc].di.ino = st->st_ino;
+      TT.hlx[TT.hlc].di.dev = st->st_dev;
       TT.hlc++;
       i = 0;
     }
@@ -948,8 +945,8 @@ void tar_main(void)
     struct stat st;
 
     if (!fstat(TT.fd, &st)) {
-      TT.aino = st.st_ino;
-      TT.adev = st.st_dev;
+      TT.archive_di.ino = st.st_ino;
+      TT.archive_di.dev = st.st_dev;
     }
   }
 

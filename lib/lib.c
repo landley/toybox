@@ -519,6 +519,18 @@ int strcasestart(char **a, char *b)
   return i;
 }
 
+int same_file(struct stat *st1, struct stat *st2)
+{
+  return st1->st_ino==st2->st_ino && st1->st_dev==st2->st_dev;
+}
+
+int same_dev_ino(struct stat *st, struct dev_ino *di)
+{
+  return st->st_ino==di->ino && st->st_dev==di->dev;
+}
+
+
+
 // Return how long the file at fd is, if there's any way to determine it.
 off_t fdlength(int fd)
 {
@@ -1134,8 +1146,7 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name),
         char buf[32];
 
         sprintf(buf, "/proc/%u/exe", u);
-        if (stat(buf, &st2)) continue;
-        if (st1.st_dev != st2.st_dev || st1.st_ino != st2.st_ino) continue;
+        if (stat(buf, &st2) && !same_file(&st1, &st2)) continue;
         goto match;
       }
 

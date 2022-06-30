@@ -23,7 +23,7 @@ config MOUNTPOINT
 
 static void die(char *gripe)
 {
-  if (!(toys.optflags & FLAG_q)) printf("%s: not a %s\n", *toys.optargs, gripe);
+  if (!FLAG(q)) printf("%s: not a %s\n", *toys.optargs, gripe);
 
   toys.exitval++;
   xexit();
@@ -33,34 +33,30 @@ void mountpoint_main(void)
 {
   struct stat st1, st2;
   char *arg = *toys.optargs;
-  int quiet = toys.optflags & FLAG_q;
 
   if (lstat(arg, &st1)) perror_exit_raw(arg);
 
-  if (toys.optflags & FLAG_x) {
-    if (S_ISBLK(st1.st_mode)) {
-      if (!quiet)
-        printf("%u:%u\n", dev_major(st1.st_rdev), dev_minor(st1.st_rdev));
+  if (FLAG(x)) {
+    if (!S_ISBLK(st1.st_mode)) die("block device");
+    if (!FLAG(q))
+      printf("%u:%u\n", dev_major(st1.st_rdev), dev_minor(st1.st_rdev));
 
-      return;
-    }
-    die("block device");
+    return;
   }
 
-  // TODO: Ignore the fact a file can be a mountpoint for --bind mounts.
+  // TODO: a file can be a mountpoint for --bind mounts.
   if (!S_ISDIR(st1.st_mode)) die("directory");
 
   arg = xmprintf("%s/..", arg);
   xstat(arg, &st2);
-  if (CFG_TOYBOX_FREE) free(arg);
+  free(arg);
 
   // If the device is different, it's a mount point. If the device _and_
   // inode are the same, it's probably "/". This misses --bind mounts from
   // elsewhere in the same filesystem, but so does the other one and in the
   // absence of a spec I guess that's the expected behavior?
-  toys.exitval = !(st1.st_dev != st2.st_dev || st1.st_ino == st2.st_ino);
-  if (toys.optflags & FLAG_d)
-    printf("%u:%u\n", dev_major(st1.st_dev), dev_minor(st1.st_dev));
-  else if (!quiet)
+  toys.exitval = !same_file(&st1, &st2);
+  if (FLAG(d)) printf("%u:%u\n", dev_major(st1.st_dev), dev_minor(st1.st_dev));
+  else if (!FLAG(q))
     printf("%s is %sa mountpoint\n", *toys.optargs, toys.exitval ? "not " : "");
 }
