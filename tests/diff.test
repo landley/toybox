@@ -8,9 +8,9 @@ seq 11 > right
 testcmd "unknown argument" '--oops left right 2>/dev/null ; echo $?' "2\n" "" ""
 testcmd "missing" 'missing1 missing2 2>/dev/null ; echo $?' "2\n" "" ""
 
-testing "- -" 'diff - - ; echo $?' "0\n" "" "whatever"
+testcmd "- -" '- - ; echo $?' "0\n" "" "whatever"
 
-testing "simple" "diff -u -L lll -L rrr left right" '--- lll
+testcmd "simple" "-u -L lll -L rrr left right" '--- lll
 +++ rrr
 @@ -8,3 +8,4 @@
  8
@@ -34,23 +34,23 @@ testcmd "-r" "-u -r -L tree1/file -L tree2/file tree1 tree2 | grep -v ^diff" \
 
 echo -e "hello\r\nworld\r\n"> a
 echo -e "hello\nworld\n"> b
-testing "--strip-trailing-cr off" "diff -q a b" "Files a and b differ\n" "" ""
-testing "--strip-trailing-cr on" "diff -u --strip-trailing-cr a b" "" "" ""
+testcmd "--strip-trailing-cr off" "-q a b" "Files a and b differ\n" "" ""
+testcmd "--strip-trailing-cr on" '-u --strip-trailing-cr a b; echo $?' \
+  "0\n" "" ""
 
 echo -e "1\n2" > aa
 echo -e "1\n3" > bb
-testing "line format" "diff --unchanged-line-format=U%l --old-line-format=D%l --new-line-format=A%l aa bb" "U1D2A3" "" ""
-testing "line format empty" "diff --unchanged-line-format= --old-line-format=D%l --new-line-format=A%l aa bb" "D2A3" "" ""
+testcmd "line format" "--unchanged-line-format=U%l --old-line-format=D%l --new-line-format=A%l aa bb" "U1D2A3" "" ""
+testcmd "line format empty" "--unchanged-line-format= --old-line-format=D%l --new-line-format=A%l aa bb" "D2A3" "" ""
 
 mkfifo fifo1
 mkfifo fifo2
 echo -e "1\n2" > fifo1&
 echo -e "1\n3" > fifo2&
-expected='--- fifo1
+testcmd "fifos" "-u -L fifo1 -L fifo2 fifo1 fifo2" '--- fifo1
 +++ fifo2
 @@ -1,2 +1,2 @@
  1
 -2
 +3
-'
-testing "fifos" "diff -u -L fifo1 -L fifo2 fifo1 fifo2" "$expected" "" ""
+' "" ""
