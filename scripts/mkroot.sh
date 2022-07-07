@@ -22,7 +22,9 @@ die() { echo "$@" >&2; exit 1; }
 # ----- Are we cross compiling (via CROSS_COMPILE= or CROSS=)
 
 if [ -n "$CROSS_COMPILE" ]; then
-  CROSS_COMPILE="$(realpath -s "$CROSS_COMPILE")" # airlock needs absolute path
+  # airlock needs absolute path
+  [ -z "${X:=$(command -v "$CROSS_COMPILE"cc)}" ] && die "no ${CROSS_COMPILE}cc"
+  CROSS_COMPILE="$(realpath -s "${X%cc}")"
   [ -z "$CROSS" ] && CROSS=${CROSS_COMPILE/*\//} CROSS=${CROSS/-*/}
 
 elif [ -n "$CROSS" ]; then # CROSS=all/allnonstop/$ARCH else list known $ARCHes
@@ -240,13 +242,13 @@ else
 
   # Write the qemu launch script
   if [ -n "$QEMU" ]; then
-    [ -z "$BUILTIN" ] && INITRD="-initrd ${CROSS}root.cpio.gz"
+    [ -z "$BUILTIN" ] && INITRD="-initrd initramfs.cpio.gz"
     { echo qemu-system-"$QEMU" '"$@"' $QEMU_MORE -nographic -no-reboot -m 256 \
-        -kernel $(basename $VMLINUX) $INITRD ${DTB:+-dtb "$(basename "$DTB")"} \
+        -kernel linux-kernel $INITRD ${DTB:+-dtb "$(basename "$DTB")"} \
         "-append \"panic=1 HOST=$TARGET console=$KARGS \$KARGS\"" &&
       echo "echo -e '\\e[?7h'"
-    } > "$OUTPUT/qemu-$TARGET.sh" &&
-    chmod +x "$OUTPUT/qemu-$TARGET.sh" || exit 1
+    } > "$OUTPUT"/run-qemu.sh &&
+    chmod +x "$OUTPUT"/run-qemu.sh || exit 1
   fi
 
   announce "linux-$KARCH"
@@ -256,8 +258,8 @@ else
   sed -Eis '/select HAVE_(STACK_VALIDATION|OBJTOOL)/d' arch/x86/Kconfig &&
   sed -is 's/depends on !SMP/& || !MMU/' mm/Kconfig &&
 
-  # Write miniconfig
-  { echo "# make ARCH=$KARCH allnoconfig KCONFIG_ALLCONFIG=$TARGET.miniconf"
+  # Write linux-miniconfig
+  { echo "# make ARCH=$KARCH allnoconfig KCONFIG_ALLCONFIG=linux-miniconfig"
     echo -e "# make ARCH=$KARCH -j \$(nproc)\n# boot $VMLINUX\n\n"
     echo "# CONFIG_EMBEDDED is not set"
 
@@ -269,8 +271,8 @@ else
     done
     [ -n "$BUILTIN" ] && echo -e CONFIG_INITRAMFS_SOURCE="\"$OUTPUT/fs\""
     echo "$KERNEL_CONFIG"
-  } > "$OUTPUT/miniconfig-$TARGET" &&
-  make ARCH=$KARCH allnoconfig KCONFIG_ALLCONFIG="$OUTPUT/miniconfig-$TARGET" &&
+  } > "$OUTPUT/linux-miniconfig" &&
+  make ARCH=$KARCH allnoconfig KCONFIG_ALLCONFIG="$OUTPUT/linux-miniconfig" &&
 
   # Second config pass to remove stupid kernel defaults
   # See http://lkml.iu.edu/hypermail/linux/kernel/1912.3/03493.html
@@ -283,14 +285,14 @@ else
   make ARCH=$KARCH CROSS_COMPILE="$CROSS_COMPILE" -j $(nproc) &&
   cp .config "$OUTPUT/linux-fullconfig" || exit 1
   [ -n "$DTB" ] && { cp "$DTB" "$OUTPUT" || exit 1 ;}
-  cp "$VMLINUX" "$OUTPUT" && cd .. && rm -rf linux && popd || exit 1
+  cp "$VMLINUX" "$OUTPUT"/linux-kernel && cd .. && rm -rf linux && popd ||exit 1
 fi
 
 # clean up and package root filesystem for initramfs.
 if [ -z "$BUILTIN" ]; then
-  announce "${CROSS}root.cpio.gz"
+  announce "initramfs.cpio.gz"
   (cd "$ROOT" && find . | cpio -o -H newc ${CROSS_COMPILE:+--no-preserve-owner}\
-    | gzip) > "$OUTPUT/$CROSS"root.cpio.gz || exit 1
+    | gzip) > "$OUTPUT"/initramfs.cpio.gz || exit 1
 fi
 
 mv "$LOG/$CROSS".{n,y}
