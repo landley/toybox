@@ -15,8 +15,8 @@ done
 : ${LOG:=${BUILD:=${TOP:=$PWD/root}/build}/log} ${AIRLOCK:=$BUILD/airlock}
 : ${CCC:=$PWD/ccc} ${PKGDIR:=$PWD/scripts/root}
 
-# useful functions
-announce() { echo -e "\033]2;$CROSS $*\007\n=== $*"; }
+# define functions
+announce() { printf "\033]2;$CROSS $*\007" >/dev/tty; printf "\n=== $*\n";}
 die() { echo "$@" >&2; exit 1; }
 
 # ----- Are we cross compiling (via CROSS_COMPILE= or CROSS=)
@@ -277,20 +277,20 @@ else
   # Second config pass to remove stupid kernel defaults
   # See http://lkml.iu.edu/hypermail/linux/kernel/1912.3/03493.html
   sed -e 's/# CONFIG_EXPERT .*/CONFIG_EXPERT=y/' -e "$(sed -E -e '/^$/d' \
-    -e 's@([^,]*)($|,)@/^CONFIG_\1=y/d;$a# CONFIG_\1 is not set/\n@g' \
+    -e 's@([^,]*)($|,)@/^CONFIG_\1=y/d;$a# CONFIG_\1 is not set\n@g' \
        <<< VT,SCHED_DEBUG,DEBUG_MISC,X86_DEBUG_FPU)" -i .config &&
   yes "" | make ARCH=$KARCH oldconfig > /dev/null &&
+  cp .config "$OUTPUT/linux-fullconfig" &&
 
   # Build kernel. Copy config, device tree binary, and kernel binary to output
-  make ARCH=$KARCH CROSS_COMPILE="$CROSS_COMPILE" -j $(nproc) &&
-  cp .config "$OUTPUT/linux-fullconfig" || exit 1
+  make ARCH=$KARCH CROSS_COMPILE="$CROSS_COMPILE" -j $(nproc) || exit 1
   [ -n "$DTB" ] && { cp "$DTB" "$OUTPUT" || exit 1 ;}
   cp "$VMLINUX" "$OUTPUT"/linux-kernel && cd .. && rm -rf linux && popd ||exit 1
 fi
 
 # clean up and package root filesystem for initramfs.
 if [ -z "$BUILTIN" ]; then
-  announce "initramfs.cpio.gz"
+  announce initramfs
   (cd "$ROOT" && find . | cpio -o -H newc ${CROSS_COMPILE:+--no-preserve-owner}\
     | gzip) > "$OUTPUT"/initramfs.cpio.gz || exit 1
 fi
