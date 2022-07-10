@@ -56,4 +56,4 @@ echo 'ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" ${1:+$
 chmod +x "$OUTPUT"/ssh2dropbear.sh
 
 # Forward 127.0.0.1:2222 into qemu instance
-QEMU_MORE="-nic user,hostfwd=tcp:127.0.0.1:2222-:22"
+QEMU_MORE+=" -nic user,hostfwd=tcp:127.0.0.1:2222-:22"
