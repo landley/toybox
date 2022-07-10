@@ -80,7 +80,7 @@ root:
 	scripts/mkroot.sh $(MAKEFLAGS)
 
 run_root:
-	cd root/"$${CROSS:-host}" && ./qemu-*.sh
+	cd root/"$${CROSS:-host}" && ./run-qemu.sh
 
 help::
 	@cat scripts/help.txt
