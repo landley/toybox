@@ -66,8 +66,8 @@ if [ -z "$NOAIRLOCK"] && [ -n "$CROSS_COMPILE" ]; then
 fi
 
 # Create per-target work directories
-MYBUILD="$BUILD/${CROSS}-tmp" && rm -rf "$MYBUILD" &&
-mkdir -p "$MYBUILD" "$OUTPUT" "$LOG" || exit 1
+TEMP="$BUILD/${CROSS}-tmp" && rm -rf "$TEMP" &&
+mkdir -p "$TEMP" "$OUTPUT" "$LOG" || exit 1
 [ -z "$ROOT" ] && ROOT="$OUTPUT/fs" && rm -rf "$ROOT"
 
 # ----- log build output
@@ -253,7 +253,7 @@ else
 
   announce "linux-$KARCH"
   pushd "$LINUX" && make distclean && popd &&
-  cp -sfR "$LINUX" "$MYBUILD/linux" && pushd "$MYBUILD/linux" &&
+  cp -sfR "$LINUX" "$TEMP/linux" && pushd "$TEMP/linux" &&
   # Fix x86-64 and sh2eb
   sed -Eis '/select HAVE_(STACK_VALIDATION|OBJTOOL)/d' arch/x86/Kconfig &&
   sed -is 's/depends on !SMP/& || !MMU/' mm/Kconfig &&
@@ -296,4 +296,4 @@ if [ -z "$BUILTIN" ]; then
 fi
 
 mv "$LOG/$CROSS".{n,y}
-rmdir "$MYBUILD" "$BUILD" 2>/dev/null || exit 0 # remove if empty, not an error
+rmdir "$TEMP" "$BUILD" 2>/dev/null || exit 0 # remove if empty, not an error
