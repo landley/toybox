@@ -43,12 +43,12 @@ elif [ -n "$CROSS" ]; then # CROSS=all/allnonstop/$ARCH else list known $ARCHes
   fi
 fi
 
+# Set per-target output directory (using "host" if not cross-compiling)
+: ${CROSS:=host} ${OUTPUT:=$TOP/$CROSS}
+
 # Verify selected compiler works
 ${CROSS_COMPILE}cc --static -xc - -o /dev/null <<< "int main(void){return 0;}"||
   die "${CROSS_COMPILE}cc can't create static binaries"
-
-# When not cross compiling set CROSS=host. Create per-target output directory
-: ${CROSS:=host} ${OUTPUT:=$TOP/$CROSS}
 
 # ----- Create hermetic build environment
 
@@ -244,7 +244,7 @@ else
   if [ -n "$QEMU" ]; then
     [ -z "$BUILTIN" ] && INITRD="-initrd initramfs.cpio.gz"
     { echo qemu-system-"$QEMU" '"$@"' $QEMU_MORE -nographic -no-reboot -m 256 \
-        -kernel linux-kernel $INITRD ${DTB:+-dtb "$(basename "$DTB")"} \
+        -kernel linux-kernel $INITRD ${DTB:+-dtb linux.dtb} \
         "-append \"panic=1 HOST=$TARGET console=$KARGS \$KARGS\"" &&
       echo "echo -e '\\e[?7h'"
     } > "$OUTPUT"/run-qemu.sh &&
@@ -284,7 +284,7 @@ else
 
   # Build kernel. Copy config, device tree binary, and kernel binary to output
   make ARCH=$KARCH CROSS_COMPILE="$CROSS_COMPILE" -j $(nproc) || exit 1
-  [ -n "$DTB" ] && { cp "$DTB" "$OUTPUT" || exit 1 ;}
+  [ -n "$DTB" ] && { cp "$DTB" "$OUTPUT/linux.dtb" || exit 1 ;}
   cp "$VMLINUX" "$OUTPUT"/linux-kernel && cd .. && rm -rf linux && popd ||exit 1
 fi
 
