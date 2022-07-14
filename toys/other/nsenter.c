@@ -12,8 +12,8 @@
  *
 
 // Note: flags go in same order (right to left) for shared subset
-USE_NSENTER(NEWTOY(nsenter, "<1F(no-fork)t#<1(target)i:(ipc);m:(mount);n:(net);p:(pid);u:(uts);U:(user);", TOYFLAG_USR|TOYFLAG_BIN))
-USE_UNSHARE(NEWTOY(unshare, "<1^f(fork);r(map-root-user);i:(ipc);m:(mount);n:(net);p:(pid);u:(uts);U:(user);", TOYFLAG_USR|TOYFLAG_BIN))
+USE_NSENTER(NEWTOY(nsenter, "<1a(all)F(no-fork)t#<1(target)C(cgroup):;i:(ipc);m:(mount);n:(net);p:(pid);u:(uts);U:(user);", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
+USE_UNSHARE(NEWTOY(unshare, "<1^a(all)f(fork)r(map-root-user)C(cgroup):;i(ipc):;m(mount):;n(net):;p(pid):;u(uts):;U(user):;", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
 
 config UNSHARE
   bool "unshare"
@@ -21,20 +21,27 @@ config UNSHARE
   help
     usage: unshare [-imnpuUr] COMMAND...
 
-    Create new container namespace(s) for this process and its children, so
-    some attribute is not shared with the parent process.
+    Create new container namespace(s) for this process and its children, allowing
+    the new set of processes to have a different view of the system than the
+    parent process.
 
+    -a	Unshare all supported namespaces
     -f	Fork command in the background (--fork)
+    -r	Become root (map current euid/egid to 0/0, implies -U) (--map-root-user)
+
+    Available namespaces:
+    -C	Control groups (--cgroup)
     -i	SysV IPC (message queues, semaphores, shared memory) (--ipc)
     -m	Mount/unmount tree (--mount)
     -n	Network address, sockets, routing, iptables (--net)
     -p	Process IDs and init (--pid)
-    -r	Become root (map current euid/egid to 0/0, implies -U) (--map-root-user)
     -u	Host and domain names (--uts)
     -U	UIDs, GIDs, capabilities (--user)
 
-    A namespace allows a set of processes to have a different view of the
-    system than other sets of processes.
+    Each namespace can take an optional argument, a persistent mountpoint usable
+    by the nsenter command to add new processes to that the namespace. (Specify
+    multiple namespaces to unshare seperately, ala -c -i -m because -cim is -c
+    with persistent mount "im".)
 
 config NSENTER
   bool "nsenter"
@@ -44,11 +51,13 @@ config NSENTER
 
     Run COMMAND in an existing (set of) namespace(s).
 
-    -t	PID to take namespaces from    (--target)
+    -a	Enter all supported namespaces (--all)
     -F	don't fork, even if -p is used (--no-fork)
+    -t	PID to take namespaces from    (--target)
 
     The namespaces to switch are:
 
+    -C	Control groups (--cgroup)
     -i	SysV IPC: message queues, semaphores, shared memory (--ipc)
     -m	Mount/unmount tree (--mount)
     -n	Network address, sockets, routing, iptables (--net)
@@ -68,7 +77,7 @@ config NSENTER
 #define setns(fd, nstype) syscall(SYS_setns, fd, nstype)
 
 GLOBALS(
-  char *Uupnmi[6];
+  char *UupnmiC[6];
   long t;
 )
 
@@ -84,28 +93,9 @@ static void write_ugid_map(char *map, unsigned eugid)
   xclose(fd);
 }
 
-static void handle_r(int euid, int egid)
-{
-  int fd;
-
-  if ((fd = open("/proc/self/setgroups", O_WRONLY)) >= 0) {
-    xwrite(fd, "deny", 4);
-    close(fd);
-  }
-
-  write_ugid_map("/proc/self/uid_map", euid);
-  write_ugid_map("/proc/self/gid_map", egid);
-}
-
-static int test_r()
-{
-  return toys.optflags & FLAG_r;
-}
-
-static int test_f()
-{
-  return toys.optflags & FLAG_f;
-}
+static int test_a() { return FLAG(a); }
+static int test_r() { return FLAG(r); }
+static int test_f() { return FLAG(f); }
 
 // Shift back to the context GLOBALS lives in (I.E. matching the filename).
 #define FOR_nsenter
@@ -113,8 +103,9 @@ static int test_f()
 
 void unshare_main(void)
 {
+  char *nsnames = "user\0uts\0pid\0net\0mnt\0ipc\0cgroup";
   unsigned flags[]={CLONE_NEWUSER, CLONE_NEWUTS, CLONE_NEWPID, CLONE_NEWNET,
-                    CLONE_NEWNS, CLONE_NEWIPC}, f = 0;
+                    CLONE_NEWNS, CLONE_NEWIPC, CLONE_NEWCGROUP}, f = 0;
   int i, fd;
 
   // Create new namespace(s)?
@@ -126,10 +117,17 @@ void unshare_main(void)
     if (test_r()) toys.optflags |= FLAG_U;
 
     for (i = 0; i<ARRAY_LEN(flags); i++)
-      if (toys.optflags & (1<<i)) f |= flags[i];
-
+      if (test_a() || (toys.optflags & (1<<i))) f |= flags[i];
     if (unshare(f)) perror_exit(0);
-    if (test_r()) handle_r(euid, egid);
+    if (test_r()) {
+      if ((fd = open("/proc/self/setgroups", O_WRONLY)) >= 0) {
+        xwrite(fd, "deny", 4);
+        close(fd);
+      }
+
+      write_ugid_map("/proc/self/uid_map", euid);
+      write_ugid_map("/proc/self/gid_map", egid);
+    }
 
     if (test_f()) {
       toys.exitval = xrun(toys.optargs);
@@ -138,25 +136,21 @@ void unshare_main(void)
     }
   // Bind to existing namespace(s)?
   } else if (CFG_NSENTER) {
-    char *nsnames = "user\0uts\0pid\0net\0mnt\0ipc";
+    for (i = 0; i<ARRAY_LEN(flags); i++, nsnames += strlen(nsnames)+1) {
+      if (FLAG(a) || (toys.optflags & (1<<i))) {
+        char *filename = TT.UupnmiC[i];
 
-    for (i = 0; i<ARRAY_LEN(flags); i++) {
-      char *filename = TT.Uupnmi[i];
-
-      if (toys.optflags & (1<<i)) {
         if (!filename || !*filename) {
-          if (!(toys.optflags & FLAG_t)) error_exit("need -t or =filename");
-          sprintf(toybuf, "/proc/%ld/ns/%s", TT.t, nsnames);
-          filename = toybuf;
+          if (!FLAG(t)) error_exit("need -t or =filename");
+          sprintf(filename = toybuf, "/proc/%ld/ns/%s", TT.t, nsnames);
         }
 
         if (setns(fd = xopenro(filename), flags[i])) perror_exit("setns");
         close(fd);
       }
-      nsnames += strlen(nsnames)+1;
     }
 
-    if ((toys.optflags & FLAG_p) && !(toys.optflags & FLAG_F)) {
+    if (FLAG(p) && !FLAG(F)) {
       toys.exitval = xrun(toys.optargs);
 
       return;
