@@ -38,6 +38,14 @@ testing "create file" "$TAR file | SUM 3" \
 testing "pass file" "$TAR file | LST" \
   "-rw-rw-r-- root/root 0 2009-02-13 23:31 file\n" "" ""
 
+touch file1 file2
+echo -e "file1\nfile2" > files-newline
+testing "-T newline" "$TAR -T files-newline | LST" \
+  "-rw-rw-r-- root/root 0 2009-02-13 23:31 file1\n-rw-rw-r-- root/root 0 2009-02-13 23:31 file2\n" "" ""
+tr '\n' '\0' < files-newline > files-null
+testing "-T null" "$TAR --null -T files-null | LST" \
+  "-rw-rw-r-- root/root 0 2009-02-13 23:31 file1\n-rw-rw-r-- root/root 0 2009-02-13 23:31 file2\n" "" ""
+
 # The kernel has two hardwired meaningful UIDs: 0 (root) and 65534 (nobody).
 # (Technically changeable via /proc/sys/*/overflowuid but nobody ever does)
 skipnot id nobody >/dev/null

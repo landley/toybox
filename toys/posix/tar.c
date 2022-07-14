@@ -16,8 +16,10 @@
  *
  * Why --exclude pattern but no --include? tar cvzf a.tgz dir --include '*.txt'
  *
+ * No --no-null because the args infrastructure isn't ready.
+ *
 
-USE_TAR(NEWTOY(tar, "&(show-transformed-names)(selinux)(restrict)(full-time)(no-recursion)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mode):(mtime):(group):(owner):(to-command):~(strip-components)(strip)#~(transform)(xform)*o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)P(absolute-names)m(touch)X(exclude-from)*T(files-from)*I(use-compress-program):C(directory):f(file):a[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_TAR(NEWTOY(tar, "&(show-transformed-names)(selinux)(restrict)(full-time)(no-recursion)(null)(numeric-owner)(no-same-permissions)(overwrite)(exclude)*(mode):(mtime):(group):(owner):(to-command):~(strip-components)(strip)#~(transform)(xform)*o(no-same-owner)p(same-permissions)k(keep-old)c(create)|h(dereference)x(extract)|t(list)|v(verbose)J(xz)j(bzip2)z(gzip)S(sparse)O(to-stdout)P(absolute-names)m(touch)X(exclude-from)*T(files-from)*I(use-compress-program):C(directory):f(file):a[!txc][!jzJa]", TOYFLAG_USR|TOYFLAG_BIN))
 
 config TAR
   bool "tar"
@@ -40,6 +42,7 @@ config TAR
     --sparse         Record sparse files  --selinux           Save/restore labels
     --restrict       All under one dir    --no-recursion      Skip dir contents
     --numeric-owner  Use numeric uid/gid, not user/group names
+    --null           Filenames in -T FILE are null-separated, not newline
     --strip-components NUM  Ignore first NUM directory components when extracting
     --xform=SED      Modify filenames via SED expression (ala s/find/replace/g)
     -I PROG          Filter through PROG to compress or PROG -d to decompress
@@ -907,7 +910,8 @@ void tar_main(void)
     trim2list(&TT.excl, TT.exclude->arg);
   for (;TT.X; TT.X = TT.X->next) do_lines(xopenro(TT.X->arg), '\n', do_XT);
   for (args = toys.optargs; *args; args++) trim2list(&TT.incl, *args);
-  for (;TT.T; TT.T = TT.T->next) do_lines(xopenro(TT.T->arg), '\n', do_XT);
+  for (;TT.T; TT.T = TT.T->next)
+    do_lines(xopenro(TT.T->arg), FLAG(null) ? '\0' : '\n', do_XT);
 
   // If include file list empty, don't create empty archive
   if (FLAG(c)) {
