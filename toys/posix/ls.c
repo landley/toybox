@@ -171,7 +171,7 @@ static int compare(void *a, void *b)
     else if (dta->st.st_mtim.tv_nsec > dtb->st.st_mtim.tv_nsec) ret = -1;
     else if (dta->st.st_mtim.tv_nsec < dtb->st.st_mtim.tv_nsec) ret = 1;
   }
-  if (!ret) ret = strcmp(dta->name, dtb->name);
+  if (!ret) ret = strcasecmp(dta->name, dtb->name);
   return ret * reverse;
 }
 
