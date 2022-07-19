@@ -529,7 +529,7 @@ char *quote_filename(char *filename)
       if (quote) t[len++] = '"';
       t[len] = 0;
 
-      return --t;
+      return t-quote;
     }
 
     // construct the new string
