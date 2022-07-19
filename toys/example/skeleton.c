@@ -61,9 +61,6 @@ GLOBALS(
   int more_globals;
 )
 
-// Don't blindly build allyesconfig. The maximum _sane_ config is defconfig.
-#warning skeleton.c is just an example, not something to deploy.
-
 // Parse many different kinds of command line argument:
 void skeleton_main(void)
 {

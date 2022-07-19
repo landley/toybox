@@ -1,0 +1,27 @@
+#!/bin/bash
+
+[ -f testing.sh ] && . testing.sh
+
+#testing "name" "command" "result" "infile" "stdin"
+
+# This is basically a test of lib/args.c argument parsing
+
+out() { printf 'Ran skeleton\n%sOther globals should start zeroed: ' "$@";}
+testcmd "baseline " "" "$(out '')0\n" "" ""
+testcmd "unknown" "-z |& grep -o Unknown" "Unknown\n" "" ""
+testcmd "passthrough args" "bingeley bongeley beep" \
+  "$(out 'optarg=bingeley\noptarg=bongeley\noptarg=beep\n')0\n" "" ""
+testcmd "" "-a" "$(out 'flags=1\nSaw a\n')0\n" "" ""
+testcmd "" "-b |& grep -o Missing" "Missing\n" "" ""
+testcmd "" "-b abc" "$(out 'flags=2\nb=abc\n')0\n" "" ""
+testcmd "" "-c nondigit |& grep -o integer" "integer\n" "" ""
+testcmd "" "-c 123" "$(out 'flags=4\nc=123\n')0\n" "" ""
+testcmd "" "-c 1m" "$(out 'flags=4\nc=1048576\n')0\n" "" ""
+testcmd "" "-d one -d two -d 3,4" "$(out 'flags=8\nd=one\nd=two\nd=3,4\n')0\n" \
+  "" ""
+testcmd "" "-e" "$(out 'flags=10\ne was seen 1 times\n')0\n" "" ""
+testcmd "" "-ee -e -ae" "$(out 'flags=11\nSaw a\ne was seen 4 times\n')0\n" \
+  "" ""
+testcmd "mixed" "123 -c 456 789" \
+  "$(out 'flags=4\nc=456\noptarg=123\noptarg=789\n')0\n" "" ""
+
