@@ -64,7 +64,7 @@ void timeout_main(void)
 
   toys.exitval = 0;
   pid = xpopen_both(toys.optargs+1, FLAG(i) ? fds : 0);
-  if (!FLAG(i)) pipe(fds);
+  if (!FLAG(i)) xpipe(fds);
   TT.pfd.events = POLLIN;
   TT.pfd.fd = fds[1];
   ms = nantomil(&tts);
