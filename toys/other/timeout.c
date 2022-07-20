@@ -33,12 +33,12 @@ GLOBALS(
   char *s, *k;
 
   struct pollfd pfd;
+  sigjmp_buf sj;
 )
 
 static void handler(int sig)
 {
-  close(TT.pfd.fd);
-  TT.pfd.fd = -1;
+  siglongjmp(TT.sj, 1);
 }
 
 static long nantomil(struct timespec *ts)
@@ -63,15 +63,15 @@ void timeout_main(void)
   if (!FLAG(foreground)) setpgid(0, 0);
 
   toys.exitval = 0;
+  TT.pfd.events = POLLIN;
+  if (sigsetjmp(TT.sj, 1)) goto done;
+  xsignal_flags(SIGCHLD, handler, SA_NOCLDSTOP);
   pid = xpopen_both(toys.optargs+1, FLAG(i) ? fds : 0);
   if (!FLAG(i)) xpipe(fds);
-  TT.pfd.events = POLLIN;
   TT.pfd.fd = fds[1];
   ms = nantomil(&tts);
-  xsignal_flags(SIGCHLD, handler, SA_NOCLDSTOP);
   for (;;) {
     if (1 != xpoll(&TT.pfd, 1, ms)) {
-      if (-1==TT.pfd.fd) break;
       if (FLAG(v))
         perror_msg("sending signal %s to command %s", num_to_sig(nextsig),
           toys.optargs[1]);
@@ -93,6 +93,7 @@ void timeout_main(void)
     }
     if (TT.pfd.revents&POLLHUP) break;
   }
+done:
   xsignal(SIGCHLD, SIG_DFL);
   ii = xpclose_both(pid, fds);
 
