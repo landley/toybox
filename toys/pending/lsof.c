@@ -54,7 +54,7 @@ static void print_info(void *data)
     int i;
 
     for (i = 0; i<toys.optc; i++)
-      if (same_file(TT.sought_files+i, &fi->di)) break;
+      if (same_dev_ino(TT.sought_files+i, &fi->di)) break;
     if (i==toys.optc) return;
   }
 
@@ -89,8 +89,7 @@ static void fill_flags(struct file_info *fi)
   unsigned flags;
 
   snprintf(toybuf, sizeof(toybuf), "/proc/%d/fdinfo/%s", fi->pi.pid, fi->fd);
-  fp = fopen(toybuf, "r");
-  if (!fp) return;
+  if (!(fp = fopen(toybuf, "r"))) return;
 
   if (fscanf(fp, "pos: %lld flags: %o", &pos, &flags) == 2) {
     flags &= O_ACCMODE;
