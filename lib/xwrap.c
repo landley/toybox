@@ -252,7 +252,7 @@ pid_t xpopen_setup(char **argv, int *pipes, void (*callback)(char **argv))
   // Make the pipes?
   memset(cestnepasun, 0, sizeof(cestnepasun));
   if (pipes) for (pid = 0; pid < 2; pid++)
-    if (pipes[pid]!=-1 && pipe(cestnepasun+(2*pid))) perror_exit("pipe");
+    if (pipes[pid]==-1 && pipe(cestnepasun+(2*pid))) perror_exit("pipe");
 
   if (!(pid = CFG_TOYBOX_FORK ? xfork() : XVFORK())) {
     // Child process: Dance of the stdin/stdout redirection.
