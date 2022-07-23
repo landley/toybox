@@ -111,7 +111,7 @@ wrong_args()
 # Announce success
 do_pass()
 {
-  ! verbose_has nopass && printf "%s\n" "$SHOWPASS: $NAME"
+  verbose_has nopass || printf "%s\n" "$SHOWPASS: $NAME"
 }
 
 # Announce failure and handle fallout for txpect
@@ -154,10 +154,7 @@ testing()
   [ $RETVAL -gt 128 ] &&
     echo "exited with signal (or returned $RETVAL)" >> actual
   DIFF="$(diff -au${NOSPACE:+w} expected actual)"
-  if [ -n "$DIFF" ]
-  then do_fail
-  else do_pass
-  fi
+  [ -z "$DIFF" ] && do_pass || VERBOSE=all do_fail
   if ! verbose_has quiet && { [ -n "$DIFF" ] || verbose_has spam; }
   then
     [ ! -z "$4" ] && printf "%s\n" "echo -ne \"$4\" > input"
