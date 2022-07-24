@@ -131,25 +131,31 @@ struct getoptflagstate
   unsigned excludes, requires;
 };
 
+static void forget_arg(struct opts *opt)
+{
+  if (opt->arg) {
+    if (opt->type=='*') llist_traverse((void *)*opt->arg, free);
+    *opt->arg = 0;
+  }
+}
+
 // Use getoptflagstate to parse one command line option from argv
-static int gotflag(struct getoptflagstate *gof, struct opts *opt, int shrt)
+// Sets flags, saves/clears opt->arg, advances gof->arg/gof->argc as necessary
+static void gotflag(struct getoptflagstate *gof, struct opts *opt, int longopt)
 {
   unsigned long long i;
+  struct opts *and;
+  char *arg;
   int type;
 
   // Did we recognize this option?
-  if (!opt) {
-    if (gof->noerror) return 1;
-    help_exit("Unknown option '%s'", gof->arg);
-  }
+  if (!opt) help_exit("Unknown option '%s'", gof->arg);
 
   // Might enabling this switch off something else?
   if (toys.optflags & opt->dex[0]) {
-    struct opts *clr;
-
     // Forget saved argument for flag we switch back off
-    for (clr=gof->opts, i=1; clr; clr = clr->next, i<<=1)
-      if (clr->arg && (i & toys.optflags & opt->dex[0])) *clr->arg = 0;
+    for (and = gof->opts, i = 1; and; and = and->next, i<<=1)
+      if (i & toys.optflags & opt->dex[0]) forget_arg(and);
     toys.optflags &= ~opt->dex[0];
   }
 
@@ -159,72 +165,63 @@ static int gotflag(struct getoptflagstate *gof, struct opts *opt, int shrt)
   if (opt->flags&2) gof->stopearly=2;
 
   if (toys.optflags & gof->excludes) {
-    struct opts *bad;
-
-    for (bad=gof->opts, i=1; bad ;bad = bad->next, i<<=1) {
-      if (opt == bad || !(i & toys.optflags)) continue;
-      if (toys.optflags & bad->dex[2]) break;
+    for (and = gof->opts, i = 1; and; and = and->next, i<<=1) {
+      if (opt == and || !(i & toys.optflags)) continue;
+      if (toys.optflags & and->dex[2]) break;
     }
-    if (bad) help_exit("No '%c' with '%c'", opt->c, bad->c);
+    if (and) help_exit("No '%c' with '%c'", opt->c, and->c);
   }
 
-  // Does this option take an argument?
-  if (!gof->arg || (shrt && !gof->arg[1])) {
-    gof->arg = 0;
-    if (opt->flags & 8) return 0;
-    gof->arg = "";
-  } else gof->arg++;
-  type = opt->type;
+  // Are we NOT saving an argument? (Type 0, '@', unattached ';', short ' ')
+  if (*(arg = gof->arg)) gof->arg++;
+  if ((type = opt->type) == '@') {
+    ++*opt->arg;
+    return;
+  }
+  if (!longopt && *gof->arg && (opt->flags & 4)) return forget_arg(opt);
+  if (!type || (!arg[!longopt] && (opt->flags & 8))) return forget_arg(opt);
 
-  if (type == '@') ++*(opt->arg);
-  else if (type) {
-    char *arg = gof->arg;
+  // Handle "-xblah" and "-x blah", but also a third case: "abxc blah"
+  // to make "tar xCjfv blah1 blah2 thingy" work like
+  // "tar -x -C blah1 -j -f blah2 -v thingy"
 
-    // Handle "-xblah" and "-x blah", but also a third case: "abxc blah"
-    // to make "tar xCjfv blah1 blah2 thingy" work like
-    // "tar -x -C blah1 -j -f blah2 -v thingy"
+  arg = gof->arg;
+  if (gof->nodash_now || !*arg) arg = toys.argv[++gof->argc];
+  if (!gof->nodash_now) gof->arg = "";
+  if (!arg) {
+    struct longopts *lo;
 
-    if (gof->nodash_now || (!arg[0] && !(opt->flags & 8)))
-      arg = toys.argv[++gof->argc];
-    if (!arg) {
-      char *s = "Missing argument to ";
-      struct longopts *lo;
-
-      if (opt->c != -1) help_exit("%s-%c", s, opt->c);
-
-      for (lo = gof->longopts; lo->opt != opt; lo = lo->next);
-      help_exit("%s--%.*s", s, lo->len, lo->str);
-    }
-
-    if (type == ':') *(opt->arg) = (long)arg;
-    else if (type == '*') {
-      struct arg_list **list;
-
-      list = (struct arg_list **)opt->arg;
-      while (*list) list=&((*list)->next);
-      *list = xzalloc(sizeof(struct arg_list));
-      (*list)->arg = arg;
-    } else if (type == '#' || type == '-') {
-      long l = atolx(arg);
-      if (type == '-' && !ispunct(*arg)) l*=-1;
-      if (l < opt->val[0].l) help_exit("-%c < %ld", opt->c, opt->val[0].l);
-      if (l > opt->val[1].l) help_exit("-%c > %ld", opt->c, opt->val[1].l);
-
-      *(opt->arg) = l;
-    } else if (CFG_TOYBOX_FLOAT && type == '.') {
-      FLOAT *f = (FLOAT *)(opt->arg);
-
-      *f = strtod(arg, &arg);
-      if (opt->val[0].l != LONG_MIN && *f < opt->val[0].f)
-        help_exit("-%c < %lf", opt->c, (double)opt->val[0].f);
-      if (opt->val[1].l != LONG_MAX && *f > opt->val[1].f)
-        help_exit("-%c > %lf", opt->c, (double)opt->val[1].f);
-    } else if (type=='%') *(opt->arg) = xparsemillitime(arg);
-
-    if (!gof->nodash_now) gof->arg = "";
+    arg = "Missing argument to ";
+    if (opt->c != -1) help_exit("%s-%c", arg, opt->c);
+    for (lo = gof->longopts; lo->opt != opt; lo = lo->next);
+    help_exit("%s--%.*s", arg, lo->len, lo->str);
   }
 
-  return 0;
+  // Parse argument by type
+  if (type == ':') *(opt->arg) = (long)arg;
+  else if (type == '*') {
+    struct arg_list **list;
+
+    list = (struct arg_list **)opt->arg;
+    while (*list) list=&((*list)->next);
+    *list = xzalloc(sizeof(struct arg_list));
+    (*list)->arg = arg;
+  } else if (type == '#' || type == '-') {
+    long l = atolx(arg);
+    if (type == '-' && !ispunct(*arg)) l*=-1;
+    if (l < opt->val[0].l) help_exit("-%c < %ld", opt->c, opt->val[0].l);
+    if (l > opt->val[1].l) help_exit("-%c > %ld", opt->c, opt->val[1].l);
+
+    *(opt->arg) = l;
+  } else if (CFG_TOYBOX_FLOAT && type == '.') {
+    FLOAT *f = (FLOAT *)(opt->arg);
+
+    *f = strtod(arg, &arg);
+    if (opt->val[0].l != LONG_MIN && *f < opt->val[0].f)
+      help_exit("-%c < %lf", opt->c, (double)opt->val[0].f);
+    if (opt->val[1].l != LONG_MAX && *f > opt->val[1].f)
+      help_exit("-%c > %lf", opt->c, (double)opt->val[1].f);
+  } else if (type=='%') *(opt->arg) = xparsemillitime(arg);
 }
 
 // Parse this command's options string into struct getoptflagstate, which
@@ -270,7 +267,7 @@ static int parse_optflaglist(struct getoptflagstate *gof)
       new->val[0].l = LONG_MIN;
       new->val[1].l = LONG_MAX;
     }
-    // Each option must start with "(" or an option character.  (Bare
+    // Each option must start with "(" or an option character. (Bare
     // longopts only come at the start of the string.)
     if (*options == '(' && new->c != -1) {
       char *end;
@@ -312,8 +309,8 @@ static int parse_optflaglist(struct getoptflagstate *gof)
       } else error_exit("<>= only after .#%%");
       options = --temp;
 
-    // At this point, we've hit the end of the previous option.  The
-    // current character is the start of a new option.  If we've already
+    // At this point, we've hit the end of the previous option. The
+    // current character is the start of a new option. If we've already
     // assigned an option to this struct, loop to allocate a new one.
     // (It'll get back here afterwards and fall through to next else.)
     } else if (new->c) {
@@ -433,7 +430,10 @@ void get_optflags(void)
         check_help(toys.argv+gof.argc);
         for (lo = gof.longopts; lo; lo = lo->next) {
           for (ii = 0; ii<lo->len; ii++) if (gof.arg[ii] != lo->str[ii]) break;
-          if (!gof.arg[ii] || (gof.arg[ii]=='=' && lo->opt->type)) {
+
+          // = only terminates when we can take an argument, not type 0 or '@'
+          if (!gof.arg[ii] || (gof.arg[ii]=='=' && !strchr("@", lo->opt->type)))
+          {
             al2 = xmalloc(sizeof(struct arg_list));
             al2->next = al;
             al2->arg = (void *)lo;
@@ -458,11 +458,11 @@ void get_optflags(void)
           llist_traverse(al, free);
           if (*libbuf) error_exit("bad --%s (%s)", gof.arg, libbuf);
         }
+
         // One unambiguous match?
         if (lo) {
           catch = lo->opt;
-          if (!gof.arg[lo->len]) gof.arg = 0;
-          else gof.arg += lo->len;
+          while (!strchr("=", *gof.arg)) gof.arg++;
         // Should we handle this --longopt as a non-option argument?
         } else if (gof.noerror) {
           gof.arg -= 2;
@@ -470,7 +470,7 @@ void get_optflags(void)
         }
 
         // Long option parsed, handle option.
-        gotflag(&gof, catch, 0);
+        gotflag(&gof, catch, 1);
         continue;
       }
 
@@ -480,7 +480,7 @@ void get_optflags(void)
       else goto notflag;
     }
 
-    // At this point, we have the args part of -args.  Loop through
+    // At this point, we have the args part of -args. Loop through
     // each entry (could be -abc meaning -a -b -c)
     saveflags = toys.optflags;
     while (gof.arg && *gof.arg) {
@@ -488,14 +488,16 @@ void get_optflags(void)
       // Identify next option char.
       for (catch = gof.opts; catch; catch = catch->next)
         if (*gof.arg == catch->c)
-          if (!((catch->flags&4) && gof.arg[1])) break;
+          if (!gof.arg[1] || (catch->flags&(4|8))!=4) break;
 
-      // Handle option char (advancing past what was used)
-      if (gotflag(&gof, catch, 1) ) {
+      if (!catch && gof.noerror) {
         toys.optflags = saveflags;
         gof.arg = toys.argv[gof.argc];
         goto notflag;
       }
+
+      // Handle option char (advancing past what was used)
+      gotflag(&gof, catch, 0);
     }
     continue;
 

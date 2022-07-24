@@ -12,7 +12,7 @@
 // Accept many different kinds of command line argument (see top of lib/args.c)
 // Demonstrate two commands in the same file (see www/documentation.html)
 
-USE_SKELETON(NEWTOY(skeleton, "(walrus)(blubber):;(also):e@d*c#b:a", TOYFLAG_USR|TOYFLAG_BIN))
+USE_SKELETON(NEWTOY(skeleton, "(walrus)(blubber):;(also):h(hlong):; g(glong): f(longf):;e@d*c#b:a", TOYFLAG_USR|TOYFLAG_BIN))
 USE_SKELETON_ALIAS(NEWTOY(skeleton_alias, "b#dq", TOYFLAG_USR|TOYFLAG_BIN))
 
 config SKELETON
@@ -51,7 +51,7 @@ GLOBALS(
       long c;
       struct arg_list *d;
       long e;
-      char *also, *blubber;
+      char *f, *g, *h, *also, *blubber;
     } s;
     struct {
       long b;
@@ -79,6 +79,9 @@ void skeleton_main(void)
     TT.s.d = TT.s.d->next;
   }
   if (TT.s.e) printf("e was seen %ld times\n", TT.s.e);
+  if (TT.s.f) printf("f=%s\n", TT.s.f);
+  if (TT.s.g) printf("g=%s\n", TT.s.g);
+  if (TT.s.h) printf("h=%s\n", TT.s.h);
   for (optargs = toys.optargs; *optargs; optargs++)
     printf("optarg=%s\n", *optargs);
   if (FLAG(walrus)) printf("Saw --walrus\n");

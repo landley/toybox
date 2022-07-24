@@ -12,8 +12,8 @@
  *
 
 // Note: flags go in same order (right to left) for shared subset
-USE_NSENTER(NEWTOY(nsenter, "<1a(all)F(no-fork)t#<1(target)C(cgroup):;i:(ipc);m:(mount);n:(net);p:(pid);u:(uts);U:(user);", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
-USE_UNSHARE(NEWTOY(unshare, "<1^a(all)f(fork)r(map-root-user)C(cgroup):;i(ipc):;m(mount):;n(net):;p(pid):;u(uts):;U(user):;", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
+USE_NSENTER(NEWTOY(nsenter, "<1a(all)F(no-fork)t#<1(target)C(cgroup):; i(ipc):; m(mount):; n(net):; p(pid):; u(uts):; U(user):; ", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
+USE_UNSHARE(NEWTOY(unshare, "<1^a(all)f(fork)r(map-root-user)C(cgroup):; i(ipc):; m(mount):; n(net):; p(pid):; u(uts):; U(user):; ", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
 
 config UNSHARE
   bool "unshare"
