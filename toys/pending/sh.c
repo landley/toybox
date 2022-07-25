@@ -1865,7 +1865,7 @@ static int expand_arg_nobrace(struct sh_arg *arg, char *str, unsigned flags,
 
         // Recursively calculate result
         if (!recalculate(&ll, &s, 0) || *s) {
-          error_msg("bad math: %s @ %ld", ss, (s-ss)+1);
+          error_msg("bad math: %s @ %ld", ss, (long)(s-ss)+1);
           goto fail;
         }
         ii += kk-1;
@@ -2053,7 +2053,7 @@ barf:
           }
           if (!lc || *ss != '}') {
             for (s = ss; *s != '}' && *s != ':'; s++);
-            error_msg("bad %.*s @ %ld", (int)(s-slice), slice, ss-slice);
+            error_msg("bad %.*s @ %ld", (int)(s-slice), slice,(long)(ss-slice));
 //TODO fix error message
             goto fail;
           }
@@ -2811,7 +2811,7 @@ static struct sh_process *run_command(void)
     funk = TT.funcslen;
     ii = strlen(s)-2;
     if (!recalculate(&ll, &ss, 0) || ss!=s+ii)
-      perror_msg("bad math: %.*s @ %ld", ii-2, s+2, (ss-s)-2);
+      perror_msg("bad math: %.*s @ %ld", ii-2, s+2, (long)(ss-s)-2);
     else toys.exitval = !ll;
     pp->exit = toys.exitval;
     s = 0; // Really!
@@ -3768,7 +3768,7 @@ static void run_lines(void)
             }
             in = out = *TT.ff->blk->farg.v;
             if (!recalculate(&ll, &in, 0) || *in) {
-              perror_msg("bad math: %s @ %ld", in, in-out);
+              perror_msg("bad math: %s @ %ld", in, (long)(in-out));
               break;
             }
 
@@ -3874,7 +3874,7 @@ static void run_lines(void)
             }
             aa = bb = TT.ff->blk->farg.v[i];
             if (!recalculate(&ll, &aa, 0) || *aa) {
-              perror_msg("bad math: %s @ %ld", aa, aa-bb);
+              perror_msg("bad math: %s @ %ld", aa, (long)(aa-bb));
               break;
             }
             if (i==1 && !ll) TT.ff->pl = pop_block();
