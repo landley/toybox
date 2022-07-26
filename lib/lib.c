@@ -1146,7 +1146,7 @@ void names_to_pid(char **names, int (*callback)(pid_t pid, char *name),
         char buf[32];
 
         sprintf(buf, "/proc/%u/exe", u);
-        if (stat(buf, &st2) && !same_file(&st1, &st2)) continue;
+        if (stat(buf, &st2) || !same_file(&st1, &st2)) continue;
         goto match;
       }
 
