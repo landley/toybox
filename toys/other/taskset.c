@@ -34,13 +34,11 @@ config TASKSET
 #define FOR_taskset
 #include "toys.h"
 
+// mask is array of long which makes layout a bit weird on big endian systems
 #define sched_setaffinity(pid, size, cpuset) \
   syscall(__NR_sched_setaffinity, (pid_t)pid, (size_t)size, (void *)cpuset)
 #define sched_getaffinity(pid, size, cpuset) \
   syscall(__NR_sched_getaffinity, (pid_t)pid, (size_t)size, (void *)cpuset)
-
-// mask is an array of long, which makes the layout a bit weird on big
-// endian systems but as long as it's consistent...
 
 static void do_taskset(pid_t pid, int quiet)
 {
@@ -48,21 +46,20 @@ static void do_taskset(pid_t pid, int quiet)
   char *s = *toys.optargs, *failed = "failed to %s %d's affinity";
   int i, j, k;
 
+  // loop through twice to display before/after affinity masks
   for (i=0; ; i++) {
     if (!quiet) {
-      int j = sizeof(toybuf), flag = 0;
-
       if (-1 == sched_getaffinity(pid, sizeof(toybuf), (void *)mask))
         perror_exit(failed, "get", pid);
 
       printf("pid %d's %s affinity mask: ", pid, i ? "new" : "current");
 
-      while (j--) {
+      for (j = sizeof(toybuf), k = 0; j--;) {
         int x = 255 & (mask[j/sizeof(long)] >> (8*(j&(sizeof(long)-1))));
 
-        if (flag) printf("%02x", x);
+        if (k) printf("%02x", x);
         else if (x) {
-          flag++;
+          k++;
           printf("%x", x);
         }
       }
@@ -89,26 +86,25 @@ static void do_taskset(pid_t pid, int quiet)
 
 static int task_callback(struct dirtree *new)
 {
-  if (!new->parent) return DIRTREE_RECURSE;
-  if (isdigit(*new->name)) do_taskset(atoi(new->name), 0);
+  if (!new->parent) return DIRTREE_RECURSE|DIRTREE_SHUTUP|DIRTREE_PROC;
+  do_taskset(atoi(new->name), 0);
 
   return 0;
 }
 
 void taskset_main(void)
 {
-  if (!(toys.optflags & FLAG_p)) {
+  if (!FLAG(p)) {
     if (toys.optc < 2) error_exit("Needs 2 args");
     do_taskset(getpid(), 1);
     xexec(toys.optargs+1);
   } else {
-    char *c;
+    char *c, buf[33];
     pid_t pid = strtol(toys.optargs[toys.optc-1], &c, 10);
 
     if (*c) error_exit("Not int %s", toys.optargs[1]);
 
-    if (toys.optflags & FLAG_a) {
-      char buf[33];
+    if (FLAG(a)) {
       sprintf(buf, "/proc/%ld/task/", (long)pid);
       dirtree_read(buf, task_callback);
     } else do_taskset(pid, 0);
