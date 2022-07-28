@@ -114,15 +114,26 @@ void taskset_main(void)
 void nproc_main(void)
 {
   unsigned i, j, nproc = 0;
+  DIR *dd;
 
   // This can only detect 32768 processors. Call getaffinity and count bits.
-  if (!toys.optflags && -1!=sched_getaffinity(getpid(), 4096, toybuf)) {
+  if (!toys.optflags && -1!=sched_getaffinity(getpid(), 4096, toybuf))
     for (i = 0; i<4096; i++)
       if (toybuf[i]) for (j=0; j<8; j++) if (toybuf[i]&(1<<j)) nproc++;
+
+  // If getaffinity failed or --all, count cpu entries in sysfs
+  // (/proc/cpuinfo filters out hot-unplugged CPUs, sysfs doesn't)
+  if (!nproc && (dd = opendir("/sys/devices/system/cpu"))) {
+    struct dirent *de;
+    char *ss;
+
+    while ((de = readdir(dd))) {
+      if (memcmp(de->d_name, "cpu", 3)) continue;
+      for (ss = de->d_name+3; isdigit(*ss); ss++);
+      if (!*ss) nproc++;
+    }
+    closedir(dd);
   }
 
-  // If getaffinity failed or --all, count cpu entries in proc
-  if (!nproc) nproc = sysconf(_SC_NPROCESSORS_CONF);
-
-  xprintf("%u\n", nproc);
+  xprintf("%u\n", nproc ? : 1);
 }
