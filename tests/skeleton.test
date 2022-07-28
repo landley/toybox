@@ -24,15 +24,22 @@ testcmd "" "-ee -e -ae" "$(out 'flags=11\nSaw a\ne was seen 4 times\n')\n" \
   "" ""
 testcmd "mixed" "123 -c 456 789" \
   "$(out 'flags=4\nc=456\noptarg=123\noptarg=789\n')\n" "" ""
+# ala date -I
 testcmd "':;' short attached" "-fabc" "$(out 'flags=20\nf=abc\n')\n" "" ""
 testcmd "':;' short detached" "-f abc" "$(out 'flags=20\noptarg=abc\n')\n" "" ""
 testcmd "':;' long" "--lo abc" "$(out 'flags=20\noptarg=abc\n')\n" "" ""
-testcmd "':;' long=" "--long=abc" "$(out 'flags=20\nf=abc\n')\n" "" ""
+testcmd "':;' long=x" "--long=abc" "$(out 'flags=20\nf=abc\n')\n" "" ""
+testcmd "':;' long=" "--long=" "$(out 'flags=20\nf=\n')\n" "" ""
+testcmd "':;' long detached" "--long abc" "$(out 'flags=20\noptarg=abc\n')\n" "" ""
+# ala kill -stop
 testcmd "': ' short attached" "-gabc 2>/dev/null || echo yup" "yup\n" "" ""
 testcmd "': ' short detached" "-g abc" "$(out 'flags=40\ng=abc\n')\n" "" ""
 testcmd "': ' long" "--glong abc" "$(out 'flags=40\ng=abc\n')\n" "" ""
-testcmd "': ' long=" "--gl=abc" "$(out 'flags=40\ng=abc\n')\n" "" ""
+testcmd "': ' long=x" "--gl=abc" "$(out 'flags=40\ng=abc\n')\n" "" ""
+testcmd "': ' long=" "--gl=" "$(out 'flags=40\ng=\n')\n" "" ""
+# ala unshare -fim
 testcmd "':; ' short attached" "-habc" "$(out 'flags=83\nSaw a\nb=c\n')\n" "" ""
 testcmd "':; ' short detached" "-h abc" "$(out 'flags=80\noptarg=abc\n')\n" "" ""
-testcmd "':; ' long attached" "--h=abc" "$(out 'flags=80\nh=abc\n')\n" "" ""
+testcmd "':; ' long=x" "--h=abc" "$(out 'flags=80\nh=abc\n')\n" "" ""
+testcmd "':; ' long=" "--h=" "$(out 'flags=80\nh=\n')\n" "" ""
 testcmd "':; ' long detached" "--hlong abc" "$(out 'flags=80\noptarg=abc\n')\n" "" ""

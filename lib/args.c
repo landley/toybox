@@ -185,8 +185,8 @@ static void gotflag(struct getoptflagstate *gof, struct opts *opt, int longopt)
   // to make "tar xCjfv blah1 blah2 thingy" work like
   // "tar -x -C blah1 -j -f blah2 -v thingy"
 
-  arg = gof->arg;
-  if (gof->nodash_now || !*arg) arg = toys.argv[++gof->argc];
+  if (longopt && *arg) arg++;
+  else arg = (gof->nodash_now||!*gof->arg) ? toys.argv[++gof->argc] : gof->arg;
   if (!gof->nodash_now) gof->arg = "";
   if (!arg) {
     struct longopts *lo;
