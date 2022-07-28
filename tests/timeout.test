@@ -23,7 +23,7 @@ testcmd "--preserve-status killed" '--preserve-status -s 9 .1 sleep 100 ; echo $
 # signal and exits, we need to report that as a timeout (unless overridden).
 cat > loop.sh <<EOF
 #!/bin/sh
-trap "exit 3" SIGTERM
+trap "exit 3" TERM
 while true; do
   :
 done
