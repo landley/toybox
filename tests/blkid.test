@@ -53,3 +53,8 @@ toyonly testing "stdin" "bzcat $FILES/blkid/squashfs.bz2 | blkid -" \
 #testing "minix" 'bzcat "$BDIR"/minix.bz2 | blkid -'
 #adfs bfs btrfs cramfs jfs nilfs romfs
 #vfat  // fat32 fat12 fat16
+
+bzcat $FILES/blkid/ext3.bz2 > temp.img
+testcmd "-o value -s" "-o value -s TYPE temp.img" 'ext3\n' "" ""
+testcmd "-o export" "-o export temp.img" 'DEVNAME=temp.img\nLABEL=myext3\nUUID=79d1c877-1a0f-4e7d-b21d-fc32ae3ef101\nSEC_TYPE=ext2\nTYPE=ext3\n' "" ""
+rm temp.img
