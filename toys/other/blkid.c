@@ -66,6 +66,19 @@ struct fstype {
   {"vfat", 0x31544146, 4, 54, 39, 11, 43}     // fat1
 };
 
+static void escape(char *str, int force)
+{
+  if (!force && str[strcspn(str, "\" \\")]) force++;
+  if (!force) return xputsn(str);
+
+  putchar('"');
+  while (*str) {
+    if (strchr("\" \\", *str)) putchar('\\');
+    putchar(*str++);
+  }
+  putchar('"');
+}
+
 static void show_tag(char *key, char *value)
 {
   int show = 0;
@@ -76,9 +89,11 @@ static void show_tag(char *key, char *value)
   } else show = 1;
 
   if (!show || !*value) return;
-  if (!strcasecmp(TT.o, "full")) printf(" %s=\"%s\"", key, value);
-  else if (!strcasecmp(TT.o, "export")) printf("%s=%s\n", key, value);
-  else if (!strcasecmp(TT.o, "value")) xputs(value);
+  if (!strcasecmp(TT.o, "full") || !strcasecmp(TT.o, "export")) {
+    printf(" %s="+!(*TT.o=='f'), key);
+    escape(value, *TT.o=='f');
+    if (*TT.o=='e') xputc('\n');
+  } else if (!strcasecmp(TT.o, "value")) xputs(value);
   else error_exit("bad -o %s", TT.o);
 }
 
