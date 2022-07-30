@@ -68,7 +68,7 @@ struct fstype {
 
 static void escape(char *str, int force)
 {
-  if (!force && str[strcspn(str, "\" \\")]) force++;
+  if (!force && str[strcspn(str, "\" \\\n\t$<>|&;`'~()!#?")]) force++;
   if (!force) return xputsn(str);
 
   putchar('"');
