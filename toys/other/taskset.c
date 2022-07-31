@@ -43,7 +43,7 @@ config TASKSET
 static void do_taskset(pid_t pid, int quiet)
 {
   unsigned long *mask = (unsigned long *)toybuf;
-  char *s = *toys.optargs, *failed = "failed to %s %d's affinity";
+  char *s = *toys.optargs, *failed = "failed to %s pid %d's affinity";
   int i, j, k;
 
   // loop through twice to display before/after affinity masks
