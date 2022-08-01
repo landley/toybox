@@ -298,7 +298,7 @@ egrep expr fdisk find grep gzip head hostname id install ln ls
 mkdir mktemp mv od readlink rm sed sh tail tar touch tr uniq
 wget whoami xargs chgrp comm gunzip less logname split
 tee test time bunzip2 chgrp chroot comm cpio dmesg
-dnsdomainname ftpd ftpget ftpput gunzip ifconfig init less
+dnsdomainname ftpget ftpput gunzip ifconfig init less
 logname losetup mdev mount mountpoint nc pgrep pkill 
 pwd route split stat switch_root tac umount vi
 resize2fs tune2fs fsck.ext2 genext2fs mke2fs xzcat
@@ -338,10 +338,10 @@ build still needs the following busybox commands for which toybox does
 not yet supply adequate replacements:</p>
 
 <blockquote><b>
-awk dd diff expr fdisk ftpd gzip less route sh tr unxz vi xzcat
+awk dd diff expr fdisk gzip less route sh tr unxz vi xzcat
 </b></blockquote>
 
-<p>All of those except awk, ftpd, and less have partial implementations
+<p>All of those except awk and less have partial implementations
 in "pending".</p>
 
 <p>In 2017 Aboriginal Linux development ended, replaced by a much simpler
@@ -1183,7 +1183,9 @@ ebtables is an ethernet version of iptables (for bridging),
 their dropbear is from 2012, and that ssh version is from 2011
 (which means it's about nine months too _old_ to have the heartbleed bug).
 There's both ulogd and ulogd2 (no idea why), and pppd is version 2.4 but
-there's a ppd-2.3 directory also.</p>
+there's a ppd-2.3 directory also. We used to be interested in ftpd/proftpd
+as a way of uploading files out of a vm, but support for that has waned
+over the years and there are lots of alternatives.</p>
 
 <p>Lots of flash stuff:
 flashw is a flash writer, load is an spi flash loader, netflash writes
@@ -1197,9 +1199,9 @@ rootloader seems to be another reflash daemon but without dhcp.</p>
 
 <blockquote><b><p>
 agetty cal cksum cron dhcpcd dhcpcd-new dhcpd dhcp-isc dosfstools e2fsprogs
-elvis-tiny levee fdisk fileutils ftp ftpd grep hd hwclock inetd init ntp
+elvis-tiny levee fdisk fileutils ftp grep hd hwclock inetd init ntp
 iputils login module-init-tools netcat shutils ntpdate lspci ping procps
-proftpd rsync shadow shutils stty sysutils telnet telnetd tftp tftpd traceroute
+rsync shadow shutils stty sysutils telnet telnetd tftp tftpd traceroute
 unzip wget mawk net-tools
 </p></b></blockquote>
 
