@@ -43,7 +43,7 @@ config TASKSET
 static void do_taskset(pid_t pid, int quiet)
 {
   unsigned long *mask = (unsigned long *)toybuf;
-  char *s = *toys.optargs, *failed = "failed to %s pid %d's affinity";
+  char *s, *failed = "failed to %s pid %d's affinity";
   int i, j, k;
 
   // loop through twice to display before/after affinity masks
@@ -54,13 +54,11 @@ static void do_taskset(pid_t pid, int quiet)
 
       printf("pid %d's %s affinity mask: ", pid, i ? "new" : "current");
 
-      for (j = sizeof(toybuf), k = 0; j--;) {
-        int x = 255 & (mask[j/sizeof(long)] >> (8*(j&(sizeof(long)-1))));
-
-        if (k) printf("%02x", x);
-        else if (x) {
+      for (j = sizeof(toybuf)/sizeof(long), k = 0; --j>=0;) {
+        if (k) printf("%0*lx", (int)(2*sizeof(long)), mask[j]);
+        else if (mask[j]) {
           k++;
-          printf("%x", x);
+          printf("%lx", mask[j]);
         }
       }
       putchar('\n');
@@ -68,6 +66,7 @@ static void do_taskset(pid_t pid, int quiet)
 
     if (i || toys.optc < 2) return;
 
+    // Convert hex strong to mask[] bits
     memset(toybuf, 0, sizeof(toybuf));
     k = strlen(s = *toys.optargs);
     s += k;
@@ -102,7 +101,7 @@ void taskset_main(void)
     char *c, buf[33];
     pid_t pid = strtol(toys.optargs[toys.optc-1], &c, 10);
 
-    if (*c) error_exit("Not int %s", toys.optargs[1]);
+    if (*c) error_exit("Not int %s", toys.optargs[toys.optc-1]);
 
     if (FLAG(a)) {
       sprintf(buf, "/proc/%ld/task/", (long)pid);
