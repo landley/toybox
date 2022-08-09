@@ -451,7 +451,7 @@ char *chomp(char *s)
 {
   char *p;
 
-  if (s) for (p = s+strlen(s); p>=s && (p[-1]=='\r' || p[-1]=='\n'); *--p = 0);
+  if (s) for (p = s+strlen(s); p>s && (p[-1]=='\r' || p[-1]=='\n'); *--p = 0);
 
   return s;
 }
