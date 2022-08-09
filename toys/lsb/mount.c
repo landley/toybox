@@ -7,9 +7,12 @@
  * Note: -hV is bad spec, haven't implemented -FsLU yet
  * no mtab (/proc/mounts does it) so -n is NOP.
  * TODO mount -o loop,autoclear (linux git 96c5865559ce)
+ * TODO mount jffs2.img dir (block2mtd)
+ * TODO fstab user
+ * TODO mount [^/]*:def = nfs, \\samba
 
-USE_MOUNT(NEWTOY(mount, "?O:afnrvwt:o*[-rw]", TOYFLAG_BIN|TOYFLAG_STAYROOT))
-//USE_NFSMOUNT(NEWTOY(nfsmount, "?<2>2", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
+USE_MOUNT(NEWTOY(mount, "?RO:afnrvwt:o*[-rw]", TOYFLAG_BIN|TOYFLAG_STAYROOT))
+//USE_NFSMOUNT(NEWTOY(nfsmount, "<2>2", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_STAYROOT))
 
 config MOUNT
   bool "mount"
@@ -57,9 +60,8 @@ config MOUNT
 #include "toys.h"
 
 GLOBALS(
-  struct arg_list *optlist;
-  char *type;
-  char *bigO;
+  struct arg_list *o;
+  char *t, *O;
 
   unsigned long flags;
   char *opts;
@@ -72,7 +74,6 @@ GLOBALS(
 // TODO -p (passfd)
 // TODO -a -t notype,type2
 // TODO --subtree
-// TODO --rbind, -R
 // TODO make "mount --bind,ro old new" work (implicit -o remount)
 // TODO mount -a
 // TODO mount -o remount
@@ -87,15 +88,16 @@ GLOBALS(
 // TODO mount UUID=blah
 
 // Strip flags out of comma separated list of options, return flags,.
+// TODO: flip order and it's tagged array?
 static long flag_opts(char *new, long flags, char **more)
 {
   struct {
     char *name;
     long flags;
   } opts[] = {
-    // NOPs (we autodetect --loop and --bind)
-    {"loop", 0}, {"bind", 0}, {"defaults", 0}, {"quiet", 0},
+    {"loop", 0}, {"defaults", 0}, {"quiet", 0}, // NOPs
     {"user", 0}, {"nouser", 0}, // checked in fstab, ignored in -o
+    {"bind", MS_REC}, {"rbind", ~MS_REC}, // Autodetected but override defaults
     {"ro", MS_RDONLY}, {"rw", ~MS_RDONLY},
     {"nosuid", MS_NOSUID}, {"suid", ~MS_NOSUID},
     {"nodev", MS_NODEV}, {"dev", ~MS_NODEV},
@@ -184,6 +186,7 @@ static void mount_filesystem(char *dev, char *dir, char *type,
         && ((S_ISREG(stdev.st_mode) && S_ISREG(stdir.st_mode))
             || (S_ISDIR(stdev.st_mode) && S_ISDIR(stdir.st_mode))))
     {
+      flags ^= MS_REC;
       flags |= MS_BIND;
     } else fp = xfopen("/proc/filesystems", "r");
   } else if (!strcmp(type, "ignore")) return;
@@ -283,9 +286,10 @@ void mount_main(void)
 
   // First pass; just accumulate string, don't parse flags yet. (This is so
   // we can modify fstab entries with -a, or mtab with remount.)
-  for (o = TT.optlist; o; o = o->next) comma_collate(&opts, o->arg);
+  for (o = TT.o; o; o = o->next) comma_collate(&opts, o->arg);
   if (FLAG(r)) comma_collate(&opts, "ro");
   if (FLAG(w)) comma_collate(&opts, "rw");
+  if (FLAG(R)) comma_collate(&opts, "rbind");
 
   // Treat each --option as -o option
   for (ss = toys.optargs; *ss; ss++) {
@@ -332,7 +336,7 @@ void mount_main(void)
            if (strncmp(dev, mm->dir, len)
                || (mm->dir[len] && mm->dir[len] != '/')) continue;
         } else if (noauto) continue; // never present in the remount case
-        if (!mountlist_istype(mm,TT.type) || !comma_scanall(mm->opts,TT.bigO))
+        if (!mountlist_istype(mm, TT.t) || !comma_scanall(mm->opts, TT.O))
           continue;
       } else {
         if (dir && strcmp(dir, mm->dir)) continue;
@@ -371,7 +375,7 @@ void mount_main(void)
     for (mtl = xgetmountlist(0); mtl && (mm = dlist_pop(&mtl)); free(mm)) {
       char *s = 0;
 
-      if (TT.type && strcmp(TT.type, mm->type)) continue;
+      if (TT.t && strcmp(TT.t, mm->type)) continue;
       if (*mm->device == '/') s = xabspath(mm->device, 0);
       xprintf("%s on %s type %s (%s)\n",
               s ? s : mm->device, mm->dir, mm->type, mm->opts);
@@ -383,7 +387,7 @@ void mount_main(void)
     char *more = 0;
 
     flags = flag_opts(opts, flags, &more);
-    mount_filesystem(dev, dir, TT.type, flags, more);
+    mount_filesystem(dev, dir, TT.t, flags, more);
     if (CFG_TOYBOX_FREE) free(more);
   }
 }

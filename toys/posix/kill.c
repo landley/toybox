@@ -144,8 +144,9 @@ void kill_main(void)
     while (*args) {
       char *arg = *(args++);
 
-      pid = strtol(arg, &tmp, 10);
-      if (*tmp || kill(pid, signum) < 0) error_msg("unknown pid '%s'", arg);
+      pid = estrtol(arg, &tmp, 10);
+      if (!errno && *tmp) errno = ESRCH;
+      if (errno || kill(pid, signum)<0) perror_msg("bad pid '%s'", arg);
     }
   }
 }
