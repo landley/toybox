@@ -7,7 +7,7 @@
  * Deviations from POSIX: Lots.
  * We invented -x
 
-USE_SORT(NEWTOY(sort, USE_SORT_FLOAT("g")"S:T:m" "o:k*t:" "xVbMcszdfirun", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
+USE_SORT(NEWTOY(sort, USE_SORT_FLOAT("g")"S:T:m" "o:k*t:" "xVbMCcszdfirun", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 
 config SORT
   bool "sort"
@@ -21,7 +21,8 @@ config SORT
     -u	Unique lines only
     -n	Numeric order (instead of alphabetical)
     -b	Ignore leading blanks (or trailing blanks in second part of key)
-    -c	Check whether input is sorted
+    -C	Check whether input is sorted
+    -c	Warn if input is unsorted
     -d	Dictionary order (use alphanumeric and whitespace chars only)
     -f	Force uppercase (case insensitive sort)
     -i	Ignore nonprinting characters
@@ -282,9 +283,12 @@ static void sort_lines(char **pline, long len)
   *pline = 0;
 
   // handle -c here so we don't allocate more memory than necessary.
-  if (FLAG(c)) {
-    if (TT.lines && compare_keys((void *)&TT.lines, &line)>-!!FLAG(u))
-      error_exit("%s: Check line %u\n", TT.name, TT.linecount);
+  if (FLAG(C)||FLAG(c)) {
+    if (TT.lines && compare_keys((void *)&TT.lines, &line)>-!!FLAG(u)) {
+      toys.exitval = 1;
+      if (FLAG(C)) xexit();
+      error_exit("%s: Check line %u", TT.name, TT.linecount);
+    }
     free(TT.lines);
     TT.lines = (void *)line;
   } else {
@@ -299,7 +303,7 @@ static void sort_lines(char **pline, long len)
 static void sort_read(int fd, char *name)
 {
   TT.name = name;
-  do_lines(fd, FLAG(z) ? '\0' : '\n', sort_lines);
+  do_lines(fd, '\n'*!FLAG(z), sort_lines);
 }
 
 void sort_main(void)
@@ -339,10 +343,9 @@ void sort_main(void)
           flag = 1<<(optlist-temp2+strlen(optlist)-1);
 
           // Was it a flag that can apply to a key?
-          if (!temp2 || flag>FLAG_x || (flag&(FLAG_u|FLAG_c|FLAG_s|FLAG_z))) {
-            toys.exitval = 2;
+          if (!temp2 || flag>FLAG_x || (flag&(FLAG_u|FLAG_c|FLAG_s|FLAG_z)))
             error_exit("Unknown key option.");
-          }
+
           // b after , means strip _trailing_ space, not leading.
           if (idx && flag==FLAG_b) flag = FLAG_bb;
           key->flags |= flag;
@@ -362,7 +365,7 @@ void sort_main(void)
 
   // The compare (-c) logic was handled in sort_read(),
   // so if we got here, we're done.
-  if (FLAG(c)) goto exit_now;
+  if (FLAG(C)||FLAG(c)) goto exit_now;
 
   // Perform the actual sort
   qsort(TT.lines, TT.linecount, sizeof(char *), compare_keys);
