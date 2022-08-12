@@ -8,9 +8,227 @@ a development environment. See the links on the left for details.</p>
 
 <h2>News</h2>
 
+<a name="12-08-2022" /><a href="#12-08-2022"><hr><h2><b>August 12, 2022</b></h2></a>
+<blockquote><p>
+Huge as office blocks, silent as birds. They hung in the air exactly the same
+way that bricks don't.</p>
+<p>- The Hitchhiker's Guide to the Galaxy</p>
+</p></blockquote>
+
+<p><a href=downloads/toybox-0.8.8.tar.gz>Toybox 0.8.8</a>
+(<a href=https://github.com/landley/toybox/releases/tag/0.8.8>git commit</a>)
+is out, with prebuilt <a href=downloads/binaries/0.8.8>static binaries</a> and
+<a href=downloads/binaries/mkroot/0.8.8>mkroot images</a>
+bootable under QEMU (built using vanilla linux-5.19).</p>
+
+<p>No new or promoted commands this time. (Time based releases mean NOT
+holding the release to wait for things like that.)</p>
+
+<p>Thanks to Google for sponsoring the project's maintainer to focus on toybox
+for a while. (They want a hermetic build, I want Android to build under
+Android. Working on it...)</p>
+
+<p><u>Features</u>:
+The new <b>timeout -i</b> option kills a command for inactivity (output
+to stdout resets the timer).
+Basic support for <b>tar --xform</b> (but not yet the special tar-only s///x
+options).
+--long options now support unambigous abbrevations by default, so you can
+go "ls --col" and it'll figure out you mean --color.
+Added <b>blkid -o</b> understanding "full", "value", and "export" output
+formats. Added <b>nsenter -C</b> (cgroup namespace) and <b>-a</b> (enable all
+supported namespaces).
+Added <b>mount -R</b> and switched the bind mount default to be recursive
+(it still autodetects --bind and --loop mounts based on the source/target type,
+all --bind or --rbind do is switch the recursive flag on and off).</p>
+
+<p>Elliott implemented <b>tar --null</b>,
+and taught <b>file</b> to recognize some Linux kernel images, and
+binaries for Linux's <a href=https://github.com/torvalds/linux/commit/fa96b57c1490>newly merged</a>
+arch/loongarch (a <a href=https://linleygroup.com/newsletters/newsletter_detail.php?num=4623>mips64 variant</a>
+from <a href=https://phoronix.com/news/LoongArch-MIPS-Copy-Kernel>china</a>).</p>
+
+<p><u>Bugfixes</u>:
+Several cleanups to taskset, mostly due to reviewing it before making
+an explainer video, but the review found an inappropriate use of
+TOYFLAG_STAYROOT that got fixed.
+Argument parsing for <b>unshare</b> and <b>nsenter</b> should now match
+debian's (I.E. "unshare -npu" works the same as "unshare -n -p -u" not
+"unshare --net=pu").
+<b>kill 1</b> no longer says "unknown pid 1: not permitted" (it
+says "bad pid" like everywhere else).
+<b>test -x</b> and friends now test live access, not permission bits.
+(Root ignores a lot of permissions, chmod u-x blocks you from executing your
+own file even if g+x and o+x should let you access it, things like selinux can
+further break the unix permission model, etc).
+
+<p>In lib/ a fencepost error in <b>chomp()</b> could read one byte past the start of the string, and
+<b>xpclose_both()</b> no longer closes the parent's stdin and stdout
+when they're explicitly passed through to the child.
+In scripts/runtest.sh, moving tests into subshells broke failure reporting with VERBOSE=all.
+While "make install" was creating directories when $PREFIX pointed to a
+nonexistent directory, "make toybox" didn't even though it tried to place the
+output file there.</p>
+
+<p>James Farrell switched the test suite from detecting root via $UID to
+$(id -u). (It's not a security issue, this just controls which tests we attempt.
+It's another workaround for missing features in mksh.)
+Taolaw spotted that httpd could segfault when xabspath() returns NULL
+(for error conditions such as infinitely looping symlinks
+or "." not resolving when the current directory was deleted).</p>
+
+<p><u>Documentation</u>:
+We <a href=design.html>recorded</a> the
+move from C99 to the C11 standard, which was actually made a while ago:
+the typecast constants we've
+been using for a while are a 2011 feature not available in the 1999 edition
+of the C standard. (This came up when we had to move to C11's "_Noreturn" to work around a compiler bug in llvm.
+Yes __attribute__((__noreturn__)) should be identical, that's the bug part.)</p>
+
+<p>The website's nav bar got updated (among other things, linking to
+our <a href=https://www.youtube.com/channel/UC4VFy3wc1nzq5tUHhiti6fw>youtube
+channel</a>), and the FAQ entry on cross compiling got
+expanded.
+The toys/example commands moved from "make list" to "make list_example"
+(since they're not enabled in defconfig either).
+The cross compiling example command line in "make help" now sets
+LDFLAGS=--static instead of putting that in CFLAGS.</p>
+
+<p>The web archive is back, and since the missing messages were
+never delivered (the mailserver trying to deliver them timed out and bounced
+them back after a couple days) this means unlike previous failures the web
+archive isn't out of sync with reality: the hole was the list actually being
+down until Dreamhost tech support figured out what they broke this time.</p>
+
+<p><u>Pending</u>:
+More work on toysh: case/esac was confused by nested flow control blocks,
+support for [[ &lt; &gt; =~ ]] tests, implemented the rest of the $((math))
+operators and support for ((math)) tests and "for ((math;math;math))" loops,
+and so on. (The next toysh goal is to get the test suite running under mkroot, but
+other stuff keeps coming up.)
+James Farrell upgraded diff, adding three line format options and support
+for diffing FIFOs.
+Rob did several rounds of dd cleanup, then got distracted by diff cleanup
+which turned into a complete rewrite of diff.
+Neither was ready to promote in time for this release though (although the release
+got delayed almost a week before Rob admitted that).</p>
+
+<p><u>Library</u>:
+The <b>lib/args.c</b> command line parser now has two optional modifiers
+(" " and ";") for each argument type, providing 4 combinations (both unset,
+both set, one of each set), and all 4 now have defined semantics and
+tests/skeleton.test exercises them. (This was motivated by <b>unshare</b>
+needing a new combination to match the debian behavior.)
+<b>lib/args.c</b> also added "~" to collate bare longopts (so multiple bare
+longopts can be synonyms setting the same flag or argument variable).</p>
+
+<p>New function <b>xrunread()</b> which launches a child function, writes a
+string to its stdin, and returns everything the child wrote to stdout as another
+string (or NULL if it couldn't run or exited with an error), leaving
+stderr alone (so it goes to the same place the parent's goes).</p>
+
+<p>New functions <b>same_file()</b> and <b>same_def_ino()</b> to simplify
+file metadata comparisons. (If you're wondering why something so simple should
+have a function encapsulating the logic, this release also has at least 3
+different bugfix commits for thinkos from switching all the commands over
+to use them instead of doing the test ourselves. All missing/extra ! or
+&& vs || level stuff.)</p>
+
+<p>The <b>exit_signal()</b> handler now blocks signals so <b>sigatexit()</b> won't
+re-enter the list when it receives two different killer signals. (Since
+<b>xexit()</b> capture uses siglongjmp() this should clean itself up
+when not actually exiting.)</p>
+
+<p><u>Plumbing</u>:
+Several warning suppressions due to things like llvm's fortify finding
+false positives, gcc's "int and long are identical on 32 bits!" warnings
+(yes... they are), the MacOS build being crotchety about vfork()... All verified
+non-issues at present.</p>
+
+<p>The build plumbing now puts more effort into resolving dependencies and figuring
+out when stuff needs to be rebuilt. This includes noticing when the
+toolchain we're building with changes flags, and outputting a warning
+when it detects the need to run "make oldconfig" again. (At the moment
+calling kconfig/ from scripts/ would be a layering violation: I need to
+rewrite kconfig from scratch before it can do that automatically.).</p>
+
+<p>Removed most compile time probes from <b>scripts/genconfig.sh</b>,
+replaced with things like #ifdef (_NR_syscall) and
+#if __has_include(&lt;utmpx.h&gt;), or acknowledging when a probe is a bug
+workaround for a specific libc version and testing for that instead,
+plus simply deleting some config options due to the 7 year horizon expiring
+so we can trust it to be there now.</p>
+
+<p>Usual batch of musl workarounds for behavior that
+<a href=https://github.com/landley/toybox/commit/9a5d7a063c8c>doesn't match</a>
+glibc and bionic or where they've been
+<a href=https://www.openwall.com/lists/musl/2022/07/27/5>arguing about</a>
+stuff for years without actually fixing it.
+Ed Maste of FreeBSD added some FreeBSD checks/cases to
+lib/portability.[hc], mostly in places we already supported Apple or
+OpenBSD.
+The top level "configure" is now re-entrant (shouldn't append stuff
+to enviornment varibles like $CFLAGS twice when read twice).
+The MacOS defconfig now includes a lot more commands.</p>
+
+<p><u>Test suite</u>:
+The diff for failing tests is now output after the FAIL line instead
+of before, "make tests" now runs tar.test by default,
+a new skeleton.test uses toys/example/skeleton.c to exercise the
+lib/args.c command line parsing plumbing,
+scripts/runtest.sh now uses do_pass and do_fail consistently,
+and Rob keeps accidentally checking in bashisms and Elliott keeps submitting
+patches to remove them because android runs the tests under mksh and
+toysh isn't ready yet.</p>
+
+<p>Work in progress to make TEST_HOST=1 pass on newer debian, which is a moving
+target. (The tests didn't change, but the behavior of the gnu utilities
+is not consistent. Or standardized. Or coherent. Or predictable. Or sane.)
+Some minor changes to commands like <b>xxd</b> and <b>cmp</b> to
+make their output look more like what debian's currently producing.</p>
+
+<p>Making the tests pass on MacOS is harder: that calls group 0 "wheel"
+instead of "root" (so things like "tar.test" don't get the same result),
+stuff like "du" or "ls" often cares what filesystem you're mounted on
+(and MacOS hasn't even got the same ones _available_), 
+and we even found a mac kernel bug where extending a sparse
+file sparsely allocates the previous length as actual zeroed disk space
+(ala "truncate -s 3m file; truncate -s 5m file; du file" says it's using
+3 megabytes of disk space). There's probably more but
+that's where we stopped looking for now: since Rob doesn't have a mac
+to test on and the github tests don't reliably run when new commits are
+pushed (skipped when the servers are busy), fixing this hasn't
+been a priority. Lots of little red X in the github history because of this,
+though...</p>
+
+<p><u>Mkroot</u>:
+The output file names are now consistent across architectures: each
+root/$TARGET directory now contains an <b>fs</b> subdirectory with the
+expanded root filesystem, packaged into <b>initramfs.cpio.gz</b>,
+a <b>linux-kernel</b> built from <b>linux-fullconfig</b> which is built
+from <b>linux-miniconfig</b>, and a <b>run-qemu.sh</b> script to launch
+it under qemu. No more architecture name in the filenames (that's what
+the directory name is for), and no more "bzImage" or "vmlinux" depending
+on what filename the kernel build produced.</p>
+
+<p>The fs/init script has better chroot support (not warning about /dev/shm and
+/dev/pts already existing).
+The airlock build no longer includes ftpd (you can use
+httpd and wget, scp out of dropbear, mount a network filesystem from the
+host, or if you really want to still use ftp can match ftpget and ftpput).
+When mkroot is downloading extra packages (for example in the dropbear build),
+it falls back to the host wget if it can't fetch with toybox's version.
+(This is because toybox hasn't got built-in https support yet, it's on the
+todo list.)
+Updated the dropbear build to the current version and fixed a compiler
+path issue.
+Fixed version skew in the <a href=http://lkml.iu.edu/hypermail/linux/kernel/2110.3/00278.html>workaround</a>
+so the Linux kernel build doesn't require a third ELF package (but only
+for x86, not for any other architecture).</p>
+
 <a name="23-07-2022" /><a href="#23-07-2022"><hr><h2><b>July 23, 2022</b></h2></a>
 <p>Sorry the mailing list has been down since the 19th, Dreamhost
-<a href=https://landley.net/notes.html#22-07-2022>happened
+<a href=https://landley.net/notes-2022.html#22-07-2022>happened
 again</a>. (First the web archive was empty, then it was down, then it was
 restored from a backup taken before the "upgrade" but was not updating with
 new messages, which they denied was an actual problem but now timeout bounce
