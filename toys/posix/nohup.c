@@ -21,17 +21,14 @@ config NOHUP
 
 void nohup_main(void)
 {
-  toys.exitval = 125;
   xsignal(SIGHUP, SIG_IGN);
   if (isatty(1)) {
     close(1);
-    if (-1 == open("nohup.out", O_CREAT|O_APPEND|O_WRONLY,
-        S_IRUSR|S_IWUSR ))
-    {
+    if (-1 == open("nohup.out", O_CREAT|O_APPEND|O_WRONLY, S_IRUSR|S_IWUSR)) {
       char *temp = getenv("HOME");
 
-      temp = xmprintf("%s/%s", temp ? temp : "", "nohup.out");
-      xcreate(temp, O_CREAT|O_APPEND|O_WRONLY, 0600);
+      xcreate(temp ? temp = xmprintf("%s/nohup.out", temp) : "nohup.out",
+        O_CREAT|O_APPEND|O_WRONLY, 0600);
       free(temp);
     }
   }
@@ -39,6 +36,6 @@ void nohup_main(void)
     close(0);
     xopen_stdio("/dev/null", O_RDONLY);
   }
-  toys.exitval = 0;
+
   xexec(toys.optargs);
 }

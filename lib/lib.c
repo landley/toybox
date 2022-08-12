@@ -17,7 +17,7 @@ void verror_msg(char *msg, int err, va_list va)
   if (err<0 && CFG_TOYBOX_HELP)
     fprintf(stderr, " (see \"%s --help\")", toys.which->name);
   if (msg || err) putc('\n', stderr);
-  if (!toys.exitval) toys.exitval++;
+  if (!toys.exitval) toys.exitval = (toys.which->flags>>24) ? : 1;
 }
 
 // These functions don't collapse together because of the va_stuff.
