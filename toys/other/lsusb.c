@@ -113,7 +113,7 @@ struct dev_ids *parse_dev_ids(char *name, struct dev_ids **and)
   FILE *fp;
   char *s, *ss, *sss;
   struct dev_ids *ids = 0, *new;
-  int fd = -1, tick = 0;
+  int fd = -1;
 
   // Open compressed or uncompressed file
   sprintf(toybuf, "%s.gz", name);
@@ -132,7 +132,6 @@ struct dev_ids *parse_dev_ids(char *name, struct dev_ids **and)
     if (strstart(&ss, "C ") && and) {
       *and = ids;
       and = 0;
-      tick++;
     } 
     fd = estrtol(sss = ss, &ss, 16);
     if (ss>sss && *ss++==' ') {
