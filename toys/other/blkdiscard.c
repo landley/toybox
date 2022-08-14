@@ -31,8 +31,7 @@ config BLKDISCARD
 
 #define FOR_blkdiscard
 #include "toys.h"
-
-#include <linux/fs.h>
+#include <sys/mount.h>
 
 GLOBALS(
   long o, l;

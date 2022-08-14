@@ -180,11 +180,29 @@ void *memmem(const void *haystack, size_t haystack_length,
 #endif
 
 // Linux headers not listed by POSIX or LSB
-#include <sys/mount.h>
 #ifdef __linux__
 #include <sys/statfs.h>
 #include <sys/swap.h>
 #include <sys/sysinfo.h>
+
+#ifndef BLKDISCARD
+#define BLKDISCARD _IO(0x12,119)
+#endif
+#ifndef BLKSECDISCARD
+#define BLKSECDISCARD _IO(0x12,125)
+#endif
+#ifndef BLKZEROOUT
+#define BLKZEROOUT _IO(0x12,127)
+#endif
+#ifndef FIFREEZE
+#define FIFREEZE        _IOWR('X', 119, int)    /* Freeze */
+#endif
+#ifndef FITHAW
+#define FITHAW          _IOWR('X', 120, int)    /* Thaw */
+#endif
+
+#else
+#include <sys/mount.h>
 #endif
 
 #ifdef __APPLE__

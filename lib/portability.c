@@ -5,7 +5,7 @@
  */
 
 #include "toys.h"
-
+#include <sys/mount.h>
 // We can't fork() on nommu systems, and vfork() requires an exec() or exit()
 // before resuming the parent (because they share a heap until then). And no,
 // we can't implement our own clone() call that does the equivalent of fork()

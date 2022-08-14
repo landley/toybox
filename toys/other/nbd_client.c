@@ -36,6 +36,7 @@ config NBD_CLIENT
 #define FOR_nbd_client
 #include "toys.h"
 #include <linux/nbd.h>
+#include <linux/fs.h>
 
 void nbd_client_main(void)
 {

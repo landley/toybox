@@ -16,6 +16,7 @@ config FREERAMDISK
 */
 
 #include "toys.h"
+#include <sys/mount.h>
 
 void freeramdisk_main(void)
 {

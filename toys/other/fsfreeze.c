@@ -18,7 +18,6 @@ config FSFREEZE
 
 #define FOR_fsfreeze
 #include "toys.h"
-#include <linux/fs.h>
 
 void fsfreeze_main(void)
 {

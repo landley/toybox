@@ -18,6 +18,7 @@ config PARTPROBE
 */
 
 #include "toys.h"
+#include <sys/mount.h>
 
 static void do_partprobe(int fd, char *name)
 {

@@ -22,6 +22,7 @@ config EJECT
 
 #define FOR_eject
 #include "toys.h"
+#include <sys/mount.h>
 #include <scsi/sg.h>
 #include <scsi/scsi.h>
 #include <linux/cdrom.h>

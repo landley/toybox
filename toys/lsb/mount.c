@@ -58,6 +58,7 @@ config MOUNT
 
 #define FOR_mount
 #include "toys.h"
+#include <sys/mount.h>
 
 GLOBALS(
   struct arg_list *o;

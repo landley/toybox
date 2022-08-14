@@ -30,6 +30,7 @@ config UMOUNT
 
 #define FOR_umount
 #include "toys.h"
+#include <sys/mount.h>
 
 GLOBALS(
   struct arg_list *t;

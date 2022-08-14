@@ -19,6 +19,7 @@ config SWITCH_ROOT
 
 #define FOR_switch_root
 #include "toys.h"
+#include <sys/mount.h>
 #include <sys/vfs.h>
 
 GLOBALS(
