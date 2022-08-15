@@ -112,6 +112,18 @@ static inline char *basename(char *path) { return __xpg_basename(path); }
 char *strcasestr(const char *haystack, const char *needle);
 void *memmem(const void *haystack, size_t haystack_length,
   const void *needle, size_t needle_length);
+
+// glibc 2.36 broke sys/mount.h. It was compatible with linux/mount.h for
+// many years, then they broke it and insisted everyone else was wrong.
+#include <linux/fs.h>
+int mount (char *file, char *dir, char *fstype, unsigned long int rwflag, void *data);
+int umount (char *file);
+int umount2(char *file, int flags);
+#define MNT_FORCE 1
+#define MNT_DETACH 2
+#else
+// mount.h still works fine on musl and bionic, only glibc is broken.
+#include <sys/mount.h>
 #endif // defined(glibc)
 
 // getopt_long(), getopt_long_only(), and struct option.
@@ -180,7 +192,6 @@ void *memmem(const void *haystack, size_t haystack_length,
 #endif
 
 // Linux headers not listed by POSIX or LSB
-#include <sys/mount.h>
 #ifdef __linux__
 #include <sys/statfs.h>
 #include <sys/swap.h>
