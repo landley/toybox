@@ -287,7 +287,7 @@ static void sort_lines(char **pline, long len)
     if (TT.lines && compare_keys((void *)&TT.lines, &line)>-!!FLAG(u)) {
       toys.exitval = 1;
       if (FLAG(C)) xexit();
-      error_exit("%s: Check line %u", TT.name, TT.linecount);
+      error_exit("%s: Check line %u", TT.name, TT.linecount+1);
     }
     free(TT.lines);
     TT.lines = (void *)line;

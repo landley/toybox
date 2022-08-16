@@ -104,7 +104,8 @@ toyonly testing "-kx" "sort -k1,1x" "3\na\n0c\n" "" "0c\na\n3\n"
 #  "toy-2.37.tar.gz\ntoy-3.4.tar.gz\ntoy-3.12.tar.gz\ntoy-4.16-rc2.tar.gz\ntoy-4.16.tar.gz\n" "" \
 #  "toy-3.12.tar.gz\ntoy-2.37.tar.gz\ntoy-3.4.tar.gz\ntoy-4.16-rc2.tar.gz\ntoy-4.16.tar.gz"
 
-testcmd "-c" "-uc |& grep -o [0-9]*" "3\n" "" "a\nb\nb\nc"
+testcmd "-c" "-c |& grep -o [0-9]*" "3\n" "" "a\nb\na\nc"
+testcmd "-uc" "-uc |& grep -o [0-9]*" "3\n" "" "a\nb\nb\nc"
 testcmd "-C 1" "-C || echo yes" "yes\n" "" "one\ntwo\nthree"
 testcmd "-C 2" "-C && echo yes" "yes\n" "" "a\nb\nc\n"
 
