@@ -40,7 +40,7 @@ config UNSHARE
 
     Each namespace can take an optional argument, a persistent mountpoint usable
     by the nsenter command to add new processes to that the namespace. (Specify
-    multiple namespaces to unshare seperately, ala -c -i -m because -cim is -c
+    multiple namespaces to unshare separately, ala -c -i -m because -cim is -c
     with persistent mount "im".)
 
 config NSENTER
