@@ -192,6 +192,21 @@ static void alloread(void *buf, int len)
   (*b)[len] = 0;
 }
 
+static char *do_xform(char *name)
+{
+  char *out = xrunread(TT.xfsed, name);
+  int ii;
+
+  if (!out) {
+    error_msg("bad xform on '%s'", name);
+    for (ii = 0; TT.xfsed[ii]; ii++) fprintf(stderr, " '%s'"+!ii, TT.xfsed[ii]);
+    fprintf(stderr, "\n");
+    xexit();
+  }
+
+  return out;
+}
+
 // callback from dirtree to create archive
 static int add_to_tar(struct dirtree *node)
 {
@@ -243,9 +258,7 @@ static int add_to_tar(struct dirtree *node)
   }
 
   // Note: linux sed doesn't add newline, so no need to remove it or use -z.
-  if (TT.xfsed)
-    if (!(hname = xfname = xrunread(TT.xfsed, hname))) error_exit("bad xform");
-
+  if (TT.xfsed) hname = xfname = do_xform(hname);
   if (TT.owner) st->st_uid = TT.ouid;
   if (TT.group) st->st_gid = TT.ggid;
   if (TT.mode) st->st_mode = string_to_mode(TT.mode, st->st_mode);
@@ -782,7 +795,7 @@ static void unpack_tar(char *first)
     // We accept --show-transformed but always do, so it's a NOP.
     name = TT.hdr.name;
     if (TT.xfsed) {
-      if (!(name = xrunread(TT.xfsed, name))) error_exit("bad xform");
+      name = do_xform(name);
       free(TT.hdr.name);
       TT.hdr.name = name;
     }
