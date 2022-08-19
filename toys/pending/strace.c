@@ -245,7 +245,7 @@ static void print_struct(long addr)
           "st_nlink=%ld, st_uid=%d, st_gid=%d, st_blksize=%ld, st_blocks=%ld, "
           "st_size=%lld, st_atime=%ld, st_mtime=%ld, st_ctime=%ld}",
           dev_major(sb.st_dev), dev_minor(sb.st_dev), sb.st_ino, sb.st_mode,
-          sb.st_nlink, sb.st_uid, sb.st_gid, sb.st_blksize, sb.st_blocks,
+          (long) sb.st_nlink, sb.st_uid, sb.st_gid, sb.st_blksize, sb.st_blocks,
           (long long)sb.st_size, sb.st_atime, sb.st_mtime, sb.st_ctime);
     } else {
       fprintf(stderr, "{st_mode=%o, st_size=%lld, ...}", sb.st_mode,
@@ -411,7 +411,7 @@ static void print_args()
                 if (!(s = num_to_sig(v))) fprintf(stderr, "%ld", v);
                 else fprintf(stderr, "SIG%s", s);
                 break;
-      case 'z': fprintf(stderr, "%zd", v); break; // size_t
+      case 'z': fprintf(stderr, "%ld", (long) v); break; // size_t
       case 'x': fprintf(stderr, "%lx", v); break; // hex
 
       case '{': print_struct(v); break;
@@ -497,7 +497,9 @@ static void print_enter(void)
     SC(mremap, "pzzdp"); // TODO: flags
     SC(munmap, "pz");
     SC(nanosleep, "{timespec}/{timespec}");
+#ifdef __NR_newfstatat
     SC(newfstatat, "fs/{stat}d");
+#endif
     SC(open, "sd|open|m");
     SC(openat, "fs|open|m");
     SC(poll, "pdd");
