@@ -17,8 +17,9 @@ config FSFREEZE
 */
 
 #define FOR_fsfreeze
+#define FIFREEZE _IOWR('X', 119, int)
+#define FITHAW   _IOWR('X', 120, int)
 #include "toys.h"
-#include <linux/fs.h>
 
 void fsfreeze_main(void)
 {

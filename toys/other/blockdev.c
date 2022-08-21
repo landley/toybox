@@ -31,7 +31,6 @@ config BLOCKDEV
 
 #define FOR_blockdev
 #include "toys.h"
-#include <linux/fs.h>
 
 GLOBALS(
   long setbsz, setra;

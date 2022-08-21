@@ -30,9 +30,10 @@ config BLKDISCARD
 */
 
 #define FOR_blkdiscard
+#define BLKSECDISCARD _IO(0x12,125)
+#define BLKZEROOUT _IO(0x12,127)
+#define BLKDISCARD _IO(0x12,119)
 #include "toys.h"
-
-#include <linux/fs.h>
 
 GLOBALS(
   long o, l;
