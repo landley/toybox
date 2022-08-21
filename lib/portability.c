@@ -651,7 +651,7 @@ long long sendfile_len(int in, int out, long long bytes, long long *consumed)
       errno = EINVAL;
       len = -1;
 #endif
-      if (len < 0 && errno == EINVAL) {
+      if (len < 0 && (errno == EINVAL || errno == ENOSYS)) {
         try_cfr = 0;
 
         continue;
