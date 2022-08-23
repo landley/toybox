@@ -73,4 +73,6 @@ testing "invalid increment" "seq 1 1f 1 2>/dev/null || echo y" "y\n" "" ""
 testing "INT_MIN" "seq -2147483648 -2147483647" "-2147483648\n-2147483647\n"\
   "" ""
 
+# macOS doesn't include a timeout(1), nor a good alternative.
+skipnot [ "$(uname)" != "Darwin" ]
 testing "fast path" "timeout 10 seq 10000000 > /dev/null" "" "" ""
