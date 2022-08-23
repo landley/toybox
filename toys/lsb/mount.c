@@ -166,7 +166,7 @@ static void mount_filesystem(char *dev, char *dir, char *type,
   }
 
   if (strstart(&dev, "UUID=")) {
-    char *s = xrunread((char *[]){"blkid", "-U", dev, 0}, 0);
+    char *s = chomp(xrunread((char *[]){"blkid", "-U", dev, 0}, 0));
 
     if (!s || strlen(s)>=sizeof(toybuf)) return error_msg("No uuid %s", dev);
     strcpy(dev = toybuf, s);
@@ -253,7 +253,7 @@ static void mount_filesystem(char *dev, char *dir, char *type,
     if (rc && errno == ENOTBLK) {
       char *losetup[] = {"losetup", (flags&MS_RDONLY)?"-fsr":"-fs", dev, 0};
 
-      if ((dev = xrunread(losetup, 0))) continue;
+      if ((dev = chomp(xrunread(losetup, 0)))) continue;
       error_msg("%s failed", *losetup);
       break;
     }
