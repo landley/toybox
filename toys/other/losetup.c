@@ -71,6 +71,16 @@ static int loopback_setup(char *device, char *file)
       }
       close(cfd);
     }
+    if (CFG_TOYBOX_ON_ANDROID && device) {
+      // ANDROID SPECIFIC: /dev is not devtmpfs, instead an userspace daemon
+      // ueventd is responsible for creating the loop devices under /dev.
+      // Wait for the uevent to be processed to avoid race.
+      long long timeout = millitime() + 5000;
+      do {
+        if (!access(device, F_OK) || errno != ENOENT) break;
+        msleep(20);
+      } while (millitime() < timeout);
+    }
   }
 
   if (device) lfd = open(device, TT.openflags);
