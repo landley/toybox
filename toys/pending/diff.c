@@ -52,7 +52,7 @@ GLOBALS(
   struct arg_list *L;
   char *S, *from_file, *to_file, *color, *nou[3];
 
-  long sawdiff;
+  int sawdiff, newfile;
 )
 
 // Array of lines read from an input file, with "unget" support.
@@ -215,14 +215,18 @@ static void dump_hunk(struct half_hunk *h1, struct half_hunk *h2)
 // TODO: test from len 1 and to len 1 so ,%d drops out
 // TODO: test 0 if empty range starts the file
 
-  // TODO: "quote", label, tab-date
-  // TODO: when diff line?
-  xprintf("diff %s %s\n--- %s\n+++ %s\n", h1->name, h2->name,h1->name,h2->name);
-  ss += sprintf(ss, "%d", h1->pos);
+  if (TT.newfile) {
+    // TODO: "quote", --label, tab-date
+    // TODO: when do we output this line?
+    xprintf("diff %s %s\n--- %s\n+++ %s\n", h1->name, h2->name, h1->name,
+            h2->name);
+  }
+  ss += sprintf(ss, "-%d", h1->pos);
   if (h1->len>1) ss += sprintf(ss, ",%d", h1->len);
-  ss += sprintf(ss, " %d", h2->pos);
+  ss += sprintf(ss, " +%d", h2->pos);
   if (h2->len>1) ss += sprintf(ss, ",%d", h2->len);
-  xprintf("@@ %s @@%s\n", toybuf, " no()");
+  xprintf("@@ %s @@%s\n", toybuf, ""); //" no()");
+  TT.newfile = 0;
 
   // Collate both hunks and sort to find duplicate lines
 
@@ -303,6 +307,7 @@ static int find_hunks(struct half_hunk *h1, struct half_hunk *h2)
   int start, ii, differ = 0;
 
   // Search for match.
+  TT.newfile = 1;
   for (;;) {
     trim_hunk(h1, TT.U);
     trim_hunk(h2, TT.U);
@@ -345,8 +350,7 @@ static int find_hunks(struct half_hunk *h1, struct half_hunk *h2)
       h2->len += h2->saved;
       h1->saved = h2->saved = 0;
 
-      differ = 1;
-      TT.sawdiff++;
+      differ = TT.sawdiff = 1;
       dump_hunk(h1, h2);
 
       break;
@@ -413,9 +417,9 @@ static char *connect_name(struct dir_pair *dp, int side)
       int ii = strlen(ss = dd->dd[side][dd->len[side]]->name);
 
       while (ii>1 && ss[ii-1]=='/') ii--;
-      if (s) len += ii+1;
+      if (!s) len += ii+1;
       else {
-        *--s -= '/'*(dd!=dp);
+        *--s = '/'*(dd!=dp);
         memcpy(s -= ii, ss, ii);
       }
     }
