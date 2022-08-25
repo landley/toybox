@@ -52,22 +52,18 @@ void timeout_main(void)
   int ii, ms, nextsig;
   struct timespec tts, kts;
 
-  TT.fds[0] = 0;
-  TT.fds[1] = -1;
-
   // Use same ARGFAIL value for any remaining parsing errors
   toys.exitval = 125;
   xparsetimespec(*toys.optargs, &tts);
   if (TT.k) xparsetimespec(TT.k, &kts);
 
   nextsig = SIGTERM;
-  if (TT.s && -1 == (nextsig = sig_to_num(TT.s)))
-    error_exit("bad -s: '%s'", TT.s);
-
+  if (TT.s && -1==(nextsig = sig_to_num(TT.s))) error_exit("bad -s: '%s'",TT.s);
   if (!FLAG(foreground)) setpgid(0, 0);
 
   toys.exitval = 0;
   TT.pfd.events = POLLIN;
+  TT.fds[1] = -1;
   if (sigsetjmp(TT.sj, 1)) goto done;
   xsignal_flags(SIGCHLD, handler, SA_NOCLDSTOP);
   TT.pid = xpopen_both(toys.optargs+1, FLAG(i) ? TT.fds : 0);
