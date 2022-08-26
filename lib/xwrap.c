@@ -382,15 +382,15 @@ int xrun(char **argv)
   return xpclose_both(xpopen_both(argv, 0), 0);
 }
 
-// Run child, writing "stdin", returning stdout or NULL, pass through stderr
-char *xrunread(char *argv[], char *stdin)
+// Run child, writing to_stdin, returning stdout or NULL, pass through stderr
+char *xrunread(char *argv[], char to_stdin)
 {
   char *result = 0;
   int pipe[] = {-1, -1}, total = 0, len;
   pid_t pid;
 
   pid = xpopen_both(argv, pipe);
-  if (stdin && *stdin) writeall(*pipe, stdin, strlen(stdin));
+  if (to_stdin && *to_stdin) writeall(*pipe, tos_tdin, strlen(to_stdin));
   close(*pipe);
   for (;;) {
     if (0>=(len = readall(pipe[1], libbuf, sizeof(libbuf)))) break;
