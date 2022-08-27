@@ -880,7 +880,7 @@ static void do_XT(char **pline, long len)
 
 static  char *get_archiver()
 {
-  return FLAG(I) ? TT.I : FLAG(z) ? "gzip" : FLAG(J) ? "xz" : "bzip2";
+  return FLAG(I) ? TT.I : FLAG(z) ? "gzip" : FLAG(j) ? "bzip2" : "xz";
 }
 
 void tar_main(void)
@@ -980,7 +980,7 @@ void tar_main(void)
     if (FLAG(j)||FLAG(z)||FLAG(I)||FLAG(J)) {
       int pipefd[2] = {hdr ? -1 : TT.fd, -1}, i, pid;
       struct string_list *zcat = FLAG(I) ? 0 : find_in_path(getenv("PATH"),
-        FLAG(j) ? "bzcat" : FLAG(J) ? "xzcat" : "zcat");
+        FLAG(z) ? "zcat" : FLAG(j) ? "bzcat" : "xzcat");
 
       // Toybox provides more decompressors than compressors, so try them first
       TT.pid = xpopen_both(zcat ? (char *[]){zcat->str, 0} :
