@@ -289,8 +289,8 @@ void tail_main(void)
   if (!FLAG(n) && !FLAG(c)) {
     char *arg = *args;
 
-    // handle old "-42" style arguments, else default to last 10 lines
-    if (arg && *arg == '-' && arg[1]) {
+    // handle old "-42" / "+42" style arguments, else default to last 10 lines
+    if (arg && (*arg == '-' || *arg == '+') && arg[1]) {
       TT.n = atolx(*(args++));
       toys.optc--;
     } else TT.n = -10;
