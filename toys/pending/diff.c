@@ -198,7 +198,7 @@ static char *squish(char **a)
 
 static void dump_hunk(struct half_hunk *h1, struct half_hunk *h2)
 {
-  int ii, jj, kk, ll, mm, nn;
+  int ii, jj, kk, ll, mm;
   char *ss = toybuf, ***big;
 
   if (FLAG(B)) {
@@ -245,52 +245,39 @@ static void dump_hunk(struct half_hunk *h1, struct half_hunk *h2)
   }
   free(big);
 
-  // Loop through lines of output
-  for (ii = jj = 0;;) {
-    // Find next pair (or end if none)
-    for (nn = 0; !nn;) {
-      // Skip non-matching lines, then search for this line's match
-      for (kk = ii; kk<h1->len && !(1&(unsigned long)h1->str[kk]); kk++);
-      for (ll = jj; ll<h2->len && !(1&(unsigned long)h2->str[ll]); ll++);
-      if (kk==h1->len && ll==h2->len) return;
-      for (mm = 0;; mm++) {
-        // Off end?
-        if (kk+mm>=h1->len && kk+mm>=h2->len) {
-          nn = 0;
+  // Loop through lines of output looking for next closest matching line
+  for (ii = jj = kk = ll = 0; ii<h1->len || ll<h2->len;) {
+    // Skip non-matching (untagged) lines on each side, which must be - or +
+    while (kk<h1->len && !(1&(unsigned long)h1->str[kk])) kk++;
+    while (ll<h2->len && !(1&(unsigned long)h2->str[ll])) ll++;
 
-          break;
-        }
+    // Have we hit the end? (Can happen at EOF even with -U >0)
+    if (kk==h1->len || ll==h2->len) {
+      kk = h1->len;
+      ll = h2->len;
 
-        // next matching line of h1 found in h2?
-        if (kk+mm<h1->len && (1&(unsigned long)h1->str[kk+mm])) {
-          if (!diffcmp(h1->str[kk+mm]-1, h2->str[ll]-1)) {
-            nn = 1;
+    // Loop until either side finds a match across the aisle (shortest offset
+    // to next match) or falls off end (match here).
+    } else for (mm = 0;;mm++) {
+      if (kk+mm<h1->len && ll+mm<h2->len) {
+        // Next line of h1 matched in h2?
+        if ((1&(unsigned long)h1->str[kk+mm])
+          && !diffcmp(h1->str[kk+mm]-1, h2->str[ll]-1)) kk += mm;
 
-            break;
-          }
-        }
+        // Next line of h2 matched in h1?
+        else if ((1&(unsigned long)h2->str[ll+mm])
+          && !diffcmp(h1->str[kk]-1, h2->str[ll+mm]-1)) ll += mm;
+        else continue;
 
-        // next matching line of h2 found in h1?
-        if (ll+mm<h2->len && (1&(unsigned long)h2->str[ll+mm])) {
-          if (!diffcmp(h1->str[kk]-1, h2->str[ll+mm]-1)) {
-            nn = 2;
-
-            break;
-          }
-        }
+        break;
       }
 
-      // Did we find a match?
-      if (!nn) {
-        if (kk<h1->len) kk++;
-        if (ll<h2->len) ll++;
+      // If we fell off end, line on other side did not match.
+      if (kk+mm>=h1->len) squish(h1->str+ll++);
+      if (ll+mm>=h2->len) squish(h2->str+kk++);
 
-        continue;
-      }
-      if (nn==1) kk += mm;
-      else ll += mm;
+      goto loop2;
     }
-    if (!nn) continue;
 
     while (ii<kk) xprintf("-%s\n", squish(h1->str+ii++));
     while (jj<ll) xprintf("+%s\n", squish(h2->str+jj++));
@@ -298,6 +285,8 @@ static void dump_hunk(struct half_hunk *h1, struct half_hunk *h2)
       xprintf(" %s\n", squish(h1->str+ii++));
       squish(h2->str+jj++);
     }
+loop2:
+    ; // gcc complains without this semicolon. Really!
   }
 }
 
@@ -378,14 +367,16 @@ struct dir_pair {
 
 static struct dir_entry *get_de(int dirfd, char *name)
 {
-  struct dir_entry *de;
+  struct dir_entry *de = 0;
   struct stat st;
 
-  if (fstatat(dirfd, name, &st, 0)) return 0;
-  de = xmalloc(sizeof(*de)+strlen(name)+1);
-  memcpy(&de->st, &st, sizeof(st));
-  strcpy(de->name, name);
-  de->next = 0;
+  if (fstatat(dirfd, name, &st, 0)) perror_msg("%s", name);
+  else {
+    de = xmalloc(sizeof(*de)+strlen(name)+1);
+    memcpy(&de->st, &st, sizeof(st));
+    strcpy(de->name, name);
+    de->next = 0;
+  }
 
   return de;
 }
@@ -441,8 +432,10 @@ void do_diff(char *from, char *to)
   // Setup dir_pair for initial arguments so same loop can handle all cases
   dp->len[0] = dp->len[1] = 1;
   dp->dd[1] = (dp->dd[0] = (void *)(dp+1))+1;
-  if (!(*dp->dd[0] = get_de(dp->fd[0] = AT_FDCWD, from))) goto done;
-  if (!(*dp->dd[1] = get_de(dp->fd[1] = AT_FDCWD, to))) goto done;
+  *dp->dd[0] = get_de(dp->fd[0] = AT_FDCWD, from);
+  *dp->dd[1] = get_de(dp->fd[1] = AT_FDCWD, to);
+  if (!*dp->dd[0] || !*dp->dd[1]) goto done;
+
 
   // Are we comparing dir to file at top level?
   if (S_ISDIR(dp->dd[0][0]->st.st_mode)
