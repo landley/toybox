@@ -2,9 +2,7 @@
 #
 # Copyright 2005 by Rob Landley
 
-# This file defines two main functions, "testcmd" and "optional". The
-# first performs a test, the second enables/disables tests based on
-# configuration options.
+# This file defines three main functions: "testing", "testcmd", and "txpect".
 
 # The following environment variables enable optional behavior in "testing":
 #    DEBUG - Show every command run by test script.
@@ -30,26 +28,13 @@
 # The environment variable "FAILCOUNT" contains a cumulative total of the
 # number of failed tests.
 #
-# The "optional" function is used to skip certain tests (by setting the
-# environment variable SKIP), ala:
-#   optional CFG_THINGY
+# The environment variable "SKIP" says how many upcoming tests to skip,
+# defaulting to 0 and counting down when set to a higher number.
 #
-# The "optional" function checks the environment variable "OPTIONFLAGS",
-# which is either empty (in which case it always clears SKIP) or
-# else contains a colon-separated list of features (in which case the function
-# clears SKIP if the flag was found, or sets it to 1 if the flag was not found).
+# Function "optional" enables/disables tests based on configuration options.
 
-export FAILCOUNT=0
-export SKIP=
-
-# Helper functions
-
-# Check config to see if option is enabled, set SKIP if not.
-
-SHOWPASS=PASS
-SHOWFAIL=FAIL
-SHOWSKIP=SKIP
-
+export FAILCOUNT=0 SKIP=0
+: ${SHOWPASS:=PASS} ${SHOWFAIL:=FAIL} ${SHOWSKIP:=SKIP}
 if tty -s <&1
 then
   SHOWPASS="$(echo -e "\033[1;32m${SHOWPASS}\033[0m")"
@@ -57,46 +42,12 @@ then
   SHOWSKIP="$(echo -e "\033[1;33m${SHOWSKIP}\033[0m")"
 fi
 
-optional()
-{
-  option=`printf %s "$OPTIONFLAGS" | egrep "(^|:)$1(:|\$)"`
-  # Not set?
-  if [ -z "$1" ] || [ -z "$OPTIONFLAGS" ] || [ ${#option} -ne 0 ]
-  then
-    unset SKIP
-    return
-  fi
-  SKIP=1
-}
+# Helper functions
 
+# Check if VERBOSE= contains a given string. (This allows combining.)
 verbose_has()
 {
   [ "${VERBOSE/$1/}" != "$VERBOSE" ]
-}
-
-skipnot()
-{
-  if verbose_has quiet
-  then
-    eval "$@" 2>/dev/null
-  else
-    eval "$@"
-  fi
-  [ $? -eq 0 ] || SKIPNEXT=1
-}
-
-toyonly()
-{
-  IS_TOYBOX="$("$C" --version 2>/dev/null)"
-  # Ideally we'd just check for "toybox", but toybox sed lies to make autoconf
-  # happy, so we have at least two things to check for.
-  case "$IS_TOYBOX" in
-    toybox*) ;;
-    This\ is\ not\ GNU*) ;;
-    *) SKIPNEXT=1 ;;
-  esac
-
-  "$@"
 }
 
 wrong_args()
@@ -127,8 +78,43 @@ do_fail()
   ! verbose_has all && exit 1
 }
 
-# The testing function
+# Functions test files call directly
 
+# Set SKIP high if option not enabled in $OPTIONFLAGS (unless OPTIONFLAGS blank)
+optional()
+{
+  [ -n "$OPTIONFLAGS" ] && [ "$OPTIONFLAGS" == "${OPTIONFLAGS/:$1:/}" ] &&
+    SKIP=99999 || SKIP=0
+}
+
+# Evalute command line and skip next test when false
+skipnot()
+{
+  if verbose_has quiet
+  then
+    eval "$@" 2>/dev/null
+  else
+    eval "$@"
+  fi
+  [ $? -eq 0 ] || ((++SKIP))
+}
+
+# Skip this test (rest of command line) when not running toybox.
+toyonly()
+{
+  IS_TOYBOX="$("$C" --version 2>/dev/null)"
+  # Ideally we'd just check for "toybox", but toybox sed lies to make autoconf
+  # happy, so we have at least two things to check for.
+  case "$IS_TOYBOX" in
+    toybox*) ;;
+    This\ is\ not\ GNU*) ;;
+    *) ((++SKIP)) ;;
+  esac
+
+  "$@"
+}
+
+# Takes five arguments: "name" "command" "result" "infile" "stdin"
 testing()
 {
   NAME="$CMDNAME $1"
@@ -138,10 +124,11 @@ testing()
 
   [ -n "$DEBUG" ] && set -x
 
-  if [ -n "$SKIP" -o -n "$SKIP_HOST" -a -n "$TEST_HOST" -o -n "$SKIPNEXT" ]
+  if [ "$SKIP" -gt 0 ]
   then
     verbose_has quiet && printf "%s\n" "$SHOWSKIP: $NAME"
-    unset SKIPNEXT
+    ((--SKIP))
+
     return 0
   fi
 
@@ -170,6 +157,7 @@ testing()
   return 0
 }
 
+# Wrapper for "testing", adds command name being tested to start of command line
 testcmd()
 {
   wrong_args "$@"
@@ -179,13 +167,15 @@ testcmd()
   testing "$X" "\"$C\" $2" "$3" "$4" "$5"
 }
 
+# Simple implementation of "expect" written in shell.
+
 # txpect NAME COMMAND [I/O/E/Xstring]...
 # Run COMMAND and interact with it: send I strings to input, read O or E
 # strings from stdout or stderr (empty string is "read line of input here"),
 # X means close stdin/stdout/stderr and match return code (blank means nonzero)
 txpect()
 {
-  local NAME CASE VERBOSITY LEN A B X O
+  local NAME CASE VERBOSITY LEN PID A B X O
 
   # Run command with redirection through fifos
   NAME="$CMDNAME $1"
@@ -198,13 +188,14 @@ txpect()
     return
   fi
   eval "$2" <in-$$ >out-$$ 2>err-$$ &
+  PID=$!
   shift 2
   : {IN}>in-$$ {OUT}<out-$$ {ERR}<err-$$ && rm in-$$ out-$$ err-$$
 
   [ $? -ne 0 ] && { do_fail;return;}
 
   # Loop through challenge/response pairs, with 2 second timeout
-  while [ $# -gt 0 ]
+  while [ $# -gt 0 -a -n "$PID" ]
   do
     VERBOSITY="$VERBOSITY"$'\n'"$1"  LEN=$((${#1}-1))  CASE="$1"  A=  B=
 
@@ -242,15 +233,18 @@ txpect()
 
       # close I/O and wait for exit
       X)
-        exec {IN}<&- {OUT}<&- {ERR}<&-
-        wait
+        exec {IN}<&-
+        wait $PID
         A=$?
+        exec {OUT}<&- {ERR}<&-
         if [ -z "$LEN" ]
         then
           [ $A -eq 0 ] && { do_fail;break;}        # any error
         else
           [ $A != "${1:1}" ] && { do_fail;break;}  # specific value
         fi
+        do_pass
+        return
         ;;
       *) do_fail; break ;;
     esac
@@ -264,5 +258,6 @@ txpect()
     do_pass
   else
     ! verbose_has quiet && echo "$VERBOSITY" >&2
+    do_fail
   fi
 }

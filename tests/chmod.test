@@ -104,13 +104,13 @@ chtest a-w,a+x "dr-xr-xr-x\n-r-xr-xr-x\n"
 
 # macOS doesn't allow +s in /tmp
 touch s-supported
-chmod +s s-supported 2>/dev/null || SKIP=1
+skipnot chmod +s s-supported 2>/dev/null
 rm s-supported
 chtest g+s "drwxr-sr-x\n-rw-r-Sr--\n"
 chtest u+s "drwsr-xr-x\n-rwSr--r--\n"
 chtest +s "drwsr-sr-x\n-rwSr-Sr--\n"
 chtest o+s "drwxr-xr-x\n-rw-r--r--\n"
-unset SKIP
+SKIP=0
 
 chtest +t  "drwxr-xr-t\n-rw-r--r-T\n"
 chtest a=r+w+x "drwxrwxrwx\n-rwxrwxrwx\n"

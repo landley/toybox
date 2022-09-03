@@ -57,7 +57,7 @@ shxpect() {
 
 shxpect "prompt and exit" I$'exit\n'
 shxpect "prompt and echo" I$'echo hello\n' O$'hello\n' E"$P"
-shxpect "redirect err" I$'echo > /dev/full\n' E E"$P"
+shxpect "redirect err" I$'echo > /dev/full\n' E E"$P" X1
 shxpect "wait for <(exit)" I$'cat <(echo hello 1>&2)\n' E$'hello\n' E"$P"
 
 # Test the sh -c stuff before changing EVAL
@@ -100,7 +100,7 @@ testing 'prefix is local for builtins' 'abc=123; abc=def unset abc; echo $abc' \
   '123\n' '' ''
 testing 'prefix localizes magic vars' \
   'SECONDS=123; SECONDS=345 true; echo $SECONDS' '123\n' '' ''
-shxpect 'body evaluated before variable exports' I$'a=x${} y${}\n' RE'y${}'
+shxpect 'body evaluated before variable exports' I$'a=x${} y${}\n' RE'y${}' X1
 testing '$NOTHING clears $_' 'true; $NOTHING; echo $_' '\n' '' ''
 testing 'assignment with redirect is persistent, not prefix' \
   'ABC=DEF > potato && rm potato && echo $ABC' 'DEF\n' '' ''
@@ -597,7 +597,7 @@ testing '"exit shell" means exit eval but encapsulating function continues' \
   'func() { eval "echo one; echo \${?potato}; echo and" 2>/dev/null; echo plus;}; func; echo then' \
   'one\nplus\nthen\n' '' ''
 
-shxpect "functions need block" I$'x() echo;\n' RE'[Ss]yntax [Ee]rror'
+shxpect "functions need block" I$'x() echo;\n' RE'[Ss]yntax [Ee]rror' X2
 testing 'functions() {} in same PID' \
   '{ echo $BASHPID; chicken() { echo $BASHPID;}; chicken;} | sort -u | wc -l' '1\n' '' ''
 testing 'functions() () different PID' \
