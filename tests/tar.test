@@ -4,63 +4,63 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-# For reproducibility: UTC and umask 0002
-
+# For reproducibility: TZ=UTC, umask 0002, override ownership and timestamp
 OLDTZ="$TZ"
 export TZ=utc
 OLDUMASK=$(umask)
 umask 0002
+TAR='tar c --owner root --group sys --mtime @1234567890'
 
 # 255 bytes, longest VFS name
 LONG=0123456789abcdef0123456789abcdef
 LONG=$LONG$LONG$LONG$LONG$LONG$LONG$LONG$LONG
 LONG=${LONG:1:255}
 
-# Reproducible tarballs: override ownership and timestamp.
-TAR='tar c --owner root --group sys --mtime @1234567890'
+# We check both sha1sum (to ensure binary identical output) and list contents.
 
-# Different tars add variable trailing NUL padding (1024 bytes is just minimum)
-# so look at first N 512-byte frames when analyzing header content.
+# Check hash of first N 512 byte frames to ensure result is binary identical.
 function SUM()
 {
+  # Different tars add variable trailing NUL padding (1024 bytes is just
+  # minimum) so look at first N 512-byte frames when analyzing header content.
   tee save.dat | head -c $(($1*512)) | sha1sum | sed "s/ .*//"
 }
 
+# List tarball contents, converting variable tabs into one space
 function LST()
 {
   tar tv "$@" | sed 's/[ \t][ \t]*/ /g'
 }
 
+# Check that stored empty file is binary identical and decodes as expected.
 touch file
-testing "create file" "$TAR file | SUM 3" \
+testing "store file" "$TAR file | SUM 3" \
   "2735f3a18d770dd0d7145d76108532f72bef9927\n" "" ""
-
 testing "pass file" "$TAR file | LST" \
   "-rw-rw-r-- root/sys 0 2009-02-13 23:31 file\n" "" ""
 
+# Two files from -T list
 touch file1 file2
-echo -e "file1\nfile2" > files-newline
-testing "-T newline" "$TAR -T files-newline | LST" \
-  "-rw-rw-r-- root/sys 0 2009-02-13 23:31 file1\n-rw-rw-r-- root/sys 0 2009-02-13 23:31 file2\n" "" ""
-tr '\n' '\0' < files-newline > files-null
-testing "-T null" "$TAR --null -T files-null | LST" \
-  "-rw-rw-r-- root/sys 0 2009-02-13 23:31 file1\n-rw-rw-r-- root/sys 0 2009-02-13 23:31 file2\n" "" ""
+testing "-T newline" "$TAR -T input | LST" \
+  "-rw-rw-r-- root/sys 0 2009-02-13 23:31 file1\n-rw-rw-r-- root/sys 0 2009-02-13 23:31 file2\n" "file1\nfile2\n" ""
+testing "-T null" "$TAR --null -T input | LST" \
+  "-rw-rw-r-- root/sys 0 2009-02-13 23:31 file1\n-rw-rw-r-- root/sys 0 2009-02-13 23:31 file2\n" "file1\0file2\0" ""
 
-# The kernel has two hardwired meaningful UIDs: 0 (root) and 65534 (nobody).
-# (Technically changeable via /proc/sys/*/overflowuid but nobody ever does)
-skipnot id nobody >/dev/null
-testing "pass user" "tar -c --owner nobody:65534 --group sys --mtime @0 file | LST" \
+# User "root" is UID 0 and group "sys" is GID 3 (on Linux, BSD, and Mac),
+# inherited from Bell Labs Unix v7
+
+# Note: testing both "tar c" and "tar -c" here.
+testing "specify UID, fetch GID" "tar -c --owner nobody:65534 --group sys --mtime @0 file | LST" \
   "-rw-rw-r-- nobody/sys 0 1970-01-01 00:00 file\n" "" ""
-# (We assume that if we have the nobody user, we also have the group, in the
-# absence of a good portable way to test for the existence of a named group.)
-skipnot id nobody >/dev/null
-testing "pass group" "tar c --owner root --group nobody:65534 --mtime @0 file | LST" \
+testing "fetch UID, specify GID" "tar c --owner root --group nobody:65534 --mtime @0 file | LST" \
   "-rw-rw-r-- root/nobody 0 1970-01-01 00:00 file\n" "" ""
 
-# Historically we output a "base 256" format that _we_ could decode but that
-# GNU tar choked on, so check the exact bytes with SUM, not a LST round trip.
+# Large values switch from ascii numbers to a binary format.
 testing "huge values" "tar c --owner 9999999 --group 8888888 --mtime @0 file | SUM 3" \
   "396b07fd2f80eeb312462e3bfb7dc1325dc6bcfb\n" "" ""
+
+testcmd "longname" "tf $FILES/tar/long_path.tar" \
+  "$(printf 'long file name%86cTRAILING' ' ' | tr ' ' _)\n" "" ""
 
 touch -t 198701231234.56 file
 testing "pass mtime" \
@@ -72,19 +72,18 @@ testing "adjust mode" \
   "-rwxrwxr-x root/sys 0 1987-01-23 12:34:56 file\n" "" ""
 
 mkdir dir
-testing "create dir" "$TAR dir | SUM 3" \
+testing "store dir" "$TAR dir | SUM 3" \
   "85add1060cfe831ca0cdc945158efe6db485b81e\n" "" ""
-
 testing "pass dir" "$TAR dir | LST" \
   "drwxrwxr-x root/sys 0 2009-02-13 23:31 dir/\n" "" ""
 
 # note: does _not_ include dir entry in archive, just file
 touch dir/file
-testing "create file in dir" "$TAR dir/file | SUM 3" \
+testing "store file in dir" "$TAR dir/file | SUM 3" \
   "d9e7fb3884430d29e7eed0dc04a2593dd260df14\n" "" ""
 
-# Tests recursion without worrying about content order
-testing "create dir and dir/file" "$TAR dir | SUM 3" \
+# Test recursion with one file so filesystem sort order can't change result
+testing "store dir and dir/file" "$TAR dir | SUM 3" \
   "a4e35f87e28c4565b60ba01dbe79e431914f8788\n" "" ""
 
 testing "pass dir/file" "$TAR dir | LST" \
@@ -94,21 +93,9 @@ echo boing > dir/that
 testing "tar C" "$TAR -C dir that | SUM 3" \
   "d469d4bc06def2d8808400ba30025ca295d05e4f\n" "" ""
 
-# / and .. only stripped from name, not symlink target.
-ln -s ../name.././.. dir/link
-skipnot [ "$(uname)" != "Darwin" ] # different symlink permissions on Darwin
-testing "create symlink" "$TAR dir/link | SUM 3" \
-  "f841bf9d757c655c5d37f30be62acb7ae24f433c\n" "" ""
-
-# Also two explicit targets
 ln dir/file dir/hardlink
-testing "create hardlink" "$TAR dir/file dir/hardlink | SUM 3" \
+testing "store hardlink" "$TAR dir/file dir/hardlink | SUM 3" \
   "519de8abd1b32debd495a0fc1d96082184abbdcc\n" "" ""
-
-ln dir/link dir/hlink
-skipnot [ "$(uname)" != "Darwin" ] # different symlink permissions on Darwin
-testing "create hardlink to symlink" "$TAR dir/link dir/hlink | SUM 3" \
-  "de571a6dbf09e1485e513ad13a178b1729267452\n" "" ""
 
 skipnot mkfifo dir/fifo 2>/dev/null
 testing "create dir/fifo" "$TAR dir/fifo | SUM 3" \
@@ -121,22 +108,33 @@ touch dir/${LONG:1:96} dir/${LONG:1:97}
 testing "create long fname" "$TAR dir/${LONG:1:97} dir/${LONG:1:96} | SUM 3" \
   "d70018505fa5df19ae73498cfc74d0281601e42e\n" "" ""
 
+# MacOS X has different symlink permissions, skip these tests there
+[ "$(uname)" == Darwin ] || SKIP=1
+
+# / and .. only stripped from name, not symlink target.
+ln -s ../name.././.. dir/link
+testing "create symlink" "$TAR dir/link | SUM 3" \
+  "f841bf9d757c655c5d37f30be62acb7ae24f433c\n" "" ""
+
+ln dir/link dir/hlink
+testing "create hardlink to symlink" "$TAR dir/link dir/hlink | SUM 3" \
+  "de571a6dbf09e1485e513ad13a178b1729267452\n" "" ""
+
 ln -s dir/${LONG:1:96} dir/lshort
 ln -s dir/${LONG:1:97} dir/llong
-skipnot [ "$(uname)" != "Darwin" ] # different symlink permissions on Darwin
 testing "create long symlink" "$TAR dir/lshort dir/llong | SUM 3" \
   "07eaf397634b5443dbf2d3ec38a4302150fcfe82\n" "" ""
 
 ln -s $LONG dir/${LONG:5}
-skipnot [ "$(uname)" != "Darwin" ] # different symlink permissions on Darwin
 testing "create long->long" "$TAR dir/${LONG:5} | SUM 7" \
   "b9e24f53e27496c5125445230d201b4a36ff7398\n" "" ""
 # absolute and relative link names, broken and not
 
 ln -s file dir/linkok
-skipnot [ "$(uname)" != "Darwin" ] # different symlink permissions on Darwin
 testing "create symlink" "$TAR dir/linkok | SUM 3" \
   "f5669cfd179ddcdd5ca9f8a1561a99e11e0a08b1\n" "" ""
+
+SKIP=0 # End of tests that don't match MacOS symlink permissions
 
 symlink_perms=lrwxrwxrwx
 [ "$(uname)" == "Darwin" ] && symlink_perms=lrwxrwxr-x
@@ -180,15 +178,17 @@ testing "-I gzip t" 'LST -Igzip -f "$FILES"/tar/tar.tgz' \
   "drwxr-x--- enh/eng 0 2017-05-13 01:05 dir/\n-rw-r----- enh/eng 12 2017-05-13 01:05 dir/file\n" \
   "" ""
 
-skipnot mknod dir/char c 12 34 2>/dev/null
-testing "character special" "tar --mtime @0 -cf test.tar dir/char && rm -f dir/char && tar xf test.tar && ls -l dir/char" \
-  "crw-rw---- 1 root sys 12,  34 1970-01-01 00:00 dir/char\n" "" ""
+skipnot mknod -m 660 dir/char c 12 34 2>/dev/null && chgrp sys dir/char
+NOSPACE=1 testing "character special" "tar --mtime @0 -cf test.tar dir/char && rm -f dir/char && tar xf test.tar && ls -l --full-time dir/char" \
+  "crw-rw---- 1 root sys 12, 34 1970-01-01 00:00:00.000000000 +0000 dir/char\n"\
+  "" ""
 
-skipnot mknod dir/block b 23 45 2>/dev/null
-testing "block special" "tar --mtime @0 -cf test.tar dir/block && rm -f dir/block && tar xf test.tar && ls -l dir/block" \
-  "brw-rw---- 1 root sys 23,  45 1970-01-01 00:00 dir/block\n" "" ""
+skipnot mknod -m 660 dir/block b 23 45 2>/dev/null && chgrp sys dir/block
+NOSPACE=1 testing "block special" "tar --mtime @0 -cf test.tar dir/block && rm -f dir/block && tar xf test.tar && ls -l --full-time dir/block" \
+  "brw-rw---- 1 root sys 23, 45 1970-01-01 00:00:00.000000000 +0000 dir/block\n"\
+  "" ""
 
-skipnot chown nobody dir/file 2>/dev/null
+skipnot chown nobody:nogroup dir/file 2>/dev/null
 testing "ownership" "$TAR dir/file | SUM 3" \
   "2d7b96c7025987215f5a41f10eaa84311160afdb\n" "" ""
 
@@ -233,9 +233,11 @@ testing "autodetect falls back to gzip -d when no zcat" \
   "PATH=path; tar tf $FILES/tar/tar.tgz" "dir/\ndir/file\n" "" ""
 rm -rf path
 
+# Tests that don't produce the same results on MacOS X as Linux
+[ "$(uname)" == Darwin ] || SKIP=1
+
 yes | head -n $((1<<18)) > bang
 { dd bs=$((1<<16)) count=1 status=none; dd bs=8192 seek=14 count=1 status=none; dd bs=4096 seek=64 count=5 status=none; } < bang > fweep
-skipnot [ "$(uname)" != "Darwin" ] # very limited sparse on Darwin
 testing "sparse without overflow" "$TAR --sparse fweep | SUM 3" \
   "50dc56c3c7eed163f0f37c0cfc2562852a612ad0\n" "" ""
 rm bang fweep
@@ -244,43 +246,35 @@ for i in 1 3 5 7 9 14 27 36 128 256 300 304
 do
   dd if=/dev/zero of=fweep bs=65536 seek=$i count=1 2>/dev/null
 done
-
-skipnot [ "$(uname)" != "Darwin" ] # very limited sparse on Darwin
 testing "sparse single overflow" "$TAR --sparse fweep | SUM 6" \
   "81d59c3a7470201f92d60e63a43318ddde893f6d\n" "" ""
-
 rm fweep
+
 for i in $(seq 8 3 200)
 do
   dd if=/dev/zero of=fweep bs=65536 seek=$i count=1 2>/dev/null
   dd if=/dev/zero of=fweep2 bs=65536 seek=$i count=1 2>/dev/null
 done
 truncate -s 20m fweep2
-
-skipnot [ "$(uname)" != "Darwin" ] # very limited sparse on Darwin
 testing "sparse double overflow" "$TAR --sparse fweep | SUM 7" \
   "024aacd955e45f89bafedb3f37c8d39b4d556471\n" "" ""
 
 tar c --sparse fweep > fweep.tar
 rm fweep
-skipnot [ "$(uname)" != "Darwin" ] # very limited sparse on Darwin
 testing "sparse extract" "tar xf fweep.tar && $TAR --sparse fweep | SUM 4" \
   "b949d3a3b4c6457c873f1ea9918fd9029c5ed4b3\n" "" ""
-skipnot [ "$(uname)" != "Darwin" ] # very limited sparse on Darwin
 testing "sparse tvf" "tar tvf fweep.tar | grep -wq 13172736 && echo right size"\
   "right size\n" "" ""
 rm fweep fweep.tar
 
 tar c --sparse fweep2 > fweep2.tar
 rm fweep2
-skipnot [ "$(uname)" != "Darwin" ] # very limited sparse on Darwin
 testing "sparse extract hole at end" \
   "tar xf fweep2.tar && $TAR --sparse fweep2 | SUM 4" \
   "807664bcad0e827793318ff742991d6f006b2127\n" "" ""
 rm fweep2 fweep2.tar
 
-testcmd "longname" "tf $FILES/tar/long_path.tar" \
-  "$(printf 'long file name%86cTRAILING' ' ' | tr ' ' _)\n" "" ""
+SKIP=0 # End of tests that don't work on MacOS X
 
 mkdir -p links
 touch links/orig
@@ -366,4 +360,4 @@ TZ="$OLDTZ"
 umask $OLDUMASK
 unset LONG TAR SUM OLDUMASK OLDTZ
 unset -f LST
-rm save.dat
+rm -f save.dat
