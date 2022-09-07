@@ -92,11 +92,11 @@ skipnot()
 {
   if verbose_has quiet
   then
-    eval "$@" 2>/dev/null
+    eval "$@" >/dev/null 2>&1
   else
     eval "$@"
   fi
-  [ $? -eq 0 ] || ((++SKIP))
+  [ $? -eq 0 ] || { ((++SKIP)); return 1; }
 }
 
 # Skip this test (rest of command line) when not running toybox.

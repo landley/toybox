@@ -109,30 +109,30 @@ testing "create long fname" "$TAR dir/${LONG:1:97} dir/${LONG:1:96} | SUM 3" \
   "d70018505fa5df19ae73498cfc74d0281601e42e\n" "" ""
 
 # MacOS X has different symlink permissions, skip these tests there
-[ "$(uname)" == Darwin ] && SKIP=666
+[ "$(uname)" == Darwin ] && SKIP=999
 
-# / and .. only stripped from name, not symlink target.
-ln -s ../name.././.. dir/link
-testing "create symlink" "$TAR dir/link | SUM 3" \
-  "f841bf9d757c655c5d37f30be62acb7ae24f433c\n" "" ""
+  # / and .. only stripped from name, not symlink target.
+  ln -s ../name.././.. dir/link
+  testing "create symlink" "$TAR dir/link | SUM 3" \
+    "f841bf9d757c655c5d37f30be62acb7ae24f433c\n" "" ""
 
-ln dir/link dir/hlink
-testing "create hardlink to symlink" "$TAR dir/link dir/hlink | SUM 3" \
-  "de571a6dbf09e1485e513ad13a178b1729267452\n" "" ""
+  ln dir/link dir/hlink
+  testing "create hardlink to symlink" "$TAR dir/link dir/hlink | SUM 3" \
+    "de571a6dbf09e1485e513ad13a178b1729267452\n" "" ""
 
-ln -s dir/${LONG:1:96} dir/lshort
-ln -s dir/${LONG:1:97} dir/llong
-testing "create long symlink" "$TAR dir/lshort dir/llong | SUM 3" \
-  "07eaf397634b5443dbf2d3ec38a4302150fcfe82\n" "" ""
+  ln -s dir/${LONG:1:96} dir/lshort
+  ln -s dir/${LONG:1:97} dir/llong
+  testing "create long symlink" "$TAR dir/lshort dir/llong | SUM 3" \
+    "07eaf397634b5443dbf2d3ec38a4302150fcfe82\n" "" ""
 
-ln -s $LONG dir/${LONG:5}
-testing "create long->long" "$TAR dir/${LONG:5} | SUM 7" \
-  "b9e24f53e27496c5125445230d201b4a36ff7398\n" "" ""
-# absolute and relative link names, broken and not
+  ln -s $LONG dir/${LONG:5}
+  testing "create long->long" "$TAR dir/${LONG:5} | SUM 7" \
+    "b9e24f53e27496c5125445230d201b4a36ff7398\n" "" ""
 
-ln -s file dir/linkok
-testing "create symlink" "$TAR dir/linkok | SUM 3" \
-  "f5669cfd179ddcdd5ca9f8a1561a99e11e0a08b1\n" "" ""
+  # absolute and relative link names, broken and not
+  ln -s file dir/linkok
+  testing "create symlink" "$TAR dir/linkok | SUM 3" \
+    "f5669cfd179ddcdd5ca9f8a1561a99e11e0a08b1\n" "" ""
 
 SKIP=0 # End of tests that don't match MacOS symlink permissions
 
@@ -195,7 +195,7 @@ testing "ownership" "$TAR dir/file | SUM 3" \
 mkdir -p dd/sub/blah &&
 tar cf test.tar dd/sub/blah &&
 rm -rf dd/sub &&
-ln -s ../.. dd/sub || SKIPNEXT=1
+skipnot ln -s ../.. dd/sub
 toyonly testing "symlink out of cwd" \
   "tar xf test.tar 2> /dev/null || echo yes ; [ ! -e dd/sub/blah ] && echo yes" \
   "yes\nyes\n" "" ""
@@ -234,45 +234,50 @@ testing "autodetect falls back to gzip -d when no zcat" \
 rm -rf path
 
 # Tests that don't produce the same results on MacOS X as Linux
-[ "$(uname)" == Darwin ] && SKIP=666
+[ "$(uname)" == Darwin ] && SKIP=999
 
-yes | head -n $((1<<18)) > bang
-{ dd bs=$((1<<16)) count=1 status=none; dd bs=8192 seek=14 count=1 status=none; dd bs=4096 seek=64 count=5 status=none; } < bang > fweep
-testing "sparse without overflow" "$TAR --sparse fweep | SUM 3" \
-  "50dc56c3c7eed163f0f37c0cfc2562852a612ad0\n" "" ""
-rm bang fweep
+  yes | head -n $((1<<18)) > bang
+  {
+    dd bs=$((1<<16)) count=1 status=none
+    dd bs=8192 seek=14 count=1 status=none
+    dd bs=4096 seek=64 count=5 status=none
+  } < bang > fweep
+  testing "sparse without overflow" "$TAR --sparse fweep | SUM 3" \
+    "50dc56c3c7eed163f0f37c0cfc2562852a612ad0\n" "" ""
+  rm bang fweep
 
-for i in 1 3 5 7 9 14 27 36 128 256 300 304
-do
-  dd if=/dev/zero of=fweep bs=65536 seek=$i count=1 2>/dev/null
-done
-testing "sparse single overflow" "$TAR --sparse fweep | SUM 6" \
-  "81d59c3a7470201f92d60e63a43318ddde893f6d\n" "" ""
-rm fweep
+  for i in 1 3 5 7 9 14 27 36 128 256 300 304
+  do
+    dd if=/dev/zero of=fweep bs=65536 seek=$i count=1 2>/dev/null
+  done
+  testing "sparse single overflow" "$TAR --sparse fweep | SUM 6" \
+    "81d59c3a7470201f92d60e63a43318ddde893f6d\n" "" ""
+  rm fweep
 
-for i in $(seq 8 3 200)
-do
-  dd if=/dev/zero of=fweep bs=65536 seek=$i count=1 2>/dev/null
-  dd if=/dev/zero of=fweep2 bs=65536 seek=$i count=1 2>/dev/null
-done
-truncate -s 20m fweep2
-testing "sparse double overflow" "$TAR --sparse fweep | SUM 7" \
-  "024aacd955e45f89bafedb3f37c8d39b4d556471\n" "" ""
+  for i in $(seq 8 3 200)
+  do
+    dd if=/dev/zero of=fweep bs=65536 seek=$i count=1 2>/dev/null
+    dd if=/dev/zero of=fweep2 bs=65536 seek=$i count=1 2>/dev/null
+  done
+  truncate -s 20m fweep2
+  testing "sparse double overflow" "$TAR --sparse fweep | SUM 7" \
+    "024aacd955e45f89bafedb3f37c8d39b4d556471\n" "" ""
 
-tar c --sparse fweep > fweep.tar
-rm fweep
-testing "sparse extract" "tar xf fweep.tar && $TAR --sparse fweep | SUM 4" \
-  "b949d3a3b4c6457c873f1ea9918fd9029c5ed4b3\n" "" ""
-testing "sparse tvf" "tar tvf fweep.tar | grep -wq 13172736 && echo right size"\
-  "right size\n" "" ""
-rm fweep fweep.tar
+  tar c --sparse fweep > fweep.tar
+  rm fweep
+  testing "sparse extract" "tar xf fweep.tar && $TAR --sparse fweep | SUM 4" \
+    "b949d3a3b4c6457c873f1ea9918fd9029c5ed4b3\n" "" ""
+  testing "sparse tvf" \
+    "tar tvf fweep.tar | grep -wq 13172736 && echo right size" "right size\n" \
+    "" ""
+  rm fweep fweep.tar
 
-tar c --sparse fweep2 > fweep2.tar
-rm fweep2
-testing "sparse extract hole at end" \
-  "tar xf fweep2.tar && $TAR --sparse fweep2 | SUM 4" \
-  "807664bcad0e827793318ff742991d6f006b2127\n" "" ""
-rm fweep2 fweep2.tar
+  tar c --sparse fweep2 > fweep2.tar
+  rm fweep2
+  testing "sparse extract hole at end" \
+    "tar xf fweep2.tar && $TAR --sparse fweep2 | SUM 4" \
+    "807664bcad0e827793318ff742991d6f006b2127\n" "" ""
+  rm fweep2 fweep2.tar
 
 SKIP=0 # End of tests that don't work on MacOS X
 

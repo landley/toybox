@@ -31,12 +31,12 @@ NOSPACE=1 testing "-v file" "lsattr -v file | clean" "_ $_A file\n" "" ""
 NOSPACE=1 testing "-lv file" "lsattr -lv file | clean" "_ file No_Atime\n" "" ""
 
 # You need at least Linux 4.5 plus file system support for project ids.
-lsattr -p file >/dev/null 2>&1 || SKIPNEXT=1
-NOSPACE=1 testing "-p file" "lsattr -p file | clean" "_ $_A file\n" "" ""
-lsattr -p file >/dev/null 2>&1 || SKIPNEXT=1
-NOSPACE=1 testing "-lp file" "lsattr -lp file | clean" "_ file No_Atime\n" "" ""
-lsattr -p file >/dev/null 2>&1 || SKIPNEXT=1
-NOSPACE=1 testing "-vp file" "lsattr -vp file | clean" "_ _ $_A file\n" "" ""
+lsattr -p file >/dev/null 2>&1 || SKIP=999
+  NOSPACE=1 testing "-p file" "lsattr -p file | clean" "_ $_A file\n" "" ""
+  NOSPACE=1 testing "-lp file" "lsattr -lp file | clean" "_ file No_Atime\n" \
+    "" ""
+  NOSPACE=1 testing "-vp file" "lsattr -vp file | clean" "_ _ $_A file\n" "" ""
+SKIP=0
 
 chattr -AacDdijsStTu file && cd ..
 rm -rf dir
