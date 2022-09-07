@@ -109,7 +109,7 @@ testing "create long fname" "$TAR dir/${LONG:1:97} dir/${LONG:1:96} | SUM 3" \
   "d70018505fa5df19ae73498cfc74d0281601e42e\n" "" ""
 
 # MacOS X has different symlink permissions, skip these tests there
-[ "$(uname)" == Darwin ] || SKIP=1
+[ "$(uname)" == Darwin ] && SKIP=666
 
 # / and .. only stripped from name, not symlink target.
 ln -s ../name.././.. dir/link
@@ -234,7 +234,7 @@ testing "autodetect falls back to gzip -d when no zcat" \
 rm -rf path
 
 # Tests that don't produce the same results on MacOS X as Linux
-[ "$(uname)" == Darwin ] || SKIP=1
+[ "$(uname)" == Darwin ] && SKIP=666
 
 yes | head -n $((1<<18)) > bang
 { dd bs=$((1<<16)) count=1 status=none; dd bs=8192 seek=14 count=1 status=none; dd bs=4096 seek=64 count=5 status=none; } < bang > fweep
