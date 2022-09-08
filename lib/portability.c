@@ -711,6 +711,12 @@ int timer_create_wrap(clockid_t c, struct sigevent *se, timer_t *t)
   return 0;
 }
 
+#if !defined(SYS_timer_settime) && defined(SYS_timer_settime64)
+// glibc does not define defines SYS_timer_settime on 32-bit systems
+// with 64-bit time_t defaults e.g. riscv32
+#define SYS_timer_settime SYS_timer_settime64
+#endif
+
 int timer_settime_wrap(timer_t t, int flags, struct itimerspec *val,
   struct itimerspec *old)
 {
