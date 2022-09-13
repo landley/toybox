@@ -162,11 +162,6 @@ testing "range +3" "sed -ne '2,+3p'" "2\n3\n4\n5\n" "" \
 testing "not -s" "sed -n 1p input -" "one" "one" "two"
 testing "-s" "sed -sn 1p input -" "one\ntwo" "one\n" "two"
 
-#echo meep | sed/sed -e '1a\' -e 'huh'
-#echo blah | sed/sed -f <(echo -e "1a\\\\\nboom")
-#echo merp | sed/sed "1a\\
-#hello"
-
 testing "bonus backslashes" \
   "sed -e 'a \l \x\' -e \"\$(echo -e 'ab\\\nc')\"" \
   "hello\nl x\nab\nc\n" "" "hello\n"
@@ -204,4 +199,14 @@ testing "w doesn't blank" "sed -e 'w one' -e 'w one' -e d; cat one" \
 
 testing 's i and I' 'sed s/o/0/ig' "f00l F00L" "" "fool FOOL"
 
+testing 's l ignores posix' "sed -n 'N;l'" 'one\\ntwo$\n' '' 'one\ntwo\n'
+testing 's l loses missing newline' "sed -n 'N;l'" 'one\\ntwo$\n' '' 'one\ntwo'
+testing 's -z l' "sed -zn 'N;l'" 'one\\000two$\0' '' 'one\0two\0'
+testing 's -z l missing newline' "sed -zn 'N;l'" 'one\\000two$\0' '' 'one\0two'
+
 # -i with $ last line test
+
+#echo meep | sed/sed -e '1a\' -e 'huh'
+#echo blah | sed/sed -f <(echo -e "1a\\\\\nboom")
+#echo merp | sed/sed "1a\\
+#hello"

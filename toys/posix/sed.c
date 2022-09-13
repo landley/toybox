@@ -12,11 +12,12 @@
  * test '//q' with no previous regex, also repeat previous regex?
  *
  * Deviations from POSIX: allow extended regular expressions with -r,
- * editing in place with -i, separate with -s, NUL-separated input with -z,
+ * editing in place with -i, separate with -s, NUL-delimited strings with -z,
  * printf escapes in text, line continuations, semicolons after all commands,
  * 2-address anywhere an address is allowed, "T" command, multiline
  * continuations for [abc], \; to end [abc] argument before end of line.
- * N at EOF does default print: posix says not to but Linux always has.
+ * Explicit violations of stuff posix says NOT to do: N at EOF does default
+ * print, l escapes \n
 
 USE_SED(NEWTOY(sed, "(help)(version)e*f*i:;nErz(null-data)s[+Er]", TOYFLAG_BIN|TOYFLAG_LOCALE|TOYFLAG_NOHELP))
 
@@ -75,8 +76,8 @@ config SED
       G  Get remembered line (appending to current line)
       h  Remember this line (overwriting remembered line)
       H  Remember this line (appending to remembered line, if any)
-      l  Print line escaping \abfrtv (but not \n), octal escape other nonprintng
-         chars, wrap lines to terminal width with \, append $ to end of line.
+      l  Print line escaping \abfrtvn, octal escape other nonprintng chars,
+         wrap lines to terminal width with \, append $ to end of line.
       n  Print default output and read next line over current line (quit at EOF)
       N  Append \n and next line of input to this line. Quit at EOF without
          default output. Advances line counter for ADDRESS and "=".
@@ -380,10 +381,10 @@ static void sed_line(char **pline, long plen)
           emit(toybuf, off, 1);
           off = 0;
         }
-        x = stridx("\\\a\b\f\r\t\v", line[i]);
+        x = stridx("\\\a\b\f\r\t\v\n", line[i]);
         if (x != -1) {
           toybuf[off++] = '\\';
-          toybuf[off++] = "\\abfrtv"[x];
+          toybuf[off++] = "\\abfrtvn"[x];
         } else if (line[i] >= ' ') toybuf[off++] = line[i];
         else off += sprintf(toybuf+off, "\\%03o", line[i]);
       }
