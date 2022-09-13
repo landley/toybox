@@ -16,6 +16,7 @@
  * printf escapes in text, line continuations, semicolons after all commands,
  * 2-address anywhere an address is allowed, "T" command, multiline
  * continuations for [abc], \; to end [abc] argument before end of line.
+ * N at EOF does default print: posix says not to but Linux always has.
 
 USE_SED(NEWTOY(sed, "(help)(version)e*f*i:;nErz(null-data)s[+Er]", TOYFLAG_BIN|TOYFLAG_LOCALE|TOYFLAG_NOHELP))
 
@@ -572,9 +573,9 @@ writenow:
     command = command->next;
   }
 
+done:
   if (line && !FLAG(n)) emit(line, len, eol);
 
-done:
   if (dlist_terminate(append)) while (append) {
     struct append *a = append->next;
 
