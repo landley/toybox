@@ -157,9 +157,9 @@ static int emit(char *line, long len, int eol)
 {
   int l, old = line[len];
 
-  if (TT.noeol && !writeall(TT.fdout, "\n", 1)) return 1;
+  if (TT.noeol && !writeall(TT.fdout, &TT.delim, 1)) return 1;
   TT.noeol = !eol;
-  if (eol) line[len++] = '\n';
+  if (eol) line[len++] = TT.delim;
   if (!len) return 0;
   l = writeall(TT.fdout, line, len);
   if (eol) line[len-1] = old;
@@ -181,7 +181,7 @@ static char *extend_string(char **old, char *new, int oldlen, int newlen)
 
   if (newline) newlen = -newlen;
   s = *old = xrealloc(*old, oldlen+newlen+newline+1);
-  if (newline) s[oldlen++] = '\n';
+  if (newline) s[oldlen++] = TT.delim;
   memcpy(s+oldlen, new, newlen);
   s[oldlen+newlen] = 0;
 
@@ -227,7 +227,7 @@ static void sed_line(char **pline, long plen)
   }
 
   if (!line || !len) return;
-  if (line[len-1] == '\n') line[--len] = eol++;
+  if (line[len-1] == TT.delim) line[--len] = eol++;
   TT.count++;
 
   // The restart-1 is because we added one to make sure it wasn't NULL,

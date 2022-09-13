@@ -175,7 +175,10 @@ testing "bonus backslashes" \
 testing "end b with }" "sed -n '/START/{:a;n;/END/q;p;ba}'" "b\nc\n" \
   "" "a\nSTART\nb\nc\nEND\nd"
 
-testing '-z' 'sed -z "s/\n/-/g"' "a-b-c" "" "a\nb\nc"
+testcmd '-z' '-z "s/\n/-/g"' "a-b-c" "" "a\nb\nc"
+testcmd '-z N' '-z N' 'one\0two\0' '' 'one\0two\0'
+testcmd 'p noeol' '-z p' 'one\0one' '' 'one'
+testcmd '-z N noeol' '-z N' 'one\0two' '' 'one\0two'
 
 # toybox handling of empty capturing groups broke minjail. Check that we
 # correctly replace an empty capturing group with the empty string:
