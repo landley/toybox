@@ -39,24 +39,23 @@ GLOBALS(
   unsigned crc_table[256];
 )
 
-static unsigned cksum_be(unsigned crc, unsigned char c)
+static unsigned cksum_be(unsigned crc, char c)
 {
-  return (crc<<8)^TT.crc_table[(crc>>24)^c];
+  return (crc<<8) ^ TT.crc_table[(crc>>24)^c];
 }
 
-static unsigned cksum_le(unsigned crc, unsigned char c)
+static unsigned cksum_le(unsigned crc, char c)
 {
   return TT.crc_table[(crc^c)&0xff] ^ (crc>>8);
 }
 
 static void do_cksum(int fd, char *name)
 {
-  unsigned crc = (toys.optflags & FLAG_P) ? 0xffffffff : 0;
-  uint64_t llen = 0, llen2;
-  unsigned (*cksum)(unsigned crc, unsigned char c);
+  unsigned (*cksum)(unsigned crc, char c), crc = FLAG(P) ? ~0 : 0;
+  unsigned long long llen = 0, llen2;
   int len, i;
 
-  cksum = (toys.optflags & FLAG_L) ? cksum_le : cksum_be;
+  cksum = FLAG(L) ? cksum_le : cksum_be;
   // CRC the data
 
   for (;;) {
@@ -70,24 +69,17 @@ static void do_cksum(int fd, char *name)
 
   // CRC the length
 
-  llen2 = llen;
-  if (!(toys.optflags & FLAG_N)) {
-    while (llen) {
-      crc = cksum(crc, llen);
-      llen >>= 8;
-    }
-  }
+  if (!FLAG(N)) for (llen2 = llen; llen2; llen2 >>= 8) crc = cksum(crc, llen2);
 
-  printf((toys.optflags & FLAG_H) ? "%08x" : "%u",
-    (toys.optflags & FLAG_I) ? crc : ~crc);
-  if (!(toys.optflags&FLAG_N)) printf(" %"PRIu64, llen2);
+  printf(FLAG(H) ? "%08x" : "%u", FLAG(I) ? crc : ~crc);
+  if (!FLAG(N)) printf(" %llu", llen);
   if (toys.optc) printf(" %s", name);
   xputc('\n');
 }
 
 void cksum_main(void)
 {
-  crc_init(TT.crc_table, toys.optflags & FLAG_L);
+  crc_init(TT.crc_table, FLAG(L));
   loopfiles(toys.optargs, do_cksum);
 }
 
