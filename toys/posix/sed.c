@@ -408,7 +408,7 @@ static void sed_line(char **pline, long plen)
       // Pending append goes out right after N
       goto done; 
     } else if (c=='p' || c=='P') {
-      char *l = (c=='P') ? strchr(line, '\n') : 0;
+      char *l = (c=='P') ? strchr(line, TT.delim) : 0;
 
       if (emit(line, l ? l-line : len, eol)) break;
     } else if (c=='q' || c=='Q') {
