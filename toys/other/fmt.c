@@ -27,7 +27,7 @@ config FMT
 #include "toys.h"
 
 GLOBALS(
-  int width;
+  long width;
 
   int level, pos;
 )
