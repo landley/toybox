@@ -22,6 +22,10 @@ else
   : ${LDOPTIMIZE:=-Wl,--gc-sections -Wl,--as-needed} ${STRIP:=strip -s -R .note* -R .comment}
 fi
 
+# Disable a pointless warning only clang produces
+[ -n "$("$CROSS_COMPILE"cc --version | grep -w clang)" ] &&
+  CFLAGS+=" -Wno-string-plus-int"
+
 # Address Sanitizer
 if [ ! -z "$ASAN" ]; then
   # Turn ASan on and disable most optimization to get more readable backtraces.
