@@ -152,4 +152,8 @@ static inline bool sym_has_value(struct symbol *sym)
 }
 #endif
 
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+
 #endif /* LKC_H */
