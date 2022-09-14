@@ -51,7 +51,7 @@ testing "append-only" "$IN && echo "$_t" > testFile &&
 # f2fs in 5.6+ kernels supports compression, but you can only enable
 # compression on a file while it's still empty, so we skip +c too.
 for attr in "A" "d" "e" "j" "P" "S" "s" "t" "u"; do
-  echo "$_t" > testFile && chattr +$attr testFile 2>/dev/null || SKIPNEXT=1
+  echo "$_t" > testFile && chattr +$attr testFile 2>/dev/null || ((++SKIP))
   # Check that $attr is in the lsattr output, then that - turns it back off.
   testing "toggle $attr" "lsattr testFile | awk '{print \$1}' > attrs;
     grep -q $attr attrs || cat attrs; cat testFile && chattr -$attr testFile &&
@@ -70,7 +70,7 @@ testing "multiple files" "$IN && touch fileA && touch fileB &&
   rm -rf testFile*; $OUT" \
   "$_aA fileA\n$_aA fileB\n$_empty fileA\n$_empty fileB\n" "" ""
 
-touch testFile; chattr -v 1234 testFile 2>/dev/null || SKIPNEXT=1
+touch testFile && chattr -v 1234 testFile 2>/dev/null || ((++SKIP))
 testing "-v version" "lsattr -v testFile | awk '{print \$1}' &&
   chattr -v 4567 testFile && lsattr -v testFile | awk '{print \$1}';
   rm -rf testFile" "1234\n4567\n" "" ""
