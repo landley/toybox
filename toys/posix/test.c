@@ -93,6 +93,7 @@ static int do_test(char **args, int *count)
   if (*count>=2 && *s == '-' && s[1] && !s[2]) {
     *count = 2;
     c = s[1];
+    if (c=='a') c = 'e';
     if (-1 != (i = stridx("hLbcdefgkpSusxwr", c))) {
       struct stat st;
 
