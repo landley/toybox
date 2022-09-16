@@ -105,7 +105,7 @@ static int dehex(char ch)
 static void do_xxd_reverse(int fd, char *name)
 {
   FILE *fp = xfdopen(xdup(fd), "r");
-  long long current_pos = 0;
+  long long pos, current_pos = 0;
   int tmp;
 
   // -ri is a very easy special case.
@@ -115,14 +115,10 @@ static void do_xxd_reverse(int fd, char *name)
 
     // Each line of a regular hexdump starts with an offset/address.
     // Each line of a plain hexdump just goes straight into the bytes.
-    if (!FLAG(p)) {
-      long long pos;
-
-      if (fscanf(fp, "%llx: ", &pos) == 1) {
-        if (pos != current_pos && fseek(stdout, pos, SEEK_SET) != 0) {
-          // TODO: just write out zeros if non-seekable?
-          perror_exit("%s: seek failed", name);
-        }
+    if (!FLAG(p) && fscanf(fp, "%llx: ", &pos) == 1) {
+      if (pos != current_pos && fseek(stdout, pos, SEEK_SET)) {
+        // TODO: just write out zeros if non-seekable?
+        perror_exit("%s: seek failed", name);
       }
     }
 
