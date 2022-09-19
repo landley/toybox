@@ -126,7 +126,7 @@ testing()
 
   if [ "$SKIP" -gt 0 ]
   then
-    verbose_has quiet && printf "%s\n" "$SHOWSKIP: $NAME"
+    verbose_has quiet || printf "%s\n" "$SHOWSKIP: $NAME"
     ((--SKIP))
 
     return 0
