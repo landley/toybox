@@ -178,7 +178,7 @@ static void mount_filesystem(char *dev, char *dir, char *type,
   if (type && !strcmp(type, "auto")) type = 0;
   if (flags & MS_MOVE) {
     if (type) error_exit("--move with -t");
-  } else if (!type) {
+  } else if (!type || !strcmp(type, "none")) {
     struct stat stdev, stdir;
 
     // file on file or dir on dir is a --bind mount.
