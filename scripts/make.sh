@@ -85,7 +85,7 @@ then
   [ -z "$V" ] && X=/dev/null || X=/dev/stderr
   for i in util crypt m resolv selinux smack attr crypto z log iconv tls ssl
   do
-    do_loudly ${CROSS_COMPILE}${CC} $CFLAGS $LDFLAGS -xc - -l$i &>>$X \
+    do_loudly ${CROSS_COMPILE}${CC} $CFLAGS $LDFLAGS -xc - -l$i &>$X \
       -o "$UNSTRIPPED"/libprobe <<<"int main(int argc,char*argv[]){return 0;}"&&
       do_loudly echo -n ' '-l$i >> "$GENDIR"/optlibs.new
   done
