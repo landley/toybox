@@ -25,6 +25,10 @@ testing "-e -e" "grep -e one -e two -e three input" \
   "two\ntwo\nthree\none\n" "two\ntwo\nthree\nand\none\n" ""
 testing "-F" "grep -F is input" "this is test\nthis is test2\n" \
   "this is test\nthis is test2\ntest case" ""
+testing "-Fo ''" "grep -Fo ''" "" "" "hello\n"
+testing "-Fw ''" "grep -Fw ''" "" "" "hello\n"
+testing "-Fw '' 2" "grep -Fw ''" "\n" "" "\n"
+testing "-F is really fixed" "grep -F '.[x]'" "c.[x]d\n" "" "axb\nc.[x]d\n"
 
 echo -e "this is test\nthis is test2\ntest case" > foo
 echo -e "hello this is test" > foo2
