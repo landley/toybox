@@ -5,8 +5,8 @@
  * See https://tools.ietf.org/html/rfc4648
 
 // These optflags have to match. Todo: cleanup and collapse together?
-USE_BASE64(NEWTOY(base64, "diw#<0=76[!dw]", TOYFLAG_USR|TOYFLAG_BIN))
-USE_BASE32(NEWTOY(base32, "diw#<0=76[!dw]", TOYFLAG_USR|TOYFLAG_BIN))
+USE_BASE64(NEWTOY(base64, "diw#<0=76[!dw]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LINEBUF))
+USE_BASE32(NEWTOY(base32, "diw#<0=76[!dw]", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_LINEBUF))
 
 config BASE64
   bool "base64"
@@ -39,6 +39,7 @@ config BASE32
 
 GLOBALS(
   long w;
+
   unsigned total;
   unsigned n;  // number of bits used in encoding. 5 for base32, 6 for base64
   unsigned align;  // number of bits to align to
