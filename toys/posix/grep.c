@@ -4,11 +4,8 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/grep.html
  *
- * Posix doesn't even specify -r, documenting deviations from it is silly.
-* echo hello | grep -w ''
-* echo '' | grep -w ''
-* echo hello | grep -f </dev/null
-*
+ * Posix doesn't even specify -r: too many deviations to document.
+ * TODO: -i is only ascii case insensitive, not unicode.
 
 USE_GREP(NEWTOY(grep, "(line-buffered)(color):;(exclude-dir)*S(exclude)*M(include)*ZzEFHIab(byte-offset)h(no-filename)ino(only-matching)rRsvwcL(files-without-match)l(files-with-matches)q(quiet)(silent)e*f*C#B#A#m#x[!wx][!EF]", TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)|TOYFLAG_LINEBUF))
 USE_EGREP(OLDTOY(egrep, grep, TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)|TOYFLAG_LINEBUF))
@@ -76,6 +73,7 @@ GLOBALS(
   struct double_list *reg;
   char indelim, outdelim;
   int found, tried;
+  struct arg_list *fixed[256];
 )
 
 struct reg {
@@ -145,11 +143,11 @@ static void do_grep(int fd, char *name)
 
   // Loop through lines of input
   for (;;) {
-    char *line = 0, *start;
+    char *line = 0, *start, *ss, *pp;
     struct reg *shoe;
     size_t ulen;
     long len;
-    int matched = 0, rc = 1;
+    int matched = 0, rc = 1, move = 0, ii;
 
     // get next line, check and trim delimiter
     lcount++;
@@ -161,55 +159,59 @@ static void do_grep(int fd, char *name)
 
     // Prepare for next line
     start = line;
-    if (TT.reg) for (shoe = (void *)TT.reg; shoe; shoe = shoe->next)
-      shoe->rc = 0;
+    for (shoe = (void *)TT.reg; shoe; shoe = shoe->next) shoe->rc = 0;
 
     // Loop to handle multiple matches in same line
     do {
       regmatch_t *mm = (void *)toybuf;
-      struct arg_list *seek, fseek;
-      int baseline = mm->rm_eo;
-      char *s = 0;
+      struct arg_list *seek;
 
-      mm->rm_so = mm->rm_eo = INT_MAX;
+      mm->rm_so = mm->rm_eo = 0;
       rc = 1;
 
       // Handle "fixed" (literal) matches (if any)
-      for (seek = TT.e; seek; seek = seek->next) {
-        if (FLAG(x)) {
-          if (!(FLAG(i) ? strcasecmp : strcmp)(seek->arg, line)) s = line;
-        } else if (!*seek->arg) {
-          if (FLAG(o)) continue;
-          // No need to set fseek.next because this will match every line.
-          seek = &fseek;
-          fseek.arg = s = line;
-          mm->rm_so = mm->rm_eo = rc = 0;
-          break;
-        } else if (FLAG(i)) s = strcasestr(start, seek->arg);
-        else s = memmem(start, ulen-(start-line), seek->arg, strlen(seek->arg));
-
-        // TODO: literal matches don't have "best match" logic, just first hit.
-        if (s) {
-          if (!rc && ((s-start) > mm->rm_so || ((s-start)==mm->rm_so && (mm->rm_so+strlen(seek->arg) < mm->rm_eo)))) continue;
+      if (TT.e && *start) for (ss = start; ss-line<ulen; ss++) {
+        ii = FLAG(i) ? toupper(*ss) : *ss;
+        for (seek = TT.fixed[ii]; seek; seek = seek->next) {
+          if (*(pp = seek->arg)=='^' && !FLAG(F)) {
+            if (ss!=start) continue;
+            pp++;
+          }
+          for (ii = 1; pp[ii] && ss[ii]; ii++) {
+            if (!FLAG(F)) {
+              if (pp[ii]=='.') continue;
+              if (pp[ii]=='\\' && pp[ii+1]) pp++;
+              else if (pp[ii]=='$' && !pp[ii+1]) break;
+            }
+            if (FLAG(i)) {
+              if (toupper(pp[ii])!=toupper(ss[ii])) break;
+            } else if (pp[ii]!=ss[ii]) break;
+          }
+          if (pp[ii] && (pp[ii]!='$' || pp[ii+1] || ss[ii])) continue;
+          mm->rm_eo = (mm->rm_so = ss-start)+ii;
           rc = 0;
-          mm->rm_so = mm->rm_eo = (s-start);
-          mm->rm_eo += strlen(seek->arg);
+
+          goto got;
         }
+        if (FLAG(x)) break;
       }
 
+      // Empty pattern always matches
+      if (rc && *TT.fixed && !FLAG(o)) rc = 0;
+got:
       // Handle regex matches (if any)
       for (shoe = (void *)TT.reg; shoe; shoe = shoe->next) {
         // Do we need to re-check this regex?
         if (!shoe->rc) {
-          shoe->m.rm_so -= baseline;
-          shoe->m.rm_eo -= baseline;
+          shoe->m.rm_so -= move;
+          shoe->m.rm_eo -= move;
           if (!matched || shoe->m.rm_so<0)
             shoe->rc = regexec0(&shoe->r, start, ulen-(start-line), 1,
                                 &shoe->m, start==line ? 0 : REG_NOTBOL);
         }
 
         // If we got a match, is it a _better_ match?
-        if (!shoe->rc && (shoe->m.rm_so < mm->rm_so ||
+        if (!shoe->rc && (rc || shoe->m.rm_so < mm->rm_so ||
             (shoe->m.rm_so == mm->rm_so && shoe->m.rm_eo >= mm->rm_eo)))
         {
           mm = &shoe->m;
@@ -218,7 +220,7 @@ static void do_grep(int fd, char *name)
       }
 
       if (!rc && FLAG(o) && !mm->rm_eo && ulen>start-line) {
-        start++;
+        move = 1;
         continue;
       }
 
@@ -236,7 +238,7 @@ static void do_grep(int fd, char *name)
           if (!isalnum(c) && c != '_') c = 0;
         }
         if (c) {
-          start += mm->rm_so+1;
+          move = mm->rm_so+1;
           continue;
         }
       }
@@ -245,7 +247,7 @@ static void do_grep(int fd, char *name)
         if (FLAG(o)) {
           if (rc) mm->rm_eo = ulen-(start-line);
           else if (!mm->rm_so) {
-            start += mm->rm_eo;
+            move = mm->rm_eo;
             continue;
           } else mm->rm_eo = mm->rm_so;
         } else {
@@ -306,9 +308,8 @@ static void do_grep(int fd, char *name)
         }
       }
 
-      start += mm->rm_eo;
-      if (mm->rm_so == mm->rm_eo) break;
-    } while (*start);
+      if (mm->rm_so == (move = mm->rm_eo)) break;
+    } while (*(start += move));
     offset += len;
 
     if (matched) {
@@ -366,10 +367,21 @@ static void do_grep(int fd, char *name)
   }
 }
 
+static int lensort(struct arg_list **a, struct arg_list **b)
+{
+  long la = strlen((*a)->arg), lb = strlen((*b)->arg);
+
+  if (la<lb) return -1;
+  if (la>lb) return 1;
+
+  return 0;
+}
+
 static void parse_regex(void)
 {
   struct arg_list *al, *new, *list = NULL, **last;
-  char *s, *ss;
+  char *s, *ss, *special = "\\.^$[()|*+?{";
+  int len, ii, key;
 
   // Add all -f lines to -e list. (Yes, this is leaking allocation context for
   // exit to free. Not supporting nofork for this command any time soon.)
@@ -406,8 +418,13 @@ static void parse_regex(void)
 
   // Convert to regex where appropriate
   for (last = &TT.e; *last;) {
-    for (s = (*last)->arg; *s; s++)
-      if (*s>127 || strchr("^.[$()|*+?{\\", *s)) break;
+    if ('.'!=*(s = (*last)->arg) && !FLAG(F)) for (; *s; s++) {
+      if (*s=='\\') {
+        if (!s[1] || !strchr(special, *++s)) break;
+        if (!FLAG(E) && *s=='(') break;
+      } else if (*s>127 || strchr(special+4, *s)) break;
+    }
+
     if (!*s || FLAG(F)) last = &((*last)->next);
     else {
       struct reg *shoe;
@@ -421,6 +438,29 @@ static void parse_regex(void)
     }
   }
   dlist_terminate(TT.reg);
+
+  // Sort fixed patterns into buckets by first character
+  for (al = TT.e; al; al = new) {
+    new = al->next;
+    key = '^'==*al->arg;
+    if ('$'==al->arg[key] && !al->arg[key+1]) key = 0;
+    else key = al->arg[key];
+    if (FLAG(i)) key = toupper(key);
+    al->next = TT.fixed[key];
+    TT.fixed[key] = al;
+  }
+
+  // Sort each fixed pattern set by length so first hit is longest match
+  if (TT.e) for (key = 0; key<256; key++) {
+    if (!TT.fixed[key]) continue;
+    for (len = 0, al = TT.fixed[key]; al; al = al->next) len++;
+    last = xmalloc(len*sizeof(void *));
+    for (len = 0, al = TT.fixed[key]; al; al = al->next) last[len++] = al;
+    qsort(last, len, sizeof(void *), (void *)lensort);
+    for (ii = 0; ii<len; ii++) last[ii]->next = ii ? last[ii-1] : 0;
+    TT.fixed[key] = last[len-1];
+    free(last);
+  }
 }
 
 static int do_grep_r(struct dirtree *new)

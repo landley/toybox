@@ -211,3 +211,7 @@ testing "-o skip zero length match" "grep -o '[0-9]*'" "1234\n" "" "a1234b"
 testing "--color highlights all matches" \
   "grep --color=always def | grep -o '[[][0-9;]*[Km]def.[[]m' | wc -l" \
   "2\n" "" "abcdefghidefjkl\n"
+seq 1 100002 | base64 > testfile
+testing "speed" "timeout 5 grep -f testfile testfile 2>/dev/null | wc -l" \
+  "10332\n" "" ""
+rm -f testfile
