@@ -56,8 +56,8 @@ static int od_out_t(struct odtype *t, char *buf, int *offset)
   // Handle ascii
   if (t->type < 2) {
     char c = TT.buf[(*offset)++];
-    pad += 4;
 
+    pad += 4;
     if (!t->type) {
       c &= 127;
       if (c<=32) sprintf(buf, "%.3s", ascii+(3*c));
@@ -93,8 +93,7 @@ static int od_out_t(struct odtype *t, char *buf, int *offset)
   // Integer types
   } else {
     unsigned long long ll = 0, or;
-    char *c[] = {"%*lld", "%*llu", "%0*llo", "%0*llx"},
-      *class = c[t->type-2];
+    char *c[] = {"%*lld", "%*llu", "%0*llo", "%0*llx"}, *class = c[t->type-2];
 
     // Work out width of field
     if (t->size == 8) {
@@ -126,7 +125,6 @@ static int od_out_t(struct odtype *t, char *buf, int *offset)
 
 static void od_outline(void)
 {
-  unsigned flags = toys.optflags;
   char buf[128], *abases[] = {"", "%07lld", "%07llo", "%06llx"};
   struct odtype *types = (struct odtype *)toybuf;
   int i, j, len, pad;
@@ -134,7 +132,7 @@ static void od_outline(void)
   if (TT.leftover<TT.w) memset(TT.buf+TT.leftover, 0, TT.w-TT.leftover);
 
   // Handle duplciate lines as *
-  if (!(flags&FLAG_v) && TT.j != TT.pos && TT.leftover
+  if (!FLAG(v) && TT.j != TT.pos && TT.leftover
     && !memcmp(TT.bufs[0], TT.bufs[1], TT.w))
   {
     if (!TT.star) {
@@ -201,7 +199,7 @@ static void do_od(int fd, char *name)
     char *buf = TT.buf + TT.leftover;
     int len = TT.w - TT.leftover;
 
-    if (toys.optflags & FLAG_N) {
+    if (FLAG(N)) {
       if (!TT.N) break;
       if (TT.N < len) len = TT.N;
     }
@@ -276,12 +274,12 @@ void od_main(void)
   // Collect -t entries
 
   for (arg = TT.t; arg; arg = arg->next) append_base(arg->arg);
-  if (toys.optflags & FLAG_b) append_base("o1");
-  if (toys.optflags & FLAG_c) append_base("c");
-  if (toys.optflags & FLAG_d) append_base("u2");
-  if (toys.optflags & FLAG_o) append_base("o2");
-  if (toys.optflags & FLAG_s) append_base("d2");
-  if (toys.optflags & FLAG_x) append_base("x2");
+  if (FLAG(b)) append_base("o1");
+  if (FLAG(c)) append_base("c");
+  if (FLAG(d)) append_base("u2");
+  if (FLAG(o)) append_base("o2");
+  if (FLAG(s)) append_base("d2");
+  if (FLAG(x)) append_base("x2");
   if (!TT.types) append_base("o2");
 
   loopfiles(toys.optargs, do_od);
