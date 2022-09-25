@@ -175,6 +175,9 @@ testcmd '-z N' '-z N' 'one\0two\0' '' 'one\0two\0'
 testcmd 'p noeol' '-z p' 'one\0one' '' 'one'
 testcmd '-z N noeol' '-z N' 'one\0two' '' 'one\0two'
 testcmd '-z S' "-z 'N;P'" 'one\0one\0two' '' 'one\0two'
+testcmd '-z D' "-z 'N;D'" 'two' '' 'one\0two'
+testcmd '-z G' "-z 'h;G'" 'one\0one' '' 'one'
+testcmd '-z H' "-z 'H;g'" '\0one' '' 'one'
 
 # toybox handling of empty capturing groups broke minjail. Check that we
 # correctly replace an empty capturing group with the empty string:

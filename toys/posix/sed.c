@@ -330,7 +330,7 @@ static void sed_line(char **pline, long plen)
     } else if (c=='D') {
       // Delete up to \n or end of buffer
       str = line;
-      while ((str-line)<len) if (*(str++) == '\n') break;
+      while ((str-line)<len) if (*(str++) == TT.delim) break;
       len -= str - line;
       memmove(line, str, len);
 
@@ -346,11 +346,11 @@ static void sed_line(char **pline, long plen)
       continue;
     } else if (c=='g') {
       free(line);
-      line = xstrdup(TT.remember);
+      line = xmemdup(TT.remember, TT.rememberlen+1);
       len = TT.rememberlen;
     } else if (c=='G') {
       line = xrealloc(line, len+TT.rememberlen+2);
-      line[len++] = '\n';
+      line[len++] = TT.delim;
       memcpy(line+len, TT.remember, TT.rememberlen);
       line[len += TT.rememberlen] = 0;
     } else if (c=='h') {
@@ -359,7 +359,7 @@ static void sed_line(char **pline, long plen)
       TT.rememberlen = len;
     } else if (c=='H') {
       TT.remember = xrealloc(TT.remember, TT.rememberlen+len+2);
-      TT.remember[TT.rememberlen++] = '\n';
+      TT.remember[TT.rememberlen++] = TT.delim;
       memcpy(TT.remember+TT.rememberlen, line, len);
       TT.remember[TT.rememberlen += len] = 0;
     } else if (c=='i') {
