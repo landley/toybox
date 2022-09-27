@@ -4,6 +4,8 @@
 
 [ -z "$1" ] && { echo "usage: single.sh command..." >&2; exit 1; }
 
+source scripts/portability.sh
+
 # Add trailing / to PREFIX when it's set but hasn't got one
 [ "$PREFIX" == "${PREFIX%/}" ] && PREFIX="${PREFIX:+$PREFIX/}"
 
@@ -17,7 +19,7 @@ else
   # Force dependencies to rebuild headers if we build multiplexer after this.
   touch "$KCONFIG_CONFIG"
 fi
-GLOBDEP="$(sed -n 's/CONFIG_\(TOYBOX_[^=]*\)=y/\1/p' "$KCONFIG_CONFIG")"
+GLOBDEP="$($SED -n 's/CONFIG_\(TOYBOX_[^=]*\)=y/\1/p' "$KCONFIG_CONFIG")"
 KCONFIG_CONFIG=.singleconfig
 
 for i in "$@"
@@ -36,15 +38,15 @@ do
   unset DEPENDS MPDEL
   if [ "$i" == sh ]
   then
-    DEPENDS="$(sed -n 's/USE_\([^(]*\)(NEWTOY([^,]*,.*TOYFLAG_MAYFORK.*/\1/p' toys/*/*.c)"
+    DEPENDS="$($SED -n 's/USE_\([^(]*\)(NEWTOY([^,]*,.*TOYFLAG_MAYFORK.*/\1/p' toys/*/*.c)"
   else
     MPDEL='s/CONFIG_TOYBOX=y/# CONFIG_TOYBOX is not set/;t'
   fi
 
   # Enable stuff this command depends on
-  DEPENDS="$({ echo $DEPENDS $GLOBDEP; sed -n "/^config *$i"'$/,/^$/{s/^[ \t]*depends on //;T;s/[!][A-Z0-9_]*//g;s/ *&& */|/g;p}' $TOYFILE;}| xargs | tr ' ' '|')"
+  DEPENDS="$({ echo $DEPENDS $GLOBDEP; $SED -n "/^config *$i"'$/,/^$/{s/^[ \t]*depends on //;T;s/[!][A-Z0-9_]*//g;s/ *&& */|/g;p}' $TOYFILE;}| xargs | tr ' ' '|')"
   NAME=$(echo $i | tr a-z- A-Z_)
-  sed -ri -e "$MPDEL" \
+  $SED -ri -e "$MPDEL" \
     -e "s/# (CONFIG_($NAME|${NAME}_.*${DEPENDS:+|$DEPENDS})) is not set/\1=y/" \
     "$KCONFIG_CONFIG" || exit 1
 
