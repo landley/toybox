@@ -350,7 +350,7 @@ extern CODE prioritynames[], facilitynames[];
 #if __has_include (<sys/random.h>)
 #include <sys/random.h>
 #endif
-int xgetrandom(void *buf, unsigned len, unsigned flags);
+void xgetrandom(void *buf, unsigned len);
 
 // Android's bionic libc doesn't have confstr.
 #ifdef __BIONIC__

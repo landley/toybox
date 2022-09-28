@@ -51,7 +51,7 @@ void pwgen_main(void)
   for (jj = 0; jj<count; jj++) {
     for (ii = 0; ii<length;) {
       // Don't fetch more random than necessary, give each byte 2 tries to fit
-      if (!rand) xgetrandom(randbuf, rand = sizeof(randbuf), 0);
+      if (!rand) xgetrandom(randbuf, rand = sizeof(randbuf));
       c = 33+randbuf[--rand]%93; // remainder 69 makes >102 less likely
       if (FLAG(s)) randbuf[rand] = 0;
 

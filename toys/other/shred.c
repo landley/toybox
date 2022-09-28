@@ -90,7 +90,7 @@ void shred_main(void)
       throw = sizeof(toybuf);
       if (FLAG(x) && len-pos < throw) throw = len-pos;
 
-      if (iter != TT.n) xgetrandom(toybuf, throw, 0);
+      if (iter != TT.n) xgetrandom(toybuf, throw);
       if (throw != writeall(fd, toybuf, throw)) perror_msg_raw(*try);
       pos += throw;
     }

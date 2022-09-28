@@ -30,7 +30,7 @@ pid_t xfork(void)
 }
 #endif
 
-int xgetrandom(void *buf, unsigned buflen, unsigned flags)
+void xgetrandom(void *buf, unsigned buflen)
 {
   int fd;
 
@@ -39,15 +39,16 @@ int xgetrandom(void *buf, unsigned buflen, unsigned flags)
   // they were there first). getrandom() and getentropy() both went into glibc
   // in the same release (2.25 in 2017), so this test still works.
 #if __has_include(<sys/random.h>)
-  if (!getentropy(buf, buflen)) return 1;
-  if (errno!=ENOSYS && !(flags&WARN_ONLY)) perror_exit("getrandom");
+  while (buflen) {
+    if (getentropy(buf, fd = buflen>256 ? 256 : buflen)) break;
+    buflen -= fd;
+    buf += fd;
+  }
+  if (!buflen) return;
+  if (errno!=ENOSYS) perror_exit("getrandom");
 #endif
-  fd = xopen(flags ? "/dev/random" : "/dev/urandom",O_RDONLY|(flags&WARN_ONLY));
-  if (fd == -1) return 0;
-  xreadall(fd, buf, buflen);
+  xreadall(fd = xopen("/dev/urandom", O_RDONLY), buf, buflen);
   close(fd);
-
-  return 1;
 }
 
 // Get list of mounted filesystems, including stat and statvfs info.

@@ -23,7 +23,7 @@ int get_salt(char *salt, char *algo)
       if (al[i].id) s += sprintf(s, "$%c$", '0'+al[i].id);
 
       // Read appropriate number of random bytes for salt
-      xgetrandom(libbuf, ((len*6)+7)/8, 0);
+      xgetrandom(libbuf, ((len*6)+7)/8);
 
       // Grab 6 bit chunks and convert to characters in ./0-9a-zA-Z
       for (i = 0; i<len; i++) {
