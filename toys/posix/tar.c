@@ -61,7 +61,7 @@ GLOBALS(
   struct double_list *incl, *excl, *seen;
   struct string_list *dirs;
   char *cwd, **xfsed;
-  int fd, ouid, ggid, hlc, warn, sparselen, pid;
+  int fd, ouid, ggid, hlc, warn, sparselen, pid, xfpipe[2];
   struct dev_ino archive_di;
   long long *sparse;
   time_t mtt;
@@ -192,6 +192,23 @@ static void alloread(void *buf, int len)
   (*b)[len] = 0;
 }
 
+static char *xform(char **name)
+{
+  char buf[9], *end;
+  off_t len;
+
+  if (!TT.xform) return 0;
+
+  buf[8] = 0;
+  if (dprintf(TT.xfpipe[0], "%s%c", *name, 0) != strlen(*name)+1
+    || readall(TT.xfpipe[1], buf, 8) != 8
+    || !(len = estrtol(buf, &end, 16)) || errno ||*end) error_exit("bad xform");
+  xreadall(TT.xfpipe[1], *name = xmalloc(len+1), len);
+  (*name)[len] = 0;
+
+  return *name;
+}
+
 // callback from dirtree to create archive
 static int add_to_tar(struct dirtree *node)
 {
@@ -242,10 +259,7 @@ static int add_to_tar(struct dirtree *node)
     TT.warn = 0;
   }
 
-  // Note: linux sed doesn't add newline, so no need to remove it or use -z.
-  if (TT.xfsed)
-    if (!(hname = xfname = xrunread(TT.xfsed, hname))) error_exit("bad xform");
-
+  xfname = xform(&hname);
   if (TT.owner) st->st_uid = TT.ouid;
   if (TT.group) st->st_gid = TT.ggid;
   if (TT.mode) st->st_mode = string_to_mode(TT.mode, st->st_mode);
@@ -781,8 +795,7 @@ static void unpack_tar(char *first)
 
     // We accept --show-transformed but always do, so it's a NOP.
     name = TT.hdr.name;
-    if (TT.xfsed) {
-      if (!(name = xrunread(TT.xfsed, name))) error_exit("bad xform");
+    if (xform(&name)) {
       free(TT.hdr.name);
       TT.hdr.name = name;
     }
@@ -885,7 +898,7 @@ static  char *get_archiver()
 
 void tar_main(void)
 {
-  char *s, **args = toys.optargs;
+  char *s, **xfsed, **args = toys.optargs;
   int len = 0, ii;
 
   // Needed when extracting to command
@@ -927,13 +940,17 @@ void tar_main(void)
     struct arg_list *al;
 
     for (ii = 0, al = TT.xform; al; al = al->next) ii++;
-    TT.xfsed = xmalloc((ii+1)*2*sizeof(char *));
-    TT.xfsed[0] = "sed";
-    for (ii = 1, al = TT.xform; al; al = al->next) {
-      TT.xfsed[ii++] = "-e";
-      TT.xfsed[ii++] = al->arg;
+    xfsed = xmalloc((ii+2)*2*sizeof(char *));
+    xfsed[0] = "sed";
+    xfsed[1] = "--tarxform";
+    for (ii = 2, al = TT.xform; al; al = al->next) {
+      xfsed[ii++] = "-e";
+      xfsed[ii++] = al->arg;
     }
-    TT.xfsed[ii] = 0;
+    xfsed[ii] = 0;
+    TT.xfpipe[0] = TT.xfpipe[1] = -1;
+    xpopen_both(xfsed, TT.xfpipe);
+    free(xfsed);
   }
 
   // nommu reentry for nonseekable input skips this, parent did it for us

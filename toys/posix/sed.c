@@ -18,8 +18,9 @@
  * continuations for [abc], \; to end [abc] argument before end of line.
  * Explicit violations of stuff posix says NOT to do: N at EOF does default
  * print, l escapes \n
+ * Added --tarxform mode to support tar --xform
 
-USE_SED(NEWTOY(sed, "(help)(version)e*f*i:;nErz(null-data)s[+Er]", TOYFLAG_BIN|TOYFLAG_LOCALE|TOYFLAG_NOHELP))
+USE_SED(NEWTOY(sed, "(help)(version)(tarxform)e*f*i:;nErz(null-data)s[+Er]", TOYFLAG_BIN|TOYFLAG_LOCALE|TOYFLAG_NOHELP))
 
 config SED
   bool "sed"
@@ -128,11 +129,11 @@ GLOBALS(
   // processed pattern list
   struct double_list *pattern;
 
-  char *nextline, *remember;
+  char *nextline, *remember, *tarxform;
   void *restart, *lastregex;
   long nextlen, rememberlen, count;
   int fdout, noeol;
-  unsigned xx;
+  unsigned xx, tarxlen;
   char delim;
 )
 
@@ -156,14 +157,22 @@ struct sedcmd {
 // Write out line with potential embedded NUL, handling eol/noeol
 static int emit(char *line, long len, int eol)
 {
-  int l, old = line[len];
+  int l = len, old = line[len];
 
-  if (TT.noeol && !writeall(TT.fdout, &TT.delim, 1)) return 1;
+  if (FLAG(tarxform)) {
+    TT.tarxform = xrealloc(TT.tarxform, TT.tarxlen+len+TT.noeol+eol);
+    if (TT.noeol) TT.tarxform[TT.tarxlen++] = TT.delim;
+    memcpy(TT.tarxform+TT.tarxlen, line, len);
+    TT.tarxlen += len;
+    if (eol) TT.tarxform[TT.tarxlen++] = TT.delim;
+  } else {
+    if (TT.noeol && !writeall(TT.fdout, &TT.delim, 1)) return 1;
+    if (eol) line[len++] = TT.delim;
+    if (!len) return 0;
+    l = writeall(TT.fdout, line, len);
+    if (eol) line[len-1] = old;
+  }
   TT.noeol = !eol;
-  if (eol) line[len++] = TT.delim;
-  if (!len) return 0;
-  l = writeall(TT.fdout, line, len);
-  if (eol) line[len-1] = old;
   if (l != len) {
     if (TT.fdout != 1) perror_msg("short write");
 
@@ -208,23 +217,35 @@ static void sed_line(char **pline, long plen)
     int file;
     char *str;
   } *append = 0;
-  char *line = TT.nextline;
-  long len = TT.nextlen;
+  char *line;
+  long len;
   struct sedcmd *command;
   int eol = 0, tea = 0;
 
-  // Ignore EOF for all files before last unless -i
-  if (!pline && !FLAG(i) && !FLAG(s)) return;
+  if (FLAG(tarxform)) {
+    if (!pline) return;
 
-  // Grab next line for deferred processing (EOF detection: we get a NULL
-  // pline at EOF to flush last line). Note that only end of _last_ input
-  // file matches $ (unless we're doing -i).
-  TT.nextline = 0;
-  TT.nextlen = 0;
-  if (pline) {
-    TT.nextline = *pline;
-    TT.nextlen = plen;
+    line = *pline;
+    len = plen;
     *pline = 0;
+    pline = 0;
+  } else {
+    line = TT.nextline;
+    len = TT.nextlen;
+
+    // Ignore EOF for all files before last unless -i or -s
+    if (!pline && !FLAG(i) && !FLAG(s)) return;
+
+    // Grab next line for deferred processing (EOF detection: we get a NULL
+    // pline at EOF to flush last line). Note that only end of _last_ input
+    // file matches $ (unless we're doing -i).
+    TT.nextline = 0;
+    TT.nextlen = 0;
+    if (pline) {
+      TT.nextline = *pline;
+      TT.nextlen = plen;
+      *pline = 0;
+    }
   }
 
   if (!line || !len) return;
@@ -531,6 +552,8 @@ static void sed_line(char **pline, long plen)
       char *name;
 
 writenow:
+      if (FLAG(tarxform)) error_exit("tilt");
+
       // Swap out emit() context
       fd = TT.fdout;
       noeol = TT.noeol;
@@ -577,6 +600,7 @@ writenow:
 done:
   if (line && !FLAG(n)) emit(line, len, eol);
 
+  // TODO: should "sed -z ax" use \n instead of NUL?
   if (dlist_terminate(append)) while (append) {
     struct append *a = append->next;
 
@@ -585,7 +609,7 @@ done:
 
       // Force newline if noeol pending
       if (fd != -1) {
-        if (TT.noeol) xwrite(TT.fdout, "\n", 1);
+        if (TT.noeol) xwrite(TT.fdout, &TT.delim, 1);
         TT.noeol = 0;
         xsendfile(fd, TT.fdout);
         close(fd);
@@ -596,6 +620,12 @@ done:
     append = a;
   }
   free(line);
+
+  if (TT.tarxlen) {
+    dprintf(TT.fdout, "%08x", --TT.tarxlen);
+    writeall(TT.fdout, TT.tarxform, TT.tarxlen);
+    TT.tarxlen = 0;
+  }
 }
 
 // Callback called on each input file
@@ -847,7 +877,6 @@ resume_s:
         long l;
 
         if (isspace(*line) && *line != '\n') continue;
-
         if (0 <= (l = stridx("igpx", *line))) command->sflags |= 1<<l;
         else if (*line == 'I') command->sflags |= 1<<0;
         else if (!(command->sflags>>4) && 0<(l = strtol(line, &line, 10))) {
@@ -987,6 +1016,7 @@ void sed_main(void)
   struct arg_list *al;
   char **args = toys.optargs;
 
+  if (FLAG(tarxform)) toys.optflags |= FLAG_z;
   if (!FLAG(z)) TT.delim = '\n';
 
   // Lie to autoconf when it asks stupid questions, so configure regexes

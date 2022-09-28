@@ -316,9 +316,13 @@ mkdir -p one/two/three/four/five
 touch one/two/three/four/five/six
 testing "--strip" "$TAR one | tar t --strip=2 --show-transformed | grep six" \
   "three/four/five/six\n" "" ""
+
+# toybox tar --xform depends on toybox sed
+sed --tarxform '' </dev/null 2>/dev/null || SKIP=99
 testing "--xform" "$TAR one --xform=s@three/four/@zero@ | tar t | grep six" \
   "one/two/zerofive/six\n" "" ""
 rm -rf one
+SKIP=0
 
 if false
 then
