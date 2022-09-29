@@ -177,7 +177,7 @@ static void do_grep(int fd, char *name)
             if (ss!=start) continue;
             pp++;
           }
-          for (ii = 1; pp[ii] && ss[ii]; ii++) {
+          for (ii = 0; pp[ii] && ss[ii]; ii++) {
             if (!FLAG(F)) {
               if (pp[ii]=='.') continue;
               if (pp[ii]=='\\' && pp[ii+1]) pp++;
@@ -418,13 +418,16 @@ static void parse_regex(void)
 
   // Convert to regex where appropriate
   for (last = &TT.e; *last;) {
-    if ('.'!=*(s = (*last)->arg) && !FLAG(F)) for (; *s; s++) {
+    // Can we use the fast path?
+    s = (*last)->arg;
+    if ('.'!=*s && !FLAG(F) && strcmp(s, "^$")) for (; *s; s++) {
       if (*s=='\\') {
         if (!s[1] || !strchr(special, *++s)) break;
         if (!FLAG(E) && *s=='(') break;
       } else if (*s>127 || strchr(special+4, *s)) break;
     }
 
+    // Add entry to fast path (literal-ish match) or slow path (regexec)
     if (!*s || FLAG(F)) last = &((*last)->next);
     else {
       struct reg *shoe;
@@ -439,18 +442,19 @@ static void parse_regex(void)
   }
   dlist_terminate(TT.reg);
 
-  // Sort fixed patterns into buckets by first character
+  // Sort fast path patterns into buckets by first character
   for (al = TT.e; al; al = new) {
     new = al->next;
     key = '^'==*al->arg;
-    if ('$'==al->arg[key] && !al->arg[key+1]) key = 0;
-    else key = al->arg[key];
+    if ('\\'==al->arg[key]) key++;
+    else if ('$'==al->arg[key] && !al->arg[key+1]) key++;
+    key = al->arg[key];
     if (FLAG(i)) key = toupper(key);
     al->next = TT.fixed[key];
     TT.fixed[key] = al;
   }
 
-  // Sort each fixed pattern set by length so first hit is longest match
+  // Sort each fast path pattern set by length so first hit is longest match
   if (TT.e) for (key = 0; key<256; key++) {
     if (!TT.fixed[key]) continue;
     for (len = 0, al = TT.fixed[key]; al; al = al->next) len++;
