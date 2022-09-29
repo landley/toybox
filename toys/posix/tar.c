@@ -192,7 +192,7 @@ static void alloread(void *buf, int len)
   (*b)[len] = 0;
 }
 
-static char *xform(char **name)
+static char *xform(char **name, char type)
 {
   char buf[9], *end;
   off_t len;
@@ -200,7 +200,7 @@ static char *xform(char **name)
   if (!TT.xform) return 0;
 
   buf[8] = 0;
-  if (dprintf(TT.xfpipe[0], "%s%c", *name, 0) != strlen(*name)+1
+  if (dprintf(TT.xfpipe[0], "%s%c%c", *name, type, 0) != strlen(*name)+2
     || readall(TT.xfpipe[1], buf, 8) != 8
     || !(len = estrtol(buf, &end, 16)) || errno ||*end) error_exit("bad xform");
   xreadall(TT.xfpipe[1], *name = xmalloc(len+1), len);
@@ -259,20 +259,20 @@ static int add_to_tar(struct dirtree *node)
     TT.warn = 0;
   }
 
-  xfname = xform(&hname);
   if (TT.owner) st->st_uid = TT.ouid;
   if (TT.group) st->st_gid = TT.ggid;
   if (TT.mode) st->st_mode = string_to_mode(TT.mode, st->st_mode);
   if (TT.mtime) st->st_mtime = TT.mtt;
-
   memset(&hdr, 0, sizeof(hdr));
-  strncpy(hdr.name, hname, sizeof(hdr.name));
   ITOO(hdr.mode, st->st_mode &07777);
   ITOO(hdr.uid, st->st_uid);
   ITOO(hdr.gid, st->st_gid);
   ITOO(hdr.size, 0); //set size later
   ITOO(hdr.mtime, st->st_mtime);
   strcpy(hdr.magic, "ustar  ");
+
+  xfname = xform(&hname, 'r');
+  strncpy(hdr.name, hname, sizeof(hdr.name));
 
   // Hard link or symlink? i=0 neither, i=1 hardlink, i=2 symlink
 
@@ -795,7 +795,7 @@ static void unpack_tar(char *first)
 
     // We accept --show-transformed but always do, so it's a NOP.
     name = TT.hdr.name;
-    if (xform(&name)) {
+    if (xform(&name, 'r')) {
       free(TT.hdr.name);
       TT.hdr.name = name;
     }

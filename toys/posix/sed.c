@@ -220,7 +220,7 @@ static void sed_line(char **pline, long plen)
   char *line;
   long len;
   struct sedcmd *command;
-  int eol = 0, tea = 0;
+  int eol = 0, tea = 0, xftype = 0;
 
   if (FLAG(tarxform)) {
     if (!pline) return;
@@ -250,6 +250,10 @@ static void sed_line(char **pline, long plen)
 
   if (!line || !len) return;
   if (line[len-1] == TT.delim) line[--len] = eol++;
+  if (FLAG(tarxform) && len) {
+    xftype = line[--len];
+    line[len] = 0;
+  }
   TT.count++;
 
   // The restart-1 is because we added one to make sure it wasn't NULL,
