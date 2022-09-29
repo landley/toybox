@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# TODO: several tests need to check both fast and slow paths
+
 [ -f testing.sh ] && . testing.sh
 
 # Copyright 2013 by Kyungsu Kim <kaspyx@gmail.com>
@@ -7,178 +9,165 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-testing "-c" "grep -c 123 input" "3\n" "123\ncount 123\n123\nfasdfasdf" ""
+testcmd "-c" "-c 123 input" "3\n" "123\ncount 123\n123\nfasdfasdf" ""
 
 echo -e "this is test" > foo
 echo -e "this is test2" > foo2
 echo -e "this is foo3" > foo3
-testing "-l" "grep -l test foo foo2 foo3" "foo\nfoo2\n" "" ""
-testing "-L" "grep -L test foo foo2 foo3" "foo3\n" "" ""
+testcmd "-l" "-l test foo foo2 foo3" "foo\nfoo2\n" "" ""
+testcmd "-L" "-L test foo foo2 foo3" "foo3\n" "" ""
 rm foo foo2 foo3
 
-testing "-q" "grep -q test input && echo yes" "yes\n" "this is a test\n" ""
-testing "-E" "grep -E '[0-9]' input" "1234123asdfas123123\n1\n" \
+testcmd "-q" "-q test input && echo yes" "yes\n" "this is a test\n" ""
+testcmd "-E" "-E '[0-9]' input" "1234123asdfas123123\n1\n" \
   "1234123asdfas123123\nabc\n1\nabcde" ""
-testing "-e" "grep -e '[0-9]' input" "1234123asdfas123123\n1\n" \
+testcmd "-e" "-e '[0-9]' input" "1234123asdfas123123\n1\n" \
   "1234123asdfas123123\nabc\n1\nabcde" ""
-testing "-e -e" "grep -e one -e two -e three input" \
+testcmd "-e -e" "-e one -e two -e three input" \
   "two\ntwo\nthree\none\n" "two\ntwo\nthree\nand\none\n" ""
-testing "-F" "grep -F is input" "this is test\nthis is test2\n" \
+testcmd "-F" "-F is input" "this is test\nthis is test2\n" \
   "this is test\nthis is test2\ntest case" ""
-testing "-Fo ''" "grep -Fo ''" "" "" "hello\n"
-testing "-Fw ''" "grep -Fw ''" "" "" "hello\n"
-testing "-Fw '' 2" "grep -Fw ''" "\n" "" "\n"
-testing "-F is really fixed" "grep -F '.[x]'" "c.[x]d\n" "" "axb\nc.[x]d\n"
+testcmd "-Fo ''" "-Fo ''" "" "" "hello\n"
+testcmd "-Fw ''" "-Fw ''" "" "" "hello\n"
+testcmd "-Fw '' 2" "-Fw ''" "\n" "" "\n"
+testcmd "-F is really fixed" "-F '.[x]'" "c.[x]d\n" "" "axb\nc.[x]d\n"
 
 echo -e "this is test\nthis is test2\ntest case" > foo
 echo -e "hello this is test" > foo2
 echo -e "hi hello" > foo3
-testing "-H" "grep -H is foo foo2 foo3" "foo:this is test\nfoo:this is test2\nfoo2:hello this is test\n" "" ""
+testcmd "-H" "-H is foo foo2 foo3" \
+  "foo:this is test\nfoo:this is test2\nfoo2:hello this is test\n" "" ""
 rm foo foo2 foo3
 
-testing "-b" "grep -b is input" "0:this is test\n13:this is test2\n" \
+testcmd "-b" "-b is input" "0:this is test\n13:this is test2\n" \
   "this is test\nthis is test2\ntest case" ""
-testing "-i" "grep -i is input" "thisIs test\nthis is test2\n" \
+testcmd "-i" "-i is input" "thisIs test\nthis is test2\n" \
   "thisIs test\nthis is test2\ntest case" ""
-testing "-n" "grep -n is input" "1:this is test\n2:this is test2\n" \
+testcmd "-n" "-n is input" "1:this is test\n2:this is test2\n" \
   "this is test\nthis is test2\ntest case" ""
-testing "-o" "grep -o is input" "is\nis\nis\nis\n" \
+testcmd "-o" "-o is input" "is\nis\nis\nis\n" \
   "this is test\nthis is test2\ntest case" ""
-testing "-s" "grep -hs hello asdf input 2>&1" "hello\n" "hello\n" ""
-testing "-v" "grep -v abc input" "1234123asdfas123123\n1ABa\n" \
+testcmd "-s" "-hs hello asdf input 2>&1" "hello\n" "hello\n" ""
+testcmd "-v" "-v abc input" "1234123asdfas123123\n1ABa\n" \
   "1234123asdfas123123\n1ABabc\nabc\n1ABa\nabcde" ""
-testing "-w" "grep -w abc input" "abc\n123 abc\nabc 123\n123 abc 456\n" \
+testcmd "-w" "-w abc input" "abc\n123 abc\nabc 123\n123 abc 456\n" \
   "1234123asdfas123123\n1ABabc\nabc\n1ABa\nabcde\n123 abc\nabc 123\n123 abc 456\n" ""
-testing "-x" "grep -x abc input" "abc\n" \
-  "aabcc\nabc\n" ""
+testcmd "-x" "-x abc input" "abc\n" "aabcc\nabc\n" ""
 
-testing "-H (standard input)" "grep -H abc" "(standard input):abc\n" \
-  "" "abc\n"
-testing "-l (standard input)" "grep -l abc" "(standard input)\n" \
-  "" "abc\n"
-testing "-n two inputs" "grep -hn def - input" "2:def\n2:def\n" \
+testcmd "-H (standard input)" "-H abc" "(standard input):abc\n" "" "abc\n"
+testcmd "-l (standard input)" "-l abc" "(standard input)\n" "" "abc\n"
+testcmd "-n two inputs" "-hn def - input" "2:def\n2:def\n" \
   "abc\ndef\n" "abc\ndef\n"
 
-testing "pattern with newline" "grep 'abc
-def' input" "aabcc\nddeff\n" \
+testcmd "pattern with newline" $'"abc\ndef" input' "aabcc\nddeff\n" \
   "aaaa\naabcc\n\dddd\nddeff\nffff\n" ""
 
-testing "-lH" "grep -lH abc input" "input\n" "abc\n" ""
-testing "-cn" "grep -cn abc input" "1\n" "abc\n" ""
-testing "-cH" "grep -cH abc input" "input:1\n" "abc\n" ""
-testing "-qs" "grep -qs abc none input && echo yes" "yes\n" "abc\n" ""
-testing "-hl" "grep -hl abc input" "input\n" "abc\n" ""
-testing "-b stdin" "grep -b one" "0:one\n4:one\n8:one\n" "" "one\none\none\n"
-testing "-o overlap" "grep -bo aaa" "1:aaa\n" "" "baaaa\n"
+testcmd "-lH" "-lH abc input" "input\n" "abc\n" ""
+testcmd "-cn" "-cn abc input" "1\n" "abc\n" ""
+testcmd "-cH" "-cH abc input" "input:1\n" "abc\n" ""
+testcmd "-qs" "-qs abc none input && echo yes" "yes\n" "abc\n" ""
+testcmd "-hl" "-hl abc input" "input\n" "abc\n" ""
+testcmd "-b stdin" "-b one" "0:one\n4:one\n8:one\n" "" "one\none\none\n"
+testcmd "-o overlap" "-bo aaa" "1:aaa\n" "" "baaaa\n"
 # nonobvious: -co counts lines, not matches
-testing "-co" "grep -co one input" "1\n" "one one one\n" ""
-testing "-nom" "grep -nom 2 one" "1:one\n1:one\n1:one\n2:one\n2:one\n" \
+testcmd "-co" "-co one input" "1\n" "one one one\n" ""
+testcmd "-nom" "-nom 2 one" "1:one\n1:one\n1:one\n2:one\n2:one\n" \
   "" "one one one\none one\none"
-toyonly testing "-vo" "grep -vo one input" "two\nthree\n" "onetwoonethreeone\n" ""
-testing "no newline" "grep -h one input -" \
+toyonly testcmd "-vo" "-vo one input" "two\nthree\n" "onetwoonethreeone\n" ""
+testcmd "no newline" "-h one input -" \
   "hello one\nthere one\n" "hello one" "there one"
 
-testing "-e multi" "grep -e one -ethree input" \
-  "three\none\n" "three\ntwo\none\n" ""
+testcmd "-e multi" "-e one -ethree input" "three\none\n" "three\ntwo\none\n" ""
 # Suppress filenames for recursive test because dunno order they'd occur in
 mkdir sub
 echo -e "one\ntwo\nthree" > sub/one
 echo -e "three\ntwo\none" > sub/two
-testing "-hr" "grep -hr one sub" "one\none\n" "" ""
-testing "-r file" "grep -r three sub/two" "three\n" "" ""
-testing "-r dir" "grep -r one sub | sort" "sub/one:one\nsub/two:one\n" \
+testcmd "-hr" "-hr one sub" "one\none\n" "" ""
+testcmd "-r file" "-r three sub/two" "three\n" "" ""
+testcmd "-r dir" "-r one sub | sort" "sub/one:one\nsub/two:one\n" \
   "" ""
 rm -rf sub
 
 # -x exact match overrides -F's "empty string matches whole line" behavior
-testing "-Fx ''" "grep -Fx '' input" "" "one one one\n" ""
-testing "-F ''" "grep -F '' input" "one one one\n" "one one one\n" ""
-testing "-F -e blah -e ''" "grep -F -e blah -e '' input" "one one one\n" \
+testcmd "-Fx ''" "-Fx '' input" "" "one one one\n" ""
+testcmd "-F ''" "-F '' input" "one one one\n" "one one one\n" ""
+testcmd "-F -e blah -e ''" "-F -e blah -e '' input" "one one one\n" \
   "one one one\n" ""
-testing "-Fxv -e subset" "grep -Fxv -e bbswitch-dkms -e dkms" "" "" \
-  "bbswitch-dkms\n"
-testing "-e blah -e ''" "grep -e blah -e '' input" "one one one\n" \
-  "one one one\n" ""
-testing "-w ''" "grep -w '' input" "" "one one one\n" ""
-testing "-w '' 2" "grep -w '' input" "one  two\n" "one  two\n" ""
-testing "-w \\1" "grep -wo '\\(x\\)\\1'" "xx\n" "" "xx"
-testing "-o ''" "grep -o '' input" "" "one one one\n" ""
-testing "backref" 'grep -e "a\(b\)" -e "b\(c\)\1"' "bcc\nab\n" \
-  "" "bcc\nbcb\nab\n"
+testcmd "-Fxv -e subset" "-Fxv -e bbswitch-dkms -e dkms" "" "" "bbswitch-dkms\n"
+testcmd "-e blah -e ''" "-e blah -e '' input" "one one one\n" "one one one\n" ""
+testcmd "-w ''" "-w '' input" "" "one one one\n" ""
+testcmd "-w '' 2" "-w '' input" "one  two\n" "one  two\n" ""
+testcmd "-w \\1" "-wo '\\(x\\)\\1'" "xx\n" "" "xx"
+testcmd "-o ''" "-o '' input" "" "one one one\n" ""
+testcmd "backref" '-e "a\(b\)" -e "b\(c\)\1"' "bcc\nab\n" "" "bcc\nbcb\nab\n"
 
-testing "-A" "grep -A 2 yes" "yes\nno\nno\n--\nyes\nno\nno\nyes\nno\n" \
+testcmd "-A" "-A 2 yes" "yes\nno\nno\n--\nyes\nno\nno\nyes\nno\n" \
   "" "yes\nno\nno\nno\nyes\nno\nno\nyes\nno"
-testing "-B" "grep -B 1 yes" "no\nyes\n--\nno\nyes\nno\nyes\n" \
+testcmd "-B" "-B 1 yes" "no\nyes\n--\nno\nyes\nno\nyes\n" \
   "" "no\nno\nno\nyes\nno\nno\nyes\nno\nyes"
-testing "-C" "grep -C 1 yes" \
-  "yes\nno\n--\nno\nyes\nno\nno\nyes\nno\nyes\nno\n" \
+testcmd "-C" "-C 1 yes" "yes\nno\n--\nno\nyes\nno\nno\nyes\nno\nyes\nno\n" \
   "" "yes\nno\nno\nno\nyes\nno\nno\nyes\nno\nyes\nno\nno"
-testing "-HnC" "grep -HnC1 two" \
+testcmd "-HnC" "-HnC1 two" \
   "(standard input)-1-one\n(standard input):2:two\n(standard input)-3-three\n" \
   "" "one\ntwo\nthree"
 
 # Context lines weren't showing -b
-testing "-HnbB1" "grep -HnbB1 f input" \
+testcmd "-HnbB1" "-HnbB1 f input" \
   "input-3-8-three\ninput:4:14:four\ninput:5:19:five\n" \
   "one\ntwo\nthree\nfour\nfive\n" ""
 
-testing "-q match overrides error" \
-  "grep -q hello missing input 2>/dev/null && echo yes" "yes\n" "hello\n" ""
-testing "-q not found is 1" \
-  'grep -q hello input || echo $?' "1\n" "x" ""
-testing "-q missing is 2" \
-  'grep -q hello missing missing 2>/dev/null || echo $?' "2\n" "" ""
-testing "-q missing survives exists but not found" \
-  'grep -q hello missing missing input 2>/dev/null || echo $?' "2\n" "" ""
-testing "not found retained past match" \
-  'grep hello missing input 2>/dev/null || echo $?' \
-  "input:hello\n2\n" "hello\n" ""
+testcmd "-q match overrides error" \
+  "-q hello missing input 2>/dev/null && echo yes" "yes\n" "hello\n" ""
+testcmd "-q not found is 1" '-q hello input || echo $?' "1\n" "x" ""
+testcmd "-q missing is 2" \
+  '-q hello missing missing 2>/dev/null || echo $?' "2\n" "" ""
+testcmd "-q missing survives exists but not found" \
+  '-q hello missing missing input 2>/dev/null || echo $?' "2\n" "" ""
+testcmd "not found retained past match" \
+  'hello missing input 2>/dev/null || echo $?' "input:hello\n2\n" "hello\n" ""
 touch empty
-testing "one match good enough for 0" \
-  'grep hello input empty && echo $?' 'input:hello\n0\n' 'hello\n' ''
+testcmd "one match good enough for 0" \
+  'hello input empty && echo $?' 'input:hello\n0\n' 'hello\n' ''
 rm empty
 
-testing "-o ''" "grep -o ''" "" "" "one two three\none two\none\n"
-testing '' "grep -o -e '' -e two" "two\ntwo\n" "" \
-  "one two three\none two\none\n"
+testcmd "-o ''" "-o ''" "" "" "one two three\none two\none\n"
+testcmd '' "-o -e '' -e two" "two\ntwo\n" "" "one two three\none two\none\n"
 
 echo "one\ntwo\nthree" > test
-testing "-l overrides -C" "grep -l -C1 two test input" "test\ninput\n" \
+testcmd "-l overrides -C" "-l -C1 two test input" "test\ninput\n" \
   "three\ntwo\none\n" ""
 rm test
 
 # match after NUL byte
-testing "match after NUL byte" "grep -a two" "one\0and two three\n" \
+testcmd "match after NUL byte" "-a two" "one\0and two three\n" \
   "" 'one\0and two three'
 
 # BREs versus EREs
-testing "implicit BRE |" "grep 'uno|dos'" "uno|dos\n" \
-  "" "uno\ndos\nuno|dos\n"
-testing "explicit BRE |" "grep -e 'uno|dos'" "uno|dos\n" \
-  "" "uno\ndos\nuno|dos\n"
-testing "explicit ERE |" "grep -E 'uno|dos'" "uno\ndos\nuno|dos\n" \
+testcmd "implicit BRE |" "'uno|dos'" "uno|dos\n" "" "uno\ndos\nuno|dos\n"
+testcmd "explicit BRE |" "-e 'uno|dos'" "uno|dos\n" "" "uno\ndos\nuno|dos\n"
+testcmd "explicit ERE |" "-E 'uno|dos'" "uno\ndos\nuno|dos\n" \
   "" "uno\ndos\nuno|dos\n"
 
-testing "" "grep -o -e iss -e ipp" "iss\niss\nipp\n" "" "mississippi"
-testing "" "grep -o -e gum -e rgu" "rgu\n" "" "argument"
+testcmd "" "-o -e iss -e ipp" "iss\niss\nipp\n" "" "mississippi"
+testcmd "" "-o -e gum -e rgu" "rgu\n" "" "argument"
 
-testing "early failure" 'grep --what 2>/dev/null || echo $?' "2\n" "" ""
+testcmd "early failure" '--what 2>/dev/null || echo $?' "2\n" "" ""
 
-testing "" 'grep abc ; echo $?' "abcdef\n0\n" "" "abcdef\n"
-testing "" 'grep abc doesnotexist input 2>/dev/null; echo $?' \
+testcmd "" 'abc ; echo $?' "abcdef\n0\n" "" "abcdef\n"
+testcmd "" 'abc doesnotexist input 2>/dev/null; echo $?' \
   "input:abcdef\n2\n" "abcdef\n" ""
 mkdir sub
 ln -s nope sub/link
-testing "" 'grep -r walrus sub 2>/dev/null; echo $?' "1\n" "" ""
+testcmd "" '-r walrus sub 2>/dev/null; echo $?' "1\n" "" ""
 rm -rf sub
 
 # --exclude-dir
-mkdir sub
-mkdir sub/yes
+mkdir -p sub/yes
 echo "hello world" > sub/yes/test
 mkdir sub/no
 echo "hello world" > sub/no/test
-testing "--exclude-dir" 'grep --exclude-dir=no -r world sub' "sub/yes/test:hello world\n" "" ""
+testcmd "--exclude-dir" '--exclude-dir=no -r world sub' \
+  "sub/yes/test:hello world\n" "" ""
 rm -rf sub
 
 # -r and -R differ in that -R will dereference symlinks to directories.
@@ -186,30 +175,30 @@ mkdir dir
 echo "hello" > dir/f
 mkdir sub
 ln -s ../dir sub/link
-testing "" "grep -rh hello sub 2>/dev/null || echo err" "err\n" "" ""
-testing "" "grep -Rh hello sub" "hello\n" "" ""
+testcmd "" "-rh hello sub 2>/dev/null || echo err" "err\n" "" ""
+testcmd "" "-Rh hello sub" "hello\n" "" ""
 rm -rf sub real
 
 # -F multiple matches
-testing "-F multiple" "grep -F h input" "this is hello\nthis is world\n" \
+testcmd "-F multiple" "-F h input" "this is hello\nthis is world\n" \
   "missing\nthis is hello\nthis is world\nmissing" ""
-testing "-Fi multiple" "grep -Fi h input" "this is HELLO\nthis is WORLD\n" \
+testcmd "-Fi multiple" "-Fi h input" "this is HELLO\nthis is WORLD\n" \
   "missing\nthis is HELLO\nthis is WORLD\nmissing" ""
-testing "-F empty multiple" "grep -Fi '' input" \
+testcmd "-F empty multiple" "-Fi '' input" \
   "missing\nthis is HELLO\nthis is WORLD\nmissing\n" \
   "missing\nthis is HELLO\nthis is WORLD\nmissing" ""
-testing "-Fx" "grep -Fx h input" "h\n" \
+testcmd "-Fx" "-Fx h input" "h\n" \
   "missing\nH\nthis is hello\nthis is world\nh\nmissing" ""
-testing "-Fix" "grep -Fix h input" "H\nh\n" \
+testcmd "-Fix" "-Fix h input" "H\nh\n" \
   "missing\nH\nthis is HELLO\nthis is WORLD\nh\nmissing" ""
-testing "-f /dev/null" "grep -f /dev/null" "" "" "hello\n"
-testing "-z with \n in pattern" "grep -f input" "hi\nthere\n" "i\nt" "hi\nthere"
+testcmd "-f /dev/null" "-f /dev/null" "" "" "hello\n"
+testcmd "-z with \n in pattern" "-f input" "hi\nthere\n" "i\nt" "hi\nthere"
 
-testing "print zero length match" "grep '[0-9]*'" "abc\n" "" "abc\n"
-testing "-o skip zero length match" "grep -o '[0-9]*'" "1234\n" "" "a1234b"
+testcmd "print zero length match" "'[0-9]*'" "abc\n" "" "abc\n"
+testcmd "-o skip zero length match" "-o '[0-9]*'" "1234\n" "" "a1234b"
 # Bit of a hack, but other greps insert gratuitous \e[K clear-to-EOL
-testing "--color highlights all matches" \
-  "grep --color=always def | grep -o '[[][0-9;]*[Km]def.[[]m' | wc -l" \
+testcmd "--color highlights all matches" \
+  "--color=always def | grep -o '[[][0-9;]*[Km]def.[[]m' | wc -l" \
   "2\n" "" "abcdefghidefjkl\n"
 seq 1 100002 | base64 > testfile
 testing "speed" "timeout 5 grep -f testfile testfile 2>/dev/null | wc -l" \
