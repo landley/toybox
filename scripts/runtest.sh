@@ -108,7 +108,7 @@ toyonly()
   case "$IS_TOYBOX" in
     toybox*) ;;
     This\ is\ not\ GNU*) ;;
-    *) ((++SKIP)) ;;
+    *) [ $SKIP -eq 0 ] && ((++SKIP)) ;;
   esac
 
   "$@"
