@@ -116,6 +116,7 @@ mountpoint -q sys || mount -t sysfs sys sys
 echo 0 99999 > /proc/sys/net/ipv4/ping_group_range
 
 if [ $$ -eq 1 ]; then # Setup networking for QEMU (needs /proc)
+  mountpoint -q mnt || [ -e /dev/?da ] && mount /dev/?da /mnt
   ifconfig lo 127.0.0.1
   ifconfig eth0 10.0.2.15
   route add default gw 10.0.2.2
