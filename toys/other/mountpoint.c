@@ -34,7 +34,7 @@ void mountpoint_main(void)
   struct stat st1, st2;
   char *arg = *toys.optargs;
 
-  if (lstat(arg, &st1)) perror_exit_raw(arg);
+  if (lstat(arg, &st1)) (FLAG(q) ? die : perror_exit_raw)(arg);
 
   if (FLAG(x)) {
     if (!S_ISBLK(st1.st_mode)) die("block device");
@@ -55,7 +55,7 @@ void mountpoint_main(void)
   // inode are the same, it's probably "/". This misses --bind mounts from
   // elsewhere in the same filesystem, but so does the other one and in the
   // absence of a spec I guess that's the expected behavior?
-  toys.exitval = !same_file(&st1, &st2);
+  toys.exitval = !(st1.st_dev != st2.st_dev || st1.st_ino == st2.st_ino);
   if (FLAG(d)) printf("%u:%u\n", dev_major(st1.st_dev), dev_minor(st1.st_dev));
   else if (!FLAG(q))
     printf("%s is %sa mountpoint\n", *toys.optargs, toys.exitval ? "not " : "");
