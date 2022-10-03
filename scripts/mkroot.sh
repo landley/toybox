@@ -127,6 +127,7 @@ if [ $$ -eq 1 ]; then # Setup networking for QEMU (needs /proc)
   for i in $(ls -1 /etc/rc 2>/dev/null | sort); do . /etc/rc/"$i"; done
 
   [ -z "$CONSOLE" ] && CONSOLE="$(</sys/class/tty/console/active)"
+  [ -z "$HANDOFF" ] && [ -e /mnt/init ] && HANDOFF=/mnt/init
   [ -z "$HANDOFF" ] && HANDOFF=/bin/sh && echo -e '\e[?7hType exit when done.'
   echo 3 > /proc/sys/kernel/printk
   exec oneit -c /dev/"${CONSOLE:-console}" $HANDOFF
