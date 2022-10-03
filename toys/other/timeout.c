@@ -47,6 +47,11 @@ static long nantomil(struct timespec *ts)
   return ts->tv_sec*1000+ts->tv_nsec/1000000;
 }
 
+static void callback(char *argv[])
+{
+  if (!FLAG(foreground)) setpgid(0, 0);
+}
+
 void timeout_main(void)
 {
   int ii, ms, nextsig;
@@ -59,14 +64,16 @@ void timeout_main(void)
 
   nextsig = SIGTERM;
   if (TT.s && -1==(nextsig = sig_to_num(TT.s))) error_exit("bad -s: '%s'",TT.s);
-  if (!FLAG(foreground)) setpgid(0, 0);
 
   toys.exitval = 0;
   TT.pfd.events = POLLIN;
   TT.fds[1] = -1;
   if (sigsetjmp(TT.sj, 1)) goto done;
   xsignal_flags(SIGCHLD, handler, SA_NOCLDSTOP);
-  TT.pid = xpopen_both(toys.optargs+1, FLAG(i) ? TT.fds : 0);
+  TT.pid = xpopen_setup(toys.optargs+1, FLAG(i) ? TT.fds : 0, callback);
+  xsignal(SIGTTIN, SIG_IGN);
+  xsignal(SIGTTOU, SIG_IGN);
+  xsignal(SIGTSTP, SIG_IGN);
   if (!FLAG(i)) xpipe(TT.fds);
   TT.pfd.fd = TT.fds[1];
   ms = nantomil(&tts);
@@ -76,7 +83,7 @@ void timeout_main(void)
         perror_msg("sending signal %s to command %s", num_to_sig(nextsig),
           toys.optargs[1]);
       toys.exitval = (nextsig==9) ? 137 : 124;
-      kill(TT.pid, nextsig);
+      kill(FLAG(foreground) ? TT.pid : -TT.pid, nextsig);
       if (!TT.k || nextsig==SIGKILL) break;
       nextsig = SIGKILL;
       ms = nantomil(&kts);
