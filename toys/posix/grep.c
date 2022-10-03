@@ -445,9 +445,12 @@ static void parse_regex(void)
   // Sort fast path patterns into buckets by first character
   for (al = TT.e; al; al = new) {
     new = al->next;
-    key = '^'==*al->arg;
-    if ('\\'==al->arg[key]) key++;
-    else if ('$'==al->arg[key] && !al->arg[key+1]) key++;
+    if (FLAG(F)) key = 0;
+    else {
+      key = '^'==*al->arg;
+      if ('\\'==al->arg[key]) key++;
+      else if ('$'==al->arg[key] && !al->arg[key+1]) key++;
+    }
     key = al->arg[key];
     if (FLAG(i)) key = toupper(key);
     al->next = TT.fixed[key];

@@ -191,6 +191,7 @@ testcmd "-Fx" "-Fx h input" "h\n" \
   "missing\nH\nthis is hello\nthis is world\nh\nmissing" ""
 testcmd "-Fix" "-Fix h input" "H\nh\n" \
   "missing\nH\nthis is HELLO\nthis is WORLD\nh\nmissing" ""
+testcmd "-F bucket sort" "-F '\.zip'" '\\.zip\n' '' '\\.zip\n'
 testcmd "-f /dev/null" "-f /dev/null" "" "" "hello\n"
 testcmd "-z with \n in pattern" "-f input" "hi\nthere\n" "i\nt" "hi\nthere"
 
