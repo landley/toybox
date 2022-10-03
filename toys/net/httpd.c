@@ -125,7 +125,7 @@ void handle(int infd, int outfd)
     struct stat st;
     if (*(ss = word[1])!='/') error_time(400, "Bad Request");
     while (*ss=='/') ss++;
-    if (!*ss) ss = ".";
+    if (!*ss) ss = "./";
     else unescape_url(ss);
 
     // TODO domain.com:/path/to/blah domain2.com:/path/to/that
@@ -139,7 +139,7 @@ file:
         mime(ss), (long long)st.st_size, rfc1123(buf, st.st_mtime)));
       free(ss);
       xsendfile(fd, outfd);
-    } else if (ss[strlen(ss)-1]!='/' && strcmp(ss, ".")) {
+    } else if (ss[strlen(ss)-1]!='/') {
       header_time(302, "Found", path = xmprintf("Location: %s/\r\n", word[1]));
       free(path);
     } else {
@@ -150,7 +150,7 @@ file:
       path = ss;
       ss = "index.html";
       path = xmprintf("%s%s", path, ss);
-      if (!stat(path, &st) || !S_ISREG(st.st_mode)) i = -1;
+      if (stat(path, &st) || !S_ISREG(st.st_mode)) i = -1;
       else if (-1 == (i = open(path, O_RDONLY))) error_time(403, "Forbidden");
       free(path);
       if (i != -1) {
