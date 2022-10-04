@@ -1,17 +1,17 @@
-#/bin/bash
+#!/bin/bash
 
 [ -n "$(which toybox)" -a -n "$(which mksquashfs)" ] ||
   { echo "Need toybox and mksquashfs in $PATH"; exit 1; }
 
-mkdir -p "${TEST:=root/build/test}" &&
+mkdir -p "${TEST:=$PWD/root/build/test}" &&
 
 # Setup test filesystem
-cat > "$TEST"/init << EOF &&
+cat > "$TEST"/init << 'EOF' &&
 #!/bin/sh
 
 echo
-echo === running init
-[ "$(date +%s)" -gt 1500000000 ] && echo === date ok
+echo === init $HOST
+[ "$(date +%s)" -gt 1500000000 ] && echo === date ok $HOST
 wget http://10.0.2.2:65432 -O -
 EOF
 chmod +x "$TEST"/init &&
@@ -25,7 +25,7 @@ sleep .25
 
 [ -n "$(wget http://127.0.0.1:65432/ -O - | grep ===)" ] || exit 1
 
-PASS= NOPASS=
+COUNT=0 CPUS=$(($(nproc)+0))
 for I in root/*/linux-kernel
 do
   [ ! -e "$I" ] && continue
@@ -36,10 +36,26 @@ do
   {
     cd $X || continue
     echo === $X
-    # When stdin is a tty QEMU will SIGTTOU itself here.
-    toybox timeout -i 5 ./run-qemu.sh -drive format=raw,file=../build/test/init.sqf < /dev/null 2>/dev/null
+    # Can't point two QEMU instances at same sqf because gratuitous file locking
+    cp "$TEST"/init.{sqf,$BASHPID} &&
+    # When stdin is a tty QEMU will SIGTTOU itself here, so </dev/null.
+    toybox timeout -i 10 ./run-qemu.sh -drive format=raw,file="$TEST/init.$BASHPID" < /dev/null 2>&1
+    rm -f "$TEST/init.$BASHPID"
     cd ../..
-  } | tee root/build/log/$Y-test.txt | grep '^=== '
+  } | tee root/build/log/$Y-test.txt | { [ -z "$V" ] && cat >/dev/null || { [ "$V" -gt 1 ] && cat || grep '^=== '; } } &
+
+  [ $((++COUNT)) -ge $CPUS ] && { wait -n; ((--COUNT)); [ -z "$V" ] && echo -n .; }
+done
+
+while [ $COUNT -gt 0 ]; do wait -n; ((--COUNT)); [ -z "$V" ] && echo -n .; done
+echo
+
+PASS= NOPASS=
+for I in root/*/linux-kernel
+do
+  [ ! -e "$I" ] && continue
+  X=$(dirname $I) Y=$(basename $X)
+
   [ "$(grep '^=== ' root/build/log/$Y-test.txt | wc -l)" -eq 4 ] &&
     PASS+="$Y " || NOPASS+="$Y "
 done
