@@ -43,26 +43,26 @@ void comm_main(void)
 {
   FILE *file[2];
   char *line[2];
-  int i;
+  int i = 0;
 
-  if (toys.optflags == 7) return;
-
-  for (i = 0; i < 2; i++) {
-    file[i] = xfopen(toys.optargs[i], "r");
+  for (i = 0; i<2; i++) {
+    file[i] = strcmp(toys.optargs[i], "-")?xfopen(toys.optargs[i], "r"):stdin;
     line[i] = xgetline(file[i]);
   }
+
+  if (toys.optflags == 7) return;
 
   while (line[0] && line[1]) {
     int order = strcmp(line[0], line[1]);
 
-    if (order == 0) {
+    if (!order) {
       writeline(line[0], 2);
       for (i = 0; i < 2; i++) {
         free(line[i]);
         line[i] = xgetline(file[i]);
       }
     } else {
-      i = order < 0 ? 0 : 1;
+      i = order>0;
       writeline(line[i], i);
       free(line[i]);
       line[i] = xgetline(file[i]);
@@ -76,5 +76,5 @@ void comm_main(void)
     line[i] = xgetline(file[i]);
   }
 
-  if (CFG_TOYBOX_FREE) for (i = 0; i < 2; i++) fclose(file[i]);
+  if (CFG_TOYBOX_FREE) fclose(file[0]), fclose(file[1]);
 }
