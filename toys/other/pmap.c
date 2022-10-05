@@ -17,7 +17,7 @@ config PMAP
 
     Report the memory map of a process or processes.
 
-    -q	Show full paths
+    -p	Show full paths
     -q	Do not show header or footer
     -x	Show the extended format
 */
