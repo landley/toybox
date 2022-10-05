@@ -1015,10 +1015,15 @@ error:
   error_exit("bad pattern '%s'@%ld (%c)", errstart, line-errstart+1L, *line);
 }
 
+// Is the pointer "find" within the string "range".
+static int instr(char *find, char *range)
+{
+  return find>=range && range+strlen(range)>=find;
+}
+
 void sed_main(void)
 {
-  struct arg_list *al;
-  char **args = toys.optargs;
+  char **args = toys.optargs, **aa;
 
   if (FLAG(tarxform)) toys.optflags |= FLAG_z;
   if (!FLAG(z)) TT.delim = '\n';
@@ -1042,13 +1047,18 @@ void sed_main(void)
     (TT.e = xzalloc(sizeof(struct arg_list)))->arg = *(args++);
   }
 
-  // Option parsing infrastructure can't interlace "-e blah -f blah -e blah"
-  // so handle all -e, then all -f. (At least the behavior's consistent.)
-
-  for (al = TT.e; al; al = al->next) parse_pattern(&al->arg, strlen(al->arg));
+  // -e and -f care about order, so use argv[] to recreate original order
+  for (aa = toys.argv+1; *aa; aa++) {
+    if (TT.e && instr(TT.e->arg, *aa)) {
+      parse_pattern(&TT.e->arg, strlen(TT.e->arg));
+      free(llist_pop(&TT.e));
+    }
+    if (TT.f && instr(TT.f->arg, *aa)) {
+      do_lines(xopenro(TT.f->arg), TT.delim, parse_pattern);
+      free(llist_pop(&TT.f));
+    }
+  }
   parse_pattern(0, 0);
-  for (al = TT.f; al; al = al->next)
-    do_lines(xopenro(al->arg), TT.delim, parse_pattern);
   dlist_terminate(TT.pattern);
   if (TT.nextlen) error_exit("no }");  
 
