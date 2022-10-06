@@ -661,8 +661,11 @@ long long sendfile_len(int in, int out, long long bytes, long long *consumed)
       if (bytes<0 || len>sizeof(libbuf)) len = sizeof(libbuf);
       ww = len = read(in, libbuf, len);
     }
-    if (len<1 && errno==EAGAIN) continue;
-    if (len<1) break;
+    if (len<1) {
+      if (errno==EAGAIN) continue;
+      if (len == -1) return -1;
+      break;
+    }
     if (consumed) *consumed += len;
     if (ww && writeall(out, libbuf, len) != len) return -1;
     total += len;
