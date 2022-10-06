@@ -647,7 +647,13 @@ long long sendfile_len(int in, int out, long long bytes, long long *consumed)
       // Android's had the constant for years, but you'll get SIGSYS if you use
       // this system call before Android U (2023's release).
 #if defined(__NR_copy_file_range) && !defined(__ANDROID__)
-      len = syscall(__NR_copy_file_range, in, 0, out, 0, len, 0);
+      long long maybe_len = syscall(__NR_copy_file_range, in, 0, out, 0, len, 0);
+
+      if (maybe_len == -1 && errno == EXDEV) {
+        len = syscall(__NR_sendfile, out, in, NULL, len);
+      } else {
+        len = maybe_len;
+      }
 #else
       errno = EINVAL;
       len = -1;
