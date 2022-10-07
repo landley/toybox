@@ -109,18 +109,22 @@ static void get_names(struct dev_ids *ids, int id1, int id2,
 struct dev_ids *parse_dev_ids(char *name, struct dev_ids **and)
 {
   char *path = "/etc:/vendor:/usr/share/misc";
-  struct string_list *sl;
+  struct string_list *sl = 0;
   FILE *fp;
   char *s, *ss, *sss;
   struct dev_ids *ids = 0, *new;
   int fd = -1;
 
   // Open compressed or uncompressed file
-  sprintf(toybuf, "%s.gz", name);
-  if ((sl = find_in_path(path, toybuf))) {
-    signal(SIGCHLD, SIG_IGN);
-    xpopen((char *[]){"zcat", sl->str, 0}, &fd, 1);
-  } else if ((sl = find_in_path(path, name))) fd = xopen(sl->str,O_RDONLY);
+  signal(SIGCHLD, SIG_IGN);
+  s = TT.i;
+  if (!s) {
+    sprintf(toybuf, "%s.gz", name);
+    if ((sl = find_in_path(path, toybuf)) || (sl = find_in_path(path, name)))
+      s = sl->str;
+  }
+  if (s && strend(s, ".gz")) xpopen((char *[]){"zcat", sl->str, 0}, &fd, 1);
+  else if (s) fd = xopen(s, O_RDONLY);
   llist_traverse(sl, free);
   if (fd == -1) return 0;
   
