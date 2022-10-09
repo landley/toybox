@@ -444,7 +444,7 @@ static void go_probe(struct module_s *m)
     }
     // none of above is true insert the module.
     errno = 0;
-    rc = ins_mod(fn, options);
+    rc = ins_mod(fn, options ? : "");
     if (FLAG(v))
       printf("loaded %s '%s': %s\n", fn, options, strerror(errno));
     if (errno == EEXIST) rc = 0;
