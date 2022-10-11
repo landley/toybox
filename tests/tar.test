@@ -324,6 +324,12 @@ testing "--xform" "$TAR one --xform=s@three/four/@zero@ | tar t | grep six" \
 rm -rf one
 SKIP=0
 
+testing '-P' "$TAR -P --no-recursion -C / /// .. | SUM 3" \
+  "a3e94211582da121845d823374d8f41ead62d7bd\n" "" ""
+
+testing 'without -P' "$TAR --no-recursion -C / /// .. | SUM 3" \
+  "077d03243e247b074806904885e6da272fd5857a\n" "" ""
+
 if false
 then
 # Sequencing issues that leak implementation details out the interface

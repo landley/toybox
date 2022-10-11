@@ -239,18 +239,22 @@ static int add_to_tar(struct dirtree *node)
   if (S_ISDIR(st->st_mode) && name[i-1] != '/') strcat(name, "/");
 
   // remove leading / and any .. entries from saved name
-  if (!FLAG(P)) while (*hname == '/') hname++;
-  for (lnk = hname;;) {
-    if (!(lnk = strstr(lnk, ".."))) break;
-    if (lnk == hname || lnk[-1] == '/') {
-      if (!lnk[2]) goto done;
-      if (lnk[2]=='/') {
-        lnk = hname = lnk+3;
-        continue;
+  if (!FLAG(P)) {
+    while (*hname == '/') hname++;
+    for (lnk = hname;;) {
+      if (!(lnk = strstr(lnk, ".."))) break;
+      if (lnk == hname || lnk[-1] == '/') {
+        if (!lnk[2]) goto done;
+        if (lnk[2]=='/') {
+          lnk = hname = lnk+3;
+          continue;
+        }
       }
+      lnk += 2;
     }
-    lnk += 2;
+    if (!*hname) hname = "./";
   }
+
   if (!*hname) goto done;
 
   if (TT.warn && hname != name) {
@@ -881,7 +885,7 @@ static void trim2list(void *list, char *pline)
 
   dlist_add(list, n);
   if (i && n[i-1]=='\n') i--;
-  while (i && n[i-1] == '/') i--;
+  while (i>1 && n[i-1] == '/') i--;
   n[i] = 0;
 }
 
