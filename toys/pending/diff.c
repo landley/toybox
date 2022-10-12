@@ -8,18 +8,19 @@
  *
  * Deviations from posix: always does -u
 
-USE_DIFF(NEWTOY(diff, "<2>2(unchanged-line-format):;(old-line-format):;(new-line-format):;(color)(strip-trailing-cr)B(ignore-blank-lines)d(minimal)b(ignore-space-change)ut(expand-tabs)w(ignore-all-space)i(ignore-case)T(initial-tab)s(report-identical-files)q(brief)a(text)S(starting-file):L(label)*N(new-file)r(recursive)U(unified)#<0=3", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
+USE_DIFF(NEWTOY(diff, "<2>2(unchanged-line-format):;(old-line-format):;(new-line-format):;(color)(strip-trailing-cr)B(ignore-blank-lines)d(minimal)b(ignore-space-change)ut(expand-tabs)w(ignore-all-space)i(ignore-case)T(initial-tab)s(report-identical-files)q(brief)a(text)S(starting-file):F(show-function-line):;L(label)*N(new-file)r(recursive)U(unified)#<0=3", TOYFLAG_USR|TOYFLAG_BIN|TOYFLAG_ARGFAIL(2)))
 
 config DIFF
   bool "diff"
   default n
   help
-  usage: diff [-abBdiNqrTstw] [-L LABEL] [-S FILE] [-U LINES] FILE1 FILE2
+  usage: diff [-abBdiNqrTstw] [-L LABEL] [-S FILE] [-U LINES] [-F REGEX ] FILE1 FILE2
 
   -a	Treat all files as text
   -b	Ignore changes in the amount of whitespace
   -B	Ignore changes whose lines are all blank
   -d	Try hard to find a smaller set of changes
+  -F 	Show the most recent line matching the regex
   -i	Ignore case differences
   -L	Use LABEL instead of the filename in the unified header
   -N	Treat absent files as empty
@@ -48,7 +49,7 @@ config DIFF
 GLOBALS(
   long U;
   struct arg_list *L;
-  char *S, *new_line_format, *old_line_format, *unchanged_line_format;
+  char *F, *S, *new_line_format, *old_line_format, *unchanged_line_format;
 
   int dir_num, size, is_binary, differ, change, len[2], *offset[2];
   struct stat st[2];
@@ -383,6 +384,33 @@ static int *diff(char **files)
   return create_j_vector();
 }
 
+static void print_line_matching_regex(int a, regex_t *reg, int *off_set, FILE *fp) {
+  int i = 0, j = 0, line_buf_size = 100, cc = 0;
+  char* line = xzalloc(line_buf_size * sizeof(char));
+  for (i = a; a > 0; --i) {
+    int line_len = 0;
+    if (fseek(fp, off_set[i - 1], SEEK_SET)) perror_exit("fseek failed");
+    for (j = 0; j < (off_set[i] - off_set[i - 1]); j++) {
+      cc = fgetc(fp);
+      if (cc == EOF || cc == '\n') {
+        break;
+      }
+      ++line_len;
+      if (line_len >= line_buf_size) {
+        line_buf_size = line_buf_size * 11 / 10;
+        line = xrealloc(line, line_buf_size*sizeof(char));
+      }
+      line[j] = cc;
+    }
+    line[line_len] = '\0';
+    if (!regexec0(reg, line, line_len, 0, NULL, 0)) {
+      printf(" %s", line);
+      break;
+    }
+  }
+  free(line);
+}
+
 static void print_diff(int a, int b, char c, int *off_set, FILE *fp)
 {
   int i, j, cc, cl;
@@ -557,11 +585,16 @@ static void do_diff(char **files)
   struct diff *d;
   struct arg_list *llist = TT.L;
   int *J;
+  regex_t reg;
   
   TT.offset[0] = TT.offset[1] = NULL;
   J = diff(files);
 
   if (!J) return; //No need to compare, have to status only
+
+  if (TT.F) {
+    xregcomp(&reg, TT.F, 0);
+  }
 
   d = xzalloc(size *sizeof(struct diff));
   do {
@@ -656,6 +689,9 @@ calc_ct:
         else putchar(' ');
         printf("@@");
         if (FLAG(color)) printf("\e[0m");
+        if (TT.F) {
+          print_line_matching_regex(ptr1->suff-1, &reg, TT.offset[0], TT.file[0].fp);
+        }
         putchar('\n');
       }
 

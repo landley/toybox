@@ -55,6 +55,54 @@ testcmd "fifos" "-u -L fifo1 -L fifo2 fifo1 fifo2" '--- fifo1
 +3
 ' "" ""
 
+echo -e 'int bar() {
+}
+
+int foo() {
+}
+
+int baz() {
+  1
+  {2
+  3
+  4
+  foo
+}
+'> a
+echo -e 'int barbar() {
+}
+
+int foo() {
+}
+
+int baz() {
+  1a
+  {2
+  3
+  4
+  bar
+}
+'> b
+testcmd 'show function' "--show-function-line=' {$' -U1 -L lll -L rrr a b" \
+'--- lll
++++ rrr
+@@ -1,2 +1,2 @@
+-int bar() {
++int barbar() {
+ }
+@@ -7,3 +7,3 @@ int foo() {
+ int baz() {
+-  1
++  1a
+   {2
+@@ -11,3 +11,3 @@ int baz() {
+   4
+-  foo
++  bar
+ }
+' \
+'' ''
+
 seq 1 100000 > one
 seq 1 4 100000 > two
 testcmd 'big hunk' '-u --label nope --label nope one two' \
