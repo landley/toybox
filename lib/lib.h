@@ -24,12 +24,6 @@ struct double_list {
   char *data;
 };
 
-struct num_cache {
-  struct num_cache *next;
-  long long num;
-  char data[];
-};
-
 struct dev_ino {
   dev_t dev;
   ino_t ino;
@@ -44,9 +38,6 @@ void *dlist_lpop(void *list); // also struct double_list **list
 void dlist_add_nomalloc(struct double_list **list, struct double_list *new);
 struct double_list *dlist_add(struct double_list **list, char *data);
 void *dlist_terminate(void *list);
-struct num_cache *get_num_cache(struct num_cache *cache, long long num);
-struct num_cache *add_num_cache(struct num_cache **cache, long long num,
-  void *data, int len);
 
 // args.c
 #define FLAGS_NODASH (1LL<<63)

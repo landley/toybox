@@ -36,6 +36,42 @@ GLOBALS(
   int wpad;
 )
 
+struct num_cache {
+  struct num_cache *next;
+  long long num;
+  char data[];
+};
+
+// Find num in cache
+static struct num_cache *get_num_cache(struct num_cache *cache, long long num)
+{
+  while (cache) {
+    if (num==cache->num) return cache;
+    cache = cache->next;
+  }
+
+  return 0;
+}
+
+// Uniquely add num+data to cache. Updates *cache, returns pointer to existing
+// entry if it was already there.
+static struct num_cache *add_num_cache(struct num_cache **cache, long long num,
+  void *data, int len)
+{
+  struct num_cache *old = get_num_cache(*cache, num);
+
+  if (old) return old;
+
+  old = xzalloc(sizeof(struct num_cache)+len);
+  old->next = *cache;
+  old->num = num;
+  memcpy(old->data, data, len);
+
+  *cache = old;
+
+  return 0;
+}
+
 static void addr2str(int af, void *addr, unsigned port, char *buf, int len,
   char *proto)
 {
