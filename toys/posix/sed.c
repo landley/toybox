@@ -4,6 +4,8 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/sed.html
  *
+ * xform See https://www.gnu.org/software/tar/manual/html_section/transform.html
+ *
  * TODO: lines > 2G could wrap signed int length counters. Not just getline()
  * but N and s///
  * TODO: make y// handle unicode, unicode delimiters
@@ -133,8 +135,8 @@ GLOBALS(
   void *restart, *lastregex;
   long nextlen, rememberlen, count;
   int fdout, noeol;
-  unsigned xx, tarxlen;
-  char delim;
+  unsigned xx, tarxlen, xflags;
+  char delim, xftype;
 )
 
 // Linked list of parsed sed commands. Offset fields indicate location where
@@ -150,9 +152,18 @@ struct sedcmd {
   int rmatch[2];  // offset of regex struct for prefix matches (/abc/,/def/p)
   int arg1, arg2, w; // offset of two arguments per command, plus s//w filename
   unsigned not, hit;
-  unsigned sflags; // s///flag bits: i=1, g=2, p=4, x=8
+  unsigned sflags; // s///flag bits, see SFLAG macros below
   char c; // action
 };
+
+#define SFLAG_i 1
+#define SFLAG_g 2
+#define SFLAG_p 4
+#define SFLAG_x 8
+#define SFLAG_slash 16
+#define SFLAG_R 32
+#define SFLAG_S 64
+#define SFLAG_H 128
 
 // Write out line with potential embedded NUL, handling eol/noeol
 static int emit(char *line, long len, int eol)
@@ -220,7 +231,7 @@ static void sed_line(char **pline, long plen)
   char *line;
   long len;
   struct sedcmd *command;
-  int eol = 0, tea = 0, xftype = 0;
+  int eol = 0, tea = 0;
 
   if (FLAG(tarxform)) {
     if (!pline) return;
@@ -251,7 +262,7 @@ static void sed_line(char **pline, long plen)
   if (!line || !len) return;
   if (line[len-1] == TT.delim) line[--len] = eol++;
   if (FLAG(tarxform) && len) {
-    xftype = line[--len];
+    TT.xftype = line[--len];
     line[len] = 0;
   }
   TT.count++;
@@ -452,14 +463,24 @@ static void sed_line(char **pline, long plen)
       regmatch_t *match = (void *)toybuf;
       regex_t *reg = get_regex(command, command->arg1);
       int mflags = 0, count = 0, l2used = 0, zmatch = 1, l2l = len, l2old = 0,
-        mlen, off, newlen;
+        bonk = 0, mlen, off, newlen;
+
+      // Skip suppressed --tarxform types
+      if (TT.xftype && (command->sflags & (SFLAG_R<<stridx("rsh", TT.xftype))));
 
       // Loop finding match in remaining line (up to remaining len)
-      while (!regexec0(reg, rline, len-(rline-line), 10, match, mflags)) {
+      else while (!regexec0(reg, rline, len-(rline-line), 10, match, mflags)) {
+        mlen = match[0].rm_eo-match[0].rm_so;
+
+        // xform matches ending in / aren't allowed to match entire line
+        if ((command->sflags & SFLAG_slash) && mlen==len) {
+          while (len && line[--len]=='/') bonk++;
+          continue;
+        }
+
         mflags = REG_NOTBOL;
 
         // Zero length matches don't count immediately after a previous match
-        mlen = match[0].rm_eo-match[0].rm_so;
         if (!mlen && !zmatch) {
           if (rline-line == len) break;
           l2[l2used++] = *rline++;
@@ -468,7 +489,7 @@ static void sed_line(char **pline, long plen)
         } else zmatch = 0;
 
         // If we're replacing only a specific match, skip if this isn't it
-        off = command->sflags>>4;
+        off = command->sflags>>8;
         if (off && off != ++count) {
           if (l2) memcpy(l2+l2used, rline, match[0].rm_eo);
           l2used += match[0].rm_eo;
@@ -530,9 +551,9 @@ static void sed_line(char **pline, long plen)
         l2used += newlen;
         rline += match[0].rm_eo;
 
-        // Stop after first substitution unless we have flag g
-        if (!(command->sflags & 2)) break;
+        if (!(command->sflags & SFLAG_g)) break;
       }
+      len += bonk;
 
       // If we made any changes, finish off l2 and swap it for line
       if (l2) {
@@ -545,8 +566,7 @@ static void sed_line(char **pline, long plen)
       }
 
       if (mflags) {
-        // flag p
-        if (command->sflags & 4) emit(line, len, eol);
+        if (command->sflags & SFLAG_p) emit(line, len, eol);
 
         tea = 1;
         if (command->w) goto writenow;
@@ -772,6 +792,15 @@ static void parse_pattern(char **pline, long len)
     }
     if (!*line) return;
 
+    if (FLAG(tarxform) && strstart(&line, "flags=")) {
+      while (0<=(i = stridx("rRsShH", *line))) {
+        if (i&1) TT.xflags |= i>>1;
+        else TT.xflags &= ~(i>>1);
+        line++;
+      }
+      continue;
+    }
+
     // Start by writing data into toybuf.
 
     errstart = line;
@@ -875,6 +904,7 @@ resume_s:
       i = command->arg1;
       command->arg1 = command->arg2;
       command->arg2 = i;
+      command->sflags = TT.xflags*SFLAG_R;
 
       // get flags
       for (line++; *line; line++) {
@@ -883,18 +913,27 @@ resume_s:
         if (isspace(*line) && *line != '\n') continue;
         if (0 <= (l = stridx("igpx", *line))) command->sflags |= 1<<l;
         else if (*line == 'I') command->sflags |= 1<<0;
-        else if (!(command->sflags>>4) && 0<(l = strtol(line, &line, 10))) {
-          command->sflags |= l << 4;
+        else if (FLAG(tarxform) && 0 <= (l = stridx("RSH", *line)))
+          command->sflags |= SFLAG_R<<l;
+        // Given that the default is rsh all enabled... why do these exist?
+        else if (FLAG(tarxform) && 0 <= (l = stridx("rsh", *line)))
+          command->sflags &= ~(SFLAG_R<<l);
+        else if (!(command->sflags>>8) && 0<(l = strtol(line, &line, 10))) {
+          command->sflags |= l << 8;
           line--;
         } else break;
       }
-      flags = (FLAG(r) || (command->sflags&8)) ? REG_EXTENDED : 0;
-      if (command->sflags&1) flags |= REG_ICASE;
+      flags = (FLAG(r) || (command->sflags & SFLAG_x)) ? REG_EXTENDED : 0;
+      if (command->sflags & SFLAG_i) flags |= REG_ICASE;
 
       // We deferred actually parsing the regex until we had the s///i flag
       // allocating the space was done by extend_string() above
       if (!*TT.remember) command->arg1 = 0;
-      else xregcomp((void *)(command->arg1+(char *)command),TT.remember,flags);
+      else {
+        xregcomp((void *)(command->arg1+(char *)command), TT.remember, flags);
+        if (FLAG(tarxform) && TT.remember[strlen(TT.remember)-1]=='/')
+          command->sflags |= SFLAG_slash;
+      }
       free(TT.remember);
       TT.remember = 0;
       if (*line == 'w') {
