@@ -339,7 +339,7 @@ pid_t xpopen_both(char **argv, int *pipes)
 // Wait for child process to exit, then return adjusted exit code.
 int xwaitpid(pid_t pid)
 {
-  int status = 127;
+  int status = 127<<8;
 
   while (-1 == waitpid(pid, &status, 0) && errno == EINTR) errno = 0;
 
