@@ -474,7 +474,7 @@ static void sed_line(char **pline, long plen)
 
         // xform matches ending in / aren't allowed to match entire line
         if ((command->sflags & SFLAG_slash) && mlen==len) {
-          while (len && line[--len]=='/') bonk++;
+          while (len && ++bonk && line[--len]=='/');
           continue;
         }
 
@@ -793,9 +793,10 @@ static void parse_pattern(char **pline, long len)
     if (!*line) return;
 
     if (FLAG(tarxform) && strstart(&line, "flags=")) {
+      TT.xflags = 7;
       while (0<=(i = stridx("rRsShH", *line))) {
-        if (i&1) TT.xflags |= i>>1;
-        else TT.xflags &= ~(i>>1);
+        if (i&1) TT.xflags |= 1<<(i>>1);
+        else TT.xflags &= ~(1<<(i>>1));
         line++;
       }
       continue;

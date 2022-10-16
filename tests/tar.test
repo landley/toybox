@@ -32,6 +32,11 @@ function LST()
   tar tv "$@" | sed 's/[ \t][ \t]*/ /g'
 }
 
+function LST2()
+{
+  LST | sed 's/^.* 23:31 //'
+}
+
 # Check that stored empty file is binary identical and decodes as expected.
 touch file
 testing "store file" "$TAR file | SUM 3" \
@@ -318,16 +323,49 @@ testing "--strip" "$TAR one | tar t --strip=2 --show-transformed | grep six" \
   "three/four/five/six\n" "" ""
 
 # toybox tar --xform depends on toybox sed
-sed --tarxform '' </dev/null 2>/dev/null || SKIP=99
-testing "--xform" "$TAR one --xform=s@three/four/@zero@ | tar t | grep six" \
+[ -z "$TEST_HOST" ] && ! sed --tarxform '' </dev/null 2>/dev/null && SKIP=99
+
+mkdir uno
+ln -s tres uno/dos
+touch uno/tres
+ln uno/tres uno/quatro
+testing 'xform S' \
+  "$TAR --no-recursion uno uno/{dos,tres,quatro} --xform 's/uno/one/S;s/dos/two/S;s/tres/three/S;s/quatro/four/S' | LST2" \
+  "one/\none/two -> tres\none/three\none/four link to one/three\n" "" ""
+
+testing 'xform flags=rh starts with all disabled' \
+  "$TAR --no-recursion uno uno/{dos,tres,quatro} --xform 's/uno/one/;flags=rh;s/dos/two/;s/tres/three/;s/quatro/four/' | LST2" \
+  "one/\none/two -> tres\none/three\none/four link to one/three\n" "" ""
+
+testing 'xform flags=rHhsS toggles' \
+  "$TAR --no-recursion uno uno/{dos,tres,quatro} --xform 's/uno/one/;flags=rHhsS;s/dos/two/;s/tres/three/;s/quatro/four/' | LST2" \
+  "one/\none/two -> tres\none/three\none/four link to one/three\n" "" ""
+
+testing 'xform flags= is not a delta from previous' \
+  "$TAR --no-recursion uno uno/{dos,tres,quatro} --xform 'flags=s;flags=rh;s/uno/one/;s/dos/two/;s/tres/three/;s/quatro/four/' | LST2" \
+  "one/\none/two -> tres\none/three\none/four link to one/three\n" "" ""
+
+testing 'xform H' \
+  "$TAR --no-recursion uno uno/{dos,tres,quatro} --xform 'flags=rsH;s/uno/one/;s/dos/two/;s/tres/three/;s/quatro/four/' | LST2" \
+  "one/\none/two -> three\none/three\none/four link to uno/tres\n" "" ""
+
+testing 'xform R' \
+  "$TAR --no-recursion uno uno/{dos,tres,quatro} --xform 'flags=rshR;s/uno/one/;s/dos/two/;s/tres/three/;s/quatro/four/' | LST2" \
+  "uno/\nuno/dos -> three\nuno/tres\nuno/quatro link to one/three\n" "" ""
+
+testing "xform path" "$TAR one --xform=s@three/four/@zero@ | tar t | grep six" \
   "one/two/zerofive/six\n" "" ""
-rm -rf one
+
+testing "xform trailing slash special case" \
+  "$TAR --xform 's#^.+/##x' one/two/three/four/five | tar t" 'five/\nsix\n' '' ''
+rm -rf uno
 SKIP=0
+rm -rf one
 
 testing '-P' "$TAR -P --no-recursion -C / /// .. | SUM 3" \
   "a3e94211582da121845d823374d8f41ead62d7bd\n" "" ""
 
-testing 'without -P' "$TAR --no-recursion -C / /// .. | SUM 3" \
+testing 'without -P' "$TAR --no-recursion -C / /// .. 2>/dev/null | SUM 3" \
   "077d03243e247b074806904885e6da272fd5857a\n" "" ""
 
 if false
