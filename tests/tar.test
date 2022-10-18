@@ -5,9 +5,7 @@
 #testing "name" "command" "result" "infile" "stdin"
 
 # For reproducibility: TZ=UTC, umask 0002, override ownership and timestamp
-OLDTZ="$TZ"
 export TZ=utc
-OLDUMASK=$(umask)
 umask 0002
 TAR='tar c --owner root --group sys --mtime @1234567890'
 
@@ -409,8 +407,4 @@ tar cpf tar.tgz dir/file
 
 fi
 
-TZ="$OLDTZ"
-umask $OLDUMASK
-unset LONG TAR SUM OLDUMASK OLDTZ
-unset -f LST
 rm -f save.dat
