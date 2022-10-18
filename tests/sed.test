@@ -129,8 +129,8 @@ testing "blank pattern repeats last pattern" \
 	"one two three\nabcthreedef four five\nfive six seven\n" "" \
 	"one two three\nthree four five\nfive six seven\n"
 
-testcmd "interleave -e and -f" "-e 'a abc' -f <(echo -n 'a def') -e 'a ghi'" \
-  "hello\nabc\ndef\nghi\n" "" "hello\n"
+testcmd "interleave -e and -f" "-e 'a abc' -f input -e 'a ghi'" \
+  "hello\nabc\ndef\nghi\n" "a def" "hello\n"
 
 # Different ways of parsing line continuations
 
