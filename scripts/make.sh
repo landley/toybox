@@ -16,7 +16,7 @@ do_loudly()
 # Is anything under directory $2 newer than generated/$1 (or does it not exist)?
 isnewer()
 {
-  [ -e "$GENDIR/$1" ] && [ -z "$(find "${@:2}" -newer "$GENDIR/$1")" ] &&
+  [ -e "$GENDIR/$1" ] && [ -z "$(find "$2" -newer "$GENDIR/$1")" ] &&
     return 1
   echo -n "${DIDNEWER:-$GENDIR/{}$1"
   DIDNEWER=,
@@ -56,7 +56,7 @@ B="$(readlink -f "$PWD")/" A="$(readlink -f "$GENDIR")" A="${A%/}"/
 unset A B DOTPROG DIDNEWER
 
 # Force full rebuild if our compiler/linker options changed
-cmp -s <(compflags|sed '5,8!d') <($SED '5,8!d' "$GENDIR"/build.sh 2>/dev/null)||
+[ "$(compflags|sed '5,8!d')" != "$($SED '5,8!d' $GENDIR/build.sh 2>/dev/null)" ]||
   rm -rf "$GENDIR"/* # Keep symlink, delete contents
 mkdir -p "$UNSTRIPPED"  "$(dirname $OUTNAME)" || exit 1
 

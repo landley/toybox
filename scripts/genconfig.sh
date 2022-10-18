@@ -16,7 +16,7 @@ probecc()
 # Symbol name is first argument, flags second, feed C file to stdin
 probesymbol()
 {
-  probecc "${@:2}" 2>/dev/null && DEFAULT=y || DEFAULT=n
+  probecc "$2" 2>/dev/null && DEFAULT=y || DEFAULT=n
   rm a.out 2>/dev/null
   echo -e "config $1\n\tbool\n\tdefault $DEFAULT\n" || exit 1
 }
