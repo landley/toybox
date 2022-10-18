@@ -802,6 +802,7 @@ static void unpack_tar(char *first)
       free(TT.hdr.name);
       TT.hdr.name = name;
     }
+    if ((i = "\0hs"[stridx("12", tar.type)+1])) xform(&TT.hdr.link_target, i);
 
     for (i = 0; i<TT.strip; i++) {
       char *s = strchr(name, '/');
