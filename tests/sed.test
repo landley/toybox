@@ -182,6 +182,8 @@ testcmd '-z D' "-z 'N;D'" 'two' '' 'one\0two'
 testcmd '-z G' "-z 'h;G'" 'one\0one' '' 'one'
 testcmd '-z H' "-z 'H;g'" '\0one' '' 'one'
 toyonly testcmd '-z x NOEOL' '-z ax' 'abc\0x\0def\0x\0' '' 'abc\0def'
+testcmd 's after NUL' 's/t/x/' 'one\0xwo' '' 'one\0two'
+testcmd '^ not trigger after NUL' 's/^t/x/' 'one\0two' '' 'one\0two'
 
 # toybox handling of empty capturing groups broke minjail. Check that we
 # correctly replace an empty capturing group with the empty string:
