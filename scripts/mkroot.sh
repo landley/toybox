@@ -63,6 +63,7 @@ if [ -z "$NOAIRLOCK"] && [ -n "$CROSS_COMPILE" ]; then
     rm .singleconfig_airlock || exit 1
   fi
   export PATH="$AIRLOCK"
+  CPIO_OPTS+=--no-preserve-owner
 fi
 
 # Create per-target work directories
@@ -156,7 +157,7 @@ done
 
 # Build static toybox with existing .config if there is one, else defconfig+sh
 announce toybox
-[ ! -z "$PENDING" ] && rm -f .config
+[ -n "$PENDING" ] && rm -f .config
 [ -e .config ] && CONF=silentoldconfig || unset CONF
 for i in $PENDING sh route; do XX="$XX"$'\n'CONFIG_${i^^?}=y; done
 [ -e "$ROOT"/lib/libc.so ] || export LDFLAGS=--static
@@ -165,6 +166,9 @@ PREFIX="$ROOT" make clean \
 unset LDFLAGS
 
 # ------------------ Part 3: Build + package bootable system ------------------
+
+# Convert comma separated values in $1 to CONFIG=$2 lines
+csv2cfg() { sed -E '/^$/d;s/([^,]*)($|,)/CONFIG_\1='"$2"'\n/g' <<< "$1"; }
 
 # ----- Build kernel for target
 
@@ -268,10 +272,11 @@ else
     # Expand list of =y symbols, first generic then architecture-specific
     for i in BINFMT_ELF,BINFMT_SCRIPT,NO_HZ,HIGH_RES_TIMERS,BLK_DEV,BLK_DEV_INITRD,RD_GZIP,BLK_DEV_LOOP,EXT4_FS,EXT4_USE_FOR_EXT2,VFAT_FS,FAT_DEFAULT_UTF8,MISC_FILESYSTEMS,SQUASHFS,SQUASHFS_XATTR,SQUASHFS_ZLIB,DEVTMPFS,DEVTMPFS_MOUNT,TMPFS,TMPFS_POSIX_ACL,NET,PACKET,UNIX,INET,IPV6,NETDEVICES,NET_CORE,NETCONSOLE,ETHERNET,COMPAT_32BIT_TIME,EARLY_PRINTK,IKCONFIG,IKCONFIG_PROC $KCONF $KEXTRA ; do
       echo "# architecture ${X:-independent}"
-      sed -E '/^$/d;s/([^,]*)($|,)/CONFIG_\1=y\n/g' <<< "$i"
+      csv2cfg "$i" y
       X=specific
     done
     [ -n "$BUILTIN" ] && echo -e CONFIG_INITRAMFS_SOURCE="\"$OUTPUT/fs\""
+    for i in $MODULES; do csv2cfg "$i" m; done
     echo "$KERNEL_CONFIG"
   } > "$OUTPUT/linux-miniconfig" &&
   make ARCH=$KARCH allnoconfig KCONFIG_ALLCONFIG="$OUTPUT/linux-miniconfig" &&
@@ -285,16 +290,22 @@ else
   cp .config "$OUTPUT/linux-fullconfig" &&
 
   # Build kernel. Copy config, device tree binary, and kernel binary to output
-  make ARCH=$KARCH CROSS_COMPILE="$CROSS_COMPILE" -j $(nproc) || exit 1
+  make ARCH=$KARCH CROSS_COMPILE="$CROSS_COMPILE" -j $(nproc) all || exit 1
   [ -n "$DTB" ] && { cp "$DTB" "$OUTPUT/linux.dtb" || exit 1 ;}
+  if [ -n "$MODULES" ]; then
+    make ARCH=$KARCH INSTALL_MOD_PATH=modz modules_install &&
+      (cd mods && find lib/modules | cpio -o -H newc $CPIO_OPTS ) | gzip \
+       > "$OUTPUT/modules.cpio.gz" || exit 1
+  fi
   cp "$VMLINUX" "$OUTPUT"/linux-kernel && cd .. && rm -rf linux && popd ||exit 1
 fi
 
 # clean up and package root filesystem for initramfs.
 if [ -z "$BUILTIN" ]; then
   announce initramfs
-  (cd "$ROOT" && find . | cpio -o -H newc ${CROSS_COMPILE:+--no-preserve-owner}\
-    | gzip) > "$OUTPUT"/initramfs.cpio.gz || exit 1
+  { (cd "$ROOT" && find . | cpio -o -H newc $CPIO_OPTS i ) || exit 1
+    ! test -e "$OUTPUT/modules.cpio.gz" || zcat $_;} | gzip \
+    > "$OUTPUT"/initramfs.cpio.gz || exit 1
 fi
 
 mv "$LOG/$CROSS".{n,y}

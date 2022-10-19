@@ -1,0 +1,8 @@
+#!/bin/echo Try "scripts/mkroot.sh $0"
+
+#cp -a configure scripts/ tests/ "$ROOT/root" &&
+#echo "(cd /root && scripts/test.sh)" > "$ROOT/etc/rc/tests" || exit 1
+
+# Enable module support in the kernel and add a couple test modules
+KEXTRA=MODULES,MODULE_UNLOAD,"$KEXTRA"
+MODULES+=FSCACHE,CACHEFILES
