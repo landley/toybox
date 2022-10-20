@@ -156,6 +156,9 @@ struct sedcmd {
   char c; // action
 };
 
+// Placeholder sedcmd for the end of commands.
+static struct sedcmd nullcmd;
+
 #define SFLAG_i 1
 #define SFLAG_g 2
 #define SFLAG_p 4
@@ -267,9 +270,9 @@ static void sed_line(char **pline, long plen)
   }
   TT.count++;
 
-  // The restart-1 is because we added one to make sure it wasn't NULL,
-  // otherwise N as last command would restart script
-  command = TT.restart ? ((struct sedcmd *)TT.restart)-1 : (void *)TT.pattern;
+  command = TT.restart ? ((struct sedcmd *)TT.restart) : (void *)TT.pattern;
+  if (command == &nullcmd)
+    command = NULL;
   TT.restart = 0;
 
   while (command) {
@@ -427,14 +430,14 @@ static void sed_line(char **pline, long plen)
       toybuf[off++] = '$';
       emit(toybuf, off, 1);
     } else if (c=='n') {
-      TT.restart = command->next+1;
+      TT.restart = command->next ? command->next : &nullcmd;
 
       break;
     } else if (c=='N') {
       // Can't just grab next line because we could have multiple N and
       // we need to actually read ahead to get N;$p EOF detection right.
       if (pline) {
-        TT.restart = command->next+1;
+        TT.restart = command->next ? command->next : &nullcmd;
         extend_string(&line, TT.nextline, len, -TT.nextlen);
         free(TT.nextline);
         TT.nextline = line;
