@@ -6,7 +6,7 @@
  * fix -t, xconnect
  * netcat -L zombies
 
-USE_NETCAT(NEWTOY(netcat, "^tElLw#<1W#<1p#<1>65535q#<1s:f:46uU[!tlL][!Lw][!46U]", TOYFLAG_BIN))
+USE_NETCAT(NEWTOY(netcat, "^tElLw#<1W#<1p#<1>65535q#<1s:f:46uUn[!tlL][!Lw][!46U]", TOYFLAG_BIN))
 USE_NETCAT(OLDTOY(nc, netcat, TOYFLAG_USR|TOYFLAG_BIN))
 
 config NETCAT
@@ -23,6 +23,7 @@ config NETCAT
     -f	Use FILENAME (ala /dev/ttyS0) instead of network
     -l	Listen for one incoming connection, then exit
     -L	Listen and background each incoming connection (server mode)
+    -n	No DNS lookup
     -p	Local port number
     -q	Quit SECONDS after EOF on stdin, even if stdout hasn't closed yet
     -s	Local source address
@@ -108,7 +109,7 @@ void netcat_main(void)
     if (!ll) {
       if (FLAG(U)) sockfd = usock(toys.optargs[0], type, 1);
       else sockfd = xconnectany(xgetaddrinfo(toys.optargs[0], toys.optargs[1],
-                                          family, type, 0, 0));
+        family, type, 0, AI_NUMERICHOST*!!FLAG(n)));
 
       // We have a connection. Disarm timeout and start poll/send loop.
       alarm(0);
