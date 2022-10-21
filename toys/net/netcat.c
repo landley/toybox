@@ -125,7 +125,7 @@ void netcat_main(void)
         sockfd = xbindany(xgetaddrinfo(TT.s, toybuf, family, type, 0, 0));
       }
 
-      if (listen(sockfd, 5)) error_exit("listen");
+      if (!FLAG(u) && listen(sockfd, 5)) perror_exit("listen");
       if (!TT.p && !FLAG(U)) {
         struct sockaddr* address = (void*)toybuf;
         socklen_t len = sizeof(struct sockaddr_storage);
