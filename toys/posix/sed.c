@@ -267,9 +267,13 @@ static void sed_line(char **pline, long plen)
   }
   TT.count++;
 
-  // The restart-1 is because we added one to make sure it wasn't NULL,
-  // otherwise N as last command would restart script
-  command = TT.restart ? ((struct sedcmd *)TT.restart)-1 : (void *)TT.pattern;
+  // To prevent N as last command from restarting script, we added 1 to restart
+  // so we'd use it here even when NULL. Alas, compilers that think C has
+  // references instead of pointers assume ptr-1 can never be NULL (demonstrably
+  // untrue) and inappropriately dead code eliminate, so use LP64 math until
+  // we get a -fpointers-are-not-references compiler option.
+  command = (void *)(TT.restart ? ((unsigned long)TT.restart)-1
+    : (unsigned long)TT.pattern);
   TT.restart = 0;
 
   while (command) {
@@ -427,14 +431,16 @@ static void sed_line(char **pline, long plen)
       toybuf[off++] = '$';
       emit(toybuf, off, 1);
     } else if (c=='n') {
-      TT.restart = command->next+1;
+      // The +1 forces restart processing even when next is null
+      TT.restart = (void *)(((unsigned long)command->next)+1);
 
       break;
     } else if (c=='N') {
       // Can't just grab next line because we could have multiple N and
       // we need to actually read ahead to get N;$p EOF detection right.
       if (pline) {
-        TT.restart = command->next+1;
+        // The +1 forces restart processing even when  next is null
+        TT.restart = (void *)(((unsigned long)command->next)+1);
         extend_string(&line, TT.nextline, len, -TT.nextlen);
         free(TT.nextline);
         TT.nextline = line;
