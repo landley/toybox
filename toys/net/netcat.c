@@ -2,11 +2,9 @@
  *
  * Copyright 2007 Rob Landley <rob@landley.net>
  *
- * TODO: udp, ipv6, genericize for telnet/microcom/tail-f
- * fix -t, xconnect
- * netcat -L zombies
+ * TODO: genericize for telnet/microcom/tail-f, fix -t
 
-USE_NETCAT(NEWTOY(netcat, "^tElLw#<1W#<1p#<1>65535q#<1s:f:46uUn[!tlL][!Lw][!46U]", TOYFLAG_BIN))
+USE_NETCAT(NEWTOY(netcat, "^tElLw#<1W#<1p#<1>65535q#<1s:f:46uUn[!tlL][!Lw][!Lu][!46U]", TOYFLAG_BIN))
 USE_NETCAT(OLDTOY(nc, netcat, TOYFLAG_USR|TOYFLAG_BIN))
 
 config NETCAT
@@ -81,7 +79,8 @@ static int usock(char *name, int type, int out)
 void netcat_main(void)
 {
   int sockfd = -1, in1 = 0, in2 = 0, out1 = 1, out2 = 1, family = AF_UNSPEC,
-    ll = FLAG(L)|FLAG(l), type = FLAG(u) ? SOCK_DGRAM : SOCK_STREAM;
+    type = FLAG(u) ? SOCK_DGRAM : SOCK_STREAM;
+  socklen_t len;
   pid_t child;
 
   // Addjust idle and quit_delay to ms or -1 for no timeout
@@ -96,7 +95,7 @@ void netcat_main(void)
 
   // The argument parsing logic can't make "<2" conditional on other
   // arguments like -f and -l, so do it by hand here.
-  if (FLAG(f) ? toys.optc : (!ll && toys.optc!=(FLAG(U)?1:2)))
+  if (FLAG(f) ? toys.optc : (!FLAG(l) && !FLAG(L) && toys.optc!=(FLAG(U)?1:2)))
     help_exit("bad argument count");
 
   if (FLAG(4)) family = AF_INET;
@@ -106,10 +105,10 @@ void netcat_main(void)
   if (TT.f) in1 = out2 = xopen(TT.f, O_RDWR);
   else {
     // Setup socket
-    if (!ll) {
+    if (!FLAG(l) && !FLAG(L)) {
       if (FLAG(U)) sockfd = usock(toys.optargs[0], type, 1);
-      else sockfd = xconnectany(xgetaddrinfo(toys.optargs[0], toys.optargs[1],
-        family, type, 0, AI_NUMERICHOST*!!FLAG(n)));
+      else sockfd = xconnectany(xgetaddrinfo(toys.optargs[0],
+        toys.optargs[1], family, type, 0, AI_NUMERICHOST*!!FLAG(n)));
 
       // We have a connection. Disarm timeout and start poll/send loop.
       alarm(0);
@@ -128,9 +127,9 @@ void netcat_main(void)
       if (!FLAG(u) && listen(sockfd, 5)) perror_exit("listen");
       if (!TT.p && !FLAG(U)) {
         struct sockaddr* address = (void*)toybuf;
-        socklen_t len = sizeof(struct sockaddr_storage);
         short port_be;
 
+        len = sizeof(struct sockaddr_storage);
         getsockname(sockfd, address, &len);
         if (address->sa_family == AF_INET)
           port_be = ((struct sockaddr_in*)address)->sin_port;
@@ -145,41 +144,46 @@ void netcat_main(void)
       }
 
       do {
+       len = sizeof(struct sockaddr_storage);
+        if (FLAG(u)) {
+          if (-1 == recvfrom(in1 = dup(sockfd), &child, 1, MSG_PEEK,
+            (void *)toybuf, &len)) perror_exit("recvfrom");
+        } else if ((in1 = accept(sockfd, 0, 0))<0) perror_exit("accept");
+        out2 = in1;
         child = 0;
-        in1 = out2 = accept(sockfd, 0, 0);
-        if (in1<0) perror_exit("accept");
 
         // We have a connection. Disarm timeout.
         alarm(0);
 
+        // Fork a child as necessary. Parent cleans up and continues here.
+        if (toys.optc && FLAG(L)) NOEXIT(child = XVFORK());
+        if (child) {
+          close(in1);
+          continue;
+        }
+
+        if (FLAG(u))
+          xconnect(in1, (void *)toybuf, sizeof(struct sockaddr_storage));
+
+        // Cleanup and redirect for exec
         if (toys.optc) {
           // Do we need a tty?
+// TODO nommu and -t only affects server mode...
+//        if (FLAG(t)) child = forkpty(&fdout, NULL, NULL, NULL);
 
-// TODO nommu, and -t only affects server mode...? Only do -t with optc
-//        if (CFG_TOYBOX_FORK && (toys.optflags&FLAG_t))
-//          child = forkpty(&fdout, NULL, NULL, NULL);
-//        else
-
-          // Do we need to fork and/or redirect for exec?
-
-// TODO xpopen_both() here?
-
-          if (FLAG(L)) NOEXIT(child = XVFORK());
-          if (child) {
-            close(in1);
-            continue;
-          }
           close(sockfd);
           dup2(in1, 0);
           dup2(in1, 1);
           if (FLAG(E)) dup2(in1, 2);
           if (in1>2) close(in1);
           xexec(toys.optargs);
-        }
 
-        pollinate(in1, in2, out1, out2, TT.W, TT.q);
-        close(in1);
-      } while (!FLAG(l));
+        // Copy stdin/out
+        } else {
+          pollinate(in1, in2, out1, out2, TT.W, TT.q);
+          close(in1);
+        }
+      } while (FLAG(L));
     }
   }
 
