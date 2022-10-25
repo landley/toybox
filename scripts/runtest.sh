@@ -219,14 +219,15 @@ txpect()
         then
           [ -z "$A" -o "$X" -ne 0 ] && { do_fail;break;}
         else
-          if [ ${1::1} == 'R' ] && [[ "$A" =~ ${1:2} ]]; then true
+          if [ ${1::1} == 'R' ] && grep -q "${1:2}" <<< "$A"; then true
           elif [ ${1::1} != 'R' ] && [ "$A" == "${1:1}" ]; then true
           else
             # Append the rest of the output if there is any.
             read -t.1 B <&$O
             A="$A$B"
             read -t.1 -rN 9999 B<&$ERR
-            do_fail;break;
+            do_fail
+            break
           fi
         fi
         ;;
