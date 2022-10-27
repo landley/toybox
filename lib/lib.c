@@ -1508,3 +1508,28 @@ char *elf_arch_name(int type)
   sprintf(libbuf, "unknown arch %d", type);
   return libbuf;
 }
+
+// Remove octal escapes from string (common in kernel exports)
+void octal_deslash(char *s)
+{
+  char *o = s;
+
+  while (*s) {
+    if (*s == '\\') {
+      int i, oct = 0;
+
+      for (i = 1; i < 4; i++) {
+        if (!isdigit(s[i])) break;
+        oct = (oct<<3)+s[i]-'0';
+      }
+      if (i == 4) {
+        *o++ = oct;
+        s += i;
+        continue;
+      }
+    }
+    *o++ = *s++;
+  }
+
+  *o = 0;
+}

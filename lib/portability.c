@@ -97,30 +97,6 @@ struct mtab_list *xgetmountlist(char *path)
 
 #include <mntent.h>
 
-static void octal_deslash(char *s)
-{
-  char *o = s;
-
-  while (*s) {
-    if (*s == '\\') {
-      int i, oct = 0;
-
-      for (i = 1; i < 4; i++) {
-        if (!isdigit(s[i])) break;
-        oct = (oct<<3)+s[i]-'0';
-      }
-      if (i == 4) {
-        *o++ = oct;
-        s += i;
-        continue;
-      }
-    }
-    *o++ = *s++;
-  }
-
-  *o = 0;
-}
-
 // Check if this type matches list.
 // Odd syntax: typelist all yes = if any, typelist all no = if none.
 
