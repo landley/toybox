@@ -386,12 +386,10 @@ static void do_regular_file(int fd, char *name)
       (magic=peek_le(s+0x3c,4))<len-4 && !memcmp(s+magic, "\x50\x45\0", 4)) {
 
     // Linux kernel images look like PE files.
-    if (!memcmp(s+0x38, "ARM\x64", 4)) {
-      // https://www.kernel.org/doc/Documentation/arm64/booting.txt
-      // I've only ever seen LE, 4KiB pages, so ignore flags for now.
-      xputs("Linux arm64 kernel image");
-      return;
-    } else if (!memcmp(s+0x202, "HdrS", 4)) {
+    // https://www.kernel.org/doc/Documentation/arm64/booting.txt
+    // I've only ever seen LE, 4KiB pages, so ignore flags for now.
+    if (!memcmp(s+0x38, "ARMd", 4)) return xputs("Linux arm64 kernel image");
+    else if (!memcmp(s+0x202, "HdrS", 4)) {
       // https://www.kernel.org/doc/Documentation/x86/boot.txt
       unsigned ver_off = peek_le(s+0x20e, 2);
 
@@ -400,10 +398,8 @@ static void do_regular_file(int fd, char *name)
         s += 0x200 + ver_off;
       } else {
         if (lseek(fd, ver_off - len + 0x200, SEEK_CUR)<0 ||
-            (len = readall(fd, s, sizeof(toybuf)))<0) {
-          perror_msg("%s", name);
-          return;
-        }
+            (len = readall(fd, s, sizeof(toybuf)))<0)
+          return perror_msg("%s", name);
       }
       xprintf(", version %s\n", s);
       return;
