@@ -4,7 +4,7 @@
  *
  * See http://opengroup.org/onlinepubs/9699919799/utilities/uname.html
 
-USE_UNAME(NEWTOY(uname, "aomvrns", TOYFLAG_BIN))
+USE_UNAME(NEWTOY(uname, "paomvrns", TOYFLAG_BIN))
 USE_ARCH(NEWTOY(arch, 0, TOYFLAG_USR|TOYFLAG_BIN))
 USE_LINUX32(NEWTOY(linux32, 0, TOYFLAG_USR|TOYFLAG_BIN))
 
@@ -60,6 +60,7 @@ void uname_main(void)
     }
     xputsn(c);
   }
+  if (FLAG(p)) xputsn(" unknown"+!needspace);
   xputc('\n');
 }
 
