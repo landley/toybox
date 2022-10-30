@@ -4,7 +4,7 @@
  *
  * See http://pubs.opengroup.org/onlinepubs/9699919799/utilities/rm.html
 
-USE_RM(NEWTOY(rm, "fiRrv[-fi]", TOYFLAG_BIN))
+USE_RM(NEWTOY(rm, "f(force)iRrv[-fi]", TOYFLAG_BIN))
 
 config RM
   bool "rm"
