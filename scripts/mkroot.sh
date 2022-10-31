@@ -261,9 +261,10 @@ else
   announce "linux-$KARCH"
   pushd "$LINUX" && make distclean && popd &&
   cp -sfR "$LINUX" "$TEMP/linux" && pushd "$TEMP/linux" &&
-  # Fix x86-64 and sh2eb
+  # Fix x86-64, sh2eb, and building with cc pointing to llvm or gcc
   sed -Eis '/select HAVE_(STACK_VALIDATION|OBJTOOL)/d' arch/x86/Kconfig &&
   sed -is 's/depends on !SMP/& || !MMU/' mm/Kconfig &&
+  sed -i 's@=\(.*[ )]\)gcc$@:=\1$(shell $(CROSS_COMPILE)cc --version >/dev/null 2>\&1 \&\& echo cc || echo gcc)@' Makefile &&
 
   # Write linux-miniconfig
   { echo "# make ARCH=$KARCH allnoconfig KCONFIG_ALLCONFIG=linux-miniconfig"
@@ -294,7 +295,7 @@ else
   [ -n "$DTB" ] && { cp "$DTB" "$OUTPUT/linux.dtb" || exit 1 ;}
   if [ -n "$MODULES" ]; then
     make ARCH=$KARCH INSTALL_MOD_PATH=modz modules_install &&
-      (cd mods && find lib/modules | cpio -o -H newc $CPIO_OPTS ) | gzip \
+      (cd modz && find lib/modules | cpio -o -H newc $CPIO_OPTS ) | gzip \
        > "$OUTPUT/modules.cpio.gz" || exit 1
   fi
   cp "$VMLINUX" "$OUTPUT"/linux-kernel && cd .. && rm -rf linux && popd ||exit 1
