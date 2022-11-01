@@ -4,6 +4,14 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
+testing "dry run doesn't create file" \
+  "patch --dry-run >/dev/null && [ ! -e bork ] && echo yes" "yes\n" "" "
+--- /dev/null
++++ bork
+@@ -0,0 +1,1 @@
++one
+"
+
 testing "create file" "patch >/dev/null && cat bork" "one\ntwo\nthree\n" "" "
 --- /dev/null
 +++ bork
@@ -12,6 +20,7 @@ testing "create file" "patch >/dev/null && cat bork" "one\ntwo\nthree\n" "" "
 +two
 +three
 "
+
 testing "insert in middle" "patch > /dev/null && cat bork" \
   "one\nfour\ntwo\nthree\n" "" "
 --- bork
@@ -85,6 +94,23 @@ testing "quoted name" "patch > /dev/null && cat 'fruit bat'" \
 @@ -0,0 +1 @@
 +hello
 '
+
+testing "dry run doesn't delete file" \
+  "patch --dry-run > /dev/null && [ -e 'fruit bat' ] && echo yes" "yes\n" "" '
+--- "fruit bat"
++++ /dev/null
+@@ -1 +0,0 @@
+-hello
+'
+
+testing "delete file" \
+  "patch > /dev/null && [ ! -e 'fruit bat' ] && echo yes" "yes\n" "" '
+--- "fruit bat"
++++ /dev/null
+@@ -1 +0,0 @@
+-hello
+'
+
 # todo bork bork2
 
 # We hit a bug, test the bugfix.

@@ -449,7 +449,7 @@ void patch_main(void)
 
         if (del) {
           if (!FLAG(s)) printf("removing %s\n", name);
-          xunlink(name);
+          if (!FLAG(dry_run)) xunlink(name);
           state = 0;
         // If we've got a file to open, do so.
         } else if (!FLAG(p) || i <= TT.p) {
@@ -457,8 +457,11 @@ void patch_main(void)
           if ((!strcmp(oldname, "/dev/null") || !oldsum) && access(name, F_OK))
           {
             if (!FLAG(s)) printf("creating %s\n", name);
-            if (mkpath(name)) perror_exit("mkpath %s", name);
-            TT.filein = xcreate(name, O_CREAT|O_EXCL|O_RDWR, 0666);
+            if (FLAG(dry_run)) TT.filein = xopen("/dev/null", O_RDWR);
+            else {
+              if (mkpath(name)) perror_exit("mkpath %s", name);
+              TT.filein = xcreate(name, O_CREAT|O_EXCL|O_RDWR, 0666);
+            }
           } else {
             if (!FLAG(s)) printf("patching %s\n", name);
             TT.filein = xopenro(name);
