@@ -97,3 +97,6 @@ testing "tz + 8 : 8 " \
 # Can we parse date's own output format?
 testing "round trip" 'TZ=$tz date -d "$(TZ=$tz date -d @1598476818)"' \
   "Wed Aug 26 23:20:18 CEST 2020\n" "" ""
+
+toyonly testcmd "-D with -d" "-uD '%s' -d '1234567890'" \
+  "Fri Feb 13 23:31:30 UTC 2009\n" "" ""

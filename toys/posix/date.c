@@ -156,7 +156,7 @@ void date_main(void)
       struct tm tm = {};
       char *s = strptime(TT.d, TT.D+(*TT.D=='+'), &tm);
 
-      t = (s && *s) ? xvali_date(&tm, s) : xvali_date(0, TT.d);
+      t = (s && !*s) ? xvali_date(&tm, s) : xvali_date(0, TT.d);
     } else parse_date(TT.d, &t);
   } else {
     struct timespec ts;
