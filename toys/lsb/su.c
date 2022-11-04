@@ -45,7 +45,6 @@ void su_main()
 {
   char *name, *passhash = 0, **argu, **argv;
   struct passwd *up;
-  struct spwd *shp;
 
   if (*toys.optargs && !strcmp("-", *toys.optargs)) {
     toys.optflags |= FLAG_l;
@@ -57,8 +56,10 @@ void su_main()
 
   loggit(LOG_NOTICE, "%s->%s", getusername(geteuid()), name);
 
-  if (!(shp = getspnam(name))) perror_exit("no '%s'", name);
   if (getuid()) {
+    struct spwd *shp;
+
+    if (!(shp = getspnam(name))) perror_exit("no '%s'", name);
     if (*shp->sp_pwdp != '$') goto deny;
     if (read_password(toybuf, sizeof(toybuf), "Password: ")) goto deny;
     passhash = crypt(toybuf, shp->sp_pwdp);
