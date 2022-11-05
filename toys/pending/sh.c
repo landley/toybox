@@ -2149,7 +2149,7 @@ barf:
                 ll++;
                 continue;
               }
-              if (*delete && (*delete)->arg==ifs) {
+              if (delete && *delete && (*delete)->arg==ifs) {
                 if (jj==dd) memcpy(ifs+ll, ss, jj);
                 else if (jj<dd) sprintf(ifs+ll, "%s%s", ss, ifs+ll+dd);
                 else bird = ifs;
