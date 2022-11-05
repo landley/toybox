@@ -213,6 +213,7 @@ testing '${x#short} ${x##long}' 'x=banana; echo ${x#b*n} ${x##b*n}' \
   'ana a\n' '' ''
 toyonly testing '${x#utf8}' 'x=aそcde; echo ${x##a?c}' 'de\n' '' ''
 testing '${x%y}' 'x=potato; echo ${x%t*o} ${x%%t*o}' 'pota po\n' '' ''
+testing 'x=${x%y}' 'x=potato; x=${x%t*o}; echo $x' 'pota\n' '' ''
 testing '${x^y}' 'x=aaaaa; echo ${x^a}' 'Aaaaa\n' '' ''
 testing '${x^^y}' 'x=abccdec; echo ${x^^c}; x=abcdec; echo ${x^^c}' \
   'abCCdeC\nabCdeC\n' '' ''
