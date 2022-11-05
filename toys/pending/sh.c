@@ -2122,7 +2122,7 @@ barf:
             }
 
             if (yy != -1) {
-              if (*delete && (*delete)->arg==ifs) ifs[yy] = 0;
+              if (delete && *delete && (*delete)->arg==ifs) ifs[yy] = 0;
               else push_arg(delete, ifs = xstrndup(ifs, yy));
             }
           }
