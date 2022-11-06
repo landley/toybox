@@ -38,9 +38,9 @@ static const struct rrt {
   int type;
 } rrt[] = { { "A", "has address", 1 }, { "NS", "name server", 2 },
   { "CNAME", "is a nickname for", 5 }, { "SOA", "start of authority", 6 },
-  { "PTR", "domain name pointer", 12 }, { "MX", "mail is handled", 15 },
-  { "TXT", "descriptive text", 16 }, { "AAAA", "has address", 28 },
-  { "SRV", "mail is handled", 33 }
+  { "PTR", "domain name pointer", 12 }, { "HINFO", "host information", 13 },
+  { "MX", "mail is handled", 15 }, { "TXT", "descriptive text", 16 },
+  { "AAAA", "has address", 28 }, { "SRV", "mail is handled", 33 }
 };
 
 int xdn_expand(char *packet, char *endpkt, char *comp, char *expand, int elen)
@@ -97,7 +97,7 @@ void host_main(void)
 
   // Prepare query packet of appropriate type
   if (TT.t[0]-'0'<10) type = atoi(TT.t); // TODO
-  else if (!strcasecmp(TT.t, "any") || strcmp(TT.t, "*")) type = 255;
+  else if (!strcasecmp(TT.t, "any") || !strcmp(TT.t, "*")) type = 255;
   else {
     for (i = 0; i<ARRAY_LEN(rrt); i++) if (!strcasecmp(TT.t, rrt[i].name)) {
       type = rrt[i].type;
@@ -139,6 +139,7 @@ void host_main(void)
 
   // Print the result
   p = abuf + 12;
+  qlen = 0;
   for (sec = 0; sec<(2<<verbose); sec++) {
     count = peek_be(abuf+4+2*sec, 2);
     if (verbose && count>0 && sec>1) 
@@ -156,11 +157,11 @@ void host_main(void)
       pllen = peek_be(p, 2);
       p += 2;
       if ((p-abuf)+pllen>alen) error_exit("tilt");
-
       if (type==1 || type == 28)
         inet_ntop(type==1 ? AF_INET : AF_INET6, p, t2, t2len);
       else if (type==2 || type==5) xdn_expand(abuf, abuf+alen, p, t2, t2len);
-      else if (type==16) sprintf(t2, "\"%.*s\"", minof(pllen, t2len), p);
+      else if (type==13 || type==16)
+        sprintf(t2, "\"%.*s\"", minof(pllen, t2len), p);
       else if (type==6) { 
         ss = p+xdn_expand(abuf, abuf+alen, p, t2, t2len-1);
         j = strlen(t2);
@@ -184,12 +185,13 @@ void host_main(void)
         printf("%s unsupported RR type %u\n", toybuf, type);
         continue;
       }
-
       for (i = 0; rrt[i].type != type; i++);
       if (verbose) printf("%s\t%u\tIN %s\t%s\n", toybuf, ttl, rrt[i].name, t2);
-      else printf("%s %s %s\n", toybuf, rrt[type].msg, t2);
+      else printf("%s %s %s\n", toybuf, rrt[i].msg, t2);
+      qlen++;
     }
   }
+  if (TT.t && !qlen) printf("%s has no %s record\n", *toys.optargs, TT.t);
 
   if (CFG_TOYBOX_FREE) free(abuf);
   toys.exitval = rcode;
