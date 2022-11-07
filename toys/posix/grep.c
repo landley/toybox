@@ -388,7 +388,7 @@ static void parse_regex(void)
       if (!*(s = xreadfile(al->arg, 0, 0))) {
         free(s);
         s = 0;
-      } else if (*(ss = s+strlen(s)-1)=='\n') *--ss = 0;
+      } else if (*(ss = s+strlen(s)-1)=='\n') *ss = 0;
     } else s = al->arg;
 
     // Advance, when we run out of -f switch to -e.
