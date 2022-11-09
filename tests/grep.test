@@ -222,3 +222,5 @@ testcmd '^$' '^\$' '\n' '' 'one\n\ntwo\n'
 testcmd 'middle ^ not special' 'a^' 'a^b\n' '' 'a^b\nb^a\n'
 # Quoted to protect it from the shell, grep should just see '$b'
 testcmd 'middle $ not special' "'\$b'" 'a$b\n' '' 'a$b\nb$a\n'
+
+testcmd 'grep -of' '-of input' 'abc\n' 'a.c\n' 'abcdef\n'
