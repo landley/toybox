@@ -23,7 +23,7 @@ config PRINTF
 #include "toys.h"
 
 // Detect matching character (return true/false) and advance pointer if match.
-static int eat(char **s, char c)
+static int chrstart(char **s, char c)
 {
   int x = (**s == c);
 
@@ -42,7 +42,7 @@ static int handle_slash(char **esc_val, int posix)
   if (*ptr == 'c') xexit();
 
   // 0x12 hex escapes have 1-2 digits, \123 octal escapes have 1-3 digits.
-  if (eat(&ptr, 'x')) base = 16;
+  if (chrstart(&ptr, 'x')) base = 16;
   else {
     if (posix && *ptr=='0') ptr++;
     if (*ptr >= '0' && *ptr <= '7') base = 8;
@@ -85,8 +85,8 @@ void printf_main(void)
 
     // Loop through characters in format
     while (*f) {
-      if (eat(&f, '\\')) putchar(handle_slash(&f, 0));
-      else if (!eat(&f, '%') || *f == '%') putchar(*f++);
+      if (chrstart(&f, '\\')) putchar(handle_slash(&f, 0));
+      else if (!chrstart(&f, '%') || *f == '%') putchar(*f++);
 
       // Handle %escape
       else {
@@ -97,10 +97,10 @@ void printf_main(void)
         *to++ = '%';
         while (strchr("-+# '0", *f) && (to-toybuf)<10) *to++ = *f++;
         for (;;) {
-          if (eat(&f, '*')) {
+          if (chrstart(&f, '*')) {
             if (*arg) wp[i] = atolx(*arg++);
           } else while (*f >= '0' && *f <= '9') wp[i] = (wp[i]*10)+(*f++)-'0';
-          if (i++ || !eat(&f, '.')) break;
+          if (i++ || !chrstart(&f, '.')) break;
           wp[1] = 0;
         }
         c = *f++;
@@ -110,7 +110,8 @@ void printf_main(void)
 
         // Output %esc using parsed format string
         if (c == 'b') {
-          while (*aa) putchar(eat(&aa, '\\') ? handle_slash(&aa, 1) : *aa++);
+          while (*aa)
+            putchar(chrstart(&aa, '\\') ? handle_slash(&aa, 1) : *aa++);
 
           continue;
         } else if (c == 'c') printf(toybuf, wp[0], wp[1], *aa);
