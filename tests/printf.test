@@ -7,79 +7,74 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-# Disable shell builtin
-PRINTF="$(which printf)"
+# Note: must use "testcmd" not "testing" else it's testing the shell builtin.
 
-testing "text" "$PRINTF TEXT" "TEXT" "" ""
+testcmd "text" "TEXT" "TEXT" "" ""
 
 # TODO: we have to use \x1b rather than \e in the expectations because
 # the Mac is stuck on bash 3.2 which doesn't support \e. This can go
 # away when we have a usable toysh.
-testing "escapes" "$PRINTF 'one\ntwo\n\v\t\r\f\e\b\athree'" \
+testcmd "escapes" "'one\ntwo\n\v\t\r\f\e\b\athree'" \
   "one\ntwo\n\v\t\r\f\x1b\b\athree" "" ""
-testing "%b escapes" "$PRINTF %b 'one\ntwo\n\v\t\r\f\e\b\athree'" \
+testcmd "%b escapes" "%b 'one\ntwo\n\v\t\r\f\e\b\athree'" \
   "one\ntwo\n\v\t\r\f\x1b\b\athree" "" ""
 
-testing "null" "$PRINTF 'x\0y' | od -An -tx1" ' 78 00 79\n' "" ""
-testing "trailing slash" "$PRINTF 'abc\'" 'abc\' "" ""
-testing "octal" "$PRINTF ' \1\002\429\045x'" ' \001\002"9%x' "" ""
-testing "not octal" "$PRINTF '\9'" '\9' "" ""
-testing "hex" "$PRINTF 'A\x1b\x2B\x3Q\xa' | od -An -tx1" \
-  ' 41 1b 2b 03 51 0a\n' "" ""
-testing "%x" "$PRINTF '%x\n' 0x2a" "2a\n" "" ""
+testcmd "null" "'x\0y' | od -An -tx1" ' 78 00 79\n' "" ""
+testcmd "trailing slash" "'abc\'" 'abc\' "" ""
+testcmd "octal" "' \1\002\429\045x'" ' \001\002"9%x' "" ""
+testcmd "not octal" "'\9'" '\9' "" ""
+testcmd "hex" "'A\x1b\x2B\x3Q\xa' | od -An -tx1" ' 41 1b 2b 03 51 0a\n' "" ""
+testcmd "%x" "'%x\n' 0x2a" "2a\n" "" ""
 
-testing "%d 42" "$PRINTF %d 42" "42" "" ""
-testing "%d 0x2a" "$PRINTF %d 0x2a" "42" "" ""
-testing "%d 052" "$PRINTF %d 052" "42" "" ""
-testing "%d none" "$PRINTF %d" "0" "" ""
-testing "%d null" "$PRINTF %d ''" "0" "" ""
+testcmd "%d 42" "%d 42" "42" "" ""
+testcmd "%d 0x2a" "%d 0x2a" "42" "" ""
+testcmd "%d 052" "%d 052" "42" "" ""
+testcmd "%d none" "%d" "0" "" ""
+testcmd "%d null" "%d ''" "0" "" ""
 
-testing "%s width precision" \
-  "$PRINTF '%3s,%.3s,%10s,%10.3s' abcde fghij klmno pqrst" \
+testcmd "%s width precision" "'%3s,%.3s,%10s,%10.3s' abcde fghij klmno pqrst" \
   "abcde,fgh,     klmno,       pqr" "" ""
 
 # posix: "The format operand shall be reused as often as necessary to satisfy
 # the argument operands."
 
-testing "extra args" "$PRINTF 'abc%s!%ddef\n' X 42 ARG 36" \
+testcmd "extra args" "'abc%s!%ddef\n' X 42 ARG 36" \
 	"abcX!42def\nabcARG!36def\n" "" ""
 
-testing "'%3c'" "$PRINTF '%3c' x" "  x" "" ""
-testing "'%-3c'" "$PRINTF '%-3c' x" "x  " "" ""
-testing "'%+d'" "$PRINTF '%+d' 5" "+5" "" ""
+testcmd "'%3c'" "'%3c' x" "  x" "" ""
+testcmd "'%-3c'" "'%-3c' x" "x  " "" ""
+testcmd "'%+d'" "'%+d' 5" "+5" "" ""
 
-testing "'%5d%4d' 1 21 321 4321 54321" \
-  "$PRINTF '%5d%4d' 1 21 321 4321 54321" "    1  21  321432154321   0" "" ""
-testing "'%c %c' 78 79" "$PRINTF '%c %c' 78 79" "7 7" "" ""
-testing "'%d %d' 78 79" "$PRINTF '%d %d' 78 79" "78 79" "" ""
-testing "'%f %f' 78 79" "$PRINTF '%f %f' 78 79" \
-  "78.000000 79.000000" "" ""
-testing "'f f' 78 79" "$PRINTF 'f f' 78 79 2>/dev/null" "f f" "" ""
-testing "'%i %i' 78 79" "$PRINTF '%i %i' 78 79" "78 79" "" ""
-testing "'%o %o' 78 79" "$PRINTF '%o %o' 78 79" "116 117" "" ""
-testing "'%u %u' 78 79" "$PRINTF '%u %u' 78 79" "78 79" "" ""
-testing "'%u %u' -1 -2" "$PRINTF '%u %u' -1 -2" \
+testcmd "'%5d%4d' 1 21 321 4321 54321" \
+  "'%5d%4d' 1 21 321 4321 54321" "    1  21  321432154321   0" "" ""
+testcmd "'%c %c' 78 79" "'%c %c' 78 79" "7 7" "" ""
+testcmd "'%d %d' 78 79" "'%d %d' 78 79" "78 79" "" ""
+testcmd "'%f %f' 78 79" "'%f %f' 78 79" "78.000000 79.000000" "" ""
+testcmd "'f f' 78 79" "'f f' 78 79 2>/dev/null" "f f" "" ""
+testcmd "'%i %i' 78 79" "'%i %i' 78 79" "78 79" "" ""
+testcmd "'%o %o' 78 79" "'%o %o' 78 79" "116 117" "" ""
+testcmd "'%u %u' 78 79" "'%u %u' 78 79" "78 79" "" ""
+testcmd "'%u %u' -1 -2" "'%u %u' -1 -2" \
   "18446744073709551615 18446744073709551614" "" ""
-testing "'%x %X' 78 79" "$PRINTF '%x %X' 78 79" "4e 4F" "" ""
-testing "'%g %G' 78 79" "$PRINTF '%g %G' 78 79" "78 79" "" ""
-testing "'%s %s' 78 79" "$PRINTF '%s %s' 78 79" "78 79" "" ""
+testcmd "'%x %X' 78 79" "'%x %X' 78 79" "4e 4F" "" ""
+testcmd "'%g %G' 78 79" "'%g %G' 78 79" "78 79" "" ""
+testcmd "'%s %s' 78 79" "'%s %s' 78 79" "78 79" "" ""
 
-testing "%.s acts like %.0s" "$PRINTF %.s_ 1 2 3 4 5" "_____" "" ""
-testing "corner case" "$PRINTF '\\8'" '\8' '' ''
+testcmd "%.s acts like %.0s" "%.s_ 1 2 3 4 5" "_____" "" ""
+testcmd "corner case" "'\\8'" '\8' '' ''
 
 # The posix spec explicitly specifies inconsistent behavior,
 # so treating the \0066 in %b like the \0066 not in %b is wrong because posix.
-testing "printf posix inconsistency" "$PRINTF '\\0066-%b' '\\0066'" "\x066-6" \
+testcmd "posix inconsistency" "'\\0066-%b' '\\0066'" "\x066-6" "" ""
+
+testcmd '\x' "'A\x1b\x2B\x3Q\xa' | od -An -tx1" " 41 1b 2b 03 51 0a\n" \
   "" ""
 
-testing "printf \x" "$PRINTF 'A\x1b\x2B\x3Q\xa' | od -An -tx1" \
-  " 41 1b 2b 03 51 0a\n" "" ""
-
-testing "printf \c" "$PRINTF 'one\ctwo'" "one" "" ""
+testcmd '\c' "'one\ctwo'" "one" "" ""
 
 # An extra leading 0 is fine for %b, but not as a direct escape, for some
 # reason...
-testing "printf octal %b" "$PRINTF '\0007%b' '\0007' | xxd -p" "003707\n" "" ""
+testcmd "octal %b" "'\0007%b' '\0007' | xxd -p" "003707\n" "" ""
 
 # Unlike echo, printf errors out on bad hex.
 testcmd "invalid hex 1" "'one\xvdtwo' 2>/dev/null || echo err" "oneerr\n" "" ""
