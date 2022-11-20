@@ -631,8 +631,8 @@ char *xabspath(char *path, int flags)
     }
 
     // Is this a symlink?
-    if (flags & (ABS_KEEP<<!todo)) errno = len = 0;
-    else len = readlinkat(dirfd, new->str, libbuf, sizeof(libbuf));
+    if (flags & (ABS_KEEP<<!todo)) len = 0, errno = EINVAL;
+    else len = readlinkat(dirfd, str, libbuf, sizeof(libbuf));
     if (len>4095) goto error;
 
     // Not a symlink: add to linked list, move dirfd, fail if error
