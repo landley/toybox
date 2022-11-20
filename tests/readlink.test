@@ -32,12 +32,14 @@ testing "-f link->link (recursive)" \
   "readlink -f link 2>/dev/null || echo yes" "yes\n" "" ""
 
 testing "-q notlink" "readlink -q file || echo yes" "yes\n" "" ""
-testing "-q link" "readlink -q link && echo yes" "yes\n" "" ""
+testing "-q link" "readlink -q link && echo yes" "link\nyes\n" "" ""
 testing "-q notfound" "readlink -q notfound || echo yes" "yes\n" "" ""
 testing "-e found" "readlink -e file" "$APWD/file\n" "" ""
 testing "-e notfound" \
   "readlink -e notfound 2>/dev/null || echo yes" "yes\n" "" ""
 testing "-nf ." "readlink -nf ." "$APWD" "" ""
+# -n means no newline at _end_. I.E. on last argument.
+toyonly testcmd '-nf multiple args' '-n link link' "link\nlink" '' ''
 
 mkdir sub &&
 ln -s . here &&
@@ -51,7 +53,8 @@ testing "-f /dev/null/file" \
   "readlink -f /dev/null/file 2>/dev/null || echo yes" "yes\n" "" ""
 testing "-m missing/dir" "readlink -m sub/two/three" "$APWD/sub/two/three\n" "" ""
 testing "-m missing/../elsewhere" "readlink -m sub/two/../../three" "$APWD/three\n" "" ""
-testing "-m file/dir" "readlink -m sub/bang/two 2>/dev/null || echo err" "err\n" "" ""
+# TODO: host bug? That's not missing, that's "cannot exist".
+toyonly testing "-m file/dir" "readlink -m sub/bang/two 2>/dev/null || echo err" "err\n" "" ""
 rm link
 ln -sf / link || exit 1
 testing "-f link->/" "readlink -e link/dev" "/dev\n" "" ""
