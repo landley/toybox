@@ -2,9 +2,9 @@
 
 source ./configure
 
-if [ -z "$(command -v "${CROSS_COMPILE}${CC}")" ]
+if [ -z "$(command -v "$CROSS_COMPILE$CC")" ]
 then
-  echo "No ${CROSS_COMPILE}${CC} found" >&2
+  echo "No $CROSS_COMPILE$CC found" >&2
   exit 1
 fi
 
@@ -23,16 +23,15 @@ else
 fi
 
 # Disable a pointless warning only clang produces
-[ -n "$("$CROSS_COMPILE"cc --version | grep -w clang)" ] &&
+[ -n "$("$CROSS_COMPILE$CC" --version | grep -w clang)" ] &&
   CFLAGS+=" -Wno-string-plus-int"
 
 # Address Sanitizer
-if [ ! -z "$ASAN" ]; then
+if [ -n "$ASAN" ]; then
   # Turn ASan on and disable most optimization to get more readable backtraces.
   # (Technically ASAN is just "-fsanitize=address" and the rest is optional.)
   ASAN_FLAGS="-fsanitize=address -O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls"
   CFLAGS="$CFLAGS $ASAN_FLAGS"
-  HOSTCC="$HOSTCC $ASAN_FLAGS"
   NOSTRIP=1
   # Ignore leaks on exit. TODO
   export ASAN_OPTIONS="detect_leaks=0"
