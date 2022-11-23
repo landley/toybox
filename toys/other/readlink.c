@@ -38,7 +38,7 @@ config REALPATH
     -q Quiet (no error messages)
     -s Don't expand symlinks
     -z NUL instead of newline
-    --relative-base  Paths below DIR aren't absolute
+    --relative-base  If path under DIR trim off prefix
 */
 
 /* TODO
@@ -72,12 +72,41 @@ GLOBALS(
 static char *resolve(char *arg)
 {
   int flags = FLAG(e) ? ABS_FILE : FLAG(m) ? 0 : ABS_PATH;
-  char *s;
+  char *s, *ss = 0, *dd = 0;
 
   if (FLAG(s)) flags |= ABS_KEEP;
+  else if (FLAG(L)) arg = dd = xabspath(arg, ABS_KEEP);
   if (!(s = xabspath(arg, flags)) && !FLAG(q)) perror_msg("%s", arg);
+  free(dd);
+
+  // Trim off this prefix if path under here
+
+  if (TT.relative_base) {
+    ss = s;
+    if (strstart(&ss, TT.relative_base) && (!*ss || *ss=='/')) {
+      if (*ss=='/') ss++;
+      ss = xstrdup(!*ss ? "." : ss);
+    } else ss = 0;
+  } else if (TT.R) ss = relative_path(TT.R, s, 0);
+  if (ss) {
+    free(s);
+    s = ss;
+  }
 
   return s;
+}
+
+// Resolve command line arguments that can't take part in their own resolution
+static char *presolve(char **s)
+{
+  char *ss = *s;
+
+  if (ss) {
+    *s = 0;
+    if (!(*s = resolve(ss))) xexit();
+  }
+
+  return ss;
 }
 
 // Uses realpath flag context: flags (1 = resolve, 2 = -n)
@@ -85,9 +114,7 @@ static void do_paths(int flags)
 {
   char **arg, *s;
 
-  if (TT.R && !(TT.R = resolve(TT.R))) xexit();
-  if (TT.relative_base && !(TT.relative_base = resolve(TT.relative_base)))
-    xexit();
+  if (!presolve(&TT.relative_base)) presolve(&TT.R);
 
   for (arg = toys.optargs; *arg; arg++) {
     if (!(s = (flags&1) ? resolve(*arg) : xreadlink(*arg))) toys.exitval = 1;

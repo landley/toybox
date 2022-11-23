@@ -31,7 +31,7 @@ testing "link->link (recursive)" "readlink link" "link\n" "" ""
 testing "-f link->link (recursive)" \
   "readlink -f link 2>/dev/null || echo yes" "yes\n" "" ""
 
-testing "-q notlink" "readlink -q file || echo yes" "yes\n" "" ""
+testing "-q notlink" "readlink -q file 2>&1 || echo yes" "yes\n" "" ""
 testing "-q link" "readlink -q link && echo yes" "link\nyes\n" "" ""
 testing "-q notfound" "readlink -q notfound || echo yes" "yes\n" "" ""
 testing "-e found" "readlink -e file" "$APWD/file\n" "" ""
@@ -40,6 +40,8 @@ testing "-e notfound" \
 testing "-nf ." "readlink -nf ." "$APWD" "" ""
 # -n means no newline at _end_. I.E. on last argument.
 toyonly testcmd '-nf multiple args' '-n link link' "link\nlink" '' ''
+testcmd '-nz' '-nz link' 'link' '' ''
+testcmd '-z' '-z link' 'link\0' '' ''
 
 mkdir sub &&
 ln -s . here &&

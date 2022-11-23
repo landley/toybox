@@ -52,13 +52,15 @@ void ln_main(void)
   } else buf.st_mode = 0;
 
   for (i=0; i<toys.optc; i++) {
-    char *oldnew = 0, *try = toys.optargs[i];
+    char *oldnew = 0, *try = toys.optargs[i], *ss;
 
     if (S_ISDIR(buf.st_mode)) new = xmprintf("%s/%s", dest, basename(try));
     else new = dest;
 
     if (FLAG(r)) {
-      try = relative_path(new, try);
+      ss = xstrdup(new);
+      try = relative_path(dirname(ss), try, 1);
+      free(ss);
       if (!try) {
         if (new != dest) free(new);
         continue;

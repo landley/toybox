@@ -1077,30 +1077,47 @@ char *fileunderdir(char *file, char *dir)
   return rc ? s2 : 0;
 }
 
-// return (malloced) relative path to get from "from" to "to"
-char *relative_path(char *from, char *to)
+void *mepcpy(void *to, void *from, unsigned long len)
+{
+  memcpy(to, from, len);
+
+  return ((char *)to)+len;
+}
+
+// return (malloced) relative path to get between two normalized absolute paths
+// normalized: no duplicate / or trailing / or .. or . (symlinks optional)
+char *relative_path(char *from, char *to, int abs)
 {
   char *s, *ret = 0;
   int i, j, k;
 
-  if (!(from = xabspath(from, 0))) return 0;
-  if (!(to = xabspath(to, 0))) goto error;
+  if (abs) {
+    if (!(from = xabspath(from, 0))) return 0;
+    if (!(to = xabspath(to, 0))) goto error;
+  }
 
-  // skip common directories from root
-  for (i = j = 0; from[i] && from[i] == to[i]; i++) if (to[i] == '/') j = i+1;
+  for (i = j = 0;; i++) {
+    if (!from[i] || !to[i]) {
+      if (from[i]=='/' || to[i]=='/' || from[i]==to[i]) j = i;
+      break;
+    }
+    if (from[i] != to[i]) break;
+    if (from[i] == '/') j = i;
+  }
 
   // count remaining destination directories
   for (i = j, k = 0; from[i]; i++) if (from[i] == '/') k++;
-
-  if (!k) ret = xstrdup(to+j);
+  if (!k) ret = xstrdup(to[j] ? to+j : ".");
   else {
-    s = ret = xmprintf("%*c%s", 3*k, ' ', to+j);
-    while (k--) memcpy(s+3*k, "../", 3);
+    s = ret = xmprintf("%*c%s", 3*k-!!k, ' ', to+j);
+    for (i = 0; i<k; i++) s = mepcpy(s, "/.."+!i, 3-!i);
   }
 
 error:
-  free(from);
-  free(to);
+  if (abs) {
+    free(from);
+    free(to);
+  }
 
   return ret;
 }
