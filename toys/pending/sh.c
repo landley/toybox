@@ -555,21 +555,18 @@ static struct sh_vars *addvar(char *s, struct sh_fcall *ff)
 // Recursively calculate string into dd, returns 0 if failed, ss = error point
 // Recursion resolves operators of lower priority level to a value
 // Loops through operators at same priority
+#define NO_ASSIGN 128
 static int recalculate(long long *dd, char **ss, int lvl)
 {
   long long ee, ff;
   char *var = 0, *val, cc = **nospace(ss);
-  int ii, assign = 1;
-
-  if (lvl>99) {
-    lvl -= 100;
-    assign = 0;
-  }
+  int ii, noa = lvl&NO_ASSIGN;
+  lvl &= NO_ASSIGN-1;
 
   // Unary prefixes can only occur at the start of a parse context
   if (cc=='!' || cc=='~') {
     ++*ss;
-    if (!recalculate(dd, ss, 15)) return 0;
+    if (!recalculate(dd, ss, noa|15)) return 0;
     *dd = (cc=='!') ? !*dd : ~*dd;
   } else if (cc=='+' || cc=='-') {
     // Is this actually preincrement/decrement? (Requires assignable var.)
@@ -582,12 +579,12 @@ static int recalculate(long long *dd, char **ss, int lvl)
       }
     }
     if (!var) {
-      if (!recalculate(dd, ss, 15)) return 0;
+      if (!recalculate(dd, ss, noa|15)) return 0;
       if (cc=='-') *dd = -*dd;
     }
   } else if (cc=='(') {
     ++*ss;
-    if (!recalculate(dd, ss, 1)) return 0;
+    if (!recalculate(dd, ss, noa|1)) return 0;
     if (**ss!=')') return 0;
     else ++*ss;
   } else if (isdigit(cc)) {
@@ -614,7 +611,7 @@ static int recalculate(long long *dd, char **ss, int lvl)
       return 0;
     }
     val = getvar(var = *ss) ? : "";
-    ii = recalculate(dd, &val, 0);
+    ii = recalculate(dd, &val, noa);
     TT.recursion--;
     if (!ii) return 0;
     if (*val) {
@@ -645,7 +642,7 @@ static int recalculate(long long *dd, char **ss, int lvl)
       // come up with precedence checking tests?
       cc = **ss;
       *ss += ii+1;
-      if (!recalculate(&ee, ss, 1)) return 0; // lvl instead of 1?
+      if (!recalculate(&ee, ss, noa|1)) return 0; // TODO lvl instead of 1?
       if (cc=='*') *dd *= ee;
       else if (cc=='/') *dd /= ee;
       else if (cc=='%') *dd %= ee;
@@ -659,12 +656,12 @@ static int recalculate(long long *dd, char **ss, int lvl)
       else *dd = ee;
       ee = *dd;
     }
-    if (cc && assign) setvar(xmprintf("%.*s=%lld", (int)(val-var), var, ee));
+    if (cc && !noa) setvar(xmprintf("%.*s=%lld", (int)(val-var), var, ee));
   }
 
   // x**y binds first
   if (lvl<=13) while (strstart(nospace(ss), "**")) {
-    if (!recalculate(&ee, ss, 14)) return 0;
+    if (!recalculate(&ee, ss, noa|14)) return 0;
     if (ee<0) perror_msg("** < 0");
     for (ff = *dd, *dd = 1; ee; ee--) *dd *= ff;
   }
@@ -672,7 +669,7 @@ static int recalculate(long long *dd, char **ss, int lvl)
   // w*x/y%z bind next
   if (lvl<=12) while ((cc = **nospace(ss)) && strchr("*/%", cc)) {
     ++*ss;
-    if (!recalculate(&ee, ss, 13)) return 0;
+    if (!recalculate(&ee, ss, noa|13)) return 0;
     if (cc=='*') *dd *= ee;
     else if (cc=='%') *dd %= ee;
     else if (!ee) {
@@ -684,7 +681,7 @@ static int recalculate(long long *dd, char **ss, int lvl)
   // x+y-z
   if (lvl<=11) while ((cc = **nospace(ss)) && strchr("+-", cc)) {
     ++*ss;
-    if (!recalculate(&ee, ss, 12)) return 0;
+    if (!recalculate(&ee, ss, noa|12)) return 0;
     if (cc=='+') *dd += ee;
     else *dd -= ee;
   }
@@ -693,7 +690,7 @@ static int recalculate(long long *dd, char **ss, int lvl)
 
   if (lvl<=10) while ((cc = **nospace(ss)) && strchr("<>", cc) && cc==(*ss)[1]){
     *ss += 2;
-    if (!recalculate(&ee, ss, 11)) return 0;
+    if (!recalculate(&ee, ss, noa|11)) return 0;
     if (cc == '<') *dd <<= ee;
     else *dd >>= ee;
   }
@@ -701,42 +698,42 @@ static int recalculate(long long *dd, char **ss, int lvl)
   // x<y <= > >=
   if (lvl<=9) while ((cc = **nospace(ss)) && strchr("<>", cc)) {
     if ((ii = *++*ss=='=')) ++*ss;
-    if (!recalculate(&ee, ss, 10)) return 0;
+    if (!recalculate(&ee, ss, noa|10)) return 0;
     if (cc=='<') *dd = ii ? (*dd<=ee) : (*dd<ee);
     else *dd = ii ? (*dd>=ee) : (*dd>ee);
   }
 
   if (lvl<=8) while ((cc = **nospace(ss)) && strchr("=!", cc) && (*ss)[1]=='='){
     *ss += 2;
-    if (!recalculate(&ee, ss, 9)) return 0;
+    if (!recalculate(&ee, ss, noa|9)) return 0;
     *dd = (cc=='!') ? *dd != ee : *dd == ee;
   }
 
-  if (lvl<=7) while (**nospace(ss)=='&') {
+  if (lvl<=7) while (**nospace(ss)=='&' && (*ss)[1]!='&') {
     ++*ss;
-    if (!recalculate(&ee, ss, 8)) return 0;
+    if (!recalculate(&ee, ss, noa|8)) return 0;
     *dd &= ee;
   }
 
   if (lvl<=6) while (**nospace(ss)=='^') {
     ++*ss;
-    if (!recalculate(&ee, ss, 7)) return 0;
+    if (!recalculate(&ee, ss, noa|7)) return 0;
     *dd ^= ee;
   }
 
-  if (lvl<=5) while (**nospace(ss)=='|') {
+  if (lvl<=5) while (**nospace(ss)=='|' && (*ss)[1]!='|') {
     ++*ss;
-    if (!recalculate(&ee, ss, 6)) return 0;
+    if (!recalculate(&ee, ss, noa|6)) return 0;
     *dd |= ee;
   }
 
   if (lvl<=5) while (strstart(nospace(ss), "&&")) {
-    if (!recalculate(&ee, ss, 6+100*!!*dd)) return 0;
+    if (!recalculate(&ee, ss, noa|6|NO_ASSIGN*!!*dd)) return 0;
     *dd = *dd && ee;
   }
 
   if (lvl<=4) while (strstart(nospace(ss), "||")) {
-    if (!recalculate(&ee, ss, 5+100*!*dd)) return 0;
+    if (!recalculate(&ee, ss, noa|5|NO_ASSIGN*!*dd)) return 0;
     *dd = *dd || ee;
   }
 
@@ -745,19 +742,19 @@ static int recalculate(long long *dd, char **ss, int lvl)
   if (lvl<=3) if (**nospace(ss)=='?') {
     ++*ss;
     if (**nospace(ss)==':' && *dd) ee = *dd;
-    else if (!recalculate(&ee, ss, 1+100*!*dd) || **nospace(ss)!=':')
+    else if (!recalculate(&ee, ss, noa|1|NO_ASSIGN*!*dd) || **nospace(ss)!=':')
       return 0;
     ++*ss;
-    if (!recalculate(&ff, ss, 1+100*!!*dd)) return 0;
+    if (!recalculate(&ff, ss, noa|1|NO_ASSIGN*!!*dd)) return 0;
     *dd = *dd ? ee : ff;
   }
 
   // lvl<=2 assignment would go here, but handled above because variable
 
   // , (slightly weird, replaces dd instead of modifying it via ee/ff)
-  if (lvl<=1) while ((cc = **nospace(ss)) && cc==',') {
+  if (lvl<=1) while (**nospace(ss)==',') {
     ++*ss;
-    if (!recalculate(dd, ss, 2)) return 0;
+    if (!recalculate(dd, ss, noa|2)) return 0;
   }
 
   return 1;
@@ -881,9 +878,9 @@ static struct sh_vars *setvar_found(char *s, int freeable, struct sh_vars *var)
   if (flags&VAR_INT) {
     sd = ss;
     if (!recalculate(&ll, &sd, 0) || *sd) {
-     perror_msg("bad math: %s @ %d", ss, (int)(sd-ss));
+      perror_msg("bad math: %s @ %d", ss, (int)(sd-ss));
 
-     goto bad;
+      goto bad;
     }
 
     sprintf(buf, "%lld", ll);

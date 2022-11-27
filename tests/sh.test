@@ -233,7 +233,7 @@ testing 'hidden wildcards' \
 testing "backtick1" 'x=fred; echo `echo $x`' 'fred\n' "" ""
 testing "backtick2" 'x=fred; echo `x=y; echo $x`; echo $x' 'y\nfred\n' "" ""
 testing '$(( ) )' 'echo ab$((echo hello) | tr e x)cd' "abhxllocd\n" "" ""
-SKIPNEXT=1 testing '$((x=y)) lifetime' 'a=boing; echo $a $a$((a=4))$a $a' 'boing boing44 4\n' '' ''
+((++SKIP)); testing '$((x=y)) lifetime' 'a=boing; echo $a $a$((a=4))$a $a' 'boing boing44 4\n' '' ''
 
 testing 'quote' "echo \"'\"" "'\n" "" ""
 
@@ -255,6 +255,9 @@ testing "x---y is x-- -y not x- --y" 'x=1 y=1; echo $((x---y)) $x $y' '0 0 1\n'\
 testing "nesting ? :" \
   'for((i=0;i<8;i++)); do echo $((i&1?i&2?1:i&4?2:3:4));done' \
   '4\n3\n4\n1\n4\n2\n4\n1\n' '' ''
+testing "inherited assignment suppression" 'echo $((0 ? (x++) : 2)); echo $x' \
+  "2\n\n" "" ""
+testing "boolean vs logical" 'echo $((2|4&&8))' '1\n' '' ''
 
 # Loops and flow control
 testing "case" 'for i in A C J B; do case "$i" in A) echo got A ;; B) echo and B ;; C) echo then C ;; *) echo default ;; esac; done' \
