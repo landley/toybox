@@ -22,6 +22,7 @@ config GETOPT
 
 #define FOR_getopt
 #include "toys.h"
+#include <getopt.h> // Everything else uses lib/args.c
 
 GLOBALS(
   struct arg_list *l;

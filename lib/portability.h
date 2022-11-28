@@ -114,9 +114,6 @@ void *memmem(const void *haystack, size_t haystack_length,
   const void *needle, size_t needle_length);
 #endif // defined(glibc)
 
-// getopt_long(), getopt_long_only(), and struct option.
-#include <getopt.h>
-
 #if !defined(__GLIBC__)
 // POSIX basename.
 #include <libgen.h>
