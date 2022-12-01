@@ -68,5 +68,12 @@ touch lstest/{a,b,c,d,e,f}
 testing "-w test 3" "$IN && ls -Cw 3; $OUT" "a\nb\nc\nd\ne\nf\n" "" ""
 testing "-w test 4" "$IN && ls -Cw 4; $OUT" "a  d\nb  e\nc  f\n" "" ""
 
+rm -rf lstest/*
+touch lstest/'hello world'
+testing "default escaping" "$IN && ls; $OUT" "hello world\n" "" ""
+testing "-b" "$IN && ls -b; $OUT" 'hello\\ \\rworld\n' "" ""
+testing "-q" "$IN && ls -q; $OUT" 'hello ?world\n' "" ""
+testing "-N" "$IN && ls -q; $OUT" 'hello ?world\n' "" ""
+
 # Removing test dir for cleanup purpose
 rm -rf lstest

@@ -12,7 +12,7 @@
  *   Posix says the -l date format should vary based on how recent it is
  *   and we do --time-style=long-iso instead
 
-USE_LS(NEWTOY(ls, "(color):;(full-time)(show-control-chars)ZgoACFHLRSabcdfhikl@mnpqrstuw#=80<0x1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][!qb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_LS(NEWTOY(ls, "(color):;(full-time)(show-control-chars)ZgoACFHLNRSabcdfhikl@mnpqrstuw#=80<0x1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][!Nqb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config LS
   bool "ls"
@@ -30,7 +30,7 @@ config LS
     -u  use access time for timestamps -A  list all files but . and ..
     -H  follow command line symlinks   -L  follow symlinks
     -R  recursively list in subdirs    -F  append /dir *exe @sym |FIFO
-    -Z  security context
+    -N  no escaping, even on tty       -Z  security context
 
     output formats:
     -1  list one file per line         -C  columns (sorted vertically)
@@ -517,6 +517,9 @@ void ls_main(void)
     if (!FLAG(m)) toys.optflags |= FLAG_1;
     if (TT.color) toys.optflags ^= FLAG_color;
   }
+
+  // -N *doesn't* disable -q; you need --show-control-chars for that.
+  if (FLAG(N)) toys.optflags &= ~FLAG_b;
 
   TT.screen_width = 80;
   if (FLAG(w)) TT.screen_width = TT.w+2;
