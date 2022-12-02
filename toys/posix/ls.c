@@ -12,7 +12,7 @@
  *   Posix says the -l date format should vary based on how recent it is
  *   and we do --time-style=long-iso instead
 
-USE_LS(NEWTOY(ls, "(color):;(full-time)(show-control-chars)ZgoACFHLNRSabcdfhikl@mnpqrstuw#=80<0x1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][!Nqb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
+USE_LS(NEWTOY(ls, "(color):;(full-time)(show-control-chars)ZgoACFHLNRSabcdfhikl@mnpqrstuw#=80<0x1[-Cxm1][-Cxml][-Cxmo][-Cxmg][-cu][-ftS][-HL][-Nqb]", TOYFLAG_BIN|TOYFLAG_LOCALE))
 
 config LS
   bool "ls"
