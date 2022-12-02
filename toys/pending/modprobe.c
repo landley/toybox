@@ -489,15 +489,15 @@ void modprobe_main(void)
   }
 
   // Read /proc/modules to get loaded modules.
-  fs = xfopen("/proc/modules", "r");
-  
-  while (read_line(fs, &procline) > 0) {
+  fs = fopen("/proc/modules", "r");
+
+  while (fs && read_line(fs, &procline) > 0) {
     *strchr(procline, ' ') = 0;
     get_mod(procline, 1)->flags = MOD_ALOADED;
     free(procline);
     procline = NULL;
   }
-  fclose(fs);
+  if (fs) fclose(fs);
   if (FLAG(a) || FLAG(r)) for (; *argv; argv++) add_mod(*argv);
   else {
     add_mod(*argv);
