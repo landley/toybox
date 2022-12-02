@@ -1,4 +1,4 @@
-// Take three word input lines on stdin and produce flag #defines to stdout.
+// Read three word input lines from stdin and produce flag #defines to stdout.
 // The three words on each input line are command name, option string with
 // current config, option string from allyesconfig. The three are space
 // separated and the last two are in double quotes.
@@ -170,9 +170,8 @@ int main(int argc, char *argv[])
   // See "intentionally crappy", above.
   if (!(out = outbuf)) return 1;
 
-  printf("#undef FORCED_FLAG\n#undef FORCED_FLAGLL\n"
-    "#ifdef FORCE_FLAGS\n#define FORCED_FLAG 1\n#define FORCED_FLAGLL 1ULL\n"
-    "#else\n#define FORCED_FLAG 0\n#define FORCED_FLAGLL 0LL\n#endif\n\n");
+  printf("#undef FORCED_FLAG\n#ifdef FORCE_FLAGS\n#define FORCED_FLAG 1LL\n"
+    "#else\n#define FORCED_FLAG 0LL\n#endif\n\n");
 
   for (;;) {
     struct flag *flist, *aflist, *offlist;
@@ -230,7 +229,7 @@ int main(int argc, char *argv[])
     out += strlen(out);
 
     while (aflist) {
-      char *llstr = bit>30 ? "LL" : "", *s = (char []){0, 0, 0, 0};
+      char *s = (char []){0, 0, 0, 0};
       int enabled = 0;
 
       // Output flag macro for bare longopts
@@ -245,8 +244,8 @@ int main(int argc, char *argv[])
         if (flist && flist->command && *aflist->command == *flist->command)
           enabled++;
       }
-      out += sprintf(out, "#define FLAG_%s (%s%s<<%d)\n",
-                       s, enabled ? "1" : "FORCED_FLAG", llstr, bit++);
+      out += sprintf(out, "#define FLAG_%s (%s<<%d)\n",
+                       s, enabled ? "1LL" : "FORCED_FLAG", bit++);
       aflist = aflist->next;
       if (enabled) flist = flist->next;
     }
