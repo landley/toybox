@@ -243,8 +243,7 @@ fi
 
 [ -n "$NOBUILD" ] && exit 0
 
-echo -n "Compile $OUTNAME"
-[ -n "$V" ] && echo
+echo "Compile $OUTNAME"
 DOTPROG=.
 
 # This is a parallel version of: do_loudly $BUILD lib/*.c $TOYFILES $LINK
@@ -304,4 +303,4 @@ fi
 # multiplexer binary via truncate-and-write through a symlink.
 do_loudly chmod 555 "$OUTNAME" || exit 1
 
-echo
+[ -z "$V" ] && echo >&2
