@@ -602,6 +602,11 @@ int get_block_device_size(int fd, unsigned long long* size)
   *size = lab.d_secsize * lab.d_nsectors;
   return status;
 }
+#else
+int get_block_device_size(int fd, unsigned long long* size)
+{
+  return 0;
+}
 #endif
 
 // Return bytes copied from in to out. If bytes <0 copy all of in to out.
