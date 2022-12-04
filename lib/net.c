@@ -197,18 +197,23 @@ char *escape_url(char *str, char *and)
 }
 
 // Convert %XX escapes to character (in place)
-void unescape_url(char *str)
+char *unescape_url(char *str)
 {
-  char *to;
+  char *to, *cut = strchr(str, '?');
   int i;
 
   for (to = str;;) {
     if (*str!='%' || !isxdigit(str[1]) || !isxdigit(str[2])) {
-      if (!(*to++ = *str++)) break;
+      if (str==cut) {
+        *to++ = 0;
+        str++;
+      } else if (!(*to++ = *str++)) break;
     } else {
       sscanf(++str, "%2x", &i);
       *to++ = i;
       str += 2;
     }
   }
+
+  return cut;
 }

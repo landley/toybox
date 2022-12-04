@@ -12,17 +12,22 @@
  * -ifv -p [IP:]PORT -u [USER][:GRP] -c CFGFILE
  * cgi: SERVER_PORT SERVER_NAME REMOTE_ADDR REMOTE_HOST REQUEST_METHOD
 
-USE_HTTPD(NEWTOY(httpd, ">1", TOYFLAG_USR|TOYFLAG_BIN))
+USE_HTTPD(NEWTOY(httpd, ">1v", TOYFLAG_USR|TOYFLAG_BIN))
 
 config HTTPD
   bool "httpd"
   default y
   help
-    usage: httpd [DIR]
+    usage: httpd [-e STR] [DIR]
 
     Serve contents of directory as static web pages.
+
+    -e	Escape STR as URL, printing result and exiting.
+    -d	Decode escaped STR, printing result and exiting.
+    -v	Verbose
 */
 
+#define FOR_httpd
 #include "toys.h"
 
 char *rfc1123(char *buf, time_t t)
@@ -30,23 +35,6 @@ char *rfc1123(char *buf, time_t t)
   strftime(buf, 64, "%a, %d %b %Y %T GMT", gmtime(&t));
 
   return buf;
-}
-
-// Stop: header time.
-void header_time(int stat, char *str, char *more)
-{
-  char buf[64];
-
-  xprintf("HTTP/1.1 %d %s\r\nServer: toybox httpd/%s\r\nDate: %s\r\n%s"
-    "Connection: close\r\n\r\n", stat, str, TOYBOX_VERSION,
-    rfc1123(buf, time(0)), more ? : "");
-}
-
-void error_time(int stat, char *str)
-{
-  header_time(stat, str, 0);
-  xprintf("<html><head><title>%d %s</title></head>"
-    "<body><h3>%d %s</h3></body></html>", stat, str, stat, str);
 }
 
 // She never told me...
@@ -80,6 +68,25 @@ char *mime(char *file)
   return toybuf;
 }
 
+// Stop: header time.
+static void header_time(int stat, char *str, char *more)
+{
+  char buf[64];
+
+  if (!more) more = "";
+  if (FLAG(v)) dprintf(2, "REPLY: %d %s\n%s\n", stat, str, more);
+  xprintf("HTTP/1.1 %d %s\r\nServer: toybox httpd/%s\r\nDate: %s\r\n%s"
+    "Connection: close\r\n\r\n", stat, str, TOYBOX_VERSION,
+    rfc1123(buf, time(0)), more);
+}
+
+static void error_time(int stat, char *str)
+{
+  header_time(stat, str, 0);
+  xprintf("<html><head><title>%d %s</title></head>"
+    "<body><h3>%d %s</h3></body></html>", stat, str, stat, str);
+}
+
 static int isunder(char *file, char *dir)
 {
   char *s1 = xabspath(dir, ABS_FILE), *s2 = xabspath(file, 0), *ss = s2;
@@ -95,8 +102,15 @@ static int isunder(char *file, char *dir)
 void handle(int infd, int outfd)
 {
   FILE *fp = fdopen(infd, "r");
-  char *s = xgetline(fp), *ss, *esc, *path, *word[3];
-  int i, fd;
+  char *s = xgetline(fp), *cut, *ss, *esc, *path, *word[3];
+  int i = sizeof(toybuf), fd;
+
+  if (!s) return;
+
+  if (!getsockname(0, (void *)&toybuf, &i)) {
+    if (FLAG(v))
+      dprintf(2, "Hello %s\n%s\n", ntop((void *)toybuf), s);
+  }
 
   // Split line into method/path/protocol
   for (i = 0, ss = s;;) {
@@ -110,6 +124,7 @@ void handle(int infd, int outfd)
   // Process additional http/1.1 lines
   while ((ss = xgetline(fp))) {
     i = *chomp(ss);
+    if (FLAG(v)) dprintf(2, "%s\n", ss);
 // TODO: any of
 //User-Agent: Wget/1.20.1 (linux-gnu) - do we want to log anything?
 //Accept: */* - 406 Too Snobbish
@@ -123,10 +138,11 @@ void handle(int infd, int outfd)
 
   if (!strcasecmp(word[0], "get")) {
     struct stat st;
+
     if (*(ss = word[1])!='/') error_time(400, "Bad Request");
     while (*ss=='/') ss++;
     if (!*ss) ss = "./";
-    else unescape_url(ss);
+    else cut = unescape_url(ss);
 
     // TODO domain.com:/path/to/blah domain2.com:/path/to/that
     if (!isunder(ss, ".") || stat(ss, &st)) error_time(404, "Not Found");
