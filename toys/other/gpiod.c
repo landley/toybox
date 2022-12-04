@@ -5,9 +5,9 @@
  * TODO: gpiomon
 
 USE_GPIODETECT(NEWTOY(gpiodetect, ">0", TOYFLAG_USR|TOYFLAG_BIN))
-USE_GPIOFIND(NEWTOY(gpioinfo, 0, TOYFLAG_USR|TOYFLAG_BIN))
+USE_GPIOINFO(NEWTOY(gpioinfo, 0, TOYFLAG_USR|TOYFLAG_BIN))
 USE_GPIOGET(NEWTOY(gpioget, "<2l", TOYFLAG_USR|TOYFLAG_BIN))
-USE_GPIOINFO(NEWTOY(gpiofind, "<1>1", TOYFLAG_USR|TOYFLAG_BIN))
+USE_GPIOFIND(NEWTOY(gpiofind, "<1>1", TOYFLAG_USR|TOYFLAG_BIN))
 USE_GPIOSET(NEWTOY(gpioset, "<2l", TOYFLAG_USR|TOYFLAG_BIN))
 
 config GPIODETECT
@@ -100,7 +100,7 @@ static int comparator(const void *a, const void *b)
 static void foreach_chip(void (*cb)(char *name))
 {
   struct double_list **sorted;
-  int i = 0;
+  int i;
 
   dirtree_flagread("/dev", DIRTREE_SHUTUP, collect_chips);
   if (!TT.chips) return;
