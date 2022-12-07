@@ -142,9 +142,10 @@ void handle(int infd, int outfd)
     if (*(ss = word[1])!='/') error_time(400, "Bad Request");
     while (*ss=='/') ss++;
     if (!*ss) ss = "./";
-    else cut = unescape_url(ss);
+    else if ((cut = unescape_url(ss, 1))) setenv("QUERY_STRING", cut, 1);
 
     // TODO domain.com:/path/to/blah domain2.com:/path/to/that
+    // TODO cgi PATH_INFO /path/to/filename.cgi/and/more/stuff?path&info
     if (!isunder(ss, ".") || stat(ss, &st)) error_time(404, "Not Found");
     else if (-1 == (fd = open(ss, O_RDONLY))) error_time(403, "Forbidden");
     else if (!S_ISDIR(st.st_mode)) {

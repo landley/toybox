@@ -280,7 +280,7 @@ void wget_main(void)
   else if (!TT.O) {
     ss = wget_find_header(toybuf, "Content-Disposition: attachment; filename=");
     if (ss) {
-      unescape_url(ss);
+      unescape_url(ss, 1);
       for (ii = strlen(ss); ii; ii--) {
         if (ss[ii]=='/') memmove(ss, ss+ii, strlen(ss+ii));
         break;
