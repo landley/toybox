@@ -252,7 +252,7 @@ static int parse_optflaglist(struct getoptflagstate *gof)
 
   // Parse option string into a linked list of options with attributes.
 
-  if (!*options) gof->stopearly++, gof->noerror++;
+  if (!*options) gof->noerror++;
   while (*options) {
     char *temp;
 
