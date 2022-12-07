@@ -39,7 +39,7 @@ do
     # Can't point two QEMU instances at same sqf because gratuitous file locking
     cp "$TEST"/init.{sqf,$BASHPID} &&
     # When stdin is a tty QEMU will SIGTTOU itself here, so </dev/null.
-    toybox timeout -i 10 ./run-qemu.sh -drive format=raw,file="$TEST/init.$BASHPID" < /dev/null 2>&1
+    toybox timeout -i 10 bash -c "./run-qemu.sh -drive format=raw,file='$TEST'/init.$BASHPID < /dev/null 2>&1"
     rm -f "$TEST/init.$BASHPID"
     cd ../..
   } | tee root/build/log/$Y-test.txt | { [ -z "$V" ] && cat >/dev/null || { [ "$V" -gt 1 ] && cat || grep '^=== '; } } &
