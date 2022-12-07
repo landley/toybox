@@ -74,7 +74,7 @@
 //     <0 die if less than # leftover arguments (default 0)
 //     >9 die if > # leftover arguments (default MAX_INT)
 //     0 Include argv[0] in optargs
-//     ^ stop at first nonoption argument (implied when no flags)
+//     ^ stop at first nonoption argument
 //     ? Pass unknown arguments through to command (implied when no flags).
 //     & first arg has imaginary dash (ala tar/ps/ar) which sets FLAGS_NODASH
 //     ~ Collate following bare longopts (as if under short opt, repeatable)

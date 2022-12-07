@@ -2,7 +2,7 @@
  *
  * Copyright 2015 The Android Open Source Project
 
-USE_RUNCON(NEWTOY(runcon, "<2", TOYFLAG_USR|TOYFLAG_SBIN))
+USE_RUNCON(NEWTOY(runcon, "^<2", TOYFLAG_USR|TOYFLAG_SBIN))
 
 config RUNCON
   bool "runcon"
