@@ -49,20 +49,19 @@ static long nantomil(struct timespec *ts)
 
 static void callback(char *argv[])
 {
+  xsignal(SIGCHLD, SIG_DFL);
   if (!FLAG(foreground)) setpgid(0, 0);
 }
 
 void timeout_main(void)
 {
-  int ii, ms, nextsig;
+  int ii, ms, nextsig = SIGTERM;
   struct timespec tts, kts;
 
   // Use same ARGFAIL value for any remaining parsing errors
   toys.exitval = 125;
   xparsetimespec(*toys.optargs, &tts);
   if (TT.k) xparsetimespec(TT.k, &kts);
-
-  nextsig = SIGTERM;
   if (TT.s && -1==(nextsig = sig_to_num(TT.s))) error_exit("bad -s: '%s'",TT.s);
 
   toys.exitval = 0;
@@ -70,6 +69,7 @@ void timeout_main(void)
   TT.fds[1] = -1;
   if (sigsetjmp(TT.sj, 1)) goto done;
   xsignal_flags(SIGCHLD, handler, SA_NOCLDSTOP);
+
   TT.pid = xpopen_setup(toys.optargs+1, FLAG(i) ? TT.fds : 0, callback);
   xsignal(SIGTTIN, SIG_IGN);
   xsignal(SIGTTOU, SIG_IGN);
