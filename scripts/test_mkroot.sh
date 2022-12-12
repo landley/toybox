@@ -1,7 +1,9 @@
 #!/bin/bash
 
+die() { echo "$@"; exit 1; }
+
 [ -n "$(which toybox)" -a -n "$(which mksquashfs)" ] ||
-  { echo "Need toybox and mksquashfs in $PATH"; exit 1; }
+  die "Need toybox and mksquashfs in $PATH"
 
 mkdir -p "${TEST:=$PWD/root/build/test}" &&
 
@@ -18,12 +20,12 @@ chmod +x "$TEST"/init &&
 mksquashfs "$TEST"/init "$TEST"/init.sqf -noappend >/dev/null &&
 
 # Setup for network smoke test
-echo === net ok > "$TEST"/index.html || exit 1
+echo === net ok > "$TEST"/index.html || die "smoketest setup"
 toybox netcat -p 65432 -s 127.0.0.1 -L toybox httpd "$TEST" &
 trap "kill $!" EXIT
 sleep .25
 
-[ -n "$(wget http://127.0.0.1:65432/ -O - | grep ===)" ] || exit 1
+[ -n "$(toybox wget http://127.0.0.1:65432/ -O - | grep ===)" ] || die "wget"
 
 COUNT=0 CPUS=$(($(nproc)+0))
 for I in root/*/linux-kernel
