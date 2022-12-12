@@ -263,7 +263,6 @@ else
   cp -sfR "$LINUX" "$TEMP/linux" && pushd "$TEMP/linux" &&
   # Fix x86-64, sh2eb, and building with cc pointing to llvm or gcc
   sed -Eis '/select HAVE_(STACK_VALIDATION|OBJTOOL)[^_]/d' arch/x86/Kconfig &&
-  sed -is 's/depends on !SMP/& || !MMU/' mm/Kconfig &&
   sed -i 's@=\(.*[ )]\)gcc$@:=\1$(shell $(CROSS_COMPILE)cc --version >/dev/null 2>\&1 \&\& echo cc || echo gcc)@' Makefile &&
 
   # Write linux-miniconfig
