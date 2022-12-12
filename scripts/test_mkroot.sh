@@ -15,9 +15,11 @@ echo
 echo === init $HOST
 [ "$(date +%s)" -gt 1500000000 ] && echo === date ok $HOST
 wget http://10.0.2.2:65432 -O -
+# TODO: cd /mnt && scripts/test.sh
 EOF
 chmod +x "$TEST"/init &&
-mksquashfs "$TEST"/init "$TEST"/init.sqf -noappend >/dev/null &&
+
+mksquashfs "$TEST"/init configure scripts/ tests/ "$TEST"/init.sqf -noappend -all-root >/dev/null &&
 
 # Setup for network smoke test
 echo === net ok > "$TEST"/index.html || die "smoketest setup"
