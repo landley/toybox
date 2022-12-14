@@ -256,6 +256,9 @@ static inline void endutxent(void) {;}
 
 // Some systems don't define O_NOFOLLOW, and it varies by architecture, so...
 #include <fcntl.h>
+#if defined(__APPLE__)
+#define O_PATH 0
+#else
 #ifndef O_NOFOLLOW
 #define O_NOFOLLOW 0
 #endif
@@ -270,6 +273,7 @@ static inline void endutxent(void) {;}
 #endif
 #ifndef SCHED_RESET_ON_FORK
 #define SCHED_RESET_ON_FORK (1<<30)
+#endif
 #endif
 
 // Glibc won't give you linux-kernel constants unless you say "no, a BUD lite"
