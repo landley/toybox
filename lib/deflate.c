@@ -17,7 +17,7 @@ struct deflate {
   void *fixdisthuff, *fixlithuff;
 
   // CRC
-  void (*crcfunc)(struct deflate *dd, char *data, int len);
+  void (*crcfunc)(struct deflate *dd, char *data, unsigned len);
   unsigned crctable[256], crc;
 
 
@@ -49,16 +49,21 @@ static struct bitbuf *bitbuf_init(int fd, int size)
 
 // Advance bitpos without the overhead of recording bits
 // Loads more data when input buffer empty
-static void bitbuf_skip(struct bitbuf *bb, int bits)
+// call with 0 to just load data, returns 0 at EOF
+static int bitbuf_skip(struct bitbuf *bb, int bits)
 {
-  int pos = bb->bitpos + bits, len = bb->len << 3;
+  int pos = bb->bitpos + bits + (bits<0), len;
 
-  while (pos >= len) {
+  while (pos >= (len = bb->len<<3)) {
     pos -= len;
-    len = (bb->len = read(bb->fd, bb->buf, bb->max)) << 3;
-    if (bb->len < 1) perror_exit("inflate EOF");
+    if (1 > (bb->len = read(bb->fd, bb->buf, bb->max))) {
+      if (!bb->len && !bits) break;
+      error_exit("inflate EOF");
+    }
   }
   bb->bitpos = pos;
+
+  return pos<len;
 }
 
 // Optimized single bit inlined version
@@ -67,7 +72,7 @@ static inline int bitbuf_bit(struct bitbuf *bb)
   int bufpos = bb->bitpos>>3;
 
   if (bufpos == bb->len) {
-    bitbuf_skip(bb, 0);
+    bitbuf_skip(bb, -1);
     bufpos = 0;
   }
 
@@ -83,7 +88,10 @@ static unsigned bitbuf_get(struct bitbuf *bb, int bits)
     int click = bb->bitpos >> 3, blow, blen;
 
     // Load more data if buffer empty
-    if (click == bb->len) bitbuf_skip(bb, click = 0);
+    if (click == bb->len) {
+      bitbuf_skip(bb, -1);
+      click = 0;
+    }
 
     // grab bits from next byte
     blow = bb->bitpos & 7;
@@ -194,6 +202,7 @@ static unsigned huff_and_puff(struct bitbuf *bb, struct huff *huff)
 static void inflate(struct deflate *dd, struct bitbuf *bb)
 {
   dd->crc = ~0;
+
   // repeat until spanked
   for (;;) {
     int final, type;
@@ -411,16 +420,31 @@ static int is_gzip(struct bitbuf *bb)
   return 1;
 }
 
-static void gzip_crc(struct deflate *dd, char *data, int len)
+static void gzip_crc(struct deflate *dd, char *data, unsigned len)
 {
   int i;
   unsigned crc, *crc_table = dd->crctable;
 
   crc = dd->crc;
-  for (i=0; i<len; i++) crc = crc_table[(crc^data[i])&0xff] ^ (crc>>8);
+  for (i = 0; i<len; i++) crc = crc_table[(crc^data[i])&0xff] ^ (crc>>8);
   dd->crc = crc;
   dd->len += len;
 }
+
+/*
+// Start with crc = 1, or pass in last crc to append more data
+unsigned adler32(char *buf, unsigned len, unsigned crc)
+{
+  unsigned aa = crc&((1<<16)-1), bb = crc>>16;
+
+  while (len--) {
+    aa = (aa+*buf)%65521;
+    bb = (bb+aa)%65521;
+  }
+
+  return (bb<16)+aa;
+}
+*/
 
 long long gzip_fd(int infd, int outfd)
 {
@@ -460,24 +484,27 @@ long long gunzip_fd(int infd, int outfd)
 {
   struct bitbuf *bb = bitbuf_init(infd, 4096);
   struct deflate *dd = init_deflate(0);
-  long long rc;
-
-  if (!is_gzip(bb)) error_exit("not gzip");
-  dd->outfd = outfd;
+  long long rc = 0;
 
   // Little endian crc table
   crc_init(dd->crctable, 1);
   dd->crcfunc = gzip_crc;
+  dd->outfd = outfd;
 
-  inflate(dd, bb);
+  do {
+    if (!is_gzip(bb)) error_exit("not gzip");
 
-  // tail: crc32, len32
+    inflate(dd, bb);
 
-  bitbuf_skip(bb, (8-bb->bitpos)&7);
-  if (~dd->crc != bitbuf_get(bb, 32) || dd->len != bitbuf_get(bb, 32))
-    error_exit("bad crc");
+    // tail: crc32, len32
+    bitbuf_skip(bb, (8-bb->bitpos)&7);
+    if (~dd->crc != bitbuf_get(bb, 32) || dd->len != bitbuf_get(bb, 32))
+      error_exit("bad crc");
+    rc += dd->len;
 
-  rc = dd->len;
+    bitbuf_skip(bb, (8-bb->bitpos)&7);
+    dd->pos = dd->len = 0;
+  } while (bitbuf_skip(bb, 0));
   free(bb);
   free(dd);
 

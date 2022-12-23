@@ -4,17 +4,17 @@
 
 #testing "name" "command" "result" "infile" "stdin"
 
-echo -n "foo " | gzip > f1.gz
-echo "bar" | gzip > f2.gz
+echo -n "hi " | gzip > 1.gz
+echo "there" | gzip > 2.gz
 
-# zcat is basically just `gzip -dc`...
-testing "files" "zcat f1.gz f2.gz && test -f f1.gz && test -f f2.gz" \
-    "foo bar\n" "" ""
-
-# zcat -c is allowed, but the -c changes nothing.
-testing "-c" "zcat -c f1.gz f2.gz && test -f f1.gz && test -f f2.gz" \
-    "foo bar\n" "" ""
+# zcat is basically just gzip -dc
+testcmd "files" "1.gz 2.gz && test -f 1.gz && test -f 2.gz" "hi there\n" "" ""
+# zcat -c is allowed but changes nothing
+testcmd "-c" "-c 1.gz 2.gz && test -f 1.gz && test -f 2.gz" "hi there\n" "" ""
+testing "concatenated" "{ cat 1.gz 2.gz; } | zcat" "hi there\n" "" ""
+testing "error" "head -c 10 2.gz | { zcat 2>/dev/null || echo fail; }" "fail\n"\
+  "" ""
 
 # TODO: how to test "zcat -f"?
 
-rm -f f1 f2 f1.gz f2.gz
+rm -f 1 2 1.gz 2.gz
