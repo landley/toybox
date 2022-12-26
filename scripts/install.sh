@@ -106,11 +106,8 @@ done
 # The following are commands toybox should provide, but doesn't yet.
 # For now symlink the host version. This list must go away by 1.0.
 
-PENDING="dd diff expr git tr vi bash sh xzcat bc ar gzip   less awk unxz bison flex make nm"
-
-# "gcc" can go away if the kernel guys merge my patch:
-# http://lkml.iu.edu/hypermail/linux/kernel/2202.0/01505.html
-TOOLCHAIN="as cc ld gcc objdump"
+PENDING="expr git tr bash sh gzip   awk bison flex make" # bc
+TOOLCHAIN="as cc ld objdump" # gcc
 
 # Tools needed to build packages
 for i in $TOOLCHAIN $PENDING $HOST_EXTRA
