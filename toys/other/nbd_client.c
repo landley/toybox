@@ -59,7 +59,7 @@ void nbd_client_main(void)
     // Read login data
 
     xreadall(sock, toybuf, 152);
-    if (memcmp(toybuf, "NBDMAGIC\x00\x00\x42\x02\x81\x86\x12\x53", 16))
+    if (xmemcmp(toybuf, "NBDMAGIC\x00\x00\x42\x02\x81\x86\x12\x53", 16))
       error_exit("bad login %s:%s", host, port);
     devsize = SWAP_BE64(*(uint64_t *)(toybuf+16));
     flags = SWAP_BE32(*(int *)(toybuf+24));

@@ -127,7 +127,7 @@ void nproc_main(void)
     char *ss;
 
     while ((de = readdir(dd))) {
-      if (memcmp(de->d_name, "cpu", 3)) continue;
+      if (xmemcmp(de->d_name, "cpu", 3)) continue;
       for (ss = de->d_name+3; isdigit(*ss); ss++);
       if (!*ss) nproc++;
     }

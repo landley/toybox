@@ -355,7 +355,7 @@ static void scan_elf()
   char *hdr = TT.elf;
   int type, machine, version, flags, entry, ehsize, phnum, shstrndx, i, j, w;
 
-  if (TT.size < 45 || memcmp(hdr, "\177ELF", 4)) 
+  if (TT.size < 45 || xmemcmp(hdr, "\177ELF", 4))
     return error_msg("%s: not ELF", TT.f);
 
   TT.bits = hdr[4] - 1;
@@ -453,7 +453,7 @@ static void scan_elf()
              s.entsize, sh_flags, s.link, s.info, s.addralign);
     }
   }
-  if (FLAG(S) && TT.shnum) 
+  if (FLAG(S) && TT.shnum)
     printf("Key:\n  (W)rite, (A)lloc, e(X)ecute, (M)erge, (S)trings, (I)nfo\n"
            "  (L)ink order, (O)S, (G)roup, (T)LS, (C)ompressed, x=unknown\n");
 

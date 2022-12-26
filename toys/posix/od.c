@@ -133,7 +133,7 @@ static void od_outline(void)
 
   // Handle duplciate lines as *
   if (!FLAG(v) && TT.j != TT.pos && TT.leftover
-    && !memcmp(TT.bufs[0], TT.bufs[1], TT.w))
+    && !xmemcmp(TT.bufs[0], TT.bufs[1], TT.w))
   {
     if (!TT.star) {
       xputs("*");

@@ -61,7 +61,7 @@ char *xsetenv(char *name, char *val)
 
   for (i = 0; environ[i]; i++) {
     // Drop old entry, freeing as appropriate. Assumes no duplicates.
-    if (!memcmp(name, environ[i], len) && environ[i][len]=='=') {
+    if (!xmemcmp(name, environ[i], len) && environ[i][len]=='=') {
       if (i<toys.envc-1) toys.envc--;
       else free(environ[i]);
       j++;

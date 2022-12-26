@@ -9,6 +9,17 @@
 
 #include "toys.h"
 
+// ASAN flips out about memcmp("a", "abc", 4) but the result is well-defined.
+// This one's guaranteed to stop at len _or_ the first difference.
+int xmemcmp(char *one, char *two, unsigned long len)
+{
+  int ii = 0;
+
+  while (len--) if ((ii = *one++ - *two++)) break;
+
+  return ii;
+}
+
 // strcpy and strncat with size checking. Size is the total space in "dest",
 // including null terminator. Exit if there's not enough space for the string
 // (including space for the null terminator), because silently truncating is

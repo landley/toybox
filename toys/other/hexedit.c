@@ -181,7 +181,7 @@ static void find_prev(int pos)
   size_t len = strlen(TT.search);
 
   for (; pos >= 0; pos--) {
-    if (!memcmp(TT.data+pos, TT.search, len)) {
+    if (!xmemcmp(TT.data+pos, TT.search, len)) {
       TT.pos = pos;
       return;
     }

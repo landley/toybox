@@ -132,7 +132,7 @@ void cpio_main(void)
       if (empty) error_exit("empty archive");
       else break;
     }
-    if (size != 110 || memcmp(toybuf, "070701", 6)) error_exit("bad header");
+    if (size != 110 || xmemcmp(toybuf, "070701", 6)) error_exit("bad header");
     tofree = name = strpad(afd, x8u(toybuf+94), 110);
     if (!strcmp("TRAILER!!!", name)) {
       free(tofree);
