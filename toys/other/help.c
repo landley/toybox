@@ -30,7 +30,7 @@ static void do_help(struct toy_list *t)
     xprintf("<a name=\"%s\"><h1>%s</h1><blockquote><pre>\n", t->name, t->name);
 
   toys.which = t;
-  show_help(stdout, !FLAG(u)+(!!toys.argv[1]<<1));
+  show_help(stdout, !FLAG(u)+(!!toys.argv[1]<<1)+(!!FLAG(h)<<2));
 
   if (FLAG(h)) xprintf("</blockquote></pre>\n");
 }
@@ -65,12 +65,14 @@ void help_main(void)
     sprintf(toybuf, "Toybox %s command help", toybox_version);
     xprintf("<html>\n<title>%s</title>\n<body>\n<h1>%s</h1><hr /><p>",
             toybuf, toybuf);
-    for (i=0; i < toys.toycount; i++)
-      xprintf("<a href=\"#%s\">%s</a> \n", toy_list[i].name, toy_list[i].name);
+    for (i=0; i<toys.toycount; i++)
+      if (toy_list[i].flags)
+        xprintf("<a href=\"#%s\">%s</a> \n", toy_list[i].name,toy_list[i].name);
     xprintf("</p>\n");
   }
 
   for (i = 0; i < toys.toycount; i++) {
+    if (!toy_list[i].flags) continue;
     if (FLAG(h)) xprintf("<hr>\n<pre>\n");
     else if (!FLAG(u)) {
       memset(toybuf, '-', 78);
