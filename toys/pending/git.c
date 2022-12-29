@@ -123,16 +123,44 @@ int cmp (const void *i, void *j){
   return strncmp(i,j,20);
 }
 
+//inspired by musl bsearch
+long bsearchpos(const void *k, const void *a,size_t h, size_t w){
+long l=0,m=0,r=0;
+if (!h) return 0;
+//printf("Array: %p Key:%p\n",a,k);
+while(h>0){
+  m=l+(h/2);
+  //m=(l+h)/2;
+  //printf("l: %ld m:%ld h:%ld\n",l,m,h);
+  r=strncmp(k,a+(m*w),20);
+  //printf("r: %ld\n",r);
+  if(!r||h==1)break;//match on search or position for insert
+  if(r<0){h/=2;}else{l=m;h-=h/2;}
+  //if(r<0){h=m-1;}else{l=m+1;}
+}
+  //printf("Return m: %ld r:%ld \n",m,r);
+
+return m+=(r>0)?1:0;//For inserts check if insert is bigger  obj at identified position
+}
+
 long get_index(struct IndexV2 *i, char *h){
- char *pos=(char *)bsearch(h, i->sha1[0], i->fot[255], 20,
-   (int(*)(const void*,const void*)) cmp);//TODO: Should be placed by bsearchpos() below; cmp and *l to be removed too
- for (int j=0;j<20;j++) printf("%02x",h[j]);
-    printf("\n");
- printf("index pointer: %p\n",pos);
- printf("fot[255]: %d\n",i->fot[255]);
- printf("sha1[0] pointer: %p\n",i->sha1[0]);
- printf("offset index : %ld\n",(pos-i->sha1[0])/20);
- return i->offset[(pos-i->sha1[0])/20];
+ long pos=bsearchpos(h, i->sha1[0], i->fot[255], 20);//,
+   //(int(*)(const void*,const void*)) cmp);//TODO: Should be placed by bsearchpos() below; cmp and *l to be removed too
+// for (int j=0;j<20;j++) printf("%02x",h[j]);
+//    printf("\n");
+ //if (pos == NULL){
+ // for (int h=0;h<i->fot[255];h++){
+ // printf("%d: ",h);
+ // for (int j=0;j<20;j++) printf("%02x",i->sha1[h][j]);
+ //   printf("\n");
+ // }
+ //}
+// printf("index pointer: %ld\n",pos);
+// printf("fot[255]: %d\n",i->fot[255]);
+// printf("sha1[0] pointer: %p\n",i->sha1[0]);
+// printf("offset index : %ld\n",pos);
+// return i->offset[(pos-i->sha1[0])/20];
+ return i->offset[pos];
 }
 
 //read type and lenght of an packed object
@@ -230,32 +258,13 @@ int inf(FILE *source, char *dest) //modified signature to ease use
     return ret == Z_STREAM_END ? Z_OK : Z_DATA_ERROR;
 }
 
-//inspired by musl bsearch
-long bsearchpos(const void *k, const void *a,size_t h, size_t w){
-long l=0,m=0,r=0;
-if (!h) return 0;
-//printf("Array: %p Key:%p\n",a,k);
-while(h>0){
-  m=l+(h/2);
-  //m=(l+h)/2;
-  //printf("l: %ld m:%ld h:%ld\n",l,m,h);
-  r=strncmp(k,a+(m*w),20);
-  //printf("r: %ld\n",r);
-  if(!r||h==1)break;//match on search or position for insert
-  if(r<0){h/=2;}else{l=m;h-=h/2;}
-  //if(r<0){h=m-1;}else{l=m+1;}
-}
-  //printf("Return m: %ld r:%ld \n",m,r);
-
-return m+=(r>0)?1:0;//For inserts check if insert is bigger  obj at identified position
-}
-
 long set_object(struct IndexV2 *idx,int type, char *o, uint32_t count, uint32_t ofs){
   printf("Alloc... ");//TODO: Too many allocs in here 1) to concat the search string for hashing 2) to insert into the array (can be reduce to a single malloc in fetch as the pack header contains the number of objects in pack
   char *c,*p="",*h=(char*)xmalloc(sizeof(char)*20);//composition,prefix,hash
+  if (h == NULL) error_exit("Hash malloc failed in set_object");
   long pos=0;
   switch(type)
-  {//https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L49
+  {//https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L72
   case 1:p=xmprintf("commit %d",count);break;//count is used as o can contain \0 in the  string
   case 2:p=xmprintf("tree %d",count);break;
   case 3:p=xmprintf("blob %d",count);break;
@@ -264,6 +273,7 @@ long set_object(struct IndexV2 *idx,int type, char *o, uint32_t count, uint32_t 
   case 7:printf("OBJ_DELTA\n");break;
   }
   c=(char*)xmalloc(strlen(p)+count+2);//Robs null terminator embedding
+  if (c == NULL) error_exit("c malloc failed in set_object");
   memcpy(c,p,strlen(p)+1);//Robs null terminator embedding
   memcpy(c+strlen(p)+1,o,count+1);//Robs null terminator embedding
   //printf("Enriched Object: %s %ld\n",c,strlen(p)+count+2);
@@ -389,6 +399,7 @@ char* resolve_delta(char *s, char *d, long dsize, uint32_t *count)
   *count |= (uint64_t)(d[pos++]& 0x7F) << bitshift;
   printf("Target Count %d:\n",*count);
   char *t=malloc(sizeof(char)*(*count+1));
+  if (t == NULL) error_exit("t malloc failed in resolve_delta");
   *count=0;
   while(pos<dsize){
     int i=0,j=1;
@@ -437,9 +448,9 @@ char* resolve_delta(char *s, char *d, long dsize, uint32_t *count)
     }
       *count+=size;
 
-      //printf("Target: \n");
-  //for (int k=0;k<*count;k++){printf("%c",t[k]);}
-  //printf("\n");
+      printf("Target: \n");
+//  for (int k=0;k<*count;k++){printf("%c",t[k]);}
+//  printf("\n");
 
   }
   free(s);
@@ -450,23 +461,27 @@ char* resolve_delta(char *s, char *d, long dsize, uint32_t *count)
 char* unpack_object(FILE *fpp, struct IndexV2 *i, long offset, uint32_t *count, int *type){
     uint32_t dcount=unpack(fpp,type,&offset);
     char *object=malloc((sizeof(char)*(dcount)+1));
+    if (object == NULL) error_exit("object malloc failed in unpack_object");
     object[*count]='\0';
-    printf("Count: %ls \n",count);
+    printf("Count: %d \n",*count);
     if (*type==7)
     {//see OBJ_REF_DELTA here https://yqintl.alicdn.com/eef7fe4f22cc97912cee011c99d3fe5821ae9e88.png      printf("Type 7:\n");
       char *h=malloc(20*sizeof(char));
+      if (h == NULL) error_exit("h malloc failed in unpack_object");
       fread(h,20,1,fpp);//fseek(fpp,20,SEEK_CUR);
       printf("Read base object\n");
+      for (int j=0;j<20;j++) printf("%02x",h[j]);
+      printf("\n");
       inf(fpp,object);//TO CHECK IF INF OR PLAIN TEXT:
       long int toffset=ftell(fpp);//save original file offset
       char *source=unpack_object(fpp,i,get_index(i,h),count,type);
       printf("Inflate delta data\n");
       fseek(fpp,toffset,SEEK_SET);//return to original file offset
       printf("Resolve delta data\n");
-      printf("Print source: %s\n",source);
+      //printf("Print source: %s\n",source);
       //for (int h=0;h<i->fot[255];h++){
       //  for (int j=0;j<20;j++) printf("%02x",i->sha1[h][j]);
-      //    printf("\n");
+      //  printf("\n");
       //}
       free(h);
       return resolve_delta(source,object,dcount,count);//recursion due to https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L83
@@ -475,13 +490,15 @@ char* unpack_object(FILE *fpp, struct IndexV2 *i, long offset, uint32_t *count, 
       inf(fpp,object);
       *count=dcount;
        printf("Type Else end:\n");
-      return object;
+       //printf("Unpacked Object: %s\n",object);
+     return object;
     }
 }
 
 char* txtoh(char *p){ //make 20byte SHA1 hash from 40 byte SHA1 string
 //  printf("txtoh start");
   char *h=malloc(sizeof(char)*41); //TODO: Dont like the malloc here, but did not find a solution to sscanf into p again
+  if (h == NULL) error_exit("h malloc failed in unpack_object");
   for(int c=0; c<20;c++){
  // printf("c: %d\n",c);
   sscanf(&p[2*c],"%2hhx",&(h[c]));
@@ -499,6 +516,9 @@ void write_children(char *hash, char *path, FILE *fpp){
   int type;
   long int offset;
   uint32_t count;
+  //printf("process hash: ");
+  //      for (int j=0;j<20;j++) printf("%02x", hash[j]);
+  //        printf("\n");
   printf("seek index\n");
 
   offset= get_index(TT.i,hash);
@@ -525,6 +545,7 @@ void write_children(char *hash, char *path, FILE *fpp){
       //memcpy(mode,object+pos+2,3)//TODO:String to umask
       if (*(object+pos)=='1'){//tree object reference is a file
       name=(strlen(path)>0)?xmprintf("%s/%s",path,object+pos+7):object+pos+7;//concat file name
+        printf("prepare file %s\n",name);
       }else{//tree object reference is a folder
         name=(strlen(path)>0)?xmprintf("%s/%s",path,object+pos+6):object+pos+6;//concat folder name
         printf("create folder %s\n",name);
@@ -534,7 +555,9 @@ void write_children(char *hash, char *path, FILE *fpp){
       write_children(hash,name,fpp);
       //free(name);
       pos=hs-object+20;
+      printf("Position/count for %s: %d/%u\n",path,pos,count);
     }
+    printf("**EXIT WHILE**\n");
   }else{//at blob/file object
    printf("process file %s\n",path);
     fc = fopen(path, "w");
@@ -554,8 +577,8 @@ static void gitfetch(void)
   pid_t pid; //TODO:I use herein after two temp files for fetch which git due not offer to 1) avoid a rewrite and 2) messing up the repo files while testing
   if ((pid=fork())==0)execv("toybox",(char *[]){"toybox","wget","-O",".git/refs/temp.refs","https://github.com/landley/toybox/info/refs?service=git-upload-pack",(char*)0});//TODO: Refactor wget into lib
   perror("execv\n");
- // char h[]="8cf1722f0fde510ea81d13b31bde1e48917a0306";
-  char h[]="52fb04274b3491fdfe91b2e5acc23dc3f3064a86";//TODO: Replace static testing hash and uncomment the following line if rare delta resolve /?heap overflow? bug was found
+  char h[]="8cf1722f0fde510ea81d13b31bde1e48917a0306";
+//  char h[]="52fb04274b3491fdfe91b2e5acc23dc3f3064a86";//TODO: Replace static testing hash and uncomment the following line if rare delta resolve /?heap overflow? bug was found
   //FILE *fpr;
   //fpr=fopen(".git/ref/temp.refs","r");
   //fseek();
@@ -600,11 +623,11 @@ static void gitfetch(void)
     offset=ftell(fpp);//adjust offset to new file position
     printf("Adjusted offset to: %ld\n",offset);
   }
-  //for (int h=0;h<TT.i->fot[255];h++){
-  //printf("%d: ",h);
-  //for (int j=0;j<20;j++) printf("%02x",TT.i->sha1[h][j]);
-  //  printf("\n");
- // }
+//  for (int h=0;h<TT.i->fot[255];h++){
+//  printf("%d: ",h);
+//  for (int j=0;j<20;j++) printf("%02x",TT.i->sha1[h][j]);
+//    printf("\n");
+//  }
 
   //TODO: Final pack checksum not calculated and checked
   fclose(fpp);
@@ -623,7 +646,10 @@ static void gitcheckout(char *name)
   printf("Close heads and read pack\n");
   fpp=fopen(".git/objects/pack/temp.pack","r");
   printf("set signature\n");
-  char *p="52fb04274b3491fdfe91b2e5acc23dc3f3064a86";//static hashes for testing 3604ba4f42c3d83e2b14f6d0f423a33a3a8706c3";
+  char *p="52fb04274b3491fdfe91b2e5acc23dc3f3064a86";//static hashes for testing toybox 0.0.1";
+  //char *p="c555a0ca46e75097596274bf5e634127015aa144";//static hashes for testing 0.0.2";
+  //char *p="4307a7b07cec4ad8cbab47a29ba941f8cb041812";//static hashes for testing 0.0.3";
+  //char *p="3632d5d8fe05d14da983e37c7cd34db0769e6238";//static hashes for testing 0.0.4";
   //char *p="8cf1722f0fde510ea81d13b31bde1e48917a0306";//3604ba4f42c3d83e2b14f6d0f423a33a3a8706c3";
   printf("enter tree root\n");
   write_children(txtoh(p),"",fpp);
