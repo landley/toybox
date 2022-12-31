@@ -7,27 +7,26 @@
 // This little dance is because a NEWTOY with - in the name tries to do
 // things like prototype "nbd-client_main" which isn't a valid symbol. So
 // we hide the underscore name and OLDTOY the name we want.
-USE_NBD_CLIENT(NEWTOY(nbd_client, "<3>3ns", 0))
+USE_NBD_CLIENT(NEWTOY(nbd_client, "<3>3b#<1>4294967295=4096ns", 0))
 USE_NBD_CLIENT(OLDTOY(nbd-client, nbd_client, TOYFLAG_USR|TOYFLAG_BIN))
 
 config NBD_CLIENT
   bool "nbd-client"
   default y
   help
-    usage: nbd-client [-ns] HOST PORT DEVICE
+    usage: nbd-client [-ns] [-b BLKSZ] HOST PORT DEVICE
 
+    -b	Block size (default 4096)
     -n	Do not daemonize
     -s	nbd swap support (lock server into memory)
 */
 
 /*  TODO:
-    usage: nbd-client [-sSpn] [-b BLKSZ] [-t SECS] [-N name] HOST PORT DEVICE
+    usage: nbd-client [-Sp] [-t SECS] [-N name] HOST PORT DEVICE
 
-    -b	block size
     -t	timeout in seconds
     -S	sdp
     -p	persist
-    -n	nofork
     -d	DEVICE
     -c	DEVICE
 */
@@ -37,6 +36,8 @@ config NBD_CLIENT
 #include <linux/nbd.h>
 
 GLOBALS(
+  long b;
+
   int nbd;
 )
 
@@ -81,8 +82,8 @@ void nbd_client_main(void)
     flags = SWAP_BE32(*(int *)(toybuf+24));
 
     // Use 4k block size
-    ioctl(TT.nbd, NBD_SET_BLKSIZE, 4096);
-    ioctl(TT.nbd, NBD_SET_SIZE_BLOCKS, devsize/4096);
+    ioctl(TT.nbd, NBD_SET_BLKSIZE, TT.b);
+    ioctl(TT.nbd, NBD_SET_SIZE_BLOCKS, devsize/TT.b); // rounds down
     ioctl(TT.nbd, NBD_CLEAR_SOCK);
 
     // Locally respect read only exports
