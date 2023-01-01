@@ -524,137 +524,157 @@ char* unpack_object(FILE *fpp, struct IndexV2 *i, long offset, uint32_t *count,
     }
 }
 
-char* txtoh(char *p){ //make 20byte SHA1 hash from 40 byte SHA1 string
+//make 20byte SHA1 hash from 40 byte SHA1 string
+char *txtoh(char *p)
+{
 //  printf("txtoh start");
-  char *h=malloc(sizeof(char)*41); //TODO: Dont like the malloc here, but did not find a solution to sscanf into p again
+  //TODO: Dont like the malloc here, but did not find a solution to sscanf into p again
+  char *h = malloc(sizeof(char)*41);
+
   if (h == NULL) error_exit("h malloc failed in unpack_object");
-  for(int c=0; c<20;c++){
+
+  for(int c=0; c<20; c++) {
  // printf("c: %d\n",c);
-  sscanf(&p[2*c],"%2hhx",&(h[c]));
+    sscanf(&p[2*c],"%2hhx",&(h[c]));
   }
 //  printf("txtoh end");
-  h[20]='\0';
+  h[20] = '\0';
   printf("return");
+
   return h;
 }
 
 //traveres the commit tree for checkout
-void write_children(char *hash, char *path, FILE *fpp){
+void write_children(char *hash, char *path, FILE *fpp) {
   FILE *fc;
   char *object;
   int type;
   long int offset;
   uint32_t count;
+
   //printf("process hash: ");
-  //      for (int j=0;j<20;j++) printf("%02x", hash[j]);
+  //      for (int j=0; j<20; j++) printf("%02x", hash[j]);
   //        printf("\n");
   printf("seek index\n");
 
-  offset= get_index(TT.i,hash);
+  offset= get_index(TT.i, hash);
   printf("Found index: %ld\n",offset);
   //fseek(fpp,offset,SEEK_SET);
   printf("read object\n");
  // size_t size=unpack(fpp,&type,&offset);
  // printf("Size: %ld \n",size);
  // printf("Size2: %ld \n",size);
-  object=unpack_object(fpp,TT.i,offset,&count,&type);
-  printf("%s\n",object);
-  printf("Type %d\n",type);
-  if(type==1){//at commit object
-    memcpy(hash,&object[5],40);
-    write_children(txtoh(hash),path,fpp);
-  }else if(type==2){//at tree object https://stackoverflow.com/a/21599232
+  object = unpack_object(fpp, TT.i, offset, &count, &type);
+  printf("%s\n", object);
+  printf("Type %d\n", type);
+  if(type==1) { //at commit object
+    memcpy(hash, &object[5], 40);
+    write_children(txtoh(hash), path, fpp);
+  } else if(type==2) { //at tree object https://stackoverflow.com/a/21599232
     char *hs=0;
     int pos=0;
+
     printf("process folder %s\n",path);
     while (pos<count){
-      hs=strchr(object+pos,'\0')+1;//find position where the next hash starts
+      //find position where the next hash starts
+      hs = strchr(object+pos,'\0')+1;
       printf("Object+pos: %s\n",object+pos);
-      char *name;//=malloc(sizeof(char)*(hs-(object+pos))+strlen(path));
-      //memcpy(mode,object+pos+2,3)//TODO:String to umask
-      if (*(object+pos)=='1'){//tree object reference is a file
-      name=(strlen(path)>0)?xmprintf("%s/%s",path,object+pos+7):object+pos+7;//concat file name
+      char *name; //=malloc(sizeof(char)*(hs-(object+pos))+strlen(path));
+      // memcpy(mode,object+pos+2,3)//TODO:String to umask
+      if (*(object+pos)=='1') { //tree object reference is a file
+        // concat file name
+        name = (strlen(path)>0) ? xmprintf("%s/%s", path, object+pos+7) : object+pos+7;
         printf("prepare file %s\n",name);
-      }else{//tree object reference is a folder
-        name=(strlen(path)>0)?xmprintf("%s/%s",path,object+pos+6):object+pos+6;//concat folder name
-        printf("create folder %s\n",name);
-        mkdir(name,0755);//TODO: umask
+      } else { //tree object reference is a folder
+        // concat folder name
+        name = (strlen(path)>0) ? xmprintf("%s/%s", path, object+pos+6) : object+pos+6;
+        printf("create folder %s\n", name);
+        mkdir(name, 0755); //TODO: umask
       }
-      memcpy(hash,hs,20);
-      write_children(hash,name,fpp);
+      memcpy(hash, hs, 20);
+      write_children(hash, name, fpp);
       //free(name);
-      pos=hs-object+20;
-      printf("Position/count for %s: %d/%u\n",path,pos,count);
+      pos = hs-object+20;
+      printf("Position/count for %s: %d/%u\n", path, pos, count);
     }
     printf("**EXIT WHILE**\n");
-  }else{//at blob/file object
-   printf("process file %s\n",path);
+  } else { //at blob/file object
+    printf("process file %s\n",path);
     fc = fopen(path, "w");
-   printf("process opened \n");
-	fputs(object,fc);//TODO:Not sure if length might be an issue here
-   printf("process file written\n");
-	fclose(fc);
+    printf("process opened \n");
+    fputs(object,fc);//TODO:Not sure if length might be an issue here
+    printf("process file written\n");
+    fclose(fc);
   }
-free(object);
-printf("Child: %s done\n",path);
+  free(object);
+  printf("Child: %s done\n",path);
 }
 
 static void gitfetch(void)
 {
   //size_t l=0;
   printf("refs\n");
-  pid_t pid; //TODO:I use herein after two temp files for fetch which git due not offer to 1) avoid a rewrite and 2) messing up the repo files while testing
-  if ((pid=fork())==0)execv("toybox",(char *[]){"toybox","wget","-O",".git/refs/temp.refs","https://github.com/landley/toybox/info/refs?service=git-upload-pack",(char*)0});//TODO: Refactor wget into lib
+  pid_t pid;
+
+  // TODO:I use herein after two temp files for fetch which git due not offer
+  // to 1) avoid a rewrite and 2) messing up the repo files while testing
+
+  // TODO: Refactor wget into lib
+  if ((pid=fork())==0)
+    execv("toybox", (char *[]){"toybox","wget","-O", ".git/refs/temp.refs",
+      "https://github.com/landley/toybox/info/refs?service=git-upload-pack",
+      (char*)0});
   perror("execv\n");
   char h[]="8cf1722f0fde510ea81d13b31bde1e48917a0306";
-//  char h[]="52fb04274b3491fdfe91b2e5acc23dc3f3064a86";//TODO: Replace static testing hash and uncomment the following line if rare delta resolve /?heap overflow? bug was found
-  //FILE *fpr;
-  //fpr=fopen(".git/ref/temp.refs","r");
-  //fseek();
-  //getline(&h,&l,fpr);
-  //getline(&h,&l,fpr);
-  //getline(&h,&l,fpr);
-  //fclose(fpr);
-  //strcpy(h,&h[4],4);
-  //h[40]='\0';
+  //TODO: Replace static testing hash and uncomment the following line if rare delta resolve /?heap overflow? bug was found
+//  char h[]="52fb04274b3491fdfe91b2e5acc23dc3f3064a86";
+  // FILE *fpr;
+  // fpr = fopen(".git/ref/temp.refs", "r");
+  // fseek();
+  // getline(&h, &l, fpr);
+  // getline(&h, &l, fpr);
+  // getline(&h, &l, fpr);
+  // fclose(fpr);
+  // strcpy(h, &h[4], 4);
+  // h[40] = '\0';
   printf("pack\n");
-  //if ((pid=fork())==0)execv("toybox",(char *[]){"toybox","wget","-O",".git/objects/pack/temp.pack","-p","$'0032want 52fb04274b3491fdfe91b2e5acc23dc3f3064a86\n00000009done\n'","https://github.com/landley/toybox/git-upload-pack",(char*)0});//TODO: does not skip 0008NAK  printf("init\n");
-  if ((pid=fork())==0)execv("toybox",(char *[]){"toybox","wget","-O",".git/objects/pack/temp.pack","-p",xmprintf("$'0032want %s\n00000009done\n'",h),"https://github.com/landley/toybox/git-upload-pack",(char*)0});//TODO: does not skip 0008NAK  printf("init\n");
+  //if ((pid=fork())==0) execv("toybox",(char *[]){"toybox","wget","-O",".git/objects/pack/temp.pack","-p","$'0032want 52fb04274b3491fdfe91b2e5acc23dc3f3064a86\n00000009done\n'","https://github.com/landley/toybox/git-upload-pack",(char*)0});//TODO: does not skip 0008NAK  printf("init\n");
+  if ((pid=fork())==0) execv("toybox",(char *[]){"toybox","wget","-O",".git/objects/pack/temp.pack","-p",xmprintf("$'0032want %s\n00000009done\n'",h),"https://github.com/landley/toybox/git-upload-pack",(char*)0});//TODO: does not skip 0008NAK  printf("init\n");
   perror("execv\n");
   FILE *fpp;
   printf("openpack\n");
-  fpp=fopen(".git/objects/pack/temp.pack","r");
+  fpp = fopen(".git/objects/pack/temp.pack", "r");
   printf("read index\n");
-  read_index(TT.i);//init index with out reading
+  read_index(TT.i); //init index with out reading
   printf("init\n");
   uint32_t ocount=0, count;
   int type;
   char *object;
   printf("skip header\n");
-  long int offset=12+8;//8byte from the wget post response are skipped too
-  fseek(fpp,8+8,SEEK_SET);//header check skipped https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L14
+  long int offset=12+8; //8byte from the wget post response are skipped too
+  fseek(fpp,8+8,SEEK_SET); //header check skipped https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L14
   printf("read count\n");
-  fread(&ocount,4,1,fpp);
-  ocount=ntohl(ocount);//https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L21
-  printf("Count: %d ..Loop pack\n",ocount);
-  for (int j=0;j<ocount;j++){
-    printf("Read object %d\n",j);
-    count=0;
-    object=unpack_object(fpp,TT.i,offset,&count,&type);
-    printf("Count: %d Offset: %ld  ..Set object\n",count,offset);
-    //if(j>5126)printf("SetGetObject %d: %s\n",j,object);
-    //printf("SetGetUnpack %d: %s\n",j,unpack_object(fpp,TT.i,set_object(TT.i,type,object,count,offset),&count,&type));
-    set_object(TT.i,type,object,count,offset);
+  fread(&ocount, 4, 1, fpp);
+  ocount = ntohl(ocount); //https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L21
+  printf("Count: %d ..Loop pack\n", ocount);
+  for (int j=0; j<ocount; j++){
+    printf("Read object %d\n", j);
+    count = 0;
+    object = unpack_object(fpp, TT.i, offset, &count, &type);
+    printf("Count: %d Offset: %ld  ..Set object\n", count, offset);
+    //if (j>5126) printf("SetGetObject %d: %s\n", j, object);
+    //printf("SetGetUnpack %d: %s\n", j, unpack_object(fpp, TT.i, set_object(TT.i, type, object, count, offset), &count, &type));
+    set_object(TT.i, type, object, count, offset);
 
     free(object);
 
     printf("Adjust offset\n");
-    offset=ftell(fpp);//adjust offset to new file position
-    printf("Adjusted offset to: %ld\n",offset);
+    offset = ftell(fpp); //adjust offset to new file position
+    printf("Adjusted offset to: %ld\n", offset);
   }
-//  for (int h=0;h<TT.i->fot[255];h++){
+//  for (int h=0; h<TT.i->fot[255]; h++){
 //  printf("%d: ",h);
-//  for (int j=0;j<20;j++) printf("%02x",TT.i->sha1[h][j]);
+//  for (int j=0; j<20; j++) printf("%02x", TT.i->sha1[h][j]);
 //    printf("\n");
 //  }
 
