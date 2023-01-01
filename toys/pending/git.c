@@ -77,13 +77,11 @@ GLOBALS(
 //git inxed format v2 https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L241
 struct IndexV2 {
   char header[8];
-  uint32_t fot[256];
+  unsigned fot[256];
   char (*sha1)[20];
-  uint32_t *crc;
-  uint32_t *offset;
+  unsigned *crc, *offset;
   long long *offset64; //not supported yet
-  char packsha1[20];
-  char idxsha1[20];
+  char packsha1[20], idxsha1[20];
 };
 
 static void read_index(struct IndexV2 *i)
@@ -93,8 +91,8 @@ static void read_index(struct IndexV2 *i)
   i = malloc(sizeof(i));
   //i->fot = { 0 };
   i->sha1 = malloc(20*sizeof(char));
-  i->crc = malloc(sizeof(uint32_t));
-  i->offset = malloc(sizeof(uint32_t));
+  i->crc = malloc(sizeof(unsigned));
+  i->offset = malloc(sizeof(unsigned));
   i->offset64 = malloc(sizeof(long long));
   //TODO: not used yet as index is not persisted yet
   if (access(".git/object/pack/temp.idx", F_OK)==0) {
@@ -179,11 +177,11 @@ long get_index(struct IndexV2 *i, char *h)
 //https://yqintl.alicdn.com/eef7fe4f22cc97912cee011c99d3fe5821ae9e88.png
 
 //read type and lenght of an packed object
-uint64_t unpack(FILE *fpp, int *type, long int *offset)
+unsigned long long unpack(FILE *fpp, int *type, long *offset)
 {
   int bitshift= 4;
-  uint64_t length = 0;
-  uint8_t data;
+  unsigned long long length = 0;
+  char data;
 
   printf("Start unpack\n");
   fseek(fpp, *offset, SEEK_SET);
@@ -192,11 +190,11 @@ uint64_t unpack(FILE *fpp, int *type, long int *offset)
   printf("Data: %d\n", data);
   *type = ((data & 0x70)>>4);
   printf("Type: %d\n", *type);
-  length |= (uint64_t)(data & 0x0F);
+  length |= data & 0x0F;
   //(*offset)++;
   while ((data & 0x80) && fread(&data, 1, 1, fpp)!=-1)
   {
-    length |= (uint64_t)(data & 0x7F) << bitshift;
+    length |= (unsigned long long)(data & 0x7F) << bitshift;
     bitshift += 7; // (*offset)++;
     //printf("Offset set to: %ld\n", *offset);
   }
@@ -278,8 +276,8 @@ int inf(FILE *source, char *dest) //modified signature to ease use
 }
 
 //https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L72
-long set_object(struct IndexV2 *idx, int type, char *o, uint32_t count,
-  uint32_t ofs)
+long set_object(struct IndexV2 *idx, int type, char *o, unsigned count,
+  unsigned ofs)
 {
 // TODO: Too many allocs in here 1) to concat the search string for hashing
 // 2) to insert into the array (can be reduce to a single malloc in fetch as
@@ -339,9 +337,9 @@ long set_object(struct IndexV2 *idx, int type, char *o, uint32_t count,
   printf("Mem copy sha1 array..sizeof(idx->sha1)%ld\n", sizeof(idx->sha1));
   memmove(&idx->sha1[pos+1], &idx->sha1[pos], (idx->fot[255]-pos)*20*sizeof(char));
   printf("Resize offset\n");
-  idx->offset = realloc(idx->offset, (idx->fot[255]+1)*sizeof(uint32_t));
+  idx->offset = realloc(idx->offset, (idx->fot[255]+1)*sizeof(unsigned));
   printf("Mem copy offset\n");
-  memmove(&idx->offset[pos+1], &idx->offset[pos], sizeof(uint32_t)*(idx->fot[255]-pos));
+  memmove(&idx->offset[pos+1], &idx->offset[pos], sizeof(unsigned)*(idx->fot[255]-pos));
   printf("Set offset value\n");
   memcpy(&idx->sha1[pos], h, 20); //insert SHA1
   idx->offset[pos] = ofs; //insert offset of SHA1
@@ -402,7 +400,7 @@ static void gitremote(char *url)
 
 // this is most likely still buggy and create a late observable heap overflow larger deltafied repos
 // https://stackoverflow.com/a/14303988
-char *resolve_delta(char *s, char *d, long dsize, uint32_t *count)
+char *resolve_delta(char *s, char *d, long dsize, unsigned *count)
 {
   long pos = 0, bitshift = 0;
 
@@ -417,25 +415,25 @@ char *resolve_delta(char *s, char *d, long dsize, uint32_t *count)
   // Skipping source size; did not find out why it is  on the delta header as the source object header contains it too; maybe misunderstood and this makes things buggy, but I dont need it here
   while ((d[pos] & 0x80)) pos++;
   //{
-  // ssize |= (uint64_t)(d[pos++] & 0x7F) << bitshift;
+  // ssize |= (unsigned long long)(d[pos++] & 0x7F) << bitshift;
   // bitshift += 7; // (*offset)++;
   //}
   pos++; //fixes https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L67
   *count = 0;
   bitshift = 0;
   while ((d[pos] & 0x80)) { //reading target_size from header
-    *count |= (uint64_t)(d[pos++]& 0x7F) << bitshift;
+    *count |= (unsigned long long)(d[pos++]& 0x7F) << bitshift;
     bitshift += 7; // (*offset)++;
   }
 
-  *count |= (uint64_t)(d[pos++]& 0x7F) << bitshift;
+  *count |= (unsigned long long)(d[pos++]& 0x7F) << bitshift;
   printf("Target Count %d:\n", *count);
   char *t = malloc(sizeof(char)*(*count+1));
   if (t == NULL) error_exit("t malloc failed in resolve_delta");
   *count = 0;
   while (pos<dsize) {
     int i = 0, j = 1;
-    uint32_t offset = 0, size = 0;
+    unsigned offset = 0, size = 0;
 
     //printf("d[pos]: %d %ld\n", d[pos], pos);
     if ((d[pos]&0x80)) {//https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L103
@@ -490,10 +488,10 @@ char *resolve_delta(char *s, char *d, long dsize, uint32_t *count)
   return t;
 }
 
-char *unpack_object(FILE *fpp, struct IndexV2 *i, long offset, uint32_t *count,
+char *unpack_object(FILE *fpp, struct IndexV2 *i, long offset, unsigned *count,
   int *type)
 {
-  uint32_t dcount = unpack(fpp, type, &offset);
+  unsigned dcount = unpack(fpp, type, &offset);
   char *object = malloc((sizeof(char)*(dcount)+1));
 
   if (object == NULL) error_exit("object malloc failed in unpack_object");
@@ -510,7 +508,7 @@ char *unpack_object(FILE *fpp, struct IndexV2 *i, long offset, uint32_t *count,
       for (int j = 0; j<20; j++) printf("%02x", h[j]);
       printf("\n");
       inf(fpp, object); //TO CHECK IF INF OR PLAIN TEXT:
-      long int toffset = ftell(fpp); //save original file offset
+      long toffset = ftell(fpp); //save original file offset
       char *source = unpack_object(fpp, i, get_index(i, h), count, type);
       printf("Inflate delta data\n");
       fseek(fpp, toffset, SEEK_SET); //return to original file offset
@@ -560,8 +558,8 @@ void write_children(char *hash, char *path, FILE *fpp) {
   FILE *fc;
   char *object;
   int type;
-  long int offset;
-  uint32_t count;
+  long offset;
+  unsigned count;
 
   //printf("process hash: ");
   //      for (int j = 0; j<20; j++) printf("%02x", hash[j]);
@@ -658,11 +656,12 @@ static void gitfetch(void)
   printf("read index\n");
   read_index(TT.i); //init index with out reading
   printf("init\n");
-  uint32_t ocount = 0, count;
+  unsigned ocount = 0, count;
   int type;
   char *object;
+
   printf("skip header\n");
-  long int offset = 12+8; //8byte from the wget post response are skipped too
+  long offset = 12+8; //8byte from the wget post response are skipped too
   fseek(fpp, 8+8, SEEK_SET); //header check skipped https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt#L14
   printf("read count\n");
   fread(&ocount, 4, 1, fpp);
