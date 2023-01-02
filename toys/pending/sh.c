@@ -598,6 +598,7 @@ static int recalculate(long long *dd, char **ss, int lvl)
     // At lvl 0 "" is ok, anything higher needs a non-empty equation
     if (lvl || (cc && cc!=')')) return 0;
     *dd = 0;
+
     return 1;
   }
 
@@ -660,16 +661,16 @@ static int recalculate(long long *dd, char **ss, int lvl)
   }
 
   // x**y binds first
-  if (lvl<=13) while (strstart(nospace(ss), "**")) {
-    if (!recalculate(&ee, ss, noa|14)) return 0;
+  if (lvl<=14) while (strstart(nospace(ss), "**")) {
+    if (!recalculate(&ee, ss, noa|15)) return 0;
     if (ee<0) perror_msg("** < 0");
     for (ff = *dd, *dd = 1; ee; ee--) *dd *= ff;
   }
 
   // w*x/y%z bind next
-  if (lvl<=12) while ((cc = **nospace(ss)) && strchr("*/%", cc)) {
+  if (lvl<=13) while ((cc = **nospace(ss)) && strchr("*/%", cc)) {
     ++*ss;
-    if (!recalculate(&ee, ss, noa|13)) return 0;
+    if (!recalculate(&ee, ss, noa|14)) return 0;
     if (cc=='*') *dd *= ee;
     else if (cc=='%') *dd %= ee;
     else if (!ee) {
@@ -679,61 +680,61 @@ static int recalculate(long long *dd, char **ss, int lvl)
   }
 
   // x+y-z
-  if (lvl<=11) while ((cc = **nospace(ss)) && strchr("+-", cc)) {
+  if (lvl<=12) while ((cc = **nospace(ss)) && strchr("+-", cc)) {
     ++*ss;
-    if (!recalculate(&ee, ss, noa|12)) return 0;
+    if (!recalculate(&ee, ss, noa|13)) return 0;
     if (cc=='+') *dd += ee;
     else *dd -= ee;
   }
 
   // x<<y >>
 
-  if (lvl<=10) while ((cc = **nospace(ss)) && strchr("<>", cc) && cc==(*ss)[1]){
+  if (lvl<=11) while ((cc = **nospace(ss)) && strchr("<>", cc) && cc==(*ss)[1]){
     *ss += 2;
-    if (!recalculate(&ee, ss, noa|11)) return 0;
+    if (!recalculate(&ee, ss, noa|12)) return 0;
     if (cc == '<') *dd <<= ee;
     else *dd >>= ee;
   }
 
   // x<y <= > >=
-  if (lvl<=9) while ((cc = **nospace(ss)) && strchr("<>", cc)) {
+  if (lvl<=10) while ((cc = **nospace(ss)) && strchr("<>", cc)) {
     if ((ii = *++*ss=='=')) ++*ss;
-    if (!recalculate(&ee, ss, noa|10)) return 0;
+    if (!recalculate(&ee, ss, noa|11)) return 0;
     if (cc=='<') *dd = ii ? (*dd<=ee) : (*dd<ee);
     else *dd = ii ? (*dd>=ee) : (*dd>ee);
   }
 
-  if (lvl<=8) while ((cc = **nospace(ss)) && strchr("=!", cc) && (*ss)[1]=='='){
+  if (lvl<=9) while ((cc = **nospace(ss)) && strchr("=!", cc) && (*ss)[1]=='='){
     *ss += 2;
-    if (!recalculate(&ee, ss, noa|9)) return 0;
+    if (!recalculate(&ee, ss, noa|10)) return 0;
     *dd = (cc=='!') ? *dd != ee : *dd == ee;
   }
 
-  if (lvl<=7) while (**nospace(ss)=='&' && (*ss)[1]!='&') {
+  if (lvl<=8) while (**nospace(ss)=='&' && (*ss)[1]!='&') {
     ++*ss;
-    if (!recalculate(&ee, ss, noa|8)) return 0;
+    if (!recalculate(&ee, ss, noa|9)) return 0;
     *dd &= ee;
   }
 
-  if (lvl<=6) while (**nospace(ss)=='^') {
+  if (lvl<=7) while (**nospace(ss)=='^') {
     ++*ss;
-    if (!recalculate(&ee, ss, noa|7)) return 0;
+    if (!recalculate(&ee, ss, noa|8)) return 0;
     *dd ^= ee;
   }
 
-  if (lvl<=5) while (**nospace(ss)=='|' && (*ss)[1]!='|') {
+  if (lvl<=6) while (**nospace(ss)=='|' && (*ss)[1]!='|') {
     ++*ss;
-    if (!recalculate(&ee, ss, noa|6)) return 0;
+    if (!recalculate(&ee, ss, noa|7)) return 0;
     *dd |= ee;
   }
 
   if (lvl<=5) while (strstart(nospace(ss), "&&")) {
-    if (!recalculate(&ee, ss, noa|6|NO_ASSIGN*!!*dd)) return 0;
+    if (!recalculate(&ee, ss, noa|6|NO_ASSIGN*!*dd)) return 0;
     *dd = *dd && ee;
   }
 
   if (lvl<=4) while (strstart(nospace(ss), "||")) {
-    if (!recalculate(&ee, ss, noa|5|NO_ASSIGN*!*dd)) return 0;
+    if (!recalculate(&ee, ss, noa|5|NO_ASSIGN*!!*dd)) return 0;
     *dd = *dd || ee;
   }
 

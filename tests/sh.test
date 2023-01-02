@@ -258,6 +258,12 @@ testing "nesting ? :" \
 testing "inherited assignment suppression" 'echo $((0 ? (x++) : 2)); echo $x' \
   "2\n\n" "" ""
 testing "boolean vs logical" 'echo $((2|4&&8))' '1\n' '' ''
+testing "&& vs || priority" \
+  'echo $((w++||x++&&y++||z++)) w=$w x=$x y=$y z=$z' \
+  '0 w=1 x=1 y= z=1\n' '' ''
+testing "|| vs && priority" \
+  'echo $((w++&&x++||y++&&z++)) w=$w x=$x y=$y z=$z' \
+  '0 w=1 x= y=1 z=\n' '' ''
 
 # Loops and flow control
 testing "case" 'for i in A C J B; do case "$i" in A) echo got A ;; B) echo and B ;; C) echo then C ;; *) echo default ;; esac; done' \
