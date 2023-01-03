@@ -637,7 +637,7 @@ static int recalculate(long long *dd, char **ss, int lvl)
 
     // Assignment operators: = *= /= %= += -= <<= >>= &= ^= |=
     } else if (lvl<=2 && (*ss)[ii = !!strchr("*/%+-", **ss)
-               +2*!memcmp(*ss, "<<", 2)+2*!memcmp(*ss, ">>", 2)]=='=')
+               +2*!xmemcmp(*ss, "<<", 2)+2*!xmemcmp(*ss, ">>", 2)]=='=')
     {
       // TODO: assignments are lower priority BUT must go after variable,
       // come up with precedence checking tests?
@@ -2317,6 +2317,7 @@ static int expand_arg(struct sh_arg *arg, char *old, unsigned flags,
       // discard unterminated span, or commaless span that wasn't x..y
       if (!old[i] || !bnext->cnt)
         free(dlist_pop((blist == bnext) ? &blist : &bnext));
+      if (!old[i]) i--;
     // starting brace
     } else if (old[i] == '{') {
       dlist_add_nomalloc((void *)&blist,
@@ -2738,7 +2739,7 @@ static struct sh_process *run_command(void)
 
   // Skip [[ ]] and (( )) contents for now
   if ((s = arg->v[envlen])) {
-    if (!memcmp(s, "((", 2)) skiplen = 1;
+    if (!xmemcmp(s, "((", 2)) skiplen = 1;
     else if (!strcmp(s, "[[")) while (strcmp(arg->v[envlen+skiplen++], "]]"));
   }
   pp = expand_redir(arg, envlen+skiplen, 0);
@@ -2802,7 +2803,7 @@ static struct sh_process *run_command(void)
 //   Several NOFORK can just NOP in a pipeline? Except ${a?b} still errors
 
   // ((math))
-  else if (!memcmp(s = *pp->arg.v, "((", 2)) {
+  else if (!xmemcmp(s = *pp->arg.v, "((", 2)) {
     char *ss = s+2;
     long long ll;
 
@@ -3071,7 +3072,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
       }
 
       // "for" on its own line is an error.
-      if (arg->c == 1 && ex && !memcmp(ex, "do\0A", 4)) {
+      if (arg->c == 1 && ex && !xmemcmp(ex, "do\0A", 4)) {
         s = "newline";
         goto flush;
       }
@@ -3165,7 +3166,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
         free(s);
         s = 0;
 // TODO can't have ; between "for i" and in or do. (Newline yes, ; no. Why?)
-        if (!arg->c && ex && !memcmp(ex, "do\0C", 4)) continue;
+        if (!arg->c && ex && !xmemcmp(ex, "do\0C", 4)) continue;
 
       // ;; and friends only allowed in case statements
       } else if (*s == ';') goto flush;
@@ -3177,7 +3178,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
       continue;
 
     // a for/select must have at least one additional argument on same line
-    } else if (ex && !memcmp(ex, "do\0A", 4)) {
+    } else if (ex && !xmemcmp(ex, "do\0A", 4)) {
 
       // Sanity check and break the segment
       if (strncmp(s, "((", 2) && *varend(s)) goto flush;
@@ -3196,7 +3197,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
 
     // The "test" part of for/select loops can have (at most) one "in" line,
     // for {((;;))|name [in...]} do
-    if (ex && !memcmp(ex, "do\0C", 4)) {
+    if (ex && !xmemcmp(ex, "do\0C", 4)) {
       if (strcmp(s, "do")) {
         // can only have one "in" line between for/do, but not with for(())
         if (pl->prev->type == 's') goto flush;
@@ -3228,7 +3229,7 @@ static int parse_line(char *line, struct sh_pipeline **ppl,
 
     // Expecting NULL means any statement (don't care which).
     if (!ex && *expect) {
-      if (pl->prev->type == 'f' && !end && memcmp(s, "((", 2)) goto flush;
+      if (pl->prev->type == 'f' && !end && xmemcmp(s, "((", 2)) goto flush;
       free(dlist_lpop(expect));
     }
 
