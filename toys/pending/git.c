@@ -76,10 +76,10 @@ GLOBALS(
 
 //git index format v2 described at https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L266
 struct IndexV2 {
-  char header[8];// Git 4 byte magic number and 4 byte version number 
+  char header[8];// Git 4 byte magic number and 4 byte version number
   unsigned fot[256];//A fan-out table
   char (*sha1)[20];//Table of sorted object names(SHA1 hashes)
-  unsigned *crc, *offset;//Table of 4-bit CRC32 values and object offsets in pack file 
+  unsigned *crc, *offset;//Table of 4-bit CRC32 values and object offsets in pack file
   long long *offset64; //8 byte offests -- not supported yet
   char packsha1[20], idxsha1[20];//SHA1 hash of pack file and SHA1 hash of index file
 };
@@ -117,15 +117,6 @@ static void read_index(struct IndexV2 *i)
   }
 }
 
-//static char *l; //for saving the insertion position
-
-//int cmp (const void *i, void *j)
-//{
-//  l = j; //inject inseration position in compare to binary search
-//  return strncmp(i, j, 20);
-//}
-
-//inspired by musl bsearch http://git.musl-libc.org/cgit/musl/tree/src/stdlib/bsearch.c
 long bsearchpos(const void *k, const void *a, size_t h, size_t w)
 {
   long l = 0, m = 0, r = 0;
