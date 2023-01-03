@@ -70,20 +70,21 @@ config GITCHECKOUT
 #include "zlib.h"  //ToDo: borrowed from libz to not refactor deflate.c
 
 GLOBALS(
-  char *url, *name;
-  struct IndexV2 *i;
+  char *url, *name; //git repo remote url and init directory name
+  struct IndexV2 *i; //git creates a index for each pack file, git clone just needs one index for the received pack file
 )
 
-//git index format v2 https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L266
+//git index format v2 described at https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L266
 struct IndexV2 {
-  char header[8];
-  unsigned fot[256];
-  char (*sha1)[20];
-  unsigned *crc, *offset;
-  long long *offset64; //not supported yet
-  char packsha1[20], idxsha1[20];
+  char header[8];// Git 4 byte magic number and 4 byte version number 
+  unsigned fot[256];//A fan-out table
+  char (*sha1)[20];//Table of sorted object names(SHA1 hashes)
+  unsigned *crc, *offset;//Table of 4-bit CRC32 values and object offsets in pack file 
+  long long *offset64; //8 byte offests -- not supported yet
+  char packsha1[20], idxsha1[20];//SHA1 hash of pack file and SHA1 hash of index file
 };
 
+//TODO:This function is not used before git clone persists an index V2
 static void read_index(struct IndexV2 *i)
 {
   FILE *fpi;
@@ -116,21 +117,20 @@ static void read_index(struct IndexV2 *i)
   }
 }
 
-static char *l; //for saving the insertion position
+//static char *l; //for saving the insertion position
 
-int cmp (const void *i, void *j)
-{
-  l = j; //inject inseration position in compare to binary search
-  return strncmp(i, j, 20);
-}
+//int cmp (const void *i, void *j)
+//{
+//  l = j; //inject inseration position in compare to binary search
+//  return strncmp(i, j, 20);
+//}
 
-//inspired by musl bsearch
+//inspired by musl bsearch http://git.musl-libc.org/cgit/musl/tree/src/stdlib/bsearch.c
 long bsearchpos(const void *k, const void *a, size_t h, size_t w)
 {
   long l = 0, m = 0, r = 0;
 
   if (!h) return 0;
-  //printf("Array: %p Key:%p\n", a, k);
   while (h>0) {
     m = l+(h/2);
     r = strncmp(k, a+(m*w), 20);
@@ -142,6 +142,7 @@ long bsearchpos(const void *k, const void *a, size_t h, size_t w)
   return m += (r>0) ? 1 : 0;
 }
 
+//find offset position in packfile for given SHA1 hash
 long get_index(struct IndexV2 *i, char *h)
 {
   long pos = bsearchpos(h, i->sha1[0], i->fot[255], 20);
@@ -150,8 +151,7 @@ long get_index(struct IndexV2 *i, char *h)
 
 //https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L35
 //https://yqintl.alicdn.com/eef7fe4f22cc97912cee011c99d3fe5821ae9e88.png
-
-//read type and lenght of an packed object
+//read type and length of an packed object at a given offset
 unsigned long long unpack(FILE *fpp, int *type, long *offset)
 {
   int bitshift= 4;
@@ -248,6 +248,7 @@ int inf(FILE *source, char *dest) //modified signature to ease use
 }
 
 //https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L72
+//Set object to the index after adding prefix, calculating the hash and finding the position
 long set_object(struct IndexV2 *idx, int type, char *o, unsigned count,
   unsigned ofs)
 {
@@ -258,7 +259,7 @@ long set_object(struct IndexV2 *idx, int type, char *o, unsigned count,
   long pos = 0;
 
   printf("Alloc... ");
-  if (h == NULL) error_exit("Hash malloc failed in set_object");
+  //append a object prefix based on its type (not included in packfile)
   switch(type) {
     case 1: p = xmprintf("commit %d", count); break; //count is used as o can contain \0 in the  string
     case 2: p = xmprintf("tree %d", count); break;
@@ -284,7 +285,7 @@ long set_object(struct IndexV2 *idx, int type, char *o, unsigned count,
   printf("Resize sha1 array..idx->fot[255]%d\n", idx->fot[255]); //Memory management for insert
   //TODO:Could be also a single malloc at gitfetch based on the nbr of objects in pack
 
-  //Did not fix the TODO yet, because set_object could be reused for other command im mem mgmt is here
+  //Did not fix the TODO yet, because set_object could be reused for other commands adding single objects to the index
   idx->sha1 = realloc(idx->sha1, (idx->fot[255]+1)*20*sizeof(char));
   printf("Mem copy sha1 array..sizeof(idx->sha1)%ld\n", sizeof(idx->sha1));
   memmove(&idx->sha1[pos+1], &idx->sha1[pos], (idx->fot[255]-pos)*20*sizeof(char));
@@ -303,11 +304,12 @@ long set_object(struct IndexV2 *idx, int type, char *o, unsigned count,
   return ofs;
 }
 
+//init a git repository in a given directory name
 static void gitinit(char *name)
 {
-  //For git clone actually only refs and object/pack needed
+  //For git clone actually only refs and object/pack are needed
   if (mkdir(name, 0755)!=0){
-    //I create the other for a git compliant folder structure
+    //I create the others for a git compliant folder structure
     mkdir(xmprintf("%s%s", name, "/.git"), 0755);
     mkdir(xmprintf("%s%s", name, "/.git/objects"), 0755);
     mkdir(xmprintf("%s%s", name, "/.git/objects/pack"), 0755);
@@ -325,6 +327,7 @@ static void gitinit(char *name)
   }
 }
 
+//set basic configuration and add remote URL
 static void gitremote(char *url)
 {
   if (access(".git/config", F_OK)!=0) {
@@ -346,6 +349,7 @@ static void gitremote(char *url)
 
 // this is most likely still buggy and create a late observable heap overflow larger deltafied repos
 // https://stackoverflow.com/a/14303988
+// resolve deltafied objects in the pack file, see URL in comments for further explainations
 char *resolve_delta(char *s, char *d, long dsize, unsigned *count)
 {
   long pos = 0, bitshift = 0;
@@ -395,18 +399,14 @@ char *resolve_delta(char *s, char *d, long dsize, unsigned *count)
       printf("Pos\n");
     } else {
       //https://github.com/git/git/blob/master/Documentation/gitformat-pack.txt#L153
-//    printf("Case 0\n");
+    printf("Case 0\n");
       size = d[pos++]; //incrememt
-//    printf("Memcopy %d\n", size);
       memcpy(t+*count, d+pos, size);
-//    printf("Pos %ld\n", pos);
       pos += size;
     }
     *count += size;
 
     printf("Target: \n");
-//  for (int k = 0; k<*count; k++) { printf("%c", t[k]); }
-//  printf("\n");
   }
   free(s);
   free(d);
@@ -414,6 +414,7 @@ char *resolve_delta(char *s, char *d, long dsize, unsigned *count)
   return t;
 }
 
+//unpack object (,resolve deltafied objects recursively) and return the unpacked object
 char *unpack_object(FILE *fpp, struct IndexV2 *i, long offset, unsigned *count,
   int *type)
 {
@@ -523,6 +524,8 @@ void write_children(char *hash, char *path, FILE *fpp) {
   printf("Child: %s done\n", path);
 }
 
+//fetches the meta data from the remote repository,requests a pack file for the remote master head,
+//unpacks all objects and set objects to the index
 static void gitfetch(void)
 {
   printf("refs\n");
@@ -549,6 +552,7 @@ static void gitfetch(void)
   strcpy(h,&h[4]);
   h[40]='\0';
   printf("Master HEAD hash: %s\n",h);
+  //TODO: Persist hash to /refs/master/HEAD
   printf("pack\n");
   if ((pid = fork())==0) execv("toybox", (char *[]){"toybox", "wget", "-O", ".git/objects/pack/temp.pack", "-p", xmprintf("$'0032want %s\n00000009done\n'", h), "https://github.com/landley/toybox/git-upload-pack", (char*)0}); //TODO: does not skip 0008NAK  printf("init\n");
   perror("execv\n");
@@ -587,6 +591,8 @@ static void gitfetch(void)
   fclose(fpp);
 }
 
+//Checkout HEAD to the  working directory by recursing write_children
+//TODO: Replase static hashes with hash read from refs/<branch>/head
 static void gitcheckout(char *name)
 {
 
@@ -655,7 +661,7 @@ void gitcheckout_main(void)
   gitcheckout(xstrdup(toys.optargs[0]));
 }
 
-
+// Command to wget refs and pack file using toybox wget to place them manually into the repository
 // ./toybox wget -O - -d https://github.com/landley/toybox/info/refs?service=git-upload-pack | less
 
 // ./toybox wget -O pack.dat -d -p $'0032want 8cf1722f0fde510ea81d13b31bde1e48917a0306\n00000009done\n' https://github.com/landley/toybox/git-upload-pack
